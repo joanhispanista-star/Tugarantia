@@ -251,8 +251,23 @@
   }
 
   /* ------------------------------------------------ cuentas de un crédito */
+  /* `capitalActual` y `cicloActual` son EL RESUMEN DE HOY, y nada más que eso.
+     Sirven para pintar la pantalla del ciclo abierto. NINGUNA pregunta sobre el
+     pasado se contesta con ellos: para eso están las funciones de la sección
+     "LA LÍNEA DE TIEMPO", más abajo. Ver el comentario grande del 5-ago-2026. */
   function capitalActual(p) {
     return Math.max(0, num(p.capital) - lista(p.abonosCapital).reduce(function (s, a) { return s + num(a.monto); }, 0));
+  }
+
+  /* Los días calendario del MOTOR, no los de acá arriba: `diasEntre` de este
+     archivo hace Math.max(1,…) para que la E.A. no divida por cero, y una
+     cuenta de plata que use eso cobra un día que no existió. */
+  function diasCal(desde, hasta) {
+    try { return M.diasEntre(M.aFechaLocal(desde), M.aFechaLocal(hasta)); }
+    catch (e) { return 0; }
+  }
+  function diaAntes(f) {
+    try { return M.iso(M.sumarDias(M.aFechaLocal(f), -1)); } catch (e) { return ''; }
   }
 
   /* ------------------------------------------------------ plan de pagos --
@@ -273,15 +288,24 @@
     var pend = cuotasPlan(p).filter(function (c) { return !c.pagado; });
     return pend.length ? pend[0] : null;
   }
-  /* El capital que se cobra en ESTE ciclo. Sin plan es todo el capital vigente;
-     con plan es el de la cuota, que es también la base del 1% diario de mora. */
+  /* El capital que TODAVÍA SE DEBE en este ciclo. Sin plan es el capital
+     vigente; con plan es el de la cuota. Es lo que falta por entregar, así que
+     acá sí manda el presente: al socio no se le cobra capital que ya devolvió.
+     Lo que NO sale de acá es cuánto se CAUSÓ (ver K y moraDelCiclo). */
   function capitalDelCiclo(p) {
     var c = cuotaPlanActual(p);
     return c ? num(c.capital) : capitalActual(p);
   }
+  /* El costo del ciclo. Se CAUSÓ el día que el ciclo empezó, sobre el capital
+     que se debía ESE día, y por eso no puede salir de `capitalActual`: un abono
+     posterior lo borraba hacia atrás (200.000 a 20 días, abono de 199.999 → el
+     costo de 40.000 quedaba en 0,2). Se reconstruye del historial; lo que el
+     Panel haya congelado en el abono sirve de piso y nunca de techo. */
   function K(p) {
     var c = cuotaPlanActual(p);
-    return c ? num(c.costo) : capitalActual(p) * num(p.costoPct) / 100;
+    if (c) return num(c.costo);
+    return Math.max(capitalBaseDelCiclo(p) * num(p && p.costoPct) / 100,
+                    causadoDelCiclo(p).costo);
   }
   /* El porcentaje que rige ESTE ciclo, decimal, para que la etiqueta que ve el
      socio ("Costo (5%)") salga del mismo lado que el número y no de una
@@ -294,6 +318,247 @@
     var pct = num(p && p.costoPct);
     return pct > 0 ? pct / 100 : M.TASA_CREDITO;
   }
+
+  /* ==========================================================================
+   * LA LÍNEA DE TIEMPO DE UN CRÉDITO — 5-ago-2026.
+   *
+   * LA CAUSA DE SEIS RONDAS DE PARCHES, DICHA DE UNA VEZ:
+   *
+   *     las cuentas preguntaban por el PASADO y buscaban la respuesta en el
+   *     PRESENTE.
+   *
+   *   · `estabaVencido(p, instante)` quiere saber si el crédito estaba en mora
+   *     en una fecha pasada, y lo resolvía leyendo `p.cicloActual` — un campo
+   *     que la prórroga y el plan de pagos MUEVEN AL FUTURO. Registrar una
+   *     prórroga hoy hacía que `estabaVencido(p,'2026-06-01')` pasara de true a
+   *     false: la mora se borraba hacia atrás, el instante desaparecía de la
+   *     lista del nivel, y DEJAR la prórroga terminaba rindiendo 256.150 más de
+   *     cupo que devolver el capital. La misma operación grababa `aTiempo:false`
+   *     para la garantía y "no hubo mora" para el nivel, el mismo día y sobre el
+   *     mismo crédito.
+   *   · `K(p)` quiere saber cuánto costo se había CAUSADO, y lo resolvía leyendo
+   *     `capitalActual(p)` — un campo que el abono BAJA. Abonar el capital menos
+   *     un peso dejaba el costo del ciclo en cero.
+   *
+   * Un campo que se sobrescribe no puede contestar una pregunta sobre el
+   * pasado. Da igual cuántos parches se le pongan encima: siempre va a haber
+   * otra pregunta histórica que falle. Así que las preguntas del pasado se
+   * contestan RECORRIENDO LOS HECHOS, que ya estaban todos guardados:
+   *
+   *     p.fechaDesembolso · p.prorrogas[] (fecha, ciclo viejo, ciclo nuevo)
+   *     p.planPagos.entrada y sus cuotas · p.abonosCapital[] (fecha y monto)
+   *     p.fechaPagado · p.cicloPago
+   *
+   * `cicloActual` y `capitalActual` quedan en lo que de verdad son: el resumen
+   * de HOY, cómodo para pintar pantallas. Dejan de ser la fuente de la verdad
+   * histórica.
+   *
+   * EL CONTRATO, para el que venga detrás: si tu pregunta lleva una fecha
+   * adentro, la contesta una función de esta sección. No mires `cicloActual` ni
+   * `capitalActual` para nada histórico.
+   * ========================================================================*/
+
+  /* Los cambios de corte que DE VERDAD ocurrieron, cada uno con el día en que
+     ocurrió. Salen de los hechos: cada prórroga (de qué corte a cuál, y qué día
+     se registró), el día en que se pactó el plan y cada cuota del plan que se
+     fue pagando. */
+  function cambiosDeCorte(p) {
+    var cambios = [];
+    lista(p && p.prorrogas).forEach(function (pr) {
+      cambios.push({ desde: fechaFin(pr && pr.fecha),
+                     de: fechaFin(pr && pr.ciclo),
+                     a: fechaFin(pr && pr.nuevoCiclo) });
+    });
+    var e = entradaPlan(p), cuotas = cuotasPlan(p);
+    if (cuotas.length) {
+      cambios.push({ desde: fechaFin((e && e.fecha) || (p.planPagos && p.planPagos.creado)),
+                     de: fechaFin(e && e.ciclo),
+                     a: fechaFin(cuotas[0] && cuotas[0].fecha) });
+      for (var i = 0; i < cuotas.length - 1; i++) {
+        if (!cuotas[i].pagado) continue;
+        cambios.push({ desde: fechaFin(cuotas[i].fechaPagado) || fechaFin(cuotas[i].fecha),
+                       de: fechaFin(cuotas[i].fecha),
+                       a: fechaFin(cuotas[i + 1] && cuotas[i + 1].fecha) });
+      }
+    }
+    return cambios.filter(function (c) { return c.desde || c.de || c.a; })
+      .sort(function (x, y) { return String(x.desde).localeCompare(String(y.desde)); });
+  }
+
+  /* El corte ORIGINAL: el que le tocó al desembolsarse, antes de que nada lo
+     moviera. La primera prórroga guarda de qué corte salió (`ciclo`), y el plan
+     también; si no hubo ninguno de los dos, el corte de hoy nunca se movió. */
+  function corteOriginal(p) {
+    var cambios = cambiosDeCorte(p);
+    for (var i = 0; i < cambios.length; i++) if (cambios[i].de) return cambios[i].de;
+    return fechaFin(p && p.cicloPago) || fechaFin(p && p.cicloActual) ||
+           fechaFin(p && p.fechaPago) || '';
+  }
+
+  /**
+   * TODOS los cortes que este crédito tuvo, en orden, cada uno con el día DESDE
+   * el que rigió. El primero rige desde siempre (`desde:''`).
+   *
+   * @returns {Array<{desde:string, corte:string}>}
+   */
+  function cortesDelCredito(p) {
+    var cambios = cambiosDeCorte(p);
+    var origen = corteOriginal(p);
+    var hoyCorte = fechaFin(p && p.cicloActual);
+    var linea = origen ? [{ desde: '', corte: origen }] : [];
+    var actual = origen;
+    cambios.forEach(function (c, i) {
+      /* Una prórroga vieja puede no haber guardado a qué corte pasó. El dato
+         igual está: es de dónde salió el cambio siguiente, y si es el último,
+         el corte de hoy. */
+      var destino = c.a || (cambios[i + 1] && cambios[i + 1].de) || hoyCorte || '';
+      if (!destino || destino === actual) return;
+      linea.push({ desde: c.desde || destino, corte: destino });
+      actual = destino;
+    });
+    if (hoyCorte && hoyCorte !== actual) {
+      // El resumen de hoy no cuadra con lo reconstruido: manda el resumen, pero
+      // solo de la última fecha conocida en adelante. El pasado no se reescribe.
+      var ultima = cambios.length ? cambios[cambios.length - 1].desde : '';
+      linea.push({ desde: ultima || '', corte: hoyCorte });
+    }
+    return linea.length ? linea : [{ desde: '', corte: '' }];
+  }
+
+  /** El corte que REGÍA en una fecha dada. Nada de lo que pase después lo mueve. */
+  function corteVigenteEn(p, instante) {
+    var h = fechaFin(instante), linea = cortesDelCredito(p), corte = '';
+    for (var i = 0; i < linea.length; i++) {
+      if (!linea[i].desde || !h || linea[i].desde <= h) corte = linea[i].corte;
+      else break;
+    }
+    return corte;
+  }
+
+  /** El día en que empezó el ciclo ABIERTO: el desembolso, o el del último
+     cambio de corte. De acá sale sobre qué capital se causó el costo de hoy. */
+  function inicioDelCiclo(p) {
+    var linea = cortesDelCredito(p);
+    var d = linea.length ? linea[linea.length - 1].desde : '';
+    return d || fechaFin(p && p.fechaDesembolso) || '';
+  }
+
+  /** El capital que se debía en una fecha: el pedido menos los abonos hasta ese
+     día. Un abono sin fecha se cuenta siempre (es un hecho de fecha perdida, y
+     descontarlo es lo que ya hace `capitalActual`). */
+  function capitalVigenteEn(p, fecha) {
+    var hasta = fechaFin(fecha);
+    var usado = lista(p && p.abonosCapital).reduce(function (s, a) {
+      var f = fechaFin(a && a.fecha);
+      return (!f || !hasta || f <= hasta) ? s + num(a && a.monto) : s;
+    }, 0);
+    return Math.max(0, num(p && p.capital) - usado);
+  }
+
+  /** El capital sobre el que se causó el costo del ciclo abierto. */
+  function capitalBaseDelCiclo(p) {
+    return capitalVigenteEn(p, inicioDelCiclo(p));
+  }
+
+  /* Lo que el Panel congeló en el abono cuando lo registró (costo del ciclo y
+     recargo corrido hasta ese día). Vale solo para el corte al que pertenece:
+     cuando el ciclo se mueve, ese congelado ya se cobró con el corte viejo.
+     Los abonos viejos no traen estos campos y devuelven `tiene:false`. */
+  function causadoDelCiclo(p) {
+    var ciclo = fechaFin(p && p.cicloActual);
+    var c = { tiene: false, costo: 0, mora: 0, dias: 0, ciclo: ciclo };
+    lista(p && p.abonosCapital).forEach(function (a) {
+      if (!a || !ciclo || fechaFin(a.ciclo) !== ciclo) return;
+      if (a.costoCausado == null && a.moraCausada == null) return;
+      c.tiene = true;
+      c.costo = Math.max(c.costo, num(a.costoCausado));
+      c.mora = Math.max(c.mora, num(a.moraCausada));
+      c.dias = Math.max(c.dias, num(a.diasMoraCausada));
+    });
+    return c;
+  }
+
+  /**
+   * El recargo del 1% diario del ciclo abierto a una fecha, RECORRIDO DÍA A DÍA
+   * sobre el capital que se debía cada día: los tramos anteriores a un abono
+   * corren sobre el capital que HABÍA, y los posteriores sobre el que QUEDÓ.
+   * Es justo en las dos direcciones — no se borra lo corrido, y tampoco se le
+   * cobra mora al socio sobre plata que ya devolvió.
+   */
+  function moraDelCiclo(p, hasta) {
+    if (!p || p.pagado) return 0;
+    var corte = corteDelCredito(p), fin = fechaFin(hasta) || hoyISO();
+    if (!corte || fin <= corte) return 0;
+    var cuota = cuotaPlanActual(p);
+    if (cuota) return M.recargoPorMora(num(cuota.capital), diasCal(corte, fin));
+
+    var base = capitalVigenteEn(p, corte), cursor = corte, total = 0;
+    lista(p.abonosCapital).map(function (a) {
+      return { f: fechaFin(a && a.fecha), m: num(a && a.monto) };
+    }).filter(function (a) {
+      return a.f && a.f > corte && a.f <= fin;
+    }).sort(function (x, y) {
+      return x.f.localeCompare(y.f);
+    }).forEach(function (a) {
+      total += M.recargoPorMora(base, diasCal(cursor, a.f));
+      base = Math.max(0, base - a.m);
+      cursor = a.f;
+    });
+    total += M.recargoPorMora(base, diasCal(cursor, fin));
+
+    /* Y lo que el Panel congeló manda como PISO: si un día se guardó un recargo
+       mayor del que sale del recorrido, lo ya causado no se baja. */
+    var c = causadoDelCiclo(p);
+    if (c.tiene) {
+      total = Math.max(total, M.recargoPorMoraDesde(c.mora, c.dias, capitalDelCiclo(p),
+                                                    diasCal(corte, fin)));
+    }
+    return total;
+  }
+
+  /**
+   * LA CUENTA DEL CICLO, EN UN SOLO SITIO. El Panel y la app preguntan ESTO;
+   * ninguno de los dos vuelve a sumar capital + costo + recargo por su cuenta,
+   * que es lo que los tenía diciendo 80.001 y "$1" del mismo crédito el mismo
+   * día.
+   *
+   * @param {object} p       el crédito del Panel
+   * @param {string} [fecha] el día en que se cobra; por defecto hoy
+   * @returns {{corte, fecha, capital, costo, tasa, dias_mora, recargo_mora,
+   *            pago_a_tiempo, costo_total_pagado, total_a_pagar,
+   *            garantia_generada, causado:{costo,mora,dias}}}
+   */
+  function liquidarCiclo(p, fecha) {
+    var f = fechaFin(fecha) || hoyISO();
+    var corte = corteDelCredito(p);
+    if (!p || p.pagado) {
+      return { corte: corte || null, fecha: f, capital: 0, costo: 0, tasa: tasaDelCiclo(p),
+        dias_mora: 0, recargo_mora: 0, pago_a_tiempo: true, costo_total_pagado: 0,
+        total_a_pagar: 0, garantia_generada: 0, causado: { costo: 0, mora: 0, dias: 0 } };
+    }
+    var capital = capitalDelCiclo(p);
+    var costo = Math.round(K(p));
+    var mora = Math.round(moraDelCiclo(p, f));
+    var dias = (corte && f > corte) ? diasCal(corte, f) : 0;
+    return {
+      corte: corte || null,
+      fecha: f,
+      capital: capital,
+      costo: costo,
+      tasa: tasaDelCiclo(p),
+      dias_mora: dias,
+      recargo_mora: mora,
+      pago_a_tiempo: dias === 0,
+      costo_total_pagado: costo + mora,
+      total_a_pagar: capital + costo + mora,
+      garantia_generada: M.acumularGarantia(costo + mora, dias === 0),
+      /* Lo ya causado a esta fecha, para que quien quiera liquidar en OTRO día
+         se lo pase a MotorReglas.liquidarCredito como {recargoCausado,
+         diasCausados} y no vuelva a recalcular el 1% desde cero. */
+      causado: { costo: costo, mora: mora, dias: dias }
+    };
+  }
+
   /* Lo cobrado por las cuotas del plan que ya se pagaron (costo + recargo), y
      la entrada: lo que se cobró el día que se pactó (costo del ciclo y el
      recargo ya causado, que el plan tampoco borra). */
@@ -418,21 +683,56 @@
      SIN MORA valen cero — que es lo que dice el nombre del contador. Lo que ya
      había ganado antes de atrasarse se lo queda igual: está en el máximo. */
 
-  /* El corte que le rige a un crédito. Con plan de pagos el Panel deja
-     `cicloActual` apuntando a la cuota vigente, así que sirve para los dos. */
+  /* El corte que le rige HOY a un crédito. Es el resumen del presente y solo
+     sirve para el presente: para cualquier fecha pasada se pregunta
+     corteVigenteEn(p, instante), que recorre la línea de tiempo. */
   function corteDelCredito(p) {
     return fechaFin(p && p.cicloActual) || fechaFin(p && p.cicloPago) ||
            fechaFin(p && p.fechaPago) || '';
   }
-  /* ¿Estaba ESTE crédito vencido y sin pagar en la fecha `hasta`? En la fecha
-     misma del corte todavía no: ese es el día de pagar, no el primero de mora.
-     Un crédito pagado sin fecha de pago no se acusa: no hay con qué. */
+  /**
+   * ¿Estaba ESTE crédito vencido y sin pagar en la fecha `hasta`?
+   *
+   * CONTRATO: la respuesta NO CAMBIA NUNCA por algo que pase después. Una
+   * prórroga registrada hoy mueve el corte de hoy en adelante y ni toca lo que
+   * pasó en junio. Antes leía `p.cicloActual` y por eso la prórroga borraba la
+   * mora hacia atrás — el agujero por el que dejar la deuda rendía más que
+   * pagarla.
+   *
+   * En la fecha misma del corte todavía no hay mora: ese es el día de pagar, no
+   * el primero de atraso. Un crédito pagado sin fecha de pago no se acusa.
+   */
   function estabaVencido(p, hasta) {
-    var corte = corteDelCredito(p);
-    if (!corte || !hasta || hasta <= corte) return false;
+    var h = fechaFin(hasta);
+    if (!h) return false;
+    var corte = corteVigenteEn(p, h);
+    if (!corte || h <= corte) return false;
     if (!p.pagado) return true;
     var fp = fechaFin(p.fechaPagado);
-    return !!fp && fp > hasta;
+    return !!fp && fp > h;
+  }
+  /**
+   * El ÚLTIMO día, hasta `hasta`, en que este crédito estuvo vencido y sin
+   * pagar. '' si nunca lo estuvo.
+   *
+   * Es lo que le faltaba a `meses_sin_mora` para significar lo que dice su
+   * nombre: se medía desde el último atraso CURADO POR UN PAGO, así que una
+   * mora de cuatro meses tapada con una prórroga no reseteaba nada y los meses
+   * de atraso empujaban al socio hacia platino. Una mora termina el día en que
+   * el corte se mueve o el día en que se paga: los dos son hechos guardados.
+   */
+  function ultimoDiaDeMora(p, hasta) {
+    var h = fechaFin(hasta);
+    if (!h) return '';
+    var cand = [h];
+    cortesDelCredito(p).forEach(function (t) { if (t.desde) cand.push(diaAntes(t.desde)); });
+    if (p && p.pagado) {
+      var fp = fechaFin(p.fechaPagado);
+      if (fp) cand.push(diaAntes(fp));
+    }
+    cand = cand.filter(function (d) { return d && d <= h; }).sort();
+    for (var i = cand.length - 1; i >= 0; i--) if (estabaVencido(p, cand[i])) return cand[i];
+    return '';
   }
   /* Los tres contadores del nivel TAL COMO ESTABAN en la fecha `hasta`.
      `ps` son todos los créditos del socio ordenados por desembolso. */
@@ -443,17 +743,26 @@
     var aTiempo = pagados.filter(esPuntualParaNivel).length;
     var racha = 0;
     for (var i = pagados.length - 1; i >= 0; i--) { if (esPuntualParaNivel(pagados[i])) racha++; else break; }
-    var tarde = pagados.filter(function (p) { return !esPuntualParaNivel(p); })
-      .map(function (p) { return fechaFin(p.fechaPagado); }).filter(Boolean).sort();
-    var desde = tarde.length ? tarde[tarde.length - 1]
+    /* Desde cuándo lleva sin mora. Cuentan las dos formas de haber estado en
+       mora, no solo una: haber PAGADO tarde, y haber ESTADO atrasado aunque el
+       atraso se haya tapado después con una prórroga o con un plan de pagos.
+       Sin la segunda, dejar la deuda cuatro meses y prorrogar la dejaba sin
+       huella y el contador seguía corriendo por encima de la mora. */
+    var hitos = pagados.filter(function (p) { return !esPuntualParaNivel(p); })
+      .map(function (p) { return fechaFin(p.fechaPagado); })
+      .concat(ps.map(function (p) { return ultimoDiaDeMora(p, hasta); }))
+      .filter(Boolean).sort();
+    var desde = hitos.length ? hitos[hitos.length - 1]
               : (ps[0] ? (fechaFin(ps[0].fechaDesembolso) || hasta) : hasta);
     var enMora = ps.some(function (p) { return estabaVencido(p, hasta); });
     var meses = enMora ? 0 : Math.max(0, Math.floor(diasEntre(desde, hasta) / 30));
     return { a_tiempo: aTiempo, racha: racha, meses_sin_mora: meses };
   }
   /* Los instantes en que la cuenta del socio pudo cambiar de nivel: cada pago
-     (sube la racha, se cura un atraso), cada corte (hasta ahí llegó limpio, y
-     desde ahí empieza la mora del que no pagó) y HOY. Nunca el futuro. */
+     (sube la racha, se cura un atraso), CADA CORTE QUE TUVO CADA CRÉDITO —no
+     solo el de hoy: el corte viejo que la prórroga dejó atrás es justamente el
+     que abrió la mora— cada día en que un corte se movió, y HOY. Nunca el
+     futuro. */
   function instantesDeNivel(ps, hoy) {
     var vistos = {}, fechas = [];
     function agregar(f) {
@@ -461,6 +770,7 @@
     }
     ps.forEach(function (p) {
       if (p.pagado) agregar(fechaFin(p.fechaPagado));
+      cortesDelCredito(p).forEach(function (t) { agregar(t.corte); agregar(t.desde); });
       agregar(corteDelCredito(p));
     });
     agregar(hoy);
@@ -708,10 +1018,17 @@
          un crédito de 600.000 terminado con plan de pagos aparecía en el
          historial del socio como un crédito de $0. */
       creditos: ps.slice().reverse().map(function (p) {
+        /* 5-ago-2026 — LA MORA VIAJA HECHA, NO PARA QUE LA APP LA REHAGA.
+           La app sumaba capital + costo + 1% × capital por su cuenta, y con un
+           abono de por medio le daba otra cosa que al Panel: 200.000 a 20 días
+           con 199.999 abonados, el Panel cobraba 80.001 y la app decía "Total
+           para saldar hoy $1". Ahora la cuenta la hace liquidarCiclo, una sola
+           vez y en un solo sitio, y acá viaja YA HECHA. */
+        var liq = liquidarCiclo(p, hoy);
         return {
           codigo: codCredito(p),
-          capital: p.pagado ? num(p.capital) : capitalDelCiclo(p),
-          costo: Math.round(p.pagado ? gananciaCobrada(p) : K(p)),
+          capital: p.pagado ? num(p.capital) : liq.capital,
+          costo: Math.round(p.pagado ? gananciaCobrada(p) : liq.costo),
           saldo_capital: p.pagado ? 0 : capitalActual(p),
           tasa: tasaDelCiclo(p),
           desembolso: p.fechaDesembolso || null, corte: p.cicloActual || null,
@@ -721,7 +1038,15 @@
           prorrogas: lista(p.prorrogas).length,
           // Solo el conteo: al socio le alcanza con ver que va por la cuota 2 de 3.
           plan_cuotas: cuotasPlan(p).length,
-          plan_cuotas_pagadas: cuotasPlan(p).filter(function (c) { return !!c.pagado; }).length
+          plan_cuotas_pagadas: cuotasPlan(p).filter(function (c) { return !!c.pagado; }).length,
+          /* Lo que la app tiene que PINTAR, sin recalcular nada: el recargo de
+             hoy, los días que lo causaron y el total para saldar. Y `causado`
+             para el día que quiera liquidar en otra fecha: se lo pasa a
+             MotorReglas.liquidarCredito como {recargoCausado, diasCausados}. */
+          dias_mora: liq.dias_mora,
+          mora: liq.recargo_mora,
+          total_hoy: liq.total_a_pagar,
+          causado: liq.causado
         };
       }),
       respaldados: resps.map(function (r) {
@@ -776,6 +1101,18 @@
     esPuntual: esPuntual,
     esPuntualParaNivel: esPuntualParaNivel,
     corteDelCredito: corteDelCredito,
+    // La línea de tiempo: TODA pregunta con una fecha adentro sale de acá.
+    cambiosDeCorte: cambiosDeCorte,
+    corteOriginal: corteOriginal,
+    cortesDelCredito: cortesDelCredito,
+    corteVigenteEn: corteVigenteEn,
+    inicioDelCiclo: inicioDelCiclo,
+    capitalVigenteEn: capitalVigenteEn,
+    capitalBaseDelCiclo: capitalBaseDelCiclo,
+    causadoDelCiclo: causadoDelCiclo,
+    moraDelCiclo: moraDelCiclo,
+    liquidarCiclo: liquidarCiclo,
+    ultimoDiaDeMora: ultimoDiaDeMora,
     estabaVencido: estabaVencido,
     contadoresDeNivel: contadoresDeNivel,
     instantesDeNivel: instantesDeNivel,

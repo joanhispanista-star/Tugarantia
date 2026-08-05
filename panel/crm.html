@@ -745,43 +745,42 @@ function fmtEA(ea){ return ea>=100000?'≥100.000% (extrema)':ea.toLocaleString(
    y solo tuyo, así que se queda en este archivo. */
 function capitalActual(p){ return PUENTE.capitalActual(p); }
 /* =========================================================================
-   4-ago-2026 — LO CAUSADO YA ESTÁ CAUSADO.
+   5-ago-2026 — LA CUENTA DEL CICLO SE PREGUNTA, NO SE COPIA.
 
-   El costo de la quincena (PUENTE.K) y el recargo del 1% diario se apoyan los
-   dos en el capital VIGENTE. Un abono a capital baja ese capital, y con él
-   bajaban las dos cuentas HACIA ATRÁS. Medido: 200.000 a 20 días de mora, costo
-   40.000 y recargo 40.000; abonando 199.999 el capital queda en 1 peso, el
-   costo en 1 × 20% = 0,2 → 0 y el recargo en 1% × 1 × 20 = 0,2 → 0. El crédito
-   seguía abierto y ya no debía nada: Joan pasaba de cobrar 80.000 de ganancia a
-   cobrar CERO. Y el aviso de la propia pantalla enseñaba la jugada.
+   Lo que había acá era la SEGUNDA copia de una cuenta que el puente ya sabe
+   hacer: causadoDelCiclo() recorría los abonos por su cuenta, moraPorDias()
+   multiplicaba el 1% diario por su cuenta y liqCredito() armaba el paquete por
+   su cuenta. Mientras la app del socio leía la del puente y el Panel la suya,
+   el mismo crédito el mismo día valía dos cosas distintas —la enfermedad de
+   este proyecto, otra vez, y esta vez sobre la plata que se cobra.
 
-   El arreglo no es prohibir el abono, es que el abono CONGELE lo ya causado.
-   abonarCapital graba en el movimiento el costo del ciclo y el recargo corrido
-   hasta ese día, más a qué corte pertenecen. De ahí en adelante:
-     · el costo del ciclo nunca baja de lo que ya estaba causado;
-     · el recargo es el congelado MÁS el 1% diario sobre lo que QUEDÓ, contado
-       desde el día del abono (MotorReglas.recargoPorMoraDesde). Justo en las
-       dos direcciones: no se borra lo corrido, y tampoco se le cobra mora al
-       socio sobre plata que ya devolvió.
-   Cuando el ciclo se mueve —prórroga o plan de pagos— el congelado deja de
-   aplicar solo, porque pertenece al corte viejo, que ya se cobró con él.
+   Ahora TODO sale de PUENTE.liquidarCiclo(p, fecha), que contesta recorriendo
+   los HECHOS guardados (el corte que regía, el capital que había cada día, lo
+   que cada abono congeló). Ver el comentario grande "LA LÍNEA DE TIEMPO DE UN
+   CRÉDITO" en ../app/puente.js: ahí está la regla y ahí se cambia.
 
-   Los abonos VIEJOS no traen estos campos y se leen exactamente como hasta
-   ayer: esto no toca hacia atrás ni un peso de la cartera real de Joan.
+   LO QUE ESTO CORRIGE, MEDIDO — 200.000 a 20 días de mora (costo 40.000,
+   recargo 40.000):
+     · abonando 199.999, el Panel cobraba 1 peso; ahora cobra 80.001.
+     · abonando la mitad, cobraba 140.000; ahora 180.000, porque los 10 días
+       que corrieron sobre los 200.000 no se borran con el abono.
+   Y para los abonos VIEJOS (los que no traen costoCausado/moraCausada) el
+   recargo ya no se recalcula sobre el saldo desde el día cero: se recorre tramo
+   por tramo, antes del abono sobre lo que había y después sobre lo que quedó.
+   Es la única divergencia que quedaba entre las dos pantallas, y se cierra sola
+   al preguntar. No se le quita nada al socio y no se le regala nada.
+
+   REGLA: si la pregunta lleva una fecha adentro, la contesta el PUENTE. Acá no
+   se vuelve a sumar capital + costo + recargo nunca más.
    ========================================================================= */
-function causadoDelCiclo(p){
-  const c={tiene:false,costo:0,mora:0,dias:0};
-  ((p&&p.abonosCapital)||[]).forEach(a=>{
-    if(!a||!a.ciclo||!p.cicloActual||a.ciclo!==p.cicloActual)return;
-    if(a.costoCausado==null&&a.moraCausada==null)return;
-    c.tiene=true;
-    c.costo=Math.max(c.costo,Number(a.costoCausado)||0);
-    c.mora =Math.max(c.mora ,Number(a.moraCausada)||0);
-    c.dias =Math.max(c.dias ,Number(a.diasMoraCausada)||0);
-  });
-  return c;
-}
-function K(p){ return Math.max(PUENTE.K(p),causadoDelCiclo(p).costo); }
+/* LA liquidación de un crédito quincenal en la fecha en que el socio paga:
+   capital, costo del ciclo, días de mora, recargo, total y la garantía que le
+   deja. Es la ÚNICA puerta por la que se muestra y se cobra un quincenal, y es
+   exactamente el mismo paquete que la app del socio le enseña a él. */
+function liqCredito(p,fecha){ return PUENTE.liquidarCiclo(p,fecha); }
+/* El costo de la quincena, causado el día que el ciclo empezó y sobre el
+   capital que se debía ESE día: por eso no sale del capital de hoy. */
+function K(p){ return PUENTE.K(p); }
 /* 4-ago-2026 — el "ciclo" de un crédito con PLAN DE PAGOS es su cuota: ese es
    el capital que se cobra, la base del 1% diario y el costo del período. Sin
    plan es todo el capital vigente, como siempre. Las dos respuestas salen del
@@ -796,36 +795,8 @@ function capitalVigente(p){ return p.pagado?0:capitalActual(p); }
    totalCiclo era capital + costo y nada más, así que la pantalla de cobro decía
    720.000 mientras la app del socio y la cartera por tramo decían 774.000. Tres
    pantallas, dos verdades, y los 54.000 de diferencia no se cobraban. */
-/* El recargo del ciclo a `dias` días del corte. Sale del MOTOR en los dos
-   casos: sin abonos de por medio es el 1% diario de siempre; con abonos es el
-   recargo congelado más lo que corrió después sobre el capital que quedó. */
-function moraPorDias(p,dias){
-  const c=causadoDelCiclo(p), d=Math.max(0,Number(dias)||0);
-  return c.tiene
-    ? MotorReglas.recargoPorMoraDesde(c.mora,c.dias,capitalDelCiclo(p),d)
-    : MotorReglas.recargoPorMora(capitalDelCiclo(p),d);
-}
-function moraDe(p){ return p.pagado?0:moraPorDias(p,diasMora(p)); }
-function totalCiclo(p){ return capitalDelCiclo(p)+K(p)+moraDe(p); }
-/* La liquidación completa de un crédito quincenal en la fecha en que el socio
-   paga: días de mora, recargo, total y la garantía que le deja. Es el espejo de
-   liqCuota() del préstamo con garantía, y la ÚNICA puerta por la que se cobra
-   un quincenal. */
-function liqCredito(p,fecha){
-  const cap=capitalDelCiclo(p), f=fecha||hoyISO(), c=causadoDelCiclo(p);
-  /* Guarda para un dato sucio: liquidarCredito exige capital positivo y no
-     puede ser lo que impida abrir la pantalla de cobro. Con capital cero no
-     queda capital que liquidar, pero lo YA CAUSADO se sigue debiendo: el costo
-     del ciclo y el recargo congelados no dependen de que quede capital. */
-  if(cap<=0){
-    const dm=Math.max(0,MotorReglas.diasDeMora(p.cicloActual,f)), mo=moraPorDias(p,dm), tot=c.costo+mo;
-    return {capital:0,costo:c.costo,recargo_mora:mo,dias_mora:dm,pago_a_tiempo:dm===0,
-      costo_total_pagado:tot,total_a_pagar:tot,
-      garantia_generada:MotorReglas.acumularGarantia(tot,dm===0),fecha_pago:f};
-  }
-  return MotorReglas.liquidarCredito({capital:cap,costo:Math.round(K(p)),fecha_corte:p.cicloActual},f,
-    c.tiene?{recargoCausado:c.mora,diasCausados:c.dias}:undefined);
-}
+function moraDe(p){ return liqCredito(p).recargo_mora; }
+function totalCiclo(p){ return liqCredito(p).total_a_pagar; }
 function gananciaCobrada(p){ return PUENTE.gananciaCobrada(p); }
 /* Lo que falta cobrarle a un crédito abierto. Con plan de pagos son los costos
    de TODAS las cuotas que quedan, no solo el de la que vence: si no, el crédito
@@ -1668,7 +1639,8 @@ function creditoMotor(p){
     capital:capitalActual(p),
     tasa_aplicada:(Number(p.costoPct)||TASA_FIJA_PCT)/100,
     /* El costo del ciclo va DADO, no lo recalcula el motor sobre el capital que
-       queda: si hubo un abono, ya estaba causado (ver causadoDelCiclo). Sin
+       queda: si hubo un abono, ya estaba causado (ver PUENTE.K y
+       PUENTE.causadoDelCiclo, en ../app/puente.js). Sin
        esto, abonar el capital menos un peso dejaba la prórroga en $0 y, al
        correr el corte, se llevaba puestos el costo y la mora del ciclo viejo:
        el mismo agujero, un movimiento más allá. */
@@ -1683,9 +1655,16 @@ function creditoMotor(p){
    con el capital en cero): un dato sucio no puede impedir abrir la pantalla. */
 function liqProrroga(p,fecha){
   if(!p||p.pagado||tienePlan(p)||capitalActual(p)<=0) return null;
-  const c=causadoDelCiclo(p);
+  /* 5-ago-2026 — lo que la prórroga cobra de mora es LO YA CAUSADO DEL CICLO, y
+     eso lo contesta el puente recorriendo los hechos: no se recalcula acá sobre
+     el capital que quedó. Se le entrega al motor como {recargoCausado,
+     diasCausados} a la MISMA fecha, así que el motor no vuelve a correr ni un
+     día y el socio paga por prorrogar exactamente el recargo que la pantalla de
+     cobro le acaba de mostrar. Antes, con un abono viejo de por medio, la
+     prórroga cobraba un recargo y el cobro total otro. */
+  const liq=liqCredito(p,fecha||hoyISO());
   try{ return MotorReglas.liquidarProrroga(creditoMotor(p),fecha||hoyISO(),
-    c.tiene?{recargoCausado:c.mora,diasCausados:c.dias}:undefined); }
+    {recargoCausado:liq.recargo_mora,diasCausados:liq.dias_mora}); }
   catch(e){ return null; }
 }
 /* Lo que el socio paga HOY por prorrogar: costo del ciclo + el recargo del 1%
@@ -1825,10 +1804,11 @@ function cobrarCuotaDelPlan(p,c,f,liq){
 
    4-ago-2026 — y el agujero de fondo, que el `return` solo tapaba por un lado:
    abonar EL CAPITAL MENOS UN PESO dejaba el costo del ciclo y toda la mora en
-   cero, porque las dos cuentas salen del capital vigente. Ver el comentario de
-   causadoDelCiclo(): ahora cada abono CONGELA lo ya causado, así que ya no hay
-   monto de abono que borre nada. Por eso el aviso de acá abajo tampoco puede
-   seguir explicando la jugada. */
+   cero, porque las dos cuentas salen del capital vigente. Ahora cada abono
+   CONGELA lo ya causado y, desde el 5-ago, el que lo recorre y lo cobra es el
+   PUENTE (liquidarCiclo): ya no hay monto de abono que borre nada, ni acá ni en
+   el celular del socio. Por eso el aviso de acá abajo tampoco puede seguir
+   explicando la jugada. */
 function abonarCapital(id){ const p=DB.prestamos.find(x=>x.id===id),m=Number(document.getElementById('abCap').value)||0; if(m<=0){ alert('Monto inválido.'); return; }
   /* Con plan de pagos el capital baja cuota por cuota: un abono suelto por fuera
      dejaría el saldo del plan y el del crédito diciendo cosas distintas. */
@@ -1839,10 +1819,14 @@ function abonarCapital(id){ const p=DB.prestamos.find(x=>x.id===id),m=Number(doc
     return;
   }
   /* Lo causado se congela ANTES de tocar el capital: el costo de la quincena y
-     el recargo corrido hasta hoy no pueden depender de cuánto quede después. */
+     el recargo corrido hasta hoy no pueden depender de cuánto quede después.
+     Los tres números salen de UNA sola liquidación —la del puente— para que no
+     puedan contarse de dos días distintos si el abono cae en un cambio de
+     fecha, y para que el congelado diga exactamente lo que dice la pantalla. */
+  const hoy=hoyISO(), liq=liqCredito(p,hoy);
   p.abonosCapital=p.abonosCapital||[];
-  p.abonosCapital.push({fecha:hoyISO(),monto:m,ciclo:p.cicloActual,
-    costoCausado:Math.round(K(p)),moraCausada:Math.round(moraDe(p)),diasMoraCausada:diasMora(p)});
+  p.abonosCapital.push({fecha:hoy,monto:m,ciclo:p.cicloActual,
+    costoCausado:liq.costo,moraCausada:liq.recargo_mora,diasMoraCausada:liq.dias_mora});
   addComp(p,'abono',m); guardar(); abrirPago(id); render(); }
 
 /* ===== CONFIG ===== */

@@ -2524,9 +2524,17 @@ describe('el quincenal se liquida por el motor, con la mora adentro', () => {
       'la fecha del pago es la que registra Joan: es la que decide si esPuntual()');
   });
 
-  test('liqCredito es la única puerta, y es el motor', () => {
-    assert.match(cuerpoCRM('liqCredito'), /MotorReglas\.liquidarCredito/,
-      'si el recargo se vuelve a multiplicar a mano en crm.html, nacen dos verdades');
+  /* 5-ago-2026 — la puerta sigue siendo una, pero ahora es la MISMA que la de
+     la app del socio: PUENTE.liquidarCiclo. Mientras el Panel llamaba al motor
+     por su cuenta —con el capital y el costo que él mismo armaba— y la app leía
+     el paquete del puente, el mismo crédito el mismo día valía dos cosas. */
+  test('liqCredito es la única puerta, y es la del puente', () => {
+    assert.match(cuerpoCRM('liqCredito'), /PUENTE\.liquidarCiclo\(p,fecha\)/,
+      'si el Panel se arma la liquidación por su cuenta, nacen dos verdades');
+    assert.ok(!/MotorReglas\.liquidarCredito/.test(CRM),
+      'el Panel volvió a liquidar el quincenal por fuera del puente');
+    assert.ok(!/MotorReglas\.recargoPorMora/.test(CRM),
+      'el recargo se está volviendo a multiplicar a mano en crm.html');
   });
 
   test('la pantalla de cobro muestra capital, costo y mora, y el botón dice la verdad', () => {
@@ -2540,16 +2548,17 @@ describe('el quincenal se liquida por el motor, con la mora adentro', () => {
   });
 
   test('totalCiclo lleva la mora: una sola cifra en todo el Panel', () => {
-    assert.match(cuerpoCRM('totalCiclo'), /moraDe\(p\)/,
+    assert.match(cuerpoCRM('totalCiclo'), /liqCredito\(p\)\.total_a_pagar/,
       'la cola, el KPI de mora y la cartera por tramo tienen que decir lo mismo ' +
       'que la pantalla de cobro y que la app del socio');
-    // El recargo lo contesta el MOTOR, no una multiplicación escrita en el
-    // Panel. Desde el 4-ago moraDe() pasa por moraPorDias() —que es donde entra
-    // lo ya causado por los abonos—, pero el que hace la cuenta sigue siendo el
-    // motor en las dos ramas.
-    assert.match(cuerpoCRM('moraDe'), /moraPorDias\(p,diasMora\(p\)\)/);
-    assert.match(cuerpoCRM('moraPorDias'), /MotorReglas\.recargoPorMoraDesde/);
-    assert.match(cuerpoCRM('moraPorDias'), /MotorReglas\.recargoPorMora\(/);
+    // Ni el total ni el recargo se vuelven a sumar acá: los dos salen del mismo
+    // paquete, así que no pueden discrepar ni por un peso ni por un día.
+    assert.match(cuerpoCRM('moraDe'), /liqCredito\(p\)\.recargo_mora/);
+    assert.ok(!/function\s+moraPorDias\s*\(/.test(CRM),
+      'volvió la copia del 1% diario que vivía solo en el Panel');
+    assert.ok(!/function\s+causadoDelCiclo\s*\(/.test(CRM),
+      'volvió la copia de lo causado que vivía solo en el Panel: es la enfermedad ' +
+      'de este proyecto, dos verdades sobre el mismo crédito');
     // Y la cartera por tramo ya no puede sumarlo aparte: sería contarlo dos veces.
     assert.ok(!/totalCiclo\(p\)\s*\+\s*MotorReglas\.recargoPorMora/.test(CRM),
       'la cartera por tramo está sumando el recargo dos veces');
@@ -3892,27 +3901,33 @@ describe('lo causado no depende de cuánto capital quede después (4-ago-2026)',
     const j = CRM.indexOf('\nfunction ', i + 1);
     return CRM.slice(i, j < 0 ? CRM.length : j);
   };
-  // Las funciones del Panel, ejecutándose de verdad contra el motor y el puente.
+  /* Las funciones del Panel, ejecutándose de verdad contra el motor y el puente.
+     5-ago-2026: la lista se acortó porque el Panel dejó de tener copia propia de
+     causadoDelCiclo y moraPorDias. Ahora todo entra por liqCredito, que es
+     PUENTE.liquidarCiclo — la misma cuenta que la app le muestra al socio. */
   const panel = new Function('MotorReglas', 'PUENTE',
-    ['isoLocal', 'hoy0', 'hoyISO', 'capitalActual', 'causadoDelCiclo', 'K',
+    ['isoLocal', 'hoy0', 'hoyISO', 'capitalActual', 'K',
      'capitalDelCiclo', 'cuotasPlan', 'cuotaPlan', 'tienePlan',
-     'moraPorDias', 'moraDe', 'totalCiclo', 'diasMora', 'liqCredito']
+     'moraDe', 'totalCiclo', 'diasMora', 'liqCredito']
       .map(fnCRM).join('\n') +
-    '\nreturn {causadoDelCiclo:causadoDelCiclo, K:K, moraPorDias:moraPorDias,' +
-    ' totalCiclo:totalCiclo, liqCredito:liqCredito, capitalActual:capitalActual};')(M, P);
+    '\nreturn {K:K, moraDe:moraDe, totalCiclo:totalCiclo,' +
+    ' liqCredito:liqCredito, capitalActual:capitalActual};')(M, P);
 
   const CAP = 200000, CORTE = '2026-07-15', COBRO = '2026-08-04';   // 20 días
+  const dia = n => M.iso(new Date(2026, 6, 15 + n));   // n días después del corte
   const credito = () => ({ id: 'x', socioId: 'a', capital: CAP, costoPct: 20,
     fechaDesembolso: '2026-07-01', cicloActual: CORTE, pagado: false,
     prorrogas: [], abonosCapital: [], comprobantes: [] });
 
-  /* El abono tal como lo graba abonarCapital: congela lo causado ANTES de
-     tocar el capital. `dias` son los días de mora de ese día. */
-  const abonar = (p, monto, dias, fecha) => {
-    p.abonosCapital.push({ fecha: fecha || COBRO, monto: monto, ciclo: p.cicloActual,
-      costoCausado: Math.round(panel.K(p)),
-      moraCausada: Math.round(panel.moraPorDias(p, dias)),
-      diasMoraCausada: dias });
+  /* El abono tal como lo graba abonarCapital: una sola liquidación, la del
+     puente, congelada ANTES de tocar el capital. `dias` son los días de mora
+     que llevaba el crédito ese día, y el abono queda fechado ESE día — que es
+     lo que hace el Panel de verdad, y lo que después recorre moraDelCiclo. */
+  const abonar = (p, monto, dias) => {
+    const f = dia(dias), liq = panel.liqCredito(p, f);
+    p.abonosCapital.push({ fecha: f, monto: monto, ciclo: p.cicloActual,
+      costoCausado: liq.costo, moraCausada: liq.recargo_mora,
+      diasMoraCausada: liq.dias_mora });
     return p;
   };
 
@@ -3927,9 +3942,14 @@ describe('lo causado no depende de cuánto capital quede después (4-ago-2026)',
     // Cómo quedaba ANTES: el capital en 1 peso arrastraba las dos cuentas.
     assert.equal(M.recargoPorMora(1, 20), 0, '1% × 1 peso × 20 días redondea a 0');
     assert.equal(Math.round(1 * 20 / 100), 0, 'y el 20% de 1 peso, también');
-    assert.equal(P.K({ capital: CAP, costoPct: 20,
-      abonosCapital: [{ fecha: COBRO, monto: CAP - 1 }] }), 0.2,
-      'el costo del ciclo salía del capital que QUEDABA');
+    /* 5-ago-2026 — acá esta prueba certificaba el defecto: P.K devolvía 0,2.
+       El costo del ciclo se causó el día que el ciclo empezó, sobre el capital
+       que se debía ESE día, y ningún abono posterior lo puede bajar. */
+    const conAbono = credito();
+    conAbono.abonosCapital.push({ fecha: COBRO, monto: CAP - 1 });
+    assert.equal(P.K(conAbono), 40000,
+      'el costo del ciclo ya no sale del capital que QUEDA');
+    assert.equal(P.capitalActual(conAbono), 1, 'y el capital sí baja, como debe');
   });
 
   test('ABONANDO EL CAPITAL MENOS UN PESO ya no se borra nada', () => {
@@ -3948,8 +3968,11 @@ describe('lo causado no depende de cuánto capital quede después (4-ago-2026)',
   test('el crédito abierto tampoco MUESTRA cero: la cola dice lo mismo', () => {
     const p = abonar(credito(), CAP - 1, 20);
     assert.equal(panel.K(p), 40000);
-    assert.equal(panel.moraPorDias(p, 20), 40000);
-    assert.equal(panel.totalCiclo(p), 80001);
+    assert.equal(panel.liqCredito(p, COBRO).recargo_mora, 40000);
+    assert.equal(panel.liqCredito(p, COBRO).total_a_pagar, 80001);
+    // Y la cifra que pinta la cola sale del mismo paquete, no de otra suma.
+    assert.equal(panel.totalCiclo(p), panel.liqCredito(p).total_a_pagar);
+    assert.equal(panel.moraDe(p), panel.liqCredito(p).recargo_mora);
   });
 
   test('un abono PARCIAL: no borra lo corrido y no cobra mora sobre lo devuelto', () => {
@@ -4006,30 +4029,54 @@ describe('lo causado no depende de cuánto capital quede después (4-ago-2026)',
     // nuevo sería cobrarlo dos veces.
     const p = abonar(credito(), 100000, 20);
     assert.equal(panel.K(p), 40000, 'mientras el corte es el viejo, manda lo causado');
+    /* 5-ago-2026 — el ciclo se mueve REGISTRANDO LA PRÓRROGA, que es lo que
+       hace registrarProrroga(): mover `cicloActual` a mano y no dejar el hecho
+       escrito era un estado que la cartera real nunca tiene, y ahora el costo
+       del ciclo nuevo se deduce de CUÁNDO empezó ese ciclo. */
+    p.prorrogas.push({ fecha: COBRO, ciclo: CORTE, monto: 80000, mora: 40000,
+                       aTiempo: false, diasMora: 20, nuevoCiclo: '2026-08-15' });
     p.cicloActual = '2026-08-15';
-    assert.equal(panel.causadoDelCiclo(p).tiene, false);
+    assert.equal(P.causadoDelCiclo(p).tiene, false);
     assert.equal(panel.K(p), 20000, 'el corte nuevo cuesta el 20% de lo que queda');
-    assert.equal(panel.moraPorDias(p, 5), M.recargoPorMora(100000, 5));
+    assert.equal(panel.liqCredito(p, '2026-08-20').recargo_mora,
+      M.recargoPorMora(100000, 5), 'el 1% del corte NUEVO, sobre lo que quedó');
   });
 
-  test('los abonos VIEJOS se leen exactamente como hasta ayer', () => {
-    // Sin los campos congelados no hay migración ni cambio retroactivo: la
-    // cartera real de Joan no se mueve un peso por este arreglo.
+  /* 5-ago-2026 — LA DIVERGENCIA QUE FALTABA CERRAR.
+     Un abono VIEJO (sin costoCausado/moraCausada) no tiene nada congelado, así
+     que hasta ayer el Panel corría el 1% diario sobre el capital que QUEDÓ desde
+     el día cero: 100.000 × 1% × 20 = 20.000, y le regalaba 5.000 al día. La app
+     del socio, que ya preguntaba al puente, decía 25.000. Ahora los dos dicen
+     25.000, que es lo que de verdad corrió: 200.000 durante los 5 días que se
+     debían enteros, y 100.000 durante los 15 que siguieron.
+     No se le quita nada al socio (el costo del ciclo no se mueve) y no se le
+     regala nada (los días que corrieron sobre el capital entero, corrieron). */
+  test('los abonos VIEJOS: el recargo se recorre tramo por tramo', () => {
     const p = credito();
     p.abonosCapital.push({ fecha: '2026-07-20', monto: 100000 });
-    assert.equal(panel.causadoDelCiclo(p).tiene, false);
-    assert.equal(panel.K(p), P.K(p));
-    assert.equal(panel.moraPorDias(p, 20), M.recargoPorMora(100000, 20));
+    assert.equal(P.causadoDelCiclo(p).tiene, false, 'no hay nada congelado');
+    assert.equal(panel.K(p), 40000, 'el costo del ciclo no depende del abono');
+    assert.equal(panel.liqCredito(p, COBRO).recargo_mora, 25000,
+      '1% × 200.000 × 5 días + 1% × 100.000 × 15 días');
+    assert.equal(M.recargoPorMora(CAP, 5) + M.recargoPorMora(100000, 15), 25000);
+    // Lo que decía el Panel viejo, y por qué era un regalo de 5.000.
+    assert.equal(M.recargoPorMora(100000, 20), 20000);
     // Y las cuotas del plan de pagos, que también empujan a abonosCapital, no
     // se cuelan: no traen `ciclo`.
     const q = credito();
     q.abonosCapital.push({ fecha: '2026-07-20', monto: 50000, cuotaPlan: 1 });
-    assert.equal(panel.causadoDelCiclo(q).tiene, false);
+    assert.equal(P.causadoDelCiclo(q).tiene, false);
+    // Un crédito legado tiene que CARGAR, no reventar: sin abonos, sin
+    // prórrogas y sin plan, la cuenta es la de siempre.
+    const viejo = { id: 'v', capital: CAP, costoPct: 20, cicloActual: CORTE,
+                    fechaDesembolso: '2026-07-01', pagado: false };
+    assert.equal(panel.liqCredito(viejo, COBRO).total_a_pagar, 280000);
   });
 
   test('con el capital en cero (dato sucio) lo causado se sigue debiendo', () => {
-    // liquidarCredito exige capital positivo, así que esta rama la contesta el
-    // Panel; antes devolvía CEROS y borraba la deuda de un crédito abierto.
+    // Con el capital en cero no queda capital que liquidar, pero lo YA CAUSADO
+    // se sigue debiendo; antes esta rama devolvía CEROS y borraba la deuda de
+    // un crédito abierto.
     const p = credito();
     p.abonosCapital.push({ fecha: COBRO, monto: CAP, ciclo: CORTE,
       costoCausado: 40000, moraCausada: 40000, diasMoraCausada: 20 });
@@ -4072,8 +4119,8 @@ describe('lo causado no depende de cuánto capital quede después (4-ago-2026)',
 
   test('LA PUERTA DE AL LADO: la prórroga tampoco puede costar $0', () => {
     const panelPr = new Function('MotorReglas', 'PUENTE', 'DB',
-      ['isoLocal', 'hoy0', 'hoyISO', 'capitalActual', 'causadoDelCiclo', 'K',
-       'capitalDelCiclo', 'cuotasPlan', 'cuotaPlan', 'tienePlan', 'moraPorDias',
+      ['isoLocal', 'hoy0', 'hoyISO', 'capitalActual', 'K', 'liqCredito',
+       'capitalDelCiclo', 'cuotasPlan', 'cuotaPlan', 'tienePlan',
        'moraDe', 'diasMora', 'migrarSocio', 'creditoMotor', 'liqProrroga']
         .map(fnCRM).join('\n') +
       '\nreturn liqProrroga;')(M, P,
@@ -4116,9 +4163,13 @@ describe('lo causado no depende de cuánto capital quede después (4-ago-2026)',
     const iPush = F.indexOf('abonosCapital.push');
     assert.ok(iCongela > iPush, 'el congelado va dentro del propio push');
     assert.match(F, /ciclo:p\.cicloActual/, 'sin el corte no se sabe a qué ciclo pertenece');
-    assert.match(F, /costoCausado:Math\.round\(K\(p\)\)/);
-    assert.match(F, /moraCausada:Math\.round\(moraDe\(p\)\)/);
-    assert.match(F, /diasMoraCausada:diasMora\(p\)/);
+    /* 5-ago-2026 — los tres congelados salen de UNA sola liquidación del
+       puente. Calculados por separado podían caer en dos días distintos y
+       guardar un recargo que no correspondía a los días guardados. */
+    assert.match(F, /const hoy=hoyISO\(\),\s*liq=liqCredito\(p,hoy\)/);
+    assert.match(F, /costoCausado:liq\.costo/);
+    assert.match(F, /moraCausada:liq\.recargo_mora/);
+    assert.match(F, /diasMoraCausada:liq\.dias_mora/);
     // Y sigue en pie el `return` del 3-ago.
     const iRet = F.indexOf('return;', F.indexOf('¿Marcar como pagado el ciclo completo?'));
     assert.ok(iRet >= 0 && iRet < iPush);
@@ -4602,5 +4653,462 @@ describe('el plan de pagos: el Panel y la app cobran lo mismo (4-ago-2026)', () 
       'lo que le costó: las tres cuotas más la entrada del plan');
     assert.equal(c.abonado, Math.round(P.gananciaCobrada(p) + CAP));
     assert.equal(c.garantia, P.garantiaGanadaCredito(p), 'la garantía no la toca nadie');
+  });
+});
+
+/* ==========================================================================
+ * LAS PREGUNTAS DEL PASADO SE CONTESTAN CON EL PASADO — 5-ago-2026
+ *
+ * Seis rondas de arreglos sobre el mismo sitio, y siempre el mismo defecto de
+ * diseño debajo: las cuentas preguntaban por el PASADO y buscaban la respuesta
+ * en el PRESENTE. `estabaVencido` leía `cicloActual`, que la prórroga mueve al
+ * futuro; `K` leía `capitalActual`, que el abono baja. Un campo que se
+ * sobrescribe no puede contestar una pregunta sobre el pasado.
+ *
+ * Estas pruebas no miran un síntoma: exigen la propiedad. Una respuesta sobre
+ * una fecha pasada NO PUEDE CAMBIAR por algo que se registre después.
+ * ======================================================================== */
+
+describe('estabaVencido no cambia de respuesta por lo que pase después (5-ago-2026)', () => {
+
+  const CAP = 200000;
+  const abierto = () => ({ id: 'x1', numero: 1, socioId: 's1', capital: CAP, costoPct: 20,
+    fechaDesembolso: '2026-03-20', cicloActual: '2026-03-31', pagado: false,
+    prorrogas: [], abonosCapital: [], comprobantes: [] });
+  // Lo que graba registrarProrroga(), tal cual.
+  const prorrogar = (p, fecha) => {
+    const r = M.liquidarProrroga({ id: p.id, capital: P.capitalActual(p), tasa_aplicada: 0.20,
+      costo: Math.round(P.K(p)), fecha_corte: p.cicloActual, estado: 'en_corte',
+      prorrogas_usadas: p.prorrogas.length, nivel_socio: 'oro' }, fecha);
+    assert.ok(r.ok, 'la prórroga se pudo registrar');
+    p.prorrogas.push({ fecha: r.fecha, ciclo: r.fecha_corte_anterior, monto: r.total_a_pagar,
+      mora: r.recargo_mora, aTiempo: r.a_tiempo, diasMora: r.dias_mora,
+      nuevoCiclo: r.fecha_corte_nueva });
+    p.cicloActual = r.fecha_corte_nueva;
+    return r;
+  };
+
+  // Las fechas que se preguntan: antes del corte, el día del corte y toda la mora.
+  const INSTANTES = ['2026-03-15', '2026-03-31', '2026-04-01', '2026-05-01',
+                     '2026-06-01', '2026-07-15', '2026-08-04'];
+
+  test('EL NÚMERO DEL DEFECTO: la prórroga borraba la mora hacia atrás', () => {
+    const p = abierto();
+    assert.equal(P.estabaVencido(p, '2026-06-01'), true, 'el 1-jun estaba vencido');
+    prorrogar(p, '2026-08-05');
+    assert.equal(p.cicloActual, '2026-08-15', 'el corte se fue al futuro, como debe');
+    assert.equal(P.estabaVencido(p, '2026-06-01'), true,
+      'ANTES pasaba a false: la mora del 1-jun se borraba por algo hecho en agosto');
+  });
+
+  test('ninguno de los instantes cambia de respuesta al registrar la prórroga', () => {
+    const p = abierto();
+    const antes = INSTANTES.map(i => P.estabaVencido(p, i));
+    prorrogar(p, '2026-08-05');
+    assert.deepEqual(INSTANTES.map(i => P.estabaVencido(p, i)), antes,
+      'una prórroga de agosto no puede reescribir marzo, abril, mayo ni junio');
+    // Y el presente sí se mueve: eso es lo que el socio compró.
+    assert.equal(P.estabaVencido(p, '2026-08-05'), false, 'hoy ya no está vencido');
+  });
+
+  test('tampoco cambia con DOS prórrogas encadenadas', () => {
+    const p = abierto();
+    const antes = INSTANTES.map(i => P.estabaVencido(p, i));
+    prorrogar(p, '2026-08-05');
+    prorrogar(p, '2026-08-15');
+    assert.deepEqual(INSTANTES.map(i => P.estabaVencido(p, i)), antes);
+    assert.equal(P.cortesDelCredito(p).length, 3, 'los tres cortes que tuvo');
+  });
+
+  test('ni al pasar a plan de pagos, ni al ir pagando sus cuotas', () => {
+    const p = abierto();
+    const antes = INSTANTES.map(i => P.estabaVencido(p, i));
+    const PACTADO = '2026-08-05';
+    const r = M.liquidarProrroga({ id: p.id, capital: CAP, tasa_aplicada: 0.20,
+      fecha_corte: p.cicloActual, estado: 'en_mora', prorrogas_usadas: 2,
+      nivel_socio: 'oro' }, PACTADO);
+    assert.equal(r.ok, false);
+    const plan = r.plan_de_pagos;
+    p.planPagos = { creado: PACTADO, tasa_por_corte: plan.tasa_por_corte,
+      entrada: { fecha: PACTADO, ciclo: r.fecha_corte_anterior, monto: r.total_a_pagar,
+                 mora: r.recargo_mora, aTiempo: r.a_tiempo, diasMora: r.dias_mora },
+      total_capital: plan.total_capital, total_costo: plan.total_costo,
+      total_a_pagar: plan.total_a_pagar,
+      cuotas: plan.cuotas.map(q => ({ n: q.numero, fecha: q.fecha_corte, capital: q.capital,
+        costo: q.costo, total: q.total, pagado: false, fechaPagado: null,
+        recargo: 0, garantiaGenerada: 0 })) };
+    p.cicloActual = p.planPagos.cuotas[0].fecha;
+    assert.deepEqual(INSTANTES.map(i => P.estabaVencido(p, i)), antes,
+      'el plan tampoco reescribe la mora que ya había corrido');
+
+    // Y cobrando la primera cuota, igual (cobrarCuotaDelPlan del Panel).
+    const c1 = P.cuotaPlanActual(p);
+    c1.pagado = true; c1.fechaPagado = c1.fecha; c1.recargo = 0;
+    p.abonosCapital.push({ fecha: c1.fecha, monto: c1.capital, cuotaPlan: c1.n });
+    p.cicloActual = P.cuotaPlanActual(p).fecha;
+    assert.deepEqual(INSTANTES.map(i => P.estabaVencido(p, i)), antes);
+  });
+
+  test('la línea de tiempo dice qué corte regía en cada momento', () => {
+    const p = abierto();
+    prorrogar(p, '2026-08-05');
+    assert.equal(P.corteOriginal(p), '2026-03-31', 'el corte con el que nació');
+    assert.equal(P.corteVigenteEn(p, '2026-06-01'), '2026-03-31');
+    assert.equal(P.corteVigenteEn(p, '2026-08-04'), '2026-03-31');
+    assert.equal(P.corteVigenteEn(p, '2026-08-05'), '2026-08-15', 'desde el día que se pactó');
+    assert.equal(P.corteDelCredito(p), '2026-08-15', 'y el resumen de hoy sigue siendo hoy');
+  });
+
+  test('una prórroga VIEJA sin `nuevoCiclo` igual reconstruye la historia', () => {
+    // El Panel del 17-jul no guardaba a qué corte pasaba: el dato está en el
+    // `ciclo` del cambio siguiente, y en el último, en el corte de hoy.
+    const p = abierto();
+    p.prorrogas.push({ fecha: '2026-05-04', ciclo: '2026-03-31', monto: 40000 });
+    p.prorrogas.push({ fecha: '2026-06-05', ciclo: '2026-05-15', monto: 40000 });
+    p.cicloActual = '2026-06-30';
+    assert.deepEqual(P.cortesDelCredito(p), [
+      { desde: '', corte: '2026-03-31' },
+      { desde: '2026-05-04', corte: '2026-05-15' },
+      { desde: '2026-06-05', corte: '2026-06-30' }
+    ]);
+    assert.equal(P.estabaVencido(p, '2026-04-20'), true);
+    assert.equal(P.estabaVencido(p, '2026-05-10'), false, 'esos días los había comprado');
+    assert.equal(P.estabaVencido(p, '2026-05-20'), true);
+  });
+
+  test('el crédito sin prórrogas ni plan se lee igual que siempre', () => {
+    const p = abierto();
+    assert.deepEqual(P.cortesDelCredito(p), [{ desde: '', corte: '2026-03-31' }]);
+    assert.equal(P.estabaVencido(p, '2026-03-31'), false, 'el día del corte no es mora');
+    assert.equal(P.estabaVencido(p, '2026-04-01'), true);
+    p.pagado = true; p.fechaPagado = '2026-04-10'; p.cicloPago = '2026-03-31';
+    assert.equal(P.estabaVencido(p, '2026-04-05'), true, 'el 5-abr todavía no había pagado');
+    assert.equal(P.estabaVencido(p, '2026-04-10'), false, 'el día que pagó, ya no');
+  });
+
+  test('meses_sin_mora: la mora tapada con prórroga sí dejó huella', () => {
+    /* El agujero de fondo: `meses_sin_mora` se medía desde el último atraso
+       CURADO POR UN PAGO. Cuatro meses de mora tapados con una prórroga no
+       reseteaban nada, así que esos meses de atraso EMPUJABAN al socio hacia
+       platino. Una mora termina el día en que el corte se mueve, y eso también
+       es un hecho guardado. */
+    const p = abierto();
+    prorrogar(p, '2026-08-05');
+    assert.equal(P.ultimoDiaDeMora(p, '2026-08-05'), '2026-08-04',
+      'estuvo vencido hasta el día anterior a la prórroga');
+    assert.equal(P.contadoresDeNivel([p], '2026-08-05').meses_sin_mora, 0);
+    // Y el que nunca se atrasó no arrastra ningún hito.
+    const limpio = abierto();
+    limpio.pagado = true; limpio.fechaPagado = '2026-03-31'; limpio.cicloPago = '2026-03-31';
+    assert.equal(P.ultimoDiaDeMora(limpio, '2026-08-05'), '');
+  });
+});
+
+/* ==========================================================================
+ * DEJAR LA PRÓRROGA NO PUEDE RENDIR MÁS QUE SALDAR LA DEUDA — 5-ago-2026
+ *
+ * MEDIDO con el código de ayer: socio con 10 créditos limpios y el crédito 11
+ * de 200.000 vencido desde el 31-mar. Pagando TODO quedaba en oro con 1.280.750
+ * de cupo; dejando solo la prórroga —quedándose los 200.000 de capital— saltaba
+ * a PLATINO con 1.536.900. Misma plata cobrada, misma garantía: 256.150 más de
+ * cupo por no devolver el capital.
+ * ======================================================================== */
+
+describe('pagar no puede rendir menos que no pagar (5-ago-2026)', () => {
+
+  const HOY = '2026-08-05', CAP = 200000;
+  const socio = () => ({ id: 's1', numero: 1, nombre: 'Ana', cedula: '123456',
+    telefono: '3001112222', whatsappIgual: true, referencia: { nombre: '', telefono: '' },
+    gestiones: [], ajusteGarantia: 0 });
+
+  // Diez quincenas limpias (2-ene a 15-mar) y el crédito 11 vencido el 31-mar.
+  function partida() {
+    const s = socio();
+    const db = { socios: [s], prestamos: [], respaldados: [], config: {}, contadores: {} };
+    ['2026-01-02', '2026-01-09', '2026-01-16', '2026-01-23', '2026-01-30',
+     '2026-02-06', '2026-02-13', '2026-02-20', '2026-02-27', '2026-03-15']
+      .forEach((f, i) => {
+        const c = M.calcularFechaCorte(f);
+        db.prestamos.push({ id: 'q' + i, numero: i + 1, socioId: 's1', capital: CAP,
+          costoPct: 20, fechaDesembolso: f, cicloActual: c, cicloPago: c, pagado: true,
+          fechaPagado: c, gananciaPago: 40000, cobroRegistrado: true,
+          prorrogas: [], abonosCapital: [], comprobantes: [] });
+      });
+    const p11 = { id: 'q10', numero: 11, socioId: 's1', capital: CAP, costoPct: 20,
+      fechaDesembolso: '2026-03-20', cicloActual: '2026-03-31', pagado: false,
+      prorrogas: [], abonosCapital: [], comprobantes: [] };
+    db.prestamos.push(p11);
+    return { db, s, p11 };
+  }
+  const foto = (db, s) => {
+    const m = P.migrarSocio(db, s);
+    const q = M.cupoQuincenal(P.entradaGarantia(db, s), m.garantia.nivel);
+    return { nivel: m.garantia.nivel, cupo: q.cupo, garantia: q.total,
+             cont: { a_tiempo: m.garantia.pagados_a_tiempo, racha: m.garantia.racha,
+                     meses: m.garantia.meses_sin_mora } };
+  };
+
+  // pagarTotal() del Panel: cobra la liquidación del ciclo y cierra el crédito.
+  function pagarTodo(p) {
+    const l = P.liquidarCiclo(p, HOY);
+    p.pagado = true; p.fechaPagado = HOY; p.cicloPago = p.cicloActual;
+    p.cobroRegistrado = true; p.gananciaPago = l.costo_total_pagado;
+    p.recargoMora = l.recargo_mora;
+    return l;
+  }
+  // registrarProrroga() del Panel: cobra lo mismo de costos y NO devuelve capital.
+  function dejarProrroga(p, fecha) {
+    const r = M.liquidarProrroga({ id: p.id, capital: P.capitalActual(p), tasa_aplicada: 0.20,
+      costo: Math.round(P.K(p)), fecha_corte: p.cicloActual, estado: 'en_corte',
+      prorrogas_usadas: p.prorrogas.length, nivel_socio: 'oro' }, fecha || HOY);
+    assert.ok(r.ok);
+    p.prorrogas.push({ fecha: r.fecha, ciclo: r.fecha_corte_anterior, monto: r.total_a_pagar,
+      mora: r.recargo_mora, aTiempo: r.a_tiempo, diasMora: r.dias_mora,
+      nuevoCiclo: r.fecha_corte_nueva });
+    p.cicloActual = r.fecha_corte_nueva;
+    return r;
+  }
+
+  test('LOS DOS CAMINOS COBRAN LA MISMA PLATA DE COSTOS', () => {
+    const a = partida(), b = partida();
+    const pago = pagarTodo(a.p11);
+    const pro = dejarProrroga(b.p11);
+    assert.equal(pago.costo_total_pagado, pro.total_a_pagar,
+      'el mismo costo y el mismo recargo: lo único distinto es el capital');
+    assert.equal(pago.total_a_pagar, pro.total_a_pagar + CAP,
+      'el que paga todo devuelve además los 200.000');
+  });
+
+  test('EL DEFECTO: platino y 256.150 de cupo de más por no devolver el capital', () => {
+    const a = partida(), b = partida();
+    pagarTodo(a.p11);
+    dejarProrroga(b.p11);
+    const paga = foto(a.db, a.s), deja = foto(b.db, b.s);
+
+    assert.equal(paga.garantia, deja.garantia, 'la garantía es la misma en los dos caminos');
+    assert.equal(deja.cont.meses, 0,
+      'ANTES daba 7: la prórroga borraba la mora y el contador corría por encima');
+    assert.notEqual(deja.nivel, 'platino', 'ANTES saltaba a platino por no pagar');
+    assert.equal(paga.nivel, deja.nivel);
+    assert.equal(paga.cupo, deja.cupo);
+    assert.ok(paga.cupo >= deja.cupo, 'pagar no puede rendir MENOS que no pagar');
+  });
+
+  test('con DOS prórrogas más plan de pagos tampoco rinde más', () => {
+    const a = partida(), b = partida();
+    pagarTodo(a.p11);
+
+    const p = b.p11;
+    let cobradoDeja = 0;
+    cobradoDeja += dejarProrroga(p, '2026-08-05').total_a_pagar;
+    cobradoDeja += dejarProrroga(p, '2026-08-15').total_a_pagar;
+    const r = M.liquidarProrroga({ id: p.id, capital: CAP, tasa_aplicada: 0.20,
+      fecha_corte: p.cicloActual, estado: 'en_mora', prorrogas_usadas: 2,
+      nivel_socio: 'oro' }, '2026-08-31');
+    assert.equal(r.ok, false, 'se le acabaron: la salida es el plan de pagos');
+    cobradoDeja += r.total_a_pagar;
+    const plan = r.plan_de_pagos;
+    p.planPagos = { creado: '2026-08-31', tasa_por_corte: plan.tasa_por_corte,
+      entrada: { fecha: '2026-08-31', ciclo: r.fecha_corte_anterior, monto: r.total_a_pagar,
+                 mora: r.recargo_mora, aTiempo: r.a_tiempo, diasMora: r.dias_mora },
+      total_capital: plan.total_capital, total_costo: plan.total_costo,
+      total_a_pagar: plan.total_a_pagar,
+      cuotas: plan.cuotas.map(q => ({ n: q.numero, fecha: q.fecha_corte, capital: q.capital,
+        costo: q.costo, total: q.total, pagado: false, fechaPagado: null,
+        recargo: 0, garantiaGenerada: 0 })) };
+    p.cicloActual = p.planPagos.cuotas[0].fecha;
+
+    const paga = foto(a.db, a.s), deja = foto(b.db, b.s);
+    // El NIVEL es lo que no se puede comprar encadenando plazo: ANTES la cadena
+    // lo dejaba en platino sin haber devuelto un peso de capital.
+    assert.equal(deja.nivel, paga.nivel, 'encadenar plazo no le compra un escalón');
+    assert.notEqual(deja.nivel, 'platino');
+    assert.equal(deja.cont.meses, 0, 'y los meses sin mora siguen en cero');
+    /* El cupo del que encadena sí queda más alto, y tiene que ser así: pagó
+       374.000 de costos contra 294.000, o sea 80.000 MÁS de plata, y toda plata
+       pagada suma garantía. Lo que no puede pasar —y es la regla— es que ese
+       cupo extra sea un regalo: POR CADA PESO PAGADO, saldar tiene que rendir
+       más que encadenar. */
+    assert.ok(cobradoDeja > 294000, 'el que encadena pagó más plata, no menos');
+    assert.ok(paga.cupo / 294000 > deja.cupo / cobradoDeja,
+      'por peso pagado, encadenar prórrogas rinde MENOS que saldar');
+  });
+
+  test('y el que paga EN FECHA sí gana el escalón: no se premia atrasarse', () => {
+    // Mismo socio, pero el crédito 11 se paga puntual el día del corte.
+    const c = partida();
+    c.p11.pagado = true; c.p11.fechaPagado = '2026-03-31';
+    c.p11.cicloPago = '2026-03-31'; c.p11.gananciaPago = 40000; c.p11.cobroRegistrado = true;
+    const puntual = foto(c.db, c.s);
+    const a = partida(); const l = pagarTodo(a.p11);
+    const tarde = foto(a.db, a.s);
+    assert.equal(puntual.cont.a_tiempo, 11, 'los once escalones');
+    assert.equal(tarde.cont.a_tiempo, 10, 'el que pagó tarde no gana el suyo');
+    assert.equal(puntual.nivel, 'platino', 'el puntual sí llega');
+    assert.equal(tarde.nivel, 'oro', 'el atrasado se queda un escalón abajo');
+    /* Y por peso pagado no hay comparación: el puntual llegó a platino pagando
+       40.000; el atrasado pagó 294.000 para quedarse en oro. */
+    assert.ok(puntual.cupo / 40000 > tarde.cupo / l.costo_total_pagado,
+      'por peso pagado, atrasarse tiene que rendir menos');
+  });
+});
+
+/* ==========================================================================
+ * LO CAUSADO NO BAJA AL ABONAR, Y HAY UNA SOLA CUENTA — 5-ago-2026
+ *
+ * `K` y `capitalDelCiclo` salían del capital VIGENTE, así que el paquete que
+ * viaja a la app se armaba con cifras que ya se habían borrado. MEDIDO: 200.000
+ * a 20 días, abono de 199.999 → el Panel cobraba 80.001 y la app mostraba
+ * "Total para saldar hoy $1". Con la mitad abonada: Panel 180.000, app 140.000.
+ *
+ * Y el congelado que sí funcionaba vivía SOLO en crm.html: dos verdades otra
+ * vez. La cuenta es ahora PUENTE.liquidarCiclo, una sola, y el paquete la trae
+ * hecha.
+ * ======================================================================== */
+
+describe('lo causado no se evapora al abonar, y la cuenta es una sola (5-ago-2026)', () => {
+
+  const CAP = 200000, CORTE = '2026-07-15', COBRO = '2026-08-04';   // 20 días
+  const credito = () => ({ id: 'x', numero: 1, socioId: 's1', capital: CAP, costoPct: 20,
+    fechaDesembolso: '2026-07-01', cicloActual: CORTE, pagado: false,
+    prorrogas: [], abonosCapital: [], comprobantes: [] });
+  // Un abono LEGADO: sin ninguno de los campos congelados del Panel.
+  const abonarViejo = (p, monto, fecha) => {
+    p.abonosCapital.push({ fecha: fecha || COBRO, monto: monto });
+    return p;
+  };
+
+  test('EL NÚMERO DEL DEFECTO: el Panel cobraba 80.001 y la app decía $1', () => {
+    const p = abonarViejo(credito(), CAP - 1);
+    assert.equal(P.capitalActual(p), 1, 'el capital sí baja: eso está bien');
+    const l = P.liquidarCiclo(p, COBRO);
+    assert.equal(l.costo, 40000, 'el costo del ciclo se causó sobre los 200.000');
+    assert.equal(l.recargo_mora, 40000, 'y los 20 días corrieron sobre los 200.000');
+    assert.equal(l.total_a_pagar, 80001, 'lo mismo que cobra el Panel');
+    // Lo que salía antes, con el capital vigente de base:
+    assert.equal(Math.round(1 * 20 / 100), 0);
+    assert.equal(M.recargoPorMora(1, 20), 0);
+  });
+
+  test('con la mitad abonada: 180.000, no 140.000', () => {
+    const p = abonarViejo(credito(), 100000);
+    const l = P.liquidarCiclo(p, COBRO);
+    assert.equal(l.capital, 100000);
+    assert.equal(l.costo, 40000);
+    assert.equal(l.recargo_mora, 40000, 'los 20 días ya habían corrido sobre 200.000');
+    assert.equal(l.total_a_pagar, 180000);
+  });
+
+  test('con el capital entero cubierto, lo causado se sigue debiendo', () => {
+    const p = abonarViejo(credito(), CAP);
+    const l = P.liquidarCiclo(p, COBRO);
+    assert.equal(l.capital, 0);
+    assert.equal(l.total_a_pagar, 80000, 'ANTES la app mostraba $0');
+    assert.equal(l.garantia_generada, M.acumularGarantia(80000, false));
+  });
+
+  test('el abono posterior tampoco baja el recargo del día en que se abonó', () => {
+    // Abona 100.000 el día 20 y salda el día 30: los 20 primeros días corrieron
+    // sobre 200.000 y los 10 siguientes sobre los 100.000 que quedaron.
+    const p = abonarViejo(credito(), 100000, COBRO);
+    const l = P.liquidarCiclo(p, '2026-08-14');
+    assert.equal(l.dias_mora, 30);
+    assert.equal(l.recargo_mora, 50000, '40.000 corridos + 1% × 100.000 × 10 días');
+    assert.equal(l.total_a_pagar, 190000);
+    // Y no se le cobra mora sobre plata que ya devolvió: sin abonar habría
+    // debido 300.000 el día 30, y los 10.000 de diferencia son exactamente la
+    // mora de esos 100.000 durante los 10 días que ya no los debía.
+    assert.equal(P.liquidarCiclo(credito(), '2026-08-14').total_a_pagar, 300000);
+    assert.equal(100000 + l.total_a_pagar, 290000);
+    assert.equal(300000 - 290000, M.recargoPorMora(100000, 10));
+  });
+
+  test('BARRIDO: ningún abono, en ningún día, borra un peso de lo ya causado', () => {
+    let pares = 0;
+    for (let abono = 1000; abono < CAP; abono += 1000) {
+      for (let dAbono = 0; dAbono <= 30; dAbono += 5) {
+        const f = M.iso(new Date(2026, 6, 15 + dAbono));
+        const p = abonarViejo(credito(), abono, f);
+        // Lo que ya estaba causado el día del abono: costo del ciclo + el 1%
+        // diario corrido sobre el capital que había hasta ese día.
+        const causado = 40000 + M.recargoPorMora(CAP, dAbono);
+        for (let dCobro = dAbono; dCobro <= 60; dCobro += 5) {
+          const g = M.iso(new Date(2026, 6, 15 + dCobro));
+          const liq = P.liquidarCiclo(p, g);
+          const conAbono = abono + liq.total_a_pagar;
+          const sinAbono = P.liquidarCiclo(credito(), g).total_a_pagar;
+          pares++;
+          assert.ok(liq.costo_total_pagado >= causado - 1,
+            'abonando ' + abono + ' el día ' + dAbono + ' se borró lo ya causado');
+          assert.ok(conAbono <= sinAbono + 1,
+            'abonar salía más caro que no abonar (' + abono + ' el día ' + dAbono + ')');
+        }
+      }
+    }
+    assert.ok(pares > 5000, 'el barrido se quedó corto: ' + pares);
+  });
+
+  test('el costo del ciclo NUEVO sí sale del capital que quedó', () => {
+    // Lo contrario también tiene que valer: una vez que el ciclo se movió, lo
+    // del corte viejo ya se cobró y el ciclo nuevo cuesta el 20% de lo que hay.
+    const p = abonarViejo(credito(), 100000);
+    assert.equal(P.K(p), 40000, 'mientras el corte es el viejo, manda lo causado');
+    p.prorrogas.push({ fecha: COBRO, ciclo: CORTE, monto: 80000, mora: 40000,
+                       aTiempo: false, diasMora: 20, nuevoCiclo: '2026-08-15' });
+    p.cicloActual = '2026-08-15';
+    assert.equal(P.inicioDelCiclo(p), COBRO, 'el ciclo nuevo empezó el día de la prórroga');
+    assert.equal(P.capitalBaseDelCiclo(p), 100000);
+    assert.equal(P.K(p), 20000, 'el 20% de lo que queda');
+    assert.equal(P.moraDelCiclo(p, '2026-08-20'), M.recargoPorMora(100000, 5));
+  });
+
+  test('EL PANEL Y LA APP PREGUNTAN LA MISMA CUENTA, NO CADA UNO LA SUYA', () => {
+    /* El paquete que viaja a la app trae la liquidación YA HECHA. Antes traía
+       capital y costo sueltos y la app volvía a sumar capital + costo + 1% ×
+       capital por su lado: con un abono de por medio, dos totales distintos del
+       mismo crédito el mismo día. */
+    const s = { id: 's1', numero: 1, nombre: 'Ana', cedula: '123456', telefono: '3001112222',
+      whatsappIgual: true, referencia: { nombre: '', telefono: '' }, gestiones: [],
+      ajusteGarantia: 0 };
+    const hoy = M.iso(new Date());
+    const corte = M.iso(M.sumarDias(M.aFechaLocal(hoy), -20));
+    const p = { id: 'z', numero: 1, socioId: 's1', capital: CAP, costoPct: 20,
+      fechaDesembolso: M.iso(M.sumarDias(M.aFechaLocal(corte), -10)),
+      cicloActual: corte, pagado: false,
+      prorrogas: [], abonosCapital: [{ fecha: hoy, monto: CAP - 1 }], comprobantes: [] };
+    const db = { socios: [s], prestamos: [p], respaldados: [], config: {}, contadores: {} };
+
+    const panel = P.liquidarCiclo(p, hoy);
+    const c = P.migrarSocio(db, s).creditos[0];
+    assert.equal(c.capital, panel.capital);
+    assert.equal(c.costo, panel.costo);
+    assert.equal(c.mora, panel.recargo_mora);
+    assert.equal(c.dias_mora, panel.dias_mora);
+    assert.equal(c.total_hoy, panel.total_a_pagar, 'un solo total para los dos');
+    assert.equal(c.total_hoy, 80001, 'y es el que cobra el Panel, no $1');
+    // Y con `causado` la app puede liquidar en OTRO día sin recalcular el 1%
+    // desde cero: se lo pasa al motor tal cual.
+    const dentroDeCinco = M.iso(M.sumarDias(M.aFechaLocal(hoy), 5));
+    assert.equal(
+      M.liquidarCredito({ capital: c.capital, costo: c.costo, fecha_corte: c.corte },
+        dentroDeCinco, { recargoCausado: c.causado.mora, diasCausados: c.causado.dias })
+        .total_a_pagar,
+      P.liquidarCiclo(p, dentroDeCinco).total_a_pagar);
+  });
+
+  test('la cuenta vive en el puente, no en una copia de cada pantalla', () => {
+    ['liquidarCiclo', 'moraDelCiclo', 'causadoDelCiclo', 'capitalBaseDelCiclo',
+     'cortesDelCredito', 'corteVigenteEn', 'ultimoDiaDeMora', 'inicioDelCiclo']
+      .forEach(f => assert.equal(typeof P[f], 'function',
+        'el puente tiene que exportar ' + f + ': si no, cada pantalla se la reescribe'));
+  });
+
+  test('un crédito sin abonos no se mueve ni un peso', () => {
+    const l = P.liquidarCiclo(credito(), COBRO);
+    assert.equal(l.costo, 40000);
+    assert.equal(l.recargo_mora, 40000);
+    assert.equal(l.total_a_pagar, 280000);
+    assert.equal(P.liquidarCiclo(credito(), CORTE).recargo_mora, 0, 'el día del corte, cero');
+    assert.equal(P.liquidarCiclo(credito(), CORTE).pago_a_tiempo, true);
   });
 });
