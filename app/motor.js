@@ -783,12 +783,40 @@
   }
 
   /**
+   * §9-bis — EL RECARGO YA CAUSADO NO SE RECALCULA (4-ago-2026).
+   *
+   * El 1% diario se apoya en el capital vigente. Si dentro del ciclo entra un
+   * ABONO A CAPITAL, ese capital baja, y recalcular el recargo entero sobre lo
+   * que QUEDÓ borra hacia atrás los días que ya corrieron sobre el capital que
+   * HABÍA: con 200.000 a 20 días, abonar 199.999 dejaba el recargo en cero
+   * (1% × 1 peso × 20 días = 0,2 → 0).
+   *
+   * Lo causado ya está causado: hasta `diasCausados` vale `recargoCausado`, y
+   * de ahí en adelante corre el 1% diario sobre la base que quedó. Es justo en
+   * las dos direcciones: no se borra lo corrido, y tampoco se le cobra mora al
+   * socio sobre plata que ya devolvió.
+   *
+   * @param {number} recargoCausado  recargo ya corrido, congelado
+   * @param {number} diasCausados    días de mora que ese recargo ya cubre
+   * @param {number} base            capital que quedó vigente
+   * @param {number} dias            días de mora totales a la fecha de pago
+   */
+  function recargoPorMoraDesde(recargoCausado, diasCausados, base, dias, opciones) {
+    var causado = numeroNoNegativo(recargoCausado, 'recargoCausado');
+    var dc = numeroNoNegativo(diasCausados, 'diasCausados');
+    if (!esNumero(dias)) throw new TypeError('dias: se esperaba un número, llegó ' + describir(dias));
+    return Math.round(causado) + recargoPorMora(base, Math.max(0, dias - dc), opciones);
+  }
+
+  /**
    * Liquida un crédito en la fecha en que el socio paga: días de mora, recargo
    * del 1% diario, total a pagar y garantía generada por todo eso.
    *
    * @param {object} credito   {capital, tasa_aplicada, costo, fecha_corte}
    * @param {Date|string} fechaPago
-   * @param {object} [opciones] {baseMora, topeDias, tasaDiaria}
+   * @param {object} [opciones] {baseMora, topeDias, tasaDiaria, recargoCausado,
+   *   diasCausados}. `recargoCausado`/`diasCausados` son para el crédito que
+   *   recibió abonos a capital dentro del ciclo (ver recargoPorMoraDesde).
    */
   function liquidarCredito(credito, fechaPago, opciones) {
     opciones = opciones || {};
@@ -808,7 +836,10 @@
     var base = opciones.baseMora != null
       ? numeroNoNegativo(opciones.baseMora, 'opciones.baseMora')
       : capital; // D9
-    var recargo = recargoPorMora(base, diasMora, opciones);
+    var recargo = opciones.recargoCausado != null
+      ? recargoPorMoraDesde(opciones.recargoCausado,
+          opciones.diasCausados == null ? 0 : opciones.diasCausados, base, diasMora, opciones)
+      : recargoPorMora(base, diasMora, opciones);
     var costoTotal = costo + recargo;
     var aTiempo = diasMora === 0;
 
@@ -1121,11 +1152,14 @@
    * hechas y con el plan de pagos armado desde la fecha en que se está
    * pactando, que es la salida obligatoria del §8.
    *
-   * @param {object} credito {capital, tasa_aplicada, fecha_corte, estado,
-   *                          prorrogas_usadas, nivel_socio, id}
+   * @param {object} credito {capital, tasa_aplicada, costo, fecha_corte, estado,
+   *                          prorrogas_usadas, nivel_socio, id}. `costo` manda
+   *                          sobre capital × tasa cuando el ciclo ya tenía un
+   *                          costo causado (abonos a capital de por medio).
    * @param {Date|string} [fechaProrroga] el día en que se registra; por defecto
    *                                      el propio corte (o sea, puntual).
-   * @param {object} [opciones] {tasaVigente, nivelSocio, topeDias, tasaDiaria}
+   * @param {object} [opciones] {tasaVigente, nivelSocio, topeDias, tasaDiaria,
+   *                             recargoCausado, diasCausados}
    */
   function liquidarProrroga(credito, fechaProrroga, opciones) {
     opciones = opciones || {};
@@ -1152,9 +1186,20 @@
       credito.prorrogas_usadas == null ? 0 : credito.prorrogas_usadas, 'credito.prorrogas_usadas');
     var permitidas = prorrogasPermitidas(nivel);
 
-    var costo = Math.round(capital * tasa);
+    /* 4-ago-2026 — el costo del ciclo y el recargo pueden venir DADOS, y por la
+       misma razón que en liquidarCredito: si dentro del ciclo entró un abono a
+       capital, las dos cosas ya estaban causadas y no pueden recalcularse sobre
+       el capital que quedó. Sin esto, abonar el capital menos un peso dejaba la
+       prórroga en CERO y, al mover el corte, se llevaba por delante el costo y
+       la mora del ciclo viejo. */
+    var costo = credito.costo != null
+      ? Math.round(numeroNoNegativo(credito.costo, 'credito.costo'))
+      : Math.round(capital * tasa);
     var dias = Math.max(0, diasEntre(corte, fecha));
-    var recargo = recargoPorMora(capital, dias, opciones);
+    var recargo = opciones.recargoCausado != null
+      ? recargoPorMoraDesde(opciones.recargoCausado,
+          opciones.diasCausados == null ? 0 : opciones.diasCausados, capital, dias, opciones)
+      : recargoPorMora(capital, dias, opciones);
     var aTiempo = dias === 0;
     /* El costo con su factor de puntualidad y el recargo SIEMPRE al 45%: es
        plata que solo existe porque el corte ya había pasado. Es la misma cuenta
@@ -1824,6 +1869,8 @@
     // Mora: 1% diario (cambio 26-jul-2026) y tramos del §9
     liquidarCredito: liquidarCredito,
     recargoPorMora: recargoPorMora,
+    // El recargo ya causado no se recalcula cuando entra un abono a capital
+    recargoPorMoraDesde: recargoPorMoraDesde,
     diasDeMora: diasDeMora,
     tramoDeMora: tramoDeMora,
 

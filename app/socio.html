@@ -831,7 +831,7 @@ function pintarEntrar() {
     '</div>' +
     '<div class="card">' +
       '<h3 class="tit">¿Todavía no eres socio?</h3>' +
-      '<p class="sub">Se entra solo por invitación. Si alguien te pasó un código, escríbelo acá.</p>' +
+      '<p class="sub">Se entra solo por invitación. Si alguien te pasó un código, escríbelo aquí.</p>' +
       '<button class="btn sec arriba" onclick="abrirRegistro()">Tengo un código de invitación</button>' +
     '</div>' +
     '<div class="pie">Tus datos solo los ves tú, con tu cédula y tu celular.<br>' +
@@ -1102,11 +1102,17 @@ function vistaInicio() {
      tarjeta del crédito —que sí lo suma— eran dos números distintos para la
      misma deuda a dos centímetros uno del otro: delante de un cliente eso es
      una discusión, y le hace perder la razón a Joan aunque la tenga.
-     La verdad es una sola y es esta: lo de hoy, con mora incluida. */
-  var diasMora = S.activo ? M.diasDeMora(S.activo.corte, hoyISO()) : 0;
-  var moraCredito = S.activo ? M.recargoPorMora(S.activo.capital, diasMora) : 0;
-  var deCredito = S.activo
-    ? Number(S.activo.capital || 0) + Number(S.activo.costo || 0) + moraCredito : 0;
+     La verdad es una sola y es esta: lo de hoy, con mora incluida.
+
+     4-ago-2026: la cuenta la hace el MOTOR (liquidacion), no esta función. Acá
+     se sumaban capital + costo + recargo a mano y con el capital entero de
+     base, así que a un socio en plan de pagos esta cifra y la del Panel no se
+     parecían ni de lejos. */
+  var cicloAct = S.activo ? cicloDelCredito(S.activo) : null;
+  var qAct = S.activo ? liquidacion(S.activo) : null;
+  var diasMora = qAct ? qAct.dias_mora : 0;
+  var moraCredito = qAct ? qAct.recargo_mora : 0;
+  var deCredito = qAct ? qAct.total_a_pagar : 0;
   var deCuota = mismoCorte ? Number(cuota.total || 0) : 0;
   var aPagar = deCredito + deCuota;
 
@@ -1119,14 +1125,16 @@ function vistaInicio() {
       '<div class="etq">Este corte tienes que pagar</div>' +
       '<div class="cifra">' + COP(aPagar) + '</div>' +
       (deCredito && deCuota
-        ? fila('Tu crédito quincenal' + (moraCredito ? ', con el recargo' : ''), COP(deCredito)) +
+        ? fila((cicloAct.en_plan ? 'Tu cuota ' + cicloAct.numero + ' de ' + cicloAct.cuotas +
+                                   ' del plan de pagos' : 'Tu crédito quincenal') +
+               (moraCredito ? ', con el recargo' : ''), COP(deCredito)) +
           fila('Cuota ' + cuota.n + ' del préstamo con garantía', COP(deCuota))
         : '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
           (deCuota ? 'La cuota ' + cuota.n + ' de tu préstamo con garantía, el ' + fmtFecha(cuota.fecha) + '.'
                    : moraCredito
-                     ? 'Tu crédito quincenal, que vencía el ' + fmtFecha(S.activo.corte) +
+                     ? 'Es ' + cicloAct.nombre + ', que vencía el ' + fmtFecha(S.activo.corte) +
                        '. Ya trae adentro el recargo de los ' + diasMora + ' días.'
-                     : 'Tu crédito quincenal, el ' + fmtFecha(S.activo.corte) + '.') + '</div>') +
+                     : 'Es ' + cicloAct.nombre + ', el ' + fmtFecha(S.activo.corte) + '.') + '</div>') +
       '<div class="sep"></div>' +
       '<div class="fila"><span class="k">Puedes pedir hasta</span>' +
         '<span class="v oro">' + esc(COP(S.cupo)) + '</span></div>' +
@@ -1197,7 +1205,7 @@ function verComunidad() {
     '</div>';
 
   h += '<div class="card"><h3 class="tit">Lo que llevamos entre todos</h3>' +
-    '<p class="sub">Cifras del grupo. Acá no aparece el nombre ni el monto de nadie, ni el tuyo.</p>' +
+    '<p class="sub">Cifras del grupo. Aquí no aparece el nombre ni el monto de nadie, ni el tuyo.</p>' +
     fila('Garantía construida', COP(c.garantia_construida || 0)) +
     fila('Créditos pagados', String(c.creditos_pagados || 0)) +
     (c.puntualidad != null ? fila('Se pagan en fecha', c.puntualidad + '%') : '') +
@@ -1224,6 +1232,63 @@ function verComunidad() {
   window.scrollTo(0, 0);
 }
 
+/* ============ LO QUE DE VERDAD CUESTA UN PLAN DE PAGOS ============
+   4-ago-2026. Esta pantalla decía —con las palabras del motor— que el saldo se
+   puede pasar a "un plan de pagos en 3 cortes con un costo reducido del 5%", y
+   se callaba la ENTRADA. El día que el plan se pacta, el Panel cobra el costo
+   de la quincena que no se pagó (el 20% del capital) y, si el socio venía
+   atrasado, el 1% diario ya causado, que el plan tampoco borra. Sobre 600.000
+   el socio leía 60.000 y le cobraban 180.000: el triple. Y a un socio con 35
+   días encima, 330.000 solo de entrada.
+   Un socio que lee 60.000 y le cobran 180.000 no vuelve, y hace bien. Así que
+   el precio se dice entero, con la entrada adentro y el caso de la mora dicho.
+   Las cifras salen del motor —calcularCosto y construirPlanDePagos, las mismas
+   que hacen el cobro—, nunca de una multiplicación escrita en esta página: el
+   día que cambie una tasa, este texto cambia solo. */
+function ejemploPlanDePagos(capital) {
+  var k = Math.min(M.MONTO_MAXIMO_CALCULADORA,
+                   Math.max(M.MONTO_MINIMO, Math.round(Number(capital) || 0)));
+  var hoy = hoyISO();
+  var plan = M.construirPlanDePagos({ capital: k, fecha_corte: hoy }, { desde: hoy });
+  return {
+    capital: k,
+    entrada: M.calcularCosto(k),          // el costo de la quincena, que no se perdona
+    cortes: plan.cuotas.length,
+    costo_cortes: plan.total_costo,
+    costo_total: M.calcularCosto(k) + plan.total_costo
+  };
+}
+
+function bloquePlanDePagos() {
+  var c = S && S.activo;
+  var ciclo = c ? cicloDelCredito(c) : null;
+  /* Con su propia deuda si la tiene, que es la que va a entender; si ya está en
+     un plan, `capital` es el de la cuota y no sirve de ejemplo, así que manda su
+     cupo. Nunca una cifra inventada por esta página. */
+  var base = (c && ciclo && !ciclo.en_plan) ? c.capital : (S ? S.cupo : 0);
+  var e = ejemploPlanDePagos(base);
+  var dias = c ? Math.max(0, M.diasDeMora(c.corte, hoyISO())) : 0;
+  var recargo = dias > 0 ? M.recargoPorMora(e.capital, dias) : 0;
+
+  return '<div class="card"><div class="etq">El plan de pagos, con todo lo que cuesta</div>' +
+    '<p style="margin:var(--e2) 0 0;font-size:14.5px">El plan reparte lo que debes en ' + e.cortes +
+    ' cortes, y cada corte cuesta el ' + pct(M.TASA_PLAN_DE_PAGOS) + ' de lo que quede debiendo. ' +
+    'Pero ese ' + pct(M.TASA_PLAN_DE_PAGOS) + ' <b>no es todo lo que cuesta el plan</b>: el día que se ' +
+    'pacta se paga una <b>entrada</b>, que es el costo de la quincena que no alcanzaste a pagar, el ' +
+    pct(M.TASA_CREDITO) + ' del capital. Preferimos que lo sepas hoy y no el día del cobro.</p>' +
+    fila('Si debieras ' + COP(e.capital) + ', la entrada', COP(e.entrada)) +
+    fila('Los ' + e.cortes + ' cortes al ' + pct(M.TASA_PLAN_DE_PAGOS), COP(e.costo_cortes)) +
+    '<div class="fila"><span class="k">Te costaría en total</span>' +
+      '<span class="v"><b>' + esc(COP(e.costo_total)) + '</b></span></div>' +
+    '<div class="aviso ambar">Y si llegas al plan <b>ya atrasado</b>, el plan no borra el recargo: la ' +
+    'entrada lleva además el ' + pct(M.TASA_MORA_DIARIA) + ' diario de los días que lleves encima.' +
+    (recargo ? ' Con los ' + dias + ' que llevas hoy, serían ' + COP(recargo) + ' más de entrada.' : '') +
+    '</div>' +
+    '<div class="muted" style="font-size:13px;margin-top:var(--e3)">Todo lo que pagues en el plan te ' +
+    'sigue sumando garantía, igual que cualquier otro pago. Y el plan es una salida, no un castigo: ' +
+    'no bajas de nivel ni pierdes nada de lo que llevas construido.</div></div>';
+}
+
 /* Las reglas salen del motor, no de un texto suelto: si algún día cambia un
    número, esta pantalla cambia sola. No puede quedar prometiendo otra cosa. */
 function verReglas() {
@@ -1235,7 +1300,7 @@ function verReglas() {
   var h = '<div class="card laca"><div class="etq">El acuerdo</div>' +
     '<h1 style="font-size:22px;margin-top:var(--e2);color:var(--blanco-laca)">Cómo funciona esto</h1>' +
     '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">Las mismas reglas para todos los ' +
-    'socios. Están acá para que las puedas leer cuando quieras, no solo cuando pides.</div></div>';
+    'socios. Están aquí para que las puedas leer cuando quieras, no solo cuando pides.</div></div>';
 
   h += bloque('El costo', r.costo.texto);
   h += bloque('Tu cupo crece pagando', r.garantia.texto);
@@ -1247,7 +1312,7 @@ function verReglas() {
     '<p class="sub">Cuánto puedes pedir es tu garantía multiplicada por el factor de tu nivel.</p>' +
     '<div style="margin-top:var(--e2)">' + r.niveles.map(function (n) {
       return '<div class="nivel ' + (n.nivel === S.nivel ? 'aqui' : '') + '">' +
-        '<span class="txt"><span class="nm">' + n.nivel + (n.nivel === S.nivel ? ' · acá estás' : '') + '</span>' +
+        '<span class="txt"><span class="nm">' + n.nivel + (n.nivel === S.nivel ? ' · aquí estás' : '') + '</span>' +
         '<span class="rq">' + requisitoTexto({ nivel: n.nivel, requisitos: n.requisitos, factor: n.factor }) + '</span></span>' +
         '<span class="cp">×' + n.factor + '</span></div>';
     }).join('') + '</div>' +
@@ -1256,6 +1321,11 @@ function verReglas() {
   h += '<div class="card"><div class="etq">Si te atrasas</div>' +
     '<p style="margin:var(--e2) 0 0;font-size:14.5px">' + esc(r.mora.texto) + '</p>' +
     '<div class="aviso" style="margin-top:var(--e3)">' + esc(r.prorroga.texto) + '</div></div>';
+
+  /* Va pegado al de arriba a propósito: el texto del motor nombra el plan y su
+     5%, y el precio completo tiene que leerse en el mismo tirón, no dos
+     pantallas más allá. */
+  h += bloquePlanDePagos();
 
   h += '<button class="btn sec" style="margin-top:var(--e3)" onclick="irA(\'inicio\')">Volver</button>';
   $('cuerpo').innerHTML = '<div class="panel">' + h + '</div>';
@@ -1294,17 +1364,92 @@ function textoProximoNivel() {
          COP(M.calcularCupo(S.gd.base_cupo, s.nivel)) + '.';
 }
 
+/* ============ QUÉ CICLO SE ESTÁ COBRANDO, Y A QUÉ PRECIO ============
+   4-ago-2026. Un crédito no siempre está en su quincena: cuando al socio se le
+   acaban las prórrogas pasa a un PLAN DE PAGOS, y ahí lo que se cobra es otra
+   cosa — la cuota, no el capital entero, y al 5% del saldo, no al 20%.
+
+   La app pintaba las tres cifras mezcladas: el capital entero, el costo de la
+   cuota y la etiqueta "(20%)". A un socio con 600.000 en plan le mostraba
+   "Capital $600.000 · Costo (20%) $30.000 · Recargo $60.000" cuando el Panel le
+   cobraba 250.000. Tres números, ninguno del mismo ciclo.
+
+   De acá salen la etiqueta, el porcentaje y el número de cuota, y de una sola
+   pregunta: `plan_cuotas`, que el paquete ya trae. Ninguna pantalla vuelve a
+   decidirlo por su cuenta. */
+function cicloDelCredito(c) {
+  var total = Math.max(0, Math.round(Number(c && c.plan_cuotas) || 0));
+  var pagas = Math.max(0, Math.round(Number(c && c.plan_cuotas_pagadas) || 0));
+  var enPlan = total > 0;
+  var n = enPlan ? Math.min(total, pagas + 1) : 0;
+  return {
+    en_plan: enPlan,
+    numero: n,
+    cuotas: total,
+    /* El porcentaje del producto que DE VERDAD rige. Si el paquete trae la tasa
+       de este ciclo, manda esa: lo que ya viene dicho no se adivina. Si no
+       viene, sale del motor —5% en plan, 20% en la quincena—, nunca escrita a
+       mano acá. Y se normaliza: el Panel guarda el costo como `costoPct` (20),
+       el motor lo maneja en decimal (0,20), y un 20 leído como decimal pintaría
+       "2000%". Por debajo de 1 es decimal, por encima es porcentaje: entre 0,05
+       y 5 no hay ambigüedad posible. */
+    tasa: tasaDecimal((c && c.tasa != null) ? c.tasa
+        : (enPlan ? M.TASA_PLAN_DE_PAGOS : M.TASA_CREDITO)),
+    etiqueta_capital: enPlan ? 'Capital de la cuota ' + n + ' de ' + total : 'Capital',
+    nombre: enPlan ? 'la cuota ' + n + ' de ' + total + ' de tu plan de pagos'
+                   : 'tu crédito quincenal'
+  };
+}
+
+/* Un porcentaje puede llegar en decimal (0,20, como lo maneja el motor) o en
+   entero (20, como lo guarda el Panel en `costoPct`). Entre 0,05 y 20 no hay
+   ambigüedad: por debajo de 1 es decimal, por encima es porcentaje. Si llega
+   basura manda el 20% del quincenal, que es el precio más alto de los dos:
+   equivocarse hacia abajo sería prometerle al socio algo más barato de lo que
+   va a pagar, y eso es justo lo que esta ronda vino a cerrar. */
+function tasaDecimal(t) {
+  var n = Number(t);
+  if (!isFinite(n) || n <= 0) return M.TASA_CREDITO;
+  return n > 1 ? n / 100 : n;
+}
+
+/* La liquidación de un crédito en una fecha, hecha por el MOTOR y por nadie
+   más: días de mora, recargo del 1% diario sobre el capital de este ciclo,
+   total y garantía. Antes cada pantalla sumaba capital + costo + recargo por su
+   cuenta y usaba la base que tenía a mano.
+   No puede lanzar: liquidarCredito exige capital > 0 y un capital en cero o un
+   corte sin fecha no pueden dejar al socio sin ver su cuenta. */
+function liquidacion(c, fecha) {
+  var capital = Math.max(0, Number(c && c.capital) || 0);
+  var costo = Math.max(0, Number(c && c.costo) || 0);
+  var corte = (c && /^\d{4}-\d{2}-\d{2}/.test(String(c.corte || ''))) ? String(c.corte).slice(0, 10) : null;
+  var cuando = fecha || hoyISO();
+  if (capital > 0 && corte) {
+    try {
+      return M.liquidarCredito({ capital: capital, costo: costo, fecha_corte: corte }, cuando);
+    } catch (e) {}
+  }
+  var dias = corte ? Math.max(0, M.diasDeMora(corte, cuando)) : 0;
+  return { capital: capital, costo: costo, recargo_mora: 0, dias_mora: dias,
+           pago_a_tiempo: dias === 0, costo_total_pagado: costo,
+           total_a_pagar: capital + costo,
+           garantia_generada: M.acumularGarantia(costo, dias === 0),
+           garantia_si_puntual: M.acumularGarantia(costo, true) };
+}
+
 function tarjetaActivo(c) {
   var dias = M.diasDeMora(c.corte, hoyISO());
   var enMora = dias > 0;
-  var total = Number(c.capital || 0) + Number(c.costo || 0);
+  var ciclo = cicloDelCredito(c);
+  var q = liquidacion(c);            // capital, costo, recargo y total: del motor
   var h = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center">' +
-    '<div class="etq">Tu crédito de ahora</div><span class="pill ' + (enMora ? 'ambar' : '') + '">' +
+    '<div class="etq">' + (ciclo.en_plan ? 'Tu plan de pagos · cuota ' + ciclo.numero + ' de ' + ciclo.cuotas
+                                         : 'Tu crédito de ahora') + '</div>' +
+    '<span class="pill ' + (enMora ? 'ambar' : '') + '">' +
     (enMora ? dias + ' día' + (dias !== 1 ? 's' : '') + ' de atraso' :
      (dias === 0 ? 'Vence hoy' : 'Faltan ' + Math.abs(dias) + ' días')) + '</span></div>';
 
   if (enMora) {
-    var r = M.recargoPorMora(c.capital, dias);
     /* Acá NO va cifra grande. La que manda en esta pantalla es la de arriba,
        que ya trae el recargo; esta tarjeta es el desglose de esa misma cifra,
        para que el socio pueda seguir la cuenta línea por línea y llegue al
@@ -1312,21 +1457,32 @@ function tarjetaActivo(c) {
        color propio: explica, no compite. */
     h += '<div class="muted" style="font-size:13px;margin-top:var(--e2)">' +
       'De qué está hecho lo que tienes que pagar hoy:</div>' +
-      fila('Capital', COP(c.capital)) + fila('Costo (' + pct(M.TASA_CREDITO) + ')', COP(c.costo)) +
-      fila('Recargo por los ' + dias + ' días', COP(r)) +
+      fila(ciclo.etiqueta_capital, COP(q.capital)) +
+      fila('Costo (' + pct(ciclo.tasa) + ')', COP(q.costo)) +
+      fila('Recargo por los ' + q.dias_mora + ' días', COP(q.recargo_mora)) +
       '<div class="fila"><span class="k">Total para saldar hoy</span>' +
-        '<span class="v"><b>' + esc(COP(total + r)) + '</b></span></div>' +
+        '<span class="v"><b>' + esc(COP(q.total_a_pagar)) + '</b></span></div>' +
       '<div class="aviso ambar"><b>Aunque te atrases, sigues siendo socio.</b><br>' +
       'No bajas de nivel, no pierdes garantía y puedes volver a pedir. Paga lo que puedas ' +
       'cuando puedas: todo lo que pagues sigue sumando a tu cupo.</div>';
   } else {
-    h += '<div class="cifra sm">' + COP(total) + '</div>' +
+    h += '<div class="cifra sm">' + COP(q.total_a_pagar) + '</div>' +
       '<div class="muted" style="font-size:13px">Total para saldar</div>' +
-      fila('Capital', COP(c.capital)) + fila('Costo (' + pct(M.TASA_CREDITO) + ')', COP(c.costo)) +
+      fila(ciclo.etiqueta_capital, COP(q.capital)) +
+      fila('Costo (' + pct(ciclo.tasa) + ')', COP(q.costo)) +
       fila('Fecha de pago', fmtFecha(c.corte)) +
       '<div class="aviso"><b>Si pagas en fecha, sumas el doble.</b><br>' +
-      'Pagando el ' + fmtFecha(c.corte) + ' o antes, tu cupo sube ' + COP(M.acumularGarantia(c.costo, true)) +
+      'Pagando el ' + fmtFecha(c.corte) + ' o antes, tu cupo sube ' + COP(q.garantia_si_puntual) +
       '. Si te atrasas igual suma, pero la mitad.</div>';
+  }
+  if (ciclo.en_plan) {
+    /* La cuota NO es la deuda: el saldo del crédito entero viene aparte en el
+       paquete y se dice, para que nadie crea que con esta cuota terminó. */
+    h += (c.saldo_capital != null ? fila('Te falta del crédito', COP(c.saldo_capital)) : '') +
+      '<div class="aviso info">Esta es la cuota ' + ciclo.numero + ' de ' + ciclo.cuotas +
+      ' de tu plan. Cada cuota cuesta el ' + pct(ciclo.tasa) +
+      ' de lo que quede debiendo, así que las de más adelante cuestan menos. ' +
+      'La entrada del plan ya la pagaste el día que lo pactamos.</div>';
   }
   if (c.prorrogas) h += fila('Prórrogas usadas', String(c.prorrogas));
   h += '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="recordarme()">Que mi celular me lo recuerde</button>' +
@@ -1775,7 +1931,7 @@ function piezaComparar() {
 
   return '<h3 class="tit" style="margin-top:var(--e4)">Dos formas de pedir ' + COP(c.capital) + '</h3>' +
     '<p class="sub">Las dos por el mismo tiempo: ' + enPlazo + '. El quincenal vence en cada corte, ' +
-    'así que acá va renovado hasta cubrir ese plazo.</p>' +
+    'así que aquí va renovado hasta cubrir ese plazo.</p>' +
     '<div class="card laca pegado">' +
       '<div class="dual">' + izq + der + '</div>' +
       '<div class="remate">' + barato + ' ' + crece + ' Los dos son buenos: uno cuida la plata de hoy, ' +
@@ -1794,14 +1950,21 @@ function plegarICS(lineas) {
   return out.join('\r\n');
 }
 function armarICS(c) {
-  var total = Number(c.capital || 0) + Number(c.costo || 0);
+  /* Liquidado EN la fecha de corte, no hoy: el recordatorio es de ese día, así
+     que no puede llevar el recargo de una mora que todavía no ocurrió. El total
+     lo arma el motor igual que en la tarjeta, para que el calendario y la
+     pantalla no digan dos cifras. */
+  var ciclo = cicloDelCredito(c);
+  var q = liquidacion(c, String(c.corte || '').slice(0, 10) || hoyISO());
+  var total = q.total_a_pagar;
   var f = String(c.corte).slice(0, 10).replace(/-/g, '');
   var sello = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
   var quien = nombreJoan();
-  var desc = 'Total a pagar: ' + COP(total) + ' (capital ' + COP(c.capital) + ' + costo ' + COP(c.costo) + '). ' +
-    'Pagando en fecha tu cupo sube ' + COP(M.acumularGarantia(c.costo, true)) + '. ' +
-    'Si ese día no puedes pagar todo, se puede dejar una prórroga o un plan de pagos, ' +
-    'y aunque te atrases sigues siendo socio.';
+  var desc = 'Total a pagar: ' + COP(total) + ' (' + ciclo.etiqueta_capital.toLowerCase() + ' ' +
+    COP(q.capital) + ' + costo ' + COP(q.costo) + '). ' +
+    'Pagando en fecha tu cupo sube ' + COP(q.garantia_si_puntual) + '. ' +
+    'Si ese día no puedes pagar todo, se puede dejar una prórroga o pasar a un plan de pagos; ' +
+    'las dos cosas tienen costo y te lo decimos antes. Y aunque te atrases sigues siendo socio.';
   return plegarICS([
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Tu Garantia//Socios//ES',
     'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
@@ -1882,8 +2045,13 @@ function pedirCredito() {
         ? '<div class="aviso ambar">Estás pidiendo más que tu cupo. Puedes pedirlo igual: ' +
           'lo revisamos y te respondemos.</div>'
         : '')) +
+    /* Las dos salidas cuestan, y el plan además tiene entrada. Decir solo que
+       existen suena a que son gratis, y el día del cobro la sorpresa es del
+       socio. Acá se nombra el costo y las reglas lo explican entero. */
     '<div class="aviso">Si llegado el día no puedes pagar todo, no se te cierra nada: puedes dejar ' +
-    'una prórroga o un plan de pagos. Y aunque te atrases, sigues siendo socio.</div>' +
+    'una prórroga o pasar a un plan de pagos. Las dos cosas tienen costo —el plan arranca con una ' +
+    'entrada del ' + pct(M.TASA_CREDITO) + '— y está todo explicado en <b>Cómo funciona esto</b>. ' +
+    'Y aunque te atrases, sigues siendo socio.</div>' +
     '<button class="btn ' + (resp ? 'azul' : '') + ' arriba" onclick="mandarSolicitud(' + MONTO + ')">' +
       'Mandar la solicitud' + '</button>' +
     '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="irA(\'calc\')">Volver</button>' +
@@ -2046,7 +2214,7 @@ function vistaGarantia() {
     '. Subir es pagar en fecha, nada más.</p>' +
     '<div style="margin-top:var(--e2)">' + M.proyeccionNiveles(gd.base_cupo, S.nivel).map(function (n) {
       return '<div class="nivel ' + (n.actual ? 'aqui' : '') + '">' +
-        '<span class="txt"><span class="nm">' + n.nivel + (n.actual ? ' · acá estás' : '') + '</span>' +
+        '<span class="txt"><span class="nm">' + n.nivel + (n.actual ? ' · aquí estás' : '') + '</span>' +
         '<span class="rq">' + requisitoTexto(n) + '</span></span>' +
         '<span class="cp oro-tinta">' + COP(n.cupo) + '</span></div>';
     }).join('') + '</div>' +
@@ -2092,12 +2260,21 @@ function vistaHistorial() {
     var estado = c.pagado
       ? (puntual ? 'Pagado en fecha' : 'Pagado')
       : (atraso > 0 ? atraso + ' día' + (atraso !== 1 ? 's' : '') + ' de atraso' : 'En curso');
+    /* Acá manda el crédito ENTERO, no el ciclo: `capital` viaja como el capital
+       de la cuota cuando hay plan de pagos, y en un listado de créditos esa
+       cifra diría que el socio pidió 200.000 cuando pidió 600.000. */
+    var suCapital = c.saldo_capital != null ? c.saldo_capital : c.capital;
     h += '<div class="credito"><div class="top">' +
-      '<div><b>' + COP(c.capital) + '</b><div class="cod">' + esc(c.codigo || '') + '</div></div>' +
+      '<div><b>' + COP(suCapital) + '</b><div class="cod">' + esc(c.codigo || '') + '</div></div>' +
       '<span class="pill' + (atraso > 0 ? ' ambar' : '') + '">' + esc(estado) + '</span></div>' +
       '<div class="muted" style="font-size:13px;margin-top:var(--e2)">' +
         fmtFecha(c.desembolso) + ' → ' + fmtFecha(c.fecha_pagado || c.corte) +
-        (c.prorrogas ? ' · ' + c.prorrogas + ' prórroga' + (c.prorrogas !== 1 ? 's' : '') : '') + '</div>' +
+        (c.prorrogas ? ' · ' + c.prorrogas + ' prórroga' + (c.prorrogas !== 1 ? 's' : '') : '') +
+        /* Un crédito en plan de pagos se veía igualito a uno normal, y no lo es:
+           lo que se cobra es la cuota, no el capital. Se dice. */
+        (Number(c.plan_cuotas || 0) > 0
+          ? ' · plan de pagos, ' + Number(c.plan_cuotas_pagadas || 0) + ' de ' +
+            Number(c.plan_cuotas) + ' cuotas pagadas' : '') + '</div>' +
       '<div class="gan"><span class="muted">Garantía que te dejó</span>' +
         (c.garantia ? '<b>+' + COP(c.garantia) + '</b>' : '<span class="muted">al pagarlo</span>') + '</div>' +
       '</div>';

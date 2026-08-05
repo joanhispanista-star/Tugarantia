@@ -489,6 +489,60 @@ const KEY=PUENTE.LLAVE_PANEL;
    verdades; si algún día cambia, cambia en un solo lugar. */
 const TASA_FIJA_PCT=Math.round(MotorReglas.TASA_CREDITO*100);
 const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+/* =========================================================================
+   4-ago-2026 — UNA SOLA VOZ EN LAS DOCE PLANTILLAS.
+
+   Las doce mezclaban dos remitentes: cinco hablaban en plural (bienvenida,
+   recordatorio2, historial, invitacion, recordatorioRespaldado) y siete en
+   singular (recordatorio1, venceHoy, moraTemprana, mora, recibo, prorroga,
+   reciboRespaldado). Y no son dos grupos separados: se entrelazan DENTRO del
+   mismo crédito. Al socio le llegaba, en 48 horas:
+     · "Te escribimos 🙂 … tu pago es el 15"        (recordatorio2, plural)
+     · "espero que estés muy bien… me avisas y entre los dos lo cuadramos"
+                                                     (recordatorio1, singular)
+     · "Te recuerdo que hoy es tu pago"              (venceHoy, singular)
+   Tres mensajes, dos remitentes, el mismo día.
+
+   QUEDA EL PLURAL, por tres razones y en este orden:
+     1. Es la voz que YA eligieron las dos correcciones anteriores (3 y 4 de
+        agosto) y la que habla socio.html. La migración de cargar() reescribe
+        "Te escribe {negocio}" → "Te escribimos": elegir el singular sería
+        pelearse con código que ya está puesto y corriendo.
+     2. Quien firma es el negocio, no una persona: el remitente de WhatsApp, la
+        app, los términos y la política de datos dicen "Tu Garantía". El día que
+        conteste alguien que no sea Joan, el plural sigue siendo verdad; el
+        singular se vuelve mentira y hay que migrar otra vez.
+     3. El plural no cuesta cercanía si el resto del texto la conserva: se
+        cambia el verbo, no el tono. "Aquí estamos para apoyarte" y "Lo
+        importante eres tú" siguen ahí.
+
+   MIGRACIÓN. Joan pudo editar sus plantillas a mano, y eso no se pisa. Se sigue
+   el patrón que ya está en cargar(): reemplazos QUIRÚRGICOS —solo las
+   construcciones exactas que venían de las plantillas recomendadas viejas— e
+   IDEMPOTENTES: después del cambio ninguna vuelve a encontrar nada, así que
+   correrla mil veces da lo mismo que correrla una y no hace falta marca de
+   migración. Lo que Joan escribió de su puño y letra se queda como está. */
+const VOZ_UNICA=[
+  /* Jerga de cobranza bancaria, justo lo que este producto no quiere sonar. En
+     la app del socio ya se habla de "tu pago" y de "lo que debes". */
+  [/([Tt])u obligación de/g,'$1u pago de'],
+  /* Y el singular → plural, construcción por construcción. */
+  [/([Tt])e recuerdo que/g,'$1e recordamos que'],
+  [/([Ee])spero que estés/g,'$1speramos que estés'],
+  [/quería saber cómo va todo/g,'queríamos saber cómo va todo'],
+  [/([Aa])quí estoy para apoyarte/g,'$1quí estamos para apoyarte'],
+  [/quiero ayudarte a resolverlo/g,'queremos ayudarte a resolverlo'],
+  [/([Cc])uéntame cómo está tu situación/g,'$1uéntanos cómo está tu situación'],
+  [/aquí me tienes/g,'aquí nos tienes'],
+  [/ya registré tu prórroga/g,'ya registramos tu prórroga'],
+  [/([Gg])racias por avisarme/g,'$1racias por avisarnos'],
+  [/cualquier cosa me cuentas/g,'cualquier cosa nos cuentas'],
+  [/([Tt])e aviso cuando se acerque/g,'$1e avisamos cuando se acerque'],
+  [/me avisas y entre los dos lo cuadramos/g,'nos avisas y lo cuadramos juntos'],
+  [/([Qq])uedo pendiente para lo que necesites/g,'$1uedamos pendientes para lo que necesites']
+];
+
 const PLANTILLAS_DEF={
   /* 3-ago-2026 — la marca no puede hacer de SUJETO en una frase que además
      habla del saldo del socio: "Te escribe Tu Garantía… tu pago de $480.000"
@@ -511,16 +565,16 @@ const PLANTILLAS_DEF={
      donde se confunde con lo que el socio construyó. */
   bienvenida:{t:'Bienvenida · crédito nuevo',x:'Al desembolsar, para agradecer la confianza',m:'¡Hola {nombre}! De corazón, gracias por la confianza 🙂 Ya te quedó entregado tu crédito de {monto}. Con calma te recordamos que tu primera cuota de {saldo} es el {fecha_pago}. Aquí estamos para acompañarte en lo que necesites.'},
   recordatorio2:{t:'Recordatorio · 2 días antes',x:'Aviso amable antes del vencimiento',m:'Hola {nombre}, ¿cómo va todo? Te escribimos 🙂 Solo para recordarte con tiempo que tu pago de {saldo} es el {fecha_pago}. Cualquier cosa nos cuentas y lo organizamos.'},
-  recordatorio1:{t:'Recordatorio · 1 día antes',x:'El día previo',m:'Hola {nombre}, espero que estés muy bien. Mañana {fecha_pago} es tu pago de {saldo}. Si necesitas algo, me avisas y entre los dos lo cuadramos con gusto.'},
-  venceHoy:{t:'Vence hoy',x:'El día del pago',m:'Hola {nombre}, ¿cómo estás hoy? Te recuerdo que hoy es tu pago de {saldo}. Si no alcanzas a cubrir todo, no te preocupes: puedes dejar la prórroga de {prorroga} y seguimos en la otra quincena. Quedo pendiente para lo que necesites.'},
-  moraTemprana:{t:'Mora temprana · 1 a 5 días',x:'Recién vencido, con apoyo',m:'Hola {nombre}, espero que estés bien. Tu pago de {saldo} quedó pendiente desde el {fecha_pago} y quería saber cómo va todo por allá. ¿Lo coordinamos hoy con calma? Si te sirve, también puedes dejar la prórroga de {prorroga}. Aquí estoy para apoyarte.'},
-  mora:{t:'Mora · 6 días o más',x:'Respetuoso, buscando acuerdo',m:'Hola {nombre}, ¿cómo has estado? Tu obligación de {saldo} sigue pendiente ({dias_mora} días) y de verdad quiero ayudarte a resolverlo. Cuéntame cómo está tu situación y buscamos juntos un acuerdo que te sirva. Lo importante eres tú.'},
-  recibo:{t:'Pago recibido',x:'Confirmación cálida',m:'¡Recibido, {nombre}! Tu pago quedó registrado. De corazón, muchas gracias por tu cumplimiento y por la confianza. Cuando necesites, aquí me tienes 🙂'},
+  recordatorio1:{t:'Recordatorio · 1 día antes',x:'El día previo',m:'Hola {nombre}, esperamos que estés muy bien. Mañana {fecha_pago} es tu pago de {saldo}. Si necesitas algo, nos avisas y lo cuadramos juntos con gusto.'},
+  venceHoy:{t:'Vence hoy',x:'El día del pago',m:'Hola {nombre}, ¿cómo estás hoy? Te recordamos que hoy es tu pago de {saldo}. Si no alcanzas a cubrir todo, no te preocupes: puedes dejar la prórroga de {prorroga} y seguimos en la otra quincena. Quedamos pendientes para lo que necesites.'},
+  moraTemprana:{t:'Mora temprana · 1 a 5 días',x:'Recién vencido, con apoyo',m:'Hola {nombre}, esperamos que estés bien. Tu pago de {saldo} quedó pendiente desde el {fecha_pago} y queríamos saber cómo va todo por allá. ¿Lo coordinamos hoy con calma? Si te sirve, también puedes dejar la prórroga de {prorroga}. Aquí estamos para apoyarte.'},
+  mora:{t:'Mora · 6 días o más',x:'Respetuoso, buscando acuerdo',m:'Hola {nombre}, ¿cómo has estado? Tu pago de {saldo} sigue pendiente ({dias_mora} días) y de verdad queremos ayudarte a resolverlo. Cuéntanos cómo está tu situación y buscamos juntos un acuerdo que te sirva. Lo importante eres tú.'},
+  recibo:{t:'Pago recibido',x:'Confirmación cálida',m:'¡Recibido, {nombre}! Tu pago quedó registrado. De corazón, muchas gracias por tu cumplimiento y por la confianza. Cuando necesites, aquí nos tienes 🙂'},
   historial:{t:'Su historial de socio',x:'Le manda a su celular todo lo que ha construido contigo',m:'Hola {nombre} 🙂 Te compartimos tu historial de socio, para que lo veas cuando quieras desde tu celular. Ahí sale todo lo que has pagado, la garantía que llevas acumulada, hasta cuánto puedes pedir y con qué tasa. Y algo que queremos que tengas claro: aunque alguna vez te atrases, sigues siendo socio y aquí te seguimos prestando.\n\n{enlace}'},
-  prorroga:{t:'Prórroga registrada',x:'Tras dejar la prórroga',m:'Listo {nombre}, ya registré tu prórroga de {prorroga}, no te preocupes por nada. Tu pago de {saldo} pasa tranquilo para la quincena del {fecha_pago}. Gracias por avisarme; cualquier cosa me cuentas.'},
+  prorroga:{t:'Prórroga registrada',x:'Tras dejar la prórroga',m:'Listo {nombre}, ya registramos tu prórroga de {prorroga}, no te preocupes por nada. Tu pago de {saldo} pasa tranquilo para la quincena del {fecha_pago}. Gracias por avisarnos; cualquier cosa nos cuentas.'},
   invitacion:{t:'Invitación · código de entrada',x:'Para que alguien nuevo pueda abrir su cuenta',m:'Hola {nombre}, te escribimos para pasarte tu código de entrada: {codigo}\nEntras acá: {enlace}\nEl código sirve para una sola persona, así que no lo reenvíes.'},
   recordatorioRespaldado:{t:'Cuota del préstamo con garantía',x:'Antes de que venza una de las cuotas mensuales',m:'Hola {nombre}, ¿cómo va todo? Te escribimos 🙂 Te recordamos con tiempo la cuota {n} de {plazo} de tu préstamo con garantía: son {cuota} el {fecha_pago}. Cualquier cosa nos cuentas y lo organizamos.'},
-  reciboRespaldado:{t:'Cuota con garantía recibida',x:'Confirmación de una cuota mensual',m:'¡Recibido, {nombre}! Ya quedó registrada tu cuota {n} de {plazo} por {cuota}. Gracias por tu cumplimiento 🙂 Te aviso cuando se acerque la siguiente.'}
+  reciboRespaldado:{t:'Cuota con garantía recibida',x:'Confirmación de una cuota mensual',m:'¡Recibido, {nombre}! Ya quedó registrada tu cuota {n} de {plazo} por {cuota}. Gracias por tu cumplimiento 🙂 Te avisamos cuando se acerque la siguiente.'}
 };
 
 /* 3-ago-2026: cuántas fechaPagado tocó la migración en ESTA carga. Se declara
@@ -564,11 +618,17 @@ function cargar(){
      y "tu historial con {negocio}" (historial, pegada a "la garantía que llevas
      acumulada"). Las tres son idempotentes y solo tocan esa construcción: lo que
      Joan haya escrito de su puño y letra se queda como está. */
-  Object.keys(d.plantillas).forEach(k=>{ if(typeof d.plantillas[k]==='string')
+  /* 4-ago-2026 (tarde) — UNA SOLA VOZ. Los reemplazos de VOZ_UNICA corren acá
+     mismo y por el mismo motivo: lo del disco le gana a lo recomendado, así que
+     arreglar PLANTILLAS_DEF no alcanza para el Panel que ya apretó "Guardar
+     plantillas". Ver el comentario de VOZ_UNICA para por qué queda el plural. */
+  Object.keys(d.plantillas).forEach(k=>{ if(typeof d.plantillas[k]==='string'){
     d.plantillas[k]=d.plantillas[k]
       .replace(/([Tt])e escribe (\{negocio\}|Tu Garantía)/g,'$1e escribimos')
       .replace(/gracias por confiar en (\{negocio\}|Tu Garantía)/g,'gracias por la confianza')
-      .replace(/([Tt]u|[Ss]u|[Ee]l) historial con (\{negocio\}|Tu Garantía)/g,'$1 historial de socio'); });
+      .replace(/([Tt]u|[Ss]u|[Ee]l) historial con (\{negocio\}|Tu Garantía)/g,'$1 historial de socio');
+    VOZ_UNICA.forEach(r=>{ d.plantillas[k]=d.plantillas[k].replace(r[0],r[1]); });
+  } });
   d.config=Object.assign({costoBasePct:20,tasaUsuraEA:0,pin:'1234',negocio:'Tu Garantía',whatsapp:''},d.config||{});
   d.contadores=Object.assign({cliente:0,credito:0,respaldado:0},d.contadores||{});
   d.socios.forEach(s=>{ s.gestiones=s.gestiones||[]; s.referencia=s.referencia||{nombre:'',telefono:''}; if(s.whatsappIgual===undefined)s.whatsappIgual=true;
@@ -684,7 +744,44 @@ function fmtEA(ea){ return ea>=100000?'≥100.000% (extrema)':ea.toLocaleString(
    su app. Lo de acá abajo (vigente, total del ciclo, ganancia esperada) es tuyo
    y solo tuyo, así que se queda en este archivo. */
 function capitalActual(p){ return PUENTE.capitalActual(p); }
-function K(p){ return PUENTE.K(p); }
+/* =========================================================================
+   4-ago-2026 — LO CAUSADO YA ESTÁ CAUSADO.
+
+   El costo de la quincena (PUENTE.K) y el recargo del 1% diario se apoyan los
+   dos en el capital VIGENTE. Un abono a capital baja ese capital, y con él
+   bajaban las dos cuentas HACIA ATRÁS. Medido: 200.000 a 20 días de mora, costo
+   40.000 y recargo 40.000; abonando 199.999 el capital queda en 1 peso, el
+   costo en 1 × 20% = 0,2 → 0 y el recargo en 1% × 1 × 20 = 0,2 → 0. El crédito
+   seguía abierto y ya no debía nada: Joan pasaba de cobrar 80.000 de ganancia a
+   cobrar CERO. Y el aviso de la propia pantalla enseñaba la jugada.
+
+   El arreglo no es prohibir el abono, es que el abono CONGELE lo ya causado.
+   abonarCapital graba en el movimiento el costo del ciclo y el recargo corrido
+   hasta ese día, más a qué corte pertenecen. De ahí en adelante:
+     · el costo del ciclo nunca baja de lo que ya estaba causado;
+     · el recargo es el congelado MÁS el 1% diario sobre lo que QUEDÓ, contado
+       desde el día del abono (MotorReglas.recargoPorMoraDesde). Justo en las
+       dos direcciones: no se borra lo corrido, y tampoco se le cobra mora al
+       socio sobre plata que ya devolvió.
+   Cuando el ciclo se mueve —prórroga o plan de pagos— el congelado deja de
+   aplicar solo, porque pertenece al corte viejo, que ya se cobró con él.
+
+   Los abonos VIEJOS no traen estos campos y se leen exactamente como hasta
+   ayer: esto no toca hacia atrás ni un peso de la cartera real de Joan.
+   ========================================================================= */
+function causadoDelCiclo(p){
+  const c={tiene:false,costo:0,mora:0,dias:0};
+  ((p&&p.abonosCapital)||[]).forEach(a=>{
+    if(!a||!a.ciclo||!p.cicloActual||a.ciclo!==p.cicloActual)return;
+    if(a.costoCausado==null&&a.moraCausada==null)return;
+    c.tiene=true;
+    c.costo=Math.max(c.costo,Number(a.costoCausado)||0);
+    c.mora =Math.max(c.mora ,Number(a.moraCausada)||0);
+    c.dias =Math.max(c.dias ,Number(a.diasMoraCausada)||0);
+  });
+  return c;
+}
+function K(p){ return Math.max(PUENTE.K(p),causadoDelCiclo(p).costo); }
 /* 4-ago-2026 — el "ciclo" de un crédito con PLAN DE PAGOS es su cuota: ese es
    el capital que se cobra, la base del 1% diario y el costo del período. Sin
    plan es todo el capital vigente, como siempre. Las dos respuestas salen del
@@ -699,20 +796,35 @@ function capitalVigente(p){ return p.pagado?0:capitalActual(p); }
    totalCiclo era capital + costo y nada más, así que la pantalla de cobro decía
    720.000 mientras la app del socio y la cartera por tramo decían 774.000. Tres
    pantallas, dos verdades, y los 54.000 de diferencia no se cobraban. */
-function moraDe(p){ return p.pagado?0:MotorReglas.recargoPorMora(capitalDelCiclo(p),diasMora(p)); }
+/* El recargo del ciclo a `dias` días del corte. Sale del MOTOR en los dos
+   casos: sin abonos de por medio es el 1% diario de siempre; con abonos es el
+   recargo congelado más lo que corrió después sobre el capital que quedó. */
+function moraPorDias(p,dias){
+  const c=causadoDelCiclo(p), d=Math.max(0,Number(dias)||0);
+  return c.tiene
+    ? MotorReglas.recargoPorMoraDesde(c.mora,c.dias,capitalDelCiclo(p),d)
+    : MotorReglas.recargoPorMora(capitalDelCiclo(p),d);
+}
+function moraDe(p){ return p.pagado?0:moraPorDias(p,diasMora(p)); }
 function totalCiclo(p){ return capitalDelCiclo(p)+K(p)+moraDe(p); }
 /* La liquidación completa de un crédito quincenal en la fecha en que el socio
    paga: días de mora, recargo, total y la garantía que le deja. Es el espejo de
    liqCuota() del préstamo con garantía, y la ÚNICA puerta por la que se cobra
    un quincenal. */
 function liqCredito(p,fecha){
-  const cap=capitalDelCiclo(p), f=fecha||hoyISO();
+  const cap=capitalDelCiclo(p), f=fecha||hoyISO(), c=causadoDelCiclo(p);
   /* Guarda para un dato sucio: liquidarCredito exige capital positivo y no
-     puede ser lo que impida abrir la pantalla de cobro. No es una segunda
-     cuenta: con capital cero no hay nada que liquidar. */
-  if(cap<=0) return {capital:0,costo:0,recargo_mora:0,dias_mora:0,pago_a_tiempo:true,
-    costo_total_pagado:0,total_a_pagar:0,garantia_generada:0,fecha_pago:f};
-  return MotorReglas.liquidarCredito({capital:cap,costo:Math.round(K(p)),fecha_corte:p.cicloActual},f);
+     puede ser lo que impida abrir la pantalla de cobro. Con capital cero no
+     queda capital que liquidar, pero lo YA CAUSADO se sigue debiendo: el costo
+     del ciclo y el recargo congelados no dependen de que quede capital. */
+  if(cap<=0){
+    const dm=Math.max(0,MotorReglas.diasDeMora(p.cicloActual,f)), mo=moraPorDias(p,dm), tot=c.costo+mo;
+    return {capital:0,costo:c.costo,recargo_mora:mo,dias_mora:dm,pago_a_tiempo:dm===0,
+      costo_total_pagado:tot,total_a_pagar:tot,
+      garantia_generada:MotorReglas.acumularGarantia(tot,dm===0),fecha_pago:f};
+  }
+  return MotorReglas.liquidarCredito({capital:cap,costo:Math.round(K(p)),fecha_corte:p.cicloActual},f,
+    c.tiene?{recargoCausado:c.mora,diasCausados:c.dias}:undefined);
 }
 function gananciaCobrada(p){ return PUENTE.gananciaCobrada(p); }
 /* Lo que falta cobrarle a un crédito abierto. Con plan de pagos son los costos
@@ -1555,6 +1667,12 @@ function creditoMotor(p){
   return { id:p.id,
     capital:capitalActual(p),
     tasa_aplicada:(Number(p.costoPct)||TASA_FIJA_PCT)/100,
+    /* El costo del ciclo va DADO, no lo recalcula el motor sobre el capital que
+       queda: si hubo un abono, ya estaba causado (ver causadoDelCiclo). Sin
+       esto, abonar el capital menos un peso dejaba la prórroga en $0 y, al
+       correr el corte, se llevaba puestos el costo y la mora del ciclo viejo:
+       el mismo agujero, un movimiento más allá. */
+    costo:Math.round(K(p)),
     fecha_corte:p.cicloActual,
     estado:p.pagado?'pagado':(tienePlan(p)?'plan_de_pagos':'en_corte'),
     prorrogas_usadas:(p.prorrogas||[]).length,
@@ -1565,7 +1683,9 @@ function creditoMotor(p){
    con el capital en cero): un dato sucio no puede impedir abrir la pantalla. */
 function liqProrroga(p,fecha){
   if(!p||p.pagado||tienePlan(p)||capitalActual(p)<=0) return null;
-  try{ return MotorReglas.liquidarProrroga(creditoMotor(p),fecha||hoyISO()); }
+  const c=causadoDelCiclo(p);
+  try{ return MotorReglas.liquidarProrroga(creditoMotor(p),fecha||hoyISO(),
+    c.tiene?{recargoCausado:c.mora,diasCausados:c.dias}:undefined); }
   catch(e){ return null; }
 }
 /* Lo que el socio paga HOY por prorrogar: costo del ciclo + el recargo del 1%
@@ -1701,20 +1821,29 @@ function cobrarCuotaDelPlan(p,c,f,liq){
 }
 /* 3-ago-2026 — el `return` que faltaba. Si el abono cubre todo el capital y Joan
    dice que NO a "¿marcar el ciclo como pagado?", la ejecución caía igual al push
-   del abono: el crédito quedaba con capitalActual 0 y, como K(p) y moraDe() se
-   calculan sobre el capital vigente, el costo del ciclo y el recargo ya causados
-   se volvían cero y desaparecían. El crédito seguía figurando abierto sin deber
-   nada. Decir que no tiene que no registrar nada. */
+   del abono. Decir que no tiene que no registrar nada.
+
+   4-ago-2026 — y el agujero de fondo, que el `return` solo tapaba por un lado:
+   abonar EL CAPITAL MENOS UN PESO dejaba el costo del ciclo y toda la mora en
+   cero, porque las dos cuentas salen del capital vigente. Ver el comentario de
+   causadoDelCiclo(): ahora cada abono CONGELA lo ya causado, así que ya no hay
+   monto de abono que borre nada. Por eso el aviso de acá abajo tampoco puede
+   seguir explicando la jugada. */
 function abonarCapital(id){ const p=DB.prestamos.find(x=>x.id===id),m=Number(document.getElementById('abCap').value)||0; if(m<=0){ alert('Monto inválido.'); return; }
   /* Con plan de pagos el capital baja cuota por cuota: un abono suelto por fuera
      dejaría el saldo del plan y el del crédito diciendo cosas distintas. */
   if(tienePlan(p)){ alert('Este crédito está en plan de pagos: el capital baja con cada cuota. Cóbrale la cuota que sigue en vez de abonar por fuera.'); return; }
   if(m>=capitalActual(p)){
     if(confirm('Ese abono cubre todo el capital. ¿Marcar como pagado el ciclo completo?')) pagarTotal(id);
-    else alert('No registré nada.\n\nUn abono que deja el capital en cero borraría el costo del ciclo y el recargo ya causado, y el crédito quedaría abierto sin deber nada. Si el socio no está saldando, abona un peso menos; si sí, cóbralo con «Pagó todo».');
+    else alert('No registré nada.\n\nEse abono cubre el capital entero, y eso es saldar el crédito: va por «Pagó todo», que cobra además el costo del ciclo y la mora y le deja la garantía al socio. Si va a seguir debiendo, registra lo que de verdad entregó a capital.');
     return;
   }
-  p.abonosCapital=p.abonosCapital||[]; p.abonosCapital.push({fecha:hoyISO(),monto:m}); addComp(p,'abono',m); guardar(); abrirPago(id); render(); }
+  /* Lo causado se congela ANTES de tocar el capital: el costo de la quincena y
+     el recargo corrido hasta hoy no pueden depender de cuánto quede después. */
+  p.abonosCapital=p.abonosCapital||[];
+  p.abonosCapital.push({fecha:hoyISO(),monto:m,ciclo:p.cicloActual,
+    costoCausado:Math.round(K(p)),moraCausada:Math.round(moraDe(p)),diasMoraCausada:diasMora(p)});
+  addComp(p,'abono',m); guardar(); abrirPago(id); render(); }
 
 /* ===== CONFIG ===== */
 function pintarCfg(){ document.getElementById('cfgNeg').value=DB.config.negocio; document.getElementById('cfgCosto').value=TASA_FIJA_PCT+'% del capital'; document.getElementById('cfgUsura').value=DB.config.tasaUsuraEA||''; document.getElementById('cfgPin').value=DB.config.pin; document.getElementById('cfgWa').value=DB.config.whatsapp||'';

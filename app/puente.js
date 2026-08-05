@@ -283,6 +283,17 @@
     var c = cuotaPlanActual(p);
     return c ? num(c.costo) : capitalActual(p) * num(p.costoPct) / 100;
   }
+  /* El porcentaje que rige ESTE ciclo, decimal, para que la etiqueta que ve el
+     socio ("Costo (5%)") salga del mismo lado que el número y no de una
+     suposición de la pantalla. Sigue exactamente la misma bifurcación que K. */
+  function tasaDelCiclo(p) {
+    if (cuotaPlanActual(p)) {
+      var t = num(p.planPagos && p.planPagos.tasa_por_corte);
+      return t > 0 ? t : M.TASA_PLAN_DE_PAGOS;
+    }
+    var pct = num(p && p.costoPct);
+    return pct > 0 ? pct / 100 : M.TASA_CREDITO;
+  }
   /* Lo cobrado por las cuotas del plan que ya se pagaron (costo + recargo), y
      la entrada: lo que se cobró el día que se pactó (costo del ciclo y el
      recargo ya causado, que el plan tampoco borra). */
@@ -356,6 +367,121 @@
       prorrogas_usadas: lista(p && p.prorrogas).length,
       plan_de_pagos: tienePlan(p)
     });
+  }
+
+  /* ===================== EL NIVEL ES UN MÁXIMO HISTÓRICO ====================
+     4-ago-2026 — EL NIVEL BAJABA POR USAR UNA PRÓRROGA PAGADA EN FECHA.
+
+     El arreglo de esta misma mañana (esPuntualParaNivel) cerró bien un agujero
+     —la prórroga lavaba el historial y hacía subir al moroso— y abrió el
+     contrario: los tres contadores del nivel se recalculan desde CERO en cada
+     carga, así que un crédito con prórroga resetea la racha y los meses sin
+     mora, y el socio RETROCEDE.
+
+     Medido: 10 créditos de 200.000 pagados todos en fecha → platino, cupo
+     1.140.000. Se agrega el crédito 11 con UNA prórroga registrada a tiempo y
+     pagado en el corte nuevo: aTiempo 10, racha 0, meses 1 → PLATA, cupo
+     904.000. Pagó 40.000 de más y perdió 452.000 de cupo. Dos escalones abajo
+     por un pago que hizo puntual. Eso rompe la promesa central del producto.
+
+     El piso que debía impedirlo era `s.nivelSocio`, y ESE CAMPO NO LO ESCRIBE
+     NADIE: ni el Panel, ni el puente, ni la app. Solo existía en una prueba que
+     se lo ponía a mano. Un piso que hay que acordarse de escribir es un piso que
+     no existe: por eso acá no se agrega ningún campo nuevo, se DERIVA.
+
+     LA FORMA. Un nivel que "nunca baja" es, literalmente, el máximo de los
+     niveles que el socio tuvo alguna vez. Y el historial ya contiene ese dato:
+     se recorren los instantes en que su cuenta cambió —cada pago y cada fecha
+     de corte, más hoy—, en cada uno se calculan los tres contadores TAL COMO
+     ESTABAN ESE DÍA, y se deriva el nivel de ese día. El nivel de hoy es el más
+     alto de todos. El último instante es siempre HOY con el historial completo,
+     así que el nivel actual entra en la cuenta como uno más.
+
+     Las dos mitades de la promesa, a la vez:
+       · NO SE LE QUITA NADA — cada nivel de la lista es un nivel que el socio
+         TUVO de verdad, en una fecha real y con los créditos que ya tenía. No se
+         puede caer de él porque no se le está regalando: se le está recordando.
+       · NO SE LE REGALA NADA — cada instante usa las mismas reglas de siempre
+         (esPuntualParaNivel para pagos y racha), sobre un subconjunto de su
+         historia y en una fecha pasada. Un crédito con prórroga NO cuenta en
+         ningún instante: no puede hacer subir a nadie, solo puede dejar de
+         hacerlo subir. Y como el máximo se toma sobre instantes anteriores, un
+         crédito nuevo jamás mejora el pasado — únicamente el presente.
+
+     ¿DE QUÉ FORMA ALGUIEN PUEDE SALIR GANANDO POR NO PAGAR, AHORA?
+     Por una sola, y por eso va cerrada acá abajo: `meses_sin_mora` se medía
+     desde el último atraso CURADO, sin mirar si el socio está atrasado AHORA.
+     Un crédito abierto y vencido no reseteaba nada, así que el contador seguía
+     corriendo durante la mora y los meses de atraso empujaban al socio hacia
+     platino. Con el máximo histórico eso además quedaría clavado para siempre.
+     Ahora, en cada instante, si había un crédito vencido y sin pagar los meses
+     SIN MORA valen cero — que es lo que dice el nombre del contador. Lo que ya
+     había ganado antes de atrasarse se lo queda igual: está en el máximo. */
+
+  /* El corte que le rige a un crédito. Con plan de pagos el Panel deja
+     `cicloActual` apuntando a la cuota vigente, así que sirve para los dos. */
+  function corteDelCredito(p) {
+    return fechaFin(p && p.cicloActual) || fechaFin(p && p.cicloPago) ||
+           fechaFin(p && p.fechaPago) || '';
+  }
+  /* ¿Estaba ESTE crédito vencido y sin pagar en la fecha `hasta`? En la fecha
+     misma del corte todavía no: ese es el día de pagar, no el primero de mora.
+     Un crédito pagado sin fecha de pago no se acusa: no hay con qué. */
+  function estabaVencido(p, hasta) {
+    var corte = corteDelCredito(p);
+    if (!corte || !hasta || hasta <= corte) return false;
+    if (!p.pagado) return true;
+    var fp = fechaFin(p.fechaPagado);
+    return !!fp && fp > hasta;
+  }
+  /* Los tres contadores del nivel TAL COMO ESTABAN en la fecha `hasta`.
+     `ps` son todos los créditos del socio ordenados por desembolso. */
+  function contadoresDeNivel(ps, hasta) {
+    var pagados = ps.filter(function (p) {
+      return p.pagado && (fechaFin(p.fechaPagado) || hasta) <= hasta;
+    });
+    var aTiempo = pagados.filter(esPuntualParaNivel).length;
+    var racha = 0;
+    for (var i = pagados.length - 1; i >= 0; i--) { if (esPuntualParaNivel(pagados[i])) racha++; else break; }
+    var tarde = pagados.filter(function (p) { return !esPuntualParaNivel(p); })
+      .map(function (p) { return fechaFin(p.fechaPagado); }).filter(Boolean).sort();
+    var desde = tarde.length ? tarde[tarde.length - 1]
+              : (ps[0] ? (fechaFin(ps[0].fechaDesembolso) || hasta) : hasta);
+    var enMora = ps.some(function (p) { return estabaVencido(p, hasta); });
+    var meses = enMora ? 0 : Math.max(0, Math.floor(diasEntre(desde, hasta) / 30));
+    return { a_tiempo: aTiempo, racha: racha, meses_sin_mora: meses };
+  }
+  /* Los instantes en que la cuenta del socio pudo cambiar de nivel: cada pago
+     (sube la racha, se cura un atraso), cada corte (hasta ahí llegó limpio, y
+     desde ahí empieza la mora del que no pagó) y HOY. Nunca el futuro. */
+  function instantesDeNivel(ps, hoy) {
+    var vistos = {}, fechas = [];
+    function agregar(f) {
+      if (f && f <= hoy && !vistos[f]) { vistos[f] = true; fechas.push(f); }
+    }
+    ps.forEach(function (p) {
+      if (p.pagado) agregar(fechaFin(p.fechaPagado));
+      agregar(corteDelCredito(p));
+    });
+    agregar(hoy);
+    return fechas.sort();
+  }
+  /* El nivel del socio: el más alto que haya tenido en cualquiera de esos
+     instantes. evaluarNivel ya devuelve el mayor entre lo derivado y el piso
+     que se le pase, así que el recorrido va acumulando el máximo solo.
+     `piso` es opcional y hoy nadie lo escribe: si algún día el Panel guarda un
+     nivel a mano seguirá respetándose, pero el nivel ya NO depende de eso. */
+  function nivelDelSocio(ps, hoy, piso) {
+    var instantes = instantesDeNivel(ps, hoy);
+    /* Un piso que no es un nivel conocido hace lanzar a evaluarNivel, y este
+       paquete no puede lanzar nunca: un dato sucio no puede dejar al socio sin
+       ver su cuenta. Se ignora y el nivel se deriva igual del historial. */
+    var nivel = (M.NIVELES.indexOf(piso) !== -1) ? piso : 'bronce';
+    for (var i = 0; i < instantes.length; i++) {
+      var c = contadoresDeNivel(ps, instantes[i]);
+      nivel = M.evaluarNivel(c.a_tiempo, c.racha, c.meses_sin_mora, nivel);
+    }
+    return nivel;
   }
 
   /* --------------- la garantía que dejó un crédito, parte por parte --------
@@ -511,7 +637,6 @@
     var prestamos = lista(db && db.prestamos);
     var ps = prestamos.filter(function (p) { return p.socioId === s.id; })
       .sort(function (a, b) { return String(a.fechaDesembolso).localeCompare(String(b.fechaDesembolso)); });
-    var pagados = ps.filter(function (p) { return p.pagado; });
     var resps = respaldadosDe(db, s);
 
     var entrada = entradaGarantia(db, s);
@@ -523,15 +648,13 @@
     /* Los tres contadores que deciden el NIVEL usan esPuntualParaNivel, no
        esPuntual: un crédito que necesitó prórroga o plan de pagos no gana el
        escalón. La garantía —que sale de garantiaGanadaDe, más arriba— sigue
-       usando esPuntual y no se toca: al socio no se le quita nada. */
-    var aTiempo = pagados.filter(esPuntualParaNivel).length;
-    var racha = 0;
-    for (var i = pagados.length - 1; i >= 0; i--) { if (esPuntualParaNivel(pagados[i])) racha++; else break; }
-    var tarde = pagados.filter(function (p) { return !esPuntualParaNivel(p); })
-      .map(function (p) { return p.fechaPagado; }).filter(Boolean).sort();
-    var desde = tarde.length ? tarde[tarde.length - 1] : (ps[0] ? ps[0].fechaDesembolso : hoyISO());
-    var meses = Math.max(0, Math.floor(diasEntre(desde || hoyISO(), hoyISO()) / 30));
-    var nivel = M.evaluarNivel(aTiempo, racha, meses, s.nivelSocio || 'bronce');
+       usando esPuntual y no se toca: al socio no se le quita nada.
+       Los de HOY son los que se le muestran; el NIVEL, en cambio, es el máximo
+       de todos los que tuvo (nivelDelSocio), para que no pueda bajar. */
+    var hoy = hoyISO();
+    var cont = contadoresDeNivel(ps, hoy);
+    var aTiempo = cont.a_tiempo, racha = cont.racha, meses = cont.meses_sin_mora;
+    var nivel = nivelDelSocio(ps, hoy, s.nivelSocio);
 
     return {
       // Para que las solicitudes y los datos que mande el cliente le lleguen a
@@ -560,9 +683,37 @@
         pagaron: refs.filter(function (r) { return r.pago_puntual; }).length,
         lista: refs.map(function (r) { return { nombre: String(r.nombre || '').split(' ')[0], pago: r.pago_puntual }; })
       },
+      /* 4-ago-2026 — LA APP LE MOSTRABA AL SOCIO EL CAPITAL ENTERO CON PLAN.
+         `capital` viajaba como capitalActual(p) —todo el capital vigente—
+         mientras `costo` ya venía de K(p), que con plan de pagos devuelve el de
+         la CUOTA. Dos mitades de dos ciclos distintos en la misma línea. Y como
+         la app calcula el 1% diario sobre ese `capital`, la mora salía sobre el
+         capital entero: medido, el Panel cobraba 230.000 y la app mostraba
+         630.000 del mismo crédito el mismo día; con 10 días de mora, 250.000
+         contra 690.000.
+         Lo que viaja ahora es el ciclo que se está cobrando, entero y de una
+         sola fuente: capitalDelCiclo y K, las MISMAS dos funciones que usa el
+         Panel (crm.html las llama línea por línea). `corte` ya apuntaba bien: el
+         Panel deja cicloActual en la fecha de la cuota vigente.
+         Y van dos datos más para que la app no tenga que deducir nada:
+         `saldo_capital`, que es lo que le falta del crédito COMPLETO (la cuota
+         no es la deuda), y `tasa`, el porcentaje que de verdad rige este ciclo
+         —5% en plan de pagos, el pactado del crédito si no—, que la app pinta
+         al lado del costo y hasta hoy adivinaba.
+
+         UN CRÉDITO YA PAGADO NO TIENE CICLO VIGENTE, así que ahí las tres cifras
+         son las de su historia: lo que PIDIÓ, lo que le COSTÓ en total (ciclo,
+         prórrogas y cuotas del plan, que es de lo que está hecho `abonado`) y
+         cero de saldo. Antes viajaba capitalActual, o sea capital menos abonos:
+         un crédito de 600.000 terminado con plan de pagos aparecía en el
+         historial del socio como un crédito de $0. */
       creditos: ps.slice().reverse().map(function (p) {
         return {
-          codigo: codCredito(p), capital: capitalActual(p), costo: Math.round(K(p)),
+          codigo: codCredito(p),
+          capital: p.pagado ? num(p.capital) : capitalDelCiclo(p),
+          costo: Math.round(p.pagado ? gananciaCobrada(p) : K(p)),
+          saldo_capital: p.pagado ? 0 : capitalActual(p),
+          tasa: tasaDelCiclo(p),
           desembolso: p.fechaDesembolso || null, corte: p.cicloActual || null,
           pagado: !!p.pagado, fecha_pagado: p.fechaPagado || null,
           abonado: Math.round(gananciaCobrada(p) + capitalRecuperadoDe(p)),
@@ -624,6 +775,12 @@
     fotoComunidad: fotoComunidad,
     esPuntual: esPuntual,
     esPuntualParaNivel: esPuntualParaNivel,
+    corteDelCredito: corteDelCredito,
+    estabaVencido: estabaVencido,
+    contadoresDeNivel: contadoresDeNivel,
+    instantesDeNivel: instantesDeNivel,
+    nivelDelSocio: nivelDelSocio,
+    tasaDelCiclo: tasaDelCiclo,
     cuotasPlan: cuotasPlan,
     tienePlan: tienePlan,
     cuotaPlanActual: cuotaPlanActual,
