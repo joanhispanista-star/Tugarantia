@@ -2374,11 +2374,24 @@ describe('el Panel usa el puente, no una copia suya', () => {
       'garantiaGanadaDe', 'datosKycDe', 'referidosDe', 'fotoComunidad', 'migrarSocio'
     ];
     compartidas.forEach(nombre => {
-      const decl = CRM.match(new RegExp(String.raw`function\s+${nombre}\s*\([^)]*\)\s*\{[^\n]*`));
-      assert.ok(decl, 'crm.html ya no declara ' + nombre + ': revisá quién lo usa');
-      assert.match(decl[0], /PUENTE\./,
+      // cuerpoEnCRM exige además que la declaración sea ÚNICA: ver el porqué en
+      // el bloque grande de abajo (la copia nueva se pega al final y gana).
+      assert.match(cuerpoEnCRM(nombre), /PUENTE\./,
         nombre + ' volvió a escribirse dentro de crm.html — ahí nacen las dos verdades');
     });
+
+    /* Y la alarma general, para los nombres que no están en ninguna lista: en
+       crm.html NINGUNA función se declara dos veces. Un archivo de 3.000 líneas
+       con dos `function capitalActual(` no tiene una copia de más: tiene una
+       que corre y otra que engaña al que la lee. */
+    const re = /(^|[^\w.$])function\s+([A-Za-z_$][\w$]*)\s*\(/g;
+    const cuantas = {}; let m;
+    while ((m = re.exec(CRM)) !== null) cuantas[m[2]] = (cuantas[m[2]] || 0) + 1;
+    const repetidas = Object.keys(cuantas).filter(n => cuantas[n] > 1);
+    assert.deepEqual(repetidas, [],
+      'crm.html declara dos veces: ' + repetidas.join(', ') + '. Por hoisting corre '
+      + 'la ÚLTIMA, así que la de arriba —la que se lee y la que revisan las '
+      + 'pruebas— no es la que usa el Panel');
   });
 
   test('la llave del localStorage también sale del puente', () => {
@@ -2404,16 +2417,44 @@ describe('el Panel usa el puente, no una copia suya', () => {
    *
    * Por eso acá se lee el cuerpo COMPLETO (llaves balanceadas) y se piden dos
    * cosas: que la respuesta la PIDA al puente, y que la cuenta vieja no esté.
+   *
+   * 5-ago-2026 (noche) — Y LA PRUEBA MIRABA LA PRIMERA; LA QUE CORRE ES LA
+   * ÚLTIMA. Esta alarma no sonaba. Comprobado: se pegaron al final de crm.html
+   * tres declaraciones nuevas de `estadoPrestamo`, `diasMora` y `tramoDe`, con
+   * la cuenta vieja escrita a mano, y las 404 pruebas pasaron en verde mientras
+   * el navegador, por hoisting, corría ESAS. La causa es de una línea:
+   * `search()` devuelve la PRIMERA coincidencia y JavaScript se queda con la
+   * ÚLTIMA declaración del mismo nombre. La copia no hacía falta esconderla:
+   * bastaba con pegarla más abajo.
+   *
+   * Por eso ahora se buscan TODAS las declaraciones del nombre y dos ya es el
+   * defecto —aunque las dos digan `PUENTE.`—: en un archivo así, la de arriba
+   * es la que se lee y la de abajo la que cobra.
    * ====================================================================== */
-  function cuerpoEnCRM(nombre) {
-    const i = CRM.search(new RegExp(String.raw`function\s+${nombre}\s*\(`));
-    assert.ok(i >= 0, 'crm.html ya no declara ' + nombre + ': revisá quién lo usa');
-    let n = 0;
-    for (let k = CRM.indexOf('{', i); k < CRM.length; k++) {
-      if (CRM[k] === '{') n++;
-      else if (CRM[k] === '}' && --n === 0) return CRM.slice(i, k + 1);
+  function declaracionesEnCRM(nombre) {
+    // El prefijo evita que `obj.function` o un nombre más largo cuenten como
+    // declaración; el escaneo es global, de la primera línea a la última.
+    const re = new RegExp(String.raw`(^|[^\w.$])function\s+${nombre}\s*\(`, 'g');
+    const cuerpos = []; let m;
+    while ((m = re.exec(CRM)) !== null) {
+      const i = m.index + m[1].length;
+      let n = 0;
+      for (let k = CRM.indexOf('{', i); k < CRM.length; k++) {
+        if (CRM[k] === '{') n++;
+        else if (CRM[k] === '}' && --n === 0) { cuerpos.push(CRM.slice(i, k + 1)); break; }
+      }
+      re.lastIndex = i + 1;
     }
-    assert.fail('no pude leer el cuerpo de ' + nombre);
+    return cuerpos;
+  }
+  function cuerpoEnCRM(nombre) {
+    const todas = declaracionesEnCRM(nombre);
+    assert.ok(todas.length > 0, 'crm.html ya no declara ' + nombre + ': revisá quién lo usa');
+    assert.equal(todas.length, 1,
+      'crm.html declara ' + nombre + ' ' + todas.length + ' veces. Por hoisting corre '
+      + 'la ÚLTIMA: la copia nueva se pega al final del archivo y gana sin tocar '
+      + 'una sola línea de la buena');
+    return todas[0];
   }
 
   /* Las doce, con la puerta del puente que tiene que usar cada una y la cuenta
@@ -2610,8 +2651,12 @@ describe('la bandeja de solicitudes recalcula, no le cree al cliente', () => {
       assert.ok(!new RegExp(String.raw`s\s*&&\s*s\.${campo}\b`).test(f),
         'quincenalDeSolicitud solo puede leer s.capital');
     });
-    assert.match(f, /quincenaQueAplica\(\s*hoyISO\(\)\s*\)/,
-      'el corte se calcula desde hoy, que es cuando de verdad se desembolsa');
+    /* 5-ago-2026: el corte ya no sale de la copia del Panel (`quincenaQueAplica`,
+       que no conocía la ventana mínima ni corría domingos y festivos) sino del
+       motor, que es el mismo que le mostró la fecha al socio en su celular. */
+    assert.match(f, /MotorReglas\.calcularFechaCorte\(\s*hoyISO\(\)\s*\)/,
+      'el corte se calcula desde hoy, con la regla del motor: si no, una solicitud '
+      + 'abierta un día 14 nace con un día de plazo y el corte puede caer domingo');
   });
 
   test('la fila de la bandeja muestra lo que el Panel va a registrar', () => {
@@ -5711,5 +5756,266 @@ describe('el nivel no puede premiar al que no paga (5-ago-2026)', () => {
     assert.equal(liq.garantia_generada, M.acumularGarantia(liq.costo_total_pagado, false));
     const enviado = P.migrarSocio(t.db, t.s).creditos[0];
     assert.equal(enviado.estuvo_en_mora, true, 'y la app tiene que recibirlo');
+  });
+});
+
+/* ==========================================================================
+ * LA APP DEL SOCIO NO SOLO RECIBE EL §4-bis: LO LEE — 5-ago-2026
+ *
+ * EL DEFECTO. `liquidacion()` de socio.html nunca leía `c.estuvo_en_mora`,
+ * aunque el puente se lo mandaba hecho desde el 5-ago
+ * (migrarSocio(...).creditos[].estuvo_en_mora). Sus tres salidas daban el 90%
+ * incondicional: dos lo tenían escrito a mano —M.acumularGarantia(costo, true)—
+ * y la del medio llamaba a M.liquidarCredito sin el dato, así que el motor
+ * asumía el crédito recién desembolsado.
+ *
+ * MEDIDO: crédito de 200.000 que estuvo en mora, prorrogado, pagado EN FECHA
+ * del corte nuevo. El Panel y el puente acreditan 18.000. La tarjeta del socio
+ * y el recordatorio del calendario decían 36.000. EL DOBLE, y del lado
+ * optimista: el socio paga creyendo una cosa y le entra otra.
+ *
+ * POR QUÉ LAS 404 PRUEBAS PASABAN CON ESTO VIVO: la prueba de la ronda anterior
+ * comprobaba que el dato VIAJARA (liq.estuvo_en_mora, enviado.estuvo_en_mora),
+ * no que alguien lo leyera del otro lado. Por eso estas EJECUTAN la función de
+ * socio.html, igual que las del Panel ejecutan la suya.
+ * ======================================================================== */
+
+describe('socio.html liquida con el §4-bis, no contra él (5-ago-2026)', () => {
+
+  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+  const fnSocio = nombre => {
+    const i = SOCIO.indexOf('\nfunction ' + nombre + '(');
+    assert.ok(i >= 0, 'socio.html ya no declara ' + nombre + ': revisá quién lo usa');
+    const j = SOCIO.indexOf('\nfunction ', i + 1);
+    return SOCIO.slice(i, j < 0 ? SOCIO.length : j);
+  };
+  /* La función de la app, ejecutándose de verdad. Solo necesita el motor: todo
+     lo demás que toca son sus dos ayudas de fecha. */
+  const app = new Function('M',
+    fnSocio('hoyISO') + '\n' + fnSocio('fechaRel') + '\n' + fnSocio('liquidacion') +
+    '\nreturn { liquidacion: liquidacion, hoyISO: hoyISO };')(M);
+
+  const CAP = 200000, COSTO = 40000;
+  const NOVENTA = M.acumularGarantia(COSTO, true);   // 36.000
+  const CUARENTA = M.acumularGarantia(COSTO, false); // 18.000
+
+  test('los dos números del reclamo son los del enunciado', () => {
+    assert.equal(NOVENTA, 36000);
+    assert.equal(CUARENTA, 18000);
+    assert.equal(NOVENTA, CUARENTA * 2, 'el error era exactamente el doble');
+  });
+
+  /* --- ruta 1: HOY, con el paquete al día (la que pinta la tarjeta) --- */
+  test('RUTA "hoy": la tarjeta del socio no promete el 90% de un crédito que se atrasó', () => {
+    const hoy = app.hoyISO();
+    const paquete = mora => ({ capital: CAP, costo: COSTO, corte: hoy,
+      causado: { costo: COSTO, mora: 0, dias: 0 }, dias_mora: 0, mora: 0,
+      total_hoy: CAP + COSTO, estuvo_en_mora: mora });
+
+    const sucio = app.liquidacion(paquete(true));
+    const limpio = app.liquidacion(paquete(false));
+    // `tramo` solo lo devuelve el motor: si no está, esta ES la ruta corta.
+    assert.equal(sucio.tramo, undefined, 'no estoy probando la ruta que creo');
+    assert.equal(limpio.tramo, undefined);
+
+    assert.equal(sucio.pago_a_tiempo, true, 'el pago SÍ llega dentro del corte');
+    assert.equal(sucio.acredita_en_fecha, false, 'pero no acredita al 90% (§4-bis)');
+    assert.equal(sucio.garantia_generada, CUARENTA);
+    assert.equal(sucio.garantia_si_puntual, CUARENTA,
+      'ni pagando hoy en fecha vuelve el 90%: el techo honesto es el 45%');
+
+    assert.equal(limpio.acredita_en_fecha, true);
+    assert.equal(limpio.garantia_generada, NOVENTA);
+    assert.equal(limpio.garantia_si_puntual, NOVENTA);
+  });
+
+  /* --- ruta 2: otra fecha, con capital vigente (la del motor) --- */
+  test('RUTA "otra fecha": el dato entra al motor DENTRO del crédito', () => {
+    const CORTE = '2026-08-15';
+    const paquete = mora => ({ capital: CAP, costo: COSTO, corte: CORTE,
+      causado: { costo: COSTO, mora: 0, dias: 0 }, dias_mora: 0, mora: 0,
+      total_hoy: CAP + COSTO, estuvo_en_mora: mora });
+
+    const sucio = app.liquidacion(paquete(true), CORTE);
+    const limpio = app.liquidacion(paquete(false), CORTE);
+    assert.equal(sucio.tramo, M.tramoDeMora(0).tramo, 'esta sí tiene que ser la del motor');
+
+    assert.equal(sucio.dias_mora, 0);
+    assert.equal(sucio.acredita_en_fecha, false);
+    assert.equal(sucio.garantia_generada, CUARENTA);
+    assert.equal(sucio.garantia_si_puntual, CUARENTA);
+    assert.equal(limpio.garantia_generada, NOVENTA);
+    assert.equal(limpio.garantia_si_puntual, NOVENTA);
+
+    // Y con mora encima el 45% no cambia por venir de otra mora: ya era 45%.
+    const tarde = app.liquidacion(paquete(true), '2026-08-25');
+    assert.equal(tarde.dias_mora, 10);
+    assert.equal(tarde.garantia_generada,
+      M.acumularGarantia(COSTO + tarde.recargo_mora, false));
+  });
+
+  /* --- ruta 3: sin capital vigente (todo abonado) o sin corte --- */
+  test('RUTA "sin capital": el crédito con el capital ya abonado tampoco vuelve al 90%', () => {
+    const paquete = mora => ({ capital: 0, costo: COSTO, corte: '2026-08-15',
+      estuvo_en_mora: mora });
+    const sucio = app.liquidacion(paquete(true), '2026-08-15');
+    const limpio = app.liquidacion(paquete(false), '2026-08-15');
+    assert.equal(sucio.tramo, undefined, 'no estoy probando la ruta que creo');
+    assert.equal(sucio.pago_a_tiempo, true);
+    assert.equal(sucio.acredita_en_fecha, false);
+    assert.equal(sucio.garantia_generada, CUARENTA);
+    assert.equal(sucio.garantia_si_puntual, CUARENTA);
+    assert.equal(limpio.garantia_generada, NOVENTA);
+    assert.equal(limpio.garantia_si_puntual, NOVENTA);
+  });
+
+  test('LAS TRES RUTAS contestan lo mismo que M.cuentaComoPuntualParaGarantia', () => {
+    const hoy = app.hoyISO();
+    [true, false].forEach(mora => {
+      const esperado = M.cuentaComoPuntualParaGarantia(
+        { pagado_en_fecha: true, credito_estuvo_en_mora: mora });
+      const rutas = [
+        app.liquidacion({ capital: CAP, costo: COSTO, corte: hoy, dias_mora: 0, mora: 0,
+          causado: { costo: COSTO, mora: 0, dias: 0 }, total_hoy: CAP + COSTO,
+          estuvo_en_mora: mora }),
+        app.liquidacion({ capital: CAP, costo: COSTO, corte: '2026-08-15',
+          estuvo_en_mora: mora }, '2026-08-15'),
+        app.liquidacion({ capital: 0, costo: COSTO, corte: '2026-08-15',
+          estuvo_en_mora: mora }, '2026-08-15')
+      ];
+      rutas.forEach((q, i) => {
+        assert.equal(q.acredita_en_fecha, esperado, 'ruta ' + (i + 1));
+        assert.equal(q.garantia_si_puntual, M.acumularGarantia(COSTO, esperado),
+          'ruta ' + (i + 1) + ' con estuvo_en_mora=' + mora);
+      });
+    });
+  });
+
+  test('sin el dato —paquete viejo— se sigue asumiendo el crédito limpio', () => {
+    // La misma regla que el motor: sin `estuvo_en_mora` no se inventa una mora.
+    const q = app.liquidacion({ capital: CAP, costo: COSTO, corte: '2026-08-15' }, '2026-08-15');
+    assert.equal(q.acredita_en_fecha, true);
+    assert.equal(q.garantia_si_puntual, NOVENTA);
+  });
+
+  /* ---------- EL CASO DEL RECLAMO, de punta a punta ---------- */
+  test('EL PANEL Y EL CELULAR DICEN LA MISMA GARANTÍA (la mora tapada por una prórroga)', () => {
+    const p = { id: 'x', numero: 1, socioId: 's1', capital: CAP, costoPct: 20,
+      fechaDesembolso: '2026-07-20', cicloActual: '2026-08-15', pagado: false,
+      abonosCapital: [], comprobantes: [],
+      // Prorrogado con 5 días de atraso encima: el corte se movió, la mora no.
+      prorrogas: [{ fecha: '2026-08-05', ciclo: '2026-07-31', monto: 50000, mora: 10000,
+                    aTiempo: false, diasMora: 5, nuevoCiclo: '2026-08-15' }] };
+
+    // Lo que el Panel y el puente acreditan pagando EN FECHA del corte nuevo.
+    const liq = P.liquidarCiclo(p, '2026-08-15');
+    assert.equal(liq.estuvo_en_mora, true);
+    assert.equal(liq.pago_a_tiempo, true, 'el 15-ago es su corte: el pago llega en fecha');
+    assert.equal(liq.acredita_en_fecha, false, 'y aun así acredita al 45% (§4-bis)');
+    assert.equal(liq.garantia_generada, CUARENTA);
+
+    // El paquete tal como viaja a la app (migrarSocio arma estos mismos campos).
+    const c = { capital: liq.capital, costo: liq.costo, corte: liq.corte,
+      dias_mora: liq.dias_mora, mora: liq.recargo_mora, total_hoy: liq.total_a_pagar,
+      causado: liq.causado, estuvo_en_mora: liq.estuvo_en_mora };
+
+    const q = app.liquidacion(c, '2026-08-15');
+    assert.equal(q.garantia_generada, liq.garantia_generada,
+      'la app y el Panel no pueden acreditar dos garantías del mismo pago');
+    assert.equal(q.garantia_si_puntual, CUARENTA,
+      'y la tarjeta no puede prometer 36.000 cuando van a entrar 18.000');
+    assert.notEqual(q.garantia_si_puntual, NOVENTA);
+  });
+
+  test('el defecto no puede volver: las tres salidas dejaron de tener el 90% escrito a mano', () => {
+    const cuerpo = fnSocio('liquidacion');
+    assert.match(cuerpo, /c\.estuvo_en_mora/,
+      'si liquidacion() no lee el dato, vuelve a prometer el doble');
+    assert.ok(!/acumularGarantia\(costo,\s*true\)/.test(cuerpo),
+      'el 90% incondicional volvió a escribirse a mano en socio.html');
+    assert.ok(!/acumularGarantia\([^()]*,\s*dias(Causados)?\s*===\s*0\)/.test(cuerpo),
+      'el factor no puede salir de los días: sale de cuentaComoPuntualParaGarantia');
+    assert.match(cuerpo, /cuentaComoPuntualParaGarantia/,
+      'la regla vive en el motor; la app la pregunta');
+  });
+});
+
+/* ==========================================================================
+ * Y LA APP LO DICE — el texto que dejó de ser cierto (5-ago-2026)
+ *
+ * "Si pagas en fecha, sumas el doble" es verdad del crédito que nunca se
+ * atrasó. Con el §4-bis, el que ya se atrasó suma el 45% aunque el corte nuevo
+ * se pague puntual. Un número correcto debajo de una frase falsa sigue siendo
+ * un reclamo: el socio lee la frase.
+ * ======================================================================== */
+
+describe('la app no promete el doble sin la excepción (5-ago-2026)', () => {
+
+  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+  const cuerpoEnSocio = nombre => {
+    const i = SOCIO.indexOf('\nfunction ' + nombre + '(');
+    assert.ok(i >= 0, 'socio.html ya no declara ' + nombre);
+    const j = SOCIO.indexOf('\nfunction ', i + 1);
+    return SOCIO.slice(i, j < 0 ? SOCIO.length : j);
+  };
+
+  test('la promesa vieja ya no está en ninguna pantalla', () => {
+    assert.ok(!/Si pagas en fecha, sumas el doble/.test(SOCIO),
+      'esa frase le promete el 90% a un crédito que puede venir de una mora');
+    assert.ok(!/Si te atrasas igual suma, pero la mitad\./.test(SOCIO),
+      'el remate viejo cerraba la idea sin nombrar la excepción');
+  });
+
+  test('la tarjeta del crédito tiene DOS textos, y elige con el mismo dato que la cifra', () => {
+    const cuerpo = cuerpoEnSocio('tarjetaActivo');
+    assert.match(cuerpo, /q\.credito_estuvo_en_mora/,
+      'el texto sale de la misma liquidación que la cifra, o vuelven a decir cosas distintas');
+    assert.match(cuerpo, /ya se atrasó una vez/,
+      'al crédito que viene de mora hay que decírselo de frente');
+    assert.match(cuerpo, /puntualidad se premia desde el primer día/,
+      'y al que nunca se atrasó, que la puntualidad se premia desde el principio');
+    assert.match(cuerpo, /no la puntualidad|compra tiempo|compró tiempo/,
+      'la prórroga compra tiempo, no puntualidad: esa es la idea que cierra el reclamo');
+  });
+
+  test('el recordatorio del calendario dice lo mismo que la tarjeta', () => {
+    const cuerpo = cuerpoEnSocio('armarICS');
+    assert.match(cuerpo, /q\.credito_estuvo_en_mora/,
+      'el ICS sale de liquidacion(): tiene que ramificar con el mismo dato');
+    assert.match(cuerpo, /el doble de lo que sube pagando tarde/);
+    assert.match(cuerpo, /ya se atrasó una vez/);
+  });
+
+  test('la pantalla de las reglas explica la excepción con los números del motor', () => {
+    const cuerpo = cuerpoEnSocio('verReglas');
+    assert.match(cuerpo, /r\.garantia\.factor_puntual/,
+      'el 90% del texto tiene que salir del motor, no escribirse a mano');
+    assert.match(cuerpo, /r\.garantia\.factor_mora/,
+      'y el 45% también: si un día cambian, la pantalla cambia sola');
+    assert.match(cuerpo, /nunca<\/b> se atrasó/);
+    assert.match(cuerpo, /no se borra aplazando/,
+      'la regla se dice de frente: aplazar no limpia el atraso');
+    assert.ok(!/\b90%|\b45%/.test(cuerpo),
+      'ningún porcentaje escrito a mano en la pantalla del acuerdo');
+  });
+
+  test('donde se ofrece el préstamo con garantía tampoco se promete el 90% a secas', () => {
+    const cuerpo = cuerpoEnSocio('setModo');
+    assert.match(cuerpo, /M\.FACTOR_GARANTIA_MORA/,
+      'decía "cada crédito que pagas te deja el 90%", sin decir a cambio de qué');
+    assert.match(cuerpo, /pagando en fecha/);
+  });
+
+  test('el plan de pagos ya no dice "igual que cualquier otro pago"', () => {
+    // Un crédito que llega al plan casi siempre venía atrasado: sus cuotas
+    // acreditan al 45%. Suma —eso es lo que importa ahí— pero no el doble.
+    assert.ok(!/igual que cualquier otro pago/.test(SOCIO));
+    assert.match(cuerpoEnSocio('bloquePlanDePagos'), /M\.FACTOR_GARANTIA_MORA/);
+  });
+
+  test('y la prórroga se ofrece diciendo lo que NO hace', () => {
+    const cuerpo = cuerpoEnSocio('verReglas');
+    assert.match(cuerpo, /no<\/b> hace es borrar el atraso/,
+      'la prórroga se decide en esa pantalla: ahí tiene que estar la letra');
   });
 });

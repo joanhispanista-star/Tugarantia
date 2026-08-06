@@ -697,47 +697,66 @@ function fmtFecha(iso){ if(!iso)return '—'; const d=new Date(iso.length<=10?is
 function fmtCorto(iso){ const d=new Date(iso+'T00:00:00'); return d.getDate()+' '+MESES[d.getMonth()].slice(0,3); }
 
 /* =========================================================================
-   4-ago-2026 — LAS REGLAS QUE ESTE ARCHIVO TODAVÍA SE COPIA DEL MOTOR.
+   5-ago-2026 — EL CALENDARIO DE CORTES SE PREGUNTA, NO SE COPIA.
 
-   La prórroga ya pregunta en vez de calcular (ver registrarProrroga). Lo que
-   queda listado acá es el inventario de los PRÓXIMOS agujeros, por orden de lo
-   que cuestan. Cada uno se migra igual: se amplía el motor si hace falta, con
-   pruebas, y el Panel pasa a preguntarle.
+   Acá vivía `quincenaQueAplica`: tomaba el 15 y el último día del mes y
+   devolvía el primero que cayera de la fecha en adelante. De ella salía el
+   `cicloActual` de TODO crédito nuevo —guardarRapido, calcRapido,
+   quincenalDeSolicitud, cicloActualGlobal— y no conocía ni la ventana mínima
+   de cinco días (§7.3) ni el corrimiento por domingo o festivo (§7.1).
 
-   1. quincenaQueAplica  → MotorReglas.calcularFechaCorte.  EL MÁS CARO Y EL
-      QUE SIGUE. De acá sale el `cicloActual` de TODO crédito nuevo
-      (guardarRapido, calcRapido, quincenalDeSolicitud, cicloActualGlobal).
-      No conoce la ventana mínima de 5 días (§7.3) ni corre el corte por
-      domingo o festivo (§7.1): un crédito desembolsado un día 14 nace con
-      vencimiento al día siguiente, y un corte puede caer un domingo, cuando el
-      motor ya sabe que vence el lunes.
-   2. proximaQuincena    → MotorReglas.cortesSiguientes / calcularFechaCorte.
-      Misma falla. Hoy solo la usan quincenasRelevantes() (el eje de la vista
-      de ciclos) y el historial de las prórrogas VIEJAS, que no guardaron a qué
-      corte pasaron y para las que sigue siendo exactamente lo que pasó.
-   3. festivos / pascua / sigLunes → MotorReglas.festivosDelAnio y .pascua.
-      Copia literal del mismo algoritmo (Ley Emiliani + Pascua). La usa
-      horarioPermitido() para la Ley 2300. Dos calendarios que hoy coinciden
-      solo porque nadie tocó uno de los dos.
-   4. esQuincena         → MotorReglas.cortesNominalesDelMes / esDiaHabilDeCorte.
-      El calendario pinta como "quincena" el 15 y el último día NOMINALES, aun
-      cuando el corte real de ese mes se corrió al día hábil siguiente.
-   5. el costo en calcRapido (`k=cap*costo/100`) → MotorReglas.calcularCosto.
-      quincenalDeSolicitud ya lo pide bien; la calculadora rápida todavía lo
-      multiplica a mano.
-   6. diasEntre → MotorReglas.diasEntre. La de acá hace Math.max(1,…) para que
-      la E.A. no divida por cero; la del motor no miente sobre los días. Si
-      alguna cuenta de plata usa esta, cuenta un día que no existe.
-   7. eaEquivalente / riesgoCliente: no están en el motor. No son copias, son
-      reglas que solo viven acá. Si algún día la app se las tiene que mostrar
-      al socio, van al motor ANTES de mostrarlas, no después.
+   MEDIDO sobre los 730 días de 2026 y 2027: contestaba distinto que el motor
+   en 352. Y no era un desacuerdo de calendario, era una promesa incumplida:
+     · 240 créditos nacían con MENOS de cinco días de plazo. Uno desembolsado
+       el 14-ago vencía el 15-ago: un día, por el 20% del capital. Los términos
+       que el cliente acepta (§4) prometen cinco días entre el desembolso y el
+       pago.
+     · 167 nacían con el vencimiento en domingo o festivo (11 fechas distintas:
+       15-feb-2026, 31-may-2026, 28-feb-2027…), cuando §4 promete que el corte
+       se corre al siguiente día hábil.
+
+   El motor ya sabía las dos cosas (calcularFechaCorte, siguienteDiaHabilDeCorte,
+   cortesSiguientes) y la app del socio ya las mostraba bien: el Panel le
+   prometía al cliente una fecha y el celular del cliente le mostraba otra.
+
+   LO QUE TODAVÍA NO SE PREGUNTA, y por qué:
+   · proximaQuincena — ya no arma el eje de la vista de ciclos (eso lo hace el
+     motor). Le queda UN solo uso: el historial de las prórrogas VIEJAS, las que
+     no guardaron a qué corte pasaron. Eso no es una regla, es un HECHO del
+     pasado: reconstruye lo que el Panel de entonces calculó de verdad. El motor
+     no lo puede contestar y no debería.
+   · eaEquivalente / riesgoCliente — no están en el motor. No son copias, son
+     reglas que solo viven acá. Si algún día la app se las tiene que mostrar al
+     socio, van al motor ANTES de mostrarlas, no después.
    ========================================================================= */
+/* A qué corte pasó una prórroga VIEJA, la que no guardó `nuevoCiclo`. NO es la
+   regla de hoy —esa la contesta MotorReglas.fechaCorteProrroga, ver
+   nuevoCicloProrroga—: es la reconstrucción de lo que el Panel de entonces
+   calculó, sin ventana mínima y sin correr domingos, que es lo que de verdad le
+   pasó a ese crédito. Por eso no se migra: el motor no sabe de historia. */
 function proximaQuincena(f){ const d=new Date(f+'T00:00:00'),y=d.getFullYear(),m=d.getMonth(); const c=[new Date(y,m,15),new Date(y,m+1,0),new Date(y,m+1,15)]; return isoLocal(c.filter(x=>x>d).sort((a,b)=>a-b)[0]); }
-function quincenaQueAplica(f){ const d=new Date(f+'T00:00:00'),y=d.getFullYear(),m=d.getMonth(); const c=[new Date(y,m,15),new Date(y,m+1,0),new Date(y,m+1,15),new Date(y,m+2,0)]; return isoLocal(c.filter(x=>x>=d).sort((a,b)=>a-b)[0]); }
-function esQuincena(iso){ const d=new Date(iso+'T00:00:00'); const ult=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); return d.getDate()===15||d.getDate()===ult; }
-function cicloActualGlobal(){ return quincenaQueAplica(hoyISO()); }
-function diasEntre(a,b){ return Math.max(1,Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000)); }
-function eaEquivalente(c,dias){ return (Math.pow(1+c/100,365/dias)-1)*100; }
+/* Un día es "quincena" si es el corte REAL de ese mes, no el 15 o el último día
+   a secas: cuando el nominal cae domingo o festivo el corte es el día hábil
+   siguiente, y ese es el que el calendario tiene que pintar. Se mira también el
+   mes anterior porque el corte de fin de mes puede caer ya en el mes siguiente
+   (31-may-2026 es domingo: el corte es el 1-jun). */
+function esQuincena(iso){ const d=MotorReglas.aFechaLocal(iso),y=d.getFullYear(),m=d.getMonth();
+  return MotorReglas.cortesNominalesDelMes(y,m-1).concat(MotorReglas.cortesNominalesDelMes(y,m))
+    .some(n=>MotorReglas.iso(MotorReglas.siguienteDiaHabilDeCorte(n))===iso); }
+/* EL CORTE QUE RIGE HOY (el eje de los KPI y de la vista de ciclos). No es lo
+   mismo que el corte de un crédito que nace hoy: ese además tiene que comprar
+   la ventana mínima de cinco días, y por eso el día 14 ya se va al corte
+   siguiente. Acá la pregunta es otra —qué quincena está corriendo— y también se
+   le pide al motor: el corte de un crédito desembolsado hace exactamente esa
+   ventana es, por definición, el primer corte que cae de hoy en adelante, ya
+   corrido por domingo o festivo. Si la ventana cambia, esto sigue siendo cierto. */
+function cicloActualGlobal(){ return MotorReglas.calcularFechaCorte(MotorReglas.sumarDias(hoy0(),-MotorReglas.DIAS_VENTANA_MINIMA)); }
+/* Días calendario, los del motor: no miente sobre los días. Antes hacía
+   Math.max(1,…) para que la E.A. no dividiera por cero, y así el Panel contaba
+   un día que no existía en cualquier cuenta que la usara. El resguardo de la
+   división vive ahora donde está la división, que es eaEquivalente. */
+function diasEntre(a,b){ return MotorReglas.diasEntre(MotorReglas.aFechaLocal(a),MotorReglas.aFechaLocal(b)); }
+function eaEquivalente(c,dias){ return (Math.pow(1+c/100,365/Math.max(1,dias))-1)*100; }
 function fmtEA(ea){ return ea>=100000?'≥100.000% (extrema)':ea.toLocaleString('es-CO',{maximumFractionDigits:0})+'%'; }
 
 /* Las cuentas de un crédito salen del puente: son las mismas que el socio ve en
@@ -855,25 +874,25 @@ function estadoPrestamo(p){ if(p.pagado)return 'pagado';
 /* Los días de atraso son los que cobra la pantalla de cobro y los que ve el
    socio en su celular: los del paquete del puente. Cero cuando ya pagó. */
 function diasMora(p){ return PUENTE.liquidarCiclo(p).dias_mora; }
-/* Los que FALTAN para el corte que el puente dice que rige hoy. */
+/* Los que FALTAN para el corte que el puente dice que rige hoy. Negativo si ya
+   pasó: quien pregunta por el atraso (tramoDe) cuenta con el signo. La resta la
+   hace diasEntre, que ahora es la del motor. */
 function diasPara(p){ const c=PUENTE.corteDelCredito(p); if(!c)return 0;
-  const h=hoy0(),v=new Date(c+'T00:00:00'); return Math.round((v-h)/86400000); }
+  return diasEntre(hoyISO(),c); }
 const ESTADO_TXT={'al-dia':'Al día','proximo':'Próximo','hoy':'Vence hoy','mora':'En mora','pagado':'Pagado'};
 const ESTADO_TXT_RESP={'al-dia':'Al día','proximo':'Próxima cuota','hoy':'Cuota hoy','mora':'Cuota vencida','pagado':'Terminado'};
 const ESTADO_TXT_INV={nueva:'Sin usar',usada:'Usada',anulada:'Anulada'};
 const CHIP_INV={nueva:'al-dia',usada:'pagado',anulada:'mora'};
 
-function pascua(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mes=Math.floor((h+l-7*m+114)/31),dia=((h+l-7*m+114)%31)+1;return new Date(y,mes-1,dia);}
-function sigLunes(d){const x=new Date(d),w=x.getDay();if(w!==1)x.setDate(x.getDate()+((8-w)%7||7));return x;}
-let _fc={};
-function festivos(y){ if(_fc[y])return _fc[y]; const set=new Set();
-  [[0,1],[4,1],[6,20],[7,7],[11,8],[11,25]].forEach(([m,d])=>set.add(isoLocal(new Date(y,m,d))));
-  [[0,6],[2,19],[5,29],[7,15],[9,12],[10,1],[10,11]].forEach(([m,d])=>set.add(isoLocal(sigLunes(new Date(y,m,d)))));
-  const p=pascua(y),off=n=>{const x=new Date(p);x.setDate(x.getDate()+n);return x;};
-  set.add(isoLocal(off(-3)));set.add(isoLocal(off(-2)));[43,64,71].forEach(n=>set.add(isoLocal(off(n))));
-  _fc[y]=set; return set; }
+/* 5-ago-2026 — EL CALENDARIO DE FESTIVOS ES UNO SOLO, Y ES EL DEL MOTOR.
+   Acá había una copia literal del mismo algoritmo (Ley Emiliani + Pascua): tres
+   funciones y una caché propias que coincidían con el motor solo porque nadie
+   había tocado una de las dos. El mismo calendario decide si hoy se puede
+   cobrar (Ley 2300) y si un corte se corre al día hábil siguiente: si se
+   separan, el Panel deja de llamar un día que sí es festivo, o corre un corte
+   que no lo es. MotorReglas.esFestivo acepta el Date con hora y lo normaliza. */
 function horarioPermitido(date){ const d=date||new Date(),dia=d.getDay(),h=d.getHours()+d.getMinutes()/60;
-  if(festivos(d.getFullYear()).has(isoLocal(d)))return{ok:false,motivo:'Hoy es festivo'};
+  if(MotorReglas.esFestivo(d))return{ok:false,motivo:'Hoy es festivo'};
   if(dia===0)return{ok:false,motivo:'Domingo'};
   if(dia===6)return(h>=8&&h<15)?{ok:true}:{ok:false,motivo:'Sábado solo 8am–3pm'};
   return(h>=7&&h<19)?{ok:true}:{ok:false,motivo:'L–V solo 7am–7pm'}; }
@@ -1156,11 +1175,24 @@ function renderClientes(){
 }
 
 /* ===== CICLOS ===== */
+/* 5-ago-2026 — EL EJE DE LA VISTA DE CICLOS LO ARMA EL MOTOR.
+   Los huecos entre una quincena y la siguiente los completa
+   MotorReglas.cortesSiguientes, así que el eje trae los cortes REALES (corridos
+   por domingo o festivo) y no el 15 y el último día a secas.
+   Pero el eje arranca de los cortes que los créditos tienen GUARDADOS, no de un
+   calendario recalculado: los créditos viejos se grabaron con el calendario
+   nominal del Panel anterior, y si su corte no está en el eje, su fila —lo que
+   vencía y lo que se cobró esa quincena— desaparece de la pantalla. */
 function quincenasRelevantes(){
   if(!DB.prestamos.length)return [cicloActualGlobal()];
-  let fechas=DB.prestamos.map(p=>p.fechaDesembolso).sort(); let qi=quincenaQueAplica(fechas[0]);
-  let fin=DB.prestamos.map(p=>p.cicloActual).sort(); let qf=fin[fin.length-1]; if(new Date(cicloActualGlobal())>new Date(qf))qf=cicloActualGlobal();
-  const out=[]; let cur=qi,guard=0; while(new Date(cur)<=new Date(qf)&&guard<120){ out.push(cur); cur=proximaQuincena(cur); guard++; } return out;
+  const q=new Set([cicloActualGlobal()]);
+  DB.prestamos.forEach(p=>{ const c=PUENTE.corteDelCredito(p); if(c)q.add(c);
+    if(p.cicloPago)q.add(p.cicloPago);
+    (p.prorrogas||[]).forEach(pr=>{ if(pr.ciclo)q.add(pr.ciclo); }); });
+  const orden=Array.from(q).sort(), fin=orden[orden.length-1];
+  let cur=orden[0],guard=0;
+  while(cur<fin&&guard<240){ cur=MotorReglas.cortesSiguientes(cur,1)[0]; q.add(cur); guard++; }
+  return Array.from(q).sort();
 }
 function gananciaDeQuincena(q){ let g=0; DB.prestamos.forEach(p=>{ (p.prorrogas||[]).forEach(pr=>{if(pr.ciclo===q)g+=pr.monto;}); if(p.pagado&&p.cicloPago===q)g+=(p.gananciaPago||0); }); return g; }
 /* 5-ago-2026 — LO QUE HABÍA EN LA CALLE EN UNA QUINCENA ES UNA PREGUNTA DEL
@@ -1536,7 +1568,11 @@ function calcRapido(){
   const tope=r?`<div class="calc-row"><span>Su cupo${r.comprometida?' <span class="muted">(sin lo comprometido)</span>':''}</span><span class="v">${COP(r.cupo)}</span></div>`
     :(gv('qTel').replace(/\D/g,'').length>=10?`<div class="calc-row"><span class="muted">Ese celular no está en tus clientes: va a quedar como ficha nueva.</span></div>`:'');
   if(!f||!cap){ c.innerHTML=`<div class="calc">${tope}<span class="muted" style="font-size:12.5px">Completa capital y fecha.</span></div>`; return; }
-  const pago=ovr||quincenaQueAplica(f),dias=diasEntre(f,pago),k=cap*costo/100,total=cap+k,ea=eaEquivalente(costo,dias),usura=DB.config.tasaUsuraEA,sobre=usura>0&&ea>usura;
+  /* La fecha de corte y el costo salen del MOTOR: es el mismo número que la app
+     le muestra al socio antes de que pida. `ovr` es la fecha que Joan escribe a
+     mano para los clientes que ya venían de antes; si no la escribe, manda la
+     regla. */
+  const pago=ovr||MotorReglas.calcularFechaCorte(f),dias=diasEntre(f,pago),k=MotorReglas.calcularCosto(cap),total=cap+k,ea=eaEquivalente(costo,dias),usura=DB.config.tasaUsuraEA,sobre=usura>0&&ea>usura;
   c.innerHTML=avisoCupo(r)+`<div class="calc">${tope}
     <div class="calc-row"><span>Ganancia (costo ${costo}%)</span><span class="v gano">${COP(k)}</span></div>
     <div class="calc-row"><span>Total a pagar</span><span class="v">${COP(total)}</span></div>
@@ -1555,7 +1591,7 @@ function guardarRapido(){
   if(r&&(r.pasa||r.pasaSumando)&&!confirm(textoCupo(r)+'\n¿Lo registro igual?'))return;
   if(!s){ s={id:'C'+Date.now(),numero:nextNumCliente(),nombre,telefono:tel,email:gv('qEmail'),whatsappIgual:true,referencia:{nombre:'',telefono:''},gestiones:[],fechaRegistro:new Date().toISOString()}; DB.socios.push(s); }
   else if(gv('qEmail')&&!s.email)s.email=gv('qEmail');
-  const p={ id:'P'+Date.now(),numero:nextNumCredito(),socioId:s.id,socioNombre:s.nombre,telefono:s.telefono,capital:cap,costoPct:costo,fechaDesembolso:f,cicloActual:ovr||quincenaQueAplica(f),prorrogas:[],abonosCapital:[],comprobantes:[],pagado:false,fechaCreacion:new Date().toISOString() };
+  const p={ id:'P'+Date.now(),numero:nextNumCredito(),socioId:s.id,socioNombre:s.nombre,telefono:s.telefono,capital:cap,costoPct:costo,fechaDesembolso:f,cicloActual:ovr||MotorReglas.calcularFechaCorte(f),prorrogas:[],abonosCapital:[],comprobantes:[],pagado:false,fechaCreacion:new Date().toISOString() };
   DB.prestamos.push(p);
   guardar(); cerrarModal(); render(); irA('cred');
   if(confirm('✓ Crédito '+codCredito(p)+' registrado para '+s.nombre+' ('+codCliente(s)+').\n\n¿Enviar mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
@@ -2863,7 +2899,7 @@ function quincenalDeSolicitud(s){
   const capital=Math.max(0,Math.round(Number(s&&s.capital)||0));
   const costo=capital?MotorReglas.calcularCosto(capital):0;
   return { capital, costo, total:capital+costo, pct:TASA_FIJA_PCT,
-    corte:quincenaQueAplica(hoyISO()) };
+    corte:MotorReglas.calcularFechaCorte(hoyISO()) };
 }
 function pegarSolicitud(){
   const t=prompt('Pega aquí el mensaje de WhatsApp que te mandó el cliente:');

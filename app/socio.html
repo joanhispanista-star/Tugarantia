@@ -1333,18 +1333,25 @@ function bloquePlanDePagos() {
     'entrada lleva además el ' + pct(M.TASA_MORA_DIARIA) + ' diario de los días que lleves encima.' +
     (recargo ? ' Con los ' + dias + ' que llevas hoy, serían ' + COP(recargo) + ' más de entrada.' : '') +
     '</div>' +
+    /* "Igual que cualquier otro pago" ya no era exacto: si el crédito llegó al
+       plan atrasado, sus cuotas acreditan al 45% (§4-bis). Suma, y eso es lo
+       que importa acá, pero no se promete el 90% que no va a llegar. */
     '<div class="muted" style="font-size:13px;margin-top:var(--e3)">Todo lo que pagues en el plan te ' +
-    'sigue sumando garantía, igual que cualquier otro pago. Y el plan es una salida, no un castigo: ' +
-    'no bajas de nivel ni pierdes nada de lo que llevas construido.</div></div>';
+    'sigue sumando garantía: el ' + pct(M.FACTOR_GARANTIA) + ' del costo si el crédito nunca se ' +
+    'atrasó, el ' + pct(M.FACTOR_GARANTIA_MORA) + ' si venía atrasado. Y el plan es una salida, no ' +
+    'un castigo: no bajas de nivel ni pierdes nada de lo que llevas construido.</div></div>';
 }
 
 /* Las reglas salen del motor, no de un texto suelto: si algún día cambia un
    número, esta pantalla cambia sola. No puede quedar prometiendo otra cosa. */
 function verReglas() {
   var r = M.reglasResumen();
-  var bloque = function (titulo, texto) {
+  /* `extra` va en crudo y solo lo pone esta función: es para la letra que el
+     motor no trae en su resumen y que la pantalla no puede callarse. */
+  var bloque = function (titulo, texto, extra) {
     return '<div class="card"><div class="etq">' + esc(titulo) + '</div>' +
-      '<p style="margin:var(--e2) 0 0;font-size:14.5px">' + esc(texto) + '</p></div>';
+      '<p style="margin:var(--e2) 0 0;font-size:14.5px">' + esc(texto) + '</p>' +
+      (extra || '') + '</div>';
   };
   var h = '<div class="card laca"><div class="etq">El acuerdo</div>' +
     '<h1 style="font-size:22px;margin-top:var(--e2);color:var(--blanco-laca)">Cómo funciona esto</h1>' +
@@ -1352,7 +1359,18 @@ function verReglas() {
     'socios. Están aquí para que las puedas leer cuando quieras, no solo cuando pides.</div></div>';
 
   h += bloque('El costo', r.costo.texto);
-  h += bloque('Tu cupo crece pagando', r.garantia.texto);
+  /* §4-bis, y va acá porque es la única pantalla donde el socio viene a leer la
+     regla entera. "Pagando en la fecha suma completo" es verdad del crédito que
+     nunca se atrasó; el que ya se atrasó suma la mitad hasta que termine,
+     aunque el corte que le compró la prórroga se pague puntual. Sin esto, el
+     acuerdo prometía algo que la cuenta no iba a dar. */
+  h += bloque('Tu cupo crece pagando', r.garantia.texto,
+    '<div class="aviso"><b>Y el atraso no se borra aplazando.</b><br>' +
+    'El ' + pct(r.garantia.factor_puntual) + ' es del crédito que <b>nunca</b> se atrasó. Si uno se ' +
+    'atrasa, desde ahí suma el ' + pct(r.garantia.factor_mora) + ' hasta que lo termines, aunque ' +
+    'pidas una prórroga y pagues puntual la fecha nueva: la prórroga te compra tiempo, que es para ' +
+    'lo que está, no te devuelve la puntualidad. Lo que ya ganaste no se toca nunca, y el crédito ' +
+    'siguiente arranca otra vez en el ' + pct(r.garantia.factor_puntual) + '.</div>');
   h += bloque('Y crece dando tus datos', r.cupon.texto);
   h += bloque('Y crece trayendo gente', r.referidos.texto);
   if (r.respaldado) h += bloque('El préstamo con garantía', r.respaldado.texto);
@@ -1369,7 +1387,12 @@ function verReglas() {
 
   h += '<div class="card"><div class="etq">Si te atrasas</div>' +
     '<p style="margin:var(--e2) 0 0;font-size:14.5px">' + esc(r.mora.texto) + '</p>' +
-    '<div class="aviso" style="margin-top:var(--e3)">' + esc(r.prorroga.texto) + '</div></div>';
+    /* La prórroga se decide acá, así que acá se dice lo único que no se ve en
+       su precio: mueve la fecha, no limpia el historial del crédito (§4-bis). */
+    '<div class="aviso" style="margin-top:var(--e3)">' + esc(r.prorroga.texto) +
+    ' Lo que la prórroga <b>no</b> hace es borrar el atraso: si el crédito ya se atrasó, sigue ' +
+    'sumando el ' + pct(r.garantia.factor_mora) + ' de garantía hasta que lo termines, aunque ' +
+    'pagues puntual la fecha nueva.</div></div>';
 
   /* Va pegado al de arriba a propósito: el texto del motor nombra el plan y su
      5%, y el precio completo tiene que leerse en el mismo tirón, no dos
@@ -1506,6 +1529,22 @@ function liquidacion(c, fecha) {
   var moraCausada = cs ? Math.max(0, Number(cs.mora) || 0) : 0;
   var diasCausados = cs ? Math.max(0, Number(cs.dias) || 0) : 0;
 
+  /* 5-ago-2026 §4-bis — EL 90% ES DEL CRÉDITO QUE NUNCA SE ATRASÓ, y este lado
+     tampoco lo adivina: el puente ya se lo manda hecho en el paquete
+     (`migrarSocio(...).creditos[].estuvo_en_mora`), que es el mismo dato que
+     lee el Panel. Sin leerlo, las tres salidas de acá daban el 90% siempre, y
+     el crédito que venía de una mora prorrogada veía en su celular el DOBLE de
+     lo que el Panel le iba a acreditar: 36.000 contra 18.000. El doble, y del
+     lado optimista, que es el que produce el reclamo. */
+  var vieneDeMora = !!(c && c.estuvo_en_mora);
+  /* Lo que acredita el pago que se está liquidando, y lo que acreditaría uno
+     puntual. Con mora en la historia, ni pagando hoy en fecha vuelve el 90%:
+     el techo honesto es el 45%. */
+  var acreditaSi = function (enFecha) {
+    return M.cuentaComoPuntualParaGarantia({
+      pagado_en_fecha: enFecha, credito_estuvo_en_mora: vieneDeMora });
+  };
+
   /* HOY, y con el paquete al día: se muestra lo que trae, sin tocarlo. Es la
      única forma de que la app y el Panel no puedan decir dos cifras. */
   if (cs && cuando === hoy && dias === diasCausados && c.total_hoy != null) {
@@ -1513,10 +1552,12 @@ function liquidacion(c, fecha) {
              recargo_mora: moraCausada,
              dias_mora: diasCausados,
              pago_a_tiempo: diasCausados === 0,
+             acredita_en_fecha: acreditaSi(diasCausados === 0),
              costo_total_pagado: costo + moraCausada,
              total_a_pagar: Math.max(0, Number(c.total_hoy) || 0),
-             garantia_generada: M.acumularGarantia(costo + moraCausada, diasCausados === 0),
-             garantia_si_puntual: M.acumularGarantia(costo, true) };
+             garantia_generada: M.acumularGarantia(costo + moraCausada, acreditaSi(diasCausados === 0)),
+             garantia_si_puntual: M.acumularGarantia(costo, acreditaSi(true)),
+             credito_estuvo_en_mora: vieneDeMora };
   }
 
   /* Otra fecha (o un paquete viejo): lo causado se arrastra solo hacia
@@ -1526,7 +1567,13 @@ function liquidacion(c, fecha) {
     ? { recargoCausado: moraCausada, diasCausados: diasCausados } : {};
   if (capital > 0 && corte) {
     try {
-      return M.liquidarCredito({ capital: capital, costo: costo, fecha_corte: corte }, cuando, opciones);
+      /* `estuvo_en_mora` viaja DENTRO del crédito: es de donde el motor lo lee
+         (§4-bis). Sin él, el motor asume el crédito recién desembolsado y
+         devuelve el 90%. */
+      var liq = M.liquidarCredito({ capital: capital, costo: costo, fecha_corte: corte,
+                                    estuvo_en_mora: vieneDeMora }, cuando, opciones);
+      liq.credito_estuvo_en_mora = vieneDeMora;
+      return liq;
     } catch (e) {}
   }
   /* Sin capital vigente —todo abonado— o sin corte. El recargo lo sigue dando
@@ -1536,10 +1583,13 @@ function liquidacion(c, fecha) {
     ? M.recargoPorMoraDesde(opciones.recargoCausado, opciones.diasCausados, capital, dias)
     : M.recargoPorMora(capital, dias);
   return { capital: capital, costo: costo, recargo_mora: recargo, dias_mora: dias,
-           pago_a_tiempo: dias === 0, costo_total_pagado: costo + recargo,
+           pago_a_tiempo: dias === 0,
+           acredita_en_fecha: acreditaSi(dias === 0),
+           costo_total_pagado: costo + recargo,
            total_a_pagar: capital + costo + recargo,
-           garantia_generada: M.acumularGarantia(costo + recargo, dias === 0),
-           garantia_si_puntual: M.acumularGarantia(costo, true) };
+           garantia_generada: M.acumularGarantia(costo + recargo, acreditaSi(dias === 0)),
+           garantia_si_puntual: M.acumularGarantia(costo, acreditaSi(true)),
+           credito_estuvo_en_mora: vieneDeMora };
 }
 
 function tarjetaActivo(c) {
@@ -1583,9 +1633,23 @@ function tarjetaActivo(c) {
       fila(ciclo.etiqueta_capital, COP(q.capital)) +
       fila('Costo (' + pct(ciclo.tasa) + ')', COP(q.costo)) +
       fila('Fecha de pago', fmtFecha(c.corte)) +
-      '<div class="aviso"><b>Si pagas en fecha, sumas el doble.</b><br>' +
-      'Pagando el ' + fmtFecha(c.corte) + ' o antes, tu cupo sube ' + COP(q.garantia_si_puntual) +
-      '. Si te atrasas igual suma, pero la mitad.</div>';
+      /* 5-ago-2026 §4-bis — acá decía "si pagas en fecha, sumas el doble", y
+         para el crédito que ya se atrasó una vez eso dejó de ser verdad: ese
+         suma el 45% aunque el corte nuevo se pague puntual. La cifra ya la trae
+         bien la liquidación; lo que faltaba era que la frase dijera lo mismo
+         que la cifra. Se dice de frente, sin letra chica: la puntualidad se
+         premia desde el primer día, y una prórroga compra tiempo, no borra el
+         atraso que ya hubo. */
+      (q.credito_estuvo_en_mora
+        ? '<div class="aviso ambar"><b>Este crédito ya se atrasó una vez, y eso no se borra.</b><br>' +
+          'Pagando el ' + fmtFecha(c.corte) + ' o antes, tu cupo sube ' + COP(q.garantia_si_puntual) +
+          ': la mitad de lo que suma un crédito que nunca se atrasó. La prórroga te compró tiempo, ' +
+          'no la puntualidad. Págalo en fecha igual —te lo quitas de encima— y el siguiente, si no ' +
+          'se atrasa nunca, ya te vuelve a sumar completo.</div>'
+        : '<div class="aviso"><b>La puntualidad se premia desde el primer día.</b><br>' +
+          'Pagando el ' + fmtFecha(c.corte) + ' o antes, tu cupo sube ' + COP(q.garantia_si_puntual) +
+          ', el doble de lo que sube pagando tarde. Y si te atrasas una vez, este crédito suma la ' +
+          'mitad hasta que lo termines: aplazarlo no lo vuelve a poner en cero.</div>');
   }
   if (ciclo.en_plan) {
     /* La cuota NO es la deuda: el saldo del crédito entero viene aparte en el
@@ -1698,8 +1762,11 @@ function setModo(m) {
   if (m !== 'quincenal' && m !== 'respaldado') return;
   if (m === 'respaldado' && S.maxRespaldado <= 0) {
     var a = $('calcAviso');
-    if (a) a.innerHTML = 'Todavía no tienes garantía ganada. Se gana pagando: cada crédito quincenal ' +
-      'que pagas te deja el ' + pct(M.FACTOR_GARANTIA) + ' del costo.';
+    /* §4-bis: el 90% es del crédito que nunca se atrasó, así que la frase que
+       lo promete tiene que decir a cambio de qué. */
+    if (a) a.innerHTML = 'Todavía no tienes garantía ganada. Se gana pagando en fecha: cada crédito ' +
+      'quincenal que pagas sin haberte atrasado te deja el ' + pct(M.FACTOR_GARANTIA) +
+      ' del costo. Si se atrasó alguna vez, el ' + pct(M.FACTOR_GARANTIA_MORA) + '.';
     return;
   }
   if (m === MODO) return;
@@ -2089,10 +2156,27 @@ function armarICS(c) {
     COP(q.capital) + ' + costo ' + COP(q.costo) +
     (q.recargo_mora ? ' + recargo de ' + q.dias_mora + ' día' + (q.dias_mora !== 1 ? 's' : '') +
                       ' ' + COP(q.recargo_mora) : '') + '). ' +
-    (q.recargo_mora
+    /* §4-bis: la cifra la trae la liquidación, que ya sabe si este crédito
+       viene de una mora; la frase tiene que decir lo mismo que la cifra, o el
+       recordatorio promete el doble de lo que el Panel va a acreditar.
+
+       Y la rama se decide por los DÍAS, no por el recargo. 5-ago-2026: el 1%
+       diario corre sobre el capital que queda, así que un socio que abonó casi
+       todo el capital tiene días de atraso con recargo redondeado a cero. Mirando
+       el recargo, este recordatorio se iba por la rama del crédito al día y le
+       prometía el doble —$108.000 donde el Panel acredita $54.000— sobre un
+       evento que él mismo fecha HOY porque el corte ya pasó. Pasaba en 177 de
+       4.000 estados. La tarjeta de Inicio ya lo hacía bien dos funciones arriba
+       (var enMora = q.dias_mora > 0) y las dos pantallas se contradecían. */
+    (q.dias_mora > 0
       ? 'Aunque te atrases sigues siendo socio, y este pago te suma ' +
         COP(q.garantia_generada) + ' de garantía. '
-      : 'Pagando en fecha tu cupo sube ' + COP(q.garantia_si_puntual) + '. ') +
+      : q.credito_estuvo_en_mora
+        ? 'Pagando en fecha tu cupo sube ' + COP(q.garantia_si_puntual) +
+          '. Es la mitad porque este crédito ya se atrasó una vez y eso no se borra: la prórroga ' +
+          'compró tiempo, no puntualidad. '
+        : 'Pagando en fecha tu cupo sube ' + COP(q.garantia_si_puntual) +
+          ', el doble de lo que sube pagando tarde. ') +
     'Si ese día no puedes pagar todo, se puede dejar una prórroga o pasar a un plan de pagos; ' +
     'las dos cosas tienen costo y te lo decimos antes. Y aunque te atrases sigues siendo socio.';
   /* Un recordatorio de hoy no puede avisar "en 2 días": ese aviso ya pasó. */
