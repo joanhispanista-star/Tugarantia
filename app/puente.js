@@ -540,6 +540,14 @@
     var costo = Math.round(K(p));
     var mora = Math.round(moraDelCiclo(p, f));
     var dias = (corte && f > corte) ? diasCal(corte, f) : 0;
+    /* 5-ago-2026 §4-bis — llegar en fecha y acreditar al 90% dejaron de ser lo
+       mismo. Si este crédito YA estuvo en mora, el corte que se está cumpliendo
+       es uno que compró una prórroga: acredita al 45%. `pago_a_tiempo` sigue
+       siendo lo que dice —el pago llega dentro del corte— porque de él salen el
+       recargo y las pantallas; el factor de la garantía es otra pregunta. */
+    var vieneDeMora = veniaDeMora(p, corte);
+    var acredita = M.cuentaComoPuntualParaGarantia({
+      pagado_en_fecha: dias === 0, credito_estuvo_en_mora: vieneDeMora });
     return {
       corte: corte || null,
       fecha: f,
@@ -549,9 +557,13 @@
       dias_mora: dias,
       recargo_mora: mora,
       pago_a_tiempo: dias === 0,
+      // Para que el Panel y la app puedan preguntarlo en vez de deducirlo: el
+      // motor lo recibe como `credito.estuvo_en_mora` (§4-bis).
+      estuvo_en_mora: vieneDeMora,
+      acredita_en_fecha: acredita,
       costo_total_pagado: costo + mora,
       total_a_pagar: capital + costo + mora,
-      garantia_generada: M.acumularGarantia(costo + mora, dias === 0),
+      garantia_generada: M.acumularGarantia(costo + mora, acredita),
       /* Lo ya causado a esta fecha, para que quien quiera liquidar en OTRO día
          se lo pase a MotorReglas.liquidarCredito como {recargoCausado,
          diasCausados} y no vuelva a recalcular el 1% desde cero. */
@@ -568,10 +580,36 @@
       return t + (c.pagado ? num(c.costo) + num(c.recargo) : 0);
     }, 0) + num(entradaPlan(p) && entradaPlan(p).monto);
   }
+  /**
+   * La garantía que dejó el plan de pagos: la entrada (que se acredita como una
+   * prórroga, porque es lo mismo: costo del ciclo + el recargo ya causado) y
+   * cada cuota ya pagada.
+   *
+   * 5-ago-2026 §4-bis — LA CUOTA DEL PLAN NO SE ACREDITA AL 90%. Un plan de
+   * pagos existe justamente porque el crédito ya se atrasó y se le acabaron las
+   * prórrogas: acreditarle a sus cuotas el factor del que nunca se atrasó era el
+   * mismo regalo de la prórroga encadenada por otra puerta (medido: 374.000
+   * pagados dejaban 564.300 de garantía contra los 492.300 de saldar 494.000).
+   * La cuenta se rehace desde los HECHOS de la cuota —su costo, su recargo y el
+   * día en que se pagó—, que es lo mismo que hace liquidarCiclo cuando el Panel
+   * la cobra. Una cuota vieja que no guardó su costo conserva lo que se le
+   * acreditó: sin el dato no hay nada que recalcular.
+   */
+  function garantiaGanadaCuotaPlan(p, c) {
+    if (!c || !c.pagado) return 0;
+    if (c.costo == null) return num(c.garantiaGenerada);
+    var f = fechaFin(c.fechaPagado), corte = fechaFin(c.fecha);
+    var enFecha = num(c.recargo) === 0 && (!f || !corte || f <= corte);
+    return M.acumularGarantia(num(c.costo), M.cuentaComoPuntualParaGarantia({
+             pagado_en_fecha: enFecha,
+             credito_estuvo_en_mora: veniaDeMora(p, corte)
+           })) +
+           M.acumularGarantia(num(c.recargo), false);
+  }
   function garantiaGanadaPlan(p) {
     return cuotasPlan(p).reduce(function (t, c) {
-      return t + (c.pagado ? num(c.garantiaGenerada) : 0);
-    }, 0) + (entradaPlan(p) ? garantiaGanadaProrroga(entradaPlan(p)) : 0);
+      return t + garantiaGanadaCuotaPlan(p, c);
+    }, 0) + (entradaPlan(p) ? garantiaGanadaProrroga(entradaPlan(p), p) : 0);
   }
   /* `pr.monto` es lo que el socio pagó por la prórroga. Desde el 3-ago-2026 el
      Panel le cobra el costo del ciclo MÁS el recargo de mora ya causado, y
@@ -592,14 +630,36 @@
     if (pr && typeof pr.aTiempo === 'boolean') return pr.aTiempo;
     return moraDeProrroga(pr) === 0;
   }
+  /**
+   * ¿Esta prórroga acredita al 90%? (§4-bis del motor, 5-ago-2026)
+   *
+   * Llegar en fecha ya no alcanza: si el crédito YA estuvo en mora antes de esta
+   * prórroga, el ciclo que se está pagando es el que la prórroga ANTERIOR le
+   * compró, no una quincena limpia, y acredita al 45%. Ahí estaba el negocio de
+   * encadenar plazo: la primera prórroga ponía el reloj de mora en cero y la
+   * segunda cobraba el 90% del que nunca se atrasó.
+   *
+   * El crédito es OPCIONAL a propósito: sin él la respuesta es la de siempre (la
+   * puntualidad congelada en el dato). Así el Panel —que hoy llama con la
+   * prórroga sola— sigue funcionando sin tocarlo, y la garantía del socio, que
+   * sale de garantiaGanadaCredito y sí tiene el crédito en la mano, ya sale con
+   * la regla nueva. Cuando crm.html pase el crédito, las dos pantallas dirán
+   * exactamente el mismo número otra vez.
+   */
+  function prorrogaAcreditaEnFecha(pr, credito) {
+    return M.cuentaComoPuntualParaGarantia({
+      pagado_en_fecha: prorrogaFueATiempo(pr),
+      // El ciclo que esta prórroga está pagando es el que termina en `pr.ciclo`.
+      credito_estuvo_en_mora: !!credito && veniaDeMora(credito, pr && pr.ciclo)
+    });
+  }
   /* La garantía que dejó UNA prórroga, con la misma regla del §4 que usa
      cualquier otro pago: el costo con el factor de puntualidad de la prórroga y
      el recargo de mora siempre al 45%, porque es plata que solo existe porque el
      corte ya había pasado. Es la ÚNICA cuenta: el Panel la muestra en el confirm
      con esta misma función, así que Joan no puede ver un número y el socio otro. */
-  function garantiaGanadaProrroga(pr) {
-    var aTiempo = prorrogaFueATiempo(pr);
-    return M.acumularGarantia(costoDeProrroga(pr), aTiempo) +
+  function garantiaGanadaProrroga(pr, credito) {
+    return M.acumularGarantia(costoDeProrroga(pr), prorrogaAcreditaEnFecha(pr, credito)) +
            M.acumularGarantia(moraDeProrroga(pr), false);
   }
   function gananciaCobrada(p) {
@@ -626,11 +686,30 @@
          fecha; un crédito que necesitó prórroga o plan de pagos no lo gana.
      Por eso son dos funciones y no una: acá abajo se decide el NIVEL, y solo
      el nivel. */
-  function esPuntualParaNivel(p) {
+  /* Las prórrogas y el plan que YA EXISTÍAN en una fecha. `p.prorrogas` es la
+     lista de HOY, y preguntarle por el pasado es exactamente el error que esta
+     sección vino a cerrar: una prórroga registrada en julio no puede cambiar lo
+     que el socio tenía en mayo. Sin fecha (dato viejo) se cuenta siempre, que es
+     lo que ya hace capitalVigenteEn con los abonos. */
+  function prorrogasHasta(p, hasta) {
+    var h = fechaFin(hasta);
+    return lista(p && p.prorrogas).filter(function (pr) {
+      var f = fechaFin(pr && pr.fecha);
+      return !h || !f || f <= h;
+    });
+  }
+  function tienePlanHasta(p, hasta) {
+    if (!tienePlan(p)) return false;
+    var h = fechaFin(hasta), e = entradaPlan(p);
+    var f = fechaFin((e && e.fecha) || (p.planPagos && p.planPagos.creado));
+    return !h || !f || f <= h;
+  }
+  /** @param {string} [hasta] el instante en que se pregunta; sin él, hoy. */
+  function esPuntualParaNivel(p, hasta) {
     return M.cuentaComoPuntual({
       pagado_en_fecha: esPuntual(p),
-      prorrogas_usadas: lista(p && p.prorrogas).length,
-      plan_de_pagos: tienePlan(p)
+      prorrogas_usadas: prorrogasHasta(p, hasta).length,
+      plan_de_pagos: tienePlanHasta(p, hasta)
     });
   }
 
@@ -734,28 +813,168 @@
     for (var i = cand.length - 1; i >= 0; i--) if (estabaVencido(p, cand[i])) return cand[i];
     return '';
   }
-  /* Los tres contadores del nivel TAL COMO ESTABAN en la fecha `hasta`.
+
+  /* =================== LA REGLA ÚNICA DE LA MORA — 5-ago-2026 ===============
+   * EL NIVEL PREMIABA AL QUE NO PAGA, Y ERA POR UNA LÍNEA.
+   *
+   * `contadoresDeNivel` calculaba la racha y los pagos a tiempo recorriendo
+   * SOLO LOS CRÉDITOS PAGADOS. Un crédito vencido y sin pagar no está en esa
+   * lista, así que no podía romper nada; uno pagado tarde sí. De ahí salía toda
+   * la inversión del incentivo:
+   *
+   *   MEDIDO. Socio con 10 quincenas limpias y el crédito 11 de 200.000 vencido
+   *   desde el 31-mar (127 días). Pagando los 494.000: racha 0. Dejando la
+   *   prórroga y quedándose el capital (294.000): racha 10. Devolver 200.000 de
+   *   capital no compraba un peso de garantía, de cupo ni de respaldo, y en la
+   *   racha dejaba PEOR al que paga.
+   *
+   *   Y con esto el nivel entero se daba vuelta: 4 puntuales + el 5 vencido + 2
+   *   puntuales después. Pagando el 5 (364.000) → a_tiempo 6, racha 2 → PLATA,
+   *   cupo 619.600. Prorrogándolo (164.000) → a_tiempo 6, racha 6 → ORO, cupo
+   *   774.500. Misma garantía: pagó 200.000 más y quedó un escalón abajo. Pasaba
+   *   en 12 de 20 combinaciones barridas.
+   *
+   * EL GUARDIÁN QUE HABÍA ERA UN PARCHE POR REQUISITO. `enMora` apagaba solo
+   * `meses_sin_mora` —requisito de platino— y no tocaba `racha` (requisito de
+   * oro) ni `a_tiempo`. Tapaba uno de los tres y por eso dejaba dos abiertos.
+   * Agregar dos guardianes más habría sido repetir el error.
+   *
+   * ASÍ QUE HAY UNA SOLA REGLA, ES ESTA, Y LOS TRES CONTADORES SALEN DE ELLA:
+   * ¿cómo estaba ESTE crédito, para el nivel, en tal instante? Tres respuestas
+   * posibles y nada más. El dato que faltaba ya existía —`estabaVencido` y
+   * `ultimoDiaDeMora` recorren la línea de tiempo y no se mueven cuando se
+   * registra una prórroga después—: los contadores simplemente nunca le
+   * preguntaban por los créditos NO PAGADOS.
+   * ========================================================================*/
+
+  /**
+   * ¿Este crédito estuvo en mora en algún momento hasta `hasta`? La versión
+   * "alguna vez" de `estabaVencido`, y la que necesita el nivel: una mora que
+   * se tapó con una prórroga sigue habiendo existido. `ultimoDiaDeMora` ya
+   * recorre todos los tramos, así que devuelve '' solo si nunca la hubo.
+   */
+  function estuvoEnMora(p, hasta) {
+    return !!ultimoDiaDeMora(p, hasta);
+  }
+
+  /**
+   * ¿Este crédito YA venía de una mora cuando arrancó el ciclo que termina en
+   * `corte`? Es la pregunta del §4-bis del motor —la que decide si un pago
+   * acredita al 90% o al 45%— y se mide JUSTO ANTES de ese corte, no el día del
+   * pago, por una razón que ya costó una ronda:
+   *
+   *   la puntualidad del propio ciclo la sigue decidiendo su dato CONGELADO
+   *   (`pr.aTiempo`, el recargo de la cuota, esPuntual del pago final).
+   *
+   * Si esto mirara hasta el día del pago, estaría recalculando esa misma
+   * puntualidad desde la línea de tiempo y le pasaría por encima al dato
+   * guardado —justo lo que el 4-ago se decidió no hacer para no borrar garantía
+   * ya acreditada. Acá se agrega SOLO lo que pasó antes: la mora de un ciclo
+   * ANTERIOR, la que la prórroga tapó y el reloj de mora había puesto en cero.
+   */
+  function veniaDeMora(p, corte) {
+    return estuvoEnMora(p, diaAntes(fechaFin(corte))) || moraYaCobrada(p, corte);
+  }
+
+  /**
+   * La OTRA prueba de que hubo mora antes de este ciclo: un movimiento ya
+   * cobrado que trajo recargo. Si una prórroga cobró recargo del 1% diario es
+   * porque el corte ya había pasado, y eso es un hecho guardado.
+   *
+   * Hace falta, y no es redundante con la línea de tiempo: una prórroga
+   * registrada EL MISMO DÍA en que arrancó la mora mueve el corte desde ese
+   * mismo día, así que el tramo vencido que la línea de tiempo puede ver queda
+   * VACÍO —el día del corte no es mora y el día siguiente ya rige el corte
+   * nuevo— aunque el socio haya pagado un día de recargo. Sin esto, prorrogar el
+   * primer día de atraso y volver a prorrogar en el corte nuevo cobraba otra vez
+   * el 90%: el mismo agujero, un día antes.
+   */
+  function moraYaCobrada(p, corte) {
+    var c = fechaFin(corte);
+    if (!c) return false;
+    var movs = lista(p && p.prorrogas).slice();
+    if (entradaPlan(p)) movs.push(entradaPlan(p));
+    /* Una cuota del plan pagada con recargo también es mora cobrada. Va con su
+       `monto` porque moraDeProrroga topa el recargo contra el monto: sin él, el
+       recargo se leería como cero y la prueba se perdería. */
+    cuotasPlan(p).forEach(function (q) {
+      if (!q || !q.pagado) return;
+      movs.push({ ciclo: q.fecha, mora: num(q.recargo),
+                  monto: num(q.costo) + num(q.recargo) });
+    });
+    return movs.some(function (m) {
+      var ciclo = fechaFin(m && m.ciclo);
+      // Solo los ciclos ANTERIORES: el propio ciclo lo juzga su dato congelado.
+      if (!ciclo || ciclo >= c) return false;
+      return moraDeProrroga(m) > 0 || (m && m.aTiempo === false);
+    });
+  }
+
+  /**
+   * EL ESTADO DE UN CRÉDITO PARA EL NIVEL en un instante. Es la regla única.
+   *
+   *   'gana'    pagado, en fecha, sin prórroga ni plan y sin haber estado nunca
+   *             en mora: suma un pago a tiempo y suma a la racha.
+   *   'rompe'   estuvo en mora, o pagó tarde, o necesitó prórroga o plan de
+   *             pagos. No suma y ROMPE la racha, esté pagado o no: deber la
+   *             plata no puede valer menos que haberla pagado tarde.
+   *   'abierto' todavía no le llegó el corte y no le pasó nada: ni suma ni
+   *             rompe. Un crédito recién desembolsado no le borra la racha a
+   *             nadie.
+   *
+   * Que 'rompe' no se cure NUNCA es la mitad que faltaba: la prórroga mueve el
+   * corte al futuro, así que sin el "alguna vez" el crédito volvía a 'abierto'
+   * al día siguiente y la racha se recomponía sola. Lo que no se cura es el
+   * escalón; la garantía ya ganada sigue intacta y el nivel sigue sin bajar
+   * (nivelDelSocio toma el máximo histórico).
+   */
+  function estadoParaNivel(p, hasta) {
+    var pagado = !!(p && p.pagado) && (fechaFin(p.fechaPagado) || hasta) <= hasta;
+    if (estuvoEnMora(p, hasta)) return 'rompe';
+    if (pagado) return esPuntualParaNivel(p, hasta) ? 'gana' : 'rompe';
+    // Sin pagar y sin mora: si ya necesitó prórroga o plan, tampoco gana el
+    // escalón —y no puede esperar a estar pagado para dejar de ganarlo, o
+    // prorrogar volvería a rendir más que pagar mientras el crédito esté abierto.
+    if (prorrogasHasta(p, hasta).length || tienePlanHasta(p, hasta)) return 'rompe';
+    return 'abierto';
+  }
+
+  /* Los tres contadores del nivel TAL COMO ESTABAN en la fecha `hasta`, los tres
+     derivados del estado de cada crédito y de nada más.
      `ps` son todos los créditos del socio ordenados por desembolso. */
   function contadoresDeNivel(ps, hasta) {
-    var pagados = ps.filter(function (p) {
-      return p.pagado && (fechaFin(p.fechaPagado) || hasta) <= hasta;
-    });
-    var aTiempo = pagados.filter(esPuntualParaNivel).length;
+    var estados = ps.map(function (p) { return estadoParaNivel(p, hasta); });
+    var aTiempo = 0;
+    for (var i = 0; i < estados.length; i++) if (estados[i] === 'gana') aTiempo++;
+    /* La racha: los últimos seguidos que ganaron. Los abiertos se saltan (no
+       hay nada que juzgar todavía) y el primer 'rompe' la corta —el vencido sin
+       pagar igual que el pagado tarde. */
     var racha = 0;
-    for (var i = pagados.length - 1; i >= 0; i--) { if (esPuntualParaNivel(pagados[i])) racha++; else break; }
-    /* Desde cuándo lleva sin mora. Cuentan las dos formas de haber estado en
-       mora, no solo una: haber PAGADO tarde, y haber ESTADO atrasado aunque el
-       atraso se haya tapado después con una prórroga o con un plan de pagos.
-       Sin la segunda, dejar la deuda cuatro meses y prorrogar la dejaba sin
-       huella y el contador seguía corriendo por encima de la mora. */
-    var hitos = pagados.filter(function (p) { return !esPuntualParaNivel(p); })
-      .map(function (p) { return fechaFin(p.fechaPagado); })
-      .concat(ps.map(function (p) { return ultimoDiaDeMora(p, hasta); }))
-      .filter(Boolean).sort();
+    for (var j = estados.length - 1; j >= 0; j--) {
+      if (estados[j] === 'abierto') continue;
+      if (estados[j] !== 'gana') break;
+      racha++;
+    }
+    /* Desde cuándo lleva sin mora: desde el último hito de los créditos que
+       rompieron. El hito es el último día en que el crédito estuvo vencido —una
+       mora termina el día en que el corte se mueve o el día en que se paga— y,
+       para el que no llegó a estar vencido pero tampoco ganó el escalón, el día
+       en que se pagó. Si HOY hay uno en mora, `ultimoDiaDeMora` devuelve el
+       propio `hasta` y los meses quedan en cero solos: no hace falta ningún
+       guardián aparte, que es lo que antes tapaba un requisito y dejaba dos. */
+    var hitos = [];
+    ps.forEach(function (p, k) {
+      var m = ultimoDiaDeMora(p, hasta);
+      if (m) { hitos.push(m); return; }
+      if (estados[k] === 'rompe' && p.pagado) {
+        var f = fechaFin(p.fechaPagado);
+        if (f && f <= hasta) hitos.push(f);
+      }
+    });
+    hitos = hitos.filter(Boolean).sort();
     var desde = hitos.length ? hitos[hitos.length - 1]
               : (ps[0] ? (fechaFin(ps[0].fechaDesembolso) || hasta) : hasta);
-    var enMora = ps.some(function (p) { return estabaVencido(p, hasta); });
-    var meses = enMora ? 0 : Math.max(0, Math.floor(diasEntre(desde, hasta) / 30));
+    var meses = Math.max(0, Math.floor(diasEntre(desde, hasta) / 30));
     return { a_tiempo: aTiempo, racha: racha, meses_sin_mora: meses };
   }
   /* Los instantes en que la cuenta del socio pudo cambiar de nivel: cada pago
@@ -821,13 +1040,24 @@
      no traen recargo, se leen puntuales y conservan su 90%. */
   function garantiaGanadaCredito(p) {
     return lista(p && p.prorrogas).reduce(function (t, pr) {
-      return t + garantiaGanadaProrroga(pr);
+      return t + garantiaGanadaProrroga(pr, p);
     }, 0) +
       /* Cada cuota del plan de pagos lleva su propio factor, congelado el día
          que se cobró, por la misma razón que las prórrogas: lo ya ganado no se
          puede mover hacia atrás. */
       garantiaGanadaPlan(p) +
-      (p && p.pagado ? M.acumularGarantia(Math.max(0, num(p.gananciaPago)), esPuntual(p)) : 0);
+      /* 5-ago-2026 §4-bis — y el pago final tampoco. `esPuntual` compara la
+         fecha de pago contra el corte, y la prórroga corre el corte al futuro:
+         el que se atrasaba 127 días, prorrogaba y pagaba dentro del corte nuevo
+         cobraba el 90% del que nunca se atrasó. El factor mira las dos cosas:
+         llegó en fecha Y el crédito no venía de una mora. */
+      (p && p.pagado
+        ? M.acumularGarantia(Math.max(0, num(p.gananciaPago)),
+            M.cuentaComoPuntualParaGarantia({
+              pagado_en_fecha: esPuntual(p),
+              credito_estuvo_en_mora: veniaDeMora(p, p.cicloPago)
+            }))
+        : 0);
   }
 
   function codCliente(s) { return 'CL-' + String((s && s.numero) || 0).padStart(4, '0'); }
@@ -1046,7 +1276,12 @@
           dias_mora: liq.dias_mora,
           mora: liq.recargo_mora,
           total_hoy: liq.total_a_pagar,
-          causado: liq.causado
+          causado: liq.causado,
+          /* Y el dato del §4-bis, para que la app no lo deduzca: un crédito que
+             ya estuvo en mora acredita al 45% aunque pague dentro del corte que
+             le compró la prórroga. Viaja para pasárselo al motor tal cual
+             (`credito.estuvo_en_mora`). */
+          estuvo_en_mora: liq.estuvo_en_mora
         };
       }),
       respaldados: resps.map(function (r) {
@@ -1114,6 +1349,10 @@
     liquidarCiclo: liquidarCiclo,
     ultimoDiaDeMora: ultimoDiaDeMora,
     estabaVencido: estabaVencido,
+    // La regla única de la mora, y el estado que sale de ella (5-ago-2026).
+    estuvoEnMora: estuvoEnMora,
+    estadoParaNivel: estadoParaNivel,
+    prorrogaAcreditaEnFecha: prorrogaAcreditaEnFecha,
     contadoresDeNivel: contadoresDeNivel,
     instantesDeNivel: instantesDeNivel,
     nivelDelSocio: nivelDelSocio,

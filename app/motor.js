@@ -747,6 +747,53 @@
     return Math.round(costo * factor);
   }
 
+  /**
+   * §4-bis — EL 90% ES DEL QUE NO SE ATRASÓ, Y UNA PRÓRROGA NO SE LO REPONE
+   * (5-ago-2026).
+   *
+   * MEDIDO con el código de ayer: socio con 10 quincenas limpias y el crédito
+   * 11 de 200.000 vencido desde el 31-mar. Saldar la deuda cuesta 494.000 y
+   * acredita el 45% de los 294.000 de costos: 132.300. Prorrogar cuesta 294.000
+   * y acredita exactamente lo mismo… pero la prórroga PONE EL RELOJ DE MORA EN
+   * CERO, así que la quincena SIGUIENTE se cobra "en fecha" y se acredita al
+   * 90%. Encadenando dos prórrogas: 334.000 de plata contra 494.000, garantía
+   * 528.300 contra 492.300, 90.000 más de cupo y el capital todavía en la mano.
+   * Por peso pagado, no pagar rendía el 50,4% contra el 45% del que salda.
+   *
+   * LA REGLA JUSTA, y es una sola: el factor del 90% premia al crédito que
+   * NUNCA se atrasó. Desde que un crédito cae en mora, todo lo que se pague
+   * sobre él —prórrogas, cuotas del plan de pagos, el saldo final— acredita al
+   * 45%, aunque el corte se haya movido y el pago llegue "en fecha" del corte
+   * nuevo. La prórroga compra TIEMPO, que es lo que el socio necesita y lo que
+   * está pagando; no compra la puntualidad que ya no tuvo.
+   *
+   * Y NO BORRA NADA. El factor de cada pago se congela el día en que se paga y
+   * mira solo lo que YA había pasado: los 132.300 de la prórroga que curó la
+   * mora son 132.300 para siempre. Lo que deja de existir es el 90% del ciclo
+   * que vino DESPUÉS de la mora. La promesa sigue entera por los dos lados: no
+   * se le quita lo ganado, y atrasarse no puede rendir más que pagar.
+   *
+   * El dato histórico no lo adivina el motor: quien liquida lo trae en
+   * `credito.estuvo_en_mora` (el puente lo saca de la línea de tiempo del
+   * crédito, que es la única que sabe qué corte regía cada día). Sin el dato se
+   * asume que no hubo mora, que es el crédito recién desembolsado.
+   *
+   * @param {object} pago {pagado_en_fecha, credito_estuvo_en_mora}
+   * @returns {boolean} true → acredita al FACTOR_GARANTIA (90%)
+   */
+  function cuentaComoPuntualParaGarantia(pago) {
+    if (!pago || typeof pago !== 'object') {
+      throw new TypeError('pago: se esperaba el objeto del pago');
+    }
+    if (pago.pagado_en_fecha !== true) return false;
+    return pago.credito_estuvo_en_mora !== true;
+  }
+
+  /** Atajo interno: ¿este crédito ya venía de una mora? (§4-bis) */
+  function veniaDeMora(credito) {
+    return !!credito && credito.estuvo_en_mora === true;
+  }
+
   /* ------------------------------------------------------------ §9 mora */
 
   /** Días corridos de mora. Negativo = todavía falta para el corte. */
@@ -842,12 +889,20 @@
       : recargoPorMora(base, diasMora, opciones);
     var costoTotal = costo + recargo;
     var aTiempo = diasMora === 0;
+    /* §4-bis — el 90% es del crédito que NUNCA se atrasó. Si este ya estuvo en
+       mora (el corte se movió con una prórroga o con un plan), pagar "en fecha"
+       del corte nuevo acredita al 45%: la prórroga compró tiempo, no
+       puntualidad. */
+    var acredita = cuentaComoPuntualParaGarantia({
+      pagado_en_fecha: aTiempo, credito_estuvo_en_mora: veniaDeMora(credito) });
 
     return {
       fecha_corte: iso(corte),
       fecha_pago: iso(pago),
       dias_mora: diasMora,
       pago_a_tiempo: aTiempo,
+      // Llegar en fecha y acreditar al 90% dejaron de ser lo mismo (§4-bis).
+      acredita_en_fecha: acredita,
       tramo: tramoDeMora(dias).tramo,
       capital: capital,
       costo: costo,
@@ -856,9 +911,12 @@
       base_mora: base,
       costo_total_pagado: costoTotal,
       total_a_pagar: capital + costoTotal,
-      garantia_generada: acumularGarantia(costoTotal, aTiempo),
-      // Lo que habría ganado pagando en fecha, para poder mostrárselo.
-      garantia_si_puntual: acumularGarantia(costo, true),
+      garantia_generada: acumularGarantia(costoTotal, acredita),
+      // Lo que habría ganado pagando en fecha, para poder mostrárselo. Si el
+      // crédito ya venía de una mora, ese 90% ya no está disponible ni pagando
+      // hoy: el techo honesto es el 45%.
+      garantia_si_puntual: acumularGarantia(costo, cuentaComoPuntualParaGarantia({
+        pagado_en_fecha: true, credito_estuvo_en_mora: veniaDeMora(credito) })),
       supera_dias_castigo: diasMora >= DIAS_CASTIGO // §6: a los 90 días se castiga
     };
   }
@@ -1046,12 +1104,19 @@
     var fechas = cortesSiguientes(desde, n);
     var cuotaBase = Math.floor(base / n);
     var cuotas = [], saldo = base, totalCosto = 0, totalPagar = 0, totalGarantia = 0;
+    /* 5-ago-2026 §4-bis — las cuotas del plan se acreditaban SIEMPRE al 90%,
+       y un plan de pagos existe justamente porque el crédito ya se atrasó: era
+       el mismo regalo de la prórroga encadenada por otra puerta. Pagar la cuota
+       el día de su corte es lo que se espera del plan; el 90% es del ciclo que
+       nunca se atrasó. */
+    var acredita = cuentaComoPuntualParaGarantia({
+      pagado_en_fecha: true, credito_estuvo_en_mora: veniaDeMora(credito) });
 
     for (var i = 0; i < n; i++) {
       // La última cuota absorbe el resto de la división, para no perder pesos.
       var capital = (i === n - 1) ? saldo : cuotaBase;
       var costo = Math.round(saldo * TASA_PLAN_DE_PAGOS);
-      var gana = acumularGarantia(costo, true);
+      var gana = acumularGarantia(costo, acredita);
       cuotas.push({
         numero: i + 1,
         fecha_corte: fechas[i],
@@ -1203,8 +1268,14 @@
     var aTiempo = dias === 0;
     /* El costo con su factor de puntualidad y el recargo SIEMPRE al 45%: es
        plata que solo existe porque el corte ya había pasado. Es la misma cuenta
-       que hace el puente sobre la prórroga ya guardada, y a propósito. */
-    var garantia = acumularGarantia(costo, aTiempo) + acumularGarantia(recargo, false);
+       que hace el puente sobre la prórroga ya guardada, y a propósito.
+       5-ago-2026 §4-bis: y el factor del costo mira además si el crédito YA
+       venía de una mora. Si viene, esta prórroga acredita al 45% aunque se
+       registre el mismísimo día del corte nuevo — es el ciclo que la prórroga
+       anterior le compró, no una quincena limpia. */
+    var acredita = cuentaComoPuntualParaGarantia({
+      pagado_en_fecha: aTiempo, credito_estuvo_en_mora: veniaDeMora(credito) });
+    var garantia = acumularGarantia(costo, acredita) + acumularGarantia(recargo, false);
     var total = costo + recargo;
 
     return {
@@ -1219,6 +1290,9 @@
       fecha_corte_nueva: r.ok ? r.fecha_corte_nueva : null,
       dias_mora: dias,
       a_tiempo: aTiempo,
+      // Registrarla en fecha y acreditarla al 90% dejaron de ser lo mismo: un
+      // crédito que ya estuvo en mora acredita al 45% (§4-bis).
+      acredita_en_fecha: acredita,
       costo_prorroga: costo,
       recargo_mora: recargo,
       total_a_pagar: total,
@@ -1354,6 +1428,12 @@
        congela el día en que se paga y nada posterior lo baja—, pero pagar
        tarde no puede rendir más que pagar a tiempo. */
     var prorrogaATiempo = fechaMovimiento <= iso(corteActual);
+    /* 5-ago-2026 §4-bis — y no alcanza con llegar en fecha: si el crédito YA
+       venía de una mora, el 90% ya no está. Encadenar prórrogas se acreditaba
+       al 90% a partir de la segunda, porque la primera le ponía el reloj de
+       mora en cero: 334.000 pagados rendían más garantía que saldar 494.000. */
+    var prorrogaAcredita = cuentaComoPuntualParaGarantia({
+      pagado_en_fecha: prorrogaATiempo, credito_estuvo_en_mora: veniaDeMora(credito) });
 
     var actualizado = {};
     for (var k in credito) if (Object.prototype.hasOwnProperty.call(credito, k)) actualizado[k] = credito[k];
@@ -1367,8 +1447,10 @@
       credito: actualizado,
       costo_prorroga: costo,
       // cambio 26-jul-2026: sí acumula · 4-ago-2026: con su factor de puntualidad
-      garantia_generada: acumularGarantia(costo, prorrogaATiempo),
+      // 5-ago-2026: y el 90% solo si el crédito no venía de una mora (§4-bis)
+      garantia_generada: acumularGarantia(costo, prorrogaAcredita),
       prorroga_a_tiempo: prorrogaATiempo,
+      prorroga_acredita_en_fecha: prorrogaAcredita,
       fecha_corte_anterior: iso(corteActual),
       fecha_corte_nueva: nuevoCorte,
       prorrogas_restantes: permitidas - (usadas + 1),
@@ -1380,7 +1462,7 @@
         nota: 'Prórroga ' + (usadas + 1) + '/' + permitidas + ': corte ' +
           iso(corteActual) + ' → ' + nuevoCorte,
         genera_garantia: true,
-        garantia_generada: acumularGarantia(costo, prorrogaATiempo)
+        garantia_generada: acumularGarantia(costo, prorrogaAcredita)
       },
       plan_de_pagos: null
     };
@@ -1865,6 +1947,7 @@
     fechaCorteProrroga: fechaCorteProrroga,
     prorrogasPermitidas: prorrogasPermitidas,
     cuentaComoPuntual: cuentaComoPuntual,
+    cuentaComoPuntualParaGarantia: cuentaComoPuntualParaGarantia,
 
     // Mora: 1% diario (cambio 26-jul-2026) y tramos del §9
     liquidarCredito: liquidarCredito,

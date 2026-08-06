@@ -826,10 +826,38 @@ function riesgoCliente(s){
   if(ratio>0)return{cls:'riesgo-medio',txt:'Medio'};
   return{cls:'riesgo-bajo',txt:'Bajo'};
 }
-function estadoPrestamo(p){ if(p.pagado)return 'pagado'; const h=hoy0(),v=new Date(p.cicloActual+'T00:00:00');
-  if(v.getTime()===h.getTime())return 'hoy'; if(v<h)return 'mora'; if(diasEntre(hoyISO(),p.cicloActual)<=2)return 'proximo'; return 'al-dia'; }
-function diasMora(p){ const h=hoy0(),v=new Date(p.cicloActual+'T00:00:00'); return Math.max(0,Math.round((h-v)/86400000)); }
-function diasPara(p){ const h=hoy0(),v=new Date(p.cicloActual+'T00:00:00'); return Math.round((v-h)/86400000); }
+/* =========================================================================
+   5-ago-2026 — "¿ESTÁ VENCIDO?" Y "¿CUÁNTOS DÍAS?" LAS CONTESTA EL PUENTE.
+
+   Estas tres funciones restaban `hoy - p.cicloActual` por su cuenta. Y
+   `p.cicloActual` es EL PRESENTE: una prórroga lo corre al futuro y un plan de
+   pagos lo pone en la primera cuota, así que la resta contestaba con el corte de
+   hoy una pregunta sobre el pasado. El puente ya recorre la línea de tiempo
+   (`corteDelCredito`, `estabaVencido`, `liquidarCiclo`) y no se mueve por nada
+   que pase después.
+
+   MEDIDO — un crédito cobrado el 15-jul (pago EN FECHA, esPuntual === true),
+   mirado el 5-ago: `diasMora` decía 21 y el WhatsApp de mora salía diciendo
+   «Tu pago de $0 sigue pendiente (21 días)». El puente dice 0 días y
+   `estabaVencido(hoy) === false`. Era el mismo crédito, el mismo día, dos
+   respuestas: la del socio y la de Joan.
+
+   REGLA: acá no se resta ni una fecha más. Si la pregunta lleva una fecha
+   adentro, la contesta el puente.
+   ========================================================================= */
+function estadoPrestamo(p){ if(p.pagado)return 'pagado';
+  const c=PUENTE.corteDelCredito(p); if(!c)return 'al-dia';
+  /* La mora la declara el puente, no una comparación de acá: es la misma
+     respuesta con la que se calculan el nivel y la garantía del socio. */
+  if(PUENTE.estabaVencido(p,hoyISO()))return 'mora';
+  if(c===hoyISO())return 'hoy';
+  if(diasEntre(hoyISO(),c)<=2)return 'proximo'; return 'al-dia'; }
+/* Los días de atraso son los que cobra la pantalla de cobro y los que ve el
+   socio en su celular: los del paquete del puente. Cero cuando ya pagó. */
+function diasMora(p){ return PUENTE.liquidarCiclo(p).dias_mora; }
+/* Los que FALTAN para el corte que el puente dice que rige hoy. */
+function diasPara(p){ const c=PUENTE.corteDelCredito(p); if(!c)return 0;
+  const h=hoy0(),v=new Date(c+'T00:00:00'); return Math.round((v-h)/86400000); }
 const ESTADO_TXT={'al-dia':'Al día','proximo':'Próximo','hoy':'Vence hoy','mora':'En mora','pagado':'Pagado'};
 const ESTADO_TXT_RESP={'al-dia':'Al día','proximo':'Próxima cuota','hoy':'Cuota hoy','mora':'Cuota vencida','pagado':'Terminado'};
 const ESTADO_TXT_INV={nueva:'Sin usar',usada:'Usada',anulada:'Anulada'};
@@ -897,18 +925,55 @@ function plantillaPara(p){ const e=estadoPrestamo(p);
   if(e==='mora')return diasMora(p)>=6?'mora':'moraTemprana'; if(e==='hoy')return 'venceHoy';
   if(e==='proximo')return diasPara(p)>=2?'recordatorio2':'recordatorio1'; return 'venceHoy'; }
 function waNum(s){ return (s.whatsappIgual?s.telefono:(s.whatsappNumero||s.telefono))||''; }
+/* =========================================================================
+   5-ago-2026 — UN MENSAJE NO OFRECE UNA PRÓRROGA QUE NO EXISTE.
+
+   `totalProrroga(p)` devuelve 0 cuando el crédito ya está en PLAN DE PAGOS
+   (liqProrroga contesta null: de un plan no se sale prorrogando), y devuelve el
+   precio de PACTAR EL PLAN cuando el socio ya gastó todas sus prórrogas. Con las
+   dos cosas, el WhatsApp mentía en direcciones distintas:
+
+     · con plan → «puedes dejar la prórroga de $0», mientras la pantalla de cobro
+       del MISMO crédito dice «de acá no se sale prorrogando».
+     · sin prórrogas → «puedes dejar la prórroga de $X», donde $X es lo que
+       cuesta el plan de pagos, no una prórroga que ya no puede pedir.
+
+   Y ese mensaje es el recibo que le queda al socio en el teléfono.
+
+   La regla: se ofrece prórroga SOLO cuando el motor dice que se puede
+   (`r.ok`), que es exactamente la condición con la que calcPago pinta el botón
+   «↻ Prórroga». Cuando no se puede, la frase que la ofrecía se cae del mensaje:
+   así el texto dice lo mismo que la pantalla en los cuatro casos (cobro, abono
+   parcial, prórroga y plan). El token nunca vuelve a mostrar $0.
+   ========================================================================= */
+function prorrogaOfrecida(p){ const r=p?liqProrroga(p):null; return (r&&r.ok)?r.total_a_pagar:null; }
+/* Se cae la ORACIÓN entera, no el token: «puedes dejar la prórroga de —» no es
+   un mensaje, es un error a la vista del cliente. Si al quitarla no quedara
+   nada (una plantilla que solo habla de la prórroga), se deja el texto como
+   estaba: ahí el problema es la plantilla elegida, no el número. */
+function sinFraseProrroga(txt){
+  const limpio=String(txt||'').split(/(?<=[.!?])\s+/)
+    .filter(f=>f.indexOf('{prorroga}')===-1).join(' ').trim();
+  return limpio||String(txt||'');
+}
 /* `extra` trae lo que no sale de un préstamo quincenal: el código de invitación
    y los datos de una cuota del préstamo con garantía. */
-function aplicarVars(txt,p,s,enlace,extra){ const e=extra||{}; s=s||{}; return txt
-  .replaceAll('{nombre}',(s.nombre||'').split(' ')[0]||s.nombre||'').replaceAll('{negocio}',DB.config.negocio||'Tu Garantía')
-  .replaceAll('{monto}',COP(p?capitalActual(p):0)).replaceAll('{saldo}',COP(p?totalCiclo(p):0))
+function aplicarVars(txt,p,s,enlace,extra){ const e=extra||{}; s=s||{};
   /* {prorroga} es lo que el socio va a pagar HOY por prorrogar: el costo del
      ciclo más el recargo de mora ya causado. Si acá dijera solo K(p), el
      mensaje le prometería un precio que la pantalla de cobro no le va a hacer.
      Y si el mensaje habla de una prórroga YA REGISTRADA, el monto llega hecho
      desde varsDePlantilla(): ver el comentario de esa función. */
-  .replaceAll('{prorroga}',e.prorroga!=null?e.prorroga:COP(p?totalProrroga(p):0))
-  .replaceAll('{fecha_pago}',e.fecha_pago||(p?fmtFecha(p.cicloActual):''))
+  const of=e.prorroga!=null?e.prorroga:(()=>{const v=prorrogaOfrecida(p); return v==null?null:COP(v);})();
+  if(of==null) txt=sinFraseProrroga(txt);
+  return txt
+  .replaceAll('{nombre}',(s.nombre||'').split(' ')[0]||s.nombre||'').replaceAll('{negocio}',DB.config.negocio||'Tu Garantía')
+  .replaceAll('{monto}',COP(p?capitalActual(p):0)).replaceAll('{saldo}',COP(p?totalCiclo(p):0))
+  .replaceAll('{prorroga}',of==null?'—':of)
+  /* El corte también sale del puente: `p.cicloActual` es el resumen de hoy y en
+     un crédito con plan de pagos es la fecha de la CUOTA que sigue. */
+  .replaceAll('{fecha_pago}',e.fecha_pago||(p?fmtFecha(PUENTE.corteDelCredito(p)):''))
+  /* Los días de atraso, los del puente: cero cuando el crédito ya se pagó. */
   .replaceAll('{dias_mora}',p?String(diasMora(p)):'0')
   .replaceAll('{codigo}',e.codigo||'').replaceAll('{cuota}',e.cuota||'')
   .replaceAll('{n}',e.n||'').replaceAll('{plazo}',e.plazo||'')
@@ -925,8 +990,8 @@ function renderCola(){
       const est=estadoPrestamo(p),k=plantillaPara(p),dm=diasMora(p),dp=diasPara(p);
       const cuando=est==='hoy'?'Hoy':est==='mora'?`Hace ${dm}d`:`En ${dp}d`;
       return `<tr><td><b>${escHTML(s.nombre||p.socioNombre)}</b><div class="muted">${escHTML(waNum(s))}</div></td>
-        <td class="num">${COP(totalCiclo(p))}<div class="muted">${totalProrroga(p)?'prórroga '+COP(totalProrroga(p)):(tienePlan(p)?'plan de pagos':'sin prórrogas')}</div></td>
-        <td>${fmtFecha(p.cicloActual)}<div class="muted">${cuando}</div></td>
+        <td class="num">${COP(totalCiclo(p))}<div class="muted">${(()=>{const v=prorrogaOfrecida(p);return v!=null?'prórroga '+COP(v):(tienePlan(p)?'plan de pagos':'sin prórrogas');})()}</div></td>
+        <td>${fmtFecha(PUENTE.corteDelCredito(p))}<div class="muted">${cuando}</div></td>
         <td><span class="chip ${est}">${ESTADO_TXT[est]}</span></td>
         <td style="text-align:right">${contactadoHoy(s)?'<span class="muted">contactado</span> ':''}<button class="btn btn-wa btn-sm" onclick="gestionar('${p.id}','${k}')">💬</button> <button class="btn btn-negro btn-sm" onclick="abrirPago('${p.id}')">Pago</button></td></tr>`;}).join('')}</tbody></table>`;
 }
@@ -937,12 +1002,12 @@ function renderCred(){
   if(!arr.length){ c.innerHTML=`<div class="empty"><div class="ic">💵</div><p>Sin créditos todavía.<br><span class="muted">Toca “＋ Nuevo crédito” para registrar el primero.</span></p></div>`+papeleraHTML(); return; }
   const sumCap=arr.reduce((s,p)=>s+capitalActual(p),0),sumAPagar=arr.reduce((s,p)=>s+(p.pagado?0:totalCiclo(p)),0),sumGan=arr.reduce((s,p)=>s+gananciaCobrada(p),0);
   c.innerHTML=`<table><thead><tr><th>N°</th><th>Cliente</th><th>Capital</th><th>A pagar</th><th>Ganancia</th><th>Desemb. → Quincena</th><th>E.A.</th><th>Estado</th><th></th></tr></thead><tbody>${
-    arr.map(p=>{ const est=estadoPrestamo(p),dias=diasEntre(p.fechaDesembolso,p.cicloActual),ea=eaEquivalente(p.costoPct,dias),sobre=usura>0&&ea>usura,npr=(p.prorrogas||[]).length,s=DB.socios.find(x=>x.id===p.socioId);
+    arr.map(p=>{ const est=estadoPrestamo(p),dias=diasEntre(p.fechaDesembolso,PUENTE.corteDelCredito(p)),ea=eaEquivalente(p.costoPct,dias),sobre=usura>0&&ea>usura,npr=(p.prorrogas||[]).length,s=DB.socios.find(x=>x.id===p.socioId);
       return `<tr><td class="mono muted">${codCredito(p)}</td><td><b>${escHTML(p.socioNombre)}</b><div class="muted">${s?codCliente(s)+' · ':''}costo ${p.costoPct}%${npr?' · '+npr+' prórr.':''}${(p.comprobantes||[]).length?' · 📎'+p.comprobantes.length:''}</div></td>
       <td class="num">${COP(capitalActual(p))}</td>
       <td class="num">${p.pagado?'—':COP(totalCiclo(p))}</td>
       <td class="gano">${COP(gananciaCobrada(p))}${!p.pagado?'<div class="muted" style="font-weight:400">esp. '+COP(gananciaEsperada(p))+'</div>':''}</td>
-      <td>${fmtFecha(p.fechaDesembolso)} <span class="muted">→</span> ${fmtFecha(p.cicloActual)}<div class="muted">${dias} días</div></td>
+      <td>${fmtFecha(p.fechaDesembolso)} <span class="muted">→</span> ${fmtFecha(PUENTE.corteDelCredito(p))}<div class="muted">${dias} días</div></td>
       <td class="${sobre?'ea-bad':'ea-ok'}">${fmtEA(ea)}${sobre?' <span class="warn-ico" title="Supera la usura de referencia">⚠️</span>':''}</td>
       <td><span class="chip ${est}">${ESTADO_TXT[est]}</span></td>
       <td style="text-align:right"><button class="btn btn-ghost btn-sm" onclick="verCredito('${p.id}')">Ver</button>${p.pagado?'':` <button class="btn btn-negro btn-sm" onclick="abrirPago('${p.id}')">Pago</button>`} <button class="btn btn-ghost btn-sm" onclick="borrarCredito('${p.id}')" title="Borrar este crédito (va a la papelera)">🗑</button></td></tr>`;}).join('')}</tbody>
@@ -1098,13 +1163,27 @@ function quincenasRelevantes(){
   const out=[]; let cur=qi,guard=0; while(new Date(cur)<=new Date(qf)&&guard<120){ out.push(cur); cur=proximaQuincena(cur); guard++; } return out;
 }
 function gananciaDeQuincena(q){ let g=0; DB.prestamos.forEach(p=>{ (p.prorrogas||[]).forEach(pr=>{if(pr.ciclo===q)g+=pr.monto;}); if(p.pagado&&p.cicloPago===q)g+=(p.gananciaPago||0); }); return g; }
-function invertidoEnQuincena(q){ let inv=0; DB.prestamos.forEach(p=>{ const d=new Date(p.fechaDesembolso)<=new Date(q); const v=p.pagado?new Date(p.cicloPago||p.cicloActual)>=new Date(q):new Date(p.cicloActual)>=new Date(q); if(d&&v)inv+=capitalActual(p); }); return inv; }
-function porCobrarEnQuincena(q){ return DB.prestamos.filter(p=>!p.pagado&&p.cicloActual===q).reduce((s,p)=>s+totalCiclo(p),0); }
+/* 5-ago-2026 — LO QUE HABÍA EN LA CALLE EN UNA QUINCENA ES UNA PREGUNTA DEL
+   PASADO. Esta función sumaba `capitalActual(p)` —el capital de HOY— y decidía
+   si el crédito estaba abierto comparando `p.cicloActual`, que es el corte de
+   hoy. O sea que un abono de ayer bajaba retroactivamente lo invertido en marzo,
+   y una prórroga registrada hoy metía el crédito en quincenas en las que su
+   corte no había llegado. Las dos respuestas las tiene el puente recorriendo los
+   hechos: `corteVigenteEn` (qué corte regía ESE día) y `capitalVigenteEn`
+   (cuánto se debía ESE día). */
+function invertidoEnQuincena(q){ return DB.prestamos.reduce((inv,p)=>{
+  if(!p.fechaDesembolso||p.fechaDesembolso>q)return inv;
+  const corte=PUENTE.corteVigenteEn(p,q); if(corte&&corte<q)return inv;
+  // Y si lo saldó ANTES de esa quincena, esa plata ya no estaba en la calle.
+  if(p.pagado&&p.fechaPagado&&p.fechaPagado<q)return inv;
+  return inv+PUENTE.capitalVigenteEn(p,q);
+},0); }
+function porCobrarEnQuincena(q){ return DB.prestamos.filter(p=>!p.pagado&&PUENTE.corteDelCredito(p)===q).reduce((s,p)=>s+totalCiclo(p),0); }
 function renderCiclos(){
   const qs=quincenasRelevantes().reverse(),c=document.getElementById('tblCiclos'),cg=cicloActualGlobal();
   if(!qs.length){ c.innerHTML=`<div class="empty"><div class="ic">📈</div><p>Sin ciclos todavía.</p></div>`; return; }
   c.innerHTML=`<table><thead><tr><th>Quincena</th><th>Invertido (capital activo)</th><th>Por cobrar</th><th>Ganancia del ciclo</th><th>Vencen</th></tr></thead><tbody>${
-    qs.map(q=>{ const vencen=DB.prestamos.filter(p=>!p.pagado&&p.cicloActual===q).length,esA=q===cg;
+    qs.map(q=>{ const vencen=DB.prestamos.filter(p=>!p.pagado&&PUENTE.corteDelCredito(p)===q).length,esA=q===cg;
       return `<tr style="${esA?'background:var(--rojo-tinte)':''}"><td><b>${fmtFecha(q)}</b>${esA?' <span class="chip mora">actual</span>':''}</td>
       <td class="num">${COP(invertidoEnQuincena(q))}</td><td class="num">${COP(porCobrarEnQuincena(q))}</td>
       <td class="gano">${COP(gananciaDeQuincena(q))}</td><td class="num">${vencen}</td></tr>`;}).join('')}</tbody></table>`;
@@ -1112,8 +1191,13 @@ function renderCiclos(){
 
 /* ===== CALENDARIO ===== */
 let calY,calM;
+/* 5-ago-2026 — el calendario preguntaba «¿vence hoy?» con `p.cicloActual`, que
+   es el corte de HOY: los cortes que ya pasaron desaparecían del calendario en
+   cuanto una prórroga corría la fecha, y aparecían pintados en el día nuevo como
+   si el vencimiento viejo no hubiera existido. El corte que regía ESE día lo
+   contesta el puente. */
 function eventosDia(iso){ const ev={des:[],ven:[],pag:[],pro:[]};
-  DB.prestamos.forEach(p=>{ if(p.fechaDesembolso===iso)ev.des.push(p); if(!p.pagado&&p.cicloActual===iso)ev.ven.push(p); if(p.pagado&&p.fechaPagado===iso)ev.pag.push(p); (p.prorrogas||[]).forEach(pr=>{if(pr.fecha===iso)ev.pro.push({p,pr});}); }); return ev; }
+  DB.prestamos.forEach(p=>{ if(p.fechaDesembolso===iso)ev.des.push(p); if(!p.pagado&&PUENTE.corteVigenteEn(p,iso)===iso)ev.ven.push(p); if(p.pagado&&p.fechaPagado===iso)ev.pag.push(p); (p.prorrogas||[]).forEach(pr=>{if(pr.fecha===iso)ev.pro.push({p,pr});}); }); return ev; }
 function renderCalendario(){
   if(calY===undefined){ const d=new Date(); calY=d.getFullYear(); calM=d.getMonth(); }
   document.getElementById('calTitulo').textContent=MESES[calM].charAt(0).toUpperCase()+MESES[calM].slice(1)+' '+calY;
@@ -1141,7 +1225,10 @@ function verDia(iso){
     if(ev.ven.length){ h+=`<div class="sub-h">⏰ Cobros / vencimientos</div>`+ev.ven.map(p=>{const s=DB.socios.find(x=>x.id===p.socioId)||{};return `<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv"><b>${COP(totalCiclo(p))}</b> · <a target="_blank" href="${gcalUrl('Cobro '+p.socioNombre+' '+COP(totalCiclo(p)),iso,'Prórroga posible: '+COP(K(p)))}">+Google</a> · <a target="_blank" href="${waLink(waNum(s),aplicarVars(DB.plantillas.venceHoy,p,s))}">WA</a></span></div>`;}).join(''); }
     if(ev.des.length){ h+=`<div class="sub-h">💵 Desembolsos</div>`+ev.des.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv"><b>${COP(p.capital)}</b> · <a target="_blank" href="${gcalUrl('Desembolso '+p.socioNombre+' '+COP(p.capital),iso,'')}">+Google</a></span></div>`).join(''); }
     if(ev.pag.length){ h+=`<div class="sub-h">✓ Pagos recibidos</div>`+ev.pag.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv gano">${COP(p.capital)} + ganancia ${COP(p.gananciaPago||0)}</span></div>`).join(''); }
-    if(ev.pro.length){ h+=`<div class="sub-h">↻ Prórrogas</div>`+ev.pro.map(o=>`<div class="info-row"><span class="k">${escHTML(o.p.socioNombre)}</span><span class="vv">+${COP(o.pr.monto)} · pasa a ${fmtFecha(o.p.cicloActual)}</span></div>`).join(''); }
+    /* A qué corte pasó DE VERDAD ese día está guardado en el movimiento
+       (`nuevoCiclo`): `p.cicloActual` es el corte de hoy, y con dos prórrogas
+       encadenadas las dos filas decían la misma fecha, la última. */
+    if(ev.pro.length){ h+=`<div class="sub-h">↻ Prórrogas</div>`+ev.pro.map(o=>`<div class="info-row"><span class="k">${escHTML(o.p.socioNombre)}</span><span class="vv">+${COP(o.pr.monto)} · pasa a ${fmtFecha(o.pr.nuevoCiclo||PUENTE.corteVigenteEn(o.p,o.pr.fecha))}</span></div>`).join(''); }
   }
   openModal(fmtFecha(iso),h);
 }
@@ -1149,7 +1236,7 @@ function esc(s){ return String(s).replace(/[\\;,\n]/g,m=>({'\\':'\\\\',';':'\\;'
 function exportarICS(){
   let ev=''; function add(uid,iso,sum,desc){ const a=iso.replace(/-/g,''),n=isoLocal(new Date(new Date(iso+'T00:00:00').getTime()+86400000)).replace(/-/g,'');
     ev+='BEGIN:VEVENT\r\nUID:'+uid+'@joancrm\r\nDTSTART;VALUE=DATE:'+a+'\r\nDTEND;VALUE=DATE:'+n+'\r\nSUMMARY:'+esc(sum)+'\r\nDESCRIPTION:'+esc(desc||'')+'\r\nEND:VEVENT\r\n'; }
-  DB.prestamos.forEach(p=>{ add(p.id+'-d',p.fechaDesembolso,'💵 Desembolso '+p.socioNombre+' '+COP(p.capital),(DB.config.negocio||'Tu Garantía')); if(!p.pagado)add(p.id+'-v',p.cicloActual,'⏰ Cobro '+p.socioNombre+' '+COP(totalCiclo(p)),
+  DB.prestamos.forEach(p=>{ add(p.id+'-d',p.fechaDesembolso,'💵 Desembolso '+p.socioNombre+' '+COP(p.capital),(DB.config.negocio||'Tu Garantía')); if(!p.pagado)add(p.id+'-v',PUENTE.corteDelCredito(p),'⏰ Cobro '+p.socioNombre+' '+COP(totalCiclo(p)),
       totalProrroga(p)?'Prórroga posible: '+COP(totalProrroga(p))+' · pasa al '+fmtFecha(nuevoCicloProrroga(p))
                       :(tienePlan(p)?'Cuota del plan de pagos':'Sin prórrogas: la salida es el plan de pagos')); });
   const ics='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Tu Garantia//CRM//ES\r\nCALSCALE:GREGORIAN\r\n'+ev+'END:VCALENDAR';
@@ -1481,14 +1568,17 @@ function verCredito(id){
      habría pasado recalculándolo hoy: desde el 4-ago la fecha depende también
      del día en que se registró. Las prórrogas viejas no lo traen, y para ellas
      proximaQuincena(x.ciclo) sigue siendo exactamente lo que pasó. */
-  const pr=(p.prorrogas||[]).map(x=>`<div class="info-row"><span class="k">${fmtFecha(x.fecha)}</span><span class="vv">prórroga ${COP(x.monto)}${x.mora?` <span class="muted">(costo ${COP(x.monto-x.mora)} + mora ${COP(x.mora)})</span>`:''} → pasó a ${fmtFecha(x.nuevoCiclo||proximaQuincena(x.ciclo))} <span class="muted">· dejó ${COP(garantiaDeProrroga(x))} de garantía</span></span></div>`).join('');
+  /* De qué está hecho el monto de una prórroga (costo del ciclo y recargo) lo
+     parte el PUENTE, no una resta escrita acá: topa el recargo contra el monto y
+     las prórrogas viejas, que no traen `mora`, se leen todas como costo. */
+  const pr=(p.prorrogas||[]).map(x=>`<div class="info-row"><span class="k">${fmtFecha(x.fecha)}</span><span class="vv">prórroga ${COP(x.monto)}${moraDeProrroga(x)?` <span class="muted">(costo ${COP(costoDeProrroga(x))} + mora ${COP(moraDeProrroga(x))})</span>`:''} → pasó a ${fmtFecha(x.nuevoCiclo||proximaQuincena(x.ciclo))} <span class="muted">· dejó ${COP(garantiaDeProrroga(x,p))} de garantía</span></span></div>`).join('');
   const comps=(p.comprobantes||[]);
   const gal=comps.length?`<div class="gal">${comps.map(c=>`<a href="${c.foto}" target="_blank"><img src="${c.foto}"><div class="cap">${({pago:'Pago',prorroga:'Prórroga',abono:'Abono',plan:'Plan de pagos'}[c.tipo]||'Comprob.')} ${COP(c.monto)}<br>${fmtFecha(c.fecha)}</div></a>`).join('')}</div>`:'<p class="muted">Sin comprobantes aún.</p>';
   /* El plan de pagos, cuota por cuota. Es el historial de la salida del §8: qué
      se cobró al pactarlo y en qué va. */
   const ent=PUENTE.entradaPlan(p);
   const planHTML=tienePlan(p)?`<div class="sub-h">Plan de pagos <span class="muted">· desde el ${fmtFecha(p.planPagos.creado)}</span></div>
-    ${ent?`<div class="info-row"><span class="k">Al pactarlo</span><span class="vv">${COP(ent.monto)}${ent.mora?` <span class="muted">(costo ${COP(ent.monto-ent.mora)} + mora ${COP(ent.mora)})</span>`:''} <span class="muted">· dejó ${COP(garantiaDeProrroga(ent))} de garantía</span></span></div>`:''}
+    ${ent?`<div class="info-row"><span class="k">Al pactarlo</span><span class="vv">${COP(ent.monto)}${moraDeProrroga(ent)?` <span class="muted">(costo ${COP(costoDeProrroga(ent))} + mora ${COP(moraDeProrroga(ent))})</span>`:''} <span class="muted">· dejó ${COP(garantiaDeProrroga(ent,p))} de garantía</span></span></div>`:''}
     ${cuotasPlan(p).map(c=>`<div class="info-row"><span class="k">Cuota ${c.n} · ${fmtFecha(c.fecha)}${c.recargo?` <span class="muted">+${COP(c.recargo)} de mora</span>`:''}</span><span class="vv"><b class="num">${COP(c.total+(c.recargo||0))}</b> ${c.pagado?`<span class="chip pagado">Pagada ${fmtFecha(c.fechaPagado)}</span>`:'<span class="chip al-dia">Pendiente</span>'}</span></div>`).join('')}`:'';
   openModal('Crédito '+codCredito(p)+' · '+p.socioNombre,`
     <div class="info-row"><span class="k">N° crédito</span><b class="mono">${codCredito(p)}</b></div>
@@ -1498,7 +1588,7 @@ function verCredito(id){
     <div class="info-row"><span class="k">Costo / ganancia (${p.costoPct}%)</span><span class="vv gano">${COP(K(p))}</span></div>
     <div class="info-row"><span class="k">${p.pagado?'Ganancia cobrada':'Total para saldar'}</span><b>${p.pagado?COP(gananciaCobrada(p)):COP(totalCiclo(p))}</b></div>
     <div class="info-row"><span class="k">Desembolso</span><b>${fmtFecha(p.fechaDesembolso)}</b></div>
-    <div class="info-row"><span class="k">${p.pagado?'Pagado el':'Vence (quincena)'}</span><b>${p.pagado?fmtFecha(p.fechaPagado):fmtFecha(p.cicloActual)}</b></div>
+    <div class="info-row"><span class="k">${p.pagado?'Pagado el':'Vence (quincena)'}</span><b>${p.pagado?fmtFecha(p.fechaPagado):fmtFecha(PUENTE.corteDelCredito(p))}</b></div>
     ${pr?`<div class="sub-h">Prórrogas</div>${pr}`:''}
     ${planHTML}
     <div class="sub-h">Comprobantes de pago</div>${gal}
@@ -1518,7 +1608,7 @@ function abrirPago(id){
   openModal('Cobro · '+p.socioNombre,`
     <div class="info-row"><span class="k">Capital</span><b>${COP(capitalActual(p))}</b></div>
     <div class="info-row"><span class="k">Costo del ciclo (${p.costoPct}%)</span><b>${COP(K(p))}</b></div>
-    <div class="info-row"><span class="k">Vence</span><b>${fmtFecha(p.cicloActual)}</b></div>
+    <div class="info-row"><span class="k">Vence</span><b>${fmtFecha(PUENTE.corteDelCredito(p))}</b></div>
     ${(p.prorrogas||[]).length?`<div class="muted" style="margin-top:8px">Prórrogas: ${p.prorrogas.length} · ganancia acumulada ${COP(gananciaCobrada(p))}</div>`:''}
     <div class="field" style="margin-top:12px"><label>Fecha en que paga</label><input id="pgFecha" type="date" value="${hoyISO()}" oninput="calcPago('${p.id}')"></div>
     <div class="sub-h">Comprobante (opcional)</div>
@@ -1533,6 +1623,15 @@ function abrirPago(id){
    botón decía "Pagó todo (720.000)" cuando el socio debía 774.000: los 54.000
    del recargo no se cobraban, no entraban a tu ganancia y no le dejaban
    garantía a él. */
+/* 5-ago-2026 §4-bis — EL FACTOR DE LA GARANTÍA ES `acredita_en_fecha`, NO
+   `pago_a_tiempo`. Son dos preguntas distintas desde que llegar en fecha dejó de
+   bastar: `pago_a_tiempo` dice si el pago entra dentro del corte (de ahí salen el
+   recargo y el aviso de mora), y `acredita_en_fecha` dice si acredita al 90%, que
+   es NO cuando el corte que se está cumpliendo lo compró una prórroga. El puente
+   ya publica las dos, resueltas.
+   MEDIDO: 200.000 con 21 días de mora, prorrogados y cobrados dentro del corte
+   nuevo. La fila decía «Garantía que le deja $18.000» y el bloque de al lado, en
+   la MISMA pantalla y del MISMO pago, «$36.000 se le vuelven garantía». */
 function calcPago(id){
   const box=document.getElementById('pgCalc'); if(!box)return;
   const p=DB.prestamos.find(x=>x.id===id); const f=gv('pgFecha'); const liq=liqCredito(p,f);
@@ -1560,9 +1659,9 @@ function calcPago(id){
       <div class="calc-row"><span>${c?`Costo del plan (${pct}% del saldo)`:`Costo del ciclo (${pct}%)`}</span><span class="v gano">${COP(liq.costo)}</span></div>
       ${liq.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">Recargo por ${liq.dias_mora} día(s) de mora · 1% diario</span><span class="v" style="color:var(--ambar)">${COP(liq.recargo_mora)}</span></div>`:''}
       <div class="calc-row"><span><b>${c?'Total de la cuota':'Total para saldar'}</b></span><span class="v"><b>${COP(liq.total_a_pagar)}</b></span></div>
-      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(liq.garantia_generada)}${liq.pago_a_tiempo?'':' <span class="muted">(el 45%, por pagar tarde)</span>'}</span></div>
+      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(liq.garantia_generada)}${liq.acredita_en_fecha?'':` <span class="muted">(el 45%, ${liq.pago_a_tiempo?'porque el crédito ya venía de una mora':'por pagar tarde'})</span>`}</span></div>
     </div>
-    ${s?bloqueReparto(s,liq.costo_total_pagado,liq.pago_a_tiempo,'quincenal'):''}
+    ${s?bloqueReparto(s,liq.costo_total_pagado,liq.acredita_en_fecha,'quincenal'):''}
     ${aviso}
     <div class="two"><button class="btn btn-rojo" onclick="pagarTotal('${p.id}')">${c?`✓ Pagó la cuota ${c.n} (${COP(liq.total_a_pagar)})`:`✓ Pagó todo (${COP(liq.total_a_pagar)})`}</button>${btnProrroga}</div>`;
 }
@@ -1586,7 +1685,7 @@ function pagarTotal(id){
     +'• Capital: '+COP(liq.capital)+'\n• Costo del ciclo: '+COP(liq.costo)+'\n'
     +'• Recargo por '+liq.dias_mora+' día(s) de mora: '+COP(liq.recargo_mora)+'\n\n'
     +'Le deja '+COP(liq.garantia_generada)+' de garantía. ¿Lo registro?'))return;
-  p.pagado=true; p.fechaPagado=f; p.cicloPago=p.cicloActual;
+  p.pagado=true; p.fechaPagado=f; p.cicloPago=PUENTE.corteDelCredito(p);
   /* 3-ago-2026 — LA HUELLA DE UN COBRO REAL. Esta fechaPagado la tecleó Joan al
      cobrar; no es la que dejó el Panel del 17-jul. Con esta marca puesta, la
      migración de fechas de cargar() no la vuelve a mirar nunca. Sin ella, un
@@ -1645,9 +1744,16 @@ function creditoMotor(p){
        correr el corte, se llevaba puestos el costo y la mora del ciclo viejo:
        el mismo agujero, un movimiento más allá. */
     costo:Math.round(K(p)),
-    fecha_corte:p.cicloActual,
+    fecha_corte:PUENTE.corteDelCredito(p),
     estado:p.pagado?'pagado':(tienePlan(p)?'plan_de_pagos':'en_corte'),
     prorrogas_usadas:(p.prorrogas||[]).length,
+    /* 5-ago-2026 §4-bis — EL 90% ES DEL QUE NUNCA SE ATRASÓ, y el motor no
+       adivina la historia: la recibe. Este dato ya viaja hecho en el paquete del
+       puente (`liquidarCiclo(...).estuvo_en_mora`), que es el mismo que lee la
+       app del socio. Sin pasarlo, el confirm del Panel prometía el 90% en el
+       caso de la mora tapada por una prórroga mientras el celular del cliente
+       mostraba el 45%: dos garantías del mismo pago. */
+    estuvo_en_mora:!!PUENTE.liquidarCiclo(p).estuvo_en_mora,
     nivel_socio:s?migrarSocio(s).garantia.nivel:'bronce' };
 }
 /* Todo lo que hay que saber para prorrogar este crédito ESE día. Devuelve null
@@ -1674,10 +1780,21 @@ function totalProrroga(p,fecha){ const r=liqProrroga(p,fecha); return r?r.total_
 /* A qué corte pasa. La regla —el más lejano entre el corte siguiente al viejo y
    el siguiente al día en que se registra, los dos con ventana mínima, domingos
    y festivos— vive en el motor y la usa también su propia aplicarProrroga. */
-function nuevoCicloProrroga(p,fecha){ return MotorReglas.fechaCorteProrroga(p.cicloActual,fecha||hoyISO()); }
+function nuevoCicloProrroga(p,fecha){ return MotorReglas.fechaCorteProrroga(PUENTE.corteDelCredito(p),fecha||hoyISO()); }
+/* De qué está hecho el monto de una prórroga. Lo parte el PUENTE: topa el
+   recargo contra el monto (una prórroga no puede ser "más mora que plata") y las
+   viejas, que no traen `mora`, se leen todas como costo. */
+function costoDeProrroga(pr){ return PUENTE.costoDeProrroga(pr); }
+function moraDeProrroga(pr){ return PUENTE.moraDeProrroga(pr); }
 /* La garantía que deja una prórroga sale del PUENTE, que es de donde sale la del
-   socio en su celular. Acá no se multiplica nada a mano. */
-function garantiaDeProrroga(pr){ return PUENTE.garantiaGanadaProrroga(pr); }
+   socio en su celular. Acá no se multiplica nada a mano.
+
+   5-ago-2026 §4-bis — y va CON EL CRÉDITO. Sin él, el puente solo puede mirar la
+   puntualidad congelada en el movimiento, y una prórroga registrada en fecha
+   sobre un crédito que ya venía de mora se leía al 90%: el negocio de encadenar
+   plazo. Es el mismo argumento con el que garantiaGanadaCredito —de donde sale
+   el número del socio— la llama desde el otro lado. */
+function garantiaDeProrroga(pr,p){ return PUENTE.garantiaGanadaProrroga(pr,p); }
 
 /* La fecha del cobro que se está registrando, para que el modal del plan de
    pagos siga hablando del mismo día que la pantalla de cobro. */
@@ -2083,7 +2200,12 @@ function fotoSocios(){
       fondo:fondoCuponDe(s) };
   });
 }
-function tramoDe(p){ return MotorReglas.tramoDeMora(-diasPara(p)); }
+/* El tramo del §9 se decide con LOS DÍAS DE ATRASO DEL PUENTE —los mismos que
+   cobra la pantalla de cobro—, no con una segunda resta contra `p.cicloActual`.
+   Cuando todavía no hay atraso, el tramo lo dan los días que FALTAN, en negativo,
+   que es lo que espera tramoDeMora. */
+function tramoDe(p){ const d=PUENTE.liquidarCiclo(p).dias_mora;
+  return MotorReglas.tramoDeMora(d>0?d:-diasPara(p)); }
 
 function renderSocios(){
   renderBandeja();
