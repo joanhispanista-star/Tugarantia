@@ -240,7 +240,7 @@
   .alerta.warn{background:var(--ambar-tinte);color:var(--ambar);border:1px solid var(--ambar-medio)}
   /* Lo que informa y acompaña es azul: no es una alarma, es una explicación. */
   .alerta.info{background:var(--azul-tinte);color:var(--tinta-2);border:1px solid rgba(var(--azul-rgb),.22)}
-  /* Lo que solo ves tú (la contabilidad interna del 90/7/3) lleva este filete. */
+  /* Lo que solo ves tú (la contabilidad interna del reparto del costo) lleva este filete. */
   .alerta.info.solo-tuyo{border-left:3px solid var(--azul)}
   .alerta b.tit-solo{display:block;color:var(--azul);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--e1)}
   /* La vista previa del mensaje: papel con un filete azul al costado, como una cita. */
@@ -441,7 +441,41 @@
         <div class="field"><label>Costo del crédito</label><input type="text" id="cfgCosto" readonly style="opacity:.7"><div class="help">Fijo desde el 29-jul-2026: siempre el 20% del capital, sin importar los días ni la garantía. La prórroga cobra ese mismo porcentaje. Los créditos que ya estaban abiertos con otro costo lo conservan.</div></div>
         <div class="field"><label>Tasa de usura de referencia (% E.A.)</label><input type="number" id="cfgUsura" step="0.01" placeholder="Ej: 28.5"><div class="help">Marca en rojo los créditos cuya E.A. equivalente lo supere. 0 = sin alerta.</div></div>
         <div class="field"><label>PIN de acceso</label><input type="text" id="cfgPin" maxlength="6"></div>
-        <button class="btn btn-rojo" onclick="guardarCfg()">Guardar ajustes</button>
+
+        <!-- =====================================================================
+             EL FRENO POR INGRESO — 5-ago-2026, preparado y APAGADO.
+
+             El cupo crece un 15% por cada crédito pagado en fecha, y eso compone:
+             al crédito 24 el costo de la quincena solo ya pasa de 497.000, más de
+             lo que un asalariado gana en una quincena. A partir de cierto punto el
+             cupo deja de ser una oportunidad y pasa a ser una trampa — para el
+             socio y para la cartera.
+
+             Este interruptor topa el cupo a lo que el socio pueda pagar con su
+             quincena. VIENE APAGADO y así se queda hasta que Joan lo prenda: con
+             la casilla en apagado el motor devuelve el cupo intacto, así que
+             existir no le cambia el cupo a nadie. Y aun encendido, a un socio sin
+             ingreso declarado no le topa nada: topar contra un dato que no tenemos
+             sería bajarle el cupo por no haber contestado.
+             ===================================================================== -->
+        <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--linea)">
+          <h3 style="margin:0 0 4px">🛑 Freno por ingreso <span class="muted" style="font-weight:400;font-size:13px" id="cfgFrenoEstado">· apagado</span></h3>
+          <!-- Los textos que llevan un número los escribe pintarCfg() desde las
+               constantes del motor: acá no puede haber un porcentaje a mano,
+               porque esta sección es HTML estático y no se enteraría de un
+               cambio de reglas. -->
+          <div class="help" style="margin-bottom:10px" id="cfgFrenoPorque"></div>
+          <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="cfgFrenoActivo" style="width:auto;margin:0">
+            <span>Encender el freno por ingreso</span></label>
+            <div class="help">Mientras esté apagado, el cupo de todos sigue siendo su garantía completa: es exactamente el número de hoy.</div></div>
+          <div class="field"><label>La cuota no puede pasar de este % de su quincena</label>
+            <input type="number" id="cfgFrenoFraccion" min="1" max="100" step="1" placeholder="Ej: 30">
+            <div class="help" id="cfgFrenoEjemplo"></div></div>
+          <div class="alerta info" style="font-size:13px">Necesita el ingreso quincenal en la ficha de cada cliente (“Ingreso por quincena”). Al que no lo tenga cargado no se le topa nada, ni con el freno encendido.</div>
+        </div>
+
+        <button class="btn btn-rojo" style="margin-top:18px" onclick="guardarCfg()">Guardar ajustes</button>
         <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--linea);display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="exportar()">⬇ Respaldo (JSON)</button>
           <label class="btn btn-ghost btn-sm" style="cursor:pointer">⬆ Importar respaldo<input type="file" accept="application/json" style="display:none" onchange="importar(event)"></label>
@@ -488,6 +522,31 @@ const KEY=PUENTE.LLAVE_PANEL;
 /* El costo es fijo desde el 29-jul-2026. Se lee del motor para que no haya dos
    verdades; si algún día cambia, cambia en un solo lugar. */
 const TASA_FIJA_PCT=Math.round(MotorReglas.TASA_CREDITO*100);
+
+/* =========================================================================
+   5-ago-2026 — LOS PORCENTAJES DE LA GARANTÍA Y DEL REPARTO SE PREGUNTAN.
+
+   Este archivo tenía "el 90%" y "el 45%" escritos a mano en ocho pantallas: el
+   bloque del pago, el confirm de la prórroga, dos KPIs, la ficha de migración,
+   la ficha del cliente y el aviso del préstamo con garantía. El día que Joan
+   cambió el reparto a 75/10/15, el motor empezó a acreditar 75 y el Panel siguió
+   prometiendo 90 en los ocho lugares — y uno de esos ocho es el confirm que Joan
+   lee antes de cobrarle a una persona de verdad.
+
+   Por eso ahora salen de las constantes del motor. Si mañana el factor vuelve a
+   moverse, estas pantallas se mueven con él y ninguna puede quedarse atrás.
+   `PCTN` da el porcentaje con coma decimal (37,5%), que es como se escribe acá.
+   ========================================================================= */
+const PCTN=f=>(Math.round(f*1000)/10).toLocaleString('es-CO',{maximumFractionDigits:1})+'%';
+const PCT_GARANTIA=PCTN(MotorReglas.FACTOR_GARANTIA);            // 75%
+const PCT_GARANTIA_MORA=PCTN(MotorReglas.FACTOR_GARANTIA_MORA);  // 37,5%
+const PCT_CUPON=PCTN(MotorReglas.REPARTO_COSTO.cupon);           // 15%
+const PCT_OPERATIVO=PCTN(MotorReglas.REPARTO_COSTO.operativo);   // 10%
+const PCT_GARANTIA_RESP=PCTN(MotorReglas.FACTOR_GARANTIA_RESPALDADO);
+/* "75/10/15", para los títulos que nombran el reparto entero. */
+const REPARTO_TXT=[MotorReglas.REPARTO_COSTO.garantia,MotorReglas.REPARTO_COSTO.operativo,
+  MotorReglas.REPARTO_COSTO.cupon].map(x=>Math.round(x*100)).join('/');
+
 const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
 /* =========================================================================
@@ -630,12 +689,25 @@ function cargar(){
     VOZ_UNICA.forEach(r=>{ d.plantillas[k]=d.plantillas[k].replace(r[0],r[1]); });
   } });
   d.config=Object.assign({costoBasePct:20,tasaUsuraEA:0,pin:'1234',negocio:'Tu Garantía',whatsapp:''},d.config||{});
+  /* 5-ago-2026 — EL FRENO POR INGRESO, LA CASILLA APAGADA.
+     Se crea apagada en cada carga (un respaldo viejo no la trae) y se queda así
+     hasta que Joan la prenda desde Ajustes. Con `activo:false` el motor devuelve
+     el cupo intacto, así que crear la casilla NO le cambia el cupo a nadie: es
+     exactamente el mismo número de antes. La fracción por defecto la pone el
+     motor, no este archivo. */
+  d.config.freno=Object.assign({activo:false,
+    fraccion_quincena:MotorReglas.FRENO_INGRESO.fraccion_quincena},d.config.freno||{});
   d.contadores=Object.assign({cliente:0,credito:0,respaldado:0},d.contadores||{});
   d.socios.forEach(s=>{ s.gestiones=s.gestiones||[]; s.referencia=s.referencia||{nombre:'',telefono:''}; if(s.whatsappIgual===undefined)s.whatsappIgual=true;
     if(s.cedulaFrenteFoto===undefined)s.cedulaFrenteFoto=s.cedulaFoto||null; if(s.cedulaReversoFoto===undefined)s.cedulaReversoFoto=null; if(s.selfieFoto===undefined)s.selfieFoto=null;
     if(s.telefono2===undefined)s.telefono2=''; if(s.notaRiesgo===undefined)s.notaRiesgo=''; if(s.ubicacion===undefined)s.ubicacion=null;
     if(s.ajusteGarantia===undefined)s.ajusteGarantia=0; if(s.ajusteMotivo===undefined)s.ajusteMotivo=''; if(s.migracionRevisada===undefined)s.migracionRevisada=null;
-    if(s.codigoInvitacion===undefined)s.codigoInvitacion=null; });
+    if(s.codigoInvitacion===undefined)s.codigoInvitacion=null;
+    /* 5-ago-2026: lo que gana por quincena. En CERO quiere decir "no lo
+       sabemos", y el motor lo trata así: aunque Joan encienda el freno, a un
+       socio sin ingreso declarado no le topa nada. Topar contra un dato que no
+       tenemos sería bajarle el cupo por no haber contestado. */
+    if(s.ingresoQuincenal===undefined)s.ingresoQuincenal=0; });
   d.respaldados.forEach(r=>{ if(!Array.isArray(r.cuotas))r.cuotas=[];
     if(r.pagado===undefined)r.pagado=r.cuotas.length>0&&r.cuotas.every(c=>c.pagado);
     if(r.fechaPagado===undefined)r.fechaPagado=null; });
@@ -643,8 +715,8 @@ function cargar(){
     /* 3-ago-2026: la fecha de pago de un crédito viejo NO puede ser "hoy".
        Antes se estampaba hoy y, como esPuntual() compara fechaPagado <=
        cicloPago, todo crédito viejo pagado EN FECHA quedaba leído como pagado
-       tarde: 45% de garantía en vez de 90%, y el socio anclado en bronce. A los
-       clientes más antiguos de Joan les partía el cupo por la mitad. La fecha
+       tarde: media garantía en vez de la completa, y el socio anclado en bronce.
+       A los clientes más antiguos de Joan les partía el cupo por la mitad. La fecha
        buena estaba en los datos: el último abono, o el corte al que se cargó.
        La deducción vive en el puente para que el Panel y la app lean lo mismo. */
     if(p.pagado===undefined){ const ab=(p.abonos||[]).reduce((s,a)=>s+a.monto,0); p.pagado=(p.total&&ab>=p.total-0.5)||false; if(p.pagado){p.cicloPago=p.cicloPago||p.cicloActual;p.gananciaPago=p.gananciaPago||(p.capital*(p.costoPct||20)/100);} }
@@ -928,16 +1000,38 @@ function renderKpis(){
     <div class="kpi gan"><div class="et">🔮 Ganancia proyectada</div><div class="nm">${COP(ganProy)}</div><div class="x">de créditos aún no pagados, si pagan este ciclo</div></div>
     ${kpiFondoCupon()}`;
 }
-/* El 3% de cada costo cobrado va amortizando el cupón que le regalaste a cada
-   socio para arrancar. Esta tarjeta es la foto de toda la cartera: cuánto de
-   ese riesgo inicial ya volvió. Solo la ves tú. */
+/* =========================================================================
+   EL FONDO DEL CUPÓN, TODA LA CARTERA — las tres preguntas de Joan.
+
+   El 15% de cada costo cobrado va devolviendo el cupón que le prestaste a cada
+   socio para arrancar. Las tres tarjetas contestan, en este orden:
+
+     1. CUÁNTO TIENES EN RIESGO hoy — el cupón que todavía no volvió. Es el
+        número que Joan quería ver, y el único que tiene que BAJAR con el tiempo:
+        cada crédito pagado le devuelve el 15% del costo. Va primero y en rojo
+        cuando queda algo, porque es plata suya que está afuera.
+     2. CUÁNTO YA RECUPERASTE — con la barrita contra el total prestado.
+     3. CUÁNTO DE LO COBRADO ES GANANCIA LIBRE — lo que no es garantía del socio
+        ni recuperación de capital. Y aparte, cuánto de eso viene del 15% que se
+        liberó al saldarse un cupón, que es el que se vuelve ganancia pura.
+
+   Solo las ves tú: nada de esto entra al paquete del socio.
+   ========================================================================= */
 function kpiFondoCupon(){
   const f=fondoCuponCartera();
-  const pct=f.otorgado?Math.round(f.amortizado/f.otorgado*100):0;
-  return `<div class="kpi dark"><div class="et">🏛️ Fondo del cupón <span class="muted">· solo para ti</span></div>
-    <div class="nm">${COP(f.amortizado)}</div>
-    <div class="barra"><i style="width:${Math.min(100,pct)}%"></i></div>
-    <div class="x">contra ${COP(f.vivo)} de cupones vivos<br>${pct}% del riesgo inicial ya recuperado</div></div>`;
+  const pct=Math.min(100,f.pct);
+  const saldados=f.socios_saldados
+    ? `${f.socios_saldados} de ${f.socios} ya lo saldaron` : 'todavía ninguno lo saldó';
+  return `<div class="kpi ${f.cupon_pendiente>0?'alert':'verde'}"><div class="et">🎯 Capital en riesgo <span class="muted">· solo para ti</span></div>
+    <div class="nm">${COP(f.cupon_pendiente)}</div>
+    <div class="x">cupón prestado que no ha vuelto<br>${saldados}</div></div>
+  <div class="kpi dark"><div class="et">🏛️ Fondo del cupón <span class="muted">· solo para ti</span></div>
+    <div class="nm">${COP(f.cupon_recuperado)}</div>
+    <div class="barra"><i style="width:${pct}%"></i></div>
+    <div class="x">de ${COP(f.cupon_prestado)} prestados<br>${pct}% recuperado con el ${PCT_CUPON} de cada costo</div></div>
+  <div class="kpi gan"><div class="et">🕊️ Ganancia libre <span class="muted">· solo para ti</span></div>
+    <div class="nm">${COP(f.ganancia_libre)}</div>
+    <div class="x">de ${COP(f.cobrado)} de costo cobrado${f.ganancia_cupon?`<br>${COP(f.ganancia_cupon)} son del ${PCT_CUPON} ya liberado`:''}</div></div>`;
 }
 
 function plantillaPara(p){ const e=estadoPrestamo(p);
@@ -1375,16 +1469,33 @@ function verCliente(id){
   const fotos=[['Cédula (frente)',s.cedulaFrenteFoto],['Cédula (reverso)',s.cedulaReversoFoto],['Selfie con cédula',s.selfieFoto]].filter(f=>f[1]);
   const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div><div class="gal">${fotos.map(f=>`<a href="${f[1]}" target="_blank"><img src="${f[1]}"><div class="cap">${f[0]}</div></a>`).join('')}</div>`:'';
   const fondo=fondoCuponDe(s);
+  /* 5-ago-2026 — EL NIVEL SIGUE EN LA FICHA, PERO YA NO PROMETE CUPO.
+     Decisión explícita de Joan: los niveles se quedan. Lo que perdieron es
+     influencia sobre el cupo (que hoy es la garantía uno a uno), no existencia:
+     siguen mandando el tope de prórrogas y siguen siendo el reconocimiento de
+     quien paga en fecha. Y sigue valiendo que nunca baja. Por eso la ficha
+     muestra el nivel al lado de lo único material que da —las prórrogas— y el
+     cupo en su propio renglón, para que nadie lea uno como consecuencia del otro. */
+  const mg=migrarSocio(s).garantia;
+  const nivProrr=Math.min(MotorReglas.PRORROGAS_POR_NIVEL[mg.nivel],MotorReglas.TOPE_DURO_PRORROGAS);
+  const qCupo=cupoDelSocio(s,mg.nivel);
   const rs=respaldadosDe(s), maxR=maxRespaldadoDe(s), comp=comprometidaDe(s);
   const filaResp=r=>`<div class="info-row"><span class="k"><b class="mono">${codRespaldado(r)}</b> ${COP(r.capital)} a ${r.plazoMeses} mes${r.plazoMeses!==1?'es':''}</span><span class="vv"><span class="chip ${estadoRespaldado(r)}">${ESTADO_TXT_RESP[estadoRespaldado(r)]}</span> <span class="muted">${cuotasPagadas(r)}/${cuotasDe(r).length}</span> <a href="#" onclick="event.preventDefault();verRespaldado('${r.id}')">ver</a></span></div>`;
   openModal(codCliente(s)+' · '+s.nombre,`
     <div class="info-row"><span class="k">Ganancia generada</span><span class="vv gano">${COP(gan)}</span></div>
-    <div class="alerta info solo-tuyo"><b class="tit-solo">Solo para ti · el reparto 90/7/3</b>
-      Cupón que le regalaste para arrancar: <b>${COP(fondo.otorgado)}</b> ·
-      recuperado con el 3%: <b>${COP(fondo.amortizado)}</b> (${fondo.pct}%) ·
-      vivo: <b>${COP(fondo.vivo)}</b>.
+    <div class="alerta info solo-tuyo"><b class="tit-solo">Solo para ti · el fondo del cupón (reparto ${REPARTO_TXT})</b>
+      <b style="font-size:16px">${COP(fondo.cupon_pendiente)}</b> te falta recuperar
+      de los <b>${COP(fondo.cupon_prestado)}</b> que le prestaste para arrancar.
       <div class="barra"><i style="width:${Math.min(100,fondo.pct)}%"></i></div>
-      <div class="muted" style="margin-top:6px;font-size:12px">Él no ve esto por ningún lado: para él su garantía es el 90% y punto.</div></div>
+      <div style="margin-top:6px">Ya volvieron <b>${COP(fondo.cupon_recuperado)}</b> (${fondo.pct}%),
+      con el ${PCT_CUPON} de los ${COP(fondo.cobrado)} de costo que te ha pagado.
+      ${fondo.saldado
+        ? `<b>Ya lo saldó por completo</b>: de acá en adelante ese ${PCT_CUPON} es ganancia tuya, y por este socio no arriesgas nada.`
+        : `Mientras no vuelva, esos ${COP(fondo.cupon_pendiente)} son lo único que tienes en riesgo con él: el resto de su cupo lo respaldan costos que ya pagó.`}</div>
+      ${fondo.ganancia_cupon?`<div style="margin-top:6px">Ganancia libre acumulada: <b>${COP(fondo.ganancia_libre)}</b>, de los cuales <b>${COP(fondo.ganancia_cupon)}</b> son del ${PCT_CUPON} que se liberó al saldarse el cupón.</div>`:''}
+      <div class="muted" style="margin-top:6px;font-size:12px">Él no ve esto por ningún lado: para él su garantía es lo que le deja cada pago, y su cupo es esa garantía, uno a uno.</div></div>
+    <div class="info-row"><span class="k">Nivel <span class="muted">(reconocimiento · no le mueve el cupo)</span></span><span class="vv"><b style="text-transform:capitalize">${escHTML(mg.nivel)}</b> <span class="muted">· le da ${nivProrr} prórroga${nivProrr!==1?'s':''} por crédito, y nunca baja</span></span></div>
+    <div class="info-row"><span class="k">Cupo quincenal <span class="muted">(su garantía, uno a uno)</span></span><span class="vv"><b>${COP(qCupo.cupo)}</b>${qCupo.freno.aplicado?` <span class="muted">(topado por el freno de ingreso: sin él sería ${COP(qCupo.freno.cupo_sin_freno)})</span>`:''}</span></div>
     <div class="info-row"><span class="k">Riesgo (sugerido)</span><span class="vv"><span class="chip ${r.cls}">${r.txt}</span> <span class="muted">${npr} prórroga${npr!==1?'s':''} de ${ps.length} crédito${ps.length!==1?'s':''}</span></span></div>
     ${fila('Celular',waNum(s)+(s.whatsappIgual?' (es WhatsApp)':(s.whatsappNumero?' · WA: '+s.whatsappNumero:'')))}
     ${fila('Celular 2 (opcional)',s.telefono2)}
@@ -1394,6 +1505,7 @@ function verCliente(id){
     ${fila('Ciudad / barrio',[s.ciudad,s.barrio].filter(Boolean).join(' · '))}
     ${s.ubicacion?`<div class="info-row"><span class="k">📍 Ubicación GPS</span><span class="vv"><a target="_blank" rel="noopener" href="${mapsUrl(s.ubicacion)}">Ver en Google Maps</a> <span class="muted">±${Math.round(s.ubicacion.acc||0)} m · ${fmtFecha(s.ubicacion.fecha)}</span></span></div>`:''}
     ${fila('Referencia',s.referencia&&s.referencia.nombre?(s.referencia.nombre+' · '+(s.referencia.telefono||'')):'')}
+    ${fila('Ingreso por quincena',s.ingresoQuincenal?COP(s.ingresoQuincenal):'')}
     ${fila('Nota de riesgo (manual)',s.notaRiesgo)}
     ${gal}
     <div class="sub-h">Créditos · historial</div>
@@ -1479,6 +1591,12 @@ function editarCliente(id,pre){
     <div class="sub-h">Verificación de identidad</div>
     <div class="up-row">${upBox('frente','🪪','Cédula (frente)')}${upBox('reverso','🪪','Cédula (reverso)')}${upBox('selfie','🤳','Selfie con cédula','user')}</div>
     <div class="help" style="margin-top:6px">En el celular, al tocar una foto puedes <b>tomarla con la cámara</b> o elegir una de la galería.</div>
+    <div class="sub-h">Ingreso</div>
+    <div class="field"><label>Lo que gana por quincena <span class="muted">(opcional)</span></label>
+      <input id="fIngreso" type="number" inputmode="numeric" min="0" value="${Number(s.ingresoQuincenal)||''}" placeholder="$ que recibe cada quincena">
+      <div class="help">${DB.config.freno&&DB.config.freno.activo
+        ? `El <b>freno por ingreso está encendido</b>: con este dato cargado, su cupo no va a pasar de lo que aguante una cuota del ${Math.round(DB.config.freno.fraccion_quincena*100)}% de su quincena. Vacío o en cero, no se le topa nada.`
+        : `Hoy no le cambia el cupo a nadie: el freno por ingreso está <b>apagado</b> (se prende en Ajustes). Se guarda igual, para tenerlo el día que lo enciendas y para saber a quién le estás prestando más de lo que gana.`}</div></div>
     <div class="sub-h">Riesgo</div>
     <div class="field"><label>Nota de riesgo / puntuación manual <span class="muted">(opcional, solo para ti)</span></label><textarea id="fNotaRiesgo" placeholder="Ej: buen pagador, subir cupo / ha pedido 2 prórrogas, bajar cupo">${va('notaRiesgo')}</textarea></div>
     <div class="sub-h">Invitación</div>
@@ -1495,6 +1613,9 @@ function guardarCliente(id){
   const datos={ nombre, telefono:gv('fTel'), telefono2:gv('fTel2'), cedula:gv('fCedula'), whatsappIgual:gv('fWaIgual')!=='no', whatsappNumero:gv('fWaNum'),
     email:gv('fEmail'), llave:gv('fLlave'), nequi:gv('fNequi'), direccion:gv('fDir'), ciudad:gv('fCiudad'), barrio:gv('fBarrio'),
     tipoVivienda:gv('fTipo'), numeroVivienda:gv('fNumViv'), referencia:{nombre:gv('fRefN'),telefono:gv('fRefT')}, notaRiesgo:gv('fNotaRiesgo'), referidoPor:gv('fRefPor')||null,
+    /* En cero quiere decir "no lo sabemos", y así lo trata el freno: no topa.
+       Negativo o basura se lee como cero, nunca se guarda un ingreso inventado. */
+    ingresoQuincenal:Math.max(0,Number(gv('fIngreso'))||0),
     cedulaFrenteFoto:_fotosTmp.frente, cedulaReversoFoto:_fotosTmp.reverso, selfieFoto:_fotosTmp.selfie, ubicacion:_ubicTmp };
   const cod=MotorReglas.normalizarCodigoInvitacion(gv('fCodInv'));
   if(gv('fCodInv')&&!cod){ alert('Ese código de invitación no tiene la forma correcta.\n\nSon 8 caracteres, como TG-A3F7-K92M. Revísalo y vuelve a intentar; si prefieres, déjalo vacío y guarda igual.'); return; }
@@ -1662,9 +1783,9 @@ function abrirPago(id){
 /* 5-ago-2026 §4-bis — EL FACTOR DE LA GARANTÍA ES `acredita_en_fecha`, NO
    `pago_a_tiempo`. Son dos preguntas distintas desde que llegar en fecha dejó de
    bastar: `pago_a_tiempo` dice si el pago entra dentro del corte (de ahí salen el
-   recargo y el aviso de mora), y `acredita_en_fecha` dice si acredita al 90%, que
-   es NO cuando el corte que se está cumpliendo lo compró una prórroga. El puente
-   ya publica las dos, resueltas.
+   recargo y el aviso de mora), y `acredita_en_fecha` dice si acredita COMPLETO
+   —FACTOR_GARANTIA— o a la mitad, que es lo que pasa cuando el corte que se está
+   cumpliendo lo compró una prórroga. El puente ya publica las dos, resueltas.
    MEDIDO: 200.000 con 21 días de mora, prorrogados y cobrados dentro del corte
    nuevo. La fila decía «Garantía que le deja $18.000» y el bloque de al lado, en
    la MISMA pantalla y del MISMO pago, «$36.000 se le vuelven garantía». */
@@ -1695,7 +1816,7 @@ function calcPago(id){
       <div class="calc-row"><span>${c?`Costo del plan (${pct}% del saldo)`:`Costo del ciclo (${pct}%)`}</span><span class="v gano">${COP(liq.costo)}</span></div>
       ${liq.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">Recargo por ${liq.dias_mora} día(s) de mora · 1% diario</span><span class="v" style="color:var(--ambar)">${COP(liq.recargo_mora)}</span></div>`:''}
       <div class="calc-row"><span><b>${c?'Total de la cuota':'Total para saldar'}</b></span><span class="v"><b>${COP(liq.total_a_pagar)}</b></span></div>
-      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(liq.garantia_generada)}${liq.acredita_en_fecha?'':` <span class="muted">(el 45%, ${liq.pago_a_tiempo?'porque el crédito ya venía de una mora':'por pagar tarde'})</span>`}</span></div>
+      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(liq.garantia_generada)}${liq.acredita_en_fecha?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${liq.pago_a_tiempo?'porque el crédito ya venía de una mora':'por pagar tarde'})</span>`}</span></div>
     </div>
     ${s?bloqueReparto(s,liq.costo_total_pagado,liq.acredita_en_fecha,'quincenal'):''}
     ${aviso}
@@ -1707,8 +1828,10 @@ function addComp(p,tipo,monto){ if(_compTmp){ p.comprobantes=p.comprobantes||[];
    préstamo con garantía (confirmarCuota). Antes cobraba capital+costo y
    guardaba gananciaPago = K(p), o sea el costo pelado: el recargo del 1% diario
    no se cobraba, no entraba a tu ganancia y —lo que más duele— no le dejaba
-   garantía al socio. Con 600.000 a 9 días de mora le tocaban 78.300 (el 45% de
-   los 174.000 de costo total) y se le acreditaban 54.000.
+   garantía al socio. Medido con el reparto de entonces (90/45): con 600.000 a 9
+   días de mora le tocaban 78.300 —el factor de mora sobre los 174.000 de costo
+   total— y se le acreditaban 54.000. El agujero era el mismo con cualquier
+   factor: el recargo no entraba a la cuenta.
    Y la fecha ya no es "hoy" a la fuerza: es la que Joan escribe, que es la que
    decide si esPuntual() lo lee en fecha o tarde. */
 function pagarTotal(id){
@@ -1754,7 +1877,7 @@ function pagarTotal(id){
    Lo que sí se conserva del arreglo del 3-ago —porque sigue siendo la razón de
    que el movimiento tenga dos campos y no uno—: la prórroga NO borra el recargo
    ya causado. Se cobra costo + recargo, y el recargo se guarda aparte en `mora`
-   para que el puente lo acredite al 45% (se pagó, pero se pagó tarde) sin
+   para que el puente lo acredite a la mitad (se pagó, pero se pagó tarde) sin
    degradar el costo. Antes se cobraba K(p) pelado y, al mover el ciclo al
    futuro, todo el recargo desaparecía sin cobrarse ni dejar garantía.
 
@@ -1783,12 +1906,13 @@ function creditoMotor(p){
     fecha_corte:PUENTE.corteDelCredito(p),
     estado:p.pagado?'pagado':(tienePlan(p)?'plan_de_pagos':'en_corte'),
     prorrogas_usadas:(p.prorrogas||[]).length,
-    /* 5-ago-2026 §4-bis — EL 90% ES DEL QUE NUNCA SE ATRASÓ, y el motor no
-       adivina la historia: la recibe. Este dato ya viaja hecho en el paquete del
-       puente (`liquidarCiclo(...).estuvo_en_mora`), que es el mismo que lee la
-       app del socio. Sin pasarlo, el confirm del Panel prometía el 90% en el
-       caso de la mora tapada por una prórroga mientras el celular del cliente
-       mostraba el 45%: dos garantías del mismo pago. */
+    /* 5-ago-2026 §4-bis — LA GARANTÍA COMPLETA ES DEL QUE NUNCA SE ATRASÓ, y el
+       motor no adivina la historia: la recibe. Este dato ya viaja hecho en el
+       paquete del puente (`liquidarCiclo(...).estuvo_en_mora`), que es el mismo
+       que lee la app del socio. Sin pasarlo, el confirm del Panel prometía el
+       factor completo en el caso de la mora tapada por una prórroga mientras el
+       celular del cliente mostraba la mitad: dos garantías del mismo pago.
+       La regla sobrevive al cambio de reparto: hoy es 75 contra 37,5. */
     estuvo_en_mora:!!PUENTE.liquidarCiclo(p).estuvo_en_mora,
     nivel_socio:s?migrarSocio(s).garantia.nivel:'bronce' };
 }
@@ -1827,8 +1951,8 @@ function moraDeProrroga(pr){ return PUENTE.moraDeProrroga(pr); }
 
    5-ago-2026 §4-bis — y va CON EL CRÉDITO. Sin él, el puente solo puede mirar la
    puntualidad congelada en el movimiento, y una prórroga registrada en fecha
-   sobre un crédito que ya venía de mora se leía al 90%: el negocio de encadenar
-   plazo. Es el mismo argumento con el que garantiaGanadaCredito —de donde sale
+   sobre un crédito que ya venía de mora se leía al factor completo: el negocio de
+   encadenar plazo. Es el mismo argumento con el que garantiaGanadaCredito —de donde sale
    el número del socio— la llama desde el otro lado. */
 function garantiaDeProrroga(pr,p){ return PUENTE.garantiaGanadaProrroga(pr,p); }
 
@@ -1850,12 +1974,12 @@ function registrarProrroga(id){
       +`• Costo del ciclo: ${COP(r.costo_prorroga)}\n• Recargo por ${r.dias_mora} día(s) de mora ya causados: ${COP(r.recargo_mora)}\n\n`
       +`El capital pasa a la quincena del ${fmtFecha(r.fecha_corte_nueva)}.\n`
     : `Registrar prórroga de ${COP(r.total_a_pagar)} a ${p.socioNombre} y pasar el pago a ${fmtFecha(r.fecha_corte_nueva)}.\n`)
-    +`Le deja ${COP(r.garantia_generada)} de garantía${r.a_tiempo?'':' (el 45%, por dejarla tarde)'}.\n`
+    +`Le deja ${COP(r.garantia_generada)} de garantía${r.a_tiempo?'':' (el '+PCT_GARANTIA_MORA+', por dejarla tarde)'}.\n`
     +`Es su prórroga ${r.prorrogas_usadas+1} de ${r.prorrogas_permitidas} (nivel ${r.nivel_socio}); `
     +(r.prorrogas_restantes?`le quedaría ${r.prorrogas_restantes}.`:'después de esta ya no le quedan: la salida sería el plan de pagos.')
     +` ¿Lo registro?`))return;
   /* Lo que se guarda es el MOVIMIENTO que armó el motor: monto, recargo aparte
-     (para que el puente lo acredite al 45% sin degradar el costo), puntualidad
+     (para que el puente lo acredite a la mitad sin degradar el costo), puntualidad
      congelada y el corte al que pasó DE VERDAD. */
   p.prorrogas=p.prorrogas||[];
   p.prorrogas.push({fecha:r.fecha, ciclo:r.fecha_corte_anterior, monto:r.total_a_pagar,
@@ -1911,7 +2035,7 @@ function registrarPlanDePagos(id){
   p.planPagos={ creado:hoyISO(), tasa_por_corte:plan.tasa_por_corte,
     /* La entrada se guarda con la MISMA forma que una prórroga (monto, mora,
        aTiempo) para que el puente la acredite con la regla que ya existe: el
-       costo con su factor de puntualidad y el recargo siempre al 45%. */
+       costo con su factor de puntualidad y el recargo siempre a la mitad. */
     entrada:{fecha:r.fecha, ciclo:r.fecha_corte_anterior, monto:r.total_a_pagar,
              mora:r.recargo_mora, aTiempo:r.a_tiempo, diasMora:r.dias_mora},
     total_capital:plan.total_capital, total_costo:plan.total_costo, total_a_pagar:plan.total_a_pagar,
@@ -1985,7 +2109,26 @@ function abonarCapital(id){ const p=DB.prestamos.find(x=>x.id===id),m=Number(doc
 /* ===== CONFIG ===== */
 function pintarCfg(){ document.getElementById('cfgNeg').value=DB.config.negocio; document.getElementById('cfgCosto').value=TASA_FIJA_PCT+'% del capital'; document.getElementById('cfgUsura').value=DB.config.tasaUsuraEA||''; document.getElementById('cfgPin').value=DB.config.pin; document.getElementById('cfgWa').value=DB.config.whatsapp||'';
   const c=sbCfg(); document.getElementById('cfgSbUrl').value=c.url||''; document.getElementById('cfgSbAnon').value=c.anon||''; document.getElementById('cfgSbClave').value=c.clave||'';
-  document.getElementById('sbEstado').textContent=(c.url&&c.anon&&c.clave)?'Conexión lista. Sube los historiales cuando quieras.':'Todavía sin conectar. Corre base/supabase.sql y pega aquí los tres datos.'; }
+  document.getElementById('sbEstado').textContent=(c.url&&c.anon&&c.clave)?'Conexión lista. Sube los historiales cuando quieras.':'Todavía sin conectar. Corre base/supabase.sql y pega aquí los tres datos.';
+  pintarFreno(); }
+
+/* El freno por ingreso en Ajustes. Los tres textos con números salen de las
+   constantes del motor: el porcentaje del cupón, el del costo y el ejemplo
+   —cuánto cupo le daría a alguien que gana un millón por quincena— que lo
+   calcula cupoPorIngreso(), la misma función que va a topar de verdad. Así el
+   ejemplo no puede prometer un número distinto del que después se aplica. */
+function pintarFreno(){
+  const f=DB.config.freno||{}, pct=Math.round((Number(f.fraccion_quincena)||MotorReglas.FRENO_INGRESO.fraccion_quincena)*100);
+  const chk=document.getElementById('cfgFrenoActivo'); if(!chk) return;
+  chk.checked=f.activo===true;
+  document.getElementById('cfgFrenoFraccion').value=pct;
+  document.getElementById('cfgFrenoEstado').textContent=f.activo?'· ENCENDIDO':'· apagado';
+  document.getElementById('cfgFrenoPorque').textContent=
+    'Cada crédito pagado en fecha le sube el cupo un '+PCT_CUPON+' y eso compone: en dos años la cuota quincenal de un socio puntual se vuelve más grande que su quincena. Con esto encendido, el cupo no pasa de lo que él pueda pagar con lo que gana.';
+  const ej=MotorReglas.cupoPorIngreso(1000000,{activo:true,fraccion_quincena:pct/100});
+  document.getElementById('cfgFrenoEjemplo').textContent=
+    'La cuota es el capital más el '+TASA_FIJA_PCT+'% de costo. Al '+pct+'%, un socio con una quincena de '+COP(1000000)+' no pasaría de '+COP(ej)+' de cupo.';
+}
 
 /* ===== MIGRACIÓN AL MODELO DE SOCIOS + SUBIDA A LA NUBE =====
    Convierte el historial de siempre en garantía acumulada, para que el cliente
@@ -2051,10 +2194,12 @@ function estadoRespaldado(r){
 function diasMoraCuota(c){ const h=hoy0(),v=new Date(c.fecha+'T00:00:00'); return Math.max(0,Math.round((h-v)/86400000)); }
 
 /* La garantía GANADA del socio: lo que dejó cada peso de costo que ya pagó.
-   El factor lo pone el motor (90% puntual / 45% tarde en el quincenal, 20% /
-   10% en el de garantía) y la cuenta la hace el puente, que es el mismo archivo
-   del que sale lo que el socio ve en su app. Acá NO se vuelve a multiplicar por
-   nada ni se vuelve a sumar a mano. */
+   El factor lo pone el motor —FACTOR_GARANTIA puntual / FACTOR_GARANTIA_MORA
+   tarde en el quincenal, y los dos del respaldado— y la cuenta la hace el puente,
+   que es el mismo archivo del que sale lo que el socio ve en su app. Acá NO se
+   vuelve a multiplicar por nada ni se vuelve a sumar a mano; los porcentajes que
+   se IMPRIMEN salen de PCT_GARANTIA y compañía, no escritos a mano (5-ago-2026:
+   el día que el factor bajó de 90 a 75, ocho pantallas siguieron diciendo 90). */
 function garantiaGanadaDe(s){ return PUENTE.garantiaGanadaDe(DB,s); }
 /* La entrada que esperan desglosarGarantia / maximoRespaldado / cupoQuincenal.
    La arma el puente: es exactamente la misma con la que se calcula el paquete
@@ -2073,12 +2218,18 @@ function entradaGarantiaDe(s){ return PUENTE.entradaGarantia(DB,s); }
    Pidiendo primero el quincenal, nadie avisaba en ninguno de los dos pasos y
    quedaban 1.596.000 contra 424.000 de garantía total.
 
-   El cierre: el cupo quincenal va APALANCADO (garantía × factor de nivel), así
-   que cada peso de capital quincenal abierto se come 1/factor de garantía. Eso
-   ya lo sabe el motor y se llama garantiaNecesariaPara(): es la inversa exacta
-   de calcularCupo(), la misma que cupoQuincenal() le aplica a la comprometida
-   en el otro sentido. Por eso el límite sale igual se pida en el orden que se
-   pida, y no hay una multiplicación nueva en este archivo. */
+   El cierre: cuánta garantía se come un peso de capital quincenal abierto lo
+   sabe el motor y se llama garantiaNecesariaPara(): es la inversa exacta de
+   calcularCupo(), la misma que cupoQuincenal() le aplica a la comprometida en el
+   otro sentido. Por eso el límite sale igual se pida en el orden que se pida, y
+   no hay una multiplicación nueva en este archivo.
+
+   5-ago-2026: cuando el cupo iba APALANCADO (garantía × factor de nivel), esa
+   inversa dividía por el factor y un peso abierto se comía medio peso de garantía
+   en plata. Ahora el cupo es uno a uno y la inversa devuelve el monto mismo. La
+   llamada se queda igual A PROPÓSITO: si mañana el cupo vuelve a apalancarse, este
+   tope se mueve con el motor. Escribir `return abierto` sería copiar la regla acá
+   y desincronizarla en el próximo cambio. */
 function garantiaEnUsoQuincenal(s){
   const abierto=DB.prestamos.filter(p=>p.socioId===s.id&&!p.pagado)
     .reduce((t,p)=>t+capitalActual(p),0);
@@ -2098,45 +2249,65 @@ function entradaRespaldoDe(s){
 function maxRespaldadoDe(s){ return MotorReglas.maximoRespaldado(entradaRespaldoDe(s)); }
 
 /* =======================================================================
-   EL REPARTO 90/7/3 — contabilidad TUYA, no del socio.
-   El socio ve su 90% y nada más: ni en la app, ni en el enlace de WhatsApp,
-   ni en lo que sube a Supabase. Si algún día esto aparece dentro de
+   EL FONDO DEL CUPÓN — contabilidad TUYA, no del socio.
+
+   El socio ve su garantía y nada más: ni en la app, ni en el enlace de
+   WhatsApp, ni en lo que sube a Supabase. Si algún día esto aparece dentro de
    migrarSocio, está mal.
-   No se guarda en el DB: se deriva de lo que ya está, así que no hay un
-   número que se pueda desincronizar ni que haya que migrar.
+
+   5-ago-2026 — ESTA CUENTA YA NO SE HACE ACÁ. Antes eran tres líneas propias:
+   se sumaba TODO el costo cobrado del socio y se multiplicaba una sola vez por
+   el porcentaje del cupón. Eso está mal de tres maneras, y las tres importan
+   ahora que el porcentaje pasó de 3% a 15%:
+
+     · No sabe cuándo se SALDA. Una vez que el socio devolvió sus 100.000, el
+       15% de lo que siga pagando ya no es recuperación de capital: es ganancia
+       libre. La multiplicación de una sola pasada no puede decir en qué pago
+       cruzó esa línea, y con el 3% el caso era teórico (el cupón no se saldaba
+       nunca); con el 15% pasa en el crédito 13.
+     · No parte los pagos como los parte la garantía. `gananciaCobrada` suma el
+       costo del crédito en un solo bulto, así que el reparto no podía saber qué
+       pedazo se pagó tarde. El puente los parte uno por uno —cada prórroga con
+       su factor, el recargo a la mitad, cada cuota del plan aparte—, igual que
+       `garantiaGanadaCredito`, y ahí las dos cuentas dan lo mismo.
+     · Redondea una vez sobre el total en vez de una vez por pago, que no es el
+       mismo número que va a cobrar el motor movimiento a movimiento.
+
+   Ahora la contesta `PUENTE.contabilidadCupon` / `contabilidadCartera`, que es
+   la MISMA función y el mismo orden con el que el motor amortiza. Se deriva de
+   los hechos cada vez que se pregunta: no se guarda en el DB, así que no hay un
+   contador que se pueda desincronizar el día que Joan edite un pago.
    ======================================================================= */
-// Cuánto costo pagó este socio en toda su historia (quincenal + con garantía).
-function costoCobradoDe(s){
-  const q=DB.prestamos.filter(p=>p.socioId===s.id).reduce((t,p)=>t+gananciaCobrada(p),0);
-  const r=respaldadosDe(s).reduce((t,x)=>t+costoCobradoRespaldado(x),0);
-  return q+r;
-}
-// El cupón que la plataforma le REGALÓ: su garantía prestada de hoy.
-function cuponOtorgadoDe(s){
-  return MotorReglas.garantiaPorDatos(datosKycDe(s)).total
-       + MotorReglas.garantiaPorReferidos(referidosDe(s));
-}
-// Cuánto de ese cupón ya se recuperó con el 3%, y cuánto queda vivo.
+/* El fondo del cupón de UN socio: cuánto le prestaste, cuánto ya volvió con el
+   15% de cada costo, cuánto falta y —si ya lo saldó— cuánto de lo cobrado es
+   ganancia. `pct` es lo único que se calcula acá, y es para pintar la barrita. */
 function fondoCuponDe(s){
-  const otorgado=cuponOtorgadoDe(s);
-  const amortizado=Math.min(otorgado,Math.round(costoCobradoDe(s)*MotorReglas.REPARTO_COSTO.cupon));
-  return { otorgado, amortizado, vivo:otorgado-amortizado,
-    pct:otorgado?Math.round(amortizado/otorgado*100):100 };
+  const c=PUENTE.contabilidadCupon(DB,s);
+  c.pct=c.cupon_prestado?Math.round(c.cupon_recuperado/c.cupon_prestado*100):100;
+  return c;
 }
+/* La misma cuenta para toda la cartera. NO es la suma de una sola bolsa: cada
+   socio devuelve el cupón que se le regaló A ÉL, así que el puente la hace socio
+   por socio y después suma. */
 function fondoCuponCartera(){
-  return DB.socios.reduce((a,s)=>{ const f=fondoCuponDe(s);
-    return {otorgado:a.otorgado+f.otorgado,amortizado:a.amortizado+f.amortizado,vivo:a.vivo+f.vivo};
-  },{otorgado:0,amortizado:0,vivo:0});
+  const t=PUENTE.contabilidadCartera(DB);
+  t.pct=t.cupon_prestado?Math.round(t.cupon_recuperado/t.cupon_prestado*100):100;
+  return t;
 }
 /* El bloque que solo ves tú: en qué se parte el costo de ESE pago.
-   producto: 'quincenal' | 'respaldado'. */
+   producto: 'quincenal' | 'respaldado'.
+   `cuponPendiente` es lo que le falta devolver HOY, para que el motor sepa si
+   este 15% todavía recupera capital o ya es ganancia. */
 function bloqueReparto(s,costo,aTiempo,producto){
   const f=fondoCuponDe(s);
-  const r=MotorReglas.repartirCosto(costo,{aTiempo:aTiempo!==false,producto:producto||'quincenal',cuponPendiente:f.vivo});
+  const r=MotorReglas.repartirCosto(costo,{aTiempo:aTiempo!==false,producto:producto||'quincenal',cuponPendiente:f.cupon_pendiente});
+  const ganancia=r.ganancia_cupon
+    ? ` De esos ${COP(r.operativo)}, <b>${COP(r.ganancia_cupon)}</b> son <b>ganancia libre</b>: ya devolvió todo su cupón, así que ese ${PCT_CUPON} dejó de ser capital por recuperar.`
+    : '';
   return `<div class="alerta info solo-tuyo"><b class="tit-solo">Solo para ti</b>
     De los ${COP(r.total)} de costo: <b>${COP(r.garantia_socio)}</b> se le vuelven garantía (eso es lo único que él ve),
     <b>${COP(r.operativo)}</b> son tu costo operativo y <b>${COP(r.amortiza_cupon)}</b> te devuelven parte del cupón de
-    ${COP(f.otorgado)} que le regalaste para arrancar.</div>`;
+    ${COP(f.cupon_prestado)} que le prestaste para arrancar.${ganancia}</div>`;
 }
 
 /* Los datos del cliente, en las claves que entiende el motor (DATOS_KYC).
@@ -2154,8 +2325,9 @@ function fotoComunidad(){ return PUENTE.fotoComunidad(DB); }
    y otro por el otro. Si algún día hay que cambiar la racha, el cupón o el
    nivel, se cambia en ../app/puente.js y cambia en los dos lugares a la vez.
 
-   OJO: acá NO va, y no puede ir nunca, el reparto 90/7/3 (fondoCuponDe). Eso es
-   contabilidad tuya. Para el socio su garantía es el 90% y punto. */
+   OJO: acá NO va, y no puede ir nunca, el reparto del costo ni el fondo del
+   cupón (fondoCuponDe). Eso es contabilidad tuya. Para el socio su garantía es lo
+   que le deja cada pago, y su cupo es esa garantía. Nada más. */
 function migrarSocio(s){ return PUENTE.migrarSocio(DB,s); }
 function loteMigracion(){
   const dig=v=>String(v||'').replace(/\D/g,'');
@@ -2179,9 +2351,23 @@ function verMigracion(){
    No repite los indicadores del Tablero: acá va lo del modelo de socios —
    garantía emitida, niveles, perfiles a medias y cartera por tramo del §9.
    ======================================================================= */
-/* El cupo quincenal sale del motor, con la comprometida ya descontada: lo que
-   está metido en un préstamo con garantía no vuelve a habilitar cupo. */
-function cupoDe(s,nivel){ return MotorReglas.cupoQuincenal(entradaGarantiaDe(s),nivel).cupo; }
+/* =======================================================================
+   EL CUPO QUINCENAL — 5-ago-2026, ES SU GARANTÍA, UNO A UNO.
+
+   Hasta hoy el cupo era garantía × factor de nivel: en plata, un socio de nivel
+   plata podía pedir el DOBLE de lo que tenía. Joan lo cambió y ahora
+   cupo = garantía, topado por CUPO_MAXIMO. El número no lo hace este archivo: lo
+   hace el motor, con la comprometida ya descontada (lo que está metido en un
+   préstamo con garantía no vuelve a habilitar cupo quincenal).
+
+   Y se pregunta al PUENTE, no al motor directo, porque el cupo tiene dos mitades
+   que viven en lugares distintos: la garantía (del historial) y el freno por
+   ingreso (de Ajustes + la ficha del socio). Si cada pantalla armara las
+   opciones por su cuenta, el día que Joan encienda el freno una de ellas seguiría
+   mostrando el cupo viejo — y sería justo la que él usa para prestar.
+   ======================================================================= */
+function cupoDelSocio(s,nivel){ return PUENTE.cupoDelSocio(DB,s,nivel); }
+function cupoDe(s,nivel){ return cupoDelSocio(s,nivel).cupo; }
 /* ¿Este monto le cabe? Esto es, para el crédito quincenal, lo que simRespaldado
    es para el préstamo con garantía: el ÚNICO lugar donde se responde. Ninguna
    pantalla que registre un quincenal puede sacar el número por su cuenta.
@@ -2190,18 +2376,24 @@ function cupoDe(s,nivel){ return MotorReglas.cupoQuincenal(entradaGarantiaDe(s),
    quincenal a la vez: el respaldo se cuenta dos veces y nadie avisa. */
 function revisarCupo(s,capital){
   if(!s) return null;
-  const nivel=migrarSocio(s).garantia.nivel, q=MotorReglas.cupoQuincenal(entradaGarantiaDe(s),nivel);
+  const nivel=migrarSocio(s).garantia.nivel, q=cupoDelSocio(s,nivel);
   const abiertos=DB.prestamos.filter(p=>p.socioId===s.id&&!p.pagado);
   const cap=Number(capital)||0, abierto=abiertos.reduce((t,p)=>t+capitalActual(p),0);
-  return { s, nivel, cupo:q.cupo, comprometida:q.comprometida, abierto, nAbiertos:abiertos.length,
+  return { s, nivel, cupo:q.cupo, comprometida:q.comprometida, garantia:q.total, freno:q.freno,
+    abierto, nAbiertos:abiertos.length,
     capital:cap, expuesto:abierto+cap, exceso:Math.max(0,cap-q.cupo),
     pasa:cap>q.cupo, pasaSumando:abierto+cap>q.cupo };
 }
 /* El porqué, en renglones: de dónde salió ese cupo y cuánto queda en la calle.
-   Uno solo, para que el modal y los confirm digan exactamente lo mismo. */
+   Uno solo, para que el modal y los confirm digan exactamente lo mismo.
+   El primer renglón es de dónde SALE el cupo, y desde el 5-ago-2026 la respuesta
+   es una sola frase: es su garantía. Antes había un factor de nivel en el medio y
+   por eso el número parecía salir de la nada. */
 function porquesCupo(r){
   const l=[];
-  if(r.comprometida) l.push(COP(r.comprometida)+' de su garantía están comprometidos en un préstamo con garantía: mientras lo paga, esa parte no le da cupo quincenal.');
+  l.push('Su cupo es su garantía, uno a uno: tiene '+COP(r.garantia)+' de garantía.');
+  if(r.comprometida) l.push(COP(r.comprometida)+' de esa garantía están comprometidos en un préstamo con garantía: mientras lo paga, esa parte no le da cupo quincenal.');
+  if(r.freno&&r.freno.aplicado) l.push('Además el freno por ingreso le topa el cupo en '+COP(r.freno.cupo)+': con '+COP(r.freno.ingreso_quincenal)+' de quincena, la cuota no debería pasar de '+COP(r.freno.cuota_maxima)+'.');
   if(r.abierto) l.push('Ya le tienes abiertos '+COP(r.abierto)+' de capital en '+r.nAbiertos+' crédito(s) quincenal(es).');
   l.push('Con este crédito quedarían '+COP(r.expuesto)+' en la calle contra un cupo de '+COP(r.cupo)+'.');
   return l;
@@ -2219,6 +2411,12 @@ function textoCupo(r){
   return '⚠️ '+(r.s.nombre||'Este cliente')+' puede pedir hasta '+COP(r.cupo)+
     ' y le estás registrando '+COP(r.capital)+'.\n\n• '+porquesCupo(r).join('\n• ')+'\n';
 }
+/* La foto de cada socio para las tablas de esta pestaña.
+   5-ago-2026: traía un `fondo:fondoCuponDe(s)` que ninguna tabla leía. Se va, y
+   no porque estorbe: ese cálculo ahora recorre pago por pago para saber en cuál
+   se salda el cupón, así que calcularlo para cada socio en cada render y tirarlo
+   se paga en tiempo. El fondo del cupón se ve donde se usa: por socio en su
+   ficha, y para toda la cartera en las tres tarjetas del Tablero. */
 function fotoSocios(){
   return DB.socios.map(s=>{
     const m=migrarSocio(s);
@@ -2232,8 +2430,7 @@ function fotoSocios(){
       ganadaBruta:garantiaGanadaDe(s),
       pendiente:MotorReglas.CUPON_KYC_MAXIMO-kyc.total,
       cupo:cupoDe(s,m.garantia.nivel),
-      maxResp:maxRespaldadoDe(s),
-      fondo:fondoCuponDe(s) };
+      maxResp:maxRespaldadoDe(s) };
   });
 }
 /* El tramo del §9 se decide con LOS DÍAS DE ATRASO DEL PUENTE —los mismos que
@@ -2255,7 +2452,7 @@ function renderSocios(){
   document.getElementById('kpiSocios').innerHTML=`
     <div class="kpi dark"><div class="et">🛡️ Garantía total emitida</div><div class="nm">${COP(g.total)}</div><div class="x">${DB.socios.length} socios</div></div>
     <div class="kpi"><div class="et">🤝 Prestada por sus datos</div><div class="nm">${COP(g.cupon)}</div><div class="x">de un máximo de ${COP(DB.socios.length*MotorReglas.CUPON_KYC_MAXIMO)}</div></div>
-    <div class="kpi gan"><div class="et">💪 Ganada pagando</div><div class="nm">${COP(g.acum)}</div><div class="x">el 90% de lo que te pagaron en fecha, el 45% de lo tarde</div></div>
+    <div class="kpi gan"><div class="et">💪 Ganada pagando</div><div class="nm">${COP(g.acum)}</div><div class="x">el ${PCT_GARANTIA} de lo que te pagaron en fecha, el ${PCT_GARANTIA_MORA} de lo tarde</div></div>
     <div class="kpi gan"><div class="et">👥 Por referidos</div><div class="nm">${COP(g.refs)}</div><div class="x">${COP(MotorReglas.GARANTIA_POR_REFERIDO)} por cada uno que paga</div></div>
     <div class="kpi ${g.pend>0?'alert':''}"><div class="et">📋 Garantía sin entregar</div><div class="nm">${COP(g.pend)}</div><div class="x">te falta pedirles datos</div></div>
     <div class="kpi verde"><div class="et">💳 Cupo disponible</div><div class="nm">${COP(g.cupo)}</div><div class="x">${conActivo} con crédito abierto</div></div>
@@ -2281,15 +2478,21 @@ function renderSocios(){
         <td class="num">${b.n}</td><td class="num">${COP(b.monto)}</td>
         <td>${escHTML(t.accion)}</td><td class="muted">${escHTML(t.canal)}</td></tr>`;}).join('')}</tbody></table>`);
 
-  /* ---- Niveles ---- */
+  /* ---- Niveles ----
+     5-ago-2026: la columna "Factor" salía de MotorReglas.FACTOR_CUPO, que el
+     motor borró el día que el cupo pasó a ser la garantía uno a uno. Imprimía
+     "×undefined" — y antes de eso imprimía una promesa que ya no era cierta.
+     En su lugar va PRÓRROGAS, que es lo único material que hoy da el nivel, y la
+     columna del cupo dice de dónde sale para que no se lea como un premio del
+     nivel: los cuatro niveles habilitan exactamente su garantía. */
   const porNivel={};
   MotorReglas.NIVELES.forEach(n=>{ porNivel[n]={n:0,garantia:0,cupo:0}; });
   foto.forEach(f=>{ const b=porNivel[f.m.garantia.nivel]; b.n++; b.garantia+=f.m.garantia.total; b.cupo+=f.cupo; });
   document.getElementById('socNiveles').innerHTML=
-    `<div class="card-h"><h3>Niveles</h3><span class="tag">El nivel nunca baja: solo se sube pagando a tiempo</span></div>`+
-    `<table><thead><tr><th>Nivel</th><th>Factor</th><th>Socios</th><th>Garantía</th><th>Cupo que habilita</th></tr></thead><tbody>${
+    `<div class="card-h"><h3>Niveles</h3><span class="tag">Reconocimiento y prórrogas. El nivel nunca baja — y no mueve el cupo: el cupo es la garantía, uno a uno</span></div>`+
+    `<table><thead><tr><th>Nivel</th><th>Prórrogas</th><th>Socios</th><th>Garantía</th><th>Cupo disponible</th></tr></thead><tbody>${
       MotorReglas.NIVELES.map(n=>`<tr><td><b style="text-transform:capitalize">${n}</b></td>
-        <td class="muted">×${MotorReglas.FACTOR_CUPO[n]}</td>
+        <td class="num muted">${Math.min(MotorReglas.PRORROGAS_POR_NIVEL[n],MotorReglas.TOPE_DURO_PRORROGAS)}</td>
         <td class="num">${porNivel[n].n}</td><td class="num">${COP(porNivel[n].garantia)}</td>
         <td class="num">${COP(porNivel[n].cupo)}</td></tr>`).join('')}</tbody></table>`;
 
@@ -2361,18 +2564,18 @@ function revisarMigracion(id){
      abajo y si no las filas no sumarían el total. Lo que le llega al socio
      (m.garantia.acumulada) ya lo trae adentro: es una sola cifra para él. */
   openModal('Migración · '+s.nombre,`
-    <div class="info-row"><span class="k">Ganada pagando <span class="muted">(el 90% de lo que te pagó en fecha, el 45% de lo tarde)</span></span><b>${COP(garantiaGanadaDe(s))}</b></div>
+    <div class="info-row"><span class="k">Ganada pagando <span class="muted">(el ${PCT_GARANTIA} de lo que te pagó en fecha, el ${PCT_GARANTIA_MORA} de lo tarde)</span></span><b>${COP(garantiaGanadaDe(s))}</b></div>
     <div class="info-row"><span class="k">Prestada por sus datos <span class="muted">(${m.perfil.porcentaje}% del perfil)</span></span><b>${COP(gg.cupon)}</b></div>
     <div class="info-row"><span class="k">Por referidos <span class="muted">(${m.referidos.pagaron} ya pagaron)</span></span><b>${COP(gg.referidos)}</b></div>
     ${aj?`<div class="info-row"><span class="k">Tu ajuste a mano</span><b class="${aj>0?'gano':''}">${aj>0?'+':''}${COP(aj)}</b></div>
       ${s.ajusteMotivo?`<div class="muted" style="font-size:12px;margin:-4px 0 8px">Motivo: ${escHTML(s.ajusteMotivo)}</div>`:''}`:''}
     <div class="info-row" style="border-top:2px solid var(--linea);padding-top:10px"><span class="k"><b>Garantía que va a ver</b></span><b style="font-size:18px">${COP(gg.total)}</b></div>
-    <div class="info-row"><span class="k">Con eso puede pedir</span><b>${COP(cupoDe(s,gg.nivel))}</b> <span class="muted">(${escHTML(gg.nivel)})</span></div>
+    <div class="info-row"><span class="k">Con eso puede pedir <span class="muted">(su garantía, uno a uno)</span></span><b>${COP(cupoDe(s,gg.nivel))}</b> <span class="muted">(nivel ${escHTML(gg.nivel)}, que le da prórrogas pero no cupo)</span></div>
 
     <div class="sub-h">De dónde salió lo ganado pagando</div>
     ${cerrados.length
       ? cerrados.map(c=>`<div class="info-row"><span class="k">${escHTML(c.codigo)} <span class="muted">${fmtFecha(c.desembolso)}</span></span><span class="vv">${COP(c.capital)} → <b class="gano">+${COP(c.garantia)}</b></span></div>`).join('')
-        +`<div class="muted" style="font-size:12px;margin-top:6px">Es lo que le dejó el costo y las prórrogas de cada crédito: el 90% si pagó en fecha, el 45% si pagó tarde.</div>`
+        +`<div class="muted" style="font-size:12px;margin-top:6px">Es lo que le dejó el costo y las prórrogas de cada crédito: el ${PCT_GARANTIA} si pagó en fecha, el ${PCT_GARANTIA_MORA} si pagó tarde.</div>`
       : `<div class="alerta info">Todavía no ha cerrado ningún crédito, así que no tiene garantía ganada. Lo que ve viene de sus datos.</div>`}
 
     <div class="sub-h">¿El número le cuadra?</div>
@@ -2651,7 +2854,7 @@ function renderInvitaciones(){
 function nuevoRespaldado(preId,sol){
   const elegibles=DB.socios.filter(s=>maxRespaldadoDe(s)>0)
     .sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
-  if(!elegibles.length) return alert('Ahora mismo ningún cliente tiene garantía ganada LIBRE.\n\nLa garantía ganada sale de pagar: cada crédito quincenal que te pagan le deja al cliente el 90% del costo. El cupón por sus datos NO sirve de respaldo para este producto.\n\nY la que ya está sosteniendo un crédito quincenal abierto tampoco: se libera cuando te lo paguen.');
+  if(!elegibles.length) return alert('Ahora mismo ningún cliente tiene garantía ganada LIBRE.\n\nLa garantía ganada sale de pagar: cada crédito quincenal que te pagan le deja al cliente el '+PCT_GARANTIA+' del costo. El cupón por sus datos NO sirve de respaldo para este producto.\n\nY la que ya está sosteniendo un crédito quincenal abierto tampoco: se libera cuando te lo paguen.');
   const pre=preId&&elegibles.find(s=>s.id===preId)?preId:elegibles[0].id;
   if(preId&&pre!==preId){ const s=DB.socios.find(x=>x.id===preId);
     const enUso=s?garantiaEnUsoQuincenal(s):0;
@@ -2699,13 +2902,22 @@ function calcRespaldado(){
   if(!r.sim){ c.innerHTML='<div class="calc azul"><span class="muted" style="font-size:12.5px">Pon el capital.</span></div>'; if(btn)btn.disabled=false; return; }
   const s=r.sim, pasado=!s.dentro_del_respaldo;
   if(btn){ btn.disabled=pasado; btn.style.opacity=pasado?'.45':''; btn.style.cursor=pasado?'not-allowed':''; }
+  /* Con qué cupo quincenal se queda mientras paga este préstamo. Es el único
+     lugar que no puede llamar a cupoDelSocio(): hay que preguntarlo con una
+     comprometida HIPOTÉTICA —la de hoy más el capital que se está simulando—, y
+     eso todavía no está en el DB. Se le pasa el freno igual, con la misma
+     consulta al puente, para que este número no se quede atrás el día que Joan
+     lo prenda. */
+  const cupoDurante=MotorReglas.cupoQuincenal(
+    Object.assign(entradaGarantiaDe(r.s),{comprometida:comprometidaDe(r.s)+s.capital}),
+    r.nivel, {freno:PUENTE.frenoDe(DB,r.s)}).cupo;
   c.innerHTML=(pasado?`<div class="alerta warn"><b>Le estarías prestando contra garantía que no se ganó.</b> El préstamo con garantía va uno a uno contra lo ganado: le faltan ${COP(s.falta_garantia_ganada)}. Bájale el monto a ${COP(s.respaldo_disponible)} o menos.</div>`:'')
     +`<div class="calc azul">
       <div class="calc-row"><span>Cuota mensual</span><span class="v">${COP(s.cuota_tipica)}</span></div>
       <div class="calc-row"><span>Costo total (5% × ${s.plazo_meses} mes${s.plazo_meses!==1?'es':''})</span><span class="v gano">${COP(s.costo_total)}</span></div>
       <div class="calc-row"><span>Total a devolver</span><span class="v">${COP(s.total_a_pagar)}</span></div>
-      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(s.garantia_que_deja)} <span class="muted">(el 20% del costo)</span></span></div>
-      <div class="calc-row"><span>Su cupo quincenal mientras lo paga</span><span class="v">${COP(MotorReglas.cupoQuincenal(Object.assign(entradaGarantiaDe(r.s),{comprometida:comprometidaDe(r.s)+s.capital}),r.nivel).cupo)}</span></div>
+      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(s.garantia_que_deja)} <span class="muted">(el ${PCT_GARANTIA_RESP} del costo)</span></span></div>
+      <div class="calc-row"><span>Su cupo quincenal mientras lo paga</span><span class="v">${COP(cupoDurante)}</span></div>
     </div>
     <div class="sub-h">Las ${s.plazo_meses} fecha${s.plazo_meses!==1?'s':''}</div>
     ${s.cuotas.map(q=>`<div class="info-row"><span class="k">Cuota ${q.numero} · ${fmtFecha(q.fecha_corte)}</span><b class="num">${COP(q.total)}</b></div>`).join('')}
@@ -3082,7 +3294,8 @@ function mandarHistorial(id){
     <div class="info-row"><span class="k">· prestada por sus datos</span><span class="vv">${COP(g.cupon)} <span class="muted">(${m.perfil.porcentaje}% del perfil)</span></span></div>
     <div class="info-row"><span class="k">· ganada pagando</span><span class="vv">${COP(g.acumulada)}</span></div>
     <div class="info-row"><span class="k">· por referidos</span><span class="vv">${COP(g.referidos)} <span class="muted">(${m.referidos.pagaron} de ${m.referidos.total} ya pagaron)</span></span></div>
-    <div class="info-row"><span class="k">Nivel y cupo</span><b>${escHTML(g.nivel)} · ${COP(cupoDe(s,g.nivel))}</b></div>
+    <div class="info-row"><span class="k">Cupo <span class="muted">(su garantía, uno a uno)</span></span><b>${COP(cupoDe(s,g.nivel))}</b></div>
+    <div class="info-row"><span class="k">Nivel <span class="muted">(reconocimiento y prórrogas, no cupo)</span></span><b style="text-transform:capitalize">${escHTML(g.nivel)}</b></div>
     ${m.perfil.faltan.length?`<div class="alerta info" style="margin-top:10px">Le faltan ${m.perfil.faltan.length} dato(s) por cargar. Completarlos le sumaría <b>${COP(m.perfil.faltan.reduce((t,f)=>t+f.valor,0))}</b> más de garantía.</div>`:''}
     <div class="sub-h">Mensaje que le llega</div>
     <div class="alerta info" style="white-space:pre-wrap">${escHTML(msg)}</div>
@@ -3159,7 +3372,24 @@ function sincronizarSocios(){
   })
   .catch(()=>{ est.textContent='No hubo conexión. Revisa el internet y vuelve a intentar.'; });
 }
-function guardarCfg(){ DB.config.negocio=gv('cfgNeg')||'Tu Garantía'; DB.config.costoBasePct=TASA_FIJA_PCT; DB.config.tasaUsuraEA=Number(gv('cfgUsura'))||0; DB.config.pin=gv('cfgPin')||'1234'; DB.config.whatsapp=gv('cfgWa').replace(/\D/g,''); guardar(); render(); alert('Ajustes guardados.'); }
+function guardarCfg(){ DB.config.negocio=gv('cfgNeg')||'Tu Garantía'; DB.config.costoBasePct=TASA_FIJA_PCT; DB.config.tasaUsuraEA=Number(gv('cfgUsura'))||0; DB.config.pin=gv('cfgPin')||'1234'; DB.config.whatsapp=gv('cfgWa').replace(/\D/g,'');
+  /* EL FRENO. La fracción se valida ANTES de guardar y se guarda en decimal
+     (0,30), que es lo que espera el motor: si acá entrara 30 lo leería como
+     "treinta veces la quincena", o sea ningún tope. Un número fuera de 1..100 no
+     se guarda a medias — se avisa y se deja el ajuste anterior intacto.
+     Y encenderlo se confirma: le baja el cupo a gente real de un click. */
+  const pct=Number(gv('cfgFrenoFraccion'));
+  if(!isFinite(pct)||pct<1||pct>100){ alert('El porcentaje del freno tiene que ser un número entre 1 y 100.\n\nEs qué parte de la quincena del socio puede llegar a ser su cuota. Lo recomendado es '+Math.round(MotorReglas.FRENO_INGRESO.fraccion_quincena*100)+'%.\n\nNo guardé nada.'); return; }
+  const prender=!!document.getElementById('cfgFrenoActivo').checked;
+  if(prender&&!(DB.config.freno&&DB.config.freno.activo)){
+    const conIngreso=DB.socios.filter(s=>Number(s.ingresoQuincenal)>0).length;
+    if(!confirm('Vas a ENCENDER el freno por ingreso.\n\nA partir de ahora, al socio que tenga su ingreso cargado no se le va a poder prestar más de lo que su cuota aguante: el '+pct+'% de su quincena.\n\n'
+      +(conIngreso?'Tienes '+conIngreso+' de '+DB.socios.length+' cliente(s) con el ingreso cargado; a esos les puede bajar el cupo. A los demás no les cambia nada hasta que se lo cargues.'
+                  :'Ahora mismo NINGÚN cliente tiene el ingreso cargado, así que todavía no le va a topar el cupo a nadie. Cárgalo en la ficha de cada uno.')
+      +'\n\n¿Lo enciendo?')) return;
+  }
+  DB.config.freno={ activo:prender, fraccion_quincena:pct/100 };
+  guardar(); render(); pintarFreno(); alert('Ajustes guardados.'); }
 function exportar(){ const b=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}),a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='respaldo-tugarantia.json'; a.click(); }
 function importar(e){ const f=e.target.files[0]; if(!f)return; const inp=e.target; const r=new FileReader();
   r.onload=()=>{ try{ const d=JSON.parse(r.result); const socios=d.socios||d.clientes, prest=d.prestamos;

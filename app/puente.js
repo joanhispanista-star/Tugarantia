@@ -15,9 +15,16 @@
  * funciones son puras: reciben el `db` y devuelven objetos nuevos. Los clientes
  * reales de Joan viven en ese localStorage y nada de acá los puede tocar.
  *
+ * OJO CON LOS PORCENTAJES DE LOS BLOQUES FECHADOS: cada uno trae los factores
+ * que regían el día en que se midió (90% en fecha y 45% tarde hasta el
+ * 5-ago-2026; 75% y 37,5% desde entonces). Las reglas no cambiaron —factor completo contra la
+ * mitad— y las cifras medidas se dejan como quedaron para no borrar la evidencia.
+ *
  * Y lo que NO viaja al socio, por regla y no por olvido: fotos, ubicación,
  * teléfonos, la nota de riesgo, el motivo del ajuste, la papelera, las
- * gestiones, y todo el reparto 90/7/3 (contabilidad de Joan).
+ * gestiones, y todo el reparto 75/10/15 con el cupón amortizado y la ganancia
+ * (contabilidad de Joan: contabilidadCupon y contabilidadCartera, que el
+ * paquete del socio no toca ni de refilón).
  * ===========================================================================*/
 (function (raiz, fabrica) {
   'use strict';
@@ -194,7 +201,15 @@
       prestamos: lista(d.prestamos),
       respaldados: lista(d.respaldados),
       invitaciones: lista(d.invitaciones),
-      config: Object.assign({ negocio: 'Tu Garantía', whatsapp: '' }, d.config || {}),
+      /* `freno` es la casilla donde Ajustes del Panel enciende el tope por
+         ingreso (5-ago-2026). Viene APAGADA y con la fracción de arranque del
+         motor; si Joan no la toca, nada cambia. Los defaults viven en el motor,
+         no escritos a mano acá. */
+      config: Object.assign({
+        negocio: 'Tu Garantía', whatsapp: '',
+        freno: { activo: M.FRENO_INGRESO.activo,
+                 fraccion_quincena: M.FRENO_INGRESO.fraccion_quincena }
+      }, d.config || {}),
       contadores: Object.assign({ cliente: 0, credito: 0, respaldado: 0 }, d.contadores || {})
     };
 
@@ -212,6 +227,9 @@
       if (s.ajusteMotivo === undefined) s.ajusteMotivo = '';
       if (s.migracionRevisada === undefined) s.migracionRevisada = null;
       if (s.codigoInvitacion === undefined) s.codigoInvitacion = null;
+      // Lo que el socio gana por quincena. Solo lo usa el freno por ingreso, que
+      // está apagado: en cero el freno no puede topar nada (ver frenoDe).
+      if (s.ingresoQuincenal === undefined) s.ingresoQuincenal = 0;
       return s;
     });
 
@@ -540,9 +558,9 @@
     var costo = Math.round(K(p));
     var mora = Math.round(moraDelCiclo(p, f));
     var dias = (corte && f > corte) ? diasCal(corte, f) : 0;
-    /* 5-ago-2026 §4-bis — llegar en fecha y acreditar al 90% dejaron de ser lo
-       mismo. Si este crédito YA estuvo en mora, el corte que se está cumpliendo
-       es uno que compró una prórroga: acredita al 45%. `pago_a_tiempo` sigue
+    /* 5-ago-2026 §4-bis — llegar en fecha y acreditar el factor completo dejaron
+       de ser lo mismo. Si este crédito YA estuvo en mora, el corte que se está cumpliendo
+       es uno que compró una prórroga: acredita a la mitad. `pago_a_tiempo` sigue
        siendo lo que dice —el pago llega dentro del corte— porque de él salen el
        recargo y las pantallas; el factor de la garantía es otra pregunta. */
     var vieneDeMora = veniaDeMora(p, corte);
@@ -585,8 +603,8 @@
    * prórroga, porque es lo mismo: costo del ciclo + el recargo ya causado) y
    * cada cuota ya pagada.
    *
-   * 5-ago-2026 §4-bis — LA CUOTA DEL PLAN NO SE ACREDITA AL 90%. Un plan de
-   * pagos existe justamente porque el crédito ya se atrasó y se le acabaron las
+   * 5-ago-2026 §4-bis — LA CUOTA DEL PLAN NO SE ACREDITA AL FACTOR COMPLETO. Un
+   * plan de pagos existe justamente porque el crédito ya se atrasó y se le acabaron las
    * prórrogas: acreditarle a sus cuotas el factor del que nunca se atrasó era el
    * mismo regalo de la prórroga encadenada por otra puerta (medido: 374.000
    * pagados dejaban 564.300 de garantía contra los 492.300 de saldar 494.000).
@@ -624,20 +642,20 @@
      El Panel lo graba en `aTiempo` desde el 4-ago-2026. Para todo lo anterior se
      deduce de lo único que quedó guardado: si la prórroga trajo recargo de mora,
      es porque el corte ya había pasado. Las prórrogas viejas no traen `mora`, así
-     que se leen como puntuales y conservan el 90% que ya se les acreditó —la
-     garantía ya ganada no se borra nunca, ni hacia atrás. */
+     que se leen como puntuales y conservan el factor completo que ya se les
+     acreditó —la garantía ya ganada no se borra nunca, ni hacia atrás. */
   function prorrogaFueATiempo(pr) {
     if (pr && typeof pr.aTiempo === 'boolean') return pr.aTiempo;
     return moraDeProrroga(pr) === 0;
   }
   /**
-   * ¿Esta prórroga acredita al 90%? (§4-bis del motor, 5-ago-2026)
+   * ¿Esta prórroga acredita al factor completo? (§4-bis del motor, 5-ago-2026)
    *
    * Llegar en fecha ya no alcanza: si el crédito YA estuvo en mora antes de esta
    * prórroga, el ciclo que se está pagando es el que la prórroga ANTERIOR le
-   * compró, no una quincena limpia, y acredita al 45%. Ahí estaba el negocio de
-   * encadenar plazo: la primera prórroga ponía el reloj de mora en cero y la
-   * segunda cobraba el 90% del que nunca se atrasó.
+   * compró, no una quincena limpia, y acredita a la mitad. Ahí estaba el negocio
+   * de encadenar plazo: la primera prórroga ponía el reloj de mora en cero y la
+   * segunda cobraba el factor completo del que nunca se atrasó.
    *
    * El crédito es OPCIONAL a propósito: sin él la respuesta es la de siempre (la
    * puntualidad congelada en el dato). Así el Panel —que hoy llama con la
@@ -655,8 +673,8 @@
   }
   /* La garantía que dejó UNA prórroga, con la misma regla del §4 que usa
      cualquier otro pago: el costo con el factor de puntualidad de la prórroga y
-     el recargo de mora siempre al 45%, porque es plata que solo existe porque el
-     corte ya había pasado. Es la ÚNICA cuenta: el Panel la muestra en el confirm
+     el recargo de mora siempre a la mitad, porque es plata que solo existe porque
+     el corte ya había pasado. Es la ÚNICA cuenta: el Panel la muestra en el confirm
      con esta misma función, así que Joan no puede ver un número y el socio otro. */
   function garantiaGanadaProrroga(pr, credito) {
     return M.acumularGarantia(costoDeProrroga(pr), prorrogaAcreditaEnFecha(pr, credito)) +
@@ -860,8 +878,8 @@
   /**
    * ¿Este crédito YA venía de una mora cuando arrancó el ciclo que termina en
    * `corte`? Es la pregunta del §4-bis del motor —la que decide si un pago
-   * acredita al 90% o al 45%— y se mide JUSTO ANTES de ese corte, no el día del
-   * pago, por una razón que ya costó una ronda:
+   * acredita completo o a la mitad— y se mide JUSTO ANTES de ese corte, no el día
+   * del pago, por una razón que ya costó una ronda:
    *
    *   la puntualidad del propio ciclo la sigue decidiendo su dato CONGELADO
    *   (`pr.aTiempo`, el recargo de la cuota, esPuntual del pago final).
@@ -887,7 +905,7 @@
    * VACÍO —el día del corte no es mora y el día siguiente ya rige el corte
    * nuevo— aunque el socio haya pagado un día de recargo. Sin esto, prorrogar el
    * primer día de atraso y volver a prorrogar en el corte nuevo cobraba otra vez
-   * el 90%: el mismo agujero, un día antes.
+   * el factor completo: el mismo agujero, un día antes.
    */
   function moraYaCobrada(p, corte) {
     var c = fechaFin(corte);
@@ -1017,9 +1035,9 @@
      3-ago-2026. Antes acá se hacía acumularGarantia(gananciaCobrada(p),
      esPuntual(p)): UN solo factor para todo lo cobrado del crédito. Como
      gananciaCobrada() incluye los costos de las prórrogas ya pagadas, una
-     prórroga que el socio pagó puntualmente hace meses se le degradaba del 90%
-     al 45% el día que el crédito terminaba pagándose tarde. Garantía ya ganada
-     que desaparecía hacia atrás, que es exactamente lo contrario de lo que le
+     prórroga que el socio pagó puntualmente hace meses se le degradaba del factor
+     completo a la mitad el día que el crédito terminaba pagándose tarde. Garantía
+     ya ganada que desaparecía hacia atrás, que es exactamente lo contrario de lo que le
      promete el producto: "todo lo que pagues sigue sumando".
 
      El motor nunca dijo eso: la prórroga se cobra y se acredita el día que se
@@ -1027,8 +1045,8 @@
      Cada prórroga lleva su propia cuenta, y el pago final la suya.
 
      4-ago-2026 — la SEGUNDA mitad del mismo arreglo. "Se acredita el día que se
-     paga" no quería decir "se acredita siempre al 90%": quería decir que el
-     factor se congela ese día. Acá estaba congelado en `true` para todas, y con
+     paga" no quería decir "se acredita siempre al factor completo": quería decir
+     que el factor se congela ese día. Acá estaba congelado en `true` para todas, y con
      eso una prórroga registrada con veinte días de atraso dejaba MÁS garantía
      que saldar la deuda completa el mismo día. Medido, con los mismos 240.000 de
      costos: dejar la prórroga 162.000, saldar todo 108.000. 54.000 de regalo al
@@ -1037,7 +1055,7 @@
 
      Ahora cada prórroga usa su propio factor de puntualidad (§4), el mismo que
      usa cualquier otro pago, y lo ya ganado sigue intacto: las prórrogas viejas
-     no traen recargo, se leen puntuales y conservan su 90%. */
+     no traen recargo, se leen puntuales y conservan su factor completo. */
   function garantiaGanadaCredito(p) {
     return lista(p && p.prorrogas).reduce(function (t, pr) {
       return t + garantiaGanadaProrroga(pr, p);
@@ -1049,8 +1067,8 @@
       /* 5-ago-2026 §4-bis — y el pago final tampoco. `esPuntual` compara la
          fecha de pago contra el corte, y la prórroga corre el corte al futuro:
          el que se atrasaba 127 días, prorrogaba y pagaba dentro del corte nuevo
-         cobraba el 90% del que nunca se atrasó. El factor mira las dos cosas:
-         llegó en fecha Y el crédito no venía de una mora. */
+         cobraba el factor completo del que nunca se atrasó. El factor mira las
+         dos cosas: llegó en fecha Y el crédito no venía de una mora. */
       (p && p.pagado
         ? M.acumularGarantia(Math.max(0, num(p.gananciaPago)),
             M.cuentaComoPuntualParaGarantia({
@@ -1083,10 +1101,10 @@
 
   /* La garantía GANADA de un socio: lo que le dejó cada peso de costo que ya
      pagó, en el quincenal y en el de garantía. El factor lo pone el MOTOR
-     (0,90 en fecha y 0,45 tarde en el quincenal; 0,20 y 0,10 en el otro). Acá
+     (0,75 en fecha y 0,375 tarde en el quincenal; 0,20 y 0,10 en el otro). Acá
      no se multiplica nada a mano y tampoco se deja de multiplicar: el costo
-     COBRADO no es la garantía, y desde que FACTOR_GARANTIA bajó a 0,90 no hay
-     forma de que coincidan. Es una sola cuenta para el paquete del socio y
+     COBRADO no es la garantía, y desde que FACTOR_GARANTIA dejó de ser 1,00 no
+     hay forma de que coincidan. Es una sola cuenta para el paquete del socio y
      para la foto de la comunidad, que es lo que evita que el mismo cliente
      vea dos cifras distintas según por dónde entró. */
   function garantiaGanadaDe(db, s) {
@@ -1098,6 +1116,155 @@
       + respaldadosDe(db, s).reduce(function (t, r) {
         return t + garantiaGanadaRespaldado(r);
       }, 0);
+  }
+
+  /* ==========================================================================
+   * LA CONTABILIDAD DEL CUPÓN — 5-ago-2026, solo para el Panel.
+   *
+   * Con el reparto 75/10/15, el 15% de cada costo cobrado va devolviéndole a la
+   * plataforma el cupón que le REGALÓ al socio para arrancar. Cuando ese cupón
+   * queda saldado —el crédito 13 en la escalera normal— ese mismo 15% deja de
+   * ser recuperación de capital y pasa a ser ganancia. El Panel necesita las
+   * tres cifras: cuánto queda por recuperar, cuánto ya se recuperó y cuánto de
+   * lo cobrado es ganancia libre.
+   *
+   * SE DERIVA DE LOS COSTOS COBRADOS, NO DE UN CONTADOR GUARDADO, y es la misma
+   * decisión que ya se tomó dos veces en este archivo: el nivel es un máximo
+   * histórico derivado y el costo del ciclo se reconstruye de los hechos. Un
+   * contador guardado se desincroniza el día que Joan edita o borra un pago, y
+   * desde ahí miente para siempre sin que nadie lo note.
+   *
+   * NADA DE ESTO VIAJA AL SOCIO. migrarSocio no lo llama ni lo puede llamar:
+   * para el socio su garantía es el 75% y no existe ningún cupón que devolver.
+   * ========================================================================*/
+
+  /**
+   * Los costos que un socio YA PAGÓ, uno por uno y en orden, con el factor de
+   * puntualidad de cada uno. Es EXACTAMENTE la misma partición que hace
+   * garantiaGanadaCredito —cada prórroga con su factor, el recargo siempre a la
+   * mitad, cada cuota del plan por separado, el pago final aparte— así que la
+   * suma de las garantías de estos movimientos da la garantía del socio. Si un
+   * día una de las dos cambia, la otra tiene que cambiar con ella.
+   *
+   * @returns {Array<{fecha, tipo, monto, aTiempo, producto}>}
+   */
+  function movimientosCobradosCredito(p) {
+    var movs = [];
+    function empujar(fecha, tipo, monto, aTiempo, producto) {
+      if (num(monto) <= 0) return;
+      movs.push({ fecha: fechaFin(fecha) || null, tipo: tipo, monto: num(monto),
+                  aTiempo: aTiempo !== false, producto: producto || 'quincenal' });
+    }
+    lista(p && p.prorrogas).forEach(function (pr) {
+      empujar(pr && pr.fecha, 'costo_prorroga', costoDeProrroga(pr), prorrogaAcreditaEnFecha(pr, p));
+      empujar(pr && pr.fecha, 'recargo_mora', moraDeProrroga(pr), false);
+    });
+    var e = entradaPlan(p);
+    if (e) {
+      empujar(e.fecha, 'entrada_plan', costoDeProrroga(e), prorrogaAcreditaEnFecha(e, p));
+      empujar(e.fecha, 'recargo_mora', moraDeProrroga(e), false);
+    }
+    cuotasPlan(p).forEach(function (c) {
+      /* Una cuota vieja que no guardó su costo conserva la garantía que se le
+         acreditó (garantiaGanadaCuotaPlan) pero no puede entrar al reparto: no
+         se sabe de qué costo salió, y repartir un número inventado sería peor
+         que no repartirlo. */
+      if (!c || !c.pagado || c.costo == null) return;
+      var f = fechaFin(c.fechaPagado), corte = fechaFin(c.fecha);
+      var enFecha = num(c.recargo) === 0 && (!f || !corte || f <= corte);
+      empujar(c.fechaPagado || c.fecha, 'cuota_plan', num(c.costo),
+        M.cuentaComoPuntualParaGarantia({
+          pagado_en_fecha: enFecha, credito_estuvo_en_mora: veniaDeMora(p, corte) }));
+      empujar(c.fechaPagado || c.fecha, 'recargo_mora', num(c.recargo), false);
+    });
+    if (p && p.pagado) {
+      /* El pago final va con costo y recargo en un solo movimiento porque así lo
+         guarda el Panel (`gananciaPago` es el costo TOTAL cobrado) y así lo
+         acredita garantiaGanadaCredito. Partirlo acá daría otra garantía. */
+      empujar(p.fechaPagado, 'pago_final', Math.max(0, num(p.gananciaPago)),
+        M.cuentaComoPuntualParaGarantia({
+          pagado_en_fecha: esPuntual(p), credito_estuvo_en_mora: veniaDeMora(p, p.cicloPago) }));
+    }
+    return movs;
+  }
+
+  /* Las cuotas ya pagadas de un préstamo con garantía. Costo y recargo van
+     JUNTOS y con un solo factor, que es como los acredita el motor
+     (liquidarCuotaRespaldada), no como los acredita el quincenal. */
+  function movimientosCobradosRespaldado(r) {
+    return lista(r && r.cuotas).filter(function (c) { return c && c.pagado; })
+      .map(function (c) {
+        return { fecha: fechaFin(c.fechaPagado) || fechaFin(c.fecha) || null,
+                 tipo: 'cuota_respaldado', producto: 'respaldado',
+                 monto: num(c.costo) + num(c.recargo), aTiempo: num(c.recargo) === 0 };
+      }).filter(function (m) { return m.monto > 0; });
+  }
+
+  /** Todo lo que un socio pagó de costos, de los dos productos, cronológico.
+     El orden IMPORTA: el 15% del movimiento que salda el cupón se parte en dos
+     (una parte lo termina de saldar, el resto ya es ganancia). */
+  function movimientosCobradosDe(db, s) {
+    var movs = lista(db && db.prestamos)
+      .filter(function (p) { return p.socioId === (s && s.id); })
+      .reduce(function (t, p) { return t.concat(movimientosCobradosCredito(p)); }, [])
+      .concat(respaldadosDe(db, s).reduce(function (t, r) {
+        return t.concat(movimientosCobradosRespaldado(r));
+      }, []));
+    // Sin fecha van al final: son datos viejos y no pueden colarse antes de un
+    // hecho fechado para adelantar la amortización.
+    return movs.sort(function (a, b) {
+      return String(a.fecha || '9999-12-31').localeCompare(String(b.fecha || '9999-12-31'));
+    });
+  }
+
+  /**
+   * La contabilidad del cupón de UN socio. Lo que el Panel pone en su ficha.
+   *
+   * El cupón que hay que recuperar es toda la garantía PRESTADA: el cupón por
+   * los datos y los 5.000 de cada referido. Las dos son plata que puso la
+   * plataforma para que el socio pudiera pedir sin haber pagado nada, y las dos
+   * son exposición de Joan mientras no vuelvan.
+   */
+  function contabilidadCupon(db, s) {
+    var g = M.desglosarGarantia(entradaGarantia(db, s));
+    var c = M.amortizarCupon(movimientosCobradosDe(db, s), { cuponPrestado: g.prestada });
+    c.socio_id = s && s.id;
+    c.garantia_prestada = g.prestada;
+    c.garantia_ganada = g.ganada;
+    /* Lo que Joan tiene de verdad en riesgo por este socio: el cupón que todavía
+       no volvió. Lo demás que el socio puede pedir está respaldado por costos
+       que él ya pagó. */
+    c.expuesto = c.cupon_pendiente;
+    return c;
+  }
+
+  /** La misma cuenta para toda la cartera, socio por socio y sumada. El cupón
+     NO se puede amortizar en una sola bolsa: cada socio tiene el suyo y el
+     15% que paga solo devuelve el que se le regaló A ÉL. */
+  function contabilidadCartera(db) {
+    var porSocio = lista(db && db.socios).filter(Boolean).map(function (s) {
+      return contabilidadCupon(db, s);
+    });
+    var t = {
+      socios: porSocio.length,
+      cupon_prestado: 0, cupon_recuperado: 0, cupon_pendiente: 0,
+      cobrado: 0, garantia_socio: 0, operativo: 0,
+      ganancia_libre: 0, ganancia_cupon: 0,
+      socios_saldados: 0, por_socio: porSocio
+    };
+    porSocio.forEach(function (c) {
+      t.cupon_prestado += c.cupon_prestado;
+      t.cupon_recuperado += c.cupon_recuperado;
+      t.cupon_pendiente += c.cupon_pendiente;
+      t.cobrado += c.cobrado;
+      t.garantia_socio += c.garantia_socio;
+      t.operativo += c.operativo;
+      t.ganancia_libre += c.ganancia_libre;
+      t.ganancia_cupon += c.ganancia_cupon;
+      if (c.saldado) t.socios_saldados += 1;
+    });
+    t.expuesto = t.cupon_pendiente;
+    return t;
   }
 
   /* Los datos del cliente en las claves que entiende el motor (DATOS_KYC).
@@ -1160,6 +1327,34 @@
       ajuste: Number(s && s.ajusteGarantia) || 0,
       comprometida: comprometidaDe(db, s)
     };
+  }
+
+  /**
+   * EL FRENO POR INGRESO, LISTO PARA QUE EL PANEL LO ENCIENDA (5-ago-2026).
+   *
+   * Junta las dos mitades del dato: la configuración, que es de Joan y vive en
+   * Ajustes (`db.config.freno`), y el ingreso quincenal, que es de cada socio.
+   * Viene APAGADO —`activo:false`— y así se queda hasta que Joan lo prenda; y
+   * aunque lo prenda, un socio sin ingreso declarado no se topa, porque topar
+   * contra un dato que no tenemos sería bajarle el cupo por no haber contestado.
+   */
+  function frenoDe(db, s) {
+    var c = (db && db.config && db.config.freno) || {};
+    return {
+      activo: c.activo === true,
+      fraccion_quincena: num(c.fraccion_quincena) > 0
+        ? num(c.fraccion_quincena) : M.FRENO_INGRESO.fraccion_quincena,
+      ingreso_quincenal: Math.max(0, num(s && s.ingresoQuincenal))
+    };
+  }
+
+  /** El cupo quincenal de un socio, con el freno ya consultado. Es la función
+     que el Panel y la app tienen que preguntar: si cada uno arma la entrada y
+     las opciones por su lado, el día que Joan encienda el freno una de las dos
+     pantallas va a seguir mostrando el cupo viejo. */
+  function cupoDelSocio(db, s, nivel) {
+    return M.cupoQuincenal(entradaGarantia(db, s), nivel || 'bronce',
+                           { freno: frenoDe(db, s) });
   }
 
   /* Lo que tiene metido en préstamos con garantía todavía abiertos. */
@@ -1278,7 +1473,7 @@
           total_hoy: liq.total_a_pagar,
           causado: liq.causado,
           /* Y el dato del §4-bis, para que la app no lo deduzca: un crédito que
-             ya estuvo en mora acredita al 45% aunque pague dentro del corte que
+             ya estuvo en mora acredita a la mitad aunque pague dentro del corte que
              le compró la prórroga. Viaja para pasárselo al motor tal cual
              (`credito.estuvo_en_mora`). */
           estuvo_en_mora: liq.estuvo_en_mora
@@ -1328,6 +1523,16 @@
     entradaGarantia: entradaGarantia,
     garantiaGanadaDe: garantiaGanadaDe,
     comprometidaDe: comprometidaDe,
+    /* La contabilidad del cupón (5-ago-2026). SOLO para el Panel: no entra al
+       paquete del socio por ningún lado. */
+    movimientosCobradosCredito: movimientosCobradosCredito,
+    movimientosCobradosRespaldado: movimientosCobradosRespaldado,
+    movimientosCobradosDe: movimientosCobradosDe,
+    contabilidadCupon: contabilidadCupon,
+    contabilidadCartera: contabilidadCartera,
+    // El freno por ingreso, apagado, para que el Panel lo pueda encender
+    frenoDe: frenoDe,
+    cupoDelSocio: cupoDelSocio,
     migrarSocio: migrarSocio,
     buscarSocio: buscarSocio,
     datosKycDe: datosKycDe,

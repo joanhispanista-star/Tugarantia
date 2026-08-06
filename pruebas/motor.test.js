@@ -299,18 +299,26 @@ describe('calcularTasa — el costo es SIEMPRE 20% (29-jul-2026)', () => {
  * §5 — calcularCupo
  * ======================================================================== */
 
-describe('calcularCupo — factor por nivel (§5)', () => {
+describe('calcularCupo — LA GARANTÍA, UNO A UNO (5-ago-2026)', () => {
 
-  test('los cuatro factores de la tabla', () => {
-    assert.equal(M.calcularCupo(500000, 'bronce'), 750000);    // ×1,5
-    assert.equal(M.calcularCupo(500000, 'plata'), 1000000);    // ×2
-    assert.equal(M.calcularCupo(500000, 'oro'), 1250000);      // ×2,5
-    assert.equal(M.calcularCupo(500000, 'platino'), 1500000);  // ×3
+  /* Esta suite comprobaba los cuatro factores de nivel (1,5 · 2 · 2,5 · 3).
+     Ya no hay factores: el cupo es la garantía y nada más, así que lo que
+     comprueba ahora es justamente que el nivel NO lo mueva. */
+  test('el mismo cupo en los cuatro niveles: el nivel ya no lo multiplica', () => {
+    assert.equal(M.calcularCupo(500000, 'bronce'), 500000);
+    assert.equal(M.calcularCupo(500000, 'plata'), 500000);
+    assert.equal(M.calcularCupo(500000, 'oro'), 500000);
+    assert.equal(M.calcularCupo(500000, 'platino'), 500000);
   });
 
-  test('desde el primer día ya puede pedir más de lo que tiene de garantía', () => {
-    assert.ok(M.FACTOR_CUPO.bronce > 1, 'bronce apalanca desde el arranque');
-    assert.equal(M.calcularCupo(200000, 'bronce'), 300000);
+  test('EL FACTOR DE CUPO NO EXISTE MÁS, ni como dato suelto', () => {
+    assert.equal(M.FACTOR_CUPO, undefined,
+      'exportarlo dejaría a una pantalla pintando "×2 tu garantía"');
+  });
+
+  test('puede pedir exactamente lo que respalda, ni un peso más', () => {
+    assert.equal(M.calcularCupo(200000, 'bronce'), 200000);
+    assert.equal(M.calcularCupo(115000, 'plata'), 115000);
   });
 
   test('sin garantía no hay cupo', () => {
@@ -318,42 +326,63 @@ describe('calcularCupo — factor por nivel (§5)', () => {
   });
 
   test('redondea hacia abajo, nunca regala pesos (D8)', () => {
-    assert.equal(M.calcularCupo(100001, 'plata'), 200002);
-    assert.equal(M.calcularCupo(33333, 'oro'), 83332);         // 83.332,5
+    assert.equal(M.calcularCupo(100001, 'plata'), 100001);
+    assert.equal(M.calcularCupo(33333.75, 'oro'), 33333);
   });
 
   test('acepta el nivel con espacios o mayúsculas', () => {
-    assert.equal(M.calcularCupo(100000, ' Oro '), 250000);
-    assert.equal(M.calcularCupo(100000, 'PLATINO'), 300000);
+    assert.equal(M.calcularCupo(100000, ' Oro '), 100000);
+    assert.equal(M.calcularCupo(100000, 'PLATINO'), 100000);
   });
 
-  test('un nivel inventado es error, no bronce por defecto', () => {
+  test('un nivel inventado sigue siendo error, aunque ya no mueva el cupo', () => {
     assert.throws(() => M.calcularCupo(100000, 'diamante'), /nivel desconocido/);
     assert.throws(() => M.calcularCupo(100000, ''), /nivel desconocido/);
-    assert.throws(() => M.calcularCupo(100000, undefined), /se esperaba texto/);
   });
 
-  test('el cupo crece con el nivel, siempre', () => {
-    const g = 777777;
-    const cupos = M.NIVELES.map(n => M.calcularCupo(g, n));
-    for (let i = 1; i < cupos.length; i++) assert.ok(cupos[i] > cupos[i - 1]);
+  test('sin nivel funciona: el cupo no depende de él', () => {
+    assert.equal(M.calcularCupo(100000), 100000);
+    assert.equal(M.calcularCupo(100000, undefined), 100000);
+  });
+
+  test('EL SEGUNDO CRÉDITO DA 115.000 EXACTOS, que es el número que pidió Joan', () => {
+    // Cupón lleno, 100.000 pedidos y pagados en fecha: 20.000 de costo, 15.000
+    // de garantía. Con el factor de plata daba 230.000, y por eso el factor se fue.
+    const gana = M.garantiaQueDejaUnCredito(100000, true);
+    assert.equal(gana, 15000);
+    assert.equal(M.calcularCupo(100000 + gana, 'plata'), 115000);
   });
 
   test('la plataforma llega hasta 20 millones y ahí se planta', () => {
     assert.equal(M.CUPO_MAXIMO, 20000000);
-    assert.equal(M.calcularCupo(6666667, 'platino'), 20000000);
+    assert.equal(M.calcularCupo(20000000, 'platino'), 20000000);
     assert.equal(M.calcularCupo(50000000, 'platino'), 20000000, 'no pasa del techo');
-    assert.equal(M.calcularCupo(6000000, 'platino'), 18000000, 'debajo del techo, la fórmula manda');
+    assert.equal(M.calcularCupo(6000000, 'platino'), 6000000, 'debajo del techo, la fórmula manda');
   });
 });
 
-describe('proyeccionNiveles — cuánto podría pedir si sube de nivel (§5)', () => {
+describe('proyeccionNiveles — qué se gana subiendo, ahora que no es cupo', () => {
 
-  test('con la misma garantía, muestra el cupo de los cuatro niveles', () => {
+  test('el cupo es el MISMO en los cuatro niveles', () => {
     const p = M.proyeccionNiveles(1000000, 'plata');
     assert.equal(p.length, 4);
-    assert.deepEqual(p.map(x => x.cupo), [1500000, 2000000, 2500000, 3000000]);
+    assert.deepEqual(p.map(x => x.cupo), [1000000, 1000000, 1000000, 1000000]);
     assert.deepEqual(p.map(x => x.nivel), ['bronce', 'plata', 'oro', 'platino']);
+    assert.deepEqual(p.map(x => x.mueve_el_cupo), [false, false, false, false]);
+  });
+
+  test('`factor` ya no viaja: ninguna pantalla puede prometer un múltiplo', () => {
+    M.proyeccionNiveles(1000000, 'plata').forEach(x => {
+      assert.equal(x.factor, undefined);
+    });
+    M.reglasResumen().niveles.forEach(n => assert.equal(n.factor, undefined));
+  });
+
+  test('lo que sí cambia por nivel son las prórrogas', () => {
+    const p = M.proyeccionNiveles(1000000, 'bronce');
+    assert.equal(p[0].prorrogas, 1);
+    assert.equal(p[3].prorrogas, 2);
+    assert.ok(p[3].prorrogas > p[0].prorrogas, 'subir sirve para algo');
   });
 
   test('marca en cuál está parado y cuáles ya pasó', () => {
@@ -371,11 +400,72 @@ describe('proyeccionNiveles — cuánto podría pedir si sube de nivel (§5)', (
     assert.equal(p[3].prorrogas, 2);
   });
 
-  test('el camino a los 20 millones: cuánta garantía hace falta', () => {
-    assert.equal(M.garantiaNecesariaPara(20000000, 'platino'), 6666667);
-    assert.equal(M.garantiaNecesariaPara(20000000, 'bronce'), 13333334);
-    assert.equal(M.garantiaNecesariaPara(1000000, 'oro'), 400000);
+  test('el camino a los 20 millones: la garantía que hace falta es el cupo mismo', () => {
+    assert.equal(M.garantiaNecesariaPara(20000000, 'platino'), 20000000);
+    assert.equal(M.garantiaNecesariaPara(20000000, 'bronce'), 20000000);
+    assert.equal(M.garantiaNecesariaPara(1000000, 'oro'), 1000000);
     assert.equal(M.calcularCupo(M.garantiaNecesariaPara(20000000, 'platino'), 'platino'), 20000000);
+  });
+});
+
+describe('el freno por ingreso viene APAGADO (5-ago-2026)', () => {
+
+  test('la constante está en false, y eso es la decisión de Joan', () => {
+    assert.equal(M.FRENO_INGRESO.activo, false);
+    assert.equal(M.FRENO_INGRESO.fraccion_quincena, 0.30);
+  });
+
+  test('apagado no toca nada, tenga el socio el ingreso que tenga', () => {
+    const r = M.frenarPorIngreso(1000000, { ingreso_quincenal: 100000 });
+    assert.equal(r.cupo, 1000000);
+    assert.equal(r.aplicado, false);
+    assert.equal(r.activo, false);
+    assert.equal(r.tope_por_ingreso, null);
+  });
+
+  test('encendido topa la cuota a la fracción de la quincena', () => {
+    // Quincena de 2.000.000, fracción 0,30 → cuota máxima 600.000 → capital
+    // 500.000, porque la cuota es capital + el 20% de costo.
+    const r = M.frenarPorIngreso(1000000, { activo: true, ingreso_quincenal: 2000000 });
+    assert.equal(r.tope_por_ingreso, 500000);
+    assert.equal(r.cupo, 500000);
+    assert.equal(r.aplicado, true);
+    assert.equal(r.cuota_maxima, 600000);
+    assert.ok(r.cuota_maxima <= 2000000 * 0.30);
+  });
+
+  test('encendido nunca SUBE un cupo: solo topa', () => {
+    const r = M.frenarPorIngreso(100000, { activo: true, ingreso_quincenal: 5000000 });
+    assert.equal(r.cupo, 100000);
+    assert.equal(r.aplicado, false);
+  });
+
+  test('encendido pero sin ingreso declarado no topa: no se castiga al que no contestó', () => {
+    const r = M.frenarPorIngreso(1000000, { activo: true });
+    assert.equal(r.cupo, 1000000);
+    assert.equal(r.tope_por_ingreso, null);
+    assert.equal(M.cupoPorIngreso(0), null);
+  });
+
+  test('la fracción se puede mover desde Ajustes', () => {
+    assert.equal(M.cupoPorIngreso(1200000, { fraccion_quincena: 0.50 }), 500000);
+    assert.throws(() => M.cupoPorIngreso(1200000, { fraccion_quincena: 30 }), /decimal/);
+  });
+
+  test('EL FRENO EXISTE PORQUE EL 15% COMPONE: al crédito 24 la cuota es absurda', () => {
+    let g = 100000, pide = 0, costo = 0;
+    for (let i = 1; i <= 24; i++) {
+      pide = M.calcularCupo(g, 'bronce');
+      costo = M.calcularCosto(pide);
+      g += M.garantiaQueDejaUnCredito(pide, true);
+    }
+    assert.equal(pide, 2489146);
+    assert.equal(costo, 497829, 'solo el costo de la quincena');
+    assert.equal(pide + costo, 2986975, 'la cuota entera');
+    // Y con el freno encendido para una quincena de 3.000.000 no pasa de ahí.
+    const r = M.frenarPorIngreso(pide, { activo: true, ingreso_quincenal: 3000000 });
+    assert.equal(r.cupo, 750000);
+    assert.equal(r.aplicado, true);
   });
 });
 
@@ -513,7 +603,10 @@ describe('garantiaTotal — de dónde sale cada peso', () => {
   test('el que llena todo el perfil ya puede pedir sin haber pagado nunca', () => {
     const g = M.garantiaTotal({ datos: datosCompletos() });
     assert.equal(g.total, 100000);
-    assert.equal(M.calcularCupo(g.total, 'bronce'), 150000); // 100.000 × 1,5
+    // 5-ago-2026: el cupo es la garantía uno a uno. Con la ficha completa el
+    // socio arranca con 100.000 —"todos inician con 100.000", dijo Joan— y no
+    // con los 150.000 que le regalaba el factor de bronce.
+    assert.equal(M.calcularCupo(g.total, 'bronce'), 100000);
   });
 
   test('AJUSTE DE MIGRACIÓN: Joan puede reconocerle de más a un cliente viejo (§13)', () => {
@@ -551,17 +644,20 @@ describe('garantiaTotal — de dónde sale cada peso', () => {
 
 describe('acumularGarantia — todo suma, y en fecha suma el doble (29-jul-2026)', () => {
 
-  test('PAGANDO EN FECHA: cada peso de costo deja 90 centavos de cupo', () => {
-    assert.equal(M.FACTOR_GARANTIA, 0.90);
-    assert.equal(M.acumularGarantia(20000, true), 18000);
-    assert.equal(M.acumularGarantia(100000, true), 90000);
-    assert.equal(M.acumularGarantia(20000), 18000, 'sin el flag se asume puntual');
+  /* 5-ago-2026: el factor pasó de 0,90 a 0,75. El otro 25% no se pierde —es el
+     10% operativo y el 15% que amortiza el cupón regalado (repartirCosto)— y la
+     regla de la puntualidad no se movió: en fecha completo, tarde la mitad. */
+  test('PAGANDO EN FECHA: cada peso de costo deja 75 centavos de cupo', () => {
+    assert.equal(M.FACTOR_GARANTIA, 0.75);
+    assert.equal(M.acumularGarantia(20000, true), 15000);
+    assert.equal(M.acumularGarantia(100000, true), 75000);
+    assert.equal(M.acumularGarantia(20000), 15000, 'sin el flag se asume puntual');
   });
 
   test('PAGANDO TARDE sigue sumando, pero la mitad', () => {
-    assert.equal(M.FACTOR_GARANTIA_MORA, 0.45);
-    assert.equal(M.acumularGarantia(20000, false), 9000);
-    assert.equal(M.acumularGarantia(5000000, false), 2250000);
+    assert.equal(M.FACTOR_GARANTIA_MORA, 0.375);
+    assert.equal(M.acumularGarantia(20000, false), 7500);
+    assert.equal(M.acumularGarantia(5000000, false), 1875000);
   });
 
   test('nadie deja de sumar: la mora no congela ni resta', () => {
@@ -574,9 +670,17 @@ describe('acumularGarantia — todo suma, y en fecha suma el doble (29-jul-2026)
     assert.equal(M.acumularGarantia(1, false), 0);
   });
 
-  test('el puntual acumula exactamente el doble que el atrasado', () => {
-    for (const costo of [20000, 100000, 456780]) {
+  test('el puntual acumula el doble que el atrasado, salvo el medio peso del redondeo', () => {
+    for (const costo of [20000, 100000]) {
       assert.equal(M.acumularGarantia(costo, true), M.acumularGarantia(costo, false) * 2);
+    }
+    /* 5-ago-2026 — con el factor en 0,375 hay costos donde la mitad cae justo en
+       el medio peso y redondea para arriba: 456.780 deja 342.585 en fecha y
+       171.293 tarde, o sea 342.586 al duplicarlo. Un peso a favor del socio y
+       nada más; lo que la regla promete es la mitad, no una identidad exacta. */
+    for (const costo of [456780, 3, 7, 13, 99, 101, 12345, 999999]) {
+      const dif = M.acumularGarantia(costo, false) * 2 - M.acumularGarantia(costo, true);
+      assert.ok(Math.abs(dif) <= 1, costo + ' se desvió ' + dif + ' pesos');
     }
   });
 
@@ -588,9 +692,9 @@ describe('acumularGarantia — todo suma, y en fecha suma el doble (29-jul-2026)
   });
 
   test('redondea al peso', () => {
-    assert.equal(M.acumularGarantia(15001, false), 6750);   // 6.750,45 → 6.750
-    assert.equal(M.acumularGarantia(5, false), 2);          // 2,25 → 2
-    assert.equal(M.acumularGarantia(1, false), 0);          // 0,45 → 0
+    assert.equal(M.acumularGarantia(15001, false), 5625);   // 5.625,375 → 5.625
+    assert.equal(M.acumularGarantia(5, false), 2);          // 1,875 → 2
+    assert.equal(M.acumularGarantia(1, false), 0);          // 0,375 → 0
   });
 
   test('costo cero acumula cero', () => {
@@ -602,7 +706,9 @@ describe('acumularGarantia — todo suma, y en fecha suma el doble (29-jul-2026)
     const capital = 300000;
     const costo = M.calcularCosto(capital);
     assert.equal(costo, 60000);
-    assert.equal(M.acumularGarantia(costo, true), 54000);
+    assert.equal(M.acumularGarantia(costo, true), 45000);
+    // Y el 15% del capital, que es la misma cuenta dicha como la dice Joan.
+    assert.equal(M.garantiaQueDejaUnCredito(capital, true), 45000);
   });
 
   test('si se pasa el flag, tiene que ser booleano de verdad', () => {
@@ -693,13 +799,13 @@ describe('tramoDeMora — §9', () => {
 
 describe('liquidarCredito — cuánto paga y cuánta garantía deja', () => {
 
-  test('pago puntual: sin recargo, y el 90% del costo se vuelve garantía', () => {
+  test('pago puntual: sin recargo, y el 75% del costo se vuelve garantía', () => {
     const l = M.liquidarCredito(creditoBase(), '2026-07-15');
     assert.equal(l.dias_mora, 0);
     assert.equal(l.pago_a_tiempo, true);
     assert.equal(l.recargo_mora, 0);
     assert.equal(l.total_a_pagar, 360000);
-    assert.equal(l.garantia_generada, 54000);   // 90% de 60.000
+    assert.equal(l.garantia_generada, 45000);   // 75% de 60.000
     assert.equal(l.tramo, 'preventivo');
   });
 
@@ -707,7 +813,7 @@ describe('liquidarCredito — cuánto paga y cuánta garantía deja', () => {
     const l = M.liquidarCredito(creditoBase(), '2026-07-08');
     assert.equal(l.dias_mora, 0);
     assert.equal(l.recargo_mora, 0);
-    assert.equal(l.garantia_generada, 54000);
+    assert.equal(l.garantia_generada, 45000);
     assert.equal(l.tramo, 'vigente');
   });
 
@@ -717,7 +823,7 @@ describe('liquidarCredito — cuánto paga y cuánta garantía deja', () => {
     assert.equal(l.recargo_mora, 30000);           // 300.000 × 1% × 10
     assert.equal(l.costo_total_pagado, 90000);     // 60.000 + 30.000
     assert.equal(l.total_a_pagar, 390000);
-    assert.equal(l.garantia_generada, 40500);      // 45% de 90.000
+    assert.equal(l.garantia_generada, 33750);      // 37,5% de 90.000
     assert.equal(l.tramo, 'D2');
   });
 
@@ -749,7 +855,7 @@ describe('liquidarCredito — cuánto paga y cuánta garantía deja', () => {
 
   test('le dice cuánto habría ganado pagando en fecha, para poder mostrárselo', () => {
     const l = M.liquidarCredito(creditoBase(), '2026-07-25');
-    assert.equal(l.garantia_si_puntual, 54000);
+    assert.equal(l.garantia_si_puntual, 45000);
     assert.ok(l.garantia_si_puntual > l.garantia_generada);
   });
 
@@ -765,7 +871,7 @@ describe('liquidarCredito — cuánto paga y cuánta garantía deja', () => {
     const tarde = M.liquidarCredito(creditoBase(), '2026-08-15');
     assert.equal(tarde.dias_mora, 31);
     assert.equal(tarde.recargo_mora, 93000);
-    assert.equal(tarde.garantia_generada, 68850);  // 45% de (60.000 + 93.000)
+    assert.equal(tarde.garantia_generada, 57375);  // 37,5% de (60.000 + 93.000)
     assert.ok(tarde.total_a_pagar > aTiempo.total_a_pagar * 1.25, 'le costó bastante más');
     assert.ok(tarde.garantia_generada > aTiempo.garantia_generada,
       'con 31 días de recargo sí lo pasa: el bono es del 50%, no un bloqueo');
@@ -812,38 +918,47 @@ describe('simularCredito — con precio fijo, la pregunta es el CUPO', () => {
   });
 
   test('LO QUE CAMBIA ES SI LE ALCANZA EL CUPO', () => {
-    const alcanza = M.simularCredito(300000, 250000, { nivelSocio: 'bronce' }); // cupo 375.000
-    assert.equal(alcanza.cupo, 375000);
+    // 5-ago-2026: el cupo es la garantía uno a uno, así que con 250.000 de
+    // garantía puede pedir 250.000 —antes bronce le abría 375.000—.
+    const alcanza = M.simularCredito(250000, 250000, { nivelSocio: 'bronce' });
+    assert.equal(alcanza.cupo, 250000);
     assert.equal(alcanza.dentro_del_cupo, true);
     assert.equal(alcanza.falta_garantia, 0);
 
-    const no = M.simularCredito(1000000, 250000, { nivelSocio: 'bronce' });
-    assert.equal(no.dentro_del_cupo, false);
-    assert.ok(no.falta_garantia > 0);
+    const no = M.simularCredito(300000, 250000, { nivelSocio: 'bronce' });
+    assert.equal(no.dentro_del_cupo, false, 'un peso de más que su garantía ya no entra');
+    assert.equal(no.falta_garantia, 50000);
   });
 
   test('dice cuánta garantía le falta para poder pedir ese monto', () => {
     const s = M.simularCredito(1000000, 250000, { nivelSocio: 'bronce' });
     assert.equal(s.garantia_necesaria, M.garantiaNecesariaPara(1000000, 'bronce'));
-    assert.equal(s.garantia_necesaria, 666667);
-    assert.equal(s.falta_garantia, 666667 - 250000);
+    assert.equal(s.garantia_necesaria, 1000000, 'lo que hace falta es el monto mismo');
+    assert.equal(s.falta_garantia, 1000000 - 250000);
     // y con esa garantía, efectivamente le alcanza
     assert.equal(M.simularCredito(1000000, s.garantia_necesaria, { nivelSocio: 'bronce' }).dentro_del_cupo, true);
   });
 
-  test('el mismo monto le alcanza antes si sube de nivel', () => {
+  /* Esta prueba comprobaba que "el mismo monto le alcanza antes si sube de
+     nivel". Ya no es verdad y era justamente lo que Joan mandó derogar: lo que
+     comprueba ahora es que el nivel NO adelante nada. Lo único que adelanta el
+     cupo es pagar. */
+  test('subir de nivel NO le alcanza para pedir más: solo pagar lo hace', () => {
     const bronce = M.simularCredito(1000000, 400000, { nivelSocio: 'bronce' });
     const oro = M.simularCredito(1000000, 400000, { nivelSocio: 'oro' });
     assert.equal(bronce.dentro_del_cupo, false);
-    assert.equal(oro.dentro_del_cupo, true);
-    assert.ok(oro.falta_garantia < bronce.falta_garantia);
+    assert.equal(oro.dentro_del_cupo, false, 'oro no le abre ni un peso más');
+    assert.equal(oro.cupo, bronce.cupo);
+    assert.equal(oro.falta_garantia, bronce.falta_garantia);
+    // Con la garantía ganada sí: 1.000.000 pagados le dejan 150.000 de cupo nuevo.
+    assert.equal(bronce.garantia_que_deja, 150000);
   });
 
   test('muestra cuánta garantía le deja y a cuánto le sube el cupo', () => {
     const s = M.simularCredito(500000, 250000, { nivelSocio: 'bronce' });
-    assert.equal(s.garantia_que_deja, 90000);         // el 90% del costo
-    assert.equal(s.garantia_despues, 340000);
-    assert.equal(s.cupo_despues, 510000);
+    assert.equal(s.garantia_que_deja, 75000);         // el 15% del capital
+    assert.equal(s.garantia_despues, 325000);
+    assert.equal(s.cupo_despues, 325000);
     assert.ok(s.cupo_despues > s.cupo, 'el cupo sube por pagar');
   });
 
@@ -887,11 +1002,41 @@ describe('proyectarCrecimiento — cómo sube la garantía crédito a crédito',
 
   test('LA ESCALERA DE VERDAD: pidiendo todo el cupo cada vuelta', () => {
     const p = M.proyectarCrecimiento(200000, 200000, 6, 'bronce', { pideElCupo: true });
-    assert.equal(p[0].capital, 300000, 'la primera vez pide su cupo, no el monto base');
+    assert.equal(p[0].capital, 200000, 'pide su cupo, que ahora es su garantía');
     for (let i = 1; i < p.length; i++) {
       assert.ok(p[i].capital > p[i - 1].capital, 'cada vuelta puede pedir más');
     }
-    assert.ok(p[5].cupo > p[0].cupo * 3, 'a la sexta vuelta el cupo se multiplicó');
+    // Un 15% por vuelta duplica en cinco: a la sexta está arriba del doble.
+    assert.ok(p[5].cupo > p[0].cupo * 2, 'a la sexta vuelta el cupo se duplicó');
+  });
+
+  test('LA ESCALERA DE LA WEB PÚBLICA, PESO A PESO (5-ago-2026)', () => {
+    /* La tabla que Joan fijó y que index.html tiene que mostrar. Arranca con el
+       cupón de 100.000 completo y paga todo en fecha. Si un solo peso de esta
+       tabla se mueve, la web pública queda prometiendo algo que el motor no da. */
+    const p = M.proyectarCrecimiento(100000, 100000, 5, 'bronce', { pideElCupo: true });
+    const esperado = [
+      { capital: 100000, costo: 20000, gana: 15000, garantia: 115000 },
+      { capital: 115000, costo: 23000, gana: 17250, garantia: 132250 },
+      { capital: 132250, costo: 26450, gana: 19838, garantia: 152088 },
+      { capital: 152088, costo: 30418, gana: 22813, garantia: 174901 },
+      { capital: 174901, costo: 34980, gana: 26235, garantia: 201136 }
+    ];
+    p.forEach((paso, i) => {
+      assert.equal(paso.capital, esperado[i].capital, 'pide, crédito ' + (i + 1));
+      assert.equal(paso.costo, esperado[i].costo, 'costo, crédito ' + (i + 1));
+      assert.equal(paso.garantia_ganada, esperado[i].gana, '+garantía, crédito ' + (i + 1));
+      assert.equal(paso.garantia, esperado[i].garantia, 'garantía total, crédito ' + (i + 1));
+      assert.equal(paso.cupo, esperado[i].garantia, 'ya puede pedir, crédito ' + (i + 1));
+    });
+    // Y la regla en una frase: el cupo se duplica en cinco créditos.
+    assert.ok(p[4].cupo >= 200000);
+  });
+
+  test('EL SEGUNDO CRÉDITO DA 115.000, no 230.000', () => {
+    const p = M.proyectarCrecimiento(100000, 100000, 2, 'bronce', { pideElCupo: true });
+    assert.equal(p[0].cupo, 115000, 'el número con el que Joan pidió el cambio');
+    assert.equal(p[1].capital, 115000);
   });
 
   test('sin pedir el cupo, repite el mismo monto y aun así crece', () => {
@@ -907,6 +1052,20 @@ describe('proyectarCrecimiento — cómo sube la garantía crédito a crédito',
     assert.equal(p.garantia_ganada, s.garantia_que_deja);
     assert.equal(p.garantia, s.garantia_despues);
     assert.equal(p.cupo, s.cupo_despues);
+  });
+
+  test('EL PESO DEL DOBLE REDONDEO: la escalera y el cobro real se rozan en 1', () => {
+    /* La escalera promete el 15% del capital en un solo redondeo; lo que se
+       acredita el día del cobro sale del costo YA redondeado, y eso puede
+       desviarse un peso (152.088 → 22.813 prometidos, 22.814 cobrados). Queda
+       escrito como decisión y no como sorpresa: la escalera es la promesa, el
+       cobro es la plata, y la diferencia nunca pasa de un peso. */
+    for (const cap of [100000, 115000, 132250, 152088, 174901, 17, 99999, 1234567]) {
+      const prometido = M.garantiaQueDejaUnCredito(cap, true);
+      const cobrado = M.acumularGarantia(M.calcularCosto(cap), true);
+      assert.ok(Math.abs(prometido - cobrado) <= 1,
+        cap + ': la escalera dice ' + prometido + ' y el cobro deja ' + cobrado);
+    }
   });
 
   test('cero vueltas devuelve una lista vacía, sin reventar', () => {
@@ -1010,7 +1169,7 @@ describe('puedeSolicitar — "así pagues en mora, Joan siempre te va a prestar"
     const r = M.puedeSolicitar({ nivel_kyc: 1, estado: 'en_mora', garantia_total: 200000, nivel_socio: 'plata' });
     assert.equal(r.ok, true);
     assert.equal(r.motivo, null);
-    assert.equal(r.cupo, 400000);   // 200.000 × 2 (plata)
+    assert.equal(r.cupo, 200000);   // su garantía, uno a uno (5-ago-2026)
   });
 
   test('el socio al día también, obvio', () => {
@@ -1025,9 +1184,14 @@ describe('puedeSolicitar — "así pagues en mora, Joan siempre te va a prestar"
       'castigo_sin_abonos');
   });
 
-  test('el cupo que devuelve es el del nivel alcanzado', () => {
-    const r = M.puedeSolicitar({ nivel_kyc: 1, garantia_total: 400000, nivel_socio: 'oro' });
-    assert.equal(r.cupo, 1000000);  // 400.000 × 2,5
+  /* Se llamaba "el cupo que devuelve es el del nivel alcanzado" y comprobaba el
+     ×2,5 de oro. Ahora comprueba lo contrario, que es la regla nueva: el cupo
+     que devuelve es la garantía, y el nivel no lo toca. */
+  test('el cupo que devuelve es la garantía, en cualquier nivel', () => {
+    const oro = M.puedeSolicitar({ nivel_kyc: 1, garantia_total: 400000, nivel_socio: 'oro' });
+    const bronce = M.puedeSolicitar({ nivel_kyc: 1, garantia_total: 400000, nivel_socio: 'bronce' });
+    assert.equal(oro.cupo, 400000);
+    assert.equal(bronce.cupo, 400000);
   });
 });
 
@@ -1119,15 +1283,15 @@ describe('aplicarProrroga — costo y corrimiento (§8)', () => {
     assert.equal(r.movimiento.tipo, 'costo_prorroga');
     assert.equal(r.movimiento.monto, 60000);
     assert.equal(r.movimiento.genera_garantia, true);
-    assert.equal(r.movimiento.garantia_generada, 54000);   // el 90% del costo
-    assert.equal(r.garantia_generada, 54000);
+    assert.equal(r.movimiento.garantia_generada, 45000);   // el 75% del costo
+    assert.equal(r.garantia_generada, 45000);
     assert.equal(r.credito.total_a_pagar, 360000, 'el costo de la prórroga se cobra aparte (D5)');
   });
 
   test('prorrogar dos veces acumula dos veces', () => {
     const uno = M.aplicarProrroga(creditoBase({ nivel_socio: 'plata' }));
     const dos = M.aplicarProrroga(uno.credito);
-    assert.equal(uno.garantia_generada + dos.garantia_generada, 108000);
+    assert.equal(uno.garantia_generada + dos.garantia_generada, 90000);
   });
 
   test('no muta el crédito recibido', () => {
@@ -1204,10 +1368,10 @@ describe('aplicarProrroga — salida obligatoria a plan de pagos (§8)', () => {
     assert.equal(plan.genera_garantia, true); // cambio 26-jul-2026
   });
 
-  test('cada cuota del plan deja de garantía el 90% de su costo', () => {
+  test('cada cuota del plan deja de garantía el 75% de su costo', () => {
     const plan = M.construirPlanDePagos(creditoBase({ fecha_corte: '2026-07-31' }));
-    assert.deepEqual(plan.cuotas.map(c => c.garantia_generada), [13500, 9000, 4500]);
-    assert.equal(plan.total_garantia, 27000);
+    assert.deepEqual(plan.cuotas.map(c => c.garantia_generada), [11250, 7500, 3750]);
+    assert.equal(plan.total_garantia, 22500);
   });
 
   test('reparte el capital en 3 cortes con 5% sobre saldo insoluto', () => {
@@ -1278,24 +1442,33 @@ describe('recorrido de un socio (§1: la garantía solo crece pagando a tiempo)'
     let nivel = M.evaluarNivel(pagos, racha, 0);
     const paso = [];
 
-    for (let i = 1; i <= 12 && garantia * 3 < 25000000; i++) {
+    /* 5-ago-2026 — EL CAMINO AL TECHO SE ALARGÓ, Y A PROPÓSITO. Con el factor de
+       nivel se llegaba a los 20 millones en 11 créditos: se prestaba tres veces
+       lo que el socio había pagado. Ahora el cupo sube 15% por crédito y llegar
+       al techo toma unos 34, cinco veces más. Eso NO es un defecto: es lo que
+       hace que la exposición de Joan baje en vez de subir. */
+    for (let i = 1; i <= 40 && garantia < 20000000; i++) {
       const cupo = M.calcularCupo(garantia, nivel);
       const costo = M.calcularCosto(cupo);
-      garantia += M.acumularGarantia(costo, true);
+      garantia += M.garantiaQueDejaUnCredito(cupo, true);
       pagos++; racha++;
       nivel = M.evaluarNivel(pagos, racha, Math.floor(i / 2), nivel);
       paso.push({ i, cupo, nivel });
     }
 
-    // Arranca pudiendo pedir la mitad más de lo que tiene de garantía.
-    assert.equal(paso[0].cupo, 300000);
-    // A los dos pagos ya es plata, a los cinco oro.
+    // Arranca pudiendo pedir exactamente lo que respalda.
+    assert.equal(paso[0].cupo, 200000);
+    // A los dos pagos ya es plata, a los cinco oro: los niveles siguen ahí.
     assert.equal(paso[2].nivel, 'plata');
     assert.equal(paso[5].nivel, 'oro');
-    // Y el cupo crece siempre.
+    // Y el cupo crece siempre, un 15% cada vez.
     for (let i = 1; i < paso.length; i++) assert.ok(paso[i].cupo > paso[i - 1].cupo);
-    // Llega al techo en poco más de diez créditos.
-    assert.ok(paso.length <= 12, 'llegó en ' + paso.length + ' créditos');
+    assert.equal(paso[1].cupo, 230000, '200.000 + el 15%');
+    // Se duplica en cinco créditos.
+    assert.ok(paso[5].cupo >= 400000, 'a los cinco créditos ya duplicó: ' + paso[5].cupo);
+    // Y el techo llega, pero despacio.
+    assert.ok(paso.length > 25, 'antes llegaba en 11: ' + paso.length);
+    assert.ok(paso.length <= 40, 'llegó en ' + paso.length + ' créditos');
     assert.ok(M.calcularCupo(garantia, nivel) >= 15000000, 'quedó cerca del techo');
   });
 
@@ -1332,6 +1505,7 @@ describe('recorrido de un socio (§1: la garantía solo crece pagando a tiempo)'
     });
     assert.equal(solicitud.ok, true, 'aunque venga de mora, Joan le presta');
     assert.ok(solicitud.cupo > M.calcularCupo(250000, 'oro'), 'y con más cupo que antes');
+    assert.equal(solicitud.cupo, garantia, 'el cupo es su garantía, uno a uno');
   });
 
   test('el que nunca abona queda suspendido, pero su garantía lo espera', () => {
@@ -1367,18 +1541,19 @@ describe('desglosarGarantia — ganada, prestada y comprometida', () => {
     assert.equal(M.maximoRespaldado({ datos: datosCompletos(), referidos: 2 }), 0);
     assert.equal(M.maximoRespaldado({}), 0);
     // Y el cupo quincenal sí las suma a las dos: son cosas distintas.
-    assert.equal(M.cupoQuincenal({ datos: datosCompletos(), referidos: 2 }, 'bronce').cupo, 165000);
+    // 100.000 de cupón + 10.000 de dos referidos que pagaron = 110.000, uno a uno.
+    assert.equal(M.cupoQuincenal({ datos: datosCompletos(), referidos: 2 }, 'bronce').cupo, 110000);
   });
 
   test('pagando costos aparece la garantía GANADA, y esa sí respalda', () => {
-    // 400.000 de costos pagados en fecha dejan 360.000 (el 90%).
+    // 400.000 de costos pagados en fecha dejan 300.000 (el 75%).
     const acumulada = M.acumularGarantia(400000, true);
-    assert.equal(acumulada, 360000);
+    assert.equal(acumulada, 300000);
     const d = M.desglosarGarantia({ datos: datosCompletos(), acumulada: acumulada });
-    assert.equal(d.ganada, 360000);
+    assert.equal(d.ganada, 300000);
     assert.equal(d.prestada, 100000);
-    assert.equal(d.total, 460000);
-    assert.equal(M.maximoRespaldado({ datos: datosCompletos(), acumulada: acumulada }), 360000);
+    assert.equal(d.total, 400000);
+    assert.equal(M.maximoRespaldado({ datos: datosCompletos(), acumulada: acumulada }), 300000);
   });
 
   test('lo comprometido sale del cupo quincenal mientras el respaldado esté abierto', () => {
@@ -1429,35 +1604,54 @@ describe('desglosarGarantia — ganada, prestada y comprometida', () => {
 
 describe('cupoQuincenal — la comprometida no cuenta', () => {
 
-  test('424.000 de garantía en platino dan 1.272.000 de cupo', () => {
+  test('424.000 de garantía dan 424.000 de cupo, en platino y en bronce', () => {
     const c = M.cupoQuincenal({ datos: datosCompletos(), acumulada: 324000 }, 'platino');
     assert.equal(c.total, 424000);
     assert.equal(c.ganada, 324000);
     assert.equal(c.prestada, 100000);
-    assert.equal(c.cupo, 1272000);
+    assert.equal(c.cupo, 424000);
     assert.equal(c.respaldo_disponible, 324000);
-    assert.equal(c.factor, 3.0);
+    assert.equal(c.factor, undefined, '`factor` ya no viaja: no multiplica nada');
+    assert.equal(c.nivel_mueve_el_cupo, false);
+    assert.equal(
+      M.cupoQuincenal({ datos: datosCompletos(), acumulada: 324000 }, 'bronce').cupo, 424000);
   });
 
   test('con esos 324.000 comprometidos el cupo baja a lo prestado', () => {
     const c = M.cupoQuincenal(
       { datos: datosCompletos(), acumulada: 324000, comprometida: 324000 }, 'platino');
     assert.equal(c.base, 100000);
-    assert.equal(c.cupo, 300000);
+    assert.equal(c.cupo, 100000);
     assert.equal(c.respaldo_disponible, 0, 'no puede pedir dos respaldados contra la misma garantía');
     assert.equal(c.total, 424000, 'la garantía no desapareció: está respaldando algo');
   });
 
   test('sin nivel arranca en bronce, y un nivel inventado es error', () => {
     assert.equal(M.cupoQuincenal({ acumulada: 100000 }).nivel, 'bronce');
-    assert.equal(M.cupoQuincenal({ acumulada: 100000 }).cupo, 150000);
+    assert.equal(M.cupoQuincenal({ acumulada: 100000 }).cupo, 100000);
     assert.throws(() => M.cupoQuincenal({}, 'diamante'), /nivel desconocido/);
+  });
+
+  test('EL FRENO POR INGRESO NO SE APLICA SI NADIE LO PIDE (5-ago-2026)', () => {
+    const e = { datos: datosCompletos(), acumulada: 900000 };
+    // Sin opciones: el cupo entero, como siempre.
+    assert.equal(M.cupoQuincenal(e, 'bronce').cupo, 1000000);
+    assert.equal(M.cupoQuincenal(e, 'bronce').freno.activo, false);
+    // Con la config de un socio que declaró ingreso, pero el freno apagado:
+    // tampoco. Encenderlo es una decisión de Joan y de nadie más.
+    assert.equal(M.cupoQuincenal(e, 'bronce', { freno: { ingreso_quincenal: 1000000 } }).cupo, 1000000);
+    // Y encendido, topa.
+    const con = M.cupoQuincenal(e, 'bronce', {
+      freno: { activo: true, ingreso_quincenal: 1000000 } });
+    assert.equal(con.cupo, 250000);
+    assert.equal(con.freno.aplicado, true);
+    assert.equal(con.base, 1000000, 'la garantía no cambia: lo que se topa es el cupo');
   });
 });
 
 describe('acumularGarantiaRespaldada — el respaldado deja mucho menos', () => {
 
-  test('solo el 20% del costo, contra el 90% del quincenal', () => {
+  test('solo el 20% del costo, contra el 75% del quincenal', () => {
     assert.equal(M.FACTOR_GARANTIA_RESPALDADO, 0.20);
     assert.equal(M.acumularGarantiaRespaldada(16200, true), 3240);
     assert.equal(M.acumularGarantiaRespaldada(16200), 3240, 'sin el flag se asume puntual');
@@ -1631,53 +1825,173 @@ describe('liquidarCuotaRespaldada — el mes a mes del Panel', () => {
   });
 });
 
-describe('repartirCosto — 90/7/3, la contabilidad que el socio no ve', () => {
+describe('repartirCosto — 75/10/15, la contabilidad que el socio no ve', () => {
 
-  test('de 20.000 de costo: 18.000 al socio, 600 al cupón, 1.400 a la plataforma', () => {
-    assert.deepEqual(M.repartirCosto(20000),
-      { total: 20000, garantia_socio: 18000, amortiza_cupon: 600, operativo: 1400 });
-    assert.deepEqual(M.REPARTO_COSTO, { garantia: 0.90, operativo: 0.07, cupon: 0.03 });
+  test('de 20.000 de costo: 15.000 al socio, 3.000 al cupón, 2.000 a la plataforma', () => {
+    const r = M.repartirCosto(20000);
+    assert.equal(r.total, 20000);
+    assert.equal(r.garantia_socio, 15000);
+    assert.equal(r.amortiza_cupon, 3000);
+    assert.equal(r.operativo, 2000);
+    assert.deepEqual(M.REPARTO_COSTO, { garantia: 0.75, operativo: 0.10, cupon: 0.15 });
   });
 
-  test('LOS TRES PEDAZOS SUMAN EL COSTO EXACTO, siempre y sin negativos', () => {
-    for (const costo of [0, 1, 3, 7, 999, 20000, 20001, 123457, 5000000]) {
+  test('EL REPARTO SUMA 100% EXACTO, en los dos casos y con costos feos', () => {
+    const feos = [0, 1, 3, 7, 13, 99, 101, 999, 12345, 20000, 20001, 123457, 999999, 5000000];
+    for (const costo of feos) {
       for (const aTiempo of [true, false]) {
         for (const producto of ['quincenal', 'respaldado']) {
-          const r = M.repartirCosto(costo, { aTiempo: aTiempo, producto: producto });
-          assert.equal(r.garantia_socio + r.amortiza_cupon + r.operativo, r.total,
-            `${costo} ${producto} ${aTiempo}`);
-          assert.ok(r.garantia_socio >= 0 && r.amortiza_cupon >= 0 && r.operativo >= 0,
-            `${costo} ${producto} ${aTiempo} dio un pedazo negativo`);
+          for (const pendiente of [undefined, 0, 1, 250, 100000]) {
+            const r = M.repartirCosto(costo,
+              { aTiempo: aTiempo, producto: producto, cuponPendiente: pendiente });
+            assert.equal(r.garantia_socio + r.amortiza_cupon + r.operativo, r.total,
+              `${costo} ${producto} ${aTiempo} pend=${pendiente}`);
+            assert.ok(r.garantia_socio >= 0 && r.amortiza_cupon >= 0 && r.operativo >= 0,
+              `${costo} ${producto} ${aTiempo} pend=${pendiente} dio un pedazo negativo`);
+          }
         }
       }
     }
   });
 
-  test('al socio que ya devolvió su cupón deja de cobrársele el 3%', () => {
-    const r = M.repartirCosto(20000, { cuponPendiente: 0 });
-    assert.equal(r.amortiza_cupon, 0);
-    assert.equal(r.garantia_socio, 18000, 'su garantía no cambia ni un peso');
-    assert.equal(r.operativo, 2000);
-    // Y si le quedaba poquito, se cobra solo lo que faltaba.
-    assert.equal(M.repartirCosto(20000, { cuponPendiente: 250 }).amortiza_cupon, 250);
+  test('BARRIDO: ni un peso perdido ni un pedazo negativo en 3.000 costos seguidos', () => {
+    for (let costo = 0; costo <= 3000; costo++) {
+      for (const aTiempo of [true, false]) {
+        const r = M.repartirCosto(costo, { aTiempo: aTiempo });
+        assert.equal(r.garantia_socio + r.amortiza_cupon + r.operativo, costo, costo + ' ' + aTiempo);
+        assert.ok(r.operativo >= 0, costo + ' ' + aTiempo);
+      }
+    }
   });
 
-  test('pagando tarde el reparto queda 45/3/52: el bono sale de lo operativo', () => {
-    assert.deepEqual(M.repartirCosto(20000, { aTiempo: false }),
-      { total: 20000, garantia_socio: 9000, amortiza_cupon: 600, operativo: 10400 });
+  test('al socio que ya devolvió su cupón deja de cobrársele el 15%', () => {
+    const r = M.repartirCosto(20000, { cuponPendiente: 0 });
+    assert.equal(r.amortiza_cupon, 0);
+    assert.equal(r.garantia_socio, 15000, 'su garantía no cambia ni un peso');
+    assert.equal(r.operativo, 5000, 'el 15% liberado se suma a lo operativo');
+    // Y ese 15% liberado ya es GANANCIA, dicho aparte para que el Panel lo vea.
+    assert.equal(r.ganancia_cupon, 3000);
+    assert.equal(r.cupon_nominal, 3000);
+    // Si le quedaba poquito, se cobra solo lo que faltaba y el resto es ganancia.
+    const casi = M.repartirCosto(20000, { cuponPendiente: 250 });
+    assert.equal(casi.amortiza_cupon, 250);
+    assert.equal(casi.ganancia_cupon, 2750);
+    assert.equal(casi.garantia_socio + casi.amortiza_cupon + casi.operativo, 20000);
+  });
+
+  test('pagando tarde el reparto queda 37,5/47,5/15: el bono sale de lo operativo', () => {
+    const r = M.repartirCosto(20000, { aTiempo: false });
+    assert.equal(r.garantia_socio, 7500);
+    assert.equal(r.amortiza_cupon, 3000, 'el cupón se recupera igual: hay que recuperarlo igual');
+    assert.equal(r.operativo, 9500);
+    assert.equal(r.garantia_socio + r.amortiza_cupon + r.operativo, 20000);
+    // La mitad de la garantía del puntual, y el cupón intacto.
+    assert.equal(r.garantia_socio, M.repartirCosto(20000).garantia_socio / 2);
+    assert.equal(r.amortiza_cupon, M.repartirCosto(20000).amortiza_cupon);
   });
 
   test('en el respaldado el socio se lleva el 20% y el resto sostiene la casa', () => {
     const r = M.repartirCosto(16200, { producto: 'respaldado' });
     assert.equal(r.garantia_socio, 3240);
-    assert.equal(r.amortiza_cupon, 486);
-    assert.equal(r.operativo, 16200 - 3240 - 486);
+    assert.equal(r.amortiza_cupon, 2430, 'el 15% del cupón se cobra en los dos productos');
+    assert.equal(r.operativo, 16200 - 3240 - 2430);
   });
 
   test('entradas inválidas', () => {
     assert.throws(() => M.repartirCosto(-1), /negativo/);
     assert.throws(() => M.repartirCosto(20000, { producto: 'otro' }), /quincenal/);
     assert.throws(() => M.repartirCosto(20000, { aTiempo: 'si' }), /true o false/);
+  });
+});
+
+describe('amortizarCupon — el cupón se salda en el crédito 13 (5-ago-2026)', () => {
+
+  /* La escalera normal: cupón de 100.000 completo, pide todo su cupo cada vez y
+     paga en fecha. El 15% de cada costo va devolviendo el cupón. */
+  function escalera(n) {
+    let g = 100000;
+    const costos = [];
+    for (let i = 1; i <= n; i++) {
+      const pide = M.calcularCupo(g, 'bronce');
+      costos.push({ monto: M.calcularCosto(pide), aTiempo: true, tipo: 'credito', fecha: null });
+      g += M.garantiaQueDejaUnCredito(pide, true);
+    }
+    return costos;
+  }
+
+  test('EL CRÉDITO 13 LO SALDA, y ni uno antes', () => {
+    const doce = M.amortizarCupon(escalera(12), { cuponPrestado: 100000 });
+    assert.equal(doce.saldado, false);
+    assert.ok(doce.cupon_pendiente > 0, 'todavía queda ' + doce.cupon_pendiente);
+
+    const trece = M.amortizarCupon(escalera(13), { cuponPrestado: 100000 });
+    assert.equal(trece.saldado, true);
+    assert.equal(trece.cupon_pendiente, 0);
+    assert.equal(trece.cupon_recuperado, 100000, 'ni un peso más que lo que se regaló');
+    assert.equal(trece.saldado_en, 12, 'el movimiento 13, contando desde cero');
+  });
+
+  test('DESDE AHÍ EL 15% ES GANANCIA, y se dice de dónde sale', () => {
+    const c = M.amortizarCupon(escalera(14), { cuponPrestado: 100000 });
+    const m13 = c.movimientos[12], m14 = c.movimientos[13];
+    // El 13 se parte en dos: una parte termina de saldar, el resto ya es ganancia.
+    assert.ok(m13.amortiza_cupon > 0 && m13.ganancia_cupon > 0);
+    assert.equal(m13.amortiza_cupon + m13.ganancia_cupon,
+      Math.round(m13.monto * M.REPARTO_COSTO.cupon));
+    assert.equal(m13.cupon_pendiente_despues, 0);
+    // El 14 ya no amortiza nada: el 15% entero es ganancia.
+    assert.equal(m14.amortiza_cupon, 0);
+    assert.equal(m14.ganancia_cupon, Math.round(m14.monto * M.REPARTO_COSTO.cupon));
+    assert.ok(m14.operativo > m14.ganancia_cupon, 'la ganancia libre contiene ese 15%');
+  });
+
+  test('LA EXPOSICIÓN DE JOAN BAJA CRÉDITO A CRÉDITO, nunca sube', () => {
+    const c = M.amortizarCupon(escalera(13), { cuponPrestado: 100000 });
+    let anterior = 100000;
+    c.movimientos.forEach(m => {
+      assert.ok(m.cupon_pendiente_despues <= anterior,
+        'el pendiente subió en el movimiento ' + m.indice);
+      anterior = m.cupon_pendiente_despues;
+    });
+    assert.equal(c.expuesto, 0, 'al crédito 13 no arriesga nada');
+  });
+
+  test('lo cobrado se reparte entero: garantía + cupón + ganancia libre', () => {
+    const c = M.amortizarCupon(escalera(13), { cuponPrestado: 100000 });
+    assert.equal(c.garantia_socio + c.cupon_recuperado + c.ganancia_libre, c.cobrado);
+    assert.ok(c.garantia_socio > 0 && c.ganancia_libre > 0);
+  });
+
+  test('pagar tarde no frena la recuperación del cupón', () => {
+    const puntual = M.amortizarCupon(escalera(13), { cuponPrestado: 100000 });
+    const tarde = M.amortizarCupon(
+      escalera(13).map(c => Object.assign({}, c, { aTiempo: false })), { cuponPrestado: 100000 });
+    assert.equal(tarde.cupon_recuperado, puntual.cupon_recuperado);
+    assert.ok(tarde.garantia_socio < puntual.garantia_socio, 'lo que baja es su garantía');
+    assert.ok(tarde.ganancia_libre > puntual.ganancia_libre, 'y la diferencia va a operativo');
+  });
+
+  test('sin costos pagados, todo el cupón sigue en la calle', () => {
+    const c = M.amortizarCupon([], { cuponPrestado: 100000 });
+    assert.equal(c.cupon_pendiente, 100000);
+    assert.equal(c.cobrado, 0);
+    assert.equal(c.ganancia_libre, 0);
+    assert.equal(c.saldado_en, null);
+    assert.equal(M.amortizarCupon(null).cupon_prestado, M.CUPON_KYC_MAXIMO);
+  });
+
+  test('un socio con la ficha a medias arriesga menos', () => {
+    // El cupón es por dato: media ficha es medio riesgo, y con dos créditos ya
+    // recuperó una parte mayor de lo que se le regaló.
+    const medio = M.amortizarCupon(escalera(2), { cuponPrestado: 50000 });
+    const lleno = M.amortizarCupon(escalera(2), { cuponPrestado: 100000 });
+    assert.ok(medio.cupon_pendiente < lleno.cupon_pendiente);
+  });
+
+  test('entradas inválidas', () => {
+    assert.throws(() => M.amortizarCupon('costos'), /se esperaba una lista/);
+    assert.throws(() => M.amortizarCupon([1, 2]), /se esperaba un objeto/);
+    assert.throws(() => M.amortizarCupon([], { cuponPrestado: -1 }), /negativo/);
   });
 });
 
@@ -1691,18 +2005,18 @@ describe('compararProductos — plata barata o crecer', () => {
     assert.equal(c.plazo_meses, 6);
     // Una vuelta: lo que cuesta el producto hasta el corte.
     assert.equal(c.quincenal.costo, 64800);
-    assert.equal(c.quincenal.garantia_que_deja, 58320);
+    assert.equal(c.quincenal.garantia_que_deja, 48600);      // el 15% del capital
     // Los mismos 6 meses: renovándolo en los 12 cortes.
     assert.equal(c.quincenal.cortes_en_el_plazo, 12);
     assert.equal(c.quincenal.costo_en_el_plazo, 777600);     // 64.800 × 12
-    assert.equal(c.quincenal.garantia_en_el_plazo, 699840);  // 58.320 × 12
+    assert.equal(c.quincenal.garantia_en_el_plazo, 583200);  // 48.600 × 12
     assert.equal(c.respaldado.costo_total, 97200);
     assert.equal(c.respaldado.cuota_tipica, 70200);
     assert.equal(c.respaldado.garantia_que_deja, 19440);
     // Las diferencias son del plazo entero, nunca de una vuelta contra 6 meses.
     assert.equal(c.diferencias.costo_extra_quincenal, 680400);    // 777.600 − 97.200
-    assert.equal(c.diferencias.garantia_extra_quincenal, 680400); // 699.840 − 19.440
-    assert.equal(c.diferencias.veces_mas_garantia, 36);           // 699.840 / 19.440
+    assert.equal(c.diferencias.garantia_extra_quincenal, 563760); // 583.200 − 19.440
+    assert.equal(c.diferencias.veces_mas_garantia, 30);           // 583.200 / 19.440
     assert.equal(c.diferencias.cual_es_mas_barato, 'respaldado');
     assert.equal(c.diferencias.cual_hace_crecer_mas, 'quincenal');
     assert.equal(c.respaldado.plazo_texto, '6 meses');
@@ -1743,8 +2057,8 @@ describe('compararProductos — plata barata o crecer', () => {
   test('el cupo del quincenal también es del plazo entero, no de una vuelta', () => {
     const c = M.compararProductos(324000, 6, perfil, { nivelSocio: 'platino' });
     const base = M.desglosarGarantia(perfil).base_cupo;
-    assert.equal(c.quincenal.cupo_despues, M.calcularCupo(base + 58320, 'platino'));
-    assert.equal(c.quincenal.cupo_en_el_plazo, M.calcularCupo(base + 699840, 'platino'));
+    assert.equal(c.quincenal.cupo_despues, M.calcularCupo(base + 48600, 'platino'));
+    assert.equal(c.quincenal.cupo_en_el_plazo, M.calcularCupo(base + 583200, 'platino'));
     assert.ok(c.quincenal.cupo_en_el_plazo > c.quincenal.cupo_despues);
   });
 
@@ -1778,7 +2092,10 @@ describe('compararProductos — plata barata o crecer', () => {
     const c = M.compararProductos(900000, 6, perfil, { nivelSocio: 'platino' });
     assert.equal(c.respaldado.dentro_del_respaldo, false);
     assert.ok(c.respaldado.costo_total > 0, 'no se esconde el producto');
-    assert.equal(c.quincenal.dentro_del_cupo, true);
+    // 5-ago-2026: con el cupo uno a uno, 900.000 tampoco entran en el quincenal
+    // —el perfil tiene 424.000 de garantía— y los dos lados se muestran igual.
+    assert.equal(c.quincenal.dentro_del_cupo, false);
+    assert.ok(c.quincenal.costo > 0);
   });
 });
 
@@ -1840,7 +2157,7 @@ describe('códigos de invitación', () => {
 
 describe('las cuentas de Joan, con el motor de verdad', () => {
 
-  test('CINCO CRÉDITOS DE 100.000 DEJAN 90.000 DE GARANTÍA GANADA', () => {
+  test('CINCO CRÉDITOS DE 100.000 DEJAN 75.000 DE GARANTÍA GANADA', () => {
     let ganada = 0, costos = 0;
     for (let i = 0; i < 5; i++) {
       const costo = M.calcularCosto(100000);
@@ -1849,22 +2166,25 @@ describe('las cuentas de Joan, con el motor de verdad', () => {
       ganada += M.acumularGarantia(costo, true);
     }
     assert.equal(costos, 100000, 'pagó 100.000 en costos');
-    assert.equal(ganada, 90000, 'el 90% se le volvió garantía');
+    assert.equal(ganada, 75000, 'el 75% se le volvió garantía');
 
-    // El otro 10% no se pierde: sostiene la plataforma y devuelve el cupón.
+    // El otro 25% no se pierde: sostiene la plataforma (10%) y devuelve el
+    // cupón regalado (15%).
     const reparto = M.repartirCosto(costos);
-    assert.equal(reparto.garantia_socio, 90000);
-    assert.equal(reparto.amortiza_cupon + reparto.operativo, 10000);
+    assert.equal(reparto.garantia_socio, 75000);
+    assert.equal(reparto.amortiza_cupon, 15000);
+    assert.equal(reparto.operativo, 10000);
+    assert.equal(reparto.amortiza_cupon + reparto.operativo, 25000);
 
-    // Y con esos 90.000 puede pedir un respaldado de hasta 90.000.
+    // Y con esos 75.000 puede pedir un respaldado de hasta 75.000.
     const e = { datos: datosCompletos(), acumulada: ganada };
-    assert.equal(M.maximoRespaldado(e), 90000);
-    const s = M.simularPrestamoRespaldado(90000, 6, e);
+    assert.equal(M.maximoRespaldado(e), 75000);
+    const s = M.simularPrestamoRespaldado(75000, 6, e);
     assert.equal(s.dentro_del_respaldo, true);
-    assert.equal(s.costo_total, 27000);
+    assert.equal(s.costo_total, 22500);
   });
 
-  test('LA CUENTA DEMO: 10 créditos pagados en fecha dan 424.000 y cupo 1.272.000', () => {
+  test('LA CUENTA DEMO: 10 créditos pagados en fecha dan 370.000 y cupo 370.000', () => {
     const montos = [100000, 100000, 100000, 100000, 200000, 200000, 200000, 200000, 300000, 300000];
     let capital = 0, costos = 0, ganada = 0;
     montos.forEach(m => {
@@ -1874,7 +2194,7 @@ describe('las cuentas de Joan, con el motor de verdad', () => {
     });
     assert.equal(capital, 1800000);
     assert.equal(costos, 360000);
-    assert.equal(ganada, 324000);
+    assert.equal(ganada, 270000);
     // Acreditar crédito por crédito da lo mismo que acreditar el total de una.
     assert.equal(ganada, M.acumularGarantia(costos, true), 'sin arrastre de redondeo');
 
@@ -1884,20 +2204,23 @@ describe('las cuentas de Joan, con el motor de verdad', () => {
     const e = { datos: datosCompletos(), acumulada: ganada };
     const c = M.cupoQuincenal(e, nivel);
     assert.equal(c.prestada, 100000, 'el cupón de datos');
-    assert.equal(c.ganada, 324000);
-    assert.equal(c.total, 424000);
-    assert.equal(c.cupo, 1272000);
-    assert.equal(c.respaldo_disponible, 324000);
+    assert.equal(c.ganada, 270000);
+    assert.equal(c.total, 370000);
+    // 5-ago-2026: platino ya no multiplica. El cupo es la garantía, y el
+    // ejemplo de Joan pasa de 1.272.000 a 370.000 —que es exactamente lo que
+    // él respalda—.
+    assert.equal(c.cupo, 370000);
+    assert.equal(c.respaldo_disponible, 270000);
 
     // Y la comparación que se le muestra en la calculadora.
-    const cmp = M.compararProductos(324000, 6, e, { nivelSocio: nivel });
-    assert.equal(cmp.quincenal.costo, 64800);
-    assert.equal(cmp.respaldado.costo_total, 97200);
-    assert.equal(cmp.respaldado.total_a_pagar, 421200);
+    const cmp = M.compararProductos(270000, 6, e, { nivelSocio: nivel });
+    assert.equal(cmp.quincenal.costo, 54000);
+    assert.equal(cmp.respaldado.costo_total, 81000);
+    assert.equal(cmp.respaldado.total_a_pagar, 351000);
     // Lo que se le muestra en grande: los mismos 6 meses de los dos lados.
-    assert.equal(cmp.quincenal.costo_en_el_plazo, 777600);
+    assert.equal(cmp.quincenal.costo_en_el_plazo, 648000);
     assert.equal(cmp.diferencias.cual_es_mas_barato, 'respaldado');
-    assert.equal(cmp.diferencias.veces_mas_garantia, 36);
+    assert.equal(cmp.diferencias.veces_mas_garantia, 30);
   });
 });
 
@@ -1957,13 +2280,13 @@ describe('el puente — el Panel y la app no pueden dar dos números', () => {
     const s = db.socios[0];
 
     const bruta = P.garantiaGanadaDe(db, s);
-    assert.equal(bruta, 54000, 'el 90% de los 60.000 de costo');
+    assert.equal(bruta, 45000, 'el 75% de los 60.000 de costo');
 
     const m = P.migrarSocio(db, s);
-    assert.equal(m.garantia.acumulada, bruta - 50000, 'la ganada llega con el ajuste puesto');
-    assert.equal(m.garantia.total, 104000, 'cupón 100.000 + 4.000 de ganada');
+    assert.equal(m.garantia.acumulada, 0, 'la ganada llega con el ajuste puesto, y no baja de cero');
+    assert.equal(m.garantia.total, 95000, 'el ajuste se comió la ganada y siguió por el cupón');
     // Y lo que respalda un préstamo con garantía es esa ganada, no la bruta.
-    assert.equal(M.maximoRespaldado(P.entradaGarantia(db, s)), 4000);
+    assert.equal(M.maximoRespaldado(P.entradaGarantia(db, s)), 0);
   });
 
   test('LA GARANTÍA DE LA COMUNIDAD LLEVA EL FACTOR, NO EL COSTO PELADO', () => {
@@ -1974,7 +2297,7 @@ describe('el puente — el Panel y la app no pueden dar dos números', () => {
     const foto = P.fotoComunidad(db);
     const costoPelado = db.prestamos.reduce((t, p) => t + P.gananciaCobrada(p), 0);
     assert.equal(costoPelado, 60000);
-    assert.equal(foto.garantia_construida, 54000, 'el 90%, no los 60.000');
+    assert.equal(foto.garantia_construida, 45000, 'el 75%, no los 60.000');
     assert.equal(foto.garantia_construida, P.garantiaGanadaDe(db, db.socios[0]));
   });
 
@@ -2049,37 +2372,37 @@ describe('la migración de fechas — la fecha falsa del Panel viejo (3-ago-2026
 
   const normalizado = p => P.normalizar({ socios: [], prestamos: [p] }).prestamos[0];
 
-  test('VIEJO PAGADO EN FECHA — recupera el 90%, que es lo que se ganó', () => {
+  test('VIEJO PAGADO EN FECHA — recupera el factor completo, que es lo que se ganó', () => {
     // Pagó el mismo día del corte; la fecha falsa dice dos meses después.
     const p = normalizado(viejo(CORTE, DIA_DEL_PANEL));
     assert.equal(p.fechaPagado, CORTE, 'la fecha del último abono, no la del Panel');
     assert.equal(P.esPuntual(p), true);
-    assert.equal(P.garantiaGanadaCredito(p), 36000, 'el 90% de los 40.000 de costo');
-    // El número exacto del defecto: acreditaba 18.000, la mitad.
-    assert.notEqual(P.garantiaGanadaCredito(p), 18000);
+    assert.equal(P.garantiaGanadaCredito(p), 30000, 'el 75% de los 40.000 de costo');
+    // El número exacto del defecto: acreditaba la mitad.
+    assert.notEqual(P.garantiaGanadaCredito(p), 15000);
   });
 
-  test('VIEJO PAGADO TARDE DE VERDAD — sigue dando 45%, no se le regala nada', () => {
+  test('VIEJO PAGADO TARDE DE VERDAD — sigue dando la mitad, no se le regala nada', () => {
     // Pagó cinco días después del corte. La fecha falsa también hay que
     // corregirla, pero al corregirla SIGUE siendo posterior al corte.
     const p = normalizado(viejo('2026-05-20', DIA_DEL_PANEL));
     assert.equal(p.fechaPagado, '2026-05-20', 'la fecha real del pago, no la del Panel');
     assert.equal(P.esPuntual(p), false, 'el 20-may sigue siendo después del 15-may');
-    assert.equal(P.garantiaGanadaCredito(p), 18000, 'el 45%: pagó tarde y eso no cambió');
+    assert.equal(P.garantiaGanadaCredito(p), 15000, 'el 37,5%: pagó tarde y eso no cambió');
   });
 
   test('NUEVO PAGADO EN FECHA — la fecha buena no se toca', () => {
     const p = normalizado(nuevo(CORTE));
     assert.equal(p.fechaPagado, CORTE);
     assert.equal(P.esPuntual(p), true);
-    assert.equal(P.garantiaGanadaCredito(p), 36000);
+    assert.equal(P.garantiaGanadaCredito(p), 30000);
   });
 
   test('NUEVO PAGADO TARDE — tampoco se toca, y sigue siendo tarde', () => {
     const p = normalizado(nuevo('2026-05-20'));
     assert.equal(p.fechaPagado, '2026-05-20');
     assert.equal(P.esPuntual(p), false);
-    assert.equal(P.garantiaGanadaCredito(p), 18000);
+    assert.equal(P.garantiaGanadaCredito(p), 15000);
   });
 
   test('el criterio: no se pudo pagar DESPUÉS del abono que lo cerró', () => {
@@ -2113,7 +2436,7 @@ describe('la migración de fechas — la fecha falsa del Panel viejo (3-ago-2026
     });
     const m = P.migrarSocio(db, db.socios[0]);
     assert.equal(m.creditos[0].fecha_pagado, CORTE);
-    assert.equal(m.creditos[0].garantia, 36000);
+    assert.equal(m.creditos[0].garantia, 30000);
     assert.equal(m.garantia.pagados_a_tiempo, 1, 'y le cuenta para el nivel');
   });
 });
@@ -2160,20 +2483,20 @@ describe('la migración de fechas corre UNA vez y no inventa garantía', () => {
 
   const normalizado = p => P.normalizar({ socios: [], prestamos: [p] }).prestamos[0];
 
-  test('EL NÚMERO DEL DEFECTO: 90.000 de garantía, no 180.000', () => {
+  test('EL NÚMERO DEL DEFECTO: 75.000 de garantía, no 150.000', () => {
     // Lo que le corresponde el día del cobro: pagó, pero pagó tarde.
     const liq = M.liquidarCredito(
       { capital: 200000, costo: 40000, fecha_corte: CORTE }, HOY);
     assert.equal(liq.dias_mora, 80);
     assert.equal(liq.recargo_mora, 160000, '1% diario sobre los 200.000');
     assert.equal(liq.costo_total_pagado, 200000);
-    assert.equal(liq.garantia_generada, 90000, 'el 45% de 200.000');
+    assert.equal(liq.garantia_generada, 75000, 'el 37,5% de 200.000');
 
     const p = parcialCobradoHoy();
     assert.equal(P.esPuntual(p), false);
-    assert.equal(P.garantiaGanadaCredito(p), 90000);
-    assert.notEqual(P.garantiaGanadaCredito(p), 180000,
-      'el 90% de 200.000 es lo que acreditaba la regresión');
+    assert.equal(P.garantiaGanadaCredito(p), 75000);
+    assert.notEqual(P.garantiaGanadaCredito(p), 150000,
+      'el factor completo sobre 200.000 es lo que acreditaba la regresión');
   });
 
   test('VOLVER A ABRIR EL PANEL NO LE MUEVE LA FECHA NI LA GARANTÍA', () => {
@@ -2181,11 +2504,11 @@ describe('la migración de fechas corre UNA vez y no inventa garantía', () => {
     let p = normalizado(parcialCobradoHoy());
     assert.equal(p.fechaPagado, HOY, 'la fecha que tecleó Joan al cobrar');
     assert.equal(P.esPuntual(p), false);
-    assert.equal(P.garantiaGanadaCredito(p), 90000);
+    assert.equal(P.garantiaGanadaCredito(p), 75000);
     // Y la tercera, y la cuarta: no hay deriva.
     for (let i = 0; i < 3; i++) p = normalizado(parcialCobradoHoy());
     assert.equal(p.fechaPagado, HOY);
-    assert.equal(P.garantiaGanadaCredito(p), 90000);
+    assert.equal(P.garantiaGanadaCredito(p), 75000);
   });
 
   test('el cobro de este sistema NO se toca, tenga los abonos que tenga', () => {
@@ -2211,7 +2534,7 @@ describe('la migración de fechas corre UNA vez y no inventa garantía', () => {
     assert.equal(P.fechaPagadoCorregida(p), HOY);
     assert.equal(P.migrarFechaPagado(p), true, 'pasa por la migración…');
     assert.equal(p.fechaPagado, HOY, '…y no le cambia nada');
-    assert.equal(P.garantiaGanadaCredito(p), 90000);
+    assert.equal(P.garantiaGanadaCredito(p), 75000);
   });
 
   test('varios abonos parciales que tampoco cierran: lo mismo', () => {
@@ -2238,7 +2561,7 @@ describe('la migración de fechas corre UNA vez y no inventa garantía', () => {
     assert.equal(P.migrarFechaPagado(p), true);
     assert.equal(p.fechaPagado, CORTE, 'la fecha del abono que lo cerró');
     assert.equal(P.esPuntual(p), true);
-    assert.equal(P.garantiaGanadaCredito(p), 36000, 'el 90% que se ganó');
+    assert.equal(P.garantiaGanadaCredito(p), 30000, 'el 75% que se ganó');
   });
 
   test('LA MIGRACIÓN CORRE UNA SOLA VEZ Y DEJA CONSTANCIA', () => {
@@ -2269,7 +2592,7 @@ describe('la migración de fechas corre UNA vez y no inventa garantía', () => {
     assert.equal(P.migrarFechaPagado(p), false);
   });
 
-  test('el socio ve lo mismo que Joan: 90.000, en las dos pantallas', () => {
+  test('el socio ve lo mismo que Joan: 75.000, en las dos pantallas', () => {
     const db = P.normalizar({
       socios: [{ id: 'a', numero: 1, nombre: 'Ana', cedula: '1020304050', telefono: '3001112233' }],
       prestamos: [parcialCobradoHoy()]
@@ -2277,8 +2600,8 @@ describe('la migración de fechas corre UNA vez y no inventa garantía', () => {
     const s = db.socios[0];
     const m = P.migrarSocio(db, s);
     assert.equal(m.creditos[0].fecha_pagado, HOY);
-    assert.equal(m.creditos[0].garantia, 90000);
-    assert.equal(P.garantiaGanadaDe(db, s), 90000);
+    assert.equal(m.creditos[0].garantia, 75000);
+    assert.equal(P.garantiaGanadaDe(db, s), 75000);
     assert.equal(m.garantia.pagados_a_tiempo, 0,
       'no se le regala un pago puntual que no existió: era lo que le subía el nivel');
   });
@@ -2295,7 +2618,7 @@ describe('la migración de fechas corre UNA vez y no inventa garantía', () => {
  * explícito.
  * ======================================================================== */
 
-describe('las prórrogas ya cobradas acreditan al 90% siempre (3-ago-2026)', () => {
+describe('las prórrogas ya cobradas conservan su factor siempre (3-ago-2026)', () => {
 
   const CORTE = '2026-05-15';
   const conProrroga = (fechaPagado, pagado) => ({
@@ -2311,10 +2634,10 @@ describe('las prórrogas ya cobradas acreditan al 90% siempre (3-ago-2026)', () 
   test('EL PAGO FINAL TARDE NO LE BAJA EL FACTOR A LA PRÓRROGA YA PAGADA', () => {
     const p = conProrroga('2026-05-20');
     assert.equal(P.esPuntual(p), false, 'el final sí se pagó tarde');
-    // Prórroga 40.000 al 90% = 36.000 · costo final 40.000 al 45% = 18.000.
-    assert.equal(P.garantiaGanadaCredito(p), 54000);
-    // El defecto: 80.000 enteros al 45% = 36.000. Le comía 18.000 ya ganados.
-    assert.notEqual(P.garantiaGanadaCredito(p), 36000);
+    // Prórroga 40.000 al 75% = 30.000 · costo final 40.000 al 37,5% = 15.000.
+    assert.equal(P.garantiaGanadaCredito(p), 45000);
+    // El defecto: 80.000 enteros a la mitad = 30.000. Le comía 15.000 ya ganados.
+    assert.notEqual(P.garantiaGanadaCredito(p), 30000);
   });
 
   test('y la prórroga acredita lo mismo que le acreditó el motor el día que se pagó', () => {
@@ -2322,19 +2645,19 @@ describe('las prórrogas ya cobradas acreditan al 90% siempre (3-ago-2026)', () 
       capital: 200000, fecha_corte: CORTE, estado: 'en_corte',
       prorrogas_usadas: 0, nivel_socio: 'bronce', id: 'p1'
     }, { fecha: '2026-04-30' }).garantia_generada, M.acumularGarantia(40000, true));
-    // 36.000 el día de la prórroga, y 36.000 dos meses después: no se mueve.
+    // 30.000 el día de la prórroga, y 30.000 dos meses después: no se mueve.
     assert.equal(P.garantiaGanadaCredito(conProrroga('2026-05-20')) -
-                 M.acumularGarantia(40000, false), 54000 - 18000);
+                 M.acumularGarantia(40000, false), 45000 - 15000);
   });
 
-  test('todo puntual: prórroga y costo final, los dos al 90%', () => {
-    assert.equal(P.garantiaGanadaCredito(conProrroga(CORTE)), 72000);
+  test('todo puntual: prórroga y costo final, los dos al factor completo', () => {
+    assert.equal(P.garantiaGanadaCredito(conProrroga(CORTE)), 60000);
   });
 
   test('la prórroga ya suma aunque el crédito siga abierto', () => {
     const abierto = conProrroga(null, false);
     assert.equal(abierto.pagado, false);
-    assert.equal(P.garantiaGanadaCredito(abierto), 36000, 'solo la prórroga, al 90%');
+    assert.equal(P.garantiaGanadaCredito(abierto), 30000, 'solo la prórroga, al 75%');
   });
 
   test('la garantía del socio y el detalle crédito por crédito no se separan', () => {
@@ -2343,14 +2666,14 @@ describe('las prórrogas ya cobradas acreditan al 90% siempre (3-ago-2026)', () 
       prestamos: [conProrroga('2026-05-20')]
     });
     const s = db.socios[0];
-    assert.equal(P.garantiaGanadaDe(db, s), 54000);
-    assert.equal(P.migrarSocio(db, s).creditos[0].garantia, 54000);
-    assert.equal(P.fotoComunidad(db).garantia_construida, 54000);
+    assert.equal(P.garantiaGanadaDe(db, s), 45000);
+    assert.equal(P.migrarSocio(db, s).creditos[0].garantia, 45000);
+    assert.equal(P.fotoComunidad(db).garantia_construida, 45000);
   });
 
   test('sin prórrogas nada cambia: el crédito de siempre sigue dando lo mismo', () => {
     const db = dbDePrueba();
-    assert.equal(P.garantiaGanadaDe(db, db.socios[0]), 54000);
+    assert.equal(P.garantiaGanadaDe(db, db.socios[0]), 45000);
   });
 });
 
@@ -2706,10 +3029,10 @@ describe('el quincenal se liquida por el motor, con la mora adentro', () => {
 
   test('LA GARANTÍA DEL SOCIO SALE DEL COSTO TOTAL, RECARGO INCLUIDO', () => {
     assert.equal(liq.costo_total_pagado, 174000, 'costo + recargo');
-    assert.equal(liq.garantia_generada, 78300, 'el 45% de 174.000: pagó tarde, pero pagó');
-    // Lo que acreditaba el Panel: el 45% del costo pelado. 24.300 menos.
-    assert.equal(M.acumularGarantia(120000, false), 54000);
-    assert.equal(liq.garantia_generada - M.acumularGarantia(120000, false), 24300);
+    assert.equal(liq.garantia_generada, 65250, 'el 37,5% de 174.000: pagó tarde, pero pagó');
+    // Lo que acreditaba el Panel: la mitad del costo pelado. 20.250 menos.
+    assert.equal(M.acumularGarantia(120000, false), 45000);
+    assert.equal(liq.garantia_generada - M.acumularGarantia(120000, false), 20250);
   });
 
   test('pagarTotal guarda el costo TOTAL como ganancia, no K(p)', () => {
@@ -2844,25 +3167,26 @@ describe('la prórroga cobra el recargo ya causado (3-ago-2026)', () => {
                                    monto: 174000, mora: 54000 }],
       abonosCapital: [], comprobantes: []
     };
-    /* 4-ago-2026: esta prueba decía 108.000 + 24.300, o sea el costo al 90%
-       AUNQUE la prórroga se hubiera dejado con nueve días de atraso. Ese era el
-       defecto nº2 clavado por escrito. El recargo sigue al 45% —eso estaba
-       bien—, pero el costo también, porque esa prórroga se pagó tarde. */
+    /* 4-ago-2026: esta prueba decía el costo al factor COMPLETO aunque la
+       prórroga se hubiera dejado con nueve días de atraso. Ese era el defecto nº2
+       clavado por escrito. El recargo sigue a la mitad —eso estaba bien—, pero
+       el costo también, porque esa prórroga se pagó tarde. */
     assert.equal(P.garantiaGanadaCredito(conMora),
       M.acumularGarantia(120000, false) + M.acumularGarantia(54000, false));
-    assert.equal(P.garantiaGanadaCredito(conMora), 78300);
-    // Y lo que se regalaba: 54.000 de garantía por encima de lo que dejaba pagar.
-    assert.equal(132300 - P.garantiaGanadaCredito(conMora), 54000);
+    assert.equal(P.garantiaGanadaCredito(conMora), 65250);
+    // Y lo que se regalaba: el costo al factor completo en vez de a la mitad.
+    assert.equal(M.acumularGarantia(120000, true) + M.acumularGarantia(54000, false)
+      - P.garantiaGanadaCredito(conMora), 45000);
   });
 
-  test('las prórrogas VIEJAS no traen `mora`: son todas costo, al 90%', () => {
+  test('las prórrogas VIEJAS no traen `mora`: son todas costo, al factor completo', () => {
     const vieja = {
       id: 'x2', numero: 2, socioId: 'a', capital: 200000, costoPct: 20,
       fechaDesembolso: '2026-04-01', cicloActual: '2026-05-15',
       pagado: false, prorrogas: [{ fecha: '2026-04-30', monto: 40000 }],
       abonosCapital: [], comprobantes: []
     };
-    assert.equal(P.garantiaGanadaCredito(vieja), 36000);
+    assert.equal(P.garantiaGanadaCredito(vieja), 30000);
   });
 
   test('un `mora` imposible no puede acreditar de más', () => {
@@ -3021,14 +3345,14 @@ describe('el respaldo descuenta el quincenal abierto (se pida en el orden que se
     const respaldado = M.maximoRespaldado(entrada(0));
     assert.equal(respaldado, GANADA, 'se lleva toda la ganada libre');
     const cupo = cupoDe(respaldado);
-    assert.equal(cupo, 150000, 'le quedan los 100.000 prestados × 1,5');
+    assert.equal(cupo, 100000, 'le quedan los 100.000 prestados, uno a uno');
     // Garantía consumida = respaldado (uno a uno) + la que sostiene el quincenal.
     assert.equal(respaldado + M.garantiaNecesariaPara(cupo, 'bronce'), TOTAL);
   });
 
   test('ORDEN B — primero el quincenal: ya no queda respaldo que dar', () => {
     const cupo = cupoDe(0);
-    assert.equal(cupo, 636000, '424.000 × 1,5');
+    assert.equal(cupo, 424000, 'los 424.000, uno a uno');
     // ESTA es la cuenta que faltaba: lo que ese quincenal se está comiendo.
     const enUso = M.garantiaNecesariaPara(cupo, 'bronce');
     assert.equal(enUso, TOTAL, 'el cupo apalancado se come la garantía entera');
@@ -3315,15 +3639,16 @@ describe('dejar la prórroga NO puede rendir más que pagar (4-ago-2026)', () =>
   const MORA = M.recargoPorMora(CAP, DIAS);            // 120.000
   const CORTE = '2026-07-15', HOY = '2026-08-04';
 
-  test('EL NÚMERO DEL DEFECTO: 162.000 contra 108.000, por los MISMOS costos', () => {
+  test('EL NÚMERO DEL DEFECTO: 135.000 contra 90.000, por los MISMOS costos', () => {
     assert.equal(MORA, 120000);
     assert.equal(COSTO + MORA, 240000, 'los mismos 240.000 en los dos caminos');
-    // Lo que dejaba antes: el costo al 90% aunque la prórroga fuera tardía.
-    assert.equal(M.acumularGarantia(COSTO, true) + M.acumularGarantia(MORA, false), 162000);
+    // Lo que dejaba antes: el costo al factor completo aunque la prórroga fuera
+    // tardía. (Con el factor de aquella mañana eran 162.000 contra 108.000.)
+    assert.equal(M.acumularGarantia(COSTO, true) + M.acumularGarantia(MORA, false), 135000);
     // Lo que deja saldar todo ese mismo día.
     assert.equal(M.liquidarCredito({ capital: CAP, costo: COSTO, fecha_corte: CORTE }, HOY)
-      .garantia_generada, 108000);
-    assert.equal(162000 - 108000, 54000, 'el regalo al que no paga');
+      .garantia_generada, 90000);
+    assert.equal(135000 - 90000, 45000, 'el regalo al que no paga');
   });
 
   test('AHORA LOS DOS CAMINOS DEJAN LO MISMO', () => {
@@ -3332,14 +3657,14 @@ describe('dejar la prórroga NO puede rendir más que pagar (4-ago-2026)', () =>
     const dejarLaProrroga = P.garantiaGanadaProrroga(prorroga);
     const saldarTodo = M.liquidarCredito({ capital: CAP, costo: COSTO, fecha_corte: CORTE }, HOY)
       .garantia_generada;
-    assert.equal(dejarLaProrroga, 108000);
+    assert.equal(dejarLaProrroga, 90000);
     assert.equal(dejarLaProrroga, saldarTodo,
       'el que no paga no puede llevarse más garantía que el que paga');
     assert.ok(dejarLaProrroga <= saldarTodo);
   });
 
   test('y ninguna de las dos rinde más que haber pagado a tiempo', () => {
-    const aTiempo = M.acumularGarantia(COSTO, true);   // 108.000 por 120.000 de costo
+    const aTiempo = M.acumularGarantia(COSTO, true);   // 90.000 por 120.000 de costo
     const prorroga = { monto: COSTO + MORA, mora: MORA, aTiempo: false };
     // Pagar tarde deja lo mismo en pesos pero le costó el DOBLE de plata.
     assert.equal(P.garantiaGanadaProrroga(prorroga), aTiempo);
@@ -3347,7 +3672,7 @@ describe('dejar la prórroga NO puede rendir más que pagar (4-ago-2026)', () =>
               aTiempo / COSTO, 'por peso pagado, atrasarse tiene que rendir menos');
   });
 
-  test('LO YA GANADO NO SE BORRA: la prórroga puntual conserva su 90%', () => {
+  test('LO YA GANADO NO SE BORRA: la prórroga puntual conserva su factor completo', () => {
     const puntual = { fecha: '2026-08-15', ciclo: '2026-08-15', monto: COSTO,
                       mora: 0, aTiempo: true };
     assert.equal(P.garantiaGanadaProrroga(puntual), M.acumularGarantia(COSTO, true));
@@ -3366,7 +3691,7 @@ describe('dejar la prórroga NO puede rendir más que pagar (4-ago-2026)', () =>
     // No hay dato para decir otra cosa, y quitarles garantía ya acreditada sería
     // romper la promesa por el otro lado.
     assert.equal(P.prorrogaFueATiempo({ fecha: '2026-04-30', monto: 40000 }), true);
-    assert.equal(P.garantiaGanadaProrroga({ fecha: '2026-04-30', monto: 40000 }), 36000);
+    assert.equal(P.garantiaGanadaProrroga({ fecha: '2026-04-30', monto: 40000 }), 30000);
   });
 
   test('la puntualidad se congela en el dato, no se recalcula', () => {
@@ -3885,7 +4210,7 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
     return { db: db, s: s };
   };
 
-  test('EL NÚMERO DEL DEFECTO: ORO con 893.750, pagando 15 días tarde cinco veces', () => {
+  test('EL NÚMERO DEL DEFECTO: ORO de oficio, pagando 15 días tarde cinco veces', () => {
     const { db, s } = carteraLavada();
     // Los cinco figuran "pagados en fecha": el corte se había movido al futuro.
     assert.equal(db.prestamos.filter(P.esPuntual).length, 5,
@@ -3897,12 +4222,17 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
     }
     const nivelViejo = M.evaluarNivel(5, racha, 6, 'bronce');
     assert.equal(nivelViejo, 'oro');
-    /* El cupo se mide con la garantía de HOY, y el 5-ago la garantía de estos
-       créditos bajó por el §4-bis: el pago final cayó dentro del corte que le
-       compró la prórroga, así que acredita al 45% y no al 90%. El defecto que
-       esta prueba fija es el ESCALÓN regalado (oro contra bronce), y sigue
-       midiéndose igual: 668.750 contra 401.250. */
-    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), nivelViejo).cupo, 668750);
+    /* 5-ago-2026 — EL DEFECTO YA NO SE MIDE EN CUPO, y hay que decir por qué: el
+       cupo dejó de depender del nivel (es la garantía, uno a uno), así que subir
+       de nivel con trampa ya no abre un peso de crédito. Lo que seguía regalando
+       era el ESCALÓN —y con él las prórrogas, que es lo único material que hoy
+       da el nivel— y eso es lo que esta prueba fija. */
+    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), nivelViejo).cupo, 226250);
+    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), 'bronce').cupo, 226250,
+      'con trampa o sin trampa, el cupo es el mismo: el nivel no lo mueve');
+    // Lo que sí se regalaba: el doble de prórrogas que un bronce.
+    assert.equal(M.prorrogasPermitidas(nivelViejo), 2);
+    assert.equal(M.prorrogasPermitidas('bronce'), 1);
   });
 
   test('AHORA: ninguno cuenta para subir, y el socio se queda en bronce', () => {
@@ -3912,19 +4242,21 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
     assert.equal(m.garantia.pagados_a_tiempo, 0);
     assert.equal(m.garantia.racha, 0);
     assert.equal(m.garantia.nivel, 'bronce');
-    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), m.garantia.nivel).cupo, 401250);
-    assert.equal(668750 - 401250, 267500, 'lo que se regalaba por atrasarse');
+    // El cupo es el mismo en los dos niveles: lo que se recupera es el escalón
+    // y su prórroga, no plata prestada.
+    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), m.garantia.nivel).cupo, 226250);
+    assert.equal(M.prorrogasPermitidas(m.garantia.nivel), 1,
+      'una prórroga, la de bronce: la segunda era el regalo');
   });
 
   test('NO SE LE QUITA NADA: lo que pagó le sigue sumando, crédito por crédito', () => {
     const { db, s } = carteraLavada();
-    /* 5-ago-2026 §4-bis — ANTES eran 337.500, con el pago final al 90%: el
-       crédito se atrasó 15 días, se prorrogó y se pagó DENTRO del corte nuevo,
-       así que figuraba "en fecha". Ese 90% era el mismo regalo de encadenar
-       prórrogas: el ciclo que compró la prórroga no es una quincena limpia. Los
-       tres pagos de cada crédito acreditan al 45%, y siguen acreditando: ni uno
+    /* 5-ago-2026 §4-bis — el pago final de un crédito que se atrasó 15 días y se
+       prorrogó NO acredita el factor completo aunque caiga dentro del corte
+       nuevo: ese ciclo lo compró la prórroga, no es una quincena limpia. Los tres
+       pagos de cada crédito acreditan a la mitad, y siguen acreditando: ni uno
        queda en cero, que es lo que la promesa protege. */
-    assert.equal(P.garantiaGanadaDe(db, s), 247500);
+    assert.equal(P.garantiaGanadaDe(db, s), 206250);
     const porCredito = db.prestamos.map(P.garantiaGanadaCredito);
     porCredito.forEach(g => assert.ok(g > 0, 'a un crédito prorrogado no se le borra la garantía'));
     assert.equal(porCredito[0],
@@ -4588,11 +4920,15 @@ describe('el nivel es un máximo histórico y nunca baja (4-ago-2026)', () => {
     return { db, s, cortes };
   };
 
-  test('EL NÚMERO DEL DEFECTO: platino con 1.140.000, y una prórroga PUNTUAL lo dejaba en 904.000', () => {
+  test('EL NÚMERO DEL DEFECTO: platino, y una prórroga PUNTUAL lo bajaba a plata', () => {
     const { db, s, cortes } = diezLimpios();
     const antes = P.migrarSocio(db, s);
     assert.equal(antes.garantia.nivel, 'platino');
-    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), antes.garantia.nivel).cupo, 1140000);
+    /* 5-ago-2026 — el defecto se medía en cupo (1.140.000 contra 904.000) y ya no
+       se puede: el cupo es la garantía y el nivel no lo toca. Lo que se caía —y
+       sigue sin poder caerse— es el NIVEL, que es el reconocimiento del socio y
+       lo que le da sus prórrogas. */
+    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), antes.garantia.nivel).cupo, 320000);
 
     // Crédito 11: una prórroga registrada EL DÍA DEL CORTE (a tiempo, sin mora)
     // y pagado el día del corte nuevo. No se atrasó ni un día.
@@ -4619,8 +4955,10 @@ describe('el nivel es un máximo histórico y nunca baja (4-ago-2026)', () => {
     assert.equal(m.garantia.pagados_a_tiempo, 10);
     assert.equal(m.garantia.racha, 0);
     assert.equal(m.garantia.nivel, 'platino', 'el nivel NO baja');
-    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), m.garantia.nivel).cupo, 1356000);
-    assert.equal(1356000 - 904000, 452000, 'el cupo que se le quitaba por pagar 40.000 de más');
+    // Y el cupo sube por lo que pagó, no por el nivel: los mismos 380.000 dijera
+    // platino o dijera plata. Lo que el defecto le quitaba hoy es el escalón.
+    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), m.garantia.nivel).cupo, 380000);
+    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), 'plata').cupo, 380000);
   });
 
   test('y usar la prórroga sigue sin RENDIR: no lo sube ni un escalón', () => {
@@ -5597,19 +5935,22 @@ describe('el nivel no puede premiar al que no paga (5-ago-2026)', () => {
     assert.equal(casos, 20);
   });
 
-  test('EL NÚMERO DE LA CADENA: 528.300 con 334.000 pagados contra 492.300 con 494.000', () => {
+  test('EL NÚMERO DE LA CADENA: 425.250 con 334.000 pagados contra 410.250 con 494.000', () => {
     const a = partida(10, 127, 0);
     assert.equal(pagarTodo(a), 294000, 'costo 40.000 + 127 días de recargo');
-    assert.equal(foto(a.db, a.s).garantia, 492300);
+    assert.equal(foto(a.db, a.s).garantia, 410250);
 
     const b = partida(10, 127, 0);
     let cadena = prorrogar(b);
     cadena += prorrogar(b, b.p.cicloActual);
     assert.equal(cadena, 334000, 'los 294.000 y un ciclo más de 40.000');
-    // ANTES: 528.300, o sea 36.000 más por el ciclo nuevo acreditado al 90%.
-    assert.equal(foto(b.db, b.s).garantia, 510300, 'el ciclo que compró la prórroga va al 45%');
-    assert.equal(510300 - 492300, M.acumularGarantia(40000, false),
-      'el 45% de los 40.000 del ciclo nuevo, no el 90%');
+    /* El ciclo que compró la prórroga acredita A LA MITAD, no completo. Con los
+       factores de la mañana del 5-ago esto se medía 528.300 contra 492.300; el
+       cambio de reparto de esa tarde lo baja a 425.250 contra 410.250 y la
+       relación es la misma: encadenar paga menos por peso. */
+    assert.equal(foto(b.db, b.s).garantia, 425250, 'el ciclo que compró la prórroga va a la mitad');
+    assert.equal(425250 - 410250, M.acumularGarantia(40000, false),
+      'la mitad de los 40.000 del ciclo nuevo, no el factor completo');
   });
 
   test('Y EL NIVEL SIGUE SIN BAJAR NUNCA, en los cuatro caminos', () => {
@@ -5796,12 +6137,16 @@ describe('socio.html liquida con el §4-bis, no contra él (5-ago-2026)', () => 
     '\nreturn { liquidacion: liquidacion, hoyISO: hoyISO };')(M);
 
   const CAP = 200000, COSTO = 40000;
-  const NOVENTA = M.acumularGarantia(COSTO, true);   // 36.000
-  const CUARENTA = M.acumularGarantia(COSTO, false); // 18.000
+  /* Los nombres quedaron de cuando los factores eran 90% y 45%. Los números son
+     los de hoy (75% y 37,5%) y salen del motor, no escritos a mano: lo que la
+     prueba fija es la RELACIÓN —el completo es el doble de la mitad—, que es el
+     error que la app cometía. */
+  const NOVENTA = M.acumularGarantia(COSTO, true);   // 30.000
+  const CUARENTA = M.acumularGarantia(COSTO, false); // 15.000
 
   test('los dos números del reclamo son los del enunciado', () => {
-    assert.equal(NOVENTA, 36000);
-    assert.equal(CUARENTA, 18000);
+    assert.equal(NOVENTA, 30000);
+    assert.equal(CUARENTA, 15000);
     assert.equal(NOVENTA, CUARENTA * 2, 'el error era exactamente el doble');
   });
 
@@ -6017,5 +6362,241 @@ describe('la app no promete el doble sin la excepción (5-ago-2026)', () => {
     const cuerpo = cuerpoEnSocio('verReglas');
     assert.match(cuerpo, /no<\/b> hace es borrar el atraso/,
       'la prórroga se decide en esa pantalla: ahí tiene que estar la letra');
+  });
+});
+
+/* ==========================================================================
+ * EL CAMBIO DE REGLAS DEL 5-ago-2026, VISTO DESDE ARRIBA
+ *
+ * Las cifras exactas que Joan pidió y la contabilidad que sale de ellas. Si una
+ * sola de estas se mueve, el cambio de reglas dejó de estar hecho.
+ * ======================================================================== */
+
+describe('LA CUENTA DE PRUEBA (79111000 / 2026) con las reglas nuevas', () => {
+
+  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+
+  /* La cuenta demo de socio.html: 3 créditos de 100.000, todos en fecha, y la
+     ficha de KYC completa. Se rearma acá con el motor —que es de donde socio.html
+     saca sus cifras— para poder fijar los números peso a peso. */
+  function cuentaDePrueba() {
+    const montos = [100000, 100000, 100000];
+    let ganada = 0, costos = 0;
+    montos.forEach(m => {
+      const costo = M.calcularCosto(m);
+      costos += costo;
+      ganada += M.acumularGarantia(costo, true);
+    });
+    return { ganada, costos, montos };
+  }
+
+  test('45.000 de garantía ganada, cupón 100.000, total 145.000, cupo 145.000', () => {
+    const { ganada, costos } = cuentaDePrueba();
+    assert.equal(costos, 60000, '3 créditos de 100.000 al 20%');
+    assert.equal(ganada, 45000, 'el 75% de los 60.000');
+
+    const e = { datos: datosCompletos(), acumulada: ganada };
+    const c = M.cupoQuincenal(e, 'plata');
+    assert.equal(c.cupon, undefined, 'cupoQuincenal no publica `cupon`: eso es del desglose');
+    assert.equal(M.desglosarGarantia(e).cupon, 100000);
+    assert.equal(c.ganada, 45000);
+    assert.equal(c.total, 145000);
+    assert.equal(c.cupo, 145000);
+    assert.equal(c.respaldo_disponible, 45000, 'el respaldado se apoya solo en la ganada');
+  });
+
+  test('LO QUE DABA ANTES, para que se vea el tamaño del cambio', () => {
+    // Con 90/7/3 y el factor de plata: 54.000 / 154.000 / 308.000 / 54.000.
+    const { ganada } = cuentaDePrueba();
+    assert.notEqual(ganada, 54000);
+    assert.equal(Math.round(60000 * 0.90), 54000, 'el 90% de entonces');
+    assert.equal(Math.round(60000 * 0.75), 45000, 'el 75% de ahora');
+    // Y el cupo ya no se multiplica por 2: 145.000, no 308.000.
+    assert.equal(M.calcularCupo(145000, 'plata'), 145000);
+  });
+
+  test('socio.html sigue sacando esas cifras del motor, no escritas a mano', () => {
+    // Si un día alguien las clava en la app, esta prueba deja de tener sentido y
+    // la cuenta demo empieza a mentirle al que la abre para probar.
+    assert.match(SOCIO, /M\.acumularGarantia\(costoJ, true\)/,
+      'la garantía de la cuenta demo tiene que salir del motor');
+    assert.match(SOCIO, /M\.calcularCosto\(capJ\)/);
+    assert.match(SOCIO, /var montosJoan = \[100000, 100000, 100000\]/,
+      'los tres créditos de 100.000 del enunciado');
+  });
+});
+
+describe('el puente le cuenta a Joan el cupón y la ganancia (5-ago-2026)', () => {
+
+  const CORTE = '2026-01-15';
+  // Un socio con la ficha completa (cupón 100.000) y n créditos de 100.000
+  // pagados en fecha, como los registra el Panel.
+  function dbCon(n, tarde) {
+    const d = datosCompletos();
+    const s = { id: 'a', numero: 1, nombre: 'Ana Perez', cedula: '1020304050',
+      telefono: '3001112233', whatsappIgual: true, email: d.correo, ciudad: d.ciudad,
+      direccion: d.direccion, tipoVivienda: d.vivienda, nequi: d.pago,
+      telefono2: d.celular2, ubicacion: d.ubicacion,
+      referencia: { nombre: 'Luz', telefono: '3009998877' },
+      cedulaFrenteFoto: 'x', cedulaReversoFoto: 'y', selfieFoto: 'z', ajusteGarantia: 0 };
+    const db = P.normalizar({ socios: [s], prestamos: [], respaldados: [],
+      config: { negocio: 'Tu Garantía', whatsapp: '' } });
+    for (let i = 0; i < n; i++) {
+      const corte = M.iso(M.sumarDias(M.aFechaLocal(CORTE), 15 * i));
+      db.prestamos.push({ id: 'c' + i, numero: i + 1, socioId: 'a', capital: 100000,
+        costoPct: 20, fechaDesembolso: M.iso(M.sumarDias(M.aFechaLocal(corte), -12)),
+        cicloActual: corte, cicloPago: corte, pagado: true,
+        fechaPagado: tarde ? M.iso(M.sumarDias(M.aFechaLocal(corte), 5)) : corte,
+        gananciaPago: 20000, cobroRegistrado: true,
+        prorrogas: [], abonosCapital: [], comprobantes: [] });
+    }
+    return { db, s };
+  }
+
+  test('LA GARANTÍA QUE VE EL SOCIO Y EL REPARTO DE JOAN SON LA MISMA PLATA', () => {
+    const { db, s } = dbCon(3);
+    const c = P.contabilidadCupon(db, s);
+    // El mismo número por los dos caminos: si se separan, uno de los dos miente.
+    assert.equal(c.garantia_socio, P.garantiaGanadaDe(db, s));
+    assert.equal(c.garantia_socio, 45000);
+    assert.equal(c.cobrado, 60000, 'los 60.000 de costos que pagó');
+    assert.equal(c.garantia_socio + c.cupon_recuperado + c.ganancia_libre, c.cobrado);
+  });
+
+  test('tres créditos devuelven 9.000 del cupón y quedan 91.000 en la calle', () => {
+    const { db, s } = dbCon(3);
+    const c = P.contabilidadCupon(db, s);
+    assert.equal(c.cupon_prestado, 100000, 'la ficha completa');
+    assert.equal(c.cupon_recuperado, 9000, 'el 15% de los 60.000');
+    assert.equal(c.cupon_pendiente, 91000);
+    assert.equal(c.expuesto, 91000, 'lo único que Joan tiene de verdad en riesgo');
+    assert.equal(c.saldado, false);
+    assert.equal(c.ganancia_libre, 6000, 'el 10% operativo');
+    assert.equal(c.ganancia_cupon, 0, 'todavía no hay 15% liberado');
+  });
+
+  test('LA EXPOSICIÓN BAJA CRÉDITO A CRÉDITO', () => {
+    let anterior = 100001;
+    for (let n = 0; n <= 6; n++) {
+      const { db, s } = dbCon(n);
+      const c = P.contabilidadCupon(db, s);
+      assert.ok(c.expuesto < anterior, 'con ' + n + ' créditos subió la exposición');
+      anterior = c.expuesto;
+    }
+  });
+
+  test('pagar TARDE no frena la recuperación del cupón, y la ganancia sube', () => {
+    const puntualDb = dbCon(3);
+    const puntual = P.contabilidadCupon(puntualDb.db, puntualDb.s);
+    const tardeDb = dbCon(3, true);
+    const tarde = P.contabilidadCupon(tardeDb.db, tardeDb.s);
+    assert.equal(tarde.cupon_recuperado, puntual.cupon_recuperado);
+    assert.ok(tarde.garantia_socio < puntual.garantia_socio);
+    assert.ok(tarde.ganancia_libre > puntual.ganancia_libre);
+  });
+
+  test('SE DERIVA DE LOS PAGOS: borrar un pago cambia la cuenta, no la desincroniza', () => {
+    const { db, s } = dbCon(3);
+    const antes = P.contabilidadCupon(db, s);
+    // Joan corrige un cobro que no era: el crédito vuelve a estar abierto.
+    db.prestamos[2].pagado = false;
+    db.prestamos[2].gananciaPago = 0;
+    const despues = P.contabilidadCupon(db, s);
+    assert.ok(despues.cupon_recuperado < antes.cupon_recuperado,
+      'un contador guardado se habría quedado con los 9.000 para siempre');
+    assert.equal(despues.cupon_recuperado, 6000);
+    assert.equal(despues.garantia_socio, P.garantiaGanadaDe(db, s));
+  });
+
+  test('la cartera es la suma socio por socio, no una bolsa común', () => {
+    const { db, s } = dbCon(3);
+    // Un segundo socio sin créditos: su cupón entero sigue en riesgo.
+    db.socios.push({ id: 'b', numero: 2, nombre: 'Beto', cedula: '9080706050',
+      telefono: '3004445566', whatsappIgual: true, ajusteGarantia: 0,
+      referencia: { nombre: '', telefono: '' } });
+    const t = P.contabilidadCartera(db);
+    assert.equal(t.socios, 2);
+    assert.equal(t.por_socio.length, 2);
+    assert.equal(t.cupon_recuperado, 9000, 'lo que pagó Ana no devuelve el cupón de Beto');
+    assert.equal(t.cupon_prestado, P.contabilidadCupon(db, s).cupon_prestado
+      + P.contabilidadCupon(db, db.socios[1]).cupon_prestado);
+    assert.equal(t.socios_saldados, 0);
+  });
+
+  test('el paquete del socio NO lleva ni una palabra de esto', () => {
+    const { db, s } = dbCon(3);
+    const m = P.migrarSocio(db, s);
+    const texto = JSON.stringify(m);
+    ['cupon_pendiente', 'cupon_recuperado', 'ganancia', 'operativo', 'amortiza']
+      .forEach(k => assert.ok(texto.indexOf(k) === -1, 'al socio le viajó "' + k + '"'));
+    // Su cupón sí viaja —es su garantía prestada—, pero no lo que se recuperó.
+    assert.equal(m.garantia.cupon, 100000);
+  });
+
+  test('un socio sin nada no revienta la contabilidad', () => {
+    const db = P.normalizar({ socios: [{ id: 'z', numero: 9, nombre: 'Nadie' }] });
+    assert.doesNotThrow(() => P.contabilidadCupon(db, db.socios[0]));
+    const c = P.contabilidadCupon(db, db.socios[0]);
+    /* 7.000: los 5.000 del nombre y los 2.000 del WhatsApp que normalizar() da
+       por sentado. El cupón es DATO POR DATO, así que una ficha casi vacía
+       arriesga casi nada —que es exactamente para lo que sirve. */
+    assert.equal(c.cupon_prestado, 7000, 'lo poco que da una ficha vacía');
+    assert.equal(c.cobrado, 0);
+    assert.doesNotThrow(() => P.contabilidadCartera(P.normalizar(null)));
+  });
+});
+
+describe('el freno por ingreso, expuesto y apagado en el puente (5-ago-2026)', () => {
+
+  function dbConIngreso(ingreso, freno) {
+    const d = datosCompletos();
+    const s = { id: 'a', numero: 1, nombre: 'Ana', cedula: '1020304050',
+      telefono: '3001112233', whatsappIgual: true, email: d.correo, ciudad: d.ciudad,
+      direccion: d.direccion, tipoVivienda: d.vivienda, nequi: d.pago,
+      telefono2: d.celular2, ubicacion: d.ubicacion,
+      referencia: { nombre: 'Luz', telefono: '3009998877' },
+      cedulaFrenteFoto: 'x', cedulaReversoFoto: 'y', selfieFoto: 'z',
+      ajusteGarantia: 0, ingresoQuincenal: ingreso };
+    const config = { negocio: 'Tu Garantía', whatsapp: '' };
+    if (freno) config.freno = freno;
+    return P.normalizar({ socios: [s], prestamos: [], respaldados: [], config: config });
+  }
+
+  test('normalizar deja la casilla de Ajustes lista y APAGADA', () => {
+    const db = dbConIngreso(0);
+    assert.equal(db.config.freno.activo, false);
+    assert.equal(db.config.freno.fraccion_quincena, M.FRENO_INGRESO.fraccion_quincena);
+    assert.equal(db.socios[0].ingresoQuincenal, 0);
+  });
+
+  test('APAGADO el cupo no se mueve, aunque el socio haya declarado su quincena', () => {
+    const db = dbConIngreso(500000);
+    assert.equal(P.frenoDe(db, db.socios[0]).activo, false);
+    assert.equal(P.cupoDelSocio(db, db.socios[0], 'bronce').cupo, 100000,
+      'el cupón completo, sin topar');
+  });
+
+  test('ENCENDIDO topa la cuota a la fracción de la quincena', () => {
+    const db = dbConIngreso(200000, { activo: true, fraccion_quincena: 0.30 });
+    const c = P.cupoDelSocio(db, db.socios[0], 'bronce');
+    assert.equal(c.freno.activo, true);
+    assert.equal(c.freno.tope_por_ingreso, 50000, '60.000 de cuota máxima / 1,20');
+    assert.equal(c.cupo, 50000);
+    assert.equal(c.base, 100000, 'la garantía no se toca: lo que se topa es el cupo');
+  });
+
+  test('ENCENDIDO pero sin ingreso declarado no le baja el cupo a nadie', () => {
+    const db = dbConIngreso(0, { activo: true });
+    const c = P.cupoDelSocio(db, db.socios[0], 'bronce');
+    assert.equal(c.cupo, 100000);
+    assert.equal(c.freno.aplicado, false);
+  });
+
+  test('lo enciende Joan, no el motor: nadie más puede prenderlo por accidente', () => {
+    // Ni migrarSocio ni el cupo del socio lo activan solos.
+    const db = dbConIngreso(200000);
+    assert.equal(P.cupoDelSocio(db, db.socios[0]).freno.activo, false);
+    assert.equal(M.cupoQuincenal({ acumulada: 500000 }, 'bronce').freno.activo, false);
+    assert.equal(M.FRENO_INGRESO.activo, false, 'la constante manda, y está en false');
   });
 });

@@ -73,7 +73,43 @@
  *
  *   El corazón del producto es que el socio ELIGE: el respaldado cuesta menos
  *   pero deja el 20% del costo de garantía; el quincenal cuesta más pero deja
- *   el 90% y le sube el cupo rápido. Plata barata o crecer.
+ *   el 75% y le sube el cupo rápido. Plata barata o crecer.
+ * ---------------------------------------------------------------------------
+ * EL CUPO ES LA GARANTÍA, UNO A UNO — 5-ago-2026, pedido de Joan. Es el cambio
+ * más grande que se le ha hecho al motor y deroga dos cosas:
+ *
+ *   1. EL REPARTO pasa de 90/7/3 a 75/10/15. La garantía del socio baja al 75%
+ *      del costo, el operativo sube al 10% y el 15% amortiza el cupón regalado.
+ *      Pagado tarde el socio sigue recibiendo la mitad (37,5%) y la diferencia
+ *      va entera a operativo: 37,5 / 47,5 / 15. El 15% del cupón se cobra
+ *      igual, atrasado o no — hay que recuperarlo igual.
+ *   2. MUERE FACTOR_CUPO. El cupo era garantía × factor de nivel (1,5 a 3);
+ *      ahora es la garantía y nada más, topada por CUPO_MAXIMO. El segundo
+ *      crédito de un socio que pidió 100.000 y pagó da 115.000 exactos, no
+ *      230.000.
+ *
+ *   LOS NIVELES SE QUEDAN, y es una decisión explícita: siguen siendo el
+ *   reconocimiento del que paga y siguen mandando el tope de prórrogas
+ *   (PRORROGAS_POR_NIVEL) y sus requisitos. Lo único que pierden es influencia
+ *   sobre el cupo. Y el nivel sigue sin bajar nunca.
+ *
+ *   POR QUÉ. Con el reparto viejo la exposición de Joan CRECÍA: prestaba
+ *   177.000 contra 118.000 de garantía de la cual 100.000 la había puesto él
+ *   —arriesgaba 159.000 y subiendo—. Ahora presta 115.000 contra 115.000 y de
+ *   eso solo el cupón no está respaldado por lo que el socio pagó: arriesga
+ *   97.000 y BAJANDO, porque el 15% de cada costo va amortizando ese cupón.
+ *   Al crédito 13 arriesga cero (ver amortizarCupon).
+ *
+ *   La regla en una frase: cada crédito pagado en fecha te sube el cupo un 15%
+ *   (0,20 × 0,75). Duplica en cinco créditos.
+ *
+ *   Y VA UN FRENO PREPARADO Y APAGADO: el 15% compone, así que el cupo se va a
+ *   millones antes del crédito 24. FRENO_INGRESO topa la cuota a una fracción de
+ *   la quincena del socio, viene en false y solo lo enciende Joan desde Ajustes
+ *   del Panel (ver frenarPorIngreso).
+ *
+ *   LA PREGUNTA PARA LOS CASOS RAROS que el motor no tiene escritos: ¿esto hace
+ *   que la exposición de Joan CREZCA? Si la respuesta es sí, está mal.
  * ---------------------------------------------------------------------------
  * DECISIONES tomadas donde el documento no era explícito (revisar con Joan):
  *
@@ -190,12 +226,19 @@
   var MONTO_MINIMO = 50000;
   var MONTO_MAXIMO_CALCULADORA = 5000000;
 
-  /* §5 — factor de cupo y prórrogas por nivel.
-     Subidos el 29-jul-2026 para que el cupo crezca rápido, que es lo que se
-     pidió. Ojo con lo que significan: el cupo es garantía × factor, y la
-     garantía NO es plata depositada, es un puntaje. Con factor 2,5 le estás
-     prestando 2,5 veces lo que el socio te ha pagado en toda su historia. */
-  var FACTOR_CUPO = { bronce: 1.5, plata: 2.0, oro: 2.5, platino: 3.0 };
+  /* §5 — FACTOR_CUPO ESTÁ DEROGADO (5-ago-2026), y no queda como dato muerto a
+     propósito: era { bronce: 1,5 · plata: 2,0 · oro: 2,5 · platino: 3,0 } y
+     multiplicaba la garantía para dar el cupo. Dejarlo escrito acá habría hecho
+     que la próxima pantalla lo volviera a pintar ("×2 tu garantía") y eso ya no
+     es verdad: el cupo es la garantía, uno a uno (calcularCupo).
+     Lo que la garantía NO es, y por eso el factor era peligroso: no es plata
+     depositada, es un puntaje. Con factor 2,5 se le prestaba dos veces y media
+     lo que el socio había pagado en toda su historia, y la mitad de esa garantía
+     la había puesto la plataforma con el cupón.
+
+     Los niveles SIGUEN EXISTIENDO y siguen mandando acá abajo: el tope de
+     prórrogas es hoy lo único material que se gana subiendo, más el
+     reconocimiento. */
   var PRORROGAS_POR_NIVEL = { bronce: 1, plata: 2, oro: 2, platino: 2 };
   var TOPE_DURO_PRORROGAS = 2; // §8, tope duro por encima del nivel
 
@@ -208,16 +251,17 @@
   };
 
   /* Cuánta garantía deja cada peso de costo pagado.
-     2-ago-2026: baja de 1,00 a 0,90. El otro 10% no se pierde: es lo que
-     sostiene la plataforma (7% de costo operativo) y lo que va devolviendo el
-     cupón de 100.000 que se le regaló al socio para arrancar (3%). Eso último
-     es contabilidad interna: el socio ve su 90% y nada más.
+     5-ago-2026: baja de 0,90 a 0,75 (antes había bajado de 1,00 a 0,90 el
+     2-ago). El otro 25% no se pierde: es lo que sostiene la plataforma (10% de
+     costo operativo) y lo que va devolviendo el cupón de 100.000 que se le
+     regaló al socio para arrancar (15%). Eso último es contabilidad interna: el
+     socio ve su 75% y nada más.
 
      El BONO POR PUNTUALIDAD se mantiene tal cual: en fecha suma el factor
      completo, tarde suma la mitad. Con costo 20% y mora 1% diario, el punto
      de equilibrio sigue estando en los 20 días. */
-  var FACTOR_GARANTIA = 0.90;       // pagó en la fecha de corte o antes
-  var FACTOR_GARANTIA_MORA = 0.45;  // pagó tarde: suma, pero la mitad
+  var FACTOR_GARANTIA = 0.75;        // pagó en la fecha de corte o antes
+  var FACTOR_GARANTIA_MORA = 0.375;  // pagó tarde: suma, pero la mitad
   var DIAS_VENTANA_MINIMA = 5;     // §7.3
   var DIAS_CORTE_FIJO = 15;        // §7 — día 15 y último del mes
   var CUOTAS_PLAN_DE_PAGOS = 3;    // §8
@@ -254,11 +298,31 @@
   var CORTES_POR_MES = 2;                      // 15 y último: un mes = dos cortes
 
   /* ---- El reparto de cada peso de costo (contabilidad de Joan) ----
-     90% garantía del socio · 7% operativo · 3% amortiza el cupón regalado.
-     El socio NO ve esto por ningún lado: para él su garantía es el 90% y
-     punto. El 3% se acumula por socio y deja de cobrarse cuando ese socio
-     ya devolvió todo su cupón. */
-  var REPARTO_COSTO = { garantia: 0.90, operativo: 0.07, cupon: 0.03 };
+     5-ago-2026: de 90/7/3 a 75/10/15. El 90/7/3 queda derogado.
+     75% garantía del socio · 10% operativo · 15% amortiza el cupón regalado.
+     El socio NO ve esto por ningún lado: para él su garantía es el 75% y
+     punto. El 15% se deja de cobrar cuando ese socio ya devolvió todo su cupón,
+     y desde ahí es ganancia libre (ver amortizarCupon).
+     Pagado tarde: 37,5 / 47,5 / 15. El cupón se recupera igual —hay que
+     recuperarlo igual— y el bono que el socio no se ganó va entero a operativo,
+     que es de donde salió el descuento. */
+  var REPARTO_COSTO = { garantia: 0.75, operativo: 0.10, cupon: 0.15 };
+
+  /* ---- EL FRENO POR INGRESO, PREPARADO Y APAGADO (5-ago-2026) ----
+     El 15% compone. MEDIDO sobre la escalera de este motor, arrancando con el
+     cupón de 100.000 y pagando todo en fecha: al crédito 24 el cupo llega a
+     2.489.146 y solo el COSTO de esa quincena es 497.829 —más de lo que un
+     asalariado gana en una quincena—, con una cuota total de 2.986.975. El freno
+     topa la cuota a una fracción del ingreso quincenal del socio.
+
+     VIENE APAGADO Y ASÍ SE QUEDA hasta que Joan lo encienda desde Ajustes del
+     Panel. `activo:false` es la decisión, no un descuido: encenderlo le baja el
+     cupo a socios que hoy ya lo tienen, y eso lo decide él.
+
+     La fracción es configurable por la misma razón. 0,30 es el número de
+     arranque —tres de cada diez pesos de la quincena— y no está medido contra
+     nada todavía. */
+  var FRENO_INGRESO = { activo: false, fraccion_quincena: 0.30 };
 
   /* ---- Códigos de invitación ----
      Crockford-32 sin confusables (no van I, L, O ni U). 7 al azar + 1 de
@@ -527,25 +591,49 @@
   }
 
   /**
-   * §5 — Cupo máximo solicitable = garantia_total × factor_nivel.
-   * Redondea hacia abajo (D8) y no pasa del techo de la plataforma (D12).
+   * §5 — Cupo máximo solicitable = LA GARANTÍA, UNO A UNO (5-ago-2026).
+   *
+   * El factor de nivel está derogado: multiplicaba la garantía por 1,5 a 3 y
+   * con eso la exposición de Joan crecía crédito a crédito. Ahora el socio puede
+   * pedir exactamente lo que respalda, y lo único que no está respaldado por
+   * plata que él haya pagado es el cupón, que el 15% de cada costo va
+   * devolviendo.
+   *
+   * `nivelSocio` se sigue recibiendo Y SE SIGUE VALIDANDO —un nivel inventado es
+   * un error, no un cero silencioso— pero ya no mueve el resultado. Se conserva
+   * en la firma porque el nivel sigue existiendo y porque hay llamadores y
+   * pruebas que lo pasan; el día que se le quite, se le quita a todos a la vez.
+   *
+   * Redondea hacia abajo (D8) y no pasa del techo de la plataforma (D13).
    */
   function calcularCupo(garantiaTotal, nivelSocio) {
     var g = numeroNoNegativo(garantiaTotal, 'garantiaTotal');
-    var nivel = normalizarNivel(nivelSocio);
-    return Math.min(Math.floor(g * FACTOR_CUPO[nivel]), CUPO_MAXIMO);
+    normalizarNivel(nivelSocio == null ? 'bronce' : nivelSocio);
+    return Math.min(Math.floor(g), CUPO_MAXIMO);
   }
 
-  /** Garantía que hace falta para poder pedir `cupo` estando en `nivel`. */
+  /** Garantía que hace falta para poder pedir `cupo`. Uno a uno: es el mismo
+     número. Se conserva la función porque la calculadora pregunta "cuánto me
+     falta" y ese cálculo tiene que salir de un solo lado. */
   function garantiaNecesariaPara(cupo, nivelSocio) {
     var c = numeroNoNegativo(cupo, 'cupo');
-    var nivel = normalizarNivel(nivelSocio);
-    return Math.ceil(Math.min(c, CUPO_MAXIMO) / FACTOR_CUPO[nivel]);
+    normalizarNivel(nivelSocio == null ? 'bronce' : nivelSocio);
+    return Math.ceil(Math.min(c, CUPO_MAXIMO));
   }
 
   /**
-   * Cuánto podría pedir el socio en cada nivel con la garantía que tiene hoy.
-   * Es lo que deja ver que subir de nivel vale la pena sin tener que subir.
+   * QUÉ SE GANA SUBIENDO DE NIVEL, ahora que no es cupo (5-ago-2026).
+   *
+   * Esta función existía para vender "subí de nivel y pedí más", y eso dejó de
+   * ser cierto el día que el cupo pasó a ser la garantía uno a uno: el cupo es
+   * EL MISMO en los cuatro niveles y por eso viaja igual en los cuatro, para que
+   * ninguna pantalla pueda insinuar una diferencia que no existe. Lo que de
+   * verdad cambia por nivel son las PRÓRROGAS —cuántas veces puede aplazar un
+   * corte— y el reconocimiento.
+   *
+   * `factor` ya no viaja: era el número que la UI pintaba como "×2 tu garantía".
+   * Si alguna pantalla lo lee, va a leer undefined, y es mejor que siga
+   * prometiendo el doble.
    */
   function proyeccionNiveles(garantiaTotal, nivelActual) {
     var g = numeroNoNegativo(garantiaTotal, 'garantiaTotal');
@@ -553,14 +641,88 @@
     return NIVELES.map(function (n) {
       return {
         nivel: n,
-        factor: FACTOR_CUPO[n],
+        // El mismo cupo en los cuatro: el nivel ya no lo mueve.
         cupo: calcularCupo(g, n),
+        mueve_el_cupo: false,
         prorrogas: Math.min(PRORROGAS_POR_NIVEL[n], TOPE_DURO_PRORROGAS),
         requisitos: REQUISITOS_NIVEL[n],
         actual: n === actual,
         alcanzado: actual != null && NIVELES.indexOf(n) <= NIVELES.indexOf(actual)
       };
     });
+  }
+
+  /* ==========================================================================
+   * EL FRENO POR INGRESO — preparado y APAGADO (5-ago-2026, pedido de Joan)
+   *
+   * El 15% compone y no se detiene solo: 100.000 de cupo en el crédito 1 y
+   * 2.489.146 en el 24, donde el costo de la quincena solo ya es 497.829. Un
+   * asalariado colombiano no gana eso en una quincena, así que a partir de cierto
+   * punto el cupo deja de ser una oportunidad y pasa a ser una trampa — para el
+   * socio y para la cartera de Joan.
+   *
+   * El freno topa el cupo a lo que el socio pueda pagar con su quincena: la
+   * CUOTA (capital + el 20% de costo) no puede pasar de una fracción de su
+   * ingreso quincenal.
+   *
+   * VIENE APAGADO. `FRENO_INGRESO.activo` es false y estas funciones no se
+   * aplican solas en ningún lado: `cupoQuincenal` solo las llama si quien
+   * pregunta le pasa `opciones.freno.activo === true`. Joan lo enciende desde
+   * Ajustes del Panel cuando quiera, con la fracción que quiera.
+   * ========================================================================*/
+
+  /** Configuración del freno, con los defaults aplicados y validada. */
+  function configFreno(opciones) {
+    var o = opciones || {};
+    var fraccion = o.fraccion_quincena == null
+      ? FRENO_INGRESO.fraccion_quincena
+      : numeroPositivo(o.fraccion_quincena, 'freno.fraccion_quincena');
+    if (fraccion > 1) throw new RangeError('freno.fraccion_quincena: se esperaba decimal (0.30), llegó ' + fraccion);
+    return {
+      activo: o.activo === true,
+      fraccion_quincena: fraccion,
+      ingreso_quincenal: o.ingreso_quincenal == null
+        ? 0 : numeroNoNegativo(o.ingreso_quincenal, 'freno.ingreso_quincenal')
+    };
+  }
+
+  /**
+   * El capital más grande cuya cuota quincenal (capital + 20%) entra en la
+   * fracción del ingreso. Sin ingreso declarado no hay freno posible: devuelve
+   * null, que quiere decir "no sé", no "cero".
+   */
+  function cupoPorIngreso(ingresoQuincenal, opciones) {
+    var c = configFreno(opciones);
+    var ingreso = ingresoQuincenal == null
+      ? c.ingreso_quincenal : numeroNoNegativo(ingresoQuincenal, 'ingresoQuincenal');
+    if (!ingreso) return null;
+    return Math.floor(ingreso * c.fraccion_quincena / (1 + TASA_CREDITO));
+  }
+
+  /**
+   * Aplica el freno a un cupo ya calculado. Apagado —o sin ingreso declarado—
+   * devuelve el cupo intacto y `aplicado:false`. Nunca sube un cupo: solo topa.
+   *
+   * @param {number} cupo
+   * @param {object} [opciones] {activo, fraccion_quincena, ingreso_quincenal}
+   */
+  function frenarPorIngreso(cupo, opciones) {
+    var c = configFreno(opciones);
+    var base = numeroNoNegativo(cupo, 'cupo');
+    var tope = c.activo ? cupoPorIngreso(c.ingreso_quincenal, c) : null;
+    var final = (tope == null) ? base : Math.min(base, tope);
+    return {
+      cupo: final,
+      cupo_sin_freno: base,
+      aplicado: tope != null && final < base,
+      activo: c.activo,
+      tope_por_ingreso: tope,
+      fraccion_quincena: c.fraccion_quincena,
+      ingreso_quincenal: c.ingreso_quincenal,
+      // calcularCosto revienta con capital cero, y acá el cero es un dato
+      // posible (ingreso declarado ínfimo): la cuota se arma a mano.
+      cuota_maxima: tope == null ? null : tope + Math.round(tope * TASA_CREDITO)
+    };
   }
 
   /**
@@ -579,9 +741,25 @@
       garantia: {
         factor_puntual: FACTOR_GARANTIA,
         factor_mora: FACTOR_GARANTIA_MORA,
-        texto: 'De cada peso de costo que pagas, 90 centavos se te vuelven garantía, y la ' +
-               'garantía es lo que te deja pedir más. Pagando en la fecha suma completo; ' +
-               'pagando tarde suma la mitad, pero suma.'
+        /* Los centavos salen de la constante y no escritos a mano: cuando el
+           factor bajó de 90 a 75 esta frase seguía diciendo 90 y la app le
+           prometía al socio un número que el motor ya no daba. */
+        texto: 'De cada peso de costo que pagas, ' + Math.round(FACTOR_GARANTIA * 100) +
+               ' centavos se te vuelven garantía, y la garantía es tu cupo. Pagando en la ' +
+               'fecha suma completo; pagando tarde suma la mitad, pero suma.'
+      },
+      /* 5-ago-2026 — EL CUPO, dicho de una vez, porque es lo que más se
+         preguntó y lo que estaba repartido en dos pantallas: tu cupo es tu
+         garantía, uno a uno. Ni factores ni niveles de por medio. */
+      cupo: {
+        uno_a_uno: true,
+        // Redondeado a cuatro decimales porque 0,20 × 0,75 en punto flotante da
+        // 0.15000000000000002, y eso terminaba impreso en una pantalla.
+        crecimiento_por_credito: Math.round(TASA_CREDITO * FACTOR_GARANTIA * 10000) / 10000,
+        texto: 'Tu cupo es tu garantía: puedes pedir exactamente lo que tienes. Y cada ' +
+               'crédito que pagas en fecha te lo sube un ' +
+               Math.round(TASA_CREDITO * FACTOR_GARANTIA * 100) + '%, así que se te ' +
+               'duplica en cinco créditos.'
       },
       cupon: {
         maximo: CUPON_KYC_MAXIMO,
@@ -592,7 +770,7 @@
       },
       /* El producto 2 (2-ago-2026). Va acá porque esta función es la que
          alimenta las pantallas del socio: lo que se le promete sale de las
-         mismas constantes que hacen la cuenta. El reparto 90/7/3 NO entra
+         mismas constantes que hacen la cuenta. El reparto 75/10/15 NO entra
          nunca acá: eso es contabilidad de Joan, no una regla del acuerdo. */
       respaldado: {
         tasa_mensual: TASA_RESPALDADO_MENSUAL,
@@ -608,10 +786,16 @@
         texto: 'Cada persona que traigas te suma ' + GARANTIA_POR_REFERIDO.toLocaleString('es-CO') +
                ', desde que esa persona pague su crédito.'
       },
+      /* 5-ago-2026 — los niveles se quedan, pero ya no traen `factor`: no
+         multiplican nada. Lo que se gana subiendo son prórrogas. Y va la frase
+         acá para que ninguna pantalla tenga que inventarla. */
       niveles: NIVELES.map(function (n) {
-        return { nivel: n, factor: FACTOR_CUPO[n], requisitos: REQUISITOS_NIVEL[n],
+        return { nivel: n, requisitos: REQUISITOS_NIVEL[n], mueve_el_cupo: false,
                  prorrogas: Math.min(PRORROGAS_POR_NIVEL[n], TOPE_DURO_PRORROGAS) };
       }),
+      niveles_texto: 'Los niveles son el reconocimiento de tu historial y te dan más ' +
+                     'prórrogas: hasta ' + TOPE_DURO_PRORROGAS + ' aplazamientos por crédito. ' +
+                     'El cupo no depende del nivel: depende de tu garantía.',
       tope: {
         cupo: CUPO_MAXIMO,
         texto: 'Lo máximo que se presta son ' + CUPO_MAXIMO.toLocaleString('es-CO') + '.'
@@ -731,8 +915,9 @@
    * del plan de pagos—, esté al día o atrasado. El §4 original (donde la mora
    * congelaba la acumulación) sigue derogado: nadie deja de sumar.
    *
-   * Lo que cambia (29-jul-2026) es cuánto: en fecha suma el 100% del costo,
-   * tarde suma el 50%. Es un bono al puntual, no una multa al que se atrasa.
+   * Lo que cambia (29-jul-2026) es cuánto: en fecha suma el factor completo,
+   * tarde la mitad. Es un bono al puntual, no una multa al que se atrasa.
+   * 5-ago-2026: el factor pasa de 0,90 a 0,75 (y de 0,45 a 0,375).
    *
    * @param {number} costoPagado
    * @param {boolean} [pagoFueATiempo]  si se omite, se asume puntual.
@@ -748,8 +933,45 @@
   }
 
   /**
-   * §4-bis — EL 90% ES DEL QUE NO SE ATRASÓ, Y UNA PRÓRROGA NO SE LO REPONE
-   * (5-ago-2026).
+   * LA ESCALERA, EN UN SOLO REDONDEO — 5-ago-2026.
+   *
+   * Cuánto cupo le deja un crédito quincenal del tamaño `capital` pagado en
+   * fecha: el 15% del capital (0,20 de costo × 0,75 de garantía).
+   *
+   * ¿Por qué no `acumularGarantia(calcularCosto(capital))`? Porque encadena dos
+   * redondeos y se desvía. Medido en la escalera que Joan fijó: el crédito 4 pide
+   * 152.088, el costo redondea 30.417,60 a 30.418 y el 75% de eso redondea otra
+   * vez, 22.813,50 a 22.814. Un peso de más, y la escalera prometida
+   * (174.901) daba 174.902 desde ahí para siempre. Un solo redondeo sobre el
+   * capital da 22.813 y la escalera cierra peso a peso.
+   *
+   * La regla se dice como un porcentaje del capital —"cada crédito puntual te
+   * sube el cupo un 15%"—, así que se calcula como un porcentaje del capital.
+   * `acumularGarantia` sigue siendo la regla de la plata YA COBRADA (un costo
+   * concreto, una prórroga, un recargo), donde el peso redondeado es el que el
+   * socio de verdad pagó.
+   *
+   * @param {number} capital
+   * @param {boolean} [pagoFueATiempo] si se omite, se asume puntual.
+   */
+  function garantiaQueDejaUnCredito(capital, pagoFueATiempo) {
+    var c = numeroPositivo(capital, 'capital');
+    if (pagoFueATiempo !== undefined && typeof pagoFueATiempo !== 'boolean') {
+      throw new TypeError('pagoFueATiempo: se esperaba true o false, llegó ' + describir(pagoFueATiempo));
+    }
+    var factor = pagoFueATiempo === false ? FACTOR_GARANTIA_MORA : FACTOR_GARANTIA;
+    return Math.round(c * TASA_CREDITO * factor);
+  }
+
+  /**
+   * §4-bis — EL FACTOR COMPLETO ES DEL QUE NO SE ATRASÓ, Y UNA PRÓRROGA NO SE
+   * LO REPONE (5-ago-2026).
+   *
+   * OJO CON LOS PORCENTAJES DE ESTE BLOQUE: son los de la mañana en que se
+   * midió, cuando el factor era 90% en fecha y 45% tarde. Ese mismo día, más
+   * tarde, pasaron a 75% y 37,5%. La regla no cambió ni un ápice —el factor
+   * COMPLETO contra LA MITAD— y las cifras medidas se dejan como quedaron para
+   * no borrar la evidencia de por qué existe esta función.
    *
    * MEDIDO con el código de ayer: socio con 10 quincenas limpias y el crédito
    * 11 de 200.000 vencido desde el 31-mar. Saldar la deuda cuesta 494.000 y
@@ -760,7 +982,7 @@
    * 528.300 contra 492.300, 90.000 más de cupo y el capital todavía en la mano.
    * Por peso pagado, no pagar rendía el 50,4% contra el 45% del que salda.
    *
-   * LA REGLA JUSTA, y es una sola: el factor del 90% premia al crédito que
+   * LA REGLA JUSTA, y es una sola: el factor completo premia al crédito que
    * NUNCA se atrasó. Desde que un crédito cae en mora, todo lo que se pague
    * sobre él —prórrogas, cuotas del plan de pagos, el saldo final— acredita al
    * 45%, aunque el corte se haya movido y el pago llegue "en fecha" del corte
@@ -769,8 +991,8 @@
    *
    * Y NO BORRA NADA. El factor de cada pago se congela el día en que se paga y
    * mira solo lo que YA había pasado: los 132.300 de la prórroga que curó la
-   * mora son 132.300 para siempre. Lo que deja de existir es el 90% del ciclo
-   * que vino DESPUÉS de la mora. La promesa sigue entera por los dos lados: no
+   * mora son 132.300 para siempre. Lo que deja de existir es el factor completo
+   * del ciclo que vino DESPUÉS de la mora. La promesa sigue entera por los dos lados: no
    * se le quita lo ganado, y atrasarse no puede rendir más que pagar.
    *
    * El dato histórico no lo adivina el motor: quien liquida lo trae en
@@ -779,7 +1001,7 @@
    * asume que no hubo mora, que es el crédito recién desembolsado.
    *
    * @param {object} pago {pagado_en_fecha, credito_estuvo_en_mora}
-   * @returns {boolean} true → acredita al FACTOR_GARANTIA (90%)
+   * @returns {boolean} true → acredita al FACTOR_GARANTIA completo
    */
   function cuentaComoPuntualParaGarantia(pago) {
     if (!pago || typeof pago !== 'object') {
@@ -889,10 +1111,10 @@
       : recargoPorMora(base, diasMora, opciones);
     var costoTotal = costo + recargo;
     var aTiempo = diasMora === 0;
-    /* §4-bis — el 90% es del crédito que NUNCA se atrasó. Si este ya estuvo en
-       mora (el corte se movió con una prórroga o con un plan), pagar "en fecha"
-       del corte nuevo acredita al 45%: la prórroga compró tiempo, no
-       puntualidad. */
+    /* §4-bis — el factor completo es del crédito que NUNCA se atrasó. Si este ya
+       estuvo en mora (el corte se movió con una prórroga o con un plan), pagar
+       "en fecha" del corte nuevo acredita a la mitad: la prórroga compró tiempo,
+       no puntualidad. */
     var acredita = cuentaComoPuntualParaGarantia({
       pagado_en_fecha: aTiempo, credito_estuvo_en_mora: veniaDeMora(credito) });
 
@@ -901,7 +1123,8 @@
       fecha_pago: iso(pago),
       dias_mora: diasMora,
       pago_a_tiempo: aTiempo,
-      // Llegar en fecha y acreditar al 90% dejaron de ser lo mismo (§4-bis).
+      // Llegar en fecha y acreditar el factor completo dejaron de ser lo mismo
+      // (§4-bis).
       acredita_en_fecha: acredita,
       tramo: tramoDeMora(dias).tramo,
       capital: capital,
@@ -913,8 +1136,8 @@
       total_a_pagar: capital + costoTotal,
       garantia_generada: acumularGarantia(costoTotal, acredita),
       // Lo que habría ganado pagando en fecha, para poder mostrárselo. Si el
-      // crédito ya venía de una mora, ese 90% ya no está disponible ni pagando
-      // hoy: el techo honesto es el 45%.
+      // crédito ya venía de una mora, el factor completo ya no está disponible ni
+      // pagando hoy: el techo honesto es la mitad.
       garantia_si_puntual: acumularGarantia(costo, cuentaComoPuntualParaGarantia({
         pagado_en_fecha: true, credito_estuvo_en_mora: veniaDeMora(credito) })),
       supera_dias_castigo: diasMora >= DIAS_CASTIGO // §6: a los 90 días se castiga
@@ -1028,7 +1251,10 @@
     var nivel = normalizarNivel(opciones.nivelSocio || 'bronce', 'opciones.nivelSocio');
 
     var costo = calcularCosto(c);
-    var deja = acumularGarantia(costo, true);
+    // El 15% del capital en un solo redondeo, que es la escalera que se le
+    // promete al socio (ver garantiaQueDejaUnCredito). La calculadora y la
+    // proyección tienen que dar el MISMO peso.
+    var deja = garantiaQueDejaUnCredito(c, true);
     var cupo = calcularCupo(g, nivel);
     var necesaria = garantiaNecesariaPara(c, nivel);
 
@@ -1067,7 +1293,7 @@
       // escalera de verdad, no un crédito del mismo tamaño repetido.
       var pide = opcionesCrecimiento.pideElCupo ? Math.max(c, calcularCupo(g, nivel)) : c;
       var costo = calcularCosto(pide);
-      var gana = acumularGarantia(costo, true);
+      var gana = garantiaQueDejaUnCredito(pide, true);
       g += gana;
       pasos.push({
         credito: i, capital: pide, costo: costo,
@@ -1104,11 +1330,12 @@
     var fechas = cortesSiguientes(desde, n);
     var cuotaBase = Math.floor(base / n);
     var cuotas = [], saldo = base, totalCosto = 0, totalPagar = 0, totalGarantia = 0;
-    /* 5-ago-2026 §4-bis — las cuotas del plan se acreditaban SIEMPRE al 90%,
+    /* 5-ago-2026 §4-bis — las cuotas del plan se acreditaban SIEMPRE al factor
+       completo,
        y un plan de pagos existe justamente porque el crédito ya se atrasó: era
        el mismo regalo de la prórroga encadenada por otra puerta. Pagar la cuota
-       el día de su corte es lo que se espera del plan; el 90% es del ciclo que
-       nunca se atrasó. */
+       el día de su corte es lo que se espera del plan; el factor completo es del
+       ciclo que nunca se atrasó. */
     var acredita = cuentaComoPuntualParaGarantia({
       pagado_en_fecha: true, credito_estuvo_en_mora: veniaDeMora(credito) });
 
@@ -1266,11 +1493,11 @@
           opciones.diasCausados == null ? 0 : opciones.diasCausados, capital, dias, opciones)
       : recargoPorMora(capital, dias, opciones);
     var aTiempo = dias === 0;
-    /* El costo con su factor de puntualidad y el recargo SIEMPRE al 45%: es
+    /* El costo con su factor de puntualidad y el recargo SIEMPRE a la mitad: es
        plata que solo existe porque el corte ya había pasado. Es la misma cuenta
        que hace el puente sobre la prórroga ya guardada, y a propósito.
        5-ago-2026 §4-bis: y el factor del costo mira además si el crédito YA
-       venía de una mora. Si viene, esta prórroga acredita al 45% aunque se
+       venía de una mora. Si viene, esta prórroga acredita a la mitad aunque se
        registre el mismísimo día del corte nuevo — es el ciclo que la prórroga
        anterior le compró, no una quincena limpia. */
     var acredita = cuentaComoPuntualParaGarantia({
@@ -1290,8 +1517,8 @@
       fecha_corte_nueva: r.ok ? r.fecha_corte_nueva : null,
       dias_mora: dias,
       a_tiempo: aTiempo,
-      // Registrarla en fecha y acreditarla al 90% dejaron de ser lo mismo: un
-      // crédito que ya estuvo en mora acredita al 45% (§4-bis).
+      // Registrarla en fecha y acreditarla al factor completo dejaron de ser lo
+      // mismo: un crédito que ya estuvo en mora acredita a la mitad (§4-bis).
       acredita_en_fecha: acredita,
       costo_prorroga: costo,
       recargo_mora: recargo,
@@ -1303,7 +1530,7 @@
       credito: r.credito,
       plan_de_pagos: r.ok ? null : r.plan_de_pagos,
       // El movimiento que se guarda, con el recargo aparte para que después se
-      // pueda acreditar al 45% sin degradar el costo.
+      // pueda acreditar a la mitad sin degradar el costo.
       movimiento: {
         credito_id: credito.id == null ? null : credito.id,
         tipo: r.ok ? 'costo_prorroga' : 'entrada_plan_de_pagos',
@@ -1421,7 +1648,7 @@
     var nuevoCorte = fechaCorteProrroga(corteActual, fechaMovimiento);
 
     /* 4-ago-2026 — y el costo acredita con el MISMO factor de puntualidad que
-       cualquier otro pago (§4). Acreditarlo siempre al 90%, incluso registrado
+       cualquier otro pago (§4). Acreditarlo siempre al factor completo, incluso registrado
        con veinte días de atraso, hacía que DEJAR la prórroga dejara más
        garantía que SALDAR la deuda ese mismo día: plata prestada al peor
        pagador y una lección al revés. Lo ya ganado no se toca —el factor se
@@ -1429,8 +1656,8 @@
        tarde no puede rendir más que pagar a tiempo. */
     var prorrogaATiempo = fechaMovimiento <= iso(corteActual);
     /* 5-ago-2026 §4-bis — y no alcanza con llegar en fecha: si el crédito YA
-       venía de una mora, el 90% ya no está. Encadenar prórrogas se acreditaba
-       al 90% a partir de la segunda, porque la primera le ponía el reloj de
+       venía de una mora, el factor completo ya no está. Encadenar prórrogas se
+       acreditaba completo a partir de la segunda, porque la primera le ponía el reloj de
        mora en cero: 334.000 pagados rendían más garantía que saldar 494.000. */
     var prorrogaAcredita = cuentaComoPuntualParaGarantia({
       pagado_en_fecha: prorrogaATiempo, credito_estuvo_en_mora: veniaDeMora(credito) });
@@ -1447,7 +1674,7 @@
       credito: actualizado,
       costo_prorroga: costo,
       // cambio 26-jul-2026: sí acumula · 4-ago-2026: con su factor de puntualidad
-      // 5-ago-2026: y el 90% solo si el crédito no venía de una mora (§4-bis)
+      // 5-ago-2026: y completo solo si el crédito no venía de una mora (§4-bis)
       garantia_generada: acumularGarantia(costo, prorrogaAcredita),
       prorroga_a_tiempo: prorrogaATiempo,
       prorroga_acredita_en_fecha: prorrogaAcredita,
@@ -1546,12 +1773,22 @@
    * El cupo del crédito quincenal, con la comprometida ya descontada.
    * `calcularCupo` y `garantiaTotal` no cambian su contrato: esta función es la
    * que sabe de las dos garantías y les pasa la base correcta.
+   *
+   * 5-ago-2026: el cupo es la base uno a uno —el nivel ya no lo mueve— y `factor`
+   * dejó de viajar. Y acá entra el FRENO POR INGRESO, apagado por defecto: solo
+   * topa si quien pregunta le pasa `opciones.freno.activo === true`.
+   *
+   * @param {object} [entrada]  la forma de desglosarGarantia
+   * @param {string} [nivelSocio]
+   * @param {object} [opciones] {freno:{activo, fraccion_quincena, ingreso_quincenal}}
    */
-  function cupoQuincenal(entrada, nivelSocio) {
+  function cupoQuincenal(entrada, nivelSocio, opciones) {
+    opciones = opciones || {};
     var d = desglosarGarantia(entrada);
     var nivel = normalizarNivel(nivelSocio == null ? 'bronce' : nivelSocio, 'nivelSocio');
+    var freno = frenarPorIngreso(calcularCupo(d.base_cupo, nivel), opciones.freno);
     return {
-      cupo: calcularCupo(d.base_cupo, nivel),
+      cupo: freno.cupo,
       base: d.base_cupo,
       total: d.total,
       ganada: d.ganada,
@@ -1560,15 +1797,18 @@
       ganada_libre: d.ganada_libre,
       respaldo_disponible: maximoRespaldado(entrada),
       nivel: nivel,
-      factor: FACTOR_CUPO[nivel]
+      // El nivel viaja porque sigue existiendo (prórrogas, reconocimiento), no
+      // porque mueva este número.
+      nivel_mueve_el_cupo: false,
+      freno: freno
     };
   }
 
   /**
    * Garantía que deja un costo pagado del préstamo con garantía: solo el 20%.
    * Es a propósito que sea tan poco. El socio elige entre plata barata y
-   * crecer: el quincenal cuesta más pero le sube el cupo cuatro veces y media
-   * más rápido por cada peso de costo.
+   * crecer: el quincenal cuesta más pero le sube el cupo casi cuatro veces más
+   * rápido por cada peso de costo (0,75 contra 0,20).
    *
    * Mismo bono por puntualidad que el quincenal: tarde suma la mitad.
    */
@@ -1734,20 +1974,26 @@
   }
 
   /**
-   * EL REPARTO 90/7/3 — contabilidad de Joan, no del socio.
+   * EL REPARTO 75/10/15 — contabilidad de Joan, no del socio (5-ago-2026).
    *
-   * Cada peso de costo que entra se parte en tres: 90% se le vuelve garantía al
-   * socio, 7% sostiene la plataforma y 3% va amortizando el cupón de 100.000
-   * que se le REGALÓ para arrancar. La idea es que con el tiempo ese riesgo
-   * inicial deje de existir.
+   * Cada peso de costo que entra se parte en tres: 75% se le vuelve garantía al
+   * socio, 10% sostiene la plataforma y 15% va amortizando el cupón de 100.000
+   * que se le REGALÓ para arrancar. El 90/7/3 queda derogado: con el 3% el cupón
+   * tardaba una vida en volver y la exposición de Joan crecía mientras tanto.
+   * Con el 15% se salda en el crédito 13 y desde ahí es ganancia.
    *
-   * El socio no ve esto por ningún lado: para él su garantía es el 90% y punto.
+   * PAGADO TARDE queda 37,5 / 47,5 / 15. El cupón se cobra igual —es plata que
+   * hay que recuperar igual— y el bono que el socio no se ganó va entero a
+   * operativo, que es de donde salió el descuento.
+   *
+   * El socio no ve esto por ningún lado: para él su garantía es el 75% y punto.
    * Si esto aparece alguna vez en una pantalla del socio o en lo que sube a la
    * nube, está mal.
    *
    * @param {number} costoPagado
    * @param {object} [opciones] {aTiempo=true, producto='quincenal', cuponPendiente=Infinity}
-   * @returns {{total:number, garantia_socio:number, amortiza_cupon:number, operativo:number}}
+   * @returns {{total, garantia_socio, amortiza_cupon, operativo,
+   *            cupon_nominal, ganancia_cupon}}
    */
   function repartirCosto(costoPagado, opciones) {
     opciones = opciones || {};
@@ -1764,17 +2010,114 @@
       ? acumularGarantiaRespaldada(total, aTiempo)
       : acumularGarantia(total, aTiempo);
 
-    // El 3% se deja de cobrar cuando ese socio ya devolvió todo su cupón.
-    var cupon = Math.min(Math.round(total * REPARTO_COSTO.cupon), Math.max(0, pendiente));
+    /* El 15% se deja de cobrar cuando ese socio ya devolvió todo su cupón. Lo
+       que sobra de ese 15% NO desaparece: pasa a ganancia, y va aparte en
+       `ganancia_cupon` para que el Panel pueda decir de dónde salió. */
+    var nominal = Math.round(total * REPARTO_COSTO.cupon);
+    var cupon = Math.min(nominal, Math.max(0, pendiente));
     /* Operativo absorbe TODO el redondeo, para que los tres pedazos sumen el
-       costo exacto siempre. Con el pago tarde el reparto queda 45/3/52: el 3%
-       del cupón se cobra igual y la diferencia del bono se va entera a
-       operativo, que es de donde salió el descuento. */
+       costo exacto siempre — con costos feos (1, 7, 13, 99, 101) y en los dos
+       casos de puntualidad. */
     var operativo = total - garantia - cupon;
     if (operativo < 0) { cupon = Math.max(0, cupon + operativo); operativo = total - garantia - cupon; }
     if (operativo < 0) operativo = 0;
 
-    return { total: total, garantia_socio: garantia, amortiza_cupon: cupon, operativo: operativo };
+    return {
+      total: total,
+      garantia_socio: garantia,
+      amortiza_cupon: cupon,
+      operativo: operativo,
+      // Cuánto habría ido al cupón si quedara algo por recuperar, y cuánto de
+      // ese 15% ya es ganancia porque no quedaba. `operativo` los contiene.
+      cupon_nominal: nominal,
+      ganancia_cupon: Math.min(Math.max(0, nominal - cupon), operativo)
+    };
+  }
+
+  /**
+   * EL CUPÓN AMORTIZADO Y LA GANANCIA LIBRE — 5-ago-2026, contabilidad del Panel.
+   *
+   * Recorre los costos que un socio YA PAGÓ, en orden, y va descontando el 15%
+   * de cada uno del cupón que la plataforma le regaló. Contesta las tres
+   * preguntas del Panel: cuánto queda por recuperar, cuánto ya se recuperó y
+   * cuánto de lo cobrado es ganancia libre.
+   *
+   * SE DERIVA, NO SE GUARDA, y es la misma decisión que ya se tomó con el nivel
+   * (que es un máximo histórico derivado) y con el costo del ciclo (que se
+   * reconstruye del historial): un contador guardado se desincroniza el día que
+   * Joan edita un pago, y desde ahí miente para siempre sin que nadie lo note.
+   * Acá se vuelve a sumar desde los hechos cada vez que se pregunta.
+   *
+   * EL ORDEN IMPORTA y por eso la lista se recibe ya ordenada: el 15% del
+   * crédito 13 se parte en dos —una parte termina de saldar el cupón y el resto
+   * ya es ganancia—, y eso solo se sabe habiendo pasado por los 12 anteriores.
+   *
+   * @param {Array} costos  [{monto, aTiempo, producto, fecha, tipo}] cronológico.
+   *                        `monto` es el costo COBRADO (sin capital).
+   * @param {object} [opciones] {cuponPrestado} lo que la plataforma le regaló;
+   *                            por defecto CUPON_KYC_MAXIMO.
+   */
+  function amortizarCupon(costos, opciones) {
+    opciones = opciones || {};
+    if (costos != null && !Array.isArray(costos)) {
+      throw new TypeError('costos: se esperaba una lista, llegó ' + describir(costos));
+    }
+    var prestado = numeroNoNegativo(
+      opciones.cuponPrestado == null ? CUPON_KYC_MAXIMO : opciones.cuponPrestado, 'cuponPrestado');
+
+    var pendiente = prestado, movimientos = [], saldadoEn = null;
+    var cobrado = 0, garantia = 0, recuperado = 0, operativo = 0, gananciaCupon = 0;
+
+    (costos || []).forEach(function (c, i) {
+      if (!c || typeof c !== 'object') {
+        throw new TypeError('costos[' + i + ']: se esperaba un objeto {monto, aTiempo}');
+      }
+      var r = repartirCosto(c.monto == null ? 0 : c.monto, {
+        aTiempo: c.aTiempo !== false,
+        producto: c.producto == null ? 'quincenal' : c.producto,
+        cuponPendiente: pendiente
+      });
+      pendiente = Math.max(0, pendiente - r.amortiza_cupon);
+      cobrado += r.total;
+      garantia += r.garantia_socio;
+      recuperado += r.amortiza_cupon;
+      operativo += r.operativo;
+      gananciaCupon += r.ganancia_cupon;
+      if (saldadoEn === null && pendiente === 0) saldadoEn = i;
+      movimientos.push({
+        indice: i,
+        fecha: c.fecha == null ? null : c.fecha,
+        tipo: c.tipo == null ? null : c.tipo,
+        producto: c.producto == null ? 'quincenal' : c.producto,
+        monto: r.total,
+        garantia_socio: r.garantia_socio,
+        amortiza_cupon: r.amortiza_cupon,
+        operativo: r.operativo,
+        ganancia_cupon: r.ganancia_cupon,
+        cupon_pendiente_despues: pendiente
+      });
+    });
+
+    return {
+      cupon_prestado: prestado,
+      cupon_recuperado: recuperado,
+      cupon_pendiente: pendiente,
+      saldado: pendiente === 0,
+      // En qué movimiento quedó saldado (0-based), o null si todavía no.
+      saldado_en: saldadoEn,
+      cobrado: cobrado,
+      garantia_socio: garantia,
+      operativo: operativo,
+      /* Lo cobrado que ya no es ni garantía del socio ni recuperación de
+         capital: es ganancia libre. `operativo` la contiene entera —el 15% que
+         se liberó cae ahí— y `ganancia_cupon` dice cuánto de ella viene de ese
+         15%, que es el número que Joan pidió ver. */
+      ganancia_libre: operativo,
+      ganancia_cupon: gananciaCupon,
+      // Lo que todavía está en riesgo: el cupón que no se ha recuperado.
+      expuesto: pendiente,
+      movimientos: movimientos
+    };
   }
 
   /**
@@ -1972,6 +2315,11 @@
     proyectarCrecimiento: proyectarCrecimiento,
     proyeccionNiveles: proyeccionNiveles,
     garantiaNecesariaPara: garantiaNecesariaPara,
+    // La escalera del 15%, en un solo redondeo (5-ago-2026)
+    garantiaQueDejaUnCredito: garantiaQueDejaUnCredito,
+    // El freno por ingreso, APAGADO por defecto (5-ago-2026)
+    cupoPorIngreso: cupoPorIngreso,
+    frenarPorIngreso: frenarPorIngreso,
 
     // Auxiliares que usan las anteriores (y que la UI va a necesitar)
     detalleFechaCorte: detalleFechaCorte,
@@ -2001,7 +2349,9 @@
     CUPO_MAXIMO: CUPO_MAXIMO,
     MONTO_MINIMO: MONTO_MINIMO,
     MONTO_MAXIMO_CALCULADORA: MONTO_MAXIMO_CALCULADORA,
-    FACTOR_CUPO: FACTOR_CUPO,
+    /* FACTOR_CUPO NO SE EXPORTA MÁS (5-ago-2026): el cupo es la garantía uno a
+       uno y ese factor ya no existe. Si una pantalla lo lee va a leer undefined,
+       que es infinitamente mejor que seguir pintando "×2 tu garantía". */
     PRORROGAS_POR_NIVEL: PRORROGAS_POR_NIVEL,
     TOPE_DURO_PRORROGAS: TOPE_DURO_PRORROGAS,
     REQUISITOS_NIVEL: REQUISITOS_NIVEL,
@@ -2024,6 +2374,8 @@
     simularPrestamoRespaldado: simularPrestamoRespaldado,
     liquidarCuotaRespaldada: liquidarCuotaRespaldada,
     repartirCosto: repartirCosto,
+    // El cupón amortizado y la ganancia libre, DERIVADOS (5-ago-2026)
+    amortizarCupon: amortizarCupon,
     compararProductos: compararProductos,
     generarCodigoInvitacion: generarCodigoInvitacion,
     normalizarCodigoInvitacion: normalizarCodigoInvitacion,
@@ -2035,6 +2387,7 @@
     FACTOR_GARANTIA_RESPALDADO_MORA: FACTOR_GARANTIA_RESPALDADO_MORA,
     CORTES_POR_MES: CORTES_POR_MES,
     REPARTO_COSTO: REPARTO_COSTO,
+    FRENO_INGRESO: FRENO_INGRESO,
     ALFABETO_CODIGO: ALFABETO_CODIGO,
     LARGO_CODIGO: LARGO_CODIGO,
     PREFIJO_CODIGO: PREFIJO_CODIGO
