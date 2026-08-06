@@ -154,8 +154,14 @@
  *     en otro: hay una prueba que exige que los 15 sumen 100.000 clavados.
  * D13. Techo de la plataforma: CUPO_MAXIMO = 20 millones. calcularCupo nunca
  *     devuelve más, por alta que sea la garantía.
- * D14. Un referido suma 5.000 SOLO cuando ya pagó un crédito. Sin tope: traer
- *     gente que paga es exactamente lo que queremos premiar.
+ * D14. (27-jul-2026, TOPADA el 6-ago-2026) Un referido suma 5.000 SOLO cuando ya
+ *     pagó un crédito. Decía "sin tope: traer gente que paga es exactamente lo
+ *     que queremos premiar", y eso era cierto del incentivo y falso de la plata:
+ *     esos 5.000 son garantía PRESTADA, o sea exposición de Joan, y sin tope un
+ *     socio que nunca pagó llegaba a 2.600.000 de cupo con 500 referidos. Ahora
+ *     la prestada COMPLETA (cupón + referidos) se topa en CUPON_KYC_MAXIMO y los
+ *     referidos tampoco pasan de la garantía ganada del socio. Los dos topes son
+ *     configurables: ver TOPE_REFERIDOS.
  * ==========================================================================*/
 
 (function (raiz, fabrica) {
@@ -208,8 +214,65 @@
   ];
   var CUPON_KYC_MAXIMO = 100000;   // suma exacta de los 15 datos de arriba
 
-  var GARANTIA_POR_REFERIDO = 5000; // pero solo cuando el referido paga puntual
+  var GARANTIA_POR_REFERIDO = 5000; // pero solo cuando el referido ya pagó
   var CUPO_MAXIMO = 20000000;       // techo de la plataforma: 20 millones
+
+  /* ==========================================================================
+   * EL TOPE DE LOS REFERIDOS — 6-ago-2026, y era el último sitio donde la
+   * exposición de Joan todavía crecía.
+   *
+   * LOS 5.000 DE CADA REFERIDO SON GARANTÍA PRESTADA, no ganada: los pone la
+   * plataforma, igual que el cupón por los datos. Y con el cupo uno a uno son
+   * 5.000 de cupo puro. Sin tope eso significaba:
+   *
+   *   MEDIDO. Un socio que NUNCA PAGÓ UN PESO llegaba a 2.600.000 de cupo con
+   *   500 referidos (100.000 de cupón + 2.500.000 de referidos), y con 5.000
+   *   referidos la PRESTADA daba 25.100.000 — por encima del techo entero de la
+   *   plataforma. Y peor: un socio que ya había SALDADO su cupón en el crédito 13
+   *   volvía a quedar expuesto con cada referido nuevo, porque el 15% recuperado
+   *   ya estaba gastado y los 5.000 nuevos no tenían de dónde amortizarse. La
+   *   ganancia libre que muestra el Panel se encogía HACIA ATRÁS: 71.758 → 68.701
+   *   con un solo referido, y el socio saldado dejaba de estar saldado (expuesto
+   *   1.943, y 196.943 con cuarenta referidos).
+   *
+   * LA PREGUNTA DE JOAN ("¿esto hace que MI exposición crezca?") tenía acá su
+   * última respuesta SÍ. Y no está financiado: el 15% de cada costo amortiza el
+   * cupón DEL SOCIO QUE LO PAGA y de nadie más (contabilidadCartera del puente lo
+   * dice explícito: "cada socio tiene el suyo"). Los 5.000 que se le regalan al
+   * padrino solo los devuelve el padrino, con sus propios pagos futuros; lo que el
+   * referido paga ya está comprometido con su propio cupón de 100.000.
+   *
+   * LO QUE SE ELIGIÓ, Y POR QUÉ. Se topa la PRESTADA COMPLETA en el mismo techo
+   * del cupón de datos (100.000). Así la exposición de Joan por socio queda
+   * clavada en 100.000 pase lo que pase —que es literalmente lo que pidió— y la
+   * promesa "arranca en 97.000 y solo baja hasta cero en el crédito 13" vuelve a
+   * ser verdad con cualquier número de referidos.
+   *
+   * La otra forma sensata era topar los referidos en la garantía GANADA del socio
+   * ("solo crece para quien ya demostró que paga"). Respeta mejor el espíritu,
+   * pero NO arregla el caso que más dolía: el socio del crédito 13 tiene 600.000
+   * de ganada, así que sus referidos podrían meter 600.000 de prestada nueva y
+   * volver a abrirle la exposición de cero a medio millón. Con los números en la
+   * mano, no alcanza sola.
+   *
+   * ASÍ QUE VAN LAS DOS, y la segunda no le cuesta nada al que paga: dentro del
+   * techo, los referidos tampoco pueden pasar de la garantía ganada. El único al
+   * que eso le quita algo es al socio que no ha pagado nunca —exactamente el que
+   * no queremos premiar—, y al que sí paga el techo ya se lo dio.
+   *
+   * LA CONTRA, dicha de frente: con la ficha completa (100.000 de cupón) los
+   * referidos dejan de sumar cupo. La app se lo tiene que decir así, y el premio
+   * de traer gente que paga hay que pagarlo con algo que no sea plata de Joan.
+   *
+   * CONFIGURABLE para que Joan lo pueda mover sin tocar una cuenta:
+   *   techo_prestada  el techo de toda la garantía prestada. `null` lo apaga.
+   *   hasta_la_ganada true = los referidos tampoco pasan de la ganada.
+   * Las dos apagadas es el comportamiento viejo, sin tope.
+   * ========================================================================*/
+  var TOPE_REFERIDOS = {
+    techo_prestada: CUPON_KYC_MAXIMO,
+    hasta_la_ganada: true
+  };
 
   /* 3-ago-2026, pedido de Joan. Dos números que hasta hoy vivían escritos a mano
      dentro de la pantalla de la calculadora, cada producto con el suyo y sin
@@ -781,10 +844,22 @@
                PLAZO_RESPALDADO_MAX + ' meses, hasta el monto de tu garantía ganada. ' +
                'Cuesta menos, pero te hace crecer el cupo mucho más despacio.'
       },
+      /* 6-ago-2026 — acá decía "cada persona que traigas te suma 5.000" y punto,
+         y con el tope nuevo eso ya no es verdad siempre: los referidos comparten
+         techo con el cupón de datos. Que la app diga la regla completa, con las
+         mismas constantes que hacen la cuenta, en vez de prometer un cupo que
+         después no aparece. */
       referidos: {
         por_cada_uno: GARANTIA_POR_REFERIDO,
+        tope: TOPE_REFERIDOS,
         texto: 'Cada persona que traigas te suma ' + GARANTIA_POR_REFERIDO.toLocaleString('es-CO') +
-               ', desde que esa persona pague su crédito.'
+               ' de garantía prestada, desde que esa persona pague su crédito' +
+               (TOPE_REFERIDOS.hasta_la_ganada ? ' y hasta la garantía que ya te ganaste pagando' : '') +
+               (TOPE_REFERIDOS.techo_prestada != null
+                 ? '. Lo que te prestamos nosotros —tus datos y tus referidos juntos— llega hasta ' +
+                   TOPE_REFERIDOS.techo_prestada.toLocaleString('es-CO') +
+                   '; de ahí para arriba el cupo lo construyes pagando.'
+                 : '.')
       },
       /* 5-ago-2026 — los niveles se quedan, pero ya no traen `factor`: no
          multiplican nada. Lo que se gana subiendo son prórrogas. Y va la frase
@@ -885,24 +960,88 @@
   }
 
   /**
-   * Garantía total del socio, con sus tres fuentes a la vista. Es lo que la
-   * app le muestra desglosado para que entienda de dónde le sale cada peso.
+   * EL TOPE de la garantía por referidos, en pesos. Lo que los referidos VALEN
+   * lo dice garantiaPorReferidos; lo que se le puede ACREDITAR lo dice esto.
+   *
+   * @param {number} cupon   la garantía prestada por los datos
+   * @param {number} ganada  la garantía que el socio se ganó pagando
+   * @param {object} [config] {techo_prestada, hasta_la_ganada}; por defecto
+   *        TOPE_REFERIDOS. Ver el comentario de esa constante.
+   * @returns {number} Infinity si Joan apagó los dos topes.
    */
-  function garantiaTotal(entrada) {
-    entrada = entrada || {};
-    var porDatos = garantiaPorDatos(entrada.datos).total;
-    var porReferidos = garantiaPorReferidos(entrada.referidos);
+  function topeGarantiaPorReferidos(cupon, ganada, config) {
+    if (config != null && typeof config !== 'object') {
+      throw new TypeError('tope_referidos: se esperaba un objeto, llegó ' + describir(config));
+    }
+    var c = config || {};
+    var techo = c.techo_prestada === undefined ? TOPE_REFERIDOS.techo_prestada : c.techo_prestada;
+    var haciaLaGanada = c.hasta_la_ganada === undefined
+      ? TOPE_REFERIDOS.hasta_la_ganada : c.hasta_la_ganada;
+    var topes = [];
+    if (techo != null) {
+      topes.push(Math.max(0, numeroNoNegativo(techo, 'tope_referidos.techo_prestada') - cupon));
+    }
+    if (haciaLaGanada !== false) topes.push(Math.max(0, ganada));
+    if (!topes.length) return Infinity;
+    return Math.min.apply(null, topes);
+  }
+
+  /**
+   * LAS PARTES DE LA GARANTÍA, en un solo lugar. `garantiaTotal` y
+   * `desglosarGarantia` salen las dos de acá y por eso no pueden divergir: son
+   * la misma cuenta mirada con más o menos detalle, no dos cuentas.
+   *
+   * (6-ago-2026: antes cada una hacía su propia suma y una prueba tenía que
+   * vigilar que los totales coincidieran. El tope de los referidos habría sido
+   * la tercera cosa que hay que acordarse de escribir en los dos lados.)
+   */
+  function partesDeGarantia(entrada) {
+    if (entrada == null) entrada = {};
+    if (typeof entrada !== 'object') throw new TypeError('entrada: se esperaba un objeto');
+
+    var cupon = garantiaPorDatos(entrada.datos).total;
+    var valenLosReferidos = garantiaPorReferidos(entrada.referidos);
     var acumulada = numeroNoNegativo(entrada.acumulada == null ? 0 : entrada.acumulada, 'acumulada');
     // Ajuste a mano de Joan al migrar (§13): puede sumar o restar, pero la
     // garantía total nunca queda negativa.
     var ajuste = entrada.ajuste == null ? 0 : numeroFinito(entrada.ajuste, 'ajuste');
-    var total = Math.max(0, porDatos + porReferidos + acumulada + ajuste);
+
+    /* El ajuste negativo se come PRIMERO la ganada y recién después la prestada,
+       así las dos partes siempre suman el mismo total. */
+    var bruto = acumulada + ajuste;
+    var ganada = Math.max(0, bruto);
+    /* Y acá se topa: lo que los referidos valen no siempre es lo que se puede
+       acreditar, porque son plata de Joan (ver TOPE_REFERIDOS). */
+    var referidos = Math.min(valenLosReferidos,
+                             topeGarantiaPorReferidos(cupon, ganada, entrada.tope_referidos));
+    var prestada = Math.max(0, cupon + referidos + Math.min(0, bruto));
+
     return {
-      cupon: porDatos,
-      referidos: porReferidos,
+      cupon: cupon,
+      referidos: referidos,
+      // Cuánto habrían valido sin tope, para que el Panel pueda explicar la resta
+      // en vez de que el socio vea un número que no cuadra con "5.000 por cada uno".
+      referidos_sin_tope: valenLosReferidos,
       acumulada: acumulada,
       ajuste: ajuste,
-      total: total
+      ganada: ganada,
+      prestada: prestada,
+      total: ganada + prestada
+    };
+  }
+
+  /**
+   * Garantía total del socio, con sus tres fuentes a la vista. Es lo que la
+   * app le muestra desglosado para que entienda de dónde le sale cada peso.
+   */
+  function garantiaTotal(entrada) {
+    var g = partesDeGarantia(entrada);
+    return {
+      cupon: g.cupon,
+      referidos: g.referidos,
+      acumulada: g.acumulada,
+      ajuste: g.ajuste,
+      total: g.total
     };
   }
 
@@ -1722,37 +1861,28 @@
    * @param {object} [entrada] {datos, referidos, acumulada, ajuste, comprometida}
    */
   function desglosarGarantia(entrada) {
-    if (entrada == null) entrada = {};
-    if (typeof entrada !== 'object') throw new TypeError('entrada: se esperaba un objeto');
-
-    var cupon = garantiaPorDatos(entrada.datos).total;
-    var referidos = garantiaPorReferidos(entrada.referidos);
-    var acumulada = numeroNoNegativo(entrada.acumulada == null ? 0 : entrada.acumulada, 'acumulada');
-    var ajuste = entrada.ajuste == null ? 0 : numeroFinito(entrada.ajuste, 'ajuste');
-    var pedida = numeroNoNegativo(entrada.comprometida == null ? 0 : entrada.comprometida, 'comprometida');
-
-    /* El ajuste negativo se come PRIMERO la ganada y recién después la
-       prestada. Así el total de acá nunca difiere del de garantiaTotal(): son
-       el mismo número partido en dos, no dos cuentas distintas. */
-    var bruto = acumulada + ajuste;
-    var ganada = Math.max(0, bruto);
-    var prestada = Math.max(0, cupon + referidos + Math.min(0, bruto));
-    var total = ganada + prestada;
+    /* Las partes salen de partesDeGarantia —la MISMA cuenta que garantiaTotal—,
+       así que el total de acá nunca puede diferir del de allá. Lo único que se
+       agrega es la comprometida, que garantiaTotal no necesita saber. */
+    var g = partesDeGarantia(entrada);
+    var pedida = numeroNoNegativo(
+      (entrada && entrada.comprometida) == null ? 0 : entrada.comprometida, 'comprometida');
     // No se puede comprometer más de lo que se ganó: si el dato viene sucio,
     // se recorta en vez de reventar, que es plata que el socio ya ve en pantalla.
-    var comprometida = Math.min(pedida, ganada);
+    var comprometida = Math.min(pedida, g.ganada);
 
     return {
-      cupon: cupon,
-      referidos: referidos,
-      acumulada: acumulada,
-      ajuste: ajuste,
-      prestada: prestada,
-      ganada: ganada,
+      cupon: g.cupon,
+      referidos: g.referidos,
+      referidos_sin_tope: g.referidos_sin_tope,
+      acumulada: g.acumulada,
+      ajuste: g.ajuste,
+      prestada: g.prestada,
+      ganada: g.ganada,
       comprometida: comprometida,
-      ganada_libre: ganada - comprometida,
-      total: total,
-      base_cupo: Math.max(0, total - comprometida)
+      ganada_libre: g.ganada - comprometida,
+      total: g.total,
+      base_cupo: Math.max(0, g.total - comprometida)
     };
   }
 
@@ -2307,6 +2437,9 @@
     // §3 nuevo: garantía que se gana entregando datos, y por referidos
     garantiaPorDatos: garantiaPorDatos,
     garantiaPorReferidos: garantiaPorReferidos,
+    // El tope de los referidos (6-ago-2026): lo que valen vs. lo que se acredita
+    topeGarantiaPorReferidos: topeGarantiaPorReferidos,
+    partesDeGarantia: partesDeGarantia,
     garantiaTotal: garantiaTotal,
     reglasResumen: reglasResumen,
 
@@ -2346,6 +2479,9 @@
     DATOS_KYC: DATOS_KYC,
     CUPON_KYC_MAXIMO: CUPON_KYC_MAXIMO,
     GARANTIA_POR_REFERIDO: GARANTIA_POR_REFERIDO,
+    /* El tope de la prestada por referidos, para que Joan lo pueda mover desde
+       un solo lugar (6-ago-2026). Se puede pasar por entrada.tope_referidos. */
+    TOPE_REFERIDOS: TOPE_REFERIDOS,
     CUPO_MAXIMO: CUPO_MAXIMO,
     MONTO_MINIMO: MONTO_MINIMO,
     MONTO_MAXIMO_CALCULADORA: MONTO_MAXIMO_CALCULADORA,

@@ -1034,9 +1034,29 @@ function kpiFondoCupon(){
     <div class="x">de ${COP(f.cobrado)} de costo cobrado${f.ganancia_cupon?`<br>${COP(f.ganancia_cupon)} son del ${PCT_CUPON} ya liberado`:''}</div></div>`;
 }
 
+/* =========================================================================
+   QUÉ MENSAJE LE TOCA A ESTE CRÉDITO — LA DECISIÓN VIVE ACÁ Y EN NINGÚN OTRO
+   LADO.
+
+   Es la traducción de estadoPrestamo() a una de las plantillas. La cola de
+   gestión y el calendario preguntan las dos por acá: si el calendario decidiera
+   por su cuenta, tendríamos otra vez dos respuestas para el mismo crédito el
+   mismo día, que es la enfermedad que este archivo lleva seis rondas
+   corrigiendo.
+
+   6-ago-2026 — LA RAMA DE SALIDA ERA 'venceHoy' PARA TODO LO DEMÁS, y "todo lo
+   demás" son dos estados de verdad: un crédito AL DÍA (le faltan más de 2 días)
+   y uno YA PAGADO. La cola no los muestra, así que el defecto vivía escondido;
+   el calendario sí los muestra, y ahí «hoy es tu pago» le llegaba a alguien a
+   quien le faltaban nueve días. Cada estado nombra su plantilla:
+     · al-dia  → recordatorio2, que es el aviso "con tiempo" y no promete una
+       fecha que no es hoy;
+     · pagado  → recibo, que es lo único que se le manda a quien ya pagó.
+   ========================================================================= */
 function plantillaPara(p){ const e=estadoPrestamo(p);
+  if(e==='pagado')return 'recibo';
   if(e==='mora')return diasMora(p)>=6?'mora':'moraTemprana'; if(e==='hoy')return 'venceHoy';
-  if(e==='proximo')return diasPara(p)>=2?'recordatorio2':'recordatorio1'; return 'venceHoy'; }
+  if(e==='proximo')return diasPara(p)>=2?'recordatorio2':'recordatorio1'; return 'recordatorio2'; }
 function waNum(s){ return (s.whatsappIgual?s.telefono:(s.whatsappNumero||s.telefono))||''; }
 /* =========================================================================
    5-ago-2026 — UN MENSAJE NO OFRECE UNA PRÓRROGA QUE NO EXISTE.
@@ -1092,6 +1112,17 @@ function aplicarVars(txt,p,s,enlace,extra){ const e=extra||{}; s=s||{};
   .replaceAll('{n}',e.n||'').replaceAll('{plazo}',e.plazo||'')
   .replaceAll('{enlace}',enlace||''); }
 function waLink(tel,msg){ return 'https://wa.me/57'+String(tel||'').replace(/\D/g,'')+'?text='+encodeURIComponent(msg); }
+/* EL WHATSAPP DE UN CRÉDITO, ARMADO ENTERO: la plantilla que le toca por su
+   estado (plantillaPara) y los tokens resueltos con los números que la pantalla
+   de cobro va a cobrar (aplicarVars + varsDePlantilla, que ya preguntan el saldo,
+   los días de mora y la prórroga al puente y al motor).
+   Lo usa quien manda el mensaje DIRECTO, sin pasar por la ventana de gestión: hoy,
+   el calendario. La ventana (gestionar/recalcGestion) resuelve la misma pareja de
+   funciones con la plantilla que le pasan —la cola le da plantillaPara, el momento
+   le da 'bienvenida'/'recibo'/'prorroga' y el desplegable la que elija Joan—, así
+   que la decisión de qué plantilla corresponde sigue viviendo en un solo lugar. */
+function mensajeParaCredito(p,s,k){ const key=k||plantillaPara(p);
+  return aplicarVars(DB.plantillas[key]||PLANTILLAS_DEF[key].m,p,s||{},'',varsDePlantilla(p,key)); }
 
 function renderCola(){
   const arr=DB.prestamos.filter(p=>['mora','hoy','proximo'].includes(estadoPrestamo(p)))
@@ -1344,11 +1375,38 @@ function renderCalendario(){
 function moverMes(n){ calM+=n; if(calM<0){calM=11;calY--;} if(calM>11){calM=0;calY++;} renderCalendario(); }
 function irHoyCal(){ const d=new Date(); calY=d.getFullYear(); calM=d.getMonth(); renderCalendario(); }
 function gcalUrl(title,iso,details){ const a=iso.replace(/-/g,''),next=isoLocal(new Date(new Date(iso+'T00:00:00').getTime()+86400000)).replace(/-/g,''); return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(title)+'&dates='+a+'/'+next+'&details='+encodeURIComponent(details||''); }
+/* 6-ago-2026 — LA DESCRIPCIÓN DEL EVENTO OFRECÍA UNA PRÓRROGA QUE NO EXISTE, Y
+   AL PRECIO EQUIVOCADO. El evento de Google decía «Prórroga posible: K(p)», o
+   sea el costo pelado del ciclo: sin el recargo ya causado, que es plata que la
+   pantalla de cobro sí le suma. Y lo decía siempre, también en un crédito con
+   PLAN DE PAGOS —de donde no se sale prorrogando— y en uno que ya gastó todas
+   sus prórrogas. El .ics tenía el mismo defecto por el otro lado: preguntaba por
+   totalProrroga(), que devuelve el precio de PACTAR EL PLAN cuando ya no queda
+   prórroga, y lo anunciaba como prórroga.
+   La condición es la única que vale: la que el motor contesta (prorrogaOfrecida),
+   la misma con la que calcPago pinta el botón «↻ Prórroga». Y el precio, el que
+   se va a cobrar. Una sola función para el evento de Google y para el .ics. */
+function detalleCobro(p){ const v=prorrogaOfrecida(p);
+  if(v!=null) return 'Prórroga posible: '+COP(v)+' · pasa al '+fmtFecha(nuevoCicloProrroga(p));
+  return tienePlan(p)?'Cuota del plan de pagos':'Sin prórrogas: la salida es el plan de pagos'; }
 function verDia(iso){
   const ev=eventosDia(iso),total=ev.des.length+ev.ven.length+ev.pag.length+ev.pro.length; let h='';
   if(!total){ h=`<div class="empty"><div class="ic">🗓️</div><p>Sin movimientos este día.</p></div>`; }
   else{
-    if(ev.ven.length){ h+=`<div class="sub-h">⏰ Cobros / vencimientos</div>`+ev.ven.map(p=>{const s=DB.socios.find(x=>x.id===p.socioId)||{};return `<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv"><b>${COP(totalCiclo(p))}</b> · <a target="_blank" href="${gcalUrl('Cobro '+p.socioNombre+' '+COP(totalCiclo(p)),iso,'Prórroga posible: '+COP(K(p)))}">+Google</a> · <a target="_blank" href="${waLink(waNum(s),aplicarVars(DB.plantillas.venceHoy,p,s))}">WA</a></span></div>`;}).join(''); }
+    /* 6-ago-2026 — EL WHATSAPP DEL CALENDARIO MANDABA SIEMPRE "VENCE HOY".
+       Esta fila armaba el mensaje con `DB.plantillas.venceHoy` fija, sin mirar el
+       estado del crédito. Medido: a un pago al que le faltaban 9 días le escribía
+       «hoy es tu pago», y a uno con 20 días de mora también —sin nombrar el
+       atraso, así que el socio recibía por escrito un total con recargo que el
+       mensaje no explicaba, y de la misma pantalla salía «puedes dejar la prórroga
+       de …» a un crédito con plan de pagos, donde la prórroga no existe.
+       El calendario NO decide: pregunta por la misma puerta que la cola de
+       gestión (mensajeParaCredito → plantillaPara), así que la plantilla es la del
+       estado real y los números son los que la pantalla de cobro va a cobrar. El
+       título dice qué plantilla salió, para que se vea antes de abrir WhatsApp. */
+    if(ev.ven.length){ h+=`<div class="sub-h">⏰ Cobros / vencimientos</div>`+ev.ven.map(p=>{
+      const s=DB.socios.find(x=>x.id===p.socioId)||{},k=plantillaPara(p);
+      return `<div class="info-row"><span class="k">${escHTML(p.socioNombre)}<div class="muted">${escHTML(ESTADO_TXT[estadoPrestamo(p)])} · ${escHTML(PLANTILLAS_DEF[k].t)}</div></span><span class="vv"><b>${COP(totalCiclo(p))}</b> · <a target="_blank" href="${gcalUrl('Cobro '+p.socioNombre+' '+COP(totalCiclo(p)),iso,detalleCobro(p))}">+Google</a> · <a target="_blank" title="${escHTML(PLANTILLAS_DEF[k].t)}" href="${waLink(waNum(s),mensajeParaCredito(p,s,k))}">WA</a></span></div>`;}).join(''); }
     if(ev.des.length){ h+=`<div class="sub-h">💵 Desembolsos</div>`+ev.des.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv"><b>${COP(p.capital)}</b> · <a target="_blank" href="${gcalUrl('Desembolso '+p.socioNombre+' '+COP(p.capital),iso,'')}">+Google</a></span></div>`).join(''); }
     if(ev.pag.length){ h+=`<div class="sub-h">✓ Pagos recibidos</div>`+ev.pag.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv gano">${COP(p.capital)} + ganancia ${COP(p.gananciaPago||0)}</span></div>`).join(''); }
     /* A qué corte pasó DE VERDAD ese día está guardado en el movimiento
@@ -1362,9 +1420,7 @@ function esc(s){ return String(s).replace(/[\\;,\n]/g,m=>({'\\':'\\\\',';':'\\;'
 function exportarICS(){
   let ev=''; function add(uid,iso,sum,desc){ const a=iso.replace(/-/g,''),n=isoLocal(new Date(new Date(iso+'T00:00:00').getTime()+86400000)).replace(/-/g,'');
     ev+='BEGIN:VEVENT\r\nUID:'+uid+'@joancrm\r\nDTSTART;VALUE=DATE:'+a+'\r\nDTEND;VALUE=DATE:'+n+'\r\nSUMMARY:'+esc(sum)+'\r\nDESCRIPTION:'+esc(desc||'')+'\r\nEND:VEVENT\r\n'; }
-  DB.prestamos.forEach(p=>{ add(p.id+'-d',p.fechaDesembolso,'💵 Desembolso '+p.socioNombre+' '+COP(p.capital),(DB.config.negocio||'Tu Garantía')); if(!p.pagado)add(p.id+'-v',PUENTE.corteDelCredito(p),'⏰ Cobro '+p.socioNombre+' '+COP(totalCiclo(p)),
-      totalProrroga(p)?'Prórroga posible: '+COP(totalProrroga(p))+' · pasa al '+fmtFecha(nuevoCicloProrroga(p))
-                      :(tienePlan(p)?'Cuota del plan de pagos':'Sin prórrogas: la salida es el plan de pagos')); });
+  DB.prestamos.forEach(p=>{ add(p.id+'-d',p.fechaDesembolso,'💵 Desembolso '+p.socioNombre+' '+COP(p.capital),(DB.config.negocio||'Tu Garantía')); if(!p.pagado)add(p.id+'-v',PUENTE.corteDelCredito(p),'⏰ Cobro '+p.socioNombre+' '+COP(totalCiclo(p)),detalleCobro(p)); });
   const ics='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Tu Garantia//CRM//ES\r\nCALSCALE:GREGORIAN\r\n'+ev+'END:VCALENDAR';
   const b=new Blob([ics],{type:'text/calendar'}),a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='tugarantia-calendario.ics'; a.click();
   alert('Listo. En Google Calendar: Configuración → Importar y exportar → Importar, y sube este archivo.');
@@ -1423,6 +1479,11 @@ function varsDePlantilla(p,k){
 }
 function gestionar(prestId,plantKey){
   const p=DB.prestamos.find(x=>x.id===prestId),s=DB.socios.find(x=>x.id===p.socioId),r=horarioPermitido(),yaHoy=contactadoHoy(s);
+  /* La plantilla la eligió quien llamó (la cola con plantillaPara, el momento con
+     'bienvenida'/'recibo'/'prorroga', o Joan con el desplegable), así que acá se
+     resuelve el texto de ESA. Es la misma pareja aplicarVars + varsDePlantilla
+     que usa mensajeParaCredito, y una prueba la vigila escrita acá: fue en esta
+     línea donde el WhatsApp de la prórroga dijo 120.000 de 330.000. */
   let txt=aplicarVars(DB.plantillas[plantKey]||PLANTILLAS_DEF[plantKey].m,p,s,'',varsDePlantilla(p,plantKey));
   const ops=Object.keys(PLANTILLAS_DEF).map(k=>`<option value="${k}" ${k===plantKey?'selected':''}>${PLANTILLAS_DEF[k].t}</option>`).join('');
   let av=''; if(!r.ok)av+=`<div class="alerta warn">⚠️ <b>Fuera de horario (Ley 2300):</b> ${r.motivo}.</div>`; if(yaHoy)av+=`<div class="alerta warn">⚠️ Ya contactaste a este cliente hoy (máx 1/día).</div>`;
@@ -1935,7 +1996,13 @@ function liqProrroga(p,fecha){
 }
 /* Lo que el socio paga HOY por prorrogar: costo del ciclo + el recargo del 1%
    diario ya causado (la prórroga no lo borra). Sale del motor, no de una suma
-   escrita acá. Cero cuando ya no se puede prorrogar. */
+   escrita acá.
+   6-ago-2026 — ESTE NÚMERO NO SIRVE PARA OFRECER NADA, y el comentario que había
+   acá («cero cuando ya no se puede prorrogar») decía lo contrario. Es el PRECIO,
+   a secas: cuando al socio no le quedan prórrogas el motor contesta ok:false
+   pero con el precio de PACTAR EL PLAN, y esta función lo devuelve igual. Quien
+   vaya a ANUNCIAR una prórroga —un mensaje, un evento del calendario— pregunta
+   por prorrogaOfrecida(), que solo contesta cuando el motor dice que se puede. */
 function totalProrroga(p,fecha){ const r=liqProrroga(p,fecha); return r?r.total_a_pagar:0; }
 /* A qué corte pasa. La regla —el más lejano entre el corte siguiente al viejo y
    el siguiente al día en que se registra, los dos con ventana mínima, domingos

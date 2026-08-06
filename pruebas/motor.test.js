@@ -588,12 +588,16 @@ describe('garantiaPorReferidos — 5.000, pero solo si el referido paga', () => 
 describe('garantiaTotal — de dónde sale cada peso', () => {
 
   test('suma las tres fuentes y las deja separadas', () => {
+    /* 6-ago-2026: la ficha va A MEDIAS a propósito. Con la ficha completa el
+       cupón ya ocupa todo el techo de la garantía prestada y los referidos no
+       tienen dónde entrar (ver el tope, más abajo): este caso mide que las tres
+       fuentes se sumen y se muestren por separado, así que necesita el hueco. */
     const g = M.garantiaTotal({
-      datos: datosCompletos(),
+      datos: { nombre: 'Ana', cedula: '123', celular: '300' },   // 18.000
       referidos: [{ pago_puntual: true }, { pago_puntual: true }],
       acumulada: 300000
     });
-    assert.deepEqual(g, { cupon: 100000, referidos: 10000, acumulada: 300000, ajuste: 0, total: 410000 });
+    assert.deepEqual(g, { cupon: 18000, referidos: 10000, acumulada: 300000, ajuste: 0, total: 328000 });
   });
 
   test('el socio recién llegado que no ha dado nada arranca en cero', () => {
@@ -1540,9 +1544,17 @@ describe('desglosarGarantia — ganada, prestada y comprometida', () => {
     // Prestarle contra el cupón sería prestarle contra plata nuestra.
     assert.equal(M.maximoRespaldado({ datos: datosCompletos(), referidos: 2 }), 0);
     assert.equal(M.maximoRespaldado({}), 0);
-    // Y el cupo quincenal sí las suma a las dos: son cosas distintas.
-    // 100.000 de cupón + 10.000 de dos referidos que pagaron = 110.000, uno a uno.
-    assert.equal(M.cupoQuincenal({ datos: datosCompletos(), referidos: 2 }, 'bronce').cupo, 110000);
+    /* Y el cupo quincenal sí suma la prestada y la ganada: son cosas distintas.
+       6-ago-2026 — ACÁ DECÍA 110.000 (100.000 de cupón + 10.000 de dos referidos)
+       y ese era el número del defecto: con la ficha completa el cupón ya ocupa
+       todo el techo de la prestada, así que dos referidos no pueden agregar
+       10.000 de cupo puro sin subirle la exposición a Joan. Los referidos suman
+       dentro del techo y hasta la garantía ganada, no encima. */
+    assert.equal(M.cupoQuincenal({ datos: datosCompletos(), referidos: 2 }, 'bronce').cupo, 100000);
+    const d = M.desglosarGarantia({ datos: datosCompletos(), referidos: 2 });
+    assert.equal(d.referidos, 0, 'no había hueco bajo el techo');
+    assert.equal(d.referidos_sin_tope, 10000, 'pero se sabe cuánto valían, para poder explicarlo');
+    assert.equal(d.prestada, M.CUPON_KYC_MAXIMO);
   });
 
   test('pagando costos aparece la garantía GANADA, y esa sí respalda', () => {
@@ -6598,5 +6610,445 @@ describe('el freno por ingreso, expuesto y apagado en el puente (5-ago-2026)', (
     assert.equal(P.cupoDelSocio(db, db.socios[0]).freno.activo, false);
     assert.equal(M.cupoQuincenal({ acumulada: 500000 }, 'bronce').freno.activo, false);
     assert.equal(M.FRENO_INGRESO.activo, false, 'la constante manda, y está en false');
+  });
+});
+
+/* ==========================================================================
+ * EL PUNTO CIEGO DE UN DÍA — 6-ago-2026
+ *
+ * `estuvoEnMora` era solo `!!ultimoDiaDeMora`, y la línea de tiempo NO PUEDE VER
+ * el tramo vencido cuando la prórroga se registra el mismo día en que la mora
+ * arranca: el día del corte no es mora y el día siguiente ya rige el corte
+ * nuevo, así que el tramo queda vacío —aunque el socio haya pagado el 1% de ese
+ * día.
+ *
+ * Ese punto ciego YA ESTABA TAPADO para el factor de la garantía (veniaDeMora
+ * sumaba `moraYaCobrada`) y ABIERTO para los contadores del nivel, que solo
+ * llamaban a estuvoEnMora / ultimoDiaDeMora. Dos caminos para la misma pregunta,
+ * y el que había que acordarse de mantener igual se quedó atrás.
+ *
+ * MEDIDO. Socio con un crédito sucio inicial, 9 quincenas limpias, y el crédito
+ * de la decisión con UN día de mora. Pagar cuesta 42.000 y devolver 200.000 de
+ * capital → meses_sin_mora 1, ORO. Prorrogar cuesta LOS MISMOS 42.000 y se queda
+ * los 200.000 → PLATINO en la primera quincena limpia de después, en vez de en la
+ * sexta. Con DOS días de mora se cerraba solo, y eso es justo lo que prueba que
+ * era un defecto y no una política. Y como el nivel nunca baja, la ventaja era
+ * permanente.
+ * ======================================================================== */
+
+describe('un día de mora se comporta igual que dos (6-ago-2026)', () => {
+
+  const CAP = 200000, PCT = 20, COSTO = CAP * PCT / 100;
+  const corteDe = f => M.calcularFechaCorte(f);
+  const mas = (f, n) => M.iso(M.sumarDias(M.aFechaLocal(f), n));
+
+  const socioBase = () => ({ id: 'S1', numero: 1, nombre: 'Ana', cedula: '123456',
+    telefono: '3001112222', whatsappIgual: true, referencia: { nombre: '', telefono: '' },
+    gestiones: [], ajusteGarantia: 0 });
+  const credito = (id, desembolso, corte) => ({ id: id, numero: 1, socioId: 'S1',
+    capital: CAP, costoPct: PCT, fechaDesembolso: desembolso, cicloActual: corte,
+    pagado: false, prorrogas: [], abonosCapital: [], comprobantes: [] });
+
+  /* Los dos caminos, con los MISMOS campos que graba crm.html: pagarTotal() y
+     registrarProrroga(). */
+  function pagar(p, f) {
+    const mora = P.moraDelCiclo(p, f);
+    p.pagado = true; p.fechaPagado = f; p.cicloPago = P.corteDelCredito(p);
+    p.cobroRegistrado = true; p.gananciaPago = COSTO + mora; p.recargoMora = mora;
+    return COSTO + mora;
+  }
+  function prorrogar(p, f) {
+    const r = M.liquidarProrroga({ id: p.id, capital: P.capitalActual(p), tasa_aplicada: 0.20,
+      costo: Math.round(P.K(p)), fecha_corte: p.cicloActual, estado: 'en_corte',
+      prorrogas_usadas: p.prorrogas.length, nivel_socio: 'oro' }, f);
+    assert.ok(r.ok, 'la prórroga se tenía que poder registrar');
+    p.prorrogas.push({ fecha: r.fecha, ciclo: r.fecha_corte_anterior, monto: r.total_a_pagar,
+      mora: r.recargo_mora, aTiempo: r.a_tiempo, diasMora: r.dias_mora,
+      nuevoCiclo: r.fecha_corte_nueva });
+    p.cicloActual = r.fecha_corte_nueva;
+    return r.total_a_pagar;
+  }
+
+  /* La cartera de la decisión: un crédito pagado TARDE (para que el reloj de
+     meses tenga de dónde arrancar), `limpias` quincenas puntuales, y el crédito
+     de la decisión con `dias` de mora. Después, ocho quincenas limpias que se
+     agregan de a una para poder mirar el nivel en cada instante posterior. */
+  function partida(limpias, dias, modo) {
+    const ps = [];
+    let f = '2026-01-05';
+    const sucio = credito('P0', f, corteDe(f));
+    pagar(sucio, mas(sucio.cicloActual, 3));
+    ps.push(sucio);
+    f = mas(sucio.fechaPagado, 1);
+    for (let i = 1; i <= limpias; i++) {
+      const c = credito('P' + i, f, corteDe(f));
+      pagar(c, c.cicloActual);
+      ps.push(c);
+      f = mas(c.cicloActual, 1);
+    }
+    const d = credito('PD', f, corteDe(f));
+    const dia = mas(d.cicloActual, dias);
+    const cobrado = modo === 'paga' ? pagar(d, dia)
+                  : modo === 'prorroga' ? prorrogar(d, dia) : 0;
+    ps.push(d);
+    // Las quincenas de después son IDÉNTICAS en los dos caminos.
+    const post = [];
+    let g = mas(dia, 1);
+    for (let n = 1; n <= 8; n++) {
+      const c = credito('PN' + n, g, corteDe(g));
+      pagar(c, c.cicloActual);
+      post.push(c);
+      g = mas(c.cicloActual, 1);
+    }
+    return { ps: ps, post: post, decision: d, dia: dia, cobrado: cobrado };
+  }
+  const escalon = n => M.NIVELES.indexOf(n);
+  /* La foto en un instante: los contadores y el nivel con los créditos que el
+     socio tenía ESE día. `n` es cuántas quincenas limpias posteriores pasaron. */
+  function foto(e, n) {
+    const ps = e.ps.concat(e.post.slice(0, n));
+    const hoy = n === 0 ? mas(e.dia, 1) : e.post[n - 1].fechaPagado;
+    return { hoy: hoy, cont: P.contadoresDeNivel(ps, hoy), nivel: P.nivelDelSocio(ps, hoy),
+             garantia: ps.reduce((t, p) => t + P.garantiaGanadaCredito(p), 0) };
+  }
+
+  test('EL NÚMERO DEL DEFECTO: con UN día, prorrogar compraba platino y pagar no', () => {
+    const paga = partida(9, 1, 'paga'), deja = partida(9, 1, 'prorroga');
+    assert.equal(paga.cobrado, 42000, 'costo 40.000 + un día de recargo');
+    assert.equal(deja.cobrado, 42000, 'la prórroga cuesta exactamente lo mismo…');
+    // …y el que prorroga se queda además con los 200.000 de capital.
+    assert.equal(paga.decision.pagado, true);
+    assert.equal(deja.decision.pagado, false);
+    assert.equal(P.capitalActual(deja.decision), CAP);
+
+    // La mora de ese único día existe, está cobrada, y ahora las DOS preguntas
+    // la ven: la de la garantía y la del nivel.
+    assert.equal(P.moraDeProrroga(deja.decision.prorrogas[0]), 2000);
+    assert.equal(P.estuvoEnMora(deja.decision, mas(deja.dia, 1)), true,
+      'ANTES daba false: el tramo vencido de un solo día no se veía');
+    assert.equal(P.ultimoDiaDeMora(deja.decision, mas(deja.dia, 1)), deja.dia,
+      'el único día que pudo ser mora es el día en que se prorrogó');
+    assert.equal(P.veniaDeMora(deja.decision, deja.decision.cicloActual), true,
+      'y el §4-bis la seguía viendo, como antes');
+
+    /* El nivel, quincena limpia por quincena limpia. ANTES: el que prorrogó
+       llegaba a PLATINO en la primera (meses_sin_mora se había quedado en 5) y el
+       que pagó recién en la sexta. */
+    const compro = [];
+    for (let n = 0; n <= 8; n++) {
+      const a = foto(paga, n), b = foto(deja, n);
+      if (escalon(b.nivel) > escalon(a.nivel)) compro.push('N=' + n + ' ' + b.nivel + '>' + a.nivel);
+      assert.ok(b.cont.meses_sin_mora <= a.cont.meses_sin_mora,
+        'N=' + n + ': prorrogar dejó el reloj de meses MÁS alto que pagar');
+    }
+    assert.deepEqual(compro, [], 'prorrogar compró nivel antes que pagar: ' + compro.join(' · '));
+    assert.equal(foto(paga, 1).nivel, 'oro', 'el que pagó todavía está en oro');
+    assert.equal(foto(deja, 1).nivel, 'oro', 'ANTES acá el que prorrogó ya era PLATINO');
+    assert.equal(foto(paga, 6).nivel, 'platino', 'y el que pagó llega en la sexta');
+  });
+
+  test('UN día y DOS días se comportan igual: la trayectoria del nivel es la misma', () => {
+    /* Que el defecto se cerrara solo con 2 días es lo que probaba que era un
+       defecto. Ahora las dos trayectorias del que prorroga son idénticas. */
+    const trayectoria = e => {
+      const t = [];
+      for (let n = 0; n <= 8; n++) t.push(foto(e, n).nivel);
+      return t;
+    };
+    const uno = trayectoria(partida(9, 1, 'prorroga'));
+    assert.deepEqual(uno, trayectoria(partida(9, 2, 'prorroga')));
+    assert.deepEqual(uno, ['oro', 'oro', 'oro', 'oro', 'oro', 'oro', 'oro', 'oro', 'oro']);
+    // Y el que pagó sí llega, en los dos casos, y en el mismo instante.
+    assert.deepEqual(trayectoria(partida(9, 1, 'paga')), trayectoria(partida(9, 2, 'paga')));
+  });
+
+  test('prorrogar EN FECHA sigue sin ser mora: no se castiga al que no se atrasó', () => {
+    const t = partida(9, 0, 'prorroga');
+    assert.equal(t.cobrado, 40000, 'sin un peso de recargo');
+    assert.equal(P.estuvoEnMora(t.decision, mas(t.dia, 5)), false,
+      'no hubo mora, así que el arreglo no puede inventarla');
+    assert.equal(P.garantiaGanadaCredito(t.decision), M.acumularGarantia(40000, true),
+      'y la garantía se le acredita al factor completo, como siempre');
+  });
+
+  test('BARRIDO GRANDE DE INCENTIVOS: cero inversiones, y ahora también con 1 día', () => {
+    /* La comparación es contra los caminos de NO pagar y en TODOS los instantes
+       posteriores, que es donde vivía el defecto: mirando solo el día de la
+       decisión los dos caminos daban lo mismo y el barrido pasaba. */
+    let comparaciones = 0;
+    const peores = [];
+    [0, 1, 2, 4, 9, 10].forEach(limpias => {
+      [0, 1, 2, 3, 4, 5, 10, 20, 60, 127].forEach(dias => {
+        const paga = partida(limpias, dias, 'paga');
+        const otros = { vencido: partida(limpias, dias, 'vencido'),
+                        prorroga: partida(limpias, dias, 'prorroga') };
+        for (let n = 0; n <= 8; n++) {
+          const a = foto(paga, n);
+          Object.keys(otros).forEach(k => {
+            const b = foto(otros[k], n);
+            const donde = limpias + '/' + dias + '/N=' + n + ' vs ' + k + ': ';
+            comparaciones += 4;
+            if (escalon(b.nivel) > escalon(a.nivel)) peores.push(donde + 'nivel');
+            if (b.cont.meses_sin_mora > a.cont.meses_sin_mora) peores.push(donde + 'meses');
+            if (b.cont.racha > a.cont.racha) peores.push(donde + 'racha');
+            if (b.cont.a_tiempo > a.cont.a_tiempo) peores.push(donde + 'a_tiempo');
+            // Y por peso de costo pagado, no pagar nunca puede rendir más.
+            if (otros[k].cobrado > 0) {
+              comparaciones++;
+              if (b.garantia / otros[k].cobrado > a.garantia / paga.cobrado + 1e-9) {
+                peores.push(donde + 'garantía por peso');
+              }
+            }
+          });
+        }
+      });
+    });
+    /* 4.860 = 6 historiales × 10 moras × 9 instantes × 2 caminos de no pagar × 4
+       salidas, más una comparación de garantía por peso en el camino que sí paga
+       algo (la prórroga). Si el barrido se encoge, esta cuenta lo dice. */
+    assert.equal(comparaciones, 4860, 'el barrido se quedó corto: ' + comparaciones);
+    assert.deepEqual(peores, [], 'no pagar quedó MEJOR que pagar en ' + peores.length +
+      ' salidas: ' + peores.slice(0, 12).join(' · '));
+  });
+
+  test('LA MORA ES UNA SOLA VERDAD: no quedan dos caminos que mantener iguales', () => {
+    const PUENTE_SRC = fs.readFileSync(path.join(__dirname, '..', 'app', 'puente.js'), 'utf8');
+    const i = PUENTE_SRC.indexOf('function ultimoDiaDeMora(');
+    assert.ok(i >= 0, 'la verdad única tiene que existir y tener nombre');
+    const cuerpo = PUENTE_SRC.slice(i, PUENTE_SRC.indexOf('\n  }', i));
+    assert.match(cuerpo, /ultimoDiaDeMoraEnLaLinea/, 'le falta la línea de tiempo');
+    assert.match(cuerpo, /ultimoDiaDeMoraCobrada/, 'le falta el recargo ya cobrado');
+    // Y el §4-bis pregunta lo mismo que el nivel, sin sumarle nada aparte.
+    const j = PUENTE_SRC.indexOf('function veniaDeMora(');
+    assert.ok(j >= 0);
+    const venia = PUENTE_SRC.slice(j, PUENTE_SRC.indexOf('\n  }', j));
+    assert.match(venia, /estuvoEnMora/, 'el §4-bis se escribió su propia versión de la mora');
+    assert.ok(!/\|\|/.test(venia),
+      'el §4-bis volvió a sumarle una segunda prueba con un ||: esa era la forma del defecto');
+    assert.ok(!/function\s+moraYaCobrada/.test(PUENTE_SRC),
+      'el segundo camino tiene que haber desaparecido, no quedar al lado');
+    ['ultimoDiaDeMora', 'ultimoDiaDeMoraCobrada', 'estuvoEnMora', 'veniaDeMora',
+     'estadoParaNivel', 'contadoresDeNivel'].forEach(f =>
+      assert.equal(typeof P[f], 'function', 'el puente tiene que exportar ' + f));
+  });
+});
+
+/* ==========================================================================
+ * LOS REFERIDOS NO TENÍAN TOPE — 6-ago-2026
+ *
+ * Cada referido son 5.000 de garantía PRESTADA (no ganada), y con el cupo uno a
+ * uno eso son 5.000 de cupo puro que pone Joan.
+ *
+ * MEDIDO. Un socio que NUNCA PAGÓ UN PESO llegaba a 2.600.000 de cupo con 500
+ * referidos, y a 25.100.000 de prestada con 5.000 —por encima del techo entero de
+ * la plataforma—. Y un socio que ya había SALDADO su cupón en el crédito 13 volvía
+ * a quedar expuesto con cada referido nuevo (1.943 con uno, 196.943 con cuarenta),
+ * y la ganancia libre que muestra el Panel se encogía HACIA ATRÁS: 71.758 → 68.701.
+ *
+ * Y NO ESTABA FINANCIADO: el 15% de cada costo amortiza el cupón DEL SOCIO QUE LO
+ * PAGA y de nadie más, así que los 5.000 del padrino solo los devuelve el padrino.
+ * ======================================================================== */
+
+describe('los referidos no pueden subirle la exposición a Joan (6-ago-2026)', () => {
+
+  const refs = n => Array.from({ length: n }, (_, i) => ({ nombre: 'R' + i, pago_puntual: true }));
+  const CANTIDADES = [0, 1, 2, 5, 13, 40, 100, 500, 5000];
+
+  /* La escalera de un socio que paga en fecha y siempre pide todo su cupo: es la
+     misma con la que se midió que el cupón se salda en el crédito 13. */
+  function escalera(nCreditos, referidos) {
+    let ganada = 0;
+    const costos = [];
+    for (let i = 0; i < nCreditos; i++) {
+      const e = { datos: datosCompletos(), referidos: referidos, acumulada: ganada };
+      const capital = Math.max(M.MONTO_MINIMO, M.cupoQuincenal(e, 'bronce').cupo);
+      costos.push({ monto: M.calcularCosto(capital), aTiempo: true, producto: 'quincenal',
+        fecha: '2026-01-' + String(i + 1).padStart(2, '0'), tipo: 'costo_credito' });
+      ganada += M.garantiaQueDejaUnCredito(capital, true);
+    }
+    return { costos: costos, ganada: ganada };
+  }
+  // Lo que Joan tiene de verdad en riesgo por un socio: el cupón que no volvió.
+  function expuesto(entrada, costos) {
+    const d = M.desglosarGarantia(entrada);
+    return M.amortizarCupon(costos || [], { cuponPrestado: d.prestada });
+  }
+
+  test('EL NÚMERO DEL DEFECTO: 500 referidos daban 2.600.000 de cupo sin pagar nada', () => {
+    const con500 = { datos: datosCompletos(), referidos: 500, acumulada: 0 };
+    assert.equal(M.garantiaPorReferidos(500), 2500000, 'valen 2.500.000…');
+    assert.equal(M.desglosarGarantia(con500).referidos, 0,
+      '…pero no se le acreditan: el cupón ya ocupa todo el techo de la prestada');
+    assert.equal(M.desglosarGarantia(con500).referidos_sin_tope, 2500000,
+      'y el Panel puede explicar la resta, en vez de mostrar un número que no cuadra');
+    assert.equal(M.cupoQuincenal(con500, 'bronce').cupo, 100000, 'ANTES: 2.600.000');
+    assert.equal(expuesto(con500).expuesto, 100000, 'ANTES: 2.600.000 de exposición');
+  });
+
+  test('EL SOCIO QUE NO HA PAGADO NADA: la exposición no se mueve con ningún número', () => {
+    let peores = [];
+    CANTIDADES.forEach(n => {
+      const e = { datos: datosCompletos(), referidos: n, acumulada: 0 };
+      const x = expuesto(e);
+      if (x.expuesto !== M.CUPON_KYC_MAXIMO) peores.push(n + ' → ' + x.expuesto);
+      if (M.cupoQuincenal(e, 'bronce').cupo !== M.CUPON_KYC_MAXIMO) peores.push(n + ' cupo');
+      // Y la prestada nunca pasa del techo: es la invariante que pidió Joan.
+      if (M.desglosarGarantia(e).prestada > M.CUPON_KYC_MAXIMO) peores.push(n + ' prestada');
+    });
+    assert.deepEqual(peores, [], 'la exposición se movió: ' + peores.join(' · '));
+    // Con la ficha a medias tampoco se pasa del techo, aunque ahí sí puede subir
+    // hasta él: ese riesgo Joan ya lo aceptó, y es el mismo del cupón por datos.
+    CANTIDADES.forEach(n => {
+      const e = { datos: { nombre: 'Ana' }, referidos: n, acumulada: 0 };
+      assert.ok(M.desglosarGarantia(e).prestada <= M.CUPON_KYC_MAXIMO, 'n=' + n);
+      assert.equal(M.desglosarGarantia(e).referidos, 0,
+        'y sin un peso ganado los referidos no suman nada: n=' + n);
+    });
+  });
+
+  test('EL SOCIO QUE YA SALDÓ EL CUPÓN sigue saldado, con cualquier número', () => {
+    const base = escalera(13, 0);
+    const cero = expuesto({ datos: datosCompletos(), referidos: 0, acumulada: base.ganada },
+                          base.costos);
+    assert.equal(cero.expuesto, 0, 'en el crédito 13 el cupón volvió entero');
+    assert.equal(cero.saldado, true);
+    assert.equal(cero.ganancia_libre, 71758, 'la ganancia libre que muestra el Panel');
+
+    const peores = [];
+    CANTIDADES.forEach(n => {
+      const x = expuesto({ datos: datosCompletos(), referidos: n, acumulada: base.ganada },
+                         base.costos);
+      if (x.expuesto !== 0) peores.push(n + ' → expuesto ' + x.expuesto);
+      if (!x.saldado) peores.push(n + ' → dejó de estar saldado');
+      // Y la ganancia libre no se encoge HACIA ATRÁS: era 71.758 → 68.701.
+      if (x.ganancia_libre !== cero.ganancia_libre) {
+        peores.push(n + ' → ganancia libre ' + x.ganancia_libre);
+      }
+    });
+    assert.deepEqual(peores, [], 'volvió a quedar expuesto: ' + peores.join(' · '));
+  });
+
+  test('BARRIDO: la exposición NUNCA crece por un referido, en ninguna historia', () => {
+    let casos = 0;
+    const peores = [];
+    [0, 1, 5, 13, 20].forEach(nCreditos => {
+      const base = escalera(nCreditos, 0);
+      const sinReferidos = expuesto(
+        { datos: datosCompletos(), referidos: 0, acumulada: base.ganada }, base.costos);
+      CANTIDADES.forEach(n => {
+        const x = expuesto(
+          { datos: datosCompletos(), referidos: n, acumulada: base.ganada }, base.costos);
+        casos++;
+        if (x.expuesto > sinReferidos.expuesto) {
+          peores.push(nCreditos + ' créditos + ' + n + ' referidos: ' +
+                      sinReferidos.expuesto + ' → ' + x.expuesto);
+        }
+        if (x.ganancia_libre < sinReferidos.ganancia_libre) {
+          peores.push(nCreditos + ' créditos + ' + n + ' referidos: ganancia libre bajó');
+        }
+        if (x.cupon_prestado > M.CUPON_KYC_MAXIMO) peores.push('prestada por encima del techo');
+      });
+    });
+    assert.equal(casos, 45);
+    assert.deepEqual(peores, [], 'la exposición creció: ' + peores.join(' · '));
+  });
+
+  test('el referido que ya pagó SÍ suma, cuando hay hueco bajo el techo', () => {
+    /* El tope no mata el premio: al socio con ficha a medias que ya viene pagando,
+       cada referido le sigue sumando 5.000 hasta llenar el techo. */
+    const e = n => ({ datos: { nombre: 'Ana', cedula: '1', celular: '3' },   // 18.000
+                      referidos: n, acumulada: 300000 });
+    assert.equal(M.desglosarGarantia(e(0)).referidos, 0);
+    assert.equal(M.desglosarGarantia(e(1)).referidos, 5000);
+    assert.equal(M.desglosarGarantia(e(4)).referidos, 20000);
+    assert.equal(M.desglosarGarantia(e(100)).referidos, 82000, 'hasta llenar el techo');
+    assert.equal(M.desglosarGarantia(e(100)).prestada, M.CUPON_KYC_MAXIMO);
+    // Y la garantía GANADA nunca se toca: el tope es de la prestada.
+    assert.equal(M.desglosarGarantia(e(100)).ganada, 300000);
+    assert.equal(M.maximoRespaldado(e(100)), 300000);
+  });
+
+  test('el que NO ha pagado no llega a ningún lado, aunque tenga hueco', () => {
+    // El segundo tope: dentro del techo, los referidos no pasan de la ganada.
+    const e = ganada => ({ datos: { nombre: 'Ana' }, referidos: 100, acumulada: ganada });
+    assert.equal(M.desglosarGarantia(e(0)).referidos, 0);
+    assert.equal(M.desglosarGarantia(e(3000)).referidos, 3000, 'hasta lo que se ganó');
+    assert.equal(M.desglosarGarantia(e(1000000)).referidos, 95000, 'y hasta el techo');
+  });
+
+  test('EL TOPE ES CONFIGURABLE: Joan lo puede mover sin tocar una cuenta', () => {
+    const e = extra => Object.assign({ datos: datosCompletos(), referidos: 10,
+                                       acumulada: 500000 }, extra);
+    // Por defecto: los dos topes puestos, y el techo es el del cupón de datos.
+    assert.deepEqual(M.TOPE_REFERIDOS,
+      { techo_prestada: M.CUPON_KYC_MAXIMO, hasta_la_ganada: true });
+    assert.equal(M.desglosarGarantia(e()).referidos, 0);
+    // Sin techo compartido queda la otra forma sensata: hasta la garantía ganada.
+    assert.equal(M.desglosarGarantia(e({ tope_referidos: { techo_prestada: null } })).referidos,
+      50000, 'los 10 referidos completos, porque ya se ganó medio millón');
+    // Y sin ninguno de los dos, el comportamiento viejo, para poder compararlo.
+    assert.equal(M.desglosarGarantia(
+      e({ tope_referidos: { techo_prestada: null, hasta_la_ganada: false } })).referidos, 50000);
+    assert.equal(M.desglosarGarantia(
+      e({ referidos: 500, tope_referidos: { techo_prestada: null, hasta_la_ganada: false } })
+    ).referidos, 2500000, 'sin tope vuelve el defecto: por eso el defecto era el tope');
+    // Un techo más alto que el cupón deja entrar referidos con la ficha completa.
+    assert.equal(M.desglosarGarantia(e({ tope_referidos: { techo_prestada: 130000 } })).referidos,
+      30000);
+    assert.throws(() => M.desglosarGarantia(e({ tope_referidos: 'mucho' })),
+      /se esperaba un objeto/);
+    assert.throws(() => M.desglosarGarantia(e({ tope_referidos: { techo_prestada: -1 } })),
+      /negativo/);
+  });
+
+  test('LA CUENTA ES UNA SOLA: garantiaTotal y desglosarGarantia no pueden divergir', () => {
+    const casos = [
+      {}, { datos: datosCompletos() },
+      { datos: datosCompletos(), referidos: 3, acumulada: 250000 },
+      { datos: { nombre: 'A' }, referidos: 40, acumulada: 0 },
+      { datos: { nombre: 'A' }, referidos: 40, acumulada: 12000 },
+      { datos: datosCompletos(), referidos: 500, acumulada: 800000, ajuste: -900000 },
+      { referidos: 9, acumulada: 30000, tope_referidos: { techo_prestada: null } }
+    ];
+    casos.forEach(c => {
+      const t = M.garantiaTotal(c), d = M.desglosarGarantia(c);
+      assert.equal(t.total, d.total, JSON.stringify(c));
+      assert.equal(t.referidos, d.referidos, 'el tope se aplica en las dos: ' + JSON.stringify(c));
+      assert.equal(t.cupon, d.cupon);
+    });
+    // Y las dos salen de la misma función, no de dos sumas parecidas.
+    const MOTOR_SRC = fs.readFileSync(path.join(__dirname, '..', 'app', 'motor.js'), 'utf8');
+    const src = MOTOR_SRC.slice(MOTOR_SRC.indexOf('function garantiaTotal('));
+    assert.match(src.slice(0, src.indexOf('\n  }')), /partesDeGarantia/,
+      'garantiaTotal se volvió a escribir su propia suma');
+  });
+
+  test('EL PUENTE LO PASA, para que Joan lo pueda mover desde Ajustes', () => {
+    const d = datosCompletos();
+    const s = { id: 'a', numero: 1, nombre: 'Ana', cedula: '1020304050',
+      telefono: '3001112233', whatsappIgual: true, email: d.correo, ciudad: d.ciudad,
+      direccion: d.direccion, tipoVivienda: d.vivienda, nequi: d.pago,
+      telefono2: d.celular2, ubicacion: d.ubicacion,
+      referencia: { nombre: 'Luz', telefono: '3009998877' },
+      cedulaFrenteFoto: 'x', cedulaReversoFoto: 'y', selfieFoto: 'z', ajusteGarantia: 0 };
+    const ahijados = [1, 2, 3].map(i => ({ id: 'r' + i, numero: 10 + i, nombre: 'Ref' + i,
+      cedula: '90' + i, telefono: '300', referidoPor: 'a' }));
+    const prestamos = ahijados.map((r, i) => ({ id: 'p' + i, numero: 1, socioId: r.id,
+      capital: 200000, costoPct: 20, fechaDesembolso: '2026-01-05', cicloActual: '2026-01-15',
+      cicloPago: '2026-01-15', pagado: true, fechaPagado: '2026-01-15', gananciaPago: 40000,
+      prorrogas: [], abonosCapital: [] }));
+    const db = P.normalizar({ socios: [s].concat(ahijados), prestamos: prestamos,
+      respaldados: [], config: {} });
+
+    assert.equal(P.referidosDe(db, db.socios[0]).length, 3, 'los tres ahijados');
+    assert.equal(P.topeReferidosDe(db), undefined, 'sin dato en Ajustes manda el motor');
+    // Ficha completa y cero pagos propios: los tres referidos no le suben el cupo.
+    assert.equal(P.cupoDelSocio(db, db.socios[0], 'bronce').cupo, 100000);
+    assert.equal(P.contabilidadCupon(db, db.socios[0]).expuesto, 100000);
+    // Joan mueve el tope en Ajustes y la cuenta lo respeta, en el Panel y en la app.
+    db.config.topeReferidos = { techo_prestada: null, hasta_la_ganada: false };
+    assert.deepEqual(P.topeReferidosDe(db), db.config.topeReferidos);
+    assert.equal(P.cupoDelSocio(db, db.socios[0], 'bronce').cupo, 115000);
+    assert.equal(P.migrarSocio(db, db.socios[0]).garantia.referidos, 15000);
   });
 });

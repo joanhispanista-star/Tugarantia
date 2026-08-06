@@ -287,6 +287,9 @@
   function diaAntes(f) {
     try { return M.iso(M.sumarDias(M.aFechaLocal(f), -1)); } catch (e) { return ''; }
   }
+  function diaDespues(f) {
+    try { return M.iso(M.sumarDias(M.aFechaLocal(f), 1)); } catch (e) { return ''; }
+  }
 
   /* ------------------------------------------------------ plan de pagos --
      4-ago-2026. Cuando al socio se le acaban las prórrogas, el §8 manda pasarlo
@@ -808,19 +811,12 @@
     var fp = fechaFin(p.fechaPagado);
     return !!fp && fp > h;
   }
-  /**
-   * El ÚLTIMO día, hasta `hasta`, en que este crédito estuvo vencido y sin
-   * pagar. '' si nunca lo estuvo.
-   *
-   * Es lo que le faltaba a `meses_sin_mora` para significar lo que dice su
-   * nombre: se medía desde el último atraso CURADO POR UN PAGO, así que una
-   * mora de cuatro meses tapada con una prórroga no reseteaba nada y los meses
-   * de atraso empujaban al socio hacia platino. Una mora termina el día en que
-   * el corte se mueve o el día en que se paga: los dos son hechos guardados.
-   */
-  function ultimoDiaDeMora(p, hasta) {
-    var h = fechaFin(hasta);
-    if (!h) return '';
+  /* La mora que la LÍNEA DE TIEMPO alcanza a ver: el último día, hasta `hasta`,
+     en que `estabaVencido` dice que sí. Una mora termina el día en que el corte
+     se mueve o el día en que se paga —los dos son hechos guardados—, así que los
+     únicos días que hay que probar son el día anterior a cada uno de esos hechos
+     y `hasta` mismo. */
+  function ultimoDiaDeMoraEnLaLinea(p, h) {
     var cand = [h];
     cortesDelCredito(p).forEach(function (t) { if (t.desde) cand.push(diaAntes(t.desde)); });
     if (p && p.pagado) {
@@ -830,6 +826,98 @@
     cand = cand.filter(function (d) { return d && d <= h; }).sort();
     for (var i = cand.length - 1; i >= 0; i--) if (estabaVencido(p, cand[i])) return cand[i];
     return '';
+  }
+
+  /* Todo movimiento que pudo traer recargo de mora, con los dos hechos que
+     importan: de qué corte venía (`ciclo`) y qué día lo curó (`fecha`). Es la
+     misma lista para las dos preguntas —¿hubo mora? ¿cuándo terminó?—, así que
+     se arma una sola vez y en un solo lugar. */
+  function movimientosConMora(p) {
+    var movs = lista(p && p.prorrogas).map(function (pr) {
+      return { ciclo: fechaFin(pr && pr.ciclo), fecha: fechaFin(pr && pr.fecha),
+               mora: moraDeProrroga(pr), aTiempo: pr && pr.aTiempo };
+    });
+    var e = entradaPlan(p);
+    if (e) {
+      movs.push({ ciclo: fechaFin(e.ciclo),
+                  fecha: fechaFin(e.fecha) || fechaFin(p.planPagos && p.planPagos.creado),
+                  mora: moraDeProrroga(e), aTiempo: e.aTiempo });
+    }
+    /* Una cuota del plan pagada con recargo también es mora cobrada. El recargo
+       va con su `monto` porque moraDeProrroga lo topa contra el monto: sin él se
+       leería como cero y la prueba se perdería. */
+    cuotasPlan(p).forEach(function (q) {
+      if (!q || !q.pagado) return;
+      movs.push({ ciclo: fechaFin(q.fecha), fecha: fechaFin(q.fechaPagado),
+                  mora: moraDeProrroga({ mora: num(q.recargo),
+                                         monto: num(q.costo) + num(q.recargo) }) });
+    });
+    /* Y el pago final del crédito: si el Panel le cobró recargo, hubo mora. Es
+       el mismo hecho que los de arriba, guardado en otro campo. */
+    if (p && p.pagado && num(p.recargoMora) > 0) {
+      movs.push({ ciclo: fechaFin(p.cicloPago), fecha: fechaFin(p.fechaPagado),
+                  mora: num(p.recargoMora) });
+    }
+    return movs.filter(function (m) { return m.mora > 0 || m.aTiempo === false; });
+  }
+
+  /**
+   * EL PUNTO CIEGO DE UN DÍA, tapado donde tenía que estar tapado — 6-ago-2026.
+   *
+   * La línea de tiempo NO PUEDE VER el tramo vencido cuando el movimiento que lo
+   * cura se registra el mismo día en que la mora arranca: el día del corte no es
+   * mora y el día siguiente ya rige el corte nuevo, así que el tramo queda vacío
+   * —aunque el socio haya pagado el 1% de ese día.
+   *
+   * Ese día existe y está guardado: si se cobró un recargo, hubo mora. El último
+   * día en que la hubo es el anterior al que la curó, y nunca antes del primer
+   * día de mora (`ciclo` + 1) — que es justo el caso de un solo día, donde los
+   * dos son el mismo día y la línea de tiempo se queda con las manos vacías.
+   *
+   * @returns {string} '' si no hay ningún recargo cobrado hasta `hasta`.
+   */
+  function ultimoDiaDeMoraCobrada(p, hasta) {
+    var h = fechaFin(hasta);
+    if (!h) return '';
+    var ultimo = '';
+    movimientosConMora(p).forEach(function (m) {
+      var primero = m.ciclo ? diaDespues(m.ciclo) : '';
+      var curo = m.fecha ? diaAntes(m.fecha) : '';
+      var dia = curo > primero ? curo : primero;
+      if (dia && dia <= h && dia > ultimo) ultimo = dia;
+    });
+    return ultimo;
+  }
+
+  /**
+   * El ÚLTIMO día, hasta `hasta`, en que este crédito estuvo en mora. '' si
+   * nunca lo estuvo. ES LA ÚNICA VERDAD SOBRE LA MORA de este archivo: la usan
+   * los tres consumidores (el factor de la garantía por el §4-bis, el estado
+   * para el nivel y los hitos de meses_sin_mora), y por eso junta las DOS
+   * pruebas que existen y se queda con la más reciente.
+   *
+   * Es lo que le faltaba a `meses_sin_mora` para significar lo que dice su
+   * nombre: se medía desde el último atraso CURADO POR UN PAGO, así que una
+   * mora de cuatro meses tapada con una prórroga no reseteaba nada y los meses
+   * de atraso empujaban al socio hacia platino.
+   *
+   * 6-ago-2026 — Y LE FALTABA LA SEGUNDA PRUEBA. Hasta hoy había dos caminos:
+   * el factor de la garantía preguntaba `estuvoEnMora() || moraYaCobrada()` y
+   * los contadores del nivel solo `estuvoEnMora()`. O sea que el punto ciego de
+   * un día estaba tapado para la garantía y abierto para el nivel: MEDIDO, con
+   * 1 solo día de mora, prorrogar (42.000, y se queda los 200.000 de capital)
+   * compraba PLATINO dos meses antes que pagar (los mismos 42.000 más devolver
+   * el capital), y como el nivel no baja la ventaja era permanente. Con 2 días
+   * de mora no pasaba: eso es lo que prueba que era un defecto y no una
+   * política. Dos caminos que hay que acordarse de mantener iguales terminan
+   * siempre así, y este proyecto ya lo pagó tres veces. Ahora hay uno.
+   */
+  function ultimoDiaDeMora(p, hasta) {
+    var h = fechaFin(hasta);
+    if (!h) return '';
+    var enLaLinea = ultimoDiaDeMoraEnLaLinea(p, h);
+    var cobrada = ultimoDiaDeMoraCobrada(p, h);
+    return cobrada > enLaLinea ? cobrada : enLaLinea;
   }
 
   /* =================== LA REGLA ÚNICA DE LA MORA — 5-ago-2026 ===============
@@ -863,13 +951,22 @@
    * `ultimoDiaDeMora` recorren la línea de tiempo y no se mueven cuando se
    * registra una prórroga después—: los contadores simplemente nunca le
    * preguntaban por los créditos NO PAGADOS.
+   *
+   * 6-ago-2026 — Y LA MORA TENÍA QUE SER UNA SOLA VERDAD TAMBIÉN. La regla única
+   * quedó bien pero se apoyaba en una mora que se preguntaba de dos formas: el
+   * factor de la garantía sumaba la línea de tiempo MÁS los recargos ya cobrados,
+   * y el nivel solo la línea de tiempo. El punto ciego de un día quedó tapado en
+   * uno y abierto en el otro (ver ultimoDiaDeMora). Ahora las dos pruebas viven
+   * dentro de `ultimoDiaDeMora` y los tres consumidores preguntan lo mismo: no
+   * queda ningún camino que haya que acordarse de mantener igual.
    * ========================================================================*/
 
   /**
    * ¿Este crédito estuvo en mora en algún momento hasta `hasta`? La versión
    * "alguna vez" de `estabaVencido`, y la que necesita el nivel: una mora que
-   * se tapó con una prórroga sigue habiendo existido. `ultimoDiaDeMora` ya
-   * recorre todos los tramos, así que devuelve '' solo si nunca la hubo.
+   * se tapó con una prórroga sigue habiendo existido. `ultimoDiaDeMora` es la
+   * verdad única —línea de tiempo Y recargos cobrados—, así que devuelve '' solo
+   * si nunca la hubo.
    */
   function estuvoEnMora(p, hasta) {
     return !!ultimoDiaDeMora(p, hasta);
@@ -889,43 +986,15 @@
    * guardado —justo lo que el 4-ago se decidió no hacer para no borrar garantía
    * ya acreditada. Acá se agrega SOLO lo que pasó antes: la mora de un ciclo
    * ANTERIOR, la que la prórroga tapó y el reloj de mora había puesto en cero.
+   *
+   * 6-ago-2026 — Y ES UNA SOLA PREGUNTA, no dos sumadas con un `||`: esa era la
+   * forma del defecto. `estuvoEnMora` ya trae las dos pruebas adentro. El ciclo
+   * PROPIO queda afuera solo, sin excepción escrita a mano, porque su mora no
+   * puede haberse curado antes de su propio corte: su hito cae siempre después
+   * del límite.
    */
   function veniaDeMora(p, corte) {
-    return estuvoEnMora(p, diaAntes(fechaFin(corte))) || moraYaCobrada(p, corte);
-  }
-
-  /**
-   * La OTRA prueba de que hubo mora antes de este ciclo: un movimiento ya
-   * cobrado que trajo recargo. Si una prórroga cobró recargo del 1% diario es
-   * porque el corte ya había pasado, y eso es un hecho guardado.
-   *
-   * Hace falta, y no es redundante con la línea de tiempo: una prórroga
-   * registrada EL MISMO DÍA en que arrancó la mora mueve el corte desde ese
-   * mismo día, así que el tramo vencido que la línea de tiempo puede ver queda
-   * VACÍO —el día del corte no es mora y el día siguiente ya rige el corte
-   * nuevo— aunque el socio haya pagado un día de recargo. Sin esto, prorrogar el
-   * primer día de atraso y volver a prorrogar en el corte nuevo cobraba otra vez
-   * el factor completo: el mismo agujero, un día antes.
-   */
-  function moraYaCobrada(p, corte) {
-    var c = fechaFin(corte);
-    if (!c) return false;
-    var movs = lista(p && p.prorrogas).slice();
-    if (entradaPlan(p)) movs.push(entradaPlan(p));
-    /* Una cuota del plan pagada con recargo también es mora cobrada. Va con su
-       `monto` porque moraDeProrroga topa el recargo contra el monto: sin él, el
-       recargo se leería como cero y la prueba se perdería. */
-    cuotasPlan(p).forEach(function (q) {
-      if (!q || !q.pagado) return;
-      movs.push({ ciclo: q.fecha, mora: num(q.recargo),
-                  monto: num(q.costo) + num(q.recargo) });
-    });
-    return movs.some(function (m) {
-      var ciclo = fechaFin(m && m.ciclo);
-      // Solo los ciclos ANTERIORES: el propio ciclo lo juzga su dato congelado.
-      if (!ciclo || ciclo >= c) return false;
-      return moraDeProrroga(m) > 0 || (m && m.aTiempo === false);
-    });
+    return estuvoEnMora(p, diaAntes(fechaFin(corte)));
   }
 
   /**
@@ -979,7 +1048,13 @@
        para el que no llegó a estar vencido pero tampoco ganó el escalón, el día
        en que se pagó. Si HOY hay uno en mora, `ultimoDiaDeMora` devuelve el
        propio `hasta` y los meses quedan en cero solos: no hace falta ningún
-       guardián aparte, que es lo que antes tapaba un requisito y dejaba dos. */
+       guardián aparte, que es lo que antes tapaba un requisito y dejaba dos.
+
+       6-ago-2026: el hito sale de `ultimoDiaDeMora`, que ahora es la MISMA
+       verdad que usa el factor de la garantía —línea de tiempo y recargos ya
+       cobrados—. Antes este contador solo veía la línea de tiempo, y por eso una
+       mora de UN día tapada con una prórroga el mismo día no reseteaba nada: el
+       reloj seguía corriendo y prorrogar compraba platino antes que pagar. */
     var hitos = [];
     ps.forEach(function (p, k) {
       var m = ultimoDiaDeMora(p, hasta);
@@ -1325,8 +1400,19 @@
       referidos: referidosDe(db, s),
       acumulada: garantiaGanadaDe(db, s),
       ajuste: Number(s && s.ajusteGarantia) || 0,
-      comprometida: comprometidaDe(db, s)
+      comprometida: comprometidaDe(db, s),
+      /* El tope de los referidos, si Joan lo movió desde Ajustes. Sin dato en el
+         Panel viaja undefined y manda el del motor (M.TOPE_REFERIDOS), que es
+         donde vive el valor por defecto: acá no se repite ningún número. */
+      tope_referidos: topeReferidosDe(db)
     };
+  }
+  /* La mitad de Joan del tope de los referidos: vive en Ajustes, igual que el
+     freno por ingreso. Si la clave no está —hoy no está: crm.html todavía no la
+     escribe— devuelve undefined y el motor usa su propio valor. */
+  function topeReferidosDe(db) {
+    var c = db && db.config && db.config.topeReferidos;
+    return (c && typeof c === 'object') ? c : undefined;
   }
 
   /**
@@ -1532,6 +1618,8 @@
     contabilidadCartera: contabilidadCartera,
     // El freno por ingreso, apagado, para que el Panel lo pueda encender
     frenoDe: frenoDe,
+    // El tope de los referidos, para que el Panel lo pueda mover (6-ago-2026)
+    topeReferidosDe: topeReferidosDe,
     cupoDelSocio: cupoDelSocio,
     migrarSocio: migrarSocio,
     buscarSocio: buscarSocio,
@@ -1555,6 +1643,11 @@
     ultimoDiaDeMora: ultimoDiaDeMora,
     estabaVencido: estabaVencido,
     // La regla única de la mora, y el estado que sale de ella (5-ago-2026).
+    // `ultimoDiaDeMoraCobrada` y `veniaDeMora` van expuestas desde el 6-ago-2026:
+    // son las dos mitades de esa verdad única y las pantallas tienen que poder
+    // preguntarlas en vez de deducirlas.
+    ultimoDiaDeMoraCobrada: ultimoDiaDeMoraCobrada,
+    veniaDeMora: veniaDeMora,
     estuvoEnMora: estuvoEnMora,
     estadoParaNivel: estadoParaNivel,
     prorrogaAcreditaEnFecha: prorrogaAcreditaEnFecha,
