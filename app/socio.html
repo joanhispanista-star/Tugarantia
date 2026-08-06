@@ -1843,19 +1843,33 @@ function segTeclas(e) {
    le alcance y el aviso le quedaría clavado en "es más que tu cupo" desde el primer
    día. Con el cupo en cero no hay monto válido que ofrecer —el motor ni siquiera
    simula un capital de 0— así que ahí se queda el piso, que al menos dice la verdad. */
+/* EL ESCALÓN, 5-ago-2026, pedido de Joan: de 50.000 a 1.000.
+   Con el escalón viejo, entre 50.000 y 100.000 no había NADA que elegir: el socio
+   que necesitaba 70.000 tenía que pedir 100.000 y pagar el costo de 30.000 de más
+   que no necesitaba. Y con el cupo uno a uno el caso se volvió la regla, no la
+   excepción: los cupos reales son cifras como 145.000 o 132.250, no múltiplos de
+   50.000, así que un escalón grueso deja la mayor parte del recorrido sin usar.
+
+   Mil pesos es el escalón fino que sigue siendo cómodo de leer. Sobre el cupo de un
+   socio típico eso son más de cien paradas en los ~335px de una pantalla de celular:
+   cada pixel de arrastre son unos cientos de pesos, así que se puede afinar de
+   verdad. No se baja a 1 peso a propósito: un monto como "137.412" no lo piensa
+   nadie, y ver esa cifra en pantalla parece un error del sistema, no una elección. */
+var ESCALON_MONTO = 1000;
+
 function limitesCalc() {
   var piso = M.MONTO_MINIMO;
   var techo = M.MONTO_MAXIMO_CALCULADORA;
   if (MODO === 'respaldado') {
     var max = Math.min(Math.max(0, Math.floor(S.maxRespaldado)), techo);
-    return { min: Math.min(piso, max), max: max, paso: 10000 };
+    return { min: Math.min(piso, max), max: max, paso: ESCALON_MONTO };
   }
   /* El tope sube a 500.000 aunque el cupo sea menor, a propósito: que el socio vea
      que el producto llega más lejos y cuánto le falta, en vez de esconderle el
      recorrido. Pero nunca por encima del techo de la calculadora. */
   var cupo = Math.max(0, Math.floor(S.cupo || 0));
   return { min: cupo > 0 ? Math.min(piso, cupo) : piso,
-           max: Math.min(Math.max(cupo, 500000), techo), paso: 50000 };
+           max: Math.min(Math.max(cupo, 500000), techo), paso: ESCALON_MONTO };
 }
 
 function setModo(m) {
@@ -1868,6 +1882,20 @@ function setModo(m) {
     if (a) a.innerHTML = 'Todavía no tienes garantía ganada. Se gana pagando en fecha: cada crédito ' +
       'quincenal que pagas sin haberte atrasado te deja el ' + pct(M.FACTOR_GARANTIA) +
       ' del costo. Si se atrasó alguna vez, el ' + pct(M.FACTOR_GARANTIA_MORA) + '.';
+    return;
+  }
+  /* Tiene garantía ganada, pero no le llega al mínimo. Es un estado NORMAL y va a
+     durar varias quincenas: con el reparto nuevo la ganada sube el 75% del costo,
+     así que un socio que pide 100.000 suma 15.000 por crédito y tarda cuatro en
+     llegar a los 50.000. Sin este corte, la barra queda de un solo punto —min y max
+     pegados en la ganada— y el socio ve un control muerto sin entender por qué.
+     Se le dice cuánto le falta, que es lo único útil que se le puede decir. */
+  if (m === 'respaldado' && S.maxRespaldado < M.MONTO_MINIMO) {
+    var av = $('calcAviso');
+    if (av) av.innerHTML = 'Llevas <b>' + COP(S.maxRespaldado) + '</b> de garantía ganada, y este ' +
+      'préstamo arranca en ' + COP(M.MONTO_MINIMO) + '. Te faltan <b>' +
+      COP(M.MONTO_MINIMO - S.maxRespaldado) + '</b>, que se juntan pagando en fecha: cada crédito ' +
+      'quincenal te deja el ' + pct(M.FACTOR_GARANTIA) + ' de su costo.';
     return;
   }
   if (m === MODO) return;
@@ -2036,7 +2064,18 @@ function salidaCalc(s) {
   h += tarjetaPedir('Pedir ' + COP(s.capital), '');
 
   /* 5 · La escalera, plegada: es pedagogía, no decisión */
-  var pasos = M.proyectarCrecimiento(S.gd.base_cupo, MONTO, 6, S.nivel, { pideElCupo: true });
+  /* 6-ago-2026 — LA ESCALERA ARRANCA DONDE ESTÁ EL SOCIO, NO DONDE ESCRIBIÓ.
+     Acá iba MONTO, lo que el socio acaba de teclear en la calculadora, que llega
+     hasta 5.000.000. Y `pideElCupo` usa ese número como PISO
+     (Math.max(capital, cupo)): con un cupo de 200.000 y 5.000.000 tecleados, los
+     seis peldaños se dibujaban sobre 5.000.000, o sea seis créditos que hoy no
+     puede pedir —y el aviso de dos tarjetas más arriba le acaba de decir que se
+     pasó de su cupo. Una escalera que arranca por encima de lo que puede pedir no
+     motiva: contradice la pantalla. El primer peldaño es su cupo de hoy, que es
+     además lo que promete el texto de al lado ("pidiendo cada vez todo tu cupo").
+     El piso de 1 es porque el motor exige capital positivo. */
+  var pasos = M.proyectarCrecimiento(S.gd.base_cupo, Math.max(1, s.cupo), 6, S.nivel,
+    { pideElCupo: true });
   var minG = S.gd.base_cupo, maxG = pasos[pasos.length - 1].garantia;
   var rango = Math.max(1, maxG - minG);
   h += '<div class="card"><details><summary>Ver cómo crece si lo repites</summary>' +
