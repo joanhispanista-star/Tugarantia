@@ -1353,8 +1353,17 @@ let calY,calM;
    cuanto una prórroga corría la fecha, y aparecían pintados en el día nuevo como
    si el vencimiento viejo no hubiera existido. El corte que regía ESE día lo
    contesta el puente. */
-function eventosDia(iso){ const ev={des:[],ven:[],pag:[],pro:[]};
-  DB.prestamos.forEach(p=>{ if(p.fechaDesembolso===iso)ev.des.push(p); if(!p.pagado&&PUENTE.corteVigenteEn(p,iso)===iso)ev.ven.push(p); if(p.pagado&&p.fechaPagado===iso)ev.pag.push(p); (p.prorrogas||[]).forEach(pr=>{if(pr.fecha===iso)ev.pro.push({p,pr});}); }); return ev; }
+/* 6-ago-2026 — Y LAS CUOTAS DEL PLAN DE PAGOS QUE NO SON LA VIGENTE. El
+   calendario pintaba un solo vencimiento por crédito, el del corte que rige ese
+   día, así que de un plan de tres cuotas Joan veía UNA. Las otras dos ya tienen
+   fecha y monto pactados: salen de cobrosDelCredito, el mismo sitio del que sale
+   el .ics, y van en su propio cajón (`cuo`) porque no son el cobro de hoy —no se
+   cobran ni se escribe por WhatsApp por ellas todavía—. Solo un plan tiene cobros
+   más allá del vigente, y por eso se le pregunta solo a esos: la lista la sigue
+   armando cobrosDelCredito, acá no se decide ninguna fecha. */
+function eventosDia(iso){ const ev={des:[],ven:[],pag:[],pro:[],cuo:[]};
+  DB.prestamos.forEach(p=>{ if(p.fechaDesembolso===iso)ev.des.push(p); if(!p.pagado&&PUENTE.corteVigenteEn(p,iso)===iso)ev.ven.push(p); if(p.pagado&&p.fechaPagado===iso)ev.pag.push(p); (p.prorrogas||[]).forEach(pr=>{if(pr.fecha===iso)ev.pro.push({p,pr});});
+    if(!p.pagado&&tienePlan(p))cobrosDelCredito(p).forEach(c=>{ if(!c.vigente&&c.fecha===iso)ev.cuo.push(c); }); }); return ev; }
 function renderCalendario(){
   if(calY===undefined){ const d=new Date(); calY=d.getFullYear(); calM=d.getMonth(); }
   document.getElementById('calTitulo').textContent=MESES[calM].charAt(0).toUpperCase()+MESES[calM].slice(1)+' '+calY;
@@ -1362,12 +1371,14 @@ function renderCalendario(){
   const primero=new Date(calY,calM,1),inicio=(primero.getDay()+6)%7,dias=new Date(calY,calM+1,0).getDate();
   let html=''; for(let i=0;i<inicio;i++)html+=`<div class="cal-day empty"></div>`;
   for(let d=1;d<=dias;d++){ const iso=isoLocal(new Date(calY,calM,d)),ev=eventosDia(iso),q=esQuincena(iso),esHoy=iso===hoyISO();
-    const total=ev.des.length+ev.ven.length+ev.pag.length+ev.pro.length; let evs='';
+    const total=ev.des.length+ev.ven.length+ev.pag.length+ev.pro.length+ev.cuo.length; let evs='';
     ev.ven.slice(0,2).forEach(p=>evs+=`<div class="cal-ev ven">⏰ ${escHTML(p.socioNombre.split(' ')[0])} ${COP(totalCiclo(p))}</div>`);
+    // Una cuota del plan es un cobro con fecha: se pinta igual que un vencimiento.
+    ev.cuo.slice(0,2).forEach(c=>evs+=`<div class="cal-ev ven">⏰ ${escHTML(c.p.socioNombre.split(' ')[0])} ${COP(c.monto)} <span class="muted">c${c.n}/${c.de}</span></div>`);
     ev.des.slice(0,1).forEach(p=>evs+=`<div class="cal-ev des">💵 ${escHTML(p.socioNombre.split(' ')[0])}</div>`);
     ev.pag.slice(0,1).forEach(p=>evs+=`<div class="cal-ev pag">✓ ${escHTML(p.socioNombre.split(' ')[0])}</div>`);
     ev.pro.slice(0,1).forEach(o=>evs+=`<div class="cal-ev pro">↻ ${escHTML(o.p.socioNombre.split(' ')[0])}</div>`);
-    const dots=`${ev.des.length?'<span class="dot" style="background:var(--gris)"></span>':''}${ev.ven.length?'<span class="dot" style="background:var(--ambar)"></span>':''}${ev.pag.length?'<span class="dot" style="background:var(--amarillo-tinta)"></span>':''}${ev.pro.length?'<span class="dot" style="background:var(--laca-3)"></span>':''}`;
+    const dots=`${ev.des.length?'<span class="dot" style="background:var(--gris)"></span>':''}${(ev.ven.length||ev.cuo.length)?'<span class="dot" style="background:var(--ambar)"></span>':''}${ev.pag.length?'<span class="dot" style="background:var(--amarillo-tinta)"></span>':''}${ev.pro.length?'<span class="dot" style="background:var(--laca-3)"></span>':''}`;
     html+=`<div class="cal-day ${q?'quincena':''} ${esHoy?'hoy':''}" onclick="verDia('${iso}')"><div class="dn">${d}${q?'<small>quincena</small>':''}</div>${evs}${total>4?`<div class="cal-more">+${total-4} más</div>`:''}<div>${dots}</div></div>`;
   }
   document.getElementById('calGrid').innerHTML=html;
@@ -1386,11 +1397,51 @@ function gcalUrl(title,iso,details){ const a=iso.replace(/-/g,''),next=isoLocal(
    La condición es la única que vale: la que el motor contesta (prorrogaOfrecida),
    la misma con la que calcPago pinta el botón «↻ Prórroga». Y el precio, el que
    se va a cobrar. Una sola función para el evento de Google y para el .ics. */
-function detalleCobro(p){ const v=prorrogaOfrecida(p);
-  if(v!=null) return 'Prórroga posible: '+COP(v)+' · pasa al '+fmtFecha(nuevoCicloProrroga(p));
-  return tienePlan(p)?'Cuota del plan de pagos':'Sin prórrogas: la salida es el plan de pagos'; }
+function detalleCobro(p,c){
+  /* Una cuota del plan que todavía no es la que vence: su fecha y su monto están
+     pactados y congelados, y de un plan no se sale prorrogando. */
+  if(c&&!c.vigente) return 'Cuota '+c.n+' de '+c.de+' del plan de pagos, ya pactada: '+COP(c.monto)+'.';
+  /* Y si el corte YA PASÓ, el evento es de HOY: hay que decir de qué corte viene
+     y que la cifra es la de hoy, con el recargo adentro. */
+  const atras=(c&&c.vencido)?'El corte era el '+fmtFecha(c.corte)+', así que este es el total de HOY, con el recargo. ':'';
+  const v=prorrogaOfrecida(p);
+  if(v!=null) return atras+'Prórroga posible: '+COP(v)+' · pasa al '+fmtFecha(nuevoCicloProrroga(p));
+  return atras+(tienePlan(p)?'Cuota '+(c&&c.de?c.n+' de '+c.de+' ':'')+'del plan de pagos'
+                            :'Sin prórrogas: la salida es el plan de pagos'); }
+/* =========================================================================
+   6-ago-2026 — TODO LO QUE HAY POR COBRARLE A UN CRÉDITO, CON LA FECHA Y EL
+   MONTO QUE DE VERDAD TIENEN. Una sola fuente para el .ics y para el calendario.
+
+   Los dos defectos venían de la misma línea escrita dos veces: «un evento por
+   crédito, en su corte».
+
+   · EL CORTE QUE YA PASÓ. Un evento fechado atrás no suena nunca, y su cifra
+     tampoco es la que se va a cobrar. La app lo arregló el 5-ago dentro de
+     armarICS —«si el corte YA PASÓ, ese día no puede ser el corte: el
+     recordatorio es de HOY y lleva el total de hoy»— y el Panel se quedó sin el
+     arreglo: le agendaba a Joan cobros en el pasado.
+   · EL PLAN DE PAGOS. Un plan tiene tres cuotas con fecha y monto CONGELADOS
+     (registrarPlanDePagos los congela a propósito, «así el calendario no se mueve
+     solo») y solo viajaba la vigente: Joan no veía dos de las tres cuotas que
+     tiene que cobrar.
+
+   LOS MONTOS. El del cobro vigente lo liquida el puente HOY (totalCiclo, con su
+   recargo, la misma cifra que la pantalla de cobro y que el celular del socio);
+   los de las cuotas que vienen después son los congelados, que es lo que se va a
+   cobrar ese día y no una liquidación adivinada a futuro.
+   ========================================================================= */
+function cobrosDelCredito(p){
+  if(!p||p.pagado) return [];
+  const hoy=hoyISO(), corte=PUENTE.corteDelCredito(p), cs=cuotasPlan(p);
+  const pend=cs.filter(c=>!c.pagado), vencido=!!corte&&corte<hoy;
+  const cobros=[{ uid:p.id+'-v', p:p, vigente:true, vencido:vencido, corte:corte||hoy,
+                  fecha:vencido?hoy:(corte||hoy), monto:totalCiclo(p),
+                  n:pend.length?pend[0].n:0, de:cs.length }];
+  pend.slice(1).forEach(c=>cobros.push({ uid:p.id+'-c'+c.n, p:p, vigente:false, vencido:false,
+                  corte:c.fecha, fecha:c.fecha, monto:Number(c.total)||0, n:c.n, de:cs.length }));
+  return cobros; }
 function verDia(iso){
-  const ev=eventosDia(iso),total=ev.des.length+ev.ven.length+ev.pag.length+ev.pro.length; let h='';
+  const ev=eventosDia(iso),total=ev.des.length+ev.ven.length+ev.pag.length+ev.pro.length+ev.cuo.length; let h='';
   if(!total){ h=`<div class="empty"><div class="ic">🗓️</div><p>Sin movimientos este día.</p></div>`; }
   else{
     /* 6-ago-2026 — EL WHATSAPP DEL CALENDARIO MANDABA SIEMPRE "VENCE HOY".
@@ -1406,7 +1457,14 @@ function verDia(iso){
        título dice qué plantilla salió, para que se vea antes de abrir WhatsApp. */
     if(ev.ven.length){ h+=`<div class="sub-h">⏰ Cobros / vencimientos</div>`+ev.ven.map(p=>{
       const s=DB.socios.find(x=>x.id===p.socioId)||{},k=plantillaPara(p);
-      return `<div class="info-row"><span class="k">${escHTML(p.socioNombre)}<div class="muted">${escHTML(ESTADO_TXT[estadoPrestamo(p)])} · ${escHTML(PLANTILLAS_DEF[k].t)}</div></span><span class="vv"><b>${COP(totalCiclo(p))}</b> · <a target="_blank" href="${gcalUrl('Cobro '+p.socioNombre+' '+COP(totalCiclo(p)),iso,detalleCobro(p))}">+Google</a> · <a target="_blank" title="${escHTML(PLANTILLAS_DEF[k].t)}" href="${waLink(waNum(s),mensajeParaCredito(p,s,k))}">WA</a></span></div>`;}).join(''); }
+      /* El evento de Google sale del MISMO cobro que el .ics: si el corte ya pasó
+         se agenda HOY con el total de hoy, no en el día que se está mirando. */
+      const c=cobrosDelCredito(p)[0];
+      return `<div class="info-row"><span class="k">${escHTML(p.socioNombre)}<div class="muted">${escHTML(ESTADO_TXT[estadoPrestamo(p)])} · ${escHTML(PLANTILLAS_DEF[k].t)}</div></span><span class="vv"><b>${COP(totalCiclo(p))}</b> · <a target="_blank" href="${gcalUrl('Cobro '+p.socioNombre+' '+COP(c.monto),c.fecha,detalleCobro(p,c))}">+Google</a> · <a target="_blank" title="${escHTML(PLANTILLAS_DEF[k].t)}" href="${waLink(waNum(s),mensajeParaCredito(p,s,k))}">WA</a></span></div>`;}).join(''); }
+    /* Las cuotas del plan que caen este día y todavía no vencen: sin WhatsApp,
+       que no hay nada que cobrar hoy, pero con su fecha y su monto pactados. */
+    if(ev.cuo.length){ h+=`<div class="sub-h">📅 Cuotas del plan de pagos</div>`+ev.cuo.map(c=>
+      `<div class="info-row"><span class="k">${escHTML(c.p.socioNombre)}<div class="muted">cuota ${c.n} de ${c.de}, ya pactada</div></span><span class="vv"><b>${COP(c.monto)}</b> · <a target="_blank" href="${gcalUrl('Cobro '+c.p.socioNombre+' '+COP(c.monto),c.fecha,detalleCobro(c.p,c))}">+Google</a></span></div>`).join(''); }
     if(ev.des.length){ h+=`<div class="sub-h">💵 Desembolsos</div>`+ev.des.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv"><b>${COP(p.capital)}</b> · <a target="_blank" href="${gcalUrl('Desembolso '+p.socioNombre+' '+COP(p.capital),iso,'')}">+Google</a></span></div>`).join(''); }
     if(ev.pag.length){ h+=`<div class="sub-h">✓ Pagos recibidos</div>`+ev.pag.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv gano">${COP(p.capital)} + ganancia ${COP(p.gananciaPago||0)}</span></div>`).join(''); }
     /* A qué corte pasó DE VERDAD ese día está guardado en el movimiento
@@ -1420,7 +1478,12 @@ function esc(s){ return String(s).replace(/[\\;,\n]/g,m=>({'\\':'\\\\',';':'\\;'
 function exportarICS(){
   let ev=''; function add(uid,iso,sum,desc){ const a=iso.replace(/-/g,''),n=isoLocal(new Date(new Date(iso+'T00:00:00').getTime()+86400000)).replace(/-/g,'');
     ev+='BEGIN:VEVENT\r\nUID:'+uid+'@joancrm\r\nDTSTART;VALUE=DATE:'+a+'\r\nDTEND;VALUE=DATE:'+n+'\r\nSUMMARY:'+esc(sum)+'\r\nDESCRIPTION:'+esc(desc||'')+'\r\nEND:VEVENT\r\n'; }
-  DB.prestamos.forEach(p=>{ add(p.id+'-d',p.fechaDesembolso,'💵 Desembolso '+p.socioNombre+' '+COP(p.capital),(DB.config.negocio||'Tu Garantía')); if(!p.pagado)add(p.id+'-v',PUENTE.corteDelCredito(p),'⏰ Cobro '+p.socioNombre+' '+COP(totalCiclo(p)),detalleCobro(p)); });
+  /* Los cobros salen de cobrosDelCredito: ahí vive la regla del corte ya pasado y
+     ahí están las cuotas del plan. Acá no se decide ninguna fecha ni ningún monto. */
+  DB.prestamos.forEach(p=>{ add(p.id+'-d',p.fechaDesembolso,'💵 Desembolso '+p.socioNombre+' '+COP(p.capital),(DB.config.negocio||'Tu Garantía'));
+    cobrosDelCredito(p).forEach(c=>add(c.uid,c.fecha,
+      '⏰ Cobro '+p.socioNombre+' '+COP(c.monto)+(c.de?' (cuota '+c.n+' de '+c.de+')':''),
+      detalleCobro(p,c))); });
   const ics='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Tu Garantia//CRM//ES\r\nCALSCALE:GREGORIAN\r\n'+ev+'END:VCALENDAR';
   const b=new Blob([ics],{type:'text/calendar'}),a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='tugarantia-calendario.ics'; a.click();
   alert('Listo. En Google Calendar: Configuración → Importar y exportar → Importar, y sube este archivo.');

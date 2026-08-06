@@ -3402,11 +3402,39 @@ describe('el respaldo descuenta el quincenal abierto (se pida en el orden que se
       'el tope avisa una cosa y el botón deja pasar otra');
   });
 
-  test('y el cupo quincenal NO descuenta dos veces lo suyo', () => {
-    // revisarCupo ya cuenta el quincenal abierto aparte (r.abierto). Si además
-    // entradaGarantiaDe lo restara, sería el error simétrico del que arreglamos.
+  test('y el quincenal se descuenta UNA vez, aunque haya dos canales', () => {
+    /* 6-ago-2026 — ACÁ DECÍA "el cupo quincenal NO descuenta dos veces lo suyo", y
+       el razonamiento se dio vuelta: entonces el cupo NO tenía que descontar el
+       quincenal abierto (revisarCupo lo contaba aparte, en r.abierto) y hoy SÍ,
+       porque ese número es el que se le promete al socio. Lo que no cambió es el
+       riesgo de contarlo dos veces, y por eso hay dos entradas en el puente:
+
+         entradaGarantia  sin el quincenal. La que consume el RESPALDADO, y a la
+                          que crm.html le suma el quincenal por su cuenta
+                          (entradaRespaldoDe, con la inversa del motor).
+         entradaCupo      con el quincenal. La que consume el CUPO.
+
+       Si crm.html pudiera tocarse, entradaRespaldoDe se borraría y quedaría una
+       sola. Mientras exista, entradaGarantia NO puede traer el quincenal adentro. */
     assert.ok(!/function entradaGarantiaDe[^\n]*garantiaEnUsoQuincenal/.test(CRM),
-      'entradaGarantiaDe la usa cupoQuincenal: ahí el quincenal ya se cuenta aparte');
+      'entradaGarantiaDe es el canal del respaldado: si le entra el quincenal, ' +
+      'entradaRespaldoDe lo suma otra vez y el respaldado queda topado de menos');
+    const PUENTE_SRC = fs.readFileSync(path.join(__dirname, '..', 'app', 'puente.js'), 'utf8');
+    const cuerpo = nombre => {
+      const i = PUENTE_SRC.indexOf('function ' + nombre + '(');
+      assert.ok(i >= 0, 'el puente ya no declara ' + nombre);
+      return PUENTE_SRC.slice(i, PUENTE_SRC.indexOf('\n  }', i));
+    };
+    assert.ok(!/capital_quincenal/.test(cuerpo('entradaGarantia')),
+      'entradaGarantia tiene que quedarse sin el quincenal mientras viva entradaRespaldoDe');
+    assert.match(cuerpo('entradaCupo'), /capital_quincenal/);
+    assert.match(cuerpo('cupoDelSocio'), /entradaCupo/,
+      'el cupo se pregunta con la entrada que descuenta todo lo que está afuera');
+    assert.match(cuerpo('migrarSocio'), /entradaCupo/,
+      'y el paquete del socio con la misma, o la app le promete otro número');
+    /* Y el aviso del Panel sigue sumando el abierto por su lado: ahora avisa DE
+       MÁS, no de menos, porque el cupo ya viene neto. Es conservador y es un
+       confirm(), así que se queda hasta que crm.html se pueda tocar. */
     assert.match(cuerpoCRM('revisarCupo'), /abierto\s*\+\s*cap/);
   });
 });
@@ -6441,16 +6469,33 @@ describe('LA CUENTA DE PRUEBA (79111000 / 2026) con las reglas nuevas', () => {
 describe('el puente le cuenta a Joan el cupón y la ganancia (5-ago-2026)', () => {
 
   const CORTE = '2026-01-15';
-  // Un socio con la ficha completa (cupón 100.000) y n créditos de 100.000
-  // pagados en fecha, como los registra el Panel.
-  function dbCon(n, tarde) {
+  /* Un socio con n créditos de 100.000 pagados en fecha, como los registra el
+     Panel.
+
+     LA FICHA ES UN PARÁMETRO (6-ago-2026) y no siempre la completa. Ese era el
+     agujero de esta batería: todo se medía con el cupón lleno en 100.000, que es
+     justo el caso donde el techo de la prestada muerde. El cliente de mostrador
+     —nombre, cédula, celular y WhatsApp, 20.000 de cupón— es la mayoría de los
+     reales, y ahí el techo no llegaba a tocar nunca. Ver socioConFicha. */
+  function socioConFicha(ficha) {
     const d = datosCompletos();
-    const s = { id: 'a', numero: 1, nombre: 'Ana Perez', cedula: '1020304050',
-      telefono: '3001112233', whatsappIgual: true, email: d.correo, ciudad: d.ciudad,
+    // 'mostrador': lo que se carga en el mostrador. 5.000 + 8.000 + 5.000 + 2.000.
+    const base = { id: 'a', numero: 1, nombre: 'Ana Perez', cedula: '1020304050',
+      telefono: '3001112233', whatsappIgual: true, ajusteGarantia: 0,
+      referencia: { nombre: '', telefono: '' } };
+    // 'pelada': ni cédula ni teléfono. Lo que normalizar da por sentado: 7.000.
+    if (ficha === 'pelada') {
+      return Object.assign({}, base, { cedula: '', telefono: '' });
+    }
+    if (ficha === 'mostrador') return base;
+    return Object.assign({}, base, { email: d.correo, ciudad: d.ciudad,
       direccion: d.direccion, tipoVivienda: d.vivienda, nequi: d.pago,
       telefono2: d.celular2, ubicacion: d.ubicacion,
       referencia: { nombre: 'Luz', telefono: '3009998877' },
-      cedulaFrenteFoto: 'x', cedulaReversoFoto: 'y', selfieFoto: 'z', ajusteGarantia: 0 };
+      cedulaFrenteFoto: 'x', cedulaReversoFoto: 'y', selfieFoto: 'z' });
+  }
+  function dbCon(n, tarde, ficha, nRefs) {
+    const s = socioConFicha(ficha);
     const db = P.normalizar({ socios: [s], prestamos: [], respaldados: [],
       config: { negocio: 'Tu Garantía', whatsapp: '' } });
     for (let i = 0; i < n; i++) {
@@ -6459,6 +6504,17 @@ describe('el puente le cuenta a Joan el cupón y la ganancia (5-ago-2026)', () =
         costoPct: 20, fechaDesembolso: M.iso(M.sumarDias(M.aFechaLocal(corte), -12)),
         cicloActual: corte, cicloPago: corte, pagado: true,
         fechaPagado: tarde ? M.iso(M.sumarDias(M.aFechaLocal(corte), 5)) : corte,
+        gananciaPago: 20000, cobroRegistrado: true,
+        prorrogas: [], abonosCapital: [], comprobantes: [] });
+    }
+    // Ahijados que YA PAGARON, que es lo único que los hace contar (6-ago-2026).
+    for (let j = 0; j < (nRefs || 0); j++) {
+      db.socios.push({ id: 'r' + j, numero: 100 + j, nombre: 'Ref' + j, cedula: '90' + j,
+        telefono: '3000000000', referidoPor: 'a', ajusteGarantia: 0,
+        referencia: { nombre: '', telefono: '' } });
+      db.prestamos.push({ id: 'rp' + j, numero: 200 + j, socioId: 'r' + j, capital: 100000,
+        costoPct: 20, fechaDesembolso: M.iso(M.sumarDias(M.aFechaLocal(CORTE), -12)),
+        cicloActual: CORTE, cicloPago: CORTE, pagado: true, fechaPagado: CORTE,
         gananciaPago: 20000, cobroRegistrado: true,
         prorrogas: [], abonosCapital: [], comprobantes: [] });
     }
@@ -6487,14 +6543,45 @@ describe('el puente le cuenta a Joan el cupón y la ganancia (5-ago-2026)', () =
     assert.equal(c.ganancia_cupon, 0, 'todavía no hay 15% liberado');
   });
 
-  test('LA EXPOSICIÓN BAJA CRÉDITO A CRÉDITO', () => {
-    let anterior = 100001;
-    for (let n = 0; n <= 6; n++) {
-      const { db, s } = dbCon(n);
-      const c = P.contabilidadCupon(db, s);
-      assert.ok(c.expuesto < anterior, 'con ' + n + ' créditos subió la exposición');
-      anterior = c.expuesto;
-    }
+  test('LA EXPOSICIÓN BAJA CRÉDITO A CRÉDITO, CON CUALQUIER FICHA Y CON REFERIDOS', () => {
+    /* 6-ago-2026 — ESTA PRUEBA EJERCITABA SOLO LA FICHA COMPLETA Y SIN REFERIDOS,
+       y por eso las 473 pasaban con el defecto vivo: con el cupón lleno el techo de
+       la prestada muerde y los referidos no entran, así que la exposición bajaba
+       igual. El cliente de mostrador —la mayoría de los reales— tenía 80.000 de
+       hueco libre debajo de ese techo, y ahí cada referido le sumaba exposición. */
+    const expo = (n, ficha, refs) => {
+      const { db, s } = dbCon(n, false, ficha, refs);
+      return P.contabilidadCupon(db, s);
+    };
+    let casos = 0;
+    ['completa', 'mostrador', 'pelada'].forEach(ficha => {
+      const arranque = expo(0, ficha, 0).cupon_prestado;
+      [0, 1, 10, 40].forEach(refs => {
+        let anterior = arranque + 1;
+        for (let n = 0; n <= 8; n++) {
+          const c = expo(n, ficha, refs);
+          const donde = ficha + '/' + refs + ' refs/' + n + ' créditos: ';
+          casos++;
+          assert.ok(c.expuesto < anterior || (c.expuesto === 0 && anterior === 0),
+            donde + 'la exposición subió (' + anterior + ' → ' + c.expuesto + ')');
+          assert.ok(c.expuesto <= arranque, donde + 'se pasó del arranque ' + arranque);
+          // Y el número es EL MISMO que sin referidos: no son exposición.
+          assert.equal(c.expuesto, expo(n, ficha, 0).expuesto, donde + 'los referidos la movieron');
+          anterior = c.expuesto;
+        }
+      });
+    });
+    assert.equal(casos, 108, 'el barrido se quedó corto: ' + casos);
+    // Y el arranque de cada ficha es su cupón, ni un peso más: 100.000 / 20.000 / 7.000.
+    assert.equal(expo(0, 'completa', 40).cupon_prestado, 100000);
+    assert.equal(expo(0, 'mostrador', 40).cupon_prestado, 20000,
+      'nombre + cédula + celular + WhatsApp');
+    assert.equal(expo(0, 'pelada', 40).cupon_prestado, 7000);
+    // Los referidos existen y le suman cupo: lo que no suben es el riesgo.
+    assert.equal(P.migrarSocio(dbCon(4, false, 'mostrador', 10).db,
+                               dbCon(4, false, 'mostrador', 10).s).garantia.referidos, 50000);
+    assert.equal(expo(4, 'mostrador', 10).expuesto, 8000, 'ANTES: 58.000');
+    assert.equal(expo(8, 'mostrador', 10).saldado, true, 'ANTES: dejaba de estar saldado');
   });
 
   test('pagar TARDE no frena la recuperación del cupón, y la ganancia sube', () => {
@@ -6834,187 +6921,281 @@ describe('un día de mora se comporta igual que dos (6-ago-2026)', () => {
 });
 
 /* ==========================================================================
- * LOS REFERIDOS NO TENÍAN TOPE — 6-ago-2026
+ * LOS REFERIDOS SALIERON DE LA GARANTÍA PRESTADA — 6-ago-2026 (tarde)
  *
- * Cada referido son 5.000 de garantía PRESTADA (no ganada), y con el cupo uno a
- * uno eso son 5.000 de cupo puro que pone Joan.
+ * Segundo intento sobre el mismo defecto, y el primero está acá porque explica
+ * por qué hacía falta un segundo.
  *
- * MEDIDO. Un socio que NUNCA PAGÓ UN PESO llegaba a 2.600.000 de cupo con 500
- * referidos, y a 25.100.000 de prestada con 5.000 —por encima del techo entero de
- * la plataforma—. Y un socio que ya había SALDADO su cupón en el crédito 13 volvía
- * a quedar expuesto con cada referido nuevo (1.943 con uno, 196.943 con cuarenta),
- * y la ganancia libre que muestra el Panel se encogía HACIA ATRÁS: 71.758 → 68.701.
+ * POR LA MAÑANA se topó la garantía prestada COMPLETA (cupón por datos +
+ * referidos) en 100.000, más un segundo tope hasta la garantía ganada. Eso clava
+ * la exposición por socio en 100.000 —lo que Joan pidió literalmente— y arregla al
+ * socio de ficha COMPLETA, que es el único que llena los 100.000.
  *
- * Y NO ESTABA FINANCIADO: el 15% de cada costo amortiza el cupón DEL SOCIO QUE LO
- * PAGA y de nadie más, así que los 5.000 del padrino solo los devuelve el padrino.
+ * PERO EL CLIENTE DE MOSTRADOR es la mayoría de los reales: nombre + cédula +
+ * celular + WhatsApp, 20.000 de cupón, y 80.000 de hueco libre bajo el techo donde
+ * el tope no muerde nunca. Medido, exposición por referidos y créditos pagados:
+ *
+ *     refs  créd 0    1       2       3       4       8
+ *        0  20.000  17.000  14.000  11.000   8.000   0 (saldado)
+ *       10  20.000  32.000  44.000  56.000  58.000  46.000
+ *       40  20.000  32.000  44.000  56.000  68.000  76.000
+ *
+ * Un socio YA SALDADO volvía a expuesto 46.000 con diez referidos, y `saldado`
+ * pasaba de true a false. La raíz: cada peso de costo que paga el padrino le
+ * acredita 0,75 de tope nuevo (FACTOR_GARANTIA) mientras el 15% solo devuelve
+ * 0,15. La exposición nueva entra cinco veces más rápido que la vieja se va.
+ *
+ * LO QUE SE HIZO: los referidos dejan de ser garantía PRESTADA y pasan a ser su
+ * propia parte. Suben el CUPO, no son exposición y no respaldan el préstamo con
+ * garantía (eso último importa: la ganada se presta uno a uno, así que acreditarlos
+ * como ganada habría cambiado una exposición que se ve por una que no).
+ *
+ * Por eso ahora es ESTRUCTURAL y no un tope bien elegido: no hay número de
+ * referidos, ni ficha, ni historia que mueva la exposición.
  * ======================================================================== */
 
 describe('los referidos no pueden subirle la exposición a Joan (6-ago-2026)', () => {
 
-  const refs = n => Array.from({ length: n }, (_, i) => ({ nombre: 'R' + i, pago_puntual: true }));
+  const refs = n => Array.from({ length: n }, (_, i) => ({ nombre: 'R' + i, pago: true }));
   const CANTIDADES = [0, 1, 2, 5, 13, 40, 100, 500, 5000];
 
-  /* La escalera de un socio que paga en fecha y siempre pide todo su cupo: es la
-     misma con la que se midió que el cupón se salda en el crédito 13. */
-  function escalera(nCreditos, referidos) {
-    let ganada = 0;
-    const costos = [];
-    for (let i = 0; i < nCreditos; i++) {
-      const e = { datos: datosCompletos(), referidos: referidos, acumulada: ganada };
-      const capital = Math.max(M.MONTO_MINIMO, M.cupoQuincenal(e, 'bronce').cupo);
-      costos.push({ monto: M.calcularCosto(capital), aTiempo: true, producto: 'quincenal',
-        fecha: '2026-01-' + String(i + 1).padStart(2, '0'), tipo: 'costo_credito' });
-      ganada += M.garantiaQueDejaUnCredito(capital, true);
+  /* Las tres fichas que de verdad hay en el mostrador, con su cupón al lado. La
+     de mostrador es la que el tope de la mañana no llegaba a tocar. */
+  const FICHAS = {
+    completa: datosCompletos(),                                              // 100.000
+    mostrador: { nombre: 'Ana', cedula: '1020304050', celular: '3001112233',
+                 whatsapp: true },                                           //  20.000
+    pelada: { nombre: 'Ana' }                                                //   5.000
+  };
+
+  /* Los costos que deja un socio con n créditos de 100.000 pagados en fecha, tal
+     como los arma el puente para amortizarCupon: costo 20.000, garantía 15.000 y
+     3.000 que devuelven cupón. Es la escalera con la que se midió la tabla. */
+  const costosDe = (n, nProrrogas) => {
+    const c = [];
+    for (let i = 0; i < n; i++) {
+      c.push({ monto: 20000, aTiempo: true, producto: 'quincenal', tipo: 'pago_final',
+               fecha: '2026-01-' + String(i + 1).padStart(2, '0') });
     }
-    return { costos: costos, ganada: ganada };
-  }
+    for (let k = 0; k < (nProrrogas || 0); k++) {
+      c.push({ monto: 20000, aTiempo: true, producto: 'quincenal', tipo: 'costo_prorroga',
+               fecha: '2026-02-' + String(k + 1).padStart(2, '0') });
+    }
+    return c;
+  };
+  // La garantía ganada que dejan esos mismos costos: el 75% de cada uno.
+  const ganadaDe = (n, nProrrogas) =>
+    costosDe(n, nProrrogas).reduce((t, c) => t + M.acumularGarantia(c.monto, true), 0);
+
   // Lo que Joan tiene de verdad en riesgo por un socio: el cupón que no volvió.
   function expuesto(entrada, costos) {
     const d = M.desglosarGarantia(entrada);
     return M.amortizarCupon(costos || [], { cuponPrestado: d.prestada });
   }
+  const caso = (ficha, nRefs, nCreditos, nProrrogas) => ({
+    entrada: { datos: FICHAS[ficha], referidos: refs(nRefs),
+               acumulada: ganadaDe(nCreditos, nProrrogas) },
+    costos: costosDe(nCreditos, nProrrogas)
+  });
+  const expuestoDe = (ficha, nRefs, nCreditos, nProrrogas) => {
+    const c = caso(ficha, nRefs, nCreditos, nProrrogas);
+    return expuesto(c.entrada, c.costos).expuesto;
+  };
 
-  test('EL NÚMERO DEL DEFECTO: 500 referidos daban 2.600.000 de cupo sin pagar nada', () => {
+  test('LA TABLA DEL DEFECTO, CELDA POR CELDA: el de mostrador ya no sube', () => {
+    /* La fila de arriba es la buena y era la única que se cumplía: 20.000 que solo
+       bajan hasta saldarse en el crédito 8 (con 20.000 de cupón hacen falta menos
+       créditos que los 13 de la ficha completa). */
+    assert.deepEqual([0, 1, 2, 3, 4, 8].map(n => expuestoDe('mostrador', 0, n, 0)),
+      [20000, 17000, 14000, 11000, 8000, 0]);
+    // Y ahora las otras dos filas son IDÉNTICAS a la primera, no una escalera hacia arriba.
+    [10, 40].forEach(nRefs => {
+      assert.deepEqual([0, 1, 2, 3, 4, 8].map(n => expuestoDe('mostrador', nRefs, n, 0)),
+        [20000, 17000, 14000, 11000, 8000, 0], nRefs + ' referidos movieron la exposición');
+    });
+    /* Los números viejos, escritos para que se vea el tamaño del arreglo: con diez
+       referidos, el socio del crédito 4 estaba en 58.000 y el SALDADO en 46.000. */
+    [58000, 46000, 68000, 76000].forEach(viejo => {
+      assert.ok(![expuestoDe('mostrador', 10, 4, 0), expuestoDe('mostrador', 10, 8, 0),
+                  expuestoDe('mostrador', 40, 4, 0), expuestoDe('mostrador', 40, 8, 0)]
+        .includes(viejo), 'volvió un número de la tabla vieja: ' + viejo);
+    });
+  });
+
+  test('EL SOCIO SALDADO SIGUE SALDADO, con cualquier ficha y cualquier número', () => {
+    Object.keys(FICHAS).forEach(ficha => {
+      // Los créditos que hacen falta para saldar esa ficha: 3.000 por crédito.
+      const cero = expuesto(caso(ficha, 0, 40, 0).entrada, costosDe(40, 0));
+      assert.equal(cero.expuesto, 0, ficha + ': no llegó a saldarse');
+      assert.equal(cero.saldado, true);
+      const peores = [];
+      CANTIDADES.forEach(n => {
+        const x = expuesto(caso(ficha, n, 40, 0).entrada, costosDe(40, 0));
+        if (x.expuesto !== 0) peores.push(ficha + '/' + n + ' → expuesto ' + x.expuesto);
+        if (!x.saldado) peores.push(ficha + '/' + n + ' → dejó de estar saldado');
+        // Y la ganancia libre no se encoge HACIA ATRÁS: era 71.758 → 68.701.
+        if (x.ganancia_libre !== cero.ganancia_libre) {
+          peores.push(ficha + '/' + n + ' → ganancia libre ' + x.ganancia_libre);
+        }
+      });
+      assert.deepEqual(peores, [], 'volvió a quedar expuesto: ' + peores.join(' · '));
+    });
+  });
+
+  test('EL SOCIO QUE NO HA PAGADO NADA: ni un peso de exposición por referidos', () => {
+    const peores = [];
+    Object.keys(FICHAS).forEach(ficha => {
+      const solo = expuestoDe(ficha, 0, 0, 0);
+      CANTIDADES.forEach(n => {
+        const e = caso(ficha, n, 0, 0).entrada;
+        const d = M.desglosarGarantia(e);
+        if (expuestoDe(ficha, n, 0, 0) !== solo) peores.push(ficha + '/' + n + ' exposición');
+        if (d.prestada !== d.cupon) peores.push(ficha + '/' + n + ' prestada ≠ cupón');
+        // Sin un peso ganado los referidos tampoco le suben el cupo: el tope los frena.
+        if (d.referidos !== 0) peores.push(ficha + '/' + n + ' cupo por referidos');
+      });
+    });
+    assert.deepEqual(peores, [], 'se movió algo: ' + peores.join(' · '));
+    // El número del defecto del primer intento: 500 referidos y 2.600.000 de cupo.
     const con500 = { datos: datosCompletos(), referidos: 500, acumulada: 0 };
     assert.equal(M.garantiaPorReferidos(500), 2500000, 'valen 2.500.000…');
-    assert.equal(M.desglosarGarantia(con500).referidos, 0,
-      '…pero no se le acreditan: el cupón ya ocupa todo el techo de la prestada');
+    assert.equal(M.desglosarGarantia(con500).referidos, 0, '…y no se le acreditan');
     assert.equal(M.desglosarGarantia(con500).referidos_sin_tope, 2500000,
-      'y el Panel puede explicar la resta, en vez de mostrar un número que no cuadra');
+      'pero el Panel puede explicar la resta, no mostrar un número que no cuadra');
     assert.equal(M.cupoQuincenal(con500, 'bronce').cupo, 100000, 'ANTES: 2.600.000');
     assert.equal(expuesto(con500).expuesto, 100000, 'ANTES: 2.600.000 de exposición');
   });
 
-  test('EL SOCIO QUE NO HA PAGADO NADA: la exposición no se mueve con ningún número', () => {
-    let peores = [];
-    CANTIDADES.forEach(n => {
-      const e = { datos: datosCompletos(), referidos: n, acumulada: 0 };
-      const x = expuesto(e);
-      if (x.expuesto !== M.CUPON_KYC_MAXIMO) peores.push(n + ' → ' + x.expuesto);
-      if (M.cupoQuincenal(e, 'bronce').cupo !== M.CUPON_KYC_MAXIMO) peores.push(n + ' cupo');
-      // Y la prestada nunca pasa del techo: es la invariante que pidió Joan.
-      if (M.desglosarGarantia(e).prestada > M.CUPON_KYC_MAXIMO) peores.push(n + ' prestada');
-    });
-    assert.deepEqual(peores, [], 'la exposición se movió: ' + peores.join(' · '));
-    // Con la ficha a medias tampoco se pasa del techo, aunque ahí sí puede subir
-    // hasta él: ese riesgo Joan ya lo aceptó, y es el mismo del cupón por datos.
-    CANTIDADES.forEach(n => {
-      const e = { datos: { nombre: 'Ana' }, referidos: n, acumulada: 0 };
-      assert.ok(M.desglosarGarantia(e).prestada <= M.CUPON_KYC_MAXIMO, 'n=' + n);
-      assert.equal(M.desglosarGarantia(e).referidos, 0,
-        'y sin un peso ganado los referidos no suman nada: n=' + n);
-    });
-  });
-
-  test('EL SOCIO QUE YA SALDÓ EL CUPÓN sigue saldado, con cualquier número', () => {
-    const base = escalera(13, 0);
-    const cero = expuesto({ datos: datosCompletos(), referidos: 0, acumulada: base.ganada },
-                          base.costos);
-    assert.equal(cero.expuesto, 0, 'en el crédito 13 el cupón volvió entero');
-    assert.equal(cero.saldado, true);
-    assert.equal(cero.ganancia_libre, 71758, 'la ganancia libre que muestra el Panel');
-
-    const peores = [];
-    CANTIDADES.forEach(n => {
-      const x = expuesto({ datos: datosCompletos(), referidos: n, acumulada: base.ganada },
-                         base.costos);
-      if (x.expuesto !== 0) peores.push(n + ' → expuesto ' + x.expuesto);
-      if (!x.saldado) peores.push(n + ' → dejó de estar saldado');
-      // Y la ganancia libre no se encoge HACIA ATRÁS: era 71.758 → 68.701.
-      if (x.ganancia_libre !== cero.ganancia_libre) {
-        peores.push(n + ' → ganancia libre ' + x.ganancia_libre);
-      }
-    });
-    assert.deepEqual(peores, [], 'volvió a quedar expuesto: ' + peores.join(' · '));
-  });
-
-  test('BARRIDO: la exposición NUNCA crece por un referido, en ninguna historia', () => {
+  test('BARRIDO: la exposición NUNCA sube — ficha × referidos × créditos × prórrogas', () => {
+    /* Las cuatro dimensiones juntas, que es lo que faltaba: la batería vieja
+       barría referidos e historia pero SIEMPRE con la ficha completa, y ahí el
+       techo de la prestada tapaba el agujero. */
+    const FICHAS_ORDEN = Object.keys(FICHAS);
+    const REFS = [0, 1, 2, 5, 13, 40];
+    const PRORROGAS = [0, 1, 2];
     let casos = 0;
     const peores = [];
-    [0, 1, 5, 13, 20].forEach(nCreditos => {
-      const base = escalera(nCreditos, 0);
-      const sinReferidos = expuesto(
-        { datos: datosCompletos(), referidos: 0, acumulada: base.ganada }, base.costos);
-      CANTIDADES.forEach(n => {
-        const x = expuesto(
-          { datos: datosCompletos(), referidos: n, acumulada: base.ganada }, base.costos);
-        casos++;
-        if (x.expuesto > sinReferidos.expuesto) {
-          peores.push(nCreditos + ' créditos + ' + n + ' referidos: ' +
-                      sinReferidos.expuesto + ' → ' + x.expuesto);
-        }
-        if (x.ganancia_libre < sinReferidos.ganancia_libre) {
-          peores.push(nCreditos + ' créditos + ' + n + ' referidos: ganancia libre bajó');
-        }
-        if (x.cupon_prestado > M.CUPON_KYC_MAXIMO) peores.push('prestada por encima del techo');
+    FICHAS_ORDEN.forEach(ficha => {
+      const cupon = M.garantiaPorDatos(FICHAS[ficha]).total;
+      PRORROGAS.forEach(pr => {
+        REFS.forEach(nRefs => {
+          let anterior = Infinity;
+          let saldadoYa = false;
+          for (let n = 0; n <= 15; n++) {
+            const c = caso(ficha, nRefs, n, pr);
+            const x = expuesto(c.entrada, c.costos);
+            const d = M.desglosarGarantia(c.entrada);
+            const donde = ficha + '/' + nRefs + ' refs/' + n + ' créd/' + pr + ' pró: ';
+            casos++;
+            // 1. Nunca sube al avanzar la historia del socio.
+            if (x.expuesto > anterior) {
+              peores.push(donde + 'subió ' + anterior + ' → ' + x.expuesto);
+            }
+            // 2. Nunca pasa del cupón por los datos, que es el arranque.
+            if (x.expuesto > cupon) peores.push(donde + 'se pasó del cupón ' + cupon);
+            // 3. Un referido más no la mueve NI UN PESO, con todo lo demás igual.
+            if (x.expuesto !== expuestoDe(ficha, 0, n, pr)) {
+              peores.push(donde + 'los referidos la movieron');
+            }
+            // 4. Y saldado no se des-salda.
+            if (saldadoYa && !x.saldado) peores.push(donde + 'dejó de estar saldado');
+            if (x.saldado) saldadoYa = true;
+            // 5. La prestada es el cupón y nada más: es de dónde sale todo esto.
+            if (d.prestada !== d.cupon) peores.push(donde + 'la prestada creció');
+            anterior = x.expuesto;
+          }
+        });
       });
     });
-    assert.equal(casos, 45);
-    assert.deepEqual(peores, [], 'la exposición creció: ' + peores.join(' · '));
+    // 3 fichas × 3 prórrogas × 6 cantidades de referidos × 16 historias.
+    assert.equal(casos, 864, 'el barrido se quedó corto: ' + casos);
+    assert.deepEqual(peores, [], 'la exposición se movió en ' + peores.length +
+      ' casos: ' + peores.slice(0, 10).join(' · '));
   });
 
-  test('el referido que ya pagó SÍ suma, cuando hay hueco bajo el techo', () => {
-    /* El tope no mata el premio: al socio con ficha a medias que ya viene pagando,
-       cada referido le sigue sumando 5.000 hasta llenar el techo. */
-    const e = n => ({ datos: { nombre: 'Ana', cedula: '1', celular: '3' },   // 18.000
-                      referidos: n, acumulada: 300000 });
+  test('los referidos SÍ suben el cupo, y hasta la garantía que el socio se ganó', () => {
+    /* El premio no se murió: al que ya viene pagando, cada referido le sigue
+       sumando 5.000 de cupo. Lo que se murió es que eso fuera plata expuesta. */
+    const e = n => ({ datos: FICHAS.mostrador, referidos: n, acumulada: 300000 });
     assert.equal(M.desglosarGarantia(e(0)).referidos, 0);
     assert.equal(M.desglosarGarantia(e(1)).referidos, 5000);
     assert.equal(M.desglosarGarantia(e(4)).referidos, 20000);
-    assert.equal(M.desglosarGarantia(e(100)).referidos, 82000, 'hasta llenar el techo');
-    assert.equal(M.desglosarGarantia(e(100)).prestada, M.CUPON_KYC_MAXIMO);
-    // Y la garantía GANADA nunca se toca: el tope es de la prestada.
-    assert.equal(M.desglosarGarantia(e(100)).ganada, 300000);
-    assert.equal(M.maximoRespaldado(e(100)), 300000);
+    assert.equal(M.cupoQuincenal(e(4), 'bronce').cupo, 20000 + 300000 + 20000);
+    // Con la ficha COMPLETA también suman: ya no comparten techo con el cupón.
+    const f = n => ({ datos: datosCompletos(), referidos: n, acumulada: 300000 });
+    assert.equal(M.desglosarGarantia(f(2)).referidos, 10000,
+      'ANTES daban 0: el cupón lleno ocupaba todo el techo de la prestada');
+    assert.equal(M.cupoQuincenal(f(2), 'bronce').cupo, 410000);
+    // Y el tope: no pasan de lo que el socio se ganó pagando.
+    assert.equal(M.desglosarGarantia({ datos: FICHAS.pelada, referidos: 100,
+      acumulada: 3000 }).referidos, 3000, 'hasta lo que se ganó y ni un peso más');
+    assert.equal(M.desglosarGarantia({ datos: FICHAS.pelada, referidos: 100,
+      acumulada: 1000000 }).referidos, 500000, 'y hasta lo que valen');
   });
 
-  test('el que NO ha pagado no llega a ningún lado, aunque tenga hueco', () => {
-    // El segundo tope: dentro del techo, los referidos no pasan de la ganada.
-    const e = ganada => ({ datos: { nombre: 'Ana' }, referidos: 100, acumulada: ganada });
-    assert.equal(M.desglosarGarantia(e(0)).referidos, 0);
-    assert.equal(M.desglosarGarantia(e(3000)).referidos, 3000, 'hasta lo que se ganó');
-    assert.equal(M.desglosarGarantia(e(1000000)).referidos, 95000, 'y hasta el techo');
+  test('LOS REFERIDOS NO RESPALDAN: el préstamo con garantía solo mira lo que pagó él', () => {
+    /* Acá está la razón por la que NO acreditan garantía ganada a secas, que era la
+       forma más corta de decir "no son exposición": la ganada se presta uno a uno
+       (maximoRespaldado), así que con 40 referidos serían 200.000 de capital de
+       Joan saliendo contra algo que el padrino no pagó. Y encima invisible, porque
+       `expuesto` mira el cupón y no el capital del respaldado. */
+    const sinRefs = { datos: FICHAS.mostrador, referidos: 0, acumulada: 300000 };
+    const conRefs = { datos: FICHAS.mostrador, referidos: 40, acumulada: 300000 };
+    assert.equal(M.desglosarGarantia(conRefs).referidos, 200000, 'le suman 200.000 de cupo…');
+    assert.equal(M.maximoRespaldado(conRefs), M.maximoRespaldado(sinRefs),
+      '…y NI UNO de respaldo: eso habría sido plata de Joan contra nada');
+    assert.equal(M.maximoRespaldado(conRefs), 300000, 'solo la ganada, uno a uno');
+    assert.equal(M.desglosarGarantia(conRefs).ganada, 300000,
+      'la ganada no se toca: los referidos son otra parte, no un alias suyo');
+    // Y sin nada pagado, cuarenta referidos no abren un peso de respaldado.
+    assert.equal(M.maximoRespaldado({ datos: datosCompletos(), referidos: 40 }), 0);
   });
 
-  test('EL TOPE ES CONFIGURABLE: Joan lo puede mover sin tocar una cuenta', () => {
+  test('EL TOPE ES UNA SOLA PALANCA, y `techo_prestada` quedó derogado', () => {
     const e = extra => Object.assign({ datos: datosCompletos(), referidos: 10,
                                        acumulada: 500000 }, extra);
-    // Por defecto: los dos topes puestos, y el techo es el del cupón de datos.
-    assert.deepEqual(M.TOPE_REFERIDOS,
-      { techo_prestada: M.CUPON_KYC_MAXIMO, hasta_la_ganada: true });
-    assert.equal(M.desglosarGarantia(e()).referidos, 0);
-    // Sin techo compartido queda la otra forma sensata: hasta la garantía ganada.
-    assert.equal(M.desglosarGarantia(e({ tope_referidos: { techo_prestada: null } })).referidos,
-      50000, 'los 10 referidos completos, porque ya se ganó medio millón');
-    // Y sin ninguno de los dos, el comportamiento viejo, para poder compararlo.
-    assert.equal(M.desglosarGarantia(
-      e({ tope_referidos: { techo_prestada: null, hasta_la_ganada: false } })).referidos, 50000);
-    assert.equal(M.desglosarGarantia(
-      e({ referidos: 500, tope_referidos: { techo_prestada: null, hasta_la_ganada: false } })
-    ).referidos, 2500000, 'sin tope vuelve el defecto: por eso el defecto era el tope');
-    // Un techo más alto que el cupón deja entrar referidos con la ficha completa.
+    assert.deepEqual(M.TOPE_REFERIDOS, { hasta_la_ganada: true },
+      'la única palanca que queda: hasta la garantía ganada');
+    assert.equal(M.desglosarGarantia(e()).referidos, 50000,
+      'los diez completos, porque ya se ganó medio millón');
+    // Apagada: sin tope, el comportamiento viejo, para poder compararlo.
+    assert.equal(M.desglosarGarantia(e({ tope_referidos: { hasta_la_ganada: false },
+      referidos: 500 })).referidos, 2500000);
+    /* Y AUNQUE SE APAGUE, la exposición no se mueve: eso es la diferencia con el
+       primer intento. Antes el tope era lo único que la sostenía. */
+    assert.equal(M.desglosarGarantia(e({ tope_referidos: { hasta_la_ganada: false },
+      referidos: 500 })).prestada, M.CUPON_KYC_MAXIMO);
+    assert.equal(expuesto(e({ tope_referidos: { hasta_la_ganada: false }, referidos: 500 }))
+      .expuesto, M.CUPON_KYC_MAXIMO, 'ANTES: 2.600.000');
+    // `techo_prestada` era el techo compartido con el cupón. Ya no se lee.
+    assert.equal(M.desglosarGarantia(e({ tope_referidos: { techo_prestada: 0 } })).referidos,
+      50000, 'un techo en cero no puede frenar lo que ya no es prestada');
     assert.equal(M.desglosarGarantia(e({ tope_referidos: { techo_prestada: 130000 } })).referidos,
-      30000);
+      50000);
     assert.throws(() => M.desglosarGarantia(e({ tope_referidos: 'mucho' })),
       /se esperaba un objeto/);
-    assert.throws(() => M.desglosarGarantia(e({ tope_referidos: { techo_prestada: -1 } })),
-      /negativo/);
+    // La firma nueva: el tope solo depende de la ganada.
+    assert.equal(M.topeGarantiaPorReferidos(80000), 80000);
+    assert.equal(M.topeGarantiaPorReferidos(0), 0);
+    assert.equal(M.topeGarantiaPorReferidos(0, { hasta_la_ganada: false }), Infinity);
   });
 
   test('LA CUENTA ES UNA SOLA: garantiaTotal y desglosarGarantia no pueden divergir', () => {
     const casos = [
       {}, { datos: datosCompletos() },
       { datos: datosCompletos(), referidos: 3, acumulada: 250000 },
-      { datos: { nombre: 'A' }, referidos: 40, acumulada: 0 },
-      { datos: { nombre: 'A' }, referidos: 40, acumulada: 12000 },
+      { datos: FICHAS.pelada, referidos: 40, acumulada: 0 },
+      { datos: FICHAS.pelada, referidos: 40, acumulada: 12000 },
       { datos: datosCompletos(), referidos: 500, acumulada: 800000, ajuste: -900000 },
-      { referidos: 9, acumulada: 30000, tope_referidos: { techo_prestada: null } }
+      { referidos: 9, acumulada: 30000, tope_referidos: { hasta_la_ganada: false } }
     ];
     casos.forEach(c => {
       const t = M.garantiaTotal(c), d = M.desglosarGarantia(c);
       assert.equal(t.total, d.total, JSON.stringify(c));
       assert.equal(t.referidos, d.referidos, 'el tope se aplica en las dos: ' + JSON.stringify(c));
       assert.equal(t.cupon, d.cupon);
+      // Y el total son las TRES partes, sin un peso perdido en el medio.
+      assert.equal(d.total, d.ganada + d.prestada + d.referidos, JSON.stringify(c));
     });
     // Y las dos salen de la misma función, no de dos sumas parecidas.
     const MOTOR_SRC = fs.readFileSync(path.join(__dirname, '..', 'app', 'motor.js'), 'utf8');
@@ -7023,7 +7204,7 @@ describe('los referidos no pueden subirle la exposición a Joan (6-ago-2026)', (
       'garantiaTotal se volvió a escribir su propia suma');
   });
 
-  test('EL PUENTE LO PASA, para que Joan lo pueda mover desde Ajustes', () => {
+  test('EL PUENTE LO PASA, y el tope de Ajustes mueve el cupo pero nunca el riesgo', () => {
     const d = datosCompletos();
     const s = { id: 'a', numero: 1, nombre: 'Ana', cedula: '1020304050',
       telefono: '3001112233', whatsappIgual: true, email: d.correo, ciudad: d.ciudad,
@@ -7040,15 +7221,312 @@ describe('los referidos no pueden subirle la exposición a Joan (6-ago-2026)', (
     const db = P.normalizar({ socios: [s].concat(ahijados), prestamos: prestamos,
       respaldados: [], config: {} });
 
-    assert.equal(P.referidosDe(db, db.socios[0]).length, 3, 'los tres ahijados');
+    assert.equal(P.referidosDe(db, s).length, 3, 'los tres ahijados');
+    assert.equal(P.referidosDe(db, s).filter(r => r.pago).length, 3,
+      'la clave es `pago`: lo que se mira es que pagaron, no que pagaran puntual');
     assert.equal(P.topeReferidosDe(db), undefined, 'sin dato en Ajustes manda el motor');
     // Ficha completa y cero pagos propios: los tres referidos no le suben el cupo.
-    assert.equal(P.cupoDelSocio(db, db.socios[0], 'bronce').cupo, 100000);
-    assert.equal(P.contabilidadCupon(db, db.socios[0]).expuesto, 100000);
-    // Joan mueve el tope en Ajustes y la cuenta lo respeta, en el Panel y en la app.
-    db.config.topeReferidos = { techo_prestada: null, hasta_la_ganada: false };
+    assert.equal(P.cupoDelSocio(db, s, 'bronce').cupo, 100000);
+    assert.equal(P.contabilidadCupon(db, s).expuesto, 100000);
+    // Joan apaga el tope en Ajustes: el cupo sube 15.000 y la exposición NO se mueve.
+    db.config.topeReferidos = { hasta_la_ganada: false };
     assert.deepEqual(P.topeReferidosDe(db), db.config.topeReferidos);
-    assert.equal(P.cupoDelSocio(db, db.socios[0], 'bronce').cupo, 115000);
-    assert.equal(P.migrarSocio(db, db.socios[0]).garantia.referidos, 15000);
+    assert.equal(P.cupoDelSocio(db, s, 'bronce').cupo, 115000);
+    assert.equal(P.migrarSocio(db, s).garantia.referidos, 15000);
+    assert.equal(P.contabilidadCupon(db, s).expuesto, 100000,
+      'ANTES 115.000: el cupo de los referidos era exposición');
+    assert.equal(P.migrarSocio(db, s).referidos.pagaron, 3, 'y el paquete los cuenta');
+  });
+});
+
+/* ==========================================================================
+ * EL CUPO NO DESCONTABA EL CAPITAL QUE YA ESTÁ AFUERA — 6-ago-2026
+ *
+ * `comprometidaDe` contaba solo respaldados abiertos, así que cupoDelSocio —y el
+ * cupo que la app le promete al socio— no descontaba el capital QUINCENAL
+ * vigente. Cada prórroga le subía el cupo sin que devolviera un peso. Medido, con
+ * un crédito de 100.000 abierto y la ficha de mostrador:
+ *
+ *   créditos previos  prórrogas  ganada   comprometida  cupo     en la calle
+ *                  0          0        0             0  20.000      120.000
+ *                  0          2   30.000             0  50.000      150.000
+ *                 14          2  240.000             0 260.000      360.000
+ *
+ * Y era una asimetría literal: para el préstamo con garantía sí se descontaba
+ * (maximoRespaldado daba 0 donde el quincenal daba 37.500). El Panel avisaba con
+ * `revisarCupo.pasaSumando`, pero es un confirm() que se puede saltar y la app ya
+ * le había prometido el número al socio.
+ *
+ * Ahora la regla vive en el motor y es una sola para los dos productos: el capital
+ * afuera —respaldados MÁS quincenales— se descuenta de la garantía antes de dar
+ * cupo. Ver desglosarGarantia y entradaCupo del puente.
+ * ======================================================================== */
+
+describe('el cupo descuenta el capital que ya está afuera (6-ago-2026)', () => {
+
+  const CORTE = '2026-01-15';
+  const mas = (f, d) => M.iso(M.sumarDias(M.aFechaLocal(f), d));
+
+  /* Un socio de mostrador (cupón 20.000) con `previos` créditos de 100.000 ya
+     pagados en fecha y, si se pide, uno de 100.000 TODAVÍA ABIERTO con
+     `nProrrogas` prórrogas pagadas en fecha. Es la escalera de la tabla. */
+  function dbCalle(previos, nProrrogas, sinAbierto) {
+    const s = { id: 'a', numero: 1, nombre: 'Ana Perez', cedula: '1020304050',
+      telefono: '3001112233', whatsappIgual: true, ajusteGarantia: 0,
+      referencia: { nombre: '', telefono: '' } };
+    const db = P.normalizar({ socios: [s], prestamos: [], respaldados: [], config: {} });
+    for (let i = 0; i < previos; i++) {
+      const corte = mas(CORTE, 15 * i);
+      db.prestamos.push({ id: 'c' + i, numero: i + 1, socioId: 'a', capital: 100000,
+        costoPct: 20, fechaDesembolso: mas(corte, -12), cicloActual: corte, cicloPago: corte,
+        pagado: true, fechaPagado: corte, gananciaPago: 20000, cobroRegistrado: true,
+        prorrogas: [], abonosCapital: [], comprobantes: [] });
+    }
+    if (!sinAbierto) {
+      const corte = mas(CORTE, 15 * previos);
+      const prs = [];
+      for (let k = 0; k < (nProrrogas || 0); k++) {
+        prs.push({ fecha: mas(corte, 15 * k), ciclo: mas(corte, 15 * k),
+                   monto: 20000, mora: 0, aTiempo: true });
+      }
+      db.prestamos.push({ id: 'abierto', numero: previos + 1, socioId: 'a', capital: 100000,
+        costoPct: 20, fechaDesembolso: mas(corte, -12),
+        cicloActual: mas(corte, 15 * (nProrrogas || 0)), pagado: false, gananciaPago: 0,
+        prorrogas: prs, abonosCapital: [], comprobantes: [] });
+    }
+    return { db, s };
+  }
+  const afueraDe = (db, s) => P.capitalQuincenalDe(db, s) + P.comprometidaDe(db, s);
+
+  test('LA TABLA DEL DEFECTO: el cupo ya no sube con cada prórroga', () => {
+    const fila = (previos, pr) => {
+      const { db, s } = dbCalle(previos, pr);
+      const q = P.cupoDelSocio(db, s, 'bronce');
+      return { ganada: P.garantiaGanadaDe(db, s), comprometida: q.comprometida,
+               cupo: q.cupo, afuera: afueraDe(db, s), calle: q.cupo + afueraDe(db, s) };
+    };
+    const a = fila(0, 0), b = fila(0, 2), c = fila(14, 2);
+    // Las ganadas de la tabla, para que se vea que es la misma escalera.
+    assert.deepEqual([a.ganada, b.ganada, c.ganada], [0, 30000, 240000]);
+    // Los 100.000 abiertos, que antes no contaban para nada.
+    assert.deepEqual([a.afuera, b.afuera, c.afuera], [100000, 100000, 100000]);
+    assert.deepEqual([a.comprometida, b.comprometida, c.comprometida],
+      [20000, 50000, 100000], 'ANTES: 0, 0 y 0');
+    assert.deepEqual([a.cupo, b.cupo, c.cupo], [0, 0, 160000], 'ANTES: 20.000, 50.000 y 260.000');
+    assert.deepEqual([a.calle, b.calle, c.calle], [100000, 100000, 260000],
+      'ANTES: 120.000, 150.000 y 360.000');
+  });
+
+  test('una prórroga no puede subirle el cupo: paga costo, no devuelve capital', () => {
+    const cupo = pr => P.cupoDelSocio(dbCalle(14, pr).db, dbCalle(14, pr).s, 'bronce').cupo;
+    /* Cada prórroga le suma 15.000 de garantía ganada porque paga 20.000 de costo
+       —eso está bien y es la regla— pero el capital sigue afuera, así que lo que
+       puede pedir DE NUEVO sube 15.000, no 15.000 más los 100.000 que ya tiene. */
+    assert.equal(cupo(0), 130000);
+    assert.equal(cupo(1), 145000);
+    assert.equal(cupo(2), 160000);
+    const enLaCalle = pr => cupo(pr) + afueraDe(dbCalle(14, pr).db, dbCalle(14, pr).s);
+    [0, 1, 2].forEach(pr => {
+      const g = P.cupoDelSocio(dbCalle(14, pr).db, dbCalle(14, pr).s, 'bronce').total;
+      assert.equal(enLaCalle(pr), g, pr + ' prórrogas: la calle se pasó de la garantía');
+    });
+  });
+
+  test('LA MISMA REGLA EN LOS DOS PRODUCTOS: la asimetría se cerró', () => {
+    /* El número de la asimetría: con 37.500 de garantía ganada y capital abierto,
+       maximoRespaldado daba 0 y el cupo quincenal daba 37.500. Mismo concepto, dos
+       comportamientos. Ahora el capital afuera se descuenta en los dos. */
+    const e = { datos: {}, referidos: [], acumulada: 37500, capital_quincenal: 100000 };
+    assert.equal(M.maximoRespaldado(e), 0);
+    assert.equal(M.cupoQuincenal(e, 'bronce').cupo, 0, 'ANTES: 37.500');
+    // Y por los dos canales da lo mismo: el que ya lo metió en `comprometida` no
+    // lo cuenta dos veces (es lo que hace el Panel para el respaldado).
+    const porComprometida = { datos: {}, referidos: [], acumulada: 37500, comprometida: 100000 };
+    assert.equal(M.cupoQuincenal(porComprometida, 'bronce').cupo,
+                 M.cupoQuincenal(e, 'bronce').cupo);
+    assert.equal(M.maximoRespaldado(porComprometida), M.maximoRespaldado(e));
+    // Los dos canales SE SUMAN cuando de verdad son dos cosas distintas.
+    const d = M.desglosarGarantia({ acumulada: 500000, comprometida: 100000,
+                                    capital_quincenal: 50000 });
+    assert.equal(d.capital_afuera, 150000);
+    assert.equal(d.comprometida, 150000);
+    assert.equal(d.ganada_libre, 350000);
+    assert.equal(d.base_cupo, 350000);
+    assert.throws(() => M.desglosarGarantia({ capital_quincenal: -1 }), /negativo/);
+  });
+
+  test('BARRIDO: el cupo más el capital afuera NUNCA pasa de la garantía', () => {
+    const FICHAS = [{}, { nombre: 'A', cedula: '1', celular: '3', whatsapp: true },
+                    datosCompletos()];
+    let casos = 0;
+    const peores = [];
+    FICHAS.forEach((datos, iF) => {
+      [0, 5, 40].forEach(nRefs => {
+        [0, 15000, 45000, 240000].forEach(acumulada => {
+          [0, 50000, 300000].forEach(comprometida => {
+            [0, 37500, 100000, 500000].forEach(quincenal => {
+              const e = { datos: datos, referidos: nRefs, acumulada: acumulada,
+                          comprometida: comprometida, capital_quincenal: quincenal };
+              const d = M.desglosarGarantia(e);
+              const q = M.cupoQuincenal(e, 'bronce');
+              const resp = M.maximoRespaldado(e);
+              const afuera = comprometida + quincenal;
+              const donde = 'ficha' + iF + '/' + nRefs + ' refs/' + acumulada + ' ganada/' +
+                            comprometida + '+' + quincenal + ' afuera: ';
+              casos++;
+              if (d.capital_afuera !== afuera) peores.push(donde + 'capital_afuera');
+              // LO QUE PUEDE PEDIR MÁS LO QUE YA TIENE ≤ SU GARANTÍA. Si el capital
+              // afuera ya se pasó solo, el cupo tiene que ser cero.
+              if (q.cupo + afuera > Math.max(d.total, afuera)) {
+                peores.push(donde + 'cupo ' + q.cupo + ' + afuera ' + afuera + ' > ' + d.total);
+              }
+              if (q.cupo > Math.max(0, d.total - afuera)) peores.push(donde + 'cupo de más');
+              // Y el respaldado, contra la GANADA, con la misma cuenta.
+              if (resp + afuera > Math.max(d.ganada, afuera)) peores.push(donde + 'respaldo');
+              if (resp > Math.max(0, d.ganada - afuera)) peores.push(donde + 'respaldo de más');
+              // Los referidos no abren respaldo por ningún camino.
+              if (resp > Math.max(0, acumulada - afuera)) peores.push(donde + 'respaldo por refs');
+            });
+          });
+        });
+      });
+    });
+    assert.equal(casos, 3 * 3 * 4 * 3 * 4, 'el barrido se quedó corto: ' + casos);
+    assert.deepEqual(peores, [], peores.length + ' casos en la calle de más: ' +
+      peores.slice(0, 10).join(' · '));
+  });
+
+  test('BARRIDO EN EL PUENTE: con dbs de verdad, y con el respaldado en el medio', () => {
+    let casos = 0;
+    const peores = [];
+    [0, 1, 2, 5, 14].forEach(previos => {
+      [0, 1, 2].forEach(pr => {
+        [false, true].forEach(sinAbierto => {
+          const { db, s } = dbCalle(previos, pr, sinAbierto);
+          /* Y un préstamo con garantía abierto encima, cuando la ganada alcanza:
+             es el caso en que los dos productos se pisan. */
+          const ganada = P.garantiaGanadaDe(db, s);
+          if (ganada >= 50000) {
+            db.respaldados.push({ id: 'r1', numero: 1, socioId: 'a', capital: 50000,
+              plazoMeses: 2, pagado: false,
+              cuotas: [{ n: 1, fecha: '2026-03-15', capital: 25000, costo: 2500,
+                         total: 27500, pagado: false },
+                       { n: 2, fecha: '2026-04-15', capital: 25000, costo: 2500,
+                         total: 27500, pagado: false }] });
+          }
+          const q = P.cupoDelSocio(db, s, 'bronce');
+          const afuera = afueraDe(db, s);
+          const donde = previos + ' previos/' + pr + ' pró/' + (sinAbierto ? 'sin' : 'con') +
+                        ' abierto: ';
+          casos++;
+          if (q.cupo + afuera > Math.max(q.total, afuera)) {
+            peores.push(donde + 'cupo ' + q.cupo + ' + afuera ' + afuera + ' > ' + q.total);
+          }
+          if (q.capital_afuera !== afuera) peores.push(donde + 'el motor no vio todo el capital');
+          if (q.respaldo_disponible + afuera > Math.max(q.ganada, afuera)) {
+            peores.push(donde + 'respaldo');
+          }
+          /* Y EL PAQUETE DEL SOCIO DICE LO MISMO: la app arma su cupo con
+             `total` menos `comprometida`, así que la comprometida que viaja tiene
+             que ser TODO el capital afuera y no solo el del respaldado. */
+          const g = P.migrarSocio(db, s).garantia;
+          if (g.comprometida !== Math.min(afuera, g.total)) {
+            peores.push(donde + 'el paquete llevó ' + g.comprometida + ' y afuera hay ' + afuera);
+          }
+          if (g.capital_afuera !== afuera) peores.push(donde + 'paquete: capital_afuera');
+        });
+      });
+    });
+    assert.equal(casos, 30, 'el barrido se quedó corto: ' + casos);
+    assert.deepEqual(peores, [], peores.join(' · '));
+  });
+
+  test('LO QUE FALTA ESTÁ EN socio.html, y es UNA línea: el recorte a la ganada', () => {
+    /* HONESTIDAD SOBRE EL RESTO. El paquete ya lleva el capital afuera completo,
+       pero socio.html lo vuelve a recortar contra la garantía GANADA antes de
+       usarlo (abrir(), `comprometida: Math.min(comprometidaCruda, ganada)`). Ese
+       recorte era correcto cuando la comprometida solo podía venir de un
+       respaldado —que está topado por la ganada— y deja de serlo ahora: el capital
+       quincenal SÍ puede pasarse de la ganada, y ahí la app sigue mostrando un cupo
+       más alto que el del Panel.
+
+       MEDIDO, con 100.000 de capital afuera y la ficha de mostrador:
+
+         previos  pró  garantía  cupo Panel  cupo app  brecha
+               0    0    20.000           0    20.000  20.000
+               0    2    50.000           0    20.000  20.000   (antes: 50.000)
+              14    2   260.000     160.000   160.000       0   (antes: 100.000)
+
+       La brecha es exactamente `max(0, capital afuera − garantía ganada)` y por
+       eso desaparece sola en cuanto el socio tiene historia. El arreglo es cambiar
+       ese Math.min para que recorte contra el TOTAL, como hace el motor; no se hizo
+       acá porque socio.html no se toca en este cambio.
+
+       El respaldado NO tiene brecha: ahí el recorte a la ganada da lo mismo que la
+       cuenta del motor, y se comprueba abajo. */
+    const cupoDeLaApp = paq => {
+      const g = paq.garantia, ganada = Math.max(0, Number(g.acumulada || 0));
+      const comprometida = Math.min(Number(g.comprometida || 0), ganada);
+      return { cupo: M.calcularCupo(Math.max(0, Number(g.total || 0) - comprometida), 'bronce'),
+               respaldo: M.maximoRespaldado({ datos: {}, referidos: 0, acumulada: ganada,
+                                              ajuste: 0, comprometida: comprometida }) };
+    };
+    const peores = [];
+    [0, 1, 2, 5, 14].forEach(previos => {
+      [0, 1, 2].forEach(pr => {
+        const { db, s } = dbCalle(previos, pr);
+        const q = P.cupoDelSocio(db, s, 'bronce');
+        const app = cupoDeLaApp(P.migrarSocio(db, s));
+        const afuera = afueraDe(db, s);
+        const donde = previos + '/' + pr + ': ';
+        // La app nunca puede mostrar MENOS que el Panel, ni más que la brecha conocida.
+        if (app.cupo < q.cupo) peores.push(donde + 'la app quedó por debajo del Panel');
+        if (app.cupo - q.cupo > Math.max(0, afuera - q.ganada)) {
+          peores.push(donde + 'brecha ' + (app.cupo - q.cupo) + ' mayor que la conocida');
+        }
+        // Y en el respaldado no hay brecha ninguna: el recorte da la misma cuenta.
+        if (app.respaldo !== q.respaldo_disponible) {
+          peores.push(donde + 'respaldo ' + app.respaldo + ' ≠ ' + q.respaldo_disponible);
+        }
+      });
+    });
+    assert.deepEqual(peores, [], peores.join(' · '));
+    /* Las tres cifras de la tabla van en el comentario y NO en un assert: si se
+       clavaran acá, arreglar socio.html rompería esta prueba y el arreglo parecería
+       el error. Lo que se exige es lo que tiene que valer antes y después: la app
+       nunca por debajo del Panel, y nunca por encima de la brecha conocida. Con
+       socio.html arreglado las tres brechas son cero y estos asserts siguen verdes. */
+    const brecha = (previos, pr) => {
+      const { db, s } = dbCalle(previos, pr);
+      return cupoDeLaApp(P.migrarSocio(db, s)).cupo - P.cupoDelSocio(db, s, 'bronce').cupo;
+    };
+    [[0, 0], [0, 2], [14, 2]].forEach(([p, pr]) => {
+      assert.ok(brecha(p, pr) >= 0 && brecha(p, pr) <= 20000,
+        p + '/' + pr + ': la brecha se agrandó a ' + brecha(p, pr) +
+        ' (antes del arreglo del cupo iba hasta 100.000)');
+    });
+  });
+
+  test('el puente no cuenta dos veces: `comprometidaDe` y `capitalQuincenalDe` son distintos', () => {
+    /* Son dos funciones y no una a propósito: el Panel necesita el respaldado solo
+       (le suma el quincenal por su cuenta, con la inversa del motor, para el tope
+       del préstamo con garantía) y el CUPO necesita los dos. Si `comprometidaDe`
+       devolviera los dos, crm.html los restaría dos veces y el respaldado de un
+       socio con quincenal abierto quedaría en menos de lo que le toca. */
+    const { db, s } = dbCalle(14, 0);
+    assert.equal(P.comprometidaDe(db, s), 0, 'no tiene respaldados abiertos');
+    assert.equal(P.capitalQuincenalDe(db, s), 100000, 'y tiene 100.000 en la calle');
+    // entradaGarantia NO lleva el quincenal; entradaCupo SÍ. Es toda la diferencia.
+    assert.equal(P.entradaGarantia(db, s).capital_quincenal, undefined);
+    assert.equal(P.entradaCupo(db, s).capital_quincenal, 100000);
+    assert.equal(P.entradaCupo(db, s).comprometida, 0);
+    /* Y un abono a capital baja lo que está afuera, peso a peso: es la otra mitad
+       de la promesa. Si el capital afuera resta cupo, devolver capital tiene que
+       devolverlo. Garantía 230.000 (20.000 de cupón + 210.000 de catorce créditos)
+       menos los 60.000 que le quedan afuera. */
+    assert.equal(P.cupoDelSocio(db, s, 'bronce').total, 230000);
+    db.prestamos[db.prestamos.length - 1].abonosCapital = [{ fecha: '2026-02-01', monto: 40000 }];
+    assert.equal(P.capitalQuincenalDe(db, s), 60000);
+    assert.equal(P.cupoDelSocio(db, s, 'bronce').cupo, 230000 - 60000);
   });
 });

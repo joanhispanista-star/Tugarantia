@@ -1180,7 +1180,13 @@ function vistaInicio() {
   var cicloAct = S.activo ? cicloDelCredito(S.activo) : null;
   var qAct = S.activo ? liquidacion(S.activo) : null;
   var diasMora = qAct ? qAct.dias_mora : 0;
-  var moraCredito = qAct ? qAct.recargo_mora : 0;
+  /* 6-ago-2026 — ESTA TARJETA DECIDÍA POR EL RECARGO, y es exactamente la rama
+     que se corrigió el 5-ago en armarICS: con un abono grande el recargo redondea
+     a cero y los días de atraso siguen ahí, así que la tarjeta le decía "Es tu
+     crédito quincenal, el 15 de julio" de un corte que ya pasó, mientras la
+     tarjeta de abajo y el Panel decían "20 días de atraso". La pregunta la hace
+     enMoraElCiclo, una sola vez y para las tres pantallas. */
+  var atrasado = enMoraElCiclo(qAct);
   var deCredito = qAct ? qAct.total_a_pagar : 0;
   var deCuota = mismoCorte ? Number(cuota.total || 0) : 0;
   var aPagar = deCredito + deCuota;
@@ -1196,11 +1202,11 @@ function vistaInicio() {
       (deCredito && deCuota
         ? fila((cicloAct.en_plan ? 'Tu cuota ' + cicloAct.numero + ' de ' + cicloAct.cuotas +
                                    ' del plan de pagos' : 'Tu crédito quincenal') +
-               (moraCredito ? ', con el recargo' : ''), COP(deCredito)) +
+               (atrasado ? ', con el recargo' : ''), COP(deCredito)) +
           fila('Cuota ' + cuota.n + ' del préstamo con garantía', COP(deCuota))
         : '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
           (deCuota ? 'La cuota ' + cuota.n + ' de tu préstamo con garantía, el ' + fmtFecha(cuota.fecha) + '.'
-                   : moraCredito
+                   : atrasado
                      ? 'Es ' + cicloAct.nombre + ', que vencía el ' + fmtFecha(S.activo.corte) +
                        '. Ya trae adentro el recargo de los ' + diasMora + ' días.'
                      : 'Es ' + cicloAct.nombre + ', el ' + fmtFecha(S.activo.corte) + '.') + '</div>') +
@@ -1490,9 +1496,11 @@ function progresoNivel() {
    como volvió a colarse la promesa vieja las tres veces anteriores. */
 function textoProximoNivel() {
   var s = siguienteNivel();
-  var prorrogasDe = function (nivel) {
-    return Math.min(M.PRORROGAS_POR_NIVEL[nivel], M.TOPE_DURO_PRORROGAS);
-  };
+  /* El tope de prórrogas de un nivel lo da el MOTOR, que ya sabe cruzar
+     PRORROGAS_POR_NIVEL con el tope duro del §8. Escrito acá era una segunda copia
+     de la misma regla, y la que decide si se puede prorrogar (salidasDelCredito)
+     pregunta por la del motor: dos copias, dos verdades el día que cambie el tope. */
+  var prorrogasDe = function (nivel) { return M.prorrogasPermitidas(nivel); };
   if (!s) {
     return 'Estás en el nivel más alto: puedes aplazar hasta ' +
       vecesTexto(prorrogasDe(S.nivel)) + ' por crédito. Tu cupo no depende del nivel, ' +
@@ -1685,6 +1693,23 @@ function liquidacion(c, fecha) {
            credito_estuvo_en_mora: vieneDeMora };
 }
 
+/* ============ ¿ESTE CICLO ESTÁ EN MORA? LO DICEN LOS DÍAS ============
+   5-ago-2026: el 1% diario corre sobre el CAPITAL QUE QUEDA, así que un socio
+   que abonó casi todo el capital tiene días de atraso con el recargo redondeado
+   a cero. Quien pregunta por el recargo —`q.recargo_mora`— manda ese crédito por
+   la rama del crédito al día: el recordatorio le prometía el doble de garantía
+   sobre un evento que él mismo fechaba hoy, y la tarjeta de Inicio le decía "el
+   15 de julio" de un corte que ya pasó. Pasaba en 177 de 4.000 estados.
+
+   6-ago-2026 — Y LA CORRECCIÓN SE HIZO EN UNA PANTALLA Y NO EN LA DE AL LADO.
+   El 5-ago se arregló dentro de armarICS y la tarjeta de Inicio, dos centímetros
+   más arriba, siguió mirando el recargo. Por eso la pregunta ya no se escribe en
+   ninguna pantalla: se hace acá, y las tres —Inicio, la tarjeta del crédito y el
+   recordatorio— no pueden volver a contestar distinto. */
+function enMoraElCiclo(q) {
+  return !!q && Math.max(0, Number(q.dias_mora) || 0) > 0;
+}
+
 function tarjetaActivo(c) {
   var ciclo = cicloDelCredito(c);
   var q = liquidacion(c);            // capital, costo, recargo y total: del puente
@@ -1692,7 +1717,7 @@ function tarjetaActivo(c) {
      liquidación, no de una segunda cuenta hecha acá. La píldora y la línea del
      recargo no pueden decir dos números de días. `faltan` es lo contrario —los
      que quedan hasta el corte— y por eso sí se mide aparte: no es mora. */
-  var enMora = q.dias_mora > 0;
+  var enMora = enMoraElCiclo(q);
   /* Un crédito sin fecha de corte no puede dejar al socio sin ver su cuenta:
      diasDeMora lanza con una fecha vacía y esto se pinta antes que nada. */
   var faltan = /^\d{4}-\d{2}-\d{2}/.test(String(c.corte || ''))
@@ -2294,6 +2319,54 @@ function plegarICS(lineas) {
   });
   return out.join('\r\n');
 }
+/* ============ LAS DOS SALIDAS, Y CUÁL EXISTE DE VERDAD ============
+   6-ago-2026 — EL RECORDATORIO OFRECÍA LO QUE NO EXISTE.
+
+   El .ics le decía a TODOS los socios, sin una sola condición, «si ese día no
+   puedes pagar todo, se puede dejar una prórroga o pasar a un plan de pagos». Al
+   socio que YA ESTÁ en un plan de pagos le ofrecía pasar a un plan —y de un plan
+   no se sale prorrogando— y al que agotó sus prórrogas le ofrecía prorrogar. Los
+   dos datos venían en el paquete (`plan_cuotas` y `prorrogas`) y nadie los
+   miraba.
+
+   El Panel ya sabía decidirlo, y en un solo sitio: prorrogaOfrecida() contesta
+   null cuando el motor dice que no se puede, y la frase que la ofrecía se cae del
+   mensaje. Acá se hace la misma pregunta con los mismos datos —el tope lo da el
+   motor (prorrogasPermitidas), nunca una tabla escrita en esta página— y la
+   contesta UNA función, para que la próxima pantalla que necesite decirlo no
+   vuelva a escribir su propia versión. */
+function salidasDelCredito(c) {
+  var usadas = Math.max(0, Math.round(Number(c && c.prorrogas) || 0));
+  var permitidas = M.prorrogasPermitidas((S && S.nivel) || 'bronce');
+  var enPlan = cicloDelCredito(c).en_plan;
+  return {
+    en_plan: enPlan,
+    /* De un plan de pagos no se sale prorrogando (§8), y sin prórrogas libres
+       tampoco: es el mismo ok:false que le contesta el motor al Panel. */
+    prorroga: !enPlan && usadas < permitidas,
+    plan: !enPlan,
+    prorrogas_usadas: usadas,
+    prorrogas_permitidas: permitidas
+  };
+}
+/* Y la frase, una sola, para el recordatorio y para cualquier pantalla que tenga
+   que nombrar la salida. Nunca promete la que no existe, y el plan se dice con su
+   costo nombrado, que es lo que el socio va a encontrarse el día del cobro. */
+function fraseSalidas(c) {
+  var s = salidasDelCredito(c);
+  if (s.en_plan) {
+    return 'Esta es una cuota de tu plan de pagos, y de un plan no se sale prorrogando: si ese día ' +
+      'no puedes pagarla, escríbenos antes del corte y lo vemos. ';
+  }
+  if (!s.prorroga) {
+    return 'Ya usaste ' + (s.prorrogas_permitidas === 1 ? 'tu prórroga' : 'tus ' +
+      s.prorrogas_permitidas + ' prórrogas') + ' de este crédito, así que si ese día no puedes ' +
+      'pagar todo la salida es el plan de pagos: el capital en ' + M.CUOTAS_PLAN_DE_PAGOS +
+      ' cortes, con una entrada del ' + pct(M.TASA_CREDITO) + ' el día que se pacta. Te lo decimos antes. ';
+  }
+  return 'Si ese día no puedes pagar todo, se puede dejar una prórroga o pasar a un plan de pagos; ' +
+    'las dos cosas tienen costo y te lo decimos antes. ';
+}
 function armarICS(c) {
   /* El recordatorio se liquida EN EL DÍA PARA EL QUE ES, y por eso no lleva el
      recargo de una mora que ese día todavía no habrá ocurrido.
@@ -2323,14 +2396,11 @@ function armarICS(c) {
        viene de una mora; la frase tiene que decir lo mismo que la cifra, o el
        recordatorio promete el doble de lo que el Panel va a acreditar.
 
-       Y la rama se decide por los DÍAS, no por el recargo. 5-ago-2026: el 1%
-       diario corre sobre el capital que queda, así que un socio que abonó casi
-       todo el capital tiene días de atraso con recargo redondeado a cero. Mirando
-       el recargo, este recordatorio se iba por la rama del crédito al día y le
-       prometía el doble de lo que el Panel acredita, sobre un evento que él mismo
-       fecha HOY porque el corte ya pasó. Pasaba en 177 de 4.000 estados. La
-       tarjeta de Inicio ya lo hacía bien dos funciones arriba
-       (var enMora = q.dias_mora > 0) y las dos pantallas se contradecían.
+       Y la rama se decide por los DÍAS, no por el recargo, y esa pregunta ya no
+       se escribe acá: la contesta enMoraElCiclo(q), la misma que usan la tarjeta
+       de Inicio y la del crédito. El 5-ago la corrección se hizo SOLO en esta
+       función y las dos tarjetas de al lado se quedaron mirando el recargo; el
+       6-ago la pregunta se mudó a un solo sitio para que eso no se pueda repetir.
 
        5-ago-2026: y ahora van también los PESOS de las dos opciones. "El doble"
        describe la relación entre FACTOR_GARANTIA y FACTOR_GARANTIA_MORA, que hoy
@@ -2341,7 +2411,7 @@ function armarICS(c) {
        en esta función, así que quien la quite tiene que tocar la prueba en el
        mismo movimiento — y ese es justo el momento de comprobar si los dos
        factores siguen siendo mitad y doble. */
-    (q.dias_mora > 0
+    (enMoraElCiclo(q)
       ? 'Aunque te atrases sigues siendo socio, y este pago te suma ' +
         COP(q.garantia_generada) + ' de garantía. '
       : q.credito_estuvo_en_mora
@@ -2350,8 +2420,9 @@ function armarICS(c) {
           'compró tiempo, no puntualidad. '
         : 'Pagando en fecha tu cupo sube ' + COP(q.garantia_si_puntual) +
           ', el doble de lo que sube pagando tarde (' + COP(q.garantia_si_tarde) + '). ') +
-    'Si ese día no puedes pagar todo, se puede dejar una prórroga o pasar a un plan de pagos; ' +
-    'las dos cosas tienen costo y te lo decimos antes. Y aunque te atrases sigues siendo socio.';
+    /* La salida que DE VERDAD tiene este crédito: la decide salidasDelCredito con
+       los datos del paquete, no esta línea. Antes se ofrecían las dos siempre. */
+    fraseSalidas(c) + 'Y aunque te atrases sigues siendo socio.';
   /* Un recordatorio de hoy no puede avisar "en 2 días": ese aviso ya pasó. */
   var alarmas = vencido ? [] : [
     'BEGIN:VALARM', 'TRIGGER:-P2D', 'ACTION:DISPLAY',

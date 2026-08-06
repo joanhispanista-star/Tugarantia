@@ -61,9 +61,11 @@
  *      hasta el monto de la garantía que el socio YA se ganó pagando, uno a
  *      uno. El crédito quincenal al 20% sigue siendo el producto por defecto.
  *   2. La garantía se parte en dos que no valen lo mismo: la PRESTADA (el
- *      cupón por los datos y los referidos, que se la regala la plataforma) y
- *      la GANADA (la que salió de pagar costos). Las dos suman para el cupo
- *      quincenal; solo la ganada respalda el préstamo con garantía.
+ *      cupón por los datos, que se la regala la plataforma) y la GANADA (la que
+ *      salió de pagar costos). Las dos suman para el cupo quincenal; solo la
+ *      ganada respalda el préstamo con garantía.
+ *      (6-ago-2026: y aparece una TERCERA, la de los referidos, que suma para el
+ *      cupo, no es exposición y no respalda. Ver TOPE_REFERIDOS.)
  *   3. FACTOR_GARANTIA baja de 1,00 a 0,90 y el cupón de datos de 200.000 a
  *      100.000. El 10% que ya no va a garantía se reparte 7% operativo y 3%
  *      para ir devolviendo el cupón regalado (REPARTO_COSTO). Ese reparto es
@@ -154,14 +156,19 @@
  *     en otro: hay una prueba que exige que los 15 sumen 100.000 clavados.
  * D13. Techo de la plataforma: CUPO_MAXIMO = 20 millones. calcularCupo nunca
  *     devuelve más, por alta que sea la garantía.
- * D14. (27-jul-2026, TOPADA el 6-ago-2026) Un referido suma 5.000 SOLO cuando ya
- *     pagó un crédito. Decía "sin tope: traer gente que paga es exactamente lo
- *     que queremos premiar", y eso era cierto del incentivo y falso de la plata:
- *     esos 5.000 son garantía PRESTADA, o sea exposición de Joan, y sin tope un
- *     socio que nunca pagó llegaba a 2.600.000 de cupo con 500 referidos. Ahora
- *     la prestada COMPLETA (cupón + referidos) se topa en CUPON_KYC_MAXIMO y los
- *     referidos tampoco pasan de la garantía ganada del socio. Los dos topes son
- *     configurables: ver TOPE_REFERIDOS.
+ * D14. (27-jul-2026 · topada el 6-ago-2026 · SACADA DE LA PRESTADA el 6-ago-2026,
+ *     tarde) Un referido suma 5.000 SOLO cuando ya pagó un crédito. Esos 5.000
+ *     eran garantía PRESTADA, o sea exposición de Joan, y el tope de la mañana
+ *     —techo de 100.000 compartido con el cupón— topaba la exposición pero no la
+ *     dejaba de subir para el cliente de mostrador, que es la mayoría: con la
+ *     ficha a medias (20.000 de cupón) el techo no muerde nunca y un socio ya
+ *     SALDADO volvía a expuesto 46.000 con diez referidos. Ahora los referidos
+ *     son su propia parte de la garantía: SUBEN EL CUPO Y NO SON EXPOSICIÓN, y no
+ *     respaldan el préstamo con garantía. Ver TOPE_REFERIDOS.
+ * D15. (6-ago-2026) El cupo descuenta TODO el capital que ya está afuera, de los
+ *     dos productos y con la misma regla: la garantía que sostiene un quincenal
+ *     vigente no puede volver a dar cupo. Ver desglosarGarantia (`comprometida`
+ *     y `capital_quincenal`).
  * ==========================================================================*/
 
 (function (raiz, fabrica) {
@@ -218,59 +225,64 @@
   var CUPO_MAXIMO = 20000000;       // techo de la plataforma: 20 millones
 
   /* ==========================================================================
-   * EL TOPE DE LOS REFERIDOS — 6-ago-2026, y era el último sitio donde la
-   * exposición de Joan todavía crecía.
+   * LOS REFERIDOS SON SU PROPIA PARTE DE LA GARANTÍA — 6-ago-2026 (tarde), y
+   * este es el segundo intento sobre el mismo defecto. El primero está abajo,
+   * completo, porque explica por qué este es distinto.
    *
-   * LOS 5.000 DE CADA REFERIDO SON GARANTÍA PRESTADA, no ganada: los pone la
-   * plataforma, igual que el cupón por los datos. Y con el cupo uno a uno son
-   * 5.000 de cupo puro. Sin tope eso significaba:
+   * EL PRIMER INTENTO (misma mañana). Los 5.000 de cada referido eran garantía
+   * PRESTADA —los pone la plataforma, igual que el cupón por los datos—, así que
+   * eran exposición de Joan y sin tope un socio que NUNCA PAGÓ UN PESO llegaba a
+   * 2.600.000 de cupo con 500 referidos, y un socio ya SALDADO volvía a quedar
+   * expuesto con cada referido nuevo. Se topó la prestada COMPLETA (cupón +
+   * referidos) en 100.000, más un segundo tope hasta la garantía ganada.
    *
-   *   MEDIDO. Un socio que NUNCA PAGÓ UN PESO llegaba a 2.600.000 de cupo con
-   *   500 referidos (100.000 de cupón + 2.500.000 de referidos), y con 5.000
-   *   referidos la PRESTADA daba 25.100.000 — por encima del techo entero de la
-   *   plataforma. Y peor: un socio que ya había SALDADO su cupón en el crédito 13
-   *   volvía a quedar expuesto con cada referido nuevo, porque el 15% recuperado
-   *   ya estaba gastado y los 5.000 nuevos no tenían de dónde amortizarse. La
-   *   ganancia libre que muestra el Panel se encogía HACIA ATRÁS: 71.758 → 68.701
-   *   con un solo referido, y el socio saldado dejaba de estar saldado (expuesto
-   *   1.943, y 196.943 con cuarenta referidos).
+   * POR QUÉ NO ALCANZÓ, MEDIDO. Ese techo tapa la exposición del socio de ficha
+   * COMPLETA, que es el único que llena los 100.000. El cliente de mostrador
+   * —nombre + cédula + celular + WhatsApp, 20.000 de cupón— tiene 80.000 de hueco
+   * bajo el techo y ahí no muerde nunca:
    *
-   * LA PREGUNTA DE JOAN ("¿esto hace que MI exposición crezca?") tenía acá su
-   * última respuesta SÍ. Y no está financiado: el 15% de cada costo amortiza el
-   * cupón DEL SOCIO QUE LO PAGA y de nadie más (contabilidadCartera del puente lo
-   * dice explícito: "cada socio tiene el suyo"). Los 5.000 que se le regalan al
-   * padrino solo los devuelve el padrino, con sus propios pagos futuros; lo que el
-   * referido paga ya está comprometido con su propio cupón de 100.000.
+   *     refs  créd 0    1       2       3       4       8
+   *        0  20.000  17.000  14.000  11.000   8.000   0 (saldado)
+   *       10  20.000  32.000  44.000  56.000  58.000  46.000
+   *       40  20.000  32.000  44.000  56.000  68.000  76.000
    *
-   * LO QUE SE ELIGIÓ, Y POR QUÉ. Se topa la PRESTADA COMPLETA en el mismo techo
-   * del cupón de datos (100.000). Así la exposición de Joan por socio queda
-   * clavada en 100.000 pase lo que pase —que es literalmente lo que pidió— y la
-   * promesa "arranca en 97.000 y solo baja hasta cero en el crédito 13" vuelve a
-   * ser verdad con cualquier número de referidos.
+   *   Un socio SALDADO volvía a expuesto 46.000 con diez referidos, y `saldado`
+   *   pasaba de true a false: exactamente el defecto que el tope venía a cerrar.
+   *   La raíz es que cada referido acredita 0,75 pesos de tope nuevo por cada peso
+   *   de costo que el padrino paga (FACTOR_GARANTIA), mientras el 15% solo devuelve
+   *   0,15: la exposición nueva entra más rápido que la vieja se va.
    *
-   * La otra forma sensata era topar los referidos en la garantía GANADA del socio
-   * ("solo crece para quien ya demostró que paga"). Respeta mejor el espíritu,
-   * pero NO arregla el caso que más dolía: el socio del crédito 13 tiene 600.000
-   * de ganada, así que sus referidos podrían meter 600.000 de prestada nueva y
-   * volver a abrirle la exposición de cero a medio millón. Con los números en la
-   * mano, no alcanza sola.
+   * LO QUE SE ELIGIÓ AHORA. Los referidos salen de la PRESTADA y pasan a ser una
+   * tercera parte de la garantía: suman para el CUPO quincenal, NO son exposición
+   * (no entran al cupón que hay que recuperar) y NO respaldan el préstamo con
+   * garantía. La exposición vuelve a ser una sola cosa —el cupón por los datos
+   * menos lo recuperado— y por eso ahora es ESTRUCTURAL que no suba: no hay número
+   * de referidos que la mueva, con cualquier ficha. Ya no es un tope que hay que
+   * elegir bien; es que los referidos no viven más de ese lado.
    *
-   * ASÍ QUE VAN LAS DOS, y la segunda no le cuesta nada al que paga: dentro del
-   * techo, los referidos tampoco pueden pasar de la garantía ganada. El único al
-   * que eso le quita algo es al socio que no ha pagado nunca —exactamente el que
-   * no queremos premiar—, y al que sí paga el techo ya se lo dio.
+   * POR QUÉ NO ACREDITAN GANADA A SECAS, que era la forma más corta de decirlo:
+   * la GANADA respalda el préstamo con garantía UNO A UNO (maximoRespaldado), y eso
+   * sí es plata de Joan saliendo. Con 40 referidos serían 200.000 de respaldado
+   * contra algo que el padrino no pagó, y encima invisible: `expuesto` mira el
+   * cupón, no el capital del respaldado. Habríamos cambiado una exposición que se
+   * ve por una que no. Por eso es una parte aparte y no un alias de la ganada.
    *
-   * LA CONTRA, dicha de frente: con la ficha completa (100.000 de cupón) los
-   * referidos dejan de sumar cupo. La app se lo tiene que decir así, y el premio
-   * de traer gente que paga hay que pagarlo con algo que no sea plata de Joan.
+   * Y NO ES GRATIS, dicho de frente: el cupo quincenal que dan los referidos SÍ es
+   * capital de Joan saliendo, aunque no lo cuente `expuesto`. Lo que lo sostiene es
+   * el tope de acá abajo —no pasan de la garantía que el socio se ganó pagando—, o
+   * sea que solo cobra el que ya demostró que paga, y que el referido pagó su
+   * crédito antes de contar. El día que Joan quiera premiar más fuerte, el premio
+   * tiene que salir de la ganancia (el 10% operativo), no del cupo.
    *
-   * CONFIGURABLE para que Joan lo pueda mover sin tocar una cuenta:
-   *   techo_prestada  el techo de toda la garantía prestada. `null` lo apaga.
-   *   hasta_la_ganada true = los referidos tampoco pasan de la ganada.
-   * Las dos apagadas es el comportamiento viejo, sin tope.
+   * CONFIGURABLE, una sola palanca ahora, para que Joan la pueda mover sin tocar
+   * una cuenta:
+   *   hasta_la_ganada true = los referidos no pasan de la garantía ganada.
+   *                   false = sin tope (el comportamiento viejo, para comparar).
+   * `techo_prestada` QUEDÓ DEROGADO y no se lee más: era el techo de la prestada
+   * compartido con el cupón de datos, y los referidos ya no son prestada. Si
+   * quedara vivo, movería un tope que no aplica y el número no cambiaría.
    * ========================================================================*/
   var TOPE_REFERIDOS = {
-    techo_prestada: CUPON_KYC_MAXIMO,
     hasta_la_ganada: true
   };
 
@@ -845,21 +857,22 @@
                'Cuesta menos, pero te hace crecer el cupo mucho más despacio.'
       },
       /* 6-ago-2026 — acá decía "cada persona que traigas te suma 5.000" y punto,
-         y con el tope nuevo eso ya no es verdad siempre: los referidos comparten
-         techo con el cupón de datos. Que la app diga la regla completa, con las
-         mismas constantes que hacen la cuenta, en vez de prometer un cupo que
-         después no aparece. */
+         y el tope de la mañana lo volvió mentira con la ficha completa. Desde la
+         tarde los referidos ya no comparten techo con el cupón —son su propia
+         parte de la garantía— y lo único que hay que decirle al socio es lo que
+         de verdad lo topa: su propia garantía ganada. Con las mismas constantes
+         que hacen la cuenta, para que la app no prometa un cupo que no aparece. */
       referidos: {
         por_cada_uno: GARANTIA_POR_REFERIDO,
         tope: TOPE_REFERIDOS,
         texto: 'Cada persona que traigas te suma ' + GARANTIA_POR_REFERIDO.toLocaleString('es-CO') +
-               ' de garantía prestada, desde que esa persona pague su crédito' +
-               (TOPE_REFERIDOS.hasta_la_ganada ? ' y hasta la garantía que ya te ganaste pagando' : '') +
-               (TOPE_REFERIDOS.techo_prestada != null
-                 ? '. Lo que te prestamos nosotros —tus datos y tus referidos juntos— llega hasta ' +
-                   TOPE_REFERIDOS.techo_prestada.toLocaleString('es-CO') +
-                   '; de ahí para arriba el cupo lo construyes pagando.'
-                 : '.')
+               ' de cupo, desde que esa persona pague su crédito' +
+               (TOPE_REFERIDOS.hasta_la_ganada
+                 ? ', y hasta la garantía que ya te ganaste pagando: el premio de traer gente ' +
+                   'lo cobra quien también paga lo suyo.'
+                 : '.') +
+               ' Esa parte te sube el cupo quincenal; el préstamo con garantía se apoya solo ' +
+               'en lo que pagaste tú.'
       },
       /* 5-ago-2026 — los niveles se quedan, pero ya no traen `factor`: no
          multiplican nada. Lo que se gana subiendo son prórrogas. Y va la frase
@@ -942,7 +955,16 @@
    * Garantía por referidos: 5.000 por cada uno, pero SOLO cuando ese referido
    * ya pagó un crédito. Traer gente que no paga no suma.
    *
-   * @param {Array} referidos  [{nombre, pago_puntual|pago}]  o un número de
+   * LA CONDICIÓN ES "PAGÓ", NO "PAGÓ PUNTUAL", y conviene decirlo con el nombre
+   * bien puesto (6-ago-2026): el puente marca al referido con `p.pagado`, sin
+   * mirar la fecha, y así es la promesa que le hace la app ("desde que esa persona
+   * pague su crédito"). La clave vieja `pago_puntual` se sigue aceptando porque
+   * había datos escritos con ella, pero prometía una puntualidad que nunca se
+   * midió. Y está bien que sea "pagó": el que pagó tarde dejó MÁS plata (costo +
+   * 1% diario), así que exigirle puntualidad al referido premiaría menos donde
+   * entró más.
+   *
+   * @param {Array} referidos  [{nombre, pago|pago_puntual}]  o un número de
    *        referidos que ya pagaron.
    */
   function garantiaPorReferidos(referidos) {
@@ -954,7 +976,7 @@
       throw new TypeError('referidos: se esperaba una lista o un número, llegó ' + describir(referidos));
     }
     var cuentan = referidos.filter(function (r) {
-      return !!(r && (r.pago_puntual === true || r.pago === true));
+      return !!(r && (r.pago === true || r.pago_puntual === true));
     });
     return cuentan.length * GARANTIA_POR_REFERIDO;
   }
@@ -963,27 +985,23 @@
    * EL TOPE de la garantía por referidos, en pesos. Lo que los referidos VALEN
    * lo dice garantiaPorReferidos; lo que se le puede ACREDITAR lo dice esto.
    *
-   * @param {number} cupon   la garantía prestada por los datos
+   * Un solo tope desde el 6-ago-2026 (tarde): la garantía que el socio ya se ganó
+   * pagando. No hay techo compartido con el cupón porque los referidos ya no son
+   * garantía prestada — ver TOPE_REFERIDOS.
+   *
    * @param {number} ganada  la garantía que el socio se ganó pagando
-   * @param {object} [config] {techo_prestada, hasta_la_ganada}; por defecto
-   *        TOPE_REFERIDOS. Ver el comentario de esa constante.
-   * @returns {number} Infinity si Joan apagó los dos topes.
+   * @param {object} [config] {hasta_la_ganada}; por defecto TOPE_REFERIDOS.
+   * @returns {number} Infinity si Joan apagó el tope.
    */
-  function topeGarantiaPorReferidos(cupon, ganada, config) {
+  function topeGarantiaPorReferidos(ganada, config) {
     if (config != null && typeof config !== 'object') {
       throw new TypeError('tope_referidos: se esperaba un objeto, llegó ' + describir(config));
     }
     var c = config || {};
-    var techo = c.techo_prestada === undefined ? TOPE_REFERIDOS.techo_prestada : c.techo_prestada;
     var haciaLaGanada = c.hasta_la_ganada === undefined
       ? TOPE_REFERIDOS.hasta_la_ganada : c.hasta_la_ganada;
-    var topes = [];
-    if (techo != null) {
-      topes.push(Math.max(0, numeroNoNegativo(techo, 'tope_referidos.techo_prestada') - cupon));
-    }
-    if (haciaLaGanada !== false) topes.push(Math.max(0, ganada));
-    if (!topes.length) return Infinity;
-    return Math.min.apply(null, topes);
+    if (haciaLaGanada === false) return Infinity;
+    return Math.max(0, numeroNoNegativo(ganada, 'ganada'));
   }
 
   /**
@@ -1007,14 +1025,18 @@
     var ajuste = entrada.ajuste == null ? 0 : numeroFinito(entrada.ajuste, 'ajuste');
 
     /* El ajuste negativo se come PRIMERO la ganada y recién después la prestada,
-       así las dos partes siempre suman el mismo total. */
+       así las tres partes siempre suman el mismo total. */
     var bruto = acumulada + ajuste;
     var ganada = Math.max(0, bruto);
     /* Y acá se topa: lo que los referidos valen no siempre es lo que se puede
-       acreditar, porque son plata de Joan (ver TOPE_REFERIDOS). */
+       acreditar (ver TOPE_REFERIDOS). */
     var referidos = Math.min(valenLosReferidos,
-                             topeGarantiaPorReferidos(cupon, ganada, entrada.tope_referidos));
-    var prestada = Math.max(0, cupon + referidos + Math.min(0, bruto));
+                             topeGarantiaPorReferidos(ganada, entrada.tope_referidos));
+    /* LA PRESTADA ES EL CUPÓN POR LOS DATOS Y NADA MÁS (6-ago-2026, tarde). Los
+       referidos salieron de acá: la prestada es lo que Joan tiene expuesto
+       —contabilidadCupon la amortiza peso a peso— y los referidos no pueden
+       subirla, porque entonces traer gente le agranda el riesgo. Van aparte. */
+    var prestada = Math.max(0, cupon + Math.min(0, bruto));
 
     return {
       cupon: cupon,
@@ -1026,7 +1048,7 @@
       ajuste: ajuste,
       ganada: ganada,
       prestada: prestada,
-      total: ganada + prestada
+      total: ganada + prestada + referidos
     };
   }
 
@@ -1837,39 +1859,70 @@
   /* ==========================================================================
    * PRODUCTO 2 — préstamo con garantía (2-ago-2026, pedido de Joan)
    *
-   * La garantía deja de ser un solo número y pasa a tener dos partes que NO
-   * valen lo mismo:
+   * La garantía deja de ser un solo número y pasa a tener partes que NO valen lo
+   * mismo:
    *
-   *   PRESTADA  el cupón por los datos y los referidos. Se la presta la
-   *             plataforma para que arranque. Sirve para el CUPO quincenal y
-   *             para nada más.
+   *   PRESTADA  el cupón por los datos. Se la presta la plataforma para que
+   *             arranque. Sirve para el CUPO quincenal y para nada más, y es lo
+   *             único que cuenta como exposición de Joan.
    *   GANADA    la que salió de pagar costos. ESTA es la única que respalda un
    *             préstamo con garantía, porque prestar contra la prestada sería
    *             prestar contra plata nuestra.
+   *   REFERIDOS (6-ago-2026) 5.000 por cada referido que pagó, topados por la
+   *             ganada. Suman al cupo quincenal, no son exposición y no respaldan.
    *
-   * Y aparece una tercera idea: la garantía COMPROMETIDA. Mientras un préstamo
-   * con garantía está abierto, esa parte de la ganada está respaldando algo y
-   * no puede respaldar dos cosas a la vez: no cuenta para el cupo quincenal ni
-   * para pedir otro respaldado. Al terminar de pagarlo se libera sola.
+   * Y aparece una idea más: la garantía COMPROMETIDA. Mientras haya capital
+   * afuera, esa parte de la garantía está sosteniendo algo y no puede sostener dos
+   * cosas a la vez: no da cupo quincenal ni respalda otro préstamo. Al terminar de
+   * pagar se libera sola.
+   *
+   * 6-ago-2026 — COMPROMETIDA SON LOS DOS PRODUCTOS, no solo el respaldado. Antes
+   * `comprometida` era únicamente el capital de los préstamos con garantía
+   * abiertos, así que el capital QUINCENAL vigente no bajaba el cupo nunca y cada
+   * prórroga se lo subía sin que el socio devolviera un peso:
+   *
+   *     créd  prórrogas  ganada   comprometida  cupo    afuera   en la calle
+   *        0          0        0             0  20.000  100.000  120.000
+   *        0          2   30.000             0  50.000  100.000  150.000
+   *       14          2  240.000             0 260.000  100.000  360.000
+   *
+   * Y era una asimetría literal: para el préstamo con garantía sí se descontaba
+   * (maximoRespaldado daba 0 donde el quincenal daba 37.500). El mismo concepto con
+   * dos comportamientos. Ahora es un solo concepto —CAPITAL AFUERA— y la regla
+   * vive acá: `comprometida` (lo que sostiene respaldados) + `capital_quincenal`
+   * (el capital quincenal vigente). El Panel avisaba con un confirm() que se podía
+   * saltar; el número que se le promete al socio ya viene descontado.
    * ========================================================================*/
 
   /**
-   * Las dos garantías y lo que está comprometido, todo en un solo objeto.
+   * Las garantías y lo que está sosteniendo capital afuera, en un solo objeto.
    * Es la fuente única: cupo quincenal, máximo respaldado y las pantallas del
    * socio salen de acá, para que no haya dos verdades sobre el mismo peso.
    *
-   * @param {object} [entrada] {datos, referidos, acumulada, ajuste, comprometida}
+   * `comprometida` y `capital_quincenal` son dos CANALES del mismo dato y se
+   * suman: quien ya trae el quincenal metido en `comprometida` (el Panel lo hace
+   * para el respaldado) no manda `capital_quincenal`, y no se cuenta dos veces.
+   *
+   * @param {object} [entrada] {datos, referidos, acumulada, ajuste, comprometida,
+   *        capital_quincenal}
    */
   function desglosarGarantia(entrada) {
     /* Las partes salen de partesDeGarantia —la MISMA cuenta que garantiaTotal—,
        así que el total de acá nunca puede diferir del de allá. Lo único que se
-       agrega es la comprometida, que garantiaTotal no necesita saber. */
+       agrega es el capital afuera, que garantiaTotal no necesita saber. */
     var g = partesDeGarantia(entrada);
     var pedida = numeroNoNegativo(
       (entrada && entrada.comprometida) == null ? 0 : entrada.comprometida, 'comprometida');
-    // No se puede comprometer más de lo que se ganó: si el dato viene sucio,
-    // se recorta en vez de reventar, que es plata que el socio ya ve en pantalla.
-    var comprometida = Math.min(pedida, g.ganada);
+    var quincenal = numeroNoNegativo(
+      (entrada && entrada.capital_quincenal) == null ? 0 : entrada.capital_quincenal,
+      'capital_quincenal');
+    var afuera = pedida + quincenal;
+    /* No se puede tener sosteniendo más garantía de la que existe: si el dato
+       viene sucio —o si Joan prestó por encima del cupo, que puede— se recorta en
+       vez de reventar, que es plata que el socio ya ve en pantalla. El recorte va
+       contra el TOTAL y no contra la ganada: el capital afuera se come también la
+       prestada, que es justamente la que le dio el cupo para pedirlo. */
+    var comprometida = Math.min(afuera, g.total);
 
     return {
       cupon: g.cupon,
@@ -1880,9 +1933,16 @@
       prestada: g.prestada,
       ganada: g.ganada,
       comprometida: comprometida,
-      ganada_libre: g.ganada - comprometida,
+      // Las dos mitades del capital afuera, para que el Panel pueda explicarlo.
+      capital_quincenal: quincenal,
+      capital_afuera: afuera,
+      /* Lo que queda para respaldar: la GANADA menos TODO el capital afuera. Un
+         quincenal abierto se come garantía ganada igual que un respaldado; si no,
+         la misma garantía respalda dos créditos y el orden en que se piden decide
+         cuánto se presta. */
+      ganada_libre: Math.max(0, g.ganada - afuera),
       total: g.total,
-      base_cupo: Math.max(0, g.total - comprometida)
+      base_cupo: Math.max(0, g.total - afuera)
     };
   }
 
@@ -1924,6 +1984,10 @@
       ganada: d.ganada,
       prestada: d.prestada,
       comprometida: d.comprometida,
+      // El capital afuera ya está descontado del cupo: viaja para que el Panel lo
+      // pueda decir con el mismo número, no para que lo reste otra vez.
+      capital_quincenal: d.capital_quincenal,
+      capital_afuera: d.capital_afuera,
       ganada_libre: d.ganada_libre,
       respaldo_disponible: maximoRespaldado(entrada),
       nivel: nivel,
@@ -2437,7 +2501,9 @@
     // §3 nuevo: garantía que se gana entregando datos, y por referidos
     garantiaPorDatos: garantiaPorDatos,
     garantiaPorReferidos: garantiaPorReferidos,
-    // El tope de los referidos (6-ago-2026): lo que valen vs. lo que se acredita
+    /* El tope de los referidos (6-ago-2026): lo que valen vs. lo que se acredita.
+       Firma nueva desde la tarde del 6-ago: (ganada, config). Ya no recibe el
+       cupón, porque los referidos dejaron de compartir techo con él. */
     topeGarantiaPorReferidos: topeGarantiaPorReferidos,
     partesDeGarantia: partesDeGarantia,
     garantiaTotal: garantiaTotal,
@@ -2479,8 +2545,8 @@
     DATOS_KYC: DATOS_KYC,
     CUPON_KYC_MAXIMO: CUPON_KYC_MAXIMO,
     GARANTIA_POR_REFERIDO: GARANTIA_POR_REFERIDO,
-    /* El tope de la prestada por referidos, para que Joan lo pueda mover desde
-       un solo lugar (6-ago-2026). Se puede pasar por entrada.tope_referidos. */
+    /* El tope de los referidos —hasta la garantía ganada—, para que Joan lo pueda
+       mover desde un solo lugar (6-ago-2026). Se pasa por entrada.tope_referidos. */
     TOPE_REFERIDOS: TOPE_REFERIDOS,
     CUPO_MAXIMO: CUPO_MAXIMO,
     MONTO_MINIMO: MONTO_MINIMO,

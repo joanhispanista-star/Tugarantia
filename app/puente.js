@@ -1359,12 +1359,18 @@
     };
   }
 
-  /* Referidos: los que este cliente trajo. Solo suman los que ya pagaron. */
+  /* Referidos: los que este cliente trajo. Solo suman los que ya pagaron.
+
+     LA CLAVE SE LLAMA `pago` Y NO `pago_puntual` (6-ago-2026). Se llamaba
+     `pago_puntual` y lo que se mira es `p.pagado`, sin abrir la fecha: prometía una
+     puntualidad que nunca se midió, y el día que alguien colgara un premio de esa
+     palabra iba a estar premiando otra cosa. La condición correcta es "pagó" —así
+     se lo dice la app al socio— y el motor acepta las dos claves. */
   function referidosDe(db, s) {
     return lista(db && db.socios).filter(function (x) { return x.referidoPor === s.id; }).map(function (x) {
       return {
         nombre: x.nombre,
-        pago_puntual: lista(db.prestamos).some(function (p) { return p.socioId === x.id && p.pagado; })
+        pago: lista(db.prestamos).some(function (p) { return p.socioId === x.id && p.pagado; })
       };
     });
   }
@@ -1407,6 +1413,38 @@
       tope_referidos: topeReferidosDe(db)
     };
   }
+  /* ==========================================================================
+   * LA ENTRADA DEL CUPO — 6-ago-2026, y es entradaGarantia MÁS el capital
+   * quincenal que está afuera.
+   *
+   * EL DEFECTO: `comprometida` solo contaba respaldados abiertos, así que
+   * cupoDelSocio —y el cupo que la app le promete al socio— no descontaba el
+   * capital quincenal vigente. Medido, con 100.000 afuera: cupo 20.000 y 120.000
+   * en la calle; con dos prórrogas, cupo 50.000 y 150.000; con catorce créditos
+   * pagados, cupo 260.000 y 360.000. Cada prórroga le subía el cupo sin que
+   * devolviera un peso. Y para el préstamo con garantía sí se descontaba: el mismo
+   * concepto con dos comportamientos.
+   *
+   * POR QUÉ SON DOS ENTRADAS Y NO UNA. La regla completa vive en el motor
+   * (desglosarGarantia suma `comprometida` + `capital_quincenal`), pero el capital
+   * quincenal solo puede entrar por UN canal a la vez o se resta dos veces. El
+   * Panel ya lo mete a mano en `comprometida` para el lado del respaldado
+   * (entradaRespaldoDe, con la inversa del motor), así que:
+   *
+   *   entradaGarantia  respaldados abiertos. La que consume el RESPALDADO y a la
+   *                    que el Panel le suma el quincenal por su cuenta.
+   *   entradaCupo      la anterior + `capital_quincenal`. La que consume el CUPO,
+   *                    acá y en el paquete del socio.
+   *
+   * El día que crm.html pueda tocarse, entradaRespaldoDe se borra y las dos se
+   * vuelven una: la de acá, para los dos productos.
+   * ========================================================================*/
+  function entradaCupo(db, s) {
+    var e = entradaGarantia(db, s);
+    e.capital_quincenal = capitalQuincenalDe(db, s);
+    return e;
+  }
+
   /* La mitad de Joan del tope de los referidos: vive en Ajustes, igual que el
      freno por ingreso. Si la clave no está —hoy no está: crm.html todavía no la
      escribe— devuelve undefined y el motor usa su propio valor. */
@@ -1437,16 +1475,32 @@
   /** El cupo quincenal de un socio, con el freno ya consultado. Es la función
      que el Panel y la app tienen que preguntar: si cada uno arma la entrada y
      las opciones por su lado, el día que Joan encienda el freno una de las dos
-     pantallas va a seguir mostrando el cupo viejo. */
+     pantallas va a seguir mostrando el cupo viejo.
+
+     Y va con entradaCupo, no con entradaGarantia: el cupo descuenta TODO el
+     capital que está afuera, también el quincenal (ver entradaCupo). */
   function cupoDelSocio(db, s, nivel) {
-    return M.cupoQuincenal(entradaGarantia(db, s), nivel || 'bronce',
+    return M.cupoQuincenal(entradaCupo(db, s), nivel || 'bronce',
                            { freno: frenoDe(db, s) });
   }
 
-  /* Lo que tiene metido en préstamos con garantía todavía abiertos. */
+  /* Lo que tiene metido en préstamos con garantía todavía abiertos.
+     OJO: solo respaldados. El capital quincenal vigente lo dice
+     capitalQuincenalDe, y quien pregunta por el CUPO tiene que contar los dos:
+     para eso está entradaCupo. */
   function comprometidaDe(db, s) {
     return respaldadosDe(db, s).filter(function (r) { return !r.pagado; })
       .reduce(function (t, r) { return t + saldoCapitalRespaldado(r); }, 0);
+  }
+
+  /* Lo que tiene afuera en créditos QUINCENALES todavía abiertos: capital menos
+     abonos, crédito por crédito. Es el mismo capitalActual que usa el Panel en
+     cada pantalla, así que no hay una segunda forma de contar lo que está en la
+     calle. */
+  function capitalQuincenalDe(db, s) {
+    return lista(db && db.prestamos)
+      .filter(function (p) { return p.socioId === (s && s.id) && !p.pagado; })
+      .reduce(function (t, p) { return t + Math.max(0, capitalActual(p)); }, 0);
   }
 
   /**
@@ -1460,7 +1514,11 @@
       .sort(function (a, b) { return String(a.fechaDesembolso).localeCompare(String(b.fechaDesembolso)); });
     var resps = respaldadosDe(db, s);
 
-    var entrada = entradaGarantia(db, s);
+    /* entradaCupo, no entradaGarantia: lo que la app le muestra al socio es su
+       CUPO, y ese descuenta el capital que ya tiene afuera en los dos productos.
+       Con entradaGarantia la app le prometía un número que el Panel no podía
+       sostener, y Joan quedaba cobrando la contradicción. */
+    var entrada = entradaCupo(db, s);
     var refs = entrada.referidos;
 
     var g = M.desglosarGarantia(entrada);
@@ -1485,12 +1543,18 @@
       comunidad: fotoComunidad(db),
       socio: { codigo: codCliente(s) },
       garantia: {
-        // `acumulada` viaja como la GANADA del motor (ya con el ajuste aplicado):
-        // es la que respalda el préstamo con garantía, y la app no puede
-        // volver a restarle nada.
+        /* `acumulada` viaja como la GANADA del motor (ya con el ajuste aplicado):
+           es la que respalda el préstamo con garantía, y la app no puede volver a
+           restarle nada. Los referidos van APARTE y no sumados acá adentro
+           (6-ago-2026): si viajaran dentro de la ganada, la app le ofrecería un
+           préstamo con garantía apoyado en referidos y el Panel se lo negaría.
+           `comprometida` es TODO el capital afuera —respaldados y quincenales—,
+           que es lo que el cupo tiene que descontar. */
         total: g.total, acumulada: g.ganada, cupon: g.cupon, referidos: g.referidos,
         nivel: nivel, pagados_a_tiempo: aTiempo, racha: racha, meses_sin_mora: meses,
-        creditos_total: ps.length, comprometida: g.comprometida
+        creditos_total: ps.length, comprometida: g.comprometida,
+        // Las dos mitades, para que la app pueda decir de dónde sale el descuento.
+        capital_quincenal: g.capital_quincenal, capital_afuera: g.capital_afuera
       },
       // Solo QUÉ dato tiene cargado, nunca su contenido: al cliente le alcanza
       // con ver el chulito, y así no viajan fotos, coordenadas ni teléfonos.
@@ -1501,8 +1565,8 @@
       },
       referidos: {
         total: refs.length,
-        pagaron: refs.filter(function (r) { return r.pago_puntual; }).length,
-        lista: refs.map(function (r) { return { nombre: String(r.nombre || '').split(' ')[0], pago: r.pago_puntual }; })
+        pagaron: refs.filter(function (r) { return r.pago; }).length,
+        lista: refs.map(function (r) { return { nombre: String(r.nombre || '').split(' ')[0], pago: r.pago }; })
       },
       /* 4-ago-2026 — LA APP LE MOSTRABA AL SOCIO EL CAPITAL ENTERO CON PLAN.
          `capital` viajaba como capitalActual(p) —todo el capital vigente—
@@ -1607,8 +1671,12 @@
     LLAVE_PANEL: LLAVE_PANEL,
     normalizar: normalizar,
     entradaGarantia: entradaGarantia,
+    /* La entrada del CUPO: la de arriba más el capital quincenal afuera
+       (6-ago-2026). Ver el comentario de entradaCupo para por qué son dos. */
+    entradaCupo: entradaCupo,
     garantiaGanadaDe: garantiaGanadaDe,
     comprometidaDe: comprometidaDe,
+    capitalQuincenalDe: capitalQuincenalDe,
     /* La contabilidad del cupón (5-ago-2026). SOLO para el Panel: no entra al
        paquete del socio por ningún lado. */
     movimientosCobradosCredito: movimientosCobradosCredito,
