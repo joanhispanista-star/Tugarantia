@@ -662,7 +662,7 @@ details[open] summary::after{content:' ↑'}
    app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
    de CACHE en sw.js). */
-var VERSION_APP = '2026-08-06';
+var VERSION_APP = '2026-08-10';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -813,91 +813,20 @@ function porWhatsApp(texto) {
 /* La marca. Se llama así por historia; devuelve el nombre del negocio. */
 function nombreJoan() { return contactoOficial().nombre; }
 
-/* ===================== SOCIOS DE PRUEBA ===================== */
-/* ============================ SOCIOS DE PRUEBA ============================
-   5-ago-2026. Antes había tres socios inventados: Ana Ruiz, Luis Gómez y Joan.
-   Ana y Luis se fueron, por pedido de Joan y porque tenían un problema: cuando
-   sus clientes de verdad ya están en el Panel, dos personajes de mentira en la
-   pantalla de entrada solo sirven para que alguien entre con la cédula
-   equivocada y crea que la app le está mostrando datos falsos.
+/* ================== NO HAY CUENTAS DE PRUEBA ==================
+   10-ago-2026. Acá vivía la cuenta demo de Joan, con tres créditos
+   de 100.000) y antes de ella dos personajes inventados, Ana Ruiz y Luis Gómez.
+   Se van todos, por pedido de Joan y porque ya no hay excusa: con clientes de
+   verdad entrando, una cuenta de mentira en la pantalla de entrada solo sirve
+   para que alguien vea números que no son de nadie y crea que son los suyos.
 
-   Queda uno solo, el de Joan, para que pueda verse como socio y probar la app
-   sin tocar la cuenta de ningún cliente.
+   Los clientes entran por una de tres puertas, y todas son de datos reales: la
+   nube (historial_socio), el Panel de este mismo equipo —solo en el computador
+   de Joan— y el enlace de WhatsApp con el historial adentro. Ver entrar().
 
-   Los clientes REALES no entran por acá: entran por el Panel (modo panel, en el
-   equipo de Joan), por el enlace de WhatsApp, o por Supabase cuando esté
-   conectado. Ver el orden de búsqueda en abrirPorCedula().               */
-var DEMOS = (function () {
-  /* ---- La cuenta de Joan ----
-     3 créditos de 100.000, todos pagados en fecha. 60.000 de costos, 45.000 de
-     garantía ganada (el 75% de cada costo) + 100.000 de cupón = 145.000 de
-     garantía total. Nivel plata (con 3 pagos puntuales; el oro pide 5), y el
-     cupo es esa misma garantía UNO A UNO: 145.000. Préstamo con garantía hasta
-     45.000, que es solo la ganada.
-
-     5-ago-2026: este comentario decía 54.000 / 154.000 / cupo 308.000, que era
-     el 90% del costo y la garantía multiplicada por el factor de plata (2,0).
-     Las dos reglas se derogaron el mismo día. Las cifras nunca estuvieron
-     escritas a mano —salen del motor unas líneas más abajo—, así que la cuenta
-     ya cambió sola; lo único que había quedado mintiendo era este texto. */
-  var montosJoan = [100000, 100000, 100000];
-  var credJoan = [], ganadaJoan = 0;
-  for (var j = 0; j < montosJoan.length; j++) {
-    var capJ = montosJoan[j];
-    var costoJ = M ? M.calcularCosto(capJ) : Math.round(capJ * 0.20);
-    var ganJ = M ? M.acumularGarantia(costoJ, true) : 0;   // 0,75 sobre 20.000 = 15.000
-    ganadaJoan += ganJ;
-    credJoan.push({
-      codigo: 'CR-' + String(3 - j).padStart(4, '0'),
-      capital: capJ, costo: costoJ,
-      desembolso: fechaRel(-15 * (j + 1) - 12),
-      corte: fechaRel(-15 * (j + 1)),
-      pagado: true,
-      fecha_pagado: fechaRel(-15 * (j + 1) - 1),   // un día antes del corte: puntual
-      abonado: capJ + costoJ, prorrogas: 0, garantia: ganJ
-    });
-  }
-  var datosJoan = {
-    nombre: 'Joan Hispanista', cedula: '79111000', celular: '3001112026', whatsapp: true,
-    correo: 'joan@tugarantia.co', ciudad: 'Bogotá Chapinero', direccion: 'Cll 63 #11-20',
-    vivienda: 'apartamento 402', pago: 'Nequi 3001112026', celular2: '6012223344',
-    referencia: 'Marta Ruiz 3009998877', ubicacion: { lat: 4.65, lng: -74.06, acc: 20 },
-    foto_cedula_frente: 'si', foto_cedula_reverso: 'si', foto_selfie: 'si'
-  };
-  var cuponJoan = M ? M.garantiaPorDatos(datosJoan).total : 0;
-
-  /* El nivel también sale del motor. Escrito a mano, el día que cambien los
-     requisitos esta cuenta seguiría diciendo "platino" mientras el cupo se
-     calcula con otra cosa, que es justo la clase de mentira que este proyecto
-     lleva semanas persiguiendo. */
-  var nivelJoan = M ? M.evaluarNivel(montosJoan.length, montosJoan.length, montosJoan.length, null) : 'plata';
-  var totalPrestadoJoan = montosJoan.reduce(function (t, c) { return t + c; }, 0);
-
-  return [
-    { cedula: '79111000', tel4: '2026', nombre: 'Joan Hispanista',
-      datos: {
-        negocio: { nombre: 'Tu Garantía', whatsapp: '' },
-        comunidad: null,
-        socio: { codigo: 'CL-0001' },
-        garantia: { total: ganadaJoan + cuponJoan, acumulada: ganadaJoan, cupon: cuponJoan, referidos: 0,
-          nivel: nivelJoan, pagados_a_tiempo: montosJoan.length, racha: montosJoan.length,
-          meses_sin_mora: 2, creditos_total: montosJoan.length, comprometida: 0 },
-        perfil: { datos: datosJoan },
-        referidos: { total: 0, pagaron: 0, lista: [] },
-        creditos: credJoan,
-        respaldados: [],
-        resumen: { total_prestado: totalPrestadoJoan, primer_credito: fechaRel(-15 * montosJoan.length - 12) }
-      } }
-  ];
-})();
-function buscarDemo(cedula, tel4) {
-  for (var i = 0; i < DEMOS.length; i++) {
-    if (DEMOS[i].cedula === cedula && DEMOS[i].tel4 === tel4) {
-      return { nombre: DEMOS[i].nombre, datos: DEMOS[i].datos, actualizado_en: null };
-    }
-  }
-  return null;
-}
+   Si hace falta probar la app sin tocar la cuenta de un cliente, se crea un
+   cliente de prueba EN EL PANEL, con su código como cualquier otro. Así se
+   prueba el camino de verdad y no una copia que se puede desviar de él.        */
 
 /* ============ HISTORIAL QUE VIENE DENTRO DEL ENLACE ============ */
 function desdeEnlace() {
@@ -954,40 +883,45 @@ function leerPanel() {
     return P.normalizar(JSON.parse(crudo));
   } catch (e) { return null; }
 }
-/* ¿Este equipo es el de Joan, o sea, tiene el Panel con clientes de verdad?
-   Se usa para no anunciar la cuenta de prueba donde hay datos reales: quien esté
-   mirando no tiene que dudar de si lo que ve son sus números o los inventados. */
-function hayPanel() {
-  var db = leerPanel();
-  return !!(db && db.socios && db.socios.length);
-}
-
-/* El enlace que abre el Panel: #p=cedula-4dígitos. Va en el hash a propósito,
+/* El enlace que abre el Panel: #p=cedula-CÓDIGO. Va en el hash a propósito,
    porque el hash no sale del navegador; un ?p= quedaría en los registros del
    servidor. Y solo sirve donde vive el Panel: en el celular de un cliente esa
-   llave está vacía. */
+   llave está vacía.
+
+   10-ago-2026: eran 4 dígitos y ahora son los 5 caracteres del código, para que
+   "ver la app como la ve él" pase por la misma puerta que el cliente. Si esto
+   siguiera aceptando los 4 del celular, quedaría una segunda entrada más débil
+   viva en el mismo archivo — y las segundas entradas son las que se olvidan. */
 function desdePanel() {
-  var m = /[#&]p=(\d{5,15})-(\d{4})\b/.exec(location.hash || '');
+  var m = /[#&]p=(\d{5,15})-([0-9A-Za-z]{5})\b/.exec(location.hash || '');
   return m ? buscarEnPanel(m[1], m[2]) : null;
 }
-function buscarEnPanel(ced, tel) {
+function buscarEnPanel(ced, codigo) {
   try {
     var db = leerPanel(); if (!db) return null;
-    var s = P.buscarSocio(db, ced, tel); if (!s) return null;
+    var s = P.buscarSocio(db, ced, codigo); if (!s) return null;
     return { nombre: s.nombre || 'Socio', datos: P.migrarSocio(db, s),
-             actualizado_en: null, origen: 'panel', cedula: ced, tel4: tel };
+             actualizado_en: null, origen: 'panel', cedula: ced,
+             codigo: M.normalizarCodigoAcceso(codigo) };
   } catch (e) { return null; }
 }
 
 /* ============================ ENTRAR ============================
-   Tres fuentes, siempre en este orden: la nube, el Panel de este equipo, y los
-   socios de prueba. Si una no está disponible se salta, no se cae. */
-function buscarEnNube(ced, tel) {
+   Dos fuentes, siempre en este orden: la nube y el Panel de este equipo. Si una
+   no está disponible se salta, no se cae. (Había una tercera, los socios de
+   prueba; se fue el 10-ago-2026 — ver el bloque de arriba.)
+
+   10-ago-2026: la nube se pregunta por CÓDIGO, no por los 4 del celular. La
+   función nueva se llama historial_socio_por_codigo y vive en la migración
+   base/20260810_codigo_acceso.sql. Mientras esa migración no esté corrida en
+   Supabase, esta llamada devuelve 404 y el que entra cae al Panel — que es el
+   camino que funciona hoy en el computador de Joan. */
+function buscarEnNube(ced, cod) {
   if (!CFG.url || !CFG.anon) return Promise.resolve({ dato: null, falloRed: false });
-  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/historial_socio', {
+  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/historial_socio_por_codigo', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
-    body: JSON.stringify({ p_cedula: ced, p_tel4: tel })
+    body: JSON.stringify({ p_cedula: ced, p_codigo: cod })
   }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
     .then(function (j) { return { dato: j || null, falloRed: false }; })
     .catch(function () { return { dato: null, falloRed: true }; });
@@ -995,26 +929,29 @@ function buscarEnNube(ced, tel) {
 
 function entrar() {
   var ced = ($('inCedula').value || '').replace(/\D/g, '');
-  var tel = ($('inTel').value || '').replace(/\D/g, '').slice(-4);
+  var cod = M.normalizarCodigoAcceso($('inCodigo2').value || '');
   $('errEntrar').classList.add('oculto');
   if (ced.length < 5) return fallo('Escribe tu número de cédula completo.');
-  if (tel.length < 4) return fallo('Necesito los últimos 4 números de tu celular.');
+  /* El código mal escrito muere ACÁ, en el teléfono, y no gasta uno de los ocho
+     intentos que da el freno de la nube. Es lo que compra tener una forma fija:
+     cinco caracteres del alfabeto y nada más. */
+  if (!cod) {
+    return fallo('Tu código tiene ' + M.LARGO_CODIGO_ACCESO + ' caracteres, como ' +
+      'K7QP3. Revísalo en el mensaje que te mandamos.');
+  }
   mostrar('pCargando');
 
-  buscarEnNube(ced, tel).then(function (n) {
-    if (n.dato) { n.dato.cedula = ced; n.dato.tel4 = tel; n.dato.origen = 'nube'; return abrir(n.dato, false); }
+  buscarEnNube(ced, cod).then(function (n) {
+    if (n.dato) { n.dato.cedula = ced; n.dato.codigo = cod; n.dato.origen = 'nube'; return abrir(n.dato); }
 
-    var p = buscarEnPanel(ced, tel);
-    if (p) return abrir(p, false);
+    var p = buscarEnPanel(ced, cod);
+    if (p) return abrir(p);
 
-    var d = buscarDemo(ced, tel);
-    if (d) { d.cedula = ced; d.tel4 = tel; d.origen = 'demo'; return abrir(d, true); }
-
-    /* Nunca se dice "la cédula existe pero el celular no coincide": eso
+    /* Nunca se dice "la cédula existe pero el código no coincide": eso
        convertiría la app en un oráculo de cédulas. */
     fallo(n.falloRed
       ? 'No pude conectarme. Revisa que tengas internet y vuelve a intentar.'
-      : 'No encontré esa cédula con ese celular. Revisa los números, y si siguen sin salir escríbenos.' +
+      : 'No encontré esa cédula con ese código. Revísalos, y si siguen sin salir escríbenos.' +
         (location.protocol === 'file:'
           ? ' Si estás abriendo esto como archivo, ábrelo desde la dirección web: así las dos páginas se ven entre sí.'
           : ''));
@@ -1023,39 +960,128 @@ function entrar() {
   function fallo(msg) { $('errEntrar').textContent = msg; $('errEntrar').classList.remove('oculto'); mostrar('pEntrar'); }
 }
 
-/* ================= LA PANTALLA DE ENTRAR ================= */
+/* ================= LA PANTALLA DE ENTRAR =================
+   10-ago-2026: se entra con cédula + CÓDIGO, no con los últimos 4 del celular.
+   Ver el comentario largo de generarCodigoAcceso en motor.js: los cuatro dígitos
+   del celular de alguien circulan en todos los grupos de WhatsApp de los que esa
+   persona hace parte, y la cédula en Colombia está en cada factura. */
 function pintarEntrar() {
   $('entrarCuerpo').innerHTML =
     '<div class="card">' +
-      '<h3 class="tit">Entra con tus datos</h3>' +
-      '<p class="sub">Los mismos que diste cuando abriste tu crédito.</p>' +
+      '<h3 class="tit">Entra con tu código</h3>' +
+      '<p class="sub">El que te mandamos por WhatsApp. Es tuyo y no cambia.</p>' +
       '<label for="inCedula">Tu cédula</label>' +
       '<input id="inCedula" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 52111222">' +
-      '<label for="inTel">Últimos 4 números de tu celular</label>' +
-      '<input id="inTel" type="text" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="Ej: 2233">' +
+      '<label for="inCodigo2">Tu código</label>' +
+      '<input id="inCodigo2" type="text" autocomplete="off" autocapitalize="characters" ' +
+        'spellcheck="false" maxlength="' + M.LARGO_CODIGO_ACCESO +
+        '" placeholder="Ej: K7QP3" style="text-transform:uppercase;letter-spacing:.18em" ' +
+        'oninput="tecleaAcceso(this)">' +
       '<button class="btn arriba" id="btnEntrar">Ver mi cuenta</button>' +
       '<div id="errEntrar" class="aviso ambar oculto"></div>' +
-      '<div id="avisoDemo" class="aviso oculto"></div>' +
+      /* La salida del que perdió el código. Sin esto, el que lo pierde no tiene
+         puerta y se va: no hay "recuperar contraseña" que valga, el código lo
+         tiene Joan en su Panel y se lo vuelve a mandar. */
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pedirCodigo()">' +
+        'No tengo mi código</button>' +
     '</div>' +
     '<div class="card">' +
       '<h3 class="tit">¿Todavía no eres socio?</h3>' +
       '<p class="sub">Se entra solo por invitación. Si alguien te pasó un código, escríbelo aquí.</p>' +
       '<button class="btn sec arriba" onclick="abrirRegistro()">Tengo un código de invitación</button>' +
     '</div>' +
-    '<div class="pie">Tus datos solo los ves tú, con tu cédula y tu celular.<br>' +
-      '¿No te reconoce? Escríbenos y lo revisamos.</div>';
+    tarjetaInstalar() +
+    '<div class="pie">Tus datos solo los ves tú, con tu cédula y tu código.<br>' +
+      '¿No te reconoce? Escríbenos y lo revisamos.' + selloDeVersion() + '</div>';
   $('btnEntrar').addEventListener('click', entrar);
-  $('inCedula').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('inTel').focus(); });
-  $('inTel').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
-  /* El aviso solo aparece SIN nube y SIN datos del Panel. En el equipo de Joan,
-     donde el Panel sí tiene a sus clientes, anunciar una cuenta de prueba haría
-     dudar a quien esté mirando de si lo que ve son sus números o los de mentira. */
-  if ((!CFG.url || !CFG.anon) && !hayPanel()) {
-    $('avisoDemo').innerHTML = '<b>Modo de prueba.</b> Todavía no está conectada la base. ' +
-      'Puedes entrar con la cuenta de ejemplo:' +
-      '<div style="margin-top:var(--e2)"><b>Joan</b> — cédula <b>79111000</b>, celular <b>2026</b></div>';
-    $('avisoDemo').classList.remove('oculto');
+  $('inCedula').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('inCodigo2').focus(); });
+  $('inCodigo2').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+}
+
+/* Va limpiando mientras teclea. La limpieza la hace el MOTOR, no una expresión
+   regular escrita acá: si la app aceptara un carácter que el motor rechaza —o al
+   revés— el cliente vería su código escrito bien y le diría que no existe. */
+function tecleaAcceso(el) {
+  el.value = M.limpiarCodigoAcceso(el.value).slice(0, M.LARGO_CODIGO_ACCESO);
+}
+
+function pedirCodigo() {
+  porWhatsApp('Hola, soy socio de ' + nombreJoan() + ' y no tengo mi código para entrar a la app. ' +
+    'Mi cédula es ' + (($('inCedula') && $('inCedula').value) || '…') + '. ¿Me lo puedes reenviar?');
+}
+
+/* ==================== INSTALARLA EN EL CELULAR ====================
+   10-ago-2026. Esta app NO va a estar en Play Store: la política de préstamos
+   personales de Google prohíbe los créditos que se paguen completos en 60 días
+   o menos, y el quincenal es de quince. No es un trámite pendiente, es un no.
+
+   Pero instalada desde el navegador queda igual de bien: icono propio, pantalla
+   completa y abre sin señal. Todo eso ya está (app.webmanifest y sw.js); lo
+   único que exige Chrome además es HTTPS.
+
+   EL BOTÓN SOLO APARECE CUANDO DE VERDAD PUEDE INSTALAR. Chrome avisa con
+   `beforeinstallprompt` cuando la app cumple los requisitos y todavía no está
+   instalada; si no avisa, no hay diálogo que abrir y un botón que no hace nada
+   es peor que ninguno — la regla de la casa es que la pantalla no promete lo
+   que el código no cumple. En iPhone ese evento no existe y no lo va a haber,
+   así que ahí se explican los pasos de Safari, que son otros. */
+var PROMPT_INSTALAR = null;
+
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault();
+  PROMPT_INSTALAR = e;
+  var b = $('cajaInstalar');
+  if (b) b.classList.remove('oculto');
+});
+window.addEventListener('appinstalled', function () {
+  PROMPT_INSTALAR = null;
+  var b = $('cajaInstalar');
+  if (b) b.classList.add('oculto');
+});
+
+function instalarApp() {
+  if (!PROMPT_INSTALAR) return;
+  PROMPT_INSTALAR.prompt();
+  PROMPT_INSTALAR.userChoice.then(function () {
+    /* Se use o se descarte, el evento no se puede volver a disparar: Chrome da
+       uno solo por carga. Guardarlo para "la próxima" deja un botón que ya no
+       abre nada. */
+    PROMPT_INSTALAR = null;
+    var b = $('cajaInstalar');
+    if (b) b.classList.add('oculto');
+  });
+}
+
+/* ¿Ya está instalada y abierta como app? Entonces no hay nada que ofrecer. */
+function abiertaComoApp() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+         window.navigator.standalone === true;
+}
+
+function esIPhone() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function tarjetaInstalar() {
+  if (abiertaComoApp()) return '';
+  if (esIPhone()) {
+    /* En iPhone no hay botón posible: Safari no expone el diálogo. Se dicen los
+       pasos, y se dice que tiene que ser Safari — en Chrome de iPhone la opción
+       no aparece, y ese es el motivo número uno de "no me sale". */
+    return '<div class="card"><h3 class="tit">Tenla en tu pantalla de inicio</h3>' +
+      '<p class="sub">Abre esta página en <b>Safari</b> (en Chrome no sale la opción), ' +
+      'toca el botón de compartir <b>⬆</b> de abajo y elige <b>Añadir a pantalla de inicio</b>. ' +
+      'Queda con su icono y abre a pantalla completa.</p></div>';
   }
+  /* Nace escondida y la destapa el evento. Salvo que el evento YA haya pasado
+     —pintarEntrar se vuelve a llamar al salir de la cuenta, y para entonces
+     Chrome ya avisó y no vuelve a avisar—, en cuyo caso nace visible. */
+  return '<div class="card' + (PROMPT_INSTALAR ? '' : ' oculto') + '" id="cajaInstalar">' +
+    '<h3 class="tit">Tenla en tu celular</h3>' +
+    '<p class="sub">Queda con su icono, abre a pantalla completa y funciona sin señal. ' +
+    'No pesa casi nada.</p>' +
+    '<button class="btn sec arriba" onclick="instalarApp()">Instalar la app</button></div>';
 }
 
 /* ============ ENTRAR POR INVITACIÓN ============
@@ -1170,7 +1196,14 @@ function registroListo(codigo, nom, ced, tel, via) {
 }
 
 /* ==================== PREPARAR AL SOCIO ==================== */
-function abrir(resp, esDemo) {
+/* OJO CON LOS DOS CÓDIGOS, que se llaman parecido y no son lo mismo:
+     S.codigo  — el CL-0001 del cliente. Es su número de orden y sirve para
+                 nombrarlo en un WhatsApp o en un recibo. No abre nada.
+     S.acceso  — los 5 caracteres con los que entró. Es la llave.
+   El segundo NO viaja en el enlace de WhatsApp ni en la solicitud: solo se
+   guarda mientras la sesión está abierta, para poder volver a preguntarle a la
+   nube por los mismos datos. */
+function abrir(resp) {
   var d = resp.datos || {};
   var g = d.garantia || {};
   var creditos = (d.creditos || []).slice();
@@ -1203,9 +1236,9 @@ function abrir(resp, esDemo) {
   S = {
     nombre: resp.nombre || 'Socio',
     codigo: (d.socio && d.socio.codigo) || '',
-    cedula: resp.cedula || '', tel4: resp.tel4 || '',
-    esDemo: !!esDemo, deEnlace: !!resp.deEnlace, actualizado: resp.actualizado_en,
-    origen: resp.origen || (esDemo ? 'demo' : (resp.deEnlace ? 'enlace' : 'nube')),
+    cedula: resp.cedula || '', acceso: resp.codigo || '',
+    deEnlace: !!resp.deEnlace, actualizado: resp.actualizado_en,
+    origen: resp.origen || (resp.deEnlace ? 'enlace' : 'nube'),
     g: g,
     gd: gd,
     comprometida: gd.comprometida,
@@ -1309,7 +1342,6 @@ function proximoCorte() {
 
 function vistaInicio() {
   var h = '';
-  if (S.esDemo) h += '<div class="cinta">Estás viendo un ejemplo: la base todavía no está conectada.</div>';
 
   var cuota = proximaCuotaRespaldado();
   /* "Este corte" se mide contra el corte que viene DE VERDAD, no contra el
@@ -2680,12 +2712,12 @@ function mandarSolicitud(monto) {
   var costo = resp ? s.costo_total : s.costo;
   var seExcede = resp ? !s.dentro_del_respaldo : (monto > S.cupo);
 
-  if (CFG.url && CFG.anon && S.cedula && S.tel4) {
+  if (CFG.url && CFG.anon && S.cedula && S.acceso) {
     fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/crear_solicitud', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
       body: JSON.stringify({
-        p_cedula: S.cedula, p_tel4: S.tel4,
+        p_cedula: S.cedula, p_codigo: S.acceso,
         p_producto: resp ? 'respaldado' : 'quincenal',
         p_plazo: resp ? s.plazo_meses : null,
         p_datos: { capital: s.capital, tasa: resp ? s.tasa_mensual : s.tasa, costo: costo,
@@ -3176,7 +3208,7 @@ function pie() {
     (S.origen === 'panel' ? 'Datos del Panel de este equipo.<br>' : '') +
     'Si ves algo raro en tus números, escríbenos.' +
     enlacesLegales() +
-    (S.esDemo ? '' : '<br><a href="#" onclick="salir();return false" style="color:inherit">Salir</a>') +
+    '<br><a href="#" onclick="salir();return false" style="color:inherit">Salir</a>' +
     selloDeVersion() +
     '</div>';
 }
@@ -3230,8 +3262,8 @@ function pantallaConfig() {
     var b = e.target.closest('button'); if (b && S) irA(b.dataset.t);
   });
   window.addEventListener('hashchange', function () {
-    var nuevo = desdeEnlace(); if (nuevo) return abrir(nuevo, false);
-    var p = desdePanel(); if (p) abrir(p, false);
+    var nuevo = desdeEnlace(); if (nuevo) return abrir(nuevo);
+    var p = desdePanel(); if (p) abrir(p);
   });
 
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
@@ -3266,12 +3298,12 @@ function pantallaConfig() {
   })();
 
   var delEnlace = desdeEnlace();
-  if (delEnlace) return abrir(delEnlace, false);
+  if (delEnlace) return abrir(delEnlace);
 
-  /* "Ver la app como la ve él": Joan abre desde su Panel #p=cedula-4dígitos.
+  /* "Ver la app como la ve él": Joan abre desde su Panel #p=cedula-código.
      El hash no viaja al servidor, y sin esos dos datos no abre nada. */
   var delPanel = desdePanel();
-  if (delPanel) return abrir(delPanel, false);
+  if (delPanel) return abrir(delPanel);
 })();
 </script>
 </body>

@@ -227,6 +227,13 @@
       if (s.ajusteMotivo === undefined) s.ajusteMotivo = '';
       if (s.migracionRevisada === undefined) s.migracionRevisada = null;
       if (s.codigoInvitacion === undefined) s.codigoInvitacion = null;
+      /* El código con el que entra a la app, y cuándo se lo mandaron
+         (10-ago-2026). Nacen VACÍOS a propósito y no se generan acá: un cliente
+         sin código no entra, y eso es correcto —lo contrario sería que "sin
+         código" fuera la contraseña de todos los que aún no lo tienen—. Los
+         crea el Panel a pedido de Joan, que es quien después se los manda. */
+      if (s.codigoAcceso === undefined) s.codigoAcceso = '';
+      if (s.codigoEnviadoEn === undefined) s.codigoEnviadoEn = null;
       // Lo que el socio gana por quincena. Solo lo usa el freno por ingreso, que
       // está apagado: en cero el freno no puede topar nada (ver frenoDe).
       if (s.ingresoQuincenal === undefined) s.ingresoQuincenal = 0;
@@ -1648,23 +1655,47 @@
     };
   }
 
-  /* Entrar sigue costando lo mismo: cédula + los últimos 4 del celular. Sin
-     esos dos datos no se puede listar a nadie, ni siquiera en el equipo de
-     Joan. Y nunca se dice "la cédula existe pero el celular no": eso volvería
-     la app un oráculo de cédulas. */
-  function buscarSocio(db, cedula, tel4) {
-    var ced = digitos(cedula), t4 = digitos(tel4).slice(-4);
-    if (ced.length < 5 || t4.length < 4) return null;
+  /* Entrar cuesta cédula + el código de acceso del cliente. Sin esos dos datos
+     no se puede listar a nadie, ni siquiera en el equipo de Joan. Y nunca se
+     dice "la cédula existe pero el código no": eso volvería la app un oráculo
+     de cédulas.
+
+     10-ago-2026 — ESTO ANTES PEDÍA LOS ÚLTIMOS 4 DEL CELULAR, y se cambió por
+     lo que son: un secreto que no es secreto. Los cuatro últimos dígitos del
+     celular de alguien circulan en cada grupo de WhatsApp del que esa persona
+     hace parte, y la cédula en Colombia está en cada factura. Las dos juntas
+     abrían la dirección de la casa, el segundo teléfono y la foto de la cédula.
+
+     El código lo genera el Panel al azar (generarCodigoAcceso, en el motor) y
+     se lo manda Joan por WhatsApp. Ver el comentario largo del motor para las
+     cuentas de por qué son cinco caracteres y no cinco dígitos. */
+  function codigoAccesoDe(s) {
+    return (s && typeof s.codigoAcceso === 'string') ? s.codigoAcceso : '';
+  }
+
+  function buscarSocio(db, cedula, codigo) {
+    var ced = digitos(cedula);
+    var cod = M.normalizarCodigoAcceso(String(codigo == null ? '' : codigo));
+    if (ced.length < 5 || !cod) return null;
     var socios = lista(db && db.socios);
     for (var i = 0; i < socios.length; i++) {
       var s = socios[i];
       if (digitos(s.cedula) !== ced) continue;
-      var tels = [s.telefono, s.whatsappNumero, s.telefono2];
-      for (var j = 0; j < tels.length; j++) {
-        if (digitos(tels[j]).slice(-4) === t4 && digitos(tels[j]).length >= 4) return s;
-      }
+      /* Un cliente sin código todavía NO entra. Es a propósito: mientras Joan no
+         le haya generado el suyo, dejarlo pasar con el campo vacío convertiría
+         "sin código" en la contraseña de todos los que aún no lo tienen. */
+      var suyo = M.normalizarCodigoAcceso(codigoAccesoDe(s));
+      if (suyo && suyo === cod) return s;
     }
     return null;
+  }
+
+  /* Los clientes a los que todavía hay que generarles el código. El Panel lo usa
+     para el aviso de "te faltan N" y para el botón que los crea de una. */
+  function sinCodigoAcceso(db) {
+    return lista(db && db.socios).filter(function (s) {
+      return !M.normalizarCodigoAcceso(codigoAccesoDe(s));
+    });
   }
 
   return {
@@ -1691,6 +1722,11 @@
     cupoDelSocio: cupoDelSocio,
     migrarSocio: migrarSocio,
     buscarSocio: buscarSocio,
+    /* El código de acceso del cliente y quiénes todavía no tienen (10-ago-2026).
+       Los dos viven acá y no en crm.html: el Panel tuvo doce copias de cuentas
+       que el puente ya sabía hacer, y esta va a hacer falta también en la app. */
+    codigoAccesoDe: codigoAccesoDe,
+    sinCodigoAcceso: sinCodigoAcceso,
     datosKycDe: datosKycDe,
     referidosDe: referidosDe,
     fotoComunidad: fotoComunidad,

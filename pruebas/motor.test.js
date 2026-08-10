@@ -4820,7 +4820,7 @@ describe('lo causado no depende de cuánto capital quede después (4-ago-2026)',
  * cobranza bancaria, justo lo que este producto no quiere sonar.
  * ======================================================================== */
 
-describe('las doce plantillas hablan con una sola voz (4-ago-2026)', () => {
+describe('las plantillas hablan con una sola voz (4-ago-2026)', () => {
 
   const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
   const DEF = CRM.slice(CRM.indexOf('const PLANTILLAS_DEF'),
@@ -4837,8 +4837,11 @@ describe('las doce plantillas hablan con una sola voz (4-ago-2026)', () => {
                            '\nreturn VOZ_UNICA;')();
   const migrar = t => VOZ.reduce((s, r) => s.replace(r[0], r[1]), t);
 
-  test('son doce y ninguna dice "obligación"', () => {
-    assert.equal(mensajes().length, 12, 'cambió el número de plantillas: revisá la voz');
+  test('son trece y ninguna dice "obligación"', () => {
+    /* El número sube cuando se agrega una plantilla, y a propósito rompe la
+       prueba cuando pasa: quien agregue una tiene que leer esta batería antes
+       de escribirla. La decimotercera es la del código de acceso (10-ago-2026). */
+    assert.equal(mensajes().length, 13, 'cambió el número de plantillas: revisá la voz');
     // En ninguna plantilla recomendada, y en ningún texto que le llegue al
     // socio. La palabra solo puede quedar viva en la regla que la borra.
     mensajes().forEach(m => assert.ok(!/obligaci[oó]n/i.test(m),
@@ -4848,7 +4851,7 @@ describe('las doce plantillas hablan con una sola voz (4-ago-2026)', () => {
     assert.match(plantilla('mora'), /Tu pago de \{saldo\} sigue pendiente/);
   });
 
-  test('NINGUNA de las doce habla en singular', () => {
+  test('NINGUNA habla en singular', () => {
     // Las construcciones exactas que traían las siete plantillas en singular.
     const singular = [
       /\bespero que est[ée]s\b/i, /\bme avisas y entre los dos\b/i,
@@ -4863,7 +4866,7 @@ describe('las doce plantillas hablan con una sola voz (4-ago-2026)', () => {
     }));
   });
 
-  test('y las doce tienen a "nosotros" de remitente', () => {
+  test('y todas tienen a "nosotros" de remitente', () => {
     mensajes().forEach(m => {
       assert.ok(/(?:amos|emos|imos)\b|\bnos\b|\bnuestr/i.test(m),
         'esta no dice quién escribe: ' + m.slice(0, 80));
@@ -6412,13 +6415,20 @@ describe('la app no promete el doble sin la excepción (5-ago-2026)', () => {
  * sola de estas se mueve, el cambio de reglas dejó de estar hecho.
  * ======================================================================== */
 
-describe('LA CUENTA DE PRUEBA (79111000 / 2026) con las reglas nuevas', () => {
+describe('EL CASO DE 3 CRÉDITOS DE 100.000 con las reglas nuevas', () => {
 
-  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+  /* 10-ago-2026 — ESTA BATERÍA SE LLAMABA "LA CUENTA DE PRUEBA (79111000 / 2026)"
+     y medía la cuenta demo que vivía dentro de socio.html. Esa cuenta se borró:
+     con clientes de verdad entrando, una inventada solo sirve para que alguien
+     crea que esos números son suyos.
 
-  /* La cuenta demo de socio.html: 3 créditos de 100.000, todos en fecha, y la
-     ficha de KYC completa. Se rearma acá con el motor —que es de donde socio.html
-     saca sus cifras— para poder fijar los números peso a peso. */
+     Lo que medía NO se borra, porque no era la cuenta: era el enunciado con el
+     que Joan pidió el cambio de reglas del 5 de agosto. Tres créditos de 100.000
+     pagados en fecha y la ficha completa siguen teniendo que dar 145.000, y
+     siguen sin poder dar los 308.000 de antes. Solo cambia de dónde salen los
+     datos: del motor, y ya no de un bloque de la app. */
+
+  /* Tres créditos de 100.000, todos en fecha, y la ficha de KYC completa. */
   function cuentaDePrueba() {
     const montos = [100000, 100000, 100000];
     let ganada = 0, costos = 0;
@@ -6455,14 +6465,27 @@ describe('LA CUENTA DE PRUEBA (79111000 / 2026) con las reglas nuevas', () => {
     assert.equal(M.calcularCupo(145000, 'plata'), 145000);
   });
 
-  test('socio.html sigue sacando esas cifras del motor, no escritas a mano', () => {
-    // Si un día alguien las clava en la app, esta prueba deja de tener sentido y
-    // la cuenta demo empieza a mentirle al que la abre para probar.
-    assert.match(SOCIO, /M\.acumularGarantia\(costoJ, true\)/,
-      'la garantía de la cuenta demo tiene que salir del motor');
-    assert.match(SOCIO, /M\.calcularCosto\(capJ\)/);
-    assert.match(SOCIO, /var montosJoan = \[100000, 100000, 100000\]/,
-      'los tres créditos de 100.000 del enunciado');
+  test('y la app no trae ninguna cifra de esas escrita a mano', () => {
+    /* El centinela cambió de forma con la cuenta demo. Antes exigía que la app
+       SACARA esas cifras del motor; ahora exige que no las tenga.
+
+       Se mide sobre el archivo SIN COMENTARIOS, y eso no es un atajo: 145.000 y
+       308.000 aparecen tres veces en socio.html contando por qué se cambiaron
+       las reglas, y esa historia es justo lo que hay que conservar. Lo que no
+       puede volver es una cifra de socio viva en el código. */
+    const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+    const sinComentarios = SOCIO.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    // El arnés primero: si el borrado de comentarios se comiera el archivo, todo
+    // lo de abajo pasaría sin medir nada.
+    assert.ok(sinComentarios.length > SOCIO.length * 0.5,
+      'el borrado de comentarios se llevó medio archivo: la prueba no está midiendo');
+    assert.match(sinComentarios, /function vistaInicio/, 'y el código sigue ahí');
+
+    ['145000', '145.000', '308000', '308.000', 'montosJoan', 'ganadaJoan', 'cuponJoan',
+     'credJoan', 'datosJoan', 'nivelJoan']
+      .forEach(t => assert.ok(sinComentarios.indexOf(t) === -1,
+        'quedó «' + t + '» vivo en el código de la app: los números del socio ' +
+        'salen de su historial, no de un literal'));
   });
 });
 
@@ -7746,5 +7769,376 @@ describe('la hoja de estilos de la app no tiene comentarios rotos', () => {
     ['class="placa"', 'class="aura"', 'class="grano"', 'class="vineta"',
      'class="halo"', 'class="sello"', 'class="lema"', 'class="filete"']
       .forEach(m => assert.ok(SOCIO.indexOf(m) >= 0, 'la bienvenida perdió ' + m));
+  });
+});
+
+/* ==========================================================================
+ * EL CÓDIGO DE ACCESO — 10-ago-2026
+ *
+ * El cliente entra con su cédula y un código de 5 caracteres que le manda Joan,
+ * no con los últimos 4 de su celular. Estas pruebas fijan las tres cosas que
+ * hacen que eso sea una mejora y no un cambio de forma: que el código no se
+ * pueda adivinar, que la app y el Panel entiendan exactamente lo mismo por
+ * "código", y que nadie entre sin uno.
+ * ======================================================================== */
+
+describe('el código de acceso: forma y azar', () => {
+
+  /* Un azar de mentira pero determinista, para poder exigir el código exacto. */
+  const azarFijo = xs => { let i = 0; return () => xs[i++ % xs.length]; };
+
+  test('son 5 caracteres del alfabeto sin confundibles', () => {
+    assert.equal(M.LARGO_CODIGO_ACCESO, 5);
+    const c = M.generarCodigoAcceso(azarFijo([0, 0.5, 0.99, 0.25, 0.75]));
+    assert.equal(c.length, 5);
+    assert.match(c, /^[0-9A-HJKMNP-TV-Z]{5}$/);
+    for (const ch of c) assert.ok(M.ALFABETO_CODIGO.indexOf(ch) >= 0, ch + ' no es del alfabeto');
+  });
+
+  test('nunca salen I, L, O ni U: son las que se dictan mal por WhatsApp', () => {
+    /* Barrido del alfabeto entero por cada posición, no tres casos sueltos. */
+    for (let k = 0; k < M.ALFABETO_CODIGO.length; k++) {
+      const c = M.generarCodigoAcceso(() => k / M.ALFABETO_CODIGO.length);
+      assert.ok(!/[ILOU]/.test(c), 'salió ' + c);
+    }
+  });
+
+  test('usa el azar que le pasan, y revienta si le pasan basura', () => {
+    // Si ignorara el azar y usara Math.random, el Panel no podría darle uno
+    // criptográfico y el código sería adivinable conociendo la semilla.
+    assert.equal(M.generarCodigoAcceso(() => 0), '00000');
+    assert.equal(M.generarCodigoAcceso(() => 0.999999), 'ZZZZZ');
+    assert.throws(() => M.generarCodigoAcceso(() => 1), /azar/);
+    assert.throws(() => M.generarCodigoAcceso(() => -0.1), /azar/);
+    assert.throws(() => M.generarCodigoAcceso(() => 'x'), /azar/);
+  });
+
+  test('reparte parejo: 32 valores del azar dan los 32 caracteres, sin repetir', () => {
+    /* Si el reparto estuviera sesgado —un Math.round de más, un off-by-one— el
+       espacio real de códigos sería menor que los 33 millones que promete el
+       comentario del motor, y toda la seguridad de esto es ese número. */
+    const vistos = new Set();
+    for (let k = 0; k < 32; k++) vistos.add(M.generarCodigoAcceso(() => (k + 0.5) / 32).charAt(0));
+    assert.equal(vistos.size, 32, 'el alfabeto no se usa entero: ' + vistos.size + ' de 32');
+  });
+});
+
+describe('el código de acceso: lo que el cliente teclea', () => {
+
+  test('perdona minúsculas, espacios y guiones', () => {
+    assert.equal(M.normalizarCodigoAcceso('k7qp3'), 'K7QP3');
+    assert.equal(M.normalizarCodigoAcceso(' K7 QP3 '), 'K7QP3');
+    assert.equal(M.normalizarCodigoAcceso('K7-QP-3'), 'K7QP3');
+  });
+
+  test('endereza los confundibles: la O que es cero, la I que es uno', () => {
+    assert.equal(M.normalizarCodigoAcceso('OK7Q3'), '0K7Q3');
+    assert.equal(M.normalizarCodigoAcceso('IK7Q3'), '1K7Q3');
+    assert.equal(M.normalizarCodigoAcceso('LK7Q3'), '1K7Q3');
+    assert.equal(M.normalizarCodigoAcceso('UK7Q3'), 'VK7Q3');
+    // Y el resultado de enderezar es un código válido, no un intermedio raro.
+    assert.ok(M.codigoAccesoValido('ok7q3'));
+  });
+
+  test('cuatro no alcanzan y seis sobran', () => {
+    assert.equal(M.normalizarCodigoAcceso('K7QP'), null);
+    assert.equal(M.normalizarCodigoAcceso('K7QP33'), null);
+    assert.equal(M.normalizarCodigoAcceso(''), null);
+    assert.equal(M.normalizarCodigoAcceso(null), null);
+    assert.equal(M.normalizarCodigoAcceso(12345), null);
+  });
+
+  test('todo lo que genera se puede volver a leer — barrido de 3.000', () => {
+    /* El defecto clásico de este par de funciones es que generar y normalizar se
+       separen: un carácter que sale del generador y que el normalizador tira. */
+    let n = 0;
+    for (let i = 0; i < 3000; i++) {
+      const c = M.generarCodigoAcceso(() => ((i * 37 + n++ * 11) % 1000) / 1000);
+      assert.equal(M.normalizarCodigoAcceso(c), c, c + ' se genera pero no se puede leer');
+      assert.equal(M.normalizarCodigoAcceso(c.toLowerCase()), c);
+    }
+  });
+
+  test('limpiarCodigoAcceso es la MISMA cuenta, sin exigir largo', () => {
+    /* La app la llama en cada tecla. Si limpiara distinto, el cliente vería su
+       código escrito bien en pantalla y la app le diría que no existe. */
+    assert.equal(M.limpiarCodigoAcceso('k7'), 'K7');
+    assert.equal(M.limpiarCodigoAcceso('o-i'), '01');
+    assert.equal(M.limpiarCodigoAcceso(''), '');
+    for (const t of ['k7qp3', ' K7 QP3 ', 'ok7q3', 'K7QP', 'K7QP33']) {
+      const limpio = M.limpiarCodigoAcceso(t);
+      const norm = M.normalizarCodigoAcceso(t);
+      assert.equal(norm, limpio.length === 5 ? limpio : null, 'se separaron con ' + t);
+    }
+  });
+
+  test('no es el CL-0001: ese es el número de orden y se adivina contando', () => {
+    /* El centinela del cambio. Si alguien vuelve a usar el código de cliente
+       como llave, esto se cae. */
+    assert.equal(M.normalizarCodigoAcceso('CL-0001'), null,
+      'CL-0001 no puede pasar por código de acceso: es la lista de llegada');
+  });
+});
+
+describe('entrar con código: el puente', () => {
+
+  const socio = (id, ced, cod) => ({ id: id, numero: 1, nombre: 'Ana', cedula: ced,
+    telefono: '3001112233', codigoAcceso: cod, ajusteGarantia: 0,
+    referencia: { nombre: '', telefono: '' } });
+
+  const dbCon = socios => P.normalizar({ socios: socios, prestamos: [], respaldados: [],
+    config: { negocio: 'Tu Garantía', whatsapp: '' } });
+
+  test('entra con su cédula y su código', () => {
+    const db = dbCon([socio('a', '52111222', 'K7QP3')]);
+    assert.equal(P.buscarSocio(db, '52111222', 'K7QP3').id, 'a');
+    assert.equal(P.buscarSocio(db, '52.111.222', 'k7qp3').id, 'a', 'puntos y minúsculas');
+    assert.equal(P.buscarSocio(db, '52111222', 'K7-QP-3').id, 'a', 'guiones');
+    assert.equal(P.buscarSocio(db, '52111222', 'K7QP4'), null, 'código de otro');
+    assert.equal(P.buscarSocio(db, '52111223', 'K7QP3'), null, 'cédula de otro');
+  });
+
+  test('los últimos 4 del celular YA NO ABREN NADA', () => {
+    /* Es el cambio entero. Si esta prueba se cae, la puerta vieja volvió. */
+    const db = dbCon([socio('a', '52111222', 'K7QP3')]);
+    assert.equal(P.buscarSocio(db, '52111222', '2233'), null);
+    assert.equal(P.buscarSocio(db, '52111222', '3001112233'), null);
+  });
+
+  test('el que todavía no tiene código NO entra, ni con el campo vacío', () => {
+    /* Si "sin código" dejara pasar, sería la contraseña de todos los clientes a
+       los que Joan aún no se lo generó — o sea, de la cartera entera el día 1. */
+    const db = dbCon([socio('a', '52111222', '')]);
+    assert.equal(P.buscarSocio(db, '52111222', ''), null);
+    assert.equal(P.buscarSocio(db, '52111222', '     '), null);
+    assert.equal(P.buscarSocio(db, '52111222', 'K7QP3'), null);
+    assert.equal(P.buscarSocio(db, '52111222', null), null);
+    assert.equal(P.buscarSocio(db, '52111222', undefined), null);
+  });
+
+  test('el código de uno no abre la cuenta del otro', () => {
+    const db = dbCon([socio('a', '52111222', 'K7QP3'),
+                      Object.assign(socio('b', '79000111', 'M4XZ8'), { numero: 2 })]);
+    assert.equal(P.buscarSocio(db, '52111222', 'M4XZ8'), null,
+      'el código de b con la cédula de a no puede entrar a ninguna de las dos');
+    assert.equal(P.buscarSocio(db, '79000111', 'M4XZ8').id, 'b');
+  });
+
+  test('sinCodigoAcceso dice exactamente a quiénes les falta', () => {
+    const db = dbCon([socio('a', '52111222', 'K7QP3'),
+                      Object.assign(socio('b', '79000111', ''), { numero: 2 }),
+                      Object.assign(socio('c', '80000222', 'CL-0001'), { numero: 3 })]);
+    const faltan = P.sinCodigoAcceso(db).map(s => s.id).sort();
+    assert.deepEqual(faltan, ['b', 'c'],
+      'el que tiene CL-0001 en el campo cuenta como SIN código: eso no es un código');
+  });
+
+  test('normalizar le pone el campo vacío al cliente viejo, no un código', () => {
+    /* Un Panel de antes del 10-ago no tiene codigoAcceso. Si normalizar se lo
+       inventara, dos clientes podrían nacer con el mismo o —peor— con uno que
+       Joan nunca vio y que nadie le mandó. Nace vacío y lo crea él. */
+    const db = P.normalizar({ socios: [{ id: 'a', numero: 1, nombre: 'Viejo',
+      cedula: '52111222', telefono: '3001112233' }] });
+    assert.equal(db.socios[0].codigoAcceso, '');
+    assert.equal(db.socios[0].codigoEnviadoEn, null);
+    assert.equal(P.codigoAccesoDe(db.socios[0]), '');
+  });
+});
+
+describe('la app y el Panel, después del cambio', () => {
+
+  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+  const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
+
+  test('no quedan cuentas de prueba en la app', () => {
+    /* Joan las mandó borrar el 10-ago: con clientes de verdad entrando, una
+       cuenta inventada solo sirve para que alguien crea que esos números son
+       suyos. */
+    assert.ok(!/var DEMOS\s*=/.test(SOCIO), 'volvió el bloque DEMOS');
+    assert.ok(!/function buscarDemo/.test(SOCIO), 'volvió buscarDemo');
+    assert.ok(!/79111000/.test(SOCIO), 'quedó la cédula de la cuenta demo escrita en la app');
+    assert.ok(!/esDemo/.test(SOCIO), 'quedó viva la bandera esDemo');
+    assert.ok(!/Joan Hispanista/.test(SOCIO), 'quedó el nombre de la cuenta demo');
+  });
+
+  test('la app ya no pide ni manda los 4 dígitos del celular', () => {
+    assert.ok(!/p_tel4/.test(SOCIO), 'la app todavía le manda tel4 a la nube');
+    assert.ok(!/Últimos 4 números de tu celular/.test(SOCIO), 'quedó el campo viejo');
+    assert.ok(!/S\.tel4/.test(SOCIO), 'quedó el tel4 en el estado de la sesión');
+    assert.match(SOCIO, /historial_socio_por_codigo/,
+      'la app tiene que llamar a la función nueva de la nube');
+  });
+
+  test('el campo del código se limpia con el motor, no con una regla propia', () => {
+    const i = SOCIO.indexOf('\nfunction tecleaAcceso(');
+    assert.ok(i >= 0, 'socio.html ya no declara tecleaAcceso');
+    const cuerpo = SOCIO.slice(i, SOCIO.indexOf('\n}', i));
+    assert.match(cuerpo, /M\.limpiarCodigoAcceso/);
+    assert.ok(!/\[\^/.test(cuerpo),
+      'hay una expresión regular propia limpiando el código: si difiere del motor, ' +
+      'el cliente ve su código bien escrito y la app le dice que no existe');
+  });
+
+  test('el Panel no se escribe su propia versión de lo que sabe el motor', () => {
+    /* El centinela de la casa: llegó a haber doce copias de cuentas que el
+       puente ya hacía, y dos contestaban distinto. */
+    assert.match(CRM, /MotorReglas\.generarCodigoAcceso/, 'el Panel tiene que pedirle el código al motor');
+    assert.match(CRM, /PUENTE\.sinCodigoAcceso/, 'y la lista de los que faltan, al puente');
+    assert.ok(!/function generarCodigoAcceso\s*\(/.test(CRM),
+      'el Panel volvió a declarar su propio generador de códigos');
+    assert.ok(!/ALFABETO/.test(CRM),
+      'el alfabeto del código está escrito en el Panel: tiene que salir del motor');
+  });
+
+  test('el Panel genera con azar criptográfico, no con Math.random', () => {
+    const i = CRM.indexOf('function nuevoCodigoAccesoUnico(');
+    assert.ok(i >= 0, 'el Panel ya no declara nuevoCodigoAccesoUnico');
+    const cuerpo = CRM.slice(i, CRM.indexOf('\n}', i));
+    assert.match(cuerpo, /azarSeguro/,
+      'con Math.random los códigos se pueden predecir conociendo la semilla');
+    assert.match(CRM, /function azarSeguro\(\)\{[^}]*getRandomValues/);
+  });
+
+  test('el código viaja en el lote que sube a la nube', () => {
+    const i = CRM.indexOf('function loteMigracion(');
+    const cuerpo = CRM.slice(i, CRM.indexOf('\n}', i));
+    assert.match(cuerpo, /codigo:codigoAccesoDe\(s\)/,
+      'sin esto la nube nunca recibe el código y nadie entra desde el celular');
+  });
+
+  test('cambiar un código que ya está en la calle pregunta antes', () => {
+    const i = CRM.indexOf('function regenerarCodigoAcceso(');
+    assert.ok(i >= 0);
+    const cuerpo = CRM.slice(i, CRM.indexOf('\n}', i));
+    assert.match(cuerpo, /confirm\(/,
+      'cambiarlo deja al cliente afuera hasta que le llegue el nuevo: no puede ser un clic');
+  });
+});
+
+describe('la migración de la nube dice lo que la app espera', () => {
+
+  const SQL = fs.readFileSync(path.join(__dirname, '..', 'base', '20260810_codigo_acceso.sql'), 'utf8');
+
+  test('crea la función que la app llama, con el nombre exacto', () => {
+    assert.match(SQL, /create or replace function public\.historial_socio_por_codigo\(p_cedula text, p_codigo text\)/);
+    assert.match(SQL, /grant execute on function public\.historial_socio_por_codigo\(text, text\) to anon/);
+  });
+
+  test('el código NO se guarda en claro: se guarda su huella', () => {
+    assert.match(SQL, /add column if not exists codigo_hash text/);
+    assert.match(SQL, /digest\(cod \|\| pepper, 'sha256'\)/);
+    assert.ok(!/add column if not exists codigo text/.test(SQL),
+      'una columna con el código en claro convierte un volcado de la base en la llave de todos');
+  });
+
+  test('el pepper no se pisa si ya existe', () => {
+    /* Cambiarlo deja a TODOS los clientes afuera de un golpe: las huellas
+       guardadas dejan de coincidir con lo que teclean. */
+    assert.match(SQL, /where not exists \(select 1 from public\.config_privada where clave = 'pepper_codigo'\)/);
+  });
+
+  test('una sincronización sin código no le borra el suyo a nadie', () => {
+    assert.match(SQL, /codigo_hash\s*=\s*coalesce\(excluded\.codigo_hash, socios_historial\.codigo_hash\)/);
+  });
+
+  test('el freno cuenta el intento aunque el código venga mal formado', () => {
+    /* Si un código de 4 caracteres saliera gratis, tantear el largo sería
+       gratis, y el freno de 8 por 15 minutos dejaría de medir lo que importa. */
+    const i = SQL.indexOf('function public.historial_socio_por_codigo');
+    const cuerpo = SQL.slice(i, SQL.indexOf('$$;', i));
+    const antes = cuerpo.indexOf('if h is null then');
+    assert.ok(antes >= 0, 'no valida la forma del código');
+    assert.match(cuerpo.slice(antes, antes + 160), /anotar_fallo/);
+  });
+
+  test('cierra las dos puertas viejas', () => {
+    assert.match(SQL, /drop function if exists public\.historial_socio\(text, text\)/);
+    assert.match(SQL, /drop function if exists public\.crear_solicitud\(text, text, jsonb, text, integer\)/);
+  });
+
+  test('endereza los confundibles igual que el motor', () => {
+    /* Si la nube y el motor normalizaran distinto, el mismo código entraría por
+       el Panel y no por el celular, que es el peor de los errores posibles acá:
+       Joan vería que "sí funciona" en su computador. */
+    assert.match(SQL, /translate\(upper\(coalesce\(t, ''\)\), 'ILOU', '110V'\)/);
+    assert.match(SQL, /\[\^0-9A-HJKMNP-TV-Z\]/);
+  });
+
+  test('y ese enderezado da lo mismo que el del motor — barrido', () => {
+    /* La misma cuenta, hecha en JavaScript, sobre los casos que de verdad
+       aparecen: confundibles, minúsculas, guiones y basura. No reemplaza correr
+       el SQL, pero caza la divergencia que se puede cazar sin base. */
+    const comoSQL = t => {
+      const trad = { I: '1', L: '1', O: '0', U: 'V' };
+      const arriba = String(t == null ? '' : t).toUpperCase()
+        .split('').map(c => trad[c] || c).join('');
+      const limpio = arriba.replace(/[^0-9A-HJKMNP-TV-Z]/g, '');
+      return limpio === '' ? null : limpio;
+    };
+    ['k7qp3', 'OK7Q3', 'i-l-o-u', 'K7 QP3', 'CL-0001', '', '  ', 'ñññ', 'K7QP33']
+      .forEach(t => {
+        const sql = comoSQL(t);
+        const motor = M.limpiarCodigoAcceso(t);
+        assert.equal(sql === null ? '' : sql, motor, 'difieren con «' + t + '»');
+      });
+  });
+});
+
+describe('las dos apps compilan: nada de sintaxis rota', () => {
+
+  /* POR QUÉ EXISTE — 10-ago-2026.
+     Añadiendo la plantilla del código de acceso quedó un salto de línea de
+     verdad dentro de una cadena con comillas simples. Eso es un error de
+     sintaxis, y un error de sintaxis en el bloque grande de crm.html no rompe
+     una función: **no ejecuta ni una línea del archivo**. El Panel abrió en la
+     pantalla del PIN y ahí se quedó, sin DB, sin PUENTE, sin nada.
+
+     Las 527 pruebas de este archivo pasaron todas mientras tanto. Leen crm.html
+     y socio.html como TEXTO —buscan una frase, un nombre de función, un
+     patrón— y el texto estaba perfecto. Ninguna lo compilaba.
+
+     Cuesta quince líneas y caza la clase de fallo más cara que tiene este
+     proyecto: la que deja la app en blanco en el celular de un cliente. */
+
+  const vm = require('node:vm');
+
+  const bloquesDe = archivo => {
+    const t = fs.readFileSync(path.join(__dirname, '..', archivo), 'utf8');
+    const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
+    const out = [];
+    let m;
+    while ((m = re.exec(t))) out.push({ cuerpo: m[1], linea: t.slice(0, m.index).split('\n').length });
+    return out;
+  };
+
+  ['panel/crm.html', 'app/socio.html'].forEach(archivo => {
+    test(archivo + ' — todo su JavaScript compila', () => {
+      const bloques = bloquesDe(archivo);
+      assert.ok(bloques.length >= 1, archivo + ' no tiene scripts embebidos: el barrido no mide nada');
+      bloques.forEach((b, i) => {
+        assert.ok(b.cuerpo.length > 0, 'bloque ' + i + ' vacío');
+        try {
+          new vm.Script(b.cuerpo, { filename: archivo + '#' + i });
+        } catch (e) {
+          assert.fail(archivo + ', bloque ' + i + ' (empieza en la línea ' + b.linea + '): ' +
+            e.message + '\nUn error de sintaxis acá no rompe una función: no ejecuta el archivo entero.');
+        }
+      });
+    });
+  });
+
+  test('y los dos módulos sueltos también', () => {
+    ['app/motor.js', 'app/puente.js'].forEach(f => {
+      const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+      try { new vm.Script(src, { filename: f }); }
+      catch (e) { assert.fail(f + ': ' + e.message); }
+    });
+  });
+
+  test('el arnés sirve: una cadena partida en dos líneas se caza', () => {
+    /* Desconfiar del medidor antes que de la página. Si el barrido de arriba
+       tuviera la regex mal y no encontrara nada, pasaría en verde para siempre. */
+    assert.throws(() => new vm.Script("var m='hola\nmundo';"), /SyntaxError|Invalid/);
+    assert.doesNotThrow(() => new vm.Script("var m='hola\\nmundo';"));
   });
 });

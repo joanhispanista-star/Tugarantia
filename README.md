@@ -32,10 +32,12 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
   panel-*.png           La G blanca sobre rojo, para no confundir las dos apps.
 
 base/
-  supabase.sql          Tablas, RLS y funciones. Se corre entero en el SQL Editor.
+  supabase.sql                    Tablas, RLS y funciones. Se corre entero en el SQL Editor.
+  20260810_codigo_acceso.sql      Entrar con código. Se corre DESPUÉS, y solo cuando
+                                  todos los clientes ya tengan el suyo.
 
 pruebas/
-  motor.test.js         496 pruebas del motor de reglas.
+  motor.test.js         531 pruebas del motor de reglas.
 ```
 
 **`motor.js` y `puente.js` los comparten las dos apps a propósito.** Es lo que evita
@@ -60,8 +62,12 @@ npx -y http-server -p 8124 -c-1 .
 ```
 
 Y ahí: la web en `/`, la app en `/app/socio.html`, el Panel en `/panel/crm.html`
-(PIN de fábrica `1234`). La cuenta de prueba de Joan es cédula `79111000`, celular
-`2026`.
+(PIN de fábrica `1234`).
+
+**Ya no hay cuenta de prueba.** Se borró el 10 de agosto de 2026: con clientes de
+verdad entrando, una cuenta inventada solo sirve para que alguien crea que esos
+números son suyos. Para probar la app, crea un cliente en el Panel, genérale su
+código y entra con esa cédula y ese código — así se prueba el camino de verdad.
 
 ---
 
@@ -90,12 +96,35 @@ lo primero que hay que mirar es esa fecha.
   del negocio son **$20.000.000** y de ahí para arriba se habla con Joan.
 - Se entra **solo con código de invitación** (`TG-XXXX-XXXX`).
 
-**La cuenta de prueba, para comprobar de un vistazo qué versión se está mirando.** Con
-tres créditos de 100.000 pagados en fecha y la ficha completa, Joan (`79111000` / `2026`)
-tiene **45.000 de garantía ganada + 100.000 de cupón = 145.000 de garantía y 145.000 de
-cupo**, y hasta 45.000 de préstamo con garantía. Con las reglas anteriores al 5 de agosto
-—90% de garantía por costo y cupo multiplicado por el factor de plata— esa misma cuenta
-daba **308.000**. Si la app dice 308.000, no está fallando la cuenta: es código viejo.
+### Los tres códigos, que se llaman parecido y no son lo mismo
+
+| | Forma | Para qué | Quién lo tiene |
+|---|---|---|---|
+| **Invitación** | `TG-XXXX-XXXX` | Abrir cuenta. Sirve una vez, para una persona | Se lo manda Joan al que va a entrar |
+| **N° de cliente** | `CL-0001` | Nombrar al cliente en un recibo o un WhatsApp | Sale del orden de llegada. **No abre nada** |
+| **Acceso** | `K7QP3` | **Entrar a la app.** De por vida | Lo genera el Panel al azar; Joan se lo manda |
+
+El de acceso reemplazó a "los últimos 4 del celular" el 10 de agosto de 2026. Esos
+cuatro dígitos no son un secreto —circulan en cada grupo de WhatsApp del que la
+persona hace parte— y con la cédula, que está en cualquier recibo, abrían el
+historial completo: dirección, segundo teléfono y referencia personal.
+
+Son 5 caracteres del alfabeto Crockford-32 sin confundibles (no van I, L, O ni U):
+**33.554.432 combinaciones** contra las 10.000 de antes. Con el freno de 8 intentos
+cada 15 minutos, probarlas todas son 120 años. En la nube no se guarda el código
+sino su huella con pepper, así que un volcado de la base no sirve para entrar.
+
+**El código en claro vive en un solo sitio: el Panel de Joan.** Si un cliente lo
+pierde, Joan se lo vuelve a mandar desde su ficha; no hay forma de recuperarlo
+desde la nube, y eso es lo correcto.
+
+**El caso patrón, para comprobar de un vistazo qué versión se está mirando.** Un
+cliente con tres créditos de 100.000 pagados en fecha y la ficha completa tiene
+**45.000 de garantía ganada + 100.000 de cupón = 145.000 de garantía y 145.000 de
+cupo**, y hasta 45.000 de préstamo con garantía. Con las reglas anteriores al 5 de
+agosto —90% de garantía por costo y cupo multiplicado por el factor de plata— ese
+mismo cliente daba **308.000**. Si aparece 308.000, no está fallando la cuenta: es
+código viejo. (Las cifras están fijadas en `pruebas/motor.test.js`, no en la app.)
 
 **La promesa que manda sobre todo lo demás:** *aunque te atrases, sigues siendo socio*.
 El nivel no baja, la mora no bloquea pedir de nuevo, y la garantía ganada no se borra
@@ -117,7 +146,7 @@ socio desde su propia pantalla. Cuando estén cerrados, ese archivo se publica.
 Lo que **sí** está cerrado y medido: la mora del crédito quincenal se cobra, la misma
 garantía no respalda dos créditos a la vez, la migración de los créditos viejos no
 inventa garantía, la prórroga aplaza a una fecha futura y pasa por el motor, el modo
-oscuro cumple contraste, y las 496 pruebas del motor pasan.
+oscuro cumple contraste, y las 531 pruebas del motor pasan.
 
 **Nada de la nube está probado**: Supabase no está conectado, así que las funciones
 RPC, el RLS y los frenos anti-tanteo no se han ejercitado nunca. Tampoco se ha probado
@@ -134,8 +163,9 @@ en un teléfono real.
       botón no lleva a ninguna parte.
 - [ ] **Llevar `legal/` a un abogado colombiano.** Ahí se pacta plata.
 - [ ] **Cambiar el PIN del Panel**, que sigue en `1234` de fábrica.
-- [ ] **Cambiar el nombre del negocio** en Ajustes: sigue diciendo "Joan te presta" y
-      las plantillas de WhatsApp lo usan.
+- [ ] **Generar y mandar los códigos de acceso**: Panel → Clientes → "Generar los que
+      faltan", y después ficha por ficha → 📲 Mandar código. Sin su código, un cliente
+      no puede entrar a la app.
 - [ ] **Conectar Supabase**: correr `base/supabase.sql` y pegar las tres llaves en
       Ajustes. Sin esto, la app solo muestra datos en el dispositivo de Joan.
 

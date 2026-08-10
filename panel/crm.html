@@ -633,7 +633,11 @@ const PLANTILLAS_DEF={
   prorroga:{t:'Prórroga registrada',x:'Tras dejar la prórroga',m:'Listo {nombre}, ya registramos tu prórroga de {prorroga}, no te preocupes por nada. Tu pago de {saldo} pasa tranquilo para la quincena del {fecha_pago}. Gracias por avisarnos; cualquier cosa nos cuentas.'},
   invitacion:{t:'Invitación · código de entrada',x:'Para que alguien nuevo pueda abrir su cuenta',m:'Hola {nombre}, te escribimos para pasarte tu código de entrada: {codigo}\nEntras acá: {enlace}\nEl código sirve para una sola persona, así que no lo reenvíes.'},
   recordatorioRespaldado:{t:'Cuota del préstamo con garantía',x:'Antes de que venza una de las cuotas mensuales',m:'Hola {nombre}, ¿cómo va todo? Te escribimos 🙂 Te recordamos con tiempo la cuota {n} de {plazo} de tu préstamo con garantía: son {cuota} el {fecha_pago}. Cualquier cosa nos cuentas y lo organizamos.'},
-  reciboRespaldado:{t:'Cuota con garantía recibida',x:'Confirmación de una cuota mensual',m:'¡Recibido, {nombre}! Ya quedó registrada tu cuota {n} de {plazo} por {cuota}. Gracias por tu cumplimiento 🙂 Te avisamos cuando se acerque la siguiente.'}
+  reciboRespaldado:{t:'Cuota con garantía recibida',x:'Confirmación de una cuota mensual',m:'¡Recibido, {nombre}! Ya quedó registrada tu cuota {n} de {plazo} por {cuota}. Gracias por tu cumplimiento 🙂 Te avisamos cuando se acerque la siguiente.'},
+  /* 10-ago-2026 — el código con el que el cliente entra a SU cuenta. Dice las
+     tres cosas que evitan el WhatsApp de vuelta: que es suyo, que no cambia, y
+     que no se comparte. Y no promete nada que la app no haga. */
+  codigoAcceso:{t:'Su código para entrar a la app',x:'La llave del cliente. Se la mandas una vez y le sirve siempre',m:'Hola {nombre} 🙂 Te mandamos tu código para entrar a la app y ver tus números: {codigo_acceso}\n\nEntras acá con tu cédula y ese código: {enlace}\n\nEs tuyo y no cambia, así que guárdalo. No se lo pases a nadie: con él se ve todo tu historial.'}
 };
 
 /* 3-ago-2026: cuántas fechaPagado tocó la migración en ESTA carga. Se declara
@@ -703,6 +707,7 @@ function cargar(){
     if(s.telefono2===undefined)s.telefono2=''; if(s.notaRiesgo===undefined)s.notaRiesgo=''; if(s.ubicacion===undefined)s.ubicacion=null;
     if(s.ajusteGarantia===undefined)s.ajusteGarantia=0; if(s.ajusteMotivo===undefined)s.ajusteMotivo=''; if(s.migracionRevisada===undefined)s.migracionRevisada=null;
     if(s.codigoInvitacion===undefined)s.codigoInvitacion=null;
+    if(s.codigoAcceso===undefined)s.codigoAcceso=''; if(s.codigoEnviadoEn===undefined)s.codigoEnviadoEn=null;
     /* 5-ago-2026: lo que gana por quincena. En CERO quiere decir "no lo
        sabemos", y el motor lo trata así: aunque Joan encienda el freno, a un
        socio sin ingreso declarado no le topa nada. Topar contra un dato que no
@@ -1109,9 +1114,97 @@ function aplicarVars(txt,p,s,enlace,extra){ const e=extra||{}; s=s||{};
   /* Los días de atraso, los del puente: cero cuando el crédito ya se pagó. */
   .replaceAll('{dias_mora}',p?String(diasMora(p)):'0')
   .replaceAll('{codigo}',e.codigo||'').replaceAll('{cuota}',e.cuota||'')
+  .replaceAll('{codigo_acceso}',e.codigo_acceso||'')
   .replaceAll('{n}',e.n||'').replaceAll('{plazo}',e.plazo||'')
   .replaceAll('{enlace}',enlace||''); }
 function waLink(tel,msg){ return 'https://wa.me/57'+String(tel||'').replace(/\D/g,'')+'?text='+encodeURIComponent(msg); }
+
+/* =========================================================================
+   EL CÓDIGO DE ACCESO DEL CLIENTE — 10-ago-2026
+
+   La llave con la que el cliente entra a la app. Reemplaza a "los últimos 4 del
+   celular", que no era un secreto: circula en todos los grupos de WhatsApp de
+   los que esa persona hace parte, y con la cédula —que está en cualquier
+   recibo— abría su dirección, su segundo teléfono y su referencia.
+
+   No confundirlo con el CL-0001, que sigue existiendo: ese es el número de
+   orden del cliente y sirve para nombrarlo. Este abre la cuenta. Y tampoco con
+   el TG-XXXX-XXXX de invitación, que sirve una vez para entrar al club.
+
+   LA FORMA LA DECIDE EL MOTOR, no este archivo: cinco caracteres del alfabeto
+   Crockford-32 sin confundibles. Acá solo se decide que no se repita y a quién
+   se le manda. Ver generarCodigoAcceso en motor.js para las cuentas de por qué
+   cinco caracteres y no cinco dígitos.
+   ====================================================================== */
+function codigoAccesoDe(s){ return PUENTE.codigoAccesoDe(s); }
+
+/* Que dos clientes no compartan código. Con 33 millones de combinaciones y una
+   cartera de cientos, un choque es casi imposible — pero "casi" acá significa
+   que dos personas entrarían a la cuenta de la primera que teclee la cédula,
+   así que se comprueba igual y cuesta nada. */
+function codigoAccesoTomado(cod,exceptoId){
+  const c=MotorReglas.normalizarCodigoAcceso(cod); if(!c) return true;
+  return DB.socios.some(s=>s.id!==exceptoId&&MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s))===c);
+}
+function nuevoCodigoAccesoUnico(exceptoId){
+  for(let i=0;i<80;i++){
+    const c=MotorReglas.generarCodigoAcceso(azarSeguro);
+    if(!codigoAccesoTomado(c,exceptoId)) return c;
+  }
+  return null;
+}
+
+/* Le pone código a un cliente que no tiene. No toca al que ya tiene: para eso
+   está regenerarCodigoAcceso, que pregunta antes. */
+function asegurarCodigoAcceso(s){
+  if(MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s))) return false;
+  const c=nuevoCodigoAccesoUnico(s.id);
+  if(!c) return false;
+  s.codigoAcceso=c;
+  return true;
+}
+
+function generarCodigoAccesoDe(id){
+  const s=DB.socios.find(x=>x.id===id); if(!s) return;
+  if(!asegurarCodigoAcceso(s)) return alert('No pude generar el código. Vuelve a intentar.');
+  guardar(); render(); verCliente(id);
+}
+
+/* Cambiar un código que ya está en la calle deja al cliente afuera hasta que le
+   llegue el nuevo. No puede pasar por un dedazo: se pregunta, y se dice qué
+   significa que diga que sí. */
+function regenerarCodigoAcceso(id){
+  const s=DB.socios.find(x=>x.id===id); if(!s) return;
+  if(!confirm('Cambiar el código de '+(s.nombre||'este cliente')+'.\n\n'
+    +'El que tiene ahora deja de servir en cuanto vuelvas a subir los historiales, '
+    +'y no va a poder entrar hasta que le mandes el nuevo por WhatsApp.\n\n'
+    +'¿Le cambio el código?')) return;
+  const c=nuevoCodigoAccesoUnico(s.id);
+  if(!c) return alert('No pude generar el código. Vuelve a intentar.');
+  s.codigoAcceso=c; guardar(); render(); verCliente(id);
+}
+
+function generarCodigosFaltantes(){
+  const faltan=PUENTE.sinCodigoAcceso(DB);
+  if(!faltan.length) return alert('Todos tus clientes ya tienen su código.');
+  if(!confirm('Generar el código de '+faltan.length+' cliente(s).\n\n'
+    +'A los que ya tienen no se les toca. Después hay que mandárselos por WhatsApp '
+    +'y subir los historiales para que sirvan en el celular.')) return;
+  let n=0; faltan.forEach(s=>{ if(asegurarCodigoAcceso(s)) n++; });
+  guardar(); render();
+  alert('Listo: '+n+' código(s) nuevo(s).\n\nAhora mándaselos: ficha del cliente → 📲 Mandar código.');
+}
+
+function mensajeCodigoAcceso(s){
+  return aplicarVars(DB.plantillas.codigoAcceso||PLANTILLAS_DEF.codigoAcceso.m,null,s,
+    urlApp(),{codigo_acceso:codigoAccesoDe(s)});
+}
+function mandarCodigoAcceso(id){
+  const s=DB.socios.find(x=>x.id===id); if(!s) return;
+  if(!MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s))) return alert('Este cliente todavía no tiene código. Genéralo primero.');
+  s.codigoEnviadoEn=hoyISO(); guardar();
+  window.open(waLink(waNum(s),mensajeCodigoAcceso(s)),'_blank','noopener');
+}
 /* EL WHATSAPP DE UN CRÉDITO, ARMADO ENTERO: la plantilla que le toca por su
    estado (plantillaPara) y los tokens resueltos con los números que la pantalla
    de cobro va a cobrar (aplicarVars + varsDePlantilla, que ya preguntan el saldo,
@@ -1283,13 +1376,30 @@ function vaciarPapeleraClientes(){
   DB.papeleraSocios=[]; guardar(); render();
 }
 
+/* El aviso de los códigos que faltan, arriba de la lista. Va acá y no escondido
+   en Ajustes porque un cliente sin código no puede entrar a la app, y eso Joan
+   tiene que verlo sin ir a buscarlo. Cuando no falta ninguno, no aparece nada:
+   un aviso permanente deja de leerse a la semana. */
+function avisoCodigosHTML(){
+  const faltan=PUENTE.sinCodigoAcceso(DB).length;
+  const sinMandar=DB.socios.filter(s=>MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s))&&!s.codigoEnviadoEn).length;
+  if(!faltan&&!sinMandar) return '';
+  return `<div class="alerta info" style="margin-bottom:12px">`
+    +(faltan?`<b>${faltan} cliente(s) sin código para entrar a la app.</b> Sin él no pueden ver sus números.
+       <button class="btn btn-sm" style="margin-left:8px" onclick="generarCodigosFaltantes()">Generar los que faltan</button><br>`:'')
+    +(sinMandar?`<span class="muted">${sinMandar} ya tienen código pero todavía no se lo has mandado. Ficha del cliente → 📲 Mandar código.</span>`:'')
+    +`</div>`;
+}
+
 function renderClientes(){
   const arr=[...DB.socios].sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
   const c=document.getElementById('tblClientes');
   if(!arr.length){ c.innerHTML=`<div class="empty"><div class="ic">🧑‍🤝‍🧑</div><p>Sin clientes aún.<br><span class="muted">Crea uno con “＋ Nuevo crédito” o “＋ Agregar cliente”.</span></p></div>`+papeleraClientesHTML(); return; }
-  c.innerHTML=`<table><thead><tr><th>N°</th><th>Cliente</th><th>Contacto</th><th>Ciudad</th><th>Créditos</th><th>Prórrogas</th><th>Ganancia generada</th><th>Riesgo</th><th></th></tr></thead><tbody>${
+  c.innerHTML=avisoCodigosHTML()+`<table><thead><tr><th>N°</th><th>Cliente</th><th>Código app</th><th>Contacto</th><th>Ciudad</th><th>Créditos</th><th>Prórrogas</th><th>Ganancia generada</th><th>Riesgo</th><th></th></tr></thead><tbody>${
     arr.map(s=>{ const ps=DB.prestamos.filter(p=>p.socioId===s.id),gan=ps.reduce((t,p)=>t+gananciaCobrada(p),0),activos=ps.filter(p=>!p.pagado).length,npr=totalProrrogasCliente(s),r=riesgoCliente(s);
+      const ca=MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s));
       return `<tr><td class="mono muted">${codCliente(s)}</td><td><b>${escHTML(s.nombre)}</b><div class="muted">${s.cedula?'CC '+escHTML(s.cedula):''}</div></td>
+      <td class="mono cod">${ca?escHTML(ca)+`<div class="muted">${s.codigoEnviadoEn?'enviado':'sin enviar'}</div>`:'<span class="muted">—</span>'}</td>
       <td>${escHTML(waNum(s))}<div class="muted">${s.whatsappIgual?'es WhatsApp':(s.whatsappNumero?'WA aparte':'cel')}</div></td>
       <td>${escHTML(s.ciudad||'—')}<div class="muted">${escHTML(s.barrio||'')}${s.ubicacion?` ${s.barrio?'· ':''}<a target="_blank" rel="noopener" href="${mapsUrl(s.ubicacion)}" title="Ver ubicación en el mapa">📍 mapa</a>`:''}</div></td>
       <td class="num">${ps.length}<div class="muted">${activos} activo${activos!==1?'s':''}</div></td>
@@ -1490,12 +1600,12 @@ function exportarICS(){
 }
 
 /* ===== PLANTILLAS ===== */
-const PLT_VARS=['nombre','negocio','monto','saldo','prorroga','fecha_pago','dias_mora','codigo','cuota','n','plazo','enlace'];
+const PLT_VARS=['nombre','negocio','monto','saldo','prorroga','fecha_pago','dias_mora','codigo','codigo_acceso','cuota','n','plazo','enlace'];
 function aplicarVarsDemo(txt){ return (txt||'')
   .replaceAll('{nombre}','María').replaceAll('{negocio}',DB.config.negocio||'Tu Garantía')
   .replaceAll('{monto}','$400.000').replaceAll('{saldo}','$480.000')
   .replaceAll('{prorroga}','$80.000').replaceAll('{fecha_pago}','30 de junio de 2026')
-  .replaceAll('{dias_mora}','3').replaceAll('{codigo}','TG-A3F7-K92M')
+  .replaceAll('{dias_mora}','3').replaceAll('{codigo}','TG-A3F7-K92M').replaceAll('{codigo_acceso}','K7QP3')
   .replaceAll('{cuota}','$70.200').replaceAll('{n}','2').replaceAll('{plazo}','6')
   .replaceAll('{enlace}',URL_APP_DEF+'#…'); }
 function renderPlantillas(){
@@ -1605,7 +1715,22 @@ function verCliente(id){
   const qCupo=cupoDelSocio(s,mg.nivel);
   const rs=respaldadosDe(s), maxR=maxRespaldadoDe(s), comp=comprometidaDe(s);
   const filaResp=r=>`<div class="info-row"><span class="k"><b class="mono">${codRespaldado(r)}</b> ${COP(r.capital)} a ${r.plazoMeses} mes${r.plazoMeses!==1?'es':''}</span><span class="vv"><span class="chip ${estadoRespaldado(r)}">${ESTADO_TXT_RESP[estadoRespaldado(r)]}</span> <span class="muted">${cuotasPagadas(r)}/${cuotasDe(r).length}</span> <a href="#" onclick="event.preventDefault();verRespaldado('${r.id}')">ver</a></span></div>`;
+  /* EL CÓDIGO, ARRIBA DEL TODO. Es lo que Joan más va a venir a buscar a esta
+     ficha: el cliente escribe "no puedo entrar" y la respuesta está en dos
+     toques. Debajo, con qué fecha se lo mandó, porque "¿ya se lo mandé?" es la
+     otra pregunta y sin eso se contesta de memoria. */
+  const cAcc=codigoAccesoDe(s), cAccOk=MotorReglas.normalizarCodigoAcceso(cAcc);
+  const bloqueCodigo=cAccOk
+    ? `<div class="info-row"><span class="k">Código para entrar a la app
+         <div class="muted">${s.codigoEnviadoEn?'Se lo mandaste el '+fmtFecha(s.codigoEnviadoEn):'Todavía no se lo has mandado'}</div></span>
+       <span class="vv"><b class="mono cod" style="font-size:19px;letter-spacing:.14em">${escHTML(cAccOk)}</b><br>
+         <button class="btn btn-wa btn-sm" onclick="mandarCodigoAcceso('${s.id}')">📲 Mandar código</button>
+         <button class="btn btn-ghost btn-sm" onclick="copiarTexto('${escHTML(cAccOk)}')">Copiar</button>
+         <button class="btn btn-ghost btn-sm" onclick="regenerarCodigoAcceso('${s.id}')" title="Le cambia el código: deja de entrar hasta que le mandes el nuevo">Cambiar</button></span></div>`
+    : `<div class="alerta info"><b>Sin código todavía.</b> Sin él no puede entrar a la app.
+         <div style="margin-top:8px"><button class="btn btn-sm" onclick="generarCodigoAccesoDe('${s.id}')">Generar su código</button></div></div>`;
   openModal(codCliente(s)+' · '+s.nombre,`
+    ${bloqueCodigo}
     <div class="info-row"><span class="k">Ganancia generada</span><span class="vv gano">${COP(gan)}</span></div>
     <div class="alerta info solo-tuyo"><b class="tit-solo">Solo para ti · el fondo del cupón (reparto ${REPARTO_TXT})</b>
       <b style="font-size:16px">${COP(fondo.cupon_pendiente)}</b> te falta recuperar
@@ -1654,19 +1779,26 @@ function verCliente(id){
 
 /* ===== VER LA APP COMO LA VE ÉL =====
    Abre ../app/socio.html con este socio adentro. La identidad viaja en el hash
-   (#p=cedula-4dígitos), que el navegador NUNCA le manda al servidor: no queda
+   (#p=cedula-código), que el navegador NUNCA le manda al servidor: no queda
    en los logs de GitHub Pages como sí quedaría un ?p=.
    No manda una foto congelada (eso ya lo hace el enlace de WhatsApp, #d=): la
    app lee del Panel en vivo, así que ves lo que hay AHORA, cliente por cliente.
    Y no escribe nada: el localStorage donde vive tu cartera es de solo lectura
-   para la app. Solo funciona en este equipo, que es donde vive el Panel. */
+   para la app. Solo funciona en este equipo, que es donde vive el Panel.
+
+   10-ago-2026: va con el CÓDIGO y ya no con los 4 del celular. No es cosmético
+   —es la misma puerta que usa el cliente—: si este atajo siguiera aceptando los
+   cuatro dígitos, quedaría viva una segunda entrada más débil, y esas son las
+   que alguien olvida cerrar. De paso, abrir así comprueba que el código que le
+   vas a mandar de verdad sirve. */
 function verComoSocio(id){
   const s=DB.socios.find(x=>x.id===id); if(!s)return;
   const ced=String(s.cedula||'').replace(/\D/g,'');
-  const tel=String(waNum(s)||s.telefono||'').replace(/\D/g,'').slice(-4);
-  if(!ced||tel.length<4) return alert('A '+(s.nombre||'este cliente')+' le falta la cédula o el celular, y son los dos datos con los que entra a la app.\n\nComplétalos en la ficha y vuelve a intentar.');
+  const cod=MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s));
+  if(!ced) return alert('A '+(s.nombre||'este cliente')+' le falta la cédula, que es con lo que entra a la app.\n\nComplétala en la ficha y vuelve a intentar.');
+  if(!cod) return alert((s.nombre||'Este cliente')+' todavía no tiene código para entrar a la app.\n\nGenéraselo en su ficha y vuelve a tocar el botón.');
   if(location.protocol==='file:') return alert('Para esto el Panel y la app tienen que abrirse desde la misma dirección web, no con doble clic al archivo.\n\nAbre el Panel desde su enlace (https) y vuelve a tocar el botón.');
-  window.open('../app/socio.html#p='+ced+'-'+tel,'_blank','noopener');
+  window.open('../app/socio.html#p='+ced+'-'+cod,'_blank','noopener');
 }
 /* `pre` solo se usa al crear: son los datos que ya te mandó el que canjeó un
    código desde su celular, para no volver a teclearlos. */
@@ -2461,18 +2593,25 @@ function fotoComunidad(){ return PUENTE.fotoComunidad(DB); }
 function migrarSocio(s){ return PUENTE.migrarSocio(DB,s); }
 function loteMigracion(){
   const dig=v=>String(v||'').replace(/\D/g,'');
+  /* El código va EN CLARO en el lote y la nube guarda solo su huella (ver
+     huella_codigo en base/20260810_codigo_acceso.sql). Y ya no se exige
+     teléfono para subir a alguien: desde el 10-ago-2026 el teléfono no abre
+     nada, así que dejar afuera al cliente sin celular cargado solo lo dejaba
+     sin app. Lo que sí hace falta es la cédula, que es con lo que entra. */
   return DB.socios.map(s=>({ cedula:dig(s.cedula), telefono:dig(waNum(s)||s.telefono),
-      nombre:s.nombre||'Socio', datos:migrarSocio(s) }))
-    .filter(x=>x.cedula&&x.telefono.length>=4);
+      nombre:s.nombre||'Socio', codigo:codigoAccesoDe(s), datos:migrarSocio(s) }))
+    .filter(x=>x.cedula);
 }
 function verMigracion(){
   const lote=loteMigracion(), sin=DB.socios.length-lote.length;
-  if(!lote.length) return alert('Ningún cliente tiene cédula y celular cargados, que es lo que necesita para entrar a la app. Completa esos dos datos primero.');
+  if(!lote.length) return alert('Ningún cliente tiene la cédula cargada, que es con lo que entra a la app. Complétala primero.');
   openModal('Se van a subir '+lote.length+' cliente(s)',
-    (sin?`<div class="alerta info">${sin} cliente(s) quedan por fuera: les falta la cédula o el celular. Complétalos y vuelve a subir.</div>`:'')
+    (sin?`<div class="alerta info">${sin} cliente(s) quedan por fuera: les falta la cédula, que es con lo que entran. Complétala y vuelve a subir.</div>`:'')
+    +(()=>{ const nc=lote.filter(x=>!MotorReglas.normalizarCodigoAcceso(x.codigo)).length;
+        return nc?`<div class="alerta"><b>${nc} de estos no tienen código todavía</b>, así que van a subir pero no van a poder entrar. Genéraselos primero: botón <b>Códigos de acceso</b> en la lista de clientes.</div>`:''; })()
     +`<div class="muted" style="margin-bottom:10px">Solo esto. Ni fotos, ni ubicación, ni referencias.</div>`
     +lote.slice(0,40).map(x=>{ const g=x.datos.garantia;
-      return `<div class="info-row"><span class="k">${escHTML(x.nombre)}<div class="muted">CC ${escHTML(x.cedula)} · cel …${escHTML(x.telefono.slice(-4))}</div></span>
+      return `<div class="info-row"><span class="k">${escHTML(x.nombre)}<div class="muted">CC ${escHTML(x.cedula)} · código ${x.codigo?escHTML(x.codigo):'<b>sin código</b>'}</div></span>
       <span class="vv"><b>${COP(g.total)}</b> de garantía<div class="muted">${g.nivel} · ${g.creditos_total} crédito(s) · ${g.pagados_a_tiempo} puntual(es)</div></span></div>`; }).join('')
     +(lote.length>40?`<div class="muted" style="margin-top:10px">…y ${lote.length-40} más.</div>`:''));
 }
@@ -3485,7 +3624,7 @@ function sincronizarSocios(){
   const c=sbCfg();
   if(!c.url||!c.anon||!c.clave) return alert('Primero pega la URL, la llave anon y tu clave, y dale a "Guardar conexión".');
   const lote=loteMigracion();
-  if(!lote.length) return alert('No hay clientes con cédula y celular para subir.');
+  if(!lote.length) return alert('No hay clientes con cédula para subir.');
   const sinRev=DB.socios.filter(s=>!s.migracionRevisada&&DB.prestamos.some(p=>p.socioId===s.id)).length;
   if(!confirm('Subir el historial de '+lote.length+' cliente(s) a la nube.\n\n'
     +(sinRev?'⚠️ '+sinRev+' de ellos todavía no tienen la garantía revisada por ti.\n\n':'')

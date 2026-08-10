@@ -19,11 +19,12 @@
    AL SUBIR UNA VERSIÓN NUEVA hay que subir el número de CACHE. Si no, los teléfonos
    que ya tienen la app siguen mostrando los iconos viejos. */
 
-/* v2 — 6-ago-2026. Bienvenida nueva y sello de versión en el pie. Las páginas y
+/* v3 — 10-ago-2026. Entrada por código y fuera las cuentas de prueba. (v2 fue la
+   bienvenida nueva y el sello de versión en el pie.) Las páginas y
    los scripts van red primero, así que estos dos llegan solos con señal; el
    número sube igual porque es lo que borra la caché anterior en `activate` y
    deja de servir lo viejo a un teléfono que abra sin señal. */
-const CACHE = 'tugarantia-v2';
+const CACHE = 'tugarantia-v3';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

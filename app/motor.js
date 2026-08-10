@@ -2486,6 +2486,109 @@
     return digitoControlCodigo(cuerpo) === cuerpo.charAt(LARGO_CODIGO - 1);
   }
 
+  /* ------------------------------------------- código de acceso del socio ---
+   * 10-ago-2026. La llave con la que el cliente entra a SU cuenta. No confundir
+   * con el de invitación de arriba: aquel sirve una vez para entrar al club,
+   * este es de por vida y es lo que reemplaza a "los últimos 4 del celular".
+   *
+   * POR QUÉ REEMPLAZA A LOS 4 DÍGITOS. Los últimos 4 del celular son un secreto
+   * que el cliente le da a cualquiera que se los pida, y que está escrito en
+   * media docena de grupos de WhatsApp. Cualquiera con la cédula ajena —que en
+   * Colombia está en cada factura— y esos cuatro números veía la dirección de la
+   * casa, el teléfono y la foto de la cédula de otra persona.
+   *
+   * Y POR QUÉ NO SIRVE EL CL-0001 QUE YA EXISTÍA: ese es el número de orden del
+   * cliente con ceros adelante (codCliente, en el puente). Es la lista de
+   * llegada. Como contraseña se adivina contando.
+   *
+   * CINCO CARACTERES, PEDIDO DE JOAN, Y LA CUENTA QUE LO SOSTIENE.
+   * Alfabeto Crockford-32 sin confundibles (no van I, L, O ni U): 32^5 =
+   * 33.554.432 combinaciones. El freno de la nube deja 8 intentos cada 15
+   * minutos por cédula, o sea 768 al día: probarlas todas son 120 años, y la
+   * mitad, 60. Contra un cliente concreto y elegido a dedo, eso alcanza.
+   *
+   * Con cinco dígitos DECIMALES —que es lo que suena al decir "5 dígitos"— serían
+   * 100.000, y el mismo freno las agota en 130 días. Por eso son cinco
+   * CARACTERES y no cinco números: se teclean igual de rápido y son 335 veces
+   * más difíciles de adivinar.
+   *
+   * Y POR QUÉ NO LLEVA DÍGITO DE VERIFICACIÓN, que el de invitación sí lleva:
+   * con solo cinco, gastar uno en verificar deja 32^4 = 1.048.576, treinta y dos
+   * veces menos, y el freno las agota en tres años. No vale ese precio. Lo que
+   * el dígito de control compraba —que un código mal dictado se caiga en el
+   * celular y no gaste intento— lo compran igual, y gratis, otras dos cosas que
+   * ya están: el mapa de confundibles de arriba (la O que en realidad es cero,
+   * la I que es uno) y que normalizarCodigoAcceso devuelva null si no quedan
+   * exactamente cinco. Un carácter cambiado por otro del mismo alfabeto sí pasa
+   * a ser un intento, y eso es lo que se aceptó a cambio.
+   *
+   * VA SIN PREFIJO Y SIN GUIONES. Joan pidió sencillo: 'K7QP3' se dicta de un
+   * tirón y se copia de un WhatsApp sin pensar. Aun así normalizarCodigoAcceso
+   * perdona minúsculas, espacios y guiones, porque la gente los va a poner. */
+
+  var LARGO_CODIGO_ACCESO = 5;
+
+  /**
+   * Un código nuevo. NO comprueba que no exista ya: eso lo sabe el Panel, que es
+   * el que tiene la lista (nuevoCodigoAccesoUnico, en crm.html).
+   *
+   * @param {function} [azar] función sin argumentos que devuelve [0,1). El Panel
+   *        le pasa una basada en crypto.getRandomValues. El motor no depende de
+   *        crypto para poder correr en node pelado — pero un código de acceso
+   *        hecho con Math.random es adivinable si alguien conoce la semilla, así
+   *        que quien lo llame en serio le pasa la buena.
+   */
+  function generarCodigoAcceso(azar) {
+    var f = typeof azar === 'function' ? azar : Math.random;
+    var cuerpo = '';
+    for (var i = 0; i < LARGO_CODIGO_ACCESO; i++) {
+      var x = f();
+      if (!esNumero(x) || x < 0 || x >= 1) {
+        throw new RangeError('azar: se esperaba un número en [0,1), llegó ' + describir(x));
+      }
+      cuerpo += ALFABETO_CODIGO.charAt(Math.floor(x * ALFABETO_CODIGO.length));
+    }
+    return cuerpo;
+  }
+
+  /**
+   * Endereza lo que el cliente tecleó, SIN exigirle largo: mayúsculas, fuera lo
+   * que no es del alfabeto, y los confundibles a su verdadero carácter (la O que
+   * en realidad es cero, la I y la L que son uno, la U que es V).
+   *
+   * Existe aparte de normalizarCodigoAcceso porque el campo de la app lo llama en
+   * cada tecla, cuando todavía no hay cinco caracteres. Escrito dos veces —una
+   * acá y otra en la pantalla— sería otra pareja de copias que se separan el día
+   * que alguien toque una: es el defecto que este proyecto lleva semanas
+   * quitándose, y en un código de entrada significaría que la app acepta algo que
+   * el Panel no reconoce.
+   */
+  function limpiarCodigoAcceso(texto) {
+    if (typeof texto !== 'string') return '';
+    var t = texto.toUpperCase();
+    var cuerpo = '';
+    for (var i = 0; i < t.length; i++) {
+      var c = t.charAt(i);
+      if (Object.prototype.hasOwnProperty.call(CONFUSABLES_CODIGO, c)) c = CONFUSABLES_CODIGO[c];
+      if (ALFABETO_CODIGO.indexOf(c) !== -1) cuerpo += c;
+    }
+    return cuerpo;
+  }
+
+  /**
+   * El código completo, o null. Cinco caracteres exactos: ni cuatro ni seis.
+   * Perdona minúsculas, espacios, guiones y los confundibles.
+   */
+  function normalizarCodigoAcceso(texto) {
+    var cuerpo = limpiarCodigoAcceso(texto);
+    return cuerpo.length === LARGO_CODIGO_ACCESO ? cuerpo : null;
+  }
+
+  /** Solo la FORMA. No dice si el código es de alguien: eso lo sabe el Panel. */
+  function codigoAccesoValido(texto) {
+    return normalizarCodigoAcceso(texto) !== null;
+  }
+
   /* ----------------------------------------------------------- exports */
 
   return {
@@ -2604,6 +2707,13 @@
     generarCodigoInvitacion: generarCodigoInvitacion,
     normalizarCodigoInvitacion: normalizarCodigoInvitacion,
     codigoInvitacionValido: codigoInvitacionValido,
+    /* El código con el que el cliente entra a su cuenta (10-ago-2026). Es la
+       llave: el Panel la genera, la app la pide y la nube guarda su huella. */
+    generarCodigoAcceso: generarCodigoAcceso,
+    limpiarCodigoAcceso: limpiarCodigoAcceso,
+    normalizarCodigoAcceso: normalizarCodigoAcceso,
+    codigoAccesoValido: codigoAccesoValido,
+    LARGO_CODIGO_ACCESO: LARGO_CODIGO_ACCESO,
     TASA_RESPALDADO_MENSUAL: TASA_RESPALDADO_MENSUAL,
     PLAZO_RESPALDADO_MIN: PLAZO_RESPALDADO_MIN,
     PLAZO_RESPALDADO_MAX: PLAZO_RESPALDADO_MAX,
