@@ -35,7 +35,7 @@ base/
   supabase.sql          Tablas, RLS y funciones. Se corre entero en el SQL Editor.
 
 pruebas/
-  motor.test.js         330 pruebas del motor de reglas.
+  motor.test.js         496 pruebas del motor de reglas.
 ```
 
 **`motor.js` y `puente.js` los comparten las dos apps a propósito.** Es lo que evita
@@ -67,21 +67,35 @@ Y ahí: la web en `/`, la app en `/app/socio.html`, el Panel en `/panel/crm.html
 
 ## Las reglas del negocio, en corto
 
+**Vigentes desde el 5 de agosto de 2026** (`REGLAS_VIGENTES_DESDE` en `motor.js`, y la
+app la muestra en el pie de cada pantalla). Si una copia de esta app da otros números,
+lo primero que hay que mirar es esa fecha.
+
 | | Crédito quincenal | Préstamo con garantía |
 |---|---|---|
 | Costo | 20% plano | 5% mensual plano |
 | Plazo | hasta el corte (15 y último) | 1 a 6 meses |
-| Tope | garantía × factor de nivel | garantía **ganada**, 1:1 |
-| Garantía que deja | 90% del costo (45% si tarde) | 20% (10% si tarde) |
+| Tope | la garantía, **uno a uno** | la garantía **ganada**, 1:1 |
+| Garantía que deja | 75% del costo (37,5% si tarde) | 20% (10% si tarde) |
 
 - Mora: **1% diario** sobre el capital.
-- Factores de nivel: bronce 1,5 · plata 2,0 · oro 2,5 · platino 3,0.
+- **El cupo es la garantía, uno a uno.** El nivel ya no lo multiplica: los niveles se
+  quedan como reconocimiento y para el tope de prórrogas, y **nunca bajan**.
+- El costo se reparte **75 / 10 / 15**: garantía del socio, costos operativos, y
+  amortizar el cupón regalado. Tarde: 37,5 / 47,5 / 15. El socio no ve ese reparto.
+- **La frase del producto:** *cada crédito que pagas en fecha te sube el cupo un 15%*
+  (0,20 × 0,75). Duplica en cinco créditos.
 - Cupón de datos al entrar: hasta **$100.000** de garantía prestada.
 - Monto mínimo **$50.000**. La calculadora del socio llega a **$5.000.000**; el techo
   del negocio son **$20.000.000** y de ahí para arriba se habla con Joan.
-- El costo se reparte **90 / 7 / 3**: garantía del socio, costos operativos, y
-  amortizar el cupón regalado. El socio no ve ese reparto.
 - Se entra **solo con código de invitación** (`TG-XXXX-XXXX`).
+
+**La cuenta de prueba, para comprobar de un vistazo qué versión se está mirando.** Con
+tres créditos de 100.000 pagados en fecha y la ficha completa, Joan (`79111000` / `2026`)
+tiene **45.000 de garantía ganada + 100.000 de cupón = 145.000 de garantía y 145.000 de
+cupo**, y hasta 45.000 de préstamo con garantía. Con las reglas anteriores al 5 de agosto
+—90% de garantía por costo y cupo multiplicado por el factor de plata— esa misma cuenta
+daba **308.000**. Si la app dice 308.000, no está fallando la cuenta: es código viejo.
 
 **La promesa que manda sobre todo lo demás:** *aunque te atrases, sigues siendo socio*.
 El nivel no baja, la mora no bloquea pedir de nuevo, y la garantía ganada no se borra
@@ -103,7 +117,7 @@ socio desde su propia pantalla. Cuando estén cerrados, ese archivo se publica.
 Lo que **sí** está cerrado y medido: la mora del crédito quincenal se cobra, la misma
 garantía no respalda dos créditos a la vez, la migración de los créditos viejos no
 inventa garantía, la prórroga aplaza a una fecha futura y pasa por el motor, el modo
-oscuro cumple contraste, y las 330 pruebas del motor pasan.
+oscuro cumple contraste, y las 496 pruebas del motor pasan.
 
 **Nada de la nube está probado**: Supabase no está conectado, así que las funciones
 RPC, el RLS y los frenos anti-tanteo no se han ejercitado nunca. Tampoco se ha probado
@@ -133,10 +147,17 @@ Cualquier hosting de archivos estáticos sirve. Con GitHub Pages: subir todo, ac
 Pages sobre la rama principal, y queda en
 `https://<usuario>.github.io/TuGarantia/`.
 
-Dos cuidados:
+Tres cuidados:
 
 - **Al cambiar cualquier archivo, subir el número de `CACHE` en `sw.js`.** Si no, los
-  teléfonos que ya tienen la app siguen mostrando la versión vieja.
+  teléfonos que ya tienen la app siguen mostrando la versión vieja. Y al cambiar la app,
+  subir también `VERSION_APP` en `app/socio.html`; si lo que cambió es una regla de
+  plata, `REGLAS_VIGENTES_DESDE` en `app/motor.js`.
+- **Una sola copia publicada.** El 6 de agosto de 2026 había dos —esta y una de prueba
+  del 4 en otro repositorio— y Joan abrió la vieja: le decía que podía pedir 308.000
+  cuando el número correcto era 145.000. Dos copias no son un respaldo, son dos apps
+  que se contradicen delante de un cliente. Cuando entre a funcionar una dirección
+  definitiva, la otra se borra el mismo día.
 - **Los `id` de los dos `.webmanifest` no se tocan** después de la primera instalación.
   Si cambian, el navegador trata la app como otra distinta y las instalaciones
   existentes se rompen.

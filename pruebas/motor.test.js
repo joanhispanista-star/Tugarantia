@@ -7530,3 +7530,221 @@ describe('el cupo descuenta el capital que ya está afuera (6-ago-2026)', () => 
     assert.equal(P.cupoDelSocio(db, s, 'bronce').cupo, 230000 - 60000);
   });
 });
+
+/* ==========================================================================
+ * LA BIENVENIDA Y EL SELLO DE VERSIÓN — 6-ago-2026
+ *
+ * Los dos salieron del mismo día y del mismo susto. Joan abrió la app, vio que
+ * podía pedir 308.000 donde este motor da 145.000, y no era un error de cuenta:
+ * era una copia publicada el 4 de agosto, con el 90% de garantía por costo y el
+ * cupo multiplicado por el factor de nivel. Dos apps con la misma cara y dos
+ * respuestas distintas, sin forma de saber cuál se estaba mirando.
+ *
+ * Estas pruebas fijan las dos cosas que quedaron de ahí: que la bienvenida dura
+ * lo que se decidió que durara —y que la animación cabe dentro de ese tiempo— y
+ * que la versión y la fecha de las reglas salen de UNA constante cada una, no
+ * de un literal repetido en cada pantalla.
+ * ======================================================================== */
+
+describe('la bienvenida dura lo que se pidió, y la animación le cabe adentro', () => {
+
+  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+
+  /* El mínimo que la bienvenida se queda en pantalla, declarado en ARRANQUE. */
+  const minimo = (() => {
+    const m = /var MINIMO_BIENVENIDA = (\d+);/.exec(SOCIO);
+    assert.ok(m, 'socio.html ya no declara MINIMO_BIENVENIDA');
+    return Number(m[1]);
+  })();
+
+  /* El plazo de seguridad, el del script pegado al splash: el que la quita
+     cuando el script grande revienta y nadie más la va a quitar. */
+  const plazo = (() => {
+    const cabeza = SOCIO.slice(0, SOCIO.indexOf('</script>')).trim();
+    const m = /\}, (\d+)\);$/.exec(cabeza);
+    assert.ok(m, 'el splash se quedó sin plazo de seguridad: eso es una app que no abre');
+    return Number(m[1]);
+  })();
+
+  test('ya no es un parpadeo: se queda al menos segundo y medio', () => {
+    assert.ok(minimo >= 1500,
+      'la bienvenida bajó a ' + minimo + ' ms; a 700 ms Joan pidió expresamente verla más');
+  });
+
+  test('pero no se vuelve una espera: no pasa de tres segundos', () => {
+    assert.ok(minimo <= 3000,
+      minimo + ' ms de logo es una app lenta, y eso lo paga el socio en cada apertura');
+  });
+
+  test('el plazo de seguridad no puede ser el que la quita', () => {
+    /* Si el plazo quedara por debajo del mínimo —o pegado a él— sería él quien
+       decide, y el mínimo no serviría de nada: la bienvenida se iría igual de
+       rápido en el caso bueno y en el caso roto. */
+    assert.ok(plazo >= minimo + 1000,
+      'el plazo (' + plazo + ') tiene que quedar claramente por encima del mínimo (' + minimo + ')');
+    assert.ok(plazo <= 6000,
+      'con el script muerto, ' + plazo + ' ms mirando el logo es demasiado');
+  });
+
+  test('la animación termina ANTES del mínimo: nada se corta a la mitad', () => {
+    /* Esta es la prueba que de verdad justifica el número. Cada pieza de la
+       bienvenida entra con retardo propio; si la última terminara después del
+       mínimo, la bienvenida se iría con algo a medio aparecer, que es peor que
+       no animar. Se miden solo las de ENTRADA (hola-sello y hola-sube): el
+       lustre, el halo y el aura son bucles y a propósito no terminan. */
+    const css = SOCIO.slice(SOCIO.indexOf('/* ---------------- la bienvenida'),
+                            SOCIO.indexOf('</style>'));
+    const re = /animation:hola-(sube|sello)\s+([\d.]+)s\s+(?:ease|cubic-bezier\([^)]*\))\s*(?:([\d.]+)s)?\s*both/g;
+    const finales = [];
+    let m;
+    while ((m = re.exec(css))) finales.push(parseFloat(m[2]) + (m[3] ? parseFloat(m[3]) : 0));
+
+    assert.ok(finales.length >= 4,
+      'se encontraron ' + finales.length + ' animaciones de entrada: el barrido no está midiendo nada');
+    const ultima = Math.max.apply(null, finales);
+    assert.ok(ultima * 1000 <= minimo,
+      'la última pieza aparece a los ' + ultima + ' s y la bienvenida se va a los ' +
+      (minimo / 1000) + ' s');
+  });
+
+  test('`sube` no está declarado dos veces: el de las pestañas se lo comía', () => {
+    /* Vivió así un tiempo: la bienvenida declaraba su propio @keyframes sube y,
+       al ser el último del archivo, pisaba el de .panel. Dos reglas con el mismo
+       nombre no conviven, y la que perdía era la que anima cada cambio de
+       pestaña — o sea, la que se ve cien veces más. */
+    const veces = (SOCIO.match(/@keyframes sube\b/g) || []).length;
+    assert.equal(veces, 1, '@keyframes sube aparece ' + veces + ' veces');
+  });
+
+  test('sigue respetando a quien pidió menos movimiento', () => {
+    const bloque = SOCIO.slice(SOCIO.indexOf('/* ---------------- la bienvenida'),
+                               SOCIO.indexOf('</style>'));
+    const i = bloque.lastIndexOf('@media (prefers-reduced-motion:reduce)');
+    assert.ok(i >= 0, 'la bienvenida se quedó sin su regla de movimiento reducido');
+    const regla = bloque.slice(i);
+    ['#hola .sello', '#hola .aura', '#hola .halo', '#hola .filete i'].forEach(sel => {
+      assert.ok(regla.indexOf(sel) >= 0,
+        sel + ' se anima y nadie lo apaga con el movimiento reducido');
+    });
+  });
+});
+
+describe('la app dice qué versión es y de cuándo son sus reglas', () => {
+
+  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+
+  test('el motor publica la fecha de sus reglas', () => {
+    assert.match(M.REGLAS_VIGENTES_DESDE, /^\d{4}-\d{2}-\d{2}$/);
+    assert.ok(M.REGLAS_VIGENTES_DESDE >= '2026-08-05',
+      'las reglas del reparto 75/10/15 y el cupo uno a uno son del 5-ago-2026');
+  });
+
+  test('la fecha no es un adorno: el motor que la lleva es el que da 145.000', () => {
+    /* Si alguien sube la fecha sin cambiar las reglas —o al revés— el sello del
+       pie vuelve a mentir, y entonces no sirve para nada. Estas cuatro son las
+       reglas que separan este motor de la copia que daba 308.000. */
+    assert.equal(M.REPARTO_COSTO.garantia, 0.75, 'era 0,90 en la copia vieja');
+    assert.equal(M.acumularGarantia(60000, true), 45000, 'eran 54.000');
+    assert.equal(M.calcularCupo(145000, 'plata'), 145000, 'eran 308.000, garantía × 2');
+    assert.equal(M.FACTOR_CUPO, undefined, 'el factor de cupo está derogado');
+  });
+
+  test('VERSION_APP se declara una sola vez, y antes del pie que la lee', () => {
+    const veces = (SOCIO.match(/var VERSION_APP = /g) || []).length;
+    assert.equal(veces, 1, 'VERSION_APP declarado ' + veces + ' veces: eso son dos verdades');
+    assert.match(SOCIO, /var VERSION_APP = '\d{4}-\d{2}-\d{2}';/);
+    assert.ok(SOCIO.indexOf('var VERSION_APP') < SOCIO.indexOf('function pie('),
+      'el pie la lee: tiene que estar declarada antes');
+  });
+
+  test('el pie no escribe la versión a mano: la lee de las dos constantes', () => {
+    const i = SOCIO.indexOf('\nfunction selloDeVersion(');
+    assert.ok(i >= 0, 'socio.html ya no declara selloDeVersion');
+    const cuerpo = SOCIO.slice(i, SOCIO.indexOf('\nfunction ', i + 1));
+    assert.match(cuerpo, /VERSION_APP/);
+    assert.match(cuerpo, /M\.REGLAS_VIGENTES_DESDE/);
+    assert.ok(!/\d{4}-\d{2}-\d{2}/.test(cuerpo),
+      'hay una fecha escrita a mano en selloDeVersion: ese es justo el defecto que cura');
+  });
+
+  test('y el sello sale en las dos formas del pie, no solo en una', () => {
+    /* El socio que entra por el enlace de WhatsApp ve el otro pie, y es
+       precisamente el que más probable tiene una copia vieja en el teléfono. */
+    const i = SOCIO.indexOf('\nfunction pie(');
+    const cuerpo = SOCIO.slice(i, SOCIO.indexOf('\nfunction ', i + 1));
+    const veces = (cuerpo.match(/selloDeVersion\(\)/g) || []).length;
+    assert.equal(veces, 2, 'pie() llama a selloDeVersion ' + veces + ' veces: son dos ramas');
+  });
+
+  test('la bienvenida la pinta desde esa misma constante', () => {
+    assert.match(SOCIO, /id="holaVersion"/, 'la bienvenida ya no tiene dónde poner la versión');
+    assert.match(SOCIO, /v\.textContent = 'Versión ' \+ VERSION_APP/,
+      'si se escribe a mano en el HTML, la del splash y la del pie se separan el primer día');
+  });
+
+  test('el service worker subió de número con esta versión', () => {
+    /* Un teléfono con la app instalada y sin señal sirve lo que tenga guardado.
+       Si el número no sube, `activate` no borra la caché anterior y ese teléfono
+       se queda con la app del 4 de agosto: exactamente el caso que empezó todo. */
+    const SW = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+    const m = /const CACHE = 'tugarantia-v(\d+)';/.exec(SW);
+    assert.ok(m, 'sw.js ya no declara CACHE con la forma tugarantia-vN');
+    assert.ok(Number(m[1]) >= 2, 'la caché sigue en v' + m[1] + ', la de antes de este cambio');
+  });
+});
+
+describe('la hoja de estilos de la app no tiene comentarios rotos', () => {
+
+  /* POR QUÉ EXISTE ESTA PRUEBA — 6-ago-2026.
+     Al escribir la bienvenida nueva quedó un cierre de comentario de más entre
+     dos comentarios. CSS no avisa: el navegador se traga la regla siguiente y
+     sigue como si nada. La regla que se perdió era el color del sello de
+     versión, así que el texto salió en el color heredado y quedó a 1:1 contra
+     el fondo — invisible. Nadie lo habría notado sin medir el píxel.
+
+     Un cierre suelto es de las poquísimas cosas de CSS que se pueden comprobar
+     leyendo el archivo, y cuesta veinte líneas. Vale la pena tenerla.
+
+     (Y sí: escribir el par de caracteres dentro de este mismo comentario cerró
+     el comentario de JavaScript y tumbó el archivo entero de pruebas. El mismo
+     defecto, en el otro lenguaje, media hora después.) */
+
+  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+
+  const estilos = (() => {
+    const i = SOCIO.indexOf('<style>');
+    const j = SOCIO.indexOf('</style>');
+    assert.ok(i >= 0 && j > i, 'socio.html se quedó sin bloque <style>');
+    return SOCIO.slice(i + 7, j);
+  })();
+
+  test('cada /* se cierra, y ningún */ anda suelto', () => {
+    let dentro = false, linea = 1, abrioEn = 0;
+    for (let k = 0; k < estilos.length - 1; k++) {
+      if (estilos[k] === '\n') { linea++; continue; }
+      if (!dentro && estilos[k] === '/' && estilos[k + 1] === '*') { dentro = true; abrioEn = linea; k++; continue; }
+      if (dentro && estilos[k] === '*' && estilos[k + 1] === '/') { dentro = false; k++; continue; }
+      assert.ok(!(!dentro && estilos[k] === '*' && estilos[k + 1] === '/'),
+        'hay un */ suelto cerca de la línea ' + linea + ' del <style>');
+    }
+    assert.equal(dentro, false,
+      'quedó un comentario sin cerrar, abierto en la línea ' + abrioEn + ' del <style>');
+  });
+
+  test('las llaves cuadran: ninguna regla se quedó abierta', () => {
+    /* Sin los comentarios, que llevan llaves adentro a propósito. */
+    const limpio = estilos.replace(/\/\*[\s\S]*?\*\//g, '');
+    const abre = (limpio.match(/\{/g) || []).length;
+    const cierra = (limpio.match(/\}/g) || []).length;
+    assert.equal(abre, cierra, abre + ' llaves abiertas contra ' + cierra + ' cerradas');
+  });
+
+  test('y la bienvenida no se quedó sin ninguna de sus capas', () => {
+    /* Si una capa desaparece del HTML, la pantalla sigue abriendo y se ve
+       "bien": simplemente pierde el material y vuelve a ser un rectángulo negro
+       con un logo. Eso es justo lo que se acaba de cambiar. */
+    ['class="placa"', 'class="aura"', 'class="grano"', 'class="vineta"',
+     'class="halo"', 'class="sello"', 'class="lema"', 'class="filete"']
+      .forEach(m => assert.ok(SOCIO.indexOf(m) >= 0, 'la bienvenida perdió ' + m));
+  });
+});

@@ -180,6 +180,25 @@
 
   /* ---------------------------------------------------------------- reglas */
 
+  /* DESDE CUÁNDO RIGEN ESTAS REGLAS — 6-ago-2026.
+   *
+   * El 6 de agosto Joan abrió la app y vio que podía pedir 308.000 cuando el
+   * número correcto era 145.000. No había ningún error de cuenta: estaba
+   * mirando una copia publicada el 4, con el 90% de garantía por costo y el
+   * cupo multiplicado por el factor de nivel. Las dos reglas se derogaron el 5
+   * (ver REPARTO_COSTO y calcularCupo). Los dos motores se veían iguales por
+   * fuera y contestaban distinto, y no había forma de saber cuál era cuál sin
+   * abrir el archivo.
+   *
+   * Esta constante es esa forma: la app la pinta en el pie de cada pantalla. Si
+   * una cifra vuelve a no cuadrar, lo primero que hay que mirar es esta fecha,
+   * antes de tocar una sola línea de la cuenta.
+   *
+   * SE SUBE CUANDO CAMBIA UNA REGLA DE PLATA —tasa, reparto, cupo, garantía,
+   * mora—, no cuando se arregla una pantalla: para eso está VERSION_APP en
+   * socio.html. Si esta fecha cambia, el cupo de alguien pudo haber cambiado. */
+  var REGLAS_VIGENTES_DESDE = '2026-08-05';
+
   var NIVELES = ['bronce', 'plata', 'oro', 'platino'];
 
   /* §5 DEROGADO (29-jul-2026): ya no hay escalones de tasa por cobertura.
@@ -2540,6 +2559,9 @@
     sumarDias: sumarDias,
 
     // Constantes de negocio, para que la UI no las repita a mano
+    /* La fecha de las reglas viaja para que la app la pueda mostrar: es lo que
+       distingue este motor de una copia vieja que se ve igual (6-ago-2026). */
+    REGLAS_VIGENTES_DESDE: REGLAS_VIGENTES_DESDE,
     NIVELES: NIVELES,
     TASA_CREDITO: TASA_CREDITO,
     DATOS_KYC: DATOS_KYC,

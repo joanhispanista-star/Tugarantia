@@ -470,44 +470,167 @@ details[open] summary::after{content:' ↑'}
 
    Se va sola en cuanto la app está lista, y hay un plazo de seguridad por si
    el script no llega nunca — un splash que no se quita es una app que no abre.
-   Se va con transición para que no dé el brinco de un corte seco.           */
+   Se va con transición para que no dé el brinco de un corte seco.
+
+   6-ago-2026 — POR QUÉ DURA MÁS Y POR QUÉ TIENE MATERIAL.
+   Duraba 700 ms, que en un teléfono rápido es un parpadeo: se alcanzaba a ver
+   que algo pasó, no QUÉ pasó. Ahora se queda 2 segundos (ARRANQUE, más abajo)
+   y la animación está repartida a lo largo de ese tiempo para que los dos
+   segundos tengan algo que mirar en cada momento y no sean una espera.
+
+   Y usa los MISMOS materiales de las tarjetas del socio, no unos inventados
+   para esta pantalla: la placa (--placa), el grano contra el banding y el
+   barrido de lustre son los de .laca y .lustre. Así la bienvenida no es un
+   cartel antes de la app: es la app empezando. Lo único propio es el aura —dos
+   luces muy tenues que respiran— y el halo del sello, que acá caben porque la
+   pantalla está vacía y en una tarjeta serían ruido.
+
+   La ley de la paleta manda igual: el fondo es laca, así que el amarillo SÍ
+   puede pisar (el lema, el halo, el filete) y el rojo se queda donde siempre,
+   en el sello de la marca.                                                   */
 #hola{position:fixed;inset:0;z-index:99;background:var(--laca);
-  display:grid;place-items:center;
-  transition:opacity .42s ease, visibility .42s ease}
+  display:grid;place-items:center;overflow:hidden;
+  transition:opacity .55s ease, visibility .55s ease}
 #hola.fuera{opacity:0;visibility:hidden;pointer-events:none}
-#hola .marco{display:flex;flex-direction:column;align-items:center;gap:20px}
+
+/* Capa 1 — la placa. El mismo material de las tarjetas donde vive lo del socio. */
+#hola .placa{position:absolute;inset:0;background:var(--placa)}
+
+/* Capa 2 — el aura. Dos luces que respiran, muy por debajo del umbral en que
+   un fondo empieza a competir con lo que hay encima. Se mueve SOLO con
+   transform: una escala y un giro los compone la GPU sin repintar, que es lo
+   que la deja correr sin tirones en un teléfono de 300.000 pesos. */
+#hola .aura{position:absolute;inset:-25%;pointer-events:none;
+  background:
+    radial-gradient(36% 30% at 24% 20%, color-mix(in srgb, var(--rojo) 40%, transparent), transparent 68%),
+    radial-gradient(40% 34% at 78% 84%, color-mix(in srgb, var(--amarillo) 22%, transparent), transparent 70%);
+  animation:hola-aura 7.5s ease-in-out infinite alternate}
+
+/* Capa 3 — el grano, contra el banding del degradado. Es el mismo de .laca. */
+#hola .grano{position:absolute;inset:0;pointer-events:none;
+  opacity:.055;mix-blend-mode:overlay;background-size:140px 140px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>")}
+
+/* Capa 4 — la viñeta. Cierra los bordes para que el ojo caiga en el sello. */
+#hola .vineta{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(115% 85% at 50% 42%, transparent 38%,
+    color-mix(in srgb, var(--sombra) 60%, transparent) 100%)}
+
+#hola .marco{position:relative;z-index:2;display:flex;flex-direction:column;
+  align-items:center;gap:var(--e4);padding:0 24px;text-align:center;
+  transition:transform .55s ease}
+/* Al irse, el bloque se despega un pelo mientras se desvanece. Sin esto la
+   salida es un apagón; con esto parece que la bienvenida se aparta. */
+#hola.fuera .marco{transform:translateY(-10px) scale(.985)}
+
+#hola .sello-caja{position:relative;display:grid;place-items:center}
+/* El halo: una onda de oro que sale del sello. Va FUERA del sello y no adentro
+   porque el sello recorta (overflow:hidden) para poder llevar el lustre. */
+#hola .halo{position:absolute;width:96px;height:96px;border-radius:28px;
+  border:1px solid color-mix(in srgb, var(--amarillo) 60%, transparent);
+  animation:hola-halo 2.6s cubic-bezier(.2,.7,.2,1) .45s infinite}
+
 /* El mismo sello rojo con la G blanca de la cabecera, en grande. Es la marca:
-   el rojo la identifica y el amarillo se reserva para lo que el socio construyó. */
-#hola .sello{width:86px;height:86px;border-radius:24px;background:var(--rojo);
-  color:#fff;display:grid;place-items:center;
-  font-family:Georgia,'Times New Roman',serif;font-size:52px;font-weight:700;
-  line-height:1;box-shadow:0 18px 44px -18px var(--rojo);
-  animation:sello-entra .62s cubic-bezier(.2,.9,.25,1) both}
-#hola .nombre{font-size:12px;font-weight:700;letter-spacing:.26em;
-  text-transform:uppercase;color:rgba(251,247,244,.5);
-  animation:sube .5s ease .2s both}
+   el rojo la identifica y el amarillo se reserva para lo que el socio construyó.
+   El relleno pasó de plano a un degradado con luz arriba y sombra abajo, y las
+   sombras interiores le dan el canto: es una pieza, no un cuadrado de color. */
+#hola .sello{position:relative;width:96px;height:96px;border-radius:28px;
+  overflow:hidden;color:var(--luz);display:grid;place-items:center;
+  background:linear-gradient(158deg,
+    color-mix(in srgb, var(--rojo) 76%, var(--luz)) 0%,
+    var(--rojo) 44%,
+    color-mix(in srgb, var(--rojo) 74%, var(--sombra)) 100%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--luz) 42%, transparent),
+    inset 0 -2px 7px color-mix(in srgb, var(--sombra) 38%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--luz) 9%, transparent),
+    0 30px 64px -22px color-mix(in srgb, var(--rojo) 90%, transparent);
+  animation:hola-sello .85s cubic-bezier(.2,.9,.25,1) both}
+#hola .sello span{position:relative;z-index:2;
+  font-family:Georgia,'Times New Roman',serif;font-size:56px;font-weight:700;
+  line-height:1;text-shadow:0 2px 6px color-mix(in srgb, var(--sombra) 35%, transparent)}
+/* El lustre que cruza el sello: el mismo gesto de .lustre en la cabecera. Se
+   repite cada 2,4 s, así que en los 2 segundos de bienvenida pasa una vez y
+   media y no llega a volverse un latido. */
+#hola .sello::after{content:'';position:absolute;top:-40%;bottom:-40%;left:0;width:44%;
+  transform:translateX(-170%) skewX(-16deg);
+  background:linear-gradient(90deg,transparent,
+    color-mix(in srgb, var(--luz) 52%, transparent),transparent);
+  animation:hola-lustre 2.4s cubic-bezier(.3,.75,.35,1) .5s infinite}
+
+#hola .nombre{font-size:13px;font-weight:700;letter-spacing:.3em;
+  text-transform:uppercase;color:color-mix(in srgb, var(--blanco-laca) 76%, transparent);
+  animation:hola-sube .6s ease .3s both}
+/* La frase de la marca. Es el producto entero en cinco palabras y acá cabe:
+   la bienvenida es el único momento en que la pantalla está vacía. Va en oro
+   porque habla de lo que el socio construye, que es de quien es el amarillo. */
+#hola .lema{margin-top:calc(var(--e3) * -1);
+  font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;
+  font-size:15.5px;font-style:italic;letter-spacing:.01em;
+  color:color-mix(in srgb, var(--amarillo) 82%, transparent);
+  animation:hola-sube .7s ease .62s both}
 /* El filete de oro que cruza por debajo: es el mismo del borde de la laca, y
    sirve de reloj — mientras se dibuja, la app está cargando. */
-#hola .filete{width:132px;height:2px;border-radius:2px;overflow:hidden;
-  background:rgba(251,247,244,.12)}
-#hola .filete i{display:block;height:100%;width:40%;background:var(--amarillo);
-  border-radius:2px;animation:filete 1.15s ease-in-out .3s infinite}
-@keyframes sello-entra{
-  from{opacity:0;transform:scale(.72) translateY(10px)}
+#hola .filete{width:150px;height:2px;border-radius:2px;overflow:hidden;position:relative;
+  background:color-mix(in srgb, var(--luz) 13%, transparent);
+  animation:hola-sube .6s ease .82s both}
+#hola .filete i{position:absolute;top:0;bottom:0;width:42%;border-radius:2px;
+  background:linear-gradient(90deg,transparent,var(--amarillo),transparent);
+  animation:hola-filete 1.25s ease-in-out .3s infinite}
+
+/* LA VERSIÓN, EN CHIQUITO Y ABAJO — 6-ago-2026.
+   No es decoración: el 6 de agosto Joan abrió una copia publicada el 4 y vio un
+   cupo de 308.000 donde este código da 145.000. Las dos pantallas se veían
+   idénticas y no había forma de saber cuál se estaba mirando. Desde acá se sabe
+   en dos segundos, sin abrir nada. La rellena el script de abajo desde una sola
+   constante: escrita a mano acá serían dos verdades sobre la misma versión.
+
+   Va al 55% de blanco, no al 32% con el que nació: al 32% daba 2,5:1 contra la
+   laca, o sea que la única línea de esta pantalla que existe PARA SER LEÍDA era
+   la única que no se leía. Al 55% pasa de 6:1 —AA de sobra— y sigue muy por
+   debajo del nombre de la marca (10,7:1), que es lo que tiene que mandar acá. */
+#hola .version{position:absolute;left:0;right:0;z-index:2;
+  bottom:calc(env(safe-area-inset-bottom) + 24px);text-align:center;
+  font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;
+  color:color-mix(in srgb, var(--blanco-laca) 55%, transparent);
+  animation:hola-sube .6s ease 1.05s both}
+
+@keyframes hola-sello{
+  from{opacity:0;transform:scale(.72) translateY(12px)}
   to  {opacity:1;transform:none}
 }
-@keyframes sube{ from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
-@keyframes filete{
+/* Se llama hola-sube y no sube a secas porque `sube` ya existe arriba, para las
+   pestañas: dos @keyframes con el mismo nombre no conviven, gana el último y el
+   de las pestañas quedaba pisado por el de esta pantalla. */
+@keyframes hola-sube{ from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+@keyframes hola-filete{
   0%  {transform:translateX(-115%)}
   100%{transform:translateX(265%)}
 }
-/* Con el movimiento reducido, el sello aparece y ya: sin escala, sin barrido.
-   Alguien que pidió menos animación no quiere una animación más suave, quiere
-   ninguna. */
+@keyframes hola-lustre{
+  0%  {transform:translateX(-170%) skewX(-16deg)}
+  55% {transform:translateX(320%)  skewX(-16deg)}
+  100%{transform:translateX(320%)  skewX(-16deg)}
+}
+@keyframes hola-halo{
+  0%  {opacity:0;transform:scale(1)}
+  16% {opacity:.6}
+  100%{opacity:0;transform:scale(2)}
+}
+@keyframes hola-aura{
+  from{transform:scale(1) rotate(0deg);opacity:.75}
+  to  {transform:scale(1.14) rotate(7deg);opacity:1}
+}
+/* Con el movimiento reducido, el sello aparece y ya: sin escala, sin barrido,
+   sin aura que respire. Alguien que pidió menos animación no quiere una
+   animación más suave, quiere ninguna. El filete se queda lleno y apagado:
+   sigue diciendo "esto está cargando" sin moverse. */
 @media (prefers-reduced-motion:reduce){
-  #hola .sello,#hola .nombre{animation:none}
+  #hola .sello,#hola .nombre,#hola .lema,#hola .filete,#hola .version,
+  #hola .aura,#hola .sello::after{animation:none}
+  #hola .halo{display:none}
   #hola .filete i{animation:none;width:100%;opacity:.5}
-  #hola{transition:none}
+  #hola,#hola .marco{transition:none}
 }
 </style>
 </head>
@@ -515,21 +638,49 @@ details[open] summary::after{content:' ↑'}
 
 <!-- ======================= BIENVENIDA ======================= -->
 <div id="hola" role="status" aria-label="Abriendo Tu Garantía">
+  <div class="placa" aria-hidden="true"></div>
+  <div class="aura" aria-hidden="true"></div>
+  <div class="grano" aria-hidden="true"></div>
+  <div class="vineta" aria-hidden="true"></div>
   <div class="marco">
-    <div class="sello" aria-hidden="true">G</div>
+    <div class="sello-caja">
+      <i class="halo" aria-hidden="true"></i>
+      <div class="sello" aria-hidden="true"><span>G</span></div>
+    </div>
     <div class="nombre">Tu Garantía</div>
+    <div class="lema">Tu historial es tu garantía</div>
     <div class="filete" aria-hidden="true"><i></i></div>
   </div>
+  <div class="version" id="holaVersion" aria-hidden="true"></div>
 </div>
 <script>
+/* LA VERSIÓN DE LA APP, EN UN SOLO SITIO — 6-ago-2026.
+   Vive acá arriba, junto al splash, porque acá es donde se pinta primero; el
+   pie de las pantallas la lee de esta misma variable. Un segundo literal en el
+   pie serían dos verdades sobre la misma versión, que es exactamente la
+   enfermedad que esta constante viene a curar: ese día había dos copias de la
+   app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
+   misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
+   de CACHE en sw.js). */
+var VERSION_APP = '2026-08-06';
+
+(function () {
+  var v = document.getElementById('holaVersion');
+  if (v) v.textContent = 'Versión ' + VERSION_APP;
+})();
+
 /* El plazo de seguridad se arma ACÁ, pegado al splash, y no al final del archivo:
    si el script grande de abajo revienta, este ya quedó puesto y la bienvenida se
    va igual. Puesto al final, un error dejaría al socio mirando el logo para
-   siempre. */
+   siempre.
+
+   Son 5 s y no 4: la bienvenida ahora se queda 2 s a propósito (ver ARRANQUE),
+   así que el plazo de seguridad tiene que quedar claramente por encima o sería
+   él quien la quita, y entonces el mínimo no serviría de nada. */
 setTimeout(function () {
   var h = document.getElementById('hola');
   if (h) h.classList.add('fuera');
-}, 4000);
+}, 5000);
 </script>
 
 <!-- ======================= ENTRAR ======================= -->
@@ -2998,17 +3149,35 @@ function enlacesLegales() {
     'style="color:inherit">Tus datos</a>';
 }
 
+/* La versión de la app y la fecha de las reglas, en el pie de todas las
+   pantallas. Sale de VERSION_APP (arriba, junto al splash) y de la constante
+   del motor: ninguna de las dos se escribe a mano acá.
+
+   POR QUÉ ESTÁ — 6-ago-2026. Joan abrió la app y vio que podía pedir 308.000
+   cuando el número correcto era 145.000. No había ningún error de cuenta: era
+   una copia publicada el 4 de agosto, con las reglas anteriores al reparto
+   75/10/15 y al cupo uno a uno. Dos copias de la misma app, con la misma cara,
+   contestando distinto — y sin una sola forma de saber cuál se estaba mirando.
+   Con esto la pregunta se contesta desde la pantalla: si las reglas no dicen
+   5-ago-2026 o después, ese cupo salió de un código viejo. */
+function selloDeVersion() {
+  var reglas = (M && M.REGLAS_VIGENTES_DESDE) ? M.REGLAS_VIGENTES_DESDE : null;
+  return '<br><span class="muted" style="font-size:11px">Versión ' + esc(VERSION_APP) +
+    (reglas ? ' · reglas del ' + fmtFecha(reglas) : '') + '</span>';
+}
+
 function pie() {
   if (S.deEnlace) {
     return '<div class="pie">Estos son tus números al ' + fmtFecha(S.actualizado || hoyISO()) + '.<br>' +
       'Cuando pagues o pidas otro crédito, pídenos el enlace de nuevo.' +
-      enlacesLegales() + '</div>';
+      enlacesLegales() + selloDeVersion() + '</div>';
   }
   return '<div class="pie">' + (S.actualizado ? 'Datos al ' + fmtFecha(S.actualizado) + '.<br>' : '') +
     (S.origen === 'panel' ? 'Datos del Panel de este equipo.<br>' : '') +
     'Si ves algo raro en tus números, escríbenos.' +
     enlacesLegales() +
     (S.esDemo ? '' : '<br><a href="#" onclick="salir();return false" style="color:inherit">Salir</a>') +
+    selloDeVersion() +
     '</div>';
 }
 
@@ -3073,14 +3242,26 @@ function pantallaConfig() {
 
   pintarEntrar();
 
-  /* Se quita la bienvenida cuando la app ya tiene algo que mostrar. Se le deja un
-     mínimo de 700 ms desde que cargó la página: si se va antes, la animación del
-     sello se corta a medias y el efecto es un parpadeo, que se ve peor que no
-     tener nada. En un celular lento el tiempo ya se cumplió solo. */
+  /* Se quita la bienvenida cuando la app ya tiene algo que mostrar, pero nunca
+     antes de MINIMO_BIENVENIDA desde que cargó la página.
+
+     6-ago-2026: eran 700 ms, y en un teléfono rápido eso es un parpadeo —
+     alcanzaba a cortar la animación del sello a la mitad, que se ve peor que no
+     tener nada. Joan pidió verla más tiempo y tiene razón: 700 ms no es una
+     bienvenida, es un fotograma perdido.
+
+     Dos segundos es el número, y no es a ojo: la animación termina de entrar a
+     los 1,05 s (la versión es lo último que aparece) y el lustre del sello pasa
+     por segunda vez a los 1,55 s. Cortar antes de ahí deja algo a medio hacer;
+     mucho después la app se siente lenta, que es el precio de una bienvenida y
+     hay que pagarlo barato. En un celular lento el tiempo ya se cumplió solo y
+     esto no le suma ni un milisegundo. */
   (function () {
+    var MINIMO_BIENVENIDA = 2000;
     var h = document.getElementById('hola');
     if (!h) return;
-    var falta = Math.max(0, 700 - (performance.now ? performance.now() : 700));
+    var llevaAbierta = performance.now ? performance.now() : MINIMO_BIENVENIDA;
+    var falta = Math.max(0, MINIMO_BIENVENIDA - llevaAbierta);
     setTimeout(function () { h.classList.add('fuera'); }, falta);
   })();
 
