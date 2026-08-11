@@ -1,0 +1,2097 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover es lo que hace que env(safe-area-inset-*) devuelva algo
+     distinto de cero en un iPhone con notch. Sin esto, la barra de abajo queda
+     debajo de la raya del gesto y el primer toque de Joan cierra la app. -->
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<title>Tu Garantía · Panel en el bolsillo</title>
+<meta name="theme-color" content="#0C0A0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Panel">
+<link rel="manifest" href="espejo.webmanifest">
+<link rel="apple-touch-icon" href="panel-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="panel-192.png">
+<style>
+/* ==========================================================================
+ * ESTA HOJA NO INVENTA UN SISTEMA NUEVO.
+ *
+ * Los materiales, los colores, la escala de espaciado y las reglas de contraste
+ * son los de ../app/socio.html, que es la única pantalla de este proyecto
+ * pensada para un teléfono. Se copian y no se reinterpretan, por dos razones:
+ *
+ *   1. Joan va a saltar entre esta página y la del socio el mismo día. Dos
+ *      sistemas visuales en el mismo dominio se leen como dos aplicaciones
+ *      distintas, y una de ellas parece la falsa.
+ *   2. La ley de la paleta de socio.html no es decoración: dice que el AMARILLO
+ *      solo existe sobre la laca negra y el ÁMBAR solo sobre papel, y que por eso
+ *      nunca se confunden "lo que el socio construyó" con "algo va mal". Acá se
+ *      respeta igual. Los estados (vence hoy, en mora, sin subir) van en ÁMBAR;
+ *      el rojo se queda donde estaba: la marca y el gesto de avanzar. El rojo
+ *      NUNCA es un estado.
+ *
+ * Lo único propio de esta hoja es la barra de abajo con DOS pisos —la cinta de
+ * estado y las pestañas— porque acá hay una verdad que tiene que estar siempre a
+ * la vista y en socio.html no existe: cuántas cosas están esperando subir.
+ *
+ * Lo que se dejó FUERA a propósito: las tablas. El Panel de escritorio tiene
+ * tablas de siete columnas y en un teléfono de 375 px piden tres pantallas de
+ * desplazamiento lateral. Acá todo es tarjeta.
+ * ==========================================================================*/
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --laca:#0C0A0B; --papel:#FFFFFF; --fondo:#F6F3F0; --tinta:#0C0A0B;
+  --luz:#FFFFFF; --sombra:#000000;
+  --amarillo:#F5C542; --amarillo-tinta:#7A5A10;
+  --azul:#1B4FD8; --azul-laca:#7FA8FF; --azul-tinte:#EDF2FE; --azul-texto:var(--azul);
+  --rojo:#D81F26; --rojo-laca:#FF6B6F; --rojo-tinte:#FCF4F2; --rojo-texto:var(--rojo);
+  --ambar:#9A5B12; --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--luz));
+  --ambar-filete:color-mix(in srgb, var(--ambar) 40%, transparent);
+  --ambar-tinta:var(--ambar);
+  --gris:#6E6460; --linea:#E9E3DD; --blanco-laca:#FBF7F4;
+  --r:16px;
+  --e1:4px; --e2:8px; --e3:12px; --e4:20px;
+  --placa:
+    linear-gradient(103deg, transparent 32%, color-mix(in srgb, var(--luz) 5%, transparent) 45%, transparent 60%),
+    radial-gradient(140% 110% at 16% -25%,
+      color-mix(in srgb, var(--laca) 88%, var(--luz)) 0%,
+      color-mix(in srgb, var(--laca) 97%, var(--luz)) 45%,
+      var(--laca) 100%);
+}
+/* En oscuro cambia el PAPEL, nunca la marca; y el ámbar no se aclara jamás
+   (aclarado se vuelve el amarillo y pasaría a pintar una deuda). Ver el
+   comentario largo de la ley en ../app/socio.html. */
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --tinta:#EDE7E4; --papel:#151113; --fondo:#0B0A0A; --linea:#262021; --gris:#9C918B;
+  --rojo-tinte:#241416; --rojo-texto:var(--rojo-laca);
+  --azul-tinte:#101A2E; --azul-texto:var(--azul-laca);
+  --amarillo-tinta:#F8D471;
+  --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--papel));
+  --ambar-filete:var(--ambar); --ambar-tinta:var(--tinta);
+} }
+:root[data-theme="dark"]{
+  --tinta:#EDE7E4; --papel:#151113; --fondo:#0B0A0A; --linea:#262021; --gris:#9C918B;
+  --rojo-tinte:#241416; --rojo-texto:var(--rojo-laca);
+  --azul-tinte:#101A2E; --azul-texto:var(--azul-laca);
+  --amarillo-tinta:#F8D471;
+  --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--papel));
+  --ambar-filete:var(--ambar); --ambar-tinta:var(--tinta);
+}
+
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--fondo); color:var(--tinta);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Roboto,system-ui,sans-serif;
+  font-size:15px; line-height:1.5;
+  /* Dos pisos de barra fija (cinta + pestañas) más el gesto del sistema. */
+  padding-bottom:calc(112px + env(safe-area-inset-bottom));
+}
+h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;
+  font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+.wrap{max-width:520px;margin:0 auto;padding:0 16px}
+.muted{color:var(--gris)}
+.oculto{display:none!important}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+
+/* ---------------- la laca ---------------- */
+.laca{
+  position:relative; isolation:isolate; border-radius:var(--r);
+  color:var(--blanco-laca); -webkit-font-smoothing:antialiased;
+  background:var(--placa);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--luz) 13%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--sombra) 55%, transparent),
+    0 18px 38px -20px color-mix(in srgb, var(--laca) 45%, transparent);
+}
+.laca .muted{color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)}
+.laca .fila{border-color:color-mix(in srgb, var(--luz) 12%, transparent)}
+.laca .fila .k{color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)}
+.cab{padding:calc(env(safe-area-inset-top) + 16px) 0 18px; border-radius:0 0 var(--r) var(--r)}
+.cab .sup{display:flex;align-items:center;justify-content:space-between;gap:var(--e2)}
+.marca{display:flex;align-items:center;gap:var(--e2);font-size:12px;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:700;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent)}
+.pin{width:22px;height:22px;border-radius:7px;background:var(--rojo);color:var(--luz);
+  display:grid;place-items:center;font-weight:800;font-size:12px;letter-spacing:0}
+.cab h1{font-size:20px;margin-top:var(--e3);color:var(--blanco-laca)}
+.cab .traido{font-size:12px;margin-top:var(--e1);
+  color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)}
+/* Botón de la cabecera: es el único sitio desde donde se abre la conexión. */
+.btn-cab{min-height:36px;padding:0 var(--e3);border-radius:999px;font-family:inherit;
+  font-size:12px;font-weight:700;cursor:pointer;background:transparent;
+  color:var(--blanco-laca);border:1px solid color-mix(in srgb, var(--luz) 25%, transparent)}
+
+/* ---------------- tarjetas ---------------- */
+.card{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);
+  padding:var(--e4);margin-top:var(--e3)}
+.card.ap{padding:var(--e3) var(--e4)}
+.card.laca{border:0;background:var(--placa);color:var(--blanco-laca)}
+.card.tocable{cursor:pointer}
+.card.tocable:active{transform:scale(.995)}
+.etq{font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:700;color:var(--gris)}
+.laca .etq{color:color-mix(in srgb, var(--amarillo) 85%, transparent)}
+.cifra{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.05;margin-top:6px;
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.cifra.sm{font-size:22px;font-weight:700}
+.cifra.oro{color:var(--amarillo)}
+.oro-tinta{color:var(--amarillo-tinta)}
+.sub{font-size:14px;color:var(--gris);margin:var(--e2) 0 0}
+.fila{display:flex;justify-content:space-between;align-items:baseline;gap:var(--e3);
+  padding:var(--e3) 0;border-bottom:1px solid var(--linea)}
+.fila:last-child{border-bottom:0}
+.fila .k{color:var(--gris);font-size:14px}
+.fila .v{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.fila .v.oro{color:var(--amarillo)}
+.fila .v.ambar{color:var(--ambar-tinta)}
+.sep{height:1px;background:var(--linea);margin:var(--e3) 0}
+.laca .sep{background:color-mix(in srgb, var(--luz) 12%, transparent)}
+h3.tit{font-size:17px}
+.tit-bloque{margin:var(--e4) 0 var(--e2);display:flex;align-items:baseline;
+  justify-content:space-between;gap:var(--e2)}
+
+/* ---------------- botones y campos ---------------- */
+.btn{display:block;width:100%;padding:14px;border:0;border-radius:14px;font-size:16px;
+  font-weight:600;font-family:inherit;cursor:pointer;background:var(--rojo);color:var(--luz);
+  text-align:center;text-decoration:none;transition:transform .12s;min-height:48px}
+.btn:active{transform:scale(.985)}
+.btn[disabled]{opacity:.5;cursor:default}
+.btn.azul{background:var(--azul);color:var(--luz)}
+.btn.sec{background:transparent;color:var(--tinta);border:1px solid var(--linea)}
+.btn.sm{padding:var(--e2) var(--e3);font-size:14px;min-height:44px}
+.btn.arriba{margin-top:var(--e3)}
+.dos{display:grid;grid-template-columns:1fr 1fr;gap:var(--e2);margin-top:var(--e3)}
+.tres{display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--e2);margin-top:var(--e3)}
+label{display:block;font-size:13px;font-weight:600;margin:var(--e3) 0 6px}
+/* 16px EXACTOS en todo lo que se teclea. Por debajo de 16, Safari en iOS hace
+   zoom solo al enfocar el campo y deja la pantalla corrida: Joan cobra en la
+   calle, con una mano, y no puede pelear con el zoom. */
+input[type=text],input[type=number],input[type=email],input[type=password],
+input[type=date],input[type=search],input[type=tel],select,textarea{
+  width:100%;padding:13px;border:1px solid var(--linea);border-radius:14px;font-size:16px;
+  font-family:inherit;background:var(--papel);color:var(--tinta);min-height:48px}
+textarea{min-height:110px;line-height:1.45}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
+:where(button,a,summary,[tabindex]):focus-visible{
+  outline:2px solid var(--rojo-texto); outline-offset:2px; border-radius:8px}
+.laca :where(button,a,summary):focus-visible{outline-color:var(--rojo-laca)}
+
+/* ---------------- avisos y píldoras ---------------- */
+.aviso{border-radius:14px;padding:13px;font-size:14px;margin-top:var(--e3);line-height:1.5;
+  border:1px solid var(--linea)}
+.aviso.info{border-color:color-mix(in srgb, var(--azul-texto) 25%, transparent);
+  background:var(--azul-tinte); color:var(--tinta)}
+.aviso.info b{color:var(--azul-texto)}
+.aviso.ambar{border-color:var(--ambar-filete);border-left:3px solid var(--ambar);
+  background:var(--ambar-papel); color:var(--ambar-tinta)}
+.aviso.ambar b{color:var(--ambar-tinta)}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--linea);color:var(--gris)}
+/* Los ESTADOS van en ámbar, nunca en rojo: en este sistema el rojo es la marca y
+   el gesto de avanzar, y un estado pintado de rojo le roba las dos cosas. */
+.pill.mora{border-color:var(--ambar-filete);background:var(--ambar-papel);color:var(--ambar-tinta)}
+.pill.hoy{border-color:var(--ambar-filete);color:var(--ambar-tinta)}
+.pill.ok{border-color:color-mix(in srgb, var(--azul-texto) 25%, transparent);color:var(--azul-texto)}
+
+/* ---------------- la barra de abajo, en dos pisos ---------------- */
+.abajo{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--papel);
+  border-top:1px solid var(--linea);padding-bottom:env(safe-area-inset-bottom)}
+/* La cinta de estado. NO es un iconito: lleva el número escrito. Un punto de
+   color no dice si son tres cosas o treinta las que están esperando subir, y esa
+   diferencia es la que decide si Joan busca señal antes de irse del barrio. */
+.cinta{display:flex;align-items:center;gap:var(--e2);padding:9px 16px;font-size:12.5px;
+  line-height:1.35;border-bottom:1px solid var(--linea);min-height:44px;
+  width:100%;text-align:left;font-family:inherit;background:transparent;color:var(--gris);
+  border-left:0;border-right:0;border-top:0;cursor:pointer}
+.cinta b{color:var(--tinta)}
+.cinta.pendiente{background:var(--ambar-papel);color:var(--ambar-tinta);
+  border-bottom-color:var(--ambar-filete)}
+.cinta.pendiente b{color:var(--ambar-tinta)}
+.cinta .cuenta{flex:none;min-width:26px;height:26px;padding:0 7px;border-radius:999px;
+  display:grid;place-items:center;font-weight:800;font-size:13px;
+  background:var(--ambar);color:var(--luz);font-variant-numeric:tabular-nums}
+.cinta .txt{flex:1;min-width:0}
+.nav{display:flex}
+.nav button{flex:1;border:0;background:transparent;font-family:inherit;cursor:pointer;
+  padding:12px 2px;min-height:52px;color:var(--gris);font-size:11.5px;font-weight:600;position:relative}
+.nav button.on{color:var(--tinta)}
+.nav button.on::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
+  bottom:6px;width:18px;height:2px;border-radius:2px;background:var(--rojo)}
+
+/* ---------------- la hoja (los formularios de la calle) ---------------- */
+.hoja{position:fixed;inset:0;z-index:60;display:none;background:color-mix(in srgb, var(--sombra) 45%, transparent)}
+.hoja.on{display:block}
+.hoja-caja{position:absolute;left:0;right:0;bottom:0;max-height:90vh;overflow-y:auto;
+  -webkit-overflow-scrolling:touch;background:var(--papel);
+  border-radius:var(--r) var(--r) 0 0;padding:var(--e4) 16px calc(var(--e4) + env(safe-area-inset-bottom));
+  animation:sube-hoja .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes sube-hoja{from{transform:translateY(14px);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.hoja-caja{animation:none}}
+.hoja-cab{display:flex;align-items:center;justify-content:space-between;gap:var(--e3);
+  margin-bottom:var(--e2)}
+.hoja-cab h3{font-size:18px}
+.cerrar{min-width:44px;min-height:44px;border:0;background:transparent;font-size:22px;
+  color:var(--gris);cursor:pointer;font-family:inherit;line-height:1}
+
+/* ---------------- el choque ---------------- */
+/* La única tarjeta con filete ámbar GRUESO de toda la app. Es a propósito: es la
+   pantalla donde se puede perder plata si Joan escoge a la ligera. */
+.choque{border:1px solid var(--ambar-filete);border-left:4px solid var(--ambar);
+  background:var(--ambar-papel);color:var(--ambar-tinta);
+  border-radius:14px;padding:var(--e3);margin-top:var(--e3)}
+.choque h3{font-size:15px;color:var(--ambar-tinta)}
+.choque .lados{display:grid;grid-template-columns:1fr;gap:var(--e2);margin-top:var(--e3)}
+.choque .lado{background:var(--papel);border:1px solid var(--linea);border-radius:12px;
+  padding:var(--e3);color:var(--tinta);font-size:13px}
+.choque .lado h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--gris);font-family:inherit;font-weight:700}
+.choque .lado .d{display:flex;justify-content:space-between;gap:var(--e2);padding:3px 0}
+.choque .lado .d span:last-child{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+
+/* ---------------- listas ---------------- */
+.mini{font-size:13px;color:var(--gris);margin-top:var(--e1)}
+.linea-item{display:flex;justify-content:space-between;gap:var(--e2);padding:var(--e2) 0;
+  border-bottom:1px solid var(--linea);font-size:13.5px}
+.linea-item:last-child{border-bottom:0}
+.vacio{text-align:center;padding:44px 12px;color:var(--gris)}
+.vacio .ic{font-size:30px;margin-bottom:var(--e2)}
+.vista{animation:sube .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes sube{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.vista{animation:none}}
+.pie{text-align:center;font-size:12px;color:var(--gris);margin:22px 0 8px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<header class="cab laca">
+  <div class="wrap">
+    <div class="sup">
+      <div class="marca"><span class="pin">G</span> Panel · en el bolsillo</div>
+      <button class="btn-cab" id="btnConexion" type="button">Conexión</button>
+    </div>
+    <h1 id="cabTitulo">Hoy</h1>
+    <!-- Cuándo fue la última vez que se trajo algo de la nube, CON HORA. Sin esto,
+         una cartera de ayer y una de hace un minuto se ven exactamente igual. -->
+    <div class="traido" id="cabTraido">—</div>
+  </div>
+</header>
+
+<main class="wrap" id="cuerpo">
+  <div class="vacio"><div class="ic">⏳</div><p>Abriendo…</p></div>
+</main>
+
+<div class="abajo">
+  <button class="cinta" id="cinta" type="button">
+    <span class="txt">Abriendo…</span>
+  </button>
+  <nav class="nav" id="nav">
+    <button data-v="hoy" class="on" type="button">Hoy</button>
+    <button data-v="buscar" type="button">Buscar</button>
+    <button data-v="ficha" type="button">Ficha</button>
+    <button data-v="credito" type="button">Crédito</button>
+    <button data-v="quincena" type="button">Quincena</button>
+  </nav>
+</div>
+
+<div class="hoja" id="hoja" role="dialog" aria-modal="true" aria-labelledby="hojaTitulo">
+  <div class="hoja-caja">
+    <div class="hoja-cab">
+      <h3 id="hojaTitulo">—</h3>
+      <button class="cerrar" type="button" id="hojaCerrar" aria-label="Cerrar">✕</button>
+    </div>
+    <div id="hojaCuerpo"></div>
+  </div>
+</div>
+
+<!-- El motor y el puente son los MISMOS archivos que carga el Panel de escritorio
+     y la app del socio. Acá no se recalcula ni el cupo, ni la garantía, ni la
+     liquidación, ni la mora, ni el nivel, ni los códigos: se preguntan. Si algo
+     de eso se volviera a escribir aquí abajo, el mismo crédito el mismo día
+     valdría dos cosas distintas según el aparato desde el que Joan lo mire —que
+     es exactamente el defecto que este proyecto lleva semanas quitándose. -->
+<script src="../app/motor.js"></script>
+<script src="../app/puente.js"></script>
+<script src="nube.js"></script>
+<script>
+'use strict';
+/* =========================================================================
+ * EL CRM DEL CELULAR — 11 de agosto de 2026.
+ *
+ * QUÉ ES Y QUÉ NO ES.
+ * Es un cliente más de la misma cartera, no una copia. La verdad vive en
+ * Supabase; acá hay un ESPEJO local para poder trabajar sin señal, y una COLA de
+ * salida para lo que todavía no subió. Nada de lo que se ve acá se calcula acá.
+ *
+ * POR QUÉ NO ESCRIBE EN 'joan_socios_v1'.
+ * En el computador, esta página y crm.html se sirven del MISMO ORIGEN, así que
+ * comparten localStorage. Si el espejo del celular usara la llave del Panel,
+ * abrir esta página en el PC pisaría la cartera de Joan con lo último que trajo
+ * el teléfono. Por eso el espejo vive en su propia llave y esa llave no se toca:
+ * este archivo NO escribe en LLAVE_PANEL por ningún camino.
+ *
+ * LO QUE ESTA PANTALLA NO PUEDE HACER, Y LO DICE EN VOZ ALTA:
+ *   · no trae fotos (cédula, selfie, comprobantes) — Fase 1, ver el aviso;
+ *   · no crea clientes sin señal — el número lo emite la nube;
+ *   · no crea créditos ni préstamos con garantía — eso se hace en el computador;
+ *   · no pacta planes de pagos — es un compromiso a tres cortes y se firma sentado.
+ * ========================================================================= */
+
+var M = window.MotorReglas || null;
+var P = window.PuenteTuGarantia || null;
+var NUBE = window.NubeTuGarantia || null;
+
+/* Con qué nombre firma este aparato lo que sube. Va a panel_bitacora y a
+   `actualizado_por`, y es lo que le permite a Joan leer un choque y saber si el
+   otro lado fue él en el computador o él mismo hace dos horas en la calle. */
+var DISPOSITIVO = 'celular';
+
+/* -------------------------------------------------------------------------
+   DÓNDE SE GUARDA CADA COSA, Y POR QUÉ NO SE GUARDA ACÁ.
+
+   El espejo, la cola y los choques viven en localStorage, pero los escribe
+   nube.js y NO este archivo: 'joan_panel_espejo', 'joan_panel_cola' y
+   'joan_panel_choques' son suyas, y sus pruebas son las que vigilan que el
+   contenido esté bien formado. La primera versión de esta pantalla se guardaba
+   su propio objeto en 'joan_panel_espejo' y las dos escrituras se pisaban: dos
+   dueños de la misma llave es la misma enfermedad de las doce copias, un piso
+   más abajo.
+
+   Lo único que este archivo guarda por su cuenta es una llave de INTERFAZ con
+   la hora del último traer, que no es un dato de la cartera sino lo que hace
+   falta para no mentir en la cinta de abajo.
+   ------------------------------------------------------------------------- */
+var LLAVE_UI = 'joan_panel_espejo_ui';
+
+/* ------------------------------------------------------------ utilidades */
+var COP = function (n) { return '$' + Math.round(Number(n) || 0).toLocaleString('es-CO'); };
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+  });
+}
+function isoLocal(d) {
+  var z = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return z.toISOString().slice(0, 10);
+}
+function hoyISO() { return isoLocal(new Date()); }
+function hoy0() { var d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+function fmtFecha(iso) {
+  if (!iso) return '—';
+  var d = new Date(String(iso).length <= 10 ? iso + 'T00:00:00' : iso);
+  if (isNaN(d)) return '—';
+  return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function fmtHora(x) {
+  var d = (x instanceof Date) ? x : new Date(x);
+  if (!x || isNaN(d)) return '';
+  return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+}
+function fmtFechaHora(x) {
+  var d = (x instanceof Date) ? x : new Date(x);
+  if (!x || isNaN(d)) return '';
+  var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  var dia = new Date(d.getTime()); dia.setHours(0, 0, 0, 0);
+  var dias = Math.round((hoy - dia) / 86400000);
+  var cuando = dias === 0 ? 'hoy' : dias === 1 ? 'ayer' : 'el ' + fmtFecha(isoLocal(d));
+  return cuando + ' a las ' + fmtHora(d);
+}
+/* La resta de fechas es la del motor: la del navegador se corre con la zona
+   horaria y ya dejó un corte movido un día en este proyecto. */
+function diasEntre(a, b) { return M.diasEntre(M.aFechaLocal(a), M.aFechaLocal(b)); }
+
+/* ============================ ESTADO EN MEMORIA ==========================
+   Tres cosas y sus tres dueños:
+     DB       la cartera que se pinta. La lee y la escribe nube.js en disco;
+              acá se normaliza con el puente para poder preguntarle números.
+     COLA     lo hecho en la calle que todavía no subió. Dueño: nube.js.
+     CHOQUES  las dos versiones de lo que colisionó. Dueño: nube.js. */
+var DB = null;
+var COLA = [];
+var CHOQUES = [];
+var ULTIMO_ERROR = '';
+var ULTIMO_TRAER = null;   // hora local del último traer, solo para la cinta
+var _sinEspacio = false;
+
+/* normalizar() del puente devuelve SOLO lo que le importa al socio (socios,
+   préstamos, respaldados, invitaciones, config, contadores) y deja fuera todo lo
+   demás, empezando por las plantillas de WhatsApp. Si eso se cayera acá, el
+   celular subiría esa ausencia como un borrado y Joan se quedaría sin sus
+   plantillas por haber abierto el teléfono. Lo que este archivo no entiende, no
+   lo toca: se conserva tal cual llegó. */
+function normalizarConservando(crudo) {
+  var d = (crudo && typeof crudo === 'object') ? crudo : {};
+  var db = P.normalizar(d);
+  Object.keys(d).forEach(function (k) { if (!(k in db)) db[k] = d[k]; });
+  return db;
+}
+
+function leerUI() {
+  try { return JSON.parse(localStorage.getItem(LLAVE_UI) || 'null') || {}; }
+  catch (e) { return {}; }
+}
+function guardarUI() {
+  try { localStorage.setItem(LLAVE_UI, JSON.stringify({ ultimoTraer: ULTIMO_TRAER })); }
+  catch (e) { /* si no cabe esto, tampoco cabía nada: ya lo dirá guardarEstado */ }
+}
+
+/* Guarda la cartera. El nombre se queda corto a propósito —lo llaman las tres
+   acciones de calle— pero lo que hace es una sola cosa: dejar el db en la caché
+   de nube.js. Si el navegador no tiene espacio, se DICE: un cobro registrado en
+   la calle que no llegó al disco no sobrevive a cerrar la app, y eso Joan lo
+   tiene que saber en el momento, no cuando el cliente reclame. */
+function guardarEstado() {
+  _sinEspacio = (NUBE && NUBE.guardarLocal({ db: DB }) === false);
+}
+function recargarDeDisco() {
+  var local = NUBE.leerLocal();
+  DB = normalizarConservando(local.db || {});
+  COLA = NUBE.leerCola();
+  CHOQUES = NUBE.leerChoques().filter(function (c) { return c && !c.resuelto_como; });
+}
+
+/* ============================ LO QUE SE PREGUNTA =========================
+   Todo lo de este bloque es una llamada al puente o al motor. Ni una resta de
+   fechas, ni un porcentaje, ni una multiplicación de garantía. */
+function socioDe(p) {
+  for (var i = 0; i < DB.socios.length; i++) if (DB.socios[i].id === p.socioId) return DB.socios[i];
+  return null;
+}
+function socioPorId(id) {
+  for (var i = 0; i < DB.socios.length; i++) if (DB.socios[i].id === id) return DB.socios[i];
+  return null;
+}
+function creditoPorId(id) {
+  for (var i = 0; i < DB.prestamos.length; i++) if (DB.prestamos[i].id === id) return DB.prestamos[i];
+  return null;
+}
+function capitalActual(p) { return P.capitalActual(p); }
+function liq(p, fecha) { return P.liquidarCiclo(p, fecha); }
+function totalCiclo(p) { return liq(p).total_a_pagar; }
+function diasMora(p) { return liq(p).dias_mora; }
+function diasPara(p) { var c = P.corteDelCredito(p); return c ? diasEntre(hoyISO(), c) : 0; }
+function nivelDe(s) { return P.migrarSocio(DB, s).garantia.nivel; }
+
+/* El estado de un crédito, con la misma regla del Panel: la mora la DECLARA el
+   puente (estabaVencido), no una comparación escrita acá. */
+function estadoPrestamo(p) {
+  if (p.pagado) return 'pagado';
+  var c = P.corteDelCredito(p);
+  if (!c) return 'al-dia';
+  if (P.estabaVencido(p, hoyISO())) return 'mora';
+  if (c === hoyISO()) return 'hoy';
+  if (diasEntre(hoyISO(), c) <= 2) return 'proximo';
+  return 'al-dia';
+}
+var ESTADO_TXT = { 'al-dia': 'Al día', proximo: 'Próximo', hoy: 'Vence hoy', mora: 'En mora', pagado: 'Pagado' };
+
+/* El crédito en el idioma del motor. Es copia literal de creditoMotor() de
+   crm.html, campo por campo, INCLUIDO `estuvo_en_mora` (§4-bis): sin ese dato el
+   motor promete la garantía completa a quien tapó una mora con una prórroga, y
+   el celular le prometería una cifra distinta a la del computador sobre el mismo
+   pago. El día que crm.html se pueda tocar, esta función se muda al puente y
+   estas veinte líneas se borran de los dos lados. */
+function creditoMotor(p) {
+  var s = socioDe(p);
+  return {
+    id: p.id,
+    capital: capitalActual(p),
+    tasa_aplicada: (Number(p.costoPct) || Math.round(M.TASA_CREDITO * 100)) / 100,
+    costo: Math.round(P.K(p)),
+    fecha_corte: P.corteDelCredito(p),
+    estado: p.pagado ? 'pagado' : (P.tienePlan(p) ? 'plan_de_pagos' : 'en_corte'),
+    prorrogas_usadas: (p.prorrogas || []).length,
+    estuvo_en_mora: !!P.liquidarCiclo(p).estuvo_en_mora,
+    nivel_socio: s ? nivelDe(s) : 'bronce'
+  };
+}
+/* Lo que hay que saber para prorrogar ESE día. El recargo que cobra la prórroga
+   es LO YA CAUSADO —lo contesta el puente recorriendo los hechos— y se le pasa
+   al motor para que no vuelva a correr ni un día: así el socio paga por prorrogar
+   exactamente el recargo que la pantalla de cobro le acaba de mostrar. */
+function liqProrroga(p, fecha) {
+  if (!p || p.pagado || P.tienePlan(p) || capitalActual(p) <= 0) return null;
+  var l = liq(p, fecha || hoyISO());
+  try {
+    return M.liquidarProrroga(creditoMotor(p), fecha || hoyISO(),
+      { recargoCausado: l.recargo_mora, diasCausados: l.dias_mora });
+  } catch (e) { return null; }
+}
+
+/* La Ley 2300 no cambia porque Joan esté en la calle: fuera de horario no se
+   llama ni se escribe. El calendario de festivos es el del motor. */
+function horarioPermitido(fecha) {
+  var d = fecha || new Date(), dia = d.getDay(), h = d.getHours() + d.getMinutes() / 60;
+  if (M.esFestivo(d)) return { ok: false, motivo: 'hoy es festivo' };
+  if (dia === 0) return { ok: false, motivo: 'domingo' };
+  if (dia === 6) return (h >= 8 && h < 15) ? { ok: true } : { ok: false, motivo: 'el sábado solo de 8am a 3pm' };
+  return (h >= 7 && h < 19) ? { ok: true } : { ok: false, motivo: 'de lunes a viernes solo de 7am a 7pm' };
+}
+function contactadoHoy(s) {
+  return (s && s.gestiones || []).some(function (g) { return g.fecha === hoyISO(); });
+}
+function waNum(s) { return (s && (s.whatsappIgual ? s.telefono : (s.whatsappNumero || s.telefono))) || ''; }
+function waLink(tel, msg) {
+  return 'https://wa.me/57' + String(tel || '').replace(/\D/g, '') +
+    (msg ? '?text=' + encodeURIComponent(msg) : '');
+}
+
+/* Qué mensaje le toca a este crédito. Es la misma traducción de estadoPrestamo()
+   a una plantilla que hace plantillaPara() en crm.html. */
+function plantillaPara(p) {
+  var e = estadoPrestamo(p);
+  if (e === 'pagado') return 'recibo';
+  if (e === 'mora') return diasMora(p) >= 6 ? 'mora' : 'moraTemprana';
+  if (e === 'hoy') return 'venceHoy';
+  if (e === 'proximo') return diasPara(p) >= 2 ? 'recordatorio2' : 'recordatorio1';
+  return 'recordatorio2';
+}
+/* Solo se OFRECE prórroga cuando el motor dice que se puede. Con plan de pagos
+   liqProrroga devuelve null y sin prórrogas devuelve el precio de PACTAR EL
+   PLAN: en los dos casos el mensaje prometería algo que la pantalla de cobro le
+   va a negar al socio, y ese mensaje le queda guardado en el teléfono. */
+function prorrogaOfrecida(p) {
+  var r = p ? liqProrroga(p) : null;
+  return (r && r.ok) ? r.total_a_pagar : null;
+}
+function sinFraseProrroga(txt) {
+  var limpio = String(txt || '').split(/(?<=[.!?])\s+/)
+    .filter(function (f) { return f.indexOf('{prorroga}') === -1; }).join(' ').trim();
+  return limpio || String(txt || '');
+}
+/* -------------------------------------------------------------------------
+   LA SUSTITUCIÓN DE VARIABLES ES UNA COPIA REDUCIDA, Y HAY QUE DECIRLO.
+
+   `aplicarVars` vive en crm.html, que no se puede tocar en esta entrega y que no
+   se puede cargar desde acá (es una página entera, no una librería). Esta versión
+   contesta los siete tokens que un mensaje de la CALLE usa —nombre, negocio,
+   monto, saldo, prórroga, fecha de pago y días de mora— y todos salen del puente,
+   no de una cuenta escrita acá.
+
+   {enlace} SÍ SE CONTESTA, y no es una excepción caprichosa: no es un dato que
+   haya que inventar, es la dirección de esta misma página movida a ../app/, la
+   misma cuenta que hace URL_APP_DEF en crm.html. Calcularla desde location.href
+   es lo que hace que el enlace siga sirviendo el día que esto viva en
+   tugarantia.co en vez de en github.io.
+
+   Los otros cinco ({codigo}, {codigo_acceso}, {cuota}, {n}, {plazo}) NO se
+   pueden contestar desde la calle: unos viven en el préstamo con garantía y
+   otros los genera el escritorio. Se dejan como están —un dato inventado en un
+   WhatsApp que le queda al cliente es mucho peor que un token feo— pero ya no
+   se dejan EN SILENCIO: tokensSinResolver() los caza y la pantalla de gestión
+   avisa antes de abrir WhatsApp. Hoy ninguna plantilla de la calle los usa,
+   pero las plantillas las escribe Joan y puede pegar cualquiera en cualquiera.
+   El aviso es lo que hace que eso se note antes de mandarlo, y no después.
+
+   ES UNA SEGUNDA COPIA Y VA A DERIVAR. El sitio donde debería vivir es el
+   puente. Anotado como tal en el informe de la entrega.
+   ------------------------------------------------------------------------- */
+var URL_APP_ESPEJO = new URL('../app/socio.html', location.href).href;
+function aplicarVars(txt, p, s, extra) {
+  var e = extra || {}; s = s || {};
+  var of = e.prorroga != null ? e.prorroga
+    : (function () { var v = prorrogaOfrecida(p); return v == null ? null : COP(v); })();
+  if (of == null) txt = sinFraseProrroga(txt);
+  return String(txt || '')
+    .split('{nombre}').join((s.nombre || '').split(' ')[0] || s.nombre || '')
+    .split('{negocio}').join((DB.config && DB.config.negocio) || 'Tu Garantía')
+    .split('{monto}').join(COP(p ? capitalActual(p) : 0))
+    .split('{saldo}').join(COP(p ? totalCiclo(p) : 0))
+    .split('{prorroga}').join(of == null ? '—' : of)
+    .split('{fecha_pago}').join(e.fecha_pago || (p ? fmtFecha(P.corteDelCredito(p)) : ''))
+    .split('{dias_mora}').join(p ? String(diasMora(p)) : '0')
+    .split('{enlace}').join(URL_APP_ESPEJO);
+}
+/* EL PORCENTAJE DE MORA SE IMPRIME DESDE DONDE SE CALCULA, NUNCA A MANO.
+   Este proyecto ya pagó esta lección el 5-ago-2026: el día que el factor de
+   garantía bajó de 90 a 75, ocho pantallas siguieron diciendo 90 porque el
+   número estaba tecleado en el HTML. Las tres tarjetas de liquidación de este
+   archivo tenían «1% diario» escrito a mano, a dos líneas de la que sí saca la
+   tasa del ciclo del paquete del motor.
+   La liquidación trae tasa_mora_diaria (app/motor.js:1313 y :2181); si no
+   viniera, se cae a la constante del motor; y si tampoco hay motor no se dice
+   ningún porcentaje — callarlo es honesto, inventarlo no. */
+function pctMora(l) {
+  var t = (l && l.tasa_mora_diaria != null) ? l.tasa_mora_diaria
+        : (M && M.TASA_MORA_DIARIA != null ? M.TASA_MORA_DIARIA : null);
+  if (t == null) return '';
+  var n = Math.round(t * 10000) / 100;
+  return ' · ' + String(n).replace('.', ',') + '% diario';
+}
+/* Lo que quedó sin contestar, para poder decirlo. Solo mira tokens con la forma
+   {palabra}: así no confunde una llave que Joan haya escrito de su puño. */
+function tokensSinResolver(txt) {
+  var vistos = {}, r = [];
+  String(txt || '').replace(/\{[a-zA-Z_][a-zA-Z0-9_]*\}/g, function (t) {
+    if (!vistos[t]) { vistos[t] = true; r.push(t); }
+    return t;
+  });
+  return r;
+}
+function textoPlantilla(p, s, clave) {
+  var base = (DB.plantillas && DB.plantillas[clave]) || '';
+  /* Sin plantillas en el espejo no se inventa un texto: se abre el chat en
+     blanco y se dice por qué. Escribir acá una versión "parecida" a la de Joan
+     es exactamente cómo nacen las doce copias que este proyecto viene borrando. */
+  if (!base) return '';
+  var extra = {};
+  if (clave === 'prorroga') {
+    var l = (p && p.prorrogas) || [];
+    var u = l.length ? l[l.length - 1] : P.entradaPlan(p);
+    if (u) extra.prorroga = COP(u.monto);
+  }
+  return aplicarVars(base, p, s, extra);
+}
+
+/* ====================== LA QUINCENA ======================================
+   Las tres cuentas de esta vista viven hoy SOLO en crm.html (gananciaDeQuincena,
+   invertidoEnQuincena, porCobrarEnQuincena) y por eso están reescritas acá. No
+   inventan ninguna regla: cada pregunta con una fecha adentro la contesta el
+   puente —corteVigenteEn, capitalVigenteEn, corteDelCredito, liquidarCiclo—, que
+   es de donde salían también en el Panel. Son la única duplicación de este
+   archivo y está anotada en el informe: su sitio es el puente. */
+function cicloActualGlobal() {
+  return M.calcularFechaCorte(M.sumarDias(hoy0(), -M.DIAS_VENTANA_MINIMA));
+}
+function gananciaDeQuincena(q) {
+  var g = 0;
+  DB.prestamos.forEach(function (p) {
+    (p.prorrogas || []).forEach(function (pr) { if (pr.ciclo === q) g += Number(pr.monto) || 0; });
+    if (p.pagado && p.cicloPago === q) g += Number(p.gananciaPago) || 0;
+  });
+  return g;
+}
+function invertidoEnQuincena(q) {
+  return DB.prestamos.reduce(function (inv, p) {
+    if (!p.fechaDesembolso || p.fechaDesembolso > q) return inv;
+    var corte = P.corteVigenteEn(p, q);
+    if (corte && corte < q) return inv;
+    if (p.pagado && p.fechaPagado && p.fechaPagado < q) return inv;
+    return inv + P.capitalVigenteEn(p, q);
+  }, 0);
+}
+function creditosQueVencenEn(q) {
+  return DB.prestamos.filter(function (p) { return !p.pagado && P.corteDelCredito(p) === q; });
+}
+function porCobrarEnQuincena(q) {
+  return creditosQueVencenEn(q).reduce(function (s, p) { return s + totalCiclo(p); }, 0);
+}
+
+/* ========================= LA COLA DE SALIDA =============================
+   Cada movimiento hecho en la calle deja una línea acá. La línea NO es el dato
+   —el dato ya está escrito en el espejo local— sino la constancia de que algo
+   está esperando subir, con nombre y monto, para que el número de la cinta de
+   abajo se pueda ABRIR y leer. Un contador que no se puede abrir es un iconito
+   mudo con un número encima. */
+/* La revisión contra la que este aparato empezó a trabajar esta fila. Sale del
+   espejo —lo último que sabemos que hay en la nube— y es LA LÍNEA que hace que
+   el choque se detecte: mandar la revisión de ahora sería decirle al servidor
+   "vengo de tu última versión" cuando no es cierto, y el cobro del otro aparato
+   se perdería sin que nadie se enterara. `null` quiere decir "esta fila la creé
+   yo y el servidor no la tiene". */
+function revisionBase(tabla, id) {
+  var esp = NUBE.leerLocal().espejo || {};
+  var f = esp[tabla] && esp[tabla][String(id)];
+  return f ? f.revision : null;
+}
+function encolar(que, quien, detalle, tabla, filaId) {
+  if (!NUBE) return;
+  COLA = NUBE.encolarYGuardar({
+    tabla: tabla, id: filaId,
+    /* Se manda la fila COMPLETA tal como quedó en este teléfono, sin quitarle
+       nada. Podría tentar pasarla por sinFotos, pero el celular no tiene fotos
+       (en esta fase no bajan) y quitarle campos a lo que sube es la forma más
+       rápida de borrar en la nube algo que solo estaba allá. */
+    datos: filaLocal(tabla, filaId),
+    revision_base: revisionBase(tabla, filaId),
+    que: que, quien: quien, detalle: detalle
+  });
+}
+/* "3 esperando subir" lo cuenta nube.js: cuenta FILAS que van a viajar, así que
+   tocar el mismo crédito tres veces es una sola cosa pendiente. Escribir acá
+   `COLA.length` daría 3 y sería mentira. */
+function pendientes() {
+  if (!NUBE) return 0;
+  try { return NUBE.contarPendientes(COLA); } catch (e) { return COLA.length; }
+}
+function enChoque(tabla, filaId) {
+  return CHOQUES.some(function (c) { return c.tabla === tabla && String(c.id) === String(filaId); });
+}
+
+/* ============================== LA NUBE ==================================
+   Toda la red pasa por NubeTuGarantia. Acá no se arma ni un fetch: si este
+   archivo hablara con Supabase por su cuenta, habría dos formas de refrescar la
+   sesión y una de las dos se quedaría vieja. */
+function nubeLista() { return !!(NUBE && NUBE.conectado && NUBE.conectado()); }
+
+var _sincronizando = false;
+/* -------------------------------------------------------------------------
+   EL CICLO ENTERO LO HACE nube.js, Y ES A PROPÓSITO.
+
+   `NUBE.sincronizar` sube primero y baja después —en ese orden, que es el único
+   que no pierde nada— y deja el disco coherente aunque la señal se caiga en la
+   mitad: lo confirmado sale de la cola, lo que chocó se queda adentro marcado y
+   las dos versiones quedan guardadas ANTES de que esta pantalla pregunte nada.
+
+   Acá arriba no se arma ni un lote ni un fetch. La primera versión de este
+   archivo sí lo hacía, y tenía un agujero de los que cuestan plata: en un
+   teléfono recién instalado el espejo está vacío, así que el diff daba "todo
+   cambió" y el celular le subía a la nube su configuración por defecto encima
+   de la de Joan. Con la cola no puede pasar: solo viaja lo que alguien tocó a
+   mano en esta pantalla.
+   ------------------------------------------------------------------------- */
+function sincronizar(porOrdenDeJoan) {
+  if (!NUBE) return Promise.resolve();
+  if (_sincronizando) return Promise.resolve();
+  if (!nubeLista()) {
+    if (porOrdenDeJoan) abrirConexion();
+    pintarCinta();
+    return Promise.resolve();
+  }
+  _sincronizando = true;
+  ULTIMO_ERROR = '';
+  pintarCinta();
+
+  return NUBE.sincronizar(DISPOSITIVO)
+    .then(function () {
+      ULTIMO_TRAER = new Date().toISOString();
+      guardarUI();
+      /* Se relee del disco en vez de quedarse con lo que devolvió la llamada:
+         el disco es el que manda, y así lo que se pinta es exactamente lo que
+         sobreviviría a cerrar la app en este mismo segundo. */
+      recargarDeDisco();
+      _sincronizando = false;
+      pintar();
+    })
+    .catch(function (e) {
+      _sincronizando = false;
+      ULTIMO_ERROR = (e && e.motivo) || 'No pude hablar con la nube.';
+      /* Aunque falle, se relee: subirCola pudo haber confirmado la mitad y
+         haber dejado choques guardados antes de caerse. Esos ya son verdad. */
+      recargarDeDisco();
+      pintar();
+      if (porOrdenDeJoan) alert(ULTIMO_ERROR);
+    });
+}
+
+/* Qué colección del espejo local corresponde a cada tabla de la nube. */
+function filaLocal(tabla, id) {
+  var col = tabla === 'socios' ? DB.socios
+    : tabla === 'creditos' ? DB.prestamos
+    : tabla === 'respaldados' ? DB.respaldados : null;
+  if (!col) return null;
+  for (var i = 0; i < col.length; i++) if (String(col[i].id) === String(id)) return col[i];
+  return null;
+}
+function reemplazarFilaLocal(tabla, id, datos) {
+  var col = tabla === 'socios' ? DB.socios
+    : tabla === 'creditos' ? DB.prestamos
+    : tabla === 'respaldados' ? DB.respaldados : null;
+  if (!col) return false;
+  for (var i = 0; i < col.length; i++) {
+    if (String(col[i].id) === String(id)) { col[i] = datos; return true; }
+  }
+  col.push(datos);
+  return true;
+}
+
+/* ------------------------------- los choques ---------------------------
+   Las dos versiones ya están guardadas en disco cuando esto se ejecuta: las
+   escribió nube.js al recibir la respuesta del servidor, ANTES de que ninguna
+   pantalla dibujara nada. Acá solo se decide cuál queda.
+
+   Lo que este archivo NO hace en ningún caso es elegir por Joan. `pagado`,
+   `fechaPagado`, `capital`, `nombre`: eso se le muestra y él escoge. El martes
+   de cobro, el celular marca pagado a las 10:15 y el computador guarda a las
+   14:40 con su copia de las 8:00; un merge "inteligente" ahí borra un cobro y
+   nadie se entera hasta que el cliente reclama con el recibo en la mano. */
+function quitarDeCola(tabla, id) {
+  COLA = COLA.filter(function (it) {
+    return !(it && it.tabla === tabla && String(it.id) === String(id));
+  });
+  NUBE.guardarCola(COLA);
+}
+function marcarChoqueResuelto(c, como) {
+  var todos = NUBE.leerChoques();
+  todos.forEach(function (x) {
+    if (x && x.tabla === c.tabla && String(x.id) === String(c.id) && !x.resuelto_como) {
+      x.resuelto_como = como;
+    }
+  });
+  NUBE.guardarChoques(todos);
+}
+function resolverChoque(indice, como) {
+  var c = CHOQUES[indice];
+  if (!c || !NUBE) return;
+
+  if (como === 'nube') {
+    if (c.suyo) reemplazarFilaLocal(c.tabla, c.id, JSON.parse(JSON.stringify(c.suyo)));
+    /* Lo mío se descarta, así que su línea de la cola también: si se quedara, el
+       contador diría que hay algo esperando subir que ya nadie va a mandar, y
+       ese número no volvería a bajar nunca. El espejo ya quedó en la revisión y
+       el JSON del servidor —no lo hace espejoTrasEmpujar, que a propósito deja
+       intacta la entrada de lo que chocó, sino la bajada que corre justo
+       después de la subida dentro de NUBE.sincronizar—, así que la fila local y
+       el espejo dicen lo mismo y el choque no reaparece. */
+    quitarDeCola(c.tabla, c.id);
+  } else if (como === 'mio') {
+    /* "Lo mío encima" pisa los campos pisables y FUSIONA los que solo se suman
+       (gestiones, abonos, prórrogas, comprobantes): ganar el choque no puede
+       costarle a Joan una gestión que registró en el computador. La fusión la
+       hace nube.js —`fila` es exactamente "lo mío con las listas completas"— y
+       la vigilan sus pruebas; acá no se junta ni una lista a mano. */
+    var mio = c.mio || filaLocal(c.tabla, c.id);
+    var fila = mio;
+    try {
+      if (mio && c.suyo) fila = NUBE.fusionarFila(mio, c.suyo).fila;
+    } catch (e) { fila = mio; }
+    if (fila) reemplazarFilaLocal(c.tabla, c.id, fila);
+    /* Se vuelve a encolar contra la revisión DEL SERVIDOR. Hay que sacar antes
+       la entrada vieja porque encolar() conserva a propósito el revision_base
+       del primero: sin quitarla, el reintento volvería a salir contra la
+       revisión de hace dos horas y chocaría otra vez, para siempre. */
+    quitarDeCola(c.tabla, c.id);
+    COLA = NUBE.encolarYGuardar({
+      tabla: c.tabla, id: c.id, datos: fila,
+      revision_base: c.revision_servidor,
+      que: 'choque', quien: nombreDeFila(c.tabla, fila),
+      detalle: 'lo del celular, encima'
+    });
+  }
+
+  marcarChoqueResuelto(c, como);
+  CHOQUES.splice(indice, 1);
+  _choqueAbierto = -1;
+  guardarEstado();
+  pintar();
+  if (como === 'mio') sincronizar(false);
+}
+
+/* ========================== LAS ACCIONES DE CALLE ========================
+   Las tres escriben en el espejo local EXACTAMENTE los mismos campos que escribe
+   crm.html, con los números que devuelve el motor o el puente. Si acá se
+   guardara un campo distinto, el crédito subiría a la nube con una forma que el
+   Panel de escritorio no sabe leer. */
+
+/* --- 1. registrar pago ------------------------------------------------- */
+function cobrar(id, fecha) {
+  var p = creditoPorId(id); if (!p) return;
+  var f = fecha || hoyISO();
+  var l = liq(p, f);
+  var s = socioDe(p);
+  var c = P.cuotaPlanActual(p);
+  if (c) return cobrarCuotaDelPlan(p, c, f, l);
+
+  var texto = 'Cobrar ' + COP(l.total_a_pagar) + ' a ' + (p.socioNombre || '') + ':\n\n'
+    + '• Capital: ' + COP(l.capital) + '\n'
+    + '• Costo del ciclo: ' + COP(l.costo) + '\n'
+    + (l.recargo_mora ? '• Recargo por ' + l.dias_mora + ' día(s) de mora: ' + COP(l.recargo_mora) + '\n' : '')
+    + '\nLe deja ' + COP(l.garantia_generada) + ' de garantía. ¿Lo registro?';
+  if (!confirm(texto)) return;
+
+  p.pagado = true;
+  p.fechaPagado = f;
+  p.cicloPago = P.corteDelCredito(p);
+  /* La huella de un cobro REAL: con esta marca puesta, la migración de fechas
+     del Panel no vuelve a mirar esta fechaPagado nunca. Sin ella, este mismo
+     crédito se corrompía en la carga siguiente del computador y le duplicaba la
+     garantía al socio. */
+  p.cobroRegistrado = true;
+  /* La ganancia del ciclo es el costo TOTAL cobrado (costo + recargo): de este
+     número salen la ganancia de Joan y, por el puente, la garantía del socio. */
+  p.gananciaPago = l.costo_total_pagado;
+  p.recargoMora = l.recargo_mora;
+
+  encolar('pago', (s && s.nombre) || p.socioNombre || 'Socio',
+    COP(l.total_a_pagar) + ' · ' + P.codCredito(p), 'creditos', p.id);
+  guardarEstado(); cerrarHoja(); pintar(); sincronizar(false);
+  ofrecerWhatsApp(p, 'recibo', 'Pago registrado');
+}
+
+function cobrarCuotaDelPlan(p, c, f, l) {
+  var cs = P.cuotasPlan(p);
+  var quedan = cs.filter(function (x) { return !x.pagado; }).length - 1;
+  if (!confirm('Cobrar la cuota ' + c.n + ' de ' + cs.length + ' a ' + (p.socioNombre || '') + ': '
+    + COP(l.total_a_pagar) + '\n\n'
+    + '• Capital de la cuota: ' + COP(l.capital) + '\n'
+    + '• Costo: ' + COP(l.costo) + '\n'
+    + (l.recargo_mora ? '• Recargo por ' + l.dias_mora + ' día(s) de mora: ' + COP(l.recargo_mora) + '\n' : '')
+    + '\nLe deja ' + COP(l.garantia_generada) + ' de garantía. '
+    + (quedan ? 'Le quedan ' + quedan + ' cuota(s).' : 'Con esta termina de pagar el crédito.'))) return;
+  c.pagado = true; c.fechaPagado = f; c.recargo = l.recargo_mora; c.garantiaGenerada = l.garantia_generada;
+  // El capital de la cuota se abona al crédito: así el saldo baja de verdad.
+  p.abonosCapital = p.abonosCapital || [];
+  p.abonosCapital.push({ fecha: f, monto: c.capital, cuotaPlan: c.n });
+  var sig = P.cuotaPlanActual(p);
+  if (sig) { p.cicloActual = sig.fecha; }
+  else {
+    p.pagado = true; p.fechaPagado = f; p.cicloPago = c.fecha; p.cobroRegistrado = true;
+    /* Toda la ganancia del plan ya está contada cuota por cuota (y la entrada,
+       en planPagos.entrada). Dejar algo acá la contaría dos veces. */
+    p.gananciaPago = 0; p.recargoMora = 0;
+  }
+  var s = socioDe(p);
+  encolar('pago', (s && s.nombre) || p.socioNombre || 'Socio',
+    'cuota ' + c.n + '/' + cs.length + ' · ' + COP(l.total_a_pagar), 'creditos', p.id);
+  guardarEstado(); cerrarHoja(); pintar(); sincronizar(false);
+  ofrecerWhatsApp(p, 'recibo', 'Cuota registrada');
+}
+
+/* --- 2. prorrogar ------------------------------------------------------ */
+function prorrogar(id, fecha) {
+  var p = creditoPorId(id); if (!p) return;
+  var f = fecha || hoyISO();
+  var r = liqProrroga(p, f);
+  if (!r) {
+    alert(P.tienePlan(p)
+      ? 'Este crédito ya está en plan de pagos: de ahí no se sale prorrogando. Cóbrale la cuota que sigue.'
+      : 'Este crédito no admite prórroga (está pagado o su capital quedó en cero).');
+    return;
+  }
+  if (!r.ok) {
+    /* EL PLAN DE PAGOS NO SE PACTA DESDE LA CALLE, y se dice por qué. Son tres
+       cortes, tres fechas y tres montos que quedan MATERIALIZADOS y no se
+       vuelven a mover: eso se firma sentado, con el socio entendiendo, no de pie
+       en la puerta de una casa. Acá se dice qué toca hacer y dónde. */
+    alert('A ' + (p.socioNombre || 'este socio') + ' se le acabaron las prórrogas: '
+      + 'usó las ' + r.prorrogas_permitidas + ' que le da el nivel ' + r.nivel_socio + '.\n\n'
+      + 'La salida es el plan de pagos (§8): el capital en '
+      + M.CUOTAS_PLAN_DE_PAGOS + ' cortes con un costo reducido del '
+      + Math.round(M.TASA_PLAN_DE_PAGOS * 100) + '%.\n\n'
+      + 'Eso NO se pacta desde el celular: son tres fechas y tres montos que quedan fijos. '
+      + 'Anótalo y regístralo en el computador.');
+    return;
+  }
+  var texto = (r.recargo_mora
+    ? 'Registrar prórroga de ' + COP(r.total_a_pagar) + ' a ' + (p.socioNombre || '') + ':\n\n'
+      + '• Costo del ciclo: ' + COP(r.costo_prorroga) + '\n'
+      + '• Recargo por ' + r.dias_mora + ' día(s) de mora ya causados: ' + COP(r.recargo_mora) + '\n\n'
+      + 'El capital pasa a la quincena del ' + fmtFecha(r.fecha_corte_nueva) + '.\n'
+    : 'Registrar prórroga de ' + COP(r.total_a_pagar) + ' a ' + (p.socioNombre || '')
+      + ' y pasar el pago a ' + fmtFecha(r.fecha_corte_nueva) + '.\n')
+    + 'Le deja ' + COP(r.garantia_generada) + ' de garantía'
+    + (r.a_tiempo ? '' : ' (la mitad, por dejarla tarde)') + '.\n'
+    + 'Es su prórroga ' + (r.prorrogas_usadas + 1) + ' de ' + r.prorrogas_permitidas
+    + ' (nivel ' + r.nivel_socio + '); '
+    + (r.prorrogas_restantes ? 'le quedaría ' + r.prorrogas_restantes + '.'
+       : 'después de esta ya no le quedan.')
+    + '\n\n¿Lo registro?';
+  if (!confirm(texto)) return;
+
+  /* Se guarda el MOVIMIENTO que armó el motor: monto, recargo aparte (para que
+     el puente lo acredite a la mitad sin degradar el costo), la puntualidad
+     congelada y el corte al que pasó DE VERDAD. Los mismos campos que escribe
+     crm.html: si acá faltara uno, la prórroga subiría incompleta. */
+  p.prorrogas = p.prorrogas || [];
+  p.prorrogas.push({ fecha: r.fecha, ciclo: r.fecha_corte_anterior, monto: r.total_a_pagar,
+    mora: r.recargo_mora, aTiempo: r.a_tiempo, diasMora: r.dias_mora, nuevoCiclo: r.fecha_corte_nueva });
+  p.cicloActual = r.fecha_corte_nueva;
+
+  var s = socioDe(p);
+  encolar('prorroga', (s && s.nombre) || p.socioNombre || 'Socio',
+    COP(r.total_a_pagar) + ' → ' + fmtFecha(r.fecha_corte_nueva), 'creditos', p.id);
+  guardarEstado(); cerrarHoja(); pintar(); sincronizar(false);
+  ofrecerWhatsApp(p, 'prorroga', 'Prórroga registrada');
+}
+
+/* --- 3. marcar gestión ------------------------------------------------- */
+function marcarGestion(prestId, clave) {
+  var p = creditoPorId(prestId); if (!p) return;
+  var s = socioDe(p); if (!s) return;
+  s.gestiones = s.gestiones || [];
+  s.gestiones.push({ fecha: hoyISO(), canal: 'whatsapp', plantilla: clave });
+  encolar('gestion', s.nombre || 'Socio', 'contacto por WhatsApp', 'socios', s.id);
+  guardarEstado(); pintar(); sincronizar(false);
+}
+function ofrecerWhatsApp(p, clave, titulo) {
+  var s = socioDe(p); if (!s) return;
+  var r = horarioPermitido();
+  if (!r.ok) return;                      // fuera de horario no se propone escribir
+  setTimeout(function () { abrirGestion(p.id, clave, titulo); }, 250);
+}
+
+/* --- crear cliente: SOLO con señal ------------------------------------- */
+function crearCliente() {
+  if (!nubeLista()) {
+    alert('Para crear un cliente hace falta señal.\n\n'
+      + 'No es una limitación caprichosa: el número de cliente (CL-0001, CL-0002…) '
+      + 'lo emite la nube, uno por uno. Si el celular lo inventara sin señal, '
+      + 'el computador podría estar entregando ese mismo número al mismo tiempo '
+      + 'y quedarían dos personas distintas con el mismo código.\n\n'
+      + 'Todo lo demás —cobrar, prorrogar, marcar gestión— sí funciona sin señal.');
+    return;
+  }
+  var nombre = String(document.getElementById('nvNombre').value || '').trim();
+  if (!nombre) { alert('Falta el nombre.'); return; }
+  var cedula = String(document.getElementById('nvCedula').value || '').trim();
+  var tel = String(document.getElementById('nvTel').value || '').trim();
+  var btn = document.getElementById('nvBtn');
+  btn.disabled = true; btn.textContent = 'Pidiendo el número a la nube…';
+  NUBE.siguienteNumero('cliente').then(function (numero) {
+    var s = {
+      /* El id lleva marca del aparato a propósito. crm.html usa 'C'+Date.now(),
+         y dos aparatos creando en el mismo milisegundo producirían el mismo id:
+         la sincronización los trataría como la misma fila y una de las dos
+         personas desaparecería. */
+      id: 'C' + Date.now() + '-cel' + Math.random().toString(36).slice(2, 5),
+      numero: Number(numero) || 0,
+      nombre: nombre, cedula: cedula, telefono: tel,
+      whatsappIgual: true, gestiones: [], referencia: { nombre: '', telefono: '' },
+      fechaRegistro: new Date().toISOString()
+    };
+    DB.socios.push(s);
+    encolar('cliente', nombre, P.codCliente(s), 'socios', s.id);
+    guardarEstado(); cerrarHoja();
+    SEL.socioId = s.id; ir('ficha');
+    sincronizar(false);
+  }).catch(function (e) {
+    btn.disabled = false; btn.textContent = 'Crear el cliente';
+    alert((e && e.motivo) || 'No pude pedirle el número a la nube. No creé nada.');
+  });
+}
+
+/* ============================== PANTALLAS =============================== */
+var VISTA = 'hoy';
+var SEL = { socioId: null, creditoId: null };
+var BUSQUEDA = '';
+
+var TITULOS = { hoy: 'Hoy', buscar: 'Buscar', ficha: 'Ficha del socio',
+                credito: 'Crédito', quincena: 'Quincena' };
+
+function ir(v) {
+  VISTA = v;
+  Array.prototype.forEach.call(document.querySelectorAll('#nav button'), function (b) {
+    b.classList.toggle('on', b.dataset.v === v);
+  });
+  document.getElementById('cabTitulo').textContent = TITULOS[v] || 'Panel';
+  window.scrollTo(0, 0);
+  pintar();
+}
+
+function pintar() {
+  pintarCinta();
+  pintarTraido();
+  var c = document.getElementById('cuerpo');
+  var html = '';
+  if (!M || !P) {
+    c.innerHTML = '<div class="aviso ambar"><b>No cargaron las reglas.</b> '
+      + 'Faltan <span class="mono">../app/motor.js</span> o <span class="mono">../app/puente.js</span>. '
+      + 'Esta pantalla no muestra números inventados: sin esos dos archivos no muestra nada.</div>';
+    return;
+  }
+  html += bloqueChoques();
+  html += bloqueAvisosDuros();
+  if (VISTA === 'hoy') html += vistaHoy();
+  else if (VISTA === 'buscar') html += vistaBuscar();
+  else if (VISTA === 'ficha') html += vistaFicha();
+  else if (VISTA === 'credito') html += vistaCredito();
+  else if (VISTA === 'quincena') html += vistaQuincena();
+  html += '<div class="pie">Panel en el bolsillo · las reglas son las de '
+    + esc(M.REGLAS_VIGENTES_DESDE || '—') + '</div>';
+  c.innerHTML = '<div class="vista">' + html + '</div>';
+}
+
+/* Lo que no se puede callar en ninguna vista. */
+function bloqueAvisosDuros() {
+  var h = '';
+  if (!NUBE) {
+    h += '<div class="aviso ambar"><b>Falta panel/nube.js.</b> Sin ese archivo esta pantalla '
+      + 'solo puede mostrar lo que ya estaba guardado en este teléfono: no trae ni sube nada.</div>';
+  }
+  if (_sinEspacio) {
+    h += '<div class="aviso ambar"><b>No pude guardar en este teléfono.</b> Se acabó el espacio del '
+      + 'navegador. Lo que acabas de registrar está en pantalla pero <b>no sobrevive a cerrar la app</b>: '
+      + 'busca señal y súbelo antes de cerrar.</div>';
+  }
+  return h;
+}
+
+/* ------------------------------- HOY ----------------------------------- */
+function vistaHoy() {
+  var arr = DB.prestamos.filter(function (p) {
+    return ['mora', 'hoy', 'proximo'].indexOf(estadoPrestamo(p)) !== -1;
+  }).sort(function (a, b) {
+    var o = { mora: 0, hoy: 1, proximo: 2 };
+    return o[estadoPrestamo(a)] - o[estadoPrestamo(b)] ||
+      String(P.corteDelCredito(a)).localeCompare(String(P.corteDelCredito(b)));
+  });
+
+  var h = '';
+  var hor = horarioPermitido();
+  if (!hor.ok) {
+    h += '<div class="aviso ambar"><b>Fuera de horario de cobranza</b> (Ley 2300): ' + esc(hor.motivo)
+      + '. Puedes registrar pagos y prórrogas —eso es contabilidad, no contacto—, '
+      + 'pero no llamar ni escribir.</div>';
+  }
+  if (!arr.length) {
+    /* DOS VACÍOS QUE PARECEN UNO Y NO LO SON, Y ES LA RAZÓN DE ESTA PÁGINA.
+       «No hay nada que cobrar» y «todavía no ha llegado tu cartera» se ven
+       igual en la pantalla y significan lo contrario. El CRM de escritorio
+       abierto en un teléfono hace exactamente esto: con la cartera en el otro
+       aparato pinta un ✓ verde y «Nada por gestionar hoy», o sea afirma en
+       positivo que Joan no tiene nada que cobrar el martes. La cabecera y la
+       barra de abajo ya dicen «sin conectar», pero el ojo va al centro, y un ✓
+       verde gana a cualquier letra pequeña.
+       El criterio es la CARTERA, no la cola: si no hay ni un crédito cargado,
+       este teléfono no sabe nada y tiene que decirlo. */
+    var sinCartera = !(DB.prestamos && DB.prestamos.length);
+    if (sinCartera) {
+      return h + '<div class="vacio"><div class="ic">☁</div>'
+        + '<p>Todavía no ha llegado tu cartera a este teléfono.</p>'
+        + '<p class="muted">Esto <b>no</b> quiere decir que no tengas nada que cobrar: quiere decir que '
+        + 'este aparato aún no la ha traído. Entra con tu correo y toca «Traer de la nube».</p></div>';
+    }
+    return h + '<div class="vacio"><div class="ic">✅</div><p>Nada por gestionar hoy.</p>'
+      + '<p class="muted">Aparecen los créditos vencidos, los que vencen hoy y los que vencen en dos días o menos.</p></div>';
+  }
+
+  var total = arr.reduce(function (s, p) { return s + totalCiclo(p); }, 0);
+  var enMora = arr.filter(function (p) { return estadoPrestamo(p) === 'mora'; }).length;
+  h += '<div class="card laca ap"><div class="etq">La cola de hoy</div>'
+    + '<div class="cifra oro">' + COP(total) + '</div>'
+    + '<div class="sub" style="color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)">'
+    + arr.length + ' crédito(s) por gestionar · ' + enMora + ' en mora</div></div>';
+
+  arr.forEach(function (p) {
+    var s = socioDe(p) || { nombre: p.socioNombre, telefono: p.telefono, gestiones: [] };
+    var est = estadoPrestamo(p);
+    var l = liq(p);
+    var cuando = est === 'hoy' ? 'vence hoy'
+      : est === 'mora' ? 'hace ' + l.dias_mora + ' día(s)'
+      : 'en ' + diasPara(p) + ' día(s)';
+    var ofrecida = prorrogaOfrecida(p);
+    h += '<div class="card ap">'
+      + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'
+      +   '<div style="min-width:0">'
+      +     '<b>' + esc(s.nombre || p.socioNombre || 'Socio') + '</b>'
+      +     '<div class="mini mono">' + esc(P.codCredito(p)) + (s.id ? ' · ' + esc(P.codCliente(s)) : '') + '</div>'
+      +   '</div>'
+      +   '<span class="pill ' + est + '">' + ESTADO_TXT[est] + '</span>'
+      + '</div>'
+      + '<div class="fila"><span class="k">Total para saldar</span>'
+      +   '<span class="v">' + COP(l.total_a_pagar) + '</span></div>'
+      + (l.recargo_mora
+          ? '<div class="fila"><span class="k">Recargo por ' + l.dias_mora + ' día(s)' + pctMora(l) + '</span>'
+            + '<span class="v ambar">' + COP(l.recargo_mora) + '</span></div>'
+          : '')
+      + '<div class="fila"><span class="k">Vence</span>'
+      +   '<span class="v">' + fmtFecha(P.corteDelCredito(p)) + ' <span class="muted">· ' + cuando + '</span></span></div>'
+      + '<div class="fila"><span class="k">Prórroga</span><span class="v">'
+      +   (ofrecida != null ? COP(ofrecida)
+          : (P.tienePlan(p) ? '<span class="muted">en plan de pagos</span>'
+             : '<span class="muted">ya no le quedan</span>')) + '</span></div>'
+      + (contactadoHoy(s) ? '<div class="mini">Ya lo contactaste hoy.</div>' : '')
+      + '<div class="tres">'
+      +   '<button class="btn sm" type="button" data-acc="cobro" data-id="' + esc(p.id) + '">Cobrar</button>'
+      +   '<button class="btn sm sec" type="button" data-acc="prorroga" data-id="' + esc(p.id) + '">Prórroga</button>'
+      +   '<button class="btn sm sec" type="button" data-acc="gestion" data-id="' + esc(p.id) + '">Gestión</button>'
+      + '</div>'
+      + '<button class="btn sm sec arriba" type="button" data-acc="vercredito" data-id="' + esc(p.id) + '">Ver el crédito</button>'
+      + '</div>';
+  });
+  /* Lo que esta cola NO trae, dicho donde se nota la falta. */
+  h += '<div class="aviso info">Acá solo entran los <b>créditos quincenales</b>, igual que la cola del '
+    + 'computador. Las cuotas del <b>préstamo con garantía</b> no se cobran desde el celular: '
+    + 'se ven en la ficha del socio y se cobran en el computador.</div>';
+  return h;
+}
+
+/* ------------------------------ BUSCAR --------------------------------- */
+function vistaBuscar() {
+  var q = BUSQUEDA.trim().toLowerCase();
+  var h = '<div class="card ap">'
+    + '<label for="bq">Buscar por nombre, cédula, teléfono o código</label>'
+    + '<input id="bq" type="search" inputmode="search" autocomplete="off" '
+    +   'placeholder="Ej.: María, 1032…, CL-0007" value="' + esc(BUSQUEDA) + '">'
+    + '</div>';
+
+  var socios = DB.socios;
+  if (q) {
+    socios = socios.filter(function (s) {
+      var codigo = P.codCliente(s).toLowerCase();
+      return [s.nombre, s.cedula, s.telefono, s.telefono2, s.whatsappNumero, codigo]
+        .some(function (v) { return String(v == null ? '' : v).toLowerCase().indexOf(q) !== -1; });
+    });
+  }
+  socios = socios.slice().sort(function (a, b) {
+    return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
+  });
+
+  h += '<div class="tit-bloque"><h3 class="tit">'
+    + (q ? socios.length + ' resultado(s)' : socios.length + ' socios')
+    + '</h3></div>';
+
+  if (!socios.length) {
+    h += '<div class="vacio"><div class="ic">🔍</div><p>Nadie con eso.</p></div>';
+  } else {
+    socios.slice(0, 60).forEach(function (s) {
+      var abiertos = DB.prestamos.filter(function (p) { return p.socioId === s.id && !p.pagado; });
+      var enMora = abiertos.filter(function (p) { return estadoPrestamo(p) === 'mora'; }).length;
+      h += '<div class="card ap tocable" data-acc="verficha" data-id="' + esc(s.id) + '">'
+        + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'
+        +   '<div style="min-width:0"><b>' + esc(s.nombre || 'Socio') + '</b>'
+        +     '<div class="mini mono">' + esc(P.codCliente(s)) + (s.cedula ? ' · ' + esc(s.cedula) : '') + '</div></div>'
+        +   (enMora ? '<span class="pill mora">' + enMora + ' en mora</span>' : '')
+        + '</div>'
+        + '<div class="mini">' + abiertos.length + ' crédito(s) abierto(s)'
+        +   (abiertos.length ? ' · ' + COP(abiertos.reduce(function (t, p) { return t + totalCiclo(p); }, 0)) + ' por cobrar' : '')
+        + '</div></div>';
+    });
+    if (socios.length > 60) {
+      h += '<div class="mini" style="margin-top:8px">Se muestran los primeros 60. Afina la búsqueda.</div>';
+    }
+  }
+
+  /* El botón NO se esconde sin señal: se muestra y se explica. Esconderlo dejaría
+     a Joan pensando que la función no existe; mostrarlo apagado sin decir por qué
+     es peor todavía. */
+  h += '<button class="btn arriba" type="button" data-acc="nuevocliente">＋ Cliente nuevo</button>';
+  h += nubeLista()
+    ? '<div class="mini" style="margin-top:8px">El número de cliente lo emite la nube al crearlo, para que no se repita con el del computador.</div>'
+    : '<div class="aviso ambar"><b>Sin señal no se puede crear un cliente.</b> El número (CL-0001, CL-0002…) '
+      + 'lo emite la nube uno por uno; si el celular lo inventara, el computador podría estar entregando '
+      + 'ese mismo número al mismo tiempo. Cobrar, prorrogar y marcar gestión sí funcionan sin señal.</div>';
+  return h;
+}
+
+/* ------------------------------- FICHA --------------------------------- */
+function vistaFicha() {
+  var s = SEL.socioId ? socioPorId(SEL.socioId) : null;
+  if (!s) {
+    return '<div class="vacio"><div class="ic">👤</div><p>Todavía no has abierto la ficha de nadie.</p>'
+      + '<p class="muted">Búscalo en <b>Buscar</b> o entra desde un crédito de <b>Hoy</b>.</p></div>';
+  }
+  var paq = P.migrarSocio(DB, s);
+  var cupo = P.cupoDelSocio(DB, s, paq.garantia.nivel);
+  var ps = DB.prestamos.filter(function (p) { return p.socioId === s.id; })
+    .sort(function (a, b) { return String(b.fechaDesembolso || '').localeCompare(String(a.fechaDesembolso || '')); });
+  var resp = P.respaldadosDe(DB, s);
+  var tel = waNum(s);
+
+  var h = '<div class="card laca">'
+    + '<div class="etq">' + esc(P.codCliente(s)) + ' · nivel ' + esc(paq.garantia.nivel) + '</div>'
+    + '<h1 style="font-size:22px;margin-top:6px;color:var(--blanco-laca)">' + esc(s.nombre || 'Socio') + '</h1>'
+    + '<div class="sep"></div>'
+    + '<div class="fila"><span class="k">Garantía ganada</span><span class="v oro">' + COP(paq.garantia.acumulada) + '</span></div>'
+    + '<div class="fila"><span class="k">Garantía total (con cupón y referidos)</span><span class="v oro">' + COP(paq.garantia.total) + '</span></div>'
+    + '<div class="fila"><span class="k">Capital afuera</span><span class="v">' + COP(paq.garantia.capital_afuera) + '</span></div>'
+    + '<div class="fila"><span class="k">Cupo disponible hoy</span><span class="v oro">' + COP(cupo.cupo) + '</span></div>'
+    + '<div class="fila"><span class="k">Pagados a tiempo · racha</span><span class="v">'
+    +   paq.garantia.pagados_a_tiempo + ' · ' + paq.garantia.racha + '</span></div>'
+    + '</div>';
+
+  if (tel) {
+    var hor = horarioPermitido();
+    h += '<div class="card ap">'
+      + '<div class="fila"><span class="k">WhatsApp</span><span class="v mono">' + esc(tel) + '</span></div>'
+      + (contactadoHoy(s) ? '<div class="mini">Ya lo contactaste hoy.</div>' : '')
+      + (hor.ok
+          ? '<a class="btn sm sec arriba" href="' + esc(waLink(tel, '')) + '" target="_blank" rel="noopener">Abrir el chat</a>'
+          : '<div class="aviso ambar" style="margin-top:8px">Fuera de horario (Ley 2300): ' + esc(hor.motivo) + '.</div>')
+      + '</div>';
+  }
+
+  /* Donde iría la foto, va la verdad. */
+  h += '<div class="aviso info"><b>Las fotos se quedan en el computador.</b> La cédula, la selfie y los '
+    + 'comprobantes no viajan al celular en esta fase: pesan mucho en base64 y la selfie es dato '
+    + 'biométrico (Ley 1581, art. 5). Acá ves los datos y los números, no las imágenes.</div>';
+
+  h += '<div class="tit-bloque"><h3 class="tit">Créditos quincenales</h3>'
+    + '<span class="muted">' + ps.length + '</span></div>';
+  if (!ps.length) h += '<div class="card ap muted">Sin créditos todavía.</div>';
+  ps.forEach(function (p) {
+    var est = estadoPrestamo(p);
+    h += '<div class="card ap tocable" data-acc="vercredito" data-id="' + esc(p.id) + '">'
+      + '<div style="display:flex;justify-content:space-between;gap:8px">'
+      +   '<div><b>' + COP(p.capital) + '</b><div class="mini mono">' + esc(P.codCredito(p)) + '</div></div>'
+      +   '<span class="pill ' + est + '">' + ESTADO_TXT[est] + '</span></div>'
+      + '<div class="mini">' + (p.pagado
+          ? 'pagado el ' + fmtFecha(p.fechaPagado)
+          : 'vence el ' + fmtFecha(P.corteDelCredito(p)) + ' · ' + COP(totalCiclo(p)) + ' para saldar')
+      + '</div></div>';
+  });
+
+  if (resp.length) {
+    h += '<div class="tit-bloque"><h3 class="tit">Préstamos con garantía</h3>'
+      + '<span class="muted">' + resp.length + '</span></div>';
+    resp.forEach(function (r) {
+      var pend = (r.cuotas || []).filter(function (c) { return !c.pagado; });
+      var prox = pend.slice().sort(function (a, b) { return String(a.fecha).localeCompare(String(b.fecha)); })[0];
+      h += '<div class="card ap"><div><b>' + COP(r.capital) + '</b>'
+        + '<div class="mini mono">' + esc(P.codRespaldado(r)) + '</div></div>'
+        + '<div class="fila"><span class="k">Saldo de capital</span>'
+        +   '<span class="v">' + COP(P.saldoCapitalRespaldado(r)) + '</span></div>'
+        + (prox ? '<div class="fila"><span class="k">Próxima cuota</span><span class="v">'
+            + COP(prox.total) + ' el ' + fmtFecha(prox.fecha) + '</span></div>' : '')
+        + '<div class="mini">Estas cuotas se cobran en el computador, no desde acá.</div>'
+        + '</div>';
+    });
+  }
+
+  var g = (s.gestiones || []).slice(-6).reverse();
+  h += '<div class="tit-bloque"><h3 class="tit">Últimas gestiones</h3></div>';
+  if (!g.length) h += '<div class="card ap muted">Sin gestiones registradas.</div>';
+  else {
+    h += '<div class="card ap">';
+    g.forEach(function (x) {
+      h += '<div class="linea-item"><span>' + fmtFecha(x.fecha) + '</span>'
+        + '<span class="muted">' + esc(x.plantilla || x.canal || '') + '</span></div>';
+    });
+    h += '</div>';
+  }
+  return h;
+}
+
+/* ------------------------------ CRÉDITO -------------------------------- */
+function vistaCredito() {
+  var p = SEL.creditoId ? creditoPorId(SEL.creditoId) : null;
+  if (!p) {
+    return '<div class="vacio"><div class="ic">💵</div><p>Todavía no has abierto ningún crédito.</p>'
+      + '<p class="muted">Ábrelo desde <b>Hoy</b> o desde la ficha del socio.</p></div>';
+  }
+  var s = socioDe(p);
+  var l = liq(p);
+  var est = estadoPrestamo(p);
+  var cuota = P.cuotaPlanActual(p);
+  var cuotas = P.cuotasPlan(p);
+  var pr = liqProrroga(p);
+
+  var h = '<div class="card">'
+    + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'
+    +   '<div><div class="etq">' + esc(P.codCredito(p)) + '</div>'
+    +     '<h3 class="tit" style="margin-top:4px">' + esc((s && s.nombre) || p.socioNombre || 'Socio') + '</h3></div>'
+    +   '<span class="pill ' + est + '">' + ESTADO_TXT[est] + '</span>'
+    + '</div>'
+    + '<div class="sep"></div>'
+    + '<div class="fila"><span class="k">' + (cuota ? 'Capital de la cuota ' + cuota.n + ' de ' + cuotas.length : 'Capital del ciclo') + '</span>'
+    +   '<span class="v">' + COP(l.capital) + '</span></div>'
+    /* El porcentaje que se imprime es el que RIGE ESTE CICLO y lo dice el puente
+       (`tasa`): con plan de pagos es el 5% sobre el saldo, no el 20% pactado. El
+       día que se escribió a mano en ocho pantallas del Panel, ocho siguieron
+       diciendo 90% cuando el motor ya acreditaba 75. */
+    + '<div class="fila"><span class="k">'
+    +   (cuota ? 'Costo del plan (' + Math.round((l.tasa || 0) * 100) + '% del saldo)'
+             : 'Costo del ciclo (' + Math.round((l.tasa || 0) * 100) + '%)') + '</span>'
+    +   '<span class="v">' + COP(l.costo) + '</span></div>'
+    + (l.recargo_mora
+        ? '<div class="fila"><span class="k">Recargo por ' + l.dias_mora + ' día(s)' + pctMora(l) + '</span>'
+          + '<span class="v ambar">' + COP(l.recargo_mora) + '</span></div>'
+        : '')
+    + '<div class="fila"><span class="k"><b>' + (cuota ? 'Total de la cuota' : 'Total para saldar') + '</b></span>'
+    +   '<span class="v"><b>' + COP(l.total_a_pagar) + '</b></span></div>'
+    + '<div class="fila"><span class="k">Garantía que le deja</span><span class="v oro-tinta">'
+    +   COP(l.garantia_generada)
+    +   (l.acredita_en_fecha ? ''
+        : ' <span class="muted">(la mitad, '
+          + (l.pago_a_tiempo ? 'porque el crédito ya venía de una mora' : 'por pagar tarde') + ')</span>')
+    + '</span></div>'
+    + '<div class="fila"><span class="k">Vence</span><span class="v">' + fmtFecha(P.corteDelCredito(p)) + '</span></div>'
+    + '<div class="fila"><span class="k">Saldo de capital del crédito</span><span class="v">' + COP(capitalActual(p)) + '</span></div>'
+    + '</div>';
+
+  if (p.pagado) {
+    h += '<div class="aviso info">Este crédito ya está pagado (' + fmtFecha(p.fechaPagado) + '). '
+      + 'No hay nada que cobrar ni que prorrogar.</div>';
+  } else {
+    if (cuota) {
+      h += '<div class="aviso info">Está en <b>plan de pagos</b>: va por la cuota <b>' + cuota.n
+        + ' de ' + cuotas.length + '</b>. De acá no se sale prorrogando; se cobran las cuotas una por una.</div>';
+    } else if (pr && pr.ok) {
+      h += '<div class="aviso info">Si no puede pagar todo, la prórroga cuesta <b>' + COP(pr.total_a_pagar) + '</b>'
+        + (pr.recargo_mora ? ' (' + COP(pr.costo_prorroga) + ' del ciclo más ' + COP(pr.recargo_mora)
+            + ' de recargo ya causado: la prórroga no lo borra)' : '')
+        + ' y el capital pasa al <b>' + fmtFecha(pr.fecha_corte_nueva) + '</b>. '
+        + 'Le quedan <b>' + (pr.prorrogas_permitidas - pr.prorrogas_usadas) + '</b> de ' + pr.prorrogas_permitidas + '.</div>';
+    } else if (pr && !pr.ok) {
+      h += '<div class="aviso ambar"><b>Ya usó sus ' + pr.prorrogas_permitidas + ' prórroga(s)</b> — es lo que da el '
+        + 'nivel ' + esc(pr.nivel_socio) + '. La salida es el plan de pagos del §8, y eso se registra en el '
+        + 'computador: son tres fechas y tres montos que quedan fijos.</div>';
+    }
+    h += '<div class="dos">'
+      + '<button class="btn" type="button" data-acc="cobro" data-id="' + esc(p.id) + '">Registrar pago</button>'
+      + '<button class="btn sec" type="button" data-acc="prorroga" data-id="' + esc(p.id) + '">Prórroga</button>'
+      + '</div>'
+      + '<button class="btn sec arriba" type="button" data-acc="gestion" data-id="' + esc(p.id) + '">Marcar gestión / WhatsApp</button>';
+  }
+
+  if (cuotas.length) {
+    h += '<div class="tit-bloque"><h3 class="tit">Plan de pagos</h3></div><div class="card ap">';
+    cuotas.forEach(function (c) {
+      h += '<div class="linea-item"><span>Cuota ' + c.n + ' · ' + fmtFecha(c.fecha) + '</span>'
+        + '<span>' + COP(c.total) + (c.pagado ? ' <span class="muted">pagada</span>' : '') + '</span></div>';
+    });
+    h += '</div>';
+  }
+
+  var prs = p.prorrogas || [];
+  if (prs.length) {
+    h += '<div class="tit-bloque"><h3 class="tit">Prórrogas</h3><span class="muted">' + prs.length + '</span></div><div class="card ap">';
+    prs.slice().reverse().forEach(function (x) {
+      h += '<div class="linea-item"><span>' + fmtFecha(x.fecha) + ' → ' + fmtFecha(x.nuevoCiclo) + '</span>'
+        + '<span>' + COP(x.monto) + '</span></div>';
+    });
+    h += '</div>';
+  }
+
+  var abs = p.abonosCapital || [];
+  if (abs.length) {
+    h += '<div class="tit-bloque"><h3 class="tit">Abonos a capital</h3></div><div class="card ap">';
+    abs.slice().reverse().forEach(function (x) {
+      h += '<div class="linea-item"><span>' + fmtFecha(x.fecha) + '</span><span>' + COP(x.monto) + '</span></div>';
+    });
+    h += '</div>';
+  }
+
+  var comps = (p.comprobantes || []).length;
+  if (comps) {
+    h += '<div class="aviso info"><b>' + comps + ' comprobante(s)</b> guardados en este crédito. '
+      + 'Las fotos no viajan al celular en esta fase: ábrelas en el computador.</div>';
+  }
+  return h;
+}
+
+/* ----------------------------- QUINCENA -------------------------------- */
+function vistaQuincena() {
+  var q = cicloActualGlobal();
+  var vencen = creditosQueVencenEn(q);
+  var hoy = hoyISO();
+
+  /* Lo que Joan registró HOY. Sale de los hechos guardados, no de un contador
+     aparte: los créditos con fechaPagado de hoy y las prórrogas con fecha de hoy. */
+  var pagadosHoy = DB.prestamos.filter(function (p) { return p.pagado && p.fechaPagado === hoy; });
+  var prorrogadosHoy = [];
+  DB.prestamos.forEach(function (p) {
+    (p.prorrogas || []).forEach(function (pr) { if (pr.fecha === hoy) prorrogadosHoy.push({ p: p, pr: pr }); });
+  });
+  var cobradoHoy = pagadosHoy.reduce(function (t, p) { return t + (Number(p.gananciaPago) || 0); }, 0)
+    + prorrogadosHoy.reduce(function (t, x) { return t + (Number(x.pr.monto) || 0); }, 0);
+
+  var h = '<div class="card laca">'
+    + '<div class="etq">Quincena del ' + fmtFecha(q) + '</div>'
+    + '<div class="cifra oro">' + COP(gananciaDeQuincena(q)) + '</div>'
+    + '<div class="sub" style="color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)">'
+    +   'ganancia del ciclo (costos y prórrogas ya cobrados)</div>'
+    + '<div class="sep"></div>'
+    + '<div class="fila"><span class="k">Invertido en el ciclo</span>'
+    +   '<span class="v">' + COP(invertidoEnQuincena(q)) + '</span></div>'
+    + '<div class="fila"><span class="k">Por cobrar en el ciclo</span>'
+    +   '<span class="v">' + COP(porCobrarEnQuincena(q)) + '</span></div>'
+    + '<div class="fila"><span class="k">Créditos que vencen</span>'
+    +   '<span class="v">' + vencen.length + '</span></div>'
+    + '</div>';
+
+  h += '<div class="tit-bloque"><h3 class="tit">Lo que registraste hoy</h3></div>';
+  if (!pagadosHoy.length && !prorrogadosHoy.length) {
+    h += '<div class="card ap muted">Todavía nada hoy.</div>';
+  } else {
+    h += '<div class="card ap">';
+    /* Cada línea muestra LA GANANCIA, que es lo que suma el total de abajo. La
+       primera versión mostraba el capital del crédito y el total la ganancia:
+       tres renglones que no daban el cuarto. Una lista cuyos números no suman el
+       total que tienen debajo es peor que no poner la lista. El capital queda
+       como contexto, en gris y dicho. */
+    pagadosHoy.forEach(function (p) {
+      h += '<div class="linea-item"><span>Pago · ' + esc(p.socioNombre || '')
+        + '<br><span class="muted">' + COP(p.capital) + ' de capital devuelto</span></span>'
+        + '<span>' + COP(Number(p.gananciaPago) || 0) + '</span></div>';
+    });
+    prorrogadosHoy.forEach(function (x) {
+      h += '<div class="linea-item"><span>Prórroga · ' + esc(x.p.socioNombre || '')
+        + '<br><span class="muted">pasa al ' + fmtFecha(x.pr.nuevoCiclo) + '</span></span>'
+        + '<span>' + COP(x.pr.monto) + '</span></div>';
+    });
+    h += '<div class="fila"><span class="k"><b>Ganancia registrada hoy</b></span>'
+      + '<span class="v"><b>' + COP(cobradoHoy) + '</b></span></div>';
+    h += '</div>';
+    /* ---------------------------------------------------------------------
+       POR QUÉ ESTOS DOS NÚMEROS PUEDEN NO COINCIDIR, DICHO ANTES DE QUE JOAN LO
+       PREGUNTE. Un cobro se le carga al corte que se estaba cumpliendo, no al
+       día en que entró la plata: si alguien paga hoy un crédito que vencía el 31
+       de julio, esa ganancia es de la quincena del 31 de julio. Así lo cuenta
+       también el computador. Sin esta línea, la tarjeta de arriba puede decir $0
+       mientras esta dice $60.000 del mismo día, y eso se lee como un error.
+       --------------------------------------------------------------------- */
+    if (cobradoHoy > 0) {
+      h += '<div class="aviso info">Lo de hoy no siempre entra en la quincena de arriba: '
+        + 'cada cobro se le carga al <b>corte que se estaba cumpliendo</b>, no al día en que entró '
+        + 'la plata. Un crédito vencido que se paga hoy suma en la quincena en la que venció.</div>';
+    }
+  }
+
+  h += '<div class="tit-bloque"><h3 class="tit">Vencen en esta quincena</h3>'
+    + '<span class="muted">' + vencen.length + '</span></div>';
+  if (!vencen.length) h += '<div class="card ap muted">Ninguno.</div>';
+  vencen.slice().sort(function (a, b) { return totalCiclo(b) - totalCiclo(a); }).forEach(function (p) {
+    h += '<div class="card ap tocable" data-acc="vercredito" data-id="' + esc(p.id) + '">'
+      + '<div style="display:flex;justify-content:space-between;gap:8px">'
+      + '<span>' + esc(p.socioNombre || '') + '</span>'
+      + '<b>' + COP(totalCiclo(p)) + '</b></div>'
+      + '<div class="mini mono">' + esc(P.codCredito(p)) + '</div></div>';
+  });
+
+  /* Esta cifra es de la CARTERA ENTERA, y la cartera entera solo está completa si
+     lo del computador ya subió. Decirlo evita que Joan lea un número a medias. */
+  h += '<div class="aviso info">Estos números salen de lo que este teléfono tiene guardado. '
+    + 'Si el computador registró algo y todavía no lo ha subido, acá no está. '
+    + 'Última vez que se trajo algo de la nube: <b>' + esc(textoTraido()) + '</b>.</div>';
+  return h;
+}
+
+/* =========================== LA CINTA DE ESTADO ==========================
+   Está fija abajo, encima de las pestañas, y se ve en las cinco vistas. Dice
+   siempre las mismas tres cosas y en el mismo orden: cuántas cosas esperan
+   subir, si hay señal, y cuándo se trajo algo por última vez. */
+function textoTraido() {
+  if (!ULTIMO_TRAER) return 'nunca';
+  return fmtFechaHora(ULTIMO_TRAER);
+}
+function pintarTraido() {
+  var el = document.getElementById('cabTraido');
+  var partes = [];
+  partes.push('Traído de la nube: ' + textoTraido());
+  if (NUBE && NUBE.sesion && NUBE.sesion()) {
+    var ses = NUBE.sesion();
+    if (ses && ses.correo) partes.push(ses.correo);
+  }
+  el.textContent = partes.join(' · ');
+}
+function pintarCinta() {
+  var el = document.getElementById('cinta');
+  var n = pendientes();
+  var choques = CHOQUES.length;
+  var sinRed = (typeof navigator !== 'undefined' && navigator.onLine === false);
+  var html = '';
+  var alerta = false;
+
+  if (n > 0) {
+    alerta = true;
+    html += '<span class="cuenta">' + n + '</span>';
+    html += '<span class="txt"><b>' + n + (n === 1 ? ' cosa esperando subir' : ' cosas esperando subir') + '</b>'
+      + (choques ? ' · ' + choques + ' con choque' : '')
+      + '<br>' + (sinRed ? 'sin señal — toca para ver qué falta'
+                 : (nubeLista() ? 'toca para subirlo ahora' : 'sin conectar — toca para ver qué falta'))
+      + '</span>';
+  } else if (choques) {
+    alerta = true;
+    html += '<span class="cuenta">' + choques + '</span>';
+    html += '<span class="txt"><b>' + choques + ' choque(s) por decidir</b><br>toca para verlos</span>';
+  } else if (sinRed) {
+    alerta = true;
+    html += '<span class="txt"><b>Sin señal.</b> Puedes cobrar, prorrogar y marcar gestión; '
+      + 'no puedes crear clientes.</span>';
+  } else if (!NUBE) {
+    alerta = true;
+    html += '<span class="txt"><b>Falta panel/nube.js.</b> Esta pantalla no sube ni trae nada.</span>';
+  } else if (!nubeLista()) {
+    alerta = true;
+    html += '<span class="txt"><b>Sin conectar a la nube.</b> Toca para entrar con tu correo.</span>';
+  } else if (_sincronizando) {
+    html += '<span class="txt">Sincronizando…</span>';
+  } else if (ULTIMO_ERROR) {
+    alerta = true;
+    html += '<span class="txt"><b>' + esc(ULTIMO_ERROR) + '</b><br>toca para reintentar</span>';
+  } else {
+    html += '<span class="txt">Todo subido · traído ' + esc(textoTraido()) + ' · toca para actualizar</span>';
+  }
+  el.className = 'cinta' + (alerta ? ' pendiente' : '');
+  el.innerHTML = html;
+}
+
+/* ============================== LOS CHOQUES ============================== */
+var _choqueAbierto = -1;
+function bloqueChoques() {
+  if (!CHOQUES.length) return '';
+  var h = '';
+  CHOQUES.forEach(function (c, i) {
+    var nombre = nombreDeFila(c.tabla, c.mio) || nombreDeFila(c.tabla, c.suyo) || String(c.id);
+    h += '<div class="choque">'
+      + '<h3>Choque: ' + esc(nombre) + '</h3>'
+      + '<div class="mini" style="color:inherit">Tú cambiaste esta ficha en el celular y '
+      + esc(c.actualizado_por || 'el otro aparato') + ' la cambió también'
+      + (c.actualizado_en ? ' (' + esc(fmtFechaHora(c.actualizado_en)) + ')' : '')
+      + '. <b>Nada se ha perdido</b>: las dos versiones están guardadas en este teléfono. '
+      + 'Decide cuál queda.</div>';
+    if (_choqueAbierto === i) h += ladosHTML(c);
+    h += '<div class="tres">'
+      + '<button class="btn sm sec" type="button" data-acc="choque-nube" data-i="' + i + '">Dejar lo de la nube</button>'
+      + '<button class="btn sm sec" type="button" data-acc="choque-mio" data-i="' + i + '">Mandar lo mío encima</button>'
+      + '<button class="btn sm sec" type="button" data-acc="choque-ver" data-i="' + i + '">'
+      + (_choqueAbierto === i ? 'Ocultar' : 'Ver las dos') + '</button>'
+      + '</div></div>';
+  });
+  return h;
+}
+function nombreDeFila(tabla, f) {
+  if (!f) return '';
+  if (tabla === 'socios') return f.nombre || '';
+  return (f.socioNombre || '') + (f.capital != null ? ' · ' + COP(f.capital) : '');
+}
+/* -------------------------------------------------------------------------
+   QUÉ CAMPOS SE ENSEÑAN: LOS QUE DE VERDAD SE PISAN, Y LOS DICE nube.js.
+
+   Acá había una lista escrita a mano de campos "importantes" por tabla, y era
+   la copia número trece de este proyecto: el día que un campo nuevo empezara a
+   decidir plata, la pantalla del choque seguiría enseñando los de agosto y Joan
+   escogería a ciegas. `fusionarFila` ya devuelve `pisables` —exactamente los
+   campos donde las dos versiones no dicen lo mismo y que NO se pueden resolver
+   solos—, así que la lista sale del cálculo, no de una tabla.
+
+   Si no hay ninguno, se dice: quiere decir que el choque fue por listas que se
+   suman y que mandar lo mío no le quita nada a nadie.
+   ------------------------------------------------------------------------- */
+function ladosHTML(c) {
+  var r = null;
+  try { r = NUBE.fusionarFila(c.mio, c.suyo); } catch (e) { r = null; }
+  var pisables = (r && r.pisables) || [];
+  if (!pisables.length) {
+    return '<div class="lados"><div class="lado">'
+      + '<h4>Las dos versiones caben</h4>'
+      + '<div class="muted">No hay ningún campo en discordia: lo que cambió son listas que solo '
+      + 'suman (gestiones, abonos, prórrogas). Con <b>Mandar lo mío encima</b> se quedan las de los '
+      + 'dos aparatos y no se pierde nada.</div></div></div>';
+  }
+  var izq = '<div class="lado"><h4>Lo mío (este celular)</h4>';
+  var der = '<div class="lado"><h4>Lo de la nube</h4>';
+  pisables.slice(0, 12).forEach(function (p) {
+    izq += '<div class="d"><span>' + esc(etiquetaCampo(p.campo)) + '</span><span>' + esc(valorCorto(p.campo, p.mio)) + '</span></div>';
+    der += '<div class="d"><span>' + esc(etiquetaCampo(p.campo)) + '</span><span>' + esc(valorCorto(p.campo, p.suyo)) + '</span></div>';
+  });
+  return '<div class="lados">' + izq + '</div>' + der + '</div></div>';
+}
+var ETIQUETAS = {
+  pagado: '¿Pagado?', fechaPagado: 'Fecha de pago', capital: 'Capital', total: 'Total',
+  cicloActual: 'Corte vigente', cicloPago: 'Corte del pago', gananciaPago: 'Ganancia del pago',
+  recargoMora: 'Recargo cobrado', nombre: 'Nombre', cedula: 'Cédula', telefono: 'Teléfono',
+  ajusteGarantia: 'Ajuste de garantía', planPagos: 'Plan de pagos', costoPct: 'Costo %'
+};
+function etiquetaCampo(k) { return ETIQUETAS[k] || k; }
+function valorCorto(campo, v) {
+  if (v === undefined) return '(no estaba)';
+  if (v === null) return '—';
+  if (Array.isArray(v)) return v.length + ' elemento(s)';
+  if (typeof v === 'boolean') return v ? 'sí' : 'no';
+  if (typeof v === 'object') return 'objeto';
+  if (typeof v === 'number') {
+    /* Un porcentaje no lleva signo de pesos. Los montos de este proyecto son
+       todos enteros grandes; el 20 de costoPct no lo es. */
+    return campo === 'costoPct' ? String(v) + '%' : COP(v);
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(v))) return fmtFecha(v);
+  return String(v);
+}
+
+/* ================================ HOJAS ================================= */
+function abrirHoja(titulo, html) {
+  document.getElementById('hojaTitulo').textContent = titulo;
+  document.getElementById('hojaCuerpo').innerHTML = html;
+  document.getElementById('hoja').classList.add('on');
+  document.querySelector('.hoja-caja').scrollTop = 0;
+}
+function cerrarHoja() { document.getElementById('hoja').classList.remove('on'); }
+
+function abrirCobro(id) {
+  var p = creditoPorId(id); if (!p) return;
+  abrirHoja('Cobro · ' + ((socioDe(p) || {}).nombre || p.socioNombre || ''),
+    '<label for="pgFecha">Fecha en que paga</label>'
+    + '<input id="pgFecha" type="date" value="' + hoyISO() + '">'
+    + '<div id="pgCalc"></div>');
+  document.getElementById('pgFecha').addEventListener('input', function () { calcCobro(id); });
+  calcCobro(id);
+}
+function calcCobro(id) {
+  var p = creditoPorId(id); if (!p) return;
+  var f = document.getElementById('pgFecha').value || hoyISO();
+  var l = liq(p, f);
+  var c = P.cuotaPlanActual(p), cs = P.cuotasPlan(p);
+  var pr = liqProrroga(p, f);
+  var h = '<div class="card ap" style="margin-top:14px">'
+    + '<div class="fila"><span class="k">' + (c ? 'Capital de la cuota ' + c.n + ' de ' + cs.length : 'Capital') + '</span>'
+    +   '<span class="v">' + COP(l.capital) + '</span></div>'
+    + '<div class="fila"><span class="k">'
+    +   (c ? 'Costo del plan (' + Math.round((l.tasa || 0) * 100) + '% del saldo)'
+           : 'Costo del ciclo (' + Math.round((l.tasa || 0) * 100) + '%)') + '</span>'
+    +   '<span class="v">' + COP(l.costo) + '</span></div>'
+    + (l.recargo_mora
+        ? '<div class="fila"><span class="k">Recargo por ' + l.dias_mora + ' día(s)' + pctMora(l) + '</span>'
+          + '<span class="v ambar">' + COP(l.recargo_mora) + '</span></div>'
+        : '')
+    + '<div class="fila"><span class="k"><b>' + (c ? 'Total de la cuota' : 'Total para saldar') + '</b></span>'
+    +   '<span class="v"><b>' + COP(l.total_a_pagar) + '</b></span></div>'
+    /* Cuando acredita a la mitad se dice POR QUÉ, y son dos motivos distintos:
+       pagar tarde, o pagar dentro de un corte que compró una prórroga (§4-bis).
+       Las dos respuestas las trae el puente resueltas; acá no se deduce ninguna. */
+    + '<div class="fila"><span class="k">Garantía que le deja</span>'
+    +   '<span class="v oro-tinta">' + COP(l.garantia_generada)
+    +   (l.acredita_en_fecha ? ''
+        : ' <span class="muted">(la mitad, '
+          + (l.pago_a_tiempo ? 'porque el crédito ya venía de una mora' : 'por pagar tarde') + ')</span>')
+    +   '</span></div>'
+    + '</div>';
+  h += '<div class="aviso info">El comprobante en foto <b>no se puede adjuntar desde el celular</b> en esta fase: '
+    + 'las fotos no viajan. Si te dio comprobante, guárdalo y adjúntalo en el computador.</div>';
+  h += '<button class="btn arriba" type="button" data-acc="cobro-ok" data-id="' + esc(p.id) + '">'
+    + (c ? '✓ Pagó la cuota ' + c.n + ' (' + COP(l.total_a_pagar) + ')' : '✓ Pagó todo (' + COP(l.total_a_pagar) + ')')
+    + '</button>';
+  if (!c && pr && pr.ok) {
+    h += '<button class="btn sec arriba" type="button" data-acc="prorroga-ok" data-id="' + esc(p.id) + '">'
+      + '↻ Prórroga (' + COP(pr.total_a_pagar) + ')</button>';
+  }
+  document.getElementById('pgCalc').innerHTML = h;
+}
+
+function abrirProrroga(id) {
+  var p = creditoPorId(id); if (!p) return;
+  abrirHoja('Prórroga · ' + ((socioDe(p) || {}).nombre || p.socioNombre || ''),
+    '<label for="prFecha">Fecha en que la deja</label>'
+    + '<input id="prFecha" type="date" value="' + hoyISO() + '">'
+    + '<div id="prCalc"></div>');
+  document.getElementById('prFecha').addEventListener('input', function () { calcProrroga(id); });
+  calcProrroga(id);
+}
+function calcProrroga(id) {
+  var p = creditoPorId(id); if (!p) return;
+  var f = document.getElementById('prFecha').value || hoyISO();
+  var r = liqProrroga(p, f);
+  var caja = document.getElementById('prCalc');
+  if (!r) {
+    caja.innerHTML = '<div class="aviso ambar">' + (P.tienePlan(p)
+      ? 'Este crédito está en <b>plan de pagos</b>: de ahí no se sale prorrogando.'
+      : 'Este crédito no admite prórroga: está pagado o su capital quedó en cero.') + '</div>';
+    return;
+  }
+  if (!r.ok) {
+    caja.innerHTML = '<div class="aviso ambar"><b>Ya usó sus ' + r.prorrogas_permitidas + ' prórroga(s)</b> '
+      + '— es lo que da el nivel ' + esc(r.nivel_socio) + '.<br><br>'
+      + 'La salida es el <b>plan de pagos</b>: el capital en ' + M.CUOTAS_PLAN_DE_PAGOS
+      + ' cortes al ' + Math.round(M.TASA_PLAN_DE_PAGOS * 100) + '%. '
+      + 'Eso se registra en el computador, no desde acá: son tres fechas y tres montos que quedan fijos.</div>';
+    return;
+  }
+  caja.innerHTML = '<div class="card ap" style="margin-top:14px">'
+    + '<div class="fila"><span class="k">Costo del ciclo</span><span class="v">' + COP(r.costo_prorroga) + '</span></div>'
+    + (r.recargo_mora
+        ? '<div class="fila"><span class="k">Recargo ya causado (' + r.dias_mora + ' día(s))</span>'
+          + '<span class="v ambar">' + COP(r.recargo_mora) + '</span></div>'
+        : '')
+    + '<div class="fila"><span class="k"><b>Paga hoy</b></span><span class="v"><b>' + COP(r.total_a_pagar) + '</b></span></div>'
+    + '<div class="fila"><span class="k">El capital pasa al</span><span class="v">' + fmtFecha(r.fecha_corte_nueva) + '</span></div>'
+    + '<div class="fila"><span class="k">Garantía que le deja</span><span class="v oro-tinta">' + COP(r.garantia_generada) + '</span></div>'
+    + '<div class="fila"><span class="k">Prórrogas</span><span class="v">'
+    +   (r.prorrogas_usadas + 1) + ' de ' + r.prorrogas_permitidas + '</span></div>'
+    + '</div>'
+    + '<button class="btn arriba" type="button" data-acc="prorroga-ok" data-id="' + esc(p.id) + '">'
+    + '↻ Registrar la prórroga (' + COP(r.total_a_pagar) + ')</button>';
+}
+
+function abrirGestion(prestId, clave, tituloExtra) {
+  var p = creditoPorId(prestId); if (!p) return;
+  var s = socioDe(p); if (!s) return;
+  var k = clave || plantillaPara(p);
+  var txt = textoPlantilla(p, s, k);
+  var hor = horarioPermitido();
+  var tel = waNum(s);
+
+  var h = '';
+  if (!hor.ok) {
+    h += '<div class="aviso ambar"><b>Fuera de horario (Ley 2300):</b> ' + esc(hor.motivo)
+      + '. Mejor no escribas ahora.</div>';
+  }
+  if (contactadoHoy(s)) {
+    h += '<div class="aviso ambar">Ya contactaste a esta persona hoy. El máximo son '
+      + 'una comunicación al día.</div>';
+  }
+  if (!tel) {
+    h += '<div class="aviso ambar">Esta ficha no tiene teléfono. Puedes dejar la gestión anotada igual.</div>';
+  }
+  if (txt) {
+    /* El aviso va ANTES del cuadro de texto y antes del botón de WhatsApp, que
+       es el único momento en que sirve: después de apretar «Abrir WhatsApp» el
+       mensaje ya está en el chat del cliente. Se nombran los tokens que
+       quedaron, porque «hay un hueco» sin decir cuál obliga a leer el mensaje
+       entero buscándolo. */
+    var huecos = tokensSinResolver(txt);
+    if (huecos.length) {
+      h += '<div class="aviso ambar"><b>Este mensaje tiene ' + huecos.length + ' hueco(s) sin llenar: </b>'
+        + esc(huecos.join(', ')) + '. Son datos que solo existen en el computador '
+        + '(el préstamo con garantía, los códigos). Bórralos o complétalos a mano antes de enviar: '
+        + 'si lo mandas así, el cliente los ve tal cual.</div>';
+    }
+    h += '<label for="gTexto">Mensaje (puedes editarlo)</label>'
+      + '<textarea id="gTexto">' + esc(txt) + '</textarea>';
+  } else {
+    /* Dos faltas distintas y dos avisos distintos. Decir "no han llegado las
+       plantillas" cuando sí llegaron pero falta ESTA manda a Joan a buscar un
+       problema de sincronización que no existe: lo que le falta es escribir esa
+       plantilla en el computador. */
+    var hayAlgunas = DB.plantillas && Object.keys(DB.plantillas).length > 0;
+    h += hayAlgunas
+      ? '<div class="aviso info"><b>No tienes escrita la plantilla «' + esc(k) + '».</b> '
+        + 'El chat se abre en blanco y escribes a mano. Si la quieres lista para la próxima, '
+        + 'se escribe en el computador, en Plantillas.</div>'
+      : '<div class="aviso info"><b>Todavía no han llegado tus plantillas.</b> Se guardan en la nube '
+        + 'junto con la cartera y este teléfono aún no las ha traído, así que el chat se abre en '
+        + 'blanco. No invento un texto: el mensaje que le queda al cliente tiene que ser el tuyo.</div>';
+  }
+  h += '<div class="dos">';
+  if (tel) {
+    h += '<a class="btn" id="gWa" target="_blank" rel="noopener" href="' + esc(waLink(tel, txt)) + '" '
+      + 'data-acc="gestion-ok" data-id="' + esc(p.id) + '" data-k="' + esc(k) + '">Abrir WhatsApp</a>';
+  } else { h += '<span></span>'; }
+  h += '<button class="btn sec" type="button" data-acc="gestion-solo" data-id="' + esc(p.id) + '" data-k="' + esc(k) + '">'
+    + 'Solo anotar la gestión</button></div>';
+  h += '<p class="mini" style="margin-top:10px">Al abrir WhatsApp queda registrada la gestión de hoy. '
+    + 'Tú presionas enviar. La gestión se guarda en este teléfono y sube cuando haya señal.</p>';
+
+  abrirHoja((tituloExtra ? tituloExtra + ' · ' : 'Gestionar · ') + (s.nombre || ''), h);
+  var ta = document.getElementById('gTexto');
+  if (ta) {
+    ta.addEventListener('input', function () {
+      var wa = document.getElementById('gWa');
+      if (wa) wa.href = waLink(tel, ta.value);
+    });
+  }
+}
+
+function abrirNuevoCliente() {
+  var h = '';
+  if (!nubeLista()) {
+    h += '<div class="aviso ambar"><b>Sin señal no se puede.</b> El número de cliente lo emite la nube '
+      + 'uno por uno, y por eso no se puede inventar acá: el computador podría estar entregando ese '
+      + 'mismo número al mismo tiempo y quedarían dos personas con el mismo código.</div>';
+  }
+  h += '<label for="nvNombre">Nombre completo</label><input id="nvNombre" type="text" autocomplete="name">'
+    + '<label for="nvCedula">Cédula</label><input id="nvCedula" type="text" inputmode="numeric">'
+    + '<label for="nvTel">Teléfono / WhatsApp</label><input id="nvTel" type="tel" inputmode="tel">'
+    + '<button class="btn arriba" id="nvBtn" type="button" data-acc="cliente-ok"'
+    + (nubeLista() ? '' : ' disabled') + '>Crear el cliente</button>'
+    + '<div class="aviso info">Acá se abre la ficha con lo mínimo. La dirección, la referencia, las fotos '
+    + 'y el <b>código de acceso</b> con el que el cliente entra a su app se llenan en el computador: '
+    + 'esas cosas no se piden bien de pie en la calle.</div>';
+  abrirHoja('Cliente nuevo', h);
+}
+
+/* ============================== CONEXIÓN ================================
+   Vive en una hoja y no en una pestaña: se toca dos veces en la vida del
+   teléfono. La llave anónima de Supabase es pública por diseño; la contraseña
+   NO se guarda en ninguna parte —solo viaja para pedir la sesión— y por eso hay
+   que escribirla otra vez cuando la sesión caduque de verdad. */
+function abrirConexion() {
+  if (!NUBE) {
+    abrirHoja('Conexión', '<div class="aviso ambar"><b>Falta panel/nube.js.</b> Sin ese archivo esta '
+      + 'pantalla no puede hablar con la nube. Súbelo al sitio y vuelve a abrir.</div>');
+    return;
+  }
+  var cfg = {};
+  try { cfg = NUBE.config() || {}; } catch (e) { cfg = {}; }
+  var ses = null;
+  try { ses = NUBE.sesion(); } catch (e) { ses = null; }
+
+  var h = '';
+  if (ses) {
+    h += '<div class="aviso info">Conectado como <b>' + esc(ses.correo || '—') + '</b>.</div>'
+      + '<button class="btn arriba" type="button" data-acc="sinc">Traer y subir ahora</button>'
+      + '<button class="btn sec arriba" type="button" data-acc="salir">Cerrar la sesión de este teléfono</button>';
+  }
+  h += '<label for="cnUrl">Dirección del proyecto (URL de Supabase)</label>'
+    + '<input id="cnUrl" type="text" inputmode="url" autocapitalize="off" autocorrect="off" '
+    +   'placeholder="https://xxxx.supabase.co" value="' + esc(cfg.url || '') + '">'
+    + '<label for="cnAnon">Llave pública (anon)</label>'
+    + '<input id="cnAnon" type="text" autocapitalize="off" autocorrect="off" value="' + esc(cfg.anon || '') + '">'
+    + '<div class="mini">Esta llave es pública por diseño: es la que trae el sitio. La que abre la '
+    + 'cartera es tu correo y tu contraseña, y eso no se guarda acá.</div>'
+    + '<label for="cnCorreo">Tu correo</label>'
+    + '<input id="cnCorreo" type="email" autocapitalize="off" autocorrect="off" autocomplete="username" '
+    +   'value="' + esc((ses && ses.correo) || '') + '">'
+    + '<label for="cnClave">Tu contraseña</label>'
+    + '<input id="cnClave" type="password" autocomplete="current-password">'
+    + '<button class="btn arriba" id="cnBtn" type="button" data-acc="entrar">Entrar</button>'
+    + '<div class="aviso info">La contraseña no se guarda en este teléfono. Lo que queda guardado es la '
+    + 'sesión, que se renueva sola mientras la uses.</div>';
+
+  /* -----------------------------------------------------------------------
+     ESTE AVISO DICE LO QUE EL CÓDIGO HACE, NI UNA PALABRA MÁS.
+
+     La primera versión decía "este teléfono no descarga fotos ni la papelera", y
+     eso era mentira a medias: este archivo no filtra nada de lo que baja. Lo
+     que de verdad pasa es que las fotos NO ESTÁN ARRIBA (en la Fase 1 no se
+     suben) y la papelera solo estaría arriba si alguien la hubiera subido a
+     propósito desde subir.html, que trae la casilla de no subirla marcada.
+
+     Y no se filtra acá a propósito: si el celular borrara de su copia algo que
+     sí está en la nube, el siguiente lote mandaría ese borrado hacia arriba y le
+     borraría a Joan lo que él decidió guardar. Un espejo que edita lo que
+     refleja deja de ser un espejo.
+     ----------------------------------------------------------------------- */
+  h += '<div class="aviso info">Este teléfono muestra lo que haya en la nube. Las <b>fotos</b> '
+    + '(cédula, selfie, comprobantes) no están allá arriba en esta fase, así que acá tampoco. '
+    + 'La <b>papelera</b> tampoco sube si dejaste marcada la casilla de subir.html, que viene '
+    + 'marcada. Si algún día la subes, va a bajar acá también: este archivo no filtra nada, '
+    + 'porque filtrar de bajada acabaría borrándotelo de subida.</div>';
+  abrirHoja('Conexión', h);
+}
+
+function entrarANube() {
+  var url = String(document.getElementById('cnUrl').value || '').trim();
+  var anon = String(document.getElementById('cnAnon').value || '').trim();
+  var correo = String(document.getElementById('cnCorreo').value || '').trim();
+  var clave = String(document.getElementById('cnClave').value || '');
+  if (!url || !anon) { alert('Faltan la dirección del proyecto y la llave pública.'); return; }
+  if (!correo || !clave) { alert('Faltan tu correo y tu contraseña.'); return; }
+  var btn = document.getElementById('cnBtn');
+  btn.disabled = true; btn.textContent = 'Entrando…';
+  try { NUBE.guardarConfig({ url: url, anon: anon }); } catch (e) { /* lo dirá el entrar */ }
+  NUBE.entrar(correo, clave).then(function () {
+    cerrarHoja();
+    /* La primera vez se trae TODO: sin ultimoTraer, panel_traer devuelve la
+       cartera completa. Las siguientes van por lo que cambió. */
+    return sincronizar(true);
+  }).catch(function (e) {
+    btn.disabled = false; btn.textContent = 'Entrar';
+    alert((e && e.motivo) || 'No pude entrar. Revisa el correo y la contraseña.');
+  });
+}
+
+/* ============================== EVENTOS ================================= */
+/* `closest` solo existe en un Element. El objetivo de un click siempre lo es,
+   pero un guardia de dos líneas es más barato que una pantalla que deja de
+   responder a los toques en el único momento en que Joan la está usando. */
+function cercano(ev, selector) {
+  var t = ev && ev.target;
+  return (t && typeof t.closest === 'function') ? t.closest(selector) : null;
+}
+document.getElementById('nav').addEventListener('click', function (ev) {
+  var b = cercano(ev, 'button[data-v]');
+  if (b) ir(b.dataset.v);
+});
+document.getElementById('btnConexion').addEventListener('click', abrirConexion);
+document.getElementById('cinta').addEventListener('click', function () {
+  if (CHOQUES.length && !pendientes()) { window.scrollTo(0, 0); return; }
+  /* La lista de pendientes se abre SIEMPRE que haya algo esperando, con señal o
+     sin ella. Antes, sin conexión, este toque llevaba a la pantalla de entrar:
+     Joan veía el número, tocaba para saber qué era, y le salía un formulario de
+     contraseña. Lo primero que necesita saber es QUÉ está esperando; conectarse
+     es lo segundo, y para eso la propia lista tiene su botón. */
+  if (pendientes()) { abrirCola(); return; }
+  if (!NUBE || !nubeLista()) { abrirConexion(); return; }
+  sincronizar(true);
+});
+document.getElementById('hojaCerrar').addEventListener('click', cerrarHoja);
+document.getElementById('hoja').addEventListener('click', function (ev) {
+  if (ev.target === this) cerrarHoja();
+});
+
+/* La lista de lo que está esperando subir. Se puede ABRIR: un número que no se
+   puede abrir obliga a confiar en él a ciegas. */
+function abrirCola() {
+  var h = '';
+  if (!COLA.length) h += '<div class="muted">Nada esperando.</div>';
+  COLA.slice().reverse().forEach(function (it) {
+    var choca = it.choque || enChoque(it.tabla, it.id);
+    h += '<div class="linea-item"><span>' + esc(it.quien || nombreDeFila(it.tabla, it.datos) || '') + '<br>'
+      + '<span class="muted">' + esc(it.que || 'cambio') + (it.detalle ? ' · ' + esc(it.detalle) : '') + '</span></span>'
+      + '<span class="muted">' + esc(fmtHora(it.cuando)) + (choca ? '<br>en choque' : '') + '</span></div>';
+  });
+  h += '<button class="btn arriba" type="button" data-acc="sinc">Subir ahora</button>';
+  if (!nubeLista()) {
+    h += '<div class="aviso ambar">Sin conexión no sube nada. Lo de arriba está guardado en este '
+      + 'teléfono y sigue ahí hasta que suba: no se pierde por cerrar la app.</div>';
+  }
+  abrirHoja(pendientes() + ' esperando subir', h);
+}
+
+/* Un solo oyente para todos los botones pintados. Con innerHTML no hay onclick
+   escritos en el HTML a propósito: los datos de Joan (nombres de socios) se
+   escapan una sola vez y no hay forma de que un apóstrofo en un nombre rompa
+   una llamada. */
+document.addEventListener('click', function (ev) {
+  var el = cercano(ev, '[data-acc]');
+  if (!el) return;
+  var acc = el.dataset.acc, id = el.dataset.id;
+  if (acc === 'cobro') { abrirCobro(id); }
+  else if (acc === 'cobro-ok') {
+    var f = document.getElementById('pgFecha');
+    cobrar(id, f ? f.value : hoyISO());
+  }
+  else if (acc === 'prorroga') { abrirProrroga(id); }
+  else if (acc === 'prorroga-ok') {
+    var g = document.getElementById('prFecha') || document.getElementById('pgFecha');
+    prorrogar(id, g ? g.value : hoyISO());
+  }
+  else if (acc === 'gestion') { abrirGestion(id); }
+  else if (acc === 'gestion-ok') { marcarGestion(id, el.dataset.k); cerrarHoja(); }
+  else if (acc === 'gestion-solo') { marcarGestion(id, el.dataset.k); cerrarHoja(); }
+  else if (acc === 'vercredito') { SEL.creditoId = id; var p = creditoPorId(id); if (p) SEL.socioId = p.socioId; ir('credito'); }
+  else if (acc === 'verficha') { SEL.socioId = id; ir('ficha'); }
+  else if (acc === 'nuevocliente') { abrirNuevoCliente(); }
+  else if (acc === 'cliente-ok') { crearCliente(); }
+  else if (acc === 'entrar') { entrarANube(); }
+  else if (acc === 'salir') {
+    if (!confirm('¿Cerrar la sesión de este teléfono?\n\nLo que esté esperando subir se queda guardado, '
+      + 'pero no va a subir hasta que vuelvas a entrar.')) return;
+    NUBE.salir().catch(function () {}).then(function () { cerrarHoja(); pintar(); });
+  }
+  else if (acc === 'sinc') { cerrarHoja(); sincronizar(true); }
+  else if (acc === 'choque-nube') { resolverChoque(Number(el.dataset.i), 'nube'); }
+  else if (acc === 'choque-mio') { resolverChoque(Number(el.dataset.i), 'mio'); }
+  else if (acc === 'choque-ver') {
+    var i = Number(el.dataset.i);
+    _choqueAbierto = (_choqueAbierto === i) ? -1 : i;
+    pintar();
+  }
+});
+
+/* La búsqueda se escucha delegada porque el campo se vuelve a pintar en cada
+   render. Se guarda el foco y el cursor: si no, escribir la tercera letra
+   mandaba el cursor al principio. */
+document.addEventListener('input', function (ev) {
+  if (ev.target && ev.target.id === 'bq') {
+    BUSQUEDA = ev.target.value;
+    var pos = ev.target.selectionStart;
+    pintar();
+    var n = document.getElementById('bq');
+    if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} }
+  }
+});
+
+window.addEventListener('online', function () { pintarCinta(); sincronizar(false); });
+window.addEventListener('offline', function () { pintarCinta(); });
+/* Al volver a la app después de un rato, lo primero es preguntarle a la nube si
+   pasó algo: el martes de cobro Joan salta entre WhatsApp y esta pantalla cada
+   dos minutos, y entre salto y salto el computador puede haber escrito. */
+document.addEventListener('visibilitychange', function () {
+  if (!document.hidden) { pintarCinta(); sincronizar(false); }
+});
+
+/* =============================== ARRANQUE =============================== */
+(function () {
+  /* Sin el motor y el puente no se pinta un solo número: se dice qué falta.
+     Antes que nada, porque `pintar` los usa. */
+  if (!M || !P) { DB = { socios: [], prestamos: [], respaldados: [] }; pintar(); return; }
+  if (!NUBE) {
+    /* Sin nube.js no hay caché que leer —la escribe él— ni forma de subir nada.
+       Se pinta la pantalla vacía con el aviso en vez de reventar. */
+    DB = normalizarConservando({});
+    ir('hoy');
+    return;
+  }
+  ULTIMO_TRAER = leerUI().ultimoTraer || null;
+  /* La misma lectura defensiva que hace el Panel al cargar, pero SIN escribir en
+     su llave: un respaldo viejo, un socio en null o un crédito sin capital no
+     pueden dejar la pantalla en blanco. */
+  recargarDeDisco();
+  ir('hoy');
+  sincronizar(false);
+  /* Cada cinco minutos, si hay app abierta y señal. No es un reloj de
+     sincronización: es que la cinta de abajo no puede mentir sobre la hora del
+     último traer mientras Joan mira la pantalla. */
+  setInterval(function () { if (!document.hidden) sincronizar(false); }, 300000);
+})();
+
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('../sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>

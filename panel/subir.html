@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tu Garantía · Subir la cartera a la nube</title>
+<meta name="theme-color" content="#0C0A0B">
+<meta name="robots" content="noindex, nofollow">
+<link rel="apple-touch-icon" href="panel-180.png">
+<link rel="icon" type="image/png" href="panel-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* ========================================================================
+     LA PALETA ES LA DEL PANEL, COPIADA A PROPÓSITO.
+
+     Este proyecto no tiene build ni hoja de estilos compartida: cada pantalla
+     es un archivo solo. crm.html es archivo de Joan y no se toca, así que la
+     única forma de que esta página se vea de la misma casa es traerse los
+     tokens. Si algún día la paleta cambia, cambia PRIMERO en crm.html (ahí
+     vive la ley escrita) y después acá.
+
+     De la ley solo hace falta recordar lo que esta pantalla usa:
+       · el ROJO es la marca y el gesto de avanzar — nunca un estado ni plata;
+       · los estados (peligro, aviso, mora) van en ÁMBAR y solo sobre papel;
+       · el AZUL informa y acompaña;
+       · el amarillo sobre papel solo puede ser --amarillo-tinta, y como texto.
+     ======================================================================== */
+  :root{
+    --laca:#0C0A0B;--laca-2:#1A1618;--laca-3:#2A2325;
+    --papel:#FFFFFF;--papel-2:#FBF9F7;--fondo:#F6F3F0;--tinta:#111111;
+    --laca-alto:#2A2224;--laca-medio:#14100F;--laca-bajo:#0A0809;
+    --amarillo:#F5C542;--amarillo-tinta:#7A5A10;
+    --azul:#1B4FD8;--azul-osc:#153FAD;--azul-laca:#7FA8FF;--azul-tinte:#EDF2FE;
+    --rojo:#D81F26;--rojo-osc:#A8161C;--rojo-laca:#FF6B6F;--rojo-tinte:#FCF4F2;
+    --ambar:#9A5B12;--ambar-tinte:#FBF0DE;--ambar-medio:#F3E2C4;
+    --gris:#6E6460;--gris-claro:#7A6F6A;--tinta-2:#4A423E;
+    --linea:#E9E3DD;--linea-2:#F1ECE7;
+    --neutro-1:#EFEAE5;--neutro-2:#E7E0DA;--blanco-laca:#FBF7F4;
+    --amarillo-rgb:245,197,66;--azul-rgb:27,79,216;--laca-rgb:12,10,11;
+    --papel-rgb:255,255,255;--blanco-laca-rgb:251,247,244;
+    --sombra:rgba(var(--laca-rgb),.72);
+    --r:16px;--e1:4px;--e2:8px;--e3:12px;--e4:20px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--fondo);color:var(--tinta);-webkit-font-smoothing:antialiased}
+  h1,h2,h3,h4{line-height:1.12;letter-spacing:-.01em}
+  .display{font-family:'Archivo Black',sans-serif;letter-spacing:0}
+  .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+  button,select,input,textarea{font-family:inherit}button{cursor:pointer}
+
+  /* El PIN. Es el MISMO de crm.html (DB.config.pin) y por la misma razón: esta
+     página muestra nombres, cédulas y saldos de la cartera real. Si el Panel se
+     abre con PIN y esta no, esta página es la puerta de atrás del Panel. */
+  .gate{position:fixed;inset:0;background:var(--laca);display:grid;place-items:center;z-index:100;overflow:hidden}
+  .gate::before{content:"G";position:absolute;font-family:Georgia,'Times New Roman',serif;font-size:52vw;color:transparent;-webkit-text-stroke:2px rgba(var(--amarillo-rgb),.10);top:50%;left:50%;transform:translate(-50%,-50%);white-space:nowrap;pointer-events:none;line-height:1}
+  .gate-card{background:var(--papel);border-radius:18px;padding:38px;width:340px;text-align:center;box-shadow:0 30px 80px -28px var(--sombra);position:relative;z-index:2}
+  .gate-card .mk{display:flex;align-items:center;justify-content:center;gap:11px;font-family:Georgia,'Times New Roman',serif;font-size:29px;color:var(--laca);line-height:1}
+  .gate-card .mk .sello{width:40px;height:40px;border-radius:11px;background:var(--rojo);color:var(--papel);display:grid;place-items:center;font-size:22px;font-weight:700;flex:none}
+  .gate-card .tag{font-size:12px;color:var(--gris);margin:8px 0 22px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+  .gate-card input{width:100%;text-align:center;font-family:'JetBrains Mono';font-size:24px;letter-spacing:.4em;padding:12px;border:2px solid var(--linea);border-radius:10px;background:var(--papel)}
+  .gate-card input:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(var(--azul-rgb),.14)}
+  .gate-card button{width:100%;margin-top:14px;background:var(--rojo);border:none;padding:13px;border-radius:10px;font-weight:700;font-size:15px;color:var(--papel)}
+  .gate-err{color:var(--rojo);font-size:12.5px;margin-top:10px;min-height:16px;font-weight:600}
+
+  .envoltura{max-width:940px;margin:0 auto;padding:26px 24px 90px}
+  .cab{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+  .cab .marca{display:flex;align-items:center;gap:11px}
+  .cab .sello{width:38px;height:38px;border-radius:11px;background:var(--rojo);color:var(--papel);display:grid;place-items:center;font-family:Georgia,'Times New Roman',serif;font-size:21px;font-weight:700;flex:none}
+  .cab h1{font-family:'Archivo Black';font-size:24px}
+  .cab .sub{color:var(--gris);font-size:13.5px;margin-top:4px;font-weight:500;max-width:620px;line-height:1.5}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:none;font-weight:700;font-size:14px;padding:11px 18px;border-radius:10px;transition:.13s;min-height:44px}
+  .btn-rojo{background:var(--rojo);color:var(--papel)}.btn-rojo:hover{background:var(--rojo-osc)}
+  .btn-negro{background:var(--laca);color:var(--papel)}.btn-negro:hover{background:var(--laca-2)}
+  .btn-azul{background:var(--azul);color:var(--papel)}.btn-azul:hover{background:var(--azul-osc)}
+  .btn-ghost{background:var(--papel);border:1.5px solid var(--linea);color:var(--laca)}.btn-ghost:hover{border-color:var(--rojo);color:var(--rojo)}
+  .btn-sm{padding:7px 12px;font-size:13px;border-radius:8px;min-height:38px}
+  .btn:disabled{opacity:.42;cursor:not-allowed}
+  .btn:disabled:hover{background:inherit;border-color:var(--linea);color:inherit}
+  .fila-btn{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+
+  .card{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);overflow:hidden;margin-bottom:18px}
+  .card-h{padding:15px 20px;border-bottom:1px solid var(--linea);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .card-h h3{font-size:16px;font-weight:800;display:flex;align-items:center;gap:10px}
+  .card-b{padding:20px}
+  /* El número del paso. Es una placa negra, no un adorno: dice en qué punto del
+     camino va Joan sin que tenga que leer nada. */
+  .paso-n{width:26px;height:26px;border-radius:8px;background:var(--laca);color:var(--blanco-laca);display:grid;place-items:center;font-family:'JetBrains Mono';font-size:13px;font-weight:700;flex:none}
+  .card.listo .paso-n{background:var(--amarillo-tinta)}
+  .card.fallo .paso-n{background:var(--ambar)}
+  .card.dormido{opacity:.58}
+  .card.dormido .card-b{display:none}
+
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
+  .chip.pendiente{background:var(--neutro-1);color:var(--tinta-2)}
+  .chip.curso{background:var(--laca);color:var(--blanco-laca)}
+  .chip.listo{background:var(--linea-2);color:var(--amarillo-tinta)}
+  .chip.fallo{background:var(--ambar);color:var(--papel)}
+
+  .alerta{border-radius:9px;padding:10px 13px;font-size:13px;margin-bottom:14px;line-height:1.5}
+  .alerta:last-child{margin-bottom:0}
+  .alerta.warn{background:var(--ambar-tinte);color:var(--ambar);border:1px solid var(--ambar-medio)}
+  .alerta.info{background:var(--azul-tinte);color:var(--tinta-2);border:1px solid rgba(var(--azul-rgb),.22)}
+  .alerta.info.solo-tuyo{border-left:3px solid var(--azul)}
+  .alerta b.tit{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--e1)}
+  .alerta.info b.tit{color:var(--azul)}
+  .alerta.ok{background:var(--papel-2);border:1px solid var(--linea);color:var(--tinta-2);border-left:3px solid var(--amarillo-tinta)}
+
+  .field{margin-bottom:14px;display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:12.5px;font-weight:600;color:var(--tinta-2)}
+  .field input{font-size:14.5px;padding:10px 12px;border:1.5px solid var(--linea);border-radius:9px;background:var(--papel);color:var(--laca)}
+  .field input:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(var(--azul-rgb),.14)}
+  .field .help{font-size:11.5px;color:var(--gris);line-height:1.45}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+  .kpi{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);padding:14px;border-top:3px solid var(--laca)}
+  .kpi .et{font-size:11.5px;color:var(--gris);font-weight:600}
+  .kpi .nm{font-family:'JetBrains Mono';font-weight:700;font-size:20px;margin-top:6px}
+  .kpi .x{font-size:11px;margin-top:4px;color:var(--gris-claro);line-height:1.4}
+  .kpi.gan{border-top-color:var(--amarillo-tinta)}.kpi.gan .nm{color:var(--amarillo-tinta)}
+  .kpi.alert{border-top-color:var(--ambar);background:var(--ambar-tinte)}.kpi.alert .nm,.kpi.alert .x{color:var(--ambar)}
+  .kpi.azul{border-top-color:var(--azul)}.kpi.azul .nm{color:var(--azul)}
+
+  .barra{height:var(--e2);border-radius:999px;background:var(--linea);overflow:hidden;margin-top:10px}
+  .barra i{display:block;height:100%;background:var(--azul);border-radius:999px;width:0;transition:width .18s linear}
+  .barra.termino i{background:var(--amarillo-tinta)}
+  .avance-txt{font-size:12.5px;color:var(--gris);margin-top:7px;font-family:'JetBrains Mono'}
+
+  .casilla{display:flex;gap:11px;align-items:flex-start;background:var(--ambar-tinte);border:1px solid var(--ambar-medio);border-radius:10px;padding:13px;margin:4px 0 14px}
+  .casilla input{width:19px;height:19px;margin-top:2px;flex:none;accent-color:var(--ambar)}
+  .casilla .t{font-size:13px;line-height:1.5;color:var(--ambar)}
+  .casilla .t b{display:block;margin-bottom:3px}
+
+  .info-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--linea);font-size:14px;gap:12px}
+  .info-row:last-child{border-bottom:none}
+  .info-row .k{color:var(--gris);flex:none}
+  .info-row .vv{text-align:right;word-break:break-word;font-family:'JetBrains Mono';font-weight:700}
+
+  /* El choque. Ámbar, no rojo: es un estado, y en este sistema el rojo se lee
+     como "haz clic acá". Las dos versiones van lado a lado y ninguna se pinta
+     como la ganadora antes de que Joan elija. */
+  .choque{border:1px solid var(--ambar-medio);background:var(--ambar-tinte);border-radius:12px;padding:14px;margin-bottom:14px}
+  .choque .q{font-size:13.5px;font-weight:700;color:var(--ambar);margin-bottom:4px}
+  .choque .quien{font-size:12px;color:var(--ambar);margin-bottom:10px}
+  .caras{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .cara{background:var(--papel);border:1px solid var(--linea);border-radius:10px;padding:11px}
+  .cara h5{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--gris);margin-bottom:7px}
+  .cara .lin{font-size:12.5px;display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dashed var(--linea-2)}
+  .cara .lin:last-child{border-bottom:none}
+  .cara .lin b{font-family:'JetBrains Mono';text-align:right;word-break:break-word}
+  .cara .lin.dif b{color:var(--ambar)}
+  .crudo{display:none;margin-top:10px}
+  .crudo.on{display:block}
+  .crudo pre{background:var(--laca);color:var(--blanco-laca);border-radius:9px;padding:11px;font-family:'JetBrains Mono';font-size:11px;line-height:1.45;overflow:auto;max-height:260px;white-space:pre-wrap;word-break:break-word}
+  .elegido{font-size:12.5px;font-weight:700;color:var(--amarillo-tinta);margin-top:9px}
+
+  .lista-cambios{max-height:260px;overflow:auto;border:1px solid var(--linea);border-radius:10px}
+  .lista-cambios .it{padding:9px 13px;border-bottom:1px solid var(--linea-2);font-size:13px;display:flex;justify-content:space-between;gap:10px}
+  .lista-cambios .it:last-child{border-bottom:none}
+  .lista-cambios .it .d{color:var(--gris);font-size:12px}
+
+  .pie{color:var(--gris);font-size:12px;text-align:center;margin-top:26px;line-height:1.6}
+  .oculto{display:none}
+  @media(max-width:760px){ .two{grid-template-columns:1fr} .caras{grid-template-columns:1fr} .envoltura{padding:16px 14px 80px} }
+</style>
+</head>
+<body>
+
+<!-- El PIN del Panel. Mismo valor, misma puerta. -->
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <div class="mk"><span class="sello">G</span> Tu&nbsp;Garantía</div>
+    <div class="tag">Subir la cartera</div>
+    <input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off">
+    <button class="btn btn-rojo" onclick="abrirPuerta()">Entrar</button>
+    <div class="gate-err" id="pinErr"></div>
+  </div>
+</div>
+
+<div class="envoltura oculto" id="todo">
+
+  <div class="cab">
+    <div>
+      <div class="marca"><span class="sello">G</span><h1>Subir la cartera a la nube</h1></div>
+      <div class="sub">Esta página lee la misma cartera que el Panel —vive en este computador, en este navegador— y
+        la sube a Supabase para que puedas trabajarla desde el celular. No modifica el Panel: es un puente aparte, a
+        propósito, para no tocar <span class="mono">crm.html</span>.</div>
+    </div>
+    <a class="btn btn-ghost btn-sm" href="crm.html">← Volver al Panel</a>
+  </div>
+
+  <!-- Si falta un archivo, se dice. Nunca una pantalla en blanco. -->
+  <div id="faltaAlgo" class="oculto"></div>
+
+  <div id="avisoPanelAbierto" class="alerta warn oculto">
+    <b class="tit">El Panel escribió mientras estabas acá</b>
+    Tienes <b>crm.html abierto en otra pestaña</b> y acaba de guardar. Lo que leí ya está viejo.
+    Cierra esa pestaña y aprieta «Volver a leer la cartera». Si aplicas algo con esto viejo, el Panel te lo pisa
+    en el próximo guardado.
+    <div class="fila-btn"><button class="btn btn-negro btn-sm" onclick="releerCartera()">Volver a leer la cartera</button></div>
+  </div>
+
+  <div class="alerta info solo-tuyo">
+    <b class="tit">Antes de empezar, dos cosas</b>
+    <b>1.</b> Cierra el Panel en las demás pestañas. Los dos leen y escriben el mismo cajón del navegador; si el Panel
+    queda abierto, lo próximo que guardes allá borra lo que traiga esta página.<br>
+    <b>2.</b> Esto nunca se ha corrido contra datos de verdad. Por eso el paso 3 baja un respaldo <span class="mono">.json</span>
+    antes de escribir nada, y ningún paso escribe en tu cartera sin preguntarte primero.
+  </div>
+
+  <!-- ================================ PASO 1 · CONECTAR =============== -->
+  <div class="card" id="c1">
+    <div class="card-h">
+      <h3><span class="paso-n">1</span> Conectar con la nube</h3>
+      <span class="chip pendiente" id="e1">Sin conectar</span>
+    </div>
+    <div class="card-b">
+      <div id="msg1"></div>
+      <div class="two">
+        <div class="field">
+          <label for="sbUrl">Dirección del proyecto (URL)</label>
+          <input id="sbUrl" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off" spellcheck="false">
+          <span class="help">Supabase → Project Settings → API → Project URL</span>
+        </div>
+        <div class="field">
+          <label for="sbAnon">Llave pública (anon)</label>
+          <input id="sbAnon" placeholder="eyJhbGciOi…" autocomplete="off" spellcheck="false">
+          <span class="help">Esa llave es pública por diseño. La otra, la <b>service_role</b>, no se pega acá ni en ningún lado del navegador.</span>
+        </div>
+      </div>
+      <div class="two">
+        <div class="field">
+          <label for="sbCorreo">Tu correo</label>
+          <input id="sbCorreo" type="email" placeholder="joan@…" autocomplete="username">
+          <span class="help">El usuario que creaste en Supabase → Authentication → Users.</span>
+        </div>
+        <div class="field">
+          <label for="sbClave">Tu contraseña</label>
+          <input id="sbClave" type="password" placeholder="••••••••••••" autocomplete="current-password">
+          <span class="help">No se guarda en este computador. Se cambia por una sesión y la sesión sí queda guardada.</span>
+        </div>
+      </div>
+      <div class="fila-btn">
+        <button class="btn btn-rojo" id="btnEntrar" onclick="entrar()">Guardar conexión y entrar</button>
+        <button class="btn btn-ghost btn-sm oculto" id="btnSalir" onclick="salir()">Cerrar sesión</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ PASO 2 · REVISAR =============== -->
+  <div class="card dormido" id="c2">
+    <div class="card-h">
+      <h3><span class="paso-n">2</span> Mirar qué se va a subir</h3>
+      <span class="chip pendiente" id="e2">Sin revisar</span>
+    </div>
+    <div class="card-b">
+      <div class="casilla">
+        <input type="checkbox" id="chkPapelera" checked onchange="revisar()">
+        <div class="t">
+          <b>No subir la papelera (recomendado)</b>
+          La papelera del Panel guarda enteras las fichas y los créditos que borraste: nombre, cédula, teléfonos,
+          historial. Si suben, lo «borrado» deja de estar borrado, y <span class="mono">legal/privacidad.html</span>
+          le promete al cliente lo contrario. Con la casilla marcada, la papelera no sube ni baja: se queda solo
+          en este computador.
+        </div>
+      </div>
+
+      <div id="msg2"></div>
+      <div id="resumen2"></div>
+
+      <div class="fila-btn">
+        <button class="btn btn-negro" id="btnRevisar" onclick="revisar()">Revisar</button>
+        <button class="btn btn-ghost btn-sm" onclick="releerCartera()">Volver a leer la cartera</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ PASO 3 · RESPALDO ============== -->
+  <div class="card dormido" id="c3">
+    <div class="card-h">
+      <h3><span class="paso-n">3</span> Bajar el respaldo</h3>
+      <span class="chip pendiente" id="e3">Sin respaldo</span>
+    </div>
+    <div class="card-b">
+      <div class="alerta warn">
+        <b class="tit">Esto no es opcional</b>
+        Es un archivo <span class="mono">.json</span> con tu cartera completa, fotos incluidas, tal como está ahora
+        mismo. Si algo sale torcido, con ese archivo vuelves atrás desde el Panel: Ajustes → «Importar respaldo».
+        Mientras no lo bajes, los botones de subir y de aplicar quedan apagados.
+      </div>
+      <div id="msg3"></div>
+      <div class="fila-btn">
+        <button class="btn btn-rojo" id="btnRespaldo" onclick="bajarRespaldo(true)">Bajar el respaldo ahora</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ PASO 4 · CONTADORES ============ -->
+  <div class="card dormido" id="c4">
+    <div class="card-h">
+      <h3><span class="paso-n">4</span> Sembrar los contadores</h3>
+      <span class="chip pendiente" id="e4">Sin sembrar</span>
+    </div>
+    <div class="card-b">
+      <div class="alerta info">
+        <b class="tit">Por qué va antes de subir</b>
+        Los números de cliente, crédito y respaldado los reparte la nube para que dos aparatos no saquen el mismo.
+        Si el celular pide un número antes de que la nube sepa por dónde vas, te entrega el 1 y te queda un cliente
+        nuevo con el número de uno viejo. Sembrar es decirle a la nube en cuánto vas. Nunca baja un contador,
+        así que puedes apretarlo las veces que quieras.
+      </div>
+      <div id="msg4"></div>
+      <div id="resumen4"></div>
+      <div class="fila-btn">
+        <button class="btn btn-negro" id="btnSembrar" onclick="sembrar()">Sembrar los contadores</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ PASO 5 · SUBIR ================= -->
+  <div class="card dormido" id="c5">
+    <div class="card-h">
+      <h3><span class="paso-n">5</span> Subir</h3>
+      <span class="chip pendiente" id="e5">Sin subir</span>
+    </div>
+    <div class="card-b">
+      <div id="msg5"></div>
+      <div class="barra oculto" id="barra5"><i></i></div>
+      <div class="avance-txt oculto" id="avance5"></div>
+      <div id="resumen5"></div>
+      <div class="fila-btn">
+        <button class="btn btn-rojo" id="btnSubir" onclick="subir()">Subir a la nube</button>
+        <button class="btn btn-negro oculto" id="btnReintentar" onclick="subir(true)">Reintentar solo lo que faltó</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ PASO 6 · TRAER ================= -->
+  <div class="card dormido" id="c6">
+    <div class="card-h">
+      <h3><span class="paso-n">6</span> Traer lo que hiciste en el celular</h3>
+      <span class="chip pendiente" id="e6">Sin traer</span>
+    </div>
+    <div class="card-b">
+      <div id="msg6"></div>
+      <div id="resumen6"></div>
+      <div class="fila-btn">
+        <button class="btn btn-negro" id="btnTraer" onclick="traer()">Traer de la nube</button>
+        <button class="btn btn-rojo oculto" id="btnAplicar" onclick="aplicar()">Aplicar a mi Panel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ PASO 7 · CHOQUES =============== -->
+  <div class="card dormido" id="c7">
+    <div class="card-h">
+      <h3><span class="paso-n">7</span> Choques</h3>
+      <span class="chip pendiente" id="e7">Ninguno</span>
+    </div>
+    <div class="card-b">
+      <div class="alerta info">
+        <b class="tit">Qué es un choque</b>
+        Que la misma ficha se tocó en los dos lados desde la última vez que hablaron. Nadie decide por ti y nada se
+        pierde: las dos versiones están acá completas. Lo que solo suma —gestiones, comprobantes, prórrogas,
+        abonos— se junta sin borrar nada; lo que se pisa —pagado, capital, nombre, cédula— lo eliges tú.
+      </div>
+      <div id="listaChoques"></div>
+    </div>
+  </div>
+
+  <div class="pie">
+    Todo lo que ves acá sale de <span class="mono">localStorage</span> de este navegador y de tu proyecto de
+    Supabase. Esta página no manda datos a ningún otro lado.
+  </div>
+</div>
+
+<script src="../app/motor.js"></script>
+<script src="../app/puente.js"></script>
+<script src="nube.js"></script>
+<script>
+'use strict';
+/* ===========================================================================
+ * SUBIR — el puente en el computador.  11 de agosto de 2026.
+ *
+ * POR QUÉ ES UN ARCHIVO NUEVO Y NO UNA PESTAÑA DEL PANEL:
+ * crm.html es archivo de Joan y él lo edita al tiempo que nosotros. Pero además
+ * hay una razón técnica que vale por sí sola: esta página se sirve del MISMO
+ * ORIGEN que el Panel, así que ve exactamente el mismo localStorage —la misma
+ * cartera, sin exportar ni importar nada— sin obligar a tocar 3.600 líneas que
+ * hoy funcionan.
+ *
+ * LAS TRES REGLAS QUE ESTE ARCHIVO NO ROMPE:
+ *   1. Ningún cálculo del negocio se hace acá. Cupo, garantía, mora, niveles y
+ *      códigos son de MotorReglas y PuenteTuGarantia; el diff, la fusión y el
+ *      espejo son de nube.js. Esta página ORQUESTA y PREGUNTA, nada más.
+ *   2. No se escribe en la cartera sin respaldo bajado y sin un «sí» explícito.
+ *   3. No se dice en pantalla nada que el código no haga. Los pesos se miden,
+ *      los conteos se cuentan, y lo que no sube se dice que no sube.
+ * ===========================================================================*/
+
+/* ------------------------------------------------------------ los archivos */
+var PUENTE = window.PuenteTuGarantia;
+var NUBE   = window.NubeTuGarantia;
+
+/* La llave de la cartera NO se escribe a mano acá: se le pregunta al puente,
+   que es donde vive. Escrita a mano, el día que cambie quedan dos verdades. */
+var KEY = PUENTE && PUENTE.LLAVE_PANEL;
+
+/* El espejo del computador va en su PROPIA llave. espejo.html usa
+   'joan_panel_espejo', y en el computador las dos páginas comparten origen: si
+   usaran la misma llave, abrir el celular-en-el-PC y esta página se pisarían el
+   punto de partida del diff y todo saldría como choque. */
+var LLAVE_ESPEJO = 'joan_panel_espejo_pc';
+var LLAVE_SB     = 'joan_socios_sb';
+var DISPOSITIVO  = 'computador';
+var POR_LOTE     = 200;
+
+/* Las fotos, las cuatro clases que hay. Se listan acá SOLO para devolverlas al
+   aplicar: quitarlas es trabajo de NUBE.sinFotos, no de esta página. */
+var CAMPOS_FOTO = ['cedulaFrenteFoto','cedulaReversoFoto','selfieFoto','cedulaFoto'];
+
+/* Las listas que solo SUMAN. La identidad de un elemento es la concatenación de
+   esos campos; con eso se juntan sin duplicar. Ojo con lo que NO está acá:
+   `cuotas` de un respaldado parece una lista pero no lo es —una cuota cambia de
+   pagado:false a pagado:true—, así que fusionarla borraría el cobro de alguien.
+   Va al aviso de choque como cualquier otro campo pisable. */
+var LISTAS_QUE_SUMAN = {
+  socios:      { gestiones:['fecha','canal','plantilla'] },
+  creditos:    { abonos:['fecha','monto'],
+                 abonosCapital:['fecha','monto','ciclo'],
+                 prorrogas:['fecha','ciclo','monto'],
+                 comprobantes:['fecha','tipo','monto'] },
+  respaldados: { comprobantes:['fecha','tipo','monto'] }
+};
+
+/* Los campos que se miran en la tarjeta del choque. No son todos: son los que
+   hacen que Joan reconozca la ficha y vea qué está en discusión. */
+var CAMPOS_MIRABLES = {
+  socios:      ['numero','nombre','cedula','telefono','ingresoQuincenal','ajusteGarantia','notaRiesgo'],
+  creditos:    ['numero','capital','total','pagado','fechaPagado','fechaPago','cicloActual','costoPct'],
+  respaldados: ['numero','capital','pagado','fechaPagado','plazo'],
+  ajustes:     []
+};
+
+var TABLAS = ['socios','creditos','respaldados'];
+
+/* --------------------------------------------------------------- el estado */
+var E = {
+  db:null,            // la cartera tal cual está en el disco, con fotos y todo
+  espejo:null,        // lo último que sabemos que quedó en la nube
+  leidaEn:null,
+  panelEscribio:false,
+  respaldoHecho:false,
+  unidades:[],        // el lote aplanado: [{tabla, fila}]
+  siguiente:0,        // por dónde va la subida (para reintentar solo lo que faltó)
+  aplicados:0,
+  choquesSubida:[],
+  revisionesSubida:[],  // lo que el servidor confirmó que escribió, viaje a viaje
+  paquete:null,       // lo último que trajo la nube
+  plan:null,          // qué de eso hay que aplicar y qué choca
+  decisiones:{}       // 'tabla|id' -> 'nube' | 'mio'
+};
+
+/* ------------------------------------------------------------- utilidades */
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(m){
+  return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]; }); }
+function n2(x){ return Number(x)||0; }
+function plural(n,uno,varios){ return n+' '+(n===1?uno:varios); }
+
+/* El peso se MIDE en bytes de verdad: TextEncoder cuenta lo que viaja por el
+   cable. `cadena.length` cuenta caracteres, y una tilde o una ñ pesa dos. */
+function bytesDe(x){
+  var s = typeof x === 'string' ? x : JSON.stringify(x);
+  try{ return new TextEncoder().encode(s).length; }
+  catch(e){ return s.length; }   // navegador viejo: se queda corto, pero no miente al alza
+}
+function peso(b){
+  if(b < 1024) return b+' B';
+  if(b < 1024*1024) return (b/1024).toFixed(1)+' KB';
+  return (b/(1024*1024)).toFixed(2)+' MB';
+}
+function ahoraArchivo(){
+  var d=new Date(), p=function(x){ return String(x).padStart(2,'0'); };
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes());
+}
+function fechaLarga(iso){
+  if(!iso) return '—';
+  var d=new Date(iso);
+  if(isNaN(d)) return String(iso);
+  return d.toLocaleString('es-CO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+}
+function motivo(e){ return (e&&e.motivo)||(e&&e.message)||'No pude hablar con la nube.'; }
+
+function pinta(donde, clase, html){ $(donde).innerHTML = html ? '<div class="alerta '+clase+'">'+html+'</div>' : ''; }
+function estado(n, clase, texto){
+  var chip=$('e'+n); chip.className='chip '+clase; chip.textContent=texto;
+  var card=$('c'+n); card.classList.remove('listo','fallo');
+  if(clase==='listo') card.classList.add('listo');
+  if(clase==='fallo') card.classList.add('fallo');
+}
+function despertar(n){ $('c'+n).classList.remove('dormido'); }
+function dormir(n){ $('c'+n).classList.add('dormido'); }
+
+/* ============================================================ LA PUERTA ===
+   El mismo PIN del Panel, leído del mismo sitio y con el mismo valor por
+   defecto que usa cargar() en crm.html. */
+function pinGuardado(){
+  try{
+    var d=JSON.parse(localStorage.getItem(KEY)||'{}');
+    return (d && d.config && d.config.pin) ? String(d.config.pin) : '1234';
+  }catch(e){ return '1234'; }
+}
+function abrirPuerta(){
+  if($('pin').value !== pinGuardado()){
+    $('pinErr').textContent='Ese no es el PIN del Panel.'; $('pin').value=''; return;
+  }
+  $('gate').style.display='none'; $('todo').classList.remove('oculto'); arrancar();
+}
+$('pin').addEventListener('keydown', function(ev){ if(ev.key==='Enter') abrirPuerta(); });
+
+/* ============================================================== ARRANQUE ==*/
+function arrancar(){
+  var falta=[];
+  if(!window.MotorReglas)      falta.push('<span class="mono">../app/motor.js</span>');
+  if(!PUENTE)                  falta.push('<span class="mono">../app/puente.js</span>');
+  if(!NUBE)                    falta.push('<span class="mono">nube.js</span>');
+  if(falta.length){
+    $('faltaAlgo').classList.remove('oculto');
+    $('faltaAlgo').innerHTML='<div class="alerta warn"><b class="tit">Falta un archivo</b>'+
+      'No pude cargar '+falta.join(' ni ')+'. Esta página no puede hacer nada sin eso, así que no te deja '+
+      'empezar en vez de dejarte a medias. Si abriste el archivo con doble clic, ábrelo desde la misma carpeta '+
+      'donde está el Panel.</div>';
+    ['btnEntrar','btnRevisar','btnRespaldo','btnSembrar','btnSubir','btnTraer'].forEach(function(b){
+      if($(b)) $(b).disabled=true; });
+    return;
+  }
+  releerCartera();
+  precargarConexion();
+  pintarSesion();
+
+  /* EL AVISO QUE SALVA EL MARTES. El evento `storage` llega cuando OTRA pestaña
+     del mismo origen escribe. O sea: si Joan dejó el Panel abierto y guarda algo
+     allá, acá nos enteramos. Sin esto, esta página aplicaría lo del celular
+     encima de una lectura vieja y el Panel lo volvería a pisar al siguiente
+     guardado — que es exactamente la plata que se pierde. */
+  window.addEventListener('storage', function(ev){
+    if(ev.key !== KEY) return;
+    E.panelEscribio = true;
+    $('avisoPanelAbierto').classList.remove('oculto');
+    trancarEscrituras();
+  });
+}
+
+function releerCartera(){
+  E.db = leerDB();
+  E.espejo = leerEspejo();
+  E.leidaEn = new Date();
+  E.panelEscribio = false;
+  E.paquete = null; E.plan = null; E.decisiones = {};
+  E.unidades=[]; E.siguiente=0; E.aplicados=0; E.choquesSubida=[]; E.revisionesSubida=[];
+  $('avisoPanelAbierto').classList.add('oculto');
+  $('resumen2').innerHTML=''; $('resumen5').innerHTML=''; $('resumen6').innerHTML='';
+  $('listaChoques').innerHTML='';
+  estado(2,'pendiente','Sin revisar');
+  estado(5,'pendiente','Sin subir');
+  estado(6,'pendiente','Sin traer');
+  estado(7,'pendiente','Ninguno');
+  dormir(5); dormir(6); dormir(7);
+  $('btnAplicar').classList.add('oculto');
+  $('btnReintentar').classList.add('oculto');
+  $('barra5').classList.add('oculto'); $('avance5').classList.add('oculto');
+  refrescarBotones();
+}
+
+/* La cartera se lee TAL COMO ESTÁ EN EL DISCO. No se corrigen fechas, no se
+   completan numeraciones, no se corren migraciones: eso lo hace cargar() del
+   Panel y es del Panel. Esta página es un mensajero, no un editor. Lo único que
+   hace es rellenar los arreglos que falten, porque un respaldo viejo puede no
+   traerlos y sin eso reventaría al recorrerlos. */
+function leerDB(){
+  var d={};
+  try{ d=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ d={}; }
+  d.socios      = d.socios || d.clientes || [];   // `clientes` es el nombre viejo del mismo arreglo
+  d.prestamos   = d.prestamos   || [];
+  d.respaldados = d.respaldados || [];
+  d.invitaciones= d.invitaciones|| [];
+  d.papelera    = d.papelera    || [];
+  d.papeleraSocios = d.papeleraSocios || [];
+  d.config      = d.config      || {};
+  d.plantillas  = d.plantillas  || {};
+  d.contadores  = Object.assign({cliente:0,credito:0,respaldado:0}, d.contadores||{});
+  return d;
+}
+function leerEspejo(){
+  try{ return JSON.parse(localStorage.getItem(LLAVE_ESPEJO)||'{}') || {}; }catch(e){ return {}; }
+}
+function guardarEspejo(esp){
+  try{ localStorage.setItem(LLAVE_ESPEJO, JSON.stringify(esp)); E.espejo=esp; }
+  catch(e){ /* el espejo se puede reconstruir trayendo de la nube: no vale un susto */ }
+}
+
+/* ================================================== PASO 1 · CONECTAR ====*/
+function precargarConexion(){
+  var c={};
+  try{ c=NUBE.config()||{}; }catch(e){ c={}; }
+  $('sbUrl').value  = c.url  || '';
+  $('sbAnon').value = c.anon || '';
+  var s=null; try{ s=NUBE.sesion(); }catch(e){}
+  if(s && s.correo) $('sbCorreo').value = s.correo;
+}
+
+function entrar(){
+  var url=$('sbUrl').value.trim().replace(/\/+$/,''), anon=$('sbAnon').value.trim();
+  var correo=$('sbCorreo').value.trim(), clave=$('sbClave').value;
+  if(!url || !anon)  return pinta('msg1','warn','Falta la dirección del proyecto o la llave pública.');
+  if(!correo||!clave)return pinta('msg1','warn','Falta tu correo o tu contraseña.');
+
+  /* La `clave` de joan_socios_sb es de la sincronización VIEJA con los socios y
+     sigue haciendo falta. NUBE.guardarConfig no debe tocarla; se comprueba de
+     todos modos, porque perderla en silencio dejaría a los clientes sin ver sus
+     números y nadie sabría por qué. */
+  var claveVieja=null;
+  try{ claveVieja=(JSON.parse(localStorage.getItem(LLAVE_SB)||'{}')||{}).clave||null; }catch(e){}
+
+  $('btnEntrar').disabled=true;
+  pinta('msg1','info','Entrando…');
+  try{ NUBE.guardarConfig({url:url, anon:anon}); }
+  catch(e){ $('btnEntrar').disabled=false; return pinta('msg1','warn','No pude guardar la conexión: '+esc(motivo(e))); }
+
+  if(claveVieja){
+    var ahora=null; try{ ahora=(JSON.parse(localStorage.getItem(LLAVE_SB)||'{}')||{}).clave||null; }catch(e){}
+    if(!ahora){
+      try{
+        var c=JSON.parse(localStorage.getItem(LLAVE_SB)||'{}'); c.clave=claveVieja;
+        localStorage.setItem(LLAVE_SB, JSON.stringify(c));
+      }catch(e){}
+      pinta('msg1','warn','Ojo: al guardar la conexión se perdió la clave de sincronización con los socios. '+
+        'La devolví a su sitio, pero revísala en el Panel → Ajustes antes de mandarle enlaces a nadie.');
+    }
+  }
+
+  NUBE.entrar(correo, clave).then(function(){
+    $('sbClave').value='';       // la contraseña no se queda en un campo abierto
+    pinta('msg1','ok','Entraste como <b>'+esc(correo)+'</b>. La contraseña no se guardó en este computador.');
+    pintarSesion(); despertar(2); estado(1,'listo','Conectado');
+  }).catch(function(e){
+    estado(1,'fallo','No entró');
+    pinta('msg1','warn','<b class="tit">No pude entrar</b>'+esc(motivo(e))+
+      '<br>Si dice que el correo o la contraseña no sirven: el usuario se crea en Supabase → Authentication → Users → Add user.');
+  }).then(function(){ $('btnEntrar').disabled=false; });
+}
+
+function salir(){
+  Promise.resolve().then(function(){ return NUBE.salir(); }).catch(function(){})
+    .then(function(){ pintarSesion(); estado(1,'pendiente','Sin conectar'); pinta('msg1','info','Sesión cerrada.'); });
+}
+
+function pintarSesion(){
+  var s=null; try{ s=NUBE.sesion(); }catch(e){}
+  var hay = !!(s && s.access_token);
+  $('btnSalir').classList.toggle('oculto', !hay);
+  if(hay){
+    estado(1,'listo','Conectado'); despertar(2);
+    if(!$('msg1').innerHTML) pinta('msg1','ok','Ya hay una sesión abierta'+(s.correo?' como <b>'+esc(s.correo)+'</b>':'')+'.');
+  }
+  refrescarBotones();
+}
+
+/* ==================================================== PASO 2 · REVISAR ===*/
+
+/* La copia que SÍ viaja: sin fotos y, si la casilla está marcada, sin papelera.
+   Las fotos se quitan ACÁ, antes de armar el lote, y no después. Si se quitaran
+   después, el espejo (que viene de la nube, ya sin fotos) no coincidiría nunca
+   con la cartera local (que sí las tiene) y CADA socio con foto saldría como
+   "cambiado" en cada subida, para siempre. */
+function dbParaSubir(db, sinPapelera){
+  var d = Object.assign({}, db);
+  d.socios      = (db.socios||[]).map(function(x){ return NUBE.sinFotos(x); });
+  d.prestamos   = (db.prestamos||[]).map(function(x){ return NUBE.sinFotos(x); });
+  d.respaldados = (db.respaldados||[]).map(function(x){ return NUBE.sinFotos(x); });
+  if(sinPapelera){ d.papelera=[]; d.papeleraSocios=[]; }
+  return d;
+}
+
+/* Doble llave con la papelera: arriba se vacía, y acá se saca la fila del lote.
+   Una sola de las dos bastaría; las dos juntas quieren decir que ni un descuido
+   de refactor manda al servidor lo que el cliente cree borrado. */
+function limpiarLote(lote, sinPapelera){
+  var l = {
+    socios:      (lote.socios||[]).slice(),
+    creditos:    (lote.creditos||[]).slice(),
+    respaldados: (lote.respaldados||[]).slice(),
+    ajustes:     (lote.ajustes||[]).slice()
+  };
+  if(sinPapelera){
+    l.ajustes = l.ajustes.filter(function(a){ return a.clave!=='papelera' && a.clave!=='papeleraSocios'; });
+  }
+  return l;
+}
+
+/* Recorta un lote a las mismas filas que otro (mismo id, misma clave). Existe
+   para pesar dos versiones del MISMO envío —con fotos y sin ellas— y que la
+   resta signifique de verdad "esto es lo que se queda en el computador". */
+function mismasFilas(lote, molde){
+  var r={socios:[],creditos:[],respaldados:[],ajustes:[]};
+  ['socios','creditos','respaldados'].forEach(function(t){
+    var ids={}; (molde[t]||[]).forEach(function(f){ ids[String(f.id)]=true; });
+    r[t]=(lote[t]||[]).filter(function(f){ return ids[String(f.id)]; });
+  });
+  var claves={}; (molde.ajustes||[]).forEach(function(a){ claves[String(a.clave)]=true; });
+  r.ajustes=(lote.ajustes||[]).filter(function(a){ return claves[String(a.clave)]; });
+  return r;
+}
+
+function aplanar(lote){
+  var u=[];
+  ['socios','creditos','respaldados','ajustes'].forEach(function(t){
+    (lote[t]||[]).forEach(function(f){ u.push({tabla:t, fila:f}); });
+  });
+  return u;
+}
+function loteDe(unidades){
+  var l={socios:[],creditos:[],respaldados:[],ajustes:[]};
+  unidades.forEach(function(u){ l[u.tabla].push(u.fila); });
+  return l;
+}
+
+function revisar(){
+  if(!E.db) return;
+  var sinPapelera = $('chkPapelera').checked;
+  $('btnRevisar').disabled=true;
+  pinta('msg2','info','Mirando la nube y comparando con lo que tienes acá…');
+
+  /* Se trae SIEMPRE completo, aunque pese más. En el celular tiene sentido pedir
+     "lo de después de tal hora"; en el computador no: acá se decide qué se pisa
+     y qué no, y para eso hay que ver todo lo que hay del otro lado. */
+  NUBE.traer(null).then(function(paq){
+    E.paquete = paq || {};
+    var enNube = (paq.socios||[]).length + (paq.creditos||[]).length +
+                 (paq.respaldados||[]).length + (paq.ajustes||[]).length;
+    var espejoVacio = !E.espejo || Object.keys(E.espejo).length===0 ||
+      !TABLAS.concat(['ajustes']).some(function(t){ return E.espejo[t] && Object.keys(E.espejo[t]).length; });
+
+    E.plan = planDeBajada(E.db, E.paquete, E.espejo, sinPapelera);
+
+    var dSub  = dbParaSubir(E.db, sinPapelera);
+    var lote  = limpiarLote(NUBE.armarLote(dSub, E.espejo||{}), sinPapelera);
+    E.unidades = aplanar(lote); E.siguiente=0; E.aplicados=0; E.choquesSubida=[]; E.revisionesSubida=[];
+
+    var bytesSin = bytesDe(lote);
+    /* El paquete "con fotos" hay que pedirlo con {conFotos:true}: sin esa opción
+       armarLote las quita igual, los dos lotes salían IDÉNTICOS y la pantalla
+       mostraba «0 B» de fotos cuando pesan cientos de KB — un número presentado
+       como medición que no medía nada. Y se recorta a las MISMAS filas que van a
+       viajar, porque con las fotos puestas una ficha sin cambios ya no coincide
+       con el espejo (que viene de la nube, sin fotos) y se colaría en la cuenta:
+       la resta tiene que ser el peso de las fotos, ni un byte más. */
+    var loteCon = limpiarLote(NUBE.armarLote(Object.assign({}, E.db,
+        sinPapelera?{papelera:[],papeleraSocios:[]}:{}), E.espejo||{}, {conFotos:true}), sinPapelera);
+    var bytesCon = bytesDe(mismasFilas(loteCon, lote));
+
+    pintarResumen2({
+      lote:lote, enNube:enNube, espejoVacio:espejoVacio, sinPapelera:sinPapelera,
+      bytesSin:bytesSin, bytesCon:bytesCon, paq:E.paquete
+    });
+
+    var avisos='';
+    if(espejoVacio && enNube>0){
+      avisos += '<div class="alerta warn"><b class="tit">La nube ya tenía datos y este computador no se acordaba</b>'+
+        'Allá hay '+plural(enNube,'fila','filas')+' y acá no quedó memoria de haberlas subido (¿navegador limpiado, '+
+        'computador nuevo?). No se adopta nada por las buenas: todo lo que difiera sale como choque en el paso 7 y '+
+        'lo eliges tú. Nada se pisa solo.</div>';
+    }
+    if(E.plan.choques.length){
+      avisos += '<div class="alerta warn"><b class="tit">Hay '+plural(E.plan.choques.length,'choque','choques')+'</b>'+
+        'La misma ficha se tocó de los dos lados. <b>No se sube nada</b> hasta que los resuelvas en el paso 7: '+
+        'subir encima de un choque es justo la forma de perder un cobro.</div>';
+    }
+    pinta('msg2', 'ok', 'Listo. Leí la cartera a las <b>'+
+      E.leidaEn.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})+'</b>.');
+    if(avisos) $('msg2').innerHTML += avisos;
+
+    estado(2,'listo', E.unidades.length ? plural(E.unidades.length,'fila por subir','filas por subir') : 'Nada por subir');
+    despertar(3); despertar(4); despertar(5); despertar(6);
+    pintarChoques();
+    refrescarBotones();
+  }).catch(function(e){
+    estado(2,'fallo','No pude mirar');
+    pinta('msg2','warn','<b class="tit">No pude leer la nube</b>'+esc(motivo(e)));
+  }).then(function(){ $('btnRevisar').disabled=false; });
+}
+
+function pintarResumen2(r){
+  var l=r.lote;
+  var fotos = r.bytesCon - r.bytesSin;
+  var h='';
+  h+='<div class="kpis">'+
+     kpi('Socios','', (l.socios||[]).length, 'de '+(E.db.socios||[]).length+' que tienes')+
+     kpi('Créditos','', (l.creditos||[]).length, 'de '+(E.db.prestamos||[]).length+' que tienes')+
+     kpi('Respaldados','', (l.respaldados||[]).length, 'de '+(E.db.respaldados||[]).length+' que tienes')+
+     kpi('Ajustes','azul', (l.ajustes||[]).length, (l.ajustes||[]).map(function(a){return a.clave;}).join(', ')||'ninguno')+
+     '</div>';
+
+  h+='<div class="card" style="margin:0 0 14px"><div class="card-b" style="padding:14px 18px">'+
+     '<div class="info-row"><span class="k">Peso de lo que va a viajar</span><span class="vv">'+peso(r.bytesSin)+'</span></div>'+
+     '<div class="info-row"><span class="k">Peso si viajaran también las fotos</span><span class="vv">'+peso(r.bytesCon)+'</span></div>'+
+     '<div class="info-row"><span class="k">Lo que se queda en este computador (fotos)</span><span class="vv">'+peso(Math.max(0,fotos))+'</span></div>'+
+     '<div class="info-row"><span class="k">Va a subir en</span><span class="vv">'+
+        plural(Math.max(1,Math.ceil(E.unidades.length/POR_LOTE)),'viaje','viajes')+' de hasta '+POR_LOTE+' filas</span></div>'+
+     '<div class="info-row"><span class="k">Lo que ya hay en la nube</span><span class="vv">'+r.enNube+' filas</span></div>'+
+     '<div class="info-row"><span class="k">Hora del servidor</span><span class="vv">'+esc(fechaLarga(r.paq.servidor_ahora))+'</span></div>'+
+     '</div></div>';
+
+  h+='<div class="alerta info"><b class="tit">Las fotos no suben, y es a propósito</b>'+
+     'Cédulas, reverso, selfie y las fotos de los comprobantes se quedan en este computador. Dos razones: pesan '+
+     'muchísimo porque van escritas como texto dentro del mismo archivo, y la selfie es un <b>dato biométrico</b> '+
+     '(Ley 1581, artículo 5), que es la categoría que más obligaciones te trae si se filtra. '+
+     'En el celular vas a ver la ficha completa <b>sin las fotos</b>, y ahí lo dirá.</div>';
+
+  h+='<div class="alerta info"><b class="tit">Qué más va dentro de «ajustes», para que lo sepas</b>'+
+     'Sube tu configuración del negocio, y ahí adentro está el <b>PIN del Panel</b>. Solo lo puede leer tu propio '+
+     'usuario —las tablas están cerradas y solo se llega por funciones que verifican que eres el dueño—, pero es '+
+     'un buen momento para cambiarlo si sigue siendo el de fábrica.'+
+     (r.sinPapelera
+       ? ' La papelera <b>no sube</b>: la casilla está marcada.'
+       : ' <b>La papelera SÍ va a subir</b>, con nombres y cédulas de fichas borradas. Vuelve a marcar la casilla si no era lo que querías.')+
+     '</div>';
+
+  var b=E.plan;
+  h+='<div class="kpis">'+
+     kpi('Bajan sin discutir','azul', b.aplicar.length, 'lo que hiciste en el celular')+
+     kpi('Chocan','alert', b.choques.length, 'los eliges tú en el paso 7')+
+     kpi('Sin novedad','', b.sinCambio, 'iguales a los dos lados')+
+     '</div>';
+
+  $('resumen2').innerHTML=h;
+}
+function kpi(et,clase,nm,x){
+  return '<div class="kpi '+(clase||'')+'"><div class="et">'+esc(et)+'</div><div class="nm">'+esc(String(nm))+
+         '</div><div class="x">'+esc(x||'')+'</div></div>';
+}
+
+/* ================================================== PASO 3 · RESPALDO ====*/
+function bajarRespaldo(aviso){
+  var nombre='respaldo-tugarantia-'+ahoraArchivo()+'.json';
+  try{
+    var b=new Blob([JSON.stringify(E.db,null,2)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(b); a.download=nombre; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+  }catch(e){
+    estado(3,'fallo','No se pudo');
+    pinta('msg3','warn','No pude armar el respaldo: '+esc(motivo(e))+'. <b>No sigas.</b> Exporta uno desde el Panel '+
+      '(Ajustes → «Respaldo (JSON)») y vuelve.');
+    return false;
+  }
+  E.respaldoHecho=true;
+  estado(3,'listo','Respaldo bajado');
+  if(aviso){
+    pinta('msg3','ok','Se bajó <b>'+esc(nombre)+'</b> ('+peso(bytesDe(E.db))+'), con las fotos adentro. '+
+      'Búscalo en tu carpeta de Descargas y no lo borres hasta que el celular te funcione bien.');
+  }
+  refrescarBotones();
+  return true;
+}
+
+/* ================================================ PASO 4 · CONTADORES ====*/
+
+/* El valor que se siembra es el MÁXIMO entre el contador guardado y el número
+   más alto que de verdad exista en la cartera. No es un cálculo del negocio: es
+   un seguro. Si por lo que sea el contador quedó atrás de los datos (un respaldo
+   viejo, una importación), sembrar el contador tal cual haría que el celular
+   emitiera un número que ya lleva un cliente. La función de la base también toma
+   el máximo contra lo que ya tenga, así que apretar dos veces no hace daño. */
+function valorASembrar(nombre){
+  var d=E.db, guardado=n2((d.contadores||{})[nombre]), lista=[];
+  if(nombre==='cliente')    lista=d.socios||[];
+  if(nombre==='credito')    lista=d.prestamos||[];
+  if(nombre==='respaldado') lista=d.respaldados||[];
+  var top=lista.reduce(function(m,x){ return Math.max(m, n2(x&&x.numero)); }, 0);
+  return Math.max(guardado, top);
+}
+
+function sembrar(){
+  $('btnSembrar').disabled=true;
+  pinta('msg4','info','Sembrando…');
+  var nombres=['cliente','credito','respaldado'];
+  var pedidos = nombres.map(function(nm){
+    return NUBE.rpc('panel_sembrar_contador',{p_nombre:nm, p_valor:valorASembrar(nm)})
+      .then(function(v){ return {nombre:nm, pedido:valorASembrar(nm), quedo:(v&&v.valor!=null)?v.valor:v}; });
+  });
+  Promise.all(pedidos).then(function(rs){
+    var h='<div class="card" style="margin:0"><div class="card-b" style="padding:14px 18px">';
+    rs.forEach(function(r){
+      h+='<div class="info-row"><span class="k">'+esc(r.nombre)+'</span><span class="vv">'+
+         'pedí '+esc(String(r.pedido))+' · quedó en '+esc(String(r.quedo))+'</span></div>';
+    });
+    h+='</div></div>';
+    $('resumen4').innerHTML=h;
+    estado(4,'listo','Sembrados');
+    pinta('msg4','ok','Listo. El celular ya no puede repetirte un número. Si «quedó» sale más alto que «pedí», '+
+      'es que la nube ya iba más adelante: se queda con el mayor, nunca baja.');
+  }).catch(function(e){
+    estado(4,'fallo','No se sembró');
+    pinta('msg4','warn','<b class="tit">No pude sembrar</b>'+esc(motivo(e))+
+      '<br><b>No subas todavía.</b> Si subes sin sembrar y después creas un cliente desde el celular, te puede salir '+
+      'con un número que ya tiene otro.');
+  }).then(function(){ $('btnSembrar').disabled=false; refrescarBotones(); });
+}
+
+/* ===================================================== PASO 5 · SUBIR ====*/
+function subir(esReintento){
+  if(!E.unidades.length){ pinta('msg5','info','No hay nada nuevo que subir.'); estado(5,'listo','Nada que subir'); return; }
+  if(!esReintento){ E.siguiente=0; E.aplicados=0; E.choquesSubida=[]; E.revisionesSubida=[]; }
+
+  $('btnSubir').disabled=true; $('btnReintentar').classList.add('oculto');
+  $('barra5').classList.remove('oculto'); $('avance5').classList.remove('oculto');
+  $('barra5').classList.remove('termino');
+  estado(5,'curso','Subiendo…');
+  pinta('msg5','info','No cierres esta pestaña.');
+  pintarAvance();
+
+  siguienteViaje();
+}
+
+function pintarAvance(){
+  var total=E.unidades.length, hechas=E.siguiente;
+  $('barra5').querySelector('i').style.width = (total? Math.round(hechas*100/total):100)+'%';
+  $('avance5').textContent = hechas+' / '+total+' filas · viaje '+
+    (Math.min(Math.floor(hechas/POR_LOTE)+1, Math.max(1,Math.ceil(total/POR_LOTE))))+
+    ' de '+Math.max(1,Math.ceil(total/POR_LOTE));
+}
+
+function siguienteViaje(){
+  if(E.siguiente >= E.unidades.length){ terminoLaSubida(); return; }
+  var trozo = E.unidades.slice(E.siguiente, E.siguiente+POR_LOTE);
+  NUBE.empujar(DISPOSITIVO, loteDe(trozo)).then(function(r){
+    r = r || {};
+    E.aplicados += n2(r.aplicados);
+    (r.choques||[]).forEach(function(c){ E.choquesSubida.push(c); });
+    /* Se guardan las revisiones viaje a viaje porque son la ÚNICA constancia de
+       qué filas se escribieron de verdad, y con ellas se mueve el espejo al
+       final. Si se pierden, el espejo hay que adivinarlo — y adivinarlo fue lo
+       que borraba en la nube el trabajo del celular. */
+    (r.revisiones||[]).forEach(function(x){ E.revisionesSubida.push(x); });
+    /* El avance solo se mueve cuando el viaje CONTESTÓ. Cada llamada a
+       panel_empujar es una sola función de la base: o entró completa o no entró.
+       Por eso, si esto se corta, `siguiente` señala exactamente la primera fila
+       que no llegó, y reintentar manda solo desde ahí. */
+    E.siguiente += trozo.length;
+    pintarAvance();
+    siguienteViaje();
+  }).catch(function(e){
+    fallóLaSubida(e);
+  });
+}
+
+function terminoLaSubida(){
+  $('barra5').classList.add('termino');
+  var escritas=E.aplicados, chocaron=E.choquesSubida.length, mandadas=E.unidades.length;
+  var h='<div class="card" style="margin:14px 0 0"><div class="card-b" style="padding:14px 18px">'+
+    '<div class="info-row"><span class="k">Filas mandadas</span><span class="vv">'+mandadas+'</span></div>'+
+    '<div class="info-row"><span class="k">Filas escritas en la nube</span><span class="vv">'+escritas+'</span></div>'+
+    '<div class="info-row"><span class="k">Filas que chocaron y NO se escribieron</span><span class="vv">'+chocaron+'</span></div>'+
+    '</div></div>';
+  $('resumen5').innerHTML=h;
+
+  if(chocaron){
+    estado(5,'fallo', plural(chocaron,'choque','choques'));
+    pinta('msg5','warn','<b class="tit">Subió casi todo</b>Escribí '+escritas+' de '+mandadas+' filas. '+
+      'Las otras '+chocaron+' no se escribieron porque el celular las había cambiado: <b>no se pisó nada</b>. '+
+      'Están abajo, en el paso 7, con las dos versiones.');
+  }else{
+    estado(5,'listo','Subido');
+    pinta('msg5','ok','Subieron las '+mandadas+' filas.');
+  }
+  pintarChoques();
+
+  /* EL ESPEJO AVANZA SOLO CON LO QUE EL SERVIDOR DIJO QUE ESCRIBIÓ.
+     Antes se rehacía con espejoDe() sobre el paquete COMPLETO de la nube, y eso
+     metía en el espejo filas que este computador nunca aplicó —el cliente que
+     Joan acababa de crear en el celular, por ejemplo—. En la siguiente pasada
+     armarLote las veía en el espejo y no en la cartera local, y por su regla de
+     borrados las mandaba con borrado:true: el computador borraba en la nube el
+     trabajo del celular. Y el orden de esta pantalla (subir antes que traer)
+     lleva justo por ahí.
+     espejoTrasEmpujar hace las dos mitades bien: lo escrito queda con su
+     revisión nueva, y lo que CHOCÓ se queda con su entrada vieja, sin moverse.
+     Eso segundo es lo que sostiene los pasos 6 y 7 de esta pantalla: el plan de
+     bajada decide comparando la revisión del espejo con la del servidor, así que
+     si el espejo se adelantara, la fila que acaba de chocar saldría como «sin
+     cambio», no llegaría a la lista de choques —donde el texto de acá le promete
+     a Joan que la va a poder resolver— y la próxima subida la pisaría en
+     silencio, con el cobro del celular adentro. Sí: vuelve a chocar en la
+     siguiente vuelta, y eso es exactamente lo que se quiere hasta que Joan
+     elija. Lo que la nube tiene y acá no se aplicó no entra. */
+  guardarEspejo(NUBE.espejoTrasEmpujar(
+    E.espejo,
+    loteDe(E.unidades.slice(0, E.siguiente)),
+    {revisiones:E.revisionesSubida, choques:E.choquesSubida}));
+
+  /* Y se vuelve a leer la nube, pero solo para saber qué hay que bajar: el
+     espejo ya quedó, y esta lectura no lo toca. */
+  NUBE.traer(null).then(function(paq){
+    E.paquete=paq||{};
+    E.plan = planDeBajada(E.db, E.paquete, E.espejo, $('chkPapelera').checked);
+    pintarChoques();
+    despertar(6);
+  }).catch(function(e){
+    $('msg5').innerHTML += '<div class="alerta warn">Subió bien y la marca de por dónde vamos quedó guardada, '+
+      'pero no pude volver a leer la nube para mostrarte qué hay que bajar ('+esc(motivo(e))+'). No se perdió '+
+      'nada: aprieta «Revisar» otra vez cuando tengas internet, y se acomoda solo.</div>';
+  }).then(function(){ $('btnSubir').disabled=false; refrescarBotones(); });
+}
+
+function fallóLaSubida(e){
+  var faltan = E.unidades.length - E.siguiente;
+  estado(5,'fallo','Se cortó');
+  $('resumen5').innerHTML='<div class="card" style="margin:14px 0 0"><div class="card-b" style="padding:14px 18px">'+
+    '<div class="info-row"><span class="k">Filas que sí subieron</span><span class="vv">'+E.siguiente+'</span></div>'+
+    '<div class="info-row"><span class="k">Filas que faltan</span><span class="vv">'+faltan+'</span></div>'+
+    '<div class="info-row"><span class="k">Se cortó en el viaje</span><span class="vv">'+
+      (Math.floor(E.siguiente/POR_LOTE)+1)+' de '+Math.max(1,Math.ceil(E.unidades.length/POR_LOTE))+'</span></div>'+
+    '</div></div>'+ listaDeLoQueFalta();
+  pinta('msg5','warn','<b class="tit">Se cortó a mitad de camino</b>'+esc(motivo(e))+
+    '<br>Subieron <b>'+E.siguiente+'</b> filas y faltan <b>'+faltan+'</b>. Lo que subió está bien subido y no se '+
+    'vuelve a mandar. Cuando vuelva el internet, aprieta «Reintentar solo lo que faltó».');
+  $('btnSubir').disabled=false;
+  $('btnReintentar').classList.remove('oculto');
+  refrescarBotones();
+}
+
+function listaDeLoQueFalta(){
+  var faltan=E.unidades.slice(E.siguiente, E.siguiente+40);
+  if(!faltan.length) return '';
+  var h='<div style="margin-top:12px"><div class="et" style="font-size:11.5px;color:var(--gris);font-weight:700;margin-bottom:6px">'+
+        'LAS PRIMERAS QUE FALTAN</div><div class="lista-cambios">';
+  faltan.forEach(function(u){
+    h+='<div class="it"><span>'+esc(nombreDeFila(u.tabla,u.fila.datos)||u.fila.id||u.fila.clave)+'</span>'+
+       '<span class="d">'+esc(u.tabla)+' · '+esc(String(u.fila.id||u.fila.clave))+'</span></div>';
+  });
+  h+='</div></div>';
+  return h;
+}
+
+/* ===================================================== PASO 6 · TRAER ====*/
+function traer(){
+  $('btnTraer').disabled=true;
+  pinta('msg6','info','Trayendo…');
+  NUBE.traer(null).then(function(paq){
+    E.paquete = paq||{};
+    E.plan = planDeBajada(E.db, E.paquete, E.espejo, $('chkPapelera').checked);
+    pintarPlanDeBajada();
+    pintarChoques();
+    estado(6, E.plan.aplicar.length ? 'curso' : 'listo',
+           E.plan.aplicar.length ? plural(E.plan.aplicar.length,'cambio por aplicar','cambios por aplicar') : 'Nada nuevo');
+    if(E.plan.aplicar.length || decisionesTomadas()) $('btnAplicar').classList.remove('oculto');
+    despertar(7);
+    refrescarBotones();
+  }).catch(function(e){
+    estado(6,'fallo','No pude traer');
+    pinta('msg6','warn','<b class="tit">No pude traer</b>'+esc(motivo(e)));
+  }).then(function(){ $('btnTraer').disabled=false; });
+}
+
+/* --------------------------------------------------------- la clasificación
+   Para cada fila que hay en la nube se contestan dos preguntas contra el
+   ESPEJO —lo último que sabemos que estaba allá—: ¿cambió el servidor? ¿cambié
+   yo? Con eso salen cuatro casos y solo uno es peligroso.
+
+   Y una regla que atraviesa todo: cuando algo no calza (no hay espejo, el
+   espejo tiene otra forma, no se puede comparar), se cae del lado del CHOQUE,
+   nunca del lado de aplicar. Un choque de más le cuesta a Joan treinta segundos
+   de leer; un pisón de menos le cuesta un cobro. */
+/* Los dos lados de la comparación se escriben con la MISMA regla, la de
+   NUBE.jsonCanonico: llaves ordenadas, recursivo. Con JSON.stringify a secas
+   esto daba "yo cambié" en toda fila que hubiera pasado por la nube, porque
+   jsonb devuelve las llaves reordenadas (por longitud y después por bytes), y
+   entonces cualquier fila que el celular hubiera tocado salía como choque
+   falso. Un texto que ya viene del espejo YA es canónico y se deja igual. */
+function normalizarJSON(x){
+  if(x==null) return '';
+  return (typeof x === 'string') ? x : NUBE.jsonCanonico(x);
+}
+function llaveDe(tabla, fila){ return tabla+'|'+(tabla==='ajustes'? fila.clave : fila.id); }
+
+function localDe(db, tabla, id){
+  if(tabla==='socios')      return (db.socios||[]).find(function(x){ return String(x.id)===String(id); })||null;
+  if(tabla==='creditos')    return (db.prestamos||[]).find(function(x){ return String(x.id)===String(id); })||null;
+  if(tabla==='respaldados') return (db.respaldados||[]).find(function(x){ return String(x.id)===String(id); })||null;
+  return null;
+}
+function localAjuste(db, clave){
+  if(clave==='config')         return db.config||{};
+  if(clave==='plantillas')     return db.plantillas||{};
+  if(clave==='papelera')       return db.papelera||[];
+  if(clave==='papeleraSocios') return db.papeleraSocios||[];
+  if(clave==='invitaciones')   return db.invitaciones||[];
+  return null;
+}
+
+function planDeBajada(db, paq, espejo, sinPapelera){
+  var plan={aplicar:[], choques:[], sinCambio:0};
+  espejo = espejo||{};
+  ['socios','creditos','respaldados','ajustes'].forEach(function(tabla){
+    (paq[tabla]||[]).forEach(function(fila){
+      var id = tabla==='ajustes' ? fila.clave : fila.id;
+
+      /* La papelera no sube ni baja cuando la casilla está marcada. Simétrico a
+         propósito: si no la mando, tampoco dejo que la nube me la reemplace. */
+      if(sinPapelera && tabla==='ajustes' && (id==='papelera'||id==='papeleraSocios')) return;
+
+      var local = tabla==='ajustes' ? localAjuste(db,id) : localDe(db,tabla,id);
+      var localSinFotos = (local && tabla!=='ajustes') ? NUBE.sinFotos(local) : local;
+      var esp = (espejo[tabla]||{})[id];
+
+      var borradaEnNube = !!fila.borrado;
+      var item = {tabla:tabla, id:id, fila:fila, local:local, borrado:borradaEnNube};
+
+      if(!esp){
+        /* Nunca la habíamos visto pasar por acá. Si tampoco la tengo, es nueva
+           del celular y baja tranquila. Si la tengo, los dos la crearon o el
+           espejo se perdió: eso lo elige Joan. */
+        if(!local) { plan.aplicar.push(item); }
+        else if(normalizarJSON(localSinFotos)===normalizarJSON(fila.datos)) { plan.sinCambio++; }
+        else { plan.choques.push(item); }
+        return;
+      }
+      var servidorCambio = String(esp.revision) !== String(fila.revision);
+      var yoCambie       = normalizarJSON(esp.json) !== normalizarJSON(localSinFotos);
+
+      if(servidorCambio && yoCambie)       plan.choques.push(item);
+      else if(servidorCambio && !yoCambie) plan.aplicar.push(item);
+      else                                 plan.sinCambio++;   // si solo cambié yo, se va en la próxima subida
+    });
+  });
+  return plan;
+}
+
+function pintarPlanDeBajada(){
+  var p=E.plan, h='';
+  h+='<div class="kpis">'+
+     kpi('Bajan sin discutir','azul', p.aplicar.length, 'nadie las tocó acá')+
+     kpi('Chocan','alert', p.choques.length, 'las eliges en el paso 7')+
+     kpi('Sin novedad','', p.sinCambio, '')+
+     '</div>';
+  if(p.aplicar.length){
+    h+='<div class="lista-cambios">';
+    p.aplicar.slice(0,60).forEach(function(it){
+      h+='<div class="it"><span>'+esc(nombreDeFila(it.tabla, it.fila.datos)||it.id)+
+         (it.borrado?' <b style="color:var(--ambar)">(borrada en el celular)</b>':'')+'</span>'+
+         '<span class="d">'+esc(it.tabla)+' · '+esc(it.fila.actualizado_por||'?')+' · '+esc(fechaLarga(it.fila.actualizado_en))+'</span></div>';
+    });
+    if(p.aplicar.length>60) h+='<div class="it"><span class="d">…y '+(p.aplicar.length-60)+' más</span></div>';
+    h+='</div>';
+  }else{
+    h+='<div class="alerta info">El celular no cambió nada que tú no tengas ya.</div>';
+  }
+  $('resumen6').innerHTML=h;
+  if(!$('msg6').innerHTML || $('msg6').innerHTML.indexOf('Trayendo')>=0){
+    pinta('msg6','ok','Traído. Todavía <b>no</b> escribí nada en tu Panel: eso es el botón «Aplicar a mi Panel».');
+  }
+}
+
+function nombreDeFila(tabla, datos){
+  if(!datos) return '';
+  if(tabla==='socios')   return datos.nombre||'';
+  if(tabla==='creditos') return 'Crédito '+(datos.numero||'')+(datos.capital?' · $'+Math.round(datos.capital).toLocaleString('es-CO'):'');
+  if(tabla==='respaldados') return 'Respaldado '+(datos.numero||'');
+  return '';
+}
+
+/* -------------------------------------------------------------- aplicar --
+   ACÁ ES DONDE SE ESCRIBE EN LA CARTERA DE JOAN. Es el único sitio del archivo
+   que llama a setItem sobre KEY, y por eso todo lo que protege está junto:
+   respaldo, confirmación, fotos devueltas y una salida limpia si el disco se
+   llena. */
+function aplicar(){
+  if(E.panelEscribio){
+    alert('El Panel escribió mientras estabas acá. Cierra esa pestaña y aprieta «Volver a leer la cartera» antes de aplicar.');
+    return;
+  }
+  var elegidos = filasAAplicar();
+  if(!elegidos.length){ pinta('msg6','info','No hay nada para aplicar.'); return; }
+
+  /* Respaldo SIEMPRE, y recién bajado, no el de hace media hora: entre uno y
+     otro Joan pudo cobrar tres créditos en el Panel. */
+  if(!bajarRespaldo(false)) return;
+
+  var r = contarPorTabla(elegidos);
+  var ok = confirm(
+    'Voy a escribir en tu cartera, la de verdad.\n\n'+
+    'Cambia:\n'+
+    '  · '+r.socios+' socio(s)\n'+
+    '  · '+r.creditos+' crédito(s)\n'+
+    '  · '+r.respaldados+' respaldado(s)\n'+
+    '  · '+r.ajustes+' ajuste(s)\n\n'+
+    'Acabo de bajar un respaldo a tu carpeta de Descargas. Ábrela y compruébalo antes de seguir.\n\n'+
+    '¿Aplico?');
+  if(!ok){ pinta('msg6','info','No apliqué nada. Tu cartera quedó igual.'); return; }
+
+  var paqFiltrado = paqueteCon(elegidos);
+  var res;
+  try{
+    res = NUBE.aplicarPaquete(E.db, paqFiltrado);
+  }catch(e){
+    estado(6,'fallo','No apliqué');
+    pinta('msg6','warn','<b class="tit">No apliqué nada</b>Falló al armar la cartera nueva: '+esc(motivo(e))+
+      '. Tu Panel quedó exactamente como estaba.');
+    return;
+  }
+  var nueva = res && res.db ? res.db : null;
+  if(!nueva || !Array.isArray(nueva.socios)){
+    estado(6,'fallo','No apliqué');
+    pinta('msg6','warn','<b class="tit">No apliqué nada</b>Lo que salió no tiene la forma de una cartera. '+
+      'Tu Panel quedó como estaba.');
+    return;
+  }
+
+  try{
+    localStorage.setItem(KEY, JSON.stringify(nueva));
+  }catch(e){
+    estado(6,'fallo','No cupo');
+    pinta('msg6','warn','<b class="tit">No cupo en el navegador</b>'+
+      'Tu cartera quedó como estaba (el navegador no escribe a medias). Las fotos son lo que llena el espacio: '+
+      'desde el Panel, exporta un respaldo y libera espacio, y vuelve.');
+    return;
+  }
+
+  /* EL ESPEJO AVANZA SOLO POR LAS FILAS QUE DE VERDAD SE ESCRIBIERON ACÁ, más
+     las que Joan marcó «lo mío manda» (esas tienen que quedar con la revisión
+     del servidor: si no, chocarían otra vez en cada vuelta, en bucle).
+     Las que dejó SIN elegir conservan su entrada vieja del espejo, y eso es el
+     arreglo: así la próxima subida manda la revision_base antigua, el servidor
+     contesta CHOQUE y la ficha reaparece en el paso 7. Antes se guardaba el
+     paquete ENTERO —choques sin resolver incluidos—, y el espejo pasaba a jurar
+     que acá estaba la versión nueva de una ficha que nadie había aplicado: la
+     siguiente subida la pisaba sin avisar, con el cobro del celular adentro. Es
+     el martes de cobro otra vez, ahora en silencio, y además le quitaba la
+     palabra al texto de esta misma pantalla («mientras no elijas, esta ficha no
+     se toca en ninguno de los dos lados»).
+     Van los datos DE LA NUBE tal como llegaron, sin fotos, y NO los de
+     paqueteCon(): ese lleva las fotos reinyectadas y nunca casaría con lo que
+     compara armarLote, que las quita — cada socio con cédula saldría como
+     "cambiado" en cada subida, para siempre.
+     Tampoco se mueve `servidor_ahora`: la marca de agua se queda atrás a
+     propósito, porque quedaron filas de la nube sin aplicar. */
+  guardarEspejo(NUBE.espejoDe(
+    Object.assign({completo:false}, paqueteCrudoDe(elegidos.concat(marcadosComoMio()))),
+    E.espejo));
+  E.db = leerDB();
+  estado(6,'listo','Aplicado');
+  pinta('msg6','ok','<b class="tit">Aplicado</b>Tu Panel ya tiene lo del celular: '+
+    r.socios+' socio(s), '+r.creditos+' crédito(s), '+r.respaldados+' respaldado(s), '+r.ajustes+' ajuste(s). '+
+    'Abre el Panel y míralo. Si algo quedó raro, el respaldo de hace un minuto está en Descargas.'+
+    (marcadosComoMio().length
+      ? '<br><br>Los '+marcadosComoMio().length+' que marcaste «lo mío manda» todavía no están arriba: '+
+        'aprieta «Revisar» y después «Subir a la nube» y se van.'
+      : ''));
+  $('btnAplicar').classList.add('oculto');
+  refrescarBotones();
+}
+
+function contarPorTabla(items){
+  var r={socios:0,creditos:0,respaldados:0,ajustes:0};
+  items.forEach(function(it){ r[it.tabla]++; });
+  return r;
+}
+
+/* Lo que de verdad se va a escribir: lo que baja sin discutir, más los choques
+   que Joan resolvió a favor de la nube. Los que resolvió a su favor NO se tocan
+   acá: se quedan como están y suben en el próximo paso 5. Un solo camino para
+   escribir en la nube es un camino menos donde equivocarse. */
+function filasAAplicar(){
+  if(!E.plan) return [];
+  var lista = E.plan.aplicar.slice();
+  E.plan.choques.forEach(function(it){
+    if(E.decisiones[llaveDe(it.tabla, it.fila)]==='nube') lista.push(it);
+  });
+  return lista;
+}
+function marcadosComoMio(){
+  if(!E.plan) return [];
+  return E.plan.choques.filter(function(it){ return E.decisiones[llaveDe(it.tabla,it.fila)]==='mio'; });
+}
+function decisionesTomadas(){ return Object.keys(E.decisiones).length>0; }
+
+/* El paquete filtrado que se le entrega a nube.js. Dos cosas pasan acá:
+     · se devuelven las fotos, porque lo que bajó viene sin ellas y aplicar tal
+       cual le borraría a Joan las cédulas y las selfies de sus clientes. Ese es
+       el peor daño silencioso que podía tener esta pantalla;
+     · si el choque se resolvió a favor de la nube, las listas que solo suman se
+       FUSIONAN antes de escribir: quedarse con la versión de la nube a secas
+       borraría la gestión que Joan anotó en el computador esta mañana. */
+function paqueteCon(items){
+  var p={servidor_ahora:(E.paquete&&E.paquete.servidor_ahora)||null, completo:false,
+         socios:[], creditos:[], respaldados:[], ajustes:[],
+         contadores:(E.paquete&&E.paquete.contadores)||{}};
+  items.forEach(function(it){
+    var fila = Object.assign({}, it.fila);
+    if(it.tabla!=='ajustes'){
+      var datos = fila.datos;
+      if(E.decisiones[llaveDe(it.tabla,it.fila)]==='nube' && it.local){
+        datos = fusionarConLoMio(it.tabla, datos, it.local);
+      }
+      fila.datos = devolverFotos(datos, it.local);
+    }
+    p[it.tabla].push(fila);
+  });
+  return p;
+}
+
+/* El mismo recorte que paqueteCon(), pero con las filas TAL COMO LLEGARON de la
+   nube: sin fusionar y sin devolverles las fotos. Es lo que necesita el espejo,
+   que compara contra un servidor que no tiene fotos. Se separan a propósito en
+   dos funciones: uno es lo que se escribe en la cartera de Joan y el otro es lo
+   que se anota como "esto es lo que hay allá". Mezclarlos fue el fallo. */
+function paqueteCrudoDe(items){
+  var p={completo:false, socios:[], creditos:[], respaldados:[], ajustes:[]};
+  items.forEach(function(it){ if(p[it.tabla]) p[it.tabla].push(it.fila); });
+  return p;
+}
+
+function fusionarConLoMio(tabla, deLaNube, mio){
+  var listas = LISTAS_QUE_SUMAN[tabla];
+  if(!listas || typeof NUBE.fusionarFila !== 'function') return deLaNube;
+  try{
+    var r = NUBE.fusionarFila(mio, deLaNube, listas);
+    return (r && typeof r === 'object') ? r : deLaNube;
+  }catch(e){
+    /* Si no se pudo fusionar, se avisa y se queda la versión de la nube tal
+       cual, que es la que Joan eligió. Callarlo sería peor que el error. */
+    console.warn('No pude fusionar las listas de', tabla, e);
+    return deLaNube;
+  }
+}
+
+function devolverFotos(datosNube, local){
+  if(!local || !datosNube) return datosNube;
+  var d = Object.assign({}, datosNube);
+  CAMPOS_FOTO.forEach(function(k){ if(local[k] && !d[k]) d[k]=local[k]; });
+  if(Array.isArray(d.comprobantes) && Array.isArray(local.comprobantes)){
+    d.comprobantes = d.comprobantes.map(function(c){
+      if(!c || c.foto) return c;
+      var g = local.comprobantes.find(function(x){
+        return x && x.foto && x.fecha===c.fecha && x.tipo===c.tipo && n2(x.monto)===n2(c.monto);
+      });
+      return g ? Object.assign({}, c, {foto:g.foto}) : c;
+    });
+  }
+  return d;
+}
+
+/* =================================================== PASO 7 · CHOQUES ====*/
+function pintarChoques(){
+  var deBajada = (E.plan && E.plan.choques) || [];
+  var deSubida = E.choquesSubida || [];
+  var total = deBajada.length + deSubida.length;
+  var cont = $('listaChoques');
+
+  if(!total){
+    cont.innerHTML='<div class="alerta ok">Ningún choque. Las dos copias van de acuerdo.</div>';
+    estado(7,'listo','Ninguno');
+    despertar(7);
+    return;
+  }
+  estado(7,'fallo', plural(total,'choque','choques'));
+  despertar(7);
+
+  var h='';
+  if(deSubida.length){
+    h+='<div class="alerta warn"><b class="tit">'+plural(deSubida.length,'fila','filas')+' que no se pudieron subir</b>'+
+       'El celular las había cambiado después de la última vez que hablaron. No se pisó nada. Están abajo junto con '+
+       'las demás: elige y vuelve a apretar «Revisar» y «Subir».</div>';
+  }
+  deBajada.forEach(function(it,i){ h+=tarjetaChoque(it,'b'+i); });
+  deSubida.forEach(function(c,i){ h+=tarjetaChoqueSubida(c,'s'+i); });
+  cont.innerHTML=h;
+}
+
+function tarjetaChoque(it, ref){
+  var k = llaveDe(it.tabla, it.fila);
+  var mio = it.tabla==='ajustes' ? it.local : NUBE.sinFotos(it.local||{});
+  var suyo= it.fila.datos;
+  var eleccion = E.decisiones[k];
+  var titulo = nombreDeFila(it.tabla, suyo) || nombreDeFila(it.tabla, mio) || String(it.id);
+
+  return '<div class="choque">'+
+    '<div class="q">'+esc(titulo)+'</div>'+
+    '<div class="quien">'+esc(it.tabla)+' · '+esc(String(it.id))+' · lo del celular lo tocó <b>'+
+      esc(it.fila.actualizado_por||'?')+'</b> el '+esc(fechaLarga(it.fila.actualizado_en))+
+      (it.borrado?' · <b>allá está borrada</b>':'')+'</div>'+
+    '<div class="caras">'+
+      cara('Lo de este computador', mio, suyo, it.tabla)+
+      cara('Lo de la nube', suyo, mio, it.tabla)+
+    '</div>'+
+    '<div class="crudo" id="crudo-'+ref+'"><pre>'+
+      esc('— ESTE COMPUTADOR —\n'+JSON.stringify(mio,null,1)+'\n\n— LA NUBE —\n'+JSON.stringify(suyo,null,1))+
+    '</pre></div>'+
+    '<div class="fila-btn">'+
+      '<button class="btn btn-negro btn-sm" onclick="decidir(\''+esc(k)+'\',\'nube\')">Dejar lo de la nube</button>'+
+      '<button class="btn btn-ghost btn-sm" onclick="decidir(\''+esc(k)+'\',\'mio\')">Mandar lo mío encima</button>'+
+      '<button class="btn btn-ghost btn-sm" onclick="verLasDos(\''+ref+'\')">Ver las dos</button>'+
+    '</div>'+
+    '<div class="elegido">'+(eleccion==='nube'
+        ? 'Elegiste lo de la nube. Al aplicar, las gestiones, comprobantes, prórrogas y abonos de los dos lados se juntan.'
+        : eleccion==='mio'
+        ? 'Elegiste lo tuyo. No se toca nada acá; se manda en la próxima subida.'
+        : 'Sin elegir. Mientras no elijas, esta ficha no se toca en ninguno de los dos lados.')+'</div>'+
+  '</div>';
+}
+
+/* Lo que mandamos no viene de vuelta en la respuesta de panel_empujar (solo
+   viene lo que hay en el servidor), así que se busca en el lote que se armó.
+   Sin esto, la mitad izquierda de la tarjeta saldría vacía y parecería que lo
+   de Joan se perdió — que es justo el susto que esta pantalla debe evitar. */
+function loQueMande(tabla, id){
+  var u = E.unidades.find(function(x){
+    return x.tabla===tabla && String(x.fila.id!=null?x.fila.id:x.fila.clave)===String(id); });
+  return u ? u.fila.datos : null;
+}
+function tarjetaChoqueSubida(c, ref){
+  var mio = loQueMande(c.tabla, c.id);
+  return '<div class="choque">'+
+    '<div class="q">'+esc(nombreDeFila(c.tabla, c.datos_servidor)||String(c.id))+'</div>'+
+    '<div class="quien">'+esc(String(c.tabla))+' · '+esc(String(c.id))+' · en la nube va por la revisión '+
+      esc(String(c.revision_servidor))+', la tocó <b>'+esc(c.actualizado_por||'?')+'</b> el '+
+      esc(fechaLarga(c.actualizado_en))+'</div>'+
+    '<div class="caras">'+
+      cara('Lo que mandé', mio, c.datos_servidor, c.tabla)+
+      cara('Lo que hay en la nube', c.datos_servidor, mio, c.tabla)+
+    '</div>'+
+    '<div class="crudo" id="crudo-'+ref+'"><pre>'+
+      esc('— LO QUE MANDÉ —\n'+JSON.stringify(mio,null,1)+'\n\n— LA NUBE —\n'+JSON.stringify(c.datos_servidor,null,1))+
+    '</pre></div>'+
+    '<div class="fila-btn">'+
+      '<button class="btn btn-ghost btn-sm" onclick="verLasDos(\''+ref+'\')">Ver las dos</button>'+
+    '</div>'+
+    '<div class="elegido">Quedó guardado en la nube (tabla <span class="mono">panel_choques</span>) con las dos '+
+      'versiones. Aprieta «Traer de la nube» arriba y resuélvelo desde ahí, que es donde se puede escribir.</div>'+
+  '</div>';
+}
+
+/* Las dos caras del choque. Se marcan en ámbar los campos que NO coinciden, que
+   son los que hay que mirar; el resto se deja para que Joan reconozca la ficha. */
+function cara(titulo, obj, otro, tabla){
+  var campos = CAMPOS_MIRABLES[tabla] || [];
+  var h='<div class="cara"><h5>'+esc(titulo)+'</h5>';
+  if(!obj){ return h+'<div class="lin"><span>—</span><b>no existe de este lado</b></div></div>'; }
+  if(!campos.length){
+    h+='<div class="lin"><span>tamaño</span><b>'+peso(bytesDe(obj))+'</b></div>';
+  }
+  campos.forEach(function(c){
+    var v=obj[c], o=otro?otro[c]:undefined;
+    var dif = normalizarJSON(v)!==normalizarJSON(o);
+    h+='<div class="lin'+(dif?' dif':'')+'"><span>'+esc(c)+'</span><b>'+esc(muestra(v))+'</b></div>';
+  });
+  /* Las listas que solo suman: se dice cuántas trae cada lado, porque es la
+     pregunta que Joan se hace ("¿se me pierde el abono de esta mañana?"). */
+  var listas=LISTAS_QUE_SUMAN[tabla]||{};
+  Object.keys(listas).forEach(function(nm){
+    var n=(Array.isArray(obj[nm])?obj[nm].length:0), m=(otro&&Array.isArray(otro[nm])?otro[nm].length:0);
+    if(n||m) h+='<div class="lin'+(n!==m?' dif':'')+'"><span>'+esc(nm)+'</span><b>'+n+'</b></div>';
+  });
+  return h+'</div>';
+}
+function muestra(v){
+  if(v===undefined) return '—';
+  if(v===null) return 'nada';
+  if(typeof v==='boolean') return v?'sí':'no';
+  if(typeof v==='number') return String(v);
+  var s=String(v); return s.length>44 ? s.slice(0,44)+'…' : s;
+}
+
+function decidir(k, cual){ E.decisiones[k]=cual; pintarChoques(); $('btnAplicar').classList.remove('oculto'); refrescarBotones(); }
+function verLasDos(ref){ var d=$('crudo-'+ref); if(d) d.classList.toggle('on'); }
+
+/* ==================================================== LOS CANDADOS =======*/
+function trancarEscrituras(){
+  $('btnSubir').disabled=true; $('btnAplicar').disabled=true; $('btnReintentar').disabled=true;
+}
+function refrescarBotones(){
+  var conectado=false; try{ conectado=!!NUBE.conectado(); }catch(e){ conectado=false; }
+  var hayChoquesSinResolver = E.plan ? E.plan.choques.some(function(it){
+    return !E.decisiones[llaveDe(it.tabla, it.fila)]; }) : false;
+
+  $('btnRevisar').disabled  = !conectado;
+  $('btnSembrar').disabled  = !conectado;
+  $('btnTraer').disabled    = !conectado;
+
+  /* Subir pide: conexión, respaldo bajado, algo que subir, el Panel quieto y
+     ningún choque pendiente. Que el respaldo sea condición para SUBIR y no solo
+     para aplicar es a propósito: si la primera subida sale torcida, lo primero
+     que va a querer Joan es volver al punto de partida. */
+  $('btnSubir').disabled = !conectado || !E.respaldoHecho || !E.unidades.length ||
+                           E.panelEscribio || hayChoquesSinResolver;
+  $('btnReintentar').disabled = $('btnSubir').disabled;
+  $('btnAplicar').disabled = !E.respaldoHecho || E.panelEscribio || !filasAAplicar().length;
+
+  $('btnSubir').title = $('btnSubir').disabled
+    ? (!conectado ? 'Falta conectar (paso 1).'
+      : !E.respaldoHecho ? 'Falta bajar el respaldo (paso 3).'
+      : hayChoquesSinResolver ? 'Hay choques sin resolver (paso 7).'
+      : E.panelEscribio ? 'El Panel escribió: vuelve a leer la cartera.'
+      : 'No hay nada nuevo que subir.') : '';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+{
+  "name": "Tu Garantía · Panel en el bolsillo",
+  "short_name": "Panel bolsillo",
+  "description": "La cartera de Tu Garantía en el celular: la cola de cobro del día, la ficha del socio, el crédito y la quincena. Cobra, prorroga y marca gestión desde la calle.",
+  "_nota_id": "El id identifica la instalacion en el telefono y NO se toca despues de la primera. Va con Tugarantia en g minuscula porque asi se llama el repositorio y asi lo sirve GitHub Pages: con la G grande el identificador no corresponderia a ninguna ruta real. Y es un id PROPIO, distinto del de crm.html: son dos aplicaciones instalables del mismo sitio, y si compartieran id el telefono trataria la segunda como una actualizacion de la primera y solo quedaria un icono.",
+  "id": "/Tugarantia/panel/espejo.html",
+  "_nota_start_url": "Relativa al manifiesto, que vive en la misma carpeta que la pagina. Sin barra inicial: con /panel/espejo.html el sitio se rompe en GitHub Pages, donde todo cuelga de /Tugarantia/.",
+  "start_url": "espejo.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "_nota_orientacion": "SIN orientation a proposito. (OJO: panel.webmanifest SI la tiene fija en portrait. Quitarsela es un cambio propuesto a un archivo de Joan y esta escrito como receta en RECETA-PANEL-NUBE.md, parte B.2, sin aplicar.) Esta pantalla esta hecha en una sola columna y se lee bien de pie, pero fijarla en portrait le quitaria a Joan una salida gratis: girar el telefono para leer un nombre largo o una cifra al lado de otra en la tarjeta de choque. Una orientacion fija solo se justifica cuando el diseno se rompe al girar, y este no se rompe.",
+  "background_color": "#0C0A0B",
+  "theme_color": "#0C0A0B",
+  "lang": "es-CO",
+  "dir": "ltr",
+  "categories": [
+    "finance",
+    "business"
+  ],
+  "_nota_iconos": "Son los mismos panel-*.png que ya estan en esta carpeta. No se dibujan iconos nuevos: es el mismo Panel, en otro tamano de pantalla, y dos juegos de iconos para la misma marca solo sirven para que Joan dude de cual toco.",
+  "icons": [
+    {
+      "src": "panel-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "panel-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "panel-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "La cola de hoy",
+      "short_name": "Hoy",
+      "url": "espejo.html",
+      "icons": [
+        {
+          "src": "panel-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

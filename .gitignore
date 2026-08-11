@@ -8,6 +8,13 @@ respaldo-*.json
 # socio desde su pantalla. Se queda en el computador hasta que estén cerrados.
 NOTAS-INTERNAS.md
 
+# Las recetas de puesta en marcha. Son instrucciones para Joan, no producto: no
+# tienen por qué estar en un repositorio público, y encima cuentan qué agujeros
+# tapa cada archivo. Mientras el SQL no esté corrido en la base de verdad, eso es
+# el mapa de un hueco todavía abierto — la misma razón por la que NOTAS-INTERNAS
+# se queda afuera.
+RECETA-*.md
+
 # Compilados de Android. Pesan megas, se regeneran, y no aportan nada al historial.
 *.apk
 *.aab
