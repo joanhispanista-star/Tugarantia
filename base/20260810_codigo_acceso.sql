@@ -294,3 +294,132 @@ drop function if exists public.crear_solicitud(text, text, jsonb);
 
 -- La columna tel4 se QUEDA. Sigue sirviendo para que Joan reconozca al cliente
 -- en la bandeja y para cruzar con su Panel; lo que ya no hace es abrir nada.
+
+-- ------------------------------------------------- el chat, que se me quedó ---
+-- 11-ago-2026. Al revisar esto de punta a punta apareció que el chat NO estaba
+-- en la lista. chat_escribir y chat_leer siguen pidiendo cédula + los últimos 4
+-- del celular, o sea la puerta que este mismo archivo cierra veinte líneas más
+-- arriba. Con la de entrar cerrada y esta abierta, cualquiera con una cédula y
+-- cuatro dígitos podía leer y escribir la conversación privada de esa persona.
+--
+-- Es exactamente el defecto contra el que se argumentó para cerrar de una y no
+-- dejar convivencia: "una segunda entrada más débil que sigue viva es la que
+-- alguien olvida cerrar". Se olvidó en el mismo archivo que lo decía.
+--
+-- Hoy no lo explota nadie porque la app todavía no tiene chat: socio.html no
+-- llama a ninguna de las dos. Por eso se puede arreglar limpio ahora, antes de
+-- que exista la pantalla, en vez de con clientes usándolo.
+--
+-- Las cuatro funciones del lado de Joan (chat_conversaciones, chat_de,
+-- chat_responder, chat_olvidar) NO cambian: esas se autentican con la clave de
+-- sincronización, no con datos del cliente.
+
+drop function if exists public.chat_escribir(text, text, text);
+drop function if exists public.chat_leer(text, text, bigint);
+
+-- Las dos son copia EXACTA de las de supabase.sql, con dos renglones cambiados:
+-- donde comparaban `tel4 = right(solo_digitos(p_tel4), 4)` ahora comparan
+-- `codigo_hash = huella_codigo(p_codigo)`. Nada más se toca — ni el freno, ni la
+-- espera de 0,3 s, ni el tope de 1.000 caracteres, ni el marcar como vistos.
+-- Cambiar de paso "algo que se ve mejorable" en una función que ya funciona es
+-- como se rompe lo que funcionaba.
+
+create or replace function public.chat_escribir(p_cedula text, p_codigo text, p_texto text)
+returns bigint
+language plpgsql security definer set search_path = public, extensions as $$
+declare ced text; ok boolean; h text; nuevo bigint;
+begin
+  ced := public.solo_digitos(p_cedula);
+
+  if not public.puede_intentar(ced) then
+    perform pg_sleep(0.3);
+    return null;
+  end if;
+
+  -- Un código con la forma mal puesta cuenta como fallo: si no, tantear el
+  -- largo saldría gratis y el freno dejaría de medir lo que importa.
+  h := public.huella_codigo(p_codigo);
+  if h is null then
+    perform public.anotar_fallo(ced);
+    perform pg_sleep(0.3);
+    return null;
+  end if;
+
+  select true into ok
+    from public.socios_historial
+   where cedula = ced
+     and codigo_hash = h;
+
+  if not found then
+    perform public.anotar_fallo(ced);   -- se anota ANTES de salir, y sin excepción
+    perform pg_sleep(0.3);
+    return null;
+  end if;
+
+  perform public.limpiar_fallos(ced);
+
+  if btrim(coalesce(p_texto, '')) = '' then return null; end if;
+  if not public.chat_puede_escribir(ced) then return null; end if;
+
+  insert into public.mensajes (cedula, de, texto)
+       values (ced, 'socio', left(btrim(p_texto), 1000))
+    returning id into nuevo;
+
+  return nuevo;
+end
+$$;
+
+-- EL SOCIO LEE LO SUYO. De paso da por vistos los que le mandó Joan: el socio
+-- está mirando la pantalla, así que ya los vio.
+create or replace function public.chat_leer(p_cedula text, p_codigo text, p_desde bigint default 0)
+returns jsonb
+language plpgsql security definer set search_path = public, extensions as $$
+declare ced text; ok boolean; h text; salida jsonb;
+begin
+  ced := public.solo_digitos(p_cedula);
+
+  if not public.puede_intentar(ced) then
+    perform pg_sleep(0.3);
+    return null;
+  end if;
+
+  h := public.huella_codigo(p_codigo);
+  if h is null then
+    perform public.anotar_fallo(ced);
+    perform pg_sleep(0.3);
+    return null;
+  end if;
+
+  select true into ok
+    from public.socios_historial
+   where cedula = ced
+     and codigo_hash = h;
+
+  if not found then
+    perform public.anotar_fallo(ced);
+    perform pg_sleep(0.3);
+    return null;
+  end if;
+
+  perform public.limpiar_fallos(ced);
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id', m.id, 'de', m.de, 'texto', m.texto, 'creado_en', m.creado_en
+         ) order by m.id), '[]'::jsonb)
+    into salida
+    from public.mensajes m
+   where m.cedula = ced
+     and m.id > coalesce(p_desde, 0);
+
+  update public.mensajes
+     set visto = true
+   where cedula = ced and de = 'panel' and not visto;
+
+  return salida;
+end
+$$;
+
+revoke all on function public.chat_escribir(text, text, text) from public;
+revoke all on function public.chat_leer(text, text, bigint)   from public;
+grant execute on function public.chat_escribir(text, text, text) to anon;
+grant execute on function public.chat_leer(text, text, bigint)   to anon;

@@ -7962,10 +7962,15 @@ describe('la app y el Panel, después del cambio', () => {
   });
 
   test('la app ya no pide ni manda los 4 dígitos del celular', () => {
-    assert.ok(!/p_tel4/.test(SOCIO), 'la app todavía le manda tel4 a la nube');
-    assert.ok(!/Últimos 4 números de tu celular/.test(SOCIO), 'quedó el campo viejo');
-    assert.ok(!/S\.tel4/.test(SOCIO), 'quedó el tel4 en el estado de la sesión');
-    assert.match(SOCIO, /historial_socio_por_codigo/,
+    /* Se mide sobre el CÓDIGO, no sobre los comentarios. El 11-ago esta prueba
+       se cayó por un comentario que contaba por qué se había quitado p_tel4:
+       la prohibición es sobre lo que la app ejecuta, y borrar la historia para
+       que pase una prueba es exactamente al revés de para qué sirve. */
+    const codigo = SOCIO.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+    assert.ok(!/p_tel4/.test(codigo), 'la app todavía le manda tel4 a la nube');
+    assert.ok(!/Últimos 4 números de tu celular/.test(codigo), 'quedó el campo viejo');
+    assert.ok(!/S\.tel4/.test(codigo), 'quedó el tel4 en el estado de la sesión');
+    assert.match(codigo, /historial_socio_por_codigo/,
       'la app tiene que llamar a la función nueva de la nube');
   });
 
@@ -8225,5 +8230,113 @@ describe('el APK y la app web dicen lo mismo (10-ago-2026)', () => {
     ['*.keystore', '*.apk', '*.aab'].forEach(p =>
       assert.ok(ig.indexOf(p) >= 0, '.gitignore no cubre ' + p));
     assert.ok(ig.indexOf('android/app/') >= 0, 'el proyecto generado no está ignorado');
+  });
+});
+
+describe('ninguna pantalla llama a una función que la migración tiró (11-ago-2026)', () => {
+
+  /* POR QUÉ EXISTE — y son tres defectos del mismo día, no uno.
+     La migración del código de acceso tira `historial_socio` y `crear_solicitud`
+     y las reemplaza por las versiones `_por_codigo`. Se cambiaron los PARÁMETROS
+     en las pantallas pero no los NOMBRES, así que:
+
+       · socio.html seguía llamando a crear_solicitud — y esa llamada va dentro
+         de un .catch vacío a propósito, para que una solicitud que no sube no
+         le tumbe la pantalla al socio. O sea que habría fallado EN SILENCIO: el
+         socio ve "listo, te respondemos" y en la bandeja de Joan no entra nada.
+       · crm.html probaba la conexión contra historial_socio, así que el botón
+         habría dicho "no has corrido el SQL" justo después de correrlo.
+       · el chat seguía autenticando con los 4 del celular, la puerta que esa
+         misma migración cierra veinte líneas más arriba.
+
+     Ninguna prueba lo vio, porque las pruebas leen los archivos por separado y
+     nadie cruzaba "lo que la pantalla pide" contra "lo que la base ofrece".
+     Esto lo cruza. */
+
+  const sinComentarios = txt => txt
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')     // bloque, en JS y en CSS
+    .replace(/^\s*--.*$/gm, ' ')           // línea, en SQL
+    .replace(/<!--[\s\S]*?-->/g, ' ');     // bloque, en HTML
+
+  const leer = f => sinComentarios(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'));
+
+  const BASE = leer('base/supabase.sql');
+  const MIGS = ['base/20260810_codigo_acceso.sql'].map(leer);
+
+  /* Las funciones que quedan vivas después de correr base + migraciones, en
+     orden. Una que se tira y se vuelve a crear después, queda viva. */
+  const vivas = (() => {
+    const set = new Set([...BASE.matchAll(/create or replace function public\.(\w+)/g)].map(m => m[1]));
+    for (const mig of MIGS) {
+      const eventos = [...mig.matchAll(/(drop function if exists|create or replace function) public\.(\w+)/g)];
+      for (const e of eventos) e[1].startsWith('drop') ? set.delete(e[2]) : set.add(e[2]);
+    }
+    return set;
+  })();
+
+  const llamadasDe = archivo => {
+    const t = leer(archivo);
+    return [...new Set([
+      ...[...t.matchAll(/rpc\/([a-z_]+)/g)].map(m => m[1]),
+      ...[...t.matchAll(/rpc\(\s*['"]([a-z_]+)['"]/g)].map(m => m[1])
+    ])];
+  };
+
+  ['app/socio.html', 'panel/crm.html'].forEach(archivo => {
+    test(archivo + ' — todas sus RPC existen después de la migración', () => {
+      const usa = llamadasDe(archivo);
+      assert.ok(usa.length > 0, archivo + ' no llama a ninguna RPC: el barrido no está midiendo nada');
+      const muertas = usa.filter(f => !vivas.has(f));
+      assert.deepEqual(muertas, [],
+        archivo + ' llama a ' + muertas.join(', ') + ', que la migración tira. ' +
+        'Si va dentro de un .catch vacío, falla en silencio.');
+    });
+  });
+
+  test('nadie sigue mandando p_tel4: esa puerta se cerró', () => {
+    ['app/socio.html', 'panel/crm.html'].forEach(f =>
+      assert.ok(leer(f).indexOf('p_tel4') === -1,
+        f + ' todavía manda p_tel4 en alguna llamada'));
+  });
+
+  test('el chat autentica con el código, no con los 4 del celular', () => {
+    /* Las dos del lado del cliente. Las cuatro del lado de Joan se autentican
+       con la clave de sincronización y no cambian. */
+    const mig = MIGS[0];
+    ['chat_escribir', 'chat_leer'].forEach(f => {
+      assert.match(mig, new RegExp('drop function if exists public\\.' + f),
+        f + ' cambia de firma: hace falta el drop o quedan dos funciones y la llamada revienta');
+      assert.match(mig, new RegExp('create or replace function public\\.' + f + '\\(p_cedula text, p_codigo text'),
+        f + ' tiene que recibir p_codigo');
+    });
+    /* Y que de verdad compare contra la huella, no contra tel4. */
+    const bloque = mig.slice(mig.indexOf('function public.chat_escribir'));
+    assert.match(bloque, /codigo_hash = h/);
+    assert.ok(!/tel4\s*=\s*right/.test(bloque),
+      'el chat sigue comparando contra tel4');
+  });
+
+  test('el chat usa columnas que existen en la tabla mensajes', () => {
+    /* La primera versión de este arreglo inventó `nombre` y `de_socio`, que no
+       existen: la tabla tiene `de` con check ('socio','panel'). En SQL eso no se
+       cae al escribirlo, se cae al correrlo contra la base de Joan. */
+    const def = /create table if not exists public\.mensajes \(([\s\S]*?)\n\);/.exec(BASE);
+    assert.ok(def, 'no encontré la tabla mensajes');
+    const cols = def[1];
+    ['cedula', 'de', 'texto', 'visto', 'creado_en'].forEach(c =>
+      assert.ok(cols.indexOf(c) >= 0, 'mensajes no tiene ' + c));
+    const bloque = MIGS[0].slice(MIGS[0].indexOf('function public.chat_escribir'));
+    assert.ok(!/de_socio|m\.nombre/.test(bloque),
+      'la migración usa columnas que la tabla mensajes no tiene');
+    assert.match(bloque, /insert into public\.mensajes \(cedula, de, texto\)/);
+    assert.match(bloque, /left\(btrim\(p_texto\), 1000\)/,
+      'el texto va topado en 1000: la tabla tiene un check que lo exige');
+  });
+
+  test('y el arnés sirve: una función inventada se caza', () => {
+    assert.equal(vivas.has('funcion_que_no_existe'), false);
+    assert.equal(vivas.has('historial_socio'), false, 'esa la tira la migración');
+    assert.equal(vivas.has('historial_socio_por_codigo'), true);
+    assert.equal(vivas.has('sincronizar_socios'), true, 'esa se reemplaza, no se tira');
   });
 });

@@ -3596,11 +3596,16 @@ function probarSupabase(){
   const cab={'Content-Type':'application/json',apikey:c.anon,Authorization:'Bearer '+c.anon};
 
   // 1) Leer: con una cédula que no existe. Si la función está, responde null.
-  fetch(c.url+'/rest/v1/rpc/historial_socio',{method:'POST',headers:cab,
-    body:JSON.stringify({p_cedula:'0',p_tel4:'0000'})})
+  //
+  // 11-ago-2026 — APUNTABA A historial_socio, QUE LA MIGRACIÓN DEL CÓDIGO TIRA.
+  // El botón habría dicho "todavía no has corrido supabase.sql" justo después de
+  // correrlo, y Joan se habría puesto a buscar un problema que no existe. Ya pasó
+  // una vez con el recargar-esquema y costó media hora.
+  fetch(c.url+'/rest/v1/rpc/historial_socio_por_codigo',{method:'POST',headers:cab,
+    body:JSON.stringify({p_cedula:'0',p_codigo:'00000'})})
   .then(r=>r.text().then(t=>({ok:r.ok,status:r.status,t})))
   .then(r=>{
-    if(r.status===404) throw {paso:'Todavía no has corrido <b>base/supabase.sql</b> en el SQL Editor: la función <i>historial_socio</i> no existe en tu proyecto.'};
+    if(r.status===404) throw {paso:'Falta correr <b>base/20260810_codigo_acceso.sql</b> en el SQL Editor: la función <i>historial_socio_por_codigo</i> no existe en tu proyecto. (Si ya lo corriste, prueba <b>Settings → API → Reload schema</b>: Supabase a veces contesta 404 hasta que se recarga.)'};
     if(r.status===401||r.status===403) throw {paso:'La llave <b>anon public</b> no es la correcta, o el <code>grant execute</code> del final del SQL no se corrió.'};
     if(!r.ok) throw {paso:'Supabase respondió '+r.status+': '+r.t.slice(0,140)};
     // 2) Escribir: lote vacío, solo para validar la clave. No toca ningún dato.

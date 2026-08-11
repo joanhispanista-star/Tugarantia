@@ -2712,8 +2712,19 @@ function mandarSolicitud(monto) {
   var costo = resp ? s.costo_total : s.costo;
   var seExcede = resp ? !s.dentro_del_respaldo : (monto > S.cupo);
 
+  /* 11-ago-2026 — LA FUNCIÓN SE LLAMA POR_CODIGO, Y AYER ESTO NO LO DECÍA.
+     El 10 se cambiaron los PARÁMETROS (p_codigo en vez de p_tel4) pero no el
+     NOMBRE, y la migración tira `crear_solicitud`. O sea que esta llamada iba a
+     dar 404 contra una función que ya no existe.
+
+     Y lo peor no es el 404: es que va dentro de un .catch vacío, a propósito,
+     porque una solicitud que no sube no puede tumbarle la pantalla al socio.
+     Así que habría fallado EN SILENCIO: el socio ve "listo, te respondemos", el
+     WhatsApp sale, y en la bandeja de Joan no entra nada. Sin error, sin log, y
+     sin forma de notarlo hasta que un cliente reclame por una solicitud que
+     nadie recibió. */
   if (CFG.url && CFG.anon && S.cedula && S.acceso) {
-    fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/crear_solicitud', {
+    fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/crear_solicitud_por_codigo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
       body: JSON.stringify({
