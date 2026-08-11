@@ -1,0 +1,52 @@
+{
+  "_leeme": "Configuración de Bubblewrap para envolver la app del socio en un APK (TWA). Ver LEEME.md al lado. El packageId NO se cambia nunca después de la primera instalación: Android identifica la app por ese texto.",
+
+  "packageId": "co.tugarantia.socio",
+  "host": "joanhispanista-star.github.io",
+  "name": "Tu Garantía",
+  "launcherName": "Tu Garantía",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#0C0A0B",
+  "themeColorDark": "#0C0A0B",
+  "navigationColor": "#0C0A0B",
+  "navigationColorDark": "#0C0A0B",
+  "navigationDividerColor": "#0C0A0B",
+  "navigationDividerColorDark": "#0C0A0B",
+  "backgroundColor": "#0C0A0B",
+
+  "_nota_colores": "Los cuatro salen de --laca (#0C0A0B), el mismo negro del <meta name=theme-color> de socio.html y del background_color del webmanifest. Si no coincidieran, la app parpadearía en otro color entre que abre y que pinta, que es el defecto que se nota y nadie sabe explicar.",
+
+  "enableNotifications": false,
+  "_nota_notificaciones": "APAGADAS a propósito. La app hoy no manda ni una notificación: los avisos de pago van por WhatsApp. Pedir el permiso sin usarlo es pedirle algo al cliente a cambio de nada, y quema el permiso para el día que sí haga falta.",
+
+  "startUrl": "/Tugarantia/app/socio.html",
+  "webManifestUrl": "https://joanhispanista-star.github.io/Tugarantia/app/app.webmanifest",
+
+  "iconUrl": "https://joanhispanista-star.github.io/Tugarantia/app/icono-512.png",
+  "maskableIconUrl": "https://joanhispanista-star.github.io/Tugarantia/app/icono-maskable-512.png",
+
+  "splashScreenFadeOutDuration": 300,
+  "_nota_splash": "300 ms y no más: la bienvenida de verdad la dibuja socio.html y dura 2 s (ver MINIMO_BIENVENIDA). Si el splash de Android durara mucho, el socio vería DOS pantallas de carga seguidas con el mismo logo, que se siente como que la app arrancó dos veces.",
+
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestJsonHash": "",
+  "fallbackType": "customtabs",
+  "_nota_fallback": "customtabs: si Digital Asset Links falla, la app abre en una pestaña de Chrome en vez de reventar. Se ve peor (sale la barra de direcciones) pero el cliente entra igual. Un APK que no abre es un cliente perdido.",
+
+  "features": {},
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://joanhispanista-star.github.io/Tugarantia/app/",
+  "minSdkVersion": 23,
+  "_nota_minsdk": "23 es Android 6 (2015). Cubre prácticamente cualquier teléfono que siga encendido en Colombia. Subirlo dejaría gente afuera sin ganar nada.",
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "tugarantia"
+  }
+}

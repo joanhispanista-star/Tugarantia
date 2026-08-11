@@ -13,6 +13,28 @@ NOTAS-INTERNAS.md
 *.aab
 *.keystore
 
+# El proyecto Android que genera Bubblewrap dentro de android/. Se regenera con
+# `construir.ps1` a partir de twa-manifest.json, que ese SÍ va al repositorio
+# porque es la configuración escrita a mano. Lo demás son andamios.
+android/app/
+android/gradle/
+android/.gradle/
+android/build/
+android/build.gradle
+android/settings.gradle
+android/gradle.properties
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/store_icon.png
+android/assetlinks.json
+node_modules/
+
+# OJO, LO CONTRARIO: .well-known/assetlinks.json SÍ se sube, y tiene que subirse.
+# Es lo que le prueba a Android que el APK y el sitio son del mismo dueño; sin él
+# la app abre con la barra del navegador encima. Solo lleva una huella pública de
+# la llave de firma, no la llave: publicarlo es exactamente para lo que existe.
+
 # Basura del sistema
 Thumbs.db
 desktop.ini

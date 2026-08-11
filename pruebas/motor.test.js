@@ -8142,3 +8142,88 @@ describe('las dos apps compilan: nada de sintaxis rota', () => {
     assert.doesNotThrow(() => new vm.Script("var m='hola\\nmundo';"));
   });
 });
+
+describe('el APK y la app web dicen lo mismo (10-ago-2026)', () => {
+
+  /* El APK es un envoltorio (TWA) que abre el sitio. Su configuración vive en
+     android/twa-manifest.json y REPITE cosas que ya están en app.webmanifest y
+     en socio.html: los colores, el modo de pantalla, la dirección de arranque.
+
+     Repetido es sinónimo de que se van a separar. Y cuando se separan no se cae
+     nada: la app arranca en un color y pinta en otro, o abre fuera de su propio
+     alcance y le sale al cliente la barra del navegador encima. Defectos que
+     solo se ven en un teléfono de verdad, o sea tarde y en el de un cliente. */
+
+  const leer = f => JSON.parse(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'));
+  const TWA = leer('android/twa-manifest.json');
+  const WEB = leer('app/app.webmanifest');
+  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+
+  test('los colores son el mismo negro en los tres sitios', () => {
+    const meta = /<meta name="theme-color" content="([^"]+)"/.exec(SOCIO);
+    assert.ok(meta, 'socio.html se quedó sin theme-color');
+    /* Si no coinciden, entre que Android abre y que la página pinta se ve un
+       parpadeo de otro color. Es el defecto que se nota y que nadie sabe nombrar. */
+    [TWA.themeColor, TWA.backgroundColor, TWA.navigationColor, WEB.theme_color,
+     WEB.background_color, meta[1]].forEach(c =>
+      assert.equal(String(c).toUpperCase(), '#0C0A0B', 'este no es la laca: ' + c));
+  });
+
+  test('el modo de pantalla y la orientación coinciden', () => {
+    assert.equal(TWA.display, WEB.display);
+    assert.equal(TWA.orientation, WEB.orientation);
+  });
+
+  test('la dirección de arranque cae dentro del alcance', () => {
+    /* Fuera del alcance, el TWA abre en una pestaña de Chrome con barra de
+       direcciones. Se ve como una página web, no como una app. */
+    const scope = new URL(TWA.fullScopeUrl).pathname;
+    assert.ok(TWA.startUrl.startsWith(scope),
+      TWA.startUrl + ' está fuera de ' + scope);
+    assert.equal(new URL(TWA.webManifestUrl).host, TWA.host);
+    assert.equal(new URL(TWA.iconUrl).host, TWA.host);
+  });
+
+  test('el packageId es válido y sigue siendo el mismo', () => {
+    /* Android identifica la app por este texto. Cambiarlo después de la primera
+       instalación deja la app instalada muerta al lado de una nueva, sin aviso
+       y sin forma de migrar. Es tan irreversible como el `id` del webmanifest. */
+    assert.match(TWA.packageId, /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/);
+    assert.equal(TWA.packageId, 'co.tugarantia.socio',
+      'si de verdad hay que cambiarlo, borra esta prueba a mano y a sabiendas');
+  });
+
+  test('no pide permisos que la app no usa', () => {
+    /* Las notificaciones están apagadas porque hoy no se manda ninguna: los
+       avisos de pago van por WhatsApp. Pedir un permiso sin usarlo es pedirle
+       algo al cliente a cambio de nada, y quema el permiso para cuando sirva. */
+    assert.equal(TWA.enableNotifications, false);
+    const avisa = /new Notification\(|showNotification\(|Notification\.requestPermission/.test(SOCIO);
+    assert.equal(avisa, false,
+      'la app empezó a mandar notificaciones: entonces sí hay que encender el permiso en el APK');
+  });
+
+  test('el splash de Android no se pisa con la bienvenida de la app', () => {
+    /* Dos pantallas de carga seguidas con el mismo logo se sienten como que la
+       app arrancó dos veces. La bienvenida de verdad la dibuja socio.html. */
+    assert.ok(TWA.splashScreenFadeOutDuration <= 500,
+      'el splash de Android dura ' + TWA.splashScreenFadeOutDuration + ' ms, encima de los 2 s de la bienvenida');
+  });
+
+  test('los iconos que declara el APK existen en el repositorio', () => {
+    [TWA.iconUrl, TWA.maskableIconUrl].forEach(u => {
+      const rel = new URL(u).pathname.replace(/^\/Tugarantia\//, '');
+      assert.ok(fs.existsSync(path.join(__dirname, '..', rel)), 'no existe ' + rel);
+    });
+  });
+
+  test('la llave de firma no se puede subir por accidente', () => {
+    /* Es la identidad de la app y el repositorio es público. Perderla impide
+       actualizar; publicarla permite que un tercero firme algo que Android
+       acepta como si fuera de Joan. */
+    const ig = fs.readFileSync(path.join(__dirname, '..', '.gitignore'), 'utf8');
+    ['*.keystore', '*.apk', '*.aab'].forEach(p =>
+      assert.ok(ig.indexOf(p) >= 0, '.gitignore no cubre ' + p));
+    assert.ok(ig.indexOf('android/app/') >= 0, 'el proyecto generado no está ignorado');
+  });
+});
