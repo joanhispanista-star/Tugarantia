@@ -1,0 +1,78 @@
+# ===========================================================================
+# PUBLICAR EL SITIO — 11 de agosto de 2026
+#
+# POR QUÉ EXISTE ESTE ARCHIVO, que a primera vista sobra: el sitio es estático
+# y GitHub Pages sabe servir una rama sin ayuda de nadie. La razón es que
+# encender Pages es un interruptor de la CUENTA de Joan, y eso no se puede
+# hacer desde el repositorio... salvo por esta puerta: configure-pages con
+# `enablement: true` lo enciende él mismo, usando el permiso `pages: write`
+# del propio flujo. Joan ya lo intentó a mano una vez y no se guardó —eligió
+# "GitHub Actions" como origen cuando el repositorio todavía no tenía ni un
+# flujo, así que Pages se quedó esperando algo que no existía. Este archivo es
+# justamente lo que faltaba ese día.
+#
+# Y ADEMÁS ARREGLA UN PROBLEMA VIEJO Y CARO: el despliegue automático de una
+# rama falla EN SILENCIO. El 6 de agosto se actualizó el espejo del repositorio
+# antiguo, el build empezó a las 17:34:11Z y terminó en "failure" a las
+# 17:35:52Z. Nadie se enteró y el sitio se quedó congelado varios días,
+# sirviendo el reparto viejo (90/45) mientras el escritorio ya repartía
+# 75/10/15. Con un flujo explícito el fallo sale en rojo en la pestaña Actions
+# y llega un correo. Un despliegue que falla callado es peor que uno que no
+# corre.
+# ===========================================================================
+
+name: Publicar el sitio
+
+on:
+  push:
+    branches: [main]
+  # Para poder relanzarlo a mano desde la pestaña Actions sin tener que
+  # inventar un commit vacío.
+  workflow_dispatch:
+
+# El mínimo que hace falta y ni un permiso más. `pages: write` es el que
+# permite encenderlo la primera vez; `id-token: write` lo exige deploy-pages
+# para probar ante GitHub que el artefacto salió de este flujo y no de otro.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Si Joan sube dos commits seguidos, que no se pisen dos despliegues. No se
+# cancela el que va corriendo: cancelarlo a mitad puede dejar el sitio servido
+# a medias, y este sitio es el CRM de un negocio en marcha.
+concurrency:
+  group: paginas
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - name: Traer el repositorio
+        uses: actions/checkout@v4
+
+      - name: Encender Pages si hace falta
+        uses: actions/configure-pages@v5
+        with:
+          # LA LÍNEA POR LA QUE EXISTE TODO ESTE ARCHIVO.
+          enablement: true
+
+      - name: Empaquetar el sitio entero
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # La raíz tal cual: no hay compilación, ni dependencias, ni carpeta
+          # dist. Lo que está en el repositorio es exactamente lo que se sirve,
+          # que es la propiedad que hace que este proyecto se pueda auditar
+          # descargando el HTML publicado y comparándolo con el local.
+          # Lo que no debe salir a la calle no se filtra acá: no está en el
+          # repositorio, porque lo para .gitignore (respaldos con datos de
+          # clientes, NOTAS-INTERNAS.md, direccion/, RECETA-*.md).
+          path: .
+
+      - name: Desplegar
+        id: despliegue
+        uses: actions/deploy-pages@v4
