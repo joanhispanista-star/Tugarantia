@@ -24,6 +24,8 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
   motor.js              El motor del producto de HOY (quincenal y con garantía).
   creditos.js           El catálogo PUBLICABLE en Play: 6 meses, bajo el techo de
                         usura del mes. Aparte de motor.js a propósito.
+  cuenta.js             Entrar con teléfono y contraseña, el formulario de
+                        vinculación, y los permisos que la app NO pide.
   puente.js             Traduce los datos del Panel a lo que consume la app.
   app.webmanifest       Para instalarla en el celular.
   icono-*.png           La G amarilla sobre laca negra.
@@ -47,6 +49,7 @@ pruebas/
   motor.test.js         545 pruebas del motor de reglas.
   nube.test.js           65 de la sincronización del Panel.
   creditos.test.js       37 del catálogo publicable.
+  cuenta.test.js         27 de la cuenta del socio.
 ```
 
 **`motor.js` y `puente.js` los comparten las dos apps a propósito.** Es lo que evita
@@ -155,7 +158,7 @@ socio desde su propia pantalla. Cuando estén cerrados, ese archivo se publica.
 Lo que **sí** está cerrado y medido: la mora del crédito quincenal se cobra, la misma
 garantía no respalda dos créditos a la vez, la migración de los créditos viejos no
 inventa garantía, la prórroga aplaza a una fecha futura y pasa por el motor, el modo
-oscuro cumple contraste, y las 647 pruebas pasan.
+oscuro cumple contraste, y las 674 pruebas pasan.
 
 **Nada de la nube está probado**: Supabase no está conectado, así que las funciones
 RPC, el RLS y los frenos anti-tanteo no se han ejercitado nunca. Tampoco se ha probado
