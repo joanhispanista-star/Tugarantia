@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Borrar mi cuenta · Tu Garantía</title>
+<meta name="theme-color" content="#0C0A0B">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<!-- ============================================================================
+     BORRAR LA CUENTA, DESDE FUERA DE LA APP
+
+     Google Play lo exige desde 2023 y es de los requisitos que se revisan de
+     verdad: tiene que poderse pedir desde la app Y desde una dirección web
+     pública, sin instalar nada y sin tener que entrar. Esta es esa dirección, y
+     va escrita en la ficha de la tienda.
+
+     Y dice qué se borra Y QUÉ NO. Un crédito ya desembolsado es un soporte
+     contable que la ley obliga a conservar; prometer que se borra todo y no
+     hacerlo es peor que decirlo de frente. La lista sale de cumplimiento.js
+     para que esta página y la app no puedan prometer cosas distintas.
+     ========================================================================= -->
+
+<div class="cab laca"><div class="wrap">
+  <div class="marca"><span class="pin">G</span> Tu Garantía</div>
+  <h1>Borrar mi cuenta</h1>
+</div></div>
+
+<div class="wrap"><div id="cuerpo"></div></div>
+
+<script src="../app/creditos.js"></script>
+<script src="../app/cuenta.js"></script>
+<script src="../app/cumplimiento.js"></script>
+<script>
+'use strict';
+var U = window.CuentaSocio, K = window.Cumplimiento;
+var $ = function (id) { return document.getElementById(id); };
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+  });
+}
+
+var B = K.BORRADO;
+
+$('cuerpo').innerHTML =
+  '<div class="card">' +
+    '<p class="sub" style="margin-top:0">Puedes pedir que borremos tu cuenta cuando quieras, ' +
+      'sin dar explicaciones. No hace falta tener la app instalada.</p>' +
+  '</div>' +
+
+  '<div class="card">' +
+    '<h3 class="tit">Qué se borra</h3>' +
+    '<ul style="margin:var(--e3) 0 0;padding-left:20px;line-height:1.7">' +
+      B.se_borra.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') +
+    '</ul>' +
+  '</div>' +
+
+  '<div class="card">' +
+    '<h3 class="tit">Qué NO se puede borrar, y por qué</h3>' +
+    '<p class="sub">Preferimos decírtelo antes que prometerte algo que no podemos cumplir.</p>' +
+    B.se_conserva.map(function (x) {
+      return '<div style="margin-top:var(--e4)"><b>' + esc(x.que) + '</b>' +
+        '<div class="ayuda">Se conserva ' + esc(x.cuanto) + '. ' + esc(x.porque) + '</div></div>';
+    }).join('') +
+  '</div>' +
+
+  '<div class="card">' +
+    '<h3 class="tit">Pídelo aquí</h3>' +
+    '<p class="sub">Con tu celular nos alcanza para encontrarte. Te confirmamos por WhatsApp ' +
+      'y lo hacemos en máximo ' + B.plazo_dias + ' días.</p>' +
+    '<label for="bTel">Tu celular</label>' +
+    '<input id="bTel" type="tel" inputmode="numeric" placeholder="300 111 2233">' +
+    '<label for="bMotivo">Si quieres, cuéntanos por qué <span class="opc">· opcional</span></label>' +
+    '<input id="bMotivo" type="text" placeholder="No es obligatorio">' +
+    '<button class="btn arriba" id="btnBorrar">Pedir que borren mi cuenta</button>' +
+    '<div id="errB" class="aviso ambar oculto"></div>' +
+    '<div class="ayuda" style="margin-top:var(--e3)">Esto abre WhatsApp con el mensaje ya escrito. ' +
+      'Nada se borra en este momento: primero confirmamos que eres tú.</div>' +
+  '</div>' +
+
+  '<div class="card">' +
+    '<h3 class="tit">Otras formas</h3>' +
+    '<ul style="margin:var(--e3) 0 0;padding-left:20px;line-height:1.7">' +
+      B.como.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') +
+    '</ul>' +
+  '</div>' +
+
+  '<div class="pie">' +
+    '<a href="index.html" style="color:inherit">Volver a la app</a> · ' +
+    '<a href="../legal/privacidad.html" style="color:inherit">Tus datos</a></div>';
+
+$('btnBorrar').addEventListener('click', function () {
+  var err = $('errB');
+  err.classList.add('oculto');
+  var tel = U.normalizarTelefono($('bTel').value);
+  if (!tel) {
+    err.textContent = 'Escribe tu celular completo: son 10 números y empiezan por 3.';
+    err.classList.remove('oculto');
+    return;
+  }
+  var motivo = ($('bMotivo').value || '').trim();
+  var texto = 'Hola, quiero que borren mi cuenta de Tu Garantía.\n' +
+    'Mi celular es ' + U.telefonoBonito(tel) + '.' +
+    (motivo ? '\nMotivo: ' + motivo : '');
+  /* Sin número de destino: WhatsApp le deja elegir el chat. Es un paso más pero
+     nunca lo manda al contacto equivocado, y acá no hay un número oficial
+     firmado que se pueda poner sin riesgo de que alguien lo suplante. */
+  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank', 'noopener');
+});
+</script>
+</body>
+</html>

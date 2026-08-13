@@ -37,6 +37,7 @@
 
 <script src="../app/creditos.js"></script>
 <script src="../app/cuenta.js"></script>
+<script src="../app/cumplimiento.js"></script>
 <script>
 'use strict';
 
@@ -418,23 +419,283 @@ function pintarRegistrado() {
   window.scrollTo(0, 0);
 }
 
-/* ============================== LA CUENTA ============================== */
+/* ============================== LA CUENTA ==============================
+   Etapa 6. Lo que el socio ve cuando entra: su perfil y su cupo, el simulador,
+   el botón de pedir, y su historial.
+
+   TODO SALE DE LA SESIÓN, Y LO QUE NO ESTÁ SE DICE. Un historial vacío dibujado
+   como si fuera real es la clase de mentira que este proyecto lleva meses
+   quitándose: si la nube todavía no responde, la pantalla lo dice. */
+var SESION = null;
+var MONTO = 500000;
+
+function perfilDeSesion(s) {
+  var m = s && s.user && s.user.user_metadata;
+  var p = m && m.perfil;
+  return C.perfilValido(p) ? p : 'nuevo';
+}
+function historialDeSesion(s) {
+  var m = s && s.user && s.user.user_metadata;
+  return (m && Array.isArray(m.creditos)) ? m.creditos : [];
+}
+
 function pintarCuenta(sesion) {
+  if (sesion) SESION = sesion;
   VISTA = 'cuenta';
   $('titulo').textContent = 'Mi cuenta';
-  /* Etapa 6. Por ahora se muestra lo que ya se puede mostrar con verdad: el
-     catálogo del perfil que traiga la sesión, y que el historial está en camino.
-     Decir "próximamente" es honesto; inventar un historial vacío que parezca
-     real, no. */
-  var perfil = (sesion && sesion.user && sesion.user.user_metadata &&
-                sesion.user.user_metadata.perfil) || 'nuevo';
+  var idPerfil = perfilDeSesion(SESION);
+  var perfil = C.PERFILES[idPerfil];
+
+  MONTO = Math.min(MONTO, perfil.cupo_maximo || 500000);
+  MONTO = Math.max(MONTO, 100000);
+
   $('cuerpo').innerHTML =
-    tarjetaCatalogo(perfil) +
-    '<div class="card"><div class="etq">Tu historial</div>' +
-      '<p class="sub">Todavía estamos terminando esta pantalla. Aquí vas a ver tus ' +
-      'créditos, tus pagos y tus fechas.</p></div>' +
-    '<div class="card"><button class="btn sec" onclick="pintarEntrar()">Salir</button></div>' +
-    pie();
+    tarjetaCupo(perfil) +
+    tarjetaSimulador(idPerfil) +
+    tarjetaHistorial() +
+    '<div class="card">' +
+      '<button class="btn sec" onclick="pintarEntrar()">Salir</button>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarBorrar()">' +
+        'Borrar mi cuenta</button>' +
+    '</div>' + pie();
+  pintarSimulacion();
+  window.scrollTo(0, 0);
+}
+
+function tarjetaCupo(perfil) {
+  if (perfil.cupo_maximo === 0) {
+    return '<div class="card laca">' +
+      '<div class="etq">Tu cupo</div>' +
+      '<div class="cifra">En revisión</div>' +
+      '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
+        'Todavía estamos revisando tus datos. Te escribimos por WhatsApp en cuanto ' +
+        'terminemos y ahí te decimos hasta cuánto puedes pedir. Mientras tanto puedes ' +
+        'simular y dejar tu solicitud.</div></div>';
+  }
+  return '<div class="card laca">' +
+    '<div class="etq">Puedes pedir hasta</div>' +
+    '<div class="cifra oro">' + COP(perfil.cupo_maximo) + '</div>' +
+    '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
+      'Socio ' + esc(perfil.nombre.toLowerCase()) + '. ' + esc(perfil.texto) + '</div></div>';
+}
+
+/* EL SIMULADOR. Mueve el monto y las cifras cambian; no hay un botón "calcular"
+   que devuelva un número que uno ya no sabe de dónde salió. Y las cuotas se ven
+   CON FECHA antes de pedir, que es lo que el socio necesita para saber si le
+   cuadra con el día que le pagan. */
+function tarjetaSimulador(idPerfil) {
+  var tope = Math.max(C.PERFILES[idPerfil].cupo_maximo || 0, 2000000);
+  return '<div class="card">' +
+    '<h3 class="tit">Simula tu crédito</h3>' +
+    '<p class="sub">Mueve el monto y mira exactamente cuánto pagarías.</p>' +
+    '<input type="range" id="rMonto" min="100000" max="' + tope + '" step="50000" value="' + MONTO + '" ' +
+      'oninput="cambiaMonto(this.value)" style="width:100%;margin-top:var(--e4);accent-color:var(--rojo)">' +
+    '<div id="simu"></div>' +
+    '</div>';
+}
+
+function cambiaMonto(v) {
+  MONTO = Number(v) || 100000;
+  pintarSimulacion();
+}
+
+function pintarSimulacion() {
+  var idPerfil = perfilDeSesion(SESION);
+  var r = C.simular({ perfil: idPerfil, capital: MONTO, fecha_desembolso: hoyISO() });
+  var c = r.puede ? r : r.cotizacion;
+  var el = $('simu');
+  if (!el) return;
+
+  if (!c) {
+    el.innerHTML = '<div class="aviso ambar">' + esc(r.mensaje) + '</div>';
+    return;
+  }
+
+  var sobreCupo = !r.puede && r.motivo === 'sobre_cupo';
+  var sinCupo = !r.puede && r.motivo === 'sin_cupo';
+
+  el.innerHTML =
+    '<div class="cifra sm" style="margin-top:var(--e3)">' + COP(c.capital) + '</div>' +
+    '<div class="muted" style="font-size:13.5px">' + c.meses + ' cuotas de <b>' +
+      COP(c.cuota_tipica) + '</b></div>' +
+    '<div class="sep"></div>' +
+    fila('Lo que cuesta', COP(c.costo_total)) +
+    fila('Total a pagar', COP(c.total_a_pagar)) +
+    fila('Tasa efectiva anual', pct(c.efectivo_anual)) +
+
+    '<div class="grupo-tit">Cuándo pagarías</div>' +
+    c.cuotas.map(function (q) {
+      return fila('Cuota ' + q.n + ' · ' + fmtFecha(q.fecha), COP(q.total));
+    }).join('') +
+
+    /* LA DIVULGACIÓN, AQUÍ Y NO EN UN RINCÓN. Google la exige "en el mismo lugar
+       donde el usuario solicita el crédito", y además es lo correcto: el precio
+       completo justo antes del botón, no en una pantalla de términos que nadie
+       abre. El texto sale de cumplimiento.js, el mismo que va en la ficha. */
+    '<div class="aviso" style="margin-top:var(--e4);font-size:12.5px;line-height:1.55">' +
+      esc(divulgacionHoy()) + '</div>' +
+
+    (sobreCupo
+      ? '<div class="aviso ambar">Estás pidiendo más que tu cupo (' + COP(r.cupo_maximo) + '). ' +
+        'Puedes dejar la solicitud igual: la revisamos y te respondemos.</div>'
+      : '') +
+    (sinCupo
+      ? '<div class="aviso ambar">Todavía no tienes cupo asignado. Puedes dejar tu ' +
+        'solicitud y la revisamos.</div>'
+      : '') +
+
+    '<button class="btn arriba" onclick="pedir()">' +
+      (r.puede ? 'Pedir ' + COP(c.capital) : 'Dejar mi solicitud') + '</button>' +
+    '<div id="errPedir" class="aviso ambar oculto"></div>';
+}
+
+var DIVULGACION = null;
+function divulgacionHoy() {
+  if (!DIVULGACION) {
+    var K = window.Cumplimiento;
+    var d = K ? K.divulgacion(hoyISO()) : null;
+    DIVULGACION = (d && d.puede) ? d.texto : '';
+  }
+  return DIVULGACION;
+}
+
+function fmtFecha(iso) {
+  var p = String(iso).split('-');
+  var mes = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return Number(p[2]) + ' ' + mes[Number(p[1]) - 1] + ' ' + p[0];
+}
+
+function pedir() {
+  var err = $('errPedir');
+  err.classList.add('oculto');
+  if (!CFG.url || !CFG.anon) {
+    return fallo(err, 'Todavía no está conectada la base de datos, así que la solicitud no ' +
+      'se puede enviar. Esto es una versión en construcción.');
+  }
+  fallo(err, 'Enviando…');
+  /* La solicitud NO es un crédito: entra a la bandeja de Joan y él responde. La
+     pantalla lo dice con esas palabras para que nadie salga creyendo que ya le
+     desembolsaron. */
+  fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/play_solicitar', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', apikey: CFG.anon,
+      Authorization: 'Bearer ' + ((SESION && SESION.access_token) || CFG.anon)
+    },
+    body: JSON.stringify({ p_capital: MONTO, p_meses: C.PLAZO_MESES })
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
+    .then(function () { pintarPedido(); })
+    .catch(function () {
+      fallo(err, 'No pude enviar la solicitud. Revisa tu internet y vuelve a intentar.');
+    });
+}
+
+function pintarPedido() {
+  $('titulo').textContent = 'Solicitud enviada';
+  $('cuerpo').innerHTML =
+    '<div class="card"><div class="aviso verde"><b>Recibimos tu solicitud.</b></div>' +
+      '<p class="sub" style="margin-top:var(--e4)">Pediste ' + COP(MONTO) + ' a ' +
+      C.PLAZO_MESES + ' meses. <b>Todavía no es un crédito:</b> la revisamos y te ' +
+      'respondemos por WhatsApp. Si la aprobamos, ahí te decimos cuándo recibes la plata.</p>' +
+      '<button class="btn arriba" onclick="pintarCuenta()">Volver a mi cuenta</button>' +
+    '</div>' + pie();
+  window.scrollTo(0, 0);
+}
+
+/* EL HISTORIAL. Sale de la sesión. Si no hay nada, se distingue "no tienes
+   créditos todavía" de "no pudimos cargarlos": son cosas distintas y confundirlas
+   le haría creer al socio que perdió su historial. */
+function tarjetaHistorial() {
+  var creditos = historialDeSesion(SESION);
+  if (!SESION) {
+    return '<div class="card"><div class="etq">Tu historial</div>' +
+      '<p class="sub">No pudimos cargar tu historial. Vuelve a entrar en un momento.</p></div>';
+  }
+  if (!creditos.length) {
+    return '<div class="card"><div class="etq">Tu historial</div>' +
+      '<p class="sub">Todavía no tienes créditos con nosotros. Cuando pidas el primero, ' +
+      'aquí vas a ver cada cuota y cada pago.</p></div>';
+  }
+  return '<div class="card"><div class="etq">Tu historial</div>' +
+    creditos.map(function (cr) {
+      var pagadas = (cr.cuotas || []).filter(function (q) { return q.pagada; }).length;
+      return '<div style="margin-top:var(--e4)">' +
+        '<b>' + COP(cr.capital) + '</b> a ' + cr.meses + ' meses' +
+        '<div class="ayuda">' + esc(fmtFecha(cr.fecha_desembolso)) + ' · ' +
+          pagadas + ' de ' + (cr.cuotas || []).length + ' cuotas pagadas' +
+          (cr.pagado ? ' · <b>terminado</b>' : '') + '</div>' +
+        (cr.cuotas || []).map(function (q) {
+          return fila('Cuota ' + q.n + ' · ' + fmtFecha(q.fecha),
+                      COP(q.total) + (q.pagada ? ' ✓' : ''));
+        }).join('') +
+        '</div>';
+    }).join('') +
+    '<button class="btn sec sm arriba" onclick="imprimirCertificado()">' +
+      'Descargar mi certificado de pagos</button>' +
+    '</div>';
+}
+
+/* El certificado y el contrato: una ventana imprimible que el teléfono guarda
+   como PDF con "Imprimir → Guardar como PDF". Sin librerías, sin subir nada a
+   ningún servidor, y funciona igual en Android y en iPhone. */
+function imprimirCertificado() {
+  var creditos = historialDeSesion(SESION);
+  var nombre = (SESION && SESION.user && SESION.user.user_metadata &&
+                SESION.user.user_metadata.vinculacion &&
+                (SESION.user.user_metadata.vinculacion.nombres + ' ' +
+                 SESION.user.user_metadata.vinculacion.apellidos)) || 'Socio';
+  var filas = creditos.map(function (cr) {
+    return '<h3>' + COP(cr.capital) + ' a ' + cr.meses + ' meses · ' +
+      esc(fmtFecha(cr.fecha_desembolso)) + '</h3><table>' +
+      (cr.cuotas || []).map(function (q) {
+        return '<tr><td>Cuota ' + q.n + '</td><td>' + esc(fmtFecha(q.fecha)) + '</td>' +
+          '<td>' + COP(q.total) + '</td><td>' + (q.pagada ? 'Pagada' : 'Pendiente') + '</td></tr>';
+      }).join('') + '</table>';
+  }).join('');
+
+  var w = window.open('', '_blank');
+  if (!w) return;
+  w.document.write(
+    '<!doctype html><html lang="es"><head><meta charset="utf-8">' +
+    '<title>Certificado de pagos · Tu Garantía</title><style>' +
+    'body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:0 20px;color:#111}' +
+    'h1{font-size:20px} h3{font-size:15px;margin-top:24px}' +
+    'table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}' +
+    'td{padding:6px 4px;border-bottom:1px solid #ddd}' +
+    '.pie{margin-top:34px;font-size:12px;color:#666;line-height:1.6}' +
+    '</style></head><body>' +
+    '<h1>Certificado de pagos</h1>' +
+    '<p>' + esc(nombre) + '<br>Expedido el ' + esc(fmtFecha(hoyISO())) + '</p>' +
+    (filas || '<p>Sin créditos registrados.</p>') +
+    '<div class="pie">Tu Garantía · Este documento refleja lo registrado en la ' +
+      'plataforma a la fecha de expedición.</div>' +
+    '</body></html>');
+  w.document.close();
+  w.focus();
+  w.print();
+}
+
+function pintarBorrar() {
+  $('titulo').textContent = 'Borrar mi cuenta';
+  var K = window.Cumplimiento;
+  var B = K.BORRADO;
+  $('cuerpo').innerHTML =
+    '<div class="card">' +
+      '<h3 class="tit">Qué se borra</h3>' +
+      '<ul style="margin:var(--e3) 0 0;padding-left:20px;line-height:1.7">' +
+        B.se_borra.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' +
+    '</div>' +
+    '<div class="card">' +
+      '<h3 class="tit">Qué NO se puede borrar</h3>' +
+      B.se_conserva.map(function (x) {
+        return '<div style="margin-top:var(--e3)"><b>' + esc(x.que) + '</b>' +
+          '<div class="ayuda">' + esc(x.porque) + '</div></div>';
+      }).join('') +
+    '</div>' +
+    '<div class="card">' +
+      '<a class="btn" href="borrar-cuenta.html">Continuar</a>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarCuenta()">Volver</button>' +
+    '</div>' + pie();
   window.scrollTo(0, 0);
 }
 
