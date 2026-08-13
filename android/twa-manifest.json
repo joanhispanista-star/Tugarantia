@@ -18,16 +18,17 @@
   "_nota_colores": "Los cuatro salen de --laca (#0C0A0B), el mismo negro del <meta name=theme-color> de socio.html y del background_color del webmanifest. Si no coincidieran, la app parpadearía en otro color entre que abre y que pinta, que es el defecto que se nota y nadie sabe explicar.",
 
   "enableNotifications": false,
+  "_nota_alcance": "11-ago-2026 — APUNTABA A /app/, QUE ES LA APP QUINCENAL. Envolver esa era subir a Google Play justo el producto que su politica prohibe (pago completo en 60 dias o menos). Ahora apunta a /play/, que tiene un solo producto: 6 meses en cuotas bajo el techo de usura. Y el alcance hace la frontera REAL: /app/ queda fuera, asi que aunque alguien ponga un enlace, el sistema lo abre en el navegador y no dentro de la app. La separacion deja de depender de que alguien se acuerde.",
   "_nota_notificaciones": "APAGADAS a propósito. La app hoy no manda ni una notificación: los avisos de pago van por WhatsApp. Pedir el permiso sin usarlo es pedirle algo al cliente a cambio de nada, y quema el permiso para el día que sí haga falta.",
 
-  "startUrl": "/Tugarantia/app/socio.html",
-  "webManifestUrl": "https://joanhispanista-star.github.io/Tugarantia/app/app.webmanifest",
+  "startUrl": "/Tugarantia/play/index.html",
+  "webManifestUrl": "https://joanhispanista-star.github.io/Tugarantia/play/app.webmanifest",
 
   "iconUrl": "https://joanhispanista-star.github.io/Tugarantia/app/icono-512.png",
   "maskableIconUrl": "https://joanhispanista-star.github.io/Tugarantia/app/icono-maskable-512.png",
 
   "splashScreenFadeOutDuration": 300,
-  "_nota_splash": "300 ms y no más: la bienvenida de verdad la dibuja socio.html y dura 2 s (ver MINIMO_BIENVENIDA). Si el splash de Android durara mucho, el socio vería DOS pantallas de carga seguidas con el mismo logo, que se siente como que la app arrancó dos veces.",
+  "_nota_splash": "300 ms y no más. La app envuelta es play/index.html, que NO tiene bienvenida propia —la de 2 s es de app/socio.html, que ya no es lo que se empaqueta—, así que este splash es lo único que se ve mientras carga y tiene que irse rápido. Si algún día play/ estrena bienvenida, este número se revisa: dos pantallas de carga seguidas con el mismo logo se sienten como que la app arrancó dos veces.",
 
   "appVersionName": "1.0.0",
   "appVersionCode": 1,
@@ -42,7 +43,7 @@
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://joanhispanista-star.github.io/Tugarantia/app/",
+  "fullScopeUrl": "https://joanhispanista-star.github.io/Tugarantia/play/",
   "minSdkVersion": 23,
   "_nota_minsdk": "23 es Android 6 (2015). Cubre prácticamente cualquier teléfono que siga encendido en Colombia. Subirlo dejaría gente afuera sin ganar nada.",
   "signingKey": {

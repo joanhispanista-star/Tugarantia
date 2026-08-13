@@ -1,0 +1,153 @@
+/* ============================================================================
+ * LA HOJA DE LA APP PUBLICABLE
+ *
+ * LA CARPETA play/ ES LA FRONTERA, y no es organización: es lo que hace que la
+ * app de Google Play no pueda contener el producto quincenal ni por accidente.
+ * El alcance del TWA se fija en /Tugarantia/play/, así que app/socio.html queda
+ * FUERA del alcance de la app instalada. No es que esté escondido — está afuera.
+ * Si alguien pone un enlace de aquí para allá, el sistema lo abre en el
+ * navegador y no dentro de la app, que es exactamente lo que tiene que pasar.
+ *
+ * LOS TOKENS ESTÁN DUPLICADOS DE socio.html, A SABIENDAS Y CON PLAN.
+ * socio.html los lleva en línea, dentro del propio archivo. Sacarlos de allá
+ * ahora significa editar un archivo de 3.300 líneas que Joan toca en paralelo, y
+ * romperle la app que hoy usan sus clientes por una mejora que no urge. Así que
+ * se copian, se dice acá que están copiados, y el día que socio.html se toque en
+ * serio se pasa a esta hoja y se borra la copia. Es deuda anotada, no deuda
+ * escondida: la enfermedad de este proyecto es la copia que nadie declaró.
+ *
+ * La ley de la paleta es la misma y está explicada entera en socio.html: dos
+ * materiales (laca y papel), tres colores con un trabajo cada uno, y el amarillo
+ * SOLO sobre laca.
+ * ==========================================================================*/
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+
+:root{
+  --laca:#0C0A0B; --papel:#FFFFFF; --fondo:#F6F3F0; --tinta:#0C0A0B;
+  --luz:#FFFFFF; --sombra:#000000;
+  --amarillo:#F5C542; --amarillo-tinta:#7A5A10;
+  --azul:#1B4FD8; --azul-laca:#7FA8FF; --azul-tinte:#EDF2FE; --azul-texto:var(--azul);
+  --rojo:#D81F26; --rojo-laca:#FF6B6F; --rojo-tinte:#FCF4F2; --rojo-texto:var(--rojo);
+  --ambar:#9A5B12; --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--luz));
+  --ambar-filete:color-mix(in srgb, var(--ambar) 40%, transparent);
+  --ambar-tinta:var(--ambar);
+  --verde:#1B7A4B; --verde-tinte:#EAF6F0;
+  --gris:#6E6460; --linea:#E9E3DD; --blanco-laca:#FBF7F4;
+  --r:16px;
+  --e1:4px; --e2:8px; --e3:12px; --e4:20px;
+  --placa:
+    linear-gradient(103deg, transparent 32%, color-mix(in srgb, var(--luz) 5%, transparent) 45%, transparent 60%),
+    radial-gradient(140% 110% at 16% -25%,
+      color-mix(in srgb, var(--laca) 88%, var(--luz)) 0%,
+      color-mix(in srgb, var(--laca) 97%, var(--luz)) 45%,
+      var(--laca) 100%);
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --tinta:#EDE7E4; --papel:#151113; --fondo:#0B0A0A; --linea:#262021; --gris:#9C918B;
+  --rojo-tinte:#241416; --rojo-texto:var(--rojo-laca);
+  --azul-tinte:#101A2E; --azul-texto:var(--azul-laca);
+  --amarillo-tinta:#F8D471; --verde-tinte:#0E1F17;
+  --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--papel));
+  --ambar-filete:var(--ambar); --ambar-tinta:var(--tinta);
+} }
+:root[data-theme="dark"]{
+  --tinta:#EDE7E4; --papel:#151113; --fondo:#0B0A0A; --linea:#262021; --gris:#9C918B;
+  --rojo-tinte:#241416; --rojo-texto:var(--rojo-laca);
+  --azul-tinte:#101A2E; --azul-texto:var(--azul-laca);
+  --amarillo-tinta:#F8D471; --verde-tinte:#0E1F17;
+  --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--papel));
+  --ambar-filete:var(--ambar); --ambar-tinta:var(--tinta);
+}
+
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--fondo);color:var(--tinta);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Roboto,system-ui,sans-serif;
+  font-size:15px;line-height:1.5;padding-bottom:40px}
+h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;
+  font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+.wrap{max-width:520px;margin:0 auto;padding:0 16px}
+.muted{color:var(--gris)}
+.oculto{display:none!important}
+
+/* ---------------- la laca ---------------- */
+.laca{position:relative;isolation:isolate;border-radius:var(--r);
+  color:var(--blanco-laca);-webkit-font-smoothing:antialiased;background:var(--placa);
+  box-shadow:inset 0 1px 0 color-mix(in srgb, var(--luz) 13%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--sombra) 55%, transparent),
+    0 18px 38px -20px color-mix(in srgb, var(--laca) 45%, transparent)}
+.laca .muted{color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)}
+.cab{padding:calc(env(safe-area-inset-top) + 18px) 0 20px;border-radius:0 0 var(--r) var(--r)}
+.marca{display:flex;align-items:center;gap:var(--e2);font-size:13px;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:700;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent)}
+.pin{width:24px;height:24px;border-radius:7px;background:var(--rojo);color:var(--luz);
+  display:grid;place-items:center;font-weight:800;font-size:13px}
+.cab h1{font-size:21px;margin-top:var(--e3);color:var(--blanco-laca)}
+
+/* ---------------- tarjetas ---------------- */
+.card{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);
+  padding:var(--e4);margin-top:var(--e3)}
+.card.laca{border:0;background:var(--placa);color:var(--blanco-laca)}
+.etq{font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:700;color:var(--gris)}
+.laca .etq{color:color-mix(in srgb, var(--amarillo) 85%, transparent)}
+.cifra{font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1.05;margin-top:6px;
+  font-variant-numeric:tabular-nums}
+.cifra.sm{font-size:24px;font-weight:700}
+.cifra.oro{color:var(--amarillo)}
+h3.tit{font-size:18px}
+.sub{font-size:14px;color:var(--gris);margin:var(--e2) 0 0}
+.fila{display:flex;justify-content:space-between;align-items:baseline;gap:var(--e3);
+  padding:var(--e3) 0;border-bottom:1px solid var(--linea)}
+.fila:last-child{border-bottom:0}
+.fila .k{color:var(--gris);font-size:14px}
+.fila .v{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.laca .fila{border-color:color-mix(in srgb, var(--luz) 12%, transparent)}
+.laca .fila .k{color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)}
+.sep{height:1px;background:var(--linea);margin:16px 0}
+
+/* ---------------- botones y campos ---------------- */
+.btn{display:block;width:100%;padding:15px;border:0;border-radius:14px;font-size:16px;
+  font-weight:600;font-family:inherit;cursor:pointer;background:var(--rojo);color:var(--luz);
+  text-align:center;text-decoration:none;transition:transform .12s;min-height:44px}
+.btn:active{transform:scale(.985)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sec{background:transparent;color:var(--tinta);border:1px solid var(--linea)}
+.btn.sm{padding:var(--e3);font-size:14px}
+.btn.arriba{margin-top:var(--e4)}
+label{display:block;font-size:13px;font-weight:600;margin:16px 0 6px}
+label .opc{font-weight:400;color:var(--gris);text-transform:none;letter-spacing:0}
+input[type=text],input[type=tel],input[type=password],input[type=number],input[type=email],
+input[type=date],select,textarea{
+  width:100%;padding:14px;border:1px solid var(--linea);border-radius:14px;font-size:16px;
+  font-family:inherit;background:var(--papel);color:var(--tinta)}
+input:focus,select:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
+:where(button,a,summary,[tabindex]):focus-visible{outline:2px solid var(--rojo-texto);
+  outline-offset:2px;border-radius:8px}
+.ayuda{font-size:12.5px;color:var(--gris);margin-top:5px;line-height:1.45}
+
+/* ---------------- avisos ---------------- */
+.aviso{border-radius:14px;padding:14px;font-size:14px;margin-top:14px;line-height:1.5;
+  background:var(--azul-tinte);color:var(--tinta)}
+.aviso.ambar{background:var(--ambar-papel);color:var(--ambar-tinta);
+  border-left:3px solid var(--ambar-filete)}
+.aviso.verde{background:var(--verde-tinte);color:var(--tinta);border-left:3px solid var(--verde)}
+
+/* ---------------- la casilla de habeas data ----------------
+   Toda la fila es tocable, no solo el cuadrito: un checkbox de 18px en un
+   celular se falla, y este es el que decide si la persona puede abrir cuenta. */
+.permiso{display:flex;gap:12px;align-items:flex-start;margin:16px 0 0;padding:13px;
+  border:1px solid var(--linea);border-radius:14px;cursor:pointer;
+  font-size:14px;font-weight:400;line-height:1.5}
+.permiso:has(input:checked){border-color:var(--azul-texto);background:var(--azul-tinte)}
+.permiso input{width:22px;height:22px;flex:none;margin:1px 0 0;accent-color:var(--rojo);cursor:pointer}
+.permiso .muted{display:block;margin-top:4px}
+
+/* ---------------- el paso a paso del registro ---------------- */
+.pasos{display:flex;gap:6px;margin-top:var(--e3)}
+.pasos i{flex:1;height:3px;border-radius:3px;background:var(--linea)}
+.pasos i.hecho{background:var(--verde)}
+.pasos i.aqui{background:var(--rojo)}
+
+.pie{text-align:center;font-size:12px;color:var(--gris);margin:22px 0 8px;line-height:1.6}
+.grupo-tit{font-size:12px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;
+  color:var(--gris);margin:var(--e4) 0 0}

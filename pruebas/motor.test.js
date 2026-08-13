@@ -8161,11 +8161,21 @@ describe('el APK y la app web dicen lo mismo (10-ago-2026)', () => {
 
   const leer = f => JSON.parse(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'));
   const TWA = leer('android/twa-manifest.json');
-  const WEB = leer('app/app.webmanifest');
-  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+
+  /* 11-ago-2026 — EL MANIFEST A COMPARAR SE DERIVA DEL PROPIO TWA.
+     Antes estaba escrito a mano: 'app/app.webmanifest'. El día que el TWA pasó a
+     envolver play/ en vez de app/, estas pruebas SIGUIERON PASANDO comparando
+     contra el manifest de la app que ya no se empaqueta. No se cayeron: dejaron
+     de medir, que es peor, porque en verde nadie las mira. Derivarlo del
+     webManifestUrl hace imposible esa deriva. */
+  const sinRepo = ruta => ruta.replace(/^\/Tugarantia\//, '');
+  const RUTA_WEB = sinRepo(new URL(TWA.webManifestUrl).pathname);
+  const WEB = leer(RUTA_WEB);
+  const RUTA_PAGINA = sinRepo(TWA.startUrl);
+  const PAGINA = fs.readFileSync(path.join(__dirname, '..', RUTA_PAGINA), 'utf8');
 
   test('los colores son el mismo negro en los tres sitios', () => {
-    const meta = /<meta name="theme-color" content="([^"]+)"/.exec(SOCIO);
+    const meta = /<meta name="theme-color" content="([^"]+)"/.exec(PAGINA);
     assert.ok(meta, 'socio.html se quedó sin theme-color');
     /* Si no coinciden, entre que Android abre y que la página pinta se ve un
        parpadeo de otro color. Es el defecto que se nota y que nadie sabe nombrar. */
@@ -8189,6 +8199,30 @@ describe('el APK y la app web dicen lo mismo (10-ago-2026)', () => {
     assert.equal(new URL(TWA.iconUrl).host, TWA.host);
   });
 
+  test('LO QUE SE EMPAQUETA NO ES LA APP QUINCENAL', () => {
+    /* El defecto más caro posible de todo este trabajo: envolver app/socio.html y
+       subirla. Ese archivo tiene el crédito de 15 días, que es exactamente lo que
+       la política de préstamos personales de Play prohíbe. No sería un rechazo:
+       sería un rechazo POR ESA POLÍTICA, con una cuenta recién creada.
+
+       El alcance es lo que hace la frontera real y no una promesa: con el scope
+       en /play/, app/socio.html queda FUERA de la app instalada y el sistema lo
+       abre en el navegador aunque alguien ponga un enlace. */
+    const alcance = new URL(TWA.fullScopeUrl).pathname;
+    assert.equal(alcance, '/Tugarantia/play/',
+      'el alcance del TWA es ' + alcance + '. Si incluye /app/, la app de Play ' +
+      'contiene el crédito quincenal.');
+    assert.ok(TWA.startUrl.indexOf('/play/') >= 0, 'arranca fuera de /play/: ' + TWA.startUrl);
+    assert.ok(TWA.startUrl.indexOf('socio.html') === -1,
+      'el TWA envuelve socio.html, que es el producto que Play prohíbe');
+
+    /* Y que la página empaquetada no hable del producto de 15 días. */
+    const codigo = PAGINA.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+    ['quincenal', 'quincena', '15 días', 'prórroga']
+      .forEach(p => assert.ok(codigo.toLowerCase().indexOf(p.toLowerCase()) === -1,
+        'la página que va a Play menciona «' + p + '»: ese producto no puede estar ahí'));
+  });
+
   test('el packageId es válido y sigue siendo el mismo', () => {
     /* Android identifica la app por este texto. Cambiarlo después de la primera
        instalación deja la app instalada muerta al lado de una nueva, sin aviso
@@ -8203,7 +8237,7 @@ describe('el APK y la app web dicen lo mismo (10-ago-2026)', () => {
        avisos de pago van por WhatsApp. Pedir un permiso sin usarlo es pedirle
        algo al cliente a cambio de nada, y quema el permiso para cuando sirva. */
     assert.equal(TWA.enableNotifications, false);
-    const avisa = /new Notification\(|showNotification\(|Notification\.requestPermission/.test(SOCIO);
+    const avisa = /new Notification\(|showNotification\(|Notification\.requestPermission/.test(PAGINA);
     assert.equal(avisa, false,
       'la app empezó a mandar notificaciones: entonces sí hay que encender el permiso en el APK');
   });

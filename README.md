@@ -40,6 +40,14 @@ base/
   20260810_codigo_acceso.sql      Entrar con código. Se corre DESPUÉS, y solo cuando
                                   todos los clientes ya tengan el suyo.
 
+play/                   LA APP QUE VA A GOOGLE PLAY. Un solo producto: 6 meses en
+                        cuotas, bajo el techo de usura. El quincenal NO está acá.
+  index.html            Entrar, registrarse, y el catálogo con el costo real.
+  estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
+                        comentario de arriba del archivo).
+  app.webmanifest       El alcance es /play/: eso deja app/socio.html FUERA de la
+                        app instalada, y la frontera la impone el sistema.
+
 android/
   LEEME.md              Cómo sacar el APK, y por qué la PWA suele ser mejor opción.
   twa-manifest.json     La configuración del envoltorio. Escrita a mano.
@@ -158,7 +166,7 @@ socio desde su propia pantalla. Cuando estén cerrados, ese archivo se publica.
 Lo que **sí** está cerrado y medido: la mora del crédito quincenal se cobra, la misma
 garantía no respalda dos créditos a la vez, la migración de los créditos viejos no
 inventa garantía, la prórroga aplaza a una fecha futura y pasa por el motor, el modo
-oscuro cumple contraste, y las 674 pruebas pasan.
+oscuro cumple contraste, y las 675 pruebas pasan.
 
 **Nada de la nube está probado**: Supabase no está conectado, así que las funciones
 RPC, el RLS y los frenos anti-tanteo no se han ejercitado nunca. Tampoco se ha probado

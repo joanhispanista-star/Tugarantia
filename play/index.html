@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tu Garantía · Crédito a 6 meses</title>
+<meta name="theme-color" content="#0C0A0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tu Garantía">
+<link rel="manifest" href="app.webmanifest">
+<link rel="apple-touch-icon" href="../app/icono-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../app/icono-192.png">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<!-- ============================================================================
+     LA APP PUBLICABLE — Etapa 2 (entrar y registrarse) + parte de la 4 (catálogo)
+
+     QUÉ ES ESTO Y QUÉ NO ES. Esta es la app que va a Google Play. Tiene UN solo
+     producto: 6 meses en cuotas, por debajo del techo de usura del mes. El
+     crédito quincenal NO está acá, y no está "escondido": está afuera, en
+     app/socio.html, que es otra dirección y queda fuera del alcance del TWA.
+
+     Eso importa porque un TWA no tiene versiones que colar: el .aab es una
+     cáscara que abre este sitio, y el contenido cambia en el instante en que se
+     hace push. La app aprobada ES este archivo, siempre. Por eso la frontera
+     tiene que ser estructural —una carpeta y un alcance— y no una promesa.
+     ========================================================================= -->
+
+<div class="cab laca"><div class="wrap">
+  <div class="marca"><span class="pin">G</span> Tu Garantía</div>
+  <h1 id="titulo">Tu crédito a 6 meses</h1>
+</div></div>
+
+<div class="wrap"><div id="cuerpo"></div></div>
+
+<script src="../app/creditos.js"></script>
+<script src="../app/cuenta.js"></script>
+<script>
+'use strict';
+
+var VERSION_PLAY = '2026-08-11';
+
+/* La conexión con la nube. Va vacía en el repositorio: la llave publishable de
+   Supabase es pública por diseño y puede ir horneada, pero todavía no la
+   tenemos. Mientras esté vacía, la app lo DICE en vez de fingir que funciona. */
+var CFG = { url: '', anon: '' };
+try {
+  var g = JSON.parse(localStorage.getItem('play_cfg') || 'null');
+  if (g && g.url && g.anon) CFG = g;
+} catch (e) {}
+
+var C = window.CreditosPublicables;
+var U = window.CuentaSocio;
+var $ = function (id) { return document.getElementById(id); };
+var COP = function (n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); };
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+  });
+}
+function hoyISO() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
+}
+function pct(x) { return (x * 100).toFixed(2).replace('.', ',') + '%'; }
+
+/* El borrador del registro vive en el teléfono mientras se llena: son 26 campos
+   y nadie los completa de una sentada sin que le entre una llamada. Se borra al
+   enviarlo. NUNCA guarda la contraseña — esa no toca localStorage ni un
+   milisegundo. */
+var LLAVE_BORRADOR = 'play_registro_borrador';
+function leerBorrador() {
+  try { return JSON.parse(localStorage.getItem(LLAVE_BORRADOR) || '{}') || {}; }
+  catch (e) { return {}; }
+}
+function guardarBorrador(d) {
+  var limpio = {};
+  Object.keys(d).forEach(function (k) { if (k !== 'clave' && k !== 'clave2') limpio[k] = d[k]; });
+  try { localStorage.setItem(LLAVE_BORRADOR, JSON.stringify(limpio)); } catch (e) {}
+}
+
+var VISTA = 'entrar';
+var REGISTRO = leerBorrador();
+var PASO = 0;
+
+/* ====================== EL CATÁLOGO, QUE SE VE SIN CUENTA ======================
+   A propósito: Joan pidió que el costo real se vea desde el primer momento, y
+   una app de crédito que esconde el precio hasta que te registras es justo lo
+   que la política de Play mira con lupa. Acá el número está antes de pedir nada.
+   Se muestra el perfil `nuevo`, que es el que le toca a quien todavía no entra. */
+function tarjetaCatalogo(perfil) {
+  var r = C.simular({ perfil: perfil || 'nuevo', capital: 500000, fecha_desembolso: hoyISO() });
+  var c = r.puede ? r : r.cotizacion;
+
+  if (!c) {
+    /* Sin techo certificado no se cotiza, y se dice. Ver el comentario de TOPES
+       en creditos.js: preferible una app que avisa a una que cotiza mal callada. */
+    return '<div class="card"><div class="aviso ambar"><b>No podemos cotizar hoy.</b> ' +
+      esc(r.mensaje) + ' Escríbenos y lo resolvemos.</div></div>';
+  }
+
+  return '<div class="card laca">' +
+    '<div class="etq">Ejemplo: ' + COP(c.capital) + ' a ' + c.meses + ' meses</div>' +
+    '<div class="cifra oro">' + COP(c.cuota_tipica) + '</div>' +
+    '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
+      c.meses + ' cuotas mensuales. En total pagas <b>' + COP(c.total_a_pagar) + '</b>.</div>' +
+    '<div class="sep"></div>' +
+    fila('Lo que pides', COP(c.capital)) +
+    fila('Lo que cuesta', COP(c.costo_total)) +
+    fila('Total a pagar', COP(c.total_a_pagar)) +
+    fila('Tasa efectiva anual', pct(c.efectivo_anual)) +
+    fila('Plazo', c.meses + ' meses') +
+    '<div class="muted" style="font-size:12.5px;margin-top:var(--e3)">' +
+      'Sin cuotas de manejo, sin seguros y sin cargos aparte: lo que ves es todo lo que ' +
+      'se cobra. El techo legal de este mes es ' + pct(c.techo_del_mes) + ' (' +
+      esc(c.certificacion) + ').</div>' +
+    '</div>';
+}
+function fila(k, v) {
+  return '<div class="fila"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>';
+}
+
+/* ============================== ENTRAR ============================== */
+function pintarEntrar() {
+  VISTA = 'entrar';
+  $('titulo').textContent = 'Tu crédito a 6 meses';
+  $('cuerpo').innerHTML =
+    tarjetaCatalogo('nuevo') +
+    '<div class="card">' +
+      '<h3 class="tit">Entra a tu cuenta</h3>' +
+      '<p class="sub">Con tu celular y tu contraseña.</p>' +
+      '<label for="inTel">Tu celular</label>' +
+      '<input id="inTel" type="tel" inputmode="numeric" autocomplete="username" ' +
+        'placeholder="300 111 2233" oninput="tecleaTel(this)">' +
+      '<label for="inClave">Tu contraseña</label>' +
+      '<input id="inClave" type="password" autocomplete="current-password" placeholder="••••••••">' +
+      '<button class="btn arriba" id="btnEntrar">Entrar</button>' +
+      '<div id="errEntrar" class="aviso ambar oculto"></div>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="olvide()">Olvidé mi contraseña</button>' +
+    '</div>' +
+    '<div class="card">' +
+      '<h3 class="tit">¿Todavía no tienes cuenta?</h3>' +
+      '<p class="sub">Puedes abrirla tú mismo. Te tomará unos minutos y te pedimos ' +
+        'los datos con los que evaluamos el crédito.</p>' +
+      '<button class="btn sec arriba" onclick="pintarRegistro(0)">Abrir mi cuenta</button>' +
+    '</div>' +
+    pie();
+  $('btnEntrar').addEventListener('click', entrar);
+  $('inClave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+}
+
+function tecleaTel(el) {
+  var t = U.normalizarTelefono(el.value);
+  if (t) el.value = U.telefonoBonito(t);
+}
+
+function entrar() {
+  var tel = U.normalizarTelefono($('inTel').value);
+  var clave = $('inClave').value || '';
+  var err = $('errEntrar');
+  err.classList.add('oculto');
+  if (!tel) return fallo(err, 'Escribe tu celular completo: son 10 números y empiezan por 3.');
+  if (!clave) return fallo(err, 'Escribe tu contraseña.');
+  if (!CFG.url || !CFG.anon) {
+    return fallo(err, 'Todavía no está conectada la base de datos, así que aún no se puede entrar. ' +
+      'Esto es una versión en construcción.');
+  }
+  fallo(err, 'Conectando…');
+  /* Supabase Auth. El correo lo arma cuenta.js desde el teléfono; el socio nunca
+     lo ve. La contraseña se manda una sola vez y no se guarda en ninguna parte
+     de este archivo. */
+  fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
+    body: JSON.stringify({ email: U.correoDeTelefono(tel), password: clave })
+  }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (r) {
+      if (!r.ok) {
+        /* Nunca se dice "ese celular existe pero la contraseña no": eso
+           convertiría la app en un oráculo de quién es cliente. */
+        return fallo(err, 'No pudimos entrar con esos datos. Revísalos, y si siguen sin ' +
+          'funcionar toca «Olvidé mi contraseña».');
+      }
+      err.classList.add('oculto');
+      pintarCuenta(r.j);
+    })
+    .catch(function () { fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.'); });
+}
+
+function fallo(el, msg) { el.textContent = msg; el.classList.remove('oculto'); }
+
+function olvide() {
+  var tel = U.normalizarTelefono(($('inTel') || {}).value || '');
+  /* La recuperación es por WhatsApp y con Joan en el medio, decisión del
+     11-ago: no hay SMS que pagar, y el número ya está en su Panel. */
+  var texto = 'Hola, olvidé mi contraseña de la app de Tu Garantía.' +
+    (tel ? ' Mi celular es ' + U.telefonoBonito(tel) + '.' : '') +
+    ' ¿Me ayudas a recuperarla?';
+  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank', 'noopener');
+}
+
+/* ============================== REGISTRO ==============================
+   En pasos y no en una sola página de 26 campos: nadie llena eso de una
+   sentada, y una pantalla de scroll infinito es donde la gente abandona. El
+   borrador se guarda solo, menos la contraseña. */
+var PASOS = [
+  { id: 'entrada',  titulo: 'Tu celular y tu contraseña' },
+  { id: 'identidad', titulo: 'Quién eres' },
+  { id: 'contacto',  titulo: 'Cómo te contactamos' },
+  { id: 'domicilio', titulo: 'Dónde vives' },
+  { id: 'ingresos',  titulo: 'De qué vives' },
+  { id: 'referencias', titulo: 'Quién puede responder por ti' },
+  { id: 'permiso',  titulo: 'Tu autorización' }
+];
+
+function pintarRegistro(paso) {
+  VISTA = 'registro';
+  PASO = Math.max(0, Math.min(paso, PASOS.length - 1));
+  var p = PASOS[PASO];
+  $('titulo').textContent = 'Abrir mi cuenta';
+
+  var barra = '<div class="pasos">' + PASOS.map(function (_, i) {
+    return '<i class="' + (i < PASO ? 'hecho' : (i === PASO ? 'aqui' : '')) + '"></i>';
+  }).join('') + '</div>';
+
+  var cuerpo;
+  if (p.id === 'entrada')      cuerpo = pasoEntrada();
+  else if (p.id === 'permiso') cuerpo = pasoPermiso();
+  else                         cuerpo = pasoCampos(p.id);
+
+  $('cuerpo').innerHTML =
+    '<div class="card">' +
+      '<div class="etq">Paso ' + (PASO + 1) + ' de ' + PASOS.length + '</div>' +
+      barra +
+      '<h3 class="tit" style="margin-top:var(--e3)">' + esc(p.titulo) + '</h3>' +
+      cuerpo +
+      '<div id="errReg" class="aviso ambar oculto"></div>' +
+      '<button class="btn arriba" onclick="siguientePaso()">' +
+        (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : 'Continuar') + '</button>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="' +
+        (PASO === 0 ? 'pintarEntrar()' : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
+    '</div>' + pie();
+  window.scrollTo(0, 0);
+}
+
+function pasoEntrada() {
+  return '<p class="sub">Tu celular es tu usuario. Con él entras y por ahí te escribimos.</p>' +
+    '<label for="rTel">Tu celular</label>' +
+    '<input id="rTel" type="tel" inputmode="numeric" autocomplete="username" placeholder="300 111 2233" value="' +
+      esc(REGISTRO.celular ? U.telefonoBonito(REGISTRO.celular) : '') + '">' +
+    '<div class="ayuda">Son 10 números y empiezan por 3. Tiene que tener WhatsApp: ' +
+      'por ahí te mandamos tu código si olvidas la contraseña.</div>' +
+    '<label for="rClave">Crea tu contraseña</label>' +
+    '<input id="rClave" type="password" autocomplete="new-password" placeholder="••••••••">' +
+    '<div class="ayuda">Mínimo ' + U.LARGO_MINIMO_CLAVE + ' caracteres. No uses tu celular ' +
+      'ni tu cédula: son lo primero que alguien probaría.</div>' +
+    '<label for="rClave2">Escríbela otra vez</label>' +
+    '<input id="rClave2" type="password" autocomplete="new-password" placeholder="••••••••">';
+}
+
+function pasoCampos(grupo) {
+  return U.camposDelGrupo(grupo).map(function (c) {
+    var v = REGISTRO[c.id] === undefined ? '' : REGISTRO[c.id];
+    var etiqueta = '<label for="f_' + c.id + '">' + esc(c.etiqueta) +
+      (c.obligatorio ? '' : ' <span class="opc">· opcional</span>') + '</label>';
+    var campo;
+    if (c.tipo === 'opcion') {
+      campo = '<select id="f_' + c.id + '"><option value="">Escoge…</option>' +
+        c.opciones.map(function (o) {
+          return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>';
+        }).join('') + '</select>';
+    } else {
+      var tipo = c.tipo === 'celular' ? 'tel'
+               : c.tipo === 'correo'  ? 'email'
+               : c.tipo === 'fecha'   ? 'date'
+               : c.tipo === 'numero' || c.tipo === 'pesos' ? 'text' : 'text';
+      var modo = (c.tipo === 'celular' || c.tipo === 'numero' || c.tipo === 'pesos')
+        ? ' inputmode="numeric"' : '';
+      campo = '<input id="f_' + c.id + '" type="' + tipo + '"' + modo + ' value="' + esc(v) + '">';
+    }
+    /* El porqué se le MUESTRA al socio, no se queda en el código. Si un dato
+       vale la pena pedirlo, vale la pena decir para qué; y si da vergüenza
+       escribirlo, ese es el aviso de que no había que pedirlo. */
+    return etiqueta + campo + '<div class="ayuda">' + esc(c.porque) + '</div>';
+  }).join('');
+}
+
+function pasoPermiso() {
+  return '<p class="sub">Para abrir tu cuenta necesitamos tu permiso para tratar tus datos, ' +
+      'como manda la Ley 1581 de 2012.</p>' +
+    '<label class="permiso"><input type="checkbox" id="autGeneral"><span>' +
+      '<b>Autorizo el tratamiento de mis datos personales.</b>' +
+      '<span class="muted">Los usamos para evaluar y llevar tu crédito, y para escribirte ' +
+      'sobre tus pagos. No los vendemos. Puedes pedirnos que te digamos qué tenemos tuyo, ' +
+      'que lo corrijamos o que lo borremos, cuando quieras.</span></span></label>' +
+    '<label class="permiso"><input type="checkbox" id="autSensible"><span>' +
+      'Autorizo también la foto de mi cédula y la selfie.' +
+      '<span class="muted">Esto es aparte y es opcional: tu cuenta se abre igual sin ' +
+      'marcarlo. La ley no permite condicionarte el servicio a que lo des.</span></span></label>' +
+    '<div class="aviso" style="margin-top:var(--e4)"><b>Lo que esta app NO te pide:</b> ' +
+      'no accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a tu ubicación, ' +
+      'ni a tus fotos. Solo la cámara, y solo en el momento de tomar una foto.</div>' +
+    '<div class="ayuda" style="margin-top:var(--e3)">' +
+      '<a href="../legal/privacidad.html" target="_blank" rel="noopener">Leer la política completa</a> · ' +
+      '<a href="../legal/terminos.html" target="_blank" rel="noopener">Términos</a></div>';
+}
+
+function recogerPaso() {
+  var p = PASOS[PASO];
+  if (p.id === 'entrada') {
+    var tel = U.normalizarTelefono($('rTel').value);
+    if (tel) REGISTRO.celular = tel;
+    return { clave: $('rClave').value, clave2: $('rClave2').value };
+  }
+  if (p.id === 'permiso') {
+    return { general: $('autGeneral').checked, sensibles: $('autSensible').checked };
+  }
+  U.camposDelGrupo(p.id).forEach(function (c) {
+    var el = $('f_' + c.id);
+    if (el) REGISTRO[c.id] = el.value;
+  });
+  guardarBorrador(REGISTRO);
+  return {};
+}
+
+var CLAVE_EN_MEMORIA = '';   // vive solo mientras la pestaña está abierta
+
+function siguientePaso() {
+  var err = $('errReg');
+  err.classList.add('oculto');
+  var extra = recogerPaso();
+  var p = PASOS[PASO];
+
+  if (p.id === 'entrada') {
+    if (!REGISTRO.celular) return fallo(err, 'Escribe tu celular: son 10 números y empiezan por 3.');
+    var rc = U.revisarContrasena(extra.clave, { telefono: REGISTRO.celular, cedula: REGISTRO.documento });
+    if (!rc.ok) return fallo(err, rc.motivo);
+    if (extra.clave !== extra.clave2) return fallo(err, 'Las dos contraseñas no son iguales.');
+    CLAVE_EN_MEMORIA = extra.clave;
+    guardarBorrador(REGISTRO);
+    return pintarRegistro(PASO + 1);
+  }
+
+  if (p.id === 'permiso') {
+    if (!extra.general) {
+      return fallo(err, 'Sin tu autorización no podemos abrir la cuenta. Es un requisito de la ley.');
+    }
+    return enviarRegistro(extra.sensibles);
+  }
+
+  /* Falta algo obligatorio de ESTE paso. No se revisa el formulario entero:
+     mandar al socio a un paso anterior por algo que aún no ha llenado es la
+     forma más rápida de que cierre la app. */
+  var r = U.revisarVinculacion(REGISTRO);
+  var idsDelPaso = U.camposDelGrupo(p.id).map(function (c) { return c.id; });
+  var faltanAqui = r.faltan.filter(function (f) { return idsDelPaso.indexOf(f.id) !== -1; });
+  var errosAqui = r.errores.filter(function (e) { return idsDelPaso.indexOf(e.id) !== -1; });
+  if (errosAqui.length) return fallo(err, errosAqui[0].motivo);
+  if (faltanAqui.length) {
+    return fallo(err, 'Falta ' + faltanAqui.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') + '.');
+  }
+  pintarRegistro(PASO + 1);
+}
+
+function enviarRegistro(sensibles) {
+  var err = $('errReg');
+  var r = U.revisarVinculacion(REGISTRO);
+  if (!r.ok) {
+    return fallo(err, 'Falta completar: ' +
+      r.faltan.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') + '.');
+  }
+  var autorizacion = U.armarAutorizacion(new Date().toISOString(), sensibles);
+
+  if (!CFG.url || !CFG.anon) {
+    return fallo(err, 'Todavía no está conectada la base de datos, así que la cuenta no se ' +
+      'puede crear todavía. Tus datos quedaron guardados en este teléfono y no se ' +
+      'perdieron. Esto es una versión en construcción.');
+  }
+
+  fallo(err, 'Creando tu cuenta…');
+  fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
+    body: JSON.stringify({
+      email: U.correoDeTelefono(REGISTRO.celular),
+      password: CLAVE_EN_MEMORIA,
+      data: { telefono: REGISTRO.celular, vinculacion: REGISTRO, autorizacion: autorizacion }
+    })
+  }).then(function (res) { return res.json().then(function (j) { return { ok: res.ok, j: j }; }); })
+    .then(function (res) {
+      if (!res.ok) {
+        var yaExiste = /registered|already/i.test(JSON.stringify(res.j || {}));
+        return fallo(err, yaExiste
+          ? 'Ya hay una cuenta con ese celular. Entra con tu contraseña, o toca «Olvidé mi contraseña».'
+          : 'No pudimos crear la cuenta. Vuelve a intentar en un momento.');
+      }
+      try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
+      CLAVE_EN_MEMORIA = '';
+      pintarRegistrado();
+    })
+    .catch(function () { fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.'); });
+}
+
+function pintarRegistrado() {
+  VISTA = 'listo';
+  $('titulo').textContent = 'Tu cuenta quedó abierta';
+  $('cuerpo').innerHTML =
+    '<div class="card"><div class="aviso verde"><b>Listo.</b> Tu cuenta quedó creada.</div>' +
+      '<p class="sub" style="margin-top:var(--e4)">Ahora revisamos tus datos. ' +
+      '<b>Todavía no tienes cupo asignado</b>: te escribimos por WhatsApp en cuanto ' +
+      'terminemos de revisar, y ahí te decimos hasta cuánto puedes pedir.</p>' +
+      '<p class="sub">Mientras tanto puedes entrar y ver el catálogo con los costos reales.</p>' +
+      '<button class="btn arriba" onclick="pintarEntrar()">Entrar a mi cuenta</button>' +
+    '</div>' + pie();
+  window.scrollTo(0, 0);
+}
+
+/* ============================== LA CUENTA ============================== */
+function pintarCuenta(sesion) {
+  VISTA = 'cuenta';
+  $('titulo').textContent = 'Mi cuenta';
+  /* Etapa 6. Por ahora se muestra lo que ya se puede mostrar con verdad: el
+     catálogo del perfil que traiga la sesión, y que el historial está en camino.
+     Decir "próximamente" es honesto; inventar un historial vacío que parezca
+     real, no. */
+  var perfil = (sesion && sesion.user && sesion.user.user_metadata &&
+                sesion.user.user_metadata.perfil) || 'nuevo';
+  $('cuerpo').innerHTML =
+    tarjetaCatalogo(perfil) +
+    '<div class="card"><div class="etq">Tu historial</div>' +
+      '<p class="sub">Todavía estamos terminando esta pantalla. Aquí vas a ver tus ' +
+      'créditos, tus pagos y tus fechas.</p></div>' +
+    '<div class="card"><button class="btn sec" onclick="pintarEntrar()">Salir</button></div>' +
+    pie();
+  window.scrollTo(0, 0);
+}
+
+function pie() {
+  return '<div class="pie">' +
+    '<a href="../legal/terminos.html" style="color:inherit">Términos</a> · ' +
+    '<a href="../legal/privacidad.html" style="color:inherit">Tus datos</a><br>' +
+    '<span class="muted" style="font-size:11px">Versión ' + esc(VERSION_PLAY) +
+    ' · reglas del ' + esc(C.TOPES[C.TOPES.length - 1].desde) + '</span></div>';
+}
+
+/* ============================== ARRANQUE ============================== */
+(function () {
+  if (!C || !U) {
+    document.body.innerHTML = '<div class="wrap"><div class="aviso ambar" style="margin-top:40px">' +
+      'No pude cargar las reglas del crédito. Vuelve a abrir la página.</div></div>';
+    return;
+  }
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('../sw.js').catch(function () {});
+    });
+  }
+  pintarEntrar();
+})();
+</script>
+</body>
+</html>
