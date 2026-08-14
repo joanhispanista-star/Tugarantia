@@ -101,13 +101,48 @@
      La identidad de un elemento es la concatenación de los campos que van acá,
      y salen de cómo los escribe crm.html:
        gestiones     {fecha, canal, plantilla}                (crm.html:1673)
+                     {…, hora, tipo, grupo, origen}           (espejo.html, la tanda)
        comprobantes  {fecha, tipo, monto, foto}               (crm.html:2082)
        prorrogas     {fecha, ciclo, monto, mora, ...}         (crm.html:2247)
        abonosCapital {fecha, monto, ciclo|cuotaPlan, ...}     (crm.html:2325,2367)
        abonos        {fecha, monto}                           (esquema viejo)
+       condonaciones {fecha, costo, mora, motivo, quien}      (espejo.html cobrar)
+
+     14-ago-2026 — POR QUÉ LOS DESCUENTOS SON UNA LISTA Y NO UN CAMPO.
+     Un descuento perdonado es un HECHO fechado, igual que una prórroga: pasó, y
+     no se deshace porque el otro aparato tenga una versión de la ficha sin él.
+     Si viviera en un campo suelto (`condonado`), la fusión lo trataría como
+     pisable y «mandar lo mío encima» borraría el descuento que Joan registró en
+     el computador — plata perdonada que desaparece de los libros sin que nadie
+     se entere, que es exactamente el defecto que este archivo vino a evitar.
+     Como lista, los dos se conservan y la suma de la quincena sigue cuadrando.
+     La identidad NO incluye `motivo` ni `quien`: el mismo perdón anotado desde
+     el celular y desde el computador es UN solo hecho aunque el texto del motivo
+     se haya escrito distinto, y meterlo en la identidad lo duplicaría.
      `foto` queda FUERA de la identidad de un comprobante a propósito: el
      comprobante que subió sin foto y el mismo con foto son el mismo hecho, y si
-     la foto entrara en la identidad se duplicarían al fusionar. */
+     la foto entrara en la identidad se duplicarían al fusionar.
+
+     14-ago-2026 — LA GESTIÓN DE LA TANDA TRAE CUATRO CAMPOS MÁS Y NINGUNO ENTRA
+     EN LA IDENTIDAD, POR LA MISMA RAZÓN QUE LA FOTO.
+     La tanda (panel/tanda.js, sección «Tanda» de espejo.html) escribe además
+     `hora` (la hora real del contacto, que la Ley 2300 obliga a poder probar y
+     que crm.html no guarda), `tipo` ('cobro'|'servicio'), `grupo` y `origen`.
+     Si cualquiera de ellos entrara en la identidad, el MISMO contacto anotado
+     desde el celular y desde el computador serían dos gestiones distintas, y el
+     tope de la Ley 2300 —que se cuenta sobre esta lista— contaría dos contactos
+     donde hubo uno. El tope quedaría más apretado de lo que la ley pide: no es
+     ilegal, pero le bloquea clientes a Joan sin motivo y le enseña a
+     desconfiar del aviso, que es como se termina saltando el que sí importa.
+
+     EL «HECHO» DE LA TANDA ES ESTA MISMA LISTA, NO UN REGISTRO NUEVO.
+     Se decidió así justamente porque las gestiones SOLO SUMAN: un choque entre
+     el computador y el celular no puede borrar un «ya lo contacté». Si la tanda
+     llevara su propio marcador de avance en un campo pisable, «mandar lo mío
+     encima» lo borraría y la tanda volvería a ofrecer a alguien al que Joan ya
+     le escribió — o sea, un segundo contacto el mismo día, que es exactamente
+     lo que el artículo 3 prohíbe. La sincronización es, acá, parte del
+     cumplimiento legal. */
   var LISTAS_SOCIO = {
     gestiones: ['fecha', 'canal', 'plantilla']
   };
@@ -115,7 +150,8 @@
     prorrogas: ['fecha', 'ciclo', 'monto'],
     abonos: ['fecha', 'monto'],
     abonosCapital: ['fecha', 'monto'],
-    comprobantes: ['fecha', 'tipo', 'monto']
+    comprobantes: ['fecha', 'tipo', 'monto'],
+    condonaciones: ['fecha', 'costo', 'mora']
   };
   var LISTAS_RESPALDADO = {
     comprobantes: ['fecha', 'tipo', 'monto']
@@ -131,7 +167,13 @@
      regla es "todo lo que no es lista que suma, se avisa"—, pero está acá
      escrita para que se entienda de qué estamos hablando. */
   var CAMPOS_PISABLES_TIPICOS = ['pagado', 'fechaPagado', 'capital', 'total',
-    'cicloActual', 'cicloPago', 'nombre', 'cedula', 'telefono', 'estado'];
+    'cicloActual', 'cicloPago', 'nombre', 'cedula', 'telefono', 'estado',
+    /* 14-ago-2026 — `montoRecibido` es la plata que de verdad entró, y es el
+       campo que decide un choque de cobro: 240.000 con descuento en el celular
+       contra 260.000 «pagó todo» en el computador son dos hechos incompatibles y
+       los tiene que separar Joan, no un merge. Sale a la pantalla del choque por
+       la vía de siempre (fusionarFila lo devuelve en `pisables`). */
+    'montoRecibido', 'costoCausado', 'moraCausada', 'saldoAFavor'];
 
   var CONTADORES = ['cliente', 'credito', 'respaldado'];
 
@@ -733,15 +775,40 @@
    * el mismo. Eso es justo lo que la hace segura — un pago registrado en el
    * celular y una gestión anotada en el computador el mismo día conviven, no
    * compiten. Si un elemento está en las dos, gana el PRIMERO que aparece (el
-   * de `mias`), porque suele traer más campos llenos.
+   * de `mias`) y se le COMPLETAN los campos que solo traía el otro.
+   *
+   * 14-ago-2026 — POR QUÉ SE COMPLETA, Y POR QUÉ ANTES ESTABA MAL.
+   * Hasta hoy el primero ganaba entero y el otro se descartaba entero. Con dos
+   * versiones del mismo hecho escritas por aparatos distintos —que es
+   * exactamente lo que produce la tanda: el celular anota la gestión con `hora`
+   * y el computador la misma gestión sin `hora`— el resultado dependía de quién
+   * fuera "el mío", y el campo que solo tenía uno se perdía en silencio. O sea
+   * que la propiedad que esta función promete en el párrafo de arriba, y que su
+   * propia prueba dice vigilar, no se cumplía en cuanto los dos lados no eran
+   * idénticos.
+   * Completar es SIEMPRE seguro: nunca se pisa un valor, solo se rellenan los
+   * campos que el ganador no tiene. Si los dos traen el campo con valores
+   * distintos, manda el del ganador y no se inventa nada.
    */
   function fusionarListas(mias, suyas, campos) {
     var salida = [], vistos = {};
     [lista(mias), lista(suyas)].forEach(function (l) {
       l.forEach(function (el) {
         var llave = identidad(el, campos);
-        if (tiene(vistos, llave)) return;
-        vistos[llave] = true;
+        if (tiene(vistos, llave)) {
+          /* El mismo hecho, otra vez: no se agrega, pero se aprovecha lo que
+             traiga de más. Solo objetos — un elemento suelto (un texto, un
+             número) no tiene campos que completar. */
+          var ganador = salida[vistos[llave]];
+          if (ganador && typeof ganador === 'object' && !Array.isArray(ganador) &&
+              el && typeof el === 'object' && !Array.isArray(el)) {
+            Object.keys(el).forEach(function (k) {
+              if (!tiene(ganador, k)) ganador[k] = clonar(el[k]);
+            });
+          }
+          return;
+        }
+        vistos[llave] = salida.length;
         salida.push(clonar(el));
       });
     });

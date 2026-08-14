@@ -39,7 +39,15 @@
 
    (v3 fue la entrada por código; v2, la bienvenida nueva y el sello de versión.)
    El número sube porque es lo que borra la caché anterior en `activate`. */
-const CACHE = 'tugarantia-v4';
+/* v5 — 14-ago-2026. Entra panel/tanda.js, que es donde viven los topes de
+   contacto de la Ley 2300.
+
+   NO ES UN ARCHIVO MÁS DE LA LISTA. La tanda se usa en la calle y sin señal, y
+   espejo.html trata «no puedo comprobar los topes» como «no se puede escribir»:
+   si tanda.js no está en la caché, el teléfono sin datos no abre la tanda y
+   marca a todo el mundo como ya contactado. O sea que dejarlo fuera no rompería
+   una función bonita — apagaría la pantalla justo el día de cobro. */
+const CACHE = 'tugarantia-v5';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -64,6 +72,7 @@ const ARCHIVOS = [
   'panel/espejo.html',
   'panel/espejo.webmanifest',
   'panel/nube.js',
+  'panel/tanda.js',
   'panel/panel-180.png',
   'panel/panel-192.png',
   'panel/panel-512.png',

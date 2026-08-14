@@ -287,6 +287,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
   </button>
   <nav class="nav" id="nav">
     <button data-v="hoy" class="on" type="button">Hoy</button>
+    <button data-v="tanda" type="button">Tanda</button>
     <button data-v="buscar" type="button">Buscar</button>
     <button data-v="ficha" type="button">Ficha</button>
     <button data-v="credito" type="button">Crédito</button>
@@ -313,6 +314,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
 <script src="../app/motor.js"></script>
 <script src="../app/puente.js"></script>
 <script src="nube.js"></script>
+<!-- La tanda vive en su propio archivo porque lo que decide ahí adentro es si un
+     contacto CUMPLE LA LEY 2300, y eso tiene que poderse probar con `node --test`
+     sin abrir un navegador. Una regla legal metida en una función de pintar no se
+     prueba nunca. Ver pruebas/tanda.test.js. -->
+<script src="tanda.js"></script>
 <script>
 'use strict';
 /* =========================================================================
@@ -340,6 +346,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
 var M = window.MotorReglas || null;
 var P = window.PuenteTuGarantia || null;
 var NUBE = window.NubeTuGarantia || null;
+var T = window.TandaTuGarantia || null;
 
 /* Con qué nombre firma este aparato lo que sube. Va a panel_bitacora y a
    `actualizado_por`, y es lo que le permite a Joan leer un choque y saber si el
@@ -412,6 +419,10 @@ var CHOQUES = [];
 var ULTIMO_ERROR = '';
 var ULTIMO_TRAER = null;   // hora local del último traer, solo para la cinta
 var _sinEspacio = false;
+/* LO ÚNICO QUE LA TANDA GUARDA, Y ES DELIBERADAMENTE POCO:
+   {fecha, grupo, saltados:[{socioId, motivo}]}. Ni la lista de pendientes ni por
+   dónde iba. Ver el comentario largo de vistaTanda(). */
+var TANDA_GUARDADA = null;
 
 /* normalizar() del puente devuelve SOLO lo que le importa al socio (socios,
    préstamos, respaldados, invitaciones, config, contadores) y deja fuera todo lo
@@ -431,7 +442,15 @@ function leerUI() {
   catch (e) { return {}; }
 }
 function guardarUI() {
-  try { localStorage.setItem(LLAVE_UI, JSON.stringify({ ultimoTraer: ULTIMO_TRAER })); }
+  try {
+    localStorage.setItem(LLAVE_UI, JSON.stringify({
+      ultimoTraer: ULTIMO_TRAER,
+      /* Lo ÚNICO que la tanda guarda entre sesiones: en qué grupo estaba y a
+         quién saltó, con la fecha. NO guarda la lista de pendientes ni por
+         dónde iba — eso se recalcula. Ver vistaTanda(). */
+      tanda: TANDA_GUARDADA
+    }));
+  }
   catch (e) { /* si no cabe esto, tampoco cabía nada: ya lo dirá guardarEstado */ }
 }
 
@@ -518,6 +537,95 @@ function liqProrroga(p, fecha) {
   } catch (e) { return null; }
 }
 
+/* ================= EL COBRO CON MONTO REAL Y DESCUENTO ==================
+   14-ago-2026 — hasta hoy cobrar era TODO O NADA y el monto que entraba no se
+   guardaba en ninguna parte: se daba por supuesto que era igual al total. Ese
+   hueco es justo por donde se colaba el descuento que Joan ya hacía de boca y
+   que después no cuadraba con nada.
+
+   LA REGLA QUE ORDENA TODO ESTE BLOQUE, y de la que sale que el reparto siga
+   sumando 100% exacto:
+
+       repartirCosto() reparte LA PLATA QUE ENTRÓ.
+
+   El descuento NO es un cuarto pedazo del reparto: es una línea aparte de la
+   contabilidad. Por eso `p.gananciaPago` conserva su significado de siempre —el
+   costo TOTAL que entró, costo cobrado + mora cobrada— y por eso ni motor.js ni
+   puente.js se tocan: garantiaGanadaCredito, gananciaCobrada, amortizarCupon y
+   la app del socio siguen dando la respuesta correcta sin enterarse de que hubo
+   descuento.
+
+   Si en cambio se le pasara el costo NOMINAL habiendo entrado menos, los tres
+   pedazos sumarían 100% DE UN NÚMERO EQUIVOCADO: el socio se llevaría cupo que
+   su plata no respalda (capital de Joan retirable la quincena siguiente) y
+   `expuesto` bajaría de mentira. La exposición de Joan CRECERÍA. Está prohibido.
+
+   Acá no se calcula ni una garantía ni un porcentaje a mano: los dos repartos
+   —el nominal y el cobrado— los hace el motor, y la garantía es la que el
+   propio reparto devuelve. Restar dos respuestas del motor no es reimplementar
+   una regla; inventar una tercera sí lo sería.
+   ------------------------------------------------------------------------ */
+function cuentasDelCobro(p, l, o) {
+  o = o || {};
+  var condMora = Math.max(0, Math.min(Math.round(Number(o.condonaMora) || 0), Math.round(l.recargo_mora)));
+  var condCosto = Math.max(0, Math.min(Math.round(Number(o.condonaCosto) || 0), Math.round(l.costo)));
+  var costoCobrado = Math.round(l.costo) - condCosto;
+  var moraCobrada = Math.round(l.recargo_mora) - condMora;
+  /* Lo que entra por concepto de COSTO. El capital no vive acá: el capital no
+     genera garantía ni se reparte, vuelve y ya. */
+  var entro = costoCobrado + moraCobrada;
+
+  /* El 15% del cupón deja de cobrarse cuando ese socio ya devolvió el suyo, así
+     que el reparto necesita saber cuánto le falta. Lo contesta el puente. */
+  var pendiente;
+  try { pendiente = P.contabilidadCupon(DB, socioDe(p)).cupon_pendiente; }
+  catch (e) { pendiente = undefined; }
+  var opc = { aTiempo: l.acredita_en_fecha !== false, producto: 'quincenal', cuponPendiente: pendiente };
+  var nominal = M.repartirCosto(Math.round(l.costo_total_pagado), opc);
+  var cobrado = M.repartirCosto(entro, opc);
+
+  return {
+    condonado_costo: condCosto,
+    condonado_mora: condMora,
+    condonado_total: condCosto + condMora,
+    costo_cobrado: costoCobrado,
+    mora_cobrada: moraCobrada,
+    /* Lo que se guarda en p.gananciaPago. Mismo significado que hoy. */
+    ganancia_pago: entro,
+    /* Lo que el socio tiene que entregar con este descuento aplicado. */
+    total_a_recibir: Math.round(l.capital) + entro,
+    /* Los tres pedazos de la plata que ENTRÓ. Suman `entro` exacto por
+       construcción del motor (operativo absorbe el redondeo). */
+    reparto: cobrado,
+    garantia: cobrado.garantia_socio,
+    garantia_sin_descuento: nominal.garantia_socio,
+    /* Lo que el descuento le cuesta a Joan: el pedazo del reparto que era suyo
+       —operativo más el cupón que se iba a recuperar— y que ya no entra. El
+       resto del descuento se lo paga el socio en cupo que no recibe. */
+    de_tu_ganancia: (nominal.operativo + nominal.amortiza_cupon)
+                  - (cobrado.operativo + cobrado.amortiza_cupon),
+    de_su_cupo: nominal.garantia_socio - cobrado.garantia_socio
+  };
+}
+
+/* Lo que este socio lleva perdonado, DERIVADO de los créditos, nunca de un
+   contador guardado: un contador se desincroniza el día que Joan edita un pago
+   y desde ahí miente para siempre (la misma razón escrita en puente.js:1213).
+   Sirve para pintarlo en la pantalla de cobro con el cliente delante, que es lo
+   único que convierte un favor suelto en una política. */
+function descuentosDelSocio(s) {
+  var t = { veces: 0, monto: 0 };
+  if (!s) return t;
+  DB.prestamos.forEach(function (p) {
+    if (p.socioId !== s.id) return;
+    (p.condonaciones || []).forEach(function (c) {
+      t.veces++;
+      t.monto += (Number(c.costo) || 0) + (Number(c.mora) || 0);
+    });
+  });
+  return t;
+}
+
 /* La Ley 2300 no cambia porque Joan esté en la calle: fuera de horario no se
    llama ni se escribe. El calendario de festivos es el del motor. */
 function horarioPermitido(fecha) {
@@ -527,8 +635,45 @@ function horarioPermitido(fecha) {
   if (dia === 6) return (h >= 8 && h < 15) ? { ok: true } : { ok: false, motivo: 'el sábado solo de 8am a 3pm' };
   return (h >= 7 && h < 19) ? { ok: true } : { ok: false, motivo: 'de lunes a viernes solo de 7am a 7pm' };
 }
+/* LOS DOS TOPES DE LA LEY 2300 SALEN DEL MISMO SITIO, Y ES A PROPÓSITO.
+   El diario estaba escrito acá y el semanal no existía en ningún lado del
+   repositorio. Ahora los dos viven en panel/tanda.js, que se prueba con node, y
+   esta pantalla los pregunta. Si el diario se quedara escrito acá y el semanal
+   allá, serían dos lecturas de la misma ley en dos archivos, y el día que una
+   cambie la otra seguiría contestando lo de antes — que es la enfermedad que
+   este proyecto lleva semanas quitándose.
+
+   SIN tanda.js NO SE INVENTA UNA RESPUESTA. Se contesta que sí (o sea, «trátalo
+   como ya contactado») porque es lo conservador: no poder comprobar que un
+   contacto es legal no es permiso para hacerlo. Y el aviso de bloqueAvisosDuros
+   dice qué falta, para que ese "sí" no parezca un dato de la cartera. */
 function contactadoHoy(s) {
-  return (s && s.gestiones || []).some(function (g) { return g.fecha === hoyISO(); });
+  return T ? T.contactadoHoy(s, hoyISO()) : true;
+}
+function contactadoEstaSemana(s) {
+  return T ? T.contactadoEstaSemana(s, hoyISO()) : { si: true, gestion: null, dias: null };
+}
+/* Lo que hay que decirle a Joan antes de que escriba, en UNA frase y con el
+   motivo. Se usa en la tarjeta de Hoy y en la hoja de gestión, para que las dos
+   digan lo mismo. Devuelve '' cuando no hay nada que advertir.
+   `sueltas` = frase corta para una tarjeta; si no, el bloque de aviso entero. */
+function avisoDeTope(s, sueltas) {
+  if (!T) return '';                 // el aviso duro ya lo pinta bloqueAvisosDuros
+  if (T.contactadoHoy(s, hoyISO())) {
+    return sueltas
+      ? 'Ya lo contactaste hoy.'
+      : '<div class="aviso ambar"><b>Ya contactaste a esta persona hoy.</b> La Ley 2300 permite '
+        + 'una comunicación al día.</div>';
+  }
+  var sem = T.contactadoEstaSemana(s, hoyISO());
+  if (!sem.si) return '';
+  var canal = (sem.gestion && sem.gestion.canal) || 'otro canal';
+  var faltan = T.DIAS_SEMANA - sem.dias;
+  return sueltas
+    ? 'Ya lo contactaste esta semana (hace ' + sem.dias + ' día(s), por ' + canal + ').'
+    : '<div class="aviso ambar"><b>Ya lo contactaste esta semana.</b> Hace ' + sem.dias
+      + ' día(s), por ' + esc(canal) + '. La Ley 2300 prohíbe volver a contactarlo antes de '
+      + faltan + ' día(s) — y prohíbe cambiar de canal para insistir.</div>';
 }
 function waNum(s) { return (s && (s.whatsappIgual ? s.telefono : (s.whatsappNumero || s.telefono))) || ''; }
 function waLink(tel, msg) {
@@ -873,8 +1018,56 @@ function resolverChoque(indice, como) {
    guardara un campo distinto, el crédito subiría a la nube con una forma que el
    Panel de escritorio no sabe leer. */
 
-/* --- 1. registrar pago ------------------------------------------------- */
-function cobrar(id, fecha) {
+/* --- 1. el botón de la hoja de cobro -------------------------------------
+   Traduce lo que quedó respondido en la pantalla a UNA de las tres salidas, que
+   son tres hechos distintos y se guardan distinto:
+     pagó lo que debía / pagó menos y se lo perdonaste  → cobrar()  (CIERRA)
+     pagó menos y queda debiendo                        → abonarEnCalle() (NO cierra)
+     pagó de más                                        → cobrar() con saldo a favor
+   Acá no se calcula nada: solo se decide a quién llamar. */
+function registrarCobro(id, fecha) {
+  var p = creditoPorId(id); if (!p) return;
+  var f = fecha || hoyISO();
+  if (P.cuotaPlanActual(p)) return cobrar(id, f);   // con plan, el cobro es el de siempre
+
+  var l = liq(p, f);
+  var total = Math.round(l.total_a_pagar);
+  var monto = (_cobro.id !== id || _cobro.monto == null) ? total : _cobro.monto;
+
+  if (monto === total) return cobrar(id, f, { montoRecibido: total });
+
+  if (monto > total) {
+    if (_cobro.modo !== 'afavor') {
+      alert('Te dio ' + COP(monto - total) + ' de más.\n\nDi si se los devuelves o si quedan a su favor: '
+        + 'un sobrante no puede colarse como costo, porque le acuñaría cupo con plata que le debes.');
+      return;
+    }
+    return cobrar(id, f, { montoRecibido: monto, saldoAFavor: monto - total });
+  }
+
+  if (_cobro.modo === 'debe') return abonarEnCalle(id, monto, f);
+  if (_cobro.modo !== 'perdon') {
+    alert('Faltan ' + COP(total - monto) + ' y no dijiste qué pasó.\n\n'
+      + '«Se lo perdoné» cierra el crédito; «queda debiendo» no lo cierra. '
+      + 'No son lo mismo y no lo voy a adivinar.');
+    return;
+  }
+  var r = repartoDelDescuento(l, total - monto, _cobro.sobre);
+  if (r.excede) {
+    alert('Ese descuento no cabe: en este ciclo lo máximo que se puede perdonar es '
+      + COP(r.tope) + ' (costo más mora). Lo demás sería perdonar capital, y eso no es '
+      + 'un descuento sino una pérdida.');
+    return;
+  }
+  return cobrar(id, f, { montoRecibido: monto, condonaCosto: r.costo, condonaMora: r.mora,
+    motivo: _cobro.motivo });
+}
+
+/* `o` es lo que decidió la pantalla: {montoRecibido, condonaCosto, condonaMora,
+   motivo, saldoAFavor}. Sin `o` —o con un monto igual al total— esta función
+   hace EXACTAMENTE lo que hacía antes, campo por campo: el caso normal no
+   cambió ni un peso ni un toque. */
+function cobrar(id, fecha, o) {
   var p = creditoPorId(id); if (!p) return;
   var f = fecha || hoyISO();
   var l = liq(p, f);
@@ -882,11 +1075,41 @@ function cobrar(id, fecha) {
   var c = P.cuotaPlanActual(p);
   if (c) return cobrarCuotaDelPlan(p, c, f, l);
 
-  var texto = 'Cobrar ' + COP(l.total_a_pagar) + ' a ' + (p.socioNombre || '') + ':\n\n'
+  o = o || {};
+  var q = cuentasDelCobro(p, l, o);
+  var aFavor = Math.max(0, Math.round(Number(o.saldoAFavor) || 0));
+  var monto = (o.montoRecibido == null)
+    ? q.total_a_recibir + aFavor
+    : Math.round(Number(o.montoRecibido) || 0);
+  var motivo = String(o.motivo || '').trim().slice(0, 120);
+
+  /* UN DESCUENTO SIN MOTIVO, A LOS TRES MESES, ES UN CUADRE QUE NO CUADRA.
+     Se para acá y no en la pantalla porque esta función también la puede
+     llamar el día de mañana otro botón. */
+  if (q.condonado_total > 0 && !motivo) {
+    alert('Falta el motivo del descuento.\n\nEscribe en dos palabras por qué se lo perdonaste: '
+      + 'dentro de tres meses, un descuento sin motivo es un cuadre que no cuadra.');
+    return;
+  }
+
+  var texto = 'Cobrar ' + COP(q.total_a_recibir) + ' a ' + (p.socioNombre || '') + ':\n\n'
     + '• Capital: ' + COP(l.capital) + '\n'
-    + '• Costo del ciclo: ' + COP(l.costo) + '\n'
-    + (l.recargo_mora ? '• Recargo por ' + l.dias_mora + ' día(s) de mora: ' + COP(l.recargo_mora) + '\n' : '')
-    + '\nLe deja ' + COP(l.garantia_generada) + ' de garantía. ¿Lo registro?';
+    + '• Costo del ciclo: ' + COP(l.costo)
+    + (q.condonado_costo ? ' − ' + COP(q.condonado_costo) + ' perdonados' : '') + '\n'
+    + (l.recargo_mora ? '• Recargo por ' + l.dias_mora + ' día(s) de mora: ' + COP(l.recargo_mora)
+        + (q.condonado_mora ? ' − ' + COP(q.condonado_mora) + ' perdonados' : '') + '\n' : '')
+    + (q.condonado_total
+        ? '\n• DESCUENTO: ' + COP(q.condonado_total)
+          + ' (' + (q.condonado_mora ? COP(q.condonado_mora) + ' de mora' : '')
+          + (q.condonado_mora && q.condonado_costo ? ' + ' : '')
+          + (q.condonado_costo ? COP(q.condonado_costo) + ' de costo' : '') + ')\n'
+          + '• Sale de tu ganancia: ' + COP(q.de_tu_ganancia) + '\n'
+          + '• Motivo: ' + motivo + '\n'
+        : '')
+    + (aFavor ? '\n• Queda a favor: ' + COP(aFavor) + ' (no le suma cupo: no es costo)\n'
+        + '  Queda ANOTADO en este crédito. No se descuenta solo del siguiente:\n'
+        + '  se lo aplicas tú a mano o se lo devuelves.\n' : '')
+    + '\nLe deja ' + COP(q.garantia) + ' de garantía. El crédito queda CERRADO. ¿Lo registro?';
   if (!confirm(texto)) return;
 
   p.pagado = true;
@@ -897,15 +1120,98 @@ function cobrar(id, fecha) {
      crédito se corrompía en la carga siguiente del computador y le duplicaba la
      garantía al socio. */
   p.cobroRegistrado = true;
-  /* La ganancia del ciclo es el costo TOTAL cobrado (costo + recargo): de este
-     número salen la ganancia de Joan y, por el puente, la garantía del socio. */
-  p.gananciaPago = l.costo_total_pagado;
-  p.recargoMora = l.recargo_mora;
+  /* La ganancia del ciclo es el costo TOTAL COBRADO (costo + recargo, ya con el
+     descuento restado): de este número salen la ganancia de Joan y, por el
+     puente, la garantía del socio. NO se llena con el nominal — ver el comentario
+     largo de cuentasDelCobro: repartirCosto reparte la plata que ENTRÓ. */
+  p.gananciaPago = q.ganancia_pago;
+  /* La PLATA de recargo que entró (0 si se perdonó entera). */
+  p.recargoMora = q.mora_cobrada;
+  /* Y el HECHO, aparte de la plata: cuánto costo y cuánta mora se CAUSARON
+     antes del descuento. Sin esto, un recargo perdonado entero borraría la única
+     prueba de que hubo mora —puente.js:864 usa recargoMora como prueba— y no se
+     podría cuadrar nunca la invariante
+       montoRecibido + condonado − saldoAFavor == capital + costoCausado + moraCausada. */
+  p.costoCausado = Math.round(l.costo);
+  p.moraCausada = Math.round(l.recargo_mora);
+  /* LA PLATA QUE DE VERDAD ENTRÓ. Se guarda SIEMPRE, también cuando coincide con
+     el total: es lo que distingue para siempre un descuento de un error de dedo,
+     y lo único que permite auditar el cobro sin volver a calcularlo. */
+  p.montoRecibido = monto;
+  if (aFavor > 0) p.saldoAFavor = aFavor;
+  if (q.condonado_total > 0) {
+    /* Lista que SOLO SUMA (ver panel/nube.js): dos aparatos que registren
+       descuentos sobre el mismo crédito los conservan los dos. Costo y mora van
+       en campos distintos porque cuestan cosas distintas: la mora perdonada es
+       casi toda ganancia de Joan; el costo perdonado es tres cuartas partes cupo
+       del socio. Juntos, la contabilidad de la quincena no puede decir de dónde
+       salió la plata. */
+    p.condonaciones = p.condonaciones || [];
+    p.condonaciones.push({ fecha: f, costo: q.condonado_costo, mora: q.condonado_mora,
+      motivo: motivo, quien: 'celular' });
+  }
 
   encolar('pago', (s && s.nombre) || p.socioNombre || 'Socio',
-    COP(l.total_a_pagar) + ' · ' + P.codCredito(p), 'creditos', p.id);
+    COP(monto) + (q.condonado_total ? ' (−' + COP(q.condonado_total) + ')' : '')
+    + ' · ' + P.codCredito(p), 'creditos', p.id);
   guardarEstado(); cerrarHoja(); pintar(); sincronizar(false);
   ofrecerWhatsApp(p, 'recibo', 'Pago registrado');
+}
+
+/* --- 1-bis. el que queda debiendo ---------------------------------------
+   NO ES UN DESCUENTO Y NO SE PARECE: acá el crédito NO se cierra. Es el mismo
+   abono a capital de crm.html:2351, portado campo por campo —incluido el
+   congelado {costoCausado, moraCausada, diasMoraCausada}— porque si el celular
+   escribiera un abono con otra forma, el crédito subiría a la nube con algo que
+   el computador no sabe leer.
+
+   LO QUE NO HACE, Y SE DICE EN VEZ DE INVENTARLO: no reparte el abono en
+   cascada mora → costo → capital. Todo el abono va A CAPITAL. Ni el motor ni el
+   puente tienen concepto de «costo cobrado a medias» (gananciaPago solo se
+   escribe cuando el crédito se cierra), así que una cascada aquí sería una regla
+   nueva escrita en la pantalla equivocada. La pantalla lo dice con todas las
+   letras antes de que Joan confirme. */
+function abonarEnCalle(id, monto, fecha) {
+  var p = creditoPorId(id); if (!p) return;
+  var m = Math.round(Number(monto) || 0);
+  var f = fecha || hoyISO();
+  if (m <= 0) { alert('Ese monto no sirve para un abono.'); return; }
+  if (P.tienePlan(p)) {
+    alert('Este crédito está en plan de pagos: el capital baja con cada cuota. '
+      + 'Cóbrale la cuota que sigue en vez de abonar por fuera.');
+    return;
+  }
+  var cap = capitalActual(p);
+  if (m >= cap) {
+    alert('No registré nada.\n\nEse monto cubre el capital entero (' + COP(cap) + '), '
+      + 'y todo el abono va a capital: no queda capital que rebajar.\n\n'
+      + 'Si con eso salda el crédito, va por «Pagó todo». Si le vas a perdonar la '
+      + 'diferencia, di «Se lo perdoné». Y si de verdad quiere abonar y seguir '
+      + 'debiendo, tiene que abonar menos de ' + COP(cap) + '.');
+    return;
+  }
+  /* Lo causado se congela ANTES de tocar el capital: el costo de la quincena y
+     el recargo corrido hasta hoy no pueden depender de cuánto quede después.
+     Los tres números salen de UNA sola liquidación —la del puente— para que no
+     puedan contarse de dos días distintos. */
+  var l = liq(p, f);
+  if (!confirm('Abono de ' + COP(m) + ' a ' + (p.socioNombre || '') + ':\n\n'
+    + '• El capital baja de ' + COP(cap) + ' a ' + COP(cap - m) + '\n'
+    + '• El costo del ciclo (' + COP(l.costo) + ')'
+    + (l.recargo_mora ? ' y la mora (' + COP(l.recargo_mora) + ')' : '')
+    + ' SIGUEN debiéndose\n'
+    + '• La mora sigue corriendo\n'
+    + '• El crédito NO se cierra y hoy no le deja ni un peso de garantía\n\n'
+    + '¿Lo registro?')) return;
+
+  p.abonosCapital = p.abonosCapital || [];
+  p.abonosCapital.push({ fecha: f, monto: m, ciclo: p.cicloActual,
+    costoCausado: l.costo, moraCausada: l.recargo_mora, diasMoraCausada: l.dias_mora });
+
+  var s = socioDe(p);
+  encolar('abono', (s && s.nombre) || p.socioNombre || 'Socio',
+    COP(m) + ' a capital · ' + P.codCredito(p), 'creditos', p.id);
+  guardarEstado(); cerrarHoja(); pintar(); sincronizar(false);
 }
 
 function cobrarCuotaDelPlan(p, c, f, l) {
@@ -995,11 +1301,37 @@ function prorrogar(id, fecha) {
 }
 
 /* --- 3. marcar gestión ------------------------------------------------- */
-function marcarGestion(prestId, clave) {
+/* LA GESTIÓN AHORA GUARDA LA HORA, Y NO ES UN ADORNO.
+   El artículo 3 de la Ley 2300 fija un horario (L–V 7–19, sábado 8–15, nunca
+   domingo ni festivo) y la SIC sanciona a quien lo incumple. Con solo la fecha
+   —que es lo que guarda crm.html:1673— Joan no puede probar después que escribió
+   a las 10 de la mañana y no a las 11 de la noche. La carga de la prueba es
+   suya, así que el dato se guarda desde el primer día: recogerlo cuesta cero y
+   no se puede recuperar hacia atrás.
+
+   `tipo` y `grupo` separan cobranza de servicio y dicen de qué tanda salió. NO
+   entran en la identidad de la gestión al sincronizar (ver panel/nube.js): la
+   misma gestión anotada en el celular y en el computador es UN hecho, y contarla
+   dos veces apretaría el tope más de lo que la ley pide.
+
+   `origen` distingue lo que salió de la tanda de lo que Joan hizo suelto. Sirve
+   para poder decir «tocaste 8 de 9» sin guardar un contador aparte: el avance de
+   la tanda se DERIVA de las gestiones, que es la única lista que sobrevive
+   entera a un choque de sincronización. */
+function marcarGestion(prestId, clave, o) {
   var p = creditoPorId(prestId); if (!p) return;
   var s = socioDe(p); if (!s) return;
+  var e = o || {};
   s.gestiones = s.gestiones || [];
-  s.gestiones.push({ fecha: hoyISO(), canal: 'whatsapp', plantilla: clave });
+  s.gestiones.push({
+    fecha: hoyISO(),
+    hora: new Date().toISOString(),
+    canal: 'whatsapp',
+    plantilla: clave,
+    tipo: e.tipo || 'cobro',
+    grupo: e.grupo || '',
+    origen: e.origen || 'suelta'
+  });
   encolar('gestion', s.nombre || 'Socio', 'contacto por WhatsApp', 'socios', s.id);
   guardarEstado(); pintar(); sincronizar(false);
 }
@@ -1055,8 +1387,8 @@ var VISTA = 'hoy';
 var SEL = { socioId: null, creditoId: null };
 var BUSQUEDA = '';
 
-var TITULOS = { hoy: 'Hoy', buscar: 'Buscar', ficha: 'Ficha del socio',
-                credito: 'Crédito', quincena: 'Quincena' };
+var TITULOS = { hoy: 'Hoy', tanda: 'Tanda de mensajes', buscar: 'Buscar',
+                ficha: 'Ficha del socio', credito: 'Crédito', quincena: 'Quincena' };
 
 function ir(v) {
   VISTA = v;
@@ -1082,6 +1414,7 @@ function pintar() {
   html += bloqueChoques();
   html += bloqueAvisosDuros();
   if (VISTA === 'hoy') html += vistaHoy();
+  else if (VISTA === 'tanda') html += vistaTanda();
   else if (VISTA === 'buscar') html += vistaBuscar();
   else if (VISTA === 'ficha') html += vistaFicha();
   else if (VISTA === 'credito') html += vistaCredito();
@@ -1102,6 +1435,16 @@ function bloqueAvisosDuros() {
     h += '<div class="aviso ambar"><b>No pude guardar en este teléfono.</b> Se acabó el espacio del '
       + 'navegador. Lo que acabas de registrar está en pantalla pero <b>no sobrevive a cerrar la app</b>: '
       + 'busca señal y súbelo antes de cerrar.</div>';
+  }
+  if (!T) {
+    /* Sin tanda.js no se puede comprobar el tope semanal de la Ley 2300, y esta
+       pantalla trata «no puedo comprobarlo» como «no». Se dice para que el
+       «ya lo contactaste» que sale en cada tarjeta no se lea como un dato de la
+       cartera: es la respuesta prudente de una comprobación que no se pudo
+       hacer. */
+    h += '<div class="aviso ambar"><b>Falta panel/tanda.js.</b> Sin ese archivo no puedo comprobar '
+      + 'los topes de contacto de la Ley 2300, así que trato a todos como «ya contactado» y la '
+      + 'tanda no abre. No es que no tengas a quién escribirle: es que no puedo garantizar que sea legal.</div>';
   }
   return h;
 }
@@ -1180,7 +1523,7 @@ function vistaHoy() {
       +   (ofrecida != null ? COP(ofrecida)
           : (P.tienePlan(p) ? '<span class="muted">en plan de pagos</span>'
              : '<span class="muted">ya no le quedan</span>')) + '</span></div>'
-      + (contactadoHoy(s) ? '<div class="mini">Ya lo contactaste hoy.</div>' : '')
+      + (avisoDeTope(s, true) ? '<div class="mini">' + esc(avisoDeTope(s, true)) + '</div>' : '')
       + '<div class="tres">'
       +   '<button class="btn sm" type="button" data-acc="cobro" data-id="' + esc(p.id) + '">Cobrar</button>'
       +   '<button class="btn sm sec" type="button" data-acc="prorroga" data-id="' + esc(p.id) + '">Prórroga</button>'
@@ -1193,6 +1536,487 @@ function vistaHoy() {
   h += '<div class="aviso info">Acá solo entran los <b>créditos quincenales</b>, igual que la cola del '
     + 'computador. Las cuotas del <b>préstamo con garantía</b> no se cobran desde el celular: '
     + 'se ven en la ficha del socio y se cobran en el computador.</div>';
+  return h;
+}
+
+/* =========================================================================
+ * LA TANDA DE MENSAJES
+ * =========================================================================
+ *
+ * QUÉ PIDIÓ JOAN Y QUÉ SE LE ENTREGA, SIN ADORNOS.
+ * Pidió «poder enviar masivamente mensajes por whatsapp con publicidad o
+ * informacion de cobro». Esto NO es envío masivo, y la pantalla lo dice con
+ * esas palabras en el primer párrafo, no en letra chica al final:
+ *
+ *   · El envío masivo DE VERDAD es la Cloud API de Meta. Cuesta una SIM nueva
+ *     (el número registrado deja de funcionar como WhatsApp normal, o sea que
+ *     no puede ser el suyo), verificación del negocio con papeles, política de
+ *     privacidad publicada, plantillas aprobadas una por una y un servidor con
+ *     un token secreto — que este sitio, que es HTML estático, no tiene. Todo
+ *     eso para ahorrarle diez toques al día. Cuando pase de unos 150 créditos
+ *     activos, o el día que quiera avisos que salgan solos a las 9am sin que él
+ *     toque el teléfono, esa es la respuesta correcta. Hoy no.
+ *   · El envío masivo FÁCIL —listas de difusión, extensiones de Chrome, apps de
+ *     «envío masivo»— le puede costar el número donde tiene los chats de toda
+ *     la cartera y los comprobantes de pago. Además la difusión solo le llega a
+ *     quien tenga guardado su número, no avisa a quién no le llegó, y no se
+ *     puede personalizar: un texto idéntico a 200 personas es justo el patrón
+ *     que dispara la detección de spam.
+ *
+ * Lo que sí se puede hacer hoy, sin trámite y sin arriesgar el número, es esto:
+ * el sistema decide A QUIÉN, CON QUÉ TEXTO y SI LA LEY LO PERMITE AHORA MISMO;
+ * Joan abre el chat y toca enviar, de a uno. Lo masivo es el trabajo previo.
+ *
+ * QUÉ LE AHORRA DE VERDAD: no los toques —esos son los mismos— sino el PENSAR
+ * (a quién le toca, qué le escribo, cuánto debe, si hoy puedo) y dos errores que
+ * hoy son posibles: escribirle dos veces al mismo y escribirle fuera de horario.
+ *
+ * POR QUÉ NO GUARDA LA LISTA DE PENDIENTES.
+ * La tanda se RECALCULA cada vez que se abre. Congelar la lista es más cómodo
+ * hasta el día en que guarda a alguien que pagó anoche y Joan le cobra a un
+ * cliente que está al día, con el cliente leyéndolo. Lo único que se guarda es
+ * el grupo y a quién saltó, con la fecha; si es de otro día, se descarta y se
+ * dice por qué.
+ *
+ * Y POR QUÉ NO HAY MARCADOR DE «HECHO».
+ * Porque ya existe y se llama gestión. Marcar hecho ES anotar la gestión, la
+ * misma de siempre. Tres cosas salen gratis de esa decisión: si Joan gestiona a
+ * alguien por fuera de la tanda, la tanda se entera sola; las gestiones son una
+ * lista que SOLO SUMA al sincronizar (nube.js), así que un choque entre el
+ * computador y el celular nunca borra un «ya lo llamé»; y el tope de la Ley 2300
+ * y el avance de la tanda se leen del MISMO dato, o sea que es imposible que
+ * digan cosas distintas.
+ * ======================================================================== */
+
+/* En memoria: el grupo abierto y si estamos en la lista o en la tarjeta. */
+var TANDA = { grupo: null, verFuera: '' };
+
+/* Los créditos que caen en cada grupo. Ni un número se calcula acá: el estado,
+   los días de mora y los que faltan salen de estadoPrestamo/diasMora/diasPara,
+   que preguntan al puente. */
+function casosDelGrupo(clave) {
+  var casos = [];
+  var ayer = isoLocal(new Date(hoy0().getTime() - 86400000));
+  DB.prestamos.forEach(function (p) {
+    var est = estadoPrestamo(p);
+    var entra = false, prioridad = 0, k = '';
+    if (clave === 'hoy') { entra = est === 'hoy'; prioridad = 1; k = 'venceHoy'; }
+    else if (clave === 'mora-temprana') { entra = est === 'mora' && diasMora(p) <= 5; prioridad = 1; k = 'moraTemprana'; }
+    else if (clave === 'mora') { entra = est === 'mora' && diasMora(p) >= 6; prioridad = 1; k = 'mora'; }
+    else if (clave === 'proximos') {
+      entra = est === 'proximo';
+      prioridad = 1;
+      k = diasPara(p) >= 2 ? 'recordatorio2' : 'recordatorio1';
+    }
+    else if (clave === 'pagaron-ayer') { entra = !!p.pagado && p.fechaPagado === ayer; prioridad = 1; k = 'recibo'; }
+    if (!entra) return;
+    /* Sin socio no hay ficha, ni teléfono, ni gestiones donde anotar: no hay a
+       quién escribirle. Es un dato roto, y se cuenta aparte más abajo. */
+    var s = socioDe(p);
+    if (!s) return;
+    casos.push({
+      id: p.id, socioId: s.id, socio: s, credito: p,
+      telefono: waNum(s), plantilla: k, prioridad: prioridad,
+      orden: P.corteDelCredito(p) || ''
+    });
+  });
+  return casos;
+}
+
+/* El grupo, ya filtrado por la ley. Un solo sitio: la lista de la pantalla y
+   los contadores de los botones salen de acá, así que no pueden discrepar. */
+function tandaDe(clave) {
+  var gr = T.grupoPorClave(clave);
+  if (!gr) return null;
+  var guardada = (TANDA_GUARDADA && TANDA_GUARDADA.fecha === hoyISO() && TANDA_GUARDADA.grupo === clave)
+    ? TANDA_GUARDADA : null;
+  var t = T.armarTanda(casosDelGrupo(clave), {
+    hoy: hoyISO(),
+    horario: horarioPermitido(),
+    tipo: gr.tipo,
+    grupo: clave,
+    saltados: guardada ? guardada.saltados : []
+  });
+  /* El detalle del motivo, para poder pintarlo al abrir un número del recuento.
+     Se cuelga del caso acá y no dentro de tanda.js, que no pinta nada. */
+  t.fuera.forEach(function (f) { f.caso.__detalle = f.motivo.detalle || ''; });
+  t.grupo = gr;
+  return t;
+}
+
+/* Cuántos de este grupo ya se tocaron HOY desde la tanda. Se DERIVA de las
+   gestiones —no hay contador— por la misma razón que el puente deriva la
+   amortización del cupón: un contador guardado se desincroniza el día que algo
+   se edita, y desde ahí miente para siempre. */
+function tocadosHoy(clave) {
+  var hoy = hoyISO(), vistos = {}, n = 0;
+  DB.socios.forEach(function (s) {
+    (s.gestiones || []).forEach(function (g) {
+      if (g.fecha !== hoy || g.origen !== 'tanda' || g.grupo !== clave) return;
+      if (vistos[s.id]) return;
+      vistos[s.id] = true; n++;
+    });
+  });
+  return n;
+}
+
+function vistaTanda() {
+  if (!T) {
+    return '<div class="vacio"><div class="ic">⚖</div><p>La tanda no puede abrir.</p>'
+      + '<p class="muted">Falta <span class="mono">panel/tanda.js</span>, que es donde viven los topes '
+      + 'de contacto de la Ley 2300. Sin él no puedo garantizar que un mensaje sea legal, y prefiero '
+      + 'no abrir a abrir sin comprobar.</p></div>';
+  }
+  if (!(DB.prestamos && DB.prestamos.length)) {
+    return '<div class="vacio"><div class="ic">☁</div><p>Todavía no ha llegado tu cartera a este teléfono.</p>'
+      + '<p class="muted">La tanda se arma con tus créditos. Entra con tu correo y toca «Traer de la nube».</p></div>';
+  }
+  return TANDA.grupo ? vistaTandaGrupo(TANDA.grupo) : vistaTandaElegir();
+}
+
+/* --------------------------- 1. ELEGIR EL GRUPO ------------------------- */
+function vistaTandaElegir() {
+  var hor = horarioPermitido();
+  var h = '';
+
+  /* LO PRIMERO DE LA PANTALLA ES LA VERDAD SOBRE QUÉ ES ESTO. Va arriba y no
+     al pie porque al pie no se lee, y porque Joan pidió «envío masivo»: si la
+     primera frase no lo desmiente, la pantalla le está diciendo que sí. */
+  h += '<div class="card laca ap"><div class="etq">Tanda de mensajes</div>'
+    + '<div class="sub" style="color:var(--blanco-laca);font-size:15px;margin-top:8px">'
+    + '<b>Esto no envía nada solo.</b> Prepara la lista, el orden y el texto; '
+    + 'el chat lo abres tú y <b>tú tocas enviar</b>, uno por uno.</div>'
+    + '<div class="sub">Lo que te ahorra no son los toques: es tener que pensar a quién le toca, '
+    + 'cuánto debe y si hoy la ley te deja escribirle.</div></div>';
+
+  if (!hor.ok) {
+    h += '<div class="aviso ambar"><b>Ahora no se puede contactar a nadie</b> (Ley 2300): '
+      + esc(hor.motivo) + '. '
+      + 'El horario permitido es de lunes a viernes de 7am a 7pm y los sábados de 8am a 3pm. '
+      + 'Domingos y festivos, nunca. Aplica igual al cobro y a la publicidad.<br>'
+      + 'Puedes seguir <b>registrando pagos y prórrogas</b>: eso es contabilidad, no contacto.</div>';
+  }
+
+  var rit = T.avisoDeRitmo(DB.socios, new Date());
+  if (rit) h += '<div class="aviso ambar"><b>Ve más despacio.</b> ' + esc(rit.texto) + '</div>';
+
+  /* RETOMAR — o decir por qué ya no se puede.
+     Una tanda de ayer NO se retoma, y no es una limitación técnica: la lista de
+     mora de hoy es otra. Retomarla sería escribirle a alguien que pagó anoche.
+     Se dice con esas palabras en vez de borrarla en silencio. */
+  if (TANDA_GUARDADA && TANDA_GUARDADA.grupo) {
+    var grG = T.grupoPorClave(TANDA_GUARDADA.grupo);
+    if (grG && TANDA_GUARDADA.fecha === hoyISO()) {
+      var tG = tandaDe(TANDA_GUARDADA.grupo);
+      var hechos = tocadosHoy(TANDA_GUARDADA.grupo);
+      h += '<div class="aviso info"><b>Tenías abierta la tanda «' + esc(grG.titulo) + '».</b> '
+        + (hechos ? 'Ya tocaste ' + hechos + '. ' : '')
+        + 'Quedan ' + tG.pendientes.length
+        + (tG.saltados.length ? ', más ' + tG.saltados.length + ' que saltaste' : '') + '.'
+        + '<button class="btn sm arriba" type="button" data-acc="tanda-abrir" data-g="'
+        + esc(TANDA_GUARDADA.grupo) + '">Retomar</button></div>';
+    } else if (grG) {
+      h += '<div class="aviso info"><b>La tanda de «' + esc(grG.titulo) + '» era del '
+        + esc(fmtFecha(TANDA_GUARDADA.fecha)) + ' y ya no vale.</b> La lista de hoy es otra: '
+        + 'alguno de esos ya pagó, y cobrarle a un cliente que está al día es el papelón que '
+        + 'esta pantalla existe para evitar. Empieza una nueva abajo.</div>';
+    }
+  }
+
+  /* --- cobro y servicio --- */
+  h += '<div class="tit-bloque"><h3 class="tit">Cobro</h3>'
+    + '<span class="mini">Ley 2300 · uno al día, uno a la semana</span></div>';
+  T.gruposDeTipo('cobro').concat(T.gruposDeTipo('servicio')).forEach(function (gr) {
+    var t = tandaDe(gr.clave);
+    var r = T.resumenDeTanda(t);
+    var tocados = tocadosHoy(gr.clave);
+    var vacio = r.total === 0;
+    h += '<div class="card ap' + (vacio ? '' : ' tocable') + '"'
+      + (vacio ? '' : ' data-acc="tanda-abrir" data-g="' + esc(gr.clave) + '"')
+      + (vacio ? ' style="opacity:.55"' : '') + '>'
+      + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">'
+      +   '<b>' + esc(gr.titulo) + '</b>'
+      +   '<span class="pill ' + (gr.tipo === 'servicio' ? 'ok' : 'hoy') + '">'
+      +     (gr.tipo === 'servicio' ? 'servicio' : 'cobro') + '</span>'
+      + '</div>'
+      + '<div class="mini">' + esc(gr.ayuda) + '</div>'
+      + (vacio
+          ? '<div class="mini" style="margin-top:8px">Nadie en este grupo hoy.</div>'
+          : '<div class="fila" style="border-bottom:0;padding-bottom:0">'
+            + '<span class="k">' + r.total + ' persona(s) en el grupo</span>'
+            + '<span class="v' + (r.puedes ? '' : ' ambar') + '">'
+            + (r.puedes ? 'puedes escribirle a ' + r.puedes : 'a nadie ahora') + '</span></div>'
+            + (tocados ? '<div class="mini">Hoy ya tocaste ' + tocados + ' de este grupo.</div>' : ''))
+      + '</div>';
+  });
+
+  /* --- publicidad, explicada y apagada --- */
+  h += bloquePublicidad();
+
+  h += '<div class="aviso info"><b>Lo que la tanda no hace</b><ul style="margin:8px 0 0;padding-left:18px">'
+    + T.LO_QUE_NO_HACE.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('')
+    + '</ul></div>';
+  return h;
+}
+
+/* ------------------ LA PUBLICIDAD: APAGADA Y EXPLICADA ------------------
+   Joan pidió esto explícitamente. No se esconde el botón —esconderlo sería
+   dejarle creer que se me olvidó— y tampoco se enciende: se muestra apagado,
+   con los cuatro motivos, quién resuelve cada uno, y qué pasa si se enciende
+   igual. El coste de equivocarse acá no es un bug: la SIC sancionó a Movistar
+   con unos $670 millones por exactamente esta conducta. */
+function bloquePublicidad() {
+  var b = T.bloqueoDePublicidad(DB.socios);
+  var h = '<div class="tit-bloque"><h3 class="tit">Publicidad</h3>'
+    + '<span class="mini">Ley 1581 · habeas data</span></div>';
+
+  h += '<div class="choque">'
+    + '<h3>🔒 Apagada — y no por falta de código</h3>'
+    + '<div class="lado" style="margin-top:12px">'
+    +   '<div class="d"><span>Socios que autorizaron publicidad</span>'
+    +     '<span>' + b.autorizados + ' de ' + b.total + '</span></div>'
+    + '</div>'
+    + '<p style="margin:12px 0 0;font-size:13.5px">' + esc(b.resumen) + '</p>'
+    + '</div>';
+
+  h += '<div class="card ap"><div class="etq">Qué falta, y quién lo tiene que hacer</div>';
+  b.falta.forEach(function (f) {
+    h += '<div style="padding:12px 0;border-bottom:1px solid var(--linea)">'
+      + '<b>' + esc(f.titulo) + '</b>'
+      + '<div class="mini" style="margin-top:4px">' + esc(f.texto) + '</div>'
+      + '<div class="mini"><b>Lo resuelve:</b> ' + esc(f.quien) + '</div>'
+      + '</div>';
+  });
+  h += '<div class="mini" style="margin-top:12px">Los grupos que existirían el día que se encienda: '
+    + T.gruposDeTipo('publicidad').map(function (g) { return esc(g.titulo); }).join(' · ')
+    + '. Ninguno incluiría a quien deba algo: ofrecerle un crédito nuevo a quien está atrasado '
+    + 'es cobranza disfrazada.</div>';
+  h += '</div>';
+
+  h += '<div class="aviso ambar"><b>Y una advertencia que no pediste.</b> Un mensaje «informativo» que '
+    + 'además ofrece algo ES publicidad. Ponerle «pide tu nuevo crédito» al pie de un recordatorio de '
+    + 'pago convierte ese mensaje en comercial y le quita la excepción que hoy protege los mensajes de '
+    + 'cobro. Por eso las dos tandas están separadas acá y no se pueden mezclar.</div>';
+  return h;
+}
+
+/* ------------------------- 2. EL RECUENTO Y LA COLA ---------------------- */
+function vistaTandaGrupo(clave) {
+  var t = tandaDe(clave);
+  if (!t) { TANDA.grupo = null; return vistaTandaElegir(); }
+  var r = T.resumenDeTanda(t);
+  var gr = t.grupo;
+  var tocados = tocadosHoy(clave);
+
+  var h = '<button class="btn sec sm" type="button" data-acc="tanda-salir">← Todos los grupos</button>';
+
+  h += '<div class="card laca ap" style="margin-top:12px"><div class="etq">' + esc(gr.titulo) + '</div>'
+    + '<div class="cifra oro">' + r.puedes + '</div>'
+    + '<div class="sub" style="color:var(--blanco-laca)">'
+    + (r.puedes
+        ? 'persona(s) a las que puedes escribirle ahora, de ' + r.total + ' del grupo.'
+        : 'No puedes escribirle a nadie de este grupo ahora mismo.')
+    + '</div>';
+  if (r.puedes) {
+    /* Con listas cortas los dos extremos redondean al mismo número y «entre 1 y
+       1 minutos» se lee como un error de programa. La cuenta es la misma; solo
+       cambia la frase. */
+    var mm = r.minutos.min === r.minutos.max
+      ? 'unos <b>' + r.minutos.max + ' minuto(s)</b>'
+      : 'entre <b>' + r.minutos.min + ' y ' + r.minutos.max + ' minutos</b>';
+    h += '<div class="sub">Te va a tomar ' + mm + ' de puro envío. '
+      + 'Con los que contesten al instante, cuenta más del doble: esos son los que hay que atender bien.</div>';
+  }
+  if (tocados) h += '<div class="sub">Hoy ya tocaste ' + tocados + '.</div>';
+  h += '</div>';
+
+  /* EL RECUENTO. Nunca adjetivos: cada motivo con su número, y cada número se
+     puede ABRIR para ver quiénes son. Un número que no se puede abrir es un
+     número en el que Joan no confía, y acaba abriendo WhatsApp por su cuenta. */
+  if (r.fuera) {
+    h += '<div class="card ap"><div class="etq">A ' + r.fuera + ' no, hoy</div>';
+    t.porMotivo.forEach(function (m) {
+      h += '<div class="linea-item tocable" data-acc="tanda-motivo" data-m="' + esc(m.clave) + '">'
+        + '<span>' + m.casos.length + ' — ' + esc(m.texto) + '</span>'
+        + '<span class="muted">' + (TANDA.verFuera === m.clave ? 'ocultar' : 'ver') + '</span></div>';
+      if (TANDA.verFuera === m.clave) {
+        m.casos.forEach(function (c) {
+          var det = c.__detalle || '';
+          h += '<div class="linea-item"><span class="muted">' + esc(c.socio.nombre || 'Socio')
+            + (det ? '<br>' + esc(det) : '') + '</span>'
+            + '<span class="muted">'
+            + (m.clave === 'sinTel'
+                ? '<button class="btn sm sec" type="button" data-acc="verficha" data-id="' + esc(c.socioId) + '">Arreglar ficha</button>'
+                : '')
+            + '</span></div>';
+        });
+      }
+    });
+    h += '</div>';
+  }
+
+  if (t.creditosAgrupados) {
+    h += '<div class="mini">' + t.creditosAgrupados + ' crédito(s) más son de personas que ya están en '
+      + 'la lista. La ley cuenta contactos por PERSONA, no por crédito: se escribe una sola vez.</div>';
+  }
+
+  if (!r.puedes) {
+    /* DOS VACÍOS QUE PARECEN UNO. «Terminaste» y «la ley no te deja» se ven
+       igual y significan lo contrario, igual que en la vista de Hoy. Si además
+       lo único que queda son los que Joan mismo saltó, decirle «no se le puede
+       escribir» sería falso: sí se puede, fue él quien dijo ahora no. */
+    if (t.saltados.length) {
+      h += '<div class="vacio"><div class="ic">✅</div><p>Terminaste este grupo.</p>'
+        + '<p class="muted">Lo único que queda son los que saltaste. Están abajo y los puedes retomar '
+        + 'cuando quieras: la ley no los bloquea, los aplazaste tú.</p></div>';
+    } else if (tocados) {
+      h += '<div class="vacio"><div class="ic">✅</div><p>Terminaste este grupo.</p>'
+        + '<p class="muted">Tocaste ' + tocados + ' de ' + r.total
+        + (tocados >= r.total ? '.' : '. A los demás no se les puede escribir hoy; '
+            + 'los números de arriba dicen por qué.') + '</p></div>';
+    } else {
+      h += '<div class="vacio"><div class="ic">✋</div><p>Nada que hacer en este grupo ahora.</p>'
+        + '<p class="muted">No es que no tengas a quién cobrarle: es que hoy no se le puede escribir. '
+        + 'Los números de arriba dicen por qué.</p></div>';
+    }
+    if (t.saltados.length) h += bloqueSaltados(t);
+    return h;
+  }
+
+  /* LA TARJETA DEL SIGUIENTE. No hay índice ni «6 de 9» guardado en ninguna
+     parte: el siguiente es SIEMPRE el primero de la lista recalculada, porque
+     al anotar la gestión esa persona sale sola de la lista (ya la contactaste
+     hoy). Cerrar la app y volver no pierde nada, y no hay estado que se pueda
+     desincronizar. */
+  h += tarjetaDeTanda(t.pendientes[0], t, r);
+
+  if (t.saltados.length) h += bloqueSaltados(t);
+  return h;
+}
+
+function bloqueSaltados(t) {
+  var h = '<div class="card ap"><div class="etq">Saltados — quedan para el final</div>';
+  t.saltados.forEach(function (x) {
+    h += '<div class="linea-item"><span>' + esc(x.caso.socio.nombre || 'Socio')
+      + '<br><span class="muted">' + esc(x.motivo) + '</span></span>'
+      + '<span><button class="btn sm sec" type="button" data-acc="tanda-recuperar" data-s="'
+      + esc(x.caso.socioId) + '">Retomar</button></span></div>';
+  });
+  h += '</div>';
+  return h;
+}
+
+/* ------------------- LO POCO QUE LA TANDA GUARDA ------------------------
+   Grupo, fecha y saltados. Nada más. Ver el comentario de arriba: la lista de
+   pendientes NO se guarda nunca. */
+function saltadosDe(grupo) {
+  return (TANDA_GUARDADA && TANDA_GUARDADA.fecha === hoyISO() &&
+          TANDA_GUARDADA.grupo === grupo && TANDA_GUARDADA.saltados) || [];
+}
+function guardarTanda(grupo, saltados) {
+  TANDA_GUARDADA = { fecha: hoyISO(), grupo: grupo, saltados: saltados || [] };
+  guardarUI();
+}
+function saltarEnTanda(socioId, motivo) {
+  var g = TANDA.grupo; if (!g) return;
+  var l = saltadosDe(g).filter(function (x) { return x.socioId !== socioId; });
+  l.push({ socioId: socioId, motivo: motivo });
+  guardarTanda(g, l);
+  pintar();
+}
+function recuperarEnTanda(socioId) {
+  var g = TANDA.grupo; if (!g) return;
+  guardarTanda(g, saltadosDe(g).filter(function (x) { return x.socioId !== socioId; }));
+  pintar();
+}
+/* Saltar es «ahora no», y el porqué importa: al final del día «saltaste 1
+   (Marta — prometió pagar el viernes)» es información; «saltaste 1» no es nada.
+   La lista es corta a propósito: con el cliente delante nadie escribe un texto
+   libre, y cuatro botones se tocan sin mirar. */
+var MOTIVOS_SALTO = ['No contesta', 'Prometió pagar', 'Mejor lo llamo', 'No es buen momento'];
+function abrirSaltar(socioId) {
+  var h = '<p class="mini">Se queda para el final de la tanda, no desaparece.</p>';
+  MOTIVOS_SALTO.forEach(function (m) {
+    h += '<button class="btn sec arriba" type="button" data-acc="tanda-saltar-ok" '
+      + 'data-s="' + esc(socioId) + '" data-m="' + esc(m) + '">' + esc(m) + '</button>';
+  });
+  abrirHoja('¿Por qué lo saltas?', h);
+}
+
+/* ------------------------- 3. UNO POR UNO ------------------------------- */
+function tarjetaDeTanda(c, t, r) {
+  var p = c.credito, s = c.socio;
+  var l = liq(p);
+  var est = estadoPrestamo(p);
+  var txt = textoPlantilla(p, s, c.plantilla);
+  var huecos = tokensSinResolver(txt);
+  var sem = T.contactadoEstaSemana(s, hoyISO());
+
+  var h = '<div class="tit-bloque"><h3 class="tit">El siguiente</h3>'
+    + '<span class="mini">quedan ' + r.puedes + '</span></div>';
+
+  h += '<div class="card ap">'
+    + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'
+    +   '<div style="min-width:0"><b>' + esc(s.nombre || 'Socio') + '</b>'
+    +     '<div class="mini mono">' + esc(P.codCredito(p)) + ' · ' + esc(P.codCliente(s))
+    +     ' · ' + esc(c.telefono) + '</div></div>'
+    +   '<span class="pill ' + est + '">' + (ESTADO_TXT[est] || est) + '</span>'
+    + '</div>';
+
+  /* Los números son los del puente, los mismos de la pantalla de cobro. */
+  if (!p.pagado) {
+    h += '<div class="fila"><span class="k">Debe hoy</span>'
+      + '<span class="v">' + COP(l.total_a_pagar) + '</span></div>';
+    if (l.recargo_mora) {
+      h += '<div class="fila"><span class="k">Recargo por ' + l.dias_mora + ' día(s)' + pctMora(l) + '</span>'
+        + '<span class="v ambar">' + COP(l.recargo_mora) + '</span></div>';
+    }
+    h += '<div class="fila"><span class="k">Vence</span>'
+      + '<span class="v">' + fmtFecha(P.corteDelCredito(p)) + '</span></div>';
+  }
+
+  h += '<div class="fila"><span class="k">Último contacto</span><span class="v">'
+    + (sem.si ? 'hace ' + sem.dias + ' día(s)' : '<span class="muted">no esta semana</span>')
+    + '</span></div>';
+
+  if (c.otrosDelMismoSocio) {
+    h += '<div class="aviso info">Esta persona tiene <b>' + c.otrosDelMismoSocio + ' crédito(s) más</b> '
+      + 'en este grupo. El mensaje habla solo de ' + esc(P.codCredito(p)) + '. '
+      + 'Se le escribe una sola vez: la Ley 2300 cuenta contactos por persona, no por crédito.</div>';
+  }
+  if (P.tienePlan(p)) {
+    h += '<div class="mini">Tiene plan de pagos: el mensaje no le ofrece prórroga, porque no se le puede dar.</div>';
+  }
+  if (huecos.length) {
+    h += '<div class="aviso ambar"><b>Este mensaje tiene ' + huecos.length + ' hueco(s) sin llenar: </b>'
+      + esc(huecos.join(', ')) + '. Complétalos o bórralos antes de enviar: si lo mandas así, '
+      + 'el cliente los ve tal cual.</div>';
+  }
+  if (!txt) {
+    var hayAlgunas = DB.plantillas && Object.keys(DB.plantillas).length > 0;
+    h += '<div class="aviso info">' + (hayAlgunas
+      ? '<b>No tienes escrita la plantilla «' + esc(c.plantilla) + '».</b> El chat se abre en blanco '
+        + 'y escribes a mano. Se escribe en el computador, en Plantillas.'
+      : '<b>Todavía no han llegado tus plantillas.</b> El chat se abre en blanco: no invento un texto, '
+        + 'porque el mensaje que le queda al cliente tiene que ser el tuyo.') + '</div>';
+  }
+
+  h += '<label for="tdTexto">Mensaje (puedes editarlo)</label>'
+    + '<textarea id="tdTexto">' + esc(txt) + '</textarea>';
+
+  h += '<a class="btn arriba" id="tdWa" target="_blank" rel="noopener" href="' + esc(waLink(c.telefono, txt)) + '" '
+    + 'data-acc="tanda-abrir-wa" data-id="' + esc(p.id) + '" data-g="' + esc(t.grupo.clave) + '" '
+    + 'data-k="' + esc(c.plantilla) + '" data-tel="' + esc(c.telefono) + '">'
+    + 'Abrir WhatsApp con ' + esc((s.nombre || '').split(' ')[0] || 'el socio') + '</a>';
+  h += '<div class="dos">'
+    + '<button class="btn sec" type="button" data-acc="tanda-solo" data-id="' + esc(p.id)
+    +   '" data-g="' + esc(t.grupo.clave) + '" data-k="' + esc(c.plantilla) + '">Solo anotar</button>'
+    + '<button class="btn sec" type="button" data-acc="tanda-saltar" data-s="' + esc(c.socioId) + '">Saltar</button>'
+    + '</div>';
+  h += '<p class="mini" style="margin-top:10px">Al abrir WhatsApp queda anotada la gestión de hoy y esta '
+    + 'persona sale de la lista. <b>Tú presionas enviar en WhatsApp.</b> Esta pantalla no sabe si lo '
+    + 'enviaste: anota que abriste el chat, no que mandaste el mensaje.</p>';
+  h += '</div>';
   return h;
 }
 
@@ -1280,11 +2104,26 @@ function vistaFicha() {
     +   paq.garantia.pagados_a_tiempo + ' · ' + paq.garantia.racha + '</span></div>'
     + '</div>';
 
+  /* LO QUE LE PAGÓ DE MÁS, SUMADO DE SUS CRÉDITOS.
+     Es una SUMA de un campo, no una cuenta del negocio: acá no se reimplementa
+     nada del motor ni del puente (regla 3). Va en la ficha porque el sobrepago
+     vive dentro de un crédito ya cerrado, y sin esta línea la única forma de
+     encontrarlo era abrir crédito por crédito acordándose de cuál fue. */
+  var aFavor = ps.reduce(function (t, x) { return t + Math.max(0, Number(x.saldoAFavor) || 0); }, 0);
+  if (aFavor > 0) {
+    var cuantos = ps.filter(function (x) { return Number(x.saldoAFavor) > 0; }).length;
+    h += '<div class="aviso ambar"><b>Te ha pagado ' + COP(aFavor) + ' de más</b> '
+      + '(en ' + cuantos + ' crédito' + (cuantos === 1 ? '' : 's') + '). Es plata suya. '
+      + '<b>Esto no se descuenta solo del próximo crédito:</b> se lo aplicas tú a mano al '
+      + 'prestarle, o se lo devuelves. Y ojo: este total es lo que pagó de más en su historia, '
+      + 'no lo que queda pendiente — no baja solo cuando ya se lo hayas devuelto.</div>';
+  }
+
   if (tel) {
     var hor = horarioPermitido();
     h += '<div class="card ap">'
       + '<div class="fila"><span class="k">WhatsApp</span><span class="v mono">' + esc(tel) + '</span></div>'
-      + (contactadoHoy(s) ? '<div class="mini">Ya lo contactaste hoy.</div>' : '')
+      + (avisoDeTope(s, true) ? '<div class="mini">' + esc(avisoDeTope(s, true)) + '</div>' : '')
       + (hor.ok
           ? '<a class="btn sm sec arriba" href="' + esc(waLink(tel, '')) + '" target="_blank" rel="noopener">Abrir el chat</a>'
           : '<div class="aviso ambar" style="margin-top:8px">Fuera de horario (Ley 2300): ' + esc(hor.motivo) + '.</div>')
@@ -1388,6 +2227,20 @@ function vistaCredito() {
     + '<div class="fila"><span class="k">Vence</span><span class="v">' + fmtFecha(P.corteDelCredito(p)) + '</span></div>'
     + '<div class="fila"><span class="k">Saldo de capital del crédito</span><span class="v">' + COP(capitalActual(p)) + '</span></div>'
     + '</div>';
+
+  /* EL SOBREPAGO, A LA VISTA DESPUÉS DE CERRAR LA HOJA DE COBRO.
+     Sin esta línea, `p.saldoAFavor` se escribía y no se pintaba en NINGUNA
+     pantalla: en cuanto Joan cerraba la hoja, la plata que le debe al socio
+     desaparecía y solo quedaba en su memoria. Es un pasivo con un tercero; lo
+     mínimo es poder consultarlo.
+     Y se dice que NO se descuenta solo, porque no se descuenta solo: nada en el
+     repositorio lee este campo para crear el crédito siguiente. */
+  if (Number(p.saldoAFavor) > 0) {
+    h += '<div class="aviso ambar"><b>Pagó ' + COP(p.saldoAFavor) + ' de más en este crédito.</b> '
+      + 'Es plata del socio que quedó en tu mano. <b>No se descuenta sola del crédito siguiente</b>: '
+      + 'cuando le vuelvas a prestar se la aplicas tú, o se la devuelves. '
+      + 'Este número es la anotación de lo que pagó de más — no se borra solo cuando se lo devuelvas.</div>';
+  }
 
   if (p.pagado) {
     h += '<div class="aviso info">Este crédito ya está pagado (' + fmtFecha(p.fechaPagado) + '). '
@@ -1662,7 +2515,13 @@ var ETIQUETAS = {
   pagado: '¿Pagado?', fechaPagado: 'Fecha de pago', capital: 'Capital', total: 'Total',
   cicloActual: 'Corte vigente', cicloPago: 'Corte del pago', gananciaPago: 'Ganancia del pago',
   recargoMora: 'Recargo cobrado', nombre: 'Nombre', cedula: 'Cédula', telefono: 'Teléfono',
-  ajusteGarantia: 'Ajuste de garantía', planPagos: 'Plan de pagos', costoPct: 'Costo %'
+  ajusteGarantia: 'Ajuste de garantía', planPagos: 'Plan de pagos', costoPct: 'Costo %',
+  /* `montoRecibido` va acá porque es EL campo que resuelve el choque de un
+     cobro: si el celular registró 240.000 con descuento y el computador
+     «pagó todo» 260.000, sin ver los dos montos Joan no puede saber cuál de las
+     dos versiones es la buena. */
+  montoRecibido: 'Plata que entró', costoCausado: 'Costo causado',
+  moraCausada: 'Mora causada', saldoAFavor: 'Saldo a favor'
 };
 function etiquetaCampo(k) { return ETIQUETAS[k] || k; }
 function valorCorto(campo, v) {
@@ -1689,13 +2548,30 @@ function abrirHoja(titulo, html) {
 }
 function cerrarHoja() { document.getElementById('hoja').classList.remove('on'); }
 
+/* -------------------------------------------------------------------------
+   EL ESTADO DE LA HOJA DE COBRO. Vive fuera del HTML porque la hoja se vuelve a
+   pintar en cada tecla del monto, y lo que Joan ya respondió no se puede perder
+   entre repintado y repintado.
+     monto   lo que teclea (null = todavía no ha tocado nada: vale el total)
+     modo    null | 'perdon' | 'debe' | 'afavor'   ← lo que dijo que pasó
+     sobre   'mora' | 'costo'                      ← sobre qué es el descuento
+     motivo  texto corto, obligatorio si hay descuento
+   Se reinicia entero cada vez que se abre la hoja o cambia la fecha: con otra
+   fecha el total es otro y una respuesta vieja sería una respuesta a otra
+   pregunta. */
+var _cobro = { id: null, monto: null, modo: null, sobre: 'mora', motivo: '' };
+function reiniciarCobro(id) { _cobro = { id: id, monto: null, modo: null, sobre: 'mora', motivo: '' }; }
+
 function abrirCobro(id) {
   var p = creditoPorId(id); if (!p) return;
+  reiniciarCobro(id);
   abrirHoja('Cobro · ' + ((socioDe(p) || {}).nombre || p.socioNombre || ''),
     '<label for="pgFecha">Fecha en que paga</label>'
     + '<input id="pgFecha" type="date" value="' + hoyISO() + '">'
     + '<div id="pgCalc"></div>');
-  document.getElementById('pgFecha').addEventListener('input', function () { calcCobro(id); });
+  document.getElementById('pgFecha').addEventListener('input', function () {
+    reiniciarCobro(id); calcCobro(id);
+  });
   calcCobro(id);
 }
 function calcCobro(id) {
@@ -1729,14 +2605,243 @@ function calcCobro(id) {
     + '</div>';
   h += '<div class="aviso info">El comprobante en foto <b>no se puede adjuntar desde el celular</b> en esta fase: '
     + 'las fotos no viajan. Si te dio comprobante, guárdalo y adjúntalo en el computador.</div>';
-  h += '<button class="btn arriba" type="button" data-acc="cobro-ok" data-id="' + esc(p.id) + '">'
+
+  /* ------------------------------------------------------------------ el monto
+     EL CAMPO ARRANCA CON EL TOTAL EXACTO. Si Joan no lo toca, el cobro es el de
+     siempre: un toque en el botón y se acabó. El descuento es un camino
+     deliberado, nunca un dedazo.
+     Con PLAN DE PAGOS no se ofrece: una cuota del plan trae su costo y su
+     garantía materializados, y descontar ahí es una cuenta que hoy no existe ni
+     en el motor ni en el puente. Se dice, no se inventa. */
+  if (c) {
+    h += '<div class="aviso info">Este crédito está en <b>plan de pagos</b>: la cuota se cobra '
+      + 'completa. El cobro con descuento todavía <b>no está en el celular</b> para los planes; '
+      + 'si le vas a perdonar algo de una cuota, regístralo en el computador.</div>';
+  } else {
+    h += '<label for="pgMonto">¿Cuánto pagó?</label>'
+      + '<input id="pgMonto" type="number" inputmode="numeric" step="1" min="0" '
+      + 'value="' + Math.round(l.total_a_pagar) + '">';
+    var atajos = [];
+    if (l.recargo_mora > 0) {
+      atajos.push({ v: Math.round(l.total_a_pagar - l.recargo_mora), t: 'Sin la mora' });
+    }
+    if (l.capital > 0 && l.capital < l.total_a_pagar) {
+      atajos.push({ v: Math.round(l.capital), t: 'Solo el capital' });
+    }
+    if (atajos.length) {
+      h += '<div class="' + (atajos.length > 1 ? 'dos' : '') + '">';
+      atajos.forEach(function (a) {
+        h += '<button class="btn sec sm" type="button" data-acc="cobro-atajo" data-id="' + esc(p.id) + '"'
+          + ' data-v="' + a.v + '">' + a.t + ' (' + COP(a.v) + ')</button>';
+      });
+      h += '</div>';
+    }
+  }
+
+  /* EL BOTÓN PRIMARIO NO SE MUEVE NUNCA. Va siempre acá, justo debajo del monto,
+     y lo que cambia es su TEXTO, que dice exactamente lo que se va a registrar.
+     Si se moviera al aparecer el bloque de preguntas, el toque de memoria de
+     Joan aterrizaría en otro botón con el cliente mirando. */
+  h += '<button class="btn arriba" id="pgBtn" type="button" data-acc="cobro-ok" data-id="' + esc(p.id) + '">'
     + (c ? '✓ Pagó la cuota ' + c.n + ' (' + COP(l.total_a_pagar) + ')' : '✓ Pagó todo (' + COP(l.total_a_pagar) + ')')
     + '</button>';
   if (!c && pr && pr.ok) {
     h += '<button class="btn sec arriba" type="button" data-acc="prorroga-ok" data-id="' + esc(p.id) + '">'
       + '↻ Prórroga (' + COP(pr.total_a_pagar) + ')</button>';
   }
+  h += '<div id="pgDif"></div>';
   document.getElementById('pgCalc').innerHTML = h;
+  if (!c) pintarDif(id);
+}
+
+/* -------------------------------------------------------------------------
+   LO QUE PASA CUANDO EL MONTO NO ES EL TOTAL.
+
+   Repinta SOLO este bloque y el texto del botón: el campo del monto queda
+   intacto y no pierde el foco ni el cursor mientras Joan teclea.
+
+   La pantalla PREGUNTA, no adivina. «Se lo perdoné» y «queda debiendo» son dos
+   hechos distintos, se guardan distinto y uno cierra el crédito y el otro no;
+   deducirlo del monto sería inventarle una intención a Joan con la plata de por
+   medio.
+   ------------------------------------------------------------------------- */
+function pintarDif(id) {
+  var caja = document.getElementById('pgDif'); if (!caja) return;
+  var p = creditoPorId(id); if (!p) return;
+  var btn = document.getElementById('pgBtn');
+  var f = (document.getElementById('pgFecha') || {}).value || hoyISO();
+  var l = liq(p, f);
+  var total = Math.round(l.total_a_pagar);
+  var monto = (_cobro.monto == null) ? total : _cobro.monto;
+  var falta = total - monto;
+  var h = '';
+
+  /* --- caso normal: pagó lo que debía. Ni una palabra de más. --- */
+  if (falta === 0) {
+    caja.innerHTML = '';
+    if (btn) { btn.disabled = false; btn.className = 'btn arriba'; btn.textContent = '✓ Pagó todo (' + COP(total) + ')'; }
+    return;
+  }
+
+  /* --- pagó de MÁS --- */
+  if (falta < 0) {
+    var sobra = -falta;
+    h += '<div class="aviso ambar"><b>Te dio ' + COP(sobra) + ' de más.</b> '
+      + 'El total para saldar es ' + COP(total) + '.</div>'
+      + '<div class="dos">'
+      + '<button class="btn sec sm" type="button" '
+      + 'data-acc="cobro-modo" data-id="' + esc(p.id) + '" data-m="error">Se lo devuelvo</button>'
+      + '<button class="btn ' + (_cobro.modo === 'afavor' ? '' : 'sec') + ' sm" type="button" '
+      + 'data-acc="cobro-modo" data-id="' + esc(p.id) + '" data-m="afavor">Queda a favor</button>'
+      + '</div>';
+    /* ACÁ SE DICE LO QUE EL CÓDIGO HACE, NO LO QUE UNO QUISIERA QUE HICIERA.
+       Este aviso decía «se le guardan a favor para el crédito siguiente» y NADIE
+       lo aplica al crédito siguiente: `p.saldoAFavor` se escribe y no lo lee
+       ninguna ruta de creación de crédito, ni el puente, ni el motor, ni el
+       Panel de escritorio. Prometerle eso a un tercero con su plata de por medio
+       es la regla 4 rota en la peor pantalla posible: la que tiene al socio
+       delante. Mientras no exista quien lo aplique solo, el aviso dice que es
+       una ANOTACIÓN y que la mano es la de Joan. */
+    if (_cobro.modo === 'afavor') {
+      h += '<div class="aviso info">Le quedan ' + COP(sobra) + ' a favor. '
+        + '<b>OJO: por ahora esto solo queda anotado en este crédito</b> — todavía no se descuenta '
+        + 'solo del siguiente; se lo tienes que aplicar tú a mano, o devolvérselo. Lo vuelves a ver '
+        + 'en el crédito y en la ficha del socio. '
+        + '<b>No le suma cupo: no es costo.</b> La garantía sale del costo que entró, y esa plata '
+        + 'es suya, no tuya.</div>';
+    }
+    caja.innerHTML = h;
+    if (btn) {
+      var listoMas = _cobro.modo === 'afavor';
+      btn.disabled = !listoMas;
+      btn.className = 'btn arriba' + (listoMas ? '' : ' sec');
+      btn.textContent = listoMas
+        ? '✓ Registrar ' + COP(monto) + ' (' + COP(sobra) + ' a favor)'
+        : 'Falta decir qué hacer con los ' + COP(sobra) + ' de más';
+    }
+    return;
+  }
+
+  /* --- pagó de MENOS: la pregunta, en grande y una sola --- */
+  h += '<div class="aviso ambar"><b>Faltan ' + COP(falta) + '. ¿Qué pasó?</b></div>'
+    + '<button class="btn ' + (_cobro.modo === 'perdon' ? '' : 'sec') + ' arriba" type="button" '
+    + 'data-acc="cobro-modo" data-id="' + esc(p.id) + '" data-m="perdon">Se lo perdoné</button>'
+    + '<button class="btn ' + (_cobro.modo === 'debe' ? '' : 'sec') + ' arriba" type="button" '
+    + 'data-acc="cobro-modo" data-id="' + esc(p.id) + '" data-m="debe">Queda debiendo</button>'
+    + '<button class="btn sec arriba" type="button" '
+    + 'data-acc="cobro-modo" data-id="' + esc(p.id) + '" data-m="error">Me equivoqué</button>';
+
+  if (_cobro.modo === 'perdon') {
+    var rep = repartoDelDescuento(l, falta, _cobro.sobre);
+    /* Solo se pregunta SOBRE QUÉ cuando de verdad hay dos respuestas posibles.
+       Si el faltante cabe entero en la mora, es mora y no se pregunta: menos
+       toques, y de paso empuja hacia el descuento barato. */
+    if (rep.hay_eleccion) {
+      h += '<div class="dos">'
+        + '<button class="btn ' + (_cobro.sobre === 'mora' ? '' : 'sec') + ' sm" type="button" '
+        + 'data-acc="cobro-sobre" data-id="' + esc(p.id) + '" data-s="mora">De la mora</button>'
+        + '<button class="btn ' + (_cobro.sobre === 'costo' ? '' : 'sec') + ' sm" type="button" '
+        + 'data-acc="cobro-sobre" data-id="' + esc(p.id) + '" data-s="costo">Del costo</button>'
+        + '</div>';
+    }
+    if (rep.excede) {
+      h += '<div class="aviso ambar">Ese descuento (' + COP(falta) + ') no cabe en el costo ni en la '
+        + 'mora de este ciclo. Lo máximo que se puede perdonar acá es ' + COP(rep.tope)
+        + '. Si le vas a perdonar capital, eso no es un descuento: es una pérdida y '
+        + 'no se registra desde el celular.</div>';
+    } else {
+      var q = cuentasDelCobro(p, l, { condonaCosto: rep.costo, condonaMora: rep.mora });
+      var dsc = descuentosDelSocio(socioDe(p));
+      h += '<div class="card ap" style="margin-top:14px">'
+        + '<div class="fila"><span class="k">Descuento</span><span class="v ambar">'
+        +   COP(rep.costo + rep.mora)
+        +   ' <span class="muted">(' + rep.explica + ')</span></span></div>'
+        + '<div class="fila"><span class="k">Le queda de garantía</span>'
+        +   '<span class="v oro-tinta">' + COP(q.garantia)
+        +   ' <span class="muted">(era ' + COP(q.garantia_sin_descuento) + ')</span></span></div>'
+        /* ESTE es el número que debe frenar el descuento reflejo, y hoy no
+           existía en ninguna pantalla del proyecto. */
+        + '<div class="fila"><span class="k"><b>Sale de tu ganancia</b></span>'
+        +   '<span class="v ambar"><b>' + COP(q.de_tu_ganancia) + '</b></span></div>'
+        + '<div class="fila"><span class="k">Sale del cupo de él</span>'
+        +   '<span class="v">' + COP(q.de_su_cupo) + '</span></div>'
+        + '</div>'
+        /* El reparto, con la plata que ENTRÓ. Los tres pedazos suman ese total
+           exacto: es una definición del motor, no una propiedad de los
+           porcentajes (operativo absorbe el redondeo). */
+        + '<div class="aviso info"><b>Solo para ti</b> — de los ' + COP(q.ganancia_pago)
+        + ' de costo que entran: <b>' + COP(q.reparto.garantia_socio) + '</b> se le vuelven garantía, '
+        + '<b>' + COP(q.reparto.operativo) + '</b> son tu costo operativo y '
+        + '<b>' + COP(q.reparto.amortiza_cupon) + '</b> te devuelven cupón.</div>'
+        + (dsc.veces
+            ? '<div class="aviso ambar">Ya lleva <b>' + dsc.veces + ' descuento(s)</b> por '
+              + COP(dsc.monto) + '.</div>'
+            : '')
+        + '<label for="pgMotivo">¿Por qué se lo perdonas?</label>'
+        + '<input id="pgMotivo" type="text" maxlength="120" placeholder="se le enfermó el hijo, cliente viejo…" '
+        + 'value="' + esc(_cobro.motivo) + '">';
+    }
+  }
+
+  if (_cobro.modo === 'debe') {
+    var cap = capitalActual(p);
+    h += '<div class="aviso ambar">Los <b>' + COP(monto) + '</b> se le bajan del capital. '
+      + 'El costo del ciclo (' + COP(l.costo) + ')'
+      + (l.recargo_mora ? ' y la mora (' + COP(l.recargo_mora) + ')' : '')
+      + ' <b>siguen debiéndose</b> y la mora sigue corriendo. '
+      + 'El crédito <b>NO se cierra</b> y hoy no le deja ni un peso de garantía: '
+      + 'la garantía sale del costo, y un abono no es costo.'
+      + (monto >= cap
+          ? '<br><br><b>Y así no se puede:</b> ' + COP(monto) + ' cubre el capital entero ('
+            + COP(cap) + '). Para abonar y seguir debiendo tiene que entregar menos de ' + COP(cap) + '.'
+          : '')
+      + '</div>';
+  }
+
+  caja.innerHTML = h;
+  if (btn) {
+    var listo = false, txt = 'Falta decir qué pasó con los ' + COP(falta);
+    if (_cobro.modo === 'perdon') {
+      var r2 = repartoDelDescuento(l, falta, _cobro.sobre);
+      listo = !r2.excede;
+      txt = listo ? '✓ Registrar ' + COP(monto) + ' con ' + COP(falta) + ' de descuento'
+                  : 'Ese descuento no cabe en este ciclo';
+    } else if (_cobro.modo === 'debe') {
+      listo = monto < capitalActual(p);
+      txt = listo ? '↓ Abonar ' + COP(monto) + ' a capital (sigue debiendo)'
+                  : 'Ese abono cubre el capital entero';
+    }
+    btn.disabled = !listo;
+    btn.className = 'btn arriba' + (listo ? '' : ' sec');
+    btn.textContent = txt;
+  }
+}
+
+/* Cómo se reparte un descuento entre mora y costo. NO es una regla de negocio
+   nueva: es dónde meter la plata perdonada, y son dos bolsas con dos dueños
+   distintos (la mora perdonada es casi toda ganancia de Joan; el costo
+   perdonado es tres cuartas partes cupo del socio). Por eso `sobre` decide cuál
+   se vacía PRIMERO, y lo que no quepa desborda a la otra — dicho en la
+   pantalla, nunca en silencio. El capital no entra: perdonar capital es una
+   pérdida, no un descuento. */
+function repartoDelDescuento(l, falta, sobre) {
+  var mora = Math.round(l.recargo_mora), costo = Math.round(l.costo);
+  var tope = mora + costo;
+  if (falta > tope) return { excede: true, tope: tope, costo: 0, mora: 0, explica: '', hay_eleccion: mora > 0 && costo > 0 };
+  var deMora = 0, deCosto = 0;
+  if (sobre === 'costo') { deCosto = Math.min(falta, costo); deMora = falta - deCosto; }
+  else { deMora = Math.min(falta, mora); deCosto = falta - deMora; }
+  var partes = [];
+  if (deMora) partes.push(COP(deMora) + ' de mora');
+  if (deCosto) partes.push(COP(deCosto) + ' de costo');
+  return {
+    excede: false, tope: tope, costo: deCosto, mora: deMora,
+    explica: partes.join(' + '),
+    /* Solo hay algo que elegir si el faltante no cabe holgadamente en una sola
+       bolsa: con mora 0 no hay nada que preguntar, y si el faltante ya desborda
+       la mora, la elección solo cambia el orden. */
+    hay_eleccion: mora > 0 && costo > 0 && falta <= Math.max(mora, costo)
+  };
 }
 
 function abrirProrroga(id) {
@@ -1796,10 +2901,10 @@ function abrirGestion(prestId, clave, tituloExtra) {
     h += '<div class="aviso ambar"><b>Fuera de horario (Ley 2300):</b> ' + esc(hor.motivo)
       + '. Mejor no escribas ahora.</div>';
   }
-  if (contactadoHoy(s)) {
-    h += '<div class="aviso ambar">Ya contactaste a esta persona hoy. El máximo son '
-      + 'una comunicación al día.</div>';
-  }
+  /* Los dos topes, no solo el diario. Hasta hoy esta hoja avisaba del máximo de
+     uno al día y callaba el semanal, que no estaba implementado en ninguna
+     parte del repositorio. */
+  h += avisoDeTope(s, false);
   if (!tel) {
     h += '<div class="aviso ambar">Esta ficha no tiene teléfono. Puedes dejar la gestión anotada igual.</div>';
   }
@@ -2010,8 +3115,30 @@ document.addEventListener('click', function (ev) {
   if (acc === 'cobro') { abrirCobro(id); }
   else if (acc === 'cobro-ok') {
     var f = document.getElementById('pgFecha');
-    cobrar(id, f ? f.value : hoyISO());
+    registrarCobro(id, f ? f.value : hoyISO());
   }
+  else if (acc === 'cobro-atajo') {
+    var im = document.getElementById('pgMonto');
+    _cobro.monto = Number(el.dataset.v) || 0;
+    _cobro.modo = null;
+    if (im) im.value = String(_cobro.monto);
+    pintarDif(id);
+  }
+  else if (acc === 'cobro-modo') {
+    var m = el.dataset.m;
+    if (m === 'error') {
+      /* «Me equivoqué» / «Se lo devuelvo»: se vuelve al total y se olvida todo
+         lo respondido. Un descuento a medio contestar es peor que ninguno. */
+      var i2 = document.getElementById('pgMonto');
+      _cobro.monto = null; _cobro.modo = null; _cobro.motivo = '';
+      var p2 = creditoPorId(id), f2 = (document.getElementById('pgFecha') || {}).value || hoyISO();
+      if (i2 && p2) i2.value = String(Math.round(liq(p2, f2).total_a_pagar));
+    } else {
+      _cobro.modo = (_cobro.modo === m) ? null : m;
+    }
+    pintarDif(id);
+  }
+  else if (acc === 'cobro-sobre') { _cobro.sobre = el.dataset.s; pintarDif(id); }
   else if (acc === 'prorroga') { abrirProrroga(id); }
   else if (acc === 'prorroga-ok') {
     var g = document.getElementById('prFecha') || document.getElementById('pgFecha');
@@ -2020,6 +3147,37 @@ document.addEventListener('click', function (ev) {
   else if (acc === 'gestion') { abrirGestion(id); }
   else if (acc === 'gestion-ok') { marcarGestion(id, el.dataset.k); cerrarHoja(); }
   else if (acc === 'gestion-solo') { marcarGestion(id, el.dataset.k); cerrarHoja(); }
+  /* ------------------------------ la tanda ------------------------------ */
+  else if (acc === 'tanda-abrir') {
+    TANDA.grupo = el.dataset.g; TANDA.verFuera = '';
+    /* Se guarda el grupo al ENTRAR y no al salir: si la app se cierra a la
+       mitad —que en un celular en la calle es lo normal— al volver hay que
+       poder decirle a Joan en qué estaba. */
+    guardarTanda(TANDA.grupo, saltadosDe(TANDA.grupo));
+    window.scrollTo(0, 0); pintar();
+  }
+  else if (acc === 'tanda-salir') { TANDA.grupo = null; TANDA.verFuera = ''; window.scrollTo(0, 0); pintar(); }
+  else if (acc === 'tanda-motivo') {
+    TANDA.verFuera = (TANDA.verFuera === el.dataset.m) ? '' : el.dataset.m;
+    pintar();
+  }
+  else if (acc === 'tanda-abrir-wa' || acc === 'tanda-solo') {
+    /* EL MISMO REGISTRO QUE UNA GESTIÓN SUELTA, con la marca de que salió de la
+       tanda. No hay un «marcador de hecho» aparte: el hecho ES la gestión, que
+       es la única lista que sobrevive entera a un choque de sincronización. Si
+       el avance viviera en un campo propio, «mandar lo mío encima» lo borraría y
+       la tanda volvería a ofrecer a alguien al que Joan ya le escribió — o sea
+       un segundo contacto el mismo día, justo lo que el artículo 3 prohíbe. */
+    var grT = T && T.grupoPorClave(el.dataset.g);
+    marcarGestion(id, el.dataset.k, {
+      tipo: grT ? grT.tipo : 'cobro',
+      grupo: el.dataset.g,
+      origen: 'tanda'
+    });
+  }
+  else if (acc === 'tanda-saltar') { abrirSaltar(el.dataset.s); }
+  else if (acc === 'tanda-saltar-ok') { cerrarHoja(); saltarEnTanda(el.dataset.s, el.dataset.m); }
+  else if (acc === 'tanda-recuperar') { recuperarEnTanda(el.dataset.s); }
   else if (acc === 'vercredito') { SEL.creditoId = id; var p = creditoPorId(id); if (p) SEL.socioId = p.socioId; ir('credito'); }
   else if (acc === 'verficha') { SEL.socioId = id; ir('ficha'); }
   else if (acc === 'nuevocliente') { abrirNuevoCliente(); }
@@ -2044,6 +3202,23 @@ document.addEventListener('click', function (ev) {
    render. Se guarda el foco y el cursor: si no, escribir la tercera letra
    mandaba el cursor al principio. */
 document.addEventListener('input', function (ev) {
+  /* El monto del cobro repinta SOLO el bloque de abajo (pintarDif), nunca la
+     hoja entera: si repintara el campo, el cursor saltaría al principio en cada
+     dígito. Y el motivo no repinta nada — solo se guarda— por lo mismo. */
+  if (ev.target && ev.target.id === 'pgMonto') {
+    var v = ev.target.value;
+    _cobro.monto = (v === '' || v == null) ? null : Math.round(Number(v) || 0);
+    pintarDif(_cobro.id);
+    return;
+  }
+  if (ev.target && ev.target.id === 'pgMotivo') { _cobro.motivo = ev.target.value; return; }
+  /* El texto de la tanda actualiza el enlace de WhatsApp y NADA MÁS. Repintar
+     acá mandaría el cursor al principio en cada letra, con el cliente delante. */
+  if (ev.target && ev.target.id === 'tdTexto') {
+    var wa = document.getElementById('tdWa');
+    if (wa) wa.href = waLink(wa.dataset.tel || '', ev.target.value);
+    return;
+  }
   if (ev.target && ev.target.id === 'bq') {
     BUSQUEDA = ev.target.value;
     var pos = ev.target.selectionStart;
@@ -2074,7 +3249,9 @@ document.addEventListener('visibilitychange', function () {
     ir('hoy');
     return;
   }
-  ULTIMO_TRAER = leerUI().ultimoTraer || null;
+  var ui = leerUI();
+  ULTIMO_TRAER = ui.ultimoTraer || null;
+  TANDA_GUARDADA = ui.tanda || null;
   /* La misma lectura defensiva que hace el Panel al cargar, pero SIN escribir en
      su llave: un respaldo viejo, un socio en null o un crédito sin capital no
      pueden dejar la pantalla en blanco. */

@@ -564,6 +564,70 @@ describe('fusionarListas', () => {
       N.LISTAS_CREDITO.prorrogas);
     assert.equal(r.length, 2);
   });
+
+  /* ---------------------------------------------------------------------
+     14-ago-2026 — LA GESTIÓN DE LA TANDA
+     La tanda del celular anota la gestión con `hora` (la Ley 2300 obliga a
+     poder probar que el contacto fue dentro del horario) y con `tipo`. El
+     computador anota la misma gestión sin esos campos. Son EL MISMO HECHO.
+     --------------------------------------------------------------------- */
+
+  test('la misma gestión con hora y sin hora es UNA sola', () => {
+    /* Si `hora` entrara en la identidad, el tope de la Ley 2300 —que se cuenta
+       sobre esta lista— vería dos contactos donde hubo uno. */
+    const delCelular = { fecha: '2026-08-14', canal: 'whatsapp', plantilla: 'mora',
+                         hora: '2026-08-14T09:12:00-05:00', tipo: 'cobro', origen: 'tanda' };
+    const delComputador = { fecha: '2026-08-14', canal: 'whatsapp', plantilla: 'mora' };
+    const r = N.fusionarListas([delCelular], [delComputador], N.LISTAS_SOCIO.gestiones);
+    assert.equal(r.length, 1);
+  });
+
+  test('y la hora NO se pierde aunque el que gane sea el que no la trae', () => {
+    /* Este era el defecto: el primero ganaba ENTERO y lo del otro se tiraba.
+       La hora es lo único con lo que Joan podría probar, si lo investigan, que
+       escribió dentro del horario del artículo 3. */
+    const conHora = { fecha: '2026-08-14', canal: 'whatsapp', plantilla: 'mora',
+                      hora: '2026-08-14T09:12:00-05:00' };
+    const sinHora = { fecha: '2026-08-14', canal: 'whatsapp', plantilla: 'mora' };
+    const r = N.fusionarListas([sinHora], [conHora], N.LISTAS_SOCIO.gestiones);
+    assert.equal(r.length, 1);
+    assert.equal(r[0].hora, '2026-08-14T09:12:00-05:00');
+  });
+
+  test('completar NUNCA pisa un valor que ya estaba', () => {
+    const mia = { fecha: '2026-08-14', canal: 'whatsapp', plantilla: 'mora', hora: 'A', tipo: 'cobro' };
+    const suya = { fecha: '2026-08-14', canal: 'whatsapp', plantilla: 'mora', hora: 'B', grupo: 'hoy' };
+    const r = N.fusionarListas([mia], [suya], N.LISTAS_SOCIO.gestiones);
+    assert.equal(r[0].hora, 'A', 'el ganador manda en lo que los dos traen');
+    assert.equal(r[0].grupo, 'hoy', 'y se queda con lo que solo traía el otro');
+    assert.equal(r[0].tipo, 'cobro');
+  });
+
+  test('el resultado es el MISMO en los dos sentidos, también con campos distintos', () => {
+    /* La promesa de esta función. Antes solo se cumplía cuando los dos lados
+       eran idénticos; con dos aparatos escribiendo el mismo hecho con distinto
+       detalle, cada uno se quedaba con una versión distinta para siempre. */
+    const a = { fecha: '2026-08-14', canal: 'whatsapp', plantilla: 'mora', hora: 'A' };
+    const b = { fecha: '2026-08-14', canal: 'whatsapp', plantilla: 'mora', tipo: 'cobro' };
+    assert.deepEqual(
+      N.fusionarListas([a], [b], N.LISTAS_SOCIO.gestiones),
+      N.fusionarListas([b], [a], N.LISTAS_SOCIO.gestiones));
+  });
+
+  test('un choque de cobro no puede borrar un «ya lo contacté»', () => {
+    /* Es la razón de que el avance de la tanda VIVA en las gestiones y no en un
+       campo propio: si viviera en un campo, «mandar lo mío encima» lo borraría
+       y la tanda volvería a ofrecer a alguien al que Joan ya le escribió — un
+       segundo contacto el mismo día, que es lo que el artículo 3 prohíbe. */
+    const mio = { id: 's1', nombre: 'Ana', telefono: '300',
+                  gestiones: [{ fecha: '2026-08-14', canal: 'whatsapp', plantilla: 'mora', hora: 'X' }] };
+    const suyo = { id: 's1', nombre: 'Ana María', telefono: '300',
+                   gestiones: [{ fecha: '2026-08-13', canal: 'llamada', plantilla: 'moraTemprana' }] };
+    const f = N.fusionarFila(mio, suyo, N.LISTAS_SOCIO);
+    assert.equal(f.fila.gestiones.length, 2, 'las dos gestiones tienen que sobrevivir al choque');
+    assert.ok(f.pisables.some(p => p.campo === 'nombre'), 'el nombre sí es un choque para Joan');
+    assert.ok(!f.pisables.some(p => p.campo === 'gestiones'), 'las gestiones nunca son un choque: suman');
+  });
 });
 
 /* ==========================================================================
