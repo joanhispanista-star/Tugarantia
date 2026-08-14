@@ -1,0 +1,1 @@
+[{"relation": ["delegate_permission/common.handle_all_urls"], "target": {"namespace": "android_app", "package_name": "co.tugarantia.socio", "sha256_cert_fingerprints": ["E5:FB:DE:62:2E:69:98:9F:2E:3E:02:F6:BE:86:D8:96:76:84:1F:21:B1:C4:E8:58:08:40:53:21:25:65:90:B3"]}}]
