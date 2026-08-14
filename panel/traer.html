@@ -1,0 +1,1217 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover es lo que hace que env(safe-area-inset-*) devuelva algo
+     distinto de cero en un iPhone con notch. Sin esto el último botón queda
+     debajo de la raya del gesto y el primer toque de Joan cierra el navegador.
+     Copiado de espejo.html, que es la pantalla de este proyecto que ya vive en
+     un teléfono. -->
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tu Garantía · Traer el CRM a este aparato</title>
+<meta name="theme-color" content="#0C0A0B">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="panel-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="panel-192.png">
+<style>
+/* ==========================================================================
+ * ESTA HOJA NO INVENTA UN SISTEMA NUEVO.
+ *
+ * Los colores, la escala de espaciado y la ley de la paleta son los de
+ * espejo.html (que a su vez los tomó de ../app/socio.html). Se copian porque
+ * este proyecto no tiene build ni hoja compartida: cada pantalla es un archivo
+ * solo. Si la paleta cambia, cambia primero donde está escrita la ley
+ * (../app/socio.html) y después acá.
+ *
+ * De la ley, lo que esta pantalla usa:
+ *   · el ROJO es la marca y el gesto de avanzar — nunca un estado;
+ *   · los estados (peligro, aviso) van en ÁMBAR y solo sobre papel;
+ *   · el AZUL informa y acompaña.
+ *
+ * LA EXCEPCIÓN, y es a propósito: el bloque de «vas a reemplazar tu cartera»
+ * SÍ es rojo, no ámbar. En el resto del proyecto el rojo nunca es un estado
+ * porque nunca hay un estado que valga interrumpir. Acá sí lo hay: es la única
+ * pantalla del proyecto que escribe encima de la cartera real de Joan, y ese
+ * aviso tiene que ganarle a todo lo demás de la pantalla. Se usa una vez, en un
+ * solo bloque, y no se repite en ningún otro sitio.
+ * ==========================================================================*/
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --laca:#0C0A0B; --papel:#FFFFFF; --fondo:#F6F3F0; --tinta:#0C0A0B;
+  --luz:#FFFFFF; --sombra:#000000;
+  --amarillo:#F5C542; --amarillo-tinta:#7A5A10;
+  --azul:#1B4FD8; --azul-laca:#7FA8FF; --azul-tinte:#EDF2FE; --azul-texto:var(--azul);
+  --rojo:#D81F26; --rojo-laca:#FF6B6F; --rojo-tinte:#FCF4F2; --rojo-texto:var(--rojo);
+  --ambar:#9A5B12; --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--luz));
+  --ambar-filete:color-mix(in srgb, var(--ambar) 40%, transparent);
+  --ambar-tinta:var(--ambar);
+  --gris:#6E6460; --linea:#E9E3DD; --blanco-laca:#FBF7F4;
+  --r:16px; --e1:4px; --e2:8px; --e3:12px; --e4:20px;
+  --placa:
+    linear-gradient(103deg, transparent 32%, color-mix(in srgb, var(--luz) 5%, transparent) 45%, transparent 60%),
+    radial-gradient(140% 110% at 16% -25%,
+      color-mix(in srgb, var(--laca) 88%, var(--luz)) 0%,
+      color-mix(in srgb, var(--laca) 97%, var(--luz)) 45%,
+      var(--laca) 100%);
+}
+/* En oscuro cambia el PAPEL, nunca la marca; y el ámbar no se aclara jamás
+   (aclarado se vuelve amarillo, y el amarillo en este sistema es lo que el
+   socio construyó, no una alarma). */
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --tinta:#EDE7E4; --papel:#151113; --fondo:#0B0A0A; --linea:#262021; --gris:#9C918B;
+  --rojo-tinte:#241416; --rojo-texto:var(--rojo-laca);
+  --azul-tinte:#101A2E; --azul-texto:var(--azul-laca);
+  --amarillo-tinta:#F8D471;
+  --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--papel));
+  --ambar-filete:var(--ambar); --ambar-tinta:var(--tinta);
+} }
+:root[data-theme="dark"]{
+  --tinta:#EDE7E4; --papel:#151113; --fondo:#0B0A0A; --linea:#262021; --gris:#9C918B;
+  --rojo-tinte:#241416; --rojo-texto:var(--rojo-laca);
+  --azul-tinte:#101A2E; --azul-texto:var(--azul-laca);
+  --amarillo-tinta:#F8D471;
+  --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--papel));
+  --ambar-filete:var(--ambar); --ambar-tinta:var(--tinta);
+}
+
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--fondo); color:var(--tinta);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Roboto,system-ui,sans-serif;
+  font-size:15px; line-height:1.5;
+  padding-bottom:calc(28px + env(safe-area-inset-bottom));
+}
+h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;
+  font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+/* Una sola columna, siempre. En 375 px no cabe otra cosa, y esta pantalla se
+   va a abrir en un teléfono aunque se pueda abrir en el computador. */
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+.muted{color:var(--gris)}
+.oculto{display:none!important}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.94em}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+
+/* ---------------- la laca ---------------- */
+.cab{background:var(--placa);color:var(--blanco-laca);-webkit-font-smoothing:antialiased;
+  padding:calc(env(safe-area-inset-top) + 18px) 0 20px;border-radius:0 0 var(--r) var(--r)}
+.cab .marca{display:flex;align-items:center;gap:var(--e2);font-size:12px;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:700;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent)}
+.cab .sello{width:22px;height:22px;border-radius:7px;background:var(--rojo);color:var(--luz);
+  display:grid;place-items:center;font-weight:800;font-size:12px;letter-spacing:0}
+.cab h1{font-size:22px;margin-top:var(--e3);color:var(--blanco-laca)}
+.cab .sub{font-size:13px;margin-top:var(--e2);line-height:1.5;
+  color:color-mix(in srgb, var(--blanco-laca) 66%, transparent)}
+
+/* ---------------- la puerta ---------------- */
+.gate{position:fixed;inset:0;background:var(--laca);display:none;place-items:center;z-index:100;padding:20px}
+.gate.on{display:grid}
+.gate-caja{background:var(--papel);border-radius:18px;padding:26px 20px;width:100%;max-width:340px;text-align:center}
+.gate-caja .mk{display:flex;align-items:center;justify-content:center;gap:10px;
+  font-family:ui-serif,Georgia,serif;font-size:26px;color:var(--tinta);line-height:1}
+.gate-caja .mk .sello{width:38px;height:38px;border-radius:11px;background:var(--rojo);color:var(--luz);
+  display:grid;place-items:center;font-size:20px;font-weight:700;flex:none}
+.gate-caja .tag{font-size:11.5px;color:var(--gris);margin:10px 0 18px;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase}
+.gate-caja input{text-align:center;letter-spacing:.4em}
+.gate-err{color:var(--rojo-texto);font-size:13px;margin-top:10px;min-height:18px;font-weight:600}
+.gate-caja .porque{font-size:12px;color:var(--gris);margin-top:14px;line-height:1.45;text-align:left}
+
+/* ---------------- tarjetas y pasos ---------------- */
+.card{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);
+  padding:var(--e4) 16px;margin-top:var(--e3)}
+.card.dormido{opacity:.55}
+.card.dormido .cuerpo{display:none}
+.card-cab{display:flex;align-items:center;justify-content:space-between;gap:var(--e2);flex-wrap:wrap}
+.card-cab h3{font-size:17px;display:flex;align-items:center;gap:var(--e2)}
+/* El número del paso es una placa, no un adorno: dice en qué punto va Joan sin
+   que tenga que leer nada. */
+.paso-n{width:26px;height:26px;border-radius:8px;background:var(--laca);color:var(--blanco-laca);
+  display:grid;place-items:center;font-size:13px;font-weight:800;flex:none;font-family:inherit}
+.card.listo .paso-n{background:var(--amarillo-tinta)}
+.card.fallo .paso-n{background:var(--ambar)}
+.cuerpo{margin-top:var(--e3)}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--linea);color:var(--gris)}
+.pill.curso{border-color:var(--linea);background:var(--laca);color:var(--blanco-laca)}
+.pill.listo{border-color:color-mix(in srgb, var(--amarillo-tinta) 40%, transparent);color:var(--amarillo-tinta)}
+.pill.fallo{border-color:var(--ambar-filete);background:var(--ambar-papel);color:var(--ambar-tinta)}
+
+/* ---------------- avisos ---------------- */
+.aviso{border-radius:14px;padding:13px;font-size:14px;margin-top:var(--e3);line-height:1.5;
+  border:1px solid var(--linea)}
+.aviso:first-child{margin-top:0}
+.aviso.info{border-color:color-mix(in srgb, var(--azul-texto) 25%, transparent);
+  background:var(--azul-tinte); color:var(--tinta)}
+.aviso.info b.tit{color:var(--azul-texto)}
+.aviso.ambar{border-color:var(--ambar-filete);border-left:3px solid var(--ambar);
+  background:var(--ambar-papel); color:var(--ambar-tinta)}
+.aviso.ambar b.tit{color:var(--ambar-tinta)}
+.aviso.ok{background:var(--papel);border-left:3px solid var(--amarillo-tinta);color:var(--tinta)}
+.aviso.ok b.tit{color:var(--amarillo-tinta)}
+.aviso b.tit{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;
+  margin-bottom:var(--e1)}
+
+/* EL BLOQUE ROJO. Ver la nota de arriba: es la única excepción a la ley del
+   rojo en todo el proyecto, y existe porque acá se puede borrar la cartera. */
+.peligro{border:2px solid var(--rojo);border-radius:14px;background:var(--rojo-tinte);
+  padding:16px;margin-top:var(--e3)}
+.peligro .et{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;font-weight:800;
+  color:var(--rojo-texto)}
+.peligro h2{font-size:20px;margin-top:var(--e2);color:var(--rojo-texto)}
+.peligro .cuenta{font-size:15px;margin-top:var(--e3);line-height:1.7}
+.peligro .cuenta b{font-size:19px;font-variant-numeric:tabular-nums}
+.peligro p{margin:var(--e3) 0 0;font-size:14px;line-height:1.5}
+
+/* ---------------- filas de datos ---------------- */
+.fila{display:flex;justify-content:space-between;align-items:baseline;gap:var(--e3);
+  padding:10px 0;border-bottom:1px solid var(--linea);font-size:14px}
+.fila:last-child{border-bottom:0}
+.fila .k{color:var(--gris)}
+.fila .v{font-weight:600;text-align:right;font-variant-numeric:tabular-nums;word-break:break-word}
+.fila .v.ambar{color:var(--ambar-tinta)}
+.recuadro{border:1px solid var(--linea);border-radius:14px;padding:var(--e2) var(--e3);margin-top:var(--e3)}
+
+/* ---------------- botones y campos ---------------- */
+.btn{display:block;width:100%;padding:14px;border:0;border-radius:14px;font-size:16px;
+  font-weight:600;font-family:inherit;cursor:pointer;background:var(--rojo);color:var(--luz);
+  text-align:center;text-decoration:none;transition:transform .12s;min-height:48px;margin-top:var(--e3)}
+.btn:active{transform:scale(.985)}
+.btn[disabled]{opacity:.45;cursor:default}
+.btn.azul{background:var(--azul);color:var(--luz)}
+.btn.negro{background:var(--laca);color:var(--blanco-laca)}
+.btn.sec{background:transparent;color:var(--tinta);border:1px solid var(--linea)}
+.btn.sm{padding:var(--e2) var(--e3);font-size:14px;min-height:44px}
+/* El motivo por el que un botón está apagado va ESCRITO, no en un `title`: en un
+   teléfono no hay ratón y un `title` no se ve nunca. */
+.porque-off{font-size:12.5px;color:var(--gris);margin-top:6px;line-height:1.45;text-align:center}
+label{display:block;font-size:13px;font-weight:600;margin:var(--e3) 0 6px}
+/* 16px EXACTOS en todo lo que se teclea. Por debajo de 16, Safari en iOS hace
+   zoom solo al enfocar y deja la pantalla corrida. */
+input[type=text],input[type=email],input[type=password],input[type=url]{
+  width:100%;padding:13px;border:1px solid var(--linea);border-radius:14px;font-size:16px;
+  font-family:inherit;background:var(--papel);color:var(--tinta);min-height:48px}
+input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
+:where(button,a,summary,[tabindex]):focus-visible{outline:2px solid var(--rojo-texto);outline-offset:2px;border-radius:8px}
+.ayuda{font-size:12px;color:var(--gris);margin-top:6px;line-height:1.45}
+.pie{text-align:center;font-size:12px;color:var(--gris);margin:24px 0 8px;line-height:1.6}
+.pie a{color:var(--gris)}
+</style>
+</head>
+<body>
+
+<!-- LA PUERTA. Solo aparece si en este aparato YA hay una cartera; ver
+     decidirPuerta() abajo, que explica por qué un PIN sobre un aparato vacío
+     sería un candado de mentiras. -->
+<div class="gate" id="gate">
+  <div class="gate-caja">
+    <div class="mk"><span class="sello">G</span> Tu&nbsp;Garantía</div>
+    <div class="tag">Traer el CRM</div>
+    <input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off">
+    <button class="btn" id="btnPuerta" type="button">Entrar</button>
+    <div class="gate-err" id="pinErr"></div>
+    <div class="porque">Es el mismo PIN del Panel. Se pide porque en este aparato ya hay una cartera:
+      esta página puede bajártela entera como archivo, así que sin PIN sería la puerta de atrás del Panel.</div>
+  </div>
+</div>
+
+<header class="cab">
+  <div class="wrap">
+    <div class="marca"><span class="sello">G</span> Tu Garantía</div>
+    <h1>Traer el CRM a este aparato</h1>
+    <div class="sub">Baja tu cartera de la nube y la deja donde el CRM de siempre la busca. Después abres
+      <span class="mono">crm.html</span> y lo ves completo, sin instalar nada.</div>
+  </div>
+</header>
+
+<main class="wrap" id="todo">
+
+  <!-- Si falta un archivo se dice y no se deja empezar. Nunca una pantalla en blanco. -->
+  <div id="faltaAlgo"></div>
+
+  <!-- LO QUE DECIDE SI ESTO AYUDA O HACE DAÑO. Va arriba del todo, antes de
+       cualquier botón, porque es lo que Joan tiene que saber ANTES de usarlo. -->
+  <div class="card">
+    <div class="card-cab"><h3>Antes de nada: para qué sirve esto y para qué no</h3></div>
+    <div class="cuerpo">
+      <div class="aviso ambar">
+        <b class="tit">Este camino es para MIRAR</b>
+        El CRM de siempre <b>no sabe subir</b>. Todo lo que hagas en <span class="mono">crm.html</span> en este
+        teléfono —cobrar, crear un crédito, anotar una gestión— se queda <b>en este teléfono</b> hasta que lo
+        empujes a mano con <span class="mono">subir.html</span>.
+      </div>
+      <div class="aviso ambar">
+        <b class="tit">Y por este camino nadie avisa de los choques</b>
+        <span class="mono">crm.html</span> no conoce las revisiones: no sabe si alguien más tocó la misma ficha.
+        Si trabajas en el CRM del teléfono <b>y</b> en el del computador, uno de los dos va a pisar al otro
+        <b>sin avisar</b>, y lo pisado no se recupera. El espejo (<span class="mono">espejo.html</span>) sí
+        detecta el choque, te muestra las dos versiones y te pregunta.
+      </div>
+      <div class="aviso info">
+        <b class="tit">La recomendación, entonces</b>
+        Usa esto para <b>mirar</b>, y para lo que el espejo todavía no tiene: los ajustes, las plantillas, las
+        invitaciones y el tablero.<br>
+        <b>Para cobrar en la calle, el espejo.</b> Ahí es donde lo que haces sube solo y donde los choques se
+        preguntan en vez de pisarse.
+      </div>
+      <div class="aviso info">
+        <b class="tit">Las fotos no viajan en esta fase</b>
+        Las cédulas, el reverso, la selfie y las fotos de los comprobantes se quedan en el computador: no suben a
+        la nube, así que tampoco pueden bajar acá. Las fichas se van a ver <b>sin foto</b>. No se perdieron: están
+        en el computador de Joan, donde siempre.
+      </div>
+      <div class="aviso info">
+        <b class="tit">El espejo y el CRM son dos copias distintas en este mismo teléfono</b>
+        Guardan en cajones diferentes del navegador. Traer acá <b>no toca</b> lo que tenga el espejo, y trabajar en
+        el espejo <b>no toca</b> lo que traigas acá.
+      </div>
+    </div>
+  </div>
+
+  <!-- El aviso que salva el martes: otra pestaña escribió en la cartera. -->
+  <div class="aviso ambar oculto" id="avisoOtraPestana">
+    <b class="tit">Otra pestaña acaba de escribir en la cartera</b>
+    Tienes el CRM abierto en otra pestaña y guardó algo. Lo que conté al abrir ya está viejo.
+    Cierra esa pestaña y vuelve a mirar este aparato antes de seguir.
+    <button class="btn sec sm" type="button" id="btnRecontar">Volver a mirar este aparato</button>
+  </div>
+
+  <!-- =============================== PASO 1 · QUÉ HAY ACÁ =============== -->
+  <div class="card" id="c1">
+    <div class="card-cab">
+      <h3><span class="paso-n">1</span> Qué hay en este aparato</h3>
+      <span class="pill" id="e1">Contando</span>
+    </div>
+    <div class="cuerpo" id="cuerpo1">
+      <div class="aviso info">Contando lo que hay guardado…</div>
+    </div>
+  </div>
+
+  <!-- =============================== PASO 2 · CONECTAR ================== -->
+  <div class="card dormido" id="c2">
+    <div class="card-cab">
+      <h3><span class="paso-n">2</span> Entrar a la nube</h3>
+      <span class="pill" id="e2">Sin conectar</span>
+    </div>
+    <div class="cuerpo">
+      <div id="msg2"></div>
+      <div id="camposConexion">
+        <label for="sbUrl">Dirección del proyecto (URL)</label>
+        <input id="sbUrl" type="url" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off" spellcheck="false" inputmode="url">
+        <div class="ayuda">Supabase → Project Settings → API → Project URL. Si ya usaste el espejo en este
+          teléfono, esto viene lleno.</div>
+        <label for="sbAnon">Llave pública (anon)</label>
+        <input id="sbAnon" type="text" placeholder="eyJhbGciOi…" autocomplete="off" spellcheck="false">
+        <div class="ayuda">Esa llave es pública por diseño. La <b>service_role</b> no se pega acá ni en ningún
+          lado del navegador.</div>
+      </div>
+      <label for="sbCorreo">Tu correo</label>
+      <input id="sbCorreo" type="email" placeholder="joan@…" autocomplete="username" inputmode="email" spellcheck="false">
+      <label for="sbClave">Tu contraseña</label>
+      <input id="sbClave" type="password" placeholder="••••••••••••" autocomplete="current-password">
+      <div class="ayuda">No se guarda en este teléfono. Se cambia por una sesión, y la sesión sí queda guardada.</div>
+      <button class="btn" type="button" id="btnEntrar">Entrar</button>
+      <button class="btn sec sm oculto" type="button" id="btnSalir">Cerrar sesión</button>
+    </div>
+  </div>
+
+  <!-- =============================== PASO 3 · QUÉ VIENE ================= -->
+  <div class="card dormido" id="c3">
+    <div class="card-cab">
+      <h3><span class="paso-n">3</span> Qué hay en la nube</h3>
+      <span class="pill" id="e3">Sin mirar</span>
+    </div>
+    <div class="cuerpo">
+      <div class="aviso info">
+        <b class="tit">Mirar no escribe nada</b>
+        Este paso solo lee. Nada de tu aparato cambia hasta el paso 5, y ahí te lo vuelvo a preguntar.
+      </div>
+      <div id="msg3"></div>
+      <div id="resumen3"></div>
+      <button class="btn negro" type="button" id="btnMirar">Mirar qué hay en la nube</button>
+    </div>
+  </div>
+
+  <!-- =============================== PASO 4 · RESPALDO ================== -->
+  <div class="card dormido" id="c4">
+    <div class="card-cab">
+      <h3><span class="paso-n">4</span> Bajar el respaldo</h3>
+      <span class="pill" id="e4">Sin respaldo</span>
+    </div>
+    <div class="cuerpo">
+      <div id="avisoRespaldo"></div>
+      <div id="msg4"></div>
+      <button class="btn" type="button" id="btnRespaldo">Bajar el respaldo ahora</button>
+      <button class="btn sec oculto" type="button" id="btnConfirmoRespaldo">Ya lo tengo guardado, sigamos</button>
+    </div>
+  </div>
+
+  <!-- =============================== PASO 5 · ESCRIBIR ================== -->
+  <div class="card dormido" id="c5">
+    <div class="card-cab">
+      <h3><span class="paso-n">5</span> Traer y escribir acá</h3>
+      <span class="pill" id="e5">Sin traer</span>
+    </div>
+    <div class="cuerpo">
+      <div class="aviso info">
+        <b class="tit">Cómo se escribe, para que sepas qué pasa si algo falla</b>
+        Armo la cartera <b>entera en memoria</b> y solo al final la guardo, de un solo golpe. Si algo se rompe a
+        mitad de camino, no queda nada a medias: lo que tenías se queda como estaba y te digo en qué paso fue.
+      </div>
+      <div id="msg5"></div>
+      <div id="resumen5"></div>
+      <button class="btn" type="button" id="btnTraer" disabled>Traer y reemplazar lo de este aparato</button>
+      <div class="porque-off" id="porqueOff"></div>
+    </div>
+  </div>
+
+  <!-- =============================== PASO 6 · ABRIR ===================== -->
+  <div class="card dormido" id="c6">
+    <div class="card-cab">
+      <h3><span class="paso-n">6</span> Abrir el CRM</h3>
+      <span class="pill" id="e6">Sin abrir</span>
+    </div>
+    <div class="cuerpo">
+      <div id="msg6"></div>
+      <a class="btn negro" id="btnAbrir" href="crm.html">Abrir el CRM completo</a>
+      <div class="aviso ambar">
+        <b class="tit">Recuerda antes de entrar</b>
+        Lo que hagas ahí adentro <b>no sube solo</b>. Se queda en este teléfono hasta que abras
+        <span class="mono">subir.html</span> y lo empujes. Y si el mismo crédito lo tocas también en el
+        computador, uno de los dos se pierde sin avisar.
+      </div>
+      <a class="btn sec sm" href="espejo.html">Mejor abrir el espejo (para cobrar)</a>
+    </div>
+  </div>
+
+  <div class="pie">
+    Todo lo que ves acá sale del cajón de este navegador y de tu proyecto de Supabase.
+    Esta página no manda datos a ningún otro lado.<br>
+    <a href="espejo.html">Espejo</a> · <a href="subir.html">Subir</a> · <a href="crm.html">CRM</a>
+  </div>
+</main>
+
+<!-- El motor y el puente se cargan por UNA razón concreta: la llave donde vive
+     la cartera (PUENTE.LLAVE_PANEL) no se escribe a mano en esta pantalla.
+     Escrita a mano, el día que cambie quedan dos verdades, y una de ellas
+     apuntando a una llave equivocada en la página que escribe la cartera real.
+     motor.js va primero porque puente.js se construye con él. -->
+<script src="../app/motor.js"></script>
+<script src="../app/puente.js"></script>
+<script src="nube.js"></script>
+<script>
+'use strict';
+/* ===========================================================================
+ * TRAER — el CRM completo, en el teléfono.  14 de agosto de 2026.
+ *
+ * LA IDEA, en una línea: crm.html y esta página se sirven del MISMO ORIGEN, así
+ * que comparten localStorage. Esta página baja la cartera de la nube y la
+ * escribe en la llave donde crm.html la busca; crm.html la encuentra ahí y no
+ * se entera de que vino de internet. Cero cambios en el archivo de Joan.
+ *
+ * POR QUÉ ESTA ES LA PÁGINA MÁS PELIGROSA DEL PROYECTO.
+ * nube.js se NIEGA a escribir en 'joan_socios_v1' (nube.js:1067, un throw): ahí
+ * vive la cartera real y ninguna sincronización tiene por qué tocarla. Esta
+ * página es la única excepción del proyecto, y por eso carga ella sola con toda
+ * la responsabilidad que el cerrojo le quitaba a las demás:
+ *
+ *   1. Antes de nada CUENTA lo que ya hay y lo dice con números.
+ *   2. Si hay algo, no deja continuar sin respaldo. El botón nace apagado.
+ *   3. El respaldo se baja SIEMPRE, aunque el aparato esté vacío.
+ *   4. Se arma la cartera ENTERA en memoria y se hace UN solo setItem. Nunca
+ *      queda medio escrita.
+ *   5. Si el setItem falla por espacio, se dice que fue el espacio.
+ *
+ * Y NO SE RODEA EL CERROJO DESDE DENTRO DE nube.js. El setItem de esta página
+ * es de esta página, escrito acá abajo, a la vista, en una sola función y en
+ * una sola línea. Si algún día alguien busca "quién puede borrar la cartera de
+ * Joan", tiene que encontrar exactamente un sitio, y es este archivo.
+ *
+ * LO QUE ESTA PÁGINA NO HACE, a propósito:
+ *   · No recalcula nada del negocio. Cupo, garantía, mora, niveles y códigos son
+ *     de MotorReglas y PuenteTuGarantia. La conversión de paquete a cartera es
+ *     de NUBE.aplicarPaquete. Acá se orquesta y se pregunta, nada más.
+ *   · No toca el espejo de nube.js ('joan_panel_espejo'). Ese espejo es la
+ *     memoria de espejo.html para detectar choques; si esta página lo moviera,
+ *     el espejo creería que el teléfono está al día con cosas que crm.html va a
+ *     cambiar por su cuenta sin decírselo a nadie. Mejor que no se entere: el
+ *     texto de arriba ya le dice a Joan que por este camino no hay choques.
+ *   · No sube nada. Nunca. Para eso está subir.html.
+ * ===========================================================================*/
+
+var PUENTE = window.PuenteTuGarantia;
+var NUBE   = window.NubeTuGarantia;
+
+/* La llave de la cartera NO se escribe a mano: se le pregunta al puente, que es
+   donde está escrita. Ver el comentario del <script> de arriba. */
+var KEY = PUENTE && PUENTE.LLAVE_PANEL;
+
+/* El PIN de fábrica que pone cargar() de crm.html cuando no hay `config`. Se
+   nombra acá solo para poder AVISAR de que quedará ese si los ajustes no vienen
+   en el paquete; no se escribe nunca en el disco desde esta página. */
+var PIN_DE_FABRICA = '1234';
+
+var E = {
+  hay:null,            // el inventario de este aparato (ver mirarEsteAparato)
+  paquete:null,        // lo último que contestó la nube
+  lectura:null,        // lo medido del paquete (ver medirPaquete)
+  respaldoHecho:false,
+  otraPestanaEscribio:false,
+  escrito:false
+};
+
+/* ------------------------------------------------------------- utilidades */
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(m){
+  return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]; }); }
+function n2(x){ return Number(x)||0; }
+function mil(n){ return n2(n).toLocaleString('es-CO'); }
+function plural(n,uno,varios){ return mil(n)+' '+(n===1?uno:varios); }
+/* Lo mismo, con el número en negrita. Se separa porque en el bloque rojo la
+   cifra tiene que poderse leer de un vistazo y la palabra no. */
+function cuenta(n,uno,varios){ return '<b>'+mil(n)+'</b> '+(n===1?uno:varios); }
+
+/* El peso se MIDE en bytes de verdad: TextEncoder cuenta lo que ocupa el texto.
+   `cadena.length` cuenta caracteres, y una tilde o una ñ pesa dos — y este
+   proyecto está entero en español. */
+function bytesDe(x){
+  var s = typeof x === 'string' ? x : JSON.stringify(x);
+  if(s == null) return 0;
+  try{ return new TextEncoder().encode(s).length; }
+  catch(e){ return s.length; }   // navegador viejo: se queda corto, pero no miente al alza
+}
+function peso(b){
+  if(b < 1024) return b+' B';
+  if(b < 1024*1024) return (b/1024).toFixed(1)+' KB';
+  return (b/(1024*1024)).toFixed(2)+' MB';
+}
+function ahoraArchivo(){
+  var d=new Date(), p=function(x){ return String(x).padStart(2,'0'); };
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes());
+}
+function fechaLarga(iso){
+  if(!iso) return '—';
+  var d=new Date(iso);
+  if(isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString('es-CO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function motivo(e){ return (e&&e.motivo)||(e&&e.message)||'No pude hablar con la nube.'; }
+
+function pinta(donde, clase, html){
+  var d=$(donde); if(!d) return;
+  d.innerHTML = html ? '<div class="aviso '+clase+'">'+html+'</div>' : '';
+}
+function estado(n, clase, texto){
+  var p=$('e'+n); if(p){ p.className='pill '+(clase||''); p.textContent=texto; }
+  var c=$('c'+n); if(!c) return;
+  c.classList.remove('listo','fallo');
+  if(clase==='listo') c.classList.add('listo');
+  if(clase==='fallo') c.classList.add('fallo');
+}
+function despertar(n){ var c=$('c'+n); if(c) c.classList.remove('dormido'); }
+function fila(k,v,clase){
+  return '<div class="fila"><span class="k">'+esc(k)+'</span><span class="v '+(clase||'')+'">'+v+'</span></div>';
+}
+
+/* ====================================================== ESTE APARATO ======
+   Se lee la llave TAL CUAL, en crudo. No se corre cargar() ni ninguna de sus
+   migraciones: acá solo hay que CONTAR lo que hay para poder decírselo a Joan,
+   y correr migraciones de paso sería cambiarle la cartera sin haberle avisado
+   todavía de nada. */
+function mirarEsteAparato(){
+  var inv = { crudo:null, legible:true, bytes:0, tieneLlave:false,
+              socios:0, creditos:0, respaldados:0, papelera:0, papeleraSocios:0,
+              invitaciones:0, hayAjustes:false, negocio:'' };
+  var crudo=null;
+  try{ crudo = localStorage.getItem(KEY); }
+  catch(e){
+    /* Safari en navegación privada revienta al tocar localStorage. Si no se
+       puede ni leer, tampoco se va a poder escribir: mejor decirlo ahora. */
+    inv.sinAcceso = true; inv.legible = false;
+    return inv;
+  }
+  if(crudo === null || crudo === ''){ return inv; }
+
+  inv.tieneLlave = true;
+  inv.crudo = crudo;
+  inv.bytes = bytesDe(crudo);
+  var d=null;
+  try{ d = JSON.parse(crudo); }catch(e){ inv.legible=false; return inv; }
+  if(!d || typeof d !== 'object'){ inv.legible=false; return inv; }
+
+  /* `clientes` es el nombre viejo del mismo arreglo; cargar() de crm.html lo
+     acepta y acá también, o el conteo mentiría en una cartera antigua. */
+  inv.socios        = (d.socios||d.clientes||[]).length||0;
+  inv.creditos      = (d.prestamos||[]).length||0;
+  inv.respaldados   = (d.respaldados||[]).length||0;
+  inv.papelera      = (d.papelera||[]).length||0;
+  inv.papeleraSocios= (d.papeleraSocios||[]).length||0;
+  inv.invitaciones  = (d.invitaciones||[]).length||0;
+  inv.hayAjustes    = !!(d.config && Object.keys(d.config).length) ||
+                      !!(d.plantillas && Object.keys(d.plantillas).length);
+  inv.negocio       = (d.config && d.config.negocio) || '';
+  return inv;
+}
+function hayFichas(inv){
+  return !!inv && (inv.socios || inv.creditos || inv.respaldados ||
+                   inv.papelera || inv.papeleraSocios || inv.invitaciones);
+}
+/* "Hay algo que perder" es más ancho que "hay fichas": una llave ilegible
+   también cuenta, y unos ajustes guardados sin fichas también. Ante la duda,
+   se cae del lado de proteger.
+   La excepción es `sinAcceso`: si el navegador no deja ni leer el cajón, no hay
+   nada guardado que un PIN pueda tapar, y el PIN que se pediría sería el de
+   fábrica — un candado con la llave puesta. */
+function hayAlgoQuePerder(inv){
+  if(!inv || inv.sinAcceso) return false;
+  return hayFichas(inv) || !inv.legible || inv.hayAjustes || inv.tieneLlave;
+}
+
+function pintarEsteAparato(){
+  var inv = E.hay, h='';
+
+  if(inv.sinAcceso){
+    estado(1,'fallo','No pude leer');
+    $('cuerpo1').innerHTML = '<div class="aviso ambar"><b class="tit">Este navegador no me deja leer su cajón</b>'+
+      'Suele pasar en una ventana de <b>navegación privada</b>. Si no puedo leer, tampoco voy a poder escribir: '+
+      'abre esta página en una ventana normal.</div>';
+    return;
+  }
+
+  if(!inv.tieneLlave){
+    /* El caso del teléfono nuevo. Se dice, y se sigue sin drama. */
+    estado(1,'listo','Vacío');
+    h += '<div class="aviso ok"><b class="tit">Este aparato está vacío</b>'+
+         'No hay ninguna cartera guardada acá: ni socios, ni créditos, ni ajustes. No hay nada que perder, '+
+         'así que traer es seguro. Aun así el respaldo se baja igual, en el paso 4, para que el paso quede hecho '+
+         'y sepas dónde está el archivo.</div>';
+    $('cuerpo1').innerHTML = h;
+    return;
+  }
+
+  if(!inv.legible){
+    estado(1,'fallo','Ilegible');
+    h += '<div class="peligro">'+
+         '<div class="et">Cuidado</div>'+
+         '<h2>Hay algo guardado y no lo entiendo</h2>'+
+         '<div class="cuenta">La llave <span class="mono">'+esc(KEY)+'</span> tiene <b>'+peso(inv.bytes)+'</b> '+
+         'de contenido, pero no es un JSON que yo pueda leer.</div>'+
+         '<p>No sé si es tu cartera rota o basura de otra cosa, y por eso no voy a decidir yo. El respaldo del '+
+         'paso 4 se baja <b>tal cual está</b>, byte por byte: si era tu cartera, ese archivo es lo único que la '+
+         'salva. Bájalo y guárdalo antes de seguir.</p>'+
+         '</div>';
+    $('cuerpo1').innerHTML = h;
+    return;
+  }
+
+  if(hayFichas(inv)){
+    estado(1,'fallo','Hay cartera');
+    h += '<div class="peligro">'+
+         '<div class="et">Se va a reemplazar</div>'+
+         '<h2>En este aparato ya hay una cartera</h2>'+
+         '<div class="cuenta">'+
+           cuenta(inv.socios,'socio','socios')+'<br>'+
+           cuenta(inv.creditos,'crédito','créditos')+'<br>'+
+           cuenta(inv.respaldados,'respaldado','respaldados')+
+           (inv.papelera||inv.papeleraSocios
+             ? '<br><b>'+mil(inv.papelera+inv.papeleraSocios)+'</b> en la papelera' : '')+
+           (inv.invitaciones ? '<br>'+cuenta(inv.invitaciones,'invitación','invitaciones') : '')+
+         '</div>'+
+         '<p>Traer de la nube <b>reemplaza todo eso</b> por lo que haya allá. Lo que esté acá y no esté en la '+
+         'nube desaparece de este aparato.</p>'+
+         '<p>Por eso el botón de traer nace <b>apagado</b> y no se prende hasta que bajes el respaldo del '+
+         'paso 4.</p>'+
+         '</div>';
+    h += '<div class="recuadro">'+
+         fila('Peso de lo guardado', peso(inv.bytes))+
+         (inv.negocio ? fila('Negocio', esc(inv.negocio)) : '')+
+         '</div>';
+  }else{
+    estado(1,'listo','Solo ajustes');
+    h += '<div class="aviso ambar"><b class="tit">Acá hay ajustes, pero ninguna ficha</b>'+
+         'No hay socios, ni créditos, ni respaldados guardados; sí hay '+peso(inv.bytes)+' de configuración '+
+         '(el PIN, las plantillas, el nombre del negocio). Traer también <b>reemplaza eso</b>. El respaldo del '+
+         'paso 4 sigue siendo obligatorio.</div>';
+  }
+  $('cuerpo1').innerHTML = h;
+}
+
+/* ========================================================== LA PUERTA =====
+   El PIN solo se pide cuando hay algo que tapar. En un teléfono recién
+   estrenado el cajón está vacío, así que cargar() todavía no ha puesto ningún
+   PIN y el de por defecto sería '1234': un candado cuya llave está escrita en
+   el manual no protege nada, y ponerlo sería exactamente lo que este proyecto
+   llama prometer en la interfaz lo que el código no cumple.
+   Con cartera adentro sí protege algo concreto: el botón del paso 4 baja la
+   cartera entera como archivo, y sin PIN esta página sería la puerta de atrás
+   del Panel.
+   La puerta de verdad de esta página, en los dos casos, es el correo y la
+   contraseña de Supabase: sin eso no baja nada. */
+function pinGuardado(){
+  try{
+    var d=JSON.parse(localStorage.getItem(KEY)||'{}');
+    return (d && d.config && d.config.pin) ? String(d.config.pin) : PIN_DE_FABRICA;
+  }catch(e){ return PIN_DE_FABRICA; }
+}
+function decidirPuerta(){
+  if(!hayAlgoQuePerder(E.hay)) return true;   // nada que tapar: se pasa derecho
+  $('gate').classList.add('on');
+  return false;
+}
+function abrirPuerta(){
+  if($('pin').value !== pinGuardado()){
+    $('pinErr').textContent='Ese no es el PIN del Panel.';
+    $('pin').value=''; return;
+  }
+  $('gate').classList.remove('on');
+  arrancarDeVerdad();
+}
+
+/* ============================================================ ARRANQUE ====*/
+function arrancar(){
+  var falta=[];
+  if(!window.MotorReglas) falta.push('<span class="mono">../app/motor.js</span>');
+  if(!PUENTE)             falta.push('<span class="mono">../app/puente.js</span>');
+  if(!NUBE)               falta.push('<span class="mono">nube.js</span>');
+  if(falta.length || !KEY){
+    $('faltaAlgo').innerHTML='<div class="aviso ambar"><b class="tit">Falta un archivo</b>'+
+      'No pude cargar '+(falta.join(' ni ')||'la llave de la cartera')+'. Sin eso esta página no sabe ni dónde '+
+      'vive tu cartera, así que no te deja empezar en vez de dejarte a medias. Ábrela desde la misma carpeta '+
+      'donde está el CRM y desde el mismo servidor, no con doble clic.</div>';
+    ['btnEntrar','btnMirar','btnRespaldo','btnTraer'].forEach(function(b){ if($(b)) $(b).disabled=true; });
+    return;
+  }
+  E.hay = mirarEsteAparato();
+  if(decidirPuerta()) arrancarDeVerdad();
+}
+
+function arrancarDeVerdad(){
+  pintarEsteAparato();
+  pintarAvisoRespaldo();
+
+  /* Sin acceso al cajón no se puede ni leer ni escribir. Se apaga todo en vez
+     de dejar que Joan llene el formulario para chocarse al final. */
+  if(E.hay.sinAcceso){
+    ['btnEntrar','btnMirar','btnRespaldo','btnTraer'].forEach(function(b){ if($(b)) $(b).disabled=true; });
+    $('porqueOff').textContent = 'Este navegador no deja guardar nada (¿navegación privada?).';
+    return;
+  }
+
+  precargarConexion();
+  pintarSesion();
+  despertar(2);
+  refrescarBotones();
+
+  /* Si el CRM está abierto en otra pestaña y guarda, `storage` llega acá. Sin
+     esto, esta página podría escribir encima de un cobro que Joan acaba de
+     registrar en la otra pestaña, y el conteo que le mostré al abrir sería ya
+     mentira. */
+  window.addEventListener('storage', function(ev){
+    if(ev.key !== KEY) return;
+    E.otraPestanaEscribio = true;
+    $('avisoOtraPestana').classList.remove('oculto');
+    refrescarBotones();
+  });
+}
+
+function recontar(){
+  E.hay = mirarEsteAparato();
+  E.otraPestanaEscribio = false;
+  /* El respaldo se invalida a propósito: el que bajaste era de la cartera de
+     antes de ese guardado. Un respaldo viejo es peor que ninguno, porque da
+     tranquilidad sin dar vuelta atrás. */
+  E.respaldoHecho = false;
+  $('avisoOtraPestana').classList.add('oculto');
+  $('btnConfirmoRespaldo').classList.add('oculto');
+  estado(4,'','Sin respaldo');
+  pinta('msg4','info','Volví a contar. El respaldo de antes ya no sirve: bájalo otra vez.');
+  pintarEsteAparato();
+  pintarAvisoRespaldo();
+  refrescarBotones();
+}
+
+/* ================================================== PASO 2 · CONECTAR ====*/
+function precargarConexion(){
+  var c={}; try{ c=NUBE.config()||{}; }catch(e){ c={}; }
+  $('sbUrl').value  = c.url  || '';
+  $('sbAnon').value = c.anon || '';
+  var s=null; try{ s=NUBE.sesion(); }catch(e){}
+  if(s && s.correo) $('sbCorreo').value = s.correo;
+  /* Si la conexión ya está puesta (el espejo la dejó), los dos campos largos se
+     esconden: en un teléfono, teclear una URL y un JWT es lo que hace que Joan
+     abandone. Siguen ahí para quien los necesite cambiar. */
+  if(c.url && c.anon){
+    $('camposConexion').classList.add('oculto');
+    $('msg2').innerHTML='<div class="aviso info">La conexión ya estaba guardada en este teléfono '+
+      '(<span class="mono">'+esc(c.url)+'</span>). '+
+      '<button class="btn sec sm" type="button" id="btnVerCampos">Cambiarla</button></div>';
+    var b=$('btnVerCampos');
+    if(b) b.addEventListener('click', function(){ $('camposConexion').classList.remove('oculto'); });
+  }
+}
+
+function entrar(){
+  var url=$('sbUrl').value.trim().replace(/\/+$/,''), anon=$('sbAnon').value.trim();
+  var correo=$('sbCorreo').value.trim(), clave=$('sbClave').value;
+  if(!url || !anon)   return pinta('msg2','ambar','Falta la dirección del proyecto o la llave pública.');
+  if(!correo||!clave) return pinta('msg2','ambar','Falta tu correo o tu contraseña.');
+
+  $('btnEntrar').disabled=true;
+  pinta('msg2','info','Entrando…');
+  try{ NUBE.guardarConfig({url:url, anon:anon}); }
+  catch(e){
+    $('btnEntrar').disabled=false;
+    return pinta('msg2','ambar','No pude guardar la conexión: '+esc(motivo(e)));
+  }
+
+  NUBE.entrar(correo, clave).then(function(){
+    $('sbClave').value='';        // la contraseña no se queda en un campo abierto
+    pinta('msg2','ok','<b class="tit">Entraste</b>Como <b>'+esc(correo)+'</b>. La contraseña no se guardó en '+
+      'este teléfono.');
+    estado(2,'listo','Conectado');
+    $('btnSalir').classList.remove('oculto');
+    despertar(3);
+  }).catch(function(e){
+    estado(2,'fallo','No entró');
+    pinta('msg2','ambar','<b class="tit">No pude entrar</b>'+esc(motivo(e))+
+      '<br>Si dice que el correo o la contraseña no sirven: el usuario se crea en Supabase → Authentication → '+
+      'Users → Add user.');
+  }).then(function(){ $('btnEntrar').disabled=false; refrescarBotones(); });
+}
+
+function salir(){
+  Promise.resolve().then(function(){ return NUBE.salir(); }).catch(function(){})
+    .then(function(){
+      pintarSesion(); estado(2,'','Sin conectar');
+      pinta('msg2','info','Sesión cerrada.');
+      refrescarBotones();
+    });
+}
+
+function pintarSesion(){
+  var s=null; try{ s=NUBE.sesion(); }catch(e){}
+  var hay = !!(s && s.access_token);
+  $('btnSalir').classList.toggle('oculto', !hay);
+  if(hay){
+    estado(2,'listo','Conectado');
+    despertar(3);
+    if(!$('msg2').innerHTML){
+      pinta('msg2','ok','Ya había una sesión abierta'+(s.correo?' como <b>'+esc(s.correo)+'</b>':'')+'.');
+    }
+  }
+}
+
+/* ================================================== PASO 3 · QUÉ VIENE ===*/
+
+/* Se trae SIEMPRE completo (`traer(null)`), y no lo que cambió desde tal hora.
+   Acá no se está sincronizando: se está reemplazando la cartera de un aparato
+   entero, y para eso hace falta todo lo que hay del otro lado. */
+function mirar(){
+  $('btnMirar').disabled=true;
+  pinta('msg3','info','Mirando la nube…');
+  NUBE.traer(null).then(function(paq){
+    E.paquete = paq || {};
+    E.lectura = medirPaquete(E.paquete);
+    pintarLoQueViene();
+    despertar(4);
+    despertar(5);
+    pintarAvisoRespaldo();
+  }).catch(function(e){
+    E.paquete=null; E.lectura=null;
+    estado(3,'fallo','No pude mirar');
+    pinta('msg3','ambar','<b class="tit">No pude leer la nube</b>'+esc(motivo(e))+
+      '<br>No se tocó nada de este aparato.');
+    $('resumen3').innerHTML='';
+  }).then(function(){ $('btnMirar').disabled=false; refrescarBotones(); });
+}
+
+/* Lo que se mide del paquete. Todo lo que la pantalla afirma más abajo sale de
+   acá: si no está medido, no se dice. */
+function medirPaquete(paq){
+  var m = { completo: paq.completo === true,
+            servidor_ahora: paq.servidor_ahora || null,
+            ultimoCambio: null, ultimoPor: '',
+            claves: [], contadores: paq.contadores || {},
+            bytes: bytesDe(paq), total:0, borradas:0,
+            tablas:{} };
+  ['socios','creditos','respaldados'].forEach(function(t){
+    var filas = paq[t] || [];
+    var borradas = filas.filter(function(f){ return f && f.borrado; }).length;
+    m.tablas[t] = { filas: filas.length, borradas: borradas, quedan: filas.length - borradas };
+    m.total += filas.length; m.borradas += borradas;
+    filas.forEach(function(f){
+      if(f && f.actualizado_en && (!m.ultimoCambio || String(f.actualizado_en) > String(m.ultimoCambio))){
+        m.ultimoCambio = f.actualizado_en; m.ultimoPor = f.actualizado_por || '';
+      }
+    });
+  });
+  (paq.ajustes||[]).forEach(function(a){
+    if(a && a.clave) m.claves.push(String(a.clave));
+    if(a && a.actualizado_en && (!m.ultimoCambio || String(a.actualizado_en) > String(m.ultimoCambio))){
+      m.ultimoCambio = a.actualizado_en; m.ultimoPor = a.actualizado_por || '';
+    }
+  });
+  m.hayConfig = m.claves.indexOf('config') >= 0;
+  m.hayPapelera = m.claves.indexOf('papelera') >= 0 || m.claves.indexOf('papeleraSocios') >= 0;
+  return m;
+}
+
+/* Las dos razones por las que esta pantalla se NIEGA a escribir. Devuelve el
+   texto del motivo, o null si se puede. Se decide con lo MEDIDO, no con lo
+   supuesto. */
+function razonParaNoEscribir(){
+  var m = E.lectura;
+  if(!m) return null;
+  if(!m.completo){
+    return 'La nube contestó con un paquete <b>parcial</b> (solo lo que cambió desde cierta hora), y esta '+
+           'página solo sabe reemplazar con el paquete completo. Escribir con la mitad te dejaría media cartera. '+
+           'No voy a escribir nada.';
+  }
+  if(m.tablas.socios.quedan === 0 && hayFichas(E.hay)){
+    return 'En la nube <b>no hay ni un socio</b>, y en este aparato hay '+plural(E.hay.socios,'socio','socios')+'. '+
+           'Traer acá te dejaría sin cartera. Lo más probable es que todavía no hayas subido desde el computador '+
+           '(<span class="mono">subir.html</span>). No voy a escribir nada.';
+  }
+  return null;
+}
+
+function pintarLoQueViene(){
+  var m = E.lectura, h='';
+
+  h += '<div class="recuadro">'+
+       fila('Socios', mil(m.tablas.socios.quedan)+
+            (m.tablas.socios.borradas ? ' <span class="muted">(+'+mil(m.tablas.socios.borradas)+' borrados)</span>' : ''))+
+       fila('Créditos', mil(m.tablas.creditos.quedan)+
+            (m.tablas.creditos.borradas ? ' <span class="muted">(+'+mil(m.tablas.creditos.borradas)+' borrados)</span>' : ''))+
+       fila('Respaldados', mil(m.tablas.respaldados.quedan)+
+            (m.tablas.respaldados.borradas ? ' <span class="muted">(+'+mil(m.tablas.respaldados.borradas)+' borrados)</span>' : ''))+
+       fila('Ajustes', m.claves.length ? esc(m.claves.join(', ')) : '<span class="ambar">ninguno</span>')+
+       fila('Último cambio allá', m.ultimoCambio
+              ? esc(fechaLarga(m.ultimoCambio))+(m.ultimoPor?' <span class="muted">· '+esc(m.ultimoPor)+'</span>':'')
+              : '—')+
+       fila('Hora del servidor', esc(fechaLarga(m.servidor_ahora)))+
+       fila('Peso de lo que baja', peso(m.bytes))+
+       '</div>';
+
+  /* Las filas borradas: se explican porque el número de arriba no cuadra solo. */
+  if(m.borradas){
+    h += '<div class="aviso info">Las '+plural(m.borradas,'fila borrada','filas borradas')+' vienen marcadas como '+
+         'borradas y no se escriben: es la forma en que la nube dice «esto ya no existe».</div>';
+  }
+
+  /* La papelera: se MIDE si viene, no se supone. subir.html la deja fuera por
+     defecto, así que lo normal es que no venga — y entonces el CRM de acá la va
+     a mostrar vacía, que es exactamente lo que hay que decir antes y no
+     después. */
+  if(!m.hayPapelera){
+    h += '<div class="aviso info"><b class="tit">La papelera no viene</b>'+
+         'No está en el paquete: <span class="mono">subir.html</span> la deja fuera por defecto, para que lo '+
+         'borrado siga borrado. En el CRM de este aparato vas a ver la papelera <b>vacía</b>. La de verdad sigue '+
+         'en el computador.</div>';
+  }
+
+  if(!m.hayConfig){
+    h += '<div class="aviso ambar"><b class="tit">Los ajustes no vienen</b>'+
+         'El paquete no trae tu configuración. El CRM de este aparato va a arrancar con los valores de fábrica, '+
+         'y eso incluye el <b>PIN '+esc(PIN_DE_FABRICA)+'</b>. Cámbialo desde el CRM apenas entres.</div>';
+  }else{
+    h += '<div class="aviso info"><b class="tit">Los ajustes sí vienen</b>'+
+         'Con ellos viaja el <b>PIN del Panel</b>: el CRM de este aparato te va a pedir el mismo PIN del '+
+         'computador.</div>';
+  }
+
+  var no = razonParaNoEscribir();
+  if(no){
+    estado(3,'fallo','No se puede traer');
+    h += '<div class="peligro"><div class="et">No voy a escribir</div>'+
+         '<h2>Esto no se puede traer</h2><p>'+no+'</p></div>';
+  }else{
+    estado(3,'listo', plural(m.total - m.borradas,'ficha','fichas'));
+  }
+
+  $('resumen3').innerHTML = h;
+  pinta('msg3','ok','Leído. <b>Todavía no escribí nada</b> en este aparato.');
+}
+
+/* =================================================== PASO 4 · RESPALDO ===*/
+function pintarAvisoRespaldo(){
+  var inv=E.hay, h='';
+  if(inv.sinAcceso){
+    $('avisoRespaldo').innerHTML='<div class="aviso ambar">No puedo leer el cajón de este navegador, '+
+      'así que tampoco puedo respaldarlo. Abre esta página en una ventana normal.</div>';
+    return;
+  }
+  if(hayFichas(inv) || !inv.legible){
+    h = '<div class="aviso ambar"><b class="tit">Esto no es opcional</b>'+
+        'Es un archivo <span class="mono">.json</span> con lo que hay <b>ahora mismo</b> en este aparato, tal '+
+        'cual está guardado. Si traer sale torcido, con ese archivo vuelves atrás desde el CRM: '+
+        'Ajustes → «Importar respaldo». Mientras no lo bajes, el botón de traer sigue apagado.</div>';
+  }else if(inv.tieneLlave){
+    h = '<div class="aviso info"><b class="tit">Casi no hay nada, pero se baja igual</b>'+
+        'Acá solo hay ajustes ('+peso(inv.bytes)+'). Se respalda de todos modos: es la regla de esta pantalla y '+
+        'no tiene excepciones.</div>';
+  }else{
+    h = '<div class="aviso info"><b class="tit">Este aparato está vacío, y se baja igual</b>'+
+        'El archivo va a traer una cartera vacía (<span class="mono">{}</span>). No sirve para recuperar nada '+
+        'porque no hay nada, pero el paso queda hecho y siempre es el mismo paso, con cartera o sin ella.</div>';
+  }
+  $('avisoRespaldo').innerHTML = h;
+}
+
+/* El respaldo se baja con el TEXTO CRUDO de la llave, no con un objeto vuelto a
+   serializar. Dos razones, y las dos importan:
+     · es byte por byte lo que había, así que no se pierde nada que este archivo
+       no sepa nombrar (un campo nuevo que Joan agregó ayer en el CRM);
+     · funciona aunque el contenido no sea un JSON legible, que es justo el caso
+       en el que un respaldo hace más falta. */
+function bajarRespaldo(){
+  var inv = E.hay;
+  var contenido = (inv && inv.crudo != null) ? inv.crudo : '{}';
+  var nombre = 'respaldo-antes-de-traer-'+ahoraArchivo()+'.json';
+  try{
+    var b = new Blob([contenido], {type:'application/json'});
+    var u = URL.createObjectURL(b);
+    var a = document.createElement('a');
+    a.href = u; a.download = nombre;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 4000);
+  }catch(e){
+    estado(4,'fallo','No se pudo');
+    pinta('msg4','ambar','<b class="tit">No pude armar el respaldo</b>'+esc(motivo(e))+
+      '. <b>No sigas.</b> Sin respaldo esta página no escribe.');
+    return;
+  }
+
+  /* Un `click()` no prueba que el archivo haya quedado guardado: en un teléfono
+     la descarga la puede bloquear el navegador, o Joan puede cerrar el aviso sin
+     mirar. Cuando hay cartera de verdad en juego, el desbloqueo lo da ÉL
+     diciendo que ya lo tiene, no nosotros suponiéndolo. */
+  if(hayFichas(E.hay) || !E.hay.legible){
+    estado(4,'curso','Compruébalo');
+    pinta('msg4','ambar','<b class="tit">Le pedí al navegador que bajara <span class="mono">'+esc(nombre)+'</span></b>'+
+      'Pesa '+peso(bytesDe(contenido))+'. <b>Ábrelo en tus descargas y compruébalo</b>: yo no puedo ver si de '+
+      'verdad quedó guardado. Cuando lo tengas, aprieta el botón de abajo.');
+    $('btnConfirmoRespaldo').classList.remove('oculto');
+  }else{
+    E.respaldoHecho = true;
+    estado(4,'listo','Respaldo bajado');
+    pinta('msg4','ok','Se bajó <span class="mono">'+esc(nombre)+'</span> ('+peso(bytesDe(contenido))+'). '+
+      'Acá no había nada que salvar, así que con esto basta.');
+  }
+  refrescarBotones();
+}
+
+function confirmarRespaldo(){
+  E.respaldoHecho = true;
+  estado(4,'listo','Respaldo guardado');
+  pinta('msg4','ok','<b class="tit">Anotado</b>Dijiste que ya lo tienes guardado. Si algo sale mal, ese archivo '+
+    'es la vuelta atrás: CRM → Ajustes → «Importar respaldo».');
+  $('btnConfirmoRespaldo').classList.add('oculto');
+  refrescarBotones();
+}
+
+/* =================================================== PASO 5 · ESCRIBIR ===
+   ACÁ ES DONDE SE ESCRIBE EN LA CARTERA DE JOAN. Es el único setItem sobre KEY
+   de todo el archivo, y de todo el proyecto. Todo lo que lo protege está junto,
+   a la vista, y en el orden en que corre. */
+function traerYEscribir(){
+  if(E.otraPestanaEscribio){
+    pinta('msg5','ambar','<b class="tit">No escribí nada</b>Otra pestaña guardó en la cartera mientras estabas '+
+      'acá. Ciérrala y aprieta «Volver a mirar este aparato» arriba.');
+    return;
+  }
+  if(!E.paquete || !E.lectura){
+    pinta('msg5','ambar','Primero hay que mirar qué hay en la nube (paso 3).'); return;
+  }
+  if(!E.respaldoHecho){
+    pinta('msg5','ambar','Primero el respaldo (paso 4). Es la regla y no tiene excepciones.'); return;
+  }
+  var no = razonParaNoEscribir();
+  if(no){ pinta('msg5','ambar','<b class="tit">No escribí nada</b>'+no); return; }
+
+  var m = E.lectura;
+  var ok = confirm(
+    'Voy a REEMPLAZAR lo que hay en este aparato.\n\n'+
+    'Sale de acá:\n'+
+    '  · '+E.hay.socios+' socio(s)\n'+
+    '  · '+E.hay.creditos+' crédito(s)\n'+
+    '  · '+E.hay.respaldados+' respaldado(s)\n\n'+
+    'Entra de la nube:\n'+
+    '  · '+m.tablas.socios.quedan+' socio(s)\n'+
+    '  · '+m.tablas.creditos.quedan+' crédito(s)\n'+
+    '  · '+m.tablas.respaldados.quedan+' respaldado(s)\n\n'+
+    '¿Lo hago?');
+  if(!ok){ pinta('msg5','info','No escribí nada. Este aparato quedó igual.'); return; }
+
+  $('btnTraer').disabled = true;
+  estado(5,'curso','Escribiendo');
+
+  /* PASO A — armar la cartera. El paquete es completo (ya se comprobó arriba),
+     así que la base es NADA: se construye desde cero, igual que hace bajar() en
+     nube.js cuando el paquete viene completo. Si se partiera de lo que hay acá,
+     esto sería una fusión sin detección de choques, que es justo lo que esta
+     pantalla le promete a Joan que NO hace.
+     La conversión es de NUBE.aplicarPaquete y no se reimplementa: ahí está
+     escrita la forma exacta que devuelve cargar() de crm.html. */
+  var res=null;
+  try{
+    res = NUBE.aplicarPaquete(null, E.paquete);
+  }catch(e){
+    return fallo('armar la cartera con lo que bajó', motivo(e));
+  }
+  var nueva = res && res.db;
+
+  /* PASO B — comprobar la forma antes de escribir. Un paquete raro no puede
+     terminar en la llave de la cartera con forma de cualquier cosa: crm.html
+     reventaría al abrir y Joan no sabría por qué. */
+  if(!nueva || !Array.isArray(nueva.socios) || !Array.isArray(nueva.prestamos) ||
+     !Array.isArray(nueva.respaldados) || !nueva.contadores){
+    return fallo('revisar la forma de lo que salió',
+      'Lo que quedó no tiene forma de cartera (faltan los arreglos de socios, créditos o respaldados).');
+  }
+
+  /* PASO C — pasarlo a texto. Aparte del setItem, a propósito: así, si el que
+     falla es este, se dice «no pude convertirlo» y no «no cupo». */
+  var texto=null;
+  try{
+    texto = JSON.stringify(nueva);
+  }catch(e){
+    return fallo('convertir la cartera a texto', motivo(e));
+  }
+  if(typeof texto !== 'string' || texto.length < 2){
+    return fallo('convertir la cartera a texto', 'Salió un texto vacío.');
+  }
+
+  /* PASO D — UN SOLO setItem, con todo armado. El navegador escribe una llave
+     entera o no la escribe: no existe el medio camino. Por eso todo lo de
+     arriba se hizo en memoria. */
+  try{
+    localStorage.setItem(KEY, texto);
+  }catch(e){
+    estado(5,'fallo','No cupo');
+    $('btnTraer').disabled = false;
+    if(esFaltaDeEspacio(e)){
+      pinta('msg5','ambar','<b class="tit">No cupo: es falta de espacio</b>'+
+        'Lo que traje pesa <b>'+peso(bytesDe(texto))+'</b> y el navegador de este teléfono no tiene tanto sitio '+
+        'libre para este sitio web. <b>Lo que tenías quedó intacto</b>: el navegador no escribe a medias.'+
+        '<br><br>El cajón lo comparten todas las páginas de acá, y el espejo guarda su propia copia de la '+
+        'cartera. Si no vas a usar el espejo en este teléfono, ciérralo y borra su copia desde ahí; después '+
+        'vuelve y aprieta otra vez.');
+    }else{
+      pinta('msg5','ambar','<b class="tit">El navegador no me dejó guardar</b>'+esc(motivo(e))+
+        '<br><b>Lo que tenías quedó intacto.</b> Si estás en una ventana de navegación privada, ábrela normal '+
+        'y vuelve a intentar.');
+    }
+    refrescarBotones();
+    return;
+  }
+
+  /* PASO E — comprobar leyendo. Escribir y dar por hecho que quedó es la clase
+     de suposición que después nadie revisa. Se relee y se cuenta. */
+  E.hay = mirarEsteAparato();
+  E.escrito = true;
+  var quedaron = E.hay;
+  var esperados = m.tablas.socios.quedan;
+
+  estado(5,'listo','Traído');
+  $('resumen5').innerHTML =
+    '<div class="recuadro">'+
+      fila('Socios que quedaron', mil(quedaron.socios))+
+      fila('Créditos que quedaron', mil(quedaron.creditos))+
+      fila('Respaldados que quedaron', mil(quedaron.respaldados))+
+      fila('Peso en este aparato', peso(quedaron.bytes))+
+    '</div>';
+
+  if(quedaron.socios !== esperados){
+    /* Cuadra casi siempre; cuando no, se dice. Un descuadre sin explicación es
+       peor que un error, porque nadie lo mira. */
+    pinta('msg5','ambar','<b class="tit">Quedó escrito, pero los números no cuadran</b>'+
+      'Esperaba '+plural(esperados,'socio','socios')+' y quedaron '+mil(quedaron.socios)+'. '+
+      'Míralo en el CRM antes de trabajar con esto, y si algo falta vuelve al respaldo.');
+  }else{
+    pinta('msg5','ok','<b class="tit">Listo</b>La cartera quedó guardada donde el CRM la busca. '+
+      'No subí nada a ningún lado: esta página solo baja.');
+  }
+
+  despertar(6);
+  estado(6,'listo','Puedes abrirlo');
+  pinta('msg6','ok','<b class="tit">Ya puedes abrirlo</b>'+
+    (m.hayConfig
+      ? 'El CRM te va a pedir el <b>PIN del computador</b>, porque los ajustes vinieron en el paquete.'
+      : 'El CRM va a arrancar con el <b>PIN de fábrica ('+esc(PIN_DE_FABRICA)+')</b>: los ajustes no vinieron. '+
+        'Cámbialo apenas entres.')+
+    '<br><br>Si tenías el CRM abierto en otra pestaña, <b>ciérrala y ábrelo de nuevo</b>: esa pestaña todavía '+
+    'tiene en memoria la cartera vieja y, si guarda algo, te pisa lo que acabo de traer.');
+  refrescarBotones();
+}
+
+/* Un fallo antes del setItem. Se nombra EL PASO, porque «falló» a secas no le
+   dice a Joan si su cartera está bien o no. Y se recuerda que no se escribió. */
+function fallo(paso, detalle){
+  estado(5,'fallo','No escribí');
+  $('btnTraer').disabled = false;
+  pinta('msg5','ambar','<b class="tit">No escribí nada</b>'+
+    'Se cayó al <b>'+esc(paso)+'</b>: '+esc(detalle)+
+    '<br><br>Este aparato quedó <b>exactamente como estaba</b>. El fallo pasó antes de guardar.');
+  refrescarBotones();
+}
+
+/* Falta de espacio, que es el fallo que de verdad va a pasar en un teléfono.
+   Cada navegador la nombra distinto, así que se miran los tres nombres y los
+   dos códigos viejos. Si no calza ninguno, NO se dice que fue el espacio: se
+   dice lo que dijo el navegador. Inventar la causa es peor que no saberla. */
+function esFaltaDeEspacio(e){
+  if(!e) return false;
+  var nombre = String(e.name||'');
+  var codigo = (e.code === undefined) ? null : Number(e.code);
+  return nombre === 'QuotaExceededError' ||
+         nombre === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+         nombre === 'QUOTA_EXCEEDED_ERR' ||
+         codigo === 22 || codigo === 1014;
+}
+
+/* ==================================================== LOS CANDADOS =======*/
+function refrescarBotones(){
+  var conectado=false; try{ conectado=!!NUBE.conectado(); }catch(e){ conectado=false; }
+  var m = E.lectura;
+  var no = razonParaNoEscribir();
+
+  $('btnMirar').disabled = !conectado;
+
+  var puede = conectado && !!m && E.respaldoHecho && !E.otraPestanaEscribio && !no && !E.escrito;
+  $('btnTraer').disabled = !puede;
+
+  /* El motivo va ESCRITO debajo del botón. En un teléfono no hay `title` que
+     valga: un botón apagado sin explicación se lee como una app rota. */
+  var texto='';
+  if(E.escrito)                    texto='Ya está traído. Si quieres traerlo otra vez, recarga la página.';
+  else if(!conectado)              texto='Falta entrar a la nube (paso 2).';
+  else if(!m)                      texto='Falta mirar qué hay en la nube (paso 3).';
+  else if(no)                      texto='No se puede traer: mira el aviso rojo del paso 3.';
+  else if(E.otraPestanaEscribio)   texto='Otra pestaña escribió: vuelve a mirar este aparato.';
+  else if(!E.respaldoHecho)        texto='Falta el respaldo (paso 4). El botón se prende cuando lo bajes.';
+  $('porqueOff').textContent = texto;
+}
+
+/* ============================================================ EL CABLEADO
+   Los `onclick` van acá y no en el HTML: en una pantalla que escribe la cartera
+   real, que se vea de un vistazo qué botón dispara qué vale más que la línea
+   que se ahorra. */
+document.addEventListener('DOMContentLoaded', function(){
+  $('btnPuerta').addEventListener('click', abrirPuerta);
+  $('pin').addEventListener('keydown', function(ev){ if(ev.key==='Enter') abrirPuerta(); });
+  $('btnRecontar').addEventListener('click', recontar);
+  $('btnEntrar').addEventListener('click', entrar);
+  $('btnSalir').addEventListener('click', salir);
+  $('btnMirar').addEventListener('click', mirar);
+  $('btnRespaldo').addEventListener('click', bajarRespaldo);
+  $('btnConfirmoRespaldo').addEventListener('click', confirmarRespaldo);
+  $('btnTraer').addEventListener('click', traerYEscribir);
+  arrancar();
+});
+</script>
+</body>
+</html>
