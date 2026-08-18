@@ -348,6 +348,28 @@ var P = window.PuenteTuGarantia || null;
 var NUBE = window.NubeTuGarantia || null;
 var T = window.TandaTuGarantia || null;
 
+/* LA CONEXIÓN VIENE PUESTA DE FÁBRICA — 18-ago-2026, y esto salió de un fallo
+   real: en el computador la conexión estaba precargada y todo andaba; Joan
+   abrió el espejo en su iPhone y se encontró dos campos que no podía llenar
+   —la URL del proyecto y una llave técnica de 40 caracteres— porque cada
+   aparato arranca con el cajón vacío. Teclear una llave así en un teléfono es
+   exactamente como se abandona una app.
+   La llave publishable es PÚBLICA POR DISEÑO (regla de la casa: va dentro de
+   la página, igual que en la app del socio); lo único secreto es la
+   contraseña, y esa sí se pide siempre. Si algún día cambia el proyecto, una
+   conexión ya guardada NO se pisa: esto solo rellena el cajón vacío. */
+(function () {
+  try {
+    var c = (NUBE && NUBE.config) ? NUBE.config() : null;
+    if (NUBE && NUBE.guardarConfig && (!c || !c.url || !c.anon)) {
+      NUBE.guardarConfig({
+        url: 'https://wnsioekvjspwtghbodbg.supabase.co',
+        anon: 'sb_publishable_uWFyReBljFSh7l0KYkWmmg_Swo4SOxj'
+      });
+    }
+  } catch (e) { /* sin conexión guardable se sigue pidiendo a mano, como antes */ }
+})();
+
 /* Con qué nombre firma este aparato lo que sube. Va a panel_bitacora y a
    `actualizado_por`, y es lo que le permite a Joan leer un choque y saber si el
    otro lado fue él en el computador o él mismo hace dos horas en la calle. */

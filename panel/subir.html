@@ -405,6 +405,23 @@
 var PUENTE = window.PuenteTuGarantia;
 var NUBE   = window.NubeTuGarantia;
 
+/* LA CONEXION VIENE PUESTA DE FABRICA — 18-ago-2026, misma decision y mismo
+   porque que en espejo.html: cada aparato arranca con el cajon vacio y los dos
+   campos largos (URL y llave publishable) no los deberia teclear nadie. La
+   llave es publica por diseno; lo unico secreto sigue siendo la contrasena.
+   Una conexion ya guardada NO se pisa: esto solo rellena el cajon vacio. */
+(function () {
+  try {
+    var c = (NUBE && NUBE.config) ? NUBE.config() : null;
+    if (NUBE && NUBE.guardarConfig && (!c || !c.url || !c.anon)) {
+      NUBE.guardarConfig({
+        url: 'https://wnsioekvjspwtghbodbg.supabase.co',
+        anon: 'sb_publishable_uWFyReBljFSh7l0KYkWmmg_Swo4SOxj'
+      });
+    }
+  } catch (e) { /* sin conexion guardable se sigue pidiendo a mano, como antes */ }
+})();
+
 /* La llave de la cartera NO se escribe a mano acá: se le pregunta al puente,
    que es donde vive. Escrita a mano, el día que cambie quedan dos verdades. */
 var KEY = PUENTE && PUENTE.LLAVE_PANEL;
