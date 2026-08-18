@@ -65,9 +65,12 @@ a{color:inherit}
 .peso{margin-top:var(--e2);font-size:14px;color:var(--gris-claro)}
 
 .banda{padding:var(--e5) 0}
+/* .et también viste al <h2> de los pasos: sin el font-family explícito heredaría
+   la serif de h1,h2 y dejaría de parecer el rótulo de sección de la fachada. */
 .et{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--gris-claro);margin-bottom:var(--e3)}
+  color:var(--gris-claro);margin-bottom:var(--e3);font-family:var(--sans)}
 
+.pasos{list-style:none;margin:0;padding:0}
 .paso{display:flex;gap:var(--e3);align-items:flex-start;padding:var(--e3) 0}
 .paso + .paso{border-top:1px solid var(--linea)}
 .paso .n{font-family:var(--serif);font-size:15px;width:30px;height:30px;border-radius:50%;
@@ -90,6 +93,9 @@ a{color:inherit}
 .pie{padding:var(--e5) 0 var(--e6);border-top:1px solid var(--linea);margin-top:var(--e5)}
 .pie p,.pie a{font-size:14px;color:var(--gris-claro)}
 .pie .enlaces{display:flex;gap:var(--e4);flex-wrap:wrap;margin-top:var(--e2)}
+/* 44px de alto tocable aunque el texto mida 14px: mismo criterio que la marca
+   y el botón. Visualmente no cambia nada; al dedo sí. */
+.pie .enlaces a{display:inline-flex;align-items:center;min-height:44px}
 </style>
 </head>
 <body>
@@ -118,33 +124,40 @@ a{color:inherit}
 
   <section class="banda" style="padding-top:0">
     <div class="wrap">
-      <p class="et">Cómo se instala</p>
+      <h2 class="et">Cómo se instala</h2>
 
-      <div class="paso">
-        <span class="n" aria-hidden="true">1</span>
-        <div><b>Descarga el archivo</b>
-        <p>Toca el botón rojo. El archivo se llama <b>TuGarantia.apk</b> y queda
-        en tus descargas.</p></div>
-      </div>
+      <!-- Lista ordenada de verdad, no divs: el lector de pantalla anuncia
+           «lista, 3 elementos» y la posición. Los números pintados quedan como
+           adorno (aria-hidden); la numeración semántica la pone el <ol>. -->
+      <ol class="pasos">
+        <li class="paso">
+          <span class="n" aria-hidden="true">1</span>
+          <div><b>Descarga el archivo</b>
+          <p>Toca el botón rojo. El archivo se llama <b>TuGarantia.apk</b> y queda
+          en tus descargas.</p></div>
+        </li>
 
-      <div class="paso">
-        <span class="n" aria-hidden="true">2</span>
-        <div><b>Ábrelo</b>
-        <p>Android te pregunta si permites instalar aplicaciones de esta fuente.
-        Dile que sí.</p></div>
-      </div>
+        <li class="paso">
+          <span class="n" aria-hidden="true">2</span>
+          <div><b>Ábrelo</b>
+          <p>Android te pregunta si permites instalar aplicaciones de esta fuente.
+          Dile que sí.</p></div>
+        </li>
 
-      <div class="paso">
-        <span class="n" aria-hidden="true">3</span>
-        <div><b>Si sale un aviso de «app desconocida»</b>
-        <p>Toca «Más detalles» y luego «Instalar de todos modos».</p></div>
-      </div>
+        <li class="paso">
+          <span class="n" aria-hidden="true">3</span>
+          <div><b>Si sale un aviso de «app desconocida»</b>
+          <p>Toca «Más detalles» y luego «Instalar de todos modos».</p></div>
+        </li>
+      </ol>
 
       <div class="aviso" style="margin-top:20px">
         <b>Ese aviso es normal y no es por nuestra app.</b> Android se lo pone a
         cualquier aplicación que no venga de su tienda. La nuestra viene directo
         de aquí, de nuestra propia página — por eso te lo contamos antes de que
-        te salga.
+        te salga. En teléfonos más viejos no hay pregunta sino un paso más:
+        Android te manda a Ajustes a activar «Orígenes desconocidos». Actívalo,
+        instala la app, y si quieres lo vuelves a apagar después.
       </div>
     </div>
   </section>
@@ -165,7 +178,8 @@ a{color:inherit}
         <h2>¿Tienes iPhone?</h2>
         <p>Esta descarga es solo para Android. En iPhone abre
         <a href="../app/socio.html">la app en Safari</a> y usa
-        <b>Compartir&nbsp;→ Añadir a pantalla de inicio</b>: queda instalada igual.</p>
+        <b>Compartir&nbsp;→ Agregar a inicio</b> (en algunos teléfonos dice
+        «Añadir a pantalla de inicio»): queda instalada igual.</p>
       </div>
     </div>
   </section>

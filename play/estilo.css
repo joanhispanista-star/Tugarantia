@@ -1,12 +1,15 @@
 /* ============================================================================
  * LA HOJA DE LA APP PUBLICABLE
  *
- * LA CARPETA play/ ES LA FRONTERA, y no es organización: es lo que hace que la
- * app de Google Play no pueda contener el producto quincenal ni por accidente.
- * El alcance del TWA se fija en /Tugarantia/play/, así que app/socio.html queda
- * FUERA del alcance de la app instalada. No es que esté escondido — está afuera.
- * Si alguien pone un enlace de aquí para allá, el sistema lo abre en el
- * navegador y no dentro de la app, que es exactamente lo que tiene que pasar.
+ * LA CARPETA play/ ES LA FRONTERA, y no es organización: es lo que haría que
+ * la app de Google Play no pudiera contener el producto quincenal ni por
+ * accidente, fijando el alcance del TWA en /Tugarantia/play/ para que
+ * app/socio.html quede FUERA del alcance de la app instalada.
+ *
+ * 18-ago-2026 — OJO: HOY ES AL REVÉS. Play quedó descartado como canal y el
+ * TWA envuelve app/socio.html con alcance /Tugarantia/ entero (ver
+ * android/LEEME.md y el centinela de pruebas/motor.test.js). Si la tienda se
+ * retoma, el alcance vuelve acá y el párrafo de arriba vuelve al presente.
  *
  * LOS TOKENS ESTÁN DUPLICADOS DE socio.html, A SABIENDAS Y CON PLAN.
  * socio.html los lleva en línea, dentro del propio archivo. Sacarlos de allá

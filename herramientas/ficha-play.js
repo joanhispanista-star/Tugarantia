@@ -57,6 +57,11 @@ function generar(fecha) {
 
   w('# La ficha de Google Play — textos y respuestas');
   w('');
+  w('> **18-ago-2026 — Play está descartado como canal** (12 probadores × 14 días');
+  w('> más los huecos de `legal/`): el APK se reparte directo por enlace — ver');
+  w('> `android/LEEME.md`. Esta ficha se conserva LISTA por si la tienda se retoma;');
+  w('> hoy no hay nada de esto que pegar en ninguna consola.');
+  w('');
   w('**Generado desde el código para el ' + fecha + '.** No lo edites a mano: sale de');
   w('`app/cumplimiento.js`, que a su vez lee los campos de `app/cuenta.js` y las cifras de');
   w('`app/creditos.js`. Para regenerarlo:');

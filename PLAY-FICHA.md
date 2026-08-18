@@ -1,5 +1,10 @@
 # La ficha de Google Play — textos y respuestas
 
+> **18-ago-2026 — Play está descartado como canal** (12 probadores × 14 días
+> más los huecos de `legal/`): el APK se reparte directo por enlace — ver
+> `android/LEEME.md`. Esta ficha se conserva LISTA por si la tienda se retoma;
+> hoy no hay nada de esto que pegar en ninguna consola.
+
 **Generado desde el código para el 2026-08-15.** No lo edites a mano: sale de
 `app/cumplimiento.js`, que a su vez lee los campos de `app/cuenta.js` y las cifras de
 `app/creditos.js`. Para regenerarlo:

@@ -1,6 +1,9 @@
 /* ============================================================================
- * CRÉDITOS PUBLICABLES — el catálogo de la app que va a Google Play
+ * CRÉDITOS PUBLICABLES — el catálogo del producto a 6 meses, pensado para Play
  * Etapa 1 del rediseño. 11 de agosto de 2026.
+ * (18-ago-2026: Play quedó descartado como canal — ver android/LEEME.md — y el
+ * APK reparte directo la app quincenal. Este catálogo queda en reserva por si
+ * la tienda se retoma; sus reglas valen por sí mismas de todas formas.)
  *
  * ESTE ARCHIVO NO REEMPLAZA A motor.js. Son dos productos distintos y conviven:
  *

@@ -134,6 +134,12 @@ nueva la próxima vez que abran. No hay que reconstruir ni reenviar nada.
 Solo hay que volver a construir y reenviar el APK si cambia el icono, el nombre
 de la app o la dirección del sitio.
 
+**Y si ese día llega, ojo:** la página de `descargas/` le promete al cliente que
+nunca tiene que volver a descargar nada, y un APK repartido fuera de la tienda
+no tiene canal para avisar que hay envoltorio nuevo. Cambiar el envoltorio
+exige campaña de re-descarga por WhatsApp a los que ya lo tienen — es la única
+forma de que se enteren.
+
 ---
 
 ## Cuando algo sale mal

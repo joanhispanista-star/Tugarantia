@@ -1,6 +1,9 @@
 /* ============================================================================
- * CUMPLIMIENTO — lo que hay que declararle a Google Play, derivado y no escrito
+ * CUMPLIMIENTO — lo que habría que declararle a Google Play, derivado y no escrito
  * Etapa 7 del rediseño. 11 de agosto de 2026.
+ * (18-ago-2026: Play quedó descartado como canal — ver android/LEEME.md. El
+ * mapa de qué recoge la app y para qué vale por sí solo y se queda; la consola
+ * de Play solo existiría si la tienda se retoma.)
  *
  * POR QUÉ ESTE ARCHIVO EXISTE, Y NO ES UN DOCUMENTO
  *
@@ -19,7 +22,7 @@
  * Así que acá no se escriben las respuestas: se DERIVAN. La lista de datos sale
  * de CAMPOS en cuenta.js, y la divulgación sale de simular() en creditos.js. Si
  * alguien agrega un campo y no le pone su fila de Data Safety, la prueba se cae.
- * Lo que se pega en la consola de Play se genera desde acá.
+ * Lo que se pegaría en la consola de Play se genera desde acá.
  * ==========================================================================*/
 
 (function (raiz, fabrica) {
