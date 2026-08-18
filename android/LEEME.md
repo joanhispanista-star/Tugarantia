@@ -4,6 +4,14 @@ Cómo convertir la app web en un `.apk` que el cliente descarga e instala en su
 Android, **sin pasar por Google Play**. Fuera de la tienda, las políticas de Play
 no aplican: esto es distribución directa y es perfectamente normal.
 
+> **18-ago-2026 — el APK envuelve `app/socio.html`, la app real del socio.**
+> Entre el 11 y el 18 de agosto envolvió `/play/` (el producto a 6 meses,
+> inventado para poder entrar a la tienda), pero Play quedó descartado como
+> canal: 12 probadores × 14 días más los huecos de `legal/` lo volvían un
+> trámite sin fecha. Repartiendo directo, el producto que se envuelve es el
+> que los clientes usan. La configuración de `/play/` vive en el historial de
+> git por si la tienda se retoma.
+
 ---
 
 ## Antes de nada: la PWA ya hace casi todo esto, y mejor
@@ -51,11 +59,19 @@ mano**: Bubblewrap los descarga solo la primera vez. Son cerca de 1,5 GB y unos
 
 ## Construirlo
 
-Desde la carpeta `android/`:
+**No desde esta carpeta.** Gradle dentro de OneDrive pelea con la sincronización
+por los bloqueos de archivo (medido el 14-ago-2026), así que el proyecto Android
+vive fuera, en `C:\Users\joanh\android-kit\proyecto`, con el JDK y el SDK al lado
+y los parches de esta máquina ya aplicados:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\construir.ps1
+powershell -ExecutionPolicy Bypass -File C:\Users\joanh\android-kit\construir-apk-socio.ps1
 ```
+
+El script copia `twa-manifest.json` y la llave de aquí, construye allá, y trae el
+APK de vuelta a esta carpeta. El veredicto son archivos frescos, no el mensaje
+de gradle. (`construir.ps1`, el viejo que corría aquí adentro, queda de
+referencia de las respuestas del `init`; no lo uses para construir.)
 
 La primera vez te va a preguntar cosas. Las respuestas que importan:
 
@@ -85,19 +101,27 @@ Al construir se crea `android.keystore`. Esa llave **es** la identidad de tu app
 
 ## Cómo se lo mandas al cliente
 
-**WhatsApp no deja enviar archivos `.apk`.** Bloquea la extensión. Así que:
+**WhatsApp no deja enviar archivos `.apk`.** Bloquea la extensión. Por eso el
+APK se reparte desde el propio sitio: vive en `descargas/TuGarantia.apk` (la
+única excepción al `.gitignore` de binarios, con su porqué escrito ahí), y lo
+que se manda por WhatsApp es el enlace a la página:
 
-1. Sube el APK a **GitHub → Releases** del repositorio (arrastrar y soltar).
-2. Copia el enlace de descarga.
-3. Eso es lo que mandas por WhatsApp, con estas instrucciones:
+    https://joanhispanista-star.github.io/Tugarantia/descargas/
 
-> Descarga el archivo y ábrelo. Android te va a preguntar si permites instalar
-> apps de esta fuente: dile que sí. Si sale un aviso de que la app es
-> desconocida, toca "Instalar de todos modos". Es normal: la app no está en la
-> tienda de Google, viene directo de nosotros.
+La página ya trae las instrucciones — incluido el aviso de «app desconocida»
+explicado ANTES de que le salga al cliente, que es lo que decide si instala o se
+echa para atrás. No hace falta dictarle nada por WhatsApp: se manda el enlace.
 
-Que se lo digas **antes** de que le salga el aviso cambia todo: un cliente
-prevenido instala, uno sorprendido se echa para atrás.
+Cuando se reconstruye el APK (cambio de icono, de nombre o de dirección — el
+contenido NO: ese se actualiza solo por la web), se vuelve a copiar encima:
+
+```powershell
+Copy-Item .\app-release-signed.apk ..\descargas\TuGarantia.apk -Force
+```
+
+y `git add descargas`, commit y push. GitHub Releases habría servido igual, pero
+en esta máquina no hay `gh` y arrastrar archivos a mano es un paso que se olvida;
+el commit no.
 
 ---
 
@@ -115,10 +139,16 @@ de la app o la dirección del sitio.
 ## Cuando algo sale mal
 
 **Sale la barra de direcciones del navegador arriba.** Falló Digital Asset Links:
-el archivo `assetlinks.json` no está en el sitio, o la huella no coincide con la
-llave con la que firmaste. El script lo genera; hay que subirlo a
-`/.well-known/assetlinks.json` en la raíz del sitio y esperar unos minutos. Ojo:
-Bubblewrap ya **no** lo pone solo, hay que subirlo a mano.
+el archivo `assetlinks.json` no está donde Android mira, o la huella no coincide
+con la llave con la que firmaste. Y ojo con el **donde**, que ya nos pasó:
+Android consulta la **raíz del dominio** —
+`https://joanhispanista-star.github.io/.well-known/assetlinks.json` — que la
+sirve el repositorio del sitio de usuario (`joanhispanista-star.github.io`, el
+del juego), NO este repositorio. La copia en `/Tugarantia/.well-known/` no la
+consulta nadie; se queda solo como documentación de la huella. El archivo de la
+raíz admite varias entradas: la de `co.tugarantia.socio` convive con la del
+paquete viejo del juego, y si algún día se refirma con otra llave hay que
+actualizar la huella ALLÁ.
 
 **"App no instalada".** Casi siempre es que ya hay una versión instalada firmada
 con otra llave. Desinstalar y volver a instalar.

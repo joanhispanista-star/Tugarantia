@@ -20,6 +20,12 @@ RECETA-*.md
 *.aab
 *.keystore
 
+# LA EXCEPCIÓN: el APK que descargan los clientes SÍ viaja en el repositorio,
+# porque Pages es quien lo reparte (WhatsApp bloquea los .apk; se manda el enlace
+# a descargas/). Es el único binario con puesto fijo: pesa ~1 MB y cambia casi
+# nunca — el contenido de la app se actualiza solo por la web, el envoltorio no.
+!descargas/*.apk
+
 # El proyecto Android que genera Bubblewrap dentro de android/. Se regenera con
 # `construir.ps1` a partir de twa-manifest.json, que ese SÍ va al repositorio
 # porque es la configuración escrita a mano. Lo demás son andamios.

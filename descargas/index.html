@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Instalar la app — Tu Garantía</title>
+<meta name="description" content="Descarga la app de Tu Garantía para Android, directo de nosotros, sin pasar por la tienda.">
+<meta name="theme-color" content="#0C0A0B">
+<!-- ============================================================================
+  La página que reparte el APK. Existe porque WhatsApp bloquea los archivos .apk:
+  lo que se manda al cliente es ESTE enlace, no el archivo. Y existe como página
+  —no como enlace pelado al .apk— por lo que dice LEEME.md de android/: el aviso
+  de "app desconocida" hay que explicárselo al cliente ANTES de que le salga.
+  Un cliente prevenido instala; uno sorprendido se echa para atrás.
+
+  Los colores y tipos son los de index.html (la fachada): el cliente pasa de la
+  web a esta página en el mismo minuto y no debe sentir que cambió de negocio.
+============================================================================= -->
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --laca:#0C0A0B; --papel:#FFFFFF; --hueso:#F6F3F0;
+  --amarillo:#F5C542;
+  --rojo:#D81F26; --rojo-osc:#A8161C;
+  --ambar:#9A5B12; --ambar-tinte:#FAF2E4;
+  --azul-tinte:#EDF2FE;
+  --tinta:#0C0A0B; --gris:#5C5450; --gris-claro:#6E6460;
+  --linea:#E4DDD6; --linea-laca:rgba(251,247,244,.14);
+  --blanco-laca:#FBF7F4;
+  --serif:Georgia,'Times New Roman',serif;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --e2:8px; --e3:12px; --e4:20px; --e5:32px; --e6:52px;
+  --r:16px;
+}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--hueso);color:var(--tinta);font-family:var(--sans);
+  font-size:17px;line-height:1.65}
+.wrap{max-width:640px;margin:0 auto;padding:0 var(--e4)}
+h1,h2{font-family:var(--serif);font-weight:400;margin:0;text-wrap:balance;letter-spacing:-.01em}
+p{margin:0}
+a{color:inherit}
+
+.tope{position:sticky;top:0;z-index:20;background:var(--laca);
+  border-bottom:1px solid var(--linea-laca)}
+.tope .wrap{display:flex;align-items:center;gap:var(--e3);min-height:60px}
+.marca{display:flex;align-items:center;gap:10px;text-decoration:none;min-height:44px}
+.sello{width:32px;height:32px;border-radius:9px;background:var(--rojo);color:#fff;
+  display:grid;place-items:center;font-family:var(--serif);font-size:20px;font-weight:700;
+  flex:none;line-height:1}
+.marca b{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--blanco-laca)}
+
+.portada{padding:var(--e6) 0 var(--e5)}
+.portada h1{font-size:34px;line-height:1.15}
+.portada .baja{margin-top:var(--e3);color:var(--gris);max-width:52ch}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:52px;padding:0 26px;border-radius:11px;border:0;cursor:pointer;
+  font-family:var(--sans);font-size:17px;font-weight:700;text-decoration:none;
+  transition:background .15s,transform .06s}
+.btn-rojo{background:var(--rojo);color:#fff}
+.btn-rojo:hover{background:var(--rojo-osc)}
+.btn-rojo:active{transform:translateY(1px)}
+.btn:focus-visible{outline:3px solid var(--amarillo);outline-offset:2px}
+.peso{margin-top:var(--e2);font-size:14px;color:var(--gris-claro)}
+
+.banda{padding:var(--e5) 0}
+.et{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--gris-claro);margin-bottom:var(--e3)}
+
+.paso{display:flex;gap:var(--e3);align-items:flex-start;padding:var(--e3) 0}
+.paso + .paso{border-top:1px solid var(--linea)}
+.paso .n{font-family:var(--serif);font-size:15px;width:30px;height:30px;border-radius:50%;
+  background:var(--laca);color:var(--blanco-laca);display:grid;place-items:center;flex:none}
+.paso b{display:block;margin-bottom:2px}
+.paso p{color:var(--gris)}
+
+/* Ámbar solo sobre papel, como manda la guía: es el tono de los estados y avisos. */
+.aviso{background:var(--ambar-tinte);border:1px solid var(--linea);border-radius:var(--r);
+  padding:var(--e4);color:var(--ambar)}
+.aviso b{color:var(--ambar)}
+
+.tarjeta{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);
+  padding:var(--e4)}
+.tarjeta + .tarjeta{margin-top:var(--e3)}
+.tarjeta h2{font-size:20px;margin-bottom:6px}
+.tarjeta p{color:var(--gris)}
+.iphone{background:var(--azul-tinte)}
+
+.pie{padding:var(--e5) 0 var(--e6);border-top:1px solid var(--linea);margin-top:var(--e5)}
+.pie p,.pie a{font-size:14px;color:var(--gris-claro)}
+.pie .enlaces{display:flex;gap:var(--e4);flex-wrap:wrap;margin-top:var(--e2)}
+</style>
+</head>
+<body>
+
+<header class="tope">
+  <div class="wrap">
+    <a class="marca" href="../index.html" aria-label="Tu Garantía, página principal">
+      <span class="sello" aria-hidden="true">G</span>
+      <b>Tu Garantía</b>
+    </a>
+  </div>
+</header>
+
+<main>
+  <section class="portada">
+    <div class="wrap">
+      <h1>Instala la app en tu Android</h1>
+      <p class="baja">Directo de nosotros, sin pasar por la tienda de Google.
+      Descargas el archivo, lo abres y listo.</p>
+      <p style="margin-top:24px">
+        <a class="btn btn-rojo" href="TuGarantia.apk" download>Descargar la app</a>
+      </p>
+      <p class="peso">Pesa alrededor de 1 MB · Sirve en Android 6 o más nuevo</p>
+    </div>
+  </section>
+
+  <section class="banda" style="padding-top:0">
+    <div class="wrap">
+      <p class="et">Cómo se instala</p>
+
+      <div class="paso">
+        <span class="n" aria-hidden="true">1</span>
+        <div><b>Descarga el archivo</b>
+        <p>Toca el botón rojo. El archivo se llama <b>TuGarantia.apk</b> y queda
+        en tus descargas.</p></div>
+      </div>
+
+      <div class="paso">
+        <span class="n" aria-hidden="true">2</span>
+        <div><b>Ábrelo</b>
+        <p>Android te pregunta si permites instalar aplicaciones de esta fuente.
+        Dile que sí.</p></div>
+      </div>
+
+      <div class="paso">
+        <span class="n" aria-hidden="true">3</span>
+        <div><b>Si sale un aviso de «app desconocida»</b>
+        <p>Toca «Más detalles» y luego «Instalar de todos modos».</p></div>
+      </div>
+
+      <div class="aviso" style="margin-top:20px">
+        <b>Ese aviso es normal y no es por nuestra app.</b> Android se lo pone a
+        cualquier aplicación que no venga de su tienda. La nuestra viene directo
+        de aquí, de nuestra propia página — por eso te lo contamos antes de que
+        te salga.
+      </div>
+    </div>
+  </section>
+
+  <section class="banda" style="padding-top:0">
+    <div class="wrap">
+      <div class="tarjeta">
+        <h2>Se actualiza sola</h2>
+        <p>Instalas una vez. Cuando mejoramos algo, lo ves la próxima vez que
+        abras la app, sin volver a descargar nada.</p>
+      </div>
+      <div class="tarjeta">
+        <h2>Para entrar necesitas tu código</h2>
+        <p>La app se abre con tu cédula y tu código de acceso de Tu Garantía.
+        Si todavía no tienes código, pídeselo a quien te atiende.</p>
+      </div>
+      <div class="tarjeta iphone">
+        <h2>¿Tienes iPhone?</h2>
+        <p>Esta descarga es solo para Android. En iPhone abre
+        <a href="../app/socio.html">la app en Safari</a> y usa
+        <b>Compartir&nbsp;→ Añadir a pantalla de inicio</b>: queda instalada igual.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="pie">
+    <div class="wrap">
+      <p>Tu Garantía</p>
+      <div class="enlaces">
+        <a href="../legal/terminos.html">Términos</a>
+        <a href="../legal/privacidad.html">Privacidad</a>
+        <a href="../index.html">Página principal</a>
+      </div>
+    </div>
+  </footer>
+</main>
+
+</body>
+</html>

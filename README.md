@@ -42,8 +42,11 @@ base/
   20260810_codigo_acceso.sql      Entrar con código. Se corre DESPUÉS, y solo cuando
                                   todos los clientes ya tengan el suyo.
 
-play/                   LA APP QUE VA A GOOGLE PLAY. Un solo producto: 6 meses en
+play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.
+                        (Desde el 18-ago-2026 Play está descartado como canal y el
+                        APK se reparte directo — ver android/LEEME.md. Esto queda
+                        listo por si la tienda se retoma.)
   index.html            Entrar, registrarse, simular, pedir y ver el historial.
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
@@ -52,9 +55,18 @@ play/                   LA APP QUE VA A GOOGLE PLAY. Un solo producto: 6 meses e
                         app instalada, y la frontera la impone el sistema.
 
 android/
-  LEEME.md              Cómo sacar el APK, y por qué la PWA suele ser mejor opción.
-  twa-manifest.json     La configuración del envoltorio. Escrita a mano.
-  construir.ps1         Un comando: descarga Java y el SDK, construye y firma.
+  LEEME.md              Cómo sacar el APK, cómo se reparte por enlace, y por qué
+                        la PWA suele ser mejor opción de todas formas.
+  twa-manifest.json     La configuración del envoltorio: envuelve app/socio.html
+                        (distribución directa, sin tienda). Escrita a mano.
+  construir.ps1         Referencia de las respuestas del init. El build de verdad
+                        corre FUERA de OneDrive, en android-kit (ver LEEME.md).
+
+descargas/
+  index.html            La página cuyo enlace se manda al cliente por WhatsApp:
+                        explica el aviso de «app desconocida» ANTES de que salga.
+  TuGarantia.apk        El APK firmado que reparte Pages. La única excepción
+                        binaria del .gitignore, con su porqué escrito ahí.
 
 herramientas/
   ficha-play.js         Genera PLAY-FICHA.md desde el código. No editar la ficha

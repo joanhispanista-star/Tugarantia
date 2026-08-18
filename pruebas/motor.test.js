@@ -8199,28 +8199,33 @@ describe('el APK y la app web dicen lo mismo (10-ago-2026)', () => {
     assert.equal(new URL(TWA.iconUrl).host, TWA.host);
   });
 
-  test('LO QUE SE EMPAQUETA NO ES LA APP QUINCENAL', () => {
-    /* El defecto más caro posible de todo este trabajo: envolver app/socio.html y
-       subirla. Ese archivo tiene el crédito de 15 días, que es exactamente lo que
-       la política de préstamos personales de Play prohíbe. No sería un rechazo:
-       sería un rechazo POR ESA POLÍTICA, con una cuenta recién creada.
+  test('LO QUE SE EMPAQUETA ES LA APP DEL SOCIO — Y ESTE APK NO VA A PLAY', () => {
+    /* 18-ago-2026 — LA FRONTERA SE INVIRTIÓ, a sabiendas. Hasta hoy este
+       centinela exigía el alcance en /play/: el APK iba camino a la tienda, y
+       envolver el quincenal era un rechazo asegurado (la política de préstamos
+       personales de Play prohíbe el pago total en 60 días o menos). Play quedó
+       descartado como canal —12 probadores × 14 días, más los huecos de
+       legal/— y el APK pasó a repartirse DIRECTO por enlace, desde
+       descargas/. Fuera de la tienda esa política no aplica.
 
-       El alcance es lo que hace la frontera real y no una promesa: con el scope
-       en /play/, app/socio.html queda FUERA de la app instalada y el sistema lo
-       abre en el navegador aunque alguien ponga un enlace. */
+       Lo que se vigila ahora es lo contrario: que el envoltorio traiga la app
+       que los clientes de verdad usan. Repartir directo el producto de 6 meses
+       sería entregarle a cada cliente una app en la que su cuenta no existe.
+
+       Y quede escrito lo que sigue siendo prohibido: ESTE APK, con este
+       alcance, no puede subirse a Play nunca. Si la tienda se retoma, el
+       alcance vuelve a /play/ y este centinela se invierte otra vez — a mano
+       y a sabiendas, como hoy. */
     const alcance = new URL(TWA.fullScopeUrl).pathname;
-    assert.equal(alcance, '/Tugarantia/play/',
-      'el alcance del TWA es ' + alcance + '. Si incluye /app/, la app de Play ' +
-      'contiene el crédito quincenal.');
-    assert.ok(TWA.startUrl.indexOf('/play/') >= 0, 'arranca fuera de /play/: ' + TWA.startUrl);
-    assert.ok(TWA.startUrl.indexOf('socio.html') === -1,
-      'el TWA envuelve socio.html, que es el producto que Play prohíbe');
-
-    /* Y que la página empaquetada no hable del producto de 15 días. */
-    const codigo = PAGINA.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
-    ['quincenal', 'quincena', '15 días', 'prórroga']
-      .forEach(p => assert.ok(codigo.toLowerCase().indexOf(p.toLowerCase()) === -1,
-        'la página que va a Play menciona «' + p + '»: ese producto no puede estar ahí'));
+    assert.equal(alcance, '/Tugarantia/',
+      'el alcance del TWA es ' + alcance + ' y debería ser todo /Tugarantia/, ' +
+      'para que legal/ y la web pública abran dentro de la app y no en un ' +
+      'navegador aparte');
+    assert.ok(TWA.startUrl.indexOf('app/socio.html') >= 0,
+      'el TWA arranca en ' + TWA.startUrl + ', que no es la app del socio');
+    assert.ok(TWA.appVersionCode >= 2,
+      'el versionCode bajó a ' + TWA.appVersionCode + ': el 2 ya se usó en el ' +
+      'giro del 18-ago y Android no deja pisar una versión con el mismo número');
   });
 
   test('el packageId es válido y sigue siendo el mismo', () => {

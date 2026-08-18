@@ -108,6 +108,15 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;   // Supabase y las tipografías, de largo
 
+  /* descargas/ va de largo también (18-ago-2026). Ahí vive el APK que se
+     reparte a los clientes: si pasara por aquí, la rama caché-primero le
+     guardaría 1 MB de instalador en la caché de cada teléfono —datos pagados
+     por un archivo que se usa una sola vez— y peor: un APK nuevo en el sitio
+     seguiría sirviéndose viejo desde la caché. Y su página es inútil sin
+     internet (no se puede descargar nada sin señal), así que tampoco pierde
+     nada quedándose fuera. */
+  if (url.pathname.includes('/descargas/')) return;
+
   const frescoPrimero = req.mode === 'navigate' ||
     /\.(html|js|webmanifest)$/.test(url.pathname);
 
