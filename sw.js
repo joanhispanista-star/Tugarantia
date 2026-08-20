@@ -47,7 +47,14 @@
    si tanda.js no está en la caché, el teléfono sin datos no abre la tanda y
    marca a todo el mundo como ya contactado. O sea que dejarlo fuera no rompería
    una función bonita — apagaría la pantalla justo el día de cobro. */
-const CACHE = 'tugarantia-v5';
+/* v6 — 18-ago-2026. La conexión a la nube viene de fábrica en socio.html.
+
+   EL NÚMERO SUBE AUNQUE LA LISTA NO CAMBIE, y aquí importa más que nunca: el
+   defecto que se arregla dejaba a los clientes sin poder entrar, y un teléfono
+   que ya hubiera abierto la app rota tenía guardada esa copia. socio.html va
+   red-primero, así que con señal se cura solo; el número obliga a soltar la
+   copia vieja también a quien abra sin señal el primer día. */
+const CACHE = 'tugarantia-v6';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

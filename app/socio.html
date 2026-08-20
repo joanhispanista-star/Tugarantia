@@ -662,7 +662,7 @@ details[open] summary::after{content:' ↑'}
    app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
    de CACHE en sw.js). */
-var VERSION_APP = '2026-08-10';
+var VERSION_APP = '2026-08-18';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -715,7 +715,27 @@ setTimeout(function () {
 <script>
 'use strict';
 
-var CFG_POR_DEFECTO = { url: '', anon: '' };
+/* LA CONEXIÓN VIENE PUESTA DE FÁBRICA — 18-ago-2026.
+
+   ESTABA VACÍA, y eso dejaba la app MUERTA en el teléfono de cada cliente. Sin
+   url ni llave, buscarEnNube() se corta antes de preguntar (ver su primera
+   línea); el respaldo es el Panel de ESTE equipo, que en el teléfono de un
+   cliente está vacío; y la app termina contestando «No encontré esa cédula con
+   ese código» a un socio que existe y escribió bien. En el computador de Joan
+   nunca se vio, porque ahí la conexión estaba guardada de pruebas viejas: el
+   defecto solo aparecía en aparatos recién estrenados — o sea, en TODOS los de
+   los clientes, y justo el día que estrenan la app.
+
+   La llave publishable es PÚBLICA POR DISEÑO: lo que protege los datos es el
+   RLS de la base, no esconder esta cadena. Misma regla y mismos valores que
+   panel/espejo.html, traer.html y subir.html desde el commit de esta mañana.
+
+   Una conexión ya guardada NO se pisa: quien haya apuntado su app a otro
+   proyecto desde ?cfg conserva la suya. */
+var CFG_POR_DEFECTO = {
+  url: 'https://wnsioekvjspwtghbodbg.supabase.co',
+  anon: 'sb_publishable_uWFyReBljFSh7l0KYkWmmg_Swo4SOxj'
+};
 var CFG = (function () {
   try { var g = JSON.parse(localStorage.getItem('socio_cfg') || 'null');
         if (g && g.url && g.anon) return g; } catch (e) {}
@@ -3245,7 +3265,11 @@ function pantallaConfig() {
     '<label>Project URL</label><input type="text" id="cfgUrl" placeholder="https://xxxx.supabase.co" value="' + esc(CFG.url) + '">' +
     '<label>Llave anon public</label><input type="text" id="cfgAnon" placeholder="eyJ..." value="' + esc(CFG.anon) + '">' +
     '<button class="btn" style="margin-top:var(--e4)" id="cfgGuardar">Guardar</button>' +
-    '<button class="btn sec sm" style="margin-top:var(--e3)" id="cfgBorrar">Volver al modo de prueba</button>' +
+    /* Ya no dice "volver al modo de prueba": desde que la conexión viene de
+       fábrica, borrar lo guardado no deja la app desconectada — la devuelve a
+       la conexión de Tu Garantía. Decir "prueba" prometería algo que el código
+       dejó de hacer. */
+    '<button class="btn sec sm" style="margin-top:var(--e3)" id="cfgBorrar">Volver a la conexión de Tu Garantía</button>' +
     '<div id="cfgMsg" class="aviso oculto"></div></div></div>';
   $('cfgGuardar').onclick = function () {
     var u = $('cfgUrl').value.trim(), a = $('cfgAnon').value.trim();
@@ -3256,7 +3280,7 @@ function pantallaConfig() {
   };
   $('cfgBorrar').onclick = function () {
     localStorage.removeItem('socio_cfg');
-    $('cfgMsg').textContent = 'Listo, vuelve al modo de prueba.';
+    $('cfgMsg').textContent = 'Listo: vuelve a la conexión de Tu Garantía.';
     $('cfgMsg').classList.remove('oculto');
   };
 }

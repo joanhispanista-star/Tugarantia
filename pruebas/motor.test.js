@@ -8272,6 +8272,111 @@ describe('el APK y la app web dicen lo mismo (10-ago-2026)', () => {
   });
 });
 
+describe('LA APP SIRVE EN UN APARATO RECIÉN ESTRENADO (18-ago-2026)', () => {
+
+  /* EL DEFECTO QUE ESTA BATERÍA EXISTE PARA QUE NO VUELVA, y estuvo a horas de
+     llegarle a los clientes: `CFG_POR_DEFECTO` en socio.html venía con la url y
+     la llave VACÍAS. Con el cajón vacío, `buscarEnNube` se corta en su primera
+     línea sin preguntarle nada a la base; el único respaldo es el Panel de ese
+     mismo equipo —que en el teléfono de un cliente no existe— y la app le
+     contesta «No encontré esa cédula con ese código» a un socio que existe y
+     escribió bien.
+
+     POR QUÉ NINGUNA PRUEBA LO VIO, que es lo que de verdad hay que arreglar:
+     las 771 de antes medían el MOTOR y los TEXTOS, y aquí no fallaba ni una
+     regla ni una palabra. Fallaba el estado del aparato, y el único aparato
+     donde nunca se reproducía era el de Joan: su navegador tenía la conexión
+     guardada de pruebas viejas, así que en el computador todo andaba. El
+     defecto solo aparecía en un teléfono recién estrenado — o sea, en el de
+     TODOS los clientes, y justo el día que estrenan la app.
+
+     Es el mismo defecto que la mañana del 18-ago se arregló en espejo.html,
+     traer.html y subir.html; socio.html se quedó fuera de aquel commit, y es
+     la única de las cuatro que abren los clientes. */
+
+  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+
+  /* Se lee el objeto tal como está escrito en el archivo. No se ejecuta la
+     página: lo que se vigila es lo que viaja al teléfono. */
+  function configDeFabrica() {
+    const m = /var\s+CFG_POR_DEFECTO\s*=\s*\{([\s\S]*?)\}\s*;/.exec(SOCIO);
+    assert.ok(m, 'socio.html ya no declara CFG_POR_DEFECTO: revisá quién configura la conexión');
+    const url = /url\s*:\s*'([^']*)'/.exec(m[1]);
+    const anon = /anon\s*:\s*'([^']*)'/.exec(m[1]);
+    return { url: url ? url[1] : '', anon: anon ? anon[1] : '' };
+  }
+
+  test('LA CONEXIÓN VIENE PUESTA: sin esto el cliente no entra el primer día', () => {
+    const c = configDeFabrica();
+    assert.ok(c.url && /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(c.url),
+      'la url de fábrica es «' + c.url + '». Vacía o mal formada, la app no le ' +
+      'pregunta nada a la base y todo cliente nuevo se queda afuera.');
+    assert.ok(c.anon && c.anon.length > 20,
+      'la llave de fábrica está vacía: mismo resultado, el cliente no entra.');
+  });
+
+  test('la llave de fábrica es la PUBLISHABLE, nunca la de servicio', () => {
+    /* La publishable es pública por diseño y el RLS es lo que protege los
+       datos. La service_role se salta el RLS entero: dentro de una página, en
+       un repositorio público, sería la cartera completa de Joan al aire. */
+    const c = configDeFabrica();
+    assert.ok(!/service[_-]?role/i.test(c.anon),
+      'eso parece una clave de servicio: se salta el RLS y no puede vivir en la página');
+    assert.ok(!/^eyJ/.test(c.anon) || !/service_role/.test(
+      Buffer.from((c.anon.split('.')[1] || ''), 'base64').toString('utf8')),
+      'el JWT declara service_role: se salta el RLS y no puede vivir en la página');
+  });
+
+  test('la app y las pantallas de la nube apuntan al MISMO proyecto', () => {
+    /* Dos proyectos distintos serían dos verdades: Joan cobrando en uno y el
+       cliente mirando el otro, cada uno convencido de tener razón.
+
+       Se busca la conexión ESCRITA (`url: '…'`), no cualquier dirección del
+       archivo: las cuatro pantallas llevan además un `placeholder` de ejemplo
+       (https://xxxx.supabase.co) que no es la conexión de nadie. La primera
+       versión de esta prueba cazó ese ejemplo y acusó a traer.html de apuntar a
+       otro proyecto — un falso positivo que habría mandado a alguien a buscar
+       un problema inexistente. */
+    const c = configDeFabrica();
+    ['panel/espejo.html', 'panel/traer.html', 'panel/subir.html'].forEach(f => {
+      const ruta = path.join(__dirname, '..', f);
+      if (!fs.existsSync(ruta)) return;          // si alguna se retira, no se inventa un fallo
+      const t = fs.readFileSync(ruta, 'utf8');
+      const encontradas = (t.match(/url:\s*'https:\/\/[a-z0-9-]+\.supabase\.co'/g) || [])
+        .map(x => /'(.*)'/.exec(x)[1]);
+      if (!encontradas.length) return;           // esa pantalla no trae conexión de fábrica
+      encontradas.forEach(u =>
+        assert.equal(u, c.url, f + ' apunta a otro proyecto que la app del socio'));
+    });
+  });
+
+  test('una conexión ya guardada no se pisa con la de fábrica', () => {
+    /* El de fábrica es el DEFECTO, no una imposición: quien apuntó su app a
+       otro proyecto desde ?cfg tiene que conservarlo. */
+    const m = /var\s+CFG\s*=\s*\(function[\s\S]{0,400}?\}\)\(\);/.exec(SOCIO);
+    assert.ok(m, 'cambió cómo se resuelve CFG: revisá que lo guardado siga mandando');
+    assert.ok(m[0].indexOf('socio_cfg') >= 0, 'CFG ya no mira lo que el usuario guardó');
+    assert.ok(m[0].indexOf('return g') >= 0,
+      'lo guardado dejó de tener prioridad sobre la conexión de fábrica');
+  });
+
+  test('el sello de versión se movió con el cambio', () => {
+    /* La regla de la casa: al cambiar la app sube VERSION_APP, y sube el CACHE
+       del service worker. Sin lo segundo, el teléfono que ya abrió la versión
+       rota se queda con ella guardada. */
+    const v = /var\s+VERSION_APP\s*=\s*'(\d{4}-\d{2}-\d{2})'/.exec(SOCIO);
+    assert.ok(v, 'socio.html se quedó sin VERSION_APP');
+    assert.ok(v[1] >= '2026-08-18',
+      'VERSION_APP dice ' + v[1] + ', anterior al arreglo de la conexión: el ' +
+      'sello del pie le diría al cliente que está viendo una versión que no es');
+    const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+    const c = /const\s+CACHE\s*=\s*'tugarantia-v(\d+)'/.exec(sw);
+    assert.ok(c, 'sw.js se quedó sin número de caché');
+    assert.ok(Number(c[1]) >= 6,
+      'el caché va en v' + c[1] + ': no suelta la copia guardada de la app rota');
+  });
+});
+
 describe('ninguna pantalla llama a una función que la migración tiró (11-ago-2026)', () => {
 
   /* POR QUÉ EXISTE — y son tres defectos del mismo día, no uno.
