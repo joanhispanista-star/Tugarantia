@@ -8377,6 +8377,57 @@ describe('LA APP SIRVE EN UN APARATO RECIÉN ESTRENADO (18-ago-2026)', () => {
   });
 });
 
+describe('EL PANEL NO REGISTRA PLATA SIN MOSTRARLA (20-ago-2026)', () => {
+
+  /* EL CASO QUE ESTO IMPIDE REPETIR: CR-0043 entró con capital $29.961 — un
+     número que nadie teclea. El cuadro de pegar del formulario rápido toma EL
+     NÚMERO MÁS GRANDE del texto pegado como capital; un comprobante traía otra
+     cifra encima del monto real; y guardarRapido registraba SIN mostrar nunca
+     el monto (el camino de solicitudes sí confirmaba con cifras, el manual no).
+     Se descubrió porque Joan se sabía la cifra de memoria, que no es un
+     mecanismo: es suerte.
+
+     Son centinelas de TEXTO sobre crm.html, como los demás de este archivo:
+     leen el fuente y exigen que la confirmación exista y esté ANTES del
+     registro. Si alguien la quita "para agilizar", esto se cae y cuenta por qué. */
+
+  const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
+  function cuerpoDe(nombre) {
+    /* [^)]* y no \(\): crearDesdeSolicitud recibe (id) y la primera versión de
+       este centinela solo aceptaba funciones sin parámetros — se cayó él. */
+    const m = new RegExp('function ' + nombre + '\\([^)]*\\)\\{[\\s\\S]*?\\n\\}').exec(CRM);
+    assert.ok(m, 'crm.html ya no declara ' + nombre + '(): revisá quién registra créditos ahora');
+    return m[0];
+  }
+
+  test('el formulario rápido confirma el monto ANTES de registrar', () => {
+    const f = cuerpoDe('guardarRapido');
+    const confirma = f.indexOf('¿Lo registro?');
+    const registra = f.indexOf('DB.prestamos.push');
+    assert.ok(confirma >= 0, 'guardarRapido ya no confirma con el monto a la vista');
+    assert.ok(registra >= 0, 'guardarRapido ya no registra por el camino conocido');
+    assert.ok(confirma < registra,
+      'la confirmación quedó DESPUÉS del registro: para frenar un monto malo tiene que ir antes');
+    assert.ok(f.indexOf('CIFRA REDONDA') >= 0,
+      'se perdió el aviso de cifra no redonda: así entró el $29.961');
+  });
+
+  test('el camino de solicitudes también avisa la cifra no redonda', () => {
+    /* Las solicitudes vienen de la app del cliente, que calcula cupos con
+       porcentajes: es el otro camino por donde puede entrar un monto raro. */
+    const f = cuerpoDe('crearDesdeSolicitud');
+    assert.ok(f.indexOf('CIFRA REDONDA') >= 0,
+      'crearDesdeSolicitud perdió el aviso de cifra no redonda');
+  });
+
+  test('la revisión de cartera existe y tiene su botón', () => {
+    assert.ok(/function revisarCartera\(\)/.test(CRM),
+      'crm.html se quedó sin revisarCartera(): era la red que detecta lo que ya entró mal');
+    assert.ok(CRM.indexOf('revisarCartera()') !== CRM.lastIndexOf('revisarCartera()'),
+      'revisarCartera existe pero ningún botón la llama: una revisión que no se puede correr no revisa nada');
+  });
+});
+
 describe('ninguna pantalla llama a una función que la migración tiró (11-ago-2026)', () => {
 
   /* POR QUÉ EXISTE — y son tres defectos del mismo día, no uno.

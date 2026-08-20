@@ -1345,7 +1345,7 @@ function renderCred(){
   const c=document.getElementById('tblCred'),usura=DB.config.tasaUsuraEA;
   if(!arr.length){ c.innerHTML=`<div class="empty"><div class="ic">💵</div><p>Sin créditos todavía.<br><span class="muted">Toca “＋ Nuevo crédito” para registrar el primero.</span></p></div>`+papeleraHTML(); return; }
   const sumCap=arr.reduce((s,p)=>s+capitalActual(p),0),sumAPagar=arr.reduce((s,p)=>s+(p.pagado?0:totalCiclo(p)),0),sumGan=arr.reduce((s,p)=>s+gananciaCobrada(p),0);
-  c.innerHTML=`<table><thead><tr><th>N°</th><th>Cliente</th><th>Capital</th><th>A pagar</th><th>Ganancia</th><th>Desemb. → Quincena</th><th>E.A.</th><th>Estado</th><th></th></tr></thead><tbody>${
+  c.innerHTML=`<div style="margin-bottom:12px"><button class="btn btn-ghost btn-sm" onclick="revisarCartera()" title="Busca montos raros, dobles registros y fechas que no cuadran">🔍 Revisar la cartera</button><span class="muted" style="margin-left:8px;font-size:12px">Montos raros, dobles registros, fechas que no cuadran.</span></div><table><thead><tr><th>N°</th><th>Cliente</th><th>Capital</th><th>A pagar</th><th>Ganancia</th><th>Desemb. → Quincena</th><th>E.A.</th><th>Estado</th><th></th></tr></thead><tbody>${
     arr.map(p=>{ const est=estadoPrestamo(p),dias=diasEntre(p.fechaDesembolso,PUENTE.corteDelCredito(p)),ea=eaEquivalente(p.costoPct,dias),sobre=usura>0&&ea>usura,npr=(p.prorrogas||[]).length,s=DB.socios.find(x=>x.id===p.socioId);
       return `<tr><td class="mono muted">${codCredito(p)}</td><td><b>${escHTML(p.socioNombre)}</b><div class="muted">${s?codCliente(s)+' · ':''}costo ${p.costoPct}%${npr?' · '+npr+' prórr.':''}${(p.comprobantes||[]).length?' · 📎'+p.comprobantes.length:''}</div></td>
       <td class="num">${COP(capitalActual(p))}</td>
@@ -1375,6 +1375,75 @@ function papeleraHTML(){
       <td style="text-align:right"><button class="btn btn-ghost btn-sm" onclick="restaurarCredito('${p.id}')">↩ Devolver</button> <button class="btn btn-ghost btn-sm" onclick="eliminarDefinitivo('${p.id}')" title="Borrar para siempre">✕</button></td></tr>`).join('')}</tbody></table>
   <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="vaciarPapelera()">Vaciar la papelera</button>`;
 }
+/* ===== REVISAR LA CARTERA — 20-ago-2026 =====
+
+   NACE DE UN CASO REAL: CR-0043 entró con capital $29.961 —un número que nadie
+   teclea— porque el cuadro de pegar del formulario rápido toma el número más
+   grande del texto como capital, y un comprobante traía otra cifra encima del
+   monto real. Se descubrió porque Joan se sabía la cifra de memoria. Una
+   cartera no puede depender de la memoria: esto revisa lo que las pantallas
+   dan por bueno y muestra lo que no cuadra, con nombre y crédito.
+
+   REVISA, NO CORRIGE. Cada hallazgo dice dónde mirar; la decisión de tocar
+   plata es de Joan, crédito por crédito. Un botón que "arregla solo" la
+   cartera es exactamente la clase de magia que metió el $29.961. */
+function revisarCartera(){
+  const hoy=hoyISO();
+  const grupos=[];
+
+  /* 1. Capital no redondo: la plata que se entrega va en billetes. Un capital
+     que no es múltiplo de mil casi siempre es un número calculado que se coló. */
+  const noRedondos=DB.prestamos.filter(p=>p.capital%1000!==0);
+  if(noRedondos.length) grupos.push({t:'💵 Montos que no son cifras redondas',
+    x:'La plata que se entrega va en billetes: esto suele ser un número calculado que se coló, no una decisión.',
+    filas:noRedondos.map(p=>codCredito(p)+' · '+escHTML(p.socioNombre)+' · '+COP(p.capital)
+      +' · '+fmtFecha(p.fechaDesembolso)+(p.pagado?' · pagado':' · ABIERTO'))});
+
+  /* 2. Mismo cliente, misma fecha de desembolso: huele a doble registro,
+     sobre todo si además es el mismo monto y se crearon en días distintos. */
+  const porDia={};
+  DB.prestamos.forEach(p=>{ const k=p.socioId+'|'+p.fechaDesembolso; (porDia[k]=porDia[k]||[]).push(p); });
+  const dobles=Object.values(porDia).filter(a=>a.length>1);
+  if(dobles.length) grupos.push({t:'👯 Mismo cliente, mismo día de desembolso',
+    x:'Puede ser legítimo (dos préstamos el mismo día) o un doble registro. El doble registro infla la ganancia y la garantía de ese cliente. Compara los montos y borra el que sobre (va a la papelera, no se pierde).',
+    filas:dobles.map(a=>escHTML(a[0].socioNombre)+' ('+fmtFecha(a[0].fechaDesembolso)+'): '
+      +a.map(p=>codCredito(p)+' '+COP(p.capital)+(p.pagado?' pagado':' abierto')).join('  +  '))});
+
+  /* 3. Contradicciones de fechas y estados: no ambiguas, siempre son error. */
+  const contradic=[];
+  DB.prestamos.forEach(p=>{
+    if(p.pagado&&!p.fechaPagado) contradic.push(codCredito(p)+' · '+escHTML(p.socioNombre)+' · marcado pagado pero sin fecha de pago');
+    if(p.fechaPagado&&p.fechaPagado<p.fechaDesembolso) contradic.push(codCredito(p)+' · '+escHTML(p.socioNombre)+' · pagado ANTES de desembolsado');
+    if(p.fechaDesembolso>hoy) contradic.push(codCredito(p)+' · '+escHTML(p.socioNombre)+' · desembolsado en el futuro ('+fmtFecha(p.fechaDesembolso)+')');
+    if(!DB.socios.some(s=>s.id===p.socioId)) contradic.push(codCredito(p)+' · '+escHTML(p.socioNombre||'¿?')+' · no tiene ficha de cliente');
+  });
+  if(contradic.length) grupos.push({t:'⚠️ Contradicciones',
+    x:'Estas no tienen lectura buena: siempre son un error de registro.',filas:contradic});
+
+  /* 4. Tres o más créditos abiertos con la misma persona: concentración que
+     conviene mirar de frente, no descubrir sumando de memoria. */
+  const abiertos={};
+  DB.prestamos.filter(p=>!p.pagado).forEach(p=>{ (abiertos[p.socioId]=abiertos[p.socioId]||[]).push(p); });
+  const concentrados=Object.values(abiertos).filter(a=>a.length>=3);
+  if(concentrados.length) grupos.push({t:'📚 Tres o más créditos abiertos a la vez',
+    x:'No es un error por sí solo, pero es plata concentrada en una sola persona y conviene decidirlo mirándolo, no descubrirlo después.',
+    filas:concentrados.map(a=>escHTML(a[0].socioNombre)+': '
+      +a.map(p=>codCredito(p)+' '+COP(p.capital)).join(', ')
+      +' — total '+COP(a.reduce((s,p)=>s+p.capital,0)))});
+
+  let h;
+  if(!grupos.length){
+    h='<div class="alerta info"><b>La cartera se ve sana.</b> Montos redondos, sin dobles registros, fechas y estados que cuadran. Revisado sobre '
+      +DB.prestamos.length+' crédito(s).</div>';
+  } else {
+    h='<div class="help" style="margin-bottom:10px">Revisado sobre '+DB.prestamos.length
+      +' crédito(s). Esto SEÑALA, no corrige: la decisión de tocar plata es tuya, crédito por crédito.</div>'
+      +grupos.map(g=>'<div class="alerta info" style="margin-bottom:12px"><b>'+g.t+'</b><div class="help" style="margin:4px 0 8px">'+g.x+'</div>'
+        +g.filas.map(f=>'<div style="font-size:13px;margin-top:4px">'+f+'</div>').join('')+'</div>').join('');
+  }
+  openModal('Revisar la cartera',h);
+}
+
 function borrarCredito(id){
   const p=DB.prestamos.find(x=>x.id===id); if(!p)return;
   const npr=(p.prorrogas||[]).length, com=(p.comprobantes||[]).length;
@@ -2101,6 +2170,22 @@ function guardarRapido(){
      todavía no tiene historia, y su cupo sale de los datos que le cargues. */
   const r=revisarCupo(s,cap);
   if(r&&(r.pasa||r.pasaSumando)&&!confirm(textoCupo(r)+'\n¿Lo registro igual?'))return;
+  /* 20-ago-2026 — EL MONTO SE CONFIRMA SIEMPRE, TAMBIÉN AQUÍ. Este formulario
+     registraba plata sin mostrarla nunca: el camino de solicitudes confirma con
+     cifras y este guardaba directo. Por ese hueco entró un crédito de $29.961
+     (CR-0043): el cuadro de pegar toma EL NÚMERO MÁS GRANDE del texto pegado
+     como capital, un comprobante traía otra cifra encima del monto real, y
+     nadie la vio porque nada la mostraba. Es plata de verdad: un toque más
+     aquí es más barato que una cifra fantasma en la cartera.
+     La marca de «no es redonda» existe porque la plata que se ENTREGA va en
+     billetes: un capital que no es múltiplo de mil casi siempre es un número
+     calculado que se coló, no una decisión. */
+  const kCosto=MotorReglas.calcularCosto(cap), fCorte=ovr||MotorReglas.calcularFechaCorte(f);
+  if(!confirm('Registrar el crédito de '+nombre+':\n\n'
+    +'• Capital: '+COP(cap)+(cap%1000!==0?'   ⚠️ OJO: NO ES UNA CIFRA REDONDA':'')+'\n'
+    +'• Costo: '+costo+'% ('+COP(kCosto)+')\n'
+    +'• Total a devolver: '+COP(cap+kCosto)+'\n'
+    +'• Paga el: '+fmtFecha(fCorte)+'\n\n¿Lo registro?'))return;
   if(!s){ s={id:'C'+Date.now(),numero:nextNumCliente(),nombre,telefono:tel,email:gv('qEmail'),whatsappIgual:true,referencia:{nombre:'',telefono:''},gestiones:[],fechaRegistro:new Date().toISOString()}; DB.socios.push(s); }
   else if(gv('qEmail')&&!s.email)s.email=gv('qEmail');
   const p={ id:'P'+Date.now(),numero:nextNumCredito(),socioId:s.id,socioNombre:s.nombre,telefono:s.telefono,capital:cap,costoPct:costo,fechaDesembolso:f,cicloActual:ovr||MotorReglas.calcularFechaCorte(f),prorrogas:[],abonosCapital:[],comprobantes:[],pagado:false,fechaCreacion:new Date().toISOString() };
@@ -3622,7 +3707,7 @@ function crearDesdeSolicitud(id){
   if(!q.capital) return alert('Esa solicitud no trae un monto que se pueda registrar.\n\nPídele a '+cli.nombre+' que la vuelva a mandar desde su app.');
   const r=revisarCupo(cli,q.capital);
   if(!confirm('Crear el crédito de '+cli.nombre+':\n\n'
-    +'• Capital: '+COP(q.capital)+'\n• Costo: '+q.pct+'% ('+COP(q.costo)+')\n'
+    +'• Capital: '+COP(q.capital)+(q.capital%1000!==0?'   ⚠️ OJO: NO ES UNA CIFRA REDONDA':'')+'\n• Costo: '+q.pct+'% ('+COP(q.costo)+')\n'
     +'• Total a devolver: '+COP(q.total)+'\n• Paga el: '+fmtFecha(q.corte)+'\n'
     +((r&&(r.pasa||r.pasaSumando))?'\n'+textoCupo(r):'')
     +'\n¿Lo registro?'))return;
