@@ -1184,6 +1184,113 @@ function regenerarCodigoAcceso(id){
   s.codigoAcceso=c; guardar(); render(); verCliente(id);
 }
 
+/* ===== ¿PUEDEN ENTRAR DESDE SU CELULAR? — 18-ago-2026 =====
+
+   ESTA REVISIÓN EXISTE PORQUE «Ver la app como la ve él» MIENTE POR OMISIÓN, y
+   no por un defecto suyo: ese botón lee la cartera de ESTE computador, así que
+   sale bien aunque el cliente no pueda entrar. El celular del cliente no tiene
+   esa cartera — pregunta a la NUBE. Son dos caminos distintos y solo el segundo
+   es el que vive el cliente. Mandar el enlace confiando en el primero es
+   descubrir el problema por WhatsApp, de a un cliente a la vez y con la app
+   recién estrenada.
+
+   Así que esto pregunta por la MISMA puerta del cliente: cédula + código contra
+   historial_socio_por_codigo. Si contesta con datos, ese cliente entra hoy. Si
+   contesta vacío, tiene código pero su historial no está arriba.
+
+   Solo necesita la URL y la llave anon —las públicas—, no la clave de
+   sincronización: se comprueba leyendo, que es lo que hace el cliente, y así
+   sirve aunque Joan todavía no haya puesto la clave de escritura. */
+function revisarQuienPuedeEntrar(){
+  const c=sbCfg();
+  if(!c.url||!c.anon) return alert('Primero conecta la nube: Ajustes → 📲 Compartir con mis clientes.\n\n'
+    +'Sin eso no puedo comprobar lo que ve el cliente en su celular, solo lo que ves tú acá.');
+
+  const conCedula=DB.socios.filter(s=>String(s.cedula||'').replace(/\D/g,'').length>=5);
+  if(!conCedula.length) return alert('No hay clientes con cédula: sin ella nadie puede entrar a la app.');
+
+  openModal('¿Pueden entrar mis clientes?',
+    '<div class="help">Preguntando a la nube por cada cliente, igual que su celular…</div>'
+    +'<div id="revEstado" style="margin-top:10px"><b>0</b> de '+conCedula.length+'</div>');
+
+  const cab={'Content-Type':'application/json',apikey:c.anon,Authorization:'Bearer '+c.anon};
+  const base=c.url.replace(/\/+$/,'');
+  const listos=[], sinCodigo=[], sinSubir=[], noSePudo=[];
+  let hechos=0;
+
+  /* De a uno y en fila, no todos a la vez: son pocos clientes y un proyecto
+     gratis de Supabase corta las ráfagas. Tardar tres segundos más es barato
+     comparado con un informe con huecos que no se sabe si son fallos o cortes. */
+  function siguiente(i){
+    if(i>=conCedula.length) return pintarInforme();
+    const s=conCedula[i];
+    const ced=String(s.cedula||'').replace(/\D/g,'');
+    const cod=MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s));
+    const paso=()=>{ hechos++;
+      const e=document.getElementById('revEstado');
+      if(e) e.innerHTML='<b>'+hechos+'</b> de '+conCedula.length;
+      siguiente(i+1); };
+    if(!cod){ sinCodigo.push(s); return paso(); }
+    fetch(base+'/rest/v1/rpc/historial_socio_por_codigo',{method:'POST',headers:cab,
+      body:JSON.stringify({p_cedula:ced,p_codigo:cod})})
+      .then(r=>r.text().then(t=>({ok:r.ok,t:t})))
+      .then(r=>{
+        if(!r.ok) noSePudo.push(s);
+        else if(r.t&&r.t!=='null'&&r.t!=='') listos.push(s);
+        else sinSubir.push(s);
+        paso();
+      })
+      .catch(()=>{ noSePudo.push(s); paso(); });
+  }
+
+  function nombres(a){ return a.map(s=>escHTML(s.nombre||'(sin nombre)')).join(', '); }
+
+  function pintarInforme(){
+    /* El informe se ordena por LO QUE HAY QUE HACER, no por número de clientes:
+       lo primero que se lee es lo que bloquea el envío de hoy. */
+    let h='';
+    if(!listos.length){
+      h+='<div class="alerta info" style="margin-bottom:12px"><b>Todavía no mandes el enlace.</b> '
+        +'Ningún cliente puede entrar desde su celular; abajo está por qué y qué falta.</div>';
+    } else {
+      const yaTienenSuCodigo=listos.filter(s=>s.codigoEnviadoEn).length;
+      h+='<div class="alerta info" style="margin-bottom:12px"><b>'+listos.length+' cliente(s) pueden entrar hoy'
+        +'</b> desde su celular. '
+        +(yaTienenSuCodigo===listos.length
+          ? 'A todos les mandaste ya su código: puedes mandarles el enlace.'
+          : '<b>Ojo:</b> a '+(listos.length-yaTienenSuCodigo)+' de ellos todavía no les has mandado su código, '
+            +'y sin código el enlace no les sirve de nada. Ficha del cliente → 📲 Mandar código.')
+        +'</div>';
+    }
+    if(sinSubir.length){
+      h+='<div class="alerta info" style="margin-bottom:12px"><b>'+sinSubir.length+' tienen código pero su historial no está en la nube.</b><br>'
+        +'<span class="muted">'+nombres(sinSubir)+'</span><br>'
+        +'En su celular la app les va a decir «no encontré esa cédula con ese código», aunque acá se vean bien. '
+        +'Se arregla con <b>☁ Subir historiales</b> en Ajustes.'
+        +'<div style="margin-top:8px"><button class="btn btn-sm" onclick="cerrarModal();irA(\'ajustes\')">Ir a Ajustes</button></div></div>';
+    }
+    if(sinCodigo.length){
+      h+='<div class="alerta info" style="margin-bottom:12px"><b>'+sinCodigo.length+' no tienen código.</b><br>'
+        +'<span class="muted">'+nombres(sinCodigo)+'</span><br>'
+        +'Sin código no entran, aunque su historial esté arriba.'
+        +'<div style="margin-top:8px"><button class="btn btn-sm" onclick="cerrarModal();generarCodigosFaltantes()">Generar los que faltan</button></div></div>';
+    }
+    if(noSePudo.length){
+      h+='<div class="alerta info" style="margin-bottom:12px"><b>'+noSePudo.length+' no se pudieron comprobar</b> '
+        +'(la nube no respondió). No quiere decir que estén mal: vuelve a revisar con mejor señal.<br>'
+        +'<span class="muted">'+nombres(noSePudo)+'</span></div>';
+    }
+    h+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--linea)">'
+      +'<b>El enlace que se manda</b><div class="help" style="margin:4px 0 8px">'
+      +'Es la página que explica cómo instalar. El archivo .apk no se puede mandar por WhatsApp: por eso va el enlace.</div>'
+      +'<code style="font-size:12px;word-break:break-all">'+escHTML(URL_DESCARGA_APP)+'</code>'
+      +'<div style="margin-top:8px"><button class="btn btn-sm" onclick="copiarTexto(\''+URL_DESCARGA_APP+'\')">Copiar enlace</button></div></div>';
+    openModal('¿Pueden entrar mis clientes?',h);
+  }
+
+  siguiente(0);
+}
+
 function generarCodigosFaltantes(){
   const faltan=PUENTE.sinCodigoAcceso(DB);
   if(!faltan.length) return alert('Todos tus clientes ya tienen su código.');
@@ -1383,8 +1490,21 @@ function vaciarPapeleraClientes(){
 function avisoCodigosHTML(){
   const faltan=PUENTE.sinCodigoAcceso(DB).length;
   const sinMandar=DB.socios.filter(s=>MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s))&&!s.codigoEnviadoEn).length;
-  if(!faltan&&!sinMandar) return '';
-  return `<div class="alerta info" style="margin-bottom:12px">`
+
+  /* 18-ago-2026 — LA REVISIÓN VA SIEMPRE, aunque no falte ningún código, y por
+     eso está fuera del `if` de abajo. Que todos tengan código NO quiere decir
+     que puedan entrar: falta que su historial esté en la nube, y eso desde acá
+     no se ve. Es justo el caso en que Joan mandaría el enlace tranquilo y la
+     app le diría a cada cliente que no lo encuentra. */
+  const revisar=`<div style="margin-bottom:12px">`
+    +`<button class="btn btn-ghost btn-sm" onclick="revisarQuienPuedeEntrar()" `
+    +`title="Le pregunta a la nube por cada cliente, igual que hará su celular">`
+    +`📱 ¿Pueden entrar mis clientes?</button>`
+    +`<span class="muted" style="margin-left:8px;font-size:12px">Revísalo antes de mandar el enlace de la app.</span>`
+    +`</div>`;
+
+  if(!faltan&&!sinMandar) return revisar;
+  return revisar+`<div class="alerta info" style="margin-bottom:12px">`
     +(faltan?`<b>${faltan} cliente(s) sin código para entrar a la app.</b> Sin él no pueden ver sus números.
        <button class="btn btn-sm" style="margin-left:8px" onclick="generarCodigosFaltantes()">Generar los que faltan</button><br>`:'')
     +(sinMandar?`<span class="muted">${sinMandar} ya tienen código pero todavía no se lo has mandado. Ficha del cliente → 📲 Mandar código.</span>`:'')
@@ -1794,9 +1914,24 @@ function verCliente(id){
 function verComoSocio(id){
   const s=DB.socios.find(x=>x.id===id); if(!s)return;
   const ced=String(s.cedula||'').replace(/\D/g,'');
-  const cod=MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s));
+  let cod=MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s));
   if(!ced) return alert('A '+(s.nombre||'este cliente')+' le falta la cédula, que es con lo que entra a la app.\n\nComplétala en la ficha y vuelve a intentar.');
-  if(!cod) return alert((s.nombre||'Este cliente')+' todavía no tiene código para entrar a la app.\n\nGenéraselo en su ficha y vuelve a tocar el botón.');
+  /* 18-ago-2026 — ANTES ESTO ERA UN CALLEJÓN SIN SALIDA: decía «genéraselo en su
+     ficha y vuelve a tocar el botón», estando el botón EN esa misma ficha y con
+     el bloque del código arriba del todo, fuera de la pantalla si estás abajo.
+     Joan tocó el botón para ver la app de una clienta y se quedó ahí. El código
+     no se le genera a escondidas —cambia lo que ese cliente puede hacer— pero
+     preguntarlo aquí y seguir de largo es un toque en vez de cuatro. */
+  if(!cod){
+    if(!confirm((s.nombre||'Este cliente')+' todavía no tiene código para entrar a la app.\n\n'
+      +'¿Le genero uno ahora y abro la app con él adentro?\n\n'
+      +'Ojo: el código queda creado de verdad. Para que le sirva en SU celular '
+      +'hay que subir los historiales y mandárselo por WhatsApp.')) return;
+    if(!asegurarCodigoAcceso(s)) return alert('No pude generar el código. Vuelve a intentar.');
+    guardar(); render();
+    cod=MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s));
+    if(!cod) return alert('No pude generar el código. Vuelve a intentar.');
+  }
   if(location.protocol==='file:') return alert('Para esto el Panel y la app tienen que abrirse desde la misma dirección web, no con doble clic al archivo.\n\nAbre el Panel desde su enlace (https) y vuelve a tocar el botón.');
   window.open('../app/socio.html#p='+ced+'-'+cod,'_blank','noopener');
 }
@@ -2402,6 +2537,19 @@ const SB_KEY='joan_socios_sb';
    una vez, y el resultado son enlaces muertos en el WhatsApp de los clientes.
    Si algún día hace falta otro, se pone en Ajustes y ese manda (ver urlApp). */
 const URL_APP_DEF = new URL('../app/socio.html', location.href).href;
+
+/* El enlace que se le manda al cliente para que instale la app.
+
+   VA ESCRITA ENTERA Y NO SE DERIVA DE location.href como la de arriba, y esa es
+   toda la gracia: el Panel se abre casi siempre desde localhost, así que
+   derivarla produciría http://localhost:8899/descargas/ — un enlace que funciona
+   en el computador de Joan y en ningún otro aparato del mundo. Es la clase de
+   defecto que no se ve hasta que un cliente contesta «no abre».
+
+   Se manda el ENLACE y no el archivo porque WhatsApp bloquea los .apk. La
+   página del otro lado explica el aviso de «app desconocida» antes de que le
+   salga, que es lo que decide si el cliente instala o se echa para atrás. */
+const URL_DESCARGA_APP = 'https://joanhispanista-star.github.io/Tugarantia/descargas/';
 function sbCfg(){ try{ return JSON.parse(localStorage.getItem(SB_KEY)||'{}'); }catch(e){ return {}; } }
 /* ===== HABLAR CON LA NUBE, UNA SOLA PUERTA =====
    Todo lo que sale de este Panel hacia Supabase pasa por acá: una sola forma de
@@ -3633,7 +3781,7 @@ function sincronizarSocios(){
   const sinRev=DB.socios.filter(s=>!s.migracionRevisada&&DB.prestamos.some(p=>p.socioId===s.id)).length;
   if(!confirm('Subir el historial de '+lote.length+' cliente(s) a la nube.\n\n'
     +(sinRev?'⚠️ '+sinRev+' de ellos todavía no tienen la garantía revisada por ti.\n\n':'')
-    +'Cada uno lo va a poder ver entrando con su cédula y los últimos 4 de su celular. ¿Continuar?'))return;
+    +'Cada uno lo va a poder ver entrando con su cédula y su código. ¿Continuar?'))return;
   const est=document.getElementById('sbEstado'); est.textContent='Subiendo…';
   fetch(c.url+'/rest/v1/rpc/sincronizar_socios',{ method:'POST',
     headers:{'Content-Type':'application/json',apikey:c.anon,Authorization:'Bearer '+c.anon},
@@ -3642,7 +3790,13 @@ function sincronizarSocios(){
   .then(r=>{
     if(!r.ok){ est.textContent='No se pudo subir ('+r.status+'). '+(r.t.indexOf('clave')>=0?'La clave de sincronización no coincide con la de supabase.sql.':r.t.slice(0,180)); return; }
     est.textContent='Listo: '+r.t.replace(/"/g,'')+' cliente(s) actualizados el '+fmtFecha(hoyISO())+'.';
-    alert('Historiales subidos. Ya pueden entrar desde ../app/socio.html con su cédula y los últimos 4 de su celular.');
+    /* 18-ago-2026: estos dos textos seguían diciendo «los últimos 4 de su
+       celular», que es la puerta que se cerró el 10 de agosto. No es un detalle
+       de redacción: es la instrucción que Joan le repite al cliente por
+       WhatsApp, y mandarlo a entrar con algo que ya no abre lo deja llamando
+       para decir que la app no sirve. */
+    alert('Historiales subidos.\n\nYa pueden entrar con su cédula y SU CÓDIGO. '
+      + 'A quien no le hayas mandado el suyo todavía no puede: ficha del cliente → 📲 Mandar código.');
   })
   .catch(()=>{ est.textContent='No hubo conexión. Revisa el internet y vuelve a intentar.'; });
 }
