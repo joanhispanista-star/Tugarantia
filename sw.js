@@ -54,7 +54,9 @@
    que ya hubiera abierto la app rota tenía guardada esa copia. socio.html va
    red-primero, así que con señal se cura solo; el número obliga a soltar la
    copia vieja también a quien abra sin señal el primer día. */
-const CACHE = 'tugarantia-v6';
+/* v7 — 20-ago-2026. La plata del grupo sale de la vista del socio (decisión
+   de Joan): sin el número, la app guardada seguiría mostrándola. */
+const CACHE = 'tugarantia-v7';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

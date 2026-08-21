@@ -662,7 +662,7 @@ details[open] summary::after{content:' ↑'}
    app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
    de CACHE en sw.js). */
-var VERSION_APP = '2026-08-18';
+var VERSION_APP = '2026-08-20';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1470,7 +1470,17 @@ function vistaInicio() {
 
 /* ========================== LA COMUNIDAD ==========================
    No es un banco: es un grupo. Acá el socio ve que entró a algo, no que le
-   prestaron. Solo cifras del conjunto — nunca el nombre ni el monto de nadie. */
+   prestaron. Solo cifras del conjunto — nunca el nombre ni el monto de nadie.
+
+   20-ago-2026 — LA PLATA DEL GRUPO SALE DE LA VISTA, por decisión de Joan: la
+   garantía construida entre todos es, en la práctica, el tamaño de su negocio,
+   y ese no es un dato del cliente. Ojo si algún día vuelve: no basta con
+   quitar el total — el «de lo construido pusiste X%» de la pantalla del grupo
+   también se fue, porque un socio que conoce SU garantía y su porcentaje
+   despeja el total con una regla de tres. El dato sigue viajando en la foto
+   de la comunidad (puente.js la calcula y tiene pruebas); solo dejó de
+   pintarse. Lo que sí se muestra: cuántos son, cuántos créditos han pagado y
+   la puntualidad — orgullo de grupo sin cifras de plata. */
 function tarjetaComunidad() {
   var c = S.comunidad;
   if (!c || !c.socios) {
@@ -1482,7 +1492,7 @@ function tarjetaComunidad() {
   return '<div class="card" onclick="verComunidad()" style="cursor:pointer">' +
     '<div class="etq">La comunidad</div>' +
     '<div class="cifra sm">' + c.socios + ' socios</div>' +
-    '<p class="sub">Entre todos llevan ' + COP(c.garantia_construida) + ' de garantía construida.</p>' +
+    '<p class="sub">Un grupo que se presta entre sí y crece junto.</p>' +
     '<div class="muted" style="font-size:13px;margin-top:var(--e3)">Ver cómo va el grupo y las reglas →</div>' +
     '</div>';
 }
@@ -1498,15 +1508,11 @@ function verComunidad() {
 
   h += '<div class="card"><h3 class="tit">Lo que llevamos entre todos</h3>' +
     '<p class="sub">Cifras del grupo. Aquí no aparece el nombre ni el monto de nadie, ni el tuyo.</p>' +
-    fila('Garantía construida', COP(c.garantia_construida || 0)) +
     fila('Créditos pagados', String(c.creditos_pagados || 0)) +
     (c.puntualidad != null ? fila('Se pagan en fecha', c.puntualidad + '%') : '') +
     '</div>';
 
-  var miParte = c.garantia_construida
-    ? Math.max(1, Math.round(Number(S.g.acumulada || 0) / c.garantia_construida * 100)) : 0;
   h += '<div class="card"><h3 class="tit">Tu parte</h3>' +
-    fila('De lo construido, pusiste', miParte + '%') +
     fila('Gente que trajiste', String(S.referidos.total || 0)) +
     '<p class="sub" style="margin-top:var(--e3)">El grupo crece cuando alguien trae a alguien y esa ' +
     'persona paga. Por eso traer gente te suma cupo: no es una comisión, es que el grupo se hizo ' +
