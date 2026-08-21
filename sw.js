@@ -57,8 +57,11 @@
 /* v7 — 20-ago-2026. La plata del grupo sale de la vista del socio (decisión
    de Joan): sin el número nuevo, la app guardada seguiría mostrándola.
    v8 — mismo día, la segunda: entrada por celular o cédula. El primer
-   cliente real del APK no pudo entrar porque su ficha no tiene cédula. */
-const CACHE = 'tugarantia-v8';
+   cliente real del APK no pudo entrar porque su ficha no tiene cédula.
+   v9 — mismo día, la tercera: la sesión se queda abierta y el socio puede
+   cambiar su código. Con clientes reales entrando por primera vez, cada
+   versión vieja en caché es un cliente confundido. */
+const CACHE = 'tugarantia-v9';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

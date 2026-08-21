@@ -1181,7 +1181,11 @@ function regenerarCodigoAcceso(id){
     +'¿Le cambio el código?')) return;
   const c=nuevoCodigoAccesoUnico(s.id);
   if(!c) return alert('No pude generar el código. Vuelve a intentar.');
-  s.codigoAcceso=c; guardar(); render(); verCliente(id);
+  /* codigoForzar (20-ago-2026): desde que el socio puede ponerse su propia
+     clave, la sincronización NO pisa un código propio — salvo esta marca, que
+     es justo el rescate de «lo perdí»: la próxima subida lo pisa y desmarca.
+     La marca se limpia cuando la subida termina bien, en sincronizarSocios. */
+  s.codigoAcceso=c; s.codigoForzar=true; guardar(); render(); verCliente(id);
 }
 
 /* ===== ¿PUEDEN ENTRAR DESDE SU CELULAR? — 18-ago-2026 =====
@@ -1267,10 +1271,11 @@ function revisarQuienPuedeEntrar(){
         +'</div>';
     }
     if(sinSubir.length){
-      h+='<div class="alerta info" style="margin-bottom:12px"><b>'+sinSubir.length+' tienen código pero su historial no está en la nube.</b><br>'
+      h+='<div class="alerta info" style="margin-bottom:12px"><b>'+sinSubir.length+' con código que la nube no reconoce.</b><br>'
         +'<span class="muted">'+nombres(sinSubir)+'</span><br>'
-        +'En su celular la app les va a decir «no encontré esa cédula con ese código», aunque acá se vean bien. '
-        +'Se arregla con <b>☁ Subir historiales</b> en Ajustes.'
+        +'Casi siempre es que falta <b>☁ Subir historiales</b> (Ajustes). La otra causa, y esa está BIEN: '
+        +'que el socio ya se haya cambiado el código desde su app — el tuyo guardado deja de ser el suyo, '
+        +'pero él entra normal con el que se puso.'
         +'<div style="margin-top:8px"><button class="btn btn-sm" onclick="cerrarModal();irA(\'ajustes\')">Ir a Ajustes</button></div></div>';
     }
     if(sinCodigo.length){
@@ -1919,7 +1924,8 @@ function verCliente(id){
        <span class="vv"><b class="mono cod" style="font-size:19px;letter-spacing:.14em">${escHTML(cAccOk)}</b><br>
          <button class="btn btn-wa btn-sm" onclick="mandarCodigoAcceso('${s.id}')">📲 Mandar código</button>
          <button class="btn btn-ghost btn-sm" onclick="copiarTexto('${escHTML(cAccOk)}')">Copiar</button>
-         <button class="btn btn-ghost btn-sm" onclick="regenerarCodigoAcceso('${s.id}')" title="Le cambia el código: deja de entrar hasta que le mandes el nuevo">Cambiar</button></span></div>`
+         <button class="btn btn-ghost btn-sm" onclick="regenerarCodigoAcceso('${s.id}')" title="Le cambia el código: deja de entrar hasta que le mandes el nuevo">Cambiar</button>
+         <div class="muted" style="font-size:11px;margin-top:4px">Si él se cambió el código desde la app, este ya no es el que usa (y está bien: es suyo). Si lo perdió, «Cambiar» le genera otro y la próxima subida lo deja mandando.</div></span></div>`
     : `<div class="alerta info"><b>Sin código todavía.</b> Sin él no puede entrar a la app.
          <div style="margin-top:8px"><button class="btn btn-sm" onclick="generarCodigoAccesoDe('${s.id}')">Generar su código</button></div></div>`;
   openModal(codCliente(s)+' · '+s.nombre,`
@@ -2850,7 +2856,8 @@ function loteMigracion(){
      viejo los salta sin quejarse — por eso «¿Pueden entrar mis clientes?» es
      la comprobación que vale, no este contador. */
   return DB.socios.map(s=>({ cedula:dig(s.cedula), telefono:dig(waNum(s)||s.telefono),
-      nombre:s.nombre||'Socio', codigo:codigoAccesoDe(s), datos:migrarSocio(s) }))
+      nombre:s.nombre||'Socio', codigo:codigoAccesoDe(s),
+      codigo_forzar:!!s.codigoForzar, datos:migrarSocio(s) }))
     .filter(x=>x.cedula||x.telefono);
 }
 function verMigracion(){
@@ -3889,7 +3896,7 @@ function sincronizarSocios(){
   const sinRev=DB.socios.filter(s=>!s.migracionRevisada&&DB.prestamos.some(p=>p.socioId===s.id)).length;
   if(!confirm('Subir el historial de '+lote.length+' cliente(s) a la nube.\n\n'
     +(sinRev?'⚠️ '+sinRev+' de ellos todavía no tienen la garantía revisada por ti.\n\n':'')
-    +'Cada uno lo va a poder ver entrando con su cédula y su código. ¿Continuar?'))return;
+    +'Cada uno lo va a poder ver entrando con su celular (o su cédula) y su código. ¿Continuar?'))return;
   const est=document.getElementById('sbEstado'); est.textContent='Subiendo…';
   fetch(c.url+'/rest/v1/rpc/sincronizar_socios',{ method:'POST',
     headers:{'Content-Type':'application/json',apikey:c.anon,Authorization:'Bearer '+c.anon},
@@ -3898,12 +3905,18 @@ function sincronizarSocios(){
   .then(r=>{
     if(!r.ok){ est.textContent='No se pudo subir ('+r.status+'). '+(r.t.indexOf('clave')>=0?'La clave de sincronización no coincide con la de supabase.sql.':r.t.slice(0,180)); return; }
     est.textContent='Listo: '+r.t.replace(/"/g,'')+' cliente(s) actualizados el '+fmtFecha(hoyISO())+'.';
+    /* La marca de forzar ya cumplió: la nube pisó ese código y lo desmarcó.
+       Si se quedara puesta, la PRÓXIMA subida volvería a pisar — y si para
+       entonces el socio ya se puso su propia clave, se la mataríamos. */
+    let limpiados=false;
+    DB.socios.forEach(s=>{ if(s.codigoForzar){ delete s.codigoForzar; limpiados=true; } });
+    if(limpiados) guardar();
     /* 18-ago-2026: estos dos textos seguían diciendo «los últimos 4 de su
        celular», que es la puerta que se cerró el 10 de agosto. No es un detalle
        de redacción: es la instrucción que Joan le repite al cliente por
        WhatsApp, y mandarlo a entrar con algo que ya no abre lo deja llamando
        para decir que la app no sirve. */
-    alert('Historiales subidos.\n\nYa pueden entrar con su cédula y SU CÓDIGO. '
+    alert('Historiales subidos.\n\nYa pueden entrar con su celular (o su cédula) y SU CÓDIGO. '
       + 'A quien no le hayas mandado el suyo todavía no puede: ficha del cliente → 📲 Mandar código.');
   })
   .catch(()=>{ est.textContent='No hubo conexión. Revisa el internet y vuelve a intentar.'; });

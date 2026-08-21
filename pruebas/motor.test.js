@@ -8449,6 +8449,58 @@ describe('EL PANEL NO REGISTRA PLATA SIN MOSTRARLA (20-ago-2026)', () => {
   });
 });
 
+describe('LA SESIÓN SE QUEDA Y EL CÓDIGO ES DEL SOCIO (20-ago-2026)', () => {
+
+  /* Los dos pedidos de Joan del día del primer cliente real: entrar UNA vez y
+     quedarse adentro, y que cada socio pueda ponerse su propia clave. Son
+     centinelas de texto porque lo que protegen son decisiones de seguridad
+     escritas en el fuente, no cálculos:
+
+     · La sesión SOLO se recuerda con origen 'nube' (el teléfono del cliente).
+       Si alguien la guardara también con origen 'panel', el navegador de Joan
+       abriría solo con la cuenta del último cliente que revisó.
+     · Salir borra la sesión: un botón de salir que no suelta la llave es
+       mentirle al que presta el teléfono.
+     · El cambio de código exige el ACTUAL y pasa por la nube: sin eso,
+       cualquiera con el teléfono desbloqueado un minuto se queda la cuenta.
+     · Y el Panel lleva la marca codigo_forzar: sin ella, la subida de Joan
+       pisaría la clave que el socio se puso, y él quedaría afuera sin aviso
+       creyendo que su clave nueva "no sirve". */
+
+  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+  const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
+
+  test('la sesión solo se guarda cuando la entrada fue por la nube', () => {
+    const m = /function guardarSesion\([\s\S]*?\n\}/.exec(SOCIO);
+    assert.ok(m, 'socio.html ya no declara guardarSesion');
+    assert.ok(/origen\s*!==\s*'nube'/.test(m[0]),
+      'guardarSesion dejó de exigir origen nube: el Panel de Joan recordaría clientes ajenos');
+    assert.ok(/function salir\(\)[\s\S]{0,200}borrarSesion\(\)/.test(SOCIO),
+      'salir() ya no borra la sesión: el botón mentiría');
+  });
+
+  test('el cambio de código exige el actual y viaja a la nube', () => {
+    const m = /function cambiarCodigo\(\)[\s\S]*?\n\}/.exec(SOCIO);
+    assert.ok(m, 'socio.html ya no declara cambiarCodigo');
+    assert.ok(m[0].indexOf('p_codigo_actual') >= 0,
+      'el cambio ya no exige el código actual: cualquiera con el teléfono un minuto se queda la cuenta');
+    assert.ok(m[0].indexOf('cambiar_codigo_acceso') >= 0,
+      'el cambio dejó de pasar por la función de la nube');
+  });
+
+  test('el lote de subida lleva la marca de forzar y la limpia al terminar', () => {
+    assert.ok(/codigo_forzar\s*:\s*!!s\.codigoForzar/.test(CRM),
+      'loteMigracion ya no manda codigo_forzar: el rescate de «Cambiar» dejó de funcionar');
+    assert.ok(/delete s\.codigoForzar/.test(CRM),
+      'la marca no se limpia tras subir: la próxima subida pisaría la clave que el socio se puso');
+    const mig = path.join(__dirname, '..', 'base', '20260820b_codigo_propio.sql');
+    assert.ok(fs.existsSync(mig), 'falta base/20260820b_codigo_propio.sql');
+    const sql = fs.readFileSync(mig, 'utf8');
+    assert.ok(sql.indexOf('codigo_propio') >= 0 && sql.indexOf('cambiar_codigo_acceso') >= 0,
+      'la migración del código propio no declara lo que su nombre promete');
+  });
+});
+
 describe('ninguna pantalla llama a una función que la migración tiró (11-ago-2026)', () => {
 
   /* POR QUÉ EXISTE — y son tres defectos del mismo día, no uno.
@@ -8477,7 +8529,15 @@ describe('ninguna pantalla llama a una función que la migración tiró (11-ago-
   const leer = f => sinComentarios(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'));
 
   const BASE = leer('base/supabase.sql');
-  const MIGS = ['base/20260810_codigo_acceso.sql'].map(leer);
+  /* 20-ago-2026: la lista era a mano y solo traía la migración del 10-ago; la
+     del celular y la del código propio no entraban, así que este barrido acusó
+     a cambiar_codigo_acceso de no existir. Ahora se leen TODAS las de base/ en
+     orden de nombre — que es el orden de aplicación, por la convención de
+     nombrarlas con la fecha. Una migración que no esté aquí no existe para el
+     barrido, y eso es exactamente lo que debe pasar. */
+  const MIGS = fs.readdirSync(path.join(__dirname, '..', 'base'))
+    .filter(f => /^\d{8}.*\.sql$/.test(f)).sort()
+    .map(f => leer('base/' + f));
 
   /* Las funciones que quedan vivas después de correr base + migraciones, en
      orden. Una que se tira y se vuelve a crear después, queda viva. */

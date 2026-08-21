@@ -1298,6 +1298,9 @@ function abrir(resp) {
     comunidad: d.comunidad || null
   };
   NUEVOS = {};
+  /* La sesión se guarda aquí, donde la entrada YA pasó por la puerta de
+     verdad: guardarSesion decide sola si el origen amerita recordar. */
+  guardarSesion(resp);
   MODO = 'quincenal'; PLAZO = 3;
   /* Abre en un monto donde los DOS productos están VIVOS. Si el arranque pasa
      la garantía ganada, la comparación —que es lo primero que el socio mira
@@ -3252,14 +3255,129 @@ function pie() {
     (S.origen === 'panel' ? 'Datos del Panel de este equipo.<br>' : '') +
     'Si ves algo raro en tus números, escríbenos.' +
     enlacesLegales() +
-    '<br><a href="#" onclick="salir();return false" style="color:inherit">Salir</a>' +
+    /* Cambiar el código solo tiene sentido en el teléfono del socio (origen
+       nube): desde el Panel de Joan sería cambiarle la llave a otro. */
+    (S.origen === 'nube'
+      ? '<br><a href="#" onclick="pantallaCambiarCodigo();return false" style="color:inherit">Cambiar mi código</a> · ' +
+        '<a href="#" onclick="salir();return false" style="color:inherit">Salir</a>'
+      : '<br><a href="#" onclick="salir();return false" style="color:inherit">Salir</a>') +
     selloDeVersion() +
     '</div>';
+}
+
+/* ================= CAMBIAR EL CÓDIGO — 20-ago-2026 =================
+   Pedido de Joan: que el socio pueda ponerse la clave que quiera. Mantiene la
+   forma de siempre (5 letras y números, la que valida el motor) para que todos
+   los textos de la casa sigan diciendo la verdad: es "tu código", solo que
+   ahora puede ser SUYO de verdad.
+
+   El cambio pasa por la nube (cambiar_codigo_acceso, migración 20260820b):
+   exige el código ACTUAL, pasa por el mismo freno de intentos de la entrada, y
+   la nube guarda solo la huella nueva. Ojo con la consecuencia, que está
+   avisada en la ficha del Panel: el código que Joan guarda en claro deja de
+   ser el que abre — si el socio lo pierde, Joan usa «Cambiar» y ese sí lo
+   pisa (codigo_forzar en la sincronización). */
+function pantallaCambiarCodigo() {
+  $('cuerpo').innerHTML = '<div class="panel"><div class="card">' +
+    '<h3 class="tit">Cambia tu código</h3>' +
+    '<p class="sub">El nuevo también es de ' + M.LARGO_CODIGO_ACCESO + ' letras y números, como ' +
+      'K7QP3. Desde que lo cambies, el viejo deja de servir en todos lados.</p>' +
+    '<label for="ccNuevo">Tu código nuevo</label>' +
+    '<input id="ccNuevo" type="text" autocomplete="off" autocapitalize="characters" ' +
+      'spellcheck="false" maxlength="' + M.LARGO_CODIGO_ACCESO + '" placeholder="Ej: MI4B9" ' +
+      'style="text-transform:uppercase;letter-spacing:.18em" oninput="tecleaAcceso(this)">' +
+    '<label for="ccRepite">Repítelo, para estar seguros</label>' +
+    '<input id="ccRepite" type="text" autocomplete="off" autocapitalize="characters" ' +
+      'spellcheck="false" maxlength="' + M.LARGO_CODIGO_ACCESO + '" ' +
+      'style="text-transform:uppercase;letter-spacing:.18em" oninput="tecleaAcceso(this)">' +
+    '<button class="btn arriba" id="ccBoton">Cambiar mi código</button>' +
+    '<div id="ccMsg" class="aviso ambar oculto"></div>' +
+    '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="irA(\'inicio\')">Volver</button>' +
+    '</div></div>';
+  window.scrollTo(0, 0);
+  $('ccBoton').addEventListener('click', cambiarCodigo);
+}
+
+function cambiarCodigo() {
+  var nuevo = M.normalizarCodigoAcceso($('ccNuevo').value || '');
+  var repite = M.normalizarCodigoAcceso($('ccRepite').value || '');
+  var msg = $('ccMsg');
+  function aviso(t) { msg.textContent = t; msg.classList.remove('oculto'); }
+  msg.classList.add('oculto');
+  if (!nuevo) return aviso('El código nuevo va de ' + M.LARGO_CODIGO_ACCESO +
+    ' letras y números, como K7QP3. Revísalo.');
+  if (nuevo !== repite) return aviso('No escribiste el mismo código dos veces. Revísalos.');
+  if (nuevo === S.acceso) return aviso('Ese ya es tu código de ahora. Escribe uno distinto.');
+  if (!CFG.url || !CFG.anon) return aviso('No pude conectarme. Revisa tu internet y vuelve a intentar.');
+
+  $('ccBoton').disabled = true;
+  fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/cambiar_codigo_acceso', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
+    body: JSON.stringify({ p_identificador: S.cedula, p_codigo_actual: S.acceso, p_codigo_nuevo: nuevo })
+  }).then(function (r) {
+    if (r.status === 404) { throw { humano: 'Esta opción se está encendiendo. Inténtalo más tarde o escríbenos.' }; }
+    return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status));
+  }).then(function (ok) {
+    if (ok !== true) {
+      throw { humano: 'No pude cambiarlo. Sal, vuelve a entrar con tu código de ahora, e inténtalo de nuevo.' };
+    }
+    /* La sesión y el estado en memoria se actualizan YA: si se quedara el
+       viejo, el próximo arranque intentaría entrar con un código muerto y lo
+       sacaría de la app justo después de cambiarlo. */
+    S.acceso = nuevo;
+    var ses = sesionGuardada();
+    if (ses) { ses.codigo = nuevo; if (ses.resp) ses.resp.codigo = nuevo;
+      try { localStorage.setItem(LLAVE_SESION_SOCIO, JSON.stringify(ses)); } catch (e) {} }
+    $('cuerpo').innerHTML = '<div class="panel"><div class="card">' +
+      '<h3 class="tit">Listo: tu código nuevo es ' + esc(nuevo) + '</h3>' +
+      '<p class="sub">Es tuyo y solo tuyo: ni nosotros lo vemos. Guárdalo. ' +
+      'El anterior dejó de servir desde ya, y con este entras aquí y en cualquier teléfono.</p>' +
+      '<button class="btn arriba" onclick="irA(\'inicio\')">Volver a mi cuenta</button>' +
+      '</div></div>';
+    window.scrollTo(0, 0);
+  }).catch(function (e) {
+    aviso(e && e.humano ? e.humano : 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
+  }).then(function () { var b = $('ccBoton'); if (b) b.disabled = false; });
+}
+
+/* ================= LA SESIÓN QUE SE QUEDA — 20-ago-2026 =================
+   Pedido de Joan con el primer cliente real adentro: entrar UNA vez y que la
+   app se quede abierta, como cualquier app de verdad. Nadie teclea su clave
+   cada mañana.
+
+   Se guarda SOLO cuando la entrada fue por la nube — o sea, el teléfono del
+   cliente. Nunca con origen 'panel' (Joan mirando la app como la ve él: si se
+   guardara, su navegador abriría con la cuenta del último cliente revisado) ni
+   'enlace' (una foto congelada que alguien pudo reenviar).
+
+   Se guarda también el último paquete de datos: si el cliente abre SIN señal,
+   ve sus números al día de la última vez — con su fecha, que el pie ya
+   muestra. Y si la nube contesta que el código ya no vale (lo cambió, o Joan
+   se lo renovó), la sesión se borra y se vuelve a la puerta: el código manda,
+   la sesión solo lo recuerda. */
+var LLAVE_SESION_SOCIO = 'socio_sesion';
+
+function guardarSesion(resp) {
+  if (!resp || resp.origen !== 'nube') return;
+  try {
+    localStorage.setItem(LLAVE_SESION_SOCIO, JSON.stringify({
+      ident: resp.cedula, codigo: resp.codigo, resp: resp, guardadoEl: hoyISO()
+    }));
+  } catch (e) { /* sin espacio o sin permiso: la app sigue, solo no recuerda */ }
+}
+function sesionGuardada() {
+  try { return JSON.parse(localStorage.getItem(LLAVE_SESION_SOCIO) || 'null'); }
+  catch (e) { return null; }
+}
+function borrarSesion() {
+  try { localStorage.removeItem(LLAVE_SESION_SOCIO); } catch (e) {}
 }
 
 function salir() {
   S = null; NUEVOS = {};
   MODO = 'quincenal'; PLAZO = 3;
+  borrarSesion();
   if (location.hash) {
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
   }
@@ -3352,6 +3470,32 @@ function pantallaConfig() {
      El hash no viaja al servidor, y sin esos dos datos no abre nada. */
   var delPanel = desdePanel();
   if (delPanel) return abrir(delPanel);
+
+  /* La sesión recordada (20-ago-2026). Primero se le pregunta a la nube con lo
+     guardado: si contesta con datos, adentro con números frescos; si contesta
+     que NO (el código cambió o se lo renovaron), la sesión se borra y a la
+     puerta — la sesión recuerda el código, no lo reemplaza. Y si no hay señal,
+     el último paquete guardado: números con fecha, no una pantalla de error,
+     porque abrir la app en el bus sin datos es el caso normal, no el raro. */
+  var ses = sesionGuardada();
+  if (ses && ses.ident && ses.codigo) {
+    mostrar('pCargando');
+    buscarEnNube(ses.ident, ses.codigo).then(function (n) {
+      if (n.dato) {
+        n.dato.cedula = ses.ident; n.dato.codigo = ses.codigo; n.dato.origen = 'nube';
+        return abrir(n.dato);
+      }
+      if (n.falloRed && ses.resp) return abrir(ses.resp);
+      borrarSesion();
+      pintarEntrar(); mostrar('pEntrar');
+      var e = $('errEntrar');
+      if (e && !n.falloRed) {
+        e.textContent = 'Tu código cambió, así que te pedimos entrar de nuevo. ' +
+          'Si no fuiste tú, escríbenos.';
+        e.classList.remove('oculto');
+      }
+    });
+  }
 })();
 </script>
 </body>
