@@ -55,8 +55,10 @@
    red-primero, así que con señal se cura solo; el número obliga a soltar la
    copia vieja también a quien abra sin señal el primer día. */
 /* v7 — 20-ago-2026. La plata del grupo sale de la vista del socio (decisión
-   de Joan): sin el número, la app guardada seguiría mostrándola. */
-const CACHE = 'tugarantia-v7';
+   de Joan): sin el número nuevo, la app guardada seguiría mostrándola.
+   v8 — mismo día, la segunda: entrada por celular o cédula. El primer
+   cliente real del APK no pudo entrar porque su ficha no tiene cédula. */
+const CACHE = 'tugarantia-v8';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

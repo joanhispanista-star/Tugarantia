@@ -1655,10 +1655,10 @@
     };
   }
 
-  /* Entrar cuesta cédula + el código de acceso del cliente. Sin esos dos datos
-     no se puede listar a nadie, ni siquiera en el equipo de Joan. Y nunca se
-     dice "la cédula existe pero el código no": eso volvería la app un oráculo
-     de cédulas.
+  /* Entrar cuesta el identificador (celular o cédula) + el código de acceso.
+     Sin esos dos datos no se puede listar a nadie, ni siquiera en el equipo de
+     Joan. Y nunca se dice "el número existe pero el código no": eso volvería
+     la app un oráculo de cédulas y celulares.
 
      10-ago-2026 — ESTO ANTES PEDÍA LOS ÚLTIMOS 4 DEL CELULAR, y se cambió por
      lo que son: un secreto que no es secreto. Los cuatro últimos dígitos del
@@ -1673,14 +1673,28 @@
     return (s && typeof s.codigoAcceso === 'string') ? s.codigoAcceso : '';
   }
 
-  function buscarSocio(db, cedula, codigo) {
-    var ced = digitos(cedula);
+  /* 20-ago-2026 — EL IDENTIFICADOR PUEDE SER LA CÉDULA O EL CELULAR. El primer
+     cliente real que instaló el APK no pudo entrar: la puerta pedía cédula y su
+     ficha no la tiene — como 11 de los 16 socios de ese día. El CRM conoce a la
+     gente por su celular; pedir en la puerta un dato que el negocio no recoge
+     era dejar a la mayoría afuera.
+
+     Esto NO reabre la puerta del 10-ago: aquella usaba dos datos públicos como
+     llave (cédula + últimos 4). Aquí el celular solo IDENTIFICA —es tan público
+     como la cédula que ya se usaba— y el secreto sigue siendo el código. El
+     celular se compara por los últimos 10 dígitos, para que el 57 de adelante
+     no deje a nadie afuera. */
+  function buscarSocio(db, identificador, codigo) {
+    var ced = digitos(identificador);
     var cod = M.normalizarCodigoAcceso(String(codigo == null ? '' : codigo));
     if (ced.length < 5 || !cod) return null;
+    var d10 = ced.slice(-10);
     var socios = lista(db && db.socios);
     for (var i = 0; i < socios.length; i++) {
       var s = socios[i];
-      if (digitos(s.cedula) !== ced) continue;
+      var porCedula = digitos(s.cedula) === ced;
+      var porCelular = ced.length >= 10 && digitos(s.telefono).slice(-10) === d10;
+      if (!porCedula && !porCelular) continue;
       /* Un cliente sin código todavía NO entra. Es a propósito: mientras Joan no
          le haya generado el suyo, dejarlo pasar con el campo vacío convertiría
          "sin código" en la contraseña de todos los que aún no lo tienen. */

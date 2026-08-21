@@ -951,7 +951,7 @@ function entrar() {
   var ced = ($('inCedula').value || '').replace(/\D/g, '');
   var cod = M.normalizarCodigoAcceso($('inCodigo2').value || '');
   $('errEntrar').classList.add('oculto');
-  if (ced.length < 5) return fallo('Escribe tu número de cédula completo.');
+  if (ced.length < 5) return fallo('Escribe tu número de celular (o tu cédula) completo.');
   /* El código mal escrito muere ACÁ, en el teléfono, y no gasta uno de los ocho
      intentos que da el freno de la nube. Es lo que compra tener una forma fija:
      cinco caracteres del alfabeto y nada más. */
@@ -971,7 +971,7 @@ function entrar() {
        convertiría la app en un oráculo de cédulas. */
     fallo(n.falloRed
       ? 'No pude conectarme. Revisa que tengas internet y vuelve a intentar.'
-      : 'No encontré esa cédula con ese código. Revísalos, y si siguen sin salir escríbenos.' +
+      : 'No encontré ese número con ese código. Revísalos, y si siguen sin salir escríbenos.' +
         (location.protocol === 'file:'
           ? ' Si estás abriendo esto como archivo, ábrelo desde la dirección web: así las dos páginas se ven entre sí.'
           : ''));
@@ -984,14 +984,21 @@ function entrar() {
    10-ago-2026: se entra con cédula + CÓDIGO, no con los últimos 4 del celular.
    Ver el comentario largo de generarCodigoAcceso en motor.js: los cuatro dígitos
    del celular de alguien circulan en todos los grupos de WhatsApp de los que esa
-   persona hace parte, y la cédula en Colombia está en cada factura. */
+   persona hace parte, y la cédula en Colombia está en cada factura.
+
+   20-ago-2026: el identificador también puede ser el CELULAR completo. El
+   primer cliente real del APK no pudo entrar: su ficha no tiene cédula, como
+   la mayoría — el CRM conoce a la gente por su celular. Esto NO es la puerta
+   que se cerró el 10-ago: el secreto sigue siendo el código; el celular solo
+   identifica, igual de público que la cédula que ya se pedía. La regla vive
+   en buscarSocio del puente y en la migración 20260820 de la nube. */
 function pintarEntrar() {
   $('entrarCuerpo').innerHTML =
     '<div class="card">' +
       '<h3 class="tit">Entra con tu código</h3>' +
       '<p class="sub">El que te mandamos por WhatsApp. Es tuyo y no cambia.</p>' +
-      '<label for="inCedula">Tu cédula</label>' +
-      '<input id="inCedula" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 52111222">' +
+      '<label for="inCedula">Tu celular (o tu cédula)</label>' +
+      '<input id="inCedula" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 3001234567">' +
       '<label for="inCodigo2">Tu código</label>' +
       '<input id="inCodigo2" type="text" autocomplete="off" autocapitalize="characters" ' +
         'spellcheck="false" maxlength="' + M.LARGO_CODIGO_ACCESO +
@@ -1011,7 +1018,7 @@ function pintarEntrar() {
       '<button class="btn sec arriba" onclick="abrirRegistro()">Tengo un código de invitación</button>' +
     '</div>' +
     tarjetaInstalar() +
-    '<div class="pie">Tus datos solo los ves tú, con tu cédula y tu código.<br>' +
+    '<div class="pie">Tus datos solo los ves tú, con tu número y tu código.<br>' +
       '¿No te reconoce? Escríbenos y lo revisamos.' + selloDeVersion() + '</div>';
   $('btnEntrar').addEventListener('click', entrar);
   $('inCedula').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('inCodigo2').focus(); });
@@ -1027,7 +1034,7 @@ function tecleaAcceso(el) {
 
 function pedirCodigo() {
   porWhatsApp('Hola, soy socio de ' + nombreJoan() + ' y no tengo mi código para entrar a la app. ' +
-    'Mi cédula es ' + (($('inCedula') && $('inCedula').value) || '…') + '. ¿Me lo puedes reenviar?');
+    'Mi número es ' + (($('inCedula') && $('inCedula').value) || '…') + '. ¿Me lo puedes reenviar?');
 }
 
 /* ==================== INSTALARLA EN EL CELULAR ====================

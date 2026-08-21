@@ -7905,6 +7905,27 @@ describe('entrar con código: el puente', () => {
     assert.equal(P.buscarSocio(db, '52111222', '3001112233'), null);
   });
 
+  test('también entra con su CELULAR y su código (20-ago-2026)', () => {
+    /* El primer cliente real del APK no pudo entrar: su ficha no tiene cédula,
+       como 11 de 16 ese día — el CRM conoce a la gente por el celular. OJO: el
+       secreto sigue siendo el código; el celular solo identifica. Los últimos
+       4 solos siguen sin abrir nada (la prueba de arriba lo vigila). */
+    const db = dbCon([socio('a', '', 'K7QP3')]);          // ficha SIN cédula
+    assert.equal(P.buscarSocio(db, '3001112233', 'K7QP3').id, 'a');
+    assert.equal(P.buscarSocio(db, '573001112233', 'K7QP3').id, 'a', 'con el 57 de adelante');
+    assert.equal(P.buscarSocio(db, '300 111 2233', 'K7QP3').id, 'a', 'con espacios');
+    assert.equal(P.buscarSocio(db, '3001112233', 'K7QP4'), null, 'celular bien, código de otro');
+    assert.equal(P.buscarSocio(db, '3001112234', 'K7QP3'), null, 'celular de otro');
+    assert.equal(P.buscarSocio(db, '1112233', 'K7QP3'), null,
+      'un pedazo del celular no identifica: 10 dígitos o nada');
+  });
+
+  test('con cédula Y celular en la ficha, entra por cualquiera de los dos', () => {
+    const db = dbCon([socio('a', '52111222', 'K7QP3')]);
+    assert.equal(P.buscarSocio(db, '52111222', 'K7QP3').id, 'a', 'por cédula');
+    assert.equal(P.buscarSocio(db, '3001112233', 'K7QP3').id, 'a', 'por celular');
+  });
+
   test('el que todavía no tiene código NO entra, ni con el campo vacío', () => {
     /* Si "sin código" dejara pasar, sería la contraseña de todos los clientes a
        los que Joan aún no se lo generó — o sea, de la cartera entera el día 1. */

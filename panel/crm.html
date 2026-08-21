@@ -637,7 +637,7 @@ const PLANTILLAS_DEF={
   /* 10-ago-2026 — el código con el que el cliente entra a SU cuenta. Dice las
      tres cosas que evitan el WhatsApp de vuelta: que es suyo, que no cambia, y
      que no se comparte. Y no promete nada que la app no haga. */
-  codigoAcceso:{t:'Su código para entrar a la app',x:'La llave del cliente. Se la mandas una vez y le sirve siempre',m:'Hola {nombre} 🙂 Te mandamos tu código para entrar a la app y ver tus números: {codigo_acceso}\n\nEntras acá con tu cédula y ese código: {enlace}\n\nEs tuyo y no cambia, así que guárdalo. No se lo pases a nadie: con él se ve todo tu historial.'}
+  codigoAcceso:{t:'Su código para entrar a la app',x:'La llave del cliente. Se la mandas una vez y le sirve siempre',m:'Hola {nombre} 🙂 Te mandamos tu código para entrar a la app y ver tus números: {codigo_acceso}\n\nEntras acá con tu número de celular (este mismo) y ese código: {enlace}\n\nEs tuyo y no cambia, así que guárdalo. No se lo pases a nadie: con él se ve todo tu historial.'}
 };
 
 /* 3-ago-2026: cuántas fechaPagado tocó la migración en ESTA carga. Se declara
@@ -1206,8 +1206,12 @@ function revisarQuienPuedeEntrar(){
   if(!c.url||!c.anon) return alert('Primero conecta la nube: Ajustes → 📲 Compartir con mis clientes.\n\n'
     +'Sin eso no puedo comprobar lo que ve el cliente en su celular, solo lo que ves tú acá.');
 
-  const conCedula=DB.socios.filter(s=>String(s.cedula||'').replace(/\D/g,'').length>=5);
-  if(!conCedula.length) return alert('No hay clientes con cédula: sin ella nadie puede entrar a la app.');
+  /* 20-ago-2026: el identificador es cédula O celular, como en la puerta real.
+     Antes esta revisión filtraba por cédula y a los 11 clientes sin ella los
+     callaba — justo los que iban a fallar. */
+  const identDe=s=>String(s.cedula||'').replace(/\D/g,'')||String(s.telefono||'').replace(/\D/g,'').slice(-10);
+  const conCedula=DB.socios.filter(s=>identDe(s).length>=5);
+  if(!conCedula.length) return alert('No hay clientes con celular ni cédula: sin al menos uno, nadie puede entrar a la app.');
 
   openModal('¿Pueden entrar mis clientes?',
     '<div class="help">Preguntando a la nube por cada cliente, igual que su celular…</div>'
@@ -1224,7 +1228,7 @@ function revisarQuienPuedeEntrar(){
   function siguiente(i){
     if(i>=conCedula.length) return pintarInforme();
     const s=conCedula[i];
-    const ced=String(s.cedula||'').replace(/\D/g,'');
+    const ced=identDe(s);
     const cod=MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s));
     const paso=()=>{ hechos++;
       const e=document.getElementById('revEstado');
@@ -1982,9 +1986,12 @@ function verCliente(id){
    vas a mandar de verdad sirve. */
 function verComoSocio(id){
   const s=DB.socios.find(x=>x.id===id); if(!s)return;
-  const ced=String(s.cedula||'').replace(/\D/g,'');
+  /* 20-ago-2026: el identificador es la cédula o, si la ficha no la tiene, el
+     celular — la misma regla de buscarSocio en el puente y de la nube. Es lo
+     que desbloqueó al primer cliente real del APK: tenía celular y no cédula. */
+  const ced=String(s.cedula||'').replace(/\D/g,'')||String(s.telefono||'').replace(/\D/g,'').slice(-10);
   let cod=MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s));
-  if(!ced) return alert('A '+(s.nombre||'este cliente')+' le falta la cédula, que es con lo que entra a la app.\n\nComplétala en la ficha y vuelve a intentar.');
+  if(!ced) return alert('A '+(s.nombre||'este cliente')+' le faltan el celular y la cédula: sin al menos uno no puede entrar a la app.\n\nCompleta la ficha y vuelve a intentar.');
   /* 18-ago-2026 — ANTES ESTO ERA UN CALLEJÓN SIN SALIDA: decía «genéraselo en su
      ficha y vuelve a tocar el botón», estando el botón EN esa misma ficha y con
      el bloque del código arriba del todo, fuera de la pantalla si estás abajo.
@@ -2827,24 +2834,29 @@ function migrarSocio(s){ return PUENTE.migrarSocio(DB,s); }
 function loteMigracion(){
   const dig=v=>String(v||'').replace(/\D/g,'');
   /* El código va EN CLARO en el lote y la nube guarda solo su huella (ver
-     huella_codigo en base/20260810_codigo_acceso.sql). Y ya no se exige
-     teléfono para subir a alguien: desde el 10-ago-2026 el teléfono no abre
-     nada, así que dejar afuera al cliente sin celular cargado solo lo dejaba
-     sin app. Lo que sí hace falta es la cédula, que es con lo que entra. */
+     huella_codigo en base/20260810_codigo_acceso.sql).
+
+     20-ago-2026: basta la cédula O el celular. El filtro por cédula dejaba a
+     11 de 16 clientes SIN SUBIR — no existían en la nube, así que ningún
+     código les iba a servir en su teléfono. La nube (migración 20260820) usa
+     la cédula como llave y, si no hay, el celular. OJO: si la base todavía no
+     tiene esa migración corrida, los sin cédula suben en el lote pero el SQL
+     viejo los salta sin quejarse — por eso «¿Pueden entrar mis clientes?» es
+     la comprobación que vale, no este contador. */
   return DB.socios.map(s=>({ cedula:dig(s.cedula), telefono:dig(waNum(s)||s.telefono),
       nombre:s.nombre||'Socio', codigo:codigoAccesoDe(s), datos:migrarSocio(s) }))
-    .filter(x=>x.cedula);
+    .filter(x=>x.cedula||x.telefono);
 }
 function verMigracion(){
   const lote=loteMigracion(), sin=DB.socios.length-lote.length;
-  if(!lote.length) return alert('Ningún cliente tiene la cédula cargada, que es con lo que entra a la app. Complétala primero.');
+  if(!lote.length) return alert('Ningún cliente tiene celular ni cédula cargados: sin al menos uno no pueden entrar a la app. Completa las fichas primero.');
   openModal('Se van a subir '+lote.length+' cliente(s)',
-    (sin?`<div class="alerta info">${sin} cliente(s) quedan por fuera: les falta la cédula, que es con lo que entran. Complétala y vuelve a subir.</div>`:'')
+    (sin?`<div class="alerta info">${sin} cliente(s) quedan por fuera: les falta el celular y la cédula. Completa al menos uno y vuelve a subir.</div>`:'')
     +(()=>{ const nc=lote.filter(x=>!MotorReglas.normalizarCodigoAcceso(x.codigo)).length;
         return nc?`<div class="alerta"><b>${nc} de estos no tienen código todavía</b>, así que van a subir pero no van a poder entrar. Genéraselos primero: botón <b>Códigos de acceso</b> en la lista de clientes.</div>`:''; })()
     +`<div class="muted" style="margin-bottom:10px">Solo esto. Ni fotos, ni ubicación, ni referencias.</div>`
     +lote.slice(0,40).map(x=>{ const g=x.datos.garantia;
-      return `<div class="info-row"><span class="k">${escHTML(x.nombre)}<div class="muted">CC ${escHTML(x.cedula)} · código ${x.codigo?escHTML(x.codigo):'<b>sin código</b>'}</div></span>
+      return `<div class="info-row"><span class="k">${escHTML(x.nombre)}<div class="muted">${x.cedula?'CC '+escHTML(x.cedula):'cel '+escHTML(x.telefono)} · código ${x.codigo?escHTML(x.codigo):'<b>sin código</b>'}</div></span>
       <span class="vv"><b>${COP(g.total)}</b> de garantía<div class="muted">${g.nivel} · ${g.creditos_total} crédito(s) · ${g.pagados_a_tiempo} puntual(es)</div></span></div>`; }).join('')
     +(lote.length>40?`<div class="muted" style="margin-top:10px">…y ${lote.length-40} más.</div>`:''));
 }
@@ -3694,8 +3706,13 @@ function descartarSolicitud(id){
 function crearDesdeSolicitud(id){
   const s=_solicitudes.find(x=>String(x.id)===String(id)); if(!s)return;
   const dig=v=>String(v||'').replace(/\D/g,'');
-  const cli=DB.socios.find(x=>dig(x.cedula)===dig(s.cedula));
-  if(!cli) return alert('No tengo ficha de "'+s.nombre+'" con la cédula '+(s.cedula||'—')+'.\n\nCréale la ficha primero desde Clientes y vuelve a intentar.');
+  /* 20-ago-2026: la solicitud puede venir identificada por cédula O por
+     celular (el socio entra con cualquiera de los dos), así que la ficha se
+     busca por ambos. El campo se sigue llamando cedula en la nube: la firma
+     es un contrato con la app ya publicada. */
+  const idSol=dig(s.cedula);
+  const cli=DB.socios.find(x=>dig(x.cedula)===idSol||(idSol.length>=10&&dig(x.telefono).slice(-10)===idSol.slice(-10)));
+  if(!cli) return alert('No tengo ficha de "'+s.nombre+'" con el número '+(s.cedula||'—')+' (ni como cédula ni como celular).\n\nCréale la ficha primero desde Clientes y vuelve a intentar.');
   /* Cada producto por su puerta. El préstamo con garantía NO se desembolsa
      desde acá: se abre el formulario de siempre, con el monto y el plazo que
      pidió el cliente ya puestos, porque ese es el único que sabe frenar cuando
