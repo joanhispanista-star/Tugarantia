@@ -637,7 +637,7 @@ const PLANTILLAS_DEF={
   /* 10-ago-2026 — el código con el que el cliente entra a SU cuenta. Dice las
      tres cosas que evitan el WhatsApp de vuelta: que es suyo, que no cambia, y
      que no se comparte. Y no promete nada que la app no haga. */
-  codigoAcceso:{t:'Su código para entrar a la app',x:'La llave del cliente. Se la mandas una vez y le sirve siempre',m:'Hola {nombre} 🙂 Te mandamos tu código para entrar a la app y ver tus números: {codigo_acceso}\n\nEntras acá con tu número de celular (este mismo) y ese código: {enlace}\n\nEs tuyo y no cambia, así que guárdalo. No se lo pases a nadie: con él se ve todo tu historial.'}
+  codigoAcceso:{t:'Su código para entrar a la app',x:'La llave del cliente. Se la mandas una vez y le sirve siempre',m:'Hola {nombre} 🙂 Estos son tus datos para entrar a la app y ver tus números:\n\n👤 Tu usuario: {usuario}\n🔑 Tu código: {codigo_acceso}\n\nEntras acá: {enlace}\n\nSon tuyos y no cambian, así que guárdalos. No se los pases a nadie: con ellos se ve todo tu historial.'}
 };
 
 /* 3-ago-2026: cuántas fechaPagado tocó la migración en ESTA carga. Se declara
@@ -1312,8 +1312,15 @@ function generarCodigosFaltantes(){
 }
 
 function mensajeCodigoAcceso(s){
+  /* {usuario} (21-ago-2026): el número EXACTO que el cliente teclea, escrito en
+     el mensaje. «Con este mismo número» sonaba claro hasta que un cliente lo
+     leyó en el celular de su casa, o con el WhatsApp en otro número que el de
+     la ficha. El usuario es el mismo identificador que sube al lote: primero
+     el celular (el que él conoce), y si la ficha no tiene, la cédula. */
+  const dig=v=>String(v||'').replace(/\D/g,'');
+  const usuario=dig(waNum(s)||s.telefono)||dig(s.cedula)||'—';
   return aplicarVars(DB.plantillas.codigoAcceso||PLANTILLAS_DEF.codigoAcceso.m,null,s,
-    urlApp(),{codigo_acceso:codigoAccesoDe(s)});
+    urlApp(),{codigo_acceso:codigoAccesoDe(s),usuario:usuario});
 }
 function mandarCodigoAcceso(id){
   const s=DB.socios.find(x=>x.id===id); if(!s) return;
