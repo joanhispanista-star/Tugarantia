@@ -8371,6 +8371,18 @@ describe('LA APP SIRVE EN UN APARATO RECIÉN ESTRENADO (18-ago-2026)', () => {
     });
   });
 
+  test('la fachada publicable también viene conectada, y al MISMO proyecto', () => {
+    /* 24-ago-2026: play/index.html estrenó registro abierto y le pasaba lo
+       mismo que a socio.html el 20-ago — CFG vacío, y en un teléfono nuevo
+       nadie podía registrarse. Dos proyectos distintos serían dos verdades:
+       el registro cayendo en una base y el Panel leyendo otra. */
+    const PLAY = fs.readFileSync(path.join(__dirname, '..', 'play', 'index.html'), 'utf8');
+    const m = /var CFG = \{\s*url: '(https:\/\/[a-z0-9-]+\.supabase\.co)'/.exec(PLAY);
+    assert.ok(m, 'play/index.html volvió al CFG vacío: en un aparato nuevo nadie se registra');
+    assert.equal(m[1], configDeFabrica().url,
+      'la fachada apunta a otro proyecto que la app del socio');
+  });
+
   test('una conexión ya guardada no se pisa con la de fábrica', () => {
     /* El de fábrica es el DEFECTO, no una imposición: quien apuntó su app a
        otro proyecto desde ?cfg tiene que conservarlo. */
@@ -8446,6 +8458,50 @@ describe('EL PANEL NO REGISTRA PLATA SIN MOSTRARLA (20-ago-2026)', () => {
       'crm.html se quedó sin revisarCartera(): era la red que detecta lo que ya entró mal');
     assert.ok(CRM.indexOf('revisarCartera()') !== CRM.lastIndexOf('revisarCartera()'),
       'revisarCartera existe pero ningún botón la llama: una revisión que no se puede correr no revisa nada');
+  });
+});
+
+describe('EL REGISTRO ABIERTO LLEGA AL CRM (24-ago-2026)', () => {
+
+  /* Decisión de Joan: el cliente nuevo se registra SOLO en la fachada
+     publicable y le aparece en el apartado «Registrados», separado de sus
+     clientes hasta el primer crédito. Hasta hoy el registro caía en Supabase
+     Auth y nadie lo leía: el registrado era invisible. Estos centinelas
+     vigilan las tres piezas del puente y el ORDEN que lo hace confiable. */
+
+  const PLAY = fs.readFileSync(path.join(__dirname, '..', 'play', 'index.html'), 'utf8');
+  const CRM_R = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
+  const MIG = path.join(__dirname, '..', 'base', '20260824_registro_abierto.sql');
+
+  test('la bandeja va PRIMERO y la cuenta después — el orden es la garantía', () => {
+    /* Si la cuenta se creara primero y la bandeja fallara, el registrado
+       quedaría con cuenta pero invisible para Joan — y sin reintento posible,
+       porque el signup repetido contesta «ya hay una cuenta». */
+    const bandeja = PLAY.indexOf('rpc/registrar_abierto');
+    const cuenta = PLAY.indexOf('/auth/v1/signup');
+    assert.ok(bandeja >= 0, 'la fachada ya no llama a registrar_abierto: el registro vuelve a ser invisible');
+    assert.ok(cuenta >= 0, 'la fachada ya no crea la cuenta');
+    assert.ok(bandeja < cuenta, 'el signup quedó ANTES que la bandeja: un fallo de bandeja deja registrados invisibles');
+  });
+
+  test('la migración del registro abierto existe y trae sus tres defensas', () => {
+    assert.ok(fs.existsSync(MIG), 'falta base/20260824_registro_abierto.sql');
+    const sql = fs.readFileSync(MIG, 'utf8');
+    assert.ok(sql.indexOf("puede_intentar_tope('reg:*'") >= 0,
+      'sin el freno GLOBAL, el atacante inventa un celular nuevo por intento y llena la bandeja');
+    assert.ok(/revoke all on function public\.registrar_abierto[\s\S]{0,80}from public/.test(sql),
+      'sin el revoke, la función nace con EXECUTE para PUBLIC (ya pasó dos veces)');
+    assert.ok(sql.indexOf('registrar_abierto') >= 0 && sql.indexOf('play_solicitar') >= 0,
+      'la migración perdió una de sus dos funciones');
+    assert.ok(!/raise exception/.test(sql.split('registrar_abierto')[2] || ''),
+      'registrar_abierto no puede lanzar: una excepción borra su propio contador de fallos');
+  });
+
+  test('el CRM tiene el apartado Registrados, separado y con su nav', () => {
+    assert.ok(CRM_R.indexOf('id="v-registrados"') >= 0, 'se perdió la sección v-registrados');
+    assert.ok(CRM_R.indexOf('data-v="registrados"') >= 0, 'el nav ya no llega a Registrados');
+    assert.ok(/function editarCliente\(id,pre\)\{[\s\S]{0,200}_vinculacionPendiente=null/.test(CRM_R),
+      'editarCliente ya no limpia la vinculación pendiente: una ficha cancelada se la pega al próximo cliente');
   });
 });
 
@@ -8558,7 +8614,10 @@ describe('ninguna pantalla llama a una función que la migración tiró (11-ago-
     ])];
   };
 
-  ['app/socio.html', 'panel/crm.html'].forEach(archivo => {
+  /* play/index.html entra al barrido el 24-ago-2026: su play_solicitar estuvo
+     LLAMADO Y SIN EXISTIR desde el 11-ago y nadie lo vio — exactamente el
+     defecto que este barrido existe para cazar. */
+  ['app/socio.html', 'panel/crm.html', 'play/index.html'].forEach(archivo => {
     test(archivo + ' — todas sus RPC existen después de la migración', () => {
       const usa = llamadasDe(archivo);
       assert.ok(usa.length > 0, archivo + ' no llama a ninguna RPC: el barrido no está midiendo nada');

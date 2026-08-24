@@ -17,10 +17,15 @@
 <!-- ============================================================================
      LA APP PUBLICABLE — Etapa 2 (entrar y registrarse) + parte de la 4 (catálogo)
 
-     QUÉ ES ESTO Y QUÉ NO ES. Esta ERA la app camino a Google Play. Tiene UN
-     solo producto: 6 meses en cuotas, por debajo del techo de usura del mes.
-     El crédito quincenal NO está acá: vive en app/socio.html, que es otra
-     dirección.
+     QUÉ ES ESTO Y QUÉ NO ES. Esta es la PUERTA PÚBLICA del negocio (decisión
+     del 24-ago-2026): el desconocido se registra solo, ve la calculadora del
+     producto a 6 meses, y su registro cae al apartado «Registrados» del CRM.
+     Cuando Joan lo aprueba y le manda su código de membresía, entra a la app
+     REAL (app/socio.html) — que es OTRA dirección, a propósito: la política
+     de Play prohíbe desbloquear el quincenal dentro de esta app, así que la
+     frontera es estructural, no una promesa. También es la candidata a Play
+     cuando la tienda se retome. Tiene UN solo producto: 6 meses en cuotas,
+     por debajo del techo de usura del mes.
 
      18-ago-2026 — PLAY QUEDÓ DESCARTADO COMO CANAL (ver android/LEEME.md). El
      APK se reparte directo por enlace y envuelve app/socio.html con alcance en
@@ -48,12 +53,17 @@
 <script>
 'use strict';
 
-var VERSION_PLAY = '2026-08-11';
+var VERSION_PLAY = '2026-08-24';
 
-/* La conexión con la nube. Va vacía en el repositorio: la llave publishable de
-   Supabase es pública por diseño y puede ir horneada, pero todavía no la
-   tenemos. Mientras esté vacía, la app lo DICE en vez de fingir que funciona. */
-var CFG = { url: '', anon: '' };
+/* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
+   decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
+   nuevo mostraba «versión en construcción» y nadie podía registrarse. La llave
+   publishable es PÚBLICA POR DISEÑO (lo que protege los datos es el RLS de la
+   base, no esconder esta cadena); una guardada a mano en play_cfg no se pisa. */
+var CFG = {
+  url: 'https://wnsioekvjspwtghbodbg.supabase.co',
+  anon: 'sb_publishable_uWFyReBljFSh7l0KYkWmmg_Swo4SOxj'
+};
 try {
   var g = JSON.parse(localStorage.getItem('play_cfg') || 'null');
   if (g && g.url && g.anon) CFG = g;
@@ -389,15 +399,38 @@ function enviarRegistro(sensibles) {
   }
 
   fallo(err, 'Creando tu cuenta…');
-  fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/signup', {
+  /* PRIMERO la bandeja de Joan, DESPUÉS la cuenta — y el orden es la garantía.
+     Si fuera al revés y la bandeja fallara, la cuenta quedaría creada pero
+     invisible para Joan (el defecto que este flujo tuvo hasta el 24-ago: el
+     registro se iba solo a Supabase Auth y nadie lo leía). Así, si la bandeja
+     falla no se crea nada y el cliente reintenta; y si la cuenta falla después,
+     el registro YA está en la bandeja — reintentar no lo duplica, porque
+     registrar_abierto es idempotente por celular. */
+  fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registrar_abierto', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
+    headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
     body: JSON.stringify({
-      email: U.correoDeTelefono(REGISTRO.celular),
-      password: CLAVE_EN_MEMORIA,
-      data: { telefono: REGISTRO.celular, vinculacion: REGISTRO, autorizacion: autorizacion }
+      p_celular: REGISTRO.celular,
+      p_nombre: ((REGISTRO.nombres || '') + ' ' + (REGISTRO.apellidos || '')).replace(/\s+/g, ' ').trim(),
+      p_cedula: REGISTRO.documento || '',
+      p_datos: REGISTRO
     })
-  }).then(function (res) { return res.json().then(function (j) { return { ok: res.ok, j: j }; }); })
+  }).then(function (res) { return res.ok ? res.json() : Promise.reject(new Error('http ' + res.status)); })
+    .then(function (r) {
+      if (!r || r.ok !== true) {
+        throw { humano: 'No pudimos recibir tu registro. Revisa tu celular y tu nombre, y vuelve a intentar en unos minutos.' };
+      }
+      return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
+        body: JSON.stringify({
+          email: U.correoDeTelefono(REGISTRO.celular),
+          password: CLAVE_EN_MEMORIA,
+          data: { telefono: REGISTRO.celular, vinculacion: REGISTRO, autorizacion: autorizacion }
+        })
+      });
+    })
+    .then(function (res) { return res.json().then(function (j) { return { ok: res.ok, j: j }; }); })
     .then(function (res) {
       if (!res.ok) {
         var yaExiste = /registered|already/i.test(JSON.stringify(res.j || {}));
@@ -409,7 +442,10 @@ function enviarRegistro(sensibles) {
       CLAVE_EN_MEMORIA = '';
       pintarRegistrado();
     })
-    .catch(function () { fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.'); });
+    .catch(function (e) {
+      fallo(err, (e && e.humano) ? e.humano
+        : 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
+    });
 }
 
 function pintarRegistrado() {
@@ -591,7 +627,14 @@ function pedir() {
     },
     body: JSON.stringify({ p_capital: MONTO, p_meses: C.PLAZO_MESES })
   }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
-    .then(function () { pintarPedido(); })
+    .then(function (j) {
+      /* La función contesta {ok:false} con HTTP 200 cuando algo no cuadra o el
+         freno de solicitudes está lleno: decir «recibimos» ahí sería mentir. */
+      if (!j || j.ok !== true) {
+        return fallo(err, 'No pudimos recibir la solicitud ahora. Espera unos minutos y vuelve a intentar.');
+      }
+      pintarPedido();
+    })
     .catch(function () {
       fallo(err, 'No pude enviar la solicitud. Revisa tu internet y vuelve a intentar.');
     });

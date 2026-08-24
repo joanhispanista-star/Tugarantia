@@ -93,7 +93,13 @@ describe('la declaración de datos se deriva, no se escribe', () => {
   test('la app no llama a ningún servidor que no sea el suyo', () => {
     const app = leer('play/index.html').replace(/\/\*[\s\S]*?\*\//g, ' ');
     const urls = [...app.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)].map(m => m[1].toLowerCase());
-    const permitidos = ['wa.me'];
+    /* wa.me es el WhatsApp de Joan. El de Supabase entró el 24-ago-2026, cuando
+       la conexión pasó a venir horneada (registro abierto): es el servidor
+       PROPIO de la app — ahí viven los datos que la ficha declara recoger —,
+       no un tercero que mida ni comparta. Un dominio NUEVO en esta lista sí
+       tiene que hacer sonar la alarma: agregarlo exige poder decir de quién es
+       y qué dato se le manda. */
+    const permitidos = ['wa.me', 'wnsioekvjspwtghbodbg.supabase.co'];
     [...new Set(urls)].forEach(h => assert.ok(permitidos.includes(h),
       'la app llama a ' + h + ', que no está declarado en Data Safety'));
   });

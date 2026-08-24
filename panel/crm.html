@@ -336,6 +336,7 @@
     <button class="navbtn" data-v="cred"><span class="ic">💵</span> Créditos</button>
     <button class="navbtn" data-v="resp"><span class="ic">🛡️</span> Con garantía</button>
     <button class="navbtn" data-v="clientes"><span class="ic">🧑‍🤝‍🧑</span> Clientes</button>
+    <button class="navbtn" data-v="registrados"><span class="ic">📥</span> Registrados</button>
     <button class="navbtn" data-v="socios"><span class="ic">📋</span> Socios</button>
     <button class="navbtn" data-v="inv"><span class="ic">🎟️</span> Invitaciones</button>
     <button class="navbtn" data-v="ciclos"><span class="ic">📈</span> Ciclos</button>
@@ -376,9 +377,20 @@
           <button class="btn btn-negro" onclick="sincronizarInvitaciones()">↻ Traer de la nube</button>
           <button class="btn btn-rojo" onclick="crearInvitaciones()">＋ Crear códigos</button></div></div>
       <div class="kpis2" id="kpiInv"></div>
-      <div class="card"><div class="card-h"><h3>📥 Quién pidió entrar</h3><span class="tag">Canjearon un código desde su celular y esperan que les abras la cuenta</span></div>
-        <div id="tblRegistros"></div></div>
       <div class="card"><div id="tblInv"></div></div>
+    </section>
+
+    <!-- REGISTRADOS (24-ago-2026): los que todavía NO son clientes. Aquí caen
+         el registro abierto de la app publicable Y el canje de invitación,
+         cada uno con su chip de origen. Es apartado propio a propósito —
+         decisión de Joan: los nuevos no se mezclan con sus clientes hasta que
+         él les abre la ficha y les da su primer crédito. Antes esta bandeja
+         vivía escondida dentro de Invitaciones y solo conocía los canjes. -->
+    <section class="view" id="v-registrados">
+      <div class="ph"><div><h1>Registrados<span class="dot">.</span></h1><div class="sub">Se registraron solos o canjearon un código — todavía no son clientes: tú decides</div></div>
+        <button class="btn btn-negro" onclick="traerRegistros()">↻ Traer de la nube</button></div>
+      <div class="card"><div class="card-h"><h3>📥 Quién pidió entrar</h3><span class="tag">Al abrirles la ficha y darles su primer crédito pasan a Clientes</span></div>
+        <div id="tblRegistros"></div></div>
     </section>
 
     <section class="view" id="v-clientes">
@@ -2028,6 +2040,7 @@ function verComoSocio(id){
    código desde su celular, para no volver a teclearlos. */
 function editarCliente(id,pre){
   _registroPendiente=null;
+  _vinculacionPendiente=null;   // si no, una ficha cancelada se la pega al próximo cliente
   const s=id?DB.socios.find(x=>x.id===id):(pre||{});
   _fotosTmp={frente:s.cedulaFrenteFoto||null,reverso:s.cedulaReversoFoto||null,selfie:s.selfieFoto||null};
   _ubicTmp=s.ubicacion||null;
@@ -2105,7 +2118,10 @@ function guardarCliente(id){
   const creado=id?s:DB.socios[DB.socios.length-1];
   if(cod) marcarInvitacionUsada(cod,creado);   // avisa solo si algo no cuadra; nunca bloquea el guardado
   /* Si esta ficha salió de la bandeja de "quién pidió entrar", recién ahora —con
-     el cliente ya guardado— ese registro queda atendido y deja de aparecer. */
+     el cliente ya guardado— ese registro queda atendido y deja de aparecer. Y la
+     vinculación completa que declaró al registrarse viaja con él: lo que no
+     tiene campo en la ficha no se pierde, queda consultable en s.vinculacion. */
+  if(!id&&_vinculacionPendiente){ creado.vinculacion=_vinculacionPendiente; _vinculacionPendiente=null; }
   if(!id&&_registroPendiente){ marcarRegistro(_registroPendiente,'atendido'); _registroPendiente=null; }
   _fotosTmp={frente:null,reverso:null,selfie:null}; _ubicTmp=null; guardar(); cerrarModal(); render(); irA('clientes');
 }
@@ -3293,6 +3309,9 @@ function sincronizarInvitaciones(){
    todo bien se queda esperando para siempre y nadie se entera. */
 let _registros=[];
 let _registroPendiente=null;
+/* La vinculación completa del registro abierto, esperando a que la ficha se
+   guarde para viajar con el cliente. Mismo patrón que _registroPendiente. */
+let _vinculacionPendiente=null;
 function traerRegistros(){
   const b=document.getElementById('tblRegistros'); if(!b)return;
   if(!sbListo()){ _registros=[]; renderRegistros(); return; }
@@ -3311,14 +3330,40 @@ function renderRegistros(){
     b.innerHTML=`<div class="empty"><div class="ic">📭</div><p>Nadie esperando.<br><span class="muted">Toca “↻ Traer de la nube” para volver a mirar.</span></p></div>`;
     return;
   }
-  b.innerHTML=`<table><thead><tr><th>Quién</th><th>Cédula</th><th>Celular</th><th>Código</th><th>Cuándo</th><th></th></tr></thead><tbody>${
-    _registros.map(r=>`<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b></td>
+  b.innerHTML=`<table><thead><tr><th>Quién</th><th>Origen</th><th>Cédula</th><th>Celular</th><th>Cuándo</th><th></th></tr></thead><tbody>${
+    _registros.map(r=>{
+      /* El chip cuenta de dónde vino: los de la app publicable se registraron
+         SOLOS (traen la vinculación completa en datos); los de invitación
+         canjearon un código TG- y solo traen 4 campos. */
+      const abierto=(r.origen==='abierto');
+      const tieneDatos=r.datos&&typeof r.datos==='object'&&Object.keys(r.datos).length>0;
+      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b></td>
+      <td>${abierto?'<span class="chip al-dia">📱 App</span>':'<span class="chip pagado">🎟️ '+escHTML(r.codigo||'Invitación')+'</span>'}</td>
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
-      <td class="cod">${escHTML(r.codigo||'—')}</td>
       <td>${fmtFecha(String(r.creado_en||'').slice(0,10))}</td>
-      <td style="text-align:right"><button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button>
-        <button class="btn btn-ghost btn-sm" onclick="descartarRegistro('${escHTML(String(r.id))}')" title="No abrirle cuenta">✕</button></td></tr>`).join('')}</tbody></table>`;
+      <td style="text-align:right">${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}<button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button>
+        <button class="btn btn-ghost btn-sm" onclick="descartarRegistro('${escHTML(String(r.id))}')" title="No abrirle cuenta">✕</button></td></tr>`;}).join('')}</tbody></table>`;
+}
+
+/* Las etiquetas de la vinculación, para leer los datos del registro abierto
+   como se preguntaron. Espejo de CAMPOS en app/cuenta.js — solo etiquetas, la
+   fuente de verdad de los campos sigue siendo cuenta.js. */
+const ETIQUETAS_VINCULACION={nombres:'Nombres',apellidos:'Apellidos',tipo_doc:'Tipo de documento',
+  documento:'Número de documento',expedicion:'Fecha de expedición',celular:'Celular',correo:'Correo',
+  direccion:'Dirección',ciudad:'Ciudad',barrio:'Barrio',tipo_vivienda:'Su vivienda es',
+  anos_direccion:'Cuánto lleva ahí',ocupacion:'A qué se dedica',empresa:'Dónde trabaja',
+  cargo:'Su cargo',antiguedad:'Cuánto lleva ahí',ingreso_mes:'Gana al mes',
+  gastos_mes:'Se le va fijo al mes',dia_pago:'Qué día le pagan',
+  ref1_nombre:'Referencia 1',ref1_parentesco:'Qué es suyo',ref1_celular:'Su celular',
+  ref2_nombre:'Referencia 2',ref2_parentesco:'Qué es suyo',ref2_celular:'Su celular'};
+function verDatosRegistro(id){
+  const r=_registros.find(x=>String(x.id)===String(id)); if(!r||!r.datos)return;
+  const filas=Object.entries(r.datos).filter(([k,v])=>v!==''&&v!=null)
+    .map(([k,v])=>`<div class="info-row"><span class="k">${escHTML(ETIQUETAS_VINCULACION[k]||k.replace(/_/g,' '))}</span><span class="vv">${escHTML(String(v))}</span></div>`).join('');
+  openModal('Lo que declaró '+(r.nombre||'esta persona'),
+    '<div class="help" style="margin-bottom:10px">Datos DECLARADOS por la persona al registrarse — nadie los ha verificado todavía. Al abrirle la ficha se prellenan y viajan con el cliente.</div>'
+    +(filas||'<div class="muted">No dejó datos además del nombre y el celular.</div>'));
 }
 function fichaDesdeRegistro(id){
   const r=_registros.find(x=>String(x.id)===String(id)); if(!r)return;
@@ -3331,10 +3376,24 @@ function fichaDesdeRegistro(id){
     inv.estado='usada'; inv.usadaEn=String(r.creado_en||'').slice(0,10)||hoyISO();
     guardar();
   }
+  /* La ficha nace con TODO lo que la persona declaró en el registro abierto
+     (24-ago-2026): antes solo pasaban nombre/cédula/teléfono y los otros 23
+     campos morían en la bandeja — Joan los volvía a preguntar por WhatsApp.
+     Lo que no tiene campo propio en la ficha viaja entero en s.vinculacion
+     (lo engancha guardarCliente vía _vinculacionPendiente). */
+  const d=(r.datos&&typeof r.datos==='object')?r.datos:{};
+  const pre={nombre:r.nombre||((d.nombres||'')+' '+(d.apellidos||'')).trim(),
+    cedula:r.cedula||d.documento||'',telefono:r.telefono||d.celular||'',
+    email:d.correo||'',direccion:d.direccion||'',ciudad:d.ciudad||'',barrio:d.barrio||'',
+    tipoVivienda:d.tipo_vivienda||'casa',
+    ingresoQuincenal:d.ingreso_mes?Math.round(Number(String(d.ingreso_mes).replace(/\D/g,''))/2)||0:0,
+    referencia:{nombre:d.ref1_nombre||'',telefono:d.ref1_celular||''},
+    codigoInvitacion:cod||r.codigo||''};
   /* editarCliente limpia el pendiente al abrirse, así que se marca DESPUÉS: si
      no, un cliente que crees más tarde se llevaría este registro por delante. */
-  editarCliente(null,{nombre:r.nombre||'',cedula:r.cedula||'',telefono:r.telefono||'',codigoInvitacion:cod||r.codigo||''});
+  editarCliente(null,pre);
   _registroPendiente=String(r.id);
+  _vinculacionPendiente=Object.keys(d).length?d:null;
 }
 function descartarRegistro(id){
   const r=_registros.find(x=>String(x.id)===String(id)); if(!r)return;
@@ -3967,7 +4026,11 @@ modal.addEventListener('click',e=>{ if(e.target===modal)cerrarModal(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&modal.classList.contains('on'))cerrarModal(); });
 function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
   if(v==='cfg')pintarCfg(); if(v==='plantillas')renderPlantillas(); if(v==='cal')renderCalendario();
-  if(v==='inv'){ renderInvitaciones(); renderRegistros(); } if(v==='resp')renderRespaldados(); }
+  if(v==='inv')renderInvitaciones();
+  /* Registrados trae de la nube SOLO al entrar a la pestaña, no en cada
+     render(): una petición por visita, no una por teclazo. */
+  if(v==='registrados'){ renderRegistros(); traerRegistros(); }
+  if(v==='resp')renderRespaldados(); }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>irA(b.dataset.v)));
 function entrar(){ if(document.getElementById('pinInput').value===DB.config.pin){ document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='grid'; render(); } else document.getElementById('pinErr').textContent='PIN incorrecto.'; }
 document.getElementById('pinBtn').addEventListener('click',entrar);

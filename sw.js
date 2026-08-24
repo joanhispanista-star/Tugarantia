@@ -61,7 +61,7 @@
    v9 — mismo día, la tercera: la sesión se queda abierta y el socio puede
    cambiar su código. Con clientes reales entrando por primera vez, cada
    versión vieja en caché es un cliente confundido. */
-const CACHE = 'tugarantia-v9';
+const CACHE = 'tugarantia-v10';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
