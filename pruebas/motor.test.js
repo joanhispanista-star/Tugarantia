@@ -8237,11 +8237,15 @@ describe('el APK y la app web dicen lo mismo (10-ago-2026)', () => {
        alcance, no puede subirse a Play nunca. Si la tienda se retoma, el
        alcance vuelve a /play/ y este centinela se invierte otra vez — a mano
        y a sabiendas, como hoy. */
+    /* 24-ago-2026: con dominio propio el sitio vive en la RAÍZ, así que el
+       alcance es / entero — mismo espíritu que el /Tugarantia/ de antes. */
+    assert.equal(TWA.host, 'tugarantia.net',
+      'el TWA apunta a ' + TWA.host + ': el dominio de la casa es tugarantia.net');
     const alcance = new URL(TWA.fullScopeUrl).pathname;
-    assert.equal(alcance, '/Tugarantia/',
-      'el alcance del TWA es ' + alcance + ' y debería ser todo /Tugarantia/, ' +
-      'para que legal/ y la web pública abran dentro de la app y no en un ' +
-      'navegador aparte');
+    assert.equal(alcance, '/',
+      'el alcance del TWA es ' + alcance + ' y debería ser la raíz entera del ' +
+      'dominio, para que legal/ y la web pública abran dentro de la app y no ' +
+      'en un navegador aparte');
     assert.ok(TWA.startUrl.indexOf('app/socio.html') >= 0,
       'el TWA arranca en ' + TWA.startUrl + ', que no es la app del socio');
     assert.ok(TWA.appVersionCode >= 2,

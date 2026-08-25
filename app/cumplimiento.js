@@ -234,7 +234,7 @@
    * ======================================================================== */
 
   var BORRADO = {
-    url_publica: 'https://joanhispanista-star.github.io/Tugarantia/play/borrar-cuenta.html',
+    url_publica: 'https://tugarantia.net/play/borrar-cuenta.html',
     se_borra: [
       'Tu cuenta y tu contraseña: dejas de poder entrar.',
       'Tu celular, tu correo y tu dirección.',

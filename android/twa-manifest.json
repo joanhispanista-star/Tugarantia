@@ -2,7 +2,7 @@
   "_leeme": "Configuración de Bubblewrap para envolver la app del socio en un APK (TWA). Ver LEEME.md al lado. El packageId NO se cambia nunca después de la primera instalación: Android identifica la app por ese texto.",
 
   "packageId": "co.tugarantia.socio",
-  "host": "joanhispanista-star.github.io",
+  "host": "tugarantia.net",
   "name": "Tu Garantía",
   "launcherName": "Tu Garantía",
   "display": "standalone",
@@ -18,33 +18,33 @@
   "_nota_colores": "Los cuatro salen de --laca (#0C0A0B), el mismo negro del <meta name=theme-color> de socio.html y del background_color del webmanifest. Si no coincidieran, la app parpadearía en otro color entre que abre y que pinta, que es el defecto que se nota y nadie sabe explicar.",
 
   "enableNotifications": false,
-  "_nota_alcance": "18-ago-2026 — SEGUNDO GIRO, y va con fecha porque este campo ya dio una vuelta entera. El 11-ago esto se apuntó a /play/ para poder entrar a Google Play sin envolver el quincenal, que su política prohíbe (pago completo en 60 días o menos). Play quedó descartado como canal: entre los 12 probadores × 14 días y los huecos de legal/, el APK se reparte DIRECTO a los clientes, y fuera de la tienda esa política no aplica — distribución directa es territorio de Joan, no de Google. Así que vuelve a envolver la app real del socio, y el alcance es todo /Tugarantia/ para que legal/ y la web pública abran dentro de la app y no en un navegador aparte. Si Play se retoma algún día, la configuración de /play/ está en el historial de git (commits del 13-ago-2026).",
+  "_nota_alcance": "24-ago-2026 — TERCER GIRO, ahora de casa: estrena el dominio propio tugarantia.net, comprado ese día. El sitio se sirve en la RAÍZ del dominio (Pages quita el prefijo /Tugarantia/ cuando hay dominio), así que el arranque es /app/socio.html y el alcance es / entero. Historia: el 11-ago apuntaba a /play/ (camino a la tienda), el 18-ago giró a la app real (distribución directa, Play descartado), y hoy cambia de dirección sin cambiar de contenido. El APK v2 (host github.io) queda verificado solo para el dominio viejo: quien lo tenga instalado ve barra de navegador al redirigir — se reinstala desde descargas/ y listo.",
   "_nota_notificaciones": "APAGADAS a propósito. La app hoy no manda ni una notificación: los avisos de pago van por WhatsApp. Pedir el permiso sin usarlo es pedirle algo al cliente a cambio de nada, y quema el permiso para el día que sí haga falta.",
 
-  "startUrl": "/Tugarantia/app/socio.html",
-  "webManifestUrl": "https://joanhispanista-star.github.io/Tugarantia/app/app.webmanifest",
+  "startUrl": "/app/socio.html",
+  "webManifestUrl": "https://tugarantia.net/app/app.webmanifest",
 
-  "iconUrl": "https://joanhispanista-star.github.io/Tugarantia/app/icono-512.png",
-  "maskableIconUrl": "https://joanhispanista-star.github.io/Tugarantia/app/icono-maskable-512.png",
+  "iconUrl": "https://tugarantia.net/app/icono-512.png",
+  "maskableIconUrl": "https://tugarantia.net/app/icono-maskable-512.png",
 
   "splashScreenFadeOutDuration": 300,
   "_nota_splash": "300 ms y no más. socio.html trae su propia bienvenida de 2 s, así que aquí van a verse dos pantallas con el mismo logo: el splash del sistema mientras Chrome despierta y la bienvenida de la app. No es lo ideal pero no bloquea; el arreglo fino —que socio.html se salte su bienvenida cuando corre en display-mode standalone— es un cambio de app/, o sea receta para Joan, no de este archivo.",
 
-  "appVersionName": "1.1.0",
-  "appVersionCode": 2,
-  "_nota_version": "Sube a 2 con el giro del 18-ago aunque el APK v1 nunca se repartió: si quedó instalado en algún teléfono de prueba, Android no deja pisar una versión con otra del mismo número.",
+  "appVersionName": "1.2.0",
+  "appVersionCode": 3,
+  "_nota_version": "3 con el dominio propio (24-ago). El 2 fue el giro del 18-ago; el 1, el intento de Play. Android no deja pisar una versión con otra del mismo número.",
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestJsonHash": "",
   "fallbackType": "customtabs",
-  "_nota_fallback": "customtabs: si Digital Asset Links falla, la app abre en una pestaña de Chrome en vez de reventar. Se ve peor (sale la barra de direcciones) pero el cliente entra igual. Un APK que no abre es un cliente perdido. OJO: el assetlinks.json que Android verifica es el de la RAÍZ del dominio (joanhispanista-star.github.io/.well-known/), que se publica desde el repo del sitio de usuario — la copia en /Tugarantia/.well-known/ no la mira nadie.",
+  "_nota_fallback": "customtabs: si Digital Asset Links falla, la app abre en una pestaña de Chrome en vez de reventar. Se ve peor (sale la barra de direcciones) pero el cliente entra igual. Un APK que no abre es un cliente perdido. Con dominio propio el apretón de manos POR FIN vive en casa: tugarantia.net/.well-known/assetlinks.json sale del .well-known/ de ESTE repositorio — ya no depende del repositorio del juego. El del github.io raíz se queda para los APK v2 viejos.",
 
   "features": {},
   "alphaDependencies": { "enabled": false },
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://joanhispanista-star.github.io/Tugarantia/",
+  "fullScopeUrl": "https://tugarantia.net/",
   "minSdkVersion": 23,
   "_nota_minsdk": "23 es Android 6 (2015). Cubre prácticamente cualquier teléfono que siga encendido en Colombia. Subirlo dejaría gente afuera sin ganar nada.",
   "signingKey": {

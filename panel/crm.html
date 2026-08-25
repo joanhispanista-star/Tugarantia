@@ -2663,7 +2663,10 @@ const SB_KEY='joan_socios_sb';
    ningún teléfono del mundo. Se descubrió el 20-ago en el mensaje del código
    de acceso, ya generado y a punto de enviarse. Misma medicina que
    URL_DESCARGA_APP, y por la misma razón. */
-const URL_APP_DEF = 'https://joanhispanista-star.github.io/Tugarantia/app/socio.html';
+/* 24-ago-2026: estrena tugarantia.net. Las direcciones viejas de github.io
+   redirigen solas al dominio, así que ningún mensaje ya enviado se rompe —
+   pero los NUEVOS salen con la marca. */
+const URL_APP_DEF = 'https://tugarantia.net/app/socio.html';
 
 /* El enlace que se le manda al cliente para que instale la app.
 
@@ -2676,7 +2679,7 @@ const URL_APP_DEF = 'https://joanhispanista-star.github.io/Tugarantia/app/socio.
    Se manda el ENLACE y no el archivo porque WhatsApp bloquea los .apk. La
    página del otro lado explica el aviso de «app desconocida» antes de que le
    salga, que es lo que decide si el cliente instala o se echa para atrás. */
-const URL_DESCARGA_APP = 'https://joanhispanista-star.github.io/Tugarantia/descargas/';
+const URL_DESCARGA_APP = 'https://tugarantia.net/descargas/';
 function sbCfg(){ try{ return JSON.parse(localStorage.getItem(SB_KEY)||'{}'); }catch(e){ return {}; } }
 /* ===== HABLAR CON LA NUBE, UNA SOLA PUERTA =====
    Todo lo que sale de este Panel hacia Supabase pasa por acá: una sola forma de

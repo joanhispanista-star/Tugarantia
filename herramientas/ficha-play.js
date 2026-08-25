@@ -86,7 +86,7 @@ function generar(fecha) {
   w('| Categoría | Finanzas |');
   w('| Tipo | Aplicación · Gratuita |');
   w('| Clasificación de contenido | Para todos |');
-  w('| URL de política de privacidad | https://joanhispanista-star.github.io/Tugarantia/legal/privacidad.html |');
+  w('| URL de política de privacidad | https://tugarantia.net/legal/privacidad.html |');
   w('| URL para borrar la cuenta | ' + K.BORRADO.url_publica + ' |');
   w('');
 

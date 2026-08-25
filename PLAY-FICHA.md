@@ -28,8 +28,8 @@ node herramientas/ficha-play.js
 | Categoría | Finanzas |
 | Tipo | Aplicación · Gratuita |
 | Clasificación de contenido | Para todos |
-| URL de política de privacidad | https://joanhispanista-star.github.io/Tugarantia/legal/privacidad.html |
-| URL para borrar la cuenta | https://joanhispanista-star.github.io/Tugarantia/play/borrar-cuenta.html |
+| URL de política de privacidad | https://tugarantia.net/legal/privacidad.html |
+| URL para borrar la cuenta | https://tugarantia.net/play/borrar-cuenta.html |
 
 ## Descripción corta
 
@@ -191,7 +191,7 @@ del dispositivo.
 
 Play lo exige desde la app **y** desde una URL pública sin instalar nada:
 
-https://joanhispanista-star.github.io/Tugarantia/play/borrar-cuenta.html
+https://tugarantia.net/play/borrar-cuenta.html
 
 Plazo: máximo 15 días.
 
