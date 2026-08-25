@@ -3337,7 +3337,13 @@ function renderRegistros(){
          canjearon un código TG- y solo traen 4 campos. */
       const abierto=(r.origen==='abierto');
       const tieneDatos=r.datos&&typeof r.datos==='object'&&Object.keys(r.datos).length>0;
-      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b></td>
+      /* La verificación por WhatsApp (24-ago): si te llegó un WhatsApp con
+         ESTE código y el remitente es ESTE número, el celular es suyo — el
+         remitente lo pone WhatsApp, no él. Si no te ha llegado, el número
+         sigue sin verificar: no es un rechazo, es una duda que tu primer
+         mensaje resuelve. */
+      const verif=(tieneDatos&&r.datos.verificacion)?String(r.datos.verificacion):'';
+      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${verif?`<div class="muted" title="Si te llegó por WhatsApp desde ese número, el celular es suyo">verif. <b class="mono">${escHTML(verif)}</b></div>`:''}</td>
       <td>${abierto?'<span class="chip al-dia">📱 App</span>':'<span class="chip pagado">🎟️ '+escHTML(r.codigo||'Invitación')+'</span>'}</td>
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>

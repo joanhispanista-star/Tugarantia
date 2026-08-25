@@ -210,6 +210,19 @@ function entrar() {
 
 function fallo(el, msg) { el.textContent = msg; el.classList.remove('oculto'); }
 
+/* El WhatsApp del negocio, escrito ENTERO (57 + los 10 dígitos). Es la única
+   línea que se edita para cambiarlo. VACÍO, WhatsApp abre con el mensaje listo
+   y deja elegir el chat — le sirve al que ya conoce a Joan, pero el registrado
+   NUEVO no tiene su chat: llenar esto es lo que vuelve la verificación de un
+   solo toque. (Va horneado y no en un paquete editable por la misma razón que
+   NEGOCIO_OFICIAL en socio.html: un número que viajara en datos falsificables
+   mandaría a los clientes al WhatsApp de un estafador.) */
+var WA_NEGOCIO = '';
+function abrirWhatsApp(texto) {
+  var n = String(WA_NEGOCIO || '').replace(/\D/g, '');
+  window.open('https://wa.me/' + n + '?text=' + encodeURIComponent(texto), '_blank', 'noopener');
+}
+
 function olvide() {
   var tel = U.normalizarTelefono(($('inTel') || {}).value || '');
   /* La recuperación es por WhatsApp y con Joan en el medio, decisión del
@@ -217,7 +230,32 @@ function olvide() {
   var texto = 'Hola, olvidé mi contraseña de la app de Tu Garantía.' +
     (tel ? ' Mi celular es ' + U.telefonoBonito(tel) + '.' : '') +
     ' ¿Me ayudas a recuperarla?';
-  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank', 'noopener');
+  abrirWhatsApp(texto);
+}
+
+/* ================= LA VERIFICACIÓN POR WHATSAPP =================
+   24-ago-2026, decisión de Joan: nada de SMS pagos. El registrado manda su
+   código de verificación por WhatsApp DESDE su propio número; como el mensaje
+   llega con el remitente puesto por WhatsApp —no por él—, si el número y el
+   código cuadran con la bandeja del CRM, el celular queda verificado gratis.
+   El verificador es Joan, que de todas formas iba a escribirle antes de
+   aprobar: esto solo le ahorra la duda de si el número es de verdad.
+
+   La forma V-##### es A PROPÓSITO distinta de los otros tres códigos de la
+   casa (TG-XXXX-XXXX invita, 5 letras abre la app, CL-0001 solo numera): ya
+   son tres y confundirlos es el error natural. Puros dígitos, además, se
+   dictan fácil por teléfono. */
+var VERIF_ULTIMA = '';
+function codigoVerificacion() {
+  var a = new Uint32Array(1);
+  if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(a);
+  else a[0] = Math.floor(Math.random() * 1e9);
+  return 'V-' + String(10000 + (a[0] % 90000));
+}
+function verificarPorWhatsApp() {
+  abrirWhatsApp('Hola, me acabo de registrar en la app de Tu Garantía. Soy ' +
+    ((REGISTRO && REGISTRO.nombres) || 'socio nuevo') +
+    ' y mi código de verificación es ' + VERIF_ULTIMA + '.');
 }
 
 /* ============================== REGISTRO ==============================
@@ -398,6 +436,12 @@ function enviarRegistro(sensibles) {
       'perdieron. Esto es una versión en construcción.');
   }
 
+  /* El código de verificación nace aquí y viaja DENTRO de la vinculación: así
+     llega a la bandeja del CRM sin una sola pieza nueva de plomería, y Joan lo
+     compara con el que le llegue por WhatsApp. */
+  VERIF_ULTIMA = codigoVerificacion();
+  REGISTRO.verificacion = VERIF_ULTIMA;
+
   fallo(err, 'Creando tu cuenta…');
   /* PRIMERO la bandeja de Joan, DESPUÉS la cuenta — y el orden es la garantía.
      Si fuera al revés y la bandeja fallara, la cuenta quedaría creada pero
@@ -453,11 +497,22 @@ function pintarRegistrado() {
   $('titulo').textContent = 'Tu cuenta quedó abierta';
   $('cuerpo').innerHTML =
     '<div class="card"><div class="aviso verde"><b>Listo.</b> Tu cuenta quedó creada.</div>' +
+      /* La verificación va PRIMERO y con el código a la vista: es el único
+         paso que acelera la revisión, y mandarlo desde su propio WhatsApp es
+         lo que prueba que el número es suyo. Sin este paso igual se revisa —
+         se dice tal cual, sin amenaza. */
+      (VERIF_ULTIMA
+        ? '<div style="margin-top:var(--e4)"><b>Confirma tu número por WhatsApp.</b>' +
+          '<p class="sub">Escríbenos desde este mismo celular con tu código de verificación: ' +
+          '<b style="letter-spacing:.08em">' + esc(VERIF_ULTIMA) + '</b>. ' +
+          'Así confirmamos que el número es tuyo y tu revisión sale más rápida.</p>' +
+          '<button class="btn arriba" onclick="verificarPorWhatsApp()">Enviar mi código por WhatsApp</button></div>'
+        : '') +
       '<p class="sub" style="margin-top:var(--e4)">Ahora revisamos tus datos. ' +
       '<b>Todavía no tienes cupo asignado</b>: te escribimos por WhatsApp en cuanto ' +
       'terminemos de revisar, y ahí te decimos hasta cuánto puedes pedir.</p>' +
       '<p class="sub">Mientras tanto puedes entrar y ver el catálogo con los costos reales.</p>' +
-      '<button class="btn arriba" onclick="pintarEntrar()">Entrar a mi cuenta</button>' +
+      '<button class="btn sec" onclick="pintarEntrar()">Entrar a mi cuenta</button>' +
     '</div>' + pie();
   window.scrollTo(0, 0);
 }

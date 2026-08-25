@@ -8497,6 +8497,22 @@ describe('EL REGISTRO ABIERTO LLEGA AL CRM (24-ago-2026)', () => {
       'registrar_abierto no puede lanzar: una excepción borra su propio contador de fallos');
   });
 
+  test('la verificación es por WhatsApp, gratis, y con su código propio', () => {
+    /* Decisión de Joan del 24-ago: nada de SMS pagos. El registrado manda su
+       código V-##### por WhatsApp desde su propio número; el remitente lo pone
+       WhatsApp, no él, así que número + código cuadrando en la bandeja = celular
+       verificado. La forma V- es distinta A PROPÓSITO de los otros tres códigos
+       de la casa (TG- invita, 5 letras abre, CL- numera): ya son tres. */
+    assert.ok(PLAY.indexOf('REGISTRO.verificacion = VERIF_ULTIMA') >= 0,
+      'el código de verificación ya no viaja en la vinculación: la bandeja no tendrá con qué comparar');
+    assert.ok(/'V-' \+ String/.test(PLAY),
+      'la forma V-##### cambió: revisá que no se confunda con los otros tres códigos');
+    assert.ok(PLAY.indexOf('verificarPorWhatsApp') >= 0,
+      'la pantalla de registrado perdió el botón de mandar el código');
+    assert.ok(CRM_R.indexOf('r.datos.verificacion') >= 0,
+      'la bandeja del CRM ya no muestra el código de verificación');
+  });
+
   test('el CRM tiene el apartado Registrados, separado y con su nav', () => {
     assert.ok(CRM_R.indexOf('id="v-registrados"') >= 0, 'se perdió la sección v-registrados');
     assert.ok(CRM_R.indexOf('data-v="registrados"') >= 0, 'el nav ya no llega a Registrados');

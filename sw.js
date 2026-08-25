@@ -60,8 +60,10 @@
    cliente real del APK no pudo entrar porque su ficha no tiene cédula.
    v9 — mismo día, la tercera: la sesión se queda abierta y el socio puede
    cambiar su código. Con clientes reales entrando por primera vez, cada
-   versión vieja en caché es un cliente confundido. */
-const CACHE = 'tugarantia-v10';
+   versión vieja en caché es un cliente confundido.
+   v10 — 24-ago-2026: el CRM estrena el apartado Registrados (registro abierto).
+   v11 — mismo día: la verificación por WhatsApp llega a la bandeja. */
+const CACHE = 'tugarantia-v11';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
