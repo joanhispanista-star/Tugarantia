@@ -108,10 +108,14 @@ $('btnBorrar').addEventListener('click', function () {
   var texto = 'Hola, quiero que borren mi cuenta de Tu Garantía.\n' +
     'Mi celular es ' + U.telefonoBonito(tel) + '.' +
     (motivo ? '\nMotivo: ' + motivo : '');
-  /* Sin número de destino: WhatsApp le deja elegir el chat. Es un paso más pero
-     nunca lo manda al contacto equivocado, y acá no hay un número oficial
-     firmado que se pueda poner sin riesgo de que alguien lo suplante. */
-  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank', 'noopener');
+  /* 27-ago-2026 — YA HAY NÚMERO OFICIAL, y aquí importaba más que en ningún
+     otro botón. Sin destinatario, esta solicitud no le llegaba a nadie: el
+     usuario tenía que buscar el chat a mano, y el borrado de cuenta es de lo
+     poco que Google verifica de oficio antes de aprobar una app. La duda vieja
+     («un número sin firmar lo puede suplantar alguien») se resuelve porque el
+     número viaja EN la página, servida por HTTPS desde el dominio propio: quien
+     pudiera cambiarlo ya tendría el sitio entero. */
+  window.open('https://wa.me/573103606348?text=' + encodeURIComponent(texto), '_blank', 'noopener');
 });
 </script>
 </body>

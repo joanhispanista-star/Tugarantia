@@ -8465,6 +8465,60 @@ describe('EL PANEL NO REGISTRA PLATA SIN MOSTRARLA (20-ago-2026)', () => {
   });
 });
 
+describe('LOS DOCUMENTOS LEGALES IDENTIFICAN AL RESPONSABLE (27-ago-2026)', () => {
+
+  /* Estos dos documentos estuvieron PUBLICADOS a medias, con marcadores
+     [NOMBRE], [CÉDULA O NIT], [CORREO] a la vista y un recuadro rojo que decía
+     «JOAN, ESTO HAY QUE COMPLETARLO ANTES DE PUBLICAR». Los veía todo el que se
+     registraba por la puerta abierta. No era un detalle de forma: la Ley 1581
+     exige un responsable identificado, y una política sin responsable cierto no
+     protege a nadie — ni al cliente ni a Joan.
+
+     El NIT sigue marcado a propósito y tiene su propio aviso: no se puso uno
+     encontrado por internet porque hay varias empresas de nombre parecido, y un
+     NIT equivocado señalaría a un tercero. Cuando llegue, esta prueba lo exige. */
+
+  const PRIV = fs.readFileSync(path.join(__dirname, '..', 'legal', 'privacidad.html'), 'utf8');
+  const TERM = fs.readFileSync(path.join(__dirname, '..', 'legal', 'terminos.html'), 'utf8');
+  const BORRAR = fs.readFileSync(path.join(__dirname, '..', 'play', 'borrar-cuenta.html'), 'utf8');
+
+  test('la política de privacidad ya no tiene ningún hueco', () => {
+    ['[NOMBRE', '[CÉDULA', '[DIRECCIÓN', '[CORREO', '[CELULAR', 'HAY QUE COMPLETARLO']
+      .forEach(m => assert.ok(PRIV.indexOf(m) === -1,
+        'legal/privacidad.html volvió a tener «' + m + '», y está publicada en vivo'));
+    ['NEXECO', 'joan.hispanista@gmail.com', '310 360 6348']
+      .forEach(d => assert.ok(PRIV.indexOf(d) >= 0,
+        'la política perdió un dato del responsable: ' + d));
+  });
+
+  test('los términos identifican la sociedad (falta solo el NIT, y avisa)', () => {
+    assert.ok(TERM.indexOf('NEXECO') >= 0, 'los términos perdieron la razón social');
+    assert.ok(TERM.indexOf('[NOMBRE') === -1 && TERM.indexOf('[DIRECCIÓN') === -1,
+      'volvieron los marcadores de nombre o dirección en los términos');
+    /* Mientras el NIT falte, el aviso que lo explica TIENE que estar: un
+       marcador suelto sin explicación es peor que el marcador con ella. */
+    if (TERM.indexOf('[NIT]') >= 0) {
+      assert.ok(TERM.indexOf('Falta un dato') >= 0,
+        'el NIT sigue sin llenarse pero se borró el aviso que lo explica');
+    }
+  });
+
+  test('el borrado de cuenta llega a alguien (Google lo verifica de oficio)', () => {
+    assert.ok(/wa\.me\/57\d{10}/.test(BORRAR),
+      'play/borrar-cuenta.html volvió a abrir WhatsApp SIN destinatario: la solicitud ' +
+      'de borrado no le llega a nadie, y es de lo poco que Google comprueba antes de aprobar');
+  });
+
+  test('el número del negocio está puesto en las dos apps', () => {
+    const SOC = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+    const PL = fs.readFileSync(path.join(__dirname, '..', 'play', 'index.html'), 'utf8');
+    assert.ok(/whatsapp:\s*'57\d{10}'/.test(SOC),
+      'app/socio.html se quedó sin número: los botones «escríbenos» abren WhatsApp sin destino');
+    assert.ok(/WA_NEGOCIO\s*=\s*'57\d{10}'/.test(PL),
+      'play/index.html se quedó sin número: la verificación por WhatsApp no llega a nadie');
+  });
+});
+
 describe('EL REGISTRO ABIERTO LLEGA AL CRM (24-ago-2026)', () => {
 
   /* Decisión de Joan: el cliente nuevo se registra SOLO en la fachada
