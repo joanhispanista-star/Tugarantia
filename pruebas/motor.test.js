@@ -8545,6 +8545,37 @@ describe('EL REGISTRO ABIERTO LLEGA AL CRM (24-ago-2026)', () => {
     });
   });
 
+  test('EL ENVOLTORIO DE PLAY ENVUELVE SOLO /play/ (27-ago-2026)', () => {
+    /* Son DOS artefactos y no se pueden confundir: twa-manifest.json hace el
+       APK de reparto directo (envuelve el quincenal, prohibido en Play) y
+       twa-play.json hace el .aab publicable. Si el de Play heredara el alcance
+       del otro, subiría a la tienda el crédito de 15 días — que no es un
+       rechazo sino terminación de cuenta, y Google vincula cuentas por
+       identidad: caerían también las otras apps de Joan.
+
+       Y los packageId TIENEN que ser distintos: Play no admite dos apps con el
+       mismo id, y compartirlo haría que publicar en la tienda pisara la app que
+       los clientes ya tienen instalada por el enlace directo. */
+    const ruta = path.join(__dirname, '..', 'android', 'twa-play.json');
+    assert.ok(fs.existsSync(ruta), 'falta android/twa-play.json: sin él no hay app publicable');
+    const P = JSON.parse(fs.readFileSync(ruta, 'utf8'));
+    const D = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'android', 'twa-manifest.json'), 'utf8'));
+
+    assert.equal(new URL(P.fullScopeUrl).pathname, '/play/',
+      'el alcance del envoltorio de Play es ' + P.fullScopeUrl + ': tiene que ser /play/ y ' +
+      'nada más, o la app de la tienda se traga el crédito quincenal');
+    assert.ok(P.startUrl.indexOf('/play/') === 0,
+      'el envoltorio de Play arranca en ' + P.startUrl + ', fuera de /play/');
+    assert.ok(P.startUrl.indexOf('socio.html') === -1,
+      'el envoltorio de Play apunta a socio.html: ese es el producto que la política prohíbe');
+    assert.notEqual(P.packageId, D.packageId,
+      'los dos envoltorios comparten packageId (' + P.packageId + '): publicar en Play ' +
+      'pisaría la app que los clientes ya tienen instalada');
+    assert.equal(P.enableNotifications, false,
+      'el envoltorio de Play pide notificaciones sin usarlas: permiso sin uso en una app ' +
+      'de préstamos es de lo primero que mira el revisor');
+  });
+
   test('la fachada NO enlaza a la app del quincenal (la frontera de Play)', () => {
     /* La asimetría es deliberada: socio.html → play/ sí (para que el nuevo se
        registre), play/ → socio.html JAMÁS. Una app publicable que lleva al

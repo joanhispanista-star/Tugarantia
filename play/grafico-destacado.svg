@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ============================================================================
+     EL GRÁFICO DESTACADO DE GOOGLE PLAY — 1024 × 500, obligatorio para publicar.
+     27-ago-2026.
+
+     Se dibuja en SVG y se exporta a PNG (Play solo acepta PNG o JPEG de 1024×500
+     exactos) para que sea CÓDIGO y no un archivo binario que nadie puede
+     corregir: el día que cambie la marca, esto se edita y se vuelve a exportar.
+
+     La ley de la paleta de la casa se respeta aquí igual que en las pantallas:
+     la LACA es el fondo, el AMARILLO es lo que el socio construyó —y por eso
+     pinta «tu garantía»— y el ROJO es la marca. El ámbar no aparece: es de los
+     estados, y una portada no es un estado.
+
+     NADA DE CIFRAS NI DE TASAS. Un gráfico destacado con un número de tasa se
+     vuelve mentira el día que la Superfinanciera mueve el techo, y queda
+     publicado en la tienda como prueba. Las cifras van en la ficha, que se
+     genera desde el código y se puede actualizar.
+
+     El texto va grande a propósito: en la tienda esto se ve del tamaño de una
+     tarjeta en un teléfono barato.
+============================================================================= -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500"
+     role="img" aria-label="Tu Garantía — Tu historial es tu garantía">
+  <defs>
+    <linearGradient id="fondo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#131011"/>
+      <stop offset="100%" stop-color="#0C0A0B"/>
+    </linearGradient>
+    <!-- La escalera del fondo: es la idea del producto (el cupo que sube con
+         cada pago) dibujada, no explicada. Va tenue para que no compita con
+         el titular. -->
+    <linearGradient id="barra" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#F5C542" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#F5C542" stop-opacity="0.22"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="500" fill="url(#fondo)"/>
+
+  <!-- La escalera, abajo a la derecha -->
+  <g>
+    <rect x="620" y="360" width="52" height="80"  rx="7" fill="url(#barra)"/>
+    <rect x="686" y="322" width="52" height="118" rx="7" fill="url(#barra)"/>
+    <rect x="752" y="278" width="52" height="162" rx="7" fill="url(#barra)"/>
+    <rect x="818" y="226" width="52" height="214" rx="7" fill="url(#barra)"/>
+    <rect x="884" y="166" width="52" height="274" rx="7" fill="url(#barra)"/>
+  </g>
+
+  <!-- La marca: sello rojo con la G blanca, igual que en la web y en las apps -->
+  <g transform="translate(84, 92)">
+    <rect width="60" height="60" rx="17" fill="#D81F26"/>
+    <text x="30" y="43" font-family="Georgia, 'Times New Roman', serif" font-size="37"
+          font-weight="700" fill="#FFFFFF" text-anchor="middle">G</text>
+  </g>
+  <text x="164" y="132" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        font-size="21" font-weight="700" letter-spacing="3.4" fill="#FBF7F4">TU GARANTÍA</text>
+
+  <!-- El titular. La cursiva amarilla es la misma que en la portada de la web. -->
+  <text x="84" y="255" font-family="Georgia, 'Times New Roman', serif" font-size="63"
+        fill="#FBF7F4" letter-spacing="-1">Tu historial</text>
+  <text x="84" y="330" font-family="Georgia, 'Times New Roman', serif" font-size="63"
+        fill="#FBF7F4" letter-spacing="-1">es <tspan fill="#F5C542" font-style="italic">tu garantía</tspan>.</text>
+
+  <text x="84" y="396" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        font-size="24" fill="#FBF7F4" fill-opacity="0.72">Crédito a 6 meses en cuotas.</text>
+  <text x="84" y="430" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        font-size="24" fill="#FBF7F4" fill-opacity="0.72">El costo total se ve antes de pedir.</text>
+</svg>

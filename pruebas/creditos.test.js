@@ -441,3 +441,68 @@ describe('creditos.js y motor.js no se pisan', () => {
     assert.equal(M.REGLAS_VIGENTES_DESDE, '2026-08-05');
   });
 });
+
+/* ==========================================================================
+ * LA TABLA DE TOPES NO SE PUEDE VENCER EN SILENCIO — 27-ago-2026
+ *
+ * POR QUÉ EXISTE. Las siete pruebas de arriba miden la FORMA de la tabla (que
+ * el tope sea el IBC × 1,5, que los tramos no se pisen, que el 65,46% de bajo
+ * monto no se cuele) y NINGUNA mide su FRESCURA. O sea que el día 1 de cada
+ * mes la calculadora pública se queda muda —simular() devuelve
+ * {puede:false, motivo:'sin_tope'} y la fachada cae en su rama honesta— sin
+ * que se caiga una sola prueba y sin que nadie se entere hasta que un cliente
+ * abre la app y no ve precios.
+ *
+ * Que la app se niegue a cotizar sin techo certificado es CORRECTO y no se
+ * toca: cotizar por encima del tope de usura es delito (art. 305 del Código
+ * Penal). Lo que estaba mal es que se enterara el cliente antes que Joan.
+ *
+ * Esta prueba usa la fecha real a propósito —es de las poquísimas que
+ * deben— porque lo que vigila es justamente el paso del tiempo.
+ * ======================================================================== */
+describe('la tabla de usura avisa ANTES de vencerse', () => {
+
+  const C = require('../app/creditos.js');
+  const DIAS_DE_AVISO = 15;
+
+  function hoyISO() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+           String(d.getDate()).padStart(2, '0');
+  }
+  function diasHasta(iso) {
+    return Math.round((new Date(iso + 'T00:00:00Z') - new Date(hoyISO() + 'T00:00:00Z')) / 86400000);
+  }
+
+  test('HAY TECHO CERTIFICADO PARA HOY: si no, la app pública está muda', () => {
+    const hoy = hoyISO();
+    assert.ok(C.topeVigente(hoy),
+      'NO HAY TOPE DE USURA PARA HOY (' + hoy + '). La calculadora de play/ no está ' +
+      'dando precios y el registro abierto no sirve de nada. La tabla llega hasta ' +
+      C.ultimoTopeCertificado() + '.\n\n' +
+      'ARREGLO: la Superfinanciera publica la resolución a fin de mes. Se agrega UNA fila ' +
+      'a TOPES en app/creditos.js con su desde/hasta, el ibc y consumo_ordinario = ibc × 1,5, ' +
+      'y se regenera PLAY-FICHA.md. Las filas viejas no se tocan: son historia.');
+  });
+
+  test('avisa con 15 días de anticipación (no rompe: avisa)', (t) => {
+    /* ESTE NO FALLA A PROPÓSITO, y la decisión importa. La tabla se vence por
+       diseño el último día de cada mes, así que una prueba que se pusiera roja
+       en los días previos dejaría la suite roja DOS SEMANAS DE CADA MES — y una
+       suite crónicamente roja se ignora, que es peor que no tener centinela.
+       Aquí se grita en la salida (`# ...`, imposible de no ver al correr las
+       pruebas) y el rojo se reserva para cuando la app ya está muda de verdad,
+       que es la prueba de arriba. Aviso ≠ emergencia. */
+    const ultimo = C.ultimoTopeCertificado();
+    const faltan = diasHasta(ultimo);
+    if (faltan <= DIAS_DE_AVISO) {
+      t.diagnostic('⚠️  LA TABLA DE USURA SE VENCE EN ' + faltan + ' DÍA(S) (el ' + ultimo + ').');
+      t.diagnostic('    Desde el día siguiente la calculadora pública deja de dar precios y la');
+      t.diagnostic('    divulgación obligatoria desaparece de la pantalla.');
+      t.diagnostic('    ARREGLO: consigue la certificación del mes que entra y agrega su fila a');
+      t.diagnostic('    TOPES en app/creditos.js (ibc y consumo_ordinario = ibc × 1,5), después');
+      t.diagnostic('    regenera la ficha: node herramientas/ficha-play.js');
+    }
+    assert.ok(faltan >= 0, 'el último tope quedó en el pasado: eso lo caza la prueba anterior');
+  });
+});

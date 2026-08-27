@@ -3,8 +3,8 @@
   "short_name": "Tu Garantía",
   "description": "Crédito de libre inversión a 6 meses, en cuotas mensuales. El costo total se ve antes de pedir, sin cargos aparte.",
 
-  "_nota_id": "El id identifica la instalación en el celular. Si se toca, el navegador la trata como otra app y las instalaciones existentes se rompen. Va con g minúscula porque el repositorio se llama Tugarantia y GitHub Pages sirve todo bajo /Tugarantia/ — la app del socio quedó con la G grande y ese error no se puede corregir allá sin romper instalaciones. Acá se fija bien desde el principio.",
-  "id": "/Tugarantia/play/",
+  "_nota_id": "El id identifica la instalación en el celular. Si se toca, el navegador la trata como otra app y las instalaciones existentes se rompen. 27-ago-2026: era '/Tugarantia/play/', la ruta vieja de github.io — con el dominio propio el sitio vive en la RAÍZ, así que ese id resolvía a tugarantia.net/Tugarantia/play/, una dirección que no existe. Se corrige AHORA sin riesgo porque esta app todavía no la ha instalado nadie; el día que alguien la tenga puesta, este campo no se vuelve a tocar.",
+  "id": "/play/",
 
   "_nota_scope": "EL ALCANCE ES LA FRONTERA, y por eso apunta a /play/ y no a la raíz. Todo lo que quede fuera de esta carpeta —incluida app/socio.html, que es el crédito quincenal— se abre en el navegador y NO dentro de la app instalada. La separación entre el producto publicable y el que no lo es deja de depender de que alguien se acuerde: la impone el sistema operativo.",
   "start_url": "index.html",

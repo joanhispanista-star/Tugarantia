@@ -1,0 +1,53 @@
+{
+  "_leeme": "EL SEGUNDO ENVOLTORIO: el que SÍ puede ir a Google Play. Convive con twa-manifest.json (el del reparto directo) y son dos artefactos distintos a propósito — ver _nota_frontera. Se construye con android-kit\\construir-aab-play.ps1.",
+
+  "packageId": "co.tugarantia.creditos",
+  "_nota_paquete": "OTRO paquete, no el co.tugarantia.socio del APK directo. Android identifica una app por este texto y Play no admite dos apps con el mismo id: si compartieran uno, publicar en la tienda pisaría la app que los clientes ya tienen instalada. Son dos productos, dos apps, dos identidades. Y este id NO se cambia nunca después de la primera publicación.",
+
+  "host": "tugarantia.net",
+  "name": "Tu Garantía",
+  "launcherName": "Tu Garantía",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#0C0A0B",
+  "themeColorDark": "#0C0A0B",
+  "navigationColor": "#0C0A0B",
+  "navigationColorDark": "#0C0A0B",
+  "navigationDividerColor": "#0C0A0B",
+  "navigationDividerColorDark": "#0C0A0B",
+  "backgroundColor": "#0C0A0B",
+
+  "startUrl": "/play/index.html",
+  "webManifestUrl": "https://tugarantia.net/play/app.webmanifest",
+  "fullScopeUrl": "https://tugarantia.net/play/",
+
+  "_nota_frontera": "EL ALCANCE ES LA FRONTERA, y aquí es lo único que separa una app publicable de una suspensión. Con el alcance en /play/, app/socio.html —el crédito quincenal, que se paga entero en 15 días— queda FUERA de esta app: si alguien pusiera un enlace, el sistema lo abriría en el navegador y no adentro. La política de Préstamos Personales de Google prohíbe los créditos con devolución íntegra en 60 días o menos, y mostrar el producto permitido para desbloquear después el prohibido es el patrón que termina cuentas de desarrollador — no rechaza la app, cierra la cuenta, y Google vincula cuentas por identidad. Por eso la frontera no es una promesa ni un comentario: es esta línea, y hay un centinela en pruebas/motor.test.js que la vigila. Verificado el 27-ago-2026: play/index.html no enlaza a socio.html por ninguna parte.",
+
+  "iconUrl": "https://tugarantia.net/app/icono-512.png",
+  "maskableIconUrl": "https://tugarantia.net/app/icono-maskable-512.png",
+
+  "splashScreenFadeOutDuration": 300,
+  "enableNotifications": false,
+  "_nota_notificaciones": "APAGADAS. La app no manda ninguna notificación: los avisos van por WhatsApp. Y en una app de préstamos, pedir permisos que no se usan es de lo que más mira el revisor de Play.",
+
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "_nota_version": "Empieza en 1: es una app NUEVA en la tienda, con su propio paquete y su propio historial de versiones. No hereda el versionCode 3 del APK directo.",
+
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestJsonHash": "",
+  "fallbackType": "customtabs",
+
+  "features": {},
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "minSdkVersion": 23,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "tugarantia"
+  },
+  "_nota_firma": "La MISMA llave que el APK directo. Play además firma con su propia llave (Play App Signing) al subir el .aab, así que esta es la llave de carga (upload key). Perderla no impide publicar de nuevo desde Play, pero sí impide firmar el APK directo: sigue siendo el archivo más irreemplazable del proyecto."
+}
