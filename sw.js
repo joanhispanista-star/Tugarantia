@@ -58,12 +58,15 @@
    de Joan): sin el número nuevo, la app guardada seguiría mostrándola.
    v8 — mismo día, la segunda: entrada por celular o cédula. El primer
    cliente real del APK no pudo entrar porque su ficha no tiene cédula.
-   v9 — mismo día, la tercera: la sesión se queda abierta y el socio puede
+   v12 — 25-ago-2026: las tres puertas preguntan antes de pedir (nuevo se
+   registra / con código entra). Sin subir el número, el cliente que ya tiene
+   la app guardada seguiría viendo «solo por invitación».
+   v9 — mismo día que v7-v8: la sesión se queda abierta y el socio puede
    cambiar su código. Con clientes reales entrando por primera vez, cada
    versión vieja en caché es un cliente confundido.
    v10 — 24-ago-2026: el CRM estrena el apartado Registrados (registro abierto).
    v11 — mismo día: la verificación por WhatsApp llega a la bandeja. */
-const CACHE = 'tugarantia-v11';
+const CACHE = 'tugarantia-v12';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -3351,8 +3351,20 @@ function renderRegistros(){
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
       <td>${fmtFecha(String(r.creado_en||'').slice(0,10))}</td>
-      <td style="text-align:right">${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}<button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button>
+      <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}<button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button>
         <button class="btn btn-ghost btn-sm" onclick="descartarRegistro('${escHTML(String(r.id))}')" title="No abrirle cuenta">✕</button></td></tr>`;}).join('')}</tbody></table>`;
+}
+
+/* El saludo al que se registró solo — 25-ago-2026. No promete nada: aprobar es
+   decisión de Joan y la toma hablando con la persona, así que el mensaje abre
+   una conversación en vez de anunciar un resultado. Nombrar el celular sirve
+   además de verificación blanda: si ese número no es suyo, la conversación
+   muere ahí y Joan se entera antes de prestarle un peso. */
+function mensajeSaludoRegistrado(r){
+  const nom=String(r.nombre||'').trim().split(/\s+/)[0]||'';
+  return 'Hola'+(nom?' '+nom:'')+' 🙂 Soy de '+(DB.config.negocio||'Tu Garantía')+
+    '. Vi que te registraste en la app y quiero conocerte antes de aprobarte. '+
+    '¿Tienes unos minutos para hablar?';
 }
 
 /* Las etiquetas de la vinculación, para leer los datos del registro abierto

@@ -992,10 +992,24 @@ function entrar() {
    que se cerró el 10-ago: el secreto sigue siendo el código; el celular solo
    identifica, igual de público que la cédula que ya se pedía. La regla vive
    en buscarSocio del puente y en la migración 20260820 de la nube. */
+/* ================= LAS DOS PUERTAS — 25-ago-2026 =================
+   Hasta hoy esta pantalla pedía un código y punto, y al que no lo tenía le
+   decía «se entra solo por invitación» — una frase que dejó de ser verdad el
+   24-ago, cuando se abrió el registro. O sea que el desconocido que instalaba
+   el APK aterrizaba en una puerta cerrada, con un cartel equivocado y sin
+   salida: se iba, y Joan nunca se enteraba de que había llegado.
+
+   Ahora la pantalla PREGUNTA antes de pedir nada, que es lo que Joan pidió:
+   quien ya es socio entra con su código; quien es nuevo se registra solo, sin
+   que nadie lo presente. Son dos caminos que no se cruzan y terminan en sitios
+   distintos a propósito — el registro vive en play/, con la calculadora del
+   producto publicable, y de allá NO se vuelve a esta app: se vuelve cuando
+   Joan aprueba y manda el código. Esa asimetría es la frontera de Play, no un
+   descuido (ver el comentario de cabecera de play/index.html). */
 function pintarEntrar() {
   $('entrarCuerpo').innerHTML =
     '<div class="card">' +
-      '<h3 class="tit">Entra con tu código</h3>' +
+      '<h3 class="tit">¿Ya tienes tu código?</h3>' +
       '<p class="sub">El que te mandamos por WhatsApp. Es tuyo y no cambia.</p>' +
       '<label for="inCedula">Tu celular (o tu cédula)</label>' +
       '<input id="inCedula" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 3001234567">' +
@@ -1013,9 +1027,16 @@ function pintarEntrar() {
         'No tengo mi código</button>' +
     '</div>' +
     '<div class="card">' +
-      '<h3 class="tit">¿Todavía no eres socio?</h3>' +
-      '<p class="sub">Se entra solo por invitación. Si alguien te pasó un código, escríbelo aquí.</p>' +
-      '<button class="btn sec arriba" onclick="abrirRegistro()">Tengo un código de invitación</button>' +
+      '<h3 class="tit">¿Eres nuevo?</h3>' +
+      '<p class="sub">Regístrate tú mismo — <b>no necesitas que nadie te presente</b>. ' +
+        'Te preguntamos tus datos, ves ahí mismo cuánto costaría tu crédito, y te ' +
+        'escribimos por WhatsApp cuando revisemos tu solicitud.</p>' +
+      '<a class="btn sec arriba" href="../play/">Registrarme</a>' +
+      /* La invitación sigue viva, pero abajo y en pequeño: desde que el registro
+         es abierto, es el camino de la minoría — y ponerlo arriba haría creer
+         otra vez que sin código no se puede entrar. */
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="abrirRegistro()">' +
+        'Alguien me dio un código de invitación</button>' +
     '</div>' +
     tarjetaInstalar() +
     '<div class="pie">Tus datos solo los ves tú, con tu número y tu código.<br>' +

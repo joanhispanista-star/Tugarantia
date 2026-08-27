@@ -8475,6 +8475,7 @@ describe('EL REGISTRO ABIERTO LLEGA AL CRM (24-ago-2026)', () => {
 
   const PLAY = fs.readFileSync(path.join(__dirname, '..', 'play', 'index.html'), 'utf8');
   const CRM_R = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
+  const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
   const MIG = path.join(__dirname, '..', 'base', '20260824_registro_abierto.sql');
 
   test('la bandeja va PRIMERO y la cuenta después — el orden es la garantía', () => {
@@ -8515,6 +8516,43 @@ describe('EL REGISTRO ABIERTO LLEGA AL CRM (24-ago-2026)', () => {
       'la pantalla de registrado perdió el botón de mandar el código');
     assert.ok(CRM_R.indexOf('r.datos.verificacion') >= 0,
       'la bandeja del CRM ya no muestra el código de verificación');
+  });
+
+  test('LAS TRES PUERTAS PREGUNTAN ANTES DE PEDIR (25-ago-2026)', () => {
+    /* Joan lo pidió con estas palabras: «al inicio me indique si eres nuevo
+       regístrate, si ya tienes código ingresa». El defecto que arregla: el
+       desconocido que instalaba el APK caía en un formulario que le pedía un
+       código que no tenía, bajo un cartel que decía «se entra solo por
+       invitación» — falso desde el 24-ago. Se iba, y Joan nunca sabía que
+       había llegado. */
+    const WEB = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+
+    assert.ok(SOCIO.indexOf('¿Ya tienes tu código?') >= 0 && SOCIO.indexOf('¿Eres nuevo?') >= 0,
+      'la app del socio dejó de preguntar: el nuevo vuelve a caer en una puerta cerrada');
+    assert.ok(/href="\.\.\/play\/"/.test(SOCIO),
+      'la app del socio perdió la salida al registro: el que no tiene código se queda sin camino');
+    assert.ok(PLAY.indexOf('¿Eres nuevo? Abre tu cuenta') >= 0,
+      'la fachada dejó de poner el registro primero — es la puerta del desconocido');
+
+    /* Y que NINGUNA de las tres siga afirmando que hace falta invitación. Se
+       busca la frase entera, no la palabra: «código de invitación» sigue siendo
+       legítimo como camino secundario. */
+    [['index.html', WEB], ['app/socio.html', SOCIO], ['play/index.html', PLAY]].forEach(([f, t]) => {
+      const limpio = t.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+      ['Solo con invitación', 'No hay registro abierto', 'Se entra solo por invitación']
+        .forEach(frase => assert.ok(limpio.indexOf(frase) === -1,
+          f + ' todavía dice «' + frase + '», y el registro abierto existe desde el 24-ago'));
+    });
+  });
+
+  test('la fachada NO enlaza a la app del quincenal (la frontera de Play)', () => {
+    /* La asimetría es deliberada: socio.html → play/ sí (para que el nuevo se
+       registre), play/ → socio.html JAMÁS. Una app publicable que lleva al
+       producto que la política prohíbe es exactamente el patrón que Google
+       suspende, y no se arregla pidiendo perdón. */
+    const limpio = PLAY.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+    assert.ok(limpio.indexOf('socio.html') === -1,
+      'play/index.html enlaza a socio.html: eso rompe la frontera de Play');
   });
 
   test('el CRM tiene el apartado Registrados, separado y con su nav', () => {

@@ -145,25 +145,30 @@ function fila(k, v) {
 function pintarEntrar() {
   VISTA = 'entrar';
   $('titulo').textContent = 'Tu crédito a 6 meses';
+  /* 25-ago-2026 — EL REGISTRO VA PRIMERO Y EL LOGIN DESPUÉS. Esta es la puerta
+     del DESCONOCIDO: casi todo el que llega aquí no tiene cuenta todavía, y
+     tener de primero un formulario de contraseña le dice, sin decirlo, que
+     esto no es para él. El orden es el mensaje. */
   $('cuerpo').innerHTML =
     tarjetaCatalogo('nuevo') +
     '<div class="card">' +
-      '<h3 class="tit">Entra a tu cuenta</h3>' +
-      '<p class="sub">Con tu celular y tu contraseña.</p>' +
+      '<h3 class="tit">¿Eres nuevo? Abre tu cuenta</h3>' +
+      '<p class="sub"><b>No necesitas que nadie te presente.</b> Te tomará unos minutos: ' +
+        'te pedimos los datos con los que evaluamos el crédito, y cada uno te decimos ' +
+        'para qué es. Después revisamos tu solicitud y te escribimos por WhatsApp.</p>' +
+      '<button class="btn arriba" onclick="pintarRegistro(0)">Abrir mi cuenta</button>' +
+    '</div>' +
+    '<div class="card">' +
+      '<h3 class="tit">¿Ya abriste tu cuenta aquí?</h3>' +
+      '<p class="sub">Entra con tu celular y tu contraseña.</p>' +
       '<label for="inTel">Tu celular</label>' +
       '<input id="inTel" type="tel" inputmode="numeric" autocomplete="username" ' +
         'placeholder="300 111 2233" oninput="tecleaTel(this)">' +
       '<label for="inClave">Tu contraseña</label>' +
       '<input id="inClave" type="password" autocomplete="current-password" placeholder="••••••••">' +
-      '<button class="btn arriba" id="btnEntrar">Entrar</button>' +
+      '<button class="btn sec arriba" id="btnEntrar">Entrar</button>' +
       '<div id="errEntrar" class="aviso ambar oculto"></div>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="olvide()">Olvidé mi contraseña</button>' +
-    '</div>' +
-    '<div class="card">' +
-      '<h3 class="tit">¿Todavía no tienes cuenta?</h3>' +
-      '<p class="sub">Puedes abrirla tú mismo. Te tomará unos minutos y te pedimos ' +
-        'los datos con los que evaluamos el crédito.</p>' +
-      '<button class="btn sec arriba" onclick="pintarRegistro(0)">Abrir mi cuenta</button>' +
     '</div>' +
     pie();
   $('btnEntrar').addEventListener('click', entrar);
