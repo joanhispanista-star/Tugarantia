@@ -139,9 +139,34 @@ formulario de Cloudflare) y «Enforce HTTPS» en Pages. Ninguno bloquea nada.
 
 ---
 
+## Las tres puertas (25-ago, lo último que se hizo)
+
+Cada entrada **pregunta antes de pedir**, que es lo que Joan pidió con estas
+palabras: *«al inicio me indique si eres nuevo regístrate, si ya tienes código
+ingresa»*. Antes de esto, el registro abierto llevaba un día vivo y ninguna
+puerta se había enterado: el desconocido que instalaba el APK caía en un
+formulario pidiéndole un código que no tenía, bajo un cartel que decía «se entra
+solo por invitación». Se iba, y Joan nunca sabía que había llegado.
+
+| Puerta | Qué pregunta |
+|---|---|
+| `app/socio.html` (lo que abre el APK) | «¿Ya tienes tu código?» → login · «¿Eres nuevo?» → `../play/` |
+| `index.html` (la web pública) | «Soy nuevo · registrarme» → `play/` · «Ya tengo código · entrar» → `app/` |
+| `play/index.html` (la fachada) | El registro va PRIMERO, el login después: es la puerta del desconocido |
+
+**La asimetría de los enlaces es deliberada y tiene centinela propio:**
+`socio.html → play/` **sí**; `play/ → socio.html` **jamás**. Una app publicable
+que lleva al producto que la política de Play prohíbe es el patrón que Google
+suspende.
+
+De paso se arreglaron dos mentiras que llevaban tiempo: la web afirmaba «no hay
+registro abierto y no va a haberlo» (incluso en las descripciones que viajan en
+la tarjeta de WhatsApp, donde más se leen), y su botón principal apuntaba a
+`wa.me/57XXXXXXXXXX` — diez equis de relleno que no llevaban a ninguna parte.
+
 ## Cómo se opera esto hoy
 
-1. **Cliente nuevo:** se le manda `tugarantia.net/play/` → se registra → aparece
+1. **Cliente nuevo:** se le manda `tugarantia.net` (o `tugarantia.net/play/` directo) → se registra → aparece
    en **Registrados** → Joan lo revisa (y ve su código de verificación de
    WhatsApp) → le abre la ficha → primer crédito → pasa a **Clientes**.
 2. **Darle acceso a la app:** ficha del cliente → **📲 Mandar código** (el
