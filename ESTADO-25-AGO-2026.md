@@ -183,3 +183,39 @@ la tarjeta de WhatsApp, donde más se leen), y su botón principal apuntaba a
 
 No son clientes registrados: es **cuántos registrados aprueba Joan por semana**,
 y cuántos socios **vuelven a abrir la app solos**. Eso todavía no se mide.
+
+---
+
+## El camino a Play (27-ago) — decidido y a medio armar
+
+**Joan ya tiene cuenta de Play Console** y decidió que Tu Garantía queda **a
+nombre de una SAS**, no de él como persona natural. Consecuencias buenas: separa
+su patrimonio del negocio, y la cuenta de organización **se salta la prueba
+cerrada de 12 probadores × 14 días** — pero exige número **D-U-N-S**, que tarda
+hasta 30 días y conviene pedir cuanto antes.
+
+**Hecho (27-ago):**
+- `android/twa-play.json` — el segundo envoltorio, alcance `/play/` y paquete
+  `co.tugarantia.creditos`, distinto del `co.tugarantia.socio` del reparto
+  directo. Con centinela que vigila el alcance y que los ids no coincidan.
+- `android-kit/construir-aab-play.ps1` — produce el `.aab` **firmado**. El
+  script viejo lo dejaba SIN FIRMA (jarsigner fuera del PATH) y cantaba
+  «CONSTRUIDO» igual; ahora el veredicto abre el archivo y comprueba la firma.
+- `play/grafico-destacado.png` — el 1024×500 obligatorio, generado desde un SVG
+  editable. Sin cifras: una tasa publicada en la tienda se vuelve mentira el día
+  que la Superfinanciera mueve el techo.
+- El `id` de `play/app.webmanifest`, que seguía en la ruta vieja de github.io.
+- **Centinela de la tabla de usura**: avisa 15 días antes por la salida de
+  `npm test` y se pone roja solo cuando la app ya está muda. Hoy avisa.
+
+**Falta, y es de Joan:**
+1. **Los datos de la SAS** — razón social, NIT, dirección y ciudad, correo,
+   celular. Sin eso, `legal/privacidad.html` y `legal/terminos.html` siguen con
+   10 marcadores `[NOMBRE]` **publicados en vivo**, con un recuadro rojo que dice
+   «JOAN, ESTO HAY QUE COMPLETARLO ANTES DE PUBLICAR», y lo ve todo el que se
+   registra. No es un requisito de Play: es la Ley 1581 y la credibilidad.
+2. **El D-U-N-S de la SAS** — pedirlo hoy, tarda hasta 30 días.
+3. **Un abogado colombiano** que revise términos y privacidad. Lo exigen los
+   propios documentos por escrito, sobre todo el punto del costo (tope de usura,
+   con consecuencias penales) y los de garantía y cupo.
+4. **La certificación de usura de septiembre**, antes del 31-ago.
