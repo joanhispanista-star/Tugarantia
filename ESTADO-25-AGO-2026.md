@@ -219,3 +219,47 @@ hasta 30 días y conviene pedir cuanto antes.
    propios documentos por escrito, sobre todo el punto del costo (tope de usura,
    con consecuencias penales) y los de garantía y cupo.
 4. **La certificación de usura de septiembre**, antes del 31-ago.
+
+---
+
+## 28-ago: Play queda EN PAUSA. El canal es el enlace web.
+
+**Decisión de Joan:** por ahora no se usa Google Play. Se le manda el enlace al
+cliente y él lo instala como app desde el navegador («agregar a pantalla de
+inicio»), con Joan explicándole cómo. Todo lo construido para Play **se queda
+tal cual** — la app publicable, el `.aab` firmado, la ficha, el gráfico — porque
+el día que se retome no hay que rehacer nada.
+
+**Por qué se pausó, y es un dato duro:** la cuenta de Play Console existe
+(«Joan Ruiz», personal, ID 5288359411531126445) pero **no está verificada**, y
+el botón «Create app» sale con candado: *«Complete account verifications to
+create new apps»*. Google ya rechazó un intento con este mensaje textual:
+
+> *There was an issue with the verification info — Provide a document that
+> clearly shows the current address*
+
+Casi seguro se subió la cédula, **y la cédula colombiana no muestra dirección**.
+Hace falta un recibo de servicios públicos, extracto bancario o certificado de
+residencia, con la dirección **idéntica** a la registrada en Play y sin editar
+(Google avisa que manipular el documento hace fallar la verificación). Faltan
+además entrar a la app Play Console desde un Android y confirmar el teléfono.
+
+**Verificado en vivo el 28-ago, punto por punto:**
+
+| Qué | Estado |
+|---|---|
+| `tugarantia.net`, `/app/socio.html`, `/play/`, `/legal/` | 200 |
+| Un cliente REAL con su código entra (probado con Leonardo) | ✅ devuelve sus datos |
+| Las dos puertas («¿Ya tienes tu código?» / «¿Eres nuevo?») | ✅ en vivo |
+| Instalable como app (manifiesto + 4 iconos + `standalone`) | ✅ |
+| Registro de clientes NUEVOS | ❌ `mailer_autoconfirm: false` |
+
+**Entonces: los códigos SÍ se pueden repartir hoy. El enlace de registro
+abierto NO**, hasta que Joan apague «Confirm email» en Supabase.
+
+**Un detalle que se decidió NO tocar:** el `id` del manifiesto de
+`app/app.webmanifest` sigue siendo `/TuGarantia/app/socio.html`, la ruta vieja
+de github.io. Es un identificador opaco —no tiene que apuntar a una URL real—
+así que no rompe nada, y cambiarlo le duplicaría el icono a quien ya tenga la
+app instalada. Se queda. (El de `play/app.webmanifest` sí se corrigió el
+27-ago, porque esa app no la ha instalado nadie todavía.)
