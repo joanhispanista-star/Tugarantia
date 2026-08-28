@@ -8486,21 +8486,26 @@ describe('LOS DOCUMENTOS LEGALES IDENTIFICAN AL RESPONSABLE (27-ago-2026)', () =
     ['[NOMBRE', '[CÉDULA', '[DIRECCIÓN', '[CORREO', '[CELULAR', 'HAY QUE COMPLETARLO']
       .forEach(m => assert.ok(PRIV.indexOf(m) === -1,
         'legal/privacidad.html volvió a tener «' + m + '», y está publicada en vivo'));
-    ['NEXECO', 'joan.hispanista@gmail.com', '310 360 6348']
+    /* 28-ago-2026: el responsable pasó de NEXECO S.A.S. a Joan como persona
+       natural, para no esperar los 30 días del D-U-N-S y publicar en Play ya.
+       Cuando la operación se mueva a la sociedad hay que cambiarlo AQUÍ y en
+       los dos documentos a la vez — y avisarles a los socios, porque cambiar
+       de responsable del tratamiento es un cambio que la Ley 1581 obliga a
+       comunicar, no un ajuste de redacción. */
+    ['Ruiz Flórez', '1.018.447.274', 'joan.hispanista@gmail.com', '310 360 6348']
       .forEach(d => assert.ok(PRIV.indexOf(d) >= 0,
         'la política perdió un dato del responsable: ' + d));
   });
 
-  test('los términos identifican la sociedad (falta solo el NIT, y avisa)', () => {
-    assert.ok(TERM.indexOf('NEXECO') >= 0, 'los términos perdieron la razón social');
-    assert.ok(TERM.indexOf('[NOMBRE') === -1 && TERM.indexOf('[DIRECCIÓN') === -1,
-      'volvieron los marcadores de nombre o dirección en los términos');
-    /* Mientras el NIT falte, el aviso que lo explica TIENE que estar: un
-       marcador suelto sin explicación es peor que el marcador con ella. */
-    if (TERM.indexOf('[NIT]') >= 0) {
-      assert.ok(TERM.indexOf('Falta un dato') >= 0,
-        'el NIT sigue sin llenarse pero se borró el aviso que lo explica');
-    }
+  test('los términos identifican al prestamista, sin huecos', () => {
+    ['Ruiz Flórez', '1.018.447.274', 'Avenida Calle 80'].forEach(d =>
+      assert.ok(TERM.indexOf(d) >= 0, 'los términos perdieron un dato del prestamista: ' + d));
+    ['[NOMBRE', '[DIRECCIÓN', '[NIT', '[CÉDULA', 'HAY QUE COMPLETARLO'].forEach(m =>
+      assert.ok(TERM.indexOf(m) === -1, 'volvió el marcador «' + m + '» a los términos'));
+    /* Los dos documentos tienen que nombrar al MISMO responsable: si uno dice
+       la sociedad y el otro la persona, ninguno de los dos sirve. */
+    assert.ok(PRIV.indexOf('Ruiz Flórez') >= 0 && TERM.indexOf('Ruiz Flórez') >= 0,
+      'la política y los términos nombran responsables distintos');
   });
 
   test('el borrado de cuenta llega a alguien (Google lo verifica de oficio)', () => {
