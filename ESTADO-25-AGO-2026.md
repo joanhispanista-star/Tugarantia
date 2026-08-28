@@ -263,3 +263,44 @@ de github.io. Es un identificador opaco —no tiene que apuntar a una URL real�
 así que no rompe nada, y cambiarlo le duplicaría el icono a quien ya tenga la
 app instalada. Se queda. (El de `play/app.webmanifest` sí se corrigió el
 27-ago, porque esa app no la ha instalado nadie todavía.)
+
+---
+
+## 28-ago (tarde): el registro abierto por fin FUNCIONA — ya se puede repartir todo
+
+Joan pidió que se hiciera el ajuste de Supabase, y **medir antes de tocar
+destapó que el diagnóstico de los días anteriores estaba incompleto**. No era
+solo el «Confirm email»: había una causa anterior y más tonta.
+
+La cuenta del socio vive en Supabase Auth bajo un correo sintético hecho con su
+celular, y ese correo usaba el dominio **`socios.tugarantia.co` — que no
+existe** (y encima `.co`, cuando el de la casa es `.net`). Supabase valida el
+dominio ANTES de crear la cuenta y devolvía `email_address_invalid`: **ningún
+cliente se pudo registrar jamás.** Medido llamando al signup de verdad:
+
+| Dominio probado | Resultado |
+|---|---|
+| `@socios.tugarantia.co` | `email_address_invalid` |
+| `@socios.tugarantia.net` | `email_address_invalid` (el subdominio tampoco existe) |
+| `@tugarantia.net` | pasa — ese sí resuelve |
+
+Detrás estaba el segundo problema, que solo se ve una vez pasada la validación:
+con «Confirm email» encendido, Supabase intentaba **enviar** un correo a un
+buzón inexistente y chocaba con su límite (`over_email_send_rate_limit`).
+**Los dos había que arreglarlos**; con uno solo seguía roto.
+
+Hecho y verificado de punta a punta con un registro real (la cuenta se crea Y
+el cliente puede volver a entrar con su contraseña; los usuarios de prueba se
+borraron, en `auth.users` queda solo la cuenta de Joan):
+
+- `app/cuenta.js` → `DOMINIO_INTERNO = 'tugarantia.net'`
+- `base/20260828_correo_interno.sql` → `play_solicitar` alineada. **Aplicada.**
+- `MAILER_AUTOCONFIRM: true` en el proyecto de Supabase.
+
+**Consecuencia para el negocio: ya se pueden repartir LOS DOS enlaces.** El de
+los clientes con código y el de registro para desconocidos.
+
+**La lección de método, que vale más que el arreglo:** el «Confirm email» se
+dio por diagnóstico durante cuatro días leyendo un ajuste, sin llamar nunca al
+signup. Una llamada real lo habría destapado el primer día. Ante «no funciona
+el registro», la primera acción es **registrarse**, no leer configuración.
