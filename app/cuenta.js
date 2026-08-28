@@ -64,7 +64,25 @@
 
   var INDICATIVO = '57';
   var LARGO_CELULAR = 10;          // en Colombia, y siempre empieza por 3
-  var DOMINIO_INTERNO = 'socios.tugarantia.co';
+
+  /* EL DOMINIO TIENE QUE EXISTIR DE VERDAD — 28-ago-2026, y esto tenía el
+     registro abierto ROTO sin que nadie lo supiera.
+
+     Era 'socios.tugarantia.co': un dominio que no existe (y encima .co, cuando
+     el de la casa es .net). Supabase valida el dominio del correo antes de
+     crear la cuenta y devolvía `email_address_invalid`, así que TODO registro
+     nuevo moría ahí. Medido llamando al signup de verdad: con
+     @socios.tugarantia.co rechaza, con @socios.tugarantia.net también —el
+     subdominio tampoco existe— y con @tugarantia.net pasa, porque ese sí
+     resuelve.
+
+     Nadie se rompe al cambiarlo: se comprobó en auth.users que había CERO
+     cuentas con el dominio viejo, justamente porque ninguna se pudo crear.
+
+     El buzón sigue sin existir y da igual: el socio nunca ve este correo, es
+     solo la forma de que Supabase identifique la cuenta. Lo único que hace
+     falta es que el DOMINIO resuelva. */
+  var DOMINIO_INTERNO = 'tugarantia.net';
 
   /**
    * Deja el celular en diez dígitos, o null. Perdona el +57, el 57 pegado

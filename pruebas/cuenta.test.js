@@ -45,7 +45,7 @@ describe('el teléfono es el usuario', () => {
     const a = U.correoDeTelefono('300 111 2233');
     const b = U.correoDeTelefono('+573001112233');
     assert.equal(a, b, 'el mismo número tiene que dar el mismo correo');
-    assert.equal(a, '573001112233@socios.tugarantia.co');
+    assert.equal(a, '573001112233@tugarantia.net');
     assert.equal(U.telefonoDeCorreo(a), '3001112233');
     assert.equal(U.telefonoDeCorreo('otro@gmail.com'), null);
     assert.equal(U.correoDeTelefono('6012223344'), null);
