@@ -386,3 +386,79 @@ dentro del `twa-manifest.json` y el APK resultante habría quedado fuera del
 `assetlinks` del dominio.
 
 **818 pruebas, 135 suites, 0 fallos.** `sw.js` sube a `tugarantia-v17`.
+
+---
+
+## 28-ago (noche) — el chat, fase 1: construido y **esperando el SQL**
+
+Joan dio el visto bueno al plan y pidió arrancar por la fase 1. Queda escrito,
+probado y desplegado el código; **falta que él corra una migración** (abajo).
+
+### Lo que había: el chat estaba entero por dentro y muerto por fuera
+
+`base/supabase.sql:1017-1266`, del 5 de agosto: la tabla `mensajes` con RLS,
+tope de 1.000 caracteres y freno de 20 mensajes cada 15 minutos, más **siete
+funciones** `security definer` ya migradas al código de acceso. **Cero
+llamadas** desde `socio.html`, `crm.html`, `espejo.html` y `nube.js`. Tres
+semanas escrito y sin una sola pantalla que lo llamara — nadie se enteró porque
+nada fallaba.
+
+Y `legal/privacidad.html` se lo prometía al cliente en dos sitios (líneas 151 y
+213), incluido el derecho a que se borre. O sea que el documento legal describía
+una función que no existía. **Eso queda cumplido hoy.**
+
+### Lo entregado
+
+| Archivo | Qué es |
+|---|---|
+| `base/20260828b_chat.sql` | **PENDIENTE DE APLICAR.** La migración |
+| `app/chat.js` | El módulo compartido: protocolo + presentación |
+| `app/chat.css` | La hoja, compartida por las tres páginas |
+| `app/socio.html` | Pestaña **Mensajes** del cliente |
+| `panel/crm.html` | Sección **Mensajes**: bandeja, hilo, responder, borrar |
+| `panel/espejo.html` | La misma bandeja, en el bolsillo |
+| `pruebas/chat.test.js` | 20 pruebas nuevas |
+
+**846 pruebas, 139 suites, 0 fallos.** `sw.js` sube a v18 y `VERSION_APP` a
+`2026-08-28`.
+
+### Las dos trampas que la migración cierra, y que no se veían
+
+1. **El chat pedía cédula.** Buscaba `where cedula = ced`, pero la puerta de la
+   app cambió el 20-ago a celular O cédula porque **solo 5 de 16 fichas tienen
+   cédula**. Encenderlo tal cual habría dejado a ~11 de 16 clientes recibiendo
+   el mismo `null` mudo que un impostor.
+2. **La llave del socio cambia y los mensajes no se enteraban.**
+   `sincronizar_socios` borra la fila vieja cuando a una ficha que subía por
+   celular le cargan la cédula. Ese `delete` no tocaba `mensajes`: la
+   conversación habría quedado colgando de una llave borrada y **desaparecido de
+   la bandeja sin aviso**, meses después. Ahora los mensajes viajan en la misma
+   transacción, antes del delete.
+
+Y los permisos de las siete funciones quedan consolidados en ese archivo: `20260810`
+hace `drop function` de dos de ellas y las reconcede **solo a `anon`**, así que
+repegarlo —cosa que la idempotencia invita a hacer— habría dejado el chat abierto
+para los clientes y cerrado para el Panel. **`20260810` ya no se corre suelto.**
+
+### Lo que NO se hizo, dicho de frente
+
+- **`visto_por_joan` no existe.** El plan la mencionaba; al escribirla se vio que
+  sobra: un mensaje tiene un solo destinatario y el `visto` que ya había alcanza.
+  Una segunda columna sería otra verdad sobre lo mismo.
+- **`chat_olvidar` sigue detrás de la clave de sincronización, no de Auth.**
+  Debe ir a `panel_es_dueno()`, y queda como deuda escrita en la migración: hoy
+  `crm.html` habla con la nube por `anon` + clave, así que moverlo ahora no lo
+  aseguraría — lo dejaría incallable desde el Panel. Se mueve cuando se mueva el
+  Panel entero.
+- **No hay globito de «sin leer» en la app del cliente.** La única función que
+  sabe cuántos le faltan es `chat_leer`, y esa los MARCA como leídos: un globito
+  alimentado con ella se apagaría solo antes de que él abriera nada.
+
+### LO QUE FALTA, Y ES DE JOAN (5 minutos)
+
+**Correr `base/20260828b_chat.sql`** en el SQL Editor de Supabase (New query →
+pegar todo → Run). Sin eso, la pestaña Mensajes existe pero la base todavía
+identifica por cédula y no admite los autores nuevos; la app avisa con todas las
+letras (*«El chat todavía no está encendido en la base»*) en vez de fallar mudo.
+Al final del archivo hay cuatro consultas para comprobar en 30 segundos que
+quedó aplicado de verdad.

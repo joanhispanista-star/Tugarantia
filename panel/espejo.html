@@ -14,6 +14,8 @@
 <link rel="manifest" href="espejo.webmanifest">
 <link rel="apple-touch-icon" href="panel-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="panel-192.png">
+<!-- La misma hoja del chat que cargan la app del socio y el CRM. -->
+<link rel="stylesheet" href="../app/chat.css">
 <style>
 /* ==========================================================================
  * ESTA HOJA NO INVENTA UN SISTEMA NUEVO.
@@ -212,9 +214,15 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
   display:grid;place-items:center;font-weight:800;font-size:13px;
   background:var(--ambar);color:var(--luz);font-variant-numeric:tabular-nums}
 .cinta .txt{flex:1;min-width:0}
-.nav{display:flex}
-.nav button{flex:1;border:0;background:transparent;font-family:inherit;cursor:pointer;
-  padding:12px 2px;min-height:52px;color:var(--gris);font-size:11.5px;font-weight:600;position:relative}
+/* 28-ago-2026: con «Mensajes» son siete pestañas. A flex:1 puro, en un teléfono
+   angosto cada una queda en 51px y las palabras se parten en dos líneas dentro
+   de una barra de altura fija. Se deja que la barra RUEDE de lado: en pantallas
+   anchas siguen cabiendo todas y en las angostas se desliza, que es lo que
+   cualquiera espera de una fila de pestañas en un celular. */
+.nav{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav button{flex:1 0 3.7rem;white-space:nowrap;border:0;background:transparent;font-family:inherit;cursor:pointer;
+  padding:12px 6px;min-height:52px;color:var(--gris);font-size:11.5px;font-weight:600;position:relative}
 .nav button.on{color:var(--tinta)}
 .nav button.on::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
   bottom:6px;width:18px;height:2px;border-radius:2px;background:var(--rojo)}
@@ -288,6 +296,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
   <nav class="nav" id="nav">
     <button data-v="hoy" class="on" type="button">Hoy</button>
     <button data-v="tanda" type="button">Tanda</button>
+    <button data-v="mensajes" type="button">Mensajes</button>
     <button data-v="buscar" type="button">Buscar</button>
     <button data-v="ficha" type="button">Ficha</button>
     <button data-v="credito" type="button">Crédito</button>
@@ -319,6 +328,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
      sin abrir un navegador. Una regla legal metida en una función de pintar no se
      prueba nunca. Ver pruebas/tanda.test.js. -->
 <script src="tanda.js"></script>
+<!-- El chat, el mismo archivo que cargan crm.html y app/socio.html. -->
+<script src="../app/chat.js"></script>
 <script>
 'use strict';
 /* =========================================================================
@@ -1417,7 +1428,8 @@ var SEL = { socioId: null, creditoId: null };
 var BUSQUEDA = '';
 
 var TITULOS = { hoy: 'Hoy', tanda: 'Tanda de mensajes', buscar: 'Buscar',
-                ficha: 'Ficha del socio', credito: 'Crédito', quincena: 'Quincena' };
+                ficha: 'Ficha del socio', credito: 'Crédito', quincena: 'Quincena',
+                mensajes: 'Mensajes' };
 
 function ir(v) {
   VISTA = v;
@@ -1448,9 +1460,160 @@ function pintar() {
   else if (VISTA === 'ficha') html += vistaFicha();
   else if (VISTA === 'credito') html += vistaCredito();
   else if (VISTA === 'quincena') html += vistaQuincena();
+  else if (VISTA === 'mensajes') html += vistaMensajes();
   html += '<div class="pie">Panel en el bolsillo · las reglas son las de '
     + esc(M.REGLAS_VIGENTES_DESDE || '—') + '</div>';
   c.innerHTML = '<div class="vista">' + html + '</div>';
+}
+
+/* ================= MENSAJES EN LA CALLE — 28-ago-2026 =================
+   La misma bandeja del CRM, en el bolsillo. Todo el trabajo lo hace
+   `../app/chat.js`, el mismo archivo que usan crm.html y app/socio.html: acá
+   no se decide de qué lado va una burbuja ni cómo se escapa un texto. Esta
+   pantalla solo pide, guarda en memoria y pinta.
+
+   POR QUÉ ESTO NO SE GUARDA EN EL TELÉFONO, cuando todo lo demás de esta app sí:
+   la cartera se trae para poder cobrar sin señal, y eso tiene sentido porque los
+   números de ayer siguen sirviendo hoy. Una conversación no: un mensaje viejo
+   guardado se lee igual que uno nuevo, y contestar sin saber lo último es peor
+   que no contestar. Sin señal, esta pantalla lo dice y no finge nada.
+
+   El borrador SÍ se guarda en memoria (`_msj.borrador`) porque `pintar()`
+   redibuja el cuerpo entero: sin eso, cualquier refresco le borraría a Joan lo
+   que llevaba escrito. */
+
+var _msj = { ident: null, quien: '', celular: '', convs: [], msgs: [], ultimo: 0,
+             estado: 'nada', error: '', borrador: '' };
+
+function chatCfg() {
+  var c = (NUBE && NUBE.config) ? NUBE.config() : null;
+  return c && c.url && c.anon && c.clave ? c : null;
+}
+
+function vistaMensajes() {
+  if (!window.ChatTuGarantia) {
+    return '<div class="aviso ambar"><b>Falta ../app/chat.js.</b> Sin ese archivo esta '
+      + 'pantalla no puede mostrar conversaciones.</div>';
+  }
+  var cfg = chatCfg();
+  if (!cfg) {
+    return '<div class="aviso ambar"><b>Los mensajes viven en la nube.</b> Este teléfono '
+      + 'todavía no tiene la conexión y la clave de sincronización, así que no puedo traer '
+      + 'ni mandar nada. No quiere decir que no te hayan escrito: quiere decir que no puedo '
+      + 'mirar.</div>';
+  }
+  if (_msj.estado === 'nada') { setTimeout(traerConversaciones, 0); _msj.estado = 'cargando'; }
+
+  if (_msj.ident) return vistaHilo();
+
+  var h = '<div class="card ap"><div class="tit">Conversaciones</div>'
+    + '<button class="btn sm sec arriba" type="button" onclick="traerConversaciones()">↻ Traer de la nube</button>';
+  if (_msj.estado === 'cargando' && !_msj.convs.length) {
+    h += '<div class="ch-vacio">Preguntando a la nube…</div>';
+  } else if (_msj.error && !_msj.convs.length) {
+    h += '<div class="ch-vacio">' + esc(_msj.error) + '</div>';
+  } else {
+    var orden = _msj.convs.slice().sort(function (a, b) {
+      return (Number(b.sin_leer || 0) > 0) - (Number(a.sin_leer || 0) > 0);
+    });
+    h += ChatTuGarantia.listaHTML(orden, {
+      alAbrir: 'abrirHilo',
+      vacio: 'Todavía no te ha escrito nadie por la app.'
+    });
+  }
+  return h + '</div>';
+}
+
+function vistaHilo() {
+  var cel = String(_msj.celular || '').replace(/\D/g, '');
+  return '<div class="card ap">'
+    + '<div class="tit">' + esc(_msj.quien || 'Socio') + '</div>'
+    + '<button class="btn sm sec arriba" type="button" onclick="cerrarHilo()">← Todas las conversaciones</button>'
+    + '<div class="ch-hilo" id="mHilo" style="max-height:46vh">'
+    + (_msj.estado === 'cargando' && !_msj.msgs.length
+        ? '<div class="ch-vacio">Abriendo…</div>'
+        : (_msj.error && !_msj.msgs.length
+            ? '<div class="ch-vacio">' + esc(_msj.error) + '</div>'
+            : ChatTuGarantia.hiloHTML(_msj.msgs, { yo: 'negocio', textoVisto: 'Lo vio',
+                vacio: 'No hay mensajes en esta conversación.' })))
+    + '</div>'
+    + '<div class="ch-escribir">'
+    + '<textarea id="mResp" rows="1" placeholder="Escríbele…" maxlength="'
+    + ChatTuGarantia.LARGO_MAX + '" oninput="guardarBorrador()">' + esc(_msj.borrador) + '</textarea>'
+    + '<button class="btn sm" type="button" onclick="responderHilo()">Enviar</button>'
+    + '</div>'
+    + (cel ? '<div style="margin-top:10px"><a class="btn sm sec" target="_blank" rel="noopener" '
+             + 'href="https://wa.me/57' + esc(cel) + '">📲 Seguir por WhatsApp</a></div>' : '')
+    + '</div>';
+}
+
+function guardarBorrador() {
+  var t = document.getElementById('mResp');
+  if (t) _msj.borrador = t.value;
+}
+
+function traerConversaciones() {
+  var cfg = chatCfg(); if (!cfg) return;
+  _msj.estado = 'cargando';
+  ChatTuGarantia.conversaciones(cfg).then(function (lista) {
+    _msj.convs = Array.isArray(lista) ? lista : [];
+    _msj.estado = 'ok'; _msj.error = '';
+  }).catch(function (e) {
+    _msj.estado = 'error';
+    _msj.error = (e && e.humano) || 'No pude traerlas. Revisa el internet.';
+  }).then(function () { if (VISTA === 'mensajes') pintar(); });
+}
+
+function abrirHilo(ident) {
+  var c = null;
+  for (var i = 0; i < _msj.convs.length; i++) {
+    if (String(_msj.convs[i].cedula) === String(ident)) { c = _msj.convs[i]; break; }
+  }
+  _msj.ident = String(ident || '');
+  _msj.quien = (c && c.nombre) || 'Socio';
+  _msj.celular = (c && c.celular) || '';
+  _msj.msgs = []; _msj.ultimo = 0; _msj.borrador = ''; _msj.error = '';
+  cargarHilo();
+  pintar();
+}
+
+function cerrarHilo() { _msj.ident = null; _msj.msgs = []; pintar(); }
+
+function cargarHilo() {
+  var cfg = chatCfg(); if (!cfg || !_msj.ident) return;
+  _msj.estado = 'cargando';
+  ChatTuGarantia.conversacion(cfg, _msj.ident, _msj.ultimo).then(function (lista) {
+    (lista || []).forEach(function (m) {
+      _msj.msgs.push(m);
+      if (Number(m.id) > _msj.ultimo) _msj.ultimo = Number(m.id);
+    });
+    _msj.estado = 'ok'; _msj.error = '';
+  }).catch(function (e) {
+    _msj.estado = 'error';
+    _msj.error = (e && e.humano) || 'No pude abrirla. Revisa el internet.';
+  }).then(function () {
+    if (VISTA === 'mensajes') {
+      pintar();
+      var caja = document.getElementById('mHilo');
+      if (caja) caja.scrollTop = caja.scrollHeight;
+    }
+  });
+}
+
+function responderHilo() {
+  var cfg = chatCfg(); if (!cfg || !_msj.ident) return;
+  guardarBorrador();
+  var r = ChatTuGarantia.revisar(_msj.borrador);
+  if (!r.ok) { alert(r.motivo); return; }
+  ChatTuGarantia.responder(cfg, _msj.ident, r.texto).then(function (id) {
+    if (id === null) { alert('No se pudo mandar. Vuelve a intentar.'); return; }
+    _msj.borrador = '';
+    /* Se vuelve a preguntar en vez de pintarlo a mano: lo que se ve tiene que
+       ser lo que quedó guardado, con su id y su hora de la base. */
+    cargarHilo();
+  }).catch(function (e) {
+    alert((e && e.humano) || 'No pude mandarlo. Revisa el internet.');
+  });
 }
 
 /* Lo que no se puede callar en ninguna vista. */

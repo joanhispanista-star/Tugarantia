@@ -72,7 +72,19 @@
    el Panel del bolsillo se usa en la calle y puede estar servido desde la
    caché: sin subirlo, el espejo guardado en el celular de Joan seguiría
    metiendo el enlace viejo en cada WhatsApp que mande desde allá. */
-const CACHE = 'tugarantia-v17';
+/* v18 — 28-ago-2026 (tarde): entra el chat. Dos archivos nuevos, `app/chat.js`
+   y `app/chat.css`, que cargan LAS TRES páginas — la app del socio, el CRM y el
+   espejo. Van en la lista de precarga y no solo en la caché al vuelo por lo
+   mismo que espejo.html en la v4: en la PRIMERA visita el service worker
+   todavía no controla la página, así que esas peticiones no pasan por él y no
+   quedan guardadas. Sin esto haría falta abrir la app dos veces con señal para
+   que el chat se viera bien sin datos, y dos visitas es una condición que nadie
+   recuerda.
+
+   Ojo con el `.css`: la rama fresco-primero solo cubre html, js y webmanifest,
+   así que la hoja va CACHÉ-PRIMERO. Por eso el número tiene que subir cuando se
+   toque chat.css — si no, el teléfono que ya la tenga se queda con la vieja. */
+const CACHE = 'tugarantia-v18';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -84,6 +96,10 @@ const ARCHIVOS = [
   'app/socio.html',
   'app/motor.js',
   'app/puente.js',
+  /* El chat: lo comparten la app del socio, el CRM y el espejo, igual que el
+     motor y el puente. Es la razón de que este service worker viva en la raíz. */
+  'app/chat.js',
+  'app/chat.css',
   'app/app.webmanifest',
   'app/icono-180.png',
   'app/icono-192.png',

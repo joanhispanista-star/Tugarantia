@@ -12,6 +12,9 @@
 <link rel="manifest" href="panel.webmanifest">
 <link rel="apple-touch-icon" href="panel-180.png">
 <link rel="icon" type="image/png" href="panel-192.png">
+<!-- La hoja del chat es la MISMA que carga la app del socio. No trae colores
+     propios: se pinta con los tokens de esta página. -->
+<link rel="stylesheet" href="../app/chat.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -336,6 +339,7 @@
     <button class="navbtn" data-v="cred"><span class="ic">💵</span> Créditos</button>
     <button class="navbtn" data-v="resp"><span class="ic">🛡️</span> Con garantía</button>
     <button class="navbtn" data-v="clientes"><span class="ic">🧑‍🤝‍🧑</span> Clientes</button>
+    <button class="navbtn" data-v="mensajes"><span class="ic">💬</span> Mensajes<span id="navSinLeer"></span></button>
     <button class="navbtn" data-v="registrados"><span class="ic">📥</span> Registrados</button>
     <button class="navbtn" data-v="socios"><span class="ic">📋</span> Socios</button>
     <button class="navbtn" data-v="inv"><span class="ic">🎟️</span> Invitaciones</button>
@@ -386,6 +390,13 @@
          decisión de Joan: los nuevos no se mezclan con sus clientes hasta que
          él les abre la ficha y les da su primer crédito. Antes esta bandeja
          vivía escondida dentro de Invitaciones y solo conocía los canjes. -->
+    <section class="view" id="v-mensajes">
+      <div class="ph"><div><h1>Mensajes<span class="dot">.</span></h1><div class="sub">Lo que te escriben tus clientes desde la app — y lo que les contestas</div></div>
+        <button class="btn btn-negro" onclick="traerConversaciones()">↻ Traer de la nube</button></div>
+      <div class="card"><div class="card-h"><h3>💬 Conversaciones</h3><span class="tag" id="chTag">Los que tienen mensajes sin leer salen de primeros</span></div>
+        <div id="chBandeja"></div></div>
+    </section>
+
     <section class="view" id="v-registrados">
       <div class="ph"><div><h1>Registrados<span class="dot">.</span></h1><div class="sub">Se registraron solos o canjearon un código — todavía no son clientes: tú decides</div></div>
         <button class="btn btn-negro" onclick="traerRegistros()">↻ Traer de la nube</button></div>
@@ -528,8 +539,13 @@
      números distintos del mismo cliente. Si algo de acá se vuelve a escribir aquí
      abajo, vuelve a haber dos verdades. -->
 <script src="../app/puente.js"></script>
+<!-- El chat, compartido con app/socio.html por la misma razón que el puente:
+     quien decide de qué lado va un mensaje y cómo se escapa el texto vive en un
+     solo archivo. Si esto se copiara aquí abajo, habría dos verdades. -->
+<script src="../app/chat.js"></script>
 <script>
 const PUENTE=window.PuenteTuGarantia;
+const CHAT=window.ChatTuGarantia;
 const KEY=PUENTE.LLAVE_PANEL;
 /* El costo es fijo desde el 29-jul-2026. Se lee del motor para que no haya dos
    verdades; si algún día cambia, cambia en un solo lugar. */
@@ -1007,7 +1023,7 @@ function horarioPermitido(date){ const d=date||new Date(),dia=d.getDay(),h=d.get
 function contactadoHoy(s){ return (s.gestiones||[]).some(g=>g.fecha===hoyISO()); }
 
 /* ===== RENDER ===== */
-function render(){ renderHorario(); renderKpis(); renderCola(); renderCred(); renderRespaldados(); renderInvitaciones(); renderRegistros(); renderClientes(); renderSocios(); renderCiclos(); renderCalendario(); renderPlantillas(); }
+function render(){ renderHorario(); renderKpis(); renderCola(); renderCred(); renderRespaldados(); renderInvitaciones(); renderRegistros(); renderMensajes(); renderClientes(); renderSocios(); renderCiclos(); renderCalendario(); renderPlantillas(); }
 function renderHorario(){ const r=horarioPermitido(),b=document.getElementById('horarioBox'); b.className='horario '+(r.ok?'ok':'no');
   b.innerHTML=r.ok?'<b>✓ Horario de cobro</b>Puedes contactar (Ley 2300).':'<b>✗ Fuera de horario</b>'+r.motivo+' (Ley 2300).'; }
 
@@ -2838,6 +2854,131 @@ function pintarFreno(){
     'La cuota es el capital más el '+TASA_FIJA_PCT+'% de costo. Al '+pct+'%, un socio con una quincena de '+COP(1000000)+' no pasaría de '+COP(ej)+' de cupo.';
 }
 
+/* ===================== MENSAJES — LA BANDEJA (28-ago-2026) =====================
+   Lo que te escriben desde la app, y lo que les contestas. El transporte estaba
+   en la base desde el 5 de agosto y nunca se cableó; esto es el cable.
+
+   TODO PASA POR chat.js, que es el MISMO archivo que usa app/socio.html: quién
+   escribió, de qué lado va la burbuja, cómo se agrupa por día y —lo que más
+   importa— cómo se ESCAPA el texto. Ese texto lo escribe un cliente y se pinta
+   en el navegador donde vive la cartera entera: si alguna vez se arma aquí a
+   mano un innerHTML con lo que él mandó, eso es una puerta abierta.
+
+   Vive en el localStorage de nadie: las conversaciones son de la nube y solo de
+   la nube. Por eso esta pestaña, sin conexión, no dice "no hay mensajes" —que
+   sería mentira— sino que no está conectada. Es la misma trampa que ya se cazó
+   en la cola de cobro: "no hay nada" y "no me llegó" se ven igual y significan
+   lo contrario. */
+
+let _convs = [], _chatAbierta = null, _chatMsgs = [], _chatUltimo = 0;
+
+function traerConversaciones(){
+  const est=document.getElementById('chTag');
+  if(!sbListo()){ renderMensajes(); return; }
+  if(est) est.textContent='Preguntando a la nube…';
+  CHAT.conversaciones(sbCfg()).then(lista=>{
+    _convs=Array.isArray(lista)?lista:[];
+    if(est) est.textContent=_convs.length
+      ? 'Los que tienen mensajes sin leer salen de primeros'
+      : 'Todavía no te ha escrito nadie';
+    renderMensajes();
+  }).catch(e=>{
+    /* El error se dice y la lista NO se vacía: si se borrara, un corte de señal
+       se vería igual que "no te ha escrito nadie". */
+    if(est) est.textContent=(e&&e.humano)||'No pude traerlas. Revisa el internet.';
+  });
+}
+
+function renderMensajes(){
+  const b=document.getElementById('chBandeja'); if(!b) return;
+  const pin=document.getElementById('navSinLeer');
+  if(!sbListo()){
+    b.innerHTML=`<div class="empty"><div class="ic">☁️</div><p>Esto llega por la nube.<br><span class="muted">Conéctala en Ajustes → 📲 Compartir con mis clientes. Los mensajes no viven en este computador: son de la nube.</span></p></div>`;
+    if(pin) pin.textContent='';
+    return;
+  }
+  /* Sin leer, arriba del todo y ordenados por lo más reciente dentro de cada
+     grupo. La base ya los devuelve por fecha; acá solo se suben los pendientes,
+     que es lo que decide a quién le contestas primero. */
+  const orden=[..._convs].sort((a,b2)=>(Number(b2.sin_leer||0)>0)-(Number(a.sin_leer||0)>0));
+  b.innerHTML=CHAT.listaHTML(orden,{
+    alAbrir:'abrirConversacion',
+    vacio:'Todavía no te ha escrito nadie por la app.'
+  });
+  const n=CHAT.totalSinLeer(_convs);
+  if(pin) pin.textContent=n?' ('+n+')':'';
+}
+
+/* Abre el hilo. `ident` es la llave de la conversación, que es la misma que usa
+   socios_historial: la cédula si la ficha la tiene, y si no el celular. */
+function abrirConversacion(ident){
+  _chatAbierta=String(ident||''); _chatMsgs=[]; _chatUltimo=0;
+  const c=_convs.find(x=>String(x.cedula)===_chatAbierta)||{};
+  const quien=c.nombre||'Socio';
+  const cel=String(c.celular||'').replace(/\D/g,'');
+  openModal(quien,
+    `<div class="ch-hilo" id="chHilo" style="max-height:46vh"><div class="ch-vacio">Abriendo…</div></div>
+     <div class="ch-escribir">
+       <textarea id="chResp" rows="1" placeholder="Escríbele…" maxlength="${CHAT.LARGO_MAX}"></textarea>
+       <button class="btn btn-rojo btn-sm" id="chBtn" onclick="responderChat()">Enviar</button>
+     </div>
+     <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+       ${cel?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="https://wa.me/57${escHTML(cel)}">📲 Seguir por WhatsApp</a>`:''}
+       <button class="btn btn-ghost btn-sm" onclick="olvidarConversacion()" title="Borra la conversación entera, para siempre">🗑 Borrar la conversación</button>
+     </div>`);
+  cargarHilo();
+}
+
+function cargarHilo(){
+  if(!_chatAbierta) return;
+  CHAT.conversacion(sbCfg(),_chatAbierta,_chatUltimo).then(lista=>{
+    (lista||[]).forEach(m=>{ _chatMsgs.push(m); if(Number(m.id)>_chatUltimo) _chatUltimo=Number(m.id); });
+    const caja=document.getElementById('chHilo'); if(!caja) return;
+    caja.innerHTML=CHAT.hiloHTML(_chatMsgs,{yo:'negocio',textoVisto:'Lo vio',
+      vacio:'No hay mensajes en esta conversación.'});
+    caja.scrollTop=caja.scrollHeight;
+    /* Al abrirla, la base marca como vistos los del socio. La bandeja de atrás
+       todavía dice que hay pendientes, así que se vuelve a preguntar: si no, el
+       contador se queda encendido hasta el próximo ↻ y deja de significar algo. */
+    traerConversaciones();
+  }).catch(e=>{
+    const caja=document.getElementById('chHilo');
+    if(caja&&!_chatMsgs.length) caja.innerHTML='<div class="ch-vacio">'+escHTML((e&&e.humano)||'No pude abrirla. Revisa el internet.')+'</div>';
+  });
+}
+
+function responderChat(){
+  if(!_chatAbierta) return;
+  const ta=document.getElementById('chResp'), b=document.getElementById('chBtn');
+  const r=CHAT.revisar(ta?ta.value:'');
+  if(!r.ok) return alert(r.motivo);
+  if(b) b.disabled=true;
+  CHAT.responder(sbCfg(),_chatAbierta,r.texto).then(id=>{
+    if(id===null) return alert('No se pudo mandar. Vuelve a intentar.');
+    if(ta) ta.value='';
+    /* Se vuelve a preguntar en vez de pintarlo a mano: lo que se ve tiene que
+       ser lo que quedó guardado, con su id y su hora de la base. */
+    cargarHilo();
+  }).catch(e=>alert((e&&e.humano)||'No pude mandarlo. Revisa el internet.'))
+    .then(()=>{ if(b) b.disabled=false; });
+}
+
+/* Borrar es de verdad y no se deshace. Existe porque la política de datos se lo
+   promete al socio (Ley 1581): puede pedir que se borre lo suyo y hay que poder
+   cumplirlo. Por eso el aviso dice cuántos mensajes se van, no "¿seguro?". */
+function olvidarConversacion(){
+  if(!_chatAbierta) return;
+  const c=_convs.find(x=>String(x.cedula)===_chatAbierta)||{};
+  if(!confirm('Borrar TODA la conversación con '+(c.nombre||'este cliente')+'.\n\n'
+    +'Se van los '+_chatMsgs.length+' mensaje(s), los suyos y los tuyos, para siempre. '
+    +'No se puede deshacer y él tampoco los volverá a ver.\n\n¿Los borro?')) return;
+  CHAT.olvidar(sbCfg(),_chatAbierta).then(n=>{
+    cerrarModal(); _chatAbierta=null;
+    alert('Borrados '+(Number(n)||0)+' mensaje(s).');
+    traerConversaciones();
+  }).catch(e=>alert((e&&e.humano)||'No pude borrarla. Revisa el internet.'));
+}
+
 /* ===== MIGRACIÓN AL MODELO DE SOCIOS + SUBIDA A LA NUBE =====
    Convierte el historial de siempre en garantía acumulada, para que el cliente
    viejo no arranque en cero, y lo sube para que lo vea en su celular. */
@@ -4268,6 +4409,9 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
   /* Registrados trae de la nube SOLO al entrar a la pestaña, no en cada
      render(): una petición por visita, no una por teclazo. */
   if(v==='registrados'){ renderRegistros(); traerRegistros(); }
+  /* Mensajes, igual que Registrados: una petición por visita a la pestaña, no
+     una por cada render(). */
+  if(v==='mensajes'){ renderMensajes(); traerConversaciones(); }
   if(v==='resp')renderRespaldados(); }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>irA(b.dataset.v)));
 function entrar(){ if(document.getElementById('pinInput').value===DB.config.pin){ document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='grid'; render(); } else document.getElementById('pinErr').textContent='PIN incorrecto.'; }

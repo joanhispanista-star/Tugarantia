@@ -78,6 +78,8 @@ function abrirPanel() {
      window.PuenteTuGarantia, que es de donde lo toma la página. */
   ctx.MotorReglas = require(path.join(RAIZ, 'app', 'motor.js'));
   ctx.PuenteTuGarantia = require(path.join(RAIZ, 'app', 'puente.js'));
+  /* 28-ago-2026: el chat, que crm.html toma de window.ChatTuGarantia. */
+  ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
   vm.createContext(ctx);
 
   const bloques = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)];
@@ -205,6 +207,40 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
        comparación estricta lo rechaza aunque tenga lo mismo adentro. */
     assert.equal(P.ev("tokensSueltos('hola {enlace} {nombre}','mora').join(' ')"), '{enlace}');
     assert.equal(P.ev("tokensSueltos('hola {enlace} {nombre}','codigoAcceso').join(' ')"), '');
+  });
+
+  test('la bandeja de mensajes se pinta, y sin nube dice la verdad', () => {
+    /* 28-ago-2026. Sin conexión, la bandeja NO puede decir «no hay mensajes»:
+       las conversaciones viven en la nube y solo en la nube, así que lo único
+       cierto es que no puede mirar. Es la misma trampa que la cola de cobro
+       pintando un ✓ verde con la cartera vacía. */
+    const P = abrirPanel();
+    P.cargarCartera(UN_CLIENTE);
+    P.ev('renderMensajes()');
+    const h = P.elems['chBandeja'].innerHTML || '';
+    assert.ok(h.indexOf('nube') >= 0,
+      'la bandeja sin conexión no explica que le falta la nube: ' + h.slice(0, 120));
+    assert.ok(!/no te ha escrito nadie/i.test(h),
+      'afirmó que nadie escribió cuando lo que pasa es que no pudo mirar');
+    /* Y el contador de la pestaña no puede quedarse con un número viejo. */
+    assert.equal(P.elems['navSinLeer'].textContent, '');
+  });
+
+  test('con conversaciones traídas, los sin leer suben y el contador cuenta', () => {
+    const P = abrirPanel();
+    P.cargarCartera(UN_CLIENTE);
+    /* Se conecta la nube a mano (la clave nunca sale de acá) y se le meten dos
+       conversaciones ya traídas: lo que se prueba es el pintado, no la red. */
+    P.almacen['joan_socios_sb'] = JSON.stringify(
+      { url: 'https://ejemplo.supabase.co', anon: 'llave', clave: 'clave-de-prueba' });
+    P.ev("_convs=[{cedula:'1',nombre:'Sin pendientes',ultimo:'ok',ultimo_de:'panel',ultimo_en:'2026-08-31T10:00:00-05:00',sin_leer:0}," +
+         "{cedula:'2',nombre:'Con pendientes',ultimo:'hola',ultimo_de:'socio',ultimo_en:'2026-08-30T10:00:00-05:00',sin_leer:3}]");
+    P.ev('renderMensajes()');
+    const h = P.elems['chBandeja'].innerHTML || '';
+    assert.ok(h.indexOf('Con pendientes') < h.indexOf('Sin pendientes'),
+      'el que tiene mensajes sin leer no salió de primero, y es a quien hay que contestarle');
+    assert.equal(P.elems['navSinLeer'].textContent, ' (3)',
+      'la pestaña no dice cuántos van sin leer');
   });
 
   test('y el banco de pruebas sirve: si el Panel no arranca, se nota', () => {

@@ -8161,8 +8161,11 @@ describe('las dos apps compilan: nada de sintaxis rota', () => {
     });
   });
 
-  test('y los dos módulos sueltos también', () => {
-    ['app/motor.js', 'app/puente.js'].forEach(f => {
+  test('y los módulos sueltos también', () => {
+    /* 28-ago-2026: entra chat.js. Lo cargan las TRES páginas con <script src>,
+       así que un error de sintaxis suyo no rompe una función: deja sin arrancar
+       el bloque que lo usa en cada una. */
+    ['app/motor.js', 'app/puente.js', 'app/chat.js'].forEach(f => {
       const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
       try { new vm.Script(src, { filename: f }); }
       catch (e) { assert.fail(f + ': ' + e.message); }

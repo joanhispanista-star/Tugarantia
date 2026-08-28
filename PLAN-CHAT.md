@@ -1,9 +1,14 @@
 # Plan — el chat de Tu Garantía y la conexión con WhatsApp
 
 > Escrito el **viernes 28 de agosto de 2026**, a partir de lo que pidió Joan ese
-> día. **Es un plan, no código:** nada de esto está construido todavía. Antes de
-> tocar nada hace falta su visto bueno y cuatro decisiones que solo puede tomar
-> él (§3).
+> día.
+>
+> **ESTADO — 28 de agosto, noche.** Joan dio el visto bueno y pidió arrancar por
+> la fase 1. **La fase 1 está construida, probada y desplegada**; le falta que él
+> corra `base/20260828b_chat.sql` en Supabase. El parte completo, con lo que se
+> hizo y lo que se decidió NO hacer, está al final de `ESTADO-25-AGO-2026.md`.
+> Las fases 2 a 5 siguen siendo plan, y las decisiones A y B de §3 siguen
+> pendientes — la fase 2 no arranca sin ellas.
 
 ---
 
@@ -182,7 +187,7 @@ algo funcionando: si paramos en cualquier punto, lo entregado sirve.
 
 ### Fase 1 — El chat vivo, de punta a punta · **lun 31-ago → mar 1-sep**
 
-- Migración `base/20260831_chat_por_celular.sql`: identificar por **celular o
+- Migración `base/20260828b_chat.sql`: identificar por **celular o
   cédula** (el mismo patrón de `historial_socio_por_codigo`), abrir el check a
   `'auto'` y `'agente'`, columnas `regla` y `visto_por_joan`, **arrastrar
   `mensajes` en el re-llaveado** de `sincronizar_socios` (la trampa de arriba) y

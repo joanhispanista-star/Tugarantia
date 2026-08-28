@@ -11,6 +11,11 @@
 <link rel="manifest" href="app.webmanifest">
 <link rel="apple-touch-icon" href="icono-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
+<!-- La hoja del chat la comparten esta app, el CRM y el espejo. Va aparte para
+     no repetirla en tres sitios: una clase compartida metida en la hoja de UNA
+     pantalla ya salió rota en las otras una vez (`.mc-back`). No trae colores
+     propios — se pinta con los tokens de esta página. -->
+<link rel="stylesheet" href="chat.css">
 <style>
 /* ==========================================================================
  * LA LEY DE LA PALETA — 2 de agosto de 2026
@@ -450,6 +455,14 @@ details[open] summary::after{content:' ↑'}
   padding-bottom:env(safe-area-inset-bottom)}
 .nav button{flex:1;border:0;background:transparent;font-family:inherit;cursor:pointer;
   padding:14px 2px;min-height:48px;color:var(--gris);font-size:12px;font-weight:600;position:relative}
+/* 28-ago-2026: entró «Mensajes» y son cinco pestañas. En un teléfono angosto,
+   «Calculadora» a 12px ya no cabe en un quinto de 360px y partía la fila. */
+@media (max-width:399px){ .nav button{font-size:11px;letter-spacing:-.2px;padding:14px 1px} }
+/* NO hay globito de «sin leer» en la pestaña, y no es un olvido: la única
+   función que sabe cuántos le faltan por leer es chat_leer, y esa MARCA como
+   leídos los que devuelve. Un globito alimentado con ella se apagaría solo
+   antes de que el cliente abriera nada. Cuando haga falta, se pide con una
+   función que solo cuente. */
 .nav button.on{color:var(--tinta)}
 .nav button.on::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
   bottom:8px;width:18px;height:2px;border-radius:2px;background:var(--rojo)}
@@ -662,7 +675,7 @@ details[open] summary::after{content:' ↑'}
    app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
    de CACHE en sw.js). */
-var VERSION_APP = '2026-08-20';
+var VERSION_APP = '2026-08-28';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -707,11 +720,16 @@ setTimeout(function () {
     <button data-t="calc">Calculadora</button>
     <button data-t="garantia">Mi garantía</button>
     <button data-t="historial">Historial</button>
+    <button data-t="chat">Mensajes</button>
   </nav>
 </div>
 
 <script src="motor.js"></script>
 <script src="puente.js"></script>
+<!-- El chat lo comparten esta app y el Panel, igual que el motor y el puente:
+     quien decide de qué lado va un mensaje y cómo se escapa el texto es un solo
+     archivo, para que no haya dos verdades sobre la misma conversación. -->
+<script src="chat.js"></script>
 <script>
 'use strict';
 
@@ -1358,8 +1376,10 @@ function irA(tab) {
   $('cuerpo').innerHTML = '<div class="panel">' +
     (tab === 'inicio' ? vistaInicio() :
      tab === 'calc' ? vistaCalculadora() :
-     tab === 'garantia' ? vistaGarantia() : vistaHistorial()) + '</div>';
+     tab === 'garantia' ? vistaGarantia() :
+     tab === 'chat' ? vistaChat() : vistaHistorial()) + '</div>';
   if (tab === 'calc') sincronizarCalc();
+  if (tab === 'chat') arrancarChat();
   window.scrollTo(0, 0);
 }
 
@@ -3360,6 +3380,171 @@ function cambiarCodigo() {
   }).catch(function (e) {
     aviso(e && e.humano ? e.humano : 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
   }).then(function () { var b = $('ccBoton'); if (b) b.disabled = false; });
+}
+
+/* ======================= MENSAJES — 28-ago-2026 =======================
+   La línea de atención dentro de la app: el socio escribe y le contestan sin
+   salir a WhatsApp. El transporte estaba escrito en la base desde el 5 de
+   agosto y nunca se había cableado a una pantalla; esto es la pantalla.
+
+   POR QUÉ ESTA PESTAÑA NO EXISTE SIN NUBE, y se dice en vez de fingirse:
+   todas las demás funcionan sin señal porque sus datos viajan dentro del
+   enlace o salen del Panel de este mismo equipo. Un chat no: son dos personas
+   en dos teléfonos, y alguien tiene que guardar el mensaje en el medio
+   mientras el otro no está mirando. Sin conexión —o entrando por un enlace
+   congelado, o con Joan mirando la app como la ve el cliente— no hay a quién
+   escribirle, y la pantalla lo dice con todas las letras y ofrece WhatsApp.
+
+   El texto se pinta ESCAPADO siempre. Lo hace chat.js, que es el mismo archivo
+   que usa el Panel: si alguna vez se escapa aquí a mano, ya hay dos verdades. */
+
+/* El módulo compartido, con nombre corto para leer esto sin ruido. Lo carga
+   <script src="chat.js"> arriba, antes de este bloque. */
+var CHAT = ChatTuGarantia;
+
+var CH = { mensajes: [], ultimo: 0, cargando: false, enviando: false, error: '' };
+var CHAT_CADA_MS = 20000;   /* mirar si llegó algo: cada 20 s y solo con la pestaña abierta */
+
+/* Puede chatear quien entró de verdad por la nube con su código. Los otros dos
+   orígenes no tienen con qué: 'enlace' es una foto del momento sin código, y
+   'panel' es Joan mirando, no el cliente. */
+function chatDisponible() {
+  return !!(CFG.url && CFG.anon && S && S.cedula && S.acceso);
+}
+
+function vistaChat() {
+  if (!chatDisponible()) {
+    var wa = (S && S.negocio && S.negocio.whatsapp) || NEGOCIO_OFICIAL.whatsapp;
+    return '<div class="card">' +
+      '<h3 class="tit">Mensajes</h3>' +
+      '<p class="sub">Esta pantalla necesita internet y que hayas entrado con tu ' +
+      'código. Ahora mismo estás viendo tus datos guardados, así que no puedo ' +
+      'mandar ni traer mensajes.</p>' +
+      (wa ? '<a class="btn arriba" target="_blank" rel="noopener" href="https://wa.me/' +
+            esc(String(wa).replace(/\D/g, '')) + '">Escribir por WhatsApp</a>' : '') +
+      '</div>';
+  }
+  return '<div class="card">' +
+    '<h3 class="tit">Mensajes</h3>' +
+    '<p class="sub">Escríbenos por aquí lo que necesites. Te queda guardado, ' +
+    'y así los dos vemos lo que se acordó.</p>' +
+    '<div class="ch-hilo" id="chHilo" style="max-height:52vh">' +
+      '<div class="ch-vacio">Trayendo tus mensajes…</div>' +
+    '</div>' +
+    '<div class="ch-escribir">' +
+      '<textarea id="chTexto" rows="1" placeholder="Escribe aquí…" ' +
+        'maxlength="' + CHAT.LARGO_MAX + '" oninput="chatContar()"></textarea>' +
+      '<button class="btn sm" id="chEnviar" onclick="chatEnviar()">Enviar</button>' +
+    '</div>' +
+    '<div class="ch-cuenta" id="chCuenta"></div>' +
+    '</div>';
+}
+
+function chatPintar() {
+  var caja = $('chHilo'); if (!caja) return;
+  if (CH.error) {
+    caja.innerHTML = '<div class="ch-vacio">' + esc(CH.error) + '</div>';
+    return;
+  }
+  caja.innerHTML = CHAT.hiloHTML(CH.mensajes, {
+    yo: 'socio',
+    textoVisto: 'Lo vieron',
+    vacio: 'Todavía no se han escrito. Empieza tú: cuéntanos qué necesitas.'
+  });
+  /* Abajo del todo, que es donde está lo último. Sin esto, una conversación
+     larga abre por el principio y parece que no llegó nada nuevo. */
+  caja.scrollTop = caja.scrollHeight;
+}
+
+function chatContar() {
+  var t = $('chTexto'), c = $('chCuenta'); if (!t || !c) return;
+  var n = t.value.length;
+  /* El contador aparece cuando ya importa, no desde el primer carácter. */
+  c.textContent = n > CHAT.LARGO_MAX - 200 ? (CHAT.LARGO_MAX - n) + ' caracteres' : '';
+  c.classList.toggle('ch-pasado', n >= CHAT.LARGO_MAX);
+}
+
+function arrancarChat() {
+  if (!chatDisponible()) return;
+  CH = { mensajes: [], ultimo: 0, cargando: false, enviando: false, error: '' };
+  chatTraer(true);
+}
+
+/* Trae lo que falte. `desde` es el id del último que ya tengo, así que la
+   segunda vuelta en adelante solo baja lo nuevo — y no vuelve a marcar como
+   leído lo que ya estaba leído. */
+function chatTraer(primera) {
+  if (!chatDisponible() || CH.cargando) return;
+  CH.cargando = true;
+  CHAT.leer(CFG, S.cedula, S.acceso, CH.ultimo).then(function (lista) {
+    CH.cargando = false;
+    /* null es la respuesta de la base cuando la identidad no cuadró — y no
+       distingue entre «no existe», «código malo» y «frenado», a propósito. La
+       causa realista aquí es que le cambiaron el código: se dice eso, que es
+       lo único accionable. */
+    if (lista === null) {
+      CH.error = 'No pude abrir tus mensajes. Si te cambiaron el código, sal y ' +
+                 'vuelve a entrar con el nuevo.';
+      chatPintar(); return;
+    }
+    CH.error = '';
+    (lista || []).forEach(function (m) {
+      CH.mensajes.push(m);
+      if (Number(m.id) > CH.ultimo) CH.ultimo = Number(m.id);
+    });
+    chatPintar();
+  }).catch(function (e) {
+    CH.cargando = false;
+    /* Solo se pinta el error si no hay nada que enseñar. Con la conversación ya
+       en pantalla, un corte de señal no puede borrarla: lo que se cayó fue la
+       consulta, no lo que ya se dijo. */
+    if (!CH.mensajes.length) {
+      CH.error = (e && e.humano) || 'No pude conectarme. Revisa tu internet.';
+      chatPintar();
+    }
+  }).then(function () {
+    if (primera) chatLatido();
+  });
+}
+
+/* El sondeo. Se apaga solo al salir de la pestaña y con la app en segundo
+   plano: nadie necesita gastar los datos de un cliente por una pantalla que no
+   está mirando. */
+function chatLatido() {
+  setTimeout(function () {
+    if (TAB !== 'chat' || !$('chHilo')) return;
+    if (typeof document.hidden === 'boolean' && document.hidden) { chatLatido(); return; }
+    chatTraer(false);
+    chatLatido();
+  }, CHAT_CADA_MS);
+}
+
+function chatEnviar() {
+  if (!chatDisponible() || CH.enviando) return;
+  var ta = $('chTexto'), b = $('chEnviar');
+  var r = CHAT.revisar(ta ? ta.value : '');
+  if (!r.ok) { alert(r.motivo); return; }
+
+  CH.enviando = true; if (b) b.disabled = true;
+  CHAT.escribir(CFG, S.cedula, S.acceso, r.texto).then(function (id) {
+    /* null acá casi siempre es el tope de 20 mensajes cada 15 minutos. Se dice
+       lo que pasa y qué hacer, no «error». */
+    if (id === null) {
+      alert('No pude mandarlo. Si escribiste varios seguidos, espera unos ' +
+            'minutos y vuelve a intentar.');
+      return;
+    }
+    if (ta) { ta.value = ''; chatContar(); }
+    /* Se vuelve a preguntar en vez de pintar el mensaje a mano: así lo que se
+       ve en pantalla es lo que quedó guardado de verdad, con su id y su hora
+       de la base. Pintarlo local y que no hubiera entrado sería enseñarle al
+       cliente un mensaje que nadie va a leer. */
+    chatTraer(false);
+  }).catch(function (e) {
+    alert((e && e.humano) || 'No pude mandarlo. Revisa tu internet y vuelve a intentar.');
+  }).then(function () {
+    CH.enviando = false; if (b) b.disabled = false;
+  });
 }
 
 /* ================= LA SESIÓN QUE SE QUEDA — 20-ago-2026 =================
