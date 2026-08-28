@@ -462,3 +462,67 @@ identifica por cédula y no admite los autores nuevos; la app avisa con todas la
 letras (*«El chat todavía no está encendido en la base»*) en vez de fallar mudo.
 Al final del archivo hay cuatro consultas para comprobar en 30 segundos que
 quedó aplicado de verdad.
+
+---
+
+## 28-ago (noche, después) — la migración SÍ se aplicó, y destapó un agujero
+
+`base/20260828b_chat.sql` **quedó aplicada en producción** el mismo día, desde
+la pestaña del panel de Supabase de Joan. *Success. No rows returned.*
+
+Comprobado con consulta, no supuesto: el check admite los cuatro autores, existe
+`regla`, `sincronizar_socios` arrastra los mensajes al re-llavear, `chat_escribir`
+y `chat_leer` buscan por celular **o** cédula, y las seis funciones del chat
+quedan con `anon` y `authenticated`.
+
+### La séptima comprobación falló, y ahí estaba lo gordo
+
+`chat_puede_escribir` **seguía llamable por `anon`** después de que la migración
+hiciera `revoke all ... from public`.
+
+**Supabase concede EXECUTE a `anon` y `authenticated` en CADA función nueva del
+esquema `public`**, por privilegios por defecto. Ese permiso es **explícito**, no
+heredado del rol PUBLIC — así que `revoke ... from public` no lo quita. **No
+quita nada.** El revoke del 11-ago (`20260811:685-691`) llevaba **diecisiete
+días** dando por cerrado algo que seguía abierto, y no se notó porque un permiso
+de más no rompe ninguna pantalla.
+
+Al mirar la lista completa: **28 funciones llamables con la llave pública.** La
+mayoría bien —el Panel habla así y se autentica por argumento—, pero entre ellas
+estaban todos los ayudantes internos:
+
+| Función | Qué permitía |
+|---|---|
+| `limpiar_fallos(cedula)` | **borrar el contador de intentos** entre intento e intento: el freno de 8 por cuarto de hora dejaba de existir, y un código de 5 caracteres se prueba entero por fuerza bruta |
+| `clave_ok(texto)` | **oráculo para adivinar la clave de sincronización** a martillazos — y con `limpiar_fallos` al lado, sin tope. Esa clave autoriza `sincronizar_socios` (pisar el código de TODOS), las bandejas y `chat_olvidar` |
+| `anotar_fallo(cedula)` | **dejar a un cliente concreto fuera de su app** llamándola ocho veces; él ve «revisa tus datos» con los datos correctos |
+| `puede_intentar(...)` | saber si esa identidad está frenada ahora mismo |
+
+Más `huella_codigo`, `solo_digitos` y los dos de invitaciones, sin riesgo pero
+sin motivo para estar expuestos.
+
+### Cerrado y verificado
+
+`base/20260828c_permisos.sql` (**aplicada**) revoca las diez de `anon`,
+`authenticated` **y** `public`, por `oid::regprocedure` para no depender de
+firmas que ya han cambiado. Antes de tocar nada se barrió `app/`, `panel/` y
+`play/`: **cero llamadas** desde el front — las usan por dentro las funciones
+`security definer`, que corren como su dueño y siguen pudiendo.
+
+Comprobado contra la base real, con la llave pública:
+
+| Llamada | Antes | Ahora |
+|---|---|---|
+| `historial_socio_por_codigo` | 200 · `null` | 200 · `null` |
+| `chat_escribir` / `chat_leer` | 200 · `null` | 200 · `null` |
+| `chat_conversaciones` (clave mala) | 400 · «clave incorrecta» | igual |
+| `limpiar_fallos` · `clave_ok` · `anotar_fallo` | **200** | **401 · permission denied** |
+
+**851 pruebas, 0 fallos**, con centinelas nuevos para que un `revoke ... from
+public` a secas vuelva a fallar en verde.
+
+### Lo que esto deja pendiente, y no es pequeño
+
+El mismo defecto puede estar en **otros proyectos con Supabase** donde se haya
+usado `revoke ... from public` creyendo que cerraba: la regla es que en el
+esquema `public` hay que revocar **de `anon` y `authenticated` explícitamente**.

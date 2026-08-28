@@ -357,3 +357,78 @@ describe('el chat: que esté de verdad cableado', () => {
       'ya pasó una vez en la cola de cobro, pintando un ✓ verde con la cartera vacía');
   });
 });
+
+
+/* ==========================================================================
+ * LOS AYUDANTES INTERNOS, CERRADOS (28-ago-2026, noche)
+ *
+ * Encontrado al correr las comprobaciones de 20260828b_chat.sql contra la base
+ * de verdad: `chat_puede_escribir` seguía llamable por `anon` DESPUÉS del
+ * `revoke ... from public`. El motivo es la lección, y aplica a todo este
+ * proyecto: **Supabase concede EXECUTE a `anon` y `authenticated` en cada
+ * función nueva del esquema public**, y ese permiso es EXPLÍCITO. Un
+ * `revoke ... from public` no lo quita — no quita nada.
+ *
+ * O sea que el revoke del 11-ago llevaba diecisiete días dando por cerrado algo
+ * que seguía abierto, y no se notaba porque un permiso de más no rompe ninguna
+ * pantalla. Nada falla; solo queda la puerta.
+ * ======================================================================== */
+describe('los ayudantes internos no se llaman desde internet (28-ago-2026)', () => {
+
+  const PERM = leer('base/20260828c_permisos.sql');
+  /* La lista que de verdad se cierra es la del `in (...)` del bucle, no el
+     archivo entero: al final hay una consulta de comprobación —en un
+     comentario— que nombra funciones que SÍ deben seguir abiertas. Mirar el
+     archivo a secas daba un falso positivo, y esta prueba lo cazó. */
+  const LISTA = (/p\.proname in \(([\s\S]*?)\)\s*\n\s*loop/.exec(PERM) || [, ''])[1];
+
+  /* Las que NUNCA puede llamar un navegador. Las dos primeras juntas son lo
+     grave: sin freno, un código de 5 caracteres se prueba entero. */
+  const INTERNAS = ['limpiar_fallos', 'clave_ok', 'anotar_fallo', 'puede_intentar',
+                    'puede_intentar_tope', 'huella_codigo', 'chat_puede_escribir',
+                    'solo_digitos', 'codigo_invitacion_normalizado', 'codigo_invitacion_nuevo'];
+
+  test('las diez internas están en la lista que se cierra', () => {
+    assert.ok(LISTA.length > 50, 'no encontré el `in (...)` del bucle de revoke');
+    INTERNAS.forEach(f => assert.ok(LISTA.indexOf("'" + f + "'") >= 0,
+      f + ' se quedó fuera de la migración de permisos'));
+  });
+
+  test('se revoca de anon Y de authenticated, no solo de public', () => {
+    /* Si algún día alguien lo «simplifica» a `from public`, vuelve a no hacer
+       nada. Esta prueba existe para que esa simplificación falle. */
+    assert.match(PERM, /revoke all on function %s from anon, authenticated, public/,
+      'el revoke volvió a dejar fuera a anon: entonces no cierra nada');
+  });
+
+  test('revoca por oid, no por firma escrita a mano', () => {
+    /* Estas funciones han cambiado de firma con las migraciones. Un revoke con
+       la firma equivocada revienta el script o revoca otra cosa. */
+    assert.match(PERM, /p\.oid::regprocedure/);
+    assert.match(PERM, /from pg_proc p/);
+  });
+
+  test('NO cierra ninguna de las que llaman las pantallas', () => {
+    /* La lista negra tiene que ser exactamente la de los ayudantes. Si aquí
+       entrara una de las que usa la app, el cliente deja de poder entrar. */
+    ['historial_socio_por_codigo', 'chat_escribir', 'chat_leer', 'chat_conversaciones',
+     'chat_de', 'chat_responder', 'chat_olvidar', 'cambiar_codigo_acceso',
+     'crear_solicitud_por_codigo', 'canjear_invitacion', 'registrar_abierto',
+     'sincronizar_socios'].forEach(f =>
+      assert.ok(LISTA.indexOf("'" + f + "'") < 0,
+        f + ' entró en la lista de cierre y esa la llaman las pantallas'));
+  });
+
+  test('y ninguna pantalla llama a un ayudante interno', () => {
+    /* El barrido que se hizo a mano antes de revocar, ahora automático: si
+       alguien cablea una de estas desde el front, esta prueba lo caza antes de
+       que el revoke le apague la app a un cliente. */
+    const FRONT = ['app/socio.html', 'app/chat.js', 'panel/crm.html',
+                   'panel/espejo.html', 'panel/nube.js', 'play/index.html'];
+    FRONT.forEach(f => {
+      const t = leer(f);
+      INTERNAS.forEach(fn => assert.ok(t.indexOf('rpc/' + fn) < 0,
+        f + ' llama a ' + fn + ', que ya no es llamable desde internet'));
+    });
+  });
+});
