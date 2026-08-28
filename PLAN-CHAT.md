@@ -51,15 +51,21 @@ lo cableó nunca.** `base/supabase.sql:1017-1266`. Está vivo en producción hoy
 `app/socio.html`, `panel/crm.html`, `panel/espejo.html`, `panel/nube.js` →
 **cero resultados en los ocho archivos**. Nunca se ha mandado un mensaje.
 
-**Peor: la política de privacidad ya lo promete.** `legal/privacidad.html:151`
-dice, hoy, en vivo:
+**Peor: la política de privacidad ya lo promete DOS VECES.** `legal/
+privacidad.html`, hoy, en vivo:
 
-> *«Lo que nos escribes por el chat de la app — Atenderte y dejar constancia de
-> lo que acordamos. Los mensajes quedan guardados.»*
+> *línea 151 — «Lo que nos escribes por el chat de la app — Atenderte y dejar
+> constancia de lo que acordamos. Los mensajes quedan guardados.»*
+>
+> *línea 213 — «Eso incluye la conversación del chat: cuando pides que se borre
+> lo tuyo, se borra completa.»*
 
-O sea que **el documento legal describe una función que no existe**. Eso va
-contra la regla 6 de la casa. Construir el chat no es solo lo que pediste:
-también arregla eso.
+O sea que **el documento legal describe una función que no existe**, y la
+segunda frase promete además un derecho (el borrado) sobre datos que nadie
+guarda. Eso va contra la regla 6 de la casa y está en la política de tratamiento
+de datos, que es donde más caro sale. **Solo hay dos salidas: construir el chat
+o quitar las dos frases.** Construir el chat no es solo lo que pediste: también
+arregla esto.
 
 ### Lo que hay que cambiar del diseño de agosto — cuatro cosas, ninguna por seguridad
 
@@ -77,6 +83,39 @@ también arregla eso.
 4. **No hay tiempo real ni retención.** La tabla no está publicada en
    `supabase_realtime`, así que el chat sería por sondeo (cada N segundos), y
    nadie borra nunca nada. Las dos cosas se deciden, no se dejan al azar.
+
+### Y dos trampas que solo aparecen meses después
+
+Estas dos no se ven leyendo el chat: se ven cruzándolo con lo que ya existe.
+Van escritas porque un plan optimista se las salta y las paga en noviembre.
+
+**La llave del socio CAMBIA, y `mensajes` no se entera.** `socios_historial` se
+llavea con `coalesce(cédula, celular)`. El día que a una ficha que subía por
+celular le cargan la cédula de verdad, `20260820_entrada_por_celular.sql:67`
+hace `delete from socios_historial where cedula = cel` — y lo hace bien, está
+comentado y razonado. **Pero ese `delete` no toca `mensajes`.** Si el chat se
+guarda contra esa misma llave sin re-llavearse en la *misma transacción*, la
+conversación de ese cliente queda huérfana y **desaparece de la bandeja sin un
+solo aviso**. Con 11 de 16 clientes entrando por celular hoy, esto va a pasar en
+cuanto empieces a cargar cédulas. La migración de la fase 1 tiene que mover
+`mensajes` en el mismo `update`.
+
+**Volver a correr `20260810` apaga el chat del lado tuyo.** Las migraciones se
+escriben idempotentes a propósito, así que volver a pegarlas es una operación
+normal en esta casa. Pero `20260810:317-318` hace `drop function` de
+`chat_escribir` y `chat_leer` —y un `drop` se lleva los permisos con él— y en
+`:424-425` los vuelve a conceder **solo a `anon`**. `20260811:696-697` los había
+ampliado a `anon, authenticated`. La firma vieja y la nueva son la misma
+`(text,text,text)`, así que nada avisa. Como el Panel debe pasar a Supabase Auth
+(punto 3 de arriba), el chat quedaría abierto para tus clientes y cerrado para
+ti. **Los permisos se consolidan en la migración de la fase 1**, en un solo
+archivo, y se deja escrito que `20260810` ya no se vuelve a correr suelto.
+
+> **Y una corrección, para que nadie "arregle" lo que ya está bien:** se dijo por
+> ahí que el chat todavía autentica con cédula + últimos 4 del celular. **Es
+> falso.** `20260810_codigo_acceso.sql:317-425` tiró esas dos funciones y las
+> recreó pidiendo el código, y hay tres pruebas en `motor.test.js:8787-8819`
+> montando guardia. Esa puerta está cerrada; no hay que tocarla.
 
 ---
 
@@ -145,7 +184,9 @@ algo funcionando: si paramos en cualquier punto, lo entregado sirve.
 
 - Migración `base/20260831_chat_por_celular.sql`: identificar por **celular o
   cédula** (el mismo patrón de `historial_socio_por_codigo`), abrir el check a
-  `'auto'` y `'agente'`, y columnas `regla` y `visto_por_joan`.
+  `'auto'` y `'agente'`, columnas `regla` y `visto_por_joan`, **arrastrar
+  `mensajes` en el re-llaveado** de `sincronizar_socios` (la trampa de arriba) y
+  **consolidar los permisos de las siete funciones** en este solo archivo.
 - **Pantalla nueva en la app** del cliente: escribir, ver su conversación,
   saber si ya lo leíste.
 - **Bandeja nueva en el CRM**: todas las conversaciones, sin leer arriba,
