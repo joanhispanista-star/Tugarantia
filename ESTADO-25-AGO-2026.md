@@ -526,3 +526,53 @@ public` a secas vuelva a fallar en verde.
 El mismo defecto puede estar en **otros proyectos con Supabase** donde se haya
 usado `revoke ... from public` creyendo que cerraba: la regla es que en el
 esquema `public` hay que revocar **de `anon` y `authenticated` explícitamente**.
+
+---
+
+## 28-ago (noche, tercera) — «no puedo abrir el CRM»
+
+Lo reportó Joan al poco de desplegar el chat. **La culpa fue de la entrega, no
+del navegador**, y merece quedar escrita porque es una clase de fallo, no un
+descuido.
+
+### Qué pasó
+
+`render()` del Panel pinta TODAS las secciones seguidas. La sección nueva de
+Mensajes llamaba a `CHAT.listaHTML(...)`, y `CHAT` sale de `../app/chat.js`, un
+`<script src>` que **puede no llegar**: un service worker de la versión anterior
+no lo tiene en su lista, y cuando la red falla la rama de respaldo de `sw.js`
+contesta lo que no encuentra con `index.html` — pensado para una navegación, no
+para un script. Con `CHAT` indefinido, `renderMensajes()` lanzaba y **se llevaba
+por delante todas las secciones que van detrás**: el Panel quedaba a medio
+pintar después del PIN. Desde fuera: «no abre», sin un mensaje que lo explique.
+
+Lo publicado estaba bien —se comprobó: byte a byte igual al local y compilando—.
+El defecto era que el Panel entero dependiera de un archivo opcional.
+
+**Y en la app del socio era peor:** `var CHAT = ChatTuGarantia;` con el nombre
+pelado es un `ReferenceError` si el archivo no llegó, y un error ahí arriba no
+rompe el chat: **no ejecuta ni una línea del archivo**. Un cliente se habría
+quedado con la app muerta por una pestaña que ni abrió. Ahora va por `window.`
+
+### Lo que se arregló
+
+- `chatListo()` en el CRM: sin el módulo, la pestaña de Mensajes explica qué le
+  falta y **el resto del Panel funciona**. Igual en `traerConversaciones` y
+  `abrirConversacion`.
+- `app/socio.html`: `window.ChatTuGarantia`, y `chatDisponible()` lo exige.
+- **Ajustes → 🧹 Soltar la copia guardada**: borra las cachés `tugarantia-*` y
+  da de baja el service worker, y recarga. **No toca `localStorage`**, o sea que
+  no toca la cartera — y lo dice en pantalla, porque «borrar» al lado de un CRM
+  asusta con razón. Hasta hoy la única cura de un service worker atascado eran
+  las herramientas de desarrollador: ninguna.
+- La bandeja distingue **tres** estados: no he preguntado / no pude preguntar /
+  la nube contestó y no hay nadie. Antes, una consulta caída pintaba «todavía no
+  te ha escrito nadie» — afirmando en positivo lo contrario de lo que pasaba,
+  que es exactamente el defecto de la cola de cobro del 10-ago.
+
+`sw.js` sube a **v19**. **854 pruebas, 0 fallos**, con tres centinelas nuevos:
+el Panel abre sin `chat.js`, el botón de soltar la copia no toca datos, y los
+tres estados de la bandeja se ven distinto.
+
+Comprobado en navegador: con el módulo borrado a mano, el Panel abre, la lista
+de clientes se pinta y la bandeja explica qué falta.

@@ -84,7 +84,20 @@
    Ojo con el `.css`: la rama fresco-primero solo cubre html, js y webmanifest,
    así que la hoja va CACHÉ-PRIMERO. Por eso el número tiene que subir cuando se
    toque chat.css — si no, el teléfono que ya la tenga se queda con la vieja. */
-const CACHE = 'tugarantia-v18';
+/* v19 — 28-ago-2026 (noche). El número sube por un fallo que causó ESTE service
+   worker, y conviene que quede escrito.
+
+   La v18 estrenó `app/chat.js`. Un navegador que todavía tenía la v17 no lo
+   tenía en su lista, y cuando la red falla la rama de abajo contesta a lo que no
+   encuentra con `index.html` — pensada para una navegación, no para un
+   `<script src>`. Resultado: `chat.js` llegaba siendo una página HTML, el módulo
+   no existía, y `render()` del Panel se caía a media pintura. Desde fuera: «el
+   CRM no abre», sin un mensaje que lo explique.
+
+   Las dos páginas ya no dependen de ese archivo para arrancar —esa era la culpa
+   de verdad, y está arreglada—, pero el número sube igual para que el que tenga
+   la copia vieja la suelte de una en vez de curarse a la segunda visita. */
+const CACHE = 'tugarantia-v19';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

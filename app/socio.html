@@ -3399,8 +3399,16 @@ function cambiarCodigo() {
    que usa el Panel: si alguna vez se escapa aquí a mano, ya hay dos verdades. */
 
 /* El módulo compartido, con nombre corto para leer esto sin ruido. Lo carga
-   <script src="chat.js"> arriba, antes de este bloque. */
-var CHAT = ChatTuGarantia;
+   <script src="chat.js"> arriba, antes de este bloque.
+
+   VA POR `window.` Y NO POR EL NOMBRE PELADO, y la diferencia es la app entera:
+   si `chat.js` no llegó —red mala, un service worker viejo que no lo tiene en
+   su lista—, `ChatTuGarantia` a secas es un ReferenceError, y un error aquí
+   arriba **no rompe el chat: no ejecuta ni una línea del archivo**. El socio se
+   queda mirando una app muerta por una pestaña que ni siquiera abrió. Con
+   `window.` queda `undefined`, y `chatDisponible()` lo trata como lo que es:
+   una pantalla que hoy no se puede ofrecer. */
+var CHAT = window.ChatTuGarantia;
 
 var CH = { mensajes: [], ultimo: 0, cargando: false, enviando: false, error: '' };
 var CHAT_CADA_MS = 20000;   /* mirar si llegó algo: cada 20 s y solo con la pestaña abierta */
@@ -3409,7 +3417,9 @@ var CHAT_CADA_MS = 20000;   /* mirar si llegó algo: cada 20 s y solo con la pes
    orígenes no tienen con qué: 'enlace' es una foto del momento sin código, y
    'panel' es Joan mirando, no el cliente. */
 function chatDisponible() {
-  return !!(CFG.url && CFG.anon && S && S.cedula && S.acceso);
+  /* CHAT primero: si `chat.js` no llegó, esta pantalla no existe hoy — y se
+     dice, en vez de ofrecer una caja de texto que no manda a ninguna parte. */
+  return !!(CHAT && CHAT.hiloHTML && CFG.url && CFG.anon && S && S.cedula && S.acceso);
 }
 
 function vistaChat() {
@@ -3417,9 +3427,12 @@ function vistaChat() {
     var wa = (S && S.negocio && S.negocio.whatsapp) || NEGOCIO_OFICIAL.whatsapp;
     return '<div class="card">' +
       '<h3 class="tit">Mensajes</h3>' +
-      '<p class="sub">Esta pantalla necesita internet y que hayas entrado con tu ' +
-      'código. Ahora mismo estás viendo tus datos guardados, así que no puedo ' +
-      'mandar ni traer mensajes.</p>' +
+      '<p class="sub">' + (CHAT && CHAT.hiloHTML
+        ? 'Esta pantalla necesita internet y que hayas entrado con tu código. ' +
+          'Ahora mismo estás viendo tus datos guardados, así que no puedo mandar ' +
+          'ni traer mensajes.'
+        : 'No cargó una parte de la app. Cierra y vuelve a abrir con internet, y ' +
+          'vuelve a intentar. Mientras tanto puedes escribirnos por WhatsApp.') + '</p>' +
       (wa ? '<a class="btn arriba" target="_blank" rel="noopener" href="https://wa.me/' +
             esc(String(wa).replace(/\D/g, '')) + '">Escribir por WhatsApp</a>' : '') +
       '</div>';

@@ -38,7 +38,8 @@ const vm = require('node:vm');
  * funciones son declaraciones de un `<script>`, no propiedades de un objeto,
  * así que desde Node solo se llegan evaluando dentro del contexto.
  * ------------------------------------------------------------------------ */
-function abrirPanel() {
+function abrirPanel(opciones) {
+  const o = opciones || {};
   const RAIZ = path.join(__dirname, '..');
   const html = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
   const almacen = {};
@@ -78,8 +79,11 @@ function abrirPanel() {
      window.PuenteTuGarantia, que es de donde lo toma la página. */
   ctx.MotorReglas = require(path.join(RAIZ, 'app', 'motor.js'));
   ctx.PuenteTuGarantia = require(path.join(RAIZ, 'app', 'puente.js'));
-  /* 28-ago-2026: el chat, que crm.html toma de window.ChatTuGarantia. */
-  ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
+  /* 28-ago-2026: el chat, que crm.html toma de window.ChatTuGarantia.
+     `sinChat: true` simula que ese <script src> no llegó — que es lo que pasa
+     con un service worker viejo o sin señal, y lo que tumbó el Panel el día que
+     se entregó el chat. */
+  if (!o.sinChat) ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
   vm.createContext(ctx);
 
   const bloques = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)];
@@ -241,6 +245,82 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
       'el que tiene mensajes sin leer no salió de primero, y es a quien hay que contestarle');
     assert.equal(P.elems['navSinLeer'].textContent, ' (3)',
       'la pestaña no dice cuántos van sin leer');
+  });
+
+  test('EL PANEL ABRE AUNQUE NO LLEGUE chat.js — y lo dice', () => {
+    /* La regresión del 28-ago, en una prueba. `render()` pinta todas las
+       secciones seguidas: si una revienta, se lleva las de atrás y el Panel se
+       queda a medias después del PIN. Desde fuera eso se ve como «no abre», sin
+       un solo mensaje que lo explique.
+
+       El archivo puede faltar por causas que no son un fallo del código: un
+       service worker viejo que no lo tiene en su lista y contesta otra cosa
+       cuando la red falla, un teléfono sin señal, una caché a medias. */
+    const P = abrirPanel({ sinChat: true });
+    P.cargarCartera(UN_CLIENTE);
+    /* La nube conectada es el caso PEOR: sin ella renderMensajes salía antes de
+       tocar el módulo y el defecto no aparecía. */
+    P.almacen['joan_socios_sb'] = JSON.stringify(
+      { url: 'https://ejemplo.supabase.co', anon: 'llave', clave: 'clave-de-prueba' });
+
+    assert.doesNotThrow(() => P.ev('render()'),
+      'render() se cayó por falta de chat.js: eso deja el Panel a medio pintar');
+
+    const b = P.elems['chBandeja'].innerHTML || '';
+    assert.ok(b.indexOf('chat.js') >= 0,
+      'la pestaña de mensajes no explica qué le falta: ' + b.slice(0, 120));
+
+    /* Y lo que importa de verdad: las demás secciones SÍ se pintaron. */
+    assert.ok((P.elems['tblClientes'].innerHTML || '').indexOf('María Pérez') >= 0,
+      'la lista de clientes se quedó vacía: render() murió antes de llegar');
+
+    /* Los botones de la pestaña tampoco pueden reventar. */
+    assert.doesNotThrow(() => P.ev('traerConversaciones()'));
+    assert.doesNotThrow(() => P.ev('abrirConversacion("3001112233")'));
+  });
+
+  test('y el botón para soltar la copia guardada no toca los datos', () => {
+    /* Existe porque la única cura de un service worker atascado eran las
+       herramientas de desarrollador. Lo que NO puede hacer es tocar la cartera:
+       si algún día alguien le añade un removeItem, esta prueba lo caza. */
+    const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
+    const i = CRM.indexOf('function soltarCopiaGuardada()');
+    assert.ok(i > 0, 'crm.html ya no declara soltarCopiaGuardada');
+    const bloque = CRM.slice(i, i + 1500);
+    assert.ok(bloque.indexOf('localStorage') < 0,
+      'soltarCopiaGuardada toca el localStorage, que es donde vive la cartera');
+    assert.match(bloque, /tugarantia-/, 'borra cachés que no son suyas');
+    assert.match(bloque, /unregister/);
+  });
+
+  test('«nadie te ha escrito» y «no pude preguntar» NO se ven igual', () => {
+    /* La trampa que este proyecto ya pagó en la cola de cobro: con la cartera
+       vacía pintaba un ✓ verde y «Nada por gestionar hoy» — afirmando en
+       positivo justo lo contrario de lo que pasaba. */
+    const P = abrirPanel();
+    P.cargarCartera(UN_CLIENTE);
+    P.almacen['joan_socios_sb'] = JSON.stringify(
+      { url: 'https://ejemplo.supabase.co', anon: 'llave', clave: 'k' });
+
+    /* Todavía no se ha preguntado. */
+    P.ev('renderMensajes()');
+    let h = P.elems['chBandeja'].innerHTML || '';
+    assert.ok(/no he preguntado/i.test(h),
+      'sin haber preguntado ya afirma algo: ' + h.slice(0, 140));
+
+    /* La consulta falló. */
+    P.ev("_convsEstado='error'; _convsError='No pude traerlas.'; renderMensajes()");
+    h = P.elems['chBandeja'].innerHTML || '';
+    assert.ok(/no pude/i.test(h), 'no dice que falló la consulta');
+    assert.ok(!/no te ha escrito nadie/i.test(h),
+      'con la consulta caída afirma que nadie escribió, que es lo contrario');
+
+    /* La nube contestó y de verdad no hay nadie: ESE es el único caso en que
+       se puede afirmar. */
+    P.ev("_convsEstado='ok'; _convs=[]; renderMensajes()");
+    h = P.elems['chBandeja'].innerHTML || '';
+    assert.ok(/no te ha escrito nadie/i.test(h),
+      'con la nube contestando y cero conversaciones sí hay que decirlo');
   });
 
   test('y el banco de pruebas sirve: si el Panel no arranca, se nota', () => {

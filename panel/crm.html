@@ -466,6 +466,28 @@
         <div class="field"><label>PIN de acceso</label><input type="text" id="cfgPin" maxlength="6"></div>
 
         <!-- =====================================================================
+             SOLTAR LA COPIA GUARDADA — 28-ago-2026.
+
+             El Panel se guarda entero en el navegador para poder abrirse sin
+             señal. Eso es lo que se quiere el 99% de los días, y el 1% restante
+             es este: una versión nueva estrena un archivo que la copia guardada
+             no conoce, la red falla en ese momento, y el service worker viejo
+             contesta a la petición con lo que tenga a mano. Resultado: una
+             pantalla a medio cargar y ningún mensaje que lo explique.
+
+             Pasó el 28 de agosto con `app/chat.js`. Hasta ese día la única cura
+             era abrir las herramientas de desarrollador — o sea, ninguna.
+
+             Este botón NO toca datos: la cartera vive en otro sitio del
+             navegador (`localStorage`) y esto solo borra las copias de los
+             archivos del programa, que se vuelven a bajar solas. Se dice en la
+             pantalla, porque «borrar» al lado de un CRM asusta con razón.
+             ================================================================= -->
+        <div class="field"><label>Si el Panel abre raro o a medias</label>
+          <button class="btn btn-ghost" onclick="soltarCopiaGuardada()">🧹 Soltar la copia guardada</button>
+          <div class="help">Borra las copias de los archivos del programa que el navegador tiene guardadas para funcionar sin internet, y recarga. <b>No toca tus clientes ni tus créditos:</b> esos viven aparte y no se tocan. Úsalo si después de una actualización algo se ve a medio cargar.</div></div>
+
+        <!-- =====================================================================
              EL FRENO POR INGRESO — 5-ago-2026, preparado y APAGADO.
 
              El cupo crece un 15% por cada crédito pagado en fecha, y eso compone:
@@ -2871,10 +2893,18 @@ function pintarFreno(){
    lo contrario. */
 
 let _convs = [], _chatAbierta = null, _chatMsgs = [], _chatUltimo = 0;
+/* 'nada' = todavía no se ha preguntado · 'ok' = la nube contestó · 'error' = no
+   se pudo. Los tres se ven distinto en pantalla, y ese es el punto: «no te ha
+   escrito nadie» y «no pude preguntar» son cosas OPUESTAS y sin esto se pintan
+   igual. Es el mismo defecto que la cola de cobro, que con la cartera vacía
+   pintaba un ✓ verde y «Nada por gestionar hoy». */
+let _convsEstado = 'nada', _convsError = '';
 
 function traerConversaciones(){
   const est=document.getElementById('chTag');
-  if(!sbListo()){ renderMensajes(); return; }
+  /* Sin el módulo no hay a quién preguntarle. renderMensajes lo explica en la
+     pantalla; acá solo hay que no reventar. */
+  if(!chatListo()||!sbListo()){ renderMensajes(); return; }
   if(est) est.textContent='Preguntando a la nube…';
   CHAT.conversaciones(sbCfg()).then(lista=>{
     _convs=Array.isArray(lista)?lista:[];
@@ -2889,9 +2919,50 @@ function traerConversaciones(){
   });
 }
 
+/* 28-ago-2026 — EL PANEL NO SE CAE PORQUE FALTE UN ARCHIVO. Y esto no es
+   precaución teórica: pasó el mismo día que se entregó el chat.
+
+   `render()` pinta TODAS las secciones seguidas. Si renderMensajes() revienta
+   —y reventaba con un `CHAT` indefinido cuando `../app/chat.js` no llegaba—,
+   se lleva por delante a las que van detrás: el Panel se queda a medio pintar
+   después del PIN y desde fuera se ve como «no abre».
+
+   Y ese archivo puede no llegar por causas que no son un fallo del código: un
+   service worker viejo que aún no lo tiene en su lista y contesta con
+   index.html cuando la red falla, un teléfono sin señal, una caché a medias.
+
+   La regla de la casa es la misma de siempre: sin nube el Panel ANDA, avisando
+   de lo que no puede hacer. Que le falte el chat no puede costarle a Joan la
+   cartera, el calendario y la cola de cobro. */
+function chatListo(){ return !!(window.ChatTuGarantia && CHAT && CHAT.listaHTML); }
+
+/* Soltar la copia guardada. Se borran las cachés del sitio y se da de baja el
+   service worker; los datos NO se tocan, viven en localStorage y ni se miran
+   desde aquí. Se recarga al final porque sin recargar el que manda sigue siendo
+   el service worker viejo, que ya está registrado en esta página. */
+function soltarCopiaGuardada(){
+  if(!confirm('Voy a borrar las copias de los archivos del programa que el navegador guarda para andar sin internet, y a recargar.\n\n'
+    +'TUS CLIENTES Y TUS CRÉDITOS NO SE TOCAN: viven en otro sitio del navegador y esto ni los mira.\n\n'
+    +'Después de recargar, el Panel se baja fresco. Hace falta internet una vez.\n\n¿Lo hago?')) return;
+  const tareas=[];
+  if(window.caches&&caches.keys) tareas.push(caches.keys().then(ks=>Promise.all(
+    ks.filter(k=>k.indexOf('tugarantia-')===0).map(k=>caches.delete(k)))).catch(()=>null));
+  if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations)
+    tareas.push(navigator.serviceWorker.getRegistrations()
+      .then(rs=>Promise.all(rs.map(r=>r.unregister()))).catch(()=>null));
+  /* Pase lo que pase se recarga: si algo de esto no está disponible (file://,
+     un navegador viejo), una recarga dura sigue siendo mejor que quedarse. */
+  Promise.all(tareas).then(()=>{ location.reload(true); }, ()=>{ location.reload(true); });
+}
+
 function renderMensajes(){
   const b=document.getElementById('chBandeja'); if(!b) return;
   const pin=document.getElementById('navSinLeer');
+  if(!chatListo()){
+    b.innerHTML=`<div class="empty"><div class="ic">🔌</div><p>No cargó <span class="mono">../app/chat.js</span>.<br><span class="muted">Es lo único que le falta a esta pestaña; el resto del Panel funciona. Recarga con Ctrl+F5, y si sigue igual, Ajustes → 🧹 Soltar la copia guardada.</span></p></div>`;
+    if(pin) pin.textContent='';
+    return;
+  }
   if(!sbListo()){
     b.innerHTML=`<div class="empty"><div class="ic">☁️</div><p>Esto llega por la nube.<br><span class="muted">Conéctala en Ajustes → 📲 Compartir con mis clientes. Los mensajes no viven en este computador: son de la nube.</span></p></div>`;
     if(pin) pin.textContent='';
@@ -2900,6 +2971,14 @@ function renderMensajes(){
   /* Sin leer, arriba del todo y ordenados por lo más reciente dentro de cada
      grupo. La base ya los devuelve por fecha; acá solo se suben los pendientes,
      que es lo que decide a quién le contestas primero. */
+  /* Sin nada que enseñar, lo que se dice depende de POR QUÉ no hay nada. */
+  if(!_convs.length&&_convsEstado!=='ok'){
+    b.innerHTML=_convsEstado==='error'
+      ? `<div class="empty"><div class="ic">📡</div><p>No pude preguntarle a la nube.<br><span class="muted">${escHTML(_convsError)}</span><br><span class="muted">Esto <b>no</b> quiere decir que nadie te haya escrito: quiere decir que no pude mirar.</span></p></div>`
+      : `<div class="empty"><div class="ic">☁️</div><p>Todavía no he preguntado.<br><span class="muted">Toca “↻ Traer de la nube”.</span></p></div>`;
+    const p0=document.getElementById('navSinLeer'); if(p0) p0.textContent='';
+    return;
+  }
   const orden=[..._convs].sort((a,b2)=>(Number(b2.sin_leer||0)>0)-(Number(a.sin_leer||0)>0));
   b.innerHTML=CHAT.listaHTML(orden,{
     alAbrir:'abrirConversacion',
@@ -2912,6 +2991,7 @@ function renderMensajes(){
 /* Abre el hilo. `ident` es la llave de la conversación, que es la misma que usa
    socios_historial: la cédula si la ficha la tiene, y si no el celular. */
 function abrirConversacion(ident){
+  if(!chatListo()) return renderMensajes();
   _chatAbierta=String(ident||''); _chatMsgs=[]; _chatUltimo=0;
   const c=_convs.find(x=>String(x.cedula)===_chatAbierta)||{};
   const quien=c.nombre||'Socio';
