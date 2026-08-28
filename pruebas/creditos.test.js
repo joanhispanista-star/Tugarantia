@@ -187,18 +187,52 @@ describe('NINGÚN producto del catálogo se pasa del techo — barrido', () => {
     assert.deepEqual(peores, [], 'productos por encima del techo:\n  ' + peores.join('\n  '));
   });
 
-  test('y además queda bajo el margen, no pegado a la raya', () => {
-    /* Al ras del techo, el primer mes que la Superfinanciera baje la tasa el
-       producto queda ilegal solo. El margen es lo que compra el tiempo de
-       enterarse. */
+  test('cobra la TASA FIJA, no lo que diga el techo del mes', () => {
+    /* 27-ago-2026: el precio dejó de ir pegado al techo (era el 90% de él) y
+       pasó a ser fijo. Dos razones: el cliente que simulaba el 30 y venía el 2
+       veía otra cuota sin que nadie hubiera decidido nada, y el día 1 de cada
+       mes la app se quedaba muda esperando la certificación nueva.
+       El techo ya no fija el precio: solo puede prohibir. */
     C.ORDEN_PERFILES.forEach(idPerfil => {
       const s = C.simular({ perfil: idPerfil, capital: 500000, fecha_desembolso: '2026-08-15' });
       const cot = s.puede ? s : s.cotizacion;
+      assert.ok(Math.abs(cot.efectivo_anual - C.TASA_FIJA_EA) < 0.005,
+        idPerfil + ' quedó en ' + (cot.efectivo_anual * 100).toFixed(2) + '% y la tasa fija ' +
+        'es ' + (C.TASA_FIJA_EA * 100).toFixed(2) + '%: el precio dejó de ser fijo');
       const techo = C.topeVigente('2026-08-15').consumo_ordinario;
-      assert.ok(cot.efectivo_anual <= techo * C.MARGEN_TECHO + 0.0001,
-        idPerfil + ' quedó en ' + (cot.efectivo_anual * 100).toFixed(2) + '%, ' +
-        'y el margen manda ' + (techo * C.MARGEN_TECHO * 100).toFixed(2) + '%');
+      assert.ok(cot.efectivo_anual < techo,
+        idPerfil + ' quedó POR ENCIMA del techo de usura: eso es el artículo 305');
     });
+  });
+
+  test('SIN certificación del mes, la app SIGUE cotizando', () => {
+    /* Era el defecto que se arregló: sin la fila del mes en TOPES, simular()
+       devolvía {puede:false} y la calculadora pública se quedaba en blanco el
+       día 1. Con tasa fija eso ya no tiene que pasar — el precio no sale del
+       techo, así que no depende de que la tabla esté al día. */
+    const futuro = '2027-06-15';   // deliberadamente fuera de la tabla
+    assert.equal(C.topeVigente(futuro), null, 'la fecha de prueba dejó de estar fuera de la tabla');
+    const s = C.simular({ perfil: 'nuevo', capital: 500000, fecha_desembolso: futuro });
+    const cot = s.puede ? s : s.cotizacion;
+    assert.ok(cot && cot.cuota_tipica > 0,
+      'sin techo certificado la app volvió a quedarse muda: revisa que cotizar() no exija tope');
+    assert.equal(cot.techo_del_mes, null, 'sin certificación el techo tiene que venir null, no inventado');
+    assert.ok(Math.abs(cot.efectivo_anual - C.TASA_FIJA_EA) < 0.005, 'cobró algo distinto de la tasa fija');
+  });
+
+  test('EL GUARDIÁN: si el techo bajara de la tasa fija, se NIEGA a cotizar', () => {
+    /* La contrapartida de tener tasa fija. Joan eligió 24% sabiendo que en
+       enero de 2026 el techo estuvo en 24,36% — a 0,36 puntos. Si vuelve a
+       bajar así, esto tiene que frenar el préstamo, no seguir cotizando. */
+    const tope = C.topeVigente('2026-08-15');
+    assert.ok(C.TASA_FIJA_EA < tope.consumo_ordinario,
+      'LA TASA FIJA (' + (C.TASA_FIJA_EA * 100).toFixed(2) + '%) YA NO CABE BAJO EL TECHO (' +
+      (tope.consumo_ordinario * 100).toFixed(2) + '%). Hay que BAJAR TASA_FIJA_EA en ' +
+      'app/creditos.js: cobrar por encima del techo es delito.');
+    /* Y que el aviso exista en el código, para el día que haga falta. */
+    const fuente = fs.readFileSync(path.join(__dirname, '..', 'app', 'creditos.js'), 'utf8');
+    assert.ok(fuente.indexOf('tasa_sobre_techo') >= 0,
+      'se borró el guardián que niega la cotización cuando el techo baja de la tasa fija');
   });
 
   test('EL ARNÉS: un producto caro de a mentiras SÍ se caza', () => {
@@ -311,12 +345,20 @@ describe('la cotización cuadra peso a peso', () => {
       assert.ok(c[k] !== undefined, 'falta ' + k + ' en la cotización'));
   });
 
-  test('sin techo certificado NO cotiza, y lo dice', () => {
-    const r = C.simular({ perfil: 'preferente', capital: 500000, fecha_desembolso: '2026-09-15' });
-    assert.equal(r.puede, false);
-    assert.equal(r.motivo, 'sin_tope');
-    assert.match(r.mensaje, /2026-08-31/, 'tiene que decir hasta cuándo llega la tabla');
-    assert.equal(r.cotizacion, undefined, 'sin techo no puede haber cotización, ni de muestra');
+  test('sin techo certificado SIGUE cotizando, con la tasa fija', () => {
+    /* 27-ago-2026 — ESTA PRUEBA SE INVIRTIÓ A SABIENDAS. Antes exigía que sin
+       certificación la app se negara a cotizar, y era lo correcto MIENTRAS el
+       precio salía del techo: cotizar contra un techo que ya no existe es el
+       artículo 305 esperando. Desde que la tasa es FIJA, el techo no fija el
+       precio —solo puede prohibirlo—, así que no saber el techo del mes no
+       impide cobrar una tasa que se decidió por debajo de cualquiera.
+
+       Lo que protege ahora es el guardián: si HAY techo y la tasa fija no cabe
+       debajo, se niega (motivo 'tasa_sobre_techo'). Eso se prueba aparte. */
+    const r = C.simular({ perfil: 'preferente', capital: 500000, fecha_desembolso: '2027-09-15' });
+    const c = r.puede ? r : r.cotizacion;
+    assert.ok(c && c.cuota_tipica > 0, 'sin techo certificado volvió a quedarse muda');
+    assert.equal(c.techo_del_mes, null, 'el techo desconocido tiene que viajar null, no inventado');
   });
 });
 

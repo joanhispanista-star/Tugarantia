@@ -185,15 +185,47 @@
    * al que menos historia tiene, que es el que menos puede pagarlo. Lo que gana
    * el que construye historial es cupo y aprobación inmediata.
    *
-   * MARGEN_TECHO: se cotiza al 90% del techo del mes, no al 100%. El techo se
-   * mueve —julio 28,79%, agosto 29,66%— y un producto puesto al ras queda
-   * ilegal el primer mes que baje. El 10% aguanta una caída de tres meses
-   * seguidos como la de este año.
+   * ==========================================================================
+   * LA TASA ES FIJA — decisión de Joan, 27-ago-2026
+   *
+   * Hasta hoy el precio iba pegado al techo del mes (90% de él), y eso traía
+   * dos problemas que no se ven hasta que muerden:
+   *
+   *   1. El precio CAMBIABA solo cada mes. Un cliente que simuló el 30 de
+   *      agosto y vino el 2 de septiembre veía otra cuota, sin que nadie
+   *      hubiera decidido nada. No se puede explicar y no se puede vender.
+   *   2. El día 1 de cada mes, sin la certificación nueva en la tabla, la app
+   *      SE QUEDABA MUDA: no cotizaba nada. El 1 de septiembre de 2026 iba a
+   *      pasar con el registro abierto ya funcionando.
+   *
+   * Ahora se cobra TASA_FIJA_EA, siempre la misma, y el techo pasa de ser el
+   * precio a ser el LÍMITE: se sigue consultando, pero solo para negarse a
+   * cotizar si alguna vez quedara por debajo de la tasa fija. Cobrar por
+   * encima del techo es delito (artículo 305 del Código Penal), y esa
+   * verificación no se delega a que alguien se acuerde.
+   *
+   * SIN certificación para la fecha, la app SIGUE cotizando. Es seguro porque
+   * la tasa fija no depende del techo: lo único que hace el techo es poder
+   * prohibir, y lo que no se puede comprobar no prohíbe. La tabla se mantiene
+   * igual —es el registro de los límites y lo que hace vivo al guardián— y
+   * hay un centinela en las pruebas que avisa cuando se está venciendo.
+   *
+   * POR QUÉ NO SE ACTUALIZA SOLA, que fue la otra opción sobre la mesa: la
+   * Superfinanciera no publica una API, así que habría que leer su página con
+   * un robot. Un robot que lea mal un número una vez hace cobrar por encima
+   * del techo, y el modo de fallo de eso no es una página rara: es penal. Para
+   * este tamaño de negocio, el riesgo no compensa.
+   *
+   * EL 24% LO ELIGIÓ JOAN sabiendo lo que sigue, y queda escrito porque el que
+   * lo lea dentro de un año tiene que saberlo: en enero de 2026 el techo
+   * estuvo en 24,36%, o sea a 0,36 puntos de esta tasa. No es holgado. Si el
+   * techo vuelve a bajar así, el guardián empieza a negar cotizaciones y hay
+   * que BAJAR esta constante — no subir el margen ni tocar el guardián.
    * ======================================================================== */
 
   var PLAZO_MINIMO_DIAS = 90;   // regla 1. No se toca sin releer el comentario de arriba.
   var PLAZO_MESES = 6;          // decisión de Joan, 11-ago-2026
-  var MARGEN_TECHO = 0.90;
+  var TASA_FIJA_EA = 0.24;      // decisión de Joan, 27-ago-2026. Ver el comentario de arriba.
 
   var PERFILES = {
     preferente: {
@@ -302,14 +334,22 @@
         'en Google Play, y esa regla es de plazo, no de precio.');
     }
 
+    /* El techo ya NO decide el precio: solo puede PROHIBIR. Sin certificación
+       para la fecha se cotiza igual —la tasa fija no sale de ahí— y así la app
+       no se queda muda el día 1 de cada mes. Lo que sí se comprueba, cuando
+       hay techo conocido, es que la tasa fija quepa debajo. */
     var tope = topeVigente(fecha);
-    if (!tope) {
+    if (tope && TASA_FIJA_EA >= tope.consumo_ordinario) {
       return {
         puede: false,
-        motivo: 'sin_tope',
-        mensaje: 'No hay techo de usura certificado para el ' + fecha + '. La tabla llega ' +
-                 'hasta el ' + ultimoTopeCertificado() + '. Hay que agregar la certificación ' +
-                 'del mes antes de poder cotizar.',
+        motivo: 'tasa_sobre_techo',
+        mensaje: 'No podemos cotizar: el techo legal de este mes bajó a ' +
+                 (tope.consumo_ordinario * 100).toFixed(2).replace('.', ',') + '% y nuestra ' +
+                 'tasa fija es del ' + (TASA_FIJA_EA * 100).toFixed(2).replace('.', ',') + '%. ' +
+                 'Hay que BAJAR TASA_FIJA_EA en app/creditos.js antes de volver a prestar: ' +
+                 'cobrar por encima del techo es delito (artículo 305 del Código Penal).',
+        techo_del_mes: tope.consumo_ordinario,
+        tasa_fija: TASA_FIJA_EA,
         perfil: perfil.id
       };
     }
@@ -339,8 +379,10 @@
   }
 
   function cotizar(capital, meses, fecha, tope) {
-    var techo = tope.consumo_ordinario * MARGEN_TECHO;
-    var costoPlano = costoQueCabe(meses, techo);
+    /* El precio sale de la tasa FIJA, no del techo. `tope` puede llegar null
+       (mes sin certificación) y la cotización se hace igual: el techo solo
+       viaja al resultado como dato para la divulgación. */
+    var costoPlano = costoQueCabe(meses, TASA_FIJA_EA);
     var costoTotal = Math.round(capital * costoPlano);
     var total = capital + costoTotal;
 
@@ -371,9 +413,15 @@
       cuota_tipica: cuotas[0].total,
       efectivo_anual: ea,
       /* Lo que hay que publicar en la ficha de Play y decir en la pantalla donde
-         se pide. Viaja con la cotización para que nadie lo escriba a mano. */
-      techo_del_mes: tope.consumo_ordinario,
-      certificacion: tope.fuente,
+         se pide. Viaja con la cotización para que nadie lo escriba a mano.
+
+         El techo puede venir null si el mes todavía no tiene certificación: la
+         cotización sigue siendo válida —el precio es fijo— pero quien pinte
+         esto tiene que saber que el dato del techo puede faltar y NO escribir
+         un número inventado en su lugar. */
+      tasa_fija: TASA_FIJA_EA,
+      techo_del_mes: tope ? tope.consumo_ordinario : null,
+      certificacion: tope ? tope.fuente : null,
       dias_minimos: PLAZO_MINIMO_DIAS
     };
   }
@@ -448,7 +496,7 @@
     /* las reglas, para que ninguna pantalla las repita */
     PLAZO_MINIMO_DIAS: PLAZO_MINIMO_DIAS,
     PLAZO_MESES: PLAZO_MESES,
-    MARGEN_TECHO: MARGEN_TECHO,
+    TASA_FIJA_EA: TASA_FIJA_EA,
     TOPES: TOPES,
     PERFILES: PERFILES,
     ORDEN_PERFILES: ORDEN_PERFILES,

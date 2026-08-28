@@ -53,7 +53,7 @@ CÓMO FUNCIONA
 3. Dejas tu solicitud. La revisamos y te respondemos por WhatsApp.
 
 DIVULGACIÓN DEL CRÉDITO
-Crédito de libre inversión a 6 meses, en 6 cuotas mensuales. Plazo mínimo y máximo: 6 meses. Tasa efectiva anual máxima: 26,68%. Ejemplo: por $500.000 a 6 meses pagas 6 cuotas de $89.233, para un total de $535.400 ($500.000 de capital y $35.400 de costo). Sin cuotas de manejo, sin seguros y sin cargos adicionales: el costo mostrado es el costo total. Tasa máxima legal vigente en Colombia: 29,66%.
+Crédito de libre inversión a 6 meses, en 6 cuotas mensuales. Plazo mínimo y máximo: 6 meses. Tasa efectiva anual máxima: 23,98%. Ejemplo: por $500.000 a 6 meses pagas 6 cuotas de $88.683, para un total de $532.100 ($500.000 de capital y $32.100 de costo). Sin cuotas de manejo, sin seguros y sin cargos adicionales: el costo mostrado es el costo total. Tasa máxima legal vigente en Colombia: 29,66%.
 
 LO QUE ESTA APP NO TE PIDE
 No accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a tu ubicación, ni a las fotos de tu galería. Solo la cámara, y solo en el momento de tomar una foto.
@@ -73,11 +73,11 @@ salen de la misma función, así que no pueden decir números distintos.
 |---|---|
 | Plazo mínimo | 6 meses |
 | Plazo máximo | 6 meses |
-| TAE máxima | **26,68%** |
+| TAE máxima | **23,98%** |
 | Ejemplo · capital | $500.000 |
-| Ejemplo · cuota | $89.233 × 6 |
-| Ejemplo · costo | $35.400 |
-| Ejemplo · total | **$535.400** |
+| Ejemplo · cuota | $88.683 × 6 |
+| Ejemplo · costo | $32.100 |
+| Ejemplo · total | **$532.100** |
 | Techo legal del mes | 29,66% (Resolución 1139 de 2026) |
 
 ⚠️ **La TAE cambia cuando cambia el techo de usura**, que la Superfinanciera certifica

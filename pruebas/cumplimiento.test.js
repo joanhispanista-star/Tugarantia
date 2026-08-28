@@ -152,10 +152,17 @@ describe('la divulgación del crédito dice la verdad', () => {
         'el texto dice «' + p + '», que promete algo que no se puede garantizar'));
   });
 
-  test('sin techo certificado NO se divulga nada', () => {
-    const d = K.divulgacion('2026-09-15');
-    assert.equal(d.puede, false);
-    assert.equal(d.texto, undefined, 'no puede haber texto sin techo: sería inventarlo');
+  test('sin techo certificado SÍ se divulga: la tasa fija no depende de él', () => {
+    /* 27-ago-2026, invertida a sabiendas junto con la de creditos.test.js. La
+       divulgación que exige Google es plazo, TAE y ejemplo del costo — y las
+       tres salen ahora de la tasa fija, no del techo del mes. Publicarlas sin
+       la certificación no es inventar nada: es decir lo que se cobra.
+
+       Lo que NO se puede inventar es el techo mismo, y por eso viaja null. */
+    const d = K.divulgacion('2027-09-15');
+    assert.equal(d.puede, true, 'la divulgación volvió a depender del techo del mes');
+    assert.ok(d.texto && d.texto.length > 40, 'no hay texto de divulgación');
+    assert.ok(d.tae_maxima > 0 && d.ejemplo.cuota > 0, 'la divulgación salió sin cifras');
   });
 
   test('el MISMO texto está en la app, no una copia parecida', () => {
@@ -226,8 +233,12 @@ describe('la ficha de Play se genera y cuadra', () => {
     assert.equal(generar(FECHA), generar(FECHA));
   });
 
-  test('SE NIEGA a generar si falta el techo o una categoría', () => {
-    assert.throws(() => generar('2026-09-15'), /techo de usura certificado/);
+  test('la ficha se genera aunque falte la certificación del mes', () => {
+    /* Antes se negaba, y era coherente con el precio pegado al techo. Con tasa
+       fija, negarse dejaría a Joan sin poder regenerar su ficha de Play el
+       primer día de cualquier mes — por un dato que ya no manda en el precio. */
+    const f = generar('2027-09-15');
+    assert.ok(f.length > 500, 'la ficha salió vacía sin certificación del mes');
   });
 
   test('el archivo en el repositorio está al día', () => {

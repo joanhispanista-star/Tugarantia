@@ -66,7 +66,7 @@
    versión vieja en caché es un cliente confundido.
    v10 — 24-ago-2026: el CRM estrena el apartado Registrados (registro abierto).
    v11 — mismo día: la verificación por WhatsApp llega a la bandeja. */
-const CACHE = 'tugarantia-v13';
+const CACHE = 'tugarantia-v14';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
