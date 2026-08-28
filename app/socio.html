@@ -2,6 +2,39 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<script>
+/* ===================== LA «s» DE HTTPS NO ES UN DETALLE =====================
+   28-ago-2026. Joan no podía ver a sus clientes y el CRM estaba perfecto: los
+   estaba abriendo en OTRO CAJÓN.
+
+   Para el navegador, `http://tugarantia.net` y `https://tugarantia.net` son dos
+   sitios DISTINTOS, con almacenamientos separados. Y su marcador viejo
+   —`joanhispanista-star.github.io/Tugarantia/...`— redirige con un 301 a la
+   versión SIN la «s», porque GitHub Pages tiene apagado «Enforce HTTPS» en ese
+   repositorio. Resultado: un Panel impecable, cargando de un cajón vacío, y
+   veintiún clientes intactos en el de al lado. Eso se ve exactamente igual que
+   «se perdieron mis datos», que es lo peor que puede parecer un CRM.
+
+   Esto va ARRIBA DEL TODO y antes que cualquier otro script, para que el
+   redirect ocurra antes de que la página lea nada del almacenamiento
+   equivocado.
+
+   localhost y 127.0.0.1 quedan fuera a propósito: ahí no hay https y el Panel
+   se abre así todos los días. Y `file://` tampoco entra: `protocol` no es
+   'http:' y la condición ni se mira.
+
+   Esto es un CINTURÓN, no el arreglo de fondo: el de fondo es encender
+   «Enforce HTTPS» en GitHub Pages, que es un clic de Joan. Mientras no esté,
+   esta línea impide que el 301 lo deje en el sitio equivocado — y de paso que
+   una página con datos de clientes viaje en claro. */
+(function () {
+  var h = location.hostname;
+  if (location.protocol === 'http:' && h !== 'localhost' && h !== '127.0.0.1'
+      && h.indexOf('192.168.') !== 0 && h !== '[::1]') {
+    location.replace('https:' + location.href.substring(location.protocol.length));
+  }
+})();
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <title>Tu Garantía · Mi cuenta de socio</title>
 <meta name="theme-color" content="#0C0A0B">

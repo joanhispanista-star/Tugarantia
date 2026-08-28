@@ -576,3 +576,68 @@ tres estados de la bandeja se ven distinto.
 
 Comprobado en navegador: con el módulo borrado a mano, el Panel abre, la lista
 de clientes se pinta y la bandeja explica qué falta.
+
+---
+
+## 28-ago (noche, cuarta) — LA CAUSA REAL: el CRM vivía en un puerto, y otro proyecto se lo quitó
+
+Joan seguía sin poder entrar. Buscándolo en su navegador de verdad, apareció
+esto — y no lo había causado ninguno de los cambios de hoy.
+
+### Dónde vivía su CRM
+
+**En `http://localhost:8899`**, un servidor en su propio computador. Y ese
+puerto lo tiene tomado **otro proyecto suyo**: un `python -m http.server 8899`
+sirviendo una carpeta con `villanos.js`, `personajes-a.js`, `galeria.html`. Por
+eso su CRM daba *«Error 404: File not found»*: el puerto contesta, pero es otro
+programa.
+
+Medido en su Chrome, origen por origen:
+
+| Origen | `joan_socios_v1` |
+|---|---|
+| `http://localhost:8899` | **21 socios, 57 créditos** ✅ |
+| `https://joanhispanista-star.github.io` | **no existe la llave** |
+| `https://tugarantia.net` | vacío (antes del rescate) |
+
+**El origen de `github.io` estaba VACÍO.** O sea que la restauración del CRM en
+`joan-te-presta/tg/` —hecha esa misma tarde suponiendo que ahí estaban sus
+datos— no hacía falta. Queda anotado como lo que fue: una hipótesis equivocada,
+corregida por una medición.
+
+### Lo hecho
+
+1. Respaldo por partida doble antes de tocar nada: `Descargas\` y
+   `Escritorio\TuGarantia-RESPALDOS\respaldo-tugarantia-2026-08-28-rescate.json`
+   (40 KB · 21 socios · 57 créditos · los 21 con código · PIN incluido). **Es el
+   mejor respaldo en disco**: el anterior era del 20-ago con 16 socios.
+2. La cartera se llevó a `https://tugarantia.net` comprimida y por trozos, sin
+   salir de su máquina y sin pasar por ningún servidor. Se comprobó que el
+   destino estaba vacío ANTES de escribir. Verificado después: **21 filas en
+   Clientes, cero errores de consola.**
+
+### La segunda trampa, y esta seguía viva: la «s» de HTTPS
+
+`joanhispanista-star.github.io/Tugarantia/...` redirige **301 a
+`http://tugarantia.net`, sin la «s»** — porque «Enforce HTTPS» está apagado en
+Pages. Y para el navegador `http://` y `https://` son **dos almacenamientos
+distintos**. Con el marcador viejo, Joan abría un CRM impecable... contra un
+cajón vacío. Eso se ve idéntico a «se perdieron mis clientes».
+
+Cerrado con una guarda al principio de `crm.html`, `socio.html` y `espejo.html`:
+si el protocolo es `http:` y el host no es local, se salta a `https://` antes de
+leer nada. `localhost`, `127.0.0.1` y `file://` quedan fuera a propósito.
+**Sigue faltando el arreglo de fondo, que es un clic de Joan:** GitHub →
+Settings → Pages → **Enforce HTTPS**.
+
+### Y una prueba que se borraba sola
+
+Al poner la guarda, el total bajó de **854 a 848 en verde**. Seis pruebas de la
+bienvenida **no fallaron: desaparecieron**. Su `describe` cortaba `socio.html`
+por «el primer `</script>`» y hacía `assert` en el cuerpo del bloque: al meter un
+script nuevo delante, el assert lanzó antes de registrar ninguna prueba.
+
+**Una prueba que se borra sola no vigila nada, y encima da tranquilidad.** Ahora
+la búsqueda es por CONTENIDO (el script que trae el plazo de seguridad, esté
+donde esté) y el assert vive dentro de una prueba de verdad. **855 pruebas.**
+`sw.js` sube a v20.

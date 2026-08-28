@@ -7575,21 +7575,44 @@ describe('la bienvenida dura lo que se pidió, y la animación le cabe adentro',
 
   const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
 
+  /* 28-ago-2026 — ESTAS DOS BÚSQUEDAS ESTABAN EN EL CUERPO DEL describe Y CON
+     assert DENTRO, y eso es una trampa peor que el fallo que vigilan: cuando la
+     búsqueda falla, el assert lanza ANTES de que se registre ninguna prueba, y
+     las seis de este bloque NO FALLAN — DESAPARECEN. El total baja de 854 a 848
+     y en verde. Pasó de verdad hoy: bastó meter un <script> nuevo en el <head>.
+
+     Ahora las dos devuelven null si no encuentran nada, y quien se queja es una
+     prueba de verdad, la primera de abajo. Una prueba que se borra sola no
+     vigila nada. */
+
   /* El mínimo que la bienvenida se queda en pantalla, declarado en ARRANQUE. */
   const minimo = (() => {
     const m = /var MINIMO_BIENVENIDA = (\d+);/.exec(SOCIO);
-    assert.ok(m, 'socio.html ya no declara MINIMO_BIENVENIDA');
-    return Number(m[1]);
+    return m ? Number(m[1]) : null;
   })();
 
-  /* El plazo de seguridad, el del script pegado al splash: el que la quita
-     cuando el script grande revienta y nadie más la va a quitar. */
+  /* El plazo de seguridad: el que quita la bienvenida cuando el script grande
+     revienta y nadie más la va a quitar.
+
+     Se busca POR CONTENIDO, no por «el primer </script>». Antes se cortaba el
+     archivo en el primer cierre y se daba por hecho que ese era el splash; el
+     día que entró la guarda de HTTPS por delante, esa cuenta dejó de valer. Lo
+     que identifica a este script es lo que hace, no dónde está. */
   const plazo = (() => {
-    const cabeza = SOCIO.slice(0, SOCIO.indexOf('</script>')).trim();
-    const m = /\}, (\d+)\);$/.exec(cabeza);
-    assert.ok(m, 'el splash se quedó sin plazo de seguridad: eso es una app que no abre');
-    return Number(m[1]);
+    const bloques = [...SOCIO.matchAll(/<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/g)]
+      .map(m => m[1].trim());
+    for (const b of bloques) {
+      const m = /\}, (\d+)\);$/.exec(b);
+      if (m) return Number(m[1]);
+    }
+    return null;
   })();
+
+  test('las dos medidas se encuentran — si no, esto se queda sin vigilar', () => {
+    assert.ok(minimo !== null, 'socio.html ya no declara MINIMO_BIENVENIDA');
+    assert.ok(plazo !== null,
+      'el splash se quedó sin plazo de seguridad: eso es una app que no abre');
+  });
 
   test('ya no es un parpadeo: se queda al menos segundo y medio', () => {
     assert.ok(minimo >= 1500,

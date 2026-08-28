@@ -97,7 +97,11 @@
    Las dos páginas ya no dependen de ese archivo para arrancar —esa era la culpa
    de verdad, y está arreglada—, pero el número sube igual para que el que tenga
    la copia vieja la suelte de una en vez de curarse a la segunda visita. */
-const CACHE = 'tugarantia-v19';
+/* v20 — 28-ago-2026 (noche, tercera). Entra la guarda de HTTPS en las tres
+   paginas. Sube el numero porque el navegador que tenga la copia vieja seguiria
+   sirviendola en http:// — que es justo el origen equivocado del que hay que
+   sacarlo. */
+const CACHE = 'tugarantia-v20';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
