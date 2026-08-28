@@ -4837,11 +4837,13 @@ describe('las plantillas hablan con una sola voz (4-ago-2026)', () => {
                            '\nreturn VOZ_UNICA;')();
   const migrar = t => VOZ.reduce((s, r) => s.replace(r[0], r[1]), t);
 
-  test('son trece y ninguna dice "obligación"', () => {
+  test('son catorce y ninguna dice "obligación"', () => {
     /* El número sube cuando se agrega una plantilla, y a propósito rompe la
        prueba cuando pasa: quien agregue una tiene que leer esta batería antes
-       de escribirla. La decimotercera es la del código de acceso (10-ago-2026). */
-    assert.equal(mensajes().length, 13, 'cambió el número de plantillas: revisá la voz');
+       de escribirla. La decimotercera es la del código de acceso (10-ago-2026);
+       la decimocuarta, el enlace corregido (28-ago-2026) — leída y pasada por
+       esta batería, como manda el comentario de arriba. */
+    assert.equal(mensajes().length, 14, 'cambió el número de plantillas: revisá la voz');
     // En ninguna plantilla recomendada, y en ningún texto que le llegue al
     // socio. La palabra solo puede quedar viva en la regla que la borra.
     mensajes().forEach(m => assert.ok(!/obligaci[oó]n/i.test(m),
@@ -8137,7 +8139,13 @@ describe('las dos apps compilan: nada de sintaxis rota', () => {
     return out;
   };
 
-  ['panel/crm.html', 'app/socio.html'].forEach(archivo => {
+  /* 28-ago-2026 — ENTRA EL ESPEJO, y llevaba fuera desde que existe. Es el
+     Panel que Joan usa en la calle: si su JavaScript no compila, la pantalla
+     se queda muerta el día de cobro y con el cliente delante. Se descubrió al
+     tocarlo para arreglar el enlace del cliente — el archivo se editaba sin
+     red que lo cazara. (traer.html y play/index.html siguen fuera; son la
+     siguiente deuda de esta misma prueba.) */
+  ['panel/crm.html', 'app/socio.html', 'panel/espejo.html'].forEach(archivo => {
     test(archivo + ' — todo su JavaScript compila', () => {
       const bloques = bloquesDe(archivo);
       assert.ok(bloques.length >= 1, archivo + ' no tiene scripts embebidos: el barrido no mide nada');
@@ -8821,5 +8829,125 @@ describe('ninguna pantalla llama a una función que la migración tiró (11-ago-
     assert.equal(vivas.has('historial_socio'), false, 'esa la tira la migración');
     assert.equal(vivas.has('historial_socio_por_codigo'), true);
     assert.equal(vivas.has('sincronizar_socios'), true, 'esa se reemplaza, no se tira');
+  });
+});
+
+/* ==========================================================================
+ * EL ENLACE QUE SE LE MANDA AL CLIENTE (28-ago-2026)
+ *
+ * El defecto que se cierra acá: Joan mandó códigos de acceso con la dirección
+ * vieja y el cliente que abre ese enlace NO ENTRA — la copia de agosto no trae
+ * la conexión a la nube de fábrica ni la entrada por celular. Desde el lado del
+ * cliente eso se ve igual que "la app no sirve", y el que se queda afuera no
+ * vuelve a intentar.
+ *
+ * Había tres caminos por los que salía una dirección muerta, y los tres estaban
+ * calladitos: (1) `DB.config.urlApp`, que vive en el localStorage y le gana a
+ * la del archivo para siempre; (2) el espejo, que la calculaba desde DONDE
+ * ESTUVIERA ABIERTO; (3) una dirección pegada a mano dentro de una plantilla.
+ * Ninguno de los tres se ve mirando el código: hay que probarlos.
+ * ======================================================================== */
+describe('EL ENLACE QUE SE LE MANDA AL CLIENTE (28-ago-2026)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
+  const ESPEJO = fs.readFileSync(path.join(__dirname, '..', 'panel', 'espejo.html'), 'utf8');
+
+  const CASA = 'https://tugarantia.net/app/socio.html';
+
+  /* Las direcciones que un día sirvieron y hoy dejan al cliente afuera. Se
+     escriben acá enteras a propósito: son las que de verdad salieron en un
+     WhatsApp, no un ejemplo inventado. */
+  const MUERTAS = [
+    'http://localhost:8899/app/socio.html',
+    'http://localhost:8126/app/socio.html',
+    'https://joanhispanista-star.github.io/Tugarantia/app/socio.html',
+    'https://joanhispanista-star.github.io/joan-te-presta/tg/app/socio.html',
+    'https://tugarantia.co/app/socio.html',
+    'http://tugarantia.net/app/socio.html'   // sin HTTPS no se instala en el teléfono
+  ];
+
+  test('el Panel manda la dirección de casa, escrita entera', () => {
+    const def = /const URL_APP_DEF *= *'([^']+)'/.exec(CRM);
+    assert.ok(def, 'URL_APP_DEF ya no es una dirección escrita entera en crm.html');
+    assert.equal(def[1], CASA);
+    const desc = /const URL_DESCARGA_APP *= *'([^']+)'/.exec(CRM);
+    assert.ok(desc, 'URL_DESCARGA_APP ya no es una dirección escrita entera');
+    assert.equal(new URL(desc[1]).host, 'tugarantia.net');
+    assert.equal(new URL(desc[1]).protocol, 'https:');
+  });
+
+  test('EL ESPEJO MANDA LA MISMA, y no la de donde esté abierto', () => {
+    /* El espejo se abre en el celular desde donde Joan lo tenga guardado: un
+       acceso directo de agosto, la copia muerta de joan-te-presta, localhost.
+       Derivarla de location.href convertía cada uno de esos en un enlace muerto
+       dentro del WhatsApp de un cliente. crm.html se curó de esto el 20-ago;
+       el espejo se quedó atrás ocho días y nadie lo notó. */
+    const esp = /var URL_APP_ESPEJO *= *'([^']+)'/.exec(ESPEJO);
+    assert.ok(esp, 'URL_APP_ESPEJO volvió a calcularse sola en espejo.html');
+    assert.equal(esp[1], CASA, 'el espejo y el CRM mandan direcciones distintas');
+    assert.ok(!/new URL\('\.\.\/app\/socio\.html', *location\.href\)/.test(ESPEJO),
+      'espejo.html volvió a derivar el enlace del cliente de location.href');
+    assert.ok(!/new URL\('\.\.\/app\/socio\.html', *location\.href\)/.test(CRM),
+      'crm.html volvió a derivar el enlace del cliente de location.href');
+  });
+
+  /* enlaceServible() se saca del HTML y se corre de verdad. Leer que "filtra
+     localhost" no prueba nada: lo que importa es qué contesta. */
+  const i = CRM.indexOf('function enlaceServible(');
+  const j = CRM.indexOf('function urlApp(', i);
+  assert.ok(i >= 0 && j > i,
+    'crm.html ya no declara enlaceServible antes de urlApp: revisá quién lo usa');
+  const enlaceServible = new Function(CRM.slice(i, j) + ' return enlaceServible;')();
+
+  test('una dirección guardada solo gana si HOY sirve para entrar', () => {
+    assert.equal(enlaceServible(CASA), true);
+    assert.equal(enlaceServible('https://tugarantia.net/descargas/'), true);
+    MUERTAS.forEach(u => assert.equal(enlaceServible(u), false,
+      u + ' pasó el filtro, y esa dirección deja al cliente afuera'));
+    /* Lo que no es una dirección tampoco pasa: un campo vacío o a medio
+       escribir mandaría un mensaje con un enlace roto. */
+    [undefined, null, '', '   ', 'socio.html', 'file:///C:/tg/app/socio.html']
+      .forEach(u => assert.equal(enlaceServible(u), false, String(u) + ' pasó el filtro'));
+  });
+
+  test('urlApp() ya no confía a ciegas en lo guardado', () => {
+    assert.ok(!/function urlApp\(\)\{ *return DB\.config\.urlApp\|\|/.test(CRM),
+      'urlApp volvió al `||` de antes: una dirección muerta guardada le gana ' +
+      'otra vez a la del archivo, y no hay pantalla donde verla');
+    assert.match(CRM, /function urlApp\(\)\{ *return enlaceServible\(DB\.config\.urlApp\)/);
+    /* Y la migración que la borra al cargar: sin ella el aviso saldría cada vez
+       y la dirección muerta seguiría viajando en el lote de la nube. */
+    assert.match(CRM, /delete d\.config\.urlApp/,
+      'cargar() ya no limpia la dirección guardada que dejó de servir');
+  });
+
+  test('ninguna plantilla recomendada lleva una dirección escrita a mano', () => {
+    /* Las recomendadas usan {enlace}, que se resuelve al mandar. Una dirección
+       dentro del texto no la mueve ningún cambio de código. */
+    const bloque = CRM.slice(CRM.indexOf('const PLANTILLAS_DEF={'),
+                             CRM.indexOf('let _fechasMigradas'));
+    const urls = bloque.match(/https?:\/\/[^\s'"]+/g) || [];
+    assert.deepEqual(urls, [],
+      'PLANTILLAS_DEF trae direcciones pegadas: ' + urls.join(', '));
+    const linea = bloque.split('\n').find(l => l.trim().startsWith('codigoAcceso:'));
+    assert.ok(linea, 'no encontré la plantilla codigoAcceso');
+    assert.ok(linea.indexOf('{enlace}') >= 0,
+      'el mensaje del código de acceso dejó de usar {enlace}');
+  });
+
+  test('a quien recibió el enlace viejo se le puede mandar el bueno', () => {
+    /* No basta con arreglar el Panel: los enlaces ya enviados están guardados
+       en el WhatsApp de cada cliente y ahí se quedan. */
+    assert.match(CRM, /enlaceCorregido:\{/, 'se fue la plantilla de la corrección');
+    assert.match(CRM, /function pudoRecibirEnlaceViejo\(s\)/);
+    assert.match(CRM, /function reenviarEnlaceBueno\(\)/);
+    /* Y mandar el código HOY saca al cliente de la lista: si no, seguiría
+       apareciendo para siempre por una fecha de envío que ya se pisó. */
+    const bloque = CRM.slice(CRM.indexOf('function mandarCodigoAcceso('),
+                             CRM.indexOf('function pudoRecibirEnlaceViejo('));
+    assert.match(bloque, /s\.enlaceReenviadoEn=hoyISO\(\)/,
+      'mandarCodigoAcceso no marca el reenvío: el cliente se queda en la lista ' +
+      'de reparación aunque ya recibió el enlace bueno');
   });
 });

@@ -649,7 +649,14 @@ const PLANTILLAS_DEF={
   /* 10-ago-2026 — el código con el que el cliente entra a SU cuenta. Dice las
      tres cosas que evitan el WhatsApp de vuelta: que es suyo, que no cambia, y
      que no se comparte. Y no promete nada que la app no haga. */
-  codigoAcceso:{t:'Su código para entrar a la app',x:'La llave del cliente. Se la mandas una vez y le sirve siempre',m:'Hola {nombre} 🙂 Te mandamos tus datos para entrar a la app y ver tus números:\n\n👤 Tu usuario: {usuario}\n🔑 Tu código: {codigo_acceso}\n\nEntras acá: {enlace}\n\nSon tuyos y no cambian, así que guárdalos. No se los pases a nadie: con ellos se ve todo tu historial.'}
+  codigoAcceso:{t:'Su código para entrar a la app',x:'La llave del cliente. Se la mandas una vez y le sirve siempre',m:'Hola {nombre} 🙂 Te mandamos tus datos para entrar a la app y ver tus números:\n\n👤 Tu usuario: {usuario}\n🔑 Tu código: {codigo_acceso}\n\nEntras acá: {enlace}\n\nSon tuyos y no cambian, así que guárdalos. No se los pases a nadie: con ellos se ve todo tu historial.'},
+  /* 28-ago-2026 — el mensaje de reparación. Se manda a quien ya recibió su
+     código con la dirección vieja: el enlace que tiene guardado en su WhatsApp
+     abre una copia de agosto que no lo va a dejar entrar nunca.
+     NO le repite el código dentro del texto a propósito: el código no cambió y
+     él ya lo tiene arriba en la misma conversación. Repetirlo haría dudar de si
+     es otro, y de paso deja la llave dos veces en un chat que se reenvía. */
+  enlaceCorregido:{t:'El enlace bueno (corrección)',x:'Para quien recibió su código con la dirección vieja',m:'Hola {nombre} 🙂 Te pasamos el enlace bueno para entrar a la app: el que te mandamos antes ya no abre.\n\nEntras acá: {enlace}\n\nTu usuario y tu código son los mismos de antes, no cambian. Si no los tienes a mano, nos escribes y te los pasamos otra vez.'}
 };
 
 /* 3-ago-2026: cuántas fechaPagado tocó la migración en ESTA carga. Se declara
@@ -705,6 +712,14 @@ function cargar(){
     VOZ_UNICA.forEach(r=>{ d.plantillas[k]=d.plantillas[k].replace(r[0],r[1]); });
   } });
   d.config=Object.assign({costoBasePct:20,tasaUsuraEA:0,pin:'1234',negocio:'Tu Garantía',whatsapp:''},d.config||{});
+  /* 28-ago-2026 — LA DIRECCIÓN GUARDADA QUE SE QUEDÓ VIEJA.
+     Mismo bisturí que las tres migraciones de plantillas de aquí arriba, y por
+     el mismo motivo: lo que está en el disco le gana a lo que dice el archivo,
+     así que arreglar URL_APP_DEF no alcanza para el Panel que ya tenga una
+     dirección guardada. Si esa dirección ya no sirve para entrar, se borra y el
+     Panel vuelve a la de casa. Idempotente: después de borrarla no hay nada que
+     borrar. (enlaceServible se declara más abajo; las funciones se izan.) */
+  if(d.config.urlApp&&!enlaceServible(d.config.urlApp)) delete d.config.urlApp;
   /* 5-ago-2026 — EL FRENO POR INGRESO, LA CASILLA APAGADA.
      Se crea apagada en cada carga (un respaldo viejo no la trae) y se queda así
      hasta que Joan la prenda desde Ajustes. Con `activo:false` el motor devuelve
@@ -720,6 +735,10 @@ function cargar(){
     if(s.ajusteGarantia===undefined)s.ajusteGarantia=0; if(s.ajusteMotivo===undefined)s.ajusteMotivo=''; if(s.migracionRevisada===undefined)s.migracionRevisada=null;
     if(s.codigoInvitacion===undefined)s.codigoInvitacion=null;
     if(s.codigoAcceso===undefined)s.codigoAcceso=''; if(s.codigoEnviadoEn===undefined)s.codigoEnviadoEn=null;
+    /* 28-ago-2026: cuándo se le mandó el enlace corregido. Nace en null para
+       todos —incluidos los respaldos viejos— y eso es correcto: nadie lo ha
+       recibido todavía. */
+    if(s.enlaceReenviadoEn===undefined)s.enlaceReenviadoEn=null;
     /* 5-ago-2026: lo que gana por quincena. En CERO quiere decir "no lo
        sabemos", y el motor lo trata así: aunque Joan encienda el freno, a un
        socio sin ingreso declarado no le topa nada. Topar contra un dato que no
@@ -1127,6 +1146,15 @@ function aplicarVars(txt,p,s,enlace,extra){ const e=extra||{}; s=s||{};
   .replaceAll('{dias_mora}',p?String(diasMora(p)):'0')
   .replaceAll('{codigo}',e.codigo||'').replaceAll('{cuota}',e.cuota||'')
   .replaceAll('{codigo_acceso}',e.codigo_acceso||'')
+  /* 28-ago-2026 — ESTA LÍNEA FALTABA DESDE EL 21 DE AGOSTO.
+     El mensaje del código de acceso escribe "👤 Tu usuario: {usuario}" y
+     mensajeCodigoAcceso() calcula el número y lo manda en `extra`… pero acá
+     nadie lo contestaba. O sea que a cada cliente al que se le mandó su código
+     desde el 21-ago le llegó, literalmente, «Tu usuario: {usuario}» — el dato
+     más importante del mensaje, el que tiene que teclear para entrar, escrito
+     como una llave rota. Se cazó ejecutando el mensaje entero en un arnés, no
+     leyendo el código: el texto de la plantilla estaba perfecto. */
+  .replaceAll('{usuario}',e.usuario||'')
   .replaceAll('{n}',e.n||'').replaceAll('{plazo}',e.plazo||'')
   .replaceAll('{enlace}',enlace||''); }
 function waLink(tel,msg){ return 'https://wa.me/57'+String(tel||'').replace(/\D/g,'')+'?text='+encodeURIComponent(msg); }
@@ -1301,8 +1329,17 @@ function revisarQuienPuedeEntrar(){
         +'(la nube no respondió). No quiere decir que estén mal: vuelve a revisar con mejor señal.<br>'
         +'<span class="muted">'+nombres(noSePudo)+'</span></div>';
     }
+    /* 28-ago-2026: se muestran LOS DOS enlaces, porque son dos y hacen cosas
+       distintas — el de la app abre la cuenta del socio en el navegador; el de
+       descargas explica cómo instalar el APK. Aquí solo salía el de descargas,
+       y el que se manda con el código es el otro: el que se quedó viejo. */
     h+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--linea)">'
-      +'<b>El enlace que se manda</b><div class="help" style="margin:4px 0 8px">'
+      +'<b>El enlace que va con el código</b><div class="help" style="margin:4px 0 8px">'
+      +'Es la app en el navegador: con esto entra sin instalar nada.</div>'
+      +'<code style="font-size:12px;word-break:break-all">'+escHTML(urlApp())+'</code>'
+      +'<div style="margin-top:8px"><button class="btn btn-sm" onclick="copiarTexto(\''+urlApp()+'\')">Copiar enlace</button></div></div>';
+    h+='<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--linea)">'
+      +'<b>El enlace para instalar la app</b><div class="help" style="margin:4px 0 8px">'
       +'Es la página que explica cómo instalar. El archivo .apk no se puede mandar por WhatsApp: por eso va el enlace.</div>'
       +'<code style="font-size:12px;word-break:break-all">'+escHTML(URL_DESCARGA_APP)+'</code>'
       +'<div style="margin-top:8px"><button class="btn btn-sm" onclick="copiarTexto(\''+URL_DESCARGA_APP+'\')">Copiar enlace</button></div></div>';
@@ -1337,8 +1374,61 @@ function mensajeCodigoAcceso(s){
 function mandarCodigoAcceso(id){
   const s=DB.socios.find(x=>x.id===id); if(!s) return;
   if(!MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s))) return alert('Este cliente todavía no tiene código. Genéralo primero.');
-  s.codigoEnviadoEn=hoyISO(); guardar();
+  s.codigoEnviadoEn=hoyISO();
+  /* Al mandar el código HOY ya va el enlace bueno, así que este cliente sale
+     de la lista de reparación. Sin esta línea seguiría apareciendo ahí para
+     siempre por una fecha de envío vieja que ya se pisó. */
+  s.enlaceReenviadoEn=hoyISO(); guardar();
   window.open(waLink(waNum(s),mensajeCodigoAcceso(s)),'_blank','noopener');
+}
+
+/* =========================================================================
+   28-ago-2026 — MANDARLE EL ENLACE BUENO A QUIEN RECIBIÓ EL VIEJO.
+
+   No basta con arreglar el Panel: los enlaces ya enviados están guardados en el
+   WhatsApp de cada cliente y ahí se quedan. Quien abra el suyo cae en la copia
+   de agosto —que no trae la conexión a la nube ni la entrada por celular— y no
+   entra por más veces que lo intente. Desde el lado del cliente eso se ve
+   igual que "la app no sirve", y el que se queda afuera no vuelve a intentar.
+
+   QUIÉNES SALEN EN LA LISTA: los que tienen código, ya se lo mandaste, y ese
+   envío fue ANTES del arreglo. No se afirma que su enlace estuviera malo —eso
+   depende de desde dónde tuvieras abierto el Panel ese día y no se puede saber
+   desde acá—, se dice lo que sí es verdad: que se lo mandaste antes y que
+   mandárselo otra vez no le cuesta nada a nadie. Mentir en un aviso es peor que
+   un aviso de más. */
+const ENLACE_CORREGIDO_DESDE='2026-08-28';
+function pudoRecibirEnlaceViejo(s){
+  return !!(MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s))
+    && s.codigoEnviadoEn && s.codigoEnviadoEn<ENLACE_CORREGIDO_DESDE
+    && !s.enlaceReenviadoEn);
+}
+function mensajeEnlaceCorregido(s){
+  return aplicarVars(DB.plantillas.enlaceCorregido||PLANTILLAS_DEF.enlaceCorregido.m,null,s,urlApp(),{});
+}
+function mandarEnlaceCorregido(id){
+  const s=DB.socios.find(x=>x.id===id); if(!s) return;
+  s.enlaceReenviadoEn=hoyISO(); guardar();
+  window.open(waLink(waNum(s),mensajeEnlaceCorregido(s)),'_blank','noopener');
+  /* Se repinta la lista para que el que acaba de salir desaparezca de ella: en
+     una tanda de quince, saber por dónde ibas es la mitad del trabajo. */
+  setTimeout(()=>{ if(document.getElementById('listaEnlaceViejo')) reenviarEnlaceBueno(); else render(); },400);
+}
+function reenviarEnlaceBueno(){
+  const pend=DB.socios.filter(pudoRecibirEnlaceViejo);
+  if(!pend.length) return openModal('El enlace bueno',
+    '<div class="alerta info">Ya no queda nadie pendiente: a todos les mandaste el enlace después del arreglo.</div>');
+  openModal('Mandarles el enlace bueno',
+    '<div class="help">A estos les mandaste su código <b>antes</b> del arreglo del enlace. '
+    +'Mandárselo otra vez no les cambia el código ni les rompe nada: es el mismo usuario y el mismo código, '
+    +'con la dirección que sí abre.</div>'
+    +'<div class="info-row" style="margin-top:10px"><span class="k">El enlace que va a salir</span>'
+    +'<span class="vv mono" style="font-size:12px;word-break:break-all">'+escHTML(urlApp())+'</span></div>'
+    +'<div id="listaEnlaceViejo" style="margin-top:10px">'
+    +pend.map(s=>'<div class="info-row"><span class="k">'+escHTML(s.nombre||'(sin nombre)')
+      +'<div class="muted">código mandado el '+fmtFecha(s.codigoEnviadoEn)+'</div></span>'
+      +'<span class="vv"><button class="btn btn-wa btn-sm" onclick="mandarEnlaceCorregido(\''+s.id+'\')">📲 Mandar</button></span></div>').join('')
+    +'</div>');
 }
 /* EL WHATSAPP DE UN CRÉDITO, ARMADO ENTERO: la plantilla que le toca por su
    estado (plantillaPara) y los tokens resueltos con los números que la pantalla
@@ -1593,17 +1683,31 @@ function avisoCodigosHTML(){
      que puedan entrar: falta que su historial esté en la nube, y eso desde acá
      no se ve. Es justo el caso en que Joan mandaría el enlace tranquilo y la
      app le diría a cada cliente que no lo encuentra. */
+  /* 28-ago-2026 — EL ENLACE, A LA VISTA Y ANTES DE MANDARLO. Es la dirección
+     exacta que va a salir en el WhatsApp del cliente. Estuvo invisible hasta
+     hoy, y así fue como se mandó la vieja sin que nadie lo notara: el mensaje
+     se lee entero en WhatsApp, pero para entonces ya salió. */
   const revisar=`<div style="margin-bottom:12px">`
     +`<button class="btn btn-ghost btn-sm" onclick="revisarQuienPuedeEntrar()" `
     +`title="Le pregunta a la nube por cada cliente, igual que hará su celular">`
     +`📱 ¿Pueden entrar mis clientes?</button>`
     +`<span class="muted" style="margin-left:8px;font-size:12px">Revísalo antes de mandar el enlace de la app.</span>`
+    +`<div class="muted" style="font-size:11.5px;margin-top:5px">Enlace que se manda: `
+    +`<span class="mono" style="word-break:break-all">${escHTML(urlApp())}</span></div>`
     +`</div>`;
 
-  if(!faltan&&!sinMandar) return revisar;
+  /* Los que recibieron su código antes del arreglo del enlace. Va con los otros
+     dos avisos porque es de la misma familia: cosas que impiden que un cliente
+     entre a la app, y que desde el CRM no se ven si no se dicen. */
+  const conEnlaceViejo=DB.socios.filter(pudoRecibirEnlaceViejo).length;
+
+  if(!faltan&&!sinMandar&&!conEnlaceViejo) return revisar;
   return revisar+`<div class="alerta info" style="margin-bottom:12px">`
     +(faltan?`<b>${faltan} cliente(s) sin código para entrar a la app.</b> Sin él no pueden ver sus números.
        <button class="btn btn-sm" style="margin-left:8px" onclick="generarCodigosFaltantes()">Generar los que faltan</button><br>`:'')
+    +(conEnlaceViejo?`<b>${conEnlaceViejo} cliente(s) recibieron su código antes de que se arreglara el enlace.</b>
+       Si alguno te dijo que la app no abre, es esto: el enlace que tiene guardado lleva a una copia vieja.
+       <button class="btn btn-sm" style="margin-left:8px" onclick="reenviarEnlaceBueno()">Mandarles el enlace bueno</button><br>`:'')
     +(sinMandar?`<span class="muted">${sinMandar} ya tienen código pero todavía no se lo has mandado. Ficha del cliente → 📲 Mandar código.</span>`:'')
     +`</div>`;
 }
@@ -1817,27 +1921,112 @@ function exportarICS(){
 }
 
 /* ===== PLANTILLAS ===== */
-const PLT_VARS=['nombre','negocio','monto','saldo','prorroga','fecha_pago','dias_mora','codigo','codigo_acceso','cuota','n','plazo','enlace'];
-function aplicarVarsDemo(txt){ return (txt||'')
-  .replaceAll('{nombre}','María').replaceAll('{negocio}',DB.config.negocio||'Tu Garantía')
-  .replaceAll('{monto}','$400.000').replaceAll('{saldo}','$480.000')
-  .replaceAll('{prorroga}','$80.000').replaceAll('{fecha_pago}','30 de junio de 2026')
-  .replaceAll('{dias_mora}','3').replaceAll('{codigo}','TG-A3F7-K92M').replaceAll('{codigo_acceso}','K7QP3')
-  .replaceAll('{cuota}','$70.200').replaceAll('{n}','2').replaceAll('{plazo}','6')
-  .replaceAll('{enlace}',URL_APP_DEF+'#…'); }
+/* =========================================================================
+   28-ago-2026 — QUÉ CONTESTA CADA MENSAJE, DE VERDAD.
+
+   Los chips de abajo ofrecían los trece tokens en las catorce plantillas y la
+   vista previa los resolvía todos. Pero quien contesta un token no es la
+   plantilla: es quien la manda. Solo cuatro mensajes reciben enlace; {codigo}
+   lo tiene únicamente la invitación; {codigo_acceso} y {usuario}, únicamente el
+   mensaje del código; y las tres de la cuota, únicamente los respaldados. Los
+   demás llaman a aplicarVars con la cadena vacía.
+
+   Un token que nadie contesta NO se ve como un token en el WhatsApp del
+   cliente: sale VACÍO. «Entras acá: » y ahí se acaba la frase. Y en la vista
+   previa se veía perfecto, con su enlace y todo. Es exactamente la familia del
+   defecto de hoy —algo que solo se descubre cuando el cliente contesta— y va
+   contra la regla de la casa: la pantalla no promete lo que el código no hace.
+
+   Así que cada plantilla ofrece los suyos, y lo que quede suelto se avisa. */
+const TOKENS_QUINCENAL=['nombre','negocio','monto','saldo','prorroga','fecha_pago','dias_mora'];
+const TOKENS_POR_PLANTILLA={
+  bienvenida:TOKENS_QUINCENAL, recordatorio2:TOKENS_QUINCENAL, recordatorio1:TOKENS_QUINCENAL,
+  venceHoy:TOKENS_QUINCENAL, moraTemprana:TOKENS_QUINCENAL, mora:TOKENS_QUINCENAL,
+  recibo:TOKENS_QUINCENAL, prorroga:TOKENS_QUINCENAL,
+  /* Estas cuatro van sin crédito delante (p=null): {monto} y {saldo} saldrían
+     en cero, así que tampoco se ofrecen. */
+  historial:['nombre','negocio','enlace'],
+  invitacion:['nombre','negocio','enlace','codigo'],
+  codigoAcceso:['nombre','negocio','enlace','codigo_acceso','usuario'],
+  enlaceCorregido:['nombre','negocio','enlace'],
+  recordatorioRespaldado:['nombre','negocio','cuota','n','plazo','fecha_pago'],
+  reciboRespaldado:['nombre','negocio','cuota','n','plazo']
+};
+function tokensDe(k){ return TOKENS_POR_PLANTILLA[k]||TOKENS_QUINCENAL; }
+/* Los que el mensaje escribe y nadie va a contestar. Solo mira tokens con la
+   forma {palabra}, para no confundir una llave que Joan haya escrito él. */
+function tokensSueltos(txt,k){
+  const buenos=tokensDe(k), vistos={}, r=[];
+  String(txt||'').replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g,(m,t)=>{
+    if(buenos.indexOf(t)<0&&!vistos[m]){ vistos[m]=true; r.push(m); } return m; });
+  return r;
+}
+function aplicarVarsDemo(txt,k){
+  const d={nombre:'María',negocio:DB.config.negocio||'Tu Garantía',
+    monto:'$400.000',saldo:'$480.000',prorroga:'$80.000',
+    fecha_pago:'30 de junio de 2026',dias_mora:'3',
+    codigo:'TG-A3F7-K92M',codigo_acceso:'K7QP3',usuario:'3001112233',
+    cuota:'$70.200',n:'2',plazo:'6',
+    /* El enlace sale de urlApp(), no de URL_APP_DEF: si algún día hay una
+       dirección puesta a mano, lo que se ve acá tiene que ser lo que va a salir
+       de verdad. Una vista previa que enseña otra cosa no es una vista previa. */
+    enlace:urlApp()+'#…'};
+  const buenos=tokensDe(k);
+  /* Los que este mensaje no contesta se dejan TAL CUAL en la vista previa, con
+     sus llaves. Resolverlos aquí sería enseñarle a Joan un mensaje que el
+     cliente no va a recibir. */
+  return String(txt||'').replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g,
+    (m,t)=>(buenos.indexOf(t)>=0&&d[t]!==undefined)?d[t]:m);
+}
+
+/* 28-ago-2026 — UNA DIRECCIÓN PEGADA A MANO DENTRO DE UNA PLANTILLA.
+   El texto recomendado usa {enlace}, que se resuelve al mandar y por eso sigue a
+   la app cuando la app se muda de dirección. Una dirección escrita dentro del
+   mensaje no la mueve ningún cambio de código: se queda ahí y se sigue mandando
+   igual, y encima viaja a los otros aparatos en el lote de la nube.
+   NO se corrige sola. Lo que Joan escribió de su puño no se pisa —es la regla
+   que siguen las tres migraciones de plantillas de agosto—, pero tampoco se
+   calla: se avisa en la pantalla y el cambio se hace de un botón. */
+function enlacesMuertosEn(txt){
+  const r=[];
+  String(txt||'').replace(/https?:\/\/[^\s<>"']+/gi,u=>{ if(!enlaceServible(u)) r.push(u); return u; });
+  return r;
+}
+function cambiarPorTokenEnlace(k){
+  const val=DB.plantillas[k]!==undefined?DB.plantillas[k]:PLANTILLAS_DEF[k].m;
+  const nuevo=String(val).replace(/https?:\/\/[^\s<>"']+/gi,u=>enlaceServible(u)?u:'{enlace}');
+  if(nuevo===val) return;
+  DB.plantillas[k]=nuevo; guardar(); renderPlantillas();
+}
 function renderPlantillas(){
   document.getElementById('pltWrap').innerHTML=Object.keys(PLANTILLAS_DEF).map(k=>{
     const val=DB.plantillas[k]!==undefined?DB.plantillas[k]:PLANTILLAS_DEF[k].m, esRec=val===PLANTILLAS_DEF[k].m;
+    const muertos=enlacesMuertosEn(val);
+    const avisoEnlace=muertos.length?`<div class="alerta warn" style="margin:8px 0 0">
+        <b>Este mensaje lleva una dirección escrita a mano que ya no abre:</b>
+        <span class="mono" style="word-break:break-all">${escHTML(muertos[0])}</span><br>
+        Cambiándola por <b>{enlace}</b> se resuelve sola cada vez que lo mandes, y nunca se vuelve a quedar vieja.
+        <button class="btn btn-sm" style="margin-left:8px" onclick="cambiarPorTokenEnlace('${k}')">Cambiar por {enlace}</button></div>`:'';
     return `<div class="plt">
       <div class="plt-top"><div><h4>${escHTML(PLANTILLAS_DEF[k].t)}</h4><div class="et">${escHTML(PLANTILLAS_DEF[k].x)}</div></div>
         <button class="btn btn-ghost btn-sm" onclick="restaurarUna('${k}')" ${esRec?'disabled style="opacity:.4;cursor:default"':''} title="Volver al mensaje recomendado">↺ Recomendado</button></div>
+      ${avisoEnlace}
       <textarea data-k="${k}" oninput="previewPlt('${k}')">${escHTML(val)}</textarea>
-      <div class="plt-vars">${PLT_VARS.map(c=>`<button type="button" class="varchip" onclick="insertarVar('${k}','{${c}}')">{${c}}</button>`).join('')}</div>
+      <div class="plt-vars">${tokensDe(k).map(c=>`<button type="button" class="varchip" onclick="insertarVar('${k}','{${c}}')">{${c}}</button>`).join('')}</div>
+      <div id="prevav_${k}"></div>
       <div class="plt-prev"><span class="pl">Así lo verá el cliente</span><span id="prevtxt_${k}"></span></div></div>`;
   }).join('');
   Object.keys(PLANTILLAS_DEF).forEach(previewPlt);
 }
-function previewPlt(k){ const ta=document.querySelector('#pltWrap textarea[data-k="'+k+'"]'), p=document.getElementById('prevtxt_'+k); if(ta&&p)p.textContent=aplicarVarsDemo(ta.value); }
+function previewPlt(k){ const ta=document.querySelector('#pltWrap textarea[data-k="'+k+'"]'), p=document.getElementById('prevtxt_'+k), av=document.getElementById('prevav_'+k);
+  if(ta&&p)p.textContent=aplicarVarsDemo(ta.value,k);
+  /* El aviso se pinta al escribir, no al mandar: si sale después ya salió el
+     mensaje. Y dice qué le llega al cliente —nada—, no "token inválido". */
+  if(ta&&av){ const sueltos=tokensSueltos(ta.value,k);
+    av.innerHTML=sueltos.length
+      ?'<div class="alerta warn" style="margin:8px 0 0">Este mensaje no contesta '+escHTML(sueltos.join(' '))
+        +': al cliente le van a llegar <b>vacíos</b>, como un espacio en blanco. Quítalos o usa uno de los de arriba.</div>'
+      :''; } }
 function insertarVar(k,token){ const ta=document.querySelector('#pltWrap textarea[data-k="'+k+'"]'); if(!ta)return;
   const s=ta.selectionStart!=null?ta.selectionStart:ta.value.length, e=ta.selectionEnd!=null?ta.selectionEnd:ta.value.length;
   ta.value=ta.value.slice(0,s)+token+ta.value.slice(e); ta.focus(); const pos=s+token.length; ta.selectionStart=ta.selectionEnd=pos; previewPlt(k); }
@@ -1944,6 +2133,7 @@ function verCliente(id){
          <button class="btn btn-wa btn-sm" onclick="mandarCodigoAcceso('${s.id}')">📲 Mandar código</button>
          <button class="btn btn-ghost btn-sm" onclick="copiarTexto('${escHTML(cAccOk)}')">Copiar</button>
          <button class="btn btn-ghost btn-sm" onclick="regenerarCodigoAcceso('${s.id}')" title="Le cambia el código: deja de entrar hasta que le mandes el nuevo">Cambiar</button>
+         <div class="muted" style="font-size:11px;margin-top:4px">Le va este enlace: <span class="mono" style="word-break:break-all">${escHTML(urlApp())}</span></div>
          <div class="muted" style="font-size:11px;margin-top:4px">Si él se cambió el código desde la app, este ya no es el que usa (y está bien: es suyo). Si lo perdió, «Cambiar» le genera otro y la próxima subida lo deja mandando.</div></span></div>`
     : `<div class="alerta info"><b>Sin código todavía.</b> Sin él no puede entrar a la app.
          <div style="margin-top:8px"><button class="btn btn-sm" onclick="generarCodigoAccesoDe('${s.id}')">Generar su código</button></div></div>`;
@@ -3887,7 +4077,34 @@ function exportarSocios(){
    #, que el navegador nunca le manda al servidor. Así no hay base de datos, no
    hay cuenta, no hay claves: se lo mandas por WhatsApp y lo abre en su celular.
    Contra: es una foto del momento; cuando cambien sus números le mandas otro. */
-function urlApp(){ return DB.config.urlApp||URL_APP_DEF; }
+/* 28-ago-2026 — EL ENLACE QUE SE LE MANDA AL CLIENTE NO PUEDE SER EL DE AGOSTO.
+   Joan mandó códigos de acceso con el enlace viejo y el cliente que lo abre NO
+   ENTRA: la copia de agosto no trae la conexión a la nube de fábrica ni la
+   entrada por celular, así que la app le pide una cuenta que nunca va a
+   encontrar. El daño no es cosmético; es un cliente que se queda afuera.
+
+   El agujero está en este `||`. `DB.config.urlApp` vive en el localStorage del
+   navegador Y VIAJA EN EL LOTE DE LA NUBE (nube.js, CLAVES_AJUSTES incluye
+   'config'), así que una dirección escrita una vez le gana para siempre a la
+   del archivo —por muchas versiones nuevas que se publiquen— y encima se copia
+   de aparato en aparato. No hay ninguna pantalla donde verla ni borrarla.
+
+   Ahora el valor guardado solo gana si apunta a un sitio que HOY sirva la app.
+   Si está muerto se ignora y manda URL_APP_DEF, la de casa. Preferir la de
+   casa nunca deja al cliente peor de lo que estaba. */
+function enlaceServible(u){
+  let x; try{ x=new URL(String(u||'')); }catch(e){ return false; }
+  /* http:// y file:// quedan fuera aunque respondan: la app se instala en el
+     teléfono y para eso el navegador exige HTTPS. */
+  if(x.protocol!=='https:') return false;
+  const h=x.hostname.toLowerCase();
+  if(h==='localhost'||h==='127.0.0.1') return false;   // el Panel se abre desde localhost casi siempre
+  if(h==='joanhispanista-star.github.io'||h.endsWith('.github.io')) return false;
+  if(h==='tugarantia.co'||h.endsWith('.tugarantia.co')) return false;  // ese dominio nunca se compró
+  if(/joan-te-presta/i.test(x.pathname)) return false; // la copia muerta de agosto
+  return true;
+}
+function urlApp(){ return enlaceServible(DB.config.urlApp)?DB.config.urlApp:URL_APP_DEF; }
 function aB64Url(str){
   const bytes=new TextEncoder().encode(str); let bin='';
   bytes.forEach(b=>{ bin+=String.fromCharCode(b); });

@@ -66,7 +66,13 @@
    versión vieja en caché es un cliente confundido.
    v10 — 24-ago-2026: el CRM estrena el apartado Registrados (registro abierto).
    v11 — mismo día: la verificación por WhatsApp llega a la bandeja. */
-const CACHE = 'tugarantia-v16';
+/* v17 — 28-ago-2026: el enlace que el Panel le manda al cliente. crm.html y
+   espejo.html dejan de poder mandar una dirección muerta, y el espejo en
+   particular ya no la calcula desde donde esté abierto. El número sube porque
+   el Panel del bolsillo se usa en la calle y puede estar servido desde la
+   caché: sin subirlo, el espejo guardado en el celular de Joan seguiría
+   metiendo el enlace viejo en cada WhatsApp que mande desde allá. */
+const CACHE = 'tugarantia-v17';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

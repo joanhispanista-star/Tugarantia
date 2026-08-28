@@ -10,7 +10,14 @@
 # =============================================================================
 
 param(
-  [string]$Url = "https://joanhispanista-star.github.io/Tugarantia/app/app.webmanifest"
+  # 28-ago-2026: apuntaba al github.io de agosto. La direccion vieja responde 301
+  # al dominio, asi que el Paso 1 la daba por buena y nadie se enteraba; pero
+  # Bubblewrap escribe ESE host dentro del twa-manifest.json cuando hace `init`,
+  # y hoy `init` SI corre (android/app/ esta en .gitignore, o sea que no existe
+  # tras un clon). El APK resultante habria quedado fuera del assetlinks de
+  # tugarantia.net: barra de navegador encima de la app, y el 301 lleva a http,
+  # que ademas pierde el modo pantalla completa.
+  [string]$Url = "https://tugarantia.net/app/app.webmanifest"
 )
 
 $ErrorActionPreference = "Stop"

@@ -736,10 +736,17 @@ function sinFraseProrroga(txt) {
    no de una cuenta escrita acá.
 
    {enlace} SÍ SE CONTESTA, y no es una excepción caprichosa: no es un dato que
-   haya que inventar, es la dirección de esta misma página movida a ../app/, la
-   misma cuenta que hace URL_APP_DEF en crm.html. Calcularla desde location.href
-   es lo que hace que el enlace siga sirviendo el día que esto viva en
-   tugarantia.co en vez de en github.io.
+   haya que inventar, es la dirección de la app.
+
+   28-ago-2026 — YA NO SE CALCULA DESDE location.href, Y ESE ERA EL DEFECTO.
+   La idea original era que el enlace siguiera solo a la página cuando el sitio
+   cambiara de dirección. Lo que pasa de verdad es al revés: el espejo se abre
+   desde donde Joan lo tenga guardado en el celular —un acceso directo de
+   agosto, la copia muerta de joan-te-presta, o localhost— y de ahí sale un
+   enlace muerto metido en el WhatsApp de un cliente. crm.html ya se curó de
+   esto el 20-ago por lo mismo (ver el comentario de URL_APP_DEF allá); esta
+   página se quedó atrás y siguió mandando la dirección de donde estuviera
+   abierta. Va escrita entera y apunta a la casa: tugarantia.net.
 
    Los otros cinco ({codigo}, {codigo_acceso}, {cuota}, {n}, {plazo}) NO se
    pueden contestar desde la calle: unos viven en el préstamo con garantía y
@@ -753,7 +760,7 @@ function sinFraseProrroga(txt) {
    ES UNA SEGUNDA COPIA Y VA A DERIVAR. El sitio donde debería vivir es el
    puente. Anotado como tal en el informe de la entrega.
    ------------------------------------------------------------------------- */
-var URL_APP_ESPEJO = new URL('../app/socio.html', location.href).href;
+var URL_APP_ESPEJO = 'https://tugarantia.net/app/socio.html';
 function aplicarVars(txt, p, s, extra) {
   var e = extra || {}; s = s || {};
   var of = e.prorroga != null ? e.prorroga

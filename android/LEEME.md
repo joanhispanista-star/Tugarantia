@@ -47,7 +47,7 @@ Se pueden tener las dos. Son el mismo código.
 es un envoltorio que abre tu sitio web. Sin sitio, no hay nada que envolver.
 
 Enciende GitHub Pages: **Settings → Pages → rama `main`, carpeta `/ (root)`**.
-Queda en `https://joanhispanista-star.github.io/Tugarantia/`.
+Queda en `https://tugarantia.net/` (la direccion vieja de github.io redirige sola).
 
 **2. Node.** Ya lo tienes (v22).
 
@@ -106,7 +106,7 @@ APK se reparte desde el propio sitio: vive en `descargas/TuGarantia.apk` (la
 única excepción al `.gitignore` de binarios, con su porqué escrito ahí), y lo
 que se manda por WhatsApp es el enlace a la página:
 
-    https://joanhispanista-star.github.io/Tugarantia/descargas/
+    https://tugarantia.net/descargas/
 
 La página ya trae las instrucciones — incluido el aviso de «app desconocida»
 explicado ANTES de que le salga al cliente, que es lo que decide si instala o se
@@ -146,15 +146,22 @@ forma de que se enteren.
 
 **Sale la barra de direcciones del navegador arriba.** Falló Digital Asset Links:
 el archivo `assetlinks.json` no está donde Android mira, o la huella no coincide
-con la llave con la que firmaste. Y ojo con el **donde**, que ya nos pasó:
-Android consulta la **raíz del dominio** —
-`https://joanhispanista-star.github.io/.well-known/assetlinks.json` — que la
-sirve el repositorio del sitio de usuario (`joanhispanista-star.github.io`, el
-del juego), NO este repositorio. La copia en `/Tugarantia/.well-known/` no la
-consulta nadie; se queda solo como documentación de la huella. El archivo de la
-raíz admite varias entradas: la de `co.tugarantia.socio` convive con la del
-paquete viejo del juego, y si algún día se refirma con otra llave hay que
-actualizar la huella ALLÁ.
+con la llave con la que firmaste. Y ojo con el **donde**, que ya nos pasó dos
+veces: Android consulta la **raíz del dominio del APK**, no la carpeta del
+sitio.
+
+Desde el dominio propio (APK v3, host `tugarantia.net`) el apretón de manos vive
+en casa: `https://tugarantia.net/.well-known/assetlinks.json`, servido por el
+`.well-known/` de ESTE repositorio. Verificado en vivo el 28-ago-2026: responde
+200 con la huella `E5:FB:DE:62…`.
+
+Los APK **v2 y anteriores** se firmaron con host `joanhispanista-star.github.io`,
+y para ésos Android sigue mirando
+`https://joanhispanista-star.github.io/.well-known/assetlinks.json` — que lo
+sirve el repositorio del sitio de usuario (el del juego), NO este. Ahí la
+entrada de `co.tugarantia.socio` convive con la del paquete del juego. Se deja
+viva mientras haya teléfonos con el APK viejo instalado; el día que se refirme
+con otra llave, la huella se actualiza en LOS DOS sitios.
 
 **"App no instalada".** Casi siempre es que ya hay una versión instalada firmada
 con otra llave. Desinstalar y volver a instalar.

@@ -304,3 +304,85 @@ los clientes con código y el de registro para desconocidos.
 dio por diagnóstico durante cuatro días leyendo un ajuste, sin llamar nunca al
 signup. Una llamada real lo habría destapado el primer día. Ante «no funciona
 el registro», la primera acción es **registrarse**, no leer configuración.
+
+---
+
+## 28-ago (tarde) — el enlace que se le manda al cliente, y un token roto
+
+Joan avisó que **desde el CRM mandó el código de acceso con el enlace viejo**.
+Al buscar por qué, aparecieron cuatro cosas, y solo la primera era la que él
+había notado.
+
+### 1. La copia muerta sigue viva, y es la causa más probable
+
+`https://joanhispanista-star.github.io/joan-te-presta/tg/` **responde 200 hoy**
+(medido). Es el sitio de agosto que se publicó de urgencia el 14 mientras Pages
+estaba apagado en el repositorio bueno. Su `crm.html` calcula el enlace **desde
+donde está abierto**, así que el botón «📲 Mandar código» de esa copia manda
+`…/joan-te-presta/tg/app/socio.html`.
+
+Qué le pasa al cliente que abre ese enlace, medido en el archivo publicado:
+
+| | la copia muerta | la buena |
+|---|---|---|
+| `VERSION_APP` | `2026-08-10` | la de hoy |
+| conexión a Supabase de fábrica | **no la trae** (0 apariciones del proyecto) | sí |
+| entrar con el celular | no existe (solo cédula) | sí, desde el 20-ago |
+
+O sea: **no entra**, teclee lo que teclee. Desde su lado eso se ve igual que
+«la app no sirve».
+
+**Esto no se arregla desde el código**: hay que borrar la carpeta `tg/` del
+repositorio `joan-te-presta` o apagarle Pages. `gh` no está instalado.
+
+### 2. Tres caminos por los que salía una dirección muerta — cerrados
+
+- **`DB.config.urlApp`** le ganaba a la del archivo con un `||`. Vive en el
+  localStorage y **viaja en el lote de la nube** (`nube.js`, `CLAVES_AJUSTES`
+  incluye `config`), o sea que se copia de aparato en aparato y sobrevive a
+  cualquier versión nueva. Ahora solo gana si la dirección **hoy sirve**
+  (`enlaceServible`), y `cargar()` la borra si no.
+- **`panel/espejo.html`** calculaba el enlace desde `location.href`. El espejo
+  se abre en la calle desde el acceso directo que Joan tenga en el celular: si
+  ese acceso es de agosto, cada WhatsApp mandado desde allá llevaba el enlace
+  muerto. `crm.html` se había curado de esto el 20-ago; el espejo se quedó ocho
+  días atrás. Ahora va escrita entera, igual que el CRM.
+- **Una dirección pegada a mano dentro de una plantilla** no la mueve ningún
+  cambio de código. No se pisa (regla de la casa), pero ahora se avisa en la
+  pantalla de Plantillas y se cambia por `{enlace}` de un botón.
+
+### 3. El token que nadie contestaba — el hallazgo grande
+
+**Desde el 21 de agosto, a cada cliente al que se le mandó su código le llegó,
+literalmente:**
+
+    👤 Tu usuario: {usuario}
+
+La plantilla estaba bien y `mensajeCodigoAcceso` calculaba el número, pero
+`aplicarVars` **no tenía la línea que contesta `{usuario}`**. El dato que el
+cliente tiene que teclear para entrar, escrito como una llave rota.
+
+Las 809 pruebas pasaban en verde: leen `crm.html` como texto, y el texto estaba
+perfecto. Se cazó **ejecutando el mensaje**, no leyéndolo. De ahí sale
+`pruebas/panel.test.js`: un banco que corre el JavaScript del Panel contra un
+DOM de mentira y lee los mensajes que saldrían. **Es la red que faltaba.**
+
+De la misma familia: los trece chips de variables salían en las catorce
+plantillas y la vista previa los resolvía todos, pero solo cuatro mensajes
+reciben enlace y `{codigo}` solo lo tiene la invitación. Un token que nadie
+contesta **sale vacío** en el WhatsApp. Ahora cada plantilla ofrece los suyos y
+lo que quede suelto se avisa mientras se escribe.
+
+### 4. Lo que alcanza a los clientes ya avisados
+
+Arreglar el Panel no toca los enlaces que ya están guardados en el WhatsApp de
+cada cliente. Por eso el CRM ahora lista a quien recibió su código **antes** del
+arreglo y ofrece mandarle el enlace bueno (plantilla `enlaceCorregido`, que no
+repite el código: no cambió, y repetirlo haría dudar).
+
+También se arregló `android/construir.ps1`, que seguía apuntando al
+`app.webmanifest` de `github.io`: la próxima corrida habría escrito ese host
+dentro del `twa-manifest.json` y el APK resultante habría quedado fuera del
+`assetlinks` del dominio.
+
+**818 pruebas, 135 suites, 0 fallos.** `sw.js` sube a `tugarantia-v17`.
