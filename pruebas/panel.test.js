@@ -361,6 +361,35 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
     assert.equal(P.elems['buscaRes'].innerHTML, '');
   });
 
+  test('la ficha suma todos los créditos activos — y solo cuando hay más de uno', () => {
+    /* 29-ago-2026 — «si un cliente tiene más de un crédito quiero que pueda ver
+       una sumatoria total». La cifra es suma de totalCiclo del motor: si acá
+       apareciera una cuenta propia, habría dos verdades sobre la misma plata. */
+    const P = abrirPanel();
+    const d = JSON.parse(JSON.stringify(UN_CLIENTE));
+    d.prestamos = [
+      { id:'p1', numero:1, socioId:'s1', socioNombre:'María Pérez', capital:400000, costoPct:20,
+        fechaDesembolso:'2026-08-20', cicloActual:'2026-08-31', prorrogas:[], abonosCapital:[], comprobantes:[], pagado:false },
+      { id:'p2', numero:2, socioId:'s1', socioNombre:'María Pérez', capital:200000, costoPct:20,
+        fechaDesembolso:'2026-08-25', cicloActual:'2026-09-15', prorrogas:[], abonosCapital:[], comprobantes:[], pagado:false }
+    ];
+    P.cargarCartera(d);
+    const esperado = P.ev("DB.prestamos.reduce((t,p)=>t+totalCiclo(p),0)");
+    P.ev('verCliente("s1")');
+    const f = P.elems['mBody'].innerHTML || '';
+    assert.ok(f.indexOf('Todos sus créditos, juntos') >= 0, 'la ficha no trae la sumatoria');
+    assert.ok(f.indexOf(P.ev('COP(' + esperado + ')')) >= 0,
+      'la cifra de la sumatoria no es la suma de totalCiclo del motor');
+
+    /* Con UN solo crédito el renglón no sale: la cifra sería la del propio
+       crédito y el bloque perdería su significado. */
+    d.prestamos = d.prestamos.slice(0, 1);
+    P.cargarCartera(d);
+    P.ev('verCliente("s1")');
+    assert.ok((P.elems['mBody'].innerHTML || '').indexOf('Todos sus créditos, juntos') < 0,
+      'la sumatoria salió con un solo crédito');
+  });
+
   test('y el banco de pruebas sirve: si el Panel no arranca, se nota', () => {
     /* Desconfiar del medidor antes que de la página: si abrirPanel() se tragara
        un error, todo lo de arriba pasaría en verde sin haber corrido nada. */

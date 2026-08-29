@@ -2256,6 +2256,22 @@ function quitarUbicacion(){ _ubicTmp=null; pintarUbic(); }
 function verCliente(id){
   const s=DB.socios.find(x=>x.id===id),ps=DB.prestamos.filter(p=>p.socioId===id),gan=ps.reduce((t,p)=>t+gananciaCobrada(p),0);
   const activos=ps.filter(p=>!p.pagado),previos=ps.filter(p=>p.pagado);
+  /* 29-ago-2026 — LA SUMATORIA, pedida por Joan: «si un cliente tiene más de un
+     crédito quiero que pueda ver una sumatoria total». Sale solo con DOS o más
+     activos —con uno, la cifra es la del propio crédito y el renglón sería
+     ruido— y suma números del MOTOR: totalCiclo (lo de hoy, con la mora del
+     ciclo adentro, que es la única cifra que se le cobra a alguien) y
+     capitalActual. Acá no se calcula nada: se suma. Es la misma cuenta que ya
+     hacen el buscador y vistaBuscar del espejo, y por eso las tres pantallas
+     no pueden decir números distintos. */
+  const debeHoy=activos.reduce((t,p)=>t+totalCiclo(p),0);
+  const capCalle=activos.reduce((t,p)=>t+capitalActual(p),0);
+  const bloqueSuma=activos.length>1
+    ? `<div class="info-row"><span class="k"><b>Todos sus créditos, juntos</b>
+         <div class="muted">${activos.length} activos · capital en la calle ${COP(capCalle)}</div></span>
+       <span class="vv"><b style="font-size:18px">${COP(debeHoy)}</b>
+         <div class="muted">si paga todo hoy, con la mora incluida</div></span></div>`
+    : '';
   const filaCred=p=>`<div class="info-row"><span class="k">${fmtFecha(p.fechaDesembolso)} · ${COP(p.capital)}</span><span class="vv"><span class="chip ${estadoPrestamo(p)}">${ESTADO_TXT[estadoPrestamo(p)]}</span> <span class="gano">${COP(gananciaCobrada(p))}</span> <a href="#" onclick="event.preventDefault();verCredito('${p.id}')">ver</a></span></div>`;
   const fila=(k,v)=>v?`<div class="info-row"><span class="k">${k}</span><span class="vv">${escHTML(v)}</span></div>`:'';
   const vivienda=[s.tipoVivienda,s.numeroVivienda].filter(Boolean).join(' ');
@@ -2320,6 +2336,7 @@ function verCliente(id){
     ${fila('Nota de riesgo (manual)',s.notaRiesgo)}
     ${gal}
     <div class="sub-h">Créditos · historial</div>
+    ${bloqueSuma}
     ${activos.length?'<div class="muted" style="margin-bottom:6px">Activos</div>'+activos.map(filaCred).join(''):''}
     ${previos.length?'<div class="muted" style="margin:10px 0 6px">Anteriores</div>'+previos.map(filaCred).join(''):''}
     ${!ps.length?'<p class="muted">Sin créditos.</p>':''}
