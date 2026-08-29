@@ -101,7 +101,10 @@
    paginas. Sube el numero porque el navegador que tenga la copia vieja seguiria
    sirviendola en http:// — que es justo el origen equivocado del que hay que
    sacarlo. */
-const CACHE = 'tugarantia-v20';
+/* v21 — 29-ago-2026. La tasa pactable por credito: cambia el alta del CRM y
+   los textos de socio.html que decian «siempre el 20%». Regla de plata, asi que
+   tambien subieron REGLAS_VIGENTES_DESDE y VERSION_APP. */
+const CACHE = 'tugarantia-v21';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

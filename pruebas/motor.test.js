@@ -8977,3 +8977,47 @@ describe('EL ENLACE QUE SE LE MANDA AL CLIENTE (28-ago-2026)', () => {
       'de reparación aunque ya recibió el enlace bueno');
   });
 });
+
+/* ==========================================================================
+ * LA TASA PACTADA POR CRÉDITO (29-ago-2026)
+ *
+ * Pedido de Joan: poder bajar el porcentaje cuando el préstamo es de muy pocos
+ * días. El sistema entero ya respetaba la tasa por crédito (K del puente,
+ * tasaDeProrroga, el paquete del socio); lo único clavado era calcularCosto,
+ * que es quien cotiza en el alta. Estas pruebas fijan las dos rejas.
+ * ======================================================================== */
+describe('la tasa pactada por crédito (29-ago-2026)', () => {
+
+  test('el default no se movió: sin tasa, cotiza al 20% de siempre', () => {
+    assert.equal(M.calcularCosto(1000000), 200000);
+    assert.equal(M.calcularCosto(300000), 60000);
+  });
+
+  test('con tasa pactada, cotiza a la pactada', () => {
+    assert.equal(M.calcularCosto(1000000, 0.10), 100000);
+    assert.equal(M.calcularCosto(300000, 0.05), 15000);
+    assert.equal(M.calcularCosto(1000000, M.TASA_CREDITO), 200000);
+  });
+
+  test('EL 20% ES TECHO: por encima revienta, no se topa en silencio', () => {
+    /* Toparlo callado dejaría a Joan creyendo que cobró 25 cuando cobró 20:
+       dos verdades sobre el mismo crédito. Reventar obliga a corregir. */
+    assert.throws(() => M.calcularCosto(1000000, 0.25), RangeError);
+    /* Y quien mande el porcentaje ENTERO (10 en vez de 0.10) se entera aquí,
+       no en el bolsillo del cliente: 10 > 0.20 revienta. */
+    assert.throws(() => M.calcularCosto(1000000, 10), RangeError);
+  });
+
+  test('ni cero ni negativa: un crédito al 0% no podría prorrogarse', () => {
+    /* tasaDeProrroga hace numeroPositivo(tasa): la reja de acá evita crear el
+       crédito que reventaría allá — el día que el cliente no pueda pagar. */
+    assert.throws(() => M.calcularCosto(1000000, 0));
+    assert.throws(() => M.calcularCosto(1000000, -0.1));
+  });
+
+  test('y la fecha de las reglas subió con este cambio', () => {
+    assert.equal(M.REGLAS_VIGENTES_DESDE, '2026-08-29',
+      'la tasa pactable es una regla de plata: si entra sin subir la fecha, ' +
+      'el sello de la app miente');
+  });
+});

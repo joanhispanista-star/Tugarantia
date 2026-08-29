@@ -390,6 +390,38 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
       'la sumatoria salió con un solo crédito');
   });
 
+  test('el alta guarda la tasa pactada y el ciclo cobra con ella', () => {
+    /* 29-ago-2026 — el camino ENTERO: Joan teclea 10 en el campo de costo,
+       registra, y el crédito queda cobrando el 10% — no el 20 con una etiqueta
+       de mentira. La cifra del ciclo la da K(p) del puente, que es el mismo que
+       usa la app del socio. */
+    const P = abrirPanel();
+    P.cargarCartera(UN_CLIENTE);
+    P.ev("confirm=t=>String(t).indexOf('bienvenida')<0");   // sí a todo, menos al WhatsApp
+    ['qNombre','qTel','qCap','qCosto','qFecha'].forEach((id,i)=>{
+      const v=['María Pérez','3001112233','300000','10','2026-08-25'][i];
+      P.ev("document.getElementById('"+id+"').value='"+v+"'");
+    });
+    P.ev("document.getElementById('qCiclo').value=''");
+    const antes = P.ev('DB.prestamos.length');
+    P.ev('guardarRapido()');
+    assert.equal(P.ev('DB.prestamos.length'), antes+1, 'el crédito no se creó');
+    assert.equal(P.ev('DB.prestamos[DB.prestamos.length-1].costoPct'), 10,
+      'guardó otra tasa distinta de la tecleada');
+    assert.equal(P.ev('K(DB.prestamos[DB.prestamos.length-1])'), 30000,
+      'el ciclo no cobra con la tasa pactada: 300.000 al 10% son 30.000');
+
+    /* Y fuera del rango NO se crea: ni 25 (sobre el techo) ni 0 (el crédito
+       quedaría sin poder prorrogarse). */
+    ['25','0'].forEach(malo=>{
+      P.ev("document.getElementById('qCosto').value='"+malo+"'");
+      const n = P.ev('DB.prestamos.length');
+      P.ev('guardarRapido()');
+      assert.equal(P.ev('DB.prestamos.length'), n,
+        'con costo '+malo+' el crédito se creó igual');
+    });
+  });
+
   test('y el banco de pruebas sirve: si el Panel no arranca, se nota', () => {
     /* Desconfiar del medidor antes que de la página: si abrirPanel() se tragara
        un error, todo lo de arriba pasaría en verde sin haber corrido nada. */

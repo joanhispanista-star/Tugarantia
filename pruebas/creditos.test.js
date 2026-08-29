@@ -480,7 +480,9 @@ describe('creditos.js y motor.js no se pisan', () => {
        algo que no se tenía que mover. */
     const M = require('../app/motor.js');
     assert.equal(M.TASA_CREDITO, 0.20);
-    assert.equal(M.REGLAS_VIGENTES_DESDE, '2026-08-05');
+    /* 29-ago-2026: subio por la tasa pactable por credito. La regla nueva es
+       que el 20% pasa de «siempre» a TECHO. */
+    assert.equal(M.REGLAS_VIGENTES_DESDE, '2026-08-29');
   });
 });
 

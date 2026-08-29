@@ -518,7 +518,7 @@
       <div class="card"><div class="modal-b cfg">
         <div class="field"><label>Tu nombre / negocio (para los mensajes)</label><input id="cfgNeg"></div>
         <div class="field"><label>Tu WhatsApp</label><input id="cfgWa" inputmode="numeric" placeholder="Ej: 3001234567"><div class="help">A este número te llegan las solicitudes de crédito y los datos que te manden los clientes desde su app. Sin esto, al cliente le toca buscarte el chat a mano.</div></div>
-        <div class="field"><label>Costo del crédito</label><input type="text" id="cfgCosto" readonly style="opacity:.7"><div class="help">Fijo desde el 29-jul-2026: siempre el 20% del capital, sin importar los días ni la garantía. La prórroga cobra ese mismo porcentaje. Los créditos que ya estaban abiertos con otro costo lo conservan.</div></div>
+        <div class="field"><label>Costo del crédito</label><input type="text" id="cfgCosto" readonly style="opacity:.7"><div class="help">El 20% es el estándar y el TECHO. Desde el 29-ago-2026 puedes pactarlo más bajo crédito por crédito, al crearlo — para préstamos de muy pocos días. La prórroga de cada crédito cobra el porcentaje que se pactó, y los créditos abiertos conservan el suyo.</div></div>
         <div class="field"><label>Tasa de usura de referencia (% E.A.)</label><input type="number" id="cfgUsura" step="0.01" placeholder="Ej: 28.5"><div class="help">Marca en rojo los créditos cuya E.A. equivalente lo supere. 0 = sin alerta.</div></div>
         <div class="field"><label>PIN de acceso</label><input type="text" id="cfgPin" maxlength="6"></div>
 
@@ -2511,7 +2511,7 @@ function nuevoCredito(preId){
     <div class="two"><div class="field"><label>Celular</label><input id="qTel" inputmode="numeric" value="${pre?(pre.telefono||''):''}" oninput="calcRapido()"></div>
       <div class="field"><label>Correo <span class="muted">(opcional)</span></label><input id="qEmail" value="${pre?(pre.email||''):''}"></div></div>
     <div class="two"><div class="field"><label>Capital a desembolsar</label><input id="qCap" type="number" inputmode="numeric" placeholder="$" oninput="calcRapido()"></div>
-      <div class="field"><label>Costo</label><input id="qCosto" type="text" readonly value="20% fijo" style="opacity:.7"></div></div>
+      <div class="field"><label>Costo (%)</label><input id="qCosto" type="number" inputmode="numeric" min="1" max="${TASA_FIJA_PCT}" step="1" value="${TASA_FIJA_PCT}" oninput="calcRapido()"><div class="help">El ${TASA_FIJA_PCT}% es el estándar y el techo. Bájalo solo si son muy pocos días.</div></div></div>
     <div class="field"><label>Fecha de desembolso</label><input id="qFecha" type="date" value="${hoyISO()}" oninput="calcRapido()"></div>
     <div class="field"><label>Próxima quincena de pago <span class="muted">(opcional — para clientes que ya venían de antes)</span></label><input id="qCiclo" type="date" oninput="calcRapido()"><div class="help">Déjalo vacío y lo calculo solo desde la fecha de desembolso.</div></div>
     <div id="qCalc"></div>
@@ -2539,8 +2539,30 @@ function socioDelCredito(tel){
   const d=String(tel||'').replace(/\D/g,'').slice(-10);
   return d?(DB.socios.find(x=>(x.telefono||'').replace(/\D/g,'').slice(-10)===d)||null):null;
 }
+/* 29-ago-2026 — EL COSTO SE PUEDE PACTAR MÁS BAJO, crédito por crédito.
+   Pedido de Joan: «modificar ese porcentaje en el caso de que sean muy pocos
+   días». El sistema entero ya respetaba p.costoPct (K del puente, la app del
+   socio, tasaDeProrroga del motor); lo único cerrado era este formulario.
+
+   El rango va de 1 al techo. Ni cero ni menos: tasaDeProrroga exige tasa
+   positiva, así que un crédito al 0% quedaría SIN PODER PRORROGARSE — y eso se
+   descubriría el día que el cliente no pueda pagar. Ni más del techo: subirla
+   reabriría el riesgo de usura que se cerró el 29-jul. El motor pone las
+   mismas rejas por su cuenta (calcularCosto revienta fuera del rango): esto
+   solo las traduce a una frase antes de que revienten. */
+function costoAltaElegido(){
+  const v=Number(gv('qCosto'));
+  if(!isFinite(v)||v<=0) return {ok:false,motivo:'Pon el costo en %. El estándar es '+TASA_FIJA_PCT+'.'};
+  const pct=Math.round(v);
+  if(pct<1||pct>TASA_FIJA_PCT) return {ok:false,
+    motivo:'El costo va del 1% al '+TASA_FIJA_PCT+'%. El '+TASA_FIJA_PCT+'% es el techo de la casa, '
+      +'y el 0% dejaría el crédito sin poder prorrogarse.'};
+  return {ok:true,pct};
+}
 function calcRapido(){
-  const cap=Number(gv('qCap'))||0,costo=TASA_FIJA_PCT,f=gv('qFecha'),ovr=gv('qCiclo'),c=document.getElementById('qCalc'); if(!c)return;
+  const cc=costoAltaElegido();
+  const cap=Number(gv('qCap'))||0,costo=cc.ok?cc.pct:TASA_FIJA_PCT,f=gv('qFecha'),ovr=gv('qCiclo'),c=document.getElementById('qCalc'); if(!c)return;
+  if(!cc.ok&&gv('qCosto')!==''){ c.innerHTML=`<div class="calc"><span style="color:var(--ambar);font-size:12.5px">${escHTML(cc.motivo)}</span></div>`; return; }
   /* El cupo primero: es el límite del que salen todos los demás números. */
   const r=revisarCupo(socioDelCredito(gv('qTel')),cap);
   const tope=r?`<div class="calc-row"><span>Su cupo${r.comprometida?' <span class="muted">(sin lo comprometido)</span>':''}</span><span class="v">${COP(r.cupo)}</span></div>`
@@ -2550,7 +2572,7 @@ function calcRapido(){
      le muestra al socio antes de que pida. `ovr` es la fecha que Joan escribe a
      mano para los clientes que ya venían de antes; si no la escribe, manda la
      regla. */
-  const pago=ovr||MotorReglas.calcularFechaCorte(f),dias=diasEntre(f,pago),k=MotorReglas.calcularCosto(cap),total=cap+k,ea=eaEquivalente(costo,dias),usura=DB.config.tasaUsuraEA,sobre=usura>0&&ea>usura;
+  const pago=ovr||MotorReglas.calcularFechaCorte(f),dias=diasEntre(f,pago),k=MotorReglas.calcularCosto(cap,costo/100),total=cap+k,ea=eaEquivalente(costo,dias),usura=DB.config.tasaUsuraEA,sobre=usura>0&&ea>usura;
   c.innerHTML=avisoCupo(r)+`<div class="calc">${tope}
     <div class="calc-row"><span>Ganancia (costo ${costo}%)</span><span class="v gano">${COP(k)}</span></div>
     <div class="calc-row"><span>Total a pagar</span><span class="v">${COP(total)}</span></div>
@@ -2559,7 +2581,8 @@ function calcRapido(){
     ${sobre?`<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ Supera la usura de referencia (${usura}%).</div>`:''}</div>`;
 }
 function guardarRapido(){
-  const nombre=gv('qNombre'),tel=gv('qTel'),cap=Number(gv('qCap'))||0,costo=TASA_FIJA_PCT,f=gv('qFecha'),ovr=gv('qCiclo');
+  const cc=costoAltaElegido(); if(!cc.ok){ alert(cc.motivo); return; }
+  const nombre=gv('qNombre'),tel=gv('qTel'),cap=Number(gv('qCap'))||0,costo=cc.pct,f=gv('qFecha'),ovr=gv('qCiclo');
   if(!nombre||!tel){ alert('Pon al menos nombre y celular.'); return; } if(cap<=0){ alert('Pon el capital.'); return; }
   let s=socioDelCredito(tel);
   /* El cupo se revisa ANTES de tocar el DB: si dices que no, no queda ni la
@@ -2577,10 +2600,10 @@ function guardarRapido(){
      La marca de «no es redonda» existe porque la plata que se ENTREGA va en
      billetes: un capital que no es múltiplo de mil casi siempre es un número
      calculado que se coló, no una decisión. */
-  const kCosto=MotorReglas.calcularCosto(cap), fCorte=ovr||MotorReglas.calcularFechaCorte(f);
+  const kCosto=MotorReglas.calcularCosto(cap,costo/100), fCorte=ovr||MotorReglas.calcularFechaCorte(f);
   if(!confirm('Registrar el crédito de '+nombre+':\n\n'
     +'• Capital: '+COP(cap)+(cap%1000!==0?'   ⚠️ OJO: NO ES UNA CIFRA REDONDA':'')+'\n'
-    +'• Costo: '+costo+'% ('+COP(kCosto)+')\n'
+    +'• Costo: '+costo+'%'+(costo!==TASA_FIJA_PCT?' ⚠️ PACTADO POR DEBAJO DEL ESTÁNDAR':'')+' ('+COP(kCosto)+')\n'
     +'• Total a devolver: '+COP(cap+kCosto)+'\n'
     +'• Paga el: '+fmtFecha(fCorte)+'\n\n¿Lo registro?'))return;
   if(!s){ s={id:'C'+Date.now(),numero:nextNumCliente(),nombre,telefono:tel,email:gv('qEmail'),whatsappIgual:true,referencia:{nombre:'',telefono:''},gestiones:[],fechaRegistro:new Date().toISOString()}; DB.socios.push(s); }

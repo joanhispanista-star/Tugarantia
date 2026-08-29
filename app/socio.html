@@ -708,7 +708,7 @@ details[open] summary::after{content:' ↑'}
    app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
    de CACHE en sw.js). */
-var VERSION_APP = '2026-08-28';
+var VERSION_APP = '2026-08-29';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1507,7 +1507,7 @@ function vistaInicio() {
       '<div class="etq">Puedes pedir hasta</div>' +
       '<div class="cifra oro">' + COP(S.cupo) + '</div>' +
       '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
-      'El costo es siempre el ' + pct(M.TASA_CREDITO) + ' de lo que pidas.</div>' +
+      'El costo es el ' + pct(M.TASA_CREDITO) + ' de lo que pidas — nunca más.</div>' +
       /* LA REGLA DEL PRODUCTO, EN UNA LÍNEA (5-ago-2026). Antes acá había que
          explicar niveles y factores para que el socio entendiera de dónde salía
          su cupo; desde que el cupo es la garantía uno a uno, la regla entera

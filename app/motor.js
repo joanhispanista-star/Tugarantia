@@ -197,7 +197,7 @@
    * SE SUBE CUANDO CAMBIA UNA REGLA DE PLATA —tasa, reparto, cupo, garantía,
    * mora—, no cuando se arregla una pantalla: para eso está VERSION_APP en
    * socio.html. Si esta fecha cambia, el cupo de alguien pudo haber cambiado. */
-  var REGLAS_VIGENTES_DESDE = '2026-08-05';
+  var REGLAS_VIGENTES_DESDE = '2026-08-29';
 
   var NIVELES = ['bronce', 'plata', 'oro', 'platino'];
 
@@ -679,9 +679,31 @@
     return TASA_CREDITO;
   }
 
-  /** Costo en pesos de un capital, al 20%. */
-  function calcularCosto(capital) {
-    return Math.round(numeroPositivo(capital, 'capital') * TASA_CREDITO);
+  /** Costo en pesos de un capital. Al 20% de siempre — o a la tasa PACTADA, si
+   *  el crédito se cierra con otra.
+   *
+   *  29-ago-2026, pedido de Joan: poder bajar el porcentaje cuando el préstamo
+   *  es de muy pocos días. El resto del sistema ya estaba listo —K(p) del
+   *  puente cobra con p.costoPct y tasaDeProrroga respeta tasa_aplicada—; lo
+   *  único clavado al 20% era esta función, que es la que cotiza en el alta.
+   *
+   *  Dos rejas, y las dos son deliberadas:
+   *  · El 20% es TECHO, no sugerencia. Subir por crédito reabriría el riesgo
+   *    de usura que se cerró el 29-jul al fijar la tasa; quien quiera subirla
+   *    tiene que venir a cambiar esta línea a sabiendas.
+   *  · Nunca cero. tasaDeProrroga hace numeroPositivo(tasa): un crédito
+   *    pactado al 0% quedaría SIN PODER PRORROGARSE, y eso se descubriría el
+   *    día que el cliente no pueda pagar — el peor día para descubrir algo.
+   *
+   *  La tasa llega DECIMAL (0.10 = 10%), como tasa_aplicada en todo el motor. */
+  function calcularCosto(capital, tasaPactada) {
+    var tasa = tasaPactada == null ? TASA_CREDITO : tasaPactada;
+    numeroPositivo(tasa, 'tasaPactada');
+    if (tasa > TASA_CREDITO) {
+      throw new RangeError('tasaPactada: el ' + Math.round(TASA_CREDITO * 100) +
+        '% es el techo, llegó ' + tasa);
+    }
+    return Math.round(numeroPositivo(capital, 'capital') * tasa);
   }
 
   /**
@@ -829,8 +851,13 @@
     return {
       costo: {
         tasa: TASA_CREDITO,
-        texto: 'El costo es siempre el ' + Math.round(TASA_CREDITO * 100) +
-               '% de lo que pidas, por quincena. No sube ni baja: ni por tu historial, ni por el monto.'
+        /* 29-ago-2026: «siempre» pasa a «nunca más». Desde hoy un crédito se
+           puede pactar por DEBAJO del estándar (préstamos de muy pocos días);
+           lo que sigue siendo inamovible es el techo. Decir «siempre» con un
+           socio pagando el 10% pactado sería mentirle al resto. */
+        texto: 'El costo es el ' + Math.round(TASA_CREDITO * 100) +
+               '% de lo que pidas, por quincena — nunca más: ni por tu historial, ni por el monto. ' +
+               'En préstamos muy cortos se puede pactar menos.'
       },
       garantia: {
         factor_puntual: FACTOR_GARANTIA,
