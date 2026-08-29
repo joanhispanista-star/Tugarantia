@@ -323,6 +323,44 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
       'con la nube contestando y cero conversaciones sí hay que decirlo');
   });
 
+  test('el buscador encuentra sin tildes, por celular partido y con +57', () => {
+    /* 29-ago-2026 — «un buscador por cliente que pueda ser con el numero de
+       celular o el nombre». Las tres formas reales de teclear: sin tilde desde
+       un computador, el celular con espacios, y el numero copiado de WhatsApp
+       con el +57 pegado. */
+    const P = abrirPanel();
+    P.cargarCartera(UN_CLIENTE);
+    assert.equal(P.ev("buscarClientes('maria').length"), 1,
+      '«maria» sin tilde no encontró a María');
+    assert.equal(P.ev("buscarClientes('PÉREZ').length"), 1);
+    assert.equal(P.ev("buscarClientes('300 111').length"), 1,
+      'el celular con espacios no encontró');
+    assert.equal(P.ev("buscarClientes('+57 300 111 2233').length"), 1,
+      'el número copiado de WhatsApp con +57 no encontró');
+    assert.equal(P.ev("buscarClientes('CL-').length"), 1, 'el código CL- no encontró');
+    assert.equal(P.ev("buscarClientes('zutano').length"), 0);
+    assert.equal(P.ev("buscarClientes('').length"), 0, 'vacío no puede listar a todos');
+    /* Dos dígitos sueltos no son una búsqueda de celular: casi todo número los
+       contiene y la lista sería ruido. */
+    assert.equal(P.ev("buscarClientes('30').length"), 0);
+  });
+
+  test('y lo que pinta va escapado y abre la ficha', () => {
+    const P = abrirPanel();
+    const d = JSON.parse(JSON.stringify(UN_CLIENTE));
+    d.socios[0].nombre = '<img src=x onerror=alert(1)> Pérez';
+    P.cargarCartera(d);
+    P.ev("document.getElementById('buscaGlobal').value='perez'");
+    P.ev('pintarBusqueda()');
+    const h = P.elems['buscaRes'].innerHTML || '';
+    assert.ok(h.indexOf('<img') < 0, 'el nombre del cliente salió sin escapar en el buscador');
+    assert.ok(h.indexOf('abrirDesdeBusqueda') >= 0, 'el resultado no abre la ficha');
+    /* Y sin texto, la caja queda limpia — no una lista fantasma. */
+    P.ev("document.getElementById('buscaGlobal').value=''");
+    P.ev('pintarBusqueda()');
+    assert.equal(P.elems['buscaRes'].innerHTML, '');
+  });
+
   test('y el banco de pruebas sirve: si el Panel no arranca, se nota', () => {
     /* Desconfiar del medidor antes que de la página: si abrirPanel() se tragara
        un error, todo lo de arriba pasaría en verde sin haber corrido nada. */

@@ -157,6 +157,25 @@
   .side .brand .bt .l1{font-family:Georgia,'Times New Roman',serif;font-size:18px;color:var(--blanco-laca);line-height:1}
   .side .brand .bt .l2{font-size:11px;color:rgba(var(--amarillo-rgb),.85);font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-top:4px}
   .side .sep{height:1px;background:rgba(var(--papel-rgb),.12);margin:12px 4px}
+  /* El buscador de clientes (29-ago-2026). Vive en la barra y no en una vista
+     porque la pregunta que responde —«¿dónde está fulano?»— aparece en medio de
+     cualquier pantalla, no solo en Clientes. Los resultados van EN FLUJO, no
+     flotando: .side tiene overflow:hidden y un desplegable absoluto se cortaría
+     por el borde — ya nos pasó con cosas flotantes dentro de contenedores con
+     overflow. Mientras se busca, los botones del menú se corren hacia abajo y
+     al borrar vuelven: ese movimiento es el precio de no recortar nada. */
+  .busca{position:relative;z-index:2;padding:0 4px;margin-bottom:4px}
+  .busca input{width:100%;padding:9px 11px;border-radius:9px;border:1px solid rgba(var(--papel-rgb),.18);
+    background:rgba(var(--papel-rgb),.08);color:var(--blanco-laca);font:inherit;font-size:13px}
+  .busca input::placeholder{color:rgba(var(--papel-rgb),.45)}
+  .busca input:focus{outline:2px solid var(--rojo-laca);outline-offset:1px}
+  .busca-res{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+  .busca-item{text-align:left;background:rgba(var(--papel-rgb),.07);border:0;border-radius:9px;
+    padding:8px 10px;color:var(--blanco-laca);font:inherit;cursor:pointer;width:100%}
+  .busca-item:hover{background:rgba(var(--papel-rgb),.15)}
+  .busca-item b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .busca-item .mini{font-size:11px;color:rgba(var(--papel-rgb),.55);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .busca-nada{font-size:11.5px;color:rgba(var(--papel-rgb),.5);padding:6px 10px}
   .navbtn{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;background:none;border:none;color:rgba(var(--blanco-laca-rgb),.62);font-size:14px;font-weight:600;text-align:left;width:100%;transition:.13s;position:relative;z-index:2}
   .navbtn:hover{background:rgba(var(--papel-rgb),.07);color:var(--blanco-laca)}
   /* Igual que en la app: la pestaña activa se marca con un filete rojo, no pintándola entera. */
@@ -368,6 +387,11 @@
   <aside class="side">
     <div class="brand"><span class="seal">G</span><div class="bt"><div class="l1">Tu Garantía</div><div class="l2">Panel</div></div></div>
     <div class="sep"></div>
+    <div class="busca">
+      <input id="buscaGlobal" type="search" placeholder="🔍 Nombre o celular…" autocomplete="off"
+        oninput="pintarBusqueda()" onkeydown="teclasBusqueda(event)">
+      <div class="busca-res" id="buscaRes"></div>
+    </div>
     <button class="navbtn on" data-v="dash"><span class="ic">📊</span> Tablero</button>
     <button class="navbtn" data-v="cred"><span class="ic">💵</span> Créditos</button>
     <button class="navbtn" data-v="resp"><span class="ic">🛡️</span> Con garantía</button>
@@ -1781,6 +1805,65 @@ function avisoCodigosHTML(){
        <button class="btn btn-sm" style="margin-left:8px" onclick="reenviarEnlaceBueno()">Mandarles el enlace bueno</button><br>`:'')
     +(sinMandar?`<span class="muted">${sinMandar} ya tienen código pero todavía no se lo has mandado. Ficha del cliente → 📲 Mandar código.</span>`:'')
     +`</div>`;
+}
+
+/* ===== EL BUSCADOR DE CLIENTES (29-ago-2026) =====
+   Pedido de Joan con estas palabras: «con más agilidad ver ese cliente». La
+   lógica de qué campos se miran es la MISMA de vistaBuscar en espejo.html
+   (nombre, cédula, los tres teléfonos y el código CL-), con una mejora: las
+   tildes no cuentan, porque «Maria» tiene que encontrar a «María» — en un
+   teclado de computador nadie las pone al buscar.
+
+   El teléfono se compara por DÍGITOS: «300 111» encuentra a 3001112233 aunque
+   se teclee con espacios o con +57. Es la misma normalización que ya usa
+   socioDelCredito para no crear fichas repetidas. */
+function normaBusqueda(t){
+  return String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+}
+function buscarClientes(q){
+  const texto=normaBusqueda(q).trim(); if(!texto) return [];
+  const digitos=texto.replace(/\D/g,'');
+  return DB.socios.filter(s=>{
+    if(digitos.length>=3){
+      /* Dos variantes del tecleado: tal cual, y sin el 57 de adelante. Las
+         fichas guardan el celular SIN indicativo, así que «+57 300 111 2233»
+         solo encuentra si el 57 se descuenta antes de comparar. */
+      const variantes=[digitos, digitos.replace(/^57/,'')].filter(v=>v.length>=3);
+      const nums=[s.telefono,s.telefono2,s.whatsappNumero,s.cedula]
+        .map(v=>String(v||'').replace(/\D/g,''));
+      if(nums.some(n=>n&&variantes.some(v=>n.indexOf(v)>=0))) return true;
+    }
+    return normaBusqueda(s.nombre).indexOf(texto)>=0
+      || normaBusqueda(codCliente(s)).indexOf(texto)>=0;
+  }).slice(0,6);   // seis: los que caben en la barra sin taparle el menú
+}
+function pintarBusqueda(){
+  const caja=document.getElementById('buscaRes'); if(!caja) return;
+  const q=gv('buscaGlobal');
+  if(!q.trim()){ caja.innerHTML=''; return; }
+  const res=buscarClientes(q);
+  caja.innerHTML=res.length?res.map(s=>{
+    const abiertos=DB.prestamos.filter(p=>p.socioId===s.id&&!p.pagado);
+    const mora=abiertos.filter(p=>estadoPrestamo(p)==='mora').length;
+    /* La cifra es la suma de totalCiclo, que sale del motor: acá solo se suma,
+       no se calcula nada. Es la misma cuenta que hace vistaBuscar del espejo. */
+    const deben=abiertos.reduce((t,p)=>t+totalCiclo(p),0);
+    return `<button type="button" class="busca-item" onclick="abrirDesdeBusqueda('${s.id}')">
+      <b>${escHTML(s.nombre||'Socio')}</b>
+      <span class="mini">${codCliente(s)} · ${escHTML(waNum(s)||'sin celular')}${abiertos.length?` · ${abiertos.length} activo${abiertos.length!==1?'s':''} · ${COP(deben)}`:''}${mora?' · ⚠️ en mora':''}</span>
+    </button>`;
+  }).join(''):'<div class="busca-nada">Nadie con eso. Prueba con el celular.</div>';
+}
+function abrirDesdeBusqueda(id){
+  const i=document.getElementById('buscaGlobal'); if(i) i.value='';
+  const caja=document.getElementById('buscaRes'); if(caja) caja.innerHTML='';
+  verCliente(id);
+}
+function teclasBusqueda(ev){
+  /* Enter abre el primero: teclear tres letras y Enter es el camino rápido que
+     Joan pidió. Escape limpia y devuelve el menú. */
+  if(ev.key==='Enter'){ const b=document.querySelector('#buscaRes .busca-item'); if(b) b.click(); }
+  if(ev.key==='Escape'){ ev.target.value=''; pintarBusqueda(); ev.target.blur(); }
 }
 
 function renderClientes(){
