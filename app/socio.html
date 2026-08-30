@@ -1501,7 +1501,17 @@ function vistaInicio() {
       '<div class="fila"><span class="k">Puedes pedir hasta</span>' +
         '<span class="v oro">' + esc(COP(S.cupo)) + '</span></div>' +
       '<button class="btn arriba" onclick="irA(\'calc\')">Calcular y pedir</button>' +
-      '</div>';
+      '</div>' +
+      /* 29-ago-2026 — EL ACUERDO, SI LO HAY. Viene hecho en el paquete
+         (fecha y monto congelados al pactar); la app no calcula nada, solo lo
+         dice. Sin esta tarjeta, el Panel tendría anotado un pacto y la app le
+         seguiría hablando de atraso: dos verdades sobre la misma quincena, que
+         es justo lo que la regla de la casa prohíbe. */
+      (S.activo && S.activo.acuerdo && S.activo.acuerdo.fecha
+        ? '<div class="aviso info"><b>🤝 Tienes un acuerdo.</b> Quedamos en que pagas tu prórroga de <b>' +
+          esc(COP(S.activo.acuerdo.monto)) + '</b> el <b>' + esc(fmtFecha(S.activo.acuerdo.fecha)) +
+          '</b>. Pagando ese día, ese valor te lo respetamos y tu pago pasa tranquilo a la siguiente quincena.</div>'
+        : '');
   } else {
     h += '<div class="card laca">' +
       '<div class="etq">Puedes pedir hasta</div>' +

@@ -745,6 +745,11 @@ const PLANTILLAS_DEF={
      tres cosas que evitan el WhatsApp de vuelta: que es suyo, que no cambia, y
      que no se comparte. Y no promete nada que la app no haga. */
   codigoAcceso:{t:'Su código para entrar a la app',x:'La llave del cliente. Se la mandas una vez y le sirve siempre',m:'Hola {nombre} 🙂 Te mandamos tus datos para entrar a la app y ver tus números:\n\n👤 Tu usuario: {usuario}\n🔑 Tu código: {codigo_acceso}\n\nEntras acá: {enlace}\n\nSon tuyos y no cambian, así que guárdalos. No se los pases a nadie: con ellos se ve todo tu historial.'},
+  /* 29-ago-2026 — la confirmación del acuerdo de prórroga. Dice las tres
+     cosas que evitan el malentendido caro: qué paga, qué día, y que el precio
+     solo vale si cumple ese día. Confirmar una operación pactada es la
+     excepción del art. 8 de la Ley 2300: no gasta el contacto de la semana. */
+  acuerdoPactado:{t:'Acuerdo de prórroga pactado',x:'Al pactar que la prórroga se paga otro día',m:'Listo {nombre}, quedó registrado tu acuerdo 🙂 Pagas tu prórroga de {prorroga} el {fecha_pago}, y ese día tu pago pasa tranquilo a la siguiente quincena. Ese valor te lo respetamos pagando ese día. Gracias por avisarnos; cualquier cosa nos cuentas.'},
   /* 28-ago-2026 — el mensaje de reparación. Se manda a quien ya recibió su
      código con la dirección vieja: el enlace que tiene guardado en su WhatsApp
      abre una copia de agosto que no lo va a dejar entrar nunca.
@@ -1538,18 +1543,24 @@ function mensajeParaCredito(p,s,k){ const key=k||plantillaPara(p);
   return aplicarVars(DB.plantillas[key]||PLANTILLAS_DEF[key].m,p,s||{},'',varsDePlantilla(p,key)); }
 
 function renderCola(){
+  /* 29-ago-2026: el acuerdo manda en el orden. Incumplido va PRIMERO (una
+     promesa rota vale más que cualquier mora ordinaria); vigente va al FINAL
+     (hay pacto: nada que gestionar hasta su fecha, y escribirle de mora a
+     alguien con pacto es regalarse un problema — y gastar un contacto de la
+     Ley 2300 en romper lo pactado). */
+  const rango=p=>acuerdoIncumplido(p)?-1:(acuerdoVigente(p)?3:({mora:0,hoy:1,proximo:2})[estadoPrestamo(p)]);
   const arr=DB.prestamos.filter(p=>['mora','hoy','proximo'].includes(estadoPrestamo(p)))
-    .sort((a,b)=>{const o={mora:0,hoy:1,proximo:2};return o[estadoPrestamo(a)]-o[estadoPrestamo(b)]||new Date(a.cicloActual)-new Date(b.cicloActual);});
+    .sort((a,b)=>rango(a)-rango(b)||new Date(a.cicloActual)-new Date(b.cicloActual));
   const c=document.getElementById('cola');
   if(!arr.length){ c.innerHTML=`<div class="empty"><div class="ic">✅</div><p>Nada por gestionar hoy.</p></div>`; return; }
   c.innerHTML=`<table><thead><tr><th>Cliente</th><th>A pagar</th><th>Vence</th><th>Estado</th><th></th></tr></thead><tbody>${
     arr.map(p=>{ const s=DB.socios.find(x=>x.id===p.socioId)||{nombre:p.socioNombre,telefono:p.telefono,gestiones:[]};
-      const est=estadoPrestamo(p),k=plantillaPara(p),dm=diasMora(p),dp=diasPara(p);
+      const est=estadoPrestamo(p),av=acuerdoVigente(p),ai=acuerdoIncumplido(p),k=(av||ai)?'acuerdoPactado':plantillaPara(p),dm=diasMora(p),dp=diasPara(p);
       const cuando=est==='hoy'?'Hoy':est==='mora'?`Hace ${dm}d`:`En ${dp}d`;
       return `<tr><td><b>${escHTML(s.nombre||p.socioNombre)}</b><div class="muted">${escHTML(waNum(s))}</div></td>
-        <td class="num">${COP(totalCiclo(p))}<div class="muted">${(()=>{const v=prorrogaOfrecida(p);return v!=null?'prórroga '+COP(v):(tienePlan(p)?'plan de pagos':'sin prórrogas');})()}</div></td>
-        <td>${fmtFecha(PUENTE.corteDelCredito(p))}<div class="muted">${cuando}</div></td>
-        <td><span class="chip ${est}">${ESTADO_TXT[est]}</span></td>
+        <td class="num">${av?COP(av.monto):COP(totalCiclo(p))}<div class="muted">${av?'acuerdo · precio congelado':(ai?'acuerdo INCUMPLIDO · debe '+COP(totalCiclo(p)):(()=>{const v=prorrogaOfrecida(p);return v!=null?'prórroga '+COP(v):(tienePlan(p)?'plan de pagos':'sin prórrogas');})())}</div></td>
+        <td>${av?fmtFecha(av.pactadaPara):fmtFecha(PUENTE.corteDelCredito(p))}<div class="muted">${av?'día pactado':cuando}</div></td>
+        <td>${av?'<span class="chip al-dia">🤝 Acuerdo</span>':(ai?'<span class="chip mora">🤝 Incumplido</span>':`<span class="chip ${est}">${ESTADO_TXT[est]}</span>`)}</td>
         <td style="text-align:right">${contactadoHoy(s)?'<span class="muted">contactado</span> ':''}<button class="btn btn-wa btn-sm" onclick="gestionar('${p.id}','${k}')">💬</button> <button class="btn btn-negro btn-sm" onclick="abrirPago('${p.id}')">Pago</button></td></tr>`;}).join('')}</tbody></table>`;
 }
 
@@ -1988,6 +1999,7 @@ function detalleCobro(p,c){
   if(c&&!c.vigente) return 'Cuota '+c.n+' de '+c.de+' del plan de pagos, ya pactada: '+COP(c.monto)+'.';
   /* Y si el corte YA PASÓ, el evento es de HOY: hay que decir de qué corte viene
      y que la cifra es la de hoy, con el recargo adentro. */
+  if(c&&c.acuerdo) return 'Acuerdo pactado el '+fmtFecha(p.acuerdo?p.acuerdo.pactadoEl:c.fecha)+': paga la prórroga de '+COP(c.monto)+' este día y su capital pasa a la quincena siguiente.';
   const atras=(c&&c.vencido)?'El corte era el '+fmtFecha(c.corte)+', así que este es el total de HOY, con el recargo. ':'';
   const v=prorrogaOfrecida(p);
   if(v!=null) return atras+'Prórroga posible: '+COP(v)+' · pasa al '+fmtFecha(nuevoCicloProrroga(p));
@@ -2019,9 +2031,19 @@ function cobrosDelCredito(p){
   if(!p||p.pagado) return [];
   const hoy=hoyISO(), corte=PUENTE.corteDelCredito(p), cs=cuotasPlan(p);
   const pend=cs.filter(c=>!c.pagado), vencido=!!corte&&corte<hoy;
-  const cobros=[{ uid:p.id+'-v', p:p, vigente:true, vencido:vencido, corte:corte||hoy,
-                  fecha:vencido?hoy:(corte||hoy), monto:totalCiclo(p),
-                  n:pend.length?pend[0].n:0, de:cs.length }];
+  /* 29-ago-2026 — EL ACUERDO VIGENTE ES EL COBRO. Mientras el pacto no venza,
+     lo accionable no es el ciclo entero (quedó en suspenso por el pacto) sino
+     la prórroga pactada, en SU fecha y por SU monto congelado. Un solo cobro,
+     no dos: publicar ambos sumaría doble en el calendario y el .ics. Si el
+     pacto vence sin pago, vuelve el cobro de siempre — el corte nunca se
+     movió, así que la mora ya viene corrida sola. */
+  const acu=acuerdoVigente(p);
+  const cobros=[acu
+    ? { uid:p.id+'-a', p:p, vigente:true, acuerdo:true, vencido:false, corte:acu.pactadaPara,
+        fecha:acu.pactadaPara, monto:acu.monto, n:pend.length?pend[0].n:0, de:cs.length }
+    : { uid:p.id+'-v', p:p, vigente:true, vencido:vencido, corte:corte||hoy,
+        fecha:vencido?hoy:(corte||hoy), monto:totalCiclo(p),
+        n:pend.length?pend[0].n:0, de:cs.length }];
   pend.slice(1).forEach(c=>cobros.push({ uid:p.id+'-c'+c.n, p:p, vigente:false, vencido:false,
                   corte:c.fecha, fecha:c.fecha, monto:Number(c.total)||0, n:c.n, de:cs.length }));
   return cobros; }
@@ -2103,6 +2125,7 @@ const TOKENS_POR_PLANTILLA={
   invitacion:['nombre','negocio','enlace','codigo'],
   codigoAcceso:['nombre','negocio','enlace','codigo_acceso','usuario'],
   enlaceCorregido:['nombre','negocio','enlace'],
+  acuerdoPactado:['nombre','negocio','prorroga','fecha_pago'],
   recordatorioRespaldado:['nombre','negocio','cuota','n','plazo','fecha_pago'],
   reciboRespaldado:['nombre','negocio','cuota','n','plazo']
 };
@@ -2206,7 +2229,12 @@ function guardarPlantillas(){ document.querySelectorAll('#pltWrap textarea').for
    mañana o cambie de plantilla en el desplegable. */
 function ultimaProrroga(p){ const l=(p&&p.prorrogas)||[]; return l.length?l[l.length-1]:null; }
 function varsDePlantilla(p,k){
-  if(!p||k!=='prorroga') return {};
+  if(!p) return {};
+  /* El mensaje del acuerdo habla del PACTO: su monto congelado y su fecha, no
+     los del ciclo. Salen de p.acuerdo, que a su vez salió del motor al pactar. */
+  if(k==='acuerdoPactado') return p.acuerdo
+    ? {prorroga:COP(p.acuerdo.monto),fecha_pago:fmtFecha(p.acuerdo.pactadaPara)} : {};
+  if(k!=='prorroga') return {};
   const u=ultimaProrroga(p)||PUENTE.entradaPlan(p);
   return u?{prorroga:COP(u.monto)}:{};
 }
@@ -2637,6 +2665,9 @@ function verCredito(id){
     <div class="info-row"><span class="k">N° crédito</span><b class="mono">${codCredito(p)}</b></div>
     <div class="info-row"><span class="k">N° cliente</span><b class="mono">${s.numero?codCliente(s):'—'}</b></div>
     <div class="info-row"><span class="k">Estado</span><span class="vv"><span class="chip ${est}">${ESTADO_TXT[est]}</span></span></div>
+    ${acuerdoDe(p)?`<div class="alerta ${acuerdoIncumplido(p)?'warn':'info'}"><b>🤝 Acuerdo pactado:</b> paga la prórroga de <b>${COP(p.acuerdo.monto)}</b> el <b>${fmtFecha(p.acuerdo.pactadaPara)}</b>.${acuerdoIncumplido(p)?' <b>Ese día no pagó</b>: el precio pactado venció y corre lo causado real.':' El precio queda congelado si cumple.'}
+      <div style="margin-top:8px"><button class="btn btn-sm btn-negro" onclick="cumplirAcuerdo('${p.id}')">✓ Cumplió: recibí la prórroga</button>
+      <button class="btn btn-ghost btn-sm" onclick="romperAcuerdo('${p.id}')">✕ Deshacer</button></div></div>`:''}
     <div class="info-row"><span class="k">Capital</span><b>${COP(capitalActual(p))}</b></div>
     <div class="info-row"><span class="k">Costo / ganancia (${p.costoPct}%)</span><span class="vv gano">${COP(K(p))}</span></div>
     <div class="info-row"><span class="k">${p.pagado?'Ganancia cobrada':'Total para saldar'}</span><b>${p.pagado?COP(gananciaCobrada(p)):COP(totalCiclo(p))}</b></div>
@@ -2704,6 +2735,16 @@ function calcPago(id){
       : (pr
         ? `<div class="alerta info">Si no puede pagar todo, registra una <b>prórroga</b>: paga ${COP(pr.total_a_pagar)}${pr.recargo_mora?` (el ${p.costoPct}% del ciclo, ${COP(pr.costo_prorroga)}, <b>más el recargo de mora ya causado, ${COP(pr.recargo_mora)}</b>: la prórroga no lo borra)`:` (el ${p.costoPct}%)`} y el capital pasa a la quincena del <b>${fmtFecha(pr.fecha_corte_nueva)}</b>, que siempre queda por delante de hoy. Le quedan <b>${pr.prorrogas_permitidas-pr.prorrogas_usadas}</b> de ${pr.prorrogas_permitidas}.</div>`
         : ''));
+  /* El acuerdo, si lo hay, arriba de todo: es lo primero que Joan tiene que
+     ver antes de cobrar o de mandarle un WhatsApp de mora a alguien con pacto. */
+  const avisoAcuerdo=acuerdoDe(p)
+    ? `<div class="alerta ${acuerdoIncumplido(p)?'warn':'info'}"><b>🤝 Acuerdo:</b> paga la prórroga de <b>${COP(p.acuerdo.monto)}</b> el <b>${fmtFecha(p.acuerdo.pactadaPara)}</b>.${acuerdoIncumplido(p)?' <b>Ese día no pagó</b>: el precio pactado venció y la mora siguió corriendo.':''}
+       <div style="margin-top:8px"><button class="btn btn-sm btn-negro" onclick="cumplirAcuerdo('${p.id}')">✓ Cumplió: recibí la prórroga</button>
+       <button class="btn btn-ghost btn-sm" onclick="romperAcuerdo('${p.id}')">✕ Deshacer el acuerdo</button></div></div>`
+    : '';
+  const btnPactar=(!c&&pr&&pr.ok&&!acuerdoDe(p))
+    ? `<button class="btn btn-ghost" style="margin-top:8px;width:100%" onclick="pactarAcuerdo('${p.id}')" title="Registra que la prórroga se paga otro día, con el precio de hoy congelado">🤝 Pactar la prórroga para otra fecha</button>`
+    : '';
   const btnProrroga=c?''
     :(pr&&!pr.ok?`<button class="btn btn-negro" onclick="registrarProrroga('${p.id}')">Ver el plan de pagos</button>`
      :(pr?`<button class="btn btn-negro" onclick="registrarProrroga('${p.id}')">↻ Prórroga (${COP(pr.total_a_pagar)})</button>`:'<span></span>'));
@@ -2715,8 +2756,8 @@ function calcPago(id){
       <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(liq.garantia_generada)}${liq.acredita_en_fecha?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${liq.pago_a_tiempo?'porque el crédito ya venía de una mora':'por pagar tarde'})</span>`}</span></div>
     </div>
     ${s?bloqueReparto(s,liq.costo_total_pagado,liq.acredita_en_fecha,'quincenal'):''}
-    ${aviso}
-    <div class="two"><button class="btn btn-rojo" onclick="pagarTotal('${p.id}')">${c?`✓ Pagó la cuota ${c.n} (${COP(liq.total_a_pagar)})`:`✓ Pagó todo (${COP(liq.total_a_pagar)})`}</button>${btnProrroga}</div>`;
+    ${avisoAcuerdo}${aviso}
+    <div class="two"><button class="btn btn-rojo" onclick="pagarTotal('${p.id}')">${c?`✓ Pagó la cuota ${c.n} (${COP(liq.total_a_pagar)})`:`✓ Pagó todo (${COP(liq.total_a_pagar)})`}</button>${btnProrroga}</div>${btnPactar}`;
 }
 async function subirComprobante(e){ const f=e.target.files[0]; if(!f)return; try{ _compTmp=await comprimir(f); const box=document.getElementById('compBox'); box.classList.add('ok'); let img=box.querySelector('img'); if(!img){img=document.createElement('img');box.appendChild(img);} img.src=_compTmp; box.querySelector('.lbl').textContent='Comprobante listo'; }catch(err){ alert('No pude procesar la imagen.'); } }
 function addComp(p,tipo,monto){ if(_compTmp){ p.comprobantes=p.comprobantes||[]; p.comprobantes.push({fecha:hoyISO(),tipo,monto,foto:_compTmp}); _compTmp=null; } }
@@ -2890,6 +2931,93 @@ function registrarProrroga(id){
   p.cicloActual=r.fecha_corte_nueva;
   guardar(); cerrarModal(); render();
   const s=DB.socios.find(x=>x.id===p.socioId); if(s&&confirm('Prórroga registrada. ¿Avisar por WhatsApp?'))gestionar(id,'prorroga'); }
+
+/* =========================================================================
+   EL ACUERDO DE PRÓRROGA (29-ago-2026) — «paga la prórroga, pero otro día».
+
+   Pedido de Joan: «acuerdos de que pagan una prórroga pero esa prórroga se
+   paga en otra fecha». El diseño tiene UNA regla, y es la lección del 4-ago:
+   EL CORTE SOLO SE MUEVE CON PLATA EN MANO. Al pactar no se toca cicloActual
+   ni p.prorrogas —todo lector de p.prorrogas asume pago consumado: la
+   ganancia, la garantía, el cierre de quincena—. Se guarda p.acuerdo, una cosa
+   aparte, con los números que el MOTOR cotizó ese día, congelados.
+
+   Si el día pactado paga: se ejecuta la prórroga de siempre —con el precio
+   congelado si llegó a tiempo— y el acuerdo se borra. Si no paga: el corte
+   nunca se movió, así que la mora del ciclo siguió corriendo sola desde el
+   corte real; el acuerdo no la tapa ni la borra, solo queda incumplido y la
+   cola lo sube de primero. Y no consume prórroga: prorrogas_usadas solo sube
+   cuando la prórroga se paga.
+   ========================================================================= */
+function acuerdoDe(p){ return p&&!p.pagado&&p.acuerdo?p.acuerdo:null; }
+function acuerdoVigente(p){ const a=acuerdoDe(p); return a&&a.pactadaPara>=hoyISO()?a:null; }
+function acuerdoIncumplido(p){ const a=acuerdoDe(p); return a&&a.pactadaPara<hoyISO()?a:null; }
+
+function pactarAcuerdo(id){
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  if(acuerdoDe(p)) return alert('Ya tiene un acuerdo pactado para el '+fmtFecha(p.acuerdo.pactadaPara)+'. Deshazlo primero si quieren cambiar la fecha.');
+  const f=hoyISO(), r=liqProrroga(p,f);
+  if(!r) return alert('Este crédito no admite prórroga, así que tampoco un acuerdo.');
+  if(!r.ok) return alert('Ya usó sus prórrogas: no hay prórroga que pactar. La salida es el plan de pagos.');
+  openModal('Pactar acuerdo · '+p.socioNombre,`
+    <div class="help">La prórroga cuesta HOY <b>${COP(r.total_a_pagar)}</b>${r.recargo_mora?` (costo ${COP(r.costo_prorroga)} + mora ya causada ${COP(r.recargo_mora)})`:''}.
+      Ese precio queda <b>congelado</b> si paga a más tardar el día pactado. Si se pasa de la fecha,
+      paga lo causado real de ese día — el acuerdo no frena la mora, solo la perdona si cumple.</div>
+    <div class="field"><label>¿Qué día se comprometió a pagarla?</label>
+      <input id="acFecha" type="date" min="${f}"></div>
+    <div id="acAviso"></div>
+    <button class="btn btn-rojo" onclick="guardarAcuerdo('${p.id}')">Registrar el acuerdo</button>`);
+}
+function guardarAcuerdo(id){
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  const fp=gv('acFecha'), f=hoyISO();
+  if(!fp) return alert('Pon la fecha que acordaron.');
+  if(fp<=f) return alert('Un acuerdo para hoy no es un acuerdo: cóbrale la prórroga de una vez.');
+  if(diasEntre(f,fp)>31&&!confirm('Son '+diasEntre(f,fp)+' días de espera. Un acuerdo tan largo casi siempre termina en plan de pagos.\n\n¿Lo registro igual?')) return;
+  const r=liqProrroga(p,f); if(!r||!r.ok) return alert('Este crédito ya no admite la prórroga.');
+  if(!confirm('Registrar el acuerdo con '+p.socioNombre+':\n\n'
+    +'• Paga la prórroga de '+COP(r.total_a_pagar)+' el '+fmtFecha(fp)+'\n'
+    +'• Ese día su capital pasa a la quincena siguiente\n'
+    +'• Si no paga ese día, el precio pactado se vence y corre lo causado real\n\n¿Lo registro?')) return;
+  /* Números del MOTOR, congelados al pactar. La pantalla no calcula: guarda. */
+  p.acuerdo={ pactadoEl:f, pactadaPara:fp, monto:r.total_a_pagar,
+              costo:r.costo_prorroga, mora:r.recargo_mora||0, diasMora:r.dias_mora||0 };
+  guardar(); cerrarModal(); render();
+  if(confirm('Acuerdo registrado. ¿Mandarle la confirmación por WhatsApp?\n\n(Confirmar una operación pactada no gasta el contacto de cobranza de la semana: es la excepción del art. 8 de la Ley 2300.)'))
+    gestionar(id,'acuerdoPactado');
+}
+function cumplirAcuerdo(id){
+  const p=DB.prestamos.find(x=>x.id===id), a=acuerdoDe(p); if(!p||!a) return;
+  const f=hoyISO(), enFecha=f<=a.pactadaPara;
+  /* En fecha: el precio congelado — liquidarProrroga con la mora del día del
+     pacto, que es exactamente lo que se le prometió. Tarde: lo causado real,
+     porque el precio pactado era PARA esa fecha. En los dos casos el número
+     final lo dice el motor, no el papelito del pacto. */
+  let r=null;
+  try{ r=enFecha
+    ? MotorReglas.liquidarProrroga(creditoMotor(p),f,{recargoCausado:a.mora,diasCausados:a.diasMora})
+    : liqProrroga(p,f); }catch(e){ r=null; }
+  if(!r) return alert('No pude liquidar la prórroga de este crédito.');
+  if(!r.ok) return ofrecerPlanDePagos(p,r);
+  if(!confirm('Cumplió el acuerdo'+(enFecha?'':' (TARDE: el precio pactado venció el '+fmtFecha(a.pactadaPara)+')')+':\n\n'
+    +'• Recibes '+COP(r.total_a_pagar)+(enFecha?' (el precio congelado del pacto)':' (lo causado real de hoy; lo pactado eran '+COP(a.monto)+')')+'\n'
+    +'• Su capital pasa a la quincena del '+fmtFecha(r.fecha_corte_nueva)+'\n\n¿Registro la prórroga?')) return;
+  p.prorrogas=p.prorrogas||[];
+  p.prorrogas.push({fecha:r.fecha, ciclo:r.fecha_corte_anterior, monto:r.total_a_pagar,
+    mora:r.recargo_mora, aTiempo:r.a_tiempo, diasMora:r.dias_mora, nuevoCiclo:r.fecha_corte_nueva});
+  addComp(p,'prorroga',r.total_a_pagar);
+  p.cicloActual=r.fecha_corte_nueva;
+  delete p.acuerdo;
+  guardar(); cerrarModal(); render();
+  const s=DB.socios.find(x=>x.id===p.socioId); if(s&&confirm('Prórroga registrada. ¿Avisar por WhatsApp?'))gestionar(id,'prorroga');
+}
+function romperAcuerdo(id){
+  const p=DB.prestamos.find(x=>x.id===id), a=acuerdoDe(p); if(!p||!a) return;
+  if(!confirm('Deshacer el acuerdo del '+fmtFecha(a.pactadaPara)+' con '+p.socioNombre+'.\n\n'
+    +'No borra plata ni mueve nada: el crédito queda como estaba, con su mora corriendo desde el corte real.\n\n¿Lo deshago?')) return;
+  delete p.acuerdo;
+  guardar(); cerrarModal(); render();
+}
 
 /* =========================================================================
    EL PLAN DE PAGOS (§8) — la salida obligatoria cuando se acaban las prórrogas.

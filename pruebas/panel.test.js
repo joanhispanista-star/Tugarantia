@@ -422,6 +422,117 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
     });
   });
 
+  /* ======================================================================
+   * EL ACUERDO DE PRÓRROGA (29-ago-2026) — «paga la prórroga, pero otro día».
+   * La regla que vigilan estas pruebas es UNA, y es la lección del 4-ago:
+   * EL CORTE SOLO SE MUEVE CON PLATA EN MANO.
+   * ==================================================================== */
+
+  function carteraConMora(P) {
+    /* Un crédito vencido hace 10 días, con fechas relativas a hoy porque el
+       banco corre con el reloj real. */
+    const d = JSON.parse(JSON.stringify(UN_CLIENTE));
+    const hace = n => { const x = new Date(); x.setDate(x.getDate() - n);
+      return x.toISOString().slice(0, 10); };
+    d.prestamos = [{ id: 'p1', numero: 1, socioId: 's1', socioNombre: 'María Pérez',
+      capital: 400000, costoPct: 20, fechaDesembolso: hace(25), cicloActual: hace(10),
+      prorrogas: [], abonosCapital: [], comprobantes: [], pagado: false }];
+    P.cargarCartera(d);
+    return d;
+  }
+  const enDias = n => { const x = new Date(); x.setDate(x.getDate() + n);
+    return x.toISOString().slice(0, 10); };
+
+  test('PACTAR NO MUEVE NADA: ni el corte, ni las prórrogas, ni la ganancia', () => {
+    const P = abrirPanel();
+    carteraConMora(P);
+    P.ev("confirm=t=>String(t).indexOf('WhatsApp')<0");
+    const antes = {
+      ciclo: P.ev("DB.prestamos[0].cicloActual"),
+      gan: P.ev("gananciaCobrada(DB.prestamos[0])"),
+      pr: P.ev("(DB.prestamos[0].prorrogas||[]).length")
+    };
+    const esperado = P.ev("liqProrroga(DB.prestamos[0],hoyISO()).total_a_pagar");
+    P.ev("pactarAcuerdo('p1')");
+    P.ev("document.getElementById('acFecha').value='" + enDias(5) + "'");
+    P.ev("guardarAcuerdo('p1')");
+    assert.ok(P.ev("!!DB.prestamos[0].acuerdo"), 'el acuerdo no se guardó');
+    assert.equal(P.ev("DB.prestamos[0].acuerdo.monto"), esperado,
+      'el monto congelado no es el que cotizó el motor');
+    assert.equal(P.ev("DB.prestamos[0].cicloActual"), antes.ciclo,
+      'PACTAR MOVIÓ EL CORTE — el agujero del 4-ago, otra vez');
+    assert.equal(P.ev("(DB.prestamos[0].prorrogas||[]).length"), antes.pr,
+      'pactar creó una prórroga sin plata en mano');
+    assert.equal(P.ev("gananciaCobrada(DB.prestamos[0])"), antes.gan,
+      'pactar sumó ganancia sin plata en mano');
+  });
+
+  test('el acuerdo vigente ES el cobro: su fecha, su monto, y uno solo', () => {
+    const P = abrirPanel();
+    carteraConMora(P);
+    P.ev("DB.prestamos[0].acuerdo={pactadoEl:hoyISO(),pactadaPara:'" + enDias(4) +
+      "',monto:123450,costo:80000,mora:43450,diasMora:10}");
+    const cobros = JSON.parse(P.ev("JSON.stringify(cobrosDelCredito(DB.prestamos[0]))"));
+    assert.equal(cobros.length, 1, 'publicó más de un cobro: suma doble en el calendario');
+    assert.equal(cobros[0].fecha, enDias(4), 'el cobro no cae el día pactado');
+    assert.equal(cobros[0].monto, 123450, 'el cobro no es el monto congelado');
+    assert.ok(cobros[0].acuerdo === true, 'el cobro no viene marcado como acuerdo');
+  });
+
+  test('CUMPLIR ejecuta la prórroga de siempre y borra el acuerdo', () => {
+    const P = abrirPanel();
+    carteraConMora(P);
+    P.ev("confirm=t=>String(t).indexOf('WhatsApp')<0");
+    P.ev("pactarAcuerdo('p1')");
+    P.ev("document.getElementById('acFecha').value='" + enDias(5) + "'");
+    P.ev("guardarAcuerdo('p1')");
+    const pactado = P.ev("DB.prestamos[0].acuerdo.monto");
+    const cicloAntes = P.ev("DB.prestamos[0].cicloActual");
+    P.ev("cumplirAcuerdo('p1')");
+    assert.equal(P.ev("(DB.prestamos[0].prorrogas||[]).length"), 1,
+      'cumplir no registró la prórroga');
+    /* Cumple HOY, dentro del plazo: el precio es el congelado del pacto. */
+    assert.equal(P.ev("DB.prestamos[0].prorrogas[0].monto"), pactado,
+      'no respetó el precio congelado pagando en fecha');
+    assert.ok(P.ev("DB.prestamos[0].cicloActual") > cicloAntes,
+      'el corte no se movió — y aquí SÍ hay plata en mano');
+    assert.ok(P.ev("!DB.prestamos[0].acuerdo"), 'el acuerdo no se borró al cumplirse');
+  });
+
+  test('acuerdo VENCIDO sin pagar: vuelve el cobro real y la cola lo sube', () => {
+    const P = abrirPanel();
+    carteraConMora(P);
+    const ayer = (() => { const x = new Date(); x.setDate(x.getDate() - 1);
+      return x.toISOString().slice(0, 10); })();
+    P.ev("DB.prestamos[0].acuerdo={pactadoEl:'" + ayer + "',pactadaPara:'" + ayer +
+      "',monto:123450,costo:80000,mora:43450,diasMora:9}");
+    /* El cobro publicado ya no es el pacto: es lo causado real de hoy. */
+    const cobros = JSON.parse(P.ev("JSON.stringify(cobrosDelCredito(DB.prestamos[0]))"));
+    assert.ok(!cobros[0].acuerdo, 'siguió publicando el pacto vencido como cobro');
+    assert.equal(cobros[0].monto, P.ev("totalCiclo(DB.prestamos[0])"),
+      'el cobro no volvió al total real del ciclo');
+    /* Y la cola lo dice con todas las letras, de primero. */
+    P.ev("renderCola()");
+    const cola = P.elems['cola'].innerHTML || '';
+    assert.ok(cola.indexOf('Incumplido') >= 0, 'la cola no marca el acuerdo incumplido');
+    assert.ok(cola.indexOf('INCUMPLIDO') >= 0 || cola.indexOf('debe') >= 0,
+      'la cola no dice cuánto debe de verdad');
+  });
+
+  test('el acuerdo viaja en el paquete del socio — sin él, dos verdades', () => {
+    const P = abrirPanel();
+    carteraConMora(P);
+    P.ev("DB.prestamos[0].acuerdo={pactadoEl:hoyISO(),pactadaPara:'" + enDias(3) +
+      "',monto:99000,costo:80000,mora:19000,diasMora:5}");
+    const a = JSON.parse(P.ev("JSON.stringify(migrarSocio(DB.socios[0]).creditos[0].acuerdo)"));
+    assert.equal(a.fecha, enDias(3), 'el paquete no lleva la fecha pactada');
+    assert.equal(a.monto, 99000, 'el paquete no lleva el monto congelado');
+    /* Y deshacer lo saca del paquete también. */
+    P.ev("confirm=()=>true; romperAcuerdo('p1')");
+    assert.ok(P.ev("migrarSocio(DB.socios[0]).creditos[0].acuerdo === null"),
+      'roto el pacto, el paquete lo sigue llevando');
+  });
+
   test('y el banco de pruebas sirve: si el Panel no arranca, se nota', () => {
     /* Desconfiar del medidor antes que de la página: si abrirPanel() se tragara
        un error, todo lo de arriba pasaría en verde sin haber corrido nada. */

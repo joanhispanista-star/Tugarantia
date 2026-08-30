@@ -104,7 +104,10 @@
 /* v21 — 29-ago-2026. La tasa pactable por credito: cambia el alta del CRM y
    los textos de socio.html que decian «siempre el 20%». Regla de plata, asi que
    tambien subieron REGLAS_VIGENTES_DESDE y VERSION_APP. */
-const CACHE = 'tugarantia-v21';
+/* v22 — 29-ago-2026. El acuerdo de prórroga: cambia crm.html (pactar, cumplir,
+   deshacer, cola y calendario), puente.js (el pacto viaja en el paquete) y
+   socio.html (la tarjeta del acuerdo). */
+const CACHE = 'tugarantia-v22';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

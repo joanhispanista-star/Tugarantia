@@ -1618,6 +1618,14 @@
           abonado: Math.round(gananciaCobrada(p) + capitalRecuperadoDe(p)),
           garantia: garantiaGanadaCredito(p),
           prorrogas: lista(p.prorrogas).length,
+          /* 29-ago-2026 — el acuerdo pactado viaja al socio. Sin esto, la app
+             le dice «mora corriendo» a un cliente con pacto anotado en el
+             Panel: dos verdades sobre la misma quincena. Solo la fecha y el
+             monto congelado — lo que él necesita ver—; la mecánica de cumplir
+             o incumplir es del Panel. */
+          acuerdo: (p.acuerdo && !p.pagado)
+            ? { fecha: p.acuerdo.pactadaPara, monto: num(p.acuerdo.monto) }
+            : null,
           // Solo el conteo: al socio le alcanza con ver que va por la cuota 2 de 3.
           plan_cuotas: cuotasPlan(p).length,
           plan_cuotas_pagadas: cuotasPlan(p).filter(function (c) { return !!c.pagado; }).length,
