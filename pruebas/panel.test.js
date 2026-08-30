@@ -533,6 +533,45 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
       'roto el pacto, el paquete lo sigue llevando');
   });
 
+  test('el buscador encuentra por nombre sin tildes y por pedazo de celular', () => {
+    /* 29-ago-2026 — «por el número de celular o el nombre, con más agilidad».
+       La normalización de dígitos es la MISMA de socioDelCredito: si difirieran,
+       el buscador y el registro de pagos encontrarían gente distinta. */
+    const P = abrirPanel();
+    const d = JSON.parse(JSON.stringify(UN_CLIENTE));
+    d.socios.push({ id: 's2', nombre: 'José Roldán', telefono: '3109998877',
+      whatsappIgual: true, codigoAcceso: 'ZZZZ9' });
+    P.cargarCartera(d);
+
+    P.ev("document.getElementById('buscaCliente').value='maria'");
+    assert.equal(P.ev('clientesFiltrados().length'), 1, "'maria' no encontró a María");
+    assert.equal(P.ev('clientesFiltrados()[0].nombre'), 'María Pérez');
+
+    P.ev("document.getElementById('buscaCliente').value='300 111'");
+    assert.equal(P.ev('clientesFiltrados().length'), 1, 'el pedazo de celular no lo encontró');
+
+    P.ev("document.getElementById('buscaCliente').value='rold'");
+    assert.equal(P.ev('clientesFiltrados()[0].nombre'), 'José Roldán');
+
+    /* Enter con UNO abre la ficha; con dos no adivina. */
+    P.ev("document.getElementById('buscaCliente').value='maria'");
+    P.ev('abrirUnicoCliente()');
+    /* El nombre vive en el TÍTULO del modal (openModal), no en el cuerpo. */
+    assert.ok((P.elems['mTitle'].textContent || '').indexOf('María Pérez') >= 0,
+      'Enter con un solo resultado no abrió la ficha');
+    P.elems['mTitle'].textContent = '';
+    P.ev("document.getElementById('buscaCliente').value=''");
+    P.ev('abrirUnicoCliente()');
+    assert.equal(P.elems['mTitle'].textContent, '',
+      'Enter sin filtro abrió una ficha adivinada');
+
+    /* Y sin resultados la tabla dice que no coincide, no que no hay clientes. */
+    P.ev("document.getElementById('buscaCliente').value='zzzz'");
+    P.ev('renderClientes()');
+    assert.ok((P.elems['tblClientes'].innerHTML || '').indexOf('Nadie coincide') >= 0,
+      'con filtro sin resultados dijo otra cosa');
+  });
+
   test('y el banco de pruebas sirve: si el Panel no arranca, se nota', () => {
     /* Desconfiar del medidor antes que de la página: si abrirPanel() se tragara
        un error, todo lo de arriba pasaría en verde sin haber corrido nada. */

@@ -641,3 +641,36 @@ script nuevo delante, el assert lanzó antes de registrar ninguna prueba.
 la búsqueda es por CONTENIDO (el script que trae el plazo de seguridad, esté
 donde esté) y el assert vive dentro de una prueba de verdad. **855 pruebas.**
 `sw.js` sube a v20.
+
+---
+
+## 29-ago — cuatro mejoras del CRM, pedidas por Joan en una frase
+
+«El porcentaje está fijo al 20%… quiero modificarlo si son muy pocos días;
+acuerdos de que pagan una prórroga pero en otra fecha; un buscador por celular
+o nombre; y la sumatoria de todos los créditos de un cliente.»
+
+Las cuatro entregadas, verificadas en navegador y con **870 pruebas en verde**:
+
+1. **La tasa se pacta por crédito, y el 20% pasa a ser TECHO.** El sistema ya
+   respetaba `costoPct` en todas partes; solo el alta estaba clavada. Rejas en
+   el MOTOR: por encima del techo revienta (usura), y nunca 0% (un crédito al
+   0% quedaría sin poder prorrogarse — `tasaDeProrroga` exige positiva). Regla
+   de plata: `REGLAS_VIGENTES_DESDE` subió a 2026-08-29 y los textos «siempre el
+   20%» pasaron a «nunca más».
+2. **El acuerdo de prórroga** (`p.acuerdo`): se pacta con los números del motor
+   CONGELADOS; el corte SOLO se mueve con plata en mano (la lección del 4-ago).
+   Cumplido en fecha → precio congelado; tarde → lo causado real; incumplido →
+   la mora venía corriendo sola y la cola lo sube DE PRIMERO. Viaja al socio en
+   el paquete y a la nube solo (armarLote sube la fila entera). Plantilla 15.
+3. **El buscador de clientes**: nombre sin tildes o pedazo de celular (la misma
+   normalización de `socioDelCredito`); Enter abre la ficha si queda uno.
+4. **La sumatoria en la ficha**: con 2+ créditos activos, capital en la calle y
+   lo de hoy con la mora, sumando `totalCiclo`/`capitalActual` del motor.
+
+`sw.js` v23, `VERSION_APP` 2026-08-29.
+
+**Del chat, lo único que falta es de Joan:** pegar su clave de sincronización en
+el CRM de tugarantia.net (Ajustes → 📲 Compartir con mis clientes). El rescate
+del 28 movió la cartera pero no la conexión — sin la clave, la bandeja de
+Mensajes y «Subir historiales» no andan; todo lo demás sí.

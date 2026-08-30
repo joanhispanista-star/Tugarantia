@@ -464,6 +464,15 @@
     <section class="view" id="v-clientes">
       <div class="ph"><div><h1>Clientes<span class="dot">.</span></h1><div class="sub">Ficha completa, historial de créditos y ganancia</div></div>
         <button class="btn btn-ghost" onclick="editarCliente()">＋ Agregar cliente</button></div>
+      <!-- 29-ago-2026 — EL BUSCADOR, pedido de Joan: «por el número de celular o
+           el nombre, y que me permita con más agilidad ver ese cliente». Filtra
+           mientras escribe, y con Enter abre la ficha si quedó uno solo: ese es
+           el gesto rápido — teclear tres letras, Enter, ficha. -->
+      <div class="card" style="margin-bottom:14px;padding:12px 16px">
+        <input id="buscaCliente" type="search" placeholder="🔍 Buscar por nombre o celular… (Enter abre la ficha si queda uno)"
+          style="width:100%;border:0;background:transparent;font:inherit;font-size:15px;outline:none;color:inherit"
+          oninput="renderClientes()" onkeydown="if(event.key==='Enter')abrirUnicoCliente()">
+      </div>
       <div class="card"><div id="tblClientes"></div></div>
     </section>
 
@@ -1877,10 +1886,40 @@ function teclasBusqueda(ev){
   if(ev.key==='Escape'){ ev.target.value=''; pintarBusqueda(); ev.target.blur(); }
 }
 
+/* La búsqueda perdona lo que un dedo teclea distinto: «maria» encuentra a
+   María (tildes fuera, minúsculas) y «300 111» encuentra al 3001112233 (solo
+   dígitos, contra los tres teléfonos de la ficha). La MISMA normalización de
+   dígitos que usa socioDelCredito: si aquí se comparara distinto, el buscador
+   y el registro de pagos encontrarían gente distinta con el mismo número. */
+function normaTexto(t){ return String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+function coincideCliente(s,filtro){
+  const f=normaTexto(filtro).trim(); if(!f) return true;
+  const dig=f.replace(/\D/g,'');
+  if(normaTexto(s.nombre).indexOf(f)>=0) return true;
+  if(dig.length>=3&&[s.telefono,s.whatsappNumero,s.telefono2,s.cedula]
+      .some(t=>String(t||'').replace(/\D/g,'').indexOf(dig)>=0)) return true;
+  return false;
+}
+function clientesFiltrados(){
+  const filtro=gv('buscaCliente')||'';
+  return [...DB.socios].filter(s=>coincideCliente(s,filtro))
+    .sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
+}
+/* Enter en el buscador: si quedó UNO, su ficha. Con dos o más no se adivina —
+   abrir la ficha equivocada delante de un cliente es peor que un Enter mudo. */
+function abrirUnicoCliente(){
+  const arr=clientesFiltrados();
+  if(arr.length===1) verCliente(arr[0].id);
+}
 function renderClientes(){
-  const arr=[...DB.socios].sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
+  const filtro=(gv('buscaCliente')||'').trim();
+  const arr=clientesFiltrados();
   const c=document.getElementById('tblClientes');
-  if(!arr.length){ c.innerHTML=`<div class="empty"><div class="ic">🧑‍🤝‍🧑</div><p>Sin clientes aún.<br><span class="muted">Crea uno con “＋ Nuevo crédito” o “＋ Agregar cliente”.</span></p></div>`+papeleraClientesHTML(); return; }
+  if(!arr.length){
+    c.innerHTML=filtro
+      ? `<div class=”empty”><div class=”ic”>🔍</div><p>Nadie coincide con «${escHTML(filtro)}».<br><span class=”muted”>Prueba con menos letras, o solo unos dígitos del celular.</span></p></div>`
+      : `<div class=”empty”><div class=”ic”>🧑‍🤝‍🧑</div><p>Sin clientes aún.<br><span class=”muted”>Crea uno con “＋ Nuevo crédito” o “＋ Agregar cliente”.</span></p></div>`+papeleraClientesHTML();
+    return; }
   c.innerHTML=avisoCodigosHTML()+`<table><thead><tr><th>N°</th><th>Cliente</th><th>Código app</th><th>Contacto</th><th>Ciudad</th><th>Créditos</th><th>Prórrogas</th><th>Ganancia generada</th><th>Riesgo</th><th></th></tr></thead><tbody>${
     arr.map(s=>{ const ps=DB.prestamos.filter(p=>p.socioId===s.id),gan=ps.reduce((t,p)=>t+gananciaCobrada(p),0),activos=ps.filter(p=>!p.pagado).length,npr=totalProrrogasCliente(s),r=riesgoCliente(s);
       const ca=MotorReglas.normalizarCodigoAcceso(codigoAccesoDe(s));

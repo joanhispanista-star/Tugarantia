@@ -107,7 +107,8 @@
 /* v22 — 29-ago-2026. El acuerdo de prórroga: cambia crm.html (pactar, cumplir,
    deshacer, cola y calendario), puente.js (el pacto viaja en el paquete) y
    socio.html (la tarjeta del acuerdo). */
-const CACHE = 'tugarantia-v22';
+/* v23 — 29-ago-2026 (mismo dia): el buscador de clientes en el CRM. */
+const CACHE = 'tugarantia-v23';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
