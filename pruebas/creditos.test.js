@@ -51,7 +51,11 @@ describe('el techo de usura vive en una tabla con fecha', () => {
     /* Lo más importante de la tabla. Heredar el mes anterior significaría que el
        día que nadie la actualice, el sistema cotiza contra un techo que ya no
        existe y nadie se entera. */
-    assert.equal(C.topeVigente('2026-09-01'), null, 'septiembre no está certificado');
+    /* 1-sep-2026: septiembre ya se certificó (Res. 1260), así que el ejemplo
+       de «mes futuro sin fila» pasa a octubre. Esta prueba se corre el día 1
+       de cada mes, con la certificación nueva en la mano. */
+    assert.ok(C.topeVigente('2026-09-15'), 'septiembre SÍ está certificado');
+    assert.equal(C.topeVigente('2026-10-01'), null, 'octubre todavía no');
     assert.equal(C.topeVigente('2026-06-30'), null, 'junio tampoco');
     assert.equal(C.topeVigente('2027-01-15'), null);
   });

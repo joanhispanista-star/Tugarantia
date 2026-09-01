@@ -572,6 +572,22 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
       'con filtro sin resultados dijo otra cosa');
   });
 
+  test('{nivel} se contesta con el nivel real — la llave rota del 1-sep', () => {
+    /* Joan escribió {nivel} en SU plantilla de recibo y a una clienta real le
+       llegó "(nivel {nivel})" literal. El dato existe: se contesta, no se avisa. */
+    const P = abrirPanel();
+    P.cargarCartera(UN_CLIENTE);
+    P.ev("DB.plantillas.recibo='Gracias {nombre}, sumas a tu historial (nivel {nivel}).'");
+    const d = { id:'px', numero:1, socioId:'s1', socioNombre:'María Pérez', capital:100000,
+      costoPct:20, fechaDesembolso:'2026-08-01', cicloActual:'2026-08-15',
+      prorrogas:[], abonosCapital:[], comprobantes:[], pagado:true, fechaPagado:'2026-08-15' };
+    P.ev('DB.prestamos.push(' + JSON.stringify(d) + ')');
+    const msg = P.ev("mensajeParaCredito(DB.prestamos[DB.prestamos.length-1],DB.socios[0],'recibo')");
+    assert.ok(msg.indexOf('{nivel}') < 0, 'la llave siguió saliendo literal: ' + msg);
+    assert.match(msg, /nivel (bronce|plata|oro|platino)/,
+      'no puso un nivel de verdad: ' + msg);
+  });
+
   test('y el banco de pruebas sirve: si el Panel no arranca, se nota', () => {
     /* Desconfiar del medidor antes que de la página: si abrirPanel() se tragara
        un error, todo lo de arriba pasaría en verde sin haber corrido nada. */

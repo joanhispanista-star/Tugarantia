@@ -108,7 +108,9 @@
    deshacer, cola y calendario), puente.js (el pacto viaja en el paquete) y
    socio.html (la tarjeta del acuerdo). */
 /* v23 — 29-ago-2026 (mismo dia): el buscador de clientes en el CRM. */
-const CACHE = 'tugarantia-v23';
+/* v24 — 1-sep-2026: la certificacion de usura de septiembre (Res. 1260: techo
+   29,24%) y el token {nivel} que salia literal en los recibos. */
+const CACHE = 'tugarantia-v24';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

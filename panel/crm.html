@@ -1264,6 +1264,12 @@ function aplicarVars(txt,p,s,enlace,extra){ const e=extra||{}; s=s||{};
      como una llave rota. Se cazó ejecutando el mensaje entero en un arnés, no
      leyendo el código: el texto de la plantilla estaba perfecto. */
   .replaceAll('{usuario}',e.usuario||'')
+  /* 1-sep-2026 — {nivel}: Joan lo escribio en SU plantilla de recibo creyendo
+     que existia, y a Andrea le llego "(nivel {nivel})" literal. El dato SI
+     existe (el nivel del socio, del puente), asi que en vez de avisar que no
+     se puede, se contesta. Solo con socio de verdad: sin ficha queda vacio,
+     nunca inventado. */
+  .replaceAll('{nivel}',(s&&s.id)?migrarSocio(s).garantia.nivel:'')
   .replaceAll('{n}',e.n||'').replaceAll('{plazo}',e.plazo||'')
   .replaceAll('{enlace}',enlace||''); }
 function waLink(tel,msg){ return 'https://wa.me/57'+String(tel||'').replace(/\D/g,'')+'?text='+encodeURIComponent(msg); }
@@ -2157,7 +2163,7 @@ const TOKENS_QUINCENAL=['nombre','negocio','monto','saldo','prorroga','fecha_pag
 const TOKENS_POR_PLANTILLA={
   bienvenida:TOKENS_QUINCENAL, recordatorio2:TOKENS_QUINCENAL, recordatorio1:TOKENS_QUINCENAL,
   venceHoy:TOKENS_QUINCENAL, moraTemprana:TOKENS_QUINCENAL, mora:TOKENS_QUINCENAL,
-  recibo:TOKENS_QUINCENAL, prorroga:TOKENS_QUINCENAL,
+  recibo:TOKENS_QUINCENAL.concat(['nivel']), prorroga:TOKENS_QUINCENAL,
   /* Estas cuatro van sin crédito delante (p=null): {monto} y {saldo} saldrían
      en cero, así que tampoco se ofrecen. */
   historial:['nombre','negocio','enlace'],
@@ -2166,7 +2172,7 @@ const TOKENS_POR_PLANTILLA={
   enlaceCorregido:['nombre','negocio','enlace'],
   acuerdoPactado:['nombre','negocio','prorroga','fecha_pago'],
   recordatorioRespaldado:['nombre','negocio','cuota','n','plazo','fecha_pago'],
-  reciboRespaldado:['nombre','negocio','cuota','n','plazo']
+  reciboRespaldado:['nombre','negocio','cuota','n','plazo','nivel']
 };
 function tokensDe(k){ return TOKENS_POR_PLANTILLA[k]||TOKENS_QUINCENAL; }
 /* Los que el mensaje escribe y nadie va a contestar. Solo mira tokens con la
@@ -2181,7 +2187,7 @@ function aplicarVarsDemo(txt,k){
   const d={nombre:'María',negocio:DB.config.negocio||'Tu Garantía',
     monto:'$400.000',saldo:'$480.000',prorroga:'$80.000',
     fecha_pago:'30 de junio de 2026',dias_mora:'3',
-    codigo:'TG-A3F7-K92M',codigo_acceso:'K7QP3',usuario:'3001112233',
+    codigo:'TG-A3F7-K92M',codigo_acceso:'K7QP3',usuario:'3001112233',nivel:'oro',
     cuota:'$70.200',n:'2',plazo:'6',
     /* El enlace sale de urlApp(), no de URL_APP_DEF: si algún día hay una
        dirección puesta a mano, lo que se ve acá tiene que ser lo que va a salir

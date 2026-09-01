@@ -112,7 +112,10 @@
   var TOPES = [
     /* consumo y ordinario = interés bancario corriente × 1,5 */
     { desde: '2026-07-01', hasta: '2026-07-31', consumo_ordinario: 0.2879, ibc: 0.1919, fuente: 'Resolución SFC julio 2026' },
-    { desde: '2026-08-01', hasta: '2026-08-31', consumo_ordinario: 0.2966, ibc: 0.1977, fuente: 'Resolución 1139 de 2026' }
+    { desde: '2026-08-01', hasta: '2026-08-31', consumo_ordinario: 0.2966, ibc: 0.1977, fuente: 'Resolución 1139 de 2026' },
+    /* 1-sep-2026: la más baja del año. La tasa fija del producto (24% E.A.)
+       queda 5,24 puntos por debajo del techo — sigue legal, con aire. */
+    { desde: '2026-09-01', hasta: '2026-09-30', consumo_ordinario: 0.2924, ibc: 0.1949, fuente: 'Resolución 1260 de 2026' }
   ];
 
   /* El régimen de CONSUMO DE BAJO MONTO (que llega a 65,46%) NO está en esta
