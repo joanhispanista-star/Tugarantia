@@ -2349,6 +2349,13 @@ function verCliente(id){
   const fila=(k,v)=>v?`<div class="info-row"><span class="k">${k}</span><span class="vv">${escHTML(v)}</span></div>`:'';
   const vivienda=[s.tipoVivienda,s.numeroVivienda].filter(Boolean).join(' ');
   const r=riesgoCliente(s),npr=totalProrrogasCliente(s);
+  /* Lo que este cliente lleva perdonado, DERIVADO de p.condonaciones de sus
+     créditos y nunca de un contador guardado — misma razón que descuentosDelSocio
+     en el espejo: un contador se desincroniza el día que Joan edita un pago y
+     desde ahí miente para siempre. Tenerlo en la ficha es lo que convierte un
+     favor suelto en una política. */
+  const perdones=ps.reduce((t,p)=>t.concat(p.condonaciones||[]),[]);
+  const perdonado=perdones.reduce((t,c)=>t+(Number(c.costo)||0)+(Number(c.mora)||0),0);
   const fotos=[['Cédula (frente)',s.cedulaFrenteFoto],['Cédula (reverso)',s.cedulaReversoFoto],['Selfie con cédula',s.selfieFoto]].filter(f=>f[1]);
   const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div><div class="gal">${fotos.map(f=>`<a href="${f[1]}" target="_blank"><img src="${f[1]}"><div class="cap">${f[0]}</div></a>`).join('')}</div>`:'';
   const fondo=fondoCuponDe(s);
@@ -2398,6 +2405,7 @@ function verCliente(id){
     <div class="info-row"><span class="k">Nivel <span class="muted">(el tramo de su garantía · no le mueve el cupo)</span></span><span class="vv"><b>${escHTML(MotorReglas.nombreNivel(mg.nivel))}</b> <span class="muted">· le da ${nivProrr} prórroga${nivProrr!==1?'s':''} por crédito, y sigue a la garantía: si ella sube o baja, el nivel también</span></span></div>
     <div class="info-row"><span class="k">Cupo quincenal <span class="muted">(su garantía, uno a uno)</span></span><span class="vv"><b>${COP(qCupo.cupo)}</b>${qCupo.freno.aplicado?` <span class="muted">(topado por el freno de ingreso: sin él sería ${COP(qCupo.freno.cupo_sin_freno)})</span>`:''}</span></div>
     <div class="info-row"><span class="k">Riesgo (sugerido)</span><span class="vv"><span class="chip ${r.cls}">${r.txt}</span> <span class="muted">${npr} prórroga${npr!==1?'s':''} de ${ps.length} crédito${ps.length!==1?'s':''}</span></span></div>
+    ${perdones.length?`<div class="info-row"><span class="k">Descuentos que le has dado</span><span class="vv"><b>${COP(perdonado)}</b> <span class="muted">en ${perdones.length} perdón${perdones.length!==1?'es':''} de mora o costo, con motivo anotado</span></span></div>`:''}
     ${fila('Celular',waNum(s)+(s.whatsappIgual?' (es WhatsApp)':(s.whatsappNumero?' · WA: '+s.whatsappNumero:'')))}
     ${fila('Celular 2 (opcional)',s.telefono2)}
     ${fila('Correo',s.email)} ${fila('Cédula',s.cedula)}
@@ -2741,6 +2749,14 @@ function abrirPago(id){
     <div class="info-row"><span class="k">Vence</span><b>${fmtFecha(PUENTE.corteDelCredito(p))}</b></div>
     ${(p.prorrogas||[]).length?`<div class="muted" style="margin-top:8px">Prórrogas: ${p.prorrogas.length} · ganancia acumulada ${COP(gananciaCobrada(p))}</div>`:''}
     <div class="field" style="margin-top:12px"><label>Fecha en que paga</label><input id="pgFecha" type="date" value="${hoyISO()}" oninput="calcPago('${p.id}')"></div>
+    <!-- El descuento vive FUERA de #pgCalc a propósito: calcPago repinta ese
+         contenedor con cada tecla, y si el % viviera adentro, escribirlo lo
+         borraría a mitad de dígito. calcPago solo lo muestra u oculta. -->
+    <div id="pgDescBox" style="display:none">
+      <div class="sub-h">Descuento de la mora (opcional)</div>
+      <div class="field"><label>% del recargo que le perdonas (100 = toda la mora)</label><input id="pgDescPct" type="number" inputmode="numeric" min="0" max="100" placeholder="0" oninput="calcPago('${p.id}')"></div>
+      <div class="field"><label>Motivo del descuento</label><input id="pgDescMotivo" maxlength="120" placeholder="p. ej. se le enfermó el hijo"></div>
+    </div>
     <div class="sub-h">Comprobante (opcional)</div>
     <label class="up ${_compTmp?'ok':''}" id="compBox"><span class="ic">📎</span><span class="lbl">Subir foto del comprobante</span><input type="file" accept="image/*" onchange="subirComprobante(event)"></label>
     <div id="pgCalc" style="margin-top:14px"></div>
@@ -2762,14 +2778,39 @@ function abrirPago(id){
    MEDIDO: 200.000 con 21 días de mora, prorrogados y cobrados dentro del corte
    nuevo. La fila decía «Garantía que le deja $18.000» y el bloque de al lado, en
    la MISMA pantalla y del MISMO pago, «$36.000 se le vuelven garantía». */
+/* 2-sep-2026 — EL DESCUENTO DE LA MORA (pedido de Joan: «que pueda hacer un
+   100% u otro porcentaje, tanto en la prórroga como en el valor total a
+   pagar»). La LEY de un cobro con descuento ya estaba escrita y probada en el
+   espejo (cuentasDelCobro, pruebas/cobro.test.js) y acá se sigue al pie:
+   · el % es solo cómo Joan lo piensa — a los libros y al motor entran PESOS,
+     topados contra lo causado: perdonar más que la mora no es descuento, es
+     perdonar capital, y eso es una pérdida, no un favor;
+   · lo que se reparte y acredita es LA PLATA QUE ENTRA, nunca el nominal
+     (acreditar el nominal le acuñaría al socio cupo que su plata no respalda);
+   · el perdón queda en p.condonaciones —lista que SOLO SUMA (panel/nube.js)—
+     con motivo obligatorio: un descuento sin motivo, a los tres meses, es un
+     cuadre que no cuadra. */
+function descuentoDeMora(liq){
+  const pct=Math.max(0,Math.min(100,Math.round(Number(gv('pgDescPct'))||0)));
+  const mora=Math.round(liq.recargo_mora||0);
+  return { pct, mora:Math.min(Math.round(mora*pct/100),mora), motivo:gv('pgDescMotivo').slice(0,120) };
+}
 function calcPago(id){
   const box=document.getElementById('pgCalc'); if(!box)return;
   const p=DB.prestamos.find(x=>x.id===id); const f=gv('pgFecha'); const liq=liqCredito(p,f);
   const s=DB.socios.find(x=>x.id===p.socioId);
-  /* La prórroga la contesta el MOTOR para ESTA fecha: cuánto cuesta, a qué
-     corte pasa y si todavía le queda alguna. Un día más de atraso no solo suma
-     recargo: también puede correr el corte nuevo. */
-  const c=cuotaPlan(p), cs=cuotasPlan(p), pr=liqProrroga(p,f);
+  const c=cuotaPlan(p), cs=cuotasPlan(p);
+  /* Con plan de pagos el descuento no se ofrece: la cuota ya es un precio
+     reducido pactado por el §8, y perdonarle la mora encima sería una regla
+     nueva decidida en una pantalla. Si algún día hace falta, pasa por el motor. */
+  const conDesc=!c&&liq.recargo_mora>0;
+  const dBox=document.getElementById('pgDescBox'); if(dBox)dBox.style.display=conDesc?'':'none';
+  const d=conDesc?descuentoDeMora(liq):{pct:0,mora:0,motivo:''};
+  const entro=liq.costo_total_pagado-d.mora;
+  /* La prórroga la contesta el MOTOR para ESTA fecha —cuánto cuesta, a qué
+     corte pasa, si le queda alguna— y ya con el descuento restado del recargo:
+     la misma mora perdonada vale para pagar todo o para prorrogar. */
+  const pr=liqProrroga(p,f,d.mora);
   const pct=c?Math.round((p.planPagos.tasa_por_corte||0)*100):p.costoPct;
   /* Tres situaciones y tres avisos: con plan de pagos no hay prórroga que
      ofrecer; sin prórrogas queda la salida del §8; y si le quedan, se le dice
@@ -2779,12 +2820,12 @@ function calcPago(id){
     : (pr&&!pr.ok
       ? `<div class="alerta warn"><b>Ya usó sus ${pr.prorrogas_permitidas} prórroga(s)</b> — es lo que da el nivel ${pr.nivel_socio}. Si no puede pagar todo, la salida es el <b>plan de pagos</b> del §8: el capital en ${MotorReglas.CUOTAS_PLAN_DE_PAGOS} cortes con un costo reducido del ${Math.round(MotorReglas.TASA_PLAN_DE_PAGOS*100)}%.</div>`
       : (pr
-        ? `<div class="alerta info">Si no puede pagar todo, registra una <b>prórroga</b>: paga ${COP(pr.total_a_pagar)}${pr.recargo_mora?` (el ${p.costoPct}% del ciclo, ${COP(pr.costo_prorroga)}, <b>más el recargo de mora ya causado, ${COP(pr.recargo_mora)}</b>: la prórroga no lo borra)`:` (el ${p.costoPct}%)`} y el capital pasa a la quincena del <b>${fmtFecha(pr.fecha_corte_nueva)}</b>, que siempre queda por delante de hoy. Le quedan <b>${pr.prorrogas_permitidas-pr.prorrogas_usadas}</b> de ${pr.prorrogas_permitidas}.</div>`
+        ? `<div class="alerta info">Si no puede pagar todo, registra una <b>prórroga</b>: paga ${COP(pr.total_a_pagar)}${d.mora?` <b>— ya con tus ${COP(d.mora)} de mora perdonados —</b>`:''}${pr.recargo_mora?` (el ${p.costoPct}% del ciclo, ${COP(pr.costo_prorroga)}, <b>más el recargo de mora ${d.mora?'que quedó':'ya causado'}, ${COP(pr.recargo_mora)}</b>: la prórroga no lo borra)`:` (el ${p.costoPct}%)`} y el capital pasa a la quincena del <b>${fmtFecha(pr.fecha_corte_nueva)}</b>, que siempre queda por delante de hoy. Le quedan <b>${pr.prorrogas_permitidas-pr.prorrogas_usadas}</b> de ${pr.prorrogas_permitidas}.</div>`
         : ''));
   /* El acuerdo, si lo hay, arriba de todo: es lo primero que Joan tiene que
      ver antes de cobrar o de mandarle un WhatsApp de mora a alguien con pacto. */
   const avisoAcuerdo=acuerdoDe(p)
-    ? `<div class="alerta ${acuerdoIncumplido(p)?'warn':'info'}"><b>🤝 Acuerdo:</b> paga la prórroga de <b>${COP(p.acuerdo.monto)}</b> el <b>${fmtFecha(p.acuerdo.pactadaPara)}</b>.${acuerdoIncumplido(p)?' <b>Ese día no pagó</b>: el precio pactado venció y la mora siguió corriendo.':''}
+    ? `<div class="alerta ${acuerdoIncumplido(p)?'warn':'info'}"><b>🤝 Acuerdo:</b> paga la prórroga de <b>${COP(p.acuerdo.monto)}</b>${p.acuerdo.condonadaMora?` <span class="muted">(ya con ${COP(p.acuerdo.condonadaMora)} de mora perdonados)</span>`:''} el <b>${fmtFecha(p.acuerdo.pactadaPara)}</b>.${acuerdoIncumplido(p)?' <b>Ese día no pagó</b>: el precio pactado venció y la mora siguió corriendo.':''}
        <div style="margin-top:8px"><button class="btn btn-sm btn-negro" onclick="cumplirAcuerdo('${p.id}')">✓ Cumplió: recibí la prórroga</button>
        <button class="btn btn-ghost btn-sm" onclick="romperAcuerdo('${p.id}')">✕ Deshacer el acuerdo</button></div></div>`
     : '';
@@ -2794,16 +2835,34 @@ function calcPago(id){
   const btnProrroga=c?''
     :(pr&&!pr.ok?`<button class="btn btn-negro" onclick="registrarProrroga('${p.id}')">Ver el plan de pagos</button>`
      :(pr?`<button class="btn btn-negro" onclick="registrarProrroga('${p.id}')">↻ Prórroga (${COP(pr.total_a_pagar)})</button>`:'<span></span>'));
+  /* Con descuento, la garantía y el reparto salen de LA PLATA QUE ENTRA, con
+     las mismas dos llamadas al motor que hace el espejo (cuentasDelCobro):
+     restar dos respuestas del motor no es reimplementar una regla; inventar
+     una tercera sí lo sería. Sin descuento entro == costo_total_pagado y el
+     reparto devuelve exactamente liq.garantia_generada (probado en
+     pruebas/cobro.test.js), así que esta fila no puede decir un número y el
+     bloque «solo para ti» otro. */
+  let garantia=liq.garantia_generada, filaDesc='', avisoDesc='';
+  if(d.mora>0){
+    const opc={aTiempo:liq.acredita_en_fecha!==false,producto:'quincenal',cuponPendiente:s?fondoCuponDe(s).cupon_pendiente:undefined};
+    const nom=MotorReglas.repartirCosto(liq.costo_total_pagado,opc), cob=MotorReglas.repartirCosto(entro,opc);
+    garantia=cob.garantia_socio;
+    filaDesc=`<div class="calc-row"><span style="color:var(--ambar)">Descuento de mora (${d.pct}%)</span><span class="v" style="color:var(--ambar)">− ${COP(d.mora)}</span></div>`;
+    avisoDesc=`<div class="alerta warn solo-tuyo"><b class="tit-solo">Solo para ti · lo que cuesta este perdón</b>
+      De los ${COP(d.mora)} perdonados, <b>${COP((nom.operativo+nom.amortiza_cupon)-(cob.operativo+cob.amortiza_cupon))}</b> salen de tu ganancia
+      y <b>${COP(nom.garantia_socio-cob.garantia_socio)}</b> son garantía que él deja de recibir. Queda anotado en el crédito con su motivo.</div>`;
+  }
   box.innerHTML=`<div class="calc">
       <div class="calc-row"><span>${c?`Capital de la cuota ${c.n} de ${cs.length}`:'Capital'}</span><span class="v">${COP(liq.capital)}</span></div>
       <div class="calc-row"><span>${c?`Costo del plan (${pct}% del saldo)`:`Costo del ciclo (${pct}%)`}</span><span class="v gano">${COP(liq.costo)}</span></div>
       ${liq.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">Recargo por ${liq.dias_mora} día(s) de mora · 1% diario</span><span class="v" style="color:var(--ambar)">${COP(liq.recargo_mora)}</span></div>`:''}
-      <div class="calc-row"><span><b>${c?'Total de la cuota':'Total para saldar'}</b></span><span class="v"><b>${COP(liq.total_a_pagar)}</b></span></div>
-      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(liq.garantia_generada)}${liq.acredita_en_fecha?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${liq.pago_a_tiempo?'porque el crédito ya venía de una mora':'por pagar tarde'})</span>`}</span></div>
+      ${filaDesc}
+      <div class="calc-row"><span><b>${c?'Total de la cuota':'Total para saldar'}</b></span><span class="v"><b>${COP(liq.total_a_pagar-d.mora)}</b></span></div>
+      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(garantia)}${liq.acredita_en_fecha?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${liq.pago_a_tiempo?'porque el crédito ya venía de una mora':'por pagar tarde'})</span>`}</span></div>
     </div>
-    ${s?bloqueReparto(s,liq.costo_total_pagado,liq.acredita_en_fecha,'quincenal'):''}
-    ${avisoAcuerdo}${aviso}
-    <div class="two"><button class="btn btn-rojo" onclick="pagarTotal('${p.id}')">${c?`✓ Pagó la cuota ${c.n} (${COP(liq.total_a_pagar)})`:`✓ Pagó todo (${COP(liq.total_a_pagar)})`}</button>${btnProrroga}</div>${btnPactar}`;
+    ${s?bloqueReparto(s,entro,liq.acredita_en_fecha,'quincenal'):''}
+    ${avisoDesc}${avisoAcuerdo}${aviso}
+    <div class="two"><button class="btn btn-rojo" onclick="pagarTotal('${p.id}')">${c?`✓ Pagó la cuota ${c.n} (${COP(liq.total_a_pagar)})`:`✓ Pagó todo (${COP(liq.total_a_pagar-d.mora)})`}</button>${btnProrroga}</div>${btnPactar}`;
 }
 async function subirComprobante(e){ const f=e.target.files[0]; if(!f)return; try{ _compTmp=await comprimir(f); const box=document.getElementById('compBox'); box.classList.add('ok'); let img=box.querySelector('img'); if(!img){img=document.createElement('img');box.appendChild(img);} img.src=_compTmp; box.querySelector('.lbl').textContent='Comprobante listo'; }catch(err){ alert('No pude procesar la imagen.'); } }
 function addComp(p,tipo,monto){ if(_compTmp){ p.comprobantes=p.comprobantes||[]; p.comprobantes.push({fecha:hoyISO(),tipo,monto,foto:_compTmp}); _compTmp=null; } }
@@ -2823,10 +2882,26 @@ function pagarTotal(id){
   /* Con plan de pagos, "pagó" es pagó LA CUOTA: el crédito no se cierra hasta
      la última. Misma pantalla, misma fecha, misma liquidación del motor. */
   const c=cuotaPlan(p); if(c) return cobrarCuotaDelPlan(p,c,f,liq);
-  if(liq.recargo_mora&&!confirm('Cobrar '+COP(liq.total_a_pagar)+' a '+p.socioNombre+':\n\n'
+  const d=liq.recargo_mora>0?descuentoDeMora(liq):{pct:0,mora:0,motivo:''};
+  /* La misma regla del espejo, parada acá y no en la pantalla: un descuento
+     sin motivo, a los tres meses, es un cuadre que no cuadra. */
+  if(d.mora>0&&!d.motivo)
+    return alert('Falta el motivo del descuento.\n\nEscribe en dos palabras por qué se lo perdonaste: dentro de tres meses, un descuento sin motivo es un cuadre que no cuadra.');
+  const entro=liq.costo_total_pagado-d.mora;
+  const s=DB.socios.find(x=>x.id===p.socioId);
+  let garantia=liq.garantia_generada, deTuGanancia=0;
+  if(d.mora>0){
+    const opc={aTiempo:liq.acredita_en_fecha!==false,producto:'quincenal',cuponPendiente:s?fondoCuponDe(s).cupon_pendiente:undefined};
+    const nom=MotorReglas.repartirCosto(liq.costo_total_pagado,opc), cob=MotorReglas.repartirCosto(entro,opc);
+    garantia=cob.garantia_socio;
+    deTuGanancia=(nom.operativo+nom.amortiza_cupon)-(cob.operativo+cob.amortiza_cupon);
+  }
+  if(liq.recargo_mora&&!confirm('Cobrar '+COP(liq.total_a_pagar-d.mora)+' a '+p.socioNombre+':\n\n'
     +'• Capital: '+COP(liq.capital)+'\n• Costo del ciclo: '+COP(liq.costo)+'\n'
-    +'• Recargo por '+liq.dias_mora+' día(s) de mora: '+COP(liq.recargo_mora)+'\n\n'
-    +'Le deja '+COP(liq.garantia_generada)+' de garantía. ¿Lo registro?'))return;
+    +'• Recargo por '+liq.dias_mora+' día(s) de mora: '+COP(liq.recargo_mora)
+    +(d.mora?' − '+COP(d.mora)+' perdonados ('+d.pct+'%)':'')+'\n'
+    +(d.mora?'\n• DESCUENTO: '+COP(d.mora)+' de mora · sale '+COP(deTuGanancia)+' de tu ganancia\n• Motivo: '+d.motivo+'\n':'')
+    +'\nLe deja '+COP(garantia)+' de garantía. ¿Lo registro?'))return;
   p.pagado=true; p.fechaPagado=f; p.cicloPago=PUENTE.corteDelCredito(p);
   /* 3-ago-2026 — LA HUELLA DE UN COBRO REAL. Esta fechaPagado la tecleó Joan al
      cobrar; no es la que dejó el Panel del 17-jul. Con esta marca puesta, la
@@ -2834,12 +2909,26 @@ function pagarTotal(id){
      crédito viejo con abonos parciales cobrado hoy se corrompía en la carga
      siguiente y le duplicaba la garantía al socio. */
   p.cobroRegistrado=true;
-  /* La ganancia del ciclo es el costo TOTAL cobrado (costo + recargo). De este
-     número salen tu ganancia histórica y, por el puente, la garantía del socio:
-     dejar afuera el recargo es regalarle a los dos la misma plata. */
-  p.gananciaPago=liq.costo_total_pagado; p.recargoMora=liq.recargo_mora;
-  addComp(p,'pago',liq.total_a_pagar); guardar(); cerrarModal(); render();
-  const s=DB.socios.find(x=>x.id===p.socioId); if(s&&confirm('¡Pago completo! ¿Enviar recibo por WhatsApp?'))gestionar(id,'recibo'); }
+  /* La ganancia del ciclo es el costo TOTAL COBRADO (costo + recargo, ya con el
+     descuento restado). De este número salen tu ganancia histórica y, por el
+     puente, la garantía del socio: dejar afuera el recargo es regalarle a los
+     dos la misma plata, y meterle el nominal habiendo entrado menos le acuñaría
+     al socio cupo sin respaldo (la «opción B» prohibida de cuentasDelCobro). */
+  p.gananciaPago=entro; p.recargoMora=Math.round(liq.recargo_mora)-d.mora;
+  /* El HECHO aparte de la plata, igual que el espejo (cobrar): lo CAUSADO antes
+     del descuento y lo que de verdad entró. Sin moraCausada, un perdón del 100%
+     borraría la única prueba de que hubo mora (puente.js: movimientosConMora);
+     sin montoRecibido no se distingue nunca un descuento de un error de dedo. */
+  p.costoCausado=Math.round(liq.costo); p.moraCausada=Math.round(liq.recargo_mora);
+  p.montoRecibido=liq.total_a_pagar-d.mora;
+  if(d.mora>0){
+    /* Lista que SOLO SUMA (panel/nube.js): un perdón anotado acá y otro en el
+       celular se conservan los dos al fusionar. */
+    p.condonaciones=p.condonaciones||[];
+    p.condonaciones.push({fecha:f,costo:0,mora:d.mora,motivo:d.motivo,quien:'computador'});
+  }
+  addComp(p,'pago',liq.total_a_pagar-d.mora); guardar(); cerrarModal(); render();
+  if(s&&confirm('¡Pago completo! ¿Enviar recibo por WhatsApp?'))gestionar(id,'recibo'); }
 /* =========================================================================
    4-ago-2026 (tarde) — LA PRÓRROGA PASA POR EL MOTOR. ARREGLO ESTRUCTURAL.
 
@@ -2902,7 +2991,7 @@ function creditoMotor(p){
 /* Todo lo que hay que saber para prorrogar este crédito ESE día. Devuelve null
    cuando ni siquiera se puede preguntar (crédito pagado, ya en plan de pagos o
    con el capital en cero): un dato sucio no puede impedir abrir la pantalla. */
-function liqProrroga(p,fecha){
+function liqProrroga(p,fecha,condonaMora){
   if(!p||p.pagado||tienePlan(p)||capitalActual(p)<=0) return null;
   /* 5-ago-2026 — lo que la prórroga cobra de mora es LO YA CAUSADO DEL CICLO, y
      eso lo contesta el puente recorriendo los hechos: no se recalcula acá sobre
@@ -2910,10 +2999,17 @@ function liqProrroga(p,fecha){
      diasCausados} a la MISMA fecha, así que el motor no vuelve a correr ni un
      día y el socio paga por prorrogar exactamente el recargo que la pantalla de
      cobro le acaba de mostrar. Antes, con un abono viejo de por medio, la
-     prórroga cobraba un recargo y el cobro total otro. */
+     prórroga cobraba un recargo y el cobro total otro.
+     2-sep-2026 — `condonaMora` (pesos, opcional): el descuento entra RESTADO de
+     recargoCausado, con los MISMOS diasCausados. Como los días viajan enteros,
+     el motor no corre ni un día de más y el descuento sale exacto; y como
+     a_tiempo sale de fechas y no de plata, un perdón del 100% no convierte una
+     prórroga tardía en puntual — la prueba de la mora (aTiempo, diasMora) queda
+     congelada en el movimiento aunque el recargo cobrado sea $0. */
   const liq=liqCredito(p,fecha||hoyISO());
+  const cond=Math.min(Math.max(0,Math.round(Number(condonaMora)||0)),Math.round(liq.recargo_mora));
   try{ return MotorReglas.liquidarProrroga(creditoMotor(p),fecha||hoyISO(),
-    {recargoCausado:liq.recargo_mora,diasCausados:liq.dias_mora}); }
+    {recargoCausado:liq.recargo_mora-cond,diasCausados:liq.dias_mora}); }
   catch(e){ return null; }
 }
 /* Lo que el socio paga HOY por prorrogar: costo del ciclo + el recargo del 1%
@@ -2951,16 +3047,23 @@ let _fechaCobro=null;
 function registrarProrroga(id){
   const p=DB.prestamos.find(x=>x.id===id), f=gv('pgFecha')||hoyISO();
   _fechaCobro=f;
-  const r=liqProrroga(p,f);
+  const liq=liqCredito(p,f);
+  const d=liq&&liq.recargo_mora>0?descuentoDeMora(liq):{pct:0,mora:0,motivo:''};
+  if(d.mora>0&&!d.motivo)
+    return alert('Falta el motivo del descuento.\n\nEscribe en dos palabras por qué se lo perdonaste: dentro de tres meses, un descuento sin motivo es un cuadre que no cuadra.');
+  const r=liqProrroga(p,f,d.mora);
   if(!r) return alert(tienePlan(p)
     ? 'Este crédito ya está en plan de pagos: de ahí no se sale prorrogando. Cóbrale la cuota que sigue.'
     : 'Este crédito no admite prórroga (está pagado o su capital quedó en cero).');
   /* EL TOPE POR NIVEL. Cuando se acaban, la salida del §8 es el plan de pagos,
-     y el motor ya lo trae armado: no hay que volver a preguntárselo. */
-  if(!r.ok) return ofrecerPlanDePagos(p,r);
-  if(!confirm((r.recargo_mora
+     y el motor ya lo trae armado: no hay que volver a preguntárselo. PERO SIN
+     el descuento: la entrada del plan la arma otro flujo que no anota perdones,
+     y una mora rebajada que nadie registró es plata que desaparece en silencio. */
+  if(!r.ok) return ofrecerPlanDePagos(p,liqProrroga(p,f)||r);
+  if(!confirm((liq.recargo_mora
     ? `Registrar prórroga de ${COP(r.total_a_pagar)} a ${p.socioNombre}:\n\n`
-      +`• Costo del ciclo: ${COP(r.costo_prorroga)}\n• Recargo por ${r.dias_mora} día(s) de mora ya causados: ${COP(r.recargo_mora)}\n\n`
+      +`• Costo del ciclo: ${COP(r.costo_prorroga)}\n• Recargo por ${liq.dias_mora} día(s) de mora ya causados: ${COP(liq.recargo_mora)}`
+      +(d.mora?` − ${COP(d.mora)} perdonados (${d.pct}%): cobra ${COP(r.recargo_mora)}\n• Motivo del descuento: ${d.motivo}`:'')+`\n\n`
       +`El capital pasa a la quincena del ${fmtFecha(r.fecha_corte_nueva)}.\n`
     : `Registrar prórroga de ${COP(r.total_a_pagar)} a ${p.socioNombre} y pasar el pago a ${fmtFecha(r.fecha_corte_nueva)}.\n`)
     +`Le deja ${COP(r.garantia_generada)} de garantía${r.a_tiempo?'':' (el '+PCT_GARANTIA_MORA+', por dejarla tarde)'}.\n`
@@ -2969,10 +3072,16 @@ function registrarProrroga(id){
     +` ¿Lo registro?`))return;
   /* Lo que se guarda es el MOVIMIENTO que armó el motor: monto, recargo aparte
      (para que el puente lo acredite a la mitad sin degradar el costo), puntualidad
-     congelada y el corte al que pasó DE VERDAD. */
+     congelada y el corte al que pasó DE VERDAD. Con descuento, monto y mora ya
+     vienen rebajados del motor, y aTiempo/diasMora conservan la mora que HUBO:
+     el perdón no lava la historia, solo la plata. */
   p.prorrogas=p.prorrogas||[];
   p.prorrogas.push({fecha:r.fecha, ciclo:r.fecha_corte_anterior, monto:r.total_a_pagar,
     mora:r.recargo_mora, aTiempo:r.a_tiempo, diasMora:r.dias_mora, nuevoCiclo:r.fecha_corte_nueva});
+  if(d.mora>0){
+    p.condonaciones=p.condonaciones||[];
+    p.condonaciones.push({fecha:r.fecha,costo:0,mora:d.mora,motivo:d.motivo,quien:'computador',sobre:'prorroga'});
+  }
   addComp(p,'prorroga',r.total_a_pagar);
   p.cicloActual=r.fecha_corte_nueva;
   guardar(); cerrarModal(); render();
@@ -2999,16 +3108,25 @@ function acuerdoDe(p){ return p&&!p.pagado&&p.acuerdo?p.acuerdo:null; }
 function acuerdoVigente(p){ const a=acuerdoDe(p); return a&&a.pactadaPara>=hoyISO()?a:null; }
 function acuerdoIncumplido(p){ const a=acuerdoDe(p); return a&&a.pactadaPara<hoyISO()?a:null; }
 
+/* El descuento que Joan tenía escrito en la hoja de cobro cuando abrió el
+   pacto. Viaja en una variable y no releyendo el campo, porque openModal
+   REEMPLAZA el DOM: cuando guardarAcuerdo corre, pgDescPct ya no existe. */
+let _acuerdoDesc={mora:0,motivo:''};
 function pactarAcuerdo(id){
   const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
   if(acuerdoDe(p)) return alert('Ya tiene un acuerdo pactado para el '+fmtFecha(p.acuerdo.pactadaPara)+'. Deshazlo primero si quieren cambiar la fecha.');
-  const f=hoyISO(), r=liqProrroga(p,f);
+  const f=hoyISO(), liq=liqCredito(p,f);
+  const d=liq&&liq.recargo_mora>0?descuentoDeMora(liq):{pct:0,mora:0,motivo:''};
+  if(d.mora>0&&!d.motivo)
+    return alert('Falta el motivo del descuento.\n\nEscribe en dos palabras por qué se lo perdonaste: dentro de tres meses, un descuento sin motivo es un cuadre que no cuadra.');
+  _acuerdoDesc={mora:d.mora,motivo:d.motivo};
+  const r=liqProrroga(p,f,d.mora);
   if(!r) return alert('Este crédito no admite prórroga, así que tampoco un acuerdo.');
   if(!r.ok) return alert('Ya usó sus prórrogas: no hay prórroga que pactar. La salida es el plan de pagos.');
   openModal('Pactar acuerdo · '+p.socioNombre,`
-    <div class="help">La prórroga cuesta HOY <b>${COP(r.total_a_pagar)}</b>${r.recargo_mora?` (costo ${COP(r.costo_prorroga)} + mora ya causada ${COP(r.recargo_mora)})`:''}.
+    <div class="help">La prórroga cuesta HOY <b>${COP(r.total_a_pagar)}</b>${d.mora?` — ya con tus <b>${COP(d.mora)}</b> de mora perdonados`:''}${r.recargo_mora?` (costo ${COP(r.costo_prorroga)} + mora ${d.mora?'que quedó':'ya causada'} ${COP(r.recargo_mora)})`:''}.
       Ese precio queda <b>congelado</b> si paga a más tardar el día pactado. Si se pasa de la fecha,
-      paga lo causado real de ese día — el acuerdo no frena la mora, solo la perdona si cumple.</div>
+      paga lo causado real de ese día — el acuerdo no frena la mora, solo la perdona si cumple${d.mora?', y el descuento se vence con él':''}.</div>
     <div class="field"><label>¿Qué día se comprometió a pagarla?</label>
       <input id="acFecha" type="date" min="${f}"></div>
     <div id="acAviso"></div>
@@ -3020,14 +3138,19 @@ function guardarAcuerdo(id){
   if(!fp) return alert('Pon la fecha que acordaron.');
   if(fp<=f) return alert('Un acuerdo para hoy no es un acuerdo: cóbrale la prórroga de una vez.');
   if(diasEntre(f,fp)>31&&!confirm('Son '+diasEntre(f,fp)+' días de espera. Un acuerdo tan largo casi siempre termina en plan de pagos.\n\n¿Lo registro igual?')) return;
-  const r=liqProrroga(p,f); if(!r||!r.ok) return alert('Este crédito ya no admite la prórroga.');
+  const r=liqProrroga(p,f,_acuerdoDesc.mora); if(!r||!r.ok) return alert('Este crédito ya no admite la prórroga.');
   if(!confirm('Registrar el acuerdo con '+p.socioNombre+':\n\n'
     +'• Paga la prórroga de '+COP(r.total_a_pagar)+' el '+fmtFecha(fp)+'\n'
+    +(_acuerdoDesc.mora?'• Ese precio ya trae tu descuento de '+COP(_acuerdoDesc.mora)+' de la mora ('+_acuerdoDesc.motivo+')\n':'')
     +'• Ese día su capital pasa a la quincena siguiente\n'
     +'• Si no paga ese día, el precio pactado se vence y corre lo causado real\n\n¿Lo registro?')) return;
-  /* Números del MOTOR, congelados al pactar. La pantalla no calcula: guarda. */
+  /* Números del MOTOR, congelados al pactar. La pantalla no calcula: guarda.
+     `mora` ya viene con el descuento restado; la condonación NO se anota acá
+     sino al CUMPLIR, porque un pacto no es plata en mano y el perdón de una
+     mora que nunca se cobró no debe aparecer en los libros si el acuerdo cae. */
   p.acuerdo={ pactadoEl:f, pactadaPara:fp, monto:r.total_a_pagar,
-              costo:r.costo_prorroga, mora:r.recargo_mora||0, diasMora:r.dias_mora||0 };
+              costo:r.costo_prorroga, mora:r.recargo_mora||0, diasMora:r.dias_mora||0,
+              condonadaMora:_acuerdoDesc.mora||0, motivoDescuento:_acuerdoDesc.motivo||'' };
   guardar(); cerrarModal(); render();
   if(confirm('Acuerdo registrado. ¿Mandarle la confirmación por WhatsApp?\n\n(Confirmar una operación pactada no gasta el contacto de cobranza de la semana: es la excepción del art. 8 de la Ley 2300.)'))
     gestionar(id,'acuerdoPactado');
@@ -3046,11 +3169,18 @@ function cumplirAcuerdo(id){
   if(!r) return alert('No pude liquidar la prórroga de este crédito.');
   if(!r.ok) return ofrecerPlanDePagos(p,r);
   if(!confirm('Cumplió el acuerdo'+(enFecha?'':' (TARDE: el precio pactado venció el '+fmtFecha(a.pactadaPara)+')')+':\n\n'
-    +'• Recibes '+COP(r.total_a_pagar)+(enFecha?' (el precio congelado del pacto)':' (lo causado real de hoy; lo pactado eran '+COP(a.monto)+')')+'\n'
+    +'• Recibes '+COP(r.total_a_pagar)+(enFecha?' (el precio congelado del pacto)':' (lo causado real de hoy; lo pactado eran '+COP(a.monto)+(a.condonadaMora?', y el descuento pactado también venció':'')+')')+'\n'
     +'• Su capital pasa a la quincena del '+fmtFecha(r.fecha_corte_nueva)+'\n\n¿Registro la prórroga?')) return;
   p.prorrogas=p.prorrogas||[];
   p.prorrogas.push({fecha:r.fecha, ciclo:r.fecha_corte_anterior, monto:r.total_a_pagar,
     mora:r.recargo_mora, aTiempo:r.a_tiempo, diasMora:r.dias_mora, nuevoCiclo:r.fecha_corte_nueva});
+  /* El perdón pactado se vuelve HECHO recién acá, con la plata en mano: si el
+     acuerdo traía descuento y se cumplió en fecha, la mora rebajada queda en la
+     lista que solo suma, con el motivo que se escribió al pactar. */
+  if(enFecha&&a.condonadaMora>0){
+    p.condonaciones=p.condonaciones||[];
+    p.condonaciones.push({fecha:r.fecha,costo:0,mora:a.condonadaMora,motivo:a.motivoDescuento||'acuerdo pactado',quien:'computador',sobre:'prorroga'});
+  }
   addComp(p,'prorroga',r.total_a_pagar);
   p.cicloActual=r.fecha_corte_nueva;
   delete p.acuerdo;

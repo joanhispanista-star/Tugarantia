@@ -106,7 +106,11 @@
        prorrogas     {fecha, ciclo, monto, mora, ...}         (crm.html:2247)
        abonosCapital {fecha, monto, ciclo|cuotaPlan, ...}     (crm.html:2325,2367)
        abonos        {fecha, monto}                           (esquema viejo)
-       condonaciones {fecha, costo, mora, motivo, quien}      (espejo.html cobrar)
+       condonaciones {fecha, costo, mora, motivo, quien}      (espejo.html cobrar;
+                     desde el 2-sep-2026 también crm.html —pagarTotal,
+                     registrarProrroga y cumplirAcuerdo— con `sobre:'prorroga'`
+                     cuando el perdón fue al prorrogar; `sobre` queda FUERA de
+                     la identidad, como `motivo` y `quien`)
 
      14-ago-2026 — POR QUÉ LOS DESCUENTOS SON UNA LISTA Y NO UN CAMPO.
      Un descuento perdonado es un HECHO fechado, igual que una prórroga: pasó, y

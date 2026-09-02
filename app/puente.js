@@ -860,10 +860,15 @@
                                          monto: num(q.costo) + num(q.recargo) }) });
     });
     /* Y el pago final del crédito: si el Panel le cobró recargo, hubo mora. Es
-       el mismo hecho que los de arriba, guardado en otro campo. */
-    if (p && p.pagado && num(p.recargoMora) > 0) {
+       el mismo hecho que los de arriba, guardado en otro campo.
+       2-sep-2026 — `moraCausada` entra de respaldo: desde que existen los
+       descuentos (espejo 14-ago, Panel 2-sep), `recargoMora` es la mora que
+       ENTRÓ, y un perdón del 100% la deja en $0 borrando la única prueba de que
+       hubo mora. La causada quedó guardada aparte justo para esto: perdonar la
+       plata no puede lavar la historia. */
+    if (p && p.pagado && (num(p.recargoMora) > 0 || num(p.moraCausada) > 0)) {
       movs.push({ ciclo: fechaFin(p.cicloPago), fecha: fechaFin(p.fechaPagado),
-                  mora: num(p.recargoMora) });
+                  mora: num(p.recargoMora) > 0 ? num(p.recargoMora) : num(p.moraCausada) });
     }
     return movs.filter(function (m) { return m.mora > 0 || m.aTiempo === false; });
   }

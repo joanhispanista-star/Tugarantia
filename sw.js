@@ -118,7 +118,11 @@
    versiones revienta. */
 /* v26 — 2-sep-2026 (segunda): el CRM acepta la clave de sincronizacion por el
    hash, para el traspaso entre pestañas del mismo navegador. */
-const CACHE = 'tugarantia-v26';
+/* v27 — 2-sep-2026 (tercera): el descuento de la mora llega al Panel del
+   computador (cobro total, prorroga y acuerdo), con la misma ley del espejo:
+   se reparte la plata que ENTRA y el perdon queda en p.condonaciones. Toca
+   panel/crm.html y app/puente.js (la prueba de la mora sobrevive al 100%). */
+const CACHE = 'tugarantia-v27';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

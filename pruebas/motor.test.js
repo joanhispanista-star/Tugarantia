@@ -3070,9 +3070,17 @@ describe('el quincenal se liquida por el motor, con la mora adentro', () => {
     const f = cuerpoCRM('pagarTotal');
     assert.match(f, /liqCredito\(/,
       'pagarTotal volvió a cobrar sin pasar por el motor');
-    assert.match(f, /p\.gananciaPago\s*=\s*liq\.costo_total_pagado/,
-      'la ganancia del ciclo es costo + recargo; con K(p) el recargo se regala ' +
-      'dos veces: a Joan y a la garantía del socio');
+    /* 2-sep-2026 — con los descuentos de mora, «el costo total» pasó a ser LA
+       PLATA QUE ENTRÓ: costo_total_pagado menos el perdón (`entro`). Sin
+       descuento son el mismo peso; con descuento, guardar el nominal le
+       acuñaría al socio cupo que su plata no respalda (la «opción B» prohibida
+       de cuentasDelCobro en el espejo). */
+    assert.match(f, /const entro=liq\.costo_total_pagado-d\.mora/,
+      'entro dejó de ser costo_total_pagado menos el perdón');
+    assert.match(f, /p\.gananciaPago\s*=\s*entro/,
+      'la ganancia del ciclo es la plata que ENTRÓ (costo + recargo − perdón); ' +
+      'con K(p) el recargo se regala dos veces, y con el nominal el socio acuña ' +
+      'cupo sin respaldo');
     assert.ok(!/p\.gananciaPago\s*=\s*K\(p\)/.test(f),
       'volvió el gananciaPago = K(p) sin mora');
     assert.match(f, /p\.fechaPagado\s*=\s*f\b/,
@@ -3096,8 +3104,10 @@ describe('el quincenal se liquida por el motor, con la mora adentro', () => {
     const f = cuerpoCRM('calcPago');
     assert.match(f, /liq\.recargo_mora/, 'el recargo tiene que estar a la vista');
     assert.match(f, /liq\.dias_mora/, 'y cuántos días son');
-    assert.match(f, /Pagó todo \(\$\{COP\(liq\.total_a_pagar\)\}\)/,
-      'el botón tiene que decir lo que de verdad se va a cobrar');
+    /* 2-sep-2026 — «lo que de verdad se va a cobrar» ahora resta el descuento
+       de mora que Joan tenga escrito (d.mora es 0 si no hay). */
+    assert.match(f, /Pagó todo \(\$\{COP\(liq\.total_a_pagar-d\.mora\)\}\)/,
+      'el botón tiene que decir lo que de verdad se va a cobrar, descuento incluido');
     assert.ok(!/Pagó todo \(\$\{COP\(totalCiclo\(p\)\)\}/.test(CRM),
       'el botón volvió a salir de una cuenta que no es la del motor');
   });
@@ -3187,7 +3197,11 @@ describe('la prórroga cobra el recargo ya causado (3-ago-2026)', () => {
     const f = cuerpoCRM('registrarProrroga');
     assert.match(f, /Costo del ciclo/, 'el desglose tiene que estar a la vista');
     assert.match(f, /r\.dias_mora/);
-    assert.match(f, /Recargo por \$\{r\.dias_mora\}/, 'y cuántos días de recargo son');
+    /* 2-sep-2026 — el confirm dice los días desde lo CAUSADO (liq), porque con
+       un descuento el desglose muestra la mora nominal y aparte lo perdonado.
+       Son los mismos días: liqProrroga entrega diasCausados=liq.dias_mora a la
+       misma fecha y el motor los devuelve tal cual. */
+    assert.match(f, /Recargo por \$\{liq\.dias_mora\}/, 'y cuántos días de recargo son');
   });
 
   test('EL PUENTE PARTE LA PRÓRROGA: cada parte con su factor', () => {
@@ -4149,8 +4163,12 @@ describe('el tope de prórrogas por nivel y el plan de pagos (§5 y §8)', () =>
 
   test('el Panel ofrece el plan y lo REGISTRA (antes ignoraba el ok:false)', () => {
     const reg = fnCRM('registrarProrroga');
-    assert.match(reg, /if\(!r\.ok\)\s*return ofrecerPlanDePagos\(p,r\)/,
-      'el Panel volvió a ignorar que se acabaron las prórrogas');
+    /* 2-sep-2026 — al plan se entra SIN el descuento de mora que hubiera en la
+       hoja: la entrada del plan la arma otro flujo que no anota perdones, y una
+       mora rebajada sin registro es plata que desaparece en silencio. Por eso
+       se re-liquida limpio antes de ofrecerlo. */
+    assert.match(reg, /if\(!r\.ok\)\s*return ofrecerPlanDePagos\(p,liqProrroga\(p,f\)\|\|r\)/,
+      'el Panel volvió a ignorar que se acabaron las prórrogas (o el plan entró con un descuento que nadie anota)');
     const ofr = fnCRM('ofrecerPlanDePagos');
     assert.match(ofr, /r\.plan_de_pagos/, 'el plan que se muestra es el del motor');
     assert.match(ofr, /registrarPlanDePagos/, 'y tiene que haber dónde registrarlo');
