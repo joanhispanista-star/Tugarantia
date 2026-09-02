@@ -584,7 +584,10 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
     P.ev('DB.prestamos.push(' + JSON.stringify(d) + ')');
     const msg = P.ev("mensajeParaCredito(DB.prestamos[DB.prestamos.length-1],DB.socios[0],'recibo')");
     assert.ok(msg.indexOf('{nivel}') < 0, 'la llave siguió saliendo literal: ' + msg);
-    assert.match(msg, /nivel (bronce|plata|oro|platino)/,
+    /* La lista sale de M.NIVELES, no quemada: el 2-sep la escala crecio a
+       nueve nombres y una regex fija se habria quedado mintiendo. */
+    const M2 = require('../app/motor.js');
+    assert.match(msg, new RegExp('nivel (' + M2.NIVELES.join('|') + ')'),
       'no puso un nivel de verdad: ' + msg);
   });
 

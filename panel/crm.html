@@ -2187,7 +2187,7 @@ function aplicarVarsDemo(txt,k){
   const d={nombre:'María',negocio:DB.config.negocio||'Tu Garantía',
     monto:'$400.000',saldo:'$480.000',prorroga:'$80.000',
     fecha_pago:'30 de junio de 2026',dias_mora:'3',
-    codigo:'TG-A3F7-K92M',codigo_acceso:'K7QP3',usuario:'3001112233',nivel:'oro',
+    codigo:'TG-A3F7-K92M',codigo_acceso:'K7QP3',usuario:'3001112233',nivel:'hierro',
     cuota:'$70.200',n:'2',plazo:'6',
     /* El enlace sale de urlApp(), no de URL_APP_DEF: si algún día hay una
        dirección puesta a mano, lo que se ve acá tiene que ser lo que va a salir
@@ -2356,7 +2356,8 @@ function verCliente(id){
      Decisión explícita de Joan: los niveles se quedan. Lo que perdieron es
      influencia sobre el cupo (que hoy es la garantía uno a uno), no existencia:
      siguen mandando el tope de prórrogas y siguen siendo el reconocimiento de
-     quien paga en fecha. Y sigue valiendo que nunca baja. Por eso la ficha
+     quien paga en fecha. 2-sep-2026: el nivel pasó a ser el TRAMO de la
+     garantía (decisión de Joan) y «nunca baja» quedó derogado. Por eso la ficha
      muestra el nivel al lado de lo único material que da —las prórrogas— y el
      cupo en su propio renglón, para que nadie lea uno como consecuencia del otro. */
   const mg=migrarSocio(s).garantia;
@@ -2394,7 +2395,7 @@ function verCliente(id){
         : `Mientras no vuelva, esos ${COP(fondo.cupon_pendiente)} son lo único que tienes en riesgo con él: el resto de su cupo lo respaldan costos que ya pagó.`}</div>
       ${fondo.ganancia_cupon?`<div style="margin-top:6px">Ganancia libre acumulada: <b>${COP(fondo.ganancia_libre)}</b>, de los cuales <b>${COP(fondo.ganancia_cupon)}</b> son del ${PCT_CUPON} que se liberó al saldarse el cupón.</div>`:''}
       <div class="muted" style="margin-top:6px;font-size:12px">Él no ve esto por ningún lado: para él su garantía es lo que le deja cada pago, y su cupo es esa garantía, uno a uno.</div></div>
-    <div class="info-row"><span class="k">Nivel <span class="muted">(reconocimiento · no le mueve el cupo)</span></span><span class="vv"><b style="text-transform:capitalize">${escHTML(mg.nivel)}</b> <span class="muted">· le da ${nivProrr} prórroga${nivProrr!==1?'s':''} por crédito, y nunca baja</span></span></div>
+    <div class="info-row"><span class="k">Nivel <span class="muted">(el tramo de su garantía · no le mueve el cupo)</span></span><span class="vv"><b>${escHTML(MotorReglas.nombreNivel(mg.nivel))}</b> <span class="muted">· le da ${nivProrr} prórroga${nivProrr!==1?'s':''} por crédito, y sigue a la garantía: si ella sube o baja, el nivel también</span></span></div>
     <div class="info-row"><span class="k">Cupo quincenal <span class="muted">(su garantía, uno a uno)</span></span><span class="vv"><b>${COP(qCupo.cupo)}</b>${qCupo.freno.aplicado?` <span class="muted">(topado por el freno de ingreso: sin él sería ${COP(qCupo.freno.cupo_sin_freno)})</span>`:''}</span></div>
     <div class="info-row"><span class="k">Riesgo (sugerido)</span><span class="vv"><span class="chip ${r.cls}">${r.txt}</span> <span class="muted">${npr} prórroga${npr!==1?'s':''} de ${ps.length} crédito${ps.length!==1?'s':''}</span></span></div>
     ${fila('Celular',waNum(s)+(s.whatsappIgual?' (es WhatsApp)':(s.whatsappNumero?' · WA: '+s.whatsappNumero:'')))}
@@ -2896,7 +2897,7 @@ function creditoMotor(p){
        celular del cliente mostraba la mitad: dos garantías del mismo pago.
        La regla sobrevive al cambio de reparto: hoy es 75 contra 37,5. */
     estuvo_en_mora:!!PUENTE.liquidarCiclo(p).estuvo_en_mora,
-    nivel_socio:s?migrarSocio(s).garantia.nivel:'bronce' };
+    nivel_socio:s?migrarSocio(s).garantia.nivel:'hierro' };
 }
 /* Todo lo que hay que saber para prorrogar este crédito ESE día. Devuelve null
    cuando ni siquiera se puede preguntar (crédito pagado, ya en plan de pagos o
@@ -3782,9 +3783,9 @@ function renderSocios(){
   MotorReglas.NIVELES.forEach(n=>{ porNivel[n]={n:0,garantia:0,cupo:0}; });
   foto.forEach(f=>{ const b=porNivel[f.m.garantia.nivel]; b.n++; b.garantia+=f.m.garantia.total; b.cupo+=f.cupo; });
   document.getElementById('socNiveles').innerHTML=
-    `<div class="card-h"><h3>Niveles</h3><span class="tag">Reconocimiento y prórrogas. El nivel nunca baja — y no mueve el cupo: el cupo es la garantía, uno a uno</span></div>`+
+    `<div class="card-h"><h3>Niveles</h3><span class="tag">El tramo de la garantía de cada socio: sube al doblarla, y baja si ella baja. No mueve el cupo: el cupo es la garantía, uno a uno</span></div>`+
     `<table><thead><tr><th>Nivel</th><th>Prórrogas</th><th>Socios</th><th>Garantía</th><th>Cupo disponible</th></tr></thead><tbody>${
-      MotorReglas.NIVELES.map(n=>`<tr><td><b style="text-transform:capitalize">${n}</b></td>
+      MotorReglas.NIVELES.map(n=>`<tr><td><b>${MotorReglas.nombreNivel(n)}</b></td>
         <td class="num muted">${Math.min(MotorReglas.PRORROGAS_POR_NIVEL[n],MotorReglas.TOPE_DURO_PRORROGAS)}</td>
         <td class="num">${porNivel[n].n}</td><td class="num">${COP(porNivel[n].garantia)}</td>
         <td class="num">${COP(porNivel[n].cupo)}</td></tr>`).join('')}</tbody></table>`;

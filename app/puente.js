@@ -1077,40 +1077,17 @@
     var meses = Math.max(0, Math.floor(diasEntre(desde, hasta) / 30));
     return { a_tiempo: aTiempo, racha: racha, meses_sin_mora: meses };
   }
-  /* Los instantes en que la cuenta del socio pudo cambiar de nivel: cada pago
-     (sube la racha, se cura un atraso), CADA CORTE QUE TUVO CADA CRÉDITO —no
-     solo el de hoy: el corte viejo que la prórroga dejó atrás es justamente el
-     que abrió la mora— cada día en que un corte se movió, y HOY. Nunca el
-     futuro. */
-  function instantesDeNivel(ps, hoy) {
-    var vistos = {}, fechas = [];
-    function agregar(f) {
-      if (f && f <= hoy && !vistos[f]) { vistos[f] = true; fechas.push(f); }
-    }
-    ps.forEach(function (p) {
-      if (p.pagado) agregar(fechaFin(p.fechaPagado));
-      cortesDelCredito(p).forEach(function (t) { agregar(t.corte); agregar(t.desde); });
-      agregar(corteDelCredito(p));
-    });
-    agregar(hoy);
-    return fechas.sort();
-  }
-  /* El nivel del socio: el más alto que haya tenido en cualquiera de esos
-     instantes. evaluarNivel ya devuelve el mayor entre lo derivado y el piso
-     que se le pase, así que el recorrido va acumulando el máximo solo.
-     `piso` es opcional y hoy nadie lo escribe: si algún día el Panel guarda un
-     nivel a mano seguirá respetándose, pero el nivel ya NO depende de eso. */
-  function nivelDelSocio(ps, hoy, piso) {
-    var instantes = instantesDeNivel(ps, hoy);
-    /* Un piso que no es un nivel conocido hace lanzar a evaluarNivel, y este
-       paquete no puede lanzar nunca: un dato sucio no puede dejar al socio sin
-       ver su cuenta. Se ignora y el nivel se deriva igual del historial. */
-    var nivel = (M.NIVELES.indexOf(piso) !== -1) ? piso : 'bronce';
-    for (var i = 0; i < instantes.length; i++) {
-      var c = contadoresDeNivel(ps, instantes[i]);
-      nivel = M.evaluarNivel(c.a_tiempo, c.racha, c.meses_sin_mora, nivel);
-    }
-    return nivel;
+  /* 2-sep-2026 — EL NIVEL ES EL TRAMO DE LA GARANTÍA, decisión de Joan.
+     Muere el recorrido por instantes (el nivel ya no se acumula por historial
+     de puntualidad) y muere el PISO: la promesa «nunca baja» quedó derogada
+     ese mismo día — si la garantía baja, el nivel baja con ella. Aceptar un
+     piso aquí resucitaría la promesa por la puerta de atrás, con los niveles
+     viejos guardados en la nube ganando sin que nadie lo note.
+
+     La regla de la casa se conserva: este paquete no puede lanzar NUNCA. Un
+     total sucio se lee como cero y el socio arranca en hierro, no en error. */
+  function nivelDelSocio(garantiaTotal) {
+    return M.nivelPorGarantia(Math.max(0, num(garantiaTotal)));
   }
 
   /* --------------- la garantía que dejó un crédito, parte por parte --------
@@ -1487,7 +1464,7 @@
      Y va con entradaCupo, no con entradaGarantia: el cupo descuenta TODO el
      capital que está afuera, también el quincenal (ver entradaCupo). */
   function cupoDelSocio(db, s, nivel) {
-    return M.cupoQuincenal(entradaCupo(db, s), nivel || 'bronce',
+    return M.cupoQuincenal(entradaCupo(db, s), nivel || 'hierro',
                            { freno: frenoDe(db, s) });
   }
 
@@ -1531,16 +1508,15 @@
     var g = M.desglosarGarantia(entrada);
     var kyc = M.garantiaPorDatos(entrada.datos);
 
-    /* Los tres contadores que deciden el NIVEL usan esPuntualParaNivel, no
-       esPuntual: un crédito que necesitó prórroga o plan de pagos no gana el
-       escalón. La garantía —que sale de garantiaGanadaDe, más arriba— sigue
-       usando esPuntual y no se toca: al socio no se le quita nada.
-       Los de HOY son los que se le muestran; el NIVEL, en cambio, es el máximo
-       de todos los que tuvo (nivelDelSocio), para que no pueda bajar. */
+    /* Los tres contadores ya no deciden el nivel (2-sep-2026): siguen viajando
+       porque las insignias de racha y el «N puntuales» del CRM los pintan. El
+       NIVEL sale del TOTAL de la garantía — el mismo g.total que el socio ve
+       como «tu garantía» —, y s.nivelSocio ya no se mira: era el piso de la
+       promesa derogada. */
     var hoy = hoyISO();
     var cont = contadoresDeNivel(ps, hoy);
     var aTiempo = cont.a_tiempo, racha = cont.racha, meses = cont.meses_sin_mora;
-    var nivel = nivelDelSocio(ps, hoy, s.nivelSocio);
+    var nivel = nivelDelSocio(g.total);
 
     return {
       // Para que las solicitudes y los datos que mande el cliente le lleguen a
@@ -1778,7 +1754,6 @@
     estadoParaNivel: estadoParaNivel,
     prorrogaAcreditaEnFecha: prorrogaAcreditaEnFecha,
     contadoresDeNivel: contadoresDeNivel,
-    instantesDeNivel: instantesDeNivel,
     nivelDelSocio: nivelDelSocio,
     tasaDelCiclo: tasaDelCiclo,
     cuotasPlan: cuotasPlan,

@@ -674,3 +674,48 @@ Las cuatro entregadas, verificadas en navegador y con **870 pruebas en verde**:
 el CRM de tugarantia.net (Ajustes → 📲 Compartir con mis clientes). El rescate
 del 28 movió la cartera pero no la conexión — sin la clave, la bandeja de
 Mensajes y «Subir historiales» no andan; todo lo demás sí.
+
+---
+
+## 2-sep — LOS NIVELES CAMBIAN DE NATURALEZA: son el tramo de la garantía
+
+Decisión de Joan, con sus tres letras (preguntadas antes de tocar código):
+**re-titular a todos** al tramo de su garantía real, **2 prórrogas para todos
+los niveles**, y **el nivel es el tramo de HOY** — la promesa «nunca baja»
+queda DEROGADA (si la garantía baja, el nivel baja; en la práctica casi no
+pasa: pagar nunca resta).
+
+La escala («desde» inclusivo, dictada por Joan): hierro (0), aluminio (200.000),
+bronce (400.000), plata (800.000), oro (1,6M), platino (3,2M), diamante (6,4M),
+**Materia Oscura PRO** (12,8M), misterio (25M, abierto por arriba). Ojo: el
+último salto NO dobla (12,8→25, no 25,6) — así la dictó él y la tabla se ancla
+literal en las pruebas.
+
+Lo que murió: `evaluarNivel`, `REQUISITOS_NIVEL`, el recorrido por instantes
+del puente y el piso `nivelSocio`. Lo que nació: `TRAMOS_NIVEL`,
+`nivelPorGarantia(pesos)` (SIN piso: aceptar uno resucitaría la promesa por la
+puerta de atrás), `nombreNivel()` (el PRO va en mayúsculas y `capitalize` lo
+pintaba mal).
+
+**La igualación de prórrogas hizo el cambio inofensivo para la cartera:** los
+bronce de ayer (1) GANARON una; nadie perdió, y no hizo falta congelar
+`nivel_socio` en créditos abiertos. Y **la app deriva el nivel LOCALMENTE del
+total** (ya no lee `g.nivel` del paquete): ninguna combinación de versiones
+app-vieja/paquete-nuevo puede reventar — la trampa 4 del mapa quedó desactivada
+de raíz.
+
+La puntualidad no se quedó sin premio: paga EN PESOS (75% vs 37,5% del costo),
+así que a igual capital el puntual llega a cada tramo en la mitad de créditos.
+Y una lección de la suite: «la cadena no compra nivel» quedó DEROGADA a
+sabiendas — el nivel ahora mide pesos y los pesos se compran pagando; la guarda
+viva es POR PESO PAGADO.
+
+Textos reescritos (regla 6): términos §6/§8 y la nota del 202, index.html, la
+ficha del CRM y su tabla de niveles. `REGLAS_VIGENTES_DESDE` → 2026-09-02,
+`VERSION_APP` → 2026-09-02, `sw.js` → v25. **863 pruebas, 0 fallos** (la
+escalera vieja → barrido de bordes generado desde la tabla; 'diamante' dejó de
+servir como nivel-inventado en las pruebas: ahora existe — el imposible es
+'kriptonita').
+
+**Para que los 21 vean su nivel nuevo: Joan re-sincroniza** («☁ Subir
+historiales») cuando quiera — sin orden obligatorio, por la inmunidad de arriba.

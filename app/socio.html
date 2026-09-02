@@ -708,7 +708,7 @@ details[open] summary::after{content:' ↑'}
    app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
    de CACHE en sw.js). */
-var VERSION_APP = '2026-08-29';
+var VERSION_APP = '2026-09-02';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1308,8 +1308,12 @@ function abrir(resp) {
   var creditos = (d.creditos || []).slice();
   var respaldados = (d.respaldados || []).slice();
 
-  var nivel = M.evaluarNivel(Number(g.pagados_a_tiempo || 0), Number(g.racha || 0),
-                             Number(g.meses_sin_mora || 0), g.nivel || 'bronce');
+  /* 2-sep-2026 — el nivel es el TRAMO de la garantia (decision de Joan) y se
+     deriva ACA, del total del paquete, con el motor de esta misma app. El
+     g.nivel que venga guardado NO se mira: era el piso de la promesa «nunca
+     baja», derogada hoy — y de paso esta app queda inmune a paquetes de otra
+     version, viejos o nuevos, porque no depende de un nombre ajeno. */
+  var nivel = M.nivelPorGarantia(Number(g.total || 0));
 
   /* Las dos garantías. El paquete ya trae el cupón y los referidos en pesos,
      así que el desglose se arma con esos mismos pesos y no se recalcula: si se
@@ -1387,7 +1391,7 @@ function abrir(resp) {
   MONTO = Math.max(lIni.min, Math.floor(techoIni / lIni.paso) * lIni.paso);
 
   $('uNombre').textContent = S.nombre.split(' ').slice(0, 2).join(' ');
-  $('uNivel').innerHTML = esc('Socio ' + nivel + ' · ' + COP(S.garantia)) +
+  $('uNivel').innerHTML = esc('Socio ' + M.nombreNivel(nivel) + ' · ' + COP(S.garantia)) +
     (S.origen === 'panel'
       ? '<span class="pto" title="Datos leídos del Panel de este dispositivo"></span>' : '');
   irA('inicio');
@@ -1690,7 +1694,7 @@ function bloquePlanDePagos() {
     '<div class="muted" style="font-size:13px;margin-top:var(--e3)">Todo lo que pagues en el plan te ' +
     'sigue sumando garantía: el ' + pct(M.FACTOR_GARANTIA) + ' del costo si el crédito nunca se ' +
     'atrasó, el ' + pct(M.FACTOR_GARANTIA_MORA) + ' si venía atrasado. Y el plan es una salida, no ' +
-    'un castigo: no bajas de nivel ni pierdes nada de lo que llevas construido.</div></div>';
+    'un castigo: no pierdes un peso de la garantía que llevas construida.</div></div>';
 }
 
 /* Las reglas salen del motor, no de un texto suelto: si algún día cambia un
@@ -1747,7 +1751,7 @@ function verReglas() {
     '<p class="sub">' + esc(r.niveles_texto) + '</p>' +
     '<div style="margin-top:var(--e2)">' + r.niveles.map(function (n) {
       return '<div class="nivel ' + (n.nivel === S.nivel ? 'aqui' : '') + '">' +
-        '<span class="txt"><span class="nm">' + n.nivel + (n.nivel === S.nivel ? ' · aquí estás' : '') + '</span>' +
+        '<span class="txt"><span class="nm">' + (n.nombre || n.nivel) + (n.nivel === S.nivel ? ' · aquí estás' : '') + '</span>' +
         '<span class="rq">' + requisitoTexto(n) + '</span></span>' +
         '<span class="cp">' + prorrogasTexto(n.prorrogas) + '</span></div>';
     }).join('') + '</div>' +
@@ -1772,60 +1776,40 @@ function verReglas() {
   window.scrollTo(0, 0);
 }
 
-/* Cuánto le falta para el siguiente nivel, en porcentaje y en palabras. */
+/* Cuánto le falta para el siguiente nivel — EN PESOS, desde 2-sep-2026.
+   Antes esto contaba pagos y rachas; hoy el nivel es el tramo de la garantía,
+   así que la pregunta es una sola: cuánta garantía falta para el tramo que
+   sigue. Los tramos los da el MOTOR (proyeccionNiveles), no una tabla local. */
 function siguienteNivel() {
-  var orden = M.NIVELES, i = orden.indexOf(S.nivel);
-  if (i < 0 || i >= orden.length - 1) return null;
-  var sig = orden[i + 1], r = M.REQUISITOS_NIVEL[sig];
-  var faltanPagos = Math.max(0, r.pagos_a_tiempo - Number(S.g.pagados_a_tiempo || 0));
-  var faltanRacha = Math.max(0, r.racha - Number(S.g.racha || 0));
-  return { nivel: sig, pagos: faltanPagos, racha: faltanRacha,
-           meses: Math.max(0, r.meses_sin_mora - Number(S.g.meses_sin_mora || 0)) };
+  var filas = M.proyeccionNiveles(Number(S.garantia || 0), S.nivel);
+  var i = -1;
+  for (var k = 0; k < filas.length; k++) if (filas[k].nivel === S.nivel) i = k;
+  if (i < 0 || i >= filas.length - 1) return null;
+  var f = filas[i + 1];
+  return { nivel: f.nivel, nombre: f.nombre, desde: f.desde,
+           faltan: Math.max(0, f.desde - Number(S.garantia || 0)) };
 }
 function progresoNivel() {
-  var s = siguienteNivel();
-  if (!s) return 100;
-  var r = M.REQUISITOS_NIVEL[s.nivel];
-  var meta = Math.max(1, r.pagos_a_tiempo);
-  return Math.max(6, Math.min(100, Number(S.g.pagados_a_tiempo || 0) / meta * 100));
+  var filas = M.proyeccionNiveles(Number(S.garantia || 0), S.nivel);
+  var actual = null;
+  for (var k = 0; k < filas.length; k++) if (filas[k].nivel === S.nivel) actual = filas[k];
+  if (!actual || actual.hasta == null) return 100;
+  var g = Number(S.garantia || 0);
+  var pct = (g - actual.desde) / (actual.hasta - actual.desde) * 100;
+  return Math.max(6, Math.min(100, pct));
 }
-/* 5-ago-2026 — ESTA LÍNEA PROMETÍA UN CUPO QUE EL NIVEL YA NO DA.
-   Decía "pasas a plata, y tu cupo sube a $308.000", y en el nivel más alto leía
-   `M.FACTOR_CUPO[S.nivel]`, que desde el cambio de reglas no existe: la frase
-   salía "Tu cupo es undefined veces tu garantía". Las dos cosas se caen por lo
-   mismo — el cupo es la garantía uno a uno y subir de nivel no abre un peso.
-   Lo que el nivel sí da son PRÓRROGAS, y eso es lo que se dice. El cupo tiene su
-   propia frase, la del 15%, y no se mezcla con esta: mezclarlas es exactamente
-   como volvió a colarse la promesa vieja las tres veces anteriores. */
 function textoProximoNivel() {
-  var s = siguienteNivel();
-  /* El tope de prórrogas de un nivel lo da el MOTOR, que ya sabe cruzar
-     PRORROGAS_POR_NIVEL con el tope duro del §8. Escrito acá era una segunda copia
-     de la misma regla, y la que decide si se puede prorrogar (salidasDelCredito)
-     pregunta por la del motor: dos copias, dos verdades el día que cambie el tope. */
-  var prorrogasDe = function (nivel) { return M.prorrogasPermitidas(nivel); };
-  if (!s) {
-    return 'Estás en el nivel más alto: puedes aplazar hasta ' +
-      vecesTexto(prorrogasDe(S.nivel)) + ' por crédito. Tu cupo no depende del nivel, ' +
-      'depende de tu garantía.';
+  var sig = siguienteNivel();
+  if (!sig) {
+    return 'Estás en el nivel más alto. Tu cupo no depende del nivel: es tu ' +
+      'garantía, uno a uno.';
   }
-  var partes = [];
-  if (s.pagos) partes.push(s.pagos + ' pago' + (s.pagos !== 1 ? 's' : '') + ' más');
-  if (s.racha) partes.push('racha de ' + M.REQUISITOS_NIVEL[s.nivel].racha);
-  if (s.meses) partes.push(s.meses + ' mes' + (s.meses !== 1 ? 'es' : '') + ' sin atrasarte');
-  var hoy = prorrogasDe(S.nivel), luego = prorrogasDe(s.nivel);
-  /* Sin nada pendiente la frase decía "Con ya casi pasas a plata", que no es
-     castellano. Cuando ya cumple, se dice eso y no se le inventa un requisito. */
-  return (partes.length
-    ? 'Con ' + partes.join(' y ') + ' pasas a <b>' + s.nivel + '</b>'
-    : 'Ya cumples lo que pide <b>' + s.nivel + '</b>') +
-    (luego > hoy
-      ? ', y podrás aplazar hasta ' + vecesTexto(luego) + ' por crédito.'
-      /* Del nivel siguiente que no cambia las prórrogas no se puede decir nada
-         material, así que se dice eso mismo en vez de inventarle un premio: es
-         reconocimiento, y el cupo va por otro lado. */
-      : ', el reconocimiento del historial que llevas. El cupo lo sube pagar en fecha, no ' +
-        'subir de nivel.');
+  /* La puntualidad no desapareció del mapa: paga EN PESOS (75% del costo
+     contra 37,5%), así que decir «cada pago en fecha te acerca al doble de
+     velocidad» es una cuenta del motor, no una arenga. */
+  return 'Te faltan <b>' + esc(COP(sig.faltan)) + '</b> de garantía para pasar a <b>' +
+    esc(sig.nombre) + '</b>. Cada pago en fecha te acerca al doble de velocidad ' +
+    'que uno tardío.';
 }
 
 /* ============ QUÉ CICLO SE ESTÁ COBRANDO, Y A QUÉ PRECIO ============
@@ -2046,7 +2030,7 @@ function tarjetaActivo(c) {
       '<div class="fila"><span class="k">Total para saldar hoy</span>' +
         '<span class="v"><b>' + esc(COP(q.total_a_pagar)) + '</b></span></div>' +
       '<div class="aviso ambar"><b>Aunque te atrases, sigues siendo socio.</b><br>' +
-      'No bajas de nivel, no pierdes garantía y puedes volver a pedir. Paga lo que puedas ' +
+      'No pierdes garantía y puedes volver a pedir. Paga lo que puedas ' +
       'cuando puedas: todo lo que pagues sigue sumando a tu cupo.</div>';
   } else {
     h += '<div class="cifra sm">' + COP(q.total_a_pagar) + '</div>' +
@@ -2640,7 +2624,7 @@ function plegarICS(lineas) {
    vuelva a escribir su propia versión. */
 function salidasDelCredito(c) {
   var usadas = Math.max(0, Math.round(Number(c && c.prorrogas) || 0));
-  var permitidas = M.prorrogasPermitidas((S && S.nivel) || 'bronce');
+  var permitidas = M.prorrogasPermitidas((S && S.nivel) || 'hierro');
   var enPlan = cicloDelCredito(c).en_plan;
   return {
     en_plan: enPlan,
@@ -2997,7 +2981,7 @@ function vistaGarantia() {
     '<p class="sub">' + esc(M.reglasResumen().niveles_texto) + '</p>' +
     '<div style="margin-top:var(--e2)">' + niveles.map(function (n) {
       return '<div class="nivel ' + (n.actual ? 'aqui' : '') + '">' +
-        '<span class="txt"><span class="nm">' + n.nivel + (n.actual ? ' · aquí estás' : '') + '</span>' +
+        '<span class="txt"><span class="nm">' + (n.nombre || n.nivel) + (n.actual ? ' · aquí estás' : '') + '</span>' +
         '<span class="rq">' + requisitoTexto(n) + '</span></span>' +
         '<span class="cp">' + (nivelMueveElCupo ? COP(n.cupo) : prorrogasTexto(n.prorrogas)) + '</span></div>';
     }).join('') + '</div>' +
@@ -3022,12 +3006,11 @@ function vistaGarantia() {
    esta función se queda con lo único que le corresponde: qué hay que hacer para
    llegar. Lo que el nivel DA se dice al lado, en prorrogasTexto. */
 function requisitoTexto(n) {
-  if (n.nivel === 'bronce') return 'Desde que entras';
-  var r = n.requisitos, p = [];
-  if (r.pagos_a_tiempo) p.push(r.pagos_a_tiempo + ' pagos en fecha');
-  if (r.racha) p.push('racha de ' + r.racha);
-  if (r.meses_sin_mora) p.push(r.meses_sin_mora + ' meses sin atrasarte');
-  return p.length ? p.join(' · ') : 'Desde que entras';
+  /* 2-sep-2026: lo que pide un nivel es un TRAMO de garantía, en pesos. */
+  if (!n.desde) return 'Desde que entras';
+  return n.hasta != null
+    ? 'De ' + COP(n.desde) + ' a ' + COP(n.hasta) + ' de garantía'
+    : 'De ' + COP(n.desde) + ' de garantía en adelante';
 }
 
 /* LO QUE DA EL NIVEL, y es lo único que da: cuántas veces puede aplazar un
@@ -3131,7 +3114,7 @@ function insignias() {
     { em: '✅', t: 'Primer pago en fecha', ok: puntuales.length >= 1 },
     { em: '🔥', t: 'Racha de 3', ok: Number(S.g.racha || 0) >= 3 },
     { em: '⚡', t: 'Racha de 10', ok: Number(S.g.racha || 0) >= 10 },
-    { em: '🥇', t: 'Llegaste a Oro', ok: orden.indexOf(S.nivel) >= 2 },
+    { em: '🥇', t: 'Llegaste a Oro', ok: orden.indexOf(S.nivel) >= orden.indexOf('oro') },
     { em: '🤝', t: 'Trajiste a alguien', ok: (S.referidos.pagaron || 0) >= 1 },
     { em: '📋', t: 'Perfil completo', ok: M.garantiaPorDatos(S.perfil).total >= M.CUPON_KYC_MAXIMO },
     { em: '💪', t: '5 créditos pagados', ok: S.pagados.length >= 5 }

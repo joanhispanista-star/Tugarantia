@@ -336,7 +336,9 @@ describe('calcularCupo — LA GARANTÍA, UNO A UNO (5-ago-2026)', () => {
   });
 
   test('un nivel inventado sigue siendo error, aunque ya no mueva el cupo', () => {
-    assert.throws(() => M.calcularCupo(100000, 'diamante'), /nivel desconocido/);
+    /* 2-sep-2026: 'diamante' dejó de servir como inventado — ahora es un
+       nivel de verdad. El nombre imposible de las pruebas es kriptonita. */
+    assert.throws(() => M.calcularCupo(100000, 'kriptonita'), /nivel desconocido/);
     assert.throws(() => M.calcularCupo(100000, ''), /nivel desconocido/);
   });
 
@@ -361,50 +363,46 @@ describe('calcularCupo — LA GARANTÍA, UNO A UNO (5-ago-2026)', () => {
   });
 });
 
-describe('proyeccionNiveles — qué se gana subiendo, ahora que no es cupo', () => {
+describe('proyeccionNiveles — los tramos, para que la pantalla no los invente', () => {
 
-  test('el cupo es el MISMO en los cuatro niveles', () => {
+  test('nueve filas, cada una con su tramo en pesos', () => {
     const p = M.proyeccionNiveles(1000000, 'plata');
-    assert.equal(p.length, 4);
-    assert.deepEqual(p.map(x => x.cupo), [1000000, 1000000, 1000000, 1000000]);
-    assert.deepEqual(p.map(x => x.nivel), ['bronce', 'plata', 'oro', 'platino']);
-    assert.deepEqual(p.map(x => x.mueve_el_cupo), [false, false, false, false]);
+    assert.equal(p.length, M.TRAMOS_NIVEL.length);
+    assert.deepEqual(p.map(x => x.nivel), M.NIVELES);
+    p.forEach((x, i) => {
+      assert.equal(x.desde, M.TRAMOS_NIVEL[i].desde);
+      assert.equal(x.hasta, i + 1 < M.TRAMOS_NIVEL.length ? M.TRAMOS_NIVEL[i + 1].desde : null,
+        x.nivel + ': el tramo no cierra donde abre el siguiente');
+      assert.equal(x.nombre, M.nombreNivel(x.nivel));
+    });
+  });
+
+  test('el cupo es el MISMO en todas: el nivel no lo mueve', () => {
+    const p = M.proyeccionNiveles(1000000, 'plata');
+    assert.ok(p.every(x => x.cupo === 1000000));
+    assert.ok(p.every(x => x.mueve_el_cupo === false));
   });
 
   test('`factor` ya no viaja: ninguna pantalla puede prometer un múltiplo', () => {
-    M.proyeccionNiveles(1000000, 'plata').forEach(x => {
-      assert.equal(x.factor, undefined);
-    });
+    M.proyeccionNiveles(1000000, 'plata').forEach(x => assert.equal(x.factor, undefined));
     M.reglasResumen().niveles.forEach(n => assert.equal(n.factor, undefined));
   });
 
-  test('lo que sí cambia por nivel son las prórrogas', () => {
-    const p = M.proyeccionNiveles(1000000, 'bronce');
-    assert.equal(p[0].prorrogas, 1);
-    assert.equal(p[3].prorrogas, 2);
-    assert.ok(p[3].prorrogas > p[0].prorrogas, 'subir sirve para algo');
+  test('TODOS los niveles dan dos prórrogas — decisión de Joan del 2-sep', () => {
+    /* «todos inician con 2 prórrogas»: el nivel dejó de decidir prórrogas y
+       quedó como título del tamaño de la garantía. Los bronce de ayer (1)
+       GANARON una; nadie perdió. Si esta prueba falla porque alguien
+       diferenció de nuevo, que sea a sabiendas y con la letra de los términos
+       cambiada primero. */
+    M.proyeccionNiveles(0).forEach(x => assert.equal(x.prorrogas, 2, x.nivel));
   });
 
   test('marca en cuál está parado y cuáles ya pasó', () => {
     const p = M.proyeccionNiveles(500000, 'oro');
-    assert.deepEqual(p.map(x => x.actual), [false, false, true, false]);
-    assert.deepEqual(p.map(x => x.alcanzado), [true, true, true, false]);
-  });
-
-  test('trae el requisito de cada nivel, para que el socio sepa qué le falta', () => {
-    const p = M.proyeccionNiveles(100000);
-    assert.equal(p[1].requisitos.pagos_a_tiempo, 2);
-    assert.equal(p[2].requisitos.racha, 3);
-    assert.equal(p[3].requisitos.meses_sin_mora, 3);
-    assert.equal(p[0].prorrogas, 1);
-    assert.equal(p[3].prorrogas, 2);
-  });
-
-  test('el camino a los 20 millones: la garantía que hace falta es el cupo mismo', () => {
-    assert.equal(M.garantiaNecesariaPara(20000000, 'platino'), 20000000);
-    assert.equal(M.garantiaNecesariaPara(20000000, 'bronce'), 20000000);
-    assert.equal(M.garantiaNecesariaPara(1000000, 'oro'), 1000000);
-    assert.equal(M.calcularCupo(M.garantiaNecesariaPara(20000000, 'platino'), 'platino'), 20000000);
+    assert.deepEqual(p.map(x => x.actual),
+      [false, false, false, false, true, false, false, false, false]);
+    assert.deepEqual(p.map(x => x.alcanzado),
+      [true, true, true, true, true, false, false, false, false]);
   });
 });
 
@@ -1078,88 +1076,96 @@ describe('proyectarCrecimiento — cómo sube la garantía crédito a crédito',
 });
 
 /* ==========================================================================
- * §5 — evaluarNivel
+ * §5 — nivelPorGarantia (2-sep-2026)
+ *
+ * El nivel dejó de ganarse por puntualidad: es el TRAMO de la garantía, por
+ * decisión de Joan de este día (con sus otras dos letras: se re-tituló a
+ * todos, y «nunca baja» quedó derogado — la función ni siquiera acepta piso).
+ * La puntualidad sigue pagando EN PESOS (factor 0,75 contra 0,375), así que a
+ * igual capital el puntual llega antes al mismo nombre: esa guarda vive más
+ * abajo, en el bloque de la garantía.
  * ======================================================================== */
 
-describe('evaluarNivel — escalera de socio (§5)', () => {
+describe('nivelPorGarantia — el tramo de la garantía (2-sep-2026)', () => {
 
-  test('socio nuevo: bronce', () => {
-    assert.equal(M.evaluarNivel(0, 0, 0), 'bronce');
-    assert.equal(M.evaluarNivel(1, 1, 24), 'bronce'); // le falta 1 pago para plata
+  test('el socio nuevo arranca en hierro, y la cartera típica también', () => {
+    assert.equal(M.nivelPorGarantia(0), 'hierro');
+    /* La cuenta histórica de prueba: 145.000 de garantía. Era plata por
+       puntualidad; por garantía es hierro — y así lo decidió Joan, avisado. */
+    assert.equal(M.nivelPorGarantia(145000), 'hierro');
   });
 
-  test('plata a los 2 pagos puntuales', () => {
-    assert.equal(M.evaluarNivel(2, 0, 0), 'plata');
-    assert.equal(M.evaluarNivel(2, 2, 0), 'plata');
-    assert.equal(M.evaluarNivel(4, 20, 20), 'plata'); // le falta 1 pago para oro
+  test('BARRIDO DE BORDES, generado desde la tabla — no de números copiados', () => {
+    /* `desde` es INCLUSIVO: en la frontera ya se es del nivel de arriba. El
+       barrido sale de TRAMOS_NIVEL para que un tramo corrido mañana no deje
+       esta prueba vigilando fronteras que ya no existen. */
+    M.TRAMOS_NIVEL.forEach((t, i) => {
+      assert.equal(M.nivelPorGarantia(t.desde), t.nivel,
+        t.desde + ' exactos tienen que ser ' + t.nivel);
+      if (i > 0) {
+        assert.equal(M.nivelPorGarantia(t.desde - 1), M.TRAMOS_NIVEL[i - 1].nivel,
+          (t.desde - 1) + ' tiene que ser todavía ' + M.TRAMOS_NIVEL[i - 1].nivel);
+      }
+    });
   });
 
-  test('oro pide 5 pagos Y racha ≥ 3', () => {
-    assert.equal(M.evaluarNivel(5, 3, 0), 'oro');
-    assert.equal(M.evaluarNivel(5, 2, 0), 'plata');   // racha corta
-    assert.equal(M.evaluarNivel(9, 9, 5), 'oro');     // le falta 1 pago para platino
+  test('y el arnés del barrido sirve: una frontera corrida se caza', () => {
+    /* Desconfiar del medidor: si el barrido de arriba comparara mal, pasaría
+       en verde para siempre. Un nivel calculado a mano lo ancla. */
+    assert.equal(M.nivelPorGarantia(799999), 'bronce');
+    assert.equal(M.nivelPorGarantia(800000), 'plata');
+    assert.equal(M.nivelPorGarantia(3199999), 'oro');
   });
 
-  test('platino pide 10 pagos Y 3 meses sin mora', () => {
-    assert.equal(M.evaluarNivel(10, 10, 3), 'platino');
-    assert.equal(M.evaluarNivel(10, 10, 2), 'oro');   // 2 meses no alcanza
-    assert.equal(M.evaluarNivel(100, 100, 60), 'platino');
+  test('misterio queda abierto por arriba', () => {
+    assert.equal(M.nivelPorGarantia(25000000), 'misterio');
+    assert.equal(M.nivelPorGarantia(50000001), 'misterio');
+    assert.equal(M.nivelPorGarantia(999999999), 'misterio');
   });
 
-  test('platino se evalúa literal, sin exigir la racha de oro (D4)', () => {
-    assert.equal(M.evaluarNivel(10, 1, 3), 'platino');
-  });
-
-  test('EL NIVEL NUNCA BAJA: el 4º parámetro es el piso (27-jul-2026)', () => {
-    // Sin piso, la racha en 0 derivaría plata. Con el nivel ya alcanzado, se queda en oro.
-    assert.equal(M.evaluarNivel(6, 4, 1), 'oro');
-    assert.equal(M.evaluarNivel(6, 0, 0), 'plata');
-    assert.equal(M.evaluarNivel(6, 0, 0, 'oro'), 'oro');
-    assert.equal(M.evaluarNivel(0, 0, 0, 'platino'), 'platino');
-  });
-
-  test('el piso no impide seguir subiendo', () => {
-    assert.equal(M.evaluarNivel(10, 10, 3, 'plata'), 'platino');
-    assert.equal(M.evaluarNivel(5, 3, 0, 'bronce'), 'oro');
-  });
-
-  test('ningún socio pierde nivel por más moras que acumule', () => {
-    let nivel = 'bronce';
-    // Sube a oro pagando puntual...
-    nivel = M.evaluarNivel(5, 3, 0, nivel);
-    assert.equal(nivel, 'oro');
-    // ...y después se atrasa una y otra vez: la racha se cae, el nivel no.
-    for (let i = 0; i < 5; i++) {
-      nivel = M.evaluarNivel(5, 0, 0, nivel);
-      assert.equal(nivel, 'oro');
-    }
-  });
-
-  test('un piso inventado es error', () => {
-    assert.throws(() => M.evaluarNivel(3, 0, 0, 'diamante'), /nivel desconocido/);
-  });
-
-  test('bordes exactos de cada requisito', () => {
-    assert.equal(M.evaluarNivel(1, 99, 99), 'bronce');
-    assert.equal(M.evaluarNivel(2, 99, 0), 'plata');
-    assert.equal(M.evaluarNivel(4, 3, 0), 'plata');
-    assert.equal(M.evaluarNivel(5, 3, 0), 'oro');
-    assert.equal(M.evaluarNivel(9, 3, 99), 'oro');
-    assert.equal(M.evaluarNivel(10, 3, 3), 'platino');
+  test('NO HAY PISO: la promesa «nunca baja» quedó derogada a sabiendas', () => {
+    /* Si alguien le devuelve el segundo parámetro a esta función, resucita la
+       promesa por la puerta de atrás (los niveles viejos guardados en la nube
+       ganarían sin aviso). La función debe IGNORAR argumentos extra. */
+    assert.equal(M.nivelPorGarantia(145000, 'platino'), 'hierro',
+      'un segundo argumento revivió el piso');
+    assert.equal(M.nivelPorGarantia.length, 1,
+      'la firma creció: revisar que no haya vuelto el piso');
   });
 
   test('siempre devuelve un nivel de la tabla', () => {
-    for (let p = 0; p <= 25; p++) {
-      for (let r = 0; r <= 6; r += 2) {
-        assert.ok(M.NIVELES.includes(M.evaluarNivel(p, r, p > 5 ? 8 : 0)));
-      }
+    for (let g = 0; g <= 60000000; g += 1234567) {
+      assert.ok(M.NIVELES.includes(M.nivelPorGarantia(g)), g + ' dio un nivel de fuera');
     }
   });
 
-  test('contadores inválidos son error', () => {
-    assert.throws(() => M.evaluarNivel(-1, 0, 0), /negativo/);
-    assert.throws(() => M.evaluarNivel(2.5, 0, 0), /entero/);
-    assert.throws(() => M.evaluarNivel('3', 0, 0), /se esperaba un número/);
+  test('lo sucio es error, no un nivel inventado', () => {
+    assert.throws(() => M.nivelPorGarantia(-1), /negativo/);
+    assert.throws(() => M.nivelPorGarantia('mucho'), /se esperaba un número/);
+  });
+
+  test('los nueve nombres están en orden y sin repetirse', () => {
+    assert.deepEqual(M.NIVELES, ['hierro', 'aluminio', 'bronce', 'plata', 'oro',
+      'platino', 'diamante', 'materia oscura pro', 'misterio']);
+    assert.equal(new Set(M.NIVELES).size, M.NIVELES.length);
+    /* La tabla se ancla LITERAL a la escala que dictó Joan el 2-sep — que
+       dobla en casi todos los saltos pero no en el último (12,8M → 25M, no
+       25,6M): así la dijo él, y una fórmula «bonita» que lo corrija sería
+       cambiarle la regla sin permiso. */
+    assert.deepEqual(M.TRAMOS_NIVEL.map(t => t.desde),
+      [0, 200000, 400000, 800000, 1600000, 3200000, 6400000, 12800000, 25000000]);
+  });
+
+  test('el nombre de pantalla respeta el bautizo de Joan', () => {
+    assert.equal(M.nombreNivel('materia oscura pro'), 'Materia Oscura PRO');
+    assert.equal(M.nombreNivel('hierro'), 'Hierro');
+    assert.equal(M.nombreNivel(' ORO '), 'Oro');
+    assert.throws(() => M.nombreNivel('kriptonita'), /nivel desconocido/);
+  });
+
+  test('evaluarNivel y REQUISITOS_NIVEL ya no existen — que nadie los reviva', () => {
+    assert.equal(M.evaluarNivel, undefined);
+    assert.equal(M.REQUISITOS_NIVEL, undefined);
   });
 });
 
@@ -1321,14 +1327,20 @@ describe('aplicarProrroga — costo y corrimiento (§8)', () => {
 
 describe('aplicarProrroga — topes por nivel (§5 y §8)', () => {
 
-  test('bronce solo tiene 1 prórroga', () => {
+  test('TODOS los niveles dan 2 prórrogas — decisión de Joan del 2-sep', () => {
+    /* Antes bronce daba 1. Joan lo igualó: «todos inician con 2 prórrogas».
+       El default del crédito de prueba (hierro) también da 2. */
     const primera = M.aplicarProrroga(creditoBase());
     assert.equal(primera.ok, true);
-    assert.equal(primera.prorrogas_restantes, 0);
+    assert.equal(primera.prorrogas_restantes, 1);
 
     const segunda = M.aplicarProrroga(primera.credito);
-    assert.equal(segunda.ok, false);
-    assert.equal(segunda.motivo, 'prorrogas_agotadas');
+    assert.equal(segunda.ok, true);
+    assert.equal(segunda.prorrogas_restantes, 0);
+
+    const tercera = M.aplicarProrroga(segunda.credito);
+    assert.equal(tercera.ok, false);
+    assert.equal(tercera.motivo, 'prorrogas_agotadas');
   });
 
   test('plata, oro y platino tienen 2', () => {
@@ -1353,18 +1365,18 @@ describe('aplicarProrroga — topes por nivel (§5 y §8)', () => {
   });
 
   test('al rechazar, el crédito vuelve intacto', () => {
-    const c = creditoBase({ prorrogas_usadas: 1 });
+    const c = creditoBase({ prorrogas_usadas: 2 });
     const r = M.aplicarProrroga(c);
     assert.equal(r.ok, false);
     assert.equal(r.credito, c);
-    assert.equal(r.credito.prorrogas_usadas, 1);
+    assert.equal(r.credito.prorrogas_usadas, 2);
   });
 });
 
 describe('aplicarProrroga — salida obligatoria a plan de pagos (§8)', () => {
 
   test('al agotar prórrogas devuelve el plan ya armado', () => {
-    const r = M.aplicarProrroga(creditoBase({ prorrogas_usadas: 1, fecha_corte: '2026-07-31' }));
+    const r = M.aplicarProrroga(creditoBase({ prorrogas_usadas: 2, fecha_corte: '2026-07-31' }));
     assert.equal(r.ok, false);
     const plan = r.plan_de_pagos;
     assert.equal(plan.cuotas.length, 3);
@@ -1430,7 +1442,7 @@ describe('aplicarProrroga — entradas inválidas', () => {
     assert.throws(() => M.aplicarProrroga(creditoBase({ capital: 0 })), /mayor que cero/);
     assert.throws(() => M.aplicarProrroga(creditoBase({ tasa_aplicada: 20 })), /decimal/);
     assert.throws(() => M.aplicarProrroga(creditoBase({ fecha_corte: 'mañana' })), /YYYY-MM-DD/);
-    assert.throws(() => M.aplicarProrroga(creditoBase({ nivel_socio: 'diamante' })), /nivel desconocido/);
+    assert.throws(() => M.aplicarProrroga(creditoBase({ nivel_socio: 'kriptonita' })), /nivel desconocido/);
   });
 });
 
@@ -1443,7 +1455,7 @@ describe('recorrido de un socio (§1: la garantía solo crece pagando a tiempo)'
   test('LA ESCALERA: de 200.000 al techo de 20 millones, crédito a crédito', () => {
     let garantia = 200000;      // perfil completo (100.000) más un par de créditos ya pagados
     let pagos = 0, racha = 0;
-    let nivel = M.evaluarNivel(pagos, racha, 0);
+    let nivel = M.nivelPorGarantia(garantia);
     const paso = [];
 
     /* 5-ago-2026 — EL CAMINO AL TECHO SE ALARGÓ, Y A PROPÓSITO. Con el factor de
@@ -1456,15 +1468,17 @@ describe('recorrido de un socio (§1: la garantía solo crece pagando a tiempo)'
       const costo = M.calcularCosto(cupo);
       garantia += M.garantiaQueDejaUnCredito(cupo, true);
       pagos++; racha++;
-      nivel = M.evaluarNivel(pagos, racha, Math.floor(i / 2), nivel);
+      nivel = M.nivelPorGarantia(garantia);
       paso.push({ i, cupo, nivel });
     }
 
     // Arranca pudiendo pedir exactamente lo que respalda.
     assert.equal(paso[0].cupo, 200000);
-    // A los dos pagos ya es plata, a los cinco oro: los niveles siguen ahí.
-    assert.equal(paso[2].nivel, 'plata');
-    assert.equal(paso[5].nivel, 'oro');
+    // Los nombres ahora son tramos: a los tres pagos cruza los 300 mil
+    // (aluminio) y a los seis los 400 mil (bronce). La escalera es la misma;
+    // cambió el letrero de cada peldano.
+    assert.equal(paso[2].nivel, 'aluminio');
+    assert.equal(paso[5].nivel, 'bronce');
     // Y el cupo crece siempre, un 15% cada vez.
     for (let i = 1; i < paso.length; i++) assert.ok(paso[i].cupo > paso[i - 1].cupo);
     assert.equal(paso[1].cupo, 230000, '200.000 + el 15%');
@@ -1474,6 +1488,9 @@ describe('recorrido de un socio (§1: la garantía solo crece pagando a tiempo)'
     assert.ok(paso.length > 25, 'antes llegaba en 11: ' + paso.length);
     assert.ok(paso.length <= 40, 'llegó en ' + paso.length + ' créditos');
     assert.ok(M.calcularCupo(garantia, nivel) >= 15000000, 'quedó cerca del techo');
+    // Y con esa garantía el título ya es de los altos de la escala nueva.
+    assert.ok(M.NIVELES.indexOf(nivel) >= M.NIVELES.indexOf('diamante'),
+      'con ~20M de garantía el nivel es ' + nivel);
   });
 
   test('el precio nunca cambia en toda la escalera', () => {
@@ -1485,9 +1502,8 @@ describe('recorrido de un socio (§1: la garantía solo crece pagando a tiempo)'
 
   test('el socio que se atrasa no pierde NADA y sigue pudiendo pedir', () => {
     let garantia = 250000;
-    const pagos = 5;
-    let nivel = M.evaluarNivel(pagos, 3, 12);
-    assert.equal(nivel, 'oro');
+    let nivel = M.nivelPorGarantia(garantia);
+    assert.equal(nivel, 'aluminio');
 
     const credito = { capital: 300000, tasa_aplicada: M.TASA_CREDITO, fecha_corte: '2026-07-15' };
     const puntual = M.liquidarCredito(credito, '2026-07-15');
@@ -1500,9 +1516,9 @@ describe('recorrido de un socio (§1: la garantía solo crece pagando a tiempo)'
     assert.ok(tarde.garantia_generada > 0, 'igual suma');
 
     garantia += tarde.garantia_generada;
-    nivel = M.evaluarNivel(pagos, 0, 0, nivel);
+    nivel = M.nivelPorGarantia(garantia);
     assert.ok(garantia > 250000, 'la garantía subió');
-    assert.equal(nivel, 'oro', 'el nivel no se movió');
+    assert.equal(nivel, 'aluminio', 'sigue en su tramo: atrasarse no le restó nada');
 
     const solicitud = M.puedeSolicitar({
       nivel_kyc: 2, estado: 'en_mora', garantia_total: garantia, nivel_socio: nivel
@@ -1638,10 +1654,10 @@ describe('cupoQuincenal — la comprometida no cuenta', () => {
     assert.equal(c.total, 424000, 'la garantía no desapareció: está respaldando algo');
   });
 
-  test('sin nivel arranca en bronce, y un nivel inventado es error', () => {
-    assert.equal(M.cupoQuincenal({ acumulada: 100000 }).nivel, 'bronce');
+  test('sin nivel arranca en hierro, y un nivel inventado es error', () => {
+    assert.equal(M.cupoQuincenal({ acumulada: 100000 }).nivel, 'hierro');
     assert.equal(M.cupoQuincenal({ acumulada: 100000 }).cupo, 100000);
-    assert.throws(() => M.cupoQuincenal({}, 'diamante'), /nivel desconocido/);
+    assert.throws(() => M.cupoQuincenal({}, 'kriptonita'), /nivel desconocido/);
   });
 
   test('EL FRENO POR INGRESO NO SE APLICA SI NADIE LO PIDE (5-ago-2026)', () => {
@@ -2210,8 +2226,11 @@ describe('las cuentas de Joan, con el motor de verdad', () => {
     // Acreditar crédito por crédito da lo mismo que acreditar el total de una.
     assert.equal(ganada, M.acumularGarantia(costos, true), 'sin arrastre de redondeo');
 
-    const nivel = M.evaluarNivel(10, 10, 6, 'bronce');
-    assert.equal(nivel, 'platino');
+    /* 2-sep-2026: con 370.000 de garantía el tramo es aluminio. La
+       puntualidad de los 10 créditos ya pagó en pesos: al factor tardío la
+       misma historia habría dejado 135.000 — hierro. */
+    const nivel = M.nivelPorGarantia(370000);
+    assert.equal(nivel, 'aluminio');
 
     const e = { datos: datosCompletos(), acumulada: ganada };
     const c = M.cupoQuincenal(e, nivel);
@@ -4077,25 +4096,27 @@ describe('el tope de prórrogas por nivel y el plan de pagos (§5 y §8)', () =>
     estado: 'en_mora', prorrogas_usadas: 0, nivel_socio: 'bronce'
   }, extra);
 
-  test('bronce 1, plata/oro/platino 2 — y el tope duro manda', () => {
-    assert.equal(M.prorrogasPermitidas('bronce'), 1);
-    assert.equal(M.prorrogasPermitidas('plata'), 2);
-    assert.equal(M.prorrogasPermitidas('oro'), 2);
-    assert.equal(M.prorrogasPermitidas('platino'), 2);
-    M.NIVELES.forEach(n => assert.ok(M.prorrogasPermitidas(n) <= M.TOPE_DURO_PRORROGAS));
+  test('TODOS los niveles dan 2, y el tope duro manda (2-sep-2026)', () => {
+    /* Decisión de Joan: «todos inician con 2 prórrogas». Los bronce de ayer
+       tenían 1 y GANARON una; nadie perdió, y por eso no hizo falta congelar
+       nivel_socio en los créditos abiertos. */
+    M.NIVELES.forEach(n => {
+      assert.equal(M.prorrogasPermitidas(n), 2, n);
+      assert.ok(M.prorrogasPermitidas(n) <= M.TOPE_DURO_PRORROGAS);
+    });
   });
 
-  test('la segunda prórroga de un bronce no se registra: se le ofrece el plan', () => {
-    const r = M.liquidarProrroga(credito({ prorrogas_usadas: 1 }), '2026-08-04');
+  test('la TERCERA prórroga no se registra: se le ofrece el plan', () => {
+    const r = M.liquidarProrroga(credito({ prorrogas_usadas: 2 }), '2026-08-04');
     assert.equal(r.ok, false);
     assert.equal(r.motivo, 'prorrogas_agotadas');
-    assert.equal(r.prorrogas_permitidas, 1);
+    assert.equal(r.prorrogas_permitidas, 2);
     assert.equal(r.prorrogas_restantes, 0);
     assert.ok(r.plan_de_pagos, 'el ok:false tiene que traer la salida, no solo el no');
     assert.equal(r.plan_de_pagos.cuotas.length, M.CUOTAS_PLAN_DE_PAGOS);
   });
 
-  test('un plata sí tiene la segunda, y ahí se le acaban', () => {
+  test('con una usada sí tiene la segunda, y ahí se le acaban', () => {
     const uno = M.liquidarProrroga(credito({ nivel_socio: 'plata', prorrogas_usadas: 1 }), '2026-08-04');
     assert.equal(uno.ok, true);
     assert.equal(uno.prorrogas_restantes, 0);
@@ -4109,7 +4130,7 @@ describe('el tope de prórrogas por nivel y el plan de pagos (§5 y §8)', () =>
     const desdeElCorte = M.construirPlanDePagos({ capital: 600000, fecha_corte: '2026-06-30' });
     assert.deepEqual(desdeElCorte.cuotas.map(c => c.fecha_corte),
       ['2026-07-15', '2026-07-31', '2026-08-15']);
-    const r = M.liquidarProrroga(credito({ prorrogas_usadas: 1 }), '2026-08-04');
+    const r = M.liquidarProrroga(credito({ prorrogas_usadas: 2 }), '2026-08-04');
     r.plan_de_pagos.cuotas.forEach(c =>
       assert.ok(c.fecha_corte > '2026-08-04', 'cuota vencida al nacer: ' + c.fecha_corte));
     assert.deepEqual(r.plan_de_pagos.cuotas.map(c => c.fecha_corte),
@@ -4117,7 +4138,7 @@ describe('el tope de prórrogas por nivel y el plan de pagos (§5 y §8)', () =>
   });
 
   test('y lo ya causado se cobra al pactarlo: el plan tampoco borra el recargo', () => {
-    const r = M.liquidarProrroga(credito({ prorrogas_usadas: 1 }), '2026-08-04');
+    const r = M.liquidarProrroga(credito({ prorrogas_usadas: 2 }), '2026-08-04');
     assert.equal(r.dias_mora, 35);
     assert.equal(r.costo_prorroga, 120000);
     assert.equal(r.recargo_mora, 210000, '1% diario sobre 600.000 por 35 días');
@@ -4260,8 +4281,11 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
     for (let i = db.prestamos.length - 1; i >= 0; i--) {
       if (P.esPuntual(db.prestamos[i])) racha++; else break;
     }
-    const nivelViejo = M.evaluarNivel(5, racha, 6, 'bronce');
-    assert.equal(nivelViejo, 'oro');
+    /* 2-sep-2026: la escalera por contadores murió; el lavado ya no puede
+       comprar nombre porque el nombre sale de PESOS, y los pesos de una
+       cartera lavada son los que son. Se conserva la medición del cupo, que
+       es la que vigila la plata. */
+    const nivelViejo = 'oro';
     /* 5-ago-2026 — EL DEFECTO YA NO SE MIDE EN CUPO, y hay que decir por qué: el
        cupo dejó de depender del nivel (es la garantía, uno a uno), así que subir
        de nivel con trampa ya no abre un peso de crédito. Lo que seguía regalando
@@ -4270,9 +4294,11 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
     assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), nivelViejo).cupo, 226250);
     assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), 'bronce').cupo, 226250,
       'con trampa o sin trampa, el cupo es el mismo: el nivel no lo mueve');
-    // Lo que sí se regalaba: el doble de prórrogas que un bronce.
+    /* 2-sep-2026: hasta el premio de las prórrogas desapareció — Joan las
+       igualó en 2 para todos, así que la trampa ya no regala NADA: ni cupo,
+       ni nombre (sale de pesos), ni prórrogas. */
     assert.equal(M.prorrogasPermitidas(nivelViejo), 2);
-    assert.equal(M.prorrogasPermitidas('bronce'), 1);
+    assert.equal(M.prorrogasPermitidas('bronce'), 2);
   });
 
   test('AHORA: ninguno cuenta para subir, y el socio se queda en bronce', () => {
@@ -4281,12 +4307,13 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
     const m = P.migrarSocio(db, s);
     assert.equal(m.garantia.pagados_a_tiempo, 0);
     assert.equal(m.garantia.racha, 0);
-    assert.equal(m.garantia.nivel, 'bronce');
-    // El cupo es el mismo en los dos niveles: lo que se recupera es el escalón
-    // y su prórroga, no plata prestada.
+    /* 2-sep-2026: el nombre sale de los PESOS de la cartera lavada (226.250
+       → aluminio), no de contadores que la trampa pueda vestir. */
+    assert.equal(m.garantia.nivel, M.nivelPorGarantia(226250));
+    assert.equal(m.garantia.nivel, 'aluminio');
     assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), m.garantia.nivel).cupo, 226250);
-    assert.equal(M.prorrogasPermitidas(m.garantia.nivel), 1,
-      'una prórroga, la de bronce: la segunda era el regalo');
+    assert.equal(M.prorrogasPermitidas(m.garantia.nivel), 2,
+      'todas las prórrogas son 2 desde el 2-sep: la trampa no regala ninguna');
   });
 
   test('NO SE LE QUITA NADA: lo que pagó le sigue sumando, crédito por crédito', () => {
@@ -4318,7 +4345,11 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
      real de Joan no existe, y por eso el defecto —el nivel BAJABA— vivió debajo
      de ella sin que nadie lo viera. Ahora el oro se GANA con historial, que es
      la única forma en que un socio de verdad puede llegar a tenerlo. */
-  test('Y EL NIVEL NO BAJA NUNCA: el que ya lo alcanzó se lo queda', () => {
+  /* 2-sep-2026 — LA PROMESA «NUNCA BAJA» QUEDÓ DEROGADA por decisión de
+     Joan: el nivel es el tramo de la garantía de HOY. Lo que esta prueba
+     fija ahora es lo que SÍ sigue siendo verdad: atrasarse no baja el nivel,
+     porque atrasarse NO RESTA GARANTÍA — pagar tarde suma menos, nunca quita. */
+  test('atrasarse no baja el nivel, porque no resta garantía (2-sep-2026)', () => {
     const s = socio();
     const db = { socios: [s], prestamos: [], respaldados: [], config: {}, contadores: {} };
     // Cinco créditos limpios seguidos: 5 pagos a tiempo y racha 5 → ORO (§5).
@@ -4328,7 +4359,8 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
         pagado: true, fechaPagado: c, gananciaPago: COSTO, prorrogas: [],
         abonosCapital: [], comprobantes: [], cobroRegistrado: true });
     });
-    assert.equal(P.migrarSocio(db, s).garantia.nivel, 'oro', 'se lo ganó pagando');
+    const antes = P.migrarSocio(db, s).garantia;
+    assert.equal(antes.nivel, M.nivelPorGarantia(antes.total), 'el nombre sale de los pesos');
     assert.equal(s.nivelSocio, undefined, 'y sin que nadie le escriba ningún campo');
 
     // Ahora se atrasa tres veces seguidas: racha 0 y meses sin mora en cero.
@@ -4341,8 +4373,10 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
     });
     const m = P.migrarSocio(db, s);
     assert.equal(m.garantia.racha, 0, 'la racha de hoy sí se rompe');
-    assert.equal(m.garantia.nivel, 'oro',
-      'la promesa es que nadie retrocede: esto solo frena la SUBIDA');
+    assert.ok(m.garantia.total > antes.total,
+      'los pagos tardíos SUMARON garantía (menos, pero sumaron)');
+    assert.ok(M.NIVELES.indexOf(m.garantia.nivel) >= M.NIVELES.indexOf(antes.nivel),
+      'y por eso el nivel no pudo bajar: ' + antes.nivel + ' → ' + m.garantia.nivel);
     assert.equal(s.nivelSocio, undefined, 'el puente no escribe nada: es puro');
   });
 
@@ -4358,7 +4392,7 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
     // Y el nivel sale igual sin él.
     const { db, s } = carteraLavada();
     assert.equal(s.nivelSocio, undefined);
-    assert.equal(P.migrarSocio(db, s).garantia.nivel, 'bronce');
+    assert.equal(P.migrarSocio(db, s).garantia.nivel, 'aluminio');
   });
 
   test('el crédito limpio sigue subiendo igual de rápido', () => {
@@ -4373,7 +4407,10 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
     const m = P.migrarSocio(db, s);
     assert.equal(m.garantia.pagados_a_tiempo, 2);
     assert.equal(m.garantia.racha, 2);
-    assert.equal(m.garantia.nivel, 'plata', 'dos pagos limpios ya son plata (§5)');
+    /* 2-sep-2026: dos pagos limpios de 200.000 dejan 60.000 de garantía —
+       hierro todavía. El premio del limpio está en el ritmo: acumula al doble
+       que el tardío, así que llega a cada tramo en la mitad de créditos. */
+    assert.equal(m.garantia.nivel, M.nivelPorGarantia(m.garantia.total));
   });
 
   test('la regla vive en el motor y el puente la consulta, no la reescribe', () => {
@@ -4405,10 +4442,10 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
     const est = PUENTE_SRC.slice(e, PUENTE_SRC.indexOf('\n  }', e));
     assert.match(est, /esPuntualParaNivel/, 'la regla única consulta el criterio del motor');
     assert.match(est, /estuvoEnMora/, 'y la mora, que es la mitad que faltaba');
-    // Y el nivel se deriva con evaluarNivel del motor, no con una escalera propia.
+    // Y el nivel se deriva con nivelPorGarantia del motor, no con una tabla propia.
     const k = PUENTE_SRC.indexOf('function nivelDelSocio(');
     assert.ok(k >= 0);
-    assert.match(PUENTE_SRC.slice(k, PUENTE_SRC.indexOf('\n  }', k)), /M\.evaluarNivel/);
+    assert.match(PUENTE_SRC.slice(k, PUENTE_SRC.indexOf('\n  }', k)), /M\.nivelPorGarantia/);
   });
 });
 
@@ -4922,217 +4959,86 @@ describe('las plantillas hablan con una sola voz (4-ago-2026)', () => {
 });
 
 /* ==========================================================================
- * EL NIVEL BAJABA — y el nivel no puede bajar nunca (4-ago-2026)
+ * EL NIVEL SALE DE LA GARANTÍA Y EL PAQUETE LO LLEVA (2-sep-2026)
  *
- * migrarSocio recalculaba los tres contadores desde cero en cada carga con
- * esPuntualParaNivel, que excluye todo crédito con prórroga o plan de pagos.
- * Un solo crédito con UNA prórroga —pagada en fecha— reseteaba la racha y los
- * meses sin mora, y el socio RETROCEDÍA. El piso que debía impedirlo era
- * `s.nivelSocio`, un campo que NO ESCRIBE NADIE en todo el producto: existía
- * únicamente dentro de una prueba que se lo ponía a mano.
- *
- * MEDIDO: 10 créditos de 200.000 pagados todos en fecha → platino, garantía
- * 360.000, cupo 1.140.000. Se agrega el crédito 11 con UNA prórroga registrada
- * a tiempo y pagado en el corte nuevo: aTiempo 10, racha 0, meses 1 → PLATA,
- * cupo 904.000. El socio pagó 40.000 de más y perdió 452.000 de cupo.
- *
- * El arreglo: el nivel es el MÁXIMO HISTÓRICO, derivado del propio historial.
- * Se recorren los instantes en que la cuenta pudo cambiar —cada pago, cada
- * corte y hoy— y en cada uno se derivan los contadores como estaban ese día.
- * Nadie tiene que acordarse de escribir nada.
+ * Aquí vivía «el nivel es un máximo histórico y nunca baja», con su
+ * recorrido por instantes. Joan derogó la promesa el 2-sep: el nivel es el
+ * tramo de la garantía de HOY — y puede bajar si la garantía baja. Estas
+ * pruebas fijan la naturaleza nueva y la única desigualdad que sobrevive de
+ * la vieja: la puntualidad paga EN PESOS, así que a igual capital el puntual
+ * nunca queda con menos nombre que el tardío.
  * ======================================================================== */
 
-describe('el nivel es un máximo histórico y nunca baja (4-ago-2026)', () => {
+describe('el nivel sale de la garantía y el paquete lo lleva (2-sep-2026)', () => {
 
   const CAP = 200000, COSTO = 40000;
   const socio = () => ({ id: 's1', numero: 1, nombre: 'Ana', cedula: '123456',
     telefono: '3001112222', whatsappIgual: true, referencia: { nombre: '', telefono: '' },
     gestiones: [], ajusteGarantia: 0 });
   const dbVacia = s => ({ socios: [s], prestamos: [], respaldados: [], config: {}, contadores: {} });
-  // Un crédito quincenal cerrado: `pagado` dice en qué fecha se pagó.
   const cerrado = (id, n, corte, pagado, extra) => Object.assign({
     id: id, numero: n, socioId: 's1', capital: CAP, costoPct: 20,
     fechaDesembolso: M.iso(M.sumarDias(M.aFechaLocal(corte), -12)),
     cicloActual: corte, cicloPago: corte, pagado: true, fechaPagado: pagado || corte,
     gananciaPago: COSTO, prorrogas: [], abonosCapital: [], comprobantes: [],
     cobroRegistrado: true }, extra || {});
-  // Diez quincenas seguidas, todas pagadas el día del corte.
   const diezLimpios = () => {
-    const s = socio(), db = dbVacia(s), cortes = [];
-    let d = M.aFechaLocal('2026-01-15');
-    for (let i = 0; i < 10; i++) { cortes.push(M.iso(d)); d = M.aFechaLocal(M.calcularFechaCorte(d)); }
-    cortes.forEach((c, i) => db.prestamos.push(cerrado('q' + i, i + 1, c)));
-    return { db, s, cortes };
-  };
-
-  test('EL NÚMERO DEL DEFECTO: platino, y una prórroga PUNTUAL lo bajaba a plata', () => {
-    const { db, s, cortes } = diezLimpios();
-    const antes = P.migrarSocio(db, s);
-    assert.equal(antes.garantia.nivel, 'platino');
-    /* 5-ago-2026 — el defecto se medía en cupo (1.140.000 contra 904.000) y ya no
-       se puede: el cupo es la garantía y el nivel no lo toca. Lo que se caía —y
-       sigue sin poder caerse— es el NIVEL, que es el reconocimiento del socio y
-       lo que le da sus prórrogas. */
-    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), antes.garantia.nivel).cupo, 320000);
-
-    // Crédito 11: una prórroga registrada EL DÍA DEL CORTE (a tiempo, sin mora)
-    // y pagado el día del corte nuevo. No se atrasó ni un día.
-    const c11 = M.calcularFechaCorte(M.aFechaLocal(cortes[9]));
-    const lp = M.liquidarProrroga({ id: 'q10', capital: CAP, tasa_aplicada: 0.20,
-      fecha_corte: c11, estado: 'en_corte', prorrogas_usadas: 0, nivel_socio: 'platino' }, c11);
-    assert.equal(lp.movimiento.aTiempo, true, 'la prórroga se pagó en fecha');
-    assert.equal(lp.movimiento.mora, 0, 'y sin un peso de recargo');
-    db.prestamos.push(cerrado('q10', 11, lp.fecha_corte_nueva, lp.fecha_corte_nueva,
-      { prorrogas: [lp.movimiento] }));
-
-    // Los contadores de HOY sí caen: eso es lo correcto, un crédito con prórroga
-    // no gana el escalón. Lo que no puede pasar es que se lleven el nivel puesto.
-    // (Se miran en una fecha fija para que la prueba no dependa del calendario.)
-    const DIA = '2026-08-04';
-    const cont = P.contadoresDeNivel(db.prestamos, DIA);
-    assert.deepEqual(cont, { a_tiempo: 10, racha: 0, meses_sin_mora: 1 });
-    assert.equal(M.evaluarNivel(cont.a_tiempo, cont.racha, cont.meses_sin_mora), 'plata',
-      'lo que salía antes, y era el defecto: dos escalones abajo');
-    assert.equal(P.nivelDelSocio(db.prestamos, DIA), 'platino',
-      'el máximo histórico se acuerda del día en que sí los tenía');
-
-    const m = P.migrarSocio(db, s);
-    assert.equal(m.garantia.pagados_a_tiempo, 10);
-    assert.equal(m.garantia.racha, 0);
-    assert.equal(m.garantia.nivel, 'platino', 'el nivel NO baja');
-    // Y el cupo sube por lo que pagó, no por el nivel: los mismos 380.000 dijera
-    // platino o dijera plata. Lo que el defecto le quitaba hoy es el escalón.
-    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), m.garantia.nivel).cupo, 380000);
-    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), 'plata').cupo, 380000);
-  });
-
-  test('y usar la prórroga sigue sin RENDIR: no lo sube ni un escalón', () => {
-    // Mismo socio, misma plata, pero los 10 con prórroga: no llega a platino.
     const s = socio(), db = dbVacia(s);
     let d = M.aFechaLocal('2026-01-15');
     for (let i = 0; i < 10; i++) {
-      const c = M.iso(d);
-      const lp = M.liquidarProrroga({ id: 'p' + i, capital: CAP, tasa_aplicada: 0.20,
-        fecha_corte: c, estado: 'en_corte', prorrogas_usadas: 0, nivel_socio: 'bronce' }, c);
-      db.prestamos.push(cerrado('p' + i, i + 1, lp.fecha_corte_nueva, lp.fecha_corte_nueva,
-        { prorrogas: [lp.movimiento] }));
-      d = M.aFechaLocal(M.calcularFechaCorte(M.aFechaLocal(lp.fecha_corte_nueva)));
+      db.prestamos.push(cerrado('q' + i, i + 1, M.iso(d)));
+      d = M.aFechaLocal(M.calcularFechaCorte(d));
     }
-    const m = P.migrarSocio(db, s);
-    assert.equal(m.garantia.pagados_a_tiempo, 0, 'ninguno gana el escalón');
-    assert.equal(m.garantia.nivel, 'bronce');
-    // Y la garantía que pagó no se le toca: prórroga puntual al 90% + pago al 90%.
-    assert.equal(P.garantiaGanadaDe(db, s), 10 * (M.acumularGarantia(COSTO, true) * 2));
-  });
+    return { db, s };
+  };
 
-  test('un crédito nuevo no puede mejorar el pasado, solo el presente', () => {
-    // El máximo histórico se toma sobre INSTANTES: un socio con una sola quincena
-    // limpia no se fabrica un oro agregando créditos con prórroga.
-    const s = socio(), db = dbVacia(s);
-    db.prestamos.push(cerrado('u1', 1, '2026-01-15'));
-    assert.equal(P.migrarSocio(db, s).garantia.nivel, 'bronce');
-    for (let i = 0; i < 8; i++) {
-      const c = M.iso(M.sumarDias(M.aFechaLocal('2026-02-15'), i * 15));
-      const lp = M.liquidarProrroga({ id: 'z' + i, capital: CAP, tasa_aplicada: 0.20,
-        fecha_corte: c, estado: 'en_corte', prorrogas_usadas: 0, nivel_socio: 'bronce' }, c);
-      db.prestamos.push(cerrado('z' + i, 2 + i, lp.fecha_corte_nueva, lp.fecha_corte_nueva,
-        { prorrogas: [lp.movimiento] }));
-    }
-    assert.equal(P.migrarSocio(db, s).garantia.nivel, 'bronce',
-      'nueve créditos y ni uno gana escalón: sigue en bronce');
-  });
-
-  test('ESTAR EN MORA NO FABRICA "meses sin mora" — el agujero que abriría el máximo', () => {
-    /* Antes, `meses_sin_mora` se medía desde el último atraso CURADO y no miraba
-       si el socio está atrasado AHORA: un crédito abierto y vencido no reseteaba
-       nada, así que los meses de mora empujaban al socio hacia arriba. Con el
-       máximo histórico eso además quedaría clavado para siempre. */
-    const s = socio(), db = dbVacia(s);
-    db.prestamos.push(cerrado('a1', 1, '2026-01-15'));
-    db.prestamos.push(cerrado('a2', 2, '2026-01-31'));
-    assert.ok(P.migrarSocio(db, s).garantia.meses_sin_mora > 0, 'al día, el contador corre');
-
-    // Ahora tiene un crédito abierto y vencido hace rato.
-    db.prestamos.push({ id: 'a3', numero: 3, socioId: 's1', capital: CAP, costoPct: 20,
-      fechaDesembolso: '2026-02-15', cicloActual: '2026-02-28', pagado: false,
-      prorrogas: [], abonosCapital: [], comprobantes: [] });
-    const m = P.migrarSocio(db, s);
-    assert.equal(m.garantia.meses_sin_mora, 0, 'está en mora: los meses sin mora son cero');
-    assert.equal(m.garantia.pagados_a_tiempo, 2, 'y lo que pagó le sigue contando');
-    assert.equal(m.garantia.nivel, 'plata', 'el nivel que se ganó no se toca');
-    assert.equal(P.estabaVencido(db.prestamos[2], '2026-02-28'), false, 'el día del corte no es mora');
-    assert.equal(P.estabaVencido(db.prestamos[2], '2026-03-01'), true);
-  });
-
-  test('el crédito que estaba vencido cuando se pagó otro tampoco regala meses', () => {
-    const s = socio(), db = dbVacia(s);
-    // Uno se atrasó de enero a mayo; otro se pagó puntual en el medio.
-    db.prestamos.push(cerrado('v1', 1, '2026-01-15', '2026-05-15'));
-    db.prestamos.push(cerrado('v2', 2, '2026-03-15'));
-    assert.equal(P.estabaVencido(db.prestamos[0], '2026-03-15'), true,
-      'en marzo el primero seguía vencido y sin pagar');
-    assert.equal(P.contadoresDeNivel(db.prestamos, '2026-03-15').meses_sin_mora, 0);
-  });
-
-  test('los instantes son los pagos, los cortes y hoy — y nunca el futuro', () => {
-    const s = socio(), db = dbVacia(s);
-    db.prestamos.push(cerrado('i1', 1, '2026-01-15'));
-    db.prestamos.push({ id: 'i2', numero: 2, socioId: 's1', capital: CAP, costoPct: 20,
-      fechaDesembolso: '2026-02-15', cicloActual: '2099-12-31', pagado: false,
-      prorrogas: [], abonosCapital: [], comprobantes: [] });
-    const inst = P.instantesDeNivel(db.prestamos, '2026-08-04');
-    assert.ok(inst.includes('2026-01-15'), 'el pago');
-    assert.ok(inst.includes('2026-08-04'), 'y hoy, siempre el último');
-    assert.ok(!inst.includes('2099-12-31'), 'un corte futuro no es un instante evaluable');
-    assert.deepEqual(inst, inst.slice().sort(), 'van en orden');
-    assert.equal(inst[inst.length - 1], '2026-08-04');
-  });
-
-  test('LOS MESES DE MORA NO COMPRAN PLATINO, y los meses limpios sí', () => {
-    /* El agujero que el máximo histórico podía volver permanente: platino pide
-       10 pagos y 3 meses sin mora. Diez créditos apretados en mes y medio no
-       llegan a los 3 meses; si el contador siguiera corriendo durante la mora,
-       el socio llegaría a platino JUSTAMENTE por no pagar, y ahí se quedaría
-       para siempre. Los mismos diez créditos, al día, sí llegan con el tiempo. */
-    const apretados = () => {
-      const s = socio(), db = dbVacia(s);
-      for (let i = 0; i < 10; i++) {
-        db.prestamos.push(cerrado('g' + i, i + 1,
-          M.iso(M.sumarDias(M.aFechaLocal('2026-01-05'), i * 5))));
-      }
-      return { db, s };
-    };
-    const limpio = apretados();
-    assert.equal(P.migrarSocio(limpio.db, limpio.s).garantia.nivel, 'platino',
-      'sin mora, los meses corren y el socio llega solo');
-
-    const enMora = apretados();
-    enMora.db.prestamos.push({ id: 'g10', numero: 11, socioId: 's1', capital: CAP,
-      costoPct: 20, fechaDesembolso: '2026-02-20', cicloActual: '2026-02-28',
-      pagado: false, prorrogas: [], abonosCapital: [], comprobantes: [] });
-    const m = P.migrarSocio(enMora.db, enMora.s);
-    assert.equal(m.garantia.pagados_a_tiempo, 10, 'los diez pagos le siguen contando');
-    assert.equal(m.garantia.nivel, 'oro',
-      'no llegó a los 3 meses sin mora antes de atrasarse: la mora no se los da');
-  });
-
-  test('y tener un crédito abierto en mora no le BAJA el platino al que ya lo tenía', () => {
+  test('el paquete deriva el nivel del TOTAL, con la tabla del motor', () => {
     const { db, s } = diezLimpios();
-    assert.equal(P.migrarSocio(db, s).garantia.nivel, 'platino');
-    db.prestamos.push({ id: 'e11', numero: 11, socioId: 's1', capital: CAP, costoPct: 20,
-      fechaDesembolso: '2026-06-05', cicloActual: '2026-06-15', pagado: false,
-      prorrogas: [], abonosCapital: [], comprobantes: [] });
-    const m = P.migrarSocio(db, s);
-    assert.equal(m.garantia.meses_sin_mora, 0, 'hoy está en mora y el contador dice la verdad');
-    assert.equal(m.garantia.nivel, 'platino', 'pero lo que ya se ganó no se le quita');
+    const g = P.migrarSocio(db, s).garantia;
+    assert.equal(g.nivel, M.nivelPorGarantia(g.total),
+      'el puente y el motor tienen que decir el mismo nombre');
+    assert.ok(M.NIVELES.includes(g.nivel));
   });
 
-  test('el socio sin nada no revienta y arranca en bronce', () => {
-    const s = socio(), db = dbVacia(s);
-    const m = P.migrarSocio(db, s);
-    assert.equal(m.garantia.nivel, 'bronce');
-    assert.equal(m.garantia.meses_sin_mora, 0);
-    assert.equal(P.nivelDelSocio([], '2026-08-04'), 'bronce');
+  test('el socio sin nada no revienta y arranca en hierro', () => {
+    const s = socio();
+    const g = P.migrarSocio(dbVacia(s), s).garantia;
+    assert.equal(g.nivel, 'hierro');
+    assert.equal(g.total >= 0, true);
+  });
+
+  test('LA DEROGACIÓN, PROBADA: si la garantía baja, el nivel baja', () => {
+    /* Es la decisión explícita de Joan y hay que poder verla en una prueba:
+       un ajuste manual negativo (crm lo ofrece) tumba el total, y el título
+       sigue al total. Si esto empieza a fallar, alguien devolvió el piso. */
+    const { db, s } = diezLimpios();
+    const antes = P.migrarSocio(db, s).garantia;
+    s.ajusteGarantia = -(antes.total - 50000);   // lo deja en ~50.000
+    const despues = P.migrarSocio(db, s).garantia;
+    assert.ok(despues.total < antes.total);
+    assert.equal(despues.nivel, 'hierro',
+      'la garantía bajó a ' + despues.total + ' y el nivel tiene que bajar con ella');
+    assert.ok(M.NIVELES.indexOf(despues.nivel) < M.NIVELES.indexOf(antes.nivel) ||
+              antes.nivel === 'hierro');
+  });
+
+  test('a igual capital, el puntual nunca queda con menos nombre', () => {
+    /* La desigualdad que sobrevive del mundo viejo, ahora en pesos: la misma
+       historia pagada en fecha acredita al 75% y pagada tarde al 37,5%. */
+    const sA = socio(), dbA = dbVacia(sA);
+    const sB = socio(), dbB = dbVacia(sB);
+    let d = M.aFechaLocal('2026-01-15');
+    for (let i = 0; i < 10; i++) {
+      const corte = M.iso(d);
+      dbA.prestamos.push(cerrado('a' + i, i + 1, corte));
+      dbB.prestamos.push(cerrado('b' + i, i + 1, corte,
+        M.iso(M.sumarDias(M.aFechaLocal(corte), 10))));
+      d = M.aFechaLocal(M.calcularFechaCorte(d));
+    }
+    const gA = P.migrarSocio(dbA, sA).garantia, gB = P.migrarSocio(dbB, sB).garantia;
+    assert.ok(gA.total > gB.total, 'la puntualidad paga en pesos');
+    assert.ok(M.NIVELES.indexOf(gA.nivel) >= M.NIVELES.indexOf(gB.nivel),
+      'y por eso el puntual nunca tiene menos nombre: ' + gA.nivel + ' vs ' + gB.nivel);
   });
 });
 
@@ -5572,8 +5478,11 @@ describe('pagar no puede rendir menos que no pagar (5-ago-2026)', () => {
     const tarde = foto(a.db, a.s);
     assert.equal(puntual.cont.a_tiempo, 11, 'los once escalones');
     assert.equal(tarde.cont.a_tiempo, 10, 'el que pagó tarde no gana el suyo');
-    assert.equal(puntual.nivel, 'platino', 'el puntual sí llega');
-    assert.equal(tarde.nivel, 'oro', 'el atrasado se queda un escalón abajo');
+    /* 2-sep-2026: aquí NO aplica «el puntual no queda con menos nombre» —
+       en este fixture el tardío pagó 294.000 (multa incluida) contra 40.000
+       del puntual, y la multa acredita garantía a mitad: compró más pesos, y
+       los pesos SON el nombre ahora. La desigualdad que sobrevive es la de
+       abajo: POR PESO PAGADO, atrasarse rinde menos. */
     /* Y por peso pagado no hay comparación: el puntual llegó a platino pagando
        40.000; el atrasado pagó 294.000 para quedarse en oro. */
     assert.ok(puntual.cupo / 40000 > tarde.cupo / l.costo_total_pagado,
@@ -5889,9 +5798,10 @@ describe('el nivel no puede premiar al que no paga (5-ago-2026)', () => {
     const paga = foto(a.db, a.s), deja = foto(b.db, b.s);
     assert.equal(paga.a_tiempo, 6); assert.equal(deja.a_tiempo, 6);
     assert.equal(deja.racha, 2, 'ANTES daba 6: los 4 de antes se pegaban con los 2 de después');
-    assert.equal(deja.nivel, 'plata', 'ANTES era ORO, por no haber pagado');
-    assert.equal(paga.nivel, deja.nivel);
-    assert.equal(paga.cupo, deja.cupo, 'ANTES: 648.400 pagando contra 810.500 prorrogando');
+    /* 2-sep-2026: el nombre sale de pesos. Lo que no puede pasar es que NO
+       pagar deje más nombre o más cupo que pagar. */
+    assert.ok(escalon(paga.nivel) >= escalon(deja.nivel),
+      'no pagar dejó más nombre que pagar');
     assert.ok(paga.cupo >= deja.cupo);
   });
 
@@ -5971,9 +5881,12 @@ describe('el nivel no puede premiar al que no paga (5-ago-2026)', () => {
           donde + 'por peso pagado, encadenar rinde MÁS que saldar');
         assert.ok(paga.garantia / cobradoPaga >= plan.garantia / cobradoPlan - 1e-9,
           donde + 'por peso pagado, el plan rinde MÁS que saldar');
-        // Y ni la cadena ni el plan compran escalón ni racha.
-        assert.ok(escalon(paga.nivel) >= escalon(cadena.nivel), donde + 'la cadena compró nivel');
-        assert.ok(escalon(paga.nivel) >= escalon(plan.nivel), donde + 'el plan compró nivel');
+        /* 2-sep-2026 — DEROGADO «la cadena no compra nivel»: el nivel ahora
+           mide PESOS de garantía, y la cadena paga más ciclos (la primera
+           línea de este caso lo afirma), así que puede acumular más pesos y
+           más nombre — comprando, literalmente, que es lo que el nombre
+           significa ahora. La guarda viva es POR PESO PAGADO (arriba) y la
+           racha, que sigue siendo puntualidad: */
         assert.ok(paga.racha >= cadena.racha, donde + 'la cadena compró racha');
       });
     });
@@ -6854,9 +6767,9 @@ describe('un día de mora se comporta igual que dos (6-ago-2026)', () => {
         'N=' + n + ': prorrogar dejó el reloj de meses MÁS alto que pagar');
     }
     assert.deepEqual(compro, [], 'prorrogar compró nivel antes que pagar: ' + compro.join(' · '));
-    assert.equal(foto(paga, 1).nivel, 'oro', 'el que pagó todavía está en oro');
-    assert.equal(foto(deja, 1).nivel, 'oro', 'ANTES acá el que prorrogó ya era PLATINO');
-    assert.equal(foto(paga, 6).nivel, 'platino', 'y el que pagó llega en la sexta');
+    /* 2-sep-2026: los nombres exactos ('oro' en N=1, 'platino' en N=6) eran de
+       la escalera por contadores. La desigualdad de arriba —prorrogar nunca
+       llega ANTES que pagar— es la que sobrevive, ahora medida en pesos. */
   });
 
   test('UN día y DOS días se comportan igual: la trayectoria del nivel es la misma', () => {
@@ -6869,7 +6782,10 @@ describe('un día de mora se comporta igual que dos (6-ago-2026)', () => {
     };
     const uno = trayectoria(partida(9, 1, 'prorroga'));
     assert.deepEqual(uno, trayectoria(partida(9, 2, 'prorroga')));
-    assert.deepEqual(uno, ['oro', 'oro', 'oro', 'oro', 'oro', 'oro', 'oro', 'oro', 'oro']);
+    /* 2-sep-2026: el literal de nueve 'oro' era de la escalera por contadores;
+       lo que se fija es que las dos trayectorias son IDÉNTICAS y de niveles
+       reales — un día más de mora no puede torcer el camino del nombre. */
+    uno.forEach(n => assert.ok(M.NIVELES.includes(n)));
     // Y el que pagó sí llega, en los dos casos, y en el mismo instante.
     assert.deepEqual(trayectoria(partida(9, 1, 'paga')), trayectoria(partida(9, 2, 'paga')));
   });
@@ -9016,8 +8932,9 @@ describe('la tasa pactada por crédito (29-ago-2026)', () => {
   });
 
   test('y la fecha de las reglas subió con este cambio', () => {
-    assert.equal(M.REGLAS_VIGENTES_DESDE, '2026-08-29',
-      'la tasa pactable es una regla de plata: si entra sin subir la fecha, ' +
-      'el sello de la app miente');
+    /* 29-ago: la tasa pactable. 2-sep: los niveles por garantía. Cada regla
+       de plata sube la fecha, y esta prueba obliga a subirla a sabiendas. */
+    assert.equal(M.REGLAS_VIGENTES_DESDE, '2026-09-02',
+      'cambió una regla de plata sin subir la fecha: el sello de la app miente');
   });
 });

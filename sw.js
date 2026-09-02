@@ -110,7 +110,13 @@
 /* v23 — 29-ago-2026 (mismo dia): el buscador de clientes en el CRM. */
 /* v24 — 1-sep-2026: la certificacion de usura de septiembre (Res. 1260: techo
    29,24%) y el token {nivel} que salia literal en los recibos. */
-const CACHE = 'tugarantia-v24';
+/* v25 — 2-sep-2026. LOS NIVELES POR GARANTIA (regla de plata: sube tambien
+   REGLAS_VIGENTES_DESDE y VERSION_APP). Toca motor, puente, las tres pantallas,
+   terminos e index. Orden de despliegue: primero esto; la re-sincronizacion de
+   Joan puede ir en cualquier momento — la app nueva deriva el nivel LOCALMENTE
+   del total y no lee el nombre del paquete, asi que ninguna combinacion de
+   versiones revienta. */
+const CACHE = 'tugarantia-v25';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

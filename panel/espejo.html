@@ -587,7 +587,7 @@ function creditoMotor(p) {
     estado: p.pagado ? 'pagado' : (P.tienePlan(p) ? 'plan_de_pagos' : 'en_corte'),
     prorrogas_usadas: (p.prorrogas || []).length,
     estuvo_en_mora: !!P.liquidarCiclo(p).estuvo_en_mora,
-    nivel_socio: s ? nivelDe(s) : 'bronce'
+    nivel_socio: s ? nivelDe(s) : 'hierro'
   };
 }
 /* Lo que hay que saber para prorrogar ESE día. El recargo que cobra la prórroga

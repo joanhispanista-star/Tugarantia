@@ -197,9 +197,42 @@
    * SE SUBE CUANDO CAMBIA UNA REGLA DE PLATA —tasa, reparto, cupo, garantía,
    * mora—, no cuando se arregla una pantalla: para eso está VERSION_APP en
    * socio.html. Si esta fecha cambia, el cupo de alguien pudo haber cambiado. */
-  var REGLAS_VIGENTES_DESDE = '2026-08-29';
+  var REGLAS_VIGENTES_DESDE = '2026-09-02';
 
-  var NIVELES = ['bronce', 'plata', 'oro', 'platino'];
+  /* 2-sep-2026 — LOS NIVELES CAMBIAN DE NATURALEZA, por decision de Joan:
+     ya no se ganan por puntualidad, son EL TRAMO DE LA GARANTIA de hoy. Nueve
+     nombres, en orden; el nombre es la llave de todo diccionario, asi que va
+     UNA vez aunque el tramo de hierro cubra dos escalones de la escala que
+     Joan dicto (0-100 y 100-200: ambos hierro). Los cuatro nombres viejos
+     siguen adentro a proposito: un paquete guardado con nivel:'plata' no puede
+     reventar la app nueva. */
+  var NIVELES = ['hierro', 'aluminio', 'bronce', 'plata', 'oro', 'platino',
+                 'diamante', 'materia oscura pro', 'misterio'];
+
+  /* El tramo en pesos de cada nivel. `desde` INCLUSIVO: 200.000 exactos ya son
+     aluminio — la convencion esta clavada en pruebas por los dos lados de cada
+     frontera. La escala duplica en cada salto (decision de Joan, 2-sep). */
+  var TRAMOS_NIVEL = [
+    { desde: 0,        nivel: 'hierro' },
+    { desde: 200000,   nivel: 'aluminio' },
+    { desde: 400000,   nivel: 'bronce' },
+    { desde: 800000,   nivel: 'plata' },
+    { desde: 1600000,  nivel: 'oro' },
+    { desde: 3200000,  nivel: 'platino' },
+    { desde: 6400000,  nivel: 'diamante' },
+    { desde: 12800000, nivel: 'materia oscura pro' },
+    { desde: 25000000, nivel: 'misterio' }
+  ];
+
+  /* El nombre como se PINTA. 'materia oscura pro' capitalizado a lo bruto
+     saldria "Materia oscura pro"; el PRO va en mayusculas porque asi lo bautizo
+     Joan. Las pantallas usan esto, nunca text-transform. */
+  var NOMBRE_NIVEL = { 'materia oscura pro': 'Materia Oscura PRO' };
+  function nombreNivel(nivel) {
+    var n = normalizarNivel(nivel, 'nivel');
+    if (NOMBRE_NIVEL[n]) return NOMBRE_NIVEL[n];
+    return n.charAt(0).toUpperCase() + n.slice(1);
+  }
 
   /* §5 DEROGADO (29-jul-2026): ya no hay escalones de tasa por cobertura.
      El costo es SIEMPRE el 20% del capital. La garantía dejó de fijar el
@@ -330,19 +363,16 @@
      lo que el socio había pagado en toda su historia, y la mitad de esa garantía
      la había puesto la plataforma con el cupón.
 
-     Los niveles SIGUEN EXISTIENDO y siguen mandando acá abajo: el tope de
-     prórrogas es hoy lo único material que se gana subiendo, más el
-     reconocimiento. */
-  var PRORROGAS_POR_NIVEL = { bronce: 1, plata: 2, oro: 2, platino: 2 };
+     2-sep-2026 — TODOS LOS NIVELES DAN DOS PRÓRROGAS, por decisión de Joan
+     («todos inician con 2 prórrogas»). El nivel deja de decidir prórrogas y
+     queda como el título del tamaño de la garantía. La tabla se conserva —y no
+     una constante— porque prorrogasPermitidas() y sus llamadores ya la leen
+     por nombre, y porque el día que Joan quiera diferenciar de nuevo, el sitio
+     es este. Los bronce de ayer (1 prórroga) GANAN una; nadie pierde: por eso
+     este cambio no exige congelar nivel_socio en los créditos abiertos. */
+  var PRORROGAS_POR_NIVEL = { hierro: 2, aluminio: 2, bronce: 2, plata: 2,
+    oro: 2, platino: 2, diamante: 2, 'materia oscura pro': 2, misterio: 2 };
   var TOPE_DURO_PRORROGAS = 2; // §8, tope duro por encima del nivel
-
-  // §5 — requisitos de nivel, bajados el 29-jul-2026 para que se suba rápido.
-  var REQUISITOS_NIVEL = {
-    bronce: { pagos_a_tiempo: 0, racha: 0, meses_sin_mora: 0 },
-    plata: { pagos_a_tiempo: 2, racha: 0, meses_sin_mora: 0 },
-    oro: { pagos_a_tiempo: 5, racha: 3, meses_sin_mora: 0 },
-    platino: { pagos_a_tiempo: 10, racha: 0, meses_sin_mora: 3 }
-  };
 
   /* Cuánta garantía deja cada peso de costo pagado.
      5-ago-2026: baja de 0,90 a 0,75 (antes había bajado de 1,00 a 0,90 el
@@ -754,14 +784,20 @@
   function proyeccionNiveles(garantiaTotal, nivelActual) {
     var g = numeroNoNegativo(garantiaTotal, 'garantiaTotal');
     var actual = nivelActual == null ? null : normalizarNivel(nivelActual, 'nivelActual');
-    return NIVELES.map(function (n) {
+    /* 2-sep-2026: cada fila trae SU TRAMO en pesos (desde/hasta), que es lo
+       que las pantallas necesitan para decir «te faltan $X para aluminio».
+       `hasta` del último es null: misterio queda abierto por arriba. */
+    return TRAMOS_NIVEL.map(function (t, i) {
+      var n = t.nivel;
       return {
         nivel: n,
-        // El mismo cupo en los cuatro: el nivel ya no lo mueve.
+        nombre: nombreNivel(n),
+        desde: t.desde,
+        hasta: i + 1 < TRAMOS_NIVEL.length ? TRAMOS_NIVEL[i + 1].desde : null,
+        // El mismo cupo en todos: el nivel no lo mueve.
         cupo: calcularCupo(g, n),
         mueve_el_cupo: false,
         prorrogas: Math.min(PRORROGAS_POR_NIVEL[n], TOPE_DURO_PRORROGAS),
-        requisitos: REQUISITOS_NIVEL[n],
         actual: n === actual,
         alcanzado: actual != null && NIVELES.indexOf(n) <= NIVELES.indexOf(actual)
       };
@@ -920,16 +956,18 @@
                ' Esa parte te sube el cupo quincenal; el préstamo con garantía se apoya solo ' +
                'en lo que pagaste tú.'
       },
-      /* 5-ago-2026 — los niveles se quedan, pero ya no traen `factor`: no
-         multiplican nada. Lo que se gana subiendo son prórrogas. Y va la frase
-         acá para que ninguna pantalla tenga que inventarla. */
-      niveles: NIVELES.map(function (n) {
-        return { nivel: n, requisitos: REQUISITOS_NIVEL[n], mueve_el_cupo: false,
-                 prorrogas: Math.min(PRORROGAS_POR_NIVEL[n], TOPE_DURO_PRORROGAS) };
+      /* 2-sep-2026 — el nivel es el TRAMO de la garantía. Va la frase acá
+         para que ninguna pantalla tenga que inventarla. */
+      niveles: TRAMOS_NIVEL.map(function (t, i) {
+        return { nivel: t.nivel, nombre: nombreNivel(t.nivel), desde: t.desde,
+                 hasta: i + 1 < TRAMOS_NIVEL.length ? TRAMOS_NIVEL[i + 1].desde : null,
+                 mueve_el_cupo: false,
+                 prorrogas: Math.min(PRORROGAS_POR_NIVEL[t.nivel], TOPE_DURO_PRORROGAS) };
       }),
-      niveles_texto: 'Los niveles son el reconocimiento de tu historial y te dan más ' +
-                     'prórrogas: hasta ' + TOPE_DURO_PRORROGAS + ' aplazamientos por crédito. ' +
-                     'El cupo no depende del nivel: depende de tu garantía.',
+      niveles_texto: 'Tu nivel cuenta el tamaño de tu garantía: cada vez que la doblas, ' +
+                     'subes de nombre. Todos los niveles pueden aplazar hasta ' +
+                     TOPE_DURO_PRORROGAS + ' veces por crédito, y el cupo no depende del ' +
+                     'nivel: es tu garantía, uno a uno.',
       tope: {
         cupo: CUPO_MAXIMO,
         texto: 'Lo máximo que se presta son ' + CUPO_MAXIMO.toLocaleString('es-CO') + '.'
@@ -1354,30 +1392,35 @@
   /* --------------------------------------------------------- §5 niveles */
 
   /**
-   * §5 — Nivel de socio derivado de los contadores. Gana el nivel más alto
-   * cuyos propios requisitos se cumplan (D4).
+   * §5 (2-sep-2026) — EL NIVEL ES EL TRAMO DE LA GARANTÍA, y nada más.
    *
-   * EL NIVEL NUNCA BAJA (27-jul-2026): pasá `nivelAlcanzado` —el nivel más alto
-   * que el socio haya tenido, guardado en `garantia.nivel_socio`— y funciona
-   * como piso. Una mora puede frenar la subida, nunca provocar una caída.
+   * Decisión de Joan, con sus tres letras: el nivel se deriva del monto de la
+   * garantía de HOY (no de la puntualidad), a TODOS se les re-tituló al tramo
+   * real, y la promesa «tu nivel nunca baja» quedó DEROGADA: si la garantía
+   * baja (un ajuste manual, un pago editado), el nivel baja con ella. Por eso
+   * esta función NO acepta piso — aceptar uno resucitaría la promesa por la
+   * puerta de atrás, con los niveles viejos guardados en la nube ganando sin
+   * que nadie lo note.
    *
-   * @param {string} [nivelAlcanzado] piso; si se omite, se deriva puro.
-   * @returns {'bronce'|'plata'|'oro'|'platino'}
+   * La puntualidad no se quedó sin premio: sigue pagando EN PESOS (el factor
+   * 0,75 contra 0,375 de la garantía que deja cada pago), así que a igual
+   * capital, el puntual llega antes al mismo nivel. La escalera es la misma;
+   * el que paga en fecha la sube al doble de velocidad.
+   *
+   * Entra `garantia.total` — lo que el socio ve como «tu garantía»—, no
+   * base_cupo: base_cupo descuenta el capital en la calle y haría oscilar el
+   * título con cada desembolso.
+   *
+   * @param {number} garantiaTotal pesos de garantía (cupón + acumulada + referidos)
+   * @returns {string} uno de NIVELES
    */
-  function evaluarNivel(creditosPagadosATiempo, rachaActual, mesesSinMora, nivelAlcanzado) {
-    var pagos = enteroNoNegativo(creditosPagadosATiempo, 'creditosPagadosATiempo');
-    var racha = enteroNoNegativo(rachaActual, 'rachaActual');
-    var meses = numeroNoNegativo(mesesSinMora, 'mesesSinMora');
-
-    var r = REQUISITOS_NIVEL, derivado;
-    if (pagos >= r.platino.pagos_a_tiempo && meses >= r.platino.meses_sin_mora) derivado = 'platino';
-    else if (pagos >= r.oro.pagos_a_tiempo && racha >= r.oro.racha) derivado = 'oro';
-    else if (pagos >= r.plata.pagos_a_tiempo) derivado = 'plata';
-    else derivado = 'bronce';
-
-    if (nivelAlcanzado == null) return derivado;
-    var piso = normalizarNivel(nivelAlcanzado, 'nivelAlcanzado');
-    return NIVELES.indexOf(piso) > NIVELES.indexOf(derivado) ? piso : derivado;
+  function nivelPorGarantia(garantiaTotal) {
+    var g = numeroNoNegativo(garantiaTotal, 'garantiaTotal');
+    var nivel = TRAMOS_NIVEL[0].nivel;
+    for (var i = 0; i < TRAMOS_NIVEL.length; i++) {
+      if (g >= TRAMOS_NIVEL[i].desde) nivel = TRAMOS_NIVEL[i].nivel;
+    }
+    return nivel;
   }
 
   /**
@@ -1395,7 +1438,7 @@
     var kyc = enteroNoNegativo(socio.nivel_kyc == null ? 0 : socio.nivel_kyc, 'socio.nivel_kyc');
     var estado = socio.estado == null ? 'activo' : socio.estado;
     var garantia = numeroNoNegativo(socio.garantia_total == null ? 0 : socio.garantia_total, 'socio.garantia_total');
-    var nivel = normalizarNivel(socio.nivel_socio || 'bronce', 'socio.nivel_socio');
+    var nivel = normalizarNivel(socio.nivel_socio || 'hierro', 'socio.nivel_socio');
 
     if (kyc < 1) {
       return { ok: false, motivo: 'kyc_incompleto', cupo: 0 };
@@ -1455,7 +1498,7 @@
     opciones = opciones || {};
     var c = numeroPositivo(capital, 'capital');
     var g = numeroNoNegativo(garantiaDisponible, 'garantiaDisponible');
-    var nivel = normalizarNivel(opciones.nivelSocio || 'bronce', 'opciones.nivelSocio');
+    var nivel = normalizarNivel(opciones.nivelSocio || 'hierro', 'opciones.nivelSocio');
 
     var costo = calcularCosto(c);
     // El 15% del capital en un solo redondeo, que es la escalera que se le
@@ -1493,7 +1536,7 @@
     var g = numeroNoNegativo(garantiaInicial, 'garantiaInicial');
     var c = numeroPositivo(capital, 'capital');
     var n = enteroNoNegativo(vueltas == null ? 6 : vueltas, 'vueltas');
-    var nivel = normalizarNivel(nivelSocio || 'bronce');
+    var nivel = normalizarNivel(nivelSocio || 'hierro');
     var pasos = [];
     for (var i = 1; i <= n; i++) {
       // Cada vuelta pide todo el cupo que tiene en ese momento: así se ve la
@@ -1635,7 +1678,7 @@
   }
 
   function nivelDeProrroga(credito, opciones) {
-    return normalizarNivel(opciones.nivelSocio || credito.nivel_socio || 'bronce', 'nivelSocio');
+    return normalizarNivel(opciones.nivelSocio || credito.nivel_socio || 'hierro', 'nivelSocio');
   }
 
   /**
@@ -2021,7 +2064,7 @@
   function cupoQuincenal(entrada, nivelSocio, opciones) {
     opciones = opciones || {};
     var d = desglosarGarantia(entrada);
-    var nivel = normalizarNivel(nivelSocio == null ? 'bronce' : nivelSocio, 'nivelSocio');
+    var nivel = normalizarNivel(nivelSocio == null ? 'hierro' : nivelSocio, 'nivelSocio');
     var freno = frenarPorIngreso(calcularCupo(d.base_cupo, nivel), opciones.freno);
     return {
       cupo: freno.cupo,
@@ -2106,7 +2149,7 @@
     var c = numeroPositivo(capital, 'capital');
     var n = plazoRespaldadoValido(plazoMeses);
     var d = desglosarGarantia(entrada);
-    var nivel = normalizarNivel(opciones.nivelSocio || 'bronce', 'opciones.nivelSocio');
+    var nivel = normalizarNivel(opciones.nivelSocio || 'hierro', 'opciones.nivelSocio');
 
     // Plano sobre el capital original, igual que el 20% quincenal: NO corre
     // sobre saldo insoluto. Es más caro de explicar pero mucho más fácil de
@@ -2383,7 +2426,7 @@
     opciones = opciones || {};
     var n = plazoRespaldadoValido(plazoMeses);
     var d = desglosarGarantia(entrada);
-    var nivel = normalizarNivel(opciones.nivelSocio || 'bronce', 'opciones.nivelSocio');
+    var nivel = normalizarNivel(opciones.nivelSocio || 'hierro', 'opciones.nivelSocio');
 
     var q = simularCredito(capital, d.base_cupo, {
       nivelSocio: nivel, fechaDesembolso: opciones.fechaDesembolso
@@ -2625,7 +2668,9 @@
     calcularCosto: calcularCosto,
     calcularCupo: calcularCupo,
     acumularGarantia: acumularGarantia,
-    evaluarNivel: evaluarNivel,
+    nivelPorGarantia: nivelPorGarantia,
+    TRAMOS_NIVEL: TRAMOS_NIVEL,
+    nombreNivel: nombreNivel,
     aplicarProrroga: aplicarProrroga,
 
     // §8 — lo que el Panel PREGUNTA en vez de calcular (4-ago-2026)
@@ -2708,7 +2753,6 @@
        que es infinitamente mejor que seguir pintando "×2 tu garantía". */
     PRORROGAS_POR_NIVEL: PRORROGAS_POR_NIVEL,
     TOPE_DURO_PRORROGAS: TOPE_DURO_PRORROGAS,
-    REQUISITOS_NIVEL: REQUISITOS_NIVEL,
     FACTOR_GARANTIA: FACTOR_GARANTIA,
     FACTOR_GARANTIA_MORA: FACTOR_GARANTIA_MORA,
     DIAS_VENTANA_MINIMA: DIAS_VENTANA_MINIMA,
