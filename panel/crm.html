@@ -3393,6 +3393,28 @@ function olvidarConversacion(){
    Convierte el historial de siempre en garantía acumulada, para que el cliente
    viejo no arranque en cero, y lo sube para que lo vea en su celular. */
 const SB_KEY='joan_socios_sb';
+/* 2-sep-2026 — LA CLAVE DE SINCRONIZACIÓN PUEDE LLEGAR POR EL HASH, una vez.
+   Existe para el traspaso entre pestañas del MISMO navegador: la clave vive en
+   config_privada (solo visible desde el SQL Editor de Joan) y este CRM la
+   necesita en su localStorage. Copiarla a mano falla justo cuando más estorba,
+   y pasarla por un tercero (incluido Claude) está prohibido por diseño.
+
+   El hash es el canal correcto por lo mismo que el #p= de verComoSocio: el
+   navegador NUNCA se lo manda al servidor, así que no queda en los logs de
+   Pages. Y aquí se limpia de la barra y del historial (replaceState) en cuanto
+   se guarda: la clave no se queda escrita en ninguna parte visible. */
+(function(){
+  var m=/[#&]clave-nube=([^&]+)/.exec(location.hash||'');
+  if(!m) return;
+  try{
+    var c={}; try{ c=JSON.parse(localStorage.getItem(SB_KEY)||'{}'); }catch(e){}
+    c.clave=decodeURIComponent(m[1]);
+    localStorage.setItem(SB_KEY,JSON.stringify(c));
+    history.replaceState(null,'',location.pathname+location.search);
+    setTimeout(function(){ alert('Tu clave de sincronización llegó y quedó guardada en este navegador.\n\n'
+      +'Compruébala: Ajustes → 🔌 Probar conexión. Y ya puedes traer Registrados y subir historiales.'); },400);
+  }catch(e){}
+})();
 /* El enlace que se le manda al socio se calcula desde DONDE ESTÁ el Panel, no escrito
    a mano. Así el día que esto viva en tugarantia.co en vez de en github.io, o en
    cualquier otro sitio, sigue apuntando bien solo. Escrito a mano ya se quedó viejo

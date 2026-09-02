@@ -116,7 +116,9 @@
    Joan puede ir en cualquier momento — la app nueva deriva el nivel LOCALMENTE
    del total y no lee el nombre del paquete, asi que ninguna combinacion de
    versiones revienta. */
-const CACHE = 'tugarantia-v25';
+/* v26 — 2-sep-2026 (segunda): el CRM acepta la clave de sincronizacion por el
+   hash, para el traspaso entre pestañas del mismo navegador. */
+const CACHE = 'tugarantia-v26';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
