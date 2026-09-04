@@ -5369,6 +5369,9 @@ describe('estabaVencido no cambia de respuesta por lo que pase después (5-ago-2
 describe('pagar no puede rendir menos que no pagar (5-ago-2026)', () => {
 
   const HOY = '2026-08-05', CAP = 200000;
+  /* El día en que este socio entra al plan de pagos. La foto de los caminos
+     encadenados hay que tomarla ese día o después: antes el plan no existe. */
+  const DIA_DEL_PLAN = '2026-08-31';
   const socio = () => ({ id: 's1', numero: 1, nombre: 'Ana', cedula: '123456',
     telefono: '3001112222', whatsappIgual: true, referencia: { nombre: '', telefono: '' },
     gestiones: [], ajusteGarantia: 0 });
@@ -5392,8 +5395,14 @@ describe('pagar no puede rendir menos que no pagar (5-ago-2026)', () => {
     db.prestamos.push(p11);
     return { db, s, p11 };
   }
-  const foto = (db, s) => {
-    const m = P.migrarSocio(db, s);
+  /* 3-sep-2026 — LA FOTO SE TOMA UN DÍA FIJO, y no es cosmético: hasta hoy
+     `migrarSocio` leía el reloj de pared, así que estas cuatro pruebas medían
+     el almanaque. `meses_sin_mora` es floor(días/30) contados desde el último
+     día de mora —el 4-ago en este fixture—, o sea que la suite pasó 29 días en
+     verde y se puso roja sola la madrugada del 3-sep, sin que nadie tocara una
+     línea de código. El porqué largo está en migrarSocio (app/puente.js). */
+  const foto = (db, s, dia) => {
+    const m = P.migrarSocio(db, s, dia || HOY);
     const q = M.cupoQuincenal(P.entradaGarantia(db, s), m.garantia.nivel);
     return { nivel: m.garantia.nivel, cupo: q.cupo, garantia: q.total,
              cont: { a_tiempo: m.garantia.pagados_a_tiempo, racha: m.garantia.racha,
@@ -5470,7 +5479,9 @@ describe('pagar no puede rendir menos que no pagar (5-ago-2026)', () => {
         recargo: 0, garantiaGenerada: 0 })) };
     p.cicloActual = p.planPagos.cuotas[0].fecha;
 
-    const paga = foto(a.db, a.s), deja = foto(b.db, b.s);
+    /* Los dos caminos, medidos el MISMO instante y un instante ESCRITO: el día
+       en que el que encadena entra al plan. */
+    const paga = foto(a.db, a.s, DIA_DEL_PLAN), deja = foto(b.db, b.s, DIA_DEL_PLAN);
     // El NIVEL es lo que no se puede comprar encadenando plazo: ANTES la cadena
     // lo dejaba en platino sin haber devuelto un peso de capital.
     assert.equal(deja.nivel, paga.nivel, 'encadenar plazo no le compra un escalón');
@@ -5505,6 +5516,38 @@ describe('pagar no puede rendir menos que no pagar (5-ago-2026)', () => {
        40.000; el atrasado pagó 294.000 para quedarse en oro. */
     assert.ok(puntual.cupo / 40000 > tarde.cupo / l.costo_total_pagado,
       'por peso pagado, atrasarse tiene que rendir menos');
+  });
+
+  /* ======================= EL CENTINELA DEL CENTINELA =======================
+     3-sep-2026. Esta suite —la que vigila que pagar nunca rinda menos que no
+     pagar— estuvo 29 días en verde y se puso roja sola una madrugada, sin que
+     nadie tocara una línea. No había ninguna regresión: `meses_sin_mora` es
+     floor(días/30) desde el último día de mora, y el fixture cruzó su día 30.
+     Peor todavía, se habría curado sola el 16-sep (cuando la primera cuota del
+     plan vence y el socio vuelve a estar en mora), así que el rojo aparecía y
+     desaparecía por el almanaque.
+
+     Lo que lo hacía posible era que `migrarSocio` dedujera «hoy» por dentro sin
+     dejar fijarlo. Esta prueba exige que se le pueda preguntar por un día y que
+     la respuesta CAMBIE con el día: si alguien vuelve a ignorar el parámetro,
+     las dos llamadas darían lo mismo —lo que diga el reloj de la máquina— y se
+     cae aquí, con este texto al lado, y no dentro de seis meses con otra cara.
+
+     Para barrer el resto de la suite buscando esta misma clase de trampa:
+         node herramientas/reloj-falso.js 2027-06-01
+     ======================================================================== */
+  test('a migrarSocio se le puede fijar el día, y lo respeta', () => {
+    const b = partida();
+
+    const enEnero = P.migrarSocio(b.db, b.s, '2026-01-05').garantia;
+    const enAgosto = P.migrarSocio(b.db, b.s, HOY).garantia;
+
+    assert.equal(enEnero.pagados_a_tiempo, 0,
+      'el 5-ene la primera quincena todavía no había llegado a su corte');
+    assert.equal(enAgosto.pagados_a_tiempo, 10,
+      'el 5-ago ya eran diez quincenas limpias');
+    assert.notEqual(enEnero.pagados_a_tiempo, enAgosto.pagados_a_tiempo,
+      'migrarSocio está ignorando la fecha que se le pasa y contestando con hoy');
   });
 });
 

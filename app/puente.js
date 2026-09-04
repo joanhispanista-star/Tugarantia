@@ -1496,8 +1496,27 @@
    * El paquete que consume la app del socio, tal cual lo espera abrir().
    * No puede lanzar NUNCA: todo Number(x)||0 y todo (arr||[]). Un capital en
    * cero se muestra como cero, no como error.
+   *
+   * 3-sep-2026 — `hasta` ES OPCIONAL Y POR DEFECTO ES HOY. Ni la app, ni el CRM,
+   * ni el espejo lo pasan: para ellos no cambia nada. Existe porque esta era la
+   * ÚNICA función del archivo que leía el reloj de pared sin dejar preguntar por
+   * otro día, y eso VENCIÓ UN CENTINELA sin que nadie tocara una línea.
+   *
+   * Medido: «con DOS prórrogas más plan de pagos tampoco rinde más»
+   * (pruebas/motor.test.js) pasó 29 días en verde y se puso roja la madrugada
+   * del día 30. El socio del fixture curó su mora el 4-ago, y
+   * `meses_sin_mora` es `floor(díasEntre(último día de mora, hoy) / 30)`: el
+   * 2-sep valía 0 y el 3-sep valía 1. Ninguna cuenta de plata estaba mal —era
+   * correcta los dos días—. Lo que estaba mal era PREGUNTARLA CONTRA EL
+   * CALENDARIO. Y encima se curaba sola el 16-sep, cuando la primera cuota del
+   * plan vencía y el socio volvía a estar en mora: una prueba que se pone roja
+   * y verde por el almanaque no distingue una regresión de un martes, y una
+   * suite crónicamente roja se ignora, que es peor que no tener centinela.
+   *
+   * La regla de este archivo ya era esta —si tu pregunta lleva una fecha
+   * adentro, pásala en vez de deducirla— y justo aquí faltaba.
    */
-  function migrarSocio(db, s) {
+  function migrarSocio(db, s, hasta) {
     var prestamos = lista(db && db.prestamos);
     var ps = prestamos.filter(function (p) { return p.socioId === s.id; })
       .sort(function (a, b) { return String(a.fechaDesembolso).localeCompare(String(b.fechaDesembolso)); });
@@ -1518,7 +1537,7 @@
        NIVEL sale del TOTAL de la garantía — el mismo g.total que el socio ve
        como «tu garantía» —, y s.nivelSocio ya no se mira: era el piso de la
        promesa derogada. */
-    var hoy = hoyISO();
+    var hoy = fechaFin(hasta) || hoyISO();
     var cont = contadoresDeNivel(ps, hoy);
     var aTiempo = cont.a_tiempo, racha = cont.racha, meses = cont.meses_sin_mora;
     var nivel = nivelDelSocio(g.total);
