@@ -8,11 +8,14 @@ marca como verificado; lo que solo está escrito, se dice. Los partes anteriores
 
 ## En una frase
 
-Hoy no se construyó una función nueva: se descubrió que **la red de seguridad
-mentía**. Una prueba centinela se vencía sola por el calendario, y —lo caro— el
+Día de dos mitades. Por la mañana se descubrió que **la red de seguridad
+mentía**: una prueba centinela se vencía sola por el calendario y —lo caro— el
 **1 de octubre la app pública iba a publicar una afirmación falsa sobre la tasa
-legal**. Las dos cosas quedaron arregladas con centinelas que las cazan al
-volver, y el repositorio tiene **integración continua por primera vez**.
+legal**. Por la tarde llegó **la línea de descuentos por quincena** que Joan
+pidió, y una **auditoría adversaria** que encontró que la sincronización
+**hacía desaparecer un crédito entero**. Cuatro defectos de plata arreglados,
+890 pruebas en verde, y el repositorio tiene **integración continua por primera
+vez**.
 
 ---
 
@@ -158,6 +161,77 @@ es la tarea de abajo sin hacer.
 
 ---
 
+## La segunda mitad: la plata perdonada, y lo que destapó auditarla
+
+### La línea de la quincena (commit `58636f3`)
+
+Desde el 2-sep Joan puede perdonar el 100% de la mora, y esa plata no aparecía
+en **ningún** informe: `p.condonaciones` se leía solo por socio, de a un cliente
+por vez.
+
+- **KPI «🎁 Descuentos dados»** al lado de «Ganancia ciclo actual», con N clientes.
+- **Columna «Descuentos dados»** en Ciclos, pegada a la de ganancia porque es su
+  contra-cuenta, con desglose mora/costo y el subtítulo «ya restados de la
+  ganancia» (la ganancia que muestra la columna anterior ya es NETA; sin ese
+  subtítulo la pantalla invitaría a restar dos veces).
+
+**La cuenta vive en `app/puente.js`, no en `crm.html`**, y es la decisión de
+diseño de la entrega: `espejo.html` ya reescribe por su cuenta las tres cuentas
+de quincena del Panel, y una cuarta escrita dentro del CRM nacería duplicada el
+día que el celular muestre la línea.
+
+**La fecha dice cuál movimiento, no cuál columna.** Tres trampas, las tres con
+su prueba: `p.fechaPagado` falla en silencio para los créditos vivos;
+`corteVigenteEn` manda el perdón de una prórroga a la quincena siguiente (la
+comparación es `desde <= h` y el mismo día ya rige el corte nuevo); y hay que
+mirar `sobre` antes que la fecha, porque prorrogar por la mañana y cerrar por
+la tarde del mismo día es un caso real. Verificado que las pruebas sirven: con
+la regla reducida a la versión ingenua, 6 de 8 se caen.
+
+### La auditoría adversaria
+
+Cuatro lentes (sincronización, invariantes de plata, honestidad de la interfaz,
+datos que se pisan), cada hallazgo pasado por un refutador independiente.
+**21 hallazgos crudos, 20 sobrevivieron.**
+
+**Cuatro se arreglaron y se publicaron el mismo día** (commit `06f434b`), los
+cuatro en la sincronización y los cuatro de plata:
+
+1. **«Dejar lo de la nube» guardaba el envoltorio de la fusión como si fuera el
+   crédito.** En la cartera quedaba `{"fila":{…},"pisables":[…],"hayChoque":true}`
+   — sin capital, sin socioId, sin pagado. El crédito se volvía un fantasma, y
+   en la subida siguiente esa basura viajaba a la nube contra la revisión buena:
+   **el crédito moría en los dos aparatos.**
+2. **Los argumentos de `fusionarFila` iban al revés**: «Dejar lo de la nube» se
+   quedaba con los valores del computador.
+3. **El mapa de identidades de `subir.html` no tenía `condonaciones`** desde el
+   14-ago: los perdones caían del lado pisable y un lado perdía el descuento
+   entero. Ahora la fusión usa `NUBE.LISTAS_QUE_SUMAN`, donde vive la regla.
+4. **El `monto` estaba en la identidad de la prórroga**, y lo abrió la ronda del
+   2-sep: el computador lo escribe rebajado por el descuento y el espejo entero,
+   así que la misma prórroga entraba **dos veces** — ingreso fantasma, una
+   prórroga quemada del cupo del socio, y garantía acreditada que nadie pagó.
+
+**Quedan 16 hallazgos**, ordenados por plata y con tiempos, en
+`AUDITORIA-4-SEP-2026.md` (en esta carpeta, **fuera del repositorio**: es una
+lista de defectos vivos y el repo es público — `.gitignore` lo excluye igual que
+las recetas).
+
+Lo que hay que saber sin abrir ese archivo: **6 de los 16 son del acuerdo de
+prórroga** (la función del 29-ago) y se refuerzan entre sí. El precio pactado
+**no se congela**, el mensaje del pacto se sigue mandando cuando el socio ya
+incumplió, el calendario le escribe «hoy es tu pago» al mismo socio el mismo
+día, cobrar la prórroga por el botón normal **no borra el acuerdo** (y el botón
+«Cumplió» registra una segunda prórroga que nadie pagó), y `grep acuerdo
+panel/espejo.html` devuelve **cero**: el aparato que existe para cobrar en la
+calle no sabe que los acuerdos existen.
+
+> **Consejo operativo mientras tanto:** no pactes acuerdos desde el computador
+> si vas a cobrar en la calle. Es la combinación que hoy cobra de más y deja el
+> pacto vivo.
+
+---
+
 ## Lo que espera a Joan, con fechas
 
 1. **ANTES DEL 1 DE OCTUBRE — la certificación de octubre.** Es lo único de esta
@@ -202,9 +276,9 @@ Nada de esto se tocó hoy y todo sigue como lo dejó el parte del 2-sep:
 - El computador solo perdona **mora**; el perdón del costo y el monto real
   («¿Cuánto pagó?», saldo a favor, queda debiendo) siguen siendo del espejo. La
   receta local para portarlos es `RECETA-COBRO.md`.
-- Falta la línea **«Descuentos dados esta quincena: $X en N clientes»** en el
-  resumen. Sin ella, la plata perdonada no aparece en ningún informe — y desde
-  el 2-sep Joan ya puede perdonar el 100% de la mora.
+- ~~Falta la línea de descuentos por quincena~~ **HECHO hoy** (KPI + columna en
+  Ciclos). Lo que sigue faltando es que el **espejo** la muestre: la cuenta ya
+  vive en el puente justo para que no nazca duplicada.
 - Los cuatro puntos del §8 de `RECETA-COBRO.md` (abono en cascada, descuento
   sobre cuota del plan, saldo a favor que no se aplica solo).
 

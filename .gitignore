@@ -62,3 +62,7 @@ direccion/
 # Entrada de servidor local que creo un agente para probar. Es de esta maquina,
 # no del producto: el launch.json que Joan usa vive en el .claude de PLAZA.
 .claude/
+
+# Las auditorias listan defectos VIVOS de una app que presta plata real, y
+# este repositorio es publico. Se quedan en la carpeta, como las recetas.
+AUDITORIA-*.md
