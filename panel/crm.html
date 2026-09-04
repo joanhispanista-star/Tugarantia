@@ -1125,11 +1125,17 @@ function renderKpis(){
   const capCalle=act.reduce((s,p)=>s+capitalVigente(p),0);
   const ganTotal=gananciaTotalHistorica();
   const cg=cicloActualGlobal(),ganCiclo=gananciaDeQuincena(cg),invCiclo=invertidoEnQuincena(cg);
+  /* 4-sep-2026 — LO PERDONADO TIENE QUE VERSE DONDE SE VE LO GANADO. Desde el
+     2-sep se puede perdonar el 100% de la mora y esa plata no salía en ningún
+     informe: quedaba solo en la ficha de cada cliente, de a uno. La cuenta la
+     hace el puente (descuentosDeQuincena), no este archivo. */
+  const descCiclo=PUENTE.descuentosDeQuincena(DB,cg);
   const moraA=DB.prestamos.filter(p=>estadoPrestamo(p)==='mora');
   document.getElementById('kpis').innerHTML=`
     <div class="kpi"><div class="et">💼 Capital en la calle</div><div class="nm">${COP(capCalle)}</div><div class="x">${act.length} créditos activos</div></div>
     <div class="kpi gan"><div class="et">💰 Ganancia cobrada (total)</div><div class="nm">${COP(ganTotal)}</div><div class="x">costos + prórrogas</div></div>
     <div class="kpi gan"><div class="et">📈 Ganancia ciclo actual</div><div class="nm">${COP(ganCiclo)}</div><div class="x">quincena ${fmtCorto(cg)}</div></div>
+    <div class="kpi"><div class="et">🎁 Descuentos dados</div><div class="nm">${COP(descCiclo.total)}</div><div class="x">${descCiclo.total?`${descCiclo.clientes} cliente${descCiclo.clientes===1?'':'s'} · ya restados de la ganancia`:`ninguno en ${fmtCorto(cg)}`}</div></div>
     <div class="kpi dark"><div class="et">🏦 Invertido en el ciclo</div><div class="nm">${COP(invCiclo)}</div><div class="x">capital activo en ${fmtCorto(cg)}</div></div>
     <div class="kpi alert"><div class="et">⚠️ En mora</div><div class="nm">${COP(moraA.reduce((s,p)=>s+totalCiclo(p),0))}</div><div class="x">${moraA.length} vencidos</div></div>`;
 
@@ -1980,11 +1986,18 @@ function porCobrarEnQuincena(q){ return DB.prestamos.filter(p=>!p.pagado&&PUENTE
 function renderCiclos(){
   const qs=quincenasRelevantes().reverse(),c=document.getElementById('tblCiclos'),cg=cicloActualGlobal();
   if(!qs.length){ c.innerHTML=`<div class="empty"><div class="ic">📈</div><p>Sin ciclos todavía.</p></div>`; return; }
-  c.innerHTML=`<table><thead><tr><th>Quincena</th><th>Invertido (capital activo)</th><th>Por cobrar</th><th>Ganancia del ciclo</th><th>Vencen</th></tr></thead><tbody>${
-    qs.map(q=>{ const vencen=DB.prestamos.filter(p=>!p.pagado&&PUENTE.corteDelCredito(p)===q).length,esA=q===cg;
+  /* La columna de descuentos va PEGADA a la de ganancia porque es su
+     contra-cuenta, y el subtítulo dice «ya restados» porque la ganancia que
+     muestra la columna anterior es NETA (gananciaPago es la plata que entró y
+     pr.monto ya viene rebajado del motor). Sin ese subtítulo, la pantalla
+     invitaría a restar dos veces. */
+  c.innerHTML=`<table><thead><tr><th>Quincena</th><th>Invertido (capital activo)</th><th>Por cobrar</th><th>Ganancia del ciclo</th><th>Descuentos dados<br><span class="muted" style="font-weight:400">ya restados de la ganancia</span></th><th>Vencen</th></tr></thead><tbody>${
+    qs.map(q=>{ const vencen=DB.prestamos.filter(p=>!p.pagado&&PUENTE.corteDelCredito(p)===q).length,esA=q===cg,d=PUENTE.descuentosDeQuincena(DB,q);
       return `<tr style="${esA?'background:var(--rojo-tinte)':''}"><td><b>${fmtFecha(q)}</b>${esA?' <span class="chip mora">actual</span>':''}</td>
       <td class="num">${COP(invertidoEnQuincena(q))}</td><td class="num">${COP(porCobrarEnQuincena(q))}</td>
-      <td class="gano">${COP(gananciaDeQuincena(q))}</td><td class="num">${vencen}</td></tr>`;}).join('')}</tbody></table>`;
+      <td class="gano">${COP(gananciaDeQuincena(q))}</td>
+      <td class="num">${d.total?`${COP(d.total)}<div class="muted">${d.mora?'mora '+COP(d.mora):''}${d.mora&&d.costo?' · ':''}${d.costo?'costo '+COP(d.costo):''} · ${d.clientes} cliente${d.clientes===1?'':'s'}</div>`:'—'}</td>
+      <td class="num">${vencen}</td></tr>`;}).join('')}</tbody></table>`;
 }
 
 /* ===== CALENDARIO ===== */

@@ -1720,6 +1720,98 @@
     });
   }
 
+  /* ==========================================================================
+   * LOS DESCUENTOS DADOS EN UNA QUINCENA — 4-sep-2026
+   *
+   * Desde el 2-sep Joan puede perdonar el 100% de la mora, y esa plata no
+   * aparecía en NINGÚN informe: `p.condonaciones` se leía solo por socio —la
+   * ficha del cliente— y nunca por quincena. Perdonar sin poder mirar cuánto
+   * llevas perdonado es la forma más silenciosa de perder plata.
+   *
+   * POR QUÉ VIVE ACÁ Y NO EN crm.html. `espejo.html` ya reescribe por su cuenta
+   * las tres cuentas de quincena del Panel, y su propio comentario lo declara
+   * como la deuda que es. Una cuarta cuenta escrita dentro del CRM nacería
+   * duplicada el día que el celular muestre la línea — que es exactamente la
+   * enfermedad que este archivo existe para curar.
+   *
+   * LA FECHA DICE CUÁL MOVIMIENTO, NO CUÁL COLUMNA. Es la parte delicada, y
+   * tiene tres trampas:
+   *
+   *   · `p.fechaPagado` es la respuesta EQUIVOCADA y falla EN SILENCIO. Un
+   *     descuento dado en una prórroga ocurre con el crédito VIVO, y ese
+   *     crédito puede pagarse tres quincenas después, o no pagarse nunca
+   *     (`fechaPagado` en null). Usarla mueve el perdón a la quincena del
+   *     cierre —lejos de la ganancia que rebajó— y lo hace desaparecer del
+   *     informe en todo crédito abierto: justo la plata que el informe viene a
+   *     mostrar, y sin un solo error en pantalla.
+   *
+   *   · `corteVigenteEn(p, c.fecha)` tampoco sirve para un perdón de prórroga.
+   *     `cambiosDeCorte` escribe `desde: pr.fecha` y la comparación de
+   *     `corteVigenteEn` es `desde <= h`: EL MISMO DÍA de la prórroga ya rige
+   *     el corte NUEVO. El descuento se iría a la quincena siguiente mientras
+   *     la ganancia que rebajó se queda en `pr.ciclo` — dos filas para un solo
+   *     hecho, y la resta deja de cuadrar en las dos.
+   *
+   *   · Y hay que mirar `sobre` ANTES que la fecha, porque prorrogar por la
+   *     mañana y cerrar el crédito por la tarde del mismo día es un caso real.
+   *
+   * La regla que queda: el movimiento se identifica por su fecha (con `sobre`
+   * como desempate) y el CICLO de ese movimiento decide la quincena — el mismo
+   * `pr.ciclo` / `p.cicloPago` con que `gananciaDeQuincena` imputa la ganancia.
+   * Si las dos no usaran la misma llave, «ganancia menos descuentos» no
+   * cuadraría en ninguna fila.
+   * ========================================================================*/
+
+  /* La quincena a la que pertenece UNA condonación, o '' si no se puede ubicar.
+     Las entradas viejas no traen `sobre`: todas son de cierre, así que
+     "ausente = cierre" es seguro hacia atrás. */
+  function quincenaDeCondonacion(p, c) {
+    var f = fechaFin(c && c.fecha);
+    if (!f) return '';
+    if (c.sobre === 'prorroga') {
+      var pr = lista(p && p.prorrogas).filter(function (x) {
+        return fechaFin(x && x.fecha) === f;
+      })[0];
+      if (pr && pr.ciclo) return fechaFin(pr.ciclo);
+    }
+    if (p && p.pagado && fechaFin(p.fechaPagado) === f && p.cicloPago) {
+      return fechaFin(p.cicloPago);
+    }
+    /* Último recurso. Si ese día hubiera habido un cambio de corte, alguna de
+       las dos ramas de arriba habría apareado, así que acá sí es seguro. */
+    return corteVigenteEn(p, f) || '';
+  }
+
+  /**
+   * Lo perdonado en la quincena que cierra en `q`, partido por concepto.
+   *
+   * `clientes` son socios DISTINTOS: un cliente con dos créditos perdonados la
+   * misma quincena es UN cliente, y contar entradas infla justo el número que
+   * más duele mirar.
+   *
+   * @returns {{mora:number, costo:number, total:number, veces:number, clientes:number}}
+   */
+  function descuentosDeQuincena(db, q) {
+    var corte = fechaFin(q);
+    var vacio = { mora: 0, costo: 0, total: 0, veces: 0, clientes: 0 };
+    /* Sin corte no se puede ubicar nada, y devolver ceros evita que el '' de
+       una condonación sin fecha se aparee con un '' de quincena. */
+    if (!corte) return vacio;
+    var mora = 0, costo = 0, veces = 0, quienes = {};
+    lista(db && db.prestamos).forEach(function (p) {
+      lista(p && p.condonaciones).forEach(function (c) {
+        if (quincenaDeCondonacion(p, c) !== corte) return;
+        mora += num(c.mora);
+        costo += num(c.costo);
+        veces++;
+        if (p.socioId) quienes[p.socioId] = true;
+      });
+    });
+    return { mora: Math.round(mora), costo: Math.round(costo),
+             total: Math.round(mora + costo), veces: veces,
+             clientes: Object.keys(quienes).length };
+  }
+
   return {
     LLAVE_PANEL: LLAVE_PANEL,
     normalizar: normalizar,
@@ -1743,6 +1835,11 @@
     topeReferidosDe: topeReferidosDe,
     cupoDelSocio: cupoDelSocio,
     migrarSocio: migrarSocio,
+    /* Lo perdonado por quincena (4-sep-2026). Vive en el puente y no en el CRM
+       porque el espejo va a necesitar la misma cuenta el día que muestre la
+       línea, y dos versiones de una cuenta terminan contestando distinto. */
+    descuentosDeQuincena: descuentosDeQuincena,
+    quincenaDeCondonacion: quincenaDeCondonacion,
     buscarSocio: buscarSocio,
     /* El código de acceso del cliente y quiénes todavía no tienen (10-ago-2026).
        Los dos viven acá y no en crm.html: el Panel tuvo doce copias de cuentas

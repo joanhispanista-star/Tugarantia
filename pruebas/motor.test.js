@@ -8999,3 +8999,149 @@ describe('la tasa pactada por crédito (29-ago-2026)', () => {
       'cambió una regla de plata sin subir la fecha: el sello de la app miente');
   });
 });
+/* ==========================================================================
+ * LO PERDONADO, POR QUINCENA — 4-sep-2026
+ *
+ * Desde el 2-sep Joan puede perdonar el 100% de la mora y esa plata no salía en
+ * ningún informe: `p.condonaciones` se leía solo por socio, de a un cliente por
+ * vez. `descuentosDeQuincena` es la contra-cuenta de `gananciaDeQuincena`, y por
+ * eso lo único que de verdad hay que probar es que las dos IMPUTAN IGUAL: si un
+ * perdón cae en una fila y la ganancia que rebajó en otra, la resta no cuadra en
+ * ninguna de las dos y el informe miente en los dos sentidos a la vez.
+ *
+ * Las tres trampas de la fecha están medidas una por una acá abajo.
+ * ======================================================================== */
+describe('los descuentos de una quincena se imputan como la ganancia', () => {
+
+  const C1 = '2026-07-31';          // el corte que la prórroga pagó
+  const C2 = '2026-08-15';          // el corte al que pasó el crédito
+  const DIA_PRORROGA = '2026-07-31';
+  const DIA_CIERRE = '2026-08-15';
+
+  /* Un crédito que se prorroga (con perdón) y después se cierra (con otro
+     perdón). Es el caso que junta las dos rutas en un solo crédito. */
+  function credito(extra) {
+    return Object.assign({
+      id: 'p1', numero: 1, socioId: 's1', socioNombre: 'Ana', capital: 400000,
+      costoPct: 20, fechaDesembolso: '2026-07-20', cicloActual: C2,
+      prorrogas: [{ fecha: DIA_PRORROGA, ciclo: C1, monto: 80000, mora: 0,
+                    aTiempo: false, diasMora: 3, nuevoCiclo: C2 }],
+      condonaciones: [
+        { fecha: DIA_PRORROGA, costo: 0, mora: 40000, motivo: 'se le mojó la moto',
+          quien: 'computador', sobre: 'prorroga' }
+      ],
+      abonosCapital: [], comprobantes: [], pagado: false
+    }, extra || {});
+  }
+  const conDb = (...ps) => ({ socios: [{ id: 's1', nombre: 'Ana' }, { id: 's2', nombre: 'Beto' }],
+                              prestamos: ps, respaldados: [], config: {}, contadores: {} });
+
+  test('el perdón de una PRÓRROGA cae en la quincena que la prórroga pagó', () => {
+    const db = conDb(credito());
+    assert.equal(P.descuentosDeQuincena(db, C1).mora, 40000);
+    /* Y NO en la siguiente. Ésta es la trampa de corteVigenteEn: cambiosDeCorte
+       escribe `desde: pr.fecha` y la comparación es `desde <= h`, así que EL
+       MISMO DÍA de la prórroga ya rige el corte nuevo. Preguntar por la fecha
+       en vez de por el movimiento mandaba el descuento acá. */
+    assert.equal(P.descuentosDeQuincena(db, C2).mora, 0,
+      'el descuento se fue a la quincena siguiente: separado de la ganancia que rebajó');
+  });
+
+  test('y aparece aunque el crédito siga VIVO, sin fecha de pago', () => {
+    /* La trampa de p.fechaPagado: un perdón de prórroga ocurre con el crédito
+       abierto. Si la quincena se dedujera del cierre, este descuento no existiría
+       en ningún informe hasta que el socio pagara — o nunca. */
+    const db = conDb(credito());
+    assert.equal(db.prestamos[0].pagado, false);
+    assert.equal(db.prestamos[0].fechaPagado, undefined);
+    assert.equal(P.descuentosDeQuincena(db, C1).total, 40000);
+    assert.equal(P.descuentosDeQuincena(db, C1).clientes, 1);
+  });
+
+  test('el perdón del CIERRE cae en la quincena del pago', () => {
+    const p = credito({ pagado: true, fechaPagado: DIA_CIERRE, cicloPago: C2,
+                        gananciaPago: 60000 });
+    p.condonaciones.push({ fecha: DIA_CIERRE, costo: 0, mora: 25000,
+                           motivo: 'cliente viejo', quien: 'computador' });
+    const db = conDb(p);
+    assert.equal(P.descuentosDeQuincena(db, C1).mora, 40000, 'el de la prórroga no se mueve');
+    assert.equal(P.descuentosDeQuincena(db, C2).mora, 25000, 'y el del cierre va con el pago');
+  });
+
+  test('prorrogar por la mañana y cerrar por la tarde: cada perdón en su fila', () => {
+    /* Caso real y la razón de que `sobre` se mire ANTES que la fecha: los dos
+       movimientos llevan LA MISMA fecha y pertenecen a quincenas distintas. */
+    const p = credito({ pagado: true, fechaPagado: DIA_PRORROGA, cicloPago: C2,
+                        gananciaPago: 60000 });
+    p.condonaciones.push({ fecha: DIA_PRORROGA, costo: 0, mora: 15000,
+                           motivo: 'cerró el mismo día', quien: 'computador' });
+    const db = conDb(p);
+    assert.equal(P.descuentosDeQuincena(db, C1).mora, 40000, 'el de la prórroga, en el corte que pagó');
+    assert.equal(P.descuentosDeQuincena(db, C2).mora, 15000, 'el del cierre, en el corte del pago');
+  });
+
+  test('el desglose separa mora de costo, que cuestan cosas distintas', () => {
+    /* El costo perdonado es tres cuartas partes cupo del socio; la mora es casi
+       toda ganancia de Joan. Sumarlos en un solo número borra esa diferencia.
+       Hoy el computador SIEMPRE perdona costo:0 —solo el espejo perdona costo—,
+       así que este caso viene del celular. */
+    const p = credito();
+    p.condonaciones = [{ fecha: DIA_PRORROGA, costo: 12000, mora: 40000,
+                         motivo: 'del celular', sobre: 'prorroga' }];
+    const d = P.descuentosDeQuincena(conDb(p), C1);
+    assert.deepEqual({ mora: d.mora, costo: d.costo, total: d.total },
+                     { mora: 40000, costo: 12000, total: 52000 });
+  });
+
+  test('«clientes» son socios distintos, no entradas ni créditos', () => {
+    /* Contar entradas infla justo el número que más duele mirar. */
+    const a = credito(), b = credito({ id: 'p2', numero: 2 });   // dos créditos, MISMO socio
+    const uno = P.descuentosDeQuincena(conDb(a, b), C1);
+    assert.equal(uno.veces, 2, 'fueron dos perdones');
+    assert.equal(uno.clientes, 1, 'pero un solo cliente');
+    assert.equal(uno.total, 80000);
+
+    const c = credito({ id: 'p3', numero: 3, socioId: 's2', socioNombre: 'Beto' });
+    assert.equal(P.descuentosDeQuincena(conDb(a, c), C1).clientes, 2);
+  });
+
+  test('CUADRE: ninguna condonación se pierde ni se cuenta dos veces', () => {
+    /* La prueba que importa cuando alguien toque la regla de imputación: cada
+       perdón tiene que caer en UNA quincena y en una sola, y la suma de todas
+       las quincenas tiene que dar exactamente la suma cruda de la lista. */
+    const p1 = credito({ pagado: true, fechaPagado: DIA_CIERRE, cicloPago: C2 });
+    p1.condonaciones.push({ fecha: DIA_CIERRE, costo: 0, mora: 25000, motivo: 'x' });
+    const p2 = credito({ id: 'p2', numero: 2, socioId: 's2' });
+    const db = conDb(p1, p2);
+
+    const crudo = db.prestamos.reduce((s, p) =>
+      s + (p.condonaciones || []).reduce((t, c) => t + (c.mora || 0) + (c.costo || 0), 0), 0);
+    assert.equal(crudo, 105000);
+
+    const quincenas = new Set();
+    db.prestamos.forEach(p => (p.condonaciones || []).forEach(c => {
+      const q = P.quincenaDeCondonacion(p, c);
+      assert.ok(q, 'una condonación quedó sin quincena y desaparecería del informe: '
+        + JSON.stringify(c));
+      quincenas.add(q);
+    }));
+    const sumado = [...quincenas].reduce((s, q) => s + P.descuentosDeQuincena(db, q).total, 0);
+    assert.equal(sumado, crudo, 'la suma por quincenas no cuadra con la lista cruda');
+  });
+
+  test('un crédito sin perdones no inventa una fila, y nada revienta con basura', () => {
+    const limpio = credito({ condonaciones: [] });
+    assert.deepEqual(P.descuentosDeQuincena(conDb(limpio), C1),
+      { mora: 0, costo: 0, total: 0, veces: 0, clientes: 0 });
+    /* Y no puede lanzar NUNCA: es la regla del archivo entero. */
+    assert.doesNotThrow(() => P.descuentosDeQuincena(null, C1));
+    assert.doesNotThrow(() => P.descuentosDeQuincena({ prestamos: [null, {}] }, C1));
+    assert.doesNotThrow(() => P.descuentosDeQuincena(conDb(credito()), ''));
+    /* Una condonación sin fecha no se puede ubicar, y no puede colarse en la
+       quincena vacía: por eso descuentosDeQuincena devuelve ceros si `q` no es
+       una fecha. */
+    const sinFecha = credito({ condonaciones: [{ costo: 0, mora: 9000 }] });
+    assert.equal(P.quincenaDeCondonacion(sinFecha, sinFecha.condonaciones[0]), '');
+    assert.equal(P.descuentosDeQuincena(conDb(sinFecha), '').total, 0);
+  });
+});
