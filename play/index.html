@@ -133,8 +133,15 @@ function tarjetaCatalogo(perfil) {
     fila('Plazo', c.meses + ' meses') +
     '<div class="muted" style="font-size:12.5px;margin-top:var(--e3)">' +
       'Sin cuotas de manejo, sin seguros y sin cargos aparte: lo que ves es todo lo que ' +
-      'se cobra. El techo legal de este mes es ' + pct(c.techo_del_mes) + ' (' +
-      esc(c.certificacion) + ').</div>' +
+      'se cobra.' +
+      /* 4-sep-2026 — con la tabla de usura vencida esto imprimía «El techo legal
+         de este mes es 0,00% ().» en la cara del cliente. El precio sigue
+         saliendo; lo que desaparece es la frase que no se puede sostener. */
+      (c.techo_del_mes
+        ? ' El techo legal de este mes es ' + pct(c.techo_del_mes) +
+          ' (' + esc(c.certificacion) + ').'
+        : '') +
+      '</div>' +
     '</div>';
 }
 function fila(k, v) {

@@ -215,8 +215,21 @@
         c.meses + ' cuotas de ' + cop(c.cuota_tipica) + ', para un total de ' +
         cop(c.total_a_pagar) + ' (' + cop(c.capital) + ' de capital y ' +
         cop(c.costo_total) + ' de costo). Sin cuotas de manejo, sin seguros y ' +
-        'sin cargos adicionales: el costo mostrado es el costo total. ' +
-        'Tasa máxima legal vigente en Colombia: ' + pct(c.techo_del_mes) + '.',
+        'sin cargos adicionales: el costo mostrado es el costo total.' +
+        /* 4-sep-2026 — SIN CERTIFICACIÓN NO SE ESCRIBE NINGÚN NÚMERO.
+           La tabla de topes se vence el último día de cada mes por diseño. Desde
+           el 1-sep la cotización sobrevive a eso a propósito (la tasa fija no
+           sale del techo, así que la app no se queda muda), pero esta frase se
+           quedó escribiéndose igual: `techo_del_mes` llegaba null y
+           `pct(null)` daba «0,00%». O sea que el 1 de octubre la divulgación
+           OBLIGATORIA iba a publicar «Tasa máxima legal vigente en Colombia:
+           0,00%» — una afirmación falsa, en el único texto de la app que existe
+           precisamente para no afirmar nada falso.
+           Se calla la frase, no el precio. Lo demás del texto sigue siendo
+           cierto y es lo que la norma pide del producto. */
+        (c.techo_del_mes
+          ? ' Tasa máxima legal vigente en Colombia: ' + pct(c.techo_del_mes) + '.'
+          : ''),
       techo_del_mes: c.techo_del_mes,
       certificacion: c.certificacion
     };

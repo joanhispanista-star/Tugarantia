@@ -139,7 +139,12 @@ function generar(fecha) {
   w('| Ejemplo · cuota | ' + cop(d.ejemplo.cuota) + ' × ' + d.ejemplo.meses + ' |');
   w('| Ejemplo · costo | ' + cop(d.ejemplo.costo_total) + ' |');
   w('| Ejemplo · total | **' + cop(d.ejemplo.total_a_pagar) + '** |');
-  w('| Techo legal del mes | ' + pct(d.techo_del_mes) + ' (' + d.certificacion + ') |');
+  /* 4-sep-2026 — la ficha no puede DECLARARLE a Google un techo que nadie
+     certificó: con la tabla vencida escribía «0,00% (null)», y una ficha que no
+     coincide con la realidad es motivo de suspensión. */
+  w('| Techo legal del mes | ' + (d.techo_del_mes
+      ? pct(d.techo_del_mes) + ' (' + d.certificacion + ')'
+      : 'pendiente de la certificación del mes') + ' |');
   w('');
   w('⚠️ **La TAE cambia cuando cambia el techo de usura**, que la Superfinanciera certifica');
   w('cada mes. Al agregar una fila a `TOPES` hay que regenerar este archivo y actualizar la');

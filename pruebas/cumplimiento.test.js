@@ -267,3 +267,79 @@ describe('la ficha de Play se genera y cuadra', () => {
     assert.match(f, /\[NOMBRE\]/, 'tiene que recordar los huecos de legal/');
   });
 });
+/* ==========================================================================
+ * CUANDO LA TABLA DE USURA SE VENCE — 4-sep-2026
+ *
+ * La tabla de TOPES se vence el último día de cada mes por diseño: la
+ * Superfinanciera certifica el interés bancario corriente mes a mes y nadie
+ * puede adivinar el que viene. Desde el 1-sep la COTIZACIÓN sobrevive a eso a
+ * propósito —la tasa fija del producto no sale del techo—, y esa decisión está
+ * bien: la app no tiene por qué quedarse muda el día 1 de cada mes.
+ *
+ * Lo que no se revisó entonces fueron los TEXTOS. `techo_del_mes` llega null y
+ * `pct(null)` da «0,00%», así que el 1 de octubre de 2026 las tres salidas
+ * públicas iban a publicar, cada una por su lado:
+ *
+ *   · la divulgación obligatoria → «Tasa máxima legal vigente en Colombia: 0,00%.»
+ *   · la página de play/         → «El techo legal de este mes es 0,00% ().»
+ *   · la ficha de la tienda      → «| Techo legal del mes | 0,00% (null) |»
+ *
+ * Ninguna es un error de cálculo: son una AFIRMACIÓN FALSA, y encima en los
+ * textos que existen precisamente para no afirmar nada falso. Se descubrió
+ * barriendo el futuro con `node herramientas/reloj-falso.js`, no leyendo el
+ * código: hoy las tres están en verde y en tres semanas no lo estarían.
+ *
+ * LA REGLA QUE SE GUARDA ACÁ: sin certificación no se escribe un número. Se
+ * calla la frase, no el precio.
+ * ======================================================================== */
+describe('con la tabla de usura vencida no se publica un techo inventado', () => {
+
+  /* Un día que la tabla no cubre ni va a cubrir. Si algún día llegara a
+     cubrirlo, esta prueba dejaría de medir lo suyo EN SILENCIO — por eso la
+     primera comprueba el supuesto y dice qué hacer. */
+  const VENCIDA = '2099-01-15';
+
+  test('el supuesto: esa fecha no tiene certificación', () => {
+    assert.equal(C.topeVigente(VENCIDA), null,
+      'la tabla ya cubre ' + VENCIDA + '. Mueve la fecha más lejos; no borres la prueba.');
+  });
+
+  test('la divulgación obligatoria calla la frase en vez de decir 0,00%', () => {
+    const d = K.divulgacion(VENCIDA);
+    assert.equal(d.puede, true,
+      'la cotización NO se cae por esto: la tasa fija del producto no sale del techo');
+    assert.equal(d.techo_del_mes, null);
+    assert.ok(d.texto.indexOf('0,00%') < 0,
+      'está publicando que el techo legal de Colombia es cero');
+    assert.ok(d.texto.indexOf('Tasa máxima legal') < 0,
+      'no puede afirmar cuál es el techo legal si nadie lo ha certificado');
+    /* Y lo que sí es cierto sigue estando: se calla una frase, no se vacía la
+       divulgación. Sin esto, «arreglar» el defecto podría ser borrarla entera. */
+    assert.match(d.texto, /Tasa efectiva anual máxima/);
+    assert.match(d.texto, /Plazo mínimo y máximo/);
+    assert.match(d.texto, /el costo mostrado es el costo total/);
+  });
+
+  test('y con certificación la frase vuelve, palabra por palabra', () => {
+    const d = K.divulgacion(FECHA);
+    assert.match(d.texto, /Tasa máxima legal vigente en Colombia: 29,66%\./,
+      'la frase de siempre no puede cambiar cuando SÍ hay techo certificado');
+  });
+
+  test('la ficha de la tienda no le declara a Google un techo de cero', () => {
+    const f = generar(VENCIDA);
+    assert.ok(f.indexOf('0,00%') < 0, 'la ficha declara un techo de cero');
+    assert.ok(f.indexOf('(null)') < 0, 'la ficha escribe «null» en la cara de Google');
+    assert.match(f, /pendiente de la certificación del mes/);
+  });
+
+  test('la página pública guarda el número detrás de una condición', () => {
+    /* play/index.html es una página y no se puede ejecutar acá, así que se mira
+       la letra: lo que no puede volver es la concatenación a pelo. */
+    const PLAY = leer('play/index.html');
+    assert.ok(!/se cobra\. El techo legal de este mes es ' \+ pct/.test(PLAY),
+      'volvió a concatenarse el techo sin preguntar antes si existe');
+    assert.match(PLAY, /c\.techo_del_mes\s*\?\s*' El techo legal de este mes es '/,
+      'la frase del techo tiene que ir detrás de una guarda sobre techo_del_mes');
+  });
+});

@@ -1,0 +1,63 @@
+# =============================================================================
+# El vigilante de Tu Garantía.
+#
+# Hace DOS cosas, y la segunda es la que de verdad importa:
+#
+#   1. Correr las pruebas en cada push. Hasta hoy no había ninguna red: si un
+#      cambio rompía algo y nadie corría `node --test` a mano, se publicaba roto.
+#
+#   2. AVISARLE A JOAN ANTES DE QUE LA APP PÚBLICA SE QUEDE MUDA. La tabla de
+#      usura de app/creditos.js se vence el último día de cada mes por diseño
+#      —la Superfinanciera certifica el interés bancario corriente mes a mes—.
+#      Cuando se vence, `topeVigente()` devuelve null, la calculadora de play/
+#      deja de dar precios y la divulgación obligatoria desaparece. Eso es lo
+#      correcto (cotizar por encima del techo de usura es delito, art. 305 del
+#      Código Penal), pero hasta hoy NADA iba a avisar: el 1 de octubre de 2026
+#      la app se habría quedado muda en silencio y el primero en enterarse
+#      habría sido un cliente.
+#
+#      Los días 16, 22 y 27 este vigilante corre con --avisar, que falla cuando
+#      faltan 15 días o menos. Un job en rojo en un repositorio propio le llega
+#      a Joan por correo — ese correo ES el aviso.
+#
+# TRAMPA DE GITHUB, ANOTADA A PROPÓSITO: los workflows programados se
+# DESACTIVAN SOLOS si el repositorio pasa 60 días sin commits. Si Tu Garantía
+# se queda quieta dos meses, hay que volver a habilitar este workflow a mano
+# desde la pestaña Actions. No hay forma de evitarlo desde el archivo.
+# =============================================================================
+
+name: Vigilar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 13:00 UTC = 8:00 de la mañana en Bogotá. Tres avisos por mes, porque uno
+    # solo se pierde entre el correo de cualquier martes.
+    - cron: '0 13 16,22,27 * *'
+  workflow_dispatch:
+
+jobs:
+  pruebas:
+    name: Pruebas y tabla de usura
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # No hay package.json ni dependencias a propósito: el corredor de pruebas
+      # es el nativo de Node y el proyecto no tiene node_modules.
+      - name: Las pruebas
+        run: node --test
+        working-directory: pruebas
+
+      # `always()` para que el aviso de la usura salga aunque las pruebas hayan
+      # fallado por otra cosa: son dos noticias distintas y las dos hacen falta.
+      - name: La tabla de usura
+        if: always()
+        run: node herramientas/vigilar-usura.js ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '--avisar' || '' }}
