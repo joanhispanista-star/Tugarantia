@@ -1153,3 +1153,144 @@ describe('el disco local', () => {
     assert.equal(N.conectado(), false);
   });
 });
+/* ==========================================================================
+ * «DEJAR LO DE LA NUBE» — la pantalla que decidía choques y destruía créditos
+ *
+ * Encontrado el 4-sep-2026 auditando la sincronización. `fusionarConLoMio`
+ * (panel/subir.html) tenía TRES defectos en dos líneas, y los tres de plata:
+ *
+ *   1. Guardaba el ENVOLTORIO como si fuera el crédito. `fusionarFila` devuelve
+ *      {fila, pisables, hayChoque} y el chequeo era `typeof r === 'object'`,
+ *      que es cierto para el envoltorio. En la cartera quedaba
+ *      {"fila":{…},"pisables":[…],"hayChoque":true}: sin capital, sin socioId,
+ *      sin pagado, sin condonaciones en el nivel de arriba. El crédito se
+ *      volvía un fantasma, y en la subida siguiente esa basura viajaba a la
+ *      nube contra la revisión buena — moría en los dos aparatos.
+ *   2. Los argumentos iban al revés, así que «Dejar lo de la nube» se quedaba
+ *      con los valores del computador.
+ *   3. Usaba un mapa de identidades propio al que le faltaban las
+ *      condonaciones, así que el perdón de un lado se perdía entero.
+ *
+ * Estas pruebas ejecutan subir.html DE VERDAD (mismo montaje que abrirPanel de
+ * pruebas/panel.test.js) porque el defecto no estaba en la ley sino en dos
+ * líneas de pegamento, y un centinela de texto no lo habría visto.
+ * ======================================================================== */
+describe('«Dejar lo de la nube» conserva el crédito, no lo destruye', () => {
+
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const vm = require('node:vm');
+  const RAIZ = path.join(__dirname, '..');
+
+  function abrirSubir() {
+    const html = fs.readFileSync(path.join(RAIZ, 'panel', 'subir.html'), 'utf8');
+    const elems = {};
+    const elem = id => (elems[id] = elems[id] || { id, value: '', checked: false, textContent: '',
+      innerHTML: '', dataset: {}, style: {},
+      classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+      addEventListener() {}, querySelector: () => null, querySelectorAll: () => [],
+      appendChild() {}, setAttribute() {}, focus() {}, remove() {} });
+    const doc = { getElementById: elem, querySelector: () => null, querySelectorAll: () => [],
+      createElement: () => elem('nuevo'), addEventListener() {}, body: elem('body'),
+      documentElement: elem('html'), title: '' };
+    const almacen = {};
+    const ctx = { console, document: doc, alert() {}, confirm: () => true, prompt: () => null,
+      localStorage: { getItem: k => (k in almacen ? almacen[k] : null),
+        setItem: (k, v) => { almacen[k] = String(v); }, removeItem: k => { delete almacen[k]; } },
+      location: { href: 'http://localhost/panel/subir.html', hash: '',
+                  pathname: '/panel/subir.html', search: '' },
+      history: { replaceState() {} }, navigator: { userAgent: 'node' },
+      fetch: () => Promise.reject(new Error('sin red')), setTimeout: () => 0, clearTimeout() {},
+      setInterval: () => 0, clearInterval() {}, TextEncoder, TextDecoder, URL, Intl,
+      Date, Math, JSON,
+      btoa: s => Buffer.from(s, 'binary').toString('base64'),
+      atob: s => Buffer.from(s, 'base64').toString('binary'), Blob: class {}, FileReader: class {} };
+    ctx.window = ctx; ctx.self = ctx;
+    ctx.NubeTuGarantia = require(path.join(RAIZ, 'panel', 'nube.js'));
+    ctx.MotorReglas = require(path.join(RAIZ, 'app', 'motor.js'));
+    ctx.PuenteTuGarantia = require(path.join(RAIZ, 'app', 'puente.js'));
+    vm.createContext(ctx);
+    [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+      .forEach((m, i) => vm.runInContext(m[1], ctx, { filename: 'subir#' + i }));
+    return { ev: e => vm.runInContext(e, ctx, { filename: 'banco' }), ctx };
+  }
+
+  /* El caso del martes de cobro: el celular cerró el crédito en la calle y le
+     perdonó la mora; la nube todavía lo tiene abierto. Joan elige «Dejar lo de
+     la nube». La misma prórroga está anotada de los dos lados, y con montos
+     distintos porque el computador ya le restó el descuento. */
+  const deLaNube = () => ({ id: 'c1', socioId: 's1', capital: 200000, pagado: false,
+    cicloActual: '2026-08-31',
+    prorrogas: [{ fecha: '2026-08-15', ciclo: '2026-08-15', monto: 40000 }],
+    condonaciones: [] });
+  const mio = () => ({ id: 'c1', socioId: 's1', capital: 200000, pagado: true,
+    cicloActual: '2026-08-31',
+    prorrogas: [{ fecha: '2026-08-15', ciclo: '2026-08-15', monto: 20000 }],
+    condonaciones: [{ fecha: '2026-08-15', costo: 0, mora: 20000, motivo: 'del celular' }] });
+
+  function fusionar() {
+    const S = abrirSubir();
+    S.ctx.__nube = deLaNube(); S.ctx.__mio = mio();
+    return S.ev('JSON.parse(JSON.stringify(fusionarConLoMio("creditos", __nube, __mio)))');
+  }
+
+  test('lo que se guarda es el CRÉDITO, no el envoltorio de la fusión', () => {
+    const r = fusionar();
+    /* Éstas son las llaves del envoltorio. Si aparecen, lo que quedó en la
+       cartera de Joan es {fila, pisables, hayChoque} y el crédito murió. */
+    assert.ok(!('pisables' in r), 'se guardó el envoltorio de fusionarFila, no la fila');
+    assert.ok(!('hayChoque' in r), 'se guardó el envoltorio de fusionarFila, no la fila');
+    assert.ok(!('fila' in r), 'se guardó el envoltorio de fusionarFila, no la fila');
+    // Y el crédito sigue siendo un crédito: los campos que lo sostienen están.
+    assert.equal(r.capital, 200000, 'el crédito perdió su capital');
+    assert.equal(r.socioId, 's1', 'el crédito dejó de colgar de su socio');
+    assert.equal(r.id, 'c1');
+  });
+
+  test('y gana la NUBE en los campos pisables, que es lo que Joan eligió', () => {
+    /* fusionarFila se queda con la PRIMERA en todo campo pisable. Con los
+       argumentos al revés, «Dejar lo de la nube» dejaba lo del computador. */
+    assert.equal(fusionar().pagado, false,
+      'eligió la nube (pagado:false) y le quedó el valor del computador');
+  });
+
+  test('el perdón que solo existe en el celular sobrevive a la fusión', () => {
+    /* Las condonaciones son una lista que SOLO SUMA. Si caen del lado pisable
+       —que es lo que pasaba con el mapa viejo—, el descuento de un lado se
+       pierde entero y esa plata no queda en ningún informe. */
+    const r = fusionar();
+    assert.equal((r.condonaciones || []).length, 1, 'se perdió el perdón del celular');
+    assert.equal(r.condonaciones[0].mora, 20000);
+  });
+
+  test('la misma prórroga anotada de los dos lados NO se duplica', () => {
+    /* La identidad llevaba `monto`, y desde el 2-sep el computador lo escribe
+       ya rebajado por el descuento mientras el espejo lo escribe entero: la
+       misma prórroga entraba dos veces. Eso reportaba ingreso fantasma, le
+       quemaba al socio una prórroga de su cupo y le acreditaba garantía que
+       nadie pagó. */
+    const r = fusionar();
+    assert.equal((r.prorrogas || []).length, 1,
+      'la misma prórroga quedó dos veces: ingreso fantasma y cupo regalado');
+  });
+
+  test('los dos mapas de listas que suman dicen lo mismo', () => {
+    /* subir.html tiene su propio mapa para CONTAR en la tarjeta del choque. La
+       fusión ya usa el de nube.js, pero si el de la pantalla se desincroniza,
+       Joan deja de ver que un lado trae algo que el otro no — que es
+       exactamente lo que pasó con las condonaciones desde el 14-ago. */
+    const S = abrirSubir();
+    const dePantalla = JSON.parse(S.ev('JSON.stringify(LISTAS_QUE_SUMAN)'));
+    const canonico = N.LISTAS_QUE_SUMAN;
+    const porTabla = Object.assign({}, dePantalla.socios, dePantalla.creditos,
+                                   dePantalla.respaldados);
+    Object.keys(porTabla).forEach(nombre => {
+      assert.deepEqual(porTabla[nombre], canonico[nombre],
+        'la identidad de «' + nombre + '» difiere entre subir.html y nube.js');
+    });
+    // Y ninguna lista de créditos puede faltar en la pantalla.
+    ['prorrogas', 'abonos', 'abonosCapital', 'comprobantes', 'condonaciones']
+      .forEach(nombre => assert.ok(dePantalla.creditos[nombre],
+        'subir.html no nombra «' + nombre + '»: Joan no va a ver lo que trae el otro lado'));
+  });
+});

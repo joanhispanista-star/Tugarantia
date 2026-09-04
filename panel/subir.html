@@ -444,12 +444,20 @@ var CAMPOS_FOTO = ['cedulaFrenteFoto','cedulaReversoFoto','selfieFoto','cedulaFo
    `cuotas` de un respaldado parece una lista pero no lo es —una cuota cambia de
    pagado:false a pagado:true—, así que fusionarla borraría el cobro de alguien.
    Va al aviso de choque como cualquier otro campo pisable. */
+/* Este mapa es SOLO PARA MOSTRAR: dice qué listas nombrar en la tarjeta del
+   choque y cuántos elementos trae cada lado. La fusión de verdad usa
+   NUBE.LISTAS_QUE_SUMAN (ver fusionarConLoMio), porque una identidad escrita
+   dos veces se desincroniza — y ya lo hizo: acá faltaban las condonaciones
+   desde el 14-ago, así que Joan ni siquiera VEÍA que la nube traía un perdón y
+   él no. Hay una prueba en pruebas/nube.test.js que exige que los dos mapas
+   digan lo mismo. */
 var LISTAS_QUE_SUMAN = {
   socios:      { gestiones:['fecha','canal','plantilla'] },
   creditos:    { abonos:['fecha','monto'],
-                 abonosCapital:['fecha','monto','ciclo'],
-                 prorrogas:['fecha','ciclo','monto'],
-                 comprobantes:['fecha','tipo','monto'] },
+                 abonosCapital:['fecha','monto'],
+                 prorrogas:['fecha','ciclo'],
+                 comprobantes:['fecha','tipo','monto'],
+                 condonaciones:['fecha','costo','mora'] },
   respaldados: { comprobantes:['fecha','tipo','monto'] }
 };
 
@@ -1343,11 +1351,32 @@ function paqueteCrudoDe(items){
 }
 
 function fusionarConLoMio(tabla, deLaNube, mio){
-  var listas = LISTAS_QUE_SUMAN[tabla];
-  if(!listas || typeof NUBE.fusionarFila !== 'function') return deLaNube;
+  if(typeof NUBE.fusionarFila !== 'function') return deLaNube;
   try{
-    var r = NUBE.fusionarFila(mio, deLaNube, listas);
-    return (r && typeof r === 'object') ? r : deLaNube;
+    /* 4-sep-2026 — TRES DEFECTOS EN DOS LÍNEAS, los tres de plata.
+       Acá solo se entra cuando Joan eligió «Dejar lo de la nube».
+
+       (1) EL ENVOLTORIO SE GUARDABA COMO SI FUERA EL CRÉDITO. fusionarFila
+       devuelve {fila, pisables, hayChoque}, y «typeof r === 'object'» es cierto
+       para ese envoltorio, así que en la cartera quedaba
+       {"fila":{...},"pisables":[...],"hayChoque":true} — sin capital, sin
+       socioId, sin pagado, sin condonaciones en el nivel de arriba. El crédito
+       se volvía un fantasma: no colgaba de ningún socio, no salía por cobrar,
+       no sumaba cartera. Y no se quedaba acá: en la subida siguiente esa basura
+       viajaba a la nube contra la revisión buena, el servidor la aceptaba sin
+       choque y el celular se la bajaba. El crédito moría en los DOS aparatos.
+
+       (2) LOS ARGUMENTOS IBAN AL REVÉS. fusionarFila(mia, suya) se queda con la
+       PRIMERA en todo campo pisable. Pasando lo mío primero ganaba el
+       computador — exactamente lo contrario de lo que Joan acababa de pedir.
+
+       (3) LAS IDENTIDADES LAS PONE nube.js, que es donde vive la regla. El mapa
+       de este archivo era una segunda copia y se había quedado sin las
+       condonaciones: los perdones caían del lado PISABLE, o sea que uno de los
+       dos lados perdía el descuento entero y sin aviso. El mapa local se queda
+       abajo, pero solo para CONTAR en la tarjeta del choque. */
+    var r = NUBE.fusionarFila(deLaNube, mio, NUBE.LISTAS_QUE_SUMAN);
+    return (r && r.fila) ? r.fila : deLaNube;
   }catch(e){
     /* Si no se pudo fusionar, se avisa y se queda la versión de la nube tal
        cual, que es la que Joan eligió. Callarlo sería peor que el error. */

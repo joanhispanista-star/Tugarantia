@@ -151,7 +151,26 @@
     gestiones: ['fecha', 'canal', 'plantilla']
   };
   var LISTAS_CREDITO = {
-    prorrogas: ['fecha', 'ciclo', 'monto'],
+    /* 4-sep-2026 — EL MONTO SALIÓ DE LA IDENTIDAD, y lo abrió la ronda del
+       2-sep. Desde que el computador da descuento en la prórroga, crm.html
+       escribe el monto YA REBAJADO mientras el espejo escribe el monto entero
+       (su prórroga todavía no tiene descuento). La MISMA prórroga real, anotada
+       de los dos lados, quedaba con montos distintos y fusionarListas la metía
+       DOS VECES. Tres daños, los tres de plata: gananciaCobrada sumaba las dos
+       y reportaba ingreso fantasma; prorrogasHasta contaba dos y le quemaba al
+       socio una prórroga de su cupo, empujándolo al plan de pagos antes de
+       tiempo; y movimientosDeGarantia acreditaba garantía por las dos, o sea
+       cupo real que nadie pagó.
+       ['fecha','ciclo'] alcanza y es sólida: después de prorrogar el corte se
+       mueve, así que un crédito no puede prorrogarse dos veces el mismo día
+       desde el mismo corte. Es la misma decisión que ya se tomó con el motivo y
+       el quien de las condonaciones — lo que cambia según quién lo anotó no
+       puede entrar en la identidad de un hecho.
+       Queda dicho lo que NO resuelve: si los dos lados anotaron la misma
+       prórroga con montos distintos, gana el del lado que fusiona (el primer
+       argumento). Es estrictamente mejor que duplicarla, pero la cura de fondo
+       es que el espejo aprenda a dar descuento en la prórroga. */
+    prorrogas: ['fecha', 'ciclo'],
     abonos: ['fecha', 'monto'],
     abonosCapital: ['fecha', 'monto'],
     comprobantes: ['fecha', 'tipo', 'monto'],
