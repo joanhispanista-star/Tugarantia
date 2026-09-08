@@ -1294,3 +1294,19 @@ describe('«Dejar lo de la nube» conserva el crédito, no lo destruye', () => {
         'subir.html no nombra «' + nombre + '»: Joan no va a ver lo que trae el otro lado'));
   });
 });
+/* 8-sep-2026 — la tarjeta del choque tiene que MOSTRAR LA PLATA de un cobro.
+   Auditoría del cobro con monto real: dos cobros del mismo crédito que difieran
+   solo en cuánto entró se veían con CERO campos en ámbar, y Joan decidía el
+   choque sin ver la plata. Y saldoAFavor se escribe siempre (también en 0)
+   precisamente para que una diferencia sea choque y no copia silenciosa. */
+describe('la tarjeta del choque muestra la plata del cobro', () => {
+  test('CAMPOS_MIRABLES.creditos nombra los seis campos del cobro', () => {
+    const fs = require('node:fs'), path = require('node:path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'panel', 'subir.html'), 'utf8');
+    const i = src.indexOf('var CAMPOS_MIRABLES'), j = src.indexOf('};', i);
+    const bloque = src.slice(i, j);
+    ['montoRecibido', 'gananciaPago', 'recargoMora', 'costoCausado', 'moraCausada', 'saldoAFavor']
+      .forEach(c => assert.ok(bloque.indexOf("'" + c + "'") >= 0,
+        'subir.html no muestra «' + c + '» en el choque: Joan decide sin ver la plata'));
+  });
+});

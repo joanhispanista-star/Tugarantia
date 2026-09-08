@@ -122,7 +122,13 @@
    computador (cobro total, prorroga y acuerdo), con la misma ley del espejo:
    se reparte la plata que ENTRA y el perdon queda en p.condonaciones. Toca
    panel/crm.html y app/puente.js (la prueba de la mora sobrevive al 100%). */
-const CACHE = 'tugarantia-v27';
+/* v28 — 7-sep-2026: EL COBRO CON MONTO REAL en el Panel del computador (pedido
+   de Joan): «¿Cuánto pagó?», atajos, perdón de mora Y de costo, «queda
+   debiendo» y «queda a favor», con la ley (cuentasDelCobro) llevada a
+   app/puente.js en vez de pegada como segunda copia. Toca panel/crm.html y
+   app/puente.js. Tambien recoge la columna de descuentos por quincena del
+   4-sep, que salio sin subir la cache. */
+const CACHE = 'tugarantia-v28';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

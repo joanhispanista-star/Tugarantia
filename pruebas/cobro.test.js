@@ -413,3 +413,85 @@ describe('la interfaz no promete lo que el código no cumple', () => {
       'la ficha dejó de advertir que la aplicación es a mano');
   });
 });
+/* ==========================================================================
+ * 6. LA LEY TIENE UNA SOLA COPIA, Y EL ESPEJO LA SIGUE PESO A PESO — 7-sep-2026
+ *
+ * Las tres funciones de arriba se llevaron a app/puente.js para que el
+ * computador no las pegara como segunda copia. El espejo conserva la suya por
+ * ahora (es un archivo de 186 KB que se toca aparte), así que este contrato
+ * exige que las dos contesten EXACTAMENTE lo mismo en toda la rejilla: el día
+ * que se separen, celular y computador le dirán dos cifras distintas al mismo
+ * cliente por el mismo pago, y eso se descubre acá y no con el cliente delante.
+ * ======================================================================== */
+describe('la ley del cobro vive en el puente, y el espejo la sigue peso a peso', () => {
+
+  const PU = require('../app/puente.js');
+  const credito = { id: 'p1', socioId: 's1', capital: 200000, costoPct: 20,
+    fechaDesembolso: '2026-08-01', cicloActual: '2026-08-15', prorrogas: [], abonosCapital: [] };
+  /* Dos carteras: una sin el socio (cupón pendiente desconocido → infinito,
+     como en el espejo sin ficha) y una con un socio pelado, cuyo cupón
+     pendiente calcula el propio puente y se le entrega al espejo como dato. */
+  const sinSocio = { socios: [], prestamos: [credito] };
+  const conSocio = { socios: [{ id: 's1', nombre: 'Ana', telefono: '3001112233' }], prestamos: [credito] };
+  const pendienteDe = db => {
+    const s = db.socios[0];
+    return s ? PU.contabilidadCupon(db, s).cupon_pendiente : undefined;
+  };
+
+  test('cuentasDelCobro: el puente y el espejo dan el mismo objeto, campo por campo', () => {
+    let casos = 0;
+    for (const db of [sinSocio, conSocio]) {
+      const E = armarEntorno(pendienteDe(db));
+      for (const costo of COSTOS) for (const mora of MORAS) for (const acredita of [true, false]) {
+        const l = liq(200000, costo, mora, acredita);
+        for (const dCosto of [0, 1, costo, Math.floor(costo / 3), costo + 5]) {
+          for (const dMora of [0, 1, mora, Math.floor(mora / 2), mora + 5]) {
+            const o = { condonaCosto: dCosto, condonaMora: dMora };
+            const a = PU.cuentasDelCobro(db, credito, l, o);
+            const b = E.cuentasDelCobro(credito, l, o);
+            casos++;
+            assert.deepEqual(a, b, `difieren con costo ${costo} mora ${mora} perdón ${dCosto}/${dMora}`);
+          }
+        }
+      }
+    }
+    assert.ok(casos > 1000, 'la rejilla se encogió: ' + casos);
+  });
+
+  test('repartoDelDescuento: mismas bolsas, mismo desborde, misma pregunta', () => {
+    const E = armarEntorno(undefined);
+    for (const costo of COSTOS) for (const mora of MORAS) {
+      const l = liq(200000, costo, mora, true);
+      for (const falta of [0, 1, mora, costo, mora + costo, mora + costo + 1, Math.floor((mora + costo) / 2)]) {
+        for (const sobre of ['mora', 'costo', undefined]) {
+          const a = PU.repartoDelDescuento(l, falta, sobre);
+          const b = E.repartoDelDescuento(l, falta, sobre);
+          delete b.explica;   // el texto lo arma cada pantalla; el puente devuelve números
+          assert.deepEqual(a, b, `difieren con costo ${costo} mora ${mora} falta ${falta} sobre ${sobre}`);
+        }
+      }
+    }
+  });
+
+  test('descuentosDelSocio: deriva de los créditos del socio, y parte mora y costo', () => {
+    const db = { socios: [{ id: 's1' }, { id: 's2' }], prestamos: [
+      { id: 'a', socioId: 's1', condonaciones: [{ fecha: '2026-08-15', costo: 5000, mora: 20000 }, { fecha: '2026-08-31', costo: 0, mora: 1000 }] },
+      { id: 'b', socioId: 's1', condonaciones: [] },
+      { id: 'c', socioId: 's2', condonaciones: [{ fecha: '2026-08-15', costo: 999, mora: 0 }] },
+      null, { id: 'd', socioId: 's1', condonaciones: [null] }
+    ] };
+    assert.deepEqual(PU.descuentosDelSocio(db, { id: 's1' }), { veces: 3, monto: 26000, costo: 5000, mora: 21000 });
+    assert.deepEqual(PU.descuentosDelSocio(db, { id: 's2' }), { veces: 1, monto: 999, costo: 999, mora: 0 });
+    assert.deepEqual(PU.descuentosDelSocio(db, null), { veces: 0, monto: 0, costo: 0, mora: 0 });
+    assert.doesNotThrow(() => PU.descuentosDelSocio(null, { id: 's1' }));
+  });
+
+  test('y no puede lanzar nunca, que es la regla del puente entero', () => {
+    assert.doesNotThrow(() => PU.cuentasDelCobro(null, null, null, null));
+    assert.doesNotThrow(() => PU.cuentasDelCobro({}, {}, {}, { condonaMora: 'basura', condonaCosto: -5 }));
+    assert.doesNotThrow(() => PU.repartoDelDescuento(null, 'x', 'costo'));
+    const r = PU.cuentasDelCobro({}, {}, {}, {});
+    assert.equal(r.ganancia_pago, 0);
+    assert.equal(r.total_a_recibir, 0);
+  });
+});

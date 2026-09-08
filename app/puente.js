@@ -1812,6 +1812,138 @@
              clientes: Object.keys(quienes).length };
   }
 
+  /* ==========================================================================
+   * EL COBRO CON MONTO REAL Y DESCUENTO — la ley, en un solo sitio (7-sep-2026)
+   *
+   * Nació el 14-ago en panel/espejo.html (cuentasDelCobro, repartoDelDescuento,
+   * descuentosDelSocio) y la receta para el computador decía «pégala igual en
+   * crm.html». Eso habría sido la copia número trece de este proyecto: dos
+   * versiones de la misma cuenta que se separan el primer día que alguien toca
+   * una. Acá vive UNA, y la prueban las mismas pruebas de siempre
+   * (pruebas/cobro.test.js) más un contrato que exige que el espejo, mientras
+   * conserve su copia, conteste peso a peso lo mismo que ésta.
+   *
+   * LA REGLA QUE ORDENA TODO EL BLOQUE, y de la que sale que el reparto siga
+   * sumando 100% exacto:
+   *
+   *     repartirCosto() reparte LA PLATA QUE ENTRÓ.
+   *
+   * El descuento NO es un cuarto pedazo del reparto: es una línea aparte de la
+   * contabilidad. Por eso p.gananciaPago conserva su significado de siempre —el
+   * costo TOTAL que entró, costo cobrado + mora cobrada— y garantiaGanadaCredito,
+   * gananciaCobrada, amortizarCupon y la app del socio siguen dando la respuesta
+   * correcta sin enterarse de que hubo descuento.
+   *
+   * Si en cambio se acreditara el costo NOMINAL habiendo entrado menos, los tres
+   * pedazos sumarían 100% DE UN NÚMERO EQUIVOCADO: el socio se llevaría cupo que
+   * su plata no respalda —capital de Joan, retirable la quincena siguiente— y
+   * `expuesto` bajaría de mentira. La exposición de Joan CRECERÍA. Prohibido.
+   *
+   * Acá no se calcula ni una garantía ni un porcentaje a mano: los dos repartos
+   * —el nominal y el cobrado— los hace el motor, y la garantía es la que el
+   * propio reparto devuelve. Restar dos respuestas del motor no es reimplementar
+   * una regla; inventar una tercera sí lo sería.
+   * ========================================================================*/
+
+  /**
+   * Las cuentas de UN cobro con lo que de verdad entró.
+   * @param {object} db      la cartera (para el cupón pendiente del socio)
+   * @param {object} p       el crédito
+   * @param {object} liq     la liquidación del puente para la fecha del cobro
+   * @param {object} [o]     {condonaCosto, condonaMora} en PESOS, topados acá
+   */
+  function cuentasDelCobro(db, p, liq, o) {
+    o = o || {};
+    var l = (liq && typeof liq === 'object') ? liq : {};
+    var condMora = Math.max(0, Math.min(Math.round(num(o.condonaMora)), Math.round(num(l.recargo_mora))));
+    var condCosto = Math.max(0, Math.min(Math.round(num(o.condonaCosto)), Math.round(num(l.costo))));
+    var costoCobrado = Math.round(num(l.costo)) - condCosto;
+    var moraCobrada = Math.round(num(l.recargo_mora)) - condMora;
+    /* Lo que entra por concepto de COSTO. El capital no vive acá: no genera
+       garantía ni se reparte, vuelve y ya. */
+    var entro = costoCobrado + moraCobrada;
+
+    /* El 15% del cupón deja de cobrarse cuando ese socio ya devolvió el suyo,
+       así que el reparto necesita saber cuánto le falta. */
+    var pendiente;
+    try {
+      var socio = lista(db && db.socios).filter(function (x) { return x && p && x.id === p.socioId; })[0];
+      pendiente = socio ? contabilidadCupon(db, socio).cupon_pendiente : undefined;
+    } catch (e) { pendiente = undefined; }
+    var opc = { aTiempo: l.acredita_en_fecha !== false, producto: 'quincenal', cuponPendiente: pendiente };
+    var nominal = M.repartirCosto(Math.round(num(l.costo_total_pagado)), opc);
+    var cobrado = M.repartirCosto(entro, opc);
+
+    return {
+      condonado_costo: condCosto,
+      condonado_mora: condMora,
+      condonado_total: condCosto + condMora,
+      costo_cobrado: costoCobrado,
+      mora_cobrada: moraCobrada,
+      /* Lo que se guarda en p.gananciaPago. Mismo significado de siempre. */
+      ganancia_pago: entro,
+      /* Lo que el socio tiene que entregar con este descuento aplicado. */
+      total_a_recibir: Math.round(num(l.capital)) + entro,
+      /* Los tres pedazos de la plata que ENTRÓ. Suman `entro` exacto por
+         construcción del motor (operativo absorbe el redondeo). */
+      reparto: cobrado,
+      garantia: cobrado.garantia_socio,
+      garantia_sin_descuento: nominal.garantia_socio,
+      /* Lo que el descuento le cuesta a Joan: el pedazo del reparto que era
+         suyo —operativo más el cupón que se iba a recuperar— y que ya no entra.
+         El resto del descuento lo paga el socio en cupo que no recibe. Las dos
+         cifras suman el descuento entero: no hay plata perdonada sin dueño. */
+      de_tu_ganancia: (nominal.operativo + nominal.amortiza_cupon)
+                    - (cobrado.operativo + cobrado.amortiza_cupon),
+      de_su_cupo: nominal.garantia_socio - cobrado.garantia_socio
+    };
+  }
+
+  /**
+   * Dónde cae la plata perdonada. NO es una regla de negocio nueva: son dos
+   * bolsas con dos dueños distintos —la mora perdonada es casi toda ganancia de
+   * Joan; el costo perdonado es tres cuartas partes cupo del socio— y `sobre`
+   * decide cuál se vacía PRIMERO. Lo que no quepa desborda a la otra, y la
+   * pantalla lo dice. El capital no entra: perdonar capital es una pérdida, no
+   * un descuento.
+   * @returns {{excede:boolean, tope:number, costo:number, mora:number, hay_eleccion:boolean}}
+   */
+  function repartoDelDescuento(liq, falta, sobre) {
+    var l = (liq && typeof liq === 'object') ? liq : {};
+    var mora = Math.round(num(l.recargo_mora)), costo = Math.round(num(l.costo));
+    var tope = mora + costo;
+    var f = Math.round(num(falta));
+    if (f > tope) return { excede: true, tope: tope, costo: 0, mora: 0, hay_eleccion: mora > 0 && costo > 0 };
+    var deMora = 0, deCosto = 0;
+    if (sobre === 'costo') { deCosto = Math.min(f, costo); deMora = f - deCosto; }
+    else { deMora = Math.min(f, mora); deCosto = f - deMora; }
+    return {
+      excede: false, tope: tope, costo: deCosto, mora: deMora,
+      /* Solo hay algo que elegir si el faltante cabe holgado en una sola bolsa:
+         con mora 0 no hay nada que preguntar, y si ya desborda la mora, la
+         elección solo cambia el orden. */
+      hay_eleccion: mora > 0 && costo > 0 && f <= Math.max(mora, costo)
+    };
+  }
+
+  /* Lo que un socio lleva perdonado, DERIVADO de sus créditos y nunca de un
+     contador guardado: un contador se desincroniza el día que Joan edita un
+     pago y desde ahí miente para siempre. */
+  function descuentosDelSocio(db, s) {
+    var t = { veces: 0, monto: 0, costo: 0, mora: 0 };
+    if (!s) return t;
+    lista(db && db.prestamos).forEach(function (p) {
+      if (!p || p.socioId !== s.id) return;
+      lista(p.condonaciones).forEach(function (c) {
+        t.veces++;
+        t.costo += num(c && c.costo);
+        t.mora += num(c && c.mora);
+      });
+    });
+    t.monto = t.costo + t.mora;
+    return t;
+  }
+
   return {
     LLAVE_PANEL: LLAVE_PANEL,
     normalizar: normalizar,
@@ -1840,6 +1972,11 @@
        línea, y dos versiones de una cuenta terminan contestando distinto. */
     descuentosDeQuincena: descuentosDeQuincena,
     quincenaDeCondonacion: quincenaDeCondonacion,
+    /* La ley del cobro con monto real (7-sep-2026): una sola copia, para el
+       computador hoy y para el celular cuando deje la suya. */
+    cuentasDelCobro: cuentasDelCobro,
+    repartoDelDescuento: repartoDelDescuento,
+    descuentosDelSocio: descuentosDelSocio,
     buscarSocio: buscarSocio,
     /* El código de acceso del cliente y quiénes todavía no tienen (10-ago-2026).
        Los dos viven acá y no en crm.html: el Panel tuvo doce copias de cuentas

@@ -465,7 +465,11 @@ var LISTAS_QUE_SUMAN = {
    hacen que Joan reconozca la ficha y vea qué está en discusión. */
 var CAMPOS_MIRABLES = {
   socios:      ['numero','nombre','cedula','telefono','ingresoQuincenal','ajusteGarantia','notaRiesgo'],
-  creditos:    ['numero','capital','total','pagado','fechaPagado','fechaPago','cicloActual','costoPct'],
+  /* 7-sep-2026 — la plata de un cobro: sin estos, dos cobros del mismo crédito
+     que difieran solo en cuánto entró se veían con CERO campos en ámbar y Joan
+     decidía el choque sin ver la plata. */
+  creditos:    ['numero','capital','total','pagado','fechaPagado','fechaPago','cicloActual','costoPct',
+                'montoRecibido','gananciaPago','recargoMora','costoCausado','moraCausada','saldoAFavor'],
   respaldados: ['numero','capital','pagado','fechaPagado','plazo'],
   ajustes:     []
 };

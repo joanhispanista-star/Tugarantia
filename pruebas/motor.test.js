@@ -3075,8 +3075,18 @@ describe('el quincenal se liquida por el motor, con la mora adentro', () => {
        descuento son el mismo peso; con descuento, guardar el nominal le
        acuñaría al socio cupo que su plata no respalda (la «opción B» prohibida
        de cuentasDelCobro en el espejo). */
-    assert.match(f, /const entro=liq\.costo_total_pagado-d\.mora/,
-      'entro dejó de ser costo_total_pagado menos el perdón');
+    /* 7-sep-2026 — la letra cambió otra vez, y a propósito: el cobro con monto
+       real trae perdón de COSTO además de mora, y la cuenta de «lo que entró»
+       ya no se escribe en crm.html: la contesta el puente (cuentasDelCobro),
+       que es la misma ley del espejo. `entro` es q.ganancia_pago —costo
+       cobrado + mora cobrada, los dos ya con su perdón restado—. Lo prohibido
+       sigue siendo lo mismo: gananciaPago con el nominal o con K(p). */
+    assert.match(f, /const q=PUENTE\.cuentasDelCobro\(DB,p,liq,o\)/,
+      'pagarTotal dejó de preguntarle la cuenta del cobro al puente');
+    assert.match(f, /const entro=q\.ganancia_pago/,
+      'entro dejó de ser lo que ENTRÓ según el puente (q.ganancia_pago)');
+    assert.ok(!/p\.gananciaPago\s*=\s*liq\.costo_total_pagado/.test(f),
+      'gananciaPago volvió a llenarse con el NOMINAL: el socio acuña cupo sin respaldo');
     assert.match(f, /p\.gananciaPago\s*=\s*entro/,
       'la ganancia del ciclo es la plata que ENTRÓ (costo + recargo − perdón); ' +
       'con K(p) el recargo se regala dos veces, y con el nominal el socio acuña ' +
@@ -3104,9 +3114,17 @@ describe('el quincenal se liquida por el motor, con la mora adentro', () => {
     const f = cuerpoCRM('calcPago');
     assert.match(f, /liq\.recargo_mora/, 'el recargo tiene que estar a la vista');
     assert.match(f, /liq\.dias_mora/, 'y cuántos días son');
-    /* 2-sep-2026 — «lo que de verdad se va a cobrar» ahora resta el descuento
-       de mora que Joan tenga escrito (d.mora es 0 si no hay). */
-    assert.match(f, /Pagó todo \(\$\{COP\(liq\.total_a_pagar-d\.mora\)\}\)/,
+    /* 2-sep-2026 — «lo que de verdad se va a cobrar» resta el descuento de
+       mora que Joan tenga escrito. 7-sep-2026 — y desde el cobro con monto
+       real, ese «de verdad» lo contesta el puente: q.total_a_recibir sale de
+       cuentasDelCobro con el perdón EFECTIVO (el del % o el del monto tecleado,
+       de mora o de costo). La letra cambió; la regla es la misma: el botón no
+       puede decir un número que no sea el que se va a registrar. */
+    assert.match(f, /const q=PUENTE\.cuentasDelCobro\(DB,p,liq,/,
+      'calcPago dejó de preguntarle la cuenta al puente');
+    assert.match(f, /const total=c\?liq\.total_a_pagar:q\.total_a_recibir/,
+      'el total de la hoja tiene que ser el que devuelve el puente con el perdón efectivo');
+    assert.match(f, /Pagó todo \(\$\{COP\(total\)\}\)/,
       'el botón tiene que decir lo que de verdad se va a cobrar, descuento incluido');
     assert.ok(!/Pagó todo \(\$\{COP\(totalCiclo\(p\)\)\}/.test(CRM),
       'el botón volvió a salir de una cuenta que no es la del motor');
@@ -4838,7 +4856,11 @@ describe('lo causado no depende de cuánto capital quede después (4-ago-2026)',
     /* 5-ago-2026 — los tres congelados salen de UNA sola liquidación del
        puente. Calculados por separado podían caer en dos días distintos y
        guardar un recargo que no correspondía a los días guardados. */
-    assert.match(F, /const hoy=hoyISO\(\),\s*liq=liqCredito\(p,hoy\)/);
+    /* 8-sep-2026 — la fecha es la que Joan escribió en la hoja de cobro
+       (abonarCapital(id, fecha)); sin ella, la hoja decía la mora de un día y el
+       abono se congelaba con la de hoy. Los tres congelados siguen saliendo de
+       UNA sola liquidación, a esa fecha. */
+    assert.match(F, /const hoy=fecha\|\|hoyISO\(\),\s*liq=liqCredito\(p,hoy\)/);
     assert.match(F, /costoCausado:liq\.costo/);
     assert.match(F, /moraCausada:liq\.recargo_mora/);
     assert.match(F, /diasMoraCausada:liq\.dias_mora/);

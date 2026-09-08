@@ -772,3 +772,357 @@ describe('el descuento de la mora en el Panel (2-sep-2026)', () => {
       .forEach(c => assert.ok(FUENTE_CRM.includes(c), 'falta escribir ' + c));
   });
 });
+
+/* ==========================================================================
+ * EL COBRO CON MONTO REAL EN EL PANEL — 7-sep-2026 (y su auditoría, 8-sep)
+ *
+ * Pedido de Joan: «poder modificar la información de cuánto paga un cliente…
+ * tener la flexibilidad de hacer descuentos… seleccionar manualmente cuánto
+ * quiero que pague». Hasta hoy el computador cobraba TODO O NADA y lo único
+ * que perdonaba era la mora por %. Esto es la receta del 14-ago, que ya vivía
+ * en el celular, con la LEY (cuentasDelCobro, repartoDelDescuento) llevada al
+ * puente en vez de pegada como segunda copia.
+ *
+ * Lo que se prueba es la pantalla DE VERDAD (crm.html en vm): el campo, los
+ * atajos, la pregunta «¿qué pasó?» y las tres salidas —cerrar con perdón,
+ * abonar y seguir debiendo, saldo a favor— con los números del motor, nunca
+ * escritos a mano. Y la invariante que hace auditable cualquier cobro:
+ *   montoRecibido + condonado − saldoAFavor == capital + costoCausado + moraCausada
+ *
+ * La primera versión de esta hoja pasó por cuatro auditores adversarios y un
+ * refutador por hallazgo (22 reales). Los que eran de esta pantalla están
+ * abajo, uno por prueba: la fecha del abono, el bloque de arriba que no se
+ * repintaba, «Me equivoqué» que volvía a otro número, el «Del costo» que no
+ * hacía nada con el % puesto, el botón encendido sin motivo, el monto vacío.
+ * ======================================================================== */
+describe('el cobro con monto real en el Panel (7-sep-2026)', () => {
+
+  const M = require('../app/motor.js');
+  const hace = n => { const x = new Date(); x.setDate(x.getDate() - n);
+    return x.toISOString().slice(0, 10); };
+  /* 10 días de mora: capital 400.000, costo 80.000, recargo 40.000, total 520.000. */
+  function carteraConMora(P) {
+    const d = JSON.parse(JSON.stringify(UN_CLIENTE));
+    d.prestamos = [{ id: 'p1', numero: 1, socioId: 's1', socioNombre: 'María Pérez',
+      capital: 400000, costoPct: 20, fechaDesembolso: hace(25), cicloActual: hace(10),
+      prorrogas: [], abonosCapital: [], comprobantes: [], pagado: false }];
+    P.cargarCartera(d);
+    return JSON.parse(P.ev('JSON.stringify(liqCredito(DB.prestamos[0]))'));
+  }
+  const pon = (P, id, v) => P.ev("document.getElementById('" + id + "').value='" + v + "'");
+  const credito = P => JSON.parse(P.ev('JSON.stringify(DB.prestamos[0])'));
+  const soloCobro = P => P.ev("confirm=t=>String(t).indexOf('WhatsApp')<0");
+  const boton = P => P.elems.pgBtn.textContent;
+  const invariante = p => {
+    const cond = (p.condonaciones || []).reduce((t, c) => t + (c.costo || 0) + (c.mora || 0), 0);
+    const capital = p.capital - (p.abonosCapital || []).reduce((t, a) => t + (a.monto || 0), 0);
+    assert.equal(p.montoRecibido + cond - (p.saldoAFavor || 0),
+      capital + p.costoCausado + p.moraCausada,
+      'la invariante del cobro no cuadra: hay plata sin dueño');
+  };
+  /* La garantía de un cobro sale del reparto de LA PLATA QUE ENTRÓ, hecho por
+     el motor. Se compara contra eso, no contra una cifra escrita. */
+  const garantiaDe = (entro, aTiempo) =>
+    M.repartirCosto(entro, { aTiempo, producto: 'quincenal' }).garantia_socio;
+  /* Teclear el monto, elegir qué pasó y por qué, tal como lo haría Joan. */
+  function responder(P, monto, modo, sobre, motivo) {
+    pon(P, 'pgMonto', String(monto)); P.ev("cambioMonto('p1')");
+    if (modo) P.ev("modoCobro('p1','" + modo + "')");
+    if (sobre) P.ev("sobreCobro('p1','" + sobre + "')");
+    if (motivo != null) P.ev("_cobro.motivo=" + JSON.stringify(motivo) + ";pintarBoton('p1')");
+  }
+  const abrir = P => { P.ev("abrirPago('p1')"); };
+
+  test('sin tocar el monto, «Pagó todo» es el cobro de siempre, peso a peso', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); abrir(P);
+    assert.equal(Number(P.elems.pgMonto.value), liq0.total_a_pagar, 'el campo no arranca con el total');
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.pagado, true);
+    assert.equal(p.montoRecibido, liq0.total_a_pagar);
+    assert.equal(p.gananciaPago, liq0.costo_total_pagado);
+    assert.equal(p.recargoMora, liq0.recargo_mora);
+    assert.equal((p.condonaciones || []).length, 0, 'apareció un perdón de la nada');
+    assert.equal(p.saldoAFavor, 0, 'saldoAFavor se escribe SIEMPRE, para que una diferencia sea choque y no copia');
+    invariante(p);
+  });
+
+  test('«Sin la mora» → «Se lo perdoné»: la mora perdonada, el HECHO entero', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); abrir(P);
+    P.ev("atajoMonto('p1'," + Math.round(liq0.total_a_pagar - liq0.recargo_mora) + ")");
+    P.ev("modoCobro('p1','perdon')"); P.ev("_cobro.motivo='se le mojó la moto';pintarBoton('p1')");
+    assert.match(boton(P), /descuento/, 'el botón no dice lo que va a registrar');
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.pagado, true, 'el cobro con perdón no cerró el crédito');
+    assert.equal(p.montoRecibido, liq0.total_a_pagar - liq0.recargo_mora);
+    assert.equal(p.gananciaPago, liq0.costo, 'gananciaPago es lo que ENTRÓ: solo el costo');
+    assert.equal(p.recargoMora, 0);
+    assert.equal(p.moraCausada, liq0.recargo_mora, 'se lavó la historia de la mora');
+    assert.deepEqual({ costo: p.condonaciones[0].costo, mora: p.condonaciones[0].mora, quien: p.condonaciones[0].quien },
+      { costo: 0, mora: liq0.recargo_mora, quien: 'computador' });
+    assert.equal(p.condonaciones[0].motivo, 'se le mojó la moto');
+    invariante(p);
+  });
+
+  test('POR PRIMERA VEZ el computador perdona COSTO: «Del costo», y se anota aparte', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); abrir(P);
+    responder(P, liq0.total_a_pagar - 30000, 'perdon', 'costo', 'cliente viejo');
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.pagado, true);
+    assert.deepEqual({ costo: p.condonaciones[0].costo, mora: p.condonaciones[0].mora }, { costo: 30000, mora: 0 },
+      'el perdón del costo cayó en la bolsa de la mora');
+    assert.equal(p.gananciaPago, liq0.costo_total_pagado - 30000);
+    assert.equal(p.recargoMora, liq0.recargo_mora, 'la mora entró completa');
+    /* El costo perdonado es tres cuartas partes cupo del socio: la garantía
+       baja respecto al nominal, y baja exactamente lo que dice el motor. */
+    const g = P.ev('PUENTE.cuentasDelCobro(DB,DB.prestamos[0],' + JSON.stringify(liq0) + ',{condonaCosto:30000}).garantia');
+    assert.equal(g, garantiaDe(liq0.costo_total_pagado - 30000, liq0.acredita_en_fecha));
+    assert.ok(g < garantiaDe(liq0.costo_total_pagado, liq0.acredita_en_fecha), 'perdonar costo no bajó la garantía');
+    invariante(p);
+  });
+
+  test('sin motivo el botón se APAGA y lo dice; y registrarCobro tampoco lo deja pasar', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); abrir(P);
+    responder(P, liq0.total_a_pagar - 10000, 'perdon', null, '');
+    assert.match(boton(P), /Falta el motivo/, 'el botón prometía registrar sin motivo');
+    assert.equal(P.elems.pgBtn.disabled, true);
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.pagado, false, 'cobró con un descuento sin motivo');
+    assert.equal((p.condonaciones || []).length, 0);
+  });
+
+  test('«Queda debiendo»: el monto va a capital, el crédito NO se cierra y lo causado se congela', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); abrir(P);
+    responder(P, 150000, 'debe');
+    assert.match(boton(P), /sigue debiendo/);
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.pagado, false, 'un abono cerró el crédito');
+    assert.equal(P.ev('capitalActual(DB.prestamos[0])'), 250000);
+    assert.equal(p.abonosCapital.length, 1);
+    assert.deepEqual(
+      { monto: p.abonosCapital[0].monto, costoCausado: p.abonosCapital[0].costoCausado,
+        moraCausada: p.abonosCapital[0].moraCausada, dias: p.abonosCapital[0].diasMoraCausada },
+      { monto: 150000, costoCausado: liq0.costo, moraCausada: liq0.recargo_mora, dias: liq0.dias_mora },
+      'el abono no congeló lo causado');
+    assert.equal((p.condonaciones || []).length, 0, 'un abono no es un perdón');
+  });
+
+  test('«Queda debiendo» con la fecha de pago de hace 3 días: el abono se fecha y se congela a ESA fecha', () => {
+    /* Hallazgo de la auditoría (plata): la hoja decía la mora de la fecha
+       tecleada y abonarCapital congelaba la de HOY. El socio pagaba mora que no
+       corrió, y el celular —que sí fecha el abono— anotaba otro abono distinto
+       del mismo hecho. */
+    const P = abrirPanel();
+    carteraConMora(P);
+    soloCobro(P); abrir(P);
+    pon(P, 'pgFecha', hace(3)); P.ev("calcPago('p1')");
+    const liqF = JSON.parse(P.ev('JSON.stringify(liqCredito(DB.prestamos[0],"' + hace(3) + '"))'));
+    responder(P, 150000, 'debe');
+    assert.match(P.elems.pgDif.innerHTML, new RegExp('la mora \\(\\$' + liqF.recargo_mora.toLocaleString('es-CO').replace('.', '\\.') + '\\)'),
+      'la hoja no dice la mora de la fecha tecleada');
+    P.ev("registrarCobro('p1')");
+    const a = credito(P).abonosCapital[0];
+    assert.equal(a.fecha, hace(3), 'el abono se fechó hoy y no el día que Joan escribió');
+    assert.equal(a.moraCausada, liqF.recargo_mora, 'la mora congelada no es la de la fecha del abono');
+    assert.equal(a.diasMoraCausada, liqF.dias_mora);
+  });
+
+  test('«Queda debiendo» con monto 0 o ≥ capital: apagado, con su porqué, y no registra', () => {
+    const P = abrirPanel();
+    carteraConMora(P);
+    soloCobro(P); abrir(P);
+    responder(P, 400000, 'debe');
+    assert.match(boton(P), /cubre el capital entero/);
+    P.ev("registrarCobro('p1')");
+    assert.equal(credito(P).pagado, false, 'un «queda debiendo» cerró el crédito por la puerta de atrás');
+    assert.equal((credito(P).abonosCapital || []).length, 0);
+    responder(P, 0);               // el modo «debe» sigue puesto: otro clic lo apagaría
+    assert.match(boton(P), /cuánto abonó/);
+    P.ev("registrarCobro('p1')");
+    assert.equal((credito(P).abonosCapital || []).length, 0);
+  });
+
+  test('«Queda a favor»: el sobrante se anota y NUNCA entra a la ganancia ni a la garantía', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); abrir(P);
+    responder(P, liq0.total_a_pagar + 2000, 'afavor');
+    assert.match(boton(P), /a favor/);
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.pagado, true);
+    assert.equal(p.saldoAFavor, 2000);
+    assert.equal(p.montoRecibido, liq0.total_a_pagar + 2000, 'montoRecibido es la plata que ENTRÓ, sobrante incluido');
+    assert.equal(p.gananciaPago, liq0.costo_total_pagado, 'el sobrante se coló en la ganancia: acuña cupo con plata ajena');
+    assert.equal((p.condonaciones || []).length, 0);
+    invariante(p);
+    /* Y se VE, porque es plata de un tercero: en la ficha y en el crédito, con
+       las palabras que dicen lo que el código hace (no se aplica solo). */
+    P.ev("verCliente('s1')");
+    assert.match(P.elems.mBody.innerHTML, /Te ha pagado de más/);
+    assert.match(P.elems.mBody.innerHTML, /NO se descuenta solo/);
+    P.ev("verCredito('p1')");
+    assert.match(P.elems.mBody.innerHTML, /Pagó de más/);
+    assert.match(P.elems.mBody.innerHTML, /NO se aplica solo/);
+  });
+
+  test('un faltante sin contestar, un monto vacío, o un perdón que toca capital: no registran nada', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); abrir(P);
+    responder(P, liq0.total_a_pagar - 10000);          // sin decir qué pasó
+    assert.match(boton(P), /qué pasó/);
+    P.ev("registrarCobro('p1')");
+    assert.equal(credito(P).pagado, false, 'adivinó una intención con la plata de por medio');
+    /* Vacío no es «pagó todo». */
+    pon(P, 'pgMonto', ''); P.ev("cambioMonto('p1')");
+    assert.match(boton(P), /Escribe cuánto pagó/);
+    assert.equal(P.elems.pgBtn.disabled, true);
+    P.ev("registrarCobro('p1')");
+    assert.equal(credito(P).pagado, false, 'un campo vacío registró el total');
+    /* Perdonar más que costo + mora es perdonar capital: pérdida, no descuento. */
+    responder(P, liq0.capital - 1, 'perdon', null, 'x');
+    assert.match(boton(P), /no cabe/);
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.pagado, false);
+    assert.equal((p.condonaciones || []).length, 0);
+  });
+
+  test('el % de la mora de siempre PRE-LLENA el monto: el camino del 2-sep sigue intacto', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P);
+    pon(P, 'pgDescPct', '100'); pon(P, 'pgDescMotivo', 'acordamos por la lluvia');
+    abrir(P);   // pinta el campo con el total menos el % perdonado
+    assert.equal(Number(P.elems.pgMonto.value), liq0.total_a_pagar - liq0.recargo_mora, 'el % no pre-llenó el monto');
+    assert.match(boton(P), /descuento/, 'con el % puesto no se le pregunta dos veces');
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.pagado, true);
+    assert.equal(p.condonaciones[0].mora, liq0.recargo_mora);
+    assert.equal(p.condonaciones[0].motivo, 'acordamos por la lluvia', 'el motivo del % no se leyó');
+    invariante(p);
+  });
+
+  test('con el % puesto, «Del costo» SÍ manda, y «Se lo perdoné» confirma en vez de apagar', () => {
+    /* Hallazgos de la auditoría: el estado derivado forzaba sobre='mora' y el
+       clic en «Se lo perdoné» apagaba lo que el % había marcado. */
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P);
+    pon(P, 'pgDescPct', '100'); pon(P, 'pgDescMotivo', 'lluvia');
+    abrir(P);
+    P.ev("modoCobro('p1','perdon')");
+    assert.match(boton(P), /descuento/, 'el clic en «Se lo perdoné» apagó el perdón del %');
+    P.ev("sobreCobro('p1','costo')");
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.pagado, true);
+    assert.deepEqual({ costo: p.condonaciones[0].costo, mora: p.condonaciones[0].mora },
+      { costo: liq0.recargo_mora, mora: 0 }, '«Del costo» no hizo nada');
+    invariante(p);
+  });
+
+  test('al editar el monto, el bloque de ARRIBA dice la misma garantía que se va a registrar', () => {
+    /* Hallazgo de la auditoría (mentira): el bloque de arriba se pintaba con el
+       % y el de abajo con el monto tecleado — dos garantías y dos totales en la
+       misma hoja, el defecto del 5-ago otra vez. */
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P);
+    pon(P, 'pgDescPct', '50'); pon(P, 'pgDescMotivo', 'lluvia');
+    abrir(P);
+    const arribaAntes = P.elems.pgCalc.innerHTML;
+    responder(P, liq0.total_a_pagar - 30000, 'perdon', null, 'otro');
+    const q = JSON.parse(P.ev('JSON.stringify(PUENTE.cuentasDelCobro(DB,DB.prestamos[0],' + JSON.stringify(liq0) + ',{condonaMora:30000}))'));
+    const arriba = P.elems.pgCalc.innerHTML;
+    assert.notEqual(arriba, arribaAntes, 'el bloque de arriba no se repintó al editar el monto');
+    assert.ok(arriba.indexOf(P.ev('COP(' + q.garantia + ')')) >= 0, 'arriba no dice la garantía que se va a registrar');
+    assert.ok(arriba.indexOf(P.ev('COP(' + q.total_a_recibir + ')')) >= 0, 'arriba no dice el total que se va a recibir');
+    assert.ok(arriba.indexOf('− ' + P.ev('COP(30000)')) >= 0, 'arriba no dice el descuento real');
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.condonaciones[0].mora, 30000);
+    assert.equal(p.gananciaPago, q.ganancia_pago);
+  });
+
+  test('«Me equivoqué» vuelve al valor por defecto, y el campo dice lo que se registra', () => {
+    /* Hallazgo de la auditoría: el botón ponía el campo en el total pelado
+       mientras el estado volvía a total − mora perdonada por el %. */
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P);
+    pon(P, 'pgDescPct', '100'); pon(P, 'pgDescMotivo', 'lluvia');
+    abrir(P);
+    responder(P, liq0.total_a_pagar - 70000, 'perdon', null, 'otro');
+    P.ev("modoCobro('p1','error')");
+    const porDefecto = liq0.total_a_pagar - liq0.recargo_mora;
+    assert.equal(Number(P.elems.pgMonto.value), porDefecto, 'el campo no volvió al valor por defecto');
+    assert.match(boton(P), new RegExp('Registrar \\$' + porDefecto.toLocaleString('es-CO').replace('.', '\\.')));
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.montoRecibido, porDefecto, 'registró un número distinto del que decía el campo');
+    assert.equal(p.condonaciones[0].mora, liq0.recargo_mora);
+  });
+
+  test('la ficha suma los perdones con la cuenta del puente, partida en mora y costo', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); abrir(P);
+    responder(P, liq0.total_a_pagar - liq0.recargo_mora - 5000, 'perdon', 'mora', 'x');
+    P.ev("registrarCobro('p1')");
+    const d = JSON.parse(P.ev('JSON.stringify(PUENTE.descuentosDelSocio(DB,DB.socios[0]))'));
+    assert.deepEqual({ veces: d.veces, mora: d.mora, costo: d.costo }, { veces: 1, mora: liq0.recargo_mora, costo: 5000 },
+      'el faltante que desborda la mora tiene que caer en el costo, dicho aparte');
+    P.ev("verCliente('s1')");
+    assert.match(P.elems.mBody.innerHTML, /Descuentos que le has dado/);
+    assert.match(P.elems.mBody.innerHTML, /de mora \+ .* de costo/);
+  });
+
+  test('«Entró de verdad» del crédito solo cuenta los perdones del CIERRE, no los de prórroga', () => {
+    const P = abrirPanel();
+    const d = JSON.parse(JSON.stringify(UN_CLIENTE));
+    d.prestamos = [{ id: 'p1', numero: 1, socioId: 's1', socioNombre: 'María Pérez', capital: 400000,
+      costoPct: 20, fechaDesembolso: hace(40), cicloActual: hace(5), pagado: true, fechaPagado: hace(5),
+      cicloPago: hace(5), gananciaPago: 79000, montoRecibido: 479000, costoCausado: 80000, moraCausada: 0,
+      prorrogas: [{ fecha: hace(20), ciclo: hace(20), monto: 80000, mora: 0, nuevoCiclo: hace(5) }],
+      condonaciones: [{ fecha: hace(20), costo: 0, mora: 5000, motivo: 'de la prórroga', sobre: 'prorroga' },
+                      { fecha: hace(5), costo: 1000, mora: 0, motivo: 'al cerrar' }],
+      abonosCapital: [], comprobantes: [] }];
+    P.cargarCartera(d);
+    P.ev("verCredito('p1')");
+    const h = P.elems.mBody.innerHTML;
+    assert.match(h, /con \$1\.000 perdonados al cerrar: al cerrar/, 'sumó los perdones de prórroga como si fueran del cierre');
+    assert.ok(h.indexOf('$6.000 perdonados') < 0);
+  });
+
+  test('LA LEY VIVE EN EL PUENTE: crm.html no la declara y se la pregunta', () => {
+    const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
+    ['cuentasDelCobro', 'repartoDelDescuento', 'descuentosDelSocio'].forEach(fn => {
+      assert.ok(!(new RegExp('\\nfunction ' + fn + '\\(')).test(CRM),
+        'crm.html volvió a declarar ' + fn + ': segunda copia de la ley, se separan el primer día');
+      assert.ok(CRM.indexOf('PUENTE.' + fn + '(') >= 0, 'crm.html no le pregunta ' + fn + ' al puente');
+    });
+    assert.ok(!/id="abCap"[^>]*placeholder/.test(CRM),
+      'volvió el abono suelto al fondo de la hoja de cobro: «queda debiendo» es donde ocurre');
+    /* Y calcPago ya no tiene su propia copia del reparto nominal/cobrado. */
+    const i = CRM.indexOf('function calcPago(id){'), j = CRM.indexOf('\nfunction ', i + 1);
+    assert.ok(!/MotorReglas\.repartirCosto/.test(CRM.slice(i, j)),
+      'calcPago volvió a repartir por su cuenta: dos copias de la misma cuenta en la misma pantalla');
+  });
+});
