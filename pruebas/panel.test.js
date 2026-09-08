@@ -412,9 +412,9 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
     assert.equal(P.ev('K(DB.prestamos[DB.prestamos.length-1])'), 30000,
       'el ciclo no cobra con la tasa pactada: 300.000 al 10% son 30.000');
 
-    /* Y fuera del rango NO se crea: ni 25 (sobre el techo) ni 0 (el crédito
-       quedaría sin poder prorrogarse). */
-    ['25','0'].forEach(malo=>{
+    /* Y fuera del rango NO se crea: ni 51 (sobre el techo del 50%, desde el
+       8-sep-2026) ni 0 (el crédito quedaría sin poder prorrogarse). */
+    ['51','0'].forEach(malo=>{
       P.ev("document.getElementById('qCosto').value='"+malo+"'");
       const n = P.ev('DB.prestamos.length');
       P.ev('guardarRapido()');
@@ -1305,5 +1305,51 @@ describe('la prórroga con monto real en el Panel (8-sep-2026)', () => {
     assert.match(CRM, /\nfunction liqProrroga\(p,fecha,condonaMora,condonaCosto\)\{/);
     assert.match(CRM, /credito\.costo=Math\.round\(credito\.costo\)-condC/, 'el perdón del costo tiene que entrar al motor, no restarse después');
     assert.match(CRM, /PUENTE\.cuentasDeLaProrroga\(/, 'las cuentas de la prórroga se le preguntan al puente');
+  });
+});
+
+/* ==========================================================================
+ * EL TECHO DEL COSTO ES EL 50% — 8-sep-2026, decisión de Joan
+ *
+ * El 20% sigue siendo el estándar. Por encima se registra, pero se confirma
+ * APARTE con lo que equivale al año y el letrero legal: no es un freno, es que
+ * quede dicho cada vez. Y al cliente solo se le muestra el costo en pesos.
+ * ======================================================================== */
+describe('el alta por encima del estándar se confirma aparte (8-sep-2026)', () => {
+  function alta(P, costo) {
+    P.ev('var __vistos=[]; confirm=t=>{__vistos.push(String(t)); return String(t).indexOf("bienvenida")<0}');
+    ['qNombre','qTel','qCap','qCosto','qFecha'].forEach((id,i)=>{
+      const v=['María Pérez','3001112233','300000',String(costo),'2026-08-25'][i];
+      P.ev("document.getElementById('"+id+"').value='"+v+"'");
+    });
+    P.ev("document.getElementById('qCiclo').value=''");
+    const antes = P.ev('DB.prestamos.length');
+    P.ev('guardarRapido()');
+    return { creado: P.ev('DB.prestamos.length') - antes,
+             vistos: JSON.parse(P.ev('JSON.stringify(__vistos)')) };
+  }
+
+  test('35%: se registra, cobra con esa tasa, y pidió la confirmación extra con el año', () => {
+    const P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
+    const r = alta(P, 35);
+    assert.equal(r.creado, 1, 'el crédito al 35% no se creó');
+    assert.equal(P.ev('DB.prestamos[DB.prestamos.length-1].costoPct'), 35);
+    assert.equal(P.ev('K(DB.prestamos[DB.prestamos.length-1])'), 105000, '300.000 al 35% son 105.000');
+    const extra = r.vistos.find(t => /POR ENCIMA DEL ESTÁNDAR/.test(t));
+    assert.ok(extra, 'no pidió la confirmación aparte');
+    assert.match(extra, /efectivo anual/);
+    assert.match(extra, /art\. 305/);
+    assert.match(extra, /\$105\.000 de costo por \$300\.000/, 'tiene que decir lo que el cliente ve: pesos');
+  });
+
+  test('50% es el techo (se registra); 51% no; y al 20% no hay confirmación extra', () => {
+    let P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
+    assert.equal(alta(P, 50).creado, 1, 'el techo, incluido');
+    P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
+    assert.equal(alta(P, 51).creado, 0, 'por encima del techo se creó');
+    P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
+    const r = alta(P, 20);
+    assert.equal(r.creado, 1);
+    assert.ok(!r.vistos.some(t => /POR ENCIMA DEL ESTÁNDAR/.test(t)), 'al estándar no hay nada que confirmar aparte');
   });
 });

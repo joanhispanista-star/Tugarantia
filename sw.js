@@ -128,7 +128,13 @@
    app/puente.js en vez de pegada como segunda copia. Toca panel/crm.html y
    app/puente.js. Tambien recoge la columna de descuentos por quincena del
    4-sep, que salio sin subir la cache. */
-const CACHE = 'tugarantia-v28';
+/* v29 — 8-sep-2026. REGLA DE PLATA (sube tambien REGLAS_VIGENTES_DESDE y
+   VERSION_APP): el techo del costo pasa del 20% al 50% por decision de Joan
+   (el 20% sigue de estandar), y EL CLIENTE YA NO VE PORCENTAJES, solo pesos —
+   en la app, en la web y en los terminos. Toca motor.js, socio.html,
+   index.html, legal/terminos.html y crm.html (alta con confirmacion aparte por
+   encima del estandar; la prorroga con monto real del mismo dia). */
+const CACHE = 'tugarantia-v29';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

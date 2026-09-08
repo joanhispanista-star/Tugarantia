@@ -3936,10 +3936,13 @@ describe('la app no le promete al socio una prórroga que no existe', () => {
       'el Panel cobra costo + recargo: eso era una promesa que ya no se cumple');
   });
 
-  test('dice el recargo, y con el mismo número que hace la cuenta', () => {
-    assert.match(r.prorroga.texto,
-      new RegExp((M.TASA_MORA_DIARIA * 100) + '% diario'),
-      'si un día cambia la tasa, el texto tiene que cambiar solo');
+  test('dice el recargo — y desde el 8-sep-2026, SIN porcentaje: el socio ve pesos', () => {
+    /* Hasta el 8-sep el texto traía «1% diario» sacado de la constante. Joan
+       pidió que el cliente no vea porcentajes: la regla se nombra (recargo
+       diario) y el valor lo ve en pesos en la app. Lo que se vigila ahora es
+       que la regla siga dicha y que no vuelva un número. */
+    assert.match(r.prorroga.texto, /recargo diario/, 'la prórroga tiene que decir que el recargo se paga');
+    assert.ok(!/\d\s?%/.test(r.prorroga.texto), 'volvió un porcentaje al texto del socio');
     assert.match(r.prorroga.texto, /costo de la quincena/);
     assert.match(r.prorroga.texto, /siguiente corte/,
       'y que el corte nuevo queda adelante, que es lo que compra la prórroga');
@@ -3947,7 +3950,8 @@ describe('la app no le promete al socio una prórroga que no existe', () => {
 
   test('sigue nombrando la salida al plan de pagos', () => {
     assert.match(r.prorroga.texto, new RegExp(M.CUOTAS_PLAN_DE_PAGOS + ' cortes'));
-    assert.match(r.prorroga.texto, new RegExp((M.TASA_PLAN_DE_PAGOS * 100) + '%'));
+    /* 8-sep-2026: el costo reducido del plan ya no va en %, lo ve en pesos. */
+    assert.match(r.prorroga.texto, /costo reducido/);
   });
 
   test('y es la app la que lo muestra, sin escribir su propia versión', () => {
@@ -6374,10 +6378,12 @@ describe('la app no promete el doble sin la excepción (5-ago-2026)', () => {
 
   test('la pantalla de las reglas explica la excepción con los números del motor', () => {
     const cuerpo = cuerpoEnSocio('verReglas');
-    assert.match(cuerpo, /r\.garantia\.factor_puntual/,
-      'el 90% del texto tiene que salir del motor, no escribirse a mano');
-    assert.match(cuerpo, /r\.garantia\.factor_mora/,
-      'y el 45% también: si un día cambian, la pantalla cambia sola');
+    /* 8-sep-2026 — el socio no ve porcentajes (pedido de Joan): la excepción se
+       dice con palabras —tres cuartas partes, la mitad de eso— y el centinela
+       «el socio no ve porcentajes» vigila que no vuelva un número. Lo que esta
+       prueba sigue exigiendo es que la excepción ESTÉ dicha de frente. */
+    assert.match(cuerpo, /tres cuartas partes/, 'el factor completo tiene que estar dicho');
+    assert.match(cuerpo, /la mitad de eso/, 'y la mitad del atrasado también');
     assert.match(cuerpo, /nunca<\/b> se atrasó/);
     assert.match(cuerpo, /no se borra aplazando/,
       'la regla se dice de frente: aplazar no limpia el atraso');
@@ -6387,7 +6393,8 @@ describe('la app no promete el doble sin la excepción (5-ago-2026)', () => {
 
   test('donde se ofrece el préstamo con garantía tampoco se promete el 90% a secas', () => {
     const cuerpo = cuerpoEnSocio('setModo');
-    assert.match(cuerpo, /M\.FACTOR_GARANTIA_MORA/,
+    /* 8-sep-2026: con palabras, no con la constante — el socio no ve porcentajes. */
+    assert.match(cuerpo, /la mitad de eso/,
       'decía "cada crédito que pagas te deja el 90%", sin decir a cambio de qué');
     assert.match(cuerpo, /pagando en fecha/);
   });
@@ -6396,7 +6403,8 @@ describe('la app no promete el doble sin la excepción (5-ago-2026)', () => {
     // Un crédito que llega al plan casi siempre venía atrasado: sus cuotas
     // acreditan al 45%. Suma —eso es lo que importa ahí— pero no el doble.
     assert.ok(!/igual que cualquier otro pago/.test(SOCIO));
-    assert.match(cuerpoEnSocio('bloquePlanDePagos'), /M\.FACTOR_GARANTIA_MORA/);
+    /* 8-sep-2026: la mitad del atrasado, dicha con palabras (el socio ve pesos). */
+    assert.match(cuerpoEnSocio('bloquePlanDePagos'), /la mitad de eso si venía atrasado/);
   });
 
   test('y la prórroga se ofrece diciendo lo que NO hace', () => {
@@ -8998,10 +9006,16 @@ describe('la tasa pactada por crédito (29-ago-2026)', () => {
     assert.equal(M.calcularCosto(1000000, M.TASA_CREDITO), 200000);
   });
 
-  test('EL 20% ES TECHO: por encima revienta, no se topa en silencio', () => {
-    /* Toparlo callado dejaría a Joan creyendo que cobró 25 cuando cobró 20:
-       dos verdades sobre el mismo crédito. Reventar obliga a corregir. */
-    assert.throws(() => M.calcularCosto(1000000, 0.25), RangeError);
+  test('EL TECHO ES EL 50% (8-sep-2026); el 20% es el ESTÁNDAR', () => {
+    /* Decisión de Joan, reafirmada con el letrero legal leído (ver el comentario
+       junto a TASA_CREDITO_MAXIMA en app/motor.js). Por encima revienta, no se
+       topa en silencio: toparlo callado dejaría a Joan creyendo que cobró 55
+       cuando cobró 50 — dos verdades sobre el mismo crédito. */
+    assert.equal(M.TASA_CREDITO, 0.20, 'el estándar sigue siendo el 20%');
+    assert.equal(M.TASA_CREDITO_MAXIMA, 0.50);
+    assert.equal(M.calcularCosto(1000000, 0.25), 250000, 'por encima del estándar y debajo del techo: se cobra');
+    assert.equal(M.calcularCosto(1000000, 0.50), 500000, 'el techo, incluido');
+    assert.throws(() => M.calcularCosto(1000000, 0.51), RangeError);
     /* Y quien mande el porcentaje ENTERO (10 en vez de 0.10) se entera aquí,
        no en el bolsillo del cliente: 10 > 0.20 revienta. */
     assert.throws(() => M.calcularCosto(1000000, 10), RangeError);
@@ -9015,9 +9029,10 @@ describe('la tasa pactada por crédito (29-ago-2026)', () => {
   });
 
   test('y la fecha de las reglas subió con este cambio', () => {
-    /* 29-ago: la tasa pactable. 2-sep: los niveles por garantía. Cada regla
-       de plata sube la fecha, y esta prueba obliga a subirla a sabiendas. */
-    assert.equal(M.REGLAS_VIGENTES_DESDE, '2026-09-02',
+    /* 29-ago: la tasa pactable. 2-sep: los niveles por garantía. 8-sep: el
+       techo del costo pasa al 50%, decisión de Joan. Cada regla de plata sube
+       la fecha, y esta prueba obliga a subirla a sabiendas. */
+    assert.equal(M.REGLAS_VIGENTES_DESDE, '2026-09-08',
       'cambió una regla de plata sin subir la fecha: el sello de la app miente');
   });
 });
@@ -9165,5 +9180,55 @@ describe('los descuentos de una quincena se imputan como la ganancia', () => {
     const sinFecha = credito({ condonaciones: [{ costo: 0, mora: 9000 }] });
     assert.equal(P.quincenaDeCondonacion(sinFecha, sinFecha.condonaciones[0]), '');
     assert.equal(P.descuentosDeQuincena(conDb(sinFecha), '').total, 0);
+  });
+});
+
+/* ==========================================================================
+ * EL SOCIO NO VE PORCENTAJES: SOLO PESOS — 8-sep-2026, pedido de Joan
+ *
+ * Desde hoy el costo se pacta por crédito (de 1% a 50%), así que un «20%»
+ * escrito en la app, en la web o en los términos sería mentira para muchos
+ * créditos. Y Joan lo pidió literal: que el cliente vea valores, no
+ * porcentajes. Esta prueba lee el texto VISIBLE (sin CSS ni comentarios) de
+ * los tres archivos que lee el cliente y los textos que el motor le manda, y
+ * no acepta ni un porcentaje. Las excepciones que quedan son de forma (anchos
+ * de barras en CSS), nunca de precio.
+ * ======================================================================== */
+describe('el socio no ve porcentajes: solo pesos (8-sep-2026)', () => {
+  const leer = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const blanquear = (s, re) => s.replace(re, m => m.replace(/[^\n]/g, ' '));
+  function visibles(f) {
+    let s = leer(f).replace(/\r\n/g, '\n');
+    s = blanquear(s, /<style[\s\S]*?<\/style>/g);
+    s = blanquear(s, /\/\*[\s\S]*?\*\//g);
+    s = blanquear(s, /<!--[\s\S]*?-->/g);
+    s = blanquear(s, /^\s*\/\/.*$/mg);
+    /* Los atributos style="…" también se blanquean: un «5% al mes» dentro de un
+       <p> con font-size se le coló al primer filtro (8-sep-2026). Lo único que
+       se perdona es el ancho de las barras, que sí es un porcentaje de forma. */
+    s = blanquear(s, /style="[^"]*"/g);
+    const CSS = /width:|height:/;
+    return s.split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => /\d\s?%|pct\(/.test(l) && !CSS.test(l));
+  }
+
+  test('app del socio, web pública y términos: ni un porcentaje de precio', () => {
+    ['app/socio.html', 'index.html', 'legal/terminos.html'].forEach(f => {
+      const v = visibles(f);
+      assert.equal(v.length, 0, f + ' le muestra porcentajes al cliente: ' +
+        v.map(([n, l]) => n + ': ' + l.trim().slice(0, 90)).join(' | '));
+    });
+  });
+
+  test('y los textos que el motor le manda al socio (reglasResumen) tampoco', () => {
+    const textos = [];
+    (function junta(o) {
+      Object.keys(o || {}).forEach(k => {
+        const v = o[k];
+        if (typeof v === 'string' && /texto/.test(k)) textos.push(v);
+        else if (v && typeof v === 'object') junta(v);
+      });
+    })(M.reglasResumen());
+    assert.ok(textos.length >= 6, 'reglasResumen dejó de traer sus textos');
+    textos.forEach(t => assert.ok(!/\d\s?%/.test(t), 'el motor le manda un porcentaje al socio: ' + t.slice(0, 100)));
   });
 });

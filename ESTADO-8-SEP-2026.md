@@ -15,8 +15,8 @@ paga. Las dos últimas están hechas y verificadas: **el cobro con monto real
 llegó al Panel del computador**, con la ley en una sola copia (el puente) y
 pasado por una auditoría adversaria que encontró 22 hallazgos reales, de los
 que se arreglaron los de esta pantalla antes de publicar. **La primera —el
-50%— NO se tocó**: es una pared legal escrita a propósito y la decisión sigue
-siendo de Joan (ver abajo).
+50%— se hizo esa misma noche**, después de que Joan la reafirmara con el letrero
+legal leído, junto con su otro pedido: que el cliente vea pesos y no porcentajes.
 
 ---
 
@@ -144,35 +144,76 @@ garantía que Joan ve antes de confirmar es **exactamente** la que
 
 ---
 
-## El 50%: la pared, y por qué no se tocó
+## El techo al 50% y el cliente en pesos (misma noche; 925 pruebas, 4 nuevas)
 
-Joan pidió subir el techo del costo (hoy **20% por quincena, techo desde el
-29-ago**) hasta el 50%. **No se hizo**, y se le dijo por qué antes de que
-decidiera:
+Joan reafirmó el 50% con el letrero leído (*«ese 20% quiero que se pueda
+modificar, incluso que yo lo pueda incrementar»*) y añadió: *«que al cliente
+no le aparezca ningún porcentaje, solo los valores»*. Las dos cosas van juntas
+y se hicieron completas:
 
-1. **No es un bug.** `app/motor.js` (`calcularCosto`) lo dice: *«El 20% es
-   TECHO, no sugerencia. Subir por crédito reabriría el riesgo de usura que se
-   cerró el 29-jul; quien quiera subirla tiene que venir a cambiar esta línea a
-   sabiendas.»*
-2. **Los números.** Techo legal de usura (sep-2026): **29,24% E.A.** El 20% por
-   quincena equivale a **8.348% E.A.**; el 50% a **1.926.925% E.A.** El propio
-   CRM lo marca con ⚠️. Cobrar por encima del tope es el delito del **art. 305
-   del Código Penal**, y el responsable es Joan como **persona natural**.
-3. **Está escrito en tres sitios que el cliente lee:** el contrato
-   (`legal/terminos.html`: «Costo (20%)», «20% del monto»), la web
-   (`index.html`: «cuesta el 20%») y la app del socio. Cobrar 50% con un
-   contrato que dice 20% rompe la regla de la casa y el contrato.
-4. **Le cambia el modelo de exposición, para mal:** el 75% del costo se vuelve
-   garantía, y la garantía es cupo uno a uno. Al 20% cada crédito puntual sube
-   el cupo 15%; al 50% lo sube **37,5%** — el cupo se duplica en 2 créditos en
-   vez de 5. Su propio criterio del 5-ago («¿esto hace que mi exposición
-   crezca?») contesta que sí.
+**El techo (regla de plata: `REGLAS_VIGENTES_DESDE` y `VERSION_APP` → 2026-09-08,
+`sw.js` → v29).**
+- `app/motor.js`: `TASA_CREDITO_MAXIMA = 0.50`, separada de `TASA_CREDITO = 0.20`,
+  que sigue siendo el **estándar** por defecto en todo el motor. `calcularCosto`
+  revienta por encima del 50%, no se topa en silencio. El letrero legal quedó
+  escrito junto a la constante (usura, contrato, exposición, art. 305 CP).
+- CRM (alta): el costo se pacta de **1% a 50%** por crédito. **Por encima del
+  20% se confirma aparte**, con lo que equivale al año, el techo de usura que
+  Joan tenga anotado, la nota del art. 305, y lo que el cliente va a ver en
+  pesos. El confirm de siempre marca «PACTADO POR ENCIMA DEL ESTÁNDAR».
+  Ajustes lo explica.
+- Pruebas: la del techo (`calcularCosto` 25% → 250.000; 50% → 500.000; 51%
+  revienta), el alta al 35% con la confirmación extra, 50 sí / 51 no, y al 20%
+  sin confirmación extra.
 
-**Recomendación dada:** dejar el 20%; la flexibilidad real está en cobrar
-*menos* con el cobro con monto real. Si igual lo quiere, el código son ~30 min
-(motor, alta del CRM, pruebas del techo) **más** reescribir términos, web y app
-para que digan «hasta X%» — y la decisión de fondo es con su abogado.
-**Decisión pendiente de Joan.**
+**El cliente ve pesos, no porcentajes.** `app/socio.html` (30 sitios),
+`index.html` (11), `legal/terminos.html` (16) y los textos que el motor le manda
+al socio (`reglasResumen`, 5). Donde había un porcentaje de precio ahora está el
+valor en pesos que ya estaba al lado, o la palabra: *tres cuartas partes del
+costo se te vuelven garantía; la mitad de eso si pagaste tarde; un recargo
+diario sobre el capital que ves en pesos en la app; un costo reducido que ves
+antes de pactarlo.* Verificado en el navegador: **0 porcentajes** en la app, en
+los términos y en la web.
+- **Centinela nuevo** («el socio no ve porcentajes: solo pesos»): lee el texto
+  visible de los tres archivos —sin CSS, sin comentarios, sin atributos
+  `style`— y los textos de `reglasResumen`, y no acepta ni un porcentaje. Solo
+  perdona el ancho de las barras.
+- Cinco centinelas viejos que exigían el porcentaje sacado de la constante
+  pasaron a exigir la regla dicha con palabras, cada uno con su porqué.
+
+**Lo que NO se tocó, y por qué.** `play/index.html` (el producto a 6 meses)
+sigue mostrando *«Tasa efectiva anual 23,98%»* y el techo legal del mes: es la
+**divulgación obligatoria** de ese producto (`app/cumplimiento.js`), y quitarla
+sería quitar lo que la norma exige. El CRM y el espejo son de Joan: ahí los
+porcentajes se quedan, que los necesita.
+
+**Lo que hay que decirle a Joan de frente:** con el techo variable, la frase
+del producto «cada crédito puntual te sube el cupo un 15%» dejó de ser cierta en
+general (al 50% es 37,5%), y por eso se quitó de la web. Y los términos ya no
+declaran la fórmula del costo ni del recargo: dicen «un valor fijo en pesos que
+ves y aceptas antes de recibir el crédito». **Ese texto conviene que lo mire su
+abogado**: un contrato que no dice el precio en su cuerpo se defiende por lo que
+el cliente vio y aceptó en la app (el costo en pesos está en la pantalla de
+pedir y en el recibo).
+
+## El registro abierto, verificado de punta a punta
+
+Joan pidió revisar que el enlace que manda a los clientes sirva y que las
+solicitudes le lleguen al CRM para verificarlas a mano. Verificado el 8-sep:
+
+- `https://tugarantia.net/play/` carga, con la base conectada
+  (`wnsioekvjspwtghbodbg.supabase.co`), sin errores de consola, con «Abrir mi
+  cuenta» y «Entrar».
+- La función `registrar_abierto` existe y responde: con un registro de PRUEBA
+  claramente marcado (*«PRUEBA CLAUDE 8-SEP (descartar)»*, celular 3009999999)
+  contestó `{ok:true}`, y repetido contestó igual sin duplicar (idempotente por
+  celular). **Ese registro está en la bandeja de Joan: CRM → Registrados →
+  «↻ Traer de la nube» → descartarlo con ✕.**
+- El CRM lee esa bandeja con `listar_registros` (estado «nuevo») y muestra,
+  por persona: «👁 Ver datos» (todo lo declarado, sin verificar), «📲
+  Escribirle», «＋ Abrirle la ficha» y «✕». **Aprobar es manual, cliente por
+  cliente**, que es exactamente lo que Joan quiere. No se creó cuenta de Auth
+  para la prueba (solo la bandeja), así que no queda nada más que limpiar.
 
 ---
 
@@ -181,7 +222,8 @@ para que digan «hasta X%» — y la decisión de fondo es con su abogado.
 1. **ANTES DEL 1 DE OCTUBRE — la certificación de octubre** en `TOPES` de
    `app/creditos.js` (ver `ESTADO-4-SEP-2026.md`). El vigilante de GitHub avisa
    los días 16, 22 y 27.
-2. **La decisión del techo** (arriba).
+2. **Descartar el registro de PRUEBA** en Registrados (✕), y que su abogado mire el
+   texto nuevo de los términos (el costo ya no se declara como porcentaje).
 3. **Los 16 hallazgos del 4-sep** que siguen (`AUDITORIA-4-SEP-2026.md`),
    sobre todo el bloque del **acuerdo de prórroga** — mientras tanto: no pactar
    acuerdos desde el computador si va a cobrar en la calle.

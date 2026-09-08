@@ -708,7 +708,7 @@ details[open] summary::after{content:' ↑'}
    app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
    de CACHE en sw.js). */
-var VERSION_APP = '2026-09-02';
+var VERSION_APP = '2026-09-08';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1521,19 +1521,18 @@ function vistaInicio() {
       '<div class="etq">Puedes pedir hasta</div>' +
       '<div class="cifra oro">' + COP(S.cupo) + '</div>' +
       '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
-      'El costo es el ' + pct(M.TASA_CREDITO) + ' de lo que pidas — nunca más.</div>' +
+      'El costo lo ves en pesos antes de pedir, y es todo lo que pagas: sin cuotas de manejo ni sorpresas.</div>' +
       /* LA REGLA DEL PRODUCTO, EN UNA LÍNEA (5-ago-2026). Antes acá había que
          explicar niveles y factores para que el socio entendiera de dónde salía
          su cupo; desde que el cupo es la garantía uno a uno, la regla entera
          cabe en un renglón y va donde primero se mira. El porcentaje sale del
          motor (crecimiento_por_credito = 0,20 × 0,75), nunca escrito acá. */
       '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
-      'Y cada crédito que pagas en fecha te sube el cupo un <b>' +
-      pct(M.reglasResumen().cupo.crecimiento_por_credito) + '</b>.</div>' +
+      'Y cada crédito que pagas en fecha te sube el cupo: <b>tres cuartas partes de lo que pagaste de costo</b> se te vuelven garantía tuya.</div>' +
       (S.maxRespaldado > 0
         ? '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
           'Y con la garantía que ya te ganaste puedes pedir hasta ' + COP(S.maxRespaldado) +
-          ' al ' + pct(M.TASA_RESPALDADO_MENSUAL) + ' al mes.</div>'
+          ', con un costo mensual fijo que ves en pesos antes de pedir.</div>'
         : '') +
       '<button class="btn arriba" onclick="irA(\'calc\')">Calcular y pedir</button>' +
       '</div>';
@@ -1556,8 +1555,7 @@ function vistaInicio() {
           garantía ES el cupo, y decirlo así ahorra la pantalla entera de
           explicación que antes hacía falta. */
        '<p class="sub">Es tu historial hecho número, y es tu cupo: puedes pedir exactamente ' +
-       'lo que tienes. No se retira, y cada crédito que pagas en fecha la sube un ' +
-       pct(M.reglasResumen().cupo.crecimiento_por_credito) + '.</p>' +
+       'lo que tienes. No se retira, y cada crédito que pagas en fecha la sube: tres cuartas partes de lo que pagaste de costo se te vuelven garantía.</p>' +
        '<div class="barra"><i style="width:' + progresoNivel() + '%"></i></div>' +
        '<div class="muted" style="font-size:13px;margin-top:var(--e2)">' + textoProximoNivel() + '</div>' +
        '</div>';
@@ -1607,7 +1605,7 @@ function verComunidad() {
   h += '<div class="card"><h3 class="tit">Lo que llevamos entre todos</h3>' +
     '<p class="sub">Cifras del grupo. Aquí no aparece el nombre ni el monto de nadie, ni el tuyo.</p>' +
     fila('Créditos pagados', String(c.creditos_pagados || 0)) +
-    (c.puntualidad != null ? fila('Se pagan en fecha', c.puntualidad + '%') : '') +
+    (c.puntualidad != null ? fila('Se pagan en fecha', c.puntualidad + ' de cada 100') : '') +
     '</div>';
 
   h += '<div class="card"><h3 class="tit">Tu parte</h3>' +
@@ -1674,16 +1672,16 @@ function bloquePlanDePagos() {
 
   return '<div class="card"><div class="etq">El plan de pagos, con todo lo que cuesta</div>' +
     '<p style="margin:var(--e2) 0 0;font-size:14.5px">El plan reparte lo que debes en ' + e.cortes +
-    ' cortes, y cada corte cuesta el ' + pct(M.TASA_PLAN_DE_PAGOS) + ' de lo que quede debiendo. ' +
-    'Pero ese ' + pct(M.TASA_PLAN_DE_PAGOS) + ' <b>no es todo lo que cuesta el plan</b>: el día que se ' +
-    'pacta se paga una <b>entrada</b>, que es el costo de la quincena que no alcanzaste a pagar, el ' +
-    pct(M.TASA_CREDITO) + ' del capital. Preferimos que lo sepas hoy y no el día del cobro.</p>' +
+    ' cortes, y cada corte tiene un costo reducido sobre lo que quede debiendo — lo ves en pesos abajo. ' +
+    'Pero eso <b>no es todo lo que cuesta el plan</b>: el día que se ' +
+    'pacta se paga una <b>entrada</b>, que es el costo de la quincena que no alcanzaste a pagar. ' +
+    'Preferimos que lo sepas hoy y no el día del cobro.</p>' +
     fila('Si debieras ' + COP(e.capital) + ', la entrada', COP(e.entrada)) +
-    fila('Los ' + e.cortes + ' cortes al ' + pct(M.TASA_PLAN_DE_PAGOS), COP(e.costo_cortes)) +
+    fila('El costo de los ' + e.cortes + ' cortes', COP(e.costo_cortes)) +
     '<div class="fila"><span class="k">Te costaría en total</span>' +
       '<span class="v"><b>' + esc(COP(e.costo_total)) + '</b></span></div>' +
     '<div class="aviso ambar">Y si llegas al plan <b>ya atrasado</b>, el plan no borra el recargo: la ' +
-    'entrada lleva además el ' + pct(M.TASA_MORA_DIARIA) + ' diario de los días que lleves encima.' +
+    'entrada lleva además el recargo de los días que lleves encima.' +
     (recargo ? ' Con los ' + dias + ' que llevas hoy, serían ' + COP(recargo) + ' más de entrada.' : '') +
     '</div>' +
     /* "Igual que cualquier otro pago" ya no era exacto: si el crédito llegó al
@@ -1692,8 +1690,8 @@ function bloquePlanDePagos() {
        llegar. Los dos porcentajes salen de las constantes —hoy 75% y 37,5%—, así
        que esta pantalla no se puede quedar en el reparto viejo. */
     '<div class="muted" style="font-size:13px;margin-top:var(--e3)">Todo lo que pagues en el plan te ' +
-    'sigue sumando garantía: el ' + pct(M.FACTOR_GARANTIA) + ' del costo si el crédito nunca se ' +
-    'atrasó, el ' + pct(M.FACTOR_GARANTIA_MORA) + ' si venía atrasado. Y el plan es una salida, no ' +
+    'sigue sumando garantía: tres cuartas partes del costo si el crédito nunca se ' +
+    'atrasó, la mitad de eso si venía atrasado. Y el plan es una salida, no ' +
     'un castigo: no pierdes un peso de la garantía que llevas construida.</div></div>';
 }
 
@@ -1729,11 +1727,11 @@ function verReglas() {
      acuerdo prometía algo que la cuenta no iba a dar. */
   h += bloque('De dónde sale la garantía', r.garantia.texto,
     '<div class="aviso"><b>Y el atraso no se borra aplazando.</b><br>' +
-    'El ' + pct(r.garantia.factor_puntual) + ' es del crédito que <b>nunca</b> se atrasó. Si uno se ' +
-    'atrasa, desde ahí suma el ' + pct(r.garantia.factor_mora) + ' hasta que lo termines, aunque ' +
+    'Las tres cuartas partes son del crédito que <b>nunca</b> se atrasó. Si uno se ' +
+    'atrasa, desde ahí suma la mitad de eso hasta que lo termines, aunque ' +
     'pidas una prórroga y pagues puntual la fecha nueva: la prórroga te compra tiempo, que es para ' +
     'lo que está, no te devuelve la puntualidad. Lo que ya ganaste no se toca nunca, y el crédito ' +
-    'siguiente arranca otra vez en el ' + pct(r.garantia.factor_puntual) + '.</div>');
+    'siguiente arranca otra vez completo.</div>');
   h += bloque('Y crece dando tus datos', r.cupon.texto);
   h += bloque('Y crece trayendo gente', r.referidos.texto);
   if (r.respaldado) h += bloque('El préstamo con garantía', r.respaldado.texto);
@@ -1763,7 +1761,7 @@ function verReglas() {
        su precio: mueve la fecha, no limpia el historial del crédito (§4-bis). */
     '<div class="aviso" style="margin-top:var(--e3)">' + esc(r.prorroga.texto) +
     ' Lo que la prórroga <b>no</b> hace es borrar el atraso: si el crédito ya se atrasó, sigue ' +
-    'sumando el ' + pct(r.garantia.factor_mora) + ' de garantía hasta que lo termines, aunque ' +
+    'sumando la mitad de garantía hasta que lo termines, aunque ' +
     'pagues puntual la fecha nueva.</div></div>';
 
   /* Va pegado al de arriba a propósito: el texto del motor nombra el plan y su
@@ -2025,7 +2023,7 @@ function tarjetaActivo(c) {
     h += '<div class="muted" style="font-size:13px;margin-top:var(--e2)">' +
       'De qué está hecho lo que tienes que pagar hoy:</div>' +
       fila(ciclo.etiqueta_capital, COP(q.capital)) +
-      fila('Costo (' + pct(ciclo.tasa) + ')', COP(q.costo)) +
+      fila('Costo', COP(q.costo)) +
       fila('Recargo por los ' + q.dias_mora + ' días', COP(q.recargo_mora)) +
       '<div class="fila"><span class="k">Total para saldar hoy</span>' +
         '<span class="v"><b>' + esc(COP(q.total_a_pagar)) + '</b></span></div>' +
@@ -2036,7 +2034,7 @@ function tarjetaActivo(c) {
     h += '<div class="cifra sm">' + COP(q.total_a_pagar) + '</div>' +
       '<div class="muted" style="font-size:13px">Total para saldar</div>' +
       fila(ciclo.etiqueta_capital, COP(q.capital)) +
-      fila('Costo (' + pct(ciclo.tasa) + ')', COP(q.costo)) +
+      fila('Costo', COP(q.costo)) +
       fila('Fecha de pago', fmtFecha(c.corte)) +
       /* 5-ago-2026 §4-bis — acá decía "si pagas en fecha, sumas el doble", y
          para el crédito que ya se atrasó una vez eso dejó de ser verdad: ese
@@ -2065,8 +2063,7 @@ function tarjetaActivo(c) {
        paquete y se dice, para que nadie crea que con esta cuota terminó. */
     h += (c.saldo_capital != null ? fila('Te falta del crédito', COP(c.saldo_capital)) : '') +
       '<div class="aviso info">Esta es la cuota ' + ciclo.numero + ' de ' + ciclo.cuotas +
-      ' de tu plan. Cada cuota cuesta el ' + pct(ciclo.tasa) +
-      ' de lo que quede debiendo, así que las de más adelante cuestan menos. ' +
+      ' de tu plan. Cada cuota tiene un costo sobre lo que quede debiendo, así que las de más adelante cuestan menos. ' +
       'La entrada del plan ya la pagaste el día que lo pactamos.</div>';
   }
   if (c.prorrogas) h += fila('Prórrogas usadas', String(c.prorrogas));
@@ -2104,10 +2101,9 @@ function vistaCalculadora() {
   var l = limitesCalc();
   return '<div class="card">' +
     '<div class="seg" id="calcSeg" role="tablist" aria-label="Qué quieres pedir" onkeydown="segTeclas(event)">' +
-      botonSeg('quincenal', 'q', 'Crédito quincenal', pct(M.TASA_CREDITO) + ' · hasta el corte') +
+      botonSeg('quincenal', 'q', 'Crédito quincenal', 'hasta el corte') +
       botonSeg('respaldado', 'r', 'Préstamo con garantía',
-               pct(M.TASA_RESPALDADO_MENSUAL) + ' al mes · ' + M.PLAZO_RESPALDADO_MIN + ' a ' +
-               M.PLAZO_RESPALDADO_MAX + ' meses') +
+               M.PLAZO_RESPALDADO_MIN + ' a ' + M.PLAZO_RESPALDADO_MAX + ' meses') +
     '</div>' +
     '<h3 class="tit">¿Cuánto necesitas?</h3>' +
     '<p class="sub" id="calcSub"></p>' +
@@ -2192,8 +2188,7 @@ function setModo(m) {
        frase que lo promete tiene que decir a cambio de qué. Los dos porcentajes
        salen de las constantes (hoy 75% y 37,5%), nunca escritos acá. */
     if (a) a.innerHTML = 'Todavía no tienes garantía ganada. Se gana pagando en fecha: cada crédito ' +
-      'quincenal que pagas sin haberte atrasado te deja el ' + pct(M.FACTOR_GARANTIA) +
-      ' del costo. Si se atrasó alguna vez, el ' + pct(M.FACTOR_GARANTIA_MORA) + '.';
+      'quincenal que pagas sin haberte atrasado te deja tres cuartas partes del costo. Si se atrasó alguna vez, la mitad de eso.';
     return;
   }
   /* Tiene garantía ganada, pero no le llega al mínimo. Es un estado NORMAL y va a
@@ -2207,7 +2202,7 @@ function setModo(m) {
     if (av) av.innerHTML = 'Llevas <b>' + COP(S.maxRespaldado) + '</b> de garantía ganada, y este ' +
       'préstamo arranca en ' + COP(M.MONTO_MINIMO) + '. Te faltan <b>' +
       COP(M.MONTO_MINIMO - S.maxRespaldado) + '</b>, que se juntan pagando en fecha: cada crédito ' +
-      'quincenal te deja el ' + pct(M.FACTOR_GARANTIA) + ' de su costo.';
+      'quincenal te deja tres cuartas partes de su costo.';
     return;
   }
   if (m === MODO) return;
@@ -2285,8 +2280,8 @@ function sincronizarCalc() {
 
   $('calcMonto').textContent = COP(MONTO);
   $('calcSub').textContent = resp
-    ? pct(M.TASA_RESPALDADO_MENSUAL) + ' al mes sobre lo que pidas. Lo respalda la garantía que ya te ganaste.'
-    : 'El costo es el ' + pct(M.TASA_CREDITO) + ' de lo que pidas, por quincena.';
+    ? 'Un costo mensual fijo, en pesos, sobre lo que pidas. Lo respalda la garantía que ya te ganaste.'
+    : 'El costo, en pesos, por quincena. Lo ves abajo antes de pedir.';
 
   var r = $('calcRange');
   /* step=1 a propósito: el redondeo al escalón lo hace alEscalon(), que además deja
@@ -2341,7 +2336,7 @@ function salidaCalc(s) {
     '<div class="cifra">' + COP(s.total_a_pagar) + '</div>' +
     '<div class="muted" style="font-size:13px">el ' + fmtFecha(s.fecha_corte) + ', en un solo pago</div>' +
     fila('Te llevas', COP(s.capital)) +
-    fila('Costo (' + pct(s.tasa) + ')', COP(s.costo)) +
+    fila('Costo', COP(s.costo)) +
     fila('Total a devolver', COP(s.total_a_pagar)) + '</div>';
 
   /* 2 · Lo que te deja — el premio, ahora es cupo y no descuento */
@@ -2356,8 +2351,7 @@ function salidaCalc(s) {
        Se dice lo que la cifra dice: el 15% de lo que pide, que es la regla del
        producto entera. */
     '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
-      'desde ' + COP(s.cupo) + ': pagarlo en fecha te suma el ' +
-      pct(M.reglasResumen().cupo.crecimiento_por_credito) + ' de lo que pidas.</div>' +
+      'desde ' + COP(s.cupo) + ': pagarlo en fecha te sube el cupo — tres cuartas partes del costo se te vuelven garantía.</div>' +
     fila(S.gd.comprometida > 0 ? 'Tu garantía libre hoy' : 'Tu garantía hoy', COP(s.garantia_disponible)) +
     fila('Suma este crédito', '+' + COP(s.garantia_que_deja)) +
     fila('Quedarías con', COP(s.garantia_despues)) +
@@ -2391,8 +2385,7 @@ function salidaCalc(s) {
   var minG = S.gd.base_cupo, maxG = pasos[pasos.length - 1].garantia;
   var rango = Math.max(1, maxG - minG);
   h += '<div class="card"><details><summary>Ver cómo crece si lo repites</summary>' +
-    '<p class="sub">Pidiendo cada vez todo tu cupo y pagando en fecha: un ' +
-      pct(M.reglasResumen().cupo.crecimiento_por_credito) + ' más cada vez.</p>' +
+    '<p class="sub">Pidiendo cada vez todo tu cupo y pagando en fecha, así crece:</p>' +
     '<div class="crece">' + pasos.map(function (p) {
       return '<div style="height:' + (18 + (p.garantia - minG) / rango * 82).toFixed(0) + '%">' +
              '<span>' + COPc(p.cupo) + '</span></div>';
@@ -2415,7 +2408,7 @@ function salidaRespaldado(r) {
     '<div class="muted" style="font-size:13px">Durante ' + r.plazo_meses + ' meses. ' +
       'La última puede variar unos pesos.</div>' +
     fila('Te llevas', COP(r.capital)) +
-    fila('Costo (' + pct(r.tasa_mensual) + ' al mes × ' + r.plazo_meses + ')', COP(r.costo_total)) +
+    fila('Costo (' + r.plazo_meses + ' meses)', COP(r.costo_total)) +
     fila('Total a devolver', COP(r.total_a_pagar)) + '</div>';
 
   /* 2 · Las fechas, que salen del calendario real: ni domingo ni festivo. */
@@ -2649,7 +2642,7 @@ function fraseSalidas(c) {
     return 'Ya usaste ' + (s.prorrogas_permitidas === 1 ? 'tu prórroga' : 'tus ' +
       s.prorrogas_permitidas + ' prórrogas') + ' de este crédito, así que si ese día no puedes ' +
       'pagar todo la salida es el plan de pagos: el capital en ' + M.CUOTAS_PLAN_DE_PAGOS +
-      ' cortes, con una entrada del ' + pct(M.TASA_CREDITO) + ' el día que se pacta. Te lo decimos antes. ';
+      ' cortes, con una entrada el día que se pacta. Te lo decimos en pesos antes. ';
   }
   return 'Si ese día no puedes pagar todo, se puede dejar una prórroga o pasar a un plan de pagos; ' +
     'las dos cosas tienen costo y te lo decimos antes. ';
@@ -2773,12 +2766,12 @@ function pedirCredito() {
     '<div class="cifra">' + COP(s.capital) + '</div>' +
     '<div class="muted" style="font-size:13px">es lo que recibirías</div>' +
     (resp
-      ? fila('Costo (' + pct(s.tasa_mensual) + ' al mes × ' + s.plazo_meses + ')', COP(s.costo_total)) +
+      ? fila('Costo (' + s.plazo_meses + ' meses)', COP(s.costo_total)) +
         fila('Cuota, cada mes', COP(s.cuota_tipica)) +
         fila('Primera cuota', fmtFecha(s.primera_fecha)) +
         fila('Última cuota', fmtFecha(s.ultima_fecha)) +
         fila('Total a devolver', COP(s.total_a_pagar))
-      : fila('Costo por la quincena (' + pct(s.tasa) + ')', COP(s.costo)) +
+      : fila('Costo por la quincena', COP(s.costo)) +
         fila('Fecha de pago', fmtFecha(s.fecha_corte)) +
         fila('Total a devolver ese día', COP(s.total_a_pagar))) +
     '<div class="sep"></div>' +
@@ -2800,7 +2793,7 @@ function pedirCredito() {
        socio. Acá se nombra el costo y las reglas lo explican entero. */
     '<div class="aviso">Si llegado el día no puedes pagar todo, no se te cierra nada: puedes dejar ' +
     'una prórroga o pasar a un plan de pagos. Las dos cosas tienen costo —el plan arranca con una ' +
-    'entrada del ' + pct(M.TASA_CREDITO) + '— y está todo explicado en <b>Cómo funciona esto</b>. ' +
+    'entrada— y está todo explicado en <b>Cómo funciona esto</b>. ' +
     'Y aunque te atrases, sigues siendo socio.</div>' +
     '<button class="btn ' + (resp ? 'azul' : '') + ' arriba" onclick="mandarSolicitud(' + MONTO + ')">' +
       'Mandar la solicitud' + '</button>' +
@@ -2848,13 +2841,13 @@ function mandarSolicitud(monto) {
     (resp ? '. Quiero pedir un préstamo con garantía:\n\n' : '. Quiero pedir un crédito:\n\n') +
     '• Monto: ' + COP(s.capital) + '\n' +
     (resp
-      ? '• Costo (' + pct(s.tasa_mensual) + ' al mes × ' + s.plazo_meses + '): ' + COP(costo) + '\n' +
+      ? '• Costo (' + s.plazo_meses + ' meses): ' + COP(costo) + '\n' +
         '• Cuota, cada mes: ' + COP(s.cuota_tipica) + '\n' +
         '• Total a devolver: ' + COP(s.total_a_pagar) + '\n' +
         '• Última cuota: ' + fmtFecha(fechaFin) + '\n\n' +
         'Mi garantía ganada es ' + COP(s.respaldo_disponible) + '.' +
         (seExcede ? ' Sé que me estoy pasando, cuéntame si se puede.' : '')
-      : '• Costo (' + pct(s.tasa) + '): ' + COP(costo) + '\n' +
+      : '• Costo: ' + COP(costo) + '\n' +
         '• Total a devolver: ' + COP(s.total_a_pagar) + '\n' +
         '• Fecha de pago: ' + fmtFecha(fechaFin) + '\n\n' +
         'Mi cupo es ' + COP(S.cupo) + '.' +
@@ -2992,8 +2985,7 @@ function vistaGarantia() {
     '<div class="muted" style="font-size:13px;margin-top:var(--e3)">Tu cupo hoy es <b>' +
       COP(M.calcularCupo(gd.base_cupo, S.nivel)) + '</b>' +
       (gd.comprometida > 0 ? ', con lo que tienes libre' : '') +
-      ', y sube un ' + pct(M.reglasResumen().cupo.crecimiento_por_credito) +
-      ' con cada crédito que pagues en fecha. La plataforma presta hasta <b>' +
+      ', y sube con cada crédito que pagues en fecha: tres cuartas partes del costo se te vuelven garantía. La plataforma presta hasta <b>' +
       COP(M.CUPO_MAXIMO) + '</b>.</div>' +
     '</div>';
 

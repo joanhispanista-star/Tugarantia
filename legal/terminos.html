@@ -159,12 +159,12 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
         <tbody>
           <tr>
             <td><b>Crédito quincenal</b><br><span class="sub">el de siempre</span></td>
-            <td class="n">20% del monto</td>
+            <td class="n">Un valor fijo en pesos, que ves y aceptas antes de recibir el crédito</td>
             <td>Hasta la fecha de corte</td>
           </tr>
           <tr>
             <td><b>Préstamo con garantía</b><br><span class="sub">solo con garantía ganada</span></td>
-            <td class="n">5% mensual</td>
+            <td class="n">Un costo mensual fijo en pesos, que ves antes de pedir</td>
             <td>De 1 a 6 meses</td>
           </tr>
         </tbody>
@@ -194,7 +194,8 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
 
   <section id="atraso">
     <h2>5. Qué pasa si te atrasas</h2>
-    <p>Se cobra un <b>1% diario sobre el capital</b> por cada día de atraso, contado desde tu fecha
+    <p>Se cobra <b>un recargo diario fijo sobre el capital</b> por cada día de atraso —su valor en
+      pesos lo ves en tu app y en el ejemplo de más abajo—, contado desde tu fecha
       de corte.</p>
 
     <div class="nota azul">
@@ -206,25 +207,24 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
     <p>Lo único que cambia es cuánto suma: lo pagado <b>en fecha</b> te deja el doble de garantía
       que lo pagado tarde. Es un premio por pagar a tiempo, no un castigo por atrasarte. Y una vez
       que un crédito se atrasó, lo que pagues sobre ese crédito ya suma <b>a la mitad</b> aunque
-      después pagues puntual: el 37,5% en el crédito quincenal y el 10% en el préstamo con
-      garantía, que son la mitad de lo que deja cada uno. Está explicado en el
+      después pagues puntual: la mitad de lo que deja cada uno. Está explicado en el
       <a href="#garantia">punto 7</a> y conviene leerlo hoy, no el día que te toque.</p>
-    <p>El recargo por mora también te suma garantía cuando lo pagas, y siempre a la mitad —el
-      37,5% en el quincenal, el 10% en el préstamo con garantía—: es plata que solo existe porque
+    <p>El recargo por mora también te suma garantía cuando lo pagas, y siempre a la mitad: es
+      plata que solo existe porque
       el corte ya había pasado.</p>
 
     <h3 style="font-size:19px;margin-top:var(--e4)">Si abonas una parte y no todo</h3>
     <p>Puedes abonar lo que tengas el día que lo tengas: siempre te conviene y nunca te sube lo que
-      debes. Tu abono baja el capital, y <b>desde ese día</b> el 1% diario corre sobre el capital
+      debes. Tu abono baja el capital, y <b>desde ese día</b> el recargo diario corre sobre el capital
       que quedó, no sobre el que había. No te cobramos mora sobre plata que ya nos devolviste.</p>
     <p>Pero lo que ya se causó no se deshace, y esto es lo que hay que entender bien:
       <b>el costo del ciclo y los días de atraso que ya corrieron no bajan porque abones al
-      capital.</b> El 20% se causó completo el día que pediste, y cada día de atraso se causó
+      capital.</b> El costo del ciclo se causó completo el día que pediste, y cada día de atraso se causó
       sobre el capital que estuvo debido ese día.</p>
     <p>Un ejemplo con números, porque es más fácil de ver que de explicar: pediste $200.000, llevas
       21 días de atraso y abonas $199.999. En la app vas a ver <b>Capital $1</b> —lo que te queda
-      por devolver—, <b>Costo (20%) $40.000</b> —el del ciclo, que ya estaba causado— y
-      <b>Recargo por los 21 días $42.000</b> —el 1% diario de esos 21 días, corrido sobre los
+      por devolver—, <b>Costo $40.000</b> —el del ciclo, que ya estaba causado— y
+      <b>Recargo por los 21 días $42.000</b> —el recargo diario de esos 21 días, corrido sobre los
       $200.000 que estuvieron debidos todo ese tiempo—. De ahí en adelante el recargo nuevo corre
       sobre $1, o sea prácticamente nada.</p>
     <p class="sub">Si fuera al revés —si recalculáramos el recargo entero sobre lo que quedó—,
@@ -245,13 +245,13 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
         septiembre de 2026 todos los socios pueden encadenar hasta <b>dos</b> prórrogas por
         crédito, sin importar el nivel. Dos es el tope y no sube más.</li>
       <li><b>Plan de pagos:</b> cuando se te acaban las prórrogas, el saldo se reparte en tres
-        cortes con un costo reducido del 5% sobre lo que falte.</li>
+        cortes con un costo reducido sobre lo que falte, que ves en pesos antes de pactarlo.</li>
     </ul>
     <p>Las dos también te suman garantía, y nunca te vamos a cobrar por pedir una prórroga: pagas
       el costo de la quincena que estás comprando, nada más.</p>
     <p><b>Lo que sí cambia es cuánto te suman.</b> Si el día que pides la prórroga ya venías
-      atrasado, ese crédito pasa a sumar a la mitad de ahí en adelante —el 37,5% en el
-      quincenal—, aunque pagues puntual en el corte nuevo. La prórroga te compra tiempo; no te
+      atrasado, ese crédito pasa a sumar a la mitad de ahí en adelante, aunque pagues puntual en
+      el corte nuevo. La prórroga te compra tiempo; no te
       devuelve la puntualidad. Está explicado completo en el <a href="#garantia">punto 7</a>, y
       conviene que lo leas antes de necesitarlo.</p>
   </section>
@@ -259,32 +259,33 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
   <section id="garantia">
     <h2>7. La garantía: qué es y qué no es</h2>
     <p>La garantía es tu historial convertido en número. Cada vez que pagas el costo de un crédito,
-      el <b>75%</b> de ese costo se te vuelve garantía si pagaste en fecha, y el <b>37,5%</b> —la
-      mitad— si pagaste tarde. En el préstamo con garantía suma menos: el 20% y el 10%.</p>
+      <b>tres cuartas partes</b> de ese costo se te vuelven garantía si pagaste en fecha, y <b>la
+      mitad de eso</b> si pagaste tarde. En el préstamo con garantía suma menos: una quinta parte
+      del costo, y la mitad de eso si pagaste tarde.</p>
     <p>Y la garantía <b>es</b> tu cupo, uno a uno: puedes pedir exactamente lo que tienes, sin
       multiplicarla por nada. Está en el <a href="#cupo">punto 8</a>.</p>
 
-    <h3 style="font-size:19px;margin-top:var(--e4)">El 75% es del crédito que nunca se atrasó</h3>
+    <h3 style="font-size:19px;margin-top:var(--e4)">El factor completo es del crédito que nunca se atrasó</h3>
     <p>Esto tienes que saberlo antes de atrasarte, no después. <b>Desde el día en que un crédito
-      cae en mora, todo lo que pagues sobre ese crédito suma a la mitad</b> —el 37,5% en el
-      quincenal, el 10% en el préstamo con garantía—: la prórroga, las cuotas del plan de pagos y
+      cae en mora, todo lo que pagues sobre ese crédito suma a la mitad</b>: la prórroga, las
+      cuotas del plan de pagos y
       el saldo final. También si el corte se movió y pagas puntual en la fecha nueva. La prórroga
       te compra tiempo —que es lo que necesitas y lo que estás pagando—, no la puntualidad que ya
       no tuviste.</p>
     <p>Te contamos la razón entera, porque la regla suena dura y no lo es: sin ella, encadenar
       prórrogas rendía más garantía por peso pagado que saldar la deuda. Cada prórroga ponía el
       reloj de atraso en cero, así que la quincena siguiente contaba como puntual y volvía a sumar
-      al 75%. Míralo sobre un crédito de $200.000, cuyo costo de quincena es $40.000: quien
-      prorrogaba pagaba ese costo y la quincena siguiente le sumaba <b>$30.000</b> de garantía —el
-      75%, como si nunca se hubiera atrasado— mientras quien saldaba su deuda vencida sumaba
-      <b>$15.000</b>, el 37,5%. El mismo costo, el doble de garantía, y sin haber devuelto el
+      completo. Míralo sobre un crédito de $200.000, cuyo costo de quincena es $40.000: quien
+      prorrogaba pagaba ese costo y la quincena siguiente le sumaba <b>$30.000</b> de garantía
+      —como si nunca se hubiera atrasado— mientras quien saldaba su deuda vencida sumaba
+      <b>$15.000</b>, la mitad. El mismo costo, el doble de garantía, y sin haber devuelto el
       capital. La app te estaba enseñando que no pagar rendía más que pagar. No queremos enseñarte
       eso.</p>
-    <p><b>Y nada de lo que ya ganaste se toca.</b> El porcentaje de cada pago queda fijo el día en
+    <p><b>Y nada de lo que ya ganaste se toca.</b> La parte de cada pago que se te vuelve garantía queda fija el día en
       que pagas, mirando solo lo que había pasado hasta ese día: la garantía que te dejó la
-      prórroga que te sacó del atraso es tuya para siempre. Lo que deja de existir es el 75% de
-      los ciclos que vienen <i>después</i> del atraso, en ese crédito. <b>El crédito siguiente
-      arranca limpio:</b> si lo pagas en fecha, vuelve a sumarte el 75% completo.</p>
+      prórroga que te sacó del atraso es tuya para siempre. Lo que deja de existir es el factor
+      completo en los ciclos que vienen <i>después</i> del atraso, en ese crédito. <b>El crédito
+      siguiente arranca limpio:</b> si lo pagas en fecha, vuelve a sumarte completo.</p>
 
     <h3 style="font-size:19px;margin-top:var(--e4)">La que te prestamos nosotros</h3>
     <p>Al abrir tu cuenta te prestamos hasta <b>$100.000</b> de garantía, según los datos que nos

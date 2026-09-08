@@ -197,7 +197,7 @@
    * SE SUBE CUANDO CAMBIA UNA REGLA DE PLATA —tasa, reparto, cupo, garantía,
    * mora—, no cuando se arregla una pantalla: para eso está VERSION_APP en
    * socio.html. Si esta fecha cambia, el cupo de alguien pudo haber cambiado. */
-  var REGLAS_VIGENTES_DESDE = '2026-09-02';
+  var REGLAS_VIGENTES_DESDE = '2026-09-08';
 
   /* 2-sep-2026 — LOS NIVELES CAMBIAN DE NATURALEZA, por decision de Joan:
      ya no se ganan por puntualidad, son EL TRAMO DE LA GARANTIA de hoy. Nueve
@@ -238,6 +238,17 @@
      El costo es SIEMPRE el 20% del capital. La garantía dejó de fijar el
      PRECIO y ahora fija solo el CUPO: cuánto puede pedir. */
   var TASA_CREDITO = 0.20;
+  /* 8-sep-2026 — EL TECHO SE SEPARÓ DEL ESTÁNDAR, por decisión de Joan. Lo pidió
+     dos veces («que se pueda modificar, incluso incrementar») después de leer
+     el letrero completo: el techo legal de usura de sep-2026 es 29,24% E.A.;
+     el 20% por quincena equivale a 8.348% E.A. y el 50% a 1.926.925% E.A.;
+     cobrar por encima del tope es el delito del art. 305 del Código Penal y el
+     responsable es él como persona natural; y como el 75% del costo se vuelve
+     garantía —cupo uno a uno—, al 50% el cupo del socio sube 37,5% por crédito
+     y su exposición crece. Se le recomendó dejar el 20%. Decidió subirlo.
+     Lo que cambia acá es UNA reja: calcularCosto acepta hasta el 50%. El 20%
+     sigue siendo la tasa por defecto (TASA_CREDITO) en todo el motor. */
+  var TASA_CREDITO_MAXIMA = 0.50;
 
   /* §3 REEMPLAZADO (27-jul-2026): el cupón ya no es una tabla de tres escalones.
      La plataforma presta garantía DATO POR DATO: cada cosa que el socio entrega
@@ -718,9 +729,11 @@
    *  único clavado al 20% era esta función, que es la que cotiza en el alta.
    *
    *  Dos rejas, y las dos son deliberadas:
-   *  · El 20% es TECHO, no sugerencia. Subir por crédito reabriría el riesgo
-   *    de usura que se cerró el 29-jul al fijar la tasa; quien quiera subirla
-   *    tiene que venir a cambiar esta línea a sabiendas.
+   *  · El techo es TASA_CREDITO_MAXIMA (50% desde el 8-sep-2026; era el 20%
+   *    hasta ese día, y el 20% sigue siendo el ESTÁNDAR). Por encima revienta,
+   *    no se topa en silencio: toparlo callado dejaría a Joan creyendo que
+   *    cobró una cosa cuando cobró otra. La historia de esta línea y el
+   *    letrero legal están arriba, junto a la constante.
    *  · Nunca cero. tasaDeProrroga hace numeroPositivo(tasa): un crédito
    *    pactado al 0% quedaría SIN PODER PRORROGARSE, y eso se descubriría el
    *    día que el cliente no pueda pagar — el peor día para descubrir algo.
@@ -729,8 +742,8 @@
   function calcularCosto(capital, tasaPactada) {
     var tasa = tasaPactada == null ? TASA_CREDITO : tasaPactada;
     numeroPositivo(tasa, 'tasaPactada');
-    if (tasa > TASA_CREDITO) {
-      throw new RangeError('tasaPactada: el ' + Math.round(TASA_CREDITO * 100) +
+    if (tasa > TASA_CREDITO_MAXIMA) {
+      throw new RangeError('tasaPactada: el ' + Math.round(TASA_CREDITO_MAXIMA * 100) +
         '% es el techo, llegó ' + tasa);
     }
     return Math.round(numeroPositivo(capital, 'capital') * tasa);
@@ -891,9 +904,12 @@
            puede pactar por DEBAJO del estándar (préstamos de muy pocos días);
            lo que sigue siendo inamovible es el techo. Decir «siempre» con un
            socio pagando el 10% pactado sería mentirle al resto. */
-        texto: 'El costo es el ' + Math.round(TASA_CREDITO * 100) +
-               '% de lo que pidas, por quincena — nunca más: ni por tu historial, ni por el monto. ' +
-               'En préstamos muy cortos se puede pactar menos.'
+        /* 8-sep-2026: EL SOCIO NO VE PORCENTAJES, SOLO PESOS (pedido de Joan), y
+           el costo se pacta crédito por crédito (de 1% a 50%; el 20% es el
+           estándar). Lo que se le promete es lo que sí es cierto siempre: el
+           valor en pesos se le dice ANTES de pedir y no cambia después. */
+        texto: 'El costo de cada crédito te lo decimos en pesos antes de pedir, y no cambia ' +
+               'después: es todo lo que pagas, sin cuotas de manejo ni sorpresas.'
       },
       garantia: {
         factor_puntual: FACTOR_GARANTIA,
@@ -914,9 +930,8 @@
         // 0.15000000000000002, y eso terminaba impreso en una pantalla.
         crecimiento_por_credito: Math.round(TASA_CREDITO * FACTOR_GARANTIA * 10000) / 10000,
         texto: 'Tu cupo es tu garantía: puedes pedir exactamente lo que tienes. Y cada ' +
-               'crédito que pagas en fecha te lo sube un ' +
-               Math.round(TASA_CREDITO * FACTOR_GARANTIA * 100) + '%, así que se te ' +
-               'duplica en cinco créditos.'
+               'crédito que pagas en fecha te lo sube: tres cuartas partes de lo que pagaste ' +
+               'de costo se te vuelven garantía tuya.'
       },
       cupon: {
         maximo: CUPON_KYC_MAXIMO,
@@ -934,7 +949,7 @@
         plazo_max: PLAZO_RESPALDADO_MAX,
         factor_garantia: FACTOR_GARANTIA_RESPALDADO,
         texto: 'Con la garantía que YA te ganaste pagando puedes pedir un préstamo más ' +
-               'barato: ' + (TASA_RESPALDADO_MENSUAL * 100) + '% al mes, hasta ' +
+               'barato: un costo mensual fijo que ves en pesos antes de pedir, hasta ' +
                PLAZO_RESPALDADO_MAX + ' meses, hasta el monto de tu garantía ganada. ' +
                'Cuesta menos, pero te hace crecer el cupo mucho más despacio.'
       },
@@ -975,8 +990,8 @@
       mora: {
         diaria: TASA_MORA_DIARIA,
         dias_castigo: DIAS_CASTIGO,
-        texto: 'Si te atrasas se cobra un ' + (TASA_MORA_DIARIA * 100) +
-               '% diario sobre el capital. Pero atrasarte NO te baja de nivel, NO te borra la ' +
+        texto: 'Si te atrasas se cobra un recargo diario sobre el capital, que ves en pesos en ' +
+               'la app. Pero atrasarte NO te baja de nivel, NO te borra la ' +
                'garantía y NO te cierra la puerta: puedes volver a pedir. Lo único que pasa a los ' +
                DIAS_CASTIGO + ' días es si no abonaste ni un peso, y ni ahí se pierde la garantía: ' +
                'se congela hasta que vuelvas.'
@@ -988,11 +1003,10 @@
          números que hacen la cuenta. */
       prorroga: {
         texto: 'Si llegado el día no puedes pagar todo, se puede aplazar: pagas el costo de la ' +
-               'quincena y, si ya venías atrasado, el ' + (TASA_MORA_DIARIA * 100) +
-               '% diario que se haya causado hasta ese día. Con eso tu pago pasa al siguiente ' +
-               'corte, que siempre queda adelante en el calendario. También se puede pasar a un ' +
-               'plan de pagos en ' + CUOTAS_PLAN_DE_PAGOS + ' cortes con un costo reducido del ' +
-               (TASA_PLAN_DE_PAGOS * 100) + '%.'
+               'quincena y, si ya venías atrasado, el recargo diario que se haya causado hasta ' +
+               'ese día. Con eso tu pago pasa al siguiente corte, que siempre queda adelante en ' +
+               'el calendario. También se puede pasar a un plan de pagos en ' +
+               CUOTAS_PLAN_DE_PAGOS + ' cortes con un costo reducido, que ves en pesos antes.'
       }
     };
   }
@@ -2739,6 +2753,7 @@
     REGLAS_VIGENTES_DESDE: REGLAS_VIGENTES_DESDE,
     NIVELES: NIVELES,
     TASA_CREDITO: TASA_CREDITO,
+    TASA_CREDITO_MAXIMA: TASA_CREDITO_MAXIMA,
     DATOS_KYC: DATOS_KYC,
     CUPON_KYC_MAXIMO: CUPON_KYC_MAXIMO,
     GARANTIA_POR_REFERIDO: GARANTIA_POR_REFERIDO,
