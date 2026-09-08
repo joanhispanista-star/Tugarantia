@@ -1082,7 +1082,11 @@ function pintarEntrar() {
       '<p class="sub">Regístrate tú mismo — <b>no necesitas que nadie te presente</b>. ' +
         'Te preguntamos tus datos, ves ahí mismo cuánto costaría tu crédito, y te ' +
         'escribimos por WhatsApp cuando revisemos tu solicitud.</p>' +
-      '<a class="btn sec arriba" href="../play/">Registrarme</a>' +
+      /* 8-sep-2026 — el enlace que Joan manda es UNO (esta página) para nuevos y
+         antiguos. El nuevo cae DIRECTO en el formulario de registro (play/ lo
+         abre al ver #registro), sin pasar por la portada del producto a 6 meses
+         ni por su login con contraseña, que es otra cuenta y confundía. */
+      '<a class="btn sec arriba" href="../play/#registro">Registrarme</a>' +
       /* La invitación sigue viva, pero abajo y en pequeño: desde que el registro
          es abierto, es el camino de la minoría — y ponerlo arriba haría creer
          otra vez que sin código no se puede entrar. */

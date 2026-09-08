@@ -217,6 +217,23 @@ solicitudes le lleguen al CRM para verificarlas a mano. Verificado el 8-sep:
 
 ---
 
+## Un solo enlace para nuevos y antiguos (misma noche; 928 pruebas, 3 nuevas)
+
+Joan preguntó por qué había dos enlaces. La respuesta: el registro vive en
+`play/` porque esa página se construyó para Google Play, que prohíbe los créditos
+a menos de 60 días — el quincenal no podía vivir detrás de ella. Pero **el
+enlace que se reparte ya era uno**: `tugarantia.net/app/socio.html`, cuya
+entrada ofrece «¿Ya tienes tu código?» y «¿Eres nuevo? → Registrarme». Lo que
+se arregló es el tramo del nuevo: «Registrarme» caía en la portada del producto
+a 6 meses con un login de contraseña que no era suyo. Ahora va a
+`play/#registro` y `play/` abre el formulario de una al ver ese hash. El
+recién registrado lee que volverá con su código, por el mismo enlace.
+
+**La frontera de Play sigue en pie:** `play/` no enlaza de vuelta al quincenal
+(hay prueba); se vuelve por WhatsApp, con el código que manda Joan.
+
+---
+
 ## Lo que espera a Joan, con fechas
 
 1. **ANTES DEL 1 DE OCTUBRE — la certificación de octubre** en `TOPES` de

@@ -523,6 +523,10 @@ function pintarRegistrado() {
       '<p class="sub" style="margin-top:var(--e4)">Ahora revisamos tus datos. ' +
       '<b>Todavía no tienes cupo asignado</b>: te escribimos por WhatsApp en cuanto ' +
       'terminemos de revisar, y ahí te decimos hasta cuánto puedes pedir.</p>' +
+      /* 8-sep-2026: el camino de vuelta, dicho sin enlace (la frontera de Play
+         se cruza por WhatsApp, no con un botón). */
+      '<p class="sub">Cuando te aprobemos te mandamos por WhatsApp <b>tu código de acceso</b>: ' +
+      'con él entras por el mismo enlace de siempre.</p>' +
       '<p class="sub">Mientras tanto puedes entrar y ver el catálogo con los costos reales.</p>' +
       '<button class="btn sec" onclick="pintarEntrar()">Entrar a mi cuenta</button>' +
     '</div>' + pie();
@@ -836,7 +840,11 @@ function pie() {
       navigator.serviceWorker.register('../sw.js').catch(function () {});
     });
   }
-  pintarEntrar();
+  /* 8-sep-2026 — #registro abre el formulario de una: es adonde manda el botón
+     «Registrarme» de app/socio.html, que es el único enlace que Joan reparte.
+     Quien llega así es un socio nuevo del quincenal: no tiene por qué ver la
+     portada del producto a 6 meses ni un login con contraseña que no es suyo. */
+  if (location.hash === '#registro') pintarRegistro(0); else pintarEntrar();
 })();
 </script>
 </body>

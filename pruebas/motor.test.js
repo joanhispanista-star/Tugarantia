@@ -8629,7 +8629,9 @@ describe('EL REGISTRO ABIERTO LLEGA AL CRM (24-ago-2026)', () => {
 
     assert.ok(SOCIO.indexOf('¿Ya tienes tu código?') >= 0 && SOCIO.indexOf('¿Eres nuevo?') >= 0,
       'la app del socio dejó de preguntar: el nuevo vuelve a caer en una puerta cerrada');
-    assert.ok(/href="\.\.\/play\/"/.test(SOCIO),
+    /* 8-sep-2026: la salida va DIRECTO al formulario (play/#registro), para que
+       el nuevo no pase por la portada del producto a 6 meses ni por su login. */
+    assert.ok(/href="\.\.\/play\/#registro"/.test(SOCIO),
       'la app del socio perdió la salida al registro: el que no tiene código se queda sin camino');
     assert.ok(PLAY.indexOf('¿Eres nuevo? Abre tu cuenta') >= 0,
       'la fachada dejó de poner el registro primero — es la puerta del desconocido');
@@ -9230,5 +9232,42 @@ describe('el socio no ve porcentajes: solo pesos (8-sep-2026)', () => {
     })(M.reglasResumen());
     assert.ok(textos.length >= 6, 'reglasResumen dejó de traer sus textos');
     textos.forEach(t => assert.ok(!/\d\s?%/.test(t), 'el motor le manda un porcentaje al socio: ' + t.slice(0, 100)));
+  });
+});
+
+/* ==========================================================================
+ * UN SOLO ENLACE PARA NUEVOS Y ANTIGUOS — 8-sep-2026, pedido de Joan
+ *
+ * «¿Por qué el enlace para los nuevos no es el mismo que para los antiguos?»
+ * El enlace es app/socio.html: el que tiene código entra; el nuevo toca
+ * «Registrarme» y cae directo en el formulario (play/#registro). La frontera
+ * de Play sigue en pie: play/ NO enlaza de vuelta al quincenal — se vuelve por
+ * WhatsApp, con el código que manda Joan.
+ * ======================================================================== */
+describe('un solo enlace para nuevos y antiguos (8-sep-2026)', () => {
+  const leer = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const SOCIO = leer('app/socio.html'), PLAY = leer('play/index.html');
+
+  test('la entrada de la app ofrece las dos puertas, y la del nuevo va directo al formulario', () => {
+    const i = SOCIO.indexOf('function pintarEntrar()');
+    const cuerpo = SOCIO.slice(i, SOCIO.indexOf('\nfunction ', i + 1));
+    assert.match(cuerpo, /¿Ya tienes tu código\?/, 'la puerta del antiguo');
+    assert.match(cuerpo, /¿Eres nuevo\?/, 'la puerta del nuevo');
+    assert.match(cuerpo, /href="\.\.\/play\/#registro">Registrarme/,
+      '«Registrarme» tiene que caer en el formulario, no en la portada del producto a 6 meses');
+  });
+
+  test('play/ abre el formulario al ver #registro, y le dice al recién registrado cómo vuelve', () => {
+    assert.match(PLAY, /if \(location\.hash === '#registro'\) pintarRegistro\(0\); else pintarEntrar\(\);/);
+    assert.match(PLAY, /tu código de acceso<\/b>: ' \+\s*'con él entras por el mismo enlace de siempre/,
+      'el recién registrado tiene que saber que vuelve con el código, por el mismo enlace');
+  });
+
+  test('LA FRONTERA DE PLAY SIGUE EN PIE: play/ no enlaza de vuelta al quincenal', () => {
+    /* Google Play prohíbe los créditos a menos de 60 días. Si play/ se vuelve a
+       publicar, un enlace de ahí al quincenal es motivo de suspensión de por
+       vida. Se vuelve por WhatsApp, con el código, nunca con un botón. */
+    assert.ok(!/href=["'][^"']*socio\.html|location\.(href|assign|replace)[^;]*socio\.html/.test(PLAY),
+      'play/ enlaza al quincenal: la frontera de Play se rompió');
   });
 });
