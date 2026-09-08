@@ -530,6 +530,19 @@
         <div class="field"><label>Costo del crédito</label><input type="text" id="cfgCosto" readonly style="opacity:.7"><div class="help">El 20% es el estándar. Desde el 8-sep-2026 puedes pactarlo de 1% a 50% crédito por crédito, al crearlo; por encima del 20% se confirma aparte con lo que equivale al año. La prórroga de cada crédito cobra el porcentaje que se pactó, los créditos abiertos conservan el suyo, y al cliente solo se le muestra el costo en pesos.</div></div>
         <div class="field"><label>Tasa de usura de referencia (% E.A.)</label><input type="number" id="cfgUsura" step="0.01" placeholder="Ej: 28.5"><div class="help">Marca en rojo los créditos cuya E.A. equivalente lo supere. 0 = sin alerta.</div></div>
         <div class="field"><label>PIN de acceso</label><input type="text" id="cfgPin" maxlength="6"></div>
+        <!-- 8-sep-2026 — el primer crédito del cliente nuevo: lo que la base le propone
+             a TODO el que se registra y pide, en el instante en que pide. Vive en la
+             nube (politica_nuevos), no en este navegador, porque quien la aplica es la
+             base. Al cliente se le muestra en pesos. -->
+        <div class="sub-h">El primer crédito del cliente nuevo</div>
+        <div class="help">Cuando alguien se registra y pide, la nube le contesta de una con esta propuesta. La acepta desde su app, te aparece en Solicitudes con «✅ Aceptó», y tú solo desembolsas. Puedes cambiársela a uno solo desde la bandeja («✏️ Cambiar propuesta»).</div>
+        <div class="field"><label>Capital</label><input type="number" inputmode="numeric" id="cfgNuevoCap" oninput="previsualizarPolitica()"></div>
+        <div class="field"><label>Costo (%)</label><input type="number" inputmode="numeric" id="cfgNuevoPct" min="1" max="50" oninput="previsualizarPolitica()"></div>
+        <div class="field"><label>Días para pagar</label><input type="number" inputmode="numeric" id="cfgNuevoDias" min="1" max="60" oninput="previsualizarPolitica()"></div>
+        <div class="field"><label>Lo que el cliente lee</label><textarea id="cfgNuevoTexto" rows="3" maxlength="400"></textarea></div>
+        <div class="muted" id="cfgNuevoCalc" style="font-size:12.5px"></div>
+        <div class="muted" id="cfgNuevoEstado" style="font-size:12px;margin-top:4px"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="guardarPoliticaNuevos()">Guardar en la nube</button>
 
         <!-- =====================================================================
              SOLTAR LA COPIA GUARDADA — 28-ago-2026.
@@ -3722,7 +3735,7 @@ function abonarCapital(id,fecha){ const p=DB.prestamos.find(x=>x.id===id),m=Numb
 function pintarCfg(){ document.getElementById('cfgNeg').value=DB.config.negocio; document.getElementById('cfgCosto').value=TASA_FIJA_PCT+'% estándar · de 1% a '+TASA_TECHO_PCT+'% por crédito'; document.getElementById('cfgUsura').value=DB.config.tasaUsuraEA||''; document.getElementById('cfgPin').value=DB.config.pin; document.getElementById('cfgWa').value=DB.config.whatsapp||'';
   const c=sbCfg(); document.getElementById('cfgSbUrl').value=c.url||''; document.getElementById('cfgSbAnon').value=c.anon||''; document.getElementById('cfgSbClave').value=c.clave||'';
   document.getElementById('sbEstado').textContent=(c.url&&c.anon&&c.clave)?'Conexión lista. Sube los historiales cuando quieras.':'Todavía sin conectar. Corre base/supabase.sql y pega aquí los tres datos.';
-  pintarFreno(); }
+  pintarFreno(); cargarPoliticaNuevos(); }
 
 /* El freno por ingreso en Ajustes. Los tres textos con números salen de las
    constantes del motor: el porcentaje del cupón, el del costo y el ejemplo
@@ -5021,6 +5034,16 @@ function plazoSolicitud(s){
    edita en dos minutos. De la solicitud se toma UNA sola cosa: cuánto pide.
    Lo demás sale de acá, que es donde vive la regla. */
 function quincenalDeSolicitud(s){
+  /* 8-sep-2026 — EL PRIMER CRÉDITO DEL NUEVO trae su contrapropuesta (la que el
+     cliente vio y aceptó): capital, porcentaje y fecha de pago vienen de ahí,
+     y el costo lo vuelve a hacer el motor con ese porcentaje. Sin contrapropuesta
+     es la solicitud de siempre: solo cuánto pide; lo demás sale de acá. */
+  const cp=s&&s.contrapropuesta&&typeof s.contrapropuesta==='object'?s.contrapropuesta:null;
+  if(cp&&Number(cp.capital)>0){
+    const capital=Math.round(Number(cp.capital)), pct=Math.max(1,Math.min(TASA_TECHO_PCT,Math.round(Number(cp.costo_pct)||TASA_FIJA_PCT)));
+    const costo=MotorReglas.calcularCosto(capital,pct/100);
+    return { capital, costo, total:capital+costo, pct, corte:String(cp.fecha_pago||'').slice(0,10)||MotorReglas.calcularFechaCorte(hoyISO()), contrapropuesta:true };
+  }
   const capital=Math.max(0,Math.round(Number(s&&s.capital)||0));
   const costo=capital?MotorReglas.calcularCosto(capital):0;
   return { capital, costo, total:capital+costo, pct:TASA_FIJA_PCT,
@@ -5040,12 +5063,14 @@ function traerSolicitudes(){
   const c=sbCfg(), b=document.getElementById('bandeja');
   if(!c.url||!c.anon||!c.clave){ return alert('Para recibir solicitudes solas hay que conectar Supabase primero (Ajustes → Compartir con mis clientes).\n\nMientras tanto puedes usar "Pegar el WhatsApp".'); }
   b.innerHTML='<div class="muted">Buscando…</div>';
-  fetch(c.url+'/rest/v1/rpc/listar_solicitudes',{method:'POST',
+  /* 8-sep-2026 — una sola llamada trae lo nuevo, lo propuesto y lo aceptado
+     (el primer crédito del nuevo vive en los dos estados del medio). */
+  fetch(c.url+'/rest/v1/rpc/listar_solicitudes_abiertas',{method:'POST',
     headers:{'Content-Type':'application/json',apikey:c.anon,Authorization:'Bearer '+c.anon},
-    body:JSON.stringify({p_clave:c.clave,p_estado:'nueva'})})
+    body:JSON.stringify({p_clave:c.clave})})
   .then(r=>r.text().then(t=>({ok:r.ok,status:r.status,t})))
   .then(r=>{
-    if(r.status===404){ b.innerHTML='<div class="alerta warn">Tu base todavía no tiene la bandeja. Vuelve a correr <b>base/supabase.sql</b> completo: ahora trae la tabla de solicitudes.</div>'; return; }
+    if(r.status===404){ b.innerHTML='<div class="alerta warn">Tu base todavía no tiene la bandeja del primer crédito. Corre <b>base/20260908_primer_credito.sql</b> en el SQL Editor de Supabase.</div>'; return; }
     if(!r.ok){ b.innerHTML='<div class="alerta warn">No pude leer las solicitudes ('+r.status+'). '+escHTML(r.t.slice(0,140))+'</div>'; return; }
     const nube=(JSON.parse(r.t)||[]).map(x=>Object.assign({origen:'nube'},x));
     _solicitudes=nube.concat(_solicitudes.filter(x=>x.origen==='pegada'));
@@ -5077,14 +5102,20 @@ function renderBandeja(){
       const aviso=resp
         ? (cli&&Number(s.capital)>tope?'<div class="muted" style="color:var(--ambar)">pasa su garantía ganada de '+COP(tope)+'</div>':'')
         : (rq&&(rq.pasa||rq.pasaSumando)?'<div class="muted" style="color:var(--ambar)">sobre su cupo de '+COP(rq.cupo)+'</div>':'');
-      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):'sin ficha'))}${s.origen==='pegada'?' · pegada':''}</div></td>
+      /* 8-sep-2026 — el primer crédito del nuevo: el chip dice en qué va, la
+         fila muestra la propuesta tal como el cliente la ve, y el botón de crear
+         solo aparece cuando ACEPTÓ (aceptar no crea nada; desembolsar sí). */
+      const cp=q&&q.contrapropuesta?s.contrapropuesta:null;
+      const chip=!cp?'':s.estado==='aceptada'?'<span class="chip pagado">✅ Aceptó</span>':'<span class="chip al-dia">📨 Esperando que acepte</span>';
+      const sinFicha=!cli&&s.datos&&Object.keys(s.datos).length>0;
+      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}</div>${chip?`<div style="margin-top:4px">${chip}${cp.por==='joan'?' <span class="muted">(cambiada por ti)</span>':''}</div>`:''}</td>
       <td class="num"><b>${COP(resp?s.capital:q.capital)}</b>${aviso}</td>
       <td>${resp?`<b>Con garantía</b><div class="muted">${(Number(s.tasa)*100).toFixed(0)}% mensual · ${pz} mes${pz!==1?'es':''}</div>`
-                :`<b>Quincenal</b><div class="muted">${q.pct}% la quincena</div>`}</td>
+                :cp?`<b>Primer crédito</b><div class="muted">${q.pct}% · ${Number(cp.dias)} días</div>`:`<b>Quincenal</b><div class="muted">${q.pct}% la quincena</div>`}</td>
       <td class="num">${COP(resp?s.total:q.total)}</td>
       <td>${resp?(s.fecha_corte?fmtFecha(s.fecha_corte):'—'):fmtFecha(q.corte)}${resp?'<div class="muted">última cuota</div>':''}</td>
       <td style="text-align:right">
-        <button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="crearDesdeSolicitud('${s.id}')">✓ ${resp?'Revisar préstamo':'Crear crédito'}</button>
+        ${cp?`<button class="btn btn-ghost btn-sm" onclick="editarContrapropuesta('${s.id}')">✏️ Cambiar propuesta</button> `:''}${cp&&s.estado!=='aceptada'?'':`<button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="crearDesdeSolicitud('${s.id}')">✓ ${resp?'Revisar préstamo':cp?'Desembolsar':'Crear crédito'}</button>`}
         <button class="btn btn-ghost btn-sm" onclick="descartarSolicitud('${s.id}')">✕</button></td></tr>`;
     }).join('')}</tbody></table>`;
 }
@@ -5110,7 +5141,17 @@ function crearDesdeSolicitud(id){
      busca por ambos. El campo se sigue llamando cedula en la nube: la firma
      es un contrato con la app ya publicada. */
   const idSol=dig(s.cedula);
-  const cli=DB.socios.find(x=>dig(x.cedula)===idSol||(idSol.length>=10&&dig(x.telefono).slice(-10)===idSol.slice(-10)));
+  let cli=DB.socios.find(x=>dig(x.cedula)===idSol||(idSol.length>=10&&dig(x.telefono).slice(-10)===idSol.slice(-10)));
+  /* 8-sep-2026 — EL PRIMER CRÉDITO DEL NUEVO. Aceptar no crea nada: solo se
+     desembolsa lo ACEPTADO, y lo que el cliente aceptó es exactamente lo que se
+     registra. Si todavía no tiene ficha, nace acá con todo lo que declaró al
+     registrarse (la solicitud lo trae copiado): Joan solo desembolsa. */
+  if(s.contrapropuesta&&s.estado!=='aceptada') return alert(s.nombre+' todavía no ha aceptado la propuesta.\n\nCuando la acepte desde su app te aparece «✅ Aceptó» y el botón de desembolsar. Si quieres cambiarle la propuesta, usa «✏️ Cambiar propuesta».');
+  if(!cli&&s.datos&&typeof s.datos==='object'&&Object.keys(s.datos).length){
+    if(!confirm('«'+s.nombre+'» todavía no tiene ficha. La creo ahora con los datos que declaró al registrarse (sin verificar), y sigo con el crédito.\n\n¿Continúo?')) return;
+    cli=socioDesdeDatos(s); DB.socios.push(cli);
+    if(s.registro_id&&sbListo()) rpc('marcar_registro',{p_clave:sbCfg().clave,p_id:Number(s.registro_id),p_estado:'atendido'}).catch(()=>{});
+  }
   if(!cli) return alert('No tengo ficha de "'+s.nombre+'" con el número '+(s.cedula||'—')+' (ni como cédula ni como celular).\n\nCréale la ficha primero desde Clientes y vuelve a intentar.');
   /* Cada producto por su puerta. El préstamo con garantía NO se desembolsa
      desde acá: se abre el formulario de siempre, con el monto y el plazo que
@@ -5136,6 +5177,85 @@ function crearDesdeSolicitud(id){
   marcarEnNube(s,'atendida'); quitarSolicitud(id);
   guardar(); render();
   if(confirm('✓ Crédito '+codCredito(p)+' registrado para '+cli.nombre+'.\n\n¿Enviar el mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
+}
+
+/* La ficha de un cliente nuevo, con TODO lo que declaró al registrarse — el
+   mismo mapeo que fichaDesdeRegistro, sin pasar por el formulario: Joan ya vio
+   los datos en la bandeja («👁») y lo que quiere es desembolsar. Lo que no tiene
+   campo propio viaja entero en s.vinculacion. */
+function socioDesdeDatos(s){
+  const d=(s.datos&&typeof s.datos==='object')?s.datos:{};
+  const tel=String(d.celular||s.cedula||'').replace(/\D/g,'').slice(-10);
+  return { id:'C'+Date.now(), numero:nextNumCliente(),
+    nombre:s.nombre||((d.nombres||'')+' '+(d.apellidos||'')).trim(), cedula:d.documento||'', telefono:tel,
+    whatsappIgual:true, email:d.correo||'', direccion:d.direccion||'', ciudad:d.ciudad||'', barrio:d.barrio||'',
+    tipoVivienda:d.tipo_vivienda||'casa',
+    ingresoQuincenal:d.ingreso_mes?Math.round(Number(String(d.ingreso_mes).replace(/\D/g,''))/2)||0:0,
+    referencia:{nombre:d.ref1_nombre||'',telefono:d.ref1_celular||''},
+    vinculacion:Object.keys(d).length?d:null, origen:'registro_abierto',
+    gestiones:[], fechaRegistro:new Date().toISOString() };
+}
+/* Cambiar la propuesta de UNA solicitud. Vuelve a «esperando que acepte»: nadie
+   acepta lo que no ha visto. El costo va con las rejas del motor (1% a 50%). */
+function editarContrapropuesta(id){
+  const s=_solicitudes.find(x=>String(x.id)===String(id)); if(!s) return;
+  const cp=s.contrapropuesta||MotorReglas.POLITICA_NUEVOS_DEF;
+  openModal('Cambiar la propuesta · '+s.nombre,`
+    <div class="help">Lo que pongas acá es lo que el cliente va a ver en su app, en pesos. Al guardar, la propuesta vuelve a «esperando que acepte».</div>
+    <div class="field"><label>Capital</label><input id="cpCap" type="number" inputmode="numeric" value="${Number(cp.capital)||0}" oninput="previsualizarContrapropuesta()"></div>
+    <div class="field"><label>Costo (%)</label><input id="cpPct" type="number" inputmode="numeric" min="1" max="${TASA_TECHO_PCT}" value="${Number(cp.costo_pct)||TASA_FIJA_PCT}" oninput="previsualizarContrapropuesta()"></div>
+    <div class="field"><label>Días para pagar</label><input id="cpDias" type="number" inputmode="numeric" min="1" max="60" value="${Number(cp.dias)||8}" oninput="previsualizarContrapropuesta()"></div>
+    <div class="field"><label>Lo que el cliente lee</label><textarea id="cpTexto" rows="3" maxlength="400">${escHTML(cp.texto||'')}</textarea></div>
+    <div id="cpCalc" class="calc"></div>
+    <button class="btn btn-rojo" onclick="guardarContrapropuesta('${s.id}')">Mandarle esta propuesta</button>`);
+  previsualizarContrapropuesta();
+}
+function politicaDelFormulario(pre){
+  return { capital:Math.round(Number(gv(pre+'Cap'))||0), costo_pct:Math.round(Number(gv(pre+'Pct'))||0), dias:Math.round(Number(gv(pre+'Dias'))||0), texto:gv(pre+'Texto') };
+}
+function previsualizarContrapropuesta(){
+  const c=document.getElementById('cpCalc'); if(!c) return;
+  try{
+    const r=MotorReglas.contrapropuestaNuevo(politicaDelFormulario('cp'),hoyISO());
+    c.innerHTML=`<div class="calc-row"><span>El cliente ve</span><span class="v">recibe <b>${COP(r.capital)}</b> · devuelve <b>${COP(r.total)}</b> el ${fmtFecha(r.fecha_pago)}</span></div>
+      <div class="calc-row"><span>Tu costo (${r.costo_pct}%)</span><span class="v gano">${COP(r.costo)}</span></div>`;
+  }catch(e){ c.innerHTML=`<span style="color:var(--ambar);font-size:12.5px">${escHTML(e.message)}</span>`; }
+}
+function guardarContrapropuesta(id){
+  const s=_solicitudes.find(x=>String(x.id)===String(id)); if(!s) return;
+  let r; try{ r=MotorReglas.contrapropuestaNuevo(politicaDelFormulario('cp'),hoyISO()); }catch(e){ return alert(e.message); }
+  if(!confirm('Mandarle a '+s.nombre+':\n\n• Recibe '+COP(r.capital)+'\n• Devuelve '+COP(r.total)+' el '+fmtFecha(r.fecha_pago)+' ('+r.dias+' días)\n• Tu costo: '+r.costo_pct+'% ('+COP(r.costo)+')\n\nLa propuesta vuelve a «esperando que acepte». ¿La mando?')) return;
+  rpc('contrapropuesta_solicitud',{p_clave:sbCfg().clave,p_id:Number(s.id),p_capital:r.capital,p_costo_pct:r.costo_pct,p_dias:r.dias,p_texto:r.texto})
+    .then(j=>{ if(!j||j.ok!==true) return alert('La nube no aceptó la propuesta: '+((j&&j.motivo)||'sin motivo')); cerrarModal(); traerSolicitudes(); })
+    .catch(e=>alert(errNube(e)));
+}
+/* La política del primer crédito, en Ajustes: lo que la base le ofrece a TODO
+   nuevo en el instante en que pide. Se guarda en la nube, no en este navegador,
+   porque quien la aplica es la base. */
+function cargarPoliticaNuevos(){
+  const est=document.getElementById('cfgNuevoEstado'); if(!est) return;
+  if(!sbListo()){ est.textContent='Conecta la nube para verla y cambiarla.'; return; }
+  est.textContent='Leyendo…';
+  rpc('politica_nuevos_leer',{p_clave:sbCfg().clave}).then(p=>{
+    if(!p||!p.capital){ est.textContent='La base todavía no tiene la política: corre base/20260908_primer_credito.sql.'; return; }
+    document.getElementById('cfgNuevoCap').value=p.capital; document.getElementById('cfgNuevoPct').value=p.costo_pct;
+    document.getElementById('cfgNuevoDias').value=p.dias; document.getElementById('cfgNuevoTexto').value=p.texto||'';
+    est.textContent='Vigente desde '+fmtFecha(String(p.actualizada_en||'').slice(0,10))+'.'; previsualizarPolitica();
+  }).catch(e=>{ est.textContent=errNube(e); });
+}
+function previsualizarPolitica(){
+  const c=document.getElementById('cfgNuevoCalc'); if(!c) return;
+  try{ const r=MotorReglas.contrapropuestaNuevo(politicaDelFormulario('cfgNuevo'),hoyISO());
+    c.textContent='El nuevo ve: recibe '+COP(r.capital)+', devuelve '+COP(r.total)+' a los '+r.dias+' días. Tu costo: '+COP(r.costo)+' ('+r.costo_pct+'%).'; }
+  catch(e){ c.textContent=e.message; }
+}
+function guardarPoliticaNuevos(){
+  if(!sbListo()) return alert('Conecta la nube primero (Ajustes → Compartir con mis clientes).');
+  let r; try{ r=MotorReglas.contrapropuestaNuevo(politicaDelFormulario('cfgNuevo'),hoyISO()); }catch(e){ return alert(e.message); }
+  if(!confirm('Desde ahora, a TODO cliente nuevo que pida se le propone:\n\n• Recibe '+COP(r.capital)+'\n• Devuelve '+COP(r.total)+' a los '+r.dias+' días\n• Tu costo: '+r.costo_pct+'% ('+COP(r.costo)+')\n\n¿Lo guardo en la nube?')) return;
+  rpc('politica_nuevos_guardar',{p_clave:sbCfg().clave,p_capital:r.capital,p_costo_pct:r.costo_pct,p_dias:r.dias,p_texto:r.texto})
+    .then(j=>{ if(!j||j.ok!==true) return alert('La nube no guardó la política: '+((j&&j.motivo)||'sin motivo')); cargarPoliticaNuevos(); alert('Guardada. Aplica al próximo que pida.'); })
+    .catch(e=>alert(errNube(e)));
 }
 
 function pedirDatos(id){

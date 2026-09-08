@@ -1353,3 +1353,77 @@ describe('el alta por encima del estándar se confirma aparte (8-sep-2026)', () 
     assert.ok(!r.vistos.some(t => /POR ENCIMA DEL ESTÁNDAR/.test(t)), 'al estándar no hay nada que confirmar aparte');
   });
 });
+
+/* ==========================================================================
+ * LA BANDEJA DEL PRIMER CRÉDITO — 8-sep-2026
+ *
+ * Lo que Joan ve: «📨 Esperando que acepte» sin botón de desembolsar;
+ * «✅ Aceptó» con «✓ Desembolsar»; y al desembolsar, si el nuevo no tiene ficha,
+ * la ficha nace con lo que declaró y el crédito nace con EXACTAMENTE lo que él
+ * aceptó: capital, porcentaje y fecha de pago de la contrapropuesta.
+ * ======================================================================== */
+describe('la bandeja del primer crédito del nuevo (8-sep-2026)', () => {
+  const sol = (estado, extra) => Object.assign({
+    id: 77, origen: 'nube', cedula: '3005550000', nombre: 'Nuevo Pérez', capital: 100000, tasa: 0.35, costo: 35000, total: 135000,
+    fecha_corte: '2026-09-16', producto: 'quincenal', estado, registro_id: 9,
+    contrapropuesta: { capital: 100000, costo_pct: 35, dias: 8, costo: 35000, total: 135000, fecha_pago: '2026-09-16', texto: 'Por ser nuevo…', por: 'automatica' },
+    datos: { nombres: 'Nuevo', apellidos: 'Pérez', celular: '3005550000', documento: '1010101010', ciudad: 'Bogotá', correo: 'n@p.co', ingreso_mes: '2.000.000' }
+  }, extra || {});
+  const conBandeja = (P, s) => { P.ev('_solicitudes=' + JSON.stringify([s]) + ';renderBandeja()'); return P.elems.bandeja.innerHTML; };
+
+  test('esperando que acepte: se ve la propuesta, y NO hay botón de desembolsar', () => {
+    const P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
+    const h = conBandeja(P, sol('contrapropuesta'));
+    assert.match(h, /Esperando que acepte/);
+    assert.match(h, /Primer crédito/); assert.match(h, /35% · 8 días/); assert.match(h, /\$135\.000/); assert.match(h, /16 de sept/);
+    assert.match(h, /Cambiar propuesta/);
+    assert.ok(!/Desembolsar|Crear crédito/.test(h), 'ofreció desembolsar lo que el cliente no ha aceptado');
+    /* Y por la puerta de atrás tampoco. */
+    P.ev("confirm=()=>true"); P.ev("crearDesdeSolicitud('77')");
+    assert.equal(P.ev('DB.prestamos.length'), 0, 'creó el crédito sin aceptación');
+  });
+
+  test('aceptó: al desembolsar nace la ficha (de lo declarado) y el crédito con lo aceptado', () => {
+    const P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
+    const h = conBandeja(P, sol('aceptada'));
+    assert.match(h, /✅ Aceptó/); assert.match(h, /Desembolsar/);
+    assert.match(h, /la ficha se crea al desembolsar/);
+    P.ev("confirm=t=>String(t).indexOf('bienvenida')<0");
+    const socios = P.ev('DB.socios.length');
+    P.ev("crearDesdeSolicitud('77')");
+    assert.equal(P.ev('DB.socios.length'), socios + 1, 'la ficha del nuevo no se creó');
+    const s = JSON.parse(P.ev('JSON.stringify(DB.socios[DB.socios.length-1])'));
+    assert.deepEqual({ nombre: s.nombre, tel: s.telefono, ced: s.cedula, ciudad: s.ciudad, ing: s.ingresoQuincenal, origen: s.origen },
+      { nombre: 'Nuevo Pérez', tel: '3005550000', ced: '1010101010', ciudad: 'Bogotá', ing: 1000000, origen: 'registro_abierto' });
+    assert.equal(s.vinculacion.correo, 'n@p.co', 'lo declarado tiene que viajar entero en la ficha');
+    assert.equal(P.ev('DB.prestamos.length'), 1, 'el crédito no se creó');
+    const p = JSON.parse(P.ev('JSON.stringify(DB.prestamos[0])'));
+    assert.deepEqual({ capital: p.capital, pct: p.costoPct, corte: p.cicloActual, socio: p.socioId === s.id, origen: p.origen },
+      { capital: 100000, pct: 35, corte: '2026-09-16', socio: true, origen: 'solicitud' });
+    assert.equal(P.ev('K(DB.prestamos[0])'), 35000, 'el ciclo no cobra lo aceptado: 100.000 al 35% son 35.000');
+    assert.equal(P.ev('_solicitudes.length'), 0, 'la solicitud atendida sigue en la bandeja');
+  });
+
+  test('si ya tiene ficha, no se crea otra; y sin contrapropuesta la bandeja es la de siempre', () => {
+    const P = abrirPanel();
+    const d = JSON.parse(JSON.stringify(UN_CLIENTE)); d.socios[0].telefono = '3005550000';
+    P.cargarCartera(d);
+    conBandeja(P, sol('aceptada'));
+    P.ev("confirm=t=>String(t).indexOf('bienvenida')<0"); P.ev("crearDesdeSolicitud('77')");
+    assert.equal(P.ev('DB.socios.length'), 1, 'duplicó la ficha');
+    assert.equal(P.ev('DB.prestamos[0].socioId'), 's1');
+    const h = conBandeja(P, { id: 78, origen: 'nube', cedula: '3001112233', nombre: 'María Pérez', capital: 200000, estado: 'nueva', producto: 'quincenal' });
+    assert.match(h, /Quincenal/); assert.match(h, /Crear crédito/); assert.ok(!/Cambiar propuesta/.test(h));
+  });
+
+  test('Ajustes trae la política del primer crédito y la previsualiza en pesos', () => {
+    const P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
+    ['cfgNuevoCap', 'cfgNuevoPct', 'cfgNuevoDias'].forEach((id, i) => P.ev("document.getElementById('" + id + "').value='" + ['100000', '35', '8'][i] + "'"));
+    P.ev("document.getElementById('cfgNuevoTexto').value='x'");
+    P.ev('previsualizarPolitica()');
+    assert.match(P.elems.cfgNuevoCalc.textContent, /recibe \$100\.000, devuelve \$135\.000 a los 8 días/);
+    const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
+    ['listar_solicitudes_abiertas', 'contrapropuesta_solicitud', 'politica_nuevos_leer', 'politica_nuevos_guardar'].forEach(fn =>
+      assert.ok(CRM.indexOf(fn) >= 0, 'el CRM no llama a ' + fn));
+  });
+});

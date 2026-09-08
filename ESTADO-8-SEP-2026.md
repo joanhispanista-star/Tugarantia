@@ -234,6 +234,59 @@ recién registrado lee que volverá con su código, por el mismo enlace.
 
 ---
 
+## El primer crédito del cliente nuevo (misma noche; 938 pruebas, 10 nuevas)
+
+Joan, después de probar el registro: *«que el cliente, después de que se
+registre, pueda automáticamente aplicar a un crédito, y que el CRM
+automáticamente le haga una contrapropuesta por 100.000 pesos con un 35% en
+costos a los 8 días; que el cliente acepte…; que yo pueda verlo y modificarla
+desde mi CRM; y que yo solo tenga que hacer el desembolso manualmente».*
+
+**Cómo quedó (y por qué así):**
+
+- **«Automático» vive en la base, no en el CRM.** El CRM es una página en su
+  navegador y no corre cuando él no está. La política del primer crédito es una
+  fila en Supabase (`politica_nuevos`: 100.000 / 35% / 8 días / el texto que
+  lee el cliente) que Joan edita desde **Ajustes → El primer crédito del cliente
+  nuevo**, y `solicitar_primer_credito()` la aplica en el instante en que el
+  cliente pide. Migración: `base/20260908_primer_credito.sql`.
+- **La app (`play/`):** al terminar el registro ya no manda a WhatsApp con un
+  código; dice «Pide tu primer crédito». Con «Confirm email» apagado (Joan lo
+  hizo; `mailer_autoconfirm: true`, verificado) el signup devuelve la sesión y
+  puede pedir de una. La propuesta sale **en pesos**: «Te prestamos $100.000 ·
+  Lo que cuesta $35.000 · Devuelves $135.000 · El día 16 de sept (8 días)» con
+  el texto de Joan («por ser cliente nuevo todavía no puedes acceder a los
+  créditos premium…») y el botón «Acepto: recibo $100.000 y devuelvo $135.000».
+  Dice con todas las letras que **aceptar no entrega la plata**: la entrega
+  Joan. Cada vez que abre su cuenta, la app pregunta por su solicitud
+  (`mi_solicitud`) — esa es la «notificación»: si Joan cambió la propuesta,
+  aparece la nueva sin aceptar; si ya aceptó, el aviso de que Joan le escribe.
+  No hay push (eso es el chat, pendiente de la SIM).
+- **El CRM (Solicitudes):** una sola llamada (`listar_solicitudes_abiertas`)
+  trae lo nuevo, lo propuesto y lo aceptado. Chips «📨 Esperando que acepte» /
+  «✅ Aceptó». «✏️ Cambiar propuesta» abre un formulario (capital, %, días,
+  texto, con la vista previa en pesos) y al guardar **la propuesta vuelve a
+  esperar aceptación** — nadie acepta lo que no ha visto. «✓ Desembolsar» solo
+  aparece cuando aceptó; si el nuevo no tiene ficha, **la ficha nace ahí** con
+  todo lo que declaró al registrarse (la solicitud lo trae copiado) y el
+  crédito nace con **exactamente** lo aceptado (capital, %, fecha de pago como
+  corte). Joan solo confirma y entrega la plata; después le manda el código
+  desde la ficha.
+- **Motor:** `contrapropuestaNuevo(politica, hoy)` — la misma cuenta que hace
+  la base (`contrapropuesta_de`); hay una prueba que lee la letra del SQL.
+
+**Lo que Joan tiene que hacer para que funcione:** correr
+`base/20260908_primer_credito.sql` en el SQL Editor de Supabase (pegar todo →
+Run; trae sus propias comprobaciones al final). Hasta entonces el CRM dice
+«corre la migración» y la app no puede pedir.
+
+**Dicho de frente:** el registro de PRUEBA de hoy y el de Joan siguen en
+Registrados; los nuevos que pidan van a aparecer en Solicitudes con su
+propuesta. La verificación por WhatsApp (el código V-#####) ya no se le pide al
+cliente; el código sigue viajando en los datos por si Joan quiere usarlo.
+
+---
+
 ## Lo que espera a Joan, con fechas
 
 1. **ANTES DEL 1 DE OCTUBRE — la certificación de octubre** en `TOPES` de

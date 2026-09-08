@@ -264,11 +264,8 @@ function codigoVerificacion() {
   else a[0] = Math.floor(Math.random() * 1e9);
   return 'V-' + String(10000 + (a[0] % 90000));
 }
-function verificarPorWhatsApp() {
-  abrirWhatsApp('Hola, me acabo de registrar en la app de Tu Garantía. Soy ' +
-    ((REGISTRO && REGISTRO.nombres) || 'socio nuevo') +
-    ' y mi código de verificación es ' + VERIF_ULTIMA + '.');
-}
+/* 8-sep-2026: verificarPorWhatsApp() se retiró — el paso siguiente al registro es
+   pedir el primer crédito (pedirPrimerCredito), no mandar un código por WhatsApp. */
 
 /* ============================== REGISTRO ==============================
    En pasos y no en una sola página de 26 campos: nadie llena eso de una
@@ -496,6 +493,9 @@ function enviarRegistro(sensibles) {
       }
       try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
       CLAVE_EN_MEMORIA = '';
+      /* 8-sep-2026 — con «Confirm email» apagado en Supabase, el signup devuelve
+         la sesión entera: el recién registrado ya puede pedir. */
+      if (res.j && res.j.access_token) SESION = res.j;
       pintarRegistrado();
     })
     .catch(function (e) {
@@ -507,30 +507,121 @@ function enviarRegistro(sensibles) {
 function pintarRegistrado() {
   VISTA = 'listo';
   $('titulo').textContent = 'Tu cuenta quedó abierta';
+  /* 8-sep-2026 — Joan: «lo que quiero es que el cliente, después de que se
+     registre, pueda automáticamente aplicar a un crédito». Antes esta pantalla
+     mandaba a WhatsApp con un código de verificación; ahora el siguiente paso
+     es pedir, y la propuesta sale al instante. El código de verificación sigue
+     viajando en los datos del registro, para el CRM, sin pedirle nada a él. */
   $('cuerpo').innerHTML =
     '<div class="card"><div class="aviso verde"><b>Listo.</b> Tu cuenta quedó creada.</div>' +
-      /* La verificación va PRIMERO y con el código a la vista: es el único
-         paso que acelera la revisión, y mandarlo desde su propio WhatsApp es
-         lo que prueba que el número es suyo. Sin este paso igual se revisa —
-         se dice tal cual, sin amenaza. */
-      (VERIF_ULTIMA
-        ? '<div style="margin-top:var(--e4)"><b>Confirma tu número por WhatsApp.</b>' +
-          '<p class="sub">Escríbenos desde este mismo celular con tu código de verificación: ' +
-          '<b style="letter-spacing:.08em">' + esc(VERIF_ULTIMA) + '</b>. ' +
-          'Así confirmamos que el número es tuyo y tu revisión sale más rápida.</p>' +
-          '<button class="btn arriba" onclick="verificarPorWhatsApp()">Enviar mi código por WhatsApp</button></div>'
-        : '') +
-      '<p class="sub" style="margin-top:var(--e4)">Ahora revisamos tus datos. ' +
-      '<b>Todavía no tienes cupo asignado</b>: te escribimos por WhatsApp en cuanto ' +
-      'terminemos de revisar, y ahí te decimos hasta cuánto puedes pedir.</p>' +
-      /* 8-sep-2026: el camino de vuelta, dicho sin enlace (la frontera de Play
-         se cruza por WhatsApp, no con un botón). */
-      '<p class="sub">Cuando te aprobemos te mandamos por WhatsApp <b>tu código de acceso</b>: ' +
-      'con él entras por el mismo enlace de siempre.</p>' +
-      '<p class="sub">Mientras tanto puedes entrar y ver el catálogo con los costos reales.</p>' +
-      '<button class="btn sec" onclick="pintarEntrar()">Entrar a mi cuenta</button>' +
+      '<p class="sub" style="margin-top:var(--e4)"><b>Ahora pide tu primer crédito.</b> ' +
+      'Te mostramos de una la propuesta para clientes nuevos, en pesos, y la aceptas si te sirve. ' +
+      'La plata te la entrega Joan después de revisar.</p>' +
+      '<button class="btn arriba" onclick="pedirPrimerCredito()">Pedir mi primer crédito</button>' +
+      '<div id="errPrimer" class="aviso ambar oculto"></div>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarCuenta()">Ir a mi cuenta</button>' +
     '</div>' + pie();
   window.scrollTo(0, 0);
+}
+
+/* ================= EL PRIMER CRÉDITO DEL NUEVO — 8-sep-2026 =================
+   Pedido de Joan: que el recién registrado pida de una, reciba la contrapropuesta
+   estándar para nuevos (la arma la base al instante, con la política que Joan
+   edita en su CRM), la acepte aquí, y Joan solo tenga que desembolsar.
+
+   Lo que esta pantalla NO hace: no crea un crédito. Aceptar es aceptar la
+   propuesta; la plata la entrega Joan, a mano, y ahí nace el crédito. Se dice
+   con esas palabras. Y al cliente se le habla en PESOS: ni un porcentaje. */
+function rpcSesion(fn, cuerpo) {
+  if (!SESION || !SESION.access_token) return Promise.reject({ sinSesion: true });
+  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
+               Authorization: 'Bearer ' + SESION.access_token },
+    body: JSON.stringify(cuerpo || {})
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); });
+}
+
+function pedirPrimerCredito() {
+  var err = $('errPrimer'); if (err) err.classList.add('oculto');
+  if (!SESION || !SESION.access_token) {
+    /* Sin sesión no se puede pedir. Pasa si la cuenta se creó en otro aparato:
+       entra con su celular y su contraseña y de ahí sale la propuesta. */
+    pintarEntrar();
+    return;
+  }
+  if (err) fallo(err, 'Pidiendo…');
+  rpcSesion('solicitar_primer_credito').then(function (j) {
+    if (!j || j.ok !== true || !j.solicitud) {
+      if (err) fallo(err, 'No pudimos recibir tu solicitud ahora. Espera unos minutos y vuelve a intentar.');
+      return;
+    }
+    pintarSolicitud(j.solicitud);
+  }).catch(function () {
+    if (err) fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
+  });
+}
+
+/* La propuesta, en pesos y con la explicación de Joan. El botón de aceptar dice
+   exactamente lo que se registra, y lo que NO pasa se dice también. */
+function tarjetaContrapropuesta(sol) {
+  var cp = sol.contrapropuesta || {};
+  var aceptada = sol.estado === 'aceptada';
+  var cambiada = cp.por === 'joan' && !aceptada;
+  var h = '<div class="card">' +
+    (cambiada ? '<div class="aviso ambar"><b>Te hicimos una propuesta nueva.</b> Léela y decide.</div>' : '') +
+    '<div class="etq">' + (aceptada ? 'Tu primer crédito, aceptado' : 'Tu primer crédito') + '</div>' +
+    (cp.texto ? '<p class="sub">' + esc(cp.texto) + '</p>' : '') +
+    fila('Te prestamos', COP(cp.capital)) +
+    fila('Lo que cuesta', COP(cp.costo)) +
+    fila('Devuelves', COP(cp.total)) +
+    fila('El día', esc(fmtFecha(cp.fecha_pago)) + ' (' + Number(cp.dias) + ' días)');
+  if (aceptada) {
+    h += '<div class="aviso verde" style="margin-top:var(--e3)"><b>Listo: aceptaste ' + COP(cp.capital) + '.</b> ' +
+      'Te escribimos por WhatsApp para entregarte la plata y te mandamos <b>tu código de acceso</b>: ' +
+      'con él entras por el mismo enlace de siempre. No tienes que hacer nada más por ahora.</div>';
+  } else {
+    h += '<p class="sub" style="margin-top:var(--e3)">Aceptar no te entrega la plata todavía: ' +
+        'Joan te escribe por WhatsApp y la entrega él. Si no te sirve, no aceptes y ya.</p>' +
+      '<button class="btn arriba" onclick="aceptarContrapropuesta(' + Number(sol.id) + ')">' +
+        'Acepto: recibo ' + COP(cp.capital) + ' y devuelvo ' + COP(cp.total) + '</button>' +
+      '<div id="errAceptar" class="aviso ambar oculto"></div>';
+  }
+  return h + '</div>';
+}
+
+function pintarSolicitud(sol) {
+  VISTA = 'solicitud';
+  $('titulo').textContent = sol.estado === 'aceptada' ? 'Tu primer crédito' : 'Tu propuesta';
+  $('cuerpo').innerHTML = tarjetaContrapropuesta(sol) +
+    '<div class="card"><button class="btn sec" onclick="pintarCuenta()">Ir a mi cuenta</button></div>' + pie();
+  window.scrollTo(0, 0);
+}
+
+function aceptarContrapropuesta(id) {
+  var err = $('errAceptar'); if (err) fallo(err, 'Registrando…');
+  rpcSesion('aceptar_contrapropuesta', { p_id: id }).then(function (j) {
+    if (!j || j.ok !== true || !j.solicitud) {
+      if (err) fallo(err, 'No pudimos registrar tu aceptación. Vuelve a abrir la app: si la propuesta cambió, verás la nueva.');
+      return;
+    }
+    pintarSolicitud(j.solicitud);
+  }).catch(function () {
+    if (err) fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
+  });
+}
+
+/* La «notificación»: cada vez que abre su cuenta, la app pregunta por su
+   solicitud. Si hay una propuesta esperando (nueva o cambiada por Joan), sale
+   arriba de todo; si ya aceptó, sale el aviso de que Joan le escribe. */
+function cargarMiSolicitud() {
+  var caja = $('solicitudBox'); if (!caja || !SESION || !SESION.access_token) return;
+  rpcSesion('mi_solicitud').then(function (j) {
+    var sol = j && j.ok === true ? j.solicitud : null;
+    if (!sol || !sol.contrapropuesta) { caja.innerHTML = ''; return; }
+    if (sol.estado !== 'contrapropuesta' && sol.estado !== 'aceptada') { caja.innerHTML = ''; return; }
+    caja.innerHTML = tarjetaContrapropuesta(sol);
+  }).catch(function () { caja.innerHTML = ''; });
 }
 
 /* ============================== LA CUENTA ==============================
@@ -564,6 +655,7 @@ function pintarCuenta(sesion) {
   MONTO = Math.max(MONTO, 100000);
 
   $('cuerpo').innerHTML =
+    '<div id="solicitudBox"></div>' +
     tarjetaCupo(perfil) +
     tarjetaSimulador(idPerfil) +
     tarjetaHistorial() +
@@ -573,6 +665,7 @@ function pintarCuenta(sesion) {
         'Borrar mi cuenta</button>' +
     '</div>' + pie();
   pintarSimulacion();
+  cargarMiSolicitud();
   window.scrollTo(0, 0);
 }
 

@@ -249,6 +249,15 @@
      Lo que cambia acá es UNA reja: calcularCosto acepta hasta el 50%. El 20%
      sigue siendo la tasa por defecto (TASA_CREDITO) en todo el motor. */
   var TASA_CREDITO_MAXIMA = 0.50;
+  /* 8-sep-2026 — EL PRIMER CRÉDITO DEL NUEVO. Lo que se le ofrece a todo el que
+     se registra, hasta que Joan lo cambie desde Ajustes (vive en la base,
+     politica_nuevos; esto es el valor por defecto y la cuenta). Pedido de Joan:
+     «100.000 pesos con un 35% en costos a los 8 días». */
+  var POLITICA_NUEVOS_DEF = {
+    capital: 100000, costo_pct: 35, dias: 8,
+    texto: 'Por ser cliente nuevo todavía no puedes acceder a los créditos premium. ' +
+           'Este es tu primer crédito: si lo pagas en fecha, el siguiente será mayor.'
+  };
 
   /* §3 REEMPLAZADO (27-jul-2026): el cupón ya no es una tabla de tres escalones.
      La plataforma presta garantía DATO POR DATO: cada cosa que el socio entrega
@@ -747,6 +756,35 @@
         '% es el techo, llegó ' + tasa);
     }
     return Math.round(numeroPositivo(capital, 'capital') * tasa);
+  }
+
+  /**
+   * LA CONTRAPROPUESTA AL NUEVO, en números (8-sep-2026). Es la MISMA cuenta que
+   * hace la base al instante en que el cliente pide (contrapropuesta_de en
+   * base/20260908_primer_credito.sql): costo = capital × porcentaje, redondeado,
+   * y la fecha de pago es hoy más los días. Acá vive para que el CRM la pueda
+   * previsualizar y para probarla; si un día difieren, hay una prueba que grita.
+   *
+   * @param {object} politica {capital, costo_pct, dias, texto}
+   * @param {string} hoyISO  el día en que se ofrece
+   */
+  function contrapropuestaNuevo(politica, hoyISO) {
+    var p = politica || POLITICA_NUEVOS_DEF;
+    var capital = Math.round(numeroPositivo(p.capital, 'politica.capital'));
+    var pct = Math.round(numeroPositivo(p.costo_pct, 'politica.costo_pct'));
+    if (pct > Math.round(TASA_CREDITO_MAXIMA * 100)) {
+      throw new RangeError('politica.costo_pct: el ' + Math.round(TASA_CREDITO_MAXIMA * 100) + '% es el techo, llegó ' + pct);
+    }
+    var dias = Math.round(numeroPositivo(p.dias, 'politica.dias'));
+    if (dias > 60) throw new RangeError('politica.dias: más de 60 días ya no es un primer crédito quincenal, llegó ' + dias);
+    var costo = calcularCosto(capital, pct / 100);
+    /* hoyISO llega como texto AAAA-MM-DD; iso() espera una fecha. */
+    var f = new Date(String(hoyISO).slice(0, 10) + 'T00:00:00');
+    f.setDate(f.getDate() + dias);
+    return {
+      capital: capital, costo_pct: pct, dias: dias, costo: costo, total: capital + costo,
+      fecha_pago: iso(f), texto: String(p.texto || POLITICA_NUEVOS_DEF.texto)
+    };
   }
 
   /**
@@ -2754,6 +2792,8 @@
     NIVELES: NIVELES,
     TASA_CREDITO: TASA_CREDITO,
     TASA_CREDITO_MAXIMA: TASA_CREDITO_MAXIMA,
+    POLITICA_NUEVOS_DEF: POLITICA_NUEVOS_DEF,
+    contrapropuestaNuevo: contrapropuestaNuevo,
     DATOS_KYC: DATOS_KYC,
     CUPON_KYC_MAXIMO: CUPON_KYC_MAXIMO,
     GARANTIA_POR_REFERIDO: GARANTIA_POR_REFERIDO,

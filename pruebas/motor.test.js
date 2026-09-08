@@ -9271,3 +9271,70 @@ describe('un solo enlace para nuevos y antiguos (8-sep-2026)', () => {
       'play/ enlaza al quincenal: la frontera de Play se rompió');
   });
 });
+
+/* ==========================================================================
+ * EL PRIMER CRÉDITO DEL CLIENTE NUEVO — 8-sep-2026, pedido de Joan
+ *
+ * «100.000 pesos con un 35% en costos a los 8 días.» La cuenta vive en el
+ * motor (contrapropuestaNuevo) y en la base (contrapropuesta_de, en
+ * base/20260908_primer_credito.sql), y las dos tienen que dar lo mismo: costo =
+ * capital × porcentaje redondeado, fecha de pago = hoy + días.
+ * ======================================================================== */
+describe('el primer crédito del nuevo: la contrapropuesta (8-sep-2026)', () => {
+  test('la política por defecto es la que pidió Joan', () => {
+    assert.deepEqual({ capital: M.POLITICA_NUEVOS_DEF.capital, pct: M.POLITICA_NUEVOS_DEF.costo_pct, dias: M.POLITICA_NUEVOS_DEF.dias },
+      { capital: 100000, pct: 35, dias: 8 });
+    assert.match(M.POLITICA_NUEVOS_DEF.texto, /cliente nuevo/);
+    assert.match(M.POLITICA_NUEVOS_DEF.texto, /premium/);
+    assert.ok(!/\d\s?%/.test(M.POLITICA_NUEVOS_DEF.texto), 'el texto que lee el cliente no lleva porcentajes');
+  });
+
+  test('100.000 al 35% a 8 días: cuesta 35.000, devuelve 135.000, el 16 de septiembre', () => {
+    const r = M.contrapropuestaNuevo(M.POLITICA_NUEVOS_DEF, '2026-09-08');
+    assert.deepEqual({ capital: r.capital, costo: r.costo, total: r.total, fecha: r.fecha_pago, dias: r.dias, pct: r.costo_pct },
+      { capital: 100000, costo: 35000, total: 135000, fecha: '2026-09-16', dias: 8, pct: 35 });
+    /* Y es la cuenta del motor, no una copia: calcularCosto con el porcentaje. */
+    assert.equal(r.costo, M.calcularCosto(100000, 0.35));
+  });
+
+  test('cruza el fin de mes y el año sin tropezar', () => {
+    assert.equal(M.contrapropuestaNuevo({ capital: 100000, costo_pct: 35, dias: 8 }, '2026-09-28').fecha_pago, '2026-10-06');
+    assert.equal(M.contrapropuestaNuevo({ capital: 100000, costo_pct: 35, dias: 8 }, '2026-12-28').fecha_pago, '2027-01-05');
+  });
+
+  test('las rejas: el techo del costo, los días, y nada en cero', () => {
+    assert.equal(M.contrapropuestaNuevo({ capital: 200000, costo_pct: 50, dias: 15 }, '2026-09-08').costo, 100000, 'el techo, incluido');
+    assert.throws(() => M.contrapropuestaNuevo({ capital: 100000, costo_pct: 51, dias: 8 }, '2026-09-08'), RangeError);
+    assert.throws(() => M.contrapropuestaNuevo({ capital: 100000, costo_pct: 35, dias: 61 }, '2026-09-08'), RangeError);
+    assert.throws(() => M.contrapropuestaNuevo({ capital: 0, costo_pct: 35, dias: 8 }, '2026-09-08'));
+    assert.throws(() => M.contrapropuestaNuevo({ capital: 100000, costo_pct: 0, dias: 8 }, '2026-09-08'));
+    assert.throws(() => M.contrapropuestaNuevo({ capital: 100000, costo_pct: 35, dias: 0 }, '2026-09-08'));
+  });
+
+  test('la migración arma la MISMA cuenta que el motor (la letra del SQL)', () => {
+    const SQL = fs.readFileSync(path.join(__dirname, '..', 'base', '20260908_primer_credito.sql'), 'utf8');
+    assert.match(SQL, /round\(p_capital \* p_pct \/ 100\.0\)::bigint/, 'el costo en SQL dejó de ser capital × porcentaje redondeado');
+    assert.match(SQL, /current_date \+ p_dias/, 'la fecha de pago en SQL dejó de ser hoy + días');
+    assert.match(SQL, /capital\s+bigint\s+not null default 100000/);
+    assert.match(SQL, /costo_pct\s+integer\s+not null default 35/);
+    assert.match(SQL, /dias\s+integer\s+not null default 8/);
+    /* Aceptar no crea nada, y una propuesta cambiada vuelve a esperar aceptación. */
+    assert.match(SQL, /set estado = 'aceptada'/);
+    assert.match(SQL, /estado\s+= 'contrapropuesta',\s*aceptada_en = null/);
+  });
+
+  test('la app del nuevo pide de una, muestra la propuesta en pesos y ya no manda a WhatsApp', () => {
+    const PLAY = fs.readFileSync(path.join(__dirname, '..', 'play', 'index.html'), 'utf8');
+    const i = PLAY.indexOf('function pintarRegistrado()'), cuerpo = PLAY.slice(i, PLAY.indexOf('\nfunction ', i + 1));
+    assert.match(cuerpo, /pedirPrimerCredito\(\)/, 'el recién registrado tiene que poder pedir de una');
+    assert.ok(!/verificarPorWhatsApp/.test(cuerpo), 'la pantalla del registrado volvió a mandar a WhatsApp con un código');
+    assert.ok(!/function verificarPorWhatsApp\(/.test(PLAY), 'verificarPorWhatsApp tenía que retirarse');
+    assert.match(PLAY, /if \(res\.j && res\.j\.access_token\) SESION = res\.j;/, 'la sesión del signup no se guarda: no podría pedir');
+    const j = PLAY.indexOf('function tarjetaContrapropuesta('), tarjeta = PLAY.slice(j, PLAY.indexOf('\nfunction ', j + 1));
+    assert.match(tarjeta, /COP\(cp\.capital\)/); assert.match(tarjeta, /COP\(cp\.total\)/); assert.match(tarjeta, /fmtFecha\(cp\.fecha_pago\)/);
+    assert.ok(!/costo_pct|%/.test(tarjeta.replace(/\/\*[\s\S]*?\*\//g, '')), 'la propuesta le muestra un porcentaje al cliente');
+    assert.match(tarjeta, /Aceptar no te entrega la plata todavía/, 'tiene que decir que aceptar no es recibir');
+    ['solicitar_primer_credito', 'mi_solicitud', 'aceptar_contrapropuesta'].forEach(fn =>
+      assert.ok(PLAY.indexOf("'" + fn + "'") >= 0, 'play/ no llama a ' + fn));
+  });
+});
