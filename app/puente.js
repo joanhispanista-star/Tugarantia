@@ -1926,6 +1926,64 @@
     };
   }
 
+  /**
+   * LAS CUENTAS DE UNA PRÓRROGA CON MONTO REAL — 8-sep-2026.
+   *
+   * Pedido de Joan: «el precio de la prórroga también quiero que sea ajustable».
+   * Una prórroga son DOS movimientos con dos factores distintos (así los reparte
+   * movimientosCobradosCredito): el costo del ciclo, con el factor de puntualidad
+   * de la prórroga, y el recargo de mora, SIEMPRE a la mitad. Por eso no sirve
+   * cuentasDelCobro tal cual —que reparte un solo monto con un solo factor— y
+   * hay que repartir cada pedazo por su lado, nominal y cobrado, y restar.
+   *
+   * La garantía sale de la MISMA fórmula que garantiaGanadaProrroga aplica
+   * después al movimiento guardado (hay una prueba que lo exige): lo que Joan
+   * ve antes de confirmar es lo que el socio va a ver en su app.
+   *
+   * @param {object} db
+   * @param {object} p        el crédito
+   * @param {object} causado  {costo, mora, acredita_en_fecha} — lo que el motor
+   *                          cotizó SIN perdón (costo_prorroga, recargo_mora)
+   * @param {object} [o]      {condonaCosto, condonaMora} en PESOS, topados acá
+   */
+  function cuentasDeLaProrroga(db, p, causado, o) {
+    o = o || {};
+    var c = (causado && typeof causado === 'object') ? causado : {};
+    var costo = Math.round(num(c.costo)), mora = Math.round(num(c.mora));
+    var acredita = c.acredita_en_fecha !== false;
+    var condMora = Math.max(0, Math.min(Math.round(num(o.condonaMora)), mora));
+    var condCosto = Math.max(0, Math.min(Math.round(num(o.condonaCosto)), costo));
+    var costoCobrado = costo - condCosto, moraCobrada = mora - condMora;
+
+    var pendiente;
+    try {
+      var socio = lista(db && db.socios).filter(function (x) { return x && p && x.id === p.socioId; })[0];
+      pendiente = socio ? contabilidadCupon(db, socio).cupon_pendiente : undefined;
+    } catch (e) { pendiente = undefined; }
+    function reparto(monto, aTiempo) {
+      return M.repartirCosto(Math.max(0, monto), { aTiempo: aTiempo, producto: 'quincenal', cuponPendiente: pendiente });
+    }
+    var nomC = reparto(costo, acredita), nomM = reparto(mora, false);
+    var cobC = reparto(costoCobrado, acredita), cobM = reparto(moraCobrada, false);
+
+    return {
+      condonado_costo: condCosto,
+      condonado_mora: condMora,
+      condonado_total: condCosto + condMora,
+      costo_cobrado: costoCobrado,
+      mora_cobrada: moraCobrada,
+      /* Lo que el socio paga por la prórroga: es lo que va a pr.monto. */
+      monto: costoCobrado + moraCobrada,
+      garantia: M.acumularGarantia(costoCobrado, acredita) + M.acumularGarantia(moraCobrada, false),
+      garantia_sin_descuento: M.acumularGarantia(costo, acredita) + M.acumularGarantia(mora, false),
+      /* Las dos cifras suman el descuento entero: no hay plata perdonada sin
+         dueño en la pantalla. */
+      de_tu_ganancia: (nomC.operativo + nomC.amortiza_cupon + nomM.operativo + nomM.amortiza_cupon)
+                    - (cobC.operativo + cobC.amortiza_cupon + cobM.operativo + cobM.amortiza_cupon),
+      de_su_cupo: (nomC.garantia_socio + nomM.garantia_socio) - (cobC.garantia_socio + cobM.garantia_socio)
+    };
+  }
+
   /* Lo que un socio lleva perdonado, DERIVADO de sus créditos y nunca de un
      contador guardado: un contador se desincroniza el día que Joan edita un
      pago y desde ahí miente para siempre. */
@@ -1975,6 +2033,7 @@
     /* La ley del cobro con monto real (7-sep-2026): una sola copia, para el
        computador hoy y para el celular cuando deje la suya. */
     cuentasDelCobro: cuentasDelCobro,
+    cuentasDeLaProrroga: cuentasDeLaProrroga,
     repartoDelDescuento: repartoDelDescuento,
     descuentosDelSocio: descuentosDelSocio,
     buscarSocio: buscarSocio,

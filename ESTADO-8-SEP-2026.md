@@ -102,6 +102,48 @@ Panel»).
 
 ---
 
+## La prórroga con monto real (misma tarde; verificado: 921 pruebas, 10 nuevas)
+
+Joan, al ver el cobro con monto real: *«el precio de la prórroga también quiero
+que sea ajustable»*. Hecho en la **misma hoja**, como un modo:
+
+- El botón **«↻ Prórroga (X)»** ya no registra de una: abre el **modo prórroga**.
+  El campo pasa a «¿Cuánto pagó por la prórroga?» y arranca con el precio
+  (costo del ciclo + recargo, menos lo que el % de la mora ya perdonó). Atajo
+  «Sin la mora». Botón «← Volver al cobro».
+- Si escribe menos, la diferencia **se perdona** — de la mora primero y del
+  costo después, o al revés con «De la mora / Del costo» — con motivo. Una
+  prórroga no tiene «queda debiendo» ni «queda a favor»: si le dan de más, el
+  botón se apaga y dice «devuélvele el cambio».
+- Arriba: costo, recargo, descuento, **paga por la prórroga**, garantía que le
+  deja (y la que dejaría sin perdón), prórroga N de M, y «solo para ti».
+
+**Cómo entra al motor.** `liqProrroga(p, fecha, condonaMora, condonaCosto)`: el
+perdón del costo entra igual que el de la mora — el motor cotiza con el costo
+del ciclo **ya rebajado** (`creditoMotor` lo pasa dado), así que `total_a_pagar`
+y `garantia_generada` salen consistentes con lo que entra, y `pr.monto` sigue
+siendo «lo que entró»: garantía, ganancia y cupón se derivan solos. El
+movimiento guarda además `costoCausado` y `moraCausada` (el hecho aparte de la
+plata), y la condonación va con `sobre:'prorroga'`, que es lo que el informe
+por quincena ya sabe leer.
+
+**`registrarProrroga(id, o)`**: sin `o` hace exactamente lo del 2-sep. Con `o`
+exige que el monto de la hoja sea el que el motor cotiza con ese perdón; si no
+cuadra, avisa y no registra.
+
+**En el puente:** `cuentasDeLaProrroga(db, p, causado, o)` — una prórroga son
+dos movimientos con dos factores (el costo con el de puntualidad, la mora a la
+mitad), así que reparte cada uno por su lado. Contrato en `cobro.test.js`: la
+garantía que Joan ve antes de confirmar es **exactamente** la que
+`garantiaGanadaProrroga` acredita después por el movimiento guardado, en más de
+1.000 casos.
+
+**Lo que NO cambió:** el **acuerdo** de prórroga sigue perdonando solo mora por %
+(ese bloque tiene seis hallazgos pendientes del 4-sep y no se tocó), y el
+**celular** sigue sin ningún descuento en la prórroga.
+
+---
+
 ## El 50%: la pared, y por qué no se tocó
 
 Joan pidió subir el techo del costo (hoy **20% por quincena, techo desde el

@@ -495,3 +495,54 @@ describe('la ley del cobro vive en el puente, y el espejo la sigue peso a peso',
     assert.equal(r.total_a_recibir, 0);
   });
 });
+/* ==========================================================================
+ * 7. LAS CUENTAS DE UNA PRÓRROGA CON PERDÓN — 8-sep-2026
+ *
+ * Una prórroga son DOS movimientos con dos factores (el costo con el de la
+ * puntualidad, la mora siempre a la mitad). cuentasDeLaProrroga los reparte
+ * por separado. Lo que se exige acá: que la garantía que Joan ve antes de
+ * confirmar sea EXACTAMENTE la que el puente le va a acreditar al socio por el
+ * movimiento guardado, que el descuento esté entero explicado, y que lo que
+ * entra más lo perdonado sea lo causado.
+ * ======================================================================== */
+describe('cuentasDeLaProrroga: dos movimientos, una sola verdad', () => {
+
+  const PU = require('../app/puente.js');
+  /* Un crédito sin mora previa: así prorrogaAcreditaEnFecha depende solo de
+     pr.aTiempo y se puede comparar contra el factor que se le pasó. */
+  const credito = { id: 'p1', socioId: 's1', capital: 200000, costoPct: 20,
+    fechaDesembolso: '2026-08-01', cicloActual: '2026-08-15', prorrogas: [], abonosCapital: [] };
+  const db = { socios: [{ id: 's1', nombre: 'Ana' }], prestamos: [credito] };
+
+  test('la garantía de la pantalla es la del movimiento guardado, y el descuento queda entero explicado', () => {
+    let casos = 0;
+    for (const costo of COSTOS) for (const mora of MORAS) for (const aTiempo of [true, false]) {
+      for (const dCosto of [0, 1, costo, Math.floor(costo / 3), costo + 5]) {
+        for (const dMora of [0, 1, mora, Math.floor(mora / 2), mora + 5]) {
+          const q = PU.cuentasDeLaProrroga(db, credito, { costo, mora, acredita_en_fecha: aTiempo },
+            { condonaCosto: dCosto, condonaMora: dMora });
+          casos++;
+          assert.equal(q.monto + q.condonado_total, costo + mora, 'lo que entra más lo perdonado no es lo causado');
+          assert.equal(q.de_tu_ganancia + q.de_su_cupo, q.condonado_total, 'hay plata perdonada sin dueño');
+          const pr = { fecha: '2026-08-20', ciclo: '2026-08-15', monto: q.monto, mora: q.mora_cobrada, aTiempo };
+          assert.equal(q.garantia, PU.garantiaGanadaProrroga(pr, credito),
+            `la garantía de la pantalla no es la del puente (costo ${costo} mora ${mora} perdón ${dCosto}/${dMora})`);
+          assert.ok(q.garantia <= q.garantia_sin_descuento, 'un perdón le subió la garantía al socio');
+        }
+      }
+    }
+    assert.ok(casos > 1000, 'la rejilla se encogió: ' + casos);
+  });
+
+  test('topa, no lanza, y sin perdón devuelve lo de siempre', () => {
+    const q = PU.cuentasDeLaProrroga(db, credito, { costo: 40000, mora: 12000, acredita_en_fecha: false },
+      { condonaCosto: 99999, condonaMora: -5 });
+    assert.deepEqual({ c: q.condonado_costo, m: q.condonado_mora, monto: q.monto }, { c: 40000, m: 0, monto: 12000 });
+    const sin = PU.cuentasDeLaProrroga(db, credito, { costo: 40000, mora: 12000, acredita_en_fecha: false });
+    assert.equal(sin.condonado_total, 0);
+    assert.equal(sin.monto, 52000);
+    assert.equal(sin.garantia, sin.garantia_sin_descuento);
+    assert.doesNotThrow(() => PU.cuentasDeLaProrroga(null, null, null, null));
+    assert.doesNotThrow(() => PU.cuentasDeLaProrroga({}, {}, 'basura', { condonaMora: 'x' }));
+  });
+});

@@ -2787,7 +2787,7 @@ function abrirPago(id){
          ser un campo suelto: ahora es «Queda debiendo», una de las respuestas a
          «¿qué pasó con lo que falta?». abonarCapital() no se tocó. -->
     <div id="pgMontoBox" style="display:none">
-      <div class="field" style="margin-top:12px"><label>¿Cuánto pagó?</label><input id="pgMonto" type="number" inputmode="numeric" step="1" min="0" oninput="cambioMonto('${p.id}')"></div>
+      <div class="field" style="margin-top:12px"><label id="pgMontoLbl">¿Cuánto pagó?</label><input id="pgMonto" type="number" inputmode="numeric" step="1" min="0" oninput="cambioMonto('${p.id}')"></div>
       <div id="pgAtajos" class="two"></div>
     </div>
     <div id="pgAccion" style="margin-top:10px"></div>
@@ -2840,6 +2840,8 @@ function calcPago(id){
      hoja llegó a decir dos garantías y dos totales distintos — el defecto del
      5-ago («la fila decía $18.000 y el bloque de al lado $36.000») otra vez. */
   const e=estadoDelCobro(p,liq), d=e.d;
+  if(e.tipo==='prorroga') return calcProrroga(id,p,liq,e,s);
+  const lbl=document.getElementById('pgMontoLbl'); if(lbl)lbl.textContent='¿Cuánto pagó?';
   const perdon=(e.modo==='perdon'&&e.falta>0)?PUENTE.repartoDelDescuento(liq,e.falta,e.sobre):null;
   const q=PUENTE.cuentasDelCobro(DB,p,liq,(perdon&&!perdon.excede)?{condonaCosto:perdon.costo,condonaMora:perdon.mora}:{});
   /* La prórroga la contesta el MOTOR para ESTA fecha —cuánto cuesta, a qué
@@ -2869,7 +2871,7 @@ function calcPago(id){
     : '';
   const btnProrroga=c?''
     :(pr&&!pr.ok?`<button class="btn btn-negro" onclick="registrarProrroga('${p.id}')">Ver el plan de pagos</button>`
-     :(pr?`<button class="btn btn-negro" onclick="registrarProrroga('${p.id}')">↻ Prórroga (${COP(pr.total_a_pagar)})</button>`:'<span></span>'));
+     :(pr?`<button class="btn btn-negro" onclick="modoProrroga('${p.id}')">↻ Prórroga (${COP(pr.total_a_pagar)})</button>`:'<span></span>'));
   /* Con descuento, la garantía y el reparto salen de LA PLATA QUE ENTRA. Las
      cuentas las hace el puente (cuentasDelCobro): las mismas dos llamadas al
      motor que hace el espejo. Sin descuento entro == costo_total_pagado y el
@@ -2940,14 +2942,24 @@ function calcPago(id){
      (decisionDelCobro): la que pinta el botón es la misma que registra. Si el
      botón dice que se puede, se puede; si no, dice por qué.
    ========================================================================= */
-let _cobro={ id:null, monto:null, vacio:false, modo:null, sobre:'mora', motivo:'' };
-function reiniciarCobro(id){ _cobro={ id, monto:null, vacio:false, modo:null, sobre:'mora', motivo:'' }; }
+let _cobro={ id:null, tipo:'cobro', monto:null, vacio:false, modo:null, sobre:'mora', motivo:'' };
+function reiniciarCobro(id){ _cobro={ id, tipo:'cobro', monto:null, vacio:false, modo:null, sobre:'mora', motivo:'' }; }
 
 function estadoDelCobro(p,liq){
   const total=Math.round(liq.total_a_pagar);
   const d=(!cuotaPlan(p)&&liq.recargo_mora>0)?descuentoDeMora(liq):{pct:0,mora:0,motivo:''};
   const mio=_cobro.id===p.id;
   const vacio=mio&&_cobro.vacio===true;
+  /* MODO PRÓRROGA (8-sep-2026): el precio es el de la prórroga con el % de la
+     mora ya restado; el faltante solo puede ser perdón (mora primero, costo
+     después, o al revés si Joan lo elige). */
+  if(mio&&_cobro.tipo==='prorroga'){
+    const pr=liqProrroga(p,gv('pgFecha')||hoyISO(),d.mora);
+    const tp=pr?Math.round(pr.total_a_pagar):0;
+    const mp=(_cobro.monto!=null)?_cobro.monto:tp, fp=tp-mp;
+    let mv=String(_cobro.motivo||''); if(fp>0&&!mv.trim()) mv=String(d.motivo||'');
+    return { tipo:'prorroga', pr, total:tp, monto:mp, falta:fp, modo:fp>0?'perdon':null, sobre:_cobro.sobre||'mora', motivo:mv, d, vacio, implicito:false };
+  }
   const monto=(mio&&_cobro.monto!=null)?_cobro.monto:total-d.mora;
   const falta=total-monto;
   let modo=mio?_cobro.modo:null, sobre=(mio&&_cobro.sobre)||'mora', motivo=mio?String(_cobro.motivo||''):'';
@@ -2956,11 +2968,19 @@ function estadoDelCobro(p,liq){
   let implicito=false;
   if(modo==null&&d.mora>0&&falta>0&&falta===d.mora){ modo='perdon'; implicito=true; }
   if(modo==='perdon'&&!motivo.trim()) motivo=String(d.motivo||'');
-  return { total, monto, falta, modo, sobre, motivo, d, vacio, implicito };
+  return { tipo:'cobro', total, monto, falta, modo, sobre, motivo, d, vacio, implicito };
 }
 /* LA decisión: qué dice el botón y si se puede registrar. La usan la pantalla
    y registrarCobro, para que no puedan contestar distinto. */
 function decisionDelCobro(p,liq,e){
+  if(e.tipo==='prorroga'){
+    if(!e.pr||!e.pr.ok) return {listo:false,txt:'Este crédito no admite prórroga'};
+    if(e.vacio||e.monto<0) return {listo:false,txt:'Escribe cuánto pagó por la prórroga'};
+    if(e.falta<0) return {listo:false,txt:`Una prórroga no se paga de más: devuélvele ${COP(-e.falta)}`};
+    if(e.falta===0) return {listo:true,txt:`↻ Registrar prórroga (${COP(e.total)})`};
+    if(!e.motivo.trim()) return {listo:false,txt:'Falta el motivo del descuento'};
+    return {listo:true,txt:`↻ Registrar prórroga de ${COP(e.monto)} con ${COP(e.falta)} de descuento`};
+  }
   if(e.vacio) return {listo:false,txt:'Escribe cuánto pagó'};
   if(e.falta===0) return {listo:true,txt:`✓ Pagó todo (${COP(e.total)})`};
   if(e.falta<0){
@@ -3018,6 +3038,7 @@ function pintarBoton(id){
 function pintarDif(id){
   const caja=document.getElementById('pgDif'); if(!caja) return;
   const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  if(_cobro.id===p.id&&_cobro.tipo==='prorroga') return calcPago(id);
   const f=gv('pgFecha')||hoyISO(), liq=liqCredito(p,f);
   const e=estadoDelCobro(p,liq), monto=e.monto, falta=e.falta;
   let h='';
@@ -3071,6 +3092,86 @@ function pintarDif(id){
   pintarBoton(id);
 }
 
+/* =========================================================================
+   MODO PRÓRROGA — 8-sep-2026. Pedido de Joan: «el precio de la prórroga también
+   quiero que sea ajustable».
+
+   La misma hoja, el mismo campo «¿Cuánto pagó?» y la misma decisión, con
+   `_cobro.tipo='prorroga'`. El botón «↻ Prórroga (X)» ya no registra de una:
+   abre este modo, donde el campo arranca con el precio de la prórroga (menos lo
+   que el % de la mora ya perdonó) y, si Joan escribe menos, la diferencia se
+   perdona —de la mora primero, del costo después, o al revés si él lo elige—
+   con motivo obligatorio. Una prórroga no tiene «queda debiendo» ni «queda a
+   favor»: o se paga o no se paga, y si le dan de más, se devuelve el cambio.
+   Los números salen del puente (cuentasDeLaProrroga) y del motor; el
+   movimiento que se guarda es el que cotiza liqProrroga con el perdón adentro,
+   así que lo que Joan ve es exactamente lo que el socio va a ver.
+   ========================================================================= */
+function modoProrroga(id){
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  const pr=liqProrroga(p,gv('pgFecha')||hoyISO());
+  if(!pr||!pr.ok) return registrarProrroga(id);   // sin prórroga que ofrecer, el camino de siempre (plan de pagos)
+  _cobro={ id, tipo:'prorroga', monto:null, vacio:false, modo:null, sobre:'mora', motivo:'' };
+  calcPago(id);
+}
+function volverAlCobro(id){
+  reiniciarCobro(id);
+  calcPago(id);
+}
+/* Lo que pinta la hoja en modo prórroga: el desglose arriba (con el perdón
+   efectivo), el campo con su etiqueta, el atajo, el botón y la pregunta. */
+function calcProrroga(id,p,liq,e,s){
+  const box=document.getElementById('pgCalc'); if(!box) return;
+  const f=gv('pgFecha')||hoyISO();
+  /* pr0: la cotización SIN perdón (lo causado). e.pr: con el % de la mora ya
+     restado, que es de donde sale el precio que ve el campo. */
+  const pr0=liqProrroga(p,f), pr=e.pr;
+  if(!pr0||!pr){ box.innerHTML='<div class="alerta warn">Este crédito no admite prórroga.</div>'; return; }
+  const rep=e.falta>0?PUENTE.repartoDelDescuento({costo:pr.costo_prorroga,recargo_mora:pr.recargo_mora},e.falta,e.sobre):{costo:0,mora:0,hay_eleccion:false,excede:false};
+  const q=PUENTE.cuentasDeLaProrroga(DB,p,{costo:pr0.costo_prorroga,mora:pr0.recargo_mora,acredita_en_fecha:pr0.acredita_en_fecha},
+    {condonaMora:e.d.mora+rep.mora,condonaCosto:rep.costo});
+  const partes=[]; if(q.condonado_mora) partes.push(COP(q.condonado_mora)+' de mora'); if(q.condonado_costo) partes.push(COP(q.condonado_costo)+' de costo');
+  box.innerHTML=`<div class="calc">
+      <div class="calc-row"><span>Capital <span class="muted">(no se cobra: pasa a la quincena del ${fmtFecha(pr0.fecha_corte_nueva)})</span></span><span class="v">${COP(liq.capital)}</span></div>
+      <div class="calc-row"><span>Costo del ciclo (${p.costoPct}%)</span><span class="v gano">${COP(pr0.costo_prorroga)}</span></div>
+      ${pr0.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">Recargo por ${liq.dias_mora} día(s) de mora · 1% diario</span><span class="v" style="color:var(--ambar)">${COP(pr0.recargo_mora)}</span></div>`:''}
+      ${q.condonado_total?`<div class="calc-row"><span style="color:var(--ambar)">Descuento <span class="muted">(${partes.join(' + ')})</span></span><span class="v" style="color:var(--ambar)">− ${COP(q.condonado_total)}</span></div>`:''}
+      <div class="calc-row"><span><b>Paga por la prórroga</b></span><span class="v"><b>${COP(q.monto)}</b></span></div>
+      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(q.garantia)}${q.condonado_total?` <span class="muted">(sin perdón serían ${COP(q.garantia_sin_descuento)})</span>`:(pr0.acredita_en_fecha?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${pr0.a_tiempo?'porque el crédito ya venía de una mora':'por dejarla tarde'})</span>`)}</span></div>
+      <div class="calc-row"><span>Prórroga</span><span class="v">${pr0.prorrogas_usadas+1} de ${pr0.prorrogas_permitidas}${pr0.prorrogas_restantes?'':' · <b>la última</b>'}</span></div>
+    </div>
+    ${q.condonado_total?`<div class="alerta warn solo-tuyo"><b class="tit-solo">Solo para ti · lo que cuesta este perdón</b>
+      De los ${COP(q.condonado_total)} perdonados, <b>${COP(q.de_tu_ganancia)}</b> salen de tu ganancia
+      y <b>${COP(q.de_su_cupo)}</b> son garantía que él deja de recibir. Queda anotado en el crédito con su motivo.</div>`:''}`;
+  const mBox=document.getElementById('pgMontoBox'); if(mBox)mBox.style.display='';
+  const lbl=document.getElementById('pgMontoLbl'); if(lbl)lbl.textContent='¿Cuánto pagó por la prórroga?';
+  const inp=document.getElementById('pgMonto');
+  if(inp&&_cobro.monto==null&&!_cobro.vacio) inp.value=String(e.monto);
+  const at=document.getElementById('pgAtajos');
+  if(at) at.innerHTML=`${pr.recargo_mora?`<button class="btn btn-ghost btn-sm" onclick="atajoMonto('${p.id}',${Math.round(pr.costo_prorroga)})">Sin la mora (${COP(pr.costo_prorroga)})</button>`:'<span></span>'}<span></span>`;
+  const acc=document.getElementById('pgAccion');
+  if(acc) acc.innerHTML=`<div class="two"><button class="btn btn-rojo" id="pgBtn" onclick="registrarCobro('${p.id}')">↻ Registrar prórroga (${COP(e.total)})</button><button class="btn btn-ghost" onclick="volverAlCobro('${p.id}')">← Volver al cobro</button></div>`;
+  /* La pregunta de abajo. En una prórroga el faltante solo puede ser perdón. */
+  const caja=document.getElementById('pgDif');
+  if(caja){
+    let h='';
+    if(e.vacio) h=`<div class="alerta warn">Escribe cuánto pagó por la prórroga. El precio es ${COP(e.total)}.</div>`;
+    else if(e.falta<0) h=`<div class="alerta warn"><b>Te dio ${COP(-e.falta)} de más.</b> Una prórroga no se paga de más: devuélvele el cambio, o regístralo aparte como abono a capital.</div>`;
+    else if(e.falta>0){
+      h=`<div class="alerta warn"><b>Faltan ${COP(e.falta)}: se le perdonan</b> (${partes.join(' + ')}).</div>`;
+      if(rep.hay_eleccion) h+=`<div class="two" style="margin-top:8px">
+        <button class="btn ${e.sobre==='mora'?'btn-negro':'btn-ghost'} btn-sm" onclick="sobreCobro('${p.id}','mora')">De la mora</button>
+        <button class="btn ${e.sobre==='costo'?'btn-negro':'btn-ghost'} btn-sm" onclick="sobreCobro('${p.id}','costo')">Del costo</button></div>`;
+      const dsc=PUENTE.descuentosDelSocio(DB,s);
+      h+=`${dsc.veces?`<div class="alerta warn">Ya lleva <b>${dsc.veces} descuento${dsc.veces!==1?'s':''}</b> por ${COP(dsc.monto)}.</div>`:''}
+        <div class="field"><label>¿Por qué se lo perdonas?</label>
+          <input id="pgMotivo" type="text" maxlength="120" value="${escHTML(e.motivo)}" placeholder="se le enfermó el hijo, cliente viejo…" oninput="_cobro.motivo=this.value;pintarBoton('${p.id}')"></div>`;
+    }
+    caja.innerHTML=h;
+  }
+  pintarBoton(id);
+}
+
 /* Traduce lo respondido a UNA de las tres salidas, que son tres hechos
    distintos:
      pagó lo que debía / se lo perdonaste → pagarTotal()    (CIERRA el crédito)
@@ -3084,7 +3185,15 @@ function registrarCobro(id){
   if(cuotaPlan(p)) return pagarTotal(id);            // con plan, el cobro es el de siempre
   const liq=liqCredito(p,f);
   const e=estadoDelCobro(p,liq), dc=decisionDelCobro(p,liq,e);
-  if(!dc.listo){ alert(dc.txt+'.\n\n«Se lo perdoné» cierra el crédito; «queda debiendo» no lo cierra. No son lo mismo y no lo voy a adivinar.'); return; }
+  if(!dc.listo){ alert(dc.txt+(e.tipo==='prorroga'?'.':'.\n\n«Se lo perdoné» cierra el crédito; «queda debiendo» no lo cierra. No son lo mismo y no lo voy a adivinar.')); return; }
+  if(e.tipo==='prorroga'){
+    /* El faltante se reparte entre las dos bolsas que QUEDAN después del %
+       (mora primero, o costo si Joan lo eligió), y el perdón total de la mora
+       lleva el % adentro. registrarProrroga vuelve a cotizar con eso y exige
+       que le dé el mismo monto que dijo la hoja. */
+    const rep=PUENTE.repartoDelDescuento({costo:e.pr.costo_prorroga,recargo_mora:e.pr.recargo_mora},e.falta,e.sobre);
+    return registrarProrroga(id,{montoRecibido:e.monto,condonaMora:e.d.mora+rep.mora,condonaCosto:rep.costo,motivo:e.motivo});
+  }
   if(e.falta===0) return pagarTotal(id,{montoRecibido:e.total});
   if(e.falta<0)   return pagarTotal(id,{montoRecibido:e.monto,saldoAFavor:-e.falta});
   if(e.modo==='debe'){
@@ -3243,7 +3352,7 @@ function creditoMotor(p){
 /* Todo lo que hay que saber para prorrogar este crédito ESE día. Devuelve null
    cuando ni siquiera se puede preguntar (crédito pagado, ya en plan de pagos o
    con el capital en cero): un dato sucio no puede impedir abrir la pantalla. */
-function liqProrroga(p,fecha,condonaMora){
+function liqProrroga(p,fecha,condonaMora,condonaCosto){
   if(!p||p.pagado||tienePlan(p)||capitalActual(p)<=0) return null;
   /* 5-ago-2026 — lo que la prórroga cobra de mora es LO YA CAUSADO DEL CICLO, y
      eso lo contesta el puente recorriendo los hechos: no se recalcula acá sobre
@@ -3260,7 +3369,15 @@ function liqProrroga(p,fecha,condonaMora){
      congelada en el movimiento aunque el recargo cobrado sea $0. */
   const liq=liqCredito(p,fecha||hoyISO());
   const cond=Math.min(Math.max(0,Math.round(Number(condonaMora)||0)),Math.round(liq.recargo_mora));
-  try{ return MotorReglas.liquidarProrroga(creditoMotor(p),fecha||hoyISO(),
+  /* 8-sep-2026 — `condonaCosto` (pesos, opcional): el perdón del COSTO entra
+     por el mismo camino que el de la mora: el motor cotiza con el costo del
+     ciclo YA rebajado (creditoMotor lo pasa dado, así que no lo recalcula), y
+     total_a_pagar y garantia_generada salen consistentes con lo que entra.
+     Topado contra el costo: perdonar más que el costo sería perdonar capital. */
+  const credito=creditoMotor(p);
+  const condC=Math.min(Math.max(0,Math.round(Number(condonaCosto)||0)),Math.round(credito.costo));
+  if(condC>0) credito.costo=Math.round(credito.costo)-condC;
+  try{ return MotorReglas.liquidarProrroga(credito,fecha||hoyISO(),
     {recargoCausado:liq.recargo_mora-cond,diasCausados:liq.dias_mora}); }
   catch(e){ return null; }
 }
@@ -3296,14 +3413,24 @@ function garantiaDeProrroga(pr,p){ return PUENTE.garantiaGanadaProrroga(pr,p); }
 /* La fecha del cobro que se está registrando, para que el modal del plan de
    pagos siga hablando del mismo día que la pantalla de cobro. */
 let _fechaCobro=null;
-function registrarProrroga(id){
+function registrarProrroga(id,o){
   const p=DB.prestamos.find(x=>x.id===id), f=gv('pgFecha')||hoyISO();
   _fechaCobro=f;
   const liq=liqCredito(p,f);
   const d=liq&&liq.recargo_mora>0?descuentoDeMora(liq):{pct:0,mora:0,motivo:''};
-  if(d.mora>0&&!d.motivo)
+  /* 8-sep-2026 — EL PRECIO DE LA PRÓRROGA TAMBIÉN ES AJUSTABLE (pedido de Joan).
+     `o` es lo decidido en la hoja en modo prórroga: {montoRecibido, condonaMora,
+     condonaCosto, motivo}. condonaMora es el perdón TOTAL de la mora (el del %
+     ya va adentro) y condonaCosto el del COSTO del ciclo, que por primera vez
+     se puede perdonar desde el computador. SIN `o` hace EXACTAMENTE lo del
+     2-sep: el % de la mora y su motivo. */
+  const condM=o?Math.max(0,Math.round(Number(o.condonaMora)||0)):d.mora;
+  const condC=o?Math.max(0,Math.round(Number(o.condonaCosto)||0)):0;
+  const motivo=String((o?o.motivo:d.motivo)||'').trim().slice(0,120);
+  const perd=condM+condC;
+  if(perd>0&&!motivo)
     return alert('Falta el motivo del descuento.\n\nEscribe en dos palabras por qué se lo perdonaste: dentro de tres meses, un descuento sin motivo es un cuadre que no cuadra.');
-  const r=liqProrroga(p,f,d.mora);
+  const r=liqProrroga(p,f,condM,condC);
   if(!r) return alert(tienePlan(p)
     ? 'Este crédito ya está en plan de pagos: de ahí no se sale prorrogando. Cóbrale la cuota que sigue.'
     : 'Este crédito no admite prórroga (está pagado o su capital quedó en cero).');
@@ -3312,10 +3439,17 @@ function registrarProrroga(id){
      el descuento: la entrada del plan la arma otro flujo que no anota perdones,
      y una mora rebajada que nadie registró es plata que desaparece en silencio. */
   if(!r.ok) return ofrecerPlanDePagos(p,liqProrroga(p,f)||r);
-  if(!confirm((liq.recargo_mora
+  /* La invariante, ANTES de escribir: lo que el motor dice que entra tiene que
+     ser lo que la hoja dijo que entró. Si no, la pantalla y el botón leyeron
+     estados distintos, y eso no se registra: se avisa. */
+  if(o&&o.montoRecibido!=null&&Math.round(Number(o.montoRecibido))!==Math.round(r.total_a_pagar))
+    return alert('No cuadra: la hoja dice que entraron '+COP(o.montoRecibido)+' y el motor cotiza '+COP(r.total_a_pagar)+' con ese perdón.\n\nNo registré nada. Vuelve a escribir el monto.');
+  if(!confirm((liq.recargo_mora||perd
     ? `Registrar prórroga de ${COP(r.total_a_pagar)} a ${p.socioNombre}:\n\n`
-      +`• Costo del ciclo: ${COP(r.costo_prorroga)}\n• Recargo por ${liq.dias_mora} día(s) de mora ya causados: ${COP(liq.recargo_mora)}`
-      +(d.mora?` − ${COP(d.mora)} perdonados (${d.pct}%): cobra ${COP(r.recargo_mora)}\n• Motivo del descuento: ${d.motivo}`:'')+`\n\n`
+      +`• Costo del ciclo: ${COP(liq.costo)}`+(condC?` − ${COP(condC)} perdonados: cobra ${COP(r.costo_prorroga)}`:'')+`\n`
+      +(liq.recargo_mora?`• Recargo por ${liq.dias_mora} día(s) de mora ya causados: ${COP(liq.recargo_mora)}`
+        +(condM?` − ${COP(condM)} perdonados${!o&&d.pct?' ('+d.pct+'%)':''}: cobra ${COP(r.recargo_mora)}`:'')+`\n`:'')
+      +(perd?`• DESCUENTO: ${COP(perd)} · motivo: ${motivo}\n`:'')+`\n`
       +`El capital pasa a la quincena del ${fmtFecha(r.fecha_corte_nueva)}.\n`
     : `Registrar prórroga de ${COP(r.total_a_pagar)} a ${p.socioNombre} y pasar el pago a ${fmtFecha(r.fecha_corte_nueva)}.\n`)
     +`Le deja ${COP(r.garantia_generada)} de garantía${r.a_tiempo?'':' (el '+PCT_GARANTIA_MORA+', por dejarla tarde)'}.\n`
@@ -3326,13 +3460,16 @@ function registrarProrroga(id){
      (para que el puente lo acredite a la mitad sin degradar el costo), puntualidad
      congelada y el corte al que pasó DE VERDAD. Con descuento, monto y mora ya
      vienen rebajados del motor, y aTiempo/diasMora conservan la mora que HUBO:
-     el perdón no lava la historia, solo la plata. */
+     el perdón no lava la historia, solo la plata. Y desde el 8-sep el HECHO
+     aparte de la plata, como en el cobro: costoCausado y moraCausada, lo que se
+     causó antes de cualquier perdón. */
   p.prorrogas=p.prorrogas||[];
   p.prorrogas.push({fecha:r.fecha, ciclo:r.fecha_corte_anterior, monto:r.total_a_pagar,
-    mora:r.recargo_mora, aTiempo:r.a_tiempo, diasMora:r.dias_mora, nuevoCiclo:r.fecha_corte_nueva});
-  if(d.mora>0){
+    mora:r.recargo_mora, aTiempo:r.a_tiempo, diasMora:r.dias_mora, nuevoCiclo:r.fecha_corte_nueva,
+    costoCausado:Math.round(liq.costo), moraCausada:Math.round(liq.recargo_mora)});
+  if(perd>0){
     p.condonaciones=p.condonaciones||[];
-    p.condonaciones.push({fecha:r.fecha,costo:0,mora:d.mora,motivo:d.motivo,quien:'computador',sobre:'prorroga'});
+    p.condonaciones.push({fecha:r.fecha,costo:condC,mora:condM,motivo:motivo,quien:'computador',sobre:'prorroga'});
   }
   addComp(p,'prorroga',r.total_a_pagar);
   p.cicloActual=r.fecha_corte_nueva;

@@ -1126,3 +1126,184 @@ describe('el cobro con monto real en el Panel (7-sep-2026)', () => {
       'calcPago volvió a repartir por su cuenta: dos copias de la misma cuenta en la misma pantalla');
   });
 });
+/* ==========================================================================
+ * LA PRÓRROGA CON MONTO REAL — 8-sep-2026
+ *
+ * Pedido de Joan: «el precio de la prórroga también quiero que sea ajustable».
+ * La misma hoja de cobro, en modo prórroga: el campo arranca con el precio de
+ * la prórroga (menos lo que el % de la mora ya perdonó) y, si Joan escribe
+ * menos, la diferencia se perdona —mora primero, costo después, o al revés si
+ * él lo elige— con motivo. El movimiento que se guarda lo cotiza el motor con
+ * el perdón adentro (liqProrroga con condonaCosto), así que pr.monto sigue
+ * siendo «lo que entró» y garantía, ganancia y cupón salen solos de ahí.
+ * ======================================================================== */
+describe('la prórroga con monto real en el Panel (8-sep-2026)', () => {
+
+  const M = require('../app/motor.js');
+  const hace = n => { const x = new Date(); x.setDate(x.getDate() - n);
+    return x.toISOString().slice(0, 10); };
+  /* 10 días de mora: capital 400.000, costo 80.000, recargo 40.000 → la
+     prórroga cuesta 120.000. */
+  function carteraConMora(P) {
+    const d = JSON.parse(JSON.stringify(UN_CLIENTE));
+    d.prestamos = [{ id: 'p1', numero: 1, socioId: 's1', socioNombre: 'María Pérez',
+      capital: 400000, costoPct: 20, fechaDesembolso: hace(25), cicloActual: hace(10),
+      prorrogas: [], abonosCapital: [], comprobantes: [], pagado: false }];
+    P.cargarCartera(d);
+    return JSON.parse(P.ev('JSON.stringify(liqCredito(DB.prestamos[0]))'));
+  }
+  const pon = (P, id, v) => P.ev("document.getElementById('" + id + "').value='" + v + "'");
+  const credito = P => JSON.parse(P.ev('JSON.stringify(DB.prestamos[0])'));
+  const soloCobro = P => P.ev("confirm=t=>String(t).indexOf('WhatsApp')<0");
+  const boton = P => P.elems.pgBtn.textContent;
+  const entrar = P => { P.ev("abrirPago('p1')"); P.ev("modoProrroga('p1')"); };
+  function responder(P, monto, sobre, motivo) {
+    pon(P, 'pgMonto', String(monto)); P.ev("cambioMonto('p1')");
+    if (sobre) P.ev("sobreCobro('p1','" + sobre + "')");
+    if (motivo != null) P.ev("_cobro.motivo=" + JSON.stringify(motivo) + ";pintarBoton('p1')");
+  }
+  /* La invariante de una prórroga: lo que entró más lo perdonado es lo causado. */
+  const invariante = p => {
+    const pr = p.prorrogas[0];
+    const cond = (p.condonaciones || []).filter(c => c.sobre === 'prorroga')
+      .reduce((t, c) => t + (c.costo || 0) + (c.mora || 0), 0);
+    assert.equal(pr.monto + cond, pr.costoCausado + pr.moraCausada, 'la invariante de la prórroga no cuadra');
+  };
+
+  test('sin tocar el monto, es la prórroga de siempre: el motor cotiza y el Panel guarda', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); entrar(P);
+    const pr0 = JSON.parse(P.ev('JSON.stringify(liqProrroga(DB.prestamos[0]))'));
+    assert.equal(Number(P.elems.pgMonto.value), pr0.total_a_pagar, 'el campo no arranca con el precio de la prórroga');
+    assert.equal(P.elems.pgMontoLbl.textContent, '¿Cuánto pagó por la prórroga?');
+    assert.match(boton(P), /Registrar prórroga/);
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.pagado, false);
+    assert.equal(p.prorrogas.length, 1, 'no se registró la prórroga');
+    const pr = p.prorrogas[0];
+    assert.deepEqual({ monto: pr.monto, mora: pr.mora, aTiempo: pr.aTiempo, costoCausado: pr.costoCausado, moraCausada: pr.moraCausada },
+      { monto: pr0.total_a_pagar, mora: liq0.recargo_mora, aTiempo: false, costoCausado: liq0.costo, moraCausada: liq0.recargo_mora });
+    assert.equal(p.cicloActual, pr0.fecha_corte_nueva, 'el corte no se movió');
+    assert.equal((p.condonaciones || []).length, 0, 'apareció un perdón de la nada');
+    invariante(p);
+  });
+
+  test('«Sin la mora»: se perdona la mora entera y la historia no se lava', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); entrar(P);
+    P.ev("atajoMonto('p1'," + liq0.costo + ")");
+    P.ev("_cobro.motivo='se le mojó la moto';pintarBoton('p1')");
+    assert.match(boton(P), /con .* de descuento/);
+    P.ev("registrarCobro('p1')");
+    const p = credito(P), pr = p.prorrogas[0];
+    assert.equal(pr.monto, liq0.costo);
+    assert.equal(pr.mora, 0, 'pr.mora es la mora que entró, y no entró ninguna');
+    assert.equal(pr.aTiempo, false, 'EL PERDÓN LAVÓ LA PUNTUALIDAD');
+    assert.equal(pr.diasMora, liq0.dias_mora);
+    assert.deepEqual({ costo: p.condonaciones[0].costo, mora: p.condonaciones[0].mora, sobre: p.condonaciones[0].sobre },
+      { costo: 0, mora: liq0.recargo_mora, sobre: 'prorroga' });
+    invariante(p);
+  });
+
+  test('menos que el costo: el perdón desborda al COSTO, se anota aparte y la garantía baja', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); entrar(P);
+    responder(P, 60000, null, 'cliente viejo');
+    assert.match(boton(P), /60\.000 con \$60\.000 de descuento/);
+    P.ev("registrarCobro('p1')");
+    const p = credito(P), pr = p.prorrogas[0];
+    assert.equal(pr.monto, 60000, 'pr.monto tiene que ser lo que ENTRÓ');
+    assert.equal(pr.mora, 0);
+    assert.deepEqual({ costo: p.condonaciones[0].costo, mora: p.condonaciones[0].mora },
+      { costo: 20000, mora: liq0.recargo_mora }, 'el faltante que desborda la mora tiene que caer en el costo');
+    /* La garantía y la ganancia salen del movimiento, con la fórmula de
+       siempre del puente: nada se calculó en la pantalla. */
+    assert.equal(P.ev('gananciaCobrada(DB.prestamos[0])'), 60000);
+    const g = P.ev('PUENTE.garantiaGanadaProrroga(DB.prestamos[0].prorrogas[0],DB.prestamos[0])');
+    assert.equal(g, M.acumularGarantia(60000, false), 'la garantía no sale de la plata que entró');
+    assert.ok(g < M.acumularGarantia(liq0.costo, false) + M.acumularGarantia(liq0.recargo_mora, false));
+    invariante(p);
+    /* Y el informe por quincena lo recoge en el corte que la prórroga pagó. */
+    const q = JSON.parse(P.ev('JSON.stringify(PUENTE.descuentosDeQuincena(DB,DB.prestamos[0].prorrogas[0].ciclo))'));
+    assert.deepEqual({ total: q.total, costo: q.costo, mora: q.mora }, { total: 60000, costo: 20000, mora: liq0.recargo_mora });
+  });
+
+  test('«Del costo» cuando cabe en las dos bolsas', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); entrar(P);
+    responder(P, 100000, 'costo', 'x');
+    P.ev("registrarCobro('p1')");
+    const p = credito(P), pr = p.prorrogas[0];
+    assert.deepEqual({ costo: p.condonaciones[0].costo, mora: p.condonaciones[0].mora }, { costo: 20000, mora: 0 }, '«Del costo» no mandó');
+    assert.equal(pr.mora, liq0.recargo_mora, 'la mora entró completa');
+    assert.equal(pr.monto, 100000);
+    invariante(p);
+  });
+
+  test('con el % de la mora puesto, el precio arranca sin esa mora y el perdón total la lleva adentro', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P);
+    pon(P, 'pgDescPct', '50'); pon(P, 'pgDescMotivo', 'lluvia');
+    entrar(P);
+    const mitad = Math.round(liq0.recargo_mora / 2);
+    assert.equal(Number(P.elems.pgMonto.value), liq0.costo + liq0.recargo_mora - mitad, 'el % no rebajó el precio de arranque');
+    responder(P, 90000);                       // 10.000 menos que el precio con el %
+    assert.match(boton(P), /90\.000 con \$10\.000 de descuento/);
+    P.ev("registrarCobro('p1')");
+    const p = credito(P), pr = p.prorrogas[0];
+    assert.deepEqual({ costo: p.condonaciones[0].costo, mora: p.condonaciones[0].mora }, { costo: 0, mora: mitad + 10000 });
+    assert.equal(p.condonaciones[0].motivo, 'lluvia', 'el motivo del % no se leyó');
+    assert.equal(pr.monto, 90000);
+    assert.equal(pr.mora, liq0.recargo_mora - mitad - 10000);
+    invariante(p);
+  });
+
+  test('sin motivo, de más, o vacío: el botón se apaga con su porqué y no registra', () => {
+    const P = abrirPanel();
+    carteraConMora(P);
+    soloCobro(P); entrar(P);
+    responder(P, 100000, null, '');
+    assert.match(boton(P), /Falta el motivo/);
+    assert.equal(P.elems.pgBtn.disabled, true);
+    P.ev("registrarCobro('p1')");
+    assert.equal(credito(P).prorrogas.length, 0, 'registró un perdón sin motivo');
+    responder(P, 130000);
+    assert.match(boton(P), /devuélvele \$10\.000/);
+    P.ev("registrarCobro('p1')");
+    assert.equal(credito(P).prorrogas.length, 0, 'registró una prórroga pagada de más');
+    pon(P, 'pgMonto', ''); P.ev("cambioMonto('p1')");
+    assert.match(boton(P), /Escribe cuánto pagó por la prórroga/);
+    P.ev("registrarCobro('p1')");
+    assert.equal(credito(P).prorrogas.length, 0);
+  });
+
+  test('«Volver al cobro» deja la hoja de cobro como estaba', () => {
+    const P = abrirPanel();
+    const liq0 = carteraConMora(P);
+    soloCobro(P); entrar(P);
+    responder(P, 60000, null, 'x');
+    P.ev("volverAlCobro('p1')");
+    assert.match(boton(P), /Pagó todo/);
+    assert.equal(Number(P.elems.pgMonto.value), liq0.total_a_pagar);
+    assert.equal(P.elems.pgMontoLbl.textContent, '¿Cuánto pagó?');
+    P.ev("registrarCobro('p1')");
+    const p = credito(P);
+    assert.equal(p.pagado, true, 'al volver, «Pagó todo» tiene que cobrar el total');
+    assert.equal(p.prorrogas.length, 0);
+  });
+
+  test('la letra: el botón abre el modo, registrarProrroga acepta lo decidido, y el motor cotiza el costo rebajado', () => {
+    const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
+    assert.match(CRM, /onclick="modoProrroga\('\$\{p\.id\}'\)">↻ Prórroga/, 'el botón volvió a registrar de una');
+    assert.match(CRM, /\nfunction registrarProrroga\(id,o\)\{/);
+    assert.match(CRM, /\nfunction liqProrroga\(p,fecha,condonaMora,condonaCosto\)\{/);
+    assert.match(CRM, /credito\.costo=Math\.round\(credito\.costo\)-condC/, 'el perdón del costo tiene que entrar al motor, no restarse después');
+    assert.match(CRM, /PUENTE\.cuentasDeLaProrroga\(/, 'las cuentas de la prórroga se le preguntan al puente');
+  });
+});
