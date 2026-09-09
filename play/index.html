@@ -1073,10 +1073,10 @@ function subirArchivosRegistro() {
  *
  * NO: una pantalla que parezca «tu cuenta» con un cupo de 4.000.000. Y no es
  * timidez, son dos hechos del código:
- *   · El producto que esta app vende llega hasta 2.000.000, y solo el perfil
- *     preferente (app/creditos.js: PERFILES). Pedir 4.000.000 devuelve
- *     puede:false, motivo 'sobre_cupo' — el motor se niega. El servidor
- *     también: play_solicitar rechaza cualquier capital sobre 2.000.000.
+ *   · El producto que esta app vende llega hasta el cupo del perfil más alto
+ *     (app/creditos.js: PERFILES.preferente.cupo_maximo — desde el 9-sep-2026,
+ *     8.000.000). Pedir por encima devuelve puede:false, motivo 'sobre_cupo' —
+ *     el motor se niega, y el servidor también (play_solicitar).
  *   · Un número que la plataforma no puede desembolsar, puesto donde el
  *     visitante lea «mi cupo», es una oferta que no existe. La regla de esta
  *     casa —la interfaz nunca promete lo que el código no hace— ya se rompió
@@ -1138,7 +1138,11 @@ var TEXTOS = {
  * cualquiera. Lo que el visitante puede pedir se dice aparte, en el recorrido.
  * ----------------------------------------------------------------------- */
 var CALC_MIN = 100000;      // el mínimo que acepta el servidor (play_solicitar)
-var CALC_MAX = 2000000;     // el cupo del perfil más alto. No hay nada por encima.
+/* 9-sep-2026 — SE LEE DEL PERFIL, no se escribe. Estaba clavado en 2.000.000 y
+   el día que Joan subiera el tope, la calculadora se habría quedado ofreciendo
+   el viejo sin que nadie lo notara: la pantalla diría una cosa y el motor otra.
+   Hay una prueba que exige que estos dos números sean el mismo. */
+var CALC_MAX = C.PERFILES.preferente.cupo_maximo;
 var CALC_PASO = 50000;
 var CALC_MESES_MIN = 3;     // 90 días. Por debajo, simular() lanza: la app dejaría de ser publicable.
 var CALC_MESES_MAX = 6;
@@ -1519,7 +1523,11 @@ function tarjetaCupo(perfil) {
    CON FECHA antes de pedir, que es lo que el socio necesita para saber si le
    cuadra con el día que le pagan. */
 function tarjetaSimulador(idPerfil) {
-  var tope = Math.max(C.PERFILES[idPerfil].cupo_maximo || 0, 2000000);
+  /* 9-sep-2026 — el piso del deslizador sale del perfil más alto y no de un
+     número escrito acá. Un socio nuevo tiene cupo cero y aun así puede mover el
+     simulador hasta arriba: es justo lo que Joan pidió, «que el cliente sepa
+     hasta cuánto puede pedir a futuro». */
+  var tope = Math.max(C.PERFILES[idPerfil].cupo_maximo || 0, C.PERFILES.preferente.cupo_maximo);
   return '<div class="card">' +
     '<h3 class="tit">Simula tu crédito</h3>' +
     '<p class="sub">Mueve el monto y mira exactamente cuánto pagarías.</p>' +

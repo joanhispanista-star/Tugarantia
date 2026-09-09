@@ -384,9 +384,35 @@ describe('el perfil decide cuánto y qué tan rápido, no cuánto cuesta', () =>
   });
 
   test('los cupos son los que pidió Joan', () => {
-    assert.equal(C.PERFILES.preferente.cupo_maximo, 2000000);
-    assert.equal(C.PERFILES.recurrente.cupo_maximo, 1000000);
+    /* 9-sep-2026 — subieron por decisión suya: «queremos llegar a montos
+       superiores a los 6 millones». Esta prueba no vigila que los números sean
+       correctos —eso lo decide él— sino que NO SE MUEVAN SOLOS: son el tope de
+       lo que la empresa se compromete a desembolsar, y cambiarlos es una
+       decisión de negocio, no una línea que se ajusta de paso. */
+    assert.equal(C.PERFILES.preferente.cupo_maximo, 8000000);
+    assert.equal(C.PERFILES.recurrente.cupo_maximo, 3000000);
     assert.equal(C.PERFILES.nuevo.cupo_maximo, 0);
+    /* La escalera tiene que subir de verdad: si dos escalones dan lo mismo, no
+       hay a dónde subir y la promesa de la vitrina se queda sin respaldo. */
+    assert.ok(C.PERFILES.preferente.cupo_maximo > C.PERFILES.recurrente.cupo_maximo);
+    assert.ok(C.PERFILES.recurrente.cupo_maximo > C.PERFILES.nuevo.cupo_maximo);
+  });
+
+  test('a los montos nuevos la cuota sigue cuadrando al peso', () => {
+    /* Un tope más alto es plata más grande, y el redondeo de las cuotas es
+       donde la plata se pierde de a un peso. Se barre el rango nuevo entero. */
+    for (const capital of [2000000, 3000000, 5000000, 6000000, 8000000]) {
+      for (let meses = 3; meses <= 6; meses++) {
+        const r = C.simular({ perfil: 'preferente', capital, fecha_desembolso: '2026-08-15', meses });
+        const c = r.puede ? r : r.cotizacion;
+        const suma = c.cuotas.reduce((t, q) => t + q.total, 0);
+        assert.equal(suma, c.total_a_pagar,
+          capital + ' a ' + meses + ' meses: las cuotas suman ' + suma + ' y el total dice ' + c.total_a_pagar);
+        assert.equal(c.capital + c.costo_total, c.total_a_pagar);
+        assert.ok(c.efectivo_anual < C.topeVigente("2026-08-15").consumo_ordinario,
+          capital + ' a ' + meses + ' meses se pasa del techo de usura');
+      }
+    }
   });
 
   test('el socio NUEVO ve el costo real pero no puede desembolsar solo', () => {
@@ -401,10 +427,10 @@ describe('el perfil decide cuánto y qué tan rápido, no cuánto cuesta', () =>
   });
 
   test('pasarse del cupo no cotiza a escondidas: lo dice', () => {
-    const r = C.simular({ perfil: 'recurrente', capital: 1500000, fecha_desembolso: '2026-08-15' });
+    const r = C.simular({ perfil: 'recurrente', capital: 3500000, fecha_desembolso: '2026-08-15' });
     assert.equal(r.puede, false);
     assert.equal(r.motivo, 'sobre_cupo');
-    assert.equal(r.cupo_maximo, 1000000);
+    assert.equal(r.cupo_maximo, C.PERFILES.recurrente.cupo_maximo);
   });
 
   test('un perfil inventado revienta acá y no dos pantallas más allá', () => {

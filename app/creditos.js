@@ -235,7 +235,16 @@
       id: 'preferente',
       nombre: 'Preferente',
       color: 'verde',
-      cupo_maximo: 2000000,
+      /* 9-sep-2026 — DE 2.000.000 A 8.000.000, por decisión de Joan: «queremos
+         llegar a montos superiores a los 6 millones». Este número es el tope de
+         TODO el producto: la calculadora de la vitrina, la escalera que ve el
+         visitante y el rechazo del servidor salen de acá, y no se repite en
+         ningún otro lado.
+         LO QUE NO CAMBIÓ, y hay que mirarlo: el plazo sigue siendo de 3 a 6
+         meses. A 8.000.000 en 6 cuotas la mensualidad es de $1.418.933. La tasa
+         está muy por debajo del techo de usura (24% contra 29,24%), así que el
+         freno no es legal: es que esa cuota tiene que caberle a alguien. */
+      cupo_maximo: 8000000,
       aprobacion: 'inmediata',
       entra_por: 'invitacion',
       texto: 'Historial construido con nosotros. Pide y se desembolsa sin revisión.'
@@ -244,7 +253,10 @@
       id: 'recurrente',
       nombre: 'Recurrente',
       color: 'ambar',
-      cupo_maximo: 1000000,
+      /* Sube con el de arriba para que la escalera siga teniendo escalones: si
+         el segundo se queda en 1.000.000 y el tercero salta a 8.000.000, el
+         salto no lo da nadie. */
+      cupo_maximo: 3000000,
       aprobacion: 'inmediata',
       entra_por: 'invitacion',
       texto: 'Ya tiene historial con nosotros. Pide y se desembolsa sin revisión.'
