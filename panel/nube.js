@@ -176,8 +176,17 @@
   var LISTAS_CARTERA = {
     equipo: ['id'],
     asignaciones: ['socio_id', 'asesor_id', 'desde'],
-    actosComision: ['tipo', 'asesor_id', 'socio_id', 'credito_id', 'fecha']
+    actosComision: ['tipo', 'asesor_id', 'socio_id', 'credito_id', 'fecha'],
+    /* 9-sep-2026 — los prospectos y las bases cargadas. La identidad de un
+       prospecto es su CELULAR y no su id: el mismo archivo cargado en el
+       computador y en el celular crearía dos ids distintos para la misma
+       persona, y la fusión los sumaría a los dos. Por el celular, es uno.
+       La de una base es su nombre de archivo y el día: cargar dos veces el
+       mismo archivo el mismo día es una sola carga. */
+    prospectos: ['celular'],
+    bases: ['archivo', 'fecha']
   };
+
   var LISTAS_CREDITO = {
     /* 4-sep-2026 — EL MONTO SALIÓ DE LA IDENTIDAD, y lo abrió la ronda del
        2-sep. Desde que el computador da descuento en la prórroga, crm.html

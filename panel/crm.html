@@ -403,6 +403,7 @@
     <button class="navbtn" data-v="ciclos"><span class="ic">📈</span> Ciclos</button>
     <button class="navbtn" data-v="cal"><span class="ic">📅</span> Calendario</button>
     <button class="navbtn" data-v="plantillas"><span class="ic">💬</span> Plantillas</button>
+    <button class="navbtn" data-v="bases"><span class="ic">📇</span> Bases</button>
     <button class="navbtn" data-v="equipo"><span class="ic">👥</span> Equipo</button>
     <button class="navbtn" data-v="cfg"><span class="ic">⚙️</span> Ajustes</button>
     <div class="marcagua">TU GARANTÍA</div>
@@ -460,6 +461,19 @@
         <button class="btn btn-negro" onclick="traerRegistros()">↻ Traer de la nube</button></div>
       <div class="card"><div class="card-h"><h3>📥 Quién pidió entrar</h3><span class="tag">Al abrirles la ficha y darles su primer crédito pasan a Clientes</span></div>
         <div id="tblRegistros"></div></div>
+    </section>
+
+    <section class="view" id="v-bases">
+      <div class="ph"><div><h1>Bases<span class="dot">.</span></h1><div class="sub">Gente que todavía no es cliente: nombre y celular, y quién la está trabajando</div></div>
+        <div><button class="btn btn-ghost" onclick="repartirProspectos()">🔀 Repartir</button>
+        <button class="btn btn-rojo" onclick="cargarBase()">⤒ Cargar base</button></div></div>
+      <div class="kpis" id="kpiBases"></div>
+      <div class="card"><div class="card-h"><h3>📇 Prospectos</h3>
+        <span class="tag">Se vuelven clientes cuando se registran y les desembolsas</span></div>
+        <div id="tblProspectos"></div></div>
+      <div class="card"><div class="card-h"><h3>⤒ Bases que has cargado</h3>
+        <span class="tag">De dónde salió cada una — la respuesta tiene que existir antes de que la pregunten</span></div>
+        <div id="tblBases"></div></div>
     </section>
 
     <section class="view" id="v-equipo">
@@ -660,6 +674,11 @@
 <!-- Las reglas de comisión de los asesores. Funciones puras: el CRM las
      llama, no las reimplementa. -->
 <script src="../app/comisiones.js"></script>
+<!-- Leer bases de prospectos de Excel o CSV. Sin librerias y sin CDN: un
+     .xlsx es un zip con XML adentro y el navegador ya sabe descomprimir.
+     Un script de un servidor ajeno en ESTA pagina podria leer la cartera
+     entera, que vive en memoria mientras el CRM esta abierto. -->
+<script src="../app/bases.js"></script>
 <script>
 const PUENTE=window.PuenteTuGarantia;
 /* 9-sep-2026 — las reglas de comision de los asesores. Va JUNTO a las otras
@@ -1154,7 +1173,7 @@ function horarioPermitido(date){ const d=date||new Date(),dia=d.getDay(),h=d.get
 function contactadoHoy(s){ return (s.gestiones||[]).some(g=>g.fecha===hoyISO()); }
 
 /* ===== RENDER ===== */
-function render(){ renderHorario(); renderKpis(); renderCola(); renderCred(); renderRespaldados(); renderInvitaciones(); renderRegistros(); renderMensajes(); renderClientes(); renderSocios(); renderCiclos(); renderCalendario(); renderPlantillas(); renderEquipo(); }
+function render(){ renderHorario(); renderKpis(); renderCola(); renderCred(); renderRespaldados(); renderInvitaciones(); renderRegistros(); renderMensajes(); renderClientes(); renderSocios(); renderCiclos(); renderCalendario(); renderPlantillas(); renderEquipo(); renderBases(); }
 function renderHorario(){ const r=horarioPermitido(),b=document.getElementById('horarioBox'); b.className='horario '+(r.ok?'ok':'no');
   b.innerHTML=r.ok?'<b>✓ Horario de cobro</b>Puedes contactar (Ley 2300).':'<b>✗ Fuera de horario</b>'+r.motivo+' (Ley 2300).'; }
 
@@ -4822,6 +4841,217 @@ function fichaDesdeRegistro(id){
 let _huellaPendiente=null;
 function pintarFotoBox(key){ const box=document.getElementById('fot_'+key); if(!box||!_fotosTmp[key]) return; box.classList.add('ok'); let img=box.querySelector('img'); if(!img){img=document.createElement('img');box.appendChild(img);} img.src=_fotosTmp[key]; const l=box.querySelector('.lbl'); if(l) l.textContent='Listo · cambiar'; }
 /* ==========================================================================
+ * LAS BASES DE PROSPECTOS — 9 de septiembre de 2026
+ *
+ * Joan: «quiero que el CRM pueda ser alimentado con bases de datos y tenga una
+ * forma de recibir archivos de estos, y que me organice los clientes por nombre
+ * y el celular… cada cliente consolidado pertenecerá al asesor que lo gestionó».
+ *
+ * UN PROSPECTO NO ES UN CLIENTE. Le faltaba al sistema: había clientes (ya
+ * suyos) y registrados (ya inscritos), pero nada antes de eso — y es justo lo
+ * que un asesor trabaja todo el día. Un prospecto es un nombre y un celular,
+ * nada más, y se convierte en cliente cuando se registra y Joan le desembolsa.
+ *
+ * SOLO NOMBRE Y CELULAR, por instrucción de Joan y por diseño: app/bases.js es
+ * incapaz de devolver otra cosa, aunque el archivo traiga saldos o días de mora.
+ * Hay una prueba que se cae si alguien le agrega un campo.
+ *
+ * CADA BASE GUARDA DE DÓNDE SALIÓ. No es burocracia: la Ley 1581 exige
+ * autorización del titular para tratar sus datos, y el día que alguien pregunte
+ * de dónde salió su teléfono, la respuesta tiene que estar escrita al lado del
+ * dato y no en la memoria de quien la cargó.
+ * ======================================================================== */
+
+const ESTADOS_PROSPECTO = {
+  nuevo:       { et: 'Sin contactar', chip: '' },
+  contactado:  { et: 'Contactado',    chip: 'prorroga' },
+  no_contesta: { et: 'No contesta',   chip: 'mora' },
+  no_quiso:    { et: 'No quiso',      chip: '' },
+  registrado:  { et: 'Se registró',   chip: 'al-dia' },
+  cliente:     { et: 'Ya es cliente', chip: 'pagado' }
+};
+
+function prospectos() { DB.prospectos = Array.isArray(DB.prospectos) ? DB.prospectos : []; return DB.prospectos; }
+function basesCargadas() { DB.bases = Array.isArray(DB.bases) ? DB.bases : []; return DB.bases; }
+
+function renderBases() {
+  const caja = document.getElementById('tblProspectos'); if (!caja) return;
+  if (!window.BasesTuGarantia) {
+    caja.innerHTML = '<div class="alerta warn">No cargó el módulo de bases (app/bases.js). ' +
+      'El resto del Panel funciona; esta pestaña vuelve cuando recargues con señal.</div>';
+    return;
+  }
+  const ps = prospectos();
+  const k = document.getElementById('kpiBases');
+  if (k) {
+    const sin = ps.filter(p => !COMIS.asesorDe(asignaciones(), p.id, hoyISO())).length;
+    const n = e => ps.filter(p => (p.estado || 'nuevo') === e).length;
+    k.innerHTML = `
+      <div class="kpi"><div class="et">En la base</div><div class="nm">${ps.length}</div><div class="x">prospectos</div></div>
+      <div class="kpi"><div class="et">Sin contactar</div><div class="nm">${n('nuevo')}</div><div class="x">esperando</div></div>
+      <div class="kpi gan"><div class="et">Se registraron</div><div class="nm">${n('registrado') + n('cliente')}</div><div class="x">de ${ps.length}</div></div>
+      <div class="kpi ${sin ? 'alert' : ''}"><div class="et">Sin asignar</div><div class="nm">${sin}</div><div class="x">nadie los trabaja</div></div>`;
+  }
+
+  const bs = basesCargadas();
+  const cajaB = document.getElementById('tblBases');
+  if (cajaB) {
+    cajaB.innerHTML = bs.length
+      ? `<table><thead><tr><th>Archivo</th><th>De dónde salió</th><th>Cuándo</th><th class="num">Entraron</th></tr></thead><tbody>${
+        bs.slice().reverse().map(b => `<tr><td><b>${escHTML(b.archivo)}</b></td>
+          <td>${escHTML(b.origen || '—')}${b.senales && b.senales.length ? '<div class="muted">traía datos financieros ajenos: se descartaron</div>' : ''}</td>
+          <td>${fmtFecha(b.fecha)}</td><td class="num">${b.entraron}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="muted">Todavía no has cargado ninguna base.</div>';
+  }
+
+  if (!ps.length) {
+    caja.innerHTML = `<div class="empty"><div class="ic">📇</div><p>Sin prospectos todavía.<br>
+      <span class="muted">Carga un archivo de Excel o CSV con nombres y celulares.</span></p></div>`;
+    return;
+  }
+  /* Se muestran los 200 primeros: una tabla de mil filas en el navegador de
+     Joan lo deja pensando cada vez que toca algo. */
+  const muestra = ps.slice(0, 200);
+  caja.innerHTML = `<table><thead><tr><th>Quién</th><th>Celular</th><th>Estado</th><th>Asesor</th><th></th></tr></thead><tbody>${
+    muestra.map(p => {
+      const e = ESTADOS_PROSPECTO[p.estado || 'nuevo'] || ESTADOS_PROSPECTO.nuevo;
+      const a = COMIS.asesorDe(asignaciones(), p.id, hoyISO());
+      const per = a ? personaDeEquipo(a) : null;
+      return `<tr><td><b>${escHTML(p.nombre || 'Sin nombre')}</b></td>
+        <td class="mono">${escHTML(p.celular)}</td>
+        <td><span class="chip ${e.chip}">${escHTML(e.et)}</span></td>
+        <td>${per ? escHTML(per.nombre) : '<span class="muted">sin asignar</span>'}</td>
+        <td style="text-align:right"><a class="btn btn-wa btn-sm" target="_blank" rel="noopener"
+          href="${escHTML(waLink(p.celular, 'Hola ' + (p.nombre || '').split(' ')[0] + ', te escribo de ' + (DB.config.negocio || 'Tu Garantía') + '.'))}">📲</a></td></tr>`;
+    }).join('')}</tbody></table>${
+    ps.length > muestra.length ? `<div class="muted" style="padding:10px 14px">Se muestran ${muestra.length} de ${ps.length}.</div>` : ''}`;
+}
+
+/* --------------------------------------------------------------------------
+ * CARGAR UN ARCHIVO
+ *
+ * Se lee y se REVISA antes de escribir nada: cuántos entran, cuántos venían
+ * repetidos, cuántos ya son clientes tuyos. Un importador que carga primero y
+ * cuenta después deja la base sucia y no hay cómo deshacerlo.
+ * ------------------------------------------------------------------------ */
+/* Una fila de «esto contra esto». NO se reusa la de verCliente: aquella vive
+   DENTRO de esa función, y llamarla desde acá revienta con «fila is not
+   defined». Ya pasó dos veces hoy —también en play/, con la misma función y
+   el mismo nombre— y las dos veces dejó una pantalla en blanco que la prueba
+   de compilar no vio. Compilar no es ejecutar. */
+function filaInfo(k, v) {
+  return '<div class="info-row"><span class="k">' + escHTML(k) +
+         '</span><span class="vv">' + escHTML(v) + '</span></div>';
+}
+
+let _baseLeida = null;
+
+function cargarBase() {
+  if (!window.BasesTuGarantia) return alert('No cargó app/bases.js. Recarga la página con señal.');
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.xlsx,.csv,text/csv';
+  inp.onchange = e => { const f = e.target.files && e.target.files[0]; if (f) leerArchivoBase(f); };
+  inp.click();
+}
+
+function leerArchivoBase(file) {
+  const B = window.BasesTuGarantia;
+  openModal('Leyendo ' + file.name, '<div class="muted">Un momento…</div>');
+  const esCSV = /\.csv$/i.test(file.name);
+  const lector = esCSV
+    ? file.text().then(t => B.leerCSV(t))
+    : file.arrayBuffer().then(b => B.leerXLSX(b));
+  lector.then(filas => {
+    const cols = B.detectarColumnas(filas);
+    if (cols.celular < 0) throw new Error('No encontré ninguna columna con celulares colombianos.');
+    const r = B.revisarBase(filas, cols, { socios: DB.socios, prospectos: prospectos() });
+    _baseLeida = { archivo: file.name, cols, revision: r };
+    pintarPrevioBase();
+  }).catch(err => {
+    openModal('No pude leer ese archivo', `<div class="alerta warn">${escHTML(err.message || String(err))}</div>
+      <p class="sub">Sirve un Excel (.xlsx) o un CSV con al menos una columna de celulares
+      colombianos. No hace falta que tenga encabezado ni que las columnas estén en un orden.</p>`);
+  });
+}
+
+function pintarPrevioBase() {
+  const b = _baseLeida; if (!b) return;
+  const r = b.revision;
+  const muestra = r.nuevos.slice(0, 5);
+  openModal('Cargar ' + b.archivo, `
+    <div class="two">
+      <div class="kpi gan"><div class="et">Entran</div><div class="nm">${r.nuevos.length}</div><div class="x">prospectos nuevos</div></div>
+      <div class="kpi"><div class="et">No entran</div><div class="nm">${r.repetidos + r.yaClientes + r.sinCelular}</div><div class="x">repetidos, clientes o sin celular</div></div>
+    </div>
+    <div class="sub-h">Por qué no entran los otros</div>
+    ${filaInfo('Ya eran prospectos o venían repetidos en el archivo', String(r.repetidos))}
+    ${filaInfo('Ya son clientes tuyos', String(r.yaClientes))}
+    ${filaInfo('Sin un celular utilizable', String(r.sinCelular))}
+
+    ${r.senalesFinancieras.length ? `<div class="alerta warn" style="margin-top:14px">
+      <b>Este archivo trae información financiera de otra empresa</b>
+      (${escHTML(r.senalesFinancieras.join(', '))}).
+      <div style="margin-top:6px">Nada de eso se va a cargar: el importador solo toma nombre y celular.
+      Pero piensa de dónde salió el archivo — esas personas le dieron sus datos a otro, y la
+      autorización no viaja con el archivo.</div></div>` : ''}
+
+    <div class="sub-h">Muestra de lo que va a entrar</div>
+    ${muestra.map(p => filaInfo(p.nombre || '(sin nombre)', p.celular)).join('') || '<div class="muted">Nada.</div>'}
+
+    <div class="sub-h">¿De dónde salió esta base?</div>
+    <input id="baseOrigen" placeholder="Ej: pauta de Facebook, septiembre — o: me la pasó Nancy">
+    <div class="help">Queda guardado con la base. Si algún día alguien pregunta de dónde salió su
+      teléfono, esta es la respuesta — y tiene que existir antes, no después.</div>
+
+    <button class="btn btn-rojo arriba" onclick="confirmarCargaBase()" ${r.nuevos.length ? '' : 'disabled'}>
+      Cargar ${r.nuevos.length} prospectos</button>`);
+}
+
+function confirmarCargaBase() {
+  const b = _baseLeida; if (!b) return;
+  const origen = gv('baseOrigen').trim();
+  if (!origen) return alert('Escribe de dónde salió la base.\n\nNo es un trámite: es lo único que te permite contestar el día que alguien pregunte de dónde sacaste su teléfono.');
+  const hoy = hoyISO(), sello = Date.now();
+  b.revision.nuevos.forEach((p, i) => {
+    prospectos().push({ id: 'P' + sello + '-' + i, nombre: p.nombre, celular: p.celular,
+                        estado: 'nuevo', base: b.archivo, cargadoEn: hoy });
+  });
+  basesCargadas().push({ id: 'B' + sello, archivo: b.archivo, origen, fecha: hoy,
+                         entraron: b.revision.nuevos.length,
+                         senales: b.revision.senalesFinancieras });
+  _baseLeida = null;
+  guardar(); cerrarModal(); render(); irA('bases');
+  alert('Listo: entraron ' + b.revision.nuevos.length + ' prospectos.\n\nRepártelos entre tus asesores desde «🔀 Repartir».');
+}
+
+/* --------------------------------------------------------------------------
+ * REPARTIR LOS PROSPECTOS
+ *
+ * Usa la MISMA lista de asignaciones que los clientes: un asesor no lleva dos
+ * listas, lleva gente. El campo se llama `socio_id` porque ya era un contrato
+ * con la sincronización cuando esto se escribió; guarda el id del prospecto
+ * igual de bien, y los ids no se pisan (los prospectos nacen con «P»).
+ * ------------------------------------------------------------------------ */
+function repartirProspectos() {
+  const asesores = equipo().filter(p => p.rol === 'asesor' && p.estado !== 'retirado');
+  if (!asesores.length) return alert('Primero crea al menos un asesor, en la pestaña Equipo.');
+  const sin = prospectos().filter(p => !COMIS.asesorDe(asignaciones(), p.id, hoyISO()));
+  if (!sin.length) return alert('Todos los prospectos ya tienen asesor.');
+  if (!confirm('Voy a repartir ' + sin.length + ' prospectos entre ' + asesores.length + ' asesores.\n\n' +
+    'A los que ya tienen asesor no los toco.\n\n¿Sigo?')) return;
+  /* Por turnos y en el orden en que entraron: sin azar, para que el reparto se
+     pueda reproducir el día que alguien reclame que le tocaban otros. */
+  const sello = Date.now();
+  sin.forEach((p, i) => {
+    asignaciones().push({ id: 'A' + sello + '-' + i, socio_id: String(p.id),
+                          asesor_id: asesores[i % asesores.length].id, desde: hoyISO() });
+  });
+  guardar(); render();
+  alert('Repartidos ' + sin.length + ' prospectos entre ' + asesores.length + ' asesores.');
+}
+
+/* ==========================================================================
  * EL EQUIPO — 9 de septiembre de 2026
  *
  * Joan: «el role principal que es el mío debe tener una pestaña para crear
@@ -6147,6 +6377,7 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
   if(v==='cfg')pintarCfg(); if(v==='plantillas')renderPlantillas(); if(v==='cal')renderCalendario();
   if(v==='inv')renderInvitaciones();
   if(v==='equipo')renderEquipo();
+  if(v==='bases')renderBases();
   /* Registrados trae de la nube SOLO al entrar a la pestaña, no en cada
      render(): una petición por visita, no una por teclazo. */
   if(v==='registrados'){ renderRegistros(); traerRegistros(); }
