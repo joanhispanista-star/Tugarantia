@@ -708,7 +708,7 @@ details[open] summary::after{content:' ↑'}
    app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
    de CACHE en sw.js). */
-var VERSION_APP = '2026-09-08';
+var VERSION_APP = '2026-09-09';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1052,11 +1052,20 @@ function entrar() {
 
    Ahora la pantalla PREGUNTA antes de pedir nada, que es lo que Joan pidió:
    quien ya es socio entra con su código; quien es nuevo se registra solo, sin
-   que nadie lo presente. Son dos caminos que no se cruzan y terminan en sitios
-   distintos a propósito — el registro vive en play/, con la calculadora del
-   producto publicable, y de allá NO se vuelve a esta app: se vuelve cuando
-   Joan aprueba y manda el código. Esa asimetría es la frontera de Play, no un
-   descuido (ver el comentario de cabecera de play/index.html). */
+   que nadie lo presente.
+
+   9-sep-2026 — LOS DOS CAMINOS YA SE CRUZAN, y es a propósito. Hasta hoy el
+   que perdía su código terminaba en un WhatsApp pidiéndoselo a Joan, y Joan no
+   recibía ni un dato: ni la cédula, ni la foto, ni desde dónde escribía. Ahora
+   los tres —el nuevo, el antiguo sin código y el antiguo con código— pasan por
+   el mismo formulario, y en el CRM aparece la mesa de cruce que junta lo que la
+   persona declara con la ficha que Joan ya tenía. La ficha vieja se completa;
+   no nace una segunda.
+
+   LO QUE NO CAMBIÓ: de play/ NO se vuelve a esta app con un botón. Se vuelve
+   por WhatsApp, con el código que manda Joan. Esa asimetría es la frontera de
+   Play —Google prohíbe los créditos a menos de 60 días—, no un descuido (ver el
+   comentario de cabecera de play/index.html). */
 function pintarEntrar() {
   $('entrarCuerpo').innerHTML =
     '<div class="card">' +
@@ -1071,9 +1080,10 @@ function pintarEntrar() {
         'oninput="tecleaAcceso(this)">' +
       '<button class="btn arriba" id="btnEntrar">Ver mi cuenta</button>' +
       '<div id="errEntrar" class="aviso ambar oculto"></div>' +
-      /* La salida del que perdió el código. Sin esto, el que lo pierde no tiene
-         puerta y se va: no hay "recuperar contraseña" que valga, el código lo
-         tiene Joan en su Panel y se lo vuelve a mandar. */
+      /* La salida del que perdió el código. Hasta el 8-sep abría un WhatsApp
+         pidiéndoselo a Joan; desde el 9 abre la pantalla de recuperar, cuyo
+         camino principal es el registro. El texto del botón no cambia: es el
+         que la persona busca con los ojos. */
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pedirCodigo()">' +
         'No tengo mi código</button>' +
     '</div>' +
@@ -1108,9 +1118,49 @@ function tecleaAcceso(el) {
   el.value = M.limpiarCodigoAcceso(el.value).slice(0, M.LARGO_CODIGO_ACCESO);
 }
 
+/* ===================== EL QUE NO TIENE SU CÓDIGO =====================
+   9-sep-2026 — decisión de Joan: «que lleve a todos los clientes,
+   independientemente que sea nuevo o antiguo, y que yo desde el CRM tenga la
+   información».
+
+   El camino principal es REGISTRARSE, aunque ya sea cliente de toda la vida. No
+   es un rodeo: es lo único que le deja a Joan datos con que reconocerlo —su
+   cédula por el código de barras, su rostro, desde dónde escribe— y es lo que
+   completa la ficha vieja, que casi siempre está a medias. En el CRM le sale
+   marcado como «ya es tu cliente» y Joan cruza las dos, sin crear una segunda.
+
+   LO QUE ESTA PANTALLA NO PROMETE: que el código llegue solo. No llega: Joan lo
+   revisa y lo manda. Decirlo acá es la diferencia entre una espera y un
+   engaño — y esta app ya se ganó una regla por eso.
+
+   El WhatsApp se queda abajo y en pequeño, para el que no tiene datos, ni
+   cámara, ni paciencia. Quitarlo del todo dejaría a ese sin ninguna puerta. */
 function pedirCodigo() {
+  var cel = String(($('inCedula') && $('inCedula').value) || '').replace(/\D/g, '');
+  $('entrarCuerpo').innerHTML =
+    '<div class="card">' +
+      '<h3 class="tit">¿Perdiste tu código?</h3>' +
+      '<p class="sub">Tu código no se puede adivinar ni reenviar solo: lo tiene ' + esc(nombreJoan()) +
+        ' y te lo manda él. Lo que sí puedes hacer ahora es <b>identificarte</b>, para que sepa que ' +
+        'eres tú y te lo mande de una.</p>' +
+      '<a class="btn arriba" href="../play/#registro">Identificarme ahora</a>' +
+      '<p class="ayuda">Son unos minutos: tus datos, la foto de tu cédula y una foto tuya. ' +
+        'Si ya eres cliente, <b>no se te abre una cuenta nueva</b>: ' + esc(nombreJoan()) +
+        ' ve que eres tú y te completa la que ya tienes, con tu historial intacto.</p>' +
+      '<div class="pie" style="text-align:left">¿Sin datos o sin cámara?<br>' +
+        '<button class="btn sec sm" style="margin-top:var(--e2)" onclick="porCodigoWhatsApp()">' +
+          'Que me escriban por WhatsApp</button></div>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarEntrar()">Volver</button>' +
+    '</div>' +
+    '<div class="pie">Tus datos solo los ves tú, con tu número y tu código.' + selloDeVersion() + '</div>';
+  if (cel) { try { $('entrarCuerpo').dataset.cel = cel; } catch (e) {} }
+  window.scrollTo(0, 0);
+}
+function porCodigoWhatsApp() {
+  var cel = '';
+  try { cel = ($('entrarCuerpo') && $('entrarCuerpo').dataset.cel) || ''; } catch (e) {}
   porWhatsApp('Hola, soy socio de ' + nombreJoan() + ' y no tengo mi código para entrar a la app. ' +
-    'Mi número es ' + (($('inCedula') && $('inCedula').value) || '…') + '. ¿Me lo puedes reenviar?');
+    'Mi número es ' + (cel || '…') + '. ¿Me lo puedes reenviar?');
 }
 
 /* ==================== INSTALARLA EN EL CELULAR ====================

@@ -373,3 +373,136 @@ describe('la cédula leída del código de barras (8-sep-2026)', () => {
     assert.equal(U.dispositivoDe(''), '');
   });
 });
+
+/* ==========================================================================
+ * EL ESCÁNER MIRA EL FOTOGRAMA — 9 de septiembre de 2026
+ *
+ * Joan: «quiero que cuando la cara esté centrada la página haga como si
+ * escaneara la cara y tome la foto automáticamente».
+ *
+ * Hasta el 8-sep la pantalla PROMETÍA eso y disparaba con un reloj: a los 3,2
+ * segundos, mirara la persona a la cámara o al techo. Estas pruebas existen
+ * para que esa promesa no se vuelva a quedar sin código detrás — y para que la
+ * decisión no se le escape a la biometría, que es otra ley.
+ * ======================================================================== */
+describe('el encuadre del rostro (9-sep-2026)', () => {
+
+  const L = 32;
+  const cuadro = f => { const g = new Array(L * L);
+    for (let y = 0; y < L; y++) for (let x = 0; x < L; x++) g[y * L + x] = f(x, y);
+    return g; };
+  /* Una «cara»: mucho detalle en el centro del óvalo, fondo liso alrededor.
+     No es una cara de verdad y da igual: lo que se mide es el ENCUADRE. */
+  const cara = (off) => cuadro((x, y) => {
+    const centro = x >= 8 && x < 24 && y >= 8 && y < 24;
+    return centro ? (((x * 7 + y * 13 + (off || 0)) % 2) ? 40 : 210) : 130; });
+  const pared = cuadro(() => 128);
+
+  test('una cara centrada y quieta DISPARA', () => {
+    const m = U.medirEncuadre(cara(0), cara(0), L);
+    assert.equal(m.ok, true);
+    assert.equal(m.falla, '');
+  });
+
+  test('una pared lisa NO dispara, por mucho que uno espere', () => {
+    /* Es el defecto que esto viene a cerrar: con el reloj, la pared salía
+       fotografiada igual y el CRM recibía una foto inservible. */
+    assert.equal(U.medirEncuadre(pared, pared, L).ok, false);
+  });
+
+  test('a oscuras y a contraluz tampoco, y cada uno lo dice a su manera', () => {
+    const oscuro = cuadro(() => 10), quemado = cuadro(() => 250);
+    assert.equal(U.medirEncuadre(oscuro, oscuro, L).falla, 'poca_luz');
+    assert.equal(U.medirEncuadre(quemado, quemado, L).falla, 'mucha_luz');
+    assert.match(U.textoDeEncuadre(U.medirEncuadre(oscuro, oscuro, L)), /más luz/);
+  });
+
+  test('moviéndose no dispara: la racha se cae', () => {
+    const m = U.medirEncuadre(cara(0), cara(1), L);
+    assert.equal(m.ok, false);
+    assert.equal(m.falla, 'movimiento');
+  });
+
+  test('el primer fotograma NUNCA dispara: sin uno anterior no se sabe si está quieto', () => {
+    assert.equal(U.medirEncuadre(cara(0), null, L).ok, false);
+  });
+
+  test('con el detalle en el BORDE y no en el centro, no dispara', () => {
+    /* La persona a un lado, o el cuarto entero en cámara. */
+    const ladeado = cuadro((x, y) => {
+      const borde = x < 8 || x >= 24 || y < 8 || y >= 24;
+      return borde ? (((x * 5 + y * 11) % 2) ? 30 : 220) : 130; });
+    assert.equal(U.medirEncuadre(ladeado, ladeado, L).ok, false);
+  });
+
+  test('CENTRO CON DETALLE PERO EL BORDE CON MÁS: se lee como ladeado', () => {
+    /* La rama que separa «no hay nadie» de «hay alguien, pero no ahí». Sin
+       ella, a la persona que se sale del óvalo se le diría que se acerque,
+       que es el consejo contrario al que necesita. */
+    const ambos = cuadro((x, y) => {
+      const centro = x >= 8 && x < 24 && y >= 8 && y < 24;
+      if (centro) return ((x + y) % 2) ? 100 : 160;      // algo de detalle
+      return ((x * 3 + y) % 2) ? 10 : 245;                // muchísimo más afuera
+    });
+    const m = U.medirEncuadre(ambos, ambos, L);
+    assert.equal(m.ok, false);
+    assert.equal(m.falla, 'ladeado');
+    assert.match(U.textoDeEncuadre(m), /Céntrate/);
+  });
+
+  test('un fotograma vacío o minúsculo no revienta ni dispara', () => {
+    [[], [1, 2, 3], null].forEach(g => {
+      const m = U.medirEncuadre(g, null, 0);
+      assert.equal(m.ok, false);
+    });
+  });
+
+  test('NO MIDE NADA DE LA PERSONA: solo luz, detalle y movimiento', () => {
+    /* El centinela de la frontera legal. Lo que sale de acá decide cuándo
+       apretar el obturador y nada más. Si algún día devolviera puntos del
+       rostro, distancias entre ojos o un vector, sería un dato BIOMÉTRICO
+       —sensible bajo la Ley 1581— y habría que rehacer la ficha de Data Safety
+       que hoy declara la selfie como una foto y nada más. */
+    const m = U.medirEncuadre(cara(0), cara(0), L);
+    assert.deepEqual(Object.keys(m).sort(),
+      ['borde', 'centro', 'falla', 'luz', 'movimiento', 'ok', 'textura']);
+    Object.keys(m).forEach(k => assert.ok(
+      typeof m[k] === 'number' || typeof m[k] === 'boolean' || typeof m[k] === 'string',
+      'el encuadre devolvió una estructura: ahí es donde se cuela un vector facial'));
+  });
+
+  test('cada falla tiene una frase que dice QUÉ HACER, no qué pasó', () => {
+    /* «No te veo» no le sirve a nadie parado en la calle con el teléfono en la
+       mano. Y ninguna puede quedar muda: un escáner sin texto se abandona. */
+    ['poca_luz', 'mucha_luz', 'lejos', 'ladeado', 'movimiento', ''].forEach(f => {
+      const t = U.textoDeEncuadre({ falla: f });
+      assert.ok(t && t.length > 3, 'la falla «' + f + '» se quedó sin texto');
+    });
+    assert.ok(U.textoDeEncuadre(null).length > 3, 'sin medida tampoco puede quedarse muda');
+  });
+});
+
+describe('y la pantalla del escáner no vuelve a prometer de más', () => {
+  const PLAY = fs.readFileSync(path.join(__dirname, '..', 'play', 'index.html'), 'utf8');
+
+  test('YA NO DISPARA CON EL RELOJ', () => {
+    /* La regresión exacta del 8-sep: `if (t >= 3.2) capturarRostro()`. */
+    assert.ok(!/t\s*>=\s*3\.2/.test(PLAY),
+      'el escáner volvió a disparar por tiempo: la pantalla promete que mira y no mira');
+    assert.match(PLAY, /ESCANER\.estables\s*>=\s*U\.ENCUADRE\.CUADROS/,
+      'el disparo tiene que salir de la racha de fotogramas buenos');
+  });
+
+  test('la decisión la toma cuenta.js, no la pantalla', () => {
+    /* Si la lógica se copia dentro de play/, deja de poder probarse con
+       fotogramas de mentira y vuelve a ser un ojo que nadie mira. */
+    assert.match(PLAY, /U\.medirEncuadre\(/);
+    assert.ok(!/function medirEncuadre/.test(PLAY), 'play/ se hizo su propia copia de la decisión');
+  });
+
+  test('y sigue sin haber biometría en el teléfono', () => {
+    ['faceapi', 'FaceMesh', 'descriptor', 'embedding', 'faceDescriptor', 'landmark']
+      .forEach(p => assert.ok(PLAY.indexOf(p) === -1,
+        'apareció «' + p + '» en play/: eso cambia la ficha de Data Safety'));
+  });
+});

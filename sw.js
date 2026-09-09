@@ -139,7 +139,13 @@
    telefono) y la ubicacion; el CRM compara rostros y ve la huella del aparato.
    ZXing y face-api viven en app/lib (sin CDN). Toca play/, crm.html,
    cuenta.js y privacidad.html. */
-const CACHE = 'tugarantia-v30';
+/* v31 — 9-sep-2026. UNA SOLA PUERTA: 'No tengo mi codigo' ya no abre WhatsApp,
+   lleva al registro, y en el CRM aparece la mesa de cruce que junta al que se
+   registra con la ficha vieja sin duplicarla. El escaner del rostro dispara
+   cuando de verdad hay una cara centrada y quieta (antes disparaba con el
+   reloj). Toca socio.html, play/, crm.html, puente.js, cuenta.js, nube.js y
+   cumplimiento.js. */
+const CACHE = 'tugarantia-v31';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

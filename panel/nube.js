@@ -148,7 +148,18 @@
      lo que el artículo 3 prohíbe. La sincronización es, acá, parte del
      cumplimiento legal. */
   var LISTAS_SOCIO = {
-    gestiones: ['fecha', 'canal', 'plantilla']
+    gestiones: ['fecha', 'canal', 'plantilla'],
+    /* 9-sep-2026 — EL CRUCE ES UN HECHO, NO UN CAMPO. Cuando Joan junta un
+       registro con una ficha vieja, lo que se guarda no es «le rellené la
+       cédula»: es «el 9-sep crucé el registro 77 con este cliente, y tomé estos
+       campos». Guardarlo como campos sueltos habría dejado la fusión sin manera
+       de saber cuál lado es el nuevo — y fusionarFila copia sin preguntar
+       justo lo que está vacío de un lado, que es exactamente lo que el cruce
+       llena. Como hecho fechado, los dos aparatos lo conservan y ninguno pisa
+       al otro.
+       La identidad es fecha + registro: el mismo registro cruzado el mismo día
+       es el mismo hecho, lo haya anotado el computador o el celular. */
+    cruces: ['fecha', 'registro_id']
   };
   var LISTAS_CREDITO = {
     /* 4-sep-2026 — EL MONTO SALIÓ DE LA IDENTIDAD, y lo abrió la ronda del

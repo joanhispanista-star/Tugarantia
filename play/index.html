@@ -800,6 +800,11 @@ function leerCodigoDeBarras(file) {
     var texto = res && (typeof res.getText === 'function' ? res.getText() : res.text);
     var r = U.leerCedulaPDF417(texto);
     if (!r) throw new Error('sin datos');
+    /* 9-sep-2026 — EL TIPO DE SANGRE NO SE GUARDA. El código de barras lo trae
+       y el lector lo devuelve, pero es dato de SALUD: sensible bajo la Ley 1581,
+       con finalidad propia, y no decide un peso de ningún crédito. Se tira acá,
+       antes de que toque el disco del teléfono o la red. */
+    delete r.rh;
     FOTOS.cedula_leida = r;
     /* Se dejan escritos en el formulario; la persona los revisa en «Quién eres». */
     REGISTRO.nombres = r.nombres; REGISTRO.apellidos = r.apellidos; REGISTRO.documento = r.documento;
@@ -814,7 +819,12 @@ function leerCodigoDeBarras(file) {
 }
 
 /* ---------------------------------------------------------- paso: el rostro */
-var ESCANER = { stream: null, activo: false, estables: 0, temporizador: null };
+var ESCANER = { stream: null, activo: false, estables: 0, temporizador: null,
+                previa: null, lienzoMedir: null, ultima: null };
+/* Cuántos píxeles de lado se miran. 32×32 son 1.024 números por fotograma: en
+   un celular de gama baja eso es nada, y alcanza de sobra para saber si hay una
+   cara o una pared. Subirlo no mejora la decisión y sí calienta el teléfono. */
+var LADO_MEDIR = 32;
 function pasoRostro() {
   if (!FOTOS.sensibles) {
     return '<p class="sub">No marcaste la autorización de fotos en el paso anterior, así que este paso se ' +
@@ -822,7 +832,7 @@ function pasoRostro() {
   }
   var tiene = !!FOTOS.selfie;
   return '<p class="sub">Mira a la cámara con buena luz y sin gafas oscuras. El escáner toma la foto solo ' +
-      'cuando tu rostro está quieto y centrado.</p>' +
+      'cuando tu rostro está quieto y centrado; si prefieres, tómala tú con el botón de abajo.</p>' +
     '<div class="escaner' + (tiene ? ' oculto' : '') + '" id="escaner">' +
       '<video id="camVideo" playsinline muted autoplay></video>' +
       '<canvas id="camLienzo"></canvas>' +
@@ -846,7 +856,7 @@ function repetirRostro() {
 function iniciarEscaner() {
   var v = $('camVideo'), estado = $('camEstado'); if (!v) return;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return escanerSinCamara('Tu navegador no deja usar la cámara en vivo.');
-  ESCANER.activo = true; ESCANER.estables = 0; ESCANER.desde = 0;
+  ESCANER.activo = true; ESCANER.estables = 0; ESCANER.desde = 0; ESCANER.previa = null; ESCANER.ultima = null;
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 } }, audio: false })
     .then(function (stream) {
       ESCANER.stream = stream; v.srcObject = stream;
@@ -872,31 +882,93 @@ function detenerEscaner() {
    ojos y una malla que respira. En el teléfono no se detecta ni se mide nada
    del rostro (eso sería biometría, y la app declara que no la procesa). A los
    tres segundos con la cámara encendida, dispara solo. */
+/* Recorta el interior del óvalo del VÍDEO —no del lienzo pintado, que solo
+   tiene el dibujo— y lo devuelve en gris, de LADO_MEDIR×LADO_MEDIR. El lienzo
+   de medir no está en la pantalla: nadie lo ve y nunca sale del teléfono. */
+function fotogramaGris(v) {
+  if (!ESCANER.lienzoMedir) {
+    ESCANER.lienzoMedir = document.createElement('canvas');
+    ESCANER.lienzoMedir.width = LADO_MEDIR; ESCANER.lienzoMedir.height = LADO_MEDIR;
+  }
+  var c = ESCANER.lienzoMedir, x = c.getContext('2d', { willReadFrequently: true });
+  var w = v.videoWidth, h = v.videoHeight;
+  /* El mismo recorte que dibuja el óvalo (0,32 y 0,36 del ancho y del alto),
+     para que lo que se mide sea exactamente lo que la persona ve enmarcado. */
+  var rx = w * 0.32, ry = h * 0.36;
+  try { x.drawImage(v, w / 2 - rx, h / 2 - ry, rx * 2, ry * 2, 0, 0, LADO_MEDIR, LADO_MEDIR); }
+  catch (e) { return null; }
+  var d;
+  try { d = x.getImageData(0, 0, LADO_MEDIR, LADO_MEDIR).data; } catch (e) { return null; }
+  var g = new Array(LADO_MEDIR * LADO_MEDIR);
+  for (var i = 0, j = 0; i < d.length; i += 4, j++) {
+    g[j] = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;   // gris como lo ve el ojo
+  }
+  return g;
+}
+
+/* EL BUCLE MIRA EL FOTOGRAMA, NO EL RELOJ (9-sep-2026).
+   Hasta ayer disparaba a los 3,2 segundos pasara lo que pasara —la pantalla
+   prometía «cuando tu rostro esté quieto y centrado» y era mentira: apuntando
+   al techo salía igual—. Ahora se piden CUADROS seguidos en verde, y la racha
+   se cae en cuanto la persona se mueve o se sale del óvalo.
+   Lo que decide está en app/cuenta.js, fuera de esta pantalla, para poder
+   probarlo con fotogramas de mentira. Y lo que decide es un ENCUADRE: acá no se
+   reconoce a nadie (eso sería biometría en el teléfono, y cambiaría la ficha de
+   Data Safety). El parecido con la cédula lo saca el CRM de Joan. */
 function bucleEscaner() {
   if (!ESCANER.activo) return;
   var v = $('camVideo'), c = $('camLienzo'), estado = $('camEstado');
   if (!v || !c || !v.videoWidth) { ESCANER.temporizador = setTimeout(bucleEscaner, 120); return; }
   if (!ESCANER.desde) ESCANER.desde = Date.now();
   var t = (Date.now() - ESCANER.desde) / 1000;
+
+  var g = fotogramaGris(v);
+  var m = g ? U.medirEncuadre(g, ESCANER.previa, LADO_MEDIR) : null;
+  ESCANER.previa = g;
+  ESCANER.ultima = m;
+  if (m && m.ok) ESCANER.estables++; else ESCANER.estables = 0;
+  var avance = Math.min(1, ESCANER.estables / U.ENCUADRE.CUADROS);
+
   c.width = v.videoWidth; c.height = v.videoHeight;
   var ctx = c.getContext('2d');
   ctx.clearRect(0, 0, c.width, c.height);
-  dibujarMarco(ctx, c.width, c.height, t);
-  var faltan = Math.max(0, 3 - Math.floor(t));
-  if (estado) estado.textContent = t < 0.8 ? 'Pon tu rostro dentro del óvalo' : (faltan > 0 ? 'Quieto… ' + faltan : '¡Listo!');
-  if (t >= 3.2) { capturarRostro(); return; }
+  dibujarMarco(ctx, c.width, c.height, t, !!(m && m.ok), avance);
+
+  if (estado) {
+    /* Ni un fotograma mudo: si algo falta, se dice QUÉ hacer. Y si lleva mucho
+       rato peleando, se le recuerda que puede disparar a mano — quedarse
+       atascado en el paso 3 de 9 con el teléfono en la cara es peor que una
+       foto mal encuadrada. */
+    var txt = m && m.ok
+      ? 'Quieto… ' + Math.max(1, Math.ceil((U.ENCUADRE.CUADROS - ESCANER.estables) / 6))
+      : U.textoDeEncuadre(m);
+    if (!g) txt = 'Encendiendo la cámara…';
+    else if (t > 18 && !(m && m.ok)) txt = 'Si no lo logras, toca «Tomar la foto ahora»';
+    estado.textContent = txt;
+  }
+
+  if (ESCANER.estables >= U.ENCUADRE.CUADROS) { capturarRostro(); return; }
   ESCANER.temporizador = setTimeout(bucleEscaner, 80);
 }
-function dibujarMarco(ctx, w, h, t) {
+/* 9-sep-2026 — el dibujo dice la verdad: ámbar y punteado mientras busca,
+   verde y entero cuando de verdad hay una cara centrada y quieta. Un escáner
+   que se ve igual en los dos casos es decoración; este es una señal. */
+function dibujarMarco(ctx, w, h, t, enganchado, avance) {
   ctx.save();
   var cx = w / 2, cy = h / 2, rx = w * 0.32, ry = h * 0.36;
+  var col = enganchado ? '124,255,196' : '245,197,66';
   /* el óvalo y las esquinas */
-  ctx.strokeStyle = 'rgba(245,197,66,.95)'; ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(' + col + ',.95)'; ctx.lineWidth = 3;
+  if (!enganchado) ctx.setLineDash([9, 9]);
   ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
   var L = Math.min(w, h) * 0.08, m = Math.min(w, h) * 0.06;
   [[m, m, 1, 1], [w - m, m, -1, 1], [m, h - m, 1, -1], [w - m, h - m, -1, -1]].forEach(function (k) {
     ctx.beginPath(); ctx.moveTo(k[0], k[1] + L * k[3]); ctx.lineTo(k[0], k[1]); ctx.lineTo(k[0] + L * k[2], k[1]); ctx.stroke();
   });
+  /* De acá para abajo, solo cuando hay algo enganchado: la malla y los anillos
+     encendidos sobre una pared vacía serían la misma mentira de ayer. */
+  if (!enganchado) { ctx.restore(); return; }
   /* la malla que respira dentro del óvalo */
   ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.clip();
   ctx.strokeStyle = 'rgba(120,255,190,' + (0.18 + 0.12 * Math.sin(t * 3)) + ')'; ctx.lineWidth = 1;
@@ -912,9 +984,13 @@ function dibujarMarco(ctx, w, h, t) {
     ctx.beginPath(); ctx.arc(o[0], o[1], rx * 0.06, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(o[0] - rx * 0.28, o[1]); ctx.lineTo(o[0] - rx * 0.22, o[1]); ctx.moveTo(o[0] + rx * 0.22, o[1]); ctx.lineTo(o[0] + rx * 0.28, o[1]); ctx.stroke();
   });
-  /* el arco de progreso alrededor del óvalo */
-  ctx.strokeStyle = 'rgba(120,255,190,.9)'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.ellipse(cx, cy, rx + 6, ry + 6, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, t / 3.2)); ctx.stroke();
+  /* El arco de progreso sale de la RACHA de fotogramas buenos, no del reloj:
+     si la persona se mueve, se cae y vuelve a empezar — que es justo lo que
+     tiene que ver para entender qué le piden. */
+  ctx.strokeStyle = 'rgba(120,255,190,.25)'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx + 6, ry + 6, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(120,255,190,.95)'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx + 6, ry + 6, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, avance || 0)); ctx.stroke();
   ctx.restore();
 }
 function capturarRostro() {

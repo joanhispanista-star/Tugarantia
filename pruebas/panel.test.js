@@ -1435,3 +1435,218 @@ describe('la bandeja del primer crédito del nuevo (8-sep-2026)', () => {
       assert.ok(CRM.indexOf(fn) >= 0, 'el CRM no llama a ' + fn));
   });
 });
+
+/* ==========================================================================
+ * LA MESA DE CRUCE, EJECUTANDO EL PANEL — 9 de septiembre de 2026
+ *
+ * Desde hoy el registro es la ÚNICA puerta, para nuevos y para antiguos. Lo que
+ * se vigila acá es lo que Joan pidió con sus palabras: «que no quede como dos
+ * clientes duplicados». Un centinela de texto no lo vería: hay que correr la
+ * página, marcar campos y mirar la cartera después.
+ * ======================================================================== */
+describe('la mesa de cruce: un registro y una ficha vieja (9-sep-2026)', () => {
+
+  /* La cartera de Joan de verdad: fichas incompletas, casi ninguna con cédula. */
+  const VIEJOS = {
+    socios: [
+      { id: 's1', numero: 1, nombre: 'María Pérez', telefono: '3001112233', cedula: '',
+        codigoAcceso: 'K7QP3', ingresoQuincenal: 800000 },
+      { id: 's2', numero: 2, nombre: 'Luis Torres', telefono: '3009998877', cedula: '80111333' }
+    ],
+    prestamos: [{ id: 'p1', numero: 1, socioId: 's1', socioNombre: 'María Pérez',
+      capital: 300000, costoPct: 20, fechaDesembolso: '2026-07-01', cicloActual: '2026-07-15',
+      prorrogas: [], abonosCapital: [], comprobantes: [], pagado: true, fechaPagado: '2026-07-15' }],
+    config: { negocio: 'Tu Garantía' }
+  };
+  /* El registro que llega: es María, con el mismo celular, y trae lo que a su
+     ficha le falta desde siempre. */
+  const REG_MARIA = {
+    id: 90, origen: 'abierto', codigo: '', cedula: '', nombre: 'MARIA PEREZ',
+    telefono: '3001112233', estado: 'nuevo', creado_en: '2026-09-09T10:00:00Z',
+    datos: { nombres: 'MARIA', apellidos: 'PEREZ GOMEZ', documento: '41999888',
+             celular: '3001112233', ciudad: 'Bogotá', barrio: 'Kennedy',
+             tipo_vivienda: 'Arriendo', ingreso_mes: '2000000',
+             ref1_nombre: 'Luz Marina', ref1_celular: '3007776655',
+             verificacion: 'V-3F9K' }
+  };
+  /* renderRegistros se niega a pintar sin nube conectada —y hace bien: esa
+     bandeja LLEGA por la nube—. Se le pone una configuración de mentira, que
+     no se usa para nada más: el arnés no tiene red (fetch rechaza siempre). */
+  const conNube = P => P.ev("localStorage.setItem(SB_KEY,JSON.stringify({url:'https://ejemplo.supabase.co',anon:'llave',clave:'secreta'}))");
+  const conRegistros = (P, filas) => {
+    conNube(P);
+    P.ev('_registros=' + JSON.stringify(filas) + ';renderRegistros()');
+    return P.elems.tblRegistros.innerHTML;
+  };
+  /* El arnés no parsea HTML: las casillas marcadas se simulan cambiando lo que
+     contesta querySelectorAll, que es exactamente lo que lee marcadosDelCruce. */
+  const marcar = (P, campos) => P.ev(
+    'document.querySelectorAll=(sel)=>sel===".cruceCampo"?' +
+    JSON.stringify(campos).replace(/"/g, "'") +
+    '.map(c=>({checked:true,dataset:{campo:c}})):[]');
+
+  test('LA BANDEJA AVISA que el que se registró ya es cliente tuyo', () => {
+    /* Sin esto, Joan le abre ficha nueva a alguien que ya tiene y quedan dos
+       clientes donde hay una persona: es la mitad de lo que pidió. */
+    const P = abrirPanel(); P.cargarCartera(VIEJOS);
+    const h = conRegistros(P, [REG_MARIA]);
+    assert.match(h, /Ya es tu cliente/, 'la bandeja no dice que ya lo tiene');
+    assert.match(h, /Cruzar con/, 'no ofrece cruzar');
+    assert.ok(!/＋ Abrirle la ficha/.test(h), 'sigue ofreciendo abrirle una ficha nueva al que ya es cliente');
+  });
+
+  test('al desconocido le sigue ofreciendo ficha nueva, y avisa que la ausencia no prueba nada', () => {
+    const P = abrirPanel(); P.cargarCartera(VIEJOS);
+    const h = conRegistros(P, [Object.assign({}, REG_MARIA, { id: 91, telefono: '3151234567', nombre: 'Pedro Nadie', datos: { nombres: 'Pedro', apellidos: 'Nadie', celular: '3151234567' } })]);
+    assert.match(h, /Abrirle la ficha/);
+    assert.ok(!/Ya es tu cliente/.test(h));
+    assert.match(h, /no quiere decir que sea nuevo/, 'no avisa que un no-parecido puede ser un cliente viejo igual');
+  });
+
+  test('la mesa enseña el historial y lo que falta, campo por campo', () => {
+    const P = abrirPanel(); P.cargarCartera(VIEJOS);
+    conRegistros(P, [REG_MARIA]);
+    P.ev("mesaDeCruce('90','')");
+    const h = P.elems.mBody.innerHTML;
+    assert.match(h, /Su historial contigo/, 'no le enseña el historial: Joan cruza a ciegas');
+    assert.match(h, /\$300\.000/, 'no muestra el crédito que ya le dio');
+    assert.match(h, /41\.?999\.?888|41999888/, 'no muestra la cédula que declaró');
+    assert.match(h, /Kennedy/);
+    assert.match(h, /V-3F9K/, 'no ofrece la comprobación por WhatsApp');
+    assert.match(h, /pesado/, 'no marca los campos que deciden plata o identidad');
+  });
+
+  test('CRUZAR NO CREA UN CLIENTE NUEVO: completa el que ya existe', () => {
+    const P = abrirPanel(); P.cargarCartera(VIEJOS);
+    conRegistros(P, [REG_MARIA]);
+    P.ev("mesaDeCruce('90','')");
+    marcar(P, ['ciudad', 'barrio', 'referencia']);
+    /* Los tres le suben la garantia, asi que desde el 9-sep piden la casilla. */
+    P.ev("document.getElementById('cruceVerif').checked=true");
+    P.ev("aplicarCruce('90','s1')");
+    assert.equal(P.ev('DB.socios.length'), 2, 'duplicó al cliente: quedaron dos fichas para una persona');
+    const s = JSON.parse(P.ev("JSON.stringify(DB.socios.find(x=>x.id==='s1'))"));
+    assert.equal(s.ciudad, 'Bogotá');
+    assert.equal(s.barrio, 'Kennedy');
+    assert.equal(s.referencia.nombre, 'Luz Marina');
+    assert.equal(s.referencia.telefono, '3007776655');
+  });
+
+  test('lo que NO se marca no se toca, ni siquiera estando vacío', () => {
+    /* El «completa lo que falte» automático es justo la operación que rompe una
+       ficha en silencio: el cliente escribe cualquier cosa y entra sola. */
+    const P = abrirPanel(); P.cargarCartera(VIEJOS);
+    conRegistros(P, [REG_MARIA]); P.ev("mesaDeCruce('90','')");
+    marcar(P, ['ciudad']);
+    P.ev("document.getElementById('cruceVerif').checked=true");
+    P.ev("aplicarCruce('90','s1')");
+    const s = JSON.parse(P.ev("JSON.stringify(DB.socios.find(x=>x.id==='s1'))"));
+    assert.equal(s.cedula, '', 'le metió la cédula sin que Joan la marcara');
+    assert.equal(s.ingresoQuincenal, 800000, 'le cambió el ingreso —o sea el cupo— sin que Joan lo marcara');
+  });
+
+  test('LOS CAMPOS PESADOS NO PASAN sin confirmar que el registro es suyo', () => {
+    /* Cédula, celular e ingreso deciden por dónde entra a su app, cómo lo
+       identifica la nube y cuánto puede pedir. Marcarlos sin haber comprobado
+       quién mandó ese registro es regalar cupo a un desconocido. */
+    const P = abrirPanel(); P.cargarCartera(VIEJOS);
+    conRegistros(P, [REG_MARIA]); P.ev("mesaDeCruce('90','')");
+    marcar(P, ['cedula', 'ingresoQuincenal']);
+    P.ev("document.getElementById('cruceVerif').checked=false");
+    let aviso = '';
+    P.ev('alert=t=>{globalThis.__aviso=String(t)}');
+    P.ev("aplicarCruce('90','s1')");
+    aviso = P.ev('String(globalThis.__aviso||"")');
+    const s = JSON.parse(P.ev("JSON.stringify(DB.socios.find(x=>x.id==='s1'))"));
+    assert.equal(s.cedula, '', 'aceptó la cédula sin comprobación');
+    assert.equal(s.ingresoQuincenal, 800000, 'le subió el cupo sin comprobación');
+    assert.match(aviso, /identidad|CUPO/, 'no le explicó a Joan por qué no pasó');
+  });
+
+  test('con la comprobación marcada sí pasan, y queda el rastro de quién lo cruzó y cuándo', () => {
+    const P = abrirPanel(); P.cargarCartera(VIEJOS);
+    conRegistros(P, [REG_MARIA]); P.ev("mesaDeCruce('90','')");
+    marcar(P, ['cedula', 'ingresoQuincenal']);
+    P.ev("document.getElementById('cruceVerif').checked=true");
+    P.ev("aplicarCruce('90','s1')");
+    const s = JSON.parse(P.ev("JSON.stringify(DB.socios.find(x=>x.id==='s1'))"));
+    assert.equal(s.cedula, '41999888');
+    assert.equal(s.ingresoQuincenal, 1000000, 'el ingreso del mes tiene que entrar por quincena');
+    assert.equal(P.ev('DB.socios.length'), 2, 'duplicó al cliente');
+    /* El cruce es un HECHO fechado: es lo que le deja saber a la fusión entre
+       el computador y el celular cuál lado es el nuevo. */
+    assert.equal(s.cruces.length, 1);
+    assert.equal(s.cruces[0].registro_id, '90');
+    assert.equal(s.cruces[0].verificado, true);
+    assert.ok(s.cruces[0].campos.some(c => c.campo === 'cedula' && c.queda === '41999888'),
+      'no dejó rastro de qué campo se tomó de dónde');
+    /* Lo declarado que no tiene campo propio no se pierde: queda consultable. */
+    assert.equal(s.vinculacion.barrio, 'Kennedy');
+    assert.equal(s.codigoAcceso, 'K7QP3', 'le tocó el código de acceso, que no es de esta mesa');
+  });
+
+  test('COMPLETARLE LA FICHA LE SUBE EL CUPO, y eso también pide confirmación', () => {
+    /* Hallazgo del 9-sep, midiendo contra el motor: la garantía de un socio
+       sube cuando su ficha se completa, así que ponerle la ciudad o la
+       referencia es plata — y el ingreso por quincena, que parecía el campo
+       de plata, no la mueve. Por eso el freno no puede ser una lista escrita
+       a mano: se le pregunta al motor con la ficha simulada. */
+    const P = abrirPanel(); P.cargarCartera(VIEJOS);
+    conRegistros(P, [REG_MARIA]); P.ev("mesaDeCruce('90','')");
+    const s0 = P.ev("cupoDe(DB.socios[0],migrarSocio(DB.socios[0]).garantia.nivel)");
+    marcar(P, ['ciudad']);
+    P.ev("document.getElementById('cruceVerif').checked=false");
+    P.ev('alert=t=>{globalThis.__aviso=String(t)}');
+    P.ev("aplicarCruce('90','s1')");
+    assert.match(P.ev('String(globalThis.__aviso||"")'), /SUBE EL CUPO/,
+      'dejó pasar sin comprobación un dato que le sube el cupo');
+    assert.equal(P.ev('DB.socios[0].ciudad||""'), '', 'lo aplicó igual');
+    /* Y con la casilla marcada sí pasa, y el cupo sube de verdad. */
+    P.ev("document.getElementById('cruceVerif').checked=true");
+    P.ev("aplicarCruce('90','s1')");
+    const s1 = P.ev("cupoDe(DB.socios[0],migrarSocio(DB.socios[0]).garantia.nivel)");
+    assert.ok(s1 > s0, 'completarle la ficha tenía que subirle el cupo: ' + s0 + ' → ' + s1);
+  });
+
+  test('el cruce NO toca un solo campo de plata', () => {
+    /* Lo que declara el cliente no puede mover sus créditos ni su garantía. */
+    const P = abrirPanel(); P.cargarCartera(VIEJOS);
+    const antes = P.ev('JSON.stringify(DB.prestamos)');
+    conRegistros(P, [REG_MARIA]); P.ev("mesaDeCruce('90','')");
+    marcar(P, ['cedula', 'ciudad', 'ingresoQuincenal']);
+    P.ev("document.getElementById('cruceVerif').checked=true");
+    P.ev("aplicarCruce('90','s1')");
+    assert.equal(P.ev('JSON.stringify(DB.prestamos)'), antes, 'el cruce movió los créditos');
+  });
+
+  test('«no es la misma persona» abre una ficha nueva, como antes', () => {
+    const P = abrirPanel(); P.cargarCartera(VIEJOS);
+    conRegistros(P, [REG_MARIA]);
+    P.ev("otraPersona('90')");
+    /* editarCliente prellena el formulario; la ficha nace al guardar. */
+    assert.match(P.elems.mBody.innerHTML, /MARIA PEREZ/, 'no prellenó el formulario con lo declarado');
+    assert.equal(P.ev('DB.socios.length'), 2, 'creó la ficha antes de que Joan guardara');
+  });
+
+  test('mismo celular con cédula DISTINTA no se ofrece como cruce seguro', () => {
+    /* Un celular se hereda y se presta. Si las dos cédulas existen y difieren,
+       son dos personas: la bandeja lo enseña como duda, nunca como certeza. */
+    const P = abrirPanel(); P.cargarCartera(VIEJOS);
+    const h = conRegistros(P, [Object.assign({}, REG_MARIA, { id: 92, cedula: '99999999',
+      telefono: '3009998877', datos: { documento: '99999999', celular: '3009998877' } })]);
+    assert.match(h, /Mismo celular, otra cédula/);
+    assert.ok(!/Ya es tu cliente/.test(h), 'ofreció como seguro un cruce entre dos personas');
+  });
+
+  test('si hay varios parecidos, primero se elige: nadie entra por inercia', () => {
+    const P = abrirPanel(); P.cargarCartera(VIEJOS);
+    const reg = { id: 93, origen: 'abierto', codigo: '', cedula: '', nombre: 'Luis Torres Mejía',
+      telefono: '3123334444', estado: 'nuevo', creado_en: '2026-09-09T10:00:00Z',
+      datos: { nombres: 'Luis', apellidos: 'Torres Mejía', celular: '3123334444' } };
+    conRegistros(P, [reg]);
+    P.ev("mesaDeCruce('93','')");
+    const h = P.elems.mBody.innerHTML;
+    assert.match(h, /Compararlos/, 'metió un parecido flojo directo a la confrontación');
+    assert.match(h, /alguien nuevo/, 'no deja la salida de que sea otra persona');
+  });
+});

@@ -468,6 +468,132 @@
     return partes.join(' · ') || u.slice(0, 60);
   }
 
+
+  /* ==========================================================================
+   * ¿ESTÁ LA CARA EN EL ÓVALO Y QUIETA? — 9 de septiembre de 2026
+   *
+   * Joan: «quiero que cuando la cara esté centrada la página haga como si
+   * escaneara la cara y tome la foto automáticamente, que se vea muy futurista».
+   *
+   * HASTA HOY LA PANTALLA MENTÍA. El escáner del 8-sep decía «la foto se toma
+   * sola cuando tu rostro está quieto y centrado» y disparaba con un reloj: a
+   * los 3,2 segundos, mirara la persona a la cámara o al techo. La regla de la
+   * casa es que la interfaz no promete lo que el código no hace, así que o se
+   * quitaba la frase o se hacía la comprobación. Se hizo la comprobación.
+   *
+   * LO QUE SE MIDE, Y LO QUE NO. Esto NO reconoce a nadie: no saca un vector
+   * facial, no compara con la cédula, no distingue una cara de un cuadro
+   * colgado en la pared. Mira cuatro cosas del fotograma —hay luz, hay detalle
+   * en el centro, el detalle está DENTRO del óvalo y no afuera, y no se mueve—
+   * y con eso decide cuándo apretar el obturador.
+   *
+   * ES UNA DECISIÓN LEGAL, NO UN ATAJO TÉCNICO. Un detector de rostros de
+   * verdad (face-api) en el teléfono convierte la foto en dato BIOMÉTRICO
+   * —sensible bajo la Ley 1581— y obliga a rehacer la ficha de Data Safety que
+   * hoy declara la selfie como una foto y nada más (app/cumplimiento.js). El
+   * parecido con la cédula lo sigue calculando el CRM de Joan, en su
+   * computador, donde ese tratamiento sí está declarado. Acá se mide un
+   * ENCUADRE, que es lo que hace la cámara de cualquier celular.
+   *
+   * Y POR ESO LA PANTALLA DICE «ENCUADRE», NO «TE RECONOCÍ». Un cartón con una
+   * foto impresa pasaría esta prueba. Quien verifica que la persona es la de la
+   * cédula es Joan, mirando las dos fotos en su CRM.
+   * ======================================================================== */
+
+  /* Los umbrales, juntos y con nombre, porque son lo único de esto que hay que
+     calibrar mirando teléfonos de verdad. Si quedan estrictos, la persona se
+     atasca en el paso 3 con el celular en la cara; si quedan flojos, la foto
+     sale del techo. Por eso el botón manual nunca desaparece. */
+  var ENCUADRE = {
+    LUZ_MIN: 32,        // más oscuro que esto es un bolsillo
+    LUZ_MAX: 238,       // más claro es una ventana a contraluz
+    TEXTURA_MIN: 240,   // varianza del centro: una pared lisa da casi cero
+    VENTAJA_CENTRO: 1.25, // el centro tiene que tener MÁS detalle que el borde
+    MOVIMIENTO_MAX: 7,  // diferencia media entre dos fotogramas seguidos
+    CUADROS: 10         // seguidos en verde antes de disparar (~0,8 s)
+  };
+
+  function promedio(v, desde, hasta) {
+    var t = 0, n = 0;
+    for (var i = desde; i < hasta; i++) { t += v[i]; n++; }
+    return n ? t / n : 0;
+  }
+
+  /**
+   * Mide el encuadre de un fotograma ya reducido a gris.
+   *
+   * @param gris   valores 0..255 de un cuadro de lado×lado (el interior del óvalo)
+   * @param previa el mismo arreglo del fotograma anterior, o null
+   * @param lado   cuántos pixeles de lado (por defecto, la raíz de la longitud)
+   * @returns {luz, textura, centro, borde, movimiento, ok, falla}
+   *          `falla` dice QUÉ falta, para que la pantalla lo diga en castellano
+   *          en vez de quedarse muda: 'luz' | 'poca_luz' | 'mucha_luz' |
+   *          'lejos' | 'ladeado' | 'movimiento' | ''
+   */
+  function medirEncuadre(gris, previa, lado) {
+    var g = gris || [];
+    var n = g.length;
+    var L = lado || Math.round(Math.sqrt(n));
+    if (!n || L < 8) return { luz: 0, textura: 0, centro: 0, borde: 0, movimiento: 999, ok: false, falla: 'lejos' };
+
+    var luz = promedio(g, 0, n);
+    if (luz < ENCUADRE.LUZ_MIN) return { luz: luz, textura: 0, centro: 0, borde: 0, movimiento: 999, ok: false, falla: 'poca_luz' };
+    if (luz > ENCUADRE.LUZ_MAX) return { luz: luz, textura: 0, centro: 0, borde: 0, movimiento: 999, ok: false, falla: 'mucha_luz' };
+
+    /* El centro es el cuadrado del medio (la mitad del lado); el borde es todo
+       lo demás. Una cara mete su detalle —ojos, cejas, boca, el filo de la
+       nariz— en el centro; una pared, un techo o un hombro no. */
+    var d0 = Math.floor(L * 0.25), d1 = Math.ceil(L * 0.75);
+    var sc = 0, sc2 = 0, nc = 0, sb = 0, sb2 = 0, nb = 0;
+    for (var y = 0; y < L; y++) {
+      for (var x = 0; x < L; x++) {
+        var v = g[y * L + x];
+        if (y >= d0 && y < d1 && x >= d0 && x < d1) { sc += v; sc2 += v * v; nc++; }
+        else { sb += v; sb2 += v * v; nb++; }
+      }
+    }
+    var centro = nc ? (sc2 / nc) - (sc / nc) * (sc / nc) : 0;
+    var borde = nb ? (sb2 / nb) - (sb / nb) * (sb / nb) : 0;
+
+    /* Poco detalle en el centro: o no hay nadie, o está muy lejos. */
+    if (centro < ENCUADRE.TEXTURA_MIN) {
+      return { luz: luz, textura: centro, centro: centro, borde: borde, movimiento: 999, ok: false, falla: 'lejos' };
+    }
+    /* Hay detalle, pero el borde tiene tanto o más: la persona está a un lado,
+       o lo que se ve es el cuarto entero y no una cara. */
+    if (centro < borde * ENCUADRE.VENTAJA_CENTRO) {
+      return { luz: luz, textura: centro, centro: centro, borde: borde, movimiento: 999, ok: false, falla: 'ladeado' };
+    }
+
+    /* Sin fotograma anterior no se puede decir si está quieto: no es un fallo,
+       es que todavía no se sabe. */
+    if (!previa || previa.length !== n) {
+      return { luz: luz, textura: centro, centro: centro, borde: borde, movimiento: 999, ok: false, falla: 'movimiento' };
+    }
+    var dif = 0;
+    for (var i = 0; i < n; i++) dif += Math.abs(g[i] - previa[i]);
+    var mov = dif / n;
+    if (mov > ENCUADRE.MOVIMIENTO_MAX) {
+      return { luz: luz, textura: centro, centro: centro, borde: borde, movimiento: mov, ok: false, falla: 'movimiento' };
+    }
+    return { luz: luz, textura: centro, centro: centro, borde: borde, movimiento: mov, ok: true, falla: '' };
+  }
+
+  /* Lo que la persona lee en pantalla. Cada frase dice qué hacer, no qué pasó:
+     «No te veo» no le sirve a nadie; «acércate un poco» sí. */
+  var TEXTO_ENCUADRE = {
+    poca_luz: 'Busca un sitio con más luz',
+    mucha_luz: 'Demasiada luz atrás: date la vuelta',
+    lejos: 'Acerca tu cara al óvalo',
+    ladeado: 'Céntrate en el óvalo',
+    movimiento: 'Quieto…',
+    '': 'Listo'
+  };
+  function textoDeEncuadre(m) {
+    if (!m) return TEXTO_ENCUADRE.lejos;
+    return TEXTO_ENCUADRE[m.falla] !== undefined ? TEXTO_ENCUADRE[m.falla] : TEXTO_ENCUADRE.lejos;
+  }
+
   return {
     VERSION: '2026-08-11',
 
@@ -488,6 +614,12 @@
     /* la cédula leída y el aparato (8-sep-2026) */
     leerCedulaPDF417: leerCedulaPDF417,
     dispositivoDe: dispositivoDe,
+
+    /* el encuadre del rostro (9-sep-2026): la decision de cuando disparar,
+       fuera de la pantalla para poder probarla con fotogramas de mentira. */
+    medirEncuadre: medirEncuadre,
+    textoDeEncuadre: textoDeEncuadre,
+    ENCUADRE: ENCUADRE,
 
     /* el formulario */
     CAMPOS: CAMPOS,

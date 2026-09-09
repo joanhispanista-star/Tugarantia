@@ -2370,13 +2370,10 @@ function verCliente(id){
      no pueden decir números distintos. */
   const debeHoy=activos.reduce((t,p)=>t+totalCiclo(p),0);
   const capCalle=activos.reduce((t,p)=>t+capitalActual(p),0);
-  const bloqueSuma=activos.length>1
-    ? `<div class="info-row"><span class="k"><b>Todos sus créditos, juntos</b>
-         <div class="muted">${activos.length} activos · capital en la calle ${COP(capCalle)}</div></span>
-       <span class="vv"><b style="font-size:18px">${COP(debeHoy)}</b>
-         <div class="muted">si paga todo hoy, con la mora incluida</div></span></div>`
-    : '';
-  const filaCred=p=>`<div class="info-row"><span class="k">${fmtFecha(p.fechaDesembolso)} · ${COP(p.capital)}</span><span class="vv"><span class="chip ${estadoPrestamo(p)}">${ESTADO_TXT[estadoPrestamo(p)]}</span> <span class="gano">${COP(gananciaCobrada(p))}</span> <a href="#" onclick="event.preventDefault();verCredito('${p.id}')">ver</a></span></div>`;
+  /* 9-sep-2026 — la lista de créditos se fue a bloqueCreditosHTML(s): la mesa
+     de cruce también la necesita, y dos copias de «cuánto debe» son dos
+     verdades. Las cifras de arriba (debeHoy, capCalle) siguen acá porque las
+     usa el resto de la ficha. */
   const fila=(k,v)=>v?`<div class="info-row"><span class="k">${k}</span><span class="vv">${escHTML(v)}</span></div>`:'';
   const vivienda=[s.tipoVivienda,s.numeroVivienda].filter(Boolean).join(' ');
   const r=riesgoCliente(s),npr=totalProrrogasCliente(s);
@@ -2457,9 +2454,7 @@ function verCliente(id){
     ${fila('Nota de riesgo (manual)',s.notaRiesgo)}
     ${gal}
     <div class="sub-h">Créditos · historial</div>
-    ${bloqueSuma}
-    ${activos.length?'<div class="muted" style="margin-bottom:6px">Activos</div>'+activos.map(filaCred).join(''):''}
-    ${previos.length?'<div class="muted" style="margin:10px 0 6px">Anteriores</div>'+previos.map(filaCred).join(''):''}
+    ${bloqueCreditosHTML(s)}
     ${!ps.length?'<p class="muted">Sin créditos.</p>':''}
     <div class="sub-h">Préstamos con garantía</div>
     <div class="info-row"><span class="k">Garantía ganada libre <span class="muted">(el máximo que puedes prestarle)</span></span><b>${COP(maxR)}</b></div>
@@ -4652,7 +4647,8 @@ function renderRegistros(){
     b.innerHTML=`<div class="empty"><div class="ic">📭</div><p>Nadie esperando.<br><span class="muted">Toca “↻ Traer de la nube” para volver a mirar.</span></p></div>`;
     return;
   }
-  b.innerHTML=`<table><thead><tr><th>Quién</th><th>Origen</th><th>Cédula</th><th>Celular</th><th>Cuándo</th><th></th></tr></thead><tbody>${
+  b.innerHTML=`<div class="muted" style="padding:10px 14px 0;font-size:12px">Si alguien no aparece marcado como cliente tuyo, no quiere decir que sea nuevo: una ficha vieja sin cédula y con el número cambiado no se parece a nada. Búscalo por nombre en Clientes antes de abrirle una ficha.</div>
+  <table><thead><tr><th>Quién</th><th>Origen</th><th>Cédula</th><th>Celular</th><th>Cuándo</th><th></th></tr></thead><tbody>${
     _registros.map(r=>{
       /* El chip cuenta de dónde vino: los de la app publicable se registraron
          SOLOS (traen la vinculación completa en datos); los de invitación
@@ -4665,12 +4661,20 @@ function renderRegistros(){
          sigue sin verificar: no es un rechazo, es una duda que tu primer
          mensaje resuelve. */
       const verif=(tieneDatos&&r.datos.verificacion)?String(r.datos.verificacion):'';
-      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${verif?`<div class="muted" title="Si te llegó por WhatsApp desde ese número, el celular es suyo">verif. <b class="mono">${escHTML(verif)}</b></div>`:''}</td>
+      /* 9-sep-2026 — ¿ESTE YA ES CLIENTE TUYO? Desde hoy el registro es la
+         única puerta para nuevos y antiguos, así que la bandeja tiene que
+         decirlo de un vistazo: sin esto, Joan le abre ficha nueva a alguien que
+         ya tiene y quedan dos clientes donde hay una persona. La regla vive en
+         el puente; acá solo se pinta. */
+      const cand=PUENTE.candidatosDeCruce(DB,r), c0=cand[0];
+      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${verif?`<div class="muted" title="Si te llegó por WhatsApp desde ese número, el celular es suyo">verif. <b class="mono">${escHTML(verif)}</b></div>`:''}${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}</td>
       <td>${abierto?'<span class="chip al-dia">📱 App</span>':'<span class="chip pagado">🎟️ '+escHTML(r.codigo||'Invitación')+'</span>'}</td>
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
       <td>${fmtFecha(String(r.creado_en||'').slice(0,10))}</td>
-      <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}<button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button>
+      <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}${c0
+        ? `<button class="btn btn-rojo btn-sm" onclick="mesaDeCruce('${escHTML(String(r.id))}','')">🔗 Cruzar con ${escHTML(codCliente(c0.socio))}</button>`
+        : `<button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button>`}
         <button class="btn btn-ghost btn-sm" onclick="descartarRegistro('${escHTML(String(r.id))}')" title="No abrirle cuenta">✕</button></td></tr>`;}).join('')}</tbody></table>`;
 }
 
@@ -4778,13 +4782,11 @@ function fichaDesdeRegistro(id){
      Lo que no tiene campo propio en la ficha viaja entero en s.vinculacion
      (lo engancha guardarCliente vía _vinculacionPendiente). */
   const d=(r.datos&&typeof r.datos==='object')?r.datos:{};
-  const pre={nombre:r.nombre||((d.nombres||'')+' '+(d.apellidos||'')).trim(),
-    cedula:r.cedula||d.documento||'',telefono:r.telefono||d.celular||'',
-    email:d.correo||'',direccion:d.direccion||'',ciudad:d.ciudad||'',barrio:d.barrio||'',
-    tipoVivienda:d.tipo_vivienda||'casa',
-    ingresoQuincenal:d.ingreso_mes?Math.round(Number(String(d.ingreso_mes).replace(/\D/g,''))/2)||0:0,
-    referencia:{nombre:d.ref1_nombre||'',telefono:d.ref1_celular||''},
-    codigoInvitacion:cod||r.codigo||''};
+  /* 9-sep-2026 — UN SOLO MAPEO, y vive en el puente. Acá había una copia con
+     `tipo_vivienda || 'casa'`: el que contestó «Arriendo» quedaba de dueño de
+     casa, sin un error en pantalla y con la garantía —o sea el cupo— más alta.
+     PUENTE.fichaDeclarada no inventa: lo que no vino queda vacío. */
+  const pre=Object.assign(PUENTE.fichaDeclarada(r),{codigoInvitacion:cod||r.codigo||''});
   /* editarCliente limpia el pendiente al abrirse, así que se marca DESPUÉS: si
      no, un cliente que crees más tarde se llevaría este registro por delante. */
   editarCliente(null,pre);
@@ -4799,6 +4801,257 @@ function fichaDesdeRegistro(id){
 }
 let _huellaPendiente=null;
 function pintarFotoBox(key){ const box=document.getElementById('fot_'+key); if(!box||!_fotosTmp[key]) return; box.classList.add('ok'); let img=box.querySelector('img'); if(!img){img=document.createElement('img');box.appendChild(img);} img.src=_fotosTmp[key]; const l=box.querySelector('.lbl'); if(l) l.textContent='Listo · cambiar'; }
+/* ==========================================================================
+ * LA MESA DE CRUCE — 9 de septiembre de 2026
+ *
+ * Joan: «que yo desde el CRM tenga la información y pueda cruzar la información
+ * del cliente con la que yo manualmente anteriormente ingresé, y que se pueda
+ * ver su historial y que no quede como dos clientes duplicados, ya que mis
+ * clientes antiguos tienen información incompleta».
+ *
+ * LA MÁQUINA PROPONE, JOAN DISPONE. Quién puede ser quién lo calcula
+ * PUENTE.candidatosDeCruce, que no escribe nada. Acá solo se pinta, se le
+ * enseña a Joan el historial de esa persona —para que sepa a quién está
+ * juntando con quién— y se aplica lo que él marque. Juntar dos personas mezcla
+ * dos historiales de plata, y separarlas después no existe.
+ *
+ * TRES COSAS QUE NO SE HACEN, y cada una por su motivo:
+ *   · No se pisa nada que ya tenga valor sin que Joan lo marque, campo por
+ *     campo. El «completa lo que falte» automático es justo la operación que
+ *     rompe una ficha en silencio.
+ *   · No se toca UN SOLO campo de plata. Créditos, pagos, garantía, nivel y
+ *     código de acceso no están en esta mesa: lo declarado por el cliente no
+ *     puede mover su cupo sin que Joan lo mire.
+ *   · El cruce no se guarda como «campos rellenados»: se guarda como un HECHO
+ *     FECHADO en s.cruces[], que es una lista que SUMA (panel/nube.js). Si se
+ *     guardara como campos sueltos, la fusión entre el computador y el celular
+ *     no tendría cómo saber cuál versión es la nueva.
+ * ======================================================================== */
+
+/* El historial de créditos, en un solo sitio. Antes vivía dentro de verCliente
+   y la mesa iba a necesitar el suyo: dos copias de «cuánto debe» es como nacen
+   las dos verdades que este proyecto ya pagó doce veces. */
+function bloqueCreditosHTML(s){
+  const ps=DB.prestamos.filter(p=>p.socioId===s.id);
+  if(!ps.length) return '<div class="muted">Todavía no le has dado ningún crédito.</div>';
+  const activos=ps.filter(p=>!p.pagado), previos=ps.filter(p=>p.pagado);
+  const filaCred=p=>`<div class="info-row"><span class="k">${fmtFecha(p.fechaDesembolso)} · ${COP(p.capital)}</span><span class="vv"><span class="chip ${estadoPrestamo(p)}">${ESTADO_TXT[estadoPrestamo(p)]}</span> <span class="gano">${COP(gananciaCobrada(p))}</span> <a href="#" onclick="event.preventDefault();verCredito('${p.id}')">ver</a></span></div>`;
+  const debeHoy=activos.reduce((t,p)=>t+totalCiclo(p),0);
+  const capCalle=activos.reduce((t,p)=>t+capitalActual(p),0);
+  const bloqueSuma=activos.length>1
+    ? `<div class="info-row"><span class="k"><b>Todos sus créditos, juntos</b>
+         <div class="muted">${activos.length} activos · capital en la calle ${COP(capCalle)}</div></span>
+       <span class="vv"><b style="font-size:18px">${COP(debeHoy)}</b>
+         <div class="muted">si paga todo hoy, con la mora incluida</div></span></div>`
+    : '';
+  return bloqueSuma
+    +(activos.length?'<div class="muted" style="margin-bottom:6px">Activos</div>'+activos.map(filaCred).join(''):'')
+    +(previos.length?'<div class="muted" style="margin:10px 0 6px">Anteriores</div>'+previos.map(filaCred).join(''):'');
+}
+
+/* El chip de la bandeja: qué tan seguro es el parecido, en una línea que Joan
+   lee de reojo. Los colores son los de siempre — verde lo seguro, ámbar la
+   duda — porque un color nuevo se aprende y este se reconoce. */
+function chipDeCruce(c){
+  if(!c) return '';
+  if(c.fuerza>=2) return `<span class="chip pagado" title="${escHTML(c.porque)}">🔗 Ya es tu cliente · ${escHTML(codCliente(c.socio))}</span>`;
+  if(c.motivo==='celular_con_duda') return `<span class="chip mora" title="${escHTML(c.porque)}">⚠️ Mismo celular, otra cédula</span>`;
+  return `<span class="chip prorroga" title="${escHTML(c.porque)}">🔎 ¿Será ${escHTML(c.socio.nombre.split(/\s+/).slice(0,2).join(' '))}?</span>`;
+}
+
+/* ¿CUÁNTO LE MUEVE EL CUPO ESTE CAMPO? No se adivina: se simula la ficha con el
+   dato puesto y se le pregunta al motor, que es el único que sabe. La garantía
+   de un socio sube cuando su ficha se completa (datosKycDe), así que
+   «completarle los datos» NO es una tarea administrativa: es plata. Medido el
+   9-sep en una ficha real, ponerle la ciudad valía $5.000 de cupo y la
+   referencia $10.000; el ingreso por quincena, cero.
+   Vive en el CRM y no en el puente porque necesita la cartera entera. */
+function cupoActual(s){ return cupoDe(s,migrarSocio(s).garantia.nivel); }
+function mueveElCupo(s,r,campo){
+  try{
+    const sim=Object.assign({},s,valoresDelCruce(s,r,[campo]));
+    return cupoActual(sim)-cupoActual(s);
+  }catch(e){ return 0; }   // ante la duda, se trata como que no mueve y la vista previa lo dirá igual
+}
+
+let _cruceCand=[];
+/* Abre la mesa. `idSocio` vacío significa «Joan quiere elegir a quién»: se le
+   muestra la lista de candidatos en vez de la confrontación. */
+function mesaDeCruce(idReg,idSocio){
+  const r=_registros.find(x=>String(x.id)===String(idReg)); if(!r) return;
+  _cruceCand=PUENTE.candidatosDeCruce(DB,r);
+  if(!idSocio){
+    if(!_cruceCand.length) return fichaDesdeRegistro(idReg);
+    if(_cruceCand.length===1&&_cruceCand[0].fuerza>=2) idSocio=_cruceCand[0].socio.id;
+  }
+  if(!idSocio) return listaDeCandidatos(idReg);
+  const s=DB.socios.find(x=>x.id===idSocio); if(!s) return;
+  const cand=_cruceCand.find(c=>c.socio.id===idSocio);
+  const filas=PUENTE.camposDelCruce(s,r);
+  const decide=filas.filter(f=>f.estado==='falta'||f.estado==='distinto');
+  const verif=(r.datos&&r.datos.verificacion)?String(r.datos.verificacion):'';
+
+  const filaHTML=f=>{
+    const marcable=f.estado==='falta'||f.estado==='distinto';
+    /* Se premarca solo lo que falta Y no mueve el cupo Y no es de identidad. Un
+       campo premarcado es un campo que Joan acepta sin leer: premarcar los que
+       dan cupo sería regalarlo por inercia. */
+    const delta=marcable?mueveElCupo(s,r,f.campo):0;
+    const premarcar=f.estado==='falta'&&!f.pesado&&delta===0;
+    const val=v=>v===''||v==null?'<span class="muted">—</span>':escHTML(f.campo==='ingresoQuincenal'?COP(v):String(v));
+    const color=f.estado==='falta'?'al-dia':f.estado==='distinto'?'mora':'';
+    return `<tr${f.pesado&&marcable?' style="background:var(--papel-2)"':''}>
+      <td>${escHTML(f.etiqueta)}${f.pesado?' <span class="chip mora" title="Este campo no es un dato más: cámbialo solo si estás seguro">pesado</span>':''}</td>
+      <td>${val(f.mio)}</td>
+      <td>${val(f.declarado)}</td>
+      <td style="text-align:right">${marcable
+        ? `<label class="permiso" style="margin:0"><input type="checkbox" class="cruceCampo" data-campo="${escHTML(f.campo)}" ${premarcar?'checked':''} onchange="pintarCambioDeCupo('${escHTML(idReg)}','${escHTML(idSocio)}')"><span>${f.estado==='falta'?'llenar':'cambiar'}</span>${delta>0?'<div class="muted">+'+COP(delta)+' de cupo</div>':''}</label>`
+        : `<span class="chip ${color}">${f.estado==='igual'?'igual':f.estado==='solo_mio'?'solo tuyo':'ninguno'}</span>`}</td></tr>`;
+  };
+
+  openModal('Cruzar · '+r.nombre+' con '+codCliente(s)+' '+s.nombre,`
+    <div class="alerta ${cand&&cand.duda?'warn':'ok'}" style="margin-bottom:12px">
+      <b>${cand?escHTML(cand.porque):'Lo estás cruzando a mano.'}</b>
+      ${cand&&cand.duda?'<div style="margin-top:6px">No lo cruces por el parecido: míralo abajo y decídelo tú.</div>':''}
+    </div>
+
+    <div class="sub-h">Antes de nada: ¿es él?</div>
+    <label class="permiso"><input type="checkbox" id="cruceVerif"><span>
+      ${verif?`Me llegó el código <b class="mono">${escHTML(verif)}</b> por WhatsApp <b>desde el ${escHTML(r.telefono||'ese número')}</b>.`
+             :`Hablé con <b>${escHTML(r.nombre)}</b> y confirmé que este registro es suyo.`}
+      <span class="muted">El remitente de un WhatsApp lo pone WhatsApp, no la persona: por eso vale como comprobación. Sin marcar esto no se pueden cambiar los campos pesados.</span>
+    </span></label>
+
+    <div class="sub-h">Su historial contigo</div>
+    ${bloqueCreditosHTML(s)}
+
+    <div class="sub-h">Campo por campo — ${decide.length?decide.length+' por decidir':'no hay nada que decidir'}</div>
+    <table><thead><tr><th>Dato</th><th>Lo que yo tenía</th><th>Lo que declaró</th><th style="text-align:right">¿Lo tomo?</th></tr></thead>
+      <tbody>${filas.map(filaHTML).join('')}</tbody></table>
+    <div id="cruceCupo" style="margin-top:10px"></div>
+
+    <div class="sub-h">Sus fotos y desde dónde se registró</div>
+    <div id="cruceFotos"><div class="muted">Buscándolas…</div></div>
+
+    <div class="two" style="margin-top:16px">
+      <button class="btn btn-rojo" onclick="aplicarCruce('${escHTML(String(idReg))}','${escHTML(idSocio)}')">🔗 Es la misma persona · guardar</button>
+      <button class="btn btn-ghost" onclick="otraPersona('${escHTML(String(idReg))}')">No es la misma persona</button>
+    </div>`);
+  pintarCambioDeCupo(idReg,idSocio);
+  pintarFotosRegistro(r.telefono||r.cedula,'cruceFotos');
+}
+
+/* Cuando hay varios parecidos —o el único es flojo— se elige primero. Sin esta
+   pantalla, un candidato por nombre entraría directo a la confrontación y se
+   aceptaría por inercia. */
+function listaDeCandidatos(idReg){
+  const r=_registros.find(x=>String(x.id)===String(idReg)); if(!r) return;
+  openModal('¿'+r.nombre+' ya es cliente tuyo?',`
+    <p class="sub">Se parece a ${_cruceCand.length===1?'uno de tus clientes':'estos clientes'}. Ábrelo y mira su historial antes de decidir: cruzar a dos personas distintas mezcla sus créditos, y eso no se puede deshacer.</p>
+    ${_cruceCand.map(c=>`<div class="info-row"><span class="k"><b>${escHTML(codCliente(c.socio))} ${escHTML(c.socio.nombre)}</b>
+        <div class="muted">${escHTML(c.porque)}</div></span>
+      <span class="vv"><button class="btn btn-ghost btn-sm" onclick="mesaDeCruce('${escHTML(String(idReg))}','${escHTML(c.socio.id)}')">Compararlos</button></span></div>`).join('')}
+    <div class="sub-h">Si no es ninguno</div>
+    <button class="btn btn-negro" onclick="otraPersona('${escHTML(String(idReg))}')">Es alguien nuevo · abrirle su ficha</button>`);
+}
+
+/* Lo que el cruce le cambia al CUPO, en pesos y antes de guardar. Es la única
+   cifra de plata de esta pantalla, y sale de una ficha SIMULADA: la de verdad
+   no se toca hasta que Joan aprieta. */
+function pintarCambioDeCupo(idReg,idSocio){
+  const caja=document.getElementById('cruceCupo'); if(!caja) return;
+  const r=_registros.find(x=>String(x.id)===String(idReg)), s=DB.socios.find(x=>x.id===idSocio);
+  if(!r||!s) return;
+  const marcados=marcadosDelCruce();
+  if(!marcados.length){ caja.innerHTML='<div class="muted">No has marcado nada: la ficha queda igual.</div>'; return; }
+  const simulado=Object.assign({},s,valoresDelCruce(s,r,marcados));
+  const antes=cupoDe(s,migrarSocio(s).garantia.nivel);
+  const desp=cupoDe(simulado,migrarSocio(simulado).garantia.nivel);
+  caja.innerHTML=antes===desp
+    ? `<div class="muted">Marcaste ${marcados.length} ${marcados.length===1?'dato':'datos'}. Su cupo no cambia: sigue en ${COP(antes)}.</div>`
+    : `<div class="alerta ${desp>antes?'warn':'ok'}">Marcaste ${marcados.length} ${marcados.length===1?'dato':'datos'}. <b>Su cupo pasa de ${COP(antes)} a ${COP(desp)}</b> ${desp>antes?'— o sea, le estás dando '+COP(desp-antes)+' más de lo que podría pedir. Que sea porque le crees el dato, no porque venía marcado.':'— le baja '+COP(antes-desp)+'.'}</div>`;
+}
+function marcadosDelCruce(){
+  return [...document.querySelectorAll('.cruceCampo')].filter(x=>x.checked).map(x=>x.dataset.campo);
+}
+/* De los campos marcados a los valores que irían a la ficha. Un solo sitio: lo
+   usan la simulación del cupo y el guardado, y si fueran dos, la cifra que Joan
+   ve y la que se guarda podrían separarse. */
+function valoresDelCruce(s,r,marcados){
+  const dec=PUENTE.fichaDeclarada(r), out={};
+  marcados.forEach(c=>{ if(c==='referencia'){ out.referencia={nombre:dec.referencia.nombre||((s.referencia||{}).nombre||''),telefono:dec.referencia.telefono||((s.referencia||{}).telefono||'')}; }
+                        else if(dec[c]!==undefined) out[c]=dec[c]; });
+  return out;
+}
+
+function aplicarCruce(idReg,idSocio){
+  const r=_registros.find(x=>String(x.id)===String(idReg)), s=DB.socios.find(x=>x.id===idSocio);
+  if(!r||!s) return;
+  const marcados=marcadosDelCruce();
+  const filas=PUENTE.camposDelCruce(s,r);
+  const pesadosMarcados=marcados.filter(c=>(filas.find(f=>f.campo===c)||{}).pesado);
+  /* 9-sep-2026 — EL FRENO NO SE APOYA EN UNA LISTA ESCRITA A MANO. La primera
+     versión marcaba «pesados» a dedo y se equivocó: los que de verdad mueven la
+     plata eran ciudad, barrio, vivienda y referencia (suben la garantía), no el
+     ingreso. Acá se le pregunta al motor con la ficha simulada, así que el día
+     que cambien las reglas de la garantía el freno cambia solo. */
+  const simulado=Object.assign({},s,valoresDelCruce(s,r,marcados));
+  const subeCupo=cupoActual(simulado)-cupoActual(s);
+  const verif=document.getElementById('cruceVerif');
+  if((pesadosMarcados.length||subeCupo>0)&&!(verif&&verif.checked))
+    return alert(
+      (pesadosMarcados.length?'Marcaste datos de identidad (cédula o celular): deciden por dónde entra a su app y cómo lo reconoce la nube.\n\n':'')+
+      (subeCupo>0?'Y lo que marcaste le SUBE EL CUPO en '+COP(subeCupo)+': completarle la ficha le sube la garantía.\n\n':'')+
+      'Todavía no has confirmado que este registro es suyo. Marca la casilla de arriba, o desmarca esos datos.');
+
+  /* La cédula no es un campo más: es la LLAVE del cliente en la nube. Cargarla
+     sobre una ficha que subía por celular muda la fila entera (y el 9-sep se
+     arregló que el código de acceso viaje con ella). Se avisa en pesos y en
+     castellano, no con un tecnicismo. */
+  if(marcados.indexOf('cedula')>=0&&!String(s.cedula||'').trim()){
+    if(!confirm('Le vas a cargar la cédula '+PUENTE.fichaDeclarada(r).cedula+' a '+s.nombre+', que hasta hoy la nube identifica por su celular.\n\nEs correcto y es lo que quieres hacer, pero pide que corras «☁ Subir historiales» después: hasta que subas, la nube lo sigue conociendo por el número.\n\n¿Sigo?')) return;
+  }
+
+  const antes=JSON.parse(JSON.stringify(PUENTE.camposDelCruce(s,r).filter(f=>marcados.indexOf(f.campo)>=0)
+    .map(f=>({campo:f.campo,tenia:f.mio,queda:f.declarado}))));
+  Object.assign(s,valoresDelCruce(s,r,marcados));
+
+  /* EL CRUCE ES UN HECHO FECHADO, no un puñado de campos rellenados. Va a una
+     lista que SUMA (panel/nube.js: LISTAS_SOCIO.cruces), así que cuando el
+     computador y el celular se fusionen, los dos conservan el hecho en vez de
+     pelearse por el campo. Y deja el rastro de qué se tomó de quién: sin él,
+     dentro de un mes nadie sabe de dónde salió una cédula. */
+  s.cruces=Array.isArray(s.cruces)?s.cruces:[];
+  s.cruces.push({ fecha:hoyISO(), registro_id:String(r.id), origen:'registro_abierto',
+                  celular:String(r.telefono||''), verificado:!!(verif&&verif.checked), campos:antes });
+
+  /* Lo que declaró y no tiene campo propio no se pierde: se guarda entero, como
+     ya hacía la ficha nacida del registro. */
+  if(r.datos&&typeof r.datos==='object'&&Object.keys(r.datos).length) s.vinculacion=r.datos;
+
+  /* Las fotos, la ubicación y la huella del registro se llevan a la ficha —es
+     media razón por la que Joan quería el cruce— sin pisar lo que ya tuviera. */
+  const h=(r.huella&&typeof r.huella==='object')?r.huella:null;
+  if(h){ if(!s.huellaRegistro) s.huellaRegistro={ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''};
+         if(!s.ubicacion&&h.gps&&h.gps.lat!=null) s.ubicacion={lat:h.gps.lat,lng:h.gps.lng,acc:h.gps.acc||0,fecha:h.gps.fecha||hoyISO()}; }
+  archivosDe(r.telefono||r.cedula).then(a=>{ const f=a.fotos||{};
+    if(f.cedula_frente&&!s.cedulaFrenteFoto) s.cedulaFrenteFoto=f.cedula_frente;
+    if(f.cedula_reverso&&!s.cedulaReversoFoto) s.cedulaReversoFoto=f.cedula_reverso;
+    if(f.selfie&&!s.selfieFoto) s.selfieFoto=f.selfie;
+    guardar(); }).catch(()=>{});
+
+  guardar(); marcarRegistro(idReg,'atendido'); cerrarModal(); render();
+  alert('Listo: '+r.nombre+' quedó cruzado con '+codCliente(s)+' '+s.nombre+'.\n\n'+
+    (marcados.length?'Le completaste '+marcados.length+' '+(marcados.length===1?'dato':'datos')+'.':'No le cambiaste ningún dato.')+
+    '\nNo se creó una ficha nueva: sigue siendo un solo cliente.'+
+    (s.codigoAcceso?'':'\n\nOJO: todavía no tiene código de acceso, así que no puede entrar a ver su historial. Genéraselo desde su ficha (📲).'));
+  verCliente(s.id);
+}
+
+/* «No es la misma persona»: se le abre su ficha nueva, que es lo que hacía el
+   botón de antes. El registro queda atendido cuando la ficha se guarda. */
+function otraPersona(idReg){ cerrarModal(); fichaDesdeRegistro(idReg); }
+
 function descartarRegistro(id){
   const r=_registros.find(x=>String(x.id)===String(id)); if(!r)return;
   if(!confirm('Descartar la solicitud de entrada de '+(r.nombre||'esta persona')+'?\n\nDeja de aparecer acá. No le abre cuenta a nadie.'))return;
@@ -5259,19 +5512,22 @@ function crearDesdeSolicitud(id){
    campo propio viaja entero en s.vinculacion. */
 function socioDesdeDatos(s,a){
   const d=(s.datos&&typeof s.datos==='object')?s.datos:{};
-  const tel=String(d.celular||s.cedula||'').replace(/\D/g,'').slice(-10);
   const f=(a&&a.fotos)||{}, h=(a&&a.huella&&typeof a.huella==='object')?a.huella:null;
-  return { id:'C'+Date.now(), numero:nextNumCliente(),
+  /* Mismo mapeo que fichaDesdeRegistro y que la mesa de cruce: el del puente.
+     OJO CON EL CAMPO `cedula` DE UNA SOLICITUD: no es la cédula, es EL
+     IDENTIFICADOR — el socio entra con cédula o con celular y la nube guarda
+     el que usó en el mismo campo (la firma es un contrato con la app ya
+     publicada). Pasárselo tal cual al mapeo le metía el celular en la casilla
+     de la cédula. La cédula sale SOLO del documento que declaró. */
+  const dec=PUENTE.fichaDeclarada({ nombre:s.nombre, cedula:d.documento||'',
+                                    telefono:d.celular||s.cedula||'', datos:d });
+  return Object.assign({ id:'C'+Date.now(), numero:nextNumCliente(),
     cedulaFrenteFoto:f.cedula_frente||null, cedulaReversoFoto:f.cedula_reverso||null, selfieFoto:f.selfie||null,
     ubicacion:(h&&h.gps&&h.gps.lat!=null)?{lat:h.gps.lat,lng:h.gps.lng,acc:h.gps.acc||0,fecha:h.gps.fecha||hoyISO()}:null,
     huellaRegistro:h?{ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''}:null,
-    nombre:s.nombre||((d.nombres||'')+' '+(d.apellidos||'')).trim(), cedula:d.documento||'', telefono:tel,
-    whatsappIgual:true, email:d.correo||'', direccion:d.direccion||'', ciudad:d.ciudad||'', barrio:d.barrio||'',
-    tipoVivienda:d.tipo_vivienda||'casa',
-    ingresoQuincenal:d.ingreso_mes?Math.round(Number(String(d.ingreso_mes).replace(/\D/g,''))/2)||0:0,
-    referencia:{nombre:d.ref1_nombre||'',telefono:d.ref1_celular||''},
+    whatsappIgual:true,
     vinculacion:Object.keys(d).length?d:null, origen:'registro_abierto',
-    gestiones:[], fechaRegistro:new Date().toISOString() };
+    gestiones:[], fechaRegistro:new Date().toISOString() }, dec);
 }
 /* Cambiar la propuesta de UNA solicitud. Vuelve a «esperando que acepte»: nadie
    acepta lo que no ha visto. El costo va con las rejas del motor (1% a 50%). */

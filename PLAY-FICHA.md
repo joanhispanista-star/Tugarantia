@@ -98,6 +98,12 @@ del dispositivo.
 |---|---|---|
 | Foto de tu rostro | No | Confirmar que la cédula es tuya. *Se guarda la FOTO y nada más. No se genera ni se almacena ninguna plantilla biométrica: el óvalo de la pantalla es un asistente de encuadre, no un verificador de identidad.* |
 
+### Información de la app y rendimiento · Otros datos de la app
+
+| Dato | ¿Obligatorio? | Para qué |
+|---|---|---|
+| Tu dirección IP y tu aparato | Sí | Reconocer un registro hecho desde el mismo aparato que otro, y detectar suplantación. *No los manda el teléfono —se falsifican en un segundo—: los lee el servidor de la propia petición. La IP dice la ciudad aproximada de la red, no tu casa.* |
+
 ### Información financiera · Historial de compras
 
 | Dato | ¿Obligatorio? | Para qué |
@@ -172,16 +178,20 @@ del dispositivo.
 | Fecha de expedición | Sí | Es el dato que piden las centrales de riesgo para confirmar que la cédula es de quien dice. |
 | Foto de tu cédula | No | Confirmar que la cédula es tuya y que nadie pide crédito con tu nombre. *Opcional y con su propia autorización, aparte de la general.* |
 
+### Ubicación · Ubicación aproximada
+
+| Dato | ¿Obligatorio? | Para qué |
+|---|---|---|
+| Dónde estás al registrarte | No | Confirmar que quien se registra está donde dice estar. *Se pide UNA vez, con su propia autorización aparte, y solo si la das. La app no te sigue: no hay ubicación en segundo plano ni cuando está cerrada.* |
+
 ### Lo que la app NO recoge
 
-- Ubicación (ni aproximada ni precisa)
 - Contactos
 - Mensajes SMS o de otras apps
 - Registro de llamadas
 - Archivos, música o fotos de la galería
 - Actividad de navegación
 - Identificadores de publicidad
-- Información de salud o estado físico
 - Rendimiento de la app o registros de fallos
 - Datos de terceros comprados o inferidos
 

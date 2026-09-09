@@ -55,8 +55,18 @@ insert into public.politica_nuevos (id) values (1) on conflict (id) do nothing;
 
 -- ------------------------------------------------------------- ayudantes
 -- El celular VERAZ del que está en sesión: sale del correo sintético que fijó
--- el signup (57XXXXXXXXXX@socios.tugarantia.co), nunca de user_metadata, que el
+-- el signup (57XXXXXXXXXX@tugarantia.net), nunca de user_metadata, que el
 -- propio usuario puede reescribir. Es la misma regla de play_solicitar.
+--
+-- 9-sep-2026 — EL DOMINIO ES tugarantia.net, NO socios.tugarantia.co. Este
+-- archivo nació con el dominio viejo, el que murió el 28-ago
+-- (20260828_correo_interno.sql: socios.tugarantia.co no existe y Supabase
+-- contestaba email_address_invalid). Con el dominio viejo, celular_de_sesion
+-- devolvía null SIEMPRE y se caían las cinco funciones que la usan sin un solo
+-- error en pantalla: el primer crédito, mi solicitud, aceptar la
+-- contrapropuesta, y las fotos y el GPS del registro (20260908b). La fuente de
+-- verdad del dominio es DOMINIO_INTERNO en app/cuenta.js, y hay un centinela
+-- en pruebas/cuenta.test.js que compara los dos literales.
 create or replace function public.celular_de_sesion()
 returns text
 language plpgsql
@@ -67,7 +77,7 @@ as $$
 declare correo text;
 begin
   correo := coalesce(auth.jwt() ->> 'email', '');
-  if correo not like '57%@socios.tugarantia.co' then
+  if correo not like '57%@tugarantia.net' then
     return null;
   end if;
   return substring(public.solo_digitos(split_part(correo, '@', 1)) from 3);

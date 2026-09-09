@@ -2002,6 +2002,222 @@
     return t;
   }
 
+
+  /* ==========================================================================
+   * EL CRUCE: ¿ESTE QUE SE REGISTRÓ YA ES CLIENTE? — 9 de septiembre de 2026
+   *
+   * Joan pidió una sola puerta: «que lleve a todos los clientes,
+   * independientemente que sea nuevo o antiguo, y que yo desde el CRM pueda
+   * cruzar la información con la que yo manualmente ingresé antes, y que no
+   * quede como dos clientes duplicados».
+   *
+   * ESTO NO CRUZA A NADIE. Devuelve CANDIDATOS con el motivo del parecido, y
+   * la mesa del Panel se los enseña a Joan para que él decida. Es deliberado:
+   * juntar dos personas por error mezcla dos historiales de plata, y
+   * separarlas después no existe. La máquina propone; la mano de Joan dispone.
+   *
+   * LA REGLA, en una frase: LA CÉDULA MANDA SOBRE EL CELULAR. Misma cédula es
+   * la misma persona aunque el número haya cambiado. Mismo celular es la misma
+   * persona SOLO si ninguna cédula lo contradice — el celular se hereda, se
+   * presta y el operador lo recicla a los tres meses; la cédula no. Si las dos
+   * fichas traen cédula y son distintas, son DOS personas, y el celular igual
+   * es una duda que se muestra, nunca un cruce.
+   *
+   * Y hay un tercer motivo, el más flojo, que existe porque sin él Joan se
+   * queda ciego justo en su caso: una ficha vieja SIN cédula y con el número
+   * cambiado no aparea con nada, y él es el único que reconoce a esa persona.
+   * Por eso el nombre también propone —marcado como flojo, y nunca solo.
+   * ======================================================================== */
+
+  /* Sin tildes, sin dobles espacios, en minúscula: «JOSÉ  RUÍZ» y «jose ruiz»
+     son el mismo nombre escrito por dos manos distintas. */
+  function nombrePlano(v) {
+    return String(v == null ? '' : v)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  /* Para comparar dos valores escritos por dos manos distintas. Deja letras y
+     NÚMEROS: quitar los números volvería iguales «Calle 45» y «Calle 46», y
+     —peor— dos celulares distintos. Quitar solo las tildes deja fuera a
+     «Bogota» contra «Bogotá», que es el mismo dato mal tecleado y no una
+     decisión que Joan deba tomar treinta veces al día. */
+  function planoComparable(v) {
+    return String(v == null ? '' : v)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  /* Los celulares que una ficha conoce. Son tres campos distintos porque el
+     cliente da uno para llamar, otro para WhatsApp y a veces el de la señora:
+     mirar solo `telefono` deja fuera cruces que Joan reconocería de una. */
+  function celularesDe(s) {
+    return [s && s.telefono, s && s.telefono2, s && s.whatsappNumero]
+      .map(function (t) { return digitos(t).slice(-10); })
+      .filter(function (t) { return t.length === 10; });
+  }
+
+  /* Cuántas palabras de dos nombres coinciden. Dos apellidos iguales bastan
+     para proponer; una sola palabra, no — «maría» la comparte medio país. */
+  function palabrasEnComun(a, b) {
+    var A = nombrePlano(a).split(' ').filter(function (p) { return p.length > 2; });
+    var B = nombrePlano(b).split(' ').filter(function (p) { return p.length > 2; });
+    var n = 0;
+    for (var i = 0; i < A.length; i++) if (B.indexOf(A[i]) >= 0) n++;
+    return n;
+  }
+
+  /**
+   * Los clientes que PODRÍAN ser el que acaba de registrarse.
+   *
+   * @param db   la cartera del Panel
+   * @param reg  la fila de la bandeja: {cedula, telefono, nombre, datos}
+   * @returns    [{socio, motivo, fuerza, duda, porque}] de más fuerte a más flojo
+   *             fuerza 3 cédula · 2 celular · 1 celular con duda · 0 nombre
+   */
+  function candidatosDeCruce(db, reg) {
+    var r = reg || {};
+    var d = (r.datos && typeof r.datos === 'object') ? r.datos : {};
+    /* El registro identifica por celular; la cédula puede venir por dos vías
+       (el campo de la bandeja o el documento que declaró en el formulario). */
+    var cedReg = digitos(r.cedula || d.documento || '');
+    var celReg = digitos(r.telefono || d.celular || '').slice(-10);
+    var nomReg = [d.nombres, d.apellidos].filter(Boolean).join(' ') || r.nombre || '';
+    var salida = [];
+
+    lista(db && db.socios).forEach(function (s) {
+      var cedSoc = digitos(s.cedula);
+      var cels = celularesDe(s);
+      var mismoCel = celReg.length === 10 && cels.indexOf(celReg) >= 0;
+      var lasDosCedulas = cedReg.length >= 5 && cedSoc.length >= 5;
+
+      if (lasDosCedulas && cedReg === cedSoc) {
+        return salida.push({ socio: s, motivo: 'cedula', fuerza: 3, duda: false,
+          porque: 'La misma cédula ' + cedSoc + (mismoCel ? ' y el mismo celular' : ', aunque el celular cambió') + '.' });
+      }
+      if (lasDosCedulas && cedReg !== cedSoc) {
+        /* Cédulas distintas: son dos personas. Si además comparten celular hay
+           que MOSTRARLO —puede ser la mamá, el hermano, o alguien usando la
+           cédula ajena— pero jamás ofrecerlo como cruce. */
+        if (mismoCel) {
+          salida.push({ socio: s, motivo: 'celular_con_duda', fuerza: 1, duda: true,
+            porque: 'Mismo celular, pero la cédula NO coincide (' + cedSoc + ' contra ' + cedReg + '). Son dos personas, o alguien está usando una cédula que no es suya.' });
+        }
+        return;
+      }
+      if (mismoCel) {
+        return salida.push({ socio: s, motivo: 'celular', fuerza: 2, duda: false,
+          porque: 'El mismo celular, y ' + (cedSoc ? 'el registro no trae cédula' : 'la ficha no tiene cédula') + ', así que nada lo contradice.' });
+      }
+      if (palabrasEnComun(nomReg, s.nombre) >= 2) {
+        salida.push({ socio: s, motivo: 'nombre', fuerza: 0, duda: true,
+          porque: 'Se parece el nombre, y nada más. Puede ser otra persona: mírale el historial antes de cruzar.' });
+      }
+    });
+
+    /* De más fuerte a más flojo, y con el más reciente primero cuando empatan:
+       si Joan tiene dos fichas parecidas, la que usó ayer es la que le suena. */
+    return salida.sort(function (a, b) {
+      return (b.fuerza - a.fuerza) || (Number(b.socio.numero) || 0) - (Number(a.socio.numero) || 0);
+    });
+  }
+
+  /* --------------------------------------------------------------------------
+   * LO QUE DECLARÓ, TRADUCIDO A CAMPOS DE FICHA
+   *
+   * UN SOLO MAPEO. Antes había dos que decían casi lo mismo (fichaDesdeRegistro
+   * y socioDesdeDatos, las dos dentro de crm.html) y ya se habían separado: una
+   * traducía `tipo_vivienda` con un `|| 'casa'` que convertía «Arriendo» en
+   * «casa» sin un error, y eso vale 5.000 de garantía. Un campo que no vino NO
+   * se inventa: se deja vacío y la mesa de cruce lo muestra vacío.
+   * ------------------------------------------------------------------------ */
+  function fichaDeclarada(reg) {
+    var r = reg || {};
+    var d = (r.datos && typeof r.datos === 'object') ? r.datos : {};
+    var plata = function (v) {
+      var n = Number(digitos(v));
+      return n > 0 ? n : 0;
+    };
+    return {
+      nombre: [d.nombres, d.apellidos].filter(Boolean).join(' ').trim() || String(r.nombre || '').trim(),
+      cedula: digitos(r.cedula || d.documento || ''),
+      telefono: digitos(r.telefono || d.celular || '').slice(-10),
+      email: String(d.correo || '').trim(),
+      direccion: String(d.direccion || '').trim(),
+      ciudad: String(d.ciudad || '').trim(),
+      barrio: String(d.barrio || '').trim(),
+      /* Sin valor por defecto, a propósito: ver el comentario de arriba. */
+      tipoVivienda: String(d.tipo_vivienda || '').trim().toLowerCase(),
+      /* El formulario pregunta al MES; la ficha guarda por quincena. La cuenta
+         vive acá y no en la pantalla para que las dos puertas la hagan igual. */
+      ingresoQuincenal: plata(d.ingreso_mes) ? Math.round(plata(d.ingreso_mes) / 2) : 0,
+      referencia: { nombre: String(d.ref1_nombre || '').trim(), telefono: digitos(d.ref1_celular || '').slice(-10) }
+    };
+  }
+
+  /* --------------------------------------------------------------------------
+   * LA MESA: CAMPO POR CAMPO, LO QUE YO TENÍA CONTRA LO QUE DECLARÓ
+   *
+   * `estado` es lo único que la pantalla necesita para decidir el color:
+   *   · 'falta'    — yo no lo tengo y él lo trae: es lo que Joan viene a llenar
+   *   · 'igual'    — dicen lo mismo; no hay nada que decidir
+   *   · 'distinto' — los dos tienen y no coinciden: DECISIÓN, nunca automático
+   *   · 'solo_mio' — yo lo tengo y él no lo declaró: no hay nada que decidir
+   *   · 'nada'     — ninguno de los dos lo tiene
+   *
+   * `pesado` marca los campos de IDENTIDAD — no los de plata. La diferencia
+   * costó un hallazgo: al medirlo contra el motor el 9-sep resultó que
+   * completarle la ficha a un socio le SUBE LA GARANTÍA, y entonces ciudad,
+   * barrio, vivienda y referencia mueven el cupo mientras el ingreso no lo
+   * mueve. Cuáles valen plata depende de la cartera entera y de las reglas del
+   * momento, así que esa pregunta se la hace el CRM al motor, ficha por ficha
+   * (mueveElCupo en crm.html); acá no se adivina.
+   *
+   * Los de identidad, que sí son fijos:
+   *   · cedula   — es la LLAVE del cliente en la nube. Cambiarla de vacía a
+   *                llena muda la fila entera (ver base/20260909), y por eso la
+   *                pantalla la confirma aparte.
+   *   · telefono — es por donde entra a su app y por donde Joan le cobra.
+   *   · ingresoQuincenal — decide el cupo, o sea, plata.
+   * ------------------------------------------------------------------------ */
+  var CAMPOS_DEL_CRUCE = [
+    { campo: 'nombre', etiqueta: 'Nombre', pesado: false },
+    { campo: 'cedula', etiqueta: 'Cédula', pesado: true },
+    { campo: 'telefono', etiqueta: 'Celular', pesado: true },
+    { campo: 'email', etiqueta: 'Correo', pesado: false },
+    { campo: 'direccion', etiqueta: 'Dirección', pesado: false },
+    { campo: 'ciudad', etiqueta: 'Ciudad', pesado: false },
+    { campo: 'barrio', etiqueta: 'Barrio', pesado: false },
+    { campo: 'tipoVivienda', etiqueta: 'Su vivienda es', pesado: false },
+    { campo: 'ingresoQuincenal', etiqueta: 'Gana por quincena', pesado: true }
+  ];
+
+  function camposDelCruce(socio, reg) {
+    var dec = fichaDeclarada(reg);
+    var s = socio || {};
+    var filas = CAMPOS_DEL_CRUCE.map(function (c) {
+      var mio = s[c.campo], suyo = dec[c.campo];
+      var hayMio = !(mio == null || mio === '' || mio === 0);
+      var haySuyo = !(suyo == null || suyo === '' || suyo === 0);
+      var estado = !hayMio && !haySuyo ? 'nada'
+        : !hayMio ? 'falta'
+        : !haySuyo ? 'solo_mio'
+        : planoComparable(mio) === planoComparable(suyo) ? 'igual' : 'distinto';
+      return { campo: c.campo, etiqueta: c.etiqueta, pesado: c.pesado,
+               mio: hayMio ? mio : '', declarado: haySuyo ? suyo : '', estado: estado };
+    });
+    /* La referencia va aparte porque son dos datos en uno y la ficha la guarda
+       anidada: aplanarla acá evitaría que la pantalla la sepa volver a armar. */
+    var refMia = (s.referencia && s.referencia.nombre) ? s.referencia.nombre : '';
+    filas.push({ campo: 'referencia', etiqueta: 'Referencia', pesado: false,
+      mio: refMia ? refMia + (s.referencia.telefono ? ' · ' + s.referencia.telefono : '') : '',
+      declarado: dec.referencia.nombre ? dec.referencia.nombre + (dec.referencia.telefono ? ' · ' + dec.referencia.telefono : '') : '',
+      estado: !refMia && dec.referencia.nombre ? 'falta'
+        : !dec.referencia.nombre ? 'solo_mio'
+        : nombrePlano(refMia) === nombrePlano(dec.referencia.nombre) ? 'igual' : 'distinto' });
+    return filas;
+  }
+
   return {
     LLAVE_PANEL: LLAVE_PANEL,
     normalizar: normalizar,
@@ -2037,6 +2253,13 @@
     repartoDelDescuento: repartoDelDescuento,
     descuentosDelSocio: descuentosDelSocio,
     buscarSocio: buscarSocio,
+    /* El cruce del registro con la ficha vieja (9-sep-2026). Vive acá, junto a
+       buscarSocio, porque las dos contestan la misma pregunta —quién es quién—
+       y tenerlas separadas es como nacen los duplicados. */
+    candidatosDeCruce: candidatosDeCruce,
+    fichaDeclarada: fichaDeclarada,
+    camposDelCruce: camposDelCruce,
+    CAMPOS_DEL_CRUCE: CAMPOS_DEL_CRUCE,
     /* El código de acceso del cliente y quiénes todavía no tienen (10-ago-2026).
        Los dos viven acá y no en crm.html: el Panel tuvo doce copias de cuentas
        que el puente ya sabía hacer, y esta va a hacer falta también en la app. */

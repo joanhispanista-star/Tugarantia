@@ -94,6 +94,17 @@
       categoria: 'Fotos y videos · Fotos',
       obligatorio: false, proposito: 'Confirmar que la cédula es tuya.',
       nota: 'Se guarda la FOTO y nada más. No se genera ni se almacena ninguna plantilla biométrica: el óvalo de la pantalla es un asistente de encuadre, no un verificador de identidad.' },
+    /* 9-sep-2026 — las dos que entraron con el registro verificado del 8-sep y
+       no se habían declarado. Sin estas filas, la ficha de Google decía que la
+       app no recoge ubicación mientras la pedía en pantalla. */
+    { id: 'ubicacion', etiqueta: 'Dónde estás al registrarte',
+      categoria: 'Ubicación · Ubicación aproximada',
+      obligatorio: false, proposito: 'Confirmar que quien se registra está donde dice estar.',
+      nota: 'Se pide UNA vez, con su propia autorización aparte, y solo si la das. La app no te sigue: no hay ubicación en segundo plano ni cuando está cerrada.' },
+    { id: 'datos_tecnicos', etiqueta: 'Tu dirección IP y tu aparato',
+      categoria: 'Información de la app y rendimiento · Otros datos de la app',
+      obligatorio: true, proposito: 'Reconocer un registro hecho desde el mismo aparato que otro, y detectar suplantación.',
+      nota: 'No los manda el teléfono —se falsifican en un segundo—: los lee el servidor de la propia petición. La IP dice la ciudad aproximada de la red, no tu casa.' },
     { id: 'historial_credito', etiqueta: 'Tus créditos y tus pagos',
       categoria: 'Información financiera · Historial de compras',
       obligatorio: true, proposito: 'Es tu historial: lo que pediste, lo que pagaste y cuándo.',
@@ -146,15 +157,23 @@
   /* Lo que la app NO recoge, y que Google pregunta expresamente. Decirlo en
      positivo sirve para dos cosas: llenar el formulario sin dudar, y que quede
      escrito qué habría que revisar si algún día alguien mete una librería. */
+  /* 9-sep-2026 — SE CAYERON DOS FILAS DE ESTA LISTA, y las dos por el mismo
+     motivo: dejaron de ser verdad el 8-sep y nadie lo notó.
+     · «Ubicación»: el registro pide el GPS desde el 8-sep. No se quita el dato,
+       se DECLARA (fila 'ubicacion' de FUERA_DEL_FORMULARIO).
+     · «Información de salud»: el código de barras de la cédula trae el RH y
+       subía dentro de la huella. Ese sí se quitó de raíz (play/index.html:
+       delete r.rh), así que la app vuelve a no recogerlo — pero la línea no
+       vuelve a esta lista hasta que haya un centinela que lo vigile.
+     Una lista de «esto NO lo recojo» que se queda vieja es peor que no tenerla:
+     se publica tal cual en la ficha de Google. */
   var NO_RECOGE = [
-    'Ubicación (ni aproximada ni precisa)',
     'Contactos',
     'Mensajes SMS o de otras apps',
     'Registro de llamadas',
     'Archivos, música o fotos de la galería',
     'Actividad de navegación',
     'Identificadores de publicidad',
-    'Información de salud o estado físico',
     'Rendimiento de la app o registros de fallos',
     'Datos de terceros comprados o inferidos'
   ];
