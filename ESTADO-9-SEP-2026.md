@@ -17,13 +17,16 @@ de verdad hay una cara centrada y quieta.
 
 ## Lo que te toca a ti, en orden
 
-1. **HOY — las tres migraciones, en este orden**, en el SQL Editor de Supabase
+1. **HOY — las CUATRO migraciones, en este orden**, en el SQL Editor de Supabase
    (New query → pegar todo → Run):
    1. `base/20260908_primer_credito.sql` — **va corregida** (ver abajo: traía un
       dominio muerto que la habría dejado sin funcionar en silencio).
    2. `base/20260908b_registro_archivos.sql`
    3. `base/20260909_una_sola_puerta.sql`
-   Las tres son idempotentes y traen su comprobación al final: si algo no queda
+   4. `base/20260909b_topes_arriba.sql` — sube el tope del servidor a 8.000.000.
+      Sin ella, el cliente que mueva la calculadora por encima de dos millones
+      recibe un error de conexión que es mentira.
+   Las cuatro son idempotentes y traen su comprobación al final: si algo no queda
    como debe, la última línea revienta a propósito y te dice qué.
 2. **Prueba el registro desde tu celular.** La cámara no se puede probar sin
    teléfono: el escáner y el código de barras de la cédula los tienes que ver
@@ -203,6 +206,121 @@ el paso 3 de 9 con el teléfono en la cara es peor que una foto mal encuadrada.
   cosas no pueden ser ciertas a la vez.
 - **Lo del 4-sep que sigue:** el bloque del acuerdo de prórroga en
   `AUDITORIA-4-SEP-2026.md`, el chat (fases 2–5), el Enforce HTTPS.
+
+---
+
+# La tarde del 9: la vitrina, los topes, y la pregunta de la plata
+
+## El bug de la cámara (commit `6f79f6d`)
+
+«Toma la foto de la cédula y el sistema los devuelve.» No fallaba la foto:
+`<input capture>` abre la cámara del sistema, Android descarta la pestaña por
+falta de memoria, la página recarga y `pintarRegistro(0)` mandaba al paso 1 —
+con la contraseña perdida (vivía solo en memoria) y sin la foto, porque el
+`onchange` nunca llegó a dispararse. Un lazo.
+
+Arreglado por tres lados: se recuerda el paso (sessionStorage), la contraseña
+sobrevive la recarga (sessionStorage, **nunca** localStorage) y la foto se lee
+con `createObjectURL` en vez de convertirla en base64 — una foto de 4 MB se
+volvía una cadena de 5,3 MB justo cuando el teléfono estaba peor de memoria.
+Reproducido antes y verificado después.
+
+## La vitrina (commit `c1cfc72`)
+
+La portada de `play/` es una calculadora: monto y plazo movibles, cifras del
+motor, letra legal pegada al lado. Debajo, la escalera del producto, la historia
+y cómo se sube, plegadas. Botones con cuerpo, brillo que barre, y el rayo que
+sale de donde se toca (tope de tres, se apaga solo, se autodegrada, respeta
+`prefers-reduced-motion`).
+
+**Lo que NO se hizo, y el motivo está medido:** no hay una pantalla que parezca
+«tu cuenta». Un nombre inventado y una cinta no arreglan una cifra que la
+plataforma no puede desembolsar: le ponen dueño y la vuelven más creíble. Se
+enseña el producto con su escalera real. Tampoco se usa «garantía» como
+mecánica —es del quincenal, otro producto— ni se pide el permiso de
+notificaciones, porque no existe el emisor (`sw.js` no escucha `push`).
+
+De paso salió un defecto que habría nacido con la calculadora: la letra legal
+decía «plazo mínimo y máximo: 6 meses» mientras se iban a ofrecer 3. Y la tasa
+efectiva **no es la misma en todos los plazos**: con 500.000 la más alta cae en
+CINCO meses (23,9947%), por encima de la de seis (23,9788%). Ahora la
+divulgación declara el rango y **busca** la más alta en vez de suponerla.
+
+## Los topes a 8 millones (commit `40badf7`)
+
+Decisión de Joan. Preferente 2.000.000 → **8.000.000**; recurrente 1.000.000 →
+**3.000.000**. La calculadora y la escalera se mueven solas porque leen
+`PERFILES`; los dos sitios que tenían el número a mano ahora lo piden.
+El servidor sube con ellos: `base/20260909b_topes_arriba.sql`.
+
+**Lo que falta decidir, y está medido:** el plazo sigue en 3–6 meses.
+
+| monto | 6 meses | 12 meses | 18 meses |
+|---|---|---|---|
+| $6.000.000 | $1.064.200 | $560.700 | $393.500 |
+| $8.000.000 | $1.418.933 | $747.600 | $524.666 |
+
+La tasa está muy por debajo del techo de usura (24% contra 29,24%), así que el
+freno no es legal: es que esa cuota tiene que caberle a alguien.
+
+## Y por fin, las pruebas EJECUTAN `play/`
+
+Era el único archivo con JavaScript pesado que ninguna prueba corría, y es el
+que abre el desconocido. Hoy costó: al borrar la tarjeta vieja se fue con ella
+la función `fila`, y la página quedó **en blanco** («fila is not defined»).
+Compilaba perfecto. Lo vio el navegador, a mano.
+
+Ahora hay un arnés que ejecuta la página (mismo patrón que `panel.test.js` con
+el CRM) y comprueba que la portada pinta, que los nueve pasos del registro
+pintan, y que las cifras en pantalla son las del motor. **1.020 pruebas.**
+
+## LA PREGUNTA DE LA PLATA — lo más importante de esta tarde
+
+Joan pidió comisiones para asesores: 5.000 por registro, 15.000 por
+desembolso, 10.000 al pago (= **30.000 por cliente colocado**), 5.000 por cada
+cobranza siguiente, −10.000 si el cliente llega a 20 días de mora.
+
+Ninguno de los tres diseños calculó si el negocio aguanta. El costo del
+quincenal es **siempre el 20% del capital** (`motor.js`):
+
+| capital | Joan gana | comisión | le queda |
+|---|---|---|---|
+| $100.000 al 35% (primer crédito) | $35.000 | $30.000 | **$5.000** |
+| $100.000 al 20% (estándar) | $20.000 | $30.000 | **−$10.000** |
+| $200.000 | $40.000 | $30.000 | $10.000 |
+| $400.000 | $80.000 | $30.000 | $50.000 |
+
+**Punto de equilibrio del primer ciclo: $150.000 al 20%.** Por debajo de ahí,
+cada cliente nuevo que trae un asesor le cuesta plata a Joan — y ese es
+justamente el tamaño de crédito de su segmento. Desde el segundo ciclo la
+recurrencia de 5.000 sí deja margen ($15.000 sobre un crédito de 100.000).
+
+Esto no es una objeción al plan: es el número que decide si el esquema se
+aplica a todos los créditos o solo por encima de cierto monto. **Es decisión de
+Joan y está sin tomar.**
+
+## El CRM en la nube: media pieza ya existe
+
+Joan dijo «subamos el CRM a la nube también». La buena noticia, verificada:
+`base/20260811_panel_nube.sql` **ya tiene la cartera completa en Supabase**
+(`panel_socios`, `panel_creditos`, `panel_respaldados`, con el objeto entero en
+jsonb). Lo que falta no es el dato: es la columna que diga de quién es cada
+fila.
+
+Los tres obstáculos reales, medidos:
+
+1. **`panel_es_dueno()` es todo o nada** — un uid está en `panel_duenos` o no
+   está. Meter ahí a un asesor le entrega los 16 clientes y le deja
+   reescribirlos (`panel_empujar` no filtra).
+2. **`panel/crm.html` ni siquiera carga `nube.js`** y no tiene sesión de
+   Supabase Auth: hoy el CRM no puede llamar a `panel_traer`. La cartera en la
+   nube la usan `espejo.html`, `subir.html` y `traer.html`, no el CRM.
+3. **El PIN no es una puerta, es un cartel**: se compara en JavaScript contra
+   `DB.config.pin` y se muestra en texto plano en Ajustes.
+
+Y cero líneas de rol, asesor, gerente o comisión en todo el repositorio: se
+parte de cero en esa parte.
+
 
 ---
 
