@@ -8173,9 +8173,16 @@ describe('las dos apps compilan: nada de sintaxis rota', () => {
      Panel que Joan usa en la calle: si su JavaScript no compila, la pantalla
      se queda muerta el día de cobro y con el cliente delante. Se descubrió al
      tocarlo para arreglar el enlace del cliente — el archivo se editaba sin
-     red que lo cazara. (traer.html y play/index.html siguen fuera; son la
-     siguiente deuda de esta misma prueba.) */
-  ['panel/crm.html', 'app/socio.html', 'panel/espejo.html'].forEach(archivo => {
+     red que lo cazara.
+
+     9-sep-2026 — ENTRA play/index.html, y era la deuda más cara de esta lista.
+     Es la PUERTA PÚBLICA: el único enlace que Joan reparte, el que abre el
+     desconocido y el que abre el cliente que perdió su código. Y es peor que
+     los otros tres, porque su cuerpo es un <div id="cuerpo"></div> vacío que se
+     llena con JavaScript: un error de sintaxis ahí no deja una función rota,
+     deja la PÁGINA EN BLANCO. Se editaba sin red desde que existe.
+     (traer.html sigue fuera; es la última deuda de esta prueba.) */
+  ['panel/crm.html', 'app/socio.html', 'panel/espejo.html', 'play/index.html'].forEach(archivo => {
     test(archivo + ' — todo su JavaScript compila', () => {
       const bloques = bloquesDe(archivo);
       assert.ok(bloques.length >= 1, archivo + ' no tiene scripts embebidos: el barrido no mide nada');
@@ -9244,6 +9251,33 @@ describe('el socio no ve porcentajes: solo pesos (8-sep-2026)', () => {
  * de Play sigue en pie: play/ NO enlaza de vuelta al quincenal — se vuelve por
  * WhatsApp, con el código que manda Joan.
  * ======================================================================== */
+describe('el sello de versión de la puerta pública (9-sep-2026)', () => {
+  const leerA = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+
+  test('VERSION_PLAY se mueve cuando play/index.html se mueve', () => {
+    /* El sello se pinta en el pie de la página (play/index.html: «Versión …»).
+       Sirve para UNA cosa concreta: que Joan le pregunte al cliente por WhatsApp
+       qué versión dice abajo y eso signifique algo. Congelado, miente — y con un
+       service worker cacheando, «ya lo arreglé» y «a mí no me aparece» pueden
+       ser las dos ciertas a la vez.
+       La regla es simple: el sello no puede ser anterior a la fecha del cambio
+       más reciente anotado en el propio archivo. */
+    const PLAY = leerA('play/index.html');
+    const sello = (PLAY.match(/var VERSION_PLAY = '(\d{4}-\d{2}-\d{2})'/) || [])[1];
+    assert.ok(sello, 'play/index.html perdió su sello de versión');
+    /* Las fechas que el propio archivo declara en sus comentarios («9-sep-2026»). */
+    const MESES = { ene: '01', feb: '02', mar: '03', abr: '04', may: '05', jun: '06',
+                    jul: '07', ago: '08', sep: '09', oct: '10', nov: '11', dic: '12' };
+    const fechas = [...PLAY.matchAll(/(\d{1,2})-(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)-(\d{4})/g)]
+      .map(m => m[3] + '-' + MESES[m[2]] + '-' + String(m[1]).padStart(2, '0'));
+    if (!fechas.length) return;
+    const ultima = fechas.sort()[fechas.length - 1];
+    assert.ok(sello >= ultima,
+      'VERSION_PLAY dice ' + sello + ' pero el archivo declara cambios hasta el ' + ultima +
+      '. Súbelo: es lo único con lo que Joan puede saber si el cliente está viendo una copia vieja.');
+  });
+});
+
 describe('un solo enlace para nuevos y antiguos (8-sep-2026)', () => {
   const leer = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   const SOCIO = leer('app/socio.html'), PLAY = leer('play/index.html');

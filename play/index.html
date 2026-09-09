@@ -68,7 +68,7 @@
 <script>
 'use strict';
 
-var VERSION_PLAY = '2026-08-24';
+var VERSION_PLAY = '2026-09-09';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -1202,6 +1202,13 @@ function pintarSimulacion() {
 }
 
 var DIVULGACION = null;
+/* 9-sep-2026 — EL VACÍO NO SE CACHEA. Antes, si la primera llamada caía en un
+   día sin certificación de usura vigente, esto guardaba '' y lo devolvía el
+   resto de la sesión sin decir nada. La letra que Google exige al lado de todo
+   precio desaparecía sola y en silencio — y con una calculadora que se repinta
+   en cada movimiento del dedo, esa llamada ocurre cien veces por visita.
+   Ahora el vacío se vuelve a preguntar, y quien pinta cifras tiene que
+   comprobar que hay texto ANTES de pintar la primera (ver hayQueCotizar). */
 function divulgacionHoy() {
   if (!DIVULGACION) {
     var K = window.Cumplimiento;
@@ -1210,6 +1217,11 @@ function divulgacionHoy() {
   }
   return DIVULGACION;
 }
+/* La pregunta que toda pantalla con precios tiene que hacerse primero. Sin
+   divulgación no se cotiza: es el artículo 305 del Código Penal por un lado y
+   la ficha de Google por el otro, y la app ya estuvo a punto de publicar
+   «tasa máxima legal: 0,00%» una vez (4-sep-2026). */
+function hayQueCotizar() { return !!divulgacionHoy(); }
 
 function fmtFecha(iso) {
   var p = String(iso).split('-');
