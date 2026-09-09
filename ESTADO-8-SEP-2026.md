@@ -367,7 +367,7 @@ cédula leída. `archivos_de_registro` devuelve fotos y huella de UNA persona.
   las 7 pm de Colombia ya era «mañana» en la prueba y no en el Panel. Ahora
   todas van por `local(x)`. En GitHub (UTC) nunca se vio.
 - **Bytes NUL literales** en `cuenta.js` y su prueba (el PDF417 los trae como
-  relleno): grep decía «binary» y git no mostraba el diff. Son `0000`.
+  relleno): grep decía «binary» y git no mostraba el diff. Son `\u0000`.
 
 ## Lo que espera a Joan, con fechas
 
