@@ -196,26 +196,58 @@
    * @param {string} fechaISO el día para el que se cotiza (el techo cambia cada mes)
    * @returns {object} o {puede:false} si no hay techo certificado para esa fecha.
    */
+  /* Los plazos que la app OFRECE de verdad, derivados y no escritos: el mínimo
+     sale del piso legal que se impuso el producto (90 días, para no vivir
+     pegado a los 60 de Google) y el máximo del plazo del producto. Si mañana
+     alguno cambia en creditos.js, esta divulgación cambia sola. */
+  function plazosOfrecidos() {
+    var min = Math.ceil(C.PLAZO_MINIMO_DIAS / 30), max = C.PLAZO_MESES, out = [];
+    for (var m = min; m <= max; m++) out.push(m);
+    return out.length ? out : [max];
+  }
+
   function divulgacion(fechaISO) {
+    /* 9-sep-2026 — LA TASA MÁXIMA SE BUSCA, NO SE SUPONE.
+       El redondeo de la cuota mueve la tasa efectiva de un plazo a otro, y no
+       en línea recta: medido con 500.000, la más alta está en CINCO meses
+       (23,9947%) y no en seis (23,9788%). Mientras la app ofreció un solo
+       plazo daba lo mismo; desde que ofrece de 3 a 6, publicar la de seis como
+       «máxima» sería anunciar una tasa menor que la mayor que se cobra. */
+    var plazos = plazosOfrecidos();
+    var cotizaciones = [], i, rr, cc;
+    for (i = 0; i < plazos.length; i++) {
+      rr = C.simular({ perfil: 'preferente', capital: CAPITAL_EJEMPLO,
+                       fecha_desembolso: fechaISO, meses: plazos[i] });
+      cc = rr.puede ? rr : rr.cotizacion;
+      if (cc) cotizaciones.push(cc);
+    }
     var r = C.simular({
       perfil: 'preferente',
       capital: CAPITAL_EJEMPLO,
       fecha_desembolso: fechaISO
     });
     var c = r.puede ? r : r.cotizacion;
-    if (!c) return { puede: false, motivo: r.motivo, mensaje: r.mensaje };
+    if (!c || !cotizaciones.length) return { puede: false, motivo: r.motivo, mensaje: r.mensaje };
+    /* La más cara del rango, que es la que hay que publicar. */
+    var peor = cotizaciones[0];
+    for (i = 1; i < cotizaciones.length; i++) {
+      if (cotizaciones[i].efectivo_anual > peor.efectivo_anual) peor = cotizaciones[i];
+    }
+    var mesMin = plazos[0], mesMax = plazos[plazos.length - 1];
 
     var pct = function (x) { return (x * 100).toFixed(2).replace('.', ',') + '%'; };
     var cop = function (n) { return '$' + Math.round(n).toLocaleString('es-CO'); };
 
     return {
       puede: true,
-      plazo_minimo_meses: c.meses,
-      plazo_maximo_meses: c.meses,
+      plazo_minimo_meses: mesMin,
+      plazo_maximo_meses: mesMax,
       /* La TAE máxima es la del producto, no la del techo: publicar el techo
          sería anunciar una tasa que no cobramos, y eso es lo contrario de la
-         transparencia que pide la norma. */
-      tae_maxima: c.efectivo_anual,
+         transparencia que pide la norma. Y es la MAYOR de los plazos que se
+         ofrecen — ver el comentario de arriba. */
+      tae_maxima: peor.efectivo_anual,
+      tae_plazo: peor.meses,
       ejemplo: {
         capital: c.capital,
         meses: c.meses,
@@ -227,9 +259,11 @@
          ficha de Play, en la pantalla de pedir y en el contrato: los tres tienen
          que decir el MISMO número, y la única forma de garantizarlo es que salgan
          de la misma función. */
-      texto: 'Crédito de libre inversión a ' + c.meses + ' meses, en ' + c.meses +
-        ' cuotas mensuales. Plazo mínimo y máximo: ' + c.meses + ' meses. ' +
-        'Tasa efectiva anual máxima: ' + pct(c.efectivo_anual) + '. ' +
+      texto: 'Crédito de libre inversión en cuotas mensuales. ' +
+        (mesMin === mesMax
+          ? 'Plazo mínimo y máximo: ' + mesMax + ' meses. '
+          : 'Plazo mínimo: ' + mesMin + ' meses. Plazo máximo: ' + mesMax + ' meses. ') +
+        'Tasa efectiva anual máxima: ' + pct(peor.efectivo_anual) + '. ' +
         'Ejemplo: por ' + cop(c.capital) + ' a ' + c.meses + ' meses pagas ' +
         c.meses + ' cuotas de ' + cop(c.cuota_tipica) + ', para un total de ' +
         cop(c.total_a_pagar) + ' (' + cop(c.capital) + ' de capital y ' +

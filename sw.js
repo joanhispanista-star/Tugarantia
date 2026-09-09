@@ -145,7 +145,13 @@
    cuando de verdad hay una cara centrada y quieta (antes disparaba con el
    reloj). Toca socio.html, play/, crm.html, puente.js, cuenta.js, nube.js y
    cumplimiento.js. */
-const CACHE = 'tugarantia-v31';
+/* v32 — 9-sep-2026. LA VITRINA: la portada de play/ pasa a ser una calculadora
+   de verdad (monto y plazo movibles, numeros del motor y la letra legal al
+   lado), con la escalera del producto, la historia, la explicacion de como se
+   sube, el boton de instalar y el rayo al tocar. Entran los archivos de play/ a
+   esta lista, que llevaban fuera desde que existe la carpeta: sin ellos el
+   boton de instalar prometia una app que no abre sin senal. */
+const CACHE = 'tugarantia-v32';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -178,7 +184,21 @@ const ARCHIVOS = [
   'panel/panel-180.png',
   'panel/panel-192.png',
   'panel/panel-512.png',
-  'panel/panel-maskable-512.png'
+  'panel/panel-maskable-512.png',
+  /* 9-sep-2026 — LA PUERTA PUBLICA, que llevaba fuera desde que existe.
+     Es la unica que un desconocido abre, y desde hoy ofrece instalarse en el
+     celular: una app instalada que no abre sin senal es peor que ninguna.
+     app/cuenta.js, app/creditos.js y app/cumplimiento.js son los tres <script>
+     que play/ carga, y app/lib/zxing.min.js lo pide el paso de la cedula —ese
+     ultimo NO entra: son 330 KB que la mayoria no va a usar, y se baja solo
+     cuando la persona llega a ese paso. */
+  'play/',
+  'play/index.html',
+  'play/estilo.css',
+  'play/app.webmanifest',
+  'app/cuenta.js',
+  'app/creditos.js',
+  'app/cumplimiento.js'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {

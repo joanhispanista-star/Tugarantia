@@ -154,3 +154,125 @@ input:focus,select:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
 .pie{text-align:center;font-size:12px;color:var(--gris);margin:22px 0 8px;line-height:1.6}
 .grupo-tit{font-size:12px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;
   color:var(--gris);margin:var(--e4) 0 0}
+
+/* ==========================================================================
+ * LA VITRINA — 9 de septiembre de 2026
+ *
+ * Joan: «lo que ve el cliente nuevo es muy poco… quiero una calculadora…
+ * agrégale más detalles al diseño como algunos brillos o animaciones 3D de los
+ * botones y que cada vez que se toque la pantalla se cree un rayo de energía».
+ *
+ * LA REGLA DE ESTA HOJA: el brillo se paga con fotogramas, y el celular que
+ * abre esto es de gama baja con datos contados. Todo lo de acá abajo respeta
+ * `prefers-reduced-motion`, no anima nada que obligue al navegador a recalcular
+ * la página (solo `transform` y `opacity`, que van en la tarjeta gráfica), y el
+ * rayo se apaga solo si el teléfono no le da.
+ * ======================================================================== */
+
+/* ---------------- botones con cuerpo ----------------
+   El botón tiene un borde inferior sólido que hace de canto: al apretarlo, baja
+   ese canto y el botón se hunde. Es un truco viejo y cuesta cero: se mueve una
+   sola propiedad (transform) y no se repinta nada. */
+.btn{position:relative;overflow:hidden;
+  box-shadow:0 4px 0 color-mix(in srgb, var(--rojo) 55%, var(--sombra)),
+             0 10px 24px -12px color-mix(in srgb, var(--rojo) 70%, transparent);
+  transition:transform .10s ease, box-shadow .10s ease}
+.btn:active{transform:translateY(3px);
+  box-shadow:0 1px 0 color-mix(in srgb, var(--rojo) 55%, var(--sombra)),
+             0 4px 10px -8px color-mix(in srgb, var(--rojo) 70%, transparent)}
+.btn.sec{box-shadow:0 3px 0 var(--linea)}
+.btn.sec:active{transform:translateY(2px);box-shadow:0 1px 0 var(--linea)}
+
+/* El brillo que barre. Solo en el botón principal y solo una vez cada seis
+   segundos: un destello permanente cansa y en una app de plata parece un
+   anuncio. `will-change` no se usa a propósito — deja la capa reservada para
+   siempre y en un teléfono con poca memoria eso se paga. */
+.btn.arriba::after{content:'';position:absolute;top:0;bottom:0;width:45%;
+  left:-60%;transform:skewX(-18deg);
+  background:linear-gradient(90deg,transparent,color-mix(in srgb, var(--luz) 38%, transparent),transparent);
+  animation:brillo 6s ease-in-out infinite}
+@keyframes brillo{0%,72%{left:-60%}88%,100%{left:130%}}
+
+/* ---------------- la calculadora ---------------- */
+.calc-cifra{font-size:38px;font-weight:800;letter-spacing:-.03em;line-height:1;
+  font-variant-numeric:tabular-nums;color:var(--amarillo);
+  text-shadow:0 0 22px color-mix(in srgb, var(--amarillo) 35%, transparent)}
+.calc-pie{font-size:13px;margin-top:var(--e2)}
+.mando{margin-top:var(--e4)}
+.mando .cab-mando{display:flex;justify-content:space-between;align-items:baseline;gap:var(--e2)}
+.mando .cab-mando b{font-variant-numeric:tabular-nums;font-size:16px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:34px;
+  background:transparent;margin:0;display:block}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:6px;
+  background:color-mix(in srgb, var(--luz) 20%, transparent)}
+input[type=range]::-moz-range-track{height:6px;border-radius:6px;
+  background:color-mix(in srgb, var(--luz) 20%, transparent)}
+/* 28 px de agarre: un pulgar en la calle no acierta uno de 18. */
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+  width:28px;height:28px;border-radius:50%;background:var(--amarillo);margin-top:-11px;
+  border:3px solid var(--laca);
+  box-shadow:0 0 0 1px color-mix(in srgb, var(--amarillo) 60%, transparent),
+             0 0 18px color-mix(in srgb, var(--amarillo) 55%, transparent);
+  cursor:pointer}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;
+  background:var(--amarillo);border:3px solid var(--laca);cursor:pointer}
+input[type=range]:focus-visible{outline:2px solid var(--amarillo);outline-offset:4px}
+
+/* ---------------- los escalones del recorrido ----------------
+   Deliberadamente NO usa .card.laca ni .cifra.oro: la vitrina no puede tener el
+   mismo cromo que las pantallas donde el cliente ve SU plata. Si un día alguien
+   recorta esto y lo manda por WhatsApp, tiene que verse distinto. */
+.escalon{position:relative;border:1px solid var(--linea);border-radius:14px;
+  padding:var(--e3) var(--e4);margin-top:var(--e2);background:var(--papel)}
+.escalon + .escalon{margin-top:10px}
+.escalon .n{position:absolute;left:-1px;top:-1px;bottom:-1px;width:4px;border-radius:14px 0 0 14px;
+  background:var(--linea)}
+.escalon.hoy .n{background:var(--verde)}
+.escalon .paso-tit{font-weight:700;font-size:15px}
+.escalon .paso-cifra{font-size:22px;font-weight:800;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;margin-top:2px}
+.escalon .paso-como{font-size:13px;color:var(--gris);margin-top:4px;line-height:1.45}
+
+/* EL SELLO DE EJEMPLO. Va ANTES de la primera cifra de cada tarjeta —por
+   tarjeta, no por distancia—, porque la forma real en que un ejemplo se
+   escapa de su descargo en Colombia es un recorte compartido por WhatsApp: si
+   el sello está en la cabecera de la pantalla y alguien recorta una tarjeta,
+   la cifra viaja sola. Nunca en gris: el descargo no puede ser menos legible
+   que lo que descarga. */
+.ej-sello{display:inline-block;font-size:12px;line-height:1.3;font-weight:700;
+  letter-spacing:.04em;text-transform:uppercase;
+  color:var(--ambar-tinta);background:var(--ambar-papel);
+  border:1px solid var(--ambar-filete);border-radius:8px;
+  padding:3px 8px;margin-bottom:6px}
+
+/* ---------------- la historia y la garantía, plegadas ----------------
+   <details> y no una pantalla aparte: cerrado es una línea que no estorba, y
+   abierto no le hace perder la calculadora ni esperar un repintado. */
+.plegable{border:1px solid var(--linea);border-radius:14px;margin-top:var(--e3);
+  background:var(--papel);overflow:hidden}
+.plegable > summary{list-style:none;cursor:pointer;padding:16px var(--e4);
+  font-weight:600;font-size:15px;display:flex;justify-content:space-between;
+  align-items:center;gap:var(--e2)}
+.plegable > summary::-webkit-details-marker{display:none}
+.plegable > summary::after{content:'+';font-size:20px;font-weight:400;color:var(--gris);
+  transition:transform .18s ease}
+.plegable[open] > summary::after{transform:rotate(45deg)}
+.plegable .adentro{padding:0 var(--e4) var(--e4);font-size:14.5px;line-height:1.6}
+.plegable .adentro p{margin:0 0 12px}
+.plegable .adentro p:last-child{margin-bottom:0}
+
+/* ---------------- el rayo ----------------
+   Un solo lienzo, fijo a la pantalla y sordo al tacto: nunca se queda con un
+   toque que era para un botón. */
+#rayos{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
+
+/* ---------------- respeto por quien no quiere movimiento ----------------
+   No es un detalle de accesibilidad: hay gente a la que una animación de estas
+   le produce mareo o le dispara una migraña, y el sistema operativo ya trae la
+   respuesta puesta. Se le hace caso. */
+@media (prefers-reduced-motion: reduce){
+  .btn.arriba::after{animation:none;display:none}
+  .btn,.btn:active{transition:none;transform:none}
+  #rayos{display:none}
+  .plegable > summary::after{transition:none}
+}

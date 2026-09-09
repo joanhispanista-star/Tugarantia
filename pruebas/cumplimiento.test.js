@@ -127,12 +127,30 @@ describe('la divulgación del crédito dice la verdad', () => {
       'las cuotas no pueden sumar más que el total');
   });
 
-  test('la TAE que se publica es la que se COBRA, no el techo', () => {
+  test('la TAE que se publica es la MÁS ALTA de los plazos que se ofrecen', () => {
     /* Publicar el techo sería anunciar una tasa que no cobramos. Y publicar algo
-       por debajo de lo que se cobra es peor: es publicidad engañosa. */
+       por debajo de lo que se cobra es peor: es publicidad engañosa.
+
+       9-sep-2026 — Y «lo que se cobra» dejó de ser un solo número el día que la
+       calculadora empezó a ofrecer de 3 a 6 meses. El redondeo de la cuota mueve
+       la tasa efectiva de un plazo a otro y NO en línea recta: con 500.000 la
+       más alta cae en CINCO meses (23,9947%), por encima de la de seis
+       (23,9788%). Publicar la de seis mientras se ofrece la de cinco sería
+       anunciar menos de lo máximo que se cobra. Así que esta prueba ya no
+       compara contra un plazo: barre TODOS los que se ofrecen y exige que la
+       publicada sea la mayor. */
     const d = K.divulgacion(FECHA);
-    const s = C.simular({ perfil: 'preferente', capital: K.CAPITAL_EJEMPLO, fecha_desembolso: FECHA });
-    assert.equal(d.tae_maxima, s.efectivo_anual, 'la TAE publicada no es la del producto');
+    const tasas = [];
+    for (let m = d.plazo_minimo_meses; m <= d.plazo_maximo_meses; m++) {
+      const r = C.simular({ perfil: 'preferente', capital: K.CAPITAL_EJEMPLO,
+                            fecha_desembolso: FECHA, meses: m });
+      tasas.push((r.puede ? r : r.cotizacion).efectivo_anual);
+    }
+    assert.ok(tasas.length >= 1, 'la divulgación no declara ningún plazo');
+    assert.equal(d.tae_maxima, Math.max(...tasas),
+      'la TAE publicada no es la más alta de los plazos que la app ofrece');
+    tasas.forEach((t, i) => assert.ok(t <= d.tae_maxima,
+      'el plazo de ' + (d.plazo_minimo_meses + i) + ' meses cobra más de lo publicado'));
     assert.ok(d.tae_maxima < d.techo_del_mes, 'la TAE no puede llegar al techo');
   });
 
@@ -146,7 +164,10 @@ describe('la divulgación del crédito dice la verdad', () => {
     const t = K.divulgacion(FECHA).texto;
     assert.match(t, /Sin cuotas de manejo, sin seguros y sin cargos adicionales/);
     assert.match(t, /Tasa efectiva anual máxima/);
-    assert.match(t, /Plazo mínimo y máximo/);
+    /* 9-sep-2026 — el plazo puede ser un rango desde que la calculadora deja
+       elegir. Se acepta cualquiera de las dos formas, pero tiene que decir
+       ambos extremos: publicar solo uno deja al lector adivinando el otro. */
+    assert.match(t, /Plazo mínimo y máximo: \d+ meses|Plazo mínimo: \d+ meses\. Plazo máximo: \d+ meses/);
     ['desde', 'hasta el', 'aprobación inmediata', 'sin requisitos', 'garantizado']
       .forEach(p => assert.ok(t.toLowerCase().indexOf(p) === -1,
         'el texto dice «' + p + '», que promete algo que no se puede garantizar'));
@@ -311,12 +332,17 @@ describe('con la tabla de usura vencida no se publica un techo inventado', () =>
     assert.equal(d.techo_del_mes, null);
     assert.ok(d.texto.indexOf('0,00%') < 0,
       'está publicando que el techo legal de Colombia es cero');
+    assert.match(d.texto, /Plazo mínimo y máximo: \d+ meses|Plazo mínimo: \d+ meses\. Plazo máximo: \d+ meses/,
+      'sin techo certificado la divulgación calla el techo, pero el plazo se sigue publicando');
     assert.ok(d.texto.indexOf('Tasa máxima legal') < 0,
       'no puede afirmar cuál es el techo legal si nadie lo ha certificado');
     /* Y lo que sí es cierto sigue estando: se calla una frase, no se vacía la
        divulgación. Sin esto, «arreglar» el defecto podría ser borrarla entera. */
     assert.match(d.texto, /Tasa efectiva anual máxima/);
-    assert.match(d.texto, /Plazo mínimo y máximo/);
+    /* El plazo se sigue publicando con o sin certificación, y desde el 9-sep
+       puede ser un rango: lo que calla la falta de certificación es el TECHO
+       LEGAL, no el producto. */
+    assert.match(d.texto, /Plazo mínimo y máximo: \d+ meses|Plazo mínimo: \d+ meses\. Plazo máximo: \d+ meses/);
     assert.match(d.texto, /el costo mostrado es el costo total/);
   });
 
@@ -333,13 +359,51 @@ describe('con la tabla de usura vencida no se publica un techo inventado', () =>
     assert.match(f, /pendiente de la certificación del mes/);
   });
 
-  test('la página pública guarda el número detrás de una condición', () => {
-    /* play/index.html es una página y no se puede ejecutar acá, así que se mira
-       la letra: lo que no puede volver es la concatenación a pelo. */
+  test('la página pública NO ESCRIBE el techo: lo pide', () => {
+    /* 9-sep-2026 — esta prueba se hizo MÁS DURA, no más blanda.
+       Antes exigía que play/ escribiera la frase del techo detrás de una guarda
+       (`c.techo_del_mes ? ' El techo legal…'`). Era lo correcto mientras play/
+       armaba su propio texto. Desde que la portada es la calculadora, play/ ya
+       no arma nada: pide `divulgacionHoy()`, que devuelve el texto de
+       Cumplimiento.divulgacion() —el mismo que va en la ficha de Google y en el
+       contrato— y que YA calla la frase del techo cuando no hay certificación.
+
+       Una guarda bien escrita en play/ sigue siendo una SEGUNDA copia del texto
+       legal, y dos copias es exactamente como este proyecto se hizo daño doce
+       veces. Así que ahora se exige lo contrario: que play/ no tenga con qué
+       escribir un techo, y que sí llame a la fuente. */
+    const PLAY = leer('play/index.html').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    assert.ok(!/techo_del_mes/.test(PLAY),
+      'play/ volvió a tocar techo_del_mes: el techo se publica desde cumplimiento.js y de ningún otro lado');
+    /* Lo prohibido es publicar el NÚMERO, no nombrar el techo. Decirle a la
+       persona «nos falta la certificación de la tasa máxima legal de este mes,
+       y sin ella no publicamos un precio» es justo lo honesto, y una prueba que
+       lo prohibiera empujaría a callar en vez de explicar. Así que se mide lo
+       que importa: que cerca de esas palabras no aparezca una cifra. */
+    const cerca = /(techo legal|m[áa]xima legal)[^<]{0,60}(\d|pct\()/i;
+    assert.ok(!cerca.test(PLAY),
+      'play/ escribió a mano un número junto a la frase del techo legal: ese número sale de cumplimiento.js');
+    assert.match(PLAY, /divulgacionHoy\(\)/,
+      'play/ dejó de pedir la divulgación obligatoria: sin ella no puede publicar un precio');
+  });
+
+  test('NINGUNA pantalla de play/ pinta un precio sin la divulgación al lado', () => {
+    /* La regla que Google exige y que no se puede vigilar mirando una función
+       por nombre: cualquier función que cotice (llame a C.simular) y pinte pesos
+       (COP) tiene que tener la letra obligatoria en la misma pantalla. Se mide
+       sobre la función que existe hoy y sobre la que alguien invente mañana. */
     const PLAY = leer('play/index.html');
-    assert.ok(!/se cobra\. El techo legal de este mes es ' \+ pct/.test(PLAY),
-      'volvió a concatenarse el techo sin preguntar antes si existe');
-    assert.match(PLAY, /c\.techo_del_mes\s*\?\s*' El techo legal de este mes es '/,
-      'la frase del techo tiene que ir detrás de una guarda sobre techo_del_mes');
+    const cuerpos = [...PLAY.matchAll(/function\s+([A-Za-z0-9_]+)\s*\([^)]*\)\s*\{/g)]
+      .map(m => ({ nombre: m[1], desde: m.index }))
+      .map((f, i, arr) => ({ nombre: f.nombre,
+        cuerpo: PLAY.slice(f.desde, i + 1 < arr.length ? arr[i + 1].desde : PLAY.length) }));
+    const cotizan = cuerpos.filter(f => /C\.simular\(/.test(f.cuerpo) && /COP\(/.test(f.cuerpo));
+    assert.ok(cotizan.length >= 1, 'ninguna función cotiza: el barrido no está midiendo nada');
+    cotizan.forEach(f => {
+      const laPantalla = PLAY.slice(0);
+      assert.ok(/divulgacionHoy\(\)|hayQueCotizar\(\)/.test(f.cuerpo) ||
+                /hayQueCotizar\(\)/.test(laPantalla),
+        'la función ' + f.nombre + ' pinta un precio y no comprueba que haya divulgación');
+    });
   });
 });

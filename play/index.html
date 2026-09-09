@@ -151,46 +151,21 @@ var PASO = 0;
    una app de crédito que esconde el precio hasta que te registras es justo lo
    que la política de Play mira con lupa. Acá el número está antes de pedir nada.
    Se muestra el perfil `nuevo`, que es el que le toca a quien todavía no entra. */
-function tarjetaCatalogo(perfil) {
-  var r = C.simular({ perfil: perfil || 'nuevo', capital: 500000, fecha_desembolso: hoyISO() });
-  var c = r.puede ? r : r.cotizacion;
+/* 9-sep-2026 — SE FUE tarjetaCatalogo. Pintaba un ejemplo fijo de 500.000 con
+   su cifra grande, y desde hoy arriba está la calculadora, que hace lo mismo
+   pero con el monto que la persona elige. Las dos juntas eran dos precios
+   distintos del mismo producto en la misma pantalla, y quien mira no sabe cuál
+   es el suyo. Su código está en el historial (commit anterior a la vitrina). */
 
-  if (!c) {
-    /* Sin techo certificado no se cotiza, y se dice. Ver el comentario de TOPES
-       en creditos.js: preferible una app que avisa a una que cotiza mal callada. */
-    return '<div class="card"><div class="aviso ambar"><b>No podemos cotizar hoy.</b> ' +
-      esc(r.mensaje) + ' Escríbenos y lo resolvemos.</div></div>';
-  }
-
-  return '<div class="card laca">' +
-    '<div class="etq">Ejemplo: ' + COP(c.capital) + ' a ' + c.meses + ' meses</div>' +
-    '<div class="cifra oro">' + COP(c.cuota_tipica) + '</div>' +
-    '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
-      c.meses + ' cuotas mensuales. En total pagas <b>' + COP(c.total_a_pagar) + '</b>.</div>' +
-    '<div class="sep"></div>' +
-    fila('Lo que pides', COP(c.capital)) +
-    fila('Lo que cuesta', COP(c.costo_total)) +
-    fila('Total a pagar', COP(c.total_a_pagar)) +
-    fila('Tasa efectiva anual', pct(c.efectivo_anual)) +
-    fila('Plazo', c.meses + ' meses') +
-    '<div class="muted" style="font-size:12.5px;margin-top:var(--e3)">' +
-      'Sin cuotas de manejo, sin seguros y sin cargos aparte: lo que ves es todo lo que ' +
-      'se cobra.' +
-      /* 4-sep-2026 — con la tabla de usura vencida esto imprimía «El techo legal
-         de este mes es 0,00% ().» en la cara del cliente. El precio sigue
-         saliendo; lo que desaparece es la frase que no se puede sostener. */
-      (c.techo_del_mes
-        ? ' El techo legal de este mes es ' + pct(c.techo_del_mes) +
-          ' (' + esc(c.certificacion) + ').'
-        : '') +
-      '</div>' +
-    '</div>';
-}
+/* `fila` vivía pegada a la tarjeta que se fue y se la llevó por delante: la
+   página quedó en blanco con «fila is not defined», que es exactamente el modo
+   de fallar de este archivo —todo se pinta con JavaScript sobre un div vacío—.
+   La prueba que compila play/ NO lo vio, porque compilar no es ejecutar. Lo vio
+   el navegador. */
 function fila(k, v) {
   return '<div class="fila"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>';
 }
 
-/* ============================== ENTRAR ============================== */
 function pintarEntrar() {
   VISTA = 'entrar';
   $('titulo').textContent = 'Tu crédito a 6 meses';
@@ -199,14 +174,19 @@ function pintarEntrar() {
      tener de primero un formulario de contraseña le dice, sin decirlo, que
      esto no es para él. El orden es el mensaje. */
   $('cuerpo').innerHTML =
-    tarjetaCatalogo('nuevo') +
+    /* LA CALCULADORA VA PRIMERO Y ES LO MÁS GRANDE. El visitante saca algo útil
+       en los primeros cinco segundos —cuánto le costaría— sin cuenta, sin
+       registro y sin pedirle nada a cambio. Todo lo demás cuelga de ahí. */
+    tarjetaCalculadora() +
     '<div class="card">' +
       '<h3 class="tit">¿Eres nuevo? Abre tu cuenta</h3>' +
       '<p class="sub"><b>No necesitas que nadie te presente.</b> Te tomará unos minutos: ' +
         'te pedimos los datos con los que evaluamos el crédito, y cada uno te decimos ' +
         'para qué es. Después revisamos tu solicitud y te escribimos por WhatsApp.</p>' +
+      '<div class="muted" style="font-size:13px;margin-top:var(--e3)">' + esc(TEXTOS.empujon_visitante) + '</div>' +
       '<button class="btn arriba" onclick="pintarRegistro(0)">Abrir mi cuenta</button>' +
     '</div>' +
+    tarjetaRecorrido() +
     '<div class="card">' +
       '<h3 class="tit">¿Ya abriste tu cuenta aquí?</h3>' +
       '<p class="sub">Entra con tu celular y tu contraseña.</p>' +
@@ -219,6 +199,12 @@ function pintarEntrar() {
       '<div id="errEntrar" class="aviso ambar oculto"></div>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="olvide()">Olvidé mi contraseña</button>' +
     '</div>' +
+    /* La caja del instalador nace vacía y se llena sola SI el navegador avisa
+       que de verdad puede instalar. Un botón que promete instalar donde no se
+       puede es la clase de mentira chica que este proyecto no se permite. */
+    '<div id="cajaInstalar">' + tarjetaInstalarPlay() + '</div>' +
+    plegable('quePasa', TEXTOS.confianza_titulo, TEXTOS.confianza) +
+    plegable('laHistoria', TEXTOS.historia_titulo, TEXTOS.historia) +
     pie();
   $('btnEntrar').addEventListener('click', entrar);
   $('inClave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
@@ -1068,6 +1054,403 @@ function subirArchivosRegistro() {
   });
 }
 
+/* ==========================================================================
+ * LA VITRINA — 9 de septiembre de 2026
+ *
+ * Joan: «lo que ve el cliente nuevo es muy poco; quiero una calculadora para
+ * que mire hasta cuánto le pueden prestar y con plazos… que aparezca como si el
+ * usuario ya se hubiera logueado y muestre una garantía ficticia y un cupo de
+ * hasta 4 millones… que expliques de forma lúdica lo importante de hacer crecer
+ * la garantía… y que dejes una historia de la app».
+ *
+ * LO QUE SE HIZO Y LO QUE NO, con el motivo de cada cosa:
+ *
+ * SÍ: la calculadora de verdad, arriba y lo primero, con los números que
+ * devuelve el motor y la letra legal pegada al lado.
+ *
+ * SÍ: el recorrido — a dónde se llega y cómo — pero como ESCALERA DEL PRODUCTO,
+ * no como la cuenta de nadie.
+ *
+ * NO: una pantalla que parezca «tu cuenta» con un cupo de 4.000.000. Y no es
+ * timidez, son dos hechos del código:
+ *   · El producto que esta app vende llega hasta 2.000.000, y solo el perfil
+ *     preferente (app/creditos.js: PERFILES). Pedir 4.000.000 devuelve
+ *     puede:false, motivo 'sobre_cupo' — el motor se niega. El servidor
+ *     también: play_solicitar rechaza cualquier capital sobre 2.000.000.
+ *   · Un número que la plataforma no puede desembolsar, puesto donde el
+ *     visitante lea «mi cupo», es una oferta que no existe. La regla de esta
+ *     casa —la interfaz nunca promete lo que el código no hace— ya se rompió
+ *     dos veces y las dos costaron.
+ * Un nombre inventado y una cinta no arreglan eso: le ponen dueño a la cifra y
+ * la vuelven más creíble, no menos. Por eso se enseña EL PRODUCTO, con su
+ * escalera real, y la cifra grande es siempre un destino, nunca un saldo.
+ *
+ * NO: la palabra «garantía» como mecánica. La garantía y los niveles son del
+ * crédito quincenal (app/motor.js), que NO es lo que esta app vende y que NO
+ * puede ir a Google Play. Acá «Tu Garantía» es el nombre del negocio y nada
+ * más. Lo que sí es cierto y por eso se cuenta: se sube de escalón pagando en
+ * fecha, y quien sube pide más y sin revisión.
+ * ======================================================================== */
+
+/* -------------------------------------------------------------------------
+ * LOS TEXTOS, TODOS JUNTOS Y ACÁ ARRIBA
+ * Joan los puede cambiar sin tocar una línea de lógica. Están juntos a
+ * propósito: repartidos dentro de las funciones, cambiarlos exige leer código.
+ * ----------------------------------------------------------------------- */
+var TEXTOS = {
+  gancho: 'Mira cuánto te costaría, ahora mismo y sin registrarte.',
+
+  historia_titulo: 'Por qué existe Tu Garantía',
+  historia: [
+    'En Colombia, siete de cada diez personas que necesitan un crédito pequeño no se lo dan en un banco. No porque no puedan pagar: porque no tienen historia. Y no tienen historia porque nadie les dio el primer crédito. Es una puerta cerrada por dentro.',
+    'Tu Garantía nació para abrir esa puerta. No pedimos que alguien te presente, ni codeudor, ni que lleves años bancarizado. Pedimos tus datos, hablamos contigo, y empezamos con un monto pequeño que sí puedas pagar.',
+    'La idea es sencilla: cada crédito que pagas en fecha construye tu historia con nosotros. Y esa historia vale — sube lo que puedes pedir y quita la espera de la revisión.',
+    'No somos un banco ni queremos serlo. Somos el primer sí para quien nunca ha tenido uno.'
+  ],
+
+  confianza_titulo: 'Cómo se sube de escalón',
+  confianza: [
+    'Esto funciona como cuando le prestas plata a alguien del barrio: la primera vez le prestas poco, porque no sabes. Si te paga cuando dijo, la segunda le prestas más y ya ni lo piensas. La tercera es tu amigo.',
+    'Acá es igual, solo que escrito. Empiezas en el primer escalón: pides, nosotros revisamos y te respondemos. Si pagas en fecha, te invitamos al siguiente — y en el siguiente pides más y ya no hay revisión que esperar.',
+    'Lo único que se necesita para subir es pagar el día que quedaste. No hay puntaje secreto, ni letra chica, ni una fórmula que nadie te explique.',
+    'Y funciona para los dos lados: tú consigues crédito donde no te lo daban, y nosotros conseguimos a quién prestarle sabiendo que vuelve. Eso es lo que hay: confianza, construida de a poco y por escrito.'
+  ],
+
+  /* Los cuatro empujones. Cortos a propósito: un párrafo largo en un celular no
+     se lee. Cambian según dónde está la persona, para que ninguno mienta. */
+  empujon_visitante: 'Abre tu cuenta y empieza a construir tu historia. Es gratis y no te compromete a pedir nada.',
+  empujon_registrado: 'Ya diste el primer paso. Cuando pidas tu primer crédito y lo pagues en fecha, empiezas a subir.',
+  empujon_espera: 'Tu solicitud está con nosotros. Lo que decidas hacer con este crédito es lo que te abre el siguiente.',
+  empujon_instalar: 'Déjala en tu pantalla de inicio y la abres como cualquier app, sin buscar el enlace.'
+};
+
+/* -------------------------------------------------------------------------
+ * LA CALCULADORA
+ *
+ * Los números salen TODOS de C.simular(): ninguno se calcula acá. Es la regla
+ * de la casa y en este archivo importa el doble, porque una cuenta escrita a
+ * mano en la vitrina sería un precio distinto del que se cobra.
+ *
+ * Se usa el perfil preferente para cotizar y NO es una promesa de cupo: el
+ * perfil decide cuánto y qué tan rápido, nunca el precio (app/creditos.js).
+ * Con preferente el motor cotiza cualquier monto del rango sin devolver
+ * 'sin_cupo', y el precio que sale es exactamente el mismo que pagaría
+ * cualquiera. Lo que el visitante puede pedir se dice aparte, en el recorrido.
+ * ----------------------------------------------------------------------- */
+var CALC_MIN = 100000;      // el mínimo que acepta el servidor (play_solicitar)
+var CALC_MAX = 2000000;     // el cupo del perfil más alto. No hay nada por encima.
+var CALC_PASO = 50000;
+var CALC_MESES_MIN = 3;     // 90 días. Por debajo, simular() lanza: la app dejaría de ser publicable.
+var CALC_MESES_MAX = 6;
+/* Arranca en 500.000 y a 6 meses a propósito: es el mismo ejemplo que trae la
+   divulgación obligatoria, así que lo primero que ve el visitante son dos
+   cifras que coinciden en vez de dos precios distintos del mismo producto. */
+var CALC = { monto: 500000, meses: 6 };
+
+function cotizacionDeCalc() {
+  var r = C.simular({ perfil: 'preferente', capital: CALC.monto,
+                      fecha_desembolso: hoyISO(), meses: CALC.meses });
+  return r.puede ? r : r.cotizacion;
+}
+
+function tarjetaCalculadora() {
+  /* Sin la letra obligatoria no se pinta ni una cifra. Es el artículo 305 por un
+     lado y la ficha de Google por el otro, y esta app ya estuvo a punto de
+     publicar «tasa máxima legal: 0,00%» una vez. */
+  if (!hayQueCotizar()) {
+    return '<div class="card"><h3 class="tit">No podemos cotizar hoy</h3>' +
+      '<p class="sub">Nos falta la certificación de la tasa máxima legal de este mes, y sin ella ' +
+      'no publicamos un precio. Escríbenos y lo resolvemos por WhatsApp.</p></div>';
+  }
+  return '<div class="card laca">' +
+      '<div class="etq">' + esc(TEXTOS.gancho) + '</div>' +
+      '<div id="calcCifras">' + cifrasDeCalc() + '</div>' +
+      '<div class="mando">' +
+        '<div class="cab-mando"><label for="calcMonto" style="margin:0">Cuánto necesitas</label>' +
+          '<b id="calcMontoTxt">' + COP(CALC.monto) + '</b></div>' +
+        '<input type="range" id="calcMonto" min="' + CALC_MIN + '" max="' + CALC_MAX + '" ' +
+          'step="' + CALC_PASO + '" value="' + CALC.monto + '" ' +
+          'aria-label="Cuánto necesitas" oninput="moverCalc()">' +
+      '</div>' +
+      '<div class="mando">' +
+        '<div class="cab-mando"><label for="calcMeses" style="margin:0">En cuántas cuotas</label>' +
+          '<b id="calcMesesTxt">' + CALC.meses + ' meses</b></div>' +
+        '<input type="range" id="calcMeses" min="' + CALC_MESES_MIN + '" max="' + CALC_MESES_MAX + '" ' +
+          'step="1" value="' + CALC.meses + '" aria-label="En cuántas cuotas" oninput="moverCalc()">' +
+      '</div>' +
+    '</div>' +
+    '<div class="card"><div id="calcLetra">' + letraDeCalc() + '</div></div>';
+}
+
+/* Las cifras se repintan solas; los deslizadores NO están adentro de esto y es
+   deliberado: en este proyecto ya se borró dos veces un campo a mitad de
+   escribir por repintar el contenedor que lo contenía. */
+function cifrasDeCalc() {
+  var c = cotizacionDeCalc();
+  if (!c) return '<div class="aviso ambar">No podemos cotizar hoy.</div>';
+  return '<div class="calc-cifra">' + COP(c.cuota_tipica) + '</div>' +
+    '<div class="muted calc-pie">al mes, ' + c.meses + ' cuotas. En total pagas <b>' +
+      COP(c.total_a_pagar) + '</b>.</div>' +
+    '<div class="sep"></div>' +
+    fila('Lo que recibes', COP(c.capital)) +
+    fila('Lo que cuesta', COP(c.costo_total)) +
+    fila('Última cuota', fmtFecha(c.cuotas[c.cuotas.length - 1].fecha)) +
+    /* La E.A. es la ÚNICA cifra en porcentaje que el cliente ve en todo el
+       sistema, y va porque Google la exige junto a cualquier precio de crédito. */
+    fila('Tasa efectiva anual', pct(c.efectivo_anual));
+}
+
+function letraDeCalc() {
+  return '<div class="aviso ambar" style="margin-top:0"><b>Esto es un cálculo, no una aprobación.</b> ' +
+      'El precio es real y es el que se cobra. Cuánto te podemos prestar a ti lo decidimos ' +
+      'cuando abras tu cuenta y hablemos.</div>' +
+    '<div class="muted" style="font-size:12.5px;margin-top:12px;line-height:1.55">' +
+      esc(divulgacionHoy()) + '</div>' +
+    '<div class="muted" style="font-size:12.5px;margin-top:10px">Sin cuotas de manejo, sin seguros ' +
+      'y sin cargos aparte: lo que ves es todo lo que se cobra.</div>';
+}
+
+function moverCalc() {
+  var m = $('calcMonto'), p = $('calcMeses');
+  if (m) CALC.monto = Math.max(CALC_MIN, Math.min(CALC_MAX, Number(m.value) || CALC_MIN));
+  if (p) CALC.meses = Math.max(CALC_MESES_MIN, Math.min(CALC_MESES_MAX, Number(p.value) || CALC_MESES_MAX));
+  var t1 = $('calcMontoTxt'); if (t1) t1.textContent = COP(CALC.monto);
+  var t2 = $('calcMesesTxt'); if (t2) t2.textContent = CALC.meses + (CALC.meses === 1 ? ' mes' : ' meses');
+  var caja = $('calcCifras'); if (caja) caja.innerHTML = cifrasDeCalc();
+}
+
+/* -------------------------------------------------------------------------
+ * EL RECORRIDO — a dónde se llega, y cómo
+ *
+ * Los tres escalones son los tres perfiles REALES de app/creditos.js, con su
+ * cupo real. No hay ninguna cifra escrita a mano: si mañana Joan sube el cupo
+ * del perfil preferente, esta pantalla lo dice sola.
+ *
+ * En tercera persona y en condicional, y cada tarjeta con su sello ANTES de la
+ * primera cifra. El motivo del sello por tarjeta y no por pantalla: la forma en
+ * que un ejemplo se escapa de su descargo es un recorte de WhatsApp.
+ * ----------------------------------------------------------------------- */
+function tarjetaRecorrido() {
+  var P = C.PERFILES;
+  var pasos = [
+    { p: P.nuevo, hoy: true, titulo: 'Empiezas aquí',
+      cifra: 'Lo revisamos contigo',
+      como: 'Abres tu cuenta sin que nadie te presente. Nos cuentas de ti, pides lo que necesitas, y te respondemos.' },
+    { p: P.recurrente, hoy: false, titulo: 'Segundo escalón',
+      cifra: 'hasta ' + COP(P.recurrente.cupo_maximo),
+      como: 'Se llega cuando ya nos pagaste en fecha y te invitamos. Desde aquí pides y se desembolsa sin revisión.' },
+    { p: P.preferente, hoy: false, titulo: 'Tercer escalón',
+      cifra: 'hasta ' + COP(P.preferente.cupo_maximo),
+      como: 'Historial construido con nosotros. Es hasta donde llega este crédito hoy.' }
+  ];
+  return '<div class="card">' +
+    '<h3 class="tit">Hasta dónde se puede llegar</h3>' +
+    '<p class="sub">Nadie empieza arriba. Así se sube, y no hay otra forma.</p>' +
+    pasos.map(function (e) {
+      return '<div class="escalon' + (e.hoy ? ' hoy' : '') + '"><i class="n"></i>' +
+        '<span class="ej-sello">' + (e.hoy ? 'Aquí empiezas' : 'A esto se llega') + '</span>' +
+        '<div class="paso-tit">' + esc(e.titulo) + '</div>' +
+        '<div class="paso-cifra">' + esc(e.cifra) + '</div>' +
+        '<div class="paso-como">' + esc(e.como) + '</div>' +
+      '</div>';
+    }).join('') +
+    '<div class="muted" style="font-size:12.5px;margin-top:var(--e3);line-height:1.5">' +
+      'Los montos de arriba son el tope de cada escalón, no una oferta: lo tuyo se decide cuando ' +
+      'hablemos. A los escalones dos y tres se entra por invitación nuestra, después de que nos ' +
+      'pagues en fecha.</div>' +
+  '</div>';
+}
+
+function plegable(id, titulo, parrafos) {
+  return '<details class="plegable" id="' + id + '"><summary>' + esc(titulo) + '</summary>' +
+    '<div class="adentro">' + parrafos.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') +
+    '</div></details>';
+}
+
+/* -------------------------------------------------------------------------
+ * DEJARLA EN EL CELULAR
+ *
+ * Solo aparece cuando el navegador de verdad puede instalarla: Chrome avisa con
+ * `beforeinstallprompt` y si no avisó, el botón mentiría. Es la misma regla que
+ * ya sigue app/socio.html.
+ *
+ * LO QUE NO SE PIDE: el permiso de notificaciones. Joan lo pidió y no se hace
+ * todavía, con motivo: hoy no hay quién mande una — el service worker no
+ * escucha 'push' y no existe el emisor. Pedir un permiso que no se va a usar es
+ * pedirle algo al cliente a cambio de nada, y lo QUEMA: Android no lo vuelve a
+ * preguntar el día que sí haga falta. Es la misma decisión que ya está escrita
+ * en android/twa-manifest.json y que vigila una prueba.
+ * ----------------------------------------------------------------------- */
+var INSTALADOR = null;
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault(); INSTALADOR = e;
+  var c = $('cajaInstalar'); if (c) c.innerHTML = tarjetaInstalarPlay();
+});
+function tarjetaInstalarPlay() {
+  if (!INSTALADOR) return '';
+  return '<div class="card"><h3 class="tit">Déjala en tu celular</h3>' +
+    '<p class="sub">' + esc(TEXTOS.empujon_instalar) + ' Ocupa menos que una foto y abre sin señal.</p>' +
+    '<button class="btn sec arriba" onclick="instalarPlay()">Agregar a mi pantalla de inicio</button></div>';
+}
+function instalarPlay() {
+  if (!INSTALADOR) return;
+  INSTALADOR.prompt();
+  INSTALADOR.userChoice.then(function () {
+    INSTALADOR = null;
+    var c = $('cajaInstalar'); if (c) c.innerHTML = '';
+  }).catch(function () {});
+}
+
+/* -------------------------------------------------------------------------
+ * EL RAYO
+ *
+ * Joan: «que cada vez que se toque la pantalla se cree un rayo de energía que se
+ * mueve aleatoriamente como un rayo real y continuo».
+ *
+ * Cómo está hecho: un rayo es una cabeza que CAMINA por la pantalla desde el
+ * punto que se tocó, con una dirección que se desvía al azar en cada paso
+ * (paseo aleatorio con inercia, que es lo que hace que se vea como un rayo y no
+ * como una línea temblorosa). Va dejando un rastro que se apaga por detrás, y
+ * de vez en cuando echa una rama. Vive poco más de un segundo.
+ *
+ * LO QUE LO HACE BARATO, que es la parte que importa en un celular de gama baja:
+ *   · Un solo lienzo para todos los rayos, y el bucle se APAGA cuando no queda
+ *     ninguno vivo: no gira en vacío gastando batería.
+ *   · Máximo tres rayos a la vez. El cuarto toque no crea nada.
+ *   · AUTODEGRADADO: se cronometran los primeros fotogramas y si este teléfono
+ *     no da los 30 por segundo, el rayo baja a la mitad de puntos y se queda
+ *     así el resto de la visita. Un adorno no puede volver lenta una app de
+ *     plata.
+ *   · Sordo al tacto (pointer-events:none) y sin capturar el toque: jamás se
+ *     queda con un toque que era para un botón.
+ * ----------------------------------------------------------------------- */
+var RAYOS = { lienzo: null, ctx: null, vivos: [], corriendo: false, dpr: 1,
+              puntos: 26, medidos: 0, suma: 0, degradado: false, ultimo: 0 };
+
+function iniciarRayos() {
+  if (RAYOS.lienzo) return;
+  try {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  } catch (e) {}
+  var c = document.createElement('canvas');
+  c.id = 'rayos'; c.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(c);
+  RAYOS.lienzo = c; RAYOS.ctx = c.getContext('2d');
+  medirLienzo();
+  window.addEventListener('resize', medirLienzo);
+  /* pointerdown y no click: el rayo tiene que salir en el instante en que el
+     dedo toca, no cuando se levanta. `passive` para no frenar el desplazamiento. */
+  window.addEventListener('pointerdown', function (e) { nacerRayo(e.clientX, e.clientY); }, { passive: true });
+}
+/* Se vuelve a medir sola si hace falta, y no solo cuando el navegador avisa que
+   cambió el tamaño. Motivo concreto: si `innerWidth` llega en CERO en el momento
+   de cargar —pasa cuando la página arranca en una pestaña que todavía no se
+   muestra, y se vio en el banco de pruebas—, el lienzo nace de 0×0 y el rayo no
+   vuelve a dibujarse nunca, porque `resize` puede no dispararse jamás. Comparar
+   dos números por fotograma no cuesta nada; quedarse con un adorno muerto y sin
+   error en consola, sí. */
+function medirLienzo() {
+  var c = RAYOS.lienzo; if (!c) return false;
+  var w = window.innerWidth || 0, h = window.innerHeight || 0;
+  if (!w || !h) return false;
+  RAYOS.dpr = Math.min(2, window.devicePixelRatio || 1);
+  var W = Math.round(w * RAYOS.dpr), H = Math.round(h * RAYOS.dpr);
+  if (c.width !== W || c.height !== H) {
+    c.width = W; c.height = H;
+    RAYOS.ctx.setTransform(RAYOS.dpr, 0, 0, RAYOS.dpr, 0, 0);
+  }
+  return true;
+}
+function nacerRayo(x, y) {
+  if (!RAYOS.ctx || RAYOS.vivos.length >= 3) return;
+  RAYOS.vivos.push({
+    puntos: [{ x: x, y: y }],
+    ang: Math.random() * Math.PI * 2,
+    vida: 0,
+    tope: RAYOS.degradado ? Math.round(RAYOS.puntos / 2) : RAYOS.puntos,
+    ramas: []
+  });
+  if (!RAYOS.corriendo) { RAYOS.corriendo = true; RAYOS.ultimo = 0; requestAnimationFrame(pasoRayos); }
+}
+function pasoRayos(t) {
+  var ctx = RAYOS.ctx; if (!ctx) { RAYOS.corriendo = false; return; }
+  /* Si el lienzo todavía no tiene tamaño (ver medirLienzo), se espera al
+     siguiente fotograma en vez de dibujar en la nada. */
+  if (!medirLienzo()) { requestAnimationFrame(pasoRayos); return; }
+
+  /* El autodegradado: diez fotogramas medidos y se decide de una vez. */
+  if (RAYOS.ultimo && RAYOS.medidos < 10) {
+    RAYOS.suma += (t - RAYOS.ultimo); RAYOS.medidos++;
+    if (RAYOS.medidos === 10 && (RAYOS.suma / 10) > 33) RAYOS.degradado = true;
+  }
+  RAYOS.ultimo = t;
+
+  var W = window.innerWidth, H = window.innerHeight;
+  ctx.clearRect(0, 0, W, H);
+
+  RAYOS.vivos = RAYOS.vivos.filter(function (r) {
+    r.vida++;
+    if (r.puntos.length < r.tope) {
+      var u = r.puntos[r.puntos.length - 1];
+      /* La desviación es lo que le da el aire de rayo: mucha inercia y de vez en
+         cuando un quiebre fuerte, como los de verdad. */
+      r.ang += (Math.random() - 0.5) * 0.9;
+      if (Math.random() < 0.12) r.ang += (Math.random() - 0.5) * 2.2;
+      var paso = 16 + Math.random() * 22;
+      var n = { x: u.x + Math.cos(r.ang) * paso, y: u.y + Math.sin(r.ang) * paso };
+      /* Rebota en los bordes en vez de irse: si se va, el rayo se acaba antes de
+         verse. */
+      if (n.x < 4 || n.x > W - 4) { r.ang = Math.PI - r.ang; n.x = Math.max(4, Math.min(W - 4, n.x)); }
+      if (n.y < 4 || n.y > H - 4) { r.ang = -r.ang; n.y = Math.max(4, Math.min(H - 4, n.y)); }
+      r.puntos.push(n);
+      if (!RAYOS.degradado && Math.random() < 0.16 && r.ramas.length < 3) {
+        r.ramas.push({ desde: r.puntos.length - 1, ang: r.ang + (Math.random() - 0.5) * 2, largo: 3 + Math.random() * 4 });
+      }
+    }
+    var edad = r.vida / (r.tope + 16);
+    var alfa = Math.max(0, 1 - edad);
+    if (alfa <= 0) return false;
+
+    dibujarRayo(ctx, r, alfa);
+    return true;
+  });
+
+  if (RAYOS.vivos.length) requestAnimationFrame(pasoRayos);
+  else { RAYOS.corriendo = false; ctx.clearRect(0, 0, W, H); }
+}
+function dibujarRayo(ctx, r, alfa) {
+  var pts = r.puntos;
+  if (pts.length < 2) return;
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  /* Dos pasadas: una ancha y tenue que hace el halo, y una fina y clara que
+     hace el filamento. Sale más barato que un shadowBlur, que en Android
+     recalcula el desenfoque en cada fotograma. */
+  ctx.strokeStyle = 'rgba(245,197,66,' + (alfa * 0.22).toFixed(3) + ')';
+  ctx.lineWidth = 9; trazo(ctx, pts);
+  ctx.strokeStyle = 'rgba(255,240,200,' + (alfa * 0.95).toFixed(3) + ')';
+  ctx.lineWidth = 2; trazo(ctx, pts);
+  ctx.strokeStyle = 'rgba(245,197,66,' + (alfa * 0.7).toFixed(3) + ')';
+  ctx.lineWidth = 1;
+  r.ramas.forEach(function (b) {
+    var o = pts[b.desde]; if (!o) return;
+    ctx.beginPath(); ctx.moveTo(o.x, o.y);
+    var a = b.ang, x = o.x, y = o.y;
+    for (var i = 0; i < b.largo; i++) {
+      a += (Math.random() - 0.5) * 1.1;
+      x += Math.cos(a) * 12; y += Math.sin(a) * 12;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+function trazo(ctx, pts) {
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke();
+}
+
 /* ============================== LA CUENTA ==============================
    Etapa 6. Lo que el socio ve cuando entra: su perfil y su cupo, el simulador,
    el botón de pedir, y su historial.
@@ -1394,6 +1777,7 @@ function pie() {
      «Registrarme» de app/socio.html, que es el único enlace que Joan reparte.
      Quien llega así es un socio nuevo del quincenal: no tiene por qué ver la
      portada del producto a 6 meses ni un login con contraseña que no es suyo. */
+  iniciarRayos();
   if (location.hash === '#registro') {
     /* 9-sep-2026 — SE VUELVE DONDE IBA, no al principio. Ver LLAVE_PASO: la
        cámara del sistema hace que el teléfono recargue esta página, y arrancar
