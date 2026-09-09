@@ -323,3 +323,53 @@ describe('la app del socio no pide permisos que no necesita', () => {
     assert.ok(conDefecto.indexOf('READ_SMS') !== -1, 'el barrido no encontraría el defecto inyectado');
   });
 });
+/* ==========================================================================
+ * LA CÉDULA LEÍDA Y EL APARATO — 8-sep-2026
+ *
+ * El código PDF417 de la cédula amarilla trae los datos en anchos fijos; la
+ * app lo decodifica y esto lo vuelve formulario. La regla que se prueba: si no
+ * hay un número de documento válido, NO se inventa nada (null), y lo que se
+ * lee se lee entero (número sin ceros, apellidos, nombres, sexo, nacimiento).
+ * ======================================================================== */
+describe('la cédula leída del código de barras (8-sep-2026)', () => {
+  /* Un registro como el de la Registraduría: 48 de cabecera, número de 10 con
+     ceros a la izquierda, y campos de 23 rellenos con espacios o nulos. */
+  const campo = (t, n) => (t + '\u0000'.repeat(n)).slice(0, n);
+  const registro = (doc, ap1, ap2, n1, n2, sexo, nac, rh) =>
+    'PubDSK1' + '0'.repeat(41) + campo(doc.padStart(10, '0'), 10) +
+    campo(ap1, 23) + campo(ap2, 23) + campo(n1, 23) + campo(n2, 23) + sexo + '\u0000' + nac + '00011' + rh + '\u0000'.repeat(40);
+
+  test('los anchos fijos: número sin ceros, apellidos, nombres, sexo, nacimiento y RH', () => {
+    const r = U.leerCedulaPDF417(registro('52111222', 'PEREZ', 'GOMEZ', 'MARIA', 'FERNANDA', 'F', '19900315', 'O+'));
+    assert.deepEqual(r, { documento: '52111222', apellidos: 'PEREZ GOMEZ', nombres: 'MARIA FERNANDA', sexo: 'F',
+      nacimiento: '1990-03-15', rh: 'O+', lectura: 'anchos_fijos' });
+  });
+
+  test('un solo apellido y un solo nombre también', () => {
+    const r = U.leerCedulaPDF417(registro('1018447274', 'RUIZ', '', 'JOAN', '', 'M', '19950101', 'A-'));
+    assert.deepEqual({ d: r.documento, a: r.apellidos, n: r.nombres, s: r.sexo, f: r.nacimiento }, { d: '1018447274', a: 'RUIZ', n: 'JOAN', s: 'M', f: '1995-01-01' });
+  });
+
+  test('si los anchos no cuadran, lee por tokens; y si no hay documento, null', () => {
+    const r = U.leerCedulaPDF417('basura ' + '0052111222' + ' PEREZ GOMEZ MARIA FERNANDA F 19900315 ' + 'x'.repeat(40));
+    assert.equal(r.lectura, 'tokens');
+    assert.equal(r.documento, '52111222');
+    assert.equal(r.apellidos, 'PEREZ GOMEZ');
+    assert.equal(r.nombres, 'MARIA FERNANDA');
+    assert.equal(r.sexo, 'F');
+    assert.equal(r.nacimiento, '1990-03-15');
+    assert.equal(U.leerCedulaPDF417('nada que ver aquí, ni un número que sirva ' + 'z'.repeat(40)), null, 'inventó un documento');
+    assert.equal(U.leerCedulaPDF417(''), null);
+    assert.equal(U.leerCedulaPDF417(null), null);
+  });
+
+  test('el aparato, en palabras', () => {
+    assert.equal(U.dispositivoDe('Mozilla/5.0 (Linux; Android 13; SM-A155M Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36'),
+      'Android 13 · SM-A155M · Chrome · (app)');
+    assert.equal(U.dispositivoDe('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'),
+      'iPhone · iOS 17.5 · Safari');
+    assert.equal(U.dispositivoDe('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36'),
+      'Windows · Chrome');
+    assert.equal(U.dispositivoDe(''), '');
+  });
+});

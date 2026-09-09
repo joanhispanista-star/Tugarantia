@@ -355,6 +355,119 @@
     { permiso: 'CAMERA', porque: 'La foto de la cédula y la del rostro. Se pide en el momento de tomarla, no al abrir la app.' }
   ];
 
+  /* ==========================================================================
+   * LA CÉDULA LEÍDA DEL CÓDIGO DE BARRAS — 8-sep-2026
+   *
+   * Pedido de Joan: «únicamente tomando la foto de la cédula, el sistema rellene
+   * los datos automáticamente». La cédula amarilla trae al respaldo un código
+   * PDF417 con el número, los apellidos, los nombres, el sexo y la fecha de
+   * nacimiento, en campos de ancho fijo. La app lo decodifica en el teléfono
+   * (ZXing) y esto lo convierte en datos del formulario. NO trae la fecha de
+   * expedición: esa la escribe la persona.
+   *
+   * Dos lecturas, en orden: los anchos fijos que usa la Registraduría, y si no
+   * cuadran, una lectura tolerante por tokens. Si ninguna encuentra un número
+   * de documento válido, se devuelve null y el formulario se llena a mano —
+   * nunca se inventa un dato.
+   * ======================================================================== */
+  function limpiarNombre(t) {
+    return String(t || '').replace(/\u0000/g, ' ').replace(/[^A-ZÁÉÍÓÚÜÑ ]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  function fechaDeOcho(t) {
+    var m = /^(19|20)(\d{2})(\d{2})(\d{2})$/.exec(String(t || '').trim());
+    if (!m) return '';
+    var mes = Number(m[3]), dia = Number(m[4]);
+    if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return '';
+    return m[1] + m[2] + '-' + m[3] + '-' + m[4];
+  }
+  function leerCedulaPDF417(texto) {
+    var t = String(texto || '');
+    if (t.length < 60) return null;
+    var s = t.replace(/\u0000/g, ' ');
+    var salida = null;
+
+    /* 1. los anchos fijos: número en 48..58, luego cuatro campos de 23. */
+    var doc = (s.substr(48, 10) || '').replace(/\D/g, '').replace(/^0+/, '');
+    if (/^\d{5,10}$/.test(doc)) {
+      var ap1 = limpiarNombre(s.substr(58, 23)), ap2 = limpiarNombre(s.substr(81, 23));
+      var n1 = limpiarNombre(s.substr(104, 23)), n2 = limpiarNombre(s.substr(127, 23));
+      if (ap1 && n1) {
+        salida = {
+          documento: doc,
+          apellidos: (ap1 + ' ' + ap2).trim(),
+          nombres: (n1 + ' ' + n2).trim(),
+          sexo: /^[MF]$/.test(s.substr(150, 1)) ? s.substr(150, 1) : '',
+          /* Después del sexo viene la fecha (8 dígitos), el código del municipio
+             de expedición (5 dígitos) y el RH. Entre versiones del formato hay
+             una columna de diferencia, así que en la cola se BUSCA, no se mide. */
+          nacimiento: fechaDeOcho((s.substr(150, 14).match(/(19|20)\d{6}/) || [''])[0]),
+          rh: ((s.substr(158, 16).match(/(AB|A|B|O)[+-]/) || [''])[0]),
+          lectura: 'anchos_fijos'
+        };
+      }
+    }
+    if (salida) return salida;
+
+    /* 2. por tokens: un número de 5 a 10 dígitos, y después las palabras en
+       mayúscula que lo siguen (apellidos y nombres), el sexo y la fecha. */
+    var tokens = s.split(/[\s\u0000]+/).filter(Boolean);
+    var i = -1;
+    for (var k = 0; k < tokens.length; k++) {
+      if (/^\d{5,10}$/.test(tokens[k].replace(/^0+/, '')) && tokens[k].length >= 5) { i = k; break; }
+    }
+    if (i < 0) return null;
+    var palabras = [], sexo = '', nac = '';
+    for (var j = i + 1; j < tokens.length && palabras.length < 6; j++) {
+      var tk = tokens[j];
+      if (/^[MF]$/.test(tk)) { sexo = tk; continue; }
+      if (fechaDeOcho(tk)) { nac = fechaDeOcho(tk); continue; }
+      if (/^\d+$/.test(tk)) { if (palabras.length) break; else continue; }
+      var lp = limpiarNombre(tk);
+      if (lp) palabras.push(lp);
+    }
+    if (palabras.length < 2) return null;
+    var mitad = Math.min(2, palabras.length - 1);
+    return {
+      documento: tokens[i].replace(/^0+/, ''),
+      apellidos: palabras.slice(0, mitad).join(' '),
+      nombres: palabras.slice(mitad).join(' '),
+      sexo: sexo, nacimiento: nac, rh: '', lectura: 'tokens'
+    };
+  }
+
+  /* EL APARATO, en palabras. La huella la lee la base de las cabeceras de la
+     petición (no del teléfono); esto solo traduce el user-agent a algo que Joan
+     pueda leer en la ficha: «Android 13 · Samsung SM-A155M · Chrome». */
+  function dispositivoDe(ua) {
+    var u = String(ua || '');
+    if (!u) return '';
+    var partes = [];
+    var m;
+    if ((m = /Android (\d+(?:\.\d+)?)/.exec(u))) {
+      partes.push('Android ' + m[1]);
+      var mod = /;\s*([^;)]+?)\s+Build\//.exec(u) || /Android [\d.]+;\s*([^;)]+)\)/.exec(u);
+      if (mod && mod[1] && !/^[a-z]{2}-[a-z]{2}$/i.test(mod[1].trim())) partes.push(mod[1].trim());
+    } else if (/iPhone|iPad/.test(u)) {
+      partes.push(/iPad/.test(u) ? 'iPad' : 'iPhone');
+      if ((m = /OS (\d+)[_.](\d+)/.exec(u))) partes.push('iOS ' + m[1] + '.' + m[2]);
+    } else if (/Windows/.test(u)) {
+      partes.push('Windows');
+    } else if (/Macintosh/.test(u)) {
+      partes.push('Mac');
+    } else if (/Linux/.test(u)) {
+      partes.push('Linux');
+    }
+    if (/EdgA?\//.test(u)) partes.push('Edge');
+    else if (/SamsungBrowser/.test(u)) partes.push('Samsung Internet');
+    else if (/OPR\//.test(u)) partes.push('Opera');
+    else if (/Firefox\//.test(u)) partes.push('Firefox');
+    else if (/CriOS\//.test(u)) partes.push('Chrome');
+    else if (/Chrome\//.test(u)) partes.push('Chrome');
+    else if (/Safari\//.test(u)) partes.push('Safari');
+    if (/; wv\)|Version\/[\d.]+ Chrome/.test(u) && /Android/.test(u)) partes.push('(app)');
+    return partes.join(' · ') || u.slice(0, 60);
+  }
+
   return {
     VERSION: '2026-08-11',
 
@@ -371,6 +484,10 @@
     /* la contraseña */
     LARGO_MINIMO_CLAVE: LARGO_MINIMO_CLAVE,
     revisarContrasena: revisarContrasena,
+
+    /* la cédula leída y el aparato (8-sep-2026) */
+    leerCedulaPDF417: leerCedulaPDF417,
+    dispositivoDe: dispositivoDe,
 
     /* el formulario */
     CAMPOS: CAMPOS,

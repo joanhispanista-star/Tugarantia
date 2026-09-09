@@ -287,17 +287,105 @@ cliente; el código sigue viajando en los datos por si Joan quiere usarlo.
 
 ---
 
+## La cédula, el rostro y la huella (madrugada del 9; 942 pruebas, 4 nuevas)
+
+Joan, con sus palabras: «no me pidió la foto facial ni la de la cédula por las
+dos caras… que únicamente tomando la foto de la cédula el sistema rellene los
+datos… que al tomar la foto facial parezca que escanea la cara, incluso los
+ojos… que mi CRM identifique un porcentaje de parecido con la cédula… que me
+permita ver desde qué celular o la IP… y que la ubicación quede registrada».
+
+### Lo que hace el teléfono (`play/index.html`)
+
+Dos pasos nuevos entre la contraseña y «Quién eres»: **Tu cédula** y **Tu
+rostro**. Los dos son opcionales y cuelgan de UNA casilla de datos sensibles
+(Ley 1581: aparte, marcable, la cuenta se abre igual sin ella).
+
+- **La cédula.** Foto del respaldo → ZXing lee el PDF417 → `leerCedulaPDF417`
+  (`app/cuenta.js`) saca número, apellidos, nombres, sexo, nacimiento y RH y
+  los deja escritos en «Quién eres». Si el código no se lee, se escribe a mano.
+  La del frente se guarda para que el CRM compare.
+- **La ubicación.** Se pide UNA vez, al marcar la casilla (GPS del aparato).
+- **El rostro.** El escáner: óvalo, esquinas, malla que respira, anillos
+  latiendo sobre los ojos, arco de progreso, cuenta regresiva. **Dibuja, no
+  reconoce**: en el teléfono no se detecta ni se mide nada del rostro. A los
+  tres segundos dispara solo (o «Tomar la foto ahora»). Sin cámara o sin
+  permiso, cae a una selfie normal con el botón de cámara.
+- **La subida.** Después de crear la cuenta (con sesión, para que nadie suba
+  fotos a nombre de otro celular): `registro_archivos_guardar`. Si falla, se
+  reintenta al abrir la cuenta. Si al final quita la casilla, las fotos se
+  borran del teléfono y no salen.
+
+### Lo que hace la base (`base/20260908b_registro_archivos.sql`)
+
+Tabla `registro_archivos` (tres fotos por celular, aparte de `registros` para
+que «Traer de la nube» no baje megas). La **huella** —IP y aparato— **no la
+manda el teléfono**: la lee la base de las cabeceras de la petición
+(`request.headers`, PostgREST). El teléfono solo manda el GPS autorizado y la
+cédula leída. `archivos_de_registro` devuelve fotos y huella de UNA persona.
+
+### Lo que hace el CRM (`panel/crm.html`)
+
+- Al abrir un registro o al desembolsar el primer crédito, la ficha nace con
+  las tres fotos, la ubicación (enlace a Maps), la IP (enlace a ubicación
+  aproximada), el aparato (`dispositivoDe`: marca, modelo, sistema) y la cédula
+  leída junto a lo declarado.
+- **«Comparar con la cédula»**: face-api en el computador de Joan (detector,
+  puntos, vector), `parecidoDeDistancia(d) = 1 − d/1,2` → 0–100%. El vector no
+  se guarda: se calcula, se muestra y se va.
+
+### Las tres decisiones que cuestan algo
+
+1. **Nada de biometría en el teléfono.** La primera versión cargaba face-api
+   en `play/` para centrar el rostro, y `cumplimiento.test.js` la tumbó
+   («apareció faceapi»). Con razón: detectar rostros en la app cambia la
+   declaración de Data Safety y la Ley 1581 pasaría a tratar biometría. El
+   escáner de ahora es escenografía honesta —la pantalla no promete «te
+   reconozco», promete «te tomo la foto»— y el parecido lo saca el CRM.
+2. **Sin CDN.** ZXing y face-api con sus tres modelos viven en `app/lib`
+   (8 MB, MIT, `app/lib/ORIGEN.md`). Por Data Safety en `play/` (la prueba «no
+   llama a ningún servidor que no sea el suyo») y por el CRM: tiene toda la
+   cartera en memoria, y un script ajeno podría leerla.
+3. **La ubicación y la IP son aproximadas** y así lo dice la ficha («la de la
+   red, no la de la casa»). La interfaz no promete lo que el dato no da.
+
+### Verificado
+
+- 942 pruebas en verde. Nuevas: el lector de la cédula (anchos fijos, un solo
+  nombre, por tokens, sin documento → `null`) y `dispositivoDe`.
+- En el navegador (`python -m http.server`): los pasos «Tu cédula» y «Tu
+  rostro» se pintan; sin cámara cae al botón de selfie; ZXing carga desde
+  `../app/lib/zxing.min.js` (`BrowserPDF417Reader` presente); en el CRM cargan
+  face-api 1.7.13 y los tres modelos desde `app/lib/rostro` (siete 200), y
+  `parecidoDeDistancia` da 100/67/50/0 para 0/0,4/0,6/1,2. La cámara no se
+  puede ejercitar sin teléfono: **Joan la prueba en el suyo**.
+
+### Dos fallas que no eran de la app
+
+- **Las pruebas de mora fallaban de noche.** Los ayudantes de fecha de
+  `panel.test.js` usaban `toISOString()` (UTC); el Panel usa hora local. Desde
+  las 7 pm de Colombia ya era «mañana» en la prueba y no en el Panel. Ahora
+  todas van por `local(x)`. En GitHub (UTC) nunca se vio.
+- **Bytes NUL literales** en `cuenta.js` y su prueba (el PDF417 los trae como
+  relleno): grep decía «binary» y git no mostraba el diff. Son `0000`.
+
 ## Lo que espera a Joan, con fechas
 
-1. **ANTES DEL 1 DE OCTUBRE — la certificación de octubre** en `TOPES` de
+1. **HOY — dos migraciones, en orden, en el SQL Editor de Supabase:**
+   `base/20260908_primer_credito.sql` y después
+   `base/20260908b_registro_archivos.sql`. Sin la primera no existe el primer
+   crédito del nuevo (la app pide `primer_credito_pedir` y la nube contesta
+   404); sin la segunda las fotos y la huella no tienen dónde caer. Las dos
+   son idempotentes y traen su comprobación al final.
+2. **ANTES DEL 1 DE OCTUBRE — la certificación de octubre** en `TOPES` de
    `app/creditos.js` (ver `ESTADO-4-SEP-2026.md`). El vigilante de GitHub avisa
    los días 16, 22 y 27.
-2. **Descartar el registro de PRUEBA** en Registrados (✕), y que su abogado mire el
+3. **Descartar el registro de PRUEBA** en Registrados (✕), y que su abogado mire el
    texto nuevo de los términos (el costo ya no se declara como porcentaje).
-3. **Los 16 hallazgos del 4-sep** que siguen (`AUDITORIA-4-SEP-2026.md`),
+4. **Los 16 hallazgos del 4-sep** que siguen (`AUDITORIA-4-SEP-2026.md`),
    sobre todo el bloque del **acuerdo de prórroga** — mientras tanto: no pactar
    acuerdos desde el computador si va a cobrar en la calle.
-4. El chat (fases 2–5), la plantilla con `�`, el Enforce HTTPS.
+5. El chat (fases 2–5), la plantilla con `�`, el Enforce HTTPS.
 
 ---
 
@@ -321,3 +409,14 @@ cliente; el código sigue viajando en los datos por si Joan quiere usarlo.
 - La captura de pantalla del panel del navegador se cuelga con el modal
   abierto; la página sí renderiza (la tarjeta mide 600×920). Verificar por
   `javascript_tool`/`get_page_text`, no por screenshot.
+- **Las fechas relativas de las pruebas van en hora LOCAL** (`local(x)` en
+  `panel.test.js`), como el Panel. `toISOString()` es UTC: de noche en
+  Colombia falla lo que en GitHub pasa. Si una prueba de mora se pone roja
+  después de las 7 pm, mira primero la fecha.
+- **`crearDesdeSolicitud` devuelve una promesa** cuando la ficha no existe
+  (pide fotos y huella antes de crearla): en las pruebas, `await`.
+- **Nada de `faceapi` ni de dominios nuevos en `play/`**: `cumplimiento.test.js`
+  los tumba a propósito (biometría y Data Safety). Las bibliotecas van en
+  `app/lib` con su fila en `ORIGEN.md`.
+- **Sin bytes NUL literales en el código**: `\u0000`. Con el byte crudo, grep
+  dice «binary» y el diff no se ve.

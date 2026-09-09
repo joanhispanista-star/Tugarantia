@@ -99,6 +99,12 @@ function abrirPanel(opciones) {
 }
 
 const CASA = 'https://tugarantia.net/app/socio.html';
+/* Las fechas relativas («hace 10 días») se escriben en hora LOCAL, igual que
+   hace el Panel (isoLocal). Con toISOString() —que es UTC— desde las 7 de la
+   noche de Colombia ya es «mañana», y las pruebas de mora fallaban de noche en
+   el computador de Joan y pasaban en el de GitHub. */
+const local = x => new Date(x.getTime() - x.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
 const UN_CLIENTE = {
   socios: [{
     id: 's1', nombre: 'María Pérez', telefono: '3001112233', whatsappIgual: true,
@@ -434,7 +440,7 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
        banco corre con el reloj real. */
     const d = JSON.parse(JSON.stringify(UN_CLIENTE));
     const hace = n => { const x = new Date(); x.setDate(x.getDate() - n);
-      return x.toISOString().slice(0, 10); };
+      return local(x); };
     d.prestamos = [{ id: 'p1', numero: 1, socioId: 's1', socioNombre: 'María Pérez',
       capital: 400000, costoPct: 20, fechaDesembolso: hace(25), cicloActual: hace(10),
       prorrogas: [], abonosCapital: [], comprobantes: [], pagado: false }];
@@ -442,7 +448,7 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
     return d;
   }
   const enDias = n => { const x = new Date(); x.setDate(x.getDate() + n);
-    return x.toISOString().slice(0, 10); };
+    return local(x); };
 
   test('PACTAR NO MUEVE NADA: ni el corte, ni las prórrogas, ni la ganancia', () => {
     const P = abrirPanel();
@@ -504,7 +510,7 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
     const P = abrirPanel();
     carteraConMora(P);
     const ayer = (() => { const x = new Date(); x.setDate(x.getDate() - 1);
-      return x.toISOString().slice(0, 10); })();
+      return local(x); })();
     P.ev("DB.prestamos[0].acuerdo={pactadoEl:'" + ayer + "',pactadaPara:'" + ayer +
       "',monto:123450,costo:80000,mora:43450,diasMora:9}");
     /* El cobro publicado ya no es el pacto: es lo causado real de hoy. */
@@ -638,9 +644,9 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
 describe('el descuento de la mora en el Panel (2-sep-2026)', () => {
 
   const hace = n => { const x = new Date(); x.setDate(x.getDate() - n);
-    return x.toISOString().slice(0, 10); };
+    return local(x); };
   const enDias = n => { const x = new Date(); x.setDate(x.getDate() + n);
-    return x.toISOString().slice(0, 10); };
+    return local(x); };
   function carteraConMora(P) {
     const d = JSON.parse(JSON.stringify(UN_CLIENTE));
     d.prestamos = [{ id: 'p1', numero: 1, socioId: 's1', socioNombre: 'María Pérez',
@@ -799,7 +805,7 @@ describe('el cobro con monto real en el Panel (7-sep-2026)', () => {
 
   const M = require('../app/motor.js');
   const hace = n => { const x = new Date(); x.setDate(x.getDate() - n);
-    return x.toISOString().slice(0, 10); };
+    return local(x); };
   /* 10 días de mora: capital 400.000, costo 80.000, recargo 40.000, total 520.000. */
   function carteraConMora(P) {
     const d = JSON.parse(JSON.stringify(UN_CLIENTE));
@@ -1141,7 +1147,7 @@ describe('la prórroga con monto real en el Panel (8-sep-2026)', () => {
 
   const M = require('../app/motor.js');
   const hace = n => { const x = new Date(); x.setDate(x.getDate() - n);
-    return x.toISOString().slice(0, 10); };
+    return local(x); };
   /* 10 días de mora: capital 400.000, costo 80.000, recargo 40.000 → la
      prórroga cuesta 120.000. */
   function carteraConMora(P) {
@@ -1383,14 +1389,16 @@ describe('la bandeja del primer crédito del nuevo (8-sep-2026)', () => {
     assert.equal(P.ev('DB.prestamos.length'), 0, 'creó el crédito sin aceptación');
   });
 
-  test('aceptó: al desembolsar nace la ficha (de lo declarado) y el crédito con lo aceptado', () => {
+  test('aceptó: al desembolsar nace la ficha (de lo declarado) y el crédito con lo aceptado', async () => {
     const P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
     const h = conBandeja(P, sol('aceptada'));
     assert.match(h, /✅ Aceptó/); assert.match(h, /Desembolsar/);
     assert.match(h, /la ficha se crea al desembolsar/);
     P.ev("confirm=t=>String(t).indexOf('bienvenida')<0");
     const socios = P.ev('DB.socios.length');
-    P.ev("crearDesdeSolicitud('77')");
+    /* Desde el 8-sep la ficha nace con las fotos y la huella del registro, que se
+       piden a la nube ANTES de crearla: es una promesa, y se espera. */
+    await P.ev("crearDesdeSolicitud('77')");
     assert.equal(P.ev('DB.socios.length'), socios + 1, 'la ficha del nuevo no se creó');
     const s = JSON.parse(P.ev('JSON.stringify(DB.socios[DB.socios.length-1])'));
     assert.deepEqual({ nombre: s.nombre, tel: s.telefono, ced: s.cedula, ciudad: s.ciudad, ing: s.ingresoQuincenal, origen: s.origen },

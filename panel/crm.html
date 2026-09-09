@@ -644,6 +644,8 @@
      quien decide de qué lado va un mensaje y cómo se escapa el texto vive en un
      solo archivo. Si esto se copiara aquí abajo, habría dos verdades. -->
 <script src="../app/chat.js"></script>
+<!-- 8-sep-2026: dispositivoDe (la huella del registro, en palabras). Opcional: si no llega, se muestra el user-agent crudo. -->
+<script src="../app/cuenta.js"></script>
 <script>
 const PUENTE=window.PuenteTuGarantia;
 const CHAT=window.ChatTuGarantia;
@@ -2389,7 +2391,10 @@ function verCliente(id){
      siguiente — la mano es la de Joan, y la pantalla no promete otra cosa. */
   const aFavorTotal=ps.reduce((t,p)=>t+Math.max(0,Number(p.saldoAFavor)||0),0);
   const fotos=[['Cédula (frente)',s.cedulaFrenteFoto],['Cédula (reverso)',s.cedulaReversoFoto],['Selfie con cédula',s.selfieFoto]].filter(f=>f[1]);
-  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div><div class="gal">${fotos.map(f=>`<a href="${f[1]}" target="_blank"><img src="${f[1]}"><div class="cap">${f[0]}</div></a>`).join('')}</div>`:'';
+  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div><div class="gal">${fotos.map((f,i)=>`<a href="${f[1]}" target="_blank"><img src="${f[1]}" id="fichaFoto_${['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Selfie con cédula'].indexOf(f[0])]}"><div class="cap">${f[0]}</div></a>`).join('')}</div>`
+    +(s.selfieFoto&&s.cedulaFrenteFoto?`<div id="fichaParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('fichaFoto_selfie','fichaFoto_frente','fichaParecido')">🔍 Comparar el rostro con la cédula</button></div>`:''):'';
+  /* 8-sep-2026 — desde dónde se registró (huella), si vino del registro abierto. */
+  const huellaHTML=s.huellaRegistro?bloqueHuella(Object.assign({},s.huellaRegistro,{gps:s.ubicacion||null})):'';
   const fondo=fondoCuponDe(s);
   /* 5-ago-2026 — EL NIVEL SIGUE EN LA FICHA, PERO YA NO PROMETE CUPO.
      Decisión explícita de Joan: los niveles se quedan. Lo que perdieron es
@@ -2423,6 +2428,7 @@ function verCliente(id){
   openModal(codCliente(s)+' · '+s.nombre,`
     ${bloqueCodigo}
     <div class="info-row"><span class="k">Ganancia generada</span><span class="vv gano">${COP(gan)}</span></div>
+    ${huellaHTML}
     <div class="alerta info solo-tuyo"><b class="tit-solo">Solo para ti · el fondo del cupón (reparto ${REPARTO_TXT})</b>
       <b style="font-size:16px">${COP(fondo.cupon_pendiente)}</b> te falta recuperar
       de los <b>${COP(fondo.cupon_prestado)}</b> que le prestaste para arrancar.
@@ -2593,6 +2599,7 @@ function guardarCliente(id){
   if(id){ Object.assign(s,datos); } else { DB.socios.push(Object.assign({id:'C'+Date.now(),numero:nextNumCliente(),gestiones:[],fechaRegistro:new Date().toISOString()},datos)); }
   const creado=id?s:DB.socios[DB.socios.length-1];
   if(cod) marcarInvitacionUsada(cod,creado);   // avisa solo si algo no cuadra; nunca bloquea el guardado
+  if(_huellaPendiente){ creado.huellaRegistro=_huellaPendiente; _huellaPendiente=null; }
   /* Si esta ficha salió de la bandeja de "quién pidió entrar", recién ahora —con
      el cliente ya guardado— ese registro queda atendido y deja de aparecer. Y la
      vinculación completa que declaró al registrarse viaja con él: lo que no
@@ -4696,7 +4703,63 @@ function verDatosRegistro(id){
     .map(([k,v])=>`<div class="info-row"><span class="k">${escHTML(ETIQUETAS_VINCULACION[k]||k.replace(/_/g,' '))}</span><span class="vv">${escHTML(String(v))}</span></div>`).join('');
   openModal('Lo que declaró '+(r.nombre||'esta persona'),
     '<div class="help" style="margin-bottom:10px">Datos DECLARADOS por la persona al registrarse — nadie los ha verificado todavía. Al abrirle la ficha se prellenan y viajan con el cliente.</div>'
-    +(filas||'<div class="muted">No dejó datos además del nombre y el celular.</div>'));
+    +(filas||'<div class="muted">No dejó datos además del nombre y el celular.</div>')
+    +bloqueHuella(r.huella)
+    +'<div class="sub-h">Fotos del registro</div><div id="regFotos" class="muted">Buscando las fotos…</div>');
+  pintarFotosRegistro(r.telefono||r.cedula,'regFotos');
+}
+/* 8-sep-2026 — LA HUELLA: desde qué aparato y desde qué IP se abrió la cuenta
+   (lo leyó la base de la petición, no el teléfono), el punto GPS si lo
+   autorizó, y si la cédula se leyó del código de barras. Pedido de Joan. */
+function bloqueHuella(h){
+  if(!h||typeof h!=='object') return '<div class="sub-h">Desde dónde se registró</div><div class="muted">Sin huella: se registró antes del 8-sep-2026 o la base no la guardó.</div>';
+  const D=window.CuentaSocio, ap=h.aparato?(D&&D.dispositivoDe?D.dispositivoDe(h.aparato):h.aparato):'';
+  const ip=String(h.ip||'').split(',')[0].trim();
+  const g=h.gps&&typeof h.gps==='object'&&h.gps.lat!=null?h.gps:null;
+  const cl=h.cedula_leida&&typeof h.cedula_leida==='object'?h.cedula_leida:null;
+  return '<div class="sub-h">Desde dónde se registró</div>'
+    +(ap?`<div class="info-row"><span class="k">Aparato</span><span class="vv">${escHTML(ap)}</span></div>`:'')
+    +(ip?`<div class="info-row"><span class="k">Dirección IP</span><span class="vv"><span class="mono">${escHTML(ip)}</span> <a target="_blank" rel="noopener" href="https://ipinfo.io/${encodeURIComponent(ip)}">ubicación aproximada</a> <span class="muted">(la de la red, no la de la casa)</span></span></div>`:'')
+    +(g?`<div class="info-row"><span class="k">Ubicación al registrarse</span><span class="vv"><a target="_blank" rel="noopener" href="${mapsUrl(g)}">Ver en Google Maps</a> <span class="muted">±${Math.round(g.acc||0)} m · ${fmtFecha(g.fecha||'')}</span></span></div>`:'<div class="info-row"><span class="k">Ubicación</span><span class="vv muted">No la autorizó o no hubo señal.</span></div>')
+    +(cl?`<div class="info-row"><span class="k">Cédula leída del código de barras</span><span class="vv">${escHTML((cl.nombres||'')+' '+(cl.apellidos||''))} · ${escHTML(cl.documento||'')}${cl.nacimiento?' · nació '+fmtFecha(cl.nacimiento):''} <span class="muted">(coincide con lo declarado: ${'—'})</span></span></div>`:'<div class="info-row"><span class="k">Cédula leída</span><span class="vv muted">No se leyó el código de barras (escribió los datos a mano).</span></div>')
+    +(h.momento?`<div class="muted" style="font-size:12px">Registrado el ${fmtFecha(String(h.momento).slice(0,10))}.</div>`:'');
+}
+/* Las fotos se piden una persona a la vez (pesan). */
+function archivosDe(celular){
+  if(!sbListo()) return Promise.resolve({fotos:{},huella:null});
+  return rpc('archivos_de_registro',{p_clave:sbCfg().clave,p_celular:String(celular||'')}).then(a=>a&&typeof a==='object'?a:{fotos:{},huella:null}).catch(()=>({fotos:{},huella:null}));
+}
+function pintarFotosRegistro(celular,cajaId){
+  const caja=document.getElementById(cajaId); if(!caja) return;
+  archivosDe(celular).then(a=>{
+    const f=a.fotos||{}; const lista=[['Cédula (frente)',f.cedula_frente,'frente'],['Cédula (reverso)',f.cedula_reverso,'reverso'],['Rostro',f.selfie,'selfie']].filter(x=>x[1]);
+    if(!lista.length){ caja.innerHTML='<span class="muted">No subió fotos (o no autorizó).</span>'; return; }
+    caja.innerHTML=`<div class="gal">${lista.map(x=>`<a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>`).join('')}</div>`
+      +(f.selfie&&f.cedula_frente?`<div id="regParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('regFoto_selfie','regFoto_frente','regParecido')">🔍 Comparar el rostro con la cédula</button></div>`:'');
+  });
+}
+/* EL PARECIDO ROSTRO–CÉDULA, en el computador de Joan (el modelo pesa 4 MB y
+   no tiene por qué bajarlo cada teléfono). Es una AYUDA, no un veredicto: la
+   foto de la cédula es chica y vieja, y el número sale de una distancia entre
+   rasgos. Se dice con esas palabras. */
+/* face-api y sus tres modelos viven en el propio sitio (app/lib/rostro), no en
+   un CDN: el CRM tiene TODA la cartera en memoria, y un script que venga de un
+   servidor ajeno podría leerla. La copia es fija (@vladmandic/face-api 1.7.13,
+   MIT); ver app/lib/ORIGEN.md. */
+const URL_FACE_CRM='../app/lib/rostro/face-api.js', URL_MODELOS_CRM='../app/lib/rostro';
+function cargarScriptCRM(url){ return new Promise((res,rej)=>{ if(document.querySelector('script[src="'+url+'"]')) return res(); const s=document.createElement('script'); s.src=url; s.onload=()=>res(); s.onerror=()=>rej(new Error('no cargó '+url)); document.head.appendChild(s); }); }
+function parecidoDeDistancia(d){ return Math.round(Math.max(0,Math.min(1,1-d/1.2))*100); }
+function compararRostro(idSelfie,idCedula,cajaId){
+  const caja=document.getElementById(cajaId); if(!caja) return; caja.innerHTML='<span class="muted">Comparando… (la primera vez baja el modelo, unos segundos)</span>';
+  cargarScriptCRM(URL_FACE_CRM).then(()=>{ const fa=window.faceapi; return Promise.all([fa.nets.tinyFaceDetector.loadFromUri(URL_MODELOS_CRM),fa.nets.faceLandmark68TinyNet.loadFromUri(URL_MODELOS_CRM),fa.nets.faceRecognitionNet.loadFromUri(URL_MODELOS_CRM)]); })
+  .then(()=>{ const fa=window.faceapi; const opc=new fa.TinyFaceDetectorOptions({inputSize:416,scoreThreshold:0.4});
+    const desc=id=>fa.detectSingleFace(document.getElementById(id),opc).withFaceLandmarks(true).withFaceDescriptor();
+    return Promise.all([desc(idSelfie),desc(idCedula)]); })
+  .then(([a,b])=>{
+    if(!a||!b){ caja.innerHTML='<div class="alerta warn">No encontré un rostro en '+(!a&&!b?'ninguna de las dos fotos':!a?'la foto del rostro':'la foto de la cédula')+'. Míralas tú.</div>'; return; }
+    const d=window.faceapi.euclideanDistance(a.descriptor,b.descriptor), p=parecidoDeDistancia(d);
+    caja.innerHTML=`<div class="alerta ${d<0.6?'info':'warn'}"><b>Parecido rostro–cédula: ${p}%</b> — ${d<0.6?'probablemente la misma persona':'no parece la misma persona'} <span class="muted">(distancia ${d.toFixed(2)}; por debajo de 0,60 suele ser la misma). Es una ayuda: la foto de la cédula es chica y vieja. Decide tú.</span></div>`;
+  }).catch(e=>{ caja.innerHTML='<div class="alerta warn">No pude comparar: '+escHTML((e&&e.message)||'sin conexión')+'</div>'; });
 }
 function fichaDesdeRegistro(id){
   const r=_registros.find(x=>String(x.id)===String(id)); if(!r)return;
@@ -4727,7 +4790,15 @@ function fichaDesdeRegistro(id){
   editarCliente(null,pre);
   _registroPendiente=String(r.id);
   _vinculacionPendiente=Object.keys(d).length?d:null;
+  /* 8-sep-2026 — la ubicación, la huella y las fotos del registro se llevan a
+     la ficha: Joan no vuelve a pedirlas. */
+  const h=r.huella&&typeof r.huella==='object'?r.huella:null;
+  if(h&&h.gps&&h.gps.lat!=null){ _ubicTmp={lat:h.gps.lat,lng:h.gps.lng,acc:h.gps.acc||0,fecha:h.gps.fecha||hoyISO()}; pintarUbic(); }
+  _huellaPendiente=h?{ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''}:null;
+  archivosDe(r.telefono||r.cedula).then(a=>{ const f=a.fotos||{}; if(f.cedula_frente) _fotosTmp.frente=f.cedula_frente; if(f.cedula_reverso) _fotosTmp.reverso=f.cedula_reverso; if(f.selfie) _fotosTmp.selfie=f.selfie; ['frente','reverso','selfie'].forEach(pintarFotoBox); });
 }
+let _huellaPendiente=null;
+function pintarFotoBox(key){ const box=document.getElementById('fot_'+key); if(!box||!_fotosTmp[key]) return; box.classList.add('ok'); let img=box.querySelector('img'); if(!img){img=document.createElement('img');box.appendChild(img);} img.src=_fotosTmp[key]; const l=box.querySelector('.lbl'); if(l) l.textContent='Listo · cambiar'; }
 function descartarRegistro(id){
   const r=_registros.find(x=>String(x.id)===String(id)); if(!r)return;
   if(!confirm('Descartar la solicitud de entrada de '+(r.nombre||'esta persona')+'?\n\nDeja de aparecer acá. No le abre cuenta a nadie.'))return;
@@ -5149,8 +5220,11 @@ function crearDesdeSolicitud(id){
   if(s.contrapropuesta&&s.estado!=='aceptada') return alert(s.nombre+' todavía no ha aceptado la propuesta.\n\nCuando la acepte desde su app te aparece «✅ Aceptó» y el botón de desembolsar. Si quieres cambiarle la propuesta, usa «✏️ Cambiar propuesta».');
   if(!cli&&s.datos&&typeof s.datos==='object'&&Object.keys(s.datos).length){
     if(!confirm('«'+s.nombre+'» todavía no tiene ficha. La creo ahora con los datos que declaró al registrarse (sin verificar), y sigo con el crédito.\n\n¿Continúo?')) return;
-    cli=socioDesdeDatos(s); DB.socios.push(cli);
-    if(s.registro_id&&sbListo()) rpc('marcar_registro',{p_clave:sbCfg().clave,p_id:Number(s.registro_id),p_estado:'atendido'}).catch(()=>{});
+    /* Primero sus fotos, su ubicación y su huella (una llamada); después la
+       ficha con todo, y se vuelve a entrar acá ya con ficha. */
+    return archivosDe(s.cedula).then(a=>{ const nuevo=socioDesdeDatos(s,a); DB.socios.push(nuevo);
+      if(s.registro_id&&sbListo()) rpc('marcar_registro',{p_clave:sbCfg().clave,p_id:Number(s.registro_id),p_estado:'atendido'}).catch(()=>{});
+      guardar(); crearDesdeSolicitud(id); });
   }
   if(!cli) return alert('No tengo ficha de "'+s.nombre+'" con el número '+(s.cedula||'—')+' (ni como cédula ni como celular).\n\nCréale la ficha primero desde Clientes y vuelve a intentar.');
   /* Cada producto por su puerta. El préstamo con garantía NO se desembolsa
@@ -5183,10 +5257,14 @@ function crearDesdeSolicitud(id){
    mismo mapeo que fichaDesdeRegistro, sin pasar por el formulario: Joan ya vio
    los datos en la bandeja («👁») y lo que quiere es desembolsar. Lo que no tiene
    campo propio viaja entero en s.vinculacion. */
-function socioDesdeDatos(s){
+function socioDesdeDatos(s,a){
   const d=(s.datos&&typeof s.datos==='object')?s.datos:{};
   const tel=String(d.celular||s.cedula||'').replace(/\D/g,'').slice(-10);
+  const f=(a&&a.fotos)||{}, h=(a&&a.huella&&typeof a.huella==='object')?a.huella:null;
   return { id:'C'+Date.now(), numero:nextNumCliente(),
+    cedulaFrenteFoto:f.cedula_frente||null, cedulaReversoFoto:f.cedula_reverso||null, selfieFoto:f.selfie||null,
+    ubicacion:(h&&h.gps&&h.gps.lat!=null)?{lat:h.gps.lat,lng:h.gps.lng,acc:h.gps.acc||0,fecha:h.gps.fecha||hoyISO()}:null,
+    huellaRegistro:h?{ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''}:null,
     nombre:s.nombre||((d.nombres||'')+' '+(d.apellidos||'')).trim(), cedula:d.documento||'', telefono:tel,
     whatsappIgual:true, email:d.correo||'', direccion:d.direccion||'', ciudad:d.ciudad||'', barrio:d.barrio||'',
     tipoVivienda:d.tipo_vivienda||'casa',

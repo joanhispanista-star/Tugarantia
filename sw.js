@@ -134,7 +134,12 @@
    en la app, en la web y en los terminos. Toca motor.js, socio.html,
    index.html, legal/terminos.html y crm.html (alta con confirmacion aparte por
    encima del estandar; la prorroga con monto real del mismo dia). */
-const CACHE = 'tugarantia-v29';
+/* v30 — 8-sep-2026 (noche). El registro pide la cedula (el codigo de barras
+   rellena los datos), el rostro (escaner en pantalla, sin biometria en el
+   telefono) y la ubicacion; el CRM compara rostros y ve la huella del aparato.
+   ZXing y face-api viven en app/lib (sin CDN). Toca play/, crm.html,
+   cuenta.js y privacidad.html. */
+const CACHE = 'tugarantia-v30';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

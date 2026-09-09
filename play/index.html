@@ -11,6 +11,21 @@
 <link rel="apple-touch-icon" href="../app/icono-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="../app/icono-192.png">
 <link rel="stylesheet" href="estilo.css">
+<style>
+/* 8-sep-2026 — la cédula y el rostro */
+.foto-caja{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px;border:1.5px dashed rgba(255,255,255,.35);border-radius:14px;cursor:pointer;background:rgba(255,255,255,.04)}
+.foto-caja.ok{border-style:solid;border-color:rgba(120,255,190,.7)}
+.foto-caja .ic{font-size:26px}.foto-caja .lbl{font-size:14px;line-height:1.3}
+.foto-caja img{width:64px;height:64px;object-fit:cover;border-radius:10px}
+.foto-caja input{display:none}
+.escaner{position:relative;width:100%;max-width:360px;margin:12px auto 0;aspect-ratio:3/4;background:#000;border-radius:18px;overflow:hidden}
+.escaner video,.escaner canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.escaner video{transform:scaleX(-1)}.escaner canvas{transform:scaleX(-1)}
+.escaner-linea{position:absolute;left:8%;right:8%;height:2px;background:linear-gradient(90deg,transparent,#F5C542,transparent);box-shadow:0 0 14px #F5C542;animation:escaneo 2.2s ease-in-out infinite}
+@keyframes escaneo{0%{top:12%}50%{top:86%}100%{top:12%}}
+.escaner-estado{position:absolute;left:0;right:0;bottom:10px;text-align:center;color:#fff;font-size:14px;font-weight:600;letter-spacing:.04em;text-shadow:0 1px 6px #000}
+.selfie-prev{display:block;width:160px;height:200px;object-fit:cover;border-radius:14px;margin:12px auto;transform:scaleX(-1)}
+</style>
 </head>
 <body>
 
@@ -273,6 +288,8 @@ function codigoVerificacion() {
    borrador se guarda solo, menos la contraseña. */
 var PASOS = [
   { id: 'entrada',  titulo: 'Tu celular y tu contraseña' },
+  { id: 'documento', titulo: 'Tu cédula' },
+  { id: 'rostro',    titulo: 'Tu rostro' },
   { id: 'identidad', titulo: 'Quién eres' },
   { id: 'contacto',  titulo: 'Cómo te contactamos' },
   { id: 'domicilio', titulo: 'Dónde vives' },
@@ -291,8 +308,11 @@ function pintarRegistro(paso) {
     return '<i class="' + (i < PASO ? 'hecho' : (i === PASO ? 'aqui' : '')) + '"></i>';
   }).join('') + '</div>';
 
+  detenerEscaner();   // por si venía del paso del rostro
   var cuerpo;
   if (p.id === 'entrada')      cuerpo = pasoEntrada();
+  else if (p.id === 'documento') cuerpo = pasoDocumento();
+  else if (p.id === 'rostro')  cuerpo = pasoRostro();
   else if (p.id === 'permiso') cuerpo = pasoPermiso();
   else                         cuerpo = pasoCampos(p.id);
 
@@ -309,6 +329,8 @@ function pintarRegistro(paso) {
         (PASO === 0 ? 'pintarEntrar()' : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
     '</div>' + pie();
   window.scrollTo(0, 0);
+  if (p.id === 'rostro' && FOTOS.sensibles && !FOTOS.selfie) setTimeout(iniciarEscaner, 50);
+  if (p.id === 'documento' && FOTOS.sensibles && !FOTOS.gps && !FOTOS.gps_error) pedirGps();
 }
 
 function pasoEntrada() {
@@ -361,13 +383,13 @@ function pasoPermiso() {
       '<span class="muted">Los usamos para evaluar y llevar tu crédito, y para escribirte ' +
       'sobre tus pagos. No los vendemos. Puedes pedirnos que te digamos qué tenemos tuyo, ' +
       'que lo corrijamos o que lo borremos, cuando quieras.</span></span></label>' +
-    '<label class="permiso"><input type="checkbox" id="autSensible"><span>' +
-      'Autorizo también la foto de mi cédula y la selfie.' +
+    '<label class="permiso"><input type="checkbox" id="autSensible"' + (FOTOS.sensibles ? ' checked' : '') + '><span>' +
+      'Autorizo también la foto de mi cédula, la de mi rostro y mi ubicación.' +
       '<span class="muted">Esto es aparte y es opcional: tu cuenta se abre igual sin ' +
       'marcarlo. La ley no permite condicionarte el servicio a que lo des.</span></span></label>' +
     '<div class="aviso" style="margin-top:var(--e4)"><b>Lo que esta app NO te pide:</b> ' +
-      'no accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a tu ubicación, ' +
-      'ni a tus fotos. Solo la cámara, y solo en el momento de tomar una foto.</div>' +
+      'no accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a tus fotos guardadas. ' +
+      'Solo la cámara en el momento de tomar la foto, y tu ubicación una sola vez, si la autorizas.</div>' +
     '<div class="ayuda" style="margin-top:var(--e3)">' +
       '<a href="../legal/privacidad.html" target="_blank" rel="noopener">Leer la política completa</a> · ' +
       '<a href="../legal/terminos.html" target="_blank" rel="noopener">Términos</a></div>';
@@ -383,6 +405,7 @@ function recogerPaso() {
   if (p.id === 'permiso') {
     return { general: $('autGeneral').checked, sensibles: $('autSensible').checked };
   }
+  if (p.id === 'documento' || p.id === 'rostro') return {};
   U.camposDelGrupo(p.id).forEach(function (c) {
     var el = $('f_' + c.id);
     if (el) REGISTRO[c.id] = el.value;
@@ -413,8 +436,13 @@ function siguientePaso() {
     if (!extra.general) {
       return fallo(err, 'Sin tu autorización no podemos abrir la cuenta. Es un requisito de la ley.');
     }
+    /* Si al final quita la casilla de sensibles, las fotos y el GPS que tomó no
+       salen del teléfono: se borran antes de mandar nada. */
+    if (!extra.sensibles) { FOTOS = { sensibles: false }; guardarFotos(); }
     return enviarRegistro(extra.sensibles);
   }
+  /* Los dos pasos de fotos son opcionales: se pasa con o sin foto. */
+  if (p.id === 'documento' || p.id === 'rostro') return pintarRegistro(PASO + 1);
 
   /* Falta algo obligatorio de ESTE paso. No se revisa el formulario entero:
      mandar al socio a un paso anterior por algo que aún no ha llenado es la
@@ -497,6 +525,7 @@ function enviarRegistro(sensibles) {
          la sesión entera: el recién registrado ya puede pedir. */
       if (res.j && res.j.access_token) SESION = res.j;
       pintarRegistrado();
+      subirArchivosRegistro().catch(function () {});   // si falla, se reintenta al abrir la cuenta
     })
     .catch(function (e) {
       fallo(err, (e && e.humano) ? e.humano
@@ -624,6 +653,296 @@ function cargarMiSolicitud() {
   }).catch(function () { caja.innerHTML = ''; });
 }
 
+/* ================= LA CÉDULA, EL ROSTRO Y LA HUELLA — 8-sep-2026 =================
+   Pedido de Joan: la foto del respaldo de la cédula llena los datos sola (el
+   código de barras PDF417 trae número, apellidos, nombres, sexo y nacimiento);
+   la foto del rostro se toma con un escáner en vivo que dibuja lo que ve
+   —contorno, puntos del rostro, los ojos— y dispara solo cuando el rostro está
+   quieto y centrado; y la ubicación queda registrada una vez. Todo es dato
+   sensible (Ley 1581): casilla APARTE y OPCIONAL, antes de encender la cámara,
+   y la cuenta se abre igual sin marcarla.
+
+   Lo que el teléfono NO hace: detectar, medir ni comparar rostros. El escáner
+   DIBUJA (óvalo, ojos, malla, cuenta regresiva) y dispara solo; la biometría
+   —el parecido con la cédula— la calcula el CRM de Joan, en su computador,
+   cuando abre a la persona. Así la app no procesa biometría ni llama a
+   servidores ajenos, que es lo que declara Data Safety.
+
+   Las fotos no viajan en el registro (que recorta cada dato a 200 caracteres):
+   se suben aparte, con la sesión, después de crear la cuenta. Si la subida
+   falla, quedan en el teléfono y se reintenta al abrir la cuenta. */
+var LLAVE_FOTOS = 'play_fotos_borrador';
+var FOTOS = (function () { try { return JSON.parse(localStorage.getItem(LLAVE_FOTOS) || '{}') || {}; } catch (e) { return {}; } })();
+function guardarFotos() { try { localStorage.setItem(LLAVE_FOTOS, JSON.stringify(FOTOS)); } catch (e) {} }
+
+/* ZXing vive en el propio sitio (app/lib): la app no llama a ningún servidor
+   que no sea el suyo — es lo que declara Data Safety y lo vigila
+   pruebas/cumplimiento.test.js. */
+var URL_ZXING = '../app/lib/zxing.min.js';
+
+function cargarScript(url) {
+  return new Promise(function (res, rej) {
+    if (document.querySelector('script[src="' + url + '"]')) return res();
+    var s = document.createElement('script'); s.src = url; s.async = true;
+    s.onload = function () { res(); }; s.onerror = function () { rej(new Error('no cargó ' + url)); };
+    document.head.appendChild(s);
+  });
+}
+/* La misma compresión que usa el CRM: JPEG, lado mayor a `max`, calidad `q`. */
+function comprimirImagen(file, max, q) {
+  return new Promise(function (res, rej) {
+    var r = new FileReader();
+    r.onload = function (e) {
+      var img = new Image();
+      img.onload = function () {
+        var w = img.width, h = img.height;
+        if (w > h && w > max) { h = h * max / w; w = max; } else if (h >= w && h > max) { w = w * max / h; h = max; }
+        var c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        res(c.toDataURL('image/jpeg', q));
+      };
+      img.onerror = rej; img.src = e.target.result;
+    };
+    r.onerror = rej; r.readAsDataURL(file);
+  });
+}
+
+/* ---------------------------------------------------------- paso: la cédula */
+function cajaFoto(key, ic, lbl, cam) {
+  return '<label class="foto-caja' + (FOTOS[key] ? ' ok' : '') + '" id="fot_' + key + '">' +
+    (FOTOS[key] ? '<img src="' + FOTOS[key] + '" alt="">' : '<span class="ic">' + ic + '</span>') +
+    '<span class="lbl">' + (FOTOS[key] ? 'Listo · tocar para cambiar' : lbl) + '</span>' +
+    '<input type="file" accept="image/*" capture="' + cam + '" onchange="tomarFoto(event,\'' + key + '\')"></label>';
+}
+function textoLeido() {
+  var l = FOTOS.cedula_leida;
+  if (!l) return '';
+  return '<b>Leímos tu cédula:</b> ' + esc(l.nombres + ' ' + l.apellidos) + ' · documento ' + esc(l.documento) +
+    (l.nacimiento ? ' · nació el ' + esc(fmtFecha(l.nacimiento)) : '') +
+    '.<br><span class="muted">En el paso siguiente te los dejamos escritos; revísalos.</span>';
+}
+function textoGps() {
+  if (!FOTOS.sensibles) return '';
+  if (FOTOS.gps) return '📍 Ubicación registrada (una sola vez, ±' + Math.round(FOTOS.gps.acc || 0) + ' m).';
+  if (FOTOS.gps_error) return '📍 ' + esc(FOTOS.gps_error);
+  return '📍 Pidiendo tu ubicación… (tu celular te va a preguntar)';
+}
+function pasoDocumento() {
+  var con = !!FOTOS.sensibles;
+  return '<p class="sub">Con la foto del <b>respaldo</b> de tu cédula (el del código de barras) leemos tu ' +
+      'número y tu nombre y te los dejamos escritos. La del frente confirma que es tuya.</p>' +
+    '<label class="permiso"><input type="checkbox" id="autFotos"' + (con ? ' checked' : '') +
+      ' onchange="cambiarConsentimiento(this.checked)"><span>' +
+      '<b>Autorizo la foto de mi cédula, la de mi rostro y mi ubicación</b> para confirmar que soy yo.' +
+      '<span class="muted">Son datos sensibles: esto es aparte y es opcional. Tu cuenta se abre igual sin ' +
+      'marcarlo, escribiendo tus datos a mano.</span></span></label>' +
+    '<div id="docCaja"' + (con ? '' : ' class="oculto"') + '>' +
+      cajaFoto('cedula_reverso', '📇', 'Foto del respaldo de tu cédula', 'environment') +
+      '<div id="docLeido" class="aviso info' + (FOTOS.cedula_leida ? '' : ' oculto') + '">' + textoLeido() + '</div>' +
+      cajaFoto('cedula_frente', '🪪', 'Foto del frente de tu cédula', 'environment') +
+      '<div id="docGps" class="ayuda">' + textoGps() + '</div>' +
+    '</div>';
+}
+function cambiarConsentimiento(v) {
+  FOTOS.sensibles = !!v; guardarFotos();
+  var caja = $('docCaja'); if (caja) caja.classList.toggle('oculto', !v);
+  if (v && !FOTOS.gps) pedirGps();
+  if (!v) { delete FOTOS.gps; delete FOTOS.gps_error; guardarFotos(); }
+  var g = $('docGps'); if (g) g.innerHTML = textoGps();
+}
+function pedirGps() {
+  if (!navigator.geolocation) { FOTOS.gps_error = 'Este celular no da ubicación.'; guardarFotos(); return; }
+  navigator.geolocation.getCurrentPosition(function (pos) {
+    FOTOS.gps = { lat: +pos.coords.latitude.toFixed(6), lng: +pos.coords.longitude.toFixed(6),
+                  acc: Math.round(pos.coords.accuracy || 0), fecha: hoyISO() };
+    delete FOTOS.gps_error; guardarFotos();
+    var g = $('docGps'); if (g) g.innerHTML = textoGps();
+  }, function (err) {
+    FOTOS.gps_error = err && err.code === 1 ? 'No diste permiso de ubicación. Tu cuenta se abre igual.'
+                    : 'No hubo señal de ubicación. Tu cuenta se abre igual.';
+    guardarFotos();
+    var g = $('docGps'); if (g) g.innerHTML = textoGps();
+  }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+}
+function tomarFoto(ev, key) {
+  var file = ev.target.files && ev.target.files[0]; if (!file) return;
+  var caja = $('fot_' + key);
+  if (caja) caja.querySelector('.lbl').textContent = 'Procesando…';
+  var trabajo = key === 'cedula_reverso' ? leerCodigoDeBarras(file) : Promise.resolve(null);
+  trabajo.catch(function () { return null; }).then(function () {
+    return comprimirImagen(file, 900, 0.6);
+  }).then(function (url) {
+    FOTOS[key] = url; guardarFotos();
+    if (caja) {
+      caja.classList.add('ok');
+      var ic = caja.querySelector('.ic'); if (ic) ic.remove();
+      var img = caja.querySelector('img'); if (!img) { img = document.createElement('img'); img.alt = ''; caja.insertBefore(img, caja.firstChild); }
+      img.src = url; caja.querySelector('.lbl').textContent = 'Listo · tocar para cambiar';
+    }
+  }).catch(function () {
+    if (caja) caja.querySelector('.lbl').textContent = 'No pude procesar la foto. Intenta otra vez.';
+  });
+}
+/* El código de barras del respaldo, decodificado en el teléfono con ZXing. Se
+   lee de una versión grande de la foto (1600 px): el código es chico y un
+   recorte a 900 px lo vuelve ilegible. Si no se puede leer, no pasa nada: los
+   datos se escriben a mano en el paso siguiente. */
+function leerCodigoDeBarras(file) {
+  var leido = $('docLeido');
+  if (leido) { leido.classList.remove('oculto'); leido.innerHTML = 'Leyendo el código de barras…'; }
+  return cargarScript(URL_ZXING).then(function () {
+    return comprimirImagen(file, 1600, 0.85);
+  }).then(function (url) {
+    var Z = window.ZXing;
+    var lector = Z.BrowserPDF417Reader ? new Z.BrowserPDF417Reader() : new Z.BrowserMultiFormatReader();
+    return lector.decodeFromImageUrl(url);
+  }).then(function (res) {
+    var texto = res && (typeof res.getText === 'function' ? res.getText() : res.text);
+    var r = U.leerCedulaPDF417(texto);
+    if (!r) throw new Error('sin datos');
+    FOTOS.cedula_leida = r;
+    /* Se dejan escritos en el formulario; la persona los revisa en «Quién eres». */
+    REGISTRO.nombres = r.nombres; REGISTRO.apellidos = r.apellidos; REGISTRO.documento = r.documento;
+    REGISTRO.tipo_doc = 'Cédula de ciudadanía';
+    guardarBorrador(REGISTRO); guardarFotos();
+    if (leido) leido.innerHTML = textoLeido();
+  }).catch(function () {
+    delete FOTOS.cedula_leida; guardarFotos();
+    if (leido) leido.innerHTML = 'No pude leer el código de barras de esa foto (enfócalo bien y con luz). ' +
+      'No pasa nada: escribes tus datos en el paso siguiente.';
+  });
+}
+
+/* ---------------------------------------------------------- paso: el rostro */
+var ESCANER = { stream: null, activo: false, estables: 0, temporizador: null };
+function pasoRostro() {
+  if (!FOTOS.sensibles) {
+    return '<p class="sub">No marcaste la autorización de fotos en el paso anterior, así que este paso se ' +
+      'salta: tu cuenta se abre igual.</p>';
+  }
+  var tiene = !!FOTOS.selfie;
+  return '<p class="sub">Mira a la cámara con buena luz y sin gafas oscuras. El escáner toma la foto solo ' +
+      'cuando tu rostro está quieto y centrado.</p>' +
+    '<div class="escaner' + (tiene ? ' oculto' : '') + '" id="escaner">' +
+      '<video id="camVideo" playsinline muted autoplay></video>' +
+      '<canvas id="camLienzo"></canvas>' +
+      '<div class="escaner-linea"></div>' +
+      '<div class="escaner-estado" id="camEstado">Encendiendo la cámara…</div>' +
+    '</div>' +
+    '<div id="selfieListo"' + (tiene ? '' : ' class="oculto"') + '>' +
+      '<img id="selfiePrev" class="selfie-prev" alt="" src="' + (FOTOS.selfie || '') + '">' +
+      '<div class="aviso verde">Rostro registrado.</div>' +
+      '<button class="btn sec sm" type="button" onclick="repetirRostro()">Repetir la foto</button>' +
+    '</div>' +
+    '<button class="btn sec sm' + (tiene ? ' oculto' : '') + '" id="btnCapturar" type="button" style="margin-top:var(--e3)" onclick="capturarRostro()">Tomar la foto ahora</button>' +
+    '<label class="foto-caja' + (tiene ? ' oculto' : '') + '" id="fot_selfie_fallback" style="display:none"><span class="ic">🤳</span>' +
+      '<span class="lbl">Tomar una selfie</span><input type="file" accept="image/*" capture="user" onchange="tomarFoto(event,\'selfie\')"></label>';
+}
+function repetirRostro() {
+  delete FOTOS.selfie; guardarFotos();
+  $('selfieListo').classList.add('oculto'); $('escaner').classList.remove('oculto'); $('btnCapturar').classList.remove('oculto');
+  iniciarEscaner();
+}
+function iniciarEscaner() {
+  var v = $('camVideo'), estado = $('camEstado'); if (!v) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return escanerSinCamara('Tu navegador no deja usar la cámara en vivo.');
+  ESCANER.activo = true; ESCANER.estables = 0; ESCANER.desde = 0;
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 } }, audio: false })
+    .then(function (stream) {
+      ESCANER.stream = stream; v.srcObject = stream;
+      return v.play().catch(function () {});
+    })
+    .then(function () { if (estado) estado.textContent = 'Pon tu rostro dentro del óvalo'; bucleEscaner(); })
+    .catch(function (e) {
+      escanerSinCamara(e && e.name === 'NotAllowedError' ? 'No diste permiso de cámara.' : 'No pude encender el escáner.');
+    });
+}
+function escanerSinCamara(motivo) {
+  detenerEscaner();
+  var e = $('escaner'); if (e) e.classList.add('oculto');
+  var b = $('btnCapturar'); if (b) b.classList.add('oculto');
+  var f = $('fot_selfie_fallback'); if (f) { f.style.display = ''; f.querySelector('.lbl').textContent = motivo + ' Toma una selfie con la cámara del celular.'; }
+}
+function detenerEscaner() {
+  ESCANER.activo = false;
+  if (ESCANER.temporizador) { clearTimeout(ESCANER.temporizador); ESCANER.temporizador = null; }
+  if (ESCANER.stream) { ESCANER.stream.getTracks().forEach(function (t) { t.stop(); }); ESCANER.stream = null; }
+}
+/* El escáner DIBUJA, no reconoce: el óvalo, las esquinas, los anillos de los
+   ojos y una malla que respira. En el teléfono no se detecta ni se mide nada
+   del rostro (eso sería biometría, y la app declara que no la procesa). A los
+   tres segundos con la cámara encendida, dispara solo. */
+function bucleEscaner() {
+  if (!ESCANER.activo) return;
+  var v = $('camVideo'), c = $('camLienzo'), estado = $('camEstado');
+  if (!v || !c || !v.videoWidth) { ESCANER.temporizador = setTimeout(bucleEscaner, 120); return; }
+  if (!ESCANER.desde) ESCANER.desde = Date.now();
+  var t = (Date.now() - ESCANER.desde) / 1000;
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  var ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, c.width, c.height);
+  dibujarMarco(ctx, c.width, c.height, t);
+  var faltan = Math.max(0, 3 - Math.floor(t));
+  if (estado) estado.textContent = t < 0.8 ? 'Pon tu rostro dentro del óvalo' : (faltan > 0 ? 'Quieto… ' + faltan : '¡Listo!');
+  if (t >= 3.2) { capturarRostro(); return; }
+  ESCANER.temporizador = setTimeout(bucleEscaner, 80);
+}
+function dibujarMarco(ctx, w, h, t) {
+  ctx.save();
+  var cx = w / 2, cy = h / 2, rx = w * 0.32, ry = h * 0.36;
+  /* el óvalo y las esquinas */
+  ctx.strokeStyle = 'rgba(245,197,66,.95)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+  var L = Math.min(w, h) * 0.08, m = Math.min(w, h) * 0.06;
+  [[m, m, 1, 1], [w - m, m, -1, 1], [m, h - m, 1, -1], [w - m, h - m, -1, -1]].forEach(function (k) {
+    ctx.beginPath(); ctx.moveTo(k[0], k[1] + L * k[3]); ctx.lineTo(k[0], k[1]); ctx.lineTo(k[0] + L * k[2], k[1]); ctx.stroke();
+  });
+  /* la malla que respira dentro del óvalo */
+  ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.clip();
+  ctx.strokeStyle = 'rgba(120,255,190,' + (0.18 + 0.12 * Math.sin(t * 3)) + ')'; ctx.lineWidth = 1;
+  var paso = Math.max(18, w / 14), d = (t * 12) % paso;
+  for (var x = -paso + d; x < w; x += paso) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+  for (var y = -paso + d; y < h; y += paso) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+  ctx.restore();
+  /* los anillos de los ojos, donde suelen estar, latiendo */
+  var pulso = 1 + 0.08 * Math.sin(t * 5);
+  [[cx - rx * 0.42, cy - ry * 0.18], [cx + rx * 0.42, cy - ry * 0.18]].forEach(function (o) {
+    ctx.strokeStyle = 'rgba(120,255,190,.95)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(o[0], o[1], rx * 0.20 * pulso, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(o[0], o[1], rx * 0.06, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(o[0] - rx * 0.28, o[1]); ctx.lineTo(o[0] - rx * 0.22, o[1]); ctx.moveTo(o[0] + rx * 0.22, o[1]); ctx.lineTo(o[0] + rx * 0.28, o[1]); ctx.stroke();
+  });
+  /* el arco de progreso alrededor del óvalo */
+  ctx.strokeStyle = 'rgba(120,255,190,.9)'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx + 6, ry + 6, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, t / 3.2)); ctx.stroke();
+  ctx.restore();
+}
+function capturarRostro() {
+  var v = $('camVideo'); if (!v || !v.videoWidth) return;
+  var max = 720, w = v.videoWidth, h = v.videoHeight;
+  if (w > h && w > max) { h = h * max / w; w = max; } else if (h >= w && h > max) { w = w * max / h; h = max; }
+  var c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d').drawImage(v, 0, 0, w, h);
+  FOTOS.selfie = c.toDataURL('image/jpeg', 0.7); guardarFotos();
+  detenerEscaner();
+  $('escaner').classList.add('oculto'); $('btnCapturar').classList.add('oculto');
+  $('selfiePrev').src = FOTOS.selfie; $('selfieListo').classList.remove('oculto');
+}
+
+/* -------------------------------------------- la subida, después de la cuenta */
+function subirArchivosRegistro() {
+  if (!FOTOS.sensibles) return Promise.resolve();
+  var archivos = {};
+  ['cedula_frente', 'cedula_reverso', 'selfie'].forEach(function (k) { if (FOTOS[k]) archivos[k] = FOTOS[k]; });
+  var huella = {};
+  if (FOTOS.gps) huella.gps = FOTOS.gps;
+  if (FOTOS.cedula_leida) huella.cedula_leida = FOTOS.cedula_leida;
+  if (!Object.keys(archivos).length && !Object.keys(huella).length) return Promise.resolve();
+  return rpcSesion('registro_archivos_guardar', { p_archivos: archivos, p_huella: huella }).then(function (j) {
+    if (j && j.ok === true) { try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {} FOTOS = { sensibles: true }; }
+  });
+}
+
 /* ============================== LA CUENTA ==============================
    Etapa 6. Lo que el socio ve cuando entra: su perfil y su cupo, el simulador,
    el botón de pedir, y su historial.
@@ -666,6 +985,7 @@ function pintarCuenta(sesion) {
     '</div>' + pie();
   pintarSimulacion();
   cargarMiSolicitud();
+  subirArchivosRegistro().catch(function () {});
   window.scrollTo(0, 0);
 }
 
