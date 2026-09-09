@@ -9258,7 +9258,21 @@ describe('un solo enlace para nuevos y antiguos (8-sep-2026)', () => {
   });
 
   test('play/ abre el formulario al ver #registro, y le dice al recién registrado cómo vuelve', () => {
-    assert.match(PLAY, /if \(location\.hash === '#registro'\) pintarRegistro\(0\); else pintarEntrar\(\);/);
+    assert.match(PLAY, /location\.hash === '#registro'/,
+      'el enlace que Joan reparte tiene que caer en el formulario');
+    /* 9-sep-2026 — Y TIENE QUE VOLVER DONDE IBA, no al paso 1. La cámara del
+       sistema hace que el teléfono recargue esta página, y arrancar siempre en
+       pintarRegistro(0) dejaba a la persona dando vueltas: tecleaba, tocaba la
+       foto de la cédula, el teléfono descartaba la pestaña por falta de memoria,
+       y aparecía otra vez en el paso 1 con la contraseña perdida y sin la foto.
+       Es el defecto que Joan describió como «el sistema los devuelve y no pueden
+       continuar», y está reproducido en el navegador. */
+    assert.match(PLAY, /pintarRegistro\(donde\)/,
+      'el registro volvió a arrancar en un paso fijo: el que abra la cámara se pierde otra vez');
+    assert.match(PLAY, /sessionStorage\.setItem\(LLAVE_CLAVE/,
+      'la contraseña a medio escribir tiene que sobrevivir la recarga, o la persona vuelve a empezar');
+    assert.ok(!/localStorage\.setItem\(LLAVE_CLAVE/.test(PLAY),
+      'la contraseña NUNCA va a localStorage: ahí se queda en el teléfono hasta que alguien lo limpie');
     assert.match(PLAY, /tu código de acceso<\/b>: ' \+\s*'con él entras por el mismo enlace de siempre/,
       'el recién registrado tiene que saber que vuelve con el código, por el mismo enlace');
   });

@@ -115,6 +115,33 @@ function guardarBorrador(d) {
   try { localStorage.setItem(LLAVE_BORRADOR, JSON.stringify(limpio)); } catch (e) {}
 }
 
+/* ------------------------------------------------- POR DÓNDE IBA (9-sep-2026)
+   Sin esto, el que abre la cámara del sistema y vuelve con la pestaña recargada
+   aparece en el paso 1 de 9, con nueve pasos por delante otra vez. Es el defecto
+   que Joan describió como «el sistema los devuelve y no pueden continuar», y
+   está reproducido: recargar la página en el paso 2 devuelve al 1.
+   Va aparte del borrador porque el borrador viaja entero a la nube como
+   los datos del registro, y el número de paso no tiene nada que hacer ahí. */
+var LLAVE_PASO = 'play_registro_paso';
+function guardarPaso(n) { try { sessionStorage.setItem(LLAVE_PASO, String(n)); } catch (e) {} }
+function leerPaso() {
+  try { var n = parseInt(sessionStorage.getItem(LLAVE_PASO), 10); return isNaN(n) ? 0 : n; }
+  catch (e) { return 0; }
+}
+function olvidarPaso() { try { sessionStorage.removeItem(LLAVE_PASO); } catch (e) {} }
+
+/* ------------------------------------------------- LA CONTRASEÑA, MIENTRAS DURA
+   sessionStorage y NO localStorage, y la diferencia importa: sessionStorage vive
+   solo en ESTA pestaña y se borra sola al cerrarla —sobrevive la recarga, que es
+   justo lo que hacía falta—, mientras que localStorage se quedaría en el
+   teléfono hasta que alguien lo limpie. Se borra en cuanto la cuenta existe.
+   Sigue en pie la regla vieja: la contraseña NO toca localStorage ni un
+   milisegundo, y no viaja nunca dentro del borrador. */
+var LLAVE_CLAVE = 'play_clave_en_curso';
+function guardarClaveEnCurso(c) { try { sessionStorage.setItem(LLAVE_CLAVE, String(c || '')); } catch (e) {} }
+function leerClaveEnCurso() { try { return sessionStorage.getItem(LLAVE_CLAVE) || ''; } catch (e) { return ''; } }
+function olvidarClaveEnCurso() { try { sessionStorage.removeItem(LLAVE_CLAVE); } catch (e) {} }
+
 var VISTA = 'entrar';
 var REGISTRO = leerBorrador();
 var PASO = 0;
@@ -301,6 +328,7 @@ var PASOS = [
 function pintarRegistro(paso) {
   VISTA = 'registro';
   PASO = Math.max(0, Math.min(paso, PASOS.length - 1));
+  guardarPaso(PASO);   // por si el teléfono recarga al volver de la cámara
   var p = PASOS[PASO];
   $('titulo').textContent = 'Abrir mi cuenta';
 
@@ -414,7 +442,7 @@ function recogerPaso() {
   return {};
 }
 
-var CLAVE_EN_MEMORIA = '';   // vive solo mientras la pestaña está abierta
+var CLAVE_EN_MEMORIA = leerClaveEnCurso();   // vive solo mientras la pestaña está abierta
 
 function siguientePaso() {
   var err = $('errReg');
@@ -428,6 +456,7 @@ function siguientePaso() {
     if (!rc.ok) return fallo(err, rc.motivo);
     if (extra.clave !== extra.clave2) return fallo(err, 'Las dos contraseñas no son iguales.');
     CLAVE_EN_MEMORIA = extra.clave;
+    guardarClaveEnCurso(extra.clave);
     guardarBorrador(REGISTRO);
     return pintarRegistro(PASO + 1);
   }
@@ -520,6 +549,7 @@ function enviarRegistro(sensibles) {
           : 'No pudimos crear la cuenta. Vuelve a intentar en un momento.');
       }
       try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
+      olvidarPaso(); olvidarClaveEnCurso();
       CLAVE_EN_MEMORIA = '';
       /* 8-sep-2026 — con «Confirm email» apagado en Supabase, el signup devuelve
          la sesión entera: el recién registrado ya puede pedir. */
@@ -689,21 +719,39 @@ function cargarScript(url) {
   });
 }
 /* La misma compresión que usa el CRM: JPEG, lado mayor a `max`, calidad `q`. */
+/* 9-sep-2026 — SE LEE CON createObjectURL Y NO COMO TEXTO. FileReader
+   .readAsDataURL convierte el archivo entero en base64: una foto de 4 MB pasaba
+   a ser una cadena de 5,3 MB en memoria, y encima justo cuando el navegador
+   acababa de volver de la cámara y está en su peor momento de memoria. Ese es
+   el gasto que hacía que el sistema descartara la pestaña. Un objeto URL no
+   copia nada: apunta al archivo y se suelta al terminar. */
 function comprimirImagen(file, max, q) {
   return new Promise(function (res, rej) {
-    var r = new FileReader();
-    r.onload = function (e) {
-      var img = new Image();
-      img.onload = function () {
+    var url;
+    try { url = URL.createObjectURL(file); } catch (e) { return rej(e); }
+    var img = new Image();
+    img.onload = function () {
+      try {
         var w = img.width, h = img.height;
+        if (!w || !h) throw new Error('imagen vacía');
         if (w > h && w > max) { h = h * max / w; w = max; } else if (h >= w && h > max) { w = w * max / h; h = max; }
-        var c = document.createElement('canvas'); c.width = w; c.height = h;
-        c.getContext('2d').drawImage(img, 0, 0, w, h);
-        res(c.toDataURL('image/jpeg', q));
-      };
-      img.onerror = rej; img.src = e.target.result;
+        var c = document.createElement('canvas'); c.width = Math.round(w); c.height = Math.round(h);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        var salida = c.toDataURL('image/jpeg', q);
+        /* El lienzo se suelta a mano: en algunos Android se queda con la memoria
+           del bitmap hasta la siguiente recolección, y acá cada byte cuenta. */
+        c.width = c.height = 1;
+        res(salida);
+      } catch (e) { rej(e); }
+      finally { try { URL.revokeObjectURL(url); } catch (e) {} }
     };
-    r.onerror = rej; r.readAsDataURL(file);
+    img.onerror = function () {
+      try { URL.revokeObjectURL(url); } catch (e) {}
+      /* Un iPhone puede entregar HEIC, que Chrome de Android no dibuja. El
+         mensaje tiene que decir qué hacer, no qué pasó. */
+      rej(new Error('formato de imagen que este teléfono no puede abrir'));
+    };
+    img.src = url;
   });
 }
 
@@ -780,7 +828,8 @@ function tomarFoto(ev, key) {
       img.src = url; caja.querySelector('.lbl').textContent = 'Listo · tocar para cambiar';
     }
   }).catch(function () {
-    if (caja) caja.querySelector('.lbl').textContent = 'No pude procesar la foto. Intenta otra vez.';
+    if (caja) caja.querySelector('.lbl').textContent =
+      'No pude usar esa foto. Tómala otra vez, o elige una de la galería.';
   });
 }
 /* El código de barras del respaldo, decodificado en el teléfono con ZXing. Se
@@ -1333,7 +1382,21 @@ function pie() {
      «Registrarme» de app/socio.html, que es el único enlace que Joan reparte.
      Quien llega así es un socio nuevo del quincenal: no tiene por qué ver la
      portada del producto a 6 meses ni un login con contraseña que no es suyo. */
-  if (location.hash === '#registro') pintarRegistro(0); else pintarEntrar();
+  if (location.hash === '#registro') {
+    /* 9-sep-2026 — SE VUELVE DONDE IBA, no al principio. Ver LLAVE_PASO: la
+       cámara del sistema hace que el teléfono recargue esta página, y arrancar
+       siempre en el paso 1 dejaba a la persona dando vueltas. */
+    var donde = leerPaso();
+    pintarRegistro(donde);
+    if (donde > 0) {
+      var aviso = $('errReg');
+      if (aviso) {
+        aviso.classList.remove('oculto');
+        aviso.textContent = 'Tu teléfono cerró la página mientras usabas la cámara. ' +
+          'No perdiste nada: seguimos donde ibas.';
+      }
+    }
+  } else pintarEntrar();
 })();
 </script>
 </body>
