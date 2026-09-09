@@ -856,8 +856,16 @@ declare
 begin
   select prosrc into cuerpo from pg_proc
    where proname = 'registrar_abierto' and pronamespace = 'public'::regnamespace;
-  if cuerpo like '%socios_historial%' then
-    raise exception 'registrar_abierto sigue mirando socios_historial: el cliente antiguo se seguiria tirando';
+  -- 9-sep-2026 — SE QUITAN LOS COMENTARIOS ANTES DE MIRAR, y no es un detalle:
+  -- la primera version de esta comprobacion buscaba la palabra
+  -- «socios_historial» en el codigo de la funcion, y el propio comentario que
+  -- explica por que se quito la consulta contiene esa palabra. La comprobacion
+  -- se cazaba a si misma y abortaba la migracion entera. Lo que importa no es
+  -- que la palabra no aparezca: es que no quede la CONSULTA.
+  cuerpo := regexp_replace(cuerpo, '--[^' || chr(10) || ']*', '', 'g');
+  if cuerpo like '%from public.socios_historial%'
+     or cuerpo like '%from socios_historial%' then
+    raise exception 'registrar_abierto sigue consultando socios_historial: el cliente antiguo se seguiria tirando';
   end if;
   if cuerpo not like '%limpiar_fallos%' then
     raise exception 'registrar_abierto perdio limpiar_fallos';
