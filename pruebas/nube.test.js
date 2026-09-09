@@ -194,6 +194,15 @@ function dbDemo() {
     invitaciones: [],
     plantillas: { recordatorio: 'Hola {nombre}' },
     config: { costoBasePct: 20, negocio: 'Tu Garantía' },
+    /* 9-sep-2026 — las cinco listas del equipo y las bases. Entran al db de
+       prueba para que la sincronización las barra igual que a todo lo demás:
+       una lista que viaja pero que ninguna prueba mira es una lista que se va a
+       perder el día que dos aparatos la toquen a la vez. */
+    equipo: [{ id: 'E1', nombre: 'Ana Ruiz', celular: '3011112222', rol: 'asesor', estado: 'activo' }],
+    asignaciones: [{ id: 'A1', socio_id: 's1', asesor_id: 'E1', desde: '2026-09-01' }],
+    prospectos: [{ id: 'P1', celular: '3001112233', nombre: 'Marta Quiroga', estado: 'nuevo' }],
+    bases: [{ id: 'B1', archivo: 'base.xlsx', origen: 'pauta', fecha: '2026-09-01', entraron: 1 }],
+    actosComision: [],
     contadores: { cliente: 48, credito: 91, respaldado: 3 }
   };
 }
@@ -1308,5 +1317,55 @@ describe('la tarjeta del choque muestra la plata del cobro', () => {
     ['montoRecibido', 'gananciaPago', 'recargoMora', 'costoCausado', 'moraCausada', 'saldoAFavor']
       .forEach(c => assert.ok(bloque.indexOf("'" + c + "'") >= 0,
         'subir.html no muestra «' + c + '» en el choque: Joan decide sin ver la plata'));
+  });
+});
+
+/* ==========================================================================
+ * LAS LISTAS DE LA CARTERA QUE VIAJAN COMO AJUSTE — 9 de septiembre de 2026
+ *
+ * El equipo, sus asignaciones, los prospectos y las bases no son filas con id
+ * en una tabla: son listas de la cartera entera, y viajan como un jsonb por
+ * clave. Los ajustes SE REEMPLAZABAN ENTEROS, y con 224 prospectos y dos
+ * aparatos el que subiera de segundo borraba el trabajo del primero.
+ * ======================================================================== */
+describe('los ajustes que son listas se juntan, no se pisan', () => {
+
+  test('dos aparatos que anotaron prospectos distintos NO se borran', () => {
+    const computador = [
+      { id: 'P1', celular: '3001112233', nombre: 'Marta', estado: 'contactado' },
+      { id: 'P2', celular: '3009998877', nombre: 'Luis', estado: 'nuevo' }];
+    const celular = [
+      { id: 'P3', celular: '3005550000', nombre: 'Ana', estado: 'nuevo' }];
+    const r = N.fusionarAjuste('prospectos', computador, celular);
+    assert.equal(r.length, 3, 'se perdio el trabajo de alguno de los dos aparatos');
+  });
+
+  test('LA IDENTIDAD DE UN PROSPECTO ES SU CELULAR, no su id', () => {
+    /* El mismo archivo cargado en los dos aparatos crea dos ids distintos para
+       la misma persona. Por id se sumarian los dos; por celular, es una. */
+    const a = [{ id: 'P-aaa', celular: '3001112233', nombre: 'Marta' }];
+    const b = [{ id: 'P-bbb', celular: '3001112233', nombre: 'Marta' }];
+    assert.equal(N.fusionarAjuste('prospectos', a, b).length, 1,
+      'la misma persona quedo dos veces por tener ids distintos');
+  });
+
+  test('config y plantillas SIGUEN pisando: no son listas', () => {
+    /* Y ahi pisar es lo correcto: una configuracion no se suma. */
+    assert.deepEqual(N.fusionarAjuste('config', { pin: '1' }, { pin: '2' }), { pin: '2' });
+  });
+
+  test('las cinco listas nuevas VIAJAN de verdad', () => {
+    ['equipo', 'asignaciones', 'prospectos', 'bases', 'actosComision'].forEach(k => {
+      assert.ok(N.CLAVES_AJUSTES.indexOf(k) >= 0, k + ' no viaja a la nube');
+      assert.ok(N.LISTAS_DE_AJUSTES[k], k + ' viaja pero se pisa entera al fusionar');
+    });
+  });
+
+  test('y NO estan en LISTAS_QUE_SUMAN, que es para campos de una fila', () => {
+    /* Estuvieron ahi media tarde y era codigo muerto: fusionarFila fusiona los
+       campos de un socio o de un credito, y estas listas nunca pasan por ahi.
+       Parecia proteccion y no protegia nada. */
+    ['equipo', 'asignaciones', 'prospectos', 'bases'].forEach(k =>
+      assert.ok(!N.LISTAS_QUE_SUMAN[k], k + ' volvio a LISTAS_QUE_SUMAN, donde no hace nada'));
   });
 });

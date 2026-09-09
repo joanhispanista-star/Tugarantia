@@ -83,12 +83,18 @@
 
   /* Todo lo que no es una fila con id viaja como "ajuste": un jsonb por clave.
      Son pocos y no cambian casi nunca, así que no vale la pena darles tabla. */
-  var CLAVES_AJUSTES = ['config', 'plantillas', 'papelera', 'papeleraSocios', 'invitaciones'];
+  var CLAVES_AJUSTES = ['config', 'plantillas', 'papelera', 'papeleraSocios', 'invitaciones',
+    /* 9-sep-2026 — el equipo, sus asignaciones, los prospectos cargados de una
+       base y los actos de comisión que escribe Joan. No tienen tabla propia
+       porque no la necesitan: son listas, y una lista entera cabe de sobra en
+       un jsonb (224 prospectos son ~18 KB). */
+    'equipo', 'asignaciones', 'prospectos', 'bases', 'actosComision'];
   /* La papelera guarda fichas y créditos borrados ENTEROS (con cédula, teléfono
      y todo). legal/privacidad.html promete que lo borrado se borra: subirla a un
      servidor es exactamente lo contrario. Por eso subir.html ofrece la casilla
      "no subir la papelera" MARCADA por defecto y pasa estas claves. */
-  var CLAVES_AJUSTES_SIN_PAPELERA = ['config', 'plantillas', 'invitaciones'];
+  var CLAVES_AJUSTES_SIN_PAPELERA = ['config', 'plantillas', 'invitaciones',
+    'equipo', 'asignaciones', 'prospectos', 'bases', 'actosComision'];
 
   /* Los campos que llevan una imagen en base64. Los cuatro primeros son del
      socio; el quinto, `foto`, va dentro de cada comprobante del crédito. */
@@ -173,7 +179,14 @@
      · actosComision  — los desbloqueos y perdones que escribe Joan a mano.
      La identidad NO incluye el monto ni el motivo: meter un campo que cambia
      dentro de la identidad de un hecho fue lo que duplicó una prórroga. */
-  var LISTAS_CARTERA = {
+  /* 9-sep-2026 — ESTAS NO SON LISTAS DE UNA FILA, SON DE LA CARTERA ENTERA, y
+     por eso NO van en LISTAS_QUE_SUMAN: fusionarFila fusiona los campos de un
+     socio o de un crédito, y estas nunca pasan por ahí. Registrarlas allá fue
+     un error de esta misma tarde — no protegían nada y parecía que sí.
+     Viajan como AJUSTES (un jsonb por clave), y los ajustes se reemplazaban
+     enteros: con 224 prospectos y dos aparatos, el que subiera de segundo
+     borraba lo del primero. Por eso existe fusionarAjuste, más abajo. */
+  var LISTAS_DE_AJUSTES = {
     equipo: ['id'],
     asignaciones: ['socio_id', 'asesor_id', 'desde'],
     actosComision: ['tipo', 'asesor_id', 'socio_id', 'credito_id', 'fecha'],
@@ -219,7 +232,7 @@
   /* El mapa completo, para cuando quien llama no sabe de qué tabla es la fila.
      Es la unión de los tres de arriba: una fila de socios no tiene `prorrogas`
      y fusionarFila simplemente no encuentra la lista y sigue. */
-  var LISTAS_QUE_SUMAN = mezclar(LISTAS_SOCIO, LISTAS_CREDITO, LISTAS_RESPALDADO, LISTAS_CARTERA);
+  var LISTAS_QUE_SUMAN = mezclar(LISTAS_SOCIO, LISTAS_CREDITO, LISTAS_RESPALDADO);
 
   /* Los campos donde una fusión automática SÍ perdería plata o cambiaría un
      hecho. No se resuelven solos NUNCA: van al aviso de choque para que decida
@@ -744,6 +757,13 @@
       if (CLAVES_AJUSTES.indexOf(clave) < 0) return;
       var datos = clonar(a.datos);
       if (datos === undefined || datos === null) return;
+      /* 9-sep-2026 — LAS LISTAS SE JUNTAN, NO SE PISAN. Antes esto era un
+         reemplazo entero para toda clave, y con dos aparatos anotando
+         prospectos el que subiera de segundo borraba el trabajo del primero.
+         Las que están en LISTAS_DE_AJUSTES se fusionan por identidad, igual que
+         las prórrogas de un crédito; las demás siguen igual, porque config y
+         plantillas SÍ son un valor entero y ahí pisar es lo correcto. */
+      datos = fusionarAjuste(clave, base[clave], datos);
       if (!igual(base[clave], datos)) { base[clave] = datos; cambios.ajustes++; }
     });
 
@@ -917,6 +937,22 @@
    *   `fila` es "lo mío, con las listas completas": es lo que se manda si Joan
    *   elige [Mandar lo mío encima].
    */
+  /**
+   * Junta dos versiones de una lista que viaja como ajuste. Si la clave no es
+   * una lista conocida, gana la que llega — que es lo que siempre hizo.
+   *
+   * Se apoya en fusionarListas, la misma que junta las prórrogas y las
+   * condonaciones de un crédito: dos elementos con la misma identidad son UNO,
+   * y lo que solo está de un lado entra. Así el computador y el celular pueden
+   * anotar prospectos distintos el mismo día sin que ninguno pierda los suyos.
+   */
+  function fusionarAjuste(clave, mia, suya) {
+    var identidad = LISTAS_DE_AJUSTES[clave];
+    if (!identidad) return suya;
+    if (!Array.isArray(mia) && !Array.isArray(suya)) return suya;
+    return fusionarListas(mia, suya, identidad);
+  }
+
   function fusionarFila(mia, suya, listas) {
     var m = objeto(mia), s = objeto(suya);
     var mapa = mapaDeListas(listas);
@@ -1489,6 +1525,8 @@
     LISTAS_CREDITO: LISTAS_CREDITO,
     LISTAS_RESPALDADO: LISTAS_RESPALDADO,
     LISTAS_QUE_SUMAN: LISTAS_QUE_SUMAN,
+    LISTAS_DE_AJUSTES: LISTAS_DE_AJUSTES,
+    fusionarAjuste: fusionarAjuste,
     CAMPOS_PISABLES_TIPICOS: CAMPOS_PISABLES_TIPICOS,
 
     /* --- parte pura (lo que prueban pruebas/nube.test.js) --- */
