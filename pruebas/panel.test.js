@@ -85,6 +85,9 @@ function abrirPanel(opciones) {
      con un service worker viejo o sin señal, y lo que tumbó el Panel el día que
      se entregó el chat. */
   if (!o.sinChat) ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
+  /* 9-sep-2026 — las comisiones del equipo. `sinComisiones: true` simula que
+     ESE <script src> no llego, que es lo que pasa con un service worker viejo. */
+  if (!o.sinComisiones) ctx.ComisionesTuGarantia = require(path.join(RAIZ, 'app', 'comisiones.js'));
   vm.createContext(ctx);
 
   const bloques = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)];

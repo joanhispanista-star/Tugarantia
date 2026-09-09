@@ -403,6 +403,7 @@
     <button class="navbtn" data-v="ciclos"><span class="ic">📈</span> Ciclos</button>
     <button class="navbtn" data-v="cal"><span class="ic">📅</span> Calendario</button>
     <button class="navbtn" data-v="plantillas"><span class="ic">💬</span> Plantillas</button>
+    <button class="navbtn" data-v="equipo"><span class="ic">👥</span> Equipo</button>
     <button class="navbtn" data-v="cfg"><span class="ic">⚙️</span> Ajustes</button>
     <div class="marcagua">TU GARANTÍA</div>
     <div class="horario" id="horarioBox"></div>
@@ -459,6 +460,16 @@
         <button class="btn btn-negro" onclick="traerRegistros()">↻ Traer de la nube</button></div>
       <div class="card"><div class="card-h"><h3>📥 Quién pidió entrar</h3><span class="tag">Al abrirles la ficha y darles su primer crédito pasan a Clientes</span></div>
         <div id="tblRegistros"></div></div>
+    </section>
+
+    <section class="view" id="v-equipo">
+      <div class="ph"><div><h1>Equipo<span class="dot">.</span></h1><div class="sub">Quién trabaja contigo, qué clientes lleva cada uno y cuánto ha ganado</div></div>
+        <div><button class="btn btn-ghost" onclick="pantallaAsignar()">🔀 Repartir clientes</button>
+        <button class="btn btn-rojo" onclick="editarPersona()">＋ Crear persona</button></div></div>
+      <div class="kpis" id="kpiEquipo"></div>
+      <div class="card"><div class="card-h"><h3>👥 Tu equipo</h3>
+        <span class="tag">El libro de comisiones se calcula solo, sobre lo que ya pasó</span></div>
+        <div id="tblEquipo"></div></div>
     </section>
 
     <section class="view" id="v-clientes">
@@ -646,8 +657,17 @@
 <script src="../app/chat.js"></script>
 <!-- 8-sep-2026: dispositivoDe (la huella del registro, en palabras). Opcional: si no llega, se muestra el user-agent crudo. -->
 <script src="../app/cuenta.js"></script>
+<!-- Las reglas de comisión de los asesores. Funciones puras: el CRM las
+     llama, no las reimplementa. -->
+<script src="../app/comisiones.js"></script>
 <script>
 const PUENTE=window.PuenteTuGarantia;
+/* 9-sep-2026 — las reglas de comision de los asesores. Va JUNTO a las otras
+   globales y no suelta al lado de una funcion: pruebas/motor.test.js extrae
+   funciones del CRM por nombre para probarlas fuera del navegador, y una
+   declaracion pegada a una funcion se va con ella y revienta con
+   "window is not defined". */
+const COMIS=window.ComisionesTuGarantia;
 const CHAT=window.ChatTuGarantia;
 const KEY=PUENTE.LLAVE_PANEL;
 /* El costo es fijo desde el 29-jul-2026. Se lee del motor para que no haya dos
@@ -1134,7 +1154,7 @@ function horarioPermitido(date){ const d=date||new Date(),dia=d.getDay(),h=d.get
 function contactadoHoy(s){ return (s.gestiones||[]).some(g=>g.fecha===hoyISO()); }
 
 /* ===== RENDER ===== */
-function render(){ renderHorario(); renderKpis(); renderCola(); renderCred(); renderRespaldados(); renderInvitaciones(); renderRegistros(); renderMensajes(); renderClientes(); renderSocios(); renderCiclos(); renderCalendario(); renderPlantillas(); }
+function render(){ renderHorario(); renderKpis(); renderCola(); renderCred(); renderRespaldados(); renderInvitaciones(); renderRegistros(); renderMensajes(); renderClientes(); renderSocios(); renderCiclos(); renderCalendario(); renderPlantillas(); renderEquipo(); }
 function renderHorario(){ const r=horarioPermitido(),b=document.getElementById('horarioBox'); b.className='horario '+(r.ok?'ok':'no');
   b.innerHTML=r.ok?'<b>✓ Horario de cobro</b>Puedes contactar (Ley 2300).':'<b>✗ Fuera de horario</b>'+r.motivo+' (Ley 2300).'; }
 
@@ -4802,6 +4822,304 @@ function fichaDesdeRegistro(id){
 let _huellaPendiente=null;
 function pintarFotoBox(key){ const box=document.getElementById('fot_'+key); if(!box||!_fotosTmp[key]) return; box.classList.add('ok'); let img=box.querySelector('img'); if(!img){img=document.createElement('img');box.appendChild(img);} img.src=_fotosTmp[key]; const l=box.querySelector('.lbl'); if(l) l.textContent='Listo · cambiar'; }
 /* ==========================================================================
+ * EL EQUIPO — 9 de septiembre de 2026
+ *
+ * Joan: «el role principal que es el mío debe tener una pestaña para crear
+ * roles, aún no la tengo».
+ *
+ * LO QUE ESTA PESTAÑA HACE Y LO QUE NO, y hay que leerlo antes de tocarla:
+ *
+ * SÍ hace: crear las personas del equipo con su rol, darles un código de
+ * vinculación, asignarles clientes (a mano o repartidos), y llevar el libro de
+ * comisiones de cada una — que desde hoy empieza a acumularse bien.
+ *
+ * NO hace: darle a nadie una contraseña para entrar. Y no es un pendiente que
+ * se me olvidó: un sitio estático y público NO PUEDE crear usuarios de
+ * Supabase. Crearlos exige la llave de servicio, que es un secreto, y un
+ * secreto dentro de una página que cualquiera puede abrir deja de ser secreto
+ * el mismo día. El camino que sí funciona —y es el que ya usa el registro de
+ * clientes— es al revés: la persona abre su cuenta ella misma con el código que
+ * le da esta pantalla, y Joan la autoriza acá. Esa segunda mitad todavía no
+ * está construida, y la pantalla lo dice con todas las letras en vez de
+ * insinuar que ya funciona.
+ *
+ * POR QUÉ IGUAL SIRVE DESDE HOY: el libro de comisiones se calcula sobre los
+ * hechos que ya ocurren (registros, desembolsos, pagos, mora). Si el equipo y
+ * las asignaciones existen desde hoy, el día que el asesor pueda entrar va a
+ * encontrar su plata ya contada desde el primer peso. Al revés —construir la
+ * puerta primero y las cuentas después— habría que reconstruir la historia, y
+ * una historia reconstruida es una historia que alguien va a discutir.
+ * ======================================================================== */
+
+const ROLES = {
+  gerente: { nombre: 'Gerente', ic: '🧭',
+    que_ve: 'Solo la base de clientes que tú le autorices, y lo que pase con ellos. Tus clientes antiguos no, salvo que sean suyos.',
+    que_hace: 'Reparte esa base entre los asesores y mira cómo van.' },
+  asesor: { nombre: 'Asesor', ic: '🚶',
+    que_ve: 'Solo los clientes que le asignaron. Nada más.',
+    que_hace: 'Vende y cobra. Tipifica cada contacto y gana comisión por lo que coloca y por lo que recupera.' }
+};
+
+function equipo() { DB.equipo = Array.isArray(DB.equipo) ? DB.equipo : []; return DB.equipo; }
+function asignaciones() { DB.asignaciones = Array.isArray(DB.asignaciones) ? DB.asignaciones : []; return DB.asignaciones; }
+function personaDeEquipo(id) { return equipo().find(p => String(p.id) === String(id)) || null; }
+
+/* El código con el que la persona se va a vincular el día que exista su app.
+   Mismo formato que las invitaciones de los clientes, con otra letra adelante
+   para que no se confundan en un WhatsApp. */
+function codigoDeEquipo() {
+  const abc = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // sin I, L, O, 0, 1: se confunden al dictar
+  let c = '';
+  for (let i = 0; i < 8; i++) c += abc[Math.floor(Math.random() * abc.length)];
+  return 'EQ-' + c.slice(0, 4) + '-' + c.slice(4);
+}
+
+/* EL LIBRO, EN UN SOLO SITIO. Lo que ve la lista, lo que ve la ficha de una
+   persona y lo que decide si se puede desbloquear salen de la MISMA llamada. Si
+   fueran tres, el día que una cambie las otras dos siguen contestando lo viejo
+   — y son plata. */
+function movimientosDeComision(hasta) {
+  DB.actosComision = Array.isArray(DB.actosComision) ? DB.actosComision : [];
+  return COMIS.derivarMovimientos({
+    socios: DB.socios, prestamos: DB.prestamos, registros: _registros,
+    asignaciones: asignaciones(), actos: DB.actosComision, hasta: hasta || hoyISO()
+  });
+}
+
+/* SI comisiones.js NO LLEGA, EL PANEL NO SE CAE. Un <script src> puede no
+   llegar por un service worker viejo o por falta de senal, y render() los
+   llama a todos: sin esta guarda, la pestana Equipo se lleva por delante el
+   Panel entero y Joan se queda sin cobrar. Es la misma leccion que costo
+   chat.js el 28-ago, y tiene su prueba. */
+function hayComisiones() {
+  return !!(window.ComisionesTuGarantia && window.ComisionesTuGarantia.derivarMovimientos);
+}
+
+function renderEquipo() {
+  const caja = document.getElementById('tblEquipo'); if (!caja) return;
+  if (!hayComisiones()) {
+    caja.innerHTML = '<div class="alerta warn">No cargo el modulo de comisiones (app/comisiones.js). ' +
+      'El resto del Panel funciona; esta pestana vuelve cuando recargues con senal.</div>';
+    const k = document.getElementById('kpiEquipo'); if (k) k.innerHTML = '';
+    return;
+  }
+  const gente = equipo();
+  const kpi = document.getElementById('kpiEquipo');
+  if (kpi) {
+    const act = gente.filter(p => p.estado !== 'retirado');
+    const asig = asignaciones().length;
+    const sinAsignar = DB.socios.filter(s => !COMIS.asesorDe(asignaciones(), s.id, hoyISO())).length;
+    kpi.innerHTML = `
+      <div class="kpi"><div class="et">🧭 Gerentes</div><div class="nm">${act.filter(p => p.rol === 'gerente').length}</div><div class="x">activos</div></div>
+      <div class="kpi"><div class="et">🚶 Asesores</div><div class="nm">${act.filter(p => p.rol === 'asesor').length}</div><div class="x">activos</div></div>
+      <div class="kpi ${sinAsignar ? 'alert' : 'gan'}"><div class="et">Clientes sin asignar</div><div class="nm">${sinAsignar}</div><div class="x">de ${DB.socios.length}</div></div>`;
+  }
+  if (!gente.length) {
+    caja.innerHTML = `<div class="empty"><div class="ic">👥</div><p>Todavía no tienes equipo.<br>
+      <span class="muted">Crea un gerente o un asesor y empieza a repartirle clientes.</span></p></div>`;
+    return;
+  }
+  /* El libro de comisiones se deriva UNA vez y se reparte: si cada fila lo
+     calculara por su cuenta, la suma de la pantalla y la que Joan paga podrían
+     separarse — y eso ya pasó doce veces en este proyecto. */
+  const movs = movimientosDeComision();
+  caja.innerHTML = `<table><thead><tr><th>Quién</th><th>Rol</th><th>Clientes</th>
+      <th class="num">Libre</th><th class="num">Bloqueado</th><th></th></tr></thead><tbody>${
+    gente.map(p => {
+      const s = COMIS.saldoDeAsesor(movs, p.id, hoyISO());
+      const mios = asignaciones().filter(a => String(a.asesor_id) === String(p.id))
+        .map(a => a.socio_id).filter((v, i, arr) => arr.indexOf(v) === i).length;
+      const r = ROLES[p.rol] || { ic: '👤', nombre: p.rol };
+      return `<tr${p.estado === 'retirado' ? ' style="opacity:.5"' : ''}>
+        <td><b>${escHTML(p.nombre)}</b>${p.celular ? `<div class="muted">${escHTML(p.celular)}</div>` : ''}
+          ${p.estado === 'retirado' ? '<span class="chip mora">retirado</span>' : ''}</td>
+        <td>${r.ic} ${escHTML(r.nombre)}</td>
+        <td class="num">${mios}</td>
+        <td class="num">${COP(s.libre)}</td>
+        <td class="num muted">${COP(s.bloqueado)}${s.deuda ? ' <span class="chip mora">debe ' + COP(s.deuda) + '</span>' : ''}</td>
+        <td style="text-align:right">
+          <button class="btn btn-ghost btn-sm" onclick="verPersona('${escHTML(p.id)}')">👁 Ver</button>
+          <button class="btn btn-ghost btn-sm" onclick="editarPersona('${escHTML(p.id)}')">✏️</button></td></tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+function editarPersona(id) {
+  const p = id ? personaDeEquipo(id) : null;
+  openModal(p ? 'Editar a ' + p.nombre : 'Crear una persona del equipo', `
+    <div class="field"><label>Nombre completo</label><input id="eqNombre" value="${p ? escHTML(p.nombre) : ''}"></div>
+    <div class="field"><label>Celular</label><input id="eqTel" inputmode="numeric" value="${p ? escHTML(p.celular || '') : ''}"></div>
+    <div class="field"><label>Qué es</label>
+      <select id="eqRol">${Object.keys(ROLES).map(k =>
+        `<option value="${k}"${p && p.rol === k ? ' selected' : ''}>${ROLES[k].ic} ${ROLES[k].nombre}</option>`).join('')}</select>
+      <div class="help" id="eqAyudaRol"></div></div>
+    ${p ? `<div class="field"><label>Estado</label><select id="eqEstado">
+        <option value="activo"${p.estado !== 'retirado' ? ' selected' : ''}>Activo</option>
+        <option value="retirado"${p.estado === 'retirado' ? ' selected' : ''}>Retirado</option></select>
+      <div class="help">Retirarlo le corta lo nuevo. Sus movimientos de comisión NO se reasignan nunca: reasignarlos cambiaría la historia hacia atrás.</div></div>` : ''}
+    ${p ? `<div class="sub-h">Su código de vinculación</div>
+      <div class="fila"><span class="k">Para cuando exista su app</span><span class="v mono">${escHTML(p.codigo || '—')}</span></div>` : ''}
+    <div class="aviso ambar" style="margin-top:14px"><b>Crear la persona acá NO le da todavía con qué entrar.</b>
+      Un sitio público no puede crear usuarios con contraseña: eso exige una llave de servicio, y una llave
+      dentro de una página que cualquiera abre deja de ser secreta. Lo que sí puedes hacer desde hoy es
+      asignarle clientes: su comisión empieza a contarse bien desde el primer peso, y el día que su app
+      exista se la encuentra ya cuadrada.</div>
+    <button class="btn btn-rojo arriba" onclick="guardarPersona(${p ? "'" + escHTML(p.id) + "'" : 'null'})">
+      ${p ? 'Guardar' : 'Crear'}</button>`);
+  pintarAyudaRol();
+  const sel = document.getElementById('eqRol');
+  if (sel) sel.addEventListener('change', pintarAyudaRol);
+}
+function pintarAyudaRol() {
+  const sel = document.getElementById('eqRol'), caja = document.getElementById('eqAyudaRol');
+  if (!sel || !caja) return;
+  const r = ROLES[sel.value]; if (!r) return;
+  caja.innerHTML = '<b>Ve:</b> ' + escHTML(r.que_ve) + '<br><b>Hace:</b> ' + escHTML(r.que_hace);
+}
+
+function guardarPersona(id) {
+  const nombre = gv('eqNombre').trim();
+  if (!nombre) return alert('Falta el nombre.');
+  const rol = gv('eqRol');
+  if (!ROLES[rol]) return alert('Ese rol no existe.');
+  const tel = String(gv('eqTel') || '').replace(/\D/g, '').slice(-10);
+  const p = id ? personaDeEquipo(id) : null;
+  if (p) {
+    /* El ROL no se cambia desde acá a propósito: cambiarle el rol a alguien que
+       ya tiene comisiones movería lo que ve y lo que puede ver, sin dejar
+       rastro de cuándo cambió. Si hay que cambiarlo, se retira y se crea otra
+       vez — así la historia queda partida en dos y se puede leer. */
+    p.nombre = nombre; p.celular = tel;
+    p.estado = gv('eqEstado') || 'activo';
+    if (p.estado === 'retirado' && !p.retiradoEn) p.retiradoEn = hoyISO();
+    if (p.estado === 'activo') delete p.retiradoEn;
+  } else {
+    equipo().push({ id: 'E' + Date.now(), nombre, celular: tel, rol,
+                    codigo: codigoDeEquipo(), estado: 'activo', creadoEn: hoyISO() });
+  }
+  guardar(); cerrarModal(); render(); irA('equipo');
+}
+
+/* --------------------------------------------------------------------------
+ * ASIGNAR CLIENTES
+ *
+ * Las asignaciones SOLO SUMAN: reasignar no borra la anterior, escribe una
+ * nueva con su fecha. Es lo que hace que la comisión de un cliente reasignado
+ * le llegue al que correspondía EN ESA FECHA, y no al de ahora.
+ * ------------------------------------------------------------------------ */
+function pantallaAsignar() {
+  const asesores = equipo().filter(p => p.rol === 'asesor' && p.estado !== 'retirado');
+  if (!asesores.length) return alert('Primero crea al menos un asesor.');
+  const sinDuenio = DB.socios.filter(s => !COMIS.asesorDe(asignaciones(), s.id, hoyISO()));
+  openModal('Repartir clientes', `
+    <p class="sub">Hay <b>${sinDuenio.length}</b> clientes sin asesor, de ${DB.socios.length}.</p>
+    <div class="sub-h">Repartir automáticamente</div>
+    <p class="ayuda">Reparte los que no tienen asesor, en orden y por turnos. No toca a los que ya tienen
+      uno: quitarle un cliente a alguien es una decisión, no un efecto secundario.</p>
+    <div class="field"><label>Entre quiénes</label>
+      <div id="eqReparto">${asesores.map(a =>
+        `<label class="permiso"><input type="checkbox" class="repAsesor" value="${escHTML(a.id)}" checked><span>${escHTML(a.nombre)}</span></label>`).join('')}</div></div>
+    <button class="btn btn-negro" onclick="repartirAuto()" ${sinDuenio.length ? '' : 'disabled'}>
+      Repartir los ${sinDuenio.length} sin asesor</button>
+    <div class="sub-h">O uno por uno</div>
+    <div class="field"><label>Cliente</label>
+      <select id="eqSocio">${DB.socios.map(s => {
+        const a = COMIS.asesorDe(asignaciones(), s.id, hoyISO());
+        const p = a ? personaDeEquipo(a) : null;
+        return `<option value="${escHTML(s.id)}">${escHTML(codCliente(s))} ${escHTML(s.nombre)}${p ? ' — hoy: ' + escHTML(p.nombre) : ' — sin asesor'}</option>`;
+      }).join('')}</select></div>
+    <div class="field"><label>Pasa a</label>
+      <select id="eqDestino">${asesores.map(a => `<option value="${escHTML(a.id)}">${escHTML(a.nombre)}</option>`).join('')}</select></div>
+    <button class="btn btn-ghost" onclick="asignarUno()">Asignar</button>`);
+}
+function asignarUno() {
+  const socio = gv('eqSocio'), asesor = gv('eqDestino');
+  if (!socio || !asesor) return;
+  const actual = COMIS.asesorDe(asignaciones(), socio, hoyISO());
+  if (actual === asesor) return alert('Ya es suyo.');
+  if (actual) {
+    const antes = personaDeEquipo(actual), ahora = personaDeEquipo(asesor);
+    if (!confirm('Este cliente hoy es de ' + (antes ? antes.nombre : 'otro asesor') + '.\n\n' +
+      'Al pasarlo a ' + (ahora ? ahora.nombre : 'otro') + ', lo que ya se ganó NO se mueve: las comisiones ' +
+      'viejas siguen siendo de quien las ganó. De acá en adelante cobra el nuevo.\n\n¿Sigo?')) return;
+  }
+  asignaciones().push({ id: 'A' + Date.now(), socio_id: String(socio), asesor_id: String(asesor), desde: hoyISO() });
+  guardar(); cerrarModal(); render();
+}
+function repartirAuto() {
+  const elegidos = [...document.querySelectorAll('.repAsesor')].filter(x => x.checked).map(x => x.value);
+  if (!elegidos.length) return alert('Elige al menos un asesor.');
+  const sin = DB.socios.filter(s => !COMIS.asesorDe(asignaciones(), s.id, hoyISO()));
+  if (!sin.length) return alert('No hay clientes sin asesor.');
+  if (!confirm('Voy a repartir ' + sin.length + ' clientes entre ' + elegidos.length + ' asesores.\n\n' +
+    'A los que ya tienen asesor no los toco.\n\n¿Sigo?')) return;
+  /* Por turnos y en orden de número de cliente: sin azar, para que el reparto
+     se pueda reproducir el día que alguien reclame que le tocaban otros. */
+  sin.sort((a, b) => num(a.numero) - num(b.numero)).forEach((s, i) => {
+    asignaciones().push({ id: 'A' + Date.now() + '-' + i, socio_id: String(s.id),
+                          asesor_id: elegidos[i % elegidos.length], desde: hoyISO() });
+  });
+  guardar(); cerrarModal(); render();
+  alert('Listo: ' + sin.length + ' clientes repartidos.');
+}
+
+/* --------------------------------------------------------------------------
+ * LA FICHA DE UNA PERSONA: sus clientes y su plata
+ * ------------------------------------------------------------------------ */
+function verPersona(id) {
+  const p = personaDeEquipo(id); if (!p) return;
+  const movs = movimientosDeComision();
+  const s = COMIS.saldoDeAsesor(movs, p.id, hoyISO());
+  const mios = asignaciones().filter(a => String(a.asesor_id) === String(p.id))
+    .map(a => a.socio_id).filter((v, i, arr) => arr.indexOf(v) === i)
+    .map(sid => DB.socios.find(x => String(x.id) === String(sid))).filter(Boolean)
+    .filter(x => COMIS.asesorDe(asignaciones(), x.id, hoyISO()) === String(p.id));
+  const r = ROLES[p.rol] || { ic: '👤', nombre: p.rol };
+  const nom = t => ({ registro: 'Se registró', desembolso: 'Primer crédito', pago: 'Pagó',
+    recurrencia: 'Cobranza', castigo_mora: 'Mora de 20 días', desbloqueo: 'Desbloqueo',
+    perdon_castigo: 'Castigo perdonado', reverso: 'Reverso', ajuste: 'Ajuste',
+    liquidacion: 'Le pagué' }[t] || t);
+  openModal(r.ic + ' ' + p.nombre, `
+    <div class="two">
+      <div class="kpi gan"><div class="et">Libre</div><div class="nm">${COP(s.libre)}</div><div class="x">se le puede pagar</div></div>
+      <div class="kpi"><div class="et">Bloqueado</div><div class="nm">${COP(s.bloqueado)}</div><div class="x">hasta que el cliente pague</div></div>
+    </div>
+    ${s.deuda ? `<div class="alerta warn">Los castigos superaron lo que tenía: quedan <b>${COP(s.deuda)}</b> en contra.
+      Qué se hace con eso lo decides tú — el sistema no le quita plata que ya está en su bolsillo.</div>` : ''}
+    ${s.castigos ? `<div class="muted" style="margin-top:8px">Castigos aplicados: ${COP(s.castigos)}</div>` : ''}
+
+    <div class="sub-h">Sus clientes (${mios.length})</div>
+    ${mios.length ? mios.map(c => {
+      const d = COMIS.puedeDesbloquear(movs, p.id, c.id);
+      return `<div class="info-row"><span class="k">${escHTML(codCliente(c))} ${escHTML(c.nombre)}</span>
+        <span class="vv">${d.monto ? (d.puede
+          ? `<button class="btn btn-ghost btn-sm" onclick="desbloquear('${escHTML(p.id)}','${escHTML(c.id)}')">Desbloquear ${COP(d.monto)}</button>`
+          : `<span class="muted" title="${escHTML(d.motivo)}">${COP(d.monto)} bloqueados</span>`) : '<span class="muted">—</span>'}</span></div>`;
+    }).join('') : '<div class="muted">Todavía no tiene clientes asignados.</div>'}
+
+    <div class="sub-h">Su libro, movimiento por movimiento</div>
+    ${s.movimientos.length ? `<table><thead><tr><th>Cuándo</th><th>Qué</th><th class="num">Cuánto</th><th class="num">Libre</th></tr></thead>
+      <tbody>${s.movimientos.slice().reverse().map(m => `<tr>
+        <td>${fmtFecha(m.fecha)}</td><td>${escHTML(nom(m.tipo))}<div class="muted">${escHTML(m.motivo)}</div></td>
+        <td class="num${m.monto < 0 ? ' rojo' : ''}">${COP(m.monto)}</td>
+        <td class="num muted">${COP(m.libre_despues)}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="muted">Sin movimientos todavía.</div>'}`);
+}
+
+function desbloquear(asesorId, socioId) {
+  const movs = movimientosDeComision();
+  const d = COMIS.puedeDesbloquear(movs, asesorId, socioId);
+  if (!d.puede) return alert(d.motivo);
+  const p = personaDeEquipo(asesorId), c = DB.socios.find(x => String(x.id) === String(socioId));
+  if (!confirm('Desbloquear ' + COP(d.monto) + ' de ' + (p ? p.nombre : '') +
+    ' por ' + (c ? c.nombre : '') + '?\n\nPasan de bloqueados a por pagar.')) return;
+  DB.actosComision = Array.isArray(DB.actosComision) ? DB.actosComision : [];
+  DB.actosComision.push({ id: 'desbloqueo:' + socioId + ':' + hoyISO(), fecha: hoyISO(),
+    asesor_id: String(asesorId), socio_id: String(socioId), credito_id: null,
+    tipo: 'desbloqueo', monto: 0, motivo: 'desbloqueado por Joan', quien: 'joan' });
+  guardar(); cerrarModal(); render(); verPersona(asesorId);
+}
+
+/* ==========================================================================
  * LA MESA DE CRUCE — 9 de septiembre de 2026
  *
  * Joan: «que yo desde el CRM tenga la información y pueda cruzar la información
@@ -5828,6 +6146,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&modal.classList.co
 function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
   if(v==='cfg')pintarCfg(); if(v==='plantillas')renderPlantillas(); if(v==='cal')renderCalendario();
   if(v==='inv')renderInvitaciones();
+  if(v==='equipo')renderEquipo();
   /* Registrados trae de la nube SOLO al entrar a la pestaña, no en cada
      render(): una petición por visita, no una por teclazo. */
   if(v==='registrados'){ renderRegistros(); traerRegistros(); }

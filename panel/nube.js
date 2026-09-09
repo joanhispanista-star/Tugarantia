@@ -161,6 +161,23 @@
        es el mismo hecho, lo haya anotado el computador o el celular. */
     cruces: ['fecha', 'registro_id']
   };
+
+  /* 9-sep-2026 — EL EQUIPO Y SUS COMISIONES TAMBIÉN SUMAN.
+     No cuelgan de un socio ni de un crédito: son listas de la cartera entera, y
+     por eso van aparte de LISTAS_SOCIO. Las tres son append-only por diseño:
+     · equipo         — una persona nunca se borra, se retira (si se borrara, sus
+                        comisiones quedarían colgando de un id que no existe).
+     · asignaciones   — reasignar ESCRIBE una nueva con su fecha; la vieja se
+                        queda, y por eso la comisión de un cliente reasignado le
+                        llega al que correspondía EN ESA FECHA.
+     · actosComision  — los desbloqueos y perdones que escribe Joan a mano.
+     La identidad NO incluye el monto ni el motivo: meter un campo que cambia
+     dentro de la identidad de un hecho fue lo que duplicó una prórroga. */
+  var LISTAS_CARTERA = {
+    equipo: ['id'],
+    asignaciones: ['socio_id', 'asesor_id', 'desde'],
+    actosComision: ['tipo', 'asesor_id', 'socio_id', 'credito_id', 'fecha']
+  };
   var LISTAS_CREDITO = {
     /* 4-sep-2026 — EL MONTO SALIÓ DE LA IDENTIDAD, y lo abrió la ronda del
        2-sep. Desde que el computador da descuento en la prórroga, crm.html
@@ -193,7 +210,7 @@
   /* El mapa completo, para cuando quien llama no sabe de qué tabla es la fila.
      Es la unión de los tres de arriba: una fila de socios no tiene `prorrogas`
      y fusionarFila simplemente no encuentra la lista y sigue. */
-  var LISTAS_QUE_SUMAN = mezclar(LISTAS_SOCIO, LISTAS_CREDITO, LISTAS_RESPALDADO);
+  var LISTAS_QUE_SUMAN = mezclar(LISTAS_SOCIO, LISTAS_CREDITO, LISTAS_RESPALDADO, LISTAS_CARTERA);
 
   /* Los campos donde una fusión automática SÍ perdería plata o cambiaría un
      hecho. No se resuelven solos NUNCA: van al aviso de choque para que decida
