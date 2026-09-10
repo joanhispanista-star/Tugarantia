@@ -286,7 +286,10 @@ $$;
 create or replace function public.politica_nuevos_leer(p_clave text)
 returns jsonb
 language plpgsql
-stable
+/* VOLÁTIL A PROPÓSITO, y no se le puede poner «stable»: esta función pasa por
+   clave_ok, que ESCRIBE el freno contra la fuerza bruta. PostgREST corre las
+   «stable» en transacción de solo lectura y revientan con 25006 antes de mirar
+   la clave — o sea que no sirven nunca. Lo estuvo desde el 8-sep-2026. */
 security definer
 set search_path = public
 as $$

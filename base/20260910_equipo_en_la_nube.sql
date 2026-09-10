@@ -393,7 +393,10 @@ $$;
 create or replace function public.gestiones_listar(p_clave text, p_desde text)
 returns jsonb
 language plpgsql
-stable
+/* VOLÁTIL A PROPÓSITO, y no se le puede poner «stable»: esta función pasa por
+   clave_ok, que ESCRIBE el freno contra la fuerza bruta. PostgREST corre las
+   «stable» en transacción de solo lectura y revientan con 25006 antes de mirar
+   la clave — o sea que no sirven nunca. Lo estuvo desde el 8-sep-2026. */
 security definer
 set search_path = public
 as $$
@@ -437,6 +440,35 @@ revoke all on function public.gestiones_de(text) from public, anon, authenticate
 grant  execute on function public.gestiones_de(text) to authenticated;
 revoke all on function public.gestiones_listar(text, text) from public, anon, authenticated;
 grant  execute on function public.gestiones_listar(text, text) to anon;   -- Joan, con su clave
+
+-- ---------------------------------------------------------------------------
+-- 5-bis. REPARAR LO QUE YA ESTABA ROTO
+--
+-- politica_nuevos_leer y archivos_de_registro se declararon `stable` y pasan
+-- por clave_ok, que escribe el freno contra la fuerza bruta. PostgREST corre
+-- las `stable` en transacción de SOLO LECTURA, así que revientan con
+--
+--     405 {"code":"25006","message":"cannot execute nextval() in a read-only transaction"}
+--
+-- antes de mirar la clave. No fallan a veces: no funcionan NUNCA, ni con la
+-- clave correcta. Comprobado hoy llamándolas contra esta misma nube.
+--
+-- Lo que costó: archivos_de_registro es la que trae las fotos de la cédula de
+-- quien se registra por la app. El Panel se tragaba el error y la ficha de cada
+-- registrado decía «No subió fotos». Las fotos siempre estuvieron ahí.
+--
+-- Se arregla con ALTER y no volviendo a escribir el cuerpo, a propósito: copiar
+-- un cuerpo de memoria es como se inventan defectos nuevos arreglando uno viejo.
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if to_regprocedure('public.politica_nuevos_leer(text)') is not null then
+    execute 'alter function public.politica_nuevos_leer(text) volatile';
+  end if;
+  if to_regprocedure('public.archivos_de_registro(text, text)') is not null then
+    execute 'alter function public.archivos_de_registro(text, text) volatile';
+  end if;
+end $$;
 
 notify pgrst, 'reload schema';
 
@@ -491,6 +523,19 @@ begin
   end if;
   if cuerpo not like '%mi_alcance%' then
     raise exception 'gestion_anotar no comprueba que la persona sea de su base';
+  end if;
+
+  -- NINGUNA funcion que pase por clave_ok puede ser stable ni immutable.
+  -- clave_ok ESCRIBE el freno contra la fuerza bruta, y PostgREST corre las
+  -- stable en transaccion de solo lectura: revientan con 25006 antes de mirar
+  -- la clave, o sea que no sirven nunca. Este centinela habria cazado el
+  -- defecto el 8-sep en vez del 10.
+  if exists (select 1 from pg_proc p
+              join pg_namespace n on n.oid = p.pronamespace
+             where n.nspname = 'public'
+               and p.provolatile <> 'v'
+               and p.prosrc like '%clave_ok%') then
+    raise exception 'hay funciones stable que pasan por clave_ok: no sirven nunca (error 25006)';
   end if;
 
   -- Y mi_alcance no puede quedar al alcance de un navegador: recibe un celular

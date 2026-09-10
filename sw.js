@@ -165,7 +165,11 @@
    entrarEquipo deja de decir 'no encontre ese celular con esa contrasena'
    cuando la contrasena estaba bien y lo que faltaba era la migracion.
    Toca panel/crm.html. */
-const CACHE = 'tugarantia-v36';
+/* v37 - 10-sep-2026. archivos_de_registro estaba declarada stable y llevaba
+   dos dias contestando 405 a TODA peticion: las fotos de la cedula de cada
+   registrado existian y la ficha decia 'no subio fotos'. Toca panel/crm.html
+   (archivosDe deja de tragarse el fallo) y tres migraciones. */
+const CACHE = 'tugarantia-v37';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

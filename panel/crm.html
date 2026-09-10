@@ -4670,14 +4670,40 @@ function bloqueHuella(h){
     +(cl?`<div class="info-row"><span class="k">Cédula leída del código de barras</span><span class="vv">${escHTML((cl.nombres||'')+' '+(cl.apellidos||''))} · ${escHTML(cl.documento||'')}${cl.nacimiento?' · nació '+fmtFecha(cl.nacimiento):''} <span class="muted">(coincide con lo declarado: ${'—'})</span></span></div>`:'<div class="info-row"><span class="k">Cédula leída</span><span class="vv muted">No se leyó el código de barras (escribió los datos a mano).</span></div>')
     +(h.momento?`<div class="muted" style="font-size:12px">Registrado el ${fmtFecha(String(h.momento).slice(0,10))}.</div>`:'');
 }
-/* Las fotos se piden una persona a la vez (pesan). */
+/* Las fotos se piden una persona a la vez (pesan).
+
+   EL .catch QUE HABÍA ACÁ COSTÓ DOS DÍAS DE CÉDULAS. Devolvía {fotos:{}} ante
+   cualquier fallo, y quien pinta no puede distinguir «no subió nada» de «no
+   pude preguntar». Del 8 al 10 de septiembre archivos_de_registro estaba
+   declarada «stable» y contestaba 405 SIEMPRE (pasa por clave_ok, que escribe;
+   PostgREST corre las stable en solo lectura). Cada ficha de cada persona
+   registrada decía «No subió fotos (o no autorizó)». Las fotos estaban ahí.
+
+   Un fallo tragado no es un fallo silencioso: es un fallo que MIENTE, porque
+   la pantalla llena el hueco con la explicación más creíble. */
 function archivosDe(celular){
   if(!sbListo()) return Promise.resolve({fotos:{},huella:null});
-  return rpc('archivos_de_registro',{p_clave:sbCfg().clave,p_celular:String(celular||'')}).then(a=>a&&typeof a==='object'?a:{fotos:{},huella:null}).catch(()=>({fotos:{},huella:null}));
+  return rpc('archivos_de_registro',{p_clave:sbCfg().clave,p_celular:String(celular||'')})
+    .then(a=>a&&typeof a==='object'?a:{fotos:{},huella:null})
+    /* NO LANZA, y eso es a propósito: cuatro sitios la llaman de pasada, solo
+       para rellenar las fotos si las hay, y no tienen nada que decirle a nadie.
+       Pero deja escrito `fallo`, que es lo que faltaba: el único que le habla a
+       Joan lo mira y dice la verdad en vez de inventarse que no subió nada. */
+    .catch(e=>({fotos:{},huella:null,fallo:errNube(e)}));
 }
 function pintarFotosRegistro(celular,cajaId){
   const caja=document.getElementById(cajaId); if(!caja) return;
+  if(!sbListo()){ caja.innerHTML='<span class="muted">Las fotos viven en la nube. Conéctala en Ajustes para verlas.</span>'; return; }
+  caja.innerHTML='<span class="muted">Buscando las fotos…</span>';
   archivosDe(celular).then(a=>{
+    if(a.fallo){
+      /* Decir QUÉ pasó y, sobre todo, qué NO pasó: que no haya podido traerlas
+         no quiere decir que la persona no las haya subido. */
+      caja.innerHTML='<div class="alerta warn">No pude traer las fotos: '+escHTML(a.fallo)+
+        '<div class="muted" style="margin-top:6px">Eso <b>no</b> quiere decir que no las haya subido: '+
+        'quiere decir que no pude preguntárselas a la nube. Vuelve a abrir la ficha en un minuto.</div></div>';
+      return;
+    }
     const f=a.fotos||{}; const lista=[['Cédula (frente)',f.cedula_frente,'frente'],['Cédula (reverso)',f.cedula_reverso,'reverso'],['Rostro',f.selfie,'selfie']].filter(x=>x[1]);
     if(!lista.length){ caja.innerHTML='<span class="muted">No subió fotos (o no autorizó).</span>'; return; }
     caja.innerHTML=`<div class="gal">${lista.map(x=>`<a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>`).join('')}</div>`

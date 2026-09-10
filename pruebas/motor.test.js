@@ -8863,6 +8863,61 @@ describe('ninguna pantalla llama a una función que la migración tiró (11-ago-
     });
   });
 
+  /* 10-sep-2026 — UNA FUNCIÓN 'stable' NO PUEDE ESCRIBIR, Y POSTGREST NO PERDONA.
+     PostgREST corre las funciones declaradas stable o immutable dentro de una
+     transacción de SOLO LECTURA. Si el cuerpo escribe algo —una fila, o la
+     secuencia del freno anti-fuerza-bruta que usa clave_ok— revienta con
+
+         405 {"code":"25006","message":"cannot execute nextval() in a read-only transaction"}
+
+     y revienta ANTES de llegar al negocio. O sea que la función no falla a
+     veces: no funciona NUNCA, ni con la clave correcta.
+
+     Esto no es teoría. El 8-sep salieron a la nube dos funciones así y
+     estuvieron muertas dos días sin que nadie lo viera:
+       · politica_nuevos_leer  — la política del primer crédito.
+       · archivos_de_registro  — las FOTOS DE LA CÉDULA de quien se registra.
+         El Panel se tragaba el error en un .catch y la ficha de cada persona
+         registrada decía «No subió fotos (o no autorizó)». Las fotos estaban
+         en la nube todo el tiempo.
+     Comprobado el 10-sep llamándolas contra la nube de verdad: 405 25006 las
+     dos, mientras listar_registros (volátil, misma clave_ok) contestaba 400
+     con su error de negocio.
+
+     Una migración no se compila acá: la corre Joan pegándola, y el error le
+     sale a él. Este barrido es lo único que mira antes. */
+  test('ninguna función stable escribe: PostgREST las corre en solo lectura', () => {
+    const DD = '$' + '$';
+    /* Lo que ESCRIBE. clave_ok entra porque incrementa la secuencia del freno. */
+    const ESCRIBE = /\b(insert\s+into|update\s+\w|delete\s+from|nextval\s*\(|clave_ok)/i;
+    const culpables = [];
+    fs.readdirSync(path.join(__dirname, '..', 'base'))
+      .filter(f => /\.sql$/.test(f))
+      .forEach(f => {
+        const t = fs.readFileSync(path.join(__dirname, '..', 'base', f), 'utf8');
+        let i = 0;
+        for (;;) {
+          const a = t.indexOf('create or replace function public.', i);
+          if (a < 0) break;
+          const abre = t.indexOf(DD, a);
+          if (abre < 0) break;
+          const cierra = t.indexOf(DD, abre + 2);
+          if (cierra < 0) break;
+          i = cierra + 2;
+          const nombre = (t.slice(a + 34).match(/^(\w+)/) || [, '?'])[1];
+          const cabeza = t.slice(a, abre);
+          /* Sin comentarios: un «-- aquí NO se hace update» no es una escritura. */
+          const cuerpo = t.slice(abre, cierra).replace(/^\s*--.*$/gm, ' ');
+          if (!/^\s*(stable|immutable)\s*$/mi.test(cabeza)) continue;
+          if (ESCRIBE.test(cuerpo)) culpables.push('base/' + f + ' → ' + nombre + '()');
+        }
+      });
+    assert.deepEqual(culpables, [],
+      'estas funciones son stable y escriben, así que PostgREST las mata con 25006 ' +
+      'antes de llegar al negocio — no sirven NUNCA:\n  ' + culpables.join('\n  ') +
+      '\nQuítales la línea stable.');
+  });
+
   test('nadie sigue mandando p_tel4: esa puerta se cerró', () => {
     ['app/socio.html', 'panel/crm.html'].forEach(f =>
       assert.ok(leer(f).indexOf('p_tel4') === -1,
