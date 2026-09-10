@@ -146,7 +146,25 @@
     margin-top:14px;cursor:pointer;text-decoration:underline;width:100%}
   .gate-card input:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(var(--azul-rgb),.14)}
   .gate-card button{width:100%;margin-top:14px;background:var(--rojo);border:none;padding:13px;border-radius:10px;font-weight:700;font-size:15px;color:var(--papel)}
-  .gate-err{color:var(--rojo);font-size:12.5px;margin-top:10px;min-height:16px;font-weight:600}
+  .gate-err{color:var(--rojo);font-size:12.5px;margin-top:10px;min-height:16px;font-weight:600;line-height:1.45}
+  /* Cuando el mensaje NO es un rechazo sino algo que falta hacer, deja de ser
+     rojo: el rojo dice «te equivocaste» y ahí nadie se equivocó. */
+  .gate-err.aviso{color:var(--tinta-2);font-weight:500;text-align:left}
+  .gate-err.aviso b{color:var(--laca)}
+
+  /* 10-sep-2026 — EL OJO. Joan lo pidió por su nombre: una contraseña dictada
+     por WhatsApp y tecleada a ciegas en un celular se escribe mal y no hay cómo
+     saberlo. El botón no envía nada (type="button") y no hereda el rojo a lo
+     ancho que tienen los demás botones de la puerta. */
+  .con-ojo{position:relative;margin-top:8px}
+  .con-ojo input{padding-right:46px}
+  /* El PIN va centrado y con letras separadas: se le pone el mismo hueco a la
+     izquierda para que no se descentre por el botón. */
+  .gate-card .con-ojo input#pinInput{padding-left:46px}
+  .gate-card .con-ojo .ojo,.field .con-ojo .ojo{position:absolute;right:5px;top:50%;
+    transform:translateY(-50%);width:auto;margin:0;padding:7px 9px;background:none;border:0;
+    border-radius:8px;font-size:17px;line-height:1;cursor:pointer;opacity:.5;color:inherit}
+  .con-ojo .ojo:hover,.con-ojo .ojo:focus{opacity:1;background:var(--linea)}
 
   .app{display:grid;grid-template-columns:228px 1fr;min-height:100vh}
   /* La barra lateral es la misma "laca negra" de la app: degradado radial, banda
@@ -390,7 +408,8 @@
 
 <div class="gate" id="gate">
   <div class="gate-card"><div class="mk"><span class="sello">G</span>Tu Garantía</div><div class="tag">Panel</div>
-    <input type="password" id="pinInput" inputmode="numeric" maxlength="6" placeholder="••••" aria-label="PIN de acceso">
+    <div class="con-ojo" style="margin-top:0"><input type="password" id="pinInput" inputmode="numeric" maxlength="6" placeholder="••••" aria-label="PIN de acceso">
+      <button type="button" class="ojo" title="Ver lo que escribiste" aria-label="Ver el PIN" onclick="alternarOjo('pinInput',this)">👁</button></div>
     <button id="pinBtn">Entrar</button><div class="gate-err" id="pinErr"></div>
     <button class="gate-link" onclick="pintarPuertaEquipo()">Soy del equipo (gerente o asesor)</button></div>
 </div>
@@ -4853,7 +4872,7 @@ function pantallaCuentaExiste(p, clave) {
       como cliente con el mismo número.</p>
     <div class="aviso ambar">Para ponerle una contraseña nueva necesito la que tiene ahora.
       Si no la tienes, la única salida es que use otro celular.</div>
-    <div class="field"><label>Su contraseña de ahora</label><input id="ceVieja" type="password"></div>
+    <div class="field"><label>Su contraseña de ahora</label>${campoConOjo('ceVieja', '')}</div>
     <div class="field"><label>La nueva</label><input id="ceNueva" value="${escHTML(clave)}"></div>
     <button class="btn btn-rojo arriba" onclick="cambiarClave('${escHTML(p.id)}')">Cambiar la contraseña</button>`);
 }
@@ -4910,12 +4929,29 @@ function pantallaEntregarCuenta(p, clave, que) {
 /* ==========================================================================
  * ENTRAR COMO EQUIPO
  * ======================================================================== */
+/* Un solo interruptor para los tres sitios donde se teclea una contraseña a
+   ciegas: el PIN de Joan, la puerta del equipo y el cambio de contraseña. */
+function alternarOjo(idCampo, btn) {
+  const c = document.getElementById(idCampo); if (!c) return;
+  const oculto = c.type === 'password';
+  c.type = oculto ? 'text' : 'password';
+  btn.textContent = oculto ? '🙈' : '👁';
+  btn.title = oculto ? 'Ocultar' : 'Ver lo que escribiste';
+  btn.setAttribute('aria-label', oculto ? 'Ocultar la contraseña' : 'Ver la contraseña');
+  c.focus();
+}
+function campoConOjo(id, atributos) {
+  return '<div class="con-ojo"><input id="' + id + '" type="password" ' + atributos + '>' +
+    '<button type="button" class="ojo" title="Ver lo que escribiste" aria-label="Ver la contraseña" ' +
+    'onclick="alternarOjo(\'' + id + '\',this)">👁</button></div>';
+}
+
 function pintarPuertaEquipo() {
   const c = document.querySelector('#gate .gate-card');
   if (!c) return;
   c.innerHTML = `<div class="mk"><span class="sello">G</span>Tu Garantía</div><div class="tag">Equipo</div>
     <input id="eqTelIn" type="tel" inputmode="numeric" placeholder="Tu celular" aria-label="Tu celular">
-    <input id="eqClaveIn" type="password" placeholder="Tu contraseña" aria-label="Tu contraseña" style="margin-top:8px">
+    ${campoConOjo('eqClaveIn', 'placeholder="Tu contraseña" aria-label="Tu contraseña"')}
     <button id="eqBtn">Entrar</button>
     <div class="gate-err" id="eqErr"></div>
     <button class="gate-link" onclick="location.reload()">← Soy Joan</button>`;
@@ -4924,32 +4960,80 @@ function pintarPuertaEquipo() {
   document.getElementById('eqTelIn').focus();
 }
 
+/* --------------------------------------------------------------------------
+ * ENTRAR — y decir la verdad cuando no se puede
+ *
+ * LA FRONTERA ESTÁ EN EL TOKEN, y ahí es donde tiene que estar:
+ *
+ *   ANTES  — una sola respuesta para todo, sin una pista. Quien todavía no ha
+ *            probado que tiene la contraseña no puede usar esta puerta para
+ *            averiguar quién trabaja acá.
+ *   DESPUÉS — la verdad, y qué hacer. Quien consiguió un token YA demostró que
+ *            la cuenta es suya: decirle qué falta no le revela nada a nadie.
+ *
+ * Estuvo mal puesta hasta el 10-sep-2026: TODO caía en un solo .catch que
+ * contestaba «no encontré ese celular con esa contraseña». Joan intentó entrar
+ * como gerente con la contraseña correcta y esa frase le hizo creer que se
+ * había equivocado; lo que pasaba es que la migración de la nube no se había
+ * corrido y mi_cartera devolvía 404. Un mensaje que miente sobre la causa
+ * cuesta más que uno que no dice nada.
+ * ------------------------------------------------------------------------ */
 function entrarEquipo() {
   const U = window.CuentaSocio;
   const err = document.getElementById('eqErr'), btn = document.getElementById('eqBtn');
-  const tel = U ? U.normalizarTelefono(document.getElementById('eqTelIn').value) : '';
+  const decir = (html, tono) => { err.className = 'gate-err' + (tono ? ' ' + tono : ''); err.innerHTML = html; };
+  const soltar = () => { btn.disabled = false; btn.textContent = 'Entrar'; };
+  if (!U) return decir('No cargó app/cuenta.js. Recarga la página con señal.');
+
+  const escrito = document.getElementById('eqTelIn').value;
+  const tel = U.normalizarTelefono(escrito);
   const clave = document.getElementById('eqClaveIn').value || '';
-  if (!tel || !clave) { err.textContent = 'Escribe tu celular y tu contraseña.'; return; }
+  /* Que el celular esté mal escrito NO es un secreto de nadie: se dice. */
+  if (!escrito.trim()) return decir('Escribe tu celular.');
+  if (!tel) return decir('Ese celular no me cuadra: son 10 dígitos y empieza por 3.');
+  if (!clave) return decir('Escribe tu contraseña.');
+
   btn.disabled = true; btn.textContent = 'Entrando…';
+  decir('');
   authEquipo('/token?grant_type=password', { email: U.correoDeTelefono(tel), password: clave })
     .then(res => {
-      if (!res.ok || !res.j.access_token) throw new Error('no');
+      if (!res.ok || !res.j || !res.j.access_token) {
+        const t = JSON.stringify(res.j || {});
+        throw { antes: true, sinConfirmar: /confirm/i.test(t) };
+      }
       SESION_EQUIPO = res.j;
       return rpcEquipo('mi_cartera', {}, SESION_EQUIPO.access_token);
     })
     .then(res => {
-      if (!res.ok || !res.j || res.j.ok !== true) {
-        /* La cuenta existe pero no tiene puesto en el equipo. Se dice lo mismo
-           que a quien se equivocó de contraseña: esta puerta no puede volverse
-           un oráculo de quién trabaja acá. */
-        throw new Error('no');
-      }
+      const j = res.j || {};
+      /* PGRST202 = PostgREST no encuentra la función. No es un permiso: es que
+         la migración del equipo no se ha corrido en la nube. */
+      if (j.code === 'PGRST202') throw { falta: 'migracion' };
+      if (!res.ok) throw { falta: 'nube', detalle: j.message || j.msg || j.error || '' };
+      if (j.ok !== true) throw { falta: 'puesto' };
       CARTERA_EQUIPO = res.j;
       modoEquipo();
     })
-    .catch(() => {
-      btn.disabled = false; btn.textContent = 'Entrar';
-      err.textContent = 'No encontré ese celular con esa contraseña.';
+    .catch(e => {
+      soltar();
+      const t = (e && (e.falta || (e.antes ? (e.sinConfirmar ? 'sinConfirmar' : 'antes') : ''))) || 'red';
+      if (t === 'migracion') {
+        decir('<b>Tu contraseña sí sirve.</b> Lo que falta no es tuyo: Joan todavía no ha ' +
+              'preparado el equipo en la nube. Avísale y vuelve a intentar.', 'aviso');
+      } else if (t === 'puesto') {
+        decir('<b>Tu contraseña sí sirve</b>, pero todavía no tienes puesto acá. ' +
+              'Falta que Joan te dé tu rol y pulse «Publicar a la nube».', 'aviso');
+      } else if (t === 'nube') {
+        decir('<b>Entraste bien</b>, pero la nube no me contestó' +
+              (e.detalle ? ': ' + escHTML(String(e.detalle)) + '.' : '.') +
+              ' Vuelve a intentar en un minuto.', 'aviso');
+      } else if (t === 'sinConfirmar') {
+        decir('Esa cuenta quedó sin confirmar. Dile a Joan que te la vuelva a crear.');
+      } else if (t === 'antes') {
+        decir('No encontré ese celular con esa contraseña.');
+      } else {
+        decir('No pude conectarme. Revisa la señal y vuelve a intentar.');
+      }
     });
 }
 

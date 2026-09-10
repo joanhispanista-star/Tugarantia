@@ -161,7 +161,11 @@
 /* v35 - 10-sep-2026. La gestion: el asesor tipifica desde su celular, el
    gerente ve que hizo con cada uno de sus asignados y Joan se las trae a su
    computador. Toca panel/crm.html y panel/nube.js. */
-const CACHE = 'tugarantia-v35';
+/* v36 - 10-sep-2026. El ojo para ver la contrasena en las tres puertas, y
+   entrarEquipo deja de decir 'no encontre ese celular con esa contrasena'
+   cuando la contrasena estaba bien y lo que faltaba era la migracion.
+   Toca panel/crm.html. */
+const CACHE = 'tugarantia-v36';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
