@@ -151,7 +151,10 @@
    sube, el boton de instalar y el rayo al tocar. Entran los archivos de play/ a
    esta lista, que llevaban fuera desde que existe la carpeta: sin ellos el
    boton de instalar prometia una app que no abre sin senal. */
-const CACHE = 'tugarantia-v32';
+/* v33 — 10-sep-2026. Nace panel/equipo.html: la app del gerente y del asesor,
+   con las etapas PC/CR/CA/D-3..D0/M1A/M1B/M1-2. Entran tambien etapas.js,
+   comisiones.js y bases.js, que el CRM ya carga. */
+const CACHE = 'tugarantia-v33';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -178,6 +181,12 @@ const ARCHIVOS = [
      comparte con el CRM y con la app del socio, que es la razón de que este
      service worker viva en la raíz y no dentro de cada carpeta. */
   'panel/espejo.html',
+  /* 10-sep-2026 — la app del equipo (gerente y asesor). Se usa en la calle y
+     con mala senal, igual que el espejo. */
+  'panel/equipo.html',
+  'app/etapas.js',
+  'app/comisiones.js',
+  'app/bases.js',
   'panel/espejo.webmanifest',
   'panel/nube.js',
   'panel/tanda.js',

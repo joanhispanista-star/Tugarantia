@@ -1,0 +1,297 @@
+-- ===========================================================================
+-- EL EQUIPO ENTRA A LA NUBE — 10 de septiembre de 2026
+--
+-- Va DESPUÉS de 20260909b_topes_arriba.sql.
+-- SQL Editor de Supabase → New query → pegar TODO → Run. Idempotente.
+--
+-- ---------------------------------------------------------------------------
+-- LO QUE PIDIÓ JOAN
+--
+-- «Aún no puedo entregarle el usuario y contraseña al gerente que agregué, y
+-- quiero ver qué es lo que ve el gerente.»
+--
+-- Y antes: «el rol de asesor solo permite ver las cuentas asignadas y sus
+-- propias cuentas… el rol de gerente solo ve de la base de clientes asignada
+-- que yo autorice que él vea, de resto mis clientes antiguos u otra información
+-- él no la ve».
+--
+-- ---------------------------------------------------------------------------
+-- LA REJA VA ACÁ, NO EN LA PANTALLA. Esto es lo único que importa de este
+-- archivo. La pantalla del asesor se puede editar desde el navegador de
+-- cualquiera: si el filtro «solo lo mío» viviera ahí, cambiar una línea le
+-- daría la cartera entera. Por eso `mi_cartera()` no recibe NINGÚN parámetro
+-- que diga de quién es: saca el celular del JWT y decide el servidor.
+--
+-- ---------------------------------------------------------------------------
+-- CÓMO ENTRA UNA PERSONA DEL EQUIPO
+--
+-- Joan crea el usuario a mano en Supabase (Authentication → Users → Add user),
+-- con el correo sintético 57<celular>@tugarantia.net y la contraseña que él
+-- elija, marcando «Auto Confirm User». Es lo que pidió: que las credenciales
+-- las cree él.
+--
+-- No hay forma de crear ese usuario desde el CRM sin la llave de servicio, y
+-- esa llave no puede vivir en un sitio público: cualquiera abre el código
+-- fuente. El día que haga falta automatizarlo, es una Edge Function con la
+-- llave guardada como secreto del proyecto — no en el repositorio.
+--
+-- ---------------------------------------------------------------------------
+-- LO QUE NO VIAJA, Y ES DELIBERADO
+--
+-- Las tablas de acá NO llevan cédula, ni dirección, ni fotos, ni el historial
+-- de crédito. Un asesor necesita un nombre, un celular y en qué cartera está la
+-- persona; con eso cobra. Todo lo demás es dato personal que multiplicaría el
+-- daño el día que un celular se pierda — y la Ley 1581 pide que se trate lo
+-- mínimo para la finalidad, no todo lo que uno tenga a mano.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1. LAS TABLAS
+-- ---------------------------------------------------------------------------
+
+-- El equipo. La llave es el CELULAR, que es lo mismo que identifica a la
+-- persona en Supabase Auth (57<celular>@tugarantia.net): así no hay que
+-- guardar ni sincronizar ningún uid.
+create table if not exists public.equipo (
+  celular     text        primary key,
+  nombre      text        not null,
+  rol         text        not null check (rol in ('gerente', 'asesor')),
+  estado      text        not null default 'activo' check (estado in ('activo', 'retirado')),
+  -- A qué gerente reporta un asesor. Es lo que hace que un gerente vea a los
+  -- suyos y solo a los suyos.
+  jefe        text,
+  actualizado timestamptz not null default now()
+);
+create index if not exists equipo_por_jefe on public.equipo (jefe);
+
+-- Quién lleva a quién. SOLO SUMA: reasignar escribe una fila nueva con su
+-- fecha y la vieja se queda, para que la comisión de un cliente reasignado le
+-- llegue al que correspondía EN ESA FECHA.
+create table if not exists public.asignaciones (
+  id          text        primary key,
+  persona_id  text        not null,          -- id del prospecto o del socio en el CRM
+  asesor      text        not null,          -- celular del asesor
+  desde       date        not null,
+  actualizado timestamptz not null default now()
+);
+create index if not exists asignaciones_por_asesor on public.asignaciones (asesor);
+
+-- Los prospectos: nombre y celular, y nada más. Ver la cabecera.
+create table if not exists public.prospectos (
+  id          text        primary key,
+  celular     text        not null,
+  nombre      text        not null default '',
+  estado      text        not null default 'nuevo',
+  etapa       text        not null default 'PC',   -- la calcula el CRM y la publica
+  actualizado timestamptz not null default now()
+);
+create index if not exists prospectos_por_celular on public.prospectos (celular);
+
+-- El cerrojo doble de esta casa: RLS encendido y CERO políticas. Nadie entra
+-- directo; todo pasa por las funciones de abajo, que deciden qué devolver.
+alter table public.equipo       enable row level security;
+alter table public.asignaciones enable row level security;
+alter table public.prospectos   enable row level security;
+revoke all on public.equipo       from anon, authenticated;
+revoke all on public.asignaciones from anon, authenticated;
+revoke all on public.prospectos   from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 2. JOAN PUBLICA — desde su CRM, con su clave de sincronización
+-- ---------------------------------------------------------------------------
+create or replace function public.equipo_publicar(
+  p_clave text, p_equipo jsonb, p_asignaciones jsonb, p_prospectos jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  it jsonb;
+  n_eq integer := 0; n_as integer := 0; n_pr integer := 0;
+begin
+  if not public.clave_ok(p_clave) then
+    perform pg_sleep(1);
+    raise exception 'clave de sincronización incorrecta';
+  end if;
+
+  for it in select * from jsonb_array_elements(coalesce(p_equipo, '[]'::jsonb)) loop
+    if public.solo_digitos(it->>'celular') = '' then continue; end if;
+    insert into public.equipo (celular, nombre, rol, estado, jefe, actualizado)
+    values (right(public.solo_digitos(it->>'celular'), 10),
+            left(coalesce(it->>'nombre', 'Sin nombre'), 80),
+            coalesce(nullif(it->>'rol', ''), 'asesor'),
+            coalesce(nullif(it->>'estado', ''), 'activo'),
+            nullif(right(public.solo_digitos(coalesce(it->>'jefe', '')), 10), ''),
+            now())
+    on conflict (celular) do update
+      set nombre = excluded.nombre, rol = excluded.rol,
+          estado = excluded.estado, jefe = excluded.jefe, actualizado = now();
+    n_eq := n_eq + 1;
+  end loop;
+
+  for it in select * from jsonb_array_elements(coalesce(p_asignaciones, '[]'::jsonb)) loop
+    if coalesce(it->>'id', '') = '' then continue; end if;
+    insert into public.asignaciones (id, persona_id, asesor, desde, actualizado)
+    values (it->>'id', coalesce(it->>'persona_id', ''),
+            right(public.solo_digitos(coalesce(it->>'asesor', '')), 10),
+            coalesce((it->>'desde')::date, current_date), now())
+    on conflict (id) do update
+      set persona_id = excluded.persona_id, asesor = excluded.asesor,
+          desde = excluded.desde, actualizado = now();
+    n_as := n_as + 1;
+  end loop;
+
+  for it in select * from jsonb_array_elements(coalesce(p_prospectos, '[]'::jsonb)) loop
+    if coalesce(it->>'id', '') = '' then continue; end if;
+    insert into public.prospectos (id, celular, nombre, estado, etapa, actualizado)
+    values (it->>'id', right(public.solo_digitos(coalesce(it->>'celular', '')), 10),
+            left(coalesce(it->>'nombre', ''), 80),
+            coalesce(nullif(it->>'estado', ''), 'nuevo'),
+            coalesce(nullif(it->>'etapa', ''), 'PC'), now())
+    on conflict (id) do update
+      set celular = excluded.celular, nombre = excluded.nombre,
+          estado = excluded.estado, etapa = excluded.etapa, actualizado = now();
+    n_pr := n_pr + 1;
+  end loop;
+
+  return jsonb_build_object('ok', true, 'equipo', n_eq,
+                            'asignaciones', n_as, 'prospectos', n_pr);
+end
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 3. QUIÉN SOY — el que entra pregunta por sí mismo, y nada más
+-- ---------------------------------------------------------------------------
+create or replace function public.mi_rol()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare cel text; e public.equipo;
+begin
+  cel := public.celular_de_sesion();
+  if cel is null then return jsonb_build_object('ok', false); end if;
+  select * into e from public.equipo where celular = right(cel, 10);
+  if not found or e.estado <> 'activo' then
+    -- Un retirado entra a su cuenta pero no es nadie acá. Se contesta lo mismo
+    -- que a un desconocido: no hay por qué decirle que existió.
+    return jsonb_build_object('ok', false);
+  end if;
+  return jsonb_build_object('ok', true, 'nombre', e.nombre, 'rol', e.rol,
+                            'celular', e.celular);
+end
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 4. MI CARTERA — sin un solo parámetro que diga de quién es
+--
+-- Un asesor recibe los suyos. Un gerente recibe los de los asesores que le
+-- reportan, con el nombre del asesor al lado. Nadie recibe nada de nadie más,
+-- y no hay forma de pedirlo: la pregunta no tiene dónde escribir un celular
+-- ajeno.
+-- ---------------------------------------------------------------------------
+create or replace function public.mi_cartera()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  cel  text;
+  yo   public.equipo;
+  mios text[];
+begin
+  cel := public.celular_de_sesion();
+  if cel is null then return jsonb_build_object('ok', false); end if;
+  select * into yo from public.equipo where celular = right(cel, 10);
+  if not found or yo.estado <> 'activo' then return jsonb_build_object('ok', false); end if;
+
+  if yo.rol = 'asesor' then
+    mios := array[yo.celular];
+  else
+    -- El gerente: él mismo y los asesores que le reportan.
+    select array_agg(celular) into mios
+      from public.equipo
+     where estado = 'activo' and (celular = yo.celular or jefe = yo.celular);
+  end if;
+  if mios is null then mios := array[]::text[]; end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'yo', jsonb_build_object('nombre', yo.nombre, 'rol', yo.rol, 'celular', yo.celular),
+    'equipo', coalesce((
+      select jsonb_agg(jsonb_build_object('celular', celular, 'nombre', nombre, 'rol', rol))
+        from public.equipo
+       where estado = 'activo' and celular = any(mios) and celular <> yo.celular), '[]'::jsonb),
+    'gente', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'id', p.id, 'nombre', p.nombre, 'celular', p.celular,
+               'estado', p.estado, 'etapa', p.etapa,
+               'asesor', a.asesor, 'asesor_nombre', coalesce(e2.nombre, '')))
+        from public.prospectos p
+        join public.asignaciones a on a.persona_id = p.id
+        left join public.equipo e2 on e2.celular = a.asesor
+       where a.asesor = any(mios)
+         -- De varias asignaciones del mismo prospecto manda la ÚLTIMA: la
+         -- lista solo suma, y la vigente es la de fecha más reciente.
+         and a.desde = (select max(a2.desde) from public.asignaciones a2
+                         where a2.persona_id = p.id)), '[]'::jsonb));
+end
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 5. LOS PERMISOS
+-- `create or replace` NO quita el EXECUTE que PostgreSQL le da a PUBLIC por
+-- defecto: se revoca a mano y se concede lo justo. Lección del 28-ago, cuando
+-- había 28 funciones abiertas a la llave pública sin que nadie lo viera.
+-- ---------------------------------------------------------------------------
+revoke all on function public.equipo_publicar(text, jsonb, jsonb, jsonb) from public, anon, authenticated;
+grant  execute on function public.equipo_publicar(text, jsonb, jsonb, jsonb) to anon;   -- Joan, con su clave
+revoke all on function public.mi_rol()     from public, anon, authenticated;
+grant  execute on function public.mi_rol() to authenticated;                            -- solo con sesión
+revoke all on function public.mi_cartera() from public, anon, authenticated;
+grant  execute on function public.mi_cartera() to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ---------------------------------------------------------------------------
+-- 6. LA COMPROBACIÓN
+-- ---------------------------------------------------------------------------
+do $$
+declare cuerpo text;
+begin
+  if to_regclass('public.equipo') is null
+     or to_regclass('public.asignaciones') is null
+     or to_regclass('public.prospectos') is null then
+    raise exception 'faltó alguna de las tres tablas';
+  end if;
+
+  -- Que nadie pueda leer las tablas directo, sin pasar por las funciones.
+  if exists (select 1 from information_schema.table_privileges
+              where table_schema = 'public'
+                and table_name in ('equipo', 'asignaciones', 'prospectos')
+                and grantee in ('anon', 'authenticated')) then
+    raise exception 'alguna tabla del equipo quedo abierta a la llave publica';
+  end if;
+
+  -- Y que mi_cartera NO acepte un parametro: si algun dia recibe el celular
+  -- de quien pregunta, la reja se muda a la pantalla y deja de servir.
+  if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname = 'mi_cartera' and p.pronargs > 0) > 0 then
+    raise exception 'mi_cartera recibe parametros: la reja tiene que decidirla el servidor';
+  end if;
+
+  select prosrc into cuerpo from pg_proc
+   where proname = 'mi_cartera' and pronamespace = 'public'::regnamespace;
+  if cuerpo not like '%celular_de_sesion%' then
+    raise exception 'mi_cartera no saca el celular de la sesion';
+  end if;
+
+  if has_function_privilege('anon', 'public.mi_cartera()', 'execute') then
+    raise exception 'mi_cartera quedo abierta sin sesion';
+  end if;
+end $$;

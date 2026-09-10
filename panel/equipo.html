@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tu Garantía · Equipo</title>
+<meta name="theme-color" content="#0C0A0B">
+<link rel="stylesheet" href="../play/estilo.css">
+<style>
+/* ============================================================================
+ * LA APP DEL EQUIPO — 10 de septiembre de 2026
+ *
+ * UNA SOLA PÁGINA PARA LOS DOS ROLES, y no es pereza: el gerente y el asesor
+ * miran lo mismo —gente y en qué cartera está— con distinto alcance. Dos
+ * páginas serían dos copias de la misma tabla de etapas, y este proyecto ya
+ * pagó doce veces la copia que nadie declaró. Quién ve qué lo decide el
+ * SERVIDOR (mi_cartera), no esta pantalla.
+ *
+ * Hereda la hoja de play/ a propósito: es la que ya está pensada para un
+ * celular de gama baja, y así no nace una tercera paleta.
+ * ==========================================================================*/
+.barra{position:sticky;top:0;z-index:10;background:var(--laca);color:var(--blanco-laca);
+  padding:calc(env(safe-area-inset-top) + 12px) 16px 12px}
+.barra .fila{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  max-width:520px;margin:0 auto}
+.barra .yo{font-size:13px;line-height:1.25}
+.barra .yo b{display:block;font-size:15px}
+.barra .rol{font-size:11px;text-transform:uppercase;letter-spacing:.1em;
+  color:color-mix(in srgb,var(--amarillo) 90%,transparent)}
+.barra button{all:unset;cursor:pointer;font-size:12.5px;padding:7px 11px;border-radius:9px;
+  border:1px solid rgba(255,255,255,.22);color:rgba(251,247,244,.8)}
+
+.tabs{display:flex;gap:6px;max-width:520px;margin:12px auto 0;padding:0 16px;overflow-x:auto}
+.tabs button{all:unset;cursor:pointer;padding:9px 13px;border-radius:11px;font-size:13.5px;
+  font-weight:600;white-space:nowrap;border:1px solid var(--linea);color:var(--gris)}
+.tabs button.on{background:var(--laca);color:var(--blanco-laca);border-color:var(--laca)}
+
+/* Las etapas: un color por familia, no doce. Verde va bien, ámbar es hoy,
+   rojo es mora. Doce colores no se aprenden; tres sí. */
+.et{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.03em;
+  padding:3px 8px;border-radius:7px;white-space:nowrap}
+.et.gris{background:color-mix(in srgb,var(--gris) 15%,transparent);color:var(--gris)}
+.et.azul{background:color-mix(in srgb,var(--azul) 13%,transparent);color:var(--azul-texto)}
+.et.verde{background:color-mix(in srgb,var(--verde) 15%,transparent);color:var(--verde)}
+.et.ambar{background:var(--ambar-papel);color:var(--ambar-tinta)}
+.et.rojo{background:color-mix(in srgb,var(--rojo) 13%,transparent);color:var(--rojo-texto)}
+
+.gente{margin-top:var(--e3)}
+.per{display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-bottom:1px solid var(--linea)}
+.per:last-child{border-bottom:0}
+.per .datos{flex:1;min-width:0}
+.per .nom{font-weight:700;font-size:14.5px}
+.per .cel{font-size:12.5px;color:var(--gris);font-variant-numeric:tabular-nums}
+.per .que{font-size:12.5px;color:var(--gris);margin-top:3px;line-height:1.4}
+.per .der{text-align:right;flex:none;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.wa{display:inline-block;background:#25D366;color:#fff;font-size:12px;font-weight:700;
+  padding:6px 11px;border-radius:9px;text-decoration:none}
+
+.conteo{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--e3)}
+.conteo .c{border:1px solid var(--linea);border-radius:10px;padding:7px 10px;font-size:12.5px}
+.conteo .c b{font-variant-numeric:tabular-nums;font-size:15px;display:block}
+
+.urgente{border-left:3px solid var(--rojo);padding-left:11px}
+</style>
+</head>
+<body>
+
+<div id="barra"></div>
+<div class="wrap"><div id="cuerpo"></div></div>
+
+<script src="../app/cuenta.js"></script>
+<script src="../app/puente.js"></script>
+<script src="../app/motor.js"></script>
+<script src="../app/etapas.js"></script>
+<script>
+'use strict';
+/* ============================================================================
+ * LA CONEXIÓN. Viene horneada, igual que en play/: la persona no tiene que
+ * configurar nada, solo entrar con lo que Joan le dio.
+ * ==========================================================================*/
+var CFG = {
+  url: 'https://wnsioekvjspwtghbodbg.supabase.co',
+  anon: 'sb_publishable_uWFyReBljFSh7l0KYkWmmg_Swo4SOxj'
+};
+var VERSION_EQUIPO = '2026-09-10';
+
+var U = window.CuentaSocio;
+var E = window.EtapasTuGarantia;
+var $ = function (id) { return document.getElementById(id); };
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+  });
+}
+function hoyISO() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+         '-' + String(d.getDate()).padStart(2, '0');
+}
+
+/* La sesión vive en sessionStorage y no en localStorage: en un celular
+   prestado o compartido, cerrar la pestaña tiene que cerrar la sesión. Es una
+   app que muestra los datos de otras personas. */
+var LLAVE_SESION = 'tg_equipo_sesion';
+function guardarSesion(s) { try { sessionStorage.setItem(LLAVE_SESION, JSON.stringify(s)); } catch (e) {} }
+function leerSesion() { try { return JSON.parse(sessionStorage.getItem(LLAVE_SESION) || 'null'); } catch (e) { return null; } }
+function olvidarSesion() { try { sessionStorage.removeItem(LLAVE_SESION); } catch (e) {} }
+
+var SESION = leerSesion();
+var CARTERA = null;
+var VISTA = 'tablero';
+
+function rpc(fn, cuerpo) {
+  var h = { 'Content-Type': 'application/json', apikey: CFG.anon,
+            Authorization: 'Bearer ' + ((SESION && SESION.access_token) || CFG.anon) };
+  return fetch(CFG.url + '/rest/v1/rpc/' + fn, {
+    method: 'POST', headers: h, body: JSON.stringify(cuerpo || {})
+  }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
+}
+
+/* ============================== ENTRAR ============================== */
+function pintarEntrar(motivo) {
+  $('barra').innerHTML = '<div class="barra"><div class="fila">' +
+    '<div class="yo"><b>Tu Garantía</b><span class="rol">Equipo</span></div></div></div>';
+  $('cuerpo').innerHTML =
+    '<div class="card">' +
+      '<h3 class="tit">Entra con lo que te dieron</h3>' +
+      '<p class="sub">Tu usuario es tu celular. La contraseña te la da ' +
+        'quien te creó la cuenta.</p>' +
+      '<label for="inTel">Tu celular</label>' +
+      '<input id="inTel" type="tel" inputmode="numeric" autocomplete="username" placeholder="300 111 2233">' +
+      '<label for="inClave">Tu contraseña</label>' +
+      '<input id="inClave" type="password" autocomplete="current-password" placeholder="••••••••">' +
+      '<button class="btn arriba" id="btnEntrar">Entrar</button>' +
+      (motivo ? '<div class="aviso ambar">' + esc(motivo) + '</div>' : '') +
+      '<div id="errEntrar" class="aviso ambar oculto"></div>' +
+    '</div>' +
+    '<div class="pie">Si no puedes entrar, escríbele a quien te dio la cuenta.<br>' +
+      'Versión ' + esc(VERSION_EQUIPO) + '</div>';
+  $('btnEntrar').addEventListener('click', entrar);
+  $('inClave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+}
+
+function entrar() {
+  var err = $('errEntrar'), btn = $('btnEntrar');
+  err.classList.add('oculto');
+  var tel = U.normalizarTelefono($('inTel').value);
+  var clave = $('inClave').value || '';
+  if (!tel) { err.textContent = 'Escribe tu celular: son 10 números y empieza por 3.'; err.classList.remove('oculto'); return; }
+  if (!clave) { err.textContent = 'Falta tu contraseña.'; err.classList.remove('oculto'); return; }
+  btn.disabled = true; btn.textContent = 'Entrando…';
+  fetch(CFG.url + '/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
+    body: JSON.stringify({ email: U.correoDeTelefono(tel), password: clave })
+  }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (res) {
+      btn.disabled = false; btn.textContent = 'Entrar';
+      if (!res.ok || !res.j.access_token) {
+        /* No se distingue «ese celular no existe» de «la contraseña está mal»:
+           decirlo convertiría esta puerta en un oráculo de quién trabaja acá. */
+        err.textContent = 'No encontré ese celular con esa contraseña.';
+        err.classList.remove('oculto');
+        return;
+      }
+      SESION = res.j; guardarSesion(SESION);
+      cargar();
+    })
+    .catch(function () {
+      btn.disabled = false; btn.textContent = 'Entrar';
+      err.textContent = 'No pude conectarme. Revisa tu señal e inténtalo otra vez.';
+      err.classList.remove('oculto');
+    });
+}
+
+function salir() { olvidarSesion(); SESION = null; CARTERA = null; pintarEntrar(''); }
+
+/* ============================== CARGAR ============================== */
+function cargar() {
+  $('cuerpo').innerHTML = '<div class="card"><div class="muted">Cargando tu base…</div></div>';
+  rpc('mi_cartera').then(function (res) {
+    if (!res.ok || !res.j || res.j.ok !== true) {
+      /* La sesión sirve pero esta persona no está en el equipo, o la retiraron.
+         Se dice lo mismo en los dos casos. */
+      olvidarSesion(); SESION = null;
+      pintarEntrar('Esa cuenta existe pero no tiene un puesto activo en el equipo. ' +
+        'Habla con quien te la creó.');
+      return;
+    }
+    CARTERA = res.j;
+    pintar();
+  }).catch(function () {
+    $('cuerpo').innerHTML = '<div class="card"><div class="aviso ambar">' +
+      'No pude traer tu base. Revisa la señal.</div>' +
+      '<button class="btn sec arriba" onclick="cargar()">Reintentar</button></div>';
+  });
+}
+
+/* ============================== PINTAR ============================== */
+function gente() { return (CARTERA && CARTERA.gente) || []; }
+function esGerente() { return CARTERA && CARTERA.yo && CARTERA.yo.rol === 'gerente'; }
+
+function pintar() {
+  var yo = CARTERA.yo;
+  $('barra').innerHTML =
+    '<div class="barra"><div class="fila">' +
+      '<div class="yo"><b>' + esc(yo.nombre) + '</b>' +
+        '<span class="rol">' + (yo.rol === 'gerente' ? '🧭 Gerente' : '🚶 Asesor') + '</span></div>' +
+      '<button onclick="salir()">Salir</button>' +
+    '</div></div>' +
+    '<div class="tabs">' +
+      tab('tablero', '📊 Hoy') + tab('base', '📋 Mi base') +
+      (esGerente() ? tab('equipo', '🚶 Mi equipo') : '') +
+    '</div>';
+  if (VISTA === 'base') pintarBase();
+  else if (VISTA === 'equipo' && esGerente()) pintarEquipo();
+  else pintarTablero();
+  window.scrollTo(0, 0);
+}
+function tab(id, txt) {
+  return '<button class="' + (VISTA === id ? 'on' : '') + '" onclick="irA(\'' + id + '\')">' + txt + '</button>';
+}
+function irA(v) { VISTA = v; pintar(); }
+
+/* La etapa la calcula app/etapas.js, la MISMA que usa el CRM de Joan. Si esta
+   pantalla la calculara por su cuenta, el asesor y Joan podrían ver carteras
+   distintas para el mismo cliente, y la conversación se vuelve sobre quién
+   tiene razón. El servidor manda la etapa ya calculada; acá solo se traduce a
+   nombre y color. */
+function etiqueta(etapa) {
+  var e = (E && E.ETAPAS && E.ETAPAS[etapa]) || null;
+  if (!e) return '<span class="et gris">' + esc(etapa || '—') + '</span>';
+  return '<span class="et ' + e.color + '">' + esc(e.et) + '</span>';
+}
+function queHacer(etapa) {
+  var e = (E && E.ETAPAS && E.ETAPAS[etapa]) || null;
+  return e ? e.que : '';
+}
+
+function pintarTablero() {
+  var g = gente();
+  var cuenta = {};
+  g.forEach(function (p) { cuenta[p.etapa] = (cuenta[p.etapa] || 0) + 1; });
+  var orden = (E && E.ORDEN) || [];
+  var urgentes = (E && E.URGENTES) || [];
+  var pendientes = g.filter(function (p) { return urgentes.indexOf(p.etapa) >= 0; })
+    .sort(function (a, b) { return urgentes.indexOf(a.etapa) - urgentes.indexOf(b.etapa); });
+
+  $('cuerpo').innerHTML =
+    '<div class="card laca">' +
+      '<div class="etq">Tu base</div>' +
+      '<div class="cifra oro">' + g.length + '</div>' +
+      '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
+        (esGerente() ? 'de tus asesores' : 'personas asignadas a ti') + '</div>' +
+    '</div>' +
+    (pendientes.length
+      ? '<div class="card"><h3 class="tit">Lo que hay que hacer hoy</h3>' +
+        '<p class="sub">En orden: primero lo que se puede perder.</p>' +
+        '<div class="gente">' + pendientes.slice(0, 15).map(fila).join('') + '</div>' +
+        (pendientes.length > 15 ? '<div class="muted" style="margin-top:10px">y ' +
+          (pendientes.length - 15) + ' más en «Mi base».</div>' : '') +
+        '</div>'
+      : '<div class="card"><h3 class="tit">Nada urgente hoy</h3>' +
+        '<p class="sub">Nadie de tu base está en día de pago ni en mora. ' +
+        'Buen momento para contactar a los que no se han registrado.</p></div>') +
+    '<div class="card"><h3 class="tit">Toda tu base, por cartera</h3>' +
+      '<div class="conteo">' + orden.filter(function (k) { return cuenta[k]; })
+        .map(function (k) {
+          var e = E.ETAPAS[k];
+          return '<div class="c"><b>' + cuenta[k] + '</b>' + esc(e ? e.et : k) + '</div>';
+        }).join('') + '</div></div>' +
+    pie();
+}
+
+function fila(p) {
+  var urg = (E && E.URGENTES || []).indexOf(p.etapa) >= 0;
+  var nom = esc(p.nombre || 'Sin nombre');
+  var primero = (p.nombre || '').split(/\s+/)[0] || '';
+  return '<div class="per' + (urg ? ' urgente' : '') + '">' +
+    '<div class="datos">' +
+      '<div class="nom">' + nom + '</div>' +
+      '<div class="cel">' + esc(p.celular || '') + '</div>' +
+      (esGerente() && p.asesor_nombre
+        ? '<div class="cel">🚶 ' + esc(p.asesor_nombre) + '</div>' : '') +
+      '<div class="que">' + esc(queHacer(p.etapa)) + '</div>' +
+    '</div>' +
+    '<div class="der">' + etiqueta(p.etapa) +
+      (p.celular ? '<a class="wa" target="_blank" rel="noopener" href="https://wa.me/57' +
+        esc(p.celular) + '?text=' + encodeURIComponent('Hola ' + primero + ' 🙂') + '">WhatsApp</a>' : '') +
+    '</div></div>';
+}
+
+function pintarBase() {
+  var g = gente().slice().sort(function (a, b) {
+    var o = (E && E.ORDEN) || [];
+    return o.indexOf(b.etapa) - o.indexOf(a.etapa);   // lo más grave, arriba
+  });
+  $('cuerpo').innerHTML =
+    '<div class="card"><h3 class="tit">Mi base</h3>' +
+      '<p class="sub">' + g.length + ' personas, de la más urgente a la más tranquila.</p>' +
+      '<div class="gente">' + (g.length ? g.map(fila).join('') :
+        '<div class="muted">Todavía no te han asignado a nadie.</div>') + '</div>' +
+    '</div>' + pie();
+}
+
+function pintarEquipo() {
+  var g = gente();
+  var eq = (CARTERA.equipo || []);
+  $('cuerpo').innerHTML =
+    '<div class="card"><h3 class="tit">Mi equipo</h3>' +
+      '<p class="sub">Cómo va cada asesor con la base que le tocó.</p>' +
+      (eq.length ? eq.map(function (a) {
+        var suyos = g.filter(function (p) { return p.asesor === a.celular; });
+        var urg = suyos.filter(function (p) { return (E.URGENTES || []).indexOf(p.etapa) >= 0; }).length;
+        var reg = suyos.filter(function (p) { return p.etapa !== 'PC'; }).length;
+        return '<div class="per"><div class="datos">' +
+            '<div class="nom">' + esc(a.nombre) + '</div>' +
+            '<div class="que">' + suyos.length + ' asignados · ' + reg + ' ya se registraron' +
+              (urg ? ' · <b>' + urg + ' urgentes</b>' : '') + '</div>' +
+          '</div><div class="der">' +
+            (urg ? '<span class="et rojo">' + urg + ' hoy</span>' : '<span class="et verde">al día</span>') +
+          '</div></div>';
+      }).join('') : '<div class="muted">Todavía no tienes asesores a cargo.</div>') +
+    '</div>' + pie();
+}
+
+function pie() {
+  return '<div class="pie">Solo ves lo que te asignaron. Lo decide el servidor, no esta pantalla.<br>' +
+    'Versión ' + esc(VERSION_EQUIPO) + '</div>';
+}
+
+/* ============================== ARRANCAR ============================== */
+(function () {
+  if (SESION && SESION.access_token) cargar();
+  else pintarEntrar('');
+})();
+</script>
+</body>
+</html>

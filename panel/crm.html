@@ -478,7 +478,8 @@
 
     <section class="view" id="v-equipo">
       <div class="ph"><div><h1>Equipo<span class="dot">.</span></h1><div class="sub">Quién trabaja contigo, qué clientes lleva cada uno y cuánto ha ganado</div></div>
-        <div><button class="btn btn-ghost" onclick="pantallaAsignar()">🔀 Repartir clientes</button>
+        <div><button class="btn btn-ghost" onclick="publicarEquipo()">☁ Publicar a la nube</button>
+        <button class="btn btn-ghost" onclick="pantallaAsignar()">🔀 Repartir clientes</button>
         <button class="btn btn-rojo" onclick="editarPersona()">＋ Crear persona</button></div></div>
       <div class="kpis" id="kpiEquipo"></div>
       <div class="card"><div class="card-h"><h3>👥 Tu equipo</h3>
@@ -679,6 +680,11 @@
      Un script de un servidor ajeno en ESTA pagina podria leer la cartera
      entera, que vive en memoria mientras el CRM esta abierto. -->
 <script src="../app/bases.js"></script>
+<!-- Las etapas del cliente (PC, CR, CA, D-3…, M1A, M1B, M1-2). La MISMA
+     tabla que usa la app del equipo: si cada pantalla la calculara por su
+     cuenta, Joan y su asesor verían carteras distintas para el mismo
+     cliente y la conversación se vuelve sobre quién tiene razón. -->
+<script src="../app/etapas.js"></script>
 <script>
 const PUENTE=window.PuenteTuGarantia;
 /* 9-sep-2026 — las reglas de comision de los asesores. Va JUNTO a las otras
@@ -687,6 +693,7 @@ const PUENTE=window.PuenteTuGarantia;
    declaracion pegada a una funcion se va con ella y revienta con
    "window is not defined". */
 const COMIS=window.ComisionesTuGarantia;
+const ETAPAS=window.EtapasTuGarantia;
 const CHAT=window.ChatTuGarantia;
 const KEY=PUENTE.LLAVE_PANEL;
 /* El costo es fijo desde el 29-jul-2026. Se lee del motor para que no haya dos
@@ -5173,6 +5180,69 @@ function renderEquipo() {
     }).join('')}</tbody></table>`;
 }
 
+/* --------------------------------------------------------------------------
+ * PUBLICAR EL EQUIPO
+ *
+ * Manda a la nube TRES listas y nada más: quién es quién, quién lleva a quién,
+ * y los prospectos con su etapa ya calculada. No viaja una cédula, ni una
+ * dirección, ni una foto, ni el historial de crédito — un asesor cobra con un
+ * nombre, un celular y una cartera, y todo lo demás multiplicaría el daño el
+ * día que se pierda un celular.
+ *
+ * La etapa se calcula ACÁ y viaja calculada: así la app del equipo no necesita
+ * la cartera entera para saber en qué cartera está alguien, y de paso el
+ * asesor y Joan miran el mismo número.
+ * ------------------------------------------------------------------------ */
+function publicarEquipo() {
+  if (!sbListo()) return alert('Primero conecta la nube en Ajustes.');
+  if (!ETAPAS) return alert('No cargó app/etapas.js. Recarga con señal.');
+  const gente = equipo().filter(p => p.celular);
+  if (!gente.length) return alert('Ninguna persona del equipo tiene celular.\n\nSin celular no puede entrar: el celular ES su usuario.');
+  const hoy = hoyISO();
+
+  /* Solo los prospectos que alguien está trabajando. Publicar los 224 cuando
+     hay 30 repartidos sería mandar a la nube datos de gente que nadie va a
+     contactar. */
+  const asignados = {};
+  asignaciones().forEach(a => { asignados[String(a.socio_id)] = true; });
+  const ps = prospectos().filter(p => asignados[String(p.id)]).map(p => ({
+    id: String(p.id), celular: String(p.celular || ''), nombre: String(p.nombre || ''),
+    estado: String(p.estado || 'nuevo'),
+    etapa: ETAPAS.etapaDe({ tipo: 'prospecto', estado: p.estado }, DB, hoy)
+  }));
+
+  const asig = asignaciones().map(a => {
+    const per = personaDeEquipo(a.asesor_id);
+    return { id: String(a.id), persona_id: String(a.socio_id),
+             asesor: per ? String(per.celular || '') : '', desde: String(a.desde || hoy) };
+  }).filter(a => a.asesor);
+
+  if (!confirm('Voy a publicar a la nube:\n\n· ' + gente.length + ' personas del equipo\n· ' +
+    asig.length + ' asignaciones\n· ' + ps.length + ' prospectos (solo los repartidos)\n\n' +
+    'Cada quien va a ver SOLO lo suyo: eso lo decide el servidor.\n\n¿Sigo?')) return;
+
+  rpc('equipo_publicar', { p_clave: sbCfg().clave,
+      p_equipo: gente.map(p => ({ celular: p.celular, nombre: p.nombre, rol: p.rol,
+                                  estado: p.estado || 'activo', jefe: p.jefe || '' })),
+      p_asignaciones: asig, p_prospectos: ps })
+    .then(r => {
+      alert('Publicado.\n\nEquipo: ' + (r.equipo || 0) + '\nAsignaciones: ' + (r.asignaciones || 0) +
+        '\nProspectos: ' + (r.prospectos || 0) + '\n\nYa pueden entrar en:\n' +
+        'tugarantia.net/panel/equipo.html');
+    })
+    .catch(e => alert('No pude publicar: ' + errNube(e)));
+}
+
+/* Lo que hay que pegar en Supabase para crearle la cuenta a alguien. El correo
+   sintético es el mismo formato que usan los clientes, y sale de cuenta.js —
+   no se escribe a mano acá, que es como se separan los dos y nadie entra. */
+function correoDeEquipo(p) {
+  const U = window.CuentaSocio;
+  const tel = String(p.celular || '').replace(/\D/g, '').slice(-10);
+  if (!U || !tel) return '';
+  return U.correoDeTelefono(tel);
+}
+
 function editarPersona(id) {
   const p = id ? personaDeEquipo(id) : null;
   openModal(p ? 'Editar a ' + p.nombre : 'Crear una persona del equipo', `
@@ -5182,23 +5252,40 @@ function editarPersona(id) {
       <select id="eqRol">${Object.keys(ROLES).map(k =>
         `<option value="${k}"${p && p.rol === k ? ' selected' : ''}>${ROLES[k].ic} ${ROLES[k].nombre}</option>`).join('')}</select>
       <div class="help" id="eqAyudaRol"></div></div>
+    <div class="field"><label>Reporta a <span class="opc">(solo asesores)</span></label>
+      <select id="eqJefe"><option value="">Nadie — reporta a ti</option>${
+        equipo().filter(x => x.rol === 'gerente' && x.estado !== 'retirado' && (!p || x.id !== p.id))
+          .map(x => `<option value="${escHTML(x.celular || '')}"${p && p.jefe === x.celular ? ' selected' : ''}>${escHTML(x.nombre)}</option>`).join('')}</select>
+      <div class="help">Un gerente ve la base de los asesores que le reportan, y de nadie más.
+        Si no eliges a ninguno, ese asesor solo lo ves tú.</div></div>
     ${p ? `<div class="field"><label>Estado</label><select id="eqEstado">
         <option value="activo"${p.estado !== 'retirado' ? ' selected' : ''}>Activo</option>
         <option value="retirado"${p.estado === 'retirado' ? ' selected' : ''}>Retirado</option></select>
       <div class="help">Retirarlo le corta lo nuevo. Sus movimientos de comisión NO se reasignan nunca: reasignarlos cambiaría la historia hacia atrás.</div></div>` : ''}
-    ${p ? `<div class="sub-h">Su código de vinculación</div>
-      <div class="fila"><span class="k">Para cuando exista su app</span><span class="v mono">${escHTML(p.codigo || '—')}</span></div>` : ''}
-    <div class="aviso ambar" style="margin-top:14px"><b>Crear la persona acá NO le da todavía con qué entrar.</b>
-      Un sitio público no puede crear usuarios con contraseña: eso exige una llave de servicio, y una llave
-      dentro de una página que cualquiera abre deja de ser secreta. Lo que sí puedes hacer desde hoy es
-      asignarle clientes: su comisión empieza a contarse bien desde el primer peso, y el día que su app
-      exista se la encuentra ya cuadrada.</div>
+    ${p && p.celular ? `<div class="sub-h">Para crearle la cuenta</div>
+      <div class="aviso"><b>1.</b> En Supabase → Authentication → Users → <b>Add user</b>.<br>
+        <b>2.</b> Pega este correo y ponle la contraseña que quieras. Marca <b>Auto Confirm User</b>.<br>
+        <div style="margin-top:8px"><span class="mono" id="correoEq">${escHTML(correoDeEquipo(p))}</span>
+        <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="copiarCorreoEquipo()">Copiar</button></div>
+        <div class="muted" style="margin-top:8px"><b>3.</b> Mándale por WhatsApp su <b>celular</b> y esa contraseña,
+        y el enlace <span class="mono">tugarantia.net/panel/equipo.html</span></div></div>
+      <div class="muted" style="font-size:12.5px;margin-top:10px">Su usuario es su celular; el correo de
+        arriba es solo lo que Supabase necesita por dentro. Y acuérdate de <b>☁ Publicar a la nube</b>
+        después de crear o repartir: si no, entra y no ve nada.</div>` : ''}
+    ${p && !p.celular ? '<div class="aviso ambar">Sin celular no puede entrar: el celular ES su usuario.</div>' : ''}
     <button class="btn btn-rojo arriba" onclick="guardarPersona(${p ? "'" + escHTML(p.id) + "'" : 'null'})">
       ${p ? 'Guardar' : 'Crear'}</button>`);
   pintarAyudaRol();
   const sel = document.getElementById('eqRol');
   if (sel) sel.addEventListener('change', pintarAyudaRol);
 }
+function copiarCorreoEquipo() {
+  const el = document.getElementById('correoEq'); if (!el) return;
+  navigator.clipboard.writeText(el.textContent.trim())
+    .then(() => alert('Copiado. Pégalo en Supabase → Authentication → Add user.'))
+    .catch(() => alert('No pude copiar. Selecciónalo y cópialo a mano:\n\n' + el.textContent.trim()));
+}
+
 function pintarAyudaRol() {
   const sel = document.getElementById('eqRol'), caja = document.getElementById('eqAyudaRol');
   if (!sel || !caja) return;
@@ -5219,11 +5306,13 @@ function guardarPersona(id) {
        rastro de cuándo cambió. Si hay que cambiarlo, se retira y se crea otra
        vez — así la historia queda partida en dos y se puede leer. */
     p.nombre = nombre; p.celular = tel;
+    p.jefe = rol === 'asesor' ? (gv('eqJefe') || '') : '';
     p.estado = gv('eqEstado') || 'activo';
     if (p.estado === 'retirado' && !p.retiradoEn) p.retiradoEn = hoyISO();
     if (p.estado === 'activo') delete p.retiradoEn;
   } else {
     equipo().push({ id: 'E' + Date.now(), nombre, celular: tel, rol,
+                    jefe: rol === 'asesor' ? (gv('eqJefe') || '') : '',
                     codigo: codigoDeEquipo(), estado: 'activo', creadoEn: hoyISO() });
   }
   guardar(); cerrarModal(); render(); irA('equipo');
