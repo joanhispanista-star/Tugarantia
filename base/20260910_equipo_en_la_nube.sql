@@ -87,14 +87,39 @@ create table if not exists public.prospectos (
 );
 create index if not exists prospectos_por_celular on public.prospectos (celular);
 
+-- LA GESTIÓN: qué hizo el asesor con cada persona de su base. Joan: «que pueda
+-- tipificarlos para ver si contestan o si hay alguna novedad» y «que el gerente
+-- pueda ver qué gestión le hace el asesor a cada uno».
+--
+-- SOLO SUMA, igual que las asignaciones: una gestión es un hecho con fecha, y
+-- los hechos no se editan. La última manda para pintar el estado de hoy; las
+-- viejas son la historia que le permite al gerente ver si de verdad se llamó.
+--
+-- La columna «asesor» NO viene de la pantalla: la escribe el servidor con el
+-- celular de la sesión. Si la mandara el navegador, un asesor podría firmar
+-- una gestión con el nombre de otro, y el gerente estaría leyendo una llamada
+-- que nadie hizo.
+create table if not exists public.gestiones (
+  id          bigserial   primary key,
+  persona_id  text        not null,
+  asesor      text        not null,
+  tipo        text        not null,
+  nota        text        not null default '',
+  cuando      timestamptz not null default now()
+);
+create index if not exists gestiones_por_persona on public.gestiones (persona_id, cuando desc);
+create index if not exists gestiones_por_asesor  on public.gestiones (asesor, cuando desc);
+
 -- El cerrojo doble de esta casa: RLS encendido y CERO políticas. Nadie entra
 -- directo; todo pasa por las funciones de abajo, que deciden qué devolver.
 alter table public.equipo       enable row level security;
 alter table public.asignaciones enable row level security;
 alter table public.prospectos   enable row level security;
+alter table public.gestiones    enable row level security;
 revoke all on public.equipo       from anon, authenticated;
 revoke all on public.asignaciones from anon, authenticated;
 revoke all on public.prospectos   from anon, authenticated;
+revoke all on public.gestiones    from anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 2. JOAN PUBLICA — desde su CRM, con su clave de sincronización
@@ -186,6 +211,28 @@ end
 $$;
 
 -- ---------------------------------------------------------------------------
+-- 3-bis. MI ALCANCE — de quién es la gente que me toca ver
+--
+-- No decide quién soy: eso lo resuelve cada función con celular_de_sesion().
+-- Acá vive solo el organigrama, que escrito dos veces cambiaría en uno.
+-- ---------------------------------------------------------------------------
+create or replace function public.mi_alcance(p_celular text)
+returns text[]
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case
+    when (select rol from public.equipo where celular = p_celular) = 'asesor'
+      then array[p_celular]
+    else coalesce((select array_agg(celular) from public.equipo
+                    where estado = 'activo'
+                      and (celular = p_celular or jefe = p_celular)), array[]::text[])
+  end
+$$;
+
+-- ---------------------------------------------------------------------------
 -- 4. MI CARTERA — sin un solo parámetro que diga de quién es
 --
 -- Un asesor recibe los suyos. Un gerente recibe los de los asesores que le
@@ -210,15 +257,8 @@ begin
   select * into yo from public.equipo where celular = right(cel, 10);
   if not found or yo.estado <> 'activo' then return jsonb_build_object('ok', false); end if;
 
-  if yo.rol = 'asesor' then
-    mios := array[yo.celular];
-  else
-    -- El gerente: él mismo y los asesores que le reportan.
-    select array_agg(celular) into mios
-      from public.equipo
-     where estado = 'activo' and (celular = yo.celular or jefe = yo.celular);
-  end if;
-  if mios is null then mios := array[]::text[]; end if;
+  -- Un asesor: él solo. Un gerente: él y los que le reportan.
+  mios := public.mi_alcance(yo.celular);
 
   return jsonb_build_object(
     'ok', true,
@@ -231,7 +271,17 @@ begin
       select jsonb_agg(jsonb_build_object(
                'id', p.id, 'nombre', p.nombre, 'celular', p.celular,
                'estado', p.estado, 'etapa', p.etapa,
-               'asesor', a.asesor, 'asesor_nombre', coalesce(e2.nombre, '')))
+               'asesor', a.asesor, 'asesor_nombre', coalesce(e2.nombre, ''),
+               -- La última gestión viaja pegada a la persona: es lo que el
+               -- gerente abre la pantalla a mirar, y pedirla aparte sería una
+               -- consulta por cada nombre de la lista.
+               'gestion', (select jsonb_build_object(
+                             'tipo', g.tipo, 'nota', g.nota, 'cuando', g.cuando,
+                             'quien', coalesce(e3.nombre, g.asesor))
+                             from public.gestiones g
+                             left join public.equipo e3 on e3.celular = g.asesor
+                            where g.persona_id = p.id
+                            order by g.cuando desc limit 1)))
         from public.prospectos p
         join public.asignaciones a on a.persona_id = p.id
         left join public.equipo e2 on e2.celular = a.asesor
@@ -240,6 +290,127 @@ begin
          -- lista solo suma, y la vigente es la de fecha más reciente.
          and a.desde = (select max(a2.desde) from public.asignaciones a2
                          where a2.persona_id = p.id)), '[]'::jsonb));
+end
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 4-bis. ANOTAR UNA GESTIÓN — el asesor tipifica desde su celular
+--
+-- Dos rejas, y las dos del lado del servidor:
+--   · quién firma      — sale de la sesión, no del navegador.
+--   · sobre quién      — tiene que ser gente de SU alcance. Sin esto, un asesor
+--     podría escribir en la cartera de otro, y el gerente leería una llamada
+--     que nadie hizo. Es peor que no tener la función: sería un registro falso
+--     con apariencia de verdadero.
+-- ---------------------------------------------------------------------------
+create or replace function public.gestion_anotar(
+  p_persona_id text, p_tipo text, p_nota text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cel text; yo public.equipo; mios text[]; duenio text; nuevo text;
+begin
+  cel := public.celular_de_sesion();
+  if cel is null then return jsonb_build_object('ok', false); end if;
+  select * into yo from public.equipo where celular = right(cel, 10);
+  if not found or yo.estado <> 'activo' then return jsonb_build_object('ok', false); end if;
+  if coalesce(p_tipo, '') = '' then
+    return jsonb_build_object('ok', false, 'motivo', 'falta decir qué pasó');
+  end if;
+
+  mios := public.mi_alcance(yo.celular);
+
+  -- El dueño de HOY: de varias asignaciones manda la última.
+  select a.asesor into duenio from public.asignaciones a
+   where a.persona_id = p_persona_id
+   order by a.desde desc, a.id desc limit 1;
+  if duenio is null or not (duenio = any(mios)) then
+    return jsonb_build_object('ok', false, 'motivo', 'esa persona no es de tu base');
+  end if;
+
+  insert into public.gestiones (persona_id, asesor, tipo, nota)
+  values (p_persona_id, yo.celular, left(p_tipo, 24), left(coalesce(p_nota, ''), 300));
+
+  -- El estado del prospecto sigue a la gestión. Si no, el asesor marca «no
+  -- contesta» y el chip le sigue diciendo «sin contactar»: la pantalla estaría
+  -- desmintiendo lo que él acaba de escribir.
+  nuevo := case p_tipo
+             when 'contesto'    then 'contactado'
+             when 'volver'      then 'contactado'
+             when 'va_a_pedir'  then 'contactado'
+             when 'no_contesta' then 'no_contesta'
+             when 'numero_malo' then 'numero_malo'
+             when 'no_quiere'   then 'no_quiso'
+             else null end;
+  if nuevo is not null then
+    update public.prospectos set estado = nuevo, actualizado = now()
+     where id = p_persona_id;
+  end if;
+
+  return jsonb_build_object('ok', true);
+end
+$$;
+
+-- La historia de UNA persona, para el gerente que quiere ver si de verdad se
+-- llamó. Misma reja: solo gente de su alcance.
+create or replace function public.gestiones_de(p_persona_id text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare cel text; yo public.equipo; mios text[]; duenio text;
+begin
+  cel := public.celular_de_sesion();
+  if cel is null then return jsonb_build_object('ok', false); end if;
+  select * into yo from public.equipo where celular = right(cel, 10);
+  if not found or yo.estado <> 'activo' then return jsonb_build_object('ok', false); end if;
+  mios := public.mi_alcance(yo.celular);
+
+  select a.asesor into duenio from public.asignaciones a
+   where a.persona_id = p_persona_id
+   order by a.desde desc, a.id desc limit 1;
+  if duenio is null or not (duenio = any(mios)) then
+    return jsonb_build_object('ok', false);
+  end if;
+
+  return jsonb_build_object('ok', true, 'gestiones', coalesce((
+    select jsonb_agg(jsonb_build_object(
+             'tipo', g.tipo, 'nota', g.nota, 'cuando', g.cuando,
+             'quien', coalesce(e.nombre, g.asesor)) order by g.cuando desc)
+      from public.gestiones g
+      left join public.equipo e on e.celular = g.asesor
+     where g.persona_id = p_persona_id), '[]'::jsonb));
+end
+$$;
+
+-- Joan se las trae TODAS a su CRM, con su clave. Es el único que ve la casa
+-- entera; para eso es la casa.
+create or replace function public.gestiones_listar(p_clave text, p_desde text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not public.clave_ok(p_clave) then
+    perform pg_sleep(1);
+    raise exception 'clave de sincronización incorrecta';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+             'id', g.id, 'persona_id', g.persona_id, 'tipo', g.tipo, 'nota', g.nota,
+             'cuando', g.cuando, 'asesor', g.asesor,
+             'quien', coalesce(e.nombre, g.asesor)) order by g.cuando)
+      from public.gestiones g
+      left join public.equipo e on e.celular = g.asesor
+     where g.cuando >= coalesce(nullif(p_desde, '')::timestamptz, now() - interval '180 days')
+     limit 5000), '[]'::jsonb);
 end
 $$;
 
@@ -255,6 +426,17 @@ revoke all on function public.mi_rol()     from public, anon, authenticated;
 grant  execute on function public.mi_rol() to authenticated;                            -- solo con sesión
 revoke all on function public.mi_cartera() from public, anon, authenticated;
 grant  execute on function public.mi_cartera() to authenticated;
+-- mi_alcance no se le concede a NADIE desde afuera: es de uso interno de las
+-- funciones de acá. Recibe un celular por parámetro, y una función que recibe
+-- un celular y contesta a quién ve esa persona es justo lo que no puede quedar
+-- al alcance de un navegador.
+revoke all on function public.mi_alcance(text) from public, anon, authenticated;
+revoke all on function public.gestion_anotar(text, text, text) from public, anon, authenticated;
+grant  execute on function public.gestion_anotar(text, text, text) to authenticated;
+revoke all on function public.gestiones_de(text) from public, anon, authenticated;
+grant  execute on function public.gestiones_de(text) to authenticated;
+revoke all on function public.gestiones_listar(text, text) from public, anon, authenticated;
+grant  execute on function public.gestiones_listar(text, text) to anon;   -- Joan, con su clave
 
 notify pgrst, 'reload schema';
 
@@ -266,14 +448,15 @@ declare cuerpo text;
 begin
   if to_regclass('public.equipo') is null
      or to_regclass('public.asignaciones') is null
-     or to_regclass('public.prospectos') is null then
-    raise exception 'faltó alguna de las tres tablas';
+     or to_regclass('public.prospectos') is null
+     or to_regclass('public.gestiones') is null then
+    raise exception 'falto alguna de las cuatro tablas';
   end if;
 
   -- Que nadie pueda leer las tablas directo, sin pasar por las funciones.
   if exists (select 1 from information_schema.table_privileges
               where table_schema = 'public'
-                and table_name in ('equipo', 'asignaciones', 'prospectos')
+                and table_name in ('equipo', 'asignaciones', 'prospectos', 'gestiones')
                 and grantee in ('anon', 'authenticated')) then
     raise exception 'alguna tabla del equipo quedo abierta a la llave publica';
   end if;
@@ -293,5 +476,27 @@ begin
 
   if has_function_privilege('anon', 'public.mi_cartera()', 'execute') then
     raise exception 'mi_cartera quedo abierta sin sesion';
+  end if;
+
+  -- Anotar una gestion tampoco puede hacerse sin sesion, y el que firma tiene
+  -- que salir de ella: si el celular del que anota viniera por parametro, el
+  -- gerente estaria leyendo llamadas firmadas por quien no las hizo.
+  if has_function_privilege('anon', 'public.gestion_anotar(text, text, text)', 'execute') then
+    raise exception 'gestion_anotar quedo abierta sin sesion';
+  end if;
+  select prosrc into cuerpo from pg_proc
+   where proname = 'gestion_anotar' and pronamespace = 'public'::regnamespace;
+  if cuerpo not like '%celular_de_sesion%' then
+    raise exception 'gestion_anotar no saca de la sesion quien firma';
+  end if;
+  if cuerpo not like '%mi_alcance%' then
+    raise exception 'gestion_anotar no comprueba que la persona sea de su base';
+  end if;
+
+  -- Y mi_alcance no puede quedar al alcance de un navegador: recibe un celular
+  -- y contesta a quien ve esa persona.
+  if has_function_privilege('anon', 'public.mi_alcance(text)', 'execute')
+     or has_function_privilege('authenticated', 'public.mi_alcance(text)', 'execute') then
+    raise exception 'mi_alcance quedo abierta desde afuera';
   end if;
 end $$;

@@ -203,6 +203,11 @@ function dbDemo() {
     prospectos: [{ id: 'P1', celular: '3001112233', nombre: 'Marta Quiroga', estado: 'nuevo' }],
     bases: [{ id: 'B1', archivo: 'base.xlsx', origen: 'pauta', fecha: '2026-09-01', entraron: 1 }],
     actosComision: [],
+    /* 10-sep-2026 - las gestiones que escriben los asesores desde su celular.
+       Su identidad es el id que le puso la nube: dos aparatos que traen la
+       misma gestion traen la misma fila, no dos. */
+    gestiones: [{ id: '7', persona_id: 'P1', tipo: 'no_contesta', nota: '',
+                  cuando: '2026-09-10T14:00:00.000Z', asesor: '3011112222', quien: 'Ana Ruiz' }],
     contadores: { cliente: 48, credito: 91, respaldado: 3 }
   };
 }

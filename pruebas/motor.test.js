@@ -7606,7 +7606,7 @@ describe('la bienvenida dura lo que se pidió, y la animación le cabe adentro',
      día que entró la guarda de HTTPS por delante, esa cuenta dejó de valer. Lo
      que identifica a este script es lo que hace, no dónde está. */
   const plazo = (() => {
-    const bloques = [...SOCIO.matchAll(/<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/g)]
+    const bloques = [...SOCIO.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
       .map(m => m[1].trim());
     for (const b of bloques) {
       const m = /\}, (\d+)\);$/.exec(b);
@@ -8811,7 +8811,12 @@ describe('ninguna pantalla llama a una función que la migración tiró (11-ago-
     const t = leer(archivo);
     return [...new Set([
       ...[...t.matchAll(/rpc\/([a-z_]+)/g)].map(m => m[1]),
-      ...[...t.matchAll(/rpc\(\s*['"]([a-z_]+)['"]/g)].map(m => m[1])
+      /* `rpc\w*` y no `rpc`: el modo equipo llama por `rpcEquipo(...)`, que es
+         otro camino a la misma nube. Con el patrón cerrado, mi_cartera,
+         mi_rol, gestion_anotar y gestiones_de quedaban FUERA del barrido —
+         llamadas y sin comprobar que existan, que es justo el defecto que este
+         barrido nació para cazar. */
+      ...[...t.matchAll(/rpc\w*\(\s*['"]([a-z_]+)['"]/g)].map(m => m[1])
     ])];
   };
 
@@ -8826,6 +8831,35 @@ describe('ninguna pantalla llama a una función que la migración tiró (11-ago-
       assert.deepEqual(muertas, [],
         archivo + ' llama a ' + muertas.join(', ') + ', que la migración tira. ' +
         'Si va dentro de un .catch vacío, falla en silencio.');
+    });
+  });
+
+  /* 10-sep-2026 — LOS $$ DE CADA MIGRACIÓN, EN PAREJA.
+     Un cuerpo de función en PostgreSQL va entre $$ … $$. Si falta uno, el
+     pegado no da un error donde se rompió: se lo traga como texto y revienta
+     doscientas líneas más abajo con un mensaje que no dice nada. Pasó hoy: un
+     guion de parcheo escribió el reemplazo con String.replace, donde `$$`
+     significa «un signo de dólar», y las cuatro funciones nuevas entraron con
+     un solo $. Compilar no es ejecutar — y una migración ni siquiera compila
+     acá: la corre Joan pegándola, y el error le sale a él. */
+  test('cada migración tiene los $$ en pareja', () => {
+    const crudas = fs.readdirSync(path.join(__dirname, '..', 'base'))
+      .filter(f => /\.sql$/.test(f));
+    assert.ok(crudas.length > 0, 'no hay migraciones: el barrido no mide nada');
+    crudas.forEach(f => {
+      const txt = fs.readFileSync(path.join(__dirname, '..', 'base', f), 'utf8');
+      const n = (txt.match(/\$\$/g) || []).length;
+      assert.equal(n % 2, 0,
+        'base/' + f + ' tiene ' + n + ' delimitadores $$: uno quedó suelto y el ' +
+        'pegado va a reventar lejos de donde está el error');
+      /* El conteo par no basta: si se parten DOS, vuelve a ser par otra vez.
+         Cada función y cada bloque `do` lleva exactamente dos, así que la
+         cuenta tiene que cuadrar contra ellos. */
+      const funcs = (txt.match(/create or replace function/g) || []).length;
+      const dos = (txt.match(/do [$][$]/g) || []).length;
+      assert.equal(n, 2 * (funcs + dos),
+        'base/' + f + ' tiene ' + n + ' delimitadores para ' + funcs +
+        ' funciones y ' + dos + ' bloques do: alguno entró partido');
     });
   });
 

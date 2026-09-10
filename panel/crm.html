@@ -5009,13 +5009,100 @@ function queHacerEtapa(e) { const t = ETAPAS && ETAPAS.ETAPAS[e]; return t ? t.q
 
 function filaPersonaEq(p) {
   const primero = String(p.nombre || '').split(/\s+/)[0] || '';
+  const g = p.gestion;
   return `<div class="info-row"><span class="k"><b>${escHTML(p.nombre || 'Sin nombre')}</b>
       <div class="muted mono">${escHTML(p.celular || '')}</div>
       ${esGerenteEq() && p.asesor_nombre ? `<div class="muted">🚶 ${escHTML(p.asesor_nombre)}</div>` : ''}
-      <div class="muted">${escHTML(queHacerEtapa(p.etapa))}</div></span>
+      ${g ? `<div class="muted">${etiquetaGestion(g)} <b>${escHTML(haceCuanto(g.cuando))}</b>${
+          esGerenteEq() ? ' · ' + escHTML(g.quien || '') : ''}${
+          g.nota ? '<div>«' + escHTML(g.nota) + '»</div>' : ''}</div>`
+        : `<div class="muted">${escHTML(queHacerEtapa(p.etapa))}</div>`}</span>
     <span class="vv">${etiquetaEtapa(p.etapa)}
       ${p.celular ? `<a class="btn btn-wa btn-sm" style="margin-left:8px" target="_blank" rel="noopener"
-        href="${escHTML(waLink(p.celular, 'Hola ' + primero + ' 🙂'))}">📲</a>` : ''}</span></div>`;
+        href="${escHTML(waLink(p.celular, 'Hola ' + primero + ' 🙂'))}">📲</a>` : ''}
+      <button class="btn btn-ghost btn-sm" style="margin-left:6px"
+        onclick="anotarGestionEq('${escHTML(String(p.id))}')" title="Anotar qué pasó">✎</button>
+      ${g ? `<button class="btn btn-ghost btn-sm" style="margin-left:6px"
+        onclick="verGestionesEq('${escHTML(String(p.id))}')" title="Ver la historia">🕘</button>` : ''}</span></div>`;
+}
+
+/* --------------------------------------------------------------------------
+ * ANOTAR, DESDE EL CELULAR DEL ASESOR
+ *
+ * El tipo es obligatorio y la nota no: obligar a escribir en un teclado de
+ * celular entre llamada y llamada es la forma más segura de que nadie anote
+ * nada, y una base sin gestión no le sirve a Joan ni al asesor.
+ * ------------------------------------------------------------------------ */
+let _personaGestion = null;
+
+function anotarGestionEq(id) {
+  const p = genteEquipo().find(x => String(x.id) === String(id));
+  if (!p) return;
+  _personaGestion = String(id);
+  const grupos = {};
+  ORDEN_GESTION.forEach(k => {
+    (grupos[TIPOS_GESTION[k].grupo] = grupos[TIPOS_GESTION[k].grupo] || []).push(k);
+  });
+  openModal('¿Qué pasó con ' + (String(p.nombre || '').split(/\s+/)[0] || 'esta persona') + '?',
+    Object.keys(grupos).map(gr => `<div class="sub-h">${escHTML(gr)}</div>` +
+      grupos[gr].map(k => `<label class="permiso"><input type="radio" name="gTipo" value="${k}">
+        <span>${TIPOS_GESTION[k].ic} <b>${escHTML(TIPOS_GESTION[k].et)}</b></span></label>`).join('')).join('') +
+    `<div class="field" style="margin-top:14px"><label>Nota <span class="muted">(opcional)</span></label>
+      <textarea id="gNota" maxlength="300" placeholder="Ej: pidió que le llame el viernes por la tarde"></textarea>
+      <div class="help">Lo que escribas lo ve tu jefe. Queda con tu nombre y la hora, y no se puede borrar.</div></div>
+    <button class="btn btn-rojo" id="gBtn" style="margin-top:8px" onclick="guardarGestionEq()">Anotar</button>`);
+}
+
+function guardarGestionEq() {
+  const sel = document.querySelector('input[name=gTipo]:checked');
+  if (!sel) return alert('Marca qué pasó.');
+  const btn = document.getElementById('gBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Anotando…'; }
+  rpcEquipo('gestion_anotar', { p_persona_id: _personaGestion, p_tipo: sel.value,
+      p_nota: (document.getElementById('gNota') || {}).value || '' },
+      SESION_EQUIPO && SESION_EQUIPO.access_token)
+    .then(res => {
+      if (!res.ok || !res.j || res.j.ok !== true) {
+        throw new Error((res.j && res.j.motivo) || 'no pude anotarla');
+      }
+      cerrarModal();
+      return refrescarCarteraEq();
+    })
+    .catch(e => {
+      if (btn) { btn.disabled = false; btn.textContent = 'Anotar'; }
+      alert('No quedó anotada: ' + (e.message || e) + '\n\nRevisa la señal y vuelve a intentar.');
+    });
+}
+
+/* Después de anotar se vuelve a preguntar la cartera entera en vez de tocar la
+   copia de memoria: la etapa y el estado los recalcula el servidor, y una
+   pantalla que se arregla sola por su cuenta termina mostrando algo que en la
+   nube no pasó. */
+function refrescarCarteraEq() {
+  return rpcEquipo('mi_cartera', {}, SESION_EQUIPO && SESION_EQUIPO.access_token)
+    .then(res => {
+      if (res.ok && res.j && res.j.ok === true) { CARTERA_EQUIPO = res.j; irEquipo(VISTA_EQUIPO); }
+    });
+}
+
+function verGestionesEq(id) {
+  const p = genteEquipo().find(x => String(x.id) === String(id));
+  openModal('Historia de ' + ((p && p.nombre) || 'esta persona'),
+    '<div class="muted" style="padding:10px 0">Buscando…</div>');
+  rpcEquipo('gestiones_de', { p_persona_id: String(id) },
+      SESION_EQUIPO && SESION_EQUIPO.access_token)
+    .then(res => {
+      const gs = (res.ok && res.j && res.j.ok === true && res.j.gestiones) || [];
+      document.getElementById('mBody').innerHTML = gs.length
+        ? gs.map(g => `<div class="info-row"><span class="k">${etiquetaGestion(g)}
+            <div class="muted">${escHTML(g.quien || '')} · ${escHTML(haceCuanto(g.cuando))}</div>
+            ${g.nota ? '<div>«' + escHTML(g.nota) + '»</div>' : ''}</span></div>`).join('')
+        : '<div class="muted" style="padding:10px 0">Todavía no hay gestiones.</div>';
+    })
+    .catch(() => {
+      document.getElementById('mBody').innerHTML =
+        '<div class="alerta warn">No pude traer la historia. Revisa la señal.</div>';
+    });
 }
 
 function vistaTableroEquipo() {
@@ -5056,8 +5143,16 @@ function vistaMiEquipo() {
       const suyos = g.filter(p => p.asesor === a.celular);
       const u = suyos.filter(p => urg.indexOf(p.etapa) >= 0).length;
       const reg = suyos.filter(p => p.etapa !== 'PC').length;
+      /* Lo que Joan pidió ver: cuántos de los suyos tienen gestión y cuántos
+         siguen sin tocar. Un asesor con 200 asignados y 3 gestionados se ve en
+         esta línea, no en el total de la cartera. */
+      const tocados = suyos.filter(p => p.gestion).length;
+      const ult = suyos.filter(p => p.gestion)
+        .sort((x, y) => String(y.gestion.cuando).localeCompare(String(x.gestion.cuando)))[0];
       return `<div class="info-row"><span class="k"><b>${escHTML(a.nombre)}</b>
-          <div class="muted">${suyos.length} asignados · ${reg} ya se registraron</div></span>
+          <div class="muted">${suyos.length} asignados · ${reg} ya se registraron</div>
+          <div class="muted">✎ ${tocados} gestionados · <b>${suyos.length - tocados}</b> sin tocar${
+            ult ? ' · última ' + escHTML(haceCuanto(ult.gestion.cuando)) : ''}</div></span>
         <span class="vv">${u ? `<span class="chip mora">${u} urgentes</span>` : '<span class="chip al-dia">al día</span>'}</span></div>`;
     }).join('') : '<div class="muted" style="padding:14px">Todavía no tienes asesores a cargo.</div>'}</div>`;
 }
@@ -5085,13 +5180,78 @@ function vistaMiEquipo() {
  * ======================================================================== */
 
 const ESTADOS_PROSPECTO = {
-  nuevo:       { et: 'Sin contactar', chip: '' },
-  contactado:  { et: 'Contactado',    chip: 'prorroga' },
-  no_contesta: { et: 'No contesta',   chip: 'mora' },
-  no_quiso:    { et: 'No quiso',      chip: '' },
-  registrado:  { et: 'Se registró',   chip: 'al-dia' },
-  cliente:     { et: 'Ya es cliente', chip: 'pagado' }
+  nuevo:       { et: 'Sin contactar',   chip: '' },
+  contactado:  { et: 'Contactado',      chip: 'prorroga' },
+  no_contesta: { et: 'No contesta',     chip: 'mora' },
+  numero_malo: { et: 'Número errado',   chip: 'mora' },
+  no_quiso:    { et: 'No quiso',        chip: '' },
+  registrado:  { et: 'Se registró',     chip: 'al-dia' },
+  cliente:     { et: 'Ya es cliente',   chip: 'pagado' }
 };
+
+/* --------------------------------------------------------------------------
+ * LA GESTIÓN — 10 de septiembre de 2026
+ *
+ * Joan: «que pueda tipificarlos para ver si contestan o si hay alguna novedad»
+ * y «que el gerente pueda ver qué gestión le hace el asesor a cada uno de los
+ * clientes potenciales o prospectos».
+ *
+ * UNA GESTIÓN ES UN HECHO CON FECHA, y por eso solo suma: no se edita ni se
+ * borra. Lo que un asesor escribió el martes queda escrito, aunque el jueves
+ * diga otra cosa. Es lo único que le permite a un gerente saber si de verdad
+ * se llamó — un campo «estado» que se sobrescribe no distingue entre «lo
+ * intenté cinco veces» y «lo marqué sin llamar».
+ *
+ * QUIÉN FIRMA LO DECIDE EL SERVIDOR, no esta pantalla: gestion_anotar saca el
+ * celular de la sesión. Acá no hay dónde escribir el nombre de otro.
+ * ------------------------------------------------------------------------ */
+const TIPOS_GESTION = {
+  contesto:    { et: 'Contestó',           ic: '✅', chip: 'al-dia',   grupo: 'Contacto' },
+  volver:      { et: 'Volver a llamar',    ic: '🔁', chip: 'prorroga', grupo: 'Contacto' },
+  no_contesta: { et: 'No contestó',        ic: '📵', chip: 'mora',     grupo: 'Contacto' },
+  numero_malo: { et: 'Número equivocado',  ic: '❌', chip: 'mora',     grupo: 'Contacto' },
+  va_a_pedir:  { et: 'Va a pedir crédito', ic: '🎯', chip: 'al-dia',   grupo: 'Venta' },
+  no_quiere:   { et: 'No le interesa',     ic: '🚫', chip: '',         grupo: 'Venta' },
+  promesa:     { et: 'Promesa de pago',    ic: '🤝', chip: 'prorroga', grupo: 'Cobranza' },
+  ya_pago:     { et: 'Dice que ya pagó',   ic: '💵', chip: 'pagado',   grupo: 'Cobranza' },
+  novedad:     { et: 'Novedad o problema', ic: '⚠️', chip: 'mora',     grupo: 'Otro' }
+};
+const ORDEN_GESTION = ['contesto', 'volver', 'no_contesta', 'numero_malo',
+                       'va_a_pedir', 'no_quiere', 'promesa', 'ya_pago', 'novedad'];
+
+/* En qué deja al prospecto cada gestión. ESTE MAPA ESTÁ TAMBIÉN EN EL SQL
+   (gestion_anotar, base/20260910_equipo_en_la_nube.sql), porque el asesor anota
+   contra la nube y Joan las trae después: los dos lados tienen que llegar al
+   mismo estado o el chip diría una cosa en el celular del asesor y otra en el
+   computador de Joan. Hay una prueba que cruza los dos.
+   Los tipos de cobranza —promesa, ya_pago, novedad— no salen acá a propósito:
+   no cambian lo que es un prospecto, cuentan lo que pasó con un crédito. */
+const ESTADO_DE_GESTION = { contesto: 'contactado', volver: 'contactado',
+  va_a_pedir: 'contactado', no_contesta: 'no_contesta',
+  numero_malo: 'numero_malo', no_quiere: 'no_quiso' };
+
+function gestiones() { DB.gestiones = Array.isArray(DB.gestiones) ? DB.gestiones : []; return DB.gestiones; }
+function gestionesDe(personaId) {
+  const id = String(personaId);
+  return gestiones().filter(g => String(g.persona_id) === id)
+    .sort((a, b) => String(b.cuando).localeCompare(String(a.cuando)));
+}
+function etiquetaGestion(g) {
+  if (!g || !g.tipo) return '<span class="muted">sin gestionar</span>';
+  const t = TIPOS_GESTION[g.tipo];
+  return '<span class="chip ' + (t ? t.chip : '') + '">' +
+    escHTML((t ? t.ic + ' ' + t.et : g.tipo)) + '</span>';
+}
+/* «hace 2 h», «ayer»: al gerente le importa CUÁNDO, y una fecha larga en una
+   lista de cien nombres no se lee. */
+function haceCuanto(iso) {
+  const t = Date.parse(iso); if (!isFinite(t)) return '';
+  const m = Math.max(0, Math.round((Date.now() - t) / 60000));
+  if (m < 60) return 'hace ' + m + ' min';
+  if (m < 1440) return 'hace ' + Math.round(m / 60) + ' h';
+  const d = Math.round(m / 1440);
+  return d === 1 ? 'ayer' : 'hace ' + d + ' días';
+}
 
 function prospectos() { DB.prospectos = Array.isArray(DB.prospectos) ? DB.prospectos : []; return DB.prospectos; }
 function basesCargadas() { DB.bases = Array.isArray(DB.bases) ? DB.bases : []; return DB.bases; }
@@ -5134,15 +5294,19 @@ function renderBases() {
   /* Se muestran los 200 primeros: una tabla de mil filas en el navegador de
      Joan lo deja pensando cada vez que toca algo. */
   const muestra = ps.slice(0, 200);
-  caja.innerHTML = `<table><thead><tr><th>Quién</th><th>Celular</th><th>Estado</th><th>Asesor</th><th></th></tr></thead><tbody>${
+  caja.innerHTML = `<table><thead><tr><th>Quién</th><th>Celular</th><th>Estado</th><th>Asesor</th><th>Última gestión</th><th></th></tr></thead><tbody>${
     muestra.map(p => {
       const e = ESTADOS_PROSPECTO[p.estado || 'nuevo'] || ESTADOS_PROSPECTO.nuevo;
       const a = COMIS.asesorDe(asignaciones(), p.id, hoyISO());
       const per = a ? personaDeEquipo(a) : null;
+      const g = gestionesDe(p.id)[0];
       return `<tr><td><b>${escHTML(p.nombre || 'Sin nombre')}</b></td>
         <td class="mono">${escHTML(p.celular)}</td>
         <td><span class="chip ${e.chip}">${escHTML(e.et)}</span></td>
         <td>${per ? escHTML(per.nombre) : '<span class="muted">sin asignar</span>'}</td>
+        <td>${g ? etiquetaGestion(g) + '<div class="muted">' + escHTML(haceCuanto(g.cuando)) +
+              (g.nota ? ' · «' + escHTML(g.nota) + '»' : '') + '</div>'
+             : '<span class="muted">—</span>'}</td>
         <td style="text-align:right"><a class="btn btn-wa btn-sm" target="_blank" rel="noopener"
           href="${escHTML(waLink(p.celular, 'Hola ' + (p.nombre || '').split(' ')[0] + ', te escribo de ' + (DB.config.negocio || 'Tu Garantía') + '.'))}">📲</a></td></tr>`;
     }).join('')}</tbody></table>${
@@ -5415,6 +5579,23 @@ function publicarEquipo() {
              asesor: per ? String(per.celular || '') : '', desde: String(a.desde || hoy) };
   }).filter(a => a.asesor);
 
+  /* SE TRAEN ANTES DE PUBLICAR, y esto no es un detalle: publicar sobrescribe
+     el estado de cada prospecto con el que hay en este computador. Si un asesor
+     marcó veinte «no contesta» desde su celular y Joan publica sin traerlos, los
+     veinte vuelven a «sin contactar» — el trabajo de una mañana, borrado sin un
+     error, sin un aviso, y sin que nadie pueda notarlo hasta que sea tarde. */
+  return traerGestiones(true)
+    .then(() => publicarEquipoAhora(gente, asig, ps))
+    .catch(() => {});   // dijo que mejor no; ya se le avisó
+}
+
+function publicarEquipoAhora(gente, asig, ps) {
+  /* Con las gestiones ya traídas, el estado de cada prospecto es el de verdad. */
+  ps.forEach(x => {
+    const p = prospectos().find(y => String(y.id) === String(x.id));
+    if (p) { x.estado = String(p.estado || 'nuevo');
+             x.etapa = ETAPAS.etapaDe({ tipo: 'prospecto', estado: p.estado }, DB, hoyISO()); }
+  });
   if (!confirm('Voy a publicar a la nube:\n\n· ' + gente.length + ' personas del equipo\n· ' +
     asig.length + ' asignaciones\n· ' + ps.length + ' prospectos (solo los repartidos)\n\n' +
     'Cada quien va a ver SOLO lo suyo: eso lo decide el servidor.\n\n¿Sigo?')) return;
@@ -5429,6 +5610,58 @@ function publicarEquipo() {
         ENLACE_PANEL);
     })
     .catch(e => alert('No pude publicar: ' + errNube(e)));
+}
+
+/* --------------------------------------------------------------------------
+ * TRAER LAS GESTIONES
+ *
+ * Lo que los asesores escribieron desde su celular baja al computador de Joan.
+ * Se fusiona por id —una gestión es un hecho, y el id se lo puso la nube— y de
+ * paso se le aplica al prospecto el estado que dejó la última: si no, la tabla
+ * de Bases le diría «sin contactar» a alguien al que llamaron tres veces.
+ * ------------------------------------------------------------------------ */
+function traerGestiones(callado) {
+  if (!sbListo()) {
+    if (!callado) alert('Primero conecta la nube en Ajustes.');
+    return Promise.resolve(0);
+  }
+  return rpc('gestiones_listar', { p_clave: sbCfg().clave, p_desde: null })
+    .then(f => {
+      const lista = Array.isArray(f) ? f : [];
+      const hay = {};
+      gestiones().forEach(g => { hay[String(g.id)] = g; });
+      let nuevas = 0;
+      lista.forEach(g => {
+        const id = String(g.id);
+        if (hay[id]) { Object.assign(hay[id], g); return; }
+        gestiones().push({ id: id, persona_id: String(g.persona_id || ''), tipo: String(g.tipo || ''),
+                           nota: String(g.nota || ''), cuando: String(g.cuando || ''),
+                           asesor: String(g.asesor || ''), quien: String(g.quien || '') });
+        nuevas++;
+      });
+      /* El estado del prospecto lo manda su gestión más reciente, igual que en
+         la nube: el mapa vive arriba, en ESTADO_DE_GESTION. */
+      prospectos().forEach(p => {
+        const g = gestionesDe(p.id)[0];
+        const e = g && ESTADO_DE_GESTION[g.tipo];
+        /* Un prospecto que ya se registró o ya es cliente no vuelve atrás
+           porque alguien anote «no contesta»: eso ya pasó. */
+        if (e && p.estado !== 'registrado' && p.estado !== 'cliente') p.estado = e;
+      });
+      guardar(); render();
+      if (!callado) {
+        alert(nuevas ? 'Traje ' + nuevas + ' gestiones nuevas.\n\nEn total hay ' + gestiones().length + '.'
+                     : 'No hay gestiones nuevas.\n\nEn total hay ' + gestiones().length + '.');
+      }
+      return nuevas;
+    })
+    .catch(e => {
+      if (!callado) alert('No pude traer las gestiones: ' + errNube(e));
+      else if (!confirm('No pude traer las gestiones de tus asesores:\n\n' + errNube(e) +
+        '\n\nSi publico ahora, lo que ellos anotaron desde su celular se puede perder.\n\n' +
+        '¿Publico de todas formas?')) throw new Error('mejor no');
+      return 0;
+    });
 }
 
 /* `correoDeEquipo` vive ARRIBA, junto a la puerta del equipo. Estuvo declarada

@@ -88,13 +88,16 @@
        base y los actos de comisión que escribe Joan. No tienen tabla propia
        porque no la necesitan: son listas, y una lista entera cabe de sobra en
        un jsonb (224 prospectos son ~18 KB). */
-    'equipo', 'asignaciones', 'prospectos', 'bases', 'actosComision'];
+    /* 10-sep-2026 — las gestiones que escriben los asesores desde su celular.
+       Joan se las trae de la nube y viven acá para que su computador y su
+       celular vean lo mismo. */
+    'equipo', 'asignaciones', 'prospectos', 'bases', 'actosComision', 'gestiones'];
   /* La papelera guarda fichas y créditos borrados ENTEROS (con cédula, teléfono
      y todo). legal/privacidad.html promete que lo borrado se borra: subirla a un
      servidor es exactamente lo contrario. Por eso subir.html ofrece la casilla
      "no subir la papelera" MARCADA por defecto y pasa estas claves. */
   var CLAVES_AJUSTES_SIN_PAPELERA = ['config', 'plantillas', 'invitaciones',
-    'equipo', 'asignaciones', 'prospectos', 'bases', 'actosComision'];
+    'equipo', 'asignaciones', 'prospectos', 'bases', 'actosComision', 'gestiones'];
 
   /* Los campos que llevan una imagen en base64. Los cuatro primeros son del
      socio; el quinto, `foto`, va dentro de cada comprobante del crédito. */
@@ -197,7 +200,10 @@
        La de una base es su nombre de archivo y el día: cargar dos veces el
        mismo archivo el mismo día es una sola carga. */
     prospectos: ['celular'],
-    bases: ['archivo', 'fecha']
+    bases: ['archivo', 'fecha'],
+    /* Una gestión es un HECHO con fecha: su identidad es el id que le puso la
+       nube. Dos aparatos que traen la misma gestión traen la misma fila. */
+    gestiones: ['id']
   };
 
   var LISTAS_CREDITO = {

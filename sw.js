@@ -158,7 +158,10 @@
    necesita un codigo para entrar: se registran solos) y cambia la pantalla de
    repartir: destino gerente O asesor, por cantidad o automatico por turnos.
    Toca panel/crm.html. */
-const CACHE = 'tugarantia-v34';
+/* v35 - 10-sep-2026. La gestion: el asesor tipifica desde su celular, el
+   gerente ve que hizo con cada uno de sus asignados y Joan se las trae a su
+   computador. Toca panel/crm.html y panel/nube.js. */
+const CACHE = 'tugarantia-v35';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
