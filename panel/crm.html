@@ -4822,13 +4822,59 @@ function authEquipo(ruta, cuerpo, token) {
     body: JSON.stringify(cuerpo)
   }).then(r => r.json().then(j => ({ ok: r.ok, j })));
 }
-function rpcEquipo(fn, cuerpo, token) {
-  return fetch(NUBE_EQUIPO.url + '/rest/v1/rpc/' + fn, {
+/* Se guarda el INSTANTE en que vence, no los segundos que faltaban: un
+   `expires_in` guardado tal cual envejece y a la hora siguiente miente. Es la
+   misma frase que hay en panel/nube.js, y la misma razón. */
+function guardarSesionEquipo(j) {
+  if (!j || !j.access_token) return null;
+  SESION_EQUIPO = {
+    access_token: j.access_token,
+    refresh_token: j.refresh_token || (SESION_EQUIPO && SESION_EQUIPO.refresh_token) || '',
+    expira_en: Date.now() + ((Number(j.expires_in) || 3600) * 1000)
+  };
+  return SESION_EQUIPO;
+}
+
+/* RENUEVA ANTES DE USAR, no después de fallar. Reaccionar al 401 obligaría a
+   repetir la llamada, y una gestión repetida se anota dos veces: el gerente
+   vería dos llamadas donde hubo una. El minuto de margen es para que no venza
+   entre que se pide el token y llega la petición. */
+function tokenDeEquipo() {
+  const s = SESION_EQUIPO;
+  if (!s || !s.access_token) return Promise.reject({ sesion: true });
+  if (Date.now() < (s.expira_en || 0) - 60000) return Promise.resolve(s.access_token);
+  if (!s.refresh_token) { SESION_EQUIPO = null; return Promise.reject({ sesion: true }); }
+  return authEquipo('/token?grant_type=refresh_token', { refresh_token: s.refresh_token })
+    .then(res => {
+      /* Si el refresh no sirve, la sesión local ya no vale para nada: dejarla
+         puesta solo consigue que cada acción falle con un error distinto. */
+      if (!res.ok || !guardarSesionEquipo(res.j)) { SESION_EQUIPO = null; throw { sesion: true }; }
+      return SESION_EQUIPO.access_token;
+    }, () => { SESION_EQUIPO = null; throw { sesion: true }; });
+}
+
+/* Todas las llamadas del equipo pasan por acá, y por eso la renovación vive
+   acá: en cada llamada sería la misma regla escrita tres veces. */
+function rpcEquipo(fn, cuerpo) {
+  return tokenDeEquipo().then(token => fetch(NUBE_EQUIPO.url + '/rest/v1/rpc/' + fn, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: NUBE_EQUIPO.anon,
-               Authorization: 'Bearer ' + (token || NUBE_EQUIPO.anon) },
+               Authorization: 'Bearer ' + token },
     body: JSON.stringify(cuerpo || {})
-  }).then(r => r.json().then(j => ({ ok: r.ok, j })));
+  }).then(r => r.json().then(j => ({ ok: r.ok, j }))));
+}
+
+/* ¿Esto es un fin de sesión? Vale tanto para el token que ya no se pudo
+   renovar como para el 401 que llega si el reloj del celular va adelantado. */
+function esFinDeSesion(e, res) {
+  if (e && e.sesion) return true;
+  const j = (res && res.j) || {};
+  return j.code === 'PGRST301' || j.code === '42501' ||
+         /jwt|expired/i.test(String(j.message || ''));
+}
+function avisarFinDeSesion(que) {
+  alert('Tu sesión se venció por seguridad.\n\n' + (que || '') +
+    'Toca «Salir» abajo a la izquierda y vuelve a entrar con tu celular y tu contraseña.');
 }
 
 /* --------------------------------------------------------------------------
@@ -5027,8 +5073,8 @@ function entrarEquipo() {
         const t = JSON.stringify(res.j || {});
         throw { antes: true, sinConfirmar: /confirm/i.test(t) };
       }
-      SESION_EQUIPO = res.j;
-      return rpcEquipo('mi_cartera', {}, SESION_EQUIPO.access_token);
+      guardarSesionEquipo(res.j);
+      return rpcEquipo('mi_cartera', {});
     })
     .then(res => {
       const j = res.j || {};
@@ -5168,18 +5214,29 @@ function guardarGestionEq() {
   if (!sel) return alert('Marca qué pasó.');
   const btn = document.getElementById('gBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Anotando…'; }
+  /* QUEDÓ ANOTADA se marca en cuanto la nube dice que sí. Si después falla el
+     refresco de la pantalla, el mensaje NO puede decir «no quedó anotada»: el
+     asesor la anotaría otra vez y el gerente vería dos llamadas donde hubo una. */
+  let anotada = false;
   rpcEquipo('gestion_anotar', { p_persona_id: _personaGestion, p_tipo: sel.value,
-      p_nota: (document.getElementById('gNota') || {}).value || '' },
-      SESION_EQUIPO && SESION_EQUIPO.access_token)
+      p_nota: (document.getElementById('gNota') || {}).value || '' })
     .then(res => {
       if (!res.ok || !res.j || res.j.ok !== true) {
-        throw new Error((res.j && res.j.motivo) || 'no pude anotarla');
+        if (esFinDeSesion(null, res)) throw { sesion: true };
+        throw new Error((res.j && res.j.motivo) || 'la nube no la aceptó');
       }
+      anotada = true;
       cerrarModal();
       return refrescarCarteraEq();
     })
     .catch(e => {
       if (btn) { btn.disabled = false; btn.textContent = 'Anotar'; }
+      if (anotada) {
+        alert('Sí quedó anotada.\n\nLo que no pude fue volver a cargar tu base; ' +
+          'toca «Mi base» para verla al día. NO la anotes otra vez.');
+        return;
+      }
+      if (esFinDeSesion(e)) return avisarFinDeSesion('Lo que marcaste no se guardó. ');
       alert('No quedó anotada: ' + (e.message || e) + '\n\nRevisa la señal y vuelve a intentar.');
     });
 }
@@ -5189,9 +5246,13 @@ function guardarGestionEq() {
    pantalla que se arregla sola por su cuenta termina mostrando algo que en la
    nube no pasó. */
 function refrescarCarteraEq() {
-  return rpcEquipo('mi_cartera', {}, SESION_EQUIPO && SESION_EQUIPO.access_token)
+  return rpcEquipo('mi_cartera', {})
     .then(res => {
-      if (res.ok && res.j && res.j.ok === true) { CARTERA_EQUIPO = res.j; irEquipo(VISTA_EQUIPO); }
+      /* Sin el else, la pantalla se quedaba con datos viejos y MUDA: el asesor
+         seguía trabajando sobre una base de hace media hora sin saberlo. */
+      if (res.ok && res.j && res.j.ok === true) { CARTERA_EQUIPO = res.j; irEquipo(VISTA_EQUIPO); return true; }
+      if (esFinDeSesion(null, res)) throw { sesion: true };
+      throw new Error('la nube no me devolvió tu base');
     });
 }
 
@@ -5199,19 +5260,27 @@ function verGestionesEq(id) {
   const p = genteEquipo().find(x => String(x.id) === String(id));
   openModal('Historia de ' + ((p && p.nombre) || 'esta persona'),
     '<div class="muted" style="padding:10px 0">Buscando…</div>');
-  rpcEquipo('gestiones_de', { p_persona_id: String(id) },
-      SESION_EQUIPO && SESION_EQUIPO.access_token)
+  rpcEquipo('gestiones_de', { p_persona_id: String(id) })
     .then(res => {
-      const gs = (res.ok && res.j && res.j.ok === true && res.j.gestiones) || [];
+      /* «Todavía no hay gestiones» es un HECHO sobre el trabajo del asesor. Si
+         la nube no contestó, no se sabe, y decirlo igual es inventárselo. */
+      if (!res.ok || !res.j || res.j.ok !== true) {
+        document.getElementById('mBody').innerHTML = esFinDeSesion(null, res)
+          ? '<div class="alerta warn">Tu sesión se venció. Toca «Salir» y vuelve a entrar.</div>'
+          : '<div class="alerta warn">No pude traer la historia.<div class="muted">Eso <b>no</b> quiere decir que no haya gestiones: quiere decir que no pude preguntarlas.</div></div>';
+        return;
+      }
+      const gs = res.j.gestiones || [];
       document.getElementById('mBody').innerHTML = gs.length
         ? gs.map(g => `<div class="info-row"><span class="k">${etiquetaGestion(g)}
             <div class="muted">${escHTML(g.quien || '')} · ${escHTML(haceCuanto(g.cuando))}</div>
             ${g.nota ? '<div>«' + escHTML(g.nota) + '»</div>' : ''}</span></div>`).join('')
         : '<div class="muted" style="padding:10px 0">Todavía no hay gestiones.</div>';
     })
-    .catch(() => {
-      document.getElementById('mBody').innerHTML =
-        '<div class="alerta warn">No pude traer la historia. Revisa la señal.</div>';
+    .catch(e => {
+      document.getElementById('mBody').innerHTML = esFinDeSesion(e)
+        ? '<div class="alerta warn">Tu sesión se venció. Toca «Salir» y vuelve a entrar.</div>'
+        : '<div class="alerta warn">No pude traer la historia. Revisa la señal.<div class="muted">Eso <b>no</b> quiere decir que no haya gestiones.</div></div>';
     });
 }
 
@@ -5235,13 +5304,32 @@ function vistaTableroEquipo() {
     </div>`;
 }
 
+/* Los dos guiones no se mezclan: al POTENCIAL se le vende, al CLIENTE se le
+   cobra. Un asesor que los ve revueltos llama al que debe con el guion del que
+   no ha pedido nada. */
+let _grupoBaseEq = 'todos';
+function irGrupoBase(g) { _grupoBaseEq = g; irEquipo('base'); }
+
 function vistaBaseEquipo() {
   const o = (ETAPAS && ETAPAS.ORDEN) || [];
-  const g = genteEquipo().slice().sort((a, b) => o.indexOf(b.etapa) - o.indexOf(a.etapa));
+  const todos = genteEquipo();
+  const cli = todos.filter(p => p.tipo === 'cliente').length;
+  const pot = todos.length - cli;
+  const g = todos
+    .filter(p => _grupoBaseEq === 'todos' ||
+      (_grupoBaseEq === 'clientes' ? p.tipo === 'cliente' : p.tipo !== 'cliente'))
+    .sort((a, b) => o.indexOf(b.etapa) - o.indexOf(a.etapa));
+  const bot = (k, txt) => `<button class="btn ${_grupoBaseEq === k ? 'btn-negro' : 'btn-ghost'} btn-sm"
+    onclick="irGrupoBase('${k}')">${txt}</button>`;
   return `<div class="ph"><div><h1>Mi base<span class="dot">.</span></h1>
       <div class="sub">${g.length} personas, de la más urgente a la más tranquila</div></div></div>
+    ${todos.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      ${bot('todos', 'Todos (' + todos.length + ')')}
+      ${bot('clientes', '🧑‍🤝‍🧑 Cobrar (' + cli + ')')}
+      ${bot('potenciales', '📇 Vender (' + pot + ')')}</div>` : ''}
     <div class="card">${g.length ? g.map(filaPersonaEq).join('')
-      : '<div class="muted" style="padding:14px">Todavía no te han asignado a nadie.</div>'}</div>`;
+      : `<div class="muted" style="padding:14px">${todos.length
+          ? 'Nadie de ese grupo.' : 'Todavía no te han asignado a nadie.'}</div>`}</div>`;
 }
 
 function vistaMiEquipo() {
@@ -5672,16 +5760,31 @@ function publicarEquipo() {
   if (!gente.length) return alert('Ninguna persona del equipo tiene celular.\n\nSin celular no puede entrar: el celular ES su usuario.');
   const hoy = hoyISO();
 
-  /* Solo los prospectos que alguien está trabajando. Publicar los 224 cuando
-     hay 30 repartidos sería mandar a la nube datos de gente que nadie va a
-     contactar. */
+  /* Solo los que alguien está trabajando. Publicar los 697 cuando hay 30
+     repartidos sería mandar a la nube datos de gente que nadie va a contactar. */
   const asignados = {};
   asignaciones().forEach(a => { asignados[String(a.socio_id)] = true; });
+
+  /* LOS DOS TIPOS, EN LA MISMA LISTA. Hasta el 10-sep solo viajaban los
+     prospectos, así que un asesor con treinta clientes de cobranza asignados
+     abría «Mi base» y leía «todavía no te han asignado a nadie»: toda la mitad
+     de cobranza —CA, D-3, D-2, D-1, D0, M1A, M1B, M1-2— no existía. */
   const ps = prospectos().filter(p => asignados[String(p.id)]).map(p => ({
-    id: String(p.id), celular: String(p.celular || ''), nombre: String(p.nombre || ''),
+    id: String(p.id), tipo: 'prospecto',
+    celular: String(p.celular || ''), nombre: String(p.nombre || ''),
     estado: String(p.estado || 'nuevo'),
     etapa: ETAPAS.etapaDe({ tipo: 'prospecto', estado: p.estado }, DB, hoy)
-  }));
+  })).concat(DB.socios.filter(s => asignados[String(s.id)]).map(s => ({
+    id: String(s.id), tipo: 'cliente',
+    /* NOMBRE, CELULAR Y ETAPA. Nada más: ni cédula, ni dirección, ni fotos, ni
+       cuánto debe. Con eso se cobra, y todo lo demás multiplicaría el daño el
+       día que se pierda un celular. Es la misma regla que declara la cabecera
+       de la migración, y acá es donde se cumple o no se cumple. */
+    celular: String(waNum(s) || '').replace(/\D/g, '').slice(-10),
+    nombre: String(s.nombre || ''),
+    estado: 'cliente',
+    etapa: ETAPAS.etapaDe({ tipo: 'socio', id: s.id }, DB, hoy)
+  })));
 
   const asig = asignaciones().map(a => {
     const per = personaDeEquipo(a.asesor_id);
@@ -5700,23 +5803,31 @@ function publicarEquipo() {
 }
 
 function publicarEquipoAhora(gente, asig, ps) {
-  /* Con las gestiones ya traídas, el estado de cada prospecto es el de verdad. */
+  /* Con las gestiones ya traídas, el estado de cada potencial es el de verdad.
+     Los clientes no se tocan: su etapa la calcula el motor con sus créditos. */
   ps.forEach(x => {
+    if (x.tipo !== 'prospecto') return;
     const p = prospectos().find(y => String(y.id) === String(x.id));
     if (p) { x.estado = String(p.estado || 'nuevo');
              x.etapa = ETAPAS.etapaDe({ tipo: 'prospecto', estado: p.estado }, DB, hoyISO()); }
   });
+  const nCli = ps.filter(x => x.tipo === 'cliente').length;
+  const sinCel = ps.filter(x => !x.celular).length;
   if (!confirm('Voy a publicar a la nube:\n\n· ' + gente.length + ' personas del equipo\n· ' +
-    asig.length + ' asignaciones\n· ' + ps.length + ' prospectos (solo los repartidos)\n\n' +
-    'Cada quien va a ver SOLO lo suyo: eso lo decide el servidor.\n\n¿Sigo?')) return;
+    asig.length + ' asignaciones\n· ' + (ps.length - nCli) + ' potenciales\n· ' +
+    nCli + ' clientes (para cobrarles)\n\n' +
+    (sinCel ? '⚠ ' + sinCel + ' de ellos no tienen celular: van a salir sin el botón de WhatsApp.\n\n' : '') +
+    'De cada uno viaja SOLO el nombre, el celular y en qué etapa está.\n' +
+    'Ni cédula, ni dirección, ni fotos, ni cuánto debe.\n\n' +
+    'Y cada quien va a ver solo lo suyo: eso lo decide el servidor.\n\n¿Sigo?')) return;
 
   rpc('equipo_publicar', { p_clave: sbCfg().clave,
       p_equipo: gente.map(p => ({ celular: p.celular, nombre: p.nombre, rol: p.rol,
                                   estado: p.estado || 'activo', jefe: p.jefe || '' })),
-      p_asignaciones: asig, p_prospectos: ps })
+      p_asignaciones: asig, p_gente: ps })
     .then(r => {
       alert('Publicado.\n\nEquipo: ' + (r.equipo || 0) + '\nAsignaciones: ' + (r.asignaciones || 0) +
-        '\nProspectos: ' + (r.prospectos || 0) + '\n\nYa pueden entrar en:\n' +
+        '\nGente repartida: ' + (r.gente || 0) + '\n\nYa pueden entrar en:\n' +
         ENLACE_PANEL);
     })
     .catch(e => alert('No pude publicar: ' + errNube(e)));

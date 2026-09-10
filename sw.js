@@ -169,7 +169,11 @@
    dos dias contestando 405 a TODA peticion: las fotos de la cedula de cada
    registrado existian y la ficha decia 'no subio fotos'. Toca panel/crm.html
    (archivosDe deja de tragarse el fallo) y tres migraciones. */
-const CACHE = 'tugarantia-v37';
+/* v38 - 10-sep-2026. Los clientes por fin le llegan al asesor (la tabla
+   prospectos pasa a llamarse cartera y lleva tipo), y la sesion del equipo se
+   renueva sola en vez de vencerse a la hora y culpar a la senal.
+   Toca panel/crm.html. */
+const CACHE = 'tugarantia-v38';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -76,16 +76,26 @@ create table if not exists public.asignaciones (
 );
 create index if not exists asignaciones_por_asesor on public.asignaciones (asesor);
 
--- Los prospectos: nombre y celular, y nada más. Ver la cabecera.
-create table if not exists public.prospectos (
+-- LA CARTERA DEL EQUIPO: la gente que un asesor trabaja. Nombre, celular y en
+-- qué etapa está. Nada más — ni cédula, ni dirección, ni fotos, ni cuánto debe.
+-- Ver la cabecera.
+--
+-- UNA SOLA TABLA PARA LOS DOS TIPOS, porque un asesor no lleva dos listas:
+-- lleva gente. Al POTENCIAL se le vende y al CLIENTE se le cobra, y eso ya lo
+-- dice la etapa (PC/CR de un lado; CA, D-3..D0, M1A, M1B, M1-2 del otro). La
+-- pantalla del asesor sí los separa: son dos guiones distintos y un asesor que
+-- los ve revueltos llama al que debe con el guion del que no ha pedido nada.
+create table if not exists public.cartera (
   id          text        primary key,
+  tipo        text        not null default 'prospecto'
+                          check (tipo in ('prospecto', 'cliente')),
   celular     text        not null,
   nombre      text        not null default '',
   estado      text        not null default 'nuevo',
   etapa       text        not null default 'PC',   -- la calcula el CRM y la publica
   actualizado timestamptz not null default now()
 );
-create index if not exists prospectos_por_celular on public.prospectos (celular);
+create index if not exists cartera_por_celular on public.cartera (celular);
 
 -- LA GESTIÓN: qué hizo el asesor con cada persona de su base. Joan: «que pueda
 -- tipificarlos para ver si contestan o si hay alguna novedad» y «que el gerente
@@ -114,18 +124,23 @@ create index if not exists gestiones_por_asesor  on public.gestiones (asesor, cu
 -- directo; todo pasa por las funciones de abajo, que deciden qué devolver.
 alter table public.equipo       enable row level security;
 alter table public.asignaciones enable row level security;
-alter table public.prospectos   enable row level security;
+alter table public.cartera      enable row level security;
 alter table public.gestiones    enable row level security;
 revoke all on public.equipo       from anon, authenticated;
 revoke all on public.asignaciones from anon, authenticated;
-revoke all on public.prospectos   from anon, authenticated;
+revoke all on public.cartera      from anon, authenticated;
 revoke all on public.gestiones    from anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 2. JOAN PUBLICA — desde su CRM, con su clave de sincronización
 -- ---------------------------------------------------------------------------
+-- El último parámetro cambió de nombre, y PostgreSQL no deja renombrar
+-- un parámetro con create or replace: hay que tirarla y volverla a crear. Los
+-- permisos se vuelven a conceder más abajo.
+drop function if exists public.equipo_publicar(text, jsonb, jsonb, jsonb);
+
 create or replace function public.equipo_publicar(
-  p_clave text, p_equipo jsonb, p_asignaciones jsonb, p_prospectos jsonb)
+  p_clave text, p_equipo jsonb, p_asignaciones jsonb, p_gente jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -167,21 +182,23 @@ begin
     n_as := n_as + 1;
   end loop;
 
-  for it in select * from jsonb_array_elements(coalesce(p_prospectos, '[]'::jsonb)) loop
+  for it in select * from jsonb_array_elements(coalesce(p_gente, '[]'::jsonb)) loop
     if coalesce(it->>'id', '') = '' then continue; end if;
-    insert into public.prospectos (id, celular, nombre, estado, etapa, actualizado)
-    values (it->>'id', right(public.solo_digitos(coalesce(it->>'celular', '')), 10),
+    insert into public.cartera (id, tipo, celular, nombre, estado, etapa, actualizado)
+    values (it->>'id',
+            case when it->>'tipo' = 'cliente' then 'cliente' else 'prospecto' end,
+            right(public.solo_digitos(coalesce(it->>'celular', '')), 10),
             left(coalesce(it->>'nombre', ''), 80),
             coalesce(nullif(it->>'estado', ''), 'nuevo'),
             coalesce(nullif(it->>'etapa', ''), 'PC'), now())
     on conflict (id) do update
-      set celular = excluded.celular, nombre = excluded.nombre,
+      set tipo = excluded.tipo, celular = excluded.celular, nombre = excluded.nombre,
           estado = excluded.estado, etapa = excluded.etapa, actualizado = now();
     n_pr := n_pr + 1;
   end loop;
 
   return jsonb_build_object('ok', true, 'equipo', n_eq,
-                            'asignaciones', n_as, 'prospectos', n_pr);
+                            'asignaciones', n_as, 'gente', n_pr);
 end
 $$;
 
@@ -270,7 +287,7 @@ begin
     'gente', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', p.id, 'nombre', p.nombre, 'celular', p.celular,
-               'estado', p.estado, 'etapa', p.etapa,
+               'tipo', p.tipo, 'estado', p.estado, 'etapa', p.etapa,
                'asesor', a.asesor, 'asesor_nombre', coalesce(e2.nombre, ''),
                -- La última gestión viaja pegada a la persona: es lo que el
                -- gerente abre la pantalla a mirar, y pedirla aparte sería una
@@ -282,11 +299,11 @@ begin
                              left join public.equipo e3 on e3.celular = g.asesor
                             where g.persona_id = p.id
                             order by g.cuando desc limit 1)))
-        from public.prospectos p
+        from public.cartera p
         join public.asignaciones a on a.persona_id = p.id
         left join public.equipo e2 on e2.celular = a.asesor
        where a.asesor = any(mios)
-         -- De varias asignaciones del mismo prospecto manda la ÚLTIMA: la
+         -- De varias asignaciones de la misma persona manda la ÚLTIMA: la
          -- lista solo suma, y la vigente es la de fecha más reciente.
          and a.desde = (select max(a2.desde) from public.asignaciones a2
                          where a2.persona_id = p.id)), '[]'::jsonb));
@@ -345,9 +362,12 @@ begin
              when 'numero_malo' then 'numero_malo'
              when 'no_quiere'   then 'no_quiso'
              else null end;
+  -- Solo a un POTENCIAL. A un cliente su etapa se la calcula el motor de Joan
+  -- con sus créditos; que un «no contesta» le moviera la cartera de cobranza
+  -- sería dejar que una llamada sin respuesta borre una mora.
   if nuevo is not null then
-    update public.prospectos set estado = nuevo, actualizado = now()
-     where id = p_persona_id;
+    update public.cartera set estado = nuevo, actualizado = now()
+     where id = p_persona_id and tipo = 'prospecto';
   end if;
 
   return jsonb_build_object('ok', true);
@@ -480,7 +500,7 @@ declare cuerpo text;
 begin
   if to_regclass('public.equipo') is null
      or to_regclass('public.asignaciones') is null
-     or to_regclass('public.prospectos') is null
+     or to_regclass('public.cartera') is null
      or to_regclass('public.gestiones') is null then
     raise exception 'falto alguna de las cuatro tablas';
   end if;
@@ -488,7 +508,7 @@ begin
   -- Que nadie pueda leer las tablas directo, sin pasar por las funciones.
   if exists (select 1 from information_schema.table_privileges
               where table_schema = 'public'
-                and table_name in ('equipo', 'asignaciones', 'prospectos', 'gestiones')
+                and table_name in ('equipo', 'asignaciones', 'cartera', 'gestiones')
                 and grantee in ('anon', 'authenticated')) then
     raise exception 'alguna tabla del equipo quedo abierta a la llave publica';
   end if;
