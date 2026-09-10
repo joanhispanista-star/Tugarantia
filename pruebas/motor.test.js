@@ -8182,8 +8182,10 @@ describe('las dos apps compilan: nada de sintaxis rota', () => {
      llena con JavaScript: un error de sintaxis ahí no deja una función rota,
      deja la PÁGINA EN BLANCO. Se editaba sin red desde que existe.
      (traer.html sigue fuera; es la última deuda de esta prueba.) */
-  ['panel/crm.html', 'app/socio.html', 'panel/espejo.html', 'play/index.html',
-   'panel/equipo.html'].forEach(archivo => {
+  /* 10-sep-2026 — panel/equipo.html salió de esta lista porque dejó de tener
+     JavaScript: es un redirector al Panel. Joan pidió un solo enlace, y el
+     gerente y el asesor entran por crm.html con su celular. */
+  ['panel/crm.html', 'app/socio.html', 'panel/espejo.html', 'play/index.html'].forEach(archivo => {
     test(archivo + ' — todo su JavaScript compila', () => {
       const bloques = bloquesDe(archivo);
       assert.ok(bloques.length >= 1, archivo + ' no tiene scripts embebidos: el barrido no mide nada');

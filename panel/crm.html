@@ -138,6 +138,12 @@
     display:grid;place-items:center;font-size:22px;font-weight:700;flex:none}
   .gate-card .tag{font-size:12px;color:var(--gris);margin:8px 0 22px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
   .gate-card input{width:100%;text-align:center;font-family:'JetBrains Mono';font-size:24px;letter-spacing:.4em;padding:12px;border:2px solid var(--linea);border-radius:10px;background:var(--papel)}
+  /* 10-sep-2026 — la puerta del equipo usa campos normales (celular y
+     contraseña), no la caja de PIN con letras separadas. */
+  .gate-card input#eqTelIn,.gate-card input#eqClaveIn{font-family:inherit;font-size:16px;
+    letter-spacing:normal;text-align:left}
+  .gate-card .gate-link{background:none;border:0;color:var(--gris);font-size:12.5px;
+    margin-top:14px;cursor:pointer;text-decoration:underline;width:100%}
   .gate-card input:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(var(--azul-rgb),.14)}
   .gate-card button{width:100%;margin-top:14px;background:var(--rojo);border:none;padding:13px;border-radius:10px;font-weight:700;font-size:15px;color:var(--papel)}
   .gate-err{color:var(--rojo);font-size:12.5px;margin-top:10px;min-height:16px;font-weight:600}
@@ -282,6 +288,11 @@
      te acompaña. El foco de teclado de los botones sí va en rojo, más abajo. */
   .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(var(--azul-rgb),.14)}
   .field .help{font-size:11.5px;color:var(--gris)}
+  .permiso{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;margin-bottom:8px;
+    border:1.5px solid var(--linea);border-radius:10px;cursor:pointer;font-size:13.5px;line-height:1.45}
+  .permiso:hover{border-color:var(--azul);background:rgba(var(--azul-rgb),.04)}
+  .permiso input{width:auto;margin:2px 0 0;flex:0 0 auto}
+  .permiso .muted{font-size:11.5px;margin-top:2px}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .sub-h{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--amarillo-tinta);font-weight:800;margin:20px 0 10px;border-top:1px solid var(--linea);padding-top:16px}
   .sub-h:first-child{border:none;padding-top:0;margin-top:0}
@@ -380,7 +391,8 @@
 <div class="gate" id="gate">
   <div class="gate-card"><div class="mk"><span class="sello">G</span>Tu Garantía</div><div class="tag">Panel</div>
     <input type="password" id="pinInput" inputmode="numeric" maxlength="6" placeholder="••••" aria-label="PIN de acceso">
-    <button id="pinBtn">Entrar</button><div class="gate-err" id="pinErr"></div></div>
+    <button id="pinBtn">Entrar</button><div class="gate-err" id="pinErr"></div>
+    <button class="gate-link" onclick="pintarPuertaEquipo()">Soy del equipo (gerente o asesor)</button></div>
 </div>
 
 <div class="app" id="app" style="display:none">
@@ -399,7 +411,6 @@
     <button class="navbtn" data-v="mensajes"><span class="ic">💬</span> Mensajes<span id="navSinLeer"></span></button>
     <button class="navbtn" data-v="registrados"><span class="ic">📥</span> Registrados</button>
     <button class="navbtn" data-v="socios"><span class="ic">📋</span> Socios</button>
-    <button class="navbtn" data-v="inv"><span class="ic">🎟️</span> Invitaciones</button>
     <button class="navbtn" data-v="ciclos"><span class="ic">📈</span> Ciclos</button>
     <button class="navbtn" data-v="cal"><span class="ic">📅</span> Calendario</button>
     <button class="navbtn" data-v="plantillas"><span class="ic">💬</span> Plantillas</button>
@@ -434,15 +445,6 @@
       <div class="card"><div id="tblResp"></div></div>
     </section>
 
-    <section class="view" id="v-inv">
-      <div class="ph"><div><h1>Invitaciones<span class="dot">.</span></h1><div class="sub">Nadie abre cuenta solo: sin código no se entra, y cada código sirve para una persona</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-negro" onclick="sincronizarInvitaciones()">↻ Traer de la nube</button>
-          <button class="btn btn-rojo" onclick="crearInvitaciones()">＋ Crear códigos</button></div></div>
-      <div class="kpis2" id="kpiInv"></div>
-      <div class="card"><div id="tblInv"></div></div>
-    </section>
-
     <!-- REGISTRADOS (24-ago-2026): los que todavía NO son clientes. Aquí caen
          el registro abierto de la app publicable Y el canje de invitación,
          cada uno con su chip de origen. Es apartado propio a propósito —
@@ -465,7 +467,7 @@
 
     <section class="view" id="v-bases">
       <div class="ph"><div><h1>Bases<span class="dot">.</span></h1><div class="sub">Gente que todavía no es cliente: nombre y celular, y quién la está trabajando</div></div>
-        <div><button class="btn btn-ghost" onclick="repartirProspectos()">🔀 Repartir</button>
+        <div><button class="btn btn-ghost" onclick="pantallaAsignar('potenciales')">🔀 Repartir</button>
         <button class="btn btn-rojo" onclick="cargarBase()">⤒ Cargar base</button></div></div>
       <div class="kpis" id="kpiBases"></div>
       <div class="card"><div class="card-h"><h3>📇 Prospectos</h3>
@@ -479,7 +481,7 @@
     <section class="view" id="v-equipo">
       <div class="ph"><div><h1>Equipo<span class="dot">.</span></h1><div class="sub">Quién trabaja contigo, qué clientes lleva cada uno y cuánto ha ganado</div></div>
         <div><button class="btn btn-ghost" onclick="publicarEquipo()">☁ Publicar a la nube</button>
-        <button class="btn btn-ghost" onclick="pantallaAsignar()">🔀 Repartir clientes</button>
+        <button class="btn btn-ghost" onclick="pantallaAsignar('clientes')">🔀 Repartir</button>
         <button class="btn btn-rojo" onclick="editarPersona()">＋ Crear persona</button></div></div>
       <div class="kpis" id="kpiEquipo"></div>
       <div class="card"><div class="card-h"><h3>👥 Tu equipo</h3>
@@ -693,6 +695,10 @@ const PUENTE=window.PuenteTuGarantia;
    declaracion pegada a una funcion se va con ella y revienta con
    "window is not defined". */
 const COMIS=window.ComisionesTuGarantia;
+/* El enlace que se le manda a la gente del equipo: es el MISMO del Panel de
+   Joan, por decisión suya. Quién ve qué lo decide el servidor, no la
+   dirección. */
+const ENLACE_PANEL='https://tugarantia.net/panel/crm.html';
 const ETAPAS=window.EtapasTuGarantia;
 const CHAT=window.ChatTuGarantia;
 const KEY=PUENTE.LLAVE_PANEL;
@@ -1162,8 +1168,6 @@ function diasPara(p){ const c=PUENTE.corteDelCredito(p); if(!c)return 0;
   return diasEntre(hoyISO(),c); }
 const ESTADO_TXT={'al-dia':'Al día','proximo':'Próximo','hoy':'Vence hoy','mora':'En mora','pagado':'Pagado'};
 const ESTADO_TXT_RESP={'al-dia':'Al día','proximo':'Próxima cuota','hoy':'Cuota hoy','mora':'Cuota vencida','pagado':'Terminado'};
-const ESTADO_TXT_INV={nueva:'Sin usar',usada:'Usada',anulada:'Anulada'};
-const CHIP_INV={nueva:'al-dia',usada:'pagado',anulada:'mora'};
 
 /* 5-ago-2026 — EL CALENDARIO DE FESTIVOS ES UNO SOLO, Y ES EL DEL MOTOR.
    Acá había una copia literal del mismo algoritmo (Ley Emiliani + Pascua): tres
@@ -1180,7 +1184,7 @@ function horarioPermitido(date){ const d=date||new Date(),dia=d.getDay(),h=d.get
 function contactadoHoy(s){ return (s.gestiones||[]).some(g=>g.fecha===hoyISO()); }
 
 /* ===== RENDER ===== */
-function render(){ renderHorario(); renderKpis(); renderCola(); renderCred(); renderRespaldados(); renderInvitaciones(); renderRegistros(); renderMensajes(); renderClientes(); renderSocios(); renderCiclos(); renderCalendario(); renderPlantillas(); renderEquipo(); renderBases(); }
+function render(){ renderHorario(); renderKpis(); renderCola(); renderCred(); renderRespaldados(); renderRegistros(); renderMensajes(); renderClientes(); renderSocios(); renderCiclos(); renderCalendario(); renderPlantillas(); renderEquipo(); renderBases(); }
 function renderHorario(){ const r=horarioPermitido(),b=document.getElementById('horarioBox'); b.className='horario '+(r.ok?'ok':'no');
   b.innerHTML=r.ok?'<b>✓ Horario de cobro</b>Puedes contactar (Ley 2300).':'<b>✗ Fuera de horario</b>'+r.motivo+' (Ley 2300).'; }
 
@@ -2618,7 +2622,7 @@ function editarCliente(id,pre){
     <div class="sub-h">Invitación</div>
     <div class="field"><label>Código de invitación con el que entró <span class="muted">(opcional)</span></label>
       <input id="fCodInv" value="${escHTML(v('codigoInvitacion')||'')}" placeholder="${MotorReglas.PREFIJO_CODIGO}-XXXX-XXXX" autocapitalize="characters" maxlength="${MotorReglas.PREFIJO_CODIGO.length+MotorReglas.LARGO_CODIGO+2}">
-      <div class="help">Al guardar, ese código queda marcado como usado y no le sirve a nadie más. Los códigos se crean en la pestaña Invitaciones.</div></div>
+      <div class="help">Solo para los que entraron con código, cuando eso existía. Hoy la gente se registra sola: déjalo vacío.</div></div>
     <button class="btn btn-rojo" style="margin-top:8px" onclick="guardarCliente('${id||''}')">${id?'Guardar cambios':'Crear cliente'}</button>`);
   pintarUbic();
 }
@@ -2653,7 +2657,9 @@ function guardarCliente(id){
    vale más que el estado de un código. */
 function marcarInvitacionUsada(cod,socio){
   const inv=invPorCodigo(cod);
-  if(!inv){ alert('Ese código no está en tu lista de invitaciones. ¿Lo creaste desde otro dispositivo?\n\nGuardé el cliente igual, con el código anotado en su ficha.'); return false; }
+  /* Sin pantalla que mirar, un aviso acá solo asusta: el código queda
+     anotado en la ficha, que es lo único que hace falta. */
+  if(!inv){ agregarInvitacion(cod,'anotado a mano',false); return true; }
   if(inv.estado==='usada'&&inv.usadaPorId!==socio.id){
     if(!confirm('Ese código ya lo usó '+(inv.usadaPorNombre||'otra persona')+' el '+fmtFecha(inv.usadaEn)+'.\n\n¿Lo uso igual para '+socio.nombre+'?'))return false;
   }
@@ -4513,48 +4519,16 @@ function guardarRevision(id,sinMarcar){
   guardar(); cerrarModal(); render();
 }
 /* =======================================================================
-   INVITACIONES
-   Nadie abre cuenta solo: sin código no se entra. Un código sirve para UNA
-   persona y se marca "usada" en el momento en que le creas la ficha.
-
-   POR QUÉ EL CÓDIGO ES ASÍ (TG-XXXX-XXXX):
-   · Se dicta por WhatsApp y a veces por teléfono, así que el alfabeto es
-     Crockford-32 SIN confusables: no existen la I, la L, la O ni la U. Nunca
-     hay que preguntar "¿es o de oso o cero?".
-   · Son 8 caracteres de un alfabeto de 32 = 40 bits, pero el 8º es de
-     verificación, así que quedan 7 al azar = 35 bits ≈ 34.000 millones de
-     combinaciones. Adivinar uno a ciegas es imposible en la práctica, y la
-     función de la nube además frena a quien lo intente.
-   · El dígito de verificación es lo que lo vuelve cómodo: si alguien teclea
-     una letra de más o de menos, el celular se lo dice en el acto y no te
-     hace perder tiempo buscándolo en esta lista.
-   · Van en dos grupos de cuatro con guiones porque así se dictan y se copian
-     sin equivocarse, igual que un número de tarjeta.
+   CÓDIGOS DE INVITACIÓN — lo que quedó
+   La pestaña se fue el 10-sep-2026: ya nadie necesita un código para entrar,
+   se registran solos. Pero un código viejo todavía puede llegar canjeado desde
+   la app, y entonces hay que saber recibirlo. Esto NO crea códigos: solo los
+   reconoce y los anota.
    ======================================================================= */
 function azarSeguro(){ const a=new Uint32Array(1); crypto.getRandomValues(a); return a[0]/4294967296; }
 function invPorCodigo(cod){ return (DB.invitaciones||[]).find(i=>i.codigo===cod)||null; }
-function nuevoCodigoUnico(){
-  for(let i=0;i<60;i++){ const c=MotorReglas.generarCodigoInvitacion(azarSeguro); if(!invPorCodigo(c))return c; }
-  return null;
-}
-function waLinkLibre(msg){ return 'https://wa.me/?text='+encodeURIComponent(msg); }
-function mensajeInvitacion(inv){
-  return aplicarVars(DB.plantillas.invitacion||PLANTILLAS_DEF.invitacion.m,null,
-    {nombre:inv.nota||''},urlApp(),{codigo:inv.codigo});
-}
-function crearInvitaciones(){
-  openModal('Crear códigos de invitación',`
-    <p class="muted" style="margin-bottom:14px">Cada código sirve para una sola persona. Se dictan fácil por WhatsApp y no se pueden adivinar.</p>
-    ${sbListo()
-      ? `<div class="alerta info">Los sortea <b>la nube</b>, que es contra la que canjea el celular del cliente. Así el código que le mandas es el mismo que la app va a encontrar.</div>`
-      : `<div class="alerta warn">Todavía no conectaste la nube, así que los códigos quedan <b>solo en este computador</b>. Te sirven para anotarlos en la ficha a mano, pero el cliente <b>no</b> va a poder canjearlos desde su celular hasta que conectes Supabase en Ajustes.</div>`}
-    <div class="field"><label>¿Cuántos?</label><input id="invCant" type="number" inputmode="numeric" min="1" max="20" value="5"></div>
-    <div class="field"><label>¿Para quién / de dónde salen? <span class="muted">(opcional)</span></label><input id="invNota" placeholder="Ej: los del barrio Kennedy, o el nombre de la persona"><div class="help">Es una nota tuya, para acordarte a quién le diste cada código.</div></div>
-    <button class="btn btn-rojo" id="invBtn" onclick="guardarInvitaciones()">Crear</button>`);
-}
 /* Guarda un código en tu lista sin duplicarlo. `enNube` dice si ese código
-   existe además en la tabla contra la que canjea el celular del cliente: es la
-   diferencia entre un código que sirve de verdad y uno que solo está acá. */
+   existe además en la tabla contra la que canjeó el celular del cliente. */
 function agregarInvitacion(cod,nota,enNube){
   let inv=invPorCodigo(cod);
   if(!inv){
@@ -4564,106 +4538,9 @@ function agregarInvitacion(cod,nota,enNube){
   } else if(enNube) inv.enNube=true;
   return inv;
 }
-function mostrarInvitacionesNuevas(nuevas){
-  guardar(); cerrarModal(); render(); irA('inv');
-  const n=nuevas.length;
-  openModal(n+' código'+(n!==1?'s':'')+' listo'+(n!==1?'s':''),
-    `<p class="muted" style="margin-bottom:12px">Mándalos uno por uno. Cada uno entra a una sola persona.</p>`
-    +(nuevas.some(i=>!i.enNube)&&sbListo()?`<div class="alerta warn">Quedaron solo en este computador: el cliente no va a poder canjearlos desde su celular.</div>`:'')
-    +nuevas.map(i=>`<div class="info-row"><span class="k cod">${escHTML(i.codigo)}</span><span class="vv">
-      <a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${waLinkLibre(mensajeInvitacion(i))}">📲 WA</a>
-      <button class="btn btn-ghost btn-sm" onclick="copiarTexto('${i.codigo}')">Copiar</button></span></div>`).join(''));
-}
-function crearInvitacionesLocal(n,nota){
-  const nuevas=[];
-  for(let i=0;i<n;i++){
-    const c=nuevoCodigoUnico();
-    if(!c){ alert('No pude generar códigos nuevos. Vuelve a intentar.'); break; }
-    nuevas.push(agregarInvitacion(c,nota,false));
-  }
-  if(nuevas.length) mostrarInvitacionesNuevas(nuevas);
-}
-/* Con la nube conectada, el código lo SORTEA la nube. No es un capricho: el que
-   canjea es el celular del socio, contra public.invitaciones. Un código sorteado
-   acá y nunca subido es un código que no existe para él, y la app le contesta
-   "no encuentro ese código" por un código que tú le diste bien. */
-function guardarInvitaciones(){
-  let n=Math.round(Number(gv('invCant'))||0);
-  if(!(n>=1&&n<=20)) return alert('Pon un número entre 1 y 20.');
-  const nota=gv('invNota');
-  if(!sbListo()) return crearInvitacionesLocal(n,nota);
-  const btn=document.getElementById('invBtn');
-  if(btn){ btn.disabled=true; btn.textContent='Creando en la nube…'; }
-  rpc('crear_invitaciones',{p_clave:sbCfg().clave,p_cantidad:n,p_nota:nota||null})
-  .then(cods=>{
-    /* TAL CUAL vino. El código es de la nube, no de acá: pasarlo por el
-       normalizador podría cambiarle una letra y entonces el que le mandas al
-       cliente ya no es el que la tabla tiene, que es justo el problema que esto
-       viene a arreglar. */
-    const lista=(cods||[]).map(c=>String(c==null?'':c).trim()).filter(Boolean);
-    if(!lista.length) throw {motivo:'La nube no devolvió ningún código.'};
-    mostrarInvitacionesNuevas(lista.map(c=>agregarInvitacion(c,nota,true)));
-  })
-  .catch(e=>{
-    if(btn){ btn.disabled=false; btn.textContent='Crear'; }
-    if(confirm('No pude crear los códigos en la nube.\n\n'+errNube(e)+'\n\n¿Los creo solo en este computador? Te sirven para anotarlos en la ficha a mano, pero el cliente NO va a poder canjearlos desde su celular.'))
-      crearInvitacionesLocal(n,nota);
-  });
-}
 function copiarTexto(t){
   if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(()=>{},()=>prompt('Cópialo de aquí:',t));
   else prompt('Cópialo de aquí:',t);
-}
-function mandarInvitacion(cod){
-  const inv=invPorCodigo(cod); if(!inv)return;
-  inv.enviadaEn=hoyISO(); guardar(); renderInvitaciones();
-  window.open(waLinkLibre(mensajeInvitacion(inv)),'_blank','noopener');
-}
-function anularInvitacion(cod){
-  const inv=invPorCodigo(cod); if(!inv||inv.estado!=='nueva')return;
-  if(!confirm('Anular el código '+cod+'?\n\nDeja de servir para entrar. Los que ya se usaron no se tocan.'))return;
-  const cerrarAcá=()=>{ inv.estado='anulada'; guardar(); renderInvitaciones(); };
-  if(!sbListo()) return cerrarAcá();
-  /* En la nube primero: anularlo solo acá lo deja vivo allá, y el que lo tenga
-     entra igual desde su celular. */
-  rpc('anular_invitacion',{p_clave:sbCfg().clave,p_codigo:cod})
-    .then(()=>{ inv.enNube=true; cerrarAcá(); })
-    .catch(e=>{ if(confirm('No pude anularlo en la nube.\n\n'+errNube(e)+'\n\n¿Lo anulo igual en este computador? Ojo: en la nube seguiría sirviendo hasta que lo vuelvas a intentar con conexión.')) cerrarAcá(); });
-}
-/* Trae de la nube el estado de verdad: cuáles se canjearon, cuáles se anularon
-   y cuáles existen allá. Los que están acá y no allá se marcan, porque son los
-   que el cliente NO va a poder canjear. Nunca borra nada de tu lista. */
-function sincronizarInvitaciones(){
-  if(!sbListo()) return alert('Para esto hay que conectar la nube primero (Ajustes → Compartir con mis clientes).\n\nMientras tanto los códigos viven solo en este computador: sirven para anotarlos a mano en la ficha del cliente.');
-  const dig=v=>String(v||'').replace(/\D/g,'');
-  rpc('listar_invitaciones',{p_clave:sbCfg().clave,p_estado:null})
-  .then(filas=>{
-    const f=Array.isArray(filas)?filas:[];
-    let nuevos=0,alDia=0;
-    f.forEach(x=>{
-      const cod=String(x.codigo||''); if(!cod)return;
-      let inv=invPorCodigo(cod);
-      if(!inv){ inv=agregarInvitacion(cod,x.nota||'',true); inv.creadaEn=String(x.creada_en||'').slice(0,10)||hoyISO(); nuevos++; }
-      inv.enNube=true;
-      const est=String(x.estado||'nueva');
-      if((est==='usada'||est==='anulada')&&inv.estado!==est){ inv.estado=est; alDia++; }
-      if(x.usada_en&&!inv.usadaEn) inv.usadaEn=String(x.usada_en).slice(0,10);
-      if(x.usada_por_cedula&&!inv.usadaPorNombre){
-        const s=DB.socios.find(y=>dig(y.cedula)===dig(x.usada_por_cedula));
-        inv.usadaPorNombre=s?s.nombre:('CC '+x.usada_por_cedula);
-        if(s) inv.usadaPorId=s.id;
-      }
-    });
-    /* La función devuelve hasta 500. Si vinieron 500 la lista está cortada y no
-       se puede concluir nada de los que faltan. */
-    if(f.length<500){ const hay=new Set(f.map(x=>String(x.codigo))); (DB.invitaciones||[]).forEach(i=>{ i.enNube=hay.has(i.codigo); }); }
-    guardar(); render(); irA('inv');
-    const solos=(DB.invitaciones||[]).filter(i=>i.estado==='nueva'&&i.enNube===false).length;
-    alert('Listo: '+f.length+' código(s) en la nube.\n\n• '+nuevos+' que no tenías acá\n• '+alDia+' con el estado al día'
-      +(solos?'\n\n⚠️ '+solos+' código(s) sin usar existen solo en este computador: quien los tenga no va a poder canjearlos. Anúlalos y crea otros.':''));
-  })
-  .catch(e=>alert('No pude leer los códigos de la nube.\n\n'+errNube(e)));
-  traerRegistros();
 }
 
 /* ===== QUIÉN PIDIÓ ENTRAR =====
@@ -4847,6 +4724,344 @@ function fichaDesdeRegistro(id){
 }
 let _huellaPendiente=null;
 function pintarFotoBox(key){ const box=document.getElementById('fot_'+key); if(!box||!_fotosTmp[key]) return; box.classList.add('ok'); let img=box.querySelector('img'); if(!img){img=document.createElement('img');box.appendChild(img);} img.src=_fotosTmp[key]; const l=box.querySelector('.lbl'); if(l) l.textContent='Listo · cambiar'; }
+/* ==========================================================================
+ * EL MISMO PANEL, CON OTROS PERMISOS — 10 de septiembre de 2026
+ *
+ * Joan: «quiero que sea mi mismo CRM pero con otros permisos, así que la clave
+ * se la doy yo… quiero que sea el mismo link de mi panel de control, solo que
+ * él no puede ingresar a ver lo que yo veo sino algunas simples funciones de
+ * control y ya».
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUÉ ESTO ES SEGURO, Y NO PORQUE SE ESCONDAN BOTONES
+ *
+ * Un botón escondido no protege nada: quien abre esta página puede editar el
+ * JavaScript entero. Lo que de verdad protege son dos hechos:
+ *
+ *   1. LA CARTERA NO ESTÁ EN SU APARATO. El Panel de Joan lee la cartera del
+ *      localStorage de SU computador. En el celular de un gerente ese
+ *      localStorage está vacío: no hay nada que enseñar ni que robar, por más
+ *      que se toquen los botones.
+ *
+ *   2. LA NUBE SOLO LE ENTREGA LO SUYO. `mi_cartera()` no recibe ningún
+ *      parámetro que diga de quién es la pregunta: saca el celular del JWT y
+ *      decide el servidor. No hay dónde escribir un celular ajeno.
+ *
+ * Por eso el modo equipo NO carga el db, y por eso lo primero que hace es
+ * VACIARLO en memoria: si alguien abriera el Panel de Joan y entrara como
+ * gerente en la misma máquina, no puede quedar cartera colgando.
+ * ======================================================================== */
+
+/* La conexión horneada, solo para la puerta del equipo. La llave pública ya
+   viaja dentro de play/index.html: es pública por definición y no abre nada
+   por sí sola. La clave de sincronización de Joan NO está acá y no puede
+   estar: esa sí abre la cartera entera. */
+const NUBE_EQUIPO = {
+  url: 'https://wnsioekvjspwtghbodbg.supabase.co',
+  anon: 'sb_publishable_uWFyReBljFSh7l0KYkWmmg_Swo4SOxj'
+};
+let SESION_EQUIPO = null;
+let CARTERA_EQUIPO = null;
+let VISTA_EQUIPO = 'tablero';
+
+function correoDeEquipo(p) {
+  const U = window.CuentaSocio;
+  const tel = String((p && p.celular) || '').replace(/\D/g, '').slice(-10);
+  return (U && tel) ? U.correoDeTelefono(tel) : '';
+}
+function authEquipo(ruta, cuerpo, token) {
+  return fetch(NUBE_EQUIPO.url + '/auth/v1' + ruta, {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type': 'application/json', apikey: NUBE_EQUIPO.anon },
+      token ? { Authorization: 'Bearer ' + token } : {}),
+    body: JSON.stringify(cuerpo)
+  }).then(r => r.json().then(j => ({ ok: r.ok, j })));
+}
+function rpcEquipo(fn, cuerpo, token) {
+  return fetch(NUBE_EQUIPO.url + '/rest/v1/rpc/' + fn, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: NUBE_EQUIPO.anon,
+               Authorization: 'Bearer ' + (token || NUBE_EQUIPO.anon) },
+    body: JSON.stringify(cuerpo || {})
+  }).then(r => r.json().then(j => ({ ok: r.ok, j })));
+}
+
+/* --------------------------------------------------------------------------
+ * CREAR LA CUENTA — desde acá, sin abrir Supabase
+ *
+ * Es el MISMO /auth/v1/signup que usan los clientes en play/, con la llave
+ * pública. No hace falta la llave de servicio —que no puede vivir en un sitio
+ * público— porque crear una cuenta no da acceso a nada: quién es quién lo dice
+ * la tabla `equipo`, que solo Joan publica con su clave.
+ * ------------------------------------------------------------------------ */
+function claveSugerida() {
+  /* Legible por teléfono: sin l/I/0/O, y en dos bloques para dictarla. */
+  const abc = 'abcdefghjkmnpqrstuvwxyz23456789';
+  let c = '';
+  for (let i = 0; i < 8; i++) c += abc[Math.floor(Math.random() * abc.length)];
+  return c.slice(0, 4) + '-' + c.slice(4);
+}
+
+function crearCuenta(id) {
+  const p = personaDeEquipo(id); if (!p) return;
+  if (!p.celular) return alert('Primero ponle su celular: el celular ES su usuario.');
+  openModal('Crear la cuenta de ' + p.nombre, `
+    <p class="sub">La contraseña la pones tú y se la mandas por WhatsApp. Su usuario es su celular.</p>
+    <div class="field"><label>Contraseña</label>
+      <input id="ceClave" value="${escHTML(claveSugerida())}">
+      <div class="help">Ocho letras y números, fáciles de dictar. Puedes cambiarla por la que quieras
+        (mínimo 8 caracteres).</div></div>
+    <div class="fila"><span class="k">Usuario</span><span class="v mono">${escHTML(p.celular)}</span></div>
+    <div class="fila"><span class="k">Entra en</span><span class="v mono">${escHTML(ENLACE_PANEL)}</span></div>
+    <div class="aviso" style="margin-top:14px">Al crearla, esta persona podrá entrar por el mismo enlace
+      de tu Panel — pero <b>no ve tu cartera</b>: su aparato no la tiene, y la nube solo le entrega lo
+      que le asignaste.</div>
+    <button class="btn btn-rojo arriba" onclick="confirmarCrearCuenta('${escHTML(p.id)}')">Crear la cuenta</button>`);
+}
+
+function confirmarCrearCuenta(id) {
+  const p = personaDeEquipo(id); if (!p) return;
+  const clave = gv('ceClave').trim();
+  if (clave.length < 8) return alert('La contraseña necesita al menos 8 caracteres.');
+  const btn = document.querySelector('#mBody .btn-rojo');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
+  authEquipo('/signup', { email: correoDeEquipo(p), password: clave })
+    .then(res => {
+      if (!res.ok) {
+        const ya = /registered|already/i.test(JSON.stringify(res.j || {}));
+        if (ya) return pantallaCuentaExiste(p, clave);
+        throw new Error((res.j && (res.j.msg || res.j.error_description || res.j.message)) || 'no pude crear la cuenta');
+      }
+      /* Se anota que ya tiene cuenta. La CONTRASEÑA NO SE GUARDA en la cartera:
+         quedaría en el disco de Joan, viajaría a la nube con el resto de los
+         ajustes y saldría en cualquier respaldo. Se muestra una vez, se manda,
+         y si se pierde se cambia. */
+      p.cuentaCreada = hoyISO();
+      guardar(); render();
+      pantallaEntregarCuenta(p, clave, 'creada');
+    })
+    .catch(e => {
+      if (btn) { btn.disabled = false; btn.textContent = 'Crear la cuenta'; }
+      alert('No pude crear la cuenta: ' + (e.message || e) +
+        '\n\nSi el problema sigue, revisa que la nube esté conectada en Ajustes.');
+    });
+}
+
+function pantallaCuentaExiste(p, clave) {
+  openModal('Ya existe una cuenta con ese celular', `
+    <p class="sub">Puede ser porque ya se la creaste, o porque esta persona se registró
+      como cliente con el mismo número.</p>
+    <div class="aviso ambar">Para ponerle una contraseña nueva necesito la que tiene ahora.
+      Si no la tienes, la única salida es que use otro celular.</div>
+    <div class="field"><label>Su contraseña de ahora</label><input id="ceVieja" type="password"></div>
+    <div class="field"><label>La nueva</label><input id="ceNueva" value="${escHTML(clave)}"></div>
+    <button class="btn btn-rojo arriba" onclick="cambiarClave('${escHTML(p.id)}')">Cambiar la contraseña</button>`);
+}
+
+/* Cambiar la contraseña sin la llave de servicio: se entra como esa persona
+   con la contraseña vieja y se pide el cambio con SU sesión. Es lo que permite
+   que Joan administre las cuentas sin salir de su Panel. */
+function cambiarClave(id) {
+  const p = personaDeEquipo(id); if (!p) return;
+  const vieja = gv('ceVieja'), nueva = gv('ceNueva').trim();
+  if (nueva.length < 8) return alert('La contraseña nueva necesita al menos 8 caracteres.');
+  authEquipo('/token?grant_type=password', { email: correoDeEquipo(p), password: vieja })
+    .then(res => {
+      if (!res.ok || !res.j.access_token) throw new Error('la contraseña de ahora no es esa');
+      return fetch(NUBE_EQUIPO.url + '/auth/v1/user', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', apikey: NUBE_EQUIPO.anon,
+                   Authorization: 'Bearer ' + res.j.access_token },
+        body: JSON.stringify({ password: nueva })
+      }).then(r => r.json().then(j => ({ ok: r.ok, j })));
+    })
+    .then(res => {
+      if (!res.ok) throw new Error((res.j && (res.j.msg || res.j.message)) || 'no pude cambiarla');
+      p.cuentaCreada = p.cuentaCreada || hoyISO();
+      guardar(); render();
+      pantallaEntregarCuenta(p, nueva, 'cambiada');
+    })
+    .catch(e => alert('No pude cambiarla: ' + (e.message || e)));
+}
+
+function pantallaEntregarCuenta(p, clave, que) {
+  const msg = 'Hola ' + String(p.nombre || '').split(/\s+/)[0] + ', ya tienes tu acceso a ' +
+    (DB.config.negocio || 'Tu Garantía') + '.\n\n' +
+    'Entra aquí: ' + ENLACE_PANEL + '\n' +
+    'Usuario: ' + p.celular + '\n' +
+    'Contraseña: ' + clave + '\n\n' +
+    'Guárdala. Si la pierdes, avísame y te pongo otra.';
+  openModal(que === 'creada' ? 'Cuenta creada' : 'Contraseña cambiada', `
+    <div class="alerta ok">La cuenta de <b>${escHTML(p.nombre)}</b> quedó lista.</div>
+    <div class="sub-h">Lo que le tienes que mandar</div>
+    ${filaInfo('Entra en', ENLACE_PANEL)}
+    ${filaInfo('Usuario', p.celular)}
+    ${filaInfo('Contraseña', clave)}
+    <div class="aviso ambar" style="margin-top:14px"><b>Esta contraseña no se guarda en ningún lado.</b>
+      Guardarla dejaría la clave de tu gerente escrita en tu computador y en cada respaldo.
+      Mándasela ahora; si se pierde, le pones otra desde acá.</div>
+    <a class="btn btn-wa arriba" target="_blank" rel="noopener"
+       href="${escHTML(waLink(p.celular, msg))}">📲 Mandársela por WhatsApp</a>
+    <button class="btn btn-ghost" style="margin-top:var(--e2)" onclick="cerrarModal()">Listo</button>
+    <div class="muted" style="font-size:12.5px;margin-top:12px">Acuérdate de <b>☁ Publicar a la nube</b>
+      después de repartirle clientes: si no, entra y no ve nada.</div>`);
+}
+
+/* ==========================================================================
+ * ENTRAR COMO EQUIPO
+ * ======================================================================== */
+function pintarPuertaEquipo() {
+  const c = document.querySelector('#gate .gate-card');
+  if (!c) return;
+  c.innerHTML = `<div class="mk"><span class="sello">G</span>Tu Garantía</div><div class="tag">Equipo</div>
+    <input id="eqTelIn" type="tel" inputmode="numeric" placeholder="Tu celular" aria-label="Tu celular">
+    <input id="eqClaveIn" type="password" placeholder="Tu contraseña" aria-label="Tu contraseña" style="margin-top:8px">
+    <button id="eqBtn">Entrar</button>
+    <div class="gate-err" id="eqErr"></div>
+    <button class="gate-link" onclick="location.reload()">← Soy Joan</button>`;
+  document.getElementById('eqBtn').addEventListener('click', entrarEquipo);
+  document.getElementById('eqClaveIn').addEventListener('keydown', e => { if (e.key === 'Enter') entrarEquipo(); });
+  document.getElementById('eqTelIn').focus();
+}
+
+function entrarEquipo() {
+  const U = window.CuentaSocio;
+  const err = document.getElementById('eqErr'), btn = document.getElementById('eqBtn');
+  const tel = U ? U.normalizarTelefono(document.getElementById('eqTelIn').value) : '';
+  const clave = document.getElementById('eqClaveIn').value || '';
+  if (!tel || !clave) { err.textContent = 'Escribe tu celular y tu contraseña.'; return; }
+  btn.disabled = true; btn.textContent = 'Entrando…';
+  authEquipo('/token?grant_type=password', { email: U.correoDeTelefono(tel), password: clave })
+    .then(res => {
+      if (!res.ok || !res.j.access_token) throw new Error('no');
+      SESION_EQUIPO = res.j;
+      return rpcEquipo('mi_cartera', {}, SESION_EQUIPO.access_token);
+    })
+    .then(res => {
+      if (!res.ok || !res.j || res.j.ok !== true) {
+        /* La cuenta existe pero no tiene puesto en el equipo. Se dice lo mismo
+           que a quien se equivocó de contraseña: esta puerta no puede volverse
+           un oráculo de quién trabaja acá. */
+        throw new Error('no');
+      }
+      CARTERA_EQUIPO = res.j;
+      modoEquipo();
+    })
+    .catch(() => {
+      btn.disabled = false; btn.textContent = 'Entrar';
+      err.textContent = 'No encontré ese celular con esa contraseña.';
+    });
+}
+
+/* --------------------------------------------------------------------------
+ * EL MODO EQUIPO
+ *
+ * No se «esconden» secciones: se BORRA el menú y se reemplaza el cuerpo. Y
+ * antes de nada se vacía DB en memoria — si alguien entrara como gerente en el
+ * computador de Joan, no puede quedar cartera colgando de una variable.
+ * ------------------------------------------------------------------------ */
+function modoEquipo() {
+  DB = { socios: [], prestamos: [], respaldados: [], papelera: [], papeleraSocios: [],
+         invitaciones: [], plantillas: {}, config: { negocio: 'Tu Garantía' },
+         contadores: { cliente: 0, credito: 0, respaldado: 0 },
+         equipo: [], asignaciones: [], prospectos: [], bases: [], actosComision: [] };
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('app').style.display = 'grid';
+  const yo = CARTERA_EQUIPO.yo;
+  const lado = document.querySelector('.side');
+  if (lado) {
+    lado.innerHTML = `<div class="brand"><span class="seal">G</span><div class="bt">
+        <div class="l1">${escHTML(yo.nombre)}</div>
+        <div class="l2">${yo.rol === 'gerente' ? '🧭 Gerente' : '🚶 Asesor'}</div></div></div>
+      <div class="sep"></div>
+      <nav class="nav">
+        <button class="navbtn on" onclick="irEquipo('tablero')"><span class="ic">📊</span> Hoy</button>
+        <button class="navbtn" onclick="irEquipo('base')"><span class="ic">📋</span> Mi base</button>
+        ${yo.rol === 'gerente' ? '<button class="navbtn" onclick="irEquipo(\'equipo\')"><span class="ic">🚶</span> Mi equipo</button>' : ''}
+      </nav>
+      <div class="sep"></div>
+      <div style="padding:10px 14px;font-size:11.5px;line-height:1.5;opacity:.6">
+        Solo ves lo que te asignaron. Lo decide el servidor, no esta pantalla.</div>
+      <button class="navbtn" style="margin-top:auto" onclick="location.reload()"><span class="ic">🚪</span> Salir</button>`;
+  }
+  irEquipo('tablero');
+}
+
+function irEquipo(v) {
+  VISTA_EQUIPO = v;
+  document.querySelectorAll('.side .navbtn').forEach((b, i) => b.classList.toggle('on',
+    b.textContent.trim().indexOf({ tablero: 'Hoy', base: 'Mi base', equipo: 'Mi equipo' }[v]) >= 0));
+  const main = document.querySelector('.main') || document.querySelector('.app > :last-child');
+  if (!main) return;
+  main.innerHTML = '<div class="wrapEq" style="padding:20px;max-width:760px;margin:0 auto">' +
+    (v === 'base' ? vistaBaseEquipo() : v === 'equipo' ? vistaMiEquipo() : vistaTableroEquipo()) + '</div>';
+  window.scrollTo(0, 0);
+}
+
+function genteEquipo() { return (CARTERA_EQUIPO && CARTERA_EQUIPO.gente) || []; }
+function esGerenteEq() { return CARTERA_EQUIPO && CARTERA_EQUIPO.yo.rol === 'gerente'; }
+function etiquetaEtapa(e) {
+  const t = ETAPAS && ETAPAS.ETAPAS[e];
+  return t ? `<span class="chip ${{ gris: '', azul: 'prorroga', verde: 'al-dia', ambar: 'mora', rojo: 'mora' }[t.color] || ''}">${escHTML(t.et)}</span>`
+           : `<span class="chip">${escHTML(e || '—')}</span>`;
+}
+function queHacerEtapa(e) { const t = ETAPAS && ETAPAS.ETAPAS[e]; return t ? t.que : ''; }
+
+function filaPersonaEq(p) {
+  const primero = String(p.nombre || '').split(/\s+/)[0] || '';
+  return `<div class="info-row"><span class="k"><b>${escHTML(p.nombre || 'Sin nombre')}</b>
+      <div class="muted mono">${escHTML(p.celular || '')}</div>
+      ${esGerenteEq() && p.asesor_nombre ? `<div class="muted">🚶 ${escHTML(p.asesor_nombre)}</div>` : ''}
+      <div class="muted">${escHTML(queHacerEtapa(p.etapa))}</div></span>
+    <span class="vv">${etiquetaEtapa(p.etapa)}
+      ${p.celular ? `<a class="btn btn-wa btn-sm" style="margin-left:8px" target="_blank" rel="noopener"
+        href="${escHTML(waLink(p.celular, 'Hola ' + primero + ' 🙂'))}">📲</a>` : ''}</span></div>`;
+}
+
+function vistaTableroEquipo() {
+  const g = genteEquipo();
+  const urg = (ETAPAS && ETAPAS.URGENTES) || [];
+  const pend = g.filter(p => urg.indexOf(p.etapa) >= 0)
+                .sort((a, b) => urg.indexOf(a.etapa) - urg.indexOf(b.etapa));
+  const cuenta = {};
+  g.forEach(p => { cuenta[p.etapa] = (cuenta[p.etapa] || 0) + 1; });
+  return `<div class="ph"><div><h1>Hoy<span class="dot">.</span></h1>
+      <div class="sub">${g.length} personas ${esGerenteEq() ? 'de tus asesores' : 'asignadas a ti'}</div></div></div>
+    <div class="card"><div class="card-h"><h3>⚠️ Lo que hay que hacer hoy</h3>
+      <span class="tag">Primero lo que se puede perder</span></div>
+      ${pend.length ? pend.slice(0, 20).map(filaPersonaEq).join('')
+        : '<div class="muted" style="padding:14px">Nadie está en día de pago ni en mora. Buen momento para contactar a los que no se han registrado.</div>'}
+    </div>
+    <div class="card"><div class="card-h"><h3>📊 Toda tu base, por cartera</h3></div>
+      ${((ETAPAS && ETAPAS.ORDEN) || []).filter(k => cuenta[k])
+        .map(k => filaInfo(ETAPAS.ETAPAS[k].nombre, String(cuenta[k]))).join('')}
+    </div>`;
+}
+
+function vistaBaseEquipo() {
+  const o = (ETAPAS && ETAPAS.ORDEN) || [];
+  const g = genteEquipo().slice().sort((a, b) => o.indexOf(b.etapa) - o.indexOf(a.etapa));
+  return `<div class="ph"><div><h1>Mi base<span class="dot">.</span></h1>
+      <div class="sub">${g.length} personas, de la más urgente a la más tranquila</div></div></div>
+    <div class="card">${g.length ? g.map(filaPersonaEq).join('')
+      : '<div class="muted" style="padding:14px">Todavía no te han asignado a nadie.</div>'}</div>`;
+}
+
+function vistaMiEquipo() {
+  const g = genteEquipo(), eq = (CARTERA_EQUIPO.equipo || []);
+  const urg = (ETAPAS && ETAPAS.URGENTES) || [];
+  return `<div class="ph"><div><h1>Mi equipo<span class="dot">.</span></h1>
+      <div class="sub">Cómo va cada asesor con la base que le tocó</div></div></div>
+    <div class="card">${eq.length ? eq.map(a => {
+      const suyos = g.filter(p => p.asesor === a.celular);
+      const u = suyos.filter(p => urg.indexOf(p.etapa) >= 0).length;
+      const reg = suyos.filter(p => p.etapa !== 'PC').length;
+      return `<div class="info-row"><span class="k"><b>${escHTML(a.nombre)}</b>
+          <div class="muted">${suyos.length} asignados · ${reg} ya se registraron</div></span>
+        <span class="vv">${u ? `<span class="chip mora">${u} urgentes</span>` : '<span class="chip al-dia">al día</span>'}</span></div>`;
+    }).join('') : '<div class="muted" style="padding:14px">Todavía no tienes asesores a cargo.</div>'}</div>`;
+}
+
 /* ==========================================================================
  * LAS BASES DE PROSPECTOS — 9 de septiembre de 2026
  *
@@ -5032,31 +5247,11 @@ function confirmarCargaBase() {
   alert('Listo: entraron ' + b.revision.nuevos.length + ' prospectos.\n\nRepártelos entre tus asesores desde «🔀 Repartir».');
 }
 
-/* --------------------------------------------------------------------------
- * REPARTIR LOS PROSPECTOS
- *
- * Usa la MISMA lista de asignaciones que los clientes: un asesor no lleva dos
- * listas, lleva gente. El campo se llama `socio_id` porque ya era un contrato
- * con la sincronización cuando esto se escribió; guarda el id del prospecto
- * igual de bien, y los ids no se pisan (los prospectos nacen con «P»).
- * ------------------------------------------------------------------------ */
-function repartirProspectos() {
-  const asesores = equipo().filter(p => p.rol === 'asesor' && p.estado !== 'retirado');
-  if (!asesores.length) return alert('Primero crea al menos un asesor, en la pestaña Equipo.');
-  const sin = prospectos().filter(p => !COMIS.asesorDe(asignaciones(), p.id, hoyISO()));
-  if (!sin.length) return alert('Todos los prospectos ya tienen asesor.');
-  if (!confirm('Voy a repartir ' + sin.length + ' prospectos entre ' + asesores.length + ' asesores.\n\n' +
-    'A los que ya tienen asesor no los toco.\n\n¿Sigo?')) return;
-  /* Por turnos y en el orden en que entraron: sin azar, para que el reparto se
-     pueda reproducir el día que alguien reclame que le tocaban otros. */
-  const sello = Date.now();
-  sin.forEach((p, i) => {
-    asignaciones().push({ id: 'A' + sello + '-' + i, socio_id: String(p.id),
-                          asesor_id: asesores[i % asesores.length].id, desde: hoyISO() });
-  });
-  guardar(); render();
-  alert('Repartidos ' + sin.length + ' prospectos entre ' + asesores.length + ' asesores.');
-}
+/* 10-sep-2026 — repartirProspectos se fue: el botón de Bases abre la MISMA
+   pantalla de repartir, en el grupo de potenciales. Eran dos caminos para lo
+   mismo con dos reglas escritas aparte, y la de acá no avisaba cuando un
+   prospecto ya tenía asesor. */
+
 
 /* ==========================================================================
  * EL EQUIPO — 9 de septiembre de 2026
@@ -5175,6 +5370,9 @@ function renderEquipo() {
         <td class="num">${COP(s.libre)}</td>
         <td class="num muted">${COP(s.bloqueado)}${s.deuda ? ' <span class="chip mora">debe ' + COP(s.deuda) + '</span>' : ''}</td>
         <td style="text-align:right">
+          ${p.celular && !p.cuentaCreada
+            ? `<button class="btn btn-negro btn-sm" onclick="crearCuenta('${escHTML(p.id)}')">🔑 Crear cuenta</button> `
+            : ''}
           <button class="btn btn-ghost btn-sm" onclick="verPersona('${escHTML(p.id)}')">👁 Ver</button>
           <button class="btn btn-ghost btn-sm" onclick="editarPersona('${escHTML(p.id)}')">✏️</button></td></tr>`;
     }).join('')}</tbody></table>`;
@@ -5228,20 +5426,15 @@ function publicarEquipo() {
     .then(r => {
       alert('Publicado.\n\nEquipo: ' + (r.equipo || 0) + '\nAsignaciones: ' + (r.asignaciones || 0) +
         '\nProspectos: ' + (r.prospectos || 0) + '\n\nYa pueden entrar en:\n' +
-        'tugarantia.net/panel/equipo.html');
+        ENLACE_PANEL);
     })
     .catch(e => alert('No pude publicar: ' + errNube(e)));
 }
 
-/* Lo que hay que pegar en Supabase para crearle la cuenta a alguien. El correo
-   sintético es el mismo formato que usan los clientes, y sale de cuenta.js —
-   no se escribe a mano acá, que es como se separan los dos y nadie entra. */
-function correoDeEquipo(p) {
-  const U = window.CuentaSocio;
-  const tel = String(p.celular || '').replace(/\D/g, '').slice(-10);
-  if (!U || !tel) return '';
-  return U.correoDeTelefono(tel);
-}
+/* `correoDeEquipo` vive ARRIBA, junto a la puerta del equipo. Estuvo declarada
+   dos veces media hora —una acá y otra allá— y por hoisting corría la última:
+   la de arriba habría sido código muerto que se lee, se revisa y no se ejecuta.
+   Lo cazó el centinela de puente duplicado en pruebas/motor.test.js. */
 
 function editarPersona(id) {
   const p = id ? personaDeEquipo(id) : null;
@@ -5262,15 +5455,15 @@ function editarPersona(id) {
         <option value="activo"${p.estado !== 'retirado' ? ' selected' : ''}>Activo</option>
         <option value="retirado"${p.estado === 'retirado' ? ' selected' : ''}>Retirado</option></select>
       <div class="help">Retirarlo le corta lo nuevo. Sus movimientos de comisión NO se reasignan nunca: reasignarlos cambiaría la historia hacia atrás.</div></div>` : ''}
-    ${p && p.celular ? `<div class="sub-h">Para crearle la cuenta</div>
-      <div class="aviso"><b>1.</b> En Supabase → Authentication → Users → <b>Add user</b>.<br>
-        <b>2.</b> Pega este correo y ponle la contraseña que quieras. Marca <b>Auto Confirm User</b>.<br>
-        <div style="margin-top:8px"><span class="mono" id="correoEq">${escHTML(correoDeEquipo(p))}</span>
-        <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="copiarCorreoEquipo()">Copiar</button></div>
-        <div class="muted" style="margin-top:8px"><b>3.</b> Mándale por WhatsApp su <b>celular</b> y esa contraseña,
-        y el enlace <span class="mono">tugarantia.net/panel/equipo.html</span></div></div>
-      <div class="muted" style="font-size:12.5px;margin-top:10px">Su usuario es su celular; el correo de
-        arriba es solo lo que Supabase necesita por dentro. Y acuérdate de <b>☁ Publicar a la nube</b>
+    ${p && p.celular ? `<div class="sub-h">Su cuenta</div>
+      ${p.cuentaCreada
+        ? `<div class="alerta ok">Ya tiene cuenta, creada el ${fmtFecha(p.cuentaCreada)}.
+            Entra con su celular por ${escHTML(ENLACE_PANEL)}</div>
+           <button class="btn btn-ghost" onclick="crearCuenta('${escHTML(p.id)}')">Ponerle otra contraseña</button>`
+        : `<p class="ayuda">La creas desde acá, sin salir del Panel. Tú eliges la contraseña y se la
+             mandas por WhatsApp.</p>
+           <button class="btn btn-negro" onclick="crearCuenta('${escHTML(p.id)}')">Crear su cuenta</button>`}
+      <div class="muted" style="font-size:12.5px;margin-top:10px">Acuérdate de <b>☁ Publicar a la nube</b>
         después de crear o repartir: si no, entra y no ve nada.</div>` : ''}
     ${p && !p.celular ? '<div class="aviso ambar">Sin celular no puede entrar: el celular ES su usuario.</div>' : ''}
     <button class="btn btn-rojo arriba" onclick="guardarPersona(${p ? "'" + escHTML(p.id) + "'" : 'null'})">
@@ -5279,12 +5472,10 @@ function editarPersona(id) {
   const sel = document.getElementById('eqRol');
   if (sel) sel.addEventListener('change', pintarAyudaRol);
 }
-function copiarCorreoEquipo() {
-  const el = document.getElementById('correoEq'); if (!el) return;
-  navigator.clipboard.writeText(el.textContent.trim())
-    .then(() => alert('Copiado. Pégalo en Supabase → Authentication → Add user.'))
-    .catch(() => alert('No pude copiar. Selecciónalo y cópialo a mano:\n\n' + el.textContent.trim()));
-}
+/* 10-sep-2026 — se fue copiarCorreoEquipo: ya no hay que pegar nada en
+   Supabase. La cuenta se crea desde acá con la misma llave pública que usan los
+   clientes en play/ — crear una cuenta no da acceso a nada, porque quién es
+   quién lo dice la tabla `equipo`, que solo Joan publica con su clave. */
 
 function pintarAyudaRol() {
   const sel = document.getElementById('eqRol'), caja = document.getElementById('eqAyudaRol');
@@ -5319,66 +5510,242 @@ function guardarPersona(id) {
 }
 
 /* --------------------------------------------------------------------------
- * ASIGNAR CLIENTES
+ * REPARTIR — 10 de septiembre de 2026
  *
- * Las asignaciones SOLO SUMAN: reasignar no borra la anterior, escribe una
- * nueva con su fecha. Es lo que hace que la comisión de un cliente reasignado
- * le llegue al que correspondía EN ESA FECHA, y no al de ahora.
+ * Joan: «quiero que al momento de asignar cuentas yo pueda seleccionar todos
+ * los clientes, y que también exista la posibilidad de asignar potenciales
+ * clientes… segmentarlos, que no sean el mismo tipo de cliente». Y después:
+ * «quiero poder asignar al gerente y que el gerente sea quien asigne a los
+ * asesores… poder seleccionar la cantidad de clientes e incluso seleccionar los
+ * clientes y después a qué asesor asignar, pero que también esté la opción
+ * automática».
+ *
+ * DOS GRUPOS QUE NO SE MEZCLAN, y no es cosmética: a un CLIENTE se le cobra —ya
+ * tiene plata tuya en la calle— y a un POTENCIAL se le vende. Son dos trabajos
+ * con dos guiones distintos, y un asesor que los ve revueltos llama al que debe
+ * con el guion del que no ha pedido nada.
+ *
+ * LA CADENA: Joan reparte al gerente, el gerente reparte a sus asesores. Por eso
+ * el destino incluye a los dos, separados por su papel, y por eso «automático»
+ * reparte entre los que se marquen y no entre todo el mundo.
+ *
+ * TRES MANERAS, porque tres cosas distintas se hacen distinto:
+ *   · los que marque      — para elegir a dedo
+ *   · los primeros N      — para soltar un lote sin ir marcando 300 casillas
+ *   · automático          — para repartir por turnos entre varios
+ *
+ * LA SELECCIÓN OPERA SOBRE LA LISTA ENTERA, no sobre lo que cabe en pantalla.
+ * Con 697 prospectos, pintar 697 filas con casilla deja el navegador pensando
+ * en cada clic; se pintan las primeras y «seleccionar todos» marca LOS 697. Un
+ * «todos» que solo cubriera lo visible sería la peor clase de mentira: la que
+ * se descubre cuando ya repartiste.
  * ------------------------------------------------------------------------ */
-function pantallaAsignar() {
-  const asesores = equipo().filter(p => p.rol === 'asesor' && p.estado !== 'retirado');
-  if (!asesores.length) return alert('Primero crea al menos un asesor.');
-  const sinDuenio = DB.socios.filter(s => !COMIS.asesorDe(asignaciones(), s.id, hoyISO()));
-  openModal('Repartir clientes', `
-    <p class="sub">Hay <b>${sinDuenio.length}</b> clientes sin asesor, de ${DB.socios.length}.</p>
-    <div class="sub-h">Repartir automáticamente</div>
-    <p class="ayuda">Reparte los que no tienen asesor, en orden y por turnos. No toca a los que ya tienen
-      uno: quitarle un cliente a alguien es una decisión, no un efecto secundario.</p>
-    <div class="field"><label>Entre quiénes</label>
-      <div id="eqReparto">${asesores.map(a =>
-        `<label class="permiso"><input type="checkbox" class="repAsesor" value="${escHTML(a.id)}" checked><span>${escHTML(a.nombre)}</span></label>`).join('')}</div></div>
-    <button class="btn btn-negro" onclick="repartirAuto()" ${sinDuenio.length ? '' : 'disabled'}>
-      Repartir los ${sinDuenio.length} sin asesor</button>
-    <div class="sub-h">O uno por uno</div>
-    <div class="field"><label>Cliente</label>
-      <select id="eqSocio">${DB.socios.map(s => {
-        const a = COMIS.asesorDe(asignaciones(), s.id, hoyISO());
-        const p = a ? personaDeEquipo(a) : null;
-        return `<option value="${escHTML(s.id)}">${escHTML(codCliente(s))} ${escHTML(s.nombre)}${p ? ' — hoy: ' + escHTML(p.nombre) : ' — sin asesor'}</option>`;
-      }).join('')}</select></div>
-    <div class="field"><label>Pasa a</label>
-      <select id="eqDestino">${asesores.map(a => `<option value="${escHTML(a.id)}">${escHTML(a.nombre)}</option>`).join('')}</select></div>
-    <button class="btn btn-ghost" onclick="asignarUno()">Asignar</button>`);
+let _grupoAsignar='clientes';
+let _asignables=[];           // la lista COMPLETA del grupo, no la pintada
+let _modoAsignar='marcados';
+let _todosMarcados=false;     // «seleccionar todos» alcanza a los no pintados
+const TOPE_PINTADO=300;
+
+/* Se reparte a gerentes y a asesores. No se exige celular: el celular hace
+   falta para crearle la cuenta, no para que le pertenezca un cliente. */
+function personasDestino(){ return equipo().filter(p=>p.estado!=='retirado'); }
+
+function pantallaAsignar(grupo){
+  const destinos=personasDestino();
+  if(!destinos.length) return alert('Primero crea al menos una persona en la pestaña Equipo.');
+  _grupoAsignar=grupo||_grupoAsignar||'clientes';
+  _modoAsignar='marcados'; _todosMarcados=false;
+  const g=_grupoAsignar, hoy=hoyISO();
+
+  _asignables=(g==='clientes'?DB.socios:prospectos()).map(x=>({
+    id:String(x.id),
+    nombre:x.nombre||'Sin nombre',
+    sub:g==='clientes'?codCliente(x):(x.celular||''),
+    etapa:ETAPAS?ETAPAS.etapaDe(
+      g==='clientes'?{tipo:'socio',id:x.id}:{tipo:'prospecto',estado:x.estado},
+      DB,hoy):'',
+    asesor:COMIS.asesorDe(asignaciones(),x.id,hoy)
+  }));
+  const libres=_asignables.filter(f=>!f.asesor).length;
+  const pintadas=_asignables.slice(0,TOPE_PINTADO);
+
+  openModal('Repartir',`
+    <div class="two" style="margin-bottom:14px">
+      <button class="btn ${g==='clientes'?'btn-negro':'btn-ghost'}" onclick="pantallaAsignar('clientes')">
+        🧑‍🤝‍🧑 Clientes (${DB.socios.length})</button>
+      <button class="btn ${g==='potenciales'?'btn-negro':'btn-ghost'}" onclick="pantallaAsignar('potenciales')">
+        📇 Potenciales (${prospectos().length})</button>
+    </div>
+    <p class="sub">${g==='clientes'
+      ? 'Gente a la que ya le prestaste. El asesor <b>cobra</b>.'
+      : 'Gente de las bases que cargaste, que todavía no ha pedido nada. El asesor <b>vende</b>.'}
+      Hay <b>${libres}</b> sin asesor de ${_asignables.length}.</p>
+
+    <div class="sub-h">Cómo reparto</div>
+    <label class="permiso"><input type="radio" name="asModo" value="marcados" checked
+      onchange="cambiarModoAsignar('marcados')"><span><b>Los que yo marque</b> en la lista de abajo</span></label>
+    <label class="permiso"><input type="radio" name="asModo" value="primeros"
+      onchange="cambiarModoAsignar('primeros')"><span><b>Los primeros</b>
+      <input id="asCuantos" type="number" min="1" max="${Math.max(1,libres)}" value="${Math.min(50,libres)||1}"
+        style="width:90px;display:inline-block;margin:0 6px" onclick="event.stopPropagation()"> sin asesor
+      <div class="muted">Para soltar un lote sin marcar trescientas casillas.</div></span></label>
+    <label class="permiso"><input type="radio" name="asModo" value="auto"
+      onchange="cambiarModoAsignar('auto')"><span><b>Automático</b>: repartir los ${libres} sin asesor
+      entre varios, por turnos
+      <div class="muted">En orden y sin azar, para que se pueda reproducir el día que alguien reclame.</div></span></label>
+
+    <div id="asDestinoCaja"></div>
+
+    <div id="asLista">
+      <div class="fila" style="border:0;padding-top:12px">
+        <span class="k">
+          <button class="btn btn-ghost btn-sm" onclick="marcarTodos(true)">Seleccionar los ${_asignables.length}</button>
+          <button class="btn btn-ghost btn-sm" onclick="marcarTodos(false)">Ninguno</button>
+          ${libres?`<button class="btn btn-ghost btn-sm" onclick="marcarSinAsesor()">Solo los ${libres} sin asesor</button>`:''}
+        </span>
+        <span class="vv"><b id="asCuenta">0</b> marcados</span></div>
+
+      <div style="max-height:38vh;overflow:auto;border:1px solid var(--linea);border-radius:12px;margin-top:8px">
+      ${pintadas.length?`<table><thead><tr><th style="width:34px"></th><th>Quién</th><th>Etapa</th><th>Asesor de hoy</th></tr></thead>
+        <tbody>${pintadas.map(f=>{
+          const per=f.asesor?personaDeEquipo(f.asesor):null;
+          return `<tr><td><input type="checkbox" class="asChk" value="${escHTML(f.id)}"
+              ${f.asesor?'':'data-libre="1"'} onchange="contarMarcados()"></td>
+            <td><b>${escHTML(f.nombre)}</b><div class="muted mono">${escHTML(f.sub)}</div></td>
+            <td>${etiquetaEtapa(f.etapa)}</td>
+            <td>${per?escHTML(per.nombre):'<span class="muted">sin asesor</span>'}</td></tr>`;
+        }).join('')}</tbody></table>
+        ${_asignables.length>pintadas.length
+          ? `<div class="muted" style="padding:10px 14px">Se pintan ${pintadas.length} de ${_asignables.length}
+             para que el Panel no se ponga lento. <b>«Seleccionar los ${_asignables.length}» los marca todos</b>,
+             se vean o no.</div>`:''}`
+        : `<div class="muted" style="padding:16px">${g==='clientes'
+            ? 'Todavía no tienes clientes.':'Todavía no has cargado ninguna base.'}</div>`}
+      </div>
+    </div>
+
+    <div class="aviso ambar" style="margin-top:12px">Si repartes a alguien que ya tiene asesor, <b>cambia de
+      dueño de hoy en adelante</b>. Lo que ya se ganó no se mueve: las comisiones viejas siguen siendo de
+      quien las ganó.</div>
+
+    <button class="btn btn-rojo" style="margin-top:14px" onclick="asignarMarcados()">Asignar</button>`);
+  pintarDestinos();
+  contarMarcados();
 }
-function asignarUno() {
-  const socio = gv('eqSocio'), asesor = gv('eqDestino');
-  if (!socio || !asesor) return;
-  const actual = COMIS.asesorDe(asignaciones(), socio, hoyISO());
-  if (actual === asesor) return alert('Ya es suyo.');
-  if (actual) {
-    const antes = personaDeEquipo(actual), ahora = personaDeEquipo(asesor);
-    if (!confirm('Este cliente hoy es de ' + (antes ? antes.nombre : 'otro asesor') + '.\n\n' +
-      'Al pasarlo a ' + (ahora ? ahora.nombre : 'otro') + ', lo que ya se ganó NO se mueve: las comisiones ' +
-      'viejas siguen siendo de quien las ganó. De acá en adelante cobra el nuevo.\n\n¿Sigo?')) return;
+
+/* El destino cambia de forma según el modo: uno solo, o varios entre los que se
+   reparte por turnos. Se pinta aparte para que cambiar de modo no vuelva a
+   armar la lista de 697. */
+function pintarDestinos(){
+  const caja=document.getElementById('asDestinoCaja'); if(!caja)return;
+  const gente=personasDestino();
+  const ger=gente.filter(p=>p.rol==='gerente'), ase=gente.filter(p=>p.rol==='asesor');
+  const otros=gente.filter(p=>p.rol!=='gerente'&&p.rol!=='asesor');
+  if(_modoAsignar==='auto'){
+    caja.innerHTML=`<div class="sub-h">Entre quiénes reparto</div>
+      ${[...ger,...ase,...otros].map(p=>
+        `<label class="permiso"><input type="checkbox" class="asDest" value="${escHTML(p.id)}"
+          ${p.rol==='asesor'?'checked':''}><span>${p.rol==='gerente'?'🧭':'🚶'}
+          ${escHTML(p.nombre)} <span class="muted">${escHTML(p.rol||'')}</span></span></label>`).join('')}`;
+  }else{
+    const grupo=(t,l)=>l.length?`<optgroup label="${t}">${l.map(p=>
+      `<option value="${escHTML(p.id)}">${escHTML(p.nombre)}</option>`).join('')}</optgroup>`:'';
+    caja.innerHTML=`<div class="field" style="margin-top:14px"><label>Se los asigno a</label>
+      <select id="asDestino">${grupo('🧭 Gerentes',ger)}${grupo('🚶 Asesores',ase)}${grupo('Otros',otros)}</select>
+      <div class="help">Puedes asignárselos a un <b>gerente</b> para que él los reparta entre sus asesores.</div></div>`;
   }
-  asignaciones().push({ id: 'A' + Date.now(), socio_id: String(socio), asesor_id: String(asesor), desde: hoyISO() });
-  guardar(); cerrarModal(); render();
 }
-function repartirAuto() {
-  const elegidos = [...document.querySelectorAll('.repAsesor')].filter(x => x.checked).map(x => x.value);
-  if (!elegidos.length) return alert('Elige al menos un asesor.');
-  const sin = DB.socios.filter(s => !COMIS.asesorDe(asignaciones(), s.id, hoyISO()));
-  if (!sin.length) return alert('No hay clientes sin asesor.');
-  if (!confirm('Voy a repartir ' + sin.length + ' clientes entre ' + elegidos.length + ' asesores.\n\n' +
-    'A los que ya tienen asesor no los toco.\n\n¿Sigo?')) return;
-  /* Por turnos y en orden de número de cliente: sin azar, para que el reparto
-     se pueda reproducir el día que alguien reclame que le tocaban otros. */
-  sin.sort((a, b) => num(a.numero) - num(b.numero)).forEach((s, i) => {
-    asignaciones().push({ id: 'A' + Date.now() + '-' + i, socio_id: String(s.id),
-                          asesor_id: elegidos[i % elegidos.length], desde: hoyISO() });
+
+function cambiarModoAsignar(m){
+  _modoAsignar=m;
+  const lista=document.getElementById('asLista');
+  if(lista) lista.style.display=(m==='marcados')?'':'none';
+  pintarDestinos();
+}
+
+function marcarTodos(v){
+  _todosMarcados=!!v;
+  document.querySelectorAll('.asChk').forEach(c=>{ c.checked=!!v; });
+  contarMarcados();
+}
+function marcarSinAsesor(){
+  _todosMarcados=false;
+  document.querySelectorAll('.asChk').forEach(c=>{ c.checked=c.dataset.libre==='1'; });
+  contarMarcados();
+}
+function contarMarcados(){
+  const e=document.getElementById('asCuenta'); if(!e)return;
+  e.textContent=_todosMarcados?_asignables.length
+    :[...document.querySelectorAll('.asChk')].filter(c=>c.checked).length;
+}
+
+/* Los ids que de verdad se van a repartir, según el modo. UNA sola función: si
+   cada modo armara su lista por su lado, el aviso de confirmación y lo que se
+   escribe podrían separarse, y el aviso es lo único que Joan alcanza a leer. */
+function idsAAsignar(){
+  if(_modoAsignar==='primeros'){
+    const n=Math.max(1,Number(gv('asCuantos'))||1);
+    return _asignables.filter(f=>!f.asesor).slice(0,n).map(f=>f.id);
+  }
+  if(_modoAsignar==='auto') return _asignables.filter(f=>!f.asesor).map(f=>f.id);
+  if(_todosMarcados) return _asignables.map(f=>f.id);
+  return [...document.querySelectorAll('.asChk')].filter(c=>c.checked).map(c=>c.value);
+}
+
+function asignarMarcados(){
+  const ids=idsAAsignar();
+  if(!ids.length) return alert('No hay a quién asignar.');
+  const hoy=hoyISO(), sello=Date.now();
+
+  let destinos;
+  if(_modoAsignar==='auto'){
+    destinos=[...document.querySelectorAll('.asDest')].filter(c=>c.checked).map(c=>c.value);
+    if(!destinos.length) return alert('Marca entre quiénes reparto.');
+  }else{
+    const d=gv('asDestino');
+    if(!d) return alert('Elige a quién se los asignas.');
+    destinos=[d];
+  }
+  const nombres=destinos.map(d=>(personaDeEquipo(d)||{}).nombre).filter(Boolean);
+  if(!nombres.length) return alert('Elige a quién se los asignas.');
+
+  /* Los que YA tienen otro dueño se cuentan aparte y se avisan POR SU NOMBRE:
+     quitarle clientes a alguien es una decisión, no un efecto secundario de
+     haber apretado «seleccionar todos». */
+  const cambian={};
+  let nuevos=0, yaSuyos=0;
+  ids.forEach(id=>{
+    const a=COMIS.asesorDe(asignaciones(),id,hoy);
+    if(!a){ nuevos++; return; }
+    if(destinos.length===1&&a===destinos[0]){ yaSuyos++; return; }
+    const p2=personaDeEquipo(a);
+    const n=p2?p2.nombre:'otro';
+    cambian[n]=(cambian[n]||0)+1;
   });
+
+  let aviso='Voy a repartir '+ids.length+' '+
+    (_grupoAsignar==='clientes'?'clientes':'potenciales')+' entre: '+nombres.join(', ')+
+    '\n\n· '+nuevos+' no tenían asesor';
+  const quitados=Object.keys(cambian);
+  if(quitados.length){
+    aviso+='\n· '+quitados.reduce((t,k)=>t+cambian[k],0)+' CAMBIAN de dueño: '+
+      quitados.map(k=>k+' ('+cambian[k]+')').join(', ');
+  }
+  if(yaSuyos) aviso+='\n· '+yaSuyos+' ya eran suyos (no cambia nada)';
+  aviso+='\n\nLas comisiones ya ganadas NO se mueven.\n\n¿Sigo?';
+  if(!confirm(aviso)) return;
+
+  let n=0;
+  ids.forEach((id,i)=>{
+    const destino=destinos[i%destinos.length];
+    if(COMIS.asesorDe(asignaciones(),id,hoy)===destino) return;
+    asignaciones().push({id:'A'+sello+'-'+i,socio_id:String(id),
+                         asesor_id:String(destino),desde:hoy});
+    n++;
+  });
+  _todosMarcados=false;
   guardar(); cerrarModal(); render();
-  alert('Listo: ' + sin.length + ' clientes repartidos.');
+  alert('Listo: '+n+' repartidos.\n\nAcuérdate de «☁ Publicar a la nube» para que los vean.');
 }
 
 /* --------------------------------------------------------------------------
@@ -5701,31 +6068,6 @@ function marcarRegistro(id,estado){
   renderRegistros();
   if(sbListo()) rpc('marcar_registro',{p_clave:sbCfg().clave,p_id:Number(id),p_estado:estado}).catch(()=>{});
 }
-function renderInvitaciones(){
-  const inv=DB.invitaciones||[];
-  const n=e=>inv.filter(i=>i.estado===e).length;
-  document.getElementById('kpiInv').innerHTML=`
-    <div class="kpi"><div class="et">🎟️ Sin usar</div><div class="nm">${n('nueva')}</div><div class="x">listos para mandar</div></div>
-    <div class="kpi gan"><div class="et">✓ Usadas</div><div class="nm">${n('usada')}</div><div class="x">clientes que entraron con código</div></div>
-    <div class="kpi ${n('anulada')?'alert':''}"><div class="et">✕ Anuladas</div><div class="nm">${n('anulada')}</div><div class="x">ya no sirven</div></div>`;
-  const c=document.getElementById('tblInv');
-  if(!inv.length){ c.innerHTML=`<div class="empty"><div class="ic">🎟️</div><p>Todavía no has creado códigos.<br><span class="muted">Toca “＋ Crear códigos” y mándaselos por WhatsApp a quien quieras invitar.</span></p></div>`; return; }
-  const orden={nueva:0,usada:1,anulada:2};
-  c.innerHTML=`<table><thead><tr><th>Código</th><th>Nota</th><th>Creado</th><th>Estado</th><th>Usado por</th><th></th></tr></thead><tbody>${
-    inv.slice().sort((a,b)=>orden[a.estado]-orden[b.estado]||String(b.creadaEn).localeCompare(String(a.creadaEn)))
-    .map(i=>`<tr><td class="cod">${escHTML(i.codigo)}${(sbListo()&&i.estado==='nueva'&&i.enNube===false)
-        ?'<div class="muted" style="color:var(--ambar);font-weight:400;letter-spacing:0;font-size:11.5px">solo en este equipo · no lo puede canjear</div>':''}</td>
-      <td>${escHTML(i.nota||'—')}${i.enviadaEn?`<div class="muted">enviado ${fmtFecha(i.enviadaEn)}</div>`:''}</td>
-      <td>${fmtFecha(i.creadaEn)}</td>
-      <td><span class="chip ${CHIP_INV[i.estado]}">${ESTADO_TXT_INV[i.estado]}</span></td>
-      <td>${i.usadaPorNombre?escHTML(i.usadaPorNombre)+`<div class="muted">${fmtFecha(i.usadaEn)}</div>`:'<span class="muted">—</span>'}</td>
-      <td style="text-align:right">${i.estado==='nueva'
-        ? `<button class="btn btn-wa btn-sm" onclick="mandarInvitacion('${i.codigo}')">📲 WA</button>
-           <button class="btn btn-ghost btn-sm" onclick="copiarTexto('${i.codigo}')">Copiar</button>
-           <button class="btn btn-ghost btn-sm" onclick="anularInvitacion('${i.codigo}')" title="Que deje de servir">✕</button>`
-        : `<button class="btn btn-ghost btn-sm" onclick="copiarTexto('${i.codigo}')">Copiar</button>`}</td></tr>`).join('')}</tbody></table>`;
-}
-
 /* =======================================================================
    PRÉSTAMOS CON GARANTÍA
    El producto nuevo: 5% mensual plano, de 1 a 6 meses, y se presta uno a uno
@@ -6464,7 +6806,6 @@ modal.addEventListener('click',e=>{ if(e.target===modal)cerrarModal(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&modal.classList.contains('on'))cerrarModal(); });
 function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
   if(v==='cfg')pintarCfg(); if(v==='plantillas')renderPlantillas(); if(v==='cal')renderCalendario();
-  if(v==='inv')renderInvitaciones();
   if(v==='equipo')renderEquipo();
   if(v==='bases')renderBases();
   /* Registrados trae de la nube SOLO al entrar a la pestaña, no en cada

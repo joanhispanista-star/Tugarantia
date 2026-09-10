@@ -154,7 +154,11 @@
 /* v33 — 10-sep-2026. Nace panel/equipo.html: la app del gerente y del asesor,
    con las etapas PC/CR/CA/D-3..D0/M1A/M1B/M1-2. Entran tambien etapas.js,
    comisiones.js y bases.js, que el CRM ya carga. */
-const CACHE = 'tugarantia-v33';
+/* v34 - 10-sep-2026. Se va la pestana Invitaciones del CRM (ya nadie
+   necesita un codigo para entrar: se registran solos) y cambia la pantalla de
+   repartir: destino gerente O asesor, por cantidad o automatico por turnos.
+   Toca panel/crm.html. */
+const CACHE = 'tugarantia-v34';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
