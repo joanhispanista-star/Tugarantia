@@ -66,3 +66,9 @@ direccion/
 # Las auditorias listan defectos VIVOS de una app que presta plata real, y
 # este repositorio es publico. Se quedan en la carpeta, como las recetas.
 AUDITORIA-*.md
+
+# La pagina para pegar en Supabase. Lleva dentro una migracion SIN CORRER, que
+# es el mapa de un hueco todavia abierto: misma razon que RECETA-* y AUDITORIA-*.
+# Ademas es de esta maquina, no del producto — publicada en tugarantia.net seria
+# una pagina con SQL del proyecto colgando en internet.
+PEGAR-*.html
