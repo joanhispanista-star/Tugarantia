@@ -8918,6 +8918,54 @@ describe('ninguna pantalla llama a una función que la migración tiró (11-ago-
       '\nQuítales la línea stable.');
   });
 
+  /* 10-sep-2026 — QUIÉN SOY SE COMPRUEBA CON UNA EXPRESIÓN ANCLADA, NO CON LIKE.
+     celular_de_sesion() es el ÚNICO sitio donde este sistema decide quién eres:
+     de ahí salen el rol, la cartera, las solicitudes y las fotos de la cédula.
+     Del 8 al 10 de septiembre comprobaba el correo así:
+
+         if correo not like '57%@tugarantia.net' then return null; end if;
+         return substring(solo_digitos(split_part(correo,'@',1)) from 3);
+
+     El % de LIKE acepta cualquier cantidad de caracteres y el substring solo
+     quitaba dos, así que con las demás funciones haciendo right(cel,10):
+
+         570003172862539@tugarantia.net  ->  3172862539
+
+     ...el celular de otra persona. Y crear esa cuenta no costaba nada:
+     /auth/v1/signup está abierto con la llave pública (tiene que estarlo, es
+     como se registran los clientes) y el proyecto tiene la confirmación por
+     correo apagada. Cualquiera que supiera un celular pasaba por esa persona:
+     su cartera, su solicitud, y las fotos de su cédula.
+
+     Lo encontró un agente al que se le pidió ROMPER un diseño, no revisarlo. */
+  test('celular_de_sesion exige el correo EXACTO, no un LIKE con comodín', () => {
+    const archivos = fs.readdirSync(path.join(__dirname, '..', 'base'))
+      .filter(f => /\.sql$/.test(f));
+    let vistas = 0;
+    archivos.forEach(f => {
+      /* SIN COMENTARIOS: el propio arreglo lleva escrito arriba el LIKE viejo
+         para explicar el agujero, y un centinela que lee prosa se caza a si
+         mismo. Ya paso hoy con la comprobacion de la migracion. */
+      const t = leer('base/' + f);
+      let i = t.indexOf('create or replace function public.celular_de_sesion');
+      while (i >= 0) {
+        const cuerpo = t.slice(i, i + 1400);
+        vistas++;
+        assert.ok(!/not\s+like\s+'57%/.test(cuerpo),
+          'base/' + f + ': celular_de_sesion comprueba el correo con LIKE. El % acepta ' +
+          'cualquier cosa, y con right(cel,10) más abajo eso deja que ' +
+          '570003172862539@tugarantia.net se vuelva el celular 3172862539.');
+        assert.match(cuerpo, /\^57\[0-9\]\{10\}@tugarantia/,
+          'base/' + f + ': celular_de_sesion no exige 57 + diez dígitos exactos');
+        assert.match(cuerpo, /net\$/,
+          'base/' + f + ': la expresión no está anclada al final, así que ' +
+          '57xxxxxxxxxx@tugarantia.net.otracosa.com también pasaría');
+        i = t.indexOf('create or replace function public.celular_de_sesion', i + 1);
+      }
+    });
+    assert.ok(vistas >= 2, 'el barrido no encontró celular_de_sesion: no está midiendo nada');
+  });
+
   test('nadie sigue mandando p_tel4: esa puerta se cerró', () => {
     ['app/socio.html', 'panel/crm.html'].forEach(f =>
       assert.ok(leer(f).indexOf('p_tel4') === -1,

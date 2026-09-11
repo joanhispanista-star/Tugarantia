@@ -104,11 +104,18 @@ set search_path = public
 as $$
 declare correo text;
 begin
-  correo := coalesce(auth.jwt() ->> 'email', '');
-  if correo not like '57%@tugarantia.net' then
+  correo := lower(btrim(coalesce(auth.jwt() ->> 'email', '')));
+  /* EXACTAMENTE 57 + diez digitos + el dominio, anclado a los dos extremos.
+     Con «not like '57%@tugarantia.net'» —como estuvo del 8 al 10 de septiembre—
+     el % aceptaba cualquier cantidad de caracteres, y como el substring solo
+     quitaba dos y las demas funciones hacen right(cel,10), el correo
+     570003172862539@tugarantia.net se convertia en el celular 3172862539:
+     el de OTRA persona. Con la cuenta creada por /auth/v1/signup, que esta
+     abierto con la llave publica, cualquiera pasaba por cualquiera. */
+  if correo !~ '^57[0-9]{10}@tugarantia\.net$' then
     return null;
   end if;
-  return substring(public.solo_digitos(split_part(correo, '@', 1)) from 3);
+  return substring(correo from 3 for 10);
 end
 $$;
 
