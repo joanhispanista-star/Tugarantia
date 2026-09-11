@@ -4090,6 +4090,19 @@ function rpc(fn,cuerpo){
   .catch(e=>{ throw (e&&e.motivo)?e:{motivo:'No hubo conexión con la nube. Revisa el internet y vuelve a intentar.'}; });
 }
 function errNube(e){ return (e&&e.motivo)||'No pude hablar con la nube.'; }
+/* GUARDAR Y PINTAR, SIN QUE PINTAR CONTAMINE AL QUE TRAJO.
+   Lo traído ya está en el disco cuando esto corre: si el repintado revienta, el
+   dato NO se perdió, y decir «no pude hablar con la nube» sería mentir sobre lo
+   que pasó y sobre lo que hay que hacer. Se dice lo que es y se sigue. */
+function guardarYPintar(){
+  guardar();
+  try { render(); }
+  catch(e){
+    console.error('render() falló después de traer:', e);
+    alert('Traje los datos y quedaron guardados, pero no pude repintar la pantalla.\n\n' +
+      'Recarga la página (Ctrl+Shift+R) y vas a verlos.\n\nDetalle: ' + ((e&&e.message)||e));
+  }
+}
 function guardarSupabase(){
   const c={url:gv('cfgSbUrl').replace(/\/+$/,''),anon:gv('cfgSbAnon'),clave:document.getElementById('cfgSbClave').value};
   localStorage.setItem(SB_KEY,JSON.stringify(c)); pintarCfg();
@@ -5138,6 +5151,7 @@ function modoEquipo() {
       <div class="sep"></div>
       <div style="padding:10px 14px;font-size:11.5px;line-height:1.5;opacity:.6">
         Solo ves lo que te asignaron. Lo decide el servidor, no esta pantalla.</div>
+      <button class="navbtn" onclick="miWhatsappEq()"><span class="ic">📲</span> Mi WhatsApp</button>
       <button class="navbtn" style="margin-top:auto" onclick="location.reload()"><span class="ic">🚪</span> Salir</button>`;
   }
   irEquipo('tablero');
@@ -5174,12 +5188,76 @@ function filaPersonaEq(p) {
           g.nota ? '<div>«' + escHTML(g.nota) + '»</div>' : ''}</div>`
         : `<div class="muted">${escHTML(queHacerEtapa(p.etapa))}</div>`}</span>
     <span class="vv">${etiquetaEtapa(p.etapa)}
-      ${p.celular ? `<a class="btn btn-wa btn-sm" style="margin-left:8px" target="_blank" rel="noopener"
-        href="${escHTML(waLink(p.celular, 'Hola ' + primero + ' 🙂'))}">📲</a>` : ''}
+      ${p.celular ? `<button class="btn btn-wa btn-sm" style="margin-left:8px"
+        onclick="contactarEq('${escHTML(String(p.id))}','${escHTML(p.celular)}','${escHTML(primero)}')"
+        title="Escribirle por WhatsApp">📲</button>` : ''}
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
         onclick="anotarGestionEq('${escHTML(String(p.id))}')" title="Anotar qué pasó">✎</button>
-      ${g ? `<button class="btn btn-ghost btn-sm" style="margin-left:6px"
-        onclick="verGestionesEq('${escHTML(String(p.id))}')" title="Ver la historia">🕘</button>` : ''}</span></div>`;
+      <button class="btn btn-ghost btn-sm" style="margin-left:6px"
+        onclick="verHistoriaEq('${escHTML(String(p.id))}')" title="Ver la historia">🕘</button></span></div>`;
+}
+
+/* --------------------------------------------------------------------------
+ * EL WHATSAPP QUE SÍ SE PUEDE REGISTRAR
+ *
+ * Joan pidió «ver el registro de las conversaciones con los clientes, para
+ * tener un control de calidad». Hay que decirlo claro, y está dicho también en
+ * la pantalla: LAS CONVERSACIONES DE WHATSAPP NO SE PUEDEN LEER. WhatsApp no lo
+ * permite, y las librerías que lo simulan hacen que Meta banee el número — el
+ * mismo número por el que Joan le habla a todos sus clientes.
+ *
+ * Lo que sí queda, y para control de calidad sirve: EL HECHO del contacto.
+ * Quién abrió WhatsApp con quién, cuándo, y con qué texto salió — porque ese
+ * texto lo arma este CRM antes de entregárselo a WhatsApp. Con doscientos
+ * clientes por asesor, eso ya destapa al que no está llamando.
+ *
+ * Se anota ANTES de abrir la ventana: si se anotara después, el asesor podría
+ * abrir WhatsApp y cerrar la pestaña antes de que la nube conteste, y el
+ * contacto no quedaría. Y si la nube falla, se abre igual — el trabajo primero.
+ * ------------------------------------------------------------------------ */
+function contactarEq(id, celular, primero) {
+  const texto = 'Hola ' + primero + ' 🙂';
+  const abrir = () => window.open(waLink(celular, texto), '_blank', 'noopener');
+  rpcEquipo('contacto_anotar', { p_persona_id: String(id), p_canal: 'whatsapp', p_texto: texto })
+    .then(abrir, abrir);
+}
+
+/* La historia de una persona: las gestiones que el asesor escribió Y los
+   contactos que abrió, en una sola línea de tiempo. Separadas engañan —
+   «tres contactos y una gestión» solo se ve cuando están juntas. */
+function verHistoriaEq(id) {
+  const p = genteEquipo().find(x => String(x.id) === String(id));
+  openModal('Historia de ' + ((p && p.nombre) || 'esta persona'),
+    '<div class="muted" style="padding:10px 0">Buscando…</div>');
+  Promise.all([
+    rpcEquipo('gestiones_de', { p_persona_id: String(id) }).catch(e => ({ fallo: e })),
+    rpcEquipo('contactos_de', { p_persona_id: String(id) }).catch(e => ({ fallo: e }))
+  ]).then(([g, c]) => {
+    const caja = document.getElementById('mBody'); if (!caja) return;
+    if (g.fallo && c.fallo) {
+      caja.innerHTML = esFinDeSesion(g.fallo)
+        ? '<div class="alerta warn">Tu sesión se venció. Toca «Salir» y vuelve a entrar.</div>'
+        : '<div class="alerta warn">No pude traer la historia.<div class="muted">Eso <b>no</b> quiere decir que no haya: quiere decir que no pude preguntarla.</div></div>';
+      return;
+    }
+    const hechos = []
+      .concat(((g.j && g.j.ok && g.j.gestiones) || []).map(x => ({ t: 'g', cuando: x.cuando, x })))
+      .concat(((c.j && c.j.ok && c.j.contactos) || []).map(x => ({ t: 'c', cuando: x.cuando, x })))
+      .sort((a, b) => String(b.cuando).localeCompare(String(a.cuando)));
+    const CANAL = { whatsapp: '📲 WhatsApp', llamada: '📞 Llamada', sms: '✉️ SMS', app: '💬 App' };
+    caja.innerHTML = (hechos.length
+      ? hechos.map(h => h.t === 'g'
+        ? `<div class="info-row"><span class="k">${etiquetaGestion(h.x)}
+            <div class="muted">${escHTML(h.x.quien || '')} · ${escHTML(haceCuanto(h.x.cuando))}</div>
+            ${h.x.nota ? '<div>«' + escHTML(h.x.nota) + '»</div>' : ''}</span></div>`
+        : `<div class="info-row"><span class="k"><span class="chip">${escHTML(CANAL[h.x.canal] || h.x.canal)}</span>
+            <div class="muted">${escHTML(h.x.quien || '')} · ${escHTML(haceCuanto(h.x.cuando))} · le escribió</div>
+            ${h.x.texto ? '<div class="muted">«' + escHTML(h.x.texto) + '»</div>' : ''}</span></div>`).join('')
+      : '<div class="muted" style="padding:10px 0">Todavía no hay nada anotado.</div>')
+      + `<div class="muted" style="font-size:12px;margin-top:14px;line-height:1.5">
+          Acá queda <b>que se contactó</b>, no lo que se conversó: WhatsApp no
+          deja leer los chats de nadie, ni a ti ni a mí.</div>`;
+  });
 }
 
 /* --------------------------------------------------------------------------
@@ -5256,33 +5334,9 @@ function refrescarCarteraEq() {
     });
 }
 
-function verGestionesEq(id) {
-  const p = genteEquipo().find(x => String(x.id) === String(id));
-  openModal('Historia de ' + ((p && p.nombre) || 'esta persona'),
-    '<div class="muted" style="padding:10px 0">Buscando…</div>');
-  rpcEquipo('gestiones_de', { p_persona_id: String(id) })
-    .then(res => {
-      /* «Todavía no hay gestiones» es un HECHO sobre el trabajo del asesor. Si
-         la nube no contestó, no se sabe, y decirlo igual es inventárselo. */
-      if (!res.ok || !res.j || res.j.ok !== true) {
-        document.getElementById('mBody').innerHTML = esFinDeSesion(null, res)
-          ? '<div class="alerta warn">Tu sesión se venció. Toca «Salir» y vuelve a entrar.</div>'
-          : '<div class="alerta warn">No pude traer la historia.<div class="muted">Eso <b>no</b> quiere decir que no haya gestiones: quiere decir que no pude preguntarlas.</div></div>';
-        return;
-      }
-      const gs = res.j.gestiones || [];
-      document.getElementById('mBody').innerHTML = gs.length
-        ? gs.map(g => `<div class="info-row"><span class="k">${etiquetaGestion(g)}
-            <div class="muted">${escHTML(g.quien || '')} · ${escHTML(haceCuanto(g.cuando))}</div>
-            ${g.nota ? '<div>«' + escHTML(g.nota) + '»</div>' : ''}</span></div>`).join('')
-        : '<div class="muted" style="padding:10px 0">Todavía no hay gestiones.</div>';
-    })
-    .catch(e => {
-      document.getElementById('mBody').innerHTML = esFinDeSesion(e)
-        ? '<div class="alerta warn">Tu sesión se venció. Toca «Salir» y vuelve a entrar.</div>'
-        : '<div class="alerta warn">No pude traer la historia. Revisa la señal.<div class="muted">Eso <b>no</b> quiere decir que no haya gestiones.</div></div>';
-    });
-}
+/* verGestionesEq se fue el 11-sep-2026: verHistoriaEq junta en una sola línea
+   de tiempo las gestiones y los contactos. Separadas engañaban — «tres veces le
+   escribí y ninguna anotación» solo se ve cuando están juntas. */
 
 function vistaTableroEquipo() {
   const g = genteEquipo();
@@ -5335,8 +5389,12 @@ function vistaBaseEquipo() {
 function vistaMiEquipo() {
   const g = genteEquipo(), eq = (CARTERA_EQUIPO.equipo || []);
   const urg = (ETAPAS && ETAPAS.URGENTES) || [];
+  const libres = g.filter(p => !p.asesor || p.asesor === (CARTERA_EQUIPO.yo || {}).celular).length;
   return `<div class="ph"><div><h1>Mi equipo<span class="dot">.</span></h1>
-      <div class="sub">Cómo va cada asesor con la base que le tocó</div></div></div>
+      <div class="sub">Cómo va cada asesor con la base que le tocó</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${libres ? `<button class="btn btn-ghost" onclick="repartirEq()">🔀 Repartir (${libres} sin asesor)</button>` : ''}
+        <button class="btn btn-rojo" onclick="crearAsesorEq()">＋ Crear asesor</button></div></div>
     <div class="card">${eq.length ? eq.map(a => {
       const suyos = g.filter(p => p.asesor === a.celular);
       const u = suyos.filter(p => urg.indexOf(p.etapa) >= 0).length;
@@ -5352,7 +5410,202 @@ function vistaMiEquipo() {
           <div class="muted">✎ ${tocados} gestionados · <b>${suyos.length - tocados}</b> sin tocar${
             ult ? ' · última ' + escHTML(haceCuanto(ult.gestion.cuando)) : ''}</div></span>
         <span class="vv">${u ? `<span class="chip mora">${u} urgentes</span>` : '<span class="chip al-dia">al día</span>'}</span></div>`;
-    }).join('') : '<div class="muted" style="padding:14px">Todavía no tienes asesores a cargo.</div>'}</div>`;
+    }).join('') : `<div class="empty"><div class="ic">🚶</div><p>Todavía no tienes asesores.<br>
+        <span class="muted">Toca «＋ Crear asesor» y créale la cuenta tú mismo.</span></p></div>`}</div>`;
+}
+
+/* --------------------------------------------------------------------------
+ * EL GERENTE CREA UN ASESOR
+ *
+ * Dos pasos, y en este orden a propósito:
+ *   1. asesor_crear en la nube — que es quien comprueba TODO (que quien pide
+ *      sea gerente, que el celular no esté ya, que no sea de un cliente). El
+ *      rol y el jefe no se mandan: los pone el servidor.
+ *   2. la cuenta de entrada, con el mismo /auth/v1/signup que usa Joan.
+ *
+ * Al revés se crearía una cuenta que después no puede tener puesto, y quedaría
+ * una cuenta huérfana en la nube por cada intento fallido.
+ * ------------------------------------------------------------------------ */
+function crearAsesorEq() {
+  openModal('Crear un asesor', `
+    <p class="sub">Va a reportarte a ti. La contraseña la pones tú y se la mandas por WhatsApp;
+      su usuario es su celular.</p>
+    <div class="field"><label>Nombre completo</label><input id="naNombre" autocapitalize="words"></div>
+    <div class="field"><label>Celular</label>
+      <input id="naTel" inputmode="numeric" placeholder="3001234567">
+      <div class="help">Diez dígitos, empieza por 3. Ese número <b>es</b> su usuario.</div></div>
+    <div class="field"><label>Contraseña</label>${campoConOjo('naClave', 'value="' + escHTML(claveSugerida()) + '"')}
+      <div class="help">Fácil de dictar por teléfono. Puedes cambiarla (mínimo 8).</div></div>
+    <div class="aviso" style="margin-top:12px">Va a ver <b>solo lo que le repartas</b>, y nada de lo tuyo
+      hasta que se lo des. Eso lo decide el servidor, no esta pantalla.</div>
+    <button class="btn btn-rojo" id="naBtn" style="margin-top:14px" onclick="confirmarCrearAsesorEq()">Crear</button>`);
+}
+
+function confirmarCrearAsesorEq() {
+  const U = window.CuentaSocio;
+  const nombre = gv('naNombre'), tel = U ? U.normalizarTelefono(gv('naTel')) : '';
+  const clave = (document.getElementById('naClave') || {}).value || '';
+  if (!nombre) return alert('Falta el nombre.');
+  if (!tel) return alert('Ese celular no me cuadra: son diez dígitos y empieza por 3.');
+  if (clave.trim().length < 8) return alert('La contraseña necesita al menos 8 caracteres.');
+  const btn = document.getElementById('naBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
+
+  rpcEquipo('asesor_crear', { p_celular: tel, p_nombre: nombre })
+    .then(res => {
+      if (!res.ok || !res.j || res.j.ok !== true) {
+        if (esFinDeSesion(null, res)) throw { sesion: true };
+        throw new Error((res.j && res.j.motivo) || 'la nube no lo aceptó');
+      }
+      /* El puesto ya existe. Ahora la cuenta con la que entra. */
+      return authEquipo('/signup', { email: U.correoDeTelefono(tel), password: clave.trim() });
+    })
+    .then(res => {
+      if (!res.ok) {
+        const ya = /registered|already/i.test(JSON.stringify(res.j || {}));
+        /* El puesto quedó creado; lo que falló es la contraseña. Se dice tal
+           cual, porque lo que hay que hacer es distinto en cada caso. */
+        throw new Error(ya
+          ? 'Ya existía una cuenta con ese celular. El puesto quedó creado, pero la contraseña ' +
+            'no la pude poner yo: pídele a Joan que se la cambie.'
+          : ((res.j && (res.j.msg || res.j.message)) || 'no pude crear la cuenta'));
+      }
+      cerrarModal();
+      return refrescarCarteraEq().then(() => entregarCuentaEq(nombre, tel, clave.trim()));
+    })
+    .catch(e => {
+      if (btn) { btn.disabled = false; btn.textContent = 'Crear'; }
+      if (esFinDeSesion(e)) return avisarFinDeSesion('El asesor no se creó. ');
+      alert('No pude crearlo: ' + (e.message || e));
+    });
+}
+
+function entregarCuentaEq(nombre, celular, clave) {
+  const msg = 'Hola ' + String(nombre).split(/\s+/)[0] + ', ya tienes tu acceso.\n\n' +
+    'Entra aquí: ' + ENLACE_PANEL + '\n' +
+    'Usuario: ' + celular + '\n' +
+    'Contraseña: ' + clave + '\n\n' +
+    'Guárdala. Si la pierdes, avísame y te pongo otra.';
+  openModal('Asesor creado', `
+    <div class="alerta ok"><b>${escHTML(nombre)}</b> ya puede entrar.</div>
+    <div class="sub-h">Lo que le tienes que mandar</div>
+    ${filaInfo('Entra en', ENLACE_PANEL)}
+    ${filaInfo('Usuario', celular)}
+    ${filaInfo('Contraseña', clave)}
+    <div class="aviso ambar" style="margin-top:14px"><b>Esta contraseña no se guarda en ningún lado.</b>
+      Mándasela ahora; si se pierde, hay que ponerle otra.</div>
+    <a class="btn btn-wa" style="margin-top:14px" target="_blank" rel="noopener"
+       href="${escHTML(waLink(celular, msg))}">📲 Mandársela por WhatsApp</a>
+    <button class="btn btn-ghost" style="margin-top:var(--e2)" onclick="cerrarModal()">Listo</button>
+    <div class="muted" style="font-size:12.5px;margin-top:12px">Todavía no ve nada:
+      repártele gente con «🔀 Repartir».</div>`);
+}
+
+/* --------------------------------------------------------------------------
+ * EL GERENTE REPARTE — solo entre los suyos, y solo gente suya
+ * ------------------------------------------------------------------------ */
+let _marcadosEq = {};
+function repartirEq() {
+  const yo = (CARTERA_EQUIPO.yo || {}).celular;
+  const eq = (CARTERA_EQUIPO.equipo || []).filter(x => x.rol === 'asesor');
+  if (!eq.length) return alert('Primero crea un asesor.');
+  const o = (ETAPAS && ETAPAS.ORDEN) || [];
+  const gente = genteEquipo().slice().sort((a, b) => o.indexOf(b.etapa) - o.indexOf(a.etapa));
+  _marcadosEq = {};
+  openModal('Repartir entre tus asesores', `
+    <div class="field"><label>Se los asigno a</label>
+      <select id="reDestino">${eq.map(a =>
+        `<option value="${escHTML(a.celular)}">${escHTML(a.nombre)}</option>`).join('')}</select></div>
+    <div class="fila" style="border:0">
+      <span class="k"><button class="btn btn-ghost btn-sm" onclick="marcarTodosEq(true)">Todos</button>
+        <button class="btn btn-ghost btn-sm" onclick="marcarTodosEq(false)">Ninguno</button>
+        <button class="btn btn-ghost btn-sm" onclick="marcarMiosEq()">Solo los míos</button></span>
+      <span class="vv"><b id="reCuenta">0</b> marcados</span></div>
+    <div style="max-height:42vh;overflow:auto;border:1px solid var(--linea);border-radius:12px;margin-top:8px">
+      ${gente.length ? gente.slice(0, 300).map(p => `<label class="permiso" style="margin:0;border-radius:0;border-width:0 0 1px 0">
+        <input type="checkbox" class="reChk" value="${escHTML(String(p.id))}"
+          ${p.asesor === yo ? 'data-mio="1"' : ''} onchange="contarEq()">
+        <span><b>${escHTML(p.nombre)}</b> ${etiquetaEtapa(p.etapa)}
+          <div class="muted">${p.asesor_nombre ? '🚶 ' + escHTML(p.asesor_nombre) : 'sin asesor'}</div></span></label>`).join('')
+        : '<div class="muted" style="padding:16px">Todavía no tienes a nadie en tu base.</div>'}
+      ${gente.length > 300 ? `<div class="muted" style="padding:10px 14px">Se pintan 300 de ${gente.length}.</div>` : ''}
+    </div>
+    <div class="aviso ambar" style="margin-top:12px">Lo que ya se ganó no se mueve: las comisiones viejas
+      siguen siendo de quien las ganó.</div>
+    <button class="btn btn-rojo" id="reBtn" style="margin-top:14px" onclick="confirmarRepartirEq()">Asignar</button>`);
+  contarEq();
+}
+function marcarTodosEq(v) { document.querySelectorAll('.reChk').forEach(c => { c.checked = !!v; }); contarEq(); }
+function marcarMiosEq() { document.querySelectorAll('.reChk').forEach(c => { c.checked = c.dataset.mio === '1'; }); contarEq(); }
+function contarEq() {
+  const e = document.getElementById('reCuenta'); if (!e) return;
+  e.textContent = [...document.querySelectorAll('.reChk')].filter(c => c.checked).length;
+}
+
+function confirmarRepartirEq() {
+  const ids = [...document.querySelectorAll('.reChk')].filter(c => c.checked).map(c => c.value);
+  if (!ids.length) return alert('No marcaste a nadie.');
+  const destino = gv('reDestino');
+  const per = (CARTERA_EQUIPO.equipo || []).find(x => x.celular === destino);
+  if (!per) return alert('Elige a quién se los asignas.');
+  if (!confirm('Le voy a asignar ' + ids.length + ' a ' + per.nombre + '.\n\n' +
+    'Las comisiones ya ganadas NO se mueven.\n\n¿Sigo?')) return;
+  const btn = document.getElementById('reBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Asignando…'; }
+  rpcEquipo('asignar_a', { p_personas: ids, p_asesor: destino })
+    .then(res => {
+      if (!res.ok || !res.j || res.j.ok !== true) {
+        if (esFinDeSesion(null, res)) throw { sesion: true };
+        throw new Error((res.j && res.j.motivo) || 'la nube no lo aceptó');
+      }
+      const r = res.j;
+      cerrarModal();
+      return refrescarCarteraEq().then(() => alert('Listo: ' + (r.repartidos || 0) + ' asignados a ' + per.nombre + '.' +
+        (r.fuera_de_tu_alcance ? '\n\n' + r.fuera_de_tu_alcance + ' no eran de tu equipo y no se movieron.' : '')));
+    })
+    .catch(e => {
+      if (btn) { btn.disabled = false; btn.textContent = 'Asignar'; }
+      if (esFinDeSesion(e)) return avisarFinDeSesion('No se asignó nada. ');
+      alert('No pude asignarlos: ' + (e.message || e));
+    });
+}
+
+/* --------------------------------------------------------------------------
+ * MI WHATSAPP DE TRABAJO
+ *
+ * Puede no ser el celular con el que entra: un asesor puede tener una línea
+ * aparte, y el cliente le contesta a esa.
+ * ------------------------------------------------------------------------ */
+function miWhatsappEq() {
+  const yo = CARTERA_EQUIPO.yo || {};
+  openModal('Mi WhatsApp de trabajo', `
+    <p class="sub">El número desde el que le escribes a los clientes. Si lo dejas vacío, se usa
+      el celular con el que entras.</p>
+    <div class="field"><label>Mi WhatsApp</label>
+      <input id="waMio" inputmode="numeric" value="${escHTML(yo.whatsapp || '')}" placeholder="${escHTML(yo.celular || '')}">
+      <div class="help">Diez dígitos. Queda anotado para que tu jefe sepa desde dónde escribes.</div></div>
+    <div class="aviso ambar" style="margin-top:12px"><b>Las conversaciones de WhatsApp no se leen.</b>
+      WhatsApp no lo permite. Lo que queda registrado es <b>a quién le escribiste y cuándo</b>,
+      que es lo que sirve para el control de calidad.</div>
+    <button class="btn btn-rojo" id="waBtn" style="margin-top:14px" onclick="guardarWhatsappEq()">Guardar</button>`);
+}
+function guardarWhatsappEq() {
+  const btn = document.getElementById('waBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  rpcEquipo('mi_whatsapp_poner', { p_whatsapp: gv('waMio') })
+    .then(res => {
+      if (!res.ok || !res.j || res.j.ok !== true) {
+        if (esFinDeSesion(null, res)) throw { sesion: true };
+        throw new Error((res.j && res.j.motivo) || 'la nube no lo aceptó');
+      }
+      CARTERA_EQUIPO.yo.whatsapp = res.j.whatsapp || '';
+      cerrarModal(); irEquipo(VISTA_EQUIPO);
+    })
+    .catch(e => {
+      if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+      if (esFinDeSesion(e)) return avisarFinDeSesion('');
+      alert('No pude guardarlo: ' + (e.message || e));
+    });
 }
 
 /* ==========================================================================
@@ -5797,8 +6050,13 @@ function publicarEquipo() {
      marcó veinte «no contesta» desde su celular y Joan publica sin traerlos, los
      veinte vuelven a «sin contactar» — el trabajo de una mañana, borrado sin un
      error, sin un aviso, y sin que nadie pueda notarlo hasta que sea tarde. */
-  return traerGestiones(true)
-    .then(() => publicarEquipoAhora(gente, asig, ps))
+  /* SE TRAE ANTES DE PUBLICAR. Desde el 11-sep el gerente también escribe —crea
+     asesores y reparte— y publicar es mandar la lista entera de este computador.
+     Sin traer primero, el asesor que creó el gerente esta mañana desaparece esta
+     tarde, sin un error y sin que nadie pueda notarlo. */
+  return traerEquipo(true)
+    .then(() => traerGestiones(true))
+    .then(() => publicarEquipoAhora(equipo().filter(p => p.celular), asig, ps))
     .catch(() => {});   // dijo que mejor no; ya se le avisó
 }
 
@@ -5832,6 +6090,86 @@ function publicarEquipoAhora(gente, asig, ps) {
     })
     .catch(e => alert('No pude publicar: ' + errNube(e)));
 }
+
+/* --------------------------------------------------------------------------
+ * TRAER LO QUE HIZO EL EQUIPO
+ *
+ * La nube dejó de ser una fotocopia de este computador el día que el gerente
+ * pudo escribir. Ahora es al revés en lo que toca al equipo: ella manda, y este
+ * computador se pone al día antes de publicar.
+ *
+ * Se fusiona por CELULAR (que es la identidad de una persona del equipo) y por
+ * id (en las asignaciones, que solo suman). Nunca borra: alguien que está acá y
+ * no allá es alguien que todavía no se ha publicado, no alguien que se fue.
+ * ------------------------------------------------------------------------ */
+function traerEquipo(callado) {
+  if (!sbListo()) { if (!callado) alert('Primero conecta la nube en Ajustes.'); return Promise.resolve(0); }
+  return rpc('equipo_traer', { p_clave: sbCfg().clave })
+    .then(r => {
+      const d = (r && typeof r === 'object') ? r : {};
+      let nuevos = 0, cambios = 0;
+      const porCel = {};
+      equipo().forEach(p => { if (p.celular) porCel[String(p.celular).replace(/\D/g, '').slice(-10)] = p; });
+      (d.equipo || []).forEach(x => {
+        const cel = String(x.celular || '').replace(/\D/g, '').slice(-10);
+        if (!cel) return;
+        const mio = porCel[cel];
+        if (!mio) {
+          equipo().push({ id: 'E' + cel, nombre: String(x.nombre || 'Sin nombre'), celular: cel,
+                          rol: String(x.rol || 'asesor'), estado: String(x.estado || 'activo'),
+                          jefe: jefeLocal(x.jefe), whatsapp: x.whatsapp || '', cuentaCreada: hoyISO() });
+          nuevos++;
+        } else {
+          /* La nube manda en rol, estado y jefe: son las tres que el gerente
+             puede cambiar desde su celular. El nombre lo deja Joan. */
+          if (mio.rol !== x.rol || mio.estado !== x.estado || (mio.whatsapp || '') !== (x.whatsapp || '')) cambios++;
+          mio.rol = String(x.rol || mio.rol);
+          mio.estado = String(x.estado || mio.estado);
+          mio.jefe = jefeLocal(x.jefe) || mio.jefe;
+          mio.whatsapp = x.whatsapp || '';
+        }
+      });
+      /* Las asignaciones que escribió el gerente, traducidas al id local. */
+      const hay = {};
+      asignaciones().forEach(a => { hay[String(a.id)] = true; });
+      (d.asignaciones || []).forEach(x => {
+        if (hay[String(x.id)]) return;
+        const per = equipo().find(p => String(p.celular).replace(/\D/g, '').slice(-10) ===
+                                       String(x.asesor || '').replace(/\D/g, '').slice(-10));
+        if (!per) return;
+        asignaciones().push({ id: String(x.id), socio_id: String(x.persona_id),
+                              asesor_id: String(per.id), desde: String(x.desde || hoyISO()) });
+        nuevos++;
+      });
+      /* Y los contactos, que son el registro de WhatsApp que Joan revisa. */
+      const vistos = {};
+      contactos().forEach(c => { vistos[String(c.id)] = true; });
+      (d.contactos || []).forEach(c => {
+        if (vistos[String(c.id)]) return;
+        contactos().push({ id: String(c.id), persona_id: String(c.persona_id), quien: String(c.quien || ''),
+                           canal: String(c.canal || 'whatsapp'), texto: String(c.texto || ''),
+                           cuando: String(c.cuando || '') });
+      });
+      guardarYPintar();
+      if (!callado) alert(nuevos ? 'Traje ' + nuevos + ' cosas nuevas del equipo.' : 'Nada nuevo del equipo.');
+      return nuevos + cambios;
+    })
+    .catch(e => {
+      if (!callado) alert('No pude traer el equipo: ' + errNube(e));
+      else if (!confirm('No pude traer lo que hizo tu gerente:\n\n' + errNube(e) +
+        '\n\nSi publico ahora, los asesores que él haya creado y lo que haya repartido se pueden perder.\n\n' +
+        '¿Publico de todas formas?')) throw new Error('mejor no');
+      return 0;
+    });
+}
+/* El jefe viaja como CELULAR (así vive en la nube) y acá se guarda como id. */
+function jefeLocal(celularJefe) {
+  const c = String(celularJefe || '').replace(/\D/g, '').slice(-10);
+  if (!c) return '';
+  const p = equipo().find(x => String(x.celular).replace(/\D/g, '').slice(-10) === c);
+  return p ? p.id : '';
+}
+function contactos() { DB.contactos = Array.isArray(DB.contactos) ? DB.contactos : []; return DB.contactos; }
 
 /* --------------------------------------------------------------------------
  * TRAER LAS GESTIONES
@@ -5869,7 +6207,7 @@ function traerGestiones(callado) {
            porque alguien anote «no contesta»: eso ya pasó. */
         if (e && p.estado !== 'registrado' && p.estado !== 'cliente') p.estado = e;
       });
-      guardar(); render();
+      guardarYPintar();
       if (!callado) {
         alert(nuevas ? 'Traje ' + nuevas + ' gestiones nuevas.\n\nEn total hay ' + gestiones().length + '.'
                      : 'No hay gestiones nuevas.\n\nEn total hay ' + gestiones().length + '.');

@@ -173,7 +173,11 @@
    prospectos pasa a llamarse cartera y lleva tipo), y la sesion del equipo se
    renueva sola en vez de vencerse a la hora y culpar a la senal.
    Toca panel/crm.html. */
-const CACHE = 'tugarantia-v38';
+/* v39 - 11-sep-2026. El gerente crea asesores y reparte desde su celular, el
+   asesor registra su WhatsApp y cada contacto queda anotado, y Joan trae lo
+   que hizo el equipo antes de publicar para no pisarlo.
+   Toca panel/crm.html. */
+const CACHE = 'tugarantia-v39';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
