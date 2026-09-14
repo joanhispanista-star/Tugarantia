@@ -434,7 +434,15 @@
      no corre sobre saldo insoluto. De 1 a 6 meses, lo elige el socio.
      Se presta uno a uno contra la garantía GANADA: nunca contra la prestada,
      que sería prestar contra plata que le prestamos nosotros. */
-  var TASA_RESPALDADO_MENSUAL = 0.05;
+  /* 2% MENSUAL SOBRE EL SALDO. No sobre el capital original: ver la cabecera de
+     simularPrestamoRespaldado. Cobrado sobre el saldo, un crédito a 6 meses da
+     26,8% efectivo anual y cabe debajo del techo de usura; cobrado plano sobre
+     el millón daba 48,3% y no cabía. El número que ve el socio es el mismo. */
+  var TASA_RESPALDADO_MENSUAL = 0.02;
+
+  /* El piso del producto, por decisión de Joan (11-sep-2026): los préstamos con
+     garantía son de un millón para arriba. Debajo de eso está el quincenal. */
+  var MONTO_MINIMO_RESPALDADO = 1000000;
   var PLAZO_RESPALDADO_MIN = 1;
   var PLAZO_RESPALDADO_MAX = 6;
   var FACTOR_GARANTIA_RESPALDADO = 0.20;       // pagó en fecha
@@ -2203,21 +2211,27 @@
     var d = desglosarGarantia(entrada);
     var nivel = normalizarNivel(opciones.nivelSocio || 'hierro', 'opciones.nivelSocio');
 
-    // Plano sobre el capital original, igual que el 20% quincenal: NO corre
-    // sobre saldo insoluto. Es más caro de explicar pero mucho más fácil de
-    // entender, y el socio tiene que poder verificar la cuenta con la cabeza.
-    var costoTotal = Math.round(c * TASA_RESPALDADO_MENSUAL * n);
-    var costoMensual = Math.round(c * TASA_RESPALDADO_MENSUAL);
-    var capitalCuota = Math.floor(c / n);
+    /* SOBRE EL SALDO QUE DEBE, no sobre el capital original. Es la diferencia
+       entre 26,8% y 48,3% efectivo anual — o sea, entre caber debajo del techo
+       de usura y no caber. Con lo plano, la última cuota de un millón cobraba
+       $20.000 de costo sobre un saldo de $166.670: un 12% ese mes.
+
+       Cuota FIJA (amortización francesa): las seis son iguales, así que el
+       socio verifica la cuenta con la cabeza mejor que antes. Lo que cambia mes
+       a mes es el reparto: al principio casi todo es costo, al final casi todo
+       es capital. */
+    var rMes = TASA_RESPALDADO_MENSUAL;
+    var cuotaFija = Math.round(c * rMes / (1 - Math.pow(1 + rMes, -n)));
     var fechas = opciones.fechaDesembolso ? calendarioRespaldado(opciones.fechaDesembolso, n) : null;
 
-    var cuotas = [], saldo = c, deja = 0;
+    var cuotas = [], saldo = c, deja = 0, costoTotal = 0;
     for (var i = 0; i < n; i++) {
       var ultima = (i === n - 1);
-      // La última cuota absorbe el resto, de capital Y de costo, para que la
-      // suma de las cuotas dé exactamente lo prometido arriba. Ni un peso suelto.
-      var cap = ultima ? (c - capitalCuota * (n - 1)) : capitalCuota;
-      var cos = ultima ? Math.max(0, costoTotal - costoMensual * (n - 1)) : costoMensual;
+      var cos = Math.round(saldo * rMes);
+      /* La última liquida el saldo entero: así la suma de capitales da EXACTO el
+         capital prestado, sin un peso suelto ni de más ni de menos. */
+      var cap = ultima ? saldo : Math.max(0, Math.min(saldo, cuotaFija - cos));
+      costoTotal += cos;
       var gana = acumularGarantiaRespaldada(cos, true);
       saldo -= cap;
       cuotas.push({
@@ -2238,10 +2252,18 @@
       capital: c,
       plazo_meses: n,
       tasa_mensual: TASA_RESPALDADO_MENSUAL,
-      costo_mensual: costoMensual,
+      /* Ya no hay «costo mensual»: el costo baja cada mes porque el saldo baja.
+         Se publica el de la PRIMERA cuota, que es el más alto, y se dice así.
+         Llamarlo «mensual» sería el nombre mintiendo. */
+      costo_primera_cuota: cuotas.length ? cuotas[0].costo : 0,
       costo_total: costoTotal,
       total_a_pagar: c + costoTotal,
-      cuota_tipica: capitalCuota + costoMensual,
+      /* Ahora sí es típica: las seis son iguales (la última ajusta unos pesos
+         al liquidar el saldo). */
+      cuota_tipica: cuotaFija,
+      cuota_fija: cuotaFija,
+      monto_minimo: MONTO_MINIMO_RESPALDADO,
+      cumple_minimo: c >= MONTO_MINIMO_RESPALDADO,
       cuotas: cuotas,
       garantia_que_deja: deja,
       respaldo_disponible: disponible,
@@ -2841,6 +2863,7 @@
     codigoAccesoValido: codigoAccesoValido,
     LARGO_CODIGO_ACCESO: LARGO_CODIGO_ACCESO,
     TASA_RESPALDADO_MENSUAL: TASA_RESPALDADO_MENSUAL,
+    MONTO_MINIMO_RESPALDADO: MONTO_MINIMO_RESPALDADO,
     PLAZO_RESPALDADO_MIN: PLAZO_RESPALDADO_MIN,
     PLAZO_RESPALDADO_MAX: PLAZO_RESPALDADO_MAX,
     FACTOR_GARANTIA_RESPALDADO: FACTOR_GARANTIA_RESPALDADO,

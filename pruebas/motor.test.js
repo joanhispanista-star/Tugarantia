@@ -1734,25 +1734,35 @@ describe('calendarioRespaldado — una cuota por mes, siempre en un corte real',
 
 describe('simularPrestamoRespaldado', () => {
 
+  /* 11-sep-2026 — EL PRECIO CAMBIÓ, Y NO POR GUSTO. El 2% mensual se cobraba
+     PLANO sobre el capital original: en la última cuota de un millón eso era
+     $20.000 de costo sobre un saldo de $166.670, o sea un 12% ESE MES, y el
+     producto entero daba 48,3% efectivo anual contra un techo de usura de
+     29,24%. Ahora el 2% se cobra SOBRE EL SALDO QUE DEBE, que es lo que «2%
+     mensual» significa en todas partes, y da 26,8%: cabe. */
   test('EL EJEMPLO DE JOAN: 90.000 a 6 meses con la garantía que se ganó', () => {
     const s = M.simularPrestamoRespaldado(90000, 6, { acumulada: 100000 });
     assert.equal(s.producto, 'respaldado');
-    assert.equal(s.tasa_mensual, 0.05);
-    assert.equal(s.costo_total, 27000);          // 90.000 × 5% × 6
-    assert.equal(s.total_a_pagar, 117000);
-    assert.equal(s.cuota_tipica, 19500);         // 15.000 de capital + 4.500 de costo
+    assert.equal(s.tasa_mensual, 0.02);
+    assert.equal(s.cuota_fija, 16067);           // 90.000 × 0,02 ÷ (1 − 1,02⁻⁶)
+    assert.equal(s.costo_total, 6405);
+    assert.equal(s.total_a_pagar, 96405);
     assert.equal(s.cuotas.length, 6);
-    assert.equal(s.garantia_que_deja, 5400);     // el 20% de 27.000, 900 por cuota
-    assert.deepEqual(s.cuotas.map(c => c.garantia_generada), [900, 900, 900, 900, 900, 900]);
+    /* El costo BAJA cada mes porque el saldo baja: 2% de lo que todavía debe.
+       Y la garantía es el 20% del costo, así que baja con él. */
+    assert.deepEqual(s.cuotas.map(c => c.costo), [1800, 1515, 1224, 927, 624, 315]);
+    assert.deepEqual(s.cuotas.map(c => c.garantia_generada), [360, 303, 245, 185, 125, 63]);
+    assert.equal(s.garantia_que_deja, 1281);
     assert.equal(s.dentro_del_respaldo, true);
+    assert.equal(s.cumple_minimo, false, '90.000 está por debajo del millón');
   });
 
   test('LA CUENTA DEMO: 324.000 a 6 meses', () => {
     const s = M.simularPrestamoRespaldado(324000, 6, { datos: datosCompletos(), acumulada: 324000 });
-    assert.equal(s.costo_total, 97200);
-    assert.equal(s.cuota_tipica, 70200);         // 54.000 + 16.200
-    assert.equal(s.total_a_pagar, 421200);
-    assert.equal(s.garantia_que_deja, 19440);
+    assert.equal(s.costo_total, 23054);
+    assert.equal(s.cuota_tipica, 57842);         // seis cuotas iguales
+    assert.equal(s.total_a_pagar, 347054);
+    assert.equal(s.garantia_que_deja, 4611);
     assert.equal(s.respaldo_disponible, 324000);
     assert.equal(s.garantia_comprometida, 324000, 'al desembolsar se compromete todo');
   });
@@ -1766,12 +1776,92 @@ describe('simularPrestamoRespaldado', () => {
     }
   });
 
-  test('a un mes es una sola cuota y el costo es el 5% pelado', () => {
+  test('a un mes es una sola cuota y el costo es el 2% pelado', () => {
+    /* A un solo mes no hay saldo que baje, así que plano y sobre saldo dan lo
+       mismo: el 2% del capital, una vez. */
     const s = M.simularPrestamoRespaldado(200000, 1, { acumulada: 200000 });
     assert.equal(s.cuotas.length, 1);
-    assert.equal(s.costo_total, 10000);
+    assert.equal(s.costo_total, 4000);
     assert.equal(s.cuotas[0].capital, 200000);
-    assert.equal(s.cuotas[0].total, 210000);
+    assert.equal(s.cuotas[0].total, 204000);
+  });
+
+  /* ---------------------------------------------------------------------
+     EL PRODUCTO CON GARANTÍA TIENE QUE CABER DEBAJO DEL TECHO DE USURA.
+
+     En Colombia pasarse no es una multa: el artículo 305 del Código Penal lo
+     castiga con 32 a 90 meses de prisión, «cualquiera sea la forma utilizada
+     para hacer constar la operación, ocultarla o disimularla».
+
+     Y el techo SE MUEVE: la Superfinanciera lo certifica cada mes (julio 2026
+     fue 28,79%, agosto 29,66%, septiembre 29,24%). Un producto puesto al filo
+     del techo de hoy queda ilegal el mes que baje, SIN QUE NADIE TOQUE UNA
+     LÍNEA. Por eso esta prueba mide contra el techo MÁS BAJO que haya tenido
+     la tabla, no contra el de hoy.
+
+     Se mide con la TIR del flujo real de cuotas, que es como lo mide la ley.
+     La fórmula del Panel —(1+costo)^(365/días)−1— vale para el quincenal, que
+     se paga todo de una vez; en cuotas subestima más del doble.
+
+     El 11-sep-2026 esta prueba habría cazado el precio viejo: 5% plano daba
+     153,3% y 2% plano daba 48,3%. Ahora el 2% se cobra sobre el saldo y da
+     26,8%.
+     --------------------------------------------------------------------- */
+  test('EL PRODUCTO CON GARANTÍA CABE DEBAJO DEL TECHO DE USURA, en todos sus plazos', () => {
+    const CR = require(path.join(__dirname, '..', 'app', 'creditos.js'));
+    const masBajo = CR.TOPES.reduce((m, t) => Math.min(m, t.consumo_ordinario), Infinity);
+    assert.ok(masBajo > 0.2 && masBajo < 0.4, 'la tabla de topes no trae nada creíble: ' + masBajo);
+
+    const montos = [1000000, 2000000, 3000000, 8000000];
+    const peores = [];
+    [1, 2, 3, 4, 5, 6].forEach(n => {
+      montos.forEach(cap => {
+        const sim = M.simularPrestamoRespaldado(cap, n, { acumulada: cap * 2 });
+        /* flujo[0] es lo que RECIBE (positivo) y el resto lo que paga. */
+        const flujo = [cap].concat(sim.cuotas.map(c => -c.total));
+        const ea = CR.efectivoAnual(flujo);
+        peores.push({ n: n, cap: cap, ea: ea });
+        assert.ok(ea <= masBajo,
+          'a ' + n + ' meses sobre ' + cap.toLocaleString('es-CO') + ' el producto da ' +
+          (ea * 100).toFixed(1) + '% efectivo anual, y el techo más bajo que ha tenido la ' +
+          'tabla es ' + (masBajo * 100).toFixed(2) + '%. Eso es usura: artículo 305, de 32 a ' +
+          '90 meses de prisión. Baja la tasa o cóbrala sobre el saldo.');
+      });
+    });
+    /* Y que la prueba esté midiendo algo: si el producto saliera en 3% nadie
+       se enteraría de que el centinela dejó de mirar. */
+    const max = peores.reduce((m, p) => Math.max(m, p.ea), 0);
+    assert.ok(max > 0.15, 'el producto salió en ' + (max * 100).toFixed(1) +
+      '%: o cambió mucho, o esta prueba dejó de medir el producto de verdad');
+  });
+
+  test('el mínimo del producto con garantía es un millón, y se dice en vez de esconderse', () => {
+    /* No lanza: devuelve la simulación con cumple_minimo en false, igual que
+       hace con dentro_del_respaldo. Al socio hay que mostrarle POR QUÉ no
+       llega, no esconderle el producto. */
+    const chico = M.simularPrestamoRespaldado(900000, 6, { acumulada: 5000000 });
+    assert.equal(chico.cumple_minimo, false);
+    assert.equal(chico.monto_minimo, 1000000);
+    assert.equal(chico.cuotas.length, 6, 'se calcula igual, solo avisa');
+    const justo = M.simularPrestamoRespaldado(1000000, 6, { acumulada: 5000000 });
+    assert.equal(justo.cumple_minimo, true);
+    assert.equal(justo.cuota_fija, 178526);
+    assert.equal(justo.costo_total, 71154);
+  });
+
+  test('la suma de los capitales da EXACTO el capital prestado', () => {
+    /* Con cuota fija, el reparto capital/costo cambia mes a mes y el redondeo
+       tiene dónde esconderse. La última cuota liquida el saldo entero. */
+    [1000000, 1234567, 3000000, 7999999].forEach(cap => {
+      [1, 3, 6].forEach(n => {
+        const s = M.simularPrestamoRespaldado(cap, n, { acumulada: cap * 2 });
+        assert.equal(s.cuotas.reduce((a, c) => a + c.capital, 0), cap,
+          cap + ' a ' + n + ' meses: los capitales no suman el capital');
+        assert.equal(s.cuotas.reduce((a, c) => a + c.total, 0), s.total_a_pagar,
+          cap + ' a ' + n + ' meses: las cuotas no suman el total prometido');
+        assert.equal(s.cuotas[s.cuotas.length - 1].saldo_despues, 0);
+      });
+    });
   });
 
   test('el plazo va de 1 a 6, nada más', () => {
@@ -1803,7 +1893,7 @@ describe('simularPrestamoRespaldado', () => {
     assert.equal(s.respaldo_disponible, 200000);
     assert.equal(s.dentro_del_respaldo, false);
     assert.equal(s.falta_garantia_ganada, 300000);
-    assert.equal(s.costo_total, 150000, 'la simulación se calcula igual');
+    assert.equal(s.costo_total, 35577, 'la simulación se calcula igual');
   });
 
   test('el cupo de después es el del final del camino, con la comprometida ya liberada', () => {
@@ -2038,13 +2128,13 @@ describe('compararProductos — plata barata o crecer', () => {
     assert.equal(c.quincenal.cortes_en_el_plazo, 12);
     assert.equal(c.quincenal.costo_en_el_plazo, 777600);     // 64.800 × 12
     assert.equal(c.quincenal.garantia_en_el_plazo, 583200);  // 48.600 × 12
-    assert.equal(c.respaldado.costo_total, 97200);
-    assert.equal(c.respaldado.cuota_tipica, 70200);
-    assert.equal(c.respaldado.garantia_que_deja, 19440);
+    assert.equal(c.respaldado.costo_total, 23054);
+    assert.equal(c.respaldado.cuota_tipica, 57842);
+    assert.equal(c.respaldado.garantia_que_deja, 4611);
     // Las diferencias son del plazo entero, nunca de una vuelta contra 6 meses.
-    assert.equal(c.diferencias.costo_extra_quincenal, 680400);    // 777.600 − 97.200
-    assert.equal(c.diferencias.garantia_extra_quincenal, 563760); // 583.200 − 19.440
-    assert.equal(c.diferencias.veces_mas_garantia, 30);           // 583.200 / 19.440
+    assert.equal(c.diferencias.costo_extra_quincenal, 754546);    // 777.600 − 23.054
+    assert.equal(c.diferencias.garantia_extra_quincenal, 578589); // 583.200 − 4.611
+    assert.equal(c.diferencias.veces_mas_garantia, 126.5);        // 583.200 / 4.611
     assert.equal(c.diferencias.cual_es_mas_barato, 'respaldado');
     assert.equal(c.diferencias.cual_hace_crecer_mas, 'quincenal');
     assert.equal(c.respaldado.plazo_texto, '6 meses');
@@ -2209,7 +2299,7 @@ describe('las cuentas de Joan, con el motor de verdad', () => {
     assert.equal(M.maximoRespaldado(e), 75000);
     const s = M.simularPrestamoRespaldado(75000, 6, e);
     assert.equal(s.dentro_del_respaldo, true);
-    assert.equal(s.costo_total, 22500);
+    assert.equal(s.costo_total, 5337);
   });
 
   test('LA CUENTA DEMO: 10 créditos pagados en fecha dan 370.000 y cupo 370.000', () => {
@@ -2246,12 +2336,12 @@ describe('las cuentas de Joan, con el motor de verdad', () => {
     // Y la comparación que se le muestra en la calculadora.
     const cmp = M.compararProductos(270000, 6, e, { nivelSocio: nivel });
     assert.equal(cmp.quincenal.costo, 54000);
-    assert.equal(cmp.respaldado.costo_total, 81000);
-    assert.equal(cmp.respaldado.total_a_pagar, 351000);
+    assert.equal(cmp.respaldado.costo_total, 19212);
+    assert.equal(cmp.respaldado.total_a_pagar, 289212);
     // Lo que se le muestra en grande: los mismos 6 meses de los dos lados.
     assert.equal(cmp.quincenal.costo_en_el_plazo, 648000);
     assert.equal(cmp.diferencias.cual_es_mas_barato, 'respaldado');
-    assert.equal(cmp.diferencias.veces_mas_garantia, 30);
+    assert.equal(cmp.diferencias.veces_mas_garantia, 126.5);
   });
 });
 

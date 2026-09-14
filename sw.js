@@ -177,7 +177,11 @@
    asesor registra su WhatsApp y cada contacto queda anotado, y Joan trae lo
    que hizo el equipo antes de publicar para no pisarlo.
    Toca panel/crm.html. */
-const CACHE = 'tugarantia-v39';
+/* v40 - 14-sep-2026. El credito con garantia pasa a 2% mensual SOBRE EL SALDO
+   (antes plano sobre el capital, que daba 48,3% E.A. y no cabia debajo del
+   techo de usura), con minimo de un millon. Toca app/motor.js y los textos
+   del Panel, que decian el precio viejo. */
+const CACHE = 'tugarantia-v40';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

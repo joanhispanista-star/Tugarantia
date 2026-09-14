@@ -458,7 +458,7 @@
     </section>
 
     <section class="view" id="v-resp">
-      <div class="ph"><div><h1>Con garantía<span class="dot">.</span></h1><div class="sub">5% al mes, plano · de 1 a 6 meses · se presta contra la garantía que el cliente ya se ganó pagando</div></div>
+      <div class="ph"><div><h1>Con garantía<span class="dot">.</span></h1><div class="sub">2% al mes sobre el saldo · de 1 a 6 meses · desde $1.000.000 · se presta contra la garantía que el cliente ya se ganó pagando</div></div>
         <button class="btn btn-azul" onclick="nuevoRespaldado()">＋ Nuevo préstamo con garantía</button></div>
       <div class="kpis2" id="kpiResp"></div>
       <div class="card"><div id="tblResp"></div></div>
@@ -6862,7 +6862,8 @@ function marcarRegistro(id,estado){
 }
 /* =======================================================================
    PRÉSTAMOS CON GARANTÍA
-   El producto nuevo: 5% mensual plano, de 1 a 6 meses, y se presta uno a uno
+   El producto: 2% mensual SOBRE EL SALDO, de 1 a 6 meses, desde un millón, y se
+   presta uno a uno
    contra la garantía que el socio YA se ganó pagando. Nunca contra la
    prestada, que sería prestarle contra plata que le prestamos nosotros.
    Todas las cuentas salen del motor (simularPrestamoRespaldado y
@@ -6884,7 +6885,11 @@ function nuevoRespaldado(preId,sol){
       : ' todavía no tiene garantía ganada, así que no puede pedir un préstamo con garantía.\n\nSe gana pagando créditos quincenales.')); return; }
   const pzPre=sol?plazoSolicitud(sol):3;
   openModal('Nuevo préstamo con garantía',`
-    <div class="alerta info">5% al mes sobre el capital, plano. De 1 a 6 meses, una cuota por mes. Se presta <b>hasta la garantía ganada</b> del cliente, uno a uno.</div>
+    <div class="alerta info"><b>2% al mes sobre el saldo que debe</b> — no sobre el capital original.
+      De 1 a 6 meses, <b>cuotas iguales</b>, desde $1.000.000. Se presta <b>hasta la garantía ganada</b>
+      del cliente, uno a uno.
+      <div class="muted" style="margin-top:6px">Cobrado sobre el saldo da 26,8% efectivo anual y cabe
+        debajo del techo de usura (29,24%). Cobrado plano sobre el capital daba 48,3% y no cabía.</div></div>
     ${sol?`<div class="alerta warn">Viene de la bandeja: pidió ${COP(sol.capital)} a ${pzPre} mes${pzPre!==1?'es':''}. Revisa el tope antes de registrarlo; si no te cuadra, cámbialo aquí.</div>`:''}
     <input type="hidden" id="rSol" value="${sol?escHTML(String(sol.id)):''}">
     <div class="field"><label>Cliente</label><select id="rSocio" onchange="calcRespaldado()">${
@@ -6950,7 +6955,7 @@ function guardarRespaldado(){
   if(!r.sim.dentro_del_respaldo) return alert('Ese monto pasa la garantía ganada de '+r.s.nombre+'. El préstamo con garantía va uno a uno contra lo ganado.');
   const s=r.s, sim=r.sim, f=gv('rFecha')||hoyISO();
   if(!confirm('Registrar el préstamo con garantía de '+s.nombre+':\n\n'
-    +'• Capital: '+COP(sim.capital)+'\n• Plazo: '+sim.plazo_meses+' mes(es) al 5% mensual\n'
+    +'• Capital: '+COP(sim.capital)+'\n• Plazo: '+sim.plazo_meses+' mes(es) al 2% mensual sobre el saldo\n'
     +'• Cuota: '+COP(sim.cuota_tipica)+'\n• Total a devolver: '+COP(sim.total_a_pagar)+'\n\n'
     +'Mientras lo paga, esos '+COP(sim.capital)+' de su garantía quedan comprometidos y no le suman cupo quincenal.'))return;
   const nr={ id:'R'+Date.now(), numero:nextNumRespaldado(), socioId:s.id, socioNombre:s.nombre,
@@ -7064,10 +7069,10 @@ function renderRespaldados(){
   document.getElementById('kpiResp').innerHTML=`
     <div class="kpi azul"><div class="et">🛡️ Capital comprometido</div><div class="nm">${COP(comprometida)}</div><div class="x">${abiertos.length} préstamo(s) abierto(s)</div></div>
     <div class="kpi"><div class="et">📤 Colocado en total</div><div class="nm">${COP(colocado)}</div><div class="x">${rs.length} préstamo(s) con garantía</div></div>
-    <div class="kpi gan"><div class="et">💰 Costo ya cobrado</div><div class="nm">${COP(cobrado)}</div><div class="x">al 5% mensual</div></div>
+    <div class="kpi gan"><div class="et">💰 Costo ya cobrado</div><div class="nm">${COP(cobrado)}</div><div class="x">al 2% mensual sobre saldo</div></div>
     <div class="kpi ${enMora.length?'alert':''}"><div class="et">⚠️ Con cuota vencida</div><div class="nm">${enMora.length}</div><div class="x">de ${abiertos.length} abiertos</div></div>`;
   const c=document.getElementById('tblResp');
-  if(!rs.length){ c.innerHTML=`<div class="empty"><div class="ic">🛡️</div><p>Todavía no has dado ningún préstamo con garantía.<br><span class="muted">Se presta contra la garantía que el cliente ya se ganó pagando, hasta 6 meses al 5% mensual.</span></p></div>`; return; }
+  if(!rs.length){ c.innerHTML=`<div class="empty"><div class="ic">🛡️</div><p>Todavía no has dado ningún préstamo con garantía.<br><span class="muted">Se presta contra la garantía que el cliente ya se ganó pagando, hasta 6 meses al 2% mensual sobre el saldo, desde $1.000.000.</span></p></div>`; return; }
   const orden={mora:0,hoy:1,proximo:2,'al-dia':3,pagado:4};
   c.innerHTML=`<table><thead><tr><th>N°</th><th>Cliente</th><th>Capital</th><th>Plazo</th><th>Cuota</th><th>Próxima fecha</th><th>Pagadas</th><th>Estado</th><th></th></tr></thead><tbody>${
     rs.slice().sort((a,b)=>orden[estadoRespaldado(a)]-orden[estadoRespaldado(b)]).map(r=>{
