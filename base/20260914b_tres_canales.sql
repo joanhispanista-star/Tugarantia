@@ -244,8 +244,10 @@ $$;
 -- o a preguntar por qué no ve su historial. Lo que el candado protege es el
 -- HISTORIAL, no la conversación.
 --
--- El hilo se identifica con el CELULAR DE LA SESIÓN, siempre. Una sola regla,
--- sin ramas: quien entró es quien escribe.
+-- El hilo NO se identifica con el celular a secas: lo resuelve llave_de_sesion
+-- (sección 4-bis) — la cédula canónica si la cuenta está vinculada, el celular
+-- si no. Escribirlo siempre por celular dejaba al cliente sin conversación el
+-- día que Joan le cargara la cédula a su ficha.
 -- ---------------------------------------------------------------------------
 create or replace function public.chat_escribir_sesion(p_canal text, p_texto text)
 returns jsonb
@@ -357,6 +359,13 @@ begin
 
     h_viejo := null;
     propio  := false;
+    /* 14-sep-2026 — SE REINICIAN EN CADA VUELTA, como las dos de arriba. En
+       plpgsql las variables del declare viven toda la función: sin esta línea,
+       el socio que no cambia de llave hereda la vinculación del socio anterior
+       que sí la cambió, y mi_cuenta le devuelve a esa sesión la ficha de otra
+       persona. */
+    v_en    := null;
+    v_cel   := null;
 
     if cel is not null and cel <> ident then
       -- 28-ago-2026 — LOS MENSAJES VIAJAN CON EL CLIENTE.
@@ -528,5 +537,12 @@ begin
    where proname = 'sincronizar_socios' and pronamespace = 'public'::regnamespace;
   if cuerpo not like '%auth_vinculada_en%' then
     raise exception 'sincronizar_socios no rescata la vinculacion: la siguiente subida desvincularia a todos';
+  end if;
+  -- NI PEGARLE LA VINCULACION DE UNO A OTRO. En plpgsql las variables del
+  -- declare viven toda la funcion: una variable de rescate que no se reinicia
+  -- en cada vuelta se lleva el valor del socio anterior al siguiente, y
+  -- mi_cuenta le devuelve a esa sesion la ficha de otra persona.
+  if cuerpo not like '%v_en    := null%' or cuerpo not like '%v_cel   := null%' then
+    raise exception 'sincronizar_socios no reinicia las variables de rescate: la vinculacion de un socio se le pega al siguiente del lote';
   end if;
 end $$;

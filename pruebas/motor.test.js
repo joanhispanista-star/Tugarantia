@@ -9056,6 +9056,56 @@ describe('ninguna pantalla llama a una función que la migración tiró (11-ago-
     assert.ok(vistas >= 2, 'el barrido no encontró celular_de_sesion: no está midiendo nada');
   });
 
+  /* 14-sep-2026 — LO QUE SE RESCATA EN UN LOOP SE REINICIA EN CADA VUELTA.
+     En plpgsql las variables del DECLARE viven toda la función, no cada vuelta.
+     sincronizar_socios recorre el lote de socios y, SOLO cuando uno cambia de
+     llave (de celular a cédula), lee sus datos viejos a unas variables para
+     rescatarlos del delete+insert.
+
+     Si esas variables no se reinician al empezar cada socio, el que NO cambia
+     de llave hereda lo del anterior que sí cambió. Con el código eso ya estaba
+     resuelto (h_viejo := null; propio := false). Con las dos columnas de la
+     vinculación —auth_vinculada_en, auth_celular, agregadas el 14-sep— se me
+     olvidó, y el daño no era un dato feo:
+
+         el auth_celular del socio N quedaba pegado al socio N+1
+         → mi_cuenta busca «where auth_celular = cel»
+         → esa sesión veía la ficha de OTRA PERSONA, y su chat.
+
+     Exactamente el daño que el candado venía a impedir, entrando por la puerta
+     del arreglo. Lo cazó una segunda lectura de otra sesión, no la primera.
+
+     Esta prueba vale para cualquier variable de rescate que se agregue después:
+     si se lee dentro del `if` del cambio de llave, tiene que reiniciarse arriba. */
+  test('sincronizar_socios reinicia TODO lo que rescata, en cada vuelta del lote', () => {
+    const t = leer('base/20260914b_tres_canales.sql');
+    const i = t.indexOf('create or replace function public.sincronizar_socios');
+    assert.ok(i > 0, 'no encontré sincronizar_socios en la migración del 14-sep');
+    const cuerpo = t.slice(i, t.indexOf('\n$$;', i));
+
+    /* Lo que se lee DENTRO del if del cambio de llave: son las que rescatan. */
+    const dentro = cuerpo.slice(cuerpo.indexOf('if cel is not null and cel <> ident'));
+    const into = dentro.match(/into\s+([a-z_,\s]+)\s*\n?\s*from/i);
+    assert.ok(into, 'no encontré el «select ... into» del rescate');
+    const rescatadas = into[1].split(',').map(x => x.trim()).filter(Boolean);
+    assert.ok(rescatadas.length >= 4,
+      'esperaba al menos cuatro variables de rescate, encontré ' + rescatadas.join(', '));
+
+    /* Y el trozo de arriba del loop, donde se reinician. */
+    const arriba = cuerpo.slice(cuerpo.indexOf('continue when ident is null'),
+                                cuerpo.indexOf('if cel is not null and cel <> ident'));
+    const sinReiniciar = rescatadas.filter(v =>
+      !new RegExp('\\b' + v + '\\s*:=', 'i').test(arriba));
+
+    assert.deepEqual(sinReiniciar, [],
+      'estas variables se rescatan dentro del «if» del cambio de llave pero NO se ' +
+      'reinician al empezar cada socio: ' + sinReiniciar.join(', ') + '.\n' +
+      'En plpgsql las variables del declare viven toda la función, así que el socio ' +
+      'que no cambia de llave hereda lo del anterior que sí cambió. Con auth_celular ' +
+      'eso le pega la vinculación de un socio a otro, y mi_cuenta le devuelve a esa ' +
+      'sesión la ficha de otra persona.');
+  });
+
   test('nadie sigue mandando p_tel4: esa puerta se cerró', () => {
     ['app/socio.html', 'panel/crm.html'].forEach(f =>
       assert.ok(leer(f).indexOf('p_tel4') === -1,
