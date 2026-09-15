@@ -831,6 +831,14 @@
      WhatsApp y la app leen del mismo archivo: no hay forma de que muestren dos
      números distintos del mismo cliente. Si algo de acá se vuelve a escribir aquí
      abajo, vuelve a haber dos verdades. -->
+<!-- 15-sep-2026 — nube.js entra al CRM. De momento se usa para UNA cosa:
+     cuando el navegador se llena, guardar() salva la cartera sin fotos con
+     dbSinFotos en vez de no guardar nada. Lo demas del motor (armarLote,
+     aplicarPaquete, empujar, traer) es lo que conecta el CRM completo a la
+     nube, y va por etapas.
+     Va ANTES de puente.js porque guardar() lo necesita y guardar() se llama
+     desde el arranque. -->
+<script src="nube.js"></script>
 <script src="../app/puente.js"></script>
 <!-- El chat, compartido con app/socio.html por la misma razón que el puente:
      quien decide de qué lado va un mensaje y cómo se escapa el texto vive en un
@@ -1176,7 +1184,111 @@ function nextNumRespaldado(){ DB.contadores.respaldado=(DB.contadores.respaldado
 function codCliente(s){ return PUENTE.codCliente(s); }
 function codCredito(p){ return PUENTE.codCredito(p); }
 function codRespaldado(r){ return PUENTE.codRespaldado(r); }
-function guardar(){ try{ localStorage.setItem(KEY,JSON.stringify(DB)); }catch(e){ alert('Poco espacio en el navegador. Exporta un respaldo y libera espacio (las fotos pesan).'); } }
+/* ===========================================================================
+ * GUARDAR — 15-sep-2026, reescrito. Era la linea mas peligrosa del archivo.
+ *
+ * Decia esto:
+ *     try { localStorage.setItem(KEY, JSON.stringify(DB)); }
+ *     catch (e) { alert('Poco espacio en el navegador...'); }
+ *
+ * O sea: cuando el navegador se llena, sale un aviso, Joan da OK, y SIGUE
+ * TRABAJANDO sobre una pantalla que se ve normal — pero nada de lo que haga
+ * desde ese momento se guarda. Al recargar, el dia entero desaparece.
+ *
+ * Y se llena de verdad. Medido: las fotos son el 100% del peso de la cartera
+ * (200 clientes sin fotos pesan 81 KB; con fotos, 57 MB). Con el limite tipico
+ * de 5 MB por sitio, caben unos DIECISIETE clientes con sus tres fotos. El
+ * aviso no era una precaucion teorica: era el final de una cuenta regresiva.
+ *
+ * Lo que hace ahora, en este orden:
+ *   1. Intenta guardar todo.
+ *   2. Si no cabe, guarda la cartera SIN FOTOS. Las cuentas —quien debe cuanto,
+ *      los abonos, las fechas— pesan 81 KB y siempre caben. Perder las fotos
+ *      para salvar el libro es la decision correcta; hacerlo en silencio no.
+ *   3. Se lo DICE, con un aviso que no se va hasta que haga algo.
+ *   4. Y si ni eso cabe, lo dice sin fingir que guardo.
+ *
+ * Nunca miente sobre si guardo. Esa es toda la regla.
+ * ======================================================================== */
+var _guardadoOk = true;
+
+function guardar(){
+  try {
+    localStorage.setItem(KEY, JSON.stringify(DB));
+  } catch (e) {
+    return guardarSinFotos();
+  }
+  /* EL AVISO VA FUERA DEL try DEL GUARDADO, y esto lo encontro una prueba.
+     Estaba dentro, asi que si pintarAvisoGuardado reventaba —un elemento de
+     mentira sin .remove(), un DOM a medias— el catch de abajo lo trataba como
+     «no se pudo guardar» y devolvia false. O sea: el CRM diciendo que perdio el
+     trabajo que SI habia guardado, por un fallo de la parte que solo pinta.
+     Mentir hacia el lado del susto tambien es mentir. */
+  if (!_guardadoOk) {
+    _guardadoOk = true;
+    try { pintarAvisoGuardado(); } catch (e2) {}
+  }
+  return true;
+}
+
+/* No cupo: se intenta salvar el LIBRO sacrificando las fotos. */
+function guardarSinFotos(){
+  {
+    var salvado = false;
+    try {
+      var N = window.NubeTuGarantia;
+      if (N && N.dbSinFotos) {
+        localStorage.setItem(KEY, JSON.stringify(N.dbSinFotos(DB)));
+        salvado = true;
+      }
+    } catch (e2) { salvado = false; }
+
+    _guardadoOk = false;
+    try { pintarAvisoGuardado(salvado); } catch (e3) {}
+    return false;
+  }
+}
+
+/* El aviso vive en la pantalla, no en un alert. Un alert se cierra y se olvida;
+   esto se queda hasta que Joan baje el respaldo o suba a la nube. */
+/* El aviso vive en la pantalla, no en un alert. Un alert se cierra y se olvida;
+   esto se queda hasta que Joan baje el respaldo o vuelva a caber.
+
+   SE GUARDA LA REFERENCIA en vez de buscarla por id cada vez. Con
+   getElementById + createElement + appendChild, el elemento que se crea y el
+   que se busca despues pueden no ser el mismo —pasa en cualquier DOM a medias,
+   y pasaba en el banco de pruebas— y entonces el aviso rojo no se puede quitar
+   nunca. Un aviso que no se va enseña a ignorarlo, que es peor que no tenerlo. */
+var _cajaAviso = null;
+
+function pintarAvisoGuardado(salvadoSinFotos){
+  if (_guardadoOk) {
+    if (_cajaAviso) {
+      _cajaAviso.innerHTML = '';
+      if (typeof _cajaAviso.remove === 'function') _cajaAviso.remove();
+      _cajaAviso = null;
+    }
+    return;
+  }
+  if (!_cajaAviso) {
+    _cajaAviso = document.createElement('div');
+    _cajaAviso.id = 'avisoGuardado';
+    _cajaAviso.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;' +
+      'padding:14px 18px;background:#7A1020;color:#fff;font-size:14px;line-height:1.5;' +
+      'box-shadow:0 -4px 20px rgba(0,0,0,.4)';
+    document.body.appendChild(_cajaAviso);
+  }
+  _cajaAviso.innerHTML = (salvadoSinFotos
+    ? '<b>El navegador se llenó.</b> Guardé tus cuentas —quién debe cuánto, los ' +
+      'abonos y las fechas— pero <b>las fotos de este navegador se perdieron</b>. ' +
+      'Las de los clientes que se registraron solos siguen en la nube.'
+    : '<b>NO SE PUDO GUARDAR.</b> El navegador está lleno y no cupo nada. ' +
+      'Todo lo que hagas ahora se va a perder al recargar. Baja el respaldo YA.') +
+    ' <button onclick="exportar()" style="margin-left:10px;padding:6px 12px;' +
+    'border:0;border-radius:8px;background:#fff;color:#7A1020;font-weight:700;' +
+    'cursor:pointer">⬇ Bajar respaldo ahora</button>';
+}
+
 
 const COP=n=>'$'+Math.round(n||0).toLocaleString('es-CO');
 function escHTML(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }

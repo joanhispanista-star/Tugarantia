@@ -33,7 +33,12 @@ function abrirPanel(opciones) {
     id, value: '', checked: false, textContent: '', innerHTML: '',
     dataset: {}, style: {}, classList: { add() {}, remove() {}, toggle() {} },
     addEventListener() {}, querySelector: () => elem(id + '>hijo'),
-    querySelectorAll: () => [], appendChild() {}, setAttribute() {}, focus() {}
+    querySelectorAll: () => [], appendChild() {}, setAttribute() {}, focus() {},
+    /* `remove()` es un metodo de verdad de cualquier elemento y al banco le
+       faltaba. Sin el, un `caja.remove()` que en un navegador funciona reventaba
+       aca, y la prueba acusaba al CRM de un fallo que era del banco. Un banco
+       mas pobre que el navegador no prueba el navegador: prueba otra cosa. */
+    remove() { if (this.id) delete elems[this.id]; this._quitado = true; }
   });
   const doc = {
     getElementById: elem, querySelector: () => null, querySelectorAll: () => [],
@@ -44,7 +49,20 @@ function abrirPanel(opciones) {
     console, document: doc, alert() {}, confirm: () => true,
     localStorage: {
       getItem: k => (k in almacen ? almacen[k] : null),
-      setItem: (k, v) => { almacen[k] = String(v); },
+      /* 15-sep-2026 — el almacen se puede LLENAR a proposito. Sin esto no habia
+         forma de probar que pasa cuando el navegador se queda sin espacio, que
+         es el caso en que el CRM mas puede mentir: hasta hoy mostraba un aviso
+         y seguia como si hubiera guardado. Con `o.topeKB` el banco lanza igual
+         que un navegador de verdad. */
+      setItem: (k, v) => {
+        const t = String(v);
+        if (o.topeKB && (t.length / 1024) > o.topeKB) {
+          const e = new Error('QuotaExceededError');
+          e.name = 'QuotaExceededError';
+          throw e;
+        }
+        almacen[k] = t;
+      },
       removeItem: k => { delete almacen[k]; }
     },
     location: { href: 'http://localhost:8126/panel/crm.html', hash: o.hash || '',
@@ -82,6 +100,11 @@ function abrirPanel(opciones) {
      window.PuenteTuGarantia, que es de donde lo toma la página. */
   ctx.MotorReglas = require(path.join(RAIZ, 'app', 'motor.js'));
   ctx.PuenteTuGarantia = require(path.join(RAIZ, 'app', 'puente.js'));
+  /* 15-sep-2026 — nube.js. El CRM lo carga desde hoy y guardar() lo usa para
+     salvar la cartera sin fotos cuando el navegador se llena. Sin esto aca, esa
+     rama se probaba MUERTA: el banco no le daba el modulo, dbSinFotos no
+     existia, y la prueba veia «no guardo nada» sin saber por que. */
+  ctx.NubeTuGarantia = require(path.join(RAIZ, 'panel', 'nube.js'));
   /* 28-ago-2026: el chat, que crm.html toma de window.ChatTuGarantia.
      `sinChat: true` simula que ese <script src> no llegó — que es lo que pasa
      con un service worker viejo o sin señal, y lo que tumbó el Panel el día que
