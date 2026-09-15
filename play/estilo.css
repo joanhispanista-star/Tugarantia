@@ -198,6 +198,10 @@ input:focus,select:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
   font-variant-numeric:tabular-nums;color:var(--amarillo);
   text-shadow:0 0 22px color-mix(in srgb, var(--amarillo) 35%, transparent)}
 .calc-pie{font-size:13px;margin-top:var(--e2)}
+/* EL NOMBRE DE LA CIFRA GRANDE — 15-sep-2026. Va encima y no debajo porque
+   arriba es donde se lee antes: el ojo llega al numero ya sabiendo que es. */
+.etq-cifra{font-size:12px;font-weight:600;letter-spacing:.02em;margin-bottom:2px;
+  color:color-mix(in srgb, var(--blanco-laca) 70%, transparent)}
 .mando{margin-top:var(--e4)}
 .mando .cab-mando{display:flex;justify-content:space-between;align-items:baseline;gap:var(--e2)}
 .mando .cab-mando b{font-variant-numeric:tabular-nums;font-size:16px}

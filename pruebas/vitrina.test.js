@@ -1414,3 +1414,60 @@ describe('LA LETRA OBLIGATORIA HABLA DEL CRÉDITO QUE ESTÁ EN PANTALLA (15-sep-
       'la caché no conserva la primera combinación');
   });
 });
+
+describe('CADA CIFRA TIENE NOMBRE (15-sep-2026)', () => {
+
+  /* Joan, mirando su propia página: «me refiero al valor en color amarillo (…)
+     miro el capital del prestamo y lo que el cliente paga al final y no cuadra
+     con el valor en color amarillo o no entiendo que significa».
+
+     El número grande era la CUOTA, pero encima decía «Mira cuánto te costaría»
+     y su única explicación estaba debajo, en gris chiquito. Tres cifras en la
+     tarjeta —cuota, costo y total— y la más grande era la única sin nombre
+     propio. Si el dueño del negocio no la entiende, el cliente tampoco. */
+
+  const texto = h => String(h).replace(/<[^>]*>/g, '\n').replace(/\n{2,}/g, '\n').trim();
+
+  test('la cifra grande dice qué es, ANTES de la cifra', () => {
+    const P = abrirPlay();
+    for (const [nombre, prep, pinta] of [
+      ['ARRIBA', 'CALC.monto = 500000; CALC.meses = 6;', 'cifrasDeCalc()'],
+      ['GARANTIA', 'GCALC.monto = 1000000; GCALC.meses = 6; GCALC.arranque = null;', 'cifrasDeGarantia()']
+    ]) {
+      P.ev(prep);
+      const lineas = texto(P.ev(pinta)).split('\n');
+      assert.match(lineas[0], /Pagarías cada mes/,
+        nombre + ': la primera línea no dice qué es la cifra grande, dice: ' + lineas[0]);
+      assert.match(lineas[1], /^\$[\d.]+$/,
+        nombre + ': la cifra grande no va justo debajo de su nombre');
+    }
+  });
+
+  test('NINGUNA cifra de la tarjeta queda sin etiqueta', () => {
+    /* Se recorre el texto plano: cada línea que sea solo un monto tiene que
+       venir precedida de una línea que NO sea un monto. */
+    const P = abrirPlay();
+    for (const [nombre, prep, pinta] of [
+      ['ARRIBA', 'CALC.monto = 500000; CALC.meses = 6;', 'cifrasDeCalc()'],
+      ['GARANTIA', 'GCALC.monto = 1000000; GCALC.meses = 6; GCALC.arranque = null;', 'cifrasDeGarantia()']
+    ]) {
+      P.ev(prep);
+      const lineas = texto(P.ev(pinta)).split('\n').map(x => x.trim()).filter(Boolean);
+      const esMonto = l => /^\$[\d.]+( ✓)?$/.test(l);
+      for (let i = 0; i < lineas.length; i++) {
+        if (!esMonto(lineas[i])) continue;
+        assert.ok(i > 0 && !esMonto(lineas[i - 1]),
+          nombre + ': la cifra ' + lineas[i] + ' no tiene etiqueta encima');
+      }
+    }
+  });
+
+  test('el título de la tarjeta ya no promete que la cifra es el costo', () => {
+    /* La frase «Mira cuánto te costaría», pegada encima de la cifra grande,
+       hacía leer la CUOTA como si fuera el costo. */
+    const P = abrirPlay();
+    const gancho = P.ev('TEXTOS.gancho');
+    assert.equal(/cu[aá]nto te costar/i.test(gancho), false,
+      'el título vuelve a prometer un costo justo encima de una cifra que es la cuota: ' + gancho);
+  });
+});

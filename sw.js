@@ -211,6 +211,12 @@
    $532.100» justo debajo de «En total vas a pagar $8.513.600». Lo vio Joan.
    Ahora el ejemplo sigue al deslizador. Toca play/index.html y
    app/cumplimiento.js.
+
+   v55 — 15-sep-2026. La cifra grande amarilla no decia que era. Es la CUOTA,
+   pero el titulo encima decia «mira cuanto te costaria», asi que se leia como
+   el costo. Lo vio Joan en su propia pagina. Ahora la etiqueta va ARRIBA del
+   numero y el titulo ya no promete un costo. Toca play/index.html y
+   play/estilo.css.
    ENTRAN AL CACHE app/ficha.js —lo carga play/— y el motor, que play/ no cargaba
    antes; app/chat.js y app/chat.css ya estaban por la app quincenal. */
 /* SUBIR EL NUMERO NO BASTA, Y COSTO UNA TARDE AVERIGUARLO (14-sep-2026).
@@ -268,7 +274,7 @@
    proyecto ya vio a este mismo service worker contestar index.html a una
    peticion de .js (ver v19). El guardian se mudo arriba del todo.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v54';
+const CACHE = 'tugarantia-v55';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

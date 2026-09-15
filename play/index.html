@@ -1164,7 +1164,9 @@ function subirArchivosRegistro() {
  * propósito: repartidos dentro de las funciones, cambiarlos exige leer código.
  * ----------------------------------------------------------------------- */
 var TEXTOS = {
-  gancho: 'Mira cuánto te costaría, ahora mismo y sin registrarte.',
+  /* Ya no dice «cuánto te costaría»: esa frase, pegada encima de la cifra
+     grande, hacía leer la CUOTA como si fuera el costo. */
+  gancho: 'Calcula tu crédito, ahora mismo y sin registrarte.',
 
   historia_titulo: 'Por qué existe Tu Garantía',
   historia: [
@@ -1263,8 +1265,23 @@ function cifrasDeCalc() {
      tamaño que todo lo demás: se leía la cuota y el total se perdía.
      «Última cuota» se fue: con las seis fechas en pantalla era el mismo dato
      dos veces, y el dato repetido es el que se queda viejo. */
-  return '<div class="calc-cifra">' + COP(c.cuota_tipica) + '</div>' +
-    '<div class="muted calc-pie">cada mes, durante ' + c.meses + ' meses' +
+  /* 15-sep-2026 — EL NUMERO GRANDE NO DECIA QUE ERA.
+     Joan: «me refiero al valor en color amarillo (...) miro el capital del
+     prestamo y lo que el cliente paga al final y no cuadra con el valor en
+     color amarillo o no entiendo que significa».
+
+     Y tenia razon. Encima del numero decia «MIRA CUANTO TE COSTARIA», debajo
+     —en gris chiquito— «cada mes, durante 6 meses». Un titulo que habla de
+     COSTO justo encima de una cifra grande hace que la cifra se lea como el
+     costo, y lo que hay ahi es la CUOTA. Tres numeros en la tarjeta ($88.683 de
+     cuota, $32.100 de costo, $532.100 de total) y el mas grande era el unico
+     sin nombre propio.
+
+     Si el dueno del negocio no lo entiende, el cliente tampoco. La etiqueta va
+     ARRIBA de la cifra, que es donde se lee antes. */
+  return '<div class="etq-cifra">Pagarías cada mes</div>' +
+    '<div class="calc-cifra">' + COP(c.cuota_tipica) + '</div>' +
+    '<div class="muted calc-pie">durante ' + c.meses + ' meses' +
       avisoUltimaCuota(c) + '</div>' +
     '<div class="granTotal"><span>En total vas a pagar</span><b>' +
       COP(c.total_a_pagar) + '</b></div>' +
@@ -1605,8 +1622,9 @@ function cifrasDeGarantia() {
      cuota manda y el total va en su propia caja. Dos formas de decir lo mismo,
      una debajo de la otra, obligan a leer dos veces para comparar — que es justo
      lo que alguien hace acá. */
-  return '<div class="cifra sm">' + COP(c.cuota_fija) + '</div>' +
-    '<div class="muted" style="font-size:13.5px">cada mes, durante ' + c.plazo_meses +
+  return '<div class="etq-cifra">Pagarías cada mes</div>' +
+    '<div class="cifra sm">' + COP(c.cuota_fija) + '</div>' +
+    '<div class="muted" style="font-size:13.5px">durante ' + c.plazo_meses +
       (c.plazo_meses === 1 ? ' mes' : ' meses') + avisoUltimaCuota(c) + '</div>' +
     '<div class="granTotal"><span>En total vas a pagar</span><b>' +
       COP(c.total_a_pagar) + '</b></div>' +
