@@ -9120,6 +9120,41 @@ describe('ninguna pantalla llama a una función que la migración tiró (11-ago-
       'sesión la ficha de otra persona.');
   });
 
+  /* 14-sep-2026 — EL DESPLIEGUE QUE NO LLEGA Y NO AVISA.
+
+     Publiqué, abrí tugarantia.net en un navegador que ya había estado ahí, y dos
+     recargas después seguía mostrando la versión anterior con la caché vieja. El
+     servidor servía lo nuevo —comprobado con curl—; el teléfono no se enteraba.
+
+     La causa: el navegador comprueba si sw.js cambió, pero esa comprobación pasa
+     por SU PROPIA caché HTTP, y GitHub Pages manda max-age=600 en todo. Durante
+     diez minutos el navegador se contesta a sí mismo con el sw.js viejo, ve que
+     no cambió, y no instala nada. skipWaiting y clients.claim no ayudan: están
+     bien puestos, pero nunca llegan a ejecutarse.
+
+     updateViaCache:'none' obliga a ir a la red. Es una palabra por registro y es
+     la diferencia entre que una corrección de plata llegue hoy o mañana. */
+  test('los cuatro registros del service worker van a la RED a comprobar', () => {
+    const sitios = ['app/socio.html', 'panel/crm.html', 'panel/espejo.html', 'play/index.html'];
+    sitios.forEach(f => {
+      const t = leer(f);
+      const regs = [...t.matchAll(/serviceWorker\.register\(([^)]*)\)/g)].map(m => m[1]);
+      assert.ok(regs.length >= 1, f + ' dejó de registrar el service worker');
+      regs.forEach(r => assert.match(r, /updateViaCache\s*:\s*['"]none['"]/,
+        f + ' registra el service worker sin updateViaCache:none — una publicación ' +
+        'puede tardar un día en llegarle al cliente y nadie se entera de que no llegó'));
+    });
+  });
+
+  test('el service worker toma el mando sin esperar a que cierren las pestañas', () => {
+    /* La otra mitad: aunque se entere de que hay uno nuevo, sin skipWaiting se
+       queda esperando a que se cierren TODAS las pestañas del sitio, y en un
+       celular eso puede no pasar en semanas. */
+    const SW = leer('sw.js');
+    assert.match(SW, /self\.skipWaiting\(\)/, 'el service worker nuevo se queda esperando turno');
+    assert.match(SW, /self\.clients\.claim\(\)/, 'el service worker nuevo no toma las pestañas abiertas');
+  });
+
   test('nadie sigue mandando p_tel4: esa puerta se cerró', () => {
     ['app/socio.html', 'panel/crm.html'].forEach(f =>
       assert.ok(leer(f).indexOf('p_tel4') === -1,

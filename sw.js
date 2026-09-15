@@ -190,6 +190,18 @@
    Toca index.html, play/index.html, play/estilo.css y app/ficha.js (nuevo).
    ENTRAN AL CACHE app/ficha.js —lo carga play/— y el motor, que play/ no cargaba
    antes; app/chat.js y app/chat.css ya estaban por la app quincenal. */
+/* SUBIR EL NUMERO NO BASTA, Y COSTO UNA TARDE AVERIGUARLO (14-sep-2026).
+   El navegador comprueba si este archivo cambio, pero esa comprobacion pasa
+   por SU PROPIA CACHE HTTP. GitHub Pages manda max-age=600 en todo, asi que
+   durante diez minutos el navegador se contesta a si mismo con el sw.js viejo,
+   ve que no cambio, y no instala nada: el telefono se queda con la version
+   anterior aunque el servidor ya sirva la nueva. skipWaiting y clients.claim
+   —que estan puestos desde agosto— no ayudan: el problema es que nunca se
+   entera de que hay uno nuevo.
+   Por eso los cuatro sitios que registran este archivo lo hacen con
+   updateViaCache:'none', que obliga a ir a la red. Si alguien lo quita, una
+   correccion de plata puede tardar un dia en llegar al telefono del cliente y
+   nadie se entera de que no llego. Hay un centinela en pruebas/motor.test.js. */
 const CACHE = 'tugarantia-v41';
 const BASE = new URL('./', self.location).pathname;
 

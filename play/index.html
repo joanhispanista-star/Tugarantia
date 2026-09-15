@@ -2469,7 +2469,7 @@ function pie() {
   }
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('../sw.js').catch(function () {});
+      navigator.serviceWorker.register('../sw.js', { updateViaCache: 'none' }).catch(function () {});
     });
   }
   /* 8-sep-2026 — #registro abre el formulario de una: es adonde manda el botón
