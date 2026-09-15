@@ -202,7 +202,11 @@
    updateViaCache:'none', que obliga a ir a la red. Si alguien lo quita, una
    correccion de plata puede tardar un dia en llegar al telefono del cliente y
    nadie se entera de que no llego. Hay un centinela en pruebas/motor.test.js. */
-const CACHE = 'tugarantia-v41';
+/* v42 - 14-sep-2026. El numero solo no bastaba: ver la nota de arriba y la del
+   install. v41 alcanzo a instalarse en algun telefono con los archivos VIEJOS
+   dentro, y ahi se habrian quedado hasta la proxima publicacion. Este numero
+   fuerza una instalacion limpia, ya con el precache yendo a la red. */
+const CACHE = 'tugarantia-v42';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -268,7 +272,17 @@ self.addEventListener('install', e => {
     caches.open(CACHE)
       // Sin reventar la instalación si algún archivo falta: mejor una app a medias
       // en caché que ninguna.
-      .then(c => Promise.all(ARCHIVOS.map(f => c.add(f).catch(() => null))))
+      //
+      // CADA ARCHIVO VA A LA RED, y esa es la mitad que faltaba (14-sep-2026).
+      // `cache.add(f)` hace una peticion NORMAL, y una peticion normal pasa por la
+      // cache HTTP del navegador, que con max-age=600 de GitHub Pages tiene la
+      // version anterior. O sea: el service worker nuevo se instalaba y llenaba su
+      // cache flamante CON LOS ARCHIVOS VIEJOS. Y ahi se quedaban hasta el
+      // siguiente cambio de numero — no diez minutos: hasta la proxima publicacion.
+      // Comprobado en vivo: la cache paso a v41 y la pagina seguia diciendo
+      // «Version 2026-09-09».
+      .then(c => Promise.all(ARCHIVOS.map(f =>
+        c.add(new Request(f, { cache: 'reload' })).catch(() => c.add(f).catch(() => null)))))
       .then(() => self.skipWaiting())
   );
 });

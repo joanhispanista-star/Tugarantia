@@ -9146,6 +9146,30 @@ describe('ninguna pantalla llama a una función que la migración tiró (11-ago-
     });
   });
 
+  test('el precache va a la RED, no a la caché del navegador', () => {
+    /* 14-sep-2026 — la mitad que faltaba, y la que de verdad dolía. Con
+       updateViaCache:'none' el navegador ya se entera de que hay un service
+       worker nuevo y lo instala. Pero `cache.add(f)` hace una petición NORMAL, y
+       una petición normal pasa por la caché HTTP del navegador, que con
+       max-age=600 de GitHub Pages tiene la versión anterior.
+
+       O sea: el service worker nuevo se instalaba y llenaba su caché flamante
+       CON LOS ARCHIVOS VIEJOS. Y ahí se quedaban hasta el siguiente cambio de
+       número — no diez minutos: hasta la próxima publicación. Comprobado en vivo
+       en tugarantia.net: la caché pasó a v41 y la página seguía diciendo
+       «Versión 2026-09-09».
+
+       El respaldo a `c.add(f)` a secas es deliberado: si un navegador viejo no
+       entiende cache:'reload', vale más una caché con algo que ninguna. */
+    const SW = leer('sw.js');
+    const inst = SW.slice(SW.indexOf("addEventListener('install'"),
+                          SW.indexOf("addEventListener('activate'"));
+    assert.match(inst, /new Request\([^)]*cache:\s*['\"]reload['\"]/,
+      'el precache del service worker vuelve a pasar por la caché del navegador: ' +
+      'la instalación nueva se llena con los archivos viejos y se queda así hasta ' +
+      'la próxima publicación');
+  });
+
   test('el service worker toma el mando sin esperar a que cierren las pestañas', () => {
     /* La otra mitad: aunque se entere de que hay uno nuevo, sin skipWaiting se
        queda esperando a que se cierren TODAS las pestañas del sitio, y en un
