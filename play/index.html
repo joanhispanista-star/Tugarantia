@@ -10,6 +10,7 @@
 <link rel="manifest" href="app.webmanifest">
 <link rel="apple-touch-icon" href="../app/icono-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="../app/icono-192.png">
+<link rel="stylesheet" href="../app/chat.css">
 <link rel="stylesheet" href="estilo.css">
 <style>
 /* 8-sep-2026 — la cédula y el rostro */
@@ -65,10 +66,19 @@
 <script src="../app/creditos.js"></script>
 <script src="../app/cuenta.js"></script>
 <script src="../app/cumplimiento.js"></script>
+<!-- 14-sep-2026 — el motor del préstamo con garantía y el lector de la ficha.
+     Son los MISMOS que usa el CRM de Joan: la calculadora de la garantía que
+     ve el cliente y la cuota que le cobra Joan salen de la misma función. -->
+<script src="../app/motor.js"></script>
+<script src="../app/ficha.js"></script>
+<!-- El hilo del chat se pinta con el mismo código que en la app quincenal: la
+     marca de «esto te lo contestó una máquina» y el «leído» son reglas, no
+     adorno, y no se escriben dos veces. -->
+<script src="../app/chat.js"></script>
 <script>
 'use strict';
 
-var VERSION_PLAY = '2026-09-09';
+var VERSION_PLAY = '2026-09-14';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -86,6 +96,9 @@ try {
 
 var C = window.CreditosPublicables;
 var U = window.CuentaSocio;
+var M = window.MotorReglas;
+var FS = window.FichaSocio;
+var CH = window.ChatTuGarantia;
 var $ = function (id) { return document.getElementById(id); };
 var COP = function (n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); };
 function esc(s) {
@@ -178,18 +191,29 @@ function pintarEntrar() {
        en los primeros cinco segundos —cuánto le costaría— sin cuenta, sin
        registro y sin pedirle nada a cambio. Todo lo demás cuelga de ahí. */
     tarjetaCalculadora() +
+    /* Y debajo, adónde se llega pagando: el crédito con garantía. Va acá y no
+       escondido detrás del login porque es lo que explica para qué sirve pagar
+       en fecha, y porque Joan pidió que TODOS la vieran. */
+    tarjetaCalcGarantia() +
     '<div class="card">' +
-      '<h3 class="tit">¿Eres nuevo? Abre tu cuenta</h3>' +
+      /* 14-sep-2026 — UNA SOLA PUERTA. Antes este título decía «¿Eres nuevo?»,
+         y el cliente de toda la vida leía eso y se iba a buscar otra entrada que
+         ya no existe. Abre su cuenta igual que cualquiera y junta su historial
+         desde adentro, en Perfil. */
+      '<h3 class="tit">Abre tu cuenta</h3>' +
       '<p class="sub"><b>No necesitas que nadie te presente.</b> Te tomará unos minutos: ' +
         'te pedimos los datos con los que evaluamos el crédito, y cada uno te decimos ' +
         'para qué es. Después revisamos tu solicitud y te escribimos por WhatsApp.</p>' +
+      '<p class="sub"><b>¿Ya eras cliente nuestro?</b> Ábrela igual: adentro, en ' +
+        'Perfil, pegas el código que te dimos y tu historial queda junto con tu ' +
+        'cuenta.</p>' +
       '<div class="muted" style="font-size:13px;margin-top:var(--e3)">' + esc(TEXTOS.empujon_visitante) + '</div>' +
       '<button class="btn arriba" onclick="pintarRegistro(0)">Abrir mi cuenta</button>' +
     '</div>' +
     tarjetaRecorrido() +
     '<div class="card">' +
-      '<h3 class="tit">¿Ya abriste tu cuenta aquí?</h3>' +
-      '<p class="sub">Entra con tu celular y tu contraseña.</p>' +
+      '<h3 class="tit">¿Ya abriste tu cuenta?</h3>' +
+      '<p class="sub">Entra con tu celular y la contraseña que tú pusiste.</p>' +
       '<label for="inTel">Tu celular</label>' +
       '<input id="inTel" type="tel" inputmode="numeric" autocomplete="username" ' +
         'placeholder="300 111 2233" oninput="tecleaTel(this)">' +
@@ -620,7 +644,8 @@ function tarjetaContrapropuesta(sol) {
     fila('Te prestamos', COP(cp.capital)) +
     fila('Lo que cuesta', COP(cp.costo)) +
     fila('Devuelves', COP(cp.total)) +
-    fila('El día', esc(fmtFecha(cp.fecha_pago)) + ' (' + Number(cp.dias) + ' días)');
+    '<div class="grupo-tit">Cuándo pagas</div>' +
+    cuotasDePropuesta(cp);
   if (aceptada) {
     h += '<div class="aviso verde" style="margin-top:var(--e3)"><b>Listo: aceptaste ' + COP(cp.capital) + '.</b> ' +
       'Te escribimos por WhatsApp para entregarte la plata y te mandamos <b>tu código de acceso</b>: ' +
@@ -633,6 +658,18 @@ function tarjetaContrapropuesta(sol) {
       '<div id="errAceptar" class="aviso ambar oculto"></div>';
   }
   return h + '</div>';
+}
+
+/* Las cuotas de una propuesta, segmentadas. Si la propuesta trae cuotas se
+   pintan una por una; si trae un solo pago se pinta ESE, con su fecha y su
+   monto. Partir un pago único en tres renglones inventados sería la pantalla
+   fabricando un acuerdo que nadie hizo. */
+function cuotasDePropuesta(cp) {
+  if (cp.cuotas && cp.cuotas.length) return cuadroCuotas(cp.cuotas);
+  if (!cp.fecha_pago) return '';
+  return fila('Pago único · ' + fmtFecha(cp.fecha_pago), COP(cp.total)) +
+    '<div class="ayuda">Es un solo pago, ' + Number(cp.dias) + ' días después de ' +
+      'que recibas la plata. No hay cuotas intermedias ni nada que pagar antes.</div>';
 }
 
 function pintarSolicitud(sol) {
@@ -1214,6 +1251,178 @@ function letraDeCalc() {
       'y sin cargos aparte: lo que ves es todo lo que se cobra.</div>';
 }
 
+/* ===================== LA CALCULADORA DE LA GARANTÍA =====================
+   Joan, 14-sep-2026: «una calculadora abierta para que la gente pueda ver los
+   créditos que se solicitan con garantía… y que está a 6 meses si el cliente
+   quiere, pero ser claros explicando que para esta calculadora solo se puede
+   acceder de acuerdo al acumulado de garantía».
+
+   LAS DOS MITADES DE ESA FRASE VAN JUNTAS O NO VA NINGUNA. La calculadora se le
+   muestra a todo el mundo —es lo que explica para qué sirve pagar en fecha—,
+   pero encima de la primera cifra va siempre hasta dónde le alcanza HOY a quien
+   está mirando. Una cuota de tres millones enseñada a quien tiene cero de
+   garantía, sin esa línea, es una oferta que no existe.
+
+   Las cifras salen de motor.js (simularPrestamoRespaldado), el mismo que cobra
+   en el CRM: 2% mensual SOBRE EL SALDO —no sobre el original—, cuota fija, a 6
+   meses como máximo y desde un millón. */
+var GCALC = { monto: M.MONTO_MINIMO_RESPALDADO, meses: M.PLAZO_RESPALDADO_MAX };
+var GCALC_MIN = M.MONTO_MINIMO_RESPALDADO;
+/* EL PISO ES EL DE LA PÁGINA, no el del motor. El motor acepta el préstamo con
+   garantía desde UN mes y así lo opera Joan en su CRM; esta pantalla lleva
+   declarado el piso de 90 días desde agosto (ver CALC_MESES_MIN, unas líneas
+   arriba, con su razón). Se deriva del mismo número para que no haya dos. */
+var GCALC_MESES_MIN = Math.ceil(C.PLAZO_MINIMO_DIAS / 30);
+var GCALC_MESES_MAX = M.PLAZO_RESPALDADO_MAX;
+/* El tope del deslizador sale del mínimo, no de una cifra escrita acá: el techo
+   de verdad es la garantía de cada uno, y esto es solo hasta dónde deja
+   arrastrar el dedo. */
+var GCALC_MAX = M.MONTO_MINIMO_RESPALDADO * 4;
+var GCALC_PASO = 100000;
+
+/* La entrada del motor. Con ficha, la de la ficha; sin ficha, una en cero — que
+   es la verdad de quien todavía no ha pagado nada. */
+function entradaGarantia() {
+  return (FICHA && FICHA.entrada) ||
+    { datos: {}, referidos: 0, acumulada: 0, ajuste: 0, comprometida: 0 };
+}
+function respaldoDisponible() { return (FICHA && FICHA.maxRespaldado) || 0; }
+
+function cotizacionGarantia() {
+  try {
+    return M.simularPrestamoRespaldado(GCALC.monto, GCALC.meses, entradaGarantia(),
+                                       { fechaDesembolso: hoyISO() });
+  } catch (e) { return null; }
+}
+
+/* La efectiva anual del flujo REAL, no de una fórmula aparte: se le da al mismo
+   cálculo que usa el producto a 6 meses, con las cuotas que se acaban de pintar.
+   Es la única cifra en porcentaje que el cliente ve, y va porque es obligatoria. */
+function eaDeGarantia(c) {
+  var flujo = [c.capital];
+  c.cuotas.forEach(function (q) { flujo.push(-q.total); });
+  return C.efectivoAnual(flujo);
+}
+
+/* EL TECHO DE USURA, COMPROBADO EN PANTALLA Y NO SOLO EN LAS PRUEBAS. Las
+   pruebas comparan contra el tope más bajo de la tabla; esto compara contra el
+   tope DE HOY, que es el que manda. Si un mes la Superfinanciera bajara el techo
+   por debajo de este producto, la app deja de cotizarlo sola en vez de publicar
+   un precio que el artículo 305 castiga con cárcel. */
+function garantiaSePuedeCotizar(c) {
+  if (!hayQueCotizar()) return false;
+  var t = C.topeVigente(hoyISO());
+  if (!t) return false;
+  return eaDeGarantia(c) <= t.consumo_ordinario;
+}
+
+function tarjetaCalcGarantia() {
+  var c = cotizacionGarantia();
+  if (!c || !garantiaSePuedeCotizar(c)) {
+    return '<div class="card"><h3 class="tit">El crédito con garantía</h3>' +
+      '<p class="sub">Hoy no podemos publicar su precio. Escríbenos y lo resolvemos por WhatsApp.</p></div>';
+  }
+  return '<div class="card">' +
+      '<h3 class="tit">Y cuando tengas garantía, más barato</h3>' +
+      '<p class="sub">Cada vez que pagas en fecha, guardas garantía. La garantía es la que te abre este otro crédito: <b>más grande, hasta 6 meses y con un costo mucho más bajo</b>.</p>' +
+      '<div id="gcalcTecho">' + techoDeGarantia() + '</div>' +
+      '<div id="gcalcCifras">' + cifrasDeGarantia() + '</div>' +
+      '<div class="mando">' +
+        '<div class="cab-mando"><label for="gcalcMonto" style="margin:0">Cuánto pedirías</label>' +
+          '<b id="gcalcMontoTxt">' + COP(GCALC.monto) + '</b></div>' +
+        '<input type="range" id="gcalcMonto" min="' + GCALC_MIN + '" max="' + GCALC_MAX + '" ' +
+          'step="' + GCALC_PASO + '" value="' + GCALC.monto + '" ' +
+          'aria-label="Cuánto pedirías" oninput="moverGCalc()">' +
+      '</div>' +
+      '<div class="mando">' +
+        '<div class="cab-mando"><label for="gcalcMeses" style="margin:0">En cuántos meses</label>' +
+          '<b id="gcalcMesesTxt">' + GCALC.meses + ' meses</b></div>' +
+        '<input type="range" id="gcalcMeses" min="' + GCALC_MESES_MIN + '" max="' + GCALC_MESES_MAX + '" ' +
+          'step="1" value="' + GCALC.meses + '" aria-label="En cuántos meses" oninput="moverGCalc()">' +
+      '</div>' +
+    '</div>';
+}
+
+/* LA LÍNEA DEL ACCESO. Es la que Joan pidió que fuera clara, y cambia según
+   quién mira: el visitante sin cuenta, el registrado que todavía no ha pagado
+   nada, y el que ya tiene garantía ganada. Ninguno de los tres ve una promesa
+   que no le corresponde. */
+function techoDeGarantia() {
+  var d = respaldoDisponible();
+  if (d <= 0) {
+    return '<div class="aviso ambar" style="margin-top:0"><b>Esto todavía no lo puedes pedir.</b> El crédito con garantía se abre con la garantía que ya ganaste pagando, peso a peso. Hoy tienes <b>$0</b>: empieza por un crédito normal y cada cuota que pagues en fecha te va abriendo este.</div>';
+  }
+  if (GCALC.monto > d) {
+    return '<div class="aviso ambar" style="margin-top:0">Con tu garantía de hoy puedes pedir hasta <b>' + COP(d) + '</b>. Puedes pedir más y lo miramos, pero te vamos a contestar con una propuesta por lo que alcanza.</div>';
+  }
+  return '<div class="aviso verde" style="margin-top:0">Con tu garantía de hoy puedes pedir hasta <b>' + COP(d) + '</b>. Lo que estás moviendo te alcanza.</div>';
+}
+
+function cifrasDeGarantia() {
+  var c = cotizacionGarantia();
+  if (!c) return '<div class="aviso ambar">No podemos cotizar ese monto.</div>';
+  if (!c.cumple_minimo) {
+    return '<div class="aviso ambar">El crédito con garantía va desde <b>' +
+      COP(c.monto_minimo) + '</b>. Por debajo de eso se pide el crédito normal.</div>';
+  }
+  return '<div class="cifra sm">' + COP(c.cuota_fija) + '</div>' +
+    '<div class="muted" style="font-size:13.5px">al mes, ' + c.plazo_meses +
+      ' cuotas iguales. En total pagas <b>' + COP(c.total_a_pagar) + '</b>.</div>' +
+    '<div class="sep"></div>' +
+    fila('Lo que recibes', COP(c.capital)) +
+    fila('Lo que cuesta', COP(c.costo_total)) +
+    fila('Tasa efectiva anual', pct(eaDeGarantia(c))) +
+    '<div class="grupo-tit">Cuándo pagarías</div>' +
+    cuadroCuotas(c.cuotas) +
+    '<div class="aviso" style="margin-top:var(--e4);font-size:12.5px;line-height:1.55">' +
+      esc(divulgacionHoy()) + '</div>' +
+    tarjetaGanancia(c);
+}
+
+/* EL CUADRO DE LO QUE GANA AL PAGAR — Joan lo pidió con esas palabras: «que
+   muestre un cuadro o una imagen de cuánto gana en garantía cuando pague».
+   No es una imagen: son las mismas cifras del motor, con una barra que crece.
+   Una imagen se queda vieja; esto no puede. */
+function tarjetaGanancia(c) {
+  var deja = c.garantia_que_deja || 0;
+  if (deja <= 0) return '';
+  var acum = 0, total = deja || 1;
+  var barras = c.cuotas.map(function (q) {
+    acum += q.garantia_generada || 0;
+    var alto = Math.max(6, Math.round(acum / total * 100));
+    return '<div class="tramo"><i style="height:' + alto + '%"></i>' +
+      '<span>' + q.numero + '</span></div>';
+  }).join('');
+  return '<div class="gana">' +
+    '<div class="etq">Lo que ganas pagando</div>' +
+    '<div class="barras">' + barras + '</div>' +
+    '<div class="muted" style="font-size:13px;margin-top:var(--e2)">Si pagas las ' +
+      c.plazo_meses + ' cuotas en fecha, terminas con <b>' + COP(deja) +
+      '</b> más de garantía. Esa garantía es la que te abre el siguiente crédito, más grande.</div></div>';
+}
+
+/* Las cuotas, SEGMENTADAS: una línea por cuota, con su fecha y su monto. Es lo
+   que Joan pidió «para mejorar la cobranza y dar claridad», y sirve igual en la
+   calculadora, en la propuesta y en el crédito activo — por eso está una vez. */
+function cuadroCuotas(cuotas) {
+  return (cuotas || []).map(function (q) {
+    var f = q.fecha_corte || q.fecha;
+    return fila('Cuota ' + (q.numero || q.n) + (f ? ' · ' + fmtFecha(f) : ''),
+                COP(q.total) + (q.pagada || q.pagado ? ' ✓' : ''));
+  }).join('');
+}
+
+function moverGCalc() {
+  var m = $('gcalcMonto'), p = $('gcalcMeses');
+  if (m) GCALC.monto = Math.max(GCALC_MIN, Math.min(GCALC_MAX, Number(m.value) || GCALC_MIN));
+  if (p) GCALC.meses = Math.max(GCALC_MESES_MIN,
+    Math.min(GCALC_MESES_MAX, Number(p.value) || GCALC_MESES_MAX));
+  var t1 = $('gcalcMontoTxt'); if (t1) t1.textContent = COP(GCALC.monto);
+  var t2 = $('gcalcMesesTxt'); if (t2) t2.textContent = GCALC.meses + (GCALC.meses === 1 ? ' mes' : ' meses');
+  var caja = $('gcalcCifras'); if (caja) caja.innerHTML = cifrasDeGarantia();
+  var techo = $('gcalcTecho'); if (techo) techo.innerHTML = techoDeGarantia();
+}
+
 function moverCalc() {
   var m = $('calcMonto'), p = $('calcMeses');
   if (m) CALC.monto = Math.max(CALC_MIN, Math.min(CALC_MAX, Number(m.value) || CALC_MIN));
@@ -1475,30 +1684,459 @@ function historialDeSesion(s) {
   return (m && Array.isArray(m.creditos)) ? m.creditos : [];
 }
 
+/* ==================== LAS CUATRO PESTAÑAS — 14-sep-2026 ====================
+   Joan: «después de que ingrese y se registre el cliente quiero que tenga las
+   pestañas de perfil, con opciones de cambiar contraseña o usuario u otros,
+   aparte una pestaña de historial y una pestaña chat, en el cual esté el chat
+   de servicio al cliente y el chat de cobranzas y el chat de créditos nuevos. Y
+   una pestaña para solicitar un nuevo crédito o en su defecto que muestre la
+   información del crédito activo».
+
+   Cuatro láminas y una barra. Cada lámina se pinta sola: si el chat no puede
+   hablar con la nube, el crédito se sigue viendo.
+
+   LO QUE NO ESTÁ ENCENDIDO SE DICE CON ESAS PALABRAS. mi_cuenta y
+   chat_leer_sesion viven en una migración que Joan corre a mano; mientras no la
+   corra, el servidor contesta 404. Traducir eso a «no tienes mensajes» sería la
+   pantalla mintiendo sobre la causa — la casa no lo permite —, así que se dice
+   que esa parte todavía no está encendida y se distingue de «no pude
+   conectarme», que es otra cosa. */
+var TAB = 'credito';
+var FICHA = null;          // lo que devolvió mi_cuenta, ya leído por ficha.js
+var FICHA_ESTADO = 'sin';  // sin | cargando | nueva | vinculada | apagada | falla
+
+var PESTANAS = [['credito', 'Crédito'], ['historial', 'Historial'],
+                ['chat', 'Chat'], ['perfil', 'Perfil']];
+var TITULOS = { credito: 'Tu crédito', historial: 'Tu historial',
+                chat: 'Tus chats', perfil: 'Tu perfil' };
+
+function barraPestanas() {
+  return '<div class="tabs" role="tablist">' + PESTANAS.map(function (x) {
+    return '<button class="tab' + (TAB === x[0] ? ' on' : '') + '" role="tab" ' +
+      'aria-selected="' + (TAB === x[0] ? 'true' : 'false') + '" ' +
+      'onclick="irA(&quot;' + x[0] + '&quot;)">' + esc(x[1]) + '</button>';
+  }).join('') + '</div>';
+}
+
 function pintarCuenta(sesion) {
   if (sesion) SESION = sesion;
   VISTA = 'cuenta';
-  $('titulo').textContent = 'Mi cuenta';
-  var idPerfil = perfilDeSesion(SESION);
-  var perfil = C.PERFILES[idPerfil];
-
-  MONTO = Math.min(MONTO, perfil.cupo_maximo || 500000);
-  MONTO = Math.max(MONTO, 100000);
-
-  $('cuerpo').innerHTML =
-    '<div id="solicitudBox"></div>' +
-    tarjetaCupo(perfil) +
-    tarjetaSimulador(idPerfil) +
-    tarjetaHistorial() +
-    '<div class="card">' +
-      '<button class="btn sec" onclick="pintarEntrar()">Salir</button>' +
-      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarBorrar()">' +
-        'Borrar mi cuenta</button>' +
-    '</div>' + pie();
-  pintarSimulacion();
-  cargarMiSolicitud();
+  $('cuerpo').innerHTML = '<div id="tabs">' + barraPestanas() + '</div>' +
+    '<div id="lamina"></div>' + pie();
+  /* La ficha se pide UNA vez al abrir y se reparte a las cuatro láminas. Pedirla
+     en cada pestaña sería la misma pregunta cuatro veces por visita. */
+  cargarFicha();
+  irA(TAB);
   subirArchivosRegistro().catch(function () {});
   window.scrollTo(0, 0);
+}
+
+function irA(tab) {
+  TAB = tab;
+  var b = $('tabs'); if (b) b.innerHTML = barraPestanas();
+  $('titulo').textContent = TITULOS[tab] || 'Mi cuenta';
+  pintarLamina();
+  window.scrollTo(0, 0);
+}
+
+/* Repinta la lámina que se está viendo. Se llama sola cuando llega la ficha: sin
+   esto, el que abre en «Crédito» se queda viendo «cargando» hasta que toque otra
+   pestaña, aunque la respuesta ya haya llegado. */
+function pintarLamina() {
+  var l = $('lamina'); if (!l) return;
+  if (TAB === 'credito') {
+    l.innerHTML = laminaCredito();
+    pintarSimulacion();
+    moverGCalc();
+    cargarMiSolicitud();
+  } else if (TAB === 'historial') {
+    l.innerHTML = laminaHistorial();
+  } else if (TAB === 'chat') {
+    l.innerHTML = laminaChat();
+    abrirCanal(CANAL);
+  } else {
+    l.innerHTML = laminaPerfil();
+  }
+}
+
+/* ------------------------------ LA FICHA ------------------------------ */
+function cargarFicha() {
+  if (!SESION || !SESION.access_token) { FICHA_ESTADO = 'sin'; return; }
+  FICHA_ESTADO = 'cargando';
+  rpcSesion('mi_cuenta').then(function (j) {
+    if (!j || j.ok !== true) { FICHA_ESTADO = 'falla'; return pintarLamina(); }
+    if (!j.vinculada) {
+      /* NO ES UN ERROR: es un registrado nuevo, o uno antiguo al que Joan
+         todavía no le ha cargado el historial. Se le contesta así. */
+      FICHA = null; FICHA_ESTADO = 'nueva'; return pintarLamina();
+    }
+    FICHA = FS.leer(j.datos || {});
+    FICHA.nombre = j.nombre || '';
+    FICHA.actualizado = j.actualizado_en || '';
+    FICHA_ESTADO = 'vinculada';
+    pintarLamina();
+  }).catch(function (e) {
+    /* 404 = la migración de la puerta única no está corrida todavía. No es lo
+       mismo que «tu internet falló», y decir lo segundo mandaría al cliente a
+       reiniciar el teléfono por un problema que está en el servidor. */
+    FICHA_ESTADO = /\b404\b/.test(String((e && e.message) || '')) ? 'apagada' : 'falla';
+    pintarLamina();
+  });
+}
+
+/* El aviso del estado de la ficha, en palabras, una sola vez y no en cada
+   tarjeta. Devuelve cadena vacía cuando hay ficha: no hay nada que explicar. */
+function avisoFicha() {
+  if (FICHA_ESTADO === 'vinculada') return '';
+  if (FICHA_ESTADO === 'cargando') {
+    return '<div class="aviso">Buscando tu historial…</div>';
+  }
+  if (FICHA_ESTADO === 'nueva') {
+    return '<div class="aviso">Tu cuenta está abierta y todavía no tiene historial con nosotros. Si ya eras cliente, vete a <b>Perfil</b> y pega el código que te dimos: ahí se junta tu historial con esta cuenta.</div>';
+  }
+  if (FICHA_ESTADO === 'apagada') {
+    return '<div class="aviso ambar"><b>Esta parte todavía no está encendida.</b> Tu cuenta y tu solicitud funcionan; el historial y la garantía los estamos conectando. No es tu teléfono ni tu internet.</div>';
+  }
+  if (FICHA_ESTADO === 'falla') {
+    return '<div class="aviso ambar">No pude traer tu historial ahora. Vuelve a abrir la app en un rato.</div>';
+  }
+  return '';
+}
+
+/* ---------------------------- LÁMINA: CRÉDITO ----------------------------
+   «Una pestaña para solicitar un nuevo crédito o EN SU DEFECTO que muestre la
+   información del crédito activo». El orden es ese: lo que ya debe manda sobre
+   lo que podría pedir. */
+function laminaCredito() {
+  var idPerfil = perfilDeSesion(SESION);
+  var perfil = C.PERFILES[idPerfil];
+  MONTO = Math.min(MONTO, perfil.cupo_maximo || 500000);
+  MONTO = Math.max(MONTO, 100000);
+  return '<div id="solicitudBox"></div>' +
+    avisoFicha() +
+    tarjetaCreditoActivo() +
+    tarjetaMiGarantia() +
+    tarjetaCupo(perfil) +
+    tarjetaSimulador(idPerfil) +
+    tarjetaCalcGarantia();
+}
+
+/* EL CRÉDITO ACTIVO, CON SUS CUOTAS SEGMENTADAS. Joan: «que le aparezca
+   segmentado la fecha y monto a pagar para mejorar la cobranza y dar claridad».
+   Vale para los dos productos: el de garantía trae cuotas, el quincenal trae una
+   sola fecha y se dibuja igual, con su renglón. */
+function tarjetaCreditoActivo() {
+  if (!FICHA) return '';
+  var r = FICHA.respaldadoActivo, q = FICHA.activo;
+  if (!r && !q) return '';
+  var h = '';
+  if (r) {
+    var sig = FS.proximaCuota(r);
+    h += '<div class="card laca">' +
+      '<div class="etq">Tu crédito con garantía</div>' +
+      (sig ? '<div class="cifra oro">' + COP(sig.total) + '</div>' +
+             '<div class="muted" style="font-size:13.5px">es lo que sigue, el ' +
+               esc(fmtFecha(sig.fecha)) + '</div>'
+           : '<div class="cifra oro">Al día</div>') +
+      '<div class="sep"></div>' +
+      fila('Te prestamos', COP(r.capital)) +
+      fila('Te falta', COP(r.saldo_capital != null ? r.saldo_capital : 0)) +
+      '<div class="grupo-tit">Tus cuotas</div>' +
+      cuadroCuotas(r.cuotas) +
+      '</div>';
+  }
+  if (q) {
+    h += '<div class="card">' +
+      '<div class="etq">Tu crédito</div>' +
+      fila('Te prestamos', COP(q.capital)) +
+      (q.fecha_pago ? fila('El día', esc(fmtFecha(q.fecha_pago))) : '') +
+      (q.total != null ? fila('Devuelves', COP(q.total)) : '') +
+      '</div>';
+  }
+  return h;
+}
+
+/* LA GARANTÍA DEL SOCIO, en pesos y con lo que significa cada parte. Las cifras
+   salen de ficha.js, que las saca del motor: acá no se suma nada. */
+function tarjetaMiGarantia() {
+  if (!FICHA) return '';
+  var g = FICHA.gd;
+  return '<div class="card">' +
+    '<div class="etq">Tu garantía</div>' +
+    '<div class="cifra sm">' + COP(g.ganada) + '</div>' +
+    '<div class="muted" style="font-size:13.5px">es la que ganaste pagando</div>' +
+    '<div class="sep"></div>' +
+    fila('Libre para respaldar', COP(FICHA.maxRespaldado)) +
+    (g.comprometida > 0 ? fila('Sosteniendo lo que debes', COP(g.comprometida)) : '') +
+    '<div class="ayuda">Con la libre se abre el crédito con garantía, uno a uno: si tienes ' + COP(FICHA.maxRespaldado) + ' libres, puedes pedir hasta esa misma cifra.</div>' +
+    '</div>';
+}
+
+/* --------------------------- LÁMINA: HISTORIAL --------------------------- */
+function laminaHistorial() {
+  return avisoFicha() + tarjetaHistorial() + tarjetaRespaldadosPagados();
+}
+
+function tarjetaRespaldadosPagados() {
+  if (!FICHA || !FICHA.respaldados.length) return '';
+  return '<div class="card"><div class="etq">Tus créditos con garantía</div>' +
+    FICHA.respaldados.map(function (r) {
+      return '<div style="margin-top:var(--e4)"><b>' + COP(r.capital) + '</b>' +
+        (r.plazo_meses ? ' a ' + r.plazo_meses + ' meses' : '') +
+        (r.pagado ? ' · <b>terminado</b>' : '') +
+        '</div>' + cuadroCuotas(r.cuotas);
+    }).join('') + '</div>';
+}
+
+/* ------------------------------ LÁMINA: CHAT ------------------------------
+   Tres canales, como los pidió Joan. No son tres chats distintos por capricho:
+   el de cobranzas lo lee quien cobra y el de créditos quien presta, y mezclarlos
+   es lo que hace que un reclamo de plata se pierda entre preguntas de tasas.
+
+   El hilo se pinta con chat.js —el mismo que la app quincenal—, así que la marca
+   de «esto te lo contestó una máquina» viaja sola. */
+var CANAL = 'servicio';
+var CANALES = [['servicio', 'Servicio al cliente', 'Preguntas, datos, cualquier cosa.'],
+               ['cobranza', 'Cobranzas', 'Tus pagos, tus fechas, un acuerdo.'],
+               ['creditos', 'Créditos nuevos', 'Pedir más, o preguntar cuánto te alcanza.']];
+var HILO = { canal: null, mensajes: [], estado: 'sin' };  // sin|cargando|listo|apagado|falla
+
+function laminaChat() {
+  return '<div class="card">' +
+      '<div class="canales">' + botonesDeCanal() + '</div>' +
+      '<p class="sub" id="canalPie">' + esc(pieDeCanal()) + '</p>' +
+    '</div>' +
+    '<div class="card"><div id="hilo" class="ch-hilo"></div>' +
+      '<label for="chTexto" class="oculto">Tu mensaje</label>' +
+      '<textarea id="chTexto" rows="3" placeholder="Escribe aquí…" ' +
+        'style="width:100%;margin-top:var(--e3)"></textarea>' +
+      '<button class="btn sm" onclick="enviarChat()">Enviar</button>' +
+      '<div id="errChat" class="aviso ambar oculto"></div>' +
+    '</div>';
+}
+
+function pieDeCanal() {
+  for (var i = 0; i < CANALES.length; i++) if (CANALES[i][0] === CANAL) return CANALES[i][2];
+  return '';
+}
+
+/* Cambiar de canal repinta SOLO la fila de botones y el pie, nunca la lámina
+   entera: repintarla borraría lo que la persona ya tenía escrito en el cuadro de
+   texto, y ese defecto ya se cometió dos veces en este proyecto. */
+function abrirCanal(c) {
+  CANAL = c;
+  var pieC = $('canalPie'); if (pieC) pieC.textContent = pieDeCanal();
+  var lam = $('lamina');
+  var filaC = (lam && lam.querySelector) ? lam.querySelector('.canales') : null;
+  if (filaC) filaC.innerHTML = botonesDeCanal();
+
+  var caja = $('hilo'); if (!caja) return;
+  HILO = { canal: c, mensajes: [], estado: 'cargando' };
+  caja.innerHTML = '<div class="ch-vacio">Buscando tus mensajes…</div>';
+  rpcSesion('chat_leer_sesion', { p_canal: c, p_desde: 0 }).then(function (j) {
+    /* Si mientras llegaba la respuesta la persona cambió de canal, esto ya no es
+       suyo: pintarlo pondría los mensajes de cobranzas en la pestaña de
+       créditos. */
+    if (HILO.canal !== c) return;
+    if (!j || j.ok !== true) { HILO.estado = 'falla'; return pintarHilo(); }
+    HILO.mensajes = j.mensajes || [];
+    HILO.estado = 'listo';
+    pintarHilo();
+  }).catch(function (e) {
+    if (HILO.canal !== c) return;
+    HILO.estado = /\b404\b/.test(String((e && e.message) || '')) ? 'apagado' : 'falla';
+    pintarHilo();
+  });
+}
+
+function botonesDeCanal() {
+  return CANALES.map(function (x) {
+    return '<button class="canal' + (CANAL === x[0] ? ' on' : '') + '" ' +
+      'onclick="abrirCanal(&quot;' + x[0] + '&quot;)">' + esc(x[1]) + '</button>';
+  }).join('');
+}
+
+function pintarHilo() {
+  var caja = $('hilo'); if (!caja) return;
+  if (HILO.estado === 'apagado') {
+    caja.innerHTML = '<div class="aviso ambar"><b>El chat todavía no está encendido.</b> Lo estamos conectando. Mientras tanto escríbenos por WhatsApp.</div>';
+    return;
+  }
+  if (HILO.estado === 'falla') {
+    caja.innerHTML = '<div class="aviso ambar">No pude traer tus mensajes ahora. Revisa tu internet y vuelve a entrar.</div>';
+    return;
+  }
+  caja.innerHTML = CH.hiloHTML(HILO.mensajes, {
+    yo: 'socio', hoy: hoyISO(),
+    vacio: 'Todavía no han hablado por aquí. Escribe y te contestamos.'
+  });
+}
+
+function enviarChat() {
+  var el = $('chTexto'), err = $('errChat');
+  if (!el || !err) return;
+  /* La revisión del texto es la de chat.js: el mismo largo máximo y el mismo
+     motivo en palabras que ve el socio en la app quincenal. */
+  var v = CH.revisar(el.value);
+  if (!v.ok) return fallo(err, v.motivo);
+  err.classList.add('oculto');
+  var canal = CANAL, texto = v.texto;
+  rpcSesion('chat_escribir_sesion', { p_canal: canal, p_texto: texto }).then(function (j) {
+    if (!j || j.ok !== true) {
+      return fallo(err, (j && j.motivo) ? j.motivo
+        : 'No pude enviar tu mensaje. Vuelve a intentar en un momento.');
+    }
+    el.value = '';
+    abrirCanal(canal);
+  }).catch(function (e) {
+    fallo(err, /\b404\b/.test(String((e && e.message) || ''))
+      ? 'El chat todavía no está encendido. Escríbenos por WhatsApp mientras tanto.'
+      : 'No pude enviar tu mensaje. Revisa tu internet y vuelve a intentar.');
+  });
+}
+
+/* ----------------------------- LÁMINA: PERFIL -----------------------------
+   Joan: «perfil, con opciones de cambiar contraseña o usuario u otros».
+
+   EL USUARIO NO SE CAMBIA, y hay que decirlo en vez de ofrecer un botón que no
+   existe. El usuario es su celular: de ahí sale el correo interno con el que
+   entra, y ese correo es la identidad de la cuenta —hay un disparador en la base
+   que impide cambiarlo (20260914). Si el celular cambia de verdad, eso lo mueve
+   Joan, porque mover una identidad es justo lo que un estafador quiere poder
+   hacer solo. */
+function laminaPerfil() {
+  var tel = celularDeSesion();
+  var v = (SESION && SESION.user && SESION.user.user_metadata &&
+           SESION.user.user_metadata.vinculacion) || {};
+  var nombre = (FICHA && FICHA.nombre) ||
+    [v.nombres, v.apellidos].filter(Boolean).join(' ') || '';
+  return '<div class="card">' +
+      '<div class="etq">Tu usuario</div>' +
+      '<div class="cifra sm">' + esc(tel ? U.telefonoBonito(tel) : '—') + '</div>' +
+      (nombre ? '<div class="muted" style="font-size:13.5px">' + esc(nombre) + '</div>' : '') +
+      '<div class="ayuda">Tu usuario es tu celular y no se cambia desde aquí: es con lo que te identificamos. Si cambiaste de número, escríbenos por el chat de servicio al cliente y lo movemos nosotros.</div>' +
+    '</div>' +
+    tarjetaCambiarClave() +
+    tarjetaVincular() +
+    '<div class="card">' +
+      '<button class="btn sec" onclick="salirDeCuenta()">Salir</button>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarBorrar()">' +
+        'Borrar mi cuenta</button>' +
+    '</div>';
+}
+
+/* El celular de la sesión sale del correo interno, con la MISMA forma que exige
+   el servidor (celular_de_sesion, en la base). Si alguien cambiara la forma en
+   un lado, acá se vería «—» en vez de un número inventado. */
+function celularDeSesion() {
+  var correo = (SESION && SESION.user && SESION.user.email) || '';
+  var m = String(correo).toLowerCase().match(/^57([0-9]{10})@tugarantia\.net$/);
+  return m ? m[1] : '';
+}
+
+function tarjetaCambiarClave() {
+  return '<div class="card">' +
+    '<h3 class="tit">Cambiar mi contraseña</h3>' +
+    '<p class="sub">La nueva tiene que tener al menos 8 caracteres.</p>' +
+    '<label for="clave1">Contraseña nueva</label>' +
+    '<input id="clave1" type="password" autocomplete="new-password" placeholder="••••••••">' +
+    '<label for="clave2">Escríbela otra vez</label>' +
+    '<input id="clave2" type="password" autocomplete="new-password" placeholder="••••••••">' +
+    '<button class="btn sec arriba" onclick="cambiarClave()">Guardar mi contraseña nueva</button>' +
+    '<div id="errClave" class="aviso ambar oculto"></div>' +
+    '</div>';
+}
+
+function cambiarClave() {
+  var a = $('clave1'), b = $('clave2'), err = $('errClave');
+  if (!a || !b || !err) return;
+  var c1 = a.value || '', c2 = b.value || '';
+  if (c1.length < 8) return fallo(err, 'La contraseña nueva tiene que tener al menos 8 caracteres.');
+  if (c1 !== c2) return fallo(err, 'Las dos no son iguales. Escríbelas otra vez.');
+  if (!SESION || !SESION.access_token) return fallo(err, 'Vuelve a entrar y lo intentamos de nuevo.');
+  fallo(err, 'Guardando…');
+  /* Se manda SOLO la contraseña. El correo no viaja acá ni por error: es la
+     identidad de la cuenta, y la base tiene un disparador que niega el cambio
+     —fue por ahí por donde el 14-sep se pudo entrar a la cuenta de otro. */
+  fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
+               Authorization: 'Bearer ' + SESION.access_token },
+    body: JSON.stringify({ password: c1 })
+  }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (r) {
+      if (!r.ok) {
+        return fallo(err, (r.j && r.j.msg) || (r.j && r.j.error_description) ||
+          'No pude cambiar tu contraseña. Vuelve a intentar en un momento.');
+      }
+      a.value = ''; b.value = '';
+      fallo(err, 'Listo: tu contraseña quedó cambiada. La próxima vez entra con la nueva.');
+    })
+    .catch(function () { fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.'); });
+}
+
+/* JUNTAR EL HISTORIAL VIEJO CON ESTA CUENTA. Es la mitad que faltaba de la
+   puerta única: el cliente antiguo se registra como cualquiera y después pega el
+   código que ya tenía. La reja está en el servidor (vincular_cuenta): el código
+   se compara contra la huella guardada, hay freno por intentos y una ficha solo
+   se puede reclamar UNA vez. */
+function tarjetaVincular() {
+  if (FICHA_ESTADO === 'vinculada') {
+    return '<div class="card"><div class="etq">Tu historial</div>' +
+      '<div class="aviso verde" style="margin-top:var(--e3)">Ya está junto con esta cuenta' +
+      ((FICHA && FICHA.nombre) ? ', ' + esc(FICHA.nombre) : '') + '.</div></div>';
+  }
+  return '<div class="card">' +
+    '<h3 class="tit">¿Ya eras cliente?</h3>' +
+    '<p class="sub">Si te dimos un código antes, pégalo aquí con tu cédula o tu celular y juntamos tu historial con esta cuenta. Se hace una sola vez.</p>' +
+    '<label for="vIdent">Tu cédula o tu celular</label>' +
+    '<input id="vIdent" type="tel" inputmode="numeric" placeholder="1.234.567.890">' +
+    '<label for="vCodigo">El código que te dimos</label>' +
+    '<input id="vCodigo" type="text" autocomplete="off" placeholder="XXXX">' +
+    '<button class="btn sec arriba" onclick="vincularHistorial()">Juntar mi historial</button>' +
+    '<div id="errVinc" class="aviso ambar oculto"></div>' +
+    '</div>';
+}
+
+function vincularHistorial() {
+  var i = $('vIdent'), c = $('vCodigo'), err = $('errVinc');
+  if (!i || !c || !err) return;
+  if (!i.value.trim()) return fallo(err, 'Escribe tu cédula o tu celular.');
+  if (!c.value.trim()) return fallo(err, 'Escribe el código que te dimos.');
+  fallo(err, 'Buscando…');
+  rpcSesion('vincular_cuenta', { p_ident: i.value, p_codigo: c.value }).then(function (j) {
+    if (!j || j.ok !== true) {
+      /* El servidor contesta con un motivo SOLO cuando decirlo no delata a
+         nadie (por ejemplo: esa ficha ya la reclamó otro teléfono). Cuando no lo
+         manda, acá no se inventa uno: se dice que no cuadró. */
+      return fallo(err, (j && j.motivo) ? j.motivo
+        : 'No me cuadran esos datos con ningún historial. Revísalos, y si siguen sin funcionar escríbenos por el chat.');
+    }
+    fallo(err, j.ya_estaba ? 'Ya estaba junto. Todo en orden.' : 'Listo: tu historial quedó junto con esta cuenta.');
+    cargarFicha();
+  }).catch(function (e) {
+    fallo(err, /\b404\b/.test(String((e && e.message) || ''))
+      ? 'Esta parte todavía no está encendida. Escríbenos y te juntamos el historial nosotros.'
+      : 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
+  });
+}
+
+function salirDeCuenta() {
+  /* SE LE AVISA AL SERVIDOR, no solo a la pantalla. Borrar la sesión acá deja el
+     token vivo hasta que se venza solo; en un teléfono prestado o perdido, eso
+     es una cuenta abierta con el candado puesto por fuera. El aviso se manda y
+     no se espera: si no llega, igual salimos — quedarse adentro porque falló la
+     red sería lo peor de los dos mundos. */
+  if (SESION && SESION.access_token) {
+    fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/logout', {
+      method: 'POST',
+      headers: { apikey: CFG.anon, Authorization: 'Bearer ' + SESION.access_token }
+    }).catch(function () {});
+  }
+  SESION = null; FICHA = null; FICHA_ESTADO = 'sin'; TAB = 'credito';
+  CANAL = 'servicio';
+  HILO = { canal: null, mensajes: [], estado: 'sin' };
+  pintarEntrar();
 }
 
 function tarjetaCupo(perfil) {
@@ -1771,7 +2409,7 @@ function pie() {
 
 /* ============================== ARRANQUE ============================== */
 (function () {
-  if (!C || !U) {
+  if (!C || !U || !M || !FS) {
     document.body.innerHTML = '<div class="wrap"><div class="aviso ambar" style="margin-top:40px">' +
       'No pude cargar las reglas del crédito. Vuelve a abrir la página.</div></div>';
     return;

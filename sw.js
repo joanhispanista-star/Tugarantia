@@ -181,7 +181,16 @@
    (antes plano sobre el capital, que daba 48,3% E.A. y no cabia debajo del
    techo de usura), con minimo de un millon. Toca app/motor.js y los textos
    del Panel, que decian el precio viejo. */
-const CACHE = 'tugarantia-v40';
+/* v41 - 14-sep-2026. LA PUERTA UNICA. play/ pasa a ser el unico enlace que Joan
+   reparte: nuevos y antiguos entran por ahi, se registran, y el que ya era
+   cliente junta su historial desde Perfil con el codigo que ya tenia. Detras del
+   login, cuatro pestanas —Credito, Historial, Chat de tres canales y Perfil—, la
+   calculadora del credito con garantia abierta para todos, y las cuotas con
+   fecha y monto una por una.
+   Toca index.html, play/index.html, play/estilo.css y app/ficha.js (nuevo).
+   ENTRAN AL CACHE app/ficha.js —lo carga play/— y el motor, que play/ no cargaba
+   antes; app/chat.js y app/chat.css ya estaban por la app quincenal. */
+const CACHE = 'tugarantia-v41';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -234,7 +243,12 @@ const ARCHIVOS = [
   'play/app.webmanifest',
   'app/cuenta.js',
   'app/creditos.js',
-  'app/cumplimiento.js'
+  'app/cumplimiento.js',
+  /* 14-sep-2026 — lo que play/ carga desde que es la puerta unica. ficha.js lee
+     el paquete del socio y motor.js cotiza el credito con garantia; los dos ya
+     estaban arriba o entran aqui, y ninguno se duplica en la lista porque el
+     Set del install los uniria igual, pero una lista con repetidos se lee mal. */
+  'app/ficha.js'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {

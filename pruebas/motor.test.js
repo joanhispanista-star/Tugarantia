@@ -8733,8 +8733,22 @@ describe('EL REGISTRO ABIERTO LLEGA AL CRM (24-ago-2026)', () => {
        el nuevo no pase por la portada del producto a 6 meses ni por su login. */
     assert.ok(/href="\.\.\/play\/#registro"/.test(SOCIO),
       'la app del socio perdió la salida al registro: el que no tiene código se queda sin camino');
-    assert.ok(PLAY.indexOf('¿Eres nuevo? Abre tu cuenta') >= 0,
-      'la fachada dejó de poner el registro primero — es la puerta del desconocido');
+    /* 14-sep-2026 — se vigila el ORDEN y no el texto. Decía «¿Eres nuevo? Abre
+       tu cuenta»; hoy dice «Abre tu cuenta» a secas, porque la puerta es una
+       sola y el cliente de toda la vida entra por la misma. Lo que había que
+       proteger nunca fue la frase: era que el registro vaya ANTES del login en
+       la puerta del desconocido. El orden es el mensaje. */
+    const reg = PLAY.indexOf('Abre tu cuenta</h3>');
+    const log = PLAY.indexOf('¿Ya abriste tu cuenta?</h3>');
+    assert.ok(reg > 0, 'la fachada perdió la tarjeta de abrir cuenta');
+    assert.ok(log > 0, 'la fachada perdió la tarjeta de entrar');
+    assert.ok(reg < log,
+      'la fachada puso el login antes del registro — es la puerta del desconocido');
+    /* Y el que ya era cliente tiene que encontrar su camino en esa misma
+       tarjeta: sin esta línea vuelve a buscar una segunda entrada que ya no
+       existe. */
+    assert.match(PLAY.slice(reg, log), /Ya eras cliente/,
+      'la puerta única no le dice al cliente antiguo que entre por aquí');
 
     /* Y que NINGUNA de las tres siga afirmando que hace falta invitación. Se
        busca la frase entera, no la palabra: «código de invitación» sigue siendo
@@ -9659,7 +9673,25 @@ describe('el primer crédito del nuevo: la contrapropuesta (8-sep-2026)', () => 
     assert.ok(!/function verificarPorWhatsApp\(/.test(PLAY), 'verificarPorWhatsApp tenía que retirarse');
     assert.match(PLAY, /if \(res\.j && res\.j\.access_token\) SESION = res\.j;/, 'la sesión del signup no se guarda: no podría pedir');
     const j = PLAY.indexOf('function tarjetaContrapropuesta('), tarjeta = PLAY.slice(j, PLAY.indexOf('\nfunction ', j + 1));
-    assert.match(tarjeta, /COP\(cp\.capital\)/); assert.match(tarjeta, /COP\(cp\.total\)/); assert.match(tarjeta, /fmtFecha\(cp\.fecha_pago\)/);
+    assert.match(tarjeta, /COP\(cp\.capital\)/); assert.match(tarjeta, /COP\(cp\.total\)/);
+    /* 14-sep-2026 — LA PROPUESTA SE VE SEGMENTADA. Joan: «cuando yo envíe la
+       contrapropuesta le aparezca segmentado la fecha y monto a pagar para
+       mejorar la cobranza y dar claridad». La fecha ya no se pinta en la
+       tarjeta: la pinta cuotasDePropuesta, que sabe hacer las dos formas —una
+       lista de cuotas cuando las hay, y el pago único con su fecha cuando no. */
+    assert.match(tarjeta, /cuotasDePropuesta\(cp\)/,
+      'la propuesta dejó de mostrar cuándo se paga');
+    const k = PLAY.indexOf('function cuotasDePropuesta(');
+    const seg = PLAY.slice(k, PLAY.indexOf('\nfunction ', k + 1));
+    assert.match(seg, /cuadroCuotas\(cp\.cuotas\)/,
+      'una propuesta con cuotas ya no se pinta cuota por cuota');
+    assert.match(seg, /fmtFecha\(cp\.fecha_pago\)/,
+      'el pago único perdió su fecha');
+    /* Y NO se inventan cuotas donde hay un pago único: partir un total en tres
+       renglones con fechas fabricadas sería la pantalla afirmando un acuerdo que
+       nadie hizo. */
+    assert.match(seg, /Pago único/,
+      'el pago único tiene que decirse pago único, no disfrazarse de cuotas');
     assert.ok(!/costo_pct|%/.test(tarjeta.replace(/\/\*[\s\S]*?\*\//g, '')), 'la propuesta le muestra un porcentaje al cliente');
     assert.match(tarjeta, /Aceptar no te entrega la plata todavía/, 'tiene que decir que aceptar no es recibir');
     ['solicitar_primer_credito', 'mi_solicitud', 'aceptar_contrapropuesta'].forEach(fn =>

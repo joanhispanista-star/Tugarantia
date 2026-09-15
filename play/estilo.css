@@ -266,6 +266,51 @@ input[type=range]:focus-visible{outline:2px solid var(--amarillo);outline-offset
    toque que era para un botón. */
 #rayos{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
 
+/* ---------------- las cuatro pestañas — 14-sep-2026 ----------------
+   Pegada arriba mientras se baja: en una lámina larga —la de Crédito lo es—
+   perder la barra obliga a subir hasta el techo para cambiar de pestaña, y en
+   un celular eso son tres gestos para un toque. */
+.tabs{position:sticky;top:0;z-index:20;display:flex;gap:4px;padding:10px 0;
+  margin-bottom:var(--e2);background:var(--fondo);
+  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1 0 auto;min-width:78px;padding:11px 12px;border:1px solid var(--linea);
+  border-radius:12px;background:var(--papel);color:var(--gris);
+  font:inherit;font-size:14px;font-weight:600;cursor:pointer;
+  -webkit-tap-highlight-color:transparent}
+.tab.on{background:var(--laca);color:var(--blanco-laca);border-color:var(--laca)}
+.tab:active{transform:scale(.97)}
+
+/* ---------------- los tres canales del chat ----------------
+   No son tres chats por capricho: el de cobranzas lo lee quien cobra y el de
+   créditos quien presta. Se ven los tres a la vez, nunca en un desplegable: un
+   canal escondido es un canal que no existe. */
+.canales{display:flex;gap:6px;flex-wrap:wrap}
+.canal{flex:1 1 auto;padding:10px 12px;border:1px solid var(--linea);border-radius:12px;
+  background:var(--papel);color:var(--gris);font:inherit;font-size:13.5px;
+  font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.canal.on{background:var(--azul-tinte);color:var(--azul-texto);border-color:var(--azul-texto)}
+
+/* El cuadro de texto del chat, con la misma piel que los demás campos. */
+textarea{width:100%;padding:14px;border:1px solid var(--linea);border-radius:14px;
+  background:var(--papel);color:var(--tinta);font:inherit;font-size:16px;
+  line-height:1.5;resize:vertical;min-height:84px}
+textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
+
+/* ---------------- lo que se gana pagando ----------------
+   Joan lo pidió como «un cuadro o una imagen». No es una imagen: son las mismas
+   cifras del motor con una barra por cuota, así que no se puede quedar vieja.
+   La barra crece con lo ACUMULADO, no con lo de cada mes: lo que la persona
+   quiere ver es adónde llega, no seis palitos iguales. */
+.gana{margin-top:var(--e4);padding:16px;border-radius:14px;background:var(--fondo);
+  border:1px solid var(--linea)}
+.gana .barras{display:flex;align-items:flex-end;gap:6px;height:76px;margin-top:var(--e3)}
+.gana .tramo{flex:1;display:flex;flex-direction:column;justify-content:flex-end;
+  align-items:center;height:100%;gap:5px}
+.gana .tramo i{display:block;width:100%;border-radius:5px 5px 2px 2px;
+  background:var(--amarillo);min-height:6px}
+.gana .tramo span{font-size:10.5px;color:var(--gris);font-variant-numeric:tabular-nums}
+
 /* ---------------- respeto por quien no quiere movimiento ----------------
    No es un detalle de accesibilidad: hay gente a la que una animación de estas
    le produce mareo o le dispara una migraña, y el sistema operativo ya trae la
@@ -275,4 +320,5 @@ input[type=range]:focus-visible{outline:2px solid var(--amarillo);outline-offset
   .btn,.btn:active{transition:none;transform:none}
   #rayos{display:none}
   .plegable > summary::after{transition:none}
+  .tab:active{transform:none}
 }

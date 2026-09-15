@@ -18,6 +18,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const C = require('../app/creditos.js');
+const M = require('../app/motor.js');
 const K = require('../app/cumplimiento.js');
 
 const leer = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
@@ -137,16 +138,52 @@ describe('la vitrina no puede prometer lo que el producto no da', () => {
     assert.ok(!/var\(--gris\)/.test(regla), 'el sello quedó en gris: menos visible que lo que niega');
   });
 
-  test('la palabra «garantía» NO se usa como mecánica del producto', () => {
-    /* La garantía y los niveles son del crédito QUINCENAL (app/motor.js), que
-       no es lo que esta app vende y que no puede ir a Google Play. Acá
-       «Tu Garantía» es el nombre del negocio. Si un texto dice que la garantía
-       se acumula, crece o da cupo, está describiendo otro producto. */
-    const mecanica = /garant[íi]a[^.]{0,80}(acumul|crece|sube|gana|puntos|nivel|respald)/i;
-    assert.ok(!mecanica.test(VIVO),
-      'play/ describe la garantía como mecánica: eso es el quincenal, no este producto');
-    assert.ok(!/\bniveles?\b/i.test(VIVO.replace(/Tu Garantía/g, '')),
-      'aparecieron «niveles», que son del quincenal');
+  /* 14-sep-2026 — ESTE CENTINELA CAMBIÓ DE OFICIO, a propósito.
+
+     Decía: la palabra «garantía» no se usa como mecánica, porque la garantía
+     era del quincenal y play/ vendía otra cosa. Joan pidió lo contrario —«una
+     calculadora abierta para que la gente pueda ver los créditos que se
+     solicitan con garantía»— y play/ pasó a ser la puerta única de su negocio,
+     no una vitrina para una tienda que ya se descartó (18-ago).
+
+     Lo que aquella prueba protegía de verdad sigue vivo y se vigila acá: que la
+     pantalla no PROMETA lo que el socio no tiene. Enseñar el producto está bien;
+     enseñarlo sin decir hasta dónde le alcanza a quien mira, no. */
+  test('la garantía se enseña, pero nunca sin decir hasta dónde alcanza', () => {
+    /* La tarjeta de la garantía y la línea del acceso son inseparables: la
+       primera no se pinta sin llamar a la segunda. Si alguien las separa, esto
+       se cae. */
+    const i = VIVO.indexOf('function tarjetaCalcGarantia');
+    assert.ok(i > 0, 'desapareció la calculadora de la garantía que Joan pidió');
+    const cuerpo = VIVO.slice(i, VIVO.indexOf('function techoDeGarantia'));
+    assert.match(cuerpo, /techoDeGarantia\(\)/,
+      'la calculadora de la garantía pinta cifras sin decir hasta dónde le alcanza al que mira');
+    /* Y la línea del acceso tiene que hablar del caso de quien no tiene nada:
+       es el 100% de los que llegan hoy. */
+    const techo = VIVO.slice(VIVO.indexOf('function techoDeGarantia'),
+                             VIVO.indexOf('function cifrasDeGarantia'));
+    assert.match(techo, /respaldoDisponible\(\)/,
+      'la línea del acceso no lee el respaldo real: estaría escribiendo un techo a mano');
+  });
+
+  test('el precio de la garantía se calcula con el motor, no en esta pantalla', () => {
+    /* La cuota que ve el cliente y la que cobra Joan tienen que salir de la
+       misma función. Una segunda aritmética acá es la puerta por la que la app
+       y el CRM empiezan a decir cifras distintas del mismo crédito. */
+    assert.match(VIVO, /M\.simularPrestamoRespaldado\(/,
+      'play/ cotiza la garantía sin el motor');
+    assert.ok(!/0\.02|2\s*%\s*mensual\s*=/.test(VIVO.replace(/M\.TASA_RESPALDADO_MENSUAL/g, '')),
+      'play/ escribió la tasa del respaldado a mano en vez de leerla del motor');
+  });
+
+  test('ningún plazo por debajo del piso legal, en NINGUNA de las dos calculadoras', () => {
+    /* El motor acepta el préstamo con garantía desde UN mes —Joan lo opera así
+       en su CRM—, pero esta página declara el piso de 90 días en la otra
+       calculadora y en su propio encabezado. Dos calculadoras en la misma
+       pantalla con dos pisos distintos es la pantalla contradiciéndose. */
+    assert.match(VIVO, /var GCALC_MESES_MIN = Math\.ceil\(C\.PLAZO_MINIMO_DIAS \/ 30\)/,
+      'el piso de la calculadora de la garantía se escribió a mano en vez de derivarse ' +
+      'del de la página: el día que uno cambie, el otro se queda viejo');
   });
 });
 
@@ -263,11 +300,14 @@ describe('instalar sí; pedir permisos que no se usan, no', () => {
  * motivo: los defectos caros de este proyecto no están en las reglas, están en
  * el pegamento entre pantallas.
  * ======================================================================== */
+/* El banco se declara afuera del describe: la cuenta del socio (más abajo) lo
+   usa también, y tenerlo dos veces sería tener dos bancos que se separan. */
+let abrirPlay;
 describe('play/ pintando de verdad (9-sep-2026)', () => {
 
   const vm = require('node:vm');
 
-  function abrirPlay(opciones) {
+  abrirPlay = function (opciones) {
     const o = opciones || {};
     const RAIZ = path.join(__dirname, '..');
     const html = fs.readFileSync(path.join(RAIZ, 'play', 'index.html'), 'utf8');
@@ -305,8 +345,14 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
                    geolocation: { getCurrentPosition() {} }, mediaDevices: null },
       /* Sin red: la puerta pública TIENE que pintar sin nube. Si algún día
          necesita una respuesta del servidor para mostrar un precio, esta prueba
-         se cae y hace bien. */
-      fetch: () => Promise.reject(new Error('sin red en el banco de pruebas')),
+         se cae y hace bien.
+
+         Con `o.red` se le puede dar una nube de mentiras a la que preguntarle:
+         hace falta para probar la cuenta, donde lo que importa no es que la
+         página pinte sin red sino QUÉ DICE cuando el servidor contesta 404,
+         que es lo que contesta hoy mientras Joan no corra la migración. */
+      fetch: (url, cfg) => (o.red ? o.red(url, cfg)
+        : Promise.reject(new Error('sin red en el banco de pruebas'))),
       setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
       requestAnimationFrame: () => 0, cancelAnimationFrame() {},
       matchMedia: () => ({ matches: false, addEventListener() {} }),
@@ -324,11 +370,17 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
       removeEventListener() {}, dispatchEvent() { return true; }
     };
     ctx.window = ctx; ctx.self = ctx;
-    /* Los tres <script src> que play/ carga, con el nombre global con el que los
-       toma la página. */
+    /* Los <script src> que play/ carga, con el nombre global con el que los toma
+       la página. La lista se comprueba sola más abajo: ver «el banco carga todo
+       lo que la página carga». */
     ctx.CreditosPublicables = require(path.join(RAIZ, 'app', 'creditos.js'));
     ctx.CuentaSocio = require(path.join(RAIZ, 'app', 'cuenta.js'));
     ctx.Cumplimiento = require(path.join(RAIZ, 'app', 'cumplimiento.js'));
+    /* 14-sep-2026 — el motor y el lector de la ficha entraron a play/ con la
+       calculadora de la garantía. Si se olvidan acá, la página revienta en el
+       banco con «undefined» y no se sabe si es el banco o la página. */
+    ctx.MotorReglas = require(path.join(RAIZ, 'app', 'motor.js'));
+    ctx.FichaSocio = require(path.join(RAIZ, 'app', 'ficha.js'));
     vm.createContext(ctx);
     [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
       .forEach((m, i) => vm.runInContext(m[1], ctx, { filename: 'play#' + i }));
@@ -345,6 +397,34 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
     assert.match(h, /calcMonto/, 'no pintó la calculadora');
     assert.match(h, /escalon/, 'no pintó la escalera');
     assert.match(h, /plegable/, 'no pintó la historia ni la explicación');
+  });
+
+  test('la calculadora de la garantía arranca dentro de su propio rango', () => {
+    const P = abrirPlay();
+    const min = P.ev('GCALC_MESES_MIN'), max = P.ev('GCALC_MESES_MAX');
+    assert.ok(min * 30 >= C.PLAZO_MINIMO_DIAS,
+      'ofrece ' + min + ' meses y el piso de la página es ' + C.PLAZO_MINIMO_DIAS + ' días');
+    assert.ok(max <= P.ev('M.PLAZO_RESPALDADO_MAX'),
+      'ofrece más meses de los que el motor acepta para el préstamo con garantía');
+    const meses = P.ev('GCALC.meses'), monto = P.ev('GCALC.monto');
+    assert.ok(meses >= min && meses <= max, 'arranca fuera de su propio rango de plazo');
+    assert.ok(monto >= P.ev('GCALC_MIN') && monto <= P.ev('GCALC_MAX'),
+      'arranca fuera de su propio rango de monto');
+    /* Y el mínimo del producto es el del motor, no uno escrito acá: es plata. */
+    assert.equal(P.ev('GCALC_MIN'), P.ev('M.MONTO_MINIMO_RESPALDADO'),
+      'el mínimo de la calculadora se separó del mínimo del producto');
+  });
+
+  test('sin garantía ganada, la calculadora lo DICE antes de la primera cifra', () => {
+    /* El caso del 100% de los que llegan hoy: cero garantía. La tarjeta se pinta
+       igual —Joan quiere que la vean todos— pero encima va que todavía no lo
+       pueden pedir. Sin esa línea es publicidad de algo que no existe. */
+    const P = abrirPlay();
+    P.ev('pintarEntrar()');
+    const h = P.elems.cuerpo.innerHTML;
+    assert.match(h, /todavía no lo puedes pedir/i,
+      'la calculadora de la garantía no le dice al que no tiene nada que no puede pedirlo');
+    assert.equal(P.ev('respaldoDisponible()'), 0, 'sin ficha el respaldo tiene que ser cero');
   });
 
   test('la calculadora arranca en un monto que se puede pedir', () => {
@@ -409,5 +489,215 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
       assert.ok(h.indexOf('Paso ' + (i + 1) + ' de ' + n) >= 0,
         'el paso ' + (i + 1) + ' no dice en cuál va');
     }
+  });
+});
+
+/* ==========================================================================
+ * LA CUENTA DEL SOCIO — las cuatro pestañas, 14 de septiembre de 2026
+ *
+ * Joan pidió Perfil, Historial, Chat (tres canales) y Crédito. Lo que se vigila
+ * acá no es que se vean bonitas: es que ninguna mienta.
+ *
+ * En particular la mentira que este proyecto tiene más a mano hoy: las funciones
+ * de la base viven en una migración que Joan corre A MANO, y hasta que la corra
+ * el servidor contesta 404. Traducir un 404 a «no tienes mensajes» o a «revisa
+ * tu internet» es la interfaz mintiendo sobre la causa, y manda al cliente a
+ * reiniciar el teléfono por algo que está en el servidor.
+ * ======================================================================== */
+describe('la cuenta del socio: cuatro pestañas que no mienten (14-sep-2026)', () => {
+
+  const vm = require('node:vm');
+  /* El mismo banco de la vitrina, pero abriendo la cuenta con una sesión puesta.
+     `red` decide qué contesta la nube: por defecto, 404 — el estado real de la
+     nube de Joan hoy. */
+  function abrirCuenta(red) {
+    const P = abrirPlay({ red: red || (() => Promise.resolve({
+      ok: false, status: 404, json: () => Promise.resolve({}) })) });
+    P.ev('SESION = { access_token: "tok", user: { email: "573001112233@tugarantia.net", ' +
+         'user_metadata: { perfil: "nuevo" } } };');
+    P.ev('pintarCuenta()');
+    return P;
+  }
+  const lamina = P => P.elems.lamina.innerHTML;
+
+  test('LAS CUATRO PINTAN: ninguna deja al socio en blanco', () => {
+    const P = abrirCuenta();
+    ['credito', 'historial', 'chat', 'perfil'].forEach(t => {
+      P.ev('irA("' + t + '")');
+      assert.ok(lamina(P).length > 150,
+        'la pestaña ' + t + ' salió casi vacía (' + lamina(P).length + ' letras)');
+    });
+  });
+
+  test('la barra marca UNA sola pestaña, y son las cuatro que Joan pidió', () => {
+    const P = abrirCuenta();
+    const nombres = P.ev('PESTANAS.map(function (x) { return x[0]; }).join(",")');
+    assert.equal(nombres, 'credito,historial,chat,perfil');
+    ['credito', 'historial', 'chat', 'perfil'].forEach(t => {
+      P.ev('irA("' + t + '")');
+      const marcadas = (P.elems.tabs.innerHTML.match(/class="tab on"/g) || []).length;
+      assert.equal(marcadas, 1, 'en ' + t + ' hay ' + marcadas + ' pestañas marcadas');
+    });
+  });
+
+  test('CON LA MIGRACIÓN SIN CORRER, dice que no está encendido — no culpa al internet', () => {
+    /* El estado real de la nube de Joan mientras no pegue las migraciones. La
+       pantalla tiene tres respuestas distintas para tres causas distintas, y
+       esta prueba exige que no se confundan. */
+    const P = abrirCuenta();
+    return new Promise(r => setImmediate(r)).then(() => {
+      assert.equal(P.ev('FICHA_ESTADO'), 'apagada',
+        'un 404 se está leyendo como otra cosa');
+      P.ev('irA("credito")');
+      const h = lamina(P);
+      assert.match(h, /todavía no está encendida/,
+        'la pantalla no dice que esa parte no está encendida');
+      assert.ok(!/revisa tu internet/i.test(h),
+        'la pantalla le echa la culpa al internet del cliente por un 404 del servidor');
+      assert.ok(!/no tienes historial/i.test(h),
+        'la pantalla afirma que el socio no tiene historial cuando lo que pasa es que no pudo preguntar');
+    });
+  });
+
+  test('sin vincular NO es un error: se le dice cómo juntar su historial', () => {
+    const P = abrirCuenta(() => Promise.resolve({
+      ok: true, status: 200, json: () => Promise.resolve({ ok: true, vinculada: false }) }));
+    return new Promise(r => setImmediate(r)).then(() => {
+      assert.equal(P.ev('FICHA_ESTADO'), 'nueva');
+      P.ev('irA("credito")');
+      assert.match(lamina(P), /Perfil/,
+        'al registrado nuevo no se le dice dónde juntar su historial');
+      assert.ok(!/ambar/.test(lamina(P).slice(0, 400)) || !/error/i.test(lamina(P)),
+        'estar sin vincular se está pintando como un fallo');
+    });
+  });
+
+  test('el chat tiene los TRES canales que Joan pidió, los tres a la vista', () => {
+    const P = abrirCuenta();
+    P.ev('irA("chat")');
+    const h = lamina(P);
+    ['Servicio al cliente', 'Cobranzas', 'Créditos nuevos'].forEach(c =>
+      assert.ok(h.indexOf(c) >= 0, 'falta el canal: ' + c));
+    const canales = P.ev('CANALES.map(function (c) { return c[0]; }).join(",")');
+    assert.equal(canales, 'servicio,cobranza,creditos',
+      'los nombres de los canales no son los que acepta el servidor (chat_escribir_sesion)');
+  });
+
+  test('cambiar de canal NO repinta la lámina: se perdería lo que el socio escribió', () => {
+    /* Defecto cometido dos veces en este proyecto: repintar el contenedor de un
+       campo mientras alguien escribe adentro. Acá se nota porque el cuadro de
+       texto tendría que sobrevivir al cambio de canal. */
+    const P = abrirCuenta();
+    P.ev('irA("chat")');
+    P.ev('document.getElementById("chTexto").value = "no me borres"');
+    P.ev('abrirCanal("cobranza")');
+    assert.equal(P.ev('document.getElementById("chTexto").value'), 'no me borres',
+      'cambiar de canal le borró al socio lo que estaba escribiendo');
+    assert.equal(P.ev('CANAL'), 'cobranza');
+  });
+
+  test('el chat apagado se dice apagado, y no «no tienes mensajes»', () => {
+    const P = abrirCuenta();
+    P.ev('irA("chat")');
+    return new Promise(r => setImmediate(r)).then(() => {
+      assert.equal(P.ev('HILO.estado'), 'apagado');
+      assert.match(P.elems.hilo.innerHTML, /todavía no está encendido/);
+    });
+  });
+
+  test('EL PERFIL NO OFRECE CAMBIAR EL USUARIO, y explica por qué', () => {
+    /* El usuario es el celular, y de ahí sale el correo interno que ES la
+       identidad de la cuenta. Hay un disparador en la base que niega el cambio
+       (20260914) porque por ahí se pudo entrar a la cuenta de otro. Ofrecer un
+       botón que el servidor va a negar sería prometer lo que el código no hace. */
+    const P = abrirCuenta();
+    P.ev('irA("perfil")');
+    const h = lamina(P);
+    assert.match(h, /no se cambia desde aquí/,
+      'el perfil no explica por qué el usuario no se toca');
+    assert.ok(h.indexOf('3001112233') >= 0 || h.indexOf('300 111 2233') >= 0,
+      'el perfil no muestra cuál es su usuario');
+    /* Y el celular sale del correo con la MISMA forma que exige el servidor. */
+    assert.equal(P.ev('celularDeSesion()'), '3001112233');
+    assert.equal(P.ev('(function(){ var g = SESION; SESION = { user: { email: "570003172862539@tugarantia.net" } }; ' +
+      'var r = celularDeSesion(); SESION = g; return r; })()'), '',
+      'celularDeSesion acepta un correo que no es de esta casa: es el hueco del 14-sep otra vez');
+  });
+
+  test('cambiar la contraseña NO manda el correo, ni por error', () => {
+    /* El 14-sep se pudo entrar a la cuenta de otro mandando {"email": ...} a
+       /auth/v1/user con la llave pública. La base ya lo niega con un disparador;
+       esto es la segunda cerradura, en la pantalla. */
+    const cuerpos = [];
+    const P = abrirCuenta((url, cfg) => {
+      cuerpos.push({ url: String(url), body: cfg && cfg.body });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+    P.ev('irA("perfil")');
+    P.ev('document.getElementById("clave1").value = "unaclavelarga"');
+    P.ev('document.getElementById("clave2").value = "unaclavelarga"');
+    P.ev('cambiarClave()');
+    const puesta = cuerpos.filter(c => c.url.indexOf('/auth/v1/user') >= 0);
+    assert.equal(puesta.length, 1, 'no mandó el cambio de contraseña');
+    assert.ok(puesta[0].body.indexOf('email') === -1,
+      'el cambio de contraseña lleva el correo en el cuerpo: eso es lo que dejó entrar a la cuenta de otro');
+    assert.match(puesta[0].body, /password/);
+  });
+
+  test('salir le avisa al servidor, no solo a la pantalla', () => {
+    const urls = [];
+    const P = abrirCuenta(url => {
+      urls.push(String(url));
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+    P.ev('salirDeCuenta()');
+    assert.ok(urls.some(u => u.indexOf('/auth/v1/logout') >= 0),
+      'salir deja el token vivo en el servidor hasta que se venza solo');
+    assert.equal(P.ev('SESION'), null);
+  });
+
+  test('con garantía ganada, la calculadora deja de decir que no puede pedir', () => {
+    /* El camino completo: llega la ficha de un socio con garantía, ficha.js la
+       lee, y la línea del acceso cambia sola. Si esto se cae, o la ficha no se
+       está leyendo o el techo está escrito a mano. */
+    const datos = { garantia: { total: 2000000, acumulada: 2000000, comprometida: 0,
+                                cupon: 0, referidos: 0 },
+                    creditos: [], respaldados: [], perfil: { datos: {} },
+                    referidos: { total: 0, pagaron: 0 } };
+    const P = abrirCuenta(() => Promise.resolve({ ok: true, status: 200,
+      json: () => Promise.resolve({ ok: true, vinculada: true, nombre: 'Ana', datos }) }));
+    return new Promise(r => setImmediate(r)).then(() => {
+      assert.equal(P.ev('FICHA_ESTADO'), 'vinculada');
+      const disp = P.ev('respaldoDisponible()');
+      assert.ok(disp > 0, 'la ficha llegó pero el respaldo salió en cero');
+      /* Y sale del motor, no de una cuenta de la pantalla. */
+      assert.equal(disp, M.maximoRespaldado({ datos: {}, referidos: 0,
+        acumulada: 2000000, ajuste: 0, comprometida: 0 }),
+        'el respaldo que enseña la pantalla no es el que calcula el motor');
+      P.ev('irA("credito")');
+      assert.ok(!/todavía no lo puedes pedir/.test(lamina(P)),
+        'con garantía ganada sigue diciendo que no puede pedir');
+      assert.match(lamina(P), /Tu garantía/, 'no le muestra su garantía');
+    });
+  });
+
+  test('el crédito activo se ve con sus cuotas SEGMENTADAS', () => {
+    /* Joan: «segmentado la fecha y monto a pagar para mejorar la cobranza y dar
+       claridad». Una cuota sin fecha no sirve para cobrar. */
+    const datos = { garantia: { total: 0, acumulada: 0, comprometida: 0 },
+      creditos: [], perfil: { datos: {} }, referidos: { total: 0, pagaron: 0 },
+      respaldados: [{ capital: 1000000, plazo_meses: 6, pagado: false, saldo_capital: 700000,
+        cuotas: [{ numero: 1, fecha_corte: '2026-10-15', total: 178526, pagado: true },
+                 { numero: 2, fecha_corte: '2026-11-15', total: 178526, pagado: false }] }] };
+    const P = abrirCuenta(() => Promise.resolve({ ok: true, status: 200,
+      json: () => Promise.resolve({ ok: true, vinculada: true, nombre: 'Ana', datos }) }));
+    return new Promise(r => setImmediate(r)).then(() => {
+      P.ev('irA("credito")');
+      const h = lamina(P);
+      assert.match(h, /Tu crédito con garantía/, 'no muestra el crédito activo');
+      assert.ok(h.indexOf('15 nov 2026') >= 0, 'la cuota que sigue no trae su fecha');
+      assert.ok(h.indexOf('15 oct 2026') >= 0, 'las cuotas no se ven una por una');
+      assert.ok(h.indexOf('$178.526') >= 0, 'las cuotas no traen su monto');
+    });
   });
 });
