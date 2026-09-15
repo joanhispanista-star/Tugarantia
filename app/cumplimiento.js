@@ -210,7 +210,28 @@
     return out.length ? out : [max];
   }
 
-  function divulgacion(fechaISO) {
+  /**
+   * @param fechaISO
+   * @param [muestra]  {capital, meses} — el credito que el cliente tiene EN
+   *   PANTALLA. Si viene, el ejemplo del texto es ESE.
+   *
+   * 15-sep-2026 — POR QUE EL EJEMPLO SIGUE AL DESLIZADOR.
+   * Joan lo vio y tenia razon: con el deslizador en ocho millones, la pantalla
+   * decia «En total vas a pagar $8.513.600» y tres centimetros mas abajo, en la
+   * letra obligatoria, «Ejemplo: por $500.000 (...) un total de $532.100».
+   * Dos juegos de cifras juntos y nada que diga cual es el suyo.
+   *
+   * El ejemplo fijo no estaba MAL —un ejemplo representativo es justo lo que
+   * piden Google y la norma— pero estar bien y entenderse no son lo mismo. Un
+   * cliente que lee dos totales distintos no concluye «uno es un ejemplo»:
+   * concluye que le estan escondiendo algo.
+   *
+   * Lo que NO cambia es la tasa maxima: esa sigue siendo la del PRODUCTO
+   * (la peor de todos los plazos), no la de este credito. Publicar la de su
+   * cotizacion como «maxima» seria anunciar una tasa menor que la mayor que se
+   * cobra — que es exactamente lo que el comentario de abajo vino a impedir.
+   */
+  function divulgacion(fechaISO, muestra) {
     /* 9-sep-2026 — LA TASA MÁXIMA SE BUSCA, NO SE SUPONE.
        El redondeo de la cuota mueve la tasa efectiva de un plazo a otro, y no
        en línea recta: medido con 500.000, la más alta está en CINCO meses
@@ -225,12 +246,27 @@
       cc = rr.puede ? rr : rr.cotizacion;
       if (cc) cotizaciones.push(cc);
     }
-    var r = C.simular({
-      perfil: 'preferente',
-      capital: CAPITAL_EJEMPLO,
-      fecha_desembolso: fechaISO
-    });
-    var c = r.puede ? r : r.cotizacion;
+    var m = muestra || {};
+    var r = null, c = null;
+    /* Si lo que trae la pantalla no se puede cotizar, se cae al ejemplo de
+       siempre, que siempre cotiza. Y va en try porque C.simular LANZA con un
+       capital invalido en vez de contestar {puede:false} — un cero, un negativo
+       o un campo a medias mientras alguien escribe. Sin el try, la letra
+       OBLIGATORIA se lleva por delante la pantalla entera: es el mismo tipo de
+       fallo que el 16-sep dejo la puerta publica en cero letras. */
+    if (m.capital != null) {
+      try {
+        r = C.simular({ perfil: 'preferente', capital: m.capital,
+                        fecha_desembolso: fechaISO,
+                        meses: m.meses != null ? m.meses : undefined });
+        c = r.puede ? r : r.cotizacion;
+      } catch (e) { c = null; }
+    }
+    if (!c) {
+      r = C.simular({ perfil: 'preferente', capital: CAPITAL_EJEMPLO,
+                      fecha_desembolso: fechaISO });
+      c = r.puede ? r : r.cotizacion;
+    }
     if (!c || !cotizaciones.length) return { puede: false, motivo: r.motivo, mensaje: r.mensaje };
     /* La más cara del rango, que es la que hay que publicar. */
     var peor = cotizaciones[0];

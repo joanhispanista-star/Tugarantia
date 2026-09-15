@@ -205,6 +205,12 @@
    Colombia exige, y el rayo de play/ con una rama de rama garantizada (el 6% de
    las veces salia con un solo nivel). Toca panel/crm.html, app/cobranza-envio.js
    y play/index.html.
+
+   v54 — 15-sep-2026. La letra obligatoria hablaba de OTRO credito: con el
+   deslizador en ocho millones decia «Ejemplo: por $500.000 (...) total
+   $532.100» justo debajo de «En total vas a pagar $8.513.600». Lo vio Joan.
+   Ahora el ejemplo sigue al deslizador. Toca play/index.html y
+   app/cumplimiento.js.
    ENTRAN AL CACHE app/ficha.js —lo carga play/— y el motor, que play/ no cargaba
    antes; app/chat.js y app/chat.css ya estaban por la app quincenal. */
 /* SUBIR EL NUMERO NO BASTA, Y COSTO UNA TARDE AVERIGUARLO (14-sep-2026).
@@ -262,7 +268,7 @@
    proyecto ya vio a este mismo service worker contestar index.html a una
    peticion de .js (ver v19). El guardian se mudo arriba del todo.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v53';
+const CACHE = 'tugarantia-v54';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

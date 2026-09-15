@@ -1286,7 +1286,7 @@ function letraDeCalc() {
       'El precio es real y es el que se cobra. Cuánto te podemos prestar a ti lo decidimos ' +
       'cuando abras tu cuenta y hablemos.</div>' +
     '<div class="muted" style="font-size:12.5px;margin-top:12px;line-height:1.55">' +
-      esc(divulgacionHoy()) + '</div>' +
+      esc(divulgacionHoy({ capital: CALC.monto, meses: CALC.meses })) + '</div>' +
     '<div class="muted" style="font-size:12.5px;margin-top:10px">Sin cuotas de manejo, sin seguros ' +
       'y sin cargos aparte: lo que ves es todo lo que se cobra.</div>';
 }
@@ -1954,6 +1954,10 @@ function moverCalc() {
   var t1 = $('calcMontoTxt'); if (t1) t1.textContent = COP(CALC.monto);
   var t2 = $('calcMesesTxt'); if (t2) t2.textContent = CALC.meses + (CALC.meses === 1 ? ' mes' : ' meses');
   var caja = $('calcCifras'); if (caja) caja.innerHTML = cifrasDeCalc();
+  /* Y LA LETRA OBLIGATORIA, que trae el ejemplo. Si no se repinta, el ejemplo
+     se queda en la combinacion anterior y vuelve el defecto que Joan encontro:
+     un total arriba y otro total distinto tres centimetros mas abajo. */
+  var letra = $('calcLetra'); if (letra) letra.innerHTML = letraDeCalc();
 }
 
 /* -------------------------------------------------------------------------
@@ -2975,7 +2979,10 @@ function pintarSimulacion() {
        completo justo antes del botón, no en una pantalla de términos que nadie
        abre. El texto sale de cumplimiento.js, el mismo que va en la ficha. */
     '<div class="aviso" style="margin-top:var(--e4);font-size:12.5px;line-height:1.55">' +
-      esc(divulgacionHoy()) + '</div>' +
+      /* Tambien con el credito que tiene en pantalla: esta letra va justo debajo
+         de SU cotizacion, asi que un ejemplo de otro monto seria el mismo
+         defecto que en la calculadora de la portada. */
+      esc(divulgacionHoy({ capital: c.capital, meses: c.meses })) + '</div>' +
 
     (sobreCupo
       ? '<div class="aviso ambar">Estás pidiendo más que tu cupo (' + COP(r.cupo_maximo) + '). ' +
@@ -3018,13 +3025,32 @@ var DIVULGACION = null;
    en cada movimiento del dedo, esa llamada ocurre cien veces por visita.
    Ahora el vacío se vuelve a preguntar, y quien pinta cifras tiene que
    comprobar que hay texto ANTES de pintar la primera (ver hayQueCotizar). */
-function divulgacionHoy() {
-  if (!DIVULGACION) {
-    var K = window.Cumplimiento;
-    var d = K ? K.divulgacion(hoyISO()) : null;
-    DIVULGACION = (d && d.puede) ? d.texto : '';
+/* 15-sep-2026 — EL EJEMPLO ES EL DEL CLIENTE, Y LA CACHE VA POR COMBINACION.
+   Joan lo vio: con el deslizador en ocho millones, la pantalla decia «En total
+   vas a pagar $8.513.600» y tres centimetros mas abajo «Ejemplo: por $500.000
+   (...) un total de $532.100». Dos juegos de cifras juntos y nada que dijera
+   cual era el suyo.
+
+   La cache sigue existiendo —esto se llama cien veces por arrastre— pero ahora
+   guarda una entrada POR COMBINACION de monto y plazo. Con una sola entrada,
+   hacer que el ejemplo siguiera al deslizador no habria servido de nada: la
+   primera respuesta se quedaria pegada, que es exactamente el defecto que
+   habia. */
+function divulgacionHoy(muestra) {
+  var K = window.Cumplimiento;
+  if (!K) return '';
+  var m = muestra || null;
+  var llave = m ? (m.capital + '|' + m.meses) : 'ejemplo';
+  if (DIVULGACION && DIVULGACION[llave]) return DIVULGACION[llave];
+  var d = K.divulgacion(hoyISO(), m);
+  var texto = (d && d.puede) ? d.texto : '';
+  /* El vacio NO se cachea (ver el comentario de arriba: el 9-sep se perdio la
+     letra obligatoria toda una sesion por guardar ''). */
+  if (texto) {
+    if (!DIVULGACION) DIVULGACION = {};
+    DIVULGACION[llave] = texto;
   }
-  return DIVULGACION;
+  return texto;
 }
 /* La pregunta que toda pantalla con precios tiene que hacerse primero. Sin
    divulgación no se cotiza: es el artículo 305 del Código Penal por un lado y

@@ -1316,3 +1316,101 @@ describe('la cuenta del socio: cuatro pestañas que no mienten (14-sep-2026)', (
     });
   });
 });
+
+describe('LA LETRA OBLIGATORIA HABLA DEL CRÉDITO QUE ESTÁ EN PANTALLA (15-sep-2026)', () => {
+
+  /* Lo encontró Joan mirando la página: con el deslizador en ocho millones, la
+     calculadora decía «En total vas a pagar $8.513.600» y tres centímetros más
+     abajo, en la letra obligatoria, «Ejemplo: por $500.000 (…) un total de
+     $532.100». Dos juegos de cifras juntos y nada que dijera cuál era el suyo.
+
+     El ejemplo fijo no estaba MAL —un ejemplo representativo es justo lo que
+     piden Google y la norma—, pero estar bien y entenderse no son lo mismo.
+     Quien lee dos totales distintos no concluye «uno es un ejemplo»: concluye
+     que le están escondiendo algo. */
+
+  test('el ejemplo SIGUE al deslizador, en todo el rango', () => {
+    const P = abrirPlay();
+    const min = P.ev('CALC_MIN'), max = P.ev('CALC_MAX'), paso = P.ev('CALC_PASO');
+    const malos = [];
+    for (let m = P.ev('CALC_MESES_MIN'); m <= P.ev('CALC_MESES_MAX'); m++) {
+      for (let v = min; v <= max; v += paso) {
+        P.ev('CALC.monto = ' + v + '; CALC.meses = ' + m + ';');
+        const letra = P.ev('letraDeCalc()');
+        const cifras = P.ev('cifrasDeCalc()');
+        if (/aviso ambar">No podemos/.test(cifras)) continue;
+
+        const totalArriba = (cifras.match(/En total vas a pagar<\/span><b>\$([\d.]+)/) || [])[1];
+        const ej = letra.match(/Ejemplo: por \$([\d.]+) a (\d+) meses pagas \d+ cuotas de \$([\d.]+), para un total de \$([\d.]+)/);
+        if (!ej) { malos.push(v + '/' + m + 'm: la letra no trae ejemplo'); continue; }
+        if (ej[1] !== v.toLocaleString('es-CO')) {
+          malos.push(v + '/' + m + 'm: arriba pide $' + v.toLocaleString('es-CO') +
+            ' y el ejemplo habla de $' + ej[1]);
+        }
+        if (Number(ej[2]) !== m) {
+          malos.push(v + '/' + m + 'm: el ejemplo dice ' + ej[2] + ' meses');
+        }
+        if (totalArriba && ej[4] !== totalArriba) {
+          malos.push(v + '/' + m + 'm: total arriba $' + totalArriba +
+            ' y en la letra $' + ej[4]);
+        }
+      }
+    }
+    assert.deepEqual(malos.slice(0, 8), [],
+      'la letra obligatoria habla de un crédito distinto del que el cliente está mirando');
+  });
+
+  test('la TASA MÁXIMA no se mueve: es la del producto, no la de su crédito', () => {
+    /* Publicar la de su cotización como «máxima» sería anunciar una tasa menor
+       que la mayor que se cobra. La tasa es del producto; el ejemplo es suyo. */
+    const K = require('../app/cumplimiento.js');
+    const base = K.divulgacion('2026-09-15');
+    for (const cap of [300000, 1000000, 5000000, 8000000]) {
+      for (const meses of [3, 4, 5, 6]) {
+        const d = K.divulgacion('2026-09-15', { capital: cap, meses });
+        assert.equal(d.tae_maxima, base.tae_maxima,
+          'la tasa máxima cambió con el monto (' + cap + '/' + meses + 'm)');
+      }
+    }
+  });
+
+  test('mover el deslizador REPINTA la letra', () => {
+    /* Sin esto el ejemplo se queda en la combinación anterior y vuelve el
+       defecto exacto que encontró Joan. */
+    const P = abrirPlay();
+    P.ev('tarjetaCalculadora()');
+    /* El elemento de mentira nace la primera vez que alguien lo pide, asi que
+       hay que pedirlo ANTES de ponerle valor. */
+    P.ev("$('calcMonto').value = String(CALC_MAX); $('calcMeses').value = '6';");
+    P.ev('moverCalc()');
+    const pintado = P.elems.calcLetra.innerHTML || '';
+    assert.ok(pintado.indexOf('Ejemplo') > -1, 'moverCalc no repinta la letra obligatoria');
+    assert.ok(pintado.indexOf('8.000.000') > -1,
+      'la letra repintada sigue hablando de otro monto: ' + pintado.slice(0, 200));
+  });
+
+  test('si su combinación no se puede cotizar, la letra NO se queda sin números', () => {
+    /* La letra es obligatoria. Antes que publicarla coja, se cae al ejemplo de
+       siempre, que siempre cotiza. */
+    const K = require('../app/cumplimiento.js');
+    for (const malo of [{ capital: -5, meses: 6 }, { capital: 0, meses: 6 },
+                        { capital: 1000000, meses: 99 }]) {
+      const d = K.divulgacion('2026-09-15', malo);
+      if (!d.puede) continue;
+      assert.match(d.texto, /Ejemplo: por \$[\d.]+ a \d+ meses/,
+        'con ' + JSON.stringify(malo) + ' la letra quedó sin ejemplo');
+    }
+  });
+
+  test('la caché de la letra va POR COMBINACIÓN, no una sola', () => {
+    /* Con una sola entrada, que el ejemplo siguiera al deslizador no habría
+       servido: la primera respuesta se queda pegada. */
+    const P = abrirPlay();
+    P.ev('CALC.monto = 500000; CALC.meses = 6;');
+    const a = P.ev('divulgacionHoy({ capital: 500000, meses: 6 })');
+    const b = P.ev('divulgacionHoy({ capital: 3000000, meses: 4 })');
+    assert.notEqual(a, b, 'la caché devuelve el mismo texto para dos créditos distintos');
+    assert.equal(P.ev('divulgacionHoy({ capital: 500000, meses: 6 })'), a,
+      'la caché no conserva la primera combinación');
+  });
+});
