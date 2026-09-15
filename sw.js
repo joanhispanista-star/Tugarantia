@@ -193,6 +193,12 @@
    producto de la usura: de 12 dias de 30 por encima del techo a cero), y la
    ruleta del cupo de bienvenida. Toca play/index.html, play/estilo.css,
    app/motor.js y app/ruleta.js (nuevo, ENTRA AL CACHE).
+
+   v52 — 15-sep-2026. Bajar la base de cobranza para mandarla por SMS o por voz
+   desde una plataforma de afuera, con el monto de cada cliente en su fila y el
+   filtro de la Ley 2300 aplicado antes de escribir la primera. Toca
+   panel/crm.html y mete al cache app/cobranza-envio.js (nuevo) y panel/tanda.js
+   (existia, pero solo lo cargaba el Panel del bolsillo).
    ENTRAN AL CACHE app/ficha.js —lo carga play/— y el motor, que play/ no cargaba
    antes; app/chat.js y app/chat.css ya estaban por la app quincenal. */
 /* SUBIR EL NUMERO NO BASTA, Y COSTO UNA TARDE AVERIGUARLO (14-sep-2026).
@@ -250,7 +256,7 @@
    proyecto ya vio a este mismo service worker contestar index.html a una
    peticion de .js (ver v19). El guardian se mudo arriba del todo.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v51';
+const CACHE = 'tugarantia-v52';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -314,7 +320,15 @@ const ARCHIVOS = [
      la rueda no se pinta (la pagina se protege sola con `if (!RU) return ''`)
      pero el cliente entraria a la puerta publica y no veria lo que se le
      prometio por WhatsApp. */
-  'app/ruleta.js'
+  'app/ruleta.js',
+  /* 15-sep-2026 — la base para SMS y voz. El CRM la carga con un <script src>,
+     igual que el motor y el puente; sin ella el boton de bajar la base no hace
+     nada y Joan se entera con los clientes esperando. */
+  'app/cobranza-envio.js',
+  /* Y tanda.js, que hasta hoy solo cargaba el Panel del bolsillo. Ahora el CRM
+     del computador tambien lo necesita: es quien aplica los topes de la Ley
+     2300 antes de armar el archivo de envio. */
+  'panel/tanda.js'
   /* 16-sep-2026 — el CRM pasa a cargar app/creditos.js (la tabla certificada del
      techo de usura, con fecha) para poder mandar propuestas a cuotas. NO se
      agrega aqui: ya esta tres lineas arriba, porque play/ lo carga desde el

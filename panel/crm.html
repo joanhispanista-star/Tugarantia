@@ -500,7 +500,8 @@
       <div class="kpis" id="kpis"></div>
       <div class="kpi-title">📊 Indicadores del negocio</div>
       <div class="kpis2" id="kpis2"></div>
-      <div class="card"><div class="card-h"><h3>Cola de gestión de hoy</h3><span class="tag">A quién contactar por WhatsApp</span></div><div id="cola"></div></div>
+      <div class="card"><div class="card-h"><h3>Cola de gestión de hoy</h3><span class="tag">A quién contactar por WhatsApp</span>
+        <button class="btn btn-ghost btn-sm" onclick="pantallaEnvioMasivo()">📤 Bajar base para SMS / voz</button></div><div id="cola"></div></div>
     </section>
 
     <section class="view" id="v-cred">
@@ -756,6 +757,13 @@
 <script src="../app/chat.js"></script>
 <!-- 8-sep-2026: dispositivoDe (la huella del registro, en palabras). Opcional: si no llega, se muestra el user-agent crudo. -->
 <script src="../app/cuenta.js"></script>
+<!-- 15-sep-2026 — LA BASE PARA SMS Y VOZ. Dos archivos, y cada uno hace una cosa:
+     tanda.js decide A QUIEN se le puede escribir hoy (los topes de la Ley 2300, que
+     son por PERSONA y por SEMANA, no por credito); cobranza-envio.js arma el texto
+     y el archivo. Estaban en el Panel del bolsillo y no en el computador, que es
+     donde Joan trabaja la cartera. -->
+<script src="tanda.js"></script>
+<script src="../app/cobranza-envio.js"></script>
 <!-- Las reglas de comisión de los asesores. Funciones puras: el CRM las
      llama, no las reimplementa. -->
 <script src="../app/comisiones.js"></script>
@@ -1737,6 +1745,194 @@ function renderCola(){
         <td>${av?fmtFecha(av.pactadaPara):fmtFecha(PUENTE.corteDelCredito(p))}<div class="muted">${av?'día pactado':cuando}</div></td>
         <td>${av?'<span class="chip al-dia">🤝 Acuerdo</span>':(ai?'<span class="chip mora">🤝 Incumplido</span>':`<span class="chip ${est}">${ESTADO_TXT[est]}</span>`)}</td>
         <td style="text-align:right">${contactadoHoy(s)?'<span class="muted">contactado</span> ':''}<button class="btn btn-wa btn-sm" onclick="gestionar('${p.id}','${k}')">💬</button> <button class="btn btn-negro btn-sm" onclick="abrirPago('${p.id}')">Pago</button></td></tr>`;}).join('')}</tbody></table>`;
+}
+
+/* ===========================================================================
+ * BAJAR LA BASE PARA SMS Y VOZ — 15-sep-2026
+ *
+ * Joan lo pidio hoy, y hoy vence el plazo de muchos: «poder descargar las bases
+ * o poder conectar mi crm con la plataforma de cocomdigital».
+ *
+ * Conectar el CRM con la plataforma NO se puede hoy: Cocom no publica su API y
+ * hay que pedirsela a ellos. Bajar la base si, y es lo que hay que hacer hoy.
+ *
+ * ---------------------------------------------------------------------------
+ * LO QUE ESTA PANTALLA NO DEJA HACER, Y ES LO IMPORTANTE
+ *
+ * La lista NO es «todos los que deben». Pasa por tanda.js, que aplica los topes
+ * de la Ley 2300 de 2023 —que a Joan le aplican en persona, articulo 1— antes de
+ * escribir una sola fila:
+ *
+ *   · Una persona, una vez. El tope es por CONSUMIDOR: alguien con dos creditos
+ *     vencidos es UN contacto, no dos. Se deduplica antes del filtro.
+ *   · Un contacto por semana, sin mezclar canales. Si a alguien ya se le escribio
+ *     por WhatsApp esta semana, mandarle un SMS hoy es usar dos canales en la
+ *     misma semana, que es lo que el articulo 3 prohibe.
+ *   · Domingos y festivos, no. Sabados solo de 8 a 3. Entre semana de 7 a 7.
+ *   · Nadie con acuerdo de pago vigente: hay pacto, y escribirle de mora es
+ *     romperlo y gastar el contacto de la semana en empeorar las cosas.
+ *
+ * El que queda afuera se muestra CON SU MOTIVO. Una lista que encoge sin decir
+ * por que se convierte en una lista que Joan rehace a mano por fuera.
+ * ========================================================================= */
+
+/* Los casos de cobro de hoy, con la misma forma que espera tanda.js. Sale de la
+   misma cola que ya pinta el tablero: si un dia cambian los estados, cambian
+   los dos juntos. */
+function casosDeCobroHoy() {
+  var casos = [];
+  DB.prestamos.forEach(function (p) {
+    var est = estadoPrestamo(p);
+    if (['mora', 'hoy', 'proximo'].indexOf(est) < 0) return;
+    /* CON ACUERDO VIGENTE NO SE COBRA. Hay pacto y una fecha; escribirle de
+       mora lo rompe. El incumplido SI entra, y de primero. */
+    if (acuerdoVigente(p)) return;
+    var s = DB.socios.find(function (x) { return x.id === p.socioId; });
+    if (!s) return;
+    casos.push({
+      id: p.id, socioId: s.id, socio: s, credito: p,
+      telefono: waNum(s),
+      nombre: s.nombre || p.socioNombre || '',
+      saldo: totalCiclo(p),
+      fecha_pago: PUENTE.corteDelCredito(p) || '',
+      plantilla: acuerdoIncumplido(p) ? 'mora' : plantillaPara(p),
+      prioridad: acuerdoIncumplido(p) ? 0 : 1,
+      orden: PUENTE.corteDelCredito(p) || ''
+    });
+  });
+  return casos;
+}
+
+function horarioLegalHoy(fecha) {
+  var d = fecha || new Date(), dia = d.getDay(), h = d.getHours() + d.getMinutes() / 60;
+  var festivo = false;
+  try { festivo = !!(window.MotorReglas && MotorReglas.esFestivo && MotorReglas.esFestivo(d)); } catch (e) {}
+  if (festivo) return { ok: false, motivo: 'hoy es festivo: la Ley 2300 no deja cobrar' };
+  if (dia === 0) return { ok: false, motivo: 'es domingo: la Ley 2300 no deja cobrar' };
+  if (dia === 6) return (h >= 8 && h < 15) ? { ok: true, ventana: 'sabado, de 8am a 3pm' }
+    : { ok: false, motivo: 'el sabado solo se puede de 8am a 3pm' };
+  return (h >= 7 && h < 19) ? { ok: true, ventana: 'de lunes a viernes, de 7am a 7pm' }
+    : { ok: false, motivo: 'entre semana solo se puede de 7am a 7pm' };
+}
+
+var _envio = null;
+
+function pantallaEnvioMasivo() {
+  var E = window.CobranzaEnvio, T = window.TandaTuGarantia;
+  if (!E || !T) {
+    openModal('Bajar base para SMS / voz',
+      '<div class="alerta warn">Faltan los archivos <b>cobranza-envio.js</b> o <b>tanda.js</b>. ' +
+      'Recarga la pagina; si sigue, avisame.</div>');
+    return;
+  }
+  var hor = horarioLegalHoy();
+  var casos = casosDeCobroHoy();
+  var t = T.armarTanda(casos, {
+    hoy: hoyISO(),
+    horario: hor,
+    tipo: 'cobro',
+    grupo: 'sms',
+    saltados: []
+  });
+  var tel = (DB.config && (DB.config.whatsapp || DB.config.telefono)) || '';
+  /* `pendientes`, no `listos`: es el nombre que devuelve armarTanda. La
+     primera version decia `listos`, que no existe, y la lista salia VACIA
+     siempre. Las pruebas que leen el codigo fuente no lo vieron —solo miraban
+     que se llamara a armarTanda— y lo cazo abrir el CRM en un navegador. */
+  var r = E.filasDeEnvio(t.pendientes || [], { telefono: tel });
+  _envio = { filas: r.filas, tanda: t, horario: hor, resumen: r };
+
+  var fuera = (t.fuera || []).length;
+  var porMotivo = {};
+  (t.fuera || []).forEach(function (f) {
+    var k = (f.motivo && f.motivo.texto) || 'sin motivo';
+    porMotivo[k] = (porMotivo[k] || 0) + 1;
+  });
+
+  var caro = r.filas.filter(function (f) { return f.pedazos_sms > 1; }).length;
+  var piezas = r.filas.reduce(function (a, f) { return a + f.pedazos_sms; }, 0);
+
+  openModal('Bajar base para SMS / voz', ''
+    + (hor.ok ? ''
+      : '<div class="alerta warn"><b>Ahora mismo no se puede cobrar: ' + escHTML(hor.motivo) + '.</b><br>' +
+        'Puedes bajar el archivo igual y subirlo cuando se abra la ventana. La Ley 2300 mira ' +
+        'la hora en que <b>llega</b> el mensaje, no la hora en que lo programaste.</div>')
+    + '<div class="kpis" style="margin-bottom:14px">'
+      + '<div class="kpi"><div class="n">' + r.filas.length + '</div><div class="l">Se les puede escribir hoy</div></div>'
+      + '<div class="kpi"><div class="n">' + fuera + '</div><div class="l">Quedan por fuera</div></div>'
+      + '<div class="kpi"><div class="n">' + piezas + '</div><div class="l">SMS que se pagan</div></div>'
+    + '</div>'
+    + (r.filas.length === 0
+      ? '<div class="empty"><div class="ic">✅</div><p>No hay a quien escribirle ahora.<br>' +
+        '<span class="muted">Mira abajo por que.</span></p></div>'
+      : '<button class="btn btn-rojo" style="width:100%;margin-bottom:6px" onclick="bajarCSVEnvio()">' +
+        '⤓ Bajar el archivo (' + r.filas.length + ' clientes)</button>'
+        + '<div class="muted" style="font-size:12px;margin-bottom:14px">Se abre con Excel. ' +
+          'Trae el celular con y sin el 57, el monto de cada uno, y el mensaje ya armado ' +
+          'para texto y para voz.</div>')
+    + (caro ? '<div class="alerta warn" style="margin-bottom:12px"><b>' + caro + ' mensaje(s) ocupan mas de un SMS</b> ' +
+        'y se cobran doble. Casi siempre es un nombre muy largo.</div>' : '')
+    + (r.sinTelefono.length ? '<div class="alerta warn" style="margin-bottom:12px"><b>' +
+        r.sinTelefono.length + ' sin celular valido</b>, no entraron: ' +
+        escHTML(r.sinTelefono.slice(0, 6).map(function (c) { return c.nombre; }).join(', ')) +
+        (r.sinTelefono.length > 6 ? ' y ' + (r.sinTelefono.length - 6) + ' mas' : '') + '.</div>' : '')
+    + (fuera ? '<div class="card-h" style="padding-left:0"><h3>Por que quedaron por fuera</h3></div>' +
+        '<table><tbody>' + Object.keys(porMotivo).map(function (k) {
+          return '<tr><td>' + escHTML(k) + '</td><td class="num">' + porMotivo[k] + '</td></tr>';
+        }).join('') + '</tbody></table>' : '')
+    + '<div class="card-h" style="padding-left:0;margin-top:16px"><h3>Como queda el mensaje</h3></div>'
+    + (r.filas.length
+      ? '<div style="background:#12151A;border-radius:10px;padding:12px;font-size:13px;line-height:1.5">' +
+        '<div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em">Texto</div>' +
+        escHTML(r.filas[0].mensaje_sms) +
+        '<div class="muted" style="font-size:11px;margin-top:10px;text-transform:uppercase;letter-spacing:.06em">Voz</div>' +
+        escHTML(r.filas[0].mensaje_voz) + '</div>'
+      : '')
+    + '<div class="alerta" style="margin-top:14px;font-size:13px"><b>Cuando los hayas enviado, vuelve y tocalo:</b> ' +
+      'el CRM tiene que saber que ya los contactaste, o manana te los vuelve a ofrecer y ' +
+      'se rompe el tope de un contacto por semana.<br>' +
+      '<button class="btn btn-negro btn-sm" style="margin-top:8px" onclick="marcarEnviados(\'sms\')">Ya los envie por TEXTO</button> ' +
+      '<button class="btn btn-negro btn-sm" style="margin-top:8px" onclick="marcarEnviados(\'voz\')">Ya los envie por VOZ</button></div>'
+  );
+}
+
+function bajarCSVEnvio() {
+  var E = window.CobranzaEnvio;
+  if (!_envio || !E) return;
+  var csv = E.aCSV(_envio.filas);
+  var b = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = 'cobranza-' + hoyISO() + '.csv';
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+}
+
+/* Anotar el contacto. Sin esto el CRM no sabe que Joan ya escribio por fuera, y
+   el tope semanal de la Ley 2300 se rompe solo: manana la cola vuelve a ofrecer
+   a la misma gente y el segundo mensaje ya es el ilegal. */
+function marcarEnviados(canal) {
+  if (!_envio || !_envio.filas.length) return;
+  var n = _envio.filas.length;
+  if (!confirm('Anotar que ya contactaste a ' + n + ' cliente(s) por ' +
+      (canal === 'voz' ? 'mensaje de voz' : 'mensaje de texto') + '.\n\n' +
+      'Con esto el CRM deja de ofrecerlos hasta la semana que viene, que es lo ' +
+      'que manda la Ley 2300.\n\nSolo dale si YA los enviaste de verdad.')) return;
+
+  var hoy = hoyISO(), ahora = new Date().toISOString(), tocados = 0;
+  _envio.tanda.pendientes.forEach(function (c) {
+    var s = DB.socios.find(function (x) { return x.id === c.socioId; });
+    if (!s) return;
+    s.gestiones = s.gestiones || [];
+    s.gestiones.push({
+      fecha: hoy, hora: ahora, canal: canal === 'voz' ? 'voz' : 'sms',
+      plantilla: c.plantilla || '', tipo: 'cobro', grupo: 'sms', origen: 'plataforma'
+    });
+    tocados++;
+  });
+  guardar(); render(); cerrarModal();
+  alert('Anotado: ' + tocados + ' contacto(s) por ' +
+    (canal === 'voz' ? 'voz' : 'texto') + '. No se les vuelve a escribir hasta la semana que viene.');
 }
 
 function renderCred(){
