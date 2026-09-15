@@ -241,21 +241,91 @@ describe('el espejo se invalida cuando la cartera se reemplaza (15-sep-2026)', (
   const path = require('node:path');
   const RAIZ = path.join(__dirname, '..');
 
-  test('los DOS reemplazos de cartera borran el espejo', () => {
+  const { abrirPanel } = require('./banco-panel.js');
+
+  /* Un respaldo de verdad, del tamaño que tiene uno de Joan. */
+  const RESPALDO = JSON.stringify({
+    socios: [{ id: 'C1', nombre: 'Ana', cedula: '1', telefono: '3001' }],
+    prestamos: []
+  });
+
+  /* Le entrega un archivo al importar() del CRM como se lo entrega el navegador:
+     un evento con un input y un File. El FileReader del banco lee de `.texto`. */
+  function importarEn(P, texto) {
+    P.ev('window.__ev = { target: { files: [{ texto: ' + JSON.stringify(texto) + ' }], value: "x" } }');
+    P.ev('importar(window.__ev)');
+    return P.ev('(window._avisos || []).slice(-1)[0] || ""');
+  }
+
+  test('importar() BORRA el espejo — ejecutado, no leido', () => {
     /* Una cartera que acaba de ser reemplazada entera no tiene ningun derecho a
        decirle a la nube que le falta. Son exactamente dos sitios en todo el
        proyecto: traer.html y el importar() del CRM — el segundo no lo habia
-       visto nadie, estando a doce lineas del otro que todos citaban. */
-    for (const [archivo, marca] of [['panel/traer.html', 'localStorage.setItem(KEY, texto);'],
-                                    ['panel/crm.html', 'localStorage.setItem(KEY,JSON.stringify(d));']]) {
-      const t = fs.readFileSync(path.join(RAIZ, archivo), 'utf8');
-      const i = t.indexOf(marca);
-      assert.ok(i > -1, 'no encontre el escritor de la cartera en ' + archivo);
-      const despues = t.slice(i, i + 900);
-      assert.match(despues, /removeItem\('joan_panel_espejo_pc'\)/,
-        archivo + ' reemplaza la cartera y NO invalida el espejo');
-      assert.match(despues, /removeItem\('joan_crm_sello'\)/,
-        archivo + ' no invalida el sello');
-    }
+       visto nadie, estando a doce lineas del otro que todos citaban.
+
+       ESTA PRUEBA SE REESCRIBIO EL 15-sep-2026 PORQUE ERA DE TEXTO. Buscaba el
+       removeItem en los 900 caracteres siguientes al setItem, y se puso roja
+       cuando entre los dos se metieron catorce lineas que no cambiaban nada de
+       lo que ella dice vigilar. Una prueba que se rompe por una linea de mas
+       —y que aprobaria un `if(false)` alrededor del removeItem— no estaba
+       midiendo la invariante: estaba midiendo la distancia. Ahora corre el
+       importar() de verdad y mira el almacen.
+       MUTANTE QUE CAZA: envolver los removeItem en `if(false)`, moverlos antes
+       del setItem, o cambiar el nombre de cualquiera de las dos llaves. */
+    const P = abrirPanel();
+    P.almacen['joan_panel_espejo_pc'] = '{"socios":{"C9":{"revision":7}}}';
+    P.almacen['joan_crm_sello'] = 'sello-de-otra-cartera';
+
+    const aviso = importarEn(P, RESPALDO);
+
+    assert.equal(P.almacen['joan_panel_espejo_pc'], undefined,
+      'importar() reemplazo la cartera y dejo vivo el espejo: la siguiente subida ' +
+      'mandaria un diff contra una verdad que ya no existe');
+    assert.equal(P.almacen['joan_crm_sello'], undefined,
+      'importar() no invalido el sello');
+    assert.match(aviso, /Respaldo importado/,
+      'el importe no llego a buen puerto, asi que esta prueba no midio nada');
+    assert.equal(JSON.parse(P.almacen['joan_socios_v1']).socios[0].nombre, 'Ana',
+      'la cartera nueva no quedo escrita');
+  });
+
+  test('importar() NO llama «invalido» a un respaldo que solo no cupo', () => {
+    /* El respaldo es HOY la unica copia de las fotos que existe fuera de este
+       navegador (crm.html lo serializa entero, base64 adentro), y el aviso rojo
+       de «no pude guardar» le ofrece a Joan exactamente ese archivo. Decirle que
+       esta dañado cuando lo que falto fue sitio lo manda a buscar otro que no
+       existe — y a desconfiar del unico bueno que tiene.
+       MUTANTE QUE CAZA: devolver el setItem adentro del try grande. */
+    const P = abrirPanel({ topeKB: 0.001 });   /* el almacen se llena con nada */
+    const aviso = importarEn(P, RESPALDO);
+
+    assert.doesNotMatch(aviso, /Archivo inv/i,
+      'al navegador le falto espacio y el CRM acuso al archivo: «' + aviso.split('\n')[0] + '»');
+    assert.match(aviso, /no cupo|espacio/i,
+      'no se le dijo a Joan que lo que falto fue espacio');
+    assert.match(aviso, /no se perdi/i,
+      'no se le dijo que lo que ya tenia sigue intacto, que es la mitad que quita el susto');
+  });
+
+  test('y un archivo de VERDAD roto si se llama invalido', () => {
+    /* La otra mitad: si se arregla lo de arriba tapando el mensaje, esta se
+       pone roja. Las dos juntas obligan a distinguir, que es el punto. */
+    const P = abrirPanel();
+    assert.match(importarEn(P, 'esto no es json'), /Archivo inv/i,
+      'un archivo ilegible dejo de avisarse como tal');
+  });
+
+  test('traer.html tambien invalida el espejo', () => {
+    /* Esta sigue siendo de texto y lo digo: traer.html no tiene banco. Se
+       compensa con que su hermana de arriba SI ejecuta, y las dos cambian por
+       el mismo motivo. */
+    const t = fs.readFileSync(path.join(RAIZ, 'panel', 'traer.html'), 'utf8');
+    const i = t.indexOf('localStorage.setItem(KEY, texto);');
+    assert.ok(i > -1, 'no encontre el escritor de la cartera en traer.html');
+    const despues = t.slice(i, i + 900);
+    assert.match(despues, /removeItem\('joan_panel_espejo_pc'\)/,
+      'traer.html reemplaza la cartera y NO invalida el espejo');
+    assert.match(despues, /removeItem\('joan_crm_sello'\)/,
+      'traer.html no invalida el sello');
   });
 });

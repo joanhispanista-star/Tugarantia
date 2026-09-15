@@ -435,9 +435,11 @@ var LLAVE_SB     = 'joan_socios_sb';
 var DISPOSITIVO  = 'computador';
 var POR_LOTE     = 200;
 
-/* Las fotos, las cuatro clases que hay. Se listan acá SOLO para devolverlas al
-   aplicar: quitarlas es trabajo de NUBE.sinFotos, no de esta página. */
-var CAMPOS_FOTO = ['cedulaFrenteFoto','cedulaReversoFoto','selfieFoto','cedulaFoto'];
+/* Las fotos: la lista vive en nube.js y se lee de allá (NUBE.CAMPOS_FOTO).
+   Acá había una copia escrita a mano. Se quitó el 15-sep-2026 junto con la copia
+   de devolverFotos que era lo único que la usaba: el día que aparezca una quinta
+   clase de foto —y apareció, el recibo de una cuota— una lista copiada se queda
+   corta sin que nadie se entere. */
 
 /* Las listas que solo SUMAN. La identidad de un elemento es la concatenación de
    esos campos; con eso se juntan sin duplicar. Ojo con lo que NO está acá:
@@ -1389,20 +1391,16 @@ function fusionarConLoMio(tabla, deLaNube, mio){
   }
 }
 
+/* UNA SOLA devolverFotos EN TODO EL PROYECTO — 15-sep-2026.
+   Aca vivia una copia entera, y era ESTA la que corria (la llama la linea 1339)
+   mientras panel/nube.js:1638 tenia la suya, exportada y sin usar. Dos copias de
+   la misma regla es como este repo ya perdio las condonaciones un mes entero.
+   El defecto de los comprobantes gemelos —dos abonos del mismo monto el mismo
+   dia recibiendo los dos la foto del primero— estaba en las dos, y se arreglo
+   una sola vez: en nube.js. Si esta copia siguiera viva, el arreglo no llegaria
+   nunca a la pagina que de verdad sube la cartera de Joan. */
 function devolverFotos(datosNube, local){
-  if(!local || !datosNube) return datosNube;
-  var d = Object.assign({}, datosNube);
-  CAMPOS_FOTO.forEach(function(k){ if(local[k] && !d[k]) d[k]=local[k]; });
-  if(Array.isArray(d.comprobantes) && Array.isArray(local.comprobantes)){
-    d.comprobantes = d.comprobantes.map(function(c){
-      if(!c || c.foto) return c;
-      var g = local.comprobantes.find(function(x){
-        return x && x.foto && x.fecha===c.fecha && x.tipo===c.tipo && n2(x.monto)===n2(c.monto);
-      });
-      return g ? Object.assign({}, c, {foto:g.foto}) : c;
-    });
-  }
-  return d;
+  return NUBE.devolverFotos(datosNube, local);
 }
 
 /* =================================================== PASO 7 · CHOQUES ====*/

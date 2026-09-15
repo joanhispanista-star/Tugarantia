@@ -46,7 +46,15 @@ function abrirPanel(opciones) {
     body: elem('body'), documentElement: elem('html'), title: ''
   };
   const ctx = {
-    console, document: doc, alert() {}, confirm: () => true,
+    console,
+    document: doc,
+    /* 15-sep-2026 — LOS AVISOS SE ANOTAN. Antes se tiraban, y por eso no habia
+       forma de probar QUE le dice el CRM a Joan cuando algo sale mal: solo si
+       seguia vivo. La diferencia entre «Archivo invalido» y «no cupo» es la
+       diferencia entre mandarlo a buscar un respaldo que no existe y decirle la
+       verdad, y eso solo se prueba leyendo el aviso. */
+    alert(m) { (ctx._avisos = ctx._avisos || []).push(String(m)); },
+    confirm: () => true,
     localStorage: {
       getItem: k => (k in almacen ? almacen[k] : null),
       /* 15-sep-2026 — el almacen se puede LLENAR a proposito. Sin esto no habia
@@ -93,7 +101,18 @@ function abrirPanel(opciones) {
     TextEncoder, TextDecoder, URL, Intl, Date, Math, JSON,
     btoa: s => Buffer.from(s, 'binary').toString('base64'),
     atob: s => Buffer.from(s, 'base64').toString('binary'),
-    Blob: class {}, FileReader: class {}
+    Blob: class {},
+    /* 15-sep-2026 — UN FileReader QUE DE VERDAD LEE. Era `class {}`, un cascaron,
+       y por eso importar() —el SEGUNDO escritor de la cartera, el que reemplaza
+       todo— no lo habia ejecutado ninguna prueba en la vida: solo se miraba su
+       texto. Lee sincronico a proposito: una prueba no tiene por que esperar a
+       un tick para comprobar lo que el CRM hace con un archivo. */
+    FileReader: class {
+      readAsText(f) {
+        this.result = f && f.texto !== undefined ? f.texto : String(f);
+        if (this.onload) this.onload({ target: this });
+      }
+    }
   };
   ctx.window = ctx; ctx.self = ctx;
   /* Los dos que crm.html carga con <script src>. El puente se publica como

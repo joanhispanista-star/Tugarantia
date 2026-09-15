@@ -376,7 +376,56 @@
         return c;
       });
     }
+    /* LA QUINTA FOTO — 15-sep-2026. Un respaldado lleva sus cuotas, y cada cuota
+       puede llevar el recibo del cobro: nace en null (panel/crm.html:9060) y se
+       llena en panel/crm.html:9142. La palabra «cuotas» no aparecia en este
+       archivo, asi que ese recibo —unos 100 KB— viajaba a Supabase cada vez que
+       Joan subia su cartera, justo contra lo que promete el comentario de
+       arriba. No lo encontro una lectura: lo encontro correr sinFotos con una
+       cuota adentro y ver el recibo salir vivo del otro lado. */
+    if (Array.isArray(copia.cuotas)) {
+      copia.cuotas = copia.cuotas.map(function (c) {
+        if (c && typeof c === 'object' && conContenido(c.comprobante)) { var d = clonar(c); delete d.comprobante; return d; }
+        return c;
+      });
+    }
+    /* LA PAPELERA ESTABA AL REVES. panel/crm.html:2863 no guarda el socio
+       borrado: guarda un ENVOLTORIO {socio, prestamos, respaldados, borradoEn}.
+       Como sinFotos solo miraba el nivel de arriba, la cedula del socio VIVO se
+       quitaba y la del BORRADO subia entera — exactamente lo contrario de lo que
+       promete legal/privacidad.html, y de lo que dice el comentario de
+       CLAVES_AJUSTES_SIN_PAPELERA. Un socio, un credito y un respaldado no
+       tienen clave `.socio`, asi que esta rama no puede cambiarles el JSON
+       canonico a ninguno de los tres. */
+    if (copia.socio && typeof copia.socio === 'object') {
+      copia.socio = sinFotos(copia.socio);
+      if (copia.prestamos) copia.prestamos = sinFotos(copia.prestamos);
+      if (copia.respaldados) copia.respaldados = sinFotos(copia.respaldados);
+    }
     return copia;
+  }
+
+  /**
+   * ¿Este error es «no cupo» y no «algo se rompió»?
+   *
+   * Importa distinguirlos porque las dos salidas le dicen a Joan cosas
+   * opuestas: «tu archivo está dañado» lo manda a buscar otro respaldo —y a
+   * veces no hay otro—, mientras que «no cupo» le dice la verdad, que su
+   * archivo está bien y lo que falta es sitio. panel/crm.html:9961 daba la
+   * primera respuesta a la segunda pregunta.
+   *
+   * Los nombres son los que usa cada navegador para lo mismo; los códigos
+   * numéricos son los de las versiones viejas, que siguen vivas en los
+   * teléfonos baratos que usa la gente de Joan.
+   */
+  function esFaltaDeEspacio(e) {
+    if (!e) return false;
+    var nombre = String(e.name || '');
+    var codigo = (e.code === undefined) ? null : Number(e.code);
+    return nombre === 'QuotaExceededError' ||
+           nombre === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+           nombre === 'QUOTA_EXCEEDED_ERR' ||
+           codigo === 22 || codigo === 1014;
   }
 
   /** El db entero sin fotos. Lo usa subir.html para pesar el paquete "con" y
@@ -1641,15 +1690,24 @@
     Object.keys(objeto(datosNube)).forEach(function (k) { d[k] = datosNube[k]; });
     CAMPOS_FOTO.forEach(function (k) { if (local[k] && !d[k]) d[k] = local[k]; });
     if (Array.isArray(d.comprobantes) && Array.isArray(local.comprobantes)) {
+      /* CADA FOTO SE ENTREGA UNA SOLA VEZ — 15-sep-2026. Sin esto, dos abonos
+         del mismo monto el mismo dia (y los comprobantes nacen con la fecha de
+         HOY, panel/crm.html:4339, asi que colisionan siempre) recibian los dos
+         la foto del primero: la segunda foto desaparecia y en su lugar la
+         galeria enseñaba la del otro pago, rotulada con el monto equivocado.
+         Eso es peor que una foto que falta — es un recibo que dice lo que no es. */
+      var usados = {};
       d.comprobantes = d.comprobantes.map(function (c) {
         if (!c || c.foto) return c;
         for (var i = 0; i < local.comprobantes.length; i++) {
+          if (usados[i]) continue;
           var x = local.comprobantes[i];
           if (x && x.foto && x.fecha === c.fecha && x.tipo === c.tipo &&
               num(x.monto) === num(c.monto)) {
             var copia = {};
             Object.keys(c).forEach(function (k) { copia[k] = c[k]; });
             copia.foto = x.foto;
+            usados[i] = true;
             return copia;
           }
         }
@@ -1676,6 +1734,7 @@
     CLAVES_AJUSTES: CLAVES_AJUSTES,
     CLAVES_AJUSTES_SIN_PAPELERA: CLAVES_AJUSTES_SIN_PAPELERA,
     CAMPOS_FOTO: CAMPOS_FOTO,
+    esFaltaDeEspacio: esFaltaDeEspacio,
     LISTAS_SOCIO: LISTAS_SOCIO,
     LISTAS_CREDITO: LISTAS_CREDITO,
     LISTAS_RESPALDADO: LISTAS_RESPALDADO,

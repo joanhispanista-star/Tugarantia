@@ -9947,7 +9947,33 @@ function importar(e){ const f=e.target.files[0]; if(!f)return; const inp=e.targe
        rescata. Igual que en el arranque, si esta carga tocó alguna fecha la
        constancia se graba YA: si no, cada apertura del Panel la volvería a
        correr sobre créditos ya revisados. */
-    localStorage.setItem(KEY,JSON.stringify(d));
+    /* 15-sep-2026 — EL GUARDADO VA EN SU PROPIO try, Y ES LA DIFERENCIA ENTRE
+       DOS FRASES OPUESTAS. Estaba dentro del try grande, cuyo catch dice
+       «Archivo inválido». O sea: cuando al navegador le faltaba espacio —que es
+       justo lo que pasa cuando el respaldo trae fotos, y hoy el respaldo es la
+       UNICA copia de las fotos que existe fuera de este navegador— el CRM le
+       decia a Joan que su archivo estaba dañado. Lo mandaba a buscar otro que no
+       existe, y de paso a dudar del unico que tenia bueno.
+       Ahora se le dice lo que pasó: que el archivo está bien y lo que faltó fue
+       sitio, y que no perdió nada. */
+    try {
+      localStorage.setItem(KEY,JSON.stringify(d));
+    } catch (eEsp) {
+      var faltaEspacio = false;
+      try { faltaEspacio = !!(window.NubeTuGarantia && window.NubeTuGarantia.esFaltaDeEspacio(eEsp)); } catch (e2) {}
+      if (faltaEspacio) {
+        var bytes = JSON.stringify(d).length;
+        var peso = bytes >= 1048576 ? (bytes/1048576).toFixed(1).replace('.',',') + ' MB'
+                 : bytes >= 1024    ? Math.round(bytes/1024).toLocaleString('es-CO') + ' KB'
+                 :                    bytes.toLocaleString('es-CO') + ' caracteres';
+        alert('No cupo: al navegador le faltó espacio para este respaldo (pesa ' + peso + ').\n\n' +
+              'Tu archivo está bien — el problema es el sitio libre de este navegador, no el respaldo.\n' +
+              'NO se perdió nada de lo que ya tenías: el navegador no escribe a medias.\n\n' +
+              'Si el respaldo trae fotos, son ellas las que pesan. Sube tu cartera a la nube y vuelve a intentarlo.');
+        inp.value=''; return;
+      }
+      throw eEsp;
+    }
     /* 15-sep-2026 — IMPORTAR ES EL SEGUNDO ESCRITOR DE LA CARTERA, y el espejo
        tiene que enterarse. Acaba de entrar una cartera entera de otro archivo:
        lo que el espejo dice que hay en la nube ya no describe a esta. Si no se

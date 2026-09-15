@@ -1194,14 +1194,11 @@ function fallo(paso, detalle){
    Cada navegador la nombra distinto, así que se miran los tres nombres y los
    dos códigos viejos. Si no calza ninguno, NO se dice que fue el espacio: se
    dice lo que dijo el navegador. Inventar la causa es peor que no saberla. */
+/* La regla vive en nube.js desde el 15-sep-2026, porque el CRM también la
+   necesitaba y dos copias de la misma lista de nombres de error es como se
+   pierde el caso que solo una de las dos conoce. */
 function esFaltaDeEspacio(e){
-  if(!e) return false;
-  var nombre = String(e.name||'');
-  var codigo = (e.code === undefined) ? null : Number(e.code);
-  return nombre === 'QuotaExceededError' ||
-         nombre === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-         nombre === 'QUOTA_EXCEEDED_ERR' ||
-         codigo === 22 || codigo === 1014;
+  return NUBE.esFaltaDeEspacio(e);
 }
 
 /* ==================================================== LOS CANDADOS =======*/
