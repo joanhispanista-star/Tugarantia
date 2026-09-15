@@ -143,6 +143,32 @@
     return TOPES.length ? TOPES[TOPES.length - 1].hasta : null;
   }
 
+  /**
+   * El ÚLTIMO techo que se conoce, venza cuando venza.
+   *
+   * 15-sep-2026 — POR QUÉ HACE FALTA. `topeVigente` devuelve null a partir del
+   * día en que la tabla se vence, y quien lo llamaba daba por bueno cualquier
+   * precio: «sin techo no hay contra qué comparar». Eso valía cuando el único
+   * producto publicado cobraba ~24% y ningún techo plausible baja de 28%.
+   *
+   * Ya no vale. El crédito con garantía llega a 32,81% en octubre si el
+   * arranque no se corre, y el 1 de octubre la tabla se vence. Sin esto, ese
+   * día la reja se abre sola y la página publica ese precio.
+   *
+   * El techo del mes que viene no se puede saber, pero se sabe que NO se mueve
+   * de golpe: el más bajo de toda la tabla es 28,79% y el más alto 29,24%.
+   * Usar el último conocido mientras llega el nuevo es conservador y es lo
+   * único honesto que se puede hacer con la información que hay.
+   */
+  function topeDeReferencia(iso) {
+    var t = topeVigente(iso);
+    if (t) return { tope: t.consumo_ordinario, vigente: true, fuente: t.fuente };
+    if (!TOPES.length) return null;
+    var u = TOPES[TOPES.length - 1];
+    return { tope: u.consumo_ordinario, vigente: false, fuente: u.fuente,
+             vencio: u.hasta };
+  }
+
   /* ==========================================================================
    * LA TASA, DE VERDAD
    * ======================================================================== */
@@ -614,6 +640,7 @@
     /* el techo */
     topeVigente: topeVigente,
     ultimoTopeCertificado: ultimoTopeCertificado,
+    topeDeReferencia: topeDeReferencia,
 
     /* la tasa */
     tirMensual: tirMensual,

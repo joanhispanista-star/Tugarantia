@@ -956,9 +956,15 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
        window.CreditosPublicables`), no al módulo: reemplazar el global no habría
        hecho nada, porque la página ya guardó su referencia. */
     const P = abrirPlay();
+    /* Se clavan LAS DOS: la vigente y la de referencia. Desde el 15-sep la reja
+       pregunta por topeDeReferencia (porque la vigente se vence cada mes), así
+       que clavar solo una dejaba la otra contestando lo de verdad y la prueba
+       medía otra cosa de la que creía. */
     P.ev('C = Object.assign({}, C); ' +
          'C.topeVigente = function () { ' +
-         'return { desde: "x", hasta: "y", consumo_ordinario: 0.01, fuente: "prueba" }; };');
+         'return { desde: "x", hasta: "y", consumo_ordinario: 0.01, fuente: "prueba" }; };' +
+         'C.topeDeReferencia = function () { ' +
+         'return { tope: 0.01, vigente: true, fuente: "prueba" }; };');
     const h = P.ev('cifrasDeGarantia()');
     assert.ok(h.indexOf('Tasa efectiva anual') === -1,
       'con el precio por encima del techo sigue imprimiendo la tasa');
@@ -1581,5 +1587,83 @@ describe('EL ACOMPAÑAMIENTO: el permiso va primero (15-sep-2026)', () => {
     /* Un adorno no puede impedirle a nadie abrir su cuenta. */
     assert.match(PLAY, /try \{ publicarAvance\(\); \} catch \(e\) \{\}/,
       'publicarAvance puede tumbar el pintado del registro');
+  });
+});
+
+describe('LA REJA DEL TECHO NO TIENE FECHA DE APERTURA (15-sep-2026)', () => {
+
+  /* Lo encontró la auditoría de los ocho agentes, y era mío, de esta misma
+     mañana. `garantiaSePuedeCotizar` terminaba en:
+
+         var t = C.topeVigente(hoyISO());
+         if (!t) return true;          // <- la reja se abre sola
+
+     `topeVigente` devuelve null desde el día en que la tabla se vence —el 30 de
+     septiembre— así que el 1 de octubre esa línea daba por bueno CUALQUIER
+     precio. Medido sobre octubre, un millón: el crédito con garantía a tres
+     meses se pasa del último techo conocido en DOCE de los treinta y un días, y
+     el peor da 32,81%.
+
+     No era una reja con un hueco: era una reja con fecha de apertura. */
+
+  test('sin techo vigente, la calculadora NO publica un precio ilegal', () => {
+    const P = abrirPlay();
+    /* El 1 de octubre: la tabla ya no cubre la fecha. Se clava topeVigente en
+       null —como se comportará de verdad— y se deja topeDeReferencia real. */
+    P.ev('C = Object.assign({}, C); C.topeVigente = function () { return null; };');
+    /* Y se le pone una tasa imposible al producto, para que la única forma de
+       publicar sea que la reja esté abierta. */
+    P.ev('eaDeGarantia = function () { return 0.99; };');
+    P.ev('GCALC.meses = 3; GCALC.monto = GCALC_MIN; GCALC.arranque = null;');
+    const h = P.ev('cifrasDeGarantia()');
+    assert.equal(/En total vas a pagar/.test(h), false,
+      'sin techo vigente publicó un precio del 99% efectivo anual');
+    assert.match(h, /no podemos publicar un precio/i);
+  });
+
+  test('sin NINGUNA tabla de topes, tampoco se publica', () => {
+    /* El caso más extremo: alguien vacía TOPES. Antes de hoy eso también
+       devolvía true. */
+    const P = abrirPlay();
+    P.ev('C = Object.assign({}, C); C.topeDeReferencia = function () { return null; };');
+    P.ev('GCALC.meses = 3; GCALC.monto = GCALC_MIN; GCALC.arranque = null;');
+    assert.match(P.ev('cifrasDeGarantia()'), /no podemos publicar un precio/i,
+      'sin tabla de topes se publica igual');
+  });
+
+  test('el techo de referencia es el ÚLTIMO conocido, y dice que está vencido', () => {
+    const C2 = require('../app/creditos.js');
+    const hoy = C2.topeDeReferencia('2026-09-15');
+    const oct = C2.topeDeReferencia('2026-10-01');
+    assert.equal(hoy.vigente, true);
+    assert.equal(oct.vigente, false, 'octubre se reporta como vigente y no lo está');
+    assert.equal(oct.tope, hoy.tope, 'el de referencia no es el último conocido');
+    assert.ok(oct.vencio, 'no dice desde cuándo está vencido');
+  });
+
+  test('la letra obligatoria tampoco anuncia un producto que se pasa', () => {
+    /* La otra mitad: `if (techo && ...)` no se evaluaba nunca cuando techo era
+       null, así que la divulgación seguía anunciando el producto. */
+    const K = require('../app/cumplimiento.js');
+    const i = fs.readFileSync(path.join(__dirname, '..', 'app', 'cumplimiento.js'), 'utf8')
+      .indexOf('function divulgacionRespaldado');
+    assert.ok(i > -1);
+    const cuerpo = fs.readFileSync(path.join(__dirname, '..', 'app', 'cumplimiento.js'), 'utf8')
+      .slice(i, i + 3000);
+    assert.equal(/if \(techo &&/.test(cuerpo), false,
+      'la divulgación vuelve a depender de que el techo esté vigente');
+    assert.match(cuerpo, /topeDeReferencia/,
+      'la divulgación no usa el techo de referencia');
+  });
+
+  test('NADIE vuelve a escribir «sin techo, adelante»', () => {
+    /* El patrón exacto que abrió la reja. Si reaparece en cualquier archivo que
+       decida si se publica un precio, esta prueba lo dice. */
+    for (const f of ['play/index.html', 'app/cumplimiento.js', 'app/creditos.js']) {
+      const t = fs.readFileSync(path.join(__dirname, '..', f), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '');   // sin comentarios: ahí sí se puede nombrar
+      assert.equal(/if \(!\s*t\s*\)\s*return true/.test(t), false,
+        f + ' volvió a abrir la reja cuando no hay techo');
+    }
   });
 });

@@ -230,6 +230,12 @@
    esta registrando. Y en play/, el boton con el que el CLIENTE decide si quiere
    que su asesor lo acompane. Toca panel/crm.html, play/index.html y
    app/cobranza-envio.js.
+
+   v58 — 15-sep-2026. LA REJA DEL TECHO DE USURA TENIA FECHA DE APERTURA. El 1
+   de octubre la tabla de topes se vence y  daba por bueno
+   cualquier precio: medido, el credito con garantia a 3 meses se pasa en 12 de
+   los 31 dias de octubre, peor 32,81%. Ahora se compara contra el ultimo techo
+   conocido. Toca play/index.html, app/creditos.js y app/cumplimiento.js.
    ENTRAN AL CACHE app/ficha.js —lo carga play/— y el motor, que play/ no cargaba
    antes; app/chat.js y app/chat.css ya estaban por la app quincenal. */
 /* SUBIR EL NUMERO NO BASTA, Y COSTO UNA TARDE AVERIGUARLO (14-sep-2026).
@@ -287,7 +293,7 @@
    proyecto ya vio a este mismo service worker contestar index.html a una
    peticion de .js (ver v19). El guardian se mudo arriba del todo.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v57';
+const CACHE = 'tugarantia-v58';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

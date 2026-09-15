@@ -1607,9 +1607,23 @@ function garantiaSePuedeCotizar(c) {
      sin ella no hay con qué comparar contra el techo. */
   var ea = eaDeGarantia(c);
   if (ea == null) return false;
-  var t = C.topeVigente(hoyISO());
-  if (!t) return true;
-  return ea <= t.consumo_ordinario;
+  /* 15-sep-2026 — AQUI DECIA `if (!t) return true`, Y ESO ERA UNA REJA CON
+     FECHA DE APERTURA. `topeVigente` devuelve null desde el dia en que la tabla
+     se vence —el 30 de septiembre— y a partir de ahi esta linea daba por bueno
+     CUALQUIER precio.
+
+     Medido sobre octubre, un millon: el credito con garantia a tres meses se
+     pasa del ultimo techo conocido en DOCE de los treinta y un dias, y el peor
+     da 32,81%. O sea que el 1 de octubre esta pagina habria empezado a publicar
+     precios de usura sola, sin que nadie tocara nada.
+
+     El techo del mes que viene no se puede saber. Pero NO se mueve de golpe: en
+     toda la tabla va de 28,79% a 29,24%. Mientras llega el nuevo se compara
+     contra el ultimo conocido, que es conservador y es lo unico honesto que se
+     puede hacer con lo que hay. Si no hay tabla NINGUNA, no se publica. */
+  var t = C.topeDeReferencia ? C.topeDeReferencia(hoyISO()) : null;
+  if (!t) return false;
+  return ea <= t.tope;
 }
 
 function tarjetaCalcGarantia() {

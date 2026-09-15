@@ -373,9 +373,18 @@
        ese día. El artículo 305 no distingue entre anunciar y cobrar.
        Sin techo certificado no se prohíbe —se calla la frase, no el precio, que
        es la decisión del 4-sep— porque no hay contra qué comparar. */
-    if (techo && peorEA > techo.consumo_ordinario) {
+    /* 15-sep-2026 — `techo &&` era la misma reja con fecha de apertura: desde el
+       dia en que la tabla se vence, techo es null y la condicion no se evalua
+       nunca. Ahora se compara contra el ultimo techo conocido. La frase de la
+       «tasa maxima legal» sigue callandose cuando no esta vigente —esa es la
+       decision del 4-sep y no cambia—, pero el PRODUCTO deja de anunciarse si
+       se pasa, vigente o no. Callar una frase y publicar un precio ilegal no
+       son la misma decision. */
+    var ref = C.topeDeReferencia ? C.topeDeReferencia(fechaISO) : null;
+    if (ref && peorEA > ref.tope) {
       return { puede: false, motivo: 'sobre_el_techo',
-               tae_maxima: peorEA, techo_del_mes: techo.consumo_ordinario };
+               tae_maxima: peorEA, techo_del_mes: ref.tope,
+               techo_vigente: ref.vigente };
     }
 
     var pct = function (x) { return (x * 100).toFixed(2).replace('.', ',') + '%'; };

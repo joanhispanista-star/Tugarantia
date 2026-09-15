@@ -174,7 +174,8 @@ describe('la pantalla ofrece la fecha (15-sep-2026)', () => {
        C que tiene la página, no al módulo: el módulo es único para todo el
        proceso y ensuciarlo envenena las demás pruebas. */
     P.ev('C = Object.assign({}, C);' +
-         'C.topeVigente = function () { return { consumo_ordinario: 0.24 }; };');
+         'C.topeVigente = function () { return { consumo_ordinario: 0.24 }; };' +
+         'C.topeDeReferencia = function () { return { tope: 0.24, vigente: true }; };');
     P.ev('GCALC.meses = 3; GCALC.monto = GCALC_MIN; GCALC.arranque = 0;');
 
     /* Se pide ya unido en un texto: lo que vuelve del contexto de la página es
@@ -195,7 +196,8 @@ describe('la pantalla ofrece la fecha (15-sep-2026)', () => {
   test('si NINGUNA opción cabe, no se publica precio', () => {
     const P = abrirPlay();
     P.ev('C = Object.assign({}, C);' +
-         'C.topeVigente = function () { return { consumo_ordinario: 0.01 }; };');
+         'C.topeVigente = function () { return { consumo_ordinario: 0.01 }; };' +
+         'C.topeDeReferencia = function () { return { tope: 0.01, vigente: true }; };');
     P.ev('GCALC.meses = 3; GCALC.monto = GCALC_MIN;');
     assert.equal(P.ev('mandoDeFechas()'), '',
       'sin ninguna opción legal se sigue pintando el mando de fechas');
