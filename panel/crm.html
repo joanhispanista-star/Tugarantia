@@ -758,6 +758,10 @@
      cuenta, Joan y su asesor verían carteras distintas para el mismo
      cliente y la conversación se vuelve sobre quién tiene razón. -->
 <script src="../app/etapas.js"></script>
+<!-- 16-sep-2026 — la tabla certificada del techo de usura (con fecha) y la TIR.
+     Es la MISMA que usa la puerta pública: el precio que Joan manda desde acá y
+     el que el cliente ve allá se miden contra el mismo techo. -->
+<script src="../app/creditos.js"></script>
 <script>
 const PUENTE=window.PuenteTuGarantia;
 /* 9-sep-2026 — las reglas de comision de los asesores. Va JUNTO a las otras
@@ -7972,21 +7976,236 @@ function socioDesdeDatos(s,a){
     vinculacion:Object.keys(d).length?d:null, origen:'registro_abierto',
     gestiones:[], fechaRegistro:new Date().toISOString() }, dec);
 }
-/* Cambiar la propuesta de UNA solicitud. Vuelve a «esperando que acepte»: nadie
-   acepta lo que no ha visto. El costo va con las rejas del motor (1% a 50%). */
-function editarContrapropuesta(id){
-  const s=_solicitudes.find(x=>String(x.id)===String(id)); if(!s) return;
-  const cp=s.contrapropuesta||MotorReglas.POLITICA_NUEVOS_DEF;
-  openModal('Cambiar la propuesta · '+s.nombre,`
-    <div class="help">Lo que pongas acá es lo que el cliente va a ver en su app, en pesos. Al guardar, la propuesta vuelve a «esperando que acepte».</div>
-    <div class="field"><label>Capital</label><input id="cpCap" type="number" inputmode="numeric" value="${Number(cp.capital)||0}" oninput="previsualizarContrapropuesta()"></div>
-    <div class="field"><label>Costo (%)</label><input id="cpPct" type="number" inputmode="numeric" min="1" max="${TASA_TECHO_PCT}" value="${Number(cp.costo_pct)||TASA_FIJA_PCT}" oninput="previsualizarContrapropuesta()"></div>
-    <div class="field"><label>Días para pagar</label><input id="cpDias" type="number" inputmode="numeric" min="1" max="60" value="${Number(cp.dias)||8}" oninput="previsualizarContrapropuesta()"></div>
-    <div class="field"><label>Lo que el cliente lee</label><textarea id="cpTexto" rows="3" maxlength="400">${escHTML(cp.texto||'')}</textarea></div>
-    <div id="cpCalc" class="calc"></div>
-    <button class="btn btn-rojo" onclick="guardarContrapropuesta('${s.id}')">Mandarle esta propuesta</button>`);
-  previsualizarContrapropuesta();
+/* --------------------------------------------------------------------------
+ * LA CONTRAPROPUESTA, EN DOS FORMAS — 16-sep-2026
+ *
+ * Joan: «si no tienen casi cupo e igual solicitan un monto alto, se vea en el
+ * CRM la propuesta y yo pueda hacer una contrapropuesta; después, cuando yo
+ * envíe la contrapropuesta, le aparezca segmentado la fecha y monto a pagar
+ * para mejorar la cobranza y dar claridad».
+ *
+ * Dos formas y no una, porque son dos productos:
+ *
+ *   · UN SOLO PAGO — el quincenal de siempre. Capital, costo en porcentaje y
+ *     días. Es lo que había y no se toca.
+ *   · A CUOTAS — el préstamo con garantía. Monto y meses; el plan lo arma
+ *     motor.js, el MISMO que después cobra mes a mes. Acá no se calcula ni una
+ *     cuota a mano: si se calculara, el cliente vería un plan y el CRM cobraría
+ *     otro, y ninguno de los dos podría saber cuál miente.
+ *
+ * LO QUE SE LE ENSEÑA A JOAN ANTES DE MANDAR es lo que necesita para decidir:
+ * cuánto pidió, hasta dónde le alcanza al cliente su garantía GANADA, y el plan
+ * completo con fechas. Esa comparación es justo el caso que Joan describió —el
+ * que pide tres millones con cupo para uno— y sin ella la contrapropuesta sería
+ * a ciegas.
+ *
+ * Y LA EFECTIVA ANUAL SE COMPRUEBA CONTRA EL TECHO DEL MES, acá, antes de
+ * mandar. El botón se apaga si se pasa. El artículo 305 no distingue entre una
+ * tasa alta puesta a propósito y una puesta por error.
+ * ------------------------------------------------------------------------ */
+let _cpModo = 'unico';   // unico | cuotas
+/* Cuál solicitud se está editando. Vive fuera del modal porque cambiar de forma
+   —de un pago a cuotas— lo vuelve a abrir, y sin esto la segunda apertura no
+   sabría de quién es la propuesta. */
+let _cpSolId = null;
+
+/* De la solicitud al socio: el mismo cruce que hace crearDesdeSolicitud —por
+   cédula O por celular, porque el campo `cedula` de una solicitud guarda el que
+   la persona usó para entrar. Escrito una vez para que las dos pantallas
+   busquen igual. */
+function socioDeSolicitud(s) {
+  const dig = v => String(v || '').replace(/\D/g, '');
+  const id = dig(s && s.cedula);
+  if (!id) return null;
+  return DB.socios.find(x => dig(x.cedula) === id ||
+    (id.length >= 10 && dig(x.telefono).slice(-10) === id.slice(-10))) || null;
 }
+
+/* `modo` se recibe y NO se lee de _cpModo, y ahí estaba el defecto: cambiar de
+   forma vuelve a abrir el modal, y si la forma se recalculara de la propuesta
+   pisaría lo que Joan acaba de escoger. El botón se veía, se podía tocar, y no
+   hacía nada. Lo cazó el banco de pruebas antes que el navegador. */
+function editarContrapropuesta(id, modo) {
+  const s = _solicitudes.find(x => String(x.id) === String(id)); if (!s) return;
+  _cpSolId = String(id);
+  const cp = s.contrapropuesta || MotorReglas.POLITICA_NUEVOS_DEF;
+  /* Sin forma escogida, se abre en la que ya tiene la propuesta: si Joan ya le
+     mandó cuotas, verlas convertidas en un pago único sería perder su trabajo
+     sin avisar. */
+  _cpModo = modo || ((cp && cp.cuotas && cp.cuotas.length) ? 'cuotas' : 'unico');
+  const cli = socioDeSolicitud(s);
+  const max = cli ? maxRespaldadoDe(cli) : 0;
+  const pidio = Math.round(Number(s.capital) || Number(cp.capital) || 0);
+
+  openModal('Cambiar la propuesta · ' + s.nombre, `
+    <div class="help">Lo que pongas acá es lo que el cliente va a ver en su app, en pesos.
+      Al guardar, la propuesta vuelve a «esperando que acepte».</div>
+    ${pidio ? `<div class="aviso" style="margin-top:10px">Pidió <b>${COP(pidio)}</b>.
+      ${cli ? (max > 0
+        ? `Su garantía ganada le alcanza para <b>${COP(max)}</b>${
+            pidio > max ? ' — <b>menos de lo que pidió</b>.' : '.'}`
+        : 'Todavía no tiene garantía ganada: el préstamo con garantía no se le puede abrir.')
+      : 'Todavía no tiene ficha acá, así que no puedo decirte cuánta garantía tiene.'}</div>` : ''}
+    <div style="display:flex;gap:6px;margin:14px 0 4px;flex-wrap:wrap">
+      <button class="btn ${_cpModo === 'unico' ? 'btn-negro' : 'btn-ghost'} btn-sm"
+        onclick="cambiarModoCp('unico','${s.id}')">Un solo pago</button>
+      <button class="btn ${_cpModo === 'cuotas' ? 'btn-negro' : 'btn-ghost'} btn-sm"
+        onclick="cambiarModoCp('cuotas','${s.id}')">A cuotas · con garantía</button>
+    </div>
+    <div id="cpCuerpo">${_cpModo === 'cuotas' ? formCuotas(s, cp) : formUnico(cp)}</div>`);
+  if (_cpModo === 'cuotas') previsualizarCuotas(); else previsualizarContrapropuesta();
+}
+
+function cambiarModoCp(m, id) {
+  editarContrapropuesta(id, m);
+}
+
+function formUnico(cp) {
+  return `<div class="field"><label>Capital</label><input id="cpCap" type="number" inputmode="numeric"
+      value="${Number(cp.capital) || 0}" oninput="previsualizarContrapropuesta()"></div>
+    <div class="field"><label>Costo (%)</label><input id="cpPct" type="number" inputmode="numeric"
+      min="1" max="${TASA_TECHO_PCT}" value="${Number(cp.costo_pct) || TASA_FIJA_PCT}"
+      oninput="previsualizarContrapropuesta()"></div>
+    <div class="field"><label>Días para pagar</label><input id="cpDias" type="number" inputmode="numeric"
+      min="1" max="60" value="${Number(cp.dias) || 8}" oninput="previsualizarContrapropuesta()"></div>
+    <div class="field"><label>Lo que el cliente lee</label>
+      <textarea id="cpTexto" rows="3" maxlength="400">${escHTML(cp.texto || '')}</textarea></div>
+    <div id="cpCalc" class="calc"></div>
+    <button class="btn btn-rojo" onclick="guardarContrapropuesta('${_cpSolId}')">Mandarle esta propuesta</button>`;
+}
+
+function formCuotas(s, cp) {
+  const M = MotorReglas;
+  const min = M.MONTO_MINIMO_RESPALDADO;
+  const monto = Math.max(min, Math.round(Number(cp.capital) || Number(s.capital) || min));
+  const meses = Math.min(M.PLAZO_RESPALDADO_MAX,
+    Math.max(M.PLAZO_RESPALDADO_MIN, Math.round(Number(cp.meses) || Number(s.plazo_meses) || M.PLAZO_RESPALDADO_MAX)));
+  return `<div class="field"><label>Cuánto le prestas</label>
+      <input id="cqCap" type="number" inputmode="numeric" min="${min}" step="50000"
+        value="${monto}" oninput="previsualizarCuotas()">
+      <div class="help">El préstamo con garantía va desde ${COP(min)}.</div></div>
+    <div class="field"><label>En cuántos meses</label>
+      <input id="cqMeses" type="number" inputmode="numeric" min="${M.PLAZO_RESPALDADO_MIN}"
+        max="${M.PLAZO_RESPALDADO_MAX}" value="${meses}" oninput="previsualizarCuotas()"></div>
+    <div class="field"><label>Lo que el cliente lee</label>
+      <textarea id="cqTexto" rows="3" maxlength="400">${escHTML(cp.texto || '')}</textarea></div>
+    <div id="cqCalc" class="calc"></div>
+    <button class="btn btn-rojo" id="cqBtn" onclick="guardarContrapropuestaCuotas('${_cpSolId}')">Mandarle esta propuesta</button>`;
+}
+
+/* El plan, calculado con el motor y con nada más. Devuelve null si los datos no
+   dan para cotizar —y entonces la pantalla no pinta ni una cifra. */
+function planDeCuotas() {
+  const M = MotorReglas, C = window.CreditosPublicables;
+  const s = _solicitudes.find(x => String(x.id) === String(_cpSolId));
+  const cli = s ? socioDeSolicitud(s) : null;
+  const capital = Math.round(Number(gv('cqCap')) || 0);
+  const meses = Math.round(Number(gv('cqMeses')) || 0);
+  if (!capital || !meses) return null;
+  let r;
+  try {
+    r = M.simularPrestamoRespaldado(capital, meses,
+      cli ? entradaRespaldoDe(cli) : { datos: {}, referidos: 0, acumulada: 0, ajuste: 0, comprometida: 0 },
+      { fechaDesembolso: hoyISO() });
+  } catch (e) { return { error: e.message }; }
+
+  /* La efectiva anual del flujo REAL —lo que entrega y lo que le devuelven,
+     cuota por cuota— y el techo del mes. Las dos salen de creditos.js, que es
+     donde vive la tabla certificada con fechas. */
+  const flujo = [r.capital];
+  r.cuotas.forEach(q => flujo.push(-q.total));
+  const ea = C ? C.efectivoAnual(flujo) : null;
+  const t = C ? C.topeVigente(hoyISO()) : null;
+  const tope = t ? t.consumo_ordinario : null;
+
+  return {
+    capital: r.capital, costo: r.costo_total, total: r.total_a_pagar,
+    meses: r.plazo_meses, cuota: r.cuota_fija,
+    cuotas: r.cuotas.map(q => ({ numero: q.numero, fecha: q.fecha_corte,
+      capital: q.capital, costo: q.costo, total: q.total })),
+    ea: ea, tope: tope, certificacion: t ? t.fuente : '',
+    cumpleMinimo: r.cumple_minimo, minimo: r.monto_minimo,
+    disponible: r.respaldo_disponible, dentro: r.dentro_del_respaldo,
+    dejaGarantia: r.garantia_que_deja
+  };
+}
+
+function previsualizarCuotas() {
+  const c = document.getElementById('cqCalc'); if (!c) return;
+  const btn = document.getElementById('cqBtn');
+  const p = planDeCuotas();
+  const apagar = m => { if (btn) { btn.disabled = true; btn.title = m; } };
+  const prender = () => { if (btn) { btn.disabled = false; btn.title = ''; } };
+
+  if (!p) { c.innerHTML = '<span class="muted">Escribe el monto y los meses.</span>'; return apagar('faltan datos'); }
+  if (p.error) { c.innerHTML = `<span style="color:var(--ambar);font-size:12.5px">${escHTML(p.error)}</span>`; return apagar(p.error); }
+  if (!p.cumpleMinimo) {
+    c.innerHTML = `<span style="color:var(--ambar);font-size:12.5px">El préstamo con garantía va desde
+      ${COP(p.minimo)}. Por debajo de eso se usa «un solo pago».</span>`;
+    return apagar('por debajo del mínimo');
+  }
+  /* SIN TECHO CERTIFICADO NO SE COTIZA, y no es una formalidad: la tabla de
+     usura se vence el último día de cada mes y el artículo 305 castiga pasarse
+     con 32 a 90 meses de prisión. */
+  if (p.tope == null || p.ea == null) {
+    c.innerHTML = `<span style="color:var(--ambar);font-size:12.5px">No tengo la certificación de la
+      tasa máxima legal de este mes, así que no puedo mandar una propuesta. Actualiza las reglas.</span>`;
+    return apagar('sin techo certificado');
+  }
+  const pasa = p.ea > p.tope;
+
+  c.innerHTML = `<div class="calc-row"><span>El cliente ve</span><span class="v">recibe
+      <b>${COP(p.capital)}</b> · ${p.meses} cuotas de <b>${COP(p.cuota)}</b></span></div>
+    <div class="calc-row"><span>Tu costo</span><span class="v gano">${COP(p.costo)}</span></div>
+    <div class="calc-row"><span>Devuelve en total</span><span class="v">${COP(p.total)}</span></div>
+    <div class="calc-row"><span>Tasa efectiva anual</span><span class="v${pasa ? '' : ''}">${
+      (p.ea * 100).toFixed(2).replace('.', ',')}% <span class="muted">· techo del mes ${
+      (p.tope * 100).toFixed(2).replace('.', ',')}%</span></span></div>
+    ${pasa ? `<div class="alerta warn" style="margin-top:8px"><b>Esa propuesta pasa el techo de usura.</b>
+      No se puede mandar: bájale el costo o alárgale el plazo.</div>` : ''}
+    ${!p.dentro ? `<div class="alerta" style="margin-top:8px">Le estás prestando más de lo que
+      respalda su garantía ganada (${COP(p.disponible)}). <b>Puedes hacerlo</b> —la decisión es tuya—
+      pero ese excedente no está respaldado.</div>` : ''}
+    <div class="sub-h" style="margin-top:10px">Lo que va a ver, cuota por cuota</div>
+    ${p.cuotas.map(q => `<div class="calc-row"><span>Cuota ${q.numero} · ${fmtFecha(q.fecha)}</span>
+      <span class="v">${COP(q.total)}</span></div>`).join('')}
+    <div class="muted" style="font-size:12px;margin-top:8px">Si paga las ${p.meses} en fecha, gana
+      ${COP(p.dejaGarantia)} más de garantía.</div>`;
+
+  if (pasa) apagar('pasa el techo de usura'); else prender();
+}
+
+function guardarContrapropuestaCuotas(id) {
+  const s = _solicitudes.find(x => String(x.id) === String(id)); if (!s) return;
+  const p = planDeCuotas();
+  if (!p || p.error) return alert('No pude armar el plan: ' + ((p && p.error) || 'faltan datos'));
+  if (!p.cumpleMinimo) return alert('El préstamo con garantía va desde ' + COP(p.minimo) + '.');
+  if (p.tope == null || p.ea == null) {
+    return alert('No tengo la certificación de la tasa máxima legal de este mes.\n\n' +
+      'Sin ella no se puede mandar una propuesta con precio.');
+  }
+  if (p.ea > p.tope) {
+    return alert('Esa propuesta pasa el techo de usura del mes (' +
+      (p.ea * 100).toFixed(2) + '% contra ' + (p.tope * 100).toFixed(2) + '%).\n\n' +
+      'Bájale el costo o alárgale el plazo.');
+  }
+  if (!confirm('Mandarle a ' + s.nombre + ':\n\n' +
+    '• Recibe ' + COP(p.capital) + '\n' +
+    '• ' + p.meses + ' cuotas de ' + COP(p.cuota) + '\n' +
+    '• Devuelve ' + COP(p.total) + ' · última el ' + fmtFecha(p.cuotas[p.cuotas.length - 1].fecha) + '\n' +
+    '• Tu costo: ' + COP(p.costo) + '\n\n' +
+    'La propuesta vuelve a «esperando que acepte». ¿La mando?')) return;
+
+  rpc('contrapropuesta_a_cuotas', { p_clave: sbCfg().clave, p_id: Number(s.id),
+    p_cuerpo: { capital: p.capital, costo: p.costo, meses: p.meses, cuotas: p.cuotas,
+                ea: p.ea, tope: p.tope, texto: gv('cqTexto') } })
+    .then(j => {
+      if (!j || j.ok !== true) return alert('La nube no aceptó la propuesta: ' + ((j && j.motivo) || 'sin motivo'));
+      cerrarModal(); traerSolicitudes();
+    })
+    .catch(e => alert(errNube(e)));
+}
+
 function politicaDelFormulario(pre){
   return { capital:Math.round(Number(gv(pre+'Cap'))||0), costo_pct:Math.round(Number(gv(pre+'Pct'))||0), dias:Math.round(Number(gv(pre+'Dias'))||0), texto:gv(pre+'Texto') };
 }

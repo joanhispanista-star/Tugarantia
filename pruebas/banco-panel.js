@@ -85,6 +85,9 @@ function abrirPanel(opciones) {
      <script src> de crm.html. Sin ellos el Panel se pinta por el camino del
      «ese archivo no llegó», que no es el que ve Joan. */
   if (!o.sinEtapas) ctx.EtapasTuGarantia = require(path.join(RAIZ, 'app', 'etapas.js'));
+  /* 16-sep-2026 — la tabla certificada del techo de usura y la TIR, que el CRM
+     pasa a cargar para poder mandar una contrapropuesta a cuotas sin pasarse. */
+  if (!o.sinCreditos) ctx.CreditosPublicables = require(path.join(RAIZ, 'app', 'creditos.js'));
   if (!o.sinBases) ctx.BasesTuGarantia = require(path.join(RAIZ, 'app', 'bases.js'));
   vm.createContext(ctx);
 

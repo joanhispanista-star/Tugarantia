@@ -213,7 +213,11 @@
 /* v44 - 15-sep-2026. Los indicadores por asesor: el gerente ve la cartera de
    cobranza de cada uno, cuanta gente lleva sin tocar y como va trabajando, y
    cada cifra se abre en la lista de ESA gente. Toca panel/crm.html. */
-const CACHE = 'tugarantia-v44';
+/* v45 - 16-sep-2026. La contrapropuesta a cuotas: Joan le manda al cliente un
+   plan con fecha y monto por cuota, armado con el mismo motor que despues cobra.
+   Toca panel/crm.html, que pasa a cargar app/creditos.js —la tabla certificada
+   del techo de usura— para no poder mandar un precio que se pase. */
+const CACHE = 'tugarantia-v45';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -272,6 +276,12 @@ const ARCHIVOS = [
      estaban arriba o entran aqui, y ninguno se duplica en la lista porque el
      Set del install los uniria igual, pero una lista con repetidos se lee mal. */
   'app/ficha.js'
+  /* 16-sep-2026 — el CRM pasa a cargar app/creditos.js (la tabla certificada del
+     techo de usura, con fecha) para poder mandar propuestas a cuotas. NO se
+     agrega aqui: ya esta tres lineas arriba, porque play/ lo carga desde el
+     9-sep. Ponerlo dos veces no rompe nada —el install lo pediria dos veces y
+     ya— pero una lista con repetidos se lee mal y la siguiente persona borra el
+     equivocado. */
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {
