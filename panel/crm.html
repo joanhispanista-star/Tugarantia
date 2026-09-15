@@ -758,6 +758,45 @@
           <label class="btn btn-ghost btn-sm" style="cursor:pointer">⬆ Importar respaldo<input type="file" accept="application/json" style="display:none" onchange="importar(event)"></label>
         </div>
 
+        <!-- ===================================================================
+             TU NEGOCIO EN CUALQUIER PARTE — 15-sep-2026
+             Joan: «quiero que mi negocio no solo viva en mi computador, quiero
+             poder abrirlo desde cualquier parte».
+
+             LO QUE PASABA: ya estaba construido y no había forma de llegar.
+             El Panel del bolsillo (espejo.html) sincroniza en los dos sentidos,
+             resuelve choques y deja registrar pagos, abonos, prórrogas,
+             gestiones y clientes desde cualquier teléfono. La página que sube la
+             cartera (subir.html) existe desde agosto. Las dos están publicadas y
+             funcionando — y NINGUNA estaba enlazada desde este CRM. Había que
+             saberse la dirección de memoria.
+
+             Una herramienta que salva el negocio y que hay que adivinar cómo
+             abrir no está construida a medias: está construida y perdida.
+             ================================================================ -->
+        <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--linea)">
+          <h3 style="margin:0 0 4px">🌎 Tu negocio en cualquier parte</h3>
+          <div class="help" style="margin-bottom:12px">Hoy tu cartera vive en ESTE navegador. Si el computador se pierde o Chrome borra los datos del sitio, se pierde quién te debe qué. Estos tres botones lo arreglan.</div>
+
+          <div id="cfgRespaldoAviso"></div>
+
+          <div class="info-row"><span class="k"><b>1. Sube tu cartera a la nube</b>
+            <div class="muted">Se copia todo: socios, créditos, abonos y ajustes. Las fotos no suben (pesan y no hacen falta para cobrar).</div></span>
+            <span class="vv"><a class="btn btn-rojo btn-sm" href="subir.html" target="_blank" rel="noopener">☁ Subir</a></span></div>
+
+          <div class="info-row"><span class="k"><b>2. Ábrelo desde cualquier teléfono</b>
+            <div class="muted">El Panel en el bolsillo. Entras con tu correo y ves tu cartera del día. Puedes registrar pagos, abonos, prórrogas y gestiones, y se sincroniza solo.</div></span>
+            <span class="vv"><a class="btn btn-negro btn-sm" href="espejo.html" target="_blank" rel="noopener">📱 Abrir</a></span></div>
+
+          <div class="info-row"><span class="k"><b>3. Y para traerla a OTRO computador</b>
+            <div class="muted">Si cambias de máquina o quieres trabajar desde otra, esta página baja la cartera de la nube a ese navegador.</div></span>
+            <span class="vv"><a class="btn btn-ghost btn-sm" href="traer.html" target="_blank" rel="noopener">⬇ Traer</a></span></div>
+
+          <div class="alerta info" style="margin-top:14px;font-size:13px">
+            <b>El respaldo en archivo sigue siendo tuyo.</b> La nube es para trabajar desde otra parte; el botón «Respaldo (JSON)» de arriba es tu copia, la que nadie te puede quitar. Haz una cada semana y guárdala fuera de este computador.
+          </div>
+        </div>
+
         <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--linea)">
           <h3 style="margin:0 0 4px">📲 Compartir con mis clientes</h3>
           <div class="help" style="margin-bottom:10px">Sube el historial de tus clientes a la nube para que cada uno lo vea en su celular con su cédula, siempre al día. Solo suben nombre, cédula, celular y sus créditos — nunca fotos ni ubicación.</div>
@@ -987,6 +1026,25 @@ const PLANTILLAS_DEF={
    antes de la primera llamada a cargar() porque `let` no se iza. */
 let _fechasMigradas=0;
 let DB=cargar();
+
+/* 15-sep-2026 — QUE CHROME NO PUEDA BORRAR LA CARTERA.
+   El libro entero del negocio vive en el localStorage de este navegador. Sin
+   pedir permiso persistente, el navegador tiene derecho a desalojar ese
+   almacenamiento cuando el disco se aprieta — y lo hace sin avisar, en silencio,
+   igual que se ve «se perdieron mis datos».
+   Son tres lineas y le quitan ese derecho. Se pide UNA vez y se queda; si el
+   navegador dice que no (o es viejo y no conoce la funcion), no pasa nada malo:
+   simplemente seguimos como hasta hoy, y el aviso del respaldo de Ajustes es
+   entonces lo unico que protege. Por eso ese aviso existe tambien. */
+(function pedirQueNoBorren() {
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persisted().then(function (ya) {
+        if (!ya) navigator.storage.persist();
+      }).catch(function () {});
+    }
+  } catch (e) {}
+}());
 /* La corrección de fechas es una MIGRACIÓN de una sola vez, no una regla: si
    esta carga tocó alguna, la constancia (`fechaPagadoMigrada`) se graba YA. Si
    esperáramos al próximo guardar(), cada carga volvería a correrla sobre
@@ -9728,7 +9786,46 @@ function guardarCfg(){ DB.config.negocio=gv('cfgNeg')||'Tu Garantía'; DB.config
   }
   DB.config.freno={ activo:prender, fraccion_quincena:pct/100 };
   guardar(); render(); pintarFreno(); alert('Ajustes guardados.'); }
-function exportar(){ const b=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}),a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='respaldo-tugarantia.json'; a.click(); }
+/* 15-sep-2026 — EL RESPALDO SE ANOTA. Hasta hoy nada guardaba cuando fue el
+   ultimo, asi que la pregunta «¿cuanto hace que no respaldo?» no tenia
+   respuesta en ninguna parte y la unica forma de saberlo era acordarse.
+   El nombre del archivo lleva la FECHA: «respaldo-tugarantia.json» a secas se
+   pisa a si mismo en la carpeta de descargas, y quien tenga diez copias tiene
+   una sola. */
+function exportar(){
+  const hoy = hoyISO();
+  const b = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = 'respaldo-tugarantia-' + hoy + '.json';
+  a.click();
+  setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch (e) {} }, 2000);
+  DB.config = DB.config || {};
+  DB.config.ultimoRespaldo = hoy;
+  guardar();
+  pintarAvisoRespaldo();
+}
+
+/* Cuanto hace del ultimo respaldo, dicho donde se ve. En ambar pasada una
+   semana: no es una alarma, es una pregunta que el CRM se hace solo. */
+function pintarAvisoRespaldo(){
+  const caja = document.getElementById('cfgRespaldoAviso');
+  if (!caja) return;
+  const u = DB.config && DB.config.ultimoRespaldo;
+  if (!u) {
+    caja.innerHTML = '<div class="alerta warn" style="margin-bottom:12px">' +
+      '<b>Nunca has bajado un respaldo desde este navegador.</b> Si se pierde el ' +
+      'computador, se pierde la cartera.</div>';
+    return;
+  }
+  const dias = Math.max(0, Math.round((Date.parse(hoyISO()) - Date.parse(u)) / 86400000));
+  caja.innerHTML = dias >= 7
+    ? '<div class="alerta warn" style="margin-bottom:12px">Tu último respaldo fue hace <b>' +
+      dias + ' días</b> (' + escHTML(fmtFecha(u)) + ').</div>'
+    : '<div class="alerta ok" style="margin-bottom:12px">Tu último respaldo fue ' +
+      (dias === 0 ? '<b>hoy</b>' : 'hace <b>' + dias + (dias === 1 ? ' día' : ' días') + '</b>') +
+      ' (' + escHTML(fmtFecha(u)) + ').</div>';
+}
 function importar(e){ const f=e.target.files[0]; if(!f)return; const inp=e.target; const r=new FileReader();
   r.onload=()=>{ try{ const d=JSON.parse(r.result); const socios=d.socios||d.clientes, prest=d.prestamos;
     if(!Array.isArray(socios)&&!Array.isArray(prest)){ alert('Ese archivo no parece un respaldo de Tu Garantía.'); inp.value=''; return; }
@@ -9748,7 +9845,7 @@ function openModal(t,h){ document.getElementById('mTitle').textContent=t; docume
 modal.addEventListener('click',e=>{ if(e.target===modal)cerrarModal(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&modal.classList.contains('on'))cerrarModal(); });
 function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
-  if(v==='cfg')pintarCfg(); if(v==='plantillas')renderPlantillas(); if(v==='cal')renderCalendario();
+  if(v==='cfg'){pintarCfg();pintarAvisoRespaldo();} if(v==='plantillas')renderPlantillas(); if(v==='cal')renderCalendario();
   if(v==='equipo')renderEquipo();
   if(v==='bases')renderBases();
   if(v==='cobranzas')renderCobranzas();

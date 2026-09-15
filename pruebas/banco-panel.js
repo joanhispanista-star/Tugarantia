@@ -50,7 +50,16 @@ function abrirPanel(opciones) {
     location: { href: 'http://localhost:8126/panel/crm.html', hash: o.hash || '',
       pathname: '/panel/crm.html', search: '' },
     history: { replaceState() {} },
-    navigator: { userAgent: 'node', clipboard: { writeText: () => Promise.resolve() } },
+    /* 15-sep-2026 — `storage` entra al navegador de mentira para poder
+       comprobar que el CRM pide de verdad el permiso persistente. Se anota si
+       lo pidio (`_pidioPersistir`) en vez de solo devolver una promesa: sin
+       eso, la unica forma de probarlo era buscar el texto en el archivo, y un
+       centinela que busca texto aprueba `if (false)`. */
+    navigator: { userAgent: 'node', clipboard: { writeText: () => Promise.resolve() },
+      storage: {
+        persisted: function () { return Promise.resolve(false); },
+        persist: function () { ctx._pidioPersistir = true; return Promise.resolve(true); }
+      } },
     /* Sin red a propósito: el Panel TIENE que andar sin nube, y una prueba que
        dependiera de internet no sería una prueba.
 

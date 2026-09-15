@@ -236,6 +236,13 @@
    cualquier precio: medido, el credito con garantia a 3 meses se pasa en 12 de
    los 31 dias de octubre, peor 32,81%. Ahora se compara contra el ultimo techo
    conocido. Toca play/index.html, app/creditos.js y app/cumplimiento.js.
+
+   v59 — 15-sep-2026. «Tu negocio en cualquier parte»: el CRM por fin ENLAZA el
+   Panel del bolsillo, subir.html y traer.html — estaban publicados y
+   funcionando desde agosto, y no habia forma de llegar a ellos. Ademas pide
+   almacenamiento persistente para que el navegador no pueda borrar la cartera,
+   y el respaldo lleva fecha en el nombre y se anota cuando fue. Toca
+   panel/crm.html.
    ENTRAN AL CACHE app/ficha.js —lo carga play/— y el motor, que play/ no cargaba
    antes; app/chat.js y app/chat.css ya estaban por la app quincenal. */
 /* SUBIR EL NUMERO NO BASTA, Y COSTO UNA TARDE AVERIGUARLO (14-sep-2026).
@@ -293,7 +300,7 @@
    proyecto ya vio a este mismo service worker contestar index.html a una
    peticion de .js (ver v19). El guardian se mudo arriba del todo.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v58';
+const CACHE = 'tugarantia-v59';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
