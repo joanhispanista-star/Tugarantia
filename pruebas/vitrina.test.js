@@ -536,6 +536,322 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
       'la cuota que pinta la pantalla no es la que calcula el motor');
   });
 
+  /* 16-sep-2026 — Joan: «que tenga un total de cuánto tiene que pagar el
+     cliente, aparte agrégale las cuotas que quieres para pagar ese préstamo y
+     las fechas, y que se pueda ver cuánto se paga por cuota para que el cliente
+     tenga claridad de cómo pagaría eso».
+
+     Las tres cosas son medibles y se miden acá. Lo que había antes: el total
+     metido en una línea gris del mismo tamaño que el resto, y de las seis fechas
+     se enseñaba UNA, la última. */
+  test('EL TOTAL SE VE, y es el del motor', () => {
+    const P = abrirPlay();
+    P.ev('pintarEntrar()');
+    const h = P.elems.cuerpo.innerHTML;
+    assert.match(h, /En total vas a pagar/,
+      'la calculadora no dice cuánto va a pagar en total');
+    /* Contra el día de la PÁGINA, no contra la constante del 9-sep de este
+       archivo: la página cotiza con el día de verdad. */
+    const r = C.simular({ perfil: 'preferente', capital: P.ev('CALC.monto'),
+                          fecha_desembolso: P.ev('hoyISO()'), meses: P.ev('CALC.meses') });
+    const c = r.puede ? r : r.cotizacion;
+    const COP = n => '$' + n.toLocaleString('es-CO');
+    assert.ok(h.indexOf(COP(c.total_a_pagar)) >= 0,
+      'el total que pinta no es el que calcula el motor');
+    /* Y en su propia caja, no perdido en un renglón: si la caja se va, esto se
+       cae y alguien tiene que decidir a propósito volver a esconderlo. */
+    assert.match(h, /class="granTotal"/, 'el total volvió a ser un renglón más');
+  });
+
+  test('LAS CUOTAS SE VEN TODAS, con su fecha y su monto', () => {
+    const P = abrirPlay();
+    P.ev('pintarEntrar()');
+    const h = P.elems.cuerpo.innerHTML;
+    /* La fecha de HOY sale de la PÁGINA, no de la constante de este archivo: la
+       constante es del 9-sep y la página cotiza contra el día de verdad, así que
+       comparar contra ella hacía fallar la prueba por un motivo que no era el
+       que dice. */
+    const r = C.simular({ perfil: 'preferente', capital: P.ev('CALC.monto'),
+                          fecha_desembolso: P.ev('hoyISO()'), meses: P.ev('CALC.meses') });
+    const c = r.puede ? r : r.cotizacion;
+    const COP = n => '$' + n.toLocaleString('es-CO');
+    assert.ok(c.cuotas.length >= 3, 'el caso de prueba no tiene cuotas que mirar');
+    c.cuotas.forEach(q => {
+      assert.ok(h.indexOf('Cuota ' + q.n) >= 0,
+        'falta la cuota ' + q.n + ' en la calculadora');
+      assert.ok(h.indexOf(COP(q.total)) >= 0,
+        'falta el monto de la cuota ' + q.n);
+    });
+    /* Las fechas, no solo los montos: es la mitad de lo que Joan pidió, y es lo
+       que sirve para saber si le cuadra con el día que le pagan. */
+    const mes = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    c.cuotas.forEach(q => {
+      const p = String(q.fecha).split('-');
+      const bonita = Number(p[2]) + ' ' + mes[Number(p[1]) - 1] + ' ' + p[0];
+      assert.ok(h.indexOf(bonita) >= 0, 'falta la fecha de la cuota ' + q.n + ' (' + bonita + ')');
+    });
+  });
+
+  test('mover el monto mueve el total Y el plan entero', () => {
+    /* Un total que no sigue al deslizador es peor que no tener total. */
+    const P = abrirPlay();
+    P.ev('pintarEntrar()');
+    P.ev('CALC.monto = CALC_MIN; CALC.meses = 6;');
+    const bajo = P.ev('cifrasDeCalc()');
+    P.ev('CALC.monto = CALC_MAX;');
+    const alto = P.ev('cifrasDeCalc()');
+    const COP = n => '$' + n.toLocaleString('es-CO');
+    const hoy = P.ev('hoyISO()');
+    const rB = C.simular({ perfil: 'preferente', capital: P.ev('CALC_MIN'), fecha_desembolso: hoy, meses: 6 });
+    const rA = C.simular({ perfil: 'preferente', capital: P.ev('CALC_MAX'), fecha_desembolso: hoy, meses: 6 });
+    const cB = rB.puede ? rB : rB.cotizacion, cA = rA.puede ? rA : rA.cotizacion;
+    assert.ok(bajo.indexOf(COP(cB.total_a_pagar)) >= 0, 'el total no siguió al monto (abajo)');
+    assert.ok(alto.indexOf(COP(cA.total_a_pagar)) >= 0, 'el total no siguió al monto (arriba)');
+    /* Y el número de renglones de cuota sigue al plazo. */
+    P.ev('CALC.meses = 3;');
+    const tres = (P.ev('cifrasDeCalc()').match(/Cuota \d/g) || []).length;
+    P.ev('CALC.meses = 6;');
+    const seis = (P.ev('cifrasDeCalc()').match(/Cuota \d/g) || []).length;
+    assert.equal(tres, 3, 'a tres meses pinta ' + tres + ' cuotas');
+    assert.equal(seis, 6, 'a seis meses pinta ' + seis + ' cuotas');
+  });
+
+  test('LAS DOS CALCULADORAS DICEN SUS CIFRAS IGUAL', () => {
+    /* Están una debajo de la otra en la misma pantalla. Dos formas de decir lo
+       mismo obligan a leer dos veces para comparar — que es exactamente lo que
+       alguien hace ahí: comparar. */
+    const P = abrirPlay();
+    P.ev('pintarEntrar()');
+    const h = P.elems.cuerpo.innerHTML;
+    assert.equal((h.match(/En total vas a pagar/g) || []).length, 2,
+      'solo una de las dos calculadoras muestra el total de la misma forma');
+    assert.equal((h.match(/Cuándo pagarías cada cuota/g) || []).length, 2,
+      'solo una de las dos calculadoras muestra el plan de la misma forma');
+    assert.equal((h.match(/class="granTotal"/g) || []).length, 2,
+      'las dos cajas del total no son la misma caja');
+  });
+
+  test('el plan se pinta con UNA sola función, no con tres copias', () => {
+    /* cuadroCuotas lo usan las dos calculadoras y la propuesta que manda Joan.
+       Tres sitios, una función: el día que se decida mostrar también el saldo,
+       cambia en una. */
+    const usos = (VIVO.match(/cuadroCuotas\(/g) || []).length;
+    assert.ok(usos >= 5,
+      'cuadroCuotas se usa ' + usos + ' veces: alguien volvió a pintar cuotas a mano');
+    /* Y la forma de comprobarlo que no se puede discutir: el rótulo «Cuota » se
+       escribe UNA sola vez en todo el archivo, dentro de cuadroCuotas. Cualquier
+       segunda aparición es una lista pintada a mano. Al escribir esto había
+       CINCO copias; las cuatro de más las encontró esta línea. */
+    const rotulos = (VIVO.match(/'Cuota '/g) || []).length;
+    assert.equal(rotulos, 1,
+      'el rótulo «Cuota » aparece ' + rotulos + ' veces: hay listas de cuotas ' +
+      'pintadas fuera de cuadroCuotas, y se van a quedar viejas por separado');
+  });
+
+  /* ========================================================================
+     LO QUE ENCONTRÓ LA REVISIÓN DEL 16-SEP, con su centinela cada cosa.
+     ====================================================================== */
+
+  test('EL PLAZO QUE SE ELIGE ES EL QUE SE PIDE, de punta a punta', () => {
+    /* Estaba roto: la portada dejaba escoger de 3 a 6 cuotas y cotizaba cada
+       plazo de verdad, pero adentro no había dónde elegirlo, el simulador
+       llamaba al motor sin `meses` —y el motor cae a 6— y pedir() mandaba el 6
+       fijo. El visitante escogía tres, memorizaba esa cuota, y la solicitud
+       salía a seis con otra cuota. La base sí lo aceptaba: el único que tiraba
+       la elección era la pantalla.
+       Es literalmente lo que Joan pidió: «agrégale las cuotas que quieres para
+       pagar ese préstamo». */
+    const P = abrirPlay();
+    /* 1 · el simulador de adentro tiene deslizador de plazo, con el MISMO rango
+          que la calculadora de la portada. */
+    const t = P.ev('tarjetaSimulador("nuevo")');
+    assert.match(t, /id="rPlazo"/, 'el simulador de la cuenta no deja elegir el plazo');
+    assert.ok(t.indexOf('min="' + P.ev('CALC_MESES_MIN') + '"') >= 0 &&
+              t.indexOf('max="' + P.ev('CALC_MESES_MAX') + '"') >= 0,
+      'el deslizador de plazo de adentro tiene otro rango que el de la portada');
+    /* 2 · mover el plazo cambia lo que se cotiza. */
+    P.ev('SESION = { access_token: "t", user: { email: "573001112233@tugarantia.net", ' +
+         'user_metadata: { perfil: "nuevo" } } };');
+    P.ev('cambiaPlazo(3)');
+    assert.equal(P.ev('PLAZO'), 3);
+    const tres = (P.elems.simu.innerHTML.match(/Cuota \d/g) || []).length;
+    P.ev('cambiaPlazo(6)');
+    const seis = (P.elems.simu.innerHTML.match(/Cuota \d/g) || []).length;
+    assert.equal(tres, 3, 'a tres cuotas el simulador pinta ' + tres);
+    assert.equal(seis, 6, 'a seis cuotas el simulador pinta ' + seis);
+    /* 3 · y es ESE el que viaja en la solicitud, no el del producto. */
+    const i = VIVO.indexOf('function pedir()');
+    const cuerpo = VIVO.slice(i, VIVO.indexOf('\nfunction ', i + 1));
+    assert.match(cuerpo, /p_meses:\s*PLAZO/,
+      'pedir() sigue mandando el plazo del producto en vez del que eligió el socio');
+    assert.ok(!/p_meses:\s*C\.PLAZO_MESES/.test(cuerpo));
+    /* 4 · y la confirmación dice el que se mandó. */
+    const j = VIVO.indexOf('function pintarPedido()');
+    assert.match(VIVO.slice(j, VIVO.indexOf('\nfunction ', j + 1)), /textoCuotas\(PLAZO\)/,
+      'la pantalla de confirmación le dice un plazo que no es el que pidió');
+  });
+
+  test('el plazo se pinza al rango del motor antes de cotizar', () => {
+    /* Por debajo del piso de 90 días C.simular LANZA, y esta pantalla es un div
+       vacío: la lámina saldría en blanco. */
+    const P = abrirPlay();
+    P.ev('cambiaPlazo(1)');
+    assert.equal(P.ev('PLAZO'), P.ev('CALC_MESES_MIN'), 'aceptó un plazo por debajo del piso');
+    P.ev('cambiaPlazo(99)');
+    assert.equal(P.ev('PLAZO'), P.ev('CALC_MESES_MAX'), 'aceptó un plazo por encima del tope');
+    P.ev('cambiaPlazo("hola")');
+    assert.ok(P.ev('PLAZO') >= P.ev('CALC_MESES_MIN') && P.ev('PLAZO') <= P.ev('CALC_MESES_MAX'),
+      'una entrada que no es número deja el plazo fuera de rango');
+  });
+
+  test('NO SE DICE «MÁS BARATO» DE LO QUE CUESTA MÁS EN LA MISMA PANTALLA', () => {
+    /* La tarjeta del crédito con garantía decía «más barato» y «más grande», y
+       las dos eran falsas contra la calculadora de tres centímetros más arriba.
+       Esta prueba no fija la frase: corre los DOS motores sobre el rango donde
+       se pisan y solo prohíbe la palabra cuando el precio la desmiente. El día
+       que Joan baje el 2% mensual y el respaldado sí salga más barato, la
+       palabra vuelve a estar permitida sola. */
+    const P = abrirPlay();
+    const hoy = P.ev('hoyISO()');
+    const vacia = { datos: {}, referidos: 0, acumulada: 0, ajuste: 0, comprometida: 0 };
+    const min = M.MONTO_MINIMO_RESPALDADO;
+    let respaldadoMasCaro = false, ejemplo = '';
+    for (let cap = min; cap <= min * 4; cap += min) {
+      for (let m = Math.ceil(C.PLAZO_MINIMO_DIAS / 30); m <= M.PLAZO_RESPALDADO_MAX; m++) {
+        const a = C.simular({ perfil: 'preferente', capital: cap, fecha_desembolso: hoy, meses: m });
+        const ca = a.puede ? a : a.cotizacion;
+        const cb = M.simularPrestamoRespaldado(cap, m, vacia, { fechaDesembolso: hoy });
+        if (ca && cb.total_a_pagar > ca.total_a_pagar) {
+          respaldadoMasCaro = true;
+          if (!ejemplo) ejemplo = cap + ' a ' + m + ' meses: respaldado ' +
+            cb.total_a_pagar + ' contra ' + ca.total_a_pagar;
+        }
+      }
+    }
+    const i = VIVO.indexOf('function tarjetaCalcGarantia');
+    const texto = VIVO.slice(i, VIVO.indexOf('\nfunction ', i + 1));
+    if (respaldadoMasCaro) {
+      assert.ok(!/barat|más bajo|mas bajo|menos cuesta/i.test(texto),
+        'la tarjeta del crédito con garantía dice que es más barato y no lo es (' + ejemplo + ')');
+    }
+    /* Y «más grande» solo si el deslizador llega más lejos que el del otro. */
+    if (P.ev('GCALC_MAX') < P.ev('CALC_MAX')) {
+      assert.ok(!/más grande|mas grande/i.test(texto),
+        'dice «más grande» y su deslizador llega a ' + P.ev('GCALC_MAX') +
+        ' contra ' + P.ev('CALC_MAX') + ' del de arriba');
+    }
+  });
+
+  test('EL GUARDIÁN DEL TECHO CORRE EN CADA ARRASTRE, no solo al abrir', () => {
+    /* Se comprobaba una vez, con el combo de arranque. La efectiva anual no es
+       constante en el rango —el redondeo de la cuota la mueve—, así que el mes
+       que el techo caiga dentro de esa ventana, arrastrar el dedo publicaría un
+       precio ilegal. Artículo 305. */
+    const i = VIVO.indexOf('function cifrasDeGarantia');
+    const cuerpo = VIVO.slice(i, VIVO.indexOf('\nfunction ', i + 1));
+    assert.match(cuerpo, /garantiaSePuedeCotizar\(c\)/,
+      'cifrasDeGarantia imprime precios sin volver a comprobar el techo');
+    /* Y de verdad frena: con un techo imposible, no pinta ni una cifra.
+       Se le cambia el techo a la COPIA que la página tomó al cargar (`var C =
+       window.CreditosPublicables`), no al módulo: reemplazar el global no habría
+       hecho nada, porque la página ya guardó su referencia. */
+    const P = abrirPlay();
+    P.ev('C = Object.assign({}, C); ' +
+         'C.topeVigente = function () { ' +
+         'return { desde: "x", hasta: "y", consumo_ordinario: 0.01, fuente: "prueba" }; };');
+    const h = P.ev('cifrasDeGarantia()');
+    assert.ok(h.indexOf('Tasa efectiva anual') === -1,
+      'con el precio por encima del techo sigue imprimiendo la tasa');
+    assert.match(h, /no podemos publicar un precio/i);
+  });
+
+  test('EL 1 DE OCTUBRE LA CALCULADORA NO DESAPARECE: se calla la frase, no el precio', () => {
+    /* La tabla de topes se vence el último día de cada mes por diseño. Hasta el
+       16-sep, un tope nulo hacía que la tarjeta ENTERA del crédito con garantía
+       se fuera de la puerta pública —cuota, total, las seis fechas, el cuadro de
+       lo que gana pagando— y se quedara así hasta que alguien le agregara una
+       fila a la tabla. Es justo lo contrario de la decisión escrita del 4-sep. */
+    /* No se le miente a nadie sobre el techo: se corre el RELOJ de la página al
+       primer día que la tabla ya no cubre, y todo lo demás —el motor, la
+       divulgación, el guardián— trabaja con su código de verdad. La fecha se
+       DERIVA del último tope, así que el día que Joan cargue octubre esta prueba
+       se muda sola al 1 de noviembre en vez de dejar de medir en silencio. */
+    const ult = C.TOPES[C.TOPES.length - 1].hasta;
+    const d = new Date(ult + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    const TRAS = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+                 '-' + String(d.getDate()).padStart(2, '0');
+    assert.equal(C.topeVigente(TRAS), null,
+      'el supuesto se rompió: la tabla ya cubre ' + TRAS + '. No borres la prueba.');
+
+    const P = abrirPlay();
+    P.ev('hoyISO = function () { return "' + TRAS + '"; };');
+    P.ev('DIVULGACION = null; DIVULGACION_G = null;');
+    const h = P.ev('tarjetaCalcGarantia()');
+    assert.ok(h.indexOf('Hoy no podemos publicar su precio') === -1,
+      'sin certificación la tarjeta del crédito con garantía vuelve a desaparecer');
+    assert.match(h, /gcalcCifras/, 'no pinta las cifras');
+    /* Y la letra obligatoria calla el techo en vez de inventarlo. */
+    const letra = P.ev('divulgacionGarantiaHoy()');
+    assert.ok(letra.indexOf('0,00%') === -1, 'publica que el techo legal es cero');
+    assert.ok(letra.indexOf('Tasa máxima legal') === -1,
+      'afirma cuál es el techo legal sin que nadie lo haya certificado');
+    assert.match(letra, /Tasa efectiva anual máxima/,
+      'se calló la divulgación entera en vez de solo la frase del techo');
+  });
+
+  test('LA ÚLTIMA CUOTA, CUANDO ES DISTINTA, SE DICE', () => {
+    /* Los dos motores cuadran el sobrante en la última cuota, así que la cifra
+       grande por el plazo puede no dar el total por dos o tres pesos. Antes no
+       importaba porque nadie veía la última; desde que el plan está en pantalla,
+       una cifra grande que dice «cada mes» al lado de una lista donde la última
+       es distinta es la pantalla contradiciéndose. */
+    const P = abrirPlay();
+    const hoy = P.ev('hoyISO()');
+    let caso = null;
+    for (let cap = 100000; cap <= 2000000 && !caso; cap += 50000) {
+      for (let m = 3; m <= 6 && !caso; m++) {
+        const r = C.simular({ perfil: 'preferente', capital: cap, fecha_desembolso: hoy, meses: m });
+        const c = r.puede ? r : r.cotizacion;
+        if (c && c.cuotas[c.cuotas.length - 1].total !== c.cuota_tipica) caso = { cap, m, c };
+      }
+    }
+    assert.ok(caso, 'no encontré ningún caso donde la última cuota difiera: revisa el motor');
+    P.ev('CALC.monto = ' + caso.cap + '; CALC.meses = ' + caso.m + ';');
+    const h = P.ev('cifrasDeCalc()');
+    const COP = n => '$' + n.toLocaleString('es-CO');
+    assert.match(h, /la última,/,
+      'con ' + caso.cap + ' a ' + caso.m + ' meses la última cuota es distinta y no se dice');
+    assert.ok(h.indexOf(COP(caso.c.cuotas[caso.c.cuotas.length - 1].total)) >= 0,
+      'no muestra cuánto vale de verdad la última');
+    /* Y cuando NO difiere, no se dice nada: un aviso que sale siempre no se lee. */
+    const igual = { cuota_fija: 100, cuotas: [{ total: 100 }, { total: 100 }] };
+    assert.equal(P.ev('avisoUltimaCuota(' + JSON.stringify(igual) + ')'), '',
+      'avisa de la última cuota aunque sea igual a las demás');
+  });
+
+  test('COTIZAR NO PUEDE COSTAR 22 MS: el techo que cabe se recuerda', () => {
+    /* La puerta pública cotiza en CADA movimiento del dedo. Medido el 16-sep:
+       costoQueCabe hace 200 bisecciones y cada una llama a tirMensual, que hace
+       otras 300 — unas 420.000 potencias por cotización, 22 ms en un escritorio
+       y 250 a 450 ms en un celular de gama baja. Y el resultado no depende del
+       monto: solo del plazo y del techo. */
+    const t0 = process.hrtime.bigint();
+    for (let i = 0; i < 100; i++) {
+      C.simular({ perfil: 'preferente', capital: 100000 + i * 50000,
+                  fecha_desembolso: HOY, meses: 6 });
+    }
+    const ms = Number(process.hrtime.bigint() - t0) / 1e6 / 100;
+    assert.ok(ms < 3,
+      'cada cotización cuesta ' + ms.toFixed(2) + ' ms en un escritorio: en el celular ' +
+      'de un cliente eso es medio segundo por cada movimiento del deslizador');
+    /* Y el resultado sigue siendo el mismo, que es lo que hace segura la caché. */
+    const a = C.simular({ perfil: 'preferente', capital: 500000, fecha_desembolso: HOY, meses: 6 });
+    const b = C.simular({ perfil: 'preferente', capital: 500000, fecha_desembolso: HOY, meses: 6 });
+    const ca = a.puede ? a : a.cotizacion, cb = b.puede ? b : b.cotizacion;
+    assert.deepEqual(ca, cb, 'dos cotizaciones iguales dan resultados distintos');
+  });
+
   test('la letra obligatoria va SIEMPRE con las cifras', () => {
     const P = abrirPlay();
     P.ev('pintarEntrar()');

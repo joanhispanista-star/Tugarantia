@@ -82,7 +82,7 @@
 <script>
 'use strict';
 
-var VERSION_PLAY = '2026-09-14';
+var VERSION_PLAY = '2026-09-16';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -1233,16 +1233,27 @@ function tarjetaCalculadora() {
 function cifrasDeCalc() {
   var c = cotizacionDeCalc();
   if (!c) return '<div class="aviso ambar">No podemos cotizar hoy.</div>';
+  /* LA CUOTA MANDA Y EL TOTAL VA APARTE. Son las dos cifras con las que una
+     persona decide, y antes la segunda vivía metida en una línea gris del mismo
+     tamaño que todo lo demás: se leía la cuota y el total se perdía.
+     «Última cuota» se fue: con las seis fechas en pantalla era el mismo dato
+     dos veces, y el dato repetido es el que se queda viejo. */
   return '<div class="calc-cifra">' + COP(c.cuota_tipica) + '</div>' +
-    '<div class="muted calc-pie">al mes, ' + c.meses + ' cuotas. En total pagas <b>' +
-      COP(c.total_a_pagar) + '</b>.</div>' +
-    '<div class="sep"></div>' +
+    '<div class="muted calc-pie">cada mes, durante ' + c.meses + ' meses' +
+      avisoUltimaCuota(c) + '</div>' +
+    '<div class="granTotal"><span>En total vas a pagar</span><b>' +
+      COP(c.total_a_pagar) + '</b></div>' +
     fila('Lo que recibes', COP(c.capital)) +
     fila('Lo que cuesta', COP(c.costo_total)) +
-    fila('Última cuota', fmtFecha(c.cuotas[c.cuotas.length - 1].fecha)) +
     /* La E.A. es la ÚNICA cifra en porcentaje que el cliente ve en todo el
        sistema, y va porque Google la exige junto a cualquier precio de crédito. */
-    fila('Tasa efectiva anual', pct(c.efectivo_anual));
+    fila('Tasa efectiva anual', pct(c.efectivo_anual)) +
+    /* LAS CUOTAS, UNA POR UNA, CON SU FECHA. Es lo que Joan pidió con esas
+       palabras, y se pinta con cuadroCuotas —el mismo que usa la calculadora del
+       crédito con garantía y el que pinta la propuesta que él manda—. Tres
+       sitios, una función. */
+    '<div class="grupo-tit">Cuándo pagarías cada cuota</div>' +
+    cuadroCuotas(c.cuotas);
 }
 
 function letraDeCalc() {
@@ -1313,10 +1324,24 @@ function eaDeGarantia(c) {
    tope DE HOY, que es el que manda. Si un mes la Superfinanciera bajara el techo
    por debajo de este producto, la app deja de cotizarlo sola en vez de publicar
    un precio que el artículo 305 castiga con cárcel. */
+/* 16-sep-2026 — SIN CERTIFICACIÓN NO SE PROHÍBE: SE CALLA LA FRASE, NO EL PRECIO.
+   Es la decisión escrita del 4-sep, y esta función la estaba contradiciendo. La
+   tabla de topes se vence el último día de cada mes por diseño —la
+   Superfinanciera certifica mes a mes y nadie adivina el siguiente— y hasta hoy
+   un `topeVigente` nulo devolvía false: el 1 de octubre, dentro de dos semanas,
+   la tarjeta entera del crédito con garantía habría desaparecido de la puerta
+   pública. La cuota, el total, las seis fechas, el cuadro de lo que gana
+   pagando: todo, y hasta que alguien se acordara de agregarle una fila a la
+   tabla.
+   El precio de este producto NO sale del techo (es 2% mensual sobre el saldo),
+   así que la cotización sobrevive igual que la del otro producto. Lo que se
+   calla es la frase del techo, y de eso ya se encarga divulgacionRespaldado.
+   El `return false` se queda para el caso que de verdad importa: hay techo
+   certificado y el precio se le pasa por encima. */
 function garantiaSePuedeCotizar(c) {
   if (!hayQueCotizarGarantia()) return false;
   var t = C.topeVigente(hoyISO());
-  if (!t) return false;
+  if (!t) return true;
   return eaDeGarantia(c) <= t.consumo_ordinario;
 }
 
@@ -1326,9 +1351,33 @@ function tarjetaCalcGarantia() {
     return '<div class="card"><h3 class="tit">El crédito con garantía</h3>' +
       '<p class="sub">Hoy no podemos publicar su precio. Escríbenos y lo resolvemos por WhatsApp.</p></div>';
   }
+  /* 16-sep-2026 — AQUÍ DECÍA «MÁS BARATO», Y EN ESTA MISMA PANTALLA ES MENTIRA.
+     Se midieron los dos motores en las dieciséis combinaciones donde los dos
+     rangos se pisan (de un millón a cuatro, de 3 a 6 meses): el de garantía sale
+     más caro SIEMPRE. Con un millón a seis meses, arriba son $64.200 de costo y
+     23,98% efectivo anual; acá abajo son $71.154 y 26,82%. Las dos cifras las
+     imprime la propia página a tres centímetros de distancia, y la única cifra
+     en porcentaje que la casa permite mostrar lo confirma.
+
+     «Más barato» era cierto contra el crédito quincenal —20% a quince días—,
+     que es lo que Joan opera; pero el quincenal no se cotiza en esta página, y
+     lo que está justo encima es el producto a 6 meses, que sale más barato que
+     el «barato». Una comparación es contra lo que se ve, no contra lo que uno
+     tiene en la cabeza.
+
+     «Más grande» también era falso acá: el deslizador de arriba llega al cupo
+     preferente y el de esta tarjeta a cuatro millones. Y «hasta 6 meses» no
+     distingue nada: arriba también son 6.
+
+     Lo que queda es lo único que es verdad Y se puede comprobar en la misma
+     pantalla: el costo se cobra sobre el saldo que va bajando. */
   return '<div class="card">' +
-      '<h3 class="tit">Y cuando tengas garantía, más barato</h3>' +
-      '<p class="sub">Cada vez que pagas en fecha, guardas garantía. La garantía es la que te abre este otro crédito: <b>más grande, hasta 6 meses y con un costo mucho más bajo</b>.</p>' +
+      '<h3 class="tit">Y cuando tengas garantía, otro crédito</h3>' +
+      /* Ni una palabra más de las que se pueden comprobar acá mismo. Se pensó en
+         agregar «y se desembolsa sin volver a estudiarte»: eso está escrito para
+         el segundo escalón del OTRO producto, no para éste, y afirmarlo sería
+         exactamente lo que este comentario vino a impedir. */
+      '<p class="sub">Cada vez que pagas en fecha, guardas garantía. La garantía es la que te abre este otro crédito: <b>el costo se cobra sobre lo que te va quedando, no sobre lo que pediste</b>. Compara las dos cuotas de esta pantalla y pide el que te sirva.</p>' +
       '<div id="gcalcTecho">' + techoDeGarantia() + '</div>' +
       '<div id="gcalcCifras">' + cifrasDeGarantia() + '</div>' +
       '<div class="mando">' +
@@ -1369,14 +1418,32 @@ function cifrasDeGarantia() {
     return '<div class="aviso ambar">El crédito con garantía va desde <b>' +
       COP(c.monto_minimo) + '</b>. Por debajo de eso se pide el crédito normal.</div>';
   }
+  /* 16-sep-2026 — EL GUARDIÁN DEL TECHO, TAMBIÉN ACÁ. tarjetaCalcGarantia lo
+     comprobaba UNA vez, con el monto y el plazo de arranque, y a partir de ahí
+     moverGCalc repintaba estas cifras en cada movimiento del dedo sin volver a
+     preguntar. La efectiva anual no es constante en todo el rango —el redondeo
+     de la cuota la mueve— así que el día que la Superfinanciera certifique un
+     techo que caiga dentro de esa ventana, la tarjeta se pintaría porque el
+     combo inicial pasa, y el visitante publicaría un precio ilegal con solo
+     arrastrar. Es el artículo 305, y el único aviso sería que nadie lo mirara.
+     Ahora el guardián está en los DOS caminos: el primer pintado y cada arrastre. */
+  if (!garantiaSePuedeCotizar(c)) {
+    return '<div class="aviso ambar">Con ese monto y ese plazo no podemos publicar un ' +
+      'precio hoy. Prueba con otro, o escríbenos y lo resolvemos por WhatsApp.</div>';
+  }
+  /* Las dos calculadoras de esta página dicen sus cifras de la MISMA forma: la
+     cuota manda y el total va en su propia caja. Dos formas de decir lo mismo,
+     una debajo de la otra, obligan a leer dos veces para comparar — que es justo
+     lo que alguien hace acá. */
   return '<div class="cifra sm">' + COP(c.cuota_fija) + '</div>' +
-    '<div class="muted" style="font-size:13.5px">al mes, ' + c.plazo_meses +
-      ' cuotas iguales. En total pagas <b>' + COP(c.total_a_pagar) + '</b>.</div>' +
-    '<div class="sep"></div>' +
+    '<div class="muted" style="font-size:13.5px">cada mes, durante ' + c.plazo_meses +
+      (c.plazo_meses === 1 ? ' mes' : ' meses') + avisoUltimaCuota(c) + '</div>' +
+    '<div class="granTotal"><span>En total vas a pagar</span><b>' +
+      COP(c.total_a_pagar) + '</b></div>' +
     fila('Lo que recibes', COP(c.capital)) +
     fila('Lo que cuesta', COP(c.costo_total)) +
     fila('Tasa efectiva anual', pct(eaDeGarantia(c))) +
-    '<div class="grupo-tit">Cuándo pagarías</div>' +
+    '<div class="grupo-tit">Cuándo pagarías cada cuota</div>' +
     cuadroCuotas(c.cuotas) +
     '<div class="aviso" style="margin-top:var(--e4);font-size:12.5px;line-height:1.55">' +
       esc(divulgacionGarantiaHoy()) + '</div>' +
@@ -1403,6 +1470,23 @@ function tarjetaGanancia(c) {
     '<div class="muted" style="font-size:13px;margin-top:var(--e2)">Si pagas las ' +
       c.plazo_meses + ' cuotas en fecha, terminas con <b>' + COP(deja) +
       '</b> más de garantía. Esa garantía es la que te abre el siguiente crédito, más grande.</div></div>';
+}
+
+/* LA ÚLTIMA CUOTA NO SIEMPRE ES IGUAL A LAS DEMÁS, y desde que el plan está en
+   pantalla eso se ve. Los dos motores cuadran el sobrante en la última —uno
+   porque reparte el total entre los meses y le carga el resto, el otro porque
+   liquida el saldo— así que la cifra grande multiplicada por el plazo puede no
+   dar el total por dos o tres pesos. Antes no importaba: nadie veía la última.
+   Ahora está tres renglones más abajo, y una cifra grande que dice «cada mes» al
+   lado de una lista donde la última es distinta es la pantalla contradiciéndose.
+   Se dice, y solo cuando de verdad difiere. Sale del motor, no de una resta. */
+function avisoUltimaCuota(c) {
+  var cs = c.cuotas || [];
+  if (!cs.length) return '';
+  var grande = c.cuota_fija != null ? c.cuota_fija : c.cuota_tipica;
+  var ultima = cs[cs.length - 1].total;
+  if (ultima === grande) return '';
+  return ' · la última, ' + COP(ultima);
 }
 
 /* Las cuotas, SEGMENTADAS: una línea por cuota, con su fecha y su monto. Es lo
@@ -1519,30 +1603,67 @@ function instalarPlay() {
 }
 
 /* -------------------------------------------------------------------------
- * EL RAYO
+ * EL RAYO — rehecho el 16-sep-2026
  *
- * Joan: «que cada vez que se toque la pantalla se cree un rayo de energía que se
- * mueve aleatoriamente como un rayo real y continuo».
+ * Joan: «mejora el rayo, que no llegue tan lejos pero que se vea más
+ * ramificado, y que sea un movimiento más constante y que se siga moviendo
+ * mientras tocamos la pantalla».
  *
- * Cómo está hecho: un rayo es una cabeza que CAMINA por la pantalla desde el
- * punto que se tocó, con una dirección que se desvía al azar en cada paso
- * (paseo aleatorio con inercia, que es lo que hace que se vea como un rayo y no
- * como una línea temblorosa). Va dejando un rastro que se apaga por detrás, y
- * de vez en cuando echa una rama. Vive poco más de un segundo.
+ * LO QUE HABÍA Y POR QUÉ NO SERVÍA. El rayo era una cabeza que CAMINABA: un
+ * punto por fotograma, con la dirección desviándose al azar. Eso trae tres
+ * cosas que Joan notó y tenía razón:
+ *   · llegaba lejísimos —veintiséis pasos de hasta 38px son media pantalla— y
+ *     el dibujo terminaba siendo un garabato largo en vez de un rayo;
+ *   · casi no se ramificaba, porque las ramas salían de un sorteo por paso y
+ *     eran tres rayitas de 12px;
+ *   · y no se movía: crecía una vez, se quedaba quieto, y se apagaba. Un rayo
+ *     de verdad NO se queda quieto — vibra mientras dura.
  *
- * LO QUE LO HACE BARATO, que es la parte que importa en un celular de gama baja:
- *   · Un solo lienzo para todos los rayos, y el bucle se APAGA cuando no queda
- *     ninguno vivo: no gira en vacío gastando batería.
- *   · Máximo tres rayos a la vez. El cuarto toque no crea nada.
+ * CÓMO ESTÁ HECHO AHORA, y es otro algoritmo. El rayo ya no camina: se tiende
+ * entre dos puntos —el dedo y un destino cerca— y el camino entre ellos se
+ * REGENERA en cada fotograma por desplazamiento del punto medio, que es la
+ * forma clásica de dibujar un relámpago. De ahí salen las tres cosas de una:
+ *   · el alcance es un número y se acabó (LARGO), en vez de la suma de veinte
+ *     pasos al azar;
+ *   · la ramificación es natural: las ramas se tienden igual que el tronco y
+ *     pueden tener sus propias ramas;
+ *   · y el movimiento constante sale gratis, porque el camino se vuelve a
+ *     sortear: es el mismo rayo temblando, no uno nuevo cada vez.
+ *
+ * MIENTRAS EL DEDO ESTÁ PUESTO, EL RAYO VIVE. Nace en pointerdown, sigue al
+ * dedo en pointermove, y solo empieza a apagarse cuando se levanta. Cada dedo
+ * tiene el suyo, por su pointerId.
+ *
+ * LO QUE LO MANTIENE BARATO, que es la parte que importa en un celular de gama
+ * baja —y es lo mismo que cuidaba la versión anterior—:
+ *   · Un solo lienzo, y el bucle se APAGA cuando no queda ninguno vivo.
+ *   · Máximo tres a la vez. El cuarto dedo no crea nada.
  *   · AUTODEGRADADO: se cronometran los primeros fotogramas y si este teléfono
- *     no da los 30 por segundo, el rayo baja a la mitad de puntos y se queda
- *     así el resto de la visita. Un adorno no puede volver lenta una app de
- *     plata.
+ *     no da los 30 por segundo, el rayo baja a la mitad de detalle y regenera
+ *     cada dos fotogramas en vez de cada uno. Un adorno no puede volver lenta
+ *     una app de plata.
+ *   · UN TOPE DE AGUANTE: por mucho que alguien deje el dedo puesto, a los seis
+ *     segundos se apaga solo. Un adorno que corre indefinidamente porque un
+ *     bolsillo aprieta la pantalla es batería regalada.
  *   · Sordo al tacto (pointer-events:none) y sin capturar el toque: jamás se
  *     queda con un toque que era para un botón.
  * ----------------------------------------------------------------------- */
 var RAYOS = { lienzo: null, ctx: null, vivos: [], corriendo: false, dpr: 1,
-              puntos: 26, medidos: 0, suma: 0, degradado: false, ultimo: 0 };
+              medidos: 0, suma: 0, degradado: false, ultimo: 0 };
+
+/* EL ALCANCE. Joan pidió que no llegara tan lejos: es una fracción de la
+   pantalla —para que se vea igual en un celular y en un computador— con un
+   techo en píxeles, para que en una pantalla grande no se vuelva un cable que
+   cruza el escritorio. */
+var RAYO_LARGO_FRAC = 0.20;
+var RAYO_LARGO_MAX = 190;
+var RAYO_AGUANTE = 6000;   // milisegundos con el dedo puesto, ver la cabecera
+var RAYO_APAGON = 320;     // lo que tarda en irse después de soltar
+
+function largoDeRayo() {
+  var m = Math.min(window.innerWidth || 0, window.innerHeight || 0);
+  return Math.max(70, Math.min(RAYO_LARGO_MAX, m * RAYO_LARGO_FRAC));
+}
 
 function iniciarRayos() {
   if (RAYOS.lienzo) return;
@@ -1557,7 +1678,19 @@ function iniciarRayos() {
   window.addEventListener('resize', medirLienzo);
   /* pointerdown y no click: el rayo tiene que salir en el instante en que el
      dedo toca, no cuando se levanta. `passive` para no frenar el desplazamiento. */
-  window.addEventListener('pointerdown', function (e) { nacerRayo(e.clientX, e.clientY); }, { passive: true });
+  window.addEventListener('pointerdown', function (e) { nacerRayo(e.clientX, e.clientY, e.pointerId); }, { passive: true });
+  window.addEventListener('pointermove', function (e) { moverRayo(e.pointerId, e.clientX, e.clientY); }, { passive: true });
+  /* Los tres finales. `pointercancel` importa de verdad en un celular: es el que
+     llega cuando el navegador se queda con el gesto para desplazar la página, y
+     sin él el rayo se quedaría pegado y encendido hasta el tope de aguante. */
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) {
+    window.addEventListener(ev, function (e) { soltarRayo(e.pointerId); }, { passive: true });
+  });
+  /* Y si la pestaña se va a segundo plano con el dedo puesto, no vuelve nunca un
+     pointerup: se sueltan todos. */
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) RAYOS.vivos.forEach(function (r) { r.sujeto = false; });
+  });
 }
 /* Se vuelve a medir sola si hace falta, y no solo cuando el navegador avisa que
    cambió el tamaño. Motivo concreto: si `innerWidth` llega en CERO en el momento
@@ -1578,17 +1711,101 @@ function medirLienzo() {
   }
   return true;
 }
-function nacerRayo(x, y) {
+
+function nacerRayo(x, y, id) {
   if (!RAYOS.ctx || RAYOS.vivos.length >= 3) return;
+  /* Un dedo, un rayo. Sin esto, un `pointerdown` repetido del mismo dedo —pasa
+     con algunos lápices y con el ratón arrastrando— dejaría dos pegados. */
+  if (RAYOS.vivos.some(function (r) { return r.id === id; })) return;
+  var L = largoDeRayo();
+  var a = Math.random() * Math.PI * 2;
   RAYOS.vivos.push({
-    puntos: [{ x: x, y: y }],
-    ang: Math.random() * Math.PI * 2,
-    vida: 0,
-    tope: RAYOS.degradado ? Math.round(RAYOS.puntos / 2) : RAYOS.puntos,
-    ramas: []
+    id: id, x: x, y: y,
+    /* El destino: a un largo del dedo, en una dirección cualquiera. */
+    dx: x + Math.cos(a) * L, dy: y + Math.sin(a) * L,
+    /* Y derivando despacio, que es lo que hace que el rayo se pasee en vez de
+       temblar en el sitio. */
+    va: (Math.random() - 0.5) * 0.06,
+    ang: a, largo: L,
+    sujeto: true, edad: 0, soltado: 0, alfa: 1,
+    camino: [], ramas: [], tic: 0
   });
   if (!RAYOS.corriendo) { RAYOS.corriendo = true; RAYOS.ultimo = 0; requestAnimationFrame(pasoRayos); }
 }
+
+function moverRayo(id, x, y) {
+  for (var i = 0; i < RAYOS.vivos.length; i++) {
+    var r = RAYOS.vivos[i];
+    if (r.id === id && r.sujeto) { r.x = x; r.y = y; return; }
+  }
+}
+
+function soltarRayo(id) {
+  for (var i = 0; i < RAYOS.vivos.length; i++) {
+    if (RAYOS.vivos[i].id === id) RAYOS.vivos[i].sujeto = false;
+  }
+}
+
+/* EL CAMINO, POR DESPLAZAMIENTO DEL PUNTO MEDIO. Se parte el segmento por la
+   mitad, se empuja ese punto medio de lado una cantidad al azar, y se repite
+   con las dos mitades empujando menos. Es la forma clásica de dibujar un
+   relámpago, y es barata: `niveles` duplica los puntos cada vuelta, así que
+   cuatro niveles son diecisiete puntos y no más. */
+function caminoRayo(x0, y0, x1, y1, desvio, niveles) {
+  var pts = [{ x: x0, y: y0 }, { x: x1, y: y1 }];
+  for (var n = 0; n < niveles; n++) {
+    var out = [];
+    for (var i = 0; i < pts.length - 1; i++) {
+      var a = pts[i], b = pts[i + 1];
+      var ex = b.x - a.x, ey = b.y - a.y;
+      var L = Math.sqrt(ex * ex + ey * ey) || 1;
+      /* La normal del segmento: se empuja de lado, nunca a lo largo. Empujar a
+         lo largo haría que el rayo se doblara sobre sí mismo. */
+      var d = (Math.random() - 0.5) * desvio;
+      out.push(a, { x: (a.x + b.x) / 2 - (ey / L) * d, y: (a.y + b.y) / 2 + (ex / L) * d });
+    }
+    out.push(pts[pts.length - 1]);
+    pts = out;
+    desvio *= 0.52;
+  }
+  return pts;
+}
+
+/* LAS RAMAS. Salen de un punto del tronco, en ángulo, y se tienden con el mismo
+   algoritmo — por eso se ven del mismo material que el tronco y no como rayitas
+   pegadas. Una rama puede tener su propia rama: eso es lo que da el aire
+   ramificado que Joan pidió, y se corta en `profundidad` para que no se vuelva
+   un árbol que come fotogramas. */
+function ramasDeRayo(pts, largo, cuantas, profundidad) {
+  var out = [];
+  if (pts.length < 4) return out;
+  for (var k = 0; k < cuantas; k++) {
+    var i = 1 + Math.floor(Math.random() * (pts.length - 2));
+    var a = pts[i], b = pts[i + 1] || pts[i - 1];
+    var base = Math.atan2(b.y - a.y, b.x - a.x);
+    var ang = base + (Math.random() < 0.5 ? -1 : 1) * (0.45 + Math.random() * 0.75);
+    var L = largo * (0.20 + Math.random() * 0.32);
+    var camino = caminoRayo(a.x, a.y, a.x + Math.cos(ang) * L, a.y + Math.sin(ang) * L,
+                            L * 0.34, profundidad > 0 ? 3 : 2);
+    out.push({ pts: camino, nivel: profundidad });
+    if (profundidad > 0 && Math.random() < 0.65) {
+      out = out.concat(ramasDeRayo(camino, L, 1, profundidad - 1));
+    }
+  }
+  return out;
+}
+
+/* Rehace el rayo entero: el tronco y sus ramas. Se llama en cada fotograma
+   —o cada dos, en un teléfono lento— y eso es TODA la animación: el rayo no se
+   mueve, se vuelve a sortear. */
+function rehacerRayo(r) {
+  var niveles = RAYOS.degradado ? 3 : 4;
+  var cuantas = RAYOS.degradado ? 2 : (2 + Math.floor(Math.random() * 3));
+  var prof = RAYOS.degradado ? 0 : 1;
+  r.camino = caminoRayo(r.x, r.y, r.dx, r.dy, r.largo * 0.42, niveles);
+  r.ramas = ramasDeRayo(r.camino, r.largo, cuantas, prof);
+}
+
 function pasoRayos(t) {
   var ctx = RAYOS.ctx; if (!ctx) { RAYOS.corriendo = false; return; }
   /* Si el lienzo todavía no tiene tamaño (ver medirLienzo), se espera al
@@ -1596,8 +1813,9 @@ function pasoRayos(t) {
   if (!medirLienzo()) { requestAnimationFrame(pasoRayos); return; }
 
   /* El autodegradado: diez fotogramas medidos y se decide de una vez. */
+  var dt = RAYOS.ultimo ? (t - RAYOS.ultimo) : 16;
   if (RAYOS.ultimo && RAYOS.medidos < 10) {
-    RAYOS.suma += (t - RAYOS.ultimo); RAYOS.medidos++;
+    RAYOS.suma += dt; RAYOS.medidos++;
     if (RAYOS.medidos === 10 && (RAYOS.suma / 10) > 33) RAYOS.degradado = true;
   }
   RAYOS.ultimo = t;
@@ -1606,63 +1824,65 @@ function pasoRayos(t) {
   ctx.clearRect(0, 0, W, H);
 
   RAYOS.vivos = RAYOS.vivos.filter(function (r) {
-    r.vida++;
-    if (r.puntos.length < r.tope) {
-      var u = r.puntos[r.puntos.length - 1];
-      /* La desviación es lo que le da el aire de rayo: mucha inercia y de vez en
-         cuando un quiebre fuerte, como los de verdad. */
-      r.ang += (Math.random() - 0.5) * 0.9;
-      if (Math.random() < 0.12) r.ang += (Math.random() - 0.5) * 2.2;
-      var paso = 16 + Math.random() * 22;
-      var n = { x: u.x + Math.cos(r.ang) * paso, y: u.y + Math.sin(r.ang) * paso };
-      /* Rebota en los bordes en vez de irse: si se va, el rayo se acaba antes de
-         verse. */
-      if (n.x < 4 || n.x > W - 4) { r.ang = Math.PI - r.ang; n.x = Math.max(4, Math.min(W - 4, n.x)); }
-      if (n.y < 4 || n.y > H - 4) { r.ang = -r.ang; n.y = Math.max(4, Math.min(H - 4, n.y)); }
-      r.puntos.push(n);
-      if (!RAYOS.degradado && Math.random() < 0.16 && r.ramas.length < 3) {
-        r.ramas.push({ desde: r.puntos.length - 1, ang: r.ang + (Math.random() - 0.5) * 2, largo: 3 + Math.random() * 4 });
-      }
-    }
-    var edad = r.vida / (r.tope + 16);
-    var alfa = Math.max(0, 1 - edad);
-    if (alfa <= 0) return false;
+    r.edad += dt;
+    r.tic++;
 
-    dibujarRayo(ctx, r, alfa);
+    if (r.sujeto) {
+      /* CON EL DEDO PUESTO NO ENVEJECE: solo el tope de aguante lo apaga. */
+      if (r.edad > RAYO_AGUANTE) r.sujeto = false;
+      r.alfa = Math.min(1, r.edad / 90);          // un encendido corto, no un salto
+    } else {
+      r.soltado += dt;
+      r.alfa = Math.max(0, 1 - r.soltado / RAYO_APAGON);
+      if (r.alfa <= 0) return false;
+    }
+
+    /* El destino se pasea alrededor del dedo, a un largo fijo. Que gire en vez
+       de saltar es lo que hace que el movimiento se lea como continuo. */
+    r.ang += r.va + (Math.random() - 0.5) * 0.05;
+    r.largo = largoDeRayo();
+    var dx = r.x + Math.cos(r.ang) * r.largo;
+    var dy = r.y + Math.sin(r.ang) * r.largo;
+    /* Y no se sale de la pantalla: si el destino se iba fuera, media rama se
+       dibujaba donde nadie la ve. */
+    r.dx = Math.max(6, Math.min(W - 6, dx));
+    r.dy = Math.max(6, Math.min(H - 6, dy));
+
+    /* Cada fotograma, o cada dos en un teléfono lento. */
+    if (!RAYOS.degradado || r.tic % 2 === 1) rehacerRayo(r);
+    if (r.camino.length) dibujarRayo(ctx, r, r.alfa);
     return true;
   });
 
   if (RAYOS.vivos.length) requestAnimationFrame(pasoRayos);
   else { RAYOS.corriendo = false; ctx.clearRect(0, 0, W, H); }
 }
+
 function dibujarRayo(ctx, r, alfa) {
-  var pts = r.puntos;
-  if (pts.length < 2) return;
   ctx.save();
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  /* Dos pasadas: una ancha y tenue que hace el halo, y una fina y clara que
-     hace el filamento. Sale más barato que un shadowBlur, que en Android
-     recalcula el desenfoque en cada fotograma. */
-  ctx.strokeStyle = 'rgba(245,197,66,' + (alfa * 0.22).toFixed(3) + ')';
-  ctx.lineWidth = 9; trazo(ctx, pts);
+  /* Tres pasadas: un halo ancho y tenue, el filamento claro, y las ramas.
+     Sale más barato que un shadowBlur, que en Android recalcula el desenfoque
+     en cada fotograma — y con el camino regenerándose cada fotograma, ese coste
+     se pagaría sesenta veces por segundo. */
+  ctx.strokeStyle = 'rgba(245,197,66,' + (alfa * 0.20).toFixed(3) + ')';
+  ctx.lineWidth = 10; trazo(ctx, r.camino);
   ctx.strokeStyle = 'rgba(255,240,200,' + (alfa * 0.95).toFixed(3) + ')';
-  ctx.lineWidth = 2; trazo(ctx, pts);
-  ctx.strokeStyle = 'rgba(245,197,66,' + (alfa * 0.7).toFixed(3) + ')';
-  ctx.lineWidth = 1;
-  r.ramas.forEach(function (b) {
-    var o = pts[b.desde]; if (!o) return;
-    ctx.beginPath(); ctx.moveTo(o.x, o.y);
-    var a = b.ang, x = o.x, y = o.y;
-    for (var i = 0; i < b.largo; i++) {
-      a += (Math.random() - 0.5) * 1.1;
-      x += Math.cos(a) * 12; y += Math.sin(a) * 12;
-      ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  });
+  ctx.lineWidth = 2; trazo(ctx, r.camino);
+
+  /* Las ramas, más finas y más apagadas cuanto más hondas: es lo que hace que
+     se lean como ramas y no como tres rayos encimados. */
+  for (var i = 0; i < r.ramas.length; i++) {
+    var b = r.ramas[i];
+    var f = b.nivel > 0 ? 1 : 0.6;
+    ctx.strokeStyle = 'rgba(245,197,66,' + (alfa * 0.60 * f).toFixed(3) + ')';
+    ctx.lineWidth = b.nivel > 0 ? 1.4 : 1;
+    trazo(ctx, b.pts);
+  }
   ctx.restore();
 }
 function trazo(ctx, pts) {
+  if (!pts || pts.length < 2) return;
   ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
   for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.stroke();
@@ -1677,6 +1897,10 @@ function trazo(ctx, pts) {
    quitándose: si la nube todavía no responde, la pantalla lo dice. */
 var SESION = null;
 var MONTO = 500000;
+/* El plazo que el socio escogió, de punta a punta: lo mueve el deslizador del
+   simulador, lo cotiza el motor y lo manda pedir(). Arranca en el del producto
+   —no en un número escrito acá— así que quien no toque nada ve lo de siempre. */
+var PLAZO = C.PLAZO_MESES;
 
 function perfilDeSesion(s) {
   var m = s && s.user && s.user.user_metadata;
@@ -1835,6 +2059,9 @@ function laminaCredito() {
   var perfil = C.PERFILES[idPerfil];
   MONTO = Math.min(MONTO, perfil.cupo_maximo || 500000);
   MONTO = Math.max(MONTO, 100000);
+  /* Y el plazo se pinza igual, por si un estado viejo trae uno fuera de rango:
+     por debajo del piso de 90 días el motor lanza y la lámina sale en blanco. */
+  PLAZO = Math.max(CALC_MESES_MIN, Math.min(CALC_MESES_MAX, PLAZO));
   return '<div id="solicitudBox"></div>' +
     avisoFicha() +
     tarjetaCreditoActivo() +
@@ -2200,23 +2427,57 @@ function tarjetaSimulador(idPerfil) {
      simulador hasta arriba: es justo lo que Joan pidió, «que el cliente sepa
      hasta cuánto puede pedir a futuro». */
   var tope = Math.max(C.PERFILES[idPerfil].cupo_maximo || 0, C.PERFILES.preferente.cupo_maximo);
+  /* 16-sep-2026 — EL PLAZO TAMBIÉN SE ELIGE ACÁ, y hasta hoy no se podía.
+     La calculadora de la portada deja escoger de 3 a 6 cuotas y cotiza cada
+     plazo de verdad… y ese número no viajaba a ninguna parte: adentro no había
+     dónde elegirlo, pintarSimulacion llamaba al motor sin `meses` —y el motor
+     cae a 6— y pedir() mandaba el 6 fijo. O sea que el visitante escogía tres
+     cuotas, memorizaba esa cuota, y la solicitud salía a seis con otra cuota.
+     La base sí lo aceptaba desde el 9-sep (play_solicitar valida 1..6): el
+     único que tiraba la elección era esta pantalla.
+     Los dos deslizadores van FUERA de #simu, que es lo que pintarSimulacion
+     reescribe en cada movimiento: un control adentro se repintaría bajo el dedo
+     —el defecto que este proyecto ya cometió dos veces. */
   return '<div class="card">' +
     '<h3 class="tit">Simula tu crédito</h3>' +
-    '<p class="sub">Mueve el monto y mira exactamente cuánto pagarías.</p>' +
-    '<input type="range" id="rMonto" min="100000" max="' + tope + '" step="50000" value="' + MONTO + '" ' +
-      'oninput="cambiaMonto(this.value)" style="width:100%;margin-top:var(--e4);accent-color:var(--rojo)">' +
+    '<p class="sub">Mueve el monto y las cuotas, y mira exactamente cuánto pagarías.</p>' +
+    '<div class="mando"><div class="cab-mando">' +
+      '<label for="rMonto" style="margin:0">Cuánto necesitas</label>' +
+      '<b id="rMontoTxt">' + COP(MONTO) + '</b></div>' +
+      '<input type="range" id="rMonto" min="100000" max="' + tope + '" step="50000" value="' + MONTO + '" ' +
+        'aria-label="Cuánto necesitas" oninput="cambiaMonto(this.value)"></div>' +
+    '<div class="mando"><div class="cab-mando">' +
+      '<label for="rPlazo" style="margin:0">En cuántas cuotas</label>' +
+      '<b id="rPlazoTxt">' + textoCuotas(PLAZO) + '</b></div>' +
+      /* El rango sale de las MISMAS constantes que la calculadora de la portada.
+         Por debajo del piso de 90 días C.simular lanza y la pantalla se queda en
+         blanco; escribir otro número acá sería la misma regla en dos sitios. */
+      '<input type="range" id="rPlazo" min="' + CALC_MESES_MIN + '" max="' + CALC_MESES_MAX + '" ' +
+        'step="1" value="' + PLAZO + '" aria-label="En cuántas cuotas" ' +
+        'oninput="cambiaPlazo(this.value)"></div>' +
     '<div id="simu"></div>' +
     '</div>';
 }
 
+/* «6 cuotas» y no «6 meses»: el rótulo pregunta por cuotas y la respuesta tiene
+   que contestar lo que se preguntó. */
+function textoCuotas(n) { return n + (n === 1 ? ' cuota' : ' cuotas'); }
+
 function cambiaMonto(v) {
   MONTO = Number(v) || 100000;
+  var t = $('rMontoTxt'); if (t) t.textContent = COP(MONTO);
+  pintarSimulacion();
+}
+
+function cambiaPlazo(v) {
+  PLAZO = Math.max(CALC_MESES_MIN, Math.min(CALC_MESES_MAX, Number(v) || C.PLAZO_MESES));
+  var t = $('rPlazoTxt'); if (t) t.textContent = textoCuotas(PLAZO);
   pintarSimulacion();
 }
 
 function pintarSimulacion() {
   var idPerfil = perfilDeSesion(SESION);
-  var r = C.simular({ perfil: idPerfil, capital: MONTO, fecha_desembolso: hoyISO() });
+  var r = C.simular({ perfil: idPerfil, capital: MONTO, fecha_desembolso: hoyISO(), meses: PLAZO });
   var c = r.puede ? r : r.cotizacion;
   var el = $('simu');
   if (!el) return;
@@ -2238,10 +2499,12 @@ function pintarSimulacion() {
     fila('Total a pagar', COP(c.total_a_pagar)) +
     fila('Tasa efectiva anual', pct(c.efectivo_anual)) +
 
-    '<div class="grupo-tit">Cuándo pagarías</div>' +
-    c.cuotas.map(function (q) {
-      return fila('Cuota ' + q.n + ' · ' + fmtFecha(q.fecha), COP(q.total));
-    }).join('') +
+    /* 16-sep-2026 — con cuadroCuotas, igual que las dos calculadoras y que la
+       propuesta que manda Joan. Era la CUARTA copia de la misma lista, y la
+       única que se habría quedado vieja el día que las otras tres cambiaran. La
+       cazó la prueba que exige que las cuotas se pinten en un solo sitio. */
+    '<div class="grupo-tit">Cuándo pagarías cada cuota</div>' +
+    cuadroCuotas(c.cuotas) +
 
     /* LA DIVULGACIÓN, AQUÍ Y NO EN UN RINCÓN. Google la exige "en el mismo lugar
        donde el usuario solicita el crédito", y además es lo correcto: el precio
@@ -2328,7 +2591,10 @@ function pedir() {
       'Content-Type': 'application/json', apikey: CFG.anon,
       Authorization: 'Bearer ' + ((SESION && SESION.access_token) || CFG.anon)
     },
-    body: JSON.stringify({ p_capital: MONTO, p_meses: C.PLAZO_MESES })
+    /* El plazo que el socio escogió, no el del producto: play_solicitar acepta
+       de 1 a 6 y lo guarda en plazo_meses desde el 9-sep. Mandar el fijo era
+       tirar su elección en el último metro. */
+    body: JSON.stringify({ p_capital: MONTO, p_meses: PLAZO })
   }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
     .then(function (j) {
       /* La función contesta {ok:false} con HTTP 200 cuando algo no cuadra o el
@@ -2347,8 +2613,10 @@ function pintarPedido() {
   $('titulo').textContent = 'Solicitud enviada';
   $('cuerpo').innerHTML =
     '<div class="card"><div class="aviso verde"><b>Recibimos tu solicitud.</b></div>' +
-      '<p class="sub" style="margin-top:var(--e4)">Pediste ' + COP(MONTO) + ' a ' +
-      C.PLAZO_MESES + ' meses. <b>Todavía no es un crédito:</b> la revisamos y te ' +
+      /* El plazo que se MANDÓ, no el del producto: decirle «a 6 meses» a quien
+         pidió tres es contestarle una solicitud que no hizo. */
+      '<p class="sub" style="margin-top:var(--e4)">Pediste ' + COP(MONTO) + ' en ' +
+      textoCuotas(PLAZO) + '. <b>Todavía no es un crédito:</b> la revisamos y te ' +
       'respondemos por WhatsApp. Si la aprobamos, ahí te decimos cuándo recibes la plata.</p>' +
       '<button class="btn arriba" onclick="pintarCuenta()">Volver a mi cuenta</button>' +
     '</div>' + pie();
@@ -2377,10 +2645,9 @@ function tarjetaHistorial() {
         '<div class="ayuda">' + esc(fmtFecha(cr.fecha_desembolso)) + ' · ' +
           pagadas + ' de ' + (cr.cuotas || []).length + ' cuotas pagadas' +
           (cr.pagado ? ' · <b>terminado</b>' : '') + '</div>' +
-        (cr.cuotas || []).map(function (q) {
-          return fila('Cuota ' + q.n + ' · ' + fmtFecha(q.fecha),
-                      COP(q.total) + (q.pagada ? ' ✓' : ''));
-        }).join('') +
+        /* 16-sep-2026 — con cuadroCuotas, que ya sabe pintar el ✓ de lo pagado.
+           Era la quinta copia de la misma lista en este archivo. */
+        cuadroCuotas(cr.cuotas) +
         '</div>';
     }).join('') +
     '<button class="btn sec sm arriba" onclick="imprimirCertificado()">' +

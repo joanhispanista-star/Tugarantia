@@ -266,6 +266,25 @@ input[type=range]:focus-visible{outline:2px solid var(--amarillo);outline-offset
    toque que era para un botón. */
 #rayos{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
 
+
+/* ---------------- el total, en su propia caja — 16-sep-2026 ----------------
+   Joan: «que tenga un total de cuánto tiene que pagar el cliente». Antes vivía
+   metido en una línea gris del mismo tamaño que el resto, y se perdía: se leía
+   la cuota y nada más. Ahora es la segunda cifra de la tarjeta, y se lee como
+   segunda — más grande que un renglón, más chica que la cuota, porque la cuota
+   es con la que se decide y el total es con lo que se compara. */
+.granTotal{display:flex;justify-content:space-between;align-items:baseline;gap:var(--e3);
+  margin:var(--e4) 0 var(--e2);padding:12px 14px;border-radius:12px;
+  background:color-mix(in srgb, var(--amarillo) 12%, transparent);
+  border:1px solid color-mix(in srgb, var(--amarillo) 28%, transparent)}
+.granTotal span{font-size:13px;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent)}
+.granTotal b{font-size:21px;font-weight:800;letter-spacing:-.02em;color:var(--amarillo);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Fuera de la laca —la tarjeta del crédito con garantía es de papel— los mismos
+   tokens tienen que leerse igual de bien. */
+.card:not(.laca) .granTotal span{color:var(--gris)}
+.card:not(.laca) .granTotal b{color:var(--amarillo-tinta)}
+
 /* ---------------- las cuatro pestañas — 14-sep-2026 ----------------
    Pegada arriba mientras se baja: en una lámina larga —la de Crédito lo es—
    perder la barra obliga a subir hasta el techo para cambiar de pestaña, y en

@@ -217,7 +217,12 @@
    plan con fecha y monto por cuota, armado con el mismo motor que despues cobra.
    Toca panel/crm.html, que pasa a cargar app/creditos.js —la tabla certificada
    del techo de usura— para no poder mandar un precio que se pase. */
-const CACHE = 'tugarantia-v45';
+/* v46 - 16-sep-2026. La calculadora con el total aparte y las cuotas una por
+   una con su fecha; el plazo que el cliente escoge ahora SI viaja hasta la
+   solicitud; y el rayo rehecho: corto, ramificado y vivo mientras el dedo esta
+   puesto. Toca play/index.html, play/estilo.css y app/creditos.js (el techo que
+   cabe se recuerda: 22 ms por cotizacion pasaron a 0,3). */
+const CACHE = 'tugarantia-v46';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

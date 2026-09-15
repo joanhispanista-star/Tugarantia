@@ -302,7 +302,28 @@
    * siempre, y dos cuentas del mismo número es como este proyecto se ha hecho
    * daño antes. Una sola cuenta, y la otra se deriva de ella.
    */
+  /* SE RECUERDA LO QUE YA SE CALCULÓ, y no es una optimización de gusto.
+     16-sep-2026, medido: una bisección son 200 vueltas y cada una llama a
+     tirMensual, que hace otras 300 — unas 420.000 potencias por cotización, 22
+     ms en un computador de escritorio. Y la puerta pública llama a simular() en
+     CADA movimiento del dedo sobre el deslizador, decenas de veces por segundo.
+     En un celular de gama baja, que es diez o veinte veces más lento, eso son
+     250 a 450 ms por evento: la cifra se queda pegada y salta a tirones mientras
+     el dedo ya va en otro lado.
+
+     Lo que lo hace seguro es que el resultado NO depende del monto: solo del
+     plazo y del techo. Se barrieron los 159 montos del deslizador y para cada
+     plazo sale un único valor. O sea que la caché tiene, en toda la vida de la
+     app, tantas entradas como plazos por techos certificados — una docena larga,
+     no más. No cambia ni un decimal del resultado; cambia cuántas veces se
+     recalcula el mismo número.
+
+     Es el modo de fallar de siempre en este proyecto: invisible desde el
+     computador de Joan, visible en todos los teléfonos. */
+  var _cabe = {};
   function costoQueCabe(meses, techoEA) {
+    var llave = meses + '|' + techoEA;
+    if (_cabe[llave] !== undefined) return _cabe[llave];
     var lo = 0, hi = 1;
     for (var k = 0; k < 200; k++) {
       var c = (lo + hi) / 2;
@@ -310,7 +331,8 @@
     }
     /* Hacia abajo siempre: redondear hacia arriba es pasarse del techo por un
        decimal, y del techo no se pasa ni por un decimal. */
-    return Math.floor((lo + hi) / 2 * 10000) / 10000;
+    _cabe[llave] = Math.floor((lo + hi) / 2 * 10000) / 10000;
+    return _cabe[llave];
   }
 
   function eaDeCosto(meses, costoPlano) {
