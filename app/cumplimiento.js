@@ -28,11 +28,15 @@
 (function (raiz, fabrica) {
   'use strict';
   if (typeof module === 'object' && module.exports) {
-    module.exports = fabrica(require('./cuenta.js'), require('./creditos.js'));
+    module.exports = fabrica(require('./cuenta.js'), require('./creditos.js'),
+                             require('./motor.js'));
   } else {
-    raiz.Cumplimiento = fabrica(raiz.CuentaSocio, raiz.CreditosPublicables);
+    /* El motor puede no estar: play/borrar-cuenta.html carga este archivo sin
+       él. divulgacionRespaldado contesta {puede:false} en ese caso. */
+    raiz.Cumplimiento = fabrica(raiz.CuentaSocio, raiz.CreditosPublicables,
+                                raiz.MotorReglas);
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (U, C) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (U, C, M) {
   'use strict';
 
   /* ==========================================================================
@@ -288,6 +292,85 @@
     };
   }
 
+  /* ------------------------------------------------------------------------
+   * LA DIVULGACIÓN DEL PRÉSTAMO CON GARANTÍA — 14-sep-2026
+   *
+   * Misma forma que la de arriba y por las mismas razones; lo único que cambia
+   * es el producto. Va aparte y no como una rama de aquella porque los dos
+   * precios son distintos y publicar el de uno al lado del otro fue justamente
+   * el defecto que la trajo: la calculadora del crédito con garantía imprimía
+   * 26,82% y debajo «Tasa efectiva anual máxima: 23,99%».
+   *
+   * EL EJEMPLO ES EL MÍNIMO DEL PRODUCTO y no una cifra cómoda: es el crédito
+   * más chico que de verdad se puede pedir, así que nadie puede leer el ejemplo
+   * y pedir menos esperando lo mismo.
+   * --------------------------------------------------------------------- */
+  function divulgacionRespaldado(fechaISO) {
+    if (!M || !M.simularPrestamoRespaldado) {
+      return { puede: false, motivo: 'sin_motor',
+               mensaje: 'No puedo cotizar el préstamo con garantía sin el motor de reglas.' };
+    }
+    /* El techo del mes es el mismo para los dos productos: lo certifica la
+       Superfinanciera, no el producto. */
+    var techo = C.topeVigente(fechaISO);
+    var vacia = { datos: {}, referidos: 0, acumulada: 0, ajuste: 0, comprometida: 0 };
+    var min = Math.ceil(C.PLAZO_MINIMO_DIAS / 30);
+    var max = M.PLAZO_RESPALDADO_MAX;
+    if (min > max) return { puede: false, motivo: 'sin_plazos' };
+
+    var capital = M.MONTO_MINIMO_RESPALDADO;
+    var peorEA = 0, ejemplo = null, m, r, ea;
+    for (m = min; m <= max; m++) {
+      r = M.simularPrestamoRespaldado(capital, m, vacia, { fechaDesembolso: fechaISO });
+      ea = eaDeCuotas(r);
+      if (ea > peorEA) peorEA = ea;
+      if (m === max) ejemplo = r;   // el ejemplo va al plazo más largo, que es el que se ofrece
+    }
+    if (!ejemplo) return { puede: false, motivo: 'sin_cotizacion' };
+
+    var pct = function (x) { return (x * 100).toFixed(2).replace('.', ',') + '%'; };
+    var cop = function (n) { return '$' + Math.round(n).toLocaleString('es-CO'); };
+
+    return {
+      puede: true,
+      plazo_minimo_meses: min,
+      plazo_maximo_meses: max,
+      monto_minimo: capital,
+      tae_maxima: peorEA,
+      ejemplo: {
+        capital: ejemplo.capital, meses: ejemplo.plazo_meses,
+        cuota: ejemplo.cuota_fija, costo_total: ejemplo.costo_total,
+        total_a_pagar: ejemplo.total_a_pagar
+      },
+      texto: 'Préstamo con garantía, en cuotas mensuales iguales. Desde ' +
+        cop(capital) + '. ' +
+        (min === max ? 'Plazo mínimo y máximo: ' + max + ' meses. '
+                     : 'Plazo mínimo: ' + min + ' meses. Plazo máximo: ' + max + ' meses. ') +
+        'Tasa efectiva anual máxima: ' + pct(peorEA) + '. ' +
+        'Ejemplo: por ' + cop(ejemplo.capital) + ' a ' + ejemplo.plazo_meses +
+        ' meses pagas ' + ejemplo.plazo_meses + ' cuotas de ' + cop(ejemplo.cuota_fija) +
+        ', para un total de ' + cop(ejemplo.total_a_pagar) + ' (' + cop(ejemplo.capital) +
+        ' de capital y ' + cop(ejemplo.costo_total) + ' de costo). El costo se cobra ' +
+        'sobre el saldo que debes, así que baja cada mes. Sin cuotas de manejo, sin ' +
+        'seguros y sin cargos adicionales: el costo mostrado es el costo total.' +
+        /* Sin certificación no se escribe ningún número: es la misma nota del
+           4-sep que evitó publicar «tasa máxima legal: 0,00%». */
+        (techo ? ' Tasa máxima legal vigente en Colombia: ' +
+                 pct(techo.consumo_ordinario) + '.' : ''),
+      techo_del_mes: techo ? techo.consumo_ordinario : null,
+      certificacion: techo ? techo.fuente : null
+    };
+  }
+
+  /* La efectiva anual del FLUJO REAL de una cotización con garantía: lo que se
+     recibe y lo que se devuelve, cuota por cuota. No hay fórmula aparte — es la
+     misma TIR con la que se mide el otro producto. */
+  function eaDeCuotas(r) {
+    var flujo = [r.capital];
+    for (var i = 0; i < r.cuotas.length; i++) flujo.push(-r.cuotas[i].total);
+    return C.efectivoAnual(flujo);
+  }
+
   /* ==========================================================================
    * EL BORRADO DE LA CUENTA
    *
@@ -338,6 +421,7 @@
     /* divulgación del crédito */
     CAPITAL_EJEMPLO: CAPITAL_EJEMPLO,
     divulgacion: divulgacion,
+    divulgacionRespaldado: divulgacionRespaldado,
 
     /* borrado de cuenta */
     BORRADO: BORRADO

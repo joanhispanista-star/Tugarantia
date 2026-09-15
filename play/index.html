@@ -65,12 +65,16 @@
 
 <script src="../app/creditos.js"></script>
 <script src="../app/cuenta.js"></script>
-<script src="../app/cumplimiento.js"></script>
 <!-- 14-sep-2026 — el motor del préstamo con garantía y el lector de la ficha.
      Son los MISMOS que usa el CRM de Joan: la calculadora de la garantía que
-     ve el cliente y la cuota que le cobra Joan salen de la misma función. -->
+     ve el cliente y la cuota que le cobra Joan salen de la misma función.
+     EL MOTOR VA ANTES DE cumplimiento.js y no después: aquél lo toma de la
+     ventana en cuanto se carga, para poder armar la letra obligatoria del
+     préstamo con garantía. Puesto detrás, la letra saldría vacía y la
+     calculadora se callaría el precio sin que nadie entendiera por qué. -->
 <script src="../app/motor.js"></script>
 <script src="../app/ficha.js"></script>
+<script src="../app/cumplimiento.js"></script>
 <!-- El hilo del chat se pinta con el mismo código que en la app quincenal: la
      marca de «esto te lo contestó una máquina» y el «leído» son reglas, no
      adorno, y no se escriben dos veces. -->
@@ -1310,7 +1314,7 @@ function eaDeGarantia(c) {
    por debajo de este producto, la app deja de cotizarlo sola en vez de publicar
    un precio que el artículo 305 castiga con cárcel. */
 function garantiaSePuedeCotizar(c) {
-  if (!hayQueCotizar()) return false;
+  if (!hayQueCotizarGarantia()) return false;
   var t = C.topeVigente(hoyISO());
   if (!t) return false;
   return eaDeGarantia(c) <= t.consumo_ordinario;
@@ -1375,7 +1379,7 @@ function cifrasDeGarantia() {
     '<div class="grupo-tit">Cuándo pagarías</div>' +
     cuadroCuotas(c.cuotas) +
     '<div class="aviso" style="margin-top:var(--e4);font-size:12.5px;line-height:1.55">' +
-      esc(divulgacionHoy()) + '</div>' +
+      esc(divulgacionGarantiaHoy()) + '</div>' +
     tarjetaGanancia(c);
 }
 
@@ -1760,6 +1764,22 @@ function pintarLamina() {
 }
 
 /* ------------------------------ LA FICHA ------------------------------ */
+
+/* POR QUÉ FALLÓ, EN UNA SOLA FUNCIÓN. Tres pantallas preguntan a la nube y las
+   tres tienen que dar la misma respuesta ante la misma causa.
+
+   Y las causas son distintas de verdad, no matices: al 404 no hay nada que
+   hacerle desde el teléfono —es una migración que Joan no ha corrido—; al 401 se
+   le contesta volviendo a entrar, que es un toque; y solo la última es de verdad
+   un problema de conexión. Decirle «revisa tu internet» a quien tiene la sesión
+   vencida lo manda a reiniciar el teléfono por algo que arregla un botón. */
+function causaDe(e) {
+  if (e && e.sinSesion) return 'sesion';
+  var m = String((e && e.message) || '');
+  if (/\b404\b/.test(m)) return 'apagado';
+  if (/\b401\b/.test(m) || /\b403\b/.test(m)) return 'sesion';
+  return 'falla';
+}
 function cargarFicha() {
   if (!SESION || !SESION.access_token) { FICHA_ESTADO = 'sin'; return; }
   FICHA_ESTADO = 'cargando';
@@ -1776,10 +1796,9 @@ function cargarFicha() {
     FICHA_ESTADO = 'vinculada';
     pintarLamina();
   }).catch(function (e) {
-    /* 404 = la migración de la puerta única no está corrida todavía. No es lo
-       mismo que «tu internet falló», y decir lo segundo mandaría al cliente a
-       reiniciar el teléfono por un problema que está en el servidor. */
-    FICHA_ESTADO = /\b404\b/.test(String((e && e.message) || '')) ? 'apagada' : 'falla';
+    /* Cada causa, su palabra: ver causaDe. */
+    var c = causaDe(e);
+    FICHA_ESTADO = c === 'apagado' ? 'apagada' : (c === 'sesion' ? 'sesion' : 'falla');
     pintarLamina();
   });
 }
@@ -1796,6 +1815,10 @@ function avisoFicha() {
   }
   if (FICHA_ESTADO === 'apagada') {
     return '<div class="aviso ambar"><b>Esta parte todavía no está encendida.</b> Tu cuenta y tu solicitud funcionan; el historial y la garantía los estamos conectando. No es tu teléfono ni tu internet.</div>';
+  }
+  if (FICHA_ESTADO === 'sesion') {
+    return '<div class="aviso ambar"><b>Tu sesión se venció.</b> Vuelve a entrar con tu celular y tu contraseña y sigues donde ibas.' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="salirDeCuenta()">Volver a entrar</button></div>';
   }
   if (FICHA_ESTADO === 'falla') {
     return '<div class="aviso ambar">No pude traer tu historial ahora. Vuelve a abrir la app en un rato.</div>';
@@ -1944,7 +1967,7 @@ function abrirCanal(c) {
     pintarHilo();
   }).catch(function (e) {
     if (HILO.canal !== c) return;
-    HILO.estado = /\b404\b/.test(String((e && e.message) || '')) ? 'apagado' : 'falla';
+    HILO.estado = causaDe(e);
     pintarHilo();
   });
 }
@@ -1962,8 +1985,13 @@ function pintarHilo() {
     caja.innerHTML = '<div class="aviso ambar"><b>El chat todavía no está encendido.</b> Lo estamos conectando. Mientras tanto escríbenos por WhatsApp.</div>';
     return;
   }
+  if (HILO.estado === 'sesion') {
+    caja.innerHTML = '<div class="aviso ambar"><b>Tu sesión se venció.</b> Vuelve a entrar y tu conversación sigue donde estaba.' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="salirDeCuenta()">Volver a entrar</button></div>';
+    return;
+  }
   if (HILO.estado === 'falla') {
-    caja.innerHTML = '<div class="aviso ambar">No pude traer tus mensajes ahora. Revisa tu internet y vuelve a entrar.</div>';
+    caja.innerHTML = '<div class="aviso ambar">No pude traer tus mensajes ahora. Revisa tu internet y vuelve a intentar.</div>';
     return;
   }
   caja.innerHTML = CH.hiloHTML(HILO.mensajes, {
@@ -1989,8 +2017,11 @@ function enviarChat() {
     el.value = '';
     abrirCanal(canal);
   }).catch(function (e) {
-    fallo(err, /\b404\b/.test(String((e && e.message) || ''))
+    var c = causaDe(e);
+    fallo(err, c === 'apagado'
       ? 'El chat todavía no está encendido. Escríbenos por WhatsApp mientras tanto.'
+      : c === 'sesion'
+      ? 'Tu sesión se venció. Vuelve a entrar y mandas tu mensaje de nuevo.'
       : 'No pude enviar tu mensaje. Revisa tu internet y vuelve a intentar.');
   });
 }
@@ -2115,8 +2146,11 @@ function vincularHistorial() {
     fallo(err, j.ya_estaba ? 'Ya estaba junto. Todo en orden.' : 'Listo: tu historial quedó junto con esta cuenta.');
     cargarFicha();
   }).catch(function (e) {
-    fallo(err, /\b404\b/.test(String((e && e.message) || ''))
+    var c = causaDe(e);
+    fallo(err, c === 'apagado'
       ? 'Esta parte todavía no está encendida. Escríbenos y te juntamos el historial nosotros.'
+      : c === 'sesion'
+      ? 'Tu sesión se venció. Vuelve a entrar y lo intentamos de nuevo.'
       : 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
   });
 }
@@ -2229,6 +2263,25 @@ function pintarSimulacion() {
       (r.puede ? 'Pedir ' + COP(c.capital) : 'Dejar mi solicitud') + '</button>' +
     '<div id="errPedir" class="aviso ambar oculto"></div>';
 }
+
+/* LA LETRA DEL PRÉSTAMO CON GARANTÍA ES OTRA, y tiene que serlo. Durante unas
+   horas del 14-sep esta calculadora imprimió «Tasa efectiva anual 26,82%» y
+   debajo, como letra obligatoria, la del otro producto: «Tasa efectiva anual
+   MÁXIMA: 23,99%». La única frase de la app que existe para no afirmar nada
+   falso estaba afirmando que el máximo era menor que el precio de tres
+   renglones arriba. Lo vio el navegador, no las pruebas. */
+var DIVULGACION_G = null;
+function divulgacionGarantiaHoy() {
+  if (!DIVULGACION_G) {
+    var K = window.Cumplimiento;
+    var d = (K && K.divulgacionRespaldado) ? K.divulgacionRespaldado(hoyISO()) : null;
+    DIVULGACION_G = (d && d.puede) ? d.texto : '';
+  }
+  return DIVULGACION_G;
+}
+/* Y la pregunta que hay que hacerse antes de imprimir la primera cifra de este
+   producto, igual que hayQueCotizar para el otro. */
+function hayQueCotizarGarantia() { return !!divulgacionGarantiaHoy(); }
 
 var DIVULGACION = null;
 /* 9-sep-2026 — EL VACÍO NO SE CACHEA. Antes, si la primera llamada caía en un

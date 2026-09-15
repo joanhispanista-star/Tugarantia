@@ -427,6 +427,72 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
     assert.equal(P.ev('respaldoDisponible()'), 0, 'sin ficha el respaldo tiene que ser cero');
   });
 
+  test('NINGÚN PRECIO AL LADO DE LA LETRA DE OTRO PRODUCTO', () => {
+    /* 14-sep-2026 — el defecto que esto caza, cometido y visto en el navegador:
+       la calculadora del crédito con garantía imprimía «Tasa efectiva anual
+       26,82%» y debajo, como letra obligatoria, la del producto a 6 meses, que
+       dice «Tasa efectiva anual MÁXIMA: 23,99%». La única frase de la app que
+       existe para no afirmar nada falso estaba afirmando que el máximo era menor
+       que el precio de tres renglones arriba.
+
+       Es lo que el artículo 305 llama «cualquiera sea la forma utilizada para
+       hacer constar la operación, ocultarla o disimularla», y 1.148 pruebas en
+       verde no lo vieron porque ninguna leía las dos cifras juntas.
+
+       La regla, escrita para cualquier producto que venga después: en el trozo
+       de pantalla donde se imprime una tasa, la MÁXIMA que declare la letra no
+       puede ser menor que la que se está cobrando. */
+    const P = abrirPlay();
+    P.ev('pintarEntrar()');
+    const h = P.elems.cuerpo.innerHTML;
+    const num = t => Number(String(t).replace(/\./g, '').replace(',', '.'));
+
+    /* A cada precio impreso se le busca la letra que le SIGUE, antes de que
+       empiece el siguiente precio. No se parte por tarjetas: la calculadora del
+       producto a 6 meses imprime sus cifras en una tarjeta y su letra en la de
+       al lado, a propósito —los deslizadores no pueden vivir dentro de lo que se
+       repinta—, y partir por tarjetas las separaría sin que nada esté mal. */
+    const precios = [...h.matchAll(/Tasa efectiva anual<\/span><span class="v">([\d.,]+)%/g)];
+    const letras  = [...h.matchAll(/Tasa efectiva anual máxima: ([\d.,]+)%/g)];
+    let miradas = 0;
+    precios.forEach((p, k) => {
+      const hasta = precios[k + 1] ? precios[k + 1].index : h.length;
+      const suya = letras.find(l => l.index > p.index && l.index < hasta);
+      assert.ok(suya,
+        'se imprime una tasa efectiva anual de ' + p[1] + '% y no le sigue su letra ' +
+        'obligatoria antes del siguiente precio');
+      miradas++;
+      assert.ok(num(suya[1]) >= num(p[1]) - 0.01,
+        'se cobra ' + p[1] + '% y la letra que le sigue declara un máximo de ' +
+        suya[1] + '%: la letra es de otro producto');
+    });
+    assert.ok(miradas >= 2,
+      'esperaba al menos dos tarjetas con precio en la portada (el crédito normal y ' +
+      'el de garantía); encontré ' + miradas);
+  });
+
+  test('la letra de la garantía sale de cumplimiento.js y no de esta pantalla', () => {
+    /* Los dos productos arman su letra en el mismo archivo y con la misma forma.
+       Escrita a mano en la pantalla, se queda vieja el día que el precio cambie
+       —y el precio de este producto ya cambió una vez este mes. */
+    assert.match(VIVO, /K\.divulgacionRespaldado\(hoyISO\(\)\)/,
+      'play/ arma la letra del préstamo con garantía por su cuenta');
+    assert.match(VIVO, /function garantiaSePuedeCotizar[\s\S]{0,200}hayQueCotizarGarantia\(\)/,
+      'la calculadora de la garantía cotiza sin comprobar que tiene su letra');
+  });
+
+  test('el motor se carga ANTES que cumplimiento.js, que lo necesita', () => {
+    /* cumplimiento.js toma el motor de la ventana en cuanto se carga, para poder
+       armar la letra del préstamo con garantía. Puesto detrás, la letra saldría
+       vacía y la calculadora se callaría el precio sin que nadie entendiera por
+       qué —un fallo mudo, que son los que este proyecto paga más caros. */
+    const orden = [...PLAY.matchAll(/<script src="\.\.\/app\/([a-z.]+)"/g)].map(m => m[1]);
+    const iM = orden.indexOf('motor.js'), iK = orden.indexOf('cumplimiento.js');
+    assert.ok(iM >= 0, 'play/ dejó de cargar el motor');
+    assert.ok(iK >= 0, 'play/ dejó de cargar cumplimiento.js');
+    assert.ok(iM < iK, 'cumplimiento.js se carga antes que el motor y se queda sin él');
+  });
+
   test('la calculadora arranca en un monto que se puede pedir', () => {
     /* Ese valor inicial es la primera impresión del negocio entero: si abre en
        el tope, lo primero que la persona ve es una cuota enorme y se va. */
@@ -594,6 +660,40 @@ describe('la cuenta del socio: cuatro pestañas que no mienten (14-sep-2026)', (
     assert.equal(P.ev('document.getElementById("chTexto").value'), 'no me borres',
       'cambiar de canal le borró al socio lo que estaba escribiendo');
     assert.equal(P.ev('CANAL'), 'cobranza');
+  });
+
+  test('CUATRO CAUSAS, CUATRO RESPUESTAS: el 401 no es «revisa tu internet»', () => {
+    /* 14-sep-2026 — visto en el navegador, con un token de mentira: el servidor
+       contesta 401 y la pantalla decía «revisa tu internet». El internet estaba
+       perfecto; lo que pasó fue que la sesión se venció, y eso se arregla con un
+       toque, no reiniciando el teléfono.
+
+       La prueba fija las cuatro causas para que nadie las vuelva a juntar. */
+    const P = abrirCuenta();
+    const causa = e => P.ev('causaDe(' + JSON.stringify(e) + ')');
+    assert.equal(causa({ message: 'http 404' }), 'apagado');
+    assert.equal(causa({ message: 'http 401' }), 'sesion');
+    assert.equal(causa({ message: 'http 403' }), 'sesion');
+    assert.equal(causa({ sinSesion: true }), 'sesion');
+    assert.equal(causa({ message: 'Failed to fetch' }), 'falla');
+    assert.equal(causa({}), 'falla');
+    /* Y que un 500 no se lea como sesión vencida: mandaría a la persona a
+       escribir su contraseña por un fallo del servidor. */
+    assert.equal(causa({ message: 'http 500' }), 'falla');
+  });
+
+  test('con la sesión vencida se le ofrece volver a entrar, no reiniciar el teléfono', () => {
+    const P = abrirCuenta(() => Promise.resolve({
+      ok: false, status: 401, json: () => Promise.resolve({}) }));
+    return new Promise(r => setImmediate(r)).then(() => {
+      assert.equal(P.ev('FICHA_ESTADO'), 'sesion');
+      P.ev('irA("credito")');
+      const h = lamina(P);
+      assert.match(h, /sesión se venció/, 'no dice que la sesión se venció');
+      assert.match(h, /salirDeCuenta\(\)/, 'no le ofrece volver a entrar de un toque');
+      assert.ok(!/revisa tu internet/i.test(h),
+        'le echa la culpa al internet por una sesión vencida');
+    });
   });
 
   test('el chat apagado se dice apagado, y no «no tienes mensajes»', () => {
