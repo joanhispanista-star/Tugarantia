@@ -41,9 +41,9 @@ const msg = (id, de, texto, extra) => Object.assign(
 
 describe('el chat: lo que se le muestra a una persona', () => {
 
-  test('QUIÉN ESCRIBIÓ DECIDE DE QUÉ LADO VA, y hay cuatro autores', () => {
+  test('QUIÉN ESCRIBIÓ DECIDE DE QUÉ LADO VA, y hay cinco autores', () => {
     assert.equal(CHAT.ladoDe('socio'), 'socio');
-    ['panel', 'auto', 'agente'].forEach(de =>
+    ['panel', 'auto', 'agente', 'equipo'].forEach(de =>
       assert.equal(CHAT.ladoDe(de), 'negocio', de + ' tiene que ir del lado del negocio'));
     /* Un autor desconocido no revienta ni se cuela del lado del cliente: cae
        del lado del negocio, que es el lado en el que un dato raro hace menos
@@ -62,6 +62,23 @@ describe('el chat: lo que se le muestra a una persona', () => {
        persona — que es exactamente la mentira que la fase 3 no puede
        permitirse. */
     assert.equal(CHAT.esAutomatico({ de: 'auto', regla: null }), true);
+    /* 16-sep-2026 — 'equipo' es el gerente o el asesor contestando desde su
+       celular. Lo escribe una PERSONA, así que no se anuncia como automático:
+       pintarlo punteado como una máquina sería mentir en la otra dirección. */
+    assert.equal(CHAT.esAutomatico({ de: 'equipo' }), false);
+  });
+
+  test('EL MENSAJE DE UN ASESOR NO SE LEE COMO SI LO HUBIERA ESCRITO JOAN', () => {
+    /* Sin la fila 'equipo' en AUTORES, autorDe('equipo') caía al 'panel' y su
+       `quien` es «Tú»: en el Panel, lo que contestó un asesor aparecería como lo
+       que contestó Joan, en el mismo hilo y sin ninguna marca. Del lado del
+       cliente da igual quién de la casa le escribió; del lado de Joan, no —es
+       justo lo que necesita para el control de calidad que pidió. */
+    assert.equal(CHAT.autorDe('equipo').quien, 'Tu equipo');
+    assert.notEqual(CHAT.autorDe('equipo').quien, CHAT.autorDe('panel').quien,
+      'un mensaje del equipo se lee igual que uno de Joan');
+    /* Y el cliente lo sigue viendo del lado del negocio, como cualquier otro. */
+    assert.equal(CHAT.ladoDe('equipo'), CHAT.ladoDe('panel'));
   });
 
   test('EL TEXTO DEL CLIENTE SE PINTA ESCAPADO — la que no se puede borrar', () => {

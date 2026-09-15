@@ -50,7 +50,15 @@
     socio:  { lado: 'socio',   quien: 'El cliente' },
     panel:  { lado: 'negocio', quien: 'Tú' },
     auto:   { lado: 'negocio', quien: 'Respuesta automática' },
-    agente: { lado: 'negocio', quien: 'El asistente' }
+    agente: { lado: 'negocio', quien: 'El asistente' },
+    /* 16-sep-2026 — el gerente y el asesor contestando desde su celular.
+       Sin esta fila, autorDe('equipo') caía al `panel` de arriba y el mensaje de
+       un asesor se leía en el Panel como «Tú»: Joan no podría distinguir lo que
+       contestó él de lo que contestó su equipo, en el mismo hilo y sin ninguna
+       marca. Del lado del cliente da igual quién de la casa le escribió —por eso
+       el lado es 'negocio' como los demás—; del lado de Joan, no.
+       NO entra en esAutomatico, y es deliberado: lo escribe una persona. */
+    equipo: { lado: 'negocio', quien: 'Tu equipo' }
   };
 
   function autorDe(de) { return AUTORES[String(de || '')] || AUTORES.panel; }
