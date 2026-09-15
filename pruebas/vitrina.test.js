@@ -1656,6 +1656,45 @@ describe('LA REJA DEL TECHO NO TIENE FECHA DE APERTURA (15-sep-2026)', () => {
       'la divulgación no usa el techo de referencia');
   });
 
+  test('y el mes ENTERO despues del ultimo techo, no solo el dia 1', () => {
+    /* Lo encontró la auditoría, y era un agujero con la forma exacta del riesgo.
+       La prueba de arriba mide UN día —el primero del mes siguiente— y el día 1
+       es estructuralmente el más barato: ese día la tasa da 27,08%, por debajo
+       del último techo. O sea que comprobaba que la tarjeta sobrevive, y nunca
+       que el precio que sobrevive siga siendo legal.
+
+       Las 1.716 pruebas habrían seguido en verde el día que la app publicara
+       32,81%. Se barre el mes entero. */
+    const C2 = require('../app/creditos.js');
+    const hasta = C2.ultimoTopeCertificado();
+    const ultimo = C2.topeDeReferencia(hasta).tope;
+    const d0 = new Date(hasta + 'T12:00:00');
+    const malos = [];
+
+    for (let i = 1; i <= 31; i++) {
+      const d = new Date(d0.getTime() + i * 86400000);
+      const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+                  '-' + String(d.getDate()).padStart(2, '0');
+      const P = abrirPlay();
+      /* El día se mueve con hoyISO, que es de donde sale la fecha de desembolso
+         Y la que decide si hay techo vigente. Así el banco vive ese día entero. */
+      P.ev('hoyISO = function () { return "' + iso + '"; };');
+      for (const meses of [3, 4, 5, 6]) {
+        P.ev('GCALC.meses = ' + meses + '; GCALC.monto = GCALC_MIN; GCALC.arranque = null;');
+        const h = P.ev('cifrasDeGarantia()');
+        const m = h.match(/Tasa efectiva anual<\/span><span class="v">([^<]*)</);
+        if (!m) continue;                       // no publicó precio: correcto
+        const ea = Number(m[1].replace('%', '').replace(',', '.')) / 100;
+        if (ea > ultimo + 1e-9) {
+          malos.push(iso + ' a ' + meses + 'm: publica ' + (ea * 100).toFixed(2) + '%');
+        }
+      }
+    }
+    assert.deepEqual(malos.slice(0, 6), [],
+      'después de que se venza la tabla, la página publica tasas por encima del ' +
+      'último techo certificado (' + (ultimo * 100).toFixed(2) + '%)');
+  });
+
   test('NADIE vuelve a escribir «sin techo, adelante»', () => {
     /* El patrón exacto que abrió la reja. Si reaparece en cualquier archivo que
        decida si se publica un precio, esta prueba lo dice. */
