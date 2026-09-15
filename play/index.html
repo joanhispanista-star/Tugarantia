@@ -1299,7 +1299,7 @@ function letraDeCalc() {
    Las cifras salen de motor.js (simularPrestamoRespaldado), el mismo que cobra
    en el CRM: 2% mensual SOBRE EL SALDO —no sobre el original—, cuota fija, a 6
    meses como máximo y desde un millón. */
-var GCALC = { monto: M.MONTO_MINIMO_RESPALDADO, meses: M.PLAZO_RESPALDADO_MAX };
+var GCALC = { monto: M.MONTO_MINIMO_RESPALDADO, meses: M.PLAZO_RESPALDADO_MAX, arranque: null };
 var GCALC_MIN = M.MONTO_MINIMO_RESPALDADO;
 /* EL PISO ES EL DE LA PÁGINA, no el del motor. El motor acepta el préstamo con
    garantía desde UN mes y así lo opera Joan en su CRM; esta pantalla lleva
@@ -1321,11 +1321,109 @@ function entradaGarantia() {
 }
 function respaldoDisponible() { return (FICHA && FICHA.maxRespaldado) || 0; }
 
-function cotizacionGarantia() {
+function cotizacionGarantia(saltar) {
   try {
     return M.simularPrestamoRespaldado(GCALC.monto, GCALC.meses, entradaGarantia(),
-                                       { fechaDesembolso: hoyISO() });
+                                       { fechaDesembolso: hoyISO(),
+                                         saltarCortes: saltar == null ? arranqueElegido() : saltar });
   } catch (e) { return null; }
+}
+
+/* ---------------------------------------------------------------------------
+ * CUANDO QUIERE PAGAR — 15-sep-2026, pedido de Joan con estas palabras:
+ * «quiero ver la opcion para yo escoger el numero de cuotas y las fechas de
+ * pago». Las cuotas ya se elegian con el deslizador; las fechas, no.
+ *
+ * No es un calendario libre, y eso es a proposito: las cuotas de este producto
+ * caen en los CORTES de la casa (el 15 y el fin de mes, corridos si hay domingo
+ * o festivo), asi que dejar escribir una fecha cualquiera seria ofrecer un dia
+ * en el que nadie recauda. Lo que se elige es CUAL corte, y la pantalla lo dice
+ * con la fecha de verdad —«el 31 de octubre»—, no con una regla que habria que
+ * explicar.
+ *
+ * Y hay una razon de plata, no de comodidad: correr la primera cuota un corte
+ * BAJA la efectiva anual. Medido sobre septiembre, un millon, los treinta dias
+ * de desembolso: a tres meses, doce de los treinta se pasaban del techo de
+ * usura; corriendo el arranque, CERO, y el peor caso baja de 33,07% a 24,34%.
+ * A seis meses, de seis de treinta a cero. O sea que esta pantalla no solo
+ * ofrece elegir: ofrece la opcion que cabe debajo de la ley.
+ *
+ * Por eso cada opcion se cotiza POR SEPARADO y se le pregunta a
+ * garantiaSePuedeCotizar. La que no pasa no se ofrece, y se dice por que en
+ * palabras —no se esconde, porque una opcion que desaparece sin explicacion es
+ * la pantalla mintiendo por omision.
+ * ------------------------------------------------------------------------- */
+function arranquesPosibles() {
+  var salida = [];
+  try {
+    var ops = M.opcionesDeArranque(hoyISO(), GCALC.meses);
+    for (var i = 0; i < ops.length; i++) {
+      var c = cotizacionGarantia(ops[i].saltar);
+      salida.push({
+        saltar: ops[i].saltar,
+        primera: ops[i].primera,
+        dias: ops[i].dias_a_la_primera,
+        cotizacion: c,
+        sirve: !!(c && c.cumple_minimo && garantiaSePuedeCotizar(c))
+      });
+    }
+  } catch (e) { return []; }
+  return salida;
+}
+
+/* Cual arranque manda. Si el dedo ya eligio uno y ese sirve, ese; si no, el
+   PRIMERO que sirva. Nunca se devuelve uno que no sirva: de este numero cuelga
+   el precio que se publica, y publicar el precio de una opcion ilegal por no
+   tener a mano una legal es justo lo que el articulo 305 castiga. */
+function arranqueElegido() {
+  var ops;
+  try { ops = M.opcionesDeArranque(hoyISO(), GCALC.meses); } catch (e) { return 0; }
+  var legales = [];
+  for (var i = 0; i < ops.length; i++) {
+    var c = null;
+    try {
+      c = M.simularPrestamoRespaldado(GCALC.monto, GCALC.meses, entradaGarantia(),
+        { fechaDesembolso: hoyISO(), saltarCortes: ops[i].saltar });
+    } catch (e) { c = null; }
+    if (c && c.cumple_minimo && garantiaSePuedeCotizar(c)) legales.push(ops[i].saltar);
+  }
+  if (!legales.length) return 0;
+  for (var k = 0; k < legales.length; k++) if (legales[k] === GCALC.arranque) return GCALC.arranque;
+  return legales[0];
+}
+
+function eligeArranque(v) {
+  GCALC.arranque = Number(v);
+  var caja = $('gcalcCifras'); if (caja) caja.innerHTML = cifrasDeGarantia();
+  var f = $('gcalcFechas'); if (f) f.innerHTML = mandoDeFechas();
+}
+
+/* El mando, con la fecha REAL de cada opcion. Si solo hay una que sirva, no se
+   pinta una eleccion de una sola cosa: se dice cuando seria la primera cuota y
+   ya. Un boton solo, marcado, que no se puede cambiar, es un boton que engana
+   sobre lo que hay para elegir. */
+function mandoDeFechas() {
+  var ops = arranquesPosibles();
+  var sirven = ops.filter(function (o) { return o.sirve; });
+  if (!sirven.length) return '';
+  if (sirven.length === 1) {
+    return '<div class="mando"><div class="cab-mando">' +
+      '<span>Tu primera cuota</span><b>' + fmtFecha(sirven[0].primera) + '</b></div>' +
+      '<div class="muted" style="font-size:12.5px">Las siguientes, una cada mes. ' +
+      'Siempre en dia habil: si la fecha cae domingo o festivo, se corre.</div></div>';
+  }
+  var elegido = arranqueElegido();
+  var botones = sirven.map(function (o) {
+    return '<button type="button" class="opFecha' + (o.saltar === elegido ? ' sel' : '') + '" ' +
+      'aria-pressed="' + (o.saltar === elegido) + '" onclick="eligeArranque(' + o.saltar + ')">' +
+      '<b>' + fmtFecha(o.primera) + '</b>' +
+      '<span>en ' + o.dias + ' dias</span></button>';
+  }).join('');
+  return '<div class="mando"><div class="cab-mando">' +
+    '<label style="margin:0">Cuando pagas la primera</label></div>' +
+    '<div class="opFechas">' + botones + '</div>' +
+    '<div class="muted" style="font-size:12.5px">Las siguientes, una cada mes. ' +
+    'Siempre en dia habil: si la fecha cae domingo o festivo, se corre.</div></div>';
 }
 
 /* La efectiva anual del flujo REAL, no de una fórmula aparte: se le da al mismo
@@ -1425,6 +1523,7 @@ function tarjetaCalcGarantia() {
         '<input type="range" id="gcalcMeses" min="' + GCALC_MESES_MIN + '" max="' + GCALC_MESES_MAX + '" ' +
           'step="1" value="' + GCALC.meses + '" aria-label="En cuántos meses" oninput="moverGCalc()">' +
       '</div>' +
+      '<div id="gcalcFechas">' + mandoDeFechas() + '</div>' +
     '</div>';
 }
 
@@ -1573,6 +1672,11 @@ function moverGCalc() {
   var t2 = $('gcalcMesesTxt'); if (t2) t2.textContent = GCALC.meses + (GCALC.meses === 1 ? ' mes' : ' meses');
   var caja = $('gcalcCifras'); if (caja) caja.innerHTML = cifrasDeGarantia();
   var techo = $('gcalcTecho'); if (techo) techo.innerHTML = techoDeGarantia();
+  /* LAS FECHAS TAMBIEN, y no es adorno: mover el plazo cambia el calendario
+     entero, y con el la efectiva anual de cada opcion. Si esto no se repinta,
+     los botones siguen mostrando las fechas del plazo ANTERIOR mientras las
+     cifras de al lado ya son del nuevo — dos planes distintos en una pantalla. */
+  var f = $('gcalcFechas'); if (f) f.innerHTML = mandoDeFechas();
 }
 
 function moverCalc() {

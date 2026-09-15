@@ -449,6 +449,17 @@
   var FACTOR_GARANTIA_RESPALDADO_MORA = 0.10;  // pagó tarde: la mitad
   var CORTES_POR_MES = 2;                      // 15 y último: un mes = dos cortes
 
+  /* CUANTOS CORTES SE PUEDE CORRER EL ARRANQUE — 15-sep-2026, a peticion de
+     Joan: «quiero ver la opcion para yo escoger el numero de cuotas y las
+     fechas de pago». Uno solo, y no es una cifra de adorno: correr un corte
+     mueve la primera cuota unos 15 dias, y con eso la efectiva anual BAJA.
+     Es la misma palanca que arreglaria el hallazgo de usura del producto a 3
+     meses —la primera cuota cae a 20 dias del desembolso, no a 30— solo que
+     aca la mueve el socio, no Joan, y por eso cada opcion se cotiza aparte: la
+     que no cabe debajo del techo no se ofrece. Dos cortes serian mes y medio
+     sin pagar nada, que ya no es elegir cuando pagas sino otro producto. */
+  var CORTES_ARRANQUE_MAX = 1;
+
   /* ---- El reparto de cada peso de costo (contabilidad de Joan) ----
      5-ago-2026: de 90/7/3 a 75/10/15. El 90/7/3 queda derogado.
      75% garantía del socio · 10% operativo · 15% amortiza el cupón regalado.
@@ -2182,12 +2193,43 @@
    *
    * @returns {string[]} tantas fechas ISO como meses de plazo.
    */
-  function calendarioRespaldado(fechaDesembolso, plazoMeses) {
+  function calendarioRespaldado(fechaDesembolso, plazoMeses, saltar) {
     var n = plazoRespaldadoValido(plazoMeses);
-    var todos = cortesSiguientes(fechaDesembolso, n * CORTES_POR_MES);
+    var s = enteroNoNegativo(saltar == null ? 0 : saltar, 'saltar');
+    if (s > CORTES_ARRANQUE_MAX) {
+      throw new Error('calendarioRespaldado: saltar va de 0 a ' + CORTES_ARRANQUE_MAX + ' (' + s + ')');
+    }
+    var todos = cortesSiguientes(fechaDesembolso, n * CORTES_POR_MES + s);
     var fechas = [];
-    for (var i = CORTES_POR_MES - 1; i < todos.length; i += CORTES_POR_MES) fechas.push(todos[i]);
+    for (var i = CORTES_POR_MES - 1 + s; i < todos.length; i += CORTES_POR_MES) fechas.push(todos[i]);
     return fechas;
+  }
+
+  /**
+   * Las fechas que el socio PUEDE elegir para su primera cuota, ya calculadas.
+   *
+   * Existe porque la pantalla no debe saber que un mes tiene dos cortes ni como
+   * se corren por domingo o festivo: pide las opciones, las pinta con su fecha
+   * real y devuelve la que el dedo toco. Cada opcion es un calendario COMPLETO,
+   * no solo la primera fecha, porque lo que cambia el precio es el reparto
+   * entero — y quien pinta el precio necesita el mismo calendario con el que se
+   * calculo, no uno parecido.
+   *
+   * @returns {Array} [{saltar, fechas, primera, dias_a_la_primera}]
+   */
+  function opcionesDeArranque(fechaDesembolso, plazoMeses) {
+    var base = aFechaLocal(fechaDesembolso, 'fechaDesembolso');
+    var salida = [];
+    for (var s = 0; s <= CORTES_ARRANQUE_MAX; s++) {
+      var fechas = calendarioRespaldado(fechaDesembolso, plazoMeses, s);
+      salida.push({
+        saltar: s,
+        fechas: fechas,
+        primera: fechas[0],
+        dias_a_la_primera: diasEntre(base, aFechaLocal(fechas[0], 'fechas[0]'))
+      });
+    }
+    return salida;
   }
 
   /**
@@ -2222,7 +2264,8 @@
        es capital. */
     var rMes = TASA_RESPALDADO_MENSUAL;
     var cuotaFija = Math.round(c * rMes / (1 - Math.pow(1 + rMes, -n)));
-    var fechas = opciones.fechaDesembolso ? calendarioRespaldado(opciones.fechaDesembolso, n) : null;
+    var fechas = opciones.fechaDesembolso
+      ? calendarioRespaldado(opciones.fechaDesembolso, n, opciones.saltarCortes) : null;
 
     var cuotas = [], saldo = c, deja = 0, costoTotal = 0;
     for (var i = 0; i < n; i++) {
@@ -2846,6 +2889,7 @@
     cupoQuincenal: cupoQuincenal,
     acumularGarantiaRespaldada: acumularGarantiaRespaldada,
     calendarioRespaldado: calendarioRespaldado,
+    opcionesDeArranque: opcionesDeArranque,
     simularPrestamoRespaldado: simularPrestamoRespaldado,
     liquidarCuotaRespaldada: liquidarCuotaRespaldada,
     repartirCosto: repartirCosto,
