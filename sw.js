@@ -210,7 +210,10 @@
    del CRM: el gerente y el asesor abren la ficha completa de alguien de SU base
    —con aviso si el nombre no cuadra— y agendan lo que quedaron de hacer.
    Toca panel/crm.html. */
-const CACHE = 'tugarantia-v43';
+/* v44 - 15-sep-2026. Los indicadores por asesor: el gerente ve la cartera de
+   cobranza de cada uno, cuanta gente lleva sin tocar y como va trabajando, y
+   cada cifra se abre en la lista de ESA gente. Toca panel/crm.html. */
+const CACHE = 'tugarantia-v44';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

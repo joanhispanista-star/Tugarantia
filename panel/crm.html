@@ -275,6 +275,37 @@
   .gano{color:var(--amarillo-tinta);font-family:'JetBrains Mono';font-weight:700}
 
 
+
+  /* ---------------- los indicadores por asesor — 15-sep-2026 ----------------
+     Cada cifra es un BOTÓN cuando lleva a alguna parte, y un span cuando no.
+     Los dos se ven igual salvo el cursor y el borde al pasar por encima: un
+     número que parece tocable y no hace nada enseña a no tocar ninguno.
+     El color dice qué hay que mirar —rojo no, que en esta casa el rojo es la
+     marca y el gesto de avanzar. Ámbar para lo que se va a perder, verde para
+     lo que va bien, y neutro para lo que solo informa. */
+  .cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
+    gap:8px;padding:14px 16px}
+  .cifraEq{display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+    padding:10px 12px;border:1px solid var(--linea);border-radius:12px;
+    background:var(--papel);text-align:left;font:inherit;color:inherit}
+  button.cifraEq{cursor:pointer}
+  button.cifraEq:hover{border-color:var(--laca)}
+  button.cifraEq:focus-visible{outline:2px solid var(--ambar);outline-offset:1px}
+  .cifraEq b{font-size:22px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+  .cifraEq span{font-size:11.5px;color:var(--gris);line-height:1.3}
+  /* SOLO EL ÁMBAR TIENE COLOR, y no es una economía de diseño: en esta casa el
+     rojo es la marca y el gesto de avanzar —un estado en rojo se leería como
+     algo en lo que hay que hacer clic— y el verde no existe en el Panel. Así
+     que lo que necesita atención se tiñe y lo demás no. Un tablero donde todo
+     tiene color es un tablero donde nada resalta.
+     «mal» es lo que ya se está perdiendo: cifra y borde. «ojo» es lo que se va
+     a perder si nadie hace nada: solo la cifra. Lo que va bien no lleva nada.
+     «bien» existe como clase para no tener que tocar el HTML el día que se
+     quiera distinguir, y hoy a propósito no pinta. */
+  .cifraEq.mal b{color:var(--ambar)}
+  .cifraEq.mal{border-color:color-mix(in srgb, var(--ambar) 45%, transparent)}
+  .cifraEq.ojo b{color:var(--ambar)}
+
   /* ---------------- la agenda del equipo — 15-sep-2026 ----------------
      La semana de un vistazo: la única parte que se parece a un calendario, y
      con eso basta en un celular. Un mes de treinta cuadritos con un punto
@@ -5792,58 +5823,262 @@ function vistaTableroEquipo() {
 
 /* Los dos guiones no se mezclan: al POTENCIAL se le vende, al CLIENTE se le
    cobra. Un asesor que los ve revueltos llama al que debe con el guion del que
-   no ha pedido nada. */
+   no ha pedido nada.
+
+   15-sep-2026: además de los dos guiones, la base entiende los filtros que abren
+   los indicadores del gerente. Un número que no se puede tocar es un número que
+   nadie usa: «21 sin tocar» tiene que llevar a esos 21. */
 let _grupoBaseEq = 'todos';
+let _asesorBaseEq = '';     // vacío = todos los míos
 function irGrupoBase(g) { _grupoBaseEq = g; irEquipo('base'); }
+function irAsesorBase(c) { _asesorBaseEq = c; irEquipo('base'); }
+
+/* Cada filtro, con su nombre y su regla. Escrito una vez: la etiqueta que se ve
+   arriba y el criterio que recorta la lista salen de la misma línea, así que no
+   pueden decir cosas distintas. */
+const FILTROS_BASE = {
+  todos:       { et: 'Todos',                 f: () => true },
+  clientes:    { et: '🧑‍🤝‍🧑 Cobrar',            f: p => p.tipo === 'cliente' },
+  potenciales: { et: '📇 Vender',              f: p => p.tipo !== 'cliente' },
+  sintocar:    { et: 'Sin tocar nunca',       f: p => !p.gestion },
+  frios:       { et: 'Fríos',                 f: p => p.gestion && haceDias(p.gestion.cuando) > DIAS_FRIO },
+  mora:        { et: 'En mora',               f: p => grupoEtapa(p.etapa) === 'mora' },
+  hoy:         { et: 'Pagan hoy',             f: p => grupoEtapa(p.etapa) === 'hoy' },
+  aldia:       { et: 'Al día',                f: p => grupoEtapa(p.etapa) === 'aldia' },
+  promesa:     { et: 'Prometieron pagar',     f: p => p.gestion && p.gestion.tipo === 'promesa' },
+  nocontesta:  { et: 'No contestan',          f: p => p.gestion &&
+                   (p.gestion.tipo === 'no_contesta' || p.gestion.tipo === 'numero_malo') },
+  vaapedir:    { et: 'Van a pedir',           f: p => p.gestion && p.gestion.tipo === 'va_a_pedir' }
+};
+
+function grupoEtapa(e) {
+  const G = gruposDeCartera();
+  return Object.keys(G).find(k => G[k].indexOf(e) >= 0) || 'venta';
+}
 
 function vistaBaseEquipo() {
   const o = (ETAPAS && ETAPAS.ORDEN) || [];
-  const todos = genteEquipo();
-  const cli = todos.filter(p => p.tipo === 'cliente').length;
-  const pot = todos.length - cli;
-  const g = todos
-    .filter(p => _grupoBaseEq === 'todos' ||
-      (_grupoBaseEq === 'clientes' ? p.tipo === 'cliente' : p.tipo !== 'cliente'))
+  const eq = (CARTERA_EQUIPO.equipo || []);
+  const deQuien = _asesorBaseEq
+    ? genteEquipo().filter(p => p.asesor === _asesorBaseEq)
+    : genteEquipo();
+  const cli = deQuien.filter(p => p.tipo === 'cliente').length;
+  const pot = deQuien.length - cli;
+  const filtro = FILTROS_BASE[_grupoBaseEq] || FILTROS_BASE.todos;
+  const g = deQuien.filter(filtro.f)
     .sort((a, b) => o.indexOf(b.etapa) - o.indexOf(a.etapa));
+
+  const quien = _asesorBaseEq
+    ? (eq.find(a => a.celular === _asesorBaseEq) || {}).nombre || _asesorBaseEq : '';
   const bot = (k, txt) => `<button class="btn ${_grupoBaseEq === k ? 'btn-negro' : 'btn-ghost'} btn-sm"
     onclick="irGrupoBase('${k}')">${txt}</button>`;
-  return `<div class="ph"><div><h1>Mi base<span class="dot">.</span></h1>
-      <div class="sub">${g.length} personas, de la más urgente a la más tranquila</div></div></div>
-    ${todos.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-      ${bot('todos', 'Todos (' + todos.length + ')')}
+  /* Si el gerente llegó desde un indicador, el filtro que trae se muestra como
+     un botón más —marcado— aunque no sea de los tres de siempre. Sin esto, la
+     lista saldría recortada y la pantalla no diría por qué. */
+  const extra = ['todos', 'clientes', 'potenciales'].indexOf(_grupoBaseEq) < 0
+    ? bot(_grupoBaseEq, escHTML(filtro.et) + ' (' + g.length + ')') : '';
+
+  return `<div class="ph"><div><h1>${_asesorBaseEq ? 'Base de ' + escHTML(quien) : 'Mi base'}<span class="dot">.</span></h1>
+      <div class="sub">${g.length} personas, de la más urgente a la más tranquila</div></div>
+      ${_asesorBaseEq ? `<button class="btn btn-ghost btn-sm" onclick="irAsesorBase('')">
+        ✕ Ver a todo el equipo</button>` : ''}</div>
+    ${deQuien.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      ${bot('todos', 'Todos (' + deQuien.length + ')')}
       ${bot('clientes', '🧑‍🤝‍🧑 Cobrar (' + cli + ')')}
-      ${bot('potenciales', '📇 Vender (' + pot + ')')}</div>` : ''}
+      ${bot('potenciales', '📇 Vender (' + pot + ')')}
+      ${extra}</div>` : ''}
     <div class="card">${g.length ? g.map(filaPersonaEq).join('')
-      : `<div class="muted" style="padding:14px">${todos.length
+      : `<div class="muted" style="padding:14px">${deQuien.length
           ? 'Nadie de ese grupo.' : 'Todavía no te han asignado a nadie.'}</div>`}</div>`;
+}
+
+/* --------------------------------------------------------------------------
+ * LOS INDICADORES POR ASESOR — 15-sep-2026
+ *
+ * Joan: «ver indicadores básicos por asesor (por ejemplo si se registra una
+ * venta), ver las carteras de cobranza y el desempeño de cada asesor».
+ *
+ * TODO SALE DE LO QUE EL GERENTE YA TIENE EN PANTALLA: mi_cartera() y
+ * agenda_mia(). Ni una consulta nueva, ni una migración más que pegar. Eso no es
+ * pereza: un panel que necesita su propia función en la nube se queda mudo el
+ * día que esa función falle, y lo que tiene que hacer un panel de gestión es
+ * estar.
+ *
+ * LO QUE NO SE PUEDE CONTAR, NO SE CUENTA. Tres decisiones que se notan:
+ *
+ *   · «VENTA» NO ES UNA VENTA. Lo que el asesor anota es «va a pedir crédito»,
+ *     que es una intención, no un desembolso. El desembolso lo hace Joan en su
+ *     computador y no viaja a la cartera del equipo. Así que la cifra se llama
+ *     «dijeron que van a pedir» y no «ventas»: la casa no deja que la pantalla
+ *     prometa lo que el dato no dice. Lo que SÍ es un hecho es cuántos de los
+ *     suyos ya son clientes, y esa va al lado.
+ *
+ *   · «TOCADOS ESTA SEMANA» SE CUENTA POR PERSONA, NO POR LLAMADA. mi_cartera
+ *     trae la ÚLTIMA gestión de cada quien, así que lo que se puede contar de
+ *     verdad es a cuánta gente alcanzó. Y es la mejor cifra para dirigir: un
+ *     asesor que llama cinco veces al mismo y no toca a los otros ciento
+ *     noventa se ve acá, y en un contador de llamadas se vería trabajador.
+ *
+ *   · LA CARTERA SE AGRUPA POR EL COLOR QUE YA TIENE CADA ETAPA en
+ *     app/etapas.js, no por una lista escrita acá. El día que una etapa cambie
+ *     de color, estos grupos cambian solos.
+ * ------------------------------------------------------------------------ */
+
+/* Cuántos días sin una gestión hacen que alguien esté «frío». Una semana es el
+   ciclo de este negocio: quien no se tocó en siete días no se tocó. */
+const DIAS_FRIO = 7;
+
+/* Los cuatro grupos de la cartera, leídos del color de cada etapa. */
+function gruposDeCartera() {
+  const E = (ETAPAS && ETAPAS.ETAPAS) || {};
+  const g = { venta: [], aldia: [], hoy: [], mora: [] };
+  Object.keys(E).forEach(k => {
+    const c = E[k].color;
+    if (c === 'rojo') g.mora.push(k);
+    else if (c === 'ambar') g.hoy.push(k);
+    else if (c === 'verde') g.aldia.push(k);
+    else g.venta.push(k);          // gris y azul: todavía no hay crédito
+  });
+  return g;
+}
+
+function haceDias(iso) {
+  const t = Date.parse(iso);
+  if (!isFinite(t)) return Infinity;
+  return (Date.now() - t) / 86400000;
+}
+
+/* Los números de un asesor. `suyos` es su gente y `citas` su agenda; si la
+   agenda no se pudo traer, `citas` llega null y la tarjeta lo dice en vez de
+   pintar ceros —un cero y un «no pude preguntar» no son lo mismo, y confundirlos
+   haría que el gerente le reclamara a un asesor por una agenda vacía que sí
+   tiene cosas. */
+function indicadoresDe(suyos, citas) {
+  const G = gruposDeCartera();
+  const hoy = hoyISOCrm();
+  const enGrupo = k => suyos.filter(p => G[k].indexOf(p.etapa) >= 0).length;
+
+  const conGestion = suyos.filter(p => p.gestion);
+  const tocadosSemana = conGestion.filter(p => haceDias(p.gestion.cuando) <= DIAS_FRIO).length;
+  const frios = conGestion.filter(p => haceDias(p.gestion.cuando) > DIAS_FRIO).length;
+
+  const porTipo = t => suyos.filter(p => p.gestion && p.gestion.tipo === t).length;
+
+  return {
+    total: suyos.length,
+    clientes: suyos.filter(p => p.tipo === 'cliente').length,
+    potenciales: suyos.filter(p => p.tipo !== 'cliente').length,
+    registrados: suyos.filter(p => p.etapa !== 'PC').length,
+
+    venta: enGrupo('venta'), aldia: enGrupo('aldia'),
+    hoy: enGrupo('hoy'), mora: enGrupo('mora'),
+
+    tocadosSemana: tocadosSemana,
+    sinTocar: suyos.length - conGestion.length,
+    frios: frios,
+    ultima: conGestion.sort((a, b) =>
+      String(b.gestion.cuando).localeCompare(String(a.gestion.cuando)))[0] || null,
+
+    vaAPedir: porTipo('va_a_pedir'),
+    promesas: porTipo('promesa'),
+    noContesta: porTipo('no_contesta') + porTipo('numero_malo'),
+
+    /* null = no se pudo preguntar. Distinto de cero. */
+    citasPend: citas ? citas.filter(c => !c.hecho && String(c.cuando) >= hoy).length : null,
+    citasVencidas: citas ? citas.filter(c => !c.hecho && String(c.cuando) < hoy).length : null,
+    citasHechas: citas ? citas.filter(c => c.hecho).length : null
+  };
+}
+
+/* Un número que se puede tocar: lleva al gerente a ESA gente, no a un total.
+   Un indicador que no se puede abrir es un número que nadie usa. */
+function cifraEq(n, et, filtro, asesor, clase) {
+  const tocable = n > 0 && filtro;
+  return `<${tocable ? 'button' : 'span'} class="cifraEq${clase ? ' ' + clase : ''}"
+    ${tocable ? `onclick="verBaseDe('${escHTML(asesor)}','${filtro}')"` : ''}>
+    <b>${n === null ? '—' : n}</b><span>${escHTML(et)}</span></${tocable ? 'button' : 'span'}>`;
 }
 
 function vistaMiEquipo() {
   const g = genteEquipo(), eq = (CARTERA_EQUIPO.equipo || []);
-  const urg = (ETAPAS && ETAPAS.URGENTES) || [];
-  const libres = g.filter(p => !p.asesor || p.asesor === (CARTERA_EQUIPO.yo || {}).celular).length;
+  const yo = CARTERA_EQUIPO.yo || {};
+  const libres = g.filter(p => !p.asesor || p.asesor === yo.celular).length;
+  const hayAgenda = AGENDA_ESTADO === 'listo';
+  const citasDe = cel => hayAgenda ? (AGENDA_EQ || []).filter(c => c.para === cel) : null;
+
+  /* El equipo entero primero: es la pregunta que el gerente se hace al abrir. */
+  const todo = indicadoresDe(g, hayAgenda ? (AGENDA_EQ || []) : null);
+
   return `<div class="ph"><div><h1>Mi equipo<span class="dot">.</span></h1>
       <div class="sub">Cómo va cada asesor con la base que le tocó</div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${libres ? `<button class="btn btn-ghost" onclick="repartirEq()">🔀 Repartir (${libres} sin asesor)</button>` : ''}
         <button class="btn btn-rojo" onclick="crearAsesorEq()">＋ Crear asesor</button></div></div>
-    <div class="card">${eq.length ? eq.map(a => {
+
+    <div class="card"><div class="card-h"><h3>El equipo hoy</h3>
+      <span class="tag">${eq.length} ${eq.length === 1 ? 'asesor' : 'asesores'} · ${todo.total} personas</span></div>
+      <div class="cifras">
+        ${cifraEq(todo.mora, 'en mora', 'mora', '', 'mal')}
+        ${cifraEq(todo.hoy, 'pagan hoy', 'hoy', '', 'ojo')}
+        ${cifraEq(todo.sinTocar, 'sin tocar', 'sintocar', '', 'mal')}
+        ${cifraEq(todo.frios, 'fríos +' + DIAS_FRIO + 'd', 'frios', '', 'ojo')}
+        ${cifraEq(todo.tocadosSemana, 'tocados esta semana', '', '', 'bien')}
+      </div></div>
+
+    ${eq.length ? eq.map(a => {
       const suyos = g.filter(p => p.asesor === a.celular);
-      const u = suyos.filter(p => urg.indexOf(p.etapa) >= 0).length;
-      const reg = suyos.filter(p => p.etapa !== 'PC').length;
-      /* Lo que Joan pidió ver: cuántos de los suyos tienen gestión y cuántos
-         siguen sin tocar. Un asesor con 200 asignados y 3 gestionados se ve en
-         esta línea, no en el total de la cartera. */
-      const tocados = suyos.filter(p => p.gestion).length;
-      const ult = suyos.filter(p => p.gestion)
-        .sort((x, y) => String(y.gestion.cuando).localeCompare(String(x.gestion.cuando)))[0];
-      return `<div class="info-row"><span class="k"><b>${escHTML(a.nombre)}</b>
-          <div class="muted">${suyos.length} asignados · ${reg} ya se registraron</div>
-          <div class="muted">✎ ${tocados} gestionados · <b>${suyos.length - tocados}</b> sin tocar${
-            ult ? ' · última ' + escHTML(haceCuanto(ult.gestion.cuando)) : ''}</div></span>
-        <span class="vv">${u ? `<span class="chip mora">${u} urgentes</span>` : '<span class="chip al-dia">al día</span>'}</span></div>`;
-    }).join('') : `<div class="empty"><div class="ic">🚶</div><p>Todavía no tienes asesores.<br>
-        <span class="muted">Toca «＋ Crear asesor» y créale la cuenta tú mismo.</span></p></div>`}</div>`;
+      const i = indicadoresDe(suyos, citasDe(a.celular));
+      /* El semáforo del asesor: una sola palabra arriba a la derecha. Lo que
+         manda es la mora, después lo que vence hoy, después lo sin tocar. */
+      const chip = i.mora ? `<span class="chip mora">${i.mora} en mora</span>`
+        : i.hoy ? `<span class="chip hoy">${i.hoy} pagan hoy</span>`
+        : i.sinTocar ? `<span class="chip prorroga">${i.sinTocar} sin tocar</span>`
+        : '<span class="chip al-dia">al día</span>';
+      return `<div class="card"><div class="card-h"><h3>🚶 ${escHTML(a.nombre)}</h3>${chip}</div>
+        <div class="cifras">
+          ${cifraEq(i.total, 'su base', 'todos', a.celular)}
+          ${cifraEq(i.clientes, 'ya son clientes', 'clientes', a.celular, 'bien')}
+          ${cifraEq(i.potenciales, 'por vender', 'potenciales', a.celular)}
+        </div>
+        <div class="sub-h">Su cartera de cobranza</div>
+        <div class="cifras">
+          ${cifraEq(i.aldia, 'al día', 'aldia', a.celular, 'bien')}
+          ${cifraEq(i.hoy, 'pagan hoy', 'hoy', a.celular, 'ojo')}
+          ${cifraEq(i.mora, 'en mora', 'mora', a.celular, 'mal')}
+          ${cifraEq(i.promesas, 'prometieron pagar', 'promesa', a.celular)}
+        </div>
+        <div class="sub-h">Cómo va trabajando</div>
+        <div class="cifras">
+          ${cifraEq(i.tocadosSemana, 'tocados esta semana', '', a.celular, 'bien')}
+          ${cifraEq(i.sinTocar, 'sin tocar nunca', 'sintocar', a.celular, 'mal')}
+          ${cifraEq(i.frios, 'fríos +' + DIAS_FRIO + 'd', 'frios', a.celular, 'ojo')}
+          ${cifraEq(i.noContesta, 'no contestan', 'nocontesta', a.celular)}
+        </div>
+        <div class="sub-h">Venta y agenda</div>
+        <div class="cifras">
+          ${cifraEq(i.vaAPedir, 'dijeron que van a pedir', 'vaapedir', a.celular, 'bien')}
+          ${cifraEq(i.citasPend, 'citas pendientes', '', a.celular)}
+          ${cifraEq(i.citasVencidas, 'citas vencidas', '', a.celular, 'mal')}
+          ${cifraEq(i.citasHechas, 'citas cumplidas', '', a.celular, 'bien')}
+        </div>
+        ${!hayAgenda ? `<div class="muted" style="padding:0 16px 12px;font-size:12px">
+          Las citas salen con «—» porque no pude traer la agenda. <b>No</b> quiere decir
+          que no tenga.</div>` : ''}
+        <div class="muted" style="padding:0 16px 14px;font-size:12px;line-height:1.5">
+          ${i.ultima ? 'Su última gestión fue <b>' + escHTML(haceCuanto(i.ultima.gestion.cuando)) +
+            '</b>.' : 'Todavía no ha anotado ninguna gestión.'}
+          «Tocados» cuenta <b>personas</b>, no llamadas: alguien al que llamó tres veces cuenta una.
+          Y «dijeron que van a pedir» es lo que ellos dijeron, no un crédito entregado.
+        </div></div>`;
+    }).join('') : `<div class="card"><div class="empty"><div class="ic">🚶</div><p>Todavía no tienes asesores.<br>
+        <span class="muted">Toca «＋ Crear asesor» y créale la cuenta tú mismo.</span></p></div></div>`}`;
+}
+
+/* Abrir un número: lleva a la base filtrada por ese asesor y ese grupo. */
+function verBaseDe(asesor, filtro) {
+  _asesorBaseEq = asesor || '';
+  _grupoBaseEq = filtro || 'todos';
+  irEquipo('base');
 }
 
 /* --------------------------------------------------------------------------
