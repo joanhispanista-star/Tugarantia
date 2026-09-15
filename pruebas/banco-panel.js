@@ -52,8 +52,16 @@ function abrirPanel(opciones) {
     history: { replaceState() {} },
     navigator: { userAgent: 'node', clipboard: { writeText: () => Promise.resolve() } },
     /* Sin red a propósito: el Panel TIENE que andar sin nube, y una prueba que
-       dependiera de internet no sería una prueba. */
-    fetch: () => Promise.reject(new Error('sin red en el banco de pruebas')),
+       dependiera de internet no sería una prueba.
+
+       Con `o.red` se le puede dar una nube de mentiras a la que preguntarle.
+       Hace falta para las pantallas del equipo, donde lo que importa no es que
+       el Panel ande sin nube sino QUÉ DICE cuando el servidor contesta 404 —que
+       es lo que contesta mientras una migración no esté corrida— frente a
+       cuando contesta que no. Confundir las dos manda al asesor a revisar su
+       señal por un problema que está en el servidor. */
+    fetch: (url, cfg) => (o.red ? o.red(String(url), cfg)
+      : Promise.reject(new Error('sin red en el banco de pruebas'))),
     setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0,
     TextEncoder, TextDecoder, URL, Intl, Date, Math, JSON,
     btoa: s => Buffer.from(s, 'binary').toString('base64'),

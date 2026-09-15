@@ -206,7 +206,11 @@
    install. v41 alcanzo a instalarse en algun telefono con los archivos VIEJOS
    dentro, y ahi se habrian quedado hasta la proxima publicacion. Este numero
    fuerza una instalacion limpia, ya con el precache yendo a la red. */
-const CACHE = 'tugarantia-v42';
+/* v43 - 15-sep-2026. La ficha del registrado y el calendario del equipo dentro
+   del CRM: el gerente y el asesor abren la ficha completa de alguien de SU base
+   —con aviso si el nombre no cuadra— y agendan lo que quedaron de hacer.
+   Toca panel/crm.html. */
+const CACHE = 'tugarantia-v43';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -274,6 +274,27 @@
   .num{font-family:'JetBrains Mono';font-weight:700;font-variant-numeric:tabular-nums}.muted{color:var(--gris);font-size:12.5px}
   .gano{color:var(--amarillo-tinta);font-family:'JetBrains Mono';font-weight:700}
 
+
+  /* ---------------- la agenda del equipo — 15-sep-2026 ----------------
+     La semana de un vistazo: la única parte que se parece a un calendario, y
+     con eso basta en un celular. Un mes de treinta cuadritos con un punto
+     adentro no dice qué hay que hacer hoy. */
+  .semana{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:14px}
+  .diaSem{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px;
+    border:1px solid var(--linea);border-radius:10px;background:var(--papel)}
+  .diaSem .dl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--gris);font-weight:700}
+  .diaSem .dn{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+  .diaSem .dc{font-size:11px;font-weight:700;color:var(--gris);min-height:14px}
+  .diaSem.hay{border-color:var(--ambar)}
+  .diaSem.hay .dc{color:var(--ambar)}
+  .diaSem.hoy{background:var(--laca);border-color:var(--laca)}
+  .diaSem.hoy .dl,.diaSem.hoy .dn{color:var(--blanco-laca)}
+  .diaSem.hoy .dc{color:var(--amarillo)}
+  /* Lo hecho no se esconde: se apaga. Esconderlo haría que el asesor no
+     supiera si lo marcó o si nunca lo agendó. */
+  .info-row.hecha{opacity:.45}
+  .info-row.hecha .k b{text-decoration:line-through}
+
   /* Los estados van del neutro tibio al ámbar fuerte. Ninguno en rojo: en este sistema
      el rojo es la marca y el botón que avanza, así que un estado en rojo se leería
      como algo en lo que hay que hacer clic. */
@@ -4874,7 +4895,12 @@ function rpcEquipo(fn, cuerpo) {
     headers: { 'Content-Type': 'application/json', apikey: NUBE_EQUIPO.anon,
                Authorization: 'Bearer ' + token },
     body: JSON.stringify(cuerpo || {})
-  }).then(r => r.json().then(j => ({ ok: r.ok, j }))));
+  /* El codigo HTTP viaja con la respuesta desde el 15-sep-2026: sin el, la
+     pantalla no puede distinguir «esa funcion todavia no existe en la nube»
+     (404, una migracion sin correr) de «la nube contesto que no». Decir lo
+     segundo cuando pasa lo primero manda al asesor a revisar su senal por un
+     problema que esta en el servidor. */
+  }).then(r => r.json().catch(() => null).then(j => ({ ok: r.ok, status: r.status, j }))));
 }
 
 /* ¿Esto es un fin de sesión? Vale tanto para el token que ya no se pudo
@@ -5146,6 +5172,7 @@ function modoEquipo() {
       <nav class="nav">
         <button class="navbtn on" onclick="irEquipo('tablero')"><span class="ic">📊</span> Hoy</button>
         <button class="navbtn" onclick="irEquipo('base')"><span class="ic">📋</span> Mi base</button>
+        <button class="navbtn" onclick="irEquipo('agenda')"><span class="ic">📅</span> Agenda</button>
         ${yo.rol === 'gerente' ? '<button class="navbtn" onclick="irEquipo(\'equipo\')"><span class="ic">🚶</span> Mi equipo</button>' : ''}
       </nav>
       <div class="sep"></div>
@@ -5154,17 +5181,23 @@ function modoEquipo() {
       <button class="navbtn" onclick="miWhatsappEq()"><span class="ic">📲</span> Mi WhatsApp</button>
       <button class="navbtn" style="margin-top:auto" onclick="location.reload()"><span class="ic">🚪</span> Salir</button>`;
   }
+  /* La agenda se pide al entrar y no al abrir su pestaña: lo de hoy se cuenta
+     en la pantalla de «Hoy», que es la primera que se ve. */
+  traerAgendaEq();
   irEquipo('tablero');
 }
 
 function irEquipo(v) {
   VISTA_EQUIPO = v;
   document.querySelectorAll('.side .navbtn').forEach((b, i) => b.classList.toggle('on',
-    b.textContent.trim().indexOf({ tablero: 'Hoy', base: 'Mi base', equipo: 'Mi equipo' }[v]) >= 0));
+    b.textContent.trim().indexOf({ tablero: 'Hoy', base: 'Mi base', agenda: 'Agenda',
+                                   equipo: 'Mi equipo' }[v]) >= 0));
   const main = document.querySelector('.main') || document.querySelector('.app > :last-child');
   if (!main) return;
   main.innerHTML = '<div class="wrapEq" style="padding:20px;max-width:760px;margin:0 auto">' +
-    (v === 'base' ? vistaBaseEquipo() : v === 'equipo' ? vistaMiEquipo() : vistaTableroEquipo()) + '</div>';
+    (v === 'base' ? vistaBaseEquipo() :
+     v === 'agenda' ? vistaAgendaEq() :
+     v === 'equipo' ? vistaMiEquipo() : vistaTableroEquipo()) + '</div>';
   window.scrollTo(0, 0);
 }
 
@@ -5194,7 +5227,11 @@ function filaPersonaEq(p) {
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
         onclick="anotarGestionEq('${escHTML(String(p.id))}')" title="Anotar qué pasó">✎</button>
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
-        onclick="verHistoriaEq('${escHTML(String(p.id))}')" title="Ver la historia">🕘</button></span></div>`;
+        onclick="verHistoriaEq('${escHTML(String(p.id))}')" title="Ver la historia">🕘</button>
+      <button class="btn btn-ghost btn-sm" style="margin-left:6px"
+        onclick="verFichaEq('${escHTML(String(p.id))}')" title="Ver su ficha y sus fotos">🪪</button>
+      <button class="btn btn-ghost btn-sm" style="margin-left:6px"
+        onclick="nuevaCitaEq('${escHTML(String(p.id))}')" title="Agendar algo con esta persona">📅</button></span></div>`;
 }
 
 /* --------------------------------------------------------------------------
@@ -5338,6 +5375,394 @@ function refrescarCarteraEq() {
    de tiempo las gestiones y los contactos. Separadas engañaban — «tres veces le
    escribí y ninguna anotación» solo se ve cuando están juntas. */
 
+/* --------------------------------------------------------------------------
+ * LA FICHA DEL REGISTRADO — 15-sep-2026
+ *
+ * Joan: «cuando un cliente de su base se registre, que el gerente y el asesor
+ * puedan ver la información completa del titular y las fotos, para verificar la
+ * identidad y que esté completa. Si el titular se registra con otro número y
+ * otro nombre entonces no se puede ver la información, únicamente los clientes
+ * potenciales asignados».
+ *
+ * LA REJA NO ESTÁ ACÁ. Está en ficha_de_mi_base, en el servidor: esta pantalla
+ * manda un id de persona y recibe lo que le corresponda. No hay forma de pedir
+ * un celular suelto, ni de pedir el de otro asesor — la pregunta no tiene dónde
+ * escribirlo.
+ *
+ * MISMO NÚMERO Y OTRO NOMBRE: SE MUESTRA, CON AVISO (decisión de Joan del
+ * 15-sep). El aviso va ARRIBA y antes de la primera foto, no al pie: una
+ * advertencia debajo de lo que advierte llega tarde.
+ * ------------------------------------------------------------------------ */
+function verFichaEq(id) {
+  const p = genteEquipo().find(x => String(x.id) === String(id));
+  openModal('Ficha de ' + ((p && p.nombre) || 'esta persona'),
+    '<div class="muted" style="padding:10px 0">Buscando su registro…</div>');
+  rpcEquipo('ficha_de_mi_base', { p_persona_id: String(id) })
+    .then(res => {
+      const caja = document.getElementById('mBody'); if (!caja) return;
+      if (!res.ok || !res.j) {
+        if (esFinDeSesion(null, res)) {
+          caja.innerHTML = '<div class="alerta warn">Tu sesión se venció. Toca «Salir» y vuelve a entrar.</div>';
+          return;
+        }
+        /* 404 = la migración del 15-sep no está corrida. No es lo mismo que
+           «esta persona no se ha registrado», y decir lo segundo haría que el
+           asesor dejara de buscar algo que sí está. */
+        caja.innerHTML = (res.status === 404)
+          ? '<div class="alerta warn"><b>Esta parte todavía no está encendida.</b><div class="muted">Falta correr una migración en la nube. No es tu señal.</div></div>'
+          : '<div class="alerta warn">No pude traer su ficha.<div class="muted">Eso <b>no</b> quiere decir que no se haya registrado: quiere decir que no pude preguntar.</div></div>';
+        return;
+      }
+      const j = res.j;
+      if (j.ok !== true) {
+        caja.innerHTML = '<div class="alerta warn">Esta persona no es de tu base.</div>';
+        return;
+      }
+      if (j.registrado !== true) {
+        caja.innerHTML = `<div class="alerta"><b>Todavía no se ha registrado.</b>
+            <div class="muted">Con este número —${escHTML(j.celular || '')}— no hay ningún
+            registro en la app. Si te dice que ya se registró, pudo haberlo hecho con
+            <b>otro número</b>: pídeselo y avísale a tu jefe para cruzarlo.</div></div>
+          <div class="muted" style="font-size:12px;margin-top:12px;line-height:1.5">
+            La ficha se abre cruzando el celular que tienes en tu base con el que usó
+            para registrarse. Si no coinciden, no hay nada que mostrar.</div>`;
+        return;
+      }
+      caja.innerHTML = fichaHTML(j);
+    })
+    .catch(() => {
+      const caja = document.getElementById('mBody'); if (!caja) return;
+      caja.innerHTML = '<div class="alerta warn">No pude conectarme. Revisa la señal y vuelve a intentar.</div>';
+    });
+}
+
+function fichaHTML(j) {
+  const d = j.datos || {};
+  const f = j.fotos || {};
+  const h = j.huella || {};
+  /* Los campos que el registro trae, con el nombre con el que el cliente los
+     vio. Si mañana el formulario crece, lo que no esté en esta lista se pinta
+     igual al final: una ficha «completa» a la que le falta la mitad es peor que
+     ninguna, porque nadie sabe que le falta. */
+  const CONOCIDOS = {
+    nombres: 'Nombres', apellidos: 'Apellidos', cedula: 'Cédula',
+    nacimiento: 'Fecha de nacimiento', sexo: 'Sexo',
+    direccion: 'Dirección', barrio: 'Barrio', ciudad: 'Ciudad',
+    ocupacion: 'Ocupación', empresa: 'Dónde trabaja', antiguedad: 'Hace cuánto',
+    ingresos: 'Ingresos', dia_pago: 'Día de pago',
+    correo: 'Correo', referencia1: 'Referencia 1', referencia2: 'Referencia 2'
+  };
+  const usados = {};
+  const filas = Object.keys(CONOCIDOS)
+    .filter(k => { usados[k] = true; return d[k] !== undefined && d[k] !== null && String(d[k]) !== ''; })
+    .map(k => filaInfo(CONOCIDOS[k], String(d[k])));
+  const extras = Object.keys(d)
+    .filter(k => !usados[k] && d[k] !== null && typeof d[k] !== 'object' && String(d[k]) !== '')
+    .map(k => filaInfo(k, String(d[k])));
+
+  const FOTOS = [['cedula_frente', 'Cédula · frente'], ['cedula_reverso', 'Cédula · reverso'],
+                 ['selfie', 'Su cara']];
+  const hayFotos = FOTOS.some(x => f[x[0]]);
+
+  return (j.aviso ? `<div class="alerta warn" style="margin-bottom:14px">
+        <b>⚠️ Ojo con el nombre.</b>
+        <div style="margin-top:6px">En tu base está como <b>${escHTML(j.aviso.en_la_base || '')}</b>,
+          y se registró como <b>${escHTML(j.aviso.se_registro_como || '')}</b>.</div>
+        <div class="muted" style="margin-top:6px">Es el mismo número. Puede ser que en la base esté
+          mal escrito, o que quien se registró no sea la persona que tú tienes. <b>Compara con la
+          cédula de abajo antes de seguir</b>, y si no cuadra, avísale a tu jefe.</div></div>` : '') +
+    `<div class="card" style="margin:0 0 14px">
+      <div class="card-h"><h3>${escHTML(j.nombre || '')}</h3>
+        <span class="tag">${escHTML(fechaCorta(j.registrado_en))}</span></div>
+      ${filaInfo('Cédula', String(j.cedula || '—'))}
+      ${filaInfo('Celular', String(j.celular || '—'))}
+      ${filas.join('')}${extras.join('')}
+    </div>` +
+    (hayFotos
+      ? `<div class="sub-h">Lo que subió</div>
+         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px">
+           ${FOTOS.filter(x => f[x[0]]).map(x => `<figure style="margin:0">
+               <img src="${escHTML(f[x[0]])}" alt="${escHTML(x[1])}"
+                 style="width:100%;border-radius:10px;display:block;border:1px solid var(--linea)">
+               <figcaption class="muted" style="font-size:12px;margin-top:4px">${escHTML(x[1])}</figcaption>
+             </figure>`).join('')}
+         </div>`
+      : `<div class="alerta" style="margin-top:12px"><b>No subió fotos.</b>
+           <div class="muted">Se registró sin cédula ni selfie. Pídeselas antes de desembolsar.</div></div>`) +
+    (h && (h.momento || h.gps)
+      ? `<div class="sub-h" style="margin-top:16px">Desde dónde se registró</div>
+         ${h.momento ? filaInfo('Cuándo', fechaCorta(h.momento)) : ''}
+         ${h.gps ? filaInfo('Ubicación', String(h.gps.lat || '?') + ', ' + String(h.gps.lon || h.gps.lng || '?')) : ''}
+         ${h.aparato ? filaInfo('Aparato', String(h.aparato).slice(0, 60)) : ''}`
+      : '') +
+    `<div class="muted" style="font-size:12px;margin-top:16px;line-height:1.5">
+      Queda registrado que abriste esta ficha, con tu nombre y la hora. Son datos de
+      una persona: se miran para verificar quién es, y para nada más.</div>`;
+}
+
+function fechaCorta(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso).slice(0, 10);
+  const M = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return d.getDate() + ' ' + M[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+/* --------------------------------------------------------------------------
+ * EL CALENDARIO DEL EQUIPO — 15-sep-2026
+ *
+ * Joan: «también quiero que haya un calendario para el equipo».
+ *
+ * NO PINTA LOS VENCIMIENTOS DE LOS CRÉDITOS, y es a propósito: esas fechas
+ * viven en el CRM de Joan y la cartera del equipo no las lleva —ver la cabecera
+ * de 20260910—. Publicarlas sería meterle plata al teléfono del asesor por la
+ * puerta de atrás. Lo que lleva es lo que el equipo ACUERDA: la promesa de pago
+ * que dio el cliente, la visita, la llamada de vuelta. Eso es dato nuevo, lo
+ * escribe quien habló, y es justo lo que una cobranza necesita ver por día.
+ *
+ * Y NO ES UNA CUADRÍCULA DE MES. En un celular, treinta cuadritos con un punto
+ * adentro no dicen qué hay que hacer hoy. Es una lista por días, con los días
+ * vacíos fuera, y arriba la semana para saber dónde se acumula el trabajo.
+ * ------------------------------------------------------------------------ */
+let AGENDA_EQ = null;       // null = todavía no se preguntó
+let AGENDA_ESTADO = 'sin';  // sin | cargando | listo | apagada | falla | sesion
+
+function hoyISOCrm() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
+}
+function masDias(iso, n) {
+  const p = String(iso).split('-');
+  const d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]) + n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
+}
+function nombreDeDia(iso) {
+  const hoy = hoyISOCrm();
+  if (iso === hoy) return 'Hoy';
+  if (iso === masDias(hoy, 1)) return 'Mañana';
+  if (iso === masDias(hoy, -1)) return 'Ayer';
+  const p = String(iso).split('-');
+  const d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const M = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return DIAS[d.getDay()] + ' ' + d.getDate() + ' ' + M[d.getMonth()];
+}
+
+const TIPOS_CITA = {
+  cobro:        { ic: '💰', et: 'Cobro' },
+  visita:       { ic: '🚪', et: 'Visita' },
+  llamada:      { ic: '📞', et: 'Llamada' },
+  recordatorio: { ic: '📌', et: 'Recordatorio' }
+};
+
+function traerAgendaEq() {
+  AGENDA_ESTADO = 'cargando';
+  return rpcEquipo('agenda_mia', { p_desde: masDias(hoyISOCrm(), -7),
+                                   p_hasta: masDias(hoyISOCrm(), 60) })
+    .then(res => {
+      if (res.ok && res.j && res.j.ok === true) {
+        AGENDA_EQ = res.j.citas || [];
+        AGENDA_ESTADO = 'listo';
+      } else if (res.status === 404) {
+        AGENDA_ESTADO = 'apagada';
+      } else if (esFinDeSesion(null, res)) {
+        AGENDA_ESTADO = 'sesion';
+      } else {
+        AGENDA_ESTADO = 'falla';
+      }
+      if (VISTA_EQUIPO === 'agenda') irEquipo('agenda');
+    })
+    .catch(() => {
+      AGENDA_ESTADO = 'falla';
+      if (VISTA_EQUIPO === 'agenda') irEquipo('agenda');
+    });
+}
+
+function vistaAgendaEq() {
+  if (AGENDA_ESTADO === 'sin') { traerAgendaEq(); }
+  const cab = `<div class="ph"><div><h1>Agenda<span class="dot">.</span></h1>
+      <div class="sub">Lo que quedaste de hacer${esGerenteEq() ? ', tuyo y de tus asesores' : ''}</div></div>
+      <button class="btn btn-rojo" onclick="nuevaCitaEq()">+ Agendar</button></div>`;
+
+  if (AGENDA_ESTADO === 'cargando' || AGENDA_ESTADO === 'sin') {
+    return cab + '<div class="card"><div class="muted" style="padding:14px">Buscando tu agenda…</div></div>';
+  }
+  if (AGENDA_ESTADO === 'apagada') {
+    return cab + `<div class="card"><div class="alerta warn">
+      <b>El calendario todavía no está encendido.</b>
+      <div class="muted">Falta correr una migración en la nube. No es tu señal ni tu celular.</div></div></div>`;
+  }
+  if (AGENDA_ESTADO === 'sesion') {
+    return cab + `<div class="card"><div class="alerta warn">
+      Tu sesión se venció. Toca «Salir» y vuelve a entrar.</div></div>`;
+  }
+  if (AGENDA_ESTADO === 'falla') {
+    return cab + `<div class="card"><div class="alerta warn">
+      No pude traer tu agenda.<div class="muted">Eso <b>no</b> quiere decir que esté vacía:
+      quiere decir que no pude preguntarla.</div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="traerAgendaEq()">Volver a intentar</button></div></div>`;
+  }
+
+  const citas = AGENDA_EQ || [];
+  const hoy = hoyISOCrm();
+  /* LO VENCIDO VA PRIMERO Y APARTE. Un pendiente de anteayer perdido entre los
+     de la semana que viene es un pendiente que nadie hace. */
+  const vencidas = citas.filter(c => !c.hecho && String(c.cuando) < hoy);
+  const resto = citas.filter(c => c.hecho || String(c.cuando) >= hoy);
+
+  const porDia = {};
+  resto.forEach(c => { (porDia[c.cuando] = porDia[c.cuando] || []).push(c); });
+  const dias = Object.keys(porDia).sort();
+
+  /* La semana de un vistazo: dónde se acumula el trabajo. Es la única parte que
+     se parece a un calendario, y con eso basta en un celular. */
+  const semana = [];
+  for (let i = 0; i < 7; i++) {
+    const d = masDias(hoy, i);
+    const n = (porDia[d] || []).filter(c => !c.hecho).length;
+    semana.push(`<div class="diaSem${i === 0 ? ' hoy' : ''}${n ? ' hay' : ''}">
+      <span class="dl">${['D','L','M','M','J','V','S'][new Date(Number(d.split('-')[0]), Number(d.split('-')[1]) - 1, Number(d.split('-')[2])).getDay()]}</span>
+      <span class="dn">${Number(d.split('-')[2])}</span>
+      <span class="dc">${n || ''}</span></div>`);
+  }
+
+  return cab +
+    `<div class="card"><div class="semana">${semana.join('')}</div></div>` +
+    (vencidas.length
+      ? `<div class="card"><div class="card-h"><h3>⚠️ Se pasó la fecha</h3>
+          <span class="tag">${vencidas.length}</span></div>
+          ${vencidas.map(filaCitaEq).join('')}</div>`
+      : '') +
+    (dias.length
+      ? dias.map(d => `<div class="card"><div class="card-h"><h3>${escHTML(nombreDeDia(d))}</h3>
+          <span class="tag">${porDia[d].filter(c => !c.hecho).length || '✓'}</span></div>
+          ${porDia[d].map(filaCitaEq).join('')}</div>`).join('')
+      : `<div class="card"><div class="muted" style="padding:14px">
+          No tienes nada agendado. Cuando alguien te prometa un pago o quedes de
+          visitarlo, agéndalo y aquí te sale el día que toca.</div></div>`);
+}
+
+function filaCitaEq(c) {
+  const t = TIPOS_CITA[c.tipo] || TIPOS_CITA.llamada;
+  const mio = !esGerenteEq() || !c.para_nombre;
+  return `<div class="info-row${c.hecho ? ' hecha' : ''}"><span class="k">
+      <b>${t.ic} ${escHTML(c.titulo || '')}</b>
+      ${c.hora ? `<span class="chip" style="margin-left:6px">${escHTML(c.hora)}</span>` : ''}
+      ${c.persona_nombre ? `<div class="muted">👤 ${escHTML(c.persona_nombre)}${
+          c.persona_celular ? ' · <span class="mono">' + escHTML(c.persona_celular) + '</span>' : ''}</div>` : ''}
+      ${!mio ? `<div class="muted">🚶 ${escHTML(c.para_nombre)}${
+          c.quien !== c.para ? ' · la puso ' + escHTML(c.quien_nombre || '') : ''}</div>` : ''}
+      ${c.nota ? `<div class="muted">«${escHTML(c.nota)}»</div>` : ''}</span>
+    <span class="vv">
+      <button class="btn ${c.hecho ? 'btn-ghost' : 'btn-rojo'} btn-sm"
+        onclick="marcarCitaEq(${Number(c.id)}, ${c.hecho ? 'false' : 'true'})"
+        title="${c.hecho ? 'Todavía no' : 'Ya lo hice'}">${c.hecho ? '✓' : 'Hecho'}</button>
+      ${c.persona_celular ? `<button class="btn btn-wa btn-sm" style="margin-left:6px"
+        onclick="contactarEq('${escHTML(String(c.persona_id || ''))}','${escHTML(c.persona_celular)}','${escHTML(String(c.persona_nombre || '').split(/\s+/)[0])}')"
+        title="Escribirle">📲</button>` : ''}
+      <button class="btn btn-ghost btn-sm" style="margin-left:6px"
+        onclick="borrarCitaEq(${Number(c.id)})" title="Quitarla">🗑</button></span></div>`;
+}
+
+let _citaPersona = null;
+
+function nuevaCitaEq(personaId) {
+  _citaPersona = personaId ? String(personaId) : null;
+  const p = _citaPersona ? genteEquipo().find(x => String(x.id) === _citaPersona) : null;
+  const mios = ((CARTERA_EQUIPO && CARTERA_EQUIPO.equipo) || []);
+  const yo = CARTERA_EQUIPO.yo;
+  openModal(p ? 'Agendar con ' + (String(p.nombre || '').split(/\s+/)[0] || 'esta persona') : 'Agendar',
+    `${p ? `<div class="alerta" style="margin-bottom:12px">👤 <b>${escHTML(p.nombre)}</b>
+        <div class="muted mono">${escHTML(p.celular || '')}</div></div>` : ''}
+    <div class="field"><label>¿De qué se trata?</label>
+      <input id="ciTitulo" maxlength="140" placeholder="Ej: quedó de pagar la cuota"></div>
+    <div class="sub-h">Qué es</div>
+    ${Object.keys(TIPOS_CITA).map((k, i) => `<label class="permiso">
+        <input type="radio" name="ciTipo" value="${k}"${i === 0 ? ' checked' : ''}>
+        <span>${TIPOS_CITA[k].ic} <b>${escHTML(TIPOS_CITA[k].et)}</b></span></label>`).join('')}
+    <div class="field" style="margin-top:14px"><label>¿Qué día?</label>
+      <input id="ciFecha" type="date" value="${escHTML(hoyISOCrm())}"></div>
+    <div class="field"><label>¿A qué hora? <span class="muted">(opcional)</span></label>
+      <input id="ciHora" type="time"></div>
+    ${esGerenteEq() && mios.length ? `<div class="field"><label>¿A quién le toca?</label>
+      <select id="ciPara">
+        <option value="${escHTML(yo.celular)}">Yo (${escHTML(yo.nombre)})</option>
+        ${mios.map(m => `<option value="${escHTML(m.celular)}">${escHTML(m.nombre)}</option>`).join('')}
+      </select></div>` : ''}
+    <div class="field"><label>Nota <span class="muted">(opcional)</span></label>
+      <textarea id="ciNota" maxlength="400" placeholder="Ej: dijo que le pagan el 15"></textarea></div>
+    <button class="btn btn-rojo" id="ciBtn" style="margin-top:8px" onclick="guardarCitaEq()">Agendar</button>
+    <div class="help" style="margin-top:8px">Esto es lo que ustedes acuerdan, no la fecha del
+      crédito. Lo que el cliente debe se sigue viendo donde siempre.</div>`);
+}
+
+function guardarCitaEq() {
+  const titulo = (document.getElementById('ciTitulo') || {}).value || '';
+  const fecha = (document.getElementById('ciFecha') || {}).value || '';
+  if (!titulo.trim()) return alert('Escribe de qué se trata.');
+  if (!fecha) return alert('Escoge el día.');
+  const sel = document.querySelector('input[name=ciTipo]:checked');
+  const para = (document.getElementById('ciPara') || {}).value || '';
+  const btn = document.getElementById('ciBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Agendando…'; }
+  /* Igual que al anotar una gestión: QUEDÓ AGENDADA en cuanto la nube dice que
+     sí. Si después falla el refresco, el mensaje no puede decir que no quedó —
+     el asesor la pondría dos veces. */
+  let puesta = false;
+  rpcEquipo('agenda_poner', {
+    p_titulo: titulo, p_cuando: fecha,
+    p_tipo: sel ? sel.value : 'llamada',
+    p_para: para || null,
+    p_persona_id: _citaPersona,
+    p_hora: (document.getElementById('ciHora') || {}).value || '',
+    p_nota: (document.getElementById('ciNota') || {}).value || ''
+  }).then(res => {
+    if (!res.ok || !res.j || res.j.ok !== true) {
+      if (esFinDeSesion(null, res)) throw { sesion: true };
+      throw new Error((res.j && res.j.motivo) || 'la nube no la aceptó');
+    }
+    puesta = true;
+    cerrarModal();
+    return traerAgendaEq();
+  }).catch(e => {
+    if (btn) { btn.disabled = false; btn.textContent = 'Agendar'; }
+    if (puesta) {
+      alert('Sí quedó agendada.\n\nLo que no pude fue volver a cargar la agenda; ' +
+        'toca «Agenda» para verla al día. NO la agendes otra vez.');
+      return;
+    }
+    if (esFinDeSesion(e)) return avisarFinDeSesion('Lo que agendaste no se guardó. ');
+    alert('No quedó agendada: ' + (e.message || e) + '\n\nRevisa la señal y vuelve a intentar.');
+  });
+}
+
+function marcarCitaEq(id, hecho) {
+  rpcEquipo('agenda_hecho', { p_id: id, p_hecho: !!hecho })
+    .then(res => {
+      if (!res.ok || !res.j || res.j.ok !== true) {
+        if (esFinDeSesion(null, res)) return avisarFinDeSesion('');
+        return alert('No pude marcarla: ' + ((res.j && res.j.motivo) || 'la nube no contestó'));
+      }
+      return traerAgendaEq();
+    })
+    .catch(() => alert('No pude conectarme. Revisa la señal.'));
+}
+
+function borrarCitaEq(id) {
+  if (!confirm('¿Quitar esta cita de la agenda?')) return;
+  rpcEquipo('agenda_borrar', { p_id: id })
+    .then(res => {
+      if (!res.ok || !res.j || res.j.ok !== true) {
+        if (esFinDeSesion(null, res)) return avisarFinDeSesion('');
+        return alert('No pude quitarla: ' + ((res.j && res.j.motivo) || 'la nube no contestó'));
+      }
+      return traerAgendaEq();
+    })
+    .catch(() => alert('No pude conectarme. Revisa la señal.'));
+}
+
 function vistaTableroEquipo() {
   const g = genteEquipo();
   const urg = (ETAPAS && ETAPAS.URGENTES) || [];
@@ -5345,8 +5770,15 @@ function vistaTableroEquipo() {
                 .sort((a, b) => urg.indexOf(a.etapa) - urg.indexOf(b.etapa));
   const cuenta = {};
   g.forEach(p => { cuenta[p.etapa] = (cuenta[p.etapa] || 0) + 1; });
+  /* Lo agendado para hoy va ARRIBA de la cartera: es lo único de esta pantalla
+     que alguien prometió a una hora concreta. */
+  const hoyCitas = (AGENDA_ESTADO === 'listo' ? (AGENDA_EQ || []) : [])
+    .filter(c => !c.hecho && String(c.cuando) <= hoyISOCrm());
   return `<div class="ph"><div><h1>Hoy<span class="dot">.</span></h1>
-      <div class="sub">${g.length} personas ${esGerenteEq() ? 'de tus asesores' : 'asignadas a ti'}</div></div></div>
+      <div class="sub">${g.length} personas ${esGerenteEq() ? 'de tus asesores' : 'asignadas a ti'}</div></div></div>` +
+    (hoyCitas.length ? `<div class="card"><div class="card-h"><h3>📅 Lo que agendaste</h3>
+        <span class="tag">${hoyCitas.length}</span></div>
+        ${hoyCitas.slice(0, 12).map(filaCitaEq).join('')}</div>` : '') + `
     <div class="card"><div class="card-h"><h3>⚠️ Lo que hay que hacer hoy</h3>
       <span class="tag">Primero lo que se puede perder</span></div>
       ${pend.length ? pend.slice(0, 20).map(filaPersonaEq).join('')
