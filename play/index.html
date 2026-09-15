@@ -1313,10 +1313,20 @@ function cotizacionGarantia() {
 /* La efectiva anual del flujo REAL, no de una fórmula aparte: se le da al mismo
    cálculo que usa el producto a 6 meses, con las cuotas que se acaban de pintar.
    Es la única cifra en porcentaje que el cliente ve, y va porque es obligatoria. */
+/* 16-sep-2026 — CON LAS FECHAS DE VERDAD, y la diferencia no es cosmética.
+   Esto usaba C.efectivoAnual, que supone cuotas cada treinta días parejos. Las
+   de este producto caen en los CORTES —el 15 y el fin de mes—, así que con
+   desembolso el 10 la primera cae a VEINTE días y el crédito de «tres meses»
+   dura 81. La plata vuelve antes: la tasa de verdad es más alta.
+   Medido sobre septiembre, un millón, los treinta días de desembolso: a tres
+   meses, DOCE de los treinta quedan por encima del techo de usura, y el peor da
+   33,07% mientras esta línea publicaba 26,82%. La única cifra en porcentaje que
+   el cliente ve estaba diciendo un número que no era el de su propio plan.
+   Devuelve null si no se puede calcular, y quien la llame tiene que tratarlo:
+   una tasa que no se puede calcular no se publica. */
 function eaDeGarantia(c) {
-  var flujo = [c.capital];
-  c.cuotas.forEach(function (q) { flujo.push(-q.total); });
-  return C.efectivoAnual(flujo);
+  return C.efectivoAnualPorFechas(hoyISO(), c.capital,
+    c.cuotas.map(function (q) { return { fecha: q.fecha_corte, total: q.total }; }));
 }
 
 /* EL TECHO DE USURA, COMPROBADO EN PANTALLA Y NO SOLO EN LAS PRUEBAS. Las
@@ -1340,9 +1350,13 @@ function eaDeGarantia(c) {
    certificado y el precio se le pasa por encima. */
 function garantiaSePuedeCotizar(c) {
   if (!hayQueCotizarGarantia()) return false;
+  /* Una tasa que no se pudo calcular no se publica, y tampoco se deja pasar:
+     sin ella no hay con qué comparar contra el techo. */
+  var ea = eaDeGarantia(c);
+  if (ea == null) return false;
   var t = C.topeVigente(hoyISO());
   if (!t) return true;
-  return eaDeGarantia(c) <= t.consumo_ordinario;
+  return ea <= t.consumo_ordinario;
 }
 
 function tarjetaCalcGarantia() {

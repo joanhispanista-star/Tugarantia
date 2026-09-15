@@ -174,9 +174,82 @@
     return (lo + hi) / 2;
   }
 
-  /** La efectiva anual que exige publicar Google Play, y que mide la usura. */
+  /** La efectiva anual que exige publicar Google Play, y que mide la usura.
+   *
+   *  OJO CON EL SUPUESTO: `flujo` son movimientos de PERIODOS IGUALES de un mes.
+   *  Sirve para este producto —sus cuotas caen mes de calendario a mes de
+   *  calendario— y NO sirve para un crédito cuyas cuotas caigan en fechas de
+   *  corte. Para ese está efectivoAnualPorFechas, unas líneas más abajo, y la
+   *  diferencia no es cosmética: ver el comentario de allá. */
   function efectivoAnual(flujo) {
     return Math.pow(1 + tirMensual(flujo), 12) - 1;
+  }
+
+  /**
+   * La efectiva anual de un crédito cuyas cuotas caen en FECHAS DE VERDAD, no
+   * en periodos iguales.
+   *
+   * POR QUÉ TUVO QUE EXISTIR — 16-sep-2026, y costó encontrarlo.
+   *
+   * El préstamo con garantía no paga «cada mes»: paga en los CORTES, el 15 y el
+   * último día del mes, corridos al siguiente día hábil. Si el desembolso es el
+   * 10, la primera cuota cae a VEINTE días, no a treinta, y el crédito entero de
+   * «tres meses» dura 81 días. La plata vuelve antes, así que la tasa de verdad
+   * es más alta — y efectivoAnual, que supone treinta días parejos, la
+   * subestima.
+   *
+   * Medido sobre septiembre de 2026, un millón, los treinta días de desembolso:
+   *   · a 3 meses, DOCE de los treinta días quedan por encima del techo de
+   *     usura (29,24%), y el peor da 33,07% mientras la pantalla publicaba
+   *     26,82%;
+   *   · a 6 meses, seis de los treinta, el peor 29,98%.
+   * O sea que la única cifra en porcentaje que el cliente ve estaba diciendo un
+   * número que no era el de su propio plan de pagos, y por debajo. El artículo
+   * 305 llama a eso «cualquiera sea la forma utilizada para hacer constar la
+   * operación, ocultarla o disimularla».
+   *
+   * @param {string} desembolsoISO  el día en que sale la plata
+   * @param {number} capital        lo que recibe
+   * @param {Array} pagos           [{fecha:'YYYY-MM-DD', total:number}]
+   * @returns {number} la efectiva anual, o null si no se puede calcular
+   */
+  function efectivoAnualPorFechas(desembolsoISO, capital, pagos) {
+    var c = Number(capital);
+    if (!esNumero(c) || c <= 0 || !Array.isArray(pagos) || !pagos.length) return null;
+    var t0 = Date.parse(String(desembolsoISO) + 'T12:00:00');
+    if (!isFinite(t0)) return null;
+
+    var puntos = [];
+    for (var i = 0; i < pagos.length; i++) {
+      var ti = Date.parse(String(pagos[i].fecha) + 'T12:00:00');
+      var v = Number(pagos[i].total);
+      if (!isFinite(ti) || !esNumero(v) || v < 0) return null;
+      var dias = (ti - t0) / 86400000;
+      /* Una cuota el mismo día del desembolso —o antes— no es una cuota: es otra
+         cosa, y descontarla haría dividir por cero o peor. */
+      if (dias <= 0) return null;
+      puntos.push({ d: dias, v: v });
+    }
+
+    /* La MISMA convención de signos que tirMensual, y se escribe aquí porque ya
+       me la comí al revés una vez midiendo esto: el valor presente del flujo
+       entero —capital menos los pagos descontados— CRECE con la tasa, porque a
+       más descuento menos pesan los pagos futuros. Negativo quiere decir que la
+       tasa se quedó corta. Al revés, la bisección diverge y devuelve un número
+       con cien ceros, que es el tipo de número del que hay que desconfiar antes
+       que publicarlo. */
+    var van = function (r) {
+      var s = c;
+      for (var k = 0; k < puntos.length; k++) s -= puntos[k].v / Math.pow(1 + r, puntos[k].d);
+      return s;
+    };
+    if (van(0) >= 0) return 0;          // no cobra nada: la tasa es cero, no negativa
+    var lo = 0, hi = 1;                 // tasa DIARIA; 100% diario es techo de sobra
+    for (var k2 = 0; k2 < 200; k2++) {
+      var m = (lo + hi) / 2;
+      if (van(m) < 0) lo = m; else hi = m;
+    }
+    return Math.pow(1 + (lo + hi) / 2, 365) - 1;
   }
 
   /* ==========================================================================
@@ -545,6 +618,7 @@
     /* la tasa */
     tirMensual: tirMensual,
     efectivoAnual: efectivoAnual,
+    efectivoAnualPorFechas: efectivoAnualPorFechas,
     eaDeCosto: eaDeCosto,
     costoQueCabe: costoQueCabe,
 

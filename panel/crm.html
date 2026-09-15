@@ -8110,11 +8110,18 @@ function planDeCuotas() {
   } catch (e) { return { error: e.message }; }
 
   /* La efectiva anual del flujo REAL —lo que entrega y lo que le devuelven,
-     cuota por cuota— y el techo del mes. Las dos salen de creditos.js, que es
-     donde vive la tabla certificada con fechas. */
-  const flujo = [r.capital];
-  r.cuotas.forEach(q => flujo.push(-q.total));
-  const ea = C ? C.efectivoAnual(flujo) : null;
+     cuota por cuota Y EN SU FECHA— y el techo del mes. Las dos salen de
+     creditos.js, que es donde vive la tabla certificada con fechas.
+
+     16-sep-2026 — CON FECHAS, y antes no. Esto usaba C.efectivoAnual, que supone
+     cuotas cada treinta días parejos; las de este producto caen en los cortes,
+     así que con desembolso el 10 la primera cae a VEINTE días y la tasa de
+     verdad es más alta. Medido: hasta 33,07% donde esta línea calculaba 26,82%,
+     y a un mes llega a 29,45% contra un techo histórico de 28,79%. O sea que la
+     reja de usura de esta pantalla —que apaga el botón— estaba comparando el
+     techo contra un número que no era el del crédito que Joan iba a mandar. */
+  const ea = C ? C.efectivoAnualPorFechas(hoyISO(), r.capital,
+    r.cuotas.map(q => ({ fecha: q.fecha_corte, total: q.total }))) : null;
   const t = C ? C.topeVigente(hoyISO()) : null;
   const tope = t ? t.consumo_ordinario : null;
 

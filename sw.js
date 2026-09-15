@@ -222,7 +222,15 @@
    solicitud; y el rayo rehecho: corto, ramificado y vivo mientras el dedo esta
    puesto. Toca play/index.html, play/estilo.css y app/creditos.js (el techo que
    cabe se recuerda: 22 ms por cotizacion pasaron a 0,3). */
-const CACHE = 'tugarantia-v46';
+/* v47 - 16-sep-2026. LA TASA QUE SE PUBLICA ES LA DEL PLAN QUE SE IMPRIME AL
+   LADO. La efectiva anual del credito con garantia se calculaba suponiendo
+   cuotas cada treinta dias parejos; las de ese producto caen en los cortes, asi
+   que con desembolso el 10 la primera cae a VEINTE dias y la tasa real es mas
+   alta: hasta 33,07% donde la pantalla publicaba 26,82%. Ahora se mide con las
+   fechas de verdad, en la puerta publica, en la letra obligatoria y en la reja
+   del CRM. Toca app/creditos.js, app/cumplimiento.js, play/index.html y
+   panel/crm.html. */
+const CACHE = 'tugarantia-v47';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -168,9 +168,15 @@ describe('el CRM arma el plan con el motor, y con nada más', () => {
   test('LA EFECTIVA ANUAL SALE DEL FLUJO REAL y se compara con el techo del mes', () => {
     const { P } = abrirCrm();
     const p = planDelCrm(P, 2000000, 6);
-    const flujo = [p.capital].concat(p.cuotas.map(q => -q.total));
-    assert.ok(Math.abs(p.ea - C.efectivoAnual(flujo)) < 1e-9,
-      'la efectiva anual no es la del flujo que se le va a cobrar');
+    /* 16-sep-2026 — CON LAS FECHAS, y antes se comparaba contra la fórmula de
+       periodos iguales. Las cuotas de este producto caen en los cortes: con
+       desembolso el 10 la primera cae a veinte días y no a treinta, así que la
+       tasa de verdad es más alta —hasta 33,07% donde se calculaba 26,82%—. La
+       reja de usura de esta pantalla estaba comparando el techo contra un número
+       que no era el del crédito que Joan iba a mandar. */
+    assert.ok(Math.abs(p.ea - C.efectivoAnualPorFechas(HOY, p.capital,
+        p.cuotas.map(q => ({ fecha: q.fecha, total: q.total })))) < 1e-9,
+      'la efectiva anual no es la del flujo que se le va a cobrar, en sus fechas');
     const t = C.topeVigente(HOY);
     assert.equal(p.tope, t ? t.consumo_ordinario : null,
       'el techo que usa no es el certificado para hoy');

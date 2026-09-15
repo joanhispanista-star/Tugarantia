@@ -1807,32 +1807,177 @@ describe('simularPrestamoRespaldado', () => {
      153,3% y 2% plano daba 48,3%. Ahora el 2% se cobra sobre el saldo y da
      26,8%.
      --------------------------------------------------------------------- */
-  test('EL PRODUCTO CON GARANTÍA CABE DEBAJO DEL TECHO DE USURA, en todos sus plazos', () => {
+  test('NUNCA SE OFRECE UN PRECIO POR ENCIMA DEL TECHO — con las fechas de verdad', () => {
+    /* 16-sep-2026 — ESTA PRUEBA MEDÍA UN PRODUCTO QUE NO SE VENDE.
+
+       Cotizaba SIN fechaDesembolso —las cuotas salían sin fecha— y medía con
+       efectivoAnual, que supone treinta días parejos. El producto de verdad paga
+       en los CORTES: el 15 y el fin de mes. Con desembolso el 10, la primera
+       cuota cae a VEINTE días y el crédito de «tres meses» dura 81. La plata
+       vuelve antes, así que la tasa es más alta.
+
+       Medido sobre septiembre, un millón, los treinta días de desembolso: DOCE
+       quedan por encima del techo a tres meses, y el peor da 33,07% donde este
+       centinela veía 26,8%. La prueba que existe para impedir el artículo 305
+       estaba en verde mientras la puerta pública publicaba una tasa por encima
+       del techo un tercio de los días del mes.
+
+       LO QUE SE EXIGE AHORA. No «el producto cabe siempre» —hoy no cabe
+       siempre, y cambiar eso es una decisión de producto de Joan: bajar el 2%,
+       no ofrecer tres meses, o poner la primera cuota a un mes completo—. Se
+       exige lo que de verdad protege: QUE NUNCA SE OFREZCA UNO QUE NO QUEPA.
+       Si la tasa real se pasa, la app tiene que negarse ese día. */
     const CR = require(path.join(__dirname, '..', 'app', 'creditos.js'));
+    const K = require(path.join(__dirname, '..', 'app', 'cumplimiento.js'));
     const masBajo = CR.TOPES.reduce((m, t) => Math.min(m, t.consumo_ordinario), Infinity);
     assert.ok(masBajo > 0.2 && masBajo < 0.4, 'la tabla de topes no trae nada creíble: ' + masBajo);
 
+    /* Un mes entero de días de desembolso, que es lo que mueve las fechas de
+       corte. Se barre el mes certificado más reciente, no una fecha suelta. */
+    const ult = CR.TOPES[CR.TOPES.length - 1];
     const montos = [1000000, 2000000, 3000000, 8000000];
-    const peores = [];
-    [1, 2, 3, 4, 5, 6].forEach(n => {
-      montos.forEach(cap => {
-        const sim = M.simularPrestamoRespaldado(cap, n, { acumulada: cap * 2 });
-        /* flujo[0] es lo que RECIBE (positivo) y el resto lo que paga. */
-        const flujo = [cap].concat(sim.cuotas.map(c => -c.total));
-        const ea = CR.efectivoAnual(flujo);
-        peores.push({ n: n, cap: cap, ea: ea });
-        assert.ok(ea <= masBajo,
-          'a ' + n + ' meses sobre ' + cap.toLocaleString('es-CO') + ' el producto da ' +
-          (ea * 100).toFixed(1) + '% efectivo anual, y el techo más bajo que ha tenido la ' +
-          'tabla es ' + (masBajo * 100).toFixed(2) + '%. Eso es usura: artículo 305, de 32 a ' +
-          '90 meses de prisión. Baja la tasa o cóbrala sobre el saldo.');
+    const vacia = { datos: {}, referidos: 0, acumulada: 20000000, ajuste: 0, comprometida: 0 };
+    let ofrecidos = 0, negados = 0, peorOfrecida = 0, medidos = 0;
+
+    for (let dia = 1; dia <= 28; dia++) {
+      const desembolso = ult.desde.slice(0, 8) + String(dia).padStart(2, '0');
+      /* ¿Se ofrece ese día? Lo decide la divulgación, que es la que autoriza a
+         publicar un precio: sin ella la puerta pública no pinta ni una cifra. */
+      const hayLetra = K.divulgacionRespaldado(desembolso).puede === true;
+      [1, 2, 3, 4, 5, 6].forEach(n => {
+        /* Y el plazo tiene que ser de los que la puerta pública ofrece. El motor
+           acepta desde UN mes —Joan lo usa así en su CRM— pero la página declara
+           el piso de 90 días, y a un mes la tasa real llega a 29,45% contra el
+           techo histórico de 28,79%. Ese plazo no se ofrece acá; el que lo manda
+           desde el CRM pasa por su propia reja, que también mide con fechas
+           desde el 16-sep (ver planDeCuotas en panel/crm.html). */
+        const se_ofrece = hayLetra && n >= Math.ceil(CR.PLAZO_MINIMO_DIAS / 30);
+        montos.forEach(cap => {
+          const sim = M.simularPrestamoRespaldado(cap, n, vacia, { fechaDesembolso: desembolso });
+          const ea = CR.efectivoAnualPorFechas(desembolso, sim.capital,
+            sim.cuotas.map(q => ({ fecha: q.fecha_corte, total: q.total })));
+          assert.ok(ea != null,
+            'no se pudo medir la tasa de ' + cap + ' a ' + n + ' meses el ' + desembolso +
+            ': una tasa que no se puede medir no se puede comparar con el techo');
+          medidos++;
+          if (!se_ofrece) { negados++; return; }
+          ofrecidos++;
+          if (ea > peorOfrecida) peorOfrecida = ea;
+          /* Contra el techo DE ESE DÍA, que es el que manda legalmente: un
+             crédito se juzga con el techo que regía cuando se desembolsó. El
+             techo más bajo de la historia es otra pregunta —cuánto aire le queda
+             al producto— y va en la prueba de abajo, porque negarse a prestar
+             hoy por un techo de julio sería rechazar negocio legal. */
+          const techoDelDia = CR.topeVigente(desembolso);
+          assert.ok(techoDelDia, 'no hay techo certificado para ' + desembolso);
+          assert.ok(ea <= techoDelDia.consumo_ordinario,
+            'el ' + desembolso + ', a ' + n + ' meses sobre ' + cap.toLocaleString('es-CO') +
+            ', el producto SE OFRECE y da ' + (ea * 100).toFixed(2) + '% efectivo anual ' +
+            'contra el techo de ese día, ' + (techoDelDia.consumo_ordinario * 100).toFixed(2) +
+            '%. Eso es usura: artículo 305, de 32 a 90 meses de prisión. O baja la ' +
+            'tasa, o que la app se niegue a cotizar ese día.');
+        });
       });
-    });
-    /* Y que la prueba esté midiendo algo: si el producto saliera en 3% nadie
-       se enteraría de que el centinela dejó de mirar. */
-    const max = peores.reduce((m, p) => Math.max(m, p.ea), 0);
-    assert.ok(max > 0.15, 'el producto salió en ' + (max * 100).toFixed(1) +
-      '%: o cambió mucho, o esta prueba dejó de medir el producto de verdad');
+    }
+
+    /* Que la prueba esté midiendo algo: si el producto saliera en 3%, o si la
+       app se negara SIEMPRE, nadie se enteraría de que el centinela dejó de
+       mirar el producto de verdad. */
+    assert.ok(medidos > 500, 'el barrido midió solo ' + medidos + ' casos');
+    assert.ok(ofrecidos > 0,
+      'la app se niega a cotizar el producto TODOS los días del mes: o el precio ' +
+      'subió, o algo se rompió en la divulgación. El centinela dejó de medir.');
+    assert.ok(peorOfrecida > 0.15,
+      'lo más caro que se llega a ofrecer es ' + (peorOfrecida * 100).toFixed(1) +
+      '%: o cambió mucho el producto, o esta prueba dejó de medirlo');
+  });
+
+  test('CUÁNTO AIRE LE QUEDA AL PRODUCTO CONTRA EL TECHO MÁS BAJO DE LA HISTORIA', () => {
+    /* 16-sep-2026 — ESTA PRUEBA AFIRMA UN HECHO INCÓMODO A PROPÓSITO, y hay que
+       leerla entera antes de tocarla.
+
+       La prueba de arriba mide contra el techo DEL DÍA, que es el que manda
+       legalmente. Ésta hace la otra pregunta: ¿seguiría siendo legal si el techo
+       volviera al más bajo que ha tenido la tabla? Julio de 2026 fue 28,79% y
+       septiembre 29,24%: el techo se mueve, y un producto puesto al filo del de
+       hoy queda ilegal el mes que baje, SIN QUE NADIE TOQUE UNA LÍNEA.
+
+       LA RESPUESTA HOY ES NO, y por eso esto está escrito como está. Con el 2%
+       mensual sobre saldo y las cuotas cayendo en los cortes, hay días del mes
+       —a tres meses— en que la tasa real pasa de 29%. Con el techo de septiembre
+       caben; con el de julio, no.
+
+       ESO ES UNA DECISIÓN DE JOAN, no mía: bajar el 2%, no ofrecer tres meses, o
+       poner la primera cuota a un mes completo del desembolso en vez de al
+       corte siguiente. Mientras no la tome, esta prueba deja constancia de que
+       el producto NO tiene aire, para que nadie lo descubra el mes que la
+       Superfinanciera baje el techo.
+
+       CUANDO SE ARREGLE, esta prueba va a fallar diciendo que ya hay aire. Ese
+       día se borra y la de arriba se cambia a medir contra `masBajo`. */
+    const CR = require(path.join(__dirname, '..', 'app', 'creditos.js'));
+    const K = require(path.join(__dirname, '..', 'app', 'cumplimiento.js'));
+    const masBajo = CR.TOPES.reduce((m, t) => Math.min(m, t.consumo_ordinario), Infinity);
+    const ult = CR.TOPES[CR.TOPES.length - 1];
+    const vacia = { datos: {}, referidos: 0, acumulada: 20000000, ajuste: 0, comprometida: 0 };
+    const minMeses = Math.ceil(CR.PLAZO_MINIMO_DIAS / 30);
+
+    let sinAire = 0, conAire = 0, peor = 0, peorDia = '';
+    for (let dia = 1; dia <= 28; dia++) {
+      const desembolso = ult.desde.slice(0, 8) + String(dia).padStart(2, '0');
+      if (K.divulgacionRespaldado(desembolso).puede !== true) continue;
+      for (let n = minMeses; n <= M.PLAZO_RESPALDADO_MAX; n++) {
+        const sim = M.simularPrestamoRespaldado(1000000, n, vacia, { fechaDesembolso: desembolso });
+        const ea = CR.efectivoAnualPorFechas(desembolso, sim.capital,
+          sim.cuotas.map(q => ({ fecha: q.fecha_corte, total: q.total })));
+        if (ea > peor) { peor = ea; peorDia = desembolso + ' a ' + n + ' meses'; }
+        if (ea > masBajo) sinAire++; else conAire++;
+      }
+    }
+    assert.ok(conAire + sinAire > 0, 'no se midió ni un caso: el centinela dejó de mirar');
+    assert.ok(sinAire > 0,
+      'YA HAY AIRE: ninguna combinación que se ofrece se pasaría del techo más bajo ' +
+      'de la tabla (' + (masBajo * 100).toFixed(2) + '%). Eso es una buena noticia y ' +
+      'quiere decir que alguien arregló el precio o el calendario. BORRA ESTA PRUEBA ' +
+      'y cambia la de arriba para que mida contra `masBajo` en vez del techo del día.');
+    /* Y se deja escrito cuánto falta, para que la decisión se pueda tomar con un
+       número y no con una sensación. */
+    assert.ok(peor > masBajo,
+      'lo peor que se ofrece da ' + (peor * 100).toFixed(2) + '% (' + peorDia + ') y el ' +
+      'techo más bajo es ' + (masBajo * 100).toFixed(2) + '%');
+  });
+
+  test('LA TASA QUE SE PUBLICA ES LA DEL PLAN QUE SE IMPRIME AL LADO', () => {
+    /* La otra mitad del mismo defecto. No basta con no pasarse del techo: la
+       cifra que el cliente lee tiene que ser la de SU plan de pagos, el que
+       tiene tres renglones más abajo con sus fechas. Publicar 26,82% al lado de
+       un flujo que rinde 33,07% es lo que el artículo 305 llama «ocultarla o
+       disimularla», aunque el número publicado quepa debajo del techo. */
+    const CR = require(path.join(__dirname, '..', 'app', 'creditos.js'));
+    const K = require(path.join(__dirname, '..', 'app', 'cumplimiento.js'));
+    const ult = CR.TOPES[CR.TOPES.length - 1];
+    const vacia = { datos: {}, referidos: 0, acumulada: 20000000, ajuste: 0, comprometida: 0 };
+    let mirados = 0;
+    for (let dia = 1; dia <= 28; dia += 3) {
+      const desembolso = ult.desde.slice(0, 8) + String(dia).padStart(2, '0');
+      const d = K.divulgacionRespaldado(desembolso);
+      if (!d.puede) continue;
+      /* La «máxima» que publica la divulgación tiene que ser de verdad la más
+         alta de los plazos que se ofrecen, medida con fechas. */
+      let peor = 0;
+      for (let n = Math.ceil(CR.PLAZO_MINIMO_DIAS / 30); n <= M.PLAZO_RESPALDADO_MAX; n++) {
+        const sim = M.simularPrestamoRespaldado(M.MONTO_MINIMO_RESPALDADO, n, vacia,
+                                                { fechaDesembolso: desembolso });
+        const ea = CR.efectivoAnualPorFechas(desembolso, sim.capital,
+          sim.cuotas.map(q => ({ fecha: q.fecha_corte, total: q.total })));
+        if (ea > peor) peor = ea;
+      }
+      mirados++;
+      assert.ok(Math.abs(d.tae_maxima - peor) < 1e-9,
+        'el ' + desembolso + ' la divulgación publica ' + (d.tae_maxima * 100).toFixed(2) +
+        '% como máxima y el plazo más caro que se ofrece da ' + (peor * 100).toFixed(2) + '%');
+    }
+    assert.ok(mirados > 0, 'no se pudo mirar ningún día: la divulgación se niega siempre');
   });
 
   test('el mínimo del producto con garantía es un millón, y se dice en vez de esconderse', () => {

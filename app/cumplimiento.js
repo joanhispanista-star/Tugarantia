@@ -322,11 +322,25 @@
     var peorEA = 0, ejemplo = null, m, r, ea;
     for (m = min; m <= max; m++) {
       r = M.simularPrestamoRespaldado(capital, m, vacia, { fechaDesembolso: fechaISO });
-      ea = eaDeCuotas(r);
+      ea = eaDeCuotas(r, fechaISO);
+      /* Una tasa que no se pudo calcular no se promedia ni se ignora: sin ella
+         no se sabe cuál es el máximo, y el máximo es lo que se publica. */
+      if (ea == null) return { puede: false, motivo: 'sin_tasa' };
       if (ea > peorEA) peorEA = ea;
       if (m === max) ejemplo = r;   // el ejemplo va al plazo más largo, que es el que se ofrece
     }
     if (!ejemplo) return { puede: false, motivo: 'sin_cotizacion' };
+
+    /* Y NO SE ANUNCIA UN PRODUCTO CUYO MÁXIMO SE PASA DEL TECHO. La divulgación
+       publica la tasa MÁS ALTA de los plazos que se ofrecen; si esa se pasa, lo
+       que hay que hacer no es publicarla con una nota: es no ofrecer el producto
+       ese día. El artículo 305 no distingue entre anunciar y cobrar.
+       Sin techo certificado no se prohíbe —se calla la frase, no el precio, que
+       es la decisión del 4-sep— porque no hay contra qué comparar. */
+    if (techo && peorEA > techo.consumo_ordinario) {
+      return { puede: false, motivo: 'sobre_el_techo',
+               tae_maxima: peorEA, techo_del_mes: techo.consumo_ordinario };
+    }
 
     var pct = function (x) { return (x * 100).toFixed(2).replace('.', ',') + '%'; };
     var cop = function (n) { return '$' + Math.round(n).toLocaleString('es-CO'); };
@@ -363,12 +377,17 @@
   }
 
   /* La efectiva anual del FLUJO REAL de una cotización con garantía: lo que se
-     recibe y lo que se devuelve, cuota por cuota. No hay fórmula aparte — es la
-     misma TIR con la que se mide el otro producto. */
-  function eaDeCuotas(r) {
-    var flujo = [r.capital];
-    for (var i = 0; i < r.cuotas.length; i++) flujo.push(-r.cuotas[i].total);
-    return C.efectivoAnual(flujo);
+     recibe y lo que se devuelve, cuota por cuota Y EN SU FECHA.
+     16-sep-2026: esto usaba C.efectivoAnual, que supone treinta días parejos
+     entre cuotas. Las de este producto caen en los cortes —el 15 y el fin de
+     mes— así que con desembolso el 10 la primera cae a veinte días. La plata
+     vuelve antes y la tasa de verdad es más alta: hasta 33,07% donde esta
+     función devolvía 26,82%. La divulgación obligatoria publicaba esa cifra
+     como «tasa efectiva anual máxima», o sea que el texto que existe para no
+     afirmar nada falso estaba afirmando un máximo por debajo del real. */
+  function eaDeCuotas(r, fechaISO) {
+    return C.efectivoAnualPorFechas(fechaISO, r.capital,
+      r.cuotas.map(function (q) { return { fecha: q.fecha_corte, total: q.total }; }));
   }
 
   /* ==========================================================================
