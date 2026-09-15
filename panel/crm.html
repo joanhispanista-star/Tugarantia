@@ -1195,10 +1195,31 @@ function codRespaldado(r){ return PUENTE.codRespaldado(r); }
  * TRABAJANDO sobre una pantalla que se ve normal — pero nada de lo que haga
  * desde ese momento se guarda. Al recargar, el dia entero desaparece.
  *
- * Y se llena de verdad. Medido: las fotos son el 100% del peso de la cartera
- * (200 clientes sin fotos pesan 81 KB; con fotos, 57 MB). Con el limite tipico
- * de 5 MB por sitio, caben unos DIECISIETE clientes con sus tres fotos. El
- * aviso no era una precaucion teorica: era el final de una cuenta regresiva.
+ * Y se llena de verdad. MEDIDO EL 15-sep-2026 SOBRE EL RESPALDO REAL DE JOAN
+ * del 28-ago (21 socios, 57 creditos, 39.989 caracteres):
+ *   · un socio con su ficha y sus 2,7 creditos ......... 1.904 caracteres
+ *   · sus tres fotos de cedula ....................... 300.069 caracteres
+ * O sea que las fotos son el 99,4% del peso, por un factor de ciento cincuenta.
+ * Con el limite tipico de 5 MB por sitio caben unos DIECISIETE clientes con sus
+ * tres fotos. El aviso no era una precaucion teorica: era el final de una cuenta
+ * regresiva.
+ *
+ * CORRECCION DE LO QUE DECIA ANTES: «200 clientes sin fotos pesan 81 KB», o sea
+ * 415 por socio. La cifra medida es 1.904 — se quedaba corto 4,6 veces. El
+ * DIECISIETE si estaba bien.
+ *
+ * DESDE EL 15-sep-2026 ESTO YA NO ES LO QUE LIMITA A JOAN. Las fotos del
+ * registro ya no se copian al navegador: se anota un token de 33 caracteres que
+ * dice donde estan (ver «EL TOKEN DE UNA FOTO», mas abajo), y con eso caben mas
+ * de mil clientes. Esta rama de emergencia se queda igual, porque sigue
+ * haciendo falta para las fotos que Joan toma con SU camara, que todavia viven
+ * enteras aca.
+ *
+ * Y LO QUE LLENA EL CAJON A PARTIR DE AHORA YA NO SON LAS FOTOS: es la historia
+ * de creditos, y sobre todo EL ESPEJO de la nube, que guarda la cartera como
+ * texto escapado y por eso pesa 1,311 veces lo que pesa la cartera — y comparte
+ * este mismo cajon. El dia que haya que pasar de mil clientes, el trabajo es
+ * archivar creditos pagados y adelgazar el espejo. No las fotos.
  *
  * Lo que hace ahora, en este orden:
  *   1. Intenta guardar todo.
@@ -3426,8 +3447,56 @@ function marcarGestion(prestId,k){ const p=DB.prestamos.find(x=>x.id===prestId),
 /* ===== IMÁGENES ===== */
 function comprimir(file,max=900,q=0.6){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>{const img=new Image(); img.onload=()=>{let{width:w,height:h}=img; if(w>h&&w>max){h=h*max/w;w=max;}else if(h>=w&&h>max){w=w*max/h;h=max;} const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',q));}; img.onerror=rej; img.src=e.target.result;}; r.onerror=rej; r.readAsDataURL(file); }); }
 
+/* ==========================================================================
+ * EL TOKEN DE UNA FOTO — 15 de septiembre de 2026
+ *
+ * Joan: «quiero que la nube tenga mas capacidad de memoria para capacidad de
+ * mas de 100 clientes con cedula y todo».
+ *
+ * LA CUENTA, MEDIDA SOBRE SU RESPALDO DEL 28-ago: un cliente con su ficha y sus
+ * 2,7 creditos pesa 1.904 caracteres. Sus tres fotos de cedula, 300.069. O sea
+ * que la cartera NO es lo que llena el navegador: son las fotos, y por un
+ * factor de ciento cincuenta. Con el cajon de 5 MB caben DIECISIETE clientes.
+ *
+ * Y lo importante: esas fotos YA ESTAN EN LA NUBE. El cliente las sube al
+ * registrarse (registro_archivos, desde el 8-sep) y el CRM se hacia una SEGUNDA
+ * copia en base64 dentro del navegador. Se estaba guardando dos veces el dato
+ * mas pesado del sistema.
+ *
+ * LA CURA: el campo conserva su nombre y cambia de contenido. Donde habia
+ * 100.023 caracteres de base64 queda un token de 33 que dice DONDE esta la
+ * foto. La imagen se trae cuando alguien la mira.
+ *
+ * POR QUE EL CAMPO NO CAMBIA DE NOMBRE, y es plata: motor.js:290-292 da 10.000
+ * + 10.000 + 18.000 de garantia por las tres fotos, y lo unico que mira es
+ * `hayDato` (motor.js:1073), que devuelve true para cualquier cadena no vacia.
+ * Un token de 33 caracteres da EXACTAMENTE el mismo cupo que un base64 de
+ * 100.023 — comprobado corriendo garantiaPorDatos con los dos. Mover la foto a
+ * un campo nuevo (`s.fotos=[...]`, que es lo natural) le habria borrado 38.000
+ * pesos de cupo a cada cliente sin un solo error en pantalla.
+ *
+ * Y EL PREFIJO ES `foto:` A PROPOSITO: no es un esquema que el navegador sepa
+ * cargar. Si a un pintor se le escapa un token sin resolver, sale una imagen
+ * ROTA —que se ve— y nunca una imagen equivocada, que no se ve.
+ * ======================================================================== */
+function esToken(v){ return typeof v==='string' && v.slice(0,5)==='foto:'; }
+/* Los diez digitos del celular. El patron estaba repetido a mano en cuatro
+   sitios de este archivo; el token obliga a que sea uno solo, porque el
+   resolvedor tiene que preguntar EXACTAMENTE lo mismo que se pregunto al
+   guardar o la nube contesta que no hay nada. */
+function diez(x){ return String(x||'').replace(/\D/g,'').slice(-10); }
+function tokenReg(cel,tipo){ return 'foto:reg:'+diez(cel)+'/'+tipo; }
+function parteToken(v){
+  const m=/^foto:reg:(\d+)\/(.+)$/.exec(String(v||''));
+  return m?{clase:'reg',celular:m[1],tipo:m[2]}:null;
+}
+
 /* ===== CLIENTE: ver / editar ===== */
 let _fotosTmp={frente:null,reverso:null,selfie:null};
+/* Cada vez que se abre una ficha sube uno. Un `.then` de la ficha anterior que
+   llegue tarde compara y se calla: si no, la cedula de una persona termina en
+   el expediente de otra, que es el peor fallo posible de esta pantalla. */
+let _pedidoFotos=0;
 let _ubicTmp=null;
 function mapsUrl(u){ return 'https://www.google.com/maps?q='+u.lat+','+u.lng; }
 function pintarUbic(){ const b=document.getElementById('ubicBox'); if(!b)return;
@@ -3475,8 +3544,15 @@ function verCliente(id){
      siguiente — la mano es la de Joan, y la pantalla no promete otra cosa. */
   const aFavorTotal=ps.reduce((t,p)=>t+Math.max(0,Number(p.saldoAFavor)||0),0);
   const fotos=[['Cédula (frente)',s.cedulaFrenteFoto],['Cédula (reverso)',s.cedulaReversoFoto],['Selfie con cédula',s.selfieFoto]].filter(f=>f[1]);
-  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div><div class="gal">${fotos.map((f,i)=>`<a href="${f[1]}" target="_blank"><img src="${f[1]}" id="fichaFoto_${['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Selfie con cédula'].indexOf(f[0])]}"><div class="cap">${f[0]}</div></a>`).join('')}</div>`
-    +(s.selfieFoto&&s.cedulaFrenteFoto?`<div id="fichaParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('fichaFoto_selfie','fichaFoto_frente','fichaParecido')">🔍 Comparar el rostro con la cédula</button></div>`:''):'';
+  /* 15-sep-2026 — `data-foto` EN VEZ DE `src` Y `href`, y los dos en el mismo
+     elemento porque este archivo mete el mismo valor en los dos sitios: quien
+     solo arreglara el `src` dejaria la miniatura viendose y el enlace para
+     ampliarla —que es el que se toca para leer el numero de cedula— apuntando a
+     la nada. Los `id` NO cambian: compararRostro los busca por ahi.
+     El boton de comparar ya no se pinta aca: lo pinta resolverFotos cuando las
+     dos imagenes hayan llegado de verdad (ver el porque abajo). */
+  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div><div class="gal">${fotos.map((f,i)=>`<a data-foto="${f[1]}" target="_blank"><img data-foto="${f[1]}" id="fichaFoto_${['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Selfie con cédula'].indexOf(f[0])]}"><div class="cap">${f[0]}</div></a>`).join('')}</div>`
+    +(s.selfieFoto&&s.cedulaFrenteFoto?`<div id="fichaParecido" style="margin-top:8px"></div>`:''):'';
   /* 8-sep-2026 — desde dónde se registró (huella), si vino del registro abierto. */
   const huellaHTML=s.huellaRegistro?bloqueHuella(Object.assign({},s.huellaRegistro,{gps:s.ubicacion||null})):'';
   const fondo=fondoCuponDe(s);
@@ -3569,6 +3645,50 @@ function verCliente(id){
     </div>
     <button class="btn btn-ghost btn-sm" style="margin-top:12px;width:100%" onclick="borrarCliente('${s.id}')">🗑 Borrar esta ficha · quedó mal registrada</button>
     <div class="muted" style="text-align:center;margin-top:6px;font-size:12px">Va a la papelera de clientes, no se pierde. No se puede si tiene plata tuya en la calle.</div>`);
+  /* 15-sep-2026 — las fotos se traen DESPUES de pintar. La ficha se ve entera al
+     instante y las imagenes entran cuando llegan; antes la ficha cargaba 300 KB
+     de base64 con ella. `mBody` es el cuerpo del modal que openModal acaba de
+     llenar. */
+  try { resolverFotos(document.getElementById('mBody')).then(()=>botonParecido()); } catch(e){}
+}
+
+/* El boton de comparar rostros SOLO cuando las dos imagenes llegaron de verdad.
+   Antes la reja miraba `s.selfieFoto && s.cedulaFrenteFoto` —o sea el CAMPO—, y
+   con tokens eso es cierto aunque la foto no haya llegado nunca: face-api
+   recibiria un <img> vacio y el CRM escribiria «No encontre un rostro en la foto
+   de la cedula. Miralas tu», acusando a la foto del cliente de lo que es un
+   problema de red. Es el mismo fallo que este archivo ya documento en
+   archivosDe: un fallo tragado no es silencioso, es un fallo que MIENTE. */
+function botonParecido(){
+  const caja=document.getElementById('fichaParecido'); if(!caja) return;
+  const a=document.getElementById('fichaFoto_selfie'), b=document.getElementById('fichaFoto_frente');
+  /* `naturalWidth` no vale hasta que el navegador DECODIFICA la imagen, y poner
+     el src no basta. Si las dos tienen src pero todavia no cargaron, se espera a
+     sus eventos en vez de decidir en falso — decidir temprano pintaria «todavia
+     no han llegado» sobre dos fotos que llegan medio segundo despues. */
+  const listo=x=>x&&x.naturalWidth>0;
+  const conSrc=x=>x&&x.getAttribute&&!!x.getAttribute('src');
+  if(listo(a)&&listo(b)){
+    /* El onclick se engancha con addEventListener y no como atributo: un
+       atributo aca obligaria a anidar tres niveles de comillas, que es
+       exactamente donde este proyecto ya perdio una tarde. */
+    caja.innerHTML='<button class="btn btn-ghost btn-sm" id="btnParecido">🔍 Comparar el rostro con la cédula</button>';
+    const btn=document.getElementById('btnParecido');
+    if(btn) btn.addEventListener('click',()=>compararRostro('fichaFoto_selfie','fichaFoto_frente','fichaParecido'));
+    return;
+  }
+  if(conSrc(a)&&conSrc(b)){
+    caja.innerHTML='<span class="muted" style="font-size:12.5px">Cargando las fotos…</span>';
+    let faltan=2;
+    const listo2=()=>{ if(--faltan<=0) botonParecido(); };
+    [a,b].forEach(x=>{ if(listo(x)) listo2(); else { x.addEventListener('load',listo2,{once:true}); x.addEventListener('error',()=>{ faltan=99; botonParecidoNo(); },{once:true}); } });
+    return;
+  }
+  botonParecidoNo();
+}
+function botonParecidoNo(){
+  const caja=document.getElementById('fichaParecido'); if(!caja) return;
+  caja.innerHTML='<span class="muted" style="font-size:12.5px">Para comparar el rostro hacen falta las dos fotos, y todavía no han llegado de la nube. Vuelve a abrir la ficha en un minuto.</span>';
 }
 
 /* ===== VER LA APP COMO LA VE ÉL =====
@@ -3617,11 +3737,22 @@ function verComoSocio(id){
 function editarCliente(id,pre){
   _registroPendiente=null;
   _vinculacionPendiente=null;   // si no, una ficha cancelada se la pega al próximo cliente
+  /* 15-sep-2026 — los otros dos que faltaban por el mismo motivo que los dos de
+     arriba. `_huellaPendiente` le faltaba desde siempre: hoy un registro que
+     Joan abre y cancela le pega la IP y el aparato al próximo cliente que edite.
+     Y `_pedidoFotos` invalida cualquier respuesta de fotos que venga en camino
+     de la ficha anterior. */
+  _huellaPendiente=null;
+  _pedidoFotos++;
+  olvidarFotosReg();
   const s=id?DB.socios.find(x=>x.id===id):(pre||{});
   _fotosTmp={frente:s.cedulaFrenteFoto||null,reverso:s.cedulaReversoFoto||null,selfie:s.selfieFoto||null};
   _ubicTmp=s.ubicacion||null;
   const v=(k,d='')=>s[k]!==undefined&&s[k]!==null?s[k]:d; const va=(k,d='')=>escHTML(v(k,d)); const ref=s.referencia||{};
-  const upBox=(key,ic,lbl,cap)=>`<label class="up ${_fotosTmp[key]?'ok':''}" id="fot_${key}"><span class="ic">${ic}</span><span class="lbl">${_fotosTmp[key]?'Listo · cambiar':lbl}</span><input type="file" accept="image/*"${cap?' capture="'+cap+'"':''} onchange="subirFoto(event,'${key}')">${_fotosTmp[key]?`<img src="${_fotosTmp[key]}">`:''}</label>`;
+  /* 15-sep-2026 — la miniatura sale con `data-foto` y la resuelve el resolvedor:
+     puede ser un token (la foto vive en la nube) o un `data:` recien tomado con
+     la camara de Joan, y el resolvedor distingue los dos. */
+  const upBox=(key,ic,lbl,cap)=>`<label class="up ${_fotosTmp[key]?'ok':''}" id="fot_${key}"><span class="ic">${ic}</span><span class="lbl">${_fotosTmp[key]?'Listo · cambiar':lbl}</span><input type="file" accept="image/*"${cap?' capture="'+cap+'"':''} onchange="subirFoto(event,'${key}')">${_fotosTmp[key]?`<img data-foto="${_fotosTmp[key]}">`:''}</label>`;
   openModal(id?'Editar ficha · '+codCliente(s):'Agregar cliente',`
     ${id?`<div class="info-row"><span class="k">N° cliente</span><b class="mono">${codCliente(s)}</b></div>`:'<p class="muted" style="margin-bottom:14px">Se le asignará un número de cliente único al guardar.</p>'}
     <div class="sub-h">Datos</div>
@@ -3674,6 +3805,8 @@ function editarCliente(id,pre){
       <div class="help">Solo para los que entraron con código, cuando eso existía. Hoy la gente se registra sola: déjalo vacío.</div></div>
     <button class="btn btn-rojo" style="margin-top:8px" onclick="guardarCliente('${id||''}')">${id?'Guardar cambios':'Crear cliente'}</button>`);
   pintarUbic();
+  /* Las miniaturas de las tres cajas, que pueden ser tokens. */
+  try { resolverFotos(document.getElementById('mBody')); } catch(e){}
 }
 async function subirFoto(e,key){ const f=e.target.files[0]; if(!f)return; try{ _fotosTmp[key]=await comprimir(f); const box=document.getElementById('fot_'+key); box.classList.add('ok'); let img=box.querySelector('img'); if(!img){img=document.createElement('img');box.appendChild(img);} img.src=_fotosTmp[key]; box.querySelector('.lbl').textContent='Listo · cambiar'; }catch(err){ alert('No pude procesar la imagen.'); } }
 function gv(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
@@ -5814,6 +5947,73 @@ function archivosDe(celular){
        Joan lo mira y dice la verdad en vez de inventarse que no subió nada. */
     .catch(e=>({fotos:{},huella:null,fallo:errNube(e)}));
 }
+/* ==========================================================================
+ * EL RESOLVEDOR — 15-sep-2026. Convierte tokens en imagenes, al mirarlas.
+ *
+ * Recorre los `[data-foto]` de un trozo de pantalla recien pintado. Lo que sea
+ * `data:` se pone tal cual (una foto que Joan acaba de tomar con su camara, que
+ * todavia vive en memoria). Lo que sea un token se agrupa POR CELULAR y se pide
+ * de una sola vez: abrir una ficha son tres fotos y UNA llamada, no tres.
+ *
+ * TRES COSAS QUE PARECEN DETALLE Y NO LO SON:
+ *
+ * 1. Se escribe el `src` de la imagen Y el `href` del enlace que la envuelve.
+ *    Este archivo mete el mismo valor en los dos sitios en dos galerias. Un
+ *    centinela que solo mirara `<img src` dejaria pasar el `href`: la miniatura
+ *    se veria, y tocarla para leer el numero de cedula —que es para lo que se
+ *    toca— abriria la nada.
+ *
+ * 2. Si la nube falla, se dice QUE paso y sobre todo que NO paso. La cura ya
+ *    estaba escrita doce lineas mas abajo, en pintarFotosRegistro, y es la
+ *    unica de los cuatro sitios que llamaban a archivosDe que miraba `a.fallo`.
+ *    Los otros tres se inventaban que la persona no habia subido nada.
+ *
+ * 3. El cache vive en memoria y se vacia al cerrar la ficha. NUNCA toca el
+ *    disco: si el cache se guardara, habriamos vuelto a tener la segunda copia
+ *    que este trabajo entero existe para quitar.
+ * ======================================================================== */
+let _fotosReg={};
+function olvidarFotosReg(){ _fotosReg={}; }
+function resolverFotos(nodo){
+  const raiz=nodo||document;
+  const nodos=[].slice.call(raiz.querySelectorAll?raiz.querySelectorAll('[data-foto]'):[]);
+  if(!nodos.length) return Promise.resolve();
+  const porCelular={};
+  nodos.forEach(el=>{
+    const v=el.getAttribute('data-foto')||'';
+    if(v.slice(0,5)==='data:'){ ponerFoto(el,v); return; }
+    const t=parteToken(v);
+    if(!t){ ponerHueco(el,'Esa foto no tiene una direccion que yo entienda.'); return; }
+    (porCelular[t.celular]=porCelular[t.celular]||[]).push({el,tipo:t.tipo});
+  });
+  const celulares=Object.keys(porCelular);
+  if(!celulares.length) return Promise.resolve();
+  return Promise.all(celulares.map(cel=>{
+    const pedir=_fotosReg[cel]?Promise.resolve(_fotosReg[cel]):archivosDe(cel).then(a=>{ _fotosReg[cel]=a; return a; });
+    return pedir.then(a=>{
+      const f=(a&&a.fotos)||{};
+      porCelular[cel].forEach(({el,tipo})=>{
+        if(f[tipo]) ponerFoto(el,f[tipo]);
+        else if(a&&a.fallo) ponerHueco(el,'No pude traer esta foto: '+a.fallo+'. Eso NO quiere decir que no la haya subido.');
+        else ponerHueco(el,'Esta foto no esta en la nube.');
+      });
+    });
+  }));
+}
+function ponerFoto(el,url){
+  if(el.tagName==='IMG'){ el.src=url; const p=el.parentElement; if(p&&p.tagName==='A') p.href=url; }
+  else if(el.tagName==='A'){ el.href=url; }
+  else { el.style.backgroundImage='url('+url+')'; }
+  el.removeAttribute('data-foto');
+}
+function ponerHueco(el,motivo){
+  /* Un hueco EXPLICADO, no una imagen rota. La pantalla que se calla llena el
+     hueco con la explicacion mas creible, que casi siempre es la falsa. */
+  const caja=(el.tagName==='IMG'&&el.parentElement)?el.parentElement:el;
+  if(caja&&caja.setAttribute) caja.setAttribute('title',motivo);
+  if(el.tagName==='IMG'){ el.alt=motivo; el.removeAttribute('src'); el.classList.add('foto-hueco'); }
+  el.removeAttribute('data-foto');
+}
 function pintarFotosRegistro(celular,cajaId){
   const caja=document.getElementById(cajaId); if(!caja) return;
   if(!sbListo()){ caja.innerHTML='<span class="muted">Las fotos viven en la nube. Conéctala en Ajustes para verlas.</span>'; return; }
@@ -5888,10 +6088,41 @@ function fichaDesdeRegistro(id){
   const h=r.huella&&typeof r.huella==='object'?r.huella:null;
   if(h&&h.gps&&h.gps.lat!=null){ _ubicTmp={lat:h.gps.lat,lng:h.gps.lng,acc:h.gps.acc||0,fecha:h.gps.fecha||hoyISO()}; pintarUbic(); }
   _huellaPendiente=h?{ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''}:null;
-  archivosDe(r.telefono||r.cedula).then(a=>{ const f=a.fotos||{}; if(f.cedula_frente) _fotosTmp.frente=f.cedula_frente; if(f.cedula_reverso) _fotosTmp.reverso=f.cedula_reverso; if(f.selfie) _fotosTmp.selfie=f.selfie; ['frente','reverso','selfie'].forEach(pintarFotoBox); });
+  /* 15-sep-2026 — YA NO SE COPIA LA FOTO, SE ANOTA DONDE ESTA. Antes esta linea
+     metia 300 KB de base64 en la ficha; ahora tres tokens de 33 caracteres.
+     Es el cambio que lleva a Joan de 17 clientes a mas de mil.
+
+     Y SE ANOTA SOLO EL TIPO QUE LA NUBE CONFIRMO. Escribirlos a ciegas seria mas
+     corto y estaria mal: la ficha de quien ejercio su derecho a NO dar la cedula
+     (play/index.html:1224) diria que la tiene, y motor.js le sumaria 38.000 de
+     garantia —o sea de cupo— por una foto que no existe.
+
+     El `pedido` cierra una carrera que ya estaba abierta: este `.then` escribia
+     en la variable GLOBAL _fotosTmp sin preguntar si seguia abierta la misma
+     ficha. Abrir un registro, cerrarlo y abrir otro rapido le pegaba la cedula
+     del primero al segundo. */
+  const celReg=diez(r.telefono||r.cedula);
+  const pedido=++_pedidoFotos;
+  archivosDe(celReg).then(a=>{
+    if(pedido!==_pedidoFotos) return;   // ya se abrio otra ficha: esto no es suyo
+    const f=a.fotos||{};
+    if(f.cedula_frente)  _fotosTmp.frente =tokenReg(celReg,'cedula_frente');
+    if(f.cedula_reverso) _fotosTmp.reverso=tokenReg(celReg,'cedula_reverso');
+    if(f.selfie)         _fotosTmp.selfie =tokenReg(celReg,'selfie');
+    ['frente','reverso','selfie'].forEach(pintarFotoBox);
+  });
 }
 let _huellaPendiente=null;
-function pintarFotoBox(key){ const box=document.getElementById('fot_'+key); if(!box||!_fotosTmp[key]) return; box.classList.add('ok'); let img=box.querySelector('img'); if(!img){img=document.createElement('img');box.appendChild(img);} img.src=_fotosTmp[key]; const l=box.querySelector('.lbl'); if(l) l.textContent='Listo · cambiar'; }
+function pintarFotoBox(key){
+  const box=document.getElementById('fot_'+key); if(!box||!_fotosTmp[key]) return;
+  box.classList.add('ok');
+  let img=box.querySelector('img'); if(!img){img=document.createElement('img');box.appendChild(img);}
+  /* 15-sep-2026 — un token no se puede poner de src: se marca y lo resuelve
+     quien sabe traerlo. Un `data:` fresco de la camara si va directo. */
+  if(esToken(_fotosTmp[key])){ img.setAttribute('data-foto',_fotosTmp[key]); try{ resolverFotos(box); }catch(e){} }
+  else img.src=_fotosTmp[key];
+  const l=box.querySelector('.lbl'); if(l) l.textContent='Listo · cambiar';
+}
 /* ==========================================================================
  * EL MISMO PANEL, CON OTROS PERMISOS — 10 de septiembre de 2026
  *
@@ -8923,13 +9154,36 @@ function aplicarCruce(idReg,idSocio){
   const h=(r.huella&&typeof r.huella==='object')?r.huella:null;
   if(h){ if(!s.huellaRegistro) s.huellaRegistro={ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''};
          if(!s.ubicacion&&h.gps&&h.gps.lat!=null) s.ubicacion={lat:h.gps.lat,lng:h.gps.lng,acc:h.gps.acc||0,fecha:h.gps.fecha||hoyISO()}; }
-  archivosDe(r.telefono||r.cedula).then(a=>{ const f=a.fotos||{};
-    if(f.cedula_frente&&!s.cedulaFrenteFoto) s.cedulaFrenteFoto=f.cedula_frente;
-    if(f.cedula_reverso&&!s.cedulaReversoFoto) s.cedulaReversoFoto=f.cedula_reverso;
-    if(f.selfie&&!s.selfieFoto) s.selfieFoto=f.selfie;
-    guardar(); }).catch(()=>{});
+  /* 15-sep-2026 — DOS CAMBIOS EN CINCO LINEAS, Y EL SEGUNDO NO ES DE TAMAÑO.
+     (a) Se anotan tokens en vez de copiar 300 KB de base64.
+     (b) EL REGISTRO YA NO SE MARCA «ATENDIDO» SI LAS FOTOS NO LLEGARON.
+     archivosDe NUNCA lanza: cuando la nube falla devuelve {fotos:{}} con un
+     `fallo` adentro. O sea que un corte de señal entraba por este mismo `.then`
+     con las fotos vacias, el `.catch` no se enteraba, y la linea de abajo
+     marcaba el registro como atendido y le decia a Joan «quedó cruzado». El
+     registro desaparecia de la bandeja y las fotos no estaban en ninguna parte.
+     Ahora, si no se pudieron traer, se le dice y el registro SE QUEDA en la
+     bandeja para volver a intentarlo.
+     Y el `const s2` vuelve a buscar el socio en vez de escribir sobre la
+     referencia vieja: entre la peticion y la respuesta pudo entrar una
+     sincronizacion y reemplazar el objeto. */
+  const celCruce=diez(r.telefono||r.cedula);
+  archivosDe(celCruce).then(a=>{
+    const s2=DB.socios.find(x=>x.id===s.id); if(!s2) return;
+    const f=a.fotos||{};
+    if(f.cedula_frente&&!s2.cedulaFrenteFoto)  s2.cedulaFrenteFoto =tokenReg(celCruce,'cedula_frente');
+    if(f.cedula_reverso&&!s2.cedulaReversoFoto) s2.cedulaReversoFoto=tokenReg(celCruce,'cedula_reverso');
+    if(f.selfie&&!s2.selfieFoto)                s2.selfieFoto       =tokenReg(celCruce,'selfie');
+    guardar();
+    if(a.fallo){
+      alert('Quedó cruzado, pero NO pude traer las fotos: '+a.fallo+
+            '\n\nEl registro sigue en la bandeja para que lo vuelvas a intentar en un minuto.');
+      render(); return;
+    }
+    marcarRegistro(idReg,'atendido'); render();
+  });
 
-  guardar(); marcarRegistro(idReg,'atendido'); cerrarModal(); render();
+  guardar(); cerrarModal(); render();
   alert('Listo: '+r.nombre+' quedó cruzado con '+codCliente(s)+' '+s.nombre+'.\n\n'+
     (marcados.length?'Le completaste '+marcados.length+' '+(marcados.length===1?'dato':'datos')+'.':'No le cambiaste ningún dato.')+
     '\nNo se creó una ficha nueva: sigue siendo un solo cliente.'+
@@ -9344,7 +9598,11 @@ function crearDesdeSolicitud(id){
     if(!confirm('«'+s.nombre+'» todavía no tiene ficha. La creo ahora con los datos que declaró al registrarse (sin verificar), y sigo con el crédito.\n\n¿Continúo?')) return;
     /* Primero sus fotos, su ubicación y su huella (una llamada); después la
        ficha con todo, y se vuelve a entrar acá ya con ficha. */
-    return archivosDe(s.cedula).then(a=>{ const nuevo=socioDesdeDatos(s,a); DB.socios.push(nuevo);
+    /* 15-sep-2026 — se le pasa a socioDesdeDatos EL IDENTIFICADOR con el que se
+       le pregunto a la nube, para que el token guarde exactamente eso y el
+       resolvedor vuelva a preguntar lo mismo. Ver el comentario de adentro:
+       `s.cedula` de una solicitud NO es la cedula. */
+    return archivosDe(s.cedula).then(a=>{ const nuevo=socioDesdeDatos(s,a,diez(s.cedula)); DB.socios.push(nuevo);
       if(s.registro_id&&sbListo()) rpc('marcar_registro',{p_clave:sbCfg().clave,p_id:Number(s.registro_id),p_estado:'atendido'}).catch(()=>{});
       guardar(); crearDesdeSolicitud(id); });
   }
@@ -9379,7 +9637,7 @@ function crearDesdeSolicitud(id){
    mismo mapeo que fichaDesdeRegistro, sin pasar por el formulario: Joan ya vio
    los datos en la bandeja («👁») y lo que quiere es desembolsar. Lo que no tiene
    campo propio viaja entero en s.vinculacion. */
-function socioDesdeDatos(s,a){
+function socioDesdeDatos(s,a,ident){
   const d=(s.datos&&typeof s.datos==='object')?s.datos:{};
   const f=(a&&a.fotos)||{}, h=(a&&a.huella&&typeof a.huella==='object')?a.huella:null;
   /* Mismo mapeo que fichaDesdeRegistro y que la mesa de cruce: el del puente.
@@ -9391,7 +9649,12 @@ function socioDesdeDatos(s,a){
   const dec=PUENTE.fichaDeclarada({ nombre:s.nombre, cedula:d.documento||'',
                                     telefono:d.celular||s.cedula||'', datos:d });
   return Object.assign({ id:'C'+Date.now(), numero:nextNumCliente(),
-    cedulaFrenteFoto:f.cedula_frente||null, cedulaReversoFoto:f.cedula_reverso||null, selfieFoto:f.selfie||null,
+    /* 15-sep-2026 — el token, no la foto. Se acuña con `ident`, que es lo que
+       se le pregunto a la nube, y solo para los tipos que ella confirmo: uno
+       escrito a ciegas le sumaria cupo a una foto que no existe. */
+    cedulaFrenteFoto:f.cedula_frente?tokenReg(ident,'cedula_frente'):null,
+    cedulaReversoFoto:f.cedula_reverso?tokenReg(ident,'cedula_reverso'):null,
+    selfieFoto:f.selfie?tokenReg(ident,'selfie'):null,
     ubicacion:(h&&h.gps&&h.gps.lat!=null)?{lat:h.gps.lat,lng:h.gps.lng,acc:h.gps.acc||0,fecha:h.gps.fecha||hoyISO()}:null,
     huellaRegistro:h?{ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''}:null,
     whatsappIgual:true,
@@ -9988,7 +10251,13 @@ function importar(e){ const f=e.target.files[0]; if(!f)return; const inp=e.targe
 
 /* ===== NAV / MODAL / PIN ===== */
 const modal=document.getElementById('modal');
-function cerrarModal(){ modal.classList.remove('on'); }
+function cerrarModal(){
+  modal.classList.remove('on');
+  /* 15-sep-2026 — el cache de fotos de la nube vive SOLO mientras la ficha esta
+     abierta. Nunca toca el disco: si se guardara, habriamos vuelto a tener la
+     segunda copia que todo este trabajo existe para quitar. */
+  try { olvidarFotosReg(); } catch(e){}
+}
 function openModal(t,h){ document.getElementById('mTitle').textContent=t; document.getElementById('mBody').innerHTML=h; modal.classList.add('on'); modal.querySelector('.modal-card').scrollTop=0; }
 modal.addEventListener('click',e=>{ if(e.target===modal)cerrarModal(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&modal.classList.contains('on'))cerrarModal(); });

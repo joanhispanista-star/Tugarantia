@@ -306,7 +306,21 @@
    proyecto ya vio a este mismo service worker contestar index.html a una
    peticion de .js (ver v19). El guardian se mudo arriba del todo.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v60';
+/* v61 - 15-sep-2026. CIEN CLIENTES CON CEDULA Y TODO. Las fotos del registro ya
+   estaban en la nube y el CRM se hacia una SEGUNDA copia en base64 dentro del
+   navegador: medido sobre el respaldo real de Joan, un socio pesa 1.904
+   caracteres y sus tres cedulas 300.069, o sea que caben DIECISIETE clientes en
+   el cajon de 5 MB. Ahora se anota un token de 33 caracteres que dice donde
+   esta la foto y se trae al mirarla. Caben mas de mil.
+   El campo conserva su nombre a proposito: motor.js da 38.000 de garantia por
+   las tres fotos mirando solo si el campo tiene algo, asi que moverlas a un
+   campo nuevo le habria borrado ese cupo a cada cliente sin un error a la vista.
+   De paso: las fotos dejan de viajar a Supabase por tres caminos que nadie
+   habia visto (el recibo de una cuota, la papelera al reves, y los comprobantes
+   gemelos que se robaban la foto del otro), e importar() deja de llamar
+   «invalido» a un respaldo que solo no cupo.
+   Toca panel/crm.html, panel/nube.js, panel/subir.html y panel/traer.html. */
+const CACHE = 'tugarantia-v61';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
