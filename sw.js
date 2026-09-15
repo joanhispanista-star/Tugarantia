@@ -224,6 +224,12 @@
    si, distinguiendo vender de cobrar. Y el asesor tiene plantillas por
    situacion en vez de mandar siempre «Hola X». ENTRAN AL CACHE
    app/gestion-asesor.js y app/asesor-textos.js (nuevos).
+
+   v57 — 15-sep-2026. Las pantallas del asesor: mandar SMS y voz desde su
+   celular, su tabla de comisiones («Mi plata») y la vista «En vivo» de quien se
+   esta registrando. Y en play/, el boton con el que el CLIENTE decide si quiere
+   que su asesor lo acompane. Toca panel/crm.html, play/index.html y
+   app/cobranza-envio.js.
    ENTRAN AL CACHE app/ficha.js —lo carga play/— y el motor, que play/ no cargaba
    antes; app/chat.js y app/chat.css ya estaban por la app quincenal. */
 /* SUBIR EL NUMERO NO BASTA, Y COSTO UNA TARDE AVERIGUARLO (14-sep-2026).
@@ -281,7 +287,7 @@
    proyecto ya vio a este mismo service worker contestar index.html a una
    peticion de .js (ver v19). El guardian se mudo arriba del todo.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v56';
+const CACHE = 'tugarantia-v57';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

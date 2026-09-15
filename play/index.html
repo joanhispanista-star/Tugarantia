@@ -364,6 +364,112 @@ var PASOS = [
   { id: 'permiso',  titulo: 'Tu autorización' }
 ];
 
+/* ===========================================================================
+ * «QUIERO QUE MI ASESOR ME ACOMPAÑE» — 15-sep-2026
+ *
+ * Joan pidió poder ver al cliente registrándose, con sus fotos, para guiarlo por
+ * teléfono. Construirlo sin más tenía un problema que no es de opinión:
+ *
+ * HOY NADA SALE DE ESTE TELÉFONO HASTA EL PASO 9, y la casilla que autoriza las
+ * fotos está EN el paso 9. Quien la desmarca consigue que sus fotos no salgan —
+ * eso funciona de verdad, está en tomarFoto/siguientePaso. Publicar la foto en
+ * el paso 2 volvería esa garantía papel mojado: cuando la persona llegue a
+ * decidir, el asesor ya la vio, y eso no se deshace.
+ *
+ * Así que el permiso va PRIMERO y es del cliente: toca el botón, y solo desde
+ * ahí se publica. Se apaga cuando quiera, con el mismo botón.
+ *
+ * LO QUE NO SE MANDA NUNCA, ni con el permiso puesto:
+ *   · las referencias — son nombre y celular de DOS personas que no son quien
+ *     está registrándose y que no autorizaron nada. Y la Ley 2300 ya le prohíbe
+ *     a Joan contactarlas: tenerlas anotadas sería exposición sin ningún uso.
+ *   · la contraseña.
+ *   · la ubicación — el GPS se pide en el paso 2 pero se autoriza en el 9.
+ * Acá se filtra, y el SERVIDOR lo vuelve a filtrar (registro_vivo_publicar).
+ * Dos rejas para lo mismo: una pantalla se puede saltar.
+ * ========================================================================= */
+var ACOMPANA = false;
+try { ACOMPANA = localStorage.getItem('tg_acompana') === '1'; } catch (e) {}
+
+function tarjetaAcompanar() {
+  /* Sin celular no hay a quién asociarlo: el asesor lo encuentra por su número. */
+  if (!REGISTRO.celular) return '';
+  return '<div class="aviso ' + (ACOMPANA ? 'verde' : 'info') + '" style="margin-top:var(--e3)">' +
+    (ACOMPANA
+      ? '<b>Tu asesor te está acompañando.</b> Ve en qué paso vas y las fotos que subas, ' +
+        'para poder guiarte si llamas. No ve tu contraseña, ni tus referencias, ni dónde estás.' +
+        '<button class="btn sec sm" style="margin-top:var(--e2)" onclick="acompanar(false)">' +
+        'Prefiero seguir solo</button>'
+      : '<b>¿Quieres que un asesor te acompañe?</b> Si lo activas, podrá ver en qué paso vas ' +
+        'y las fotos que subas, para guiarte por teléfono. Nunca ve tu contraseña, ni tus ' +
+        'referencias, ni dónde estás. Lo puedes apagar cuando quieras.' +
+        '<button class="btn sec sm" style="margin-top:var(--e2)" onclick="acompanar(true)">' +
+        'Sí, que me acompañe</button>') +
+    '</div>';
+}
+
+function acompanar(si) {
+  ACOMPANA = !!si;
+  try { localStorage.setItem('tg_acompana', si ? '1' : '0'); } catch (e) {}
+  if (si) publicarAvance();
+  else borrarAvance();
+  pintarRegistro(PASO);
+}
+
+/* Lo que se publica. Se arma una lista BLANCA —lo que sí entra— y no una negra:
+   una lista negra hay que acordarse de ampliarla cada vez que el formulario
+   gane un campo, y ese olvido es el que manda de más. */
+var CAMPOS_QUE_SE_PUBLICAN = ['nombres', 'apellidos', 'documento', 'tipo_doc',
+                              'celular', 'correo', 'nacimiento'];
+
+function publicarAvance() {
+  if (!ACOMPANA || !REGISTRO.celular) return Promise.resolve();
+  if (!CFG.url || !CFG.anon) return Promise.resolve();
+
+  var avance = {};
+  CAMPOS_QUE_SE_PUBLICAN.forEach(function (k) {
+    if (REGISTRO[k]) avance[k] = String(REGISTRO[k]).slice(0, 80);
+  });
+
+  /* Las fotos SOLO si la persona ya marcó la autorización de fotos. Es la misma
+     casilla del paso 9: si todavía no la marcó, el acompañamiento muestra el
+     avance pero no las imágenes. Dos permisos distintos para dos cosas
+     distintas, y ninguno vale por el otro. */
+  var fotos = {};
+  if (FOTOS.sensibles) {
+    ['cedula_frente', 'cedula_reverso'].forEach(function (k) {
+      if (FOTOS[k]) fotos[k] = FOTOS[k];
+    });
+    /* LA SELFIE NO VIAJA. Es biometría —la categoría más sensible de la Ley
+       1581— y para guiar a alguien por teléfono no hace falta: lo que se
+       atasca es el código de barras de la cédula, no la cara. */
+  }
+
+  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registro_vivo_publicar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
+               Authorization: 'Bearer ' + CFG.anon },
+    body: JSON.stringify({
+      p_celular: REGISTRO.celular,
+      p_paso: PASO + 1,
+      p_de: PASOS.length,
+      p_nombre: ((REGISTRO.nombres || '') + ' ' + (REGISTRO.apellidos || '')).trim(),
+      p_avance: avance,
+      p_fotos: fotos
+    })
+  }).catch(function () { /* sin señal se sigue registrando igual */ });
+}
+
+function borrarAvance() {
+  if (!REGISTRO.celular || !CFG.url || !CFG.anon) return Promise.resolve();
+  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registro_vivo_borrar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
+               Authorization: 'Bearer ' + CFG.anon },
+    body: JSON.stringify({ p_celular: REGISTRO.celular })
+  }).catch(function () {});
+}
+
 function pintarRegistro(paso) {
   VISTA = 'registro';
   PASO = Math.max(0, Math.min(paso, PASOS.length - 1));
@@ -389,6 +495,10 @@ function pintarRegistro(paso) {
       barra +
       '<h3 class="tit" style="margin-top:var(--e3)">' + esc(p.titulo) + '</h3>' +
       cuerpo +
+      /* 15-sep-2026 — el acompanamiento. Va DESPUES del contenido del paso y
+         antes del boton: es una eleccion sobre lo que acaba de hacer, no una
+         puerta para entrar. */
+      tarjetaAcompanar() +
       '<div id="errReg" class="aviso ambar oculto"></div>' +
       '<button class="btn arriba" onclick="siguientePaso()">' +
         (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : 'Continuar') + '</button>' +
@@ -396,6 +506,9 @@ function pintarRegistro(paso) {
         (PASO === 0 ? 'pintarEntrar()' : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
     '</div>' + pie();
   window.scrollTo(0, 0);
+  /* Cada vez que cambia de paso, si dio permiso, se publica. En un try porque un
+     acompanamiento que falle NO puede impedirle abrir su cuenta. */
+  try { publicarAvance(); } catch (e) {}
   if (p.id === 'rostro' && FOTOS.sensibles && !FOTOS.selfie) setTimeout(iniciarEscaner, 50);
   if (p.id === 'documento' && FOTOS.sensibles && !FOTOS.gps && !FOTOS.gps_error) pedirGps();
 }

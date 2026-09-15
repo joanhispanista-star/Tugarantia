@@ -273,7 +273,19 @@
     variasHoy: 'Tu Garantia: {nombre}, tus {cuantos} pagos pendientes suman ' +
               '{saldo}. Escribenos al {telefono}.',
     variasMora: 'Tu Garantia: {nombre}, tus {cuantos} pagos vencidos suman ' +
-              '{saldo}. Escribenos al {telefono} y buscamos un acuerdo.'
+              '{saldo}. Escribenos al {telefono} y buscamos un acuerdo.',
+
+    /* --- VENTA. No hablan de plata, y es la razon de que existan --- 15-sep-2026.
+       El asesor puede mandarle un SMS a un PROSPECTO, que no debe nada. Con solo
+       plantillas de cobro, al prospecto le salia «te recordamos tu pago de $0
+       el .» — con el monto en cero y la fecha vacia. Lo cazo abrir el CRM en un
+       navegador y mirar lo que de verdad se armaba.
+       Un cobro de cero pesos a alguien que no debe nada no es un mensaje raro:
+       es la casa quedando como que no sabe con quien habla. */
+    presentacion: 'Tu Garantia: {nombre}, soy tu asesor. Te cuento como funciona ' +
+              'nuestro credito: escribeme al {telefono}.',
+    invitacion: 'Tu Garantia: {nombre}, pide tu credito desde el celular. ' +
+              'Abre tu cuenta: {enlace}'
   };
 
   /* La voz va mas lenta y mas simple: la escucha una persona una sola vez y no
@@ -293,7 +305,11 @@
     variasHoy: 'Hola {nombre}. Le saludamos de Tu Garantia. Tiene {cuantos} pagos ' +
               'pendientes que suman {saldo_hablado}. Escribanos al {telefono} y lo organizamos.',
     variasMora: 'Hola {nombre}. Le saludamos de Tu Garantia. Tiene {cuantos} pagos ' +
-              'vencidos que suman {saldo_hablado}. Escribanos al {telefono} y buscamos un acuerdo.'
+              'vencidos que suman {saldo_hablado}. Escribanos al {telefono} y buscamos un acuerdo.',
+    presentacion: 'Hola {nombre}. Le saludamos de Tu Garantia. Le llamamos para contarle ' +
+              'como funciona nuestro credito. Puede escribirnos al {telefono}.',
+    invitacion: 'Hola {nombre}. Le saludamos de Tu Garantia. Ya puede pedir su credito desde ' +
+              'el celular. Escribanos al {telefono} y le contamos como.'
   };
 
   /* Que plantilla toca. Si el socio debe mas de un credito manda la de VARIOS:
@@ -302,6 +318,8 @@
   function plantillaDe(caso) {
     var cuantos = Math.max(1, num(caso && caso.cuantos) || 1);
     var clave = texto(caso && caso.plantilla) || 'venceHoy';
+    /* Las de VENTA no se convierten: un prospecto no tiene «tres pagos». */
+    if (clave === 'presentacion' || clave === 'invitacion') return clave;
     if (cuantos > 1) {
       return (clave === 'mora' || clave === 'moraTemprana') ? 'variasMora' : 'variasHoy';
     }
@@ -380,6 +398,7 @@
         saldo_hablado: montoHablado(monto),
         fecha_pago: fechaCorta(c.fecha_pago),
         cuantos: String(cuantos),
+        enlace: texto(o.enlace) || 'https://tugarantia.net/play/',
         telefono: tel
       };
       var sms = sinTildes(aplicar((pSMS[clave] || pSMS.venceHoy) + SALIDA_SMS, vars));

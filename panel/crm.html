@@ -810,10 +810,14 @@
      (que el modo equipo NO tenia) y las plantillas por situacion. Modulo puro,
      probado con node. -->
 <script src="../app/gestion-asesor.js"></script>
-<script src="../app/asesor-textos.js"></script>
 <!-- Las reglas de comisión de los asesores. Funciones puras: el CRM las
      llama, no las reimplementa. -->
 <script src="../app/comisiones.js"></script>
+<!-- 15-sep-2026 — la tabla de comisiones EN PALABRAS. Va DESPUES de
+     comisiones.js y no antes: lee sus cifras al cargar, y si llega primero se
+     queda sin tabla y la pantalla del asesor dice «no pude leer la tabla».
+     Pasó, y se vio abriendo el CRM en un navegador. -->
+<script src="../app/asesor-textos.js"></script>
 <!-- Leer bases de prospectos de Excel o CSV. Sin librerias y sin CDN: un
      .xlsx es un zip con XML adentro y el navegador ya sabe descomprimir.
      Un script de un servidor ajeno en ESTA pagina podria leer la cartera
@@ -6089,6 +6093,8 @@ function modoEquipo() {
         <button class="navbtn" onclick="irEquipo('base')"><span class="ic">📋</span> Mi base</button>
         <button class="navbtn" onclick="irEquipo('agenda')"><span class="ic">📅</span> Agenda</button>
         ${yo.rol === 'gerente' ? '<button class="navbtn" onclick="irEquipo(\'equipo\')"><span class="ic">🚶</span> Mi equipo</button>' : ''}
+        <button class="navbtn" onclick="irEquipo('vivo')"><span class="ic">👀</span> En vivo</button>
+        <button class="navbtn" onclick="irEquipo('plata')"><span class="ic">💰</span> Mi plata</button>
       </nav>
       <div class="sep"></div>
       <div style="padding:10px 14px;font-size:11.5px;line-height:1.5;opacity:.6">
@@ -6112,7 +6118,12 @@ function irEquipo(v) {
   main.innerHTML = '<div class="wrapEq" style="padding:20px;max-width:760px;margin:0 auto">' +
     (v === 'base' ? vistaBaseEquipo() :
      v === 'agenda' ? vistaAgendaEq() :
-     v === 'equipo' ? vistaMiEquipo() : vistaTableroEquipo()) + '</div>';
+     v === 'equipo' ? vistaMiEquipo() :
+     v === 'plata' ? vistaPlataEq() :
+     v === 'vivo' ? vistaVivoEq() : vistaTableroEquipo()) + '</div>';
+  /* El reloj del «en vivo» solo corre con esa pestana abierta. Uno que siguiera
+     corriendo en el bolsillo del asesor es bateria y son datos de su plan. */
+  vigilarVivoEq(v === 'vivo');
   window.scrollTo(0, 0);
 }
 
@@ -6139,6 +6150,12 @@ function filaPersonaEq(p) {
       ${p.celular ? `<button class="btn btn-wa btn-sm" style="margin-left:8px"
         onclick="contactarEq('${escHTML(String(p.id))}','${escHTML(p.celular)}','${escHTML(primero)}')"
         title="Escribirle por WhatsApp">📲</button>` : ''}
+      ${p.celular ? `<button class="btn btn-ghost btn-sm" style="margin-left:6px"
+        onclick="mensajearEq('${escHTML(String(p.id))}','sms')"
+        title="Mandarle un mensaje de texto">✉️</button>
+      <button class="btn btn-ghost btn-sm" style="margin-left:6px"
+        onclick="mensajearEq('${escHTML(String(p.id))}','voz')"
+        title="Mandarle una llamada grabada">📞</button>` : ''}
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
         onclick="anotarGestionEq('${escHTML(String(p.id))}')" title="Anotar qué pasó">✎</button>
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
@@ -6771,6 +6788,266 @@ function borrarCitaEq(id) {
       return traerAgendaEq();
     })
     .catch(() => alert('No pude conectarme. Revisa la señal.'));
+}
+
+/* ===========================================================================
+ * LAS PANTALLAS DEL ASESOR — 15-sep-2026
+ *
+ * Cuelgan de base/20260919_asesor.sql. Mientras esa migracion no este pegada,
+ * cada una dice que le falta: ninguna se queda en blanco ni finge que funciona.
+ * Eso no es cortesia — un asesor en la calle con una pantalla muda llama a Joan.
+ * ========================================================================= */
+
+/* ---------------------------------------------------------------------------
+ * 1. MANDAR SMS Y VOZ
+ *
+ * El texto NO lo arma la pantalla: lo arma app/cobranza-envio.js, el mismo que
+ * usa Joan. Asi el SMS del asesor cabe en un pedazo, lleva el aviso de salida
+ * obligatorio y dice el monto en palabras cuando es voz. Si cada pantalla
+ * escribiera su propio texto, un dia el del asesor costaria el doble y nadie
+ * sabria por que.
+ * ------------------------------------------------------------------------ */
+var _envAs = null;
+
+function mensajearEq(id, canal) {
+  var E = window.CobranzaEnvio, G = window.GestionAsesor;
+  var p = genteEquipo().find(function (x) { return String(x.id) === String(id); });
+  if (!p || !E || !G) return;
+
+  /* El mismo freno que WhatsApp. La ley no distingue canales: distingue cobrar
+     de no cobrar, y cuenta UNO por semana sin mezclar. */
+  var esFestivo = function (d) {
+    return !!(window.MotorReglas && MotorReglas.esFestivo && MotorReglas.esFestivo(d));
+  };
+  var r = G.puedeContactar(p, { canal: canal, esFestivo: esFestivo });
+  if (!r.puede) {
+    openModal('Ahora no se puede',
+      '<div class="alerta warn"><b>' + escHTML(r.texto) + '</b></div>' +
+      (r.es_cobranza ? '<p class="muted">Es la Ley 2300 de 2023, y la sanción le llega a Joan.</p>' : ''));
+    return;
+  }
+
+  /* SIN MONTO NO SE COBRA POR SMS. Un «tu pago está pendiente» sin cifra ni
+     fecha no le dice nada a nadie y gasta el contacto de la semana. Si la nube
+     todavía no manda la plata (migración sin pegar), se dice con esas palabras
+     en vez de mandar un mensaje vacío. */
+  var esCobro = G.esCobranza(p.etapa);
+  if (esCobro && (p.saldo == null && p.saldo_total == null)) {
+    openModal('Todavía no',
+      '<div class="alerta warn"><b>Tu celular todavía no recibe los montos.</b><br>' +
+      'Un mensaje de cobro sin decir cuánto ni cuándo no sirve, así que no se manda.</div>' +
+      '<p class="muted">Joan tiene que pegar <b>base/20260919_asesor.sql</b> y volver a ' +
+      'publicar el equipo. Mientras tanto puedes escribirle por WhatsApp.</p>');
+    return;
+  }
+
+  var caso = {
+    socioId: p.id, nombre: p.nombre, telefono: p.celular,
+    saldo: p.saldo, saldo_total: p.saldo_total,
+    cuantos: p.creditos || 1,
+    fecha_pago: p.fecha_pago || '',
+    plantilla: plantillaSMSDe(p.etapa)
+  };
+  var tel = (CARTERA_EQUIPO.yo && CARTERA_EQUIPO.yo.celular) || '';
+  var f = E.filasDeEnvio([caso], { telefono: tel });
+  if (!f.filas.length) {
+    openModal('No se puede', '<div class="alerta warn">' +
+      (f.sinTelefono.length ? 'Esa persona no tiene un celular válido en su ficha.'
+                            : 'No pude armar el mensaje.') + '</div>');
+    return;
+  }
+  var fila = f.filas[0];
+  _envAs = { id: String(id), canal: canal, fila: fila, persona: p };
+
+  var texto = canal === 'voz' ? fila.mensaje_voz : fila.mensaje_sms;
+  openModal((canal === 'voz' ? '📞 Llamada grabada a ' : '✉️ Mensaje de texto a ') + escHTML(fila.nombre),
+    (esCobro ? '' : '<div class="alerta info">Esta persona está en venta, no en cobro. ' +
+      'Revisa que el texto diga lo que quieres.</div>') +
+    '<div class="field"><label>Lo que le va a llegar <span class="muted">(puedes cambiarlo)</span></label>' +
+      '<textarea id="txtEnvAs" rows="5">' + escHTML(texto) + '</textarea></div>' +
+    (canal === 'sms'
+      ? '<div class="muted" style="font-size:12px;margin-bottom:10px">' +
+        'Son <b>' + fila.pedazos_sms + '</b> mensaje(s) de texto. Si escribes de más se parte en ' +
+        'dos y se cobra doble. En Colombia el cliente NO ve «Tu Garantía» como remitente ' +
+        '—ve un código corto—, por eso el texto empieza diciendo quién escribe.</div>'
+      : '<div class="muted" style="font-size:12px;margin-bottom:10px">Lo lee una máquina. ' +
+        'El monto va en palabras a propósito: «$150.000» leído por un robot suena a decimal.</div>') +
+    '<div id="envAsMsg"></div>' +
+    '<button class="btn btn-rojo" style="width:100%" id="btnEnvAs" onclick="confirmarEnvioAs()">' +
+      (canal === 'voz' ? 'Llamar' : 'Enviar') + '</button>' +
+    '<div class="muted" style="font-size:12px;margin-top:8px">Queda anotado con tu nombre y la hora. ' +
+      'Cuenta como tu contacto de la semana con esta persona.</div>');
+}
+
+/* Que plantilla de SMS toca segun la etapa. Es el mismo criterio de la de
+   WhatsApp, pero las claves son las de cobranza-envio.js. */
+function plantillaSMSDe(etapa) {
+  /* LAS DE VENTA PRIMERO. Un prospecto no debe nada: con solo plantillas de
+     cobro le salia «te recordamos tu pago de $0 el .». */
+  if (etapa === 'PC') return 'presentacion';
+  if (etapa === 'CR') return 'invitacion';
+  if (etapa === 'D0') return 'venceHoy';
+  if (etapa === 'M1A') return 'moraTemprana';
+  if (etapa === 'M1B' || etapa === 'M1-2' || etapa === 'M2') return 'mora';
+  return 'recordatorio1';
+}
+
+function confirmarEnvioAs() {
+  var e = _envAs; if (!e) return;
+  var caja = document.getElementById('txtEnvAs');
+  var texto = (caja && caja.value.trim()) || '';
+  if (!texto) return;
+  var b = document.getElementById('btnEnvAs');
+  var msg = document.getElementById('envAsMsg');
+  if (b) { b.disabled = true; b.textContent = 'Enviando…'; }
+
+  rpcEquipo('asesor_enviar', { p_persona_id: e.id, p_canal: e.canal, p_texto: texto })
+    .then(function (res) {
+      var j = res && res.j;
+      if (!res.ok || !j || j.ok !== true) {
+        if (b) { b.disabled = false; b.textContent = e.canal === 'voz' ? 'Llamar' : 'Enviar'; }
+        if (msg) msg.innerHTML = '<div class="alerta warn">' + escHTML(
+          res.status === 404
+            ? 'La nube todavía no sabe enviar. Joan tiene que pegar base/20260919_asesor.sql.'
+            : ((j && (j.detalle || j.motivo)) || 'No se pudo enviar.')) + '</div>';
+        return;
+      }
+      cerrarModal();
+      openModal('Enviado',
+        '<div class="alerta ok"><b>Salió.</b> Te quedan ' + Number(j.quedan_hoy) +
+        ' envíos hoy.</div>' +
+        '<p class="muted">Queda anotado como tu contacto de la semana con esta persona.</p>');
+      traerCarteraEq();
+    })
+    .catch(function () {
+      if (b) { b.disabled = false; b.textContent = e.canal === 'voz' ? 'Llamar' : 'Enviar'; }
+      if (msg) msg.innerHTML = '<div class="alerta warn">No pude conectarme. Revisa la señal.</div>';
+    });
+}
+
+/* ---------------------------------------------------------------------------
+ * 2. MI PLATA — las comisiones del asesor
+ *
+ * Las cifras salen de app/comisiones.js por medio de app/asesor-textos.js. No
+ * se escriben aca: un asesor trabajando contra una tabla equivocada es una
+ * discusion de plata a fin de mes.
+ * ------------------------------------------------------------------------ */
+function vistaPlataEq() {
+  var T = window.AsesorTextos;
+  if (!T) return '<div class="card"><div class="alerta warn">No cargó app/asesor-textos.js. ' +
+    'Recarga la página.</div></div>';
+  var t = T.tablaComisiones(hoyISOCrm());
+  if (!t) return '<div class="card"><div class="alerta warn">No pude leer la tabla.</div></div>';
+
+  var m = T.mensajeDelDia(hoyISOCrm());
+  var eq = T.explicarEquilibrio(20, hoyISOCrm());
+
+  var renglon = function (r) {
+    var signo = r.monto < 0 ? 'mora' : 'al-dia';
+    return '<div class="info-row"><span class="k"><b>' + escHTML(r.titulo) + '</b>' +
+      (r.bloqueado ? ' <span class="chip prorroga">se cobra cuando pague</span>' : '') +
+      '<div class="muted">' + escHTML(r.cuando) + '</div>' +
+      '<div class="muted" style="font-size:12px">' + escHTML(r.ojo) + '</div></span>' +
+      '<span class="vv"><span class="chip ' + signo + '">' +
+        (r.monto < 0 ? '−' : '') + COP(Math.abs(r.monto)) + '</span></span></div>';
+  };
+
+  return '<div class="ph"><div><h1>Mi plata<span class="dot">.</span></h1>' +
+      '<div class="sub">Cómo se gana, con las reglas completas</div></div></div>' +
+
+    '<div class="card laca"><div class="etq">' + escHTML(m.texto) + '</div>' +
+      '<div class="muted" style="margin-top:6px">' + escHTML(m.pie) + '</div></div>' +
+
+    '<div class="card"><div class="card-h"><h3>💼 Por vender</h3>' +
+      '<span class="tag">Traer y colocar</span></div>' +
+      t.venta.map(renglon).join('') + '</div>' +
+
+    '<div class="card"><div class="card-h"><h3>💵 Por cobrar</h3>' +
+      '<span class="tag">Que la plata vuelva</span></div>' +
+      t.cobranza.map(renglon).join('') + '</div>' +
+
+    '<div class="card"><div class="alerta info"><b>La regla de oro.</b><br>' +
+      escHTML(t.la_regla_de_oro) + '</div>' +
+      (eq ? '<div class="muted" style="font-size:12.5px;margin-top:12px;line-height:1.55">' +
+        escHTML(eq.texto) + '</div>' : '') +
+      '<div class="muted" style="font-size:12px;margin-top:12px">Tabla vigente desde el ' +
+        escHTML(fmtFecha(t.vigente_desde)) + '. Si Joan la cambia, lo ya ganado no se mueve.</div>' +
+    '</div>';
+}
+
+/* ---------------------------------------------------------------------------
+ * 3. QUIEN SE ESTA REGISTRANDO AHORA
+ *
+ * Solo sale quien TOCO el boton «quiero que mi asesor me acompane» en su
+ * telefono. Antes de eso, aca no hay nada suyo — y eso no es una politica de
+ * pantalla, lo impone el servidor.
+ * ------------------------------------------------------------------------ */
+var VIVO_EQ = [];
+var VIVO_RELOJ = null;
+
+function traerVivoEq() {
+  return rpcEquipo('registro_vivo_mirar').then(function (res) {
+    var j = res && res.j;
+    VIVO_EQ = (res.ok && j && j.ok === true && j.gente) ? j.gente : [];
+    return VIVO_EQ;
+  }).catch(function () { VIVO_EQ = []; return VIVO_EQ; });
+}
+
+/* Se mira cada 12 segundos MIENTRAS la pestana este abierta, y se apaga al
+   salir. Un reloj que sigue corriendo en el bolsillo del asesor es bateria y
+   son datos de su plan. */
+function vigilarVivoEq(encender) {
+  if (VIVO_RELOJ) { clearInterval(VIVO_RELOJ); VIVO_RELOJ = null; }
+  if (!encender) return;
+  VIVO_RELOJ = setInterval(function () {
+    traerVivoEq().then(function () {
+      var caja = document.getElementById('cajaVivo');
+      if (caja) caja.innerHTML = cuerpoVivoEq();
+    });
+  }, 12000);
+}
+
+function cuerpoVivoEq() {
+  if (!VIVO_EQ.length) {
+    return '<div class="empty"><div class="ic">👀</div><p>Nadie registrándose ahora.<br>' +
+      '<span class="muted">Aquí salen los que toquen «quiero que mi asesor me acompañe» ' +
+      'mientras abren su cuenta.</span></p></div>';
+  }
+  return VIVO_EQ.map(function (v) {
+    var pct = Math.round((Number(v.paso) || 0) / (Number(v.de_pasos) || 9) * 100);
+    var a = v.avance || {};
+    var fotos = v.fotos || {};
+    var datos = Object.keys(a).slice(0, 6).map(function (k) {
+      return filaInfo(k.replace(/_/g, ' '), String(a[k]).slice(0, 60));
+    }).join('');
+    var imgs = Object.keys(fotos).map(function (k) {
+      return '<figure style="margin:0;text-align:center"><img src="' + escHTML(String(fotos[k])) +
+        '" alt="" style="max-width:100%;border-radius:10px"><figcaption class="muted" ' +
+        'style="font-size:11px">' + escHTML(k.replace(/_/g, ' ')) + '</figcaption></figure>';
+    }).join('');
+    return '<div class="card"><div class="card-h"><h3>' + escHTML(v.nombre || v.celular) + '</h3>' +
+      '<span class="tag">paso ' + Number(v.paso) + ' de ' + Number(v.de_pasos) + '</span></div>' +
+      '<div class="barra" style="margin:0 14px"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="muted" style="padding:8px 14px;font-size:12px">Última señal ' +
+        escHTML(haceCuanto(v.actualizado)) + '</div>' +
+      datos +
+      (imgs ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 14px">' +
+        imgs + '</div>' : '') +
+      '<div class="alerta warn" style="margin:10px 14px;font-size:12.5px">' +
+        '<b>Míralo, no se lo dictes.</b> Si llenas tú el formulario por él, la huella del ' +
+        'registro deja de valer — y es justo lo que un día hay que poder demostrar que no pasó.</div>' +
+      '<div style="padding:0 14px 14px">' +
+        '<button class="btn btn-wa btn-sm" onclick="window.open(waLink(\'' +
+          escHTML(String(v.celular)) + '\',\'\'),\'_blank\',\'noopener\')">📲 Escribirle</button></div>' +
+    '</div>';
+  }).join('');
+}
+
+function vistaVivoEq() {
+  return '<div class="ph"><div><h1>En vivo<span class="dot">.</span></h1>' +
+      '<div class="sub">Quién está abriendo su cuenta ahora mismo y pidió acompañamiento</div></div>' +
+      '<button class="btn btn-ghost" onclick="traerVivoEq().then(()=>irEquipo(\'vivo\'))">↻ Mirar</button></div>' +
+    '<div id="cajaVivo">' + cuerpoVivoEq() + '</div>';
 }
 
 function vistaTableroEquipo() {

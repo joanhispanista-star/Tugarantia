@@ -784,3 +784,77 @@ describe('la migración de Infobip (15-sep-2026)', () => {
     assert.equal(/create policy[\s\S]*envios_mensajes/.test(SQL2), false);
   });
 });
+
+describe('a un prospecto no se le cobra $0 (15-sep-2026)', () => {
+
+  /* Lo cazó abrir el CRM en un navegador y mirar lo que de verdad se armaba: al
+     prospecto —que no debe nada— le salía «te recordamos tu pago de $0 el .»,
+     con el monto en cero y la fecha vacía. Un cobro de cero pesos a alguien que
+     no debe nada no es un mensaje raro: es la casa quedando como que no sabe con
+     quién habla. */
+
+  const prospecto = { socioId: 'x', nombre: 'Luis Prospecto', telefono: '3007778899' };
+
+  test('las plantillas de VENTA no hablan de plata', () => {
+    for (const clave of ['presentacion', 'invitacion']) {
+      const t = E.SMS[clave];
+      assert.ok(t, 'falta la plantilla de venta ' + clave);
+      assert.equal(/\{saldo|\{fecha_pago|\{cuantos/.test(t), false,
+        clave + ' habla de plata o de fechas: ' + t);
+      assert.equal(/\{saldo|\{fecha_pago|\{cuantos/.test(E.VOZ[clave]), false,
+        'la voz de ' + clave + ' habla de plata');
+    }
+  });
+
+  test('un mensaje de venta NUNCA sale con $0 ni con una fecha vacía', () => {
+    for (const clave of ['presentacion', 'invitacion']) {
+      const r = E.filasDeEnvio([Object.assign({}, prospecto, { plantilla: clave })],
+                               { telefono: '3001112233' });
+      const sms = r.filas[0].mensaje_sms, voz = r.filas[0].mensaje_voz;
+      for (const m of [sms, voz]) {
+        assert.equal(/\$0\b/.test(m), false, clave + ' salió con $0: ' + m);
+        assert.equal(/ el \.|el $/.test(m), false, clave + ' salió con la fecha vacía: ' + m);
+        assert.equal(/\{\w+\}/.test(m), false, clave + ' dejó un hueco sin rellenar: ' + m);
+      }
+    }
+  });
+
+  test('y siguen cabiendo en UN SMS, con el aviso de salida', () => {
+    const vars = { nombre: 'Inmaculada', telefono: '3001112233',
+                   enlace: 'https://tugarantia.net/play/' };
+    for (const clave of ['presentacion', 'invitacion']) {
+      const m = E.pedazosSMS(E.sinTildes(E.aplicar(E.SMS[clave] + E.SALIDA_SMS, vars)));
+      assert.equal(m.pedazos, 1, clave + ' ocupa ' + m.pedazos + ' SMS (' + m.caracteres + ')');
+    }
+  });
+
+  test('una plantilla de VENTA no se convierte en «tienes 3 pagos»', () => {
+    /* Un prospecto no tiene tres pagos. Si plantillaDe las convirtiera, un
+       prospecto con datos sucios recibiría un cobro múltiple inventado. */
+    assert.equal(E.plantillaDe({ plantilla: 'presentacion', cuantos: 3 }), 'presentacion');
+    assert.equal(E.plantillaDe({ plantilla: 'invitacion', cuantos: 5 }), 'invitacion');
+  });
+
+  test('el CRM le propone al prospecto una de VENTA, no una de cobro', () => {
+    const CRM = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
+    const i = CRM.indexOf('function plantillaSMSDe');
+    const c = CRM.slice(i, CRM.indexOf('\n}', i));
+    assert.ok(c.indexOf("etapa === 'PC') return 'presentacion'") > -1,
+      'al potencial cliente se le propone una plantilla de cobro');
+    assert.ok(c.indexOf("etapa === 'CR') return 'invitacion'") > -1,
+      'al registrado se le propone una plantilla de cobro');
+  });
+
+  test('un COBRO sin monto no se manda: se explica', () => {
+    /* La otra mitad del mismo problema. Si la nube todavía no manda la plata
+       (migración sin pegar), un SMS de cobro sin cifra gasta el contacto de la
+       semana y no dice nada. */
+    const CRM = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
+    const i = CRM.indexOf('function mensajearEq');
+    const c = CRM.slice(i, CRM.indexOf('\nfunction plantillaSMSDe', i));
+    assert.ok(c.indexOf('p.saldo == null && p.saldo_total == null') > -1,
+      'se manda un cobro aunque no se sepa el monto');
+    assert.ok(c.indexOf('20260919_asesor.sql') > -1,
+      'no se dice qué falta para que lleguen los montos');
+  });
+});

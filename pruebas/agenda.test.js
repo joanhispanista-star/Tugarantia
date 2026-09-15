@@ -36,6 +36,7 @@
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
+const { asentar } = require('./esperar.js');
 const fs = require('node:fs');
 const path = require('node:path');
 const { abrirPanel } = require('./banco-panel.js');
@@ -201,7 +202,7 @@ describe('la ficha del registrado: se abre por la base, nunca por un número', (
   test('«no se ha registrado» NO se dice cuando lo que pasó es que no se pudo preguntar', () => {
     const { P } = abrirEquipo(YO_ASESOR, GENTE, {});  // todo 404
     P.ev("verFichaEq('p1')");
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       const h = P.elems.mBody.innerHTML;
       assert.match(h, /todavía no está encendida/i,
         'con la migración sin correr, la ficha no dice que esa parte no está encendida');
@@ -218,7 +219,7 @@ describe('la ficha del registrado: se abre por la base, nunca por un número', (
                                celular: '3011000001' } }
     });
     P.ev("verFichaEq('p1')");
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       const h = P.elems.mBody.innerHTML;
       assert.match(h, /no se ha registrado/i);
       assert.match(h, /otro n[úu]mero/i,
@@ -239,7 +240,7 @@ describe('la ficha del registrado: se abre por la base, nunca por un número', (
                  se_registro_como: 'Carlos Perez Gomez' } } }
     });
     P.ev("verFichaEq('p1')");
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       const h = P.elems.mBody.innerHTML;
       assert.ok(h.indexOf('Ana Rodriguez') >= 0 && h.indexOf('Carlos Perez Gomez') >= 0,
         'el aviso no lleva los dos nombres');
@@ -260,7 +261,7 @@ describe('la ficha del registrado: se abre por la base, nunca por un número', (
         cedula: '52111222', celular: '3011000001', datos: {}, fotos: {} } }
     });
     P.ev("verFichaEq('p1')");
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       assert.match(P.elems.mBody.innerHTML, /No subió fotos/i,
         'una ficha sin fotos se pinta igual que una con fotos');
     });
@@ -313,7 +314,7 @@ describe('el calendario del equipo: lo que se acuerda, no lo que vence', () => {
       agenda_mia: { j: { ok: true, citas: [] } }
     });
     P.ev('traerAgendaEq()');
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       assert.equal(P.ev('AGENDA_ESTADO'), 'listo', 'la agenda no llegó a cargar');
       const h = P.ev('vistaAgendaEq()');
       assert.match(h, /Agenda/, 'la vista de la agenda no se pinta');
@@ -329,7 +330,7 @@ describe('el calendario del equipo: lo que se acuerda, no lo que vence', () => {
   test('con el calendario apagado se dice apagado, no vacío', () => {
     const { P } = abrirEquipo(YO_ASESOR, GENTE, {});  // 404
     P.ev('traerAgendaEq()');
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       assert.equal(P.ev('AGENDA_ESTADO'), 'apagada');
       const h = P.ev('vistaAgendaEq()');
       assert.match(h, /todavía no está encendido/i);
@@ -343,7 +344,7 @@ describe('el calendario del equipo: lo que se acuerda, no lo que vence', () => {
       agenda_mia: { estado: 500, j: { message: 'boom' } }
     });
     P.ev('traerAgendaEq()');
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       assert.equal(P.ev('AGENDA_ESTADO'), 'falla');
       const h = P.ev('vistaAgendaEq()');
       assert.match(h, /no pude traer tu agenda/i);
@@ -366,7 +367,7 @@ describe('el calendario del equipo: lo que se acuerda, no lo que vence', () => {
       ] } }
     });
     P.ev('traerAgendaEq()');
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       const h = P.ev('vistaAgendaEq()');
       assert.match(h, /Se pasó la fecha/, 'lo vencido no se separa');
       assert.ok(h.indexOf('Se pasó la fecha') < h.indexOf('Llamar'),
@@ -387,7 +388,7 @@ describe('el calendario del equipo: lo que se acuerda, no lo que vence', () => {
       ] } }
     });
     P.ev('traerAgendaEq()');
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       const h = P.ev('vistaAgendaEq()');
       assert.ok(h.indexOf('Ya cobrado') >= 0, 'lo hecho desapareció de la agenda');
       assert.match(h, /info-row hecha/, 'lo hecho no se distingue de lo pendiente');
@@ -417,7 +418,7 @@ describe('el calendario del equipo: lo que se acuerda, no lo que vence', () => {
     P.ev("document.getElementById('ciTitulo').value = 'Quedó de pagar'");
     P.ev("document.getElementById('ciFecha').value = '" + mas(HOY, 2) + "'");
     P.ev('guardarCitaEq()');
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       const puso = llamadas.filter(x => x.fn === 'agenda_poner');
       assert.equal(puso.length, 1, 'no mandó la cita');
       assert.equal(puso[0].cuerpo.p_persona_id, 'p1', 'la cita no quedó colgada de la persona');

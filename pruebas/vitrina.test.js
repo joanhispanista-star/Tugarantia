@@ -15,6 +15,7 @@
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
+const { asentar } = require('./esperar.js');
 const fs = require('node:fs');
 const path = require('node:path');
 const C = require('../app/creditos.js');
@@ -1126,7 +1127,7 @@ describe('la cuenta del socio: cuatro pestañas que no mienten (14-sep-2026)', (
        pantalla tiene tres respuestas distintas para tres causas distintas, y
        esta prueba exige que no se confundan. */
     const P = abrirCuenta();
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       assert.equal(P.ev('FICHA_ESTADO'), 'apagada',
         'un 404 se está leyendo como otra cosa');
       P.ev('irA("credito")');
@@ -1143,7 +1144,7 @@ describe('la cuenta del socio: cuatro pestañas que no mienten (14-sep-2026)', (
   test('sin vincular NO es un error: se le dice cómo juntar su historial', () => {
     const P = abrirCuenta(() => Promise.resolve({
       ok: true, status: 200, json: () => Promise.resolve({ ok: true, vinculada: false }) }));
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       assert.equal(P.ev('FICHA_ESTADO'), 'nueva');
       P.ev('irA("credito")');
       assert.match(lamina(P), /Perfil/,
@@ -1200,7 +1201,7 @@ describe('la cuenta del socio: cuatro pestañas que no mienten (14-sep-2026)', (
   test('con la sesión vencida se le ofrece volver a entrar, no reiniciar el teléfono', () => {
     const P = abrirCuenta(() => Promise.resolve({
       ok: false, status: 401, json: () => Promise.resolve({}) }));
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       assert.equal(P.ev('FICHA_ESTADO'), 'sesion');
       P.ev('irA("credito")');
       const h = lamina(P);
@@ -1214,7 +1215,7 @@ describe('la cuenta del socio: cuatro pestañas que no mienten (14-sep-2026)', (
   test('el chat apagado se dice apagado, y no «no tienes mensajes»', () => {
     const P = abrirCuenta();
     P.ev('irA("chat")');
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       assert.equal(P.ev('HILO.estado'), 'apagado');
       assert.match(P.elems.hilo.innerHTML, /todavía no está encendido/);
     });
@@ -1281,7 +1282,7 @@ describe('la cuenta del socio: cuatro pestañas que no mienten (14-sep-2026)', (
                     referidos: { total: 0, pagaron: 0 } };
     const P = abrirCuenta(() => Promise.resolve({ ok: true, status: 200,
       json: () => Promise.resolve({ ok: true, vinculada: true, nombre: 'Ana', datos }) }));
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       assert.equal(P.ev('FICHA_ESTADO'), 'vinculada');
       const disp = P.ev('respaldoDisponible()');
       assert.ok(disp > 0, 'la ficha llegó pero el respaldo salió en cero');
@@ -1306,7 +1307,7 @@ describe('la cuenta del socio: cuatro pestañas que no mienten (14-sep-2026)', (
                  { numero: 2, fecha_corte: '2026-11-15', total: 178526, pagado: false }] }] };
     const P = abrirCuenta(() => Promise.resolve({ ok: true, status: 200,
       json: () => Promise.resolve({ ok: true, vinculada: true, nombre: 'Ana', datos }) }));
-    return new Promise(r => setImmediate(r)).then(() => {
+    return asentar().then(() => {
       P.ev('irA("credito")');
       const h = lamina(P);
       assert.match(h, /Tu crédito con garantía/, 'no muestra el crédito activo');
@@ -1469,5 +1470,116 @@ describe('CADA CIFRA TIENE NOMBRE (15-sep-2026)', () => {
     const gancho = P.ev('TEXTOS.gancho');
     assert.equal(/cu[aá]nto te costar/i.test(gancho), false,
       'el título vuelve a prometer un costo justo encima de una cifra que es la cuota: ' + gancho);
+  });
+});
+
+describe('EL ACOMPAÑAMIENTO: el permiso va primero (15-sep-2026)', () => {
+
+  /* Joan pidió ver al cliente registrándose con sus fotos. Hoy NADA sale de ese
+     teléfono hasta el paso 9, y la casilla que autoriza las fotos está EN el
+     paso 9: quien la desmarca consigue que no salgan, y eso funciona de verdad.
+     Publicar en el paso 2 volvería esa garantía papel mojado.
+     Por eso el permiso es del cliente y va por delante. */
+
+  test('no se publica NADA hasta que el cliente lo pide', () => {
+    const P = abrirPlay();
+    let llamadas = 0;
+    P.ev('ACOMPANA = false; REGISTRO.celular = "3007778899";');
+    /* Sin permiso, publicarAvance no llama a nadie. Se comprueba mirando que
+       devuelva sin tocar la red: el banco no tiene red, así que si intentara
+       llamar reventaría. */
+    assert.doesNotThrow(() => P.ev('publicarAvance()'));
+    assert.equal(P.ev('ACOMPANA'), false);
+  });
+
+  test('la tarjeta solo aparece cuando ya hay celular', () => {
+    /* Sin número no hay a quién asociarlo: el asesor lo encuentra por ahí. */
+    const P = abrirPlay();
+    P.ev('REGISTRO.celular = "";');
+    assert.equal(P.ev('tarjetaAcompanar()'), '');
+    P.ev('REGISTRO.celular = "3007778899";');
+    assert.match(P.ev('tarjetaAcompanar()'), /asesor te acompañe/);
+  });
+
+  test('la tarjeta DICE qué se ve y qué no', () => {
+    const P = abrirPlay();
+    P.ev('REGISTRO.celular = "3007778899"; ACOMPANA = false;');
+    const t = P.ev('tarjetaAcompanar()');
+    assert.match(t, /Nunca ve tu contraseña/);
+    assert.match(t, /referencias/);
+    assert.match(t, /dónde estás/);
+    assert.match(t, /apagar cuando quieras/);
+  });
+
+  test('se puede apagar, y apagarlo BORRA lo publicado', () => {
+    const P = abrirPlay();
+    P.ev('REGISTRO.celular = "3007778899"; ACOMPANA = true;');
+    assert.match(P.ev('tarjetaAcompanar()'), /Prefiero seguir solo/);
+    const i = PLAY.indexOf('function acompanar');
+    const c = PLAY.slice(i, PLAY.indexOf('\n}', i));
+    assert.match(c, /else borrarAvance\(\)/,
+      'apagar el acompañamiento no borra lo que ya se publicó');
+  });
+
+  test('lo que se publica es una lista BLANCA, no una negra', () => {
+    /* Una lista negra hay que acordarse de ampliarla cada vez que el formulario
+       gane un campo, y ese olvido es el que manda de más. */
+    const i = PLAY.indexOf('var CAMPOS_QUE_SE_PUBLICAN');
+    assert.ok(i > -1, 'no hay lista blanca de campos');
+    const linea = PLAY.slice(i, PLAY.indexOf(';', i));
+    for (const prohibido of ['referencia', 'clave', 'gps', 'lat', 'lng', 'ubicacion',
+                             'contrasena', 'password', 'direccion', 'ingresos']) {
+      assert.equal(linea.indexOf(prohibido) > -1, false,
+        'la lista blanca deja pasar «' + prohibido + '»');
+    }
+    /* Y sí lleva lo que sirve para guiar por teléfono. */
+    for (const bueno of ['nombres', 'apellidos', 'documento', 'celular']) {
+      assert.ok(linea.indexOf(bueno) > -1, 'la lista blanca no lleva ' + bueno);
+    }
+  });
+
+  test('LA SELFIE NO VIAJA, ni con el permiso puesto', () => {
+    /* Es biometría —la categoría más sensible de la Ley 1581— y para guiar a
+       alguien por teléfono no hace falta: lo que se atasca es el código de
+       barras de la cédula, no la cara. */
+    /* Esto se COMPRUEBA ejecutando, no leyendo. La primera versión buscaba la
+       cadena «'selfie'» con comillas en el código; se le metió el error a
+       propósito con `fotos.selfie = FOTOS.selfie` —sin comillas— y no lo vio.
+       Un centinela que busca una forma de escribir aprueba cualquier otra. */
+    const P = abrirPlay();
+    P.ev('var _enviado = null;' +
+         'fetch = function (u, cfg) {' +
+         '  if (String(u).indexOf("registro_vivo_publicar") > -1) {' +
+         '    _enviado = JSON.parse(cfg.body);' +
+         '    return Promise.resolve({ ok: true, json: function () { return Promise.resolve({}); } });' +
+         '  }' +
+         '  return Promise.reject(new Error("sin red"));' +
+         '};');
+    P.ev('CFG.url = "https://x.supabase.co"; CFG.anon = "llave";' +
+         'ACOMPANA = true; REGISTRO.celular = "3007778899"; REGISTRO.nombres = "Luis";' +
+         'FOTOS.sensibles = true;' +
+         'FOTOS.cedula_reverso = "data:1"; FOTOS.cedula_frente = "data:2"; FOTOS.selfie = "data:3";' +
+         'publicarAvance();');
+    const fotos = JSON.parse(P.ev('JSON.stringify(Object.keys((_enviado||{}).p_fotos || {}))'));
+    assert.ok(fotos.length > 0, 'no se publicó ninguna foto: la prueba no está midiendo');
+    assert.equal(fotos.indexOf('selfie'), -1,
+      'LA SELFIE SE ESTÁ PUBLICANDO. Es biometría: ' + JSON.stringify(fotos));
+    assert.ok(fotos.indexOf('cedula_reverso') > -1,
+      'no se publica la del código de barras, que es la que sirve para guiar');
+  });
+
+  test('las fotos SOLO si ya marcó la autorización de fotos', () => {
+    /* Son dos permisos distintos para dos cosas distintas, y ninguno vale por
+       el otro: acompañarme no es autorizar mis fotos. */
+    const i = PLAY.indexOf('function publicarAvance');
+    const c = PLAY.slice(i, PLAY.indexOf('\nfunction borrarAvance', i));
+    assert.match(c, /if \(FOTOS\.sensibles\)/,
+      'se publican las fotos sin mirar si autorizó las fotos');
+  });
+
+  test('si el acompañamiento falla, el registro SIGUE', () => {
+    /* Un adorno no puede impedirle a nadie abrir su cuenta. */
+    assert.match(PLAY, /try \{ publicarAvance\(\); \} catch \(e\) \{\}/,
+      'publicarAvance puede tumbar el pintado del registro');
   });
 });
