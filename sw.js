@@ -217,6 +217,13 @@
    el costo. Lo vio Joan en su propia pagina. Ahora la etiqueta va ARRIBA del
    numero y el titulo ya no promete un costo. Toca play/index.html y
    play/estilo.css.
+
+   v56 — 15-sep-2026. El boton de WhatsApp del ASESOR no miraba la Ley 2300: ni
+   hora, ni domingo, ni festivo, ni cuantas veces se habia tocado a esa persona.
+   El modo de Joan si tenia ese freno; el del equipo no lo heredo nunca. Ahora
+   si, distinguiendo vender de cobrar. Y el asesor tiene plantillas por
+   situacion en vez de mandar siempre «Hola X». ENTRAN AL CACHE
+   app/gestion-asesor.js y app/asesor-textos.js (nuevos).
    ENTRAN AL CACHE app/ficha.js —lo carga play/— y el motor, que play/ no cargaba
    antes; app/chat.js y app/chat.css ya estaban por la app quincenal. */
 /* SUBIR EL NUMERO NO BASTA, Y COSTO UNA TARDE AVERIGUARLO (14-sep-2026).
@@ -274,7 +281,7 @@
    proyecto ya vio a este mismo service worker contestar index.html a una
    peticion de .js (ver v19). El guardian se mudo arriba del todo.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v55';
+const CACHE = 'tugarantia-v56';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -343,6 +350,9 @@ const ARCHIVOS = [
      igual que el motor y el puente; sin ella el boton de bajar la base no hace
      nada y Joan se entera con los clientes esperando. */
   'app/cobranza-envio.js',
+  /* 15-sep-2026 — las reglas de la gestion del asesor y los textos que lee. */
+  'app/gestion-asesor.js',
+  'app/asesor-textos.js',
   /* Y tanda.js, que hasta hoy solo cargaba el Panel del bolsillo. Ahora el CRM
      del computador tambien lo necesita: es quien aplica los topes de la Ley
      2300 antes de armar el archivo de envio. */

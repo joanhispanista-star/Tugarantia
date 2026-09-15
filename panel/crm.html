@@ -806,6 +806,11 @@
      donde Joan trabaja la cartera. -->
 <script src="tanda.js"></script>
 <script src="../app/cobranza-envio.js"></script>
+<!-- 15-sep-2026 — las reglas de la gestion del asesor: el freno de la Ley 2300
+     (que el modo equipo NO tenia) y las plantillas por situacion. Modulo puro,
+     probado con node. -->
+<script src="../app/gestion-asesor.js"></script>
+<script src="../app/asesor-textos.js"></script>
 <!-- Las reglas de comisión de los asesores. Funciones puras: el CRM las
      llama, no las reimplementa. -->
 <script src="../app/comisiones.js"></script>
@@ -6162,8 +6167,103 @@ function filaPersonaEq(p) {
  * abrir WhatsApp y cerrar la pestaña antes de que la nube conteste, y el
  * contacto no quedaría. Y si la nube falla, se abre igual — el trabajo primero.
  * ------------------------------------------------------------------------ */
+/* 15-sep-2026 — ANTES ESTO MANDABA SIEMPRE «Hola Pedro 🙂», Y NADA MAS.
+   Dos problemas, y el segundo es el grave:
+
+   1. No era gestion. Un saludo sin contenido no dice nada, y de rebote el
+      registro de control que Joan pidio no valia: doscientos contactos
+      guardados con el mismo texto no cuentan que se le dijo a nadie.
+
+   2. NO MIRABA LA LEY. Abria WhatsApp sin comprobar la hora, ni el domingo, ni
+      el festivo, ni cuantas veces se habia tocado a esa persona esa semana. El
+      modo de Joan si tiene ese freno; el del equipo no lo heredo nunca. Y la
+      Ley 2300 le aplica a Joan EN PERSONA: un asesor cobrando un domingo a las
+      nueve de la noche es una infraccion de Joan.
+
+   El freno distingue VENDER de COBRAR, que no es lo mismo: la 2300 regula la
+   cobranza, y meterle sus topes a una llamada de venta seria frenarla con una
+   ley que no habla de ella. */
+var _contactoEq = null;
+
 function contactarEq(id, celular, primero) {
-  const texto = 'Hola ' + primero + ' 🙂';
+  const G = window.GestionAsesor;
+  const p = genteEquipo().find(x => String(x.id) === String(id)) ||
+            { id, celular, nombre: primero, etapa: '' };
+  if (!G) {
+    /* Sin el modulo no se inventa una respuesta: se manda como antes pero se
+       dice que el freno no esta. Callarlo seria peor que no tenerlo. */
+    return abrirWhatsappEq(id, celular, 'Hola ' + primero + ' 🙂');
+  }
+  const esFestivo = d => !!(window.MotorReglas && MotorReglas.esFestivo && MotorReglas.esFestivo(d));
+  const r = G.puedeContactar(p, { canal: 'whatsapp', esFestivo });
+  _contactoEq = { id: String(id), celular, persona: p };
+
+  if (!r.puede) {
+    openModal('Ahora no se puede',
+      '<div class="alerta warn"><b>' + escHTML(r.texto) + '</b></div>' +
+      (r.es_cobranza
+        ? '<p class="muted">Esto no es una regla de la casa: es la Ley 2300 de 2023, y la ' +
+          'sancion le llega a Joan. Agenda el contacto para cuando se pueda.</p>' +
+          '<button class="btn btn-ghost btn-sm" onclick="cerrarModal();nuevaCitaEq(\'' +
+            escHTML(String(id)) + '\')">📅 Agendarlo</button>'
+        : ''));
+    return;
+  }
+  pantallaMensajeEq(p);
+}
+
+/* El mensaje, elegible y editable ANTES de abrir WhatsApp. La sugerida sale
+   marcada segun la etapa, pero se propone: no se impone. */
+function pantallaMensajeEq(p) {
+  const G = window.GestionAsesor;
+  const yo = (CARTERA_EQUIPO && CARTERA_EQUIPO.yo) || {};
+  const claves = G.plantillasPara(p.etapa);
+  const datos = {
+    nombre: String(p.nombre || '').split(/\s+/)[0] || '',
+    asesor: String(yo.nombre || '').split(/\s+/)[0] || 'tu asesor',
+    enlace: 'https://tugarantia.net/play/'
+  };
+  openModal('Escribirle a ' + escHTML(datos.nombre),
+    '<div class="muted" style="font-size:12.5px;margin-bottom:10px">' +
+      etiquetaEtapa(p.etapa) + ' ' + escHTML(queHacerEtapa(p.etapa)) + '</div>' +
+    claves.map((k, i) => {
+      const t = G.PLANTILLAS[k];
+      return '<label class="permiso"><input type="radio" name="plEq" value="' + k + '"' +
+        (i === 0 ? ' checked' : '') + ' onchange="verPlantillaEq(this.value)">' +
+        '<span><b>' + escHTML(t.et) + '</b> <span class="muted">· ' + escHTML(t.grupo) + '</span></span></label>';
+    }).join('') +
+    '<div class="field" style="margin-top:12px"><label>Lo que le va a llegar ' +
+      '<span class="muted">(puedes cambiarlo)</span></label>' +
+      '<textarea id="txtEq" rows="5">' + escHTML(G.armar(claves[0], datos)) + '</textarea></div>' +
+    '<button class="btn btn-wa" style="width:100%" onclick="mandarWhatsappEq()">📲 Abrir WhatsApp</button>' +
+    '<div class="muted" style="font-size:12px;margin-top:8px">Queda anotado con tu nombre, la hora y ' +
+      'el texto exacto. Asi tu jefe ve lo que de verdad se dijo.</div>');
+}
+
+function verPlantillaEq(clave) {
+  const G = window.GestionAsesor, c = _contactoEq;
+  if (!G || !c) return;
+  const yo = (CARTERA_EQUIPO && CARTERA_EQUIPO.yo) || {};
+  const caja = document.getElementById('txtEq');
+  if (caja) caja.value = G.armar(clave, {
+    nombre: String(c.persona.nombre || '').split(/\s+/)[0] || '',
+    asesor: String(yo.nombre || '').split(/\s+/)[0] || 'tu asesor',
+    enlace: 'https://tugarantia.net/play/'
+  });
+}
+
+function mandarWhatsappEq() {
+  const c = _contactoEq; if (!c) return;
+  const caja = document.getElementById('txtEq');
+  const texto = (caja && caja.value.trim()) || 'Hola 🙂';
+  cerrarModal();
+  abrirWhatsappEq(c.id, c.celular, texto);
+}
+
+/* Se anota ANTES de abrir, a proposito: si se anotara despues, cerrar la pestana
+   perderia el registro. Y se abre pase lo que pase con la nube — el asesor esta
+   en la calle y no puede quedarse sin escribir porque falle la senal. */
+function abrirWhatsappEq(id, celular, texto) {
   const abrir = () => window.open(waLink(celular, texto), '_blank', 'noopener');
   rpcEquipo('contacto_anotar', { p_persona_id: String(id), p_canal: 'whatsapp', p_texto: texto })
     .then(abrir, abrir);
