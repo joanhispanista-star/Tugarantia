@@ -373,7 +373,14 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
     /* Los <script src> que play/ carga, con el nombre global con el que los toma
        la página. La lista se comprueba sola más abajo: ver «el banco carga todo
        lo que la página carga». */
-    ctx.CreditosPublicables = require(path.join(RAIZ, 'app', 'creditos.js'));
+    /*  simula que uno de los <script src> no llegó — un service
+       worker viejo contestando index.html a una petición de .js, un CDN que
+       falla, una caché a medias. Este proyecto ya lo vivió (sw.js, v19). */
+    /* «sinReglas» simula que uno de los <script src> no llegó: un service worker
+       viejo contestando index.html a una petición de .js, un CDN que falla, una
+       caché a medias. No es hipotético — este proyecto ya lo vivió (sw.js, v19,
+       28-ago-2026). */
+    if (!o.sinReglas) ctx.CreditosPublicables = require(path.join(RAIZ, 'app', 'creditos.js'));
     ctx.CuentaSocio = require(path.join(RAIZ, 'app', 'cuenta.js'));
     ctx.Cumplimiento = require(path.join(RAIZ, 'app', 'cumplimiento.js'));
     /* 14-sep-2026 — el motor y el lector de la ficha entraron a play/ con la
@@ -382,15 +389,66 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
     ctx.MotorReglas = require(path.join(RAIZ, 'app', 'motor.js'));
     ctx.FichaSocio = require(path.join(RAIZ, 'app', 'ficha.js'));
     vm.createContext(ctx);
+    const fallos = [];
     [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
-      .forEach((m, i) => vm.runInContext(m[1], ctx, { filename: 'play#' + i }));
-    return { ev: e => vm.runInContext(e, ctx, { filename: 'banco' }), elems, almacen };
+      /* Se atrapa como lo hace un NAVEGADOR: un error de primer nivel en un
+         <script> mata ese bloque y nada más — la página que ya se pintó se
+         queda. Sin esto, el banco era MÁS severo que el navegador y no se podía
+         probar el camino del guardián, que termina en un `throw` a propósito
+         (el mensaje ya está en pantalla y lo que sigue no tiene con qué
+         funcionar). El fallo se guarda para quien quiera mirarlo. */
+      .forEach((m, i) => {
+        try { vm.runInContext(m[1], ctx, { filename: 'play#' + i }); }
+        catch (e) { fallos.push(e); }
+      });
+    return { ev: e => vm.runInContext(e, ctx, { filename: 'banco' }), elems, almacen, fallos };
   }
+
+  test('SI UN SCRIPT NO LLEGA, SE DICE — no se queda en blanco', () => {
+    /* 16-sep-2026 — el aviso existía desde siempre y NUNCA se ejecutaba cuando
+       hacía falta. Vivía al final, dentro del arranque; y unas líneas antes hay
+       constantes de primer nivel que leen los módulos (CALC_MAX lee C.PERFILES,
+       GCALC lee M.MONTO_MINIMO_RESPALDADO, PLAZO lee C.PLAZO_MESES). Si un
+       <script src> no llegaba, la primera de ellas lanzaba y se llevaba el
+       bloque entero: el arranque no corría, el aviso no se pintaba, y la puerta
+       pública quedaba en CERO letras.
+       Medido con este banco antes de moverlo: cero. */
+    const P = abrirPlay({ sinReglas: true });
+    const body = P.elems.body.innerHTML || '';
+    assert.ok(body.length > 60,
+      'sin las reglas la página quedó en blanco: ' + body.length + ' letras');
+    assert.match(body, /No pude cargar las reglas del crédito/,
+      'no le dice a la persona qué pasó');
+    /* Y la causa que se le da tiene que ser la suya: no llegó un archivo. */
+    assert.match(body, /internet|vuelve a abrir/i,
+      'no le dice qué puede hacer');
+  });
+
+  test('el guardián de las reglas corre ANTES de cualquier constante que las lea', () => {
+    /* El orden es la corrección: mientras haya una constante de primer nivel que
+       lea C, U, M o FS por encima del guardián, el guardián vuelve a ser
+       inalcanzable el día que falte un archivo. */
+    const guardia = VIVO.indexOf('if (!C || !U || !M || !FS)');
+    assert.ok(guardia > 0, 'desapareció el guardián de las reglas');
+    [['CALC_MAX', 'C.PERFILES'], ['GCALC', 'M.MONTO_MINIMO_RESPALDADO'],
+     ['GCALC_MESES_MIN', 'C.PLAZO_MINIMO_DIAS'], ['PLAZO', 'C.PLAZO_MESES']].forEach(([n, lee]) => {
+      const i = VIVO.indexOf('var ' + n + ' =');
+      assert.ok(i > 0, 'no encontré la constante ' + n);
+      assert.ok(i > guardia,
+        'la constante ' + n + ' lee ' + lee + ' ANTES del guardián: si ese archivo ' +
+        'no llega, lanza ahí y la página queda en blanco sin decir por qué');
+    });
+  });
 
   test('LA PORTADA PINTA: si algo revienta, la página queda en blanco', () => {
     /* El centinela que faltaba. `pintarEntrar()` es lo primero que ve todo el
        que llega, y si lanza, el visitante no ve un error: ve blanco y se va. */
     const P = abrirPlay();
+    /* Con todos los archivos puestos, el arranque no puede lanzar nada. Desde
+       que el banco atrapa los errores como un navegador, uno que se colara aquí
+       pasaría callado: esto lo vuelve a hacer ruidoso. */
+    assert.deepEqual(P.fallos.map(e => e.message), [],
+      'el arranque lanzó con todos los archivos en su sitio');
     P.ev('pintarEntrar()');
     const h = P.elems.cuerpo.innerHTML;
     assert.ok(h.length > 800, 'la portada salió casi vacía (' + h.length + ' letras)');

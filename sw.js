@@ -238,7 +238,14 @@
 /* v49 - 16-sep-2026. El chat estrena el autor `equipo`: sin el, lo que contesta
    un asesor se leia en el Panel como si lo hubiera escrito Joan. Toca
    app/chat.js, que cargan las tres pantallas. */
-const CACHE = 'tugarantia-v49';
+/* v50 - 16-sep-2026. El aviso de «no llegaron las reglas» existia desde siempre
+   y NUNCA se ejecutaba cuando hacia falta: vivia al final del bloque y unas
+   constantes de primer nivel leian los modulos antes. Si un <script src> no
+   llegaba, la puerta publica quedaba en CERO letras sin decir por que — y este
+   proyecto ya vio a este mismo service worker contestar index.html a una
+   peticion de .js (ver v19). El guardian se mudo arriba del todo.
+   Toca play/index.html. */
+const CACHE = 'tugarantia-v50';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

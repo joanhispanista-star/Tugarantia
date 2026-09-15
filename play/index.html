@@ -103,6 +103,24 @@ var U = window.CuentaSocio;
 var M = window.MotorReglas;
 var FS = window.FichaSocio;
 var CH = window.ChatTuGarantia;
+
+/* EL GUARDIÁN VA AQUÍ ARRIBA, Y ESO ES TODO EL ARREGLO — 16-sep-2026.
+   Estaba al final, dentro del arranque, y por eso NUNCA SE EJECUTABA cuando
+   hacía falta: unas líneas más abajo hay constantes de primer nivel que leen
+   estos módulos —CALC_MAX lee C.PERFILES, GCALC lee M.MONTO_MINIMO_RESPALDADO,
+   PLAZO lee C.PLAZO_MESES— y si uno de los <script src> no llegó, la primera de
+   ellas lanza y se lleva el bloque entero. El arranque no corre, el aviso no se
+   pinta, y la puerta pública queda en CERO letras. Medido en el banco.
+   Y no es hipotético: este mismo proyecto ya vio a su service worker contestar
+   `index.html` a una petición de `.js` (ver sw.js, v19, 28-ago-2026).
+   El `throw` es a propósito: el mensaje ya está en pantalla y lo que sigue no
+   tiene con qué funcionar. Mejor parar acá que pintar media página rota. */
+if (!C || !U || !M || !FS) {
+  document.body.innerHTML = '<div class="wrap"><div class="aviso ambar" style="margin-top:40px">' +
+    'No pude cargar las reglas del crédito. Revisa tu internet y vuelve a abrir la página.' +
+    '</div></div>';
+  throw new Error('play/: faltan las reglas del crédito');
+}
 var $ = function (id) { return document.getElementById(id); };
 var COP = function (n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); };
 function esc(s) {
@@ -2784,11 +2802,8 @@ function pie() {
 
 /* ============================== ARRANQUE ============================== */
 (function () {
-  if (!C || !U || !M || !FS) {
-    document.body.innerHTML = '<div class="wrap"><div class="aviso ambar" style="margin-top:40px">' +
-      'No pude cargar las reglas del crédito. Vuelve a abrir la página.</div></div>';
-    return;
-  }
+  /* El guardián de «no llegaron las reglas» se mudó ARRIBA del todo, junto a los
+     globales: acá abajo ya era tarde. Ver el comentario de allá. */
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('../sw.js', { updateViaCache: 'none' }).catch(function () {});
