@@ -388,6 +388,14 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
        banco con «undefined» y no se sabe si es el banco o la página. */
     ctx.MotorReglas = require(path.join(RAIZ, 'app', 'motor.js'));
     ctx.FichaSocio = require(path.join(RAIZ, 'app', 'ficha.js'));
+    /* 15-sep-2026 — la ruleta del cupo. */
+    ctx.RuletaCupo = require(path.join(RAIZ, 'app', 'ruleta.js'));
+    /* 15-sep-2026 — CHAT.JS NUNCA HABIA ESTADO ACA, y la pagina lo carga desde
+       que existe la pestana de chat. O sea que todo lo que cuelga del chat se
+       probaba MUERTO: sin el modulo, las funciones que lo usan se rinden
+       calladas y ninguna prueba se queja. Lo encontro el centinela de arriba el
+       dia que se escribio, no una persona mirando. */
+    ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
     vm.createContext(ctx);
     const fallos = [];
     [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
@@ -403,6 +411,97 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
       });
     return { ev: e => vm.runInContext(e, ctx, { filename: 'banco' }), elems, almacen, fallos };
   }
+
+  test('NINGÚN ARCHIVO LLEVA CARACTERES DE CONTROL ESCONDIDOS', () => {
+    /* 15-sep-2026 — ESTO PASÓ TRES VECES EN UNA TARDE. Escribiendo parches con
+       scripts, la secuencia «BARRA-b» de una expresión regular se colapsó en un
+       CARÁCTER DE RETROCESO de verdad (0x08) dentro del propio archivo. El
+       resultado no es un error de sintaxis: es una expresión regular que busca
+       un retroceso literal, o sea que NO ENCUENTRA NADA NUNCA.
+
+       Y como esas expresiones viven dentro de centinelas, el efecto es el peor
+       posible: la prueba pasa siempre, pase lo que pase. Dos centinelas nuevos
+       de hoy nacieron muertos así, y solo se descubrió porque a uno se le metió
+       el error a propósito y no lo vio.
+
+       Un byte invisible que apaga una prueba sin romperla no se encuentra
+       leyendo: hay que barrerlo. */
+    const raiz = path.join(__dirname, '..');
+    const dirs = ['app', 'play', 'panel', 'pruebas', 'base'];
+    const malos = [];
+    /* Se arma con códigos, no con una expresión literal: escribir
+       «BARRA-x-0-8» dentro de una expresión regular acá es caer en el mismo
+       agujero que esta prueba vino a tapar — y de hecho la primera versión de
+       esta línea se colapsó exactamente así.
+
+       Solo estos tres, y por una razón: son los que salen de que se colapse la
+       BARRA-b, la BARRA-v o la BARRA-f de una expresión regular. Otros códigos
+       bajos sí tienen uso legítimo como separador —panel/nube.js usa el 0x01
+       para juntar tabla e identificador en una llave, a propósito y desde hace
+       meses— y marcarlos sería enseñarle a este centinela a que lo callen. */
+    const control = new RegExp('[' + String.fromCharCode(8, 11, 12) + ']');
+    for (const d of dirs) {
+      const dir = path.join(raiz, d);
+      if (!fs.existsSync(dir)) continue;
+      for (const f of fs.readdirSync(dir)) {
+        if (!/\.(js|html|css|sql)$/.test(f)) continue;
+        const ruta = path.join(dir, f);
+        const t = fs.readFileSync(ruta, 'utf8');
+        const m = t.match(control);
+        if (m) {
+          const linea = (t.slice(0, m.index).match(/\n/g) || []).length + 1;
+          malos.push(d + '/' + f + ':' + linea + ' → 0x' +
+            m[0].charCodeAt(0).toString(16).padStart(2, '0'));
+        }
+      }
+    }
+    assert.deepEqual(malos, [],
+      'hay caracteres de control dentro del código. Si están en una expresión ' +
+      'regular, esa expresión no encuentra nada y el centinela que la usa está ' +
+      'dando verde sin mirar. Casi siempre es una BARRA-b que se colapsó (\x08).');
+  });
+
+  test('EL BANCO CARGA TODO LO QUE LA PÁGINA CARGA', () => {
+    /* 15-sep-2026 — ESTE CENTINELA SE PROMETIÓ Y NUNCA SE ESCRIBIÓ. Tres
+       líneas más arriba, desde hace días, hay un comentario que dice «la lista
+       se comprueba sola más abajo: ver "el banco carga todo lo que la página
+       carga"». No existía. Se descubrió al agregar app/ruleta.js: la página
+       empezó a cargar un módulo que el banco no le daba, y las 1.460 pruebas
+       siguieron en verde — la rueda se probaba MUERTA, porque sin su módulo
+       tarjetaRuleta() devuelve cadena vacía y nadie se queja.
+
+       Un banco que no carga lo mismo que la página no prueba la página: prueba
+       otra cosa parecida. Y el modo de enterarse era que a alguien se le
+       ocurriera mirar.
+
+       Acá se lee la lista de <script src> del HTML de verdad y se exige que el
+       banco tenga un global para cada uno. Si mañana entra un módulo nuevo y se
+       olvida el banco, esta prueba lo dice con el nombre del archivo. */
+    const html = fs.readFileSync(path.join(__dirname, '..', 'play', 'index.html'), 'utf8');
+    const srcs = [...html.matchAll(/<script\s[^>]*src="([^"]+)"/g)]
+      .map(m => m[1])
+      .filter(u => !/^https?:/.test(u));
+
+    /* Qué global publica cada archivo. Se lee del propio archivo, no de una
+       lista escrita a mano: una lista a mano es otra cosa que se desincroniza. */
+    const P = abrirPlay();
+    const faltan = [];
+    for (const src of srcs) {
+      const ruta = path.join(__dirname, '..', 'play', src);
+      if (!fs.existsSync(ruta)) { faltan.push(src + ' (el archivo no existe)'); continue; }
+      const fuente = fs.readFileSync(ruta, 'utf8');
+      /* El patrón de todos los módulos de este proyecto:
+         `raiz.NombreGlobal = fabrica()`. */
+      const m = fuente.match(/ra[ií]z\.([A-Za-z_$][\w$]*)\s*=\s*fabrica\(\)/);
+      if (!m) continue;   // no es un módulo con global (p. ej. una hoja suelta)
+      if (P.ev('typeof ' + m[1]) === 'undefined') {
+        faltan.push(src + ' → window.' + m[1]);
+      }
+    }
+    assert.deepEqual(faltan, [],
+      'el banco no le da a la página módulos que la página SÍ carga en el ' +
+      'navegador, así que lo que cuelgue de ellos se está probando muerto');
+  });
 
   test('SI UN SCRIPT NO LLEGA, SE DICE — no se queda en blanco', () => {
     /* 16-sep-2026 — el aviso existía desde siempre y NUNCA se ejecutaba cuando

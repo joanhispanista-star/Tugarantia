@@ -534,6 +534,17 @@
         <button class="btn btn-negro" onclick="traerRegistros()">↻ Traer de la nube</button></div>
       <div class="card"><div class="card-h"><h3>📥 Quién pidió entrar</h3><span class="tag">Al abrirles la ficha y darles su primer crédito pasan a Clientes</span></div>
         <div id="tblRegistros"></div></div>
+      <!-- LA RULETA — 15-sep-2026. Va debajo de Registrados porque es la misma
+           gente: el que gira es alguien que acaba de abrir su cuenta en play/.
+           El cupo de bienvenida queda ANOTADO, no aplicado: la garantia de cada
+           socio la manda este CRM y sincronizar_socios la sobreescribe entera,
+           asi que si la nube lo escribiera por su cuenta el primer sync lo
+           borraria. Aca esta la lista para aplicarlo donde se aplica todo. -->
+      <div class="card"><div class="card-h"><h3>🎡 Cupo de bienvenida (ruleta)</h3>
+        <span class="tag">Giraron una vez y tienen su cupo anotado — aplicaselo en su ficha</span>
+        <button class="btn btn-ghost" onclick="traerGiros()">↻ Traer</button></div>
+        <div id="kpiRuleta" class="kpis"></div>
+        <div id="tblRuleta"></div></div>
     </section>
 
     <section class="view" id="v-bases">
@@ -4648,6 +4659,79 @@ function traerRegistros(){
     .then(f=>{ _registros=Array.isArray(f)?f:[]; renderRegistros(); })
     .catch(e=>{ b.innerHTML='<div class="alerta warn" style="margin:14px">No pude leer quién pidió entrar. '+escHTML(errNube(e))+'</div>'; });
 }
+/* ===========================================================================
+ * LA RULETA — lo que ve Joan
+ * 15-sep-2026.
+ *
+ * El cupo de bienvenida queda ANOTADO en la nube, no aplicado a la ficha. La
+ * razon esta en base/20260917_ruleta.sql y vale repetirla aca: la garantia de
+ * cada socio la manda ESTE CRM, y sincronizar_socios sobreescribe el jsonb
+ * entero en cada sincronizacion. Si la nube escribiera el ajuste por su cuenta,
+ * la primera sincronizacion de Joan lo borraria y el cliente veria desaparecer
+ * su premio sin que nadie hubiera hecho nada mal.
+ *
+ * Asi que la lista vive aca y el ajuste se aplica donde se aplican todos.
+ * ========================================================================= */
+var _giros = [];
+
+function traerGiros(){
+  const b=document.getElementById('tblRuleta'); if(!b)return;
+  if(!sbListo()){ _giros=[]; renderGiros(); return; }
+  b.innerHTML='<div class="muted" style="padding:14px 18px">Buscando…</div>';
+  rpc('ruleta_giros_panel',{p_clave:sbCfg().clave})
+    .then(j=>{
+      if(!j||j.ok!==true){ _giros=[]; renderGiros('La nube contesto que no.'); return; }
+      _giros=Array.isArray(j.giros)?j.giros:[];
+      renderGiros(null,j);
+    })
+    .catch(e=>{
+      /* Un 404 aca no es un fallo de senal: es la migracion sin correr. Decirle
+         «revisa tu internet» lo manda a buscar donde no esta. */
+      const m=String(e&&e.message||e);
+      renderGiros(/404/.test(m)
+        ? 'La ruleta todavia no esta en la nube: falta pegar base/20260917_ruleta.sql.'
+        : ('No pude leer los giros. '+errNube(e)));
+    });
+}
+
+function renderGiros(error,resumen){
+  const b=document.getElementById('tblRuleta'); if(!b)return;
+  const k=document.getElementById('kpiRuleta');
+  if(k) k.innerHTML = resumen
+    ? `<div class="kpi"><div class="n">${Number(resumen.total||0)}</div><div class="l">Giraron</div></div>
+       <div class="kpi"><div class="n">${COP(Number(resumen.cupo_entregado||0))}</div><div class="l">Cupo anotado</div></div>`
+    : '';
+  if(error){ b.innerHTML='<div class="alerta warn" style="margin:14px">'+escHTML(error)+'</div>'; return; }
+  if(!sbListo()){
+    b.innerHTML=`<div class="empty"><div class="ic">☁️</div><p>Esto llega por la nube.<br><span class="muted">Conectala en Ajustes.</span></p></div>`;
+    return;
+  }
+  if(!_giros.length){
+    b.innerHTML=`<div class="empty"><div class="ic">🎡</div><p>Nadie ha girado todavia.<br><span class="muted">Toca “↻ Traer” para volver a mirar.</span></p></div>`;
+    return;
+  }
+  b.innerHTML=`<div class="muted" style="padding:10px 14px 0;font-size:12px">Cada uno giro <b>una sola vez</b> —lo impone la nube, no la pantalla del cliente— y tiene anotado su cupo de bienvenida. Aplicaselo en su ficha como un ajuste de garantia: el cupo de esta casa sale de la garantia, no de un campo aparte.</div>
+  <table><thead><tr><th>Quien</th><th>Celular</th><th>Cupo</th><th>Cuando</th><th></th></tr></thead><tbody>${
+    _giros.map(g=>`<tr>
+      <td>${escHTML(g.nombre||'—')}</td>
+      <td>${escHTML(g.celular||'')}</td>
+      <td style="font-variant-numeric:tabular-nums">${COP(Number(g.cupo||0))}</td>
+      <td>${escHTML(fechaCorta?fechaCorta(g.girado_en):String(g.girado_en||'').slice(0,10))}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="buscarPorCelular('${escHTML(String(g.celular||''))}')">Ver ficha</button></td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+
+/* Llevar a la ficha por el celular. Si no hay nadie con ese numero, se dice —
+   no se abre una ficha en blanco que parezca la de esa persona. */
+function buscarPorCelular(cel){
+  const d=String(cel||'').replace(/\D/g,'');
+  const lista=(typeof DB!=='undefined'&&DB&&Array.isArray(DB.socios))?DB.socios:[];
+  const c=lista.find(x=>String(x.celular||'').replace(/\D/g,'').endsWith(d.slice(-10)));
+  if(!c){ alert('Ese celular todavia no tiene ficha de cliente. Abrela desde Registrados.'); return; }
+  verCliente(c.id);
+}
+
 function renderRegistros(){
   const b=document.getElementById('tblRegistros'); if(!b)return;
   if(!sbListo()){

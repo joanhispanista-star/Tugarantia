@@ -188,6 +188,11 @@
    calculadora del credito con garantia abierta para todos, y las cuotas con
    fecha y monto una por una.
    Toca index.html, play/index.html, play/estilo.css y app/ficha.js (nuevo).
+
+   v51 — 15-sep-2026. El cliente elige CUANDO paga (y esa eleccion saca al
+   producto de la usura: de 12 dias de 30 por encima del techo a cero), y la
+   ruleta del cupo de bienvenida. Toca play/index.html, play/estilo.css,
+   app/motor.js y app/ruleta.js (nuevo, ENTRA AL CACHE).
    ENTRAN AL CACHE app/ficha.js —lo carga play/— y el motor, que play/ no cargaba
    antes; app/chat.js y app/chat.css ya estaban por la app quincenal. */
 /* SUBIR EL NUMERO NO BASTA, Y COSTO UNA TARDE AVERIGUARLO (14-sep-2026).
@@ -245,7 +250,7 @@
    proyecto ya vio a este mismo service worker contestar index.html a una
    peticion de .js (ver v19). El guardian se mudo arriba del todo.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v50';
+const CACHE = 'tugarantia-v51';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -303,7 +308,13 @@ const ARCHIVOS = [
      el paquete del socio y motor.js cotiza el credito con garantia; los dos ya
      estaban arriba o entran aqui, y ninguno se duplica en la lista porque el
      Set del install los uniria igual, pero una lista con repetidos se lee mal. */
-  'app/ficha.js'
+  'app/ficha.js',
+  /* 15-sep-2026 — la ruleta del cupo de bienvenida. Entra al cache porque
+     play/ la carga con un <script src>, igual que las de arriba. Si faltara,
+     la rueda no se pinta (la pagina se protege sola con `if (!RU) return ''`)
+     pero el cliente entraria a la puerta publica y no veria lo que se le
+     prometio por WhatsApp. */
+  'app/ruleta.js'
   /* 16-sep-2026 — el CRM pasa a cargar app/creditos.js (la tabla certificada del
      techo de usura, con fecha) para poder mandar propuestas a cuotas. NO se
      agrega aqui: ya esta tres lineas arriba, porque play/ lo carga desde el

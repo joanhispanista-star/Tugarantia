@@ -357,3 +357,28 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
   .plegable > summary::after{transition:none}
   .tab:active{transform:none}
 }
+
+
+/* ===========================================================================
+   LA RULETA DEL CUPO — 15-sep-2026
+   ========================================================================= */
+.ruleta-caja{position:relative;display:flex;justify-content:center;align-items:center;
+  margin:var(--e4) auto 0;width:min(320px,86vw);aspect-ratio:1/1}
+.ruleta-caja canvas{width:100%;height:100%;display:block;
+  filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
+/* La aguja apunta al centro de arriba, que es donde para la tajada ganadora. */
+.ruleta-aguja{position:absolute;top:-4px;left:50%;transform:translateX(-50%);
+  width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;
+  border-top:20px solid var(--amarillo);
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+.ruleta-msg:empty{display:none}
+.ruleta-msg{margin-top:var(--e4)}
+.escalon{display:flex;align-items:flex-start;gap:var(--e3);padding:var(--e3) 0;
+  border-top:1px solid color-mix(in srgb, var(--blanco-laca) 12%, transparent)}
+.escalon b{flex:0 0 auto;min-width:88px;font-variant-numeric:tabular-nums;
+  font-size:15px;font-weight:700;
+  color:color-mix(in srgb, var(--blanco-laca) 70%, transparent)}
+.escalon.hoy b{color:var(--amarillo)}
+.escalon span{display:flex;flex-direction:column;gap:2px;font-size:13px;line-height:1.5;
+  color:color-mix(in srgb, var(--blanco-laca) 72%, transparent)}
+.escalon span i{font-style:normal;font-weight:600;color:var(--blanco-laca)}
