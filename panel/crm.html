@@ -374,6 +374,11 @@
   .info-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--linea);font-size:14px;gap:12px}.info-row .k{color:var(--gris);flex:none}.info-row .vv{text-align:right;word-break:break-word}
   .alerta{border-radius:9px;padding:10px 13px;font-size:13px;margin-bottom:14px;line-height:1.45}
   .alerta.warn{background:var(--ambar-tinte);color:var(--ambar);border:1px solid var(--ambar-medio)}
+  /* Lo que SALIO BIEN es verde. Se agrego el 15-sep-2026 con el envio de
+     mensajes: «enviado» no es una alarma ni una explicacion, y pintarlo del
+     mismo color que un error hace que Joan no distinga el que fallo. */
+  .alerta.ok{background:rgba(var(--amarillo-rgb),.10);color:var(--amarillo-tinta);
+    border:1px solid rgba(var(--amarillo-rgb),.35)}
   /* Lo que informa y acompaña es azul: no es una alarma, es una explicación. */
   .alerta.info{background:var(--azul-tinte);color:var(--tinta-2);border:1px solid rgba(var(--azul-rgb),.22)}
   /* Lo que solo ves tú (la contabilidad interna del reparto del costo) lleva este filete. */
@@ -479,6 +484,8 @@
     <button class="navbtn" data-v="cred"><span class="ic">💵</span> Créditos</button>
     <button class="navbtn" data-v="resp"><span class="ic">🛡️</span> Con garantía</button>
     <button class="navbtn" data-v="clientes"><span class="ic">🧑‍🤝‍🧑</span> Clientes</button>
+    <button class="navbtn" data-v="cobranzas"><span class="ic">📣</span> Cobranzas</button>
+    <button class="navbtn" data-v="comercial"><span class="ic">🚀</span> Comercial</button>
     <button class="navbtn" data-v="mensajes"><span class="ic">💬</span> Mensajes<span id="navSinLeer"></span></button>
     <button class="navbtn" data-v="registrados"><span class="ic">📥</span> Registrados</button>
     <button class="navbtn" data-v="socios"><span class="ic">📋</span> Socios</button>
@@ -546,6 +553,41 @@
         <button class="btn btn-ghost" onclick="traerGiros()">↻ Traer</button></div>
         <div id="kpiRuleta" class="kpis"></div>
         <div id="tblRuleta"></div></div>
+    </section>
+
+    <!-- ===================================================================
+         COBRANZAS — 15-sep-2026, pedido de Joan: «una pestaña de cobranzas en
+         la que pueda ver los clientes e iniciar a enviar recordatorios de pago
+         (…) que pueda enviar los mensajes personalizados e incluso mensajes de
+         voz personalizados y que todo este conectado para que solo sea desde mi
+         CRM hacer la gestion automatica o manual».
+         ================================================================== -->
+    <section class="view" id="v-cobranzas">
+      <div class="ph"><div><h1>Cobranzas<span class="dot">.</span></h1><div class="sub">A quién le toca hoy, cuánto debe en total, y el mensaje que le va a llegar</div></div>
+        <button class="btn btn-ghost" onclick="renderCobranzas()">↻ Recalcular</button></div>
+      <div class="kpis" id="kpiCobranzas"></div>
+      <div class="card"><div class="card-h"><h3>📣 Quién puede recibir mensaje hoy</h3>
+        <span class="tag">La lista ya pasó por los topes de la Ley 2300</span></div>
+        <div id="tblCobranzas"></div></div>
+      <div class="card" id="cardFueraCob"><div class="card-h"><h3>🚫 Quién no, y por qué</h3>
+        <span class="tag">Para que la lista no encoja sin explicación</span></div>
+        <div id="tblFueraCob"></div></div>
+    </section>
+
+    <!-- ===================================================================
+         COMERCIAL — «una pestaña de comercial en el que pueda invitar a los
+         prospectos a unirse al aplicativo».
+         ================================================================== -->
+    <section class="view" id="v-comercial">
+      <div class="ph"><div><h1>Comercial<span class="dot">.</span></h1><div class="sub">Invitar a los prospectos a abrir su cuenta en la app</div></div>
+        <button class="btn btn-ghost" onclick="renderComercial()">↻ Recalcular</button></div>
+      <div class="kpis" id="kpiComercial"></div>
+      <div class="card"><div class="card-h"><h3>🚀 A quién se puede invitar</h3>
+        <span class="tag">Solo quien autorizó que le escribamos</span></div>
+        <div id="tblComercial"></div></div>
+      <div class="card"><div class="card-h"><h3>🚫 Quién no, y por qué</h3>
+        <span class="tag">Invitar sin permiso es lo que sanciona la SIC</span></div>
+        <div id="tblFueraCom"></div></div>
     </section>
 
     <section class="view" id="v-bases">
@@ -1781,6 +1823,27 @@ function renderCola(){
    los dos juntos. */
 function casosDeCobroHoy() {
   var casos = [];
+  /* EL TOTAL POR PERSONA, PRIMERO. Joan lo pidio asi: «que pueda seleccionar la
+     informacion de lo que debe en total con todos los creditos».
+
+     Y no es comodidad. La Ley 2300 obliga a UN contacto por persona, asi que a
+     quien debe tres creditos se le escribe UNA vez. Si ese mensaje unico
+     hablara de un solo credito, el cliente paga ese, cree que quedo al dia, y a
+     la semana recibe otro cobro que no entiende — y tendria razon.
+
+     Se suma ANTES de armar los casos porque tanda.js va a quedarse con uno solo
+     de ellos, y el que sobreviva tiene que llevar la cuenta completa. */
+  var totales = {}, cuantos = {};
+  DB.prestamos.forEach(function (p) {
+    var est = estadoPrestamo(p);
+    if (['mora', 'hoy', 'proximo'].indexOf(est) < 0) return;
+    if (acuerdoVigente(p)) return;
+    var k = p.socioId;
+    if (!k) return;
+    totales[k] = (totales[k] || 0) + totalCiclo(p);
+    cuantos[k] = (cuantos[k] || 0) + 1;
+  });
+
   DB.prestamos.forEach(function (p) {
     var est = estadoPrestamo(p);
     if (['mora', 'hoy', 'proximo'].indexOf(est) < 0) return;
@@ -1794,6 +1857,8 @@ function casosDeCobroHoy() {
       telefono: waNum(s),
       nombre: s.nombre || p.socioNombre || '',
       saldo: totalCiclo(p),
+      saldo_total: totales[s.id] || totalCiclo(p),
+      cuantos: cuantos[s.id] || 1,
       fecha_pago: PUENTE.corteDelCredito(p) || '',
       plantilla: acuerdoIncumplido(p) ? 'mora' : plantillaPara(p),
       prioridad: acuerdoIncumplido(p) ? 0 : 1,
@@ -1839,7 +1904,12 @@ function pantallaEnvioMasivo() {
      primera version decia `listos`, que no existe, y la lista salia VACIA
      siempre. Las pruebas que leen el codigo fuente no lo vieron —solo miraban
      que se llamara a armarTanda— y lo cazo abrir el CRM en un navegador. */
-  var r = E.filasDeEnvio(t.pendientes || [], { telefono: tel });
+  /* Los que dijeron SALIR. Se guardan en la ficha del socio (noSMS) porque es
+     un dato del cliente, no de esta pantalla: manana Joan abre su ficha y tiene
+     que ver que pidio no recibir mensajes. */
+  var salieron = DB.socios.filter(function (x) { return x.noSMS; })
+                          .map(function (x) { return x.telefono || ''; });
+  var r = E.filasDeEnvio(t.pendientes || [], { telefono: tel, sinSMS: salieron });
   _envio = { filas: r.filas, tanda: t, horario: hor, resumen: r };
 
   var fuera = (t.fuera || []).length;
@@ -1872,6 +1942,10 @@ function pantallaEnvioMasivo() {
           'para texto y para voz.</div>')
     + (caro ? '<div class="alerta warn" style="margin-bottom:12px"><b>' + caro + ' mensaje(s) ocupan mas de un SMS</b> ' +
         'y se cobran doble. Casi siempre es un nombre muy largo.</div>' : '')
+    + (r.salidos.length ? '<div class="alerta" style="margin-bottom:12px"><b>' +
+        r.salidos.length + ' pidieron no recibir mensajes</b> y no entraron: ' +
+        escHTML(r.salidos.map(function (c) { return c.nombre; }).join(', ')) +
+        '. Siguen en la cola de WhatsApp.</div>' : '')
     + (r.sinTelefono.length ? '<div class="alerta warn" style="margin-bottom:12px"><b>' +
         r.sinTelefono.length + ' sin celular valido</b>, no entraron: ' +
         escHTML(r.sinTelefono.slice(0, 6).map(function (c) { return c.nombre; }).join(', ')) +
@@ -1880,6 +1954,11 @@ function pantallaEnvioMasivo() {
         '<table><tbody>' + Object.keys(porMotivo).map(function (k) {
           return '<tr><td>' + escHTML(k) + '</td><td class="num">' + porMotivo[k] + '</td></tr>';
         }).join('') + '</tbody></table>' : '')
+    + '<div class="alerta" style="margin-bottom:12px;font-size:13px">' +
+      '<b>En Colombia el cliente NO va a ver «Tu Garantia» como remitente.</b> El pais no ' +
+      'admite remitentes con letras, asi que el mensaje llega desde un codigo corto de ' +
+      'numeros. Por eso el texto empieza diciendo quien escribe, y por eso lleva el aviso ' +
+      'de salida: aca la salida es obligatoria.</div>'
     + '<div class="card-h" style="padding-left:0;margin-top:16px"><h3>Como queda el mensaje</h3></div>'
     + (r.filas.length
       ? '<div style="background:#12151A;border-radius:10px;padding:12px;font-size:13px;line-height:1.5">' +
@@ -1894,6 +1973,20 @@ function pantallaEnvioMasivo() {
       '<button class="btn btn-negro btn-sm" style="margin-top:8px" onclick="marcarEnviados(\'sms\')">Ya los envie por TEXTO</button> ' +
       '<button class="btn btn-negro btn-sm" style="margin-top:8px" onclick="marcarEnviados(\'voz\')">Ya los envie por VOZ</button></div>'
   );
+}
+
+/* Marcar (o desmarcar) que alguien pidio no recibir mensajes. Se guarda en la
+   ficha, no en una lista aparte: el dato es del cliente y tiene que verse donde
+   se ve todo lo demas de el. */
+function cambiarSalidaSMS(id, salir) {
+  var s = DB.socios.find(function (x) { return x.id === id; });
+  if (!s) return;
+  if (salir && !confirm('Marcar que ' + (s.nombre || 'este cliente') + ' pidio NO recibir mas ' +
+      'mensajes de texto ni de voz.\n\nDeja de entrar en esas bases. Sigue en la cola de ' +
+      'WhatsApp, que es otro canal.')) return;
+  s.noSMS = !!salir;
+  s.noSMSDesde = salir ? hoyISO() : null;
+  guardar(); render(); cerrarModal();
 }
 
 function bajarCSVEnvio() {
@@ -1933,6 +2026,489 @@ function marcarEnviados(canal) {
   guardar(); render(); cerrarModal();
   alert('Anotado: ' + tocados + ' contacto(s) por ' +
     (canal === 'voz' ? 'voz' : 'texto') + '. No se les vuelve a escribir hasta la semana que viene.');
+}
+
+/* ===========================================================================
+ * COBRANZAS — la pestaña
+ * 15-sep-2026, pedido de Joan.
+ *
+ * «una pestaña de cobranzas en la que pueda ver los clientes e iniciar a enviar
+ *  recordatorios de pago, quiero poder seleccionar la informacion de lo que
+ *  debe en total con todos los creditos y que pueda enviar los mensajes
+ *  personalizados e incluso mensajes de voz personalizados y que todo este
+ *  conectado para que solo sea desde mi CRM hacer la gestion automatica o
+ *  manual»
+ *
+ * ---------------------------------------------------------------------------
+ * EL TOTAL DE TODOS LOS CREDITOS NO ES UNA COMODIDAD
+ *
+ * La Ley 2300 obliga a UN contacto por persona. A quien debe tres creditos se le
+ * escribe UNA vez. Si ese mensaje unico hablara de un solo credito, el cliente
+ * paga ese, cree que quedo al dia, y a la semana recibe otro cobro que no
+ * entiende — y con razon. El mensaje dice cuantos son y cuanto suman.
+ *
+ * ---------------------------------------------------------------------------
+ * AUTOMATICA O MANUAL
+ *
+ * Automatica: se manda a todos los que pasaron el filtro.
+ * Manual: Joan destilda a quien quiera y manda solo a los que dejo marcados.
+ *
+ * Lo que NO se puede hacer manual es AGREGAR a alguien que el filtro dejo
+ * afuera. No es una limitacion de la pantalla: es que los topes de la Ley 2300
+ * no tienen casilla de «yo autorizo». Por eso los excluidos se ven en su propia
+ * tabla, con el motivo, y sin casilla.
+ * ========================================================================= */
+
+var _cob = { filas: [], fuera: [], marcados: {}, ultimo: null };
+
+function cobranzasListas() {
+  var E = window.CobranzaEnvio, T = window.TandaTuGarantia;
+  if (!E || !T) return null;
+  var hor = horarioLegalHoy();
+  var casos = casosDeCobroHoy();
+  var t = T.armarTanda(casos, { hoy: hoyISO(), horario: hor, tipo: 'cobro',
+                                grupo: 'cobranzas', saltados: [] });
+  var tel = (DB.config && (DB.config.whatsapp || DB.config.telefono)) || '';
+  var salieron = DB.socios.filter(function (x) { return x.noSMS; })
+                          .map(function (x) { return x.telefono || ''; });
+  var r = E.filasDeEnvio(t.pendientes || [], { telefono: tel, sinSMS: salieron });
+  return { horario: hor, tanda: t, envio: r };
+}
+
+function renderCobranzas() {
+  var caja = document.getElementById('tblCobranzas');
+  var cajaF = document.getElementById('tblFueraCob');
+  var kpi = document.getElementById('kpiCobranzas');
+  if (!caja) return;
+
+  var todo = cobranzasListas();
+  if (!todo) {
+    caja.innerHTML = '<div class="alerta warn" style="margin:14px">Faltan los archivos ' +
+      '<b>cobranza-envio.js</b> o <b>tanda.js</b>. Recarga la pagina.</div>';
+    return;
+  }
+  var r = todo.envio, t = todo.tanda, hor = todo.horario;
+  _cob.filas = r.filas;
+  _cob.fuera = t.fuera || [];
+  /* Al recalcular, todos marcados: el caso normal es mandarle a todos, y
+     destildar es la excepcion. */
+  _cob.marcados = {};
+  r.filas.forEach(function (f) { _cob.marcados[f.celular] = true; });
+
+  var suma = r.filas.reduce(function (a, f) { return a + Number(f.monto || 0); }, 0);
+  var piezas = r.filas.reduce(function (a, f) { return a + Number(f.pedazos_sms || 1); }, 0);
+  if (kpi) kpi.innerHTML =
+    '<div class="kpi"><div class="et">📣 Se les puede escribir</div><div class="nm">' + r.filas.length + '</div><div class="x">personas, no créditos</div></div>' +
+    '<div class="kpi"><div class="et">💵 Lo que suman</div><div class="nm">' + COP(suma) + '</div><div class="x">todos sus créditos vencidos</div></div>' +
+    '<div class="kpi alert"><div class="et">🚫 Fuera hoy</div><div class="nm">' + (t.fuera || []).length + '</div><div class="x">con su motivo abajo</div></div>' +
+    '<div class="kpi"><div class="et">✉️ SMS que se pagan</div><div class="nm">' + piezas + '</div><div class="x">uno por persona</div></div>';
+
+  var aviso = hor.ok ? '' :
+    '<div class="alerta warn" style="margin:14px"><b>Ahora no se puede cobrar: ' +
+    escHTML(hor.motivo) + '.</b> La Ley 2300 mira la hora en que LLEGA el mensaje. ' +
+    'Puedes mirar la lista, pero el envío queda bloqueado.</div>';
+
+  if (!r.filas.length) {
+    caja.innerHTML = aviso + '<div class="empty"><div class="ic">✅</div><p>Nadie a quien escribirle ahora.<br>' +
+      '<span class="muted">Mira abajo por qué.</span></p></div>';
+  } else {
+    caja.innerHTML = aviso +
+      '<div style="padding:12px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+        '<button class="btn btn-ghost btn-sm" onclick="marcarTodoCob(true)">Marcar todos</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="marcarTodoCob(false)">Ninguno</button>' +
+        '<span style="flex:1"></span>' +
+        '<button class="btn btn-negro btn-sm" onclick="bajarCSVCobranzas()">⤓ Bajar CSV</button>' +
+        '<button class="btn btn-rojo btn-sm" id="btnEnvSMS" onclick="enviarCobranzas(\'sms\')"' +
+          (hor.ok ? '' : ' disabled') + '>✉️ Enviar texto</button>' +
+        '<button class="btn btn-rojo btn-sm" id="btnEnvVoz" onclick="enviarCobranzas(\'voz\')"' +
+          (hor.ok ? '' : ' disabled') + '>📞 Enviar voz</button>' +
+      '</div>' +
+      '<div class="muted" style="padding:0 14px 8px;font-size:12px">Destilda a quien no quieras. ' +
+      'Lo que no se puede es <b>agregar</b> a alguien de la tabla de abajo: esos topes no tienen casilla.</div>' +
+      '<table><thead><tr><th style="width:34px"></th><th>Cliente</th><th>Debe</th><th>Créditos</th>' +
+        '<th>Vence</th><th>El mensaje que le llega</th></tr></thead><tbody>' +
+      r.filas.map(function (f) {
+        return '<tr><td><input type="checkbox" ' + (_cob.marcados[f.celular] ? 'checked' : '') +
+            ' onchange="marcarCob(\'' + f.celular + '\',this.checked)"></td>' +
+          '<td><b>' + escHTML(f.nombre_completo) + '</b><div class="muted">' + escHTML(f.celular) + '</div></td>' +
+          '<td class="num">' + COP(f.monto) + '</td>' +
+          '<td class="num">' + (f.creditos > 1 ? '<b>' + f.creditos + '</b>' : '1') + '</td>' +
+          '<td>' + escHTML(f.fecha_pago) + '</td>' +
+          '<td style="max-width:360px"><div style="font-size:12.5px;line-height:1.45">' +
+            escHTML(f.mensaje_sms) + '</div>' +
+            '<button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="verVozDe(\'' +
+              f.celular + '\')">📞 Ver el de voz</button></td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  /* Los de afuera, con el motivo. Sin casilla: no se pueden agregar. */
+  var fuera = (t.fuera || []).slice();
+  (r.salidos || []).forEach(function (c) {
+    fuera.push({ caso: c, motivo: { texto: 'pidió no recibir mensajes (respondió SALIR)' } });
+  });
+  (r.sinTelefono || []).forEach(function (c) {
+    fuera.push({ caso: c, motivo: { texto: 'no tiene un celular válido en su ficha' } });
+  });
+  if (cajaF) {
+    cajaF.innerHTML = !fuera.length
+      ? '<div class="empty"><div class="ic">👍</div><p>Nadie quedó fuera.</p></div>'
+      : '<table><thead><tr><th>Cliente</th><th>Debe</th><th>Por qué no</th></tr></thead><tbody>' +
+        fuera.map(function (f) {
+          return '<tr><td>' + escHTML(f.caso.nombre || '') + '</td>' +
+            '<td class="num">' + COP(f.caso.saldo_total != null ? f.caso.saldo_total : f.caso.saldo) + '</td>' +
+            '<td>' + escHTML((f.motivo && f.motivo.texto) || '—') + '</td></tr>';
+        }).join('') + '</tbody></table>';
+  }
+}
+
+function marcarCob(cel, v) { _cob.marcados[cel] = !!v; }
+function marcarTodoCob(v) {
+  _cob.filas.forEach(function (f) { _cob.marcados[f.celular] = !!v; });
+  renderCobranzasMarcas();
+}
+function renderCobranzasMarcas() {
+  var t = document.getElementById('tblCobranzas');
+  if (!t) return;
+  var cajas = t.querySelectorAll('input[type=checkbox]');
+  for (var i = 0; i < cajas.length && i < _cob.filas.length; i++) {
+    cajas[i].checked = !!_cob.marcados[_cob.filas[i].celular];
+  }
+}
+function filasMarcadas() {
+  return _cob.filas.filter(function (f) { return _cob.marcados[f.celular]; });
+}
+
+function verVozDe(cel) {
+  var f = _cob.filas.find(function (x) { return x.celular === cel; });
+  if (!f) return;
+  openModal('Mensaje de voz · ' + f.nombre_completo,
+    '<p class="muted">Esto es lo que va a decir la llamada. Lo lee una máquina, por eso ' +
+    'el monto va en palabras: «$1.250.000» leído por un robot suena a decimal.</p>' +
+    '<div style="background:#12151A;border-radius:10px;padding:14px;line-height:1.6">' +
+      escHTML(f.mensaje_voz) + '</div>');
+}
+
+function bajarCSVCobranzas() {
+  var E = window.CobranzaEnvio;
+  var filas = filasMarcadas();
+  if (!E || !filas.length) { alert('No hay nadie marcado.'); return; }
+  var b = new Blob([E.aCSV(filas)], { type: 'text/csv;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = 'cobranza-' + hoyISO() + '.csv';
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+}
+
+/* ---------------------------------------------------------------------------
+ * ENVIAR DESDE EL CRM
+ *
+ * La llave de Infobip NO viaja por aca. Vive en Supabase (config_privada) y el
+ * CRM pide «manda esto», nunca «manda esto con esta llave». Si la llave
+ * estuviera en el navegador, cualquiera que abra el CRM —que esta publicado—
+ * la lee y gasta la plata de Joan.
+ * ------------------------------------------------------------------------- */
+function enviarCobranzas(canal) {
+  var filas = filasMarcadas();
+  if (!filas.length) { alert('No hay nadie marcado.'); return; }
+  if (!sbListo()) {
+    alert('La nube no esta conectada. Conectala en Ajustes, o usa "Bajar CSV" y subelo a la plataforma a mano.');
+    return;
+  }
+  var suma = filas.reduce(function (a, f) { return a + Number(f.monto || 0); }, 0);
+  var piezas = canal === 'sms'
+    ? filas.reduce(function (a, f) { return a + Number(f.pedazos_sms || 1); }, 0)
+    : filas.length;
+
+  if (!confirm('Enviar ' + (canal === 'voz' ? 'MENSAJE DE VOZ' : 'MENSAJE DE TEXTO') +
+      ' a ' + filas.length + ' cliente(s).\n\n' +
+      'Suman ' + COP(suma) + ' por cobrar.\n' +
+      'Se paga(n) ' + piezas + ' ' + (canal === 'voz' ? 'llamada(s)' : 'SMS') + '.\n\n' +
+      'Esto SALE DE VERDAD y se cobra. ¿Seguro?')) return;
+
+  var b1 = document.getElementById('btnEnvSMS'), b2 = document.getElementById('btnEnvVoz');
+  if (b1) b1.disabled = true; if (b2) b2.disabled = true;
+
+  var mensajes = filas.map(function (f) {
+    return { celular: f.celular, nombre: f.nombre_completo,
+             texto: canal === 'voz' ? f.mensaje_voz : f.mensaje_sms,
+             monto: f.monto };
+  });
+
+  rpc('enviar_mensajes', { p_clave: sbCfg().clave, p_canal: canal, p_mensajes: mensajes })
+    .then(function (j) {
+      if (b1) b1.disabled = false; if (b2) b2.disabled = false;
+      if (!j || j.ok !== true) {
+        var m = (j && (j.detalle || j.motivo)) || 'no se pudo';
+        openModal('No salió', '<div class="alerta warn"><b>No se envió nada.</b><br>' +
+          escHTML(m) + '</div>' +
+          (j && j.motivo === 'sin llave'
+            ? '<p class="muted">Falta pegar la llave de Infobip. Está al final de ' +
+              '<b>base/20260918_infobip.sql</b>, y la pegas tú: yo no la veo nunca.</p>' : ''));
+        return;
+      }
+      _cob.ultimo = j;
+      /* Se anota el contacto YA. Salió de verdad: si no se anotara, mañana la
+         cola vuelve a ofrecer a la misma gente y el segundo mensaje es el
+         ilegal. */
+      anotarContactos(filas, canal);
+      openModal('Enviado',
+        '<div class="alerta ok"><b>' + filas.length + ' mensaje(s) entregados a la plataforma.</b><br>' +
+        'Lote <span class="mono">' + escHTML(j.bulk_id || '') + '</span></div>' +
+        '<p class="muted">La plataforma contesta en unos segundos. Esto pregunta cómo le fue:</p>' +
+        '<button class="btn btn-ghost btn-sm" onclick="verEstadoEnvio(' + Number(j.peticion_id) + ')">' +
+        '↻ Ver si los recibió</button>');
+      renderCobranzas();
+    })
+    .catch(function (e) {
+      if (b1) b1.disabled = false; if (b2) b2.disabled = false;
+      var m = String((e && e.message) || e);
+      openModal('No salió', '<div class="alerta warn"><b>No se envió nada.</b><br>' +
+        (/404/.test(m)
+          ? 'La nube todavía no sabe enviar: falta pegar <b>base/20260918_infobip.sql</b>.'
+          : escHTML(errNube(e))) + '</div>');
+    });
+}
+
+function verEstadoEnvio(pid) {
+  rpc('estado_envio', { p_clave: sbCfg().clave, p_peticion_id: pid }).then(function (j) {
+    openModal('Cómo le fue al envío',
+      '<div class="alerta ' + (j && j.ok ? 'ok' : 'warn') + '"><b>' +
+        escHTML((j && j.estado) || 'sin respuesta') + '</b>' +
+        (j && j.codigo ? ' · código ' + j.codigo : '') + '</div>' +
+      (j && j.nota ? '<p class="muted">' + escHTML(j.nota) + '</p>' : '') +
+      (j && j.respuesta ? '<pre style="white-space:pre-wrap;font-size:11px;background:#12151A;' +
+        'padding:10px;border-radius:8px;overflow:auto">' +
+        escHTML(typeof j.respuesta === 'string' ? j.respuesta : JSON.stringify(j.respuesta, null, 2)) +
+        '</pre>' : ''));
+  }).catch(function (e) { alert('No pude preguntar: ' + errNube(e)); });
+}
+
+/* Anotar el contacto en la ficha de cada socio. Es de donde sale el tope
+   semanal de la Ley 2300. */
+function anotarContactos(filas, canal) {
+  var hoy = hoyISO(), ahora = new Date().toISOString();
+  filas.forEach(function (f) {
+    var s = DB.socios.find(function (x) {
+      return String(x.telefono || '').replace(/\D/g, '').slice(-10) === f.celular;
+    });
+    if (!s) return;
+    s.gestiones = s.gestiones || [];
+    s.gestiones.push({ fecha: hoy, hora: ahora, canal: canal === 'voz' ? 'voz' : 'sms',
+                       plantilla: f.plantilla || '', tipo: 'cobro', grupo: 'cobranzas',
+                       origen: 'crm' });
+  });
+  guardar();
+}
+
+/* ===========================================================================
+ * COMERCIAL — invitar a los prospectos
+ *
+ * «una pestaña de comercial en el que pueda invitar a los prospectos a unirse
+ *  al aplicativo»
+ *
+ * ---------------------------------------------------------------------------
+ * ESTO NO ES COBRANZA, Y POR ESO LA LEY QUE MANDA ES OTRA
+ *
+ * La Ley 2300 regula el COBRO. Invitar no es cobrar, asi que sus topes no
+ * aplican. Lo que aplica es habeas data: la Ley 1581 y el Decreto 1377,
+ * articulo 5 — hace falta autorizacion NUEVA cuando la finalidad cambia.
+ *
+ * Y la politica de privacidad publicada de Tu Garantia lista sus finalidades y
+ * cierra con «Para nada mas». O sea: un prospecto de una base cargada NO
+ * autorizo que se le escriba para invitarlo, y escribirle es justo lo que
+ * sanciona la SIC.
+ *
+ * Entonces la pantalla separa dos grupos y no deja mezclarlos:
+ *   · SE PUEDE invitar a quien dejo su numero para esto (se marca en su ficha).
+ *   · NO SE PUEDE a los demas, y se dice con esas palabras.
+ *
+ * No es una pantalla timida: es la unica version que no se le puede voltear en
+ * contra a Joan.
+ * ========================================================================= */
+
+var _com = { filas: [], fuera: [], marcados: {} };
+
+/* El texto de la invitacion. Corto, sin tildes, una sola pieza, con salida. */
+var SMS_INVITACION = 'Tu Garantia: {nombre}, ya puedes pedir tu credito desde el celular. ' +
+  'Abre tu cuenta aqui: {enlace}';
+
+function prospectosParaInvitar() {
+  var E = window.CobranzaEnvio;
+  if (!E) return null;
+  var puede = [], no = [];
+  /* Quien ya es cliente no recibe invitacion a abrir cuenta: ya la tiene, y un
+     mensaje que ofrece lo que uno ya tiene dice que no lo conocen. */
+  var yaSocios = {};
+  (DB.socios || []).forEach(function (x) {
+    var d = String(x.telefono || '').replace(/\D/g, '').slice(-10);
+    if (d) yaSocios[d] = x.nombre || 'un cliente';
+  });
+
+  (DB.prospectos || []).forEach(function (g) {
+    var cel = E.celular10(g.celular || g.telefono);
+    var fila = { id: g.id, nombre: g.nombre || 'Sin nombre', celular: cel,
+                 base: g.base || g.origen || '', estado: g.estado || 'nuevo' };
+    if (!cel) { no.push({ fila: fila, motivo: 'no tiene un celular valido' }); return; }
+    if (yaSocios[cel]) { no.push({ fila: fila, motivo: 'ya es cliente tuyo (' + yaSocios[cel] + ')' }); return; }
+    if (g.estado === 'registrado' || g.estado === 'cliente') {
+      no.push({ fila: fila, motivo: 'ya abrio su cuenta' }); return;
+    }
+    if (g.noSMS) { no.push({ fila: fila, motivo: 'pidio no recibir mensajes' }); return; }
+    /* LA PREGUNTA QUE DECIDE, y la que separa esta pantalla de una multa.
+       Sin autorizacion para ESTA finalidad no se escribe. Se marca en Comercial,
+       uno por uno o todos los de una base. */
+    if (!g.autorizaInvitacion) {
+      no.push({ fila: fila, motivo: 'no autorizo que le escribieras (habeas data)' });
+      return;
+    }
+    puede.push(fila);
+  });
+  return { puede: puede, no: no };
+}
+
+/* Marcar que alguien autorizo. Se guarda en SU ficha de prospecto, con la fecha:
+   el dia que la SIC pregunte «quien autorizo y cuando», la respuesta tiene que
+   existir. Marcarlo sin que sea verdad no lo arregla — lo empeora, porque deja
+   escrito que si. */
+function autorizarProspecto(id, v) {
+  var g = (DB.prospectos || []).find(function (x) { return String(x.id) === String(id); });
+  if (!g) return;
+  if (v && !confirm('Marcar que ' + (g.nombre || 'este prospecto') + ' AUTORIZO que le ' +
+      'escribas para invitarlo.\n\nSolo marca esto si es verdad: queda escrito con la fecha, ' +
+      'y es lo que te defiende si reclaman.')) return;
+  g.autorizaInvitacion = !!v;
+  g.autorizaDesde = v ? hoyISO() : null;
+  guardar(); renderComercial();
+}
+
+function renderComercial() {
+  var caja = document.getElementById('tblComercial');
+  var cajaF = document.getElementById('tblFueraCom');
+  var kpi = document.getElementById('kpiComercial');
+  if (!caja) return;
+
+  var r = prospectosParaInvitar();
+  if (!r) { caja.innerHTML = '<div class="alerta warn" style="margin:14px">Falta cobranza-envio.js.</div>'; return; }
+
+  _com.filas = r.puede; _com.fuera = r.no; _com.marcados = {};
+  r.puede.forEach(function (f) { _com.marcados[f.celular] = true; });
+
+  if (kpi) kpi.innerHTML =
+    '<div class="kpi"><div class="et">🚀 Se puede invitar</div><div class="nm">' + r.puede.length + '</div><div class="x">autorizaron que les escribas</div></div>' +
+    '<div class="kpi alert"><div class="et">🚫 No se puede</div><div class="nm">' + r.no.length + '</div><div class="x">motivo por motivo abajo</div></div>';
+
+  caja.innerHTML = !r.puede.length
+    ? '<div class="empty"><div class="ic">📇</div><p>Nadie autorizado todavía.<br>' +
+      '<span class="muted">En <b>Bases</b> puedes marcar quién autorizó que le escribas.</span></p></div>'
+    : '<div style="padding:12px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+        '<button class="btn btn-ghost btn-sm" onclick="marcarTodoCom(true)">Marcar todos</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="marcarTodoCom(false)">Ninguno</button>' +
+        '<span style="flex:1"></span>' +
+        '<button class="btn btn-negro btn-sm" onclick="bajarCSVComercial()">⤓ Bajar CSV</button>' +
+        '<button class="btn btn-rojo btn-sm" onclick="enviarInvitaciones()">✉️ Invitar por texto</button>' +
+      '</div>' +
+      '<table><thead><tr><th style="width:34px"></th><th>Quién</th><th>De qué base</th>' +
+        '<th>El mensaje</th></tr></thead><tbody>' +
+      r.puede.map(function (f) {
+        return '<tr><td><input type="checkbox" checked onchange="marcarCom(\'' + f.celular + '\',this.checked)"></td>' +
+          '<td><b>' + escHTML(f.nombre) + '</b><div class="muted">' + escHTML(f.celular) + '</div></td>' +
+          '<td>' + escHTML(f.base) + '</td>' +
+          '<td style="max-width:380px;font-size:12.5px;line-height:1.45">' +
+            escHTML(textoInvitacion(f)) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+
+  if (cajaF) {
+    cajaF.innerHTML = !r.no.length
+      ? '<div class="empty"><div class="ic">👍</div><p>Nadie quedó fuera.</p></div>'
+      : '<div class="alerta" style="margin:14px;font-size:13px"><b>Invitar a quien no autorizó ' +
+        'es lo que sanciona la SIC.</b> No es la Ley 2300 (esa es de cobro): es habeas data. ' +
+        'Tu política publicada lista para qué usas los datos y cierra con «Para nada más», ' +
+        'así que invitar es una finalidad nueva y necesita permiso nuevo.</div>' +
+        '<table><thead><tr><th>Quién</th><th>De qué base</th><th>Por qué no</th></tr></thead><tbody>' +
+        r.no.slice(0, 300).map(function (x) {
+          /* Solo el que falta por autorizar lleva boton: los demas motivos no se
+             arreglan con un clic —ya es cliente, no tiene celular, pidio salir— y
+             un boton que no hace nada es peor que ninguno. */
+          var puedeAutorizar = /habeas data/.test(x.motivo);
+          return '<tr><td>' + escHTML(x.fila.nombre) + '</td><td>' + escHTML(x.fila.base) +
+            '</td><td>' + escHTML(x.motivo) +
+            (puedeAutorizar ? ' <button class="btn btn-ghost btn-sm" onclick="autorizarProspecto(\'' +
+              escHTML(String(x.fila.id)) + '\',true)" title="Marca que SI autorizo. Queda escrito con la fecha.">Autorizó</button>' : '') +
+            '</td></tr>';
+        }).join('') + '</tbody></table>' +
+        (r.no.length > 300 ? '<div class="muted" style="padding:10px 14px">y ' +
+          (r.no.length - 300) + ' más.</div>' : '');
+  }
+}
+
+function textoInvitacion(f) {
+  var E = window.CobranzaEnvio;
+  return E.sinTildes(E.aplicar(SMS_INVITACION + E.SALIDA_SMS, {
+    nombre: E.primerNombre(f.nombre),
+    /* A la PUERTA, no a la app del socio: el prospecto viene a abrir cuenta. */
+    enlace: urlPuerta()
+  }));
+}
+
+function marcarCom(cel, v) { _com.marcados[cel] = !!v; }
+function marcarTodoCom(v) {
+  _com.filas.forEach(function (f) { _com.marcados[f.celular] = !!v; });
+  renderComercial();
+}
+function filasComMarcadas() {
+  return _com.filas.filter(function (f) { return _com.marcados[f.celular]; });
+}
+
+function bajarCSVComercial() {
+  var E = window.CobranzaEnvio;
+  var filas = filasComMarcadas();
+  if (!filas.length) { alert('No hay nadie marcado.'); return; }
+  var listas = filas.map(function (f) {
+    return { celular: f.celular, celular_57: '57' + f.celular, nombre: E.primerNombre(f.nombre),
+             nombre_completo: E.sinTildes(f.nombre), monto: 0, monto_texto: '', monto_hablado: '',
+             creditos: 0, fecha_pago: '', plantilla: 'invitacion',
+             mensaje_sms: textoInvitacion(f), mensaje_voz: '',
+             pedazos_sms: E.pedazosSMS(textoInvitacion(f)).pedazos };
+  });
+  var b = new Blob([E.aCSV(listas)], { type: 'text/csv;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = 'invitaciones-' + hoyISO() + '.csv';
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+}
+
+function enviarInvitaciones() {
+  var filas = filasComMarcadas();
+  if (!filas.length) { alert('No hay nadie marcado.'); return; }
+  if (!sbListo()) { alert('La nube no esta conectada. Usa "Bajar CSV".'); return; }
+  if (!confirm('Invitar a ' + filas.length + ' prospecto(s) por mensaje de texto.\n\n' +
+      'Esto SALE DE VERDAD y se cobra.\n\n' +
+      'Solo van los que autorizaron que les escribas. ¿Seguro?')) return;
+
+  var mensajes = filas.map(function (f) {
+    return { celular: f.celular, nombre: f.nombre, texto: textoInvitacion(f), monto: 0 };
+  });
+  rpc('enviar_mensajes', { p_clave: sbCfg().clave, p_canal: 'sms', p_mensajes: mensajes })
+    .then(function (j) {
+      if (!j || j.ok !== true) {
+        openModal('No salió', '<div class="alerta warn">' +
+          escHTML((j && (j.detalle || j.motivo)) || 'no se pudo') + '</div>');
+        return;
+      }
+      openModal('Invitaciones enviadas',
+        '<div class="alerta ok"><b>' + filas.length + ' invitación(es) entregadas a la plataforma.</b><br>' +
+        'Lote <span class="mono">' + escHTML(j.bulk_id || '') + '</span></div>' +
+        '<button class="btn btn-ghost btn-sm" onclick="verEstadoEnvio(' + Number(j.peticion_id) + ')">' +
+        '↻ Ver si las recibió</button>');
+    })
+    .catch(function (e) {
+      var m = String((e && e.message) || e);
+      openModal('No salió', '<div class="alerta warn">' +
+        (/404/.test(m) ? 'Falta pegar <b>base/20260918_infobip.sql</b>.' : escHTML(errNube(e))) +
+        '</div>');
+    });
 }
 
 function renderCred(){
@@ -2754,8 +3330,20 @@ function verCliente(id){
          <div class="muted" style="font-size:11px;margin-top:4px">Si él se cambió el código desde la app, este ya no es el que usa (y está bien: es suyo). Si lo perdió, «Cambiar» le genera otro y la próxima subida lo deja mandando.</div></span></div>`
     : `<div class="alerta info"><b>Sin código todavía.</b> Sin él no puede entrar a la app.
          <div style="margin-top:8px"><button class="btn btn-sm" onclick="generarCodigoAccesoDe('${s.id}')">Generar su código</button></div></div>`;
+  /* 15-sep-2026 — SALIR DE LOS MENSAJES. En Colombia la salida es obligatoria y
+     todo SMS de cobro lleva «Responde SALIR». El que lo use contesta al codigo
+     corto de la plataforma, no al WhatsApp de Joan, asi que Joan lo ve en el
+     portal de la plataforma y lo marca aca. Si no quedara anotado en la FICHA,
+     el mes que viene volveria a entrar a la lista: seria pedirle permiso a
+     alguien y desoirlo por escrito. */
+  const bloqueSalida = s.noSMS
+    ? `<div class="alerta warn"><b>Pidió no recibir mensajes de texto ni de voz.</b>
+         No entra en las bases de SMS ni de voz. Sigue en la cola de WhatsApp, que es otro canal.
+         <div style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="cambiarSalidaSMS('${s.id}',false)">Volvió a aceptarlos</button></div></div>`
+    : `<div style="margin:8px 0"><button class="btn btn-ghost btn-sm" onclick="cambiarSalidaSMS('${s.id}',true)" title="Marca que respondió SALIR: deja de entrar en las bases de SMS y de voz">🔕 Respondió SALIR</button></div>`;
   openModal(codCliente(s)+' · '+s.nombre,`
     ${bloqueCodigo}
+    ${bloqueSalida}
     <div class="info-row"><span class="k">Ganancia generada</span><span class="vv gano">${COP(gan)}</span></div>
     ${huellaHTML}
     <div class="alerta info solo-tuyo"><b class="tit-solo">Solo para ti · el fondo del cupón (reparto ${REPARTO_TXT})</b>
@@ -4315,6 +4903,13 @@ const SB_KEY='joan_socios_sb';
    redirigen solas al dominio, así que ningún mensaje ya enviado se rompe —
    pero los NUEVOS salen con la marca. */
 const URL_APP_DEF = 'https://tugarantia.net/app/socio.html';
+/* LA PUERTA PUBLICA, que NO es la app del socio. Se agrego el 15-sep-2026 con
+   la pestana Comercial, y por un defecto de verdad: la invitacion mandaba a
+   app/socio.html —la app vieja del quincenal, que pide un codigo que el
+   prospecto no tiene— en vez de a play/, que es donde se abre una cuenta.
+   El prospecto habria llegado a una pantalla que le pide algo que no puede
+   tener, y se habria ido. */
+const URL_PUERTA_DEF = 'https://tugarantia.net/play/';
 
 /* El enlace que se le manda al cliente para que instale la app.
 
@@ -8617,6 +9212,7 @@ function enlaceServible(u){
   return true;
 }
 function urlApp(){ return enlaceServible(DB.config.urlApp)?DB.config.urlApp:URL_APP_DEF; }
+function urlPuerta(){ return enlaceServible(DB.config.urlPuerta)?DB.config.urlPuerta:URL_PUERTA_DEF; }
 function aB64Url(str){
   const bytes=new TextEncoder().encode(str); let bin='';
   bytes.forEach(b=>{ bin+=String.fromCharCode(b); });
@@ -8778,6 +9374,8 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
   if(v==='cfg')pintarCfg(); if(v==='plantillas')renderPlantillas(); if(v==='cal')renderCalendario();
   if(v==='equipo')renderEquipo();
   if(v==='bases')renderBases();
+  if(v==='cobranzas')renderCobranzas();
+  if(v==='comercial')renderComercial();
   /* Registrados trae de la nube SOLO al entrar a la pestaña, no en cada
      render(): una petición por visita, no una por teclazo. */
   if(v==='registrados'){ renderRegistros(); traerRegistros(); }

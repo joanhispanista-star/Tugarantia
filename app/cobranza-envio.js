@@ -218,28 +218,70 @@
      Ninguna pregunta por qué no pagó (Ley 2300, art. 7) ni nombra a nadie más
      que al deudor (art. 4). Y todas dicen quién escribe en las primeras tres
      palabras: un SMS sin remitente conocido se borra sin leer. */
+  /* EL AVISO DE SALIDA, EN UN SOLO SITIO.
+     En Colombia la salida es OBLIGATORIA: la tabla de cobertura de Infobip dice
+     «Opt Out mandatory: Yes» para el pais. No es cortesia, es condicion para que
+     la operadora entregue el mensaje.
+
+     Y coincide con la Ley 2300: el articulo 2 dice que el deudor elige por que
+     canales se le puede contactar. Un mensaje que no deja salirse le niega esa
+     eleccion.
+
+     Vive aparte y se pega a cada plantilla en filasDeEnvio, no escrito catorce
+     veces: catorce copias son catorce sitios donde puede faltar, y el dia que
+     falte en una, esa es la que la operadora rechaza. */
+  var SALIDA_SMS = ' Responde SALIR para no recibir mas.';
+  /* Por voz no se puede «responder SALIR»: se dice a donde llamar. */
+  var SALIDA_VOZ = ' Si no desea recibir mas mensajes, comuniquese al {telefono}.';
+
+  /* Cortas, sin tildes y sin emoji, y con sitio para el aviso de salida: todo
+     junto tiene que caber en UNA sola pieza de SMS.
+
+     EMPIEZAN CON EL NOMBRE DE LA CASA, y eso no es estilo. En Colombia NO se
+     pueden usar remitentes con letras —la tabla de cobertura de Infobip dice
+     «Alphanumeric Senders Supported: LOCAL No, INTERNATIONAL No»—, asi que el
+     cliente NO ve «Tu Garantia» como remitente: ve un codigo corto de numeros.
+     Si el texto no dice quien escribe en las primeras palabras, el mensaje es
+     un numero desconocido pidiendo plata, y se borra sin leer.
+
+     Ninguna pregunta por que no pago (Ley 2300, art. 7) ni nombra a nadie mas
+     que al deudor (art. 4). */
   var SMS = {
-    venceHoy: 'Hola {nombre}, somos Tu Garantia. Hoy vence tu pago de {saldo}. ' +
-              'Si necesitas mas plazo, escribenos al {telefono}. Si ya pagaste, gracias.',
-    /* Esta se pasaba por UN caracter con un nombre largo y un monto de siete
-       cifras: 161, y el limite es 160. Un caracter = el doble de la factura.
-       Por eso hay una prueba que la mide con el peor nombre plausible. */
-    moraTemprana: 'Hola {nombre}, somos Tu Garantia. Tu pago de {saldo} quedo pendiente ' +
-              'el {fecha_pago}. Escribenos al {telefono} y lo organizamos.',
-    mora: 'Hola {nombre}, somos Tu Garantia. Tu pago de {saldo} sigue pendiente. ' +
-              'Queremos ayudarte: escribenos al {telefono} y buscamos un acuerdo.',
-    recordatorio1: 'Hola {nombre}, somos Tu Garantia. Te recordamos tu pago de {saldo} ' +
-              'el {fecha_pago}. Cualquier cosa, escribenos al {telefono}.',
-    recordatorio2: 'Hola {nombre}, somos Tu Garantia. Te recordamos tu pago de {saldo} ' +
-              'el {fecha_pago}. Cualquier cosa, escribenos al {telefono}.'
+    venceHoy: 'Tu Garantia: {nombre}, hoy vence tu pago de {saldo}. ' +
+              'Escribenos al {telefono}.',
+    moraTemprana: 'Tu Garantia: {nombre}, tu pago de {saldo} quedo pendiente el ' +
+              '{fecha_pago}. Escribenos al {telefono}.',
+    mora: 'Tu Garantia: {nombre}, tu pago de {saldo} sigue pendiente. ' +
+              'Escribenos al {telefono} y buscamos un acuerdo.',
+    recordatorio1: 'Tu Garantia: {nombre}, te recordamos tu pago de {saldo} el ' +
+              '{fecha_pago}. Escribenos al {telefono}.',
+    recordatorio2: 'Tu Garantia: {nombre}, te recordamos tu pago de {saldo} el ' +
+              '{fecha_pago}. Escribenos al {telefono}.',
+
+    /* CUANDO DEBE VARIOS CREDITOS — pedido de Joan el 15-sep-2026: «que pueda
+       seleccionar la informacion de lo que debe en total con todos los
+       creditos».
+
+       No es un lujo: la Ley 2300 obliga a UN contacto por persona, asi que a
+       quien tiene tres creditos vencidos se le escribe UNA vez. Si ese unico
+       mensaje habla de un solo credito, el cliente paga ese, cree que quedo al
+       dia, y a la semana siguiente recibe otro cobro que no entiende. El
+       mensaje tiene que decir la verdad completa o no sirve.
+
+       Se dice cuantos son y cuanto suman, en ese orden: el numero explica la
+       cifra, y sin el la cifra parece un error. */
+    variasHoy: 'Tu Garantia: {nombre}, tus {cuantos} pagos pendientes suman ' +
+              '{saldo}. Escribenos al {telefono}.',
+    variasMora: 'Tu Garantia: {nombre}, tus {cuantos} pagos vencidos suman ' +
+              '{saldo}. Escribenos al {telefono} y buscamos un acuerdo.'
   };
 
-  /* La voz va más lenta y más simple: la escucha una persona una sola vez y no
-     puede volver atrás. El monto en palabras y una pausa antes de la cifra. */
+  /* La voz va mas lenta y mas simple: la escucha una persona una sola vez y no
+     puede volver atras. El monto en palabras y el nombre de la casa al frente. */
   var VOZ = {
     venceHoy: 'Hola {nombre}. Le saludamos de Tu Garantia. Le recordamos que hoy ' +
               'vence su pago de {saldo_hablado}. Si necesita mas plazo, escribanos ' +
-              'al {telefono}. Si ya pago, muchas gracias.',
+              'al {telefono}.',
     moraTemprana: 'Hola {nombre}. Le saludamos de Tu Garantia. Su pago de {saldo_hablado} ' +
               'quedo pendiente el {fecha_pago}. Escribanos al {telefono} y lo organizamos.',
     mora: 'Hola {nombre}. Le saludamos de Tu Garantia. Su pago de {saldo_hablado} sigue ' +
@@ -247,8 +289,24 @@
     recordatorio1: 'Hola {nombre}. Le saludamos de Tu Garantia. Le recordamos su pago de ' +
               '{saldo_hablado} el {fecha_pago}. Cualquier cosa, escribanos al {telefono}.',
     recordatorio2: 'Hola {nombre}. Le saludamos de Tu Garantia. Le recordamos su pago de ' +
-              '{saldo_hablado} el {fecha_pago}. Cualquier cosa, escribanos al {telefono}.'
+              '{saldo_hablado} el {fecha_pago}. Cualquier cosa, escribanos al {telefono}.',
+    variasHoy: 'Hola {nombre}. Le saludamos de Tu Garantia. Tiene {cuantos} pagos ' +
+              'pendientes que suman {saldo_hablado}. Escribanos al {telefono} y lo organizamos.',
+    variasMora: 'Hola {nombre}. Le saludamos de Tu Garantia. Tiene {cuantos} pagos ' +
+              'vencidos que suman {saldo_hablado}. Escribanos al {telefono} y buscamos un acuerdo.'
   };
+
+  /* Que plantilla toca. Si el socio debe mas de un credito manda la de VARIOS:
+     el mensaje unico que permite la ley tiene que hablar de todo lo que debe,
+     no del primero de la lista. */
+  function plantillaDe(caso) {
+    var cuantos = Math.max(1, num(caso && caso.cuantos) || 1);
+    var clave = texto(caso && caso.plantilla) || 'venceHoy';
+    if (cuantos > 1) {
+      return (clave === 'mora' || clave === 'moraTemprana') ? 'variasMora' : 'variasHoy';
+    }
+    return clave;
+  }
 
   function aplicar(plantilla, vars) {
     return texto(plantilla).replace(/\{(\w+)\}/g, function (todo, k) {
@@ -283,7 +341,7 @@
    * Las filas listas para subir a la plataforma.
    *
    * @param casos  los que YA pasaron el filtro de la Ley 2300 (tanda.js)
-   * @param op     {telefono, plantillas:{sms,voz}}
+   * @param op     {telefono, sinSMS:[celular], plantillas:{sms,voz}}
    * @returns {{filas:Array, sinTelefono:Array, caros:Array}}
    */
   function filasDeEnvio(casos, op) {
@@ -292,22 +350,40 @@
     var pSMS = (o.plantillas && o.plantillas.sms) || SMS;
     var pVOZ = (o.plantillas && o.plantillas.voz) || VOZ;
 
-    var filas = [], sinTelefono = [], caros = [];
+    var filas = [], sinTelefono = [], caros = [], salidos = [];
+
+    /* QUIENES DIJERON «SALIR». El aviso de salida no sirve de nada si el que lo
+       usa vuelve a entrar a la lista el mes siguiente: seria pedirle permiso a
+       alguien y desoirlo por escrito. Se comparan los diez digitos, no el texto
+       del campo, porque el mismo numero esta escrito de cinco formas distintas
+       en una cartera vieja. */
+    var fuera = {};
+    (o.sinSMS || []).forEach(function (v) {
+      var d = celular10(typeof v === 'string' ? v : (v && (v.celular || v.telefono)));
+      if (d) fuera[d] = true;
+    });
 
     (casos || []).forEach(function (c) {
       var cel = celular10(c.telefono);
       if (!cel) { sinTelefono.push(c); return; }
+      if (fuera[cel]) { salidos.push(c); return; }
 
-      var clave = texto(c.plantilla) || 'venceHoy';
+      var clave = plantillaDe(c);
+      /* EL TOTAL MANDA CUANDO HAY VARIOS. `saldo_total` lo calcula quien arma
+         los casos (el CRM, sumando los creditos del socio); si no viene, se usa
+         el del credito, que es lo correcto cuando solo hay uno. */
+      var cuantos = Math.max(1, num(c.cuantos) || 1);
+      var monto = cuantos > 1 && c.saldo_total != null ? num(c.saldo_total) : num(c.saldo);
       var vars = {
         nombre: primerNombre(c.nombre),
-        saldo: montoEscrito(c.saldo),
-        saldo_hablado: montoHablado(c.saldo),
+        saldo: montoEscrito(monto),
+        saldo_hablado: montoHablado(monto),
         fecha_pago: fechaCorta(c.fecha_pago),
+        cuantos: String(cuantos),
         telefono: tel
       };
-      var sms = sinTildes(aplicar(pSMS[clave] || pSMS.venceHoy, vars));
-      var voz = aplicar(pVOZ[clave] || pVOZ.venceHoy, vars);
+      var sms = sinTildes(aplicar((pSMS[clave] || pSMS.venceHoy) + SALIDA_SMS, vars));
+      var voz = aplicar((pVOZ[clave] || pVOZ.venceHoy) + SALIDA_VOZ, vars);
       var med = pedazosSMS(sms);
       if (med.pedazos > 1) caros.push({ caso: c, medida: med });
 
@@ -316,9 +392,10 @@
         celular_57: '57' + cel,
         nombre: primerNombre(c.nombre),
         nombre_completo: sinTildes(c.nombre),
-        monto: Math.round(num(c.saldo)),
-        monto_texto: montoEscrito(c.saldo),
-        monto_hablado: montoHablado(c.saldo),
+        monto: Math.round(monto),
+        monto_texto: montoEscrito(monto),
+        monto_hablado: montoHablado(monto),
+        creditos: cuantos,
         fecha_pago: texto(c.fecha_pago).slice(0, 10),
         plantilla: clave,
         mensaje_sms: sms,
@@ -327,13 +404,13 @@
       });
     });
 
-    return { filas: filas, sinTelefono: sinTelefono, caros: caros };
+    return { filas: filas, sinTelefono: sinTelefono, caros: caros, salidos: salidos };
   }
 
   /* ------------------------------------------------------------- el CSV */
 
   var COLUMNAS = ['celular', 'celular_57', 'nombre', 'nombre_completo', 'monto',
-                  'monto_texto', 'monto_hablado', 'fecha_pago', 'plantilla',
+                  'monto_texto', 'monto_hablado', 'creditos', 'fecha_pago', 'plantilla',
                   'mensaje_sms', 'mensaje_voz', 'pedazos_sms'];
 
   function campo(v) {
@@ -381,7 +458,10 @@
     /* los textos */
     SMS: SMS,
     VOZ: VOZ,
+    SALIDA_SMS: SALIDA_SMS,
+    SALIDA_VOZ: SALIDA_VOZ,
     aplicar: aplicar,
+    plantillaDe: plantillaDe,
     primerNombre: primerNombre,
     fechaCorta: fechaCorta,
     /* el archivo */

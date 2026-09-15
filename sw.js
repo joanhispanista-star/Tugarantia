@@ -199,6 +199,12 @@
    filtro de la Ley 2300 aplicado antes de escribir la primera. Toca
    panel/crm.html y mete al cache app/cobranza-envio.js (nuevo) y panel/tanda.js
    (existia, pero solo lo cargaba el Panel del bolsillo).
+
+   v53 — 15-sep-2026. Dos pestanas nuevas en el CRM (Cobranzas y Comercial), el
+   mensaje con el TOTAL de todos los creditos del socio, el aviso de salida que
+   Colombia exige, y el rayo de play/ con una rama de rama garantizada (el 6% de
+   las veces salia con un solo nivel). Toca panel/crm.html, app/cobranza-envio.js
+   y play/index.html.
    ENTRAN AL CACHE app/ficha.js —lo carga play/— y el motor, que play/ no cargaba
    antes; app/chat.js y app/chat.css ya estaban por la app quincenal. */
 /* SUBIR EL NUMERO NO BASTA, Y COSTO UNA TARDE AVERIGUARLO (14-sep-2026).
@@ -256,7 +262,7 @@
    proyecto ya vio a este mismo service worker contestar index.html a una
    peticion de .js (ver v19). El guardian se mudo arriba del todo.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v52';
+const CACHE = 'tugarantia-v53';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

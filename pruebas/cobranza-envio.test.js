@@ -452,7 +452,335 @@ describe('la tanda y el archivo, juntos de verdad (15-sep-2026)', () => {
     assert.equal(col('nombre'), 'Maria');
     assert.equal(col('monto'), '150000');
     assert.equal(col('pedazos_sms'), '1');
-    assert.match(col('mensaje_sms'), /Hola Maria, somos Tu Garantia\. Hoy vence tu pago de \$150\.000/);
+    assert.match(col('mensaje_sms'), /Tu Garantia: Maria, hoy vence tu pago de \$150\.000/);
+    assert.match(col('mensaje_sms'), /Responde SALIR/, 'falta el aviso de salida, que en Colombia es obligatorio');
     assert.match(col('mensaje_voz'), /ciento cincuenta mil pesos/);
+  });
+});
+
+describe('la salida, que en Colombia es obligatoria (15-sep-2026)', () => {
+
+  /* La tabla de cobertura de Infobip dice, para Colombia, «Opt Out mandatory:
+     Yes». No es cortesía: es condición para que la operadora entregue. Y
+     coincide con la Ley 2300, artículo 2: el deudor elige por qué canales se le
+     puede contactar. */
+
+  test('TODO mensaje lleva el aviso de salida', () => {
+    const casos = [{ socioId:'s1', nombre:'Ana', telefono:'3001112233', saldo:50000,
+                     fecha_pago:'2026-09-15', plantilla:'venceHoy' }];
+    for (const p of Object.keys(E.SMS)) {
+      const r = E.filasDeEnvio([{ ...casos[0], plantilla: p }], { telefono:'3009998877' });
+      assert.match(r.filas[0].mensaje_sms, /Responde SALIR/,
+        'la plantilla ' + p + ' sale sin aviso de salida');
+      assert.match(r.filas[0].mensaje_voz, /no desea recibir/,
+        'el mensaje de voz de ' + p + ' sale sin forma de salirse');
+    }
+  });
+
+  test('CON el aviso, todas siguen cabiendo en UN SMS — peor caso', () => {
+    /* El aviso cuesta 36 caracteres. Las plantillas de la primera versión de
+       hoy ya no cabían con él (178 contra un límite de 160) y hubo que
+       reescribirlas. Si alguien las alarga otra vez, esta prueba lo dice. */
+    /* El peor caso de verdad: nombre largo, monto de ocho cifras, fecha larga y
+       DOCE creditos. La primera version de esta prueba no pasaba `cuantos`, asi
+       que medía la plantilla con el hueco «{cuantos}» sin rellenar — nueve
+       caracteres donde en la vida real van uno o dos. Una prueba que mide el
+       texto sin rellenar no mide el mensaje que se manda. */
+    const vars = { nombre:'Inmaculada', saldo:'$12.750.000', cuantos:'12',
+                   fecha_pago:'30 de septiembre', telefono:'3001112233' };
+    for (const [clave, t] of Object.entries(E.SMS)) {
+      const m = E.pedazosSMS(E.sinTildes(E.aplicar(t + E.SALIDA_SMS, vars)));
+      assert.equal(m.pedazos, 1,
+        clave + ' con el aviso de salida ocupa ' + m.pedazos + ' SMS (' + m.caracteres + ')');
+      /* Y con MARGEN. Hoy dos plantillas distintas llegaron a 161 y a 178 —una
+         y dieciocho por encima— y las dos veces el sintoma fue el mismo: el
+         doble de la factura. Diez caracteres de aire es lo que separa «cabe» de
+         «cabe hasta que alguien cambie una palabra». */
+      assert.ok(m.caracteres <= E.SMS_UN_PEDAZO_GSM7 - 10,
+        clave + ' cabe por poco: ' + m.caracteres + ' de ' + E.SMS_UN_PEDAZO_GSM7 +
+        '. Un cambio pequeno la parte en dos y se paga doble.');
+    }
+  });
+
+  test('el aviso vive en UN solo sitio, no copiado en cada plantilla', () => {
+    /* Cinco copias son cinco sitios donde puede faltar, y el día que falte en
+       una, esa es la que la operadora rechaza. */
+    for (const t of Object.values(E.SMS)) {
+      assert.equal(/SALIR/.test(t), false,
+        'una plantilla trae el aviso escrito adentro: se va a desincronizar');
+    }
+    assert.match(E.SALIDA_SMS, /SALIR/);
+  });
+
+  test('quien dijo SALIR NO vuelve a entrar a la lista', () => {
+    /* Sin esto el aviso sería pedirle permiso a alguien y desoírlo por escrito. */
+    const casos = [
+      { socioId:'s1', nombre:'Ana', telefono:'3001112233', saldo:50000,
+        fecha_pago:'2026-09-15', plantilla:'venceHoy' },
+      { socioId:'s2', nombre:'Pedro', telefono:'3155556677', saldo:80000,
+        fecha_pago:'2026-09-15', plantilla:'venceHoy' }
+    ];
+    const r = E.filasDeEnvio(casos, { telefono:'3009998877', sinSMS:['3155556677'] });
+    assert.equal(r.filas.length, 1);
+    assert.equal(r.salidos.length, 1);
+    assert.equal(r.salidos[0].nombre, 'Pedro');
+  });
+
+  test('se reconoce el número aunque esté escrito de otra forma', () => {
+    /* En una cartera vieja el mismo celular está escrito de cinco maneras. Si
+       la comparación fuera de texto, el que pidió salir volvería a entrar por
+       tener un espacio de más. */
+    const caso = [{ socioId:'s2', nombre:'Pedro', telefono:'3155556677', saldo:80000,
+                    fecha_pago:'2026-09-15', plantilla:'venceHoy' }];
+    for (const forma of ['3155556677', '315 555 6677', '+57 315 555 6677', '573155556677']) {
+      const r = E.filasDeEnvio(caso, { telefono:'3009998877', sinSMS:[forma] });
+      assert.equal(r.filas.length, 0, 'no lo reconoció escrito como ' + JSON.stringify(forma));
+    }
+  });
+
+  test('el CRM saca la lista de salidos de la FICHA del socio', () => {
+    const CRM = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
+    const i = CRM.indexOf('function pantallaEnvioMasivo');
+    const cuerpo = CRM.slice(i, CRM.indexOf('\nfunction bajarCSVEnvio', i));
+    assert.match(cuerpo, /sinSMS: salieron/, 'la pantalla no excluye a los que pidieron salir');
+    assert.match(cuerpo, /x\.noSMS/, 'no lee la marca de la ficha');
+    assert.ok(CRM.indexOf('function cambiarSalidaSMS') > -1,
+      'no hay forma de marcar que alguien pidió salir');
+  });
+
+  test('el CRM avisa que en Colombia el remitente NO puede decir «Tu Garantia»', () => {
+    /* La tabla de Infobip: «Alphanumeric Senders Supported: LOCAL No,
+       INTERNATIONAL No». El cliente ve un código corto de números, así que el
+       texto TIENE que decir quién escribe. Si Joan no lo sabe, va a pelear con
+       la plataforma para poner su nombre de remitente y a perder la tarde. */
+    const CRM = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
+    const i = CRM.indexOf('function pantallaEnvioMasivo');
+    const cuerpo = CRM.slice(i, CRM.indexOf('\nfunction bajarCSVEnvio', i));
+    assert.match(cuerpo, /NO va a ver/);
+    assert.match(cuerpo, /codigo corto/);
+  });
+
+  test('cada mensaje dice quién escribe en las primeras palabras', () => {
+    /* Y ahora importa el doble: el remitente es un número desconocido. */
+    for (const t of Object.values(E.SMS)) {
+      assert.ok(t.indexOf('Tu Garantia') === 0,
+        'no empieza diciendo quién escribe: ' + t);
+    }
+  });
+});
+
+describe('el total de TODOS los créditos (15-sep-2026)', () => {
+
+  /* Joan: «quiero poder seleccionar la informacion de lo que debe en total con
+     todos los creditos». No es comodidad: la Ley 2300 obliga a UN contacto por
+     persona, así que a quien debe tres créditos se le escribe UNA vez. Si ese
+     mensaje hablara de un solo crédito, el cliente paga ese, cree que quedó al
+     día, y a la semana recibe otro cobro que no entiende — y tendría razón. */
+
+  const base = { socioId: 's1', nombre: 'Pedro Ruiz', telefono: '3155556677',
+                 fecha_pago: '2026-09-15' };
+
+  test('con UN crédito, el mensaje habla de ese pago', () => {
+    const r = E.filasDeEnvio([Object.assign({}, base, { saldo: 80000, cuantos: 1, plantilla: 'venceHoy' })],
+                             { telefono: '3009998877' });
+    assert.match(r.filas[0].mensaje_sms, /tu pago de \$80\.000/);
+    assert.equal(r.filas[0].monto, 80000);
+    assert.equal(r.filas[0].creditos, 1);
+  });
+
+  test('con TRES, el mensaje dice cuántos son y cuánto SUMAN', () => {
+    const r = E.filasDeEnvio([Object.assign({}, base, { saldo: 80000, saldo_total: 295000,
+                                                        cuantos: 3, plantilla: 'mora' })],
+                             { telefono: '3009998877' });
+    assert.match(r.filas[0].mensaje_sms, /tus 3 pagos vencidos suman \$295\.000/);
+    assert.equal(r.filas[0].monto, 295000, 'la fila lleva el monto de UN crédito, no el total');
+    assert.equal(r.filas[0].creditos, 3);
+  });
+
+  test('y la voz dice el total EN PALABRAS', () => {
+    const r = E.filasDeEnvio([Object.assign({}, base, { saldo: 80000, saldo_total: 295000,
+                                                        cuantos: 3, plantilla: 'mora' })],
+                             { telefono: '3009998877' });
+    assert.match(r.filas[0].mensaje_voz, /doscientos noventa y cinco mil pesos/);
+    assert.equal(/295\.000/.test(r.filas[0].mensaje_voz), false,
+      'la voz lleva la cifra con puntos: una máquina la lee como decimal');
+  });
+
+  test('sin saldo_total se usa el del crédito — no se inventa un total', () => {
+    /* La forma peligrosa de equivocarse: que un dato ausente valga cero, y el
+       cliente reciba «tus 3 pagos suman $0». */
+    const r = E.filasDeEnvio([Object.assign({}, base, { saldo: 80000, cuantos: 3, plantilla: 'mora' })],
+                             { telefono: '3009998877' });
+    assert.equal(r.filas[0].monto, 80000);
+    assert.equal(/\$0\b/.test(r.filas[0].mensaje_sms), false);
+  });
+
+  test('plantillaDe elige la de VARIOS solo cuando de verdad hay varios', () => {
+    assert.equal(E.plantillaDe({ plantilla: 'venceHoy', cuantos: 1 }), 'venceHoy');
+    assert.equal(E.plantillaDe({ plantilla: 'venceHoy', cuantos: 2 }), 'variasHoy');
+    assert.equal(E.plantillaDe({ plantilla: 'mora', cuantos: 1 }), 'mora');
+    assert.equal(E.plantillaDe({ plantilla: 'mora', cuantos: 4 }), 'variasMora');
+    assert.equal(E.plantillaDe({ plantilla: 'moraTemprana', cuantos: 2 }), 'variasMora');
+    assert.equal(E.plantillaDe({}), 'venceHoy');
+    assert.equal(E.plantillaDe(null), 'venceHoy');
+  });
+});
+
+describe('las dos pestañas nuevas (15-sep-2026)', () => {
+
+  const CRM = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
+  const trozo = (desde, hasta) => {
+    const i = CRM.indexOf(desde);
+    assert.ok(i > -1, 'no existe ' + desde);
+    const j = CRM.indexOf(hasta, i + desde.length);
+    return CRM.slice(i, j > -1 ? j : i + 4000);
+  };
+
+  test('las pestañas existen y el enrutador las conoce', () => {
+    for (const v of ['cobranzas', 'comercial']) {
+      assert.ok(CRM.indexOf('data-v="' + v + '"') > -1, 'falta el botón de ' + v);
+      assert.ok(CRM.indexOf('id="v-' + v + '"') > -1, 'falta la sección de ' + v);
+      assert.ok(CRM.indexOf("if(v==='" + v + "')") > -1, 'el enrutador no conoce ' + v);
+    }
+  });
+
+  test('COBRANZAS suma los créditos por PERSONA antes de armar los casos', () => {
+    /* Si se sumara después, tanda.js ya se habría quedado con uno solo y el
+       total sería el de ese crédito. */
+    const c = trozo('function casosDeCobroHoy', 'function horarioLegalHoy');
+    assert.ok(c.indexOf('totales[k] = (totales[k] || 0) + totalCiclo(p)') > -1,
+      'no suma los créditos por persona');
+    assert.ok(c.indexOf('saldo_total: totales[s.id]') > -1);
+    assert.ok(c.indexOf('cuantos: cuantos[s.id]') > -1);
+    assert.ok(c.indexOf('acuerdoVigente(p)) return;') > -1,
+      'se le cobra a gente con acuerdo vigente');
+  });
+
+  test('COBRANZAS no deja AGREGAR a alguien que el filtro dejó fuera', () => {
+    /* Los topes de la Ley 2300 no tienen casilla de «yo autorizo». La tabla de
+       excluidos se pinta sin checkbox a propósito. */
+    const c = trozo('function renderCobranzas', 'function marcarCob');
+    const i = c.indexOf('cajaF.innerHTML');
+    assert.ok(i > -1);
+    assert.equal(/type=checkbox/.test(c.slice(i)), false,
+      'la tabla de excluidos trae casillas: se puede agregar a alguien que la ley excluyó');
+  });
+
+  test('COMERCIAL exige autorización — es habeas data, no Ley 2300', () => {
+    /* La Ley 2300 regula el COBRO. Invitar no es cobrar. Lo que aplica es el
+       Decreto 1377 art. 5: autorización nueva cuando la finalidad cambia. Y la
+       política publicada de Tu Garantía cierra con «Para nada más». */
+    const c = trozo('function prospectosParaInvitar', 'function autorizarProspecto');
+    assert.ok(c.indexOf('if (!g.autorizaInvitacion)') > -1,
+      'se invita a prospectos que no autorizaron');
+    assert.ok(c.indexOf('habeas data') > -1);
+    assert.ok(c.indexOf('ya es cliente tuyo') > -1);
+    assert.ok(c.indexOf('ya abrio su cuenta') > -1);
+  });
+
+  test('marcar la autorización guarda la FECHA', () => {
+    /* El día que la SIC pregunte «quién autorizó y cuándo», la respuesta tiene
+       que existir. */
+    const c = trozo('function autorizarProspecto', 'function renderComercial');
+    assert.ok(c.indexOf('autorizaDesde = v ? hoyISO()') > -1);
+    assert.ok(c.indexOf('confirm(') > -1, 'se marca sin preguntar');
+  });
+
+  test('la invitación lleva a la PUERTA, no a la app del socio', () => {
+    /* Defecto encontrado abriendo el CRM en un navegador: mandaba a
+       app/socio.html, que le pide al prospecto un código que no tiene. Habría
+       llegado a una pantalla que le exige algo imposible. */
+    assert.ok(CRM.indexOf("URL_PUERTA_DEF = 'https://tugarantia.net/play/'") > -1,
+      'no existe la constante de la puerta pública');
+    const c = trozo('function textoInvitacion', 'function marcarCom');
+    assert.ok(c.indexOf('enlace: urlPuerta()') > -1,
+      'la invitación sigue mandando a la app del socio');
+  });
+
+  test('enviar pide confirmación y dice que se cobra', () => {
+    /* Un botón que manda cientos de mensajes de pago no puede dispararse de un
+       clic distraído. */
+    for (const fn of ['function enviarCobranzas', 'function enviarInvitaciones']) {
+      const i = CRM.indexOf(fn);
+      assert.ok(i > -1, 'falta ' + fn);
+      const c = CRM.slice(i, i + 2600);
+      assert.ok(c.indexOf('confirm(') > -1, fn + ' manda sin preguntar');
+      assert.ok(/se cobra/i.test(c), fn + ' no avisa que cuesta plata');
+    }
+  });
+
+  test('la llave de Infobip NO viaja por el navegador', () => {
+    /* El CRM está publicado en internet. Una llave que llegue al navegador la
+       lee cualquiera que abra el archivo, y con ella manda mensajes que Joan
+       paga. El CRM pide «manda esto», nunca «manda esto con esta llave». */
+    assert.equal(/infobip[_-]?(llave|key|token)\s*[:=]\s*['"][^'"]{8,}/i.test(CRM), false,
+      'hay algo que parece una llave de Infobip escrita en el CRM');
+    const c = CRM.slice(CRM.indexOf('function enviarCobranzas'),
+                        CRM.indexOf('function enviarCobranzas') + 2600);
+    assert.equal(/'App /.test(c), false,
+      'el CRM arma la cabecera de autorización: la llave estaría en el navegador');
+    assert.ok(c.indexOf("rpc('enviar_mensajes'") > -1, 'el CRM no manda por la nube');
+  });
+
+  test('anotar el contacto guarda el CANAL — el tope semanal es por canal', () => {
+    const c = trozo('function anotarContactos', 'COMERCIAL');
+    assert.ok(c.indexOf("canal: canal === 'voz' ? 'voz' : 'sms'") > -1);
+    assert.ok(c.indexOf('gestiones.push') > -1);
+  });
+});
+
+describe('la migración de Infobip (15-sep-2026)', () => {
+
+  const SQL2 = fs.readFileSync(path.join(RAIZ, 'base', '20260918_infobip.sql'), 'utf8');
+
+  test('la llave NO está escrita en el archivo', () => {
+    /* Una llave en un archivo del repositorio es una llave publicada. El UPDATE
+       que la pone está comentado, y lo corre Joan. */
+    const vivas = SQL2.split('\n').filter(l => !l.trim().startsWith('--'));
+    assert.equal(/infobip_llave'\s*,\s*'[^']{8,}'/.test(vivas.join('\n')), false,
+      'hay una llave de verdad escrita en la migración');
+  });
+
+  test('enviar es VOLATILE — si no, PostgREST no manda nada', () => {
+    const i = SQL2.indexOf('function public.enviar_mensajes');
+    assert.ok(i > -1);
+    assert.match(SQL2.slice(i, i + 400), /\bvolatile\b/);
+  });
+
+  test('la ventana legal se comprueba ANTES de mandar', () => {
+    const i = SQL2.indexOf('function public.enviar_mensajes');
+    const c = SQL2.slice(i, SQL2.indexOf('$$;', i));
+    const iVentana = c.indexOf('ventana_de_cobro()');
+    const iPost = c.indexOf('net.http_post');
+    assert.ok(iVentana > -1 && iPost > -1);
+    assert.ok(iVentana < iPost, 'se manda antes de mirar si se puede cobrar a esta hora');
+  });
+
+  test('deliveryTimeWindow va en UTC, no en hora de Bogotá', () => {
+    /* Bogotá es UTC-5. Ponerle 7 a 19 en UTC sería entregar entre las 2 de la
+       mañana y las 2 de la tarde — justo fuera de la ley, y creyendo lo
+       contrario. */
+    assert.ok(SQL2.indexOf("'utc_desde', 12") > -1, 'la ventana entre semana no está en UTC');
+    assert.ok(SQL2.indexOf("'utc_desde', 13") > -1, 'la ventana del sábado no está en UTC');
+    assert.ok(SQL2.indexOf('deliveryTimeWindow') > -1, 'no se manda la ventana a Infobip');
+  });
+
+  test('la migración comprueba sola su propia ventana', () => {
+    /* Con horas de verdad, al pegarla. Si alguien se equivoca de zona horaria,
+       revienta ahí y no con mil mensajes ya mandados a medianoche. */
+    assert.ok(SQL2.indexOf('deja cobrar a las 3 de la manana') > -1);
+    assert.ok(SQL2.indexOf('deja cobrar en DOMINGO') > -1);
+    assert.ok(SQL2.indexOf('deja cobrar el sabado despues de las 3') > -1);
+  });
+
+  test('hay un freno de cuántos se mandan de una', () => {
+    /* Infobip no documenta un tope. Un error de programación que mande 50.000
+       mensajes se paga igual. */
+    assert.ok(SQL2.indexOf('> 500') > -1, 'no hay freno de cantidad');
+  });
+
+  test('la tabla de envíos queda con RLS y sin políticas', () => {
+    assert.ok(SQL2.indexOf('alter table public.envios_mensajes enable row level security') > -1);
+    assert.equal(/create policy[\s\S]*envios_mensajes/.test(SQL2), false);
   });
 });

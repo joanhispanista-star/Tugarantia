@@ -2237,6 +2237,25 @@ function ramasDeRayo(pts, largo, cuantas, profundidad) {
       out = out.concat(ramasDeRayo(camino, L, 1, profundidad - 1));
     }
   }
+  /* AL MENOS UNA RAMA DE RAMA, SIEMPRE — 15-sep-2026.
+     Cada rama sorteaba por su cuenta si se ramificaba (0,65), asi que con dos
+     ramas la probabilidad de que NINGUNA lo hiciera era 0,35 x 0,35 = 12%.
+     Medido sobre 400 rayos: el 6% salia con un solo nivel, o sea con el aspecto
+     viejo de «tres rayitas» que Joan pidio cambiar. No se veia mirando —pasa
+     una vez de cada dieciseis— y lo delato una prueba que fallaba a veces.
+
+     Una prueba intermitente es peor que ninguna: ensena a ignorar el rojo. Se
+     arreglo el rayo, no la prueba. */
+  if (profundidad > 0 && out.length) {
+    var tieneHija = false;
+    for (var q = 0; q < out.length; q++) {
+      if (out[q].nivel < profundidad) { tieneHija = true; break; }
+    }
+    if (!tieneHija) {
+      var madre = out[Math.floor(Math.random() * out.length)];
+      out = out.concat(ramasDeRayo(madre.pts, largo * 0.3, 1, profundidad - 1));
+    }
+  }
   return out;
 }
 
