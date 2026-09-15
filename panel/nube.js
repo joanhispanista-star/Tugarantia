@@ -1511,6 +1511,155 @@
   }
 
   /* =========================================================================
+   * LA SIEMBRA DEL ESPEJO — 15-sep-2026
+   *
+   * Sin espejo, armarLote manda TODAS las filas con revision_base null, que
+   * quiere decir «esta fila la creé yo y el servidor no la tiene». El servidor
+   * las encuentra y contesta CHOQUE en cada una. Eso es lo que pasa hoy en un
+   * computador nuevo: traer.html no escribe espejo, y subir.html nunca escribe
+   * servidor_ahora.
+   *
+   * La cura no es adivinar: es ADOPTAR. Si la fila de acá y la de allá dicen lo
+   * mismo, el espejo puede afirmarlo sin mentir, y la subida siguiente sale
+   * contra la revisión buena. Si difieren, NO se adopta: se congela y lo mira
+   * Joan. La regla que ordena todo esto es una sola —
+   *
+   *     el espejo nunca puede afirmar algo que la cartera no dice
+   *
+   * — porque cada vez que esas dos cosas se separan, el diff deja de ser una
+   * subida y se convierte en una lista de borrados con la bendición del control
+   * de revisiones.
+   * ======================================================================== */
+
+  /**
+   * ¿Todo lo que dice `servidor`, lo dice `local` igual?
+   *
+   * Los arrays se comparan ENTEROS: un abono de más del lado del servidor NO es
+   * superconjunto, porque adoptarlo perdería ese abono en la subida siguiente.
+   * Usa jsonCanonico y no JSON.stringify porque al otro lado hay datos que
+   * volvieron de un jsonb con las llaves reordenadas.
+   */
+  function esSuperconjunto(local, servidor) {
+    if (servidor === null || servidor === undefined) return true;
+    if (Array.isArray(servidor) || typeof servidor !== 'object') {
+      return jsonCanonico(local) === jsonCanonico(servidor);
+    }
+    if (local === null || typeof local !== 'object' || Array.isArray(local)) return false;
+    var llaves = Object.keys(servidor);
+    for (var i = 0; i < llaves.length; i++) {
+      if (!esSuperconjunto(local[llaves[i]], servidor[llaves[i]])) return false;
+    }
+    return true;
+  }
+
+  /**
+   * El espejo que se puede afirmar sin mentir, comparando la cartera de acá
+   * contra lo que trajo la nube.
+   *
+   * @returns {{espejo, adoptadas:Array, congelar:Array, soloAlla:Array, soloAca:Array}}
+   *
+   * NO escribe disco. `servidor_ahora` se deja en null a propósito: esta
+   * función no sabe de qué momento es el paquete, y poner una hora inventada
+   * haría que la próxima bajada se saltara lo que pasó en medio.
+   */
+  function espejoDeAdopcion(db, paquete, espejoPrevio) {
+    var d = objeto(db);
+    var p = objeto(paquete);
+    var e = normalizarEspejo(espejoPrevio);
+    var r = { espejo: e, adoptadas: [], congelar: [], soloAlla: [], soloAca: [] };
+
+    TABLAS.forEach(function (t) {
+      var locales = {};
+      lista(d[CAMPO_DB[t]]).forEach(function (f) {
+        var id = idDe(f); if (id) locales[id] = f;
+      });
+      var vistos = {};
+
+      lista(p[t]).forEach(function (f) {
+        var id = idDe(f); if (!id) return;
+        vistos[id] = true;
+        var local = locales[id];
+        var apunte = { tabla: t, id: id };
+
+        /* (a) borrada allá y viva acá: NO se adopta. Adoptarla haría que la
+           próxima subida no dijera nada de ella y quedara borrada para todos los
+           demás aparatos sin que nadie lo decidiera. */
+        if (f.borrado === true && local) {
+          r.congelar.push({ tabla: t, id: id, motivo: 'borrada-en-la-nube' });
+          return;
+        }
+        /* (b) borrada allá y no está acá: nada que perder. */
+        if (f.borrado === true) {
+          e[t][id] = { revision: num(f.revision), json: jsonCanonico(f.datos),
+                       borrado: true, actualizado_en: f.actualizado_en || null,
+                       actualizado_por: f.actualizado_por || null };
+          r.adoptadas.push(apunte);
+          return;
+        }
+        /* (f) no está acá: baja sola en la primera bajada. No entra al espejo. */
+        if (!local) { r.soloAlla.push(apunte); return; }
+
+        var mio = jsonCanonico(sinFotos(local));
+        var suyo = jsonCanonico(f.datos);
+
+        /* (c) idénticas, y (d) lo de acá contiene todo lo de allá. En los dos
+           casos el espejo puede afirmar la revisión del servidor sin mentir. */
+        if (mio === suyo || esSuperconjunto(sinFotos(local), f.datos)) {
+          e[t][id] = { revision: num(f.revision), json: suyo, borrado: false,
+                       actualizado_en: f.actualizado_en || null,
+                       actualizado_por: f.actualizado_por || null };
+          r.adoptadas.push(apunte);
+          return;
+        }
+        /* (e) difieren de verdad: lo mira Joan. */
+        r.congelar.push({ tabla: t, id: id, motivo: 'difieren' });
+      });
+
+      Object.keys(locales).forEach(function (id) {
+        if (!vistos[id]) r.soloAca.push({ tabla: t, id: id });
+      });
+    });
+
+    e.servidor_ahora = null;
+    return r;
+  }
+
+  /**
+   * Las fotos vuelven a su sitio. Lo que baja de la nube NO las trae —nunca
+   * suben— así que una fila que vuelve del servidor y se escribe tal cual borra
+   * las fotos del aparato que SÍ las tenía, en silencio.
+   *
+   * Vivía en panel/subir.html y se movió acá el 15-sep-2026 porque el CRM la
+   * necesita: este proyecto ya pagó una vez la tercera copia de una regla.
+   *
+   * La foto de un comprobante se empareja por fecha+tipo+monto y no por
+   * identidad: `foto` está FUERA de la identidad a propósito (ver LISTAS_QUE_SUMAN).
+   */
+  function devolverFotos(datosNube, local) {
+    if (!local || !datosNube) return datosNube;
+    var d = {};
+    Object.keys(objeto(datosNube)).forEach(function (k) { d[k] = datosNube[k]; });
+    CAMPOS_FOTO.forEach(function (k) { if (local[k] && !d[k]) d[k] = local[k]; });
+    if (Array.isArray(d.comprobantes) && Array.isArray(local.comprobantes)) {
+      d.comprobantes = d.comprobantes.map(function (c) {
+        if (!c || c.foto) return c;
+        for (var i = 0; i < local.comprobantes.length; i++) {
+          var x = local.comprobantes[i];
+          if (x && x.foto && x.fecha === c.fecha && x.tipo === c.tipo &&
+              num(x.monto) === num(c.monto)) {
+            var copia = {};
+            Object.keys(c).forEach(function (k) { copia[k] = c[k]; });
+            copia.foto = x.foto;
+            return copia;
+          }
+        }
+        return c;
+      });
+    }
+    return d;
+  }
+
+  /* =========================================================================
    * LO QUE SE EXPORTA
    * =======================================================================*/
   return {
@@ -1533,6 +1682,10 @@
     LISTAS_QUE_SUMAN: LISTAS_QUE_SUMAN,
     LISTAS_DE_AJUSTES: LISTAS_DE_AJUSTES,
     fusionarAjuste: fusionarAjuste,
+    /* La siembra del espejo (15-sep-2026) */
+    esSuperconjunto: esSuperconjunto,
+    espejoDeAdopcion: espejoDeAdopcion,
+    devolverFotos: devolverFotos,
     CAMPOS_PISABLES_TIPICOS: CAMPOS_PISABLES_TIPICOS,
 
     /* --- parte pura (lo que prueban pruebas/nube.test.js) --- */

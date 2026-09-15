@@ -243,6 +243,12 @@
    almacenamiento persistente para que el navegador no pueda borrar la cartera,
    y el respaldo lleva fecha en el nombre y se anota cuando fue. Toca
    panel/crm.html.
+
+   v60 — 15-sep-2026. Etapa 0 de conectar el CRM a la nube: guardar() ya no
+   miente cuando el navegador se llena, y el espejo se invalida cuando la
+   cartera se reemplaza entera (traer.html e importar()). Mas tres funciones
+   puras en nube.js para sembrar el espejo sin tormenta de choques. Toca
+   panel/crm.html, panel/nube.js y panel/traer.html.
    ENTRAN AL CACHE app/ficha.js —lo carga play/— y el motor, que play/ no cargaba
    antes; app/chat.js y app/chat.css ya estaban por la app quincenal. */
 /* SUBIR EL NUMERO NO BASTA, Y COSTO UNA TARDE AVERIGUARLO (14-sep-2026).
@@ -300,7 +306,7 @@
    proyecto ya vio a este mismo service worker contestar index.html a una
    peticion de .js (ver v19). El guardian se mudo arriba del todo.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v59';
+const CACHE = 'tugarantia-v60';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

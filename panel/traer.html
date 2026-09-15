@@ -1107,6 +1107,20 @@ function traerYEscribir(){
      arriba se hizo en memoria. */
   try{
     localStorage.setItem(KEY, texto);
+    /* 15-sep-2026 — EL ESPEJO SE INVALIDA. Una cartera que acaba de ser
+       REEMPLAZADA ENTERA no tiene ningun derecho a decirle a la nube que le
+       falta. El espejo es «lo ultimo que sabemos que hay alla»; si la cartera
+       de aca cambio de golpe y el espejo no, la siguiente subida calcula el
+       diff contra una verdad que ya no existe — y un diff contra una verdad
+       vieja no es una subida: es una lista de borrados con la bendicion del
+       control de revisiones.
+       Borrarlo es la senal que subir.html y el CRM ya saben leer: «no se de
+       donde vengo, siembrame otra vez». No se le pide a esta pagina que ESCRIBA
+       el espejo — eso seria una segunda verdad sobre como se siembra. */
+    try {
+      localStorage.removeItem('joan_panel_espejo_pc');
+      localStorage.removeItem('joan_crm_sello');
+    } catch (e) {}
   }catch(e){
     estado(5,'fallo','No cupo');
     $('btnTraer').disabled = false;

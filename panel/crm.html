@@ -9947,7 +9947,17 @@ function importar(e){ const f=e.target.files[0]; if(!f)return; const inp=e.targe
        rescata. Igual que en el arranque, si esta carga tocó alguna fecha la
        constancia se graba YA: si no, cada apertura del Panel la volvería a
        correr sobre créditos ya revisados. */
-    localStorage.setItem(KEY,JSON.stringify(d)); DB=cargar(); if(_fechasMigradas) guardar(); render(); alert('Respaldo importado: '+nS+' cliente(s) y '+nP+' crédito(s).');
+    localStorage.setItem(KEY,JSON.stringify(d));
+    /* 15-sep-2026 — IMPORTAR ES EL SEGUNDO ESCRITOR DE LA CARTERA, y el espejo
+       tiene que enterarse. Acaba de entrar una cartera entera de otro archivo:
+       lo que el espejo dice que hay en la nube ya no describe a esta. Si no se
+       invalida, la siguiente subida manda un diff contra una verdad vieja.
+       Misma cura y mismo motivo que en traer.html. */
+    try {
+      localStorage.removeItem('joan_panel_espejo_pc');
+      localStorage.removeItem('joan_crm_sello');
+    } catch (e) {}
+    DB=cargar(); if(_fechasMigradas) guardar(); render(); alert('Respaldo importado: '+nS+' cliente(s) y '+nP+' crédito(s).');
   }catch(err){ alert('Archivo inválido.'); } finally { inp.value=''; } }; r.readAsText(f); }
 
 /* ===== NAV / MODAL / PIN ===== */
