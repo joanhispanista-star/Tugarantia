@@ -1415,9 +1415,41 @@ function tarjetaCalcGarantia() {
    nada, y el que ya tiene garantía ganada. Ninguno de los tres ve una promesa
    que no le corresponde. */
 function techoDeGarantia() {
+  /* 16-sep-2026 — «HOY TIENES $0» SOLO SI DE VERDAD SE SABE QUE TIENE CERO.
+     Esta línea decía eso siempre que no hubiera ficha, y no tener ficha son
+     cuatro cosas distintas: el visitante que no tiene cuenta, el socio cuyo
+     historial se está cargando, el que no se pudo traer, y el que de verdad
+     todavía no ha ganado nada. Decirle «hoy tienes $0» a alguien que lleva
+     medio año pagando, porque la nube no contestó, es la casa mintiendo sobre
+     la causa de un fallo. */
+  if (FICHA_ESTADO === 'cargando') {
+    return '<div class="aviso" style="margin-top:0">Estamos buscando tu garantía…</div>';
+  }
+  if (FICHA_ESTADO === 'falla' || FICHA_ESTADO === 'apagada' || FICHA_ESTADO === 'sesion') {
+    return '<div class="aviso ambar" style="margin-top:0">No pude traer tu garantía ahora. ' +
+      'Eso <b>no</b> quiere decir que no tengas: quiere decir que no pude preguntar. ' +
+      'Mira las cifras de abajo como un cálculo, no como tu cupo.</div>';
+  }
   var d = respaldoDisponible();
   if (d <= 0) {
-    return '<div class="aviso ambar" style="margin-top:0"><b>Esto todavía no lo puedes pedir.</b> El crédito con garantía se abre con la garantía que ya ganaste pagando, peso a peso. Hoy tienes <b>$0</b>: empieza por un crédito normal y cada cuota que pagues en fecha te va abriendo este.</div>';
+    /* Al visitante sin cuenta no se le afirma un saldo que nadie ha mirado: se
+       le explica de dónde sale. Al registrado que sí sabemos que está en cero,
+       se le dice el cero. */
+    var suyo = (FICHA_ESTADO === 'vinculada' || FICHA_ESTADO === 'nueva');
+    return '<div class="aviso ambar" style="margin-top:0"><b>Esto todavía no lo puedes pedir.</b> ' +
+      'El crédito con garantía se abre con la garantía que se gana pagando, peso a peso. ' +
+      (suyo ? 'Hoy tienes <b>$0</b>: empieza' : 'Empieza') +
+      ' por un crédito normal y cada cuota que pagues en fecha te va abriendo este.</div>';
+  }
+  /* NI SE PROMETE UN MONTO QUE EL PRODUCTO NO PRESTA. La garantía puede alcanzar
+     para trescientos mil y este crédito empieza en un millón: decirle «puedes
+     pedir hasta $300.000» es ofrecerle algo que la misma tarjeta rechaza dos
+     renglones más abajo. */
+  if (d < GCALC_MIN) {
+    return '<div class="aviso ambar" style="margin-top:0">Llevas <b>' + COP(d) + '</b> de ' +
+      'garantía ganada. Este crédito empieza en <b>' + COP(GCALC_MIN) + '</b>, así que ' +
+      'todavía no te alcanza: te faltan <b>' + COP(GCALC_MIN - d) + '</b>, y cada cuota que ' +
+      'pagues en fecha te acerca.</div>';
   }
   if (GCALC.monto > d) {
     return '<div class="aviso ambar" style="margin-top:0">Con tu garantía de hoy puedes pedir hasta <b>' + COP(d) + '</b>. Puedes pedir más y lo miramos, pero te vamos a contestar con una propuesta por lo que alcanza.</div>';
@@ -1687,7 +1719,16 @@ function iniciarRayos() {
   var c = document.createElement('canvas');
   c.id = 'rayos'; c.setAttribute('aria-hidden', 'true');
   document.body.appendChild(c);
-  RAYOS.lienzo = c; RAYOS.ctx = c.getContext('2d');
+  var ctx2d = c.getContext('2d');
+  /* SIN CONTEXTO NO HAY RAYO, y no pasa nada: se sale y la página sigue.
+     16-sep-2026 — getContext devuelve null de verdad: en modo privado con el
+     lienzo bloqueado, con poca memoria, o en un navegador viejo. Hasta hoy nadie
+     lo miraba, y dos líneas más abajo medirLienzo llamaba setTransform sobre
+     null: el arranque lanzaba ANTES de pintarEntrar y la puerta pública quedaba
+     EN BLANCO —sin calculadora, sin registro, sin nada—. Comprobado en el banco:
+     cero letras. Un adorno no puede apagar el negocio. */
+  if (!ctx2d) { if (c.remove) c.remove(); return; }
+  RAYOS.lienzo = c; RAYOS.ctx = ctx2d;
   medirLienzo();
   window.addEventListener('resize', medirLienzo);
   /* pointerdown y no click: el rayo tiene que salir en el instante en que el
@@ -1714,7 +1755,7 @@ function iniciarRayos() {
    dos números por fotograma no cuesta nada; quedarse con un adorno muerto y sin
    error en consola, sí. */
 function medirLienzo() {
-  var c = RAYOS.lienzo; if (!c) return false;
+  var c = RAYOS.lienzo; if (!c || !RAYOS.ctx) return false;
   var w = window.innerWidth || 0, h = window.innerHeight || 0;
   if (!w || !h) return false;
   RAYOS.dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -2757,7 +2798,15 @@ function pie() {
      «Registrarme» de app/socio.html, que es el único enlace que Joan reparte.
      Quien llega así es un socio nuevo del quincenal: no tiene por qué ver la
      portada del producto a 6 meses ni un login con contraseña que no es suyo. */
-  iniciarRayos();
+  /* PRIMERO SE PINTA EL NEGOCIO, DESPUÉS EL ADORNO — 16-sep-2026, y el orden es
+     la corrección de verdad.
+     El rayo se encendía ANTES que la pantalla, así que cualquier tropiezo suyo
+     se llevaba por delante lo único que importa: esta página es un <div> vacío
+     que solo existe cuando el JavaScript la llena. Pasó de verdad —getContext
+     devolviendo null en modo privado, y medirLienzo llamando setTransform sobre
+     null— y el resultado medido en el banco fue CERO letras: ni calculadora, ni
+     registro, ni forma de entrar. Invertido el orden, un adorno roto es un
+     adorno roto y nada más. */
   if (location.hash === '#registro') {
     /* 9-sep-2026 — SE VUELVE DONDE IBA, no al principio. Ver LLAVE_PASO: la
        cámara del sistema hace que el teléfono recargue esta página, y arrancar
@@ -2773,6 +2822,12 @@ function pie() {
       }
     }
   } else pintarEntrar();
+
+  /* Y el cinturón, además del orden: el día que el rayo falle por otra cosa que
+     nadie previó, que se quede en la consola y no en la pantalla del cliente. */
+  try { iniciarRayos(); } catch (e) {
+    if (window.console && console.warn) console.warn('el rayo no arrancó:', e);
+  }
 })();
 </script>
 </body>

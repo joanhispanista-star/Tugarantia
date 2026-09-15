@@ -75,7 +75,9 @@ function abrirPlay(opciones) {
     setAttribute() {}, getAttribute: () => null, focus() {}, scrollIntoView() {},
     play: () => Promise.resolve(),
     width: 0, height: 0,
-    getContext: () => ctx2d
+    /* `sinContexto` simula el lienzo bloqueado —modo privado, poca memoria, un
+       navegador viejo—, que es cuando getContext devuelve null de verdad. */
+    getContext: () => (o.sinContexto ? null : ctx2d)
   });
   const doc = {
     getElementById: elem, querySelector: () => null, querySelectorAll: () => [],
@@ -319,6 +321,39 @@ describe('el rayo: corto, ramificado, y vivo mientras el dedo esté puesto', () 
     assert.ok(bloque, 'la hoja no tiene bloque de prefers-reduced-motion');
     assert.match(bloque[1], /#rayos\s*\{[^}]*display:\s*none/,
       'la hoja no esconde el lienzo cuando se pide no-movimiento');
+  });
+
+  test('UN LIENZO MUERTO NO APAGA EL NEGOCIO', () => {
+    /* 16-sep-2026 — el defecto más caro de todo el archivo, y era del arranque,
+       no del rayo. `getContext("2d")` devuelve null de verdad: modo privado con
+       el lienzo bloqueado, poca memoria, un navegador viejo. Nadie lo miraba, y
+       medirLienzo llamaba setTransform sobre null. Como el rayo se encendía
+       ANTES de pintar la pantalla, el arranque lanzaba y la puerta pública
+       quedaba en CERO letras: ni calculadora, ni registro, ni forma de entrar.
+       Medido así, con este mismo banco. */
+    const P = abrirPlay({ sinContexto: true });
+    /* La página tiene que estar pintada, y el rayo simplemente no existe. */
+    assert.ok(P.elems.cuerpo.innerHTML.length > 800,
+      'con el lienzo muerto la página quedó en ' + P.elems.cuerpo.innerHTML.length + ' letras');
+    assert.equal(P.ev('RAYOS.ctx'), null, 'se quedó con un contexto que no sirve');
+    /* Y tocar la pantalla tampoco revienta. */
+    P.tocar('pointerdown', 100, 100);
+    assert.equal(P.ev('RAYOS.vivos.length'), 0);
+  });
+
+  test('EL ADORNO SE ENCIENDE DESPUÉS DE PINTAR, no antes', () => {
+    /* El orden es la corrección de fondo: mientras el rayo arranque primero,
+       cualquier tropiezo suyo —éste u otro que nadie previó— se lleva por
+       delante una página que solo existe cuando el JavaScript la llena. */
+    const arranque = VIVO.slice(VIVO.lastIndexOf('(function () {'));
+    const iRayo = arranque.indexOf('iniciarRayos()');
+    const iPinta = arranque.indexOf('pintarEntrar()');
+    assert.ok(iRayo > 0 && iPinta > 0, 'no encontré el arranque');
+    assert.ok(iPinta < iRayo,
+      'el rayo se enciende antes de pintar la pantalla: un adorno roto vuelve a ' +
+      'poder dejar la puerta pública en blanco');
+    assert.match(arranque, /try\s*\{\s*iniciarRayos\(\)/,
+      'iniciarRayos corre sin red de seguridad en el arranque');
   });
 
   test('el lienzo es sordo al tacto: jamás se queda con un toque de un botón', () => {

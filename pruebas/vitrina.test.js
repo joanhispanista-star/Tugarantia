@@ -544,6 +544,48 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
      Las tres cosas son medibles y se miden acá. Lo que había antes: el total
      metido en una línea gris del mismo tamaño que el resto, y de las seis fechas
      se enseñaba UNA, la última. */
+  test('«HOY TIENES $0» SOLO SI DE VERDAD SE SABE QUE TIENE CERO', () => {
+    /* 16-sep-2026 — no tener ficha son CUATRO cosas distintas, y esta línea las
+       trataba como una: el visitante sin cuenta, el socio cuyo historial se está
+       cargando, el que no se pudo traer, y el que de verdad no ha ganado nada.
+       Decirle «hoy tienes $0» a alguien que lleva medio año pagando, porque la
+       nube no contestó, es la casa mintiendo sobre la causa de un fallo. */
+    const P = abrirPlay();
+    const linea = e => { P.ev('FICHA_ESTADO = "' + e + '"'); return P.ev('techoDeGarantia()'); };
+
+    assert.ok(linea('cargando').indexOf('$0') === -1,
+      'mientras busca la garantía ya afirma que es cero');
+    ['falla', 'apagada', 'sesion'].forEach(e => {
+      const h = linea(e);
+      assert.ok(h.indexOf('$0') === -1, 'con ' + e + ' afirma un saldo que no pudo leer');
+      assert.match(h, /no pude preguntar/i, 'con ' + e + ' no dice que no pudo preguntar');
+    });
+    /* Al visitante sin cuenta se le explica de dónde sale, no se le afirma un
+       saldo que nadie ha mirado. */
+    assert.ok(linea('sin').indexOf('Hoy tienes') === -1,
+      'a un visitante sin cuenta le afirma cuánta garantía tiene');
+    /* Y al registrado que sí sabemos que está en cero, se le dice el cero. */
+    assert.match(linea('nueva'), /Hoy tienes/, 'al registrado en cero no le dice su cero');
+  });
+
+  test('NO SE PROMETE UN MONTO QUE EL PRODUCTO NO PRESTA', () => {
+    /* La garantía puede alcanzar para trescientos mil y este crédito empieza en
+       un millón. «Puedes pedir hasta $300.000» es ofrecer algo que la misma
+       tarjeta rechaza dos renglones más abajo. */
+    const P = abrirPlay();
+    const min = P.ev('GCALC_MIN');
+    P.ev('FICHA_ESTADO = "vinculada"; FICHA = { maxRespaldado: ' + Math.round(min / 3) + ' };');
+    const h = P.ev('techoDeGarantia()');
+    assert.ok(h.indexOf('puedes pedir hasta') === -1,
+      'promete un monto por debajo del mínimo del producto');
+    assert.match(h, /empieza en/, 'no dice desde cuánto empieza el producto');
+    assert.match(h, /te faltan/, 'no dice cuánto le falta');
+    /* Y por encima del mínimo sí se le dice hasta dónde. */
+    P.ev('FICHA = { maxRespaldado: ' + (min * 2) + ' };');
+    assert.match(P.ev('techoDeGarantia()'), /puedes pedir hasta/,
+      'con garantía de sobra dejó de decirle hasta dónde le alcanza');
+  });
+
   test('EL TOTAL SE VE, y es el del motor', () => {
     const P = abrirPlay();
     P.ev('pintarEntrar()');

@@ -230,7 +230,12 @@
    fechas de verdad, en la puerta publica, en la letra obligatoria y en la reja
    del CRM. Toca app/creditos.js, app/cumplimiento.js, play/index.html y
    panel/crm.html. */
-const CACHE = 'tugarantia-v47';
+/* v48 - 16-sep-2026. Un adorno no puede apagar el negocio: si el lienzo del
+   rayo no daba contexto 2d, el arranque lanzaba ANTES de pintar y la puerta
+   publica quedaba en CERO letras. Ahora se pinta primero y se adorna despues.
+   Y la linea de la garantia deja de afirmar «hoy tienes $0» cuando lo que pasa
+   es que no se pudo preguntar. Toca play/index.html. */
+const CACHE = 'tugarantia-v48';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
