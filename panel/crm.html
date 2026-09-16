@@ -485,6 +485,7 @@
     <button class="navbtn" data-v="resp"><span class="ic">🛡️</span> Con garantía</button>
     <button class="navbtn" data-v="clientes"><span class="ic">🧑‍🤝‍🧑</span> Clientes</button>
     <button class="navbtn" data-v="cobranzas"><span class="ic">📣</span> Cobranzas</button>
+    <button class="navbtn" data-v="ventas"><span class="ic">📈</span> Ventas</button>
     <button class="navbtn" data-v="comercial"><span class="ic">🚀</span> Comercial</button>
     <button class="navbtn" data-v="mensajes"><span class="ic">💬</span> Mensajes<span id="navSinLeer"></span></button>
     <button class="navbtn" data-v="registrados"><span class="ic">📥</span> Registrados</button>
@@ -586,6 +587,27 @@
          COMERCIAL — «una pestaña de comercial en el que pueda invitar a los
          prospectos a unirse al aplicativo».
          ================================================================== -->
+    <!-- ===================================================================
+         VENTAS — 16 de septiembre de 2026
+         Joan: «quiero que crees una pestaña de ventas y que agregues las bases
+         y las herramientas».
+         Casi todo esto ya existía y estaba repartido: las listas en Bases, la
+         invitación en Comercial, el embudo en etapas.js SIN pantalla propia, y
+         las herramientas de gestión solo visibles en modo asesor. Acá se juntan.
+         ================================================================= -->
+    <section class="view" id="v-ventas">
+      <div class="ph"><div><h1>Ventas<span class="dot">.</span></h1>
+        <div class="sub">De dónde sale un cliente nuevo, y en qué paso va cada uno</div></div>
+        <button class="btn btn-ghost" onclick="renderVentas()">↻ Recalcular</button></div>
+      <div class="kpis" id="kpiVentas"></div>
+      <div class="card"><div class="card-h"><h3>📈 El embudo</h3>
+        <span class="tag">Toca un paso para ver quién está ahí</span></div>
+        <div id="embudoVentas" style="padding:12px 14px"></div></div>
+      <div class="card"><div class="card-h"><h3 id="tituloListaVentas">Tu lista</h3>
+        <span class="tag">Llama, escribe, anota lo que pasó</span></div>
+        <div id="tblVentas"></div></div>
+    </section>
+
     <section class="view" id="v-comercial">
       <div class="ph"><div><h1>Comercial<span class="dot">.</span></h1><div class="sub">Invitar a los prospectos a abrir su cuenta en la app</div></div>
         <button class="btn btn-ghost" onclick="renderComercial()">↻ Recalcular</button></div>
@@ -9047,6 +9069,204 @@ const ESTADO_DE_GESTION = { contesto: 'contactado', volver: 'contactado',
   va_a_pedir: 'contactado', no_contesta: 'no_contesta',
   numero_malo: 'numero_malo', no_quiere: 'no_quiso' };
 
+/* ===========================================================================
+ * EL EMBUDO DE VERDAD — 16 de septiembre de 2026
+ *
+ * LOS DOS ULTIMOS PASOS NO LOS ASIGNABA NADIE. `ESTADO_DE_GESTION` traduce las
+ * gestiones a cuatro estados —contactado, no_contesta, numero_malo, no_quiso— y
+ * ahi se acaba. `registrado` y `cliente` estaban declarados en
+ * ESTADOS_PROSPECTO y no se escribian en ningun sitio: medido con grep, cero
+ * asignaciones. O sea que el embudo no tenia final y la conversion daba SIEMPRE
+ * cero, por mucho que la gente se registrara.
+ *
+ * Y el poco recalculo que habia vivia DENTRO de traerGestiones, la sincronia con
+ * la nube. Si Joan anotaba en su computador, el estado no se movia hasta la
+ * siguiente bajada.
+ *
+ * Esto lo arregla mirando los HECHOS en vez de esperar que alguien los escriba:
+ * si el celular del prospecto aparece en la cartera, es que se registro; si ese
+ * socio tiene creditos, es que compro. Un prospecto no «se declara» convertido:
+ * se le nota.
+ * ========================================================================= */
+function diezDe(x) { return String(x || '').replace(/\D/g, '').slice(-10); }
+
+function recalcularEmbudo() {
+  /* Indice de la cartera por celular, una sola pasada. Se miran los DOS numeros
+     por lo mismo que la lista de SALIR: el prospecto pudo registrarse con su
+     WhatsApp y no con el numero por el que se le llamo. */
+  var porCel = {};
+  (DB.socios || []).forEach(function (s) {
+    [s.telefono, s.whatsappNumero].forEach(function (n) {
+      var d = diezDe(n); if (d) porCel[d] = s;
+    });
+  });
+  var conCredito = {};
+  (DB.prestamos || []).forEach(function (p) { if (p.socioId) conCredito[p.socioId] = true; });
+
+  var movidos = 0;
+  prospectos().forEach(function (p) {
+    var antes = p.estado || 'nuevo';
+    var s = porCel[diezDe(p.celular)];
+    var nuevo;
+    if (s && conCredito[s.id]) nuevo = 'cliente';
+    else if (s)                nuevo = 'registrado';
+    else {
+      /* Sin hecho que lo mueva, manda la ultima gestion. Y no vuelve atras
+         desde los dos estados de arriba: eso ya paso. */
+      var g = gestionesDe(p.id)[0];
+      nuevo = (g && ESTADO_DE_GESTION[g.tipo]) || antes;
+      if (antes === 'registrado' || antes === 'cliente') nuevo = antes;
+    }
+    if (nuevo !== antes) { p.estado = nuevo; movidos++; }
+    /* El socio al que corresponde, para poder abrir su ficha desde el embudo. */
+    p.socio_id = s ? s.id : null;
+  });
+  return movidos;
+}
+
+/* Los pasos, en el orden en que de verdad ocurren. Los tres del medio son
+   salidas, no pasos: por eso van aparte y no suman en la conversion. */
+var PASOS_EMBUDO = ['nuevo', 'contactado', 'registrado', 'cliente'];
+var SALIDAS_EMBUDO = ['no_contesta', 'numero_malo', 'no_quiso'];
+
+function conteoEmbudo() {
+  var c = {};
+  PASOS_EMBUDO.concat(SALIDAS_EMBUDO).forEach(function (k) { c[k] = 0; });
+  prospectos().forEach(function (p) {
+    var e = p.estado || 'nuevo';
+    if (c[e] === undefined) c[e] = 0;
+    c[e]++;
+  });
+  return c;
+}
+
+var _ventas = { paso: 'nuevo' };
+
+function renderVentas() {
+  var caja = document.getElementById('tblVentas'); if (!caja) return;
+  recalcularEmbudo();
+  guardar();
+
+  var c = conteoEmbudo();
+  var total = prospectos().length;
+  var registrados = c.registrado + c.cliente;
+  var kpi = document.getElementById('kpiVentas');
+
+  if (kpi) kpi.innerHTML =
+    '<div class="kpi"><div class="et">👥 En tu embudo</div><div class="nm">' + total +
+      '</div><div class="x">personas cargadas</div></div>' +
+    '<div class="kpi"><div class="et">✅ Se registraron</div><div class="nm">' + registrados +
+      '</div><div class="x">' + (total ? Math.round(registrados / total * 100) : 0) + '% de los que entraron</div></div>' +
+    '<div class="kpi"><div class="et">💰 Tomaron crédito</div><div class="nm">' + c.cliente +
+      '</div><div class="x">' + (registrados ? Math.round(c.cliente / registrados * 100) : 0) + '% de los registrados</div></div>' +
+    '<div class="kpi alert"><div class="et">📵 Se cayeron</div><div class="nm">' +
+      (c.no_contesta + c.numero_malo + c.no_quiso) + '</div><div class="x">con su motivo abajo</div></div>';
+
+  /* EL EMBUDO. Los tres estados de salida van aparte y en gris: no son un paso
+     hacia el cliente, son la puerta por la que se fue. Mezclarlos en la misma
+     fila haría creer que «no contesta» está más cerca de comprar que «nuevo». */
+  var emb = document.getElementById('embudoVentas');
+  if (emb) {
+    var chip = function (k, et) {
+      return '<button class="btn btn-sm ' + (_ventas.paso === k ? 'btn-negro' : 'btn-ghost') +
+        '" onclick="verPasoVentas(\'' + k + '\')">' + escHTML(et) + ' · <b>' + (c[k] || 0) + '</b></button>';
+    };
+    emb.innerHTML =
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
+        chip('nuevo', 'Sin contactar') + '<span class="muted">→</span>' +
+        chip('contactado', 'Contactado') + '<span class="muted">→</span>' +
+        chip('registrado', 'Se registró') + '<span class="muted">→</span>' +
+        chip('cliente', 'Tomó crédito') +
+      '</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center">' +
+        '<span class="muted" style="font-size:12.5px">Se cayeron:</span>' +
+        SALIDAS_EMBUDO.map(function (k) { return chip(k, ESTADOS_PROSPECTO[k].et); }).join('') +
+      '</div>' +
+      '<div class="muted" style="margin-top:8px;font-size:12px">Los dos últimos pasos ya no se ' +
+      'marcan a mano: el CRM mira tu cartera. Si el celular del prospecto aparece ahí, se ' +
+      '<b>registró</b>; si además tiene crédito, <b>tomó</b>.</div>';
+  }
+
+  var lista = prospectos().filter(function (p) { return (p.estado || 'nuevo') === _ventas.paso; });
+  var tit = document.getElementById('tituloListaVentas');
+  if (tit) tit.textContent = (ESTADOS_PROSPECTO[_ventas.paso] || {}).et + ' · ' + lista.length;
+
+  if (!lista.length) {
+    caja.innerHTML = '<div class="empty"><div class="ic">📭</div><p>Nadie en este paso.<br>' +
+      '<span class="muted">Toca otro paso arriba, o carga una lista en <b>Bases</b>.</span></p></div>';
+    return;
+  }
+
+  caja.innerHTML =
+    '<table><thead><tr><th>Persona</th><th>Última gestión</th><th>Cuándo</th>' +
+    '<th style="width:1%">Gestión</th></tr></thead><tbody>' +
+    lista.map(function (p) {
+      var g = gestionesDe(p.id)[0];
+      var cuando = g ? cuandoDeGestion(g) : null;
+      var wa = diezDe(p.celular);
+      return '<tr><td><b>' + escHTML(p.nombre || '(sin nombre)') + '</b>' +
+          '<div class="muted">' + escHTML(p.celular || 'sin celular') + '</div></td>' +
+        '<td>' + (g ? etiquetaGestion(g) + (g.nota ? '<div class="muted">' + escHTML(g.nota) + '</div>' : '')
+                    : '<span class="muted">sin gestionar</span>') + '</td>' +
+        '<td>' + (cuando ? escHTML(cuando.texto) : '<span class="muted">—</span>') + '</td>' +
+        '<td style="white-space:nowrap">' +
+          (wa ? '<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="https://wa.me/57' +
+                wa + '">💬 WhatsApp</a> ' : '') +
+          '<button class="btn btn-ghost btn-sm" onclick="anotarVenta(\'' + p.id + '\')">📝 Anotar</button> ' +
+          (p.socio_id
+            ? '<button class="btn btn-ghost btn-sm" onclick="verCliente(\'' + p.socio_id + '\')">👤 Su ficha</button>'
+            : '') +
+        '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+
+function verPasoVentas(k) { _ventas.paso = k; renderVentas(); }
+
+/* Anotar desde Ventas reusa la misma pantalla y el mismo cuaderno que Cobranzas
+   —DB.gestiones, TIPOS_GESTION—, para que la historia de una persona sea UNA.
+   Lo único que cambia es que al terminar se recalcula el embudo. */
+function anotarVenta(prospectoId) {
+  var p = prospectos().find(function (x) { return String(x.id) === String(prospectoId); });
+  if (!p) return;
+  _anotandoVenta = String(prospectoId);
+  var grupos = {};
+  ORDEN_GESTION.forEach(function (k) {
+    (grupos[TIPOS_GESTION[k].grupo] = grupos[TIPOS_GESTION[k].grupo] || []).push(k);
+  });
+  openModal('📝 ¿Qué pasó con ' + (String(p.nombre || '').split(/\s+/)[0] || 'esta persona') + '?',
+    Object.keys(grupos).map(function (gr) {
+      return '<div class="sub-h">' + escHTML(gr) + '</div>' +
+        grupos[gr].map(function (k) {
+          return '<label class="permiso"><input type="radio" name="vTipo" value="' + k + '">' +
+            '<span>' + TIPOS_GESTION[k].ic + ' <b>' + escHTML(TIPOS_GESTION[k].et) + '</b></span></label>';
+        }).join('');
+    }).join('') +
+    '<div class="field" style="margin-top:14px"><label>Nota <span class="muted">(opcional)</span></label>' +
+      '<textarea id="vNota" maxlength="300" placeholder="Ej: le interesa pero quiere esperar a la quincena"></textarea>' +
+      '<div class="help">Queda con la fecha y la hora, y no se puede borrar.</div></div>' +
+    '<button class="btn btn-rojo" style="margin-top:8px;width:100%" onclick="guardarAnotacionVenta()">Anotar</button>');
+}
+var _anotandoVenta = null;
+
+function guardarAnotacionVenta() {
+  var sel = document.querySelector('input[name=vTipo]:checked');
+  if (!sel) { alert('Marca qué pasó.'); return; }
+  if (!_anotandoVenta) return;
+  gestiones().push({
+    id: 'loc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+    persona_id: _anotandoVenta,
+    tipo: sel.value,
+    nota: (document.getElementById('vNota') || {}).value || '',
+    cuando: new Date().toISOString(),
+    quien: 'Joan',
+    desde: numeroActivoWA(),
+    origen: 'joan-ventas'
+  });
+  guardar();
+  cerrarModal();
+  renderVentas();
+}
+
 function gestiones() { DB.gestiones = Array.isArray(DB.gestiones) ? DB.gestiones : []; return DB.gestiones; }
 function gestionesDe(personaId) {
   const id = String(personaId);
@@ -11308,6 +11528,7 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
   if(v==='equipo')renderEquipo();
   if(v==='bases')renderBases();
   if(v==='cobranzas')renderCobranzas();
+  if(v==='ventas')renderVentas();
   if(v==='comercial')renderComercial();
   /* Registrados trae de la nube SOLO al entrar a la pestaña, no en cada
      render(): una petición por visita, no una por teclazo. */

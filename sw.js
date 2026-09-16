@@ -363,7 +363,16 @@
    viaja en la cartera del equipo, asi que un asesor no tiene ni el dato. Se
    adopta la regla del resto del proyecto: si no se puede comprobar, no se manda.
    Toca panel/crm.html. */
-const CACHE = 'tugarantia-v65';
+/* v66 - 16-sep-2026. Entra la pestaña VENTAS, que Joan pidio con las bases y
+   las herramientas. Casi todo estaba construido y repartido: las listas en
+   Bases, la invitacion en Comercial, el embudo en etapas.js SIN pantalla, y la
+   gestion solo visible en modo asesor.
+   Y el embudo NO TENIA FINAL: `registrado` y `cliente` estaban declarados en
+   ESTADOS_PROSPECTO y no los asignaba nadie —cero asignaciones en todo el
+   repo—, asi que la conversion daba SIEMPRE cero. Ahora sale de los hechos: si
+   el celular esta en la cartera se registro, si ese socio tiene creditos compro.
+   Toca panel/crm.html. */
+const CACHE = 'tugarantia-v66';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
