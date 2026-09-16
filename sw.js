@@ -372,7 +372,20 @@
    repo—, asi que la conversion daba SIEMPRE cero. Ahora sale de los hechos: si
    el celular esta en la cartera se registro, si ese socio tiene creditos compro.
    Toca panel/crm.html. */
-const CACHE = 'tugarantia-v66';
+/* v67 - 16-sep-2026. SE CERRABA LA PAGINA AL TOMAR LA CEDULA. Joan lo vio
+   registrandose el mismo. Al tomar el REVERSO se hacian TRES decodificaciones
+   completas de la misma foto de celular —doce millones de pixeles son unos
+   cuarenta megas de mapa de bits cada una— justo cuando el navegador acaba de
+   volver de la camara y esta en su peor momento de memoria: 1600 para el codigo
+   de barras, otra vez adentro del lector, y 900 para guardar. En un telefono
+   barato el sistema descarta la pestaña.
+   Y lo ultimo que se hacia era GUARDAR, asi que al volver no habia foto y la
+   persona empezaba de cero.
+   Ahora se decodifica UNA vez y de ahi salen los dos tamaños, y sobre todo: se
+   guarda PRIMERO y se lee el codigo despues. Leer el codigo ahorra teclear;
+   perder la foto no se ahorra con nada.
+   Toca play/index.html. */
+const CACHE = 'tugarantia-v67';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

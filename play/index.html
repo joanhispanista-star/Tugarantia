@@ -891,33 +891,10 @@ function cargarScript(url) {
    el gasto que hacía que el sistema descartara la pestaña. Un objeto URL no
    copia nada: apunta al archivo y se suelta al terminar. */
 function comprimirImagen(file, max, q) {
-  return new Promise(function (res, rej) {
-    var url;
-    try { url = URL.createObjectURL(file); } catch (e) { return rej(e); }
-    var img = new Image();
-    img.onload = function () {
-      try {
-        var w = img.width, h = img.height;
-        if (!w || !h) throw new Error('imagen vacía');
-        if (w > h && w > max) { h = h * max / w; w = max; } else if (h >= w && h > max) { w = w * max / h; h = max; }
-        var c = document.createElement('canvas'); c.width = Math.round(w); c.height = Math.round(h);
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        var salida = c.toDataURL('image/jpeg', q);
-        /* El lienzo se suelta a mano: en algunos Android se queda con la memoria
-           del bitmap hasta la siguiente recolección, y acá cada byte cuenta. */
-        c.width = c.height = 1;
-        res(salida);
-      } catch (e) { rej(e); }
-      finally { try { URL.revokeObjectURL(url); } catch (e) {} }
-    };
-    img.onerror = function () {
-      try { URL.revokeObjectURL(url); } catch (e) {}
-      /* Un iPhone puede entregar HEIC, que Chrome de Android no dibuja. El
-         mensaje tiene que decir qué hacer, no qué pasó. */
-      rej(new Error('formato de imagen que este teléfono no puede abrir'));
-    };
-    img.src = url;
-  });
+  /* 16-sep-2026 — SE QUEDA COMO UN REENVIO. Hacia su propia decodificacion, y
+     tener dos formas de decodificar una foto es como este proyecto se encontro
+     decodificando la misma tres veces. La de verdad es comprimirVarias. */
+  return comprimirVarias(file, [[max, q]]).then(function (s) { return s[0]; });
 }
 
 /* ---------------------------------------------------------- paso: la cédula */
@@ -977,20 +954,82 @@ function pedirGps() {
     var g = $('docGps'); if (g) g.innerHTML = textoGps();
   }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
 }
+/* UNA SOLA DECODIFICACIÓN, VARIOS TAMAÑOS — 16-sep-2026.
+   Decodificar la foto de un celular cuesta memoria de verdad: doce millones de
+   píxeles son unos cuarenta megas de mapa de bits, y eso pasa justo cuando el
+   navegador acaba de volver de la cámara y está en su peor momento. Antes se
+   decodificaba TRES veces la misma foto (1600 para el código de barras, otra vez
+   adentro del lector, y 900 para guardar). Ahora se decodifica una y de ahí
+   salen los dos tamaños. */
+function comprimirVarias(file, tamanos) {
+  return new Promise(function (res, rej) {
+    var url;
+    try { url = URL.createObjectURL(file); } catch (e) { return rej(e); }
+    var img = new Image();
+    img.onload = function () {
+      try {
+        if (!img.width || !img.height) throw new Error('imagen vacia');
+        var salidas = tamanos.map(function (t) {
+          var max = t[0], q = t[1];
+          var w = img.width, h = img.height;
+          if (w > h && w > max) { h = h * max / w; w = max; }
+          else if (h >= w && h > max) { w = w * max / h; h = max; }
+          var c = document.createElement('canvas');
+          c.width = Math.round(w); c.height = Math.round(h);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          var out = c.toDataURL('image/jpeg', q);
+          /* El lienzo se suelta a mano: en algunos Android se queda con la
+             memoria del bitmap hasta la siguiente recolección. */
+          c.width = c.height = 1;
+          return out;
+        });
+        res(salidas);
+      } catch (e) { rej(e); }
+      finally {
+        try { URL.revokeObjectURL(url); } catch (e) {}
+        img.src = ''; img.onload = img.onerror = null;
+      }
+    };
+    img.onerror = function () {
+      try { URL.revokeObjectURL(url); } catch (e) {}
+      rej(new Error('no pude abrir esa imagen'));
+    };
+    img.src = url;
+  });
+}
+
+/* PRIMERO SE GUARDA LA FOTO, DESPUÉS SE LEE EL CÓDIGO — 16-sep-2026.
+   Estaba al revés, y esa es la razón por la que a Joan se le cerraba la página
+   al tomar la cédula: se descargaba la librería del código de barras, se
+   decodificaba la foto a 1600, el lector la volvía a decodificar, y SOLO
+   ENTONCES se decodificaba a 900 para guardarla. Si el teléfono se quedaba sin
+   memoria en medio —que es justo lo que pasa en un celular barato— se perdía
+   todo y la persona volvía a empezar.
+   Ahora la foto queda guardada antes de que nada más pueda fallar. Leer el
+   código de barras es una comodidad: ahorra teclear. Perder la foto no lo es. */
 function tomarFoto(ev, key) {
   var file = ev.target.files && ev.target.files[0]; if (!file) return;
   var caja = $('fot_' + key);
   if (caja) caja.querySelector('.lbl').textContent = 'Procesando…';
-  var trabajo = key === 'cedula_reverso' ? leerCodigoDeBarras(file) : Promise.resolve(null);
-  trabajo.catch(function () { return null; }).then(function () {
-    return comprimirImagen(file, 900, 0.6);
-  }).then(function (url) {
-    FOTOS[key] = url; guardarFotos();
+
+  var quiereCodigo = key === 'cedula_reverso';
+  var tamanos = quiereCodigo ? [[900, 0.6], [1600, 0.85]] : [[900, 0.6]];
+
+  comprimirVarias(file, tamanos).then(function (salidas) {
+    /* 1. LO PRIMERO: guardar y pintar. A partir de acá la foto ya está a salvo. */
+    FOTOS[key] = salidas[0]; guardarFotos();
     if (caja) {
       caja.classList.add('ok');
       var ic = caja.querySelector('.ic'); if (ic) ic.remove();
       var img = caja.querySelector('img'); if (!img) { img = document.createElement('img'); img.alt = ''; caja.insertBefore(img, caja.firstChild); }
-      img.src = url; caja.querySelector('.lbl').textContent = 'Listo · tocar para cambiar';
+      img.src = salidas[0]; caja.querySelector('.lbl').textContent = 'Listo · tocar para cambiar';
+    }
+    /* 2. Y solo después, la comodidad. Si esto falla o tumba la pestaña, la
+       foto ya quedó guardada y la persona escribe sus datos a mano. */
+    if (quiereCodigo) {
+      var grande = salidas[1];
+      salidas.length = 0;          /* se suelta la referencia al de 900 */
+      leerCodigoDeBarras(grande).catch(function () {});
     }
   }).catch(function () {
     if (caja) caja.querySelector('.lbl').textContent =
@@ -1001,12 +1040,15 @@ function tomarFoto(ev, key) {
    lee de una versión grande de la foto (1600 px): el código es chico y un
    recorte a 900 px lo vuelve ilegible. Si no se puede leer, no pasa nada: los
    datos se escriben a mano en el paso siguiente. */
-function leerCodigoDeBarras(file) {
+function leerCodigoDeBarras(urlGrande) {
   var leido = $('docLeido');
   if (leido) { leido.classList.remove('oculto'); leido.innerHTML = 'Leyendo el código de barras…'; }
+  /* 16-sep-2026 — RECIBE LA IMAGEN YA HECHA. Antes recibía el archivo y lo
+     decodificaba por su cuenta a 1600, que era la segunda de las tres
+     decodificaciones de la misma foto. Ahora la de 1600 ya viene hecha desde
+     tomarFoto, de la misma pasada que la de 900. */
   return cargarScript(URL_ZXING).then(function () {
-    return comprimirImagen(file, 1600, 0.85);
-  }).then(function (url) {
+    var url = urlGrande;
     var Z = window.ZXing;
     var lector = Z.BrowserPDF417Reader ? new Z.BrowserPDF417Reader() : new Z.BrowserMultiFormatReader();
     return lector.decodeFromImageUrl(url);
