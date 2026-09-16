@@ -219,25 +219,43 @@ begin
   for m in select * from jsonb_array_elements(p_mensajes)
   loop
     n := n + 1;
+    -- EL REMITENTE VACÍO NO SE MANDA — 16-sep-2026.
+    -- Esto ponía 'sender', '' cuando no había remitente configurado, y una
+    -- cadena vacía NO es lo mismo que no mandar el campo: lo primero es un
+    -- remitente inválido y se rechaza; lo segundo deja que la plataforma use el
+    -- que tiene asignado a la cuenta.
+    -- Y es el caso NORMAL de Joan, no un caso raro: se comprobó contra su
+    -- cuenta que no tiene ningún número propio registrado ({"numbers":[]}) —
+    -- los mensajes salen por el código corto del revendedor, que es de ellos y
+    -- no aparece en su subcuenta. O sea que el campo va vacío siempre, y de
+    -- haberlo dejado así no habría salido ni un mensaje.
     if p_canal = 'sms' then
-      msgs := msgs || jsonb_build_array(jsonb_build_object(
-        'sender', coalesce(remite, ''),
-        'destinations', jsonb_build_array(jsonb_build_object(
-          'to', '57' || regexp_replace(m->>'celular', '\D', '', 'g'),
-          'messageId', lote || '-' || n)),
-        'content', jsonb_build_object('text', m->>'texto')
-      ));
+      msgs := msgs || jsonb_build_array(
+        jsonb_build_object(
+          'destinations', jsonb_build_array(jsonb_build_object(
+            'to', '57' || regexp_replace(m->>'celular', '\D', '', 'g'),
+            'messageId', lote || '-' || n)),
+          'content', jsonb_build_object('text', m->>'texto')
+        )
+        || case when coalesce(remite, '') <> ''
+                then jsonb_build_object('sender', remite)
+                else '{}'::jsonb end
+      );
     else
-      msgs := msgs || jsonb_build_array(jsonb_build_object(
-        'from', coalesce(remite, ''),
-        'destinations', jsonb_build_array(jsonb_build_object(
-          'to', '57' || regexp_replace(m->>'celular', '\D', '', 'g'))),
-        'text', m->>'texto',
-        'language', 'es',
-        'voice', jsonb_build_object('gender', 'female'),
-        -- Cada coma es media pausa. La cifra se dice despacio a propósito.
-        'speechRate', 0.9
-      ));
+      msgs := msgs || jsonb_build_array(
+        jsonb_build_object(
+          'destinations', jsonb_build_array(jsonb_build_object(
+            'to', '57' || regexp_replace(m->>'celular', '\D', '', 'g'))),
+          'text', m->>'texto',
+          'language', 'es',
+          'voice', jsonb_build_object('gender', 'female'),
+          -- Cada coma es media pausa. La cifra se dice despacio a propósito.
+          'speechRate', 0.9
+        )
+        || case when coalesce(remite, '') <> ''
+                then jsonb_build_object('from', remite)
+                else '{}'::jsonb end
+      );
     end if;
   end loop;
 
@@ -484,6 +502,64 @@ end $$;
 --   select clave, length(valor) as largo from public.config_privada
 --    where clave like 'infobip%';
 -- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- PROBAR LA CONEXION SIN MANDARLE NADA A NADIE — 16-sep-2026
+--
+-- La primera vez que se enciende un canal de cobro, la tentacion es «mandale
+-- uno a ver si llega». Eso es mandarle un cobro de verdad a un cliente de
+-- verdad para averiguar si funciona un tubo — y si el tubo funciona a medias,
+-- el que recibe el mensaje raro es una persona que debe plata.
+--
+-- Esto pregunta el SALDO de la cuenta, que es la llamada mas inofensiva que
+-- existe: no manda nada, no cuesta nada, y falla exactamente igual que un envio
+-- si la llave o la direccion estan mal.
+--
+-- Devuelve el numero de peticion. La respuesta se lee con estado_envio, igual
+-- que un envio, porque pg_net es asincrono.
+-- ---------------------------------------------------------------------------
+create or replace function public.probar_conexion(p_clave text)
+returns jsonb
+language plpgsql
+security definer
+volatile                       -- pasa por clave_ok, que escribe. Ver la nota de arriba.
+set search_path = public, net
+as $$
+declare
+  llave text;
+  base  text;
+  pid   bigint;
+begin
+  if not public.clave_ok(p_clave) then
+    return jsonb_build_object('ok', false, 'motivo', 'clave');
+  end if;
+
+  select valor into llave from public.config_privada where clave = 'infobip_llave';
+  select valor into base  from public.config_privada where clave = 'infobip_base';
+
+  if coalesce(llave, '') = '' then
+    return jsonb_build_object('ok', false, 'motivo', 'falta la llave',
+      'detalle', 'No has pegado la llave. Ver el final de 20260918_infobip.sql.');
+  end if;
+  if coalesce(base, '') = '' then
+    return jsonb_build_object('ok', false, 'motivo', 'falta la direccion');
+  end if;
+
+  select net.http_get(
+    url     := rtrim(base, '/') || '/account/1/balance',
+    headers := jsonb_build_object(
+      'Authorization', 'App ' || llave,
+      'Accept',        'application/json'),
+    timeout_milliseconds := 15000
+  ) into pid;
+
+  return jsonb_build_object('ok', true, 'peticion_id', pid,
+    'nota', 'Preguntado el saldo. Mira la respuesta con estado_envio(clave, peticion_id).');
+end $$;
+
+revoke all on function public.probar_conexion(text) from public, anon, authenticated;
+grant  execute on function public.probar_conexion(text) to anon;
+
 
 /* QUE POSTGREST SE ENTERE. Sin esto, las funciones nuevas existen en la base y
    PostgREST sigue contestando 404 sobre ellas hasta que algo lo reinicie: el CRM
