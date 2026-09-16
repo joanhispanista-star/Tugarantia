@@ -241,20 +241,57 @@ begin
     end if;
   end loop;
 
+  -- ---------------------------------------------------------------------
+  -- EL SEGUNDO CERROJO — 16-sep-2026, ARREGLADO Y EN EL SITIO CORRECTO
+  --
+  -- Esto va EN UTC (Bogotá es UTC-5) y es la red de abajo: aunque este
+  -- servidor tuviera la hora mal, el proveedor no entrega fuera de la ventana.
+  --
+  -- ESTABA EN EL OBJETO EQUIVOCADO. Iba en el `options` de la RAÍZ, y en la
+  -- versión 3 de la API ese objeto (SmsMessageRequestOptions) admite
+  -- exactamente cuatro campos —schedule, tracking, includeSmsCountInResponse y
+  -- conversionTracking— y `deliveryTimeWindow` NO es uno de ellos: vive en
+  -- `messages[].options`. Comprobado contra el esquema publicado.
+  --
+  -- Por qué importa tanto un campo mal puesto: si el proveedor ignora en
+  -- silencio lo que no reconoce —que es el comportamiento por defecto de la
+  -- mayoría de servidores— la respuesta habría sido 200, los SMS habrían salido
+  -- SIN NINGUNA restricción horaria, y el comentario de acá habría seguido
+  -- afirmando que sí la tenían. El peor fallo posible es el que se ve bien.
+  --
+  -- Y LA VOZ NO LLEVABA NINGUNA. Una llamada de cobro a las diez de la noche es
+  -- peor que un SMS a las diez de la noche.
+  -- ---------------------------------------------------------------------
+  declare
+    dias    jsonb := jsonb_build_array('MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY');
+    ventana_obj jsonb;
+    msgs2   jsonb := '[]'::jsonb;
+    mm      jsonb;
+  begin
+    ventana_obj := jsonb_build_object(
+      'days', dias,
+      'from', jsonb_build_object('hour', (ventana->>'utc_desde')::int, 'minute', 0),
+      'to',   jsonb_build_object('hour', (ventana->>'utc_hasta')::int, 'minute', 59));
+
+    -- La ventana se le pega a CADA mensaje: la API no deja fijarla una sola vez
+    -- para todo el lote.
+    for mm in select * from jsonb_array_elements(msgs)
+    loop
+      msgs2 := msgs2 || jsonb_build_array(
+        mm || jsonb_build_object('options',
+          coalesce(mm->'options', '{}'::jsonb) ||
+          jsonb_build_object('deliveryTimeWindow', ventana_obj)));
+    end loop;
+    msgs := msgs2;
+  end;
+
   if p_canal = 'sms' then
     ruta := '/sms/3/messages';
     cuerpo := jsonb_build_object(
       'messages', msgs,
       'options', jsonb_build_object(
         'schedule', jsonb_build_object('bulkId', lote),
-        'includeSmsCountInResponse', true,
-        -- EL SEGUNDO CERROJO, Y VA EN UTC (Bogotá es UTC-5). Aunque este
-        -- servidor tuviera la hora mal, Infobip no entrega fuera de la ventana.
-        'deliveryTimeWindow', jsonb_build_object(
-          'days', jsonb_build_array('MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'),
-          'from', jsonb_build_object('hour', (ventana->>'utc_desde')::int, 'minute', 0),
-          'to',   jsonb_build_object('hour', (ventana->>'utc_hasta')::int, 'minute', 59))
-      ));
+        'includeSmsCountInResponse', true));
   else
     ruta := '/tts/3/advanced';
     cuerpo := jsonb_build_object('bulkId', lote, 'messages', msgs);
