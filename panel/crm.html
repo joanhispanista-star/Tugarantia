@@ -5988,6 +5988,17 @@ function resolverFotos(nodo){
   });
   const celulares=Object.keys(porCelular);
   if(!celulares.length) return Promise.resolve();
+  /* SIN NUBE CONECTADA NO SE AFIRMA NADA. archivosDe devuelve {fotos:{}} cuando
+     no hay conexion configurada, igual que cuando la persona no subio nada: si
+     no se distinguen, la ficha dice «esta foto no esta en la nube» sobre una
+     foto que si esta y que solo no se pudo ir a buscar. Es el mismo fallo que
+     este archivo ya documento dos veces — la pantalla llena el hueco con la
+     explicacion mas creible, que aqui es la falsa. */
+  if(!sbListo()){
+    celulares.forEach(cel=>porCelular[cel].forEach(({el})=>
+      ponerHueco(el,'Las fotos viven en la nube. Conectala en Ajustes para verlas.')));
+    return Promise.resolve();
+  }
   return Promise.all(celulares.map(cel=>{
     const pedir=_fotosReg[cel]?Promise.resolve(_fotosReg[cel]):archivosDe(cel).then(a=>{ _fotosReg[cel]=a; return a; });
     return pedir.then(a=>{

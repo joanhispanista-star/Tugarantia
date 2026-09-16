@@ -150,7 +150,11 @@ function abrirPanel(opciones) {
     almacen['joan_socios_v1'] = JSON.stringify(d);
     return ev('DB=cargar()');
   };
-  return { ev, cargarCartera, elems, almacen };
+  /* `ctx` sale afuera para poder meterle objetos a la página —un nodo de
+     mentira, por ejemplo— y leer después lo que el CRM les hizo. Sin esto, todo
+     lo que se le entrega al Panel tiene que caber en un `ev()` como texto, y un
+     objeto con métodos no cabe. */
+  return { ev, cargarCartera, elems, almacen, ctx };
 }
 
 module.exports = { abrirPanel };

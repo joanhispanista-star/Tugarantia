@@ -226,6 +226,140 @@ describe('cien clientes con cédula (15-sep-2026)', () => {
     });
   });
 
+  /* --------------------------------------------------------------------------
+   * EL RESOLVEDOR, PROBADO POR SU DECISION Y NO POR SU PINTURA.
+   *
+   * El banco no tiene un DOM que parsee innerHTML: su `querySelectorAll`
+   * devuelve vacío, así que el resolvedor NO se ejecuta por el camino de
+   * verCliente. Se le entrega entonces un nodo de mentira con las imágenes ya
+   * hechas — que es lo que el navegador le daría — y se mira QUÉ decide.
+   * La pintura de verdad se comprobó abriendo el CRM en un navegador; así fue
+   * como salió el fallo que esta prueba vigila.
+   * ------------------------------------------------------------------------ */
+  function nodoCon(tokens) {
+    const nodos = tokens.map(t => ({
+      tagName: 'IMG', alt: '', src: null, parentElement: null,
+      atributos: { 'data-foto': t },
+      classList: { add() {} },
+      getAttribute(k) { return this.atributos[k] === undefined ? null : this.atributos[k]; },
+      setAttribute(k, v) { this.atributos[k] = v; },
+      removeAttribute(k) { delete this.atributos[k]; }
+    }));
+    return { nodos, querySelectorAll: () => nodos };
+  }
+
+  test('SIN NUBE CONECTADA no se afirma que la foto no existe', () => {
+    /* Encontrado abriendo el CRM en un navegador de verdad, no leyendo el
+       código: sin conexión configurada, archivosDe devuelve {fotos:{}} igual que
+       cuando la persona no subió nada, y la ficha decía «esta foto no está en la
+       nube» sobre tres fotos que sí están. Es el tercer caso del mismo patrón
+       que este proyecto ya documentó dos veces: un fallo tragado no es
+       silencioso, es un fallo que MIENTE.
+       MUTANTE QUE CAZA: quitar la reja de sbListo() del resolvedor. */
+    const P = abrirPanel();                       // <- a propósito SIN conectar
+    const caja = nodoCon(['foto:reg:3001234567/selfie']);
+    P.ctx.__caja = caja;
+    return Promise.resolve(P.ev('resolverFotos(__caja)')).then(() => {
+      const alt = String(caja.nodos[0].alt || '');
+      assert.match(alt, /Conectala en Ajustes/i,
+        'sin nube conectada la ficha afirmó algo que no puede saber: «' + alt + '»');
+      assert.doesNotMatch(alt, /no esta en la nube/i,
+        'se le dice a Joan que la foto no existe cuando lo que pasa es que no hay conexión');
+    });
+  });
+
+  test('CON nube y sin esa foto, ahí sí se dice que no está', () => {
+    /* La otra mitad: si se arregla lo de arriba diciendo siempre «conéctala»,
+       esta se pone roja. Las dos juntas obligan a distinguir. */
+    const P = panelConectado({ cedula_frente: FOTO_FRENTE });   // no hay selfie
+    const caja = nodoCon(['foto:reg:3001234567/selfie']);
+    P.ctx.__caja = caja;
+    return Promise.resolve(P.ev('resolverFotos(__caja)')).then(() => esperar()).then(() => {
+      assert.match(String(caja.nodos[0].alt || ''), /no esta en la nube/i,
+        'con la nube conectada y sin esa foto, no se dijo que no está');
+    });
+  });
+
+  test('con nube CAIDA se dice que no se pudo preguntar, no que no existe', () => {
+    const P = panelConectado({}, { falla: true });
+    const caja = nodoCon(['foto:reg:3001234567/selfie']);
+    P.ctx.__caja = caja;
+    return Promise.resolve(P.ev('resolverFotos(__caja)')).then(() => esperar()).then(() => {
+      const alt = String(caja.nodos[0].alt || '');
+      assert.match(alt, /No pude traer/i, 'no se dijo que el fallo fue al preguntar');
+      assert.match(alt, /NO quiere decir que no la haya subido/i,
+        'falta la mitad que evita la conclusión falsa: que la persona no subió nada');
+    });
+  });
+
+  test('una foto que SÍ llegó se pone, y también en el enlace que la amplía', () => {
+    /* Este archivo mete el mismo valor en el `src` y en el `href` en dos
+       galerías. Quien arregle solo el `src` deja la miniatura viéndose y el
+       enlace —que es el que se toca para leer el número de cédula— en la nada. */
+    const P = panelConectado({ selfie: FOTO_SELFIE });
+    const caja = nodoCon(['foto:reg:3001234567/selfie']);
+    const enlace = { tagName: 'A', href: null, setAttribute() {} };
+    caja.nodos[0].parentElement = enlace;
+    P.ctx.__caja = caja;
+    return Promise.resolve(P.ev('resolverFotos(__caja)')).then(() => esperar()).then(() => {
+      assert.equal(caja.nodos[0].src, FOTO_SELFIE, 'la foto no se puso en la imagen');
+      assert.equal(enlace.href, FOTO_SELFIE,
+        'la foto se puso en la miniatura pero el enlace para ampliarla quedó vacío');
+      assert.equal(caja.nodos[0].getAttribute('data-foto'), null,
+        'la marca se quedó puesta: la foto se volvería a pedir en cada repintado');
+    });
+  });
+
+  test('tres fotos de la misma persona son UNA sola llamada a la nube', () => {
+    /* Abrir una ficha no puede costar tres viajes. */
+    const P = panelConectado({ cedula_frente: FOTO_FRENTE, cedula_reverso: FOTO_REVERSO, selfie: FOTO_SELFIE });
+    const caja = nodoCon(['foto:reg:3001234567/cedula_frente',
+                          'foto:reg:3001234567/cedula_reverso',
+                          'foto:reg:3001234567/selfie']);
+    P.ctx.__caja = caja;
+    return Promise.resolve(P.ev('resolverFotos(__caja)')).then(() => esperar()).then(() => {
+      assert.equal(P.pedidos.length, 1,
+        'se le preguntó ' + P.pedidos.length + ' veces a la nube por la misma persona');
+      assert.equal(caja.nodos[2].src, FOTO_SELFIE);
+    });
+  });
+
+  test('y repintar la misma ficha NO vuelve a preguntar', () => {
+    /* Lo anterior lo garantiza el agrupar por celular; ESTO lo garantiza el
+       caché, que es otra pieza. Sin esta prueba, quitar el caché no rompía nada
+       —lo comprobé con un mutante que escapó— y el CRM se pondría a pedir las
+       mismas tres fotos cada vez que algo repinta la ficha.
+       MUTANTE QUE CAZA: quitar el `_fotosReg[cel]?Promise.resolve(...)` y
+       llamar siempre a archivosDe. */
+    const P = panelConectado({ selfie: FOTO_SELFIE });
+    const una = () => {
+      const caja = nodoCon(['foto:reg:3001234567/selfie']);
+      P.ctx.__caja = caja;
+      return Promise.resolve(P.ev('resolverFotos(__caja)')).then(() => esperar()).then(() => caja);
+    };
+    return una().then(() => una()).then(caja => {
+      assert.equal(P.pedidos.length, 1,
+        'repintar la ficha volvió a preguntarle a la nube: ' + P.pedidos.length + ' viajes para la misma foto');
+      assert.equal(caja.nodos[0].src, FOTO_SELFIE,
+        'la segunda vez la foto no se puso: el caché guarda pero no sirve');
+    });
+  });
+
+  test('cerrar la ficha SÍ hace que se vuelva a preguntar', () => {
+    /* La otra mitad del caché: si no se vaciara, una foto que Joan cambió en el
+       celular se quedaría vieja en pantalla hasta recargar el Panel. */
+    const P = panelConectado({ selfie: FOTO_SELFIE });
+    const una = () => {
+      const caja = nodoCon(['foto:reg:3001234567/selfie']);
+      P.ctx.__caja = caja;
+      return Promise.resolve(P.ev('resolverFotos(__caja)')).then(() => esperar());
+    };
+    return una().then(() => { P.ev('cerrarModal()'); return una(); }).then(() => {
+      assert.equal(P.pedidos.length, 2,
+        'después de cerrar la ficha se siguió usando el caché viejo');
+    });
+  });
+
   test('el caché de fotos nunca toca el disco', () => {
     /* Si se guardara, habríamos vuelto a tener la segunda copia que todo este
        trabajo existe para quitar — con el agravante de ser invisible. */
