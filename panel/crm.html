@@ -679,7 +679,18 @@
       <div class="ph"><div><h1>Ajustes<span class="dot">.</span></h1></div></div>
       <div class="card"><div class="modal-b cfg">
         <div class="field"><label>Tu nombre / negocio (para los mensajes)</label><input id="cfgNeg"></div>
-        <div class="field"><label>Tu WhatsApp</label><input id="cfgWa" inputmode="numeric" placeholder="Ej: 3001234567"><div class="help">A este número te llegan las solicitudes de crédito y los datos que te manden los clientes desde su app. Sin esto, al cliente le toca buscarte el chat a mano.</div></div>
+        <!-- 16-sep-2026 — `cfgWa` SIGUE AQUÍ, ESCONDIDO Y A PROPÓSITO. pintarCfg
+             es una cadena de sentencias sin try: si este elemento desaparece,
+             revienta ahí y NO se pinta nada de lo que viene después (la URL de
+             Supabase, la clave, el freno por ingreso). Y guardarCfg escribiría
+             `DB.config.whatsapp = ''` la próxima vez que Joan guarde cualquier
+             otro ajuste, dejando todos los SMS diciendo «Escríbenos al  ».
+             El número se maneja abajo, en la lista; esto solo lo sostiene. -->
+        <input id="cfgWa" type="hidden">
+        <div class="field"><label>Tus números de WhatsApp</label>
+          <div class="help" style="margin-bottom:8px">A este número te llegan las solicitudes de crédito y los datos que te manden los clientes desde su app, y es el que va escrito dentro de los mensajes de cobro. Se guarda la <b>lista</b>, con las fechas: el día que te bloqueen uno, sigues pudiendo decir desde cuál contactaste a cada quien.</div>
+          <div id="cfgMisNumeros"></div>
+        </div>
         <div class="field"><label>Costo del crédito</label><input type="text" id="cfgCosto" readonly style="opacity:.7"><div class="help">El 20% es el estándar. Desde el 8-sep-2026 puedes pactarlo de 1% a 50% crédito por crédito, al crearlo; por encima del 20% se confirma aparte con lo que equivale al año. La prórroga de cada crédito cobra el porcentaje que se pactó, los créditos abiertos conservan el suyo, y al cliente solo se le muestra el costo en pesos.</div></div>
         <div class="field"><label>Tasa de usura de referencia (% E.A.)</label><input type="number" id="cfgUsura" step="0.01" placeholder="Ej: 28.5"><div class="help">Marca en rojo los créditos cuya E.A. equivalente lo supere. 0 = sin alerta.</div></div>
         <div class="field"><label>PIN de acceso</label><input type="text" id="cfgPin" maxlength="6"></div>
@@ -2363,7 +2374,12 @@ function renderCobranzas() {
       '<div class="muted" style="padding:0 14px 8px;font-size:12px">Destilda a quien no quieras. ' +
       'Lo que no se puede es <b>agregar</b> a alguien de la tabla de abajo: esos topes no tienen casilla.</div>' +
       '<table><thead><tr><th style="width:34px"></th><th>Cliente</th><th>Debe</th><th>Créditos</th>' +
-        '<th>Vence</th><th>El mensaje que le llega</th></tr></thead><tbody>' +
+        '<th>Vence</th><th>Mensaje</th><th style="width:1%">Gestión</th></tr></thead><tbody>' +
+      /* 16-sep-2026 — LA COLUMNA DEL MENSAJE SE RECORTA A UN CHIP. El texto
+         completo es el MISMO en todas las filas salvo el nombre y el monto, y
+         ocupaba 360 px repetido cien veces. Ese ancho es el que deja sitio para
+         los botones con los que Joan de verdad trabaja. El texto entero sigue a
+         un clic, en «Ver el de voz», que ahora vive ahi. */
       r.filas.map(function (f) {
         return '<tr><td><input type="checkbox" data-socio="' + escHTML(f.socio_id) + '" ' +
             (_cob.marcados[f.socio_id] ? 'checked' : '') +
@@ -2372,15 +2388,38 @@ function renderCobranzas() {
           '<td class="num">' + COP(f.monto) + '</td>' +
           '<td class="num">' + (f.creditos > 1 ? '<b>' + f.creditos + '</b>' : '1') + '</td>' +
           '<td>' + escHTML(f.fecha_pago) + '</td>' +
-          '<td style="max-width:360px"><div style="font-size:12.5px;line-height:1.45">' +
-            escHTML(f.mensaje_sms) + '</div>' +
-            '<button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="verVozDe(\'' +
-              f.celular + '\')">📞 Ver el de voz</button></td></tr>';
+          '<td><span class="chip">' + escHTML(nombreDePlantilla(f.plantilla)) + '</span>' +
+            '<div><a href="#" style="font-size:12px" onclick="verVozDe(\'' + f.celular +
+              '\');return false">ver el texto y el de voz</a></div></td>' +
+          '<td style="white-space:nowrap">' + botonesDeFila(f.socio_id, f.credito_id, f.creditos) + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
 
   /* Los de afuera, con el motivo. Sin casilla: no se pueden agregar. */
   var fuera = (t.fuera || []).slice();
+  /* 16-sep-2026 — LOS DEL ACUERDO TAMBIEN SE MUESTRAN. Se descartan antes, en
+     casosDeCobroHoy, asi que desaparecian de las DOS tablas: ni se les escribe
+     ni se sabe por que — que es exactamente lo que esta tabla existe para
+     evitar. No escribirles esta bien (hay pacto y una fecha, y cobrarles de mora
+     lo rompe), pero Joan tiene que verlos, y sobre todo tiene que poder
+     registrarles el pago cuando cumplan. */
+  var yaListados = {};
+  (t.fuera || []).forEach(function (f) { if (f.caso && f.caso.socioId) yaListados[f.caso.socioId] = true; });
+  (r.filas || []).forEach(function (f) { yaListados[f.socio_id] = true; });
+  DB.prestamos.forEach(function (p) {
+    var a = acuerdoVigente(p);
+    if (!a || yaListados[p.socioId]) return;
+    var s = DB.socios.find(function (x) { return x.id === p.socioId; });
+    if (!s) return;
+    yaListados[p.socioId] = true;
+    fuera.push({
+      caso: { socioId: s.id, id: p.id, nombre: s.nombre || '', saldo: a.monto || totalCiclo(p), cuantos: 1 },
+      motivo: { texto: 'tiene un acuerdo de pago vigente',
+                detalle: a.fecha ? ('paga ' + COP(a.monto || 0) + ' el ' + fmtFecha(a.fecha) +
+                                    '. Escribirle de mora rompe el pacto.')
+                                 : 'hay un pacto: escribirle de mora lo rompe.' }
+    });
+  });
   (r.salidos || []).forEach(function (c) {
     fuera.push({ caso: c, motivo: { texto: 'pidió no recibir mensajes (respondió SALIR)' } });
   });
@@ -2390,13 +2429,485 @@ function renderCobranzas() {
   if (cajaF) {
     cajaF.innerHTML = !fuera.length
       ? '<div class="empty"><div class="ic">👍</div><p>Nadie quedó fuera.</p></div>'
-      : '<table><thead><tr><th>Cliente</th><th>Debe</th><th>Por qué no</th></tr></thead><tbody>' +
+      : '<div class="muted" style="padding:0 14px 8px;font-size:12px">A esta gente <b>no se le ' +
+        'puede escribir hoy</b>, y por eso no tienen casilla. Pero sí puedes <b>mirar su historia ' +
+        'y registrarle un pago</b>: eso no es contactar, y acá está buena parte de tu cartera.</div>' +
+        '<table><thead><tr><th>Cliente</th><th>Debe</th><th>Por qué no</th>' +
+        '<th style="width:1%">Gestión</th></tr></thead><tbody>' +
         fuera.map(function (f) {
-          return '<tr><td>' + escHTML(f.caso.nombre || '') + '</td>' +
-            '<td class="num">' + COP(f.caso.saldo_total != null ? f.caso.saldo_total : f.caso.saldo) + '</td>' +
-            '<td>' + escHTML((f.motivo && f.motivo.texto) || '—') + '</td></tr>';
+          var c = f.caso || {};
+          /* 16-sep-2026 — SE PINTA EL `detalle` QUE tanda.js YA CALCULA Y QUE
+             NADIE MOSTRABA: «hace 2 día(s), por sms. Se libera en 5 día(s)».
+             Sin eso, «ya se le escribio esta semana» deja a Joan sin saber
+             CUANDO se libera, y esa es justo la pregunta que se hace. */
+          var det = (f.motivo && f.motivo.detalle) || '';
+          return '<tr><td><b>' + escHTML(c.nombre || '') + '</b></td>' +
+            '<td class="num">' + COP(c.saldo_total != null ? c.saldo_total : c.saldo) + '</td>' +
+            '<td>' + escHTML((f.motivo && f.motivo.texto) || '—') +
+              (det ? '<div class="muted" style="font-size:12px">' + escHTML(det) + '</div>' : '') + '</td>' +
+            '<td style="white-space:nowrap">' +
+              botonesDeFila(c.socioId || '', c.id || '', c.cuantos || 1) + '</td></tr>';
         }).join('') + '</tbody></table>';
   }
+}
+
+/* Los dos botones con los que Joan trabaja una fila, en LAS DOS tablas.
+   Ninguno de los dos contacta a nadie: mirar la historia y registrar un pago se
+   pueden hacer con cualquiera, incluso con quien la Ley 2300 dejo fuera hoy. Por
+   eso la tabla de abajo gana botones y NO gana casillas. */
+function botonesDeFila(socioId, creditoId, cuantos) {
+  if (!socioId) return '<span class="muted" style="font-size:12px">—</span>';
+  var ref = '\'' + socioId + '\',\'' + escHTML(creditoId || '') + '\',' + (Number(cuantos) || 1);
+  return '<button class="btn btn-ghost btn-sm" onclick="verHistoriaCobro(\'' + socioId +
+      '\')" title="Todo lo que se le ha escrito y hablado">🕘 Su historia</button> ' +
+    '<button class="btn btn-ghost btn-sm" onclick="anotarCobro(' + ref + ')" ' +
+      'title="Qué pasó en la llamada: tipificar, dejar nota, anotar un compromiso">📝 Anotar</button> ' +
+    '<button class="btn btn-ghost btn-sm" onclick="pagoDesdeCobro(' + ref + ')" ' +
+      'title="Registrarle un pago o un abono">💵 Pago</button>';
+}
+
+/* ===========================================================================
+ * LA HISTORIA DE CONTACTO DE UN CLIENTE — 16 de septiembre de 2026
+ *
+ * Joan: «un boton para ver el historial del cliente».
+ *
+ * Y el hallazgo que lo hace valer: ESTE DATO SE LLEVA GUARDANDO DESDE AGOSTO Y
+ * JOAN NUNCA LO HA VISTO EN SU COMPUTADOR. La ficha del cliente (verCliente) no
+ * pinta ni una gestion; el unico sitio del proyecto que las muestra es el Panel
+ * del bolsillo, o sea el celular. Cada WhatsApp, cada SMS y cada llamada que ha
+ * anotado esta ahi adentro sin que nadie se lo enseñe.
+ *
+ * POR QUE NO SE REUSA etiquetaGestion, que parecia lo obvio: busca el tipo en
+ * TIPOS_GESTION, y lo que hay en s.gestiones no tiene ese tipo. Corrido:
+ *   · un WhatsApp de marcarGestion  -> «sin gestionar»
+ *   · un SMS de cobranza (tipo:'cobro') -> la palabra cruda «cobro»
+ * O sea que reusarla pintaria «sin gestionar» al lado de cada WhatsApp que Joan
+ * SI mando — justo en la pantalla que existe para enseñarle lo que ya tenia.
+ *
+ * SE MEZCLAN LOS DOS LIBROS, porque son dos y significan cosas distintas:
+ *   · s.gestiones .... el libro LEGAL. Es el que lee la reja de la Ley 2300
+ *                      para contar el contacto de la semana.
+ *   · DB.gestiones ... lo tipificado (contesto, promesa, no contesta...), que
+ *                      viene de las pantallas del equipo.
+ * Verlos por separado obligaria a Joan a armar la historia en la cabeza.
+ * ========================================================================= */
+
+/* Lo que se le enseña a Joan de cada renglon. El canal manda: es el dato que
+   decide si ese contacto gasto la semana de esa persona. */
+var CANAL_HISTORIA = {
+  whatsapp: { ic: '💬', et: 'WhatsApp' },
+  sms:      { ic: '✉️', et: 'Mensaje de texto' },
+  texto:    { ic: '✉️', et: 'Mensaje de texto' },
+  voz:      { ic: '📞', et: 'Mensaje de voz' },
+  llamada:  { ic: '📲', et: 'Llamada' }
+};
+
+function nombreDePlantilla(k) {
+  if (!k) return '';
+  var p = (DB.plantillas && DB.plantillas[k]) ? null : null;
+  return (PLANTILLAS_DEF[k] && PLANTILLAS_DEF[k].t) || String(k);
+}
+
+/* CUANDO PASO, y la regla incomoda: el tiempo relativo SOLO si hay hora.
+   Medido: haceCuanto('2026-09-16') a las nueve de la mañana de Bogota devuelve
+   «hace 14 h», porque una fecha sin hora se lee como medianoche UTC y Bogota va
+   cinco horas atras. A las siete de la noche del MISMO dia diria «ayer».
+   El dia que haya que probarle algo a la SIC, una hora inventada es peor que el
+   hueco: si no hay hora, se dice que no la hay. */
+function cuandoDeGestion(g) {
+  var iso = g.hora || g.cuando || '';
+  if (iso && /T\d\d:/.test(String(iso))) {
+    return { texto: haceCuanto(iso), exacto: fmtFecha(String(iso).slice(0, 10)) + ' · ' +
+             String(iso).slice(11, 16), conHora: true };
+  }
+  var f = String(g.fecha || iso || '').slice(0, 10);
+  return { texto: f ? fmtFecha(f) : 'sin fecha', exacto: f ? fmtFecha(f) + ' · sin hora' : '', conHora: false };
+}
+
+/** Los dos libros en una sola linea de tiempo, de lo mas nuevo a lo mas viejo. */
+function historiaDeContacto(s) {
+  var todo = [];
+  (s.gestiones || []).forEach(function (g) {
+    todo.push({ orden: String(g.hora || g.fecha || ''), canal: g.canal || '',
+                plantilla: g.plantilla || '', origen: g.origen || '', g: g });
+  });
+  (typeof gestionesDe === 'function' ? gestionesDe(s.id) : []).forEach(function (g) {
+    todo.push({ orden: String(g.cuando || ''), tipo: g.tipo || '', nota: g.nota || '',
+                canal: g.canal || '', quien: g.quien || '', g: g });
+  });
+  todo.sort(function (a, b) { return String(b.orden).localeCompare(String(a.orden)); });
+  return todo;
+}
+
+function verHistoriaCobro(socioId) {
+  var s = DB.socios.find(function (x) { return x.id === socioId; });
+  if (!s) { alert('No encontre ese cliente.'); return; }
+  var lista = historiaDeContacto(s);
+
+  var filas = !lista.length
+    ? '<div class="empty"><div class="ic">📭</div><p>Todavia no hay nada anotado con ' +
+      escHTML(s.nombre) + '.<br><span class="muted">Cada WhatsApp, texto o llamada que anotes ' +
+      'queda aca — y es lo que prueba cuando lo contactaste.</span></p></div>'
+    : '<div class="hist">' + lista.map(function (r) {
+        var c = CANAL_HISTORIA[r.canal] || null;
+        var t = r.tipo ? TIPOS_GESTION[r.tipo] : null;
+        var cuando = cuandoDeGestion(r.g);
+        var titulo = t ? (t.ic + ' ' + t.et) : (c ? (c.ic + ' ' + c.et) : '• Gestion');
+        var detalle = [];
+        if (t && c) detalle.push('por ' + c.et.toLowerCase());
+        if (r.plantilla) detalle.push('«' + escHTML(nombreDePlantilla(r.plantilla)) + '»');
+        if (r.nota) detalle.push(escHTML(r.nota));
+        if (r.quien) detalle.push('anoto ' + escHTML(r.quien));
+        return '<div class="info-row"><span class="k"><b>' + titulo + '</b>' +
+          (detalle.length ? '<div class="muted">' + detalle.join(' · ') + '</div>' : '') +
+          '</span><span class="vv" style="text-align:right">' + escHTML(cuando.texto) +
+          (cuando.exacto ? '<div class="muted" style="font-size:11.5px">' + escHTML(cuando.exacto) + '</div>' : '') +
+          '</span></div>';
+      }).join('') + '</div>';
+
+  openModal('🕘 Historia de ' + s.nombre,
+    '<div class="muted" style="margin-bottom:10px">Todo lo que se le ha escrito o hablado, de lo ' +
+    'mas reciente a lo mas viejo. Esto es lo que prueba <b>cuando</b> lo contactaste, y es lo que ' +
+    'cuenta la Ley 2300 para el tope de un contacto por semana.</div>' +
+    filas +
+    '<button class="btn btn-ghost btn-sm" style="margin-top:14px;width:100%" ' +
+    'onclick="cerrarModal();verCliente(\'' + s.id + '\')">Ver su ficha completa →</button>');
+}
+
+/* ===========================================================================
+ * «💵 PAGO» DESDE LA COBRANZA
+ *
+ * Joan: «otro [boton] para registrar un pago».
+ *
+ * NO reimplementa el cobro: lleva a abrirPago, que es donde ya vive.
+ *
+ * Y CON VARIOS CREDITOS, PREGUNTA. El mensaje de cobro suma TODOS los creditos
+ * vencidos de la persona a proposito (por eso dice «Créditos: 3»), asi que
+ * abrirle «el mas urgente» en silencio es el defecto del recibo por el monto
+ * equivocado que este mismo archivo ya documento en otra pantalla. Si debe uno,
+ * se abre. Si debe varios, se le enseñan y escoge el.
+ * ========================================================================= */
+function pagoDesdeCobro(socioId, creditoId, cuantos) {
+  var s = DB.socios.find(function (x) { return x.id === socioId; });
+  if (!s) { alert('No encontre ese cliente.'); return; }
+  if (Number(cuantos) <= 1 && creditoId) { abrirPago(creditoId); return; }
+  openModal('💵 ¿Cual credito le vas a abonar?',
+    '<div class="alerta info" style="margin-bottom:12px"><b>' + escHTML(s.nombre) + '</b> tiene ' +
+    escHTML(String(cuantos)) + ' creditos vencidos, y el mensaje de cobro los suma todos. ' +
+    'Escoge a cual entra este pago — el CRM no lo adivina, porque el recibo sale con ese monto.</div>' +
+    bloqueCreditosHTML(s));
+}
+
+/* ===========================================================================
+ * MIS NUMEROS DE WHATSAPP — 16 de septiembre de 2026
+ *
+ * Joan: «quiero poder tener una funcion en la que yo guarde mi whatsapp en el
+ * sistema para tener un registro en caso de que se me bloquee».
+ *
+ * Su numero YA se guardaba y YA es el que sale escrito dentro de los mensajes.
+ * Lo que faltaba es que fuera una LISTA QUE SOLO SUMA en vez de una casilla que
+ * se pisa: hoy escribe el nuevo y el viejo desaparece, sin fecha y sin motivo.
+ *
+ * PARA QUE SIRVE DE VERDAD. No evita el bloqueo. Sirve para dos cosas:
+ *   · el dia que alguien reclame, poder decir «a esta persona la contacte el 12
+ *     a las 10:14, por este canal, desde este numero». La carga de probar que se
+ *     cumplio la Ley 2300 es de Joan;
+ *   · y el dia del bloqueo, saber que numero estaba activo en cada tramo para
+ *     no perder el hilo de lo que ya se hizo.
+ *
+ * POR QUE LO BLOQUEAN, que es el dato que le falta: WhatsApp tiene una lista de
+ * negocios que no acepta, y ahi estan, con esas palabras, los prestamos y la
+ * cobranza de deudas. Son las dos cosas que hace. No es volumen: la categoria ya
+ * esta prohibida antes de cualquier permiso que le de el cliente.
+ *
+ * Y UNA HONESTIDAD SOBRE EL REGISTRO: cuando se manda por texto o por voz, el
+ * mensaje NO sale del WhatsApp de Joan — sale del remitente numerico de la
+ * plataforma, y su numero solo va escrito DENTRO del texto. Por eso `desde` dice
+ * «plataforma» en esos casos y no su celular: poner su celular ahi seria el
+ * unico dato falsificable del registro, y eso le quita credibilidad a los que si
+ * son ciertos.
+ * ========================================================================= */
+function misNumeros() {
+  DB.misNumeros = Array.isArray(DB.misNumeros) ? DB.misNumeros : [];
+  /* Migracion de una sola vez: el numero que ya estaba en Ajustes entra como el
+     primer tramo, para que la lista no nazca vacia mintiendo. */
+  if (!DB.misNumeros.length && DB.config && DB.config.whatsapp) {
+    DB.misNumeros.push({ numero: String(DB.config.whatsapp).replace(/\D/g, ''),
+                         desde: (DB.config.whatsappDesde || hoyISO()), hasta: null, motivo: '' });
+  }
+  return DB.misNumeros;
+}
+/** El que esta en uso: el unico sin fecha de salida, o el mas reciente. */
+function numeroActivoWA() {
+  var l = misNumeros().filter(function (n) { return !n.hasta; });
+  if (l.length) return l[l.length - 1].numero || '';
+  var t = misNumeros();
+  return t.length ? (t[t.length - 1].numero || '') : (String((DB.config || {}).whatsapp || ''));
+}
+function pintarMisNumeros() {
+  var caja = document.getElementById('cfgMisNumeros'); if (!caja) return;
+  var l = misNumeros();
+  var activo = numeroActivoWA();
+  caja.innerHTML =
+    (!l.length
+      ? '<div class="muted" style="font-size:13px">Todavía no has guardado ningún número.</div>'
+      : l.slice().reverse().map(function (n) {
+          var vivo = !n.hasta;
+          return '<div class="info-row"><span class="k"><b class="mono">' + escHTML(n.numero) + '</b> ' +
+            (vivo ? '<span class="chip al-dia">en uso</span>' : '<span class="chip">ya no</span>') +
+            '<div class="muted">desde ' + escHTML(fmtFecha(n.desde)) +
+            (n.hasta ? ' hasta ' + escHTML(fmtFecha(n.hasta)) : '') +
+            (n.motivo ? ' · ' + escHTML(n.motivo) : '') + '</div></span>' +
+            '<span class="vv">' + (vivo && l.length > 0
+              ? '<button class="btn btn-ghost btn-sm" onclick="jubilarNumero(\'' + escHTML(n.numero) +
+                '\',\'' + escHTML(n.desde) + '\')">Ya no lo uso</button>'
+              : '') + '</span></div>';
+        }).join('')) +
+    '<div class="two" style="margin-top:10px">' +
+      '<div class="field"><label>Número nuevo</label><input id="cfgWaNuevo" inputmode="numeric" ' +
+        'placeholder="3001234567"></div>' +
+      '<div class="field"><label>&nbsp;</label>' +
+        '<button class="btn btn-negro btn-sm" style="width:100%" onclick="agregarNumeroWA()">＋ Empezar a usar este</button></div>' +
+    '</div>' +
+    '<div class="alerta warn" style="font-size:12.5px;margin-top:6px">' +
+      '<b>Por qué te bloquean, para que no te sorprenda.</b> WhatsApp tiene una lista de negocios ' +
+      'que no acepta, y ahí están —con esas palabras— los préstamos y la cobranza de deudas. Son ' +
+      'las dos cosas que haces. No es por mandar rápido: la categoría ya está prohibida antes de ' +
+      'cualquier permiso que te dé el cliente. WhatsApp te sirve para <b>atender al que te escribe ' +
+      'a ti</b>; para cobrar, el canal que no depende de las reglas de otra empresa es el texto y ' +
+      'la voz.' +
+      '<div style="margin-top:6px">Y ojo con esto el día que pase: tu número también está escrito ' +
+      'dentro de <b>tres páginas publicadas</b> del sitio (la app del socio, la puerta pública y la ' +
+      'página de borrar cuenta). Cambiarlo ahí no es editar un dato: hay que volver a publicar.</div>' +
+    '</div>' +
+    (activo ? '<div class="muted" style="margin-top:8px;font-size:12px">Los mensajes salen diciendo ' +
+      '<b class="mono">' + escHTML(activo) + '</b>.</div>' : '');
+}
+function agregarNumeroWA() {
+  var n = String((document.getElementById('cfgWaNuevo') || {}).value || '').replace(/\D/g, '').slice(-10);
+  if (n.length !== 10) { alert('Un celular colombiano tiene 10 dígitos. Escribe el número completo.'); return; }
+  var l = misNumeros();
+  if (l.some(function (x) { return x.numero === n && !x.hasta; })) { alert('Ese ya es el que estás usando.'); return; }
+  /* El que estaba en uso se cierra HOY: dos numeros activos a la vez harian que
+     el registro no pudiera decir desde cual se contacto a alguien, que es lo
+     unico para lo que existe. */
+  l.forEach(function (x) { if (!x.hasta) { x.hasta = hoyISO(); x.motivo = x.motivo || 'lo cambié'; } });
+  l.push({ numero: n, desde: hoyISO(), hasta: null, motivo: '' });
+  DB.config.whatsapp = n;        /* el activo, derivado — es el que entra en los mensajes */
+  guardar(); pintarMisNumeros();
+  alert('Listo. Desde hoy los mensajes salen diciendo ' + n + '.\n\n' +
+        'El anterior queda guardado con su fecha: eso es lo que te sirve si alguien reclama por ' +
+        'un mensaje de antes.');
+}
+function jubilarNumero(numero, desde) {
+  var motivo = prompt('¿Por qué dejas de usar el ' + numero + '?\n\n' +
+                      'Escribe:  bloqueado  ·  lo cambié  ·  lo perdí', 'bloqueado');
+  if (motivo === null) return;
+  var n = misNumeros().find(function (x) { return x.numero === numero && x.desde === desde; });
+  if (!n) return;
+  n.hasta = hoyISO();
+  n.motivo = String(motivo).trim() || 'sin motivo';
+  guardar(); pintarMisNumeros();
+  alert('Anotado: dejaste de usar el ' + numero + ' hoy (' + n.motivo + ').\n\n' +
+        'Agrega el número nuevo abajo para que los mensajes salgan con él.\n\n' +
+        'OJO: tu número también está escrito dentro de tres páginas publicadas del sitio. ' +
+        'Avísame para cambiarlo ahí — eso no se edita desde acá, hay que volver a publicar.');
+}
+
+/* ===========================================================================
+ * ANOTAR LO QUE PASO, Y TIPIFICAR — 16 de septiembre de 2026
+ *
+ * Joan: «un boton para dejar una nota o anotacion de compromiso de pago o de
+ * llamada y tipificar».
+ *
+ * Es el unico de los seis que es trabajo nuevo de verdad: hoy NO existe un solo
+ * sitio en el CRM de Joan donde escribir lo que el cliente contesto. El unico
+ * registro es s.gestiones, y marcarGestion guarda {fecha, canal, plantilla} —
+ * ni hora, ni nota, ni que prometio. Ver quien debe le cuesta cero clics;
+ * anotar que Fulano prometio pagar el viernes no se puede hacer.
+ *
+ * ---------------------------------------------------------------------------
+ * LAS DOS DECISIONES QUE GOBIERNAN ESTA PANTALLA
+ *
+ * 1. DONDE SE ESCRIBE. La anotacion va a DB.gestiones, que ya existe y que
+ *    nube.js ya sabe fusionar entre el computador y el celular (esta en
+ *    CLAVES_AJUSTES con identidad por id, asi que se junta sola y sin tocar una
+ *    linea). Una lista nueva duplicaria campo por campo lo que ya hay y partiria
+ *    el historial en tres.
+ *    NO se llama gestion_anotar por la nube: esa exige sesion de equipo y que la
+ *    persona este repartida a un asesor, y contesta «esa persona no es de tu
+ *    base» para los socios que Joan no repartio — o sea casi todos.
+ *
+ * 2. QUE GASTA EL CONTACTO DE LA SEMANA, y esto NO lo decide una casilla.
+ *    La Ley 2300 limita que el GESTOR contacte, y habla de contacto
+ *    ESTABLECIDO. Asi que:
+ *      · se pregunta un HECHO que Joan siempre sabe: ¿lo buscaste tu, o te
+ *        busco el? — porque si el cliente llama, eso no gasta nada;
+ *      · y si Joan lo busco, lo que decide es el TIPO, no una casilla que el
+ *        pueda apagar: contesto/promesa/ya_pago/no_quiere/va_a_pedir/novedad
+ *        son contacto establecido; no_contesta/numero_malo/volver no lo son.
+ *    La razon de la segunda mitad es practica: si anotar «no contesto» quemara
+ *    siete dias, un martes de 30 llamadas con 20 buzones le borraria 20 clientes
+ *    de la cobranza por llamadas que nadie recibio. Castigar el anotar es la
+ *    forma mas segura de que Joan deje de anotar.
+ * ========================================================================= */
+
+/* Los tipos que SI son un contacto establecido. Lo que no esta aca se anota
+   igual, pero no gasta la semana de nadie. */
+var TIPOS_CON_CONTACTO = ['contesto', 'promesa', 'ya_pago', 'no_quiere', 'va_a_pedir', 'novedad'];
+
+var _anotando = null;   /* {socioId, creditoId, cuantos} */
+
+function anotarCobro(socioId, creditoId, cuantos) {
+  var s = DB.socios.find(function (x) { return x.id === socioId; });
+  if (!s) { alert('No encontre ese cliente.'); return; }
+  _anotando = { socioId: socioId, creditoId: creditoId || '', cuantos: Number(cuantos) || 1 };
+
+  var grupos = {};
+  ORDEN_GESTION.forEach(function (k) {
+    (grupos[TIPOS_GESTION[k].grupo] = grupos[TIPOS_GESTION[k].grupo] || []).push(k);
+  });
+
+  openModal('📝 ¿Qué pasó con ' + (String(s.nombre || '').split(/\s+/)[0] || 'este cliente') + '?',
+    /* LA PREGUNTA DE HECHO VA PRIMERO porque es la que decide si esto gasta el
+       contacto de la semana. No nace marcada: Joan siempre sabe la respuesta. */
+    '<div class="sub-h">¿Quién buscó a quién?</div>' +
+    '<label class="permiso"><input type="radio" name="aQuien" value="yo">' +
+      '<span>📲 <b>Yo lo busqué</b> — lo llamé o le escribí</span></label>' +
+    '<label class="permiso"><input type="radio" name="aQuien" value="el">' +
+      '<span>📥 <b>Él me buscó</b> — me llamó o me escribió</span></label>' +
+    '<div class="help" style="margin-bottom:12px">Si él te buscó, no gasta tu contacto de la ' +
+      'semana: la ley limita que <b>tú</b> lo contactes, no que él te llame.</div>' +
+
+    Object.keys(grupos).map(function (gr) {
+      return '<div class="sub-h">' + escHTML(gr) + '</div>' +
+        grupos[gr].map(function (k) {
+          return '<label class="permiso"><input type="radio" name="aTipo" value="' + k +
+            '" onchange="pintarConsecuenciaAnotar()"><span>' + TIPOS_GESTION[k].ic + ' <b>' +
+            escHTML(TIPOS_GESTION[k].et) + '</b></span></label>';
+        }).join('');
+    }).join('') +
+
+    '<div id="aConsecuencia" style="margin-top:10px"></div>' +
+    '<div id="aPromesa"></div>' +
+
+    '<div class="field" style="margin-top:14px"><label>Nota <span class="muted">(opcional)</span></label>' +
+      '<textarea id="aNota" maxlength="300" placeholder="Ej: dice que le pagan el viernes y ahí abona todo"></textarea>' +
+      '<div class="help">Queda con la fecha, la hora y el número desde el que hablaste. ' +
+      '<b>No se puede borrar ni editar</b>: una anotación es un hecho, y eso es lo que la hace servir ' +
+      'el día que alguien reclame.</div></div>' +
+    '<button class="btn btn-rojo" id="aBtn" style="margin-top:8px;width:100%" ' +
+      'onclick="guardarAnotacionCobro()">Anotar</button>');
+}
+
+/* LA CONSECUENCIA SE DICE ANTES DE APRETAR, no despues. Que una anotacion saque
+   al cliente de la cola por siete dias es justo lo que Joan necesita saber en el
+   momento de escogerla. */
+function pintarConsecuenciaAnotar() {
+  var caja = document.getElementById('aConsecuencia'); if (!caja) return;
+  var sel = document.querySelector('input[name=aTipo]:checked');
+  var tipo = sel ? sel.value : '';
+  var gasta = TIPOS_CON_CONTACTO.indexOf(tipo) > -1;
+
+  caja.innerHTML = !tipo ? '' : (gasta
+    ? '<div class="alerta warn" style="font-size:13px"><b>Esto cuenta como tu contacto de la ' +
+      'semana.</b> Si tú lo buscaste, el CRM deja de ofrecértelo para escribirle hasta dentro de ' +
+      '7 días. Lo vas a seguir viendo en la tabla de abajo, con la fecha en que se libera.</div>'
+    : '<div class="alerta info" style="font-size:13px">Esto <b>no</b> gasta tu contacto de la ' +
+      'semana: no hubo nadie del otro lado. Queda anotado y le puedes volver a escribir.</div>');
+
+  var p = document.getElementById('aPromesa'); if (!p) return;
+  p.innerHTML = tipo !== 'promesa' ? '' :
+    '<div class="sub-h">Lo que prometió</div>' +
+    '<div class="two">' +
+      '<div class="field"><label>Cuánto</label><input id="aMonto" type="number" inputmode="numeric" ' +
+        'min="0" placeholder="$"></div>' +
+      '<div class="field"><label>Para qué día</label><input id="aFecha" type="date"></div>' +
+    '</div>' +
+    '<div class="alerta info" style="font-size:12.5px">Una promesa anotada <b>no congela nada</b>: ' +
+    'la mora sigue corriendo, el precio no se queda quieto, y cuando pase su semana el cliente ' +
+    'vuelve a la cola. Si le quieres congelar el precio hasta esa fecha, eso es un <b>acuerdo</b> ' +
+    'y va aparte, en el botón de abajo.</div>' +
+    (_anotando && _anotando.creditoId
+      ? '<button class="btn btn-azul btn-sm" style="width:100%;margin-top:6px" ' +
+        'onclick="acuerdoDesdeAnotacion()">🤝 …y congelarle el precio hasta esa fecha</button>'
+      : '');
+}
+
+function guardarAnotacionCobro() {
+  if (!_anotando) return;
+  var quien = document.querySelector('input[name=aQuien]:checked');
+  var tipo = document.querySelector('input[name=aTipo]:checked');
+  if (!quien) { alert('Marca quién buscó a quién. Es lo que decide si esto gasta tu contacto de la semana.'); return; }
+  if (!tipo) { alert('Marca qué pasó.'); return; }
+
+  var s = DB.socios.find(function (x) { return x.id === _anotando.socioId; });
+  if (!s) { alert('No encontre ese cliente.'); return; }
+
+  var nota = (document.getElementById('aNota') || {}).value || '';
+  var ahora = new Date().toISOString();
+  var loBusco = quien.value === 'yo';
+
+  if (tipo.value === 'promesa') {
+    var m = Number((document.getElementById('aMonto') || {}).value) || 0;
+    var f = (document.getElementById('aFecha') || {}).value || '';
+    var extra = [];
+    if (m > 0) extra.push('prometió ' + COP(m));
+    if (f) extra.push('para el ' + fmtFecha(f));
+    if (extra.length) nota = (extra.join(' ') + (nota ? ' · ' + nota : ''));
+  }
+
+  /* DB.gestiones: lo tipificado. `id` local y unico para que la nube lo fusione
+     por identidad y no lo duplique al bajar. */
+  gestiones().push({
+    id: 'loc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+    persona_id: _anotando.socioId,
+    tipo: tipo.value,
+    nota: nota,
+    cuando: ahora,
+    quien: 'Joan',
+    desde: numeroActivoWA(),
+    origen: loBusco ? 'joan-salida' : 'joan-entrada'
+  });
+
+  /* s.gestiones: el libro LEGAL, el que lee la reja de la semana. Solo si Joan
+     lo busco Y hubo alguien del otro lado. */
+  var gastaSemana = loBusco && TIPOS_CON_CONTACTO.indexOf(tipo.value) > -1;
+  if (gastaSemana) {
+    s.gestiones = s.gestiones || [];
+    s.gestiones.push({ fecha: hoyISO(), hora: ahora, canal: 'llamada',
+                       plantilla: '', tipo: 'cobro', grupo: 'cobranzas', origen: 'crm' });
+  }
+  guardar();
+  cerrarModal();
+  renderCobranzas();
+  alert('Anotado: ' + TIPOS_GESTION[tipo.value].et + '.\n\n' +
+        (gastaSemana
+          ? 'Cuenta como tu contacto de la semana: el CRM no te lo va a ofrecer para escribirle ' +
+            'hasta dentro de 7 días.'
+          : 'No gasta tu contacto de la semana. Le puedes volver a escribir.'));
+}
+
+/* EL ACUERDO ES OTRO BOTON Y OTRA CONFIRMACION, nunca el mismo clic que la
+   promesa. Un acuerdo congela el precio y SACA a la persona de la cobranza; una
+   promesa anotada no hace ninguna de las dos cosas. Confundirlos en un clic es
+   regalar plata o dejar de cobrarla. */
+function acuerdoDesdeAnotacion() {
+  if (!_anotando || !_anotando.creditoId) { alert('Este cliente no tiene un credito señalado.'); return; }
+  var f = (document.getElementById('aFecha') || {}).value || '';
+  if (!f) { alert('Primero pon para qué día prometió pagar.'); return; }
+  if (_anotando.cuantos > 1 &&
+      !confirm('OJO: el acuerdo es por CRÉDITO, no por persona.\n\n' +
+               'Este cliente tiene ' + _anotando.cuantos + ' créditos vencidos, y esto solo va a ' +
+               'congelar UNO. Los otros siguen corriendo y le van a seguir apareciendo.\n\n' +
+               '¿Sigo con este?')) return;
+  if (!confirm('Con esto el cliente SALE de la cobranza hasta el ' + fmtFecha(f) + ':\n' +
+               '· se le congela el precio hasta esa fecha\n' +
+               '· deja de aparecerte para cobrarle\n' +
+               '· y si NO cumple, vuelve de primero en la lista\n\n' +
+               'Una promesa anotada no hace nada de esto. ¿Le congelas el precio?')) return;
+  cerrarModal();
+  pactarAcuerdo(_anotando.creditoId);
 }
 
 function marcarCob(socioId, v) { _cob.marcados[socioId] = !!v; }
@@ -5134,7 +5645,7 @@ function abonarCapital(id,fecha){ const p=DB.prestamos.find(x=>x.id===id),m=Numb
   addComp(p,'abono',m); guardar(); abrirPago(id); render(); }
 
 /* ===== CONFIG ===== */
-function pintarCfg(){ document.getElementById('cfgNeg').value=DB.config.negocio; document.getElementById('cfgCosto').value=TASA_FIJA_PCT+'% estándar · de 1% a '+TASA_TECHO_PCT+'% por crédito'; document.getElementById('cfgUsura').value=DB.config.tasaUsuraEA||''; document.getElementById('cfgPin').value=DB.config.pin; document.getElementById('cfgWa').value=DB.config.whatsapp||'';
+function pintarCfg(){ document.getElementById('cfgNeg').value=DB.config.negocio; document.getElementById('cfgCosto').value=TASA_FIJA_PCT+'% estándar · de 1% a '+TASA_TECHO_PCT+'% por crédito'; document.getElementById('cfgUsura').value=DB.config.tasaUsuraEA||''; document.getElementById('cfgPin').value=DB.config.pin; document.getElementById('cfgWa').value=DB.config.whatsapp||''; try{ pintarMisNumeros(); }catch(e){}
   const c=sbCfg(); document.getElementById('cfgSbUrl').value=c.url||''; document.getElementById('cfgSbAnon').value=c.anon||''; document.getElementById('cfgSbClave').value=c.clave||'';
   document.getElementById('sbEstado').textContent=(c.url&&c.anon&&c.clave)?'Conexión lista. Sube los historiales cuando quieras.':'Todavía sin conectar. Corre base/supabase.sql y pega aquí los tres datos.';
   pintarFreno(); cargarPoliticaNuevos(); }
@@ -10320,7 +10831,7 @@ function sincronizarSocios(){
   })
   .catch(()=>{ est.textContent='No hubo conexión. Revisa el internet y vuelve a intentar.'; });
 }
-function guardarCfg(){ DB.config.negocio=gv('cfgNeg')||'Tu Garantía'; DB.config.costoBasePct=TASA_FIJA_PCT; DB.config.tasaUsuraEA=Number(gv('cfgUsura'))||0; DB.config.pin=gv('cfgPin')||'1234'; DB.config.whatsapp=gv('cfgWa').replace(/\D/g,'');
+function guardarCfg(){ DB.config.negocio=gv('cfgNeg')||'Tu Garantía'; DB.config.costoBasePct=TASA_FIJA_PCT; DB.config.tasaUsuraEA=Number(gv('cfgUsura'))||0; DB.config.pin=gv('cfgPin')||'1234'; DB.config.whatsapp=numeroActivoWA();   /* derivado de la lista: ver «MIS NUMEROS DE WHATSAPP» */
   /* EL FRENO. La fracción se valida ANTES de guardar y se guarda en decimal
      (0,30), que es lo que espera el motor: si acá entrara 30 lo leería como
      "treinta veces la quincena", o sea ningún tope. Un número fuera de 1..100 no

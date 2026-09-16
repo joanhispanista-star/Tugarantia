@@ -91,13 +91,21 @@
     /* 10-sep-2026 — las gestiones que escriben los asesores desde su celular.
        Joan se las trae de la nube y viven acá para que su computador y su
        celular vean lo mismo. */
-    'equipo', 'asignaciones', 'prospectos', 'bases', 'actosComision', 'gestiones'];
+    /* 16-sep-2026 — los numeros de WhatsApp de Joan, en su PROPIA clave y no
+       dentro de `config`. Medido: `config` esta aca pero NO en LISTAS_DE_AJUSTES,
+       y fusionarAjuste devuelve el ajuste entrante ENTERO cuando la clave no
+       tiene identidad — o sea que el aparato que suba de segundo le borra la
+       lista al primero, sin choque y sin aviso. Justo la lista que existe para
+       probar desde que numero se contacto a cada quien. */
+    'equipo', 'asignaciones', 'prospectos', 'bases', 'actosComision', 'gestiones',
+    'misNumeros'];
   /* La papelera guarda fichas y créditos borrados ENTEROS (con cédula, teléfono
      y todo). legal/privacidad.html promete que lo borrado se borra: subirla a un
      servidor es exactamente lo contrario. Por eso subir.html ofrece la casilla
      "no subir la papelera" MARCADA por defecto y pasa estas claves. */
   var CLAVES_AJUSTES_SIN_PAPELERA = ['config', 'plantillas', 'invitaciones',
-    'equipo', 'asignaciones', 'prospectos', 'bases', 'actosComision', 'gestiones'];
+    'equipo', 'asignaciones', 'prospectos', 'bases', 'actosComision', 'gestiones',
+    'misNumeros'];
 
   /* Los campos que llevan una imagen en base64. Los cuatro primeros son del
      socio; el quinto, `foto`, va dentro de cada comprobante del crédito. */
@@ -203,7 +211,14 @@
     bases: ['archivo', 'fecha'],
     /* Una gestión es un HECHO con fecha: su identidad es el id que le puso la
        nube. Dos aparatos que traen la misma gestión traen la misma fila. */
-    gestiones: ['id']
+    gestiones: ['id'],
+    /* 16-sep-2026 — los numeros desde los que Joan ha cobrado. La identidad es
+       el numero MAS el dia en que empezo a usarlo: el mismo numero puede volver
+       (lo bloquean y despues lo recupera) y eso son dos tramos distintos de su
+       historia, no uno repetido. Solo suma: un numero que dejo de usarse no se
+       borra, porque es justo lo que prueba desde donde se contacto a alguien
+       en marzo. */
+    misNumeros: ['numero', 'desde']
   };
 
   var LISTAS_CREDITO = {

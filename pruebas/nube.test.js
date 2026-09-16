@@ -203,6 +203,11 @@ function dbDemo() {
     prospectos: [{ id: 'P1', celular: '3001112233', nombre: 'Marta Quiroga', estado: 'nuevo' }],
     bases: [{ id: 'B1', archivo: 'base.xlsx', origen: 'pauta', fecha: '2026-09-01', entraron: 1 }],
     actosComision: [],
+    /* 16-sep-2026 — los numeros de WhatsApp de Joan. Entra por lo mismo que las
+       de arriba: la prueba de al lado exige que el db de demo tenga TODAS las
+       claves de ajuste, justamente para que ninguna lista nueva se quede sin
+       barrer por la sincronizacion. */
+    misNumeros: [{ numero: '3001112233', desde: '2026-09-01', hasta: null, motivo: '' }],
     /* 10-sep-2026 - las gestiones que escriben los asesores desde su celular.
        Su identidad es el id que le puso la nube: dos aparatos que traen la
        misma gestion traen la misma fila, no dos. */

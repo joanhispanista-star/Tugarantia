@@ -182,10 +182,24 @@ describe('la gestión: lo que el asesor anota y el gerente lee', () => {
   test('las gestiones viajan a la nube con los demás ajustes', () => {
     /* Si no viajaran, el celular de Joan y su computador verían cosas
        distintas, y la fusión borraría las del que subiera de segundo. */
-    const N = leer('panel/nube.js');
-    assert.match(N, /'actosComision', 'gestiones'\]/,
+    /* Reescrita el 16-sep-2026 para EJECUTAR. Buscaba el texto literal
+       «'actosComision', 'gestiones']» —con el corchete pegado— y se puso roja el
+       día que se agregó OTRA clave después, sin que nada se hubiera roto. Una
+       prueba que se rompe por el orden de una lista está midiendo el orden, no
+       la regla. Ahora le pregunta al módulo. */
+    const NUBE = require('../panel/nube.js');
+    assert.ok(NUBE.CLAVES_AJUSTES.indexOf('gestiones') > -1,
       'gestiones no está en CLAVES_AJUSTES: no sube ni baja');
-    assert.match(N, /gestiones: \['id'\]/,
+    assert.deepEqual(NUBE.LISTAS_DE_AJUSTES.gestiones, ['id'],
       'gestiones no tiene identidad declarada: al fusionar se duplican o se pisan');
+
+    /* Y la regla de fondo, corrida: dos aparatos con gestiones distintas las
+       conservan las dos. Eso es lo que la identidad compra. */
+    const r = NUBE.fusionarAjuste('gestiones',
+      [{ id: 'g1', persona_id: 'S1', tipo: 'promesa' }],
+      [{ id: 'g2', persona_id: 'S1', tipo: 'contesto' }]);
+    const t = JSON.stringify(r.valor || r);
+    assert.ok(t.indexOf('g1') > -1 && t.indexOf('g2') > -1,
+      'al fusionar dos aparatos se perdió una gestión');
   });
 });

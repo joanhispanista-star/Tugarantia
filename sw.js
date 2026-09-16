@@ -332,7 +332,18 @@
    mudo. Ademas el consejo de «no salio» mandaba a correr base/supabase.sql, que
    no contiene enviar_mensajes.
    Toca panel/crm.html y app/cobranza-envio.js. */
-const CACHE = 'tugarantia-v62';
+/* v63 - 16-sep-2026. Los botones que faltaban en Cobranzas: «Su historia»,
+   «Anotar» y «Pago», en LAS DOS tablas —la de abajo gana botones y no gana
+   casillas, porque mirar, anotar y cobrar no es contactar—. Mas el registro de
+   los numeros de WhatsApp de Joan, en su propia clave (dentro de `config` el
+   segundo aparato en subir le borraba la lista al primero, medido).
+   La historia mezcla los dos libros de gestiones y NO reusa etiquetaGestion,
+   que llamaria «sin gestionar» a cada WhatsApp real. Y no inventa un «hace 14 h»
+   sobre una fecha sin hora.
+   La anotacion decide si gasta el contacto de la semana con un hecho —quien
+   busco a quien— mas el tipo, nunca con una casilla que Joan pueda apagar.
+   Toca panel/crm.html y panel/nube.js. */
+const CACHE = 'tugarantia-v63';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
