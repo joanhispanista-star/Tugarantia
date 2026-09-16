@@ -447,3 +447,12 @@ end $$;
 --   select clave, length(valor) as largo from public.config_privada
 --    where clave like 'infobip%';
 -- ===========================================================================
+
+/* QUE POSTGREST SE ENTERE. Sin esto, las funciones nuevas existen en la base y
+   PostgREST sigue contestando 404 sobre ellas hasta que algo lo reinicie: el CRM
+   dice «tu nube todavia no sabe hacer esto» sobre algo que SI acaba de quedar
+   hecho, y se pierde la tarde buscando el error en el sitio equivocado.
+   Faltaba en esta migracion, en la de la ruleta y en la del asesor — las tres
+   del trabajo reciente. Se corrio a mano el 16-sep-2026 y se agrega aqui para
+   que quien la vuelva a correr no dependa de acordarse. */
+notify pgrst, 'reload schema';
