@@ -419,11 +419,76 @@
         plantilla: clave,
         mensaje_sms: sms,
         mensaje_voz: voz,
-        pedazos_sms: med.pedazos
+        pedazos_sms: med.pedazos,
+        /* 16-sep-2026 — DE QUIEN ES ESTA FILA. Hasta hoy la fila solo llevaba el
+           celular, y el CRM tenia que volver a buscar al socio por telefono para
+           cualquier cosa. Esa busqueda FALLA en silencio con quien tiene el
+           WhatsApp en otro numero: el mensaje se manda a waNum(socio) pero la
+           busqueda compara contra socio.telefono, no empareja, y el contacto no
+           se anota. O sea que a esa persona la reja de la Ley 2300 la deja
+           recibir otro mensaje la misma semana.
+           El id no entra al CSV: COLUMNAS lo proyecta aparte, a proposito. */
+        socio_id: texto(c.socioId),
+        credito_id: texto(c.id)
       });
     });
 
     return { filas: filas, sinTelefono: sinTelefono, caros: caros, salidos: salidos };
+  }
+
+  /* ==========================================================================
+   * QUIEN PIDIO NO RECIBIR — y por que no basta con mirar un numero
+   *
+   * La salida (opt-out) es obligatoria en Colombia: quien responde SALIR no
+   * puede volver a recibir. El CRM marcaba al socio con `noSMS` y despues
+   * armaba la lista de excluidos leyendo SOLO `socio.telefono`.
+   *
+   * El problema: el mensaje NO se manda a `telefono`, se manda a `waNum(socio)`,
+   * que para quien tiene el WhatsApp en otro numero es `whatsappNumero`. Asi
+   * que a esa persona se le seguia escribiendo despues de haber pedido salir,
+   * porque el numero al que le llegaba nunca estuvo en la lista de excluidos.
+   *
+   * Se guardan LOS DOS numeros. Si alguno de los dos dijo basta, es la persona
+   * la que dijo basta — no una de sus lineas.
+   * ======================================================================== */
+  function numerosQueSalieron(socios) {
+    var fuera = [];
+    (Array.isArray(socios) ? socios : []).forEach(function (s) {
+      if (!s || !s.noSMS) return;
+      [s.telefono, s.whatsappNumero].forEach(function (n) {
+        var d = celular10(n);
+        if (d && fuera.indexOf(d) < 0) fuera.push(d);
+      });
+    });
+    return fuera;
+  }
+
+  /* ==========================================================================
+   * LO QUE HAY QUE ANOTAR DESPUES DE MANDAR
+   *
+   * Una gestion por fila, emparejada por `socio_id` y NUNCA por telefono. El
+   * CRM lo hacia por telefono y se tragaba en silencio a todo el que tuviera el
+   * WhatsApp en otro numero (un `if (!s) return;` mudo): esos contactos no
+   * quedaban escritos, y la reja de la semana no los contaba.
+   *
+   * No adivina nada ni decide a quien escribirle: traduce filas a renglones.
+   * ======================================================================== */
+  function gestionesDeEnvio(filas, canal, ahoraISO, hoy) {
+    var c = canal === 'voz' ? 'voz' : 'sms';
+    return (Array.isArray(filas) ? filas : []).map(function (f) {
+      return {
+        socio_id: texto(f && f.socio_id),
+        gestion: {
+          fecha: texto(hoy),
+          hora: texto(ahoraISO),
+          canal: c,
+          plantilla: texto(f && f.plantilla),
+          tipo: 'cobro',
+          grupo: 'cobranzas',
+          origen: 'crm'
+        }
+      };
+    });
   }
 
   /* ------------------------------------------------------------- el CSV */
@@ -486,6 +551,9 @@
     /* el archivo */
     COLUMNAS: COLUMNAS,
     filasDeEnvio: filasDeEnvio,
-    aCSV: aCSV
+    aCSV: aCSV,
+    /* la salida y el rastro */
+    numerosQueSalieron: numerosQueSalieron,
+    gestionesDeEnvio: gestionesDeEnvio
   };
 }));

@@ -543,9 +543,40 @@ describe('la salida, que en Colombia es obligatoria (15-sep-2026)', () => {
     const i = CRM.indexOf('function pantallaEnvioMasivo');
     const cuerpo = CRM.slice(i, CRM.indexOf('\nfunction bajarCSVEnvio', i));
     assert.match(cuerpo, /sinSMS: salieron/, 'la pantalla no excluye a los que pidieron salir');
-    assert.match(cuerpo, /x\.noSMS/, 'no lee la marca de la ficha');
+    assert.match(cuerpo, /numerosQueSalieron\(DB\.socios\)/,
+      'la lista de salidos no sale de la regla compartida: si se vuelve a armar a mano acá, ' +
+      'vuelve la fuga del que tiene el WhatsApp en otro número');
     assert.ok(CRM.indexOf('function cambiarSalidaSMS') > -1,
       'no hay forma de marcar que alguien pidió salir');
+  });
+
+  test('QUIEN PIDIÓ SALIR NO RECIBE, aunque tenga el WhatsApp en otro número', () => {
+    /* 16-sep-2026 — ESTO ERA UNA FUGA VIVA, y de las que no se ven.
+       El mensaje se manda a waNum(socio): para quien tiene `whatsappIgual:false`
+       ese número es `whatsappNumero`, NO `telefono`. La lista de excluidos se
+       armaba leyendo solo `telefono`, así que a esa persona se le seguía
+       escribiendo después de haber pedido salir. La salida es obligatoria en
+       Colombia, y la pidió la persona, no una de sus líneas.
+
+       Esta prueba EJECUTA el módulo. La de arriba solo mira que el CRM llame a
+       la regla; esta mira que la regla haga lo que dice.
+       MUTANTE QUE CAZA: volver a `socios.filter(x => x.noSMS).map(x => x.telefono)`,
+       que es exactamente el código que estuvo vivo hasta hoy. */
+    const socios = [{ id: 'S9', noSMS: true, whatsappIgual: false,
+                      telefono: '3001111111', whatsappNumero: '3002222222' }];
+    const fuera = E.numerosQueSalieron(socios);
+    assert.ok(fuera.indexOf('3001111111') > -1, 'no excluyó el teléfono de la ficha');
+    assert.ok(fuera.indexOf('3002222222') > -1,
+      'no excluyó el número de WhatsApp, que es justo al que le llega el mensaje');
+
+    /* Y el caso completo: el caso viaja con el número de WhatsApp, porque es el
+       que usa waNum. Tiene que caer en `salidos`, no en `filas`. */
+    const caso = { id: 'C9', socioId: 'S9', telefono: '3002222222',
+                   nombre: 'Pedro', saldo: 50000, fecha_pago: '2026-09-20' };
+    const r = E.filasDeEnvio([caso], { sinSMS: fuera });
+    assert.equal(r.filas.length, 0,
+      'a alguien que pidió no recibir mensajes se le está mandando uno');
+    assert.equal(r.salidos.length, 1, 'no quedó registrado como salido');
   });
 
   test('el CRM avisa que en Colombia el remitente NO puede decir «Tu Garantia»', () => {
@@ -662,7 +693,27 @@ describe('las dos pestañas nuevas (15-sep-2026)', () => {
     const c = trozo('function renderCobranzas', 'function marcarCob');
     const i = c.indexOf('cajaF.innerHTML');
     assert.ok(i > -1);
-    assert.equal(/type=checkbox/.test(c.slice(i)), false,
+
+    /* 16-sep-2026 — ESTE CENTINELA ESTABA CIEGO Y LO ESTUVO SIEMPRE. Buscaba
+       `type=checkbox` SIN comillas, y el archivo escribe `type="checkbox"` CON
+       comillas en sus ocho casillas: el unico `type=checkbox` desnudo de todo
+       crm.html es un selector de CSS dentro de un querySelectorAll, que ni
+       siquiera cae en este trozo. O sea que la regla de la que cuelga la Ley
+       2300 en esta pantalla nunca comprobo nada.
+       MEDIDO: se le metio un `<input type="checkbox">` a la tabla de excluidos
+       —la de la gente que la ley dejo fuera— y las 1.779 pruebas siguieron en
+       verde.
+
+       Por eso ahora son DOS aserciones, y la primera es la importante: obliga a
+       que el patron reconozca las casillas que ESTE archivo escribe de verdad.
+       Sin ella, cualquiera puede volver a dejar el guardian de adorno cambiando
+       una comilla. Un centinela que no puede fallar no es un centinela. */
+    const CASILLA = /type\s*=\s*["']?checkbox/i;
+    assert.ok(CASILLA.test(c.slice(0, i)),
+      'el patron no reconoce las casillas que escribe este archivo: el centinela ' +
+      'no esta vigilando nada. (La tabla de arriba SI tiene casillas; si no las ve, ' +
+      'tampoco vera las que alguien meta abajo.)');
+    assert.equal(CASILLA.test(c.slice(i)), false,
       'la tabla de excluidos trae casillas: se puede agregar a alguien que la ley excluyó');
   });
 
@@ -723,9 +774,35 @@ describe('las dos pestañas nuevas (15-sep-2026)', () => {
   });
 
   test('anotar el contacto guarda el CANAL — el tope semanal es por canal', () => {
-    const c = trozo('function anotarContactos', 'COMERCIAL');
-    assert.ok(c.indexOf("canal: canal === 'voz' ? 'voz' : 'sms'") > -1);
-    assert.ok(c.indexOf('gestiones.push') > -1);
+    /* Reescrita el 16-sep-2026 para EJECUTAR. Miraba el texto de anotarContactos
+       buscando la expresión del canal; cuando esa expresión se mudó a la regla
+       compartida, la prueba se puso roja sin que nada se hubiera roto — y al
+       revés, habría aprobado un `if(false)` alrededor del push. */
+    const g = E.gestionesDeEnvio(
+      [{ socio_id: 'S1', plantilla: 'venceHoy' }], 'voz', '2026-09-16T10:00:00Z', '2026-09-16');
+    assert.equal(g.length, 1);
+    assert.equal(g[0].gestion.canal, 'voz', 'el canal no viaja: el tope semanal es POR canal');
+    assert.equal(E.gestionesDeEnvio([{ socio_id: 'S1' }], 'sms', 'x', 'y')[0].gestion.canal, 'sms');
+    assert.equal(E.gestionesDeEnvio([{ socio_id: 'S1' }], 'loquesea', 'x', 'y')[0].gestion.canal, 'sms',
+      'un canal desconocido tiene que caer del lado seguro');
+  });
+
+  test('NINGÚN contacto se pierde al anotarlo, ni el del WhatsApp aparte', () => {
+    /* El CRM buscaba al socio por teléfono y se lo tragaba con un `if (!s) return;`
+       mudo. Con quien tiene el WhatsApp en otro número no emparejaba nunca, así
+       que ese contacto no quedaba escrito — y lo que no queda escrito no lo
+       cuenta la reja de «un contacto por semana» de la Ley 2300.
+       MUTANTE QUE CAZA: emparejar por teléfono en vez de por socio_id; con tres
+       filas de las que una tiene el WhatsApp aparte, devuelve 2 y calla la 3ª. */
+    const filas = [{ socio_id: 'S1', celular: '3001111111' },
+                   { socio_id: 'S2', celular: '3002222222' },
+                   { socio_id: 'S3', celular: '3003333333' }];
+    const g = E.gestionesDeEnvio(filas, 'sms', '2026-09-16T10:00:00Z', '2026-09-16');
+    assert.equal(g.length, 3, 'se perdió un contacto al anotarlo');
+    assert.deepEqual(g.map(x => x.socio_id), ['S1', 'S2', 'S3'],
+      'las gestiones no salieron emparejadas con su socio');
+    assert.ok(g.every(x => x.gestion.fecha && x.gestion.hora),
+      'falta la fecha o la hora: sin eso el registro no prueba cuándo se contactó');
   });
 });
 

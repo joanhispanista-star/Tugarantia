@@ -33,6 +33,10 @@ function abrirPanel(opciones) {
     id, value: '', checked: false, textContent: '', innerHTML: '',
     dataset: {}, style: {}, classList: { add() {}, remove() {}, toggle() {} },
     addEventListener() {}, querySelector: () => elem(id + '>hijo'),
+    /* 16-sep-2026 — `click()` faltaba, y sin el ninguna prueba podia ejecutar una
+       descarga: el patron <a> + click() es como este CRM baja el respaldo y el
+       CSV de cobranzas. Se anota para poder comprobar QUE se bajo. */
+    click() { (ctx._clics = ctx._clics || []).push({ href: this.href, nombre: this.download }); },
     querySelectorAll: () => [], appendChild() {}, setAttribute() {}, focus() {},
     /* `remove()` es un metodo de verdad de cualquier elemento y al banco le
        faltaba. Sin el, un `caja.remove()` que en un navegador funciona reventaba
@@ -101,7 +105,12 @@ function abrirPanel(opciones) {
     TextEncoder, TextDecoder, URL, Intl, Date, Math, JSON,
     btoa: s => Buffer.from(s, 'binary').toString('base64'),
     atob: s => Buffer.from(s, 'base64').toString('binary'),
-    Blob: class {},
+    /* 16-sep-2026 — EL Blob DE VERDAD, no un cascarón. Era `class {}`, y como
+       `URL` sí es el de Node, `URL.createObjectURL(new Blob(...))` reventaba con
+       «must be an instance of Blob. Received an instance of Blob» — el error más
+       confuso posible. Con eso, ninguna prueba podía ejecutar una descarga: ni
+       el respaldo, ni el CSV de cobranzas. */
+    Blob: Blob,
     /* 15-sep-2026 — UN FileReader QUE DE VERDAD LEE. Era `class {}`, un cascaron,
        y por eso importar() —el SEGUNDO escritor de la cartera, el que reemplaza
        todo— no lo habia ejecutado ninguna prueba en la vida: solo se miraba su
@@ -140,6 +149,20 @@ function abrirPanel(opciones) {
      pasa a cargar para poder mandar una contrapropuesta a cuotas sin pasarse. */
   if (!o.sinCreditos) ctx.CreditosPublicables = require(path.join(RAIZ, 'app', 'creditos.js'));
   if (!o.sinBases) ctx.BasesTuGarantia = require(path.join(RAIZ, 'app', 'bases.js'));
+  /* 16-sep-2026 — LOS DOS DE COBRANZAS, que faltaban. El CRM los toma de
+     window.CobranzaEnvio y window.TandaTuGarantia, y el banco no se los daba:
+     toda la pestaña de Cobranzas —la que manda mensajes de cobro y la que
+     aplica los topes de la Ley 2300— NUNCA se habia ejecutado en una prueba.
+     Por eso TODOS sus centinelas miraban el texto del archivo, y por eso el que
+     vigila que no se pueda agregar a alguien que la ley excluyo estuvo ciego
+     desde que se escribio.
+     `sinCobranza: true` simula que ese <script src> no llego, que es lo que
+     pasa con un service worker viejo, y es la rama que pinta «Faltan los
+     archivos cobranza-envio.js o tanda.js». */
+  if (!o.sinCobranza) {
+    ctx.CobranzaEnvio = require(path.join(RAIZ, 'app', 'cobranza-envio.js'));
+    ctx.TandaTuGarantia = require(path.join(RAIZ, 'panel', 'tanda.js'));
+  }
   vm.createContext(ctx);
 
   const bloques = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)];

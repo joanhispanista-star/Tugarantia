@@ -2107,8 +2107,12 @@ function pantallaEnvioMasivo() {
   /* Los que dijeron SALIR. Se guardan en la ficha del socio (noSMS) porque es
      un dato del cliente, no de esta pantalla: manana Joan abre su ficha y tiene
      que ver que pidio no recibir mensajes. */
-  var salieron = DB.socios.filter(function (x) { return x.noSMS; })
-                          .map(function (x) { return x.telefono || ''; });
+  /* 16-sep-2026 — LOS DOS NUMEROS, no solo el de la ficha. El mensaje se manda
+     a waNum(socio), que para quien tiene el WhatsApp aparte NO es `telefono`:
+     asi que a quien pidio SALIR y tiene otro WhatsApp se le seguia escribiendo,
+     porque el numero al que le llegaba nunca estuvo en esta lista. La salida es
+     obligatoria en Colombia y la pedia la persona, no una de sus lineas. */
+  var salieron = E.numerosQueSalieron(DB.socios);
   var r = E.filasDeEnvio(t.pendientes || [], { telefono: tel, sinSMS: salieron });
   _envio = { filas: r.filas, tanda: t, horario: hor, resumen: r };
 
@@ -2259,7 +2263,7 @@ function marcarEnviados(canal) {
  * tabla, con el motivo, y sin casilla.
  * ========================================================================= */
 
-var _cob = { filas: [], fuera: [], marcados: {}, ultimo: null };
+var _cob = { filas: [], fuera: [], marcados: {}, ultimo: null, lote: null };
 
 function cobranzasListas() {
   var E = window.CobranzaEnvio, T = window.TandaTuGarantia;
@@ -2269,8 +2273,12 @@ function cobranzasListas() {
   var t = T.armarTanda(casos, { hoy: hoyISO(), horario: hor, tipo: 'cobro',
                                 grupo: 'cobranzas', saltados: [] });
   var tel = (DB.config && (DB.config.whatsapp || DB.config.telefono)) || '';
-  var salieron = DB.socios.filter(function (x) { return x.noSMS; })
-                          .map(function (x) { return x.telefono || ''; });
+  /* 16-sep-2026 — LOS DOS NUMEROS, no solo el de la ficha. El mensaje se manda
+     a waNum(socio), que para quien tiene el WhatsApp aparte NO es `telefono`:
+     asi que a quien pidio SALIR y tiene otro WhatsApp se le seguia escribiendo,
+     porque el numero al que le llegaba nunca estuvo en esta lista. La salida es
+     obligatoria en Colombia y la pedia la persona, no una de sus lineas. */
+  var salieron = E.numerosQueSalieron(DB.socios);
   var r = E.filasDeEnvio(t.pendientes || [], { telefono: tel, sinSMS: salieron });
   return { horario: hor, tanda: t, envio: r };
 }
@@ -2292,8 +2300,11 @@ function renderCobranzas() {
   _cob.fuera = t.fuera || [];
   /* Al recalcular, todos marcados: el caso normal es mandarle a todos, y
      destildar es la excepcion. */
+  /* 16-sep-2026 — POR socio_id Y NO POR CELULAR. Dos fichas con el mismo
+     celular (la pareja que comparte linea, una ficha repetida) compartian
+     casilla: Joan destildaba a una y el mensaje se le iba a la otra igual. */
   _cob.marcados = {};
-  r.filas.forEach(function (f) { _cob.marcados[f.celular] = true; });
+  r.filas.forEach(function (f) { _cob.marcados[f.socio_id] = true; });
 
   var suma = r.filas.reduce(function (a, f) { return a + Number(f.monto || 0); }, 0);
   var piezas = r.filas.reduce(function (a, f) { return a + Number(f.pedazos_sms || 1); }, 0);
@@ -2308,28 +2319,55 @@ function renderCobranzas() {
     escHTML(hor.motivo) + '.</b> La Ley 2300 mira la hora en que LLEGA el mensaje. ' +
     'Puedes mirar la lista, pero el envío queda bloqueado.</div>';
 
+  /* 16-sep-2026 — LA BARRA SE PINTA SIEMPRE, y no solo cuando hay a quien
+     escribirle. Estaba dentro del `else`, y fuera de horario la reja excluye a
+     TODOS de una sola vez (el horario es la primera compuerta de tanda.js): la
+     lista queda vacia y desaparecia la barra entera. O sea que a las siete y
+     cinco de la noche Joan entraba a anotar lo que mando al mediodia y no tenia
+     un solo boton. Los dos botones de ENVIAR siguen naciendo apagados fuera de
+     horario; los demas no, porque anotar y bajar no es contactar. */
+  var hayLote = !!(_cob.lote && _cob.lote.socios && _cob.lote.socios.length);
+  var barra =
+    '<div style="padding:12px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+      (r.filas.length
+        ? '<button class="btn btn-ghost btn-sm" onclick="marcarTodoCob(true)">Marcar todos</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="marcarTodoCob(false)">Ninguno</button>'
+        : '') +
+      '<span style="flex:1"></span>' +
+      (hayLote
+        ? '<button class="btn btn-azul btn-sm" onclick="marcarLoteEnviado()">✅ Ya les escribí por fuera (' +
+            _cob.lote.socios.length + ')</button>'
+        : '') +
+      (r.filas.length
+        ? '<button class="btn btn-negro btn-sm" onclick="bajarCSVCobranzas()">⤓ Bajar CSV</button>' +
+          '<button class="btn btn-rojo btn-sm" id="btnEnvSMS" onclick="enviarCobranzas(\'sms\')"' +
+            (hor.ok ? '' : ' disabled') + '>✉️ Enviar texto</button>' +
+          '<button class="btn btn-rojo btn-sm" id="btnEnvVoz" onclick="enviarCobranzas(\'voz\')"' +
+            (hor.ok ? '' : ' disabled') + '>📞 Enviar voz</button>'
+        : '') +
+    '</div>' +
+    (hayLote
+      ? '<div class="alerta info" style="margin:0 14px 10px;font-size:13px">Bajaste <b>' +
+        escHTML(_cob.lote.archivo) + '</b> con <b>' + _cob.lote.socios.length + '</b> persona(s). ' +
+        'Cuando los mandes desde tu plataforma, dale a <b>«Ya les escribí por fuera»</b> — si no, ' +
+        'el CRM no sabe que ya les escribiste y mañana te los vuelve a ofrecer. Ese segundo ' +
+        'mensaje en la misma semana es el que la ley no deja.</div>'
+      : '');
+
   if (!r.filas.length) {
-    caja.innerHTML = aviso + '<div class="empty"><div class="ic">✅</div><p>Nadie a quien escribirle ahora.<br>' +
+    caja.innerHTML = aviso + barra +
+      '<div class="empty"><div class="ic">✅</div><p>Nadie a quien escribirle ahora.<br>' +
       '<span class="muted">Mira abajo por qué.</span></p></div>';
   } else {
-    caja.innerHTML = aviso +
-      '<div style="padding:12px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
-        '<button class="btn btn-ghost btn-sm" onclick="marcarTodoCob(true)">Marcar todos</button>' +
-        '<button class="btn btn-ghost btn-sm" onclick="marcarTodoCob(false)">Ninguno</button>' +
-        '<span style="flex:1"></span>' +
-        '<button class="btn btn-negro btn-sm" onclick="bajarCSVCobranzas()">⤓ Bajar CSV</button>' +
-        '<button class="btn btn-rojo btn-sm" id="btnEnvSMS" onclick="enviarCobranzas(\'sms\')"' +
-          (hor.ok ? '' : ' disabled') + '>✉️ Enviar texto</button>' +
-        '<button class="btn btn-rojo btn-sm" id="btnEnvVoz" onclick="enviarCobranzas(\'voz\')"' +
-          (hor.ok ? '' : ' disabled') + '>📞 Enviar voz</button>' +
-      '</div>' +
+    caja.innerHTML = aviso + barra +
       '<div class="muted" style="padding:0 14px 8px;font-size:12px">Destilda a quien no quieras. ' +
       'Lo que no se puede es <b>agregar</b> a alguien de la tabla de abajo: esos topes no tienen casilla.</div>' +
       '<table><thead><tr><th style="width:34px"></th><th>Cliente</th><th>Debe</th><th>Créditos</th>' +
         '<th>Vence</th><th>El mensaje que le llega</th></tr></thead><tbody>' +
       r.filas.map(function (f) {
-        return '<tr><td><input type="checkbox" ' + (_cob.marcados[f.celular] ? 'checked' : '') +
-            ' onchange="marcarCob(\'' + f.celular + '\',this.checked)"></td>' +
+        return '<tr><td><input type="checkbox" data-socio="' + escHTML(f.socio_id) + '" ' +
+            (_cob.marcados[f.socio_id] ? 'checked' : '') +
+            ' onchange="marcarCob(\'' + f.socio_id + '\',this.checked)"></td>' +
           '<td><b>' + escHTML(f.nombre_completo) + '</b><div class="muted">' + escHTML(f.celular) + '</div></td>' +
           '<td class="num">' + COP(f.monto) + '</td>' +
           '<td class="num">' + (f.creditos > 1 ? '<b>' + f.creditos + '</b>' : '1') + '</td>' +
@@ -2361,21 +2399,26 @@ function renderCobranzas() {
   }
 }
 
-function marcarCob(cel, v) { _cob.marcados[cel] = !!v; }
+function marcarCob(socioId, v) { _cob.marcados[socioId] = !!v; }
 function marcarTodoCob(v) {
-  _cob.filas.forEach(function (f) { _cob.marcados[f.celular] = !!v; });
+  _cob.filas.forEach(function (f) { _cob.marcados[f.socio_id] = !!v; });
   renderCobranzasMarcas();
 }
 function renderCobranzasMarcas() {
   var t = document.getElementById('tblCobranzas');
   if (!t) return;
-  var cajas = t.querySelectorAll('input[type=checkbox]');
-  for (var i = 0; i < cajas.length && i < _cob.filas.length; i++) {
-    cajas[i].checked = !!_cob.marcados[_cob.filas[i].celular];
+  /* 16-sep-2026 — CADA CASILLA SABE DE QUIEN ES. Antes se emparejaba por
+     POSICION: cajas[i] contra _cob.filas[i]. La primera casilla que alguien
+     metiera dentro de esta caja —un filtro, una fila de totales— corria todas
+     las marcas un puesto, y Joan destildaba a Pedro para que el mensaje le
+     llegara a Maria. Sin un error en pantalla. */
+  var cajas = t.querySelectorAll('input[type="checkbox"][data-socio]');
+  for (var i = 0; i < cajas.length; i++) {
+    cajas[i].checked = !!_cob.marcados[cajas[i].getAttribute('data-socio')];
   }
 }
 function filasMarcadas() {
-  return _cob.filas.filter(function (f) { return _cob.marcados[f.celular]; });
+  return _cob.filas.filter(function (f) { return _cob.marcados[f.socio_id]; });
 }
 
 function verVozDe(cel) {
@@ -2392,12 +2435,87 @@ function bajarCSVCobranzas() {
   var E = window.CobranzaEnvio;
   var filas = filasMarcadas();
   if (!E || !filas.length) { alert('No hay nadie marcado.'); return; }
+  var nombre = 'cobranza-' + hoyISO() + '.csv';
   var b = new Blob([E.aCSV(filas)], { type: 'text/csv;charset=utf-8' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(b);
-  a.download = 'cobranza-' + hoyISO() + '.csv';
+  a.download = nombre;
   a.click();
   setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  /* 16-sep-2026 — SE GUARDA QUE SE BAJO, Y A QUIENES. Hasta hoy esta funcion
+     descargaba el archivo y no dejaba rastro de nada: Joan mandaba 80 mensajes
+     desde el portal y el CRM no se enteraba. Al dia siguiente le volvia a
+     ofrecer a la misma gente, y ESE segundo mensaje dentro de la misma semana
+     es justo el que prohibe la Ley 2300. Como Infobip todavia no esta
+     encendido, este es EL camino que Joan usa de verdad.
+     Se guardan los socio_id y no las filas enteras: lo unico que hace falta
+     despues es saber a quien. */
+  _cob.lote = { cuando: new Date().toISOString(), archivo: nombre,
+                socios: filas.map(function (f) { return f.socio_id; }),
+                plantillas: filas.map(function (f) { return f.plantilla || ''; }) };
+  renderCobranzas();
+}
+
+/* ===========================================================================
+ * «YA LES ESCRIBI POR FUERA» — el boton que no estaba en la lista de Joan y que
+ * es el que mas le ahorra.
+ *
+ * Mientras el envio desde el CRM no este encendido, Joan baja el CSV, lo sube a
+ * su plataforma y los mensajes salen de alli. El CRM nunca se enteraba. Y lo
+ * que el CRM no sabe, la reja de la Ley 2300 no lo cuenta: al dia siguiente le
+ * ofrece a los mismos, y el segundo contacto de la semana es el ilegal.
+ *
+ * TRES DECISIONES, y cada una viene de un modo de equivocarse:
+ *
+ * 1. Anota sobre EL LOTE QUE SE BAJO, no sobre lo que este marcado ahora. Entre
+ *    bajar el archivo y subirlo al portal pasa un rato, y cualquier repintado
+ *    de la pantalla vuelve a marcar a todos. Anotar «los que esten marcados»
+ *    escribiria contactos que nunca salieron.
+ *
+ * 2. Pregunta QUE DIA salieron, con hoy por defecto. La ley mira la hora en que
+ *    LLEGA el mensaje, no la del clic, y un archivo se puede subir al otro dia.
+ *
+ * 3. Pregunta el canal, porque el tope semanal es POR CANAL: si salieron por
+ *    voz y se anota como texto, la cuenta queda mal en los dos lados.
+ * ========================================================================= */
+function marcarLoteEnviado() {
+  var L = _cob.lote;
+  if (!L || !L.socios.length) {
+    alert('Todavia no has bajado ningun archivo.\n\nBaja el CSV primero, subelo a tu ' +
+          'plataforma, y despues vuelve y marca que ya salieron.');
+    return;
+  }
+  var cuando = new Date(L.cuando);
+  var hora = isFinite(cuando) ? (' a las ' + String(cuando.getHours()).padStart(2, '0') + ':' +
+                                 String(cuando.getMinutes()).padStart(2, '0')) : '';
+  var canal = prompt('¿Por cual canal salieron?\n\nEscribe  texto  o  voz', 'texto');
+  if (canal === null) return;
+  canal = String(canal).trim().toLowerCase();
+  if (canal !== 'texto' && canal !== 'voz' && canal !== 'sms') {
+    alert('No entendi «' + canal + '». Escribe texto o voz.'); return;
+  }
+  var dia = prompt('¿Que dia LLEGARON los mensajes?\n\nLa ley mira el dia en que le llegan al ' +
+                   'cliente, no el dia en que bajaste el archivo.\n\nDejalo asi si fue hoy.', hoyISO());
+  if (dia === null) return;
+  dia = String(dia).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) { alert('Esa fecha no tiene la forma 2026-09-16.'); return; }
+
+  if (!confirm('Anotar los ' + L.socios.length + ' de ' + L.archivo + ', que bajaste' + hora + '.\n\n' +
+               'Canal: ' + (canal === 'voz' ? 'mensaje de voz' : 'mensaje de texto') + '\n' +
+               'Llegaron el: ' + dia + '\n\n' +
+               'Solo dale si YA los mandaste de verdad. Esto le dice al CRM que a esta gente ' +
+               'ya se le escribio esta semana, y no te la va a volver a ofrecer.')) return;
+
+  var filas = L.socios.map(function (id, i) {
+    return { socio_id: id, plantilla: L.plantillas[i] || '' };
+  });
+  var r = anotarContactos(filas, canal === 'voz' ? 'voz' : 'sms', dia);
+  _cob.lote = null;
+  renderCobranzas();
+  if (!r.perdidos) {
+    alert('Listo: quedaron anotados ' + r.anotados + ' contacto(s) del ' + dia + '.\n\n' +
+          'Esa gente ya no te va a aparecer para escribirle esta semana.');
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -2462,10 +2580,27 @@ function enviarCobranzas(canal) {
     })
     .catch(function (e) {
       if (b1) b1.disabled = false; if (b2) b2.disabled = false;
-      var m = String((e && e.message) || e);
+      /* 16-sep-2026 — ESTE CONSEJO ERA CODIGO MUERTO, Y EL QUE SI SALIA ESTABA
+         MAL. rpc() rechaza con un objeto plano {motivo}, SIN `message`, asi que
+         String((e&&e.message)||e) daba '[object Object]' y /404/ era false
+         SIEMPRE: la rama que nombra el archivo correcto no se ejecuto nunca. Lo
+         que le llegaba a Joan era el motivo generico de rpc(), que le manda a
+         «volver a correr base/supabase.sql completo» — y ese archivo NO
+         contiene enviar_mensajes (medido: cero apariciones). O sea que el CRM
+         le hacia perder la tarde corriendo el archivo equivocado.
+         Ahora se mira el motivo, que es donde rpc() de verdad escribe. */
+      var m = String((e && (e.motivo || e.message)) || e);
+      var faltaLaMigracion = /404/.test(m) || /todav[ií]a no tiene/i.test(m) ||
+                             /enviar_mensajes/.test(m);
       openModal('No salió', '<div class="alerta warn"><b>No se envió nada.</b><br>' +
-        (/404/.test(m)
-          ? 'La nube todavía no sabe enviar: falta pegar <b>base/20260918_infobip.sql</b>.'
+        (faltaLaMigracion
+          ? 'Tu nube todavía no sabe enviar mensajes. Falta pegar <b>base/20260918_infobip.sql</b> ' +
+            'en el editor SQL de Supabase, y después pegar tu llave de Infobip (las tres líneas ' +
+            'comentadas al final de ese mismo archivo).<br><br>' +
+            '<b>No corras base/supabase.sql:</b> ese archivo no tiene esta función y no arregla nada.' +
+            '<br><br>Mientras tanto, usa <b>⤓ Bajar CSV</b> y súbelo a tu plataforma a mano — ' +
+            'y cuando lo hagas, marca <b>«Ya les escribí por fuera»</b> para que la cuenta de ' +
+            'la Ley 2300 no se pierda.'
           : escHTML(errNube(e))) + '</div>');
     });
 }
@@ -2486,19 +2621,50 @@ function verEstadoEnvio(pid) {
 
 /* Anotar el contacto en la ficha de cada socio. Es de donde sale el tope
    semanal de la Ley 2300. */
-function anotarContactos(filas, canal) {
-  var hoy = hoyISO(), ahora = new Date().toISOString();
-  filas.forEach(function (f) {
-    var s = DB.socios.find(function (x) {
-      return String(x.telefono || '').replace(/\D/g, '').slice(-10) === f.celular;
-    });
-    if (!s) return;
+/* ESTO ES LO QUE HACE QUE LA REJA DE LA SEMANA CUENTE. Si un contacto no se
+   anota aca, la Ley 2300 no se entera de que ocurrio y a esa persona se le
+   puede volver a escribir dentro de la misma semana.
+
+   16-sep-2026 — BUSCABA AL SOCIO POR TELEFONO Y SE LO TRAGABA EN SILENCIO.
+   El mensaje se manda a waNum(socio) —que para quien tiene el WhatsApp aparte
+   es `whatsappNumero`— pero la busqueda comparaba contra `socio.telefono`. No
+   emparejaba, caia en un `if (!s) return;` mudo, y el contacto no quedaba
+   escrito. Justo con la gente que tiene dos lineas, que es la que mas se
+   confunde con un segundo mensaje.
+   Ahora se empareja por socio_id, que la fila ya trae, y lo que no empareje se
+   CUENTA y se dice. Un contacto que no se pudo anotar es un riesgo legal, no
+   un detalle: Joan tiene que saber que ese quedo sin registrar. */
+function anotarContactos(filas, canal, diaQueLlego) {
+  /* `diaQueLlego` existe porque la Ley 2300 mira el dia en que el mensaje LE
+     LLEGA al cliente, no el dia del clic: un CSV se puede subir al portal al
+     dia siguiente. Sin parametro, hoy. */
+  var hoy = diaQueLlego || hoyISO(), ahora = new Date().toISOString();
+  var perdidos = 0;
+  /* `E` es local en cada funcion de esta pestaña, no global. Faltaba aca, y lo
+     encontro correr el boton, no leerlo: sin señal el archivo no llega y esta
+     funcion reventaba justo despues de mandar los mensajes — o sea que los
+     contactos salian y NINGUNO quedaba anotado. */
+  var E = window.CobranzaEnvio;
+  if (!E) {
+    alert('No se pudieron anotar los contactos: falta el archivo cobranza-envio.js.\n\n' +
+          'Recarga la pagina y anotalos a mano, o el CRM te va a volver a ofrecer a esta ' +
+          'gente esta misma semana.');
+    return { anotados: 0, perdidos: filas.length };
+  }
+  E.gestionesDeEnvio(filas, canal, ahora, hoy).forEach(function (r) {
+    var s = r.socio_id ? DB.socios.find(function (x) { return String(x.id) === r.socio_id; }) : null;
+    if (!s) { perdidos++; return; }
     s.gestiones = s.gestiones || [];
-    s.gestiones.push({ fecha: hoy, hora: ahora, canal: canal === 'voz' ? 'voz' : 'sms',
-                       plantilla: f.plantilla || '', tipo: 'cobro', grupo: 'cobranzas',
-                       origen: 'crm' });
+    s.gestiones.push(r.gestion);
   });
   guardar();
+  if (perdidos) {
+    alert('OJO: se mandaron los mensajes, pero ' + perdidos + ' contacto(s) no quedaron ' +
+          'anotados en la ficha del cliente.\n\nEso quiere decir que la cuenta de «un contacto ' +
+          'por semana» de la Ley 2300 no los cuenta, y el CRM te los puede volver a ofrecer ' +
+          'esta semana. Anotalos a mano en la ficha de esos clientes.');
+  }
+  return { anotados: filas.length - perdidos, perdidos: perdidos };
 }
 
 /* ===========================================================================

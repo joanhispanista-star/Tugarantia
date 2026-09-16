@@ -320,7 +320,19 @@
    gemelos que se robaban la foto del otro), e importar() deja de llamar
    «invalido» a un respaldo que solo no cupo.
    Toca panel/crm.html, panel/nube.js, panel/subir.html y panel/traer.html. */
-const CACHE = 'tugarantia-v61';
+/* v62 - 16-sep-2026. COBRANZAS: que lo que se manda quede escrito. Tres fugas
+   que se tapaban entre si. (1) Bajar el CSV no dejaba rastro: Joan manda 80
+   mensajes desde su plataforma, el CRM no se entera, y al dia siguiente le
+   ofrece a los mismos — ese segundo mensaje en la misma semana es el que la Ley
+   2300 prohibe. Entra el boton «Ya les escribi por fuera», que pregunta el canal
+   y QUE DIA llegaron. (2) Quien pidio SALIR seguia recibiendo si tenia el
+   WhatsApp en otro numero: la lista de excluidos leia `telefono` y el mensaje va
+   a waNum(socio). (3) Al anotar el contacto se buscaba al socio por telefono,
+   con el mismo desfase, y lo que no emparejaba caia en un `if (!s) return;`
+   mudo. Ademas el consejo de «no salio» mandaba a correr base/supabase.sql, que
+   no contiene enviar_mensajes.
+   Toca panel/crm.html y app/cobranza-envio.js. */
+const CACHE = 'tugarantia-v62';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
