@@ -159,6 +159,14 @@ function abrirPanel(opciones) {
      `sinCobranza: true` simula que ese <script src> no llego, que es lo que
      pasa con un service worker viejo, y es la rama que pinta «Faltan los
      archivos cobranza-envio.js o tanda.js». */
+  /* 16-sep-2026 — el modulo de gestion del asesor, que tampoco estaba: por eso
+     las pantallas del equipo (mensajearEq, contactarEq, anotarGestionEq) nunca
+     se habian ejecutado en una prueba. Y una de ellas resulto ser la unica ruta
+     de envio que no consultaba la lista de quienes pidieron SALIR. */
+  if (!o.sinGestionAsesor) {
+    ctx.GestionAsesor = require(path.join(RAIZ, 'app', 'gestion-asesor.js'));
+    ctx.AsesorTextos = require(path.join(RAIZ, 'app', 'asesor-textos.js'));
+  }
   if (!o.sinCobranza) {
     ctx.CobranzaEnvio = require(path.join(RAIZ, 'app', 'cobranza-envio.js'));
     ctx.TandaTuGarantia = require(path.join(RAIZ, 'panel', 'tanda.js'));

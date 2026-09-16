@@ -8257,11 +8257,46 @@ function mensajearEq(id, canal) {
     plantilla: plantillaSMSDe(p.etapa)
   };
   var tel = (CARTERA_EQUIPO.yo && CARTERA_EQUIPO.yo.celular) || '';
-  var f = E.filasDeEnvio([caso], { telefono: tel });
+
+  /* 16-sep-2026 — LA LISTA DE «SALIR», QUE AQUI NO SE CONSULTABA.
+     Esta era la UNICA de las tres rutas de envio que no pasaba `sinSMS`, asi que
+     a quien respondio SALIR se le seguia escribiendo de a uno. Medido: con la
+     lista, cero mensajes; sin ella, uno. La salida es obligatoria en Colombia y
+     no depende de por que pantalla se mande.
+
+     Y HAY UN SEGUNDO HUECO QUE ESTE ARREGLO NO TAPA, dicho aqui para que no se
+     olvide: `noSMS` NO viaja en la cartera del equipo (no esta en el SQL de
+     20260910_equipo_en_la_nube.sql). O sea que un ASESOR no tiene ni el dato.
+     Mientras eso no se arregle en la base, si no se puede comprobar, no se
+     manda: callarlo seria escribirle a quien pidio que no. */
+  var salidos = [];
+  var puedoComprobar = false;
+  try {
+    if (Array.isArray(DB.socios) && DB.socios.length) {
+      salidos = E.numerosQueSalieron(DB.socios);
+      puedoComprobar = true;
+    }
+  } catch (e) {}
+
+  if (!puedoComprobar) {
+    openModal('No puedo comprobar la salida',
+      '<div class="alerta warn"><b>No se manda.</b> Desde esta pantalla no puedo comprobar si ' +
+      escHTML(p.nombre || 'esta persona') + ' pidió no recibir mensajes.<br><br>' +
+      'Quien responde <b>SALIR</b> no puede volver a recibir, y eso es obligatorio en Colombia. ' +
+      'El dato está en la ficha del cliente, y la cartera del equipo todavía no lo trae.' +
+      '<div class="muted" style="margin-top:8px">Mientras tanto, escríbele por WhatsApp desde su ' +
+      'ficha, donde sí se ve si pidió salir.</div></div>');
+    return;
+  }
+
+  var f = E.filasDeEnvio([caso], { telefono: tel, sinSMS: salidos });
   if (!f.filas.length) {
     openModal('No se puede', '<div class="alerta warn">' +
-      (f.sinTelefono.length ? 'Esa persona no tiene un celular válido en su ficha.'
-                            : 'No pude armar el mensaje.') + '</div>');
+      (f.salidos && f.salidos.length
+        ? '<b>' + escHTML(p.nombre || 'Esa persona') + ' pidió no recibir mensajes</b> ' +
+          '(respondió SALIR). No se le puede escribir, y eso no tiene casilla.'
+        : f.sinTelefono.length ? 'Esa persona no tiene un celular válido en su ficha.'
+                               : 'No pude armar el mensaje.') + '</div>');
     return;
   }
   var fila = f.filas[0];

@@ -355,7 +355,15 @@
    entero de nueve textos, asi que un mapa a medias le mandaba al cliente la
    palabra «undefined» pegada al aviso de salida. Ahora se mezcla.
    Toca panel/crm.html y app/cobranza-envio.js. */
-const CACHE = 'tugarantia-v64';
+/* v65 - 16-sep-2026. A quien respondio SALIR se le seguia escribiendo por una
+   de las tres rutas de envio: la de a uno, la del asesor, no pasaba `sinSMS` en
+   absoluto. Medido: con la lista cero mensajes, sin ella uno. La salida es
+   obligatoria en Colombia y no depende de por que pantalla se mande.
+   Y hay un segundo hueco que este arreglo NO tapa y queda dicho: `noSMS` no
+   viaja en la cartera del equipo, asi que un asesor no tiene ni el dato. Se
+   adopta la regla del resto del proyecto: si no se puede comprobar, no se manda.
+   Toca panel/crm.html. */
+const CACHE = 'tugarantia-v65';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
