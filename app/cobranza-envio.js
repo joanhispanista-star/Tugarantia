@@ -362,11 +362,33 @@
    * @param op     {telefono, sinSMS:[celular], plantillas:{sms,voz}}
    * @returns {{filas:Array, sinTelefono:Array, caros:Array}}
    */
+  /* Los textos de la casa, pisados solo donde Joan escribio algo suyo. Un texto
+     vacio NO cuenta como escrito: borrar el contenido de una plantilla en el
+     editor tiene que devolver la de la casa, no dejar al cliente sin mensaje. */
+  function mezclar(base, propias) {
+    var r = {};
+    Object.keys(base).forEach(function (k) { r[k] = base[k]; });
+    Object.keys(propias || {}).forEach(function (k) {
+      var v = texto(propias[k]).trim();
+      if (v) r[k] = v;
+    });
+    return r;
+  }
+
   function filasDeEnvio(casos, op) {
     var o = op || {};
     var tel = texto(o.telefono);
-    var pSMS = (o.plantillas && o.plantillas.sms) || SMS;
-    var pVOZ = (o.plantillas && o.plantillas.voz) || VOZ;
+    /* 16-sep-2026 — LAS PLANTILLAS PROPIAS SE MEZCLAN, NO REEMPLAZAN.
+       Esto decia `(o.plantillas && o.plantillas.sms) || SMS`, o sea que un mapa
+       a medias reemplazaba los NUEVE textos de una. Y como el respaldo de abajo
+       es `pSMS[clave] || pSMS.venceHoy`, si faltaba la clave Y faltaba venceHoy,
+       al cliente le llegaba literalmente:
+           «undefined Responde SALIR para no recibir mas.»
+       Corrido antes de cambiarlo. Y se paga igual que cualquier otro SMS.
+       Mezclando, lo que Joan escriba pisa solo lo que escribio; lo demas sigue
+       siendo el texto de la casa, que ya esta medido y sin tildes. */
+    var pSMS = mezclar(SMS, o.plantillas && o.plantillas.sms);
+    var pVOZ = mezclar(VOZ, o.plantillas && o.plantillas.voz);
 
     var filas = [], sinTelefono = [], caros = [], salidos = [];
 

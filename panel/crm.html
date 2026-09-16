@@ -566,6 +566,14 @@
       <div class="ph"><div><h1>Cobranzas<span class="dot">.</span></h1><div class="sub">A quién le toca hoy, cuánto debe en total, y el mensaje que le va a llegar</div></div>
         <button class="btn btn-ghost" onclick="renderCobranzas()">↻ Recalcular</button></div>
       <div class="kpis" id="kpiCobranzas"></div>
+      <!-- 16-sep-2026 — LA BARRA DE ESTRATEGIA VA AQUÍ, FUERA de #tblCobranzas.
+           Y no es estética: la barra de botones de la tabla se escribe dentro de
+           `caja.innerHTML`, y renderCobranzasMarcas recorre las casillas de ese
+           contenedor. Cualquier control con casilla metido ahí adentro
+           desalinearía las marcas. Éste es su hermano, no su hijo. -->
+      <div class="card"><div class="card-h"><h3>🎯 Tu estrategia de hoy</h3>
+        <span class="tag">Elige entre los que la ley deja contactar</span></div>
+        <div id="estrategiaCob" style="padding:12px 14px"></div></div>
       <div class="card"><div class="card-h"><h3>📣 Quién puede recibir mensaje hoy</h3>
         <span class="tag">La lista ya pasó por los topes de la Ley 2300</span></div>
         <div id="tblCobranzas"></div></div>
@@ -2044,7 +2052,16 @@ function casosDeCobroHoy() {
 
      Se suma ANTES de armar los casos porque tanda.js va a quedarse con uno solo
      de ellos, y el que sobreviva tiene que llevar la cuenta completa. */
-  var totales = {}, cuantos = {};
+  /* 16-sep-2026 — Y EL RESUMEN POR PERSONA, por la misma razon y en el mismo
+     bucle. Las estrategias («vencen hoy», «mora de mas de 15 dias») preguntan
+     por el CREDITO, y despues de la deduplicacion de tanda.js solo sobrevive UNO
+     por persona: el de corte mas antiguo. Medido: alguien con un credito en mora
+     de agosto y otro que vence hoy conserva el de agosto, asi que un filtro que
+     mirara `caso.credito` lo haria DESAPARECER de «vencen hoy» — ni arriba ni
+     abajo, simplemente no estaria.
+     Por eso la estrategia pregunta por la PERSONA: su peor mora y todos los
+     estados que tiene abiertos. */
+  var totales = {}, cuantos = {}, moraMax = {}, estados = {}, incumplidos = {};
   DB.prestamos.forEach(function (p) {
     var est = estadoPrestamo(p);
     if (['mora', 'hoy', 'proximo'].indexOf(est) < 0) return;
@@ -2053,6 +2070,10 @@ function casosDeCobroHoy() {
     if (!k) return;
     totales[k] = (totales[k] || 0) + totalCiclo(p);
     cuantos[k] = (cuantos[k] || 0) + 1;
+    var dm = diasMora(p);
+    if (dm > (moraMax[k] || 0)) moraMax[k] = dm;
+    (estados[k] = estados[k] || {})[est] = true;
+    if (acuerdoIncumplido(p)) incumplidos[k] = true;
   });
 
   DB.prestamos.forEach(function (p) {
@@ -2071,6 +2092,11 @@ function casosDeCobroHoy() {
       saldo_total: totales[s.id] || totalCiclo(p),
       cuantos: cuantos[s.id] || 1,
       fecha_pago: PUENTE.corteDelCredito(p) || '',
+      /* Lo de la PERSONA, para que las estrategias no dependan del credito que
+         sobreviva a la deduplicacion. */
+      mora_max: moraMax[s.id] || 0,
+      estados: Object.keys(estados[s.id] || {}),
+      incumplio: !!incumplidos[s.id],
       plantilla: acuerdoIncumplido(p) ? 'mora' : plantillaPara(p),
       prioridad: acuerdoIncumplido(p) ? 0 : 1,
       orden: PUENTE.corteDelCredito(p) || ''
@@ -2274,7 +2300,8 @@ function marcarEnviados(canal) {
  * tabla, con el motivo, y sin casilla.
  * ========================================================================= */
 
-var _cob = { filas: [], fuera: [], marcados: {}, ultimo: null, lote: null };
+var _cob = { filas: [], fuera: [], marcados: {}, ultimo: null, lote: null,
+             estrategia: 'todos', tope: null, cumplen: 0 };
 
 function cobranzasListas() {
   var E = window.CobranzaEnvio, T = window.TandaTuGarantia;
@@ -2290,8 +2317,34 @@ function cobranzasListas() {
      porque el numero al que le llegaba nunca estuvo en esta lista. La salida es
      obligatoria en Colombia y la pedia la persona, no una de sus lineas. */
   var salieron = E.numerosQueSalieron(DB.socios);
-  var r = E.filasDeEnvio(t.pendientes || [], { telefono: tel, sinSMS: salieron });
-  return { horario: hor, tanda: t, envio: r };
+
+  /* 16-sep-2026 — LA ESTRATEGIA CORRE AQUI, Y EL SITIO ES LA GARANTIA.
+     Despues de armarTanda y sobre lo que ella devolvio: asi el filtro solo puede
+     QUITAR, nunca agregar a nadie que la Ley 2300 haya dejado fuera. Y se aplica
+     a las DOS listas —a la de los que si se pueden y a la de los que no— porque
+     un filtro que solo encoge la de arriba deja a Joan preguntandose donde
+     quedaron los demas, y termina rehaciendo la lista a mano por fuera del CRM.
+
+     Ademas los casos todavia traen `socio` y `credito` enteros en este punto, asi
+     que una estrategia puede preguntar por lo que sea sin volver a consultar DB
+     —que es justo el camino por el que podria colarse alguien—. */
+  var estrategia = _cob.estrategia || 'todos';
+  var pendientes = filtrarCasos(t.pendientes || [], estrategia);
+  var fueraFiltrada = (t.fuera || []).filter(function (f) {
+    return filtrarCasos([f.caso || {}], estrategia).length > 0;
+  });
+  var cumplen = pendientes.length + fueraFiltrada.length;
+
+  var r = E.filasDeEnvio(pendientes, {
+    telefono: tel, sinSMS: salieron,
+    /* Las plantillas propias de Joan, si escribio alguna. Se MEZCLAN con las de
+       la casa: lo que no haya tocado sigue siendo el texto medido y sin tildes. */
+    plantillas: (DB.config && DB.config.plantillasSMS) ? { sms: DB.config.plantillasSMS,
+                                                           voz: DB.config.plantillasVOZ || {} } : null
+  });
+  return { horario: hor, tanda: { pendientes: pendientes, fuera: fueraFiltrada },
+           envio: r, estrategia: estrategia, cumplen: cumplen,
+           totalSinFiltrar: (t.pendientes || []).length + (t.fuera || []).length };
 }
 
 function renderCobranzas() {
@@ -2309,6 +2362,7 @@ function renderCobranzas() {
   var r = todo.envio, t = todo.tanda, hor = todo.horario;
   _cob.filas = r.filas;
   _cob.fuera = t.fuera || [];
+  _cob.cumplen = todo.cumplen || 0;
   /* Al recalcular, todos marcados: el caso normal es mandarle a todos, y
      destildar es la excepcion. */
   /* 16-sep-2026 — POR socio_id Y NO POR CELULAR. Dos fichas con el mismo
@@ -2324,6 +2378,18 @@ function renderCobranzas() {
     '<div class="kpi"><div class="et">💵 Lo que suman</div><div class="nm">' + COP(suma) + '</div><div class="x">todos sus créditos vencidos</div></div>' +
     '<div class="kpi alert"><div class="et">🚫 Fuera hoy</div><div class="nm">' + (t.fuera || []).length + '</div><div class="x">con su motivo abajo</div></div>' +
     '<div class="kpi"><div class="et">✉️ SMS que se pagan</div><div class="nm">' + piezas + '</div><div class="x">uno por persona</div></div>';
+
+  /* 16-sep-2026 — LOS QUE SE PAGAN DOBLE. filasDeEnvio calcula `caros` en cada
+     envio y no se pintaba en ninguna parte del CRM: Joan lo descubria en la
+     factura. Un SMS de mas de 160 caracteres se cobra por pedazos. */
+  var caros = (r.caros || []);
+  var avisoCaros = !caros.length ? '' :
+    '<div class="alerta warn" style="margin:14px;font-size:13px"><b>' + caros.length +
+    ' mensaje(s) se pagan más de una vez.</b> Un texto pasa de 160 caracteres y se cobra por ' +
+    'pedazos: ' + escHTML(caros.slice(0, 3).map(function (c) {
+      return (c.caso && c.caso.nombre ? c.caso.nombre : '?') + ' (' + (c.medida ? c.medida.pedazos : '?') + ')';
+    }).join(', ')) + (caros.length > 3 ? ' y ' + (caros.length - 3) + ' más' : '') +
+    '. Acórtalos en <b>✍️ Mi mensaje</b>.</div>';
 
   var aviso = hor.ok ? '' :
     '<div class="alerta warn" style="margin:14px"><b>Ahora no se puede cobrar: ' +
@@ -2349,6 +2415,7 @@ function renderCobranzas() {
         ? '<button class="btn btn-azul btn-sm" onclick="marcarLoteEnviado()">✅ Ya les escribí por fuera (' +
             _cob.lote.socios.length + ')</button>'
         : '') +
+      '<button class="btn btn-ghost btn-sm" onclick="editorMensajes()">✍️ Mi mensaje</button>' +
       (r.filas.length
         ? '<button class="btn btn-negro btn-sm" onclick="bajarCSVCobranzas()">⤓ Bajar CSV</button>' +
           '<button class="btn btn-rojo btn-sm" id="btnEnvSMS" onclick="enviarCobranzas(\'sms\')"' +
@@ -2366,11 +2433,11 @@ function renderCobranzas() {
       : '');
 
   if (!r.filas.length) {
-    caja.innerHTML = aviso + barra +
+    caja.innerHTML = aviso + avisoCaros + barra +
       '<div class="empty"><div class="ic">✅</div><p>Nadie a quien escribirle ahora.<br>' +
       '<span class="muted">Mira abajo por qué.</span></p></div>';
   } else {
-    caja.innerHTML = aviso + barra +
+    caja.innerHTML = aviso + avisoCaros + barra +
       '<div class="muted" style="padding:0 14px 8px;font-size:12px">Destilda a quien no quieras. ' +
       'Lo que no se puede es <b>agregar</b> a alguien de la tabla de abajo: esos topes no tienen casilla.</div>' +
       '<table><thead><tr><th style="width:34px"></th><th>Cliente</th><th>Debe</th><th>Créditos</th>' +
@@ -2449,6 +2516,7 @@ function renderCobranzas() {
               botonesDeFila(c.socioId || '', c.id || '', c.cuantos || 1) + '</td></tr>';
         }).join('') + '</tbody></table>';
   }
+  try { pintarEstrategia(); } catch (e) {}
 }
 
 /* Los dos botones con los que Joan trabaja una fila, en LAS DOS tablas.
@@ -2502,10 +2570,23 @@ var CANAL_HISTORIA = {
   llamada:  { ic: '📲', et: 'Llamada' }
 };
 
+/* Los nombres de las plantillas DE SMS, que son otras que las de WhatsApp: viven
+   en app/cobranza-envio.js y PLANTILLAS_DEF no las conoce. Sin este mapa la
+   tabla pintaba la clave cruda, «variasMora», que no le dice nada a Joan. */
+var NOMBRE_SMS = {
+  venceHoy: 'Vence hoy',
+  moraTemprana: 'Atrasado pocos días',
+  mora: 'Atrasado hace rato',
+  recordatorio1: 'Recordatorio · 1 día antes',
+  recordatorio2: 'Recordatorio · 2 días antes',
+  variasHoy: 'Varios créditos · vence hoy',
+  variasMora: 'Varios créditos · atrasado',
+  presentacion: 'Presentación',
+  invitacion: 'Invitación'
+};
 function nombreDePlantilla(k) {
   if (!k) return '';
-  var p = (DB.plantillas && DB.plantillas[k]) ? null : null;
-  return (PLANTILLAS_DEF[k] && PLANTILLAS_DEF[k].t) || String(k);
+  return NOMBRE_SMS[k] || (PLANTILLAS_DEF[k] && PLANTILLAS_DEF[k].t) || String(k);
 }
 
 /* CUANDO PASO, y la regla incomoda: el tiempo relativo SOLO si hay hora.
@@ -2596,6 +2677,244 @@ function pagoDesdeCobro(socioId, creditoId, cuantos) {
     escHTML(String(cuantos)) + ' creditos vencidos, y el mensaje de cobro los suma todos. ' +
     'Escoge a cual entra este pago — el CRM no lo adivina, porque el recibo sale con ese monto.</div>' +
     bloqueCreditosHTML(s));
+}
+
+/* ===========================================================================
+ * LA ESTRATEGIA — 16 de septiembre de 2026
+ *
+ * Joan: «dandome la opcion de seleccionar a mis clientes segun mi estrategia».
+ *
+ * LO QUE PUEDE Y LO QUE NO PUEDE HACER, dicho de una vez porque es el corazon
+ * del asunto: una estrategia ELIGE ENTRE los que la Ley 2300 ya dejo pasar. No
+ * puede agregar a nadie de la tabla de abajo. Esa tabla no es un filtro de la
+ * casa que se pueda aflojar: son los topes de la ley, y no tienen casilla de
+ * «yo autorizo».
+ *
+ * Y eso no es una promesa escrita en un comentario: es una consecuencia de
+ * DONDE corre el filtro. Se aplica DESPUES de armarTanda y sobre la lista que
+ * ella devuelve, asi que es matematicamente incapaz de agregar a nadie — solo
+ * puede quitar. Un filtro que consultara DB por su cuenta si podria, y por eso
+ * no se hace asi.
+ *
+ * LAS ESTRATEGIAS PREGUNTAN POR LA PERSONA, NO POR EL CREDITO. armarTanda se
+ * queda con UN caso por persona —el de corte mas antiguo—, asi que preguntarle
+ * al credito haria desaparecer de «vencen hoy» a quien tiene uno viejo en mora
+ * y otro que vence hoy. Por eso cada caso trae `mora_max`, `estados` y
+ * `cuantos`, calculados sobre TODOS sus creditos.
+ * ========================================================================= */
+var ESTRATEGIAS = [
+  { id: 'todos',    et: 'Todos los que puedo hoy', ayuda: 'Sin filtrar',
+    pasa: function () { return true; } },
+  { id: 'hoy',      et: 'Vencen hoy', ayuda: 'Les vence hoy alguno de sus créditos',
+    pasa: function (c) { return (c.estados || []).indexOf('hoy') > -1; } },
+  { id: 'frescos',  et: 'Recién atrasados', ayuda: 'De 1 a 7 días de mora: los que más responden',
+    pasa: function (c) { return c.mora_max >= 1 && c.mora_max <= 7; } },
+  { id: 'viejos',   et: 'Mora de más de 15 días', ayuda: 'Los que llevan más tiempo',
+    pasa: function (c) { return c.mora_max > 15; } },
+  { id: 'gordos',   et: 'Los que más deben', ayuda: 'De mayor a menor, por el total de todos sus créditos',
+    pasa: function () { return true; },
+    orden: function (a, b) { return (b.saldo_total || 0) - (a.saldo_total || 0); } },
+  { id: 'rompieron', et: 'Rompieron el acuerdo', ayuda: 'Pactaron una fecha y no cumplieron',
+    pasa: function (c) { return !!c.incumplio; } },
+  { id: 'varios',   et: 'Deben varios créditos', ayuda: 'Dos o más créditos vencidos',
+    pasa: function (c) { return (c.cuantos || 1) > 1; } },
+  { id: 'nunca',    et: 'Nunca les he escrito', ayuda: 'No tienen ni una gestión anotada',
+    pasa: function (c) { return !((c.socio && c.socio.gestiones) || []).length; } }
+];
+
+/** Los casos que cumplen una estrategia. NO consulta DB: solo filtra y ordena
+    lo que le entregan, que es lo que la hace incapaz de agregar a nadie. */
+function filtrarCasos(casos, idEstrategia) {
+  var e = ESTRATEGIAS.find(function (x) { return x.id === idEstrategia; }) || ESTRATEGIAS[0];
+  var r = (casos || []).filter(function (c) { return e.pasa(c); });
+  if (e.orden) r = r.slice().sort(e.orden);
+  return r;
+}
+
+function elegirEstrategia(id) {
+  _cob.estrategia = id;
+  _cob.tope = null;              /* el tope es de la estrategia anterior */
+  renderCobranzas();
+}
+
+/* «Solo los primeros N»: MARCA los primeros y deja el resto sin marcar. No los
+   saca de la lista — siguen ahi, visibles, sin casilla puesta. Es lo que hace
+   usable la pestaña con cien clientes sin quemarle el contacto de la semana a
+   los otros ochenta, y sin esconderselos. */
+function soloLosPrimeros(n) {
+  n = Math.max(0, Number(n) || 0);
+  _cob.tope = n || null;
+  _cob.marcados = {};
+  _cob.filas.forEach(function (f, i) { _cob.marcados[f.socio_id] = n ? (i < n) : true; });
+  renderCobranzasMarcas();
+  pintarEstrategia();
+}
+
+function pintarEstrategia() {
+  var caja = document.getElementById('estrategiaCob'); if (!caja) return;
+  var act = _cob.estrategia || 'todos';
+  var e = ESTRATEGIAS.find(function (x) { return x.id === act; }) || ESTRATEGIAS[0];
+  var marcados = _cob.filas.filter(function (f) { return _cob.marcados[f.socio_id]; }).length;
+
+  caja.innerHTML =
+    '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+      ESTRATEGIAS.map(function (x) {
+        return '<button class="btn btn-sm ' + (x.id === act ? 'btn-negro' : 'btn-ghost') +
+          '" onclick="elegirEstrategia(\'' + x.id + '\')" title="' + escHTML(x.ayuda) + '">' +
+          escHTML(x.et) + '</button>';
+      }).join('') +
+    '</div>' +
+    '<div class="muted" style="margin-top:8px;font-size:12.5px">' + escHTML(e.ayuda) + '.</div>' +
+
+    /* LA FRASE COMPLETA, con los dos numeros. Un filtro que solo dice cuantos
+       quedaron arriba deja a Joan preguntandose donde estan los demas — y
+       termina rehaciendo la lista a mano por fuera del CRM, que es justo lo que
+       esta pantalla existe para evitar. */
+    '<div class="alerta info" style="margin-top:10px;font-size:13px">' +
+      (_cob.cumplen === 0
+        ? 'Nadie cumple esta estrategia hoy.'
+        : 'De los <b>' + _cob.cumplen + '</b> que cumplen esta estrategia, hoy se le puede ' +
+          'escribir a <b>' + _cob.filas.length + '</b>.' +
+          (_cob.cumplen > _cob.filas.length
+            ? (_cob.cumplen - _cob.filas.length === 1
+                ? ' El otro está abajo, con su motivo.'
+                : ' Los otros <b>' + (_cob.cumplen - _cob.filas.length) + '</b> están abajo, con su motivo.')
+            : '')) +
+    '</div>' +
+
+    (_cob.filas.length
+      ? '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">' +
+          '<span style="font-size:13px">Escribirle solo a los primeros</span>' +
+          '<input id="cobTope" type="number" min="1" max="' + _cob.filas.length + '" ' +
+            'style="width:80px" value="' + (_cob.tope || _cob.filas.length) + '">' +
+          '<button class="btn btn-ghost btn-sm" onclick="soloLosPrimeros(document.getElementById(\'cobTope\').value)">Marcar esos</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="soloLosPrimeros(0)">Marcar todos</button>' +
+          '<span class="muted" style="font-size:12.5px">Marcados ahora: <b>' + marcados + '</b></span>' +
+        '</div>' +
+        '<div class="muted" style="margin-top:6px;font-size:12px">Los que no marques <b>no reciben ' +
+        'nada y conservan su semana</b>: les puedes escribir mañana.</div>'
+      : '');
+}
+
+/* ===========================================================================
+ * TU PROPIO MENSAJE — 16 de septiembre de 2026
+ *
+ * Joan: «un boton de mensaje de texto en el que yo pueda hacer mensajes
+ * personalizados o mensajes grupales».
+ *
+ * EL GANCHO YA ESTABA CONSTRUIDO Y SIN USAR desde el 15 de septiembre:
+ * filasDeEnvio acepta plantillas por opciones y el CRM nunca se las pasaba.
+ *
+ * SON DOS TEXTOS, NO UNO, y esa es la parte que importa:
+ *   · el normal, para quien debe UN credito;
+ *   · y el de quien debe VARIOS, que tiene que decir cuantos.
+ * El porque esta escrito en casosDeCobroHoy y es de plata: la ley obliga a UN
+ * contacto por persona, asi que a quien debe tres creditos se le escribe UNA
+ * vez. Si ese mensaje unico habla de un solo credito, el cliente paga ese, cree
+ * que quedo al dia, y a la semana recibe otro cobro que no entiende — y tendria
+ * razon. Por eso el de varios EXIGE el {cuantos} o no deja guardar.
+ *
+ * Y LA VISTA PREVIA ENSEÑA LO QUE DE VERDAD SALE, no lo que Joan tecleo.
+ * filasDeEnvio pasa el SMS por sinTildes, que borra tildes y emoji ANTES de
+ * medir. Joan escribe «¡Pagueme hoy 🙏» y al cliente le llega «Pagueme hoy».
+ * Enseñar el borrador seria mentirle sobre dos cosas a la vez: sobre lo que
+ * lee el cliente y sobre lo que cuesta.
+ * ========================================================================= */
+var CAMPOS_MENSAJE = [
+  { clave: 'venceHoy',  et: 'Le vence hoy',            exige: null },
+  { clave: 'moraTemprana', et: 'Atrasado pocos días',  exige: null },
+  { clave: 'mora',      et: 'Atrasado hace rato',      exige: null },
+  { clave: 'variasHoy', et: 'Debe VARIOS y vence hoy', exige: '{cuantos}' },
+  { clave: 'variasMora', et: 'Debe VARIOS y atrasado', exige: '{cuantos}' }
+];
+
+function editorMensajes() {
+  var E = window.CobranzaEnvio;
+  if (!E) { alert('Falta el archivo cobranza-envio.js. Recarga la pagina.'); return; }
+  var propias = (DB.config && DB.config.plantillasSMS) || {};
+  openModal('✍️ Tu propio mensaje de texto',
+    '<div class="muted" style="margin-bottom:12px">Lo que dejes vacío sigue saliendo con el texto ' +
+    'de la casa, que ya está medido y sin tildes. Puedes usar <b class="mono">{nombre}</b>, ' +
+    '<b class="mono">{saldo}</b>, <b class="mono">{fecha_pago}</b>, <b class="mono">{cuantos}</b> y ' +
+    '<b class="mono">{telefono}</b>.</div>' +
+    '<div class="alerta warn" style="font-size:12.5px">El aviso de salida ' +
+    '(«Responde SALIR…») se le pega solo a todos los mensajes y <b>no se puede quitar</b>: en ' +
+    'Colombia no es cortesía, es condición para poder mandarlos.</div>' +
+    CAMPOS_MENSAJE.map(function (c) {
+      return '<div class="field" style="margin-top:12px"><label>' + escHTML(c.et) +
+        (c.exige ? ' <span class="muted">(tiene que decir ' + escHTML(c.exige) + ')</span>' : '') +
+        '</label><textarea id="pm_' + c.clave + '" maxlength="300" rows="2" ' +
+        'oninput="previaMensaje(\'' + c.clave + '\')" placeholder="' +
+        escHTML(E.SMS[c.clave] || '') + '">' + escHTML(propias[c.clave] || '') + '</textarea>' +
+        '<div id="pv_' + c.clave + '" class="help"></div></div>';
+    }).join('') +
+    '<button class="btn btn-rojo" style="margin-top:10px;width:100%" onclick="guardarMensajes()">Guardar mis mensajes</button>' +
+    '<button class="btn btn-ghost btn-sm" style="margin-top:6px;width:100%" onclick="borrarMensajes()">Volver a los textos de la casa</button>');
+  CAMPOS_MENSAJE.forEach(function (c) { previaMensaje(c.clave); });
+}
+
+/** La vista previa: lo que SALE, medido ya limpio y con el aviso pegado. */
+function previaMensaje(clave) {
+  var E = window.CobranzaEnvio;
+  var ta = document.getElementById('pm_' + clave);
+  var caja = document.getElementById('pv_' + clave);
+  if (!E || !ta || !caja) return;
+  var borrador = String(ta.value || '');
+  if (!borrador.trim()) {
+    caja.innerHTML = '<span class="muted">Sale el texto de la casa.</span>';
+    return;
+  }
+  /* Se arma la fila DE VERDAD con un caso de ejemplo, en vez de medir el
+     borrador: es la unica forma de enseñar lo que lee el cliente. */
+  var ejemplo = { id: 'X', socioId: 'X', telefono: '3001234567', nombre: 'Maria Rodriguez',
+                  saldo: 180000, saldo_total: 180000, cuantos: 1, fecha_pago: hoyISO() };
+  if (clave.slice(0, 6) === 'varias') { ejemplo.cuantos = 3; ejemplo.saldo_total = 540000; }
+  var p = {}; p[clave] = borrador;
+  var f = E.filasDeEnvio([ejemplo], { telefono: numeroActivoWA(),
+                                      plantillas: { sms: p } }).filas[0];
+  if (!f) { caja.innerHTML = '<span class="muted">—</span>'; return; }
+  var sale = f.mensaje_sms;
+  var med = E.pedazosSMS(sale);
+  var cambio = E.sinTildes(borrador) !== borrador.replace(/\s+/g, ' ').trim();
+  caja.innerHTML =
+    '<div style="margin-top:4px"><b>Al cliente le llega:</b> «' + escHTML(sale) + '»</div>' +
+    '<div style="margin-top:2px">' + med.caracteres + ' caracteres · ' +
+      (med.pedazos === 1
+        ? '<b>1 mensaje</b>'
+        : '<b style="color:var(--rojo)">' + med.pedazos + ' mensajes</b> — se paga ' + med.pedazos + ' veces') +
+    '</div>' +
+    (cambio ? '<div class="alerta warn" style="font-size:12px;margin-top:4px">Le quité las tildes y ' +
+      'los emoji: <b>una sola tilde cuadruplica el precio</b> del SMS. Así es como sale.</div>' : '');
+}
+
+function guardarMensajes() {
+  var malos = [];
+  var propias = {};
+  CAMPOS_MENSAJE.forEach(function (c) {
+    var v = String(((document.getElementById('pm_' + c.clave) || {}).value) || '').trim();
+    if (!v) return;
+    if (c.exige && v.indexOf(c.exige) < 0) { malos.push(c.et + ' tiene que decir ' + c.exige); return; }
+    propias[c.clave] = v;
+  });
+  if (malos.length) {
+    alert('No pude guardar:\n\n· ' + malos.join('\n· ') +
+          '\n\nPor qué: la ley te deja UN mensaje por persona. Si a quien debe tres créditos le ' +
+          'escribes de uno solo, paga ese, cree que quedó al día, y a la semana le llega otro ' +
+          'cobro que no entiende. El {cuantos} es lo que evita eso.');
+    return;
+  }
+  DB.config.plantillasSMS = propias;
+  guardar(); cerrarModal(); renderCobranzas();
+  alert(Object.keys(propias).length
+    ? 'Listo: guardé ' + Object.keys(propias).length + ' mensaje(s) tuyo(s). Los demás siguen ' +
+      'saliendo con el texto de la casa.'
+    : 'No dejaste ninguno escrito, así que todo sale con los textos de la casa.');
+}
+
+function borrarMensajes() {
+  if (!confirm('¿Volver a los textos de la casa? Se borran los tuyos.')) return;
+  DB.config.plantillasSMS = {};
+  guardar(); cerrarModal(); renderCobranzas();
 }
 
 /* ===========================================================================

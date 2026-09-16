@@ -343,7 +343,19 @@
    La anotacion decide si gasta el contacto de la semana con un hecho —quien
    busco a quien— mas el tipo, nunca con una casilla que Joan pueda apagar.
    Toca panel/crm.html y panel/nube.js. */
-const CACHE = 'tugarantia-v63';
+/* v64 - 16-sep-2026. La estrategia y el mensaje propio, lo ultimo que faltaba
+   de lo que pidio Joan. Ocho estrategias que eligen ENTRE los que la Ley 2300
+   ya dejo pasar: el filtro corre despues de armarTanda y sobre lo que ella
+   devuelve, asi que es incapaz de agregar a nadie. Preguntan por la PERSONA y
+   no por el credito, porque la deduplicacion conserva el de corte mas antiguo y
+   mirar el credito haria desaparecer de «vencen hoy» a quien debe varios.
+   Mas el editor de mensajes propios, con vista previa de lo que DE VERDAD sale
+   (sinTildes borra tildes y emoji antes de medir) y con el contador midiendo el
+   texto ya limpio. Y el arreglo de plata: `plantillas` REEMPLAZABA el mapa
+   entero de nueve textos, asi que un mapa a medias le mandaba al cliente la
+   palabra «undefined» pegada al aviso de salida. Ahora se mezcla.
+   Toca panel/crm.html y app/cobranza-envio.js. */
+const CACHE = 'tugarantia-v64';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
