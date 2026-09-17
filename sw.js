@@ -448,7 +448,20 @@
    Toca play/index.html, play/estilo.css, app/socio.html e index.html. EL
    NUMERO SUBE POR LA HOJA: play/estilo.css se sirve cache-primero, asi que sin
    esto el telefono que ya visito el sitio pinta el «powered by» sin su estilo. */
-const CACHE = 'tugarantia-v71';
+/* v72 - 17-sep-2026. UNA FOTO A LA VEZ. Medido: no habia nada que impidiera
+   tocar la caja del frente mientras el lector todavia masticaba el reverso, y
+   cuando eso pasa se SUMAN los dos picos de memoria — unos 48 MB de la segunda
+   decodificacion encima de los ~25 MB que el lector tiene vivos. Entre 76 y 84
+   megas, en el peor momento del telefono y justo cuando la persona acaba de
+   volver de la camara. Ese es el caso que de verdad descarta la pestaña.
+   Es el hermano del defecto que se arreglo el 16 DENTRO de una foto (tres
+   decodificaciones de la misma) y que quedo abierto ENTRE dos.
+   Con el mismo numero: el <input> se vacia siempre (suelta los 3-4 MB del
+   archivo de la camara y deja reintentar con la misma foto de la galeria) y el
+   lienzo del escaner del rostro deja de reservarse entero en cada cuadro —eran
+   unos 33 MB por segundo de basura durante todo el escaneo—.
+   Toca play/index.html. */
+const CACHE = 'tugarantia-v72';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -1215,15 +1215,87 @@ function comprimirVarias(file, tamanos) {
    todo y la persona volvía a empezar.
    Ahora la foto queda guardada antes de que nada más pueda fallar. Leer el
    código de barras es una comodidad: ahorra teclear. Perder la foto no lo es. */
+/* ---------------------------------------------------------------------------
+   UNA FOTO A LA VEZ — 17-sep-2026, y es el caso que de verdad tumba la pestaña.
+
+   Medido: no había NADA que impidiera tocar la caja del frente mientras el
+   lector todavía masticaba el reverso, y cuando eso pasa se SUMAN los dos
+   picos — la decodificación de la segunda foto (unos 48 MB en una cámara de
+   12 MP) encima de los ~25 MB que el lector tiene vivos. Entre 76 y 84 megas,
+   justo en el peor momento de memoria del teléfono. Ahí es donde el sistema
+   descarta la pestaña, y como la persona acaba de volver de la cámara, se la
+   lleva por delante mientras está guardando.
+
+   Es el mismo defecto que el 16-sep se arregló DENTRO de una foto (tres
+   decodificaciones de la misma) y que quedó abierto ENTRE dos fotos.
+
+   EL CERROJO NO ENCOLA, Y ES A PROPÓSITO: encolar obligaría a quedarse con el
+   archivo de la cámara —3 o 4 megas— vivo mientras tanto, que es justo lo que
+   hay que evitar. Le dice que espere, y le devuelve su etiqueta cuando de
+   verdad puede.
+
+   EL VIGILANTE DE VEINTE SEGUNDOS no es adorno: `cargarScript` puede no llamar
+   nunca ni a onload ni a onerror si el navegador se queda a medias con el
+   <script>. Sin él, esa rareza dejaría el registro trancado para siempre y la
+   persona no podría tomar la otra foto nunca. Mejor un solapamiento improbable
+   que un formulario muerto. */
+var FOTO_EN_CURSO = false;
+var CAJA_EN_ESPERA = null;
+var RELOJ_CERROJO = null;
+
+/* El texto que le toca a una caja AHORA MISMO. Existe para poder devolvérselo
+   después del aviso pasajero sin repintar el paso entero. Son los mismos tres
+   textos que pasa `cajaFoto`: si allá cambian, acá también. */
+function etiquetaFoto(key) {
+  if (FOTOS[key]) return 'Listo · tocar para cambiar';
+  if (key === 'cedula_reverso') return 'Foto del respaldo de tu cédula';
+  if (key === 'cedula_frente') return 'Foto del frente de tu cédula';
+  return 'Tomar una selfie';
+}
+
+function tomarCerrojo() {
+  FOTO_EN_CURSO = true;
+  if (RELOJ_CERROJO) clearTimeout(RELOJ_CERROJO);
+  RELOJ_CERROJO = setTimeout(soltarCerrojo, 20000);
+}
+
+function soltarCerrojo() {
+  FOTO_EN_CURSO = false;
+  if (RELOJ_CERROJO) { clearTimeout(RELOJ_CERROJO); RELOJ_CERROJO = null; }
+  if (!CAJA_EN_ESPERA) return;
+  var c = $('fot_' + CAJA_EN_ESPERA);
+  if (c) { var l = c.querySelector('.lbl'); if (l) l.textContent = etiquetaFoto(CAJA_EN_ESPERA); }
+  CAJA_EN_ESPERA = null;
+}
+
 function tomarFoto(ev, key) {
-  var file = ev.target.files && ev.target.files[0]; if (!file) return;
+  var entrada = ev.target;
+  var file = entrada.files && entrada.files[0];
+  /* EL CAMPO SE VACÍA SIEMPRE, y son dos cosas distintas en una línea:
+     · suelta la referencia del <input> al archivo de la cámara —3 o 4 megas
+       que si no se quedan vivos hasta que alguien vuelva a tocar esa caja—;
+     · y deja que la MISMA foto de la galería vuelva a disparar onchange, que
+       es lo que necesita quien reintenta con la que ya había elegido. */
+  try { entrada.value = ''; } catch (e) {}
+  if (!file) return;
+
   var caja = $('fot_' + key);
+  /* El cerrojo: si hay otra foto en curso, esta no entra. Se le dice, y se le
+     devuelve su etiqueta en cuanto la anterior termine. */
+  if (FOTO_EN_CURSO) {
+    CAJA_EN_ESPERA = key;
+    if (caja) { var lb = caja.querySelector('.lbl'); if (lb) lb.textContent = 'Espera a que termine la otra foto…'; }
+    return;
+  }
+  tomarCerrojo();
+
   if (caja) caja.querySelector('.lbl').textContent = 'Procesando…';
 
   var quiereCodigo = key === 'cedula_reverso';
   var tamanos = quiereCodigo ? [[900, 0.6], [1600, 0.85]] : [[900, 0.6]];
 
-  comprimirVarias(file, tamanos).then(function (salidas) {
+  return comprimirVarias(file, tamanos).then(function (salidas) {
+    file = null;                 /* el archivo de la cámara ya no hace falta */
     /* 1. LO PRIMERO: guardar y pintar. A partir de acá la foto ya está a salvo. */
     FOTOS[key] = salidas[0];
     /* 17-sep-2026 — Y LA PANTALLA DICE LO QUE DE VERDAD PASÓ. Si el teléfono no
@@ -1247,12 +1319,16 @@ function tomarFoto(ev, key) {
     if (quiereCodigo) {
       var grande = salidas[1];
       salidas.length = 0;          /* se suelta la referencia al de 900 */
-      leerCodigoDeBarras(grande).catch(function () {});
+      /* SE ENCADENA con `return`, al contrario que hasta hoy: el cerrojo tiene
+         que cubrir TAMBIÉN el rato del lector, que es la mitad cara — son unos
+         25 MB vivos mientras decodifica. Sin el return, el cerrojo se soltaba
+         antes de tiempo y el solapamiento seguía siendo posible. */
+      return leerCodigoDeBarras(grande);
     }
   }).catch(function () {
     if (caja) caja.querySelector('.lbl').textContent =
       'No pude usar esa foto. Tómala otra vez, o elige una de la galería.';
-  });
+  }).then(soltarCerrojo, soltarCerrojo);
 }
 /* El código de barras del respaldo, decodificado en el teléfono con ZXing. Se
    lee de una versión grande de la foto (1600 px): el código es chico y un
@@ -1403,7 +1479,20 @@ function bucleEscaner() {
   if (m && m.ok) ESCANER.estables++; else ESCANER.estables = 0;
   var avance = Math.min(1, ESCANER.estables / U.ENCUADRE.CUADROS);
 
-  c.width = v.videoWidth; c.height = v.videoHeight;
+  /* 17-sep-2026 — EL LIENZO SOLO SE REDIMENSIONA CUANDO CAMBIA DE VERDAD.
+     Escribir `c.width` vuelve a reservar el mapa de bits ENTERO aunque el
+     número sea el mismo: a 720x960 son 2,76 MB por cuadro, y esto corría doce
+     veces por segundo durante todo el escaneo del rostro, que puede pasar de
+     los dieciocho segundos. Unos 33 MB por segundo de basura para el
+     recolector, en el peor momento de memoria del teléfono y mientras la
+     cámara ya tiene sus propios búferes.
+     No es el pico de la foto: es la presión de fondo que hace que el pico
+     siguiente sea el que mata.
+     Ojo: redimensionar también BORRA el lienzo, así que el clearRect de abajo
+     dejó de ser redundante y pasó a ser obligatorio. */
+  if (c.width !== v.videoWidth || c.height !== v.videoHeight) {
+    c.width = v.videoWidth; c.height = v.videoHeight;
+  }
   var ctx = c.getContext('2d');
   ctx.clearRect(0, 0, c.width, c.height);
   dibujarMarco(ctx, c.width, c.height, t, !!(m && m.ok), avance);

@@ -366,3 +366,99 @@ describe('la vuelta de la cámara no puede devolver a nadie al login', () => {
     assert.equal(/clave/.test(borrador), false, 'la contraseña viaja dentro del borrador');
   });
 });
+
+/* ===========================================================================
+ * UNA FOTO A LA VEZ — 17 de septiembre de 2026
+ *
+ * El 16-sep se arregló que la MISMA foto se decodificara tres veces. Quedó
+ * abierto el caso de al lado, y medido es peor: tocar la caja del frente
+ * mientras el lector todavía mastica el reverso SUMA los dos picos — unos 48 MB
+ * de la segunda decodificación encima de los ~25 MB que el lector tiene vivos.
+ * Entre 76 y 84 megas, en el peor momento de memoria del teléfono y justo
+ * cuando la persona acaba de volver de la cámara.
+ *
+ * El número de decodificaciones es la memoria. Eso es lo que se mide acá.
+ * ========================================================================= */
+describe('dos fotos a la vez no pueden sumar sus picos (17-sep-2026)', () => {
+
+  test('la segunda foto NO entra mientras la primera se está procesando', () => {
+    /* MUTANTE QUE CAZA: quitar el cerrojo de tomarFoto. Sin él son dos
+       decodificaciones vivas a la vez, que es el caso de los 84 MB. */
+    const P = abrirPlay();
+    prepararCamara(P);
+    /* Se trabanca el lector a propósito: así la primera foto sigue «en curso»
+       cuando llega la segunda, que es exactamente la carrera real. */
+    P.ev('window.cargarScript = function () { return new Promise(function () {}); };');
+    disparar(P, 'cedula_reverso');
+    disparar(P, 'cedula_frente');
+    return esperar().then(() => {
+      assert.equal(P.ev('window.__decodificaciones'), 1,
+        'las dos fotos se decodificaron a la vez: eso suma los dos picos y es lo que tumba la pestaña');
+      assert.equal(P.ev('FOTO_EN_CURSO'), true, 'el cerrojo no quedó tomado');
+      assert.equal(P.ev('CAJA_EN_ESPERA'), 'cedula_frente', 'no se anotó cuál caja quedó esperando');
+    });
+  });
+
+  test('a la que esperó se le DICE, y se le devuelve su etiqueta al terminar', () => {
+    /* Un botón que no hace nada y no explica por qué es peor que uno lento. */
+    const P = abrirPlay();
+    prepararCamara(P);
+    P.ev('window.cargarScript = function () { return new Promise(function () {}); };');
+    disparar(P, 'cedula_reverso');
+    disparar(P, 'cedula_frente');
+    return esperar().then(() => {
+      const caja = P.elems['fot_cedula_frente>hijo'];
+      assert.match(caja.textContent, /Espera a que termine/,
+        'la caja que no pudo entrar se quedó muda o diciendo «Procesando…» para siempre');
+      /* Y cuando la primera termina, la etiqueta vuelve sola a lo que decía. */
+      P.ev('soltarCerrojo()');
+      assert.equal(P.ev('CAJA_EN_ESPERA'), null, 'la caja en espera no se soltó');
+      assert.match(caja.textContent, /Foto del frente/,
+        'la caja se quedó diciendo «espera» aunque ya podía');
+    });
+  });
+
+  test('el cerrojo cubre TAMBIÉN el rato del lector, que es la mitad cara', () => {
+    /* El lector tiene ~25 MB vivos mientras decodifica. Si el cerrojo se
+       soltara al guardar la foto, el solapamiento seguiría siendo posible
+       justo en el tramo que más pesa. Lo que lo garantiza es el `return`
+       delante de leerCodigoDeBarras. */
+    const VIVO = require('node:fs')
+      .readFileSync(require('node:path').join(__dirname, '..', 'play', 'index.html'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const i = VIVO.indexOf('function tomarFoto');
+    const cuerpo = VIVO.slice(i, VIVO.indexOf('\nfunction ', i + 1));
+    assert.match(cuerpo, /return leerCodigoDeBarras\(/,
+      'el lector dejó de encadenarse: el cerrojo se suelta antes de tiempo');
+    assert.match(cuerpo, /\.then\(soltarCerrojo, soltarCerrojo\)/,
+      'el cerrojo no se suelta por los dos caminos: un fallo lo dejaría trancado para siempre');
+  });
+
+  test('el campo del archivo se vacía SIEMPRE, o la cámara se queda pegada', () => {
+    /* Dos cosas en una línea: suelta los 3-4 MB del archivo de la cámara, que
+       si no se quedan vivos colgando del <input>; y deja que la misma foto de
+       la galería vuelva a disparar onchange, que es lo que necesita quien
+       reintenta con la que ya había elegido. */
+    const P = abrirPlay();
+    prepararCamara(P);
+    const entrada = { value: '/ruta/falsa/x.jpg', files: [{ name: 'x.jpg', size: 4000000 }] };
+    P.ev('window.__entrada = ' + JSON.stringify(entrada) + ';');
+    P.ev("tomarFoto({ target: window.__entrada }, 'cedula_frente')");
+    return esperar().then(() => {
+      assert.equal(P.ev('window.__entrada.value'), '',
+        'el <input> sigue agarrado al archivo de la cámara');
+    });
+  });
+
+  test('el lienzo del escáner no se reserva de nuevo en cada cuadro', () => {
+    /* Escribir c.width vuelve a reservar el mapa de bits entero aunque el
+       número sea el mismo: a 720x960 son 2,76 MB por cuadro, doce veces por
+       segundo, durante todo el escaneo del rostro. No es el pico de la foto;
+       es la presión de fondo que hace que el pico siguiente sea el que mata. */
+    const VIVO = require('node:fs')
+      .readFileSync(require('node:path').join(__dirname, '..', 'play', 'index.html'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ');
+    assert.match(VIVO, /if \(c\.width !== v\.videoWidth \|\| c\.height !== v\.videoHeight\)/,
+      'el lienzo del escáner volvió a redimensionarse en cada cuadro');
+  });
+});
