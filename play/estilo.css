@@ -82,7 +82,14 @@ h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Tim
 .laca .muted{color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)}
 .cab{padding:calc(env(safe-area-inset-top) + 18px) 0 20px;border-radius:0 0 var(--r) var(--r)}
 .marca{display:flex;align-items:center;gap:var(--e2);font-size:13px;letter-spacing:.14em;
-  text-transform:uppercase;font-weight:700;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent)}
+  text-transform:uppercase;font-weight:700;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent);
+  flex-wrap:wrap}
+/* 17-sep-2026 — «powered by NEXECO». Va en la misma fila y se cae a la
+   siguiente en un telefono angosto (por eso el flex-wrap de arriba): la marca
+   que vende no puede partirse para que quepa el respaldo. Mas chico y mas
+   apagado a proposito — es quien responde detras, no lo que se vende. */
+.marca .porNexeco{font-size:10.5px;font-weight:600;letter-spacing:.1em;
+  color:color-mix(in srgb, var(--blanco-laca) 45%, transparent)}
 .pin{width:24px;height:24px;border-radius:7px;background:var(--rojo);color:var(--luz);
   display:grid;place-items:center;font-weight:800;font-size:13px}
 .cab h1{font-size:21px;margin-top:var(--e3);color:var(--blanco-laca)}

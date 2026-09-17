@@ -435,7 +435,20 @@
    Toca play/index.html. SI ESTE NUMERO NO SUBE, el telefono del cliente sigue
    sirviendo la pagina vieja desde su cache y el defecto continua aunque el
    repo este arreglado — que es exactamente lo que dice el bloque de abajo. */
-const CACHE = 'tugarantia-v70';
+/* v71 - 17-sep-2026. «TU GARANTIA, POWERED BY NEXECO», pedido de Joan: que su
+   nombre salga de la pagina y que se vea quien responde detras. Entra en las
+   tres cabeceras que ve el cliente (la puerta publica, la app del socio y la
+   portada del dominio).
+   LO QUE **NO** CAMBIO, Y ES A PROPOSITO: legal/terminos.html y
+   legal/privacidad.html siguen identificando a Joan persona natural. Eso no es
+   marca, es la identificacion de quien responde, y la Ley 1581 y el Estatuto
+   del Consumidor la exigen con nombre o razon social, documento o NIT,
+   direccion y contacto. Un «powered by» no identifica a nadie. Pasara a NEXECO
+   el dia que su NIT este escrito; mientras tanto el documento dice la verdad.
+   Toca play/index.html, play/estilo.css, app/socio.html e index.html. EL
+   NUMERO SUBE POR LA HOJA: play/estilo.css se sirve cache-primero, asi que sin
+   esto el telefono que ya visito el sitio pinta el «powered by» sin su estilo. */
+const CACHE = 'tugarantia-v71';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

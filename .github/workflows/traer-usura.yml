@@ -1,0 +1,178 @@
+# =============================================================================
+# EL ROBOT QUE TECLEA LA USURA — y que NO la publica.
+#
+# vigilar.yml avisa cuando la tabla se va a vencer. Esto hace el trabajo: busca
+# la certificación del mes que entra, la valida, escribe la fila y abre un Pull
+# Request. Lo único que queda para Joan es mirar un número y darle a «Merge».
+#
+# POR QUÉ UN PULL REQUEST Y NO UN COMMIT DIRECTO. Este número decide si el
+# precio publicado es un delito (art. 305 del Código Penal: 32 a 90 meses de
+# prisión, sin multa alternativa). El sitio es estático y se publica solo desde
+# main: lo que entre a main está en la calle un minuto después, sin escala. Un
+# robot que escribe en main es un robot con firma; acá el robot teclea y la
+# firma sigue siendo de una persona. El PR cuesta treinta segundos al mes.
+#
+# -----------------------------------------------------------------------------
+# TRES TRAMPAS DE GITHUB, ANOTADAS PARA QUE NO SE REDESCUBRAN
+#
+# 1. Un push hecho con GITHUB_TOKEN **no dispara otros workflows**. GitHub lo
+#    hace a propósito para que un robot no se llame a sí mismo en bucle. O sea:
+#    vigilar.yml NO se va a ejecutar sobre este PR aunque escuche
+#    `pull_request`. Por eso las pruebas se corren AQUÍ DENTRO, antes de abrir
+#    el PR, y el PR nace ya verificado. Cuando Joan haga merge, el push a main
+#    sí es suyo y vigilar.yml corre normal.
+#
+# 2. Para que el GITHUB_TOKEN pueda abrir un PR hay que encender una casilla a
+#    mano, UNA VEZ:  Settings → Actions → General → Workflow permissions →
+#    «Allow GitHub Actions to create and approve pull requests». Sin eso el
+#    paso del PR falla con un 403 y el correo de fallo es el aviso.
+#
+# 3. Los workflows programados se DESACTIVAN SOLOS si el repositorio pasa 60
+#    días sin commits, igual que vigilar.yml. Si Tu Garantía se queda quieta dos
+#    meses hay que volver a habilitarlos a mano desde la pestaña Actions. No hay
+#    forma de evitarlo desde el archivo, y el vigilante no puede avisar de su
+#    propia muerte.
+# =============================================================================
+
+name: Traer usura
+
+on:
+  schedule:
+    # La resolución se firma el último día hábil del mes anterior. Medido sobre
+    # las 151 certificaciones de CONSUMO Y ORDINARIO desde 2007: entra a regir
+    # 1 día después de firmada en 59 casos, 2 en 37, 3 en 24, y el máximo
+    # histórico de anticipación son 11 días. Así que se empieza a mirar el 24.
+    #
+    # Dos pasadas al día, y la de la 01:05 UTC es la que importa: Datos Abiertos
+    # refresca esta serie a las 00:00 UTC (se comprobó: la fila de septiembre de
+    # 2026 quedó marcada 2026-09-01T00:00:03Z), que son las 7 de la tarde en
+    # Bogotá del día anterior. Con eso el PR está abierto la noche del 30 y se
+    # puede fusionar antes de que el mes cambie en Colombia.
+    - cron: '5 1 24-31,1-3 * *'
+    - cron: '5 13 24-31,1-3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  traer:
+    name: Buscar, validar y proponer
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # ---------------------------------------------------------------------
+      # 1. ¿Ya la publicaron? El script decide, y lo dice con el código de salida:
+      #      0  → todavía no. Normal antes del último día hábil. No hay nada que hacer.
+      #     10  → la encontró, pasó los seis controles y ya escribió la fila.
+      #      1  → algo no cuadra (formato raro, salto imposible, mes ya empezado
+      #           sin certificación). El job se pone rojo y ESE ROJO ES EL AVISO.
+      # ---------------------------------------------------------------------
+      - name: Buscar la certificación del mes que entra
+        id: traer
+        run: |
+          set +e
+          node herramientas/traer-usura.js --escribir > informe.txt 2>&1
+          codigo=$?
+          cat informe.txt
+          echo "codigo=$codigo" >> "$GITHUB_OUTPUT"
+          if [ "$codigo" = "10" ]; then exit 0; fi
+          exit "$codigo"
+
+      # A partir de aquí, solo si hay fila nueva.
+      - name: ¿Ya hay un PR abierto para este mes?
+        if: steps.traer.outputs.codigo == '10'
+        id: rama
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mes=$(node -e "const C=require('./app/creditos.js');console.log(C.TOPES[C.TOPES.length-1].desde.slice(0,7))")
+          echo "nombre=usura/$mes" >> "$GITHUB_OUTPUT"
+          echo "mes=$mes" >> "$GITHUB_OUTPUT"
+          # Idempotencia: el trabajo corre dos veces al día durante once días.
+          # Sin esto abriría un PR por pasada hasta que Joan fusione.
+          abiertos=$(gh pr list --head "usura/$mes" --state open --json number --jq 'length')
+          echo "abiertos=$abiertos" >> "$GITHUB_OUTPUT"
+          echo "Rama usura/$mes — PRs abiertos: $abiertos"
+
+      # ---------------------------------------------------------------------
+      # 2. LAS PRUEBAS, ANTES DEL PR. Si la fila nueva rompe algo —por ejemplo,
+      #    si el techo bajara tanto que un producto del catálogo quedara por
+      #    encima— el barrido de pruebas/creditos.test.js lo caza. En ese caso NO
+      #    se abre ningún PR: se cae el job y llega el correo. Un PR rojo es un
+      #    PR que alguien fusiona de todas formas un martes con prisa.
+      # ---------------------------------------------------------------------
+      - name: Las pruebas, con la fila nueva puesta
+        if: steps.traer.outputs.codigo == '10' && steps.rama.outputs.abiertos == '0'
+        run: node --test
+        working-directory: pruebas
+
+      - name: Regenerar la ficha de Play
+        if: steps.traer.outputs.codigo == '10' && steps.rama.outputs.abiertos == '0'
+        run: node herramientas/ficha-play.js "${{ steps.rama.outputs.mes }}-01"
+
+      # ---------------------------------------------------------------------
+      # 3. El PR. El cuerpo lleva el informe completo del script —resolución,
+      #    fecha de firma, cuánto se movió contra el mes pasado— y el enlace a la
+      #    Superfinanciera, porque lo que se le pide a Joan no es que confíe en
+      #    el robot sino que compare dos números durante diez segundos.
+      # ---------------------------------------------------------------------
+      - name: Abrir el Pull Request
+        if: steps.traer.outputs.codigo == '10' && steps.rama.outputs.abiertos == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name  "vigilante de usura"
+          git config user.email "actions@github.com"
+          git checkout -b "${{ steps.rama.outputs.nombre }}"
+          git add app/creditos.js PLAY-FICHA.md
+          git commit -F - <<'COMMIT'
+          Cargar el techo de usura de ${{ steps.rama.outputs.mes }}
+
+          La certificación mensual de la Superintendencia Financiera ya está
+          publicada y la tabla TOPES de app/creditos.js se vencía. Sin esta fila,
+          el día 1 topeVigente() devuelve null y la calculadora pública deja de
+          dar precios.
+
+          El dato no se tecleó: lo trajo herramientas/traer-usura.js del portal
+          de Datos Abiertos del Estado (serie pare-7x5i, publicada por la propia
+          Superfinanciera) y pasó los seis controles de plausibilidad. El techo
+          se calculó en enteros de centésima de punto, no en decimales, porque
+          19,49 × 1,5 = 29,235 y en coma flotante eso se redondea al revés.
+
+          Queda por revisar a ojo contra la resolución antes de fusionar: eso es
+          justamente lo que el robot no puede hacer.
+          COMMIT
+          git push origin "${{ steps.rama.outputs.nombre }}"
+
+          {
+            echo "La Superfinanciera ya certificó el interés bancario corriente de **${{ steps.rama.outputs.mes }}**."
+            echo
+            echo '```'
+            cat informe.txt
+            echo '```'
+            echo
+            echo "### Antes de fusionar"
+            echo
+            echo "1. Abre la [certificación en la Superfinanciera](https://www.superfinanciera.gov.co/publicaciones/10829/sala-de-prensacomunicados-de-prensa-interes-bancario-corriente-10829/)."
+            echo "2. Compara **dos números**: el interés bancario corriente y el número de la resolución."
+            echo "3. Si coinciden, fusiona. Si no coinciden, **cierra este PR** y avisa: la fuente automática se desvió y hay que revisar el script."
+            echo
+            echo "Las pruebas ya corrieron con esta fila puesta y quedaron en verde."
+            echo "Lo que este robot **no** puede verificar es que el portal de Datos Abiertos"
+            echo "diga lo mismo que el Diario Oficial. Eso lo haces tú, y por eso esto es un"
+            echo "PR y no un commit."
+          } > cuerpo.md
+
+          gh pr create \
+            --base main \
+            --head "${{ steps.rama.outputs.nombre }}" \
+            --title "Techo de usura de ${{ steps.rama.outputs.mes }} — revisar y fusionar" \
+            --body-file cuerpo.md

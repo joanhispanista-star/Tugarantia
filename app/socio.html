@@ -260,7 +260,15 @@ h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Tim
    dejar el "Garantía" suelto. Con el tracking abierto el bloque respira y se lee como
    sello, no como texto. */
 .marca{display:flex;align-items:center;gap:var(--e2);font-size:13px;letter-spacing:.14em;
-  text-transform:uppercase;font-weight:700;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent)}
+  text-transform:uppercase;font-weight:700;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent);
+  flex-wrap:wrap}
+/* 17-sep-2026 — «powered by NEXECO», pedido de Joan. Mas chico y mas apagado:
+   la marca que vende es Tu Garantia, NEXECO es quien responde detras. El
+   flex-wrap es para que en un telefono angosto se caiga el respaldo a la
+   segunda linea y NO se parta la marca. Esto es marca, no identificacion
+   legal: quien presta se identifica en legal/terminos.html. */
+.marca .porNexeco{font-size:10.5px;font-weight:600;letter-spacing:.1em;
+  color:color-mix(in srgb, var(--blanco-laca) 45%, transparent)}
 .pin{width:24px;height:24px;border-radius:7px;background:var(--rojo);color:var(--luz);
   display:grid;place-items:center;font-weight:800;font-size:13px;letter-spacing:0}
 .cab h1{font-size:21px;margin-top:var(--e3);color:var(--blanco-laca)}
@@ -732,7 +740,7 @@ setTimeout(function () {
 <!-- ======================= ENTRAR ======================= -->
 <div id="pEntrar">
   <div class="cab laca"><div class="lustre"><i></i></div><div class="wrap">
-    <div class="marca"><span class="pin">G</span> Tu Garantía</div>
+    <div class="marca"><span class="pin">G</span> Tu Garantía<span class="porNexeco">powered by NEXECO</span></div>
     <h1>Mi cuenta de socio</h1>
   </div></div>
   <div class="wrap" id="entrarCuerpo"></div>
@@ -743,7 +751,7 @@ setTimeout(function () {
 <!-- ======================= CUENTA ======================= -->
 <div id="pCuenta" class="oculto">
   <div class="cab laca"><div class="lustre"><i></i></div><div class="wrap">
-    <div class="marca"><span class="pin">G</span> Tu Garantía</div>
+    <div class="marca"><span class="pin">G</span> Tu Garantía<span class="porNexeco">powered by NEXECO</span></div>
     <h1 id="uNombre">—</h1>
     <div class="chip-nivel" id="uNivel">—</div>
   </div></div>
@@ -3679,7 +3687,7 @@ function salir() {
 /* ======================= CONFIGURACIÓN ======================= */
 function pantallaConfig() {
   document.body.innerHTML =
-    '<div class="cab laca"><div class="wrap"><div class="marca"><span class="pin">G</span> Tu Garantía</div>' +
+    '<div class="cab laca"><div class="wrap"><div class="marca"><span class="pin">G</span> Tu Garantía<span class="porNexeco">powered by NEXECO</span></div>' +
     '<h1>Conectar la base</h1></div></div>' +
     '<div class="wrap"><div class="card">' +
     '<p class="sub" style="margin:0">Pega los dos datos de Supabase (Settings → API). ' +

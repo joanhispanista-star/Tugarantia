@@ -88,7 +88,11 @@ a{color:inherit}
   min-height:60px;justify-content:space-between}
 /* El min-height no es capricho: un enlace de 32px en un celular se falla al tocarlo.
    44px es el mínimo con el que un dedo acierta. */
-.marca{display:flex;align-items:center;gap:10px;text-decoration:none;min-height:44px}
+.marca{display:flex;align-items:center;gap:10px;text-decoration:none;min-height:44px;flex-wrap:wrap}
+/* 17-sep-2026 — «powered by NEXECO». Marca, no identificacion legal:
+   quien presta se identifica en legal/terminos.html. */
+.marca .porNexeco{font-size:10.5px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;opacity:.55}
 /* El sello va ROJO con la G blanca, igual que dentro de las dos apps. La tentación era
    ponerlo amarillo —queda más bonito sobre la laca— pero el amarillo está reservado para
    lo que el socio construyó, y una marca no es algo que él construyó. El ícono instalado
@@ -218,7 +222,7 @@ tbody tr:last-child td{font-weight:700}
 
 <header class="tope">
   <div class="wrap">
-    <a class="marca" href="#"><span class="sello">G</span><b>Tu Garantía</b></a>
+    <a class="marca" href="#"><span class="sello">G</span><b>Tu Garantía</b><span class="porNexeco">powered by NEXECO</span></a>
     <a class="btn btn-linea" href="#entrar">Ya tengo código</a>
   </div>
 </header>
