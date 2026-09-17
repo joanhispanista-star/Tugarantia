@@ -385,7 +385,25 @@
    guarda PRIMERO y se lee el codigo despues. Leer el codigo ahorra teclear;
    perder la foto no se ahorra con nada.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v67';
+/* v68 - 16-sep-2026. LA PUERTA PUBLICA, PARA VENDER. Cinco cosas que pidio Joan
+   mirando su propia pagina:
+   1. El titulo dice «Tu credito rapido y facil» y ya no «a 6 meses».
+   2. La cifra grande de la calculadora es LO QUE RECIBE, no la cuota. El costo
+      total y la tasa efectiva anual NO se esconden —son divulgacion obligatoria
+      y a eso se le dijo que no—: bajan a renglon. La cuota se queda en el pie,
+      en negrita, porque es con lo que una persona decide si puede pagar.
+   3. Las seis cuotas con su fecha se PLIEGAN en las dos calculadoras. Siguen
+      enteras, a un toque: lo que estorbaba era media pantalla de renglones
+      entre la cifra y el boton, no el dato.
+   4. La calculadora del credito con garantia perdio su parrafo de teoria y bajo
+      detras de «Abre tu cuenta». No se borro: es un producto que se vende.
+   5. Entra la gente dibujada con tres razones cortas, y la plata que cae dentro
+      de la calculadora. Todo en SVG y CSS: cero imagenes, cero red, cero marcas
+      ajenas y ni una palabra de «aprobado».
+   Toca play/index.html y play/estilo.css. SI ESTE NUMERO NO SUBE, el telefono
+   que ya visito el sitio se queda con la hoja vieja y sirve el markup nuevo
+   desnudo: la hoja se pide cache-primero, solo el html y el js van a red. */
+const CACHE = 'tugarantia-v68';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

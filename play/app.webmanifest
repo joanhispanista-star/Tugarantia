@@ -1,7 +1,8 @@
 {
-  "name": "Tu Garantía · Crédito a 6 meses",
+  "_nota_name": "17-sep-2026: decía «Crédito a 6 meses», que es el nombre que Joan quitó de la página el 16. El manifiesto es el nombre que queda DEBAJO DEL ICONO cuando alguien instala la app, así que es el sitio donde un nombre viejo dura más y se ve más. La descripción sí conserva el plazo: ahí no estorba y es dato del producto.",
+  "name": "Tu Garantía · Crédito rápido y fácil",
   "short_name": "Tu Garantía",
-  "description": "Crédito de libre inversión a 6 meses, en cuotas mensuales. El costo total se ve antes de pedir, sin cargos aparte.",
+  "description": "Crédito de libre inversión en cuotas mensuales, de 3 a 6 meses. El costo total se ve antes de pedir, sin cargos aparte.",
 
   "_nota_id": "El id identifica la instalación en el celular. Si se toca, el navegador la trata como otra app y las instalaciones existentes se rompen. 27-ago-2026: era '/Tugarantia/play/', la ruta vieja de github.io — con el dominio propio el sitio vive en la RAÍZ, así que ese id resolvía a tugarantia.net/Tugarantia/play/, una dirección que no existe. Se corrige AHORA sin riesgo porque esta app todavía no la ha instalado nadie; el día que alguien la tenga puesta, este campo no se vuelve a tocar.",
   "id": "/play/",

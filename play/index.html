@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Tu Garantía · Crédito a 6 meses</title>
+<title>Tu Garantía · Crédito rápido y fácil</title>
 <meta name="theme-color" content="#0C0A0B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Tu Garantía">
@@ -58,7 +58,7 @@
 
 <div class="cab laca"><div class="wrap">
   <div class="marca"><span class="pin">G</span> Tu Garantía</div>
-  <h1 id="titulo">Tu crédito a 6 meses</h1>
+  <h1 id="titulo">Tu crédito rápido y fácil</h1>
 </div></div>
 
 <div class="wrap"><div id="cuerpo"></div></div>
@@ -83,7 +83,7 @@
 <script>
 'use strict';
 
-var VERSION_PLAY = '2026-09-16';
+var VERSION_PLAY = '2026-09-17';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -204,7 +204,16 @@ function fila(k, v) {
 
 function pintarEntrar() {
   VISTA = 'entrar';
-  $('titulo').textContent = 'Tu crédito a 6 meses';
+  /* 16-sep-2026 — «rápido y fácil» en vez de «a 6 meses», y el título se
+     reasigna acá porque el mismo <h1> se recicla como barra de todas las
+     pantallas: cambiar solo el HTML dejaría el texto viejo al volver del
+     registro. OJO CON «RÁPIDO»: no hay ningún plazo de respuesta escrito en el
+     código —la solicitud cae en la bandeja y la contesta una persona—, así que
+     la palabra vive aquí como nombre de categoría y NO como compromiso. Quien
+     la sostiene es la tarjeta de abajo, que dice con todas las letras que no se
+     promete una hora. Si alguna vez esas dos cosas se separan, esto es una
+     promesa sin respaldo (Ley 1480, art. 29: lo anunciado obliga). */
+  $('titulo').textContent = 'Tu crédito rápido y fácil';
   /* 25-ago-2026 — EL REGISTRO VA PRIMERO Y EL LOGIN DESPUÉS. Esta es la puerta
      del DESCONOCIDO: casi todo el que llega aquí no tiene cuenta todavía, y
      tener de primero un formulario de contraseña le dice, sin decirlo, que
@@ -214,10 +223,23 @@ function pintarEntrar() {
        en los primeros cinco segundos —cuánto le costaría— sin cuenta, sin
        registro y sin pedirle nada a cambio. Todo lo demás cuelga de ahí. */
     tarjetaCalculadora() +
-    /* Y debajo, adónde se llega pagando: el crédito con garantía. Va acá y no
-       escondido detrás del login porque es lo que explica para qué sirve pagar
-       en fecha, y porque Joan pidió que TODOS la vieran. */
-    tarjetaCalcGarantia() +
+    /* 16-sep-2026 — ACÁ ESTABA LA CALCULADORA DEL CRÉDITO CON GARANTÍA, Y AHORA
+       ESTÁ ABAJO. Joan: «quitar la explicación de cuando tengas garantía y la
+       lista de cuotas del final, que confunden».
+
+       Lo que pasaba: el desconocido llegaba, veía una cifra, y lo segundo que
+       encontraba era una SEGUNDA calculadora, de un producto que no puede pedir
+       —se abre con garantía ganada, y él tiene cero—, con su propia cuota, su
+       propio total y sus propias seis fechas. Dos precios del mismo negocio en
+       la primera pantalla. No se borró (es un producto que Joan vende de
+       verdad, y tiene su prueba): bajó detrás del botón de abrir cuenta, que es
+       donde ya tiene sentido mirarla.
+
+       En su lugar va lo que Joan pidió para vender: tres razones y la gente
+       dibujada. Y va AQUÍ y no encima de la calculadora a propósito — lo de
+       arriba es una decisión escrita: primero se saca algo útil, después se
+       cuenta de qué se trata. */
+    tarjetaGente() +
     '<div class="card">' +
       /* 14-sep-2026 — UNA SOLA PUERTA. Antes este título decía «¿Eres nuevo?»,
          y el cliente de toda la vida leía eso y se iba a buscar otra entrada que
@@ -233,6 +255,10 @@ function pintarEntrar() {
       '<div class="muted" style="font-size:13px;margin-top:var(--e3)">' + esc(TEXTOS.empujon_visitante) + '</div>' +
       '<button class="btn arriba" onclick="pintarRegistro(0)">Abrir mi cuenta</button>' +
     '</div>' +
+    /* Y ahora sí, adónde se llega pagando: el crédito con garantía. Sigue
+       visible para todos —Joan lo pidió el 14-sep y esa decisión no cambió—,
+       pero después del botón: quien llega hasta acá ya entendió qué se vende. */
+    tarjetaCalcGarantia() +
     tarjetaRuleta() +
     tarjetaRecorrido() +
     '<div class="card">' +
@@ -1344,7 +1370,61 @@ var TEXTOS = {
   empujon_visitante: 'Abre tu cuenta y empieza a construir tu historia. Es gratis y no te compromete a pedir nada.',
   empujon_registrado: 'Ya diste el primer paso. Cuando pidas tu primer crédito y lo pagues en fecha, empiezas a subir.',
   empujon_espera: 'Tu solicitud está con nosotros. Lo que decidas hacer con este crédito es lo que te abre el siguiente.',
-  empujon_instalar: 'Déjala en tu pantalla de inicio y la abres como cualquier app, sin buscar el enlace.'
+  empujon_instalar: 'Déjala en tu pantalla de inicio y la abres como cualquier app, sin buscar el enlace.',
+
+  /* LAS TRES RAZONES, CON SU GENTE — 16-sep-2026.
+     Joan las pidió con estas palabras: «te desvara súper rápido y cuando
+     quieras», «lo más flexible en créditos», «una gran ayuda financiera». Dos
+     se cambiaron y hay que dejar escrito por qué, o alguien las devuelve a su
+     forma original por sonar mejor:
+
+     · «SÚPER RÁPIDO» es un compromiso de tiempo, y en el código no existe
+       ninguno: la solicitud cae en la bandeja de Joan y la contesta una
+       persona, sin plazo escrito. Bajo el artículo 29 de la Ley 1480 lo
+       anunciado obliga y probarlo le toca al que lo anuncia. Lo que sí es
+       verdad y rápido es LLENAR la solicitud, y eso ya está publicado dos
+       tarjetas más abajo. El día que Joan se comprometa a un plazo y lo cumpla,
+       la palabra puede volver a la frase; primero se cumple, después se escribe.
+     · «CUANDO QUIERAS» prometía crédito a demanda, y esta misma pantalla lo
+       desmiente en letraDeCalc(). Lo cierto —y es bastante— es que la puerta no
+       tiene horario: «a la hora que sea» habla del canal, no de la respuesta.
+     · «LO MÁS FLEXIBLE» es un superlativo comparativo sobre algo medible, y la
+       SIC lo trata como afirmación objetiva que hay que sustentar en el momento
+       de publicarla. No hay estudio de mercado que lo sustente, y esta página YA
+       pagó ese error: la tarjeta de la garantía decía «más barato» y «más
+       grande» y las dos eran falsas contra el producto de su misma pantalla.
+       Sin el «lo más», «flexible» se comprueba con el dedo dos centímetros más
+       arriba: son los dos deslizadores.
+     · «UNA GRAN AYUDA» se queda casi igual, porque es una valoración y no una
+       afirmación medible. Se le quitó «financiera»: en Colombia «ayuda
+       financiera» se lee como auxilio o subsidio —algo que no se devuelve— y
+       esto es deuda con costo. Por eso el apoyo dice que es un crédito.
+
+     Ninguna frase lleva cifras: la única cifra de la portada es la de la
+     calculadora, y dos números del mismo producto en una pantalla es
+     exactamente el defecto que Joan encontró el 15-sep. */
+  gente_titulo: 'Para qué te sirve',
+  gente: [
+    { dibujo: 'varas', dice: 'Para cuando te vares',
+      porque: 'Lo pides desde tu celular, a la hora que sea y sin que nadie te presente. Revisamos tu solicitud y te escribimos por WhatsApp.' },
+    { dibujo: 'eliges', dice: 'Flexible: la cuota la armas tú',
+      /* «Cuando te cuadre, eso es lo que pides» decía antes, y era falso: lo
+         que se mueve aquí (CALC.monto) NO viaja a la solicitud — esa se arma
+         adentro, con MONTO y PLAZO, después de abrir la cuenta. Y la letra
+         obligatoria de dos tarjetas más arriba dice justamente lo contrario:
+         «cuánto te podemos prestar a ti lo decidimos cuando hablemos». */
+      porque: 'Mueves cuánto necesitas y en cuántas cuotas lo pagas, y las cifras cambian contigo. Cuando te cuadre, abres tu cuenta y lo pides.' },
+    { dibujo: 'ayuda', dice: 'Una gran ayuda, con el precio a la vista',
+      porque: 'Es un crédito y se paga en cuotas mensuales. Lo que cuesta está aquí arriba, antes de que decidas nada.' }
+  ],
+  /* El descargo de la velocidad va acá y no en gris al final, porque es la
+     contrapartida del «rápido» del título. Un descargo que da la razón se cree;
+     uno que solo se disculpa, no. */
+  gente_pie: 'Quien revisa tu solicitud y te responde es una persona, y por eso no te prometemos una hora.',
+  /* Y el de los dibujos: una persona sonriendo al lado de «una gran ayuda» se
+     lee como un testimonio, y un testimonio hay que poder probarlo. Estas
+     personas no existen. */
+  gente_nota: 'Las personas de los dibujos son ilustraciones, no clientes ni testimonios.'
 };
 
 /* -------------------------------------------------------------------------
@@ -1389,8 +1469,17 @@ function tarjetaCalculadora() {
       '<p class="sub">Nos falta la certificación de la tasa máxima legal de este mes, y sin ella ' +
       'no publicamos un precio. Escríbenos y lo resolvemos por WhatsApp.</p></div>';
   }
+  /* 16-sep-2026 — EL SELLO DE EJEMPLO ENTRA A LA CALCULADORA, y llevaba faltando
+     desde que existe. Los escalones lo tienen por una razón escrita —lo que
+     viaja por WhatsApp es un recorte, y un recorte se lleva la cifra y deja el
+     descargo— y esta tarjeta es la MÁS recortable de la página: es la que tiene
+     la cifra grande. Su descargo («Esto es un cálculo, no una aprobación») vive
+     en la tarjeta de al lado, así que un recorte de ésta viajaba desnudo.
+     Va antes del gancho, que es antes de la primera cifra. */
   return '<div class="card laca">' +
+      '<span class="ej-sello">Ejemplo</span>' +
       '<div class="etq">' + esc(TEXTOS.gancho) + '</div>' +
+      lluviaDeCalc() +
       '<div id="calcCifras">' + cifrasDeCalc() + '</div>' +
       '<div class="mando">' +
         '<div class="cab-mando"><label for="calcMonto" style="margin:0">Cuánto necesitas</label>' +
@@ -1434,13 +1523,32 @@ function cifrasDeCalc() {
 
      Si el dueno del negocio no lo entiende, el cliente tampoco. La etiqueta va
      ARRIBA de la cifra, que es donde se lee antes. */
-  return '<div class="etq-cifra">Pagarías cada mes</div>' +
-    '<div class="calc-cifra">' + COP(c.cuota_tipica) + '</div>' +
-    '<div class="muted calc-pie">durante ' + c.meses + ' meses' +
+  /* 16-sep-2026 — AHORA LA CIFRA GRANDE ES LO QUE RECIBE, y el cambio es de
+     Joan: «el monto que RECIBE grande y de primero, con el costo pequeño y
+     abajo».
+
+     LO QUE SE CONSERVA DEL ARREGLO DEL 15-sep, porque era lo que de verdad
+     importaba: la cifra grande sigue teniendo su nombre ENCIMA. Lo que cambió
+     no es que se pueda dejar un número sin nombre — eso sigue prohibido y hay
+     una prueba— sino CUÁL es el número que manda.
+
+     LO QUE NO SE PUEDE HACER, Y JOAN QUEDÓ ENTERADO: esconder lo que paga. El
+     costo total y la tasa efectiva anual son divulgación obligatoria en la
+     oferta de un crédito en Colombia, y app/cumplimiento.js existe justo para
+     imprimirlos. Mostrar solo lo que recibe y callar lo que paga es el patrón
+     que la SIC sanciona. Así que se reordena, no se esconde: el total se queda
+     en su propia caja —no vuelve a ser un renglón—, y el costo y la tasa bajan
+     a renglón, que es «pequeño y abajo» sin dejar de estar.
+
+     Y LA CUOTA NO SE PIERDE: es con lo que la gente decide si puede o no, así
+     que va en el pie, en negrita y a 16 px, pegada al plazo. */
+  return '<div class="etq-cifra">Lo que recibes</div>' +
+    '<div class="calc-cifra">' + COP(c.capital) + '</div>' +
+    '<div class="muted calc-pie">y lo pagas en ' + c.meses + ' cuotas de ' +
+      '<b class="pie-cuota">' + COP(c.cuota_tipica) + '</b>' +
       avisoUltimaCuota(c) + '</div>' +
     '<div class="granTotal"><span>En total vas a pagar</span><b>' +
       COP(c.total_a_pagar) + '</b></div>' +
-    fila('Lo que recibes', COP(c.capital)) +
     fila('Lo que cuesta', COP(c.costo_total)) +
     /* La E.A. es la ÚNICA cifra en porcentaje que el cliente ve en todo el
        sistema, y va porque Google la exige junto a cualquier precio de crédito. */
@@ -1448,9 +1556,39 @@ function cifrasDeCalc() {
     /* LAS CUOTAS, UNA POR UNA, CON SU FECHA. Es lo que Joan pidió con esas
        palabras, y se pinta con cuadroCuotas —el mismo que usa la calculadora del
        crédito con garantía y el que pinta la propuesta que él manda—. Tres
-       sitios, una función. */
-    '<div class="grupo-tit">Cuándo pagarías cada cuota</div>' +
-    cuadroCuotas(c.cuotas);
+       sitios, una función. Desde el 16-sep van PLEGADAS: ver plegableCuotas. */
+    plegableCuotas(c.cuotas);
+}
+
+/* LAS CUOTAS, PLEGADAS — 16-sep-2026. Joan: «menos cuotas en la lista», y de la
+   de abajo dijo directamente que confundía.
+
+   NO SE BORRA NINGUNA, y esto no es terquedad con el pedido: seis renglones con
+   su fecha son lo que él mismo pidió el 16 por la mañana «para mejorar la
+   cobranza y dar claridad», y quitarlos dejaría a la pantalla diciendo un total
+   sin decir cómo se llega a él. Lo que estorbaba no era el dato: era que
+   ocupaba media pantalla entre la cifra y el botón. Cerrado es una línea; el
+   que quiere ver las fechas las abre con un toque y no pierde el sitio.
+
+   Es el mismo <details> de la historia y del recorrido, con otra piel para que
+   funcione también dentro de la laca. */
+/* Y SE ACUERDA DE SI ESTABA ABIERTO, que no es un lujo: las cifras se repintan
+   enteras en CADA movimiento del deslizador, así que sin esto el que abre el
+   plan y mueve un peso lo ve cerrarse en la cara — y lo que estaba mirando era
+   justamente cómo cambian las fechas con el monto. Se guarda por calculadora y
+   no en una sola bandera: la de arriba y la de la garantía son dos lecturas
+   distintas, y abrir una no tiene por qué abrir la otra. */
+var PLAN_ABIERTO = {};
+function recordarPlan(el) {
+  var k = el.getAttribute ? el.getAttribute('data-plan') : null;
+  if (k) PLAN_ABIERTO[k] = !!el.open;
+}
+function plegableCuotas(cuotas, clave) {
+  var k = clave || 'calc';
+  return '<details class="plegable det-cuotas" data-plan="' + k + '"' +
+      (PLAN_ABIERTO[k] ? ' open' : '') + ' ontoggle="recordarPlan(this)">' +
+    '<summary>Cuándo pagarías cada cuota</summary>' +
+    '<div class="adentro">' + cuadroCuotas(cuotas) + '</div></details>';
 }
 
 function letraDeCalc() {
@@ -1694,13 +1832,36 @@ function tarjetaCalcGarantia() {
 
      Lo que queda es lo único que es verdad Y se puede comprobar en la misma
      pantalla: el costo se cobra sobre el saldo que va bajando. */
+  /* 16-sep-2026 — EL TÍTULO Y LA EXPLICACIÓN SE ACORTARON, Y ES UN PEDIDO DE
+     JOAN: «quitar la explicación de cuando tengas garantía, que confunde».
+
+     Tenía razón y el motivo se ve en el texto que estaba acá: cuatro
+     afirmaciones encadenadas —pagas en fecha, guardas garantía, la garantía
+     abre otro crédito, el costo se cobra sobre el saldo— antes de la primera
+     cifra, en la puerta de alguien que todavía no tiene cuenta. Para el que
+     llega hoy, que tiene CERO garantía, todo eso es teoría.
+
+     LO QUE NO SE HIZO, Y ES DELIBERADO: borrar la tarjeta. Es un producto que
+     Joan vende de verdad y hay una prueba que exige que exista con su línea de
+     acceso pegada (vitrina.test.js, «la garantía se enseña, pero nunca sin
+     decir hasta dónde alcanza»). Lo que sí se hizo, además de acortar: la
+     tarjeta BAJÓ en la portada, debajo de «Abre tu cuenta» — ver pintarEntrar.
+     Sigue estando; deja de ser lo segundo que ve un desconocido.
+
+     Ni una palabra más de las que se pueden comprobar acá mismo. Se pensó en
+     agregar «y se desembolsa sin volver a estudiarte»: eso está escrito para el
+     segundo escalón del OTRO producto, no para éste, y afirmarlo sería
+     exactamente lo que este comentario vino a impedir. */
   return '<div class="card">' +
-      '<h3 class="tit">Y cuando tengas garantía, otro crédito</h3>' +
-      /* Ni una palabra más de las que se pueden comprobar acá mismo. Se pensó en
-         agregar «y se desembolsa sin volver a estudiarte»: eso está escrito para
-         el segundo escalón del OTRO producto, no para éste, y afirmarlo sería
-         exactamente lo que este comentario vino a impedir. */
-      '<p class="sub">Cada vez que pagas en fecha, guardas garantía. La garantía es la que te abre este otro crédito: <b>el costo se cobra sobre lo que te va quedando, no sobre lo que pediste</b>. Compara las dos cuotas de esta pantalla y pide el que te sirva.</p>' +
+      '<h3 class="tit">El crédito con garantía</h3>' +
+      /* 17-sep-2026 — LA INVITACIÓN A COMPARAR VUELVE, y no es cortesía.
+         Al acortar el párrafo se quedó una sola frase, en negrita, que dice que
+         el costo se cobra sobre el saldo. Eso es cierto, pero solo, y en
+         negrita, se lee como «es más barato» — y este es el producto MÁS CARO
+         de esta misma pantalla: medido en las dieciséis combinaciones donde los
+         dos rangos se pisan, sale más caro SIEMPRE. La frase que invitaba a
+         comparar era lo que impedía esa lectura. */
+      '<p class="sub">Se abre pagando en fecha, y <b>el costo se cobra sobre lo que te va quedando, no sobre lo que pediste</b>. Compáralo con el de arriba antes de pedirlo: no siempre sale mejor.</p>' +
       '<div id="gcalcTecho">' + techoDeGarantia() + '</div>' +
       '<div id="gcalcCifras">' + cifrasDeGarantia() + '</div>' +
       '<div class="mando">' +
@@ -1787,10 +1948,19 @@ function cifrasDeGarantia() {
     return '<div class="aviso ambar">Con ese monto y ese plazo no podemos publicar un ' +
       'precio hoy. Prueba con otro, o escríbenos y lo resolvemos por WhatsApp.</div>';
   }
-  /* Las dos calculadoras de esta página dicen sus cifras de la MISMA forma: la
-     cuota manda y el total va en su propia caja. Dos formas de decir lo mismo,
-     una debajo de la otra, obligan a leer dos veces para comparar — que es justo
-     lo que alguien hace acá. */
+  /* 17-sep-2026 — ESTE COMENTARIO DECÍA QUE LAS DOS CALCULADORAS ENCABEZAN CON
+     LA MISMA CIFRA, y desde ayer ya no es verdad: la de arriba encabeza con lo
+     que RECIBE (lo pidió Joan) y ésta sigue encabezando con la CUOTA.
+
+     No es descuido, es la diferencia entre las dos pantallas. Arriba está el
+     desconocido decidiendo si esto le sirve, y lo que lo engancha es cuánto le
+     llega. Acá abajo está alguien que ya tiene garantía ganada mirando si puede
+     con el pago mensual: la cuota es su decisión.
+
+     Lo que SÍ se mantiene igual en las dos, y es lo que aquel comentario
+     protegía de verdad: el total va en su propia caja, el costo y la tasa a
+     renglón con los mismos rótulos, y el plan de pago plegado igual. Comparar
+     las dos sigue sin obligar a traducir nada. */
   return '<div class="etq-cifra">Pagarías cada mes</div>' +
     '<div class="cifra sm">' + COP(c.cuota_fija) + '</div>' +
     '<div class="muted" style="font-size:13.5px">durante ' + c.plazo_meses +
@@ -1800,8 +1970,10 @@ function cifrasDeGarantia() {
     fila('Lo que recibes', COP(c.capital)) +
     fila('Lo que cuesta', COP(c.costo_total)) +
     fila('Tasa efectiva anual', pct(eaDeGarantia(c))) +
-    '<div class="grupo-tit">Cuándo pagarías cada cuota</div>' +
-    cuadroCuotas(c.cuotas) +
+    /* Plegadas, igual que en la calculadora de arriba: es «la lista de cuotas
+       del final» que Joan señaló como lo que más confundía. La lista no se fue
+       —el plan completo sigue a un toque—, se quitó de en medio. */
+    plegableCuotas(c.cuotas, 'garantia') +
     '<div class="aviso" style="margin-top:var(--e4);font-size:12.5px;line-height:1.55">' +
       esc(divulgacionGarantiaHoy()) + '</div>' +
     tarjetaGanancia(c);
@@ -2145,6 +2317,239 @@ function moverCalc() {
      se queda en la combinacion anterior y vuelve el defecto que Joan encontro:
      un total arriba y otro total distinto tres centimetros mas abajo. */
   var letra = $('calcLetra'); if (letra) letra.innerHTML = letraDeCalc();
+}
+
+/* =========================================================================
+ * LA PLATA QUE CAE — 16-sep-2026
+ *
+ * Joan lo pidió así: «el celular con los pesos aprobados que se convierte en
+ * el saldo de Nequi». Lo que se puede hacer de eso, y lo que no:
+ *
+ * 1. NO DICE «APROBADO» Y NO PUEDE DECIRLO. La aprobación acá la da una
+ *    persona por WhatsApp. Una animación que termina en un sí es una promesa,
+ *    y encima estaría tres centímetros encima de la frase que dice «esto es un
+ *    cálculo, no una aprobación». Lo que se ve es plata cayendo hacia la cifra
+ *    de la calculadora: el desembolso, no el fallo.
+ * 2. NINGUNA MARCA AJENA. Joan dijo «Nequi» describiendo la idea, no pidiendo
+ *    el logo. Desembolsar por Nequi es cierto y se puede nombrar en texto; pero
+ *    vestir la escena de su morado o imitar su pantalla de saldo le diría al
+ *    cliente, sin decirlo, que detrás de esto hay una entidad vigilada por la
+ *    Superfinanciera. No la hay.
+ * 3. NO LLEVA NINGUNA CIFRA, y eso no es pudor: la cifra está justo debajo, es
+ *    la de la calculadora y se mueve con el deslizador. Poner un número aquí
+ *    sería un segundo número del mismo producto en la misma pantalla, que es
+ *    el defecto que Joan encontró el 15-sep.
+ * 4. NO ES UN <canvas>. Es SVG en línea: no necesita getContext() —que en el
+ *    banco de pruebas devuelve null a propósito—, no hace una segunda petición
+ *    que un service worker viejo pueda dejar a medias, y no hay nada que pueda
+ *    fallar y tumbar la portada.
+ *
+ * EL <svg> VA SIN xmlns, y es obligatorio: dentro de HTML no hace falta, y
+ * pruebas/cumplimiento.test.js barre TODO http(s) de este archivo y solo
+ * tolera wa.me y el proyecto de Supabase. Un xmlns pegado por costumbre tumba
+ * la suite y el error no dice por qué.
+ * ======================================================================= */
+function lluviaDeCalc() {
+  /* Las piezas están dibujadas en su sitio de REPOSO —no en el de salida—
+     porque ese es el fotograma que ve quien pidió menos movimiento: la hoja le
+     apaga la animación y queda la escena completa, quieta, sin faltar nada. */
+  /* EL LIENZO ES MÁS ALTO QUE EL DIBUJO, y esa es toda la geometría de esto: un
+     SVG recorta lo que se sale de su caja, así que si las piezas descansaran
+     arriba, la mitad de la caída se vería cortada por el borde —y en una foto
+     fija eso no parece una caída, parece un defecto—. Descansan abajo, contra
+     la cifra, y la caída entera ocurre dentro. Lo único que sí se recorta es la
+     salida, cuando ya están en opacidad cero: se hunden hacia el número. */
+  return '<svg class="vj" viewBox="0 0 288 88" aria-hidden="true" focusable="false">' +
+      '<g class="vj-cae vj-cae-a">' +
+        '<rect class="vj-billete" x="96" y="44" width="74" height="32" rx="8"/>' +
+        '<circle class="vj-sello" cx="133" cy="60" r="6.5"/>' +
+        '<path class="vj-raya" d="M105 60h14M147 60h14"/>' +
+      '</g>' +
+      '<g class="vj-cae vj-cae-b">' +
+        '<rect class="vj-billete" x="158" y="54" width="74" height="32" rx="8"/>' +
+        '<circle class="vj-sello" cx="195" cy="70" r="6.5"/>' +
+        '<path class="vj-raya" d="M167 70h14M209 70h14"/>' +
+      '</g>' +
+      '<g class="vj-cae vj-cae-c">' +
+        '<circle class="vj-moneda" cx="56" cy="62" r="12"/>' +
+        '<circle class="vj-sello" cx="56" cy="62" r="6"/>' +
+      '</g>' +
+      '<g class="vj-cae vj-cae-d">' +
+        '<circle class="vj-moneda" cx="252" cy="50" r="9"/>' +
+        '<circle class="vj-sello" cx="252" cy="50" r="4.5"/>' +
+      '</g>' +
+    '</svg>';
+}
+
+/* =========================================================================
+ * LA GENTE, DIBUJADA — 16-sep-2026
+ *
+ * Joan pidió «imágenes de gente feliz y textos cortos». No hay con qué generar
+ * imágenes en esta sesión, y una foto de banco de imágenes en la puerta de una
+ * fintech se reconoce a la legua: dice «esto es una plantilla», que es lo
+ * contrario de lo que esta página vende. Así que la gente se dibuja. SVG en
+ * línea: cero archivos, cero red, nada que se pueda quedar a medias.
+ *
+ * POR QUÉ NINGUNA PERSONA TIENE COLOR DE PIEL. Elegir un tono es elegir a quién
+ * se parece el cliente de Tu Garantía, y el cliente de Tu Garantía es
+ * cualquiera. Están dibujadas con la MISMA tinta de la página en cuatro
+ * intensidades; lo que las hace distintas es la gorra, la cola de caballo, el
+ * celular en la mano y la bolsa del mercado. Efecto secundario que sí importa:
+ * en modo oscuro el dibujo se invierte solo, porque --tinta se invierte sola.
+ *
+ * LO QUE LOS DIBUJOS NO HACEN, Y ES A PROPÓSITO:
+ *  - El celular tiene un mensaje SALIENDO, no una respuesta entrando. Es lo que
+ *    pasa de verdad: la solicitud cae en la bandeja y Joan contesta. La burbuja
+ *    va vacía porque a 88 píxeles un texto no se lee y cualquier símbolo ahí
+ *    dentro —un ✓, sobre todo— se leería como «aprobado».
+ *  - La pantalla del celular está en blanco: no imita la de nadie.
+ *  - No hay ni una cifra. La única de la portada es la de la calculadora.
+ *
+ * Cada escena es una función suelta y no vive dentro de tarjetaGente() por una
+ * razón muy de este archivo: cuando una tarjeta se borra se lleva por delante
+ * lo que tenga pegado —ya pasó con `fila`, y la página quedó en blanco—.
+ * ======================================================================= */
+
+/* Escena 1 — el celular en alto y el mensaje que sale. */
+function escenaVaras() {
+  return '<svg class="gente-esc" viewBox="0 0 96 96" width="88" height="88" aria-hidden="true" focusable="false">' +
+    '<rect class="g-fondo" x="2" y="2" width="92" height="92" rx="24"/>' +
+    '<g class="g-vive">' +
+      '<path class="g-r3" d="M28 96 v-16 q0-11 11-14 l5-1.6 q5.5 4.2 11 0 l5 1.6 q11 3 11 14 v16 z"/>' +
+      '<path class="g-piel" d="M43 48 h9 v8 q-4.5 3 -9 0 z"/>' +
+      /* La cabeza va inclinada unos grados. Es lo que separa una persona de un
+         pictograma de baño: la simetría perfecta se lee como icono. */
+      '<g transform="rotate(-5 47 38)">' +
+        '<ellipse class="g-piel" cx="47" cy="38" rx="12.6" ry="13.6"/>' +
+        '<path class="g-r3" d="M34.5 38 q-1.5-17 12.5-17 q13.5 0 13.5 14.5 q-3.5-7.5 -11.5-7.5 q-11.5 0-13 11 q-1 2-1.5-1 z"/>' +
+        '<path class="g-fac" d="M40.5 38 q2.6-3.3 5.2 0"/>' +
+        '<path class="g-fac" d="M49 38.3 q2.6-3.3 5.2 0"/>' +
+        '<path class="g-fac" d="M43.5 44.6 q3.9 4.4 7.8 -.4"/>' +
+      '</g>' +
+      '<path class="g-brazo" d="M33 82 q-11-9 -10-20"/>' +
+    '</g>' +
+    /* El celular NO respira con el cuerpo: una mano que sostiene algo lo deja
+       quieto, y si sube y baja con el pecho se ve de goma. */
+    '<rect class="g-r2" x="13" y="30" width="19" height="29" rx="5"/>' +
+    '<rect class="g-pant" x="16" y="33.5" width="13" height="22" rx="2"/>' +
+    '<ellipse class="g-piel" cx="24" cy="59" rx="6.4" ry="4.6"/>' +
+    '<g class="g-envio">' +
+      '<rect class="g-oro" x="10" y="9" width="21" height="14" rx="5.5"/>' +
+      '<path class="g-oro" d="M15 22 v6.5 l7-6.5 z"/>' +
+    '</g>' +
+  '</svg>';
+}
+
+/* Escena 2 — las dos manos sobre un mando con su perilla: el mismo gesto que la
+   persona acaba de hacer con los deslizadores de arriba. */
+function escenaEliges() {
+  return '<svg class="gente-esc" viewBox="0 0 96 96" width="88" height="88" aria-hidden="true" focusable="false">' +
+    '<rect class="g-fondo" x="2" y="2" width="92" height="92" rx="24"/>' +
+    '<g class="g-vive">' +
+      '<path class="g-r2" d="M24 96 v-15 q0-11 11-14.5 l5.5-1.8 q7.5 4.6 15 0 l5.5 1.8 Q72 70 72 81 v15 z"/>' +
+      '<path class="g-piel" d="M43.5 53 h9 v8 q-4.5 3 -9 0 z"/>' +
+      '<g transform="rotate(4 48 43)">' +
+        '<ellipse class="g-piel" cx="48" cy="43" rx="12" ry="13"/>' +
+        '<path class="g-r3" d="M36 43 q-1.5-16 12-16 q13 0 13 14 q-3.5-7 -11-7 q-11 0-12.5 10.5 q-1 2-1.5-1.5 z"/>' +
+        '<ellipse class="g-r3" cx="48" cy="24.5" rx="6.2" ry="5.6"/>' +
+        '<path class="g-fac" d="M41.6 43 q2.5-3.2 5 0"/>' +
+        '<path class="g-fac" d="M49.6 43.3 q2.5-3.2 5 0"/>' +
+        '<path class="g-fac" d="M44.2 49.2 q3.7 4.2 7.4 -.4"/>' +
+      '</g>' +
+      '<path class="g-brazo" d="M34 72 q-5 5 -6 11"/>' +
+      '<path class="g-brazo" d="M62 72 q5 5 6 11"/>' +
+    '</g>' +
+    /* Las manos quedan quietas y lo único que se mueve es la perilla. Al revés
+       —mano y perilla viajando juntas— habría que estirar el antebrazo, y un
+       brazo de caucho es lo primero que se nota. */
+    '<rect class="g-r1" x="25" y="73" width="46" height="21" rx="5"/>' +
+    '<rect class="g-pant" x="29" y="77" width="38" height="13" rx="3"/>' +
+    '<path class="g-hilo" d="M34 83.5 h28"/>' +
+    '<circle class="g-perilla g-oro" cx="48" cy="83.5" r="5"/>' +
+    '<ellipse class="g-piel" cx="26" cy="84" rx="5.6" ry="4.8"/>' +
+    '<ellipse class="g-piel" cx="70" cy="84" rx="5.6" ry="4.8"/>' +
+  '</svg>';
+}
+
+/* Escena 3 — dos personas, y el brazo de una sobre el hombro de la otra. La
+   «ayuda» del texto se dibuja como lo que es entre dos personas, y no como
+   plata cayendo: plata cayendo acá sería prometer el desembolso. */
+function escenaAyuda() {
+  return '<svg class="gente-esc" viewBox="0 0 96 96" width="88" height="88" aria-hidden="true" focusable="false">' +
+    '<rect class="g-fondo" x="2" y="2" width="92" height="92" rx="24"/>' +
+    '<g class="g-vive">' +
+      /* El de atrás se dibuja primero y con la ropa más clara: es lo único que
+         da profundidad cuando no hay sombras. */
+      '<path class="g-r1" d="M48 96 v-15 q0-10 9.5-13 l4.5-1.5 q5 3.8 10 0 l4.5 1.5 Q86 71 86 81 v15 z"/>' +
+      '<path class="g-piel" d="M63 48 h8 v7 q-4 2.8 -8 0 z"/>' +
+      '<g transform="rotate(5 67 40)">' +
+        '<ellipse class="g-piel" cx="67" cy="40" rx="11" ry="11.8"/>' +
+        '<path class="g-r3" d="M56 36 q0-11 11-11 q11 0 11 11 z"/>' +
+        /* La visera sale hacia un solo lado. Con una tira recta de lado a lado
+           dejaba de ser una gorra y parecía un bombín. */
+        '<path class="g-r3" d="M57 35 q-13 .8 -14 4 q-.3 1.8 2 1.8 h12 z"/>' +
+        '<rect class="g-r3" x="55.5" y="34.4" width="23" height="3.4" rx="1.7"/>' +
+        '<path class="g-fac" d="M61.8 43 q2.3-3 4.6 0"/>' +
+        '<path class="g-fac" d="M68.6 43.3 q2.3-3 4.6 0"/>' +
+        '<path class="g-fac" d="M63.4 48.6 q3.4 3.9 6.8 -.3"/>' +
+      '</g>' +
+      '<path class="g-r3" d="M8 96 v-15 q0-11 10.5-14 l5-1.7 q5.5 4.2 11 0 l5 1.7 Q50 70 50 81 v15 z"/>' +
+      '<path class="g-piel" d="M25 50 h9 v8 q-4.5 3 -9 0 z"/>' +
+      '<g transform="rotate(-6 29 41)">' +
+        '<path class="g-r3" d="M18 37 q-7 5 -5.5 15 q.8 5 4 5.6 q-2.6-10.4 2.6-15.6 z"/>' +
+        '<ellipse class="g-piel" cx="29" cy="41" rx="12" ry="13"/>' +
+        '<path class="g-r3" d="M17 41 q-1.5-16 12-16 q13 0 13 14 q-3.5-7 -11-7 q-11 0-12.5 10.5 q-1 2-1.5-1.5 z"/>' +
+        '<path class="g-fac" d="M22.6 41 q2.6-3.3 5.2 0"/>' +
+        '<path class="g-fac" d="M31 41.3 q2.6-3.3 5.2 0"/>' +
+        '<path class="g-fac" d="M25.6 47.6 q3.9 4.4 7.8 -.4"/>' +
+      '</g>' +
+      '<path class="g-brazo g-claro" d="M58 72 q-12-6 -22-1"/>' +
+      '<ellipse class="g-piel" cx="35" cy="71.5" rx="5.4" ry="4.4"/>' +
+      '<path class="g-brazo" d="M17 74 q1 4 3 6"/>' +
+    '</g>' +
+    /* La bolsa se mece aparte del cuerpo y con otro compás: si se meciera con la
+       respiración parecería pintada encima de la persona. */
+    '<g class="g-bolsa">' +
+      '<path class="g-hilo" d="M15.5 78 q5.5-9 11 0"/>' +
+      '<path class="g-r1" d="M11 78 h20 l-2.5 17 h-15 z"/>' +
+      '<rect class="g-oro" x="16" y="84" width="10" height="2.8" rx="1.4"/>' +
+    '</g>' +
+  '</svg>';
+}
+
+function tarjetaGente() {
+  /* 17-sep-2026 — EL MISMO GUARDIÁN QUE TIENE SU VECINA, y faltaba.
+     Reproducido en el banco: con un techo de usura certificado por debajo del
+     24% fijo del producto —o con un <script src> que no llegó— la calculadora
+     degrada a «no publicamos un precio», y esta tarjeta seguía diciendo, dos
+     centímetros más abajo, «con el precio a la vista» y «lo que cuesta está
+     aquí arriba», y describiendo unos deslizadores que en esa pantalla no
+     existen. La puerta pública contradiciéndose sola, en el estado exacto que
+     el código construyó para no mentir.
+     No se pinta media tarjeta: si no hay precio que enseñar, no hay nada que
+     vender. Queda «No podemos cotizar hoy» y el botón de abrir cuenta. */
+  if (!hayQueCotizar()) return '';
+  /* El dibujo se elige por NOMBRE y no por posición: así Joan puede reordenar o
+     quitar una frase en TEXTOS.gente sin que las ilustraciones se corran. Si
+     escribe un nombre que no existe, la fila sale con su texto y sin dibujo —
+     que es feo, pero no deja la portada en blanco, que es como falla este
+     archivo. Y todo el texto pasa por esc(): una comilla escrita por Joan no
+     puede convertirse en markup en la puerta pública. */
+  var ESCENAS = { varas: escenaVaras, eliges: escenaEliges, ayuda: escenaAyuda };
+  return '<div class="card">' +
+    '<h3 class="tit">' + esc(TEXTOS.gente_titulo) + '</h3>' +
+    '<div class="gente">' +
+      TEXTOS.gente.map(function (g) {
+        return '<div class="gente-fila">' +
+          (ESCENAS[g.dibujo] ? ESCENAS[g.dibujo]() : '') +
+          '<div class="gente-dicho"><b>' + esc(g.dice) + '</b>' +
+            '<span>' + esc(g.porque) + '</span></div>' +
+        '</div>';
+      }).join('') +
+    '</div>' +
+    '<div class="aviso" style="font-size:13px">' + esc(TEXTOS.gente_pie) + '</div>' +
+    '<p class="muted gente-nota">' + esc(TEXTOS.gente_nota) + '</p>' +
+  '</div>';
 }
 
 /* -------------------------------------------------------------------------
@@ -3158,8 +3563,14 @@ function pintarSimulacion() {
        propuesta que manda Joan. Era la CUARTA copia de la misma lista, y la
        única que se habría quedado vieja el día que las otras tres cambiaran. La
        cazó la prueba que exige que las cuotas se pinten en un solo sitio. */
-    '<div class="grupo-tit">Cuándo pagarías cada cuota</div>' +
-    cuadroCuotas(c.cuotas) +
+    /* 17-sep-2026 — Y PLEGADA, como las de la puerta. La regla que separa las
+       dos cosas en esta pantalla: LO QUE YA DEBES SE VE, LO QUE ESTÁS
+       CALCULANDO SE PLIEGA. El crédito activo de arriba deja sus cuotas a la
+       vista —son las fechas en que le toca pagar— y este simulador las pliega,
+       porque todavía no debe nada. Sin esa regla quedaban dos listas iguales,
+       una desplegada y otra no, una encima de la otra, y eso se lee como un
+       error de pintado. */
+    plegableCuotas(c.cuotas, 'simulador') +
 
     /* LA DIVULGACIÓN, AQUÍ Y NO EN UN RINCÓN. Google la exige "en el mismo lugar
        donde el usuario solicita el crédito", y además es lo correcto: el precio

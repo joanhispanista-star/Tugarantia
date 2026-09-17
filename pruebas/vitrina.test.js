@@ -139,6 +139,43 @@ describe('la vitrina no puede prometer lo que el producto no da', () => {
     assert.ok(!/var\(--gris\)/.test(regla), 'el sello quedó en gris: menos visible que lo que niega');
   });
 
+  /* 16-sep-2026 — Y NADIE MÁS PUEDE PINTAR ESE SELLO, que es por donde se coló
+     el defecto que la prueba de arriba no podía ver.
+
+     Lo que pasó: la ruleta del cupo (15-sep) reutilizó la clase `.escalon` de la
+     escalera del recorrido y escribió `.escalon span { color: blanco-laca 72% }`
+     sin acotar. El sello del recorrido es un `<span class="ej-sello">` dentro de
+     un `.escalon`, y `.escalon span` (0,1,1) le gana a `.ej-sello` (0,1,0). Así
+     que el descargo quedó en blanco roto sobre papel blanco: INVISIBLE en la
+     puerta pública, durante un día entero, con las 1.841 pruebas en verde —
+     porque la de arriba lee el TEXTO de la regla de `.ej-sello`, no el color que
+     de verdad se aplica.
+
+     De paso le llegaba `display:flex` y la tarjeta entera salía en cuatro
+     columnas estrujadas. Se vio en el navegador, no acá.
+
+     Esta prueba no mide colores (no hay motor de CSS en el banco): cierra la
+     puerta por donde entró. Ninguna regla puede apuntar a un descendiente de
+     `.escalon` sin decir de QUÉ escalera habla. */
+  test('nadie pinta dentro de .escalon sin decir de qué escalera habla', () => {
+    const selectores = [...CSS.matchAll(/(?:^|\})\s*([^{}@/]*\.escalon[^{}]*)\{/g)]
+      .map(m => m[1].trim()).filter(Boolean);
+    assert.ok(selectores.length > 3, 'se fueron los escalones de la hoja');
+    selectores.forEach(s => {
+      /* Las reglas de la escalera del recorrido son las dueñas de la clase y
+         van sin prefijo. Cualquier OTRA pantalla que use `.escalon` tiene que
+         acotarse a su propia tarjeta. Se reconoce porque toca un descendiente
+         (`.escalon b`, `.escalon span`) o porque redefine la caja. */
+      const tocaHijos = /\.escalon\s+[a-z]/.test(s);
+      if (!tocaHijos) return;
+      const propio = /\.escalon\s+\.(n|paso-tit|paso-cifra|paso-como)\b/.test(s);
+      if (propio) return;
+      assert.ok(/^\.[a-z-]+\s+\.escalon/.test(s),
+        'la regla «' + s + '» pinta dentro de .escalon sin acotarse a su tarjeta: ' +
+        'se va a comer la escalera del recorrido y el sello de ejemplo, como pasó el 15-sep');
+    });
+  });
+
   /* 14-sep-2026 — ESTE CENTINELA CAMBIÓ DE OFICIO, a propósito.
 
      Decía: la palabra «garantía» no se usa como mecánica, porque la garantía
@@ -1435,18 +1472,53 @@ describe('CADA CIFRA TIENE NOMBRE (15-sep-2026)', () => {
 
   const texto = h => String(h).replace(/<[^>]*>/g, '\n').replace(/\n{2,}/g, '\n').trim();
 
+  /* 16-sep-2026 — ESTA PRUEBA SE AFLOJÓ A PROPÓSITO, Y SOLO EN UNA COSA.
+
+     Decía: la primera línea tiene que decir «Pagarías cada mes». Eso clavaba
+     CUÁL es la cifra grande, y el 16 Joan pidió cambiarla: «el monto que RECIBE
+     grande y de primero, con el costo pequeño y abajo». La calculadora de
+     arriba ahora encabeza con «Lo que recibes».
+
+     LO QUE ESTA PRUEBA PROTEGE DE VERDAD NO ERA ESA FRASE: era que la cifra
+     grande TENGA NOMBRE Y QUE EL NOMBRE VAYA ENCIMA. El defecto del 15-sep fue
+     un número de 38 px sin etiqueta propia, no un número equivocado. Así que se
+     comprueba eso mismo, sin decir cuál tiene que ser el número: la primera
+     línea es texto —no un monto—, y la segunda es el monto.
+
+     Si alguien vuelve a poner la cifra grande sin rótulo, esto se cae igual que
+     antes. Lo único que ya no se exige es QUÉ dice el rótulo, que es una
+     decisión de producto y es de Joan. */
   test('la cifra grande dice qué es, ANTES de la cifra', () => {
     const P = abrirPlay();
+    const esMonto = l => /^\$[\d.]+( ✓)?$/.test(String(l).trim());
     for (const [nombre, prep, pinta] of [
       ['ARRIBA', 'CALC.monto = 500000; CALC.meses = 6;', 'cifrasDeCalc()'],
       ['GARANTIA', 'GCALC.monto = 1000000; GCALC.meses = 6; GCALC.arranque = null;', 'cifrasDeGarantia()']
     ]) {
       P.ev(prep);
       const lineas = texto(P.ev(pinta)).split('\n');
-      assert.match(lineas[0], /Pagarías cada mes/,
+      assert.ok(lineas[0].trim().length > 3 && !esMonto(lineas[0]),
         nombre + ': la primera línea no dice qué es la cifra grande, dice: ' + lineas[0]);
       assert.match(lineas[1], /^\$[\d.]+$/,
         nombre + ': la cifra grande no va justo debajo de su nombre');
+    }
+  });
+
+  /* Y el rótulo de la cifra grande no puede volver a hablar de COSTO, que es
+     el defecto original: «MIRA CUÁNTO TE COSTARÍA» encima de una cuota hacía
+     leer la cuota como el costo. Da igual cuál sea la cifra: si la palabra de
+     arriba nombra una cosa y debajo hay otra, la pantalla miente. */
+  test('el rótulo de la cifra grande no habla de costo', () => {
+    const P = abrirPlay();
+    for (const [nombre, prep, pinta] of [
+      ['ARRIBA', 'CALC.monto = 500000; CALC.meses = 6;', 'cifrasDeCalc()'],
+      ['GARANTIA', 'GCALC.monto = 1000000; GCALC.meses = 6; GCALC.arranque = null;', 'cifrasDeGarantia()']
+    ]) {
+      P.ev(prep);
+      const rotulo = texto(P.ev(pinta)).split('\n')[0];
+      assert.ok(!/cuesta|costar|costo/i.test(rotulo),
+        nombre + ': el rótulo de la cifra grande dice «' + rotulo + '», y lo que ' +
+        'hay debajo no es el costo');
     }
   });
 
@@ -1476,6 +1548,102 @@ describe('CADA CIFRA TIENE NOMBRE (15-sep-2026)', () => {
     const gancho = P.ev('TEXTOS.gancho');
     assert.equal(/cu[aá]nto te costar/i.test(gancho), false,
       'el título vuelve a prometer un costo justo encima de una cifra que es la cuota: ' + gancho);
+  });
+});
+
+/* ==========================================================================
+ * LO QUE RECIBE MANDA, PERO LO QUE PAGA NO SE ESCONDE (16-sep-2026)
+ *
+ * Joan: «el monto que RECIBE grande y de primero, con el costo pequeño y
+ * abajo». Se hizo. Y se le dijo que no a la otra mitad del pedido —«que no
+ * muestre cuánto tiene que pagar»—, porque el costo total y la tasa efectiva
+ * anual son divulgación obligatoria en la oferta de un crédito en Colombia y
+ * app/cumplimiento.js existe justo para imprimirlos. Mostrar solo lo que
+ * recibe y callar lo que paga es el patrón que la SIC sanciona.
+ *
+ * ESTE BLOQUE ES LA DIFERENCIA ENTRE LAS DOS COSAS. Reordenar está bien; que
+ * el reordenar se lleve por delante una cifra obligatoria, no. Si mañana
+ * alguien «limpia» la tarjeta y se le va el costo o la tasa, esto lo grita.
+ * ======================================================================== */
+describe('lo que recibe manda, pero lo que paga sigue en pantalla (16-sep-2026)', () => {
+
+  test('la cifra grande de la calculadora es LO QUE RECIBE, no otra cosa', () => {
+    const P = abrirPlay();
+    P.ev('CALC.monto = 500000; CALC.meses = 6;');
+    const h = P.ev('cifrasDeCalc()');
+    const grande = (h.match(/class="calc-cifra">([^<]+)</) || [])[1];
+    const COP = n => '$' + n.toLocaleString('es-CO');
+    assert.equal(grande, COP(500000),
+      'la cifra grande dejó de ser el capital que la persona pidió, dice: ' + grande);
+    /* Y su rótulo lo nombra. No se exige la frase exacta —eso es de Joan— pero
+       sí que hable de recibir: si dice otra cosa, la cifra está mal nombrada. */
+    const rotulo = (h.match(/class="etq-cifra">([^<]+)</) || [])[1];
+    assert.match(rotulo, /recib/i,
+      'la cifra grande es el capital y su rótulo dice «' + rotulo + '»');
+  });
+
+  test('el costo, el total y la tasa siguen impresos con la cifra', () => {
+    const P = abrirPlay();
+    P.ev('CALC.monto = 500000; CALC.meses = 6;');
+    const h = P.ev('cifrasDeCalc()');
+    const r = C.simular({ perfil: 'preferente', capital: 500000,
+                          fecha_desembolso: P.ev('hoyISO()'), meses: 6 });
+    const c = r.puede ? r : r.cotizacion;
+    const COP = n => '$' + n.toLocaleString('es-CO');
+    assert.match(h, /Lo que cuesta/, 'se fue el costo del crédito');
+    assert.ok(h.indexOf(COP(c.costo_total)) >= 0, 'el costo que pinta no es el del motor');
+    assert.match(h, /En total vas a pagar/, 'se fue el total');
+    assert.ok(h.indexOf(COP(c.total_a_pagar)) >= 0, 'el total que pinta no es el del motor');
+    assert.match(h, /Tasa efectiva anual/, 'se fue la tasa efectiva anual');
+    /* El total sigue en su propia caja: la reordenada no puede degradarlo a
+       renglón, que es de donde se lo sacó el 16-sep por la mañana. */
+    assert.match(h, /class="granTotal"/, 'el total volvió a ser un renglón más');
+  });
+
+  test('LA CUOTA NO SE PIERDE al dejar de ser la cifra grande', () => {
+    /* «Menos cuotas en la lista» no puede convertirse en «no se dice la
+       cuota»: es el número con el que una persona decide si puede pagar o no.
+       Bajó al pie de la cifra grande, con su propia clase para que se lea. */
+    const P = abrirPlay();
+    P.ev('CALC.monto = 500000; CALC.meses = 6;');
+    const h = P.ev('cifrasDeCalc()');
+    const r = C.simular({ perfil: 'preferente', capital: 500000,
+                          fecha_desembolso: P.ev('hoyISO()'), meses: 6 });
+    const c = r.puede ? r : r.cotizacion;
+    const COP = n => '$' + n.toLocaleString('es-CO');
+    assert.match(h, /class="pie-cuota"/, 'la cuota perdió su realce y quedó en gris chiquito');
+    assert.ok(h.indexOf(COP(c.cuota_tipica)) >= 0, 'la cuota que pinta no es la del motor');
+    assert.ok(h.indexOf(' ' + c.meses + ' cuotas') >= 0,
+      'la cuota se dice sin decir cuántas son');
+  });
+
+  test('el plan de pago se PLIEGA, no se borra', () => {
+    /* Joan pidió menos cuotas a la vista. Las seis fechas siguen en el HTML
+       —las pidió él mismo esa misma mañana, «para dar claridad»— dentro de un
+       <details> cerrado. Si alguien resuelve «menos» borrando, esto se cae. */
+    const P = abrirPlay();
+    P.ev('pintarEntrar()');
+    const h = P.elems.cuerpo.innerHTML;
+    assert.equal((h.match(/class="plegable det-cuotas"/g) || []).length, 2,
+      'las dos calculadoras ya no pliegan su plan de pago de la misma forma');
+    /* Cerrado de verdad: un <details> con `open` no pliega nada. */
+    assert.equal(/<details[^>]*det-cuotas[^>]*\sopen/.test(h), false,
+      'el plan de pago nace abierto: no se plegó nada');
+  });
+
+  test('el plan abierto NO se cierra solo al mover el deslizador', () => {
+    /* Las cifras se repintan enteras en cada movimiento del dedo. Sin memoria,
+       quien abre el plan y mueve un peso lo ve cerrarse — y lo que estaba
+       mirando era justamente cómo cambian las fechas con el monto. */
+    const P = abrirPlay();
+    P.ev('pintarEntrar()');
+    P.ev('recordarPlan({ getAttribute: function () { return "calc"; }, open: true });');
+    const h = P.ev('cifrasDeCalc()');
+    assert.match(h, /data-plan="calc"\s+open/,
+      'la calculadora se olvidó de que el plan estaba abierto');
+    /* Y abrir el de arriba no abre el de la garantía: son dos lecturas. */
+    assert.equal(/\sopen/.test(P.ev('cifrasDeGarantia()')), false,
+      'abrir un plan abre también el de la otra calculadora');
   });
 });
 
@@ -1704,5 +1872,290 @@ describe('LA REJA DEL TECHO NO TIENE FECHA DE APERTURA (15-sep-2026)', () => {
       assert.equal(/if \(!\s*t\s*\)\s*return true/.test(t), false,
         f + ' volvió a abrir la reja cuando no hay techo');
     }
+  });
+});
+
+/* ==========================================================================
+ * LA GENTE DIBUJADA Y LA PLATA QUE CAE — 16 de septiembre de 2026
+ *
+ * Joan pidió dos cosas para vender: «imágenes de gente feliz y textos cortos»
+ * y una animación del celular con la plata que llega. No hay herramienta de
+ * imagen en la sesión, así que se dibujó en SVG y CSS.
+ *
+ * LO QUE VIGILA ESTE BLOQUE NO ES QUE SE VEA BONITO: es que una pieza hecha
+ * PARA VENDER no pueda volverse una promesa. Las tres frases que Joan dictó
+ * —«te desvara súper rápido y cuando quieras», «lo más flexible en créditos»,
+ * «una gran ayuda financiera»— contenían, entre las tres, un compromiso de
+ * tiempo que el negocio no tiene, una oferta de crédito a demanda que la misma
+ * pantalla desmiente, y un superlativo comparativo que habría que sustentar.
+ * Se reescribieron con el porqué anotado en TEXTOS. Esto impide que vuelvan.
+ *
+ * Y la animación: lo más fácil del mundo es que alguien le agregue un ✓ verde
+ * o la palabra «aprobado» para que «venda más». Sería una promesa de
+ * aprobación en una pantalla donde la aprobación la da una persona por
+ * WhatsApp, tres centímetros debajo de la frase que dice «esto es un cálculo,
+ * no una aprobación».
+ * ======================================================================== */
+describe('lo que se dibujó para vender no puede prometer (16-sep-2026)', () => {
+
+  test('las tres razones se pintan, con su dibujo y su descargo', () => {
+    const P = abrirPlay();
+    const h = P.ev('tarjetaGente()');
+    const razones = P.ev('TEXTOS.gente');
+    assert.equal(razones.length, 3, 'ya no son tres razones');
+    razones.forEach(r => {
+      assert.ok(h.indexOf(r.dice) >= 0, 'falta la razón «' + r.dice + '»');
+      assert.ok(h.indexOf(r.porque) >= 0, 'la razón «' + r.dice + '» se quedó sin su apoyo');
+    });
+    /* Tres dibujos, uno por razón. Si alguien renombra una escena en TEXTOS y
+       no la agrega al registro, la fila sale sin dibujo y nadie se entera. */
+    assert.equal((h.match(/class="gente-esc"/g) || []).length, 3,
+      'una de las tres razones se quedó sin su dibujo');
+    assert.ok(h.indexOf(P.ev('TEXTOS.gente_pie')) >= 0,
+      'se fue el descargo de que no se promete una hora');
+    assert.ok(h.indexOf(P.ev('TEXTOS.gente_nota')) >= 0,
+      'se fue la nota de que las personas son ilustraciones y no clientes');
+  });
+
+  test('NINGUNA de las razones promete un plazo de respuesta', () => {
+    /* No hay un solo compromiso de tiempo escrito en el código: la solicitud
+       cae en la bandeja y la contesta una persona. Bajo el artículo 29 de la
+       Ley 1480 lo anunciado obliga, y probarlo le toca al que lo anuncia.
+       El día que Joan se comprometa a un plazo Y lo cumpla, esta prueba se
+       cambia a propósito — antes no. */
+    const P = abrirPlay();
+    const dicho = P.ev('TEXTOS.gente').map(r => r.dice + ' ' + r.porque).join(' ') +
+      ' ' + P.ev('TEXTOS.gente_titulo');
+    [/s[uú]per r[aá]pido/i, /al instante/i, /inmediat/i, /en (unos )?minutos/i,
+     /mismo d[ií]a/i, /24 horas/i, /en el acto/i, /ya mismo/i]
+      .forEach(p => assert.equal(p.test(dicho), false,
+        'una de las razones promete un plazo de respuesta que no existe: ' +
+        (dicho.match(p) || [])[0]));
+    /* Y el descargo que sostiene el «rápido» del título tiene que seguir ahí. */
+    assert.match(P.ev('TEXTOS.gente_pie'), /no te prometemos una hora/i,
+      'se fue la frase que explica por qué no hay un plazo prometido');
+  });
+
+  test('NINGÚN superlativo comparativo en las razones', () => {
+    /* «Lo más flexible» es una afirmación objetiva que hay que sustentar en el
+       momento de publicarla, y no hay estudio de mercado que la sustente. Esta
+       página YA pagó este error: la tarjeta de la garantía decía «más barato» y
+       «más grande» y las dos eran falsas contra el producto de su misma
+       pantalla. */
+    const P = abrirPlay();
+    const dicho = P.ev('TEXTOS.gente').map(r => r.dice + ' ' + r.porque).join(' ') +
+      ' ' + P.ev('TEXTOS.gente_titulo');
+    [/lo m[aá]s\b/i, /el m[aá]s\b/i, /la m[aá]s\b/i, /el mejor/i, /la mejor/i,
+     /m[aá]s barat/i, /el [uú]nico/i, /garantizad/i]
+      .forEach(p => assert.equal(p.test(dicho), false,
+        'una de las razones usa un superlativo que habría que probar: ' +
+        (dicho.match(p) || [])[0]));
+  });
+
+  test('ni la gente ni la plata dicen que el crédito está aprobado', () => {
+    /* Lo más fácil del mundo es agregarle un ✓ o la palabra «aprobado» para que
+       «venda más». Sería una promesa de aprobación en la puerta de un negocio
+       donde aprueba una persona por WhatsApp. */
+    const P = abrirPlay();
+    const pintado = P.ev('tarjetaGente()') + P.ev('lluviaDeCalc()');
+    [/aprobad/i, /desembolsad/i, /ya es tuyo/i, /te lo damos/i]
+      .forEach(p => assert.equal(p.test(pintado), false,
+        'la pieza de venta afirma una aprobación: ' + (pintado.match(p) || [])[0]));
+  });
+
+  test('ninguna marca ajena, ni escrita ni vestida', () => {
+    /* Joan dijo «Nequi» describiendo la idea, no pidiendo el logo. Desembolsar
+       por Nequi es cierto y se puede nombrar en una frase; lo que no se puede
+       es que la escena se vista de una billetera reconocible, porque eso le
+       dice al cliente —sin decirlo— que detrás de este crédito hay una entidad
+       vigilada por la Superfinanciera. No la hay. */
+    const P = abrirPlay();
+    const pintado = P.ev('tarjetaGente()') + P.ev('lluviaDeCalc()') +
+      P.ev('tarjetaCalculadora()');
+    [/nequi/i, /daviplata/i, /bancolombia/i, /davivienda/i, /movii/i]
+      .forEach(p => assert.equal(p.test(pintado), false,
+        'la vitrina se viste de una marca ajena: ' + (pintado.match(p) || [])[0]));
+  });
+
+  test('ninguna cifra dentro de las piezas nuevas', () => {
+    /* La única cifra de la portada es la de la calculadora, que sigue al
+       deslizador. Un segundo número del mismo producto en la misma pantalla es
+       exactamente el defecto que Joan encontró el 15-sep. */
+    const P = abrirPlay();
+    const pintado = P.ev('tarjetaGente()') + P.ev('lluviaDeCalc()');
+    const plata = pintado.replace(/<svg[\s\S]*?<\/svg>/g, ' ').match(/\$[\d.]+/g) || [];
+    assert.deepEqual(plata, [],
+      'una de las piezas de venta escribió una cifra de plata: ' + plata.join(', '));
+  });
+
+  test('los SVG de play/ van SIN xmlns, o la suite se cae por otro lado', () => {
+    /* No es una manía de estilo. pruebas/cumplimiento.test.js barre TODO
+       http(s):// de play/index.html y solo tolera wa.me y el proyecto de
+       Supabase, así que un xmlns="http://www.w3.org/2000/svg" pegado por
+       costumbre hace fallar «la app no llama a ningún servidor que no sea el
+       suyo» — y el mensaje de error habla de un servidor, no de un dibujo, así
+       que nadie entiende por qué. Dentro de HTML el xmlns no hace falta.
+       Esta prueba existe para que el error llegue con su nombre propio. */
+    const svgs = VIVO.match(/<svg[^>]*>/g) || [];
+    assert.ok(svgs.length > 0, 'se fueron todos los dibujos de la puerta pública');
+    svgs.forEach(s => assert.equal(/xmlns/.test(s), false,
+      'un <svg> de play/ lleva xmlns y eso mete una URL externa en el archivo: ' + s));
+  });
+
+  test('la plata que cae respeta a quien pidió menos movimiento', () => {
+    /* Hay gente a la que una animación así le produce mareo o le dispara una
+       migraña, y el sistema operativo ya trae la respuesta puesta. Y apagarla
+       no puede significar enseñar menos: las piezas están DIBUJADAS en su sitio
+       de reposo, así que el fotograma quieto es la escena completa. */
+    assert.match(CSS, /\.vj-cae\{animation:none\}/,
+      'la plata sigue cayendo aunque el sistema pida quietud');
+    assert.match(CSS, /\.gente-esc \.g-vive[\s\S]{0,200}?animation:none/,
+      'la gente sigue moviéndose aunque el sistema pida quietud');
+  });
+
+  test('el sello de EJEMPLO llegó a la tarjeta de la cifra grande', () => {
+    /* La calculadora es la tarjeta MÁS recortable de la página: es la que tiene
+       el número grande. Su descargo («esto es un cálculo, no una aprobación»)
+       vive en la tarjeta de al lado, así que un recorte de WhatsApp viajaba
+       desnudo. El sello va antes de la primera cifra, como en los escalones. */
+    const P = abrirPlay();
+    const h = P.ev('tarjetaCalculadora()');
+    assert.ok(h.indexOf('ej-sello') >= 0, 'la calculadora perdió su sello de ejemplo');
+    assert.ok(h.indexOf('ej-sello') < h.indexOf('calc-cifra'),
+      'el sello quedó después de la cifra: se lee el número antes que el descargo');
+  });
+});
+
+/* ==========================================================================
+ * LOS AGUJEROS QUE ENCONTRÓ LA REVISIÓN — 17 de septiembre de 2026
+ *
+ * Seis lentes sobre el cambio del 16, y cada hallazgo pasado por tres
+ * escépticos que intentaban refutarlo. Lo que sobrevivió y se arregló está
+ * vigilado acá, porque un arreglo sin centinela vuelve.
+ * ======================================================================== */
+describe('lo que la revisión del 17-sep encontró y no puede volver', () => {
+
+  /* El peor de todos, y reproducido: la página contradiciéndose sola. */
+  test('sin precio que publicar, la tarjeta de venta NO afirma que hay precio', () => {
+    /* tarjetaCalculadora() tiene un camino honesto de degradación: si no hay
+       certificación con la que cotizar, dice «no publicamos un precio» y no
+       pinta ni una cifra ni un deslizador. tarjetaGente() se pintaba igual, dos
+       centímetros más abajo, diciendo «con el precio a la vista», «lo que
+       cuesta está aquí arriba» y describiendo unos deslizadores que en esa
+       pantalla no existían.
+
+       No es hipotético: pasa cuando la Superfinanciera certifica un techo por
+       debajo del 24% fijo de este producto —en enero de 2026 estuvo a 0,36
+       puntos— y también cuando app/cumplimiento.js no llega, que es el
+       incidente del service worker v19 del 28-ago. */
+    const P = abrirPlay();
+    P.ev('hayQueCotizar = function () { return false; };');
+    assert.equal(P.ev('tarjetaGente()'), '',
+      'la tarjeta de venta se pinta aunque la página se haya negado a publicar un precio');
+    /* Y la portada entera, en ese estado, no puede afirmar un precio. */
+    P.ev('DIVULGACION = null; hayQueCotizar = function () { return false; };');
+    P.ev('pintarEntrar()');
+    const h = P.elems.cuerpo.innerHTML;
+    assert.match(h, /no publicamos un precio/i, 'el caso de prueba no llegó al estado degradado');
+    [/precio a la vista/i, /está aquí arriba/i, /las cifras cambian contigo/i]
+      .forEach(p => assert.equal(p.test(h), false,
+        'la portada sin precio sigue diciendo: ' + (h.match(p) || [])[0]));
+  });
+
+  test('toda clase pensada para la laca tiene su pareja en papel', () => {
+    /* Dos veces en dos días: `.escalon` y `.etq-cifra`. Una clase nacida para
+       una tarjeta oscura, reutilizada en una de papel, pinta texto blanco sobre
+       blanco — y ninguna prueba lo ve, porque el banco no tiene motor de CSS.
+       Lo que sí se puede comprobar es que exista la regla de repuesto. */
+    ['.etq-cifra', '.pie-cuota', '.granTotal'].forEach(clase => {
+      const usa = new RegExp('\\' + clase + '\\{[^}]*(blanco-laca|--amarillo\\))');
+      if (!usa.test(CSS)) return;   // no está vestida de laca: no hace falta pareja
+      const pareja = new RegExp('\\.card:not\\(\\.laca\\)[^{]*\\' + clase);
+      assert.ok(pareja.test(CSS),
+        clase + ' se pinta con colores de laca y no tiene regla para las tarjetas ' +
+        'de papel: fuera de la laca queda invisible, como pasó con «Pagarías cada mes»');
+    });
+  });
+
+  test('la letra obligatoria NUNCA queda dentro de lo plegado', () => {
+    /* Plegar el plan de pago está bien. Plegar el costo o la tasa sería
+       esconder la divulgación detrás de un clic, que es justo lo que se le dijo
+       a Joan que no se podía hacer. Hoy no pasa; esto impide que pase. */
+    const P = abrirPlay();
+    for (const pinta of ['cifrasDeCalc()', 'cifrasDeGarantia()']) {
+      const h = P.ev(pinta);
+      const dentro = (h.match(/<details[\s\S]*?<\/details>/g) || []).join(' ');
+      [/Lo que cuesta/, /Tasa efectiva anual/, /En total vas a pagar/, /granTotal/]
+        .forEach(p => assert.equal(p.test(dentro), false,
+          pinta + ': la divulgación obligatoria quedó dentro del plegado (' +
+          (dentro.match(p) || [])[0] + ')'));
+    }
+  });
+
+  test('ni un visto bueno ni una cifra DENTRO de los dibujos', () => {
+    /* La prueba de ayer miraba el texto de la tarjeta y limpiaba los <svg>
+       antes de buscar cifras, así que un ✓ o un «te consignamos $2.000.000»
+       metido dentro del dibujo pasaba las tres pruebas que decían vigilarlo. */
+    const P = abrirPlay();
+    const svgs = (P.ev('tarjetaGente()') + P.ev('lluviaDeCalc()'))
+      .match(/<svg[\s\S]*?<\/svg>/g) || [];
+    assert.ok(svgs.length === 4, 'cambió el número de dibujos: revisa esta prueba');
+    svgs.forEach(s => {
+      assert.equal(/[✓✔√]/.test(s), false, 'un dibujo lleva un visto bueno: eso es un «aprobado»');
+      assert.equal(/\$[\d.]/.test(s), false, 'un dibujo lleva una cifra de plata escrita adentro');
+      assert.equal(/<text|<foreignObject/i.test(s), false,
+        'un dibujo lleva texto adentro: ahí se puede escribir cualquier promesa sin que nadie la lea');
+    });
+  });
+
+  test('el título de la puerta y su contrapeso viajan juntos', () => {
+    /* «Rápido» está en el <h1> porque Joan lo pidió, y no hay ningún plazo de
+       respuesta escrito en el código. Lo que lo sostiene es la línea que dice
+       que quien contesta es una persona y que por eso no se promete una hora.
+       Si esa línea se cae, el título se queda siendo una promesa sin respaldo. */
+    const P = abrirPlay();
+    P.ev('pintarEntrar()');
+    const titulo = P.elems.titulo.textContent + ' ' + PLAY.slice(0, 4000);
+    if (!/r[aá]pid/i.test(titulo)) return;   // si algún día se quita, no hay nada que sostener
+    assert.match(P.ev('TEXTOS.gente_pie'), /no te prometemos una hora/i,
+      'la puerta dice «rápido» y se quedó sin la línea que explica que no hay hora prometida');
+    assert.ok(P.elems.cuerpo.innerHTML.indexOf(P.ev('TEXTOS.gente_pie')) >= 0,
+      'la línea existe pero no se pinta en la portada');
+  });
+
+  test('el anillo de foco del plegable se dibuja hacia adentro', () => {
+    /* .plegable lleva overflow:hidden para redondear sus esquinas, y eso recorta
+       el anillo de foco, que la hoja dibuja 2 px por fuera. Con el plan de pago
+       plegado ese <summary> es el primer control al que llega el tabulador en la
+       puerta pública: quien navega con teclado no veía dónde estaba parado. */
+    assert.match(CSS, /\.plegable\s*>\s*summary:focus-visible\{[^}]*outline-offset:-/,
+      'el anillo de foco del plegable vuelve a dibujarse por fuera, donde lo recorta el overflow');
+  });
+
+  test('el nombre de la app instalada dice lo mismo que la página', () => {
+    /* El manifiesto es el nombre que queda debajo del icono en el teléfono: es
+       donde un nombre viejo dura más y se ve más. */
+    const man = JSON.parse(leer('play/app.webmanifest'));
+    assert.equal(/6 meses/.test(man.name), false,
+      'el manifiesto sigue llamando a la app «' + man.name + '»');
+    assert.match(man.name, /Tu Garantía/, 'el manifiesto perdió la marca');
+  });
+
+  test('la plata cae UNA vez y se queda: nada de franjas vacías', () => {
+    /* Era un ciclo infinito de seis segundos con las piezas desvaneciéndose al
+       final de cada vuelta: más de la mitad del tiempo la tarjeta tenía una
+       franja vacía de 88 px entre el gancho y la cifra. Eso no se lee como un
+       adorno que descansa, se lee como una imagen que no cargó. */
+    const regla = (CSS.match(/\.vj-cae\{[^}]*\}/) || [''])[0];
+    assert.ok(regla, 'se fue la regla de la plata que cae');
+    assert.equal(/infinite/.test(regla), false,
+      'la plata volvió a caer en bucle: deja la tarjeta vacía media vida');
+    assert.match(regla, /backwards|both/,
+      'sin fill backwards las piezas se pintan en su sitio y después saltan arriba para caer');
+    /* Y el último fotograma es la escena completa, que es lo mismo que ve quien
+       pidió menos movimiento. */
+    const marco = (CSS.match(/@keyframes tgcae\{[\s\S]*?\n\}/) || [''])[0];
+    assert.match(marco, /100%\{opacity:1/,
+      'la animación termina en opacidad cero: la plata desaparece al final');
   });
 });

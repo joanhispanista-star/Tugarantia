@@ -377,12 +377,266 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
   filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
 .ruleta-msg:empty{display:none}
 .ruleta-msg{margin-top:var(--e4)}
-.escalon{display:flex;align-items:flex-start;gap:var(--e3);padding:var(--e3) 0;
-  border-top:1px solid color-mix(in srgb, var(--blanco-laca) 12%, transparent)}
-.escalon b{flex:0 0 auto;min-width:88px;font-variant-numeric:tabular-nums;
-  font-size:15px;font-weight:700;
-  color:color-mix(in srgb, var(--blanco-laca) 70%, transparent)}
-.escalon.hoy b{color:var(--amarillo)}
-.escalon span{display:flex;flex-direction:column;gap:2px;font-size:13px;line-height:1.5;
-  color:color-mix(in srgb, var(--blanco-laca) 72%, transparent)}
-.escalon span i{font-style:normal;font-weight:600;color:var(--blanco-laca)}
+/* 16-sep-2026 — ESTAS CINCO REGLAS ESTABAN SIN ACOTAR Y SE COMIAN LA ESCALERA
+   DEL RECORRIDO, que usa la MISMA clase .escalon doscientas lineas mas arriba.
+   No es teoria: medido en el navegador el 16-sep, en la puerta publica.
+
+   Dos danos, y el segundo es el caro:
+   · La tarjeta «Hasta donde se puede llegar» dejaba de apilar titulo, cifra y
+     explicacion —le llegaba display:flex— y salia en cuatro columnas
+     estrujadas, con la barrita verde estirada.
+   · `.escalon span` (0,1,1) le ganaba a `.ej-sello` (0,1,0), asi que el SELLO
+     DE EJEMPLO de cada escalon quedaba en blanco roto al 72% sobre papel
+     blanco: invisible. Y hay una prueba dedicada a que ese sello sea legible
+     —«un descargo ilegible no descarga nada»— que no lo vio porque lee el
+     TEXTO de la regla de .ej-sello, no el color que de verdad se aplica.
+
+   Y ademas venian vestidas de laca (--blanco-laca) mientras .ruleta-card es de
+   papel, asi que su propia escalera tambien estaba casi invisible. Se acotan y
+   se pasan a la paleta de papel. Vino del commit 9521981, del 15-sep. */
+.ruleta-card .escalon{display:flex;align-items:flex-start;gap:var(--e3);
+  padding:var(--e3) 0;border:0;border-top:1px solid var(--linea);border-radius:0;
+  background:transparent}
+.ruleta-card .escalon b{flex:0 0 auto;min-width:88px;font-variant-numeric:tabular-nums;
+  font-size:15px;font-weight:700;color:var(--gris)}
+.ruleta-card .escalon.hoy b{color:var(--amarillo-tinta)}
+.ruleta-card .escalon span{display:flex;flex-direction:column;gap:2px;font-size:13px;
+  line-height:1.5;color:var(--gris)}
+.ruleta-card .escalon span i{font-style:normal;font-weight:600;color:var(--tinta)}
+
+
+/* ===========================================================================
+   LA CUOTA EN EL PIE, Y LAS CUOTAS PLEGADAS — 16-sep-2026
+
+   Joan pidió que lo que RECIBE fuera la cifra grande y el costo quedara chico y
+   abajo. La cuota no es el costo: es con lo que una persona decide si puede o
+   no. Así que no baja a renglón — se queda en el pie de la cifra grande, en
+   negrita y a 16 px, que es donde se lee sin buscarla.
+   ========================================================================= */
+.pie-cuota{font-size:16px;font-weight:700;color:var(--blanco-laca);
+  font-variant-numeric:tabular-nums}
+.card:not(.laca) .pie-cuota{color:var(--tinta)}
+
+/* 17-sep-2026 — LA ETIQUETA DE LA CIFRA GRANDE ERA INVISIBLE FUERA DE LA LACA,
+   y llevaba así desde el 15-sep. `.etq-cifra` nació para la calculadora de
+   arriba, que es de laca, y se pintó en blanco roto al 70%. La calculadora del
+   credito con garantia usa la MISMA clase y es de papel: «Pagarias cada mes»
+   salia blanco sobre blanco, contraste 1,01 a 1. Medido en el navegador.
+
+   Es el mismo defecto que se acaba de arreglar en .escalon y tiene la misma
+   causa: una clase pensada para un material, reutilizada en el otro. Cuando
+   aparezca una tercera, la regla es esta: todo color pensado para laca necesita
+   su pareja en `.card:not(.laca)`, como ya la tienen .granTotal y .pie-cuota. */
+.card:not(.laca) .etq-cifra{color:var(--gris)}
+
+/* El plan de pago, plegado. Mismo <details> de la historia y del recorrido, con
+   otra piel: dentro de la laca un recuadro de papel sería un parche blanco en
+   mitad de la tarjeta oscura. Va DESPUÉS de .plegable en el archivo a
+   propósito: es quien la pisa. */
+.det-cuotas{margin-top:var(--e4);background:transparent;
+  border:1px solid color-mix(in srgb, var(--luz) 15%, transparent)}
+.det-cuotas > summary{padding:13px 14px;font-size:12px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.1em;
+  color:color-mix(in srgb, var(--blanco-laca) 74%, transparent)}
+.det-cuotas > summary::after{color:color-mix(in srgb, var(--blanco-laca) 74%, transparent)}
+.det-cuotas .adentro{padding:0 14px 4px;font-size:14px}
+/* 17-sep-2026 — EL ANILLO DE FOCO CABE HACIA ADENTRO, o no se ve.
+   `.plegable` lleva overflow:hidden para redondear sus esquinas, y eso le
+   recorta al <summary> el anillo de foco, que la hoja dibuja 2 px POR FUERA.
+   Con el plan de pago plegado, ese <summary> pasó a ser el primer control al
+   que llega el tabulador en la puerta pública: quien navega con teclado no veía
+   dónde estaba parado. Se dibuja hacia adentro en vez de quitar el recorte,
+   que es lo que redondea las esquinas de la historia y del recorrido. */
+.plegable > summary:focus-visible{outline-offset:-3px}
+.card:not(.laca) .det-cuotas{background:var(--fondo);border-color:var(--linea)}
+.card:not(.laca) .det-cuotas > summary,
+.card:not(.laca) .det-cuotas > summary::after{color:var(--gris)}
+
+
+/* ===========================================================================
+   LA PLATA QUE CAE — 16-sep-2026
+
+   Joan pidió «el celular con los pesos aprobados que se convierte en el saldo
+   de Nequi». Lo que se puede dibujar de eso sin mentir es el desembolso: plata
+   cayendo hacia la cifra de la calculadora. No dice «aprobado» —la aprobación
+   la da una persona por WhatsApp—, no lleva ninguna cifra propia —la única de
+   la portada es la de abajo, la que sigue al deslizador— y no se viste de
+   ninguna marca ajena.
+
+   VA EN AMARILLO PORQUE VIVE DENTRO DE LA LACA. La ley de la paleta de esta
+   casa es esa: el amarillo solo sobre laca. Y las mezclas van contra
+   `transparent` y no contra un color fijo, para que la placa se siga viendo por
+   debajo — que es lo que hace que la plata parezca caer SOBRE la tarjeta y no
+   pintada encima.
+   ========================================================================= */
+.vj{display:block;width:100%;height:auto;margin:var(--e3) 0 -6px;pointer-events:none}
+.vj-billete{fill:color-mix(in srgb, var(--amarillo) 20%, transparent);
+  stroke:color-mix(in srgb, var(--amarillo) 55%, transparent);stroke-width:1.5}
+.vj-moneda{fill:color-mix(in srgb, var(--amarillo) 30%, transparent);
+  stroke:color-mix(in srgb, var(--amarillo) 55%, transparent);stroke-width:1.5}
+.vj-raya{fill:none;stroke:color-mix(in srgb, var(--amarillo) 45%, transparent);
+  stroke-width:2;stroke-linecap:round}
+.vj-sello{fill:none;stroke:color-mix(in srgb, var(--amarillo) 50%, transparent);
+  stroke-width:1.5}
+/* Seis segundos, la misma cadencia que el brillo del botón y por el mismo
+   motivo: el movimiento ocupa la cuarta parte del ciclo y el resto es quietud.
+   Un adorno que pulsa sin parar al lado de una cifra de plata cansa, y en una
+   app de crédito parece un anuncio. Los retardos están escalonados para que las
+   cuatro piezas caigan como caen las cosas: no todas a la vez. */
+/* 17-sep-2026 — CAE UNA VEZ Y SE QUEDA. Antes era un ciclo infinito de seis
+   segundos y las cuatro piezas se desvanecian al final de cada vuelta: la
+   tarjeta pasaba MAS DE LA MITAD del tiempo con una franja vacia de 88 px entre
+   el gancho y la cifra. Eso no se lee como un adorno que descansa, se lee como
+   una imagen que no cargo.
+   Ahora la plata entra al abrir la pagina y se queda puesta, que ademas es
+   exactamente el fotograma que ve quien pidio menos movimiento: la misma
+   escena, sin dos versiones que mantener. Y de paso se apagan cuatro
+   animaciones infinitas en un telefono de gama baja.
+   `backwards` es obligatorio: sin el, las piezas se pintan en su sitio de
+   reposo durante el primer fotograma y despues saltan arriba para caer. */
+.vj-cae{animation:tgcae 1.5s cubic-bezier(.2,.75,.3,1) backwards}
+.vj-cae-b{animation-delay:.22s}
+.vj-cae-c{animation-delay:.4s}
+.vj-cae-d{animation-delay:.62s}
+
+
+/* ===========================================================================
+   LA GENTE, DIBUJADA — 16-sep-2026
+
+   Joan pidió «imágenes de gente feliz». No hay fotos y no se pueden generar
+   acá, así que la gente se dibuja: SVG en línea, cero archivos, cero red, nada
+   que una segunda petición pueda dejar a medias.
+
+   Por qué no hay color de piel. Elegir un tono es elegir a quién se parece el
+   cliente de Tu Garantía, y el cliente de Tu Garantía es cualquiera. Las
+   personas se dibujan con la MISMA tinta de la página en cuatro intensidades, y
+   lo distinto entre ellas sale de la gorra, la cola de caballo, el celular y la
+   bolsa del mercado — no del tono. Efecto secundario que sí importa: en modo
+   oscuro el dibujo se invierte solo, porque --tinta se invierte sola.
+
+   Las mezclas van contra --papel y NO contra transparent: con fondos
+   translúcidos, el cuello debajo de la barbilla y el brazo sobre el torso se
+   suman y sale una mancha más oscura en cada cruce.
+   ========================================================================= */
+.gente{display:grid;gap:18px;margin-top:var(--e4)}
+.gente-fila{display:flex;align-items:center;gap:14px}
+.gente-dicho{min-width:0}
+.gente-dicho b{display:block;font-size:15.5px;font-weight:700;letter-spacing:-.01em;
+  line-height:1.25}
+.gente-dicho span{display:block;font-size:13px;color:var(--gris);line-height:1.5;
+  margin-top:4px}
+.gente-nota{font-size:12px;line-height:1.5;margin:var(--e3) 0 0}
+
+/* 88 px y no más: a este tamaño la cara todavía se lee en un teléfono de 360 px
+   y le deja 186 al texto, que es lo que manda.
+
+   El clip-path redondea la placa y recorta el torso, que se dibuja a propósito
+   hasta el borde de abajo para que la persona no parezca flotando. Se hace acá
+   y no con un clipPath dentro del SVG porque un clipPath necesita un id, y tres
+   ids fijos en una página que se repinta entera son tres colisiones esperando. */
+.gente-esc{flex:0 0 auto;width:88px;height:88px;display:block;
+  clip-path:inset(2.1% round 25%)}
+.gente-esc .g-fondo{fill:var(--fondo)}
+.gente-esc .g-piel{fill:color-mix(in srgb, var(--tinta) 14%, var(--papel))}
+.gente-esc .g-r1{fill:color-mix(in srgb, var(--tinta) 27%, var(--papel))}
+.gente-esc .g-r2{fill:color-mix(in srgb, var(--tinta) 44%, var(--papel))}
+.gente-esc .g-r3{fill:color-mix(in srgb, var(--tinta) 68%, var(--papel))}
+/* El filete de tinta es lo que separa esto de un icono de banco de imágenes:
+   sin él las siluetas se pegan entre sí y el dibujo se lee como pictograma. */
+.gente-esc .g-piel,.gente-esc .g-r1,.gente-esc .g-r2,.gente-esc .g-r3{
+  stroke:color-mix(in srgb, var(--tinta) 30%, transparent);stroke-width:1.1;
+  stroke-linejoin:round}
+.gente-esc .g-brazo{fill:none;stroke:color-mix(in srgb, var(--tinta) 68%, var(--papel));
+  stroke-width:8;stroke-linecap:round;stroke-linejoin:round}
+.gente-esc .g-brazo.g-claro{stroke:color-mix(in srgb, var(--tinta) 27%, var(--papel))}
+.gente-esc .g-hilo{fill:none;stroke:color-mix(in srgb, var(--tinta) 45%, transparent);
+  stroke-width:2.2;stroke-linecap:round}
+.gente-esc .g-fac{fill:none;stroke:color-mix(in srgb, var(--tinta) 82%, transparent);
+  stroke-width:1.9;stroke-linecap:round}
+/* --amarillo-tinta y no --amarillo: el amarillo solo va sobre laca y esta
+   tarjeta es de papel. Es el mismo cambio que ya hace .granTotal fuera de laca. */
+.gente-esc .g-oro{fill:var(--amarillo-tinta)}
+.gente-esc .g-pant{fill:color-mix(in srgb, var(--amarillo-tinta) 30%, var(--papel));
+  stroke:color-mix(in srgb, var(--tinta) 22%, transparent);stroke-width:1}
+
+/* transform-box:fill-box para que transform-origin cuente desde la caja del
+   dibujo y no desde el origen del lienzo: sin esto la bolsa se mece alrededor
+   de la esquina de arriba a la izquierda y sale volando. */
+.gente-esc .g-vive,.gente-esc .g-pant,.gente-esc .g-envio,
+.gente-esc .g-perilla,.gente-esc .g-bolsa{transform-box:fill-box}
+.gente-esc .g-vive{transform-origin:50% 100%;animation:gente-respira 5.2s ease-in-out infinite}
+/* Duraciones distintas y desfase negativo: si las tres respiran a la vez se ve
+   una máquina, no tres personas. Negativo para que arranquen ya separadas y no
+   haya que esperar seis segundos a que se desincronicen. */
+.gente-fila:nth-child(2) .g-vive{animation-duration:6.1s;animation-delay:-1.4s}
+.gente-fila:nth-child(3) .g-vive{animation-duration:5.6s;animation-delay:-2.9s}
+.gente-esc .g-pant{animation:gente-luz 4.4s ease-in-out infinite}
+.gente-esc .g-envio{animation:gente-sale 4.4s ease-in-out infinite}
+.gente-esc .g-perilla{animation:gente-elige 6.4s ease-in-out infinite}
+.gente-esc .g-bolsa{transform-origin:50% 3%;animation:gente-mece 4.8s ease-in-out infinite}
+
+
+/* ---------------------------------------------------------------------------
+   LAS SEIS ANIMACIONES NUEVAS VAN AQUÍ, AL FINAL, CADA UNA EN VARIAS LÍNEAS Y
+   CON SU LLAVE DE CIERRE EN LA COLUMNA 0.
+
+   No es estilo: es lo que las deja VIGILADAS. El barrido de
+   pruebas/vitrina.test.js («no se anima nada que obligue a recalcular la
+   página») corta cada bloque en la primera llave que encuentre a principio de
+   línea, y el bloque de `brillo` —escrito en una sola línea allá arriba— se
+   traga todo lo que haya entre él y el cierre del bloque de quietud. Cualquier
+   animación escrita en medio de la hoja queda DENTRO de ese corte y pasa
+   aprobada sin que nadie la mire. Acá sí se comprueba.
+
+   Y por lo mismo: cuidado con nombrar la arroba de una animación dentro de un
+   comentario, que abre un bloque falso y se come el de abajo.
+
+   Solo transform y opacity, que es lo que esa prueba exige: mover geometría
+   obliga al navegador a recalcular la página entera en cada fotograma, y en un
+   teléfono de gama baja eso se siente.
+   ------------------------------------------------------------------------- */
+@keyframes tgcae{
+  0%{opacity:0;transform:translateY(-44px)}
+  35%{opacity:1;transform:translateY(-16px)}
+  100%{opacity:1;transform:translateY(0)}
+}
+@keyframes gente-respira{
+  0%,100%{transform:translateY(0) scaleY(1)}
+  50%{transform:translateY(-1.1px) scaleY(1.009)}
+}
+@keyframes gente-luz{
+  0%,66%,100%{opacity:1}
+  80%{opacity:.4}
+}
+@keyframes gente-sale{
+  0%,6%{opacity:0;transform:translateY(7px)}
+  24%,60%{opacity:1;transform:translateY(0)}
+  82%,100%{opacity:0;transform:translateY(-9px)}
+}
+@keyframes gente-elige{
+  0%,100%{transform:translateX(-9px)}
+  50%{transform:translateX(9px)}
+}
+@keyframes gente-mece{
+  0%,100%{transform:rotate(-3.5deg)}
+  50%{transform:rotate(3.5deg)}
+}
+
+/* ---------------------------------------------------------------------------
+   QUIETUD, SIN PERDER NADA — y en un bloque APARTE, al final.
+
+   Dos razones medidas. Una: una regla de medios no suma especificidad, así que
+   lo de arriba le ganaría a un `animation:none` escrito veinte líneas antes;
+   tiene que ir después o no apaga nada. Dos: pruebas/rayo.test.js toma el PRIMER
+   bloque de quietud del archivo y exige encontrar #rayos adentro — uno nuevo
+   metido en medio cortaría ese bloque y tumbaría la prueba. Al final no lo toca.
+
+   Y apagar no significa enseñar menos: las cuatro piezas de plata se quedan a
+   la vista en su sitio de reposo, y la gente en su fotograma quieto. Es la
+   misma escena, congelada, no una versión pobre.
+   ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce){
+  .vj-cae{animation:none}
+  .gente-esc .g-vive,.gente-esc .g-pant,.gente-esc .g-envio,
+  .gente-esc .g-perilla,.gente-esc .g-bolsa{animation:none}
+}
