@@ -4,6 +4,7 @@
  *
  *   node herramientas/reloj-falso.js                    # el barrido de siempre
  *   node herramientas/reloj-falso.js 2026-10-01
+ *   node herramientas/reloj-falso.js 2026-10-01T03:30   # con hora (Ley 2300)
  *   node herramientas/reloj-falso.js 2026-10-01 2027-06-01 2028-03-01
  *
  * POR QUÉ EXISTE ESTA HERRAMIENTA — 3-sep-2026.
@@ -40,11 +41,23 @@ const BARRA_INVERTIDA = String.fromCharCode(92);
 
 /* ------------------------------------------------------ papel 1: congelar */
 function congelar(iso) {
-  const partes = String(iso).split('-').map(Number);
-  /* Mediodía local a propósito: a medianoche cualquier conversión de zona
-     horaria movería el día y estaríamos midiendo otro que el que se pidió —la
-     misma trampa de UTC que ya tiene su prueba en el motor. */
-  const FIJO = new Date(partes[0], partes[1] - 1, partes[2], 12, 0, 0).getTime();
+  /* 17-sep-2026 — Y AHORA TAMBIÉN LA HORA. Hasta hoy esta escoba congelaba
+     siempre al MEDIODÍA, y por eso barrió dos años de futuro sin ver la mitad
+     del problema: el mediodía cae dentro de la ventana de cobranza de la Ley
+     2300 TODOS los días hábiles. Las diez pruebas que se caían de noche —y las
+     diecisiete que se caían en domingo— eran invisibles para una escoba que
+     solo sabía preguntar por días a las doce.
+     `AAAA-MM-DD` sigue significando mediodía, que es lo que ya esperaban las
+     seis fechas del barrido de siempre; `AAAA-MM-DDTHH:MM` fija la hora. */
+  const texto = String(iso);
+  const corte = texto.indexOf('T');
+  const dia = (corte === -1 ? texto : texto.slice(0, corte)).split('-').map(Number);
+  const reloj = corte === -1 ? [12, 0] : texto.slice(corte + 1).split(':').map(Number);
+  /* Mediodía local por defecto a propósito: a medianoche cualquier conversión de
+     zona horaria movería el día y estaríamos midiendo otro que el que se pidió
+     —la misma trampa de UTC que ya tiene su prueba en el motor. */
+  const FIJO = new Date(dia[0], dia[1] - 1, dia[2],
+                        reloj[0] || 0, reloj[1] || 0, 0).getTime();
   const Real = Date;
   function Falso() {
     if (!(this instanceof Falso)) return new Real(FIJO).toString();
@@ -75,7 +88,25 @@ function fechasPorDefecto() {
   const mas = function (dias) {
     return iso(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + dias, 12));
   };
-  return [mas(0), mas(7), mas(31), mas(93), mas(366), mas(731)];
+  /* 17-sep-2026 — LAS CUATRO HORAS QUE FALTABAN, y son las que esconden el otro
+     tipo de bomba. La ventana de cobranza de la Ley 2300 es 7am–7pm entre
+     semana, 8am–3pm el sábado y ninguna el domingo: eso son 67 horas de las 168
+     de la semana, así que una suite atada al reloj está roja el 60% del tiempo y
+     la escoba, barriendo siempre al mediodía, no veía ni una.
+       · madrugada y noche  → la reja cerrada entre semana
+       · sábado por la tarde → la ventana corta del sábado
+       · domingo             → el día entero prohibido
+     Y el domingo se busca de verdad en el calendario en vez de sumar días a
+     ojo: sumar 3 acierta hoy y miente el resto de la semana. */
+  const proximo = function (diaSemana, hora) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 12);
+    d.setDate(d.getDate() + ((diaSemana - d.getDay() + 7) % 7 || 7));
+    return iso(d) + 'T' + String(hora).padStart(2, '0') + ':30';
+  };
+  return [mas(0), mas(7), mas(31), mas(93), mas(366), mas(731),
+          mas(0) + 'T03:30', mas(0) + 'T20:30',
+          proximo(6, 16),   // sábado, fuera de su ventana de 8 a 3
+          proximo(0, 11)];  // domingo
 }
 
 function barrer(fechas) {
@@ -114,9 +145,9 @@ function barrer(fechas) {
                  rotas: Array.from(new Set(rotas)) });
   }
 
-  console.log('FECHA          PASAN   FALLAN');
+  console.log('CUANDO                PASAN   FALLAN');
   for (const x of filas) {
-    console.log(x.fecha + '      ' + String(x.pasan == null ? '?' : x.pasan).padStart(5) +
+    console.log(x.fecha.padEnd(20) + '  ' + String(x.pasan == null ? '?' : x.pasan).padStart(5) +
                 '    ' + String(x.fallan == null ? '?' : x.fallan).padStart(5));
     for (const r of x.rotas) console.log('                       · ' + r);
   }
@@ -139,9 +170,12 @@ function barrer(fechas) {
 /* ------------------------------------------------------------- arranque */
 if (require.main === module) {
   const args = process.argv.slice(2);
-  const malas = args.filter(function (a) { return !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(a); });
+  const malas = args.filter(function (a) {
+    return !/^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2})?$/.test(a);
+  });
   if (malas.length) {
-    console.error('Fecha no reconocida: ' + malas.join(', ') + '   (se espera AAAA-MM-DD)');
+    console.error('Fecha no reconocida: ' + malas.join(', ') +
+                  '   (se espera AAAA-MM-DD o AAAA-MM-DDTHH:MM)');
     process.exit(2);
   }
   barrer(args.length ? args : fechasPorDefecto());
