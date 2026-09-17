@@ -25,9 +25,15 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const { abrirPanel } = require('./banco-panel.js');
+const RELOJ = require('./reloj.js');
 
+/* 17-sep-2026 — LA HORA SE PASA. Estas pruebas ejecutan la pestaña de Cobranzas,
+   que está detrás de la reja de la Ley 2300: fuera del horario legal la lista de
+   arriba sale vacía y las filas que se buscan acá no existen. Corrida a las
+   07:38 daba verde y a las 23:30 daba rojo, sin que nadie hubiera tocado nada.
+   El porqué largo está en reloj.js. */
 function panelCon(socios, prestamos) {
-  const P = abrirPanel();
+  const P = abrirPanel({ ahora: RELOJ.MOMENTO });
   P.cargarCartera({ socios: socios, prestamos: prestamos || [] });
   return P;
 }
@@ -36,7 +42,7 @@ function panelCon(socios, prestamos) {
    credito queda «al-dia» y la pestaña no lo muestra — media hora de la primera
    vez. */
 const VENCE_HOY = (id, socioId) => ({ id, socioId, monto: 200000, fechaPago: HOY });
-const HOY = new Date().toISOString().slice(0, 10);
+const HOY = RELOJ.HOY;
 
 const SOCIO = (extra) => Object.assign({
   id: 'S1', numero: 1, nombre: 'Ana Perez', cedula: '52000000',

@@ -102,7 +102,17 @@ function abrirPanel(opciones) {
     fetch: (url, cfg) => (o.red ? o.red(String(url), cfg)
       : Promise.reject(new Error('sin red en el banco de pruebas'))),
     setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0,
-    TextEncoder, TextDecoder, URL, Intl, Date, Math, JSON,
+    /* 17-sep-2026 — LA HORA ES UN DATO, no algo que la página averigüe sola.
+       `horarioLegalHoy()` y `hoyISO()` viven dentro de crm.html y cuelgan las
+       dos de `new Date()`. Con `ahora` se les entrega un Date congelado y las
+       pruebas de Cobranzas dejan de depender de a qué hora se corran: antes la
+       misma suite daba 1.875 en verde a las 07:38 y 1.865 a las 23:30, porque
+       de noche la reja de la Ley 2300 está cerrada y la lista sale vacía.
+       Sin `ahora` se usa el reloj de verdad, que es lo que tiene que seguir
+       pasando en las pruebas que vigilan el vencimiento de la tabla de usura:
+       ésas no son frágiles, son alarmas. El porqué largo está en reloj.js. */
+    TextEncoder, TextDecoder, URL, Intl, Math, JSON,
+    Date: o.ahora ? require('./reloj.js').relojFijo(o.ahora) : Date,
     btoa: s => Buffer.from(s, 'binary').toString('base64'),
     atob: s => Buffer.from(s, 'base64').toString('binary'),
     /* 16-sep-2026 — EL Blob DE VERDAD, no un cascarón. Era `class {}`, y como
@@ -166,6 +176,24 @@ function abrirPanel(opciones) {
   if (!o.sinGestionAsesor) {
     ctx.GestionAsesor = require(path.join(RAIZ, 'app', 'gestion-asesor.js'));
     ctx.AsesorTextos = require(path.join(RAIZ, 'app', 'asesor-textos.js'));
+    /* 17-sep-2026 — EL MÓDULO COMPARTE RELOJ CON LA PÁGINA, como en un navegador.
+       `puedeContactar` acepta `{ahora}` y crm.html no se lo pasa, así que cae en
+       su `new Date()`. En un navegador eso es el MISMO reloj de la página y no
+       hay diferencia; acá sí la hay, porque el módulo se carga con require —en
+       el realm de Node— y la página corre dentro de un `vm` con su propio Date.
+       Sin esta costura, congelarle la hora a la página dejaba fuera justo las
+       dos rutas del equipo (mensajearEq, contactarEq), que son las que llaman a
+       este módulo. Restaurar el reloj único no es maquillar el banco: es
+       ponerlo al nivel del navegador, que es la regla de esta casa.
+       Se copia el objeto en vez de tocarlo: `require` lo comparte con TODO el
+       proceso y ensuciarlo le cambiaría la hora a las demás pruebas. */
+    if (o.ahora) {
+      const G = ctx.GestionAsesor;
+      ctx.GestionAsesor = Object.assign({}, G, {
+        puedeContactar: (persona, opciones) =>
+          G.puedeContactar(persona, Object.assign({ ahora: new ctx.Date() }, opciones))
+      });
+    }
   }
   if (!o.sinCobranza) {
     ctx.CobranzaEnvio = require(path.join(RAIZ, 'app', 'cobranza-envio.js'));

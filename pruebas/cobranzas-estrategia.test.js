@@ -24,13 +24,24 @@ const assert = require('node:assert/strict');
 const { abrirPanel } = require('./banco-panel.js');
 const E = require('../app/cobranza-envio.js');
 const T = require('../panel/tanda.js');
+const RELOJ = require('./reloj.js');
 
-const HOY = new Date().toISOString().slice(0, 10);
+/* 17-sep-2026 — LA HORA SE PASA. Todo este archivo abre la pestaña de Cobranzas,
+   y esa pestaña está detrás de la reja de la Ley 2300: de noche, los domingos y
+   los sábados por la tarde la lista sale VACÍA y estas pruebas acusaban al CRM
+   de perder gente que estaba excluyendo bien. Se corría a las 07:38 y daba
+   verde; a las 23:30 daba diez fallos. El porqué largo está en reloj.js. */
+const HOY = RELOJ.HOY;
 const socio = (id, n, tel) => ({ id, numero: Number(id.slice(1)), nombre: n, cedula: id,
                                  telefono: tel, whatsappIgual: true, gestiones: [] });
 
+/* Ayer. Escrita como «hace un día» y no como '2026-09-14' porque una fecha a
+   mano es el segundo cronómetro de esta suite: sirve para decir «ya lo
+   contactaron esta semana» solo mientras el calendario no se aleje de ella. */
+const AYER = RELOJ.haceDias(1);
+
 function panel(socios, prestamos) {
-  const P = abrirPanel();
+  const P = abrirPanel({ ahora: RELOJ.MOMENTO });
   P.cargarCartera({ socios, prestamos, config: { pin: '1234', whatsapp: '3009999999' } });
   return P;
 }
@@ -44,7 +55,7 @@ describe('la estrategia NO puede agregar a nadie (16-sep-2026)', () => {
     const P = panel(
       [socio('S1', 'Ana', '3001111111'), socio('S2', 'Luis', '3002222222')],
       [{ id: 'P1', socioId: 'S1', monto: 200000, fechaPago: HOY },
-       { id: 'P2', socioId: 'S2', monto: 500000, fechaPago: '2026-08-20' }]);
+       { id: 'P2', socioId: 'S2', monto: 500000, fechaPago: RELOJ.haceDias(26) }]);
 
     const ids = P.ev('ESTRATEGIAS.map(function(e){return e.id;}).join("|")').split('|');
     for (const id of ids) {
@@ -66,7 +77,7 @@ describe('la estrategia NO puede agregar a nadie (16-sep-2026)', () => {
        ninguna estrategia. */
     const P = panel(
       [Object.assign(socio('S1', 'Ana', '3001111111'), {
-        gestiones: [{ fecha: '2026-09-14', hora: '2026-09-14T10:00:00Z', canal: 'sms', tipo: 'cobro' }] })],
+        gestiones: [{ fecha: AYER, hora: AYER + 'T10:00:00Z', canal: 'sms', tipo: 'cobro' }] })],
       [{ id: 'P1', socioId: 'S1', monto: 200000, fechaPago: HOY }]);
     const ids = P.ev('ESTRATEGIAS.map(function(e){return e.id;}).join("|")').split('|');
     for (const id of ids) {
@@ -86,7 +97,7 @@ describe('la estrategia NO puede agregar a nadie (16-sep-2026)', () => {
     const P = panel(
       [socio('S3', 'Rosa', '3003333333')],
       [{ id: 'P3', socioId: 'S3', monto: 100000, fechaPago: HOY },
-       { id: 'P4', socioId: 'S3', monto: 150000, fechaPago: '2026-09-01' }]);
+       { id: 'P4', socioId: 'S3', monto: 150000, fechaPago: RELOJ.haceDias(14) }]);
 
     /* Primero se comprueba que la trampa existe de verdad. */
     const casos = P.ev('casosDeCobroHoy()');
@@ -107,7 +118,7 @@ describe('la estrategia NO puede agregar a nadie (16-sep-2026)', () => {
     const P = panel(
       [socio('S1', 'Ana', '3001111111'),
        Object.assign(socio('S2', 'Luis', '3002222222'), {
-         gestiones: [{ fecha: '2026-09-14', hora: '2026-09-14T10:00:00Z', canal: 'sms', tipo: 'cobro' }] })],
+         gestiones: [{ fecha: AYER, hora: AYER + 'T10:00:00Z', canal: 'sms', tipo: 'cobro' }] })],
       [{ id: 'P1', socioId: 'S1', monto: 200000, fechaPago: HOY },
        { id: 'P2', socioId: 'S2', monto: 300000, fechaPago: HOY }]);
     P.ev('elegirEstrategia("hoy")');
@@ -164,7 +175,7 @@ describe('el mensaje propio (16-sep-2026)', () => {
        así que salía literalmente «undefined Responde SALIR…». Y se paga.
        MUTANTE QUE CAZA: volver a `(o.plantillas && o.plantillas.sms) || SMS`. */
     const caso = { id: 'C1', socioId: 'S1', telefono: '3001234567', nombre: 'Ana',
-                   saldo: 120000, saldo_total: 300000, cuantos: 2, fecha_pago: '2026-09-20' };
+                   saldo: 120000, saldo_total: 300000, cuantos: 2, fecha_pago: RELOJ.haceDias(-5) };
     const f = E.filasDeEnvio([caso], { plantillas: { sms: { mora: 'X {saldo}' } } }).filas[0];
     assert.ok(f, 'no se armó la fila');
     assert.doesNotMatch(f.mensaje_sms, /undefined/,

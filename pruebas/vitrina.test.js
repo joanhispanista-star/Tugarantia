@@ -15,6 +15,7 @@
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
+const RELOJ = require('./reloj.js');
 const { asentar } = require('./esperar.js');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -394,7 +395,19 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
       setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
       requestAnimationFrame: () => 0, cancelAnimationFrame() {},
       matchMedia: () => ({ matches: false, addEventListener() {} }),
-      Date, Math, JSON, URL, Intl, TextEncoder, TextDecoder, Promise, Error,
+      /* 17-sep-2026 — EL DÍA SE PASA, no se averigua. La calculadora del crédito
+         con garantía solo se puede anunciar los días en que su peor plazo cabe
+         debajo del techo de usura, y eso NO es todos: entre septiembre y
+         noviembre de 2026 son 38 días de 91, en rachas de seis seguidos (está
+         explicado en divulgacionGarantiaHoy, en play/index.html). Los días de
+         racha la tarjeta dice —con razón— «Hoy no podemos publicar su precio», y
+         nueve pruebas de este archivo que esperan ver cifras se caían. No es un
+         defecto del producto ni de la página: es que la prueba no le decía qué
+         día era. Con `ahora` se le dice, y se puede seguir pidiendo un día de
+         racha a propósito cuando lo que se quiera medir sea justo eso.
+         El porqué largo está en reloj.js. */
+      Date: RELOJ.relojFijo(o.ahora || RELOJ.MOMENTO),
+      Math, JSON, URL, Intl, TextEncoder, TextDecoder, Promise, Error,
       btoa: s => Buffer.from(s, 'binary').toString('base64'),
       atob: s => Buffer.from(s, 'base64').toString('binary'),
       Image: class {}, FileReader: class {}, Blob: class {}, File: class {},
@@ -670,7 +683,11 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
     /* Los dos productos arman su letra en el mismo archivo y con la misma forma.
        Escrita a mano en la pantalla, se queda vieja el día que el precio cambie
        —y el precio de este producto ya cambió una vez este mes. */
-    assert.match(VIVO, /K\.divulgacionRespaldado\(hoyISO\(\)\)/,
+    /* 17-sep-2026 — la llamada lleva ahora un segundo argumento (el crédito que
+       está en pantalla), así que el paréntesis de cierre se salió del patrón. Lo
+       que este centinela cuida no es la firma: es que la letra la arme
+       cumplimiento.js y no esta pantalla. */
+    assert.match(VIVO, /K\.divulgacionRespaldado\(hoyISO\(\)/,
       'play/ arma la letra del préstamo con garantía por su cuenta');
     assert.match(VIVO, /function garantiaSePuedeCotizar[\s\S]{0,200}hayQueCotizarGarantia\(\)/,
       'la calculadora de la garantía cotiza sin comprobar que tiene su letra');
@@ -1456,6 +1473,271 @@ describe('LA LETRA OBLIGATORIA HABLA DEL CRÉDITO QUE ESTÁ EN PANTALLA (15-sep-
     assert.notEqual(a, b, 'la caché devuelve el mismo texto para dos créditos distintos');
     assert.equal(P.ev('divulgacionHoy({ capital: 500000, meses: 6 })'), a,
       'la caché no conserva la primera combinación');
+  });
+});
+
+/* =========================================================================
+ * Y LA DEL CRÉDITO CON GARANTÍA TAMBIÉN — 17-sep-2026
+ *
+ * La regla de arriba se escribió el 15-sep y se arregló el 16 por la mañana…
+ * en UNA de las dos calculadoras. La de abajo, la del crédito con garantía, se
+ * quedó con el ejemplo clavado en el mínimo del producto.
+ *
+ * Medido el 17-sep sobre las 124 combinaciones de monto y plazo que permite el
+ * deslizador: en 123 la tarjeta enseñaba un total y la letra obligatoria de
+ * debajo anunciaba otro. La única que coincidía era, claro, un millón a seis
+ * meses — el ejemplo mismo.
+ *
+ * POR QUÉ ESTE BLOQUE BARRE Y NO MUESTREA. Es la lección de este proyecto: una
+ * prueba que mira tres combinaciones bonitas da verde con el defecto puesto. La
+ * de arriba ya barría su rango entero, y por eso aquel arreglo se sostuvo; ésta
+ * no existía. Se barre el rango completo de las DOS ruedas.
+ *
+ * POR QUÉ SE LE FIJA EL DÍA AL BANCO, y no es comodidad: este producto NO SE
+ * PUEDE OFRECER 38 de los 91 días entre septiembre y noviembre de 2026 —su peor
+ * plazo se pasa del techo de usura y el guardián lo tapa entero—, y son rachas
+ * de seis días seguidos. Una prueba atada al reloj de la máquina barrería cero
+ * combinaciones cuatro de cada diez días: unas veces daría verde sin mirar nada
+ * y otras se pondría roja sin que nadie hubiera roto nada, que son las dos
+ * formas de que a una prueba dejen de hacerle caso. Con el día fijo se prueban
+ * los DOS días a propósito: el que cotiza y el que se niega.
+ * ======================================================================= */
+describe('Y LA DEL CRÉDITO CON GARANTÍA TAMBIÉN (17-sep-2026)', () => {
+
+  const K = require('../app/cumplimiento.js');
+
+  /* Dos días de referencia, y lo que significan se COMPRUEBA abajo en vez de
+     confiarse: si mañana cambia el precio del producto o el techo certificado,
+     estas fechas pueden dejar de querer decir lo que querían, y entonces la
+     prueba tiene que decir eso —y no fallar por otro lado sin explicar. */
+  const DIA_SI = '2026-09-15';   // el producto se puede ofrecer
+  const DIA_NO = '2026-09-20';   // se pasa del techo: no se puede anunciar
+
+  /* El banco con el día puesto. La página saca la fecha de hoyISO() y de ahí
+     cuelga todo: el calendario de cuotas, la efectiva anual de cada opción de
+     arranque y el guardián del techo. Se reemplaza la función entera y no el
+     reloj porque es el único punto por el que la página pregunta qué día es. */
+  const bancoDel = dia => {
+    const P = abrirPlay();
+    P.ev('hoyISO = function () { return ' + JSON.stringify(dia) + '; };');
+    return P;
+  };
+
+  /* $1.000.000 como lo escribe la letra, para comparar cadenas sin traducir.
+     Es el mismo formato que usa cop() en cumplimiento.js. */
+  const COP_ = n => n.toLocaleString('es-CO');
+
+  /* El rango real del deslizador, preguntado a la página y no escrito acá: si
+     mañana el mínimo del producto sube o el plazo máximo cambia, esta prueba
+     barre el rango nuevo sola. Una lista a mano se queda vieja y deja de mirar
+     justo la parte que cambió. */
+  const rejilla = P => {
+    const combos = [];
+    for (let m = P.ev('GCALC_MESES_MIN'); m <= P.ev('GCALC_MESES_MAX'); m++) {
+      for (let v = P.ev('GCALC_MIN'); v <= P.ev('GCALC_MAX'); v += P.ev('GCALC_PASO')) {
+        combos.push({ monto: v, meses: m });
+      }
+    }
+    return combos;
+  };
+
+  const EJEMPLO = /Ejemplo: por \$([\d.]+) a (\d+) meses pagas (\d+) cuotas de \$([\d.]+), para un total de \$([\d.]+)/;
+  const TOTAL_ARRIBA = /En total vas a pagar<\/span><b>\$([\d.]+)/;
+
+  test('los dos días de referencia siguen queriendo decir lo que dicen', () => {
+    /* Va primero a propósito: si esto se cae, las demás de este bloque no están
+       probando lo que creen, y lo que hay que hacer es cambiar las dos fechas
+       —no tocar el código de la página. */
+    assert.equal(K.divulgacionRespaldado(DIA_SI).puede, true,
+      DIA_SI + ' ya no es un día en que el producto se pueda ofrecer: busca otro ' +
+      'y cámbialo en DIA_SI, o este bloque entero deja de probar lo que dice');
+    const no = K.divulgacionRespaldado(DIA_NO);
+    assert.equal(no.puede, false, DIA_NO + ' ya no se pasa del techo: cambia DIA_NO');
+    assert.equal(no.motivo, 'sobre_el_techo',
+      DIA_NO + ' se niega por «' + no.motivo + '» y no por pasarse del techo');
+  });
+
+  test('el total de la tarjeta y el de la letra son EL MISMO, en todas las combinaciones', () => {
+    const P = bancoDel(DIA_SI);
+    const combos = rejilla(P);
+    const malos = [];
+    let miradas = 0;
+    for (const { monto, meses } of combos) {
+      P.ev('GCALC.monto = ' + monto + '; GCALC.meses = ' + meses + '; GCALC.arranque = null;');
+      const cifras = P.ev('cifrasDeGarantia()');
+      const arriba = (cifras.match(TOTAL_ARRIBA) || [])[1];
+      /* Las combinaciones que la tarjeta se NIEGA a cotizar no se miran: ahí no
+         hay dos cifras que puedan contradecirse, hay una explicación. Lo que sí
+         se comprueba —abajo— es que no se hayan negado todas, porque una tarjeta
+         que no cotiza nunca también pasaría este barrido en verde. */
+      if (!arriba) continue;
+      miradas++;
+      const ej = cifras.match(EJEMPLO);
+      const donde = '$' + COP_(monto) + ' a ' + meses + 'm: ';
+      if (!ej) { malos.push(donde + 'la letra obligatoria se quedó sin ejemplo'); continue; }
+      if (ej[1] !== COP_(monto)) malos.push(donde + 'el ejemplo habla de $' + ej[1]);
+      if (Number(ej[2]) !== meses) malos.push(donde + 'el ejemplo dice ' + ej[2] + ' meses');
+      if (ej[5] !== arriba) {
+        malos.push(donde + 'la tarjeta dice $' + arriba + ' y la letra $' + ej[5]);
+      }
+    }
+    assert.equal(miradas, combos.length,
+      'solo ' + miradas + ' de ' + combos.length + ' combinaciones llegaron a cotizar ' +
+      'en un día en que este producto sí se ofrece: este barrido está mirando de ' +
+      'menos y daría verde con el defecto puesto');
+    assert.deepEqual(malos.slice(0, 8), [],
+      'la letra obligatoria anuncia un crédito distinto del que la tarjeta está ' +
+      'cotizando (' + malos.length + ' avisos en ' + miradas + ' combinaciones)');
+  });
+
+  test('y el día que el producto se pasa del techo, NINGUNA combinación publica precio', () => {
+    /* La otra cara del mismo barrido, y la que de verdad tiene cárcel detrás: el
+       artículo 305 no distingue entre anunciar y cobrar. El guardián se
+       comprueba en las 124 combinaciones porque el techo se pasa por ARRIBA del
+       rango: bastaría que una esquina del deslizador se escapara. */
+    const P = bancoDel(DIA_NO);
+    const publican = [];
+    for (const { monto, meses } of rejilla(P)) {
+      P.ev('GCALC.monto = ' + monto + '; GCALC.meses = ' + meses + '; GCALC.arranque = null;');
+      const cifras = P.ev('cifrasDeGarantia()');
+      if (TOTAL_ARRIBA.test(cifras)) publican.push('$' + COP_(monto) + ' a ' + meses + 'm');
+    }
+    assert.deepEqual(publican.slice(0, 8), [],
+      'el ' + DIA_NO + ' el producto se pasa del techo de usura y la tarjeta ' +
+      'publica precio igual (' + publican.length + ' combinaciones)');
+  });
+
+  test('la caché lleva la FECHA: el guardián del techo no se apaga al cambiar el día', () => {
+    /* 17-sep-2026 — ESTO ESTABA ROTO Y NO LO VEÍA NADIE. La caché guardaba el
+       texto por combinación y sin fecha, así que un banco abierto el 15 —día en
+       que el producto sí se ofrece— seguía cotizando al llegar el 20, cuando ya
+       no se puede: el guardián del techo apagado por una caché.
+
+       No hace falta imaginarse nada raro para caer ahí: una pestaña abierta
+       cruzando la medianoche, o la app instalada que el sistema despierta al día
+       siguiente. Y hay 38 días de 91 en que este producto no se puede anunciar. */
+    const P = bancoDel(DIA_SI);
+    P.ev('GCALC.monto = 2000000; GCALC.meses = 4; GCALC.arranque = null;');
+    assert.match(P.ev('cifrasDeGarantia()'), TOTAL_ARRIBA,
+      'el ' + DIA_SI + ' la tarjeta tendría que cotizar');
+    /* Pasa la medianoche sin recargar la página: lo único que cambia es el día. */
+    P.ev('hoyISO = function () { return ' + JSON.stringify(DIA_NO) + '; };');
+    assert.doesNotMatch(P.ev('cifrasDeGarantia()'), TOTAL_ARRIBA,
+      'cambió el día y la tarjeta sigue publicando el precio de ayer: la caché ' +
+      'está contestando por un día en que el producto no se puede anunciar');
+  });
+
+  test('la TASA MÁXIMA no se mueve: es la del producto, no la de su crédito', () => {
+    /* La otra mitad de la regla, y la que protege de la tentación contraria.
+       Publicar la tasa de SU cotización como «máxima» sería anunciar una tasa
+       menor que la mayor que se cobra — y el artículo 305 no distingue entre
+       anunciar y cobrar. El ejemplo es suyo; la tasa es del producto. */
+    const base = K.divulgacionRespaldado(DIA_SI);
+    for (const capital of [1000000, 1500000, 2700000, 4000000]) {
+      for (const meses of [3, 4, 5, 6]) {
+        const d = K.divulgacionRespaldado(DIA_SI, { capital, meses });
+        assert.equal(d.tae_maxima, base.tae_maxima,
+          'la tasa máxima cambió con el deslizador (' + capital + '/' + meses + 'm)');
+        assert.equal(d.monto_minimo, base.monto_minimo,
+          'el mínimo del producto cambió con el deslizador (' + capital + '/' + meses + 'm)');
+        assert.match(d.texto, /Tasa efectiva anual máxima: /,
+          'la letra se quedó sin su tasa máxima');
+      }
+    }
+  });
+
+  test('una muestra NUNCA hace que un día prohibido se vuelva ofrecible', () => {
+    /* El guardián del techo mira el PRODUCTO —su peor plazo—, no el crédito que
+       uno esté mirando. Si la muestra pudiera moverlo, bastaría arrastrar el
+       deslizador hasta una combinación barata para destapar un producto que ese
+       día no se puede anunciar. Por eso el ejemplo se cambia DESPUÉS de la reja
+       y no antes. */
+    for (const capital of [1000000, 2000000, 4000000]) {
+      for (const meses of [3, 4, 5, 6]) {
+        const d = K.divulgacionRespaldado(DIA_NO, { capital, meses });
+        assert.equal(d.puede, false,
+          'con ' + capital + '/' + meses + 'm la letra se deja anunciar un día ' +
+          'en que el producto se pasa del techo');
+      }
+    }
+  });
+
+  test('el «Desde $1.000.000» y el ejemplo nunca se contradicen', () => {
+    /* Dos renglones antes del ejemplo, la letra declara desde cuánto va el
+       producto. Un ejemplo por debajo de esa cifra sería la misma frase
+       desmintiéndose sola, así que por debajo del mínimo se conserva el ejemplo
+       del mínimo — que es la verdad y además siempre cotiza. */
+    for (const capital of [1, 300000, 999999]) {
+      const d = K.divulgacionRespaldado(DIA_SI, { capital, meses: 6 });
+      assert.equal(d.puede, true);
+      const desde = d.texto.match(/Desde \$([\d.]+)\./);
+      const ej = d.texto.match(EJEMPLO);
+      assert.ok(desde && ej, 'la letra perdió el «Desde» o el ejemplo con capital ' + capital);
+      assert.equal(ej[1], desde[1],
+        'con capital ' + capital + ' la letra dice «Desde $' + desde[1] +
+        '» y pone de ejemplo $' + ej[1]);
+    }
+  });
+
+  test('si su combinación no se puede cotizar, la letra NO se queda sin números', () => {
+    /* La letra es obligatoria: antes que publicarla coja, se cae al ejemplo del
+       mínimo. Y simularPrestamoRespaldado LANZA con estos valores en vez de
+       contestar, así que sin la reja del try esto no dejaría una letra a medias:
+       tumbaría la tarjeta entera. */
+    for (const malo of [{ capital: -5, meses: 6 }, { capital: 0, meses: 6 },
+                        { capital: 1000000, meses: 99 }, { capital: 1000000, meses: 0 },
+                        { capital: null, meses: 6 }]) {
+      const d = K.divulgacionRespaldado(DIA_SI, malo);
+      assert.equal(d.puede, true, 'con ' + JSON.stringify(malo) + ' se cayó la letra entera');
+      assert.match(d.texto, EJEMPLO,
+        'con ' + JSON.stringify(malo) + ' la letra quedó sin ejemplo');
+    }
+  });
+
+  test('la caché de la letra va POR COMBINACIÓN, no una sola', () => {
+    /* Sin esto, que divulgacionRespaldado aprendiera a seguir el deslizador no
+       habría servido de nada: la primera respuesta se queda pegada y la letra
+       vuelve a hablar de otro crédito. Es el mismo error que ya se corrigió el
+       15-sep en la caché del otro producto. */
+    const P = bancoDel(DIA_SI);
+    const a = P.ev('divulgacionGarantiaHoy({ capital: 1000000, meses: 6 })');
+    const b = P.ev('divulgacionGarantiaHoy({ capital: 3000000, meses: 4 })');
+    assert.ok(a && b, 'la letra salió vacía');
+    assert.notEqual(a, b, 'la caché devuelve el mismo texto para dos créditos distintos');
+    assert.equal(P.ev('divulgacionGarantiaHoy({ capital: 1000000, meses: 6 })'), a,
+      'la caché no conserva la primera combinación');
+  });
+
+  test('el vacío NO se cachea, ni con la caché por combinación', () => {
+    /* La decisión del 9-sep: si la primera llamada cae en un día sin techo
+       certificado, la letra que Google exige al lado de todo precio no puede
+       desaparecer para el resto de la sesión. Antes se cumplía de casualidad
+       —la cadena vacía es falsa, así que el «if» volvía a preguntar solo—; con
+       un objeto por llave hay que escribirlo. Se comprueba quitándole el módulo
+       a la página y devolviéndoselo. */
+    const P = bancoDel(DIA_SI);
+    P.ev('var _K = window.Cumplimiento; window.Cumplimiento = null;');
+    assert.equal(P.ev('divulgacionGarantiaHoy({ capital: 1000000, meses: 6 })'), '',
+      'sin cumplimiento.js la letra tendría que salir vacía');
+    P.ev('window.Cumplimiento = _K;');
+    assert.match(P.ev('divulgacionGarantiaHoy({ capital: 1000000, meses: 6 })'), EJEMPLO,
+      'el vacío se quedó cacheado: la letra obligatoria desapareció para el resto de la sesión');
+  });
+
+  test('la tarjeta le pasa SU cotización a la letra', () => {
+    /* El centinela de la forma, no del resultado. El barrido de arriba se cae si
+       alguien vuelve a clavar el ejemplo; éste se cae antes, al leer el código, y
+       dice dónde. Las dos calculadoras tienen que aparecer acá: la regla es una
+       sola y ya se rompió una vez por arreglar solo la mitad. */
+    assert.match(VIVO, /divulgacionGarantiaHoy\(\{\s*capital:\s*c\.capital,\s*meses:\s*c\.plazo_meses\s*\}\)/,
+      'cifrasDeGarantia imprime la letra sin decirle qué crédito está cotizando');
+    assert.match(VIVO, /divulgacionHoy\(\{\s*capital:\s*CALC\.monto,\s*meses:\s*CALC\.meses\s*\}\)/,
+      'la calculadora de arriba dejó de pasarle su crédito a la letra');
+    /* Y las dos llaves llevan la fecha delante. */
+    const llaves = VIVO.match(/var llave = hoyISO\(\) \+ '\|'/g) || [];
+    assert.equal(llaves.length, 2,
+      'alguna de las dos cachés de la letra obligatoria perdió la fecha de la ' +
+      'llave: al cambiar el día sigue contestando con el texto de ayer');
   });
 });
 

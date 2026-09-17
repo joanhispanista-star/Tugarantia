@@ -23,6 +23,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const M = require('../app/motor.js');
 const { abrirPlay } = require('./banco-play.js');
+const RELOJ = require('./reloj.js');
 const C = require('../app/creditos.js');
 
 const RAIZ = path.join(__dirname, '..');
@@ -169,6 +170,19 @@ describe('la pantalla ofrece la fecha (15-sep-2026)', () => {
        borre palabras. Éste le pone un techo que solo una de las dos opciones
        alcanza, y exige que la página elija ESA. */
     const P = abrirPlay();
+    /* 17-sep-2026 — Y LA FECHA TAMBIÉN SE CLAVA, por el mismo motivo y con la
+       misma técnica. El techo de mentira de abajo separa las dos opciones solo
+       mientras la primera cuota caiga lo bastante lejos, y eso depende del día
+       en que se corra: los cortes son el 15 y el 30, así que a medida que avanza
+       el mes los días a la primera cuota bajan, y del 21 al 26 de CADA MES las
+       dos opciones se pasaban del 24% a la vez. Ahí esta prueba fallaba —seis
+       días al mes, sin que nadie hubiera tocado nada— y su propio mensaje lo
+       decía: «el techo de mentira no separó las dos opciones».
+       Medido el 17-sep-2026 con el día clavado al 15-sep: la primera cuota cae a
+       46 días y las dos opciones quedan separadas (0:false|1:true).
+       Se le clava a hoyISO de la PÁGINA, que es de donde cuelgan
+       arranquesPosibles y arranqueElegido. El porqué largo está en reloj.js. */
+    P.ev('hoyISO = function () { return "' + RELOJ.HOY + '"; };');
     /* El techo de mentira: 24%. A tres meses desde hoy, el arranque sin correr
        da ~26,6% (ilegal) y el corrido ~20,8% (legal). Se le clava a la COPIA de
        C que tiene la página, no al módulo: el módulo es único para todo el

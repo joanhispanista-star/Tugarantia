@@ -20,11 +20,21 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const { abrirPanel } = require('./banco-panel.js');
+const RELOJ = require('./reloj.js');
 
-const HOY = new Date().toISOString().slice(0, 10);
+/* 17-sep-2026 — LA HORA SE PASA. Dos pruebas de este archivo miran las tablas de
+   Cobranzas, y ésas solo tienen filas dentro del horario de la Ley 2300; una
+   tercera mide cómo se pinta «hace X» y depende de la hora por su propia
+   naturaleza. Con el reloj de la casa las tres miden lo que dicen medir a
+   cualquier hora del día. El porqué largo está en reloj.js. */
+const HOY = RELOJ.HOY;
+
+/* Gestión de ayer: es lo que pone a alguien detrás de la reja de la semana.
+   Relativa y no escrita a mano, para que siga significando «ayer» en 2027. */
+const AYER = RELOJ.haceDias(1);
 
 function panel(extra) {
-  const P = abrirPanel();
+  const P = abrirPanel({ ahora: RELOJ.MOMENTO });
   P.cargarCartera(Object.assign({
     socios: [{ id: 'S1', numero: 1, nombre: 'Ana Perez', cedula: '1',
                telefono: '3001111111', whatsappIgual: true, gestiones: [] }],
@@ -257,7 +267,7 @@ describe('los botones de la fila (16-sep-2026)', () => {
        de la cartera. */
     const P = panel({
       socios: [{ id: 'S1', numero: 1, nombre: 'Ana', cedula: '1', telefono: '3001111111', whatsappIgual: true,
-                 gestiones: [{ fecha: '2026-09-14', hora: '2026-09-14T10:00:00Z', canal: 'sms', tipo: 'cobro' }] },
+                 gestiones: [{ fecha: AYER, hora: AYER + 'T10:00:00Z', canal: 'sms', tipo: 'cobro' }] },
                { id: 'S2', numero: 2, nombre: 'Luis', cedula: '2', telefono: '3002222222', whatsappIgual: true, gestiones: [] }],
       prestamos: [{ id: 'P1', socioId: 'S1', monto: 200000, fechaPago: HOY },
                   { id: 'P2', socioId: 'S2', monto: 300000, fechaPago: HOY }]
@@ -281,7 +291,7 @@ describe('los botones de la fila (16-sep-2026)', () => {
        precisamente se está haciendo. */
     const P = panel({
       socios: [{ id: 'S1', numero: 1, nombre: 'Ana', cedula: '1', telefono: '3001111111', whatsappIgual: true,
-                 gestiones: [{ fecha: '2026-09-14', hora: '2026-09-14T10:00:00Z', canal: 'sms', tipo: 'cobro' }] }]
+                 gestiones: [{ fecha: AYER, hora: AYER + 'T10:00:00Z', canal: 'sms', tipo: 'cobro' }] }]
     });
     P.ev('renderCobranzas()');
     assert.match(String(P.elems['tblFueraCob'].innerHTML), /Se libera en \d+ día/,

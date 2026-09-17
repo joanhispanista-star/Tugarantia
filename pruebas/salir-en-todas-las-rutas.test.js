@@ -20,6 +20,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const E = require('../app/cobranza-envio.js');
 const { abrirPanel } = require('./banco-panel.js');
+const RELOJ = require('./reloj.js');
 
 const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
 
@@ -50,7 +51,7 @@ describe('la salida se respeta por todas las rutas (16-sep-2026)', () => {
                       telefono: '3001111111', whatsappNumero: '3002222222' }];
     const fuera = E.numerosQueSalieron(socios);
     const caso = { id: 'C1', socioId: 'S9', telefono: '3002222222',
-                   nombre: 'Pedro', saldo: 50000, fecha_pago: '2026-09-20' };
+                   nombre: 'Pedro', saldo: 50000, fecha_pago: RELOJ.haceDias(-5) };
 
     assert.equal(E.filasDeEnvio([caso], { sinSMS: fuera }).filas.length, 0,
       'se le arma mensaje a quien pidió no recibir');
@@ -68,7 +69,11 @@ describe('la salida se respeta por todas las rutas (16-sep-2026)', () => {
        guardia la pasaba en verde — el mutante escapo. Ahora corre la pantalla
        con la cartera local vacia, que es exactamente el modo asesor.
        MUTANTE QUE CAZA: `if (false)` sobre la guardia, o mandar igual. */
-    const P = abrirPanel();
+    /* 17-sep-2026 — LA HORA SE PASA: estas dos rutas del equipo pasan por
+       GestionAsesor.puedeContactar, que aplica la ventana de la Ley 2300. Fuera
+       de horario devolvia «no se puede a esta hora» y la prueba leia ese aviso
+       en vez del de la salida, que es lo que mide. Ver reloj.js. */
+    const P = abrirPanel({ ahora: RELOJ.MOMENTO });
     P.cargarCartera({ socios: [], prestamos: [], config: { pin: '1234' } });
     P.ev('CARTERA_EQUIPO={yo:{id:"a1",rol:"asesor",celular:"3009999999"},' +
          'gente:[{id:"p1",nombre:"Pedro",celular:"3001111111",etapa:"M1A",saldo:50000,' +
@@ -88,7 +93,11 @@ describe('la salida se respeta por todas las rutas (16-sep-2026)', () => {
     /* «No pude armar el mensaje» manda a Joan a revisar el telefono de esa
        persona por un problema que no es ese.
        MUTANTE QUE CAZA: devolver el mensaje generico para el caso de la salida. */
-    const P = abrirPanel();
+    /* 17-sep-2026 — LA HORA SE PASA: estas dos rutas del equipo pasan por
+       GestionAsesor.puedeContactar, que aplica la ventana de la Ley 2300. Fuera
+       de horario devolvia «no se puede a esta hora» y la prueba leia ese aviso
+       en vez del de la salida, que es lo que mide. Ver reloj.js. */
+    const P = abrirPanel({ ahora: RELOJ.MOMENTO });
     P.cargarCartera({
       socios: [{ id: 'p1', numero: 1, nombre: 'Pedro', cedula: '1', telefono: '3001111111',
                  whatsappIgual: true, noSMS: true, gestiones: [] }],

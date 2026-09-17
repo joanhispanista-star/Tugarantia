@@ -40,6 +40,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { abrirPanel } = require('./banco-panel.js');
+const RELOJ = require('./reloj.js');
 const M = require('../app/motor.js');
 const C = require('../app/creditos.js');
 
@@ -50,11 +51,13 @@ const SQL = leer('base/20260916_contrapropuesta_a_cuotas.sql');
 const VIVO = CRM.replace(/\/\*[\s\S]*?\*\//g, ' ');
 const SQL_VIVO = SQL.replace(/--[^\n]*/g, ' ');
 
-const HOY = (() => {
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
-         String(d.getDate()).padStart(2, '0');
-})();
+/* 17-sep-2026 — EL DÍA SE PASA. Tres pruebas de acá cotizan el crédito con
+   garantía de punta a punta, y ese producto solo se puede anunciar los días en
+   que su peor plazo cabe debajo del techo de usura: 38 de 91 entre septiembre y
+   noviembre, en rachas de seis seguidos (ver divulgacionGarantiaHoy en
+   play/index.html). En los días de racha la página se callaba —con razón— y la
+   prueba leía una tarjeta sin cifras. El porqué largo está en reloj.js. */
+const HOY = RELOJ.HOY;
 
 /* --------------------------------------------------------------- el banco */
 /* Un socio con garantía ganada y una solicitud suya por más de lo que le
@@ -75,6 +78,7 @@ function abrirCrm(opciones) {
   const o = opciones || {};
   const enviados = [];
   const P = abrirPanel({
+    ahora: RELOJ.MOMENTO,
     red: (url, cfg) => {
       const fn = String(url).split('/rpc/')[1] || String(url);
       let cuerpo = null;
@@ -401,7 +405,10 @@ describe('el cliente ve las fechas y los montos, cuota por cuota', () => {
       setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
       requestAnimationFrame: () => 0, cancelAnimationFrame() {},
       matchMedia: () => ({ matches: false, addEventListener() {} }),
-      Date, Math, JSON, URL, Intl, TextEncoder, TextDecoder, Promise, Error,
+      /* El mismo día que ve el CRM: si los dos lados de la prueba de punta a
+         punta no comparten reloj, el plan que arma uno no es el que lee el otro. */
+      Date: RELOJ.relojFijo(RELOJ.MOMENTO),
+      Math, JSON, URL, Intl, TextEncoder, TextDecoder, Promise, Error,
       btoa: s => Buffer.from(s, 'binary').toString('base64'),
       atob: s => Buffer.from(s, 'base64').toString('binary'),
       Image: class {}, FileReader: class {}, Blob: class {}, File: class {},
