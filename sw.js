@@ -403,7 +403,39 @@
    Toca play/index.html y play/estilo.css. SI ESTE NUMERO NO SUBE, el telefono
    que ya visito el sitio se queda con la hoja vieja y sirve el markup nuevo
    desnudo: la hoja se pide cache-primero, solo el html y el js van a red. */
-const CACHE = 'tugarantia-v68';
+/* v69 - 17-sep-2026. LA LETRA OBLIGATORIA HABLABA DE OTRO CREDITO, y esta vez
+   en la calculadora de abajo, la del credito con garantia. La tarjeta decia «En
+   total vas a pagar $2.080.528» y tres centimetros mas abajo, en la linea que
+   existe para cumplir la ley, «para un total de $1.071.154». Medido sobre las
+   124 combinaciones de monto y plazo del deslizador: 123 se contradecian.
+   Es el mismo defecto que se arreglo el 16 en la calculadora de arriba, en la
+   mitad que aquel dia no se toco.
+   Y de paso, el mismo tipo de error una capa mas abajo: la cache de esa letra
+   no llevaba la FECHA en la llave, asi que una pestaña abierta cruzando la
+   medianoche seguia publicando la respuesta de ayer. Importa porque este
+   producto NO se puede anunciar 38 de cada 91 dias —su peor plazo se pasa del
+   techo de usura— y el guardian que lo tapa se estaba apagando por la cache.
+   Toca play/index.html y app/cumplimiento.js. SI ESTE NUMERO NO SUBE, el
+   telefono que ya visito el sitio se queda con el cumplimiento.js viejo y la
+   contradiccion sigue en pantalla aunque el repo este arreglado. */
+/* v70 - 17-sep-2026. LA VUELTA DE LA CAMARA DEVOLVIA AL CLIENTE AL LOGIN.
+   Joan: «el cliente toma la foto de la cedula y la pagina lo devuelve y
+   nuevamente tiene que ingresar la contrasena». No era la foto: era donde cae
+   la persona al volver. La camara del sistema hace que un telefono barato
+   descarte la pestaña y recargue; el paso se guardaba desde el 9-sep pero el
+   arranque solo lo leia si la direccion terminaba en #registro, y
+   pintarRegistro nunca la ponia. Quien abre tugarantia.net/play/ —que es el
+   enlace que el CRM reparte por WhatsApp— caia en la portada, delante de la
+   caja que pide celular y contrasena. Reproducido recargando el banco.
+   Con el mismo numero entran: la sesion que sobrevive la recarga (no se
+   guardaba en ninguna parte, asi que cualquier recarga cerraba la cuenta,
+   tambien justo despues de crearla), el borrador que se escribe mientras se
+   teclea, las fotos que solo sube la pestaña que las tomo, y la caja de la foto
+   que deja de decir «Listo» cuando el telefono no dejo guardarla.
+   Toca play/index.html. SI ESTE NUMERO NO SUBE, el telefono del cliente sigue
+   sirviendo la pagina vieja desde su cache y el defecto continua aunque el
+   repo este arreglado — que es exactamente lo que dice el bloque de abajo. */
+const CACHE = 'tugarantia-v70';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -164,7 +164,61 @@ function leerPaso() {
   try { var n = parseInt(sessionStorage.getItem(LLAVE_PASO), 10); return isNaN(n) ? 0 : n; }
   catch (e) { return 0; }
 }
+/* 17-sep-2026 — «NO HAY PASO» Y «PASO 1» NO SON LO MISMO, y confundirlos era la
+   mitad del problema. `leerPaso` devuelve 0 en los dos casos, así que con solo
+   ese dato no se puede decidir si a alguien hay que devolverlo al registro o
+   dejarlo en la portada. Esta pregunta es la que lo distingue. */
+function hayPasoGuardado() {
+  try { return sessionStorage.getItem(LLAVE_PASO) !== null; } catch (e) { return false; }
+}
 function olvidarPaso() { try { sessionStorage.removeItem(LLAVE_PASO); } catch (e) {} }
+
+/* ------------------------------------------------- LA SESIÓN, MIENTRAS DURA
+   17-sep-2026 — ANTES NO SE GUARDABA EN NINGUNA PARTE, y eso significa que
+   CUALQUIER recarga cerraba la sesión del socio. Medido: se abre la cuenta, se
+   recarga, y la página vuelve a la portada pidiendo celular y contraseña.
+   En un escritorio eso es una molestia; en el celular de un cliente es el
+   defecto que Joan describió, porque la cámara del sistema HACE recargar la
+   página en un teléfono barato.
+
+   EN sessionStorage Y NO EN localStorage, y es la misma decisión que la
+   contraseña en curso de aquí arriba: sobrevive la recarga —que es lo único
+   que hace falta— y se borra sola al cerrar la pestaña. Dejarla en
+   localStorage sería una cuenta abierta para siempre en un teléfono que se
+   presta, se pierde o se vende, y esta app es de plata.
+
+   Lo que se guarda es el mismo token que ya vive en memoria en SESION: no
+   agrega superficie de ataque que no existiera. Y si el token está vencido
+   cuando se restaura, `cargarFicha` lo detecta (FICHA_ESTADO 'sesion') y la
+   pantalla ofrece volver a entrar, en vez de fingir que sigue dentro. */
+var LLAVE_SESION = 'play_sesion';
+function guardarSesionEnCurso(s) {
+  try {
+    if (s && s.access_token) sessionStorage.setItem(LLAVE_SESION, JSON.stringify(s));
+  } catch (e) {}
+}
+function leerSesionEnCurso() {
+  try {
+    var s = JSON.parse(sessionStorage.getItem(LLAVE_SESION) || 'null');
+    return (s && s.access_token) ? s : null;
+  } catch (e) { return null; }
+}
+function olvidarSesionEnCurso() { try { sessionStorage.removeItem(LLAVE_SESION); } catch (e) {} }
+
+/* ------------------------------------------------- DÓNDE ESTÁ LA PERSONA
+   El registro tiene su propia dirección (#registro) y las otras dos vistas la
+   quitan. No es cosmética: es lo que hace que una recarga —la que provoca la
+   cámara del sistema— caiga donde la persona estaba. Se usa replaceState y no
+   el hash directo para NO llenar el historial con nueve entradas: el botón
+   «atrás» del teléfono tiene que sacar de la app, no recorrer el formulario
+   paso por paso hacia atrás. */
+function marcarVista(hash) {
+  try {
+    if (history && history.replaceState) {
+      history.replaceState(null, '', location.pathname + location.search + (hash || ''));
+    }
+  } catch (e) {}
+}
 
 /* ------------------------------------------------- LA CONTRASEÑA, MIENTRAS DURA
    sessionStorage y NO localStorage, y la diferencia importa: sessionStorage vive
@@ -204,6 +258,13 @@ function fila(k, v) {
 
 function pintarEntrar() {
   VISTA = 'entrar';
+  /* Volver a la portada es una salida DELIBERADA del registro: se suelta la
+     dirección y se olvida el paso. Sin esto, quien toca «Volver» hasta acá y
+     más tarde recarga se encontraría otra vez dentro del formulario, sin
+     haberlo pedido. La contraseña en curso NO se borra aquí a propósito: si
+     vuelve a entrar al registro, la trae puesta y no la teclea dos veces. */
+  marcarVista('');
+  olvidarPaso();
   /* 16-sep-2026 — «rápido y fácil» en vez de «a 6 meses», y el título se
      reasigna acá porque el mismo <h1> se recicla como barra de todas las
      pantallas: cambiar solo el HTML dejaría el texto viejo al volver del
@@ -500,6 +561,15 @@ function pintarRegistro(paso) {
   VISTA = 'registro';
   PASO = Math.max(0, Math.min(paso, PASOS.length - 1));
   guardarPaso(PASO);   // por si el teléfono recarga al volver de la cámara
+  /* 17-sep-2026 — Y LA DIRECCIÓN TAMBIÉN, que es lo que faltaba desde el 9-sep.
+     El paso se guardaba bien, pero el arranque solo lo leía si la dirección
+     terminaba en #registro — y esta función nunca la ponía. Quien abre
+     tugarantia.net/play/ y toca «Abrir mi cuenta» se quedaba sin ese trozo de
+     dirección, así que al volver de la cámara la página lo dejaba en la
+     portada, frente a la caja que pide celular y contraseña. Es exactamente lo
+     que Joan describió: «la página lo devuelve y nuevamente tiene que ingresar
+     la contraseña». Reproducido recargando el banco de pruebas en el paso 2. */
+  marcarVista('#registro');
   var p = PASOS[PASO];
   $('titulo').textContent = 'Abrir mi cuenta';
 
@@ -546,12 +616,52 @@ function pasoEntrada() {
       esc(REGISTRO.celular ? U.telefonoBonito(REGISTRO.celular) : '') + '">' +
     '<div class="ayuda">Son 10 números y empiezan por 3. Tiene que tener WhatsApp: ' +
       'por ahí te mandamos tu código si olvidas la contraseña.</div>' +
-    '<label for="rClave">Crea tu contraseña</label>' +
+    /* 17-sep-2026 — LA CONTRASEÑA NO SE DEVUELVE AL CAMPO, Y SE PUEDE SEGUIR
+       SIN TECLEARLA. Las dos mitades importan.
+
+       Se intentó rellenarla —para que quien vuelve del susto de la cámara no la
+       escriba otra vez, y dos veces— y se deshizo el mismo día: en un teléfono
+       que se presta, la siguiente persona que abre esa pestaña se encuentra el
+       registro del anterior con su contraseña puesta en el formulario. Podría
+       crear la cuenta con ella, y la tiene en el DOM. El ahorro de teclear no
+       paga eso.
+
+       Lo que sí se hace: si en esta pestaña ya se creó una contraseña, se dice
+       y se deja continuar en blanco. La clave sigue viviendo solo en
+       sessionStorage, no toca localStorage y no viaja en el borrador. */
+    '<label for="rClave">' + (CLAVE_EN_MEMORIA ? 'Tu contraseña' : 'Crea tu contraseña') + '</label>' +
     '<input id="rClave" type="password" autocomplete="new-password" placeholder="••••••••">' +
-    '<div class="ayuda">Mínimo ' + U.LARGO_MINIMO_CLAVE + ' caracteres. No uses tu celular ' +
-      'ni tu cédula: son lo primero que alguien probaría.</div>' +
-    '<label for="rClave2">Escríbela otra vez</label>' +
+    '<div class="ayuda">' + (CLAVE_EN_MEMORIA
+      ? 'Ya creaste tu contraseña en este teléfono. Déjalo en blanco para seguir con la misma, o escribe una nueva.'
+      : 'Mínimo ' + U.LARGO_MINIMO_CLAVE + ' caracteres. No uses tu celular ' +
+        'ni tu cédula: son lo primero que alguien probaría.') + '</div>' +
+    '<label for="rClave2">' + (CLAVE_EN_MEMORIA ? 'Si la cambias, escríbela otra vez' : 'Escríbela otra vez') + '</label>' +
     '<input id="rClave2" type="password" autocomplete="new-password" placeholder="••••••••">';
+}
+
+/* BORRAR EL REGISTRO DE OTRO — 17-sep-2026.
+   El borrador, las fotos y el paso viven en el teléfono para que nadie pierda
+   media hora de trabajo por una recarga. El precio es que en un teléfono
+   prestado la siguiente persona se encuentra el registro del anterior, con su
+   nombre, su cédula y las fotos. Hasta hoy no había forma de soltarlo: el
+   borrador solo se borraba al crear la cuenta. Esto es esa forma, y borra TODO
+   —incluida la contraseña en curso y la marca que autoriza a subir las fotos—,
+   no solo lo que se ve. */
+function empezarDeNuevo() {
+  try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
+  try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
+  olvidarPaso(); olvidarClaveEnCurso(); olvidarFotosDeEstaPestana();
+  REGISTRO = {}; FOTOS = {}; CLAVE_EN_MEMORIA = '';
+  pintarRegistro(0);
+}
+
+/* Anota un campo del registro en cuanto se escribe. El id del elemento lleva el
+   prefijo «f_» porque así los pinta pasoCampos y así los lee recogerPaso: un
+   solo sitio decide el nombre. */
+function anotarCampo(el) {
+  if (!el || !el.id || el.id.indexOf('f_') !== 0) return;
+  REGISTRO[el.id.slice(2)] = el.value;
+  guardarBorrador(REGISTRO);
 }
 
 function pasoCampos(grupo) {
@@ -559,9 +669,18 @@ function pasoCampos(grupo) {
     var v = REGISTRO[c.id] === undefined ? '' : REGISTRO[c.id];
     var etiqueta = '<label for="f_' + c.id + '">' + esc(c.etiqueta) +
       (c.obligatorio ? '' : ' <span class="opc">· opcional</span>') + '</label>';
+    /* 17-sep-2026 — SE GUARDA MIENTRAS SE ESCRIBE, no al tocar «Continuar».
+       El borrador solo se escribía al pasar de paso, así que quien tecleaba su
+       dirección y perdía la pestaña —la cámara la tumba, pero la memoria de un
+       teléfono barato la tumba en cualquier paso— volvía y se encontraba el
+       paso en blanco. Y desde hoy con un agravante: la página le dice «no
+       perdiste nada». Una pantalla que promete eso tiene que cumplirlo.
+       Sin temporizador a propósito: el borrador es un objeto de texto de un par
+       de kilos y escribirlo cuesta menos que el temporizador que lo evitaría. */
+    var apunta = ' oninput="anotarCampo(this)" onchange="anotarCampo(this)"';
     var campo;
     if (c.tipo === 'opcion') {
-      campo = '<select id="f_' + c.id + '"><option value="">Escoge…</option>' +
+      campo = '<select id="f_' + c.id + '"' + apunta + '><option value="">Escoge…</option>' +
         c.opciones.map(function (o) {
           return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>';
         }).join('') + '</select>';
@@ -572,7 +691,8 @@ function pasoCampos(grupo) {
                : c.tipo === 'numero' || c.tipo === 'pesos' ? 'text' : 'text';
       var modo = (c.tipo === 'celular' || c.tipo === 'numero' || c.tipo === 'pesos')
         ? ' inputmode="numeric"' : '';
-      campo = '<input id="f_' + c.id + '" type="' + tipo + '"' + modo + ' value="' + esc(v) + '">';
+      campo = '<input id="f_' + c.id + '" type="' + tipo + '"' + modo + apunta +
+        ' value="' + esc(v) + '">';
     }
     /* El porqué se le MUESTRA al socio, no se queda en el código. Si un dato
        vale la pena pedirlo, vale la pena decir para qué; y si da vergüenza
@@ -630,6 +750,13 @@ function siguientePaso() {
 
   if (p.id === 'entrada') {
     if (!REGISTRO.celular) return fallo(err, 'Escribe tu celular: son 10 números y empiezan por 3.');
+    /* En blanco Y con una contraseña ya creada en esta pestaña = «sigo con la
+       misma». Es lo que dice la ayuda del campo, y es lo que le permite a quien
+       volvió del susto de la cámara continuar sin teclearla dos veces sin que
+       la contraseña tenga que volver al formulario. */
+    if (!extra.clave && !extra.clave2 && CLAVE_EN_MEMORIA) {
+      extra.clave = extra.clave2 = CLAVE_EN_MEMORIA;
+    }
     var rc = U.revisarContrasena(extra.clave, { telefono: REGISTRO.celular, cedula: REGISTRO.documento });
     if (!rc.ok) return fallo(err, rc.motivo);
     if (extra.clave !== extra.clave2) return fallo(err, 'Las dos contraseñas no son iguales.');
@@ -731,7 +858,15 @@ function enviarRegistro(sensibles) {
       CLAVE_EN_MEMORIA = '';
       /* 8-sep-2026 — con «Confirm email» apagado en Supabase, el signup devuelve
          la sesión entera: el recién registrado ya puede pedir. */
-      if (res.j && res.j.access_token) SESION = res.j;
+      /* 17-sep-2026 — Y SE GUARDA AQUÍ MISMO, que es el peor sitio donde
+         perderla. Las dos pantallas que siguen —«tu cuenta quedó abierta» y la
+         propuesta— no pasaban por pintarCuenta, así que la sesión solo vivía en
+         memoria: una recarga en ese punto devolvía a la persona al formulario
+         de nueve pasos, VACÍO (el borrador se acaba de borrar dos líneas más
+         arriba) y sin una palabra de explicación, con la cuenta ya creada y sus
+         fotos sin subir. Es el mismo defecto de la cámara, en el momento más
+         caro del embudo. */
+      if (res.j && res.j.access_token) { SESION = res.j; guardarSesionEnCurso(SESION); }
       pintarRegistrado();
       subirArchivosRegistro().catch(function () {});   // si falla, se reintenta al abrir la cuenta
     })
@@ -894,7 +1029,42 @@ function cargarMiSolicitud() {
    falla, quedan en el teléfono y se reintenta al abrir la cuenta. */
 var LLAVE_FOTOS = 'play_fotos_borrador';
 var FOTOS = (function () { try { return JSON.parse(localStorage.getItem(LLAVE_FOTOS) || '{}') || {}; } catch (e) { return {}; } })();
-function guardarFotos() { try { localStorage.setItem(LLAVE_FOTOS, JSON.stringify(FOTOS)); } catch (e) {} }
+/* 17-sep-2026 — DICE SI DE VERDAD GUARDÓ. Antes se tragaba el error y devolvía
+   nada, así que la caja de la foto se pintaba «Listo · tocar para cambiar»
+   aunque el teléfono no hubiera podido escribirla: cuota llena, almacenamiento
+   bloqueado, modo privado. La persona seguía tranquila hasta que la página se
+   recargaba y la foto no estaba — y para entonces la pantalla le decía además
+   «no perdiste nada». Dos mentiras seguidas sobre la misma foto.
+   El error se sigue sin propagar (no hay nada mejor que hacer con él), pero
+   ahora quien llama sabe la verdad y la puede decir. */
+function guardarFotos() {
+  try { localStorage.setItem(LLAVE_FOTOS, JSON.stringify(FOTOS)); return true; }
+  catch (e) { return false; }
+}
+
+/* ------------------- LAS FOTOS SON DE QUIEN LAS TOMÓ — 17-sep-2026
+   Las fotos viven en localStorage, que NO se borra al cerrar la pestaña, y
+   `subirArchivosRegistro` las manda a la cuenta que esté abierta. Junta las dos
+   cosas y sale una fuga de verdad, no teórica: alguien empieza a registrarse en
+   un teléfono prestado, toma las fotos de su cédula y abandona; mañana el dueño
+   del teléfono abre su cuenta y ESAS fotos —la cédula de otra persona— se suben
+   solas a la suya. Cédula ajena en el expediente de un tercero: eso es un dato
+   sensible de la Ley 1581 en las manos equivocadas, y encima el CRM lo compara
+   con el rostro.
+
+   La marca vive en sessionStorage, que muere con la pestaña. O sea: solo sube
+   las fotos la MISMA pestaña que las tomó. Las que queden de otra sesión se
+   quedan quietas hasta que alguien empiece de nuevo y se borren. */
+var LLAVE_FOTOS_MIAS = 'play_fotos_de_esta_pestana';
+function marcarFotosDeEstaPestana() {
+  try { sessionStorage.setItem(LLAVE_FOTOS_MIAS, '1'); } catch (e) {}
+}
+function lasFotosSonDeEstaPestana() {
+  try { return sessionStorage.getItem(LLAVE_FOTOS_MIAS) === '1'; } catch (e) { return false; }
+}
+function olvidarFotosDeEstaPestana() {
+  try { sessionStorage.removeItem(LLAVE_FOTOS_MIAS); } catch (e) {}
+}
 
 /* ZXing vive en el propio sitio (app/lib): la app no llama a ningún servidor
    que no sea el suyo — es lo que declara Data Safety y lo vigila
@@ -1043,12 +1213,22 @@ function tomarFoto(ev, key) {
 
   comprimirVarias(file, tamanos).then(function (salidas) {
     /* 1. LO PRIMERO: guardar y pintar. A partir de acá la foto ya está a salvo. */
-    FOTOS[key] = salidas[0]; guardarFotos();
+    FOTOS[key] = salidas[0];
+    /* 17-sep-2026 — Y LA PANTALLA DICE LO QUE DE VERDAD PASÓ. Si el teléfono no
+       dejó escribirla, la foto vive solo en memoria: sirve para seguir ahora
+       mismo, pero no sobrevive una recarga — y la recarga es justo lo que hace
+       la cámara en estos teléfonos. Decirle «Listo» sería la interfaz
+       prometiendo lo que el código no cumple. */
+    var aSalvo = guardarFotos();
+    marcarFotosDeEstaPestana();
     if (caja) {
       caja.classList.add('ok');
       var ic = caja.querySelector('.ic'); if (ic) ic.remove();
       var img = caja.querySelector('img'); if (!img) { img = document.createElement('img'); img.alt = ''; caja.insertBefore(img, caja.firstChild); }
-      img.src = salidas[0]; caja.querySelector('.lbl').textContent = 'Listo · tocar para cambiar';
+      img.src = salidas[0];
+      caja.querySelector('.lbl').textContent = aSalvo
+        ? 'Listo · tocar para cambiar'
+        : 'La tenemos, pero tu teléfono no dejó guardarla: termina sin cerrar esta página.';
     }
     /* 2. Y solo después, la comodidad. Si esto falla o tumba la pestaña, la
        foto ya quedó guardada y la persona escribe sus datos a mano. */
@@ -1290,6 +1470,10 @@ function capturarRostro() {
 /* -------------------------------------------- la subida, después de la cuenta */
 function subirArchivosRegistro() {
   if (!FOTOS.sensibles) return Promise.resolve();
+  /* 17-sep-2026 — SOLO SUBE LA PESTAÑA QUE LAS TOMÓ. Ver el comentario de
+     LLAVE_FOTOS_MIAS: sin esta línea, la cédula que alguien dejó a medias en un
+     teléfono prestado se sube sola a la cuenta del siguiente que entre. */
+  if (!lasFotosSonDeEstaPestana()) return Promise.resolve();
   var archivos = {};
   ['cedula_frente', 'cedula_reverso', 'selfie'].forEach(function (k) { if (FOTOS[k]) archivos[k] = FOTOS[k]; });
   var huella = {};
@@ -1297,7 +1481,11 @@ function subirArchivosRegistro() {
   if (FOTOS.cedula_leida) huella.cedula_leida = FOTOS.cedula_leida;
   if (!Object.keys(archivos).length && !Object.keys(huella).length) return Promise.resolve();
   return rpcSesion('registro_archivos_guardar', { p_archivos: archivos, p_huella: huella }).then(function (j) {
-    if (j && j.ok === true) { try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {} FOTOS = { sensibles: true }; }
+    if (j && j.ok === true) {
+      try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
+      FOTOS = { sensibles: true };
+      olvidarFotosDeEstaPestana();
+    }
   });
 }
 
@@ -1974,8 +2162,22 @@ function cifrasDeGarantia() {
        del final» que Joan señaló como lo que más confundía. La lista no se fue
        —el plan completo sigue a un toque—, se quitó de en medio. */
     plegableCuotas(c.cuotas, 'garantia') +
+    /* 17-sep-2026 — LA LETRA, CON EL CRÉDITO QUE ESTÁ TRES RENGLONES ARRIBA.
+       Sin `c`, esta línea anunciaba siempre el ejemplo del mínimo: medido, en
+       123 de las 124 combinaciones del deslizador la caja gris decía «En total
+       vas a pagar X» y la letra de abajo «para un total de Y», con X distinto
+       de Y. Es la pantalla contradiciéndose, y es exactamente lo que se arregló
+       ayer en la calculadora de arriba (ver moverCalc y letraDeCalc).
+
+       ACÁ NO HACE FALTA REPINTAR NADA APARTE, y esa es la única diferencia con
+       la de arriba: allí la letra vive en su propia caja (`calcLetra`) y
+       moverCalc tiene que acordarse de ella; acá va DENTRO de gcalcCifras, así
+       que moverGCalc y eligeArranque ya la traen puesta al repintar la tarjeta.
+       Se dice por las dos direcciones: para que nadie agregue un repintado que
+       no hace falta, y para que quien algún día saque esta línea de la tarjeta
+       sepa que al hacerlo la deja congelada otra vez. */
     '<div class="aviso" style="margin-top:var(--e4);font-size:12.5px;line-height:1.55">' +
-      esc(divulgacionGarantiaHoy()) + '</div>' +
+      esc(divulgacionGarantiaHoy({ capital: c.capital, meses: c.plazo_meses })) + '</div>' +
     tarjetaGanancia(c);
 }
 
@@ -3009,6 +3211,12 @@ function barraPestanas() {
 function pintarCuenta(sesion) {
   if (sesion) SESION = sesion;
   VISTA = 'cuenta';
+  /* La sesión se guarda para que una recarga no la cierre — ver LLAVE_SESION—,
+     y se suelta la dirección del registro: quien ya tiene cuenta no vuelve al
+     formulario por recargar. El paso se olvida por lo mismo. */
+  guardarSesionEnCurso(SESION);
+  marcarVista('');
+  olvidarPaso();
   $('cuerpo').innerHTML = '<div id="tabs">' + barraPestanas() + '</div>' +
     '<div id="lamina"></div>' + pie();
   /* La ficha se pide UNA vez al abrir y se reparte a las cuatro láminas. Pedirla
@@ -3454,6 +3662,10 @@ function salirDeCuenta() {
       headers: { apikey: CFG.anon, Authorization: 'Bearer ' + SESION.access_token }
     }).catch(function () {});
   }
+  /* Y la copia guardada se borra ANTES que nada: si el aviso al servidor falla
+     o la pestaña se cierra en medio, lo que no puede quedar es una sesión que
+     una recarga vuelva a abrir. */
+  olvidarSesionEnCurso();
   SESION = null; FICHA = null; FICHA_ESTADO = 'sin'; TAB = 'credito';
   CANAL = 'servicio';
   HILO = { canal: null, mensajes: [], estado: 'sin' };
@@ -3602,14 +3814,51 @@ function pintarSimulacion() {
    MÁXIMA: 23,99%». La única frase de la app que existe para no afirmar nada
    falso estaba afirmando que el máximo era menor que el precio de tres
    renglones arriba. Lo vio el navegador, no las pruebas. */
+/* 17-sep-2026 — Y LA CACHÉ VA POR COMBINACIÓN, igual que la del otro producto y
+   por el mismo motivo. Acá había UNA sola entrada, así que aunque
+   divulgacionRespaldado aprendiera a seguir el deslizador, la primera respuesta
+   se quedaría pegada y el arreglo no habría servido de nada: es el mismo error
+   que se corrigió el 15-sep en DIVULGACION, unas líneas más abajo.
+
+   La caché no sobra —esto se llama cien veces por arrastre, porque la tarjeta
+   entera se repinta en cada movimiento del dedo y la letra vive DENTRO de la
+   tarjeta— pero ahora guarda un texto por cada monto y plazo.
+
+   EL VACÍO NO SE CACHEA, y es la decisión del 9-sep escrita a mano. Antes se
+   cumplía de casualidad: la cadena vacía es falsa, así que `if (!DIVULGACION_G)`
+   volvía a preguntar sola. Con un objeto por llave esa casualidad se pierde, y
+   lo que está en juego no es poco: si la primera llamada cae en un día sin
+   certificación de usura vigente, la letra que Google exige al lado de todo
+   precio desaparecería el resto de la sesión, sin decir nada. */
 var DIVULGACION_G = null;
-function divulgacionGarantiaHoy() {
-  if (!DIVULGACION_G) {
-    var K = window.Cumplimiento;
-    var d = (K && K.divulgacionRespaldado) ? K.divulgacionRespaldado(hoyISO()) : null;
-    DIVULGACION_G = (d && d.puede) ? d.texto : '';
+function divulgacionGarantiaHoy(muestra) {
+  var K = window.Cumplimiento;
+  if (!K || !K.divulgacionRespaldado) return '';
+  /* Y LA LLAVE EMPIEZA POR LA FECHA. Medido el 17-sep con la fecha fijada a
+     mano: en un banco abierto el 17 —día en que este producto SÍ se puede
+     ofrecer— y movido al 20 —día en que NO, porque su peor plazo se pasa del
+     techo de usura—, la tarjeta seguía cotizando, porque la respuesta del 17
+     estaba guardada y nadie volvía a preguntar. Era el guardián del techo
+     apagado por una caché.
+
+     No es hipotético ni raro: entre septiembre y noviembre de 2026 hay 38 días
+     de 91 en que este producto no se puede anunciar, y son rachas de seis días
+     seguidos. Basta una pestaña abierta cruzando la medianoche —o una app
+     instalada que el sistema despierta— para caer en el día equivocado. El
+     artículo 305 no distingue entre anunciar y cobrar.
+
+     Cuesta una concatenación y cierra el agujero entero: cambiado el día,
+     ninguna llave de ayer coincide y todo se vuelve a preguntar. */
+  var m = muestra || null;
+  var llave = hoyISO() + '|' + (m ? (m.capital + '|' + m.meses) : 'ejemplo');
+  if (DIVULGACION_G && DIVULGACION_G[llave]) return DIVULGACION_G[llave];
+  var d = K.divulgacionRespaldado(hoyISO(), m);
+  var texto = (d && d.puede) ? d.texto : '';
+  if (texto) {
+    if (!DIVULGACION_G) DIVULGACION_G = {};
+    DIVULGACION_G[llave] = texto;
   }
-  return DIVULGACION_G;
+  return texto;
 }
 /* Y la pregunta que hay que hacerse antes de imprimir la primera cifra de este
    producto, igual que hayQueCotizar para el otro. */
@@ -3637,8 +3886,15 @@ var DIVULGACION = null;
 function divulgacionHoy(muestra) {
   var K = window.Cumplimiento;
   if (!K) return '';
+  /* 17-sep-2026 — LA LLAVE EMPIEZA POR LA FECHA, igual que la del otro
+     producto y por la misma razón, que acá es más callada pero igual de mala:
+     la frase «Tasa máxima legal vigente en Colombia: X%» sale de la tabla de
+     topes, que se vence el último día de cada mes por diseño. Sin la fecha en
+     la llave, una sesión abierta cruzando esa medianoche sigue publicando el
+     techo del mes pasado como vigente — una afirmación falsa en el único texto
+     de la app que existe para no afirmar ninguna. */
   var m = muestra || null;
-  var llave = m ? (m.capital + '|' + m.meses) : 'ejemplo';
+  var llave = hoyISO() + '|' + (m ? (m.capital + '|' + m.meses) : 'ejemplo');
   if (DIVULGACION && DIVULGACION[llave]) return DIVULGACION[llave];
   var d = K.divulgacion(hoyISO(), m);
   var texto = (d && d.puede) ? d.texto : '';
@@ -3837,18 +4093,60 @@ function pie() {
      null— y el resultado medido en el banco fue CERO letras: ni calculadora, ni
      registro, ni forma de entrar. Invertido el orden, un adorno roto es un
      adorno roto y nada más. */
-  if (location.hash === '#registro') {
-    /* 9-sep-2026 — SE VUELVE DONDE IBA, no al principio. Ver LLAVE_PASO: la
-       cámara del sistema hace que el teléfono recargue esta página, y arrancar
-       siempre en el paso 1 dejaba a la persona dando vueltas. */
+  /* 17-sep-2026 — DÓNDE CAE LA PERSONA AL ABRIR, EN ORDEN, Y CADA RAMA TIENE SU
+     MOTIVO. Esto estaba mal y era el defecto que Joan reportó:
+
+       «el cliente toma la foto de la cédula y la página lo devuelve y
+        nuevamente tiene que ingresar la contraseña»
+
+     Lo que pasaba, reproducido recargando el banco de pruebas en el paso 2:
+     la cámara del sistema hace que un teléfono barato descarte la pestaña y la
+     recargue. Al volver, el arranque solo miraba si la dirección terminaba en
+     #registro — y nadie la ponía nunca —, así que caía en la portada, que es
+     donde está la caja «¿Ya abriste tu cuenta? Entra con tu celular y la
+     contraseña». El paso SÍ estaba guardado desde el 9-sep; nadie lo leía.
+
+     Y había un segundo agujero, del mismo tamaño: la sesión no se guardaba en
+     ninguna parte, así que el socio que YA había entrado también volvía al
+     login con solo recargar.
+
+     El orden manda:
+     1. QUIEN YA TIENE SESIÓN vuelve a su cuenta. Tener cuenta gana sobre
+        cualquier formulario a medias que haya quedado por ahí.
+     2. QUIEN IBA A MITAD DEL REGISTRO vuelve a su paso. Se pregunta por el paso
+        guardado Y por la dirección: el paso cubre la recarga de la cámara, la
+        dirección cubre el enlace que Joan reparte (…/play/#registro) y el caso
+        en que el navegador reabre sin el sessionStorage.
+     3. EL RESTO ve la portada. */
+  var sesionGuardada = leerSesionEnCurso();
+  var veniaDelRegistro = hayPasoGuardado();
+  if (sesionGuardada) {
+    pintarCuenta(sesionGuardada);
+  } else if (veniaDelRegistro || location.hash === '#registro') {
     var donde = leerPaso();
     pintarRegistro(donde);
-    if (donde > 0) {
+    /* El aviso solo cuando de verdad hubo una interrupción: quien llega por el
+       enlace, al paso 1 y sin nada guardado, no tiene ningún susto que
+       explicarle. */
+    if (veniaDelRegistro && donde > 0) {
       var aviso = $('errReg');
       if (aviso) {
         aviso.classList.remove('oculto');
-        aviso.textContent = 'Tu teléfono cerró la página mientras usabas la cámara. ' +
-          'No perdiste nada: seguimos donde ibas.';
+        /* 17-sep-2026 — NI SE INVENTA LA CAUSA NI SE PROMETE DE MÁS.
+           Decía «tu teléfono cerró la página mientras usabas la cámara» y
+           «no perdiste nada». Lo primero es una causa que la página no conoce
+           —la recarga puede ser el botón de recargar, quedarse sin memoria en
+           otro paso, o el navegador reabriendo la pestaña— y lo segundo no
+           siempre es verdad: lo que se estaba tecleando sin haber tocado
+           «Continuar» sí se perdía. Lo de teclear ya se guarda mientras se
+           escribe (ver anotarCampo), así que la promesa hoy se cumple; la
+           causa sigue sin saberse, y no se afirma.
+           Y va el botón de salida: en un teléfono prestado, quien abre la
+           página se encuentra el registro de otro y tiene que poder soltarlo. */
+        aviso.innerHTML = 'La página se volvió a abrir. Seguimos en el paso donde ibas, ' +
+          'con lo que ya habías escrito.' +
+          '<button class="btn sec sm" style="margin-top:var(--e3)" ' +
+          'onclick="empezarDeNuevo()">No soy yo · empezar de cero</button>';
       }
     }
   } else pintarEntrar();

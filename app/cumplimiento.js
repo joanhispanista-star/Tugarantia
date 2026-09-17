@@ -337,11 +337,37 @@
    * el defecto que la trajo: la calculadora del crédito con garantía imprimía
    * 26,82% y debajo «Tasa efectiva anual máxima: 23,99%».
    *
-   * EL EJEMPLO ES EL MÍNIMO DEL PRODUCTO y no una cifra cómoda: es el crédito
-   * más chico que de verdad se puede pedir, así que nadie puede leer el ejemplo
-   * y pedir menos esperando lo mismo.
+   * @param fechaISO
+   * @param [muestra]  {capital, meses} — el crédito que el cliente tiene EN
+   *   PANTALLA. Si viene y se puede cotizar, el ejemplo del texto es ESE.
+   *
+   * 17-sep-2026 — EL EJEMPLO SIGUE AL DESLIZADOR, COMO EL DEL OTRO PRODUCTO.
+   * Esta función nació con el ejemplo clavado en el mínimo —un millón a seis
+   * meses— y eso convive con una calculadora que se repinta ENTERA en cada
+   * movimiento del dedo. Medido sobre las 124 combinaciones de monto y plazo
+   * que el deslizador permite: en 123 la tarjeta enseñaba un total y la letra
+   * de abajo anunciaba otro. Con el deslizador en dos millones a tres meses,
+   * «En total vas a pagar $2.080.528» y tres centímetros más abajo «para un
+   * total de $1.071.154».
+   *
+   * Es el MISMO defecto que Joan encontró el 15-sep en la calculadora de
+   * arriba, y se arregla por el mismo camino porque la razón es la misma: quien
+   * lee dos totales distintos no concluye «uno es un ejemplo», concluye que le
+   * están escondiendo algo. Y tanto el artículo 305 como la ficha de Google
+   * piden que el ejemplo publicado sea el del crédito que se está cotizando.
+   *
+   * LO QUE NO SE MUEVE, y es la mitad que protege de la tentación contraria: la
+   * TASA MÁXIMA sigue siendo la del PRODUCTO —la peor de todos los plazos— y el
+   * «Desde $1.000.000» sigue siendo el mínimo de verdad. Publicar la tasa de su
+   * cotización como «máxima» sería anunciar una tasa menor que la mayor que se
+   * cobra, que es justo lo que el comentario de la otra divulgación impide.
+   *
+   * EL MÍNIMO DEL PRODUCTO SIGUE SIENDO EL EJEMPLO DE RESERVA, cuando no hay
+   * muestra o la que hay no se puede cotizar: es el crédito más chico que de
+   * verdad se puede pedir, así que nadie puede leer el ejemplo y pedir menos
+   * esperando lo mismo.
    * --------------------------------------------------------------------- */
-  function divulgacionRespaldado(fechaISO) {
+  function divulgacionRespaldado(fechaISO, muestra) {
     if (!M || !M.simularPrestamoRespaldado) {
       return { puede: false, motivo: 'sin_motor',
                mensaje: 'No puedo cotizar el préstamo con garantía sin el motor de reglas.' };
@@ -385,6 +411,37 @@
       return { puede: false, motivo: 'sobre_el_techo',
                tae_maxima: peorEA, techo_del_mes: ref.tope,
                techo_vigente: ref.vigente };
+    }
+
+    /* Y AHORA SÍ, EL EJEMPLO SE CAMBIA POR EL SUYO. Va DESPUÉS del guardián del
+       techo a propósito: lo primero que hay que decidir es si el producto se
+       puede anunciar hoy, y esa decisión es del producto entero —de su peor
+       plazo—, no del crédito que uno esté mirando. Meterlo antes haría que la
+       reja dependiera del deslizador.
+
+       SE COTIZA CON EL MISMO MOTOR Y LOS MISMOS ARGUMENTOS QUE LA PANTALLA, que
+       es lo único que garantiza que el total de la letra sea idéntico al de la
+       tarjeta. Bastan el capital y el plazo, y conviene saber por qué: en este
+       producto la cuota y el total salen SOLO de esos dos: la garantía ganada
+       mueve el cupo y la fecha de arranque mueve el calendario, pero ninguna de
+       las dos mueve las cifras. Por eso no hay que pasear el estado de la
+       pantalla por acá — y por eso esto no puede desincronizarse.
+
+       Va en try porque simularPrestamoRespaldado LANZA con un capital o un
+       plazo inválidos en vez de contestar: un cero, un negativo, un campo a
+       medias mientras alguien escribe. Sin el try, la letra OBLIGATORIA se
+       lleva por delante la pantalla entera. Es la misma reja que la de arriba.
+
+       Y POR DEBAJO DEL MÍNIMO NO SE CAMBIA: dos renglones antes el texto dice
+       «Desde $1.000.000», y poner ahí un ejemplo de $300.000 sería esa misma
+       frase contradiciéndose sola. Se queda el del mínimo, que es la verdad. */
+    var s = muestra || {};
+    if (s.capital != null) {
+      try {
+        var suyo = M.simularPrestamoRespaldado(s.capital,
+          s.meses != null ? s.meses : max, vacia, { fechaDesembolso: fechaISO });
+        if (suyo && suyo.cumple_minimo) ejemplo = suyo;
+      } catch (e) { /* se queda el del mínimo, que siempre cotiza */ }
     }
 
     var pct = function (x) { return (x * 100).toFixed(2).replace('.', ',') + '%'; };

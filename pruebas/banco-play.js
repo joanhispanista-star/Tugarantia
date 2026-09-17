@@ -18,10 +18,23 @@ const fs = require('node:fs');
 const path = require('node:path');
 const RAIZ = path.join(__dirname, '..');
 
-function abrirPlay() {
+/* 17-sep-2026 — EL BANCO ACEPTA ALMACENES DE FUERA, y hace falta para probar lo
+   único que no se podía probar: LA RECARGA.
+
+   La cámara del sistema hace que un teléfono barato descarte la pestaña y la
+   recargue. Hasta hoy cada banco nacía con localStorage y sessionStorage
+   vacíos, así que no había forma de escribir «abre la página, avanza, y ahora
+   vuelve a cargarla con lo que quedó guardado». Por eso un defecto que devolvía
+   al cliente al login vivió ocho días: el arreglo del 9-sep leía el paso
+   guardado solo si la dirección terminaba en #registro, y nadie ponía esa
+   dirección. No había prueba que lo viera porque no se podía escribir.
+   Ahora se pasan los dos almacenes —y el hash— y una recarga es abrir el banco
+   otra vez con los mismos objetos. */
+function abrirPlay(opciones) {
   const vm = require('node:vm');
+  const o = opciones || {};
   const html = fs.readFileSync(path.join(RAIZ, 'play', 'index.html'), 'utf8');
-  const almacen = {}, sesion = {}, elems = {};
+  const almacen = o.almacen || {}, sesion = o.sesion || {}, elems = {};
   const elem = id => (elems[id] = elems[id] || {
     id, value: '', checked: false, max: '', min: '', textContent: '', innerHTML: '',
     dataset: {}, style: {}, files: null,
@@ -45,10 +58,19 @@ function abrirPlay() {
     sessionStorage: { getItem: k => (k in sesion ? sesion[k] : null),
                       setItem: (k, v) => { sesion[k] = String(v); },
                       removeItem: k => { delete sesion[k]; } },
-    location: { href: 'https://tugarantia.net/play/', hash: '', pathname: '/play/',
-                search: '', protocol: 'https:', host: 'tugarantia.net',
-                origin: 'https://tugarantia.net', reload() {} },
-    history: { replaceState() {} },
+    location: { href: 'https://tugarantia.net/play/' + (o.hash || ''), hash: o.hash || '',
+                pathname: '/play/', search: '', protocol: 'https:',
+                host: 'tugarantia.net', origin: 'https://tugarantia.net', reload() {} },
+    /* replaceState MUEVE EL HASH DE VERDAD, y no es un lujo del banco: la página
+       marca dónde está la persona con él (marcarVista), y un replaceState de
+       mentira dejaba esa marca sin efecto — que es justo el hueco por el que se
+       coló el defecto de la cámara. Un banco que no mueve el hash prueba otra
+       página. */
+    history: { replaceState(estado, titulo, url) {
+      const i = String(url == null ? '' : url).indexOf('#');
+      ctx.location.hash = i >= 0 ? String(url).slice(i) : '';
+      ctx.location.href = 'https://tugarantia.net/play/' + ctx.location.hash;
+    } },
     navigator: { userAgent: 'node', serviceWorker: { register: () => Promise.resolve() },
                  geolocation: { getCurrentPosition() {} }, mediaDevices: null },
     fetch: () => Promise.reject(new Error('sin red en el banco de pruebas')),
@@ -82,7 +104,10 @@ function abrirPlay() {
       try { vm.runInContext(m[1], ctx, { filename: 'play#' + i }); }
       catch (e) { fallos.push(e); }
     });
-  return { ev: e => vm.runInContext(e, ctx, { filename: 'banco' }), elems, fallos };
+  /* `almacen` y `sesion` salen a la vista para que una prueba pueda volver a
+     abrir el banco con ellos: eso es una recarga. */
+  return { ev: e => vm.runInContext(e, ctx, { filename: 'banco' }), elems, fallos,
+           almacen, sesion, hash: () => ctx.location.hash };
 }
 
 

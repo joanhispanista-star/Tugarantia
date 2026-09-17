@@ -147,3 +147,222 @@ describe('la foto de la cédula (16-sep-2026)', () => {
       'comprimirImagen volvió a tener su propia decodificación en vez de reenviar');
   });
 });
+
+/* ===========================================================================
+ * LA VUELTA DE LA CÁMARA — 17 de septiembre de 2026
+ *
+ * Joan: «el cliente toma la foto de la cédula y la página lo devuelve y
+ * nuevamente tiene que ingresar la contraseña».
+ *
+ * NO ERA LA FOTO: ERA DÓNDE CAE LA PERSONA AL VOLVER. La cámara del sistema
+ * hace que un teléfono barato descarte la pestaña y recargue la página. El
+ * 9-sep se guardó el paso en sessionStorage justo para eso, pero el arranque
+ * solo lo leía si la dirección terminaba en #registro — y `pintarRegistro`
+ * nunca ponía esa dirección. Quien abría tugarantia.net/play/ y tocaba «Abrir
+ * mi cuenta» se quedaba sin ella, así que al volver de la cámara aparecía en la
+ * portada, delante de la caja que pide celular y contraseña. Ocho días.
+ *
+ * Y había un segundo agujero del mismo tamaño: la sesión no se guardaba en
+ * ninguna parte, así que el socio que YA había entrado también volvía al login
+ * con solo recargar.
+ *
+ * POR QUÉ NINGUNA PRUEBA LO VIO: no se podía escribir. Cada banco nacía con los
+ * almacenes vacíos, así que no había forma de decir «abre, avanza, y ahora
+ * recarga». Ahora abrirPlay acepta los dos almacenes y una recarga es abrirlo
+ * otra vez con los mismos objetos.
+ * ========================================================================= */
+describe('la vuelta de la cámara no puede devolver a nadie al login', () => {
+
+  /* Deja la página a mitad del registro, como quien acaba de poner su celular y
+     su contraseña y va a tomar la foto de la cédula. */
+  function aMitadDelRegistro(hash) {
+    const P = abrirPlay({ hash: hash || '' });
+    if (!hash) P.ev('pintarRegistro(0)');
+    P.ev("REGISTRO.celular='3001112233';" +
+         "$('rTel').value='3001112233';" +
+         "$('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x';");
+    P.ev('siguientePaso()');
+    return P;
+  }
+  /* Y esto es la recarga: el mismo teléfono, los mismos almacenes, la página
+     cargada de nuevo desde cero. */
+  function recargar(P) {
+    return abrirPlay({ almacen: P.almacen, sesion: P.sesion, hash: P.hash() });
+  }
+  const paso = P => {
+    const m = /Paso (\d+) de/.exec(P.elems.cuerpo.innerHTML);
+    return m ? Number(m[1]) : null;
+  };
+
+  test('EL CASO DE JOAN: sin #registro en la dirección, la cámara lo devolvía al login', () => {
+    const P = aMitadDelRegistro('');
+    assert.equal(paso(P), 2, 'el caso de prueba no llegó al paso de la cédula');
+    const Q = recargar(P);
+    assert.equal(Q.ev('VISTA'), 'registro',
+      'al volver de la cámara la página lo sacó del registro: eso es el defecto que reportó Joan');
+    assert.equal(paso(Q), 2, 'volvió al registro pero no al paso donde iba');
+    assert.equal(/Ya abriste tu cuenta/.test(Q.elems.cuerpo.innerHTML), false,
+      'le está pidiendo otra vez el celular y la contraseña');
+  });
+
+  test('por el enlace que Joan reparte (#registro) también vuelve donde iba', () => {
+    const P = aMitadDelRegistro('#registro');
+    const Q = recargar(P);
+    assert.equal(paso(Q), 2, 'el camino del enlace dejó de restaurar el paso');
+  });
+
+  test('el registro tiene su propia dirección, o la recarga no sabe dónde estaba', () => {
+    /* Es la pieza que faltaba: guardar el paso no sirve de nada si la página no
+       deja marcado que la persona está en el formulario. */
+    const P = abrirPlay({ hash: '' });
+    P.ev('pintarRegistro(0)');
+    assert.equal(P.hash(), '#registro',
+      'pintarRegistro no marca la dirección: una recarga volvería a la portada');
+    P.ev('pintarEntrar()');
+    assert.equal(P.hash(), '',
+      'volver a la portada dejó puesta la dirección del registro');
+  });
+
+  test('quien ya entró sigue adentro después de recargar', () => {
+    /* La sesión no se guardaba en NINGUNA parte: cualquier recarga la cerraba.
+       En un escritorio es una molestia; en el celular de un cliente es el mismo
+       defecto de la cámara por la otra puerta. */
+    const P = abrirPlay({ hash: '' });
+    P.ev("pintarCuenta({ access_token:'tok-de-prueba', user:{ id:'u1' } })");
+    assert.equal(P.ev('VISTA'), 'cuenta', 'el caso de prueba no llegó a la cuenta');
+    const Q = recargar(P);
+    assert.equal(Q.ev('VISTA'), 'cuenta',
+      'recargar cerró la sesión y lo mandó a teclear la contraseña otra vez');
+    assert.equal(Q.ev('SESION && SESION.access_token'), 'tok-de-prueba',
+      'la sesión se restauró vacía');
+  });
+
+  test('la sesión se guarda en sessionStorage y NUNCA en localStorage', () => {
+    /* La diferencia es de seguridad, no de gusto: sessionStorage muere con la
+       pestaña. En localStorage sería una cuenta abierta para siempre en un
+       teléfono que se presta, se pierde o se vende, y esta app es de plata. */
+    const P = abrirPlay({ hash: '' });
+    P.ev("pintarCuenta({ access_token:'tok-de-prueba', user:{ id:'u1' } })");
+    assert.deepEqual(Object.keys(P.almacen).filter(k => /sesion|token/i.test(k)), [],
+      'la sesión acabó en localStorage: sobrevive a cerrar el navegador');
+    assert.ok(Object.keys(P.sesion).some(k => /sesion/i.test(k)),
+      'la sesión no se guardó en ninguna parte: una recarga la cierra');
+    assert.equal(/access_token/.test(JSON.stringify(P.almacen)), false,
+      'hay un token en localStorage');
+  });
+
+  test('salir de la cuenta borra la sesión guardada, o volvería sola', () => {
+    const P = abrirPlay({ hash: '' });
+    P.ev("pintarCuenta({ access_token:'tok-de-prueba', user:{ id:'u1' } })");
+    P.ev('salirDeCuenta()');
+    const Q = recargar(P);
+    assert.notEqual(Q.ev('VISTA'), 'cuenta',
+      'salió de la cuenta y una recarga lo metió de vuelta adentro');
+  });
+
+  test('quien volvió a la portada a propósito NO cae en el registro al recargar', () => {
+    /* El otro lado del mismo interruptor: si el paso se quedara pegado, alguien
+       que se arrepintió se encontraría dentro del formulario sin pedirlo. */
+    const P = aMitadDelRegistro('');
+    P.ev('pintarRegistro(0)');
+    P.ev('pintarEntrar()');
+    const Q = recargar(P);
+    assert.equal(Q.ev('VISTA'), 'entrar',
+      'volver a la portada no soltó el registro: la recarga lo metió de vuelta');
+  });
+
+  test('el aviso de la interrupción sale SOLO cuando hubo interrupción', () => {
+    const P = aMitadDelRegistro('');
+    const Q = recargar(P);
+    assert.match(Q.elems.errReg.innerHTML, /La página se volvió a abrir/,
+      'no le explica por qué volvió a aparecer la página');
+    /* Y quien llega limpio por el enlace no tiene ningún susto que explicarle. */
+    const R = abrirPlay({ hash: '#registro' });
+    assert.equal(/La página se volvió a abrir/.test(R.elems.cuerpo.innerHTML), false,
+      'le avisa de una interrupción que no ocurrió');
+  });
+
+  test('el aviso NO inventa la causa de la recarga', () => {
+    /* Decía «tu teléfono cerró la página mientras usabas la cámara», y la
+       página no sabe eso: la recarga puede ser el botón de recargar, quedarse
+       sin memoria en cualquier otro paso, o el navegador reabriendo la pestaña.
+       Afirmar una causa que no se conoce es la misma falta que promete de más,
+       por el otro lado. */
+    const P = aMitadDelRegistro('');
+    const Q = recargar(P);
+    assert.equal(/usabas la cámara/.test(Q.elems.errReg.innerHTML), false,
+      'la página vuelve a afirmar una causa que no conoce');
+  });
+
+  test('en un teléfono prestado se puede soltar el registro de otro', () => {
+    /* El precio de guardarlo todo para que nadie pierda media hora de trabajo
+       es que el siguiente que use el teléfono se encuentra el registro del
+       anterior, con su nombre, su cédula y sus fotos. Tiene que poder soltarlo,
+       y hasta hoy no había forma: el borrador solo se borraba al crear la
+       cuenta. */
+    const P = aMitadDelRegistro('');
+    const Q = recargar(P);
+    assert.match(Q.elems.errReg.innerHTML, /empezarDeNuevo\(\)/,
+      'no hay forma de soltar el registro de otra persona');
+    Q.ev('empezarDeNuevo()');
+    /* Se cuenta desde DENTRO de la página y se compara un número: los objetos
+       del banco vienen de otro realm y `deepEqual` de assert/strict compara
+       también el prototipo, así que un [] de allá no es igual a un [] de acá. */
+    assert.equal(Q.ev('Object.keys(REGISTRO).length'), 0, 'quedaron datos del anterior en memoria');
+    assert.equal(Q.ev('Object.keys(FOTOS).length'), 0, 'quedaron fotos del anterior en memoria');
+    assert.equal(Q.almacen['play_registro_borrador'], undefined, 'el borrador del anterior sigue en el teléfono');
+    assert.equal(Q.almacen['play_fotos_borrador'], undefined, 'las fotos del anterior siguen en el teléfono');
+    assert.equal(Q.ev('CLAVE_EN_MEMORIA'), '', 'la contraseña del anterior sigue viva');
+  });
+
+  test('la contraseña NO vuelve al formulario, y aun así no se teclea dos veces', () => {
+    /* Se intentó devolverla al campo —para no teclearla otra vez, y dos veces—
+       y se deshizo el mismo día: en un teléfono prestado, la siguiente persona
+       se encontraría el registro del anterior con su contraseña puesta. Lo que
+       queda: el campo en blanco, y continuar en blanco vale como «sigo con la
+       misma». */
+    const P = aMitadDelRegistro('');
+    const Q = recargar(P);
+    Q.ev('pintarRegistro(0)');
+    const h = Q.elems.cuerpo.innerHTML;
+    assert.equal(/Perro\.2026x/.test(h), false,
+      'la contraseña volvió al formulario: el siguiente que use el teléfono la tiene');
+    assert.match(h, /Déjalo en blanco para seguir con la misma/,
+      'no le dice que puede continuar sin volver a escribirla');
+    assert.match(h, /id="rTel"[^>]*value="[^"]+"/, 'perdió el celular');
+    /* Y de verdad continúa: con los dos campos vacíos pasa al paso 2. */
+    Q.ev("$('rClave').value=''; $('rClave2').value='';");
+    Q.ev('siguientePaso()');
+    assert.equal(paso(Q), 2, 'dejarlo en blanco no lo dejó continuar, así que la teclea otra vez');
+  });
+
+  test('las fotos solo las sube la pestaña que las tomó', () => {
+    /* Las fotos viven en localStorage, que no muere al cerrar la pestaña, y la
+       subida las manda a la cuenta que esté abierta. Sin esta regla, la cédula
+       que alguien dejó a medias en un teléfono prestado se sube sola a la
+       cuenta del siguiente que entre: dato sensible de otra persona en el
+       expediente de un tercero, y el CRM lo compara con el rostro. */
+    const P = aMitadDelRegistro('');
+    P.ev("FOTOS = { sensibles: true, cedula_frente: 'data:image/jpeg;base64,AAA' }; guardarFotos();");
+    /* Otra pestaña: el mismo teléfono, el mismo localStorage, sessionStorage
+       nuevo. Es lo que pasa al día siguiente. */
+    const otra = abrirPlay({ almacen: P.almacen, hash: '' });
+    assert.equal(otra.ev('lasFotosSonDeEstaPestana()'), false,
+      'una pestaña nueva se cree dueña de las fotos que dejó otra persona');
+    let llamo = false;
+    otra.ev('rpcSesion = function () { window.__subio = true; return Promise.resolve({ ok: true }); };');
+    otra.ev('subirArchivosRegistro()');
+    llamo = otra.ev('!!window.__subio');
+    assert.equal(llamo, false, 'subió a esta cuenta las fotos de la cédula de otra persona');
+  });
+
+  test('la contraseña sigue SIN tocar localStorage ni el borrador', () => {
+    /* La regla vieja no se afloja: lo que cambió es que ahora se usa, no dónde
+       vive. */
+    const P = aMitadDelRegistro('');
+    assert.equal(/Perro\.2026x/.test(JSON.stringify(P.almacen)), false,
+      'la contraseña acabó en localStorage');
+    const borrador = P.almacen['play_registro_borrador'] || '';
+    assert.equal(/clave/.test(borrador), false, 'la contraseña viaja dentro del borrador');
+  });
+});

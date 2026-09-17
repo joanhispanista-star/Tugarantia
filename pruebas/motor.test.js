@@ -9875,7 +9875,16 @@ describe('el primer crédito del nuevo: la contrapropuesta (8-sep-2026)', () => 
     assert.match(cuerpo, /pedirPrimerCredito\(\)/, 'el recién registrado tiene que poder pedir de una');
     assert.ok(!/verificarPorWhatsApp/.test(cuerpo), 'la pantalla del registrado volvió a mandar a WhatsApp con un código');
     assert.ok(!/function verificarPorWhatsApp\(/.test(PLAY), 'verificarPorWhatsApp tenía que retirarse');
-    assert.match(PLAY, /if \(res\.j && res\.j\.access_token\) SESION = res\.j;/, 'la sesión del signup no se guarda: no podría pedir');
+    /* 17-sep-2026 — se medía el renglón exacto y ahora son dos: la sesión del
+       signup no solo se toma, TAMBIÉN se guarda en sessionStorage. Sin eso, una
+       recarga entre «tu cuenta quedó abierta» y la propuesta devolvía a la
+       persona al formulario de nueve pasos, vacío, con la cuenta ya creada. Lo
+       que esta línea protege sigue siendo lo mismo: que el recién registrado
+       pueda pedir. */
+    assert.match(PLAY, /if \(res\.j && res\.j\.access_token\) \{ SESION = res\.j;/,
+      'la sesión del signup no se toma: no podría pedir');
+    assert.match(PLAY, /if \(res\.j && res\.j\.access_token\) \{ SESION = res\.j; guardarSesionEnCurso\(SESION\); \}/,
+      'la sesión del signup no se guarda: una recarga ahí devuelve al formulario vacío');
     const j = PLAY.indexOf('function tarjetaContrapropuesta('), tarjeta = PLAY.slice(j, PLAY.indexOf('\nfunction ', j + 1));
     assert.match(tarjeta, /COP\(cp\.capital\)/); assert.match(tarjeta, /COP\(cp\.total\)/);
     /* 14-sep-2026 — LA PROPUESTA SE VE SEGMENTADA. Joan: «cuando yo envíe la
