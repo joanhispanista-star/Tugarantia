@@ -206,11 +206,49 @@
     });
     var celular = cels.indexOf(Math.max.apply(null, cels));
     if (cels[celular] === 0) celular = -1;
+    /* 17-sep-2026 — Y UN MÍNIMO PARA NO ELEGIR NINGUNA, que era lo que faltaba.
+       El puntaje de arriba sirve para escoger la MEJOR columna, pero cuando el
+       archivo no trae nombres escoge igual: la mejor de un montón malo. Medido
+       contra nueve reportes de cobranza de verdad, en dos de ellos —que no
+       tienen columna de titular— el ganador fue la columna de OBSERVACIÓN, y
+       entraban personas llamadas «Pse», «Ya Pago», «Antes Pm» y «Buzon».
+
+       Un WhatsApp que empieza «Hola Pse» es el mismo defecto que este proyecto
+       ya cometió una vez y que costó semanas de mensajes rotos: la pantalla
+       afirmando un dato que no tiene.
+
+       LOS DOS UMBRALES SALEN DE MEDIR LAS NUEVE BASES, no de la intuición, y
+       separan con más del doble de margen:
+
+         columna              variedad   varias palabras
+         nombres de verdad    0,68–1,00      0,99–1,00
+         notas y observación  0,01–0,21      0,48–1,00
+         nombre del asesor    0,03           0,90–1,00
+
+       O sea: la VARIEDAD es la que parte el agua. Una lista de personas es casi
+       toda distinta; una de notas se repite («NO CONTESTA» quinientas veces), y
+       la del asesor tiene tres valores. Se exige también que sean de dos
+       palabras, que es lo que descarta el correo.
+
+       Sin nombre NO es un fallo: `revisarBase` deja la ficha con el celular y
+       ya, y el CRM muestra el número. Mejor sin nombre que con uno inventado. */
+    /* Y UN TERCER MÍNIMO, el de COBERTURA, que se descubrió al probar el
+       arreglo: sin él, una columna con UN SOLO valor de texto suelto —el título
+       que quedó arriba, una celda con basura— saca variedad 1,00 y dos palabras
+       1,00, y se lleva el puesto con una sola fila. Una columna de nombres tiene
+       nombre en casi todas las filas que traen celular. Medido: las de verdad
+       cubren de 0,60 a 1,00; las de una sola celda, 0,003. */
+    var MIN_VARIEDAD = 0.5;
+    var MIN_VARIAS_PALABRAS = 0.5;
+    var MIN_COBERTURA = 0.3;
+    var cuantosCel = celular >= 0 ? cels[celular] : 0;
     var nombre = -1, mejor = 0;
     for (var i2 = 0; i2 < anchas; i2++) {
       if (i2 === celular || !conLetras[i2]) continue;
+      if (cuantosCel && conLetras[i2] < cuantosCel * MIN_COBERTURA) continue;
       var variedad = Object.keys(distintos[i2]).length / conLetras[i2];   // 1 = todos distintos
       var partido = variasPalabras[i2] / conLetras[i2];                   // 1 = todos con nombre y apellido
+      if (variedad < MIN_VARIEDAD || partido < MIN_VARIAS_PALABRAS) continue;
       var puntaje = conLetras[i2] * (0.35 + variedad) * (0.35 + partido);
       if (puntaje > mejor) { mejor = puntaje; nombre = i2; }
     }

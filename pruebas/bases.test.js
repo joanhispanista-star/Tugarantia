@@ -218,3 +218,105 @@ describe('el archivo es puro y no llama a nadie', () => {
     assert.ok(!/https?:\/\//.test(codigo), 'bases.js trajo un script de afuera');
   });
 });
+
+/* ==========================================================================
+ * SIN NOMBRE ES MEJOR QUE CON UNO INVENTADO — 17 de septiembre de 2026
+ *
+ * Joan trajo nueve reportes de cobranza para cargarlos como prospectos. El
+ * detector de columnas escogía bien cuando el archivo traía titular, pero
+ * cuando NO lo traía escogía igual: la mejor columna de un montón malo. En dos
+ * de los nueve el ganador fue la columna de OBSERVACIÓN, y entraban personas
+ * llamadas «Pse», «Ya Pago», «Antes Pm» y «Buzon».
+ *
+ * Un WhatsApp que empieza «Hola Pse» es exactamente el defecto que este
+ * proyecto ya cometió una vez —los mensajes que decían «Tu usuario: {usuario}»
+ * durante semanas— y que 809 pruebas en verde no vieron.
+ *
+ * LOS TRES UMBRALES SE MIDIERON contra las nueve bases de verdad, y separan con
+ * más del doble de margen:
+ *
+ *     columna              variedad   dos palabras   cobertura
+ *     nombres de verdad    0,68–1,00    0,99–1,00     0,60–1,00
+ *     notas y observación  0,01–0,21    0,48–1,00     0,72–1,00
+ *     nombre del asesor    0,03         0,90–1,00     1,00
+ *     una celda suelta     1,00         1,00          0,003
+ *
+ * La VARIEDAD es la que parte el agua: una lista de personas es casi toda
+ * distinta, una de notas se repite, y la del asesor tiene tres valores.
+ * ======================================================================== */
+describe('el nombre se lee, no se inventa (17-sep-2026)', () => {
+
+  /* Una hoja como las de verdad: App, celular, id de orden, y la columna que
+     se quiera poner a competir. */
+  const hojaCon = (cuarta) => {
+    const filas = [['App', '#Telefono', 'ID orden', 'CUARTA']];
+    for (let i = 0; i < 200; i++) {
+      filas.push(['LuckyPlata', '5731' + String(10000000 + i), '11522601' + i, cuarta(i)]);
+    }
+    return filas;
+  };
+
+  test('una columna de OBSERVACIONES no puede pasar por nombres', () => {
+    /* Es el caso real: «pse», «ya pago», «antes 2pm», «no contesta». Tienen dos
+       palabras y alguna variedad, pero se repiten — que es lo que un nombre no
+       hace. MUTANTE QUE CAZA: quitar el umbral de variedad. */
+    const notas = ['no contesta', 'ya pago', 'pago prorroga', 'buzon apagado',
+                   'no se contacta', 'renuente incumplido'];
+    const filas = hojaCon(i => notas[i % notas.length]);
+    const cols = B.detectarColumnas(filas);
+    assert.equal(cols.nombre, -1,
+      'eligió la columna de observaciones como nombres: entrarían personas ' +
+      'llamadas «Ya Pago» y el primer WhatsApp diría «Hola Ya Pago»');
+  });
+
+  test('una columna con el nombre del ASESOR tampoco', () => {
+    /* Tres asesores repartidos en cuatrocientas filas. Son nombres de persona
+       de verdad, pero no son los del prospecto. Los caza la variedad. */
+    const asesores = ['Laura Ruiz', 'Ginna Owalle', 'Karina Barreto'];
+    const filas = hojaCon(i => asesores[i % 3]);
+    assert.equal(B.detectarColumnas(filas).nombre, -1,
+      'metió el nombre del asesor como nombre del prospecto');
+  });
+
+  test('una sola celda de texto suelta no gana el puesto', () => {
+    /* Sin mínimo de cobertura, UNA celda saca variedad 1,00 y dos palabras
+       1,00, y se lleva la columna con una fila de doscientas. Se descubrió
+       probando el arreglo de arriba, no antes. */
+    const filas = hojaCon(i => (i === 0 ? 'Titulo Suelto' : ''));
+    assert.equal(B.detectarColumnas(filas).nombre, -1,
+      'una celda suelta se llevó la columna de nombres');
+  });
+
+  test('y una columna de nombres DE VERDAD sí se reconoce', () => {
+    /* El otro lado del interruptor: tres umbrales que no dejan pasar nada no
+       sirven de nada. */
+    const nombres = ['Laura Camila Ordoñez Gomez', 'Juan Carlos Henao Hinestroza',
+                     'Maria Eugenia Valencia Parra', 'Tania Julieth Guacaneme Ortigoza'];
+    const filas = hojaCon(i => nombres[i % 4] + ' ' + i);   // variados, como en la vida
+    const cols = B.detectarColumnas(filas);
+    assert.equal(cols.nombre, 3, 'dejó de reconocer una columna de nombres de verdad');
+  });
+
+  test('con nombres repetidos de verdad (la base grande) también', () => {
+    /* La base de 27.000 filas tiene 16.580 nombres con variedad 0,68: hay gente
+       que aparece varias veces y nombres comunes que se repiten. El umbral está
+       en 0,5 justamente para que esa base entre. */
+    const pilas = [];
+    for (let i = 0; i < 300; i++) pilas.push('Nombre Apellido ' + (i % 200));  // variedad ≈ 0,67
+    const filas = hojaCon(i => pilas[i % pilas.length]);
+    assert.notEqual(B.detectarColumnas(filas).nombre, -1,
+      'la base grande, con nombres repetidos de verdad, se quedó sin nombres');
+  });
+
+  test('sin nombre NO es un fallo: la ficha entra con su celular', () => {
+    /* Es la decisión que hace que todo lo de arriba sea seguro. Mejor una lista
+       de celulares sin nombre que una con nombres inventados. */
+    const notas = ['buzon', 'no contesta', 'sms enviado'];
+    const filas = hojaCon(i => notas[i % 3]);
+    const cols = B.detectarColumnas(filas);
+    const r = B.revisarBase(filas, cols, { socios: [], prospectos: [] });
+    assert.ok(r.nuevos.length > 150, 'se perdieron las filas por no tener nombre');
+    assert.ok(r.nuevos.every(x => x.celular && !x.nombre),
+      'entró algún nombre donde no había ninguno');
+  });
+});
