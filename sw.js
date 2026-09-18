@@ -465,7 +465,10 @@
    necesita HOY para un descuento a un cliente de verdad, asi que el numero sube
    para que el CRM se releve de una en su navegador en vez de esperar a la
    segunda visita. Toca panel/crm.html. */
-const CACHE = 'tugarantia-v73';
+/* v74 - 18-sep-2026. El boton de la prorroga desaparecia en silencio cuando el
+   credito estaba en plan de pagos o no admitia prorroga, y por eso Joan no
+   encontraba como hacer un descuento. Ahora se dice el motivo en la hoja. */
+const CACHE = 'tugarantia-v74';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

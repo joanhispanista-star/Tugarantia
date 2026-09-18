@@ -5148,9 +5148,22 @@ function calcPago(id){
   const btnPactar=(!c&&pr&&pr.ok&&!acuerdoDe(p))
     ? `<button class="btn btn-ghost" style="margin-top:8px;width:100%" onclick="pactarAcuerdo('${p.id}')" title="Registra que la prórroga se paga otro día, con el precio de hoy congelado">🤝 Pactar la prórroga para otra fecha</button>`
     : '';
-  const btnProrroga=c?''
-    :(pr&&!pr.ok?`<button class="btn btn-negro" onclick="registrarProrroga('${p.id}')">Ver el plan de pagos</button>`
-     :(pr?`<button class="btn btn-negro" onclick="modoProrroga('${p.id}')">↻ Prórroga (${COP(pr.total_a_pagar)})</button>`:'<span></span>'));
+  /* 18-sep-2026 — EL BOTÓN DE LA PRÓRROGA DESAPARECÍA EN SILENCIO, y por eso
+     Joan no encontraba cómo hacerle el descuento a un cliente de verdad.
+     Cuando el crédito está en plan de pagos (`c`) o cuando `liqProrroga`
+     devuelve null —pagado, o capital en cero— el hueco quedaba con un
+     `<span></span>` vacío: ni botón, ni explicación, ni nada donde buscar.
+     El motivo YA estaba escrito, pero adentro de `registrarProrroga`, o sea
+     detrás de un botón que no existe. Ahora se dice en la hoja, que es donde
+     se está mirando. Un botón que no está y no se explica es peor que uno
+     deshabilitado. */
+  const porQueNoHayProrroga=c
+    ? 'Este crédito está en <b>plan de pagos</b>: de ahí no se sale prorrogando. Cóbrale la cuota que sigue.'
+    : (!pr ? 'Este crédito <b>no admite prórroga</b>: está pagado o su capital quedó en cero.' : '');
+  const btnProrroga=porQueNoHayProrroga
+    ? `<div class="alerta info" style="grid-column:1/-1">${porQueNoHayProrroga}</div>`
+    : (pr&&!pr.ok?`<button class="btn btn-negro" onclick="registrarProrroga('${p.id}')">Ver el plan de pagos</button>`
+     :`<button class="btn btn-negro" onclick="modoProrroga('${p.id}')">↻ Prórroga (${COP(pr.total_a_pagar)})</button>`);
   /* Con descuento, la garantía y el reparto salen de LA PLATA QUE ENTRA. Las
      cuentas las hace el puente (cuentasDelCobro): las mismas dos llamadas al
      motor que hace el espejo. Sin descuento entro == costo_total_pagado y el
