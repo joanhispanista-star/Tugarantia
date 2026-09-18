@@ -461,7 +461,11 @@
    lienzo del escaner del rostro deja de reservarse entero en cada cuadro —eran
    unos 33 MB por segundo de basura durante todo el escaneo—.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v72';
+/* v73 - 18-sep-2026. El atajo «Gratis ($0)» en la hoja de la prorroga. Joan lo
+   necesita HOY para un descuento a un cliente de verdad, asi que el numero sube
+   para que el CRM se releve de una en su navegador en vez de esperar a la
+   segunda visita. Toca panel/crm.html. */
+const CACHE = 'tugarantia-v73';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
