@@ -5427,7 +5427,16 @@ function calcProrroga(id,p,liq,e,s){
   const inp=document.getElementById('pgMonto');
   if(inp&&_cobro.monto==null&&!_cobro.vacio) inp.value=String(e.monto);
   const at=document.getElementById('pgAtajos');
-  if(at) at.innerHTML=`${pr.recargo_mora?`<button class="btn btn-ghost btn-sm" onclick="atajoMonto('${p.id}',${Math.round(pr.costo_prorroga)})">Sin la mora (${COP(pr.costo_prorroga)})</button>`:'<span></span>'}<span></span>`;
+  /* 18-sep-2026 — Y EL ATAJO DE LA GRATIS, pedido de Joan: «hacerle valer la
+     prórroga con otro valor que yo considere». Escribir cualquier valor ya se
+     podía desde el 8-sep —incluido el cero—, pero había que borrar el campo y
+     teclear un 0, y el dueño del negocio no sabía que se podía. Un atajo al
+     lado del de «sin la mora» lo vuelve visible, que era el problema de verdad.
+     No se le baja a cero en silencio: sigue pidiendo el motivo, y el aviso de
+     «solo para ti» sigue diciendo cuánto le cuesta de su ganancia. */
+  if(at) at.innerHTML=
+    `${pr.recargo_mora?`<button class="btn btn-ghost btn-sm" onclick="atajoMonto('${p.id}',${Math.round(pr.costo_prorroga)})">Sin la mora (${COP(pr.costo_prorroga)})</button>`:'<span></span>'}`
+    +`${e.total>0?`<button class="btn btn-ghost btn-sm" onclick="atajoMonto('${p.id}',0)">Gratis ($0)</button>`:'<span></span>'}`;
   const acc=document.getElementById('pgAccion');
   if(acc) acc.innerHTML=`<div class="two"><button class="btn btn-rojo" id="pgBtn" onclick="registrarCobro('${p.id}')">↻ Registrar prórroga (${COP(e.total)})</button><button class="btn btn-ghost" onclick="volverAlCobro('${p.id}')">← Volver al cobro</button></div>`;
   /* La pregunta de abajo. En una prórroga el faltante solo puede ser perdón. */

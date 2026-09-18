@@ -546,3 +546,82 @@ describe('cuentasDeLaProrroga: dos movimientos, una sola verdad', () => {
     assert.doesNotThrow(() => PU.cuentasDeLaProrroga({}, {}, 'basura', { condonaMora: 'x' }));
   });
 });
+
+/* ==========================================================================
+ * EL PRECIO DE LA PRÓRROGA ES DE JOAN — 18 de septiembre de 2026
+ *
+ * Joan: «al momento de elegir cuánto paga el cliente la prórroga también se
+ * pueda modificar y quitarle los intereses o hacerle valer la prórroga con otro
+ * valor que yo considere, déjalo que sea ajustable».
+ *
+ * Ya se podía desde el 8-sep, pero no se veía: había que borrar el campo y
+ * teclear. Estas pruebas fijan las tres cosas que tienen que seguir siendo
+ * ciertas, porque son plata de Joan.
+ * ======================================================================== */
+const { abrirPanel } = require('./banco-panel.js');
+
+describe('el precio de la prórroga se puede bajar a lo que Joan diga', () => {
+
+  const conMora = () => {
+    const P = abrirPanel();
+    P.ev(`DB.socios=[{id:'S1',nombre:'Prueba',telefono:'3001112233',nivel:1}];
+          DB.prestamos=[{id:'C1',socioId:'S1',socioNombre:'Prueba',capital:200000,tasa:0.2,
+                         fechaPago:'2026-09-15',cicloActual:'2026-09-15',estado:'activo',
+                         prorrogas:[],abonosCapital:[],comprobantes:[],desembolso:'2026-09-01'}];
+          _fechaCobro='2026-09-18';`);
+    return P;
+  };
+  const estado = (P, monto, sobre) => {
+    P.ev(`_cobro={id:'C1', tipo:'prorroga', monto:${monto == null ? 'null' : monto},` +
+         ` sobre:'${sobre || 'mora'}', motivo:'acordado con el cliente'};`);
+    return P.ev(`decisionDelCobro(DB.prestamos[0], liqCredito(DB.prestamos[0],'2026-09-18'),` +
+                ` estadoDelCobro(DB.prestamos[0], liqCredito(DB.prestamos[0],'2026-09-18')))`);
+  };
+
+  test('en CERO se puede: la prórroga sale gratis, con su motivo', () => {
+    const P = conMora();
+    const d = estado(P, 0);
+    assert.equal(d.listo, true, 'no deja dejar la prórroga en cero: ' + d.txt);
+    assert.match(d.txt, /de \$0 con .* de descuento/,
+      'el botón no dice que va gratis y con cuánto de descuento: ' + d.txt);
+  });
+
+  test('en cualquier valor intermedio también', () => {
+    const P = conMora();
+    const d = estado(P, 3000);
+    assert.equal(d.listo, true, d.txt);
+    assert.match(d.txt, /\$3\.000/, 'no respeta el valor que escribió Joan: ' + d.txt);
+  });
+
+  test('sin motivo NO se registra un descuento', () => {
+    /* La regla vieja de la casa: un descuento sin motivo es un cuadre que no
+       cuadra dentro de tres meses. Bajar el precio no la afloja. */
+    const P = conMora();
+    P.ev(`_cobro={id:'C1', tipo:'prorroga', monto:0, sobre:'mora', motivo:''};`);
+    const d = P.ev(`decisionDelCobro(DB.prestamos[0], liqCredito(DB.prestamos[0],'2026-09-18'),` +
+                   ` estadoDelCobro(DB.prestamos[0], liqCredito(DB.prestamos[0],'2026-09-18')))`);
+    assert.equal(d.listo, false, 'dejó regalar la prórroga sin decir por qué');
+    assert.match(d.txt, /motivo/i);
+  });
+
+  test('POR ENCIMA del precio NO se puede, y es a propósito', () => {
+    /* Cualquier suma por encima de lo pactado se reputa interés (art. 68 de la
+       Ley 45 de 1990) y este producto ya va contra el techo de usura. El tope
+       hacia arriba protege a Joan, no al cliente. */
+    const P = conMora();
+    const d = estado(P, 50000);
+    assert.equal(d.listo, false, 'dejó cobrar por encima del precio de la prórroga');
+    assert.match(d.txt, /no se paga de más/i);
+  });
+
+  test('los dos atajos están a la vista: sin la mora y gratis', () => {
+    /* El problema de verdad no era que no se pudiera: era que no se veía. */
+    const fs = require('node:fs'), path = require('node:path');
+    const t = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ');
+    assert.match(t, /atajoMonto\('\$\{p\.id\}',\$\{Math\.round\(pr\.costo_prorroga\)\}\)/,
+      'se fue el atajo de «sin la mora»');
+    assert.match(t, /atajoMonto\('\$\{p\.id\}',0\)[^]{0,40}Gratis/,
+      'se fue el atajo de dejar la prórroga gratis');
+  });
+});
