@@ -882,7 +882,16 @@ function pasoCampos(grupo) {
     var apunta = ' oninput="anotarCampo(this)" onchange="anotarCampo(this)"';
     var campo;
     if (c.tipo === 'opcion') {
-      campo = '<select id="f_' + c.id + '"' + apunta + '><option value="">Escoge…</option>' +
+      campo = '<select id="f_' + c.id + '"' + apunta + '>' +
+        /* 21-sep-2026 — Joan: «en el cuestionario aparece una opción de escoge
+           como una opción de respuesta lo cual es incorrecto». Tenía razón: se
+           veía como una respuesta más. Pero BORRARLA sería peor — sin una
+           opción vacía el navegador escoge la primera de la lista sola, y el
+           cliente manda un dato que nunca eligió, en campos que deciden su
+           cupo. Deshabilitada y oculta no se puede escoger y no sale en la
+           lista; sigue siendo el valor inicial y `revisarVinculacion` sigue
+           exigiendo que la persona elija. */
+        '<option value="" disabled hidden' + (String(v) ? '' : ' selected') + '>Toca para elegir</option>' +
         c.opciones.map(function (o) {
           return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>';
         }).join('') + '</select>';
@@ -1095,9 +1104,19 @@ function enviarRegistro(sensibles) {
     .then(function (res) {
       if (!res.ok) {
         var yaExiste = /registered|already/i.test(JSON.stringify(res.j || {}));
-        return fallo(err, yaExiste
-          ? 'Ya hay una cuenta con ese celular. Entra con tu contraseña, o toca «Olvidé mi contraseña».'
-          : 'No pudimos crear la cuenta. Vuelve a intentar en un momento.');
+        /* 21-sep-2026 — YA TENÍA CUENTA: SE ENTRA, NO SE LE CIERRA LA PUERTA.
+           Es lo que le pasó a la primera clienta de verdad. Se había registrado
+           tres días antes; al volver a hacerlo, la bandeja de Joan recibió sus
+           datos otra vez (registrar_abierto es idempotente por celular) pero el
+           signup contestó «ya existe» y todo se cortaba aquí: sin sesión, y sin
+           sesión `subirArchivosRegistro` ni siquiera se llama. Joan veía su
+           información y no veía ni una foto.
+           Como la contraseña que acaba de escribir es la misma cuenta, se
+           intenta entrar con ella. Si es la correcta sigue como si nada —con su
+           sesión, y sus fotos suben—. Si no lo es, recién ahí se le dice, y con
+           el celular ya puesto en la caja de entrar. */
+        if (yaExiste) return entrarConLaClaveDelRegistro(err, autorizacion);
+        return fallo(err, 'No pudimos crear tu cuenta en este momento. Vuelve a intentarlo en un ratico; tus datos no se perdieron.');
       }
       try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
       olvidarPaso(); olvidarClaveEnCurso();
@@ -1120,6 +1139,38 @@ function enviarRegistro(sensibles) {
     .catch(function (e) {
       fallo(err, (e && e.humano) ? e.humano
         : 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
+    });
+}
+
+/* Entra con el celular y la contraseña del registro, para el caso de quien ya
+   tenía cuenta. Devuelve la misma promesa que el camino normal, así que el
+   resto de enviarRegistro no se entera de por dónde vino la sesión. */
+function entrarConLaClaveDelRegistro(err, autorizacion) {
+  fallo(err, 'Ya tenías una cuenta con este celular. Te estamos entrando…');
+  return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
+    body: JSON.stringify({ email: U.correoDeTelefono(REGISTRO.celular), password: CLAVE_EN_MEMORIA })
+  }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (res) {
+      if (!res.ok || !res.j || !res.j.access_token) {
+        /* La contraseña no es la de esa cuenta. Se le dice sin regañarlo y se
+           le deja el celular puesto abajo, para que entre o recupere la clave. */
+        fallo(err, 'Ya tienes una cuenta con este celular, pero esa contraseña no es la suya. ' +
+          'Entra con la tuya aquí abajo, o toca «Olvidé mi contraseña» y te mandamos un código.');
+        var t = $('inTel'); if (t) t.value = U.telefonoBonito(REGISTRO.celular);
+        return;
+      }
+      SESION = res.j; guardarSesionEnCurso(SESION);
+      try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
+      olvidarPaso(); olvidarClaveEnCurso();
+      CLAVE_EN_MEMORIA = '';
+      anotarCuentaCreada(REGISTRO.celular);
+      pintarRegistrado();
+      subidaEnSegundoPlano();   // sus fotos, que era lo que se perdía
+    }, function () {
+      fallo(err, 'Ya tienes una cuenta con este celular. Revisa tu internet e inténtalo otra vez, ' +
+        'o entra con tu contraseña aquí abajo.');
     });
 }
 

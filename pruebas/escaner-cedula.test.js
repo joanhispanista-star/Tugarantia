@@ -748,3 +748,108 @@ describe('la pantalla dice la verdad sobre la cédula (21-sep-2026)', () => {
       'quien lleva la cédula nueva se queda esperando a un lector que nunca va a leer nada');
   });
 });
+
+/* ===========================================================================
+ * LA PRUEBA CON SOFÍA — 21 de septiembre de 2026 (noche)
+ *
+ * La primera clienta de verdad. Joan reportó tres cosas y resultaron ser DOS
+ * causas distintas, las dos medidas contra la base y contra el código:
+ *
+ *   · «la cámara aparece como una foto normal» y «no se autorrellenó»
+ *     → su teléfono recibió el HTML y el JS de ese día pero la HOJA del 18,
+ *       porque el CSS solo pasó a red-primero en la v77. Sin las reglas del
+ *       escáner mandaron las de base —caja 3:4 y scaleX(-1)—: cédula en
+ *       espejo, sin marco, y el código de barras a ~2 px por módulo, por
+ *       debajo del mínimo de 2,5. Curado moviendo ese CSS al <style> en línea.
+ *
+ *   · «en mi crm aparece la información de Sofía pero no las fotos»
+ *     → ella YA tenía cuenta desde el 18. Al registrarse otra vez,
+ *       `registrar_abierto` (idempotente por celular) volvió a dejar sus datos
+ *       en la bandeja, pero el signup contestó «ya existe» y enviarRegistro se
+ *       cortaba ahí. Sin sesión, `subirArchivosRegistro` ni se llama.
+ *       Comprobado en auth.users: no hay usuario nuevo para su número el 21,
+ *       solo el del 18.
+ * ========================================================================= */
+describe('la prueba con Sofía (21-sep-2026)', () => {
+
+  const FUENTE = () => fs.readFileSync(path.join(RAIZ, 'play', 'index.html'), 'utf8');
+
+  function enElPaso9(P) {
+    P.ev('pintarRegistro(0)');
+    P.ev("$('rTel').value='3001112233'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x';");
+    P.ev('siguientePaso()');
+    P.ev("FOTOS = { sensibles: true, cedula_reverso: 'data:x' }; marcarDuenoDeLasFotos(); guardarFotos();");
+    P.ev("REGISTRO = Object.assign(REGISTRO, { nombres:'Ana', apellidos:'Ruiz', tipo_doc:'Cédula de ciudadanía', documento:'123456', expedicion:'2010-01-01', celular:'3001112233', ciudad:'Bogotá', barrio:'Centro', direccion:'Calle 1', tipo_vivienda:'Arriendo', anos_direccion:'Más de 5 años', ocupacion:'Empleado', ingreso_mes:'2000000', gastos_mes:'800000', dia_pago:'Quincenal (15 y 30)', ref1_nombre:'Luz', ref1_parentesco:'Hermana', ref1_celular:'3002223344', ref2_nombre:'Juan', ref2_parentesco:'Amigo', ref2_celular:'3004445566' }); guardarBorrador(REGISTRO);");
+    P.ev('pintarRegistro(8)');
+    P.ev("$('autGeneral').checked = true; $('autSensible').checked = true;");
+    return P;
+  }
+  /* La red de mentira: registrar_abierto contesta bien, el signup dice «ya
+     existe», y el login devuelve —o no— una sesión. */
+  function red(P, loginOk) {
+    P.ev("window.__llamadas = []; window.__subio = null;");
+    P.ev("fetch = function (u, o) { window.__llamadas.push(String(u));" +
+         " if (String(u).indexOf('registrar_abierto') >= 0) return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ ok: true }); } });" +
+         " if (String(u).indexOf('/auth/v1/signup') >= 0) return Promise.resolve({ ok: false, json: function () { return Promise.resolve({ msg: 'User already registered' }); } });" +
+         " if (String(u).indexOf('grant_type=password') >= 0) return Promise.resolve({ ok: " + (loginOk ? 'true' : 'false') + ", json: function () { return Promise.resolve(" +
+         (loginOk ? "{ access_token: 'tok-entrado', user: { email: '573001112233@tugarantia.net' } }" : "{ error: 'invalid_grant' }") + "); } });" +
+         " return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ ok: true }); } }); };");
+    P.ev("rpcSesion = function (fn, c) { window.__subio = c; return Promise.resolve({ ok: true, fotos: 1, guardados: ['cedula_reverso'] }); };");
+  }
+  const esperar = () => new Promise(r => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(r)))));
+
+  test('EL CASO DE SOFÍA: ya tenía cuenta, y sus fotos SÍ suben', () => {
+    /* MUTANTE QUE CAZA: volver al `return fallo(...)` que cortaba todo cuando
+       el signup decía «ya existe». Con eso, la bandeja de Joan recibe los datos
+       y las fotos no se suben nunca — que es literalmente lo que él vio. */
+    const P = abrirPlay({ hash: '' });
+    enElPaso9(P); red(P, true);
+    P.ev('siguientePaso()');
+    return esperar().then(() => {
+      const ll = P.ev('JSON.stringify(window.__llamadas)');
+      assert.match(ll, /grant_type=password/, 'no intentó entrar con la contraseña que la persona acababa de escribir');
+      assert.equal(P.ev("SESION && SESION.access_token"), 'tok-entrado', 'no quedó con sesión');
+      const subio = P.ev('window.__subio');
+      assert.ok(subio && subio.p_archivos && subio.p_archivos.cedula_reverso,
+        'sus fotos no se subieron: es exactamente lo que Joan vio en su CRM');
+      assert.equal(P.ev('VISTA'), 'listo', 'no llegó a la pantalla de «tu cuenta quedó abierta»');
+    });
+  });
+
+  test('si la contraseña no es la de esa cuenta, se lo dice sin regañarlo', () => {
+    const P = abrirPlay({ hash: '' });
+    enElPaso9(P); red(P, false);
+    P.ev('siguientePaso()');
+    return esperar().then(() => {
+      const t = P.ev("$('errReg').textContent");
+      assert.match(t, /Ya tienes una cuenta/, 'no le explica qué pasó');
+      assert.match(t, /Olvidé mi contraseña/, 'no le da la salida');
+      assert.equal(/no pudimos|error|inválid/i.test(t), false, 'le habla como una máquina');
+      assert.equal(P.ev('window.__subio'), null, 'subió fotos sin sesión válida');
+    });
+  });
+
+  test('«Escoge…» ya no se puede elegir, y sigue obligando a elegir', () => {
+    /* Joan: «aparece una opción de escoge como una opción de respuesta lo cual
+       es incorrecto». Pero borrarla sería peor: sin opción vacía el navegador
+       escoge la primera sola y el cliente manda un dato que nunca eligió, en
+       campos que deciden su cupo. */
+    const t = FUENTE();
+    assert.equal(/<option value="">Escoge…<\/option>/.test(t), false,
+      'volvió el «Escoge…» como una respuesta más de la lista');
+    assert.match(t, /<option value="" disabled hidden/,
+      'la opción vacía dejó de estar deshabilitada: el navegador va a escoger la primera solo');
+    const P = abrirPlay();
+    P.ev("REGISTRO.celular='3001112233'; pintarRegistro(5);");
+    const h = P.elems.cuerpo.innerHTML;
+    assert.match(h, /disabled hidden selected>Toca para elegir/, 'el campo no arranca vacío');
+    assert.equal(/>Escoge…</.test(h), false);
+  });
+
+  test('el texto de «no pudimos crear la cuenta» ya no suena a portazo', () => {
+    const t = FUENTE();
+    assert.equal(/No pudimos crear la cuenta\. Vuelve a intentar en un momento\./.test(t), false,
+      'volvió el texto seco');
+    assert.match(t, /tus datos no se perdieron/, 'no lo tranquiliza sobre lo que acaba de escribir');
+  });
+});

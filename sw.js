@@ -520,7 +520,24 @@
    igual que el del rostro. La regla que queda escrita: una funcion nueva no
    puede depender de dos archivos que se sirven con estrategias distintas.
    Toca play/index.html y play/estilo.css. */
-const CACHE = 'tugarantia-v78';
+/* v79 - 21-sep-2026 (noche, segunda). EL QUE YA TIENE CUENTA Y SE VUELVE A
+   REGISTRAR YA NO PIERDE SUS FOTOS. Es la otra mitad de lo de Sofia, y era una
+   causa distinta a la hoja rancia de la v78.
+   Sacado de auth.users, no supuesto: ella ya tenia cuenta desde el 18-sep. Al
+   registrarse otra vez el 21, registrar_abierto —que es idempotente por
+   celular— volvio a dejar sus datos en la bandeja de Joan, pero el signup
+   contesto «ya existe» y enviarRegistro se cortaba ahi con un mensaje. Sin
+   sesion, subirArchivosRegistro ni siquiera se llama. Por eso Joan veia su
+   informacion y no veia ni una foto: no es un caso raro, es el de cualquiera
+   que se registre dos veces, que en un producto de barrio pasa todo el tiempo.
+   Ahora se entra con la contraseña que la persona acaba de escribir: si es la
+   de esa cuenta sigue como si nada y sus fotos suben; si no lo es, se le dice
+   sin regañarlo y con el celular ya puesto en la caja de entrar.
+   Y el «Escoge…» que Joan vio como una respuesta mas: queda deshabilitado y
+   oculto en vez de borrado — borrarlo haria que el navegador escogiera la
+   primera opcion solo, y el cliente mandaria un dato que nunca eligio.
+   Toca play/index.html. */
+const CACHE = 'tugarantia-v79';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
