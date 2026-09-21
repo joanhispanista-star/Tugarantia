@@ -335,13 +335,37 @@ describe('el paso de la cédula dentro de la página', () => {
     assert.equal(P.ev("$('inClave').type"), 'password', 'el ojo no la vuelve a tapar');
   });
 
-  test('el escáner nuevo tiene lo que hace falta en el service worker y en la caja', () => {
+  test('EL CSS DEL ESCÁNER VIAJA DENTRO DEL HTML, no en la hoja aparte', () => {
+    /* 21-sep-2026 (noche) — LA LECCIÓN MÁS CARA DEL DÍA, y la pagó la primera
+       clienta de verdad. Sofía vio «una foto normal» y su cédula salió EN
+       ESPEJO: su teléfono recibió el HTML y el JS de ese día, pero la HOJA del
+       18, porque el CSS solo pasó a red-primero en la v77 y el service worker
+       que decidía en SU carga era el anterior. Sin las reglas del escáner
+       mandaron las de base —caja 3:4 y scaleX(-1)— y el recorte dejó el código
+       de barras a 2 px por módulo, así que tampoco autollenó nada.
+
+       Subir el número de caché no arregla esa visita: arregla la SEGUNDA. Y
+       eso significaba que TODA persona a la que ya se le hubiera mandado el
+       enlace tenía una visita rota pendiente.
+
+       La regla que deja: una función nueva no puede depender de dos archivos
+       que se sirven con estrategias distintas. El CSS del escáner vive en el
+       <style> en línea de play/index.html, que llega siempre fresco porque el
+       HTML va red-primero desde el día uno — igual que el del rostro. */
     const SW = fs.readFileSync(path.join(RAIZ, 'sw.js'), 'utf8');
-    assert.match(SW, /'app\/escaner-cedula\.js'/, 'el módulo del escáner no está en el precache: sin señal el paso de la cédula queda sin escáner');
+    assert.match(SW, /'app\/escaner-cedula\.js'/,
+      'el módulo del escáner no está en el precache: sin señal el paso de la cédula queda sin escáner');
+    const HTML = fs.readFileSync(path.join(RAIZ, 'play', 'index.html'), 'utf8');
+    const enLinea = HTML.slice(HTML.indexOf('<style>'), HTML.indexOf('</style>'));
+    assert.match(enLinea, /\.escaner\.escaner-doc video,\.escaner\.escaner-doc canvas\{transform:none\}/,
+      'el video de la cédula volvió a espejarse, o la regla salió del <style> en línea: un código de barras espejado no se lee');
+    assert.match(enLinea, /\.escaner\.escaner-doc\{aspect-ratio:9\/16/,
+      'la caja dejó de ser 9:16 (o se fue a la hoja aparte): el código saldría a 2 px por módulo');
+    assert.match(enLinea, /\.doc-linea\{/, 'la línea que barre se fue a la hoja aparte: puede llegar rancia');
+    assert.match(enLinea, /\.clave-caja \.ojo\{/, 'el ojo de la contraseña se fue a la hoja aparte');
     const CSS = fs.readFileSync(path.join(RAIZ, 'play', 'estilo.css'), 'utf8');
-    assert.match(CSS, /\.escaner\.escaner-doc video,\.escaner\.escaner-doc canvas\{transform:none\}/,
-      'el video de la cédula volvió a espejarse: un código de barras espejado no se lee');
-    assert.match(CSS, /\.escaner\.escaner-doc\{aspect-ratio:9\/16/, 'la caja dejó de ser 9:16: el código saldría a 2 px por módulo');
+    assert.equal(/\.escaner-doc|\.doc-guia|\.doc-linea|\.clave-caja/.test(CSS), false,
+      'las reglas del escáner volvieron a la hoja aparte: la primera visita de quien tenga un service worker viejo las recibe rancias');
   });
 });
 

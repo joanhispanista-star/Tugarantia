@@ -503,7 +503,24 @@
    Toca play/index.html y app/cuenta.js. FALTA PEGAR base/20260921_arreglo_huella.sql:
    sin eso el servidor sigue sin guardar una sola foto.
    SI ESTE NUMERO NO SUBE, el telefono del cliente sigue con la pantalla que miente. */
-const CACHE = 'tugarantia-v77';
+/* v78 - 21-sep-2026 (noche). LA PRIMERA CLIENTA DE VERDAD VIO SU CEDULA EN
+   ESPEJO, y la culpa fue de servir una funcion nueva desde DOS archivos con
+   estrategias distintas. Su telefono recibio el HTML y el JS de ese dia pero
+   la HOJA del 18: el CSS solo paso a red-primero en la v77, y el service
+   worker que decidia en SU carga era el anterior, que servia play/estilo.css
+   desde su cache. Sin las diez reglas nuevas del escaner mandaron las de base
+   —caja 3:4 y transform scaleX(-1)—: cedula espejada, sin marco y sin linea
+   que barra. O sea «una foto normal», que fue como lo describio Joan. Y la
+   caja 3:4 recorta el cuadro 9:16, asi que el codigo de barras cayo a ~2 px
+   por modulo y tampoco autolleno nada.
+   Subir este numero NO arreglaba esa visita: arregla la SEGUNDA. Cualquiera a
+   quien ya se le hubiera mandado el enlace tenia una visita rota pendiente.
+   Por eso el CSS del escaner se mudo al <style> EN LINEA de play/index.html,
+   que llega siempre fresco porque el HTML va red-primero desde el dia uno —
+   igual que el del rostro. La regla que queda escrita: una funcion nueva no
+   puede depender de dos archivos que se sirven con estrategias distintas.
+   Toca play/index.html y play/estilo.css. */
+const CACHE = 'tugarantia-v78';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

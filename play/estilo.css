@@ -649,83 +649,23 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
 }
 
 /* ---------------------------------------------------------------------------
-   EL ESCÁNER DE LA CÉDULA Y EL OJO DE LA CONTRASEÑA — 21-sep-2026
+/* ---------------------------------------------------------------------------
+   EL ESCÁNER SE MUDÓ AL HTML — 21-sep-2026 (noche), y es una lección cara.
 
-   El ojo: un botón DENTRO del campo que alterna type password/text sobre el
-   mismo <input>; el campo no cambia de sitio ni de id, solo se ve.
+   Sus reglas vivían aquí. El 21-sep la primera clienta de verdad vio «una foto
+   normal» y su cédula salió EN ESPEJO: su teléfono recibió el HTML y el JS de
+   ese día pero esta hoja con la copia del 18, porque el CSS solo pasó a
+   red-primero en la v77 y el service worker que decidía en su carga era el
+   anterior. Sin las reglas del escáner mandaron las de base —caja 3:4 y
+   scaleX(-1)— y de paso el recorte dejó el código de barras a 2 px por módulo,
+   así que tampoco se autollenó nada.
 
-   El escáner: la caja es 9:16 (no 3:4 como la del rostro) porque en un
-   teléfono vertical el video es 9:16 y así se ve ENTERO: la cédula va de pie y
-   ocupa el 84 % del alto, que es lo que le da al código de barras los 3 px por
-   módulo que el lector necesita. Recortada a 3:4 se perdería un cuarto del
-   cuadro y el código saldría a 2 px: al borde de no leerse.
-   El video de la cédula NO se espeja (el del rostro sí, para que se sienta un
-   espejo): un código de barras espejado no se lee y una cédula espejada
-   desconcierta. La regla lleva dos clases para ganarle a la del rostro, que
-   vive en línea en play/index.html y se aplica después de esta hoja.
-   La línea que barre anima transform (nada de top): en un teléfono barato
-   mover geometría se siente, y pruebas/vitrina.test.js lo exige.
+   Subir el número de caché NO arregla esa visita: arregla la SEGUNDA. Cualquiera
+   a quien ya se le hubiera mandado el enlace tenía una visita rota pendiente.
+
+   Por eso el CSS del escáner vive ahora en el <style> EN LÍNEA de
+   play/index.html, igual que el del rostro desde siempre: lo que viaja dentro
+   del HTML llega siempre fresco, porque el HTML va red-primero desde el día uno.
+   La regla general que deja esto: una función nueva no puede depender de dos
+   archivos que se sirven con estrategias distintas.
    ------------------------------------------------------------------------- */
-.clave-caja{position:relative}
-.clave-caja input{padding-right:50px}
-.clave-caja .ojo{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:40px;height:40px;
-  border:0;border-radius:10px;background:transparent;color:var(--gris);display:flex;
-  align-items:center;justify-content:center;cursor:pointer;padding:0}
-.clave-caja .ojo:active{background:var(--fondo)}
-.clave-caja .ojo .ojo-raya{opacity:0}
-.clave-caja .ojo.viendo{color:var(--tinta)}
-.clave-caja .ojo.viendo .ojo-raya{opacity:1}
-
-.escaner.escaner-doc{aspect-ratio:9/16;max-width:300px;border-radius:20px;background:var(--laca)}
-.escaner.escaner-doc video,.escaner.escaner-doc canvas{transform:none}
-.escaner.escaner-doc canvas{pointer-events:none}
-.doc-guia{position:absolute;overflow:hidden;border-radius:12px;pointer-events:none}
-.doc-linea{position:absolute;left:6%;right:6%;top:0;height:3px;border-radius:3px;
-  background:linear-gradient(90deg,transparent,var(--amarillo) 30%,var(--amarillo) 70%,transparent);
-  box-shadow:0 0 16px 3px rgba(245,197,66,.55);
-  animation:doc-barre 1.9s ease-in-out infinite alternate}
-.escaner-doc.enganchado .doc-linea{background:linear-gradient(90deg,transparent,#7CFFC4 30%,#7CFFC4 70%,transparent);
-  box-shadow:0 0 16px 3px rgba(124,255,196,.55)}
-.doc-listo{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:12px;background:rgba(12,10,11,.55);opacity:0;pointer-events:none}
-.escaner-doc.leido .doc-listo{opacity:1;animation:doc-aparece .35s ease-out}
-.escaner-doc.leido .doc-linea{animation:none;opacity:0}
-.doc-check{width:84px;height:84px;border-radius:50%;background:var(--verde);color:var(--luz);
-  display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 10px rgba(124,255,196,.25)}
-.escaner-doc.leido .doc-check{animation:doc-check .55s cubic-bezier(.2,1.4,.4,1)}
-.doc-check svg{width:46px;height:46px}
-.doc-listo-txt{color:var(--luz);font-weight:700;font-size:15px;text-align:center;padding:0 16px;
-  text-shadow:0 1px 6px var(--sombra)}
-.doc-acciones{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:var(--e3)}
-.doc-acciones .btn{width:auto;flex:1 1 auto}
-.doc-tarjetas{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:var(--e3)}
-.doc-tarjeta{border:1.5px dashed var(--linea);border-radius:14px;padding:10px;display:flex;
-  flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;
-  font-size:13px;min-height:96px;color:var(--gris)}
-.doc-tarjeta.ok{border-style:solid;border-color:var(--verde);background:var(--verde-tinte);color:var(--tinta)}
-.doc-tarjeta img{width:100%;max-height:72px;object-fit:cover;border-radius:8px}
-.doc-tarjeta .ic{font-size:26px}
-.doc-tarjeta .rep{font-size:12px;color:var(--azul-texto);background:none;border:0;padding:4px;
-  cursor:pointer;text-decoration:underline;font-family:inherit}
-.btn.escanear{margin-top:var(--e3)}
-.doc-nota{font-size:13px;color:var(--gris);margin-top:var(--e3);line-height:1.45}
-.doc-nota:empty{display:none}
-.enlace-suave{display:block;width:100%;margin-top:var(--e3);background:none;border:0;color:var(--gris);
-  font-size:13px;text-decoration:underline;cursor:pointer;padding:6px;font-family:inherit}
-
-@keyframes doc-barre{
-  0%{transform:translateY(0)}
-  100%{transform:translateY(var(--alto,300px))}
-}
-@keyframes doc-check{
-  0%{transform:scale(.4);opacity:0}
-  100%{transform:scale(1);opacity:1}
-}
-@keyframes doc-aparece{
-  0%{opacity:0}
-  100%{opacity:1}
-}
-@media (prefers-reduced-motion: reduce){
-  .doc-linea{animation:none;transform:translateY(var(--alto,300px)) translateY(-50%)}
-  .escaner-doc.leido .doc-check,.escaner-doc.leido .doc-listo{animation:none}
-}
