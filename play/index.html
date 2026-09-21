@@ -54,16 +54,69 @@
 .clave-caja .ojo.viendo{color:var(--tinta)}
 .clave-caja .ojo.viendo .ojo-raya{opacity:1}
 
-.escaner.escaner-doc{aspect-ratio:9/16;max-width:300px;border-radius:20px;background:var(--laca)}
+.escaner.escaner-doc{aspect-ratio:9/16;max-width:300px;border-radius:20px;background:var(--laca);
+  --tono:245,197,66}
+.escaner.escaner-doc.enganchado{--tono:124,255,196}
 .escaner.escaner-doc video,.escaner.escaner-doc canvas{transform:none}
 .escaner.escaner-doc canvas{pointer-events:none}
-.doc-guia{position:absolute;overflow:hidden;border-radius:12px;pointer-events:none}
-.doc-linea{position:absolute;left:6%;right:6%;top:0;height:3px;border-radius:3px;
-  background:linear-gradient(90deg,transparent,var(--amarillo) 30%,var(--amarillo) 70%,transparent);
-  box-shadow:0 0 16px 3px rgba(245,197,66,.55);
-  animation:doc-barre 1.9s ease-in-out infinite alternate}
-.escaner-doc.enganchado .doc-linea{background:linear-gradient(90deg,transparent,#7CFFC4 30%,#7CFFC4 70%,transparent);
-  box-shadow:0 0 16px 3px rgba(124,255,196,.55)}
+
+/* EL MARCO. La máscara de afuera es un box-shadow gigante: una sola capa que el
+   compositor resuelve solo, en vez de repintar el lienzo entero doce veces por
+   segundo. El borde cambia de punteado a entero y de ámbar a verde con una
+   transición, así que el enganche se SIENTE en vez de parpadear. */
+.doc-guia{position:absolute;border-radius:14px;pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(12,10,11,.52);
+  outline:2px dashed rgba(var(--tono),.85);outline-offset:0;
+  transition:outline-color .18s linear,box-shadow .25s linear}
+.escaner-doc.enganchado .doc-guia{outline-style:solid;
+  box-shadow:0 0 0 9999px rgba(12,10,11,.62),0 0 22px 2px rgba(var(--tono),.45) inset}
+
+/* LAS CUATRO ESQUINAS, que se cierran al enganchar. Dos capas con el mismo
+   gradiente cónico: la de arriba solo pinta las esquinas porque el resto del
+   borde queda transparente. */
+.doc-esq{position:absolute;inset:-3px;border-radius:17px;pointer-events:none;
+  background:
+    linear-gradient(rgb(var(--tono)) 0 0) 0 0/3px 22px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 0 0/22px 3px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 100% 0/3px 22px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 100% 0/22px 3px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 0 100%/3px 22px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 0 100%/22px 3px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 100% 100%/3px 22px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 100% 100%/22px 3px no-repeat;
+  filter:drop-shadow(0 0 6px rgba(var(--tono),.7));
+  transform:scale(1.04);opacity:.75;
+  transition:transform .22s cubic-bezier(.2,1.3,.4,1),opacity .22s linear}
+.escaner-doc.enganchado .doc-esq{transform:scale(1);opacity:1}
+
+/* LA RETÍCULA. Solo aparece cuando de verdad hay una tarjeta enganchada: es la
+   diferencia entre una señal y un adorno. */
+.doc-red{position:absolute;inset:0;border-radius:12px;overflow:hidden;pointer-events:none;
+  opacity:0;transition:opacity .3s linear;
+  background-image:
+    repeating-linear-gradient(90deg,rgba(var(--tono),.22) 0 1px,transparent 1px 26px),
+    repeating-linear-gradient(0deg,rgba(var(--tono),.22) 0 1px,transparent 1px 26px)}
+.escaner-doc.enganchado .doc-red{opacity:1;animation:doc-respira 2.4s ease-in-out infinite}
+
+/* EL BARRIDO, con estela. La línea es el filo; el halo de abajo es la estela
+   que deja, y las dos se mueven juntas con el mismo keyframe. */
+.doc-barrido{position:absolute;left:0;right:0;top:-64px;height:64px;pointer-events:none;
+  animation:doc-barre 2.1s cubic-bezier(.45,0,.55,1) infinite alternate}
+.doc-barrido::before{content:'';position:absolute;left:0;right:0;bottom:0;height:64px;
+  background:linear-gradient(to top,rgba(var(--tono),.28),transparent)}
+.doc-linea{position:absolute;left:4%;right:4%;bottom:0;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,rgb(var(--tono)) 18%,#fff 50%,rgb(var(--tono)) 82%,transparent);
+  box-shadow:0 0 18px 4px rgba(var(--tono),.6)}
+/* El progreso del FRENTE, que es el único que tiene un progreso de verdad: la
+   racha de cuadros quietos. El respaldo no lo lleva a propósito — ahí no hay
+   nada que contar hasta que el código de barras se lee, y una barra que avanza
+   sin saber hacia dónde es justamente la clase de mentira que este escáner no
+   se permite. */
+.doc-progreso{position:absolute;left:0;right:0;bottom:-10px;height:4px;border-radius:4px;
+  background:rgba(255,255,255,.18);overflow:hidden;opacity:0;transition:opacity .2s linear}
+.escaner-doc.midiendo .doc-progreso{opacity:1}
+.doc-progreso i{display:block;height:100%;width:100%;border-radius:4px;background:rgb(var(--tono));
+  transform:scaleX(var(--avance,0));transform-origin:left center;transition:transform .12s linear}
 .doc-listo{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:12px;background:rgba(12,10,11,.55);opacity:0;pointer-events:none}
 .escaner-doc.leido .doc-listo{opacity:1;animation:doc-aparece .35s ease-out}
@@ -91,9 +144,50 @@
 .enlace-suave{display:block;width:100%;margin-top:var(--e3);background:none;border:0;color:var(--gris);
   font-size:13px;text-decoration:underline;cursor:pointer;padding:6px;font-family:inherit}
 
+/* El barrido recorre el marco entero y vuelve. --alto lo pone medirCajaDoc
+   con la altura real del marco, que cambia con el teléfono y con la cara. */
 @keyframes doc-barre{
   0%{transform:translateY(0)}
   100%{transform:translateY(var(--alto,300px))}
+}
+@keyframes doc-respira{
+  0%,100%{opacity:.55}
+  50%{opacity:1}
+}
+/* EL ROSTRO, con las mismas capas que la cédula. Su óvalo y su malla los sigue
+   dibujando el lienzo, porque eso SÍ sale de lo que se mide; esto es el marco
+   de alrededor, que es lo que hace que parezca un aparato y no un formulario. */
+.escaner{--tono:245,197,66}
+.escaner.enganchado{--tono:124,255,196}
+.cara-esq{position:absolute;inset:8px;border-radius:16px;pointer-events:none;
+  background:
+    linear-gradient(rgb(var(--tono)) 0 0) 0 0/3px 26px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 0 0/26px 3px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 100% 0/3px 26px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 100% 0/26px 3px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 0 100%/3px 26px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 0 100%/26px 3px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 100% 100%/3px 26px no-repeat,
+    linear-gradient(rgb(var(--tono)) 0 0) 100% 100%/26px 3px no-repeat;
+  filter:drop-shadow(0 0 6px rgba(var(--tono),.7));
+  transform:scale(1.03);opacity:.8;
+  transition:transform .22s cubic-bezier(.2,1.3,.4,1),opacity .22s linear}
+.escaner.enganchado .cara-esq{transform:scale(1);opacity:1}
+.cara-red{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .3s linear;
+  background-image:
+    repeating-linear-gradient(90deg,rgba(var(--tono),.18) 0 1px,transparent 1px 30px),
+    repeating-linear-gradient(0deg,rgba(var(--tono),.18) 0 1px,transparent 1px 30px)}
+.escaner.enganchado .cara-red{opacity:1;animation:doc-respira 2.4s ease-in-out infinite}
+.cara-barrido{position:absolute;left:0;right:0;top:-70px;height:70px;pointer-events:none;
+  animation:cara-barre 2.4s cubic-bezier(.45,0,.55,1) infinite alternate}
+.cara-barrido::before{content:"";position:absolute;left:0;right:0;bottom:0;height:70px;
+  background:linear-gradient(to top,rgba(var(--tono),.25),transparent)}
+.cara-linea{position:absolute;left:6%;right:6%;bottom:0;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,rgb(var(--tono)) 18%,#fff 50%,rgb(var(--tono)) 82%,transparent);
+  box-shadow:0 0 18px 4px rgba(var(--tono),.6)}
+@keyframes cara-barre{
+  0%{transform:translateY(0)}
+  100%{transform:translateY(var(--alto,340px))}
 }
 @keyframes doc-check{
   0%{transform:scale(.4);opacity:0}
@@ -104,7 +198,11 @@
   100%{opacity:1}
 }
 @media (prefers-reduced-motion: reduce){
-  .doc-linea{animation:none;transform:translateY(var(--alto,300px)) translateY(-50%)}
+  /* Quieto no es enseñar menos: el marco, las esquinas y la retícula se
+     quedan —que es lo que informa— y lo único que se detiene es el barrido,
+     que es lo que se mueve. */
+  .doc-barrido,.cara-barrido{animation:none;transform:translateY(var(--alto,300px))}
+  .doc-red,.cara-red{animation:none}
   .escaner-doc.leido .doc-check,.escaner-doc.leido .doc-listo{animation:none}
 }
 </style>
@@ -1934,7 +2032,12 @@ function escanerDocHTML() {
   return '<div class="escaner escaner-doc" id="escDoc">' +
       '<video id="docVideo" playsinline muted autoplay></video>' +
       '<canvas id="docLienzo"></canvas>' +
-      '<div class="doc-guia" id="docGuia"><div class="doc-linea"></div></div>' +
+      '<div class="doc-guia" id="docGuia">' +
+        '<div class="doc-red"></div>' +
+        '<div class="doc-barrido"><div class="doc-linea"></div></div>' +
+        '<div class="doc-esq"></div>' +
+        '<div class="doc-progreso"><i></i></div>' +
+      '</div>' +
       '<div class="doc-listo"><div class="doc-check">' + iconoCheck() + '</div><div class="doc-listo-txt" id="docListoTxt"></div></div>' +
       '<div class="escaner-estado" id="docEstado">Encendiendo la cámara…</div>' +
     '</div>' +
@@ -2127,7 +2230,7 @@ function pintarGuiaCaja(g) {
   var guia = $('docGuia');
   if (guia && guia.style) {
     guia.style.left = g.x + 'px'; guia.style.top = g.y + 'px'; guia.style.width = g.w + 'px'; guia.style.height = g.h + 'px';
-    if (guia.style.setProperty) guia.style.setProperty('--alto', (g.h - 3) + 'px');
+    if (guia.style.setProperty) guia.style.setProperty('--alto', (g.h + 64) + 'px');
   }
 }
 /* El gris chico de la puerta: el marco más un anillo del 18 % alrededor, para
@@ -2180,7 +2283,6 @@ function bucleEscanerDoc() {
   if (verde) ESCDOC.estables++; else ESCDOC.estables = 0;
   var esFrente = ESCDOC.lado === 'frente';
   dibujarMarcoDoc(verde, esFrente ? Math.min(1, ESCDOC.estables / EC.TARJETA.CUADROS_FRENTE) : 0);
-  var e = $('escDoc'); if (e) e.classList.toggle('enganchado', verde);
   var t = (Date.now() - ESCDOC.desde) / 1000;
   if (estado) {
     var txt = g ? EC.textoDeTarjeta(m) : 'Encendiendo la cámara…';
@@ -2239,38 +2341,25 @@ function leerCuadroDoc(v) {
    cuando de verdad hay una tarjeta quieta y con luz. El lienzo va al tamaño de
    la CAJA (por la densidad de la pantalla), no del video: a 1080×1920 serían
    8 MB redibujados diez veces por segundo. */
+/* 21-sep-2026 — YA NO DIBUJA NADA: pone el estado y el CSS hace el resto.
+   Antes repintaba la máscara, el marco y las cuatro esquinas sobre un lienzo
+   del tamaño de la caja, diez veces por segundo, para enseñar algo que solo
+   depende de dos cosas: si hay tarjeta enganchada y cuánto lleva de racha. Eso
+   es trabajo del hilo principal justo mientras la cámara entrega cuadros y el
+   lector decodifica. En CSS lo resuelve el compositor y de paso se ve mejor:
+   las esquinas se cierran con una transición, la retícula entra con un
+   desvanecido y el barrido arrastra una estela.
+   El nombre se queda: es lo que llama el bucle, y lo que sigue significando es
+   «pinta el estado del escáner». */
 function dibujarMarcoDoc(enganchado, avance) {
-  var c = $('docLienzo'), g = ESCDOC.guiaCaja; if (!c || !g) return;
-  var dpr = Math.min(2, window.devicePixelRatio || 1);
-  var w = Math.round(ESCDOC.cajaW * dpr), h = Math.round(ESCDOC.cajaH * dpr);
-  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
-  var ctx = c.getContext('2d'); if (!ctx) return;
-  ctx.save(); ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, ESCDOC.cajaW, ESCDOC.cajaH);
-  ctx.fillStyle = 'rgba(12,10,11,.45)';
-  ctx.beginPath(); ctx.rect(0, 0, ESCDOC.cajaW, ESCDOC.cajaH);
-  trazarRedondo(ctx, g.x, g.y, g.w, g.h, 12); ctx.closePath();
-  ctx.fill('evenodd');
-  var col = enganchado ? '124,255,196' : '245,197,66';
-  ctx.strokeStyle = 'rgba(' + col + ',.95)'; ctx.lineWidth = 2;
-  if (!enganchado) ctx.setLineDash([8, 7]);
-  ctx.beginPath(); trazarRedondo(ctx, g.x, g.y, g.w, g.h, 12); ctx.closePath(); ctx.stroke();
-  ctx.setLineDash([]);
-  var L = Math.min(g.w, g.h) * 0.16; ctx.lineWidth = 4; ctx.lineCap = 'round';
-  [[g.x, g.y, 1, 1], [g.x + g.w, g.y, -1, 1], [g.x, g.y + g.h, 1, -1], [g.x + g.w, g.y + g.h, -1, -1]].forEach(function (k) {
-    ctx.beginPath(); ctx.moveTo(k[0], k[1] + L * k[3]); ctx.lineTo(k[0], k[1]); ctx.lineTo(k[0] + L * k[2], k[1]); ctx.stroke();
-  });
-  /* el frente no se lee: la barra crece con la racha de cuadros quietos */
-  if (avance > 0) {
-    ctx.strokeStyle = 'rgba(124,255,196,.95)'; ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.moveTo(g.x, g.y + g.h + 12); ctx.lineTo(g.x + g.w * avance, g.y + g.h + 12); ctx.stroke();
+  var e = $('escDoc'); if (!e || !e.classList) return;
+  e.classList.toggle('enganchado', !!enganchado);
+  /* La barra solo existe donde hay algo que contar: el frente. */
+  e.classList.toggle('midiendo', avance > 0);
+  var g = $('docGuia');
+  if (g && g.style && g.style.setProperty) {
+    g.style.setProperty('--avance', String(Math.max(0, Math.min(1, avance || 0))));
   }
-  ctx.restore();
-}
-function trazarRedondo(ctx, x, y, w, h, r) {
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
 }
 
 /* La foto que se guarda: el RECORTE de la tarjeta, a 900 px de lado mayor y
@@ -2378,7 +2467,12 @@ function pasoRostro() {
     '<div class="escaner' + (tiene ? ' oculto' : '') + '" id="escaner">' +
       '<video id="camVideo" playsinline muted autoplay></video>' +
       '<canvas id="camLienzo"></canvas>' +
-      '<div class="escaner-linea"></div>' +
+      /* 21-sep-2026 — las mismas capas que la cédula, para que las dos cámaras
+         se sientan el mismo aparato. El lienzo sigue dibujando lo que SÍ mide
+         (el óvalo, la malla y el arco de la racha); esto es la envoltura. */
+      '<div class="cara-red"></div>' +
+      '<div class="cara-barrido"><div class="cara-linea"></div></div>' +
+      '<div class="cara-esq"></div>' +
       '<div class="escaner-estado" id="camEstado">Encendiendo la cámara…</div>' +
     '</div>' +
     '<div id="selfieListo"' + (tiene ? '' : ' class="oculto"') + '>' +
@@ -2495,6 +2589,15 @@ function bucleEscaner() {
   ESCANER.ultima = m;
   if (m && m.ok) ESCANER.estables++; else ESCANER.estables = 0;
   var avance = Math.min(1, ESCANER.estables / U.ENCUADRE.CUADROS);
+  /* El mismo interruptor que la cédula: verde solo cuando de verdad hay una
+     cara centrada y quieta, nunca por reloj. */
+  var caja = $('escaner');
+  if (caja && caja.classList) caja.classList.toggle('enganchado', !!(m && m.ok));
+  /* La altura real de la caja, para que el barrido la recorra entera: cambia
+     con el ancho del teléfono, así que no se puede escribir en la hoja. */
+  if (caja && caja.style && caja.style.setProperty && caja.clientHeight) {
+    caja.style.setProperty('--alto', (caja.clientHeight + 70) + 'px');
+  }
 
   /* 17-sep-2026 — EL LIENZO SOLO SE REDIMENSIONA CUANDO CAMBIA DE VERDAD.
      Escribir `c.width` vuelve a reservar el mapa de bits ENTERO aunque el

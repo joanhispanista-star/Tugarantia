@@ -537,7 +537,24 @@
    oculto en vez de borrado — borrarlo haria que el navegador escogiera la
    primera opcion solo, y el cliente mandaria un dato que nunca eligio.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v79';
+/* v80 - 21-sep-2026 (noche, tercera). EL ESCANER QUE PARECE AVANZADO, en las
+   DOS camaras. Joan lo pidio dos veces: «quiero que se vea animado como
+   escaneando» y «que parezca un escaneo muy avanzado», para la cedula Y para
+   la cara.
+   Se rehizo en CSS y salio del lienzo. El marco, la mascara y las cuatro
+   esquinas se repintaban DIEZ VECES POR SEGUNDO sobre un lienzo del tamano de
+   la caja para ensenar algo que solo depende del estado — y eso es trabajo del
+   hilo principal justo mientras la camara entrega cuadros y el lector
+   decodifica. Ahora la mascara sale de un box-shadow, las esquinas se cierran
+   con una transicion, la reticula entra con un desvanecido y el barrido
+   arrastra una estela. Lo hace el compositor y no cuesta nada.
+   LA REGLA QUE NO SE NEGOCIA: el verde, la reticula y el latido solo aparecen
+   cuando medirTarjeta dice de verdad que hay una tarjeta quieta, con luz y
+   enfocada. Un escaner que se ve igual con la cedula puesta y apuntando al
+   techo es decoracion, no una senal. El rostro ya lo hacia desde el 9-sep;
+   ahora las dos camaras se sienten el mismo aparato.
+   Toca play/index.html. */
+const CACHE = 'tugarantia-v80';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
