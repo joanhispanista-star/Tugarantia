@@ -336,24 +336,37 @@ describe('la vuelta de la cámara no puede devolver a nadie al login', () => {
     assert.equal(paso(Q), 2, 'dejarlo en blanco no lo dejó continuar, así que la teclea otra vez');
   });
 
-  test('las fotos solo las sube la pestaña que las tomó', () => {
+  test('las fotos solo suben a la cuenta de quien las tomó', () => {
     /* Las fotos viven en localStorage, que no muere al cerrar la pestaña, y la
        subida las manda a la cuenta que esté abierta. Sin esta regla, la cédula
        que alguien dejó a medias en un teléfono prestado se sube sola a la
        cuenta del siguiente que entre: dato sensible de otra persona en el
-       expediente de un tercero, y el CRM lo compara con el rostro. */
+       expediente de un tercero, y el CRM lo compara con el rostro.
+
+       21-sep-2026 — LA REGLA CAMBIÓ DE DUEÑO, Y ESTA PRUEBA CON ELLA. Era «solo
+       la pestaña que las tomó» (una marca en sessionStorage), y eso resultó ser
+       la mitad del defecto que Joan reportaba: Android no restaura el
+       sessionStorage al volver de la cámara, así que las fotos de la persona de
+       verdad tampoco subían, en silencio y con la caja diciendo «Listo». Ahora
+       las fotos llevan escrito el CELULAR del registro y la hora. Escrita así,
+       la prueba dice lo que de verdad protege: las de otro no entran, las
+       propias sí. Tal como estaba, pasaba por la razón equivocada (REGISTRO
+       vacío en un banco nuevo), no por la regla. */
     const P = aMitadDelRegistro('');
-    P.ev("FOTOS = { sensibles: true, cedula_frente: 'data:image/jpeg;base64,AAA' }; guardarFotos();");
+    P.ev("FOTOS = { sensibles: true, cedula_frente: 'data:image/jpeg;base64,AAA' }; marcarDuenoDeLasFotos(); guardarFotos();");
     /* Otra pestaña: el mismo teléfono, el mismo localStorage, sessionStorage
-       nuevo. Es lo que pasa al día siguiente. */
+       nuevo. Es lo que pasa al día siguiente, o al volver de la cámara. */
     const otra = abrirPlay({ almacen: P.almacen, hash: '' });
-    assert.equal(otra.ev('lasFotosSonDeEstaPestana()'), false,
-      'una pestaña nueva se cree dueña de las fotos que dejó otra persona');
-    let llamo = false;
-    otra.ev('rpcSesion = function () { window.__subio = true; return Promise.resolve({ ok: true }); };');
-    otra.ev('subirArchivosRegistro()');
-    llamo = otra.ev('!!window.__subio');
-    assert.equal(llamo, false, 'subió a esta cuenta las fotos de la cédula de otra persona');
+    const conCuenta = cel => {
+      otra.ev("SESION = { access_token: 'tok', user: { email: '57" + cel + "@tugarantia.net' } };");
+      otra.ev('window.__subio = false; rpcSesion = function () { window.__subio = true; return Promise.resolve({ ok: true }); };');
+      otra.ev('subirArchivosRegistro()');
+      return otra.ev('!!window.__subio');
+    };
+    assert.equal(conCuenta('3009999999'), false,
+      'subió a esta cuenta las fotos de la cédula de otra persona');
+    assert.equal(conCuenta('3001112233'), true,
+      'la persona volvió de la cámara y sus propias fotos ya no suben: el CRM recibe el registro sin cédula');
   });
 
   test('la contraseña sigue SIN tocar localStorage ni el borrador', () => {

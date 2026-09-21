@@ -120,6 +120,7 @@ function abrirPlay(opciones) {
   ctx.window = ctx; ctx.self = ctx;
   ctx.CreditosPublicables = require('../app/creditos.js');
   ctx.CuentaSocio = require('../app/cuenta.js');
+  ctx.EscanerCedula = require('../app/escaner-cedula.js');   // 21-sep-2026, el escáner de la cédula
   ctx.Cumplimiento = require('../app/cumplimiento.js');
   ctx.MotorReglas = require('../app/motor.js');
   ctx.FichaSocio = require('../app/ficha.js');

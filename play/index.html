@@ -77,6 +77,7 @@
 
 <script src="../app/creditos.js"></script>
 <script src="../app/cuenta.js"></script>
+<script src="../app/escaner-cedula.js"></script>
 <!-- 14-sep-2026 — el motor del préstamo con garantía y el lector de la ficha.
      Son los MISMOS que usa el CRM de Joan: la calculadora de la garantía que
      ve el cliente y la cuota que le cobra Joan salen de la misma función.
@@ -95,7 +96,7 @@
 <script>
 'use strict';
 
-var VERSION_PLAY = '2026-09-17';
+var VERSION_PLAY = '2026-09-21';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -113,6 +114,10 @@ try {
 
 var C = window.CreditosPublicables;
 var U = window.CuentaSocio;
+/* 21-sep-2026 — el escáner de la cédula: encuadre, marco, decodificación y
+   de quién son las fotos. Puro, probado sin cámara. Si no llegó, todo lo
+   que lo usa cae al camino de la foto fija (se pregunta `if (!EC)`). */
+var EC = window.EscanerCedula;
 var M = window.MotorReglas;
 var FS = window.FichaSocio;
 var CH = window.ChatTuGarantia;
@@ -128,7 +133,7 @@ var CH = window.ChatTuGarantia;
    `index.html` a una petición de `.js` (ver sw.js, v19, 28-ago-2026).
    El `throw` es a propósito: el mensaje ya está en pantalla y lo que sigue no
    tiene con qué funcionar. Mejor parar acá que pintar media página rota. */
-if (!C || !U || !M || !FS) {
+if (!C || !U || !M || !FS || !EC) {
   document.body.innerHTML = '<div class="wrap"><div class="aviso ambar" style="margin-top:40px">' +
     'No pude cargar las reglas del crédito. Revisa tu internet y vuelve a abrir la página.' +
     '</div></div>';
@@ -170,20 +175,59 @@ function guardarBorrador(d) {
    está reproducido: recargar la página en el paso 2 devuelve al 1.
    Va aparte del borrador porque el borrador viaja entero a la nube como
    los datos del registro, y el número de paso no tiene nada que hacer ahí. */
+/* 21-sep-2026 — EN localStorage, Y NO EN sessionStorage, y esta es la razón de
+   que el arreglo del 17-sep no sirviera en el teléfono del cliente aunque
+   estuviera publicado: Android NUNCA restaura el sessionStorage de una
+   pestaña. Cuando la app de cámara tapa al navegador y el sistema lo mata
+   por memoria —Android lo advierte: «casi seguro» con la cámara—, la pestaña
+   vuelve con su dirección (#registro incluido) pero con un almacén de sesión
+   NUEVO (Chromium: kClearDiskStateOnOpen, «Session Storage doesn't support
+   restore»). El paso valía 0 otra vez, y 0 es «Tu celular y tu contraseña».
+   Verificado en escritorio funcionaba, porque ahí sí existe el servicio de
+   sesión que lo restaura; en el celular, nunca.
+   localStorage sí sobrevive: Chrome lo vuelca a disco en el instante en que
+   la actividad pasa a segundo plano (el borrador y las fotos ya vivían ahí y
+   por eso volvían). Va con la hora: un registro de hace más de un día no se
+   retoma solo (ver EC.checkpointFresco). */
 var LLAVE_PASO = 'play_registro_paso';
-function guardarPaso(n) { try { sessionStorage.setItem(LLAVE_PASO, String(n)); } catch (e) {} }
-function leerPaso() {
-  try { var n = parseInt(sessionStorage.getItem(LLAVE_PASO), 10); return isNaN(n) ? 0 : n; }
-  catch (e) { return 0; }
+function guardarPaso(n) {
+  try { localStorage.setItem(LLAVE_PASO, JSON.stringify({ paso: n, t: Date.now() })); } catch (e) {}
 }
+function leerCheckpoint() {
+  try {
+    var c = JSON.parse(localStorage.getItem(LLAVE_PASO) || 'null');
+    return (c && typeof c.paso === 'number') ? c : null;
+  } catch (e) { return null; }
+}
+function leerPaso() { var c = leerCheckpoint(); return c ? c.paso : 0; }
 /* 17-sep-2026 — «NO HAY PASO» Y «PASO 1» NO SON LO MISMO, y confundirlos era la
    mitad del problema. `leerPaso` devuelve 0 en los dos casos, así que con solo
    ese dato no se puede decidir si a alguien hay que devolverlo al registro o
    dejarlo en la portada. Esta pregunta es la que lo distingue. */
 function hayPasoGuardado() {
-  try { return sessionStorage.getItem(LLAVE_PASO) !== null; } catch (e) { return false; }
+  var c = leerCheckpoint();
+  return !!c && (!EC || EC.checkpointFresco(c, Date.now()));
 }
-function olvidarPaso() { try { sessionStorage.removeItem(LLAVE_PASO); } catch (e) {} }
+function olvidarPaso() { try { localStorage.removeItem(LLAVE_PASO); } catch (e) {} }
+
+/* LA CUENTA QUE ACABA DE NACER — 21-sep-2026. Si el teléfono relanza la página
+   justo después de crear la cuenta (la sesión vive en sessionStorage y se
+   pierde igual), la persona caía en «Paso 1 de 9» con el formulario VACÍO —el
+   borrador ya se había borrado— y al terminar los nueve pasos otra vez le
+   decían «ya hay una cuenta con ese celular». Esta marca hace que la portada
+   diga la verdad: tu cuenta ya quedó creada, entra con tu contraseña. */
+var LLAVE_CUENTA_CREADA = 'play_cuenta_creada';
+function anotarCuentaCreada(celular) {
+  try { localStorage.setItem(LLAVE_CUENTA_CREADA, JSON.stringify({ celular: celular || '', t: Date.now() })); } catch (e) {}
+}
+function cuentaRecienCreada() {
+  try {
+    var c = JSON.parse(localStorage.getItem(LLAVE_CUENTA_CREADA) || 'null');
+    if (!c || !c.celular) return null;
+    return (!EC || EC.checkpointFresco({ paso: 0, t: c.t }, Date.now())) ? c : null;
+  } catch (e) { return null; }
+}
+function olvidarCuentaCreada() { try { localStorage.removeItem(LLAVE_CUENTA_CREADA); } catch (e) {} }
 
 /* ------------------------------------------------- LA SESIÓN, MIENTRAS DURA
    17-sep-2026 — ANTES NO SE GUARDABA EN NINGUNA PARTE, y eso significa que
@@ -341,7 +385,7 @@ function pintarEntrar() {
       '<input id="inTel" type="tel" inputmode="numeric" autocomplete="username" ' +
         'placeholder="300 111 2233" oninput="tecleaTel(this)">' +
       '<label for="inClave">Tu contraseña</label>' +
-      '<input id="inClave" type="password" autocomplete="current-password" placeholder="••••••••">' +
+      campoClave('inClave', 'current-password') +
       '<button class="btn sec arriba" id="btnEntrar">Entrar</button>' +
       '<div id="errEntrar" class="aviso ambar oculto"></div>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="olvide()">Olvidé mi contraseña</button>' +
@@ -365,6 +409,24 @@ function pintarEntrar() {
 function tecleaTel(el) {
   var t = U.normalizarTelefono(el.value);
   if (t) el.value = U.telefonoBonito(t);
+}
+function noSoyYo() {
+  olvidarCuentaCreada();
+  var tel = $('inTel'); if (tel) tel.value = '';
+  var err = $('errEntrar'); if (err) { err.innerHTML = ''; err.classList.add('oculto'); }
+}
+function avisarCuentaCreada(c) {
+  var tel = $('inTel'), err = $('errEntrar');
+  if (tel && c && c.celular) tel.value = U.telefonoBonito(c.celular);
+  if (err) {
+    /* Con salida: este aviso le sale a CUALQUIERA que abra la página en ese
+       teléfono durante un día, con el celular de otro puesto en el campo. */
+    err.innerHTML = '<b>Tu cuenta ya quedó creada.</b> La página se volvió a abrir, así que entra ' +
+      'con tu celular y la contraseña que pusiste.' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="noSoyYo()">No soy yo</button>';
+    err.classList.remove('oculto');
+  }
+  try { window.scrollTo(0, document.body.scrollHeight); } catch (e) {}
 }
 
 function entrar() {
@@ -590,12 +652,13 @@ function pintarRegistro(paso) {
   }).join('') + '</div>';
 
   detenerEscaner();   // por si venía del paso del rostro
+  detenerEscanerDoc();  // o del de la cédula
   var cuerpo;
   if (p.id === 'entrada')      cuerpo = pasoEntrada();
   else if (p.id === 'documento') cuerpo = pasoDocumento();
   else if (p.id === 'rostro')  cuerpo = pasoRostro();
   else if (p.id === 'permiso') cuerpo = pasoPermiso();
-  else                         cuerpo = pasoCampos(p.id);
+  else                         cuerpo = (p.id === 'identidad' ? notaCedulaLeida() : '') + pasoCampos(p.id);
 
   $('cuerpo').innerHTML =
     '<div class="card">' +
@@ -624,7 +687,8 @@ function pintarRegistro(paso) {
 function pasoEntrada() {
   return '<p class="sub">Tu celular es tu usuario. Con él entras y por ahí te escribimos.</p>' +
     '<label for="rTel">Tu celular</label>' +
-    '<input id="rTel" type="tel" inputmode="numeric" autocomplete="username" placeholder="300 111 2233" value="' +
+    '<input id="rTel" type="tel" inputmode="numeric" autocomplete="username" placeholder="300 111 2233" ' +
+      'oninput="anotarCelular(this)" value="' +
       esc(REGISTRO.celular ? U.telefonoBonito(REGISTRO.celular) : '') + '">' +
     '<div class="ayuda">Son 10 números y empiezan por 3. Tiene que tener WhatsApp: ' +
       'por ahí te mandamos tu código si olvidas la contraseña.</div>' +
@@ -642,13 +706,13 @@ function pasoEntrada() {
        y se deja continuar en blanco. La clave sigue viviendo solo en
        sessionStorage, no toca localStorage y no viaja en el borrador. */
     '<label for="rClave">' + (CLAVE_EN_MEMORIA ? 'Tu contraseña' : 'Crea tu contraseña') + '</label>' +
-    '<input id="rClave" type="password" autocomplete="new-password" placeholder="••••••••">' +
+    campoClave('rClave', 'new-password') +
     '<div class="ayuda">' + (CLAVE_EN_MEMORIA
       ? 'Ya creaste tu contraseña en este teléfono. Déjalo en blanco para seguir con la misma, o escribe una nueva.'
       : 'Mínimo ' + U.LARGO_MINIMO_CLAVE + ' caracteres. No uses tu celular ' +
         'ni tu cédula: son lo primero que alguien probaría.') + '</div>' +
     '<label for="rClave2">' + (CLAVE_EN_MEMORIA ? 'Si la cambias, escríbela otra vez' : 'Escríbela otra vez') + '</label>' +
-    '<input id="rClave2" type="password" autocomplete="new-password" placeholder="••••••••">';
+    campoClave('rClave2', 'new-password');
 }
 
 /* BORRAR EL REGISTRO DE OTRO — 17-sep-2026.
@@ -662,7 +726,12 @@ function pasoEntrada() {
 function empezarDeNuevo() {
   try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
   try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
-  olvidarPaso(); olvidarClaveEnCurso(); olvidarFotosDeEstaPestana();
+  olvidarPaso(); olvidarClaveEnCurso(); olvidarDuenoDeLasFotos(); olvidarCuentaCreada();
+  /* 21-sep-2026 — el acompañamiento también. «Empezar de cero» prometía borrar
+     TODO y dejaba encendido el del anterior: el asesor de otra persona seguiría
+     viendo el paso y las fotos del que llegue después en ese teléfono. */
+  ACOMPANA = false;
+  try { localStorage.setItem('tg_acompana', '0'); } catch (e) {}
   REGISTRO = {}; FOTOS = {}; CLAVE_EN_MEMORIA = '';
   pintarRegistro(0);
 }
@@ -674,6 +743,46 @@ function anotarCampo(el) {
   if (!el || !el.id || el.id.indexOf('f_') !== 0) return;
   REGISTRO[el.id.slice(2)] = el.value;
   guardarBorrador(REGISTRO);
+}
+/* 21-sep-2026 — el celular del paso 1 también se anota por tecla. Solo llegaba
+   al borrador al tocar «Continuar», así que quien lo escribía y perdía la
+   pestaña volvía a un campo vacío mientras la página le prometía «con lo que
+   ya habías escrito». La contraseña NO: esa sigue sin guardarse por tecla. */
+function anotarCelular(el) {
+  var t = U.normalizarTelefono(el && el.value);
+  if (t) { REGISTRO.celular = t; guardarBorrador(REGISTRO); }
+}
+
+/* ------------------------------------------------- VER LA CONTRASEÑA
+   21-sep-2026 — Joan: «el cliente no puede ver la contraseña que está
+   poniendo». Un campo de contraseña en un celular, con el teclado tapando
+   media pantalla y puntos en vez de letras, es donde más se equivoca la
+   gente y donde menos lo nota: la crea mal dos veces iguales y no vuelve a
+   entrar. El ojo alterna type password/text sobre el MISMO campo, así que
+   nada más cambia: los ids, el autocompletado y las pruebas que los leen
+   siguen iguales. */
+function campoClave(id, autocompletar) {
+  return '<div class="clave-caja">' +
+    '<input id="' + id + '" type="password" autocomplete="' + autocompletar + '" ' +
+      'autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="••••••••">' +
+    '<button type="button" class="ojo" aria-label="Mostrar la contraseña" title="Ver la contraseña" ' +
+      'onclick="verClave(\'' + id + '\', this)">' + iconoOjo() + '</button></div>';
+}
+function iconoOjo() {
+  return '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">' +
+    '<path class="ojo-abierto" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/>' +
+    '<circle class="ojo-abierto" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>' +
+    '<path class="ojo-raya" d="M4 4l16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+}
+function verClave(id, btn) {
+  var i = $(id); if (!i) return;
+  var ver = i.type === 'password';
+  i.type = ver ? 'text' : 'password';
+  if (btn) {
+    btn.setAttribute('aria-label', ver ? 'Ocultar la contraseña' : 'Mostrar la contraseña');
+    btn.classList.toggle('viendo', ver);
+  }
+  try { i.focus(); } catch (e) {}
 }
 
 function pasoCampos(grupo) {
@@ -730,7 +839,19 @@ function pasoPermiso() {
       'Solo la cámara en el momento de tomar la foto, y tu ubicación una sola vez, si la autorizas.</div>' +
     '<div class="ayuda" style="margin-top:var(--e3)">' +
       '<a href="../legal/privacidad.html" target="_blank" rel="noopener">Leer la política completa</a> · ' +
-      '<a href="../legal/terminos.html" target="_blank" rel="noopener">Términos</a></div>';
+      '<a href="../legal/terminos.html" target="_blank" rel="noopener">Términos</a></div>' +
+    cajaClaveFinal();
+}
+/* Solo aparece cuando la contraseña en curso no está (la relanzada de Android
+   se la lleva con el sessionStorage). Ver siguientePaso, rama «permiso». */
+function cajaClaveFinal() {
+  if (CLAVE_EN_MEMORIA) return '';
+  return '<div class="aviso ambar" id="cajaClaveFin" style="margin-top:var(--e4)">' +
+      '<b>Una cosa más: tu contraseña.</b> Por seguridad no se guarda en el teléfono, ' +
+      'y si la página se volvió a abrir ya no la tenemos. Escríbela una vez más y abrimos tu cuenta con ella.' +
+      '<label for="rClaveFin">Tu contraseña</label>' + campoClave('rClaveFin', 'new-password') +
+      '<label for="rClaveFin2">Escríbela otra vez</label>' + campoClave('rClaveFin2', 'new-password') +
+    '</div>';
 }
 
 function recogerPaso() {
@@ -741,7 +862,9 @@ function recogerPaso() {
     return { clave: $('rClave').value, clave2: $('rClave2').value };
   }
   if (p.id === 'permiso') {
-    return { general: $('autGeneral').checked, sensibles: $('autSensible').checked };
+    var cf = $('rClaveFin'), cf2 = $('rClaveFin2');
+    return { general: $('autGeneral').checked, sensibles: $('autSensible').checked,
+             claveFin: cf ? (cf.value || '') : '', claveFin2: cf2 ? (cf2.value || '') : '' };
   }
   if (p.id === 'documento' || p.id === 'rostro') return {};
   U.camposDelGrupo(p.id).forEach(function (c) {
@@ -772,6 +895,15 @@ function siguientePaso() {
     var rc = U.revisarContrasena(extra.clave, { telefono: REGISTRO.celular, cedula: REGISTRO.documento });
     if (!rc.ok) return fallo(err, rc.motivo);
     if (extra.clave !== extra.clave2) return fallo(err, 'Las dos contraseñas no son iguales.');
+    /* Las fotos guardadas son de un celular. Si este es otro, son de otra
+       persona (o de otro intento): no se le pegan a este registro — ni ellas ni
+       lo que se leyó de esa cédula, que si no viajaría al CRM con el nombre del
+       anterior debajo del celular del nuevo. */
+    if (FOTOS.de && FOTOS.de.celular && FOTOS.de.celular !== REGISTRO.celular) {
+      soltarLasFotos();
+      ['nombres', 'apellidos', 'documento', 'tipo_doc', 'expedicion'].forEach(function (k) { delete REGISTRO[k]; });
+      guardarBorrador(REGISTRO);
+    }
     CLAVE_EN_MEMORIA = extra.clave;
     guardarClaveEnCurso(extra.clave);
     guardarBorrador(REGISTRO);
@@ -781,6 +913,19 @@ function siguientePaso() {
   if (p.id === 'permiso') {
     if (!extra.general) {
       return fallo(err, 'Sin tu autorización no podemos abrir la cuenta. Es un requisito de la ley.');
+    }
+    /* 21-sep-2026 — LA CONTRASEÑA SE CONFIRMA AQUÍ SI NO ESTÁ. Vive solo en
+       sessionStorage (la regla: nunca toca localStorage), y sessionStorage
+       no vuelve de la relanzada de Android. Antes esto mandaba password ""
+       al signup: «No pudimos crear la cuenta», sin camino de vuelta. Ahora el
+       paso 9 la pide una sola vez, con el celular y los ocho pasos ya puestos,
+       y nunca se manda una contraseña vacía. */
+    if (!CLAVE_EN_MEMORIA) {
+      var rcf = U.revisarContrasena(extra.claveFin, { telefono: REGISTRO.celular, cedula: REGISTRO.documento });
+      if (!rcf.ok) return fallo(err, 'Falta tu contraseña. ' + rcf.motivo);
+      if (extra.claveFin !== extra.claveFin2) return fallo(err, 'Las dos contraseñas no son iguales.');
+      CLAVE_EN_MEMORIA = extra.claveFin;
+      guardarClaveEnCurso(CLAVE_EN_MEMORIA);
     }
     /* Si al final quita la casilla de sensibles, las fotos y el GPS que tomó no
        salen del teléfono: se borran antes de mandar nada. */
@@ -825,6 +970,14 @@ function enviarRegistro(sensibles) {
   VERIF_ULTIMA = codigoVerificacion();
   REGISTRO.verificacion = VERIF_ULTIMA;
 
+  /* 21-sep-2026 — la reja: sin contraseña en memoria no se llama a nadie. El
+     paso 9 la pide (cajaClaveFinal); esto es por si algún camino nuevo llega
+     acá sin pasar por ahí. Antes salía password "" al signup y la bandeja de
+     Joan recibía el registro de una cuenta que nunca se creó. */
+  if (!CLAVE_EN_MEMORIA) {
+    return fallo(err, 'Falta tu contraseña. Escríbela en la casilla de arriba y vuelve a tocar «Abrir mi cuenta».');
+  }
+
   fallo(err, 'Creando tu cuenta…');
   /* PRIMERO la bandeja de Joan, DESPUÉS la cuenta — y el orden es la garantía.
      Si fuera al revés y la bandeja fallara, la cuenta quedaría creada pero
@@ -868,6 +1021,7 @@ function enviarRegistro(sensibles) {
       try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
       olvidarPaso(); olvidarClaveEnCurso();
       CLAVE_EN_MEMORIA = '';
+      anotarCuentaCreada(REGISTRO.celular);
       /* 8-sep-2026 — con «Confirm email» apagado en Supabase, el signup devuelve
          la sesión entera: el recién registrado ya puede pedir. */
       /* 17-sep-2026 — Y SE GUARDA AQUÍ MISMO, que es el peor sitio donde
@@ -890,6 +1044,10 @@ function enviarRegistro(sensibles) {
 
 function pintarRegistrado() {
   VISTA = 'listo';
+  /* 21-sep-2026 — se suelta #registro: una relanzada aquí caía en «Paso 1 de
+     9» con el formulario vacío. Con la dirección limpia y la marca de cuenta
+     creada, cae en la portada diciendo la verdad. */
+  marcarVista('');
   $('titulo').textContent = 'Tu cuenta quedó abierta';
   /* 8-sep-2026 — Joan: «lo que quiero es que el cliente, después de que se
      registre, pueda automáticamente aplicar a un crédito». Antes esta pantalla
@@ -989,6 +1147,7 @@ function cuotasDePropuesta(cp) {
 
 function pintarSolicitud(sol) {
   VISTA = 'solicitud';
+  marcarVista('');
   $('titulo').textContent = sol.estado === 'aceptada' ? 'Tu primer crédito' : 'Tu propuesta';
   $('cuerpo').innerHTML = tarjetaContrapropuesta(sol) +
     '<div class="card"><button class="btn sec" onclick="pintarCuenta()">Ir a mi cuenta</button></div>' + pie();
@@ -1067,29 +1226,88 @@ function guardarFotos() {
    La marca vive en sessionStorage, que muere con la pestaña. O sea: solo sube
    las fotos la MISMA pestaña que las tomó. Las que queden de otra sesión se
    quedan quietas hasta que alguien empiece de nuevo y se borren. */
-var LLAVE_FOTOS_MIAS = 'play_fotos_de_esta_pestana';
-function marcarFotosDeEstaPestana() {
-  try { sessionStorage.setItem(LLAVE_FOTOS_MIAS, '1'); } catch (e) {}
+/* 21-sep-2026 — LA MARCA MURIÓ CON LA PESTAÑA, Y LAS FOTOS SE PERDÍAN EN
+   SILENCIO. sessionStorage no vuelve tras la relanzada de Android (ver
+   LLAVE_PASO), así que después de la cámara la marca ya no estaba: la caja
+   decía «Listo · tocar para cambiar», la cuenta se creaba, y
+   registro_archivos_guardar no se llamaba nunca. El CRM recibía el registro
+   sin cédula y nadie se enteraba. Es la interfaz prometiendo lo que el código
+   no cumple, en el dato más delicado.
+   Ahora las fotos llevan escrito DE QUIÉN SON: el celular del registro y la
+   hora. Se suben solo si ese celular es el de la cuenta que se crea o se abre
+   y no ha pasado más de un día. Cubre el teléfono prestado igual que antes:
+   el siguiente se registra con OTRO celular, y con el mismo solo si vuelve
+   el mismo día (y «empezar de cero» las borra). La marca vive DENTRO de
+   FOTOS, en localStorage, con las fotos: no puede sobrevivir una sin la otra. */
+function marcarDuenoDeLasFotos() {
+  FOTOS.de = { celular: REGISTRO.celular || '', t: Date.now() };
 }
-function lasFotosSonDeEstaPestana() {
-  try { return sessionStorage.getItem(LLAVE_FOTOS_MIAS) === '1'; } catch (e) { return false; }
+/* LA ÚNICA PREGUNTA QUE PUEDE PINTAR UN «LISTO» AL LADO DE UNA FOTO. Antes la
+   caja decía «Listo» mirando solo si el dato existía, y la reja de la subida
+   miraba otra cosa: así una foto podía verse lista y no subir nunca. Ahora la
+   pantalla y la subida preguntan lo MISMO. */
+function fotosSonDeEsteRegistro(celular) {
+  return !!(EC && EC.fotosPertenecen(FOTOS, celular || REGISTRO.celular, Date.now()));
 }
-function olvidarFotosDeEstaPestana() {
-  try { sessionStorage.removeItem(LLAVE_FOTOS_MIAS); } catch (e) {}
+function hayFotoLista(key) { return !!FOTOS[key] && fotosSonDeEsteRegistro(); }
+function olvidarDuenoDeLasFotos() { delete FOTOS.de; }
+
+/* SANEAR AL ABRIR — 21-sep-2026. Dos casos, los dos medidos:
+   · Las fotos de la v75 no llevaban dueño escrito (la marca vivía en la
+     pestaña). Al estrenar esta versión, quien tuviera un registro a medias se
+     encontraría sus fotos con ✓ y no subirían jamás. Si la marca vieja sigue
+     viva en ESTA pestaña, se adoptan con el celular del borrador; si no, se
+     sueltan, que es lo que iba a pasar de todas formas.
+   · Una cédula, una selfie y una ubicación de otra persona se quedaban en el
+     teléfono para siempre: nada las borraba salvo «empezar de cero», y ese
+     botón solo aparece a mitad del registro. Pasado un día, fuera. Son datos
+     sensibles de la Ley 1581 en un teléfono que se presta. */
+function sanearFotos() {
+  var hay = FOTOS.cedula_frente || FOTOS.cedula_reverso || FOTOS.selfie || FOTOS.gps || FOTOS.cedula_leida;
+  if (!hay) return;
+  if (!FOTOS.de) {
+    var mias = false;
+    try { mias = sessionStorage.getItem('play_fotos_de_esta_pestana') === '1'; } catch (e) {}
+    var cel = (leerBorrador() || {}).celular || '';
+    if (mias && cel) { FOTOS.de = { celular: cel, t: Date.now() }; guardarFotos(); return; }
+  } else if (EC && EC.checkpointFresco({ paso: 0, t: FOTOS.de.t }, Date.now())) return;
+  soltarLasFotos();
 }
+function soltarLasFotos() {
+  var sensibles = !!FOTOS.sensibles;
+  FOTOS = { sensibles: sensibles };
+  guardarFotos();
+}
+
+try { sanearFotos(); } catch (e) {}
 
 /* ZXing vive en el propio sitio (app/lib): la app no llama a ningún servidor
    que no sea el suyo — es lo que declara Data Safety y lo vigila
    pruebas/cumplimiento.test.js. */
 var URL_ZXING = '../app/lib/zxing.min.js';
 
+/* 21-sep-2026 — SE PUEDE REINTENTAR. Antes, una sola caída de zxing.min.js
+   (330 KB: la primera vez, con señal floja, es lo más probable del paso) dejaba
+   el <script> muerto en el DOM, y como se preguntaba por el src, TODAS las
+   llamadas siguientes de esa sesión contestaban «ya está» sin librería: el
+   escáner se quedaba en «Leyendo el código…» para siempre y la foto fija le
+   echaba la culpa a la foto («enfócalo bien»). Ahora se recuerda la PROMESA:
+   una en vuelo no se duplica, y una que falló se olvida para que el siguiente
+   intento vuelva a pedir el archivo. */
+var SCRIPTS = {};
 function cargarScript(url) {
-  return new Promise(function (res, rej) {
-    if (document.querySelector('script[src="' + url + '"]')) return res();
+  if (SCRIPTS[url]) return SCRIPTS[url];
+  SCRIPTS[url] = new Promise(function (res, rej) {
     var s = document.createElement('script'); s.src = url; s.async = true;
-    s.onload = function () { res(); }; s.onerror = function () { rej(new Error('no cargó ' + url)); };
+    s.onload = function () { res(); };
+    s.onerror = function () {
+      try { if (s.parentNode) s.parentNode.removeChild(s); } catch (e) {}
+      rej(new Error('no cargó ' + url));
+    };
     document.head.appendChild(s);
   });
+  SCRIPTS[url]['catch'](function () { delete SCRIPTS[url]; });
+  return SCRIPTS[url];
 }
 /* La misma compresión que usa el CRM: JPEG, lado mayor a `max`, calidad `q`. */
 /* 9-sep-2026 — SE LEE CON createObjectURL Y NO COMO TEXTO. FileReader
@@ -1107,9 +1325,10 @@ function comprimirImagen(file, max, q) {
 
 /* ---------------------------------------------------------- paso: la cédula */
 function cajaFoto(key, ic, lbl, cam) {
-  return '<label class="foto-caja' + (FOTOS[key] ? ' ok' : '') + '" id="fot_' + key + '">' +
-    (FOTOS[key] ? '<img src="' + FOTOS[key] + '" alt="">' : '<span class="ic">' + ic + '</span>') +
-    '<span class="lbl">' + (FOTOS[key] ? 'Listo · tocar para cambiar' : lbl) + '</span>' +
+  var lista = hayFotoLista(key);
+  return '<label class="foto-caja' + (lista ? ' ok' : '') + '" id="fot_' + key + '">' +
+    (lista ? '<img src="' + FOTOS[key] + '" alt="">' : '<span class="ic">' + ic + '</span>') +
+    '<span class="lbl">' + (lista ? 'Listo · tocar para cambiar' : lbl) + '</span>' +
     '<input type="file" accept="image/*" capture="' + cam + '" onchange="tomarFoto(event,\'' + key + '\')"></label>';
 }
 function textoLeido() {
@@ -1126,18 +1345,29 @@ function textoGps() {
   return '📍 Pidiendo tu ubicación… (tu celular te va a preguntar)';
 }
 function pasoDocumento() {
-  var con = !!FOTOS.sensibles;
-  return '<p class="sub">Con la foto del <b>respaldo</b> de tu cédula (el del código de barras) leemos tu ' +
-      'número y tu nombre y te los dejamos escritos. La del frente confirma que es tuya.</p>' +
+  var con = !!FOTOS.sensibles, vivo = hayCamaraEnVivo();
+  return '<p class="sub">' + (vivo
+      ? 'Pon tu cédula <b>de pie</b> dentro del marco y la cámara la lee sola: primero el <b>respaldo</b> ' +
+        '(el del código de barras), que nos deja escritos tu número y tu nombre; después el frente, que confirma que es tuya.'
+      : 'Con la foto del <b>respaldo</b> de tu cédula (el del código de barras) leemos tu ' +
+        'número y tu nombre y te los dejamos escritos. La del frente confirma que es tuya.') + '</p>' +
     '<label class="permiso"><input type="checkbox" id="autFotos"' + (con ? ' checked' : '') +
       ' onchange="cambiarConsentimiento(this.checked)"><span>' +
       '<b>Autorizo la foto de mi cédula, la de mi rostro y mi ubicación</b> para confirmar que soy yo.' +
       '<span class="muted">Son datos sensibles: esto es aparte y es opcional. Tu cuenta se abre igual sin ' +
       'marcarlo, escribiendo tus datos a mano.</span></span></label>' +
     '<div id="docCaja"' + (con ? '' : ' class="oculto"') + '>' +
-      cajaFoto('cedula_reverso', '📇', 'Foto del respaldo de tu cédula', 'environment') +
+      '<div id="docTarjetasCaja">' + tarjetasDoc() + '</div>' +
       '<div id="docLeido" class="aviso info' + (FOTOS.cedula_leida ? '' : ' oculto') + '">' + textoLeido() + '</div>' +
-      cajaFoto('cedula_frente', '🪪', 'Foto del frente de tu cédula', 'environment') +
+      '<div id="docEscaner" class="oculto">' + escanerDocHTML() + '</div>' +
+      '<div id="docBotones">' + botonesDoc() + '</div>' +
+      '<div id="docNota" class="doc-nota"></div>' +
+      /* Las cajas de foto de siempre: visibles cuando no hay cámara en vivo, y
+         de respaldo (con el enlace de abajo) cuando sí la hay. */
+      '<div id="docFijo"' + (vivo ? ' class="oculto"' : '') + '>' +
+        cajaFoto('cedula_reverso', '📇', 'Foto del respaldo de tu cédula', 'environment') +
+        cajaFoto('cedula_frente', '🪪', 'Foto del frente de tu cédula', 'environment') +
+      '</div>' +
       '<div id="docGps" class="ayuda">' + textoGps() + '</div>' +
     '</div>';
 }
@@ -1153,7 +1383,7 @@ function pedirGps() {
   navigator.geolocation.getCurrentPosition(function (pos) {
     FOTOS.gps = { lat: +pos.coords.latitude.toFixed(6), lng: +pos.coords.longitude.toFixed(6),
                   acc: Math.round(pos.coords.accuracy || 0), fecha: hoyISO() };
-    delete FOTOS.gps_error; guardarFotos();
+    delete FOTOS.gps_error; marcarDuenoDeLasFotos(); guardarFotos();
     var g = $('docGps'); if (g) g.innerHTML = textoGps();
   }, function (err) {
     FOTOS.gps_error = err && err.code === 1 ? 'No diste permiso de ubicación. Tu cuenta se abre igual.'
@@ -1177,19 +1407,37 @@ function comprimirVarias(file, tamanos) {
     img.onload = function () {
       try {
         if (!img.width || !img.height) throw new Error('imagen vacia');
-        var salidas = tamanos.map(function (t) {
+        var salidas = tamanos.map(function (t, indice) {
           var max = t[0], q = t[1];
+          try {
           var w = img.width, h = img.height;
           if (w > h && w > max) { h = h * max / w; w = max; }
           else if (h >= w && h > max) { w = w * max / h; h = max; }
           var c = document.createElement('canvas');
           c.width = Math.round(w); c.height = Math.round(h);
-          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          /* willReadFrequently desde el principio: a este lienzo se le pide
+             getImageData para leer el código, y los atributos del contexto se
+             fijan en la PRIMERA llamada — pedirlo después no sirve de nada y
+             deja la lectura bajando de la GPU. */
+          c.getContext('2d', q == null ? { willReadFrequently: true } : undefined).drawImage(img, 0, 0, c.width, c.height);
+          /* 21-sep-2026 — con q en null se devuelve el LIENZO, no una cadena:
+             es la versión que va al lector del código de barras, y el lector
+             ya no quiere un data URL (tenía que volver a decodificar el JPEG y
+             pasarlo por un <img> y un segundo lienzo: 15 MB de más). Quien lo
+             recibe lo suelta al terminar (soltarLienzo). */
+          if (q == null) return c;
           var out = c.toDataURL('image/jpeg', q);
           /* El lienzo se suelta a mano: en algunos Android se queda con la
              memoria del bitmap hasta la siguiente recolección. */
           c.width = c.height = 1;
           return out;
+          } catch (e) {
+            /* 21-sep-2026 — el PRIMER tamaño es la foto y sin ella no hay nada
+               que hacer; los demás son comodidades (el grande para leer el
+               código de barras) y su fallo no puede costarle la foto a nadie. */
+            if (indice === 0) throw e;
+            return null;
+          }
         });
         res(salidas);
       } catch (e) { rej(e); }
@@ -1260,6 +1508,7 @@ function tomarCerrojo() {
 }
 
 function soltarCerrojo() {
+  if (LIENZO_PENDIENTE) { soltarLienzo(LIENZO_PENDIENTE); LIENZO_PENDIENTE = null; }
   FOTO_EN_CURSO = false;
   if (RELOJ_CERROJO) { clearTimeout(RELOJ_CERROJO); RELOJ_CERROJO = null; }
   if (!CAJA_EN_ESPERA) return;
@@ -1292,7 +1541,7 @@ function tomarFoto(ev, key) {
   if (caja) caja.querySelector('.lbl').textContent = 'Procesando…';
 
   var quiereCodigo = key === 'cedula_reverso';
-  var tamanos = quiereCodigo ? [[900, 0.6], [1600, 0.85]] : [[900, 0.6]];
+  var tamanos = quiereCodigo ? [[900, 0.6], [1600, null]] : [[900, 0.6]];
 
   return comprimirVarias(file, tamanos).then(function (salidas) {
     file = null;                 /* el archivo de la cámara ya no hace falta */
@@ -1303,8 +1552,8 @@ function tomarFoto(ev, key) {
        mismo, pero no sobrevive una recarga — y la recarga es justo lo que hace
        la cámara en estos teléfonos. Decirle «Listo» sería la interfaz
        prometiendo lo que el código no cumple. */
+    marcarDuenoDeLasFotos();
     var aSalvo = guardarFotos();
-    marcarFotosDeEstaPestana();
     if (caja) {
       caja.classList.add('ok');
       var ic = caja.querySelector('.ic'); if (ic) ic.remove();
@@ -1316,13 +1565,14 @@ function tomarFoto(ev, key) {
     }
     /* 2. Y solo después, la comodidad. Si esto falla o tumba la pestaña, la
        foto ya quedó guardada y la persona escribe sus datos a mano. */
-    if (quiereCodigo) {
+    if (quiereCodigo && salidas[1]) {
       var grande = salidas[1];
       salidas.length = 0;          /* se suelta la referencia al de 900 */
       /* SE ENCADENA con `return`, al contrario que hasta hoy: el cerrojo tiene
          que cubrir TAMBIÉN el rato del lector, que es la mitad cara — son unos
          25 MB vivos mientras decodifica. Sin el return, el cerrojo se soltaba
          antes de tiempo y el solapamiento seguía siendo posible. */
+      LIENZO_PENDIENTE = grande;
       return leerCodigoDeBarras(grande);
     }
   }).catch(function () {
@@ -1330,43 +1580,634 @@ function tomarFoto(ev, key) {
       'No pude usar esa foto. Tómala otra vez, o elige una de la galería.';
   }).then(soltarCerrojo, soltarCerrojo);
 }
-/* El código de barras del respaldo, decodificado en el teléfono con ZXing. Se
-   lee de una versión grande de la foto (1600 px): el código es chico y un
-   recorte a 900 px lo vuelve ilegible. Si no se puede leer, no pasa nada: los
-   datos se escriben a mano en el paso siguiente. */
-function leerCodigoDeBarras(urlGrande) {
+/* El código de barras del respaldo, decodificado en el teléfono con ZXing, de la
+   versión grande de la foto (1600 px: el código es chico y a 900 se vuelve
+   ilegible). Si no se puede leer, no pasa nada: los datos se escriben a mano
+   en el paso siguiente.
+
+   21-sep-2026 — YA NO USA decodeFromImageUrl, Y ESTO ERA UN DEFECTO VIVO, no
+   una mejora: ese método de ZXing reintenta a 0 ms PARA SIEMPRE cuando el
+   código se ve pero no se corrige (ChecksumException) —medido: 21 mapas de
+   bits de 10 MB en 300 ms, y la promesa nunca vuelve—. Y es el caso probable,
+   no el raro: la foto un poco lejos o un poco movida que cualquiera toma.
+   «Leyendo el código de barras…» se quedaba para siempre, el catch nunca
+   corría, y el teléfono quemaba memoria hasta que el sistema descartaba la
+   pestaña. Ahora se decodifica por la ruta pura (EC.decodificarLuminancias):
+   una vez, y como mucho cuatro giros de rescate si el código se vio torcido,
+   más uno de 90° si la foto vino de pie. Después se dice la verdad. */
+function leerCodigoDeBarras(lienzo) {
   var leido = $('docLeido');
   if (leido) { leido.classList.remove('oculto'); leido.innerHTML = 'Leyendo el código de barras…'; }
-  /* 16-sep-2026 — RECIBE LA IMAGEN YA HECHA. Antes recibía el archivo y lo
-     decodificaba por su cuenta a 1600, que era la segunda de las tres
-     decodificaciones de la misma foto. Ahora la de 1600 ya viene hecha desde
-     tomarFoto, de la misma pasada que la de 900. */
-  return cargarScript(URL_ZXING).then(function () {
-    var url = urlGrande;
-    var Z = window.ZXing;
-    var lector = Z.BrowserPDF417Reader ? new Z.BrowserPDF417Reader() : new Z.BrowserMultiFormatReader();
-    return lector.decodeFromImageUrl(url);
-  }).then(function (res) {
-    var texto = res && (typeof res.getText === 'function' ? res.getText() : res.text);
-    var r = U.leerCedulaPDF417(texto);
-    if (!r) throw new Error('sin datos');
-    /* 9-sep-2026 — EL TIPO DE SANGRE NO SE GUARDA. El código de barras lo trae
-       y el lector lo devuelve, pero es dato de SALUD: sensible bajo la Ley 1581,
-       con finalidad propia, y no decide un peso de ningún crédito. Se tira acá,
-       antes de que toque el disco del teléfono o la red. */
-    delete r.rh;
-    FOTOS.cedula_leida = r;
-    /* Se dejan escritos en el formulario; la persona los revisa en «Quién eres». */
-    REGISTRO.nombres = r.nombres; REGISTRO.apellidos = r.apellidos; REGISTRO.documento = r.documento;
-    REGISTRO.tipo_doc = 'Cédula de ciudadanía';
-    guardarBorrador(REGISTRO); guardarFotos();
+  return cargarScript(URL_ZXING).then(respiro).then(function () {
+    var r = leerCedulaDeLienzo(lienzo, EC ? EC.GIROS_DE_RESCATE : null);
+    if (!r.cedula) throw new Error(r.error || 'sin datos');
+    anotarCedulaLeida(r.cedula);
     if (leido) leido.innerHTML = textoLeido();
+    refrescarDoc();
   }).catch(function () {
     delete FOTOS.cedula_leida; guardarFotos();
-    if (leido) leido.innerHTML = 'No pude leer el código de barras de esa foto (enfócalo bien y con luz). ' +
+    if (leido) leido.innerHTML = 'No pude leer el código de barras de esa foto (enfócalo bien, con luz y de cerca). ' +
       'No pasa nada: escribes tus datos en el paso siguiente.';
+  }).then(function () { soltarLienzo(lienzo); soltarLienzoGiro(); LIENZO_PENDIENTE = null; });
+}
+function soltarLienzo(c) { try { if (c && c.width !== undefined) { c.width = c.height = 1; } } catch (e) {} }
+/* UN RESPIRO PARA QUE SE VEA «Leyendo…» — 21-sep-2026.
+   Con el <script> de ZXing ya cargado, cargarScript resuelve en una microtarea
+   y la decodificación —30 a 100 ms en un celular— arrancaba sin que el
+   navegador hubiera repintado: ni el texto ni la miniatura de la foto recién
+   tomada llegaban a verse. Una tarea de verdad (setTimeout) sí deja pintar.
+   El `if (!id)` es para el banco de pruebas, donde setTimeout no hace nada y
+   devuelve 0: ahí no hay nada que pintar y esperar sería esperar para siempre. */
+function respiro() {
+  return new Promise(function (res) {
+    var id = setTimeout(res, 0);
+    if (!id) res();
   });
 }
+/* El lienzo grande que está esperando al lector. Si el vigilante del cerrojo
+   tiene que intervenir —cargarScript que no contesta nunca—, suelta también
+   esto: son 7,7 MB colgados de un cierre que nadie va a llamar. */
+var LIENZO_PENDIENTE = null;
+
+/* Lo que se hace con la cédula leída, venga de la foto fija o del escáner en
+   vivo: se deja escrita en el formulario (la persona la revisa en «Quién
+   eres») y se guarda la lectura para el CRM. Sin el RH: EC ya lo tiró. */
+function anotarCedulaLeida(r) {
+  FOTOS.cedula_leida = r;
+  REGISTRO.nombres = r.nombres; REGISTRO.apellidos = r.apellidos; REGISTRO.documento = r.documento;
+  REGISTRO.tipo_doc = 'Cédula de ciudadanía';
+  guardarBorrador(REGISTRO); guardarFotos();
+}
+function notaCedulaLeida() {
+  if (!FOTOS.cedula_leida) return '';
+  return '<div class="aviso info"><b>Estos datos los leímos del código de barras de tu cédula.</b> ' +
+    'Revísalos y corrige lo que no coincida. La fecha de expedición está impresa en el frente: esa sí la escribes tú.</div>';
+}
+
+/* Decodifica un lienzo: primero tal cual; si vino de pie (más alto que ancho)
+   también girado 90°, porque el lector solo lee acostado; y si el código se
+   vio pero no se corrigió, los giros de rescate que le pasen (o ninguno).
+   Devuelve {cedula, error}: error = 'sin_lector' | 'no_hay' | 'ilegible'. */
+function leerCedulaDeLienzo(lienzo, giros) {
+  if (!EC || !window.ZXing || !lienzo || !lienzo.width) return { cedula: null, error: 'sin_lector' };
+  var bases = [0];
+  if (lienzo.height > lienzo.width) bases.push(90);
+  var ultimo = 'no_hay';
+  for (var b = 0; b < bases.length; b++) {
+    var r = decodificarConGiro(lienzo, bases[b]);
+    if (r.texto) {
+      var ced = EC.cedulaDelTexto(U.leerCedulaPDF417, r.texto);
+      if (ced) return { cedula: ced, error: '' };
+      ultimo = 'ilegible'; continue;
+    }
+    ultimo = r.error;
+    if (r.error === 'ilegible' && giros && giros.length) {
+      for (var i = 0; i < giros.length; i++) {
+        var rr = decodificarConGiro(lienzo, bases[b] + giros[i]);
+        if (rr.texto) {
+          var c2 = EC.cedulaDelTexto(U.leerCedulaPDF417, rr.texto);
+          if (c2) return { cedula: c2, error: '' };
+        }
+      }
+    }
+  }
+  return { cedula: null, error: ultimo };
+}
+function decodificarConGiro(lienzo, grados) {
+  if (!grados) return decodificarLienzo(lienzo);
+  var g = lienzoGirado(lienzo, grados);
+  return g ? decodificarLienzo(g) : { error: 'no_hay' };
+}
+/* La ruta pura: píxeles → gris → ZXing, una vez, sin <img>, sin data URL, sin
+   lienzo de captura interno. Lo que reserva se suelta al salir. */
+function decodificarLienzo(c) {
+  var gris, w, h;
+  try {
+    var x = c.getContext('2d', { willReadFrequently: true });
+    w = c.width; h = c.height;
+    var d = x.getImageData(0, 0, w, h).data;
+    gris = EC.grisDeImageData(d, w, h); d = null;
+  } catch (e) {
+    /* No se pudo ni mirar el lienzo (memoria, o un lienzo manchado). Eso NO es
+       «hay un código torcido»: devolverlo como 'ilegible' disparaba cuatro
+       giros de rescate —cuatro lienzos más— justo cuando el teléfono acaba de
+       fallar una reserva. */
+    return { error: 'no_hay' };
+  }
+  return EC.decodificarLuminancias(window.ZXing, gris, w, h);
+}
+var LIENZO_GIRO = null;   // uno solo, reutilizado: girar no reserva memoria nueva cada vez
+function soltarLienzoGiro() { if (LIENZO_GIRO) soltarLienzo(LIENZO_GIRO); }
+function lienzoGirado(lienzo, grados) {
+  if (!LIENZO_GIRO) LIENZO_GIRO = document.createElement('canvas');
+  var norma = ((grados % 360) + 360) % 360;
+  var c = LIENZO_GIRO, recto = (norma > 45 && norma < 135) || (norma > 225 && norma < 315);
+  var w = recto ? lienzo.height : lienzo.width, h = recto ? lienzo.width : lienzo.height;
+  if (!w || !h) return null;
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  var x = c.getContext('2d', { willReadFrequently: true }); if (!x) return null;
+  try {
+    x.save(); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h);
+    x.translate(w / 2, h / 2); x.rotate(grados * Math.PI / 180);
+    x.drawImage(lienzo, -lienzo.width / 2, -lienzo.height / 2);
+    x.restore();
+  } catch (e) { return null; }
+  return c;
+}
+
+/* ===========================================================================
+ * EL ESCÁNER DE LA CÉDULA EN VIVO — 21-sep-2026
+ *
+ * Joan: «cuando toma la foto sigue el mismo problema que devuelve al cliente al
+ * primer paso», «la foto es muy aburrida, quiero que parezca que la cámara
+ * escanea la cédula», «la información debe poderse rellenar automáticamente».
+ *
+ * Las tres son la misma cosa. Con <input type=file capture> la cédula se
+ * tomaba en la app de cámara del sistema: la página quedaba en segundo plano,
+ * Android mataba al navegador por memoria («casi seguro» con la cámara, dice
+ * su propia guía), y al volver la pestaña nacía sin sessionStorage y sin la
+ * foto. Acá la cámara vive DENTRO de la página, como en el paso del rostro:
+ * no hay adónde volver porque nunca se fue.
+ *
+ * Y leer el código de barras del VIDEO, de cerca y con marco, es lo que hace
+ * que el autollenado funcione: una foto lejana o movida no se leía casi nunca.
+ * La lectura es además la prueba de enfoque: un código borroso no decodifica,
+ * así que si leyó, la foto que se guarda de ese mismo cuadro sirve.
+ *
+ * CÓMO ESTÁ PARTIDO: lo que decide con números (¿hay tarjeta?, ¿quieta?,
+ * ¿dónde va el marco?, decodificar una vez) vive en app/escaner-cedula.js y se
+ * prueba con cuadros y códigos fabricados. Acá está lo que necesita un <video>.
+ *
+ * DOS RITMOS, A PROPÓSITO. Cada 100 ms se mira un gris chico (96 px de alto) y
+ * se decide si vale la pena; solo en verde, y como mucho cuatro veces por
+ * segundo, se decodifica el recorte del marco a resolución completa. Nunca
+ * decodeFromVideoDevice de ZXing: ese reintenta a 0 ms sobre el cuadro entero,
+ * 4-10 MB de basura por intento con el hilo principal al 100 %.
+ *
+ * LA CÉDULA VA DE PIE en un teléfono vertical: así el código de barras ocupa
+ * ~85 % de los 1920 px del cuadro y sale a 3-4 px por módulo (el lector
+ * necesita 2,5 con el desenfoque normal de un celular); acostada apenas
+ * llegaría a 2. Como el lector no lee de pie, el recorte se gira 90° antes.
+ *
+ * SIEMPRE HAY SALIDA: «Tomar la foto ahora» dispara sin lectura; sin cámara en
+ * vivo (permiso negado, visor sin cámara, o el permiso que nunca contesta) se
+ * cae a las cajas de foto de siempre, con el motivo escrito. Y la cámara nativa
+ * de códigos (BarcodeDetector, en Chrome Android con servicios de Google) se
+ * usa primero cuando existe: es asíncrona y aguanta mejor la inclinación.
+ * ========================================================================= */
+var ESCDOC = { activo: false, pausado: false, stream: null, lado: '', estables: 0, previa: null,
+               ultima: 0, dura: 0, leyendo: false, ilegibles: 0, lecturas: 0, desde: 0, tempo: null, espera: null,
+               gris: null, grisW: 0, grisH: 0, recorte: null, guiaCaja: null, guiaVideo: null,
+               cajaW: 0, cajaH: 0, videoW: 0, videoH: 0, nativo: null, linterna: false, vigilando: false };
+var ALTO_GRIS_DOC = 96;        // el gris chico de la puerta: 96 px de alto, ancho proporcional
+var MS_ESPERA_CAMARA = 9000;   // si el permiso nunca contesta, no se queda «Encendiendo…» para siempre
+
+function hayCamaraEnVivo() {
+  return !!(EC && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function');
+}
+function tarjetaDoc(lado, ic, titulo) {
+  var key = 'cedula_' + lado, ok = hayFotoLista(key);
+  return '<div class="doc-tarjeta' + (ok ? ' ok' : '') + '" id="docTarjeta_' + lado + '">' +
+    (ok ? '<img src="' + FOTOS[key] + '" alt="">' : '<span class="ic">' + ic + '</span>') +
+    '<span>' + (ok ? '✓ ' : '') + titulo + '</span>' +
+    (ok ? '<button type="button" class="rep" onclick="repetirDoc(\'' + lado + '\')">Repetir</button>' : '') +
+  '</div>';
+}
+function tarjetasDoc() {
+  return '<div class="doc-tarjetas" id="docTarjetas">' +
+    tarjetaDoc('reverso', '📇', 'Respaldo (código de barras)') +
+    tarjetaDoc('frente', '🪪', 'Frente') + '</div>';
+}
+function botonesDoc() {
+  if (!hayCamaraEnVivo()) return '';
+  /* Mientras el escáner está abierto no se ofrece abrirlo: se pintaba «Ahora el
+     frente» encima de un escáner que YA estaba escaneando el frente. */
+  if (ESCDOC.activo || ESCDOC.stream) return '';
+  var falta = !hayFotoLista('cedula_reverso') ? 'reverso' : (!hayFotoLista('cedula_frente') ? 'frente' : '');
+  if (!falta) return '';
+  return '<button class="btn escanear" type="button" id="btnEscanear" onclick="iniciarEscanerDoc(\'' + falta + '\')">' +
+      '📷 ' + (falta === 'reverso' ? 'Escanear mi cédula' : 'Ahora el frente de mi cédula') + '</button>' +
+    '<button type="button" class="enlace-suave" onclick="mostrarFotoFija()">Prefiero tomar las fotos con la cámara del celular</button>';
+}
+function iconoCheck() {
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+function escanerDocHTML() {
+  return '<div class="escaner escaner-doc" id="escDoc">' +
+      '<video id="docVideo" playsinline muted autoplay></video>' +
+      '<canvas id="docLienzo"></canvas>' +
+      '<div class="doc-guia" id="docGuia"><div class="doc-linea"></div></div>' +
+      '<div class="doc-listo"><div class="doc-check">' + iconoCheck() + '</div><div class="doc-listo-txt" id="docListoTxt"></div></div>' +
+      '<div class="escaner-estado" id="docEstado">Encendiendo la cámara…</div>' +
+    '</div>' +
+    '<div class="doc-acciones">' +
+      '<button class="btn sec sm" type="button" id="btnDocCapturar" onclick="capturarDoc()">Tomar la foto ahora</button>' +
+      '<button class="btn sec sm oculto" type="button" id="btnDocLinterna" onclick="alternarLinterna()">🔦 Luz</button>' +
+      '<button class="btn sec sm" type="button" onclick="cerrarEscanerDoc()">Cancelar</button>' +
+    '</div>';
+}
+/* Vuelve a pintar lo que cambia sin repintar el paso entero (repintarlo
+   apagaría la cámara a mitad de la segunda foto). */
+function refrescarDoc() {
+  var t = $('docTarjetasCaja'); if (t) t.innerHTML = tarjetasDoc();
+  var b = $('docBotones'); if (b) b.innerHTML = botonesDoc();
+  var l = $('docLeido'); if (l) { l.innerHTML = textoLeido(); l.classList.toggle('oculto', !FOTOS.cedula_leida); }
+}
+
+/* Lo que se le pide en cada cara, y de una vez: el respaldo de pie (el código
+   necesita el lado largo del cuadro) y el frente acostado con la foto a la
+   izquierda, que es como se guarda derecho para el CRM. */
+function textoDelLado(lado) {
+  return lado === 'frente'
+    ? 'Ahora el frente, acostado y con tu foto a la izquierda'
+    : 'Pon el respaldo de tu cédula de pie en el marco';
+}
+function iniciarEscanerDoc(lado) {
+  if (!hayCamaraEnVivo()) return escanerDocSinCamara('Este navegador no deja usar la cámara en vivo.');
+  detenerEscanerDoc();
+  ESCDOC.lado = lado || 'reverso'; ESCDOC.estables = 0; ESCDOC.previa = null; ESCDOC.desde = 0;
+  ESCDOC.ilegibles = 0; ESCDOC.lecturas = 0; ESCDOC.ultima = 0; ESCDOC.dura = 0; ESCDOC.pausado = false;
+  ESCDOC.cajaW = ESCDOC.cajaH = ESCDOC.videoW = ESCDOC.videoH = 0; ESCDOC.guiaCaja = ESCDOC.guiaVideo = null;
+  ESCDOC.activo = true;
+  /* Cada encendido lleva número. El flujo de un intento anterior que llegue
+     tarde —la persona tocó «Escanear», canceló y volvió a tocar— se apaga en
+     vez de quedarse encendido para siempre con la luz de la cámara puesta. */
+  ESCDOC.turno = (ESCDOC.turno || 0) + 1;
+  var miTurno = ESCDOC.turno;
+  var caja = $('docEscaner'); if (caja) caja.classList.remove('oculto');
+  if (caja && caja.scrollIntoView) { try { caja.scrollIntoView({ block: 'center' }); } catch (e) { caja.scrollIntoView(); } }
+  var b = $('docBotones'); if (b) b.innerHTML = '';
+  var estado = $('docEstado'); if (estado) estado.textContent = 'Encendiendo la cámara…';
+  var v = $('docVideo'); if (!v) return;
+  cargarScript(URL_ZXING).catch(function () {});   // se precalienta mientras la cámara enciende
+  prepararDetectorNativo();
+  vigilarVisibilidadDoc();
+  ESCDOC.espera = setTimeout(function () {
+    if (ESCDOC.stream || !ESCDOC.activo || miTurno !== ESCDOC.turno) return;
+    var e2 = $('docEstado'); if (e2) e2.textContent = 'Esperando el permiso de la cámara…';
+    var n2 = $('docNota');
+    if (n2) n2.textContent = 'Si tu teléfono te está preguntando por la cámara, toca «Permitir». ' +
+      'Si prefieres, toma las fotos con la cámara del celular aquí abajo.';
+    var f2 = $('docFijo'); if (f2) f2.classList.remove('oculto');
+  }, MS_ESPERA_CAMARA);
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false
+  }).then(function (stream) {
+    if (ESCDOC.espera) { clearTimeout(ESCDOC.espera); ESCDOC.espera = null; }
+    if (!ESCDOC.activo || miTurno !== ESCDOC.turno) {
+      try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+      return;
+    }
+    ESCDOC.stream = stream; v.srcObject = stream;
+    var pista = stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
+    if (pista) pista.onended = function () { if (ESCDOC.activo) escanerDocSinCamara('La cámara se apagó.'); };
+    return v.play().catch(function () {}).then(function () { afinarCamaraDoc(pista); });
+  }).then(function () {
+    if (!ESCDOC.activo || miTurno !== ESCDOC.turno) return;
+    if (estado) estado.textContent = textoDelLado(ESCDOC.lado);
+    bucleEscanerDoc();
+  }).catch(function (e) {
+    if (ESCDOC.espera) { clearTimeout(ESCDOC.espera); ESCDOC.espera = null; }
+    if (miTurno !== ESCDOC.turno) return;
+    /* «No diste permiso» culparía al cliente; en un visor embebido el permiso se
+       niega solo y él nunca vio nada. Lo honesto es hablar del navegador. */
+    escanerDocSinCamara(e && e.name === 'NotAllowedError' ? 'Este navegador no dejó encender la cámara.' : 'No pude encender la cámara.');
+  });
+}
+/* Enfoque continuo y linterna, si la cámara los tiene. Se pregunta DESPUÉS de
+   que el video arrancó: recién pedido, getCapabilities suele venir vacío. */
+function afinarCamaraDoc(pista) {
+  if (!pista || typeof pista.getCapabilities !== 'function') return;
+  try {
+    var caps = pista.getCapabilities() || {};
+    if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) {
+      pista.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function () {});
+    }
+    if (caps.torch) { var b = $('btnDocLinterna'); if (b) b.classList.remove('oculto'); }
+  } catch (e) {}
+}
+function alternarLinterna() {
+  var pista = ESCDOC.stream && ESCDOC.stream.getVideoTracks ? ESCDOC.stream.getVideoTracks()[0] : null;
+  if (!pista) return;
+  ESCDOC.linterna = !ESCDOC.linterna;
+  pista.applyConstraints({ advanced: [{ torch: ESCDOC.linterna }] }).catch(function () { ESCDOC.linterna = false; });
+}
+function prepararDetectorNativo() {
+  ESCDOC.nativo = null;
+  if (typeof BarcodeDetector !== 'function' || typeof BarcodeDetector.getSupportedFormats !== 'function') return;
+  BarcodeDetector.getSupportedFormats().then(function (f) {
+    if (f && f.indexOf('pdf417') >= 0) ESCDOC.nativo = new BarcodeDetector({ formats: ['pdf417'] });
+  }).catch(function () {});
+}
+/* Si la persona se va a otra app con la cámara encendida, se apaga (Safari la
+   corta igual, y en Android la mantendría gastando); al volver, se reanuda
+   sola en el mismo lado. */
+function vigilarVisibilidadDoc() {
+  if (ESCDOC.vigilando || !document.addEventListener) return;
+  ESCDOC.vigilando = true;
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      /* También con el escáner «quieto» pero el flujo vivo: entre que lee y
+         reanuda con el frente hay un segundo y medio en el que activo es false
+         y la cámara sigue encendida. Irse a otra app ahí dejaba la luz puesta. */
+      if (ESCDOC.activo || ESCDOC.stream) { var lado = ESCDOC.lado; detenerEscanerDoc(); ESCDOC.pausado = lado; }
+    } else if (ESCDOC.pausado) {
+      var l = ESCDOC.pausado; ESCDOC.pausado = false;
+      if (VISTA === 'registro' && PASOS[PASO] && PASOS[PASO].id === 'documento') iniciarEscanerDoc(l);
+    }
+  });
+}
+function detenerEscanerDoc() {
+  ESCDOC.activo = false; ESCDOC.leyendo = false;
+  if (ESCDOC.tempo) { clearTimeout(ESCDOC.tempo); ESCDOC.tempo = null; }
+  if (ESCDOC.espera) { clearTimeout(ESCDOC.espera); ESCDOC.espera = null; }
+  if (ESCDOC.stream) { try { ESCDOC.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} ESCDOC.stream = null; }
+  var v = $('docVideo'); if (v) { try { v.srcObject = null; } catch (e) {} }
+  ESCDOC.linterna = false;
+}
+function escanerDocSinCamara(motivo) {
+  detenerEscanerDoc();
+  soltarLienzosDoc();
+  var e = $('docEscaner'); if (e) e.classList.add('oculto');
+  var b = $('docBotones'); if (b) b.innerHTML = '';
+  var f = $('docFijo'); if (f) f.classList.remove('oculto');
+  var n = $('docNota'); if (n) n.textContent = motivo + ' Toma las fotos con la cámara del celular: la del respaldo también se lee.';
+}
+function mostrarFotoFija() {
+  cerrarEscanerDoc();
+  var f = $('docFijo'); if (f) f.classList.remove('oculto');
+  var b = $('docBotones'); if (b) b.innerHTML = '';
+}
+function cerrarEscanerDoc() {
+  detenerEscanerDoc();
+  soltarLienzosDoc();
+  var e = $('docEscaner'); if (e) e.classList.add('oculto');
+  ocultarListoDoc();
+  refrescarDoc();
+}
+/* Los tres lienzos del escáner se quedaban vivos toda la sesión después de
+   cerrar: el del recorte a resolución completa son 2,4-6,3 MB, y el de girar
+   otros tantos. En el teléfono en el que esto importa, sobran. */
+function soltarLienzosDoc() {
+  soltarLienzo(ESCDOC.recorte); soltarLienzo(ESCDOC.gris); soltarLienzoGiro();
+  ESCDOC.previa = null;
+}
+function repetirDoc(lado) {
+  delete FOTOS['cedula_' + lado];
+  if (lado === 'reverso') delete FOTOS.cedula_leida;
+  guardarFotos(); refrescarDoc();
+  if (hayCamaraEnVivo()) iniciarEscanerDoc(lado);
+}
+
+/* La caja muestra el video con object-fit: cover, así que el marco se calcula
+   sobre la CAJA (lo que la persona ve) y se traduce al video para recortar. Se
+   recalcula solo cuando cambia algo: es aritmética, pero corre diez veces por
+   segundo. */
+function medirCajaDoc(v) {
+  var caja = $('escDoc'); if (!caja) return;
+  var cw = caja.clientWidth || 300, ch = caja.clientHeight || Math.round(cw * 16 / 9);
+  var vw = (v && v.videoWidth) || 0, vh = (v && v.videoHeight) || 0;
+  if (cw === ESCDOC.cajaW && ch === ESCDOC.cajaH && vw === ESCDOC.videoW && vh === ESCDOC.videoH &&
+      ESCDOC.ladoGuia === ESCDOC.lado) return;
+  ESCDOC.cajaW = cw; ESCDOC.cajaH = ch; ESCDOC.videoW = vw; ESCDOC.videoH = vh; ESCDOC.ladoGuia = ESCDOC.lado;
+  var g = EC.rectanguloGuia(cw, ch, ESCDOC.lado === 'frente');
+  ESCDOC.guiaCaja = g;
+  /* 21-sep-2026 — el marco se dibuja desde el primer cuadro, aunque el video
+     todavía no tenga medidas: antes había uno o dos segundos de caja negra con
+     la línea barriendo sobre nada y «Tomar la foto ahora» mudo. Sin video no
+     hay recorte, pero sí marco. */
+  if (!vw || !vh) { ESCDOC.guiaVideo = null; pintarGuiaCaja(g); return; }
+  var k = Math.max(cw / vw, ch / vh);
+  var ox = (cw - vw * k) / 2, oy = (ch - vh * k) / 2;
+  var gv = { x: Math.round((g.x - ox) / k), y: Math.round((g.y - oy) / k), w: Math.round(g.w / k), h: Math.round(g.h / k), vertical: g.vertical };
+  gv.x = Math.max(0, Math.min(gv.x, vw - 1)); gv.y = Math.max(0, Math.min(gv.y, vh - 1));
+  gv.w = Math.max(16, Math.min(gv.w, vw - gv.x)); gv.h = Math.max(16, Math.min(gv.h, vh - gv.y));
+  ESCDOC.guiaVideo = gv;
+  pintarGuiaCaja(g);
+}
+function pintarGuiaCaja(g) {
+  var guia = $('docGuia');
+  if (guia && guia.style) {
+    guia.style.left = g.x + 'px'; guia.style.top = g.y + 'px'; guia.style.width = g.w + 'px'; guia.style.height = g.h + 'px';
+    if (guia.style.setProperty) guia.style.setProperty('--alto', (g.h - 3) + 'px');
+  }
+}
+/* El gris chico de la puerta: el marco más un anillo del 18 % alrededor, para
+   que medirTarjeta pueda comparar el interior con lo de afuera. */
+function grisDeGuia(v) {
+  var g = ESCDOC.guiaVideo; if (!g) return null;
+  var mx = g.w * 0.2143, my = g.h * 0.2143;   // m/(1+2m) = 0,15 → la tarjeta es justo el 15-85 %
+  var sx = Math.max(0, g.x - mx), sy = Math.max(0, g.y - my);
+  var sw = Math.min(v.videoWidth - sx, g.w + 2 * mx), sh = Math.min(v.videoHeight - sy, g.h + 2 * my);
+  if (sw <= 0 || sh <= 0) return null;
+  var gh = ALTO_GRIS_DOC, gw = Math.max(16, Math.round(gh * sw / sh));
+  if (!ESCDOC.gris) ESCDOC.gris = document.createElement('canvas');
+  var c = ESCDOC.gris;
+  if (c.width !== gw || c.height !== gh) { c.width = gw; c.height = gh; }
+  var x = c.getContext('2d', { willReadFrequently: true }); if (!x) return null;
+  var d;
+  try { x.drawImage(v, sx, sy, sw, sh, 0, 0, gw, gh); d = x.getImageData(0, 0, gw, gh).data; }
+  catch (e) { return null; }
+  ESCDOC.grisW = gw; ESCDOC.grisH = gh;
+  return EC.grisDeImageData(d, gw, gh);
+}
+/* El recorte del marco a resolución completa, ACOSTADO: si el marco va de pie
+   se gira 90° al dibujar (el lector no lee de pie). Un solo lienzo, reutilizado. */
+function recortarGuia(v) {
+  var g = ESCDOC.guiaVideo; if (!g) return null;
+  if (!ESCDOC.recorte) ESCDOC.recorte = document.createElement('canvas');
+  var c = ESCDOC.recorte, w = g.vertical ? g.h : g.w, h = g.vertical ? g.w : g.h;
+  if (!w || !h) return null;
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  var x = c.getContext('2d', { willReadFrequently: true }); if (!x) return null;
+  try {
+    x.save();
+    if (g.vertical) { x.translate(w, 0); x.rotate(Math.PI / 2); }
+    x.drawImage(v, g.x, g.y, g.w, g.h, 0, 0, g.w, g.h);
+    x.restore();
+  } catch (e) { return null; }
+  return c;
+}
+
+function bucleEscanerDoc() {
+  if (!ESCDOC.activo) return;
+  var v = $('docVideo'), estado = $('docEstado');
+  if (!v || !v.videoWidth) { ESCDOC.tempo = setTimeout(bucleEscanerDoc, 120); return; }
+  if (!ESCDOC.desde) ESCDOC.desde = Date.now();
+  medirCajaDoc(v);
+  var g = grisDeGuia(v);
+  var m = g ? EC.medirTarjeta(g, ESCDOC.previa, ESCDOC.grisW, ESCDOC.grisH) : null;
+  ESCDOC.previa = g;
+  var verde = !!(m && m.ok);
+  if (verde) ESCDOC.estables++; else ESCDOC.estables = 0;
+  var esFrente = ESCDOC.lado === 'frente';
+  dibujarMarcoDoc(verde, esFrente ? Math.min(1, ESCDOC.estables / EC.TARJETA.CUADROS_FRENTE) : 0);
+  var e = $('escDoc'); if (e) e.classList.toggle('enganchado', verde);
+  var t = (Date.now() - ESCDOC.desde) / 1000;
+  if (estado) {
+    var txt = g ? EC.textoDeTarjeta(m) : 'Encendiendo la cámara…';
+    if (verde && !esFrente) txt = (!window.ZXing && !ESCDOC.nativo) ? 'Preparando el lector…'
+      : (ESCDOC.ilegibles >= 2 ? 'Casi: enderézala y acércala un poco' : 'Leyendo el código…');
+    if (verde && esFrente) txt = 'Quieta… ' + Math.max(1, Math.ceil((EC.TARJETA.CUADROS_FRENTE - ESCDOC.estables) / 3));
+    if (t > 20 && !verde) txt = 'Si no lo logras, toca «Tomar la foto ahora»';
+    estado.textContent = txt;
+  }
+  if (esFrente) {
+    if (ESCDOC.estables >= EC.TARJETA.CUADROS_FRENTE) { capturarDoc(); return; }
+  } else if (verde && !ESCDOC.leyendo && (Date.now() - ESCDOC.ultima) >= Math.max(EC.TARJETA.MS_ENTRE_LECTURAS, ESCDOC.dura)) {
+    leerCuadroDoc(v);
+    if (!ESCDOC.activo) return;   // leyó y ya cerró el bucle
+  }
+  ESCDOC.tempo = setTimeout(bucleEscanerDoc, 100);
+}
+/* Una lectura del recorte: la nativa si existe (asíncrona), si no ZXing (una
+   vez; giros de rescate solo después de ver el código torcido dos veces). */
+function leerCuadroDoc(v) {
+  var Z = window.ZXing;
+  if (!Z && !ESCDOC.nativo) return;   // el lector todavía baja: ni recortar vale la pena
+  var c = recortarGuia(v); if (!c) return;
+  var t0 = Date.now();
+  var giros = ESCDOC.ilegibles >= 2 && EC ? EC.GIROS_DE_RESCATE.slice(0, 2) : null;
+  var miTurno = ESCDOC.turno;
+  var termina = function (cedula, error) {
+    ESCDOC.leyendo = false;
+    if (miTurno !== ESCDOC.turno || !ESCDOC.stream) return;   // se canceló mientras leía
+    ESCDOC.dura = Date.now() - t0; ESCDOC.ultima = Date.now(); ESCDOC.lecturas++;
+    if (cedula) { leidaDoc(cedula); return; }
+    if (error === 'ilegible') ESCDOC.ilegibles++;
+  };
+  if (Z) {
+    var r = leerCedulaDeLienzo(c, giros);
+    if (r.cedula || !ESCDOC.nativo) return termina(r.cedula, r.error);
+  }
+  if (ESCDOC.nativo) {
+    ESCDOC.leyendo = true;
+    ESCDOC.nativo.detect(c).then(function (codigos) {
+      var cod = (codigos || []).filter(function (k) { return k && k.rawValue; })[0];
+      var ced = cod ? EC.cedulaDelTexto(U.leerCedulaPDF417, cod.rawValue) : null;
+      termina(ced, cod ? 'ilegible' : 'no_hay');
+    })['catch'](function () { ESCDOC.nativo = null; termina(null, 'no_hay'); });
+  }
+}
+/* El dibujo dice la verdad: ámbar y punteado mientras busca, verde y entero
+   cuando de verdad hay una tarjeta quieta y con luz. El lienzo va al tamaño de
+   la CAJA (por la densidad de la pantalla), no del video: a 1080×1920 serían
+   8 MB redibujados diez veces por segundo. */
+function dibujarMarcoDoc(enganchado, avance) {
+  var c = $('docLienzo'), g = ESCDOC.guiaCaja; if (!c || !g) return;
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  var w = Math.round(ESCDOC.cajaW * dpr), h = Math.round(ESCDOC.cajaH * dpr);
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  var ctx = c.getContext('2d'); if (!ctx) return;
+  ctx.save(); ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, ESCDOC.cajaW, ESCDOC.cajaH);
+  ctx.fillStyle = 'rgba(12,10,11,.45)';
+  ctx.beginPath(); ctx.rect(0, 0, ESCDOC.cajaW, ESCDOC.cajaH);
+  trazarRedondo(ctx, g.x, g.y, g.w, g.h, 12); ctx.closePath();
+  ctx.fill('evenodd');
+  var col = enganchado ? '124,255,196' : '245,197,66';
+  ctx.strokeStyle = 'rgba(' + col + ',.95)'; ctx.lineWidth = 2;
+  if (!enganchado) ctx.setLineDash([8, 7]);
+  ctx.beginPath(); trazarRedondo(ctx, g.x, g.y, g.w, g.h, 12); ctx.closePath(); ctx.stroke();
+  ctx.setLineDash([]);
+  var L = Math.min(g.w, g.h) * 0.16; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  [[g.x, g.y, 1, 1], [g.x + g.w, g.y, -1, 1], [g.x, g.y + g.h, 1, -1], [g.x + g.w, g.y + g.h, -1, -1]].forEach(function (k) {
+    ctx.beginPath(); ctx.moveTo(k[0], k[1] + L * k[3]); ctx.lineTo(k[0], k[1]); ctx.lineTo(k[0] + L * k[2], k[1]); ctx.stroke();
+  });
+  /* el frente no se lee: la barra crece con la racha de cuadros quietos */
+  if (avance > 0) {
+    ctx.strokeStyle = 'rgba(124,255,196,.95)'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(g.x, g.y + g.h + 12); ctx.lineTo(g.x + g.w * avance, g.y + g.h + 12); ctx.stroke();
+  }
+  ctx.restore();
+}
+function trazarRedondo(ctx, x, y, w, h, r) {
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+}
+
+/* La foto que se guarda: el RECORTE de la tarjeta, a 900 px de lado mayor y
+   JPEG 0,6. Es más legible que la foto entera de antes (la tarjeta llena el
+   cuadro, no la mesa) y pesa menos. */
+function fotoDeLienzo(c, max, q) {
+  var w = c.width, h = c.height;
+  if (!w || !h) return '';
+  if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
+  else if (h >= w && h > max) { w = Math.round(w * max / h); h = max; }
+  var t = document.createElement('canvas'); t.width = w; t.height = h;
+  var x = t.getContext('2d'); if (!x) return '';
+  var out = '';
+  try { x.drawImage(c, 0, 0, w, h); out = t.toDataURL('image/jpeg', q); } catch (e) { out = ''; }
+  t.width = t.height = 1;
+  return out;
+}
+/* Leyó: se guarda ese mismo cuadro (ya se sabe que está enfocado), se deja la
+   cédula escrita, se celebra un segundo y se sigue con el frente sin apagar la
+   cámara. */
+function leidaDoc(cedula) {
+  ESCDOC.activo = false;
+  if (ESCDOC.tempo) { clearTimeout(ESCDOC.tempo); ESCDOC.tempo = null; }
+  var jpeg = ESCDOC.recorte ? fotoDeLienzo(ESCDOC.recorte, 900, 0.6) : '';
+  if (jpeg) FOTOS.cedula_reverso = jpeg;
+  marcarDuenoDeLasFotos();
+  anotarCedulaLeida(cedula);
+  var nombre = String(cedula.nombres || '').split(' ')[0];
+  var sigue = !FOTOS.cedula_frente;
+  mostrarListoDoc('¡Leída' + (nombre ? ', ' + nombre : '') + '!' + (sigue ? ' Ahora el frente.' : ''));
+  refrescarDoc();
+  ESCDOC.tempo = setTimeout(function () {
+    ocultarListoDoc();
+    if (sigue) reanudarEscanerDoc('frente'); else cerrarEscanerDoc();
+  }, 1500);
+}
+function reanudarEscanerDoc(lado) {
+  ESCDOC.lado = lado; ESCDOC.estables = 0; ESCDOC.previa = null; ESCDOC.desde = 0; ESCDOC.ilegibles = 0;
+  ESCDOC.activo = true;
+  var e = $('docEstado'); if (e) e.textContent = textoDelLado(lado);
+  bucleEscanerDoc();
+}
+/* «Tomar la foto ahora», o el frente cuando lleva seis cuadros quieto. Si es el
+   respaldo, se intenta leer UNA vez con giros; si no lee, la foto queda igual
+   y se dice: los datos se escriben en el paso siguiente. */
+function capturarDoc() {
+  var v = $('docVideo');
+  if (!v || !v.videoWidth) { var e0 = $('docEstado'); if (e0) e0.textContent = 'La cámara todavía no está lista…'; return; }
+  var c = recortarGuia(v); if (!c) return;
+  var lado = ESCDOC.lado || 'reverso';
+  ESCDOC.activo = false;
+  if (ESCDOC.tempo) { clearTimeout(ESCDOC.tempo); ESCDOC.tempo = null; }
+  var leyo = false;
+  if (lado === 'reverso') {
+    var r = window.ZXing && EC ? leerCedulaDeLienzo(c, EC.GIROS_DE_RESCATE) : { cedula: null };
+    if (r.cedula) { anotarCedulaLeida(r.cedula); leyo = true; }
+    else { delete FOTOS.cedula_leida; }
+  }
+  var jpeg = fotoDeLienzo(c, 900, 0.6);
+  if (!jpeg) {
+    /* toDataURL falló (memoria, o un lienzo manchado): no se guarda nada y no
+       se dice «Listo» sobre una foto que no existe. */
+    var er = $('docEstado'); if (er) er.textContent = 'No pude guardar esa foto. Inténtalo otra vez.';
+    ESCDOC.activo = true; bucleEscanerDoc();
+    return;
+  }
+  FOTOS['cedula_' + lado] = jpeg;
+  marcarDuenoDeLasFotos(); guardarFotos();
+  var sigue = lado === 'reverso' && !FOTOS.cedula_frente;
+  mostrarListoDoc(lado === 'reverso'
+    ? (leyo ? '¡Leída!' + (sigue ? ' Ahora el frente.' : '') : 'Foto tomada. El código no se pudo leer: escribes tus datos en el paso siguiente.' + (sigue ? ' Ahora el frente.' : ''))
+    : 'Listo: las dos caras.');
+  refrescarDoc();
+  ESCDOC.tempo = setTimeout(function () {
+    ocultarListoDoc();
+    if (sigue) reanudarEscanerDoc('frente'); else cerrarEscanerDoc();
+  }, leyo ? 1500 : 2600);
+}
+function mostrarListoDoc(txt) {
+  var e = $('escDoc'); if (e) e.classList.add('leido');
+  var t = $('docListoTxt'); if (t) t.textContent = txt;
+}
+function ocultarListoDoc() { var e = $('escDoc'); if (e) e.classList.remove('leido'); }
 
 /* ---------------------------------------------------------- paso: el rostro */
 var ESCANER = { stream: null, activo: false, estables: 0, temporizador: null,
@@ -1380,7 +2221,7 @@ function pasoRostro() {
     return '<p class="sub">No marcaste la autorización de fotos en el paso anterior, así que este paso se ' +
       'salta: tu cuenta se abre igual.</p>';
   }
-  var tiene = !!FOTOS.selfie;
+  var tiene = hayFotoLista('selfie');
   return '<p class="sub">Mira a la cámara con buena luz y sin gafas oscuras. El escáner toma la foto solo ' +
       'cuando tu rostro está quieto y centrado; si prefieres, tómala tú con el botón de abajo.</p>' +
     '<div class="escaner' + (tiene ? ' oculto' : '') + '" id="escaner">' +
@@ -1407,14 +2248,29 @@ function iniciarEscaner() {
   var v = $('camVideo'), estado = $('camEstado'); if (!v) return;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return escanerSinCamara('Tu navegador no deja usar la cámara en vivo.');
   ESCANER.activo = true; ESCANER.estables = 0; ESCANER.desde = 0; ESCANER.previa = null; ESCANER.ultima = null;
+  /* 21-sep-2026 — si el permiso nunca contesta (un visor sin diálogo de
+     permisos), «Encendiendo la cámara…» se quedaba para siempre y «Tomar la
+     foto ahora» callaba porque no había video. Ahora tiene tope. */
+  if (ESCANER.espera) clearTimeout(ESCANER.espera);
+  ESCANER.espera = setTimeout(function () {
+    /* No se declara nada: se deja la salida a mano y se sigue esperando el
+       permiso, que puede estar en pantalla ahora mismo. */
+    if (!ESCANER.activo || ESCANER.stream) return;
+    var e2 = $('camEstado'); if (e2) e2.textContent = 'Esperando el permiso de la cámara…';
+    var f2 = $('fot_selfie_fallback');
+    if (f2) { f2.style.display = ''; f2.querySelector('.lbl').textContent = 'Si prefieres, toma la selfie con la cámara del celular.'; }
+  }, MS_ESPERA_CAMARA);
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 } }, audio: false })
     .then(function (stream) {
+      if (ESCANER.espera) { clearTimeout(ESCANER.espera); ESCANER.espera = null; }
+      if (!ESCANER.activo) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} return; }
       ESCANER.stream = stream; v.srcObject = stream;
       return v.play().catch(function () {});
     })
     .then(function () { if (estado) estado.textContent = 'Pon tu rostro dentro del óvalo'; bucleEscaner(); })
     .catch(function (e) {
-      escanerSinCamara(e && e.name === 'NotAllowedError' ? 'No diste permiso de cámara.' : 'No pude encender el escáner.');
+      if (ESCANER.espera) { clearTimeout(ESCANER.espera); ESCANER.espera = null; }
+      escanerSinCamara(e && e.name === 'NotAllowedError' ? 'Este navegador no dejó encender la cámara.' : 'No pude encender el escáner.');
     });
 }
 function escanerSinCamara(motivo) {
@@ -1426,6 +2282,7 @@ function escanerSinCamara(motivo) {
 function detenerEscaner() {
   ESCANER.activo = false;
   if (ESCANER.temporizador) { clearTimeout(ESCANER.temporizador); ESCANER.temporizador = null; }
+  if (ESCANER.espera) { clearTimeout(ESCANER.espera); ESCANER.espera = null; }
   if (ESCANER.stream) { ESCANER.stream.getTracks().forEach(function (t) { t.stop(); }); ESCANER.stream = null; }
 }
 /* El escáner DIBUJA, no reconoce: el óvalo, las esquinas, los anillos de los
@@ -1562,7 +2419,9 @@ function capturarRostro() {
   if (w > h && w > max) { h = h * max / w; w = max; } else if (h >= w && h > max) { w = w * max / h; h = max; }
   var c = document.createElement('canvas'); c.width = w; c.height = h;
   c.getContext('2d').drawImage(v, 0, 0, w, h);
-  FOTOS.selfie = c.toDataURL('image/jpeg', 0.7); guardarFotos();
+  FOTOS.selfie = c.toDataURL('image/jpeg', 0.7);
+  marcarDuenoDeLasFotos();   // sin dueño no sube, y la pantalla diría «registrado» igual
+  guardarFotos();
   detenerEscaner();
   $('escaner').classList.add('oculto'); $('btnCapturar').classList.add('oculto');
   $('selfiePrev').src = FOTOS.selfie; $('selfieListo').classList.remove('oculto');
@@ -1574,7 +2433,7 @@ function subirArchivosRegistro() {
   /* 17-sep-2026 — SOLO SUBE LA PESTAÑA QUE LAS TOMÓ. Ver el comentario de
      LLAVE_FOTOS_MIAS: sin esta línea, la cédula que alguien dejó a medias en un
      teléfono prestado se sube sola a la cuenta del siguiente que entre. */
-  if (!lasFotosSonDeEstaPestana()) return Promise.resolve();
+  if (!fotosSonDeEsteRegistro(celularDeSesion() || REGISTRO.celular)) return Promise.resolve();
   var archivos = {};
   ['cedula_frente', 'cedula_reverso', 'selfie'].forEach(function (k) { if (FOTOS[k]) archivos[k] = FOTOS[k]; });
   var huella = {};
@@ -1585,7 +2444,7 @@ function subirArchivosRegistro() {
     if (j && j.ok === true) {
       try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
       FOTOS = { sensibles: true };
-      olvidarFotosDeEstaPestana();
+      olvidarDuenoDeLasFotos();
     }
   });
 }
@@ -3317,7 +4176,7 @@ function pintarCuenta(sesion) {
      formulario por recargar. El paso se olvida por lo mismo. */
   guardarSesionEnCurso(SESION);
   marcarVista('');
-  olvidarPaso();
+  olvidarPaso(); olvidarCuentaCreada();
   $('cuerpo').innerHTML = '<div id="tabs">' + barraPestanas() + '</div>' +
     '<div id="lamina"></div>' + pie();
   /* La ficha se pide UNA vez al abrir y se reparte a las cuatro láminas. Pedirla
@@ -3666,9 +4525,9 @@ function tarjetaCambiarClave() {
     '<h3 class="tit">Cambiar mi contraseña</h3>' +
     '<p class="sub">La nueva tiene que tener al menos 8 caracteres.</p>' +
     '<label for="clave1">Contraseña nueva</label>' +
-    '<input id="clave1" type="password" autocomplete="new-password" placeholder="••••••••">' +
+    campoClave('clave1', 'new-password') +
     '<label for="clave2">Escríbela otra vez</label>' +
-    '<input id="clave2" type="password" autocomplete="new-password" placeholder="••••••••">' +
+    campoClave('clave2', 'new-password') +
     '<button class="btn sec arriba" onclick="cambiarClave()">Guardar mi contraseña nueva</button>' +
     '<div id="errClave" class="aviso ambar oculto"></div>' +
     '</div>';
@@ -4221,10 +5080,17 @@ function pie() {
      3. EL RESTO ve la portada. */
   var sesionGuardada = leerSesionEnCurso();
   var veniaDelRegistro = hayPasoGuardado();
+  var reciente = cuentaRecienCreada();
   if (sesionGuardada) {
     pintarCuenta(sesionGuardada);
+  } else if (reciente && !veniaDelRegistro) {
+    /* 21-sep-2026 — la cuenta ya nació y la sesión se fue con la relanzada:
+       se dice, con el celular puesto, en vez de mandarlo a llenar nueve pasos
+       para que al final le digan que ya existe. */
+    pintarEntrar();
+    avisarCuentaCreada(reciente);
   } else if (veniaDelRegistro || location.hash === '#registro') {
-    var donde = leerPaso();
+    var donde = veniaDelRegistro ? leerPaso() : 0;
     pintarRegistro(donde);
     /* El aviso solo cuando de verdad hubo una interrupción: quien llega por el
        enlace, al paso 1 y sin nada guardado, no tiene ningún susto que
@@ -4245,7 +5111,20 @@ function pie() {
            Y va el botón de salida: en un teléfono prestado, quien abre la
            página se encuentra el registro de otro y tiene que poder soltarlo. */
         aviso.innerHTML = 'La página se volvió a abrir. Seguimos en el paso donde ibas, ' +
-          'con lo que ya habías escrito.' +
+          'con lo que ya habías escrito' +
+          ((hayFotoLista('cedula_reverso') || hayFotoLista('cedula_frente')) ? ' y las fotos que ya habías tomado' : '') + '.' +
+          '<button class="btn sec sm" style="margin-top:var(--e3)" ' +
+          'onclick="empezarDeNuevo()">No soy yo · empezar de cero</button>';
+      }
+    } else if (!veniaDelRegistro && (REGISTRO.celular || REGISTRO.nombres)) {
+      /* Un borrador de hace días —o de otro— abriéndose por el enlace: se
+         empieza por el principio y se da la salida, en vez de meterlo en un
+         formulario a medias que no es suyo. */
+      var viejo = $('errReg');
+      if (viejo) {
+        viejo.classList.remove('oculto');
+        viejo.innerHTML = 'Encontramos un registro a medias en este teléfono, de hace rato. ' +
+          'Si es tuyo, sigue desde aquí.' +
           '<button class="btn sec sm" style="margin-top:var(--e3)" ' +
           'onclick="empezarDeNuevo()">No soy yo · empezar de cero</button>';
       }

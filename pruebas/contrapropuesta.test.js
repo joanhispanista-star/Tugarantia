@@ -420,6 +420,7 @@ describe('el cliente ve las fechas y los montos, cuota por cuota', () => {
     ctx.window = ctx; ctx.self = ctx;
     ctx.CreditosPublicables = C;
     ctx.CuentaSocio = require('../app/cuenta.js');
+    ctx.EscanerCedula = require('../app/escaner-cedula.js');   // 21-sep-2026, el escáner de la cédula
     ctx.Cumplimiento = require('../app/cumplimiento.js');
     ctx.MotorReglas = M;
     ctx.FichaSocio = require('../app/ficha.js');

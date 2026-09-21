@@ -474,7 +474,19 @@
    8-sep y los atajos existen desde el 18. Lo que faltaba era una frase en
    pantalla; una funcion que nadie encuentra vale lo mismo que una que no
    existe. Toca panel/crm.html. */
-const CACHE = 'tugarantia-v75';
+/* v76 - 21-sep-2026. EL REGISTRO YA NO SE PIERDE AL VOLVER DE LA CAMARA, y la
+   cedula se ESCANEA en vivo. La causa de fondo, confirmada con el codigo de
+   Chromium: Android nunca restaura el sessionStorage de una pestaña, y ahi
+   vivian el paso, la contraseña en curso y la marca que autorizaba subir las
+   fotos. El paso y el dueño de las fotos pasan a localStorage; la contraseña
+   se confirma al final si la relanzada se la llevo; la cedula se lee del video
+   dentro de la pagina (sin salir a la app de camara, que es lo que mataba al
+   navegador), con marco, animacion y autollenado; el lector de la foto fija
+   deja de reintentar para siempre; y todas las contraseñas tienen ojo.
+   Toca play/index.html, play/estilo.css y entra app/escaner-cedula.js (nuevo).
+   SI ESTE NUMERO NO SUBE, el telefono del cliente sigue con el registro que se
+   pierde. */
+const CACHE = 'tugarantia-v76';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -526,6 +538,12 @@ const ARCHIVOS = [
   'play/estilo.css',
   'play/app.webmanifest',
   'app/cuenta.js',
+  /* 21-sep-2026 — el escaner de la cedula: play/ lo carga con un <script src>.
+     Sin el, el paso de la cedula cae a las cajas de foto de siempre (la pagina
+     se protege con `if (!EC)`), pero el cliente perderia el escaner que es
+     justo lo que evita la vuelta de la camara. zxing.min.js sigue fuera: son
+     330 KB que se bajan solo al llegar a ese paso. */
+  'app/escaner-cedula.js',
   'app/creditos.js',
   'app/cumplimiento.js',
   /* 14-sep-2026 — lo que play/ carga desde que es la puerta unica. ficha.js lee
@@ -606,8 +624,19 @@ self.addEventListener('fetch', e => {
      nada quedándose fuera. */
   if (url.pathname.includes('/descargas/')) return;
 
+  /* 21-sep-2026 — LA HOJA ENTRA A FRESCO-PRIMERO, y es un defecto de despliegue
+     que este proyecto ya pagó dos veces. El HTML iba fresco-primero y el CSS
+     cache-primero, asi que la PRIMERA visita despues de publicar servia el HTML
+     NUEVO con la hoja VIEJA: el service worker que manda en ese momento sigue
+     siendo el anterior, y su cache tiene el CSS anterior. Se veia como un
+     defecto de la pagina —el escaner sin marco, el ojo de la contrasena sin
+     estilo— y se arreglaba solo en la segunda visita, que es la peor forma de
+     un fallo: el que lo reporta no lo puede volver a ver.
+     Subir CACHE no alcanzaba: eso arregla la SEGUNDA carga. Cuesta una peticion
+     de red por hoja y por visita, con la copia guardada de respaldo si no hay
+     senal, que es lo mismo que ya pagan el HTML y los .js. */
   const frescoPrimero = req.mode === 'navigate' ||
-    /\.(html|js|webmanifest)$/.test(url.pathname);
+    /\.(html|js|css|webmanifest)$/.test(url.pathname);
 
   if (frescoPrimero) {
     e.respondWith(

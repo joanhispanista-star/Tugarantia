@@ -92,6 +92,10 @@ function abrirPlay(opciones) {
      el mismo proceso: ya pasó, y envenenó tres pruebas de otro archivo. */
   ctx.CreditosPublicables = Object.assign({}, require(path.join(RAIZ, 'app', 'creditos.js')));
   ctx.CuentaSocio = require(path.join(RAIZ, 'app', 'cuenta.js'));
+  /* 21-sep-2026 — el escáner de la cédula (encuadre, marco, decodificación, de
+     quién son las fotos). Sin cámara en el banco, la página cae a las cajas de
+     foto de siempre; lo puro se prueba con cuadros y códigos fabricados. */
+  ctx.EscanerCedula = require(path.join(RAIZ, 'app', 'escaner-cedula.js'));
   ctx.Cumplimiento = require(path.join(RAIZ, 'app', 'cumplimiento.js'));
   ctx.MotorReglas = require(path.join(RAIZ, 'app', 'motor.js'));
   ctx.FichaSocio = require(path.join(RAIZ, 'app', 'ficha.js'));

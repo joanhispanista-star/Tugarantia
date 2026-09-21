@@ -433,6 +433,7 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
        28-ago-2026). */
     if (!o.sinReglas) ctx.CreditosPublicables = require(path.join(RAIZ, 'app', 'creditos.js'));
     ctx.CuentaSocio = require(path.join(RAIZ, 'app', 'cuenta.js'));
+    ctx.EscanerCedula = require(path.join(RAIZ, 'app', 'escaner-cedula.js'));   // 21-sep-2026, el escáner de la cédula
     ctx.Cumplimiento = require(path.join(RAIZ, 'app', 'cumplimiento.js'));
     /* 14-sep-2026 — el motor y el lector de la ficha entraron a play/ con la
        calculadora de la garantía. Si se olvidan acá, la página revienta en el
@@ -578,8 +579,12 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
     /* El orden es la corrección: mientras haya una constante de primer nivel que
        lea C, U, M o FS por encima del guardián, el guardián vuelve a ser
        inalcanzable el día que falte un archivo. */
-    const guardia = VIVO.indexOf('if (!C || !U || !M || !FS)');
-    assert.ok(guardia > 0, 'desapareció el guardián de las reglas');
+    /* 21-sep-2026 — EC (el escáner de la cédula) entró al guardián: sin él,
+       `fotosSonDeEsteRegistro` devuelve false siempre y las fotos no suben
+       NUNCA, con la pantalla diciendo «Listo». Es el mismo fallo mudo que el
+       guardián existe para evitar, así que se vigila igual que los otros. */
+    const guardia = VIVO.indexOf('if (!C || !U || !M || !FS || !EC)');
+    assert.ok(guardia > 0, 'desapareció el guardián de las reglas, o dejó de cubrir el escáner de la cédula');
     [['CALC_MAX', 'C.PERFILES'], ['GCALC', 'M.MONTO_MINIMO_RESPALDADO'],
      ['GCALC_MESES_MIN', 'C.PLAZO_MINIMO_DIAS'], ['PLAZO', 'C.PLAZO_MESES']].forEach(([n, lee]) => {
       const i = VIVO.indexOf('var ' + n + ' =');
