@@ -624,4 +624,29 @@ describe('el precio de la prórroga se puede bajar a lo que Joan diga', () => {
     assert.match(t, /atajoMonto\('\$\{p\.id\}',0\)[^]{0,40}Gratis/,
       'se fue el atajo de dejar la prórroga gratis');
   });
+
+  /* 21-sep-2026 — LA PISTA, y por qué merece centinelas propios. Joan pidió
+     este descuento tres veces seguidas y las tres veces el código ya lo hacía.
+     No era un bug de lógica: era que la hoja no lo decía en ninguna parte, y
+     una función que nadie encuentra vale lo mismo que una que no existe. Lo
+     que se vigila acá no son cuentas: es una frase en pantalla. */
+  const fuenteCRM = () => require('node:fs')
+    .readFileSync(require('node:path').join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
+
+  test('la hoja de cobro tiene la ranura de la pista', () => {
+    assert.match(fuenteCRM(), /id="pgPista"/, 'se fue la ranura donde se escribe la pista');
+  });
+
+  test('la pista dice con todas las letras que el precio lo pone Joan, y que puede ser 0', () => {
+    const P = conMora();
+    P.ev("abrirPago('C1')"); P.ev("modoProrroga('C1')");
+    const pista = P.ev("document.getElementById('pgPista').innerHTML");
+    assert.match(pista, /Tú le pones el precio/, 'la hoja volvió a quedarse muda');
+    assert.match(pista, />0</, 'la pista ya no nombra el cero, que es justo lo que Joan preguntaba');
+  });
+
+  test('el botón de la prórroga anuncia que es ajustable', () => {
+    assert.ok(fuenteCRM().indexOf('· ajustable</button>') > -1,
+      'el botón volvió a parecer un precio fijo');
+  });
 });

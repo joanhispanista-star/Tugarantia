@@ -364,6 +364,11 @@
   .permiso input{width:auto;margin:2px 0 0;flex:0 0 auto}
   .permiso .muted{font-size:11.5px;margin-top:2px}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  /* La pista del precio ajustable: visible, no decorativa. Va pegada al campo
+     del monto porque es ahí donde se toma la decisión. */
+  .pista-monto:empty{display:none}
+  .pista-monto{margin-top:8px;padding:8px 10px;border-radius:8px;font-size:12.5px;line-height:1.45;
+    color:var(--tinta);background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35)}
   .sub-h{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--amarillo-tinta);font-weight:800;margin:20px 0 10px;border-top:1px solid var(--linea);padding-top:16px}
   .sub-h:first-child{border:none;padding-top:0;margin-top:0}
   /* La calculadora del crédito quincenal: roja, como el producto. */
@@ -5068,6 +5073,7 @@ function abrirPago(id){
     <div id="pgMontoBox" style="display:none">
       <div class="field" style="margin-top:12px"><label id="pgMontoLbl">¿Cuánto pagó?</label><input id="pgMonto" type="number" inputmode="numeric" step="1" min="0" oninput="cambioMonto('${p.id}')"></div>
       <div id="pgAtajos" class="two"></div>
+      <div id="pgPista" class="pista-monto"></div>
     </div>
     <div id="pgAccion" style="margin-top:10px"></div>
     <div id="pgDif"></div>`);
@@ -5163,7 +5169,7 @@ function calcPago(id){
   const btnProrroga=porQueNoHayProrroga
     ? `<div class="alerta info" style="grid-column:1/-1">${porQueNoHayProrroga}</div>`
     : (pr&&!pr.ok?`<button class="btn btn-negro" onclick="registrarProrroga('${p.id}')">Ver el plan de pagos</button>`
-     :`<button class="btn btn-negro" onclick="modoProrroga('${p.id}')">↻ Prórroga (${COP(pr.total_a_pagar)})</button>`);
+     :`<button class="btn btn-negro" title="Ábrela para cobrarle el valor que quieras, incluso $0" onclick="modoProrroga('${p.id}')">↻ Prórroga (${COP(pr.total_a_pagar)}) · ajustable</button>`);
   /* Con descuento, la garantía y el reparto salen de LA PLATA QUE ENTRA. Las
      cuentas las hace el puente (cuentasDelCobro): las mismas dos llamadas al
      motor que hace el espejo. Sin descuento entro == costo_total_pagado y el
@@ -5193,6 +5199,8 @@ function calcPago(id){
   const mBox=document.getElementById('pgMontoBox'); if(mBox)mBox.style.display=c?'none':'';
   const inp=document.getElementById('pgMonto');
   if(inp&&!c&&_cobro.monto==null&&!_cobro.vacio) inp.value=String(e.monto);
+  const pista=document.getElementById('pgPista');
+  if(pista) pista.innerHTML=c?'':'<b>Tú le pones el precio.</b> Escribe el valor que quieras —incluso <b>0</b>— y la diferencia se le perdona, con su motivo.';
   const at=document.getElementById('pgAtajos');
   if(at) at.innerHTML=c?'':`${liq.recargo_mora?`<button class="btn btn-ghost btn-sm" onclick="atajoMonto('${p.id}',${Math.round(liq.total_a_pagar-liq.recargo_mora)})">Sin la mora (${COP(liq.total_a_pagar-liq.recargo_mora)})</button>`:'<span></span>'}${liq.capital>0&&liq.capital<liq.total_a_pagar?`<button class="btn btn-ghost btn-sm" onclick="atajoMonto('${p.id}',${Math.round(liq.capital)})">Solo el capital (${COP(liq.capital)})</button>`:'<span></span>'}`;
   /* EL BOTÓN PRIMARIO NO SE MUEVE NUNCA: siempre acá, debajo del monto. Lo que
@@ -5450,6 +5458,16 @@ function calcProrroga(id,p,liq,e,s){
   if(at) at.innerHTML=
     `${pr.recargo_mora?`<button class="btn btn-ghost btn-sm" onclick="atajoMonto('${p.id}',${Math.round(pr.costo_prorroga)})">Sin la mora (${COP(pr.costo_prorroga)})</button>`:'<span></span>'}`
     +`${e.total>0?`<button class="btn btn-ghost btn-sm" onclick="atajoMonto('${p.id}',0)">Gratis ($0)</button>`:'<span></span>'}`;
+  /* 21-sep-2026 — LA PISTA. Joan pidió tres veces poder descontarle la prórroga
+     a un cliente, y las tres veces el código YA lo hacía: el campo acepta
+     cualquier número desde el 8-sep y los atajos existen desde el 18-sep. Lo
+     que no había era una sola palabra en pantalla que lo dijera. Un campo que
+     se llama «¿Cuánto pagó?» se lee como un dato que se reporta, no como un
+     precio que se decide, y el dueño del negocio no va a adivinar que puede
+     escribir menos. La función no estaba rota: estaba muda. */
+  const pista=document.getElementById('pgPista');
+  if(pista) pista.innerHTML='<b>Tú le pones el precio.</b> Escribe el valor que quieras —incluso <b>0</b>— y la diferencia se le perdona, con su motivo.'
+    +(pr.recargo_mora?' Si ya te había pagado y se te pasó registrarla, usa «Sin la mora» o corrige arriba la <b>fecha en que paga</b>.':'');
   const acc=document.getElementById('pgAccion');
   if(acc) acc.innerHTML=`<div class="two"><button class="btn btn-rojo" id="pgBtn" onclick="registrarCobro('${p.id}')">↻ Registrar prórroga (${COP(e.total)})</button><button class="btn btn-ghost" onclick="volverAlCobro('${p.id}')">← Volver al cobro</button></div>`;
   /* La pregunta de abajo. En una prórroga el faltante solo puede ser perdón. */

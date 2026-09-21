@@ -468,7 +468,13 @@
 /* v74 - 18-sep-2026. El boton de la prorroga desaparecia en silencio cuando el
    credito estaba en plan de pagos o no admitia prorroga, y por eso Joan no
    encontraba como hacer un descuento. Ahora se dice el motivo en la hoja. */
-const CACHE = 'tugarantia-v74';
+/* v75 - 21-sep-2026. La hoja del cobro ahora DICE que el precio lo pone Joan.
+   Era la tercera vez que pedia «poder hacerle descuento a la prorroga» y las
+   tres veces el codigo ya lo hacia: el campo acepta cualquier numero desde el
+   8-sep y los atajos existen desde el 18. Lo que faltaba era una frase en
+   pantalla; una funcion que nadie encuentra vale lo mismo que una que no
+   existe. Toca panel/crm.html. */
+const CACHE = 'tugarantia-v75';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
