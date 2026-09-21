@@ -397,9 +397,24 @@
           apellidos: (ap1 + ' ' + ap2).trim(),
           nombres: (n1 + ' ' + n2).trim(),
           sexo: /^[MF]$/.test(s.substr(150, 1)) ? s.substr(150, 1) : '',
-          /* Después del sexo viene la fecha (8 dígitos), el código del municipio
-             de expedición (5 dígitos) y el RH. Entre versiones del formato hay
-             una columna de diferencia, así que en la cola se BUSCA, no se mide. */
+          /* Después del sexo viene la fecha (8 dígitos), un código de localidad
+             de 5 dígitos y el RH. Entre versiones del formato hay una columna de
+             diferencia, así que en la cola se BUSCA, no se mide.
+
+             21-sep-2026 — ESE CÓDIGO NO ES «el municipio de expedición», que es
+             lo que este comentario afirmó desde que se escribió, y era el cuarto
+             documento de este repo diciendo algo que nadie comprobó.
+             Lo que SÍ se sabe: son 2 dígitos de DEPARTAMENTO + 3 de MUNICIPIO
+             (los parsers públicos más citados lo rotulan al revés), y no es la
+             numeración del DANE sino la DIVIPOL de la Registraduría —Antioquia
+             01, Bogotá 16, Valle 31, donde el DANE diría 05, 11 y 76—, así que
+             cruzarlo contra una tabla del DANE devuelve otra ciudad sin avisar.
+             Lo que NO se sabe: si es el municipio de NACIMIENTO o el de
+             EXPEDICIÓN. Nadie lo documenta y el único indicio apunta a
+             nacimiento. Por eso se descarta: rotularlo mal sería escribirle al
+             cliente un lugar de expedición que no es el suyo.
+             Y la fecha de expedición NO viene en este código, en ninguna
+             versión del formato: está impresa en el respaldo de la cédula. */
           nacimiento: fechaDeOcho((s.substr(150, 14).match(/(19|20)\d{6}/) || [''])[0]),
           rh: ((s.substr(158, 16).match(/(AB|A|B|O)[+-]/) || [''])[0]),
           lectura: 'anchos_fijos'

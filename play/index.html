@@ -680,7 +680,7 @@ function pintarRegistro(paso) {
   /* Cada vez que cambia de paso, si dio permiso, se publica. En un try porque un
      acompanamiento que falle NO puede impedirle abrir su cuenta. */
   try { publicarAvance(); } catch (e) {}
-  if (p.id === 'rostro' && FOTOS.sensibles && !FOTOS.selfie) setTimeout(iniciarEscaner, 50);
+  if (p.id === 'rostro' && FOTOS.sensibles && !hayFotoLista('selfie')) setTimeout(iniciarEscaner, 50);
   if (p.id === 'documento' && FOTOS.sensibles && !FOTOS.gps && !FOTOS.gps_error) pedirGps();
 }
 
@@ -1034,7 +1034,7 @@ function enviarRegistro(sensibles) {
          caro del embudo. */
       if (res.j && res.j.access_token) { SESION = res.j; guardarSesionEnCurso(SESION); }
       pintarRegistrado();
-      subirArchivosRegistro().catch(function () {});   // si falla, se reintenta al abrir la cuenta
+      subidaEnSegundoPlano();   // si falla, queda anotado y se reintenta al abrir la cuenta
     })
     .catch(function (e) {
       fallo(err, (e && e.humano) ? e.humano
@@ -1540,6 +1540,10 @@ function tomarFoto(ev, key) {
 
   if (caja) caja.querySelector('.lbl').textContent = 'Procesando…';
 
+  /* 21-sep-2026 — la selfie de respaldo apaga el escáner del rostro. Si no, el
+     permiso que llega tarde arranca el bucle y `capturarRostro` pisa la foto que
+     la persona acaba de tomar, sin decir nada. */
+  if (key === 'selfie') { try { detenerEscaner(); } catch (e) {} }
   var quiereCodigo = key === 'cedula_reverso';
   var tamanos = quiereCodigo ? [[900, 0.6], [1600, null]] : [[900, 0.6]];
 
@@ -1636,12 +1640,14 @@ function anotarCedulaLeida(r) {
   FOTOS.cedula_leida = r;
   REGISTRO.nombres = r.nombres; REGISTRO.apellidos = r.apellidos; REGISTRO.documento = r.documento;
   REGISTRO.tipo_doc = 'Cédula de ciudadanía';
-  guardarBorrador(REGISTRO); guardarFotos();
+  guardarBorrador(REGISTRO);
+  return guardarFotos();
 }
 function notaCedulaLeida() {
   if (!FOTOS.cedula_leida) return '';
   return '<div class="aviso info"><b>Estos datos los leímos del código de barras de tu cédula.</b> ' +
-    'Revísalos y corrige lo que no coincida. La fecha de expedición está impresa en el frente: esa sí la escribes tú.</div>';
+    'Revísalos y corrige lo que no coincida. <b>La fecha de expedición no viene en ese código:</b> ' +
+    'búscala en tu cédula donde dice «FECHA Y LUGAR DE EXPEDICIÓN», cerca de la firma del Registrador.</div>';
 }
 
 /* Decodifica un lienzo: primero tal cual; si vino de pie (más alto que ancho)
@@ -2050,6 +2056,14 @@ function bucleEscanerDoc() {
       : (ESCDOC.ilegibles >= 2 ? 'Casi: enderézala y acércala un poco' : 'Leyendo el código…');
     if (verde && esFrente) txt = 'Quieta… ' + Math.max(1, Math.ceil((EC.TARJETA.CUADROS_FRENTE - ESCDOC.estables) / 3));
     if (t > 20 && !verde) txt = 'Si no lo logras, toca «Tomar la foto ahora»';
+    /* Doce segundos viendo la tarjeta bien puesta y sin encontrar ningún
+       código: casi seguro es la cédula nueva, la gris de plástico, que no
+       trae código de barras. Decirlo ahorra el minuto de pelea. */
+    if (!esFrente && t > 12 && ESCDOC.lecturas > 6 && !ESCDOC.ilegibles) {
+      var nd = $('docNota');
+      if (nd && !nd.textContent) nd.textContent = '¿Tu cédula es la nueva, gris y de plástico? ' +
+        'Esa no trae código de barras y todavía no la sabemos leer: toca «Tomar la foto ahora» y escribes tus datos.';
+    }
     estado.textContent = txt;
   }
   if (esFrente) {
@@ -2151,10 +2165,12 @@ function leidaDoc(cedula) {
   var jpeg = ESCDOC.recorte ? fotoDeLienzo(ESCDOC.recorte, 900, 0.6) : '';
   if (jpeg) FOTOS.cedula_reverso = jpeg;
   marcarDuenoDeLasFotos();
-  anotarCedulaLeida(cedula);
+  var aSalvo = anotarCedulaLeida(cedula);
   var nombre = String(cedula.nombres || '').split(' ')[0];
   var sigue = !FOTOS.cedula_frente;
-  mostrarListoDoc('¡Leída' + (nombre ? ', ' + nombre : '') + '!' + (sigue ? ' Ahora el frente.' : ''));
+  mostrarListoDoc(!aSalvo
+    ? 'Leída, pero tu teléfono no dejó guardar la foto: termina sin cerrar esta página.'
+    : '¡Leída' + (nombre ? ', ' + nombre : '') + '!' + (sigue ? ' Ahora el frente.' : ''));
   refrescarDoc();
   ESCDOC.tempo = setTimeout(function () {
     ocultarListoDoc();
@@ -2192,11 +2208,14 @@ function capturarDoc() {
     return;
   }
   FOTOS['cedula_' + lado] = jpeg;
-  marcarDuenoDeLasFotos(); guardarFotos();
+  marcarDuenoDeLasFotos();
+  var aSalvo = guardarFotos();
   var sigue = lado === 'reverso' && !FOTOS.cedula_frente;
-  mostrarListoDoc(lado === 'reverso'
-    ? (leyo ? '¡Leída!' + (sigue ? ' Ahora el frente.' : '') : 'Foto tomada. El código no se pudo leer: escribes tus datos en el paso siguiente.' + (sigue ? ' Ahora el frente.' : ''))
-    : 'Listo: las dos caras.');
+  mostrarListoDoc(!aSalvo
+    ? 'La tenemos, pero tu teléfono no dejó guardarla: termina sin cerrar esta página.'
+    : (lado === 'reverso'
+      ? (leyo ? '¡Leída!' + (sigue ? ' Ahora el frente.' : '') : 'Foto tomada. El código no se pudo leer: escribes tus datos en el paso siguiente.' + (sigue ? ' Ahora el frente.' : ''))
+      : 'Listo: las dos caras.'));
   refrescarDoc();
   ESCDOC.tempo = setTimeout(function () {
     ocultarListoDoc();
@@ -2236,8 +2255,10 @@ function pasoRostro() {
       '<button class="btn sec sm" type="button" onclick="repetirRostro()">Repetir la foto</button>' +
     '</div>' +
     '<button class="btn sec sm' + (tiene ? ' oculto' : '') + '" id="btnCapturar" type="button" style="margin-top:var(--e3)" onclick="capturarRostro()">Tomar la foto ahora</button>' +
-    '<label class="foto-caja' + (tiene ? ' oculto' : '') + '" id="fot_selfie_fallback" style="display:none"><span class="ic">🤳</span>' +
-      '<span class="lbl">Tomar una selfie</span><input type="file" accept="image/*" capture="user" onchange="tomarFoto(event,\'selfie\')"></label>';
+    '<label class="foto-caja' + (tiene ? ' oculto' : '') + '" id="fot_selfie" style="display:' + (tiene ? '' : 'none') + '"><span class="ic">🤳</span>' +
+      '<span class="lbl">' + (tiene ? 'Listo · tocar para cambiar' : 'Tomar una selfie') + '</span>' +
+      '<input type="file" accept="image/*" capture="user" onchange="tomarFoto(event,\'selfie\')"></label>' +
+    '<div id="selfieNota" class="doc-nota"></div>';
 }
 function repetirRostro() {
   delete FOTOS.selfie; guardarFotos();
@@ -2257,8 +2278,10 @@ function iniciarEscaner() {
        permiso, que puede estar en pantalla ahora mismo. */
     if (!ESCANER.activo || ESCANER.stream) return;
     var e2 = $('camEstado'); if (e2) e2.textContent = 'Esperando el permiso de la cámara…';
-    var f2 = $('fot_selfie_fallback');
-    if (f2) { f2.style.display = ''; f2.querySelector('.lbl').textContent = 'Si prefieres, toma la selfie con la cámara del celular.'; }
+    var f2 = $('fot_selfie'); if (f2) f2.style.display = '';
+    var n2 = $('selfieNota');
+    if (n2) n2.textContent = 'Si tu teléfono te está preguntando por la cámara, toca «Permitir». ' +
+      'Si prefieres, toma la selfie con la cámara del celular, aquí abajo.';
   }, MS_ESPERA_CAMARA);
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 } }, audio: false })
     .then(function (stream) {
@@ -2277,7 +2300,12 @@ function escanerSinCamara(motivo) {
   detenerEscaner();
   var e = $('escaner'); if (e) e.classList.add('oculto');
   var b = $('btnCapturar'); if (b) b.classList.add('oculto');
-  var f = $('fot_selfie_fallback'); if (f) { f.style.display = ''; f.querySelector('.lbl').textContent = motivo + ' Toma una selfie con la cámara del celular.'; }
+  /* El motivo va a una nota APARTE y no encima de la etiqueta de la caja: esa
+     etiqueta es la que dice «Listo» cuando la foto entra, y pisarla era la
+     mitad del defecto de la selfie muda. */
+  var f = $('fot_selfie'); if (f) f.style.display = '';
+  var nota = $('selfieNota');
+  if (nota) nota.textContent = motivo + ' Toma la selfie con la cámara del celular, aquí abajo.';
 }
 function detenerEscaner() {
   ESCANER.activo = false;
@@ -2414,17 +2442,25 @@ function dibujarMarco(ctx, w, h, t, enganchado, avance) {
   ctx.restore();
 }
 function capturarRostro() {
-  var v = $('camVideo'); if (!v || !v.videoWidth) return;
+  var v = $('camVideo');
+  if (!v || !v.videoWidth) {
+    /* Callarse acá era dejar un botón que no hace nada: pasa cuando el permiso
+       todavía no llegó. */
+    var e0 = $('camEstado'); if (e0) e0.textContent = 'La cámara todavía no está lista…';
+    return;
+  }
   var max = 720, w = v.videoWidth, h = v.videoHeight;
   if (w > h && w > max) { h = h * max / w; w = max; } else if (h >= w && h > max) { w = w * max / h; h = max; }
   var c = document.createElement('canvas'); c.width = w; c.height = h;
   c.getContext('2d').drawImage(v, 0, 0, w, h);
   FOTOS.selfie = c.toDataURL('image/jpeg', 0.7);
   marcarDuenoDeLasFotos();   // sin dueño no sube, y la pantalla diría «registrado» igual
-  guardarFotos();
+  var aSalvo = guardarFotos();
   detenerEscaner();
   $('escaner').classList.add('oculto'); $('btnCapturar').classList.add('oculto');
   $('selfiePrev').src = FOTOS.selfie; $('selfieListo').classList.remove('oculto');
+  var nota = $('selfieNota');
+  if (nota) nota.textContent = aSalvo ? '' : 'La tenemos, pero tu teléfono no dejó guardarla: termina sin cerrar esta página.';
 }
 
 /* -------------------------------------------- la subida, después de la cuenta */
@@ -2440,13 +2476,51 @@ function subirArchivosRegistro() {
   if (FOTOS.gps) huella.gps = FOTOS.gps;
   if (FOTOS.cedula_leida) huella.cedula_leida = FOTOS.cedula_leida;
   if (!Object.keys(archivos).length && !Object.keys(huella).length) return Promise.resolve();
+  var pedidas = Object.keys(archivos);
   return rpcSesion('registro_archivos_guardar', { p_archivos: archivos, p_huella: huella }).then(function (j) {
-    if (j && j.ok === true) {
-      try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
-      FOTOS = { sensibles: true };
-      olvidarDuenoDeLasFotos();
-    }
+    if (!j || j.ok !== true) { anotarSubida('rechazo', pedidas, []); return; }
+    /* `guardados` lo agrega la migración del 21-sep. Sin él —servidor viejo—
+       se cae al número, y si tampoco está se supone que entraron todas: es lo
+       que se hacía antes, pero ahora al menos queda anotado. */
+    var ok = (j.guardados && j.guardados.length !== undefined) ? j.guardados
+           : (typeof j.fotos === 'number' && j.fotos < pedidas.length ? [] : pedidas);
+    ok.forEach(function (k) { delete FOTOS[k]; });
+    var faltan = pedidas.filter(function (k) { return ok.indexOf(k) < 0; });
+    anotarSubida(faltan.length ? 'parcial' : 'ok', pedidas, ok);
+    if (faltan.length) { guardarFotos(); return; }
+    /* Todas entraron: recién ahí se suelta la copia del teléfono. */
+    try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
+    FOTOS = { sensibles: true };
+    olvidarDuenoDeLasFotos();
+  }, function (e) {
+    anotarSubida('sin_red', pedidas, []);
+    throw e;
   });
+}
+/* QUÉ PASÓ CON LA ÚLTIMA SUBIDA. No es telemetría: es lo único que habría
+   hecho visible el defecto de la base. Vive en el teléfono, no viaja, y la
+   cuenta del socio lo lee para decirle la verdad si sus fotos no llegaron. */
+var LLAVE_SUBIDA = 'play_subida_fotos';
+function anotarSubida(estado, pedidas, ok) {
+  try {
+    localStorage.setItem(LLAVE_SUBIDA, JSON.stringify({
+      estado: estado, pedidas: pedidas, guardadas: ok, t: Date.now()
+    }));
+  } catch (e) {}
+  if (window.console && console.warn && estado !== 'ok') {
+    console.warn('las fotos del registro no entraron:', estado, pedidas, ok);
+  }
+}
+/* LA SUBIDA EN SEGUNDO PLANO. Se traga la promesa A PROPÓSITO y con nombre:
+   lo que pasó ya quedó anotado adentro (anotarSubida) y el reintento es la
+   próxima vez que abra su cuenta. Lo que NO puede volver a pasar es que el
+   fallo desaparezca sin dejar rastro, que es como trece días de fotos se
+   perdieron dentro de dos  vacíos. */
+function subidaEnSegundoPlano() {
+  try { subirArchivosRegistro()['catch'](function () {}); } catch (e) {}
+}
+function leerSubida() {
+  try { return JSON.parse(localStorage.getItem(LLAVE_SUBIDA) || 'null'); } catch (e) { return null; }
 }
 
 /* ==========================================================================
@@ -4183,7 +4257,7 @@ function pintarCuenta(sesion) {
      en cada pestaña sería la misma pregunta cuatro veces por visita. */
   cargarFicha();
   irA(TAB);
-  subirArchivosRegistro().catch(function () {});
+  subidaEnSegundoPlano();
   window.scrollTo(0, 0);
 }
 

@@ -594,3 +594,133 @@ describe('lo que encontró la revisión (21-sep-2026)', () => {
       'la hoja volvió a servirse desde la caché: la primera visita tras publicar mezcla HTML nuevo con estilos viejos');
   });
 });
+
+/* ===========================================================================
+ * LO QUE LA PANTALLA DICE DE LA CÉDULA — 21 de septiembre de 2026 (tarde)
+ *
+ * Dos investigaciones a fondo dejaron tres cosas que la pantalla decía al
+ * revés, y una de ellas se escribió el día anterior:
+ *   · la fecha de expedición NO está en el frente: está en el RESPALDO, encima
+ *     del código de barras, al lado de la firma del Registrador;
+ *   · el código de 5 dígitos del PDF417 NO es «el municipio de expedición»
+ *     —son 2 de departamento + 3 de municipio, en la numeración de la
+ *     Registraduría, y el único indicio apunta a NACIMIENTO—, así que no se
+ *     rotula ni se usa;
+ *   · la caja de respaldo de la selfie buscaba un id que no existía, y por eso
+ *     la pantalla le decía «no dejó encender la cámara» a alguien cuya foto
+ *     acababa de guardarse bien.
+ * ========================================================================= */
+describe('la pantalla dice la verdad sobre la cédula (21-sep-2026)', () => {
+
+  const FUENTE = () => fs.readFileSync(path.join(RAIZ, 'play', 'index.html'), 'utf8');
+
+  test('NO se le dice a nadie que la fecha de expedición está en el frente', () => {
+    /* La frase vivió un día en producción y era falsa para el 100% de quien la
+       veía: solo se pinta después de leer el PDF417, y el PDF417 está en el
+       respaldo, en la misma cara que la fecha. */
+    const t = FUENTE();
+    assert.equal(/expedici[óo]n est[áa] impresa en el frente/i.test(t), false,
+      'volvió la frase falsa: la fecha de expedición está en el RESPALDO');
+    assert.match(t, /FECHA Y LUGAR DE EXPEDICIÓN/,
+      'el aviso ya no le dice dónde buscarla, que es lo único que le sirve');
+    assert.match(t, /firma del Registrador/,
+      'se perdió el punto de referencia, que es lo que vale para las dos cédulas');
+  });
+
+  test('el código de localidad se descarta y no se rotula', () => {
+    /* Rotularlo «lugar de expedición» sería escribirle al cliente un dato que
+       nadie ha verificado que sea suyo. */
+    const cuenta = fs.readFileSync(path.join(RAIZ, 'app', 'cuenta.js'), 'utf8');
+    assert.equal(/c[óo]digo del municipio\s*\n?\s*de expedici[óo]n/i.test(cuenta), false,
+      'el comentario volvió a afirmar que ese código es el municipio de expedición');
+    assert.match(cuenta, /DIVIPOL/, 'se perdió la advertencia de que no es la numeración del DANE');
+    F.latin1EnNode(true);
+    let c;
+    try {
+      const { lum, W, H } = F.render(CODIGO, 3, 0.8, 4);
+      c = EC.cedulaDelTexto(U.leerCedulaPDF417, EC.decodificarLuminancias(F.Z, lum, W, H).texto);
+    } finally { F.latin1EnNode(false); }
+    assert.ok(c, 'el fixture dejó de leerse');
+    ['lugar_expedicion', 'expedicion', 'municipio', 'departamento'].forEach(k =>
+      assert.equal(c[k], undefined, 'el lector devolvió «' + k + '»: ese dato no se conoce'));
+  });
+
+  test('la caja de la selfie tiene el id que tomarFoto busca', () => {
+    /* MUTANTE QUE CAZA: volver a `fot_selfie_fallback`. La foto se guardaba y
+       subía bien, pero ni la miniatura, ni el «Listo», ni los tres avisos que
+       SALVAN la foto se pintaban nunca, porque todos van dentro de `if (caja)`. */
+    const t = FUENTE();
+    assert.match(t, /id="fot_selfie"/, 'la caja de la selfie no tiene el id que tomarFoto busca');
+    assert.equal(/fot_selfie_fallback/.test(t), false, 'quedó el id viejo por algún lado');
+    assert.match(t, /id="selfieNota"/, 'no hay nota aparte: el motivo del fallo vuelve a pisar el «Listo»');
+  });
+
+  test('TODO id que tomarFoto reciba tiene que existir en el HTML', () => {
+    /* El centinela que faltaba, y el que habría cazado el defecto de la selfie
+       el mismo día. El banco no lo ve porque `elems` fabrica cualquier id que
+       le pidan: hay que comparar el texto contra el texto. */
+    const t = FUENTE();
+    /* Las comillas van escapadas en la fuente (`tomarFoto(event,\'selfie\')`),
+       porque el HTML se arma dentro de una cadena de JavaScript. */
+    const literales = [...t.matchAll(/tomarFoto\(event,\s*\\?'([a-z_]+)\\?'\)/g)].map(m => m[1]);
+    /* Los que se pintan a mano (hoy: la selfie). La cédula pasa por cajaFoto,
+       que arma el id con la MISMA variable que le da a tomarFoto, así que ahí
+       no puede haber desfase por construcción. */
+    assert.ok(literales.length >= 1, 'no encontré ninguna llamada literal a tomarFoto');
+    [...new Set(literales)].forEach(k => {
+      const aMano = t.indexOf('id="fot_' + k + '"') >= 0;
+      const porCajaFoto = new RegExp("cajaFoto\\('" + k + "'").test(t);
+      assert.ok(aMano || porCajaFoto,
+        'tomarFoto recibe «' + k + '» pero nadie pinta id="fot_' + k + '": la pantalla se queda muda');
+    });
+    /* Y que cajaFoto siga atándolos: el día que alguien le cambie el id a uno
+       y no al otro, vuelve el defecto de la selfie por la otra puerta. */
+    assert.match(t, /id="fot_' \+ key \+ '"/,
+      'cajaFoto dejó de armar el id con la misma clave que le pasa a tomarFoto');
+    const porCaja = [...t.matchAll(/cajaFoto\('([a-z_]+)'/g)].map(m => m[1]);
+    assert.ok(porCaja.length >= 2, 'se perdieron las cajas de foto de la cédula: ' + porCaja.join(', '));
+  });
+
+  test('la subida deja rastro y solo borra del teléfono lo que el servidor confirmó', () => {
+    /* Trece días de fotos perdidas cabían en un `.catch(function () {})` vacío.
+       La función de la base reventaba SIEMPRE («huella» era variable y columna
+       a la vez) y el cliente veía «Listo». */
+    const t = FUENTE().replace(/\/\*[\s\S]*?\*\//g, ' ');
+    assert.match(t, /function anotarSubida/, 'la subida volvió a no dejar rastro de lo que pasó');
+    assert.equal(/subirArchivosRegistro\(\)\.catch\(function \(\) \{\}\)/.test(t), false,
+      'volvió un catch vacío: un fallo de la subida vuelve a ser invisible');
+
+    const P = abrirPlay();
+    P.ev("REGISTRO.celular = '3001112233';");
+    P.ev("FOTOS = { sensibles: true, cedula_frente: 'data:a', cedula_reverso: 'data:b', selfie: 'data:c' }; marcarDuenoDeLasFotos(); guardarFotos();");
+    P.ev("SESION = { access_token: 'tok', user: { email: '573001112233@tugarantia.net' } };");
+    /* El servidor solo se queda con dos de las tres. */
+    P.ev("rpcSesion = function () { return Promise.resolve({ ok: true, fotos: 2, guardados: ['cedula_frente','selfie'] }); };");
+    return P.ev('subirArchivosRegistro()').then(() => {
+      assert.equal(P.ev('FOTOS.cedula_frente'), undefined, 'no soltó la que sí entró');
+      assert.equal(P.ev('FOTOS.selfie'), undefined);
+      assert.equal(P.ev('FOTOS.cedula_reverso'), 'data:b',
+        'borró del teléfono una foto que el servidor NO confirmó: esa copia era la única');
+      assert.equal(JSON.parse(P.almacen.play_subida_fotos).estado, 'parcial');
+      assert.ok(String(P.almacen.play_fotos_borrador).indexOf('data:b') > 0,
+        'la que falta ya no quedó guardada para reintentar');
+    });
+  });
+
+  test('si el servidor rechaza, NO se borra nada del teléfono', () => {
+    const P = abrirPlay();
+    P.ev("REGISTRO.celular = '3001112233';");
+    P.ev("FOTOS = { sensibles: true, cedula_reverso: 'data:b' }; marcarDuenoDeLasFotos(); guardarFotos();");
+    P.ev("SESION = { access_token: 'tok', user: { email: '573001112233@tugarantia.net' } };");
+    P.ev("rpcSesion = function () { return Promise.resolve({ ok: false }); };");
+    return P.ev('subirArchivosRegistro()').then(() => {
+      assert.equal(P.ev('FOTOS.cedula_reverso'), 'data:b', 'borró la foto con un rechazo del servidor');
+      assert.equal(JSON.parse(P.almacen.play_subida_fotos).estado, 'rechazo');
+    });
+  });
+
+  test('a quien lleva la cédula nueva se le dice que esa no se sabe leer', () => {
+    assert.match(FUENTE(), /gris y de pl[áa]stico/,
+      'quien lleva la cédula nueva se queda esperando a un lector que nunca va a leer nada');
+  });
+});

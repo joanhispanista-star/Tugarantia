@@ -486,7 +486,24 @@
    Toca play/index.html, play/estilo.css y entra app/escaner-cedula.js (nuevo).
    SI ESTE NUMERO NO SUBE, el telefono del cliente sigue con el registro que se
    pierde. */
-const CACHE = 'tugarantia-v76';
+/* v77 - 21-sep-2026 (tarde). TRES COSAS QUE LA PANTALLA DECIA AL REVES, y una
+   la escribi yo ayer. (1) «La fecha de expedicion esta impresa en el frente»:
+   NO — en la cedula amarilla esta en el RESPALDO, encima del codigo de barras,
+   al lado de la firma del Registrador, y la frase solo se pintaba despues de
+   leer ese codigo, o sea que era falsa para el 100% de quien la veia.
+   (2) La caja de respaldo de la selfie se llamaba fot_selfie_fallback y
+   tomarFoto busca fot_selfie: la foto se guardaba y subia bien, pero la
+   pantalla seguia diciendo «este navegador no dejo encender la camara» y los
+   tres avisos que SALVAN la foto no se pintaban nunca. (3) Los dos catch
+   vacios de la subida se tragaron trece dias de fotos perdidas: la funcion de
+   la base reventaba SIEMPRE («huella» era variable y columna a la vez) y el
+   cliente veia «Listo». Ahora la subida deja rastro y solo borra del telefono
+   lo que el servidor confirmo. Y a quien lleva la cedula nueva —la gris, sin
+   codigo de barras— se le dice, en vez de dejarlo esperando.
+   Toca play/index.html y app/cuenta.js. FALTA PEGAR base/20260921_arreglo_huella.sql:
+   sin eso el servidor sigue sin guardar una sola foto.
+   SI ESTE NUMERO NO SUBE, el telefono del cliente sigue con la pantalla que miente. */
+const CACHE = 'tugarantia-v77';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
