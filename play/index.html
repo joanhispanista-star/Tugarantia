@@ -613,8 +613,8 @@ function entrar() {
   var clave = $('inClave').value || '';
   var err = $('errEntrar');
   err.classList.add('oculto');
-  if (!tel) return fallo(err, 'Escribe tu celular completo: son 10 números y empiezan por 3.');
-  if (!clave) return fallo(err, 'Escribe tu contraseña.');
+  if (!tel) return fallo(err, 'Nos falta tu celular completo: son 10 números y empiezan por 3.');
+  if (!clave) return fallo(err, 'Nos falta tu contraseña.');
   if (!CFG.url || !CFG.anon) {
     return fallo(err, 'Todavía no está conectada la base de datos, así que aún no se puede entrar. ' +
       'Esto es una versión en construcción.');
@@ -632,8 +632,8 @@ function entrar() {
       if (!r.ok) {
         /* Nunca se dice "ese celular existe pero la contraseña no": eso
            convertiría la app en un oráculo de quién es cliente. */
-        return fallo(err, 'No pudimos entrar con esos datos. Revísalos, y si siguen sin ' +
-          'funcionar toca «Olvidé mi contraseña».');
+        return fallo(err, 'Esos datos no nos abren la cuenta. Revísalos con calma, y si ' +
+          'sigue sin entrar toca «Olvidé mi contraseña» y te echamos una mano.');
       }
       err.classList.add('oculto');
       pintarCuenta(r.j);
@@ -1072,7 +1072,7 @@ function siguientePaso() {
   var p = PASOS[PASO];
 
   if (p.id === 'entrada') {
-    if (!REGISTRO.celular) return fallo(err, 'Escribe tu celular: son 10 números y empiezan por 3.');
+    if (!REGISTRO.celular) return fallo(err, 'Nos falta tu celular: son 10 números y empiezan por 3.');
     /* En blanco Y con una contraseña ya creada en esta pestaña = «sigo con la
        misma». Es lo que dice la ayuda del campo, y es lo que le permite a quien
        volvió del susto de la cámara continuar sin teclearla dos veces sin que
@@ -1082,7 +1082,7 @@ function siguientePaso() {
     }
     var rc = U.revisarContrasena(extra.clave, { telefono: REGISTRO.celular, cedula: REGISTRO.documento });
     if (!rc.ok) return fallo(err, rc.motivo);
-    if (extra.clave !== extra.clave2) return fallo(err, 'Las dos contraseñas no son iguales.');
+    if (extra.clave !== extra.clave2) return fallo(err, 'Las dos contraseñas no quedaron iguales. Escríbelas otra vez, sin afán.');
     /* Las fotos guardadas son de un celular. Si este es otro, son de otra
        persona (o de otro intento): no se le pegan a este registro — ni ellas ni
        lo que se leyó de esa cédula, que si no viajaría al CRM con el nombre del
@@ -1100,7 +1100,12 @@ function siguientePaso() {
 
   if (p.id === 'permiso') {
     if (!extra.general) {
-      return fallo(err, 'Sin tu autorización no podemos abrir la cuenta. Es un requisito de la ley.');
+      /* 21-sep-2026 — decía «Sin tu autorización no podemos abrir la cuenta. Es
+         un requisito de la ley.» Es cierto y suena a ventanilla. Lo mismo, pero
+         explicando para qué sirve la casilla y de su lado. */
+      return fallo(err, 'Nos falta tu permiso para usar tus datos: es la casilla de arriba, ' +
+        'y sin ella la ley no nos deja abrirte la cuenta. Léela con calma; solo la usamos ' +
+        'para tu crédito.');
     }
     /* 21-sep-2026 — LA CONTRASEÑA SE CONFIRMA AQUÍ SI NO ESTÁ. Vive solo en
        sessionStorage (la regla: nunca toca localStorage), y sessionStorage
@@ -1110,8 +1115,8 @@ function siguientePaso() {
        y nunca se manda una contraseña vacía. */
     if (!CLAVE_EN_MEMORIA) {
       var rcf = U.revisarContrasena(extra.claveFin, { telefono: REGISTRO.celular, cedula: REGISTRO.documento });
-      if (!rcf.ok) return fallo(err, 'Falta tu contraseña. ' + rcf.motivo);
-      if (extra.claveFin !== extra.claveFin2) return fallo(err, 'Las dos contraseñas no son iguales.');
+      if (!rcf.ok) return fallo(err, 'Nos falta tu contraseña. ' + rcf.motivo);
+      if (extra.claveFin !== extra.claveFin2) return fallo(err, 'Las dos contraseñas no quedaron iguales. Escríbelas otra vez, sin afán.');
       CLAVE_EN_MEMORIA = extra.claveFin;
       guardarClaveEnCurso(CLAVE_EN_MEMORIA);
     }
@@ -1132,7 +1137,7 @@ function siguientePaso() {
   var errosAqui = r.errores.filter(function (e) { return idsDelPaso.indexOf(e.id) !== -1; });
   if (errosAqui.length) return fallo(err, errosAqui[0].motivo);
   if (faltanAqui.length) {
-    return fallo(err, 'Falta ' + faltanAqui.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') + '.');
+    return fallo(err, 'Nos falta ' + faltanAqui.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') + '. Con eso seguimos.');
   }
   pintarRegistro(PASO + 1);
 }
@@ -1141,8 +1146,9 @@ function enviarRegistro(sensibles) {
   var err = $('errReg');
   var r = U.revisarVinculacion(REGISTRO);
   if (!r.ok) {
-    return fallo(err, 'Falta completar: ' +
-      r.faltan.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') + '.');
+    return fallo(err, 'Antes de abrir tu cuenta nos falta: ' +
+      r.faltan.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') +
+      '. Toca «Volver» y lo completamos.');
   }
   var autorizacion = U.armarAutorizacion(new Date().toISOString(), sensibles);
 
@@ -1163,7 +1169,7 @@ function enviarRegistro(sensibles) {
      acá sin pasar por ahí. Antes salía password "" al signup y la bandeja de
      Joan recibía el registro de una cuenta que nunca se creó. */
   if (!CLAVE_EN_MEMORIA) {
-    return fallo(err, 'Falta tu contraseña. Escríbela en la casilla de arriba y vuelve a tocar «Abrir mi cuenta».');
+    return fallo(err, 'Nos falta tu contraseña: escríbela en la casilla de arriba y vuelve a tocar «Abrir mi cuenta».');
   }
 
   fallo(err, 'Creando tu cuenta…');
@@ -1286,9 +1292,13 @@ function pintarRegistrado() {
      viajando en los datos del registro, para el CRM, sin pedirle nada a él. */
   $('cuerpo').innerHTML =
     '<div class="card"><div class="aviso verde"><b>Listo.</b> Tu cuenta quedó creada.</div>' +
+      /* 21-sep-2026 — sin nombres propios. Joan: «no quiero que le digas al
+         cliente que joan decide». Y sin inventar una verificación que no
+         existe: se dice lo que de verdad pasa —se revisa y se contesta—, que
+         es honesto y suena mejor que una persona decidiendo a mano. */
       '<p class="sub" style="margin-top:var(--e4)"><b>Ahora pide tu primer crédito.</b> ' +
-      'Te mostramos de una la propuesta para clientes nuevos, en pesos, y la aceptas si te sirve. ' +
-      'La plata te la entrega Joan después de revisar.</p>' +
+      'Te mostramos de una la propuesta para clientes nuevos, en pesos, y la aceptas solo si te sirve. ' +
+      'Revisamos tu solicitud y te avisamos aquí mismo cuándo y por dónde recibes la plata.</p>' +
       '<button class="btn arriba" onclick="pedirPrimerCredito()">Pedir mi primer crédito</button>' +
       '<div id="errPrimer" class="aviso ambar oculto"></div>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarCuenta()">Ir a mi cuenta</button>' +
@@ -1354,8 +1364,9 @@ function tarjetaContrapropuesta(sol) {
       'Te escribimos por WhatsApp para entregarte la plata y te mandamos <b>tu código de acceso</b>: ' +
       'con él entras por el mismo enlace de siempre. No tienes que hacer nada más por ahora.</div>';
   } else {
-    h += '<p class="sub" style="margin-top:var(--e3)">Aceptar no te entrega la plata todavía: ' +
-        'Joan te escribe por WhatsApp y la entrega él. Si no te sirve, no aceptes y ya.</p>' +
+    h += '<p class="sub" style="margin-top:var(--e3)">Aceptar todavía no te entrega la plata: ' +
+        'es tu visto bueno a estas cifras. Después te avisamos cuándo y por dónde la recibes. ' +
+        'Y si no te cuadra, no aceptes: no pasa nada y no pierdes nada.</p>' +
       '<button class="btn arriba" onclick="aceptarContrapropuesta(' + Number(sol.id) + ')">' +
         'Acepto: recibo ' + COP(cp.capital) + ' y devuelvo ' + COP(cp.total) + '</button>' +
       '<div id="errAceptar" class="aviso ambar oculto"></div>';
@@ -2061,7 +2072,7 @@ function refrescarDoc() {
 function textoDelLado(lado) {
   return lado === 'frente'
     ? 'Ahora el frente, acostado y con tu foto a la izquierda'
-    : 'Pon el respaldo de tu cédula de pie en el marco';
+    : 'Pon el respaldo de tu cédula de pie en el marco. Nosotros la leemos.';
 }
 function iniciarEscanerDoc(lado) {
   if (!hayCamaraEnVivo()) return escanerDocSinCamara('Este navegador no deja usar la cámara en vivo.');
@@ -2289,7 +2300,7 @@ function bucleEscanerDoc() {
     if (verde && !esFrente) txt = (!window.ZXing && !ESCDOC.nativo) ? 'Preparando el lector…'
       : (ESCDOC.ilegibles >= 2 ? 'Casi: enderézala y acércala un poco' : 'Leyendo el código…');
     if (verde && esFrente) txt = 'Quieta… ' + Math.max(1, Math.ceil((EC.TARJETA.CUADROS_FRENTE - ESCDOC.estables) / 3));
-    if (t > 20 && !verde) txt = 'Si no lo logras, toca «Tomar la foto ahora»';
+    if (t > 20 && !verde) txt = 'Tranquilo: si no sale, toca «Tomar la foto ahora»';
     /* Doce segundos viendo la tarjeta bien puesta y sin encontrar ningún
        código: casi seguro es la cédula nueva, la gris de plástico, que no
        trae código de barras. Decirlo ahorra el minuto de pelea. */
@@ -4846,9 +4857,9 @@ function cambiarClave() {
   var a = $('clave1'), b = $('clave2'), err = $('errClave');
   if (!a || !b || !err) return;
   var c1 = a.value || '', c2 = b.value || '';
-  if (c1.length < 8) return fallo(err, 'La contraseña nueva tiene que tener al menos 8 caracteres.');
-  if (c1 !== c2) return fallo(err, 'Las dos no son iguales. Escríbelas otra vez.');
-  if (!SESION || !SESION.access_token) return fallo(err, 'Vuelve a entrar y lo intentamos de nuevo.');
+  if (c1.length < 8) return fallo(err, 'La contraseña nueva necesita al menos 8 caracteres.');
+  if (c1 !== c2) return fallo(err, 'Las dos no quedaron iguales. Escríbelas otra vez, sin afán.');
+  if (!SESION || !SESION.access_token) return fallo(err, 'Se cerró tu sesión. Entra otra vez y lo hacemos.');
   fallo(err, 'Guardando…');
   /* Se manda SOLO la contraseña. El correo no viaja acá ni por error: es la
      identidad de la cuenta, y la base tiene un disparador que niega el cambio
@@ -4896,8 +4907,8 @@ function tarjetaVincular() {
 function vincularHistorial() {
   var i = $('vIdent'), c = $('vCodigo'), err = $('errVinc');
   if (!i || !c || !err) return;
-  if (!i.value.trim()) return fallo(err, 'Escribe tu cédula o tu celular.');
-  if (!c.value.trim()) return fallo(err, 'Escribe el código que te dimos.');
+  if (!i.value.trim()) return fallo(err, 'Nos falta tu cédula o tu celular.');
+  if (!c.value.trim()) return fallo(err, 'Nos falta el código que te dimos.');
   fallo(err, 'Buscando…');
   rpcSesion('vincular_cuenta', { p_ident: i.value, p_codigo: c.value }).then(function (j) {
     if (!j || j.ok !== true) {

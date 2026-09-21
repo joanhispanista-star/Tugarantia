@@ -554,7 +554,26 @@
    techo es decoracion, no una senal. El rostro ya lo hacia desde el 9-sep;
    ahora las dos camaras se sienten el mismo aparato.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v80';
+/* v81 - 21-sep-2026 (noche, cuarta). JOAN NO APARECE, y el trato es el de un
+   amigo. Pedido suyo: «no quiero que le digas al cliente que joan decide» y
+   «recuerda ser cortes con los clientes, la idea es ser el amigo del cliente y
+   no ser rudos».
+   Las dos frases que lo nombraban («La plata te la entrega Joan despues de
+   revisar» y «Joan te escribe por WhatsApp y la entrega el») se reescribieron
+   sin nombres propios. Y once mensajes de error pasaron de orden a compania:
+   «Escribe tu celular» -> «Nos falta tu celular»; «Sin tu autorizacion no
+   podemos abrir la cuenta. Es un requisito de la ley.» -> se explica para que
+   sirve la casilla y de su lado.
+   LO QUE NO SE HIZO, Y ESTA VIGILADO: Joan pidio decirle al cliente que «el
+   algoritmo esta verificando la informacion». Hoy eso seria FALSO. Se barrio
+   motor.js, creditos.js, cumplimiento.js y las funciones de base/: lo unico
+   automatico que existe es el CALCULO de la propuesta y unos frenos contra el
+   abuso. No se verifica ni un solo dato del cliente — ni Registraduria, ni
+   central, ni nada. Hay un centinela que impide escribir esa frase, y se borra
+   el dia que se encienda una verificacion de verdad, en el mismo commit que la
+   enciende y no antes.
+   Toca play/index.html. */
+const CACHE = 'tugarantia-v81';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

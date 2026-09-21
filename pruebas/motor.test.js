@@ -9906,7 +9906,8 @@ describe('el primer crédito del nuevo: la contrapropuesta (8-sep-2026)', () => 
     assert.match(seg, /Pago único/,
       'el pago único tiene que decirse pago único, no disfrazarse de cuotas');
     assert.ok(!/costo_pct|%/.test(tarjeta.replace(/\/\*[\s\S]*?\*\//g, '')), 'la propuesta le muestra un porcentaje al cliente');
-    assert.match(tarjeta, /Aceptar no te entrega la plata todavía/, 'tiene que decir que aceptar no es recibir');
+    assert.match(tarjeta, /Aceptar todavía no te entrega la plata|Aceptar no te entrega la plata todavía/,
+      'tiene que decir que aceptar no es recibir');
     ['solicitar_primer_credito', 'mi_solicitud', 'aceptar_contrapropuesta'].forEach(fn =>
       assert.ok(PLAY.indexOf("'" + fn + "'") >= 0, 'play/ no llama a ' + fn));
   });

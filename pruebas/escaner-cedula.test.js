@@ -853,3 +853,53 @@ describe('la prueba con Sofía (21-sep-2026)', () => {
     assert.match(t, /tus datos no se perdieron/, 'no lo tranquiliza sobre lo que acaba de escribir');
   });
 });
+
+/* ===========================================================================
+ * JOAN NO APARECE, Y EL TRATO ES EL DE UN AMIGO — 21-sep-2026 (noche)
+ *
+ * Joan: «no quiero que le digas al cliente que joan decide, dile que el
+ * algoritmo esta verificando la informacion» y «recuerda ser cortes con los
+ * clientes, la idea es ser el amigo del cliente y no ser rudos».
+ *
+ * Lo primero se hizo. Lo de «el algoritmo está verificando» NO, y el centinela
+ * de abajo lo impide a propósito: se barrió el sistema entero y lo único
+ * automático que existe es el CÁLCULO de la propuesta y unos frenos contra el
+ * abuso. No se verifica ni un solo dato del cliente. Escribir esa frase sería
+ * la misma promesa sin respaldo que este proyecto ya pagó cuatro veces hoy.
+ * El día que se encienda una verificación de verdad, se borra este centinela
+ * en el MISMO commit que la enciende — y no antes.
+ * ========================================================================= */
+describe('la app no nombra a Joan ni promete lo que no hace', () => {
+
+  /* Solo el texto que el cliente puede llegar a leer: fuera los comentarios,
+     fuera el <style> y fuera el HTML comentado. */
+  const TEXTOS = () => fs.readFileSync(path.join(RAIZ, 'play', 'index.html'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/<style>[\s\S]*?<\/style>/g, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ');
+
+  test('ninguna frase que ve el cliente nombra a Joan', () => {
+    const frases = [...TEXTOS().matchAll(/'[^'\n]{0,200}Joan[^'\n]{0,200}'/g)].map(m => m[0]);
+    assert.deepEqual(frases, [],
+      'volvió a aparecer Joan en un texto del cliente: él pidió que el sistema responda, no una persona');
+  });
+
+  test('NO se promete una verificación que no existe', () => {
+    /* MUTANTE QUE CAZA: escribir «el algoritmo está verificando tu
+       información» porque suena bien. Hoy sería falso. */
+    const t = TEXTOS();
+    assert.equal(/algoritmo[^'\n]{0,40}verific/i.test(t), false,
+      'la app dice que un algoritmo verifica, y hoy no se verifica ni un dato del cliente');
+    assert.equal(/verificando tus datos|verificando tu información/i.test(t), false,
+      'la app afirma una verificación que el código no hace');
+  });
+
+  test('los mensajes de error no le hablan de usted ni lo culpan', () => {
+    const t = TEXTOS();
+    /* «Escribe tu X» en un error suena a orden; «nos falta tu X» es lo mismo
+       del lado del cliente. */
+    assert.equal(/fallo\(err, 'Escribe tu/.test(t), false,
+      'un mensaje de error volvió a darle una orden al cliente en vez de decirle qué falta');
+    assert.match(t, /Nos falta tu celular/, 'se perdió el tono de acompañar en el error más común');
+  });
+});

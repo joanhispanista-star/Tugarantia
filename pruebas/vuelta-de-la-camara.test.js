@@ -123,7 +123,7 @@ describe('la contraseña, después de la relanzada', () => {
     const Q = alFinal(relanzar(aMitadDelRegistro(), '#registro'));
     Q.ev("$('rClaveFin').value = 'Perro.2026x'; $('rClaveFin2').value = 'Gato.2026x';");
     Q.ev('siguientePaso()');
-    assert.match(Q.ev("$('errReg').textContent"), /no son iguales/);
+    assert.match(Q.ev("$('errReg').textContent"), /no (son|quedaron) iguales/);
     assert.equal(Q.ev('CLAVE_EN_MEMORIA'), '');
   });
 
