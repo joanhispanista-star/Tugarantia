@@ -4936,6 +4936,19 @@ function tarjetaSimulador(idPerfil) {
     '<div class="mando"><label for="rMontoLibre">¿Necesitas otra cifra? Escríbela</label>' +
       '<input id="rMontoLibre" type="tel" inputmode="numeric" ' +
         'placeholder="Por ejemplo 1.250.000" oninput="escribeMonto(this)"></div>' +
+    /* 22-sep-2026 — EL PLAZO, COMO PETICIÓN Y NO COMO PROMESA. Joan pidió que
+       el cliente eligiera «el plazo que quiera». No se puede soltar el
+       deslizador: el motor con el que Joan contrapropone LANZA fuera de 1..6 y
+       su formulario está clavado al mismo rango, así que una solicitud a 24
+       cuotas entraría y él no tendría con qué contestarle.
+       Lo que sí se puede es que lo ESCRIBA. La ayuda dice exactamente lo que
+       pasa —lo leemos y te contestamos— y no dice que se lo damos, porque eso
+       sería prometer un producto que hoy no existe. */
+    '<div class="mando"><label for="rPlazoLibre">¿Necesitas más tiempo? Escríbelo</label>' +
+      '<input id="rPlazoLibre" type="text" maxlength="40" ' +
+        'placeholder="Por ejemplo 10 cuotas" oninput="anotarPlazoLibre(this)">' +
+      '<div class="ayuda">Hoy prestamos de 3 a 6 cuotas. Si necesitas otro plazo, ' +
+        'escríbelo: lo leemos con tu solicitud y te contestamos por el chat.</div></div>' +
     '<div class="mando"><label for="rNota">¿Para qué lo necesitas? (opcional)</label>' +
       '<input id="rNota" type="text" maxlength="300" ' +
         'placeholder="Surtir el negocio, una deuda, una emergencia…"></div>' +
@@ -5168,8 +5181,11 @@ function pedir() {
        tirar su elección en el último metro.
        Y desde el 22-sep va la nota: es lo que Joan lee en su CRM antes de
        contraproponer, en las palabras del cliente. */
+    /* El plazo pedido viaja PEGADO A LA NOTA y no en p_meses: p_meses es lo que
+       se va a registrar y tiene que ser un plazo que exista. Lo que el cliente
+       pide de más es información para Joan, no una instrucción para la base. */
     body: JSON.stringify({ p_capital: MONTO, p_meses: PLAZO,
-                           p_nota: String((($('rNota') || {}).value || '')).slice(0, 300) })
+                           p_nota: notaConPlazo() })
   }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
     .then(function (j) {
       /* La función contesta {ok:false} con HTTP 200 cuando algo no cuadra o el
@@ -5198,6 +5214,22 @@ function pedir() {
     .catch(function () {
       fallo(err, 'No pude enviar la solicitud. Revisa tu internet y vuelve a intentar.');
     });
+}
+
+/* Junta lo que el cliente escribió: el plazo que pidió, si pidió otro, y para
+   qué lo quiere. Va todo en pedido_nota, que Joan lee en su CRM. */
+function notaConPlazo() {
+  var plazo = String((($('rPlazoLibre') || {}).value || '')).trim();
+  var nota = String((($('rNota') || {}).value || '')).trim();
+  var partes = [];
+  if (plazo) partes.push('Pide el plazo: ' + plazo);
+  if (nota) partes.push(nota);
+  return partes.join(' · ').slice(0, 300);
+}
+/* Se anota mientras escribe, como el resto del formulario: quien lo teclea y
+   pierde la pestaña no lo vuelve a escribir. */
+function anotarPlazoLibre(el) {
+  try { sessionStorage.setItem('play_plazo_libre', String(el.value || '')); } catch (e) {}
 }
 
 function pintarPedido() {

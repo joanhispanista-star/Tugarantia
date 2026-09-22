@@ -878,7 +878,33 @@
    cuanto cuesta prestar. Hay un centinela nuevo para esa clase de destrozo.
 
    2.093 pruebas. Toca panel/crm.html, app/chat.js e index.html. */
-const CACHE = 'tugarantia-v90';
+/* v91 — 22-sep-2026. EL PLAZO SE PIDE, Y EL OJO DEL CRM.
+   Joan: «que el cliente pueda elegir el monto que quiera y el plazo que quiera
+   desde la calculadora», y «el boton de ver contraseña se ve muy feo».
+
+   EL MONTO SI, EL PLAZO NO, y la diferencia no es de pantalla. Un monto por
+   encima del cupo es una peticion que Joan contrapropone hacia abajo con el
+   producto que ya tiene. El plazo no: el motor con el que Joan cotiza LANZA un
+   RangeError fuera de 1..6 y el formulario de contrapropuesta esta clavado al
+   mismo rango, asi que una solicitud a 24 cuotas entraria y el no tendria con
+   que responderle. Se quedaria muerta en la bandeja.
+
+   Asi que entra como PETICION ESCRITA, en la casilla hermana de la del monto.
+   Viaja pegada a pedido_nota —no a p_meses, que el servidor rechazaria— y la
+   ayuda dice lo que de verdad pasa: «lo leemos con tu solicitud y te
+   contestamos por el chat». Nunca que se lo dan.
+
+   Y LA OTRA MITAD, que hoy no existia: el formulario de contrapropuesta le
+   DICE a Joan que el cliente pidio otro plazo, en vez de recortarlo en
+   silencio con un Math.min. Antes contestaba 6 a quien pidio 10 sin saberlo, y
+   el cliente lo leia como que no lo escucharon.
+
+   EL OJO DEL CRM, igual que el de la app: 20 px de trazo, 44 de zona tocable,
+   sin fondo. Y alternarOjo dejo de hacer btn.textContent, que BORRABA el dibujo
+   y devolvia el emoji al primer toque: ahora alterna una clase.
+
+   2.101 pruebas. Toca play/index.html y panel/crm.html. */
+const CACHE = 'tugarantia-v91';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
