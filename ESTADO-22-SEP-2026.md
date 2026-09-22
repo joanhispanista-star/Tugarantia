@@ -118,6 +118,23 @@ select tipo, count(*) from public.registro_archivos group by tipo;
 
 Si sale vacío, el problema no era el que creíamos.
 
+### El cotejo de la cédula — APLICADO el 22-sep
+
+`base/20260922c_verificacion_cedula.sql` está **aplicada y comprobada**. Joan
+pidió «enciende la verificación de la cédula» y lo que se encendió **no es una
+verificación**: la app rellena el formulario con lo que lee del código de
+barras, así que lo declarado y lo leído son la misma cadena salvo que la persona
+corrija. Solo el desacuerdo informa. Los cuatro estados son `sin_codigo`,
+`intacto`, `retocado` y `no_cuadra`, y solo el último pinta aviso.
+
+Comprobado llamando, no mirando: `plpgsql_check` sin errores sobre las cinco
+funciones, siete comprobaciones en una transacción que se deshace, y por HTTP
+contra la base real sin ningún 404. La que más importa: **una lectura basura no
+se lleva por delante ni las fotos ni la huella.**
+
+Detalle completo en la cabecera de la propia migración y en el bloque v85 de
+`sw.js`.
+
 ### Migraciones escritas que siguen sin aplicarse
 
 | Archivo | Qué deja sin funcionar |

@@ -683,7 +683,28 @@
 
    2.052 pruebas. La migracion SIGUE SIN APLICAR: Supabase pedia entrar.
    Toca play/index.html, app/escaner-cedula.js y panel/crm.html. */
-const CACHE = 'tugarantia-v84';
+/* v85 — 22-sep-2026. EL COTEJO YA ESTA APLICADO Y COMPROBADO.
+   Los dos bloques de arriba decian «la migracion NO esta aplicada» porque
+   Supabase pedia entrar. Joan entro y se aplico. Se deja escrito aqui porque un
+   comentario que se queda viejo es un defecto: en este repo un comentario
+   desactualizado ya tuvo una app mostrando 1 medio de 221.
+
+   COMO SE COMPROBO, que es lo que vale (el cuerpo de una PL/pgSQL compila en la
+   PRIMERA LLAMADA, y asi se perdieron trece dias de fotos):
+   · plpgsql_check sobre las cinco funciones: ningun error. El unico aviso es
+     `guardados text[] := '{}'` en una linea que ya estaba viva.
+   · Siete comprobaciones LLAMANDOLAS de verdad, dentro de una transaccion que
+     se deshace. La que importa: una lectura basura NO se lleva por delante ni
+     las fotos ni la huella — el defecto de los trece dias, servido a proposito.
+   · Por HTTP contra la base real: verificar_registro_foto contesta 400 «clave
+     incorrecta» (la ve PostgREST y la reja funciona) y cedula_cotejar,
+     cedula_repetida y registro_archivos_guardar contestan 401. Ningun 404.
+   · cedula_repetida cerrada a la llave publica, que era el riesgo peor: abierta
+     seria un oraculo para preguntar «¿esta cedula es cliente de Joan?» una por
+     una.
+   · archivos_de_registro gano el desempate que le faltaba.
+   No toca ningun archivo servido: sube solo para que el numero no mienta. */
+const CACHE = 'tugarantia-v85';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
