@@ -4791,6 +4791,10 @@ function subirFotoChat(grande, mini, err) {
         /* El freno son 20 mensajes cada 15 minutos, así que «un momento» podía
            ser un cuarto de hora. */
         : m === 'muchas' ? 'Espera unos minutos antes de mandar otra.'
+        /* El cortacircuito de 20260922j. No es culpa de quien manda, así que
+           no se le dice que haga nada distinto: se le dice qué pasa y cómo
+           seguir. Lo arregla Joan, no el cliente. */
+        : m === 'lleno' ? 'Ahora mismo no podemos recibir fotos. Escríbenos por aquí y te decimos cómo hacernos llegar el comprobante.'
         : m === 'sesion' ? 'Se cerró tu sesión. Entra otra vez y la mandas.'
         : 'No pude mandar la foto. Vuelve a intentar en un momento.');
     }

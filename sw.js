@@ -991,7 +991,25 @@
    comprobante trae el nombre y la cuenta de un tercero por diseno.
 
    2.155 pruebas. Base: 20260922i. */
-const CACHE = 'tugarantia-v94';
+
+/* v95 — 22-sep-2026. EL CORTACIRCUITO. Todos los frenos de las fotos eran POR
+   CLIENTE (60 al mes, 400.000 caracteres, 20 mensajes cada 15 min) y ninguno
+   miraba el TOTAL. Un tope por cliente protege de UN cliente; el registro no
+   comprueba el celular, asi que se pueden abrir cuentas en bucle.
+
+   Al pasar los 500 MB del plan gratis la base entera queda DE SOLO LECTURA. No
+   llega una factura: deja de poderse desembolsar, registrar un pago y
+   contestar el chat, y el primer aviso es un cliente diciendo que la app no le
+   deja hacer nada. 20260922j corta en 150 MB de fotos (unas 1.500 reales, 68
+   por cliente) y deja 350 MB de aire para lo que no se puede parar nunca.
+
+   Y borrar una cuenta ya dice QUE fotos se lleva: «fotos» contaba solo la
+   cedula y la selfie; las del chat se iban con el cascade sin contarse en
+   ningun sitio, asi que Joan leia «fotos: 0» mientras se borraban cuarenta
+   comprobantes.
+
+   2.162 pruebas. Base: 20260922j. */
+const CACHE = 'tugarantia-v95';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -7187,7 +7187,7 @@ function borrarParaProbar(celular, nombre){
     +'  · su cuenta de acceso (por eso podra registrarse otra vez)\n'
     +'  · sus fotos de cedula y su selfie\n'
     +'  · su ficha de esta bandeja\n'
-    +'  · sus solicitudes de credito y su chat\n\n'
+    +'  · sus solicitudes de credito, su chat y las fotos que haya mandado por el\n\n'
     +'NO se borra su ficha de cliente ni su historial de creditos: eso vive en '
     +'este Panel y se queda. Solo se suelta el vinculo con la app.\n\n'
     +'¿Lo borro?')) return;
@@ -7201,10 +7201,10 @@ function borrarParaProbar(celular, nombre){
       alert('Listo, '+quien+' puede volver a registrarse con el '+cel+'.\n\n'
         +'Se fueron:\n'
         +'  · cuenta de acceso: '+(Number(j.cuenta||0)?'si':'no habia')+'\n'
-        +'  · fotos: '+Number(j.fotos||0)+'\n'
+        +'  · fotos del registro (cedula y selfie): '+Number(j.fotos||0)+'\n'
         +'  · fichas de la bandeja: '+Number(j.registros||0)+'\n'
         +'  · solicitudes: '+Number(j.solicitudes||0)+'\n'
-        +'  · mensajes del chat: '+Number(j.mensajes||0)
+        +'  · mensajes del chat, con las fotos que llevaran: '+Number(j.mensajes||0)
         +(Number(j.desvinculados||0)?'\n  · fichas de cliente desvinculadas: '+Number(j.desvinculados):''));
       traerRegistros();
     })

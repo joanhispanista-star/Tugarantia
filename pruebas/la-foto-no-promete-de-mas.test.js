@@ -155,3 +155,71 @@ describe('y el tratamiento de datos está declarado (Ley 1581)', () => {
       'se cambió la política y no se movió la fecha');
   });
 });
+
+describe('el cortacircuito: que las fotos no tumben el negocio', () => {
+
+  const CRM = leer('panel/crm.html');
+  const J = leer('base/20260922j_el_cortacircuito.sql')
+    .split('\n').map(l => l.replace(/^\s*--.*$/, '')).join('\n');
+
+  test('hay un freno que mira el TOTAL, no solo a un cliente', () => {
+    /* Todos los demas frenos son por cliente: 60 al mes, 400.000 caracteres,
+       20 mensajes cada 15 minutos. Ninguno puede proteger de cuentas en bucle,
+       porque protegen de UNA. Y el registro no comprueba el celular. Al pasar
+       los 500 MB la base entera queda DE SOLO LECTURA: no llega factura, deja
+       de poderse desembolsar y cobrar, y el primer aviso es un cliente. */
+    assert.match(J, /pg_total_relation_size\('public\.chat_fotos'\)/,
+      'no hay freno global: cuentas en bucle pueden dejar la base de solo lectura');
+    assert.match(J, /150 \* 1024 \* 1024/, 'no se sabe cual es el liston');
+  });
+
+  test('y la migración comprueba que CORTA, no solo que está escrito', () => {
+    assert.match(J, /FALLO 2 GRAVE: el cortacircuito no corta/,
+      'se da por bueno un freno que nadie ha visto frenar');
+    assert.match(J, /FALLO 1: el cortacircuito frena con la tabla vacia/,
+      'no se comprueba que NO frene cuando no toca: un freno que salta de mas ' +
+      'es peor, porque nadie lo cree la vez que hace falta');
+  });
+
+  test('no se queda a medias si la prueba falla', () => {
+    /* Se baja el liston a cero para probar el corte. Si eso se quedara puesto,
+       el chat no aceptaria una sola foto nunca mas y nadie sabria por que. */
+    assert.match(J, /execute original/,
+      'la prueba no repone la función que modificó');
+    assert.match(J, /FALLO 3 GRAVE: el liston se quedo en cero/);
+  });
+
+  test('y no se lleva por delante lo que ya estaba', () => {
+    /* Tres migraciones seguidas reescriben la MISMA función leyéndola de la
+       base. La cuarta que se despiste borra el trabajo de las tres. */
+    ['p_imagen !~ buena', '30 days', 'cuantas >= 60'].forEach(x =>
+      assert.ok(J.indexOf(x) > 0,
+        'el centinela no vigila que siga puesto lo de antes: «' + x + '»'));
+  });
+
+  test('la app explica el «lleno» sin culpar a quien manda', () => {
+    const t = funcion('subirFotoChat');
+    assert.match(t, /m === 'lleno'/, 'el motivo «lleno» no se traduce: saldría «no pude mandar la foto»');
+    assert.match(t, /no podemos recibir fotos/i);
+  });
+});
+
+describe('borrar una cuenta dice qué fotos se lleva', () => {
+
+  const CRM = leer('panel/crm.html');
+
+  test('ya no dice «fotos» a secas contando solo las del registro', () => {
+    /* `n_fotos` cuenta registro_archivos —la cédula y la selfie—. Las del chat
+       se van con el cascade de los mensajes y no se contaban en ningún sitio:
+       Joan leía «fotos: 0» mientras se borraban cuarenta comprobantes. */
+    assert.match(CRM, /fotos del registro \(cedula y selfie\)/,
+      'el conteo vuelve a decir «fotos» sin decir de cuáles habla');
+    assert.match(CRM, /mensajes del chat, con las fotos que llevaran/,
+      'no se dice que los mensajes se llevan sus fotos');
+  });
+
+  test('y el aviso de ANTES también, que es donde Joan decide', () => {
+    assert.match(CRM, /su chat y las fotos que haya mandado por el/,
+      'se le pide confirmación sin nombrar los comprobantes que se van');
+  });
+});
