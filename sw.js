@@ -816,7 +816,29 @@
    dedo), gris en reposo, tinta cuando muestra, sin fondo ni borde.
 
    2.077 pruebas. Toca play/index.html. */
-const CACHE = 'tugarantia-v88';
+/* v89 — 22-sep-2026. UN COMENTARIO SIN ABRIR SE ESTABA TRAGANDO UNA REGLA.
+   Joan: «el boton de ver contraseña se ve muy feo». No estaba mal diseñado:
+   estaba SUELTO.
+
+   Al mover la hoja del escaner dentro de play/index.html el 21-sep se perdio
+   la apertura de un comentario largo. Un navegador no da NINGUN error por eso:
+   lee toda la prosa como si fuera un selector y sigue hasta la primera llave,
+   asi que se come entera la PRIMERA REGLA que venga detras.
+
+   La que se estaba comiendo era .clave-caja{position:relative}, justo la que
+   ancla el ojo DENTRO de la barra de la contraseña. Sin ella el ojo, que esta
+   posicionado en absoluto, se cuelga de otro antepasado y aparece donde no va.
+   Llevaba asi un dia entero. Y costo dos veces: la regla nueva del fondo
+   blanco, escrita justo ahi, tambien desaparecio, y hubo que perseguirla
+   preguntandole al navegador que reglas le aplicaban al campo.
+
+   Hay una prueba nueva que recorre TODAS las hojas del proyecto caracter a
+   caracter (contar las aperturas no sirve: los comentarios de CSS no anidan)
+   y otra que exige que esa regla concreta siga viva. Se comprobo que fallan
+   con el defecto puesto.
+
+   2.087 pruebas. Toca play/index.html. */
+const CACHE = 'tugarantia-v89';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -27,6 +27,20 @@
 .escaner-estado{position:absolute;left:0;right:0;bottom:10px;text-align:center;color:#fff;font-size:14px;font-weight:600;letter-spacing:.04em;text-shadow:0 1px 6px #000}
 .selfie-prev{display:block;width:160px;height:200px;object-fit:cover;border-radius:14px;margin:12px auto;transform:scaleX(-1)}
 
+/* 22-sep-2026 — AQUÍ FALTABA EL «/*» QUE ABRE ESTE COMENTARIO, y llevaba así
+   desde el 21-sep, cuando esta hoja se movió aquí adentro. No es cosmético: sin
+   la apertura, el navegador lee toda esta prosa como un SELECTOR y sigue
+   leyendo hasta la primera llave que encuentra — o sea que se tragaba entera la
+   PRIMERA REGLA de abajo, en silencio y sin un error en ninguna parte.
+
+   La regla que se estaba comiendo era «.clave-caja{position:relative}», que es
+   justo la que mete el ojo DENTRO de la barra de la contraseña. Por eso Joan
+   dijo «se ve muy feo»: el ojo no estaba mal diseñado, estaba suelto.
+
+   Hay una prueba que ahora cuenta las aperturas y los cierres de comentario en
+   esta hoja, porque un defecto así no da ningún error: solo desaparece una
+   regla y nadie sabe cuál.
+   ---------------------------------------------------------------------------
    EL ESCÁNER DE LA CÉDULA Y EL OJO DE LA CONTRASEÑA — 21-sep-2026
 
    El ojo: un botón DENTRO del campo que alterna type password/text sobre el
