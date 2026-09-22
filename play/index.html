@@ -4716,17 +4716,21 @@ function mandarFoto(input) {
   var f = input && input.files && input.files[0];
   input.value = '';
   if (!f) return;
-  if (!/^image\//.test(f.type || '')) {
-    return fallo(err, f.type && /^video\//.test(f.type)
-      ? 'Por aquí solo se pueden mandar fotos. Un video no cabe en el chat.'
-      : 'Eso no es una foto. Manda una imagen del comprobante.');
+  /* El tipo que declara el teléfono NO decide: decide el decodificador. El
+     lienzo vuelve a codificar a JPEG pase lo que pase, así que da igual si
+     llega PNG, HEIC o WebP. Y hay gestores de archivos de Android que mandan
+     el tipo VACÍO sobre una foto perfecta: rechazarla ahí sería decirle
+     «eso no es una foto» a una foto. Solo se ataja el video, y no porque no
+     se pueda abrir, sino para poder explicar POR QUÉ no cabe. */
+  if (/^video\//.test(f.type || '')) {
+    return fallo(err, 'Por aquí solo se pueden mandar fotos. Un video no cabe en el chat.');
   }
   fallo(err, 'Preparando la foto…');
   var lector = new FileReader();
   lector.onerror = function () { fallo(err, 'No pude leer esa foto. Prueba con otra.'); };
   lector.onload = function () {
     var im = new Image();
-    im.onerror = function () { fallo(err, 'No pude abrir esa foto. Prueba con otra.'); };
+    im.onerror = function () { fallo(err, 'Eso no se pudo abrir como foto. Prueba con otra.'); };
     im.onload = function () {
       var c = document.createElement('canvas');
       c.width = im.naturalWidth || im.width; c.height = im.naturalHeight || im.height;
@@ -4770,13 +4774,67 @@ function subirFotoChat(grande, mini, err) {
   });
 }
 
+/* 22-sep-2026 — EL VISOR DE LA FOTO GRANDE. Tenía dos defectos a la vez y el
+   segundo tapaba al primero:
+
+   1. Se pintaba con document.write('<img src="' + imagen + '"…'), con la
+      cadena que viene de la base metida CRUDA dentro de un atributo. La
+      comprobación buena existía en chat.js —con su comentario explicando este
+      mismo ataque— pero solo se le aplicaba a la miniatura. Y el CHECK de la
+      tabla solo exigía que la cadena EMPEZARA por data:image/, así que
+      «data:image/png;base64,AAAA" onerror="…» entraba sin tocar nada.
+   2. Se abría con window.open() SIN dirección, y un about:blank así HEREDA el
+      origen de quien lo abre. O sea que ese onerror no corría en una pestaña
+      cualquiera: corría DENTRO del CRM, donde localStorage guarda la clave de
+      sincronización de Joan. Con esa clave, chat_foto_panel(clave, 1), (clave,
+      2), (clave, 3)… —el id es correlativo— se baja los comprobantes de todos
+      los clientes.
+
+   Ahora: se comprueba la forma entera con CH.esFoto, la fuente se ASIGNA
+   como propiedad (que no puede salirse de ningún atributo aunque la
+   comprobación fallara algún día), y se enseña aquí mismo en vez de en otra
+   pestaña. Lo último no es solo por seguridad: en un Android el navegador
+   bloquea la pestaña emergente la mitad de las veces y la persona se queda
+   mirando una foto que nunca abre, sin que nadie le diga por qué. */
+function mostrarFoto(imagen) {
+  if (!CH || !CH.esFoto(imagen)) {
+    alert('Esa foto lleg\u00f3 da\u00f1ada. Pide que la manden otra vez.');
+    return;
+  }
+  var capa = document.createElement('div');
+  capa.setAttribute('role', 'dialog');
+  capa.setAttribute('aria-label', 'Foto del chat');
+  capa.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);' +
+    'display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out';
+
+  var img = document.createElement('img');
+  img.alt = 'Foto que se mand\u00f3 en el chat';
+  img.style.cssText = 'max-width:100%;max-height:100%;border-radius:10px';
+  img.src = imagen;               /* propiedad, nunca texto de un atributo */
+  capa.appendChild(img);
+
+  var pie = document.createElement('p');
+  pie.textContent = 'Toca para cerrar';
+  pie.style.cssText = 'position:absolute;bottom:14px;left:0;right:0;text-align:center;' +
+    'color:#FFFFFF;font-size:13px;opacity:.75;margin:0';
+  capa.appendChild(pie);
+
+  function cerrar() {
+    if (capa.parentNode) capa.parentNode.removeChild(capa);
+    document.removeEventListener('keydown', porTecla);
+  }
+  function porTecla(e) { if (e.key === 'Escape') cerrar(); }
+  capa.addEventListener('click', cerrar);
+  document.addEventListener('keydown', porTecla);
+  document.body.appendChild(capa);
+}
+
 /* Abrir la grande. Se pide solo cuando alguien toca la miniatura. */
 function verFotoChat(id) {
   var caja = $('hilo'); if (!caja) return;
   rpcSesion('chat_foto_sesion_ver', { p_id: Number(id) }).then(function (j) {
     if (!j || j.ok !== true || !j.imagen) return;
-    var v = window.open();
-    if (v) { v.document.write('<img src="' + j.imagen + '" style="max-width:100%">'); v.document.close(); }
+    mostrarFoto(j.imagen);
   }).catch(function () {});
 }
 

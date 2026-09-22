@@ -6384,13 +6384,67 @@ function cargarHilo(){
 /* 22-sep-2026 — ABRIR LA FOTO QUE MANDÓ EL CLIENTE. El hilo trae la miniatura;
    la grande se pide solo al tocarla, que es lo que evita bajar dos megas cada
    vez que Joan abre una conversación. */
+/* 22-sep-2026 — EL VISOR DE LA FOTO GRANDE. Tenía dos defectos a la vez y el
+   segundo tapaba al primero:
+
+   1. Se pintaba con document.write('<img src="' + imagen + '"…'), con la
+      cadena que viene de la base metida CRUDA dentro de un atributo. La
+      comprobación buena existía en chat.js —con su comentario explicando este
+      mismo ataque— pero solo se le aplicaba a la miniatura. Y el CHECK de la
+      tabla solo exigía que la cadena EMPEZARA por data:image/, así que
+      «data:image/png;base64,AAAA" onerror="…» entraba sin tocar nada.
+   2. Se abría con window.open() SIN dirección, y un about:blank así HEREDA el
+      origen de quien lo abre. O sea que ese onerror no corría en una pestaña
+      cualquiera: corría DENTRO del CRM, donde localStorage guarda la clave de
+      sincronización de Joan. Con esa clave, chat_foto_panel(clave, 1), (clave,
+      2), (clave, 3)… —el id es correlativo— se baja los comprobantes de todos
+      los clientes.
+
+   Ahora: se comprueba la forma entera con CHAT.esFoto, la fuente se ASIGNA
+   como propiedad (que no puede salirse de ningún atributo aunque la
+   comprobación fallara algún día), y se enseña aquí mismo en vez de en otra
+   pestaña. Lo último no es solo por seguridad: en un Android el navegador
+   bloquea la pestaña emergente la mitad de las veces y la persona se queda
+   mirando una foto que nunca abre, sin que nadie le diga por qué. */
+function mostrarFoto(imagen) {
+  if (!CHAT || !CHAT.esFoto(imagen)) {
+    alert('Esa foto lleg\u00f3 da\u00f1ada. Pide que la manden otra vez.');
+    return;
+  }
+  var capa = document.createElement('div');
+  capa.setAttribute('role', 'dialog');
+  capa.setAttribute('aria-label', 'Foto del chat');
+  capa.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);' +
+    'display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out';
+
+  var img = document.createElement('img');
+  img.alt = 'Foto que se mand\u00f3 en el chat';
+  img.style.cssText = 'max-width:100%;max-height:100%;border-radius:10px';
+  img.src = imagen;               /* propiedad, nunca texto de un atributo */
+  capa.appendChild(img);
+
+  var pie = document.createElement('p');
+  pie.textContent = 'Toca para cerrar';
+  pie.style.cssText = 'position:absolute;bottom:14px;left:0;right:0;text-align:center;' +
+    'color:#FFFFFF;font-size:13px;opacity:.75;margin:0';
+  capa.appendChild(pie);
+
+  function cerrar() {
+    if (capa.parentNode) capa.parentNode.removeChild(capa);
+    document.removeEventListener('keydown', porTecla);
+  }
+  function porTecla(e) { if (e.key === 'Escape') cerrar(); }
+  capa.addEventListener('click', cerrar);
+  document.addEventListener('keydown', porTecla);
+  document.body.appendChild(capa);
+}
+
 function verFotoDelChat(id){
   const c=sbCfg();
   rpc('chat_foto_panel',{p_clave:c.clave,p_id:Number(id)})
     .then(j=>{
       if(!j||j.ok!==true||!j.imagen) return alert('No pude traer esa foto.');
-      const v=window.open();
-      if(v){ v.document.write('<img src="'+j.imagen+'" style="max-width:100%">'); v.document.close(); }
+      mostrarFoto(j.imagen);
     })
     .catch(e=>{
       const m=String((e&&(e.motivo||e.message))||e);

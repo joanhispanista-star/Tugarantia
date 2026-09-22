@@ -167,6 +167,22 @@
        yo: 'negocio' → lo pinta el Panel
      Las clases van con prefijo `ch-` y se definen en la hoja de cada página.
      ------------------------------------------------------------------- */
+  /* 22-sep-2026 — QUÉ CUENTA COMO UNA FOTO, en un solo sitio.
+     Una fuente de imagen se sale del atributo con un simple «x" onerror="…»,
+     así que escapar no alcanza: hay que comprobar la FORMA ENTERA, de la
+     primera letra a la última. El ancla final importa tanto como la inicial.
+
+     Y vive aquí, exportada, porque el 22-sep esta comprobación existía pero
+     solo se le aplicaba a la miniatura: la foto grande se pintaba cruda en los
+     dos visores. Un cliente podía mandarse una «foto» envenenada, poner de pie
+     «no se ve, ábrela por favor», y al tocarla Joan el guión corría dentro del
+     CRM y se llevaba su clave de sincronización. Dos definiciones de lo mismo
+     es una que se queda atrás. */
+  function esFoto(s) {
+    return typeof s === 'string' &&
+      /^data:image\/[a-z+]{2,12};base64,[A-Za-z0-9+/=]+$/.test(s);
+  }
+
   function hiloHTML(mensajes, opciones) {
     var o = opciones || {};
     var yo = o.yo === 'socio' ? 'socio' : 'negocio';
@@ -213,8 +229,7 @@
              dos megas cada vez que se abre. La grande la trae alVerFoto. */
           var foto = '';
           if (m.foto) {
-            var mini = typeof m.miniatura === 'string' && /^data:image\/[a-z+]{2,12};base64,[A-Za-z0-9+/=]+$/.test(m.miniatura)
-              ? m.miniatura : '';
+            var mini = esFoto(m.miniatura) ? m.miniatura : '';
             foto = '<button type="button" class="ch-foto" ' +
               (o.alVerFoto ? 'onclick="' + esc(o.alVerFoto) + '(' + Number(m.foto) + ')"' : 'disabled') + '>' +
               (mini ? '<img src="' + mini + '" alt="Foto que se mandó en el chat">'
@@ -371,6 +386,7 @@
   }
 
   return {
+    esFoto: esFoto,
     LARGO_MAX: LARGO_MAX,
     CANALES: CANALES,
     nombreCanal: nombreCanal,

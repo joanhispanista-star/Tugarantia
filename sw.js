@@ -940,7 +940,34 @@
    un src se sale con «x" onerror=», asi que escapar no alcanza.
 
    2.121 pruebas. Toca app/chat.js, app/chat.css, play/index.html y crm.html. */
-const CACHE = 'tugarantia-v92';
+
+/* v93 — 22-sep-2026, la misma noche. LO DE ARRIBA ERA VERDAD A MEDIAS, y la
+   mitad que faltaba era un agujero de los caros.
+
+   «La fuente se comprueba antes de pintarla»: solo la MINIATURA. La foto
+   grande, en los DOS visores, se pintaba cruda dentro de un atributo. Y el
+   CHECK de la base solo exigia que la cadena EMPEZARA por data:image/, asi que
+   «data:image/png;base64,AAAA" onerror="…» entraba entera.
+
+   El camino: se manda esa «foto» SIN miniatura, para que en la bandeja salga
+   como un adjunto que no cargo, con el pie que uno quiera —«no se ve, abrela»—.
+   Al tocarla, el visor abria window.open() SIN direccion, y un about:blank asi
+   HEREDA EL ORIGEN: el guion corria DENTRO del CRM, donde vive la clave de
+   sincronizacion. Con esa clave, chat_foto_panel(clave, 1), (clave, 2)… —el id
+   es correlativo— se baja el comprobante de todos los clientes.
+
+   Arreglado en tres capas: la frase que dice que cuenta como foto vive en UN
+   sitio (CHAT.esFoto) y la usan los dos visores; la fuente se ASIGNA como
+   propiedad y la foto se abre DENTRO de la pagina (que ademas arregla que en
+   Android el navegador bloqueaba la pestaña y la persona se quedaba mirando);
+   y el CHECK de la base pasa a mirar la forma entera, miniatura incluida.
+
+   Y de paso: el tipo que declara el telefono ya no decide si algo es una foto
+   —hay Android que lo manda vacio sobre una foto perfecta—. Decide el
+   decodificador, que es quien de verdad lo sabe.
+
+   2.142 pruebas. Base: 20260922g y 20260922h. */
+const CACHE = 'tugarantia-v93';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
