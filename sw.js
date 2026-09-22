@@ -777,7 +777,46 @@
 
    2.070 pruebas. Toca play/index.html, play/estilo.css, panel/crm.html y
    app/ruleta.js. */
-const CACHE = 'tugarantia-v87';
+/* v88 — 22-sep-2026. EL ENLACE VUELVE A ABRIR LA PORTADA, Y SE LEE LO QUE UNO
+   ESCRIBE.
+
+   EL FALLO QUE VIO JOAN CON UNA CLIENTA: «desde el link te lleva directo a
+   crear cuenta y no a la pagina de inicio, creo que algo se rompio». No lo
+   rompio nada de esta semana: llevaba ahi desde el 17-sep.
+
+   pintarRegistro(paso) llama a guardarPaso(PASO) SIEMPRE, incluido el paso 0.
+   Asi que bastaba con tocar «Abrir mi cuenta» UNA vez y cerrar para dejar un
+   checkpoint {paso:0} en localStorage, y el arranque manda al formulario a todo
+   el que tenga un checkpoint fresco, sin mirar en que paso iba. Durante las 24
+   horas siguientes, CADA visita al enlace caia en el formulario.
+
+   Y es peor de lo que parece: la portada es donde esta «¿Ya abriste tu cuenta?
+   Entra con tu celular y la contraseña». Quien YA tenia cuenta y volvia por el
+   enlace no encontraba por donde entrar — lo mandaban a registrarse otra vez y
+   al terminar le decian que ese numero ya existe. Es lo mismo que le paso a la
+   primera clienta real, por otro camino.
+
+   ARREGLO: un checkpoint en el paso 0 es «abrio el formulario y no hizo nada».
+   No hay nada que restaurar. Solo a partir del paso 1 —donde esta la camara,
+   que es el caso para el que se escribio todo esto— se devuelve a la persona a
+   su paso. Lo tecleado en el paso 0 no se pierde: el borrador se guarda por
+   tecla. Hay una prueba que reproduce el caso de Sofia y que se comprobo que
+   FALLA sin el arreglo.
+
+   LAS CASILLAS DONDE SE ESCRIBE, BLANCAS CON LETRA NEGRA, en los dos modos.
+   Joan: «no quiero que sea oscuro donde uno escribe si no blanco con letras
+   negras». No era un color mal elegido: los campos usan var(--papel) y
+   var(--tinta), que en MODO OSCURO del telefono valen #151113 y #EDE7E4. El
+   telefono de la clienta estaba en oscuro y escribia en negro sobre negro. Se
+   fija solo en las casillas donde se teclea; el resto de la pantalla sigue
+   respetando el modo del telefono.
+
+   EL OJO DE LA CONTRASEÑA, discreto y dentro de la barra: 20px de trazo con 44
+   de zona tocable (achicar el icono no puede achicar el blanco al que apunta un
+   dedo), gris en reposo, tinta cuando muestra, sin fondo ni borde.
+
+   2.077 pruebas. Toca play/index.html. */
+const CACHE = 'tugarantia-v88';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

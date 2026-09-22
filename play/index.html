@@ -44,15 +44,42 @@
    La línea que barre anima transform (nada de top): en un teléfono barato
    mover geometría se siente, y pruebas/vitrina.test.js lo exige.
    ------------------------------------------------------------------------- */
+/* 22-sep-2026 — DONDE SE ESCRIBE, BLANCO CON LETRA NEGRA, EN LOS DOS MODOS.
+   Joan: «no quiero que sea oscuro donde uno escribe si no blanco con letras
+   negras». No era un color mal elegido: los campos usan var(--papel) y
+   var(--tinta), que en MODO OSCURO del telefono valen #151113 y #EDE7E4. El
+   telefono de la clienta estaba en oscuro y por eso escribia en negro sobre
+   negro.
+
+   Se fija solo en las casillas donde se TECLEA. El resto de la pantalla
+   sigue respetando el modo del telefono: lo que se pidio es poder leer lo
+   que uno escribe, no apagar el tema oscuro. */
+input[type=text],input[type=tel],input[type=password],input[type=number],
+input[type=email],input[type=date],textarea{
+  background:#FFFFFF;color:#0C0A0B;border-color:#D8D2CC}
+input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
+
+/* EL OJO, DISCRETO Y DENTRO DE LA BARRA. Joan: «se ve muy feo, quisa un poco
+   mas discreto dentro de la barra donde uno escribe».
+   Mas chico a la vista (20px de trazo) pero con 44px de zona tocable, que es
+   el minimo para un dedo: achicar el icono no puede achicar el blanco al que
+   se apunta. Gris claro en reposo, tinta cuando esta mostrando la clave, y
+   sin fondo ni borde: lo que se ve es el trazo, no un boton encima. */
 .clave-caja{position:relative}
-.clave-caja input{padding-right:50px}
-.clave-caja .ojo{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:40px;height:40px;
-  border:0;border-radius:10px;background:transparent;color:var(--gris);display:flex;
-  align-items:center;justify-content:center;cursor:pointer;padding:0}
-.clave-caja .ojo:active{background:var(--fondo)}
+.clave-caja input{padding-right:46px}
+.clave-caja .ojo{position:absolute;right:2px;top:50%;transform:translateY(-50%);
+  width:44px;height:44px;border:0;background:none;padding:0;cursor:pointer;
+  color:#9C918B;display:flex;align-items:center;justify-content:center;
+  transition:color .15s ease}
+.clave-caja .ojo svg{width:20px;height:20px}
+.clave-caja .ojo:hover{color:#6E6460}
 .clave-caja .ojo .ojo-raya{opacity:0}
-.clave-caja .ojo.viendo{color:var(--tinta)}
+.clave-caja .ojo.viendo{color:#0C0A0B}
 .clave-caja .ojo.viendo .ojo-raya{opacity:1}
+/* El foco se ve en la casilla, no en el ojo: dos aros juntos se leen como un
+   error de pintado. Pero el ojo sigue siendo alcanzable con el teclado. */
+.clave-caja .ojo:focus-visible{outline:2px solid var(--rojo-texto);outline-offset:-4px;
+  border-radius:10px}
 
 .escaner.escaner-doc{aspect-ratio:9/16;max-width:300px;border-radius:20px;background:var(--laca);
   --tono:245,197,66}
@@ -384,7 +411,24 @@ function leerPaso() { var c = leerCheckpoint(); return c ? c.paso : 0; }
    dejarlo en la portada. Esta pregunta es la que lo distingue. */
 function hayPasoGuardado() {
   var c = leerCheckpoint();
-  return !!c && (!EC || EC.checkpointFresco(c, Date.now()));
+  if (!c) return false;
+  /* 22-sep-2026 — EL PASO 0 NO CUENTA, y esto es el arreglo de un fallo que
+     Joan vio con una clienta de verdad: «desde el link te lleva directo a crear
+     cuenta y no a la pagina de inicio».
+
+     pintarRegistro() guarda el paso SIEMPRE, incluido el 0. Así que bastaba con
+     tocar «Abrir mi cuenta» una vez y cerrar para que, durante las 24 horas
+     siguientes, CADA visita al enlace cayera en el formulario y la persona no
+     volviera a ver la portada nunca. Se lee como que el enlace está roto.
+
+     Un checkpoint en el paso 0 no es un registro interrumpido: es «abrió el
+     formulario y no hizo nada», y no hay nada que restaurar. Lo que sí hay que
+     restaurar —la cámara que descarta la pestaña— pasa del paso 1 en adelante.
+
+     Y lo que se hubiera tecleado en el paso 0 no se pierde: el borrador se
+     guarda por tecla (anotarCampo) y se repinta al entrar al formulario. */
+  if (!(Number(c.paso) > 0)) return false;
+  return (!EC || EC.checkpointFresco(c, Date.now()));
 }
 function olvidarPaso() { try { localStorage.removeItem(LLAVE_PASO); } catch (e) {} }
 
