@@ -736,7 +736,11 @@
    esa app no tiene canales y sus mensajes caen en 'servicio', que es donde
    tienen que caer.
 
-   2.067 pruebas. Toca panel/crm.html y app/chat.js. */
+   APLICADA y comprobada el 22-sep: PostgREST acepta p_canal en chat_responder y
+   en chat_de, y llamarlas SIN canal sigue resolviendo — o sea que panel/espejo
+   (el Panel del bolsillo), que llama con tres argumentos, no se rompe y encima
+   enruta bien solo.
+   2.069 pruebas. Toca panel/crm.html y app/chat.js. */
 const CACHE = 'tugarantia-v86';
 const BASE = new URL('./', self.location).pathname;
 
