@@ -940,6 +940,21 @@ describe('la app no nombra a Joan ni promete lo que no hace', () => {
       'la app da por verificada una identidad que nadie comprobó contra ninguna fuente');
     assert.equal(/(validamos|verificamos|confirmamos)[^'\n]{0,40}(registradur|central de riesgo)/i.test(t), false,
       'la app dice que consulta la Registraduría o una central, y no se consulta ninguna');
+
+    /* LA TRAMPA FINA, y por eso lleva una forma tan concreta: «Comprobamos que
+       tus datos coinciden con tu cédula» suena idéntica a la frase honesta y no
+       lo es. No hay dos fuentes independientes — hay una fuente y la copia que
+       la propia app pegó en el formulario. Se prohíbe ESA construcción y no un
+       /coincid/ a secas, porque la nota que dice «corrige lo que esté mal» es
+       cierta y tiene que seguir pasando. */
+    assert.equal(/(coincide|coinciden|comprobamos|confirmamos)[^'\n]{0,30}(con tu c[ée]dula|tu identidad)/i.test(t), false,
+      'volvió la frase que suena honesta y no lo es: comparar el código de barras contra ' +
+      'lo que la misma app copió al formulario no es comprobar nada contra la cédula');
+
+    /* Y ningún palomito pegado al nombre: un ✓ al lado de un nombre se lee como
+       «la casa dice que esta persona es quien dice», y eso no se sabe. */
+    assert.equal(/[✓✅][^'\n]{0,20}(nombre|identidad|cédula|cedula)/i.test(t), false,
+      'apareció un palomito junto a la identidad del cliente');
   });
 
   test('los mensajes de error no le hablan de usted ni lo culpan', () => {

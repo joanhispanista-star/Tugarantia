@@ -248,7 +248,15 @@
     if (typeof leer !== 'function' || !texto) return null;
     var r = leer(texto);
     if (!r || !r.documento) return null;
+    /* EL RH ES DATO DE SALUD (Ley 1581, art. 5) y no se usa para nada: muere
+       aquí, antes de que nadie pueda guardarlo.
+       22-sep-2026 — Y EL SEXO SE VA CON ÉL, por la misma razón y con menos
+       excusa: viajaba en huella.cedula_leida desde que existe el escáner y no
+       lo mira nadie — ni la ficha, ni el cotejo, ni hay casilla que lo declare.
+       Un dato personal que se guarda «por si acaso» es un dato recogido de
+       más. El día que haga falta, se quita esta línea y se dice para qué. */
     delete r.rh;
+    delete r.sexo;
     return r;
   }
 

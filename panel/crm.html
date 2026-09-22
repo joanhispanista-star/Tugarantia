@@ -6929,7 +6929,7 @@ function renderRegistros(){
          ya tiene y quedan dos clientes donde hay una persona. La regla vive en
          el puente; acá solo se pinta. */
       const cand=PUENTE.candidatosDeCruce(DB,r), c0=cand[0];
-      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${verif?`<div class="muted" title="Si te llegó por WhatsApp desde ese número, el celular es suyo">verif. <b class="mono">${escHTML(verif)}</b></div>`:''}${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}</td>
+      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${verif?`<div class="muted" title="Si te llegó por WhatsApp desde ese número, el celular es suyo">verif. <b class="mono">${escHTML(verif)}</b></div>`:''}${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}</td>
       <td>${abierto?'<span class="chip al-dia">📱 App</span>':'<span class="chip pagado">🎟️ '+escHTML(r.codigo||'Invitación')+'</span>'}</td>
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
@@ -6938,6 +6938,37 @@ function renderRegistros(){
         ? `<button class="btn btn-rojo btn-sm" onclick="mesaDeCruce('${escHTML(String(r.id))}','')">🔗 Cruzar con ${escHTML(codCliente(c0.socio))}</button>`
         : `<button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button>`}
         <button class="btn btn-ghost btn-sm" onclick="descartarRegistro('${escHTML(String(r.id))}')" title="No abrirle cuenta">✕</button></td></tr>`;}).join('')}</tbody></table>`;
+}
+
+/* EL COTEJO EN LA BANDEJA, DE UNA SOLA CARA — 22-sep-2026.
+
+   Solo se pinta cuando hay algo que mirar, y «algo que mirar» es UNA sola
+   cosa: que lo escrito contradiga al código de barras. Los otros tres estados
+   no pintan nada, y eso es deliberado por dos razones.
+
+   La primera: si todo lo normal llevara distintivo, el distintivo dejaría de
+   significar algo y Joan dejaría de leerlo a los tres días.
+
+   La segunda, que importa más: «no llegó lectura» va a ser la MAYORÍA de las
+   fichas —ocho sitios del registro borran la lectura y la subida tiene tres
+   rejas— y no dice absolutamente nada de la persona. Pintarlo en gris ya sería
+   insinuar una sospecha que no existe.
+
+   Y nunca hay distintivo verde. Un palomito al lado de un nombre se lee como
+   «la casa dice que esta persona es quien dice», y eso no se sabe ni se va a
+   saber con esto. */
+function chipDeCotejo(h){
+  const c=h&&typeof h==='object'?(h.cotejo_foto||h.cotejo):null;
+  if(!c||c.estado!=='no_cuadra') return '';
+  const v=c.visto||{};
+  const porque=v.documento_codigo
+    ? 'El código decía '+v.documento_codigo+' y quedó escrito '+v.documento_escrito
+    : c.edad==='MENOR' ? 'La cédula dice que es menor de edad'
+    : c.tipo_doc==='incoherente' ? 'Marcó otro tipo de documento'
+    : 'Lo escrito no es lo que decía el código de barras';
+  return '<div style="margin-top:4px"><span class="chip mora" title="'+escHTML(porque)+'">⚠️ No cuadra con su cédula</span>'
+    +(c.repetida?' <span class="chip mora" title="Ese número de documento ya está en otra ficha con otro celular">🔁 Cédula repetida</span>':'')
+    +'</div>';
 }
 
 /* El saludo al que se registró solo — 25-ago-2026. No promete nada: aprobar es
@@ -6968,7 +6999,15 @@ function verDatosRegistro(id){
   const filas=Object.entries(r.datos).filter(([k,v])=>v!==''&&v!=null)
     .map(([k,v])=>`<div class="info-row"><span class="k">${escHTML(ETIQUETAS_VINCULACION[k]||k.replace(/_/g,' '))}</span><span class="vv">${escHTML(String(v))}</span></div>`).join('');
   openModal('Lo que declaró '+(r.nombre||'esta persona'),
-    '<div class="help" style="margin-bottom:10px">Datos DECLARADOS por la persona al registrarse — nadie los ha verificado todavía. Al abrirle la ficha se prellenan y viajan con el cliente.</div>'
+    /* 22-sep-2026 — decía «nadie los ha verificado todavía», y dos renglones
+       más abajo aparece ahora el cotejo. Las dos cosas son ciertas a la vez y
+       juntas se leen mal, así que se precisa cuál es cuál: nadie verificó la
+       IDENTIDAD (no se consulta la Registraduría ni ninguna central), y lo que
+       el cotejo dice es otra cosa — de dónde salió cada texto. */
+    '<div class="help" style="margin-bottom:10px">Datos <b>declarados</b> por la persona al registrarse. '
+    +'Nadie ha comprobado su identidad contra la Registraduría ni contra ninguna central: eso no se consulta. '
+    +'Lo único que sabemos es de dónde salió cada texto, y eso lo dice el cotejo de aquí abajo. '
+    +'Al abrirle la ficha se prellenan y viajan con el cliente.</div>'
     +(filas||'<div class="muted">No dejó datos además del nombre y el celular.</div>')
     +bloqueHuella(r.huella)
     +'<div class="sub-h">Fotos del registro</div><div id="regFotos" class="muted">Buscando las fotos…</div>');

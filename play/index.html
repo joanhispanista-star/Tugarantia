@@ -974,9 +974,29 @@ function empezarDeNuevo() {
 /* Anota un campo del registro en cuanto se escribe. El id del elemento lleva el
    prefijo «f_» porque así los pinta pasoCampos y así los lee recogerPaso: un
    solo sitio decide el nombre. */
+/* Los tres campos que el código de barras rellena solo. Son los únicos donde
+   «lo escribió la persona» y «lo leyó la máquina» se pueden confundir. */
+var CAMPOS_DE_LA_CEDULA = ['nombres', 'apellidos', 'documento'];
+
 function anotarCampo(el) {
   if (!el || !el.id || el.id.indexOf('f_') !== 0) return;
-  REGISTRO[el.id.slice(2)] = el.value;
+  var campo = el.id.slice(2);
+  /* 22-sep-2026 — SE ANOTA QUIÉN ESCRIBIÓ CADA COSA, y hace falta por un
+     camino concreto: «Volver» deja regresar al paso de la cédula después de
+     haber corregido la identidad, y un reescaneo pisaba lo corregido en
+     silencio. Sin esta marca, quien reescanea sale como si nunca hubiera
+     tocado nada — y el cotejo del servidor diría lo contrario de lo que pasó.
+
+     La marca la pone el teléfono, así que es falsificable: es una PISTA para
+     Joan, nunca una prueba. El veredicto de verdad lo sigue calculando el
+     servidor comparando los dos textos. */
+  if (CAMPOS_DE_LA_CEDULA.indexOf(campo) >= 0 && FOTOS.cedula_leida
+      && String(el.value || '') !== String(FOTOS.cedula_leida[campo] || '')) {
+    FOTOS.cedula_editado = FOTOS.cedula_editado || {};
+    FOTOS.cedula_editado[campo] = true;
+    guardarFotos();
+  }
+  REGISTRO[campo] = el.value;
   guardarBorrador(REGISTRO);
 }
 /* 21-sep-2026 — el celular del paso 1 también se anota por tecla. Solo llegaba
@@ -1936,16 +1956,36 @@ var LIENZO_PENDIENTE = null;
    eres») y se guarda la lectura para el CRM. Sin el RH: EC ya lo tiró. */
 function anotarCedulaLeida(r) {
   FOTOS.cedula_leida = r;
-  REGISTRO.nombres = r.nombres; REGISTRO.apellidos = r.apellidos; REGISTRO.documento = r.documento;
+  /* 22-sep-2026 — UN ESCANEO POSTERIOR NO PISA LO QUE LA PERSONA YA CORRIGIÓ.
+     Antes sí, y en silencio: bastaba con tocar «Volver», volver al escáner y
+     dejar que leyera otra vez. El que corrigió su apellido a mano y luego
+     reescaneó perdía la corrección sin verlo, y el cotejo del servidor lo
+     contaba como si nunca hubiera corregido. */
+  var ed = FOTOS.cedula_editado || {};
+  CAMPOS_DE_LA_CEDULA.forEach(function (c) {
+    if (!ed[c]) REGISTRO[c] = r[c];
+  });
   REGISTRO.tipo_doc = 'Cédula de ciudadanía';
   guardarBorrador(REGISTRO);
   return guardarFotos();
 }
+/* 22-sep-2026 — LA FRASE MÁS FUERTE QUE SE PUEDE DECIR SIN MENTIR.
+   Habla del ORIGEN del texto —«esto no lo escribiste tú»— y nunca de la
+   persona —«eres quien dices»—. La diferencia no es de estilo: lo primero es
+   cierto y lo segundo no se sabe. Leer un código de barras no prueba que la
+   cédula sea auténtica, ni que sea de quien la sostiene, ni que ese número
+   exista en la Registraduría. Nada de eso se consulta.
+
+   Por eso tampoco dice «comprobamos que coinciden con tu cédula», que suena
+   igual y es mentira: no hay dos fuentes independientes, hay una fuente y la
+   copia que esta misma app acaba de pegar en el formulario. */
 function notaCedulaLeida() {
   if (!FOTOS.cedula_leida) return '';
-  return '<div class="aviso info"><b>Estos datos los leímos del código de barras de tu cédula.</b> ' +
-    'Revísalos y corrige lo que no coincida. <b>La fecha de expedición no viene en ese código:</b> ' +
-    'búscala en tu cédula donde dice «FECHA Y LUGAR DE EXPEDICIÓN», cerca de la firma del Registrador.</div>';
+  return '<div class="aviso info"><b>Estos tres datos no los escribiste tú: los leímos del ' +
+    'código de barras del respaldo de tu cédula.</b> Revísalos igual y corrige lo que esté mal — ' +
+    'si cambias algo, nos queda anotado y lo miramos, que es justamente para lo que sirve. ' +
+    '<b>La fecha de expedición no viene en ese código:</b> búscala en tu cédula donde dice ' +
+    '«FECHA Y LUGAR DE EXPEDICIÓN», cerca de la firma del Registrador.</div>';
 }
 
 /* Decodifica un lienzo: primero tal cual; si vino de pie (más alto que ancho)
@@ -2778,6 +2818,11 @@ function subirArchivosRegistro() {
   var huella = {};
   if (FOTOS.gps) huella.gps = FOTOS.gps;
   if (FOTOS.cedula_leida) huella.cedula_leida = FOTOS.cedula_leida;
+  /* Qué campos tocó la persona después de que el código los rellenara. Es una
+     PISTA —la manda el teléfono, así que se puede falsificar— y por eso el
+     servidor no la usa para decidir: compara los textos él mismo. Sirve para
+     que Joan distinga «no lo tocó» de «lo corrigió y quedó igual». */
+  if (FOTOS.cedula_editado) huella.cedula_editado = FOTOS.cedula_editado;
   if (!Object.keys(archivos).length && !Object.keys(huella).length) return Promise.resolve();
   var pedidas = Object.keys(archivos);
   return rpcSesion('registro_archivos_guardar', { p_archivos: archivos, p_huella: huella }).then(function (j) {

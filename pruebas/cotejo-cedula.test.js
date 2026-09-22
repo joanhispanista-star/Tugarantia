@@ -213,6 +213,101 @@ describe('la migración cotejo hace lo que promete', () => {
   });
 });
 
+describe('el cotejo se ve sin buscarlo, y de una sola cara', () => {
+
+  /* Esta casa ya pagó por lo contrario: una función que corre pero que nadie
+     puede encontrar es una función que no existe. El único caso accionable
+     tiene que verse en la bandeja, sin abrir la ficha. */
+  const chip = h => delCRM(['chipDeCotejo']).chipDeCotejo(h);
+
+  test('el caso que importa se ve en la lista, sin abrir nada', () => {
+    const h = { cotejo: { estado: 'no_cuadra', documento: 'cambiado',
+      visto: { documento_codigo: '1018447274', documento_escrito: '1018447999' } } };
+    const t = chip(h);
+    assert.match(t, /No cuadra/, 'el único caso accionable no se ve en la bandeja');
+    assert.match(t, /chip mora/, 'no se pinta en ámbar, que es el color de «míralo»');
+    /* Y el porqué, en el título: Joan tiene que poder decidir sin abrir. */
+    assert.match(t, /1018447274[\s\S]{0,40}1018447999/,
+      'el distintivo no lleva los dos números, así que hay que abrir la ficha igual');
+  });
+
+  test('los otros tres estados NO pintan nada', () => {
+    ['intacto', 'retocado', 'sin_codigo'].forEach(e => {
+      assert.equal(chip({ cotejo: { estado: e } }), '',
+        'el estado «' + e + '» estrenó distintivo. Si todo lo normal lleva uno, ' +
+        'el distintivo deja de significar algo; y «sin_codigo» es la mayoría de ' +
+        'las fichas y no dice NADA de la persona');
+    });
+    assert.equal(chip(null), '', 'sin huella se pinta algo');
+    assert.equal(chip({}), '', 'sin cotejo se pinta algo');
+  });
+
+  test('nunca hay distintivo verde', () => {
+    const t = ['intacto', 'retocado', 'no_cuadra', 'sin_codigo']
+      .map(e => chip({ cotejo: { estado: e, visto: {} } })).join('');
+    assert.equal(/chip (pagado|al-dia)/.test(t), false,
+      'un estado del cotejo se pinta con el verde de «ya está bien»: un palomito ' +
+      'al lado de un nombre se lee como «la casa dice que es quien dice»');
+  });
+
+  test('el cotejo de la FOTO manda sobre el del registro', () => {
+    /* El del registro cree lo que dijo el teléfono; el de la foto lo mandó el
+       navegador de Joan. Si están los dos, se enseña el segundo. */
+    const t = chip({ cotejo: { estado: 'no_cuadra', visto: {} },
+                     cotejo_foto: { estado: 'intacto' } });
+    assert.equal(t, '', 'la bandeja sigue alarmando con el cotejo viejo del teléfono ' +
+      'cuando el de la foto —que es más fuerte— ya dijo que no hay nada que mirar');
+  });
+
+  test('la cédula repetida se dice aparte', () => {
+    const t = chip({ cotejo: { estado: 'no_cuadra', repetida: true, visto: {} } });
+    assert.match(t, /repetida/i,
+      'que ese número ya esté en otra ficha no se ve, y es el único freno contra la cédula ajena');
+  });
+});
+
+describe('la evidencia no se puede borrar sin querer', () => {
+
+  const PLAY = leer('play/index.html');
+
+  test('un reescaneo NO pisa lo que la persona ya corrigió', () => {
+    /* «Volver» deja regresar al escáner después de corregir la identidad. Sin
+       esto, el reescaneo pisaba la corrección en silencio y el cotejo decía
+       exactamente lo contrario de lo que pasó: es el único punto por el que
+       este diseño podía mentir. */
+    assert.match(PLAY, /if \(!ed\[c\]\) REGISTRO\[c\] = r\[c\];/,
+      'anotarCedulaLeida volvió a pisar los tres campos sin mirar si la persona los tocó');
+    assert.match(PLAY, /FOTOS\.cedula_editado\[campo\] = true/,
+      'ya no se anota qué campo tocó la persona');
+  });
+
+  test('la marca de edición viaja como PISTA, no como prueba', () => {
+    assert.match(PLAY, /huella\.cedula_editado = FOTOS\.cedula_editado/,
+      'la marca de edición no llega al CRM');
+    /* Y el servidor no la usa para decidir: compara los textos él mismo. */
+    const SQLTXT = SQL;
+    assert.equal(/cedula_editado/.test(SQLTXT), false,
+      'el servidor empezó a creerle al teléfono sobre qué se editó: esa marca ' +
+      'la pone el teléfono y se falsifica en diez segundos');
+  });
+
+  test('el sexo deja de guardarse, como el RH', () => {
+    const EC = leer('app/escaner-cedula.js');
+    assert.match(EC, /delete r\.sexo/,
+      'el sexo sigue viajando en la huella sin que nadie lo use: es recoger de más (Ley 1581)');
+    assert.match(EC, /delete r\.rh/, 'se fue el borrado del RH, que es dato de salud');
+  });
+
+  test('el cliente se entera, y la frase habla del ORIGEN del dato', () => {
+    const vivo = PLAY.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    assert.match(vivo, /no los escribiste tú/i,
+      'el cliente no se entera de que esos datos salieron de su cédula');
+    /* Y NO de la persona: «eres quien dices» no se sabe. */
+    assert.equal(/(comprobamos|confirmamos)[^'\n]{0,30}(con tu c[ée]dula|tu identidad)/i.test(vivo), false,
+      'entró la frase que suena honesta y no lo es');
+  });
+});
+
 describe('leer el código de barras de la foto guardada', () => {
 
   test('el botón solo sale si hay foto del REVERSO', () => {

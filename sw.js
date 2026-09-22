@@ -651,7 +651,39 @@
    esta aplicada — la sesion de Supabase pedia entrar y no se escriben sus
    credenciales. Hasta que la pegue, el CRM dira que falta correrla.
    Toca panel/crm.html. */
-const CACHE = 'tugarantia-v83';
+/* v84 — 22-sep-2026. LO QUE LE FALTABA AL COTEJO PARA NO PODER MENTIR.
+   Tres huecos que marco la revision del diseno, y el primero era el UNICO
+   punto por el que este diseno podia mentir:
+
+   · «VOLVER» + REESCANEAR BORRABA LA EVIDENCIA. El boton «Volver» deja
+     regresar al paso de la cedula despues de haber corregido la identidad, y
+     un reescaneo llamaba otra vez a anotarCedulaLeida, que pisaba lo corregido
+     EN SILENCIO. Quien reescaneaba salia «intacto» aunque hubiera corregido:
+     el cotejo decia exactamente lo contrario de lo que paso. Ahora se anota
+     que campo toco la persona y un escaneo posterior no pisa un campo ya
+     tecleado. Esa marca la pone el telefono, asi que es una PISTA para Joan y
+     nunca una prueba: el veredicto lo sigue calculando el servidor comparando
+     los textos, sin creerle a esa marca.
+
+   · EL COTEJO SOLO SE VEIA ABRIENDO LA FICHA, y el unico estado que importa es
+     justo el que hay que poder ver sin abrir nada. Ya hay distintivo en la
+     bandeja, DE UNA SOLA CARA: ambar solo cuando lo escrito contradice al
+     codigo, nada en los otros tres casos. «Sin lectura» va a ser la mayoria de
+     las fichas y no dice NADA de la persona: pintarlo ya seria insinuar.
+
+   · EL SEXO DEJA DE GUARDARSE, como el RH y por la misma razon: viajaba en
+     huella.cedula_leida desde que existe el escaner y no lo mira nadie. Un
+     dato personal guardado «por si acaso» es recogido de mas (Ley 1581).
+
+   Y el cliente por fin se entera, con la frase mas fuerte que se puede decir
+   sin mentir: habla del ORIGEN del texto («estos tres datos no los escribiste
+   tu») y nunca de la persona. El centinela gano dos reglas mas, incluida la
+   trampa fina —«comprobamos que tus datos coinciden con tu cedula»— que suena
+   identica a la frase honesta y no lo es.
+
+   2.052 pruebas. La migracion SIGUE SIN APLICAR: Supabase pedia entrar.
+   Toca play/index.html, app/escaner-cedula.js y panel/crm.html. */
+const CACHE = 'tugarantia-v84';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
