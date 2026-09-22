@@ -704,7 +704,40 @@
      una.
    · archivos_de_registro gano el desempate que le faltaba.
    No toca ningun archivo servido: sube solo para que el numero no mienta. */
-const CACHE = 'tugarantia-v85';
+/* v86 — 22-sep-2026. EL CHAT CONTESTA DONDE LE ESCRIBIERON.
+   Joan: «arregla el chat mal enrutado». Y lo rompimos nosotros ayer.
+
+   QUE PASABA. Al encender el chat de tres pestañas (20260914b) nacio la columna
+   «canal» con default 'servicio'. Pero chat_responder —la funcion con la que
+   Joan contesta desde el Panel— es de agosto y hace
+   «insert into mensajes (cedula, de, texto)» SIN canal. Y la que lee el cliente
+   filtra por canal. O sea: quien preguntaba por su credito en «Creditos nuevos»
+   veia su mensaje sin respuesta para siempre, y la de Joan estaba en otra
+   pestaña. Con el WhatsApp fuera desde ayer, ese cliente se quedaba sin ningun
+   canal que funcione.
+
+   EL ARREGLO DE FONDO VA EN LA BASE, no en la pantalla: si no se dice el canal,
+   chat_responder contesta en el del ULTIMO MENSAJE DEL CLIENTE. Asi la
+   respuesta cae donde el esta mirando por si sola. El parametro existe para
+   escoger a proposito, no para que la correccion dependa de que el Panel se
+   acuerde de mandarlo. Y hay una prueba que lo exige.
+
+   Ademas: chat_de devuelve el canal de cada mensaje y marca visto SOLO lo que
+   se leyo (antes marcaba los tres al leer uno, asi que el contador decia cero
+   con mensajes sin contestar en otra pestaña), y la bandeja dice en QUE canal
+   hay pendientes.
+
+   EN EL PANEL: las MISMAS tres pestañas que ve el cliente, para que lo que Joan
+   mira sea lo que el cliente mira. Se abre en la que tiene algo sin leer, nunca
+   en una fija: abrir siempre en «Servicio» es exactamente como se pierde de
+   vista lo que entro por Cobranzas.
+
+   NO se tocan chat_escribir ni chat_leer, el camino viejo de app/socio.html:
+   esa app no tiene canales y sus mensajes caen en 'servicio', que es donde
+   tienen que caer.
+
+   2.067 pruebas. Toca panel/crm.html y app/chat.js. */
+const CACHE = 'tugarantia-v86';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -6071,7 +6071,10 @@ function pintarFreno(){
    en la cola de cobro: "no hay nada" y "no me llegó" se ven igual y significan
    lo contrario. */
 
-let _convs = [], _chatAbierta = null, _chatMsgs = [], _chatUltimo = 0;
+/* _chatCanal: la pestaña abierta del hilo. Arranca en 'servicio' solo como
+   valor inicial — al abrir una conversación lo decide canalDeEntrada(), que
+   escoge donde hay algo sin leer. Ver el comentario de esa función. */
+let _convs = [], _chatAbierta = null, _chatMsgs = [], _chatUltimo = 0, _chatCanal = 'servicio';
 /* 'nada' = todavía no se ha preguntado · 'ok' = la nube contestó · 'error' = no
    se pudo. Los tres se ven distinto en pantalla, y ese es el punto: «no te ha
    escrito nadie» y «no pude preguntar» son cosas OPUESTAS y sin esto se pintan
@@ -6169,16 +6172,52 @@ function renderMensajes(){
 
 /* Abre el hilo. `ident` es la llave de la conversación, que es la misma que usa
    socios_historial: la cédula si la ficha la tiene, y si no el celular. */
+/* 22-sep-2026 — ¿QUÉ PESTAÑA SE ABRE? La que tiene algo sin leer; si no hay
+   nada sin leer, la del último mensaje del cliente. Nunca una fija: abrir
+   siempre en «Servicio» es exactamente cómo se pierde de vista lo que entró por
+   Cobranzas, que es el defecto que este parche viene a arreglar. */
+function canalDeEntrada(c){
+  const s=(c&&c.sin_leer_canal)||{};
+  const conPendientes=(CHAT.CANALES||[]).map(x=>x[0]).filter(k=>Number(s[k]||0)>0);
+  if(conPendientes.length) return conPendientes[0];
+  return (c&&c.ultimo_canal)||'servicio';
+}
+/* Las tres pestañas del Panel son LAS MISMAS que las del cliente, para que lo
+   que Joan mira sea lo que el cliente mira. Cada una dice cuántos le faltan. */
+function pestanasCanal(c){
+  const s=(c&&c.sin_leer_canal)||{};
+  return '<div class="tabs-canal" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">'
+    +(CHAT.CANALES||[]).map(x=>{
+      const n=Number(s[x[0]]||0);
+      return '<button class="btn btn-sm '+(x[0]===_chatCanal?'btn-negro':'btn-ghost')+'" '
+        +'onclick="cambiarCanalChat(&quot;'+x[0]+'&quot;)">'+escHTML(x[1])
+        +(n?' <b>('+n+')</b>':'')+'</button>';
+    }).join('')+'</div>';
+}
+function cambiarCanalChat(canal){
+  if(!_chatAbierta||canal===_chatCanal) return;
+  _chatCanal=canal; _chatMsgs=[]; _chatUltimo=0;
+  const caja=document.getElementById('chHilo');
+  if(caja) caja.innerHTML='<div class="ch-vacio">Abriendo…</div>';
+  const t=document.getElementById('chPest');
+  if(t) t.innerHTML=pestanasCanal(_convs.find(x=>String(x.cedula)===_chatAbierta)||{});
+  const r=document.getElementById('chResp');
+  if(r) r.placeholder='Escríbele por '+CHAT.nombreCanal(canal).toLowerCase()+'…';
+  cargarHilo();
+}
+
 function abrirConversacion(ident){
   if(!chatListo()) return renderMensajes();
   _chatAbierta=String(ident||''); _chatMsgs=[]; _chatUltimo=0;
   const c=_convs.find(x=>String(x.cedula)===_chatAbierta)||{};
+  _chatCanal=canalDeEntrada(c);
   const quien=c.nombre||'Socio';
   const cel=String(c.celular||'').replace(/\D/g,'');
   openModal(quien,
-    `<div class="ch-hilo" id="chHilo" style="max-height:46vh"><div class="ch-vacio">Abriendo…</div></div>
+    `<div id="chPest">${pestanasCanal(c)}</div>
+     <div class="ch-hilo" id="chHilo" style="max-height:46vh"><div class="ch-vacio">Abriendo…</div></div>
      <div class="ch-escribir">
-       <textarea id="chResp" rows="1" placeholder="Escríbele…" maxlength="${CHAT.LARGO_MAX}"></textarea>
+       <textarea id="chResp" rows="1" placeholder="Escríbele por ${escHTML(CHAT.nombreCanal(_chatCanal).toLowerCase())}…" maxlength="${CHAT.LARGO_MAX}"></textarea>
        <button class="btn btn-rojo btn-sm" id="chBtn" onclick="responderChat()">Enviar</button>
      </div>
      <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
@@ -6190,7 +6229,7 @@ function abrirConversacion(ident){
 
 function cargarHilo(){
   if(!_chatAbierta) return;
-  CHAT.conversacion(sbCfg(),_chatAbierta,_chatUltimo).then(lista=>{
+  CHAT.conversacion(sbCfg(),_chatAbierta,_chatUltimo,_chatCanal).then(lista=>{
     (lista||[]).forEach(m=>{ _chatMsgs.push(m); if(Number(m.id)>_chatUltimo) _chatUltimo=Number(m.id); });
     const caja=document.getElementById('chHilo'); if(!caja) return;
     caja.innerHTML=CHAT.hiloHTML(_chatMsgs,{yo:'negocio',textoVisto:'Lo vio',
@@ -6212,7 +6251,11 @@ function responderChat(){
   const r=CHAT.revisar(ta?ta.value:'');
   if(!r.ok) return alert(r.motivo);
   if(b) b.disabled=true;
-  CHAT.responder(sbCfg(),_chatAbierta,r.texto).then(id=>{
+  /* El canal va EXPLÍCITO desde acá, que es la pestaña que Joan tiene abierta.
+     Si no fuera, la base lo pondría en el del último mensaje del cliente y casi
+     siempre acertaría — pero «casi siempre» no sirve cuando Joan cambió de
+     pestaña a propósito para hablar de otra cosa. */
+  CHAT.responder(sbCfg(),_chatAbierta,r.texto,_chatCanal).then(id=>{
     if(id===null) return alert('No se pudo mandar. Vuelve a intentar.');
     if(ta) ta.value='';
     /* Se vuelve a preguntar en vez de pintarlo a mano: lo que se ve tiene que

@@ -308,15 +308,25 @@
   function conversaciones(cfg) {
     return llamar(cfg, 'chat_conversaciones', { p_clave: (cfg || {}).clave || '' });
   }
-  function conversacion(cfg, ident, desde) {
-    return llamar(cfg, 'chat_de',
-      { p_clave: (cfg || {}).clave || '', p_cedula: String(ident || ''), p_desde: Number(desde) || 0 });
+  /* 22-sep-2026 — EL CANAL, en las dos direcciones.
+     `canal` es opcional en las dos, y eso NO es pereza: sin él, chat_de
+     devuelve los tres hilos (que es lo que necesitan las pantallas viejas) y
+     chat_responder contesta en el del último mensaje del cliente. O sea que
+     una pantalla que no sepa de canales sigue funcionando y encima enruta
+     bien. El parámetro es para escoger a propósito, no para que la corrección
+     dependa de que alguien se acuerde. */
+  function conversacion(cfg, ident, desde, canal) {
+    var c = { p_clave: (cfg || {}).clave || '', p_cedula: String(ident || ''),
+              p_desde: Number(desde) || 0 };
+    if (canal) c.p_canal = String(canal);
+    return llamar(cfg, 'chat_de', c);
   }
-  function responder(cfg, ident, texto) {
+  function responder(cfg, ident, texto, canal) {
     var r = revisar(texto);
     if (!r.ok) return Promise.reject({ humano: r.motivo });
-    return llamar(cfg, 'chat_responder',
-      { p_clave: (cfg || {}).clave || '', p_cedula: String(ident || ''), p_texto: r.texto });
+    var c = { p_clave: (cfg || {}).clave || '', p_cedula: String(ident || ''), p_texto: r.texto };
+    if (canal) c.p_canal = String(canal);
+    return llamar(cfg, 'chat_responder', c);
   }
   /* Borra la conversación ENTERA. La política de datos se lo promete al socio
      y hay que poder cumplirlo; por eso existe y por eso no se puede deshacer. */
@@ -325,8 +335,21 @@
       { p_clave: (cfg || {}).clave || '', p_cedula: String(ident || '') });
   }
 
+  /* Los tres canales, con el nombre que ve el cliente en su app. Viven acá
+     porque los usan el Panel y la app, y dos listas iguales en dos archivos es
+     cómo se consigue que un día digan cosas distintas. */
+  var CANALES = [['servicio', 'Servicio al cliente'],
+                 ['cobranza', 'Cobranzas'],
+                 ['creditos', 'Créditos nuevos']];
+  function nombreCanal(c) {
+    for (var i = 0; i < CANALES.length; i++) if (CANALES[i][0] === c) return CANALES[i][1];
+    return 'Servicio al cliente';
+  }
+
   return {
     LARGO_MAX: LARGO_MAX,
+    CANALES: CANALES,
+    nombreCanal: nombreCanal,
     AUTORES: AUTORES,
     autorDe: autorDe,
     ladoDe: ladoDe,
