@@ -45,12 +45,11 @@
 -- hilo mira una ficha y la cuenta mira otra, es peor que el sorteo.
 do $$
 declare
-  f        text;
-  src      text;
-  nueva    text;
-  viejo    text;
-  bueno    text;
+  f         text;
+  src       text;
+  nueva     text;
   cambiadas int := 0;
+  ya        int := 0;
 begin
   foreach f in array array['llave_de_sesion', 'mi_cuenta', 'vincular_cuenta'] loop
     select pg_get_functiondef(p.oid) into src
@@ -60,28 +59,36 @@ begin
       raise exception 'no existe public.% — esto no se aplica a ciegas', f;
     end if;
 
-    -- `llave_de_sesion` usa alias (`s.`), las otras dos no.
-    if position('order by s.actualizado_en desc limit 1' in src) > 0 then
-      viejo := 'order by s.actualizado_en desc limit 1';
-      bueno := 'order by s.actualizado_en desc, s.cedula limit 1';
-    elsif position('order by actualizado_en desc limit 1' in src) > 0 then
-      viejo := 'order by actualizado_en desc limit 1';
-      bueno := 'order by actualizado_en desc, cedula limit 1';
-    else
-      viejo := null;
+    -- Ya desempatada: no hay nada que hacer.
+    if src ~ 'actualizado_en desc,\s*(s\.)?cedula' then
+      ya := ya + 1;
+      continue;
     end if;
 
-    if viejo is not null then
-      nueva := replace(src, viejo, bueno);
-      if nueva = src then
-        raise exception 'no se pudo desempatar %: el texto estaba pero no cambio', f;
-      end if;
-      execute nueva;
-      cambiadas := cambiadas + 1;
+    -- TOLERANTE A LOS ESPACIOS. La primera versión de esto buscaba el texto
+    -- seguido («order by actualizado_en desc limit 1») y en `vincular_cuenta`
+    -- el `order by` y el `limit` están en LÍNEAS DISTINTAS: el replace no
+    -- cambiaba nada, y sin el centinela del final la migración habría dicho
+    -- que todo salió bien dejando el sorteo intacto. Lo cazó él.
+    --
+    -- El `(s\.)?` recoge el alias de `llave_de_sesion`; cuando no hay alias,
+    -- la referencia \1 se sustituye por nada, que es justo lo que se quiere.
+    nueva := regexp_replace(src,
+      'order by\s+(s\.)?actualizado_en\s+desc\s+limit\s+1',
+      'order by \1actualizado_en desc, \1cedula limit 1', 'g');
+
+    if nueva = src then
+      raise exception
+        'no se pudo desempatar %: no se encontro el order by. Mirar pg_get_functiondef(''public.%'') antes de seguir', f, f;
     end if;
+    execute nueva;
+    cambiadas := cambiadas + 1;
   end loop;
 
-  raise notice 'desempatadas: % de 3 (las que ya lo tenian no cuentan)', cambiadas;
+  if cambiadas + ya <> 3 then
+    raise exception 'solo se tocaron % de 3 funciones', cambiadas + ya;
+  end if;
+  raise notice 'desempate: % cambiadas, % ya lo tenian', cambiadas, ya;
 end $$;
 
 -- ====== 2. LA REJA: ese teléfono no puede reclamar una segunda ficha ======
