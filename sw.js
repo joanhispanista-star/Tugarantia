@@ -741,7 +741,43 @@
    (el Panel del bolsillo), que llama con tres argumentos, no se rompe y encima
    enruta bien solo.
    2.069 pruebas. Toca panel/crm.html y app/chat.js. */
-const CACHE = 'tugarantia-v86';
+/* v87 — 22-sep-2026. FUERA LA RULETA, Y SE PUEDE BORRAR UNA CUENTA PARA REPETIR
+   LA PRUEBA.
+
+   LA RULETA SE FUE ENTERA de las dos pantallas. Joan: «mejor quitemos la
+   ruleta». Prometia en la puerta publica «todos los que abren su cuenta
+   empiezan en 100.000 de cupo» y no habia nada que lo entregara: su funcion ni
+   siquiera existe en la base, asi que el boton fallaba y le echaba la culpa al
+   internet del cliente — en el punto mas alto del embudo, justo despues de que
+   la persona hizo el esfuerzo de registrarse.
+
+   Y NO se arreglo corriendo la migracion que faltaba, que era lo obvio. Al
+   mirar que reparte: el premio es fijo (100.000 de cupo) pero el perfil de
+   cliente nuevo tiene cupo CERO a proposito —lo dice creditos.js: es lo que
+   hace que la solicitud pase por Joan—. Encenderla solo habria cambiado «revisa
+   tu internet» por prometer 100.000 y decir «En revision» dos pantallas
+   despues. Mover la mentira no es quitarla.
+
+   app/ruleta.js, base/20260917_ruleta.sql y pruebas/ruleta.test.js se quedan en
+   el repo: son correctos y la migracion nunca se aplico. El modulo lleva ahora
+   un aviso de que hoy no lo carga ninguna pantalla, y las once pruebas que
+   exigian que la rueda ESTUVIERA se dieron vuelta: ahora exigen que NO este.
+
+   BORRAR UNA CUENTA PARA REPETIR LA PRUEBA. Joan prueba el registro con la
+   misma persona varias veces y el celular es la identidad del negocio, asi que
+   al segundo intento el signup contesta «User already registered». Desde el CRM
+   hay un boton por fila que borra la cuenta de acceso, las fotos, la ficha, las
+   solicitudes y el chat.
+
+   LO QUE NO BORRA, y es la decision que importa: socios_historial, que es la
+   CARTERA de Joan. Solo la DESVINCULA. Un delete de mas ahi —escrito con la
+   mejor intencion por «dejarlo todo limpio»— le borraria un cliente de verdad
+   por repetir una prueba. Hay un centinela dentro de la migracion que revienta
+   si alguien lo mete, y una prueba que impide quitar el centinela.
+
+   2.070 pruebas. Toca play/index.html, play/estilo.css, panel/crm.html y
+   app/ruleta.js. */
+const CACHE = 'tugarantia-v87';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

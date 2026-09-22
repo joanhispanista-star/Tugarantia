@@ -370,20 +370,9 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
 }
 
 
-/* ===========================================================================
-   LA RULETA DEL CUPO — 15-sep-2026
-   ========================================================================= */
-.ruleta-caja{position:relative;display:flex;justify-content:center;align-items:center;
-  margin:var(--e4) auto 0;width:min(320px,86vw);aspect-ratio:1/1}
-.ruleta-caja canvas{width:100%;height:100%;display:block;
-  filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
-/* La aguja apunta al centro de arriba, que es donde para la tajada ganadora. */
-.ruleta-aguja{position:absolute;top:-4px;left:50%;transform:translateX(-50%);
-  width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;
-  border-top:20px solid var(--amarillo);
-  filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
-.ruleta-msg:empty{display:none}
-.ruleta-msg{margin-top:var(--e4)}
+/* 22-sep-2026 — el CSS de la ruleta se fue con la ruleta. Lo que sigue
+   abajo son las reglas acotadas a .ruleta-card, que se quedan porque son
+   las que impiden que .escalon del recorrido herede lo que no es suyo. */
 /* 16-sep-2026 — ESTAS CINCO REGLAS ESTABAN SIN ACOTAR Y SE COMIAN LA ESCALERA
    DEL RECORRIDO, que usa la MISMA clase .escalon doscientas lineas mas arriba.
    No es teoria: medido en el navegador el 16-sep, en la puerta publica.

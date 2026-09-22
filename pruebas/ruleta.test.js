@@ -183,196 +183,64 @@ describe('lo que promete el servidor (15-sep-2026)', () => {
   });
 });
 
-describe('la pantalla de la rueda (15-sep-2026)', () => {
+/* ===========================================================================
+ * LA RUEDA SE QUITO — 22-sep-2026
+ *
+ * Joan: «mejor quitemos la ruleta, y dejamos asi».
+ *
+ * Aqui habia dos bloques con once pruebas que vigilaban la PANTALLA de la
+ * rueda en play/ y su apartado en el CRM. Las dos pantallas se fueron, asi que
+ * esas pruebas no se borran: se dan vuelta. Lo que antes exigia que la rueda
+ * estuviera, ahora exige que NO este.
+ *
+ * POR QUE SE QUITO, que es lo que hay que saber antes de volver a ponerla:
+ * prometia en la puerta publica «todos los que abren su cuenta empiezan en
+ *  .000 de cupo» y no habia nada que lo entregara. Su funcion ni siquiera
+ * existe en la base: ruleta_mi_estado contestaba 404, el boton fallaba y le
+ * echaba la culpa al internet del cliente.
+ *
+ * Y NO se arreglaba corriendo la migracion que falta, que era lo obvio. El
+ * premio es fijo ( .000 de cupo) pero el perfil de cliente nuevo tiene cupo
+ * CERO a proposito —lo dice creditos.js: es lo que hace que la solicitud pase
+ * por Joan—. Encenderla solo habria movido la mentira dos pantallas adelante.
+ *
+ * Los bloques de arriba SI se quedan: prueban app/ruleta.js y
+ * base/20260917_ruleta.sql, que siguen en el repo y siguen siendo correctos.
+ * La migracion nunca se aplico, asi que no hay nada que revertir en la base.
+ * ========================================================================= */
+describe('la rueda ya no esta en ninguna pantalla (22-sep-2026)', () => {
 
-  test('sin ruleta.js la página NO se cae — la rueda se calla y ya', () => {
-    /* A propósito fuera del guardián de arriba: ése es para las reglas del
-       crédito. Un adorno que no cargó no puede dejar a nadie sin pedir plata.
-       Es la lección del 16-sep, cuando una constante de adorno dejó la puerta
-       pública en cero letras. */
-    const i = PAGINA.indexOf('function tarjetaRuleta');
-    assert.ok(i > -1, 'no existe tarjetaRuleta');
-    const cuerpo = PAGINA.slice(i, PAGINA.indexOf('\n}', i));
-    assert.match(cuerpo, /if \(!RU\) return '';/,
-      'tarjetaRuleta no se protege de que ruleta.js no haya llegado');
-    assert.equal(/!C \|\| !U \|\| !M \|\| !FS \|\| !RU/.test(PAGINA), false,
-      'la ruleta entró al guardián del crédito: si falla, apaga la puerta entera');
+  test('play/ no pinta la rueda ni carga su modulo', () => {
+    ['tarjetaRuleta(', 'arrancarRuleta(', 'ruletaLienzo', 'RuletaCupo']
+      .forEach(x => assert.equal(PAGINA.indexOf(x) >= 0, false,
+        'volvio «' + x + '» a play/: la rueda promete un cupo que nadie entrega'));
+    assert.equal(/src="[^"]*ruleta\.js"/.test(PAGINA), false,
+      'play/ volvio a cargar app/ruleta.js, que hoy no llama ninguna pantalla');
   });
 
-  test('el arranque de la rueda va dentro de un try', () => {
-    assert.match(PAGINA, /try \{ arrancarRuleta\(\); \}/,
-      'si la ruleta revienta al arrancar se lleva el pintado de la portada');
+  test('y no quedo la promesa suelta en la puerta publica', () => {
+    /* Lo que de verdad importaba no era la rueda: era la frase. */
+    assert.equal(/empiezan en[^'\n]{0,40}de cupo/i.test(PAGINA), false,
+      'sigue prometiendo un cupo de bienvenida que el perfil nuevo no entrega');
   });
 
-  test('el lienzo sin contexto no tumba la página', () => {
-    /* El rayo ya hizo exactamente esto el 16-sep: getContext devolvió null y
-       la pantalla quedó en cero letras. */
-    const i = PAGINA.indexOf('function pintarRuleta');
-    const cuerpo = PAGINA.slice(i, PAGINA.indexOf('\n}\n', i));
-    assert.match(cuerpo, /if \(!ctx\) return;/,
-      'pintarRuleta no comprueba que haya contexto de lienzo');
+  test('el CRM no tiene el apartado que nunca pudo traer nada', () => {
+    /* Se lee aquí: el bloque que lo leía en común se fue con la ruleta. Y SIN
+       comentarios: lo que se vigila es lo que se EJECUTA. El comentario que
+       cuenta por qué se quitó el apartado hacía caer esta prueba, que sería un
+       centinela castigando a quien documenta. */
+    const CRM = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8')
+      .replace(/<!--[\s\S]*?-->/g, ' ').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    ['tblRuleta', 'kpiRuleta', 'ruleta_giros_panel']
+      .forEach(x => assert.equal(CRM.indexOf(x) >= 0, false,
+        'volvio «' + x + '» al CRM: llama a una migracion que no se corrio'));
   });
 
-  test('sin lienzo el premio se entrega IGUAL', () => {
-    /* Un adorno que no se puede dibujar no puede quedarse con la plata. */
-    const i = PAGINA.indexOf('function animarGiro');
-    const cuerpo = PAGINA.slice(i, PAGINA.indexOf('\n}\n', i));
-    assert.match(cuerpo, /if \(alTerminar\) alTerminar\(\);/,
-      'sin lienzo la animación corta y el premio se pierde');
-  });
-
-  test('se le pregunta al servidor ANTES de animar', () => {
-    /* Si la rueda parara sola y el servidor dijera que no, habría que borrarle
-       el premio de la cara a alguien que ya lo vio. */
-    const i = PAGINA.indexOf('function girarRuleta');
-    const cuerpo = PAGINA.slice(i, PAGINA.indexOf('\n}\n', i));
-    const iRpc = cuerpo.indexOf("rpcSesion('ruleta_girar')");
-    const iAnim = cuerpo.indexOf('animarGiro(');
-    assert.ok(iRpc > -1 && iAnim > -1);
-    assert.ok(iRpc < iAnim,
-      'la rueda se anima antes de que el servidor confirme el premio');
-  });
-
-  test('tocar «girar» sin cuenta lleva al registro', () => {
-    const i = PAGINA.indexOf('function tocarRuleta');
-    const cuerpo = PAGINA.slice(i, PAGINA.indexOf('\n}\n', i));
-    assert.match(cuerpo, /sin_cuenta/);
-    assert.match(cuerpo, /pintarRegistro\(0\)/,
-      'no se lleva al registro a quien quiere girar sin cuenta');
-  });
-
-  test('la pantalla dice en letras que los escalones de arriba NO se sortean', () => {
-    /* La frase que separa el mapa de la lotería. Si desaparece, la rueda pasa a
-       prometer premios imposibles. */
-    const i = PAGINA.indexOf('function tarjetaRuleta');
-    const cuerpo = PAGINA.slice(i, PAGINA.indexOf('\n}\n', i));
-    assert.match(cuerpo, /no se sortean/,
-      'se quitó la frase que dice que los escalones de arriba no son de suerte');
-    assert.match(cuerpo, /no es tener el crédito aprobado/,
-      'la pantalla deja creer que el cupo es un crédito aprobado');
-  });
-
-  test('LA TARJETA SE PINTA DE VERDAD, con la rueda y la escalera', () => {
-    /* Las de arriba leen el código; ésta abre la página y mira lo que salió.
-       Hace falta porque el módulo se puede cargar mal y todas las de texto
-       seguirían en verde mientras el cliente ve una tarjeta vacía. */
-    const P = abrirPlay();
-    assert.deepEqual(P.fallos.map(e => e.message), [],
-      'la página reventó al abrirse con la ruleta puesta');
-    const t = P.ev('tarjetaRuleta()');
-    assert.ok(t.length > 400, 'la tarjeta de la ruleta salió vacía o casi');
-    assert.match(t, /ruletaLienzo/, 'no se pintó el lienzo de la rueda');
-    assert.match(t, /no se sortean/);
-    /* Los cuatro escalones, con su cifra. */
-    for (const e of R.ESCALONES) {
-      assert.ok(t.indexOf(e.titulo) > -1, 'falta el escalón ' + e.id);
-    }
-    /* Y el visitante sin cuenta ve el botón que lo manda a registrarse. */
-    P.ev('RULETA.estado = null; pintarMensajeRuleta();');
-    assert.match(P.elems.ruletaMsg.innerHTML, /primero abre tu cuenta/i,
-      'al visitante no se le dice que primero se registre');
-    assert.equal(P.elems.ruletaBtn.textContent, 'Abrir mi cuenta y girar');
-  });
-
-  test('el que ya giró ve su premio y el botón apagado', () => {
-    const P = abrirPlay();
-    P.ev('RULETA.estado = { registrado: true, ya_giro: true, premio: { cupo: 100000 } };' +
-         'pintarMensajeRuleta();');
-    assert.match(P.elems.ruletaMsg.innerHTML, /Ya giraste/);
-    assert.equal(P.elems.ruletaBtn.disabled, true,
-      'el botón quedó vivo para alguien que ya giró');
-  });
-
-  test('la rueda para SIEMPRE en la tajada del premio, mil giros', () => {
-    /* Se comprueba el ángulo final, que es lo que ve el ojo: si el cálculo del
-       destino se equivoca, la aguja para en otra tajada y la pantalla estaría
-       mostrando un premio distinto del que el servidor entregó. */
-    const P = abrirPlay();
-    const n = P.ev('RU.TAJADAS');
-    const gana = P.ev('RU.tajadaGanadora()');
-    for (let i = 0; i < 1000; i++) {
-      P.ev('RULETA.angulo = ' + (i * 0.37) + '; RULETA.girando = false;');
-      P.ev('animarGiro(function () {});');
-      /* Sin requestAnimationFrame de verdad el banco no anima; se comprueba el
-         destino que la función calcula, que es lo que decide dónde para. */
-    }
-    const destino = -(gana + 0.5) * 2 * Math.PI / n;
-    const tajadaDeAngulo = a => {
-      let k = ((-a / (2 * Math.PI / n)) - 0.5);
-      return Math.round(k) % n;
-    };
-    assert.equal(tajadaDeAngulo(destino), gana,
-      'el ángulo de destino no cae en la tajada ganadora');
-  });
-
-  test('el movimiento respeta a quien pidió menos animación', () => {
-    const i = PAGINA.indexOf('function animarGiro');
-    const cuerpo = PAGINA.slice(i, PAGINA.indexOf('\n}\n', i));
-    assert.match(cuerpo, /prefers-reduced-motion/);
-  });
-});
-
-describe('la ruleta en el CRM (15-sep-2026)', () => {
-
-  const CRM = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
-
-  test('el CRM no llama funciones que no existen', () => {
-    /* Escribiendo esta vista se invocaron `pesos()`, `CLIENTES` y `verFicha()`:
-       ninguna existe en el CRM — las tres se llaman de otra forma. Nada se
-       queja al cargar: el error sale cuando Joan toca el botón, delante de un
-       cliente. Así que acá se comprueba que todo lo que la vista de la ruleta
-       llama esté definido en el mismo archivo. */
-    const i = CRM.indexOf('function traerGiros');
-    assert.ok(i > -1, 'no existe traerGiros');
-    const trozo = CRM.slice(i, CRM.indexOf('function renderRegistros', i));
-
-    /* Solo las llamadas SUELTAS: `foo(` sí, `algo.foo(` no. Un método cuelga de
-       un objeto y se resuelve en tiempo de ejecución; una llamada suelta tiene
-       que estar declarada en el archivo o revienta. Sin esta distinción el
-       centinela señalaba `Array.isArray` y había que callarlo a mano, que es
-       como los centinelas se van volviendo adorno. */
-    const usadas = new Set([...trozo.matchAll(/(^|[^.\w$])([a-zA-Z_$][\w$]*)\s*\(/g)]
-      .map(m => m[2]));
-    /* Lo que da el navegador o el propio lenguaje no se comprueba. */
-    const delNavegador = new Set(['if','for','while','switch','catch','return','function',
-      'typeof','String','Number','Array','Object','JSON','Math','Boolean','alert','fetch',
-      'parseInt','parseFloat','isNaN','find','filter','map','join','slice','replace','endsWith',
-      'then','catch','test','indexOf','getElementById','querySelector','push','includes']);
-    const faltan = [];
-    for (const f of usadas) {
-      if (delNavegador.has(f)) continue;
-      /* Las barras van DOBLES acá, y costó dos intentos entenderlo: esto es una
-         CADENA, no una expresión regular literal, así que dentro de comillas
-         simples `\s` es una `s` pelada y `\b` es un carácter de retroceso de
-         verdad. La primera versión terminó buscando «functions+pesoss*(», que
-         no existe en ningún archivo — o sea, daba verde pasara lo que pasara.
-         Es el mismo error que ese mismo día dejó un 0x08 metido dentro de otra
-         expresión en vitrina.test.js. */
-      const declarada = new RegExp('(function\\s+' + f + '\\s*\\(|(const|let|var)\\s+' +
-        f + '\\s*=)').test(CRM);
-      if (!declarada) faltan.push(f);
-    }
-    assert.deepEqual(faltan, [],
-      'la vista de la ruleta llama cosas que no existen en el CRM');
-  });
-
-  test('un 404 se explica como «falta pegar la migración», no como falta de señal', () => {
-    /* Mandar a Joan a revisar su internet por una migración sin correr le cuesta
-       la tarde. Ya pasó en este proyecto con otras funciones. */
-    const i = CRM.indexOf('function traerGiros');
-    const trozo = CRM.slice(i, CRM.indexOf('function renderGiros', i));
-    assert.match(trozo, /404/);
-    assert.match(trozo, /20260917_ruleta\.sql/,
-      'el aviso del 404 no dice cuál archivo hay que pegar');
-  });
-
-  test('la pantalla dice que el cupo queda ANOTADO, no aplicado', () => {
-    /* Si Joan cree que ya está aplicado, no lo aplica, y el cliente nunca
-       recibe su premio. */
-    const i = CRM.indexOf('function renderGiros');
-    const trozo = CRM.slice(i, CRM.indexOf('function buscarPorCelular', i));
-    assert.match(trozo, /anotado/i);
-    assert.match(trozo, /ajuste de garantia/i,
-      'no se dice por dónde se aplica el cupo');
+  test('el modulo avisa de que hoy no lo llama nadie', () => {
+    /* Se queda en el repo porque es correcto, pero un archivo que parece vivo y
+       no lo esta es como se lee mal un sistema entero. */
+    const r = fs.readFileSync(path.join(RAIZ, 'app', 'ruleta.js'), 'utf8');
+    assert.match(r, /NADIE LLAMA A ESTE ARCHIVO HOY/,
+      'app/ruleta.js no dice que ninguna pantalla lo carga');
   });
 });

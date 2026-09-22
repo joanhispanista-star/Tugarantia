@@ -270,7 +270,6 @@
 <!-- El hilo del chat se pinta con el mismo código que en la app quincenal: la
      marca de «esto te lo contestó una máquina» y el «leído» son reglas, no
      adorno, y no se escriben dos veces. -->
-<script src="../app/ruleta.js"></script>
 <script src="../app/chat.js"></script>
 <script>
 'use strict';
@@ -555,7 +554,6 @@ function pintarEntrar() {
        visible para todos —Joan lo pidió el 14-sep y esa decisión no cambió—,
        pero después del botón: quien llega hasta acá ya entendió qué se vende. */
     tarjetaCalcGarantia() +
-    tarjetaRuleta() +
     tarjetaRecorrido() +
     '<div class="card">' +
       '<h3 class="tit">¿Ya abriste tu cuenta?</h3>' +
@@ -578,11 +576,6 @@ function pintarEntrar() {
     pie();
   $('btnEntrar').addEventListener('click', entrar);
   $('inClave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
-  /* La rueda se enciende DESPUES de que el documento ya tiene el lienzo. Y va
-     dentro de un try: si la ruleta revienta, la puerta publica sigue en pie —
-     es la leccion del 16-sep, cuando un adorno dejo la pantalla en blanco. */
-  try { arrancarRuleta(); }
-  catch (e) { if (window.console && console.warn) console.warn('la ruleta no arranco:', e); }
 }
 
 function tecleaTel(el) {
@@ -3629,266 +3622,27 @@ function moverGCalc() {
   var f = $('gcalcFechas'); if (f) f.innerHTML = mandoDeFechas();
 }
 
-/* ===========================================================================
- * LA RULETA DEL CUPO — la pantalla
- * Pedida por Joan el 15-sep-2026.
- *
- * Las reglas están en app/ruleta.js y la única vez la impone la base
- * (base/20260917_ruleta.sql): acá solo se pinta, se anima y se pregunta.
- *
- * SI ruleta.js NO LLEGA, ESTA TARJETA NO SE PINTA Y YA. No entra al guardián de
- * arriba a propósito: el guardián es para las reglas del CRÉDITO, sin las
- * cuales la página no puede decir un precio. Una rueda de premios que no cargó
- * no es motivo para dejar a alguien sin poder pedir plata. Se calla y el resto
- * de la página sigue igual — que es exactamente lo contrario de lo que pasaba
- * el 16-sep, cuando una constante de adorno dejaba la puerta en cero letras.
- * ========================================================================= */
-var RU = window.RuletaCupo || null;
-var RULETA = { girando: false, estado: null, angulo: 0, anim: null, premio: null };
+/* 22-sep-2026 — AQUÍ VIVÍA LA RULETA DEL CUPO, y se fue entera.
+   Joan: «mejor quitemos la ruleta».
 
-function tarjetaRuleta() {
-  if (!RU) return '';
-  var esc2 = RU.ESCALONES;
-  return '<div class="card ruleta-card">' +
-    '<h3 class="tit">Tu cupo de bienvenida</h3>' +
-    '<p class="sub">Gira y destápalo. <b>Todos los que abren su cuenta empiezan en ' +
-      COP(RU.CUPO_BIENVENIDA) + ' de cupo</b> — la rueda te lo muestra, y de paso te ' +
-      'muestra hasta dónde puedes subir.</p>' +
-    '<div class="ruleta-caja">' +
-      '<canvas id="ruletaLienzo" width="320" height="320" aria-label="Rueda del cupo"></canvas>' +
-      '<div class="ruleta-aguja" aria-hidden="true"></div>' +
-    '</div>' +
-    '<div id="ruletaMsg" class="ruleta-msg"></div>' +
-    '<button class="btn arriba" id="ruletaBtn" onclick="tocarRuleta()">Girar</button>' +
-    '<div class="grupo-tit">La escalera</div>' +
-    esc2.map(function (e) {
-      return '<div class="escalon' + (e.entrega ? ' hoy' : '') + '">' +
-        '<b>' + COP(e.cupo) + '</b>' +
-        '<span><i>' + esc(e.titulo) + '</i>' + esc(e.como) + '</span></div>';
-    }).join('') +
-    /* LA FRASE QUE EVITA LA QUEJA. Los escalones de arriba se llegan pagando y
-       eso queda dicho en letras, no insinuado por un candado. */
-    '<div class="aviso" style="margin-top:var(--e3);font-size:12.5px;line-height:1.55">' +
-      'La rueda entrega el cupo de bienvenida de ' + COP(RU.CUPO_BIENVENIDA) + ', uno por ' +
-      'persona. Los escalones de arriba <b>no se sortean</b>: se llega a ellos pagando en ' +
-      'fecha, como dice cada uno. Tener cupo no es tener el crédito aprobado — la ' +
-      'solicitud se estudia igual.</div>' +
-    '</div>';
-}
+   Prometía en esta misma puerta «todos los que abren su cuenta empiezan en
+   $100.000 de cupo» y no había nada que lo entregara: su función ni siquiera
+   existe en la base (ruleta_mi_estado contestaba 404). El botón fallaba y
+   encima le echaba la culpa al internet del cliente, en el punto más alto
+   del embudo: justo después de que la persona hizo el esfuerzo de
+   registrarse.
 
-/* Dibujar la rueda. Canvas y no SVG porque gira miles de fotogramas y acá hay
-   teléfonos de gama baja: rotar un lienzo es una transformación, rotar un SVG
-   es recalcular el árbol. */
-function pintarRuleta() {
-  var lz = $('ruletaLienzo');
-  if (!lz || !RU || typeof lz.getContext !== 'function') return;
-  var ctx = lz.getContext('2d');
-  /* El lienzo puede no dar contexto —pestaña en segundo plano, memoria— y
-     entonces ctx es null. Tocar ctx.save() ahí tira la página entera. Ya pasó
-     con el rayo el 16-sep: cero letras en pantalla. */
-  if (!ctx) return;
+   Y NO se arregló corriendo la migración que falta, que era lo obvio. Al
+   mirar qué reparte: el premio es fijo, $100.000 de cupo. Pero el perfil de
+   cliente nuevo tiene cupo CERO a propósito —lo dice creditos.js: es lo que
+   hace que la solicitud pase por Joan—, así que encenderla solo habría
+   cambiado «revisa tu internet» por prometer $100.000 y decir «En revisión»
+   dos pantallas después. Mover la mentira no es quitarla.
 
-  var t = RU.tajadas(), n = t.length;
-  var cx = lz.width / 2, cy = lz.height / 2, r = Math.min(cx, cy) - 6;
-  ctx.clearRect(0, 0, lz.width, lz.height);
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(RULETA.angulo);
-
-  for (var i = 0; i < n; i++) {
-    var a0 = i * 2 * Math.PI / n - Math.PI / 2;
-    var a1 = (i + 1) * 2 * Math.PI / n - Math.PI / 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.arc(0, 0, r, a0, a1);
-    ctx.closePath();
-    /* El escalón que se entrega va en amarillo de la casa; los demás, apagados.
-       Se ve desde el primer vistazo cuál es el que está en juego hoy. */
-    ctx.fillStyle = t[i].entrega
-      ? (i % 2 ? '#F2C230' : '#FFD84D')
-      : (i % 2 ? '#2A2E36' : '#333842');
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,.35)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    /* La cifra, acostada sobre el radio de su tajada. */
-    ctx.save();
-    ctx.rotate((a0 + a1) / 2);
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = t[i].entrega ? '#1A1D23' : '#C9CEDA';
-    ctx.font = (t[i].entrega ? '700 ' : '500 ') + '15px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-    ctx.fillText(milesCortos(t[i].cupo), r - 14, 0);
-    ctx.restore();
-  }
-
-  ctx.beginPath();
-  ctx.arc(0, 0, 26, 0, 2 * Math.PI);
-  ctx.fillStyle = '#12151A';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,.18)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.restore();
-}
-
-/* «100.000» en la tajada no cabe en un teléfono. «100k» sí, y se entiende. La
-   cifra completa está escrita tres renglones más abajo, en la escalera. */
-function milesCortos(v) {
-  var n = Number(v) || 0;
-  return n >= 1000 ? Math.round(n / 1000) + 'k' : String(n);
-}
-
-/* ---------------------------------------------------------------- el estado */
-function cargarEstadoRuleta() {
-  if (!RU) return Promise.resolve(null);
-  return rpcSesion('ruleta_mi_estado').then(function (j) {
-    RULETA.estado = j || null;
-    pintarMensajeRuleta();
-    return j;
-  }).catch(function () {
-    /* Sin sesión o sin migración: se trata como visitante. La rueda se pinta
-       igual y el botón manda a registrarse, que es lo que Joan pidió. */
-    RULETA.estado = null;
-    pintarMensajeRuleta();
-    return null;
-  });
-}
-
-function pintarMensajeRuleta() {
-  var m = $('ruletaMsg'), b = $('ruletaBtn');
-  if (!m || !RU) return;
-  var e = RULETA.estado;
-  var p = RU.puedeGirar(e || { registrado: false });
-
-  if (RULETA.premio) {
-    m.innerHTML = '<div class="aviso verde"><b>Tu cupo de bienvenida: ' +
-      COP(RULETA.premio.cupo) + '.</b> Queda anotado a tu nombre. Se lo aplicamos a tu ' +
-      'cuenta cuando pidas tu crédito.</div>';
-    if (b) { b.textContent = 'Ya giraste'; b.disabled = true; }
-    return;
-  }
-  if (p.motivo === 'sin_cuenta') {
-    m.innerHTML = '<div class="aviso info">Para girar, primero abre tu cuenta. ' +
-      'Son unos minutos y con eso queda tu cupo.</div>';
-    if (b) { b.textContent = 'Abrir mi cuenta y girar'; b.disabled = false; }
-    return;
-  }
-  if (p.motivo === 'ya_giro') {
-    m.innerHTML = '<div class="aviso verde"><b>Ya giraste.</b> Tu cupo de bienvenida de ' +
-      COP((e && e.premio && e.premio.cupo) || RU.CUPO_BIENVENIDA) + ' está anotado.</div>';
-    if (b) { b.textContent = 'Ya giraste'; b.disabled = true; }
-    return;
-  }
-  m.innerHTML = '';
-  if (b) { b.textContent = 'Girar'; b.disabled = false; }
-}
-
-/* ------------------------------------------------------------------ el giro */
-function tocarRuleta() {
-  if (!RU || RULETA.girando) return;
-  var p = RU.puedeGirar(RULETA.estado || { registrado: false });
-  if (p.motivo === 'sin_cuenta') {
-    /* Lo que pidió Joan, literal: «al momento que el cliente quiera jugar
-       primero le indique que se registre». Se le lleva al registro y se deja
-       anotado que venía a girar, para traerlo de vuelta acá al terminar. */
-    try { sessionStorage.setItem('tg_venia_a_girar', '1'); } catch (e) {}
-    pintarRegistro(0);
-    return;
-  }
-  if (p.motivo === 'ya_giro') return;
-  girarRuleta();
-}
-
-function girarRuleta() {
-  if (!RU || RULETA.girando) return;
-  RULETA.girando = true;
-  var b = $('ruletaBtn'); if (b) { b.disabled = true; b.textContent = 'Girando…'; }
-
-  /* SE LE PREGUNTA AL SERVIDOR ANTES DE ANIMAR, no después. Si la rueda parara
-     sola y el servidor dijera que no, habría que borrarle un premio de la cara
-     a alguien que ya lo vio. El orden es: la base decide, la pantalla celebra. */
-  rpcSesion('ruleta_girar').then(function (j) {
-    if (!j || j.ok !== true) {
-      RULETA.girando = false;
-      if (b) { b.disabled = false; b.textContent = 'Girar'; }
-      var m = $('ruletaMsg');
-      if (m) m.innerHTML = '<div class="aviso ambar">No pude girar ahora. ' +
-        'Revisa tu internet y vuelve a intentar.</div>';
-      return;
-    }
-    animarGiro(function () {
-      RULETA.premio = j.premio;
-      RULETA.estado = { registrado: true, ya_giro: true, premio: j.premio };
-      RULETA.girando = false;
-      pintarMensajeRuleta();
-    });
-  }).catch(function () {
-    RULETA.girando = false;
-    if (b) { b.disabled = false; b.textContent = 'Girar'; }
-    var m = $('ruletaMsg');
-    if (m) m.innerHTML = '<div class="aviso ambar">No pude conectarme. ' +
-      'Revisa tu internet y vuelve a intentar.</div>';
-  });
-}
-
-/* La animación. Frena con una curva que se va apagando (easeOut cúbico) para
-   que se sienta rueda y no cronómetro. El destino NO es al azar: es la tajada
-   que manda app/ruleta.js. */
-function animarGiro(alTerminar) {
-  var lz = $('ruletaLienzo');
-  if (!lz || typeof lz.getContext !== 'function' || !lz.getContext('2d')) {
-    /* Sin lienzo no hay animación, pero el premio sí: se entrega igual. Un
-       adorno que no se puede dibujar no puede quedarse con la plata de nadie. */
-    if (alTerminar) alTerminar();
-    return;
-  }
-  /* Respeta a quien pidió menos movimiento en su teléfono. */
-  var quieto = false;
-  try { quieto = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
-
-  var n = RU.TAJADAS, gana = RU.tajadaGanadora();
-  /* Dónde tiene que quedar el ángulo para que la aguja (arriba) apunte al
-     centro de la tajada ganadora. */
-  var destino = -(gana + 0.5) * 2 * Math.PI / n;
-  var vueltas = quieto ? 0 : 5;
-  var fin = destino - vueltas * 2 * Math.PI;
-  var ini = RULETA.angulo;
-  var dur = quieto ? 260 : 3400;
-  var t0 = null;
-
-  if (RULETA.anim) { try { cancelAnimationFrame(RULETA.anim); } catch (e) {} }
-
-  function paso(t) {
-    if (t0 === null) t0 = t;
-    var k = Math.min(1, (t - t0) / dur);
-    var suave = 1 - Math.pow(1 - k, 3);
-    RULETA.angulo = ini + (fin - ini) * suave;
-    pintarRuleta();
-    if (k < 1) RULETA.anim = requestAnimationFrame(paso);
-    else { RULETA.anim = null; if (alTerminar) alTerminar(); }
-  }
-  RULETA.anim = requestAnimationFrame(paso);
-}
-
-/* Se llama después de pintar la portada: el lienzo ya existe en el documento. */
-function arrancarRuleta() {
-  if (!RU) return;
-  if (!$('ruletaLienzo')) return;
-  pintarRuleta();
-  cargarEstadoRuleta();
-  /* Si venía del registro por haber tocado «Girar», se le devuelve el hilo. */
-  var venia = null;
-  try { venia = sessionStorage.getItem('tg_venia_a_girar'); } catch (e) {}
-  if (venia) {
-    try { sessionStorage.removeItem('tg_venia_a_girar'); } catch (e) {}
-    var m = $('ruletaMsg');
-    if (m) m.innerHTML = '<div class="aviso info">Tu cuenta quedó abierta. ' +
-      '<b>Ahora sí: gira.</b></div>';
-  }
-}
-
+   app/ruleta.js, base/20260917_ruleta.sql y pruebas/ruleta.test.js se quedan
+   en el repo: son correctos y la migración nunca se aplicó, así que no hay
+   nada que revertir en la base. El día que se decida qué significa ese cupo
+   de bienvenida, están listos. */
 
 function moverCalc() {
   var m = $('calcMonto'), p = $('calcMeses');

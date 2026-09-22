@@ -1,3 +1,12 @@
+/* 22-sep-2026 — NADIE LLAMA A ESTE ARCHIVO HOY.
+   La ruleta se quitó de la puerta pública: prometía $100.000 de cupo de
+   bienvenida y no había nada que lo entregara. Su migración
+   (base/20260917_ruleta.sql) nunca se aplicó, así que en la base tampoco
+   existe nada de esto.
+
+   El archivo se queda porque es correcto y está probado, y porque el día
+   que se decida qué significa ese cupo de bienvenida vuelve a servir.
+   Pero que quede dicho: hoy no lo carga ninguna pantalla. */
 /* ===========================================================================
  * LA RULETA DEL CUPO — Tu Garantía
  * Pedida por Joan el 15-sep-2026.

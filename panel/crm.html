@@ -548,17 +548,10 @@
         <button class="btn btn-negro" onclick="traerRegistros()">↻ Traer de la nube</button></div>
       <div class="card"><div class="card-h"><h3>📥 Quién pidió entrar</h3><span class="tag">Al abrirles la ficha y darles su primer crédito pasan a Clientes</span></div>
         <div id="tblRegistros"></div></div>
-      <!-- LA RULETA — 15-sep-2026. Va debajo de Registrados porque es la misma
-           gente: el que gira es alguien que acaba de abrir su cuenta en play/.
-           El cupo de bienvenida queda ANOTADO, no aplicado: la garantia de cada
-           socio la manda este CRM y sincronizar_socios la sobreescribe entera,
-           asi que si la nube lo escribiera por su cuenta el primer sync lo
-           borraria. Aca esta la lista para aplicarlo donde se aplica todo. -->
-      <div class="card"><div class="card-h"><h3>🎡 Cupo de bienvenida (ruleta)</h3>
-        <span class="tag">Giraron una vez y tienen su cupo anotado — aplicaselo en su ficha</span>
-        <button class="btn btn-ghost" onclick="traerGiros()">↻ Traer</button></div>
-        <div id="kpiRuleta" class="kpis"></div>
-        <div id="tblRuleta"></div></div>
+      <!-- 22-sep-2026 — aqui estaba «Cupo de bienvenida (ruleta)». Se fue con la
+           ruleta: el apartado llamaba a ruleta_giros_panel, que solo vive en una
+           migracion que nunca se corrio, y con la rueda fuera de la app del
+           cliente ya no puede haber giros que listar. -->
     </section>
 
     <!-- ===================================================================
@@ -6869,71 +6862,9 @@ function traerRegistros(){
     .then(f=>{ _registros=Array.isArray(f)?f:[]; renderRegistros(); })
     .catch(e=>{ b.innerHTML='<div class="alerta warn" style="margin:14px">No pude leer quién pidió entrar. '+escHTML(errNube(e))+'</div>'; });
 }
-/* ===========================================================================
- * LA RULETA — lo que ve Joan
- * 15-sep-2026.
- *
- * El cupo de bienvenida queda ANOTADO en la nube, no aplicado a la ficha. La
- * razon esta en base/20260917_ruleta.sql y vale repetirla aca: la garantia de
- * cada socio la manda ESTE CRM, y sincronizar_socios sobreescribe el jsonb
- * entero en cada sincronizacion. Si la nube escribiera el ajuste por su cuenta,
- * la primera sincronizacion de Joan lo borraria y el cliente veria desaparecer
- * su premio sin que nadie hubiera hecho nada mal.
- *
- * Asi que la lista vive aca y el ajuste se aplica donde se aplican todos.
- * ========================================================================= */
-var _giros = [];
+/* 22-sep-2026 — aqui vivian traerGiros() y renderGiros(), la lista del cupo
+   de bienvenida. Se fueron con la ruleta. */
 
-function traerGiros(){
-  const b=document.getElementById('tblRuleta'); if(!b)return;
-  if(!sbListo()){ _giros=[]; renderGiros(); return; }
-  b.innerHTML='<div class="muted" style="padding:14px 18px">Buscando…</div>';
-  rpc('ruleta_giros_panel',{p_clave:sbCfg().clave})
-    .then(j=>{
-      if(!j||j.ok!==true){ _giros=[]; renderGiros('La nube contesto que no.'); return; }
-      _giros=Array.isArray(j.giros)?j.giros:[];
-      renderGiros(null,j);
-    })
-    .catch(e=>{
-      /* Un 404 aca no es un fallo de senal: es la migracion sin correr. Decirle
-         «revisa tu internet» lo manda a buscar donde no esta. */
-      const m=String(e&&e.message||e);
-      renderGiros(/404/.test(m)
-        ? 'La ruleta todavia no esta en la nube: falta pegar base/20260917_ruleta.sql.'
-        : ('No pude leer los giros. '+errNube(e)));
-    });
-}
-
-function renderGiros(error,resumen){
-  const b=document.getElementById('tblRuleta'); if(!b)return;
-  const k=document.getElementById('kpiRuleta');
-  if(k) k.innerHTML = resumen
-    ? `<div class="kpi"><div class="n">${Number(resumen.total||0)}</div><div class="l">Giraron</div></div>
-       <div class="kpi"><div class="n">${COP(Number(resumen.cupo_entregado||0))}</div><div class="l">Cupo anotado</div></div>`
-    : '';
-  if(error){ b.innerHTML='<div class="alerta warn" style="margin:14px">'+escHTML(error)+'</div>'; return; }
-  if(!sbListo()){
-    b.innerHTML=`<div class="empty"><div class="ic">☁️</div><p>Esto llega por la nube.<br><span class="muted">Conectala en Ajustes.</span></p></div>`;
-    return;
-  }
-  if(!_giros.length){
-    b.innerHTML=`<div class="empty"><div class="ic">🎡</div><p>Nadie ha girado todavia.<br><span class="muted">Toca “↻ Traer” para volver a mirar.</span></p></div>`;
-    return;
-  }
-  b.innerHTML=`<div class="muted" style="padding:10px 14px 0;font-size:12px">Cada uno giro <b>una sola vez</b> —lo impone la nube, no la pantalla del cliente— y tiene anotado su cupo de bienvenida. Aplicaselo en su ficha como un ajuste de garantia: el cupo de esta casa sale de la garantia, no de un campo aparte.</div>
-  <table><thead><tr><th>Quien</th><th>Celular</th><th>Cupo</th><th>Cuando</th><th></th></tr></thead><tbody>${
-    _giros.map(g=>`<tr>
-      <td>${escHTML(g.nombre||'—')}</td>
-      <td>${escHTML(g.celular||'')}</td>
-      <td style="font-variant-numeric:tabular-nums">${COP(Number(g.cupo||0))}</td>
-      <td>${escHTML(fechaCorta?fechaCorta(g.girado_en):String(g.girado_en||'').slice(0,10))}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="buscarPorCelular('${escHTML(String(g.celular||''))}')">Ver ficha</button></td>
-    </tr>`).join('')
-  }</tbody></table>`;
-}
-
-/* Llevar a la ficha por el celular. Si no hay nadie con ese numero, se dice —
-   no se abre una ficha en blanco que parezca la de esa persona. */
 function buscarPorCelular(cel){
   const d=String(cel||'').replace(/\D/g,'');
   const lista=(typeof DB!=='undefined'&&DB&&Array.isArray(DB.socios))?DB.socios:[];
@@ -6980,7 +6911,8 @@ function renderRegistros(){
       <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}${c0
         ? `<button class="btn btn-rojo btn-sm" onclick="mesaDeCruce('${escHTML(String(r.id))}','')">🔗 Cruzar con ${escHTML(codCliente(c0.socio))}</button>`
         : `<button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button>`}
-        <button class="btn btn-ghost btn-sm" onclick="descartarRegistro('${escHTML(String(r.id))}')" title="No abrirle cuenta">✕</button></td></tr>`;}).join('')}</tbody></table>`;
+        <button class="btn btn-ghost btn-sm" onclick="descartarRegistro('${escHTML(String(r.id))}')" title="No abrirle cuenta">✕</button>
+        ${r.telefono?`<button class="btn btn-ghost btn-sm" onclick="borrarParaProbar('${escHTML(String(r.telefono).replace(/\D/g,''))}','${escHTML(String(r.nombre||''))}')" title="Borra su cuenta y todo lo suyo para que el MISMO numero se pueda volver a registrar. No se puede deshacer.">🧪 Borrar y repetir</button>`:''}</td></tr>`;}).join('')}</tbody></table>`;
 }
 
 /* EL COTEJO EN LA BANDEJA, DE UNA SOLA CARA — 22-sep-2026.
@@ -7012,6 +6944,60 @@ function chipDeCotejo(h){
   return '<div style="margin-top:4px"><span class="chip mora" title="'+escHTML(porque)+'">⚠️ No cuadra con su cédula</span>'
     +(c.repetida?' <span class="chip mora" title="Ese número de documento ya está en otra ficha con otro celular">🔁 Cédula repetida</span>':'')
     +'</div>';
+}
+
+/* BORRAR UNA CUENTA PARA VOLVER A PROBAR — 22-sep-2026.
+
+   Joan prueba el registro con la misma persona varias veces. El celular es la
+   identidad del negocio, así que al segundo intento el signup contesta «User
+   already registered» y no hay forma de seguir. Esto borra la cuenta de acceso
+   y todo lo que colgaba de ella.
+
+   NO BORRA LA CARTERA. socios_historial se queda y solo se DESVINCULA: ahí
+   viven los clientes de verdad de Joan, y borrar esa fila por repetir una
+   prueba sería perder un cliente. La migración tiene un centinela que revienta
+   si alguien le mete un delete a esa tabla.
+
+   La confirmación dice qué se va, con nombre y número, y el resultado dice qué
+   se fue de verdad. Un «listo» no se puede comprobar. */
+function borrarParaProbar(celular, nombre){
+  const cel=String(celular||'').replace(/\D/g,'').slice(-10);
+  if(cel.length!==10) return alert('Ese registro no tiene un celular de 10 digitos, asi que no se puede borrar por numero.');
+  if(!sbListo()) return alert('Esto vive en la nube. Conectala en Ajustes para poder borrar.');
+  const quien=(nombre||'').trim()||'esta persona';
+  if(!confirm(
+    'BORRAR la cuenta de '+quien+' ('+cel+') para poder volver a registrarla.\n\n'
+    +'Se van, para siempre y sin deshacer:\n'
+    +'  · su cuenta de acceso (por eso podra registrarse otra vez)\n'
+    +'  · sus fotos de cedula y su selfie\n'
+    +'  · su ficha de esta bandeja\n'
+    +'  · sus solicitudes de credito y su chat\n\n'
+    +'NO se borra su ficha de cliente ni su historial de creditos: eso vive en '
+    +'este Panel y se queda. Solo se suelta el vinculo con la app.\n\n'
+    +'¿Lo borro?')) return;
+  rpc('borrar_cuenta_de_pruebas',{p_clave:sbCfg().clave,p_celular:cel})
+    .then(j=>{
+      if(!j||j.ok!==true){
+        return alert('No se pudo borrar.\n\n'+((j&&j.motivo)||'La nube contesto que no.')
+          +((j&&j.aviso)?'\n\n'+j.aviso:''));
+      }
+      /* Lo que el SERVIDOR dice que borro, no lo que esta pantalla supone. */
+      alert('Listo, '+quien+' puede volver a registrarse con el '+cel+'.\n\n'
+        +'Se fueron:\n'
+        +'  · cuenta de acceso: '+(Number(j.cuenta||0)?'si':'no habia')+'\n'
+        +'  · fotos: '+Number(j.fotos||0)+'\n'
+        +'  · fichas de la bandeja: '+Number(j.registros||0)+'\n'
+        +'  · solicitudes: '+Number(j.solicitudes||0)+'\n'
+        +'  · mensajes del chat: '+Number(j.mensajes||0)
+        +(Number(j.desvinculados||0)?'\n  · fichas de cliente desvinculadas: '+Number(j.desvinculados):''));
+      traerRegistros();
+    })
+    .catch(e=>{
+      const m=String((e&&(e.motivo||e.message))||e);
+      alert(/404/.test(m)
+        ? 'Tu base todavia no tiene esta funcion. Corre base/20260922e_borrar_para_probar.sql en el SQL Editor de Supabase.'
+        : ('No pude borrar. '+m));
+    });
 }
 
 /* El saludo al que se registró solo — 25-ago-2026. No promete nada: aprobar es
