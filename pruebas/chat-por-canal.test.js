@@ -111,6 +111,43 @@ describe('la base enruta bien aunque la pantalla se olvide', () => {
       'no se sabe por dónde escribió de último, que es donde hay que contestarle');
   });
 
+  /* ESTE CENTINELA SALIÓ DE UN ERROR REAL, el 22-sep, y barre TODAS las
+     migraciones porque el error es de copiar y pegar.
+
+     El editor SQL de Supabase corre el archivo entero en UNA transacción. Una
+     prueba dentro de una migración que termine con `raise exception 'todo
+     bien'` —el truco para deshacerse a sí misma— revierte también los
+     `create or replace` de arriba. La migración imprime «TODO BIEN» y no queda
+     aplicada NADA: el peor de los dos mundos, porque se lee como un éxito.
+
+     El truco vale para una prueba suelta que se pega aparte. Dentro de una
+     migración, la prueba limpia lo suyo con un delete y termina normal. */
+  test('ninguna migración se deshace a sí misma creyendo que pasó', () => {
+    const dir = path.join(__dirname, '..', 'base');
+    const malas = fs.readdirSync(dir).filter(f => f.endsWith('.sql')).filter(f => {
+      /* Sin los comentarios: lo que se vigila es lo que se EJECUTA. El
+         comentario que explica este mismo error hacía caer la prueba, que es
+         justo el centinela que castiga documentar. */
+      const s = fs.readFileSync(path.join(dir, f), 'utf8')
+        .split('\n').map(l => l.replace(/^\s*--.*$/, '')).join('\n');
+      /* Un raise exception cuyo mensaje dice que todo salió bien es, por
+         definición, una migración que se revierte a sí misma. */
+      return /raise\s+exception\s+'[^']{0,40}(TODO BIEN|todo bien|TODO OK)/.test(s);
+    });
+    assert.deepEqual(malas, [],
+      'esta(s) migración(es) terminan su prueba con «raise exception ...TODO BIEN...». ' +
+      'El editor corre el archivo en una transacción, así que esa excepción revierte ' +
+      'los create de arriba: dicen que todo salió bien y no aplican nada. La prueba ' +
+      'tiene que limpiar lo suyo con un delete y terminar normal.');
+  });
+
+  test('esta migración limpia sus datos de prueba', () => {
+    assert.match(SQL, /delete from public\.mensajes where cedula = ced/,
+      'la prueba deja sus mensajes inventados en la tabla de verdad');
+    assert.match(SQL, /raise notice/,
+      'la prueba no deja rastro de que corrió');
+  });
+
   test('se comprueba LLAMANDO, y sin dejar a Joan fuera de su CRM', () => {
     assert.match(SQL, /public\.chat_responder\(v_clave/,
       'la migración no llama a la función que acaba de crear');

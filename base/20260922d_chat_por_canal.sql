@@ -202,6 +202,19 @@ notify pgrst, 'reload schema';
 -- ===================== COMPROBACIONES =====================
 -- Llamando, no mirando que existan: el cuerpo de una PL/pgSQL compila en la
 -- PRIMERA llamada, y así es como este repo estuvo trece días sin guardar fotos.
+--
+-- ATENCIÓN AL QUE VENGA A COPIAR ESTE BLOQUE, porque ya costó un intento:
+-- una prueba DENTRO de una migración NO puede terminar con
+-- `raise exception 'todo bien'` para deshacerse a sí misma. El editor SQL de
+-- Supabase corre el archivo entero en UNA transacción, así que esa excepción
+-- revierte también los `create or replace` de arriba: la migración sale
+-- diciendo «TODO BIEN» y no queda aplicada NADA.
+--
+-- Eso es lo que pasó la primera vez que se corrió este archivo. El truco de
+-- deshacerse con una excepción vale para una prueba suelta que se pega aparte,
+-- no para una que viaja dentro de la migración. Aquí la prueba limpia lo suyo
+-- con un delete y termina normal; si algo falla, la excepción revierte el
+-- archivo entero, que es justo lo que se quiere.
 do $prueba$
 declare
   ced     text := '99999999902';
@@ -296,7 +309,13 @@ begin
   end;
   pasos := pasos || '8 pide-clave; ';
 
-  raise exception 'TODO BIEN >>> % <<< (a proposito: deshace la prueba)', pasos;
+  -- La prueba limpia LO SUYO y termina normal, para que la migración quede
+  -- aplicada. Ver la nota de arriba sobre por qué aquí no va una excepción.
+  -- El borrado va por la cédula de prueba, que tiene once dígitos y empieza por
+  -- 9: no existe ninguna así, y el delete no puede alcanzar a un cliente real.
+  delete from public.mensajes where cedula = ced;
+
+  raise notice 'chat por canal: % (datos de prueba borrados)', pasos;
 end
 $prueba$;
 
