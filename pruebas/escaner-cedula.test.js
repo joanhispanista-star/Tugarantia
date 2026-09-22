@@ -866,8 +866,28 @@ describe('la prueba con Sofía (21-sep-2026)', () => {
  * automático que existe es el CÁLCULO de la propuesta y unos frenos contra el
  * abuso. No se verifica ni un solo dato del cliente. Escribir esa frase sería
  * la misma promesa sin respaldo que este proyecto ya pagó cuatro veces hoy.
- * El día que se encienda una verificación de verdad, se borra este centinela
- * en el MISMO commit que la enciende — y no antes.
+ *
+ * ── 22-sep-2026: SE ENCENDIÓ EL COTEJO DE LA CÉDULA Y EL CENTINELA SE QUEDA ──
+ *
+ * Esta cabecera decía que el centinela «se borra el día que se encienda una
+ * verificación de verdad». Ese día llegó a medias y la frase era demasiado
+ * gruesa, así que se corrige en vez de cumplirse a ciegas.
+ *
+ * Lo que se encendió (base/20260922c_verificacion_cedula.sql) compara lo que
+ * leyó el código de barras del respaldo contra lo que quedó escrito. Pero la
+ * app RELLENA el formulario con lo leído antes de que la persona llegue al paso
+ * de identidad: en el caso normal los dos lados son la misma cadena. O sea que
+ * el cotejo no verifica, distingue si la persona CORRIGIÓ. No se consulta la
+ * Registraduría, no se valida ninguna firma y la selfie no se compara con la
+ * foto del documento.
+ *
+ * Por eso «el algoritmo está verificando tu información» seguiría siendo falso
+ * y el centinela se queda. Lo que sí se hizo fue AMPLIARLO: tenía dos huecos
+ * por los que la frase prohibida pasaba entera.
+ *
+ * Lo que sí se puede decir hoy, y por eso no hace falta aflojar nada: que esos
+ * tres datos no los tecleó la persona, que salieron del código de barras de su
+ * cédula. Eso habla del ORIGEN del texto, no de quién es la persona.
  * ========================================================================= */
 describe('la app no nombra a Joan ni promete lo que no hace', () => {
 
@@ -886,12 +906,40 @@ describe('la app no nombra a Joan ni promete lo que no hace', () => {
 
   test('NO se promete una verificación que no existe', () => {
     /* MUTANTE QUE CAZA: escribir «el algoritmo está verificando tu
-       información» porque suena bien. Hoy sería falso. */
-    const t = TEXTOS();
-    assert.equal(/algoritmo[^'\n]{0,40}verific/i.test(t), false,
-      'la app dice que un algoritmo verifica, y hoy no se verifica ni un dato del cliente');
-    assert.equal(/verificando tus datos|verificando tu información/i.test(t), false,
+       información» porque suena bien. Hoy sería falso.
+     *
+     * 22-sep-2026 — ESTE CENTINELA SE AMPLIÓ, NO SE AFLOJÓ, el día que se
+     * encendió el cotejo de la cédula. Es importante entender por qué, porque
+     * la tentación era la contraria.
+     *
+     * El cotejo compara lo que leyó el código de barras del respaldo contra lo
+     * que quedó escrito. Pero la app RELLENA el formulario con lo leído antes
+     * de que la persona llegue al paso de identidad, así que en el caso normal
+     * los dos lados son la misma cadena: el cotejo no verifica nada, distingue
+     * si la persona CORRIGIÓ. No se consulta la Registraduría, no se valida
+     * ninguna firma, y la selfie no se compara con la foto del documento. O
+     * sea que «el algoritmo está verificando tu información» seguiría siendo
+     * falso. Sigue prohibido.
+     *
+     * Y se le taparon dos huecos que tenía:
+     *   1. `[^'\n]` no cruza el pegado de cadenas de JavaScript, y esta página
+     *      arma TODO su HTML concatenando: 'El algoritmo está ' + 'verificando'
+     *      pasaba limpio. Ahora se despega antes de mirar.
+     *   2. No cubría «estamos verificando», «datos verificados» ni «identidad
+     *      confirmada», que dicen lo mismo con otras palabras. */
+    const t = TEXTOS()
+      /* Despegar: 'una parte ' + 'y la otra' -> 'una parte y la otra'. */
+      .replace(/'\s*\+\s*'/g, '');
+
+    assert.equal(/algoritmo[^'\n]{0,60}verific/i.test(t), false,
+      'la app dice que un algoritmo verifica, y el cotejo de la cédula NO es eso: ' +
+      'compara lo leído contra lo escrito, y la app ya había escrito lo leído');
+    assert.equal(/verificando (tus |tu |la |sus )?(datos|información|informacion|identidad)/i.test(t), false,
       'la app afirma una verificación que el código no hace');
+    assert.equal(/datos verificados|identidad (confirmada|verificada)|cédula (válida|verificada|auténtica)/i.test(t), false,
+      'la app da por verificada una identidad que nadie comprobó contra ninguna fuente');
+    assert.equal(/(validamos|verificamos|confirmamos)[^'\n]{0,40}(registradur|central de riesgo)/i.test(t), false,
+      'la app dice que consulta la Registraduría o una central, y no se consulta ninguna');
   });
 
   test('los mensajes de error no le hablan de usted ni lo culpan', () => {

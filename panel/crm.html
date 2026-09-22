@@ -6987,9 +6987,156 @@ function bloqueHuella(h){
     +(ap?`<div class="info-row"><span class="k">Aparato</span><span class="vv">${escHTML(ap)}</span></div>`:'')
     +(ip?`<div class="info-row"><span class="k">Dirección IP</span><span class="vv"><span class="mono">${escHTML(ip)}</span> <a target="_blank" rel="noopener" href="https://ipinfo.io/${encodeURIComponent(ip)}">ubicación aproximada</a> <span class="muted">(la de la red, no la de la casa)</span></span></div>`:'')
     +(g?`<div class="info-row"><span class="k">Ubicación al registrarse</span><span class="vv"><a target="_blank" rel="noopener" href="${mapsUrl(g)}">Ver en Google Maps</a> <span class="muted">±${Math.round(g.acc||0)} m · ${fmtFecha(g.fecha||'')}</span></span></div>`:'<div class="info-row"><span class="k">Ubicación</span><span class="vv muted">No la autorizó o no hubo señal.</span></div>')
-    +(cl?`<div class="info-row"><span class="k">Cédula leída del código de barras</span><span class="vv">${escHTML((cl.nombres||'')+' '+(cl.apellidos||''))} · ${escHTML(cl.documento||'')}${cl.nacimiento?' · nació '+fmtFecha(cl.nacimiento):''} <span class="muted">(coincide con lo declarado: ${'—'})</span></span></div>`:'<div class="info-row"><span class="k">Cédula leída</span><span class="vv muted">No se leyó el código de barras (escribió los datos a mano).</span></div>')
+    +(cl?`<div class="info-row"><span class="k">Cédula leída del código de barras</span><span class="vv">${escHTML((cl.nombres||'')+' '+(cl.apellidos||''))} · ${escHTML(cl.documento||'')}${cl.nacimiento?' · nació '+fmtFecha(cl.nacimiento):''}</span></div>`
+      /* 22-sep-2026 — aquí decía «(coincide con lo declarado: —)»: un hueco con
+         una raya a mano, que se lee como «coincide». Ahora o hay cotejo de
+         verdad o no se dice nada. */
+      +bloqueCotejo(h)
+    :'<div class="info-row"><span class="k">Cédula leída</span><span class="vv muted">'
+      /* 22-sep-2026 — decía «No se leyó el código de barras (escribió los datos
+         a mano)». Lo segundo es FALSO y es la clase de frase por la que Joan
+         tomaría una decisión equivocada: hay tres caminos que dejan la huella
+         vacía con la cédula perfectamente escaneada (la subida se corta si las
+         fotos son de otro registro, no se llama sin sesión de Supabase —le pasó
+         a la primera clienta real— y no manda nada si no hay ni fotos ni
+         lectura). Ausencia de huella no es prueba de que tecleara. */
+      +'No llegó la lectura del código de barras. Puede ser que no lo escaneara, '
+      +'o que la subida de sus fotos no llegara: son cosas distintas y desde aquí '
+      +'no se distinguen.</span></div>')
     +(h.momento?`<div class="muted" style="font-size:12px">Registrado el ${fmtFecha(String(h.momento).slice(0,10))}.</div>`:'');
 }
+/* EL COTEJO DE LA CÉDULA — 22-sep-2026.
+
+   QUÉ ES Y QUÉ NO ES, porque de esto salen decisiones de plata. La app, al leer
+   el código de barras del respaldo, RELLENA el formulario con lo leído. O sea
+   que en el caso normal lo declarado y lo leído son la misma cadena porque el
+   código llenó la casilla, no porque nadie haya comprobado nada. Un «coincide»
+   aquí sería un espejo.
+
+   Por eso los estados dicen QUÉ PASÓ y no si algo coincide, y por eso el chip
+   es de una sola cara: silencio cuando no hay nada que mirar, ámbar cuando sí.
+   Nunca un palomito verde — un ✓ al lado de un nombre se lee como «la casa dice
+   que esta persona es quien dice», y eso no se sabe. */
+const COTEJO_DICE = {
+  intacto:   { chip:'', clase:'', texto:'Los nombres, apellidos y número que quedaron escritos <b>salieron del código de barras</b> de su cédula: no los tecleó. Eso no dice de quién es la cédula.' },
+  retocado:  { chip:'✏️ Corrigió algo', clase:'prorroga', texto:'Salieron del código de barras y después corrigió algo del nombre. Compatible con la misma persona (una tilde, un apellido que no escribió).' },
+  no_cuadra: { chip:'⚠️ No cuadra con el código', clase:'mora', texto:'Lo que quedó escrito <b>contradice</b> lo que decía el código de barras. Míralo abajo.' },
+  sin_codigo:{ chip:'', clase:'', texto:'No llegó lectura del código de barras. No quiere decir que escribiera a mano.' }
+};
+function filaCotejo(et,a,b,igual){
+  return '<tr><td>'+escHTML(et)+'</td><td>'+(a?escHTML(a):'<span class="muted">—</span>')+
+    '</td><td>'+(b?escHTML(b):'<span class="muted">—</span>')+
+    '</td><td style="text-align:right"><span class="chip '+(igual?'al-dia':'mora')+'">'+(igual?'igual':'distinto')+'</span></td></tr>';
+}
+/* Pinta un cotejo (el del registro o el de la foto). Devuelve '' si no hay. */
+function cotejoHTML(c,titulo){
+  if(!c||typeof c!=='object'||!c.estado) return '';
+  const d=COTEJO_DICE[c.estado]||COTEJO_DICE.sin_codigo, v=c.visto||{};
+  let mesa='';
+  if(v.documento_codigo||v.nombre_codigo){
+    mesa='<table style="margin-top:6px"><thead><tr><th>Dato</th><th>Dijo el código</th><th>Quedó escrito</th><th></th></tr></thead><tbody>'
+      +(v.documento_codigo?filaCotejo('Número de documento',v.documento_codigo,v.documento_escrito,false):'')
+      +(v.nombre_codigo?filaCotejo('Nombre completo',v.nombre_codigo,v.nombre_escrito,false):'')
+      +'</tbody></table>';
+  }
+  const edad=c.edad==='MENOR'
+    ? '<div class="alerta warn" style="margin-top:6px"><b>La cédula dice que es MENOR DE EDAD'+(v.anos?' ('+v.anos+' años)':'')+'.</b> Un menor no se puede obligar: el contrato sería nulo (arts. 1502 y 1504 del Código Civil).</div>'
+    : '';
+  const tipo=c.tipo_doc==='incoherente'
+    ? '<div class="muted" style="margin-top:4px">Marcó «'+escHTML(v.tipo_doc_escrito||'otro documento')+'», pero este código de barras solo existe en la cédula de ciudadanía colombiana.</div>'
+    : '';
+  const lector=c.lectura==='tokens'
+    ? '<div class="muted" style="margin-top:4px">El lector tuvo que <b>adivinar</b> dónde partían nombres y apellidos en este código, así que una diferencia de nombre puede ser culpa suya y no de la persona.</div>'
+    : '';
+  return '<div class="info-row"><span class="k">'+escHTML(titulo)+'</span><span class="vv">'
+    +(d.chip?'<span class="chip '+d.clase+'">'+d.chip+'</span> ':'')
+    +d.texto+mesa+edad+tipo+lector+'</span></div>';
+}
+function bloqueCotejo(h){
+  return cotejoHTML(h&&h.cotejo,'Cotejo al registrarse')
+    +cotejoHTML(h&&h.cotejo_foto,'Cotejo contra la foto guardada');
+}
+
+/* LEER EL CÓDIGO DE BARRAS DE LA FOTO QUE ESTÁ EN EL SERVIDOR.
+
+   POR QUÉ ESTE VALE MÁS QUE EL DEL REGISTRO: el del registro cree lo que el
+   teléfono DIJO haber leído, y el teléfono es de quien se registra —cualquiera
+   con la consola abierta manda una lectura inventada que cuadre con lo que
+   escribió—. Este lee de la imagen que el servidor guardó. Para falsearlo hay
+   que haber subido la foto de una cédula real con ese número, que es un listón
+   muchísimo más alto.
+
+   La REGLA de comparación no está aquí: está en cedula_cotejar, en la base.
+   Aquí solo se decodifica y se manda lo que salió. Tenerla en los dos sitios es
+   cómo se consigue que dentro de un mes digan cosas distintas.
+
+   ZXing viene del propio sitio, como face-api y por la misma razón: este
+   archivo tiene la cartera entera en memoria y un script de un servidor ajeno
+   podría leerla. */
+const URL_ZXING_CRM='../app/lib/zxing.min.js', URL_ESCANER_CRM='../app/escaner-cedula.js';
+function cotejarConLaFoto(idImg,celular,cajaId){
+  const caja=document.getElementById(cajaId); if(!caja) return;
+  const img=document.getElementById(idImg);
+  if(!img){ caja.innerHTML='<div class="alerta warn">No tengo la foto del respaldo a la vista.</div>'; return; }
+  caja.innerHTML='<span class="muted">Leyendo el código de barras de la foto… (la primera vez baja el lector)</span>';
+  Promise.all([cargarScriptCRM(URL_ZXING_CRM),cargarScriptCRM(URL_ESCANER_CRM)])
+  .then(()=>{
+    const EC=window.EscanerCedula, U=window.CuentaSocio;
+    if(!EC||!U||!window.ZXing) throw new Error('no cargó el lector');
+    const c=document.createElement('canvas');
+    c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height;
+    if(!c.width||!c.height) throw new Error('la foto no terminó de cargar');
+    c.getContext('2d',{willReadFrequently:true}).drawImage(img,0,0,c.width,c.height);
+    /* Los mismos giros de rescate que usa la app: el respaldo se fotografía de
+       pie tan a menudo como acostado, y el lector solo lee acostado. */
+    const giros=[0,90,180,270,2,-2,4,-4];
+    for(const g of giros){
+      let lienzo=c;
+      if(g){
+        const norma=((g%360)+360)%360, recto=(norma>45&&norma<135)||(norma>225&&norma<315);
+        const g2=document.createElement('canvas');
+        g2.width=recto?c.height:c.width; g2.height=recto?c.width:c.height;
+        const x=g2.getContext('2d');
+        x.translate(g2.width/2,g2.height/2); x.rotate(norma*Math.PI/180);
+        x.drawImage(c,-c.width/2,-c.height/2);
+        lienzo=g2;
+      }
+      const d=lienzo.getContext('2d',{willReadFrequently:true}).getImageData(0,0,lienzo.width,lienzo.height).data;
+      const r=EC.decodificarLuminancias(window.ZXing,EC.grisDeImageData(d,lienzo.width,lienzo.height),lienzo.width,lienzo.height);
+      if(r&&r.texto){
+        const ced=EC.cedulaDelTexto(U.leerCedulaPDF417,r.texto);
+        if(ced) return ced;
+      }
+    }
+    return null;
+  })
+  .then(ced=>{
+    if(!ced){
+      /* Y esto NO es «los datos son falsos»: la foto puede estar movida, con
+         brillo, o ser de una cédula nueva de plástico, que no lleva PDF417. */
+      caja.innerHTML='<div class="alerta warn"><b>No pude leer el código de barras de esa foto.</b>'
+        +'<div class="muted" style="margin-top:6px">Eso <b>no</b> dice nada sobre los datos: la foto puede estar movida o con brillo, '
+        +'o puede ser una cédula nueva de plástico, que no lleva código de barras.</div></div>';
+      return;
+    }
+    const c=sbCfg();
+    return fetch(c.url+'/rest/v1/rpc/verificar_registro_foto',{method:'POST',
+      headers:{'Content-Type':'application/json',apikey:c.anon,Authorization:'Bearer '+c.anon},
+      body:JSON.stringify({p_clave:c.clave,p_celular:celular,p_leida:ced})})
+      .then(r=>r.text().then(t=>({ok:r.ok,status:r.status,t})))
+      .then(r=>{
+        if(r.status===404){ caja.innerHTML='<div class="alerta warn">Tu base todavía no tiene el cotejo. Corre <b>base/20260922c_verificacion_cedula.sql</b> en el SQL Editor de Supabase.</div>'; return; }
+        if(!r.ok){ caja.innerHTML='<div class="alerta warn">No pude guardar el cotejo ('+r.status+'). '+escHTML(r.t.slice(0,140))+'</div>'; return; }
+        const j=JSON.parse(r.t)||{};
+        if(j.ok!==true){ caja.innerHTML='<div class="alerta warn">No se pudo cotejar: '+escHTML(j.motivo||'sin motivo')+'</div>'; return; }
+        caja.innerHTML='<div class="alerta info" style="margin-bottom:6px"><b>Leído de la foto guardada.</b> '
+          +'<span class="muted">Esto sí sale de la imagen que tiene el servidor, no de lo que dijo el teléfono.</span></div>'
+          +'<div class="info-lista">'+cotejoHTML(j.cotejo,'Resultado')+'</div>';
+      });
+  })
+  .catch(e=>{ caja.innerHTML='<div class="alerta warn">No pude leer la foto: '+escHTML((e&&e.message)||'sin conexión')+'</div>'; });
+}
+
 /* Las fotos se piden una persona a la vez (pesan).
 
    EL .catch QUE HABÍA ACÁ COSTÓ DOS DÍAS DE CÉDULAS. Devolvía {fotos:{}} ante
@@ -7105,7 +7252,10 @@ function pintarFotosRegistro(celular,cajaId){
     const f=a.fotos||{}; const lista=[['Cédula (frente)',f.cedula_frente,'frente'],['Cédula (reverso)',f.cedula_reverso,'reverso'],['Rostro',f.selfie,'selfie']].filter(x=>x[1]);
     if(!lista.length){ caja.innerHTML='<span class="muted">No subió fotos (o no autorizó).</span>'; return; }
     caja.innerHTML=`<div class="gal">${lista.map(x=>`<a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>`).join('')}</div>`
-      +(f.selfie&&f.cedula_frente?`<div id="regParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('regFoto_selfie','regFoto_frente','regParecido')">🔍 Comparar el rostro con la cédula</button></div>`:'');
+      +(f.selfie&&f.cedula_frente?`<div id="regParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('regFoto_selfie','regFoto_frente','regParecido')">🔍 Comparar el rostro con la cédula</button></div>`:'')
+      /* 22-sep-2026 — el cotejo contra la foto. Solo aparece si hay foto del
+         REVERSO: el código de barras vive ahí y en ninguna otra parte. */
+      +(f.cedula_reverso?`<div id="regCotejo" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="cotejarConLaFoto('regFoto_reverso','${escHTML(String(celular).replace(/\D/g,''))}','regCotejo')">🔢 Leer el código de barras de la foto</button></div>`:'');
   });
 }
 /* EL PARECIDO ROSTRO–CÉDULA, en el computador de Joan (el modelo pesa 4 MB y

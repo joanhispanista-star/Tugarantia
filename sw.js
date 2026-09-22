@@ -613,7 +613,45 @@
    entonces. No esta probado en produccion, y decir lo contrario seria
    exactamente lo que este archivo existe para impedir.
    Toca play/index.html, panel/crm.html y legal/privacidad.html. */
-const CACHE = 'tugarantia-v82';
+/* v83 — 22-sep-2026. EL COTEJO DE LA CEDULA.
+   Joan: «enciende la verificacion de la cedula».
+
+   Y LO PRIMERO ES QUE NO ES UNA VERIFICACION, aunque se pidiera con esa
+   palabra. La app, al leer el codigo de barras del respaldo, RELLENA el
+   formulario con lo leido, y el paso del escaner va ANTES del de identidad. En
+   el caso normal lo declarado y lo leido son la MISMA CADENA, byte a byte,
+   porque el codigo lleno la casilla — no porque nadie comprobara nada. Un
+   veredicto «coincide» seria un sello que se pinta solo.
+
+   Por eso los cuatro estados dicen QUE PASO y no si algo coincide:
+   sin_codigo (no llego lectura, que NO significa que tecleara), intacto (se
+   leyo y nadie lo toco), retocado (corrigio algo compatible con la misma
+   persona) y no_cuadra (el numero de documento cambiado a mano, un nombre sin
+   relacion, un tipo de documento imposible o un menor de edad). Solo el ultimo
+   interrumpe a Joan; el estado bueno es MUDO.
+
+   LO QUE SE ARREGLO DE PASO, y ya estaba vivo mintiendo en el CRM:
+   · «(coincide con lo declarado: —)»: un hueco con una raya escrita a mano que
+     se lee como un veredicto.
+   · «No se leyo el codigo de barras (escribio los datos a mano)»: FALSO. Hay
+     tres caminos que dejan la huella vacia con la cedula perfectamente
+     escaneada (fotos de otro registro, sin sesion de Supabase —le paso a la
+     primera clienta real— y nada que mandar).
+   · archivos_de_registro seguia sin desempate en su «order by creado_en desc
+     limit 1»: con dos fichas del mismo celular, las fotos y el cotejo podian
+     caer en la que Joan no esta mirando.
+
+   EL CENTINELA DEL «ALGORITMO VERIFICA» NO SE AFLOJO: SE AMPLIO. Esto no
+   verifica identidad contra ninguna fuente, asi que esa frase seguiria siendo
+   falsa. Y tenia dos huecos: no cruzaba el pegado de cadenas ('El algoritmo
+   esta ' + 'verificando') y no cubria «estamos verificando» ni «datos
+   verificados».
+
+   PENDIENTE DE JOAN: la migracion base/20260922c_verificacion_cedula.sql NO
+   esta aplicada — la sesion de Supabase pedia entrar y no se escriben sus
+   credenciales. Hasta que la pegue, el CRM dira que falta correrla.
+   Toca panel/crm.html. */
+const CACHE = 'tugarantia-v83';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
