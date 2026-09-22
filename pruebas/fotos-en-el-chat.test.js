@@ -186,8 +186,11 @@ describe('la burbuja no se puede usar para inyectar', () => {
 describe('cada rechazo del servidor dice algo distinto', () => {
 
   test('los cinco motivos tienen su frase', () => {
+    /* La funcion ENTERA, no un trozo de 1.800 caracteres: esa ventana fija ya
+       se rompio una vez al anadir comentarios, y una prueba que falla porque
+       alguien explico mejor el codigo ensena a ignorar las pruebas. */
     const i = PLAY.indexOf('function subirFotoChat');
-    const t = PLAY.slice(i, i + 1800);
+    const t = PLAY.slice(i, PLAY.indexOf(String.fromCharCode(10) + '}', i));
     ['no_es_imagen', 'muy_grande', 'tope', 'muchas', 'sesion'].forEach(m =>
       assert.ok(t.indexOf("'" + m + "'") >= 0, 'el motivo «' + m + '» no se traduce'));
   });

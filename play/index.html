@@ -692,7 +692,20 @@ function entrar() {
     .catch(function () { fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.'); });
 }
 
-function fallo(el, msg) { el.textContent = msg; el.classList.remove('oculto'); }
+function fallo(el, msg) {
+  el.textContent = msg;
+  el.classList.add('ambar');          /* que no se quede del color de un progreso */
+  el.classList.remove('oculto');
+}
+/* 22-sep-2026 — LO QUE VA SALIENDO BIEN NO SE PINTA DE ERROR. «Preparando la
+   foto…» salía en la misma caja ámbar que «no pude mandarla»; una caja que se ve
+   igual pase lo que pase deja de significar nada y la gente aprende a no
+   leerla. La `.aviso` a secas ya es azul en la hoja: no hay que inventar nada. */
+function progreso(el, msg) {
+  el.textContent = msg;
+  el.classList.remove('ambar');
+  el.classList.remove('oculto');
+}
 
 /* 22-sep-2026 — AQUÍ VIVÍA EL WHATSAPP DEL NEGOCIO, y ya no vive nadie.
    Joan: «nada de compartir mi numero». Con WA_NEGOCIO se fue abrirWhatsApp(),
@@ -4725,7 +4738,7 @@ function mandarFoto(input) {
   if (/^video\//.test(f.type || '')) {
     return fallo(err, 'Por aquí solo se pueden mandar fotos. Un video no cabe en el chat.');
   }
-  fallo(err, 'Preparando la foto…');
+  progreso(err, 'Preparando la foto…');
   var lector = new FileReader();
   lector.onerror = function () { fallo(err, 'No pude leer esa foto. Prueba con otra.'); };
   lector.onload = function () {
@@ -4749,8 +4762,16 @@ function mandarFoto(input) {
 }
 
 function subirFotoChat(grande, mini, err) {
-  fallo(err, 'Mandando la foto…');
+  progreso(err, 'Mandando la foto…');
   var pie = String((($('chTexto') || {}).value || '')).trim();
+  /* El largo se revisa AQUÍ y no se deja que la base lo recorte: un pie que
+     llega cortado a mil deja a la persona creyendo que mandó el resto. Es la
+     misma regla que `enviarChat`, menos la de «escribe algo»: sin pie la foto
+     vale igual. */
+  if (pie.length > CH.LARGO_MAX) {
+    return fallo(err, 'El texto que acompaña la foto es muy largo. Déjalo en ' +
+      CH.LARGO_MAX + ' caracteres o menos.');
+  }
   rpcSesion('chat_foto_sesion', {
     p_canal: CANAL, p_imagen: grande, p_miniatura: mini || null, p_texto: pie || null
   }).then(function (j) {
@@ -4761,16 +4782,33 @@ function subirFotoChat(grande, mini, err) {
       return fallo(err,
         m === 'no_es_imagen' ? 'Por aquí solo se pueden mandar fotos. Un video no cabe en el chat.'
         : m === 'muy_grande' ? 'Esa foto pesa demasiado. Tómala otra vez con menos calidad.'
-        : m === 'tope' ? 'Ya nos mandaste muchas fotos por aquí. Escríbenos y las revisamos.'
-        : m === 'muchas' ? 'Espera un momento antes de mandar otra.'
+        /* Las dos mitades de lo que decía antes eran falsas: el tope no era
+           «por aquí» (cuenta los tres canales juntos) y «escríbenos y las
+           revisamos» ofrecía un trámite que no existe — no hay forma de borrar
+           UNA foto, solo la conversación entera. Ahora el tope es por mes
+           (20260922i) y se dice lo que de verdad pasa. */
+        : m === 'tope' ? 'Ya mandaste el máximo de fotos de este mes. Escríbenos por aquí y seguimos por texto.'
+        /* El freno son 20 mensajes cada 15 minutos, así que «un momento» podía
+           ser un cuarto de hora. */
+        : m === 'muchas' ? 'Espera unos minutos antes de mandar otra.'
         : m === 'sesion' ? 'Se cerró tu sesión. Entra otra vez y la mandas.'
         : 'No pude mandar la foto. Vuelve a intentar en un momento.');
     }
     var t = $('chTexto'); if (t) t.value = '';
     err.classList.add('oculto');
     abrirCanal(CANAL);
-  }).catch(function () {
-    fallo(err, 'No pude mandar la foto. Revisa tu internet y vuelve a intentar.');
+  }).catch(function (e) {
+    /* Igual que `enviarChat`: un 404 (la base todavía sin la migración) o un
+       401 (sesión vencida) no son el internet de nadie, y decirle a alguien que
+       revise su wifi cuando el problema es nuestro lo manda a cambiar de red,
+       reintentar y acabar escribiendo — justo en el canal donde estaba
+       mandando el comprobante de un pago. */
+    var c = causaDe(e);
+    fallo(err, c === 'apagado'
+      ? 'Mandar fotos todavía no está disponible. Escríbenos por aquí y te decimos cómo hacernos llegar el comprobante.'
+      : c === 'sesion'
+      ? 'Tu sesión se venció. Vuelve a entrar y la mandas de nuevo.'
+      : 'No pude mandar la foto. Revisa tu internet y vuelve a intentar.');
   });
 }
 
@@ -4833,9 +4871,18 @@ function mostrarFoto(imagen) {
 function verFotoChat(id) {
   var caja = $('hilo'); if (!caja) return;
   rpcSesion('chat_foto_sesion_ver', { p_id: Number(id) }).then(function (j) {
-    if (!j || j.ok !== true || !j.imagen) return;
+    if (!j || j.ok !== true || !j.imagen) {
+      /* Un `return` pelado deja a la persona tocando una foto que nunca abre y
+         sin saber por qué. Una función muda no existe. */
+      return alert('No pude abrir esa foto. Vuelve a intentar en un momento.');
+    }
     mostrarFoto(j.imagen);
-  }).catch(function () {});
+  }).catch(function (e) {
+    var c = causaDe(e);
+    alert(c === 'sesion'
+      ? 'Tu sesión se venció. Vuelve a entrar para ver la foto.'
+      : 'No pude abrir esa foto. Revisa tu internet y vuelve a intentar.');
+  });
 }
 
 function enviarChat() {

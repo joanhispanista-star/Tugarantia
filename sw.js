@@ -967,7 +967,31 @@
    decodificador, que es quien de verdad lo sabe.
 
    2.142 pruebas. Base: 20260922g y 20260922h. */
-const CACHE = 'tugarantia-v93';
+
+/* v94 — 22-sep-2026. SEIS COSAS QUE LA PANTALLA DE LA FOTO DECIA Y NO ERAN
+   VERDAD. Ninguna expone datos ni plata; todas rompen la regla de la casa.
+
+   La peor: «Ya nos mandaste muchas fotos POR AQUI. ESCRIBENOS y las
+   revisamos», con las DOS mitades falsas. El conteo no filtraba por canal ni
+   por fecha: eran 60 en total, los tres canales juntos, Y PARA SIEMPRE. Y la
+   salida que ofrecia no existe — no hay funcion que borre UNA foto, solo la
+   conversacion entera y sin vuelta atras. Al cliente 61 se le ofrecia un
+   tramite que solo se podia cumplir destruyendole el historial, y sin aviso a
+   nadie: Joan se habria enterado el dia que un socio dejara de mandar
+   comprobantes. Ahora el tope es por mes (20260922i) y se dice asi.
+
+   Las otras cinco: «espera un momento» cuando el freno son 15 minutos; el
+   progreso pintado en la caja de error, igual que un fallo; el pie de la foto
+   recortado a mil en silencio por la base; «revisa tu internet» para un 404 o
+   una sesion vencida, que no son el internet de nadie; y abrir una foto que
+   falla se quedaba MUDO.
+
+   Y la politica de privacidad ya declara las fotos del chat, con su fecha al
+   dia: guardarlas sin declararlo es tratamiento no declarado (Ley 1581), y un
+   comprobante trae el nombre y la cuenta de un tercero por diseno.
+
+   2.155 pruebas. Base: 20260922i. */
+const CACHE = 'tugarantia-v94';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
