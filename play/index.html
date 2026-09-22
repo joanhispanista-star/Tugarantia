@@ -275,7 +275,7 @@
 <script>
 'use strict';
 
-var VERSION_PLAY = '2026-09-21';
+var VERSION_PLAY = '2026-09-22';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -544,7 +544,7 @@ function pintarEntrar() {
       '<h3 class="tit">Abre tu cuenta</h3>' +
       '<p class="sub"><b>No necesitas que nadie te presente.</b> Te tomará unos minutos: ' +
         'te pedimos los datos con los que evaluamos el crédito, y cada uno te decimos ' +
-        'para qué es. Después revisamos tu solicitud y te escribimos por WhatsApp.</p>' +
+        'para qué es. Después revisamos tu solicitud y te respondemos en el chat de la app.</p>' +
       '<p class="sub"><b>¿Ya eras cliente nuestro?</b> Ábrela igual: adentro, en ' +
         'Perfil, pegas el código que te dimos y tu historial queda junto con tu ' +
         'cuenta.</p>' +
@@ -643,27 +643,82 @@ function entrar() {
 
 function fallo(el, msg) { el.textContent = msg; el.classList.remove('oculto'); }
 
-/* El WhatsApp del negocio, escrito ENTERO (57 + los 10 dígitos). Es la única
-   línea que se edita para cambiarlo. VACÍO, WhatsApp abre con el mensaje listo
-   y deja elegir el chat — le sirve al que ya conoce a Joan, pero el registrado
-   NUEVO no tiene su chat: llenar esto es lo que vuelve la verificación de un
-   solo toque. (Va horneado y no en un paquete editable por la misma razón que
-   NEGOCIO_OFICIAL en socio.html: un número que viajara en datos falsificables
-   mandaría a los clientes al WhatsApp de un estafador.) */
-var WA_NEGOCIO = '573103606348';
-function abrirWhatsApp(texto) {
-  var n = String(WA_NEGOCIO || '').replace(/\D/g, '');
-  window.open('https://wa.me/' + n + '?text=' + encodeURIComponent(texto), '_blank', 'noopener');
-}
+/* 22-sep-2026 — AQUÍ VIVÍA EL WHATSAPP DEL NEGOCIO, y ya no vive nadie.
+   Joan: «nada de compartir mi numero». Con WA_NEGOCIO se fue abrirWhatsApp(),
+   que no tenía otro uso.
 
+   LA RECUPERACIÓN NO PUEDE SER POR EL CHAT, y conviene tenerlo claro antes de
+   «mejorarlo»: el chat de la app exige sesión, y el que olvidó la contraseña es
+   exactamente el que no puede abrir sesión. Por eso deja un recado en
+   ayudas_clave, que es la única puerta del sistema que se abre sin sesión —con
+   su freno, y guardando solo un celular y una nota corta. */
 function olvide() {
   var tel = U.normalizarTelefono(($('inTel') || {}).value || '');
-  /* La recuperación es por WhatsApp y con Joan en el medio, decisión del
-     11-ago: no hay SMS que pagar, y el número ya está en su Panel. */
-  var texto = 'Hola, olvidé mi contraseña de la app de Tu Garantía.' +
-    (tel ? ' Mi celular es ' + U.telefonoBonito(tel) + '.' : '') +
-    ' ¿Me ayudas a recuperarla?';
-  abrirWhatsApp(texto);
+  VISTA = 'ayuda';
+  marcarVista('');
+  $('titulo').textContent = 'Recuperar tu contraseña';
+  $('cuerpo').innerHTML =
+    '<div class="card">' +
+      '<h3 class="tit">Te ayudamos a entrar</h3>' +
+      /* Se dice QUÉ pasa después y POR DÓNDE llega la respuesta. «Te
+         contactamos» sin decir por dónde es la clase de frase que deja al
+         cliente mirando un teléfono que no suena. */
+      '<p class="sub">Déjanos tu celular y te escribimos para devolverte el acceso. ' +
+      'Revisamos los recados todos los días; no es automático ni es al instante.</p>' +
+      '<label for="ayTel">Tu celular</label>' +
+      '<input id="ayTel" type="tel" inputmode="numeric" autocomplete="username" ' +
+        'placeholder="300 111 2233" value="' + esc(tel ? U.telefonoBonito(tel) : '') + '">' +
+      '<label for="ayNota">¿Algo que debamos saber? (opcional)</label>' +
+      '<input id="ayNota" type="text" maxlength="300" placeholder="Cambié de teléfono, por ejemplo">' +
+      '<button class="btn arriba" onclick="mandarAyuda()">Enviar</button>' +
+      '<div id="errAyuda" class="aviso ambar oculto"></div>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarEntrar()">Volver</button>' +
+    '</div>' + pie();
+  window.scrollTo(0, 0);
+}
+
+/* pedir_ayuda_clave es la ÚNICA que se llama con la llave pública y sin sesión.
+   Va aparte de rpcSesion() justamente por eso: si algún día alguien la mete
+   dentro de rpcSesion, deja de funcionar para el único que la necesita. */
+function mandarAyuda() {
+  var err = $('errAyuda'); if (!err) return;
+  var tel = U.normalizarTelefono(($('ayTel') || {}).value || '');
+  if (!tel) return fallo(err, 'Nos falta tu celular: son 10 números y empiezan por 3.');
+  var nota = String((($('ayNota') || {}).value || '')).slice(0, 300);
+  if (!CFG.url || !CFG.anon) {
+    return fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
+  }
+  fallo(err, 'Enviando…');
+  fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/pedir_ayuda_clave', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
+               Authorization: 'Bearer ' + CFG.anon },
+    body: JSON.stringify({ p_celular: tel, p_nota: nota })
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
+    .then(function (j) {
+      if (!j || j.ok !== true) {
+        /* Cada motivo dice algo distinto. «No se pudo» tapando un celular mal
+           escrito deja a la persona tocando el mismo botón para siempre. */
+        var m = j && j.motivo;
+        return fallo(err, m === 'celular'
+          ? 'Ese celular no nos cuadra: son 10 números y empiezan por 3.'
+          : m === 'muchas'
+          ? 'Ya nos dejaste un recado hace poco. Lo tenemos; dale un rato y te escribimos.'
+          : 'No pudimos recibir tu recado ahora. Vuelve a intentar en unos minutos.');
+      }
+      $('titulo').textContent = 'Recado enviado';
+      $('cuerpo').innerHTML =
+        '<div class="card"><div class="aviso verde"><b>Listo, lo recibimos.</b></div>' +
+          '<p class="sub" style="margin-top:var(--e4)">Te escribimos al ' +
+          esc(U.telefonoBonito(tel)) + ' para devolverte el acceso. Si recuerdas tu ' +
+          'contraseña antes, entra normal: el recado no bloquea nada.</p>' +
+          '<button class="btn arriba" onclick="pintarEntrar()">Volver a la entrada</button>' +
+        '</div>' + pie();
+      window.scrollTo(0, 0);
+    })
+    .catch(function () {
+      fallo(err, 'No pude enviar tu recado. Revisa tu internet y vuelve a intentar.');
+    });
 }
 
 /* ================= LA VERIFICACIÓN POR WHATSAPP =================
@@ -864,7 +919,8 @@ function pintarRegistro(paso) {
 }
 
 function pasoEntrada() {
-  return '<p class="sub">Tu celular es tu usuario. Con él entras y por ahí te escribimos.</p>' +
+  return '<p class="sub">Tu celular es tu usuario: con él entras a la app. Todo lo que ' +
+    'tengamos que decirte te lo decimos en el chat, aquí adentro.</p>' +
     '<label for="rTel">Tu celular</label>' +
     '<input id="rTel" type="tel" inputmode="numeric" autocomplete="username" placeholder="300 111 2233" ' +
       'oninput="anotarCelular(this)" value="' +
@@ -1361,8 +1417,9 @@ function tarjetaContrapropuesta(sol) {
     cuotasDePropuesta(cp);
   if (aceptada) {
     h += '<div class="aviso verde" style="margin-top:var(--e3)"><b>Listo: aceptaste ' + COP(cp.capital) + '.</b> ' +
-      'Te escribimos por WhatsApp para entregarte la plata y te mandamos <b>tu código de acceso</b>: ' +
-      'con él entras por el mismo enlace de siempre. No tienes que hacer nada más por ahora.</div>';
+      'Te avisamos <b>en el chat de la app</b> cuándo y por dónde recibes la plata, y ahí mismo ' +
+      'te mandamos <b>tu código de acceso</b>: con él entras por el mismo enlace de siempre. ' +
+      'No tienes que hacer nada más por ahora.</div>';
   } else {
     h += '<p class="sub" style="margin-top:var(--e3)">Aceptar todavía no te entrega la plata: ' +
         'es tu visto bueno a estas cifras. Después te avisamos cuándo y por dónde la recibes. ' +
@@ -2874,7 +2931,7 @@ var TEXTOS = {
   gente_titulo: 'Para qué te sirve',
   gente: [
     { dibujo: 'varas', dice: 'Para cuando te vares',
-      porque: 'Lo pides desde tu celular, a la hora que sea y sin que nadie te presente. Revisamos tu solicitud y te escribimos por WhatsApp.' },
+      porque: 'Lo pides desde tu celular, a la hora que sea y sin que nadie te presente. Revisamos tu solicitud y te respondemos en el chat de la app.' },
     { dibujo: 'eliges', dice: 'Flexible: la cuota la armas tú',
       /* «Cuando te cuadre, eso es lo que pides» decía antes, y era falso: lo
          que se mueve aquí (CALC.monto) NO viaja a la solicitud — esa se arma
@@ -2935,7 +2992,7 @@ function tarjetaCalculadora() {
   if (!hayQueCotizar()) {
     return '<div class="card"><h3 class="tit">No podemos cotizar hoy</h3>' +
       '<p class="sub">Nos falta la certificación de la tasa máxima legal de este mes, y sin ella ' +
-      'no publicamos un precio. Escríbenos y lo resolvemos por WhatsApp.</p></div>';
+      'no publicamos un precio. Abre tu cuenta y lo resolvemos en el chat de la app.</p></div>';
   }
   /* 16-sep-2026 — EL SELLO DE EJEMPLO ENTRA A LA CALCULADORA, y llevaba faltando
      desde que existe. Los escalones lo tienen por una razón escrita —lo que
@@ -3278,7 +3335,7 @@ function tarjetaCalcGarantia() {
   var c = cotizacionGarantia();
   if (!c || !garantiaSePuedeCotizar(c)) {
     return '<div class="card"><h3 class="tit">El crédito con garantía</h3>' +
-      '<p class="sub">Hoy no podemos publicar su precio. Escríbenos y lo resolvemos por WhatsApp.</p></div>';
+      '<p class="sub">Hoy no podemos publicar su precio. Abre tu cuenta y lo resolvemos en el chat de la app.</p></div>';
   }
   /* 16-sep-2026 — AQUÍ DECÍA «MÁS BARATO», Y EN ESTA MISMA PANTALLA ES MENTIRA.
      Se midieron los dos motores en las dieciséis combinaciones donde los dos
@@ -3414,7 +3471,7 @@ function cifrasDeGarantia() {
      Ahora el guardián está en los DOS caminos: el primer pintado y cada arrastre. */
   if (!garantiaSePuedeCotizar(c)) {
     return '<div class="aviso ambar">Con ese monto y ese plazo no podemos publicar un ' +
-      'precio hoy. Prueba con otro, o escríbenos y lo resolvemos por WhatsApp.</div>';
+      'precio hoy. Prueba con otro, o abre tu cuenta y lo resolvemos en el chat de la app.</div>';
   }
   /* 17-sep-2026 — ESTE COMENTARIO DECÍA QUE LAS DOS CALCULADORAS ENCABEZAN CON
      LA MISMA CIFRA, y desde ayer ya no es verdad: la de arriba encabeza con lo
@@ -4757,7 +4814,13 @@ function botonesDeCanal() {
 function pintarHilo() {
   var caja = $('hilo'); if (!caja) return;
   if (HILO.estado === 'apagado') {
-    caja.innerHTML = '<div class="aviso ambar"><b>El chat todavía no está encendido.</b> Lo estamos conectando. Mientras tanto escríbenos por WhatsApp.</div>';
+    /* 22-sep-2026 — decía «todavía no está encendido… escríbenos por WhatsApp».
+       El chat se encendió y el WhatsApp se fue, así que la frase mentía dos
+       veces. Esta rama ya casi no se pisa: queda para el caso de que PostgREST
+       no haya recargado el esquema, y dice justo eso sin culpar a nadie. */
+    caja.innerHTML = '<div class="aviso ambar"><b>No pude abrir tu chat ahora.</b> ' +
+      'Suele ser cosa de un momento: vuelve a entrar a esta pestaña en un rato y ' +
+      'tus mensajes siguen donde estaban.</div>';
     return;
   }
   if (HILO.estado === 'sesion') {
@@ -4794,7 +4857,7 @@ function enviarChat() {
   }).catch(function (e) {
     var c = causaDe(e);
     fallo(err, c === 'apagado'
-      ? 'El chat todavía no está encendido. Escríbenos por WhatsApp mientras tanto.'
+      ? 'No pude enviar tu mensaje ahora mismo. Vuelve a intentar en un momento: no se pierde nada.'
       : c === 'sesion'
       ? 'Tu sesión se venció. Vuelve a entrar y mandas tu mensaje de nuevo.'
       : 'No pude enviar tu mensaje. Revisa tu internet y vuelve a intentar.');
@@ -4958,7 +5021,7 @@ function tarjetaCupo(perfil) {
       '<div class="etq">Tu cupo</div>' +
       '<div class="cifra">En revisión</div>' +
       '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
-        'Todavía estamos revisando tus datos. Te escribimos por WhatsApp en cuanto ' +
+        'Todavía estamos revisando tus datos. Te avisamos en el chat de la app en cuanto ' +
         'terminemos y ahí te decimos hasta cuánto puedes pedir. Mientras tanto puedes ' +
         'simular y dejar tu solicitud.</div></div>';
   }
@@ -5007,6 +5070,18 @@ function tarjetaSimulador(idPerfil) {
       '<input type="range" id="rPlazo" min="' + CALC_MESES_MIN + '" max="' + CALC_MESES_MAX + '" ' +
         'step="1" value="' + PLAZO + '" aria-label="En cuántas cuotas" ' +
         'oninput="cambiaPlazo(this.value)"></div>' +
+    /* 22-sep-2026 — EL MONTO A LA MEDIDA. Joan: «deja que el cliente pida lo
+       que el quiera». El deslizador se queda porque es lo cómodo y lo que usa
+       casi todo el mundo; esta casilla es para el que necesita una cifra que no
+       cae en el paso de 50.000 o que se sale del tope de su cupo. Pedir por
+       encima del cupo NO es un error: es una solicitud, y Joan contrapropone.
+       El servidor sigue poniendo el piso y el techo de verdad. */
+    '<div class="mando"><label for="rMontoLibre">¿Necesitas otra cifra? Escríbela</label>' +
+      '<input id="rMontoLibre" type="tel" inputmode="numeric" ' +
+        'placeholder="Por ejemplo 1.250.000" oninput="escribeMonto(this)"></div>' +
+    '<div class="mando"><label for="rNota">¿Para qué lo necesitas? (opcional)</label>' +
+      '<input id="rNota" type="text" maxlength="300" ' +
+        'placeholder="Surtir el negocio, una deuda, una emergencia…"></div>' +
     '<div id="simu"></div>' +
     '</div>';
 }
@@ -5018,6 +5093,22 @@ function textoCuotas(n) { return n + (n === 1 ? ' cuota' : ' cuotas'); }
 function cambiaMonto(v) {
   MONTO = Number(v) || 100000;
   var t = $('rMontoTxt'); if (t) t.textContent = COP(MONTO);
+  var libre = $('rMontoLibre'); if (libre) libre.value = '';
+  pintarSimulacion();
+}
+
+/* 22-sep-2026 — la cifra escrita a mano. Se limpian los puntos mientras teclea
+   (en Colombia se escriben) y se vuelven a poner, que es lo que la gente espera
+   al ver un monto. El deslizador NO se mueve a su tope si la cifra se le sale:
+   mostraría un número distinto del que la persona acaba de escribir. */
+function escribeMonto(el) {
+  var d = String(el.value || '').replace(/[^0-9]/g, '').slice(0, 9);
+  el.value = d ? Number(d).toLocaleString('es-CO') : '';
+  if (!d) return;
+  MONTO = Number(d);
+  var t = $('rMontoTxt'); if (t) t.textContent = COP(MONTO);
+  var r = $('rMonto');
+  if (r && MONTO >= Number(r.min) && MONTO <= Number(r.max)) r.value = MONTO;
   pintarSimulacion();
 }
 
@@ -5217,14 +5308,33 @@ function pedir() {
     },
     /* El plazo que el socio escogió, no el del producto: play_solicitar acepta
        de 1 a 6 y lo guarda en plazo_meses desde el 9-sep. Mandar el fijo era
-       tirar su elección en el último metro. */
-    body: JSON.stringify({ p_capital: MONTO, p_meses: PLAZO })
+       tirar su elección en el último metro.
+       Y desde el 22-sep va la nota: es lo que Joan lee en su CRM antes de
+       contraproponer, en las palabras del cliente. */
+    body: JSON.stringify({ p_capital: MONTO, p_meses: PLAZO,
+                           p_nota: String((($('rNota') || {}).value || '')).slice(0, 300) })
   }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
     .then(function (j) {
       /* La función contesta {ok:false} con HTTP 200 cuando algo no cuadra o el
-         freno de solicitudes está lleno: decir «recibimos» ahí sería mentir. */
+         freno de solicitudes está lleno: decir «recibimos» ahí sería mentir.
+         22-sep-2026 — y desde hoy trae MOTIVO. Antes los cinco casos salían con
+         la misma frase y el que se pasaba del techo por un cero de más se
+         quedaba tocando el botón sin saber qué corregir. */
       if (!j || j.ok !== true) {
-        return fallo(err, 'No pudimos recibir la solicitud ahora. Espera unos minutos y vuelve a intentar.');
+        var m = j && j.motivo;
+        return fallo(err,
+          /* Las dos cifras las dice el SERVIDOR, en la misma respuesta que el
+             motivo. Escribirlas aquí de respaldo sería tener el piso y el techo
+             en dos sitios, y el día que Joan mueva uno la app diría el otro.
+             Si no vinieran, se dice lo que pasó sin inventar la cifra. */
+          m === 'minimo' ? (j.minimo ? 'El mínimo que podemos estudiar es ' + COP(j.minimo) + '. Sube la cifra y lo vemos.'
+                                     : 'Esa cifra se nos queda corta. Sube un poco y lo vemos.')
+          : m === 'maximo' ? (j.maximo ? 'Por aquí llegamos hasta ' + COP(j.maximo) + '. Si necesitas más, escríbenos en el chat y lo hablamos.'
+                                       : 'Esa cifra se nos sale por arriba. Escríbenos en el chat y lo hablamos.')
+          : m === 'plazo' ? 'Escoge entre 1 y 6 cuotas y volvemos a intentar.'
+          : m === 'sesion' ? 'Se cerró tu sesión. Entra otra vez y tu solicitud sale al instante.'
+          : m === 'muchas' ? 'Ya nos dejaste varias solicitudes hoy. Las tenemos todas; dale un rato y te respondemos en el chat.'
+          : 'No pudimos recibir la solicitud ahora. Espera unos minutos y vuelve a intentar.');
       }
       pintarPedido();
     })
@@ -5241,7 +5351,8 @@ function pintarPedido() {
          pidió tres es contestarle una solicitud que no hizo. */
       '<p class="sub" style="margin-top:var(--e4)">Pediste ' + COP(MONTO) + ' en ' +
       textoCuotas(PLAZO) + '. <b>Todavía no es un crédito:</b> la revisamos y te ' +
-      'respondemos por WhatsApp. Si la aprobamos, ahí te decimos cuándo recibes la plata.</p>' +
+      'respondemos <b>en el chat de la app</b>, en la pestaña Chat. Si la aprobamos, ' +
+      'ahí mismo te decimos cuándo recibes la plata.</p>' +
       '<button class="btn arriba" onclick="pintarCuenta()">Volver a mi cuenta</button>' +
     '</div>' + pie();
   window.scrollTo(0, 0);

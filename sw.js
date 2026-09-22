@@ -573,7 +573,47 @@
    el dia que se encienda una verificacion de verdad, en el mismo commit que la
    enciende y no antes.
    Toca play/index.html. */
-const CACHE = 'tugarantia-v81';
+
+/* v82 — 22-sep-2026. EL CHAT ES EL UNICO CANAL, Y EL CREDITO SE PIDE A LA MEDIDA.
+   Joan: «el chat como unico canal continua y tambien el credito a medida y que
+   las fotos queden guardadas, escribe el codigo y migra».
+
+   EN LA BASE (tres migraciones aplicadas y probadas llamandolas de verdad, no
+   solo creandolas — la leccion del cuerpo con «huella», que se creo bien y se
+   rompio al primer uso):
+   - 20260914b_tres_canales: chat_escribir_sesion, chat_leer_sesion, mi_cuenta,
+     vincular_cuenta, llave_de_sesion. El chat de play/ llevaba semanas llamando
+     a funciones que no existian y contestando 404.
+   - 20260922_a_la_medida_y_ayuda: solicitudes.pedido_monto/plazo/nota, la
+     play_solicitar que acepta de 50.000 a 50.000.000 y dice POR QUE cuando
+     rechaza, y la tabla ayudas_clave con su freno.
+   - 20260922b_desempate: mi_solicitud y solicitar_primer_credito ordenaban por
+     creada_en sin desempate. Lo encontro la prueba, no una lectura: dos
+     solicitudes en el mismo segundo y devolvian una al azar.
+
+   EN LA APP:
+   - SALE EL NUMERO DE JOAN. Con WA_NEGOCIO se fue abrirWhatsApp(), y once
+     frases que prometian WhatsApp ahora dicen «en el chat de la app». Dos de
+     ellas ya eran falsas al escribir esto: decian «el chat todavia no esta
+     encendido» horas despues de encenderlo.
+   - «Olvide mi contrasena» deja un recado en ayudas_clave en vez de abrir
+     WhatsApp. NO puede usar el chat: el chat exige sesion y quien olvido la
+     contrasena es justamente el que no puede abrirla.
+   - El monto a la medida: el deslizador se queda y al lado hay una casilla para
+     escribir cualquier cifra, mas una linea para decir para que la quiere.
+   - El CRM muestra esa nota, lo que pidio si Joan ya contrapropuso, y la lista
+     de recados. La migracion prometio esa pantalla en su propia cabecera.
+
+   LO QUE NO SE HIZO, Y SIGUE VIGILADO: la frase «el algoritmo esta verificando
+   la informacion». Se volvio a barrer el sistema y sigue sin verificarse ni un
+   solo dato del cliente. El centinela de v81 sigue en pie.
+
+   LO QUE NO SE PUDO PROBAR: las fotos. El arreglo del 21-sep esta puesto, pero
+   registro_archivos sigue en CERO filas porque nadie se ha registrado desde
+   entonces. No esta probado en produccion, y decir lo contrario seria
+   exactamente lo que este archivo existe para impedir.
+   Toca play/index.html, panel/crm.html y legal/privacidad.html. */
+const CACHE = 'tugarantia-v82';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

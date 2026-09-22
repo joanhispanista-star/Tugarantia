@@ -8778,9 +8778,20 @@ describe('LOS DOCUMENTOS LEGALES IDENTIFICAN AL RESPONSABLE (27-ago-2026)', () =
        los dos documentos a la vez — y avisarles a los socios, porque cambiar
        de responsable del tratamiento es un cambio que la Ley 1581 obliga a
        comunicar, no un ajuste de redacción. */
-    ['Ruiz Flórez', '1.018.447.274', 'joan.hispanista@gmail.com', '310 360 6348']
+    ['Ruiz Flórez', '1.018.447.274', 'joan.hispanista@gmail.com']
       .forEach(d => assert.ok(PRIV.indexOf(d) >= 0,
         'la política perdió un dato del responsable: ' + d));
+    /* 22-sep-2026 — el celular de Joan SALIÓ de la política. Era el cuarto dato
+       de esta lista hasta hoy. Decisión suya: «nada de compartir mi numero».
+       Lo que la Ley 1581 exige no es un teléfono: es un canal por donde de
+       verdad se puedan ejercer los derechos, y el correo lo es. Así que esto
+       deja de comprobar que el número esté y pasa a comprobar las dos cosas
+       que sí importan: que no esté, y que siga habiendo por dónde escribir. */
+    assert.ok(!/3\d{2}[\s.-]?\d{3}[\s.-]?\d{4}/.test(PRIV),
+      'volvió un celular a la política de privacidad, que está publicada en vivo');
+    assert.ok(/chat de la app/i.test(PRIV),
+      'la política quitó el número pero no nombró el canal que lo reemplaza: ' +
+      'sin un canal, el habeas data del artículo 8 de la Ley 1581 no se puede ejercer');
   });
 
   test('los términos identifican al prestamista, sin huecos', () => {
@@ -8800,13 +8811,37 @@ describe('LOS DOCUMENTOS LEGALES IDENTIFICAN AL RESPONSABLE (27-ago-2026)', () =
       'de borrado no le llega a nadie, y es de lo poco que Google comprueba antes de aprobar');
   });
 
-  test('el número del negocio está puesto en las dos apps', () => {
+  /* 22-sep-2026 — ESTA PRUEBA SE DIO VUELTA, y conviene saber por qué antes de
+     volver a darle vuelta a ella. Hasta hoy exigía que el número de Joan
+     estuviera en las dos apps; hoy exige que NO esté en play/.
+
+     Joan: «no quiero que me escriban por whatsapp, desde el chat de la
+     plataforma que el cliente pueda hablar conmigo, nada de compartir mi
+     numero». Y play/ ya tiene el chat encendido, con sus tres canales, así que
+     el cliente no se queda sin por dónde hablar.
+
+     app/socio.html SÍ lo conserva, y es a propósito: es la otra app, la de los
+     socios del quincenal, y quitarle el número es una decisión distinta que
+     Joan no ha tomado. Si algún día la toma, esta prueba es el sitio donde se
+     anota. */
+  test('play/ ya no reparte el número de Joan, y socio.html todavía sí', () => {
     const SOC = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
     const PL = fs.readFileSync(path.join(__dirname, '..', 'play', 'index.html'), 'utf8');
     assert.ok(/whatsapp:\s*'57\d{10}'/.test(SOC),
       'app/socio.html se quedó sin número: los botones «escríbenos» abren WhatsApp sin destino');
-    assert.ok(/WA_NEGOCIO\s*=\s*'57\d{10}'/.test(PL),
-      'play/index.html se quedó sin número: la verificación por WhatsApp no llega a nadie');
+    /* La ASIGNACIÓN, no la palabra: el comentario que cuenta por qué se quitó
+       vale más que el hueco, y nombrar la variable ahí no reparte ningún
+       número. */
+    assert.ok(!/WA_NEGOCIO\s*=/.test(PL),
+      'volvió WA_NEGOCIO a play/index.html: el cliente nuevo no tiene que ver el celular de Joan');
+    assert.ok(!/3103606348|310\s?360\s?6348/.test(PL),
+      'el celular de Joan volvió a play/index.html, escrito a mano en alguna parte');
+    /* Y el reemplazo tiene que existir: quitar el botón sin poner el otro es
+       dejar al que olvidó la contraseña sin ninguna puerta, que es peor que el
+       WhatsApp. pedir_ayuda_clave es la única función que se llama sin sesión. */
+    assert.ok(/pedir_ayuda_clave/.test(PL),
+      '«Olvidé mi contraseña» se quedó sin destino: quitaron el WhatsApp y no ' +
+      'quedó el recado de ayudas_clave, así que el botón no hace nada');
   });
 });
 
@@ -9805,7 +9840,13 @@ describe('un solo enlace para nuevos y antiguos (8-sep-2026)', () => {
       'la contraseña a medio escribir tiene que sobrevivir la recarga, o la persona vuelve a empezar');
     assert.ok(!/localStorage\.setItem\(LLAVE_CLAVE/.test(PLAY),
       'la contraseña NUNCA va a localStorage: ahí se queda en el teléfono hasta que alguien lo limpie');
-    assert.match(PLAY, /tu código de acceso<\/b>: ' \+\s*'con él entras por el mismo enlace de siempre/,
+    /* 22-sep-2026 — esto miraba dónde partía la línea de JavaScript
+       («: ' + 'con él entras…»), así que un reacomodo del texto la rompía sin
+       que el cliente viera nada distinto. Ahora mira la IDEA, que es lo que hay
+       que garantizarle: que le van a dar un código y que con ese código vuelve
+       por el mismo enlace. */
+    assert.ok(/tu código de acceso<\/b>:/.test(PLAY) &&
+              /con él entras por el mismo enlace de siempre/.test(PLAY),
       'el recién registrado tiene que saber que vuelve con el código, por el mismo enlace');
   });
 

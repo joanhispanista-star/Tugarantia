@@ -1277,12 +1277,28 @@ describe('la cuenta del socio: cuatro pestañas que no mienten (14-sep-2026)', (
     });
   });
 
-  test('el chat apagado se dice apagado, y no «no tienes mensajes»', () => {
+  /* 22-sep-2026 — el chat SE ENCENDIÓ: chat_leer_sesion y chat_escribir_sesion
+     ya viven en la base. Esta rama pasó de ser «la migración no está corrida»
+     —el caso de todos los días— a ser el resto: que PostgREST no haya recargado
+     el esquema, o que la función desaparezca. Por eso el texto ya no dice
+     «todavía no está encendido» (eso hoy sería falso, y encima mandaba al
+     WhatsApp que se quitó), sino que no se pudo abrir y que no se pierde nada.
+
+     Lo que la prueba sigue guardando es lo de siempre, que es lo que importa:
+     un fallo NO se puede disfrazar de «no tienes mensajes». Son cosas distintas
+     y confundirlas le hace creer al socio que perdió su conversación. */
+  test('el chat que no abre lo dice, y no lo disfraza de «no tienes mensajes»', () => {
     const P = abrirCuenta();
     P.ev('irA("chat")');
     return asentar().then(() => {
       assert.equal(P.ev('HILO.estado'), 'apagado');
-      assert.match(P.elems.hilo.innerHTML, /todavía no está encendido/);
+      const h = P.elems.hilo.innerHTML;
+      assert.match(h, /No pude abrir tu chat/,
+        'la rama del chat que no abre dejó de decir qué pasó');
+      assert.ok(!/no tienes mensajes|Todavía no han hablado/i.test(h),
+        'un fallo del chat se está pintando como una conversación vacía');
+      assert.ok(!/whatsapp/i.test(h),
+        'el chat volvió a mandar a WhatsApp: ese canal ya no existe en play/');
     });
   });
 

@@ -673,6 +673,12 @@
           <button class="btn btn-ghost btn-sm" onclick="pegarSolicitud()">📋 Pegar el WhatsApp</button>
         </div>
         <div id="bandeja"></div></div>
+      <!-- 22-sep-2026 — LOS RECADOS DE «OLVIDÉ MI CONTRASEÑA». Desde hoy la app
+           no reparte el WhatsApp de Joan, así que el que no puede entrar deja
+           un recado acá. No puede usar el chat: el chat exige sesión y él
+           justamente no tiene. Esta lista es la única forma de que le llegue. -->
+      <div class="card"><div class="card-h"><h3>🔑 Recados: no pueden entrar</h3><span class="tag">Olvidaron la contraseña</span></div>
+        <div id="ayudas"></div></div>
       <div class="kpis" id="kpiSocios"></div>
       <div class="card"><div id="socTramos"></div></div>
       <div class="card"><div id="socNiveles"></div></div>
@@ -10826,6 +10832,10 @@ function traerSolicitudes(){
     renderBandeja();
   })
   .catch(()=>{ b.innerHTML='<div class="alerta warn">Sin conexión. Revisa el internet.</div>'; });
+  /* 22-sep-2026 — y de paso los recados de acceso. Un botón aparte para una
+     lista que se mira una vez al día es un botón que nadie toca, y estos
+     recados son gente que hoy no puede entrar a su cuenta. */
+  traerAyudas();
 }
 
 function renderBandeja(){
@@ -10858,7 +10868,7 @@ function renderBandeja(){
       const chip=!cp?'':s.estado==='aceptada'?'<span class="chip pagado">✅ Aceptó</span>':'<span class="chip al-dia">📨 Esperando que acepte</span>';
       const sinFicha=!cli&&s.datos&&Object.keys(s.datos).length>0;
       return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}</div>${chip?`<div style="margin-top:4px">${chip}${cp.por==='joan'?' <span class="muted">(cambiada por ti)</span>':''}</div>`:''}</td>
-      <td class="num"><b>${COP(resp?s.capital:q.capital)}</b>${aviso}</td>
+      <td class="num"><b>${COP(resp?s.capital:q.capital)}</b>${aviso}${notaDelCliente(s)}</td>
       <td>${resp?`<b>Con garantía</b><div class="muted">${(Number(s.tasa)*100).toFixed(0)}% mensual · ${pz} mes${pz!==1?'es':''}</div>`
                 :cp?`<b>Primer crédito</b><div class="muted">${q.pct}% · ${Number(cp.dias)} días</div>`:`<b>Quincenal</b><div class="muted">${q.pct}% la quincena</div>`}</td>
       <td class="num">${COP(resp?s.total:q.total)}</td>
@@ -10867,6 +10877,90 @@ function renderBandeja(){
         ${cp?`<button class="btn btn-ghost btn-sm" onclick="editarContrapropuesta('${s.id}')">✏️ Cambiar propuesta</button> `:''}${cp&&s.estado!=='aceptada'?'':`<button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="crearDesdeSolicitud('${s.id}')">✓ ${resp?'Revisar préstamo':cp?'Desembolsar':'Crear crédito'}</button>`}
         <button class="btn btn-ghost btn-sm" onclick="descartarSolicitud('${s.id}')">✕</button></td></tr>`;
     }).join('')}</tbody></table>`;
+}
+
+/* 22-sep-2026 — LO QUE EL CLIENTE PIDIÓ, CON SUS PALABRAS.
+   pedido_monto/pedido_nota los guarda play_solicitar desde hoy; las solicitudes
+   de antes no los traen y entonces esto no pinta nada, que es lo correcto:
+   inventarle una nota a una solicitud vieja sería peor que no tener nota.
+
+   Y la cifra pedida se muestra SOLO si ya no coincide con la de la fila. Si
+   Joan contrapropuso 800.000 sobre una petición de 1.200.000, la columna «Pide»
+   enseña su cifra y la del cliente desaparecía: esa comparación es justo la que
+   hace falta para decidir. */
+function notaDelCliente(s){
+  const pedido=Math.round(Number(s&&s.pedido_monto)||0);
+  const fila=Math.round(Number((s&&s.capital))||0);
+  let h='';
+  if(pedido&&pedido!==fila) h+='<div class="muted">pidió '+COP(pedido)+'</div>';
+  const nota=String((s&&s.pedido_nota)||'').trim();
+  if(nota) h+='<div class="muted" style="white-space:normal;max-width:28ch;font-style:italic">«'+escHTML(nota)+'»</div>';
+  return h;
+}
+
+/* ---------------------- LOS RECADOS DE ACCESO ---------------------- */
+let _ayudas=[];
+function traerAyudas(){
+  const c=sbCfg(), b=document.getElementById('ayudas');
+  if(!b) return;
+  if(!c.url||!c.anon||!c.clave){ b.innerHTML='<div class="muted">Conecta Supabase para ver los recados.</div>'; return; }
+  b.innerHTML='<div class="muted">Buscando…</div>';
+  fetch(c.url+'/rest/v1/rpc/listar_ayudas_clave',{method:'POST',
+    headers:{'Content-Type':'application/json',apikey:c.anon,Authorization:'Bearer '+c.anon},
+    body:JSON.stringify({p_clave:c.clave,p_estado:'nueva'})})
+  .then(r=>r.text().then(t=>({ok:r.ok,status:r.status,t})))
+  .then(r=>{
+    /* El 404 se distingue del resto a propósito: quiere decir que falta correr
+       una migración, y eso tiene arreglo aquí mismo. Taparlo con «no hay
+       recados» dejaría a Joan creyendo que nadie ha pedido ayuda. */
+    if(r.status===404){ b.innerHTML='<div class="alerta warn">Tu base todavía no tiene los recados de acceso. Corre <b>base/20260922_a_la_medida_y_ayuda.sql</b> en el SQL Editor de Supabase.</div>'; return; }
+    if(!r.ok){ b.innerHTML='<div class="alerta warn">No pude leer los recados ('+r.status+'). '+escHTML(r.t.slice(0,140))+'</div>'; return; }
+    _ayudas=JSON.parse(r.t)||[];
+    renderAyudas();
+  })
+  .catch(()=>{ b.innerHTML='<div class="alerta warn">Sin conexión. Revisa el internet.</div>'; });
+}
+
+function renderAyudas(){
+  const b=document.getElementById('ayudas'); if(!b) return;
+  if(!_ayudas.length){
+    b.innerHTML='<div class="empty"><div class="ic">🔑</div><p>Nadie ha pedido ayuda para entrar.<br><span class="muted">Aquí caen los que tocan «Olvidé mi contraseña» en la app.</span></p></div>';
+    return;
+  }
+  b.innerHTML='<table><thead><tr><th>Celular</th><th>Dice</th><th>Cuándo</th><th></th></tr></thead><tbody>'+
+    _ayudas.map(a=>{
+      /* Si ya es cliente, el nombre: así Joan sabe a quién le está devolviendo
+         el acceso antes de escribirle, y no tiene que ir a buscarlo. */
+      const dig=v=>String(v||'').replace(/\D/g,'');
+      const cli=DB.socios.find(x=>dig(x.telefono).slice(-10)===dig(a.celular).slice(-10));
+      return '<tr><td><b>'+escHTML(a.celular)+'</b>'+
+        (cli?'<div class="muted">'+escHTML(cli.nombre)+' · '+escHTML(codCliente(cli))+'</div>'
+            :'<div class="muted">no está en tus clientes</div>')+'</td>'+
+        '<td style="white-space:normal;max-width:34ch">'+(a.nota?escHTML(a.nota):'<span class="muted">—</span>')+'</td>'+
+        '<td>'+escHTML(fmtFecha(String(a.creada_en).slice(0,10)))+'</td>'+
+        '<td style="text-align:right">'+
+          '<button class="btn btn-negro btn-sm" onclick="marcarAyuda('+Number(a.id)+',&quot;atendida&quot;)">✓ Ya le escribí</button> '+
+          '<button class="btn btn-ghost btn-sm" onclick="marcarAyuda('+Number(a.id)+',&quot;descartada&quot;)">✕</button>'+
+        '</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
+function marcarAyuda(id,estado){
+  const c=sbCfg();
+  if(!c.url||!c.anon||!c.clave) return;
+  /* Se quita de la lista SOLO cuando el servidor confirma. Quitarlo antes y
+     fallar la llamada deja el recado vivo en la base y desaparecido de la
+     pantalla: el peor de los dos mundos. */
+  fetch(c.url+'/rest/v1/rpc/marcar_ayuda_clave',{method:'POST',
+    headers:{'Content-Type':'application/json',apikey:c.anon,Authorization:'Bearer '+c.anon},
+    body:JSON.stringify({p_clave:c.clave,p_id:id,p_estado:estado})})
+  .then(r=>r.ok?r.json():Promise.reject(new Error('http '+r.status)))
+  .then(j=>{
+    if(!j||j.ok!==true) return alert('No pude marcar el recado. Vuelve a intentar.');
+    _ayudas=_ayudas.filter(x=>Number(x.id)!==Number(id));
+    renderAyudas();
+  })
+  .catch(()=>alert('No pude marcar el recado. Revisa el internet y vuelve a intentar.'));
 }
 
 function marcarEnNube(s,estado){
