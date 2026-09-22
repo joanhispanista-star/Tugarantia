@@ -904,7 +904,43 @@
    y devolvia el emoji al primer toque: ahora alterna una clase.
 
    2.101 pruebas. Toca play/index.html y panel/crm.html. */
-const CACHE = 'tugarantia-v91';
+/* v92 — 22-sep-2026. FOTOS EN EL CHAT. VIDEO NO.
+   Joan: «este chat tambien quiero que se puedan enviar imagenes y videos».
+
+   EL NUMERO DECIDE, y esta medido: una foto comprimida como las comprime esta
+   casa son 73 KB; un video de 10 segundos de un celular normal son 15 a 21 MB.
+   El plan gratis tiene 500 MB de base y al pasarlos la base entera se vuelve DE
+   SOLO LECTURA —no llega una factura: deja de poderse desembolsar, cobrar y
+   contestar el chat—. Con video son 25 archivos EN TOTAL, para siempre. Con
+   fotos, unas 4.700. Ademas el navegador no puede recomprimir video.
+
+   Y en todo el repo no hay una linea que pida video; lo que si se pide, por
+   nombre y tres veces, es la FOTO DEL COMPROBANTE DE PAGO. Eso es lo que se
+   construyo, y el boton lo dice con esas palabras.
+
+   POR QUE UNA TABLA APARTE: mensajes.texto tiene un CHECK de 1 a 1.000
+   caracteres y una foto son cien mil. No cabe por un factor de cien.
+
+   Y CUELGA DEL MENSAJE con on delete cascade, no de la cedula. Eso no es un
+   detalle de esquema: es lo que hace que chat_olvidar —que ya existe porque la
+   politica de datos se lo promete al socio (Ley 1581)— se lleve tambien las
+   fotos sin que nadie tenga que acordarse.
+
+   DOS TAMAÑOS: la miniatura (240 px, unos 6 KB) viaja con el hilo y la grande
+   solo cuando alguien la abre. Sin eso, una conversacion de veinte mensajes con
+   fotos bajaria dos megas en cada apertura, con los datos del cliente.
+
+   TRES REJAS: el video lo frena un CHECK en la BASE y no la pantalla (una
+   pantalla se cambia); nadie ve la foto de otro, porque el id es correlativo y
+   sin esa comprobacion cualquiera con sesion se baja los comprobantes de todos
+   los clientes; y hay un tope de 60 por conversacion, que RECHAZA en vez de
+   borrar la mas vieja en silencio.
+
+   La fuente de la imagen se comprueba antes de pintarla y no se escapa y ya: de
+   un src se sale con «x" onerror=», asi que escapar no alcanza.
+
+   2.121 pruebas. Toca app/chat.js, app/chat.css, play/index.html y crm.html. */
+const CACHE = 'tugarantia-v92';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

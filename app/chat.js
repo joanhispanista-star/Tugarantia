@@ -203,9 +203,27 @@
           if (mio && i === ultimoMio && m.visto === true) {
             visto = '<span class="ch-visto">' + esc(o.textoVisto || 'Leído') + '</span>';
           }
+          /* 22-sep-2026 — LA FOTO. La fuente se comprueba ANTES de emitirla y
+             no se escapa y ya: un src sale del atributo con un simple
+             «x" onerror="...», así que escapar no alcanza. Solo se pinta si es
+             un data:image de verdad; cualquier otra cosa se cuenta como un
+             adjunto que no se pudo mostrar, que es la verdad.
+
+             Lo que se pinta es la MINIATURA, no la foto: el hilo no puede bajar
+             dos megas cada vez que se abre. La grande la trae alVerFoto. */
+          var foto = '';
+          if (m.foto) {
+            var mini = typeof m.miniatura === 'string' && /^data:image\/[a-z+]{2,12};base64,[A-Za-z0-9+/=]+$/.test(m.miniatura)
+              ? m.miniatura : '';
+            foto = '<button type="button" class="ch-foto" ' +
+              (o.alVerFoto ? 'onclick="' + esc(o.alVerFoto) + '(' + Number(m.foto) + ')"' : 'disabled') + '>' +
+              (mini ? '<img src="' + mini + '" alt="Foto que se mandó en el chat">'
+                    : '<span class="ch-foto-sin">📎 Foto</span>') +
+              '</button>';
+          }
           return '<div class="ch-msg ' + (mio ? 'ch-mio' : 'ch-suyo') +
             (auto ? ' ch-esauto' : '') + '">' +
-            '<div class="ch-burbuja">' + etiqueta +
+            '<div class="ch-burbuja">' + etiqueta + foto +
             '<div class="ch-texto">' + esc(m.texto) + '</div>' +
             '<div class="ch-pie">' + esc(hora(m.creado_en)) + visto + '</div>' +
             '</div></div>';

@@ -6368,6 +6368,7 @@ function cargarHilo(){
     (lista||[]).forEach(m=>{ _chatMsgs.push(m); if(Number(m.id)>_chatUltimo) _chatUltimo=Number(m.id); });
     const caja=document.getElementById('chHilo'); if(!caja) return;
     caja.innerHTML=CHAT.hiloHTML(_chatMsgs,{yo:'negocio',textoVisto:'Lo vio',
+      alVerFoto:'verFotoDelChat',
       vacio:'No hay mensajes en esta conversación.'});
     caja.scrollTop=caja.scrollHeight;
     /* Al abrirla, la base marca como vistos los del socio. La bandeja de atrás
@@ -6378,6 +6379,25 @@ function cargarHilo(){
     const caja=document.getElementById('chHilo');
     if(caja&&!_chatMsgs.length) caja.innerHTML='<div class="ch-vacio">'+escHTML((e&&e.humano)||'No pude abrirla. Revisa el internet.')+'</div>';
   });
+}
+
+/* 22-sep-2026 — ABRIR LA FOTO QUE MANDÓ EL CLIENTE. El hilo trae la miniatura;
+   la grande se pide solo al tocarla, que es lo que evita bajar dos megas cada
+   vez que Joan abre una conversación. */
+function verFotoDelChat(id){
+  const c=sbCfg();
+  rpc('chat_foto_panel',{p_clave:c.clave,p_id:Number(id)})
+    .then(j=>{
+      if(!j||j.ok!==true||!j.imagen) return alert('No pude traer esa foto.');
+      const v=window.open();
+      if(v){ v.document.write('<img src="'+j.imagen+'" style="max-width:100%">'); v.document.close(); }
+    })
+    .catch(e=>{
+      const m=String((e&&(e.motivo||e.message))||e);
+      alert(/404/.test(m)
+        ? 'Tu base todavía no tiene las fotos del chat. Corre base/20260922f_fotos_en_el_chat.sql en el SQL Editor de Supabase.'
+        : ('No pude traer la foto. '+m));
+    });
 }
 
 function responderChat(){

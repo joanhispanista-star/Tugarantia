@@ -139,3 +139,25 @@
 @media (prefers-reduced-motion:no-preference){
   .ch-conv{transition:background .12s}
 }
+
+/* ===========================================================================
+   LA FOTO EN EL CHAT — 22-sep-2026
+   Joan: «este chat tambien quiero que se puedan enviar imagenes».
+
+   Lo que se ve es la MINIATURA que hizo el telefono al mandarla (240 px, unos
+   6 KB). La grande se pide solo al tocarla: si el hilo bajara la grande, abrir
+   una conversacion de veinte mensajes serian dos megas cada vez, con los datos
+   del cliente.
+
+   El boton no parece un boton: es la foto. Un marco alrededor de una imagen
+   pequeña la hace mas pequeña todavia.
+   ========================================================================= */
+.ch-foto{display:block;padding:0;margin:0 0 6px;border:0;background:none;cursor:pointer;
+  border-radius:10px;overflow:hidden;max-width:220px;line-height:0}
+.ch-foto img{display:block;width:100%;height:auto;border-radius:10px}
+.ch-foto:disabled{cursor:default}
+/* Si la miniatura no llego, se dice que hay un adjunto en vez de dejar un
+   hueco: un hueco se lee como un fallo de la pantalla. */
+.ch-foto-sin{display:inline-block;padding:10px 12px;border-radius:10px;font-size:13px;
+  line-height:1.2;background:rgba(127,127,127,.14)}
+.ch-foto:focus-visible{outline:2px solid currentColor;outline-offset:2px}

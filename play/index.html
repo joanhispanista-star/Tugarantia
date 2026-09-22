@@ -4623,6 +4623,15 @@ function laminaChat() {
       '<textarea id="chTexto" rows="3" placeholder="Escribe aquí…" ' +
         'style="width:100%;margin-top:var(--e3)"></textarea>' +
       '<button class="btn sm" onclick="enviarChat()">Enviar</button>' +
+      /* 22-sep-2026 — MANDAR UNA FOTO. Lo que se pide por nombre en este
+         proyecto es el COMPROBANTE DE PAGO, así que el rótulo lo dice: un
+         botón que diga «adjuntar» no le cuenta a nadie para qué sirve.
+         capture no se pone a propósito: así el teléfono deja elegir entre la
+         cámara y la galería, y un comprobante casi siempre ya está guardado. */
+      '<input type="file" id="chFoto" accept="image/*" class="oculto" onchange="mandarFoto(this)">' +
+      '<button class="btn sec sm" style="margin-top:var(--e2)" ' +
+        'onclick="document.getElementById(&quot;chFoto&quot;).click()">📷 Mandar una foto</button>' +
+      '<div class="ayuda">Sirve para el comprobante de un pago. Solo fotos: un video no cabe.</div>' +
       '<div id="errChat" class="aviso ambar oculto"></div>' +
     '</div>';
 }
@@ -4690,9 +4699,85 @@ function pintarHilo() {
     return;
   }
   caja.innerHTML = CH.hiloHTML(HILO.mensajes, {
-    yo: 'socio', hoy: hoyISO(),
+    yo: 'socio', hoy: hoyISO(), alVerFoto: 'verFotoChat',
     vacio: 'Todavía no han hablado por aquí. Escribe y te contestamos.'
   });
+}
+
+/* LA FOTO DEL CLIENTE. Se comprime con lo mismo que usa el resto de la casa
+   —900 px y calidad 0,6, que da unos 73 KB— y se hace además una miniatura de
+   240 px para que el hilo no baje la grande en cada apertura.
+
+   El video se rechaza AQUÍ para poder decirlo con palabras, pero el freno de
+   verdad está en la base: un CHECK que no deja entrar nada que no sea imagen.
+   Una pantalla se cambia; un CHECK no. */
+function mandarFoto(input) {
+  var err = $('errChat');
+  var f = input && input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  if (!/^image\//.test(f.type || '')) {
+    return fallo(err, f.type && /^video\//.test(f.type)
+      ? 'Por aquí solo se pueden mandar fotos. Un video no cabe en el chat.'
+      : 'Eso no es una foto. Manda una imagen del comprobante.');
+  }
+  fallo(err, 'Preparando la foto…');
+  var lector = new FileReader();
+  lector.onerror = function () { fallo(err, 'No pude leer esa foto. Prueba con otra.'); };
+  lector.onload = function () {
+    var im = new Image();
+    im.onerror = function () { fallo(err, 'No pude abrir esa foto. Prueba con otra.'); };
+    im.onload = function () {
+      var c = document.createElement('canvas');
+      c.width = im.naturalWidth || im.width; c.height = im.naturalHeight || im.height;
+      if (!c.width || !c.height) return fallo(err, 'Esa foto salió vacía. Prueba con otra.');
+      try { c.getContext('2d').drawImage(im, 0, 0); }
+      catch (e) { return fallo(err, 'No pude preparar esa foto. Prueba con otra.'); }
+      var grande = fotoDeLienzo(c, 900, 0.6);
+      var mini = fotoDeLienzo(c, 240, 0.5);
+      c.width = c.height = 1;
+      if (!grande) return fallo(err, 'Tu teléfono no dejó preparar la foto. Prueba con otra.');
+      subirFotoChat(grande, mini, err);
+    };
+    im.src = lector.result;
+  };
+  lector.readAsDataURL(f);
+}
+
+function subirFotoChat(grande, mini, err) {
+  fallo(err, 'Mandando la foto…');
+  var pie = String((($('chTexto') || {}).value || '')).trim();
+  rpcSesion('chat_foto_sesion', {
+    p_canal: CANAL, p_imagen: grande, p_miniatura: mini || null, p_texto: pie || null
+  }).then(function (j) {
+    if (!j || j.ok !== true) {
+      var m = j && j.motivo;
+      /* Cada motivo dice algo distinto: «no se pudo» tapando un tope alcanzado
+         deja a la persona intentándolo otra vez para siempre. */
+      return fallo(err,
+        m === 'no_es_imagen' ? 'Por aquí solo se pueden mandar fotos. Un video no cabe en el chat.'
+        : m === 'muy_grande' ? 'Esa foto pesa demasiado. Tómala otra vez con menos calidad.'
+        : m === 'tope' ? 'Ya nos mandaste muchas fotos por aquí. Escríbenos y las revisamos.'
+        : m === 'muchas' ? 'Espera un momento antes de mandar otra.'
+        : m === 'sesion' ? 'Se cerró tu sesión. Entra otra vez y la mandas.'
+        : 'No pude mandar la foto. Vuelve a intentar en un momento.');
+    }
+    var t = $('chTexto'); if (t) t.value = '';
+    err.classList.add('oculto');
+    abrirCanal(CANAL);
+  }).catch(function () {
+    fallo(err, 'No pude mandar la foto. Revisa tu internet y vuelve a intentar.');
+  });
+}
+
+/* Abrir la grande. Se pide solo cuando alguien toca la miniatura. */
+function verFotoChat(id) {
+  var caja = $('hilo'); if (!caja) return;
+  rpcSesion('chat_foto_sesion_ver', { p_id: Number(id) }).then(function (j) {
+    if (!j || j.ok !== true || !j.imagen) return;
+    var v = window.open();
+    if (v) { v.document.write('<img src="' + j.imagen + '" style="max-width:100%">'); v.document.close(); }
+  }).catch(function () {});
 }
 
 function enviarChat() {
