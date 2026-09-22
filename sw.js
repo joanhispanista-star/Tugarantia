@@ -838,7 +838,47 @@
    con el defecto puesto.
 
    2.087 pruebas. Toca play/index.html. */
-const CACHE = 'tugarantia-v89';
+/* v90 — 22-sep-2026. QUE JOAN SE ENTERE.
+   Joan: «que me aparezca en el crm al ver la informacion del cliente o que le
+   llegue una notificacion a mi crm y yo ver».
+
+   EL CUELLO DE BOTELLA NO ERA LA PANTALLA, ERA EL AVISO. El ciclo del credito
+   YA cerraba entero —el cliente pide, la fila se guarda con lo que pidio en sus
+   palabras, Joan contrapropone, el cliente lo ve y acepta— y fallaba en un solo
+   punto: nadie le avisaba. Un cliente que se registra y escribe a las nueve de
+   la noche no existia hasta que Joan abriera el CRM y tocara tres botones.
+
+   · _convsEstado NO SE ASIGNABA NUNCA. Se declaraba con un comentario que
+     explica por que existe —«no te ha escrito nadie» y «no pude preguntar» son
+     OPUESTOS— y ni el then ni el catch lo tocaban. Asi que tras una consulta
+     que SI funciono y devolvio cero, la bandeja decia «todavia no he
+     preguntado», y tras un corte de red decia lo mismo. Era prerrequisito: un
+     contador encima de eso multiplica la mentira.
+   · UN RELOJ DE 45 SEGUNDOS, solo con la pestaña a la vista. 45 y no 20 a
+     proposito: clave_ok usa una secuencia GLOBAL de intentos que cada acierto
+     devuelve a cero, asi que preguntar mas seguido le repone a un atacante los
+     diez intentos que tiene para adivinar la clave, varias veces por minuto.
+   · TRES CONTADORES con TRES estados: un numero, un cero comprobado, y «no pude
+     preguntar». Un 0 que tambien significa «no pude mirar» se deja de mirar.
+   · EL GLOBO DEL NAVEGADOR, que es lo que Joan llama notificacion. No necesita
+     VAPID ni service worker ni servidor: la API Notification la llama la propia
+     pagina. Solo avisa de lo que SUBIO, o cada 45 segundos repetiria lo mismo.
+   · EL PIE HONESTO: «Te aviso mientras esta pestaña este abierta. Ultima vez
+     que pude preguntar: 10:42.» Sin esa letra, un contador que solo se mueve
+     con el CRM abierto esta prometiendo lo que el codigo no hace.
+   · EL CLIENTE SIN FICHA TIENE CARA. chat_conversaciones hace left join con
+     socios_historial, asi que sin ficha llegaba nombre vacio y la lista pintaba
+     «Socio» pelado: el que va a negociar su primer credito era justo el que
+     Joan no podia reconocer. Ahora sale su celular, que es la llave del hilo.
+
+   Y EL PRECIO ROTO DE LA PUERTA PUBLICA, que llevaba dos semanas a la vista:
+   el commit del 8-sep que paso los porcentajes a pesos hizo una sustitucion
+   automatica sobre «5%» y se comio el «$1» junto con el cierre de la etiqueta.
+   Se veia el atributo de estilo impreso en pantalla, en la tarjeta que dice
+   cuanto cuesta prestar. Hay un centinela nuevo para esa clase de destrozo.
+
+   2.093 pruebas. Toca panel/crm.html, app/chat.js e index.html. */
+const CACHE = 'tugarantia-v90';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

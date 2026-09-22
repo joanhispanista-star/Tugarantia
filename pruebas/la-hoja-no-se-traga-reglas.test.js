@@ -80,6 +80,48 @@ describe('ninguna hoja se traga una regla en silencio', () => {
   });
 });
 
+describe('ningún atributo se escapa de su etiqueta', () => {
+
+  /* EL OTRO FALLO QUE NO GRITA, y este llevaba DOS SEMANAS en la puerta
+     pública. El 8-sep, el commit que pasó los precios de porcentajes a pesos
+     hizo una sustitución automática sobre «5%» y se comió el «$1» junto con el
+     cierre de la etiqueta. Quedó así, y se veía impreso en pantalla:
+
+       <p class="tasa"> style="font-size:16px;color:var(--gris)"5.000 <span…
+
+     En la tarjeta que dice cuánto cuesta prestar, en tugarantia.net, a la vista
+     de cualquiera. Ningún navegador se queja: un atributo fuera de su etiqueta
+     es simplemente texto. */
+  ['index.html', 'play/index.html', 'legal/terminos.html', 'legal/privacidad.html',
+   'panel/crm.html', 'app/socio.html'].forEach(f => {
+    test(f + ': no hay un atributo suelto fuera de su etiqueta', () => {
+      /* Fuera los comentarios y fuera los <script>: dentro de un guion, el
+         HTML se arma con plantillas y un trozo de código entre un «>» y un «<»
+         parece un atributo suelto sin serlo. El defecto que se vigila aquí es
+         del MARCADO estático, que es lo que el navegador pinta tal cual. */
+      const s = leer(f)
+        .replace(/<!--[\s\S]*?-->/g, ' ')
+        .replace(/<script[\s\S]*?<\/script>/g, ' ')
+        .replace(/<style[\s\S]*?<\/style>/g, ' ');
+      /* Entre un «>» y el siguiente «<» solo puede haber texto. Si ahí aparece
+         algo con la forma «nombre="valor"», es un atributo que se escapó. */
+      const sueltos = [];
+      const re = />([^<]*)</g;
+      let m;
+      while ((m = re.exec(s))) {
+        const t = m[1];
+        if (/\b(style|class|href|src|id|onclick|width|height)\s*=\s*"/.test(t)) {
+          sueltos.push(t.trim().slice(0, 80));
+        }
+      }
+      assert.deepEqual(sueltos, [],
+        f + ' tiene un atributo impreso como texto en la pantalla. Suele venir de ' +
+        'una sustitución automática que se comió el cierre de una etiqueta, y ningún ' +
+        'navegador se queja: lo pinta tal cual.');
+    });
+  });
+});
+
 describe('la regla que ya se perdió una vez', () => {
 
   /* La segunda vigilancia, y es la que de verdad importa: que la regla

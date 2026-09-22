@@ -232,7 +232,13 @@
       var quien = mio ? (esAutomatico({ de: c.ultimo_de }) ? 'Automático: ' : 'Tú: ') : '';
       return '<button type="button" class="ch-conv' + (n ? ' ch-pend' : '') +
         '" onclick="' + esc(alAbrir) + '(\'' + esc(c.cedula) + '\')">' +
-        '<span class="ch-conv-quien">' + esc(c.nombre || 'Socio') +
+        /* 22-sep-2026 — SIN FICHA, SE MUESTRA LA LLAVE. chat_conversaciones
+           hace un left join con socios_historial, así que de un cliente que
+           todavía no tiene ficha llegan nombre y celular VACÍOS y esto pintaba
+           «Socio» pelado. El que va a negociar su primer crédito por aquí es
+           justo el que Joan no puede reconocer, y la llave del hilo —que es su
+           celular— no salía en ninguna parte. Negociar así es a ciegas. */
+        '<span class="ch-conv-quien">' + esc(c.nombre || ('Socio nuevo · ' + (c.cedula || ''))) +
           (n ? '<span class="ch-sinleer">' + n + '</span>' : '') + '</span>' +
         '<span class="ch-conv-ultimo">' + esc(quien) + esc(c.ultimo || '') + '</span>' +
         '<span class="ch-conv-cuando">' + esc(cuandoCorto(c.ultimo_en, o.hoy)) + '</span>' +

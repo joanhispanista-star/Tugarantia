@@ -349,7 +349,18 @@ tbody tr:last-child td{font-weight:700}
 
         <article class="prod r">
           <p class="tag">Préstamo con garantía</p>
-          <p class="tasa"> style="font-size:16px;color:var(--gris)"5.000 <span style="font-size:16px;color:var(--gris)">al mes por cada $300.000</span></p>
+          <!-- 22-sep-2026 — ESTA LÍNEA ESTABA ROTA EN LA PUERTA PÚBLICA desde el
+               8-sep, y se veía: el atributo de estilo salía impreso en pantalla,
+               en la tarjeta que dice cuánto cuesta prestar.
+               La causa, encontrada en el historial: el commit que pasó los
+               precios de porcentajes a pesos («al cliente no le aparezca ningún
+               porcentaje, solo los valores») hizo una sustitución automática
+               sobre «5%» y se comió el «$1» junto con el cierre de la etiqueta.
+               Decía «5% al mes»; tenía que decir «$15.000 al mes por cada
+               $300.000», que es el mismo 5% en pesos y cuadra con el resto de la
+               tarjeta: $100.000 a seis meses cuesta $30.000, o sea $5.000 al mes
+               por cada $100.000. -->
+          <p class="tasa">$15.000 <span style="font-size:16px;color:var(--gris)">al mes por cada $300.000</span></p>
           <dl>
             <div class="fila"><dt>Plazo</dt><dd>De 1 a 6 meses</dd></div>
             <div class="fila"><dt>Pides hasta</dt><dd>$101.136</dd></div>

@@ -494,13 +494,22 @@
     <button class="navbtn" data-v="comercial"><span class="ic">🚀</span> Comercial</button>
     <button class="navbtn" data-v="mensajes"><span class="ic">💬</span> Mensajes<span id="navSinLeer"></span></button>
     <button class="navbtn" data-v="registrados"><span class="ic">📥</span> Registrados</button>
-    <button class="navbtn" data-v="socios"><span class="ic">📋</span> Socios</button>
+    <button class="navbtn" data-v="socios"><span class="ic">📋</span> Socios<span id="navSolicitudes"></span></button>
     <button class="navbtn" data-v="ciclos"><span class="ic">📈</span> Ciclos</button>
     <button class="navbtn" data-v="cal"><span class="ic">📅</span> Calendario</button>
     <button class="navbtn" data-v="plantillas"><span class="ic">💬</span> Plantillas</button>
     <button class="navbtn" data-v="bases"><span class="ic">📇</span> Bases</button>
     <button class="navbtn" data-v="equipo"><span class="ic">👥</span> Equipo</button>
     <button class="navbtn" data-v="cfg"><span class="ic">⚙️</span> Ajustes</button>
+    <!-- 22-sep-2026 — EL PIE HONESTO. Un contador que solo se mueve con el CRM
+         abierto está prometiendo «te aviso», y eso es la interfaz prometiendo
+         lo que el código no hace. Aquí se dice el límite con todas sus letras y
+         se dice CUÁNDO fue la última vez que se pudo preguntar, que es lo que
+         convierte un 0 en un 0 creíble. -->
+    <div class="avisos-pie" style="padding:10px 12px;font-size:11.5px;line-height:1.45">
+      <div id="avisoBoton" style="margin-bottom:6px"></div>
+      <div id="avisoPie"></div>
+    </div>
     <div class="marcagua">TU GARANTÍA</div>
     <div class="horario" id="horarioBox"></div>
   </aside>
@@ -1565,7 +1574,7 @@ function horarioPermitido(date){ const d=date||new Date(),dia=d.getDay(),h=d.get
 function contactadoHoy(s){ return (s.gestiones||[]).some(g=>g.fecha===hoyISO()); }
 
 /* ===== RENDER ===== */
-function render(){ renderHorario(); renderKpis(); renderCola(); renderCred(); renderRespaldados(); renderRegistros(); renderMensajes(); renderClientes(); renderSocios(); renderCiclos(); renderCalendario(); renderPlantillas(); renderEquipo(); renderBases(); }
+function render(){ renderAvisoBoton(); vigilarPendientes(true); pintarAvisos(); renderHorario(); renderKpis(); renderCola(); renderCred(); renderRespaldados(); renderRegistros(); renderMensajes(); renderClientes(); renderSocios(); renderCiclos(); renderCalendario(); renderPlantillas(); renderEquipo(); renderBases(); }
 function renderHorario(){ const r=horarioPermitido(),b=document.getElementById('horarioBox'); b.className='horario '+(r.ok?'ok':'no');
   b.innerHTML=r.ok?'<b>✓ Horario de cobro</b>Puedes contactar (Ley 2300).':'<b>✗ Fuera de horario</b>'+r.motivo+' (Ley 2300).'; }
 
@@ -6083,15 +6092,139 @@ function traerConversaciones(){
   if(est) est.textContent='Preguntando a la nube…';
   CHAT.conversaciones(sbCfg()).then(lista=>{
     _convs=Array.isArray(lista)?lista:[];
+    /* 22-sep-2026 — AQUÍ FALTABA ASIGNARLO. _convsEstado se declaraba con un
+       comentario que explica por qué existe y no lo tocaba nadie, ni aquí ni en
+       el catch. Consecuencia: tras una consulta que SÍ funcionó y devolvió
+       cero, la bandeja decía «Todavía no he preguntado» —mentira— y tras un
+       corte de red decía exactamente lo mismo, así que la rama buena era código
+       muerto. Y sin esto el contador de la barra no puede distinguir «no hay
+       nada» de «no pude mirar», que es la diferencia entera. */
+    _convsEstado='ok'; _convsError='';
+    _ultimoVistazo=horaCorta();
     if(est) est.textContent=_convs.length
       ? 'Los que tienen mensajes sin leer salen de primeros'
       : 'Todavía no te ha escrito nadie';
-    renderMensajes();
+    renderMensajes(); pintarAvisos();
   }).catch(e=>{
     /* El error se dice y la lista NO se vacía: si se borrara, un corte de señal
        se vería igual que "no te ha escrito nadie". */
+    _convsEstado='error'; _convsError=(e&&(e.humano||e.motivo||e.message))||'sin conexión';
+    if(!_falloDesde) _falloDesde=horaCorta();
     if(est) est.textContent=(e&&e.humano)||'No pude traerlas. Revisa el internet.';
+    renderMensajes(); pintarAvisos();
   });
+}
+
+/* ==========================================================================
+ * QUE JOAN SE ENTERE — 22-sep-2026
+ *
+ * Joan: «que me aparezca en el crm al ver la informacion del cliente o que le
+ * llegue una notificacion a mi crm y yo ver».
+ *
+ * El ciclo del crédito YA cerraba entero y fallaba en un solo punto: nadie le
+ * avisaba. Un cliente que se registra y escribe a las nueve de la noche no
+ * existía hasta que Joan abriera el CRM y tocara tres botones distintos. El
+ * tiempo de respuesta es lo que más mata la conversión en préstamo de consumo.
+ *
+ * POR QUÉ 45 SEGUNDOS Y NO 20, que es lo que uno pondría: clave_ok usa una
+ * secuencia GLOBAL de intentos y cada acierto la devuelve a cero. Preguntar más
+ * seguido le repone a quien esté intentando adivinar la clave de sincronización
+ * los diez intentos que tiene, varias veces por minuto. El freno es de la casa
+ * y este reloj no puede desarmarlo.
+ * ======================================================================== */
+let _reloj=null, _ultimoVistazo='', _falloDesde='';
+let _vistos={mensajes:0,solicitudes:0,ayudas:0};
+const horaCorta=()=>{ const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+
+/* Los tres números que Joan tiene que ver sin abrir nada. */
+function contarPendientes(){
+  /* CON RED, y no por miedo: render() se llama al entrar con el PIN y estas
+     tres listas se declaran con `let` más abajo en el archivo. Si el orden
+     cambiara alguna vez, un ReferenceError aquí no tumbaría un contador:
+     tumbaría render() entero, o sea el CRM completo, que es el negocio de Joan.
+     Un número de menos es un defecto; una pantalla en blanco es un día perdido. */
+  const leer=(f,x)=>{ try{ return f(); }catch(e){ return x; } };
+  return {
+    mensajes: leer(()=>chatListo()&&CHAT.totalSinLeer?CHAT.totalSinLeer(_convs):0, 0),
+    solicitudes: leer(()=>_solicitudes.filter(s=>s.origen==='nube'&&s.estado==='nueva').length, 0),
+    ayudas: leer(()=>_ayudas.length, 0)
+  };
+}
+
+/* El distintivo, con TRES estados y no dos. Un 0 que también significa «no pude
+   preguntar» es peor que no poner nada: Joan dejaría de mirarlo a los tres
+   días, y con razón. */
+function pintarAvisos(){
+  const c=contarPendientes();
+  const falla=(_convsEstado==='error');
+  const poner=(id,n)=>{ const e=document.getElementById(id); if(!e) return;
+    e.textContent = falla ? ' (?)' : (n? ' ('+n+')' : '');
+    e.title = falla ? 'No pude preguntarle a la nube: este numero puede estar viejo' : ''; };
+  poner('navSinLeer', c.mensajes);
+  poner('navSolicitudes', c.solicitudes);
+  const pie=document.getElementById('avisoPie');
+  if(pie){
+    pie.innerHTML = falla
+      ? '<span class="muted">No pude preguntarle a la nube'+(_falloDesde?' desde las '+escHTML(_falloDesde):'')+'. Lo que ves puede estar viejo.</span>'
+      : '<span class="muted">Te aviso mientras esta pestaña esté abierta.'
+        +(_ultimoVistazo?' Última vez que pude preguntar: '+escHTML(_ultimoVistazo)+'.':'')+'</span>';
+  }
+  avisarSiHayNuevo(c);
+}
+
+/* EL GLOBO DEL NAVEGADOR. Es lo que Joan llama «notificación» y no necesita
+   VAPID, ni service worker, ni servidor: la API Notification la llama la propia
+   página. Sale con el CRM en otra pestaña o la ventana minimizada.
+
+   SU LÍMITE SE DICE EN LA PANTALLA y no se esconde: si Joan CIERRA el CRM, no
+   hay aviso. Prometer «te aviso» sin esa letra sería la interfaz prometiendo lo
+   que el código no hace. */
+function puedeAvisar(){ return typeof Notification!=='undefined' && Notification.permission==='granted'; }
+function pedirPermisoAviso(){
+  if(typeof Notification==='undefined') return alert('Este navegador no sabe mostrar avisos de escritorio.');
+  Notification.requestPermission().then(()=>{ pintarAvisos(); renderAvisoBoton(); });
+}
+function renderAvisoBoton(){
+  const e=document.getElementById('avisoBoton'); if(!e) return;
+  if(typeof Notification==='undefined'){ e.innerHTML='<span class="muted">Este navegador no muestra avisos.</span>'; return; }
+  e.innerHTML = Notification.permission==='granted'
+    ? '<span class="muted">✅ Te aviso con un globo cuando llegue algo, aunque tengas el CRM en otra pestaña. Si lo cierras, no.</span>'
+    : Notification.permission==='denied'
+    ? '<span class="muted">Los avisos están bloqueados en este navegador. Se activan en el candado de la barra de direcciones.</span>'
+    : '<button class="btn btn-ghost btn-sm" onclick="pedirPermisoAviso()">🔔 Avisarme cuando llegue algo</button>';
+}
+
+/* Solo avisa de lo que SUBIÓ desde la última vez. Sin esto, cada 45 segundos
+   saldría un globo repitiendo lo mismo y Joan los apagaría el primer día. */
+function avisarSiHayNuevo(c){
+  const sube=(a,b)=>b>a;
+  if(puedeAvisar()&&_vistos.mensajes!==undefined){
+    const partes=[];
+    if(sube(_vistos.solicitudes,c.solicitudes)) partes.push((c.solicitudes-_vistos.solicitudes)+' solicitud(es) de crédito');
+    if(sube(_vistos.mensajes,c.mensajes)) partes.push((c.mensajes-_vistos.mensajes)+' mensaje(s) en el chat');
+    if(sube(_vistos.ayudas,c.ayudas)) partes.push((c.ayudas-_vistos.ayudas)+' recado(s) de acceso');
+    if(partes.length){
+      try{
+        const g=new Notification('Tu Garantía', { body:'Te llegaron '+partes.join(' y ')+'.', tag:'tg-pendientes', renotify:true });
+        g.onclick=()=>{ try{ window.focus(); }catch(e){} irA(c.solicitudes>_vistos.solicitudes?'socios':'mensajes'); g.close(); };
+      }catch(e){}
+    }
+  }
+  _vistos=c;
+}
+
+/* EL RELOJ. Se apaga con la pestaña escondida: preguntar cuando nadie mira es
+   gastar la cuota de la nube y repartirle intentos al freno de la clave. */
+function vigilarPendientes(encender){
+  if(_reloj){ clearInterval(_reloj); _reloj=null; }
+  if(!encender) return;
+  _reloj=setInterval(()=>{
+    if(document.hidden) return;
+    if(!sbListo()) return;
+    traerConversaciones();
+    traerSolicitudes(true);
+    traerAyudas(true);
+  }, 45000);
 }
 
 /* 28-ago-2026 — EL PANEL NO SE CAE PORQUE FALTE UN ARCHIVO. Y esto no es
@@ -11032,10 +11165,17 @@ function pegarSolicitud(){
 }
 
 let _solicitudes=[];
-function traerSolicitudes(){
+function traerSolicitudes(callado){
   const c=sbCfg(), b=document.getElementById('bandeja');
-  if(!c.url||!c.anon||!c.clave){ return alert('Para recibir solicitudes solas hay que conectar Supabase primero (Ajustes → Compartir con mis clientes).\n\nMientras tanto puedes usar "Pegar el WhatsApp".'); }
-  b.innerHTML='<div class="muted">Buscando…</div>';
+  /* 22-sep-2026 — «callado» lo usa el reloj de los 45 segundos. Sin él, cada
+     vuelta pintaba «Buscando…» encima de lo que Joan estaba leyendo, y una
+     pantalla que parpadea sola se deja de mirar. Y la alerta tampoco puede
+     salir sola cada 45 segundos. */
+  if(!c.url||!c.anon||!c.clave){
+    if(callado) return;
+    return alert('Para recibir solicitudes solas hay que conectar Supabase primero (Ajustes → Compartir con mis clientes).\n\nMientras tanto puedes usar "Pegar el WhatsApp".');
+  }
+  if(!callado) b.innerHTML='<div class="muted">Buscando…</div>';
   /* 8-sep-2026 — una sola llamada trae lo nuevo, lo propuesto y lo aceptado
      (el primer crédito del nuevo vive en los dos estados del medio). */
   fetch(c.url+'/rest/v1/rpc/listar_solicitudes_abiertas',{method:'POST',
@@ -11047,7 +11187,7 @@ function traerSolicitudes(){
     if(!r.ok){ b.innerHTML='<div class="alerta warn">No pude leer las solicitudes ('+r.status+'). '+escHTML(r.t.slice(0,140))+'</div>'; return; }
     const nube=(JSON.parse(r.t)||[]).map(x=>Object.assign({origen:'nube'},x));
     _solicitudes=nube.concat(_solicitudes.filter(x=>x.origen==='pegada'));
-    renderBandeja();
+    renderBandeja(); pintarAvisos();
   })
   .catch(()=>{ b.innerHTML='<div class="alerta warn">Sin conexión. Revisa el internet.</div>'; });
   /* 22-sep-2026 — y de paso los recados de acceso. Un botón aparte para una
@@ -11118,11 +11258,11 @@ function notaDelCliente(s){
 
 /* ---------------------- LOS RECADOS DE ACCESO ---------------------- */
 let _ayudas=[];
-function traerAyudas(){
+function traerAyudas(callado){
   const c=sbCfg(), b=document.getElementById('ayudas');
   if(!b) return;
-  if(!c.url||!c.anon||!c.clave){ b.innerHTML='<div class="muted">Conecta Supabase para ver los recados.</div>'; return; }
-  b.innerHTML='<div class="muted">Buscando…</div>';
+  if(!c.url||!c.anon||!c.clave){ if(!callado) b.innerHTML='<div class="muted">Conecta Supabase para ver los recados.</div>'; return; }
+  if(!callado) b.innerHTML='<div class="muted">Buscando…</div>';
   fetch(c.url+'/rest/v1/rpc/listar_ayudas_clave',{method:'POST',
     headers:{'Content-Type':'application/json',apikey:c.anon,Authorization:'Bearer '+c.anon},
     body:JSON.stringify({p_clave:c.clave,p_estado:'nueva'})})
@@ -11134,7 +11274,7 @@ function traerAyudas(){
     if(r.status===404){ b.innerHTML='<div class="alerta warn">Tu base todavía no tiene los recados de acceso. Corre <b>base/20260922_a_la_medida_y_ayuda.sql</b> en el SQL Editor de Supabase.</div>'; return; }
     if(!r.ok){ b.innerHTML='<div class="alerta warn">No pude leer los recados ('+r.status+'). '+escHTML(r.t.slice(0,140))+'</div>'; return; }
     _ayudas=JSON.parse(r.t)||[];
-    renderAyudas();
+    renderAyudas(); pintarAvisos();
   })
   .catch(()=>{ b.innerHTML='<div class="alerta warn">Sin conexión. Revisa el internet.</div>'; });
 }
