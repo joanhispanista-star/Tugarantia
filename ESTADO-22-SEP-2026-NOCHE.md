@@ -12,10 +12,15 @@ Para arrancar la siguiente sesión desde cero sin releer nada.
 | `20260922c_verificacion_cedula` | el cotejo de la cédula y `cedula_repetida` |
 | `20260922d_chat_por_canal` | `chat_responder` contesta en el canal del cliente |
 | `20260922e_borrar_para_probar` | borrar una cuenta para repetir la prueba |
+| `20260922f_fotos_en_el_chat` | la tabla `chat_fotos` y las cuatro funciones de la foto |
 
 Todas se comprobaron **llamándolas**, no mirando que existieran, y por HTTP
 contra la base real: ninguna contesta 404 y las que piden sesión contestan 401
 con la llave pública.
+
+La `f` se aplicó comprobando antes que `mensajes` estaba en **cero filas**: su
+prueba interna borra la conversación del número ficticio `3009998844` para
+verificar el cascade, y en una base con clientes eso se mira antes y no después.
 
 **Pendientes de aplicar:** `20260911_gerente_y_whatsapp`,
 `20260916_contrapropuesta_a_cuotas`, `20260917_ruleta` (ya no hace falta, la
@@ -55,6 +60,15 @@ documentados).
   perfil nuevo tiene cupo cero a propósito.
 
 ## Lo único que nunca se ha probado
+
+**El chat entero está en cero filas**: `mensajes` no tiene ni una. Estuvo
+contestando 404 semanas y se arregló hoy, así que nadie ha escrito todavía. La
+foto se comprobó de las dos maneras que se pueden sin una sesión de verdad —la
+prueba dentro de la migración manda una, la lee en el hilo, la abre, comprueba
+que otro cliente NO la abre, rechaza un video y borra la conversación para ver
+que la foto se va con ella; y por HTTP las tres de sesión dan 401 con la llave
+pública— pero **mandar una foto desde un teléfono de verdad no lo ha hecho
+nadie**. Eso es lo que prueba la persona del Android.
 
 `registro_archivos` sigue en **cero filas**. El arreglo está puesto y la cadena
 entera verificada, pero **nadie se ha registrado desde entonces**. El próximo
