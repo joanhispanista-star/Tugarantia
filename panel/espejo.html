@@ -1727,6 +1727,67 @@ function mostrarFoto(imagen) {
   document.body.appendChild(capa);
 }
 
+/* ==========================================================================
+ * MANDARLE LA FOTO DEL RECIBO AL CLIENTE — 23-sep-2026
+ *
+ * Joan cobra en la calle y quiere dejarle al cliente la foto del recibo.
+ *
+ * VA POR EL CHAT Y NO COLGADA DEL CREDITO, y la razon no es de comodidad:
+ * `sinFotos` (nube.js) quita la foto de un comprobante de la sincronizacion A
+ * PROPOSITO, porque la cartera viaja entera y en base64 pesa. Una foto guardada
+ * dentro del credito se quedaria en ESTE telefono y desapareceria al resembrar
+ * el espejo — sin error y sin aviso, que es la peor forma de perder algo.
+ *
+ * El chat ya tiene el transporte resuelto: su tabla, su tope, su cortacircuito y
+ * su trozo de los 500 MB. Y encima es donde el cliente va a buscarlo.
+ *
+ * EL PRECIO, Y SE DICE EN PANTALLA: la foto queda en la conversacion, no colgada
+ * del credito. En la ficha del credito no va a aparecer.
+ * ======================================================================== */
+function mandarFotoCliente(inp) {
+  var f = inp && inp.files && inp.files[0];
+  inp.value = '';                       /* para poder repetir la misma foto */
+  if (!f) return;
+  var est = document.getElementById('mFotoEstado');
+  var cfg = chatCfg();
+  if (!cfg) { return estadoFoto(est, 'Sin la conexion y la clave no puedo mandar nada.', true); }
+  if (!_msj.ident) { return estadoFoto(est, 'Abre primero una conversacion.', true); }
+
+  estadoFoto(est, 'Preparando la foto…', false);
+  ChatTuGarantia.prepararFoto(f).then(function (dos) {
+    estadoFoto(est, 'Mandandola…', false);
+    return ChatTuGarantia.mandarFoto(cfg, _msj.ident, dos.grande, dos.chica,
+                                     'Tu recibo', _msj.canal);
+  }).then(function (r) {
+    if (r && r.ok) {
+      estadoFoto(est, 'Mandada. Queda en la conversacion, no en el credito.', false);
+      traerHilo();
+      return;
+    }
+    estadoFoto(est, porQueNoSeMando((r || {}).motivo), true);
+  }).catch(function (e) {
+    estadoFoto(est, porQueNoSeMando(e && e.motivo) || 'No pude mandarla. Revisa el internet.', true);
+  });
+}
+
+/* Cada rechazo dice algo distinto. Un unico «no se pudo» obliga a adivinar, y
+   lo que hay que hacer es diferente en cada caso. */
+function porQueNoSeMando(motivo) {
+  if (motivo === 'es_video') return 'Solo fotos: un video no cabe en la conversacion.';
+  if (motivo === 'no_es_imagen') return 'Ese archivo no es una foto que yo pueda mandar.';
+  if (motivo === 'no_la_pude_leer') return 'Tu telefono no me dejo leer ese archivo.';
+  if (motivo === 'no_la_pude_preparar') return 'Tu telefono no dejo preparar la foto.';
+  if (motivo === 'lleno') return 'La nube de fotos esta llena. Avisale a Joan antes de seguir.';
+  if (motivo === 'sin_texto') return 'Se fue sin texto y el servidor no la acepto asi.';
+  return '';
+}
+
+function estadoFoto(el, texto, malo) {
+  if (!el) return;
+  el.textContent = texto;
+  el.style.color = malo ? 'var(--ambar-tinta)' : '';
+}
+
 function chatCfg() {
   var c = (NUBE && NUBE.config) ? NUBE.config() : null;
   return c && c.url && c.anon && c.clave ? c : null;
@@ -1784,6 +1845,18 @@ function vistaHilo() {
     + '<textarea id="mResp" rows="1" placeholder="Escríbele…" maxlength="'
     + ChatTuGarantia.LARGO_MAX + '" oninput="guardarBorrador()">' + esc(_msj.borrador) + '</textarea>'
     + '<button class="btn sm" type="button" onclick="responderHilo()">Enviar</button>'
+    + '</div>'
+    /* La camara. `capture="environment"` hace que el iPhone abra la camara
+       trasera directamente en vez del carrete: fotografiar un recibo que tienes
+       en la mano no deberia costar tres toques. Quien prefiera el carrete lo
+       tiene igual dentro de esa misma pantalla. */
+    + '<div style="margin-top:8px">'
+    +   '<label class="btn sm sec" for="mFoto" style="display:block;text-align:center;cursor:pointer">'
+    +     '\u{1F4F7} Mandarle una foto</label>'
+    +   '<input id="mFoto" type="file" accept="image/*" capture="environment"'
+    +     ' style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none"'
+    +     ' onchange="mandarFotoCliente(this)">'
+    +   '<div id="mFotoEstado" class="muted" style="font-size:12px;margin-top:6px"></div>'
     + '</div>'
     + (cel ? '<div style="margin-top:10px"><a class="btn sm sec" target="_blank" rel="noopener" '
              + 'href="https://wa.me/57' + esc(cel) + '">📲 Seguir por WhatsApp</a></div>' : '')

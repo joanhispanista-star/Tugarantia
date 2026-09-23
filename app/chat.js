@@ -361,6 +361,74 @@
    *
    *  La reja de VERDAD está en el servidor: `chat_foto_panel` exige la clave de
    *  sincronización de Joan. Esto solo es el teléfono. */
+  /** Mandarle una foto al cliente, desde el Panel.
+   *
+   *  Faltaba: el chat con clientes tenia `chat_foto_sesion` (el cliente manda) y
+   *  `chat_foto_panel` (Joan mira), y ninguna forma de que Joan mandara. El chat
+   *  del EQUIPO si la tenia. Se agrego en base/20260923_foto_al_chat_del_cliente.sql.
+   *
+   *  `canal` es opcional y no es pereza: sin el, el servidor contesta en el hilo
+   *  del ultimo mensaje del cliente, que es donde Joan esta mirando. */
+  function mandarFoto(cfg, ident, imagen, miniatura, texto, canal) {
+    var c = { p_clave: (cfg || {}).clave || '', p_cedula: String(ident || ''),
+              p_imagen: String(imagen || ''),
+              p_miniatura: miniatura || null, p_texto: texto || null };
+    if (canal) c.p_canal = canal;
+    return llamar(cfg, 'chat_foto_responder', c);
+  }
+
+  /** De lo que sale de la camara a las dos cadenas que viajan.
+   *
+   *  900 px al 0,6 son unos 73 KB. Ese numero NO es una preferencia: es con el
+   *  que estan hechas todas las cuentas de capacidad del proyecto (150 MB de
+   *  `chat_fotos` divididos entre 73 KB). Cambiarlo mueve el suelo sin avisar.
+   *
+   *  El lienzo reencodifica a JPEG pase lo que pase, y eso resuelve solo dos
+   *  cosas del iPhone: el HEIC que manda la camara, y la orientacion EXIF de una
+   *  foto tomada de lado (Safari la aplica al decodificar desde iOS 13.4).
+   *
+   *  El tipo que DECLARA el telefono no decide: hay gestores de Android que lo
+   *  mandan vacio sobre una foto perfecta. Decide el decodificador. El video se
+   *  ataja antes, y solo para poder explicar por que no cabe. */
+  function prepararFoto(archivo) {
+    return new Promise(function (listo, falla) {
+      if (!archivo) return falla({ motivo: 'no_es_imagen' });
+      if (/^video\//.test(archivo.type || '')) return falla({ motivo: 'es_video' });
+      var lector = new FileReader();
+      lector.onerror = function () { falla({ motivo: 'no_la_pude_leer' }); };
+      lector.onload = function () {
+        var im = new Image();
+        im.onerror = function () { falla({ motivo: 'no_es_imagen' }); };
+        im.onload = function () {
+          var c = document.createElement('canvas');
+          try {
+            c.width = im.naturalWidth; c.height = im.naturalHeight;
+            c.getContext('2d').drawImage(im, 0, 0);
+          } catch (e) { return falla({ motivo: 'no_la_pude_preparar' }); }
+          var grande = fotoDeLienzo(c, 900, 0.6);
+          var chica  = fotoDeLienzo(c, 240, 0.5);
+          c.width = c.height = 1;
+          if (!grande) return falla({ motivo: 'no_la_pude_preparar' });
+          listo({ grande: grande, chica: chica });
+        };
+        im.src = lector.result;
+      };
+      lector.readAsDataURL(archivo);
+    });
+  }
+
+  function fotoDeLienzo(c, ancho, calidad) {
+    try {
+      var e = c.width > ancho ? ancho / c.width : 1;
+      var d = document.createElement('canvas');
+      d.width = Math.round(c.width * e); d.height = Math.round(c.height * e);
+      d.getContext('2d').drawImage(c, 0, 0, d.width, d.height);
+      var s = d.toDataURL('image/jpeg', calidad);
+      d.width = d.height = 1;
+      return esFoto(s) ? s : '';
+    } catch (e) { return ''; }
+  }
+
   function fotoDelPanel(cfg, id) {
     return llamar(cfg, 'chat_foto_panel',
       { p_clave: (cfg || {}).clave || '', p_id: Number(id) || 0 });
@@ -429,6 +497,9 @@
     conversacion: conversacion,
     responder: responder,
     fotoDelPanel: fotoDelPanel,
+    mandarFoto: mandarFoto,
+    prepararFoto: prepararFoto,
+    fotoDeLienzo: fotoDeLienzo,
     olvidar: olvidar
   };
 });

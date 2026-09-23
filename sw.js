@@ -1401,7 +1401,32 @@
    aviso estaria mintiendo.
 
    2.385 pruebas. */
-const CACHE = 'tugarantia-v109';
+
+/* v110 - 23-sep-2026. MANDARLE EL RECIBO AL CLIENTE (opcion B).
+
+   Joan cobra en la calle y quiere dejarle la foto del recibo. Va POR EL CHAT y
+   no colgada del credito, y la razon esta medida: sinFotos quita la foto de un
+   comprobante de la sincronizacion A PROPOSITO, asi que una foto guardada
+   dentro del credito se quedaria en ESE telefono y desapareceria al resembrar
+   el espejo, sin error y sin aviso. El chat ya tiene transporte: tabla, tope,
+   cortacircuito y su trozo de los 500 MB. El precio -- que queda en la
+   conversacion y no colgada del credito -- se dice en pantalla.
+
+   Y salio que FALTABA LA FUNCION. El chat con clientes tenia chat_foto_sesion
+   (el cliente manda) y chat_foto_panel (Joan mira), y ninguna forma de que Joan
+   mandara una foto -- tampoco desde el computador. El chat del EQUIPO si la
+   tenia. base/20260923_foto_al_chat_del_cliente.sql trae la que faltaba,
+   calcada de equipo_foto_responder, y NO duplica la regla del canal: el mensaje
+   lo inserta chat_responder, donde esa regla ya vive.
+
+   ESA MIGRACION NO ESTA APLICADA: hasta que Joan la pegue, el boton contesta
+   que no existe la funcion. Esta dicho en el plan.
+
+   La camara abre con capture=environment -- la trasera, directamente, no el
+   carrete -- y se comprime a 900px/0,6 como todo el proyecto.
+
+   2.402 pruebas. */
+const CACHE = 'tugarantia-v110';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

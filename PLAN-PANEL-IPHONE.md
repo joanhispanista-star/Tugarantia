@@ -175,7 +175,7 @@ desaparecería al resembrar el espejo. Necesita transporte propio. Tres caminos:
 | | Qué implica |
 |---|---|
 | **A · Tabla propia** (como `chat_fotos`) | Lo limpio y lo que ya sabe hacer el repo. Migración nueva que tienes que aplicar, y un trozo de los 500 MB — quedan ~280. |
-| **B · Por el chat del cliente** | Cero migración: fotografías el recibo y va al hilo de esa persona, que es donde el cliente lo va a buscar. Pero no queda colgado del crédito. |
+| **B · Por el chat del cliente** ✅ **ELEGIDA** | Fotografías el recibo y va al hilo de esa persona. **Corrección a lo que te dije antes: sí necesita migración** — no existía ninguna forma de que tú mandaras una foto a un cliente, tampoco desde el computador. Pero es una función sobre la tabla que ya existe, sin tocar el reparto de los 500 MB. |
 | **C · No hacerlo** | El espejo ya lo dice honestamente. Los comprobantes se suben desde el computador. |
 
 ⏸ **Sin empezar:** el chat con el equipo dentro del espejo. Hoy se atiende desde
