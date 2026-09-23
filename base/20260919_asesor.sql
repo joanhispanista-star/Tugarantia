@@ -148,7 +148,14 @@ begin
     insert into public.cartera (id, tipo, celular, nombre, estado, etapa,
                                 saldo, saldo_total, fecha_pago, creditos, actualizado)
     values (it->>'id',
-            coalesce(nullif(it->>'tipo', ''), 'prospecto'),
+            -- 22-sep-2026 — EL SANEO VUELVE. Esta línea era
+            -- `case when it->>'tipo' = 'cliente' then 'cliente' else 'prospecto' end`
+            -- en la versión viva, y al reescribirla se cambió por un coalesce que
+            -- deja pasar cualquier palabra. La columna tiene un CHECK de dos
+            -- valores: una palabra rara lo revienta, la excepción sube, y el
+            -- «Publicar a la nube» de Joan falla ENTERO con un error crudo de
+            -- Postgres en vez de publicar.
+            case when it->>'tipo' = 'cliente' then 'cliente' else 'prospecto' end,
             right(public.solo_digitos(coalesce(it->>'celular', '')), 10),
             left(coalesce(it->>'nombre', ''), 120),
             coalesce(nullif(it->>'estado', ''), 'nuevo'),
@@ -161,8 +168,18 @@ begin
     on conflict (id) do update
       set tipo = excluded.tipo, celular = excluded.celular, nombre = excluded.nombre,
           estado = excluded.estado, etapa = excluded.etapa,
-          saldo = excluded.saldo, saldo_total = excluded.saldo_total,
-          fecha_pago = excluded.fecha_pago, creditos = excluded.creditos,
+          -- 22-sep-2026 — LA PLATA NO SE PISA CON NADA. Con `= excluded.saldo` a
+          -- secas, un CRM viejo —o un publicar parcial, o una versión de la
+          -- pantalla que todavía no mande estos campos— dejaba el saldo y la
+          -- fecha de pago de TODA la cartera en null de un golpe, sin un error
+          -- y sin que nadie lo notara hasta que un asesor abriera el teléfono.
+          -- Con el coalesce, no mandar un campo significa «no lo sé» y se queda
+          -- lo último que sí se supo; borrarlo a propósito ya no es posible, y
+          -- es el lado correcto en el que equivocarse.
+          saldo       = coalesce(excluded.saldo,       cartera.saldo),
+          saldo_total = coalesce(excluded.saldo_total, cartera.saldo_total),
+          fecha_pago  = coalesce(excluded.fecha_pago,  cartera.fecha_pago),
+          creditos    = coalesce(excluded.creditos,    cartera.creditos),
           actualizado = now();
     n_pr := n_pr + 1;
   end loop;
@@ -294,6 +311,7 @@ declare
   llave   text; base text; remite text;
   cuerpo  jsonb; pid bigint; lote text; ruta text;
   destino text;
+  ventana_obj jsonb;
 begin
   cel := public.celular_de_sesion();
   if cel is null then return jsonb_build_object('ok', false, 'motivo', 'sin_sesion'); end if;
@@ -353,26 +371,65 @@ begin
   lote := 'AS-' || yo.celular || '-' ||
           to_char(now() at time zone 'America/Bogota', 'YYYYMMDD-HH24MISS');
 
+  -- =====================================================================
+  -- 22-sep-2026 — LOS TRES DEFECTOS QUE ESTE ARCHIVO REPETIA DEL 16-SEP
+  --
+  -- Este bloque era, línea por línea, la versión MALA de enviar_mensajes que se
+  -- arregló el 16 de septiembre en 20260918_infobip.sql. Se copió antes del
+  -- arreglo y nadie volvió a mirarla. Los tres, y por qué cada uno duele:
+  --
+  -- 1. EL REMITENTE VACÍO. Mandaba 'sender' con cadena vacía. Una cadena vacía
+  --    NO es lo mismo que no mandar el campo: es un remitente INVÁLIDO, y el
+  --    proveedor lo rechaza. Y la cuenta de Joan no tiene número propio, así
+  --    que `remite` es null SIEMPRE — no en un caso raro. El asesor tocaba el
+  --    botón, la pantalla decía que salió (pg_net devuelve un id al instante,
+  --    no una respuesta) y no salía ni un mensaje. Nunca.
+  --
+  -- 2. LA VENTANA HORARIA, EN EL OBJETO EQUIVOCADO. Iba en el `options` de la
+  --    RAÍZ. En la versión 3 de la API ese objeto admite exactamente cuatro
+  --    campos y `deliveryTimeWindow` no es uno: vive en `messages[].options`.
+  --    Y el proveedor ignora EN SILENCIO lo que no reconoce, así que la
+  --    respuesta habría sido 200, los mensajes habrían salido sin ninguna
+  --    restricción horaria, y el comentario de aquí habría seguido afirmando
+  --    que sí la tenían. El peor fallo posible es el que se ve bien.
+  --
+  -- 3. LA VOZ NO LLEVABA NINGUNA. Ni bien puesta ni mal puesta. Una llamada de
+  --    cobro automatizada a las diez de la noche, fuera del artículo 3 de la
+  --    Ley 2300 — que le aplica a Joan EN PERSONA, no a una sociedad: la
+  --    sanción le llega a él.
+  --
+  -- La ventana se le pega a CADA mensaje porque la API no deja fijarla una sola
+  -- vez para el lote. Va en UTC (Bogotá es UTC-5) y es la red de abajo: aunque
+  -- este servidor tuviera la hora mal, el proveedor no entrega fuera de ella.
+  -- =====================================================================
+  ventana_obj := jsonb_build_object(
+    'days', jsonb_build_array('MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'),
+    'from', jsonb_build_object('hour', (ventana->>'utc_desde')::int, 'minute', 0),
+    'to',   jsonb_build_object('hour', (ventana->>'utc_hasta')::int, 'minute', 59));
+
   if p_canal = 'sms' then
     ruta := '/sms/3/messages';
     cuerpo := jsonb_build_object(
-      'messages', jsonb_build_array(jsonb_build_object(
-        'sender', coalesce(remite, ''),
-        'destinations', jsonb_build_array(jsonb_build_object('to', destino)),
-        'content', jsonb_build_object('text', p_texto))),
-      'options', jsonb_build_object(
-        'schedule', jsonb_build_object('bulkId', lote),
-        'deliveryTimeWindow', jsonb_build_object(
-          'days', jsonb_build_array('MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'),
-          'from', jsonb_build_object('hour', (ventana->>'utc_desde')::int, 'minute', 0),
-          'to',   jsonb_build_object('hour', (ventana->>'utc_hasta')::int, 'minute', 59))));
+      'messages', jsonb_build_array(
+        jsonb_build_object(
+          'destinations', jsonb_build_array(jsonb_build_object('to', destino)),
+          'content', jsonb_build_object('text', p_texto),
+          'options', jsonb_build_object('deliveryTimeWindow', ventana_obj))
+        || case when coalesce(remite, '') <> ''
+                then jsonb_build_object('sender', remite)
+                else '{}'::jsonb end),
+      'options', jsonb_build_object('schedule', jsonb_build_object('bulkId', lote)));
   else
     ruta := '/tts/3/advanced';
     cuerpo := jsonb_build_object('bulkId', lote, 'messages', jsonb_build_array(
-      jsonb_build_object('from', coalesce(remite, ''),
+      jsonb_build_object(
         'destinations', jsonb_build_array(jsonb_build_object('to', destino)),
         'text', p_texto, 'language', 'es',
-        'voice', jsonb_build_object('gender', 'female'), 'speechRate', 0.9)));
+        'voice', jsonb_build_object('gender', 'female'), 'speechRate', 0.9,
+        'options', jsonb_build_object('deliveryTimeWindow', ventana_obj))
+      || case when coalesce(remite, '') <> ''
+              then jsonb_build_object('from', remite)
+              else '{}'::jsonb end));
   end if;
 
   select net.http_post(
@@ -420,30 +477,86 @@ create table if not exists public.registro_en_vivo (
   avance      jsonb       not null default '{}'::jsonb,
   fotos       jsonb       not null default '{}'::jsonb,
   actualizado timestamptz not null default now(),
-  vence_en    timestamptz not null default now() + interval '2 hours'
+  vence_en    timestamptz not null default now() + interval '2 hours',
+  -- 22-sep-2026 — EL TESTIGO, que es lo que hace que esta fila tenga dueño.
+  -- Sin él, la clave primaria es el CELULAR y quien llamara con el número de
+  -- otro le PISABA el registro — justo mientras esa persona se está
+  -- registrando acompañada por teléfono, y el asesor veía en pantalla, a
+  -- nombre de su cliente y en mitad de la llamada, lo que le plantara un
+  -- tercero. Quien empieza se queda el celular hasta que su fila venza.
+  testigo     text        not null default replace(gen_random_uuid()::text, '-', '')
 );
+alter table public.registro_en_vivo
+  add column if not exists testigo text not null
+  default replace(gen_random_uuid()::text, '-', '');
 alter table public.registro_en_vivo enable row level security;
 create index if not exists registro_en_vivo_vence on public.registro_en_vivo (vence_en);
 
 comment on table public.registro_en_vivo is
   'Avance de quien SE ESTA registrando y pidio acompanamiento. Se borra a las 2 horas.';
 
--- El cliente publica su avance. Sin sesión —todavía no tiene cuenta— así que va
--- por celular, y por eso NO devuelve nada que no haya mandado él mismo: quien
--- llame esto con un celular ajeno solo consigue pisar su propio avance.
+-- ---------------------------------------------------------------------------
+-- 22-sep-2026 — ESTA FUNCIÓN ERA EL AGUJERO DE CAPACIDAD MÁS GRANDE DEL REPO
+--
+-- Está concedida a `anon` —la llave pública, que va en la página por diseño—
+-- porque quien se registra TODAVÍA NO TIENE CUENTA: no hay sesión que exigir.
+-- Eso está bien. Lo que estaba mal es todo lo que no se comprobaba:
+--
+--  1. LAS FOTOS. `ft := coalesce(p_fotos, '{}')` y nada más: ni que fueran
+--     imágenes, ni cuántas, ni de qué tamaño. Su hermana
+--     `registro_archivos_guardar` sí lo comprueba, línea por línea, desde el
+--     8 de septiembre. Con cuatro fotos de 600 KB por fila y una fila por
+--     celular, DOSCIENTAS filas llenan los 500 MB del plan gratis — y al
+--     llenarse la base entera queda DE SOLO LECTURA: no se desembolsa, no se
+--     registra un pago, no se contesta el chat. No llega una factura: deja de
+--     funcionar.
+--  2. EL DUEÑO. El comentario de antes decía que «quien llame con un celular
+--     ajeno solo consigue pisar su propio avance». Es al revés: la clave
+--     primaria ES el celular, así que pisaba el del otro. Ahora la primera
+--     llamada se lleva un TESTIGO y sin él no se puede tocar esa fila.
+--  3. EL TOTAL. Aunque cada fila sea pequeña, nadie impide crear millones. El
+--     cortacircuito mira el tamaño de la tabla, que el catálogo ya tiene: es
+--     una lectura, no un conteo.
+--
+-- Lo que se guarda sigue siendo lo mínimo y se borra solo a las dos horas: es
+-- una ayuda para una llamada, no un archivo.
+-- ---------------------------------------------------------------------------
 create or replace function public.registro_vivo_publicar(
   p_celular text, p_paso int, p_de int, p_nombre text,
-  p_avance jsonb, p_fotos jsonb)
+  p_avance jsonb, p_fotos jsonb, p_testigo text default null)
 returns jsonb
 language plpgsql
 volatile
 security definer
 set search_path = public
 as $$
-declare cel text; av jsonb; ft jsonb;
+declare
+  cel   text;
+  av    jsonb;
+  ft    jsonb := '{}'::jsonb;
+  k     text;
+  v     text;
+  n     int := 0;
+  suyo  text;
 begin
   cel := right(public.solo_digitos(coalesce(p_celular, '')), 10);
-  if length(cel) <> 10 then return jsonb_build_object('ok', false); end if;
+  if length(cel) <> 10 then return jsonb_build_object('ok', false, 'motivo', 'celular'); end if;
+
+  -- El barrido va PRIMERO: una fila vencida no puede seguir reservando el
+  -- celular de quien de verdad se está registrando ahora.
+  delete from public.registro_en_vivo where vence_en < now();
+
+  -- EL CORTACIRCUITO. Va antes de mirar nada más, y es lo único que protege de
+  -- alguien que no quiera registrarse sino llenar la base.
+  if pg_total_relation_size('public.registro_en_vivo') > 20 * 1024 * 1024 then
+    return jsonb_build_object('ok', false, 'motivo', 'lleno');
+  end if;
+
+  -- EL DUEÑO. Si ese celular ya tiene una fila viva, hay que traer su testigo.
+  select testigo into suyo from public.registro_en_vivo where celular = cel;
+  if suyo is not null and suyo <> coalesce(p_testigo, '') then
+    return jsonb_build_object('ok', false, 'motivo', 'ocupado');
+  end if;
 
   -- LA REJA DE CONTENIDO, aca y no en el telefono. Lo que la pantalla mande de
   -- mas se cae aca: las referencias, la clave y la ubicacion NO entran nunca.
@@ -451,26 +564,44 @@ begin
         - 'referencia1' - 'referencia2' - 'ref1_nombre' - 'ref1_celular'
         - 'ref2_nombre' - 'ref2_celular' - 'clave' - 'contrasena' - 'password'
         - 'gps' - 'lat' - 'lng' - 'ubicacion';
-  ft := coalesce(p_fotos, '{}'::jsonb);
+
+  -- LAS FOTOS, una por una. Lo mismo que hace registro_archivos_guardar desde
+  -- el 8-sep: si no empieza por data:image/ o pasa de 600.000 caracteres, no
+  -- entra. Y como mucho cuatro, que es la cédula por los dos lados, la selfie
+  -- y una de sobra.
+  for k, v in select key, value from jsonb_each_text(coalesce(p_fotos, '{}'::jsonb))
+  loop
+    if v is null or v not like 'data:image/%' or length(v) > 600000 then continue; end if;
+    n := n + 1;
+    exit when n > 4;
+    ft := ft || jsonb_build_object(k, v);
+  end loop;
 
   insert into public.registro_en_vivo (celular, paso, de_pasos, nombre, avance, fotos,
-                                       actualizado, vence_en)
+                                       actualizado, vence_en, testigo)
   values (cel, greatest(0, coalesce(p_paso, 0)), greatest(1, coalesce(p_de, 9)),
-          left(coalesce(p_nombre, ''), 120), av, ft, now(), now() + interval '2 hours')
+          left(coalesce(p_nombre, ''), 120), av, ft, now(), now() + interval '2 hours',
+          coalesce(suyo, nullif(coalesce(p_testigo, ''), ''),
+                   replace(gen_random_uuid()::text, '-', '')))
   on conflict (celular) do update
     set paso = excluded.paso, de_pasos = excluded.de_pasos,
         nombre = excluded.nombre, avance = excluded.avance, fotos = excluded.fotos,
-        actualizado = now(), vence_en = now() + interval '2 hours';
+        actualizado = now(), vence_en = now() + interval '2 hours'
+  returning testigo into suyo;
 
-  -- Barrido perezoso: lo vencido se va cuando alguien pasa por aca. No hace
-  -- falta un proceso aparte que nadie vigile.
-  delete from public.registro_en_vivo where vence_en < now();
-
-  return jsonb_build_object('ok', true);
+  -- El testigo vuelve para que la pantalla lo guarde y pueda seguir mandando.
+  return jsonb_build_object('ok', true, 'testigo', suyo);
 end $$;
 
--- El cliente se arrepiente: se borra y ya.
-create or replace function public.registro_vivo_borrar(p_celular text)
+-- El cliente se arrepiente: se borra y ya — pero SOLO el suyo.
+--
+-- 22-sep-2026: esto estaba concedido a `anon` y borraba por celular sin
+-- comprobar nada. Cualquiera con la llave pública podía tumbarle el
+-- acompañamiento a un cliente en mitad de su registro escribiendo su número.
+-- Ahora pide el mismo testigo que devuelve `registro_vivo_publicar`, y quien no
+-- lo tenga no borra nada. Se contesta `ok` igual en los dos casos: decir «esa
+-- fila no es tuya» convertiría esto en un detector de quién se está registrando.
+create or replace function public.registro_vivo_borrar(p_celular text, p_testigo text default null)
 returns jsonb
 language plpgsql
 volatile
@@ -525,13 +656,13 @@ grant  execute on function public.asesor_enviar(text, text, text)  to authentica
 revoke all on function public.envios_asesor_hoy()                  from public, anon, authenticated;
 grant  execute on function public.envios_asesor_hoy()              to authenticated;
 
-revoke all on function public.registro_vivo_publicar(text, int, int, text, jsonb, jsonb)
+revoke all on function public.registro_vivo_publicar(text, int, int, text, jsonb, jsonb, text)
                                                                    from public, anon, authenticated;
-grant  execute on function public.registro_vivo_publicar(text, int, int, text, jsonb, jsonb)
+grant  execute on function public.registro_vivo_publicar(text, int, int, text, jsonb, jsonb, text)
                                                                    to anon, authenticated;
 
-revoke all on function public.registro_vivo_borrar(text)           from public, anon, authenticated;
-grant  execute on function public.registro_vivo_borrar(text)       to anon, authenticated;
+revoke all on function public.registro_vivo_borrar(text, text)     from public, anon, authenticated;
+grant  execute on function public.registro_vivo_borrar(text, text) to anon, authenticated;
 
 revoke all on function public.registro_vivo_mirar()                from public, anon, authenticated;
 grant  execute on function public.registro_vivo_mirar()            to authenticated;

@@ -8029,9 +8029,16 @@ function modoEquipo() {
 
 function irEquipo(v) {
   VISTA_EQUIPO = v;
-  document.querySelectorAll('.side .navbtn').forEach((b, i) => b.classList.toggle('on',
-    b.textContent.trim().indexOf({ tablero: 'Hoy', base: 'Mi base', agenda: 'Agenda',
-                                   equipo: 'Mi equipo' }[v]) >= 0));
+  /* 22-sep-2026 — EL MAPA CONOCE LAS SEIS ENTRADAS. Le faltaban «En vivo»,
+     «Mi plata» y «Mi WhatsApp»: para esas, el objeto devolvía undefined,
+     indexOf('undefined') daba -1 y NINGUN botón quedaba encendido — el asesor
+     abría la pantalla y el menú se apagaba entero, como si no hubiera pasado
+     nada. Y cualquier entrada nueva hereda el mismo fallo si no se agrega aquí. */
+  const TITULO_EQ = { tablero: 'Hoy', base: 'Mi base', agenda: 'Agenda',
+                      equipo: 'Mi equipo', vivo: 'En vivo', plata: 'Mi plata',
+                      whatsapp: 'Mi WhatsApp' };
+  document.querySelectorAll('.side .navbtn').forEach(b => b.classList.toggle('on',
+    !!TITULO_EQ[v] && b.textContent.trim().indexOf(TITULO_EQ[v]) >= 0));
   const main = document.querySelector('.main') || document.querySelector('.app > :last-child');
   if (!main) return;
   main.innerHTML = '<div class="wrapEq" style="padding:20px;max-width:760px;margin:0 auto">' +
@@ -8871,7 +8878,7 @@ function confirmarEnvioAs() {
         '<div class="alerta ok"><b>Salió.</b> Te quedan ' + Number(j.quedan_hoy) +
         ' envíos hoy.</div>' +
         '<p class="muted">Queda anotado como tu contacto de la semana con esta persona.</p>');
-      traerCarteraEq();
+      refrescarCarteraEq();   /* se llamaba traerCarteraEq(), que no existe */
     })
     .catch(function () {
       if (b) { b.disabled = false; b.textContent = e.canal === 'voz' ? 'Llamar' : 'Enviar'; }
