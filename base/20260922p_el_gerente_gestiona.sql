@@ -240,7 +240,13 @@ begin
       'select jsonb_agg(jsonb_build_object(''celular'', celular, ''nombre'', nombre, ''rol'', rol))' ||
       ' from public.equipo' ||
       ' where estado = ''retirado'' and celular = any(mios) and celular <> yo.celular' ||
-      '), ''[]''::jsonb),' || E'\n    \1', '');
+      '), ''[]''::jsonb),' || E'\n    ' || '\1', '');
+  -- OJO CON ESA ULTIMA LINEA. La primera version escribia E'\n    \1' en una
+  -- sola cadena, y dentro de una E'' la secuencia \1 NO es una referencia al
+  -- grupo capturado: es un escape OCTAL, o sea el byte 0x01. El reemplazo se
+  -- comia el «'equipo', coalesce((» capturado, los parentesis quedaban
+  -- descuadrados y Postgres contestaba 42601 señalando una linea que no era.
+  -- El \n si tiene que ir en E''; la referencia, fuera.
   if nueva = src then raise exception 'no se encontro donde anadir los retirados'; end if;
 
   execute nueva;
