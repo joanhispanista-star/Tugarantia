@@ -197,11 +197,17 @@ begin
   select prosrc into cuerpo from pg_proc
    where proname = 'mi_alcance' and pronamespace = 'public'::regnamespace;
   cuerpo := regexp_replace(cuerpo, '--[^\n]*', '', 'g');
+  -- Y SE APLASTAN LOS ESPACIOS. La primera version de este centinela buscaba
+  -- el `when` y el `= ''gerente''` en la MISMA linea, y se cazo a si misma:
+  -- estan en lineas distintas y una clase [^\n] no cruza un salto. Es la
+  -- misma trampa que rompio otra migracion esta misma tarde. Un centinela
+  -- tiene que ser inmune al formato, o acaba vigilando la sangria.
+  cuerpo := regexp_replace(cuerpo, '\s+', ' ', 'g');
 
-  if cuerpo ~ 'when[^\n]*=\s*''asesor''' then
+  if cuerpo like '%= ''asesor''%' then
     raise exception 'mi_alcance vuelve a nombrar al restringido: un rol nuevo saldria viendo como gerente';
   end if;
-  if cuerpo !~ 'when[^\n]*=\s*''gerente''' then
+  if cuerpo not like '%= ''gerente''%' then
     raise exception 'mi_alcance ya no nombra a gerente: hay que mirar en que quedo';
   end if;
 
