@@ -232,7 +232,11 @@ begin
   end if;
   -- La reja va DESPUES de la ventana horaria: al reves se le diria «ya lo
   -- contactaste» a quien solo esta fuera de hora.
-  if position('fuera_de_horario' in cuerpo) > position('ultimo_contacto' in cuerpo) then
+  -- Se compara contra 'ya_esta_semana' y NO contra 'ultimo_contacto': esa
+  -- variable se DECLARA arriba del todo, asi que su primera aparicion siempre
+  -- va antes que la ventana y el centinela se cazaba a si mismo. 'ya_esta_semana'
+  -- solo existe dentro de la reja.
+  if position('fuera_de_horario' in cuerpo) > position('ya_esta_semana' in cuerpo) then
     raise exception 'la reja semanal quedo ANTES de la ventana horaria: los motivos saldrian cambiados';
   end if;
   -- Y que no se llevo por delante lo de antes.
