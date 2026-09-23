@@ -384,8 +384,12 @@ begin
   if to_regprocedure('public.equipo_chat_leer(bigint)') is null then
     raise exception 'no quedo equipo_chat_leer';
   end if;
-  if pg_get_function_identity_arguments(
-       to_regprocedure('public.equipo_chat_leer(bigint)')) <> 'bigint' then
+  -- Se CUENTAN los argumentos. La primera version comparaba
+  -- pg_get_function_identity_arguments contra 'bigint', y esa funcion devuelve
+  -- «p_desde bigint» -- con el NOMBRE del parametro delante. El centinela se
+  -- cazaba a si mismo y revertia la migracion entera.
+  if (select pronargs from pg_proc
+       where oid = to_regprocedure('public.equipo_chat_leer(bigint)')) <> 1 then
     raise exception 'equipo_chat_leer recibe algo mas que el desde: ahi cabe pedir el hilo ajeno';
   end if;
 
