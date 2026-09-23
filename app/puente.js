@@ -1133,8 +1133,13 @@
          el que se atrasaba 127 días, prorrogaba y pagaba dentro del corte nuevo
          cobraba el factor completo del que nunca se atrasó. El factor mira las
          dos cosas: llegó en fecha Y el crédito no venía de una mora. */
+      /* 23-sep-2026 — `gananciaPago` es lo que se cobro DE MAS, y ahi adentro
+         viene la mora: en un credito de 200.000 con 40.000 de costo y 160.000
+         de recargo, vale 200.000. La garantia sale solo del costo pactado, asi
+         que la mora se resta antes. Sin esta resta, el que se atrasa acredita
+         mas cupo que el que paga en fecha. */
       (p && p.pagado
-        ? M.acumularGarantia(Math.max(0, num(p.gananciaPago)),
+        ? M.acumularGarantia(Math.max(0, num(p.gananciaPago) - num(p.recargoMora)),
             M.cuentaComoPuntualParaGarantia({
               pagado_en_fecha: esPuntual(p),
               credito_estuvo_en_mora: veniaDeMora(p, p.cicloPago)

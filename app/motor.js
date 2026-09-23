@@ -397,15 +397,41 @@
   /* Cuánta garantía deja cada peso de costo pagado.
      5-ago-2026: baja de 0,90 a 0,75 (antes había bajado de 1,00 a 0,90 el
      2-ago). El otro 25% no se pierde: es lo que sostiene la plataforma (10% de
-     costo operativo) y lo que va devolviendo el cupón de 100.000 que se le
-     regaló al socio para arrancar (15%). Eso último es contabilidad interna: el
-     socio ve su 75% y nada más.
+     costo operativo). Desde el 23-sep-2026 no hay tercera parte: el cupón de
+     100.000 se sigue regalando pero ya no se amortiza con un pedazo del costo,
+     así que sale del 20% de la empresa y no está separado en ningún sitio.
 
-     El BONO POR PUNTUALIDAD se mantiene tal cual: en fecha suma el factor
-     completo, tarde suma la mitad. Con costo 20% y mora 1% diario, el punto
-     de equilibrio sigue estando en los 20 días. */
-  var FACTOR_GARANTIA = 0.75;        // pagó en la fecha de corte o antes
-  var FACTOR_GARANTIA_MORA = 0.375;  // pagó tarde: suma, pero la mitad
+     El BONO POR PUNTUALIDAD se retiró el 23-sep-2026: en fecha y tarde suman
+     lo mismo. Ver FACTOR_GARANTIA_MORA. */
+  /* ---- 23-SEP-2026: EL REPARTO PASA A 80/20, Y EL BONO POR PUNTUALIDAD SE VA.
+     Decisión de Joan, con las consecuencias puestas delante y aceptadas:
+
+       «de lo que paga adicional el cliente fuera del capital son las ganancias,
+        pero de esas ganancias un 80% va para sumarle a la garantía del cliente
+        y el 20% para la empresa. así de sencillo»
+
+     Lo que esto DEROGA, y conviene tenerlo escrito porque son tres cosas:
+
+     1. El 75/10/15 entero. Ya no hay tres pedazos: hay dos.
+     2. La línea del cupón. El 15% que iba devolviendo los 100.000 regalados
+        desaparece del reparto. El cupón SE SIGUE REGALANDO — Joan lo decidió
+        sabiendo que con 200 clientes son 20 millones que salen y no vuelven a
+        entrar por esa puerta. Ahora es costo de adquisición puro y sale de su
+        20%: al 20% de un costo de 60.000 lo recupera en nueve créditos, pero
+        ya no está separado en ningún sitio, y por eso queda dicho acá.
+     3. EL BONO POR PUNTUALIDAD. Antes pagar tarde valía la mitad (37,5%).
+        Ahora es 80% pague cuando pague. Joan lo eligió a sabiendas de que su
+        marca es «tu historial es tu garantía»: pagar a tiempo deja de tener
+        premio y solo evita la mora. Si algún día se quiere volver a premiar,
+        se mueve FACTOR_GARANTIA_MORA y NADA MÁS — todas las pantallas leen
+        estas constantes, ninguna las escribe a mano.
+
+     Y ES RETROACTIVO, porque la garantía se deriva del historial cada vez que
+     se calcula, no se guarda. Los clientes de hoy van a ver su garantía subir
+     sola: los cumplidos del 75 al 80, y el que pagó tarde del 37,5 al 80. Es
+     más cupo del que tenían ayer con la misma historia. */
+  var FACTOR_GARANTIA = 0.80;        // pagó en la fecha de corte o antes
+  var FACTOR_GARANTIA_MORA = 0.80;   // pagó tarde: 23-sep-2026, suma lo mismo
   var DIAS_VENTANA_MINIMA = 5;     // §7.3
   var DIAS_CORTE_FIJO = 15;        // §7 — día 15 y último del mes
   var CUOTAS_PLAN_DE_PAGOS = 3;    // §8
@@ -460,16 +486,22 @@
      sin pagar nada, que ya no es elegir cuando pagas sino otro producto. */
   var CORTES_ARRANQUE_MAX = 1;
 
-  /* ---- El reparto de cada peso de costo (contabilidad de Joan) ----
-     5-ago-2026: de 90/7/3 a 75/10/15. El 90/7/3 queda derogado.
-     75% garantía del socio · 10% operativo · 15% amortiza el cupón regalado.
-     El socio NO ve esto por ningún lado: para él su garantía es el 75% y
-     punto. El 15% se deja de cobrar cuando ese socio ya devolvió todo su cupón,
-     y desde ahí es ganancia libre (ver amortizarCupon).
-     Pagado tarde: 37,5 / 47,5 / 15. El cupón se recupera igual —hay que
-     recuperarlo igual— y el bono que el socio no se ganó va entero a operativo,
-     que es de donde salió el descuento. */
-  var REPARTO_COSTO = { garantia: 0.75, operativo: 0.10, cupon: 0.15 };
+  /* ---- El reparto de cada peso de costo ----
+     23-sep-2026: de 75/10/15 a 80/20. Quedan derogados el 90/7/3 (5-ago) y el
+     75/10/15 (5-ago a 23-sep).
+
+       80% garantía del socio · 20% empresa · y nada más.
+
+     `cupon` se queda en CERO en vez de desaparecer del objeto, y es a propósito:
+     `repartirCosto` sigue devolviendo `amortiza_cupon` y `ganancia_cupon`, que
+     valen 0 y no rompen a las nueve pantallas que los leen. Borrar la clave las
+     dejaría con `undefined` haciendo cuentas — que es como se fabrica un NaN
+     que nadie ve hasta que sale impreso al lado de un peso.
+
+     Lo mismo vale para pagar tarde: ya no hay dos repartos. Es 80/20 siempre.
+     El bono por puntualidad vivía en FACTOR_GARANTIA_MORA y ahí está dicho lo
+     que se perdió al quitarlo. */
+  var REPARTO_COSTO = { garantia: 0.80, operativo: 0.20, cupon: 0 };
 
   /* ---- EL FRENO POR INGRESO, PREPARADO Y APAGADO (5-ago-2026) ----
      El 15% compone. MEDIDO sobre la escalera de este motor, arrancando con el
@@ -1450,7 +1482,30 @@
       base_mora: base,
       costo_total_pagado: costoTotal,
       total_a_pagar: capital + costoTotal,
-      garantia_generada: acumularGarantia(costoTotal, acredita),
+      /* ==================================================================
+       * LA GARANTIA SALE DEL COSTO PACTADO, NO DE LA MORA — 23-sep-2026
+       *
+       * Aca decia `costoTotal`, que es costo + recargo. Con el reparto viejo
+       * daba igual de puro milagro: pagar tarde acreditaba al 37,5% y ese
+       * factor a la mitad compensaba la mora de mas.
+       *
+       * Al pasar a 80% siempre, el milagro se acabo y salio esto —lo cazo la
+       * prueba llamada «EL BUG QUE SE ARREGLO», al primer intento—:
+       *
+       *   credito de 300.000 al 20%, mismo credito, solo cambia cuando paga
+       *     en fecha      paga 60.000   gana 48.000 de cupo
+       *     20 dias tarde paga 120.000  gana 96.000 de cupo   <-- EL DOBLE
+       *
+       * O sea que atrasarse pagaba. En una app cuya marca es «tu historial es
+       * tu garantia», eso no es un detalle contable: es ensenarle al cliente
+       * que le conviene lo contrario de lo que le pides.
+       *
+       * Decision de Joan con el numero delante: el 80% sale del COSTO PACTADO
+       * —el 20%, el 35%, lo que se haya pactado— y la mora va INTEGRA a la
+       * empresa. Es coherente con lo que la mora es: una sancion, no un precio.
+       * Y sigue siendo una sola regla de explicar: 80/20 de lo que cobras.
+       * ================================================================== */
+      garantia_generada: acumularGarantia(costo, acredita),
       // Lo que habría ganado pagando en fecha, para poder mostrárselo. Si el
       // crédito ya venía de una mora, el factor completo ya no está disponible ni
       // pagando hoy: el techo honesto es la mitad.
@@ -2368,7 +2423,12 @@
       tasa_mora_diaria: opciones.tasaDiaria != null ? opciones.tasaDiaria : TASA_MORA_DIARIA,
       costo_total_pagado: costoTotal,
       total_a_pagar: capital + costoTotal,
-      garantia_generada: acumularGarantiaRespaldada(costoTotal, aTiempo),
+      /* Misma cura que en el quincenal, y por el mismo motivo: la mora no puede
+         generar cupo. El respaldado NO cambio de factores el 23-sep —sigue con
+         su 20% y su mitad por pagar tarde, porque es otro producto y la regla
+         que dio Joan hablaba del credito quincenal— pero el defecto de la base
+         era el mismo y se arregla igual. */
+      garantia_generada: acumularGarantiaRespaldada(costo, aTiempo),
       garantia_si_puntual: acumularGarantiaRespaldada(costo, true)
     };
   }
