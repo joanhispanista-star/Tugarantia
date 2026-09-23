@@ -11173,7 +11173,21 @@ function traerEquipo(callado) {
         if (!mio) {
           equipo().push({ id: 'E' + cel, nombre: String(x.nombre || 'Sin nombre'), celular: cel,
                           rol: String(x.rol || 'asesor'), estado: String(x.estado || 'activo'),
-                          jefe: jefeLocal(x.jefe), whatsapp: x.whatsapp || '', cuentaCreada: hoyISO() });
+                          jefe: jefeLocal(x.jefe), whatsapp: x.whatsapp || '' });
+          /* 22-sep-2026 — AQUÍ SE PONÍA `cuentaCreada: hoyISO()`, y era una
+             suposición que se cae sola: daba por hecho que todo el que está en
+             la nube llegó por `asesor_crear`, que crea el puesto Y LUEGO la
+             cuenta. Pero ese segundo paso PUEDE FALLAR — el propio CRM tiene
+             una pantalla para ese caso— y entonces el puesto existe sin cuenta.
+
+             El botón 🔑 solo sale cuando `!cuentaCreada`, así que la
+             suposición lo escondía EXACTAMENTE para quien lo necesitaba: esa
+             persona se quedaba sin poder entrar y sin botón para arreglarlo.
+
+             Dejarlo sin poner es decir «no lo sé», que es la verdad. Si ya
+             tenía cuenta, el signup contesta «already registered» y el CRM ya
+             sabe qué hacer con eso (pantallaCuentaExiste). Equivocarse
+             enseñando un botón de más no cuesta nada; escondiéndolo, sí. */
           nuevos++;
         } else {
           /* La nube manda en rol, estado y jefe: son las tres que el gerente

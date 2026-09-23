@@ -1176,7 +1176,28 @@
    pero dejaba a Joan sin forma de VER lo que hizo su equipo sin mandar nada.
    Desde que el gerente puede crear asesores y repartir desde su celular, eso
    es justo lo que hace falta mirar primero. */
-const CACHE = 'tugarantia-v102';
+
+/* v103 - 22-sep-2026. EL BOTON DE CREAR CUENTA SE ESCONDIA DE QUIEN LA NECESITA.
+
+   traerEquipo marcaba a TODO el que bajaba de la nube con cuentaCreada =
+   hoy. Era una suposicion: que todo el que esta en la nube llego por
+   asesor_crear, que crea el puesto Y LUEGO la cuenta. Ese segundo paso puede
+   fallar -- el propio CRM tiene una pantalla para ese caso -- y entonces el
+   puesto existe sin cuenta.
+
+   Y el boton de crearla solo se pinta cuando !cuentaCreada. O sea que la
+   suposicion lo escondia EXACTAMENTE para quien lo necesitaba: esa persona se
+   quedaba sin poder entrar y Joan sin forma de arreglarlo desde el Panel.
+
+   Salio al crear un asesor de prueba directo en la nube y mandar a Joan a
+   darselo de alta: el boton no iba a estar.
+
+   Lo correcto es NO SABERLO. Si ya tenia cuenta, el signup contesta 'already
+   registered' y el CRM ya sabe que hacer. Equivocarse ensenando un boton de
+   mas no cuesta nada; escondiendolo, si.
+
+   2.281 pruebas. */
+const CACHE = 'tugarantia-v103';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
