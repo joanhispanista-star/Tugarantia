@@ -8062,11 +8062,61 @@ function etiquetaEtapa(e) {
 }
 function queHacerEtapa(e) { const t = ETAPAS && ETAPAS.ETAPAS[e]; return t ? t.que : ''; }
 
+/* 22-sep-2026 — LA PLATA DEL CLIENTE, en la ficha de su fila.
+   Joan: «que el asesor tenga la informacion organizada de las ventas del
+   credito y tener organizado cuando tienen que pagar para preparar la
+   cobranza». Esto es esa frase, en una linea por persona.
+
+   `null` NO es cero, y por eso no se pinta nada cuando no se sabe: escribir
+   «$0» donde no hay dato es peor que no escribir nada, porque el asesor se lo
+   creeria y llamaria a cobrar cero pesos.
+
+   Y se separa el total de lo que vence PRIMERO: a quien debe tres creditos se
+   le escribe UNA vez (Ley 2300), y ese mensaje unico tiene que llevar la
+   cuenta completa o el cliente paga uno, cree que quedo al dia, y recibe otro
+   cobro a la semana que no entiende. */
+function lineaPlataEq(p) {
+  if (p.tipo !== 'cliente') return '';
+  const hay = p.saldo_total != null || p.saldo != null;
+  if (!hay && !p.fecha_pago) return '';
+  const total = p.saldo_total != null ? p.saldo_total : p.saldo;
+  const varios = Number(p.creditos || 0) > 1;
+  return '<div class="muted" style="margin-top:2px">' +
+    (total != null ? '<b>' + COP(total) + '</b>' + (varios
+        ? ' <span style="opacity:.75">en ' + Number(p.creditos) + ' cr\u00e9ditos</span>' : '') : '') +
+    (p.fecha_pago ? (total != null ? ' · ' : '') + 'paga el <b>' +
+        escHTML(fmtCorto(String(p.fecha_pago).slice(0, 10))) + '</b>' : '') +
+    '</div>';
+}
+
+/* ¿DE CUÁNDO ES ESA CIFRA? No es un adorno: el monto NO está guardado en
+   ninguna parte, lo recalcula el CRM de Joan contra la fecha de hoy con sus
+   intereses y su mora. Lo que el asesor ve es una FOTO.
+
+   Si Joan publica el lunes y no vuelve hasta el viernes, el asesor lee un saldo
+   de lunes, se lo dice al cliente y se lo manda por SMS. El cliente paga eso,
+   queda debiendo la mora de cuatro días, y el pantallazo lo tiene él. */
+function avisoAlDiaDeEq() {
+  let cuando = '';
+  (genteEquipo() || []).forEach(p => {
+    if (p.tipo === 'cliente' && p.al_dia_de && (!cuando || p.al_dia_de > cuando)) cuando = p.al_dia_de;
+  });
+  if (!cuando) return '';
+  const dias = Math.floor((Date.now() - new Date(cuando).getTime()) / 86400000);
+  const viejo = dias >= 2;
+  return '<div class="alerta ' + (viejo ? 'warn' : 'info') + '" style="margin-bottom:12px">' +
+    (viejo ? '⚠ ' : '') + 'Los montos son <b>del ' + escHTML(fmtFecha(cuando)) + '</b>' +
+    (dias > 0 ? ' (hace ' + dias + (dias === 1 ? ' d\u00eda' : ' d\u00edas') + ')' : ', de hoy') + '.' +
+    (viejo ? ' Pueden haber cambiado con la mora: <b>confirma antes de cobrar</b> y p\u00eddele a Joan que vuelva a publicar.' : '') +
+    '</div>';
+}
+
 function filaPersonaEq(p) {
   const primero = String(p.nombre || '').split(/\s+/)[0] || '';
   const g = p.gestion;
   return `<div class="info-row"><span class="k"><b>${escHTML(p.nombre || 'Sin nombre')}</b>
       <div class="muted mono">${escHTML(p.celular || '')}</div>
+      ${lineaPlataEq(p)}
       ${esGerenteEq() && p.asesor_nombre ? `<div class="muted">🚶 ${escHTML(p.asesor_nombre)}</div>` : ''}
       ${g ? `<div class="muted">${etiquetaGestion(g)} <b>${escHTML(haceCuanto(g.cuando))}</b>${
           esGerenteEq() ? ' · ' + escHTML(g.quien || '') : ''}${
@@ -8787,27 +8837,43 @@ function mensajearEq(id, canal) {
      20260910_equipo_en_la_nube.sql). O sea que un ASESOR no tiene ni el dato.
      Mientras eso no se arregle en la base, si no se puede comprobar, no se
      manda: callarlo seria escribirle a quien pidio que no. */
-  var salidos = [];
-  var puedoComprobar = false;
-  try {
-    if (Array.isArray(DB.socios) && DB.socios.length) {
-      salidos = E.numerosQueSalieron(DB.socios);
-      puedoComprobar = true;
-    }
-  } catch (e) {}
+  /* 22-sep-2026 — EL DATO DEL SALIR YA VIAJA (20260922m), así que esta
+     pantalla deja de bloquearse a sí misma.
 
-  if (!puedoComprobar) {
-    openModal('No puedo comprobar la salida',
-      '<div class="alerta warn"><b>No se manda.</b> Desde esta pantalla no puedo comprobar si ' +
-      escHTML(p.nombre || 'esta persona') + ' pidió no recibir mensajes.<br><br>' +
-      'Quien responde <b>SALIR</b> no puede volver a recibir, y eso es obligatorio en Colombia. ' +
-      'El dato está en la ficha del cliente, y la cartera del equipo todavía no lo trae.' +
-      '<div class="muted" style="margin-top:8px">Mientras tanto, escríbele por WhatsApp desde su ' +
-      'ficha, donde sí se ve si pidió salir.</div></div>');
+     Hasta hoy exigía `DB.socios` para poder comprobarlo, y en el celular del
+     asesor `DB` está VACÍO a propósito — `modoEquipo()` lo limpia para que
+     nadie que entre en el computador de Joan se lleve la cartera colgando de
+     una variable. Esa decisión es correcta y no se toca: lo que faltaba era
+     que el dato llegara por la cartera, y ya llega.
+
+     TRES ESTADOS, y el del medio es el que importa:
+       true  → pidió salir. No se manda, y se le dice por qué.
+       false → se puede mandar.
+       null  → el CRM todavía no lo publicó. NO SE MANDA. Callarlo sería
+               escribirle a quien quizá pidió que no, y eso es obligatorio en
+               Colombia — la sanción le llega a Joan en persona. */
+  if (p.no_sms === true) {
+    openModal('Pidió no recibir mensajes',
+      '<div class="alerta warn"><b>No se manda.</b> ' + escHTML(p.nombre || 'Esta persona') +
+      ' respondió <b>SALIR</b>.<br><br>Quien responde SALIR no puede volver a recibir ' +
+      'mensajes, y eso es obligatorio en Colombia.</div>' +
+      '<p class="muted">Si necesitas hablar con esta persona, llámala.</p>');
     return;
   }
-
-  var f = E.filasDeEnvio([caso], { telefono: tel, sinSMS: salidos });
+  if (p.no_sms == null) {
+    openModal('Todavía no puedo comprobarlo',
+      '<div class="alerta warn"><b>No se manda.</b> Tu celular todavía no sabe si ' +
+      escHTML(p.nombre || 'esta persona') + ' pidió no recibir mensajes.<br><br>' +
+      'Quien responde <b>SALIR</b> no puede volver a recibir, así que mientras no se pueda ' +
+      'comprobar, no se manda.</div>' +
+      '<p class="muted">Joan tiene que volver a <b>publicar el equipo</b> desde su Panel. ' +
+      'Mientras tanto, llámala.</p>');
+    return;
+  }
+  /* Vacia a proposito: si esta persona hubiera pedido salir, ya nos habriamos
+     ido dos rejas mas arriba. Se deja el parametro para que el contrato de
+     filasDeEnvio no cambie segun quien lo llame. */
+  var f = E.filasDeEnvio([caso], { telefono: tel, sinSMS: [] });
   if (!f.filas.length) {
     openModal('No se puede', '<div class="alerta warn">' +
       (f.salidos && f.salidos.length
@@ -9104,6 +9170,7 @@ function vistaBaseEquipo() {
       ${bot('clientes', '🧑‍🤝‍🧑 Cobrar (' + cli + ')')}
       ${bot('potenciales', '📇 Vender (' + pot + ')')}
       ${extra}</div>` : ''}
+    ${avisoAlDiaDeEq()}
     <div class="card">${g.length ? g.map(filaPersonaEq).join('')
       : `<div class="muted" style="padding:14px">${deQuien.length
           ? 'Nadie de ese grupo.' : 'Todavía no te han asignado a nadie.'}</div>`}</div>`;
@@ -10104,22 +10171,87 @@ function publicarEquipo() {
      prospectos, así que un asesor con treinta clientes de cobranza asignados
      abría «Mi base» y leía «todavía no te han asignado a nadie»: toda la mitad
      de cobranza —CA, D-3, D-2, D-1, D0, M1A, M1B, M1-2— no existía. */
+  /* 22-sep-2026 — LA PLATA DE CADA CLIENTE, para que el asesor pueda cobrar.
+     Joan eligió «fecha Y monto» con las tres opciones y sus riesgos delante.
+
+     SE CALCULA IGUAL QUE EN `casosDeCobroHoy`, y eso no es pereza: si hubiera
+     dos formas de sumar lo que alguien debe, el día que se separen el asesor
+     le diría al cliente una cifra y el SMS otra. Una sola cuenta.
+
+     El TOTAL por persona y no por crédito, por la misma razón que allá: la Ley
+     2300 obliga a un contacto por persona, y un mensaje que hable de un solo
+     crédito hace que el cliente pague ese, crea que quedó al día, y reciba otro
+     cobro a la semana que no entiende — y tendría razón.
+
+     Y la fecha es la del corte MÁS CERCANO de los abiertos: es la primera que
+     se le vence, que es sobre la que hay que llamarlo. */
+  const plataDe = {};
+  DB.prestamos.forEach(function (c) {
+    /* TODOS LOS CRÉDITOS ABIERTOS, y no solo los que hay que contactar hoy.
+       La primera versión de esto copió el filtro de `casosDeCobroHoy`
+       —mora / hoy / proximo— y estaba mal por dos razones:
+
+       · Ese filtro contesta «º quien le escribo HOY?», y `proximo` son dos
+         días. Un crédito que vence en tres viajaba SIN monto y SIN fecha,
+         justo el caso que Joan pidió: preparar la cobranza pasa en D-3, no el
+         día del vencimiento.
+       · Y saltarse los que tienen acuerdo vigente los borraba de la vista del
+         asesor. Un acuerdo no borra la deuda: mueve la fecha, y
+         `corteDelCredito` ya lo tiene en cuenta. Que no haya que mandarle un
+         SMS de mora no significa que el asesor no deba saber que existe.
+
+       La reja de A QUIÉN SE CONTACTA sigue donde estaba, en `puedeContactar`
+       y en la pantalla de cobranza. Esta lista solo dice lo que hay. */
+    if (c.pagado) return;
+    const k = String(c.socioId || '');
+    if (!k) return;
+    const m = plataDe[k] || (plataDe[k] = { saldo_total: 0, creditos: 0, saldo: null, fecha_pago: '' });
+    m.saldo_total += totalCiclo(c);
+    m.creditos += 1;
+    const corte = PUENTE.corteDelCredito(c) || '';
+    if (corte && (!m.fecha_pago || corte < m.fecha_pago)) {
+      m.fecha_pago = corte;
+      m.saldo = totalCiclo(c);   /* el del crédito que vence primero */
+    }
+  });
+
   const ps = prospectos().filter(p => asignados[String(p.id)]).map(p => ({
     id: String(p.id), tipo: 'prospecto',
     celular: String(p.celular || ''), nombre: String(p.nombre || ''),
     estado: String(p.estado || 'nuevo'),
     etapa: ETAPAS.etapaDe({ tipo: 'prospecto', estado: p.estado }, DB, hoy)
-  })).concat(DB.socios.filter(s => asignados[String(s.id)]).map(s => ({
+  })).concat(DB.socios.filter(s => asignados[String(s.id)]).map(s => {
+    const m = plataDe[String(s.id)] || {};
+    return {
     id: String(s.id), tipo: 'cliente',
-    /* NOMBRE, CELULAR Y ETAPA. Nada más: ni cédula, ni dirección, ni fotos, ni
-       cuánto debe. Con eso se cobra, y todo lo demás multiplicaría el daño el
-       día que se pierda un celular. Es la misma regla que declara la cabecera
-       de la migración, y acá es donde se cumple o no se cumple. */
+    /* NOMBRE, CELULAR, ETAPA — Y DESDE HOY LO QUE DEBE Y CUÁNDO PAGA.
+       Hasta el 22-sep aquí no viajaba la plata, y era deliberado. Joan lo
+       cambió a propósito para que el asesor pueda cobrar: sin la cifra y la
+       fecha, un «tu pago está pendiente» no le dice nada a nadie y gasta el
+       único contacto que la ley permite esa semana.
+
+       Lo que sigue SIN viajar: cédula, dirección, fotos y referencias.
+
+       Y `no_sms` viaja porque sin él la pantalla del asesor se bloquea sola —
+       hace bien: quien respondió SALIR no puede volver a recibir, y si no se
+       puede comprobar, no se manda. */
     celular: String(waNum(s) || '').replace(/\D/g, '').slice(-10),
     nombre: String(s.nombre || ''),
     estado: 'cliente',
-    etapa: ETAPAS.etapaDe({ tipo: 'socio', id: s.id }, DB, hoy)
-  })));
+    etapa: ETAPAS.etapaDe({ tipo: 'socio', id: s.id }, DB, hoy),
+    /* Los dos numeros o ninguno. La primera version usaba un truthy para el
+       total y una comparacion con null para el saldo, asi que un credito
+       abierto cuyo motor diera 0 viajaba con saldo '0' y total vacio: dos
+       cifras que se contradicen en la misma fila. */
+    saldo: m.creditos ? String(m.saldo == null ? 0 : m.saldo) : '',
+    saldo_total: m.creditos ? String(m.saldo_total) : '',
+    fecha_pago: m.fecha_pago || '',
+    creditos: m.creditos ? String(m.creditos) : '',
+    /* Se manda SIEMPRE, también en false: si solo se mandara cuando es true,
+       el día que alguien se arrepienta el `coalesce` del servidor conservaría
+       el true viejo y esa persona no volvería a recibir nada nunca. */
+    no_sms: s.noSMS ? 'true' : 'false'
+  }; }));
 
   const asig = asignaciones().map(a => {
     const per = personaDeEquipo(a.asesor_id);
@@ -10157,8 +10289,12 @@ function publicarEquipoAhora(gente, asig, ps) {
     asig.length + ' asignaciones\n· ' + (ps.length - nCli) + ' potenciales\n· ' +
     nCli + ' clientes (para cobrarles)\n\n' +
     (sinCel ? '⚠ ' + sinCel + ' de ellos no tienen celular: van a salir sin el botón de WhatsApp.\n\n' : '') +
-    'De cada uno viaja SOLO el nombre, el celular y en qué etapa está.\n' +
-    'Ni cédula, ni dirección, ni fotos, ni cuánto debe.\n\n' +
+    'De cada uno viaja el nombre, el celular, en qué etapa está y —desde hoy—\n' +
+    'CUÁNTO DEBE y CUÁNDO LE TOCA PAGAR, para que se le pueda cobrar.\n' +
+    'Sigue sin viajar: cédula, dirección, fotos y referencias.\n\n' +
+    '⚠ El monto es una FOTO del cálculo de hoy. Si no vuelves a publicar, el\n' +
+    'asesor seguirá leyendo esta cifra: por eso la pantalla le pone al lado el\n' +
+    'día en que se calculó.\n\n' +
     'Y cada quien va a ver solo lo suyo: eso lo decide el servidor.\n\n¿Sigo?')) return;
 
   rpc('equipo_publicar', { p_clave: sbCfg().clave,

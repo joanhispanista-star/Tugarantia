@@ -80,9 +80,20 @@ function publicar(P, db) {
 
 describe('la cartera del equipo: los clientes le llegan al asesor (10-sep-2026)', () => {
 
-  test('DE UN CLIENTE SOLO VIAJAN NOMBRE, CELULAR Y ETAPA — nada más', async () => {
+  test('DE UN CLIENTE VIAJA LO JUSTO PARA COBRARLE — y nada más', async () => {
     /* El corazón de este archivo. Si alguien agrega un campo «por comodidad»,
-       esta prueba se cae y le dice por qué no puede. */
+       esta prueba se cae y le dice por qué no puede.
+
+       22-sep-2026 — LA FRONTERA SE MOVIÓ, Y LA MOVIÓ JOAN. Hasta hoy la lista
+       era «nombre, celular y etapa» y la plata estaba prohibida a propósito.
+       Pidió que el asesor pudiera cobrar: se le preguntaron las tres opciones
+       con sus riesgos y eligió fecha Y monto, sabiendo que un asesor que
+       pierde el celular —o que se va a la competencia— se lleva la cartera
+       valorizada de los suyos.
+
+       Lo que NO se movió, y sigue siendo el corazón: cédula, dirección,
+       correo, fotos, notas de riesgo, código de acceso, ingresos y
+       referencias. Esa lista de abajo no se toca sin otra conversación. */
     const P = abrirPanel();
     const r = publicar(P, cartera());
     await new Promise(res => setTimeout(res, 30));
@@ -92,9 +103,17 @@ describe('la cartera del equipo: los clientes le llegan al asesor (10-sep-2026)'
     assert.ok(cli, 'el cliente asignado no viajó: el asesor abriría «Mi base» y no vería a nadie');
 
     assert.deepEqual(Object.keys(cli).sort(),
-      ['celular', 'estado', 'etapa', 'id', 'nombre', 'tipo'],
-      'a la nube del equipo viaja un campo de más. Solo puede ir nombre, celular y etapa: ' +
-      'con eso se cobra, y lo demás multiplica el daño el día que se pierda un celular.');
+      ['celular', 'creditos', 'estado', 'etapa', 'fecha_pago', 'id', 'no_sms',
+       'nombre', 'saldo', 'saldo_total', 'tipo'],
+      'a la nube del equipo viaja un campo de más, o falta uno. La lista es cerrada ' +
+      'a propósito: cada campo de más multiplica el daño el día que se pierda un celular.');
+
+    /* Y el SALIR viaja SIEMPRE, también en false. Si solo viajara cuando es
+       true, el día que alguien se arrepienta el coalesce del servidor
+       conservaría el true viejo y esa persona no volvería a recibir nada
+       nunca — sin que nadie pudiera notarlo. */
+    assert.ok(cli.no_sms === 'true' || cli.no_sms === 'false',
+      'el SALIR tiene que viajar siempre, también en false: ' + JSON.stringify(cli.no_sms));
 
     /* Y por si alguien mete un dato sensible dentro de uno de los permitidos. */
     const plano = JSON.stringify(enviado.p_gente);
@@ -138,8 +157,18 @@ describe('la cartera del equipo: los clientes le llegan al asesor (10-sep-2026)'
     const d = r.dicho();
     assert.match(d, /1 potenciales/, 'el aviso no cuenta los potenciales: ' + d);
     assert.match(d, /1 clientes \(para cobrarles\)/, 'el aviso no cuenta los clientes: ' + d);
-    assert.match(d, /Ni cédula, ni dirección, ni fotos/,
+    /* El aviso tiene que decir las DOS mitades: lo que viaja y lo que no. Hasta
+       el 22-sep decía «ni cuánto debe», y ese día dejó de ser verdad. Una
+       pantalla que promete lo que el código ya no cumple es peor que una que no
+       promete nada, porque Joan decide publicar leyendo eso. */
+    assert.match(d, /CUÁNTO DEBE y CUÁNDO LE TOCA PAGAR/,
+      'el aviso no dice que ahora viaja la plata: Joan estaría publicando otra cosa de la que cree');
+    assert.match(d, /Sigue sin viajar: cédula, dirección, fotos y referencias/,
       'el aviso no le dice a Joan qué NO viaja: es lo que le deja decidir con conocimiento');
+    assert.equal(/Ni cédula, ni dirección, ni fotos, ni cuánto debe/.test(d), false,
+      'el aviso vuelve a prometer que no viaja la plata, y sí viaja');
+    assert.match(d, /FOTO del cálculo de hoy/,
+      'no se avisa de que el monto envejece: el asesor cotizaría una cifra rancia');
   });
 
   test('del cliente viaja su número de WhatsApp, que es al que se le cobra', async () => {

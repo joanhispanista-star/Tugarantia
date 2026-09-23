@@ -1009,7 +1009,40 @@
    comprobantes.
 
    2.162 pruebas. Base: 20260922j. */
-const CACHE = 'tugarantia-v95';
+
+/* v96 — 22-sep-2026. LOS ROLES DE ASESOR Y GERENTE, ENCENDIDOS.
+
+   El hallazgo: no habia que construirlos, habia que ENCENDERLOS. Seis
+   pantallas del asesor, el tablero del gerente con 18 indicadores, el embudo
+   de 12 etapas y la agenda estaban escritos desde el 10 y el 15 de septiembre.
+   De las TRECE funciones que necesitan, existia UNA. Las otras doce contestaban
+   404 -- por eso cada Publicar preguntaba «si no pude traer lo que hizo tu
+   gerente, publico igual?».
+
+   FASE 0: arreglar antes de aplicar. Los tres defectos de Infobip que
+   20260919 repetia del 16-sep (el sender vacio hacia que NO saliera ni un SMS,
+   nunca); el agujero de capacidad mas grande del repo (registro_vivo_publicar,
+   abierta a anon, sin comprobar que las fotos fueran fotos: 200 filas llenaban
+   los 500 MB y la base queda de SOLO LECTURA); y esa misma funcion dejaba
+   PISARLE el registro a otro en mitad de su registro acompanado. Mas
+   mi_alcance, que fallaba ABIERTO, y dos asignaciones el mismo dia que
+   empataban y dejaban a dos asesores viendo al mismo cliente.
+
+   FASE 1: que la plata llegue. Habia DOS tapones detras del visible y no
+   estaban en ningun documento: el CRM nunca publicaba los montos (las columnas
+   se quedaban en null para siempre) y el boton de enviar se bloqueaba solo
+   porque modoEquipo() vacia DB.socios a proposito. Ahora viajan saldo,
+   saldo_total, fecha_pago, creditos y el SALIR -- decision de Joan, con los
+   riesgos delante -- y el aviso del Publicar dice la verdad en vez de prometer
+   «ni cuanto debe».
+
+   Y se dice DE CUANDO es la cifra: el monto no esta guardado, lo recalcula el
+   CRM contra hoy. Publicar el lunes y no volver hasta el viernes hacia que el
+   asesor cotizara un saldo de lunes y el cliente quedara debiendo cuatro dias
+   de mora, con el pantallazo del SMS en la mano.
+
+   2.179 pruebas. Base: 20260911, 20260919, 20260922k y 20260922m. */
+const CACHE = 'tugarantia-v96';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
