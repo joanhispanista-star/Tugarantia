@@ -8899,11 +8899,50 @@ function mensajearEq(id, canal) {
         '—ve un código corto—, por eso el texto empieza diciendo quién escribe.</div>'
       : '<div class="muted" style="font-size:12px;margin-bottom:10px">Lo lee una máquina. ' +
         'El monto va en palabras a propósito: «$150.000» leído por un robot suena a decimal.</div>') +
+    '<div class="muted" id="quedanEnvAs" style="font-size:12px;margin-bottom:10px"></div>' +
     '<div id="envAsMsg"></div>' +
     '<button class="btn btn-rojo" style="width:100%" id="btnEnvAs" onclick="confirmarEnvioAs()">' +
       (canal === 'voz' ? 'Llamar' : 'Enviar') + '</button>' +
     '<div class="muted" style="font-size:12px;margin-top:8px">Queda anotado con tu nombre y la hora. ' +
       'Cuenta como tu contacto de la semana con esta persona.</div>');
+
+  cuantosQuedanHoyEq();
+}
+
+/* 22-sep-2026 — EL TOPE DEL DÍA, DICHO ANTES DE TOCAR EL BOTÓN.
+   `envios_asesor_hoy()` estaba escrita, concedida y con un comentario que
+   explicaba que existía «para que la pantalla lo pueda mostrar antes de que el
+   asesor toque el botón, y no solo cuando ya se le negó»… y no la llamaba
+   nadie. Así que el asesor escribía el mensaje, lo revisaba, lo mandaba — y
+   ahí se enteraba de que no le quedaban.
+
+   Se pide DESPUÉS de pintar el modal y sin bloquearlo: si la nube no contesta,
+   la pantalla se queda como estaba en vez de no abrir. Una cifra que no llega
+   no puede impedir un envío que sí se puede hacer. */
+function cuantosQuedanHoyEq() {
+  rpcEquipo('envios_asesor_hoy').then(function (res) {
+    var caja = document.getElementById('quedanEnvAs');
+    if (!caja) return;                      /* cerró el modal mientras tanto */
+    var j = res && res.j;
+    if (!res.ok || !j || j.ok !== true) return;
+    /* La funcion devuelve {hoy, tope}, NO «quedan». Leerlo mal no daría un
+       error: daría NaN y la cifra no se pintaría nunca — o sea que este
+       aviso habría seguido sin existir después de escribirlo. */
+    var quedan = Number(j.tope) - Number(j.hoy);
+    if (!isFinite(quedan)) return;
+    if (quedan <= 0) {
+      caja.className = 'alerta warn';
+      caja.style.fontSize = '';
+      caja.innerHTML = '<b>Ya usaste tus envíos de hoy.</b> Mañana se reinician. ' +
+        'Si es urgente, llámala.';
+      var b = document.getElementById('btnEnvAs');
+      if (b) { b.disabled = true; b.textContent = 'Sin envíos hoy'; }
+      return;
+    }
+    caja.innerHTML = quedan <= 10
+      ? '⚠ Te quedan <b>' + quedan + '</b> envíos hoy.'
+      : 'Te quedan <b>' + quedan + '</b> envíos hoy.';
+  }).catch(function () { /* sin cifra se sigue igual: no es un freno */ });
 }
 
 /* Que plantilla de SMS toca segun la etapa. Es el mismo criterio de la de
@@ -8959,6 +8998,57 @@ function confirmarEnvioAs() {
  * se escriben aca: un asesor trabajando contra una tabla equivocada es una
  * discusion de plata a fin de mes.
  * ------------------------------------------------------------------------ */
+/* 22-sep-2026 — LO QUE LLEVA GANADO. Joan: «que pueda ver con claridad sus
+   propios indicadores», y para un comercial ese es EL indicador.
+
+   Hasta hoy esta pestaña explicaba las reglas de comisión perfectamente —cuánto
+   se gana por traer, por colocar, por cobrar y cuánto se descuenta por una mora
+   de más de veinte días— y no decía un solo peso de lo suyo.
+
+   TRES BOLSAS Y NO UNA, porque significan cosas distintas y mezclarlas sería
+   prometerle plata que todavía no es suya:
+     LIBRE     — puede cobrarla ya.
+     BLOQUEADA — ganada, retenida hasta que el cliente pague. Es la mitad del
+                 diseño de Joan: al asesor le duele lo mismo que a él.
+     DESCONTADO— lo que se fue por moras de más de veinte días.
+
+   `null` NO es cero: si el CRM todavía no publicó estos números se dice así,
+   porque escribir «llevas $0» a quien lleva trescientos mil es peor que no
+   escribir nada. */
+function tarjetaMiSaldoEq() {
+  var yo = (CARTERA_EQUIPO && CARTERA_EQUIPO.yo) || {};
+  if (yo.com_ganado == null && yo.com_libre == null) {
+    return '<div class="card"><div class="alerta info">' +
+      '<b>Todavía no sé cuánto llevas.</b> Tu celular no ha recibido las cuentas.' +
+      '</div><p class="muted">Joan tiene que <b>publicar el equipo</b> desde su Panel. ' +
+      'Las reglas de aquí abajo sí son las que valen.</p></div>';
+  }
+  var libre = Number(yo.com_libre || 0);
+  var bloq  = Number(yo.com_bloqueado || 0);
+  var cast  = Number(yo.com_castigos || 0);
+  var deuda = Number(yo.com_deuda || 0);
+  var dias  = yo.com_al_dia_de
+    ? Math.floor((Date.now() - new Date(yo.com_al_dia_de).getTime()) / 86400000) : null;
+
+  return '<div class="card"><div class="card-h"><h3>💰 Lo que llevas</h3>' +
+      '<span class="tag">' + COP(libre + bloq) + ' en total</span></div>' +
+    '<div class="cifras">' +
+      '<span class="cifraEq bien"><b>' + COP(libre) + '</b><span>puedes cobrar ya</span></span>' +
+      '<span class="cifraEq ojo"><b>' + COP(bloq) + '</b><span>cuando te paguen</span></span>' +
+      (cast ? '<span class="cifraEq mal"><b>−' + COP(cast) + '</b><span>descontado por mora</span></span>' : '') +
+    '</div>' +
+    (deuda ? '<div class="alerta warn" style="margin:0 16px 12px"><b>' + COP(deuda) +
+      ' quedaron debiendo.</b> Un descuento por mora no alcanzó a cubrirse con lo que tenías. ' +
+      'No se te quita de lo ya cobrado: lo decide Joan.</div>' : '') +
+    '<div class="muted" style="padding:0 16px 14px;font-size:12px;line-height:1.5">' +
+      (yo.com_al_dia_de
+        ? 'Cuentas al <b>' + escHTML(fmtFecha(yo.com_al_dia_de)) + '</b>' +
+          (dias >= 2 ? ' — hace ' + dias + ' días. Pídele a Joan que publique para verlas al día.' : '.')
+        : '') +
+      ' Lo <b>bloqueado</b> se suelta cuando el cliente paga: por eso cobrar es tu plata, no un favor.' +
+    '</div></div>';
+}
+
 function vistaPlataEq() {
   var T = window.AsesorTextos;
   if (!T) return '<div class="card"><div class="alerta warn">No cargó app/asesor-textos.js. ' +
@@ -8980,7 +9070,9 @@ function vistaPlataEq() {
   };
 
   return '<div class="ph"><div><h1>Mi plata<span class="dot">.</span></h1>' +
-      '<div class="sub">Cómo se gana, con las reglas completas</div></div></div>' +
+      '<div class="sub">Lo que llevas, y cómo se gana</div></div></div>' +
+
+    tarjetaMiSaldoEq() +
 
     '<div class="card laca"><div class="etq">' + escHTML(m.texto) + '</div>' +
       '<div class="muted" style="margin-top:6px">' + escHTML(m.pie) + '</div></div>' +
@@ -9098,10 +9190,58 @@ function vistaTableroEquipo() {
       ${pend.length ? pend.slice(0, 20).map(filaPersonaEq).join('')
         : '<div class="muted" style="padding:14px">Nadie está en día de pago ni en mora. Buen momento para contactar a los que no se han registrado.</div>'}
     </div>
+    ${tarjetaComoVasEq()}
     <div class="card"><div class="card-h"><h3>📊 Toda tu base, por cartera</h3></div>
       ${((ETAPAS && ETAPAS.ORDEN) || []).filter(k => cuenta[k])
         .map(k => filaInfo(ETAPAS.ETAPAS[k].nombre, String(cuenta[k]))).join('')}
     </div>`;
+}
+
+/* 22-sep-2026 — SUS PROPIOS INDICADORES, que es el punto 5 de lo que pidió
+   Joan. `indicadoresDe()` ya calculaba las quince cifras desde el 15-sep… y
+   solo las usaba la vista del GERENTE: el asesor veía sus números únicamente
+   en la pantalla de su jefe.
+
+   Se reusa tal cual, que es lo importante: si se escribiera otra cuenta, el día
+   que se separen el asesor y su jefe estarían mirando cifras distintas de lo
+   mismo — y discutiendo sobre cuál vale.
+
+   Y cada número es tocable, igual que para el gerente: un indicador que no se
+   puede abrir es un número que nadie usa. «21 sin tocar» tiene que llevar a
+   esos 21. */
+function tarjetaComoVasEq() {
+  const hayAgenda = AGENDA_ESTADO === 'listo';
+  const i = indicadoresDe(genteEquipo(), hayAgenda ? (AGENDA_EQ || []) : null);
+  const mio = esGerenteEq() ? '' : (CARTERA_EQUIPO.yo || {}).celular || '';
+  return `<div class="card"><div class="card-h">
+      <h3>📈 ${esGerenteEq() ? 'Cómo va tu equipo' : 'Cómo vas'}</h3>
+      <span class="tag">${i.tocadosSemana} tocados esta semana</span></div>
+    <div class="cifras">
+      ${cifraEq(i.clientes, 'ya son clientes', 'clientes', mio, 'bien')}
+      ${cifraEq(i.potenciales, 'por vender', 'potenciales', mio)}
+      ${cifraEq(i.vaAPedir, 'dijeron que van a pedir', 'vaapedir', mio, 'bien')}
+    </div>
+    <div class="sub-h">Tu cartera de cobranza</div>
+    <div class="cifras">
+      ${cifraEq(i.aldia, 'al día', 'aldia', mio, 'bien')}
+      ${cifraEq(i.hoy, 'pagan hoy', 'hoy', mio, 'ojo')}
+      ${cifraEq(i.mora, 'en mora', 'mora', mio, 'mal')}
+      ${cifraEq(i.promesas, 'prometieron pagar', 'promesa', mio)}
+    </div>
+    <div class="sub-h">Cómo vas trabajando</div>
+    <div class="cifras">
+      ${cifraEq(i.sinTocar, 'sin tocar nunca', 'sintocar', mio, 'mal')}
+      ${cifraEq(i.frios, 'fríos +' + DIAS_FRIO + 'd', 'frios', mio, 'ojo')}
+      ${cifraEq(i.noContesta, 'no contestan', 'nocontesta', mio)}
+      ${cifraEq(i.citasVencidas, 'citas vencidas', '', mio, 'mal')}
+    </div>
+    ${!hayAgenda ? `<div class="muted" style="padding:0 16px 12px;font-size:12px">
+      Las citas salen con «—» porque no pude traer la agenda. <b>No</b> quiere decir
+      que no tengas.</div>` : ''}
+    <div class="muted" style="padding:0 16px 14px;font-size:12px;line-height:1.5">
+      «Tocados» cuenta <b>personas</b>, no llamadas: alguien al que llamaste tres veces
+      cuenta una. Y «dijeron que van a pedir» es lo que ellos dijeron, no un crédito
+      entregado.</div></div>`;
 }
 
 /* Los dos guiones no se mezclan: al POTENCIAL se le vende, al CLIENTE se le
@@ -10297,9 +10437,34 @@ function publicarEquipoAhora(gente, asig, ps) {
     'día en que se calculó.\n\n' +
     'Y cada quien va a ver solo lo suyo: eso lo decide el servidor.\n\n¿Sigo?')) return;
 
+  /* 22-sep-2026 — LO QUE CADA UNO LLEVA GANADO, que es EL indicador de un
+     comercial. La pestaña «Mi plata» explicaba las reglas perfectamente y no
+     decía un solo peso de lo suyo.
+
+     NO SE PUEDE CALCULAR EN SU CELULAR, y conviene tenerlo claro antes de
+     «mejorarlo»: el libro de comisiones se deriva de socios, prestamos,
+     registros y asignaciones, y en modo equipo `DB` está vacío a propósito.
+     Así que se calcula aquí, donde están los datos, y viajan CINCO NÚMEROS —
+     no el libro: el libro son centenares de movimientos con `socio_id`
+     adentro, y mandarlo sería mandar la cartera otra vez por otra puerta.
+
+     El libro se deriva UNA vez para todos: si cada fila lo calculara por su
+     cuenta, la suma de la pantalla y la que Joan paga podrían separarse — y
+     eso ya pasó doce veces en este proyecto. */
+  const movsCom = hayComisiones() ? movimientosDeComision() : null;
+  const plataDeAsesor = p => {
+    if (!movsCom) return {};
+    const c = COMIS.saldoDeAsesor(movsCom, p.id, hoyISO());
+    return { com_libre: String(c.libre), com_bloqueado: String(c.bloqueado),
+             com_castigos: String(c.castigos), com_deuda: String(c.deuda),
+             com_ganado: String(c.total_ganado) };
+  };
+
   rpc('equipo_publicar', { p_clave: sbCfg().clave,
-      p_equipo: gente.map(p => ({ celular: p.celular, nombre: p.nombre, rol: p.rol,
-                                  estado: p.estado || 'activo', jefe: p.jefe || '' })),
+      p_equipo: gente.map(p => Object.assign(
+        { celular: p.celular, nombre: p.nombre, rol: p.rol,
+          estado: p.estado || 'activo', jefe: p.jefe || '' },
+        plataDeAsesor(p))),
       p_asignaciones: asig, p_gente: ps })
     .then(r => {
       alert('Publicado.\n\nEquipo: ' + (r.equipo || 0) + '\nAsignaciones: ' + (r.asignaciones || 0) +

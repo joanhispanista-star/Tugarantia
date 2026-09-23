@@ -1042,7 +1042,31 @@
    de mora, con el pantallazo del SMS en la mano.
 
    2.179 pruebas. Base: 20260911, 20260919, 20260922k y 20260922m. */
-const CACHE = 'tugarantia-v96';
+
+/* v97 — 22-sep-2026. FASE 2: LOS INDICADORES DEL ASESOR.
+
+   Tres cosas que ya existian a medias. indicadoresDe() calculaba quince cifras
+   desde el 15-sep y SOLO las usaba la vista del gerente: el asesor veia sus
+   numeros unicamente en la pantalla de su jefe. «Mi plata» explicaba las reglas
+   de comision perfectamente y no decia un solo peso de lo suyo -- para un
+   comercial, ese es EL indicador. Y envios_asesor_hoy() estaba escrita,
+   concedida, con un comentario que explicaba que existia para avisar ANTES de
+   tocar el boton... y no la llamaba nadie.
+
+   La plata del asesor no se puede calcular en su celular: el libro de
+   comisiones se deriva de socios, prestamos, registros y asignaciones, y en
+   modo equipo DB esta vacio a proposito. Asi que se calcula en el CRM de Joan y
+   viajan CINCO NUMEROS -- no el libro, que son centenares de movimientos con
+   socio_id adentro y seria mandar la cartera por otra puerta.
+
+   Y UN ARREGLO QUE NO ERA DE ESTA FASE: esta misma tarde se le cambio la FIRMA
+   a registro_vivo_borrar para que pidiera el testigo y EL CUERPO NUNCA LO MIRO.
+   La prueba contra la base real dio bien POR LA RAZON EQUIVOCADA: comprobaba
+   que despues del borrado ajeno se pudiera seguir publicando, y eso pasa igual
+   si la fila se borro. Probar que algo corre no es probar que haga lo que dice.
+
+   2.201 pruebas. Base: 20260922n. */
+const CACHE = 'tugarantia-v97';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
