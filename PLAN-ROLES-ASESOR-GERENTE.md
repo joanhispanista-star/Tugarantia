@@ -151,14 +151,33 @@ cazó a sí mismo por buscar dos palabras que quedaron en líneas distintas. Las
 dos veces la migración entera revirtió, que es exactamente lo que tiene que
 pasar.
 
-### Fase 1 — Que la plata llegue al celular · **23-sep**
+### Fase 1 — Que la plata llegue al celular · **22-sep** ✅ HECHA
 - Publicar `saldo`, `saldo_total`, `fecha_pago` y `creditos`. El CRM **ya los
   calcula** (`panel/crm.html:2131-2137`); hoy solo se usan para armar el SMS.
 - Reescribir el aviso del publicar para que deje de prometer lo que ya no
   cumple.
 - Publicar el dato de **SALIR**, que es lo que destapa el tercer tapón.
 
-**Al terminar**: puntos 2 y 3 de Joan, y el botón de enviar deja de estar muerto.
+**Hecho y verificado el 22-sep.** `20260922m` aplicada; el CRM publicado en
+v96. Comprobado contra la base y contra el sitio en vivo.
+
+Cubre los puntos **2** (ventas del crédito) y **3** (cuándo pagan), y destapa
+el tercer tapón: el botón de enviar ya no está muerto.
+
+**Un fallo propio que cazó una prueba**, y vale anotarlo porque va a volver: se
+copió el filtro de `casosDeCobroHoy` (`mora / hoy / proximo`) para decidir qué
+créditos cuentan. Allí tiene sentido —contesta *«¿a quién le escribo HOY?»*—
+pero aquí no: `proximo` son **dos** días, así que un crédito que vence en
+**tres** viajaba sin monto y sin fecha. Justo el caso que Joan pidió, porque
+*preparar* la cobranza pasa en D-3, no el día del vencimiento. Y excluir los
+que tienen acuerdo vigente los borraba de la vista del asesor: un acuerdo mueve
+la fecha, no la deuda.
+
+**Y los dos centinelas de privacidad de `cartera.test.js` se cayeron**, que es
+exactamente para lo que están. No se borraron: se les movió la frontera y se
+escribió quién la movió y por qué. Lo que NO se movió sigue prohibido: cédula,
+dirección, correo, fotos, notas de riesgo, código de acceso, ingresos y
+referencias.
 
 ### Fase 2 — Los indicadores del asesor · **23-sep**
 - Su tarjeta propia en «Hoy», reusando `indicadoresDe()` — que ya existe y ya
