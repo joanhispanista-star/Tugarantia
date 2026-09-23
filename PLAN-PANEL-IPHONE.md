@@ -152,7 +152,13 @@ explícito y no de una resta (`marcarBorrados:false` siempre), y el paquete que
 baja se filtra contra lo que acabas de subir. Con sus centinelas.
 *Hasta aquí no llegamos, el espejo es de solo mirar y hay que decirlo en pantalla.*
 
-**Fase C — vender desde la calle (2–3 días, 29-sep al 1-oct).**
+**Fase C — vender desde la calle. ✅ HECHA el 23-sep-2026.**
+Simulador en vivo y crédito registrado desde el teléfono, con el número emitido
+por la nube. De paso salió que `crm.html` lleva una copia propia de la E.A. que
+ya vivía en `app/creditos.js`: el espejo usa el módulo, y una prueba exige que
+las dos que ya existen sigan de acuerdo.
+
+~~**Fase C (2–3 días, 29-sep al 1-oct).**~~
 Crear el crédito en el teléfono: simulador, pegar el WhatsApp, y el número de
 cliente pedido a la nube para que dos aparatos no choquen.
 

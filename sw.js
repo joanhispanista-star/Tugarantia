@@ -1335,7 +1335,46 @@
    cumple porque nadie lo ha roto, no porque algo lo impida.
 
    2.347 pruebas. */
-const CACHE = 'tugarantia-v107';
+
+/* v108 - 23-sep-2026. FASE C: PRESTAR DESDE LA CALLE.
+
+   El espejo decia con todas las letras que no crea creditos: 'eso se hace en el
+   computador'. Era verdad y era el hueco mas caro de la pantalla, porque es LA
+   conversacion de venta entera -- 'te presto X, me devuelves Y el dia Z' -- y
+   Joan la tiene de pie, delante del cliente, con el telefono en la mano.
+
+   Ahora hay simulador en vivo (cupo, ganancia, total, dia de pago y efectiva
+   anual con el aviso de usura), y el credito se registra desde el telefono.
+
+   NINGUN NUMERO SE CALCULA AHI. El costo lo da M.calcularCosto, la fecha de
+   corte M.calcularFechaCorte, el cupo P.cupoDelSocio y la efectiva anual
+   app/creditos.js -- que resulto calcular EXACTAMENTE lo mismo que la
+   eaEquivalente propia de crm.html, al decimal. O sea que crm.html lleva tiempo
+   con una copia de una regla que ya vivia en el modulo compartido. El espejo no
+   hace la tercera: usa el modulo, y hay una prueba que exige que las dos que ya
+   existen sigan de acuerdo.
+
+   Los dos topes del costo salen del motor (20% estandar, 50% techo), no
+   escritos a mano: el techo se movio el 8-sep y el dia que vuelva a moverse
+   esta pantalla se mueve sola.
+
+   EL NUMERO DEL CREDITO LO EMITE LA NUBE, igual que el del cliente y por el
+   mismo motivo. Sin senial no presta, y lo dice ANTES de llenar el formulario.
+
+   Y LAS CIFRAS PEGADAS NO SE ADIVINAN. En el computador, el cuadro de pegar
+   toma EL NUMERO MAS GRANDE del texto como capital; por ahi entro un credito de
+   $29.961 (CR-0043), con un comprobante que traia otra cifra encima del monto
+   real. Aca el celular si se rellena solo -- su forma no deja dudas -- pero el
+   capital NUNCA: se ensenian las cifras encontradas y Joan toca la que es.
+   Comprobado con el mensaje tipo que causo el fallo: ofrece 300.000 y 1.250.000,
+   y descarta la cedula, que es de donde salio el 29.961.
+
+   Las tres confirmaciones son las mismas del computador y en el mismo orden: el
+   cupo antes de tocar nada, el costo por encima del estandar aparte y con el
+   art. 305, y el resumen en pesos con el aviso de la cifra no redonda.
+
+   2.369 pruebas. */
+const CACHE = 'tugarantia-v108';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

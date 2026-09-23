@@ -367,6 +367,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
      es exactamente el defecto que este proyecto lleva semanas quitándose. -->
 <script src="../app/motor.js"></script>
 <script src="../app/puente.js"></script>
+<!-- La efectiva anual. NO se copia la fórmula: `efectivoAnualPorFechas` ya la
+     tiene, y crm.html lleva una segunda implementación propia (`eaEquivalente`)
+     que da el MISMO número al decimal. Una tercera copia es como se separan. -->
+<script src="../app/creditos.js"></script>
 <script src="nube.js"></script>
 <!-- La tanda vive en su propio archivo porque lo que decide ahí adentro es si un
      contacto CUMPLE LA LEY 2300, y eso tiene que poderse probar con `node --test`
@@ -395,7 +399,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
  * LO QUE ESTA PANTALLA NO PUEDE HACER, Y LO DICE EN VOZ ALTA:
  *   · no trae fotos (cédula, selfie, comprobantes) — Fase 1, ver el aviso;
  *   · no crea clientes sin señal — el número lo emite la nube;
- *   · no crea créditos ni préstamos con garantía — eso se hace en el computador;
+ *   · SÍ crea créditos desde el 23-sep-2026 (Fase C), pero solo CON SEÑAL: el
+ *     número lo emite la nube. Los préstamos con garantía siguen siendo del
+ *     computador — son otra figura y otro papeleo;
  *   · no pacta planes de pagos — es un compromiso a tres cortes y se firma sentado.
  * ========================================================================= */
 
@@ -403,6 +409,13 @@ var M = window.MotorReglas || null;
 var P = window.PuenteTuGarantia || null;
 var NUBE = window.NubeTuGarantia || null;
 var T = window.TandaTuGarantia || null;
+var CR = window.CreditosPublicables || null;
+
+/* Los dos topes del costo SALEN DEL MOTOR, no se escriben acá. El techo subió
+   del 20% al 50% el 8-sep-2026 por decisión de Joan, y el día que vuelva a
+   moverse esta pantalla tiene que moverse sola. */
+var TASA_FIJA_PCT  = M ? Math.round(M.TASA_CREDITO * 100) : 0;
+var TASA_TECHO_PCT = M ? Math.round((M.TASA_CREDITO_MAXIMA || M.TASA_CREDITO) * 100) : 0;
 
 /* LA CONEXIÓN VIENE PUESTA DE FÁBRICA — 18-ago-2026, y esto salió de un fallo
    real: en el computador la conexión estaba precargada y todo andaba; Joan
@@ -2436,7 +2449,10 @@ function vistaFicha() {
   var resp = P.respaldadosDe(DB, s);
   var tel = waNum(s);
 
-  var h = botonVolver() + '<div class="card laca" style="margin-top:var(--e3)">'
+  var h = botonVolver()
+    + '<button class="btn arriba" type="button" data-acc="cr-nuevo" data-id="' + esc(s.id) + '">'
+    + '\u{1F4B5} Prestarle</button>'
+    + '<div class="card laca" style="margin-top:var(--e3)">'
     + '<div class="etq">' + esc(P.codCliente(s)) + ' · nivel ' + esc(paq.garantia.nivel) + '</div>'
     + '<h1 style="font-size:22px;margin-top:6px;color:var(--blanco-laca)">' + esc(s.nombre || 'Socio') + '</h1>'
     + '<div class="sep"></div>'
@@ -3302,6 +3318,298 @@ function abrirGestion(prestId, clave, tituloExtra) {
   }
 }
 
+/* ==========================================================================
+ * PRESTAR DESDE LA CALLE — 23-sep-2026 (Fase C)
+ *
+ * Hasta hoy el espejo decía, con todas las letras, que no crea créditos: «eso
+ * se hace en el computador». Era verdad y era el hueco más caro de la pantalla,
+ * porque es LA conversación de venta entera —«te presto X, me devuelves Y el
+ * día Z»— y Joan la tiene de pie, delante del cliente, con el teléfono en la
+ * mano.
+ *
+ * ---------------------------------------------------------------------------
+ * NINGÚN NÚMERO SE CALCULA ACÁ
+ *
+ * El costo lo da `M.calcularCosto`, la fecha de corte `M.calcularFechaCorte`,
+ * el cupo `P.cupoDelSocio` y la efectiva anual `CR.efectivoAnualPorFechas`.
+ * Esta pantalla los PINTA. Es la regla 3 del archivo, y no es purismo: el día
+ * que el porcentaje se escribió a mano en ocho pantallas del Panel, ocho
+ * siguieron diciendo 90% cuando el motor ya acreditaba 75.
+ *
+ * ---------------------------------------------------------------------------
+ * EL NÚMERO DEL CRÉDITO LO EMITE LA NUBE
+ *
+ * Igual que el del cliente, y por el mismo motivo: si el celular lo inventara
+ * sin señal, el computador podría estar entregando ese mismo número al mismo
+ * tiempo. Por eso sin señal esta pantalla no presta — y lo dice antes, no
+ * después de llenar el formulario.
+ *
+ * ---------------------------------------------------------------------------
+ * Y LAS CIFRAS PEGADAS NO SE ADIVINAN
+ *
+ * En el computador, el cuadro de pegar el WhatsApp toma EL NÚMERO MÁS GRANDE
+ * del texto como capital. Por ahí entró un crédito de $29.961 (CR-0043): un
+ * comprobante traía otra cifra encima del monto real y nadie la vio, porque
+ * nada la mostraba. Acá el texto pegado NUNCA rellena el capital solo: se
+ * enseñan las cifras que encontró y Joan toca la que es. Un toque de más
+ * cuesta un segundo; una cifra fantasma en la cartera cuesta el ciclo entero.
+ * ======================================================================== */
+var _credito = null;   /* el estado de la hoja, fuera del HTML: el simulador
+                          repinta su bloque en cada tecla y lo que Joan ya
+                          escribió no puede perderse entre repintados. */
+
+function abrirNuevoCredito(socioId) {
+  var s = socioId ? socioPorId(socioId) : null;
+  _credito = { socioId: s ? s.id : null, capital: 0, costo: TASA_FIJA_PCT,
+               fecha: hoyISO(), nombre: s ? (s.nombre || '') : '',
+               tel: s ? waNum(s) : '' };
+
+  var h = '';
+  if (!nubeLista()) {
+    h += '<div class="aviso ambar"><b>Sin señal no se puede prestar.</b> El número del crédito '
+      + '(CR-0001, CR-0002…) lo emite la nube uno por uno. Si el celular lo inventara, el '
+      + 'computador podría estar entregando ese mismo número al mismo tiempo y quedarían dos '
+      + 'créditos distintos con el mismo código.<br><br>Cobrar, prorrogar y marcar gestión sí '
+      + 'funcionan sin señal.</div>';
+  }
+  if (!M || !P || !CR) {
+    h += '<div class="aviso ambar"><b>No cargaron las reglas.</b> Sin el motor no se cotiza: '
+      + 'esta pantalla no enseña números inventados.</div>';
+    abrirHoja('Prestar', h); return;
+  }
+
+  h += s
+    ? '<div class="aviso info">Le vas a prestar a <b>' + esc(s.nombre || '') + '</b> · '
+      + esc(P.codCliente(s)) + '</div>'
+    : '<label for="crNombre">Nombre completo</label><input id="crNombre" type="text" autocomplete="name">'
+      + '<label for="crTel">Celular</label><input id="crTel" type="tel" inputmode="tel">'
+      + '<button class="btn sec sm arriba" type="button" data-acc="cr-pegar">Pegar el WhatsApp</button>'
+      + '<div id="crPegado"></div>';
+
+  h += '<label for="crCap">¿Cuánto le prestas?</label>'
+    + '<input id="crCap" type="number" inputmode="numeric" min="0" step="1000" oninput="alTeclearCredito()">'
+    + '<label for="crCosto">Costo pactado (%)</label>'
+    + '<input id="crCosto" type="number" inputmode="numeric" min="1" max="' + TASA_TECHO_PCT + '"'
+    + ' value="' + TASA_FIJA_PCT + '" oninput="alTeclearCredito()">'
+    + '<div class="muted" style="font-size:12px;margin-top:-6px">El estándar es ' + TASA_FIJA_PCT
+    + '% y el techo ' + TASA_TECHO_PCT + '%. Por debajo del 1% el crédito no se puede prorrogar.</div>'
+    + '<label for="crFecha">¿Qué día le entregas la plata?</label>'
+    + '<input id="crFecha" type="date" value="' + esc(hoyISO()) + '" oninput="alTeclearCredito()">'
+    + '<div id="crCalc"></div>'
+    + '<button class="btn arriba" id="crBtn" type="button" data-acc="cr-ok"'
+    + (nubeLista() ? '' : ' disabled') + '>Registrar el crédito</button>';
+
+  abrirHoja(s ? 'Prestar a ' + (s.nombre || '') : 'Crédito nuevo', h);
+  alTeclearCredito();
+}
+
+/* Solo repinta el bloque del cálculo. Repintar la hoja entera en cada tecla
+   haría perder el foco del campo, que en un teléfono se traduce en que el
+   teclado se cierre a media cifra. */
+function alTeclearCredito() {
+  if (!_credito) return;
+  var v = function (id) { var e = document.getElementById(id); return e ? e.value : ''; };
+  _credito.capital = Number(v('crCap')) || 0;
+  _credito.costo = Number(v('crCosto'));
+  _credito.fecha = v('crFecha') || hoyISO();
+  var caja = document.getElementById('crCalc');
+  if (caja) caja.innerHTML = cotizacionCredito();
+}
+
+/* La cotización. Devuelve HTML y NO decide nada: el mismo texto que Joan le lee
+   al cliente en voz alta. */
+function cotizacionCredito() {
+  var c = _credito, s = c.socioId ? socioPorId(c.socioId) : null;
+  var costoOk = isFinite(c.costo) && c.costo >= 1 && c.costo <= TASA_TECHO_PCT;
+  if (!costoOk) {
+    return '<div class="aviso ambar">El costo va del 1% al ' + TASA_TECHO_PCT + '%.</div>';
+  }
+  /* El cupo primero: es el límite del que salen todos los demás números. */
+  var cupo = '';
+  if (s) {
+    var paq = P.migrarSocio(DB, s);
+    var cu = P.cupoDelSocio(DB, s, paq.garantia.nivel);
+    var cabe = c.capital <= cu.cupo;
+    cupo = '<div class="fila"><span class="k">Su cupo de hoy</span><span class="v '
+      + (c.capital > 0 && !cabe ? 'mora' : 'oro') + '">' + COP(cu.cupo) + '</span></div>'
+      + (c.capital > 0 && !cabe
+          ? '<div class="aviso ambar" style="margin-top:8px">Le estás prestando <b>'
+            + COP(c.capital - cu.cupo) + '</b> por encima de su cupo. Se puede, pero que sea a sabiendas.</div>'
+          : '');
+  }
+  if (!c.capital) {
+    return '<div class="card" style="margin-top:12px">' + cupo
+      + '<div class="muted" style="padding:4px 0">Escribe cuánto le prestas.</div></div>';
+  }
+
+  var k = M.calcularCosto(c.capital, c.costo / 100);
+  var corte = M.calcularFechaCorte(c.fecha);
+  var dias = diasEntre(c.fecha, corte);
+  var ea = CR.efectivoAnualPorFechas(c.fecha, c.capital, [{ fecha: corte, total: c.capital + k }]);
+  var usura = Number((DB.config || {}).tasaUsuraEA) || 0;
+  var eaPct = ea === null ? null : ea * 100;
+  var sobre = usura > 0 && eaPct !== null && eaPct > usura;
+
+  return '<div class="card" style="margin-top:12px">' + cupo
+    + '<div class="fila"><span class="k">Tu ganancia (' + c.costo + '%)</span>'
+    +   '<span class="v oro">' + COP(k) + '</span></div>'
+    + '<div class="fila"><span class="k">Te devuelve</span><span class="v">' + COP(c.capital + k) + '</span></div>'
+    + '<div class="fila"><span class="k">El día</span><span class="v">' + esc(fmtFecha(corte))
+    +   ' <span class="muted">(' + dias + ' días)</span></span></div>'
+    + '<div class="fila"><span class="k">Efectivo anual</span><span class="v ' + (sobre ? 'mora' : '') + '">'
+    +   (eaPct === null ? '—' : fmtEAEspejo(eaPct)) + '</span></div>'
+    + (sobre
+        ? '<div class="aviso ambar" style="margin-top:8px"><b>Supera la usura que tienes anotada</b> ('
+          + usura + '%). Cobrar por encima del techo legal es delito (art. 305 del Código Penal), '
+          + 'y el responsable eres tú.</div>'
+        : '')
+    + (c.capital % 1000 !== 0
+        ? '<div class="aviso ambar" style="margin-top:8px">Esa cifra <b>no es redonda</b>. La plata se '
+          + 'entrega en billetes: un capital que no es múltiplo de mil casi siempre es un número que '
+          + 'se coló, no una decisión.</div>'
+        : '')
+    + '</div>';
+}
+
+function fmtEAEspejo(ea) {
+  return ea >= 100000 ? '≥100.000% (extrema)'
+    : ea.toLocaleString('es-CO', { maximumFractionDigits: 0 }) + '%';
+}
+
+/* ---------------------------------------------------------------------------
+   PEGAR EL WHATSAPP. Saca lo que se puede sacar sin adivinar —nombre y
+   celular— y para el DINERO enseña las cifras que encontró, sin elegir. */
+function pegarParaCredito() {
+  var caja = document.getElementById('crPegado');
+  if (!caja) return;
+  caja.innerHTML = '<label for="crTexto">Pega acá lo que te mandó</label>'
+    + '<textarea id="crTexto" rows="4" oninput="leerPegado()"></textarea>'
+    + '<div id="crLeido"></div>';
+  var t = document.getElementById('crTexto'); if (t) t.focus();
+}
+
+function leerPegado() {
+  var e = document.getElementById('crTexto'); if (!e) return;
+  var txt = String(e.value || '');
+  var salida = document.getElementById('crLeido'); if (!salida) return;
+
+  /* El celular colombiano: diez dígitos empezando por 3. Es la misma regla de
+     app/bases.js, y acá se puede afirmar porque la forma no deja dudas. */
+  var tels = (txt.match(/\d[\d .\-]{8,}\d/g) || [])
+    .map(function (x) { return x.replace(/\D/g, ''); })
+    .filter(function (d) { return /^3\d{9}$/.test(d.slice(-10)); })
+    .map(function (d) { return d.slice(-10); });
+
+  /* Las cifras que PODRÍAN ser plata. No se elige ninguna: se enseñan.
+     Se piden 20.000 para arriba porque por debajo no hay crédito, y así una
+     cédula suelta no se cuela como capital. */
+  var montos = [];
+  (txt.match(/\$?\s?\d[\d.,]{3,}/g) || []).forEach(function (x) {
+    var n = Number(String(x).replace(/[^\d]/g, ''));
+    if (n >= 20000 && n <= 20000000 && montos.indexOf(n) < 0) montos.push(n);
+  });
+  montos.sort(function (a, b) { return a - b; });
+
+  var h = '';
+  if (tels.length) {
+    var i = document.getElementById('crTel');
+    if (i && !i.value) i.value = tels[0];
+    h += '<div class="muted" style="margin-top:6px">Celular: <b>' + esc(tels[0]) + '</b></div>';
+  }
+  h += montos.length
+    ? '<div class="muted" style="margin-top:8px">Cifras que encontré. <b>Toca la del capital</b> — '
+      + 'no la pongo yo: en el computador, tomar la más grande metió un crédito de $29.961.</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">'
+      + montos.map(function (n) {
+          return '<button class="btn sec sm" type="button" style="width:auto;padding:8px 12px" '
+            + 'data-acc="cr-monto" data-id="' + n + '">' + COP(n) + '</button>';
+        }).join('') + '</div>'
+    : '<div class="muted" style="margin-top:8px">No encontré ninguna cifra que parezca plata.</div>';
+  salida.innerHTML = h;
+}
+
+function ponerCapital(n) {
+  var i = document.getElementById('crCap');
+  if (i) { i.value = String(Number(n) || 0); alTeclearCredito(); }
+}
+
+/* ---------------------------------------------------------------------------
+   REGISTRARLO. Las mismas tres confirmaciones del computador, en el mismo
+   orden, y por los mismos motivos: el cupo antes de tocar nada, el costo por
+   encima del estándar aparte y con el letrero legal, y el resumen en pesos. */
+function crearCredito() {
+  if (!_credito || !M || !P) return;
+  if (!nubeLista()) { alert('Sin señal no se puede: el número lo emite la nube.'); return; }
+  var c = _credito;
+  var s = c.socioId ? socioPorId(c.socioId) : null;
+  var nombre = s ? (s.nombre || '') : String((document.getElementById('crNombre') || {}).value || '').trim();
+  var tel = s ? waNum(s) : String((document.getElementById('crTel') || {}).value || '').trim();
+
+  if (!s && !nombre) { alert('Falta el nombre.'); return; }
+  if (!isFinite(c.costo) || c.costo < 1 || c.costo > TASA_TECHO_PCT) {
+    alert('El costo va del 1% al ' + TASA_TECHO_PCT + '%.'); return;
+  }
+  if (c.capital <= 0) { alert('Falta el capital.'); return; }
+  if (!s) { alert('Para prestar, el cliente tiene que existir primero.\n\n'
+    + 'Créalo con «Cliente nuevo» y desde su ficha toca «Prestar». Así el crédito '
+    + 'queda colgado de una ficha de verdad y no de un nombre suelto.'); return; }
+
+  var k = M.calcularCosto(c.capital, c.costo / 100);
+  var corte = M.calcularFechaCorte(c.fecha);
+  var dias = diasEntre(c.fecha, corte);
+
+  var paq = P.migrarSocio(DB, s);
+  var cu = P.cupoDelSocio(DB, s, paq.garantia.nivel);
+  if (c.capital > cu.cupo && !confirm('Su cupo de hoy es ' + COP(cu.cupo) + ' y le vas a prestar '
+      + COP(c.capital) + '.\n\nSon ' + COP(c.capital - cu.cupo) + ' por encima.\n\n¿Sigo?')) return;
+
+  if (c.costo > TASA_FIJA_PCT) {
+    var ea = CR ? CR.efectivoAnualPorFechas(c.fecha, c.capital, [{ fecha: corte, total: c.capital + k }]) : null;
+    var usura = Number((DB.config || {}).tasaUsuraEA) || 0;
+    if (!confirm('COSTO POR ENCIMA DEL ESTÁNDAR: ' + c.costo + '% (el estándar es ' + TASA_FIJA_PCT + '%).\n\n'
+      + 'A ' + dias + ' días equivale a ' + (ea === null ? '—' : fmtEAEspejo(ea * 100)) + ' efectivo anual'
+      + (usura > 0 ? ' — el techo de usura que tienes anotado es ' + usura + '%' : '') + '.\n'
+      + 'Cobrar por encima del techo legal es delito (art. 305 del Código Penal), y el responsable eres tú.\n\n'
+      + 'Al cliente se le muestra en pesos: ' + COP(k) + ' de costo por ' + COP(c.capital) + '.\n\n'
+      + '¿Lo registro con este costo?')) return;
+  }
+
+  if (!confirm('Registrar el crédito de ' + nombre + ':\n\n'
+    + '• Capital: ' + COP(c.capital) + (c.capital % 1000 !== 0 ? '   ⚠️ OJO: NO ES UNA CIFRA REDONDA' : '') + '\n'
+    + '• Costo: ' + c.costo + '%'
+    + (c.costo < TASA_FIJA_PCT ? ' ⚠️ POR DEBAJO DEL ESTÁNDAR'
+       : c.costo > TASA_FIJA_PCT ? ' ⚠️ POR ENCIMA DEL ESTÁNDAR' : '') + ' (' + COP(k) + ')\n'
+    + '• Total a devolver: ' + COP(c.capital + k) + '\n'
+    + '• Paga el: ' + fmtFecha(corte) + '\n\n¿Lo registro?')) return;
+
+  var btn = document.getElementById('crBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Pidiendo el número a la nube…'; }
+
+  NUBE.siguienteNumero('credito').then(function (numero) {
+    var pr = {
+      /* Marca del aparato, igual que en crearCliente: dos aparatos creando en
+         el mismo milisegundo producirían el mismo id y la sincronización los
+         trataría como la misma fila. */
+      id: 'P' + Date.now() + '-cel' + Math.random().toString(36).slice(2, 5),
+      numero: Number(numero) || 0,
+      socioId: s.id, socioNombre: s.nombre, telefono: tel,
+      capital: c.capital, costoPct: c.costo,
+      fechaDesembolso: c.fecha,
+      cicloActual: corte,
+      prorrogas: [], abonosCapital: [], comprobantes: [],
+      pagado: false, fechaCreacion: new Date().toISOString()
+    };
+    DB.prestamos.push(pr);
+    encolar('crédito', nombre, P.codCredito(pr) + ' · ' + COP(c.capital), 'creditos', pr.id);
+    guardarEstado(); cerrarHoja();
+    SEL.creditoId = pr.id; SEL.socioId = s.id; ir('credito');
+    sincronizar(false);
+  }).catch(function (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Registrar el crédito'; }
+    alert((e && e.motivo) || 'No pude pedirle el número a la nube. No registré nada.');
+  });
+}
+
 function abrirNuevoCliente() {
   var h = '';
   if (!nubeLista()) {
@@ -3538,6 +3846,10 @@ document.addEventListener('click', function (ev) {
   else if (acc === 'vercredito') { SEL.creditoId = id; var p = creditoPorId(id); if (p) SEL.socioId = p.socioId; ir('credito'); }
   else if (acc === 'verficha') { SEL.socioId = id; ir('ficha'); }
   else if (acc === 'volver') { volver(); }
+  else if (acc === 'cr-nuevo') { abrirNuevoCredito(id); }
+  else if (acc === 'cr-pegar') { pegarParaCredito(); }
+  else if (acc === 'cr-monto') { ponerCapital(id); }
+  else if (acc === 'cr-ok') { crearCredito(); }
   else if (acc === 'nuevocliente') { abrirNuevoCliente(); }
   else if (acc === 'cliente-ok') { crearCliente(); }
   else if (acc === 'entrar') { entrarANube(); }
