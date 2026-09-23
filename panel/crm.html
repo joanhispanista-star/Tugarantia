@@ -8199,6 +8199,7 @@ function modoEquipo() {
       <nav class="nav">
         <button class="navbtn on" onclick="irEquipo('tablero')"><span class="ic">📊</span> Hoy</button>
         <button class="navbtn" onclick="irEquipo('base')"><span class="ic">📋</span> Mi base</button>
+        <button class="navbtn" onclick="irEquipo('cobrar')"><span class="ic">💵</span> Cuándo cobrar</button>
         <button class="navbtn" onclick="irEquipo('agenda')"><span class="ic">📅</span> Agenda</button>
         ${yo.rol === 'gerente' ? '<button class="navbtn" onclick="irEquipo(\'equipo\')"><span class="ic">🚶</span> Mi equipo</button>' : ''}
         <button class="navbtn" onclick="irEquipo('vivo')"><span class="ic">👀</span> En vivo</button>
@@ -8226,7 +8227,7 @@ function irEquipo(v) {
      nada. Y cualquier entrada nueva hereda el mismo fallo si no se agrega aquí. */
   const TITULO_EQ = { tablero: 'Hoy', base: 'Mi base', agenda: 'Agenda',
                       equipo: 'Mi equipo', vivo: 'En vivo', plata: 'Mi plata',
-                      whatsapp: 'Mi WhatsApp', jefe: 'Mensajes' };
+                      whatsapp: 'Mi WhatsApp', jefe: 'Mensajes', cobrar: 'Cuándo cobrar' };
   document.querySelectorAll('.side .navbtn').forEach(b => b.classList.toggle('on',
     !!TITULO_EQ[v] && b.textContent.trim().indexOf(TITULO_EQ[v]) >= 0));
   const main = document.querySelector('.main') || document.querySelector('.app > :last-child');
@@ -8234,6 +8235,7 @@ function irEquipo(v) {
   main.innerHTML = '<div class="wrapEq" style="padding:20px;max-width:760px;margin:0 auto">' +
     (v === 'base' ? vistaBaseEquipo() :
      v === 'agenda' ? vistaAgendaEq() :
+     v === 'cobrar' ? vistaCobrarEq() :
      v === 'jefe' ? vistaJefeEq() :
      v === 'equipo' ? vistaMiEquipo() :
      v === 'plata' ? vistaPlataEq() :
@@ -8303,12 +8305,15 @@ function avisoAlDiaDeEq() {
     '</div>';
 }
 
-function filaPersonaEq(p) {
+/* `extra` es opcional y por defecto no cambia nada: solo la pantalla de
+   «Cuándo cobrar» le pasa algo, y así «Mi base» no hereda ruido que no pidió. */
+function filaPersonaEq(p, extra) {
   const primero = String(p.nombre || '').split(/\s+/)[0] || '';
   const g = p.gestion;
   return `<div class="info-row"><span class="k"><b>${escHTML(p.nombre || 'Sin nombre')}</b>
       <div class="muted mono">${escHTML(p.celular || '')}</div>
       ${lineaPlataEq(p)}
+      ${extra || ''}
       ${esGerenteEq() && p.asesor_nombre ? `<div class="muted">🚶 ${escHTML(p.asesor_nombre)}${
           p.asesor_activo === false ? ' <span class="chip mora">se fue — repártelo</span>' : ''}</div>` : ''}
       ${g ? `<div class="muted">${etiquetaGestion(g)} <b>${escHTML(haceCuanto(g.cuando))}</b>${
@@ -9704,6 +9709,116 @@ const FILTROS_BASE = {
 function grupoEtapa(e) {
   const G = gruposDeCartera();
   return Object.keys(G).find(k => G[k].indexOf(e) >= 0) || 'venta';
+}
+
+/* ==========================================================================
+ * CUÁNDO COBRAR — 22-sep-2026
+ *
+ * Joan: «tener organizado cuando tienen que pagar para preparar la cobranza».
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUÉ NO BASTABA CON «MI BASE»
+ *
+ * «Mi base» agrupa por ETAPA — D-3, D0, M1A… — y la etapa es una etiqueta
+ * relativa: dice «faltan tres días», no QUÉ DÍA. Para preparar el día hay que
+ * poder mirar una lista y decir «estos cinco son de hoy», no traducir mentalmente
+ * nueve siglas.
+ *
+ * Y sobre todo: los VENCIDOS ordenados por antigüedad. En «Mi base» toda la
+ * mora cae en dos o tres etapas revueltas; aquí el de hace veinte días sale
+ * antes que el de ayer, que es el orden en que hay que llamar.
+ *
+ * ---------------------------------------------------------------------------
+ * CADA GRUPO LLEVA SU PLATA, y no es decoración: decide por dónde empezar. Diez
+ * personas que deben cien mil no son lo mismo que una que debe un millón, y con
+ * una lista de nombres eso no se ve.
+ *
+ * ---------------------------------------------------------------------------
+ * Y SE MARCA A QUIEN NO SE PUEDE CONTACTAR. La Ley 2300 deja UN contacto de
+ * cobro por persona y por semana. Sin esa marca, el asesor abre la lista de
+ * vencidos, llama al primero — y resulta que ya lo llamó el martes. Pierde el
+ * tiempo, y si el servidor no lo frenara, a Joan le llegaría la multa.
+ * ======================================================================== */
+function vistaCobrarEq() {
+  const hoy = hoyISOCrm();
+  const cli = genteEquipo().filter(p => p.tipo === 'cliente');
+
+  /* SIN FECHA NO SE INVENTA NADA. `null` es «no lo sé»: o el CRM de Joan
+     todavía no publicó los montos, o ese cliente no tiene créditos abiertos.
+     Meterlos en «vencidos» sería mandar a cobrar a ciegas. */
+  const sinFecha = cli.filter(p => !p.fecha_pago);
+  const conFecha = cli.filter(p => p.fecha_pago)
+    .map(p => Object.assign({ _dias: diasEntre(hoy, String(p.fecha_pago).slice(0, 10)) }, p));
+
+  const grupos = [
+    { k: 'vencidos', et: '⏰ Vencidos', tag: 'Del más viejo al más nuevo', clase: 'mora',
+      g: conFecha.filter(p => p._dias < 0).sort((a, b) => a._dias - b._dias) },
+    { k: 'hoy', et: '📅 Hoy', tag: 'Les vence hoy', clase: 'hoy',
+      g: conFecha.filter(p => p._dias === 0) },
+    { k: 'semana', et: '🗓️ Esta semana', tag: 'Los próximos siete días', clase: 'prorroga',
+      g: conFecha.filter(p => p._dias > 0 && p._dias <= 7).sort((a, b) => a._dias - b._dias) },
+    { k: 'despues', et: '✅ Más adelante', tag: 'Todavía no hay que llamarlos', clase: 'al-dia',
+      g: conFecha.filter(p => p._dias > 7).sort((a, b) => a._dias - b._dias) }
+  ];
+
+  const plata = lista => lista.reduce((t, p) =>
+    t + (p.saldo_total != null ? Number(p.saldo_total) : Number(p.saldo || 0)), 0);
+
+  const tarjeta = x => !x.g.length ? '' :
+    `<div class="card"><div class="card-h"><h3>${x.et}</h3>
+      <span class="chip ${x.clase}">${x.g.length} · ${COP(plata(x.g))}</span></div>
+      <div class="muted" style="padding:0 16px 8px;font-size:12px">${escHTML(x.tag)}</div>
+      ${x.g.map(p => filaPersonaEq(p, marcaDeCobroEq(p))).join('')}</div>`;
+
+  const nada = !conFecha.length && !sinFecha.length;
+
+  return `<div class="ph"><div><h1>Cuándo cobrar<span class="dot">.</span></h1>
+      <div class="sub">Por la fecha de verdad, no por la etiqueta</div></div></div>` +
+    avisoAlDiaDeEq() +
+    (nada ? `<div class="card"><div class="empty"><div class="ic">💵</div>
+        <p>No tienes clientes con crédito abierto.<br>
+        <span class="muted">Aquí van a salir cuando los tengas, ordenados por el día que pagan.</span></p></div></div>`
+      : grupos.map(tarjeta).join('')) +
+    (sinFecha.length ? `<div class="card"><div class="card-h"><h3>❓ Sin fecha</h3>
+      <span class="tag">${sinFecha.length}</span></div>
+      <div class="muted" style="padding:0 16px 10px;font-size:12px">
+        De estos no sé cuándo pagan. O no tienen crédito abierto, o Joan todavía
+        no ha publicado los montos. <b>No</b> quiere decir que estén al día.</div>
+      ${sinFecha.map(p => filaPersonaEq(p)).join('')}</div>` : '');
+}
+
+/* ¿SE LE PUEDE ESCRIBIR HOY? Se pregunta a la MISMA función que decide cuando
+   se toca el botón (`G.puedeContactar`), no a una copia: si hubiera dos reglas,
+   la lista diría una cosa y el botón otra. */
+function marcaDeCobroEq(p) {
+  const G = window.GestionAsesor;
+  if (!G) return '';
+  const esFestivo = d => !!(window.MotorReglas && MotorReglas.esFestivo && MotorReglas.esFestivo(d));
+  let r;
+  try { r = G.puedeContactar(p, { canal: 'whatsapp', esFestivo }); } catch (e) { return ''; }
+  if (!r || r.puede) return '';
+  /* LOS MOTIVOS SE NOMBRAN UNO POR UNO, y salen de gestion-asesor.js tal cual.
+     La primera versión de esto escribió 'horario' —que no existe— y los dos
+     bloqueos de hora caían en el `else`: un sábado por la tarde la lista decía
+     «ya lo tocaste esta semana» sobre alguien a quien nadie había tocado. Una
+     etiqueta que miente sobre el porqué es peor que ninguna, porque el asesor
+     actúa sobre ella: ese cliente se queda sin llamada una semana entera.
+
+     Tres familias, y se separan porque lo que hay que HACER es distinto:
+     esperar un rato, esperar a la semana que viene, o arreglar la ficha. */
+  const CHIP = {
+    festivo: 'ahora no', domingo: 'ahora no', hora: 'ahora no', hora_sabado: 'ahora no',
+    hoy: 'ya lo tocaste hoy',
+    esta_semana: 'ya lo tocaste esta semana', otro_canal: 'ya lo tocaste esta semana',
+    sin_celular: 'sin celular'
+  };
+  const et = CHIP[r.motivo];
+  /* Un motivo que no se reconozca NO se disfraza de ninguno de los de arriba:
+     se pinta el texto que manda la función, que siempre explica el caso. */
+  const clase = (et === 'ahora no') ? 'prorroga' : (et === 'sin celular') ? '' : 'mora';
+  return '<div class="muted" style="margin-top:2px">' +
+    (et ? '<span class="chip ' + clase + '">' + escHTML(et) + '</span> ' : '') +
+    escHTML(r.texto || '') + '</div>';
 }
 
 function vistaBaseEquipo() {

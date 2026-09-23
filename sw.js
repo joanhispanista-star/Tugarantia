@@ -1140,7 +1140,36 @@
    fuente y la asigna como PROPIEDAD, nunca construye HTML.
 
    2.259 pruebas. Base: 20260922s. */
-const CACHE = 'tugarantia-v100';
+
+/* v101 — 22-sep-2026. FASE 3: «CUANDO COBRAR», por la fecha de verdad.
+
+   Joan: 'tener organizado cuando tienen que pagar para preparar la cobranza'.
+   Solo es posible desde la fase 1, cuando la fecha empezo a viajar.
+
+   'Mi base' agrupa por ETAPA -- D-3, D0, M1A -- y la etapa es una etiqueta
+   RELATIVA: dice 'faltan tres dias', no QUE DIA. Para preparar la jornada hay
+   que mirar una lista y decir 'estos cinco son de hoy', no traducir
+   mentalmente nueve siglas. Y sobre todo: en 'Mi base' toda la mora cae en dos
+   o tres etapas revueltas; aqui el de hace veinte dias sale ANTES que el de
+   ayer, que es el orden en que hay que llamar.
+
+   Cada grupo lleva su plata, y no es decoracion: diez personas que deben cien
+   mil no son lo mismo que una que debe un millon, y con una lista de nombres
+   eso no se ve.
+
+   Y se marca a quien NO se puede contactar, preguntandole a la MISMA funcion
+   que decide al tocar el boton. Sin esa marca, el asesor abre los vencidos,
+   llama al primero, y resulta que ya lo llamo el martes.
+
+   DOS FALLOS QUE CAZARON LAS PRUEBAS: la marca escribio el motivo 'horario',
+   que NO EXISTE (son 'hora' y 'hora_sabado'), asi que un sabado por la tarde
+   la lista decia 'ya lo tocaste esta semana' sobre alguien a quien nadie habia
+   tocado. Y una comprobacion a mano acuso al codigo de agrupar mal cuando la
+   equivocada era ella: armaba las fechas con toISOString(), que es UTC, y a
+   las diez de la noche en Bogota eso es el dia siguiente.
+
+   2.278 pruebas. Sin migracion: todo esto ya viajaba. */
+const CACHE = 'tugarantia-v101';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

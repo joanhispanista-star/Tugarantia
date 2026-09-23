@@ -205,9 +205,35 @@ Y `cuantosQuedanHoyEq` leía `j.quedan` cuando la función devuelve `{hoy, tope}
 No daba error: daba `NaN`, y la cifra **no se habría pintado nunca** — o sea que
 el aviso habría seguido sin existir después de escribirlo.
 
-### Fase 3 — La cobranza organizada · **24-sep**
+### Fase 3 — La cobranza organizada · **22-sep** ✅ HECHA
 - Pantalla «Cuándo cobrar»: hoy / esta semana / vencidos, con la fecha de
   verdad y no solo la etiqueta de etapa.
+
+**Hecho y verificado el 22-sep.** Sin migración: todo esto ya viajaba desde la
+Fase 1. CRM en v101.
+
+Cinco grupos —vencidos (del más viejo al más nuevo), hoy, esta semana, más
+adelante y **sin fecha**— cada uno con **su plata**, que es lo que decide por
+dónde empezar: diez personas que deben cien mil no son lo mismo que una que
+debe un millón, y con una lista de nombres eso no se ve.
+
+Y se marca a quien **no se puede contactar**, preguntándole a la misma función
+que decide al tocar el botón. Sin esa marca el asesor abre los vencidos, llama
+al primero, y resulta que ya lo llamó el martes.
+
+**Dos fallos que cazaron las pruebas:**
+
+1. La marca escribió el motivo `'horario'`, que **no existe** — son `hora` y
+   `hora_sabado`. Los dos bloqueos de hora caían en el caso por defecto, así
+   que un sábado por la tarde la lista decía *«ya lo tocaste esta semana»*
+   sobre alguien a quien nadie había tocado. Una etiqueta que miente sobre el
+   porqué es peor que ninguna, porque el asesor actúa sobre ella. Ahora los
+   motivos se nombran uno por uno y **hay una prueba que los lee de
+   `gestion-asesor.js`** y exige que estén todos.
+2. Y una comprobación a mano acusó al código de agrupar mal **cuando la
+   equivocada era ella**: armaba las fechas con `toISOString()`, que es UTC, y
+   a las diez de la noche en Bogotá eso es el día siguiente. El código usaba
+   hora local y estaba bien.
 
 ### Fase 4 — Gestión de personal de verdad · **22-sep** ✅ HECHA
 - Cambiar de jefe, ver y reactivar a un retirado, y **reasignar la base de quien
