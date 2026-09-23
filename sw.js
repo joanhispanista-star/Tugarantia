@@ -1116,7 +1116,31 @@
    donde escribirse. Hay centinela que revienta si algun dia se le anade uno.
 
    2.241 pruebas. Base: 20260922r. */
-const CACHE = 'tugarantia-v99';
+
+/* v100 — 22-sep-2026. FOTOS EN EL CHAT CON EL EQUIPO.
+
+   Joan: «agrega las fotos al chat del crm». La migracion del chat del equipo
+   habia dejado dicho que no las llevaba y por que: 'eso pide su tabla, su tope
+   y su cortacircuito'.
+
+   SE COPIA LO QUE YA COSTO CARO ESTA MISMA TARDE con el chat de los clientes,
+   y eso es lo importante: la fuente se comprueba ENTERA desde el primer dia
+   (no solo el prefijo, que era por donde entraba el 'onerror'), la MINIATURA
+   tambien (era el cebo), el tope lleva VENTANA (sin ella la foto 61 no entra
+   nunca mas) y hay CORTACIRCUITO (todos los demas topes son por persona, y un
+   tope por persona protege de una persona).
+
+   EL REPARTO DE LOS 500 MB, en un sitio: chat_fotos 150 MB, fotos_equipo 50 MB,
+   registro_en_vivo 20 MB. Quedan ~280 MB para creditos, pagos y fichas. Tres
+   tablas repartiendose el mismo plan gratis: si cada una pone su numero sin
+   mirar a las otras, la suma se pasa y nadie lo nota hasta que la base se
+   vuelve de solo lectura.
+
+   Los dos visores usan el mismo mostrarFoto que ya era seguro: comprueba la
+   fuente y la asigna como PROPIEDAD, nunca construye HTML.
+
+   2.259 pruebas. Base: 20260922s. */
+const CACHE = 'tugarantia-v100';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

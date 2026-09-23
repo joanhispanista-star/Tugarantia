@@ -6346,7 +6346,11 @@ function abrirChatEquipo(cel){
         escHTML((c.nombre||'').split(' ')[0]||'tu asesor')+'…"></textarea>'+
       '<div id="eqErr" class="alerta warn oculto"></div>'+
       '<button class="btn btn-rojo" style="width:100%;margin-top:8px" id="eqBtn" '+
-        'onclick="responderChatEquipo()">Enviar</button></div>'+
+        'onclick="responderChatEquipo()">Enviar</button>'+
+      '<input type="file" id="eqFoto" accept="image/*" style="display:none" '+
+        'onchange="mandarFotoAlEquipo(this)">'+
+      '<button class="btn btn-ghost" style="width:100%;margin-top:8px" '+
+        'onclick="document.getElementById(&quot;eqFoto&quot;).click()">📷 Mandar una foto</button></div>'+
     '<div class="muted" style="font-size:12px;margin-top:8px">Esto lo lee solo '+
       escHTML(c.nombre||'esa persona')+'. Sus compañeros no lo ven.</div>');
   cargarHiloEquipo();
@@ -6359,7 +6363,8 @@ function cargarHiloEquipo(){
       const caja=document.getElementById('eqHilo');
       if(!caja) return;                    /* cerró el modal mientras tanto */
       caja.innerHTML=_eqMsgs.length
-        ? CHAT.hiloHTML(_eqMsgs,{yo:'negocio',hoy:hoyISO(),textoVisto:'Lo vio'})
+        ? CHAT.hiloHTML(_eqMsgs,{yo:'negocio',hoy:hoyISO(),textoVisto:'Lo vio',
+            alVerFoto:'verFotoDelEquipo'})
         : '<div class="muted" style="padding:14px">Todavía no se han escrito. Empieza tú.</div>';
       caja.scrollTop=caja.scrollHeight;
       /* Abrirlo marca lo suyo como visto en el servidor: se refresca la
@@ -6396,6 +6401,64 @@ function responderChatEquipo(){
       err.textContent='No pude enviarlo: '+errNube(e);
       err.classList.remove('oculto');
     });
+}
+
+/* Las fotos del chat del equipo, del lado de Joan. Mismo camino que las del
+   chat de clientes: el tipo que declara el aparato no decide —decide el
+   decodificador— y la fuente se comprueba antes de pintarla. */
+function mandarFotoAlEquipo(input){
+  const err=document.getElementById('eqErr');
+  const f=input&&input.files&&input.files[0];
+  input.value='';
+  if(!f||!err) return;
+  if(/^video\//.test(f.type||'')){
+    err.textContent='Solo fotos: un video no cabe en el chat.';
+    err.classList.remove('oculto'); return;
+  }
+  err.textContent='Preparando la foto…'; err.classList.remove('oculto');
+  const lector=new FileReader();
+  lector.onerror=()=>{ err.textContent='No pude leer esa foto.'; };
+  lector.onload=()=>{
+    const im=new Image();
+    im.onerror=()=>{ err.textContent='Eso no se pudo abrir como foto.'; };
+    im.onload=()=>{
+      const c=document.createElement('canvas');
+      c.width=im.naturalWidth||im.width; c.height=im.naturalHeight||im.height;
+      if(!c.width||!c.height){ err.textContent='Esa foto salió vacía.'; return; }
+      try{ c.getContext('2d').drawImage(im,0,0); }
+      catch(e){ err.textContent='No pude preparar esa foto.'; return; }
+      const grande=fotoDeLienzoEq(c,900,0.6), chica=fotoDeLienzoEq(c,240,0.5);
+      c.width=c.height=1;
+      if(!grande){ err.textContent='No pude preparar esa foto.'; return; }
+      err.textContent='Mandando…';
+      const pie=String((document.getElementById('eqTxt')||{}).value||'').trim();
+      rpc('equipo_foto_responder',{p_clave:sbCfg().clave,p_celular:_eqAbierta,
+          p_imagen:grande,p_miniatura:chica||null,p_texto:pie||null})
+        .then(j=>{
+          if(!j||j.ok!==true){
+            err.textContent=(j&&j.motivo==='lleno')
+              ? 'El espacio de fotos del equipo está lleno. Borra conversaciones viejas.'
+              : ((j&&j.motivo)||'La nube contestó que no.');
+            return;
+          }
+          const t=document.getElementById('eqTxt'); if(t) t.value='';
+          err.classList.add('oculto');
+          cargarHiloEquipo();
+        })
+        .catch(e=>{ err.textContent='No pude mandarla: '+errNube(e); });
+    };
+    im.src=lector.result;
+  };
+  lector.readAsDataURL(f);
+}
+
+function verFotoDelEquipo(id){
+  rpc('equipo_foto_panel',{p_clave:sbCfg().clave,p_id:Number(id)})
+    .then(j=>{
+      if(!j||j.ok!==true||!j.imagen) return alert('No pude traer esa foto.');
+      mostrarFoto(j.imagen);       /* comprueba la fuente y la asigna como propiedad */
+    })
+    .catch(e=>alert('No pude traer esa foto: '+errNube(e)));
 }
 
 function renderMensajes(){
@@ -9208,7 +9271,120 @@ function vistaJefeEq() {
       '<textarea id="txtJefe" rows="3" maxlength="1000" placeholder="Escríbele a Joan…"></textarea>' +
       '<div id="errJefe" class="aviso ambar oculto"></div>' +
       '<button class="btn btn-rojo" style="width:100%;margin-top:8px" id="btnJefe" ' +
-        'onclick="enviarAJefe()">Enviar</button></div></div>';
+        'onclick="enviarAJefe()">Enviar</button>' +
+      /* `capture` no se pone a propósito: así el teléfono deja elegir entre la
+         cámara y la galería, y lo que se manda casi siempre ya está guardado. */
+      '<input type="file" id="jefeFoto" accept="image/*" class="oculto" onchange="mandarFotoJefe(this)">' +
+      '<button class="btn sec sm" style="margin-top:var(--e2)" ' +
+        'onclick="document.getElementById(&quot;jefeFoto&quot;).click()">' +
+        '📷 Mandar una foto</button>' +
+      '<div class="muted" style="font-size:12px;margin-top:6px">Solo fotos: un video no cabe. ' +
+        'Lo ve únicamente Joan.</div>' +
+    '</div></div>';
+}
+
+/* LA FOTO, con el mismo camino que el chat de los clientes: el tipo que declara
+   el teléfono NO decide —hay Android que lo manda vacío sobre una foto
+   perfecta— y el lienzo reencodifica a JPEG pase lo que pase. Decide el
+   decodificador. Solo se ataja el video antes, para poder explicar por qué. */
+function mandarFotoJefe(input) {
+  var err = document.getElementById('errJefe');
+  var f = input && input.files && input.files[0];
+  input.value = '';
+  if (!f || !err) return;
+  if (/^video\//.test(f.type || '')) {
+    err.textContent = 'Por aquí solo se pueden mandar fotos. Un video no cabe en el chat.';
+    err.classList.remove('oculto');
+    return;
+  }
+  err.textContent = 'Preparando la foto…';
+  err.classList.remove('ambar');
+  err.classList.remove('oculto');
+
+  var lector = new FileReader();
+  lector.onerror = function () { falloJefe(err, 'No pude leer esa foto. Prueba con otra.'); };
+  lector.onload = function () {
+    var im = new Image();
+    im.onerror = function () { falloJefe(err, 'Eso no se pudo abrir como foto. Prueba con otra.'); };
+    im.onload = function () {
+      var c = document.createElement('canvas');
+      c.width = im.naturalWidth || im.width; c.height = im.naturalHeight || im.height;
+      if (!c.width || !c.height) return falloJefe(err, 'Esa foto salió vacía.');
+      try { c.getContext('2d').drawImage(im, 0, 0); }
+      catch (e) { return falloJefe(err, 'No pude preparar esa foto.'); }
+      var grande = fotoDeLienzoEq(c, 900, 0.6);
+      var chica  = fotoDeLienzoEq(c, 240, 0.5);
+      c.width = c.height = 1;
+      if (!grande) return falloJefe(err, 'Tu teléfono no dejó preparar la foto.');
+      subirFotoJefe(grande, chica, err);
+    };
+    im.src = lector.result;
+  };
+  lector.readAsDataURL(f);
+}
+
+function falloJefe(err, msg) {
+  err.textContent = msg;
+  err.classList.add('ambar');
+  err.classList.remove('oculto');
+}
+
+/* El mismo tamaño y la misma calidad que el chat de los clientes: 900 px al
+   0,6 son unos 73 KB, que es el número con el que están hechas todas las
+   cuentas de capacidad de este proyecto. */
+function fotoDeLienzoEq(c, ancho, calidad) {
+  try {
+    var e = c.width > ancho ? ancho / c.width : 1;
+    var d = document.createElement('canvas');
+    d.width = Math.round(c.width * e); d.height = Math.round(c.height * e);
+    d.getContext('2d').drawImage(c, 0, 0, d.width, d.height);
+    var s = d.toDataURL('image/jpeg', calidad);
+    d.width = d.height = 1;
+    return /^data:image\/[a-z+]{2,12};base64,/.test(s) ? s : '';
+  } catch (e) { return ''; }
+}
+
+function subirFotoJefe(grande, chica, err) {
+  err.textContent = 'Mandando la foto…';
+  err.classList.remove('ambar');
+  var pie = String((document.getElementById('txtJefe') || {}).value || '').trim();
+  if (pie.length > CH.LARGO_MAX) {
+    return falloJefe(err, 'El texto que acompaña la foto es muy largo.');
+  }
+  rpcEquipo('equipo_foto_escribir', {
+    p_imagen: grande, p_miniatura: chica || null, p_texto: pie || null
+  }).then(function (res) {
+    var j = res && res.j;
+    if (!res.ok || !j || j.ok !== true) {
+      var m = j && j.motivo;
+      return falloJefe(err,
+        res.status === 404 ? 'Tu nube todavía no recibe fotos del equipo. Avísale a Joan.'
+        : m === 'no_es_imagen' ? 'Por aquí solo se pueden mandar fotos. Un video no cabe.'
+        : m === 'muy_grande'   ? 'Esa foto pesa demasiado. Tómala con menos calidad.'
+        : m === 'lleno'        ? 'Ahora mismo no podemos recibir fotos. Escríbele a Joan.'
+        : m === 'tope'         ? 'Ya mandaste el máximo de fotos de este mes.'
+        : m === 'muchos'       ? 'Espera unos minutos antes de mandar otra.'
+        : m === 'sesion'       ? 'Se cerró tu sesión. Entra otra vez.'
+        : 'No pude mandar la foto. Vuelve a intentar.');
+    }
+    var t = document.getElementById('txtJefe'); if (t) t.value = '';
+    err.classList.add('oculto');
+    traerJefeEq(true);
+  }).catch(function () {
+    falloJefe(err, 'No pude mandar la foto. Revisa tu internet.');
+  });
+}
+
+function verFotoJefe(id) {
+  rpcEquipo('equipo_foto_ver', { p_id: Number(id) }).then(function (res) {
+    var j = res && res.j;
+    if (!res.ok || !j || j.ok !== true || !j.imagen) {
+      return alert('No pude abrir esa foto. Vuelve a intentar en un momento.');
+    }
+    mostrarFoto(j.imagen);          /* comprueba la fuente y la asigna como propiedad */
+  }).catch(function () {
+    alert('No pude abrir esa foto. Revisa tu internet.');
+  });
 }
 
 /* Se pide DESPUES de pintar: si la nube tarda, la pantalla ya está en su sitio
@@ -9239,7 +9415,8 @@ function pintarHiloJefe() {
     return;
   }
   /* `yo: socio` — en este hilo el de este lado es el asesor. Ver la cabecera. */
-  caja.innerHTML = CHAT.hiloHTML(_jefeMsgs, { yo: 'socio', hoy: hoyISOCrm(), textoVisto: 'Lo vio' });
+  caja.innerHTML = CHAT.hiloHTML(_jefeMsgs, { yo: 'socio', hoy: hoyISOCrm(),
+    textoVisto: 'Lo vio', alVerFoto: 'verFotoJefe' });
   caja.scrollTop = caja.scrollHeight;
 }
 
