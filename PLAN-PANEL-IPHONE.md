@@ -162,9 +162,24 @@ las dos que ya existen sigan de acuerdo.
 Crear el crédito en el teléfono: simulador, pegar el WhatsApp, y el número de
 cliente pedido a la nube para que dos aparatos no choquen.
 
-**Fase D — la cámara y los chats (2 días).**
-Comprobante y cédula desde el iPhone, y traer al espejo el chat con clientes y
-con el equipo, que ya existen en el CRM.
+**Fase D — la cámara y los chats. 🟡 A MEDIAS el 23-sep-2026.**
+
+✅ **Hecho:** abrir desde la calle las fotos que mandan los clientes por el chat.
+El botón existía y era inerte.
+
+⏸ **Bloqueado por una decisión tuya:** el comprobante fotografiado desde el
+teléfono. `sinFotos` quita la foto de un comprobante de la sincronización **a
+propósito**, así que una foto tomada en la calle se quedaría en ese teléfono y
+desaparecería al resembrar el espejo. Necesita transporte propio. Tres caminos:
+
+| | Qué implica |
+|---|---|
+| **A · Tabla propia** (como `chat_fotos`) | Lo limpio y lo que ya sabe hacer el repo. Migración nueva que tienes que aplicar, y un trozo de los 500 MB — quedan ~280. |
+| **B · Por el chat del cliente** | Cero migración: fotografías el recibo y va al hilo de esa persona, que es donde el cliente lo va a buscar. Pero no queda colgado del crédito. |
+| **C · No hacerlo** | El espejo ya lo dice honestamente. Los comprobantes se suben desde el computador. |
+
+⏸ **Sin empezar:** el chat con el equipo dentro del espejo. Hoy se atiende desde
+el CRM.
 
 ---
 

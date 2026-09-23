@@ -397,7 +397,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
  * este archivo NO escribe en LLAVE_PANEL por ningún camino.
  *
  * LO QUE ESTA PANTALLA NO PUEDE HACER, Y LO DICE EN VOZ ALTA:
- *   · no trae fotos (cédula, selfie, comprobantes) — Fase 1, ver el aviso;
+ *   · SÍ abre las fotos que mandan los clientes por el chat (23-sep-2026), pero
+ *     sigue sin traer la cédula, la selfie ni los comprobantes: esos viajan
+ *     dentro de la ficha y `sinFotos` los quita a propósito de la
+ *     sincronización — pesan en base64 y la selfie es dato sensible;
  *   · no crea clientes sin señal — el número lo emite la nube;
  *   · SÍ crea créditos desde el 23-sep-2026 (Fase C), pero solo CON SEÑAL: el
  *     número lo emite la nube. Los préstamos con garantía siguen siendo del
@@ -1649,6 +1652,81 @@ function pintar() {
 var _msj = { ident: null, quien: '', celular: '', convs: [], msgs: [], ultimo: 0,
              estado: 'nada', error: '', borrador: '' };
 
+/* ==========================================================================
+ * LAS FOTOS DEL CHAT, DESDE LA CALLE — 23-sep-2026 (Fase D)
+ *
+ * El hilo del espejo ya pintaba las fotos que manda un cliente, pero SIN
+ * manejador: salían como un «📎 Foto» que no hacía nada al tocarlo. O sea que
+ * el cliente mandaba el pantallazo de su pago —que es la mitad de las
+ * conversaciones de cobro— y Joan, en la calle, veía que existía y no podía
+ * abrirlo. Un botón inerte es peor que no tener botón: se toca tres veces
+ * antes de creer que no funciona.
+ *
+ * ---------------------------------------------------------------------------
+ * EL VISOR ES EL MISMO DEL CRM, Y NO POR COMODIDAD
+ *
+ * El 22-sep costó caro: una foto envenenada
+ * (`data:image/png;base64,AAAA" onerror="…`) se salía del atributo y el guión
+ * corría dentro del Panel. La cadena entera era: CHECK flojo en la base →
+ * fuente envenenada → `document.write` dentro de un atributo → `about:blank`
+ * heredando el origen → la clave de sincronización robada del localStorage →
+ * y con ella, el comprobante de pago de cualquier cliente, porque el id de la
+ * foto es correlativo.
+ *
+ * Las tres reglas que lo cierran, y que son las que hay que respetar acá:
+ *   1. se COMPRUEBA la fuente con `CHAT.esFoto` antes de tocarla;
+ *   2. se asigna como PROPIEDAD (`img.src = ...`), nunca como texto de un
+ *      atributo — así no hay atributo del que salirse;
+ *   3. la capa es de esta misma página: ni `window.open()` ni `document.write`.
+ *
+ * La reja de verdad vive en el servidor —`chat_foto_panel` exige la clave— y
+ * esto es solo el teléfono. Pero las tres reglas se mantienen igual: una
+ * defensa que solo existe en un lado deja de existir el día que alguien mueve
+ * el otro.
+ * ======================================================================== */
+function verFotoCliente(id) {
+  var cfg = chatCfg();
+  if (!cfg) { alert('Sin la conexión y la clave no puedo pedirle la foto a la nube.'); return; }
+  ChatTuGarantia.fotoDelPanel(cfg, id).then(function (j) {
+    mostrarFoto(j && j.imagen);
+  }).catch(function (e) {
+    alert((e && e.humano) || 'No pude traer esa foto. Revisa el internet.');
+  });
+}
+
+function mostrarFoto(imagen) {
+  if (!ChatTuGarantia.esFoto(imagen)) {
+    alert('Esa foto llegó dañada. Pide que la manden otra vez.');
+    return;
+  }
+  var capa = document.createElement('div');
+  capa.setAttribute('role', 'dialog');
+  capa.setAttribute('aria-label', 'Foto del chat');
+  capa.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out';
+
+  var img = document.createElement('img');
+  img.alt = 'Foto que se mandó en el chat';
+  img.style.cssText = 'max-width:100%;max-height:100%;border-radius:10px';
+  img.src = imagen;               /* propiedad, nunca texto de un atributo */
+  capa.appendChild(img);
+
+  var pie = document.createElement('p');
+  pie.textContent = 'Toca para cerrar';
+  pie.style.cssText = 'position:absolute;bottom:calc(14px + env(safe-area-inset-bottom));'
+    + 'left:0;right:0;text-align:center;color:#FFFFFF;font-size:13px;opacity:.75;margin:0';
+  capa.appendChild(pie);
+
+  function cerrar() {
+    if (capa.parentNode) capa.parentNode.removeChild(capa);
+    document.removeEventListener('keydown', porTecla);
+  }
+  function porTecla(ev) { if (ev.key === 'Escape') cerrar(); }
+  capa.addEventListener('click', cerrar);
+  document.addEventListener('keydown', porTecla);
+  document.body.appendChild(capa);
+}
+
 function chatCfg() {
   var c = (NUBE && NUBE.config) ? NUBE.config() : null;
   return c && c.url && c.anon && c.clave ? c : null;
@@ -1699,6 +1777,7 @@ function vistaHilo() {
         : (_msj.error && !_msj.msgs.length
             ? '<div class="ch-vacio">' + esc(_msj.error) + '</div>'
             : ChatTuGarantia.hiloHTML(_msj.msgs, { yo: 'negocio', textoVisto: 'Lo vio',
+                alVerFoto: 'verFotoCliente',
                 vacio: 'No hay mensajes en esta conversación.' })))
     + '</div>'
     + '<div class="ch-escribir">'

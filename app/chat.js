@@ -347,6 +347,24 @@
   function conversaciones(cfg) {
     return llamar(cfg, 'chat_conversaciones', { p_clave: (cfg || {}).clave || '' });
   }
+
+  /** La foto grande de un mensaje, por el lado del Panel.
+   *
+   *  El hilo trae solo la MINIATURA —bajar dos megas cada vez que se abre una
+   *  conversación es inaceptable en la calle—, así que la imagen entera se pide
+   *  aparte y solo cuando alguien la toca.
+   *
+   *  Vive acá, con las demás llamadas del chat, y no copiada en cada pantalla:
+   *  el CRM ya la usaba por su cuenta (crm.html, `chat_foto_panel`) y el espejo
+   *  la necesitaba igual. Dos sitios llamando al mismo sitio es una regla; tres
+   *  copias de la misma llamada es como se separan.
+   *
+   *  La reja de VERDAD está en el servidor: `chat_foto_panel` exige la clave de
+   *  sincronización de Joan. Esto solo es el teléfono. */
+  function fotoDelPanel(cfg, id) {
+    return llamar(cfg, 'chat_foto_panel',
+      { p_clave: (cfg || {}).clave || '', p_id: Number(id) || 0 });
+  }
   /* 22-sep-2026 — EL CANAL, en las dos direcciones.
      `canal` es opcional en las dos, y eso NO es pereza: sin él, chat_de
      devuelve los tres hilos (que es lo que necesitan las pantallas viejas) y
@@ -410,6 +428,7 @@
     conversaciones: conversaciones,
     conversacion: conversacion,
     responder: responder,
+    fotoDelPanel: fotoDelPanel,
     olvidar: olvidar
   };
 });

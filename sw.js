@@ -1374,7 +1374,34 @@
    art. 305, y el resumen en pesos con el aviso de la cifra no redonda.
 
    2.369 pruebas. */
-const CACHE = 'tugarantia-v108';
+
+/* v109 - 23-sep-2026. FASE D (primera mitad): LAS FOTOS DEL CHAT EN LA CALLE.
+
+   El hilo del espejo ya pintaba las fotos que manda un cliente, pero SIN
+   manejador: salian como un '[foto]' que no hacia nada al tocarlo. El cliente
+   mandaba el pantallazo de su pago -- que es la mitad de las conversaciones de
+   cobro -- y Joan, en la calle, veia que existia y no podia abrirlo. Un boton
+   inerte es peor que no tener boton, y quien lo escribio no lo vio nunca
+   porque en el computador el MISMO hilo si pasa el manejador.
+
+   La llamada vive en app/chat.js (fotoDelPanel), con las demas del chat, en vez
+   de copiada en cada pantalla. Y el visor es el del CRM, con sus tres reglas:
+   se comprueba la fuente con esFoto, se asigna como PROPIEDAD y nunca como
+   texto de un atributo, y la capa es de esta misma pagina -- ni window.open ni
+   document.write. Comprobado en navegador: la fuente envenenada del 22-sep se
+   rechaza y no se crea capa.
+
+   LO QUE NO ENTRO, Y NO POR FALTA DE TIEMPO: el comprobante fotografiado desde
+   el telefono. sinFotos QUITA la foto de un comprobante de la sincronizacion a
+   proposito, asi que una foto tomada en la calle se quedaria en ese telefono y
+   desapareceria al resembrar el espejo. Mandarla necesita transporte propio
+   -- como lo tienen las del chat, con su tabla y su trozo de los 500 MB -- y eso
+   es una decision de Joan. La cabecera del espejo lo dice, con el porque, y hay
+   prueba de que sinFotos sigue quitandola: si algun dia deja de hacerlo, el
+   aviso estaria mintiendo.
+
+   2.385 pruebas. */
+const CACHE = 'tugarantia-v109';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
