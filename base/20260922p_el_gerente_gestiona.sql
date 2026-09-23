@@ -84,6 +84,18 @@ $$;
 revoke all on function public.mi_alcance(text) from public, anon, authenticated;
 
 -- ====== 2. RETIRAR, PASANDO LA GENTE ======
+-- LA VIEJA SE VA PRIMERO, y el orden importa por dos razones distintas:
+--
+--  · En la base: si se quedara, PostgREST tendría DOS funciones con el mismo
+--    nombre y la llamada de la pantalla sería ambigua — un 300 que nadie
+--    entiende. Y esa era justo la que dejaba el agujero de la cartera.
+--  · Y en las pruebas: el barrido de «ninguna pantalla llama a una función que
+--    la migración tiró» (pruebas/motor.test.js) sigue los `drop` POR NOMBRE, no
+--    por firma. Con el drop después del create, daba por muerta la función
+--    entera y acusaba al CRM de llamar a algo que no existe. Tiene razón en
+--    espíritu: borrar lo viejo y luego crear lo nuevo es el orden correcto.
+drop function if exists public.asesor_retirar(text);
+
 create or replace function public.asesor_retirar(p_celular text, p_pasar_a text default null)
 returns jsonb
 language plpgsql
@@ -199,11 +211,6 @@ revoke all on function public.asesor_retirar(text, text)       from public, anon
 grant  execute on function public.asesor_retirar(text, text)   to authenticated;
 revoke all on function public.asesor_reactivar(text)           from public, anon, authenticated;
 grant  execute on function public.asesor_reactivar(text)       to authenticated;
-
--- La de un solo argumento se va: si se quedara, PostgREST tendría DOS funciones
--- con el mismo nombre y la llamada de la pantalla sería ambigua — un 300 que
--- nadie entiende. Y además esa era justo la que dejaba el agujero.
-drop function if exists public.asesor_retirar(text);
 
 -- ====== 4. QUE EL GERENTE VEA A LOS RETIRADOS, Y QUIÉN SE QUEDÓ SIN ASESOR ======
 do $$

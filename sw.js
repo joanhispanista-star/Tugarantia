@@ -1066,7 +1066,32 @@
    si la fila se borro. Probar que algo corre no es probar que haga lo que dice.
 
    2.201 pruebas. Base: 20260922n. */
-const CACHE = 'tugarantia-v97';
+
+/* v98 — 22-sep-2026. FASE 4: RETIRAR A ALGUIEN NO PUEDE HACER DESAPARECER SU
+   CARTERA.
+
+   asesor_retirar hacia una sola cosa: marcar estado='retirado'. Las
+   asignaciones seguian apuntando a ese celular y mi_alcance solo devolvia
+   gente activa. Asi que el retirado no veia nada (correcto) Y SU GERENTE
+   TAMPOCO veia a los clientes que llevaba, ni podia reasignarlos, porque para
+   reasignar hay que poder verlos.
+
+   Esa gente no daba un error: dejaba de estar. Con treinta clientes en
+   cobranza a nombre de alguien que se fue, eso es un mes de cartera en
+   silencio -- y el unico sitio donde seguian existiendo era el computador de
+   Joan, que es justo el que su mano derecha no tiene delante.
+
+   Y habia una segunda mitad: asesor_retirar NO TENIA UN SOLO LLAMADOR. Existia
+   en la base desde el 11-sep y no habia boton en ninguna pantalla.
+
+   Ahora: el gerente alcanza a los suyos aunque esten retirados (el retirado
+   sigue sin ver nada); retirar EXIGE decir a quien le pasa la gente y el
+   servidor contesta cuanta es para que la pantalla pregunte; la asignacion
+   vieja no se pisa, para que la comision le siga tocando a quien lo llevaba en
+   su fecha; y se puede reactivar.
+
+   2.217 pruebas. Base: 20260922p. */
+const CACHE = 'tugarantia-v98';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

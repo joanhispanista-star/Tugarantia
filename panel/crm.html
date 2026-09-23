@@ -8117,7 +8117,8 @@ function filaPersonaEq(p) {
   return `<div class="info-row"><span class="k"><b>${escHTML(p.nombre || 'Sin nombre')}</b>
       <div class="muted mono">${escHTML(p.celular || '')}</div>
       ${lineaPlataEq(p)}
-      ${esGerenteEq() && p.asesor_nombre ? `<div class="muted">🚶 ${escHTML(p.asesor_nombre)}</div>` : ''}
+      ${esGerenteEq() && p.asesor_nombre ? `<div class="muted">🚶 ${escHTML(p.asesor_nombre)}${
+          p.asesor_activo === false ? ' <span class="chip mora">se fue — repártelo</span>' : ''}</div>` : ''}
       ${g ? `<div class="muted">${etiquetaGestion(g)} <b>${escHTML(haceCuanto(g.cuando))}</b>${
           esGerenteEq() ? ' · ' + escHTML(g.quien || '') : ''}${
           g.nota ? '<div>«' + escHTML(g.nota) + '»</div>' : ''}</div>`
@@ -9458,7 +9459,10 @@ function vistaMiEquipo() {
         : i.hoy ? `<span class="chip hoy">${i.hoy} pagan hoy</span>`
         : i.sinTocar ? `<span class="chip prorroga">${i.sinTocar} sin tocar</span>`
         : '<span class="chip al-dia">al día</span>';
-      return `<div class="card"><div class="card-h"><h3>🚶 ${escHTML(a.nombre)}</h3>${chip}</div>
+      return `<div class="card"><div class="card-h"><h3>🚶 ${escHTML(a.nombre)}</h3>
+        <span style="display:flex;gap:6px;align-items:center">${chip}
+        <button class="btn btn-ghost btn-sm" title="Retirar del equipo"
+          onclick="retirarAsesorEq('${escHTML(a.celular)}','${escHTML(a.nombre)}')">Retirar</button></span></div>
         <div class="cifras">
           ${cifraEq(i.total, 'su base', 'todos', a.celular)}
           ${cifraEq(i.clientes, 'ya son clientes', 'clientes', a.celular, 'bien')}
@@ -9495,7 +9499,122 @@ function vistaMiEquipo() {
           Y «dijeron que van a pedir» es lo que ellos dijeron, no un crédito entregado.
         </div></div>`;
     }).join('') : `<div class="card"><div class="empty"><div class="ic">🚶</div><p>Todavía no tienes asesores.<br>
-        <span class="muted">Toca «＋ Crear asesor» y créale la cuenta tú mismo.</span></p></div></div>`}`;
+        <span class="muted">Toca «＋ Crear asesor» y créale la cuenta tú mismo.</span></p></div></div>`}
+
+    ${(CARTERA_EQUIPO.retirados || []).length ? `<div class="card">
+      <div class="card-h"><h3>📦 Retirados</h3>
+        <span class="tag">${(CARTERA_EQUIPO.retirados || []).length}</span></div>
+      ${(CARTERA_EQUIPO.retirados || []).map(a => `<div class="info-row">
+        <span class="k"><b>${escHTML(a.nombre)}</b>
+          <div class="muted mono">${escHTML(a.celular)}</div></span>
+        <span class="vv"><button class="btn btn-ghost btn-sm"
+          onclick="reactivarAsesorEq('${escHTML(a.celular)}','${escHTML(a.nombre)}')">Reactivar</button></span>
+        </div>`).join('')}
+      <div class="muted" style="padding:0 16px 14px;font-size:12px">
+        No se borran: se guardan. Si vuelve, se reactiva y entra con la misma contraseña.</div>
+      </div>` : ''}`;
+}
+
+/* --------------------------------------------------------------------------
+ * RETIRAR A ALGUIEN SIN PERDER SU CARTERA — 22-sep-2026
+ *
+ * Hasta hoy `asesor_retirar` no tenía un solo llamador: existía en la base y no
+ * había botón. Y si lo hubiera habido, habría hecho desaparecer la cartera de
+ * quien se iba — las asignaciones seguían apuntando a su celular y nadie
+ * podía verlas.
+ *
+ * El servidor ya no deja retirar a ciegas: si esa persona lleva gente,
+ * contesta `tiene_gente` con CUÁNTA, y esta pantalla pregunta a quién se la
+ * pasa. La decisión es del gerente; lo que no puede pasar es que nadie la tome.
+ * ------------------------------------------------------------------------ */
+function retirarAsesorEq(cel, nombre) {
+  rpcEquipo('asesor_retirar', { p_celular: cel, p_pasar_a: null })
+    .then(res => {
+      const j = (res && res.j) || {};
+      if (j.ok === true) {
+        cerrarModal();
+        openModal('Retirado', '<div class="alerta ok"><b>' + escHTML(nombre) +
+          ' quedó retirado.</b> No llevaba gente asignada.</div>');
+        return refrescarCarteraEq();
+      }
+      if (j.motivo === 'tiene_gente') return preguntarDestinoEq(cel, nombre, Number(j.cuantos));
+      openModal('No se pudo', '<div class="alerta warn">' + escHTML(
+        res.status === 404
+          ? 'Tu nube todavía no sabe retirar. Joan tiene que pegar base/20260922p_el_gerente_gestiona.sql.'
+          : (j.motivo || 'La nube contestó que no.')) + '</div>');
+    })
+    .catch(() => openModal('No se pudo',
+      '<div class="alerta warn">No pude conectarme. Revisa la señal.</div>'));
+}
+
+function preguntarDestinoEq(cel, nombre, cuantos) {
+  /* Solo ACTIVOS y nunca él mismo: pasarle la cartera a otro retirado sería
+     mover el agujero de sitio, y el servidor también lo rechaza. */
+  const otros = (CARTERA_EQUIPO.equipo || []).filter(a => a.celular !== cel);
+  if (!otros.length) {
+    return openModal('No hay a quién pasarle la gente',
+      '<div class="alerta warn"><b>' + escHTML(nombre) + ' lleva ' + cuantos +
+      ' persona(s)</b> y no tienes otro asesor activo a quien pasárselas.</div>' +
+      '<p class="muted">Crea primero al que lo reemplaza, o pídele a Joan que las reparta ' +
+      'desde su Panel. Si se retira ahora, esa gente se queda sin quién la trabaje.</p>');
+  }
+  openModal('¿A quién le paso su gente?',
+    '<p class="sub"><b>' + escHTML(nombre) + '</b> lleva <b>' + cuantos +
+      ' persona(s)</b>. Antes de retirarlo hay que decir quién sigue con ellas.</p>' +
+    '<div class="field"><label>Pasar su base a</label><select id="reDestino">' +
+      otros.map(a => '<option value="' + escHTML(a.celular) + '">' + escHTML(a.nombre) +
+        '</option>').join('') + '</select></div>' +
+    '<div class="aviso" style="margin-top:12px">Lo que ya hizo <b>no se borra</b>: la comisión ' +
+      'de cada cliente le sigue tocando a quien lo llevaba en su momento.</div>' +
+    '<button class="btn btn-rojo" id="reBtn" style="margin-top:14px" ' +
+      'onclick="confirmarRetiroEq(\'' + escHTML(cel) + '\',\'' + escHTML(nombre) + '\')">' +
+      'Pasar la base y retirar</button>');
+}
+
+function confirmarRetiroEq(cel, nombre) {
+  const destino = (document.getElementById('reDestino') || {}).value || '';
+  if (!destino) return;
+  const b = document.getElementById('reBtn');
+  if (b) { b.disabled = true; b.textContent = 'Pasando…'; }
+  rpcEquipo('asesor_retirar', { p_celular: cel, p_pasar_a: destino })
+    .then(res => {
+      const j = (res && res.j) || {};
+      if (j.ok !== true) {
+        if (b) { b.disabled = false; b.textContent = 'Pasar la base y retirar'; }
+        return openModal('No se pudo', '<div class="alerta warn">' + escHTML(
+          j.motivo === 'destino_no_sirve' ? 'Ese asesor no está activo o no es de tu equipo.'
+          : (j.motivo || 'La nube contestó que no.')) + '</div>');
+      }
+      cerrarModal();
+      openModal('Listo', '<div class="alerta ok"><b>' + escHTML(nombre) + ' quedó retirado.</b><br>' +
+        'Sus <b>' + Number(j.movidos) + '</b> persona(s) pasaron a su compañero.</div>');
+      refrescarCarteraEq();
+    })
+    .catch(() => {
+      if (b) { b.disabled = false; b.textContent = 'Pasar la base y retirar'; }
+      openModal('No se pudo', '<div class="alerta warn">No pude conectarme.</div>');
+    });
+}
+
+function reactivarAsesorEq(cel, nombre) {
+  if (!confirm('¿Vuelve ' + nombre + ' al equipo?\n\nEntra con la misma contraseña de antes. ' +
+    'Su base NO vuelve sola: hay que repartirle gente otra vez.')) return;
+  rpcEquipo('asesor_reactivar', { p_celular: cel })
+    .then(res => {
+      const j = (res && res.j) || {};
+      if (j.ok !== true) {
+        return openModal('No se pudo', '<div class="alerta warn">' + escHTML(
+          res.status === 404
+            ? 'Tu nube todavía no sabe reactivar. Joan tiene que pegar base/20260922p_el_gerente_gestiona.sql.'
+            : (j.motivo || 'La nube contestó que no.')) + '</div>');
+      }
+      openModal('De vuelta', '<div class="alerta ok"><b>' + escHTML(nombre) +
+        ' está activo otra vez.</b></div>' +
+        '<p class="muted">Su base no volvió sola. Usa «🔀 Repartir» para darle gente.</p>');
+      refrescarCarteraEq();
+    })
+    .catch(() => openModal('No se pudo',
+      '<div class="alerta warn">No pude conectarme.</div>'));
 }
 
 /* Abrir un número: lleva a la base filtrada por ese asesor y ese grupo. */
