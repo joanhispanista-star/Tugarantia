@@ -948,6 +948,36 @@ function sembrar(){
 /* ===================================================== PASO 5 · SUBIR ====*/
 function subir(esReintento){
   if(!E.unidades.length){ pinta('msg5','info','No hay nada nuevo que subir.'); estado(5,'listo','Nada que subir'); return; }
+
+  /* EL FRENO DE BORRADOS. Va acá, en la única puerta por la que sale un envío,
+     y antes de deshabilitar botones: si frena, la pantalla tiene que quedar
+     como estaba para poder volver a intentarlo después de mirar.
+     Se salta en el reintento a propósito: ahí Joan ya lo vio y ya dijo que sí,
+     y volver a preguntarle lo mismo a media subida es la forma más rápida de
+     que se aprenda a darle a Aceptar sin leer. */
+  if(!esReintento){
+    var fr = NUBE.frenoDeBorrados(loteDe(E.unidades), E.espejo||{});
+    if(!fr.pasa){
+      var nombres = fr.borran.slice(0,10).map(function(b){
+        var f = (E.db[b.tabla==='creditos'?'prestamos':b.tabla]||[])
+                  .filter(function(x){ return String(x.id)===b.id; })[0];
+        return (f && (f.nombre||f.socioNombre)) || (b.tabla+' '+b.id);
+      });
+      pinta('msg5','warn','<b class="tit">No subo: esto borraría demasiado</b>'+
+        'Este envío le diría a la nube que borre <b>'+fr.cuantos+'</b> fila(s), '+
+        fr.socios+' de ellas clientes — el '+fr.pct+'% de lo que hay allá.<br><br>'+
+        'Un borrado sale de una RESTA: son filas que la nube tiene y esta cartera no. '+
+        'Si no borraste a esa gente a propósito, lo que pasa es que <b>esta cartera está '+
+        'incompleta</b> (un respaldo viejo importado, otra pestaña del Panel abierta, o '+
+        'entraste como equipo, que vacía la cartera a propósito).<br><br>'+
+        '<b>Serían:</b> '+esc(nombres.join(', '))+
+        (fr.cuantos>nombres.length ? ' y '+(fr.cuantos-nombres.length)+' más.' : '')+
+        '<br><br>Si los reconoces a todos y sí querías borrarlos, vuelve a traer con '+
+        '<span class="mono">traer.html</span> y súbelo desde una cartera completa.');
+      estado(5,'fallo','Frenado');
+      return;
+    }
+  }
   if(!esReintento){ E.siguiente=0; E.aplicados=0; E.choquesSubida=[]; E.revisionesSubida=[]; }
 
   $('btnSubir').disabled=true; $('btnReintentar').classList.add('oculto');

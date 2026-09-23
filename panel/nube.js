@@ -1133,19 +1133,148 @@
    * llega a medias, si el celular pierde la señal en la mitad, si la pestaña se
    * cierra — lo que no se confirmó sigue esperando.
    */
-  function quitarDeCola(cola, respuesta) {
+  /* =========================================================================
+   * EL COBRO DEL MARTES — 23-sep-2026
+   *
+   * Esta función borraba de la cola TODO lo que el servidor confirmara, por
+   * llave (tabla+id), sin mirar si lo que hay en la cola AHORA es lo mismo que
+   * se mando. Y la cola guarda el ESTADO de la fila, no una lista de
+   * operaciones: `encolar` REEMPLAZA la entrada que hubiera (`salida[i] = c`).
+   *
+   * Así que:
+   *   t0  se manda el crédito P1 marcado como pagado;
+   *   t1  mientras la petición viaja —dos segundos en la calle, mala señal—
+   *       Joan registra un abono de 50.000 sobre ese mismo crédito, y la
+   *       entrada de la cola pasa a ser pagado + abono;
+   *   t2  llega la confirmación de lo de t0 y se borra la entrada ENTERA.
+   *
+   * El abono se va sin haber subido nunca. Y en la MISMA vuelta, `bajar` se
+   * trae del servidor la fila sin el abono y la escribe encima, porque
+   * `aplicarPaquete` reemplaza la fila completa. Lo único que protegía el
+   * trabajo sin subir era volver a aplicar la cola encima — y ya no estaba en
+   * la cola. Cincuenta mil pesos, sin choque, sin aviso, con la pantalla
+   * impecable y en cero pendientes.
+   *
+   * LA CURA: una entrada solo se saca si lo que hay en ella es EXACTAMENTE lo
+   * que se mando. Por eso hace falta el tercer argumento — sin el lote no hay
+   * con qué comparar, y la función no tiene forma de distinguir «confirmado»
+   * de «confirmado y sin tocar desde entonces».
+   *
+   * Y lo que sobrevive se REAPUNTA a la revisión recién confirmada. Sin eso el
+   * cobro no se perdería, pero chocaría en cada vuelta contra una revisión que
+   * el servidor ya dejó atrás — para siempre. Es el mismo cuidado que ya esta
+   * escrito en el espejo al resolver un choque a mano.
+   * ======================================================================== */
+  /* =========================================================================
+   * EL FRENO DE BORRADOS — 23-sep-2026
+   *
+   * `armarLote` fabrica los borrados por RESTA: lo que está en el espejo y no
+   * está en la cartera, se manda con `{borrado:true}` y la revisión BUENA. El
+   * servidor lo acepta sin choque, porque desde su lado es indistinguible de un
+   * borrado legítimo.
+   *
+   * Eso está bien mientras la cartera sea la verdad. El problema es todo lo que
+   * puede dejarla momentáneamente incompleta sin que nadie lo note: importar un
+   * respaldo viejo, dos pestañas del CRM abiertas, `traer.html` escribiendo la
+   * cartera, o `modoEquipo()`, que vacía `DB` entera A PROPÓSITO para que nadie
+   * que abra el computador de Joan se lleve la cartera colgando de una variable.
+   *
+   * Contra los tres primeros ya hay cura donde nacen: importar y traer borran el
+   * espejo. Pero enumerar disparadores es una carrera que se pierde — basta uno
+   * nuevo para volver a empezar. Este freno no pregunta POR QUÉ faltan filas:
+   * mira CUÁNTAS, y si son demasiadas no deja salir el envío.
+   *
+   * Los dos topes tienen motivos distintos. El de filas atrapa la cartera que se
+   * vació del todo aunque sea diminuta; el de porcentaje atrapa la que perdió un
+   * pedazo grande aunque sean muchas filas. Con uno solo, una cartera de seis
+   * socios que se queda en cero pasaría por el del porcentaje, y una de mil que
+   * pierde la mitad pasaría por el de filas.
+   *
+   * No decide: informa. Quien llama enseña los nombres y pregunta. Un borrado de
+   * verdad se confirma en un clic; uno fabricado por una cartera a medias no se
+   * confirma nunca, porque Joan no reconoce esos nombres.
+   * ======================================================================== */
+  function frenoDeBorrados(lote, espejo, opciones) {
+    var o = objeto(opciones);
+    var topeSocios = o.topeSocios == null ? 3 : num(o.topeSocios);
+    var topePct = o.topePct == null ? 5 : num(o.topePct);
+    var l = objeto(lote), e = normalizarEspejo(espejo);
+
+    var borran = [];
+    TABLAS.forEach(function (t) {
+      lista(l[t]).forEach(function (f) {
+        if (f && f.borrado) borran.push({ tabla: t, id: texto(f.id) });
+      });
+    });
+
+    var enEspejo = 0;
+    TABLAS.forEach(function (t) { enEspejo += Object.keys(objeto(e[t])).length; });
+
+    /* Sin espejo, el porcentaje no significa nada —no hay contra qué restar—
+       y se deja en 0. El tope de socios SÍ sigue valiendo: cincuenta borrados
+       son cincuenta borrados, venga el espejo de donde venga. */
+    var pct = enEspejo ? (borran.length * 100) / enEspejo : 0;
+    var socios = 0;
+    borran.forEach(function (b) { if (b.tabla === 'socios') socios++; });
+
+    var motivo = '';
+    if (socios > topeSocios) motivo = 'socios';
+    else if (pct > topePct) motivo = 'porcentaje';
+
+    return {
+      borran: borran, cuantos: borran.length, socios: socios,
+      enEspejo: enEspejo, pct: Math.round(pct * 10) / 10,
+      pasa: !motivo, motivo: motivo,
+      topeSocios: topeSocios, topePct: topePct
+    };
+  }
+
+  function quitarDeCola(cola, respuesta, loteEnviado) {
     var r = objeto(respuesta), confirmadas = {};
     lista(r.revisiones).forEach(function (rev) {
-      if (rev) confirmadas[texto(rev.tabla) + '' + texto(rev.id)] = true;
+      if (rev) confirmadas[texto(rev.tabla) + '' + texto(rev.id)] = rev;
     });
     var chocadas = {};
     lista(r.choques).forEach(function (ch) {
       if (ch) chocadas[texto(ch.tabla) + '' + texto(ch.id)] = ch;
     });
-    return lista(cola).map(clonar).filter(function (c) {
-      return !confirmadas[llaveDeCambio(c)];
-    }).map(function (c) {
-      var ch = chocadas[llaveDeCambio(c)];
+
+    /* Lo que de verdad viajó, indexado por la misma llave que usa la cola. */
+    var enviadas = null;
+    if (loteEnviado) {
+      enviadas = {};
+      var l = objeto(loteEnviado);
+      TABLAS.forEach(function (t) {
+        lista(l[t]).forEach(function (f) { enviadas[t + '' + texto(f && f.id)] = f; });
+      });
+      lista(l.ajustes).forEach(function (a) { enviadas['ajustes' + texto(a && a.clave)] = a; });
+    }
+
+    /* Se queda en la cola si: no lo confirmaron; o lo confirmaron pero lo que
+       hay ahora no es lo que se mandó. `enviadas === null` es el caso de quien
+       llama sin el lote —hoy solo las pruebas de la función pura—: ahí no se
+       puede comparar y se conserva el comportamiento de antes. El centinela de
+       `pruebas/el-cobro-del-martes.test.js` vigila que el ciclo de verdad SÍ lo
+       pase. */
+    function sigueEnLaCola(c) {
+      var k = llaveDeCambio(c);
+      if (!confirmadas[k]) return true;
+      if (!enviadas) return false;
+      var env = enviadas[k];
+      if (!env) return true;            // confirmaron algo que no mandamos
+      return jsonCanonico(c.datos) !== jsonCanonico(env.datos)
+          || !!c.borrado !== !!env.borrado;
+    }
+
+    return lista(cola).map(clonar).filter(sigueEnLaCola).map(function (c) {
+      var k = llaveDeCambio(c);
+      var rev = confirmadas[k];
+      if (rev) {
+        /* Sobrevivió a una confirmación: es trabajo hecho DURANTE el viaje. */
+        c.revision_base = num(rev.revision);
+        delete c.choque; delete c.choque_en;
+      }
+      var ch = chocadas[k];
       if (ch) { c.choque = true; c.choque_en = ch.actualizado_en || null; }
       return c;
     });
@@ -1509,7 +1638,10 @@
           var ch = choquesDe(pedazo, resp, dispositivo);
           if (ch.length) { agregarChoques(ch); resultado.choques = resultado.choques.concat(ch); }
           guardarLocal({ espejo: espejoTrasEmpujar(leerLocal().espejo, pedazo, resp) });
-          guardarCola(quitarDeCola(leerCola(), resp));
+          /* `pedazo` es lo que acaba de viajar. Sin él, quitarDeCola no puede
+             distinguir una fila confirmada de una fila confirmada Y tocada
+             mientras viajaba, y se lleva por delante el trabajo del viaje. */
+          guardarCola(quitarDeCola(leerCola(), resp, pedazo));
           if (typeof o.avance === 'function') o.avance(resultado.aplicados, contarPendientes(leerCola()));
         });
       });
@@ -1797,6 +1929,7 @@
     encolar: encolar,
     loteDeCola: loteDeCola,
     quitarDeCola: quitarDeCola,
+    frenoDeBorrados: frenoDeBorrados,
     contarPendientes: contarPendientes,
     choquesDe: choquesDe,
     dbBase: dbBase,

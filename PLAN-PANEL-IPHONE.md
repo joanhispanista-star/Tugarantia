@@ -140,7 +140,13 @@ más — la del espejo y las de los tres documentos que decían que la nube no
 existe.
 *Esto no arregla la sincronización: hace que cuando falle, se vea.*
 
-**Fase B — que se pueda trabajar sin perder plata (3–4 días, 24 al 27-sep).**
+**Fase B — que se pueda trabajar sin perder plata. ✅ HECHA el 23-sep-2026.**
+El defecto que perdía plata resultó estar en `quitarDeCola`, no donde decía la
+receta: lo que se escribe mientras la petición viaja se borraba de la cola sin
+haber subido. Reproducido primero, arreglado después. Y el freno de borrados,
+con sus dos topes. 23 pruebas nuevas.
+
+~~**Fase B (3–4 días, 24 al 27-sep).**~~
 Las dos capas que el propio repo ya diseñó: los borrados salen de un registro
 explícito y no de una resta (`marcarBorrados:false` siempre), y el paquete que
 baja se filtra contra lo que acabas de subir. Con sus centinelas.

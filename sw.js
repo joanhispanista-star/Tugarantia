@@ -1297,7 +1297,45 @@
    socio, asi que sin subirlo el recuadro seguiria en 15 en los tres.
 
    2.324 pruebas. */
-const CACHE = 'tugarantia-v106';
+
+/* v107 - 23-sep-2026. FASE B: EL COBRO DEL MARTES, Y EL FRENO DE BORRADOS.
+
+   1. EL COBRO DEL MARTES. La cola guarda el ESTADO de la fila, no una lista de
+      operaciones: encolar REEMPLAZA la entrada que hubiera. Y quitarDeCola
+      borraba de la cola todo lo que el servidor confirmara, POR LLAVE, sin
+      mirar si lo que hay AHORA es lo mismo que se mando.
+
+      t0 se manda P1 pagado; t1 MIENTRAS VIAJA Joan registra un abono de 50.000
+      sobre ese mismo credito y la entrada pasa a ser pagado+abono; t2 llega la
+      confirmacion de lo de t0 y se borra la entrada ENTERA. El abono se va sin
+      haber subido nunca, y en la MISMA vuelta bajar() trae la fila sin el y la
+      escribe encima. Lo unico que protegia el trabajo sin subir era volver a
+      aplicar la cola encima, y ya no estaba en la cola.
+
+      Cincuenta mil pesos, sin choque, sin aviso, con la pantalla impecable y en
+      cero pendientes. Estaba escrito en RECETA-NUBE-CRM.md como [pierde_plata]
+      y resulto estar en un sitio mas pequenio y mas grave del que decia.
+
+      Cura: una entrada solo sale de la cola si lo que hay en ella es
+      EXACTAMENTE lo que se mando; si cambio durante el viaje se queda, y se
+      reapunta a la revision recien confirmada (con la vieja chocaria en cada
+      vuelta, para siempre).
+
+   2. EL FRENO DE BORRADOS. armarLote fabrica borrados por RESTA y el servidor
+      los acepta sin choque. Enumerar los disparadores que dejan la cartera
+      incompleta es una carrera que se pierde, asi que el freno no pregunta POR
+      QUE faltan filas: mira CUANTAS. Dos topes -- 3 socios y 5% -- porque cada
+      uno caza lo que al otro se le escapa. No decide: informa, y subir.html
+      ensenia los nombres. Un borrado de verdad se confirma en un clic; uno
+      fabricado por una cartera a medias no se confirma nunca.
+
+   Y un centinela que protege mas que todo lo demas: ninguna funcion del modo
+   equipo puede llamar a guardar(). modoEquipo() vacia DB a proposito, y un
+   guardar() ahi escribiria esa DB vacia encima de la cartera de Joan. Hoy se
+   cumple porque nadie lo ha roto, no porque algo lo impida.
+
+   2.347 pruebas. */
+const CACHE = 'tugarantia-v107';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
