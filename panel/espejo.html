@@ -497,6 +497,47 @@ var CHOQUES = [];
 var ULTIMO_ERROR = '';
 var ULTIMO_TRAER = null;   // hora local del último traer, solo para la cinta
 var _sinEspacio = false;
+
+/* ==========================================================================
+ * PEDIRLE A iOS QUE NO BORRE ESTO — 23-sep-2026
+ *
+ * La Prevención de Rastreo Inteligente de Safari borra TODO el almacenamiento
+ * que puede escribir un script —localStorage, IndexedDB, la caché y hasta el
+ * service worker— tras SIETE DÍAS sin que el usuario visite el sitio.
+ *
+ * Aquí viven tres cosas, y no valen lo mismo:
+ *   · `joan_panel_espejo`  la cartera espejada. Se vuelve a bajar de la nube.
+ *   · `joan_panel_cola`    LOS COBROS QUE TODAVÍA NO HAN SUBIDO. Esto no se
+ *                          recupera de ningún sitio: nunca llegó al servidor.
+ *   · `joan_panel_choques` los conflictos sin decidir.
+ *
+ * El escenario es normal, no raro: Joan cobra el viernes en la calle sin señal,
+ * no vuelve a abrir la página en una semana, y los cobros del viernes se van.
+ * Y se van EN SILENCIO, porque el espejo desaparece con ellos y la pantalla
+ * queda igual que el primer día.
+ *
+ * `persist()` es la única defensa que existe desde una página web. No es una
+ * garantía —el navegador puede decir que no, y en Safari suele decirlo salvo
+ * que la web esté en la pantalla de inicio—, y por eso el resultado se GUARDA:
+ * lo que la pantalla promete depende de lo que el navegador haya contestado.
+ * Prometer «no se pierde» sin saberlo es la clase de mentira que este proyecto
+ * no se permite.
+ *
+ * El CRM de escritorio pedía esto desde hace tiempo (crm.html, pedirQueNoBorren)
+ * y el espejo no. Estaba al revés: la defensa puesta en el Windows, donde nadie
+ * borra nada, y ausente en el único aparato donde iOS sí borra.
+ * ======================================================================== */
+var _almacenFirme = null;   /* null = todavía no se sabe · true/false = respuesta */
+(function pedirQueNoBorren() {
+  try {
+    if (!navigator.storage || !navigator.storage.persisted) return;
+    navigator.storage.persisted().then(function (ya) {
+      if (ya) { _almacenFirme = true; return; }
+      if (!navigator.storage.persist) return;
+      return navigator.storage.persist().then(function (dado) { _almacenFirme = !!dado; });
+    }).catch(function () { /* sin respuesta se queda en null, que es «no lo sé» */ });
+  } catch (e) {}
+})();
 /* LO ÚNICO QUE LA TANDA GUARDA, Y ES DELIBERADAMENTE POCO:
    {fecha, grupo, saltados:[{socioId, motivo}]}. Ni la lista de pendientes ni por
    dónde iba. Ver el comentario largo de vistaTanda(). */
@@ -926,7 +967,7 @@ function revisionBase(tabla, id) {
 }
 function encolar(que, quien, detalle, tabla, filaId) {
   if (!NUBE) return;
-  COLA = NUBE.encolarYGuardar({
+  var r = NUBE.encolarYGuardar({
     tabla: tabla, id: filaId,
     /* Se manda la fila COMPLETA tal como quedó en este teléfono, sin quitarle
        nada. Podría tentar pasarla por sinFotos, pero el celular no tiene fotos
@@ -936,6 +977,11 @@ function encolar(que, quien, detalle, tabla, filaId) {
     revision_base: revisionBase(tabla, filaId),
     que: que, quien: quien, detalle: detalle
   });
+  COLA = r.cola;
+  /* Se reutiliza la misma bandera del espejo grande a propósito: es el mismo
+     fallo y la misma consecuencia, y dos avisos distintos para «no cupo» se
+     leen como dos problemas. */
+  if (!r.guardada) _sinEspacio = true;
 }
 /* "3 esperando subir" lo cuenta nube.js: cuenta FILAS que van a viajar, así que
    tocar el mismo crédito tres veces es una sola cosa pendiente. Escribir acá
@@ -1081,12 +1127,14 @@ function resolverChoque(indice, como) {
        del primero: sin quitarla, el reintento volvería a salir contra la
        revisión de hace dos horas y chocaría otra vez, para siempre. */
     quitarDeCola(c.tabla, c.id);
-    COLA = NUBE.encolarYGuardar({
+    var rc = NUBE.encolarYGuardar({
       tabla: c.tabla, id: c.id, datos: fila,
       revision_base: c.revision_servidor,
       que: 'choque', quien: nombreDeFila(c.tabla, fila),
       detalle: 'lo del celular, encima'
     });
+    COLA = rc.cola;
+    if (!rc.guardada) _sinEspacio = true;
   }
 
   marcarChoqueResuelto(c, como);
@@ -3391,12 +3439,24 @@ function abrirCola() {
     var choca = it.choque || enChoque(it.tabla, it.id);
     h += '<div class="linea-item"><span>' + esc(it.quien || nombreDeFila(it.tabla, it.datos) || '') + '<br>'
       + '<span class="muted">' + esc(it.que || 'cambio') + (it.detalle ? ' · ' + esc(it.detalle) : '') + '</span></span>'
-      + '<span class="muted">' + esc(fmtHora(it.cuando)) + (choca ? '<br>en choque' : '') + '</span></div>';
+      /* Con la hora sola, un cobro del viernes pasado se ve idéntico a uno de
+         hace diez minutos — y son la misma cifra esperando por motivos muy
+         distintos. `fmtFechaHora` dice «hoy», «ayer» o la fecha entera. */
+      + '<span class="muted">' + esc(fmtFechaHora(it.cuando)) + (choca ? '<br>en choque' : '') + '</span></div>';
   });
   h += '<button class="btn arriba" type="button" data-acc="sinc">Subir ahora</button>';
   if (!nubeLista()) {
+    /* LO QUE SE PROMETE DEPENDE DE LO QUE CONTESTÓ EL NAVEGADOR. Esta frase
+       decía «no se pierde por cerrar la app» siempre, y en un iPhone es falsa a
+       los siete días: iOS borra el almacenamiento de un sitio que no se visita.
+       Cerrar la app no lo pierde; no volver en una semana, sí. */
     h += '<div class="aviso ambar">Sin conexión no sube nada. Lo de arriba está guardado en este '
-      + 'teléfono y sigue ahí hasta que suba: no se pierde por cerrar la app.</div>';
+      + 'teléfono y cerrar la app no lo pierde.'
+      + (_almacenFirme === true
+          ? ' El navegador se comprometió a no borrarlo.'
+          : ' <b>Pero si pasas una semana sin abrir esto, el teléfono puede borrarlo</b>, '
+            + 'y esto no está en ningún otro sitio todavía. Súbelo en cuanto tengas señal.')
+      + '</div>';
   }
   abrirHoja(pendientes() + ' esperando subir', h);
 }

@@ -92,7 +92,12 @@
   padding:11px 13px; border-radius:12px;
   border:1px solid var(--linea,#E6E0D8);
   background:var(--papel,#FFFFFF); color:var(--tinta,#111111);
-  font:inherit; font-size:15px; line-height:1.4;
+  /* 16px EXACTOS, y no es estética: por debajo de 16, Safari en iOS hace zoom
+     solo al enfocar el campo — y no se deshace. Este selector (0-1-1) le ganaba
+     por especificidad a la regla de 16px del espejo, así que era el ÚNICO sitio
+     de la pantalla donde pasaba, y justo el sitio donde Joan le escribe a un
+     cliente. 23-sep-2026. */
+  font:inherit; font-size:16px; line-height:1.4;
 }
 .ch-escribir textarea:focus{outline:2px solid var(--rojo,#D81F26); outline-offset:1px}
 /* El botón de enviar NO se estira, aunque la página declare `.btn{width:100%}`

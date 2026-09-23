@@ -128,11 +128,16 @@ buscar, ver ficha y crédito, y mandar el WhatsApp con el freno de la Ley 2300.
 
 ## El orden que propongo, con fechas
 
-**Fase A — que no se pierda nada (½ día, 23-sep).**
-`navigator.storage.persist()` en el espejo; que `encolarYGuardar` deje de
-tragarse el «no cupo»; la cola con fecha y no solo la hora; el recuadro del chat
-a 16px; y **corregir las frases que prometen de más**, aquí y en los tres
-documentos que dicen que la nube no existe.
+**Fase A — que no se pierda nada. ✅ HECHA el 23-sep-2026.**
+Las cinco cosas, con 19 pruebas nuevas y comprobado en navegador. La de
+`persist()` contestó **que no**, así que la frase que prometía «no se pierde»
+era falsa el mismo día en que se corrigió.
+
+Lo que entró: `navigator.storage.persist()` en el espejo; `encolarYGuardar` deja
+de tragarse el «no cupo» y la pantalla lo enciende; la cola con fecha y no solo
+la hora; el recuadro del chat a 16px; y corregidas las frases que prometían de
+más — la del espejo y las de los tres documentos que decían que la nube no
+existe.
 *Esto no arregla la sincronización: hace que cuando falle, se vea.*
 
 **Fase B — que se pueda trabajar sin perder plata (3–4 días, 24 al 27-sep).**

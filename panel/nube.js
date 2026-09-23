@@ -1444,12 +1444,25 @@
   function guardarCola(cola) { return escribirJSON(LLAVE_COLA, lista(cola)); }
   /** Encolar Y GUARDAR, en la misma llamada y a propósito: si la pantalla
       encolara y guardara por separado, un cierre de pestaña en el medio
-      dejaría el cambio en la memoria y no en el disco. Devuelve la cola nueva
-      para que quien llamó pinte "N esperando subir" con el número de verdad. */
+      dejaría el cambio en la memoria y no en el disco.
+
+      DEVUELVE `{ cola, guardada }` — 23-sep-2026. Antes devolvía solo la cola y
+      tiraba a la basura el false de `guardarCola`. O sea: si el navegador
+      contestaba «no cupo», el cobro que Joan acababa de registrar en la calle
+      se quedaba en la memoria de la pestaña, la pantalla decía «1 esperando
+      subir» tan tranquila, y al cerrar la app desaparecía sin que nadie hubiera
+      visto nada.
+
+      El espejo grande ya comprobaba esto mismo (`_sinEspacio`, con su aviso).
+      La COLA no, y es la que más duele: el espejo se vuelve a bajar de la nube,
+      y la cola no — nunca llegó al servidor.
+
+      `cola` sigue primero en el objeto por costumbre de lectura, pero quien
+      llama tiene que mirar `guardada`. */
   function encolarYGuardar(cambio) {
     var cola = encolar(leerCola(), cambio);
-    guardarCola(cola);
-    return cola;
+    var guardada = guardarCola(cola) !== false;
+    return { cola: cola, guardada: guardada };
   }
   function pendientes() { return contarPendientes(leerCola()); }
 

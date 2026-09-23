@@ -1263,7 +1263,41 @@
    todos tarda 6 ms y el contador dice 18190.
 
    2.305 pruebas. */
-const CACHE = 'tugarantia-v105';
+
+/* v106 - 23-sep-2026. FASE A: CUANDO FALLE, QUE SE VEA.
+
+   No arregla la sincronizacion. Arregla algo anterior y mas barato: que los
+   fallos que ya existian dejaran de ser invisibles.
+
+   1. La COLA se guardaba sin comprobar. encolarYGuardar tiraba el false de
+      guardarCola, asi que con el disco lleno el cobro que Joan acababa de
+      registrar en la calle se quedaba en la memoria de la pestania, la pantalla
+      seguia diciendo '1 esperando subir', y al cerrar la app desaparecia. El
+      espejo grande SI lo comprobaba; la cola no -- y es la que mas duele,
+      porque el espejo se vuelve a bajar de la nube y la cola no.
+
+   2. NADIE LE PEDIA A iOS QUE NO BORRARA. Safari borra el almacenamiento de un
+      sitio a los SIETE DIAS sin visitarlo. El CRM de escritorio pedia persist()
+      y el espejo no: la defensa en el Windows, donde nadie borra, y ausente en
+      el unico aparato donde iOS si borra.
+
+   3. Y LA PANTALLA PROMETIA QUE NO SE PERDIA. Ahora lo que promete depende de
+      lo que el navegador CONTESTO a persist(). Medido en el navegador: contesta
+      que no, asi que la frase vieja era falsa hoy mismo.
+
+   4. La cola mostraba solo la hora: un cobro del viernes se veia igual que uno
+      de hace diez minutos.
+
+   5. Y el recuadro del chat media 15px porque chat.css le ganaba por
+      especificidad al espejo. Debajo de 16, Safari hace zoom al enfocar, y era
+      el unico sitio de la pantalla donde pasaba -- justo donde Joan le escribe
+      a un cliente.
+
+   chat.css entra en este numero: lo cargan el espejo, el CRM y la app del
+   socio, asi que sin subirlo el recuadro seguiria en 15 en los tres.
+
+   2.324 pruebas. */
+const CACHE = 'tugarantia-v106';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

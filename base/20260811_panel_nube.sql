@@ -702,6 +702,13 @@ grant execute on function public.chat_olvidar(text, text)            to anon, au
 
 
 -- ------------------------------------------------------ qué falta probar ---
+-- CORREGIDO EL 23-SEP-2026: este archivo SÍ está aplicado. Las cinco funciones
+-- y las tres tablas existen en producción, comprobadas por HTTP con sus firmas
+-- reales. Lo de abajo era cierto en agosto y dejó de serlo sin que nadie lo
+-- tachara — y casi hace empezar de cero una función que ya estaba viva.
+-- Se toca SOLO este comentario: ni una línea ejecutable, para no cambiar lo que
+-- ya corrió. Las 23 comprobaciones de abajo siguen pendientes.
+--
 -- NADA DE ESTE ARCHIVO SE CORRIÓ TODAVÍA CONTRA UNA BASE DE VERDAD. Está escrito
 -- siguiendo el estilo y las trampas ya conocidas de supabase.sql, y revisado a
 -- mano, pero no probado. Esto es lo que hay que probarle, en este orden, y las
