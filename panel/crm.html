@@ -660,7 +660,8 @@
 
     <section class="view" id="v-equipo">
       <div class="ph"><div><h1>Equipo<span class="dot">.</span></h1><div class="sub">Quién trabaja contigo, qué clientes lleva cada uno y cuánto ha ganado</div></div>
-        <div><button class="btn btn-ghost" onclick="publicarEquipo()">☁ Publicar a la nube</button>
+        <div><button class="btn btn-ghost" onclick="traerEquipoSolo()">↻ Traer del equipo</button>
+        <button class="btn btn-ghost" onclick="publicarEquipo()">☁ Publicar a la nube</button>
         <button class="btn btn-ghost" onclick="pantallaAsignar('clientes')">🔀 Repartir</button>
         <button class="btn btn-rojo" onclick="editarPersona()">＋ Crear persona</button></div></div>
       <div class="kpis" id="kpiEquipo"></div>
@@ -11145,6 +11146,18 @@ function publicarEquipoAhora(gente, asig, ps) {
  * id (en las asignaciones, que solo suman). Nunca borra: alguien que está acá y
  * no allá es alguien que todavía no se ha publicado, no alguien que se fue.
  * ------------------------------------------------------------------------ */
+/* 22-sep-2026 — TRAER SIN PUBLICAR.
+   `equipo_traer` solo corría DENTRO de `publicarEquipo`, que es el orden
+   correcto para publicar —primero se trae, si no se pisa lo que hizo el
+   gerente— pero dejaba a Joan sin forma de VER lo que hizo su equipo sin
+   mandar nada. Desde que el gerente puede crear asesores y repartir desde su
+   celular, eso es justo lo que hace falta mirar primero. */
+function traerEquipoSolo() {
+  traerEquipo(false).then(function (n) {
+    if (!n) return;                 /* traerEquipo ya avisó de lo que trajo */
+  }).catch(function () {});
+}
+
 function traerEquipo(callado) {
   if (!sbListo()) { if (!callado) alert('Primero conecta la nube en Ajustes.'); return Promise.resolve(0); }
   return rpc('equipo_traer', { p_clave: sbCfg().clave })

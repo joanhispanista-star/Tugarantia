@@ -1169,7 +1169,14 @@
    las diez de la noche en Bogota eso es el dia siguiente.
 
    2.278 pruebas. Sin migracion: todo esto ya viajaba. */
-const CACHE = 'tugarantia-v101';
+
+/* v102 - 22-sep-2026. UN BOTON DE 'TRAER DEL EQUIPO' EN LA PESTANIA EQUIPO.
+   equipo_traer solo corria DENTRO de publicarEquipo, que es el orden correcto
+   para publicar -- primero se trae, si no se pisa lo que hizo el gerente --
+   pero dejaba a Joan sin forma de VER lo que hizo su equipo sin mandar nada.
+   Desde que el gerente puede crear asesores y repartir desde su celular, eso
+   es justo lo que hace falta mirar primero. */
+const CACHE = 'tugarantia-v102';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
