@@ -179,12 +179,31 @@ escribió quién la movió y por qué. Lo que NO se movió sigue prohibido: céd
 dirección, correo, fotos, notas de riesgo, código de acceso, ingresos y
 referencias.
 
-### Fase 2 — Los indicadores del asesor · **23-sep**
+### Fase 2 — Los indicadores del asesor · **22-sep** ✅ HECHA
 - Su tarjeta propia en «Hoy», reusando `indicadoresDe()` — que ya existe y ya
   tiene pruebas.
 - Su saldo de comisiones: ganado, bloqueado y descontado.
 - Llamar a `envios_asesor_hoy()`, que está escrita, concedida, y **no la llama
   nadie**: hoy el asesor descubre el tope cuando ya se lo negaron.
+
+**Hecho y verificado el 22-sep.** `20260922n` aplicada; CRM en v97.
+
+**Y un arreglo que no era de esta fase.** Esa misma tarde se le había cambiado
+la firma a `registro_vivo_borrar` para que pidiera el testigo… **y el cuerpo
+nunca lo miró**. Siguió borrando por celular, concedida a `anon`.
+
+Lo peor no fue el agujero: fue que **la prueba dio «bien» por la razón
+equivocada**. Comprobaba que después del borrado ajeno se pudiera seguir
+publicando con el testigo bueno — y eso pasa igual si la fila se borró, porque
+entonces `publicar` crea una nueva y contesta `ok`. La prueba medía otra cosa.
+
+*Probar que algo corre no es probar que haga lo que dice.* La prueba nueva mira
+**la fila**, y la de HTTP no puede mentir: un tercero con otro testigo recibe
+`ocupado`, que solo puede pasar si la fila sobrevivió.
+
+Y `cuantosQuedanHoyEq` leía `j.quedan` cuando la función devuelve `{hoy, tope}`.
+No daba error: daba `NaN`, y la cifra **no se habría pintado nunca** — o sea que
+el aviso habría seguido sin existir después de escribirlo.
 
 ### Fase 3 — La cobranza organizada · **24-sep**
 - Pantalla «Cuándo cobrar»: hoy / esta semana / vencidos, con la fecha de
