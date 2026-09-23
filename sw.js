@@ -1197,7 +1197,46 @@
    mas no cuesta nada; escondiendolo, si.
 
    2.281 pruebas. */
-const CACHE = 'tugarantia-v103';
+
+/* v104 - 22-sep-2026. LA BARRA DE PESTANIAS DEL PANEL EN EL BOLSILLO.
+
+   Medido en un iPhone emulado: la barra pedia 418 px sobre una pantalla de
+   375. Siete pestanias de 59 px que no podian encoger, porque el CSS decia
+   flex:1 0 3.7rem -- el 0 del medio es el ENCOGER, y estaba prohibido.
+
+   Lo que lo hacia dificil de ver es que la barra se desliza de lado. No habia
+   nada roto a la vista: 'Quincena' salia cortada y parecia el borde de la
+   pantalla.
+
+   Pero el ancho era el sintoma. Dos de las siete -- Ficha y Credito -- no son
+   destinos: son el DETALLE de una persona o de un credito, y a las dos se
+   llega ABRIENDO a alguien. Tocarlas en frio solo sabia contestar 'buscalo en
+   Buscar'. Dos pestanias permanentes cuyo trabajo era mandarte a otra,
+   ocupando 120 px de 375.
+
+   Fuera las dos, quedan cinco y caben en 320 px, que es el iPhone mas estrecho
+   que todavia se usa. Y las pestanias ya pueden encoger, asi que el ancho de
+   la barra lo manda la pantalla y no la suma de sus partes: no puede volver a
+   desbordarse.
+
+   Quitarlas obliga a devolver lo que la barra hacia de mala manera:
+     - una SALIDA, que nombra su destino ('<- Buscar'), como ya hacian el hilo
+       del chat y los grupos de la tanda;
+     - y un sitio donde LEER DONDE ESTAS: la barra marca la pestania de ORIGEN
+       mientras se mira un detalle. Sin eso, abrir una ficha apagaba las cinco
+       luces a la vez.
+
+   El camino se guarda entero y no solo el ultimo sitio: Buscar -> ficha ->
+   credito vuelve a la ficha y despues a Buscar. Con una sola variable ese paso
+   intermedio se pierde y el credito devuelve a Buscar saltandose al socio que
+   se estaba mirando.
+
+   ESTE NUMERO IMPORTA MAS QUE DE COSTUMBRE: espejo.html se precarga en la
+   cache desde la v4. Sin subirlo, el Panel guardado en el iPhone de Joan
+   seguiria siendo el de las siete pestanias para siempre.
+
+   2.295 pruebas. */
+const CACHE = 'tugarantia-v104';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

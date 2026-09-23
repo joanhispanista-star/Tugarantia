@@ -252,10 +252,24 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
    de una barra de altura fija. Se deja que la barra RUEDE de lado: en pantallas
    anchas siguen cabiendo todas y en las angostas se desliza, que es lo que
    cualquiera espera de una fila de pestañas en un celular. */
+/* ---------------- la barra de pestanias ----------------
+   `flex:1 0 3.7rem` tenia el ENCOGER en cero: cada pestania media 59 px pasara
+   lo que pasara. Con siete, la barra pedia 418 px sobre una pantalla de 375 y
+   «Quincena» quedaba cortada. Se podia deslizar de lado, que es justo lo que
+   hace el defecto dificil de ver: la barra PARECE entera.
+
+   Ahora `flex:1 1 0` con `min-width:0` — encoger permitido y sin suelo—, asi
+   que el ancho de la barra lo manda la pantalla y no la suma de las pestanias.
+   No puede volver a desbordarse por mucho que se le anada.
+
+   El `text-overflow` es la red de abajo: si algun dia no cupiera el texto, se
+   corta con puntos suspensivos DENTRO de su pestania. Sin el, el texto se sale
+   del boton y se monta sobre el de al lado, que se lee como una pantalla rota. */
 .nav{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .nav::-webkit-scrollbar{display:none}
-.nav button{flex:1 0 3.7rem;white-space:nowrap;border:0;background:transparent;font-family:inherit;cursor:pointer;
-  padding:12px 6px;min-height:52px;color:var(--gris);font-size:11.5px;font-weight:600;position:relative}
+.nav button{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;border:0;background:transparent;font-family:inherit;cursor:pointer;
+  padding:12px 4px;min-height:52px;color:var(--gris);font-size:11.5px;font-weight:600;position:relative}
 .nav button.on{color:var(--tinta)}
 .nav button.on::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
   bottom:6px;width:18px;height:2px;border-radius:2px;background:var(--rojo)}
@@ -331,8 +345,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
     <button data-v="tanda" type="button">Tanda</button>
     <button data-v="mensajes" type="button">Mensajes</button>
     <button data-v="buscar" type="button">Buscar</button>
-    <button data-v="ficha" type="button">Ficha</button>
-    <button data-v="credito" type="button">Crédito</button>
     <button data-v="quincena" type="button">Quincena</button>
   </nav>
 </div>
@@ -1464,10 +1476,68 @@ var TITULOS = { hoy: 'Hoy', tanda: 'Tanda de mensajes', buscar: 'Buscar',
                 ficha: 'Ficha del socio', credito: 'Crédito', quincena: 'Quincena',
                 mensajes: 'Mensajes' };
 
+/* ==========================================================================
+ * FICHA Y CREDITO NO SON DESTINOS: SON EL DETALLE DE ALGUIEN
+ *
+ * 22-sep-2026. Tenian pestania propia en la barra y no debian tenerla. A las
+ * dos se llega ABRIENDO a una persona o un credito —desde Buscar, desde Hoy o
+ * desde otra ficha—, nunca «entrando» a secas. Tocarlas en frio solo servia
+ * para que la pantalla contestara «buscalo en Buscar»: dos de siete pestanias
+ * cuyo unico trabajo era mandarte a otra.
+ *
+ * Y costaban 120 px de una barra de 375. Por eso «Quincena» salia cortada.
+ *
+ * Quitarlas obliga a poner lo que la barra estaba haciendo de mala manera:
+ *
+ *   - VOLVER. Antes se salia de una ficha tocando otra pestania. Ahora hay un
+ *     boton que nombra su destino, como ya hacian el hilo del chat y los grupos
+ *     de la tanda. Se sale por donde se entro, no a un sitio fijo.
+ *
+ *   - SABER DONDE ESTAS. La barra marca la pestania de ORIGEN mientras miras un
+ *     detalle. Sin eso, abrir una ficha apagaba las cinco luces a la vez y la
+ *     barra se quedaba sin decir nada — que en un telefono es el unico sitio
+ *     donde Joan lee en que parte de la app esta.
+ *
+ * La PILA guarda el camino, no el ultimo sitio: Buscar -> ficha -> credito
+ * vuelve a la ficha y despues a Buscar. Con una sola variable, ese segundo
+ * paso se perdia y el credito devolvia a Buscar saltandose al socio que se
+ * estaba mirando.
+ * ======================================================================== */
+var DETALLE = { ficha: 1, credito: 1 };
+var PILA = [];
+
 function ir(v) {
+  if (DETALLE[v]) { if (v !== VISTA) PILA.push(VISTA); }
+  else PILA.length = 0;
+  pintarVista(v);
+}
+
+/* Volver NO apila. Si lo hiciera, cada ida y vuelta dejaria la pila creciendo y
+   el boton de atras no saldria nunca de las dos ultimas pantallas. */
+function volver() { pintarVista(PILA.pop() || 'hoy'); }
+
+/* El texto del boton nombra A DONDE va, no «atras». En una pantalla de telefono
+   «atras» puede ser el gesto del sistema, la flecha del navegador o esto; que
+   diga «Buscar» quita la duda antes de tocarlo. */
+function botonVolver() {
+  var a = PILA[PILA.length - 1];
+  return '<button class="btn sec sm" type="button" data-acc="volver">&larr; '
+    + esc(TITULOS[a] || 'Hoy') + '</button>';
+}
+
+function pintarVista(v) {
   VISTA = v;
+  /* La raiz es la primera vista de la pila que SI tiene pestania. Se busca en
+     vez de dar por hecho que es la primera: si algun dia se llega a un detalle
+     desde otro detalle sin pasar por una pestania, la barra seguiria acertando
+     en lugar de encenderse en el sitio equivocado. */
+  var raiz = 'hoy';
+  for (var i = 0; i < PILA.length; i++) {
+    if (!DETALLE[PILA[i]]) { raiz = PILA[i]; break; }
+  }
+  var marca = DETALLE[v] ? raiz : v;
   Array.prototype.forEach.call(document.querySelectorAll('#nav button'), function (b) {
-    b.classList.toggle('on', b.dataset.v === v);
+    b.classList.toggle('on', b.dataset.v === marca);
   });
   document.getElementById('cabTitulo').textContent = TITULOS[v] || 'Panel';
   window.scrollTo(0, 0);
@@ -2307,7 +2377,8 @@ function vistaBuscar() {
 function vistaFicha() {
   var s = SEL.socioId ? socioPorId(SEL.socioId) : null;
   if (!s) {
-    return '<div class="vacio"><div class="ic">👤</div><p>Todavía no has abierto la ficha de nadie.</p>'
+    return botonVolver()
+      + '<div class="vacio"><div class="ic">👤</div><p>Todavía no has abierto la ficha de nadie.</p>'
       + '<p class="muted">Búscalo en <b>Buscar</b> o entra desde un crédito de <b>Hoy</b>.</p></div>';
   }
   var paq = P.migrarSocio(DB, s);
@@ -2317,7 +2388,7 @@ function vistaFicha() {
   var resp = P.respaldadosDe(DB, s);
   var tel = waNum(s);
 
-  var h = '<div class="card laca">'
+  var h = botonVolver() + '<div class="card laca" style="margin-top:var(--e3)">'
     + '<div class="etq">' + esc(P.codCliente(s)) + ' · nivel ' + esc(paq.garantia.nivel) + '</div>'
     + '<h1 style="font-size:22px;margin-top:6px;color:var(--blanco-laca)">' + esc(s.nombre || 'Socio') + '</h1>'
     + '<div class="sep"></div>'
@@ -2410,7 +2481,8 @@ function vistaFicha() {
 function vistaCredito() {
   var p = SEL.creditoId ? creditoPorId(SEL.creditoId) : null;
   if (!p) {
-    return '<div class="vacio"><div class="ic">💵</div><p>Todavía no has abierto ningún crédito.</p>'
+    return botonVolver()
+      + '<div class="vacio"><div class="ic">💵</div><p>Todavía no has abierto ningún crédito.</p>'
       + '<p class="muted">Ábrelo desde <b>Hoy</b> o desde la ficha del socio.</p></div>';
   }
   var s = socioDe(p);
@@ -2420,7 +2492,7 @@ function vistaCredito() {
   var cuotas = P.cuotasPlan(p);
   var pr = liqProrroga(p);
 
-  var h = '<div class="card">'
+  var h = botonVolver() + '<div class="card" style="margin-top:var(--e3)">'
     + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'
     +   '<div><div class="etq">' + esc(P.codCredito(p)) + '</div>'
     +     '<h3 class="tit" style="margin-top:4px">' + esc((s && s.nombre) || p.socioNombre || 'Socio') + '</h3></div>'
@@ -3405,6 +3477,7 @@ document.addEventListener('click', function (ev) {
   else if (acc === 'tanda-recuperar') { recuperarEnTanda(el.dataset.s); }
   else if (acc === 'vercredito') { SEL.creditoId = id; var p = creditoPorId(id); if (p) SEL.socioId = p.socioId; ir('credito'); }
   else if (acc === 'verficha') { SEL.socioId = id; ir('ficha'); }
+  else if (acc === 'volver') { volver(); }
   else if (acc === 'nuevocliente') { abrirNuevoCliente(); }
   else if (acc === 'cliente-ok') { crearCliente(); }
   else if (acc === 'entrar') { entrarANube(); }
