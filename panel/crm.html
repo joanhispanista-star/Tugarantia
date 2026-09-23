@@ -556,9 +556,18 @@
          vivía escondida dentro de Invitaciones y solo conocía los canjes. -->
     <section class="view" id="v-mensajes">
       <div class="ph"><div><h1>Mensajes<span class="dot">.</span></h1><div class="sub">Lo que te escriben tus clientes desde la app — y lo que les contestas</div></div>
-        <button class="btn btn-negro" onclick="traerConversaciones()">↻ Traer de la nube</button></div>
+        <button class="btn btn-negro" onclick="traerConversaciones();traerChatEquipo()">↻ Traer de la nube</button></div>
       <div class="card"><div class="card-h"><h3>💬 Conversaciones</h3><span class="tag" id="chTag">Los que tienen mensajes sin leer salen de primeros</span></div>
         <div id="chBandeja"></div></div>
+
+      <!-- 22-sep-2026 — EL CHAT CON EL EQUIPO. Joan: «el chat tambien debe
+           funcionar para yo hablar con los asesores de cobranza o con el
+           gerente». Va APARTE de la de clientes y no mezclado: son dos
+           conversaciones con dos reglas distintas — a un cliente lo protege la
+           Ley 2300 y a un asesor no, y confundirlas seria el error caro. -->
+      <div class="card"><div class="card-h"><h3>🚶 Tu equipo</h3>
+        <span class="tag" id="eqChTag">Un hilo con cada uno. Lo que le digas a uno no lo ve otro</span></div>
+        <div id="eqBandeja"></div></div>
     </section>
 
     <section class="view" id="v-registrados">
@@ -6272,6 +6281,123 @@ function soltarCopiaGuardada(){
   Promise.all(tareas).then(()=>{ location.reload(true); }, ()=>{ location.reload(true); });
 }
 
+/* ==========================================================================
+ * EL CHAT CON EL EQUIPO — 22-sep-2026
+ *
+ * Un hilo de Joan con cada persona, no una sala: lo que le dice a uno no lo lee
+ * otro, y para llamarle la atención a alguien no tiene que hacerlo delante de
+ * los demás. Decisión suya, con las tres opciones delante.
+ *
+ * Lo pinta el MISMO `chat.js` que el de los clientes — el servidor traduce su
+ * `de` a 'socio'/'panel' para que las burbujas caigan donde toca — así que la
+ * hora, el «Lo vio» y el agrupado por día vienen gratis y ya probados.
+ * ======================================================================== */
+let _eqConvs = [], _eqAbierta = null, _eqMsgs = [], _eqEstado = 'nada';
+
+function traerChatEquipo(callado){
+  if(!sbListo()){ _eqEstado='sinNube'; return Promise.resolve(renderChatEquipo()); }
+  return rpc('equipo_chat_conversaciones',{p_clave:sbCfg().clave})
+    .then(l=>{ _eqConvs=Array.isArray(l)?l:[]; _eqEstado='ok'; renderChatEquipo(); })
+    .catch(e=>{
+      _eqEstado='error';
+      _eqError=errNube(e);
+      renderChatEquipo();
+      if(!callado) alert('No pude traer el chat del equipo: '+_eqError);
+    });
+}
+let _eqError='';
+
+function renderChatEquipo(){
+  const b=document.getElementById('eqBandeja'); if(!b) return;
+  if(!chatListo()){ b.innerHTML='<div class="muted" style="padding:14px">No cargó app/chat.js.</div>'; return; }
+  if(_eqEstado==='sinNube'){
+    b.innerHTML='<div class="muted" style="padding:14px">Esto llega por la nube. Conéctala en Ajustes.</div>';
+    return;
+  }
+  if(_eqEstado==='error'){
+    /* Un 404 no es un fallo de red: es una migración sin correr, y decirlo
+       ahorra la tarde de buscar el error en el sitio equivocado. */
+    b.innerHTML='<div class="alerta warn">'+escHTML(/404|PGRST202/.test(_eqError)
+      ? 'Tu nube todavía no tiene el chat del equipo. Corre base/20260922r_el_chat_con_el_equipo.sql en el SQL Editor de Supabase.'
+      : ('No pude traerlo: '+_eqError))+'</div>';
+    return;
+  }
+  if(_eqEstado!=='ok'){
+    b.innerHTML='<div class="muted" style="padding:14px">Toca «↻ Traer de la nube».</div>';
+    return;
+  }
+  if(!_eqConvs.length){
+    b.innerHTML='<div class="muted" style="padding:14px">Todavía no tienes a nadie en el equipo. Créalos desde el Panel o desde el celular del gerente.</div>';
+    return;
+  }
+  b.innerHTML=CHAT.listaHTML(_eqConvs,{
+    alAbrir:'abrirChatEquipo',
+    vacio:'Todavía no tienes a nadie en el equipo.'
+  });
+}
+
+function abrirChatEquipo(cel){
+  _eqAbierta=String(cel);
+  const c=_eqConvs.find(x=>String(x.cedula)===_eqAbierta)||{};
+  openModal('💬 '+escHTML(c.nombre||_eqAbierta),
+    '<div id="eqHilo" class="ch-hilo"><div class="muted" style="padding:14px">Cargando…</div></div>'+
+    '<div class="field" style="margin-top:10px">'+
+      '<textarea id="eqTxt" rows="3" maxlength="1000" placeholder="Escríbele a '+
+        escHTML((c.nombre||'').split(' ')[0]||'tu asesor')+'…"></textarea>'+
+      '<div id="eqErr" class="alerta warn oculto"></div>'+
+      '<button class="btn btn-rojo" style="width:100%;margin-top:8px" id="eqBtn" '+
+        'onclick="responderChatEquipo()">Enviar</button></div>'+
+    '<div class="muted" style="font-size:12px;margin-top:8px">Esto lo lee solo '+
+      escHTML(c.nombre||'esa persona')+'. Sus compañeros no lo ven.</div>');
+  cargarHiloEquipo();
+}
+
+function cargarHiloEquipo(){
+  rpc('equipo_chat_de',{p_clave:sbCfg().clave,p_celular:_eqAbierta,p_desde:0})
+    .then(l=>{
+      _eqMsgs=Array.isArray(l)?l:[];
+      const caja=document.getElementById('eqHilo');
+      if(!caja) return;                    /* cerró el modal mientras tanto */
+      caja.innerHTML=_eqMsgs.length
+        ? CHAT.hiloHTML(_eqMsgs,{yo:'negocio',hoy:hoyISO(),textoVisto:'Lo vio'})
+        : '<div class="muted" style="padding:14px">Todavía no se han escrito. Empieza tú.</div>';
+      caja.scrollTop=caja.scrollHeight;
+      /* Abrirlo marca lo suyo como visto en el servidor: se refresca la
+         bandeja para que el contador de aquí no siga diciendo que hay. */
+      traerChatEquipo(true);
+    })
+    .catch(e=>{
+      const caja=document.getElementById('eqHilo');
+      if(caja) caja.innerHTML='<div class="alerta warn">No pude traer el hilo: '+escHTML(errNube(e))+'</div>';
+    });
+}
+
+function responderChatEquipo(){
+  const el=document.getElementById('eqTxt'), err=document.getElementById('eqErr');
+  if(!el||!err) return;
+  const v=CHAT.revisar(el.value);
+  if(!v.ok){ err.textContent=v.motivo; err.classList.remove('oculto'); return; }
+  err.classList.add('oculto');
+  const b=document.getElementById('eqBtn');
+  if(b){ b.disabled=true; b.textContent='Enviando…'; }
+  rpc('equipo_chat_responder',{p_clave:sbCfg().clave,p_celular:_eqAbierta,p_texto:v.texto})
+    .then(j=>{
+      if(b){ b.disabled=false; b.textContent='Enviar'; }
+      if(!j||j.ok!==true){
+        err.textContent=(j&&j.motivo)||'La nube contestó que no.';
+        err.classList.remove('oculto');
+        return;
+      }
+      el.value='';
+      cargarHiloEquipo();
+    })
+    .catch(e=>{
+      if(b){ b.disabled=false; b.textContent='Enviar'; }
+      err.textContent='No pude enviarlo: '+errNube(e);
+      err.classList.remove('oculto');
+    });
+}
+
 function renderMensajes(){
   const b=document.getElementById('chBandeja'); if(!b) return;
   const pin=document.getElementById('navSinLeer');
@@ -8014,6 +8140,7 @@ function modoEquipo() {
         ${yo.rol === 'gerente' ? '<button class="navbtn" onclick="irEquipo(\'equipo\')"><span class="ic">🚶</span> Mi equipo</button>' : ''}
         <button class="navbtn" onclick="irEquipo('vivo')"><span class="ic">👀</span> En vivo</button>
         <button class="navbtn" onclick="irEquipo('plata')"><span class="ic">💰</span> Mi plata</button>
+        <button class="navbtn" onclick="irEquipo('jefe')"><span class="ic">💬</span> Mensajes<span id="sinLeerJefe"></span></button>
       </nav>
       <div class="sep"></div>
       <div style="padding:10px 14px;font-size:11.5px;line-height:1.5;opacity:.6">
@@ -8036,7 +8163,7 @@ function irEquipo(v) {
      nada. Y cualquier entrada nueva hereda el mismo fallo si no se agrega aquí. */
   const TITULO_EQ = { tablero: 'Hoy', base: 'Mi base', agenda: 'Agenda',
                       equipo: 'Mi equipo', vivo: 'En vivo', plata: 'Mi plata',
-                      whatsapp: 'Mi WhatsApp' };
+                      whatsapp: 'Mi WhatsApp', jefe: 'Mensajes' };
   document.querySelectorAll('.side .navbtn').forEach(b => b.classList.toggle('on',
     !!TITULO_EQ[v] && b.textContent.trim().indexOf(TITULO_EQ[v]) >= 0));
   const main = document.querySelector('.main') || document.querySelector('.app > :last-child');
@@ -8044,12 +8171,14 @@ function irEquipo(v) {
   main.innerHTML = '<div class="wrapEq" style="padding:20px;max-width:760px;margin:0 auto">' +
     (v === 'base' ? vistaBaseEquipo() :
      v === 'agenda' ? vistaAgendaEq() :
+     v === 'jefe' ? vistaJefeEq() :
      v === 'equipo' ? vistaMiEquipo() :
      v === 'plata' ? vistaPlataEq() :
      v === 'vivo' ? vistaVivoEq() : vistaTableroEquipo()) + '</div>';
   /* El reloj del «en vivo» solo corre con esa pestana abierta. Uno que siguiera
      corriendo en el bolsillo del asesor es bateria y son datos de su plan. */
   vigilarVivoEq(v === 'vivo');
+  if (v === 'jefe') traerJefeEq();
   window.scrollTo(0, 0);
 }
 
@@ -9048,6 +9177,126 @@ function tarjetaMiSaldoEq() {
         : '') +
       ' Lo <b>bloqueado</b> se suelta cuando el cliente paga: por eso cobrar es tu plata, no un favor.' +
     '</div></div>';
+}
+
+/* ==========================================================================
+ * EL CHAT CON JOAN — 22-sep-2026
+ *
+ * Joan: «el chat tambien debe funcionar para yo hablar con los asesores de
+ * cobranza o con el gerente».
+ *
+ * Un hilo y nada más: el suyo con Joan. No hay lista de conversaciones porque
+ * no hay de dónde elegir — y el servidor tampoco tiene un parámetro donde
+ * pedir el hilo de otro, así que la pantalla no puede equivocarse aunque
+ * quiera.
+ *
+ * Lo pinta el MISMO `chat.js` que el chat con los clientes. Por eso `yo` va en
+ * 'socio': en este hilo el que está a este lado de la pantalla es él, y el
+ * servidor ya traduce su `de` para que las burbujas caigan donde toca.
+ * ======================================================================== */
+var _jefeMsgs = [], _jefeUltimo = 0, _jefeEstado = 'nada';
+
+function vistaJefeEq() {
+  return '<div class="ph"><div><h1>Mensajes<span class="dot">.</span></h1>' +
+      '<div class="sub">Tu conversación con Joan</div></div></div>' +
+    '<div class="card"><div id="hiloJefe" class="ch-hilo">' +
+      (_jefeEstado === 'error'
+        ? '<div class="alerta warn">No pude traer tus mensajes. Revisa la señal.</div>'
+        : '<div class="muted" style="padding:14px">Cargando…</div>') +
+    '</div>' +
+    '<div class="field" style="padding:0 16px 16px">' +
+      '<textarea id="txtJefe" rows="3" maxlength="1000" placeholder="Escríbele a Joan…"></textarea>' +
+      '<div id="errJefe" class="aviso ambar oculto"></div>' +
+      '<button class="btn btn-rojo" style="width:100%;margin-top:8px" id="btnJefe" ' +
+        'onclick="enviarAJefe()">Enviar</button></div></div>';
+}
+
+/* Se pide DESPUES de pintar: si la nube tarda, la pantalla ya está en su sitio
+   y lo único que cambia es el hilo. */
+function traerJefeEq(callado) {
+  return rpcEquipo('equipo_chat_leer', { p_desde: 0 }).then(function (res) {
+    var j = res && res.j;
+    if (!res.ok || !j || j.ok !== true) { _jefeEstado = 'error'; return pintarHiloJefe(); }
+    _jefeMsgs = j.mensajes || [];
+    _jefeUltimo = _jefeMsgs.length ? Number(_jefeMsgs[_jefeMsgs.length - 1].id) : 0;
+    _jefeEstado = 'ok';
+    pintarHiloJefe();
+    pintarSinLeerJefe(0);          /* acabo de leerlos: el contador se apaga */
+  }).catch(function () { _jefeEstado = 'error'; pintarHiloJefe(); });
+}
+
+function pintarHiloJefe() {
+  var caja = document.getElementById('hiloJefe');
+  if (!caja) return;                       /* se fue a otra pantalla */
+  if (_jefeEstado === 'error') {
+    caja.innerHTML = '<div class="alerta warn">No pude traer tus mensajes. ' +
+      'Revisa la señal y vuelve a entrar.</div>';
+    return;
+  }
+  if (!_jefeMsgs.length) {
+    caja.innerHTML = '<div class="muted" style="padding:14px">Todavía no hay mensajes. ' +
+      'Escríbele lo que necesites: lo lee él, no un robot.</div>';
+    return;
+  }
+  /* `yo: socio` — en este hilo el de este lado es el asesor. Ver la cabecera. */
+  caja.innerHTML = CHAT.hiloHTML(_jefeMsgs, { yo: 'socio', hoy: hoyISOCrm(), textoVisto: 'Lo vio' });
+  caja.scrollTop = caja.scrollHeight;
+}
+
+function enviarAJefe() {
+  var el = document.getElementById('txtJefe');
+  var err = document.getElementById('errJefe');
+  if (!el || !err) return;
+  var v = CH.revisar(el.value);
+  if (!v.ok) { err.textContent = v.motivo; err.classList.remove('oculto'); return; }
+  err.classList.add('oculto');
+  var b = document.getElementById('btnJefe');
+  if (b) { b.disabled = true; b.textContent = 'Enviando…'; }
+
+  rpcEquipo('equipo_chat_escribir', { p_texto: v.texto }).then(function (res) {
+    if (b) { b.disabled = false; b.textContent = 'Enviar'; }
+    var j = res && res.j;
+    if (!res.ok || !j || j.ok !== true) {
+      var m = j && j.motivo;
+      err.textContent =
+        res.status === 404 ? 'Tu nube todavía no tiene los mensajes del equipo. Avísale a Joan.'
+        : m === 'muchos'   ? 'Espera unos minutos antes de mandar otro.'
+        : m === 'largo'    ? 'El mensaje va de 1 a 1000 caracteres.'
+        : m === 'sesion'   ? 'Se cerró tu sesión. Entra otra vez.'
+        : 'No pude enviarlo. Vuelve a intentar.';
+      err.classList.remove('oculto');
+      return;
+    }
+    el.value = '';
+    traerJefeEq(true);
+  }).catch(function () {
+    if (b) { b.disabled = false; b.textContent = 'Enviar'; }
+    err.textContent = 'No pude conectarme. Revisa la señal.';
+    err.classList.remove('oculto');
+  });
+}
+
+/* EL CONTADOR DEL MENÚ. Sin esto, un mensaje de Joan llega y el asesor no se
+   entera hasta que entre por casualidad — y una función muda no existe. */
+function pintarSinLeerJefe(n) {
+  var e = document.getElementById('sinLeerJefe');
+  if (!e) return;
+  e.textContent = n ? ' (' + n + ')' : '';
+}
+
+function vigilarJefeEq() {
+  rpcEquipo('equipo_chat_leer', { p_desde: _jefeUltimo }).then(function (res) {
+    var j = res && res.j;
+    if (!res.ok || !j || j.ok !== true) return;
+    var nuevos = (j.mensajes || []).filter(function (m) { return m.de === 'panel'; });
+    /* OJO: `equipo_chat_leer` MARCA como visto lo que devuelve. Así que este
+       vistazo no puede hacerse contra el hilo entero — apagaría el contador
+       sin que nadie lo haya leído. Se pide solo lo NUEVO y, si lo hay, se
+       cuenta y se recarga: el que esté mirando la pantalla lo ve llegar. */
+    if (!nuevos.length) return;
+    if (VISTA_EQUIPO === 'jefe') { traerJefeEq(true); }
+    else { pintarSinLeerJefe(nuevos.length); }
+  }).catch(function () {});
 }
 
 function vistaPlataEq() {

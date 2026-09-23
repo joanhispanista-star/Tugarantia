@@ -1091,7 +1091,32 @@
    su fecha; y se puede reactivar.
 
    2.219 pruebas. Base: 20260922p y 20260922q. */
-const CACHE = 'tugarantia-v98';
+
+/* v99 — 22-sep-2026. EL CHAT CON EL EQUIPO.
+
+   Joan: «el chat tambien debe funcionar para yo hablar con los asesores de
+   cobranza o con el gerente». Un hilo suyo con cada persona -- no una sala,
+   para que llamarle la atencion a alguien no sea delante de los demas -- y por
+   ahora solo el habla con el equipo.
+
+   TABLA APARTE. En `mensajes` la conversacion se identifica por `cedula`, y esa
+   llave es la del CLIENTE: llave_de_sesion devuelve su cedula si vinculo y su
+   CELULAR si no. Un asesor tambien se identifica por celular. Juntarlos seria
+   poner dos cosas distintas bajo la misma llave y confiar en que nunca
+   coincidan.
+
+   Y la tabla guarda 'miembro'/'jefe' pero DEVUELVE 'socio'/'panel', que es lo
+   que entiende app/chat.js. Asi la base no dice «socio» de un asesor -- una
+   mentira en el esquema es donde mas caro sale -- y el pintor no se toca ni una
+   linea: las dos pantallas heredan la burbuja, la hora, el «Lo vio» y el
+   agrupado por dia que ya estaban probados.
+
+   Las dos funciones del asesor NO reciben un parametro que diga de quien: el
+   celular sale de la sesion, asi que la pregunta «el hilo de otro» no tiene
+   donde escribirse. Hay centinela que revienta si algun dia se le anade uno.
+
+   2.241 pruebas. Base: 20260922r. */
+const CACHE = 'tugarantia-v99';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
