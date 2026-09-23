@@ -10256,7 +10256,31 @@ function entregarCuentaEq(nombre, celular, clave) {
 /* --------------------------------------------------------------------------
  * EL GERENTE REPARTE — solo entre los suyos, y solo gente suya
  * ------------------------------------------------------------------------ */
-let _marcadosEq = {};
+/* ==========================================================================
+ * LA SELECCION NO PUEDE VIVIR EN EL DOM — 23-sep-2026
+ *
+ * Esta pantalla pintaba 300 casillas y leia lo marcado con
+ * querySelectorAll('.reChk'). Con una base de 300 eso es lo mismo; con la de
+ * 18.190 que Joan cargo hoy, «Todos» marcaba 300 y el boton asignaba 300. Y no
+ * eran 300 distintas cada vez: la lista sale ordenada por etapa, asi que al
+ * volver a abrir aparecian LAS MISMAS. El reparto se quedaba clavado en 300
+ * para siempre, sin un solo error por ningun lado.
+ *
+ * La pantalla decia «Se pintan 300 de 18190» —eso era verdad— pero el boton
+ * decia «Asignar» sin decir a cuantos. Una cosa cierta al lado de una
+ * incompleta se lee como si las dos estuvieran completas.
+ *
+ * La otra pantalla de repartir, la de Bases, ya lo tenia resuelto mil lineas
+ * mas abajo, con su bandera `_todosMarcados` y el comentario que nombra el
+ * problema. Esta se quedo sin el arreglo, y `_marcadosEq` era el muñon de la
+ * intencion: se declaraba, se vaciaba y no lo leia nadie.
+ *
+ * Ahora la seleccion vive en memoria y el DOM solo la refleja. Se pintan 300
+ * porque dieciocho mil casillas dejan el navegador pensando, pero se puede
+ * seleccionar todo lo que hay.
+ * ======================================================================== */
+let _marcadosEq = {};   /* id -> true. La verdad de lo marcado. */
+let _genteEq = [];      /* la lista COMPLETA, no solo la pintada. */
 function repartirEq() {
   const yo = (CARTERA_EQUIPO.yo || {}).celular;
   const eq = (CARTERA_EQUIPO.equipo || []).filter(x => x.rol === 'asesor');
@@ -10264,38 +10288,63 @@ function repartirEq() {
   const o = (ETAPAS && ETAPAS.ORDEN) || [];
   const gente = genteEquipo().slice().sort((a, b) => o.indexOf(b.etapa) - o.indexOf(a.etapa));
   _marcadosEq = {};
+  _genteEq = gente;
   openModal('Repartir entre tus asesores', `
     <div class="field"><label>Se los asigno a</label>
       <select id="reDestino">${eq.map(a =>
         `<option value="${escHTML(a.celular)}">${escHTML(a.nombre)}</option>`).join('')}</select></div>
     <div class="fila" style="border:0">
-      <span class="k"><button class="btn btn-ghost btn-sm" onclick="marcarTodosEq(true)">Todos</button>
+      <span class="k"><button class="btn btn-ghost btn-sm" onclick="marcarTodosEq(true)">Seleccionar los ${gente.length}</button>
         <button class="btn btn-ghost btn-sm" onclick="marcarTodosEq(false)">Ninguno</button>
         <button class="btn btn-ghost btn-sm" onclick="marcarMiosEq()">Solo los míos</button></span>
       <span class="vv"><b id="reCuenta">0</b> marcados</span></div>
     <div style="max-height:42vh;overflow:auto;border:1px solid var(--linea);border-radius:12px;margin-top:8px">
       ${gente.length ? gente.slice(0, 300).map(p => `<label class="permiso" style="margin:0;border-radius:0;border-width:0 0 1px 0">
         <input type="checkbox" class="reChk" value="${escHTML(String(p.id))}"
-          ${p.asesor === yo ? 'data-mio="1"' : ''} onchange="contarEq()">
+          ${p.asesor === yo ? 'data-mio="1"' : ''} onchange="marcarUnoEq(this)">
         <span><b>${escHTML(p.nombre)}</b> ${etiquetaEtapa(p.etapa)}
           <div class="muted">${p.asesor_nombre ? '🚶 ' + escHTML(p.asesor_nombre) : 'sin asesor'}</div></span></label>`).join('')
         : '<div class="muted" style="padding:16px">Todavía no tienes a nadie en tu base.</div>'}
-      ${gente.length > 300 ? `<div class="muted" style="padding:10px 14px">Se pintan 300 de ${gente.length}.</div>` : ''}
+      ${gente.length > 300 ? `<div class="muted" style="padding:10px 14px">Se pintan 300 de ${gente.length}
+        para que la ventana no se atasque. <b>«Seleccionar los ${gente.length}» alcanza a todos</b>,
+        no solo a los de esta lista.</div>` : ''}
     </div>
     <div class="aviso ambar" style="margin-top:12px">Lo que ya se ganó no se mueve: las comisiones viejas
       siguen siendo de quien las ganó.</div>
     <button class="btn btn-rojo" id="reBtn" style="margin-top:14px" onclick="confirmarRepartirEq()">Asignar</button>`);
   contarEq();
 }
-function marcarTodosEq(v) { document.querySelectorAll('.reChk').forEach(c => { c.checked = !!v; }); contarEq(); }
-function marcarMiosEq() { document.querySelectorAll('.reChk').forEach(c => { c.checked = c.dataset.mio === '1'; }); contarEq(); }
+/* Los tres marcadores trabajan sobre `_genteEq`, que es la lista COMPLETA, y
+   despues ponen al dia las casillas que estan pintadas. Al reves —marcar el DOM
+   y deducir de ahi— es exactamente el fallo que se arreglo. */
+function marcarUnoEq(chk) {
+  if (chk.checked) _marcadosEq[chk.value] = true; else delete _marcadosEq[chk.value];
+  contarEq();
+}
+function marcarTodosEq(v) {
+  _marcadosEq = {};
+  if (v) _genteEq.forEach(p => { _marcadosEq[String(p.id)] = true; });
+  reflejarEq();
+}
+function marcarMiosEq() {
+  const yo = (CARTERA_EQUIPO.yo || {}).celular;
+  _marcadosEq = {};
+  _genteEq.forEach(p => { if (p.asesor === yo) _marcadosEq[String(p.id)] = true; });
+  reflejarEq();
+}
+/* El DOM es el espejo, no la fuente. */
+function reflejarEq() {
+  document.querySelectorAll('.reChk').forEach(c => { c.checked = !!_marcadosEq[c.value]; });
+  contarEq();
+}
 function contarEq() {
   const e = document.getElementById('reCuenta'); if (!e) return;
-  e.textContent = [...document.querySelectorAll('.reChk')].filter(c => c.checked).length;
+  e.textContent = Object.keys(_marcadosEq).length;
 }
 
 function confirmarRepartirEq() {
-  const ids = [...document.querySelectorAll('.reChk')].filter(c => c.checked).map(c => c.value);
+  /* De `_marcadosEq`, NO del DOM: en el DOM solo estan los 300 pintados. */
+  const ids = Object.keys(_marcadosEq);
   if (!ids.length) return alert('No marcaste a nadie.');
   const destino = gv('reDestino');
   const per = (CARTERA_EQUIPO.equipo || []).find(x => x.celular === destino);

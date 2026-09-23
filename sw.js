@@ -1236,7 +1236,34 @@
    seguiria siendo el de las siete pestanias para siempre.
 
    2.295 pruebas. */
-const CACHE = 'tugarantia-v104';
+
+/* v105 - 23-sep-2026. REPARTIR ALCANZABA SOLO A 300.
+
+   Salio cargando la base de verdad: 18.190 prospectos.
+
+   La pantalla de repartir de la pestania Equipo pintaba 300 casillas y leia lo
+   marcado del DOM. Con 300 personas da igual; con 18.190, 'Todos' marcaba 300 y
+   el boton asignaba 300. Y no eran 300 distintas cada vez: la lista sale
+   ordenada por etapa, asi que al volver a abrir salian LAS MISMAS. El reparto
+   se quedaba clavado en 300 para siempre, sin un error ni un aviso.
+
+   La leccion no es del boton. La pantalla decia 'Se pintan 300 de 18190' y eso
+   era CIERTO; el boton decia 'Asignar' sin decir a cuantos. Una frase cierta al
+   lado de una incompleta se lee como si las dos estuvieran completas: el numero
+   honesto de arriba avalaba el silencio de abajo. Por eso el arreglo tambien
+   cambia los textos.
+
+   Y la otra mitad ya estaba bien: pantallaAsignar (la de Bases, la que Joan usa
+   para sus bases) lleva su bandera _todosMarcados desde el principio, con el
+   comentario que nombra el problema. Esta se quedo sin el arreglo, y
+   _marcadosEq era el munion de la intencion: se declaraba, se vaciaba y no lo
+   leia nadie. Medio arreglo, y el camino que se queda sin el no avisa.
+
+   Comprobado en navegador con 18.190: abre en 21 ms, sigue pintando 300, marcar
+   todos tarda 6 ms y el contador dice 18190.
+
+   2.305 pruebas. */
+const CACHE = 'tugarantia-v105';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
