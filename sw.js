@@ -1090,7 +1090,7 @@
    vieja no se pisa, para que la comision le siga tocando a quien lo llevaba en
    su fecha; y se puede reactivar.
 
-   2.217 pruebas. Base: 20260922p. */
+   2.219 pruebas. Base: 20260922p y 20260922q. */
 const CACHE = 'tugarantia-v98';
 const BASE = new URL('./', self.location).pathname;
 

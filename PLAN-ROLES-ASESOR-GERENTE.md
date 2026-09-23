@@ -209,7 +209,7 @@ el aviso habría seguido sin existir después de escribirlo.
 - Pantalla «Cuándo cobrar»: hoy / esta semana / vencidos, con la fecha de
   verdad y no solo la etiqueta de etapa.
 
-### Fase 4 — Gestión de personal de verdad · **25-sep**
+### Fase 4 — Gestión de personal de verdad · **22-sep** ✅ HECHA
 - Cambiar de jefe, ver y reactivar a un retirado, y **reasignar la base de quien
   se va antes de retirarlo** — hoy al retirar a alguien su cartera se queda
   colgando de un celular inactivo y **deja de verla nadie**.
@@ -217,6 +217,30 @@ el aviso habría seguido sin existir después de escribirlo.
   el que trae la multa, y hoy un asesor con la consola abierta manda sesenta al
   mismo cliente.
 - Índice único en `asignaciones` para que el empate del mismo día no exista.
+  *(Hecho en la Fase 0.)*
+
+**Hecho y verificado el 22-sep.** `20260922p` y `20260922q` aplicadas; CRM en
+v98.
+
+Lo que se encontró por el camino: **`asesor_retirar` no tenía un solo
+llamador**. Existía en la base desde el 11-sep y no había botón en ninguna
+pantalla — así que el defecto de la cartera que desaparece nunca llegó a
+dispararse, pero estaba armado.
+
+Y tres centinelas se cazaron a sí mismos, las tres veces dejando la base
+intacta porque el editor corre el archivo en una transacción:
+
+1. Una referencia `` **dentro de una `E''`** es un escape octal (el byte
+   0x01), no el grupo capturado. El error salió como `42601: mismatched
+   parentheses` cincuenta líneas más arriba de donde estaba. Hay dos formas
+   correctas y ese día se usaron las dos: `E'...\1'` o `E'...' || ''`.
+   Queda un centinela permanente en `pruebas/`.
+2. El centinela del orden comparaba contra `ultimo_contacto`, que se **declara**
+   arriba del todo: su primera aparición va siempre antes que la ventana.
+3. Y el barrido de «ninguna pantalla llama a una función que la migración tiró»
+   sigue los `drop` **por nombre**, no por firma. Tiene razón en espíritu:
+   borrar lo viejo y luego crear lo nuevo es el orden correcto, así que se
+   reordenó el archivo en vez de callar la prueba.
 
 ---
 
