@@ -128,15 +128,28 @@ dos líneas copiadas de su hermana `registro_archivos_guardar`.
 
 ## El plan, por fases y con fechas
 
-### Fase 0 — Arreglar y encender · **hoy, 22-sep**
+### Fase 0 — Arreglar y encender · **hoy, 22-sep** ✅ HECHA
 - Los tres defectos de Infobip en `asesor_enviar`, copiados del arreglo bueno.
 - El cerrojo de `registro_vivo_publicar`: tamaño, tipo de archivo y dueño.
 - Restaurar el saneo de `tipo` en `equipo_publicar`.
 - Que el upsert **no borre con null** lo que ya estaba.
 - Aplicar `20260911` y `20260919` corregida, y verificar por HTTP.
 
-**Al terminar**: el gerente puede crear asesores y repartir; desaparece el
-«¿Publico de todas formas?»; el asesor entra y ve su base.
+**Hecho y verificado el 22-sep por la noche.** Las tres migraciones aplicadas
+(`20260911`, `20260919` corregida y `20260922k`). Comprobado por HTTP: las trece
+funciones contestan, ninguna da 404, y todas las de sesión dan 401 con la llave
+pública. El agujero de capacidad se comprobó **atacándolo**: se mandaron ocho
+fotos —una que no era imagen, una de 700 KB y seis buenas— y se guardaron
+cuatro; se mandaron siete campos del avance incluidos `clave`, `password`,
+`gps`, `ubicacion` y `ref1_celular`, y se guardaron dos. Y un tercero sin el
+testigo no pudo ni pisar ni borrar el registro ajeno.
+
+Dos cosas se rompieron por el camino y las cazaron sus propios centinelas: una
+variable `jefe` que chocaba con la columna `equipo.jefe` (SQLSTATE 42702, la
+misma familia que costó un intento esta tarde con `clave`) y un centinela que se
+cazó a sí mismo por buscar dos palabras que quedaron en líneas distintas. Las
+dos veces la migración entera revirtió, que es exactamente lo que tiene que
+pasar.
 
 ### Fase 1 — Que la plata llegue al celular · **23-sep**
 - Publicar `saldo`, `saldo_total`, `fecha_pago` y `creditos`. El CRM **ya los
