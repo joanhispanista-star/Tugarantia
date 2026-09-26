@@ -133,7 +133,12 @@ declare
   n_ok    int := 0;
   fallos  text := '';
 begin
-  select clave into v_clave from public.config_privada limit 1;
+  -- config_privada es NOMBRE -> VALOR: la clave de sincronización es el `valor`
+  -- de la fila cuyo nombre es 'clave_sync'. La primera versión de este archivo
+  -- leía la columna `clave` —el NOMBRE— de una fila cualquiera, y al aplicarla el
+  -- 26-sep contestó «clave incorrecta» en el paso 2. No quedó nada a medias: el
+  -- editor corre el archivo en una sola transacción y se revirtió entero.
+  select cp.valor into v_clave from public.config_privada cp where cp.clave = 'clave_sync';
   if v_clave is null then
     raise notice 'SIN CLAVE configurada: no se pudo autocomprobar. Revísalo a mano.';
     return;
