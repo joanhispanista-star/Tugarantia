@@ -765,8 +765,12 @@ describe('el cobro con monto real en el Panel (7-sep-2026)', () => {
   };
   /* La garantía de un cobro sale del reparto de LA PLATA QUE ENTRÓ, hecho por
      el motor. Se compara contra eso, no contra una cifra escrita. */
-  const garantiaDe = (entro, aTiempo) =>
-    M.repartirCosto(entro, { aTiempo, producto: 'quincenal' }).garantia_socio;
+  /* 26-sep-2026: `entro` incluye la mora, y la mora va aparte al motor: desde
+     el 27-sep no deja garantía y la de antes conserva su 0,375. Por eso lleva la
+     FECHA del cobro — estas pruebas corren con el reloj real, y el mismo cobro
+     cae de un lado o del otro de ese día según cuándo se corran. */
+  const garantiaDe = (entro, aTiempo, mora = 0, fecha) =>
+    M.repartirCosto(entro - mora, { aTiempo, producto: 'quincenal', mora, fecha }).garantia_socio;
   /* Teclear el monto, elegir qué pasó y por qué, tal como lo haría Joan. */
   function responder(P, monto, modo, sobre, motivo) {
     pon(P, 'pgMonto', String(monto)); P.ev("cambioMonto('p1')");
@@ -824,11 +828,13 @@ describe('el cobro con monto real en el Panel (7-sep-2026)', () => {
       'el perdón del costo cayó en la bolsa de la mora');
     assert.equal(p.gananciaPago, liq0.costo_total_pagado - 30000);
     assert.equal(p.recargoMora, liq0.recargo_mora, 'la mora entró completa');
-    /* El costo perdonado es tres cuartas partes cupo del socio: la garantía
-       baja respecto al nominal, y baja exactamente lo que dice el motor. */
+    /* El costo perdonado era, en su 80%, cupo del socio: la garantía baja
+       respecto al nominal, y baja exactamente lo que dice el motor. */
     const g = P.ev('PUENTE.cuentasDelCobro(DB,DB.prestamos[0],' + JSON.stringify(liq0) + ',{condonaCosto:30000}).garantia');
-    assert.equal(g, garantiaDe(liq0.costo_total_pagado - 30000, liq0.acredita_en_fecha));
-    assert.ok(g < garantiaDe(liq0.costo_total_pagado, liq0.acredita_en_fecha), 'perdonar costo no bajó la garantía');
+    assert.equal(g, garantiaDe(liq0.costo_total_pagado - 30000, liq0.acredita_en_fecha,
+      liq0.recargo_mora, liq0.fecha));
+    assert.ok(g < garantiaDe(liq0.costo_total_pagado, liq0.acredita_en_fecha,
+      liq0.recargo_mora, liq0.fecha), 'perdonar costo no bajó la garantía');
     invariante(p);
   });
 

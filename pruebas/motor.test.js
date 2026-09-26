@@ -719,9 +719,10 @@ describe('acumularGarantia — el 80% del costo, pague cuando pague (23-sep-2026
     const capital = 300000;
     const costo = M.calcularCosto(capital);
     assert.equal(costo, 60000);
-    assert.equal(M.acumularGarantia(costo, true), 45000);
-    // Y el 15% del capital, que es la misma cuenta dicha como la dice Joan.
-    assert.equal(M.garantiaQueDejaUnCredito(capital, true), 45000);
+    /* 23-sep-2026 (decisión de Joan): el 80% del costo, no el 75%. Decía 45.000. */
+    assert.equal(M.acumularGarantia(costo, true), 48000);
+    // Y el 16% del capital (80% de un 20%), que es la misma cuenta dicha como la dice Joan.
+    assert.equal(M.garantiaQueDejaUnCredito(capital, true), 48000);
   });
 
   test('si se pasa el flag, tiene que ser booleano de verdad', () => {
@@ -812,13 +813,22 @@ describe('tramoDeMora — §9', () => {
 
 describe('liquidarCredito — cuánto paga y cuánta garantía deja', () => {
 
-  test('pago puntual: sin recargo, y el 75% del costo se vuelve garantía', () => {
+  /* 26-sep-2026 — LAS CUENTAS DE LA MORA EN ESTE BLOQUE SON LAS DE HOY EN
+     ADELANTE. Desde el 27-sep la mora no deja garantía, pero la pagada ANTES
+     conserva la suya (decisión de Joan: lo ganado no se toca; ver
+     MotorReglas.FECHA_MORA_SIN_GARANTIA). Estas pruebas nacieron con fechas de
+     julio, que ahora caen del lado viejo; las que fijan la regla nueva corren
+     con el mismo crédito corrido a octubre, y lo que conserva julio va aparte,
+     en su propia prueba. */
+  const OCT = { fecha_desembolso: '2026-10-01', fecha_corte: '2026-10-15' };
+
+  test('pago puntual: sin recargo, y el 80% del costo se vuelve garantía', () => {
     const l = M.liquidarCredito(creditoBase(), '2026-07-15');
     assert.equal(l.dias_mora, 0);
     assert.equal(l.pago_a_tiempo, true);
     assert.equal(l.recargo_mora, 0);
     assert.equal(l.total_a_pagar, 360000);
-    assert.equal(l.garantia_generada, 48000);   // 75% de 60.000
+    assert.equal(l.garantia_generada, 48000);   // 80% de 60.000
     assert.equal(l.tramo, 'preventivo');
   });
 
@@ -830,46 +840,80 @@ describe('liquidarCredito — cuánto paga y cuánta garantía deja', () => {
     assert.equal(l.tramo, 'vigente');
   });
 
-  test('10 días de mora: paga el 1% diario y eso también suma, al 50%', () => {
-    const l = M.liquidarCredito(creditoBase(), '2026-07-25');
+  test('10 días de mora: paga el 1% diario, y la mora no suma garantía', () => {
+    const l = M.liquidarCredito(creditoBase(OCT), '2026-10-25');
     assert.equal(l.dias_mora, 10);
     assert.equal(l.recargo_mora, 30000);           // 300.000 × 1% × 10
     assert.equal(l.costo_total_pagado, 90000);     // 60.000 + 30.000
     assert.equal(l.total_a_pagar, 390000);
-    assert.equal(l.garantia_generada, 48000);      // 37,5% de 90.000
+    assert.equal(l.garantia_generada, 48000);      // 80% de los 60.000 de costo; la mora, nada
     assert.equal(l.tramo, 'D2');
   });
 
+  test('EL CRÉDITO PEDIDO ANTES DEL 27-SEP SIGUE CON SU REGLA, y el borde es exacto', () => {
+    /* El mismo atraso de 10 días en el crédito de julio: los 30.000 de mora
+       dejan su 0,375 de siempre, 11.250 encima de los 48.000 del costo. La
+       llave es el día en que se PIDIÓ el crédito (punto 12 de los términos), no
+       el día del pago: por eso el mismo crédito pagado en noviembre, también. */
+    const julio = M.liquidarCredito(creditoBase(), '2026-07-25');
+    assert.equal(julio.recargo_mora, 30000);
+    assert.equal(julio.garantia_generada, 48000 + 11250);
+    const pagadoEnNoviembre = M.liquidarCredito(creditoBase({ fecha_corte: '2026-11-05' }), '2026-11-15');
+    assert.equal(pagadoEnNoviembre.garantia_generada, 48000 + 11250,
+      'el crédito es de julio: su mora sigue su regla aunque se pague después del 27-sep');
+    // El borde: el mismo crédito pedido el 26 y el 27 de septiembre.
+    const pidio26 = M.liquidarCredito(creditoBase({ fecha_desembolso: '2026-09-26', fecha_corte: '2026-10-15' }), '2026-10-25');
+    const pidio27 = M.liquidarCredito(creditoBase({ fecha_desembolso: '2026-09-27', fecha_corte: '2026-10-15' }), '2026-10-25');
+    assert.equal(pidio26.recargo_mora, 30000);
+    assert.equal(pidio27.recargo_mora, 30000);
+    assert.equal(pidio26.garantia_generada, 59250, 'pedido el 26: la regla de antes');
+    assert.equal(pidio27.garantia_generada, 48000, 'pedido desde el 27: la mora no suma');
+    assert.equal(M.FECHA_MORA_SIN_GARANTIA, '2026-09-27');
+  });
+
   const enDias = d => {
-    const f = new Date(2026, 6, 15 + d);
+    const f = new Date(2026, 9, 15 + d);
     return f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0') + '-' + String(f.getDate()).padStart(2, '0');
   };
 
   test('EL BUG QUE SE ARREGLÓ: en el atraso normal ya no acumula más que el puntual', () => {
-    const puntual = M.liquidarCredito(creditoBase(), '2026-07-15');
+    const puntual = M.liquidarCredito(creditoBase(OCT), '2026-10-15');
     // 1 a 20 días es donde de verdad se atrasa la gente (tramos D1, D2 y M1).
     for (let d = 1; d <= 20; d++) {
-      const tarde = M.liquidarCredito(creditoBase(), enDias(d));
+      const tarde = M.liquidarCredito(creditoBase(OCT), enDias(d));
       assert.ok(tarde.garantia_generada <= puntual.garantia_generada,
         'a ' + d + ' días acumula ' + tarde.garantia_generada + ' vs ' + puntual.garantia_generada);
       assert.ok(tarde.total_a_pagar > puntual.total_a_pagar, 'y paga más plata');
     }
   });
 
-  test('el punto de equilibrio está en los 20 días, y es a propósito', () => {
-    // Con costo 20% y mora 1% diario, el recargo iguala al costo a los 20 días.
-    // Desde ahí el atrasado vuelve a acumular más — pero ya pagó el doble.
-    const puntual = M.liquidarCredito(creditoBase(), '2026-07-15');
-    assert.equal(M.liquidarCredito(creditoBase(), enDias(20)).garantia_generada, puntual.garantia_generada);
-    assert.ok(M.liquidarCredito(creditoBase(), enDias(21)).garantia_generada > puntual.garantia_generada);
-    // Y a esa altura le costó bastante más plata que pagar en fecha.
-    assert.ok(M.liquidarCredito(creditoBase(), enDias(21)).total_a_pagar > puntual.total_a_pagar * 1.15);
+  test('ya no hay punto de equilibrio: ningún atraso acumula más ni menos que el puntual', () => {
+    /* 23-sep-2026 — DEROGADO por decisión de Joan: esta prueba afirmaba que a
+       los 20 días el recargo igualaba al costo y que desde el 21 el atrasado
+       volvía a acumular más. Eso existía porque la mora generaba garantía (a la
+       mitad). Ahora la garantía sale SOLO del costo pactado y la mora va íntegra
+       a la empresa: no hay día de atraso en que convenga atrasarse. Que nadie
+       reponga el «punto de equilibrio»: con el 80% sobre costo+mora, pagar 20
+       días tarde daba el DOBLE de cupo que pagar en fecha. */
+    const puntual = M.liquidarCredito(creditoBase(OCT), '2026-10-15');
+    for (let d = 1; d <= 120; d++) {
+      const tarde = M.liquidarCredito(creditoBase(OCT), enDias(d));
+      assert.equal(tarde.garantia_generada, puntual.garantia_generada,
+        'a ' + d + ' días la mora movió la garantía: ' + tarde.garantia_generada);
+      // Lo único que cambia es la plata: el atraso se paga, no se premia.
+      assert.ok(tarde.total_a_pagar > puntual.total_a_pagar, 'a ' + d + ' días no pagó más');
+    }
   });
 
   test('le dice cuánto habría ganado pagando en fecha, para poder mostrárselo', () => {
-    const l = M.liquidarCredito(creditoBase(), '2026-07-25');
-    assert.equal(l.garantia_si_puntual, 48000);
-    assert.ok(l.garantia_si_puntual > l.garantia_generada);
+    /* 23-sep-2026 — el número se sigue mostrando, pero ya no es mayor que el
+       del atrasado: Joan retiró el bono por puntualidad en la garantía y la mora
+       no genera garantía, así que en fecha y tarde dejan lo mismo. Antes esta
+       prueba exigía `>`; decisión de Joan, no descuido. */
+    const l = M.liquidarCredito(creditoBase(OCT), '2026-10-25');
+    assert.equal(l.garantia_si_puntual, 48000);   // 80% de los 60.000 de costo
+    assert.equal(l.garantia_si_puntual, l.garantia_generada,
+      'pagar 10 días tarde no le quitó garantía: solo le cobró la mora');
   });
 
   test('la mora corre sobre el capital, no sobre el total (D9)', () => {
@@ -879,15 +923,22 @@ describe('liquidarCredito — cuánto paga y cuánta garantía deja', () => {
     assert.equal(otra.recargo_mora, 36000);
   });
 
-  test('a 31 días paga mucho más y aun así acumula menos que el puntual', () => {
-    const aTiempo = M.liquidarCredito(creditoBase(), '2026-07-15');
-    const tarde = M.liquidarCredito(creditoBase(), '2026-08-15');
+  test('a 31 días paga mucho más y acumula lo MISMO que el puntual: la mora no genera garantía', () => {
+    /* 23-sep-2026 — DEROGADO por decisión de Joan: antes la mora sumaba a la
+       mitad y a los 31 días el atrasado PASABA al puntual («el bono es del 50%,
+       no un bloqueo»). Ahora la garantía sale del costo pactado y los 93.000 de
+       mora van enteros a la empresa. Que nadie vuelva a acreditar la mora: con
+       el factor único del 80% eso convierte atrasarse en negocio. */
+    const aTiempo = M.liquidarCredito(creditoBase(OCT), '2026-10-15');
+    const tarde = M.liquidarCredito(creditoBase(OCT), '2026-11-15');
     assert.equal(tarde.dias_mora, 31);
     assert.equal(tarde.recargo_mora, 93000);
-    assert.equal(tarde.garantia_generada, 48000);  // 37,5% de (60.000 + 93.000)
+    assert.equal(tarde.garantia_generada, 48000);  // 80% de los 60.000 de costo, sin la mora
+    assert.notEqual(tarde.garantia_generada, 122400,
+      'el 80% de costo+mora (153.000) es exactamente lo que no puede volver');
     assert.ok(tarde.total_a_pagar > aTiempo.total_a_pagar * 1.25, 'le costó bastante más');
-    assert.ok(tarde.garantia_generada > aTiempo.garantia_generada,
-      'con 31 días de recargo sí lo pasa: el bono es del 50%, no un bloqueo');
+    assert.equal(tarde.garantia_generada, aTiempo.garantia_generada,
+      'ni más ni menos que el puntual: la puntualidad ya no se paga en garantía');
   });
 
   test('marca cuándo se cruzó el umbral de castigo de 90 días (§6)', () => {
@@ -969,9 +1020,10 @@ describe('simularCredito — con precio fijo, la pregunta es el CUPO', () => {
 
   test('muestra cuánta garantía le deja y a cuánto le sube el cupo', () => {
     const s = M.simularCredito(500000, 250000, { nivelSocio: 'bronce' });
-    assert.equal(s.garantia_que_deja, 80000);         // el 15% del capital
-    assert.equal(s.garantia_despues, 325000);
-    assert.equal(s.cupo_despues, 325000);
+    // 23-sep-2026: el 16% del capital (80% de un costo del 20%); antes era el 15%.
+    assert.equal(s.garantia_que_deja, 80000);
+    assert.equal(s.garantia_despues, 330000);         // 250.000 + 80.000
+    assert.equal(s.cupo_despues, 330000);
     assert.ok(s.cupo_despues > s.cupo, 'el cupo sube por pagar');
   });
 
@@ -1028,12 +1080,16 @@ describe('proyectarCrecimiento — cómo sube la garantía crédito a crédito',
        cupón de 100.000 completo y paga todo en fecha. Si un solo peso de esta
        tabla se mueve, la web pública queda prometiendo algo que el motor no da. */
     const p = M.proyectarCrecimiento(100000, 100000, 5, 'bronce', { pideElCupo: true });
+    /* 23-sep-2026 (decisión de Joan: 80% del costo, antes 75%): la escalera se
+       recalculó ENTERA, porque el cupo de cada crédito es el capital del
+       siguiente. La de antes era 115.000 / 132.250 / 152.088 / 174.901 / 201.136.
+       Cada paso: gana = 16% del capital (80% de un 20%), redondeado al peso. */
     const esperado = [
-      { capital: 100000, costo: 20000, gana: 16000, garantia: 115000 },
-      { capital: 115000, costo: 23000, gana: 17250, garantia: 132250 },
-      { capital: 132250, costo: 26450, gana: 19838, garantia: 152088 },
-      { capital: 152088, costo: 30418, gana: 22813, garantia: 174901 },
-      { capital: 174901, costo: 34980, gana: 26235, garantia: 201136 }
+      { capital: 100000, costo: 20000, gana: 16000, garantia: 116000 },
+      { capital: 116000, costo: 23200, gana: 18560, garantia: 134560 },
+      { capital: 134560, costo: 26912, gana: 21530, garantia: 156090 },
+      { capital: 156090, costo: 31218, gana: 24974, garantia: 181064 },
+      { capital: 181064, costo: 36213, gana: 28970, garantia: 210034 }
     ];
     p.forEach((paso, i) => {
       assert.equal(paso.capital, esperado[i].capital, 'pide, crédito ' + (i + 1));
@@ -1046,10 +1102,14 @@ describe('proyectarCrecimiento — cómo sube la garantía crédito a crédito',
     assert.ok(p[4].cupo >= 200000);
   });
 
-  test('EL SEGUNDO CRÉDITO DA 115.000, no 230.000', () => {
+  /* 23-sep-2026: se llamaba "DA 115.000". Joan subió la garantía al 80% del
+     costo, así que el segundo crédito da 116.000. Lo que protege no cambia: el
+     cupo NO se duplica (el 230.000 de antes del 5-ago). */
+  test('EL SEGUNDO CRÉDITO DA 116.000, no 230.000', () => {
     const p = M.proyectarCrecimiento(100000, 100000, 2, 'bronce', { pideElCupo: true });
-    assert.equal(p[0].cupo, 115000, 'el número con el que Joan pidió el cambio');
-    assert.equal(p[1].capital, 115000);
+    assert.equal(p[0].cupo, 116000, '100.000 de cupón + el 80% de 20.000 de costo');
+    assert.equal(p[1].capital, 116000);
+    assert.ok(p[0].cupo < 230000, 'el cupo no se multiplica');
   });
 
   test('sin pedir el cupo, repite el mismo monto y aun así crece', () => {
@@ -1304,8 +1364,9 @@ describe('aplicarProrroga — costo y corrimiento (§8)', () => {
     assert.equal(r.movimiento.tipo, 'costo_prorroga');
     assert.equal(r.movimiento.monto, 60000);
     assert.equal(r.movimiento.genera_garantia, true);
-    assert.equal(r.movimiento.garantia_generada, 45000);   // el 75% del costo
-    assert.equal(r.garantia_generada, 45000);
+    // 23-sep-2026: el 80% de los 60.000 de costo (antes 75% = 45.000).
+    assert.equal(r.movimiento.garantia_generada, 48000);
+    assert.equal(r.garantia_generada, 48000);
     assert.equal(r.credito.total_a_pagar, 360000, 'el costo de la prórroga se cobra aparte (D5)');
   });
 
@@ -1395,10 +1456,12 @@ describe('aplicarProrroga — salida obligatoria a plan de pagos (§8)', () => {
     assert.equal(plan.genera_garantia, true); // cambio 26-jul-2026
   });
 
-  test('cada cuota del plan deja de garantía el 75% de su costo', () => {
+  /* 23-sep-2026: se llamaba "el 75% de su costo". Joan subió el reparto al 80%. */
+  test('cada cuota del plan deja de garantía el 80% de su costo', () => {
     const plan = M.construirPlanDePagos(creditoBase({ fecha_corte: '2026-07-31' }));
-    assert.deepEqual(plan.cuotas.map(c => c.garantia_generada), [11250, 7500, 3750]);
-    assert.equal(plan.total_garantia, 22500);
+    // Costos 15.000 / 10.000 / 5.000 → 12.000 / 8.000 / 4.000.
+    assert.deepEqual(plan.cuotas.map(c => c.garantia_generada), [12000, 8000, 4000]);
+    assert.equal(plan.total_garantia, 24000);
   });
 
   test('reparte el capital en 3 cortes con 5% sobre saldo insoluto', () => {
@@ -1516,14 +1579,23 @@ describe('recorrido de un socio (§1: la garantía solo crece pagando a tiempo)'
     let nivel = M.nivelPorGarantia(garantia);
     assert.equal(nivel, 'aluminio');
 
-    const credito = { capital: 300000, tasa_aplicada: M.TASA_CREDITO, fecha_corte: '2026-07-15' };
-    const puntual = M.liquidarCredito(credito, '2026-07-15');
-    const tarde = M.liquidarCredito(credito, '2026-07-25');
+    /* Un crédito pedido en octubre: es la regla de hoy en adelante. En uno de
+       antes del 27-sep la mora todavía deja su 0,375 y el tardío acumularía
+       11.250 más (ver «EL CRÉDITO PEDIDO ANTES DEL 27-SEP SIGUE CON SU REGLA»). */
+    const credito = { capital: 300000, tasa_aplicada: M.TASA_CREDITO, fecha_corte: '2026-10-15',
+                      fecha_desembolso: '2026-10-01' };
+    const puntual = M.liquidarCredito(credito, '2026-10-15');
+    const tarde = M.liquidarCredito(credito, '2026-10-25');
 
-    // Pagó 30.000 de recargo y aun así acumuló menos que el puntual: el bono
-    // por pagar en fecha existe, pero no le quita nada al que se atrasó.
+    /* 23-sep-2026 — antes: «pagó 30.000 de recargo y aun así acumuló MENOS que
+       el puntual». Joan retiró el bono por puntualidad en la garantía y la mora
+       no genera garantía, así que ahora acumula EXACTAMENTE lo mismo que el
+       puntual; lo único que le costó el atraso son los 30.000 de mora, que van
+       enteros a la empresa. Decisión de Joan, no una prueba que se aflojó. */
     assert.ok(tarde.total_a_pagar > puntual.total_a_pagar);
-    assert.ok(tarde.garantia_generada < puntual.garantia_generada);
+    assert.equal(tarde.recargo_mora, 30000);
+    assert.equal(tarde.garantia_generada, puntual.garantia_generada,
+      'no pierde nada, y tampoco gana por la mora que pagó');
     assert.ok(tarde.garantia_generada > 0, 'igual suma');
 
     garantia += tarde.garantia_generada;
@@ -1585,14 +1657,16 @@ describe('desglosarGarantia — ganada, prestada y comprometida', () => {
   });
 
   test('pagando costos aparece la garantía GANADA, y esa sí respalda', () => {
-    // 400.000 de costos pagados en fecha dejan 300.000 (el 75%).
+    // 400.000 de costos pagados en fecha dejan 320.000 (el 80% desde el
+    // 23-sep-2026, decisión de Joan; con el 75% eran 300.000).
     const acumulada = M.acumularGarantia(400000, true);
-    assert.equal(acumulada, 300000);
+    assert.equal(acumulada, 320000);
     const d = M.desglosarGarantia({ datos: datosCompletos(), acumulada: acumulada });
-    assert.equal(d.ganada, 300000);
+    assert.equal(d.ganada, 320000);
     assert.equal(d.prestada, 100000);
-    assert.equal(d.total, 400000);
-    assert.equal(M.maximoRespaldado({ datos: datosCompletos(), acumulada: acumulada }), 300000);
+    assert.equal(d.total, 420000);
+    // Solo la ganada respalda: el cupón no entra al respaldado.
+    assert.equal(M.maximoRespaldado({ datos: datosCompletos(), acumulada: acumulada }), 320000);
   });
 
   test('lo comprometido sale del cupo quincenal mientras el respaldado esté abierto', () => {
@@ -2077,14 +2151,24 @@ describe('liquidarCuotaRespaldada — el mes a mes del Panel', () => {
   });
 
   test('la mora corre sobre la cuota entera, que es lo que venció ese día', () => {
-    const l = M.liquidarCuotaRespaldada(cuota(), '2026-09-10');
+    const l = M.liquidarCuotaRespaldada(cuota({ fecha_corte: '2026-10-31' }), '2026-11-10',
+      { fechaDelCredito: '2026-10-01' });
     assert.equal(l.dias_mora, 10);
     assert.equal(l.base_mora, 70200);
     assert.equal(l.recargo_mora, 7020);
     assert.equal(l.costo_total_pagado, 23220);
     assert.equal(l.total_a_pagar, 77220);
-    assert.equal(l.garantia_generada, 1620);   // 10% de 23.220
+    assert.equal(l.garantia_generada, 1620);   // 10% de los 16.200 de costo; la mora, nada
     assert.ok(l.garantia_si_puntual > l.garantia_generada);
+  });
+
+  test('en un préstamo pedido antes del 27-sep, la mora de la cuota conserva su 10% (26-sep-2026)', () => {
+    /* Es lo que el Panel ya guardó en `garantiaGenerada` para las cuotas que
+       cobró: 10% del costo más 10% de la mora. El préstamo se rige por las
+       reglas del día en que se pidió (punto 12 de los términos). */
+    const l = M.liquidarCuotaRespaldada(cuota(), '2026-09-10', { fechaDelCredito: '2026-08-01' });
+    assert.equal(l.recargo_mora, 7020);
+    assert.equal(l.garantia_generada, 1620 + 702);
   });
 
   test('la base de la mora se puede mover desde arriba', () => {
@@ -2210,30 +2294,42 @@ describe('amortizarCupon — el cupón se salda en el crédito 13 (5-ago-2026)',
     return costos;
   }
 
-  test('EL CRÉDITO 13 LO SALDA, y ni uno antes', () => {
-    const doce = M.amortizarCupon(escalera(12), { cuponPrestado: 100000 });
-    assert.equal(doce.saldado, false);
-    assert.ok(doce.cupon_pendiente > 0, 'todavía queda ' + doce.cupon_pendiente);
-
-    const trece = M.amortizarCupon(escalera(13), { cuponPrestado: 100000 });
-    assert.equal(trece.saldado, true);
-    assert.equal(trece.cupon_pendiente, 0);
-    assert.equal(trece.cupon_recuperado, 100000, 'ni un peso más que lo que se regaló');
-    assert.equal(trece.saldado_en, 12, 'el movimiento 13, contando desde cero');
+  test('EL CUPÓN YA NO SE SALDA: ni en el crédito 13 ni en el 40', () => {
+    /* 23-sep-2026 — DEROGADO por decisión de Joan: esta prueba afirmaba que el 15%
+       de cada costo devolvía el cupón y que el crédito 13 lo saldaba. Joan pasó a
+       80/20 sabiendo lo que costaba: el cupón de 100.000 SE SIGUE REGALANDO, pero
+       ya no se amortiza; sale de su 20%. No se repone el «saldado en el 13»: ya no
+       hay de dónde salga. Si vuelve a saldarse, alguien reintrodujo una línea de
+       cupón en REPARTO_COSTO, y eso le cambia a Joan la cuenta de su exposición. */
+    assert.equal(M.REPARTO_COSTO.cupon, 0, 'la clave sigue existiendo, en cero');
+    [12, 13, 40].forEach(n => {
+      const c = M.amortizarCupon(escalera(n), { cuponPrestado: 100000 });
+      assert.equal(c.saldado, false, n + ' créditos: volvió a saldarse');
+      assert.equal(c.cupon_pendiente, 100000, n + ' créditos: el cupón entero sigue en la calle');
+      assert.equal(c.cupon_recuperado, 0, n + ' créditos: se recuperó cupón');
+      assert.equal(c.saldado_en, null);
+    });
   });
 
-  test('DESDE AHÍ EL 15% ES GANANCIA, y se dice de dónde sale', () => {
+  test('EL 20% DE LA EMPRESA ES TODO OPERATIVO: no hay 15% que liberar', () => {
+    /* 23-sep-2026 — DEROGADO por decisión de Joan: antes el crédito 13 partía su
+       15% en dos (lo que terminaba de saldar y lo que ya era ganancia) y desde el
+       14 ese 15% entero se liberaba como `ganancia_cupon`. Con el 80/20 no hay
+       línea de cupón: cada costo se parte en garantía del socio y operativo, y
+       nada más. Lo que sigue protegiendo es que no se pierda ni un peso y que el
+       Panel no muestre una «ganancia del cupón» que ya no existe. */
     const c = M.amortizarCupon(escalera(14), { cuponPrestado: 100000 });
-    const m13 = c.movimientos[12], m14 = c.movimientos[13];
-    // El 13 se parte en dos: una parte termina de saldar, el resto ya es ganancia.
-    assert.ok(m13.amortiza_cupon > 0 && m13.ganancia_cupon > 0);
-    assert.equal(m13.amortiza_cupon + m13.ganancia_cupon,
-      Math.round(m13.monto * M.REPARTO_COSTO.cupon));
-    assert.equal(m13.cupon_pendiente_despues, 0);
-    // El 14 ya no amortiza nada: el 15% entero es ganancia.
-    assert.equal(m14.amortiza_cupon, 0);
-    assert.equal(m14.ganancia_cupon, Math.round(m14.monto * M.REPARTO_COSTO.cupon));
-    assert.ok(m14.operativo > m14.ganancia_cupon, 'la ganancia libre contiene ese 15%');
+    c.movimientos.forEach(m => {
+      const donde = 'movimiento ' + (m.indice + 1) + ': ';
+      assert.equal(m.amortiza_cupon, 0, donde + 'amortizó cupón');
+      assert.equal(m.ganancia_cupon, 0, donde + 'apareció ganancia del cupón');
+      assert.equal(m.garantia_socio, Math.round(m.monto * M.REPARTO_COSTO.garantia), donde + 'garantía');
+      assert.equal(m.operativo, Math.round(m.monto * M.REPARTO_COSTO.operativo), donde + 'operativo');
+      assert.equal(m.garantia_socio + m.operativo, m.monto, donde + 'se perdió plata en el reparto');
+      assert.equal(m.cupon_pendiente_despues, 100000);
+    });
+    assert.equal(c.ganancia_cupon, 0);
+    assert.equal(c.ganancia_libre, c.operativo);
   });
 
   test('LA EXPOSICIÓN DE JOAN BAJA CRÉDITO A CRÉDITO, nunca sube', () => {
@@ -2253,13 +2349,22 @@ describe('amortizarCupon — el cupón se salda en el crédito 13 (5-ago-2026)',
     assert.ok(c.garantia_socio > 0 && c.ganancia_libre > 0);
   });
 
-  test('pagar tarde no frena la recuperación del cupón', () => {
+  test('pagar tarde no cambia el reparto: ni cupón (que ya no vuelve) ni garantía', () => {
+    /* 23-sep-2026 — DEROGADO por decisión de Joan: esta prueba afirmaba que pagar
+       tarde bajaba la garantía del socio y que esa diferencia iba a operativo
+       (0,375 contra 0,75). Joan retiró el bono por puntualidad EN LA GARANTÍA
+       (FACTOR_GARANTIA_MORA = FACTOR_GARANTIA) y dejó de amortizar el cupón.
+       La puntualidad sigue decidiendo el recargo de mora y la racha, pero NO
+       cuánto de un mismo costo pactado le queda al socio. */
+    assert.equal(M.FACTOR_GARANTIA_MORA, M.FACTOR_GARANTIA);
     const puntual = M.amortizarCupon(escalera(13), { cuponPrestado: 100000 });
     const tarde = M.amortizarCupon(
       escalera(13).map(c => Object.assign({}, c, { aTiempo: false })), { cuponPrestado: 100000 });
-    assert.equal(tarde.cupon_recuperado, puntual.cupon_recuperado);
-    assert.ok(tarde.garantia_socio < puntual.garantia_socio, 'lo que baja es su garantía');
-    assert.ok(tarde.ganancia_libre > puntual.ganancia_libre, 'y la diferencia va a operativo');
+    assert.equal(tarde.cupon_recuperado, 0);
+    assert.equal(puntual.cupon_recuperado, 0);
+    assert.equal(tarde.garantia_socio, puntual.garantia_socio, 'volvió el castigo en la garantía');
+    assert.equal(tarde.ganancia_libre, puntual.ganancia_libre);
+    assert.equal(tarde.cupon_pendiente, 100000);
   });
 
   test('sin costos pagados, todo el cupón sigue en la calle', () => {
@@ -2348,8 +2453,10 @@ describe('compararProductos — plata barata o crecer', () => {
   test('el cupo del quincenal también es del plazo entero, no de una vuelta', () => {
     const c = M.compararProductos(324000, 6, perfil, { nivelSocio: 'platino' });
     const base = M.desglosarGarantia(perfil).base_cupo;
-    assert.equal(c.quincenal.cupo_despues, M.calcularCupo(base + 48600, 'platino'));
-    assert.equal(c.quincenal.cupo_en_el_plazo, M.calcularCupo(base + 583200, 'platino'));
+    /* 23-sep-2026: 324.000 al 20% = 64.800 de costo; al 80% deja 51.840 por
+       vuelta (con el 75% eran 48.600), y en 6 meses son 12 vueltas: 622.080. */
+    assert.equal(c.quincenal.cupo_despues, M.calcularCupo(base + 51840, 'platino'));
+    assert.equal(c.quincenal.cupo_en_el_plazo, M.calcularCupo(base + 622080, 'platino'));
     assert.ok(c.quincenal.cupo_en_el_plazo > c.quincenal.cupo_despues);
   });
 
@@ -2448,7 +2555,11 @@ describe('códigos de invitación', () => {
 
 describe('las cuentas de Joan, con el motor de verdad', () => {
 
-  test('CINCO CRÉDITOS DE 100.000 DEJAN 75.000 DE GARANTÍA GANADA', () => {
+  /* 23-sep-2026 (decisión de Joan): se llamaba "DEJAN 75.000". El reparto del
+     costo pasó de 75/10/15 a 80/20/0: el 80% es garantía del socio y el 20% es
+     de la empresa. El cupón de 100.000 se sigue regalando pero YA NO SE
+     AMORTIZA (sale del 20% de la empresa), así que amortiza_cupon es 0. */
+  test('CINCO CRÉDITOS DE 100.000 DEJAN 80.000 DE GARANTÍA GANADA', () => {
     let ganada = 0, costos = 0;
     for (let i = 0; i < 5; i++) {
       const costo = M.calcularCosto(100000);
@@ -2457,25 +2568,27 @@ describe('las cuentas de Joan, con el motor de verdad', () => {
       ganada += M.acumularGarantia(costo, true);
     }
     assert.equal(costos, 100000, 'pagó 100.000 en costos');
-    assert.equal(ganada, 75000, 'el 75% se le volvió garantía');
+    assert.equal(ganada, 80000, 'el 80% se le volvió garantía');
 
-    // El otro 25% no se pierde: sostiene la plataforma (10%) y devuelve el
-    // cupón regalado (15%).
+    // El otro 20% es de la empresa, entero: ya no hay tajada para el cupón.
     const reparto = M.repartirCosto(costos);
-    assert.equal(reparto.garantia_socio, 75000);
-    assert.equal(reparto.amortiza_cupon, 15000);
-    assert.equal(reparto.operativo, 10000);
-    assert.equal(reparto.amortiza_cupon + reparto.operativo, 25000);
+    assert.equal(reparto.garantia_socio, 80000);
+    assert.equal(reparto.amortiza_cupon, 0, 'el cupón ya no se amortiza (23-sep-2026)');
+    assert.equal(reparto.operativo, 20000);
+    assert.equal(reparto.garantia_socio + reparto.amortiza_cupon + reparto.operativo, costos);
 
-    // Y con esos 75.000 puede pedir un respaldado de hasta 75.000.
+    // Y con esos 80.000 puede pedir un respaldado de hasta 80.000.
     const e = { datos: datosCompletos(), acumulada: ganada };
-    assert.equal(M.maximoRespaldado(e), 75000);
-    const s = M.simularPrestamoRespaldado(75000, 6, e);
+    assert.equal(M.maximoRespaldado(e), 80000);
+    const s = M.simularPrestamoRespaldado(80000, 6, e);
     assert.equal(s.dentro_del_respaldo, true);
-    assert.equal(s.costo_total, 5337);
+    assert.equal(s.costo_total, 5693);
   });
 
-  test('LA CUENTA DEMO: 10 créditos pagados en fecha dan 370.000 y cupo 370.000', () => {
+  /* 23-sep-2026 (decisión de Joan): se llamaba "dan 370.000 y cupo 370.000".
+     Con el 80% del costo los mismos 10 créditos dejan 288.000 de ganada (antes
+     270.000) y 388.000 con el cupón. */
+  test('LA CUENTA DEMO: 10 créditos pagados en fecha dan 388.000 y cupo 388.000', () => {
     const montos = [100000, 100000, 100000, 100000, 200000, 200000, 200000, 200000, 300000, 300000];
     let capital = 0, costos = 0, ganada = 0;
     montos.forEach(m => {
@@ -2485,36 +2598,39 @@ describe('las cuentas de Joan, con el motor de verdad', () => {
     });
     assert.equal(capital, 1800000);
     assert.equal(costos, 360000);
-    assert.equal(ganada, 270000);
+    assert.equal(ganada, 288000, 'el 80% de 360.000');
     // Acreditar crédito por crédito da lo mismo que acreditar el total de una.
     assert.equal(ganada, M.acumularGarantia(costos, true), 'sin arrastre de redondeo');
 
-    /* 2-sep-2026: con 370.000 de garantía el tramo es aluminio. La
-       puntualidad de los 10 créditos ya pagó en pesos: al factor tardío la
-       misma historia habría dejado 135.000 — hierro. */
-    const nivel = M.nivelPorGarantia(370000);
+    /* 2-sep-2026: el nivel sale de la garantía; con 388.000 el tramo es
+       aluminio. 23-sep-2026: ACÁ DECÍA que al factor tardío la misma historia
+       habría dejado 135.000 (hierro). Joan retiró el bono por puntualidad en la
+       garantía: pagando tarde, el costo pactado acredita lo mismo (la mora va
+       entera a la empresa), así que el mismo historial tarde deja la misma
+       garantía y el mismo tramo. */
+    assert.equal(M.acumularGarantia(costos, false), ganada, 'tarde acredita lo mismo');
+    const nivel = M.nivelPorGarantia(M.CUPON_KYC_MAXIMO + ganada);
     assert.equal(nivel, 'aluminio');
 
     const e = { datos: datosCompletos(), acumulada: ganada };
     const c = M.cupoQuincenal(e, nivel);
     assert.equal(c.prestada, 100000, 'el cupón de datos');
-    assert.equal(c.ganada, 270000);
-    assert.equal(c.total, 370000);
-    // 5-ago-2026: platino ya no multiplica. El cupo es la garantía, y el
-    // ejemplo de Joan pasa de 1.272.000 a 370.000 —que es exactamente lo que
-    // él respalda—.
-    assert.equal(c.cupo, 370000);
-    assert.equal(c.respaldo_disponible, 270000);
+    assert.equal(c.ganada, 288000);
+    assert.equal(c.total, 388000);
+    // 5-ago-2026: platino ya no multiplica. El cupo es la garantía —que es
+    // exactamente lo que él respalda—.
+    assert.equal(c.cupo, 388000);
+    assert.equal(c.respaldo_disponible, 288000);
 
     // Y la comparación que se le muestra en la calculadora.
-    const cmp = M.compararProductos(270000, 6, e, { nivelSocio: nivel });
-    assert.equal(cmp.quincenal.costo, 54000);
-    assert.equal(cmp.respaldado.costo_total, 19212);
-    assert.equal(cmp.respaldado.total_a_pagar, 289212);
+    const cmp = M.compararProductos(288000, 6, e, { nivelSocio: nivel });
+    assert.equal(cmp.quincenal.costo, 57600);
+    assert.equal(cmp.respaldado.costo_total, 20494);
+    assert.equal(cmp.respaldado.total_a_pagar, 308494);
     // Lo que se le muestra en grande: los mismos 6 meses de los dos lados.
-    assert.equal(cmp.quincenal.costo_en_el_plazo, 648000);
+    assert.equal(cmp.quincenal.costo_en_el_plazo, 691200);
     assert.equal(cmp.diferencias.cual_es_mas_barato, 'respaldado');
-    assert.equal(cmp.diferencias.veces_mas_garantia, 126.5);
+    assert.equal(cmp.diferencias.veces_mas_garantia, 134.9);
   });
 });
 
@@ -2777,32 +2893,57 @@ describe('la migración de fechas corre UNA vez y no inventa garantía', () => {
 
   const normalizado = p => P.normalizar({ socios: [], prestamos: [p] }).prestamos[0];
 
-  test('EL NÚMERO DEL DEFECTO: 75.000 de garantía, no 150.000', () => {
-    // Lo que le corresponde el día del cobro: pagó, pero pagó tarde.
+  /* 26-sep-2026 — este cobro es del 3-ago: su mora de 160.000 se pagó ANTES del
+     27-sep y conserva el 0,375 que ya dejaba (60.000), además de los 32.000 del
+     80% del costo. Es garantía que el socio ya tenía, y la regla nueva no la
+     toca (decisión de Joan; MotorReglas.FECHA_MORA_SIN_GARANTIA). Lo que este
+     bloque vigila no cambió: que la fecha no se reescriba, y que nunca se
+     acredite el factor COMPLETO sobre costo+mora (160.000). */
+  const GARANTIA_DEL_COBRO = 32000 + M.garantiaDeMoraPagada(160000, HOY);
+
+  test('la garantía de este cobro: 32.000 del costo y 60.000 de su mora de agosto', () => {
+    assert.equal(GARANTIA_DEL_COBRO, 92000);
+    // El mismo cobro hecho desde el 27-sep solo dejaría el costo.
+    assert.equal(32000 + M.garantiaDeMoraPagada(160000, '2026-09-27'), 32000);
+  });
+
+  test('EL NÚMERO DEL DEFECTO: 32.000 de garantía, nunca 160.000', () => {
+    /* 23-sep-2026 — las cifras cambiaron por decisión de Joan: 80% en fecha y
+       tarde, y la mora NO genera garantía. Antes: 75.000 (el 37,5% de costo+
+       mora) contra los 150.000 de la regresión. Hoy lo que le corresponde es el
+       80% de los 40.000 de costo PACTADO; los 160.000 de mora van enteros a la
+       empresa. El defecto que esta prueba vigila sigue siendo el mismo —
+       acreditar el factor completo sobre costo+MORA— y hoy vale 160.000. */
     const liq = M.liquidarCredito(
       { capital: 200000, costo: 40000, fecha_corte: CORTE }, HOY);
     assert.equal(liq.dias_mora, 80);
     assert.equal(liq.recargo_mora, 160000, '1% diario sobre los 200.000');
     assert.equal(liq.costo_total_pagado, 200000);
-    assert.equal(liq.garantia_generada, 75000, 'el 37,5% de 200.000');
+    assert.equal(liq.garantia_generada, GARANTIA_DEL_COBRO,
+      'el 80% de los 40.000 de costo, y la mora con el 0,375 de antes del 27-sep');
 
     const p = parcialCobradoHoy();
     assert.equal(P.esPuntual(p), false);
-    assert.equal(P.garantiaGanadaCredito(p), 75000);
-    assert.notEqual(P.garantiaGanadaCredito(p), 150000,
-      'el factor completo sobre 200.000 es lo que acreditaba la regresión');
+    assert.equal(P.garantiaGanadaCredito(p), GARANTIA_DEL_COBRO);
+    assert.notEqual(P.garantiaGanadaCredito(p), 160000,
+      'el 80% sobre costo+mora (200.000) es lo que no puede acreditarse nunca');
   });
 
   test('VOLVER A ABRIR EL PANEL NO LE MUEVE LA FECHA NI LA GARANTÍA', () => {
     // La segunda carga es donde se corrompía: acá tiene que quedar igual.
+    /* 23-sep-2026: 75.000 → 32.000 (80% del costo pactado; la mora no genera
+       garantía, decisión de Joan). Desde que en fecha y tarde acreditan lo
+       mismo, la fecha corrupta ya no se ve en la garantía sino en esPuntual:
+       por eso esa comprobación es la que manda acá. */
     let p = normalizado(parcialCobradoHoy());
     assert.equal(p.fechaPagado, HOY, 'la fecha que tecleó Joan al cobrar');
     assert.equal(P.esPuntual(p), false);
-    assert.equal(P.garantiaGanadaCredito(p), 75000);
+    assert.equal(P.garantiaGanadaCredito(p), GARANTIA_DEL_COBRO);
     // Y la tercera, y la cuarta: no hay deriva.
     for (let i = 0; i < 3; i++) p = normalizado(parcialCobradoHoy());
     assert.equal(p.fechaPagado, HOY);
-    assert.equal(P.garantiaGanadaCredito(p), 75000);
+    assert.equal(P.esPuntual(p), false, 'la migración no lo vuelve puntual de oficio');
+    assert.equal(P.garantiaGanadaCredito(p), GARANTIA_DEL_COBRO);
   });
 
   test('el cobro de este sistema NO se toca, tenga los abonos que tenga', () => {
@@ -2828,7 +2969,7 @@ describe('la migración de fechas corre UNA vez y no inventa garantía', () => {
     assert.equal(P.fechaPagadoCorregida(p), HOY);
     assert.equal(P.migrarFechaPagado(p), true, 'pasa por la migración…');
     assert.equal(p.fechaPagado, HOY, '…y no le cambia nada');
-    assert.equal(P.garantiaGanadaCredito(p), 32000);
+    assert.equal(P.garantiaGanadaCredito(p), GARANTIA_DEL_COBRO);
   });
 
   test('varios abonos parciales que tampoco cierran: lo mismo', () => {
@@ -2855,7 +2996,7 @@ describe('la migración de fechas corre UNA vez y no inventa garantía', () => {
     assert.equal(P.migrarFechaPagado(p), true);
     assert.equal(p.fechaPagado, CORTE, 'la fecha del abono que lo cerró');
     assert.equal(P.esPuntual(p), true);
-    assert.equal(P.garantiaGanadaCredito(p), 32000, 'el 75% que se ganó');
+    assert.equal(P.garantiaGanadaCredito(p), 32000, 'el 80% que se ganó');
   });
 
   test('LA MIGRACIÓN CORRE UNA SOLA VEZ Y DEJA CONSTANCIA', () => {
@@ -2886,7 +3027,10 @@ describe('la migración de fechas corre UNA vez y no inventa garantía', () => {
     assert.equal(P.migrarFechaPagado(p), false);
   });
 
-  test('el socio ve lo mismo que Joan: 75.000, en las dos pantallas', () => {
+  test('el socio ve lo mismo que Joan, en las dos pantallas', () => {
+    /* 23-sep-2026: 75.000 → 32.000 por decisión de Joan (80% del costo pactado;
+       los 160.000 de mora no generan garantía). Lo que se protege no cambió: el
+       mismo número en el detalle del crédito y en la garantía del socio. */
     const db = P.normalizar({
       socios: [{ id: 'a', numero: 1, nombre: 'Ana', cedula: '1020304050', telefono: '3001112233' }],
       prestamos: [parcialCobradoHoy()]
@@ -2894,8 +3038,8 @@ describe('la migración de fechas corre UNA vez y no inventa garantía', () => {
     const s = db.socios[0];
     const m = P.migrarSocio(db, s);
     assert.equal(m.creditos[0].fecha_pagado, HOY);
-    assert.equal(m.creditos[0].garantia, 75000);
-    assert.equal(P.garantiaGanadaDe(db, s), 75000);
+    assert.equal(m.creditos[0].garantia, GARANTIA_DEL_COBRO);
+    assert.equal(P.garantiaGanadaDe(db, s), GARANTIA_DEL_COBRO);
     assert.equal(m.garantia.pagados_a_tiempo, 0,
       'no se le regala un pago puntual que no existió: era lo que le subía el nivel');
   });
@@ -2939,9 +3083,12 @@ describe('las prórrogas ya cobradas conservan su factor siempre (3-ago-2026)', 
       capital: 200000, fecha_corte: CORTE, estado: 'en_corte',
       prorrogas_usadas: 0, nivel_socio: 'bronce', id: 'p1'
     }, { fecha: '2026-04-30' }).garantia_generada, M.acumularGarantia(40000, true));
-    // 30.000 el día de la prórroga, y 30.000 dos meses después: no se mueve.
+    /* Lo que el motor acreditó el día de la prórroga, y lo mismo dos meses
+       después: no se mueve. 23-sep-2026: decía 45.000 - 15.000 (75% y 37,5%);
+       con el 80% pague cuando pague es 64.000 - 32.000 = 32.000. Se deriva de
+       acumularGarantia para que lo que se pruebe sea la regla, no la cifra. */
     assert.equal(P.garantiaGanadaCredito(conProrroga('2026-05-20')) -
-                 M.acumularGarantia(40000, false), 45000 - 15000);
+                 M.acumularGarantia(40000, false), M.acumularGarantia(40000, true));
   });
 
   test('todo puntual: prórroga y costo final, los dos al factor completo', () => {
@@ -2960,9 +3107,11 @@ describe('las prórrogas ya cobradas conservan su factor siempre (3-ago-2026)', 
       prestamos: [conProrroga('2026-05-20')]
     });
     const s = db.socios[0];
-    assert.equal(P.garantiaGanadaDe(db, s), 45000);
-    assert.equal(P.migrarSocio(db, s).creditos[0].garantia, 45000);
-    assert.equal(P.fotoComunidad(db).garantia_construida, 45000);
+    /* 23-sep-2026: 32.000 de la prórroga + 32.000 del costo final pagado tarde
+       (el 80% de 40.000 cada uno; decía 45.000 con el 75%/37,5%). */
+    assert.equal(P.garantiaGanadaDe(db, s), 64000);
+    assert.equal(P.migrarSocio(db, s).creditos[0].garantia, 64000);
+    assert.equal(P.fotoComunidad(db).garantia_construida, 64000);
   });
 
   test('sin prórrogas nada cambia: el crédito de siempre sigue dando lo mismo', () => {
@@ -3321,12 +3470,18 @@ describe('el quincenal se liquida por el motor, con la mora adentro', () => {
     assert.notEqual(liq.total_a_pagar, 720000, 'eso era lo que decía el botón');
   });
 
-  test('LA GARANTÍA DEL SOCIO SALE DEL COSTO TOTAL, RECARGO INCLUIDO', () => {
+  test('LA GARANTÍA: el costo al 80%, y el recargo solo si se pagó antes del 27-sep', () => {
     assert.equal(liq.costo_total_pagado, 174000, 'costo + recargo');
-    assert.equal(liq.garantia_generada, 96000, 'el 37,5% de 174.000: pagó tarde, pero pagó');
-    // Lo que acreditaba el Panel: la mitad del costo pelado. 20.250 menos.
-    assert.equal(M.acumularGarantia(120000, false), 96000);
-    assert.equal(liq.garantia_generada - M.acumularGarantia(120000, false), 0);
+    /* 26-sep-2026 — este crédito no trae fecha de desembolso, y sin ella se lee
+       como de antes del 27-sep: sus 54.000 de recargo dejan el 0,375 de
+       siempre (20.250). El mismo cobro en un crédito pedido desde el 27-sep
+       deja solo el 80% del costo: la mora es de la empresa (decisión de Joan). */
+    assert.equal(liq.garantia_generada, M.acumularGarantia(120000, false) + 20250);
+    const enOctubre = M.liquidarCredito(
+      { capital: 600000, costo: 120000, fecha_corte: '2026-10-15', fecha_desembolso: '2026-10-01' },
+      '2026-10-24');
+    assert.equal(enOctubre.recargo_mora, 54000, 'los mismos 9 días');
+    assert.equal(enOctubre.garantia_generada, 96000, 'crédito pedido desde el 27-sep: solo el costo');
   });
 
   test('pagarTotal guarda el costo TOTAL como ganancia, no K(p)', () => {
@@ -3497,12 +3652,17 @@ describe('la prórroga cobra el recargo ya causado (3-ago-2026)', () => {
        prórroga se hubiera dejado con nueve días de atraso. Ese era el defecto nº2
        clavado por escrito. El recargo sigue a la mitad —eso estaba bien—, pero
        el costo también, porque esa prórroga se pagó tarde. */
+    /* 26-sep-2026 — y la mora con su propia regla: no suma en los créditos
+       pedidos desde el 27-sep, y en los de antes deja el 0,375 de siempre.
+       Este crédito es de julio, así que sus 54.000 dejan 20.250. Partir la
+       prórroga es lo que lo permite. */
     assert.equal(P.garantiaGanadaCredito(conMora),
-      M.acumularGarantia(120000, false) + M.acumularGarantia(54000, false));
-    assert.equal(P.garantiaGanadaCredito(conMora), 139200);
-    // Y lo que se regalaba: el costo al factor completo en vez de a la mitad.
-    assert.equal(M.acumularGarantia(120000, true) + M.acumularGarantia(54000, false)
-      - P.garantiaGanadaCredito(conMora), 0);
+      M.acumularGarantia(120000, false) + M.garantiaDeMoraPagada(54000, conMora.fechaDesembolso));
+    assert.equal(P.garantiaGanadaCredito(conMora), 116250);
+    // El mismo crédito pedido desde el 27-sep: solo el costo.
+    const nuevo = JSON.parse(JSON.stringify(conMora));
+    nuevo.fechaDesembolso = '2026-10-01';
+    assert.equal(P.garantiaGanadaCredito(nuevo), 96000);
   });
 
   test('las prórrogas VIEJAS no traen `mora`: son todas costo, al factor completo', () => {
@@ -3517,14 +3677,19 @@ describe('la prórroga cobra el recargo ya causado (3-ago-2026)', () => {
 
   test('un `mora` imposible no puede acreditar de más', () => {
     // Defensivo: la mora nunca puede pasar del monto ni ser negativa, o el
-    // reparto 90/45 dejaría de sumar lo que se cobró.
+    // reparto dejaría de sumar lo que se cobró.
+    /* 26-sep-2026 — una mora mayor que el monto se recorta al monto: los
+       40.000 se leen como mora entera, y como el crédito es de abril dejan el
+       0,375 de antes (15.000), no el 80% de un costo que no hubo. Nunca más de
+       lo que dejaría el monto entero como costo. */
     const raro = {
       id: 'x3', numero: 3, socioId: 'a', capital: 200000, costoPct: 20,
       fechaDesembolso: '2026-04-01', cicloActual: '2026-05-15', pagado: false,
       prorrogas: [{ fecha: '2026-04-30', monto: 40000, mora: 999999 }],
       abonosCapital: [], comprobantes: []
     };
-    assert.equal(P.garantiaGanadaCredito(raro), M.acumularGarantia(40000, false));
+    assert.equal(P.garantiaGanadaCredito(raro), M.garantiaDeMoraPagada(40000, raro.fechaDesembolso));
+    assert.ok(P.garantiaGanadaCredito(raro) <= M.acumularGarantia(40000, true));
     raro.prorrogas[0].mora = -5000;
     assert.equal(P.garantiaGanadaCredito(raro), M.acumularGarantia(40000, true));
   });
@@ -3991,37 +4156,72 @@ describe('dejar la prórroga NO puede rendir más que pagar (4-ago-2026)', () =>
   const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
   const CAP = 600000, COSTO = 120000, DIAS = 20;
   const MORA = M.recargoPorMora(CAP, DIAS);            // 120.000
-  const CORTE = '2026-07-15', HOY = '2026-08-04';
+  /* 26-sep-2026: el caso corre en octubre. Esto vigila la regla de hoy en
+     adelante, y desde el 27-sep la mora no deja garantía; la de antes conserva
+     su 0,375 (ver la última comprobación de «AHORA LOS DOS CAMINOS»). */
+  const CORTE = '2026-10-15', HOY = '2026-11-04';
+  const PIDIO = '2026-10-01';   // crédito pedido desde el 27-sep: su mora no suma
 
-  test('EL NÚMERO DEL DEFECTO: 135.000 contra 90.000, por los MISMOS costos', () => {
+  test('EL NÚMERO DEL DEFECTO: 192.000 contra 96.000 si la mora de la prórroga sumara', () => {
+    /* 23-sep-2026 — el defecto que se midió el 4-ago (135.000 contra 90.000)
+       era la prórroga TARDÍA acreditando su costo al factor completo. Joan
+       retiró el bono por puntualidad: completo y tardío valen lo mismo (0,80) y
+       ese agujero ya no puede abrirse. El que queda por esta misma puerta es la
+       MORA: Joan decidió que no genera garantía, y si la prórroga la acreditara,
+       dejar la prórroga rendiría el DOBLE que saldar con la misma plata. Estas
+       son sus cifras de hoy; el nombre viejo se cambió para que nadie crea que
+       el 75% sigue vivo. */
     assert.equal(MORA, 120000);
     assert.equal(COSTO + MORA, 240000, 'los mismos 240.000 en los dos caminos');
-    // Lo que dejaba antes: el costo al factor completo aunque la prórroga fuera
-    // tardía. (Con el factor de aquella mañana eran 162.000 contra 108.000.)
-    assert.equal(M.acumularGarantia(COSTO, true) + M.acumularGarantia(MORA, false), 135000);
-    // Lo que deja saldar todo ese mismo día.
-    assert.equal(M.liquidarCredito({ capital: CAP, costo: COSTO, fecha_corte: CORTE }, HOY)
-      .garantia_generada, 90000);
-    assert.equal(135000 - 90000, 45000, 'el regalo al que no paga');
+    assert.equal(M.FACTOR_GARANTIA_MORA, M.FACTOR_GARANTIA,
+      'el bono por puntualidad se retiró: el defecto del 4-ago ya no existe');
+    // Lo que dejaría la prórroga si su mora generara garantía.
+    assert.equal(M.acumularGarantia(COSTO, false) + M.acumularGarantia(MORA, false), 192000);
+    // Lo que deja saldar todo ese mismo día: el 80% del costo pactado, nada de la mora.
+    assert.equal(M.liquidarCredito({ capital: CAP, costo: COSTO, fecha_corte: CORTE, fecha_desembolso: PIDIO }, HOY)
+      .garantia_generada, 96000);
+    assert.equal(192000 - 96000, 96000, 'el regalo al que no paga: su mora, vuelta cupo');
   });
 
   test('AHORA LOS DOS CAMINOS DEJAN LO MISMO', () => {
+    /* 23-sep-2026 — la cifra pasa de 90.000 a 96.000 (80% de los 120.000 de
+       costo). La regla es la de Joan: la mora no genera garantía en NINGÚN
+       camino, así que dejar la prórroga y saldar acreditan solo el costo. */
     const prorroga = { fecha: HOY, ciclo: CORTE, monto: COSTO + MORA, mora: MORA,
                        aTiempo: false, diasMora: DIAS };
-    const dejarLaProrroga = P.garantiaGanadaProrroga(prorroga);
-    const saldarTodo = M.liquidarCredito({ capital: CAP, costo: COSTO, fecha_corte: CORTE }, HOY)
+    const dejarLaProrroga = P.garantiaGanadaProrroga(prorroga,
+      { capital: CAP, cicloActual: CORTE, prorrogas: [], abonosCapital: [], fechaDesembolso: PIDIO });
+    const saldarTodo = M.liquidarCredito({ capital: CAP, costo: COSTO, fecha_corte: CORTE, fecha_desembolso: PIDIO }, HOY)
       .garantia_generada;
-    assert.equal(dejarLaProrroga, 192000);
+    assert.equal(saldarTodo, 96000);
     assert.equal(dejarLaProrroga, saldarTodo,
       'el que no paga no puede llevarse más garantía que el que paga');
     assert.ok(dejarLaProrroga <= saldarTodo);
+    /* Y el mismo par en un crédito pedido en julio, que sigue con su regla: los
+       dos caminos siguen empatados, porque la mora vieja cuenta igual en los
+       dos (120.000 × 0,375 = 45.000 encima del costo). */
+    const agosto = { fecha: '2026-08-04', ciclo: '2026-07-15', monto: COSTO + MORA, mora: MORA,
+                     aTiempo: false, diasMora: DIAS };
+    const saldarEnAgosto = M.liquidarCredito({ capital: CAP, costo: COSTO, fecha_corte: '2026-07-15',
+      fecha_desembolso: '2026-07-01' }, '2026-08-04').garantia_generada;
+    assert.equal(saldarEnAgosto, 96000 + 45000);
+    assert.equal(P.garantiaGanadaProrroga(agosto,
+      { capital: CAP, cicloActual: '2026-07-15', prorrogas: [], abonosCapital: [], fechaDesembolso: '2026-07-01' }),
+      saldarEnAgosto);
   });
 
   test('y ninguna de las dos rinde más que haber pagado a tiempo', () => {
-    const aTiempo = M.acumularGarantia(COSTO, true);   // 90.000 por 120.000 de costo
+    /* 23-sep-2026 — decidido por Joan: prórroga contra saldar se compara POR
+       PESO DE COSTO, no por peso pagado. La mora es una sanción, no un precio:
+       no compra garantía en ningún camino. Por peso de costo los tres caminos
+       rinden el 80%; por peso PAGADO el atrasado rinde menos, porque la mora
+       que pagó fue entera a la empresa. */
+    const aTiempo = M.acumularGarantia(COSTO, true);   // 96.000 por 120.000 de costo
     const prorroga = { monto: COSTO + MORA, mora: MORA, aTiempo: false };
-    // Pagar tarde deja lo mismo en pesos pero le costó el DOBLE de plata.
-    assert.equal(P.garantiaGanadaProrroga(prorroga), aTiempo);
+    assert.equal(P.garantiaGanadaProrroga(prorroga), aTiempo,
+      'la prórroga tardía deja lo mismo que pagar en fecha: ni un peso por su mora');
+    assert.equal(P.garantiaGanadaProrroga(prorroga) / COSTO, M.FACTOR_GARANTIA,
+      'por peso de costo rinde el factor, ni más ni menos');
     assert.ok(P.garantiaGanadaProrroga(prorroga) / (COSTO + MORA) <
               aTiempo / COSTO, 'por peso pagado, atrasarse tiene que rendir menos');
   });
@@ -4076,10 +4276,17 @@ describe('dejar la prórroga NO puede rendir más que pagar (4-ago-2026)', () =>
       'la cuenta tiene que salir del puente, o Joan ve un número y el socio otro');
     // Y el número del motor y el del puente tienen que ser EL MISMO: es el que
     // ve Joan en el confirm y el que ve el socio en su celular.
-    const r = M.liquidarProrroga(
-      { id: 'x', capital: 600000, tasa_aplicada: 0.20, fecha_corte: '2026-07-15',
-        estado: 'en_mora', prorrogas_usadas: 0, nivel_socio: 'plata' }, '2026-08-04');
-    assert.equal(P.garantiaGanadaProrroga(r.movimiento), r.garantia_generada);
+    /* 26-sep-2026: con el crédito, y a los dos lados del 27-sep — la mora de la
+       prórroga suma o no según el día en que se pidió el crédito. */
+    for (const pidio of ['2026-07-01', '2026-10-01']) {
+      const r = M.liquidarProrroga(
+        { id: 'x', capital: 600000, tasa_aplicada: 0.20, fecha_corte: '2026-07-15',
+          estado: 'en_mora', prorrogas_usadas: 0, nivel_socio: 'plata', fecha_desembolso: pidio },
+        '2026-08-04');
+      const credito = { id: 'x', capital: 600000, costoPct: 20, fechaDesembolso: pidio,
+        cicloActual: '2026-07-15', prorrogas: [], abonosCapital: [] };
+      assert.equal(P.garantiaGanadaProrroga(r.movimiento, credito), r.garantia_generada, 'pedido ' + pidio);
+    }
   });
 
   test('el motor acredita su prórroga con el mismo criterio', () => {
@@ -4501,10 +4708,15 @@ describe('el tope de prórrogas por nivel y el plan de pagos (§5 y §8)', () =>
        de pagos existe porque el crédito ya se atrasó, y el 90% es del ciclo que
        nunca se atrasó. La prórroga de julio conserva su 90%: su puntualidad está
        congelada en su propio dato y esto no la recalcula. */
+    /* 26-sep-2026 — desde el 23-sep en fecha y tarde valen lo mismo (0,80), y
+       la mora de la entrada tiene su propia regla: esta es del 4-ago, antes del
+       27-sep, así que sus 210.000 conservan el 0,375 que ya dejaban. */
     assert.equal(P.garantiaGanadaCredito(p),
-      M.acumularGarantia(120000, true)                                       // prórroga puntual
-      + M.acumularGarantia(120000, false) + M.acumularGarantia(210000, false) // entrada, tardía
-      + M.acumularGarantia(30000, false));                                   // cuota 1, al 45%
+      M.acumularGarantia(120000, true)                                        // prórroga puntual
+      + M.acumularGarantia(120000, false)                                     // entrada: su costo
+      + M.garantiaDeMoraPagada(210000, '2026-08-04')                          // entrada: su mora de agosto
+      + M.acumularGarantia(30000, false));                                    // cuota 1
+    assert.equal(P.garantiaGanadaCredito(p), 96000 + 96000 + 78750 + 24000);
     assert.equal(P.estuvoEnMora(p, '2026-08-03'), true, 'venía de un mes vencido');
   });
 
@@ -4557,16 +4769,20 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
   const socio = () => ({ id: 's1', nombre: 'Ana', cedula: '123456', telefono: '3001112222',
     whatsappIgual: true, referencia: { nombre: '', telefono: '' }, gestiones: [], ajusteGarantia: 0 });
   // Cinco créditos pagados 15 días tarde, lavados con prórroga el día 15 de mora.
-  const carteraLavada = () => {
+  /* 26-sep-2026 — con año. La de 2026 es de enero a mayo: la mora de sus
+     prórrogas se pagó antes del 27-sep y conserva su 0,375 (5 × 11.250 =
+     56.250), porque lo ganado no se toca. La de 2027 es la misma trampa con la
+     regla de hoy en adelante, donde la mora ya no deja nada. */
+  const carteraLavada = (anio = 2026) => {
     const s = socio();
     const db = { socios: [s], prestamos: [], respaldados: [], config: {}, contadores: {} };
-    ['2026-01-15', '2026-02-15', '2026-03-15', '2026-04-15', '2026-05-15'].forEach((c, i) => {
+    ['-01-15', '-02-15', '-03-15', '-04-15', '-05-15'].map(d => anio + d).forEach((c, i) => {
       const tarde = M.iso(M.sumarDias(M.aFechaLocal(c), 15));
       const nuevo = M.fechaCorteProrroga(c, tarde);
       const lp = M.liquidarProrroga({ id: 'q' + i, capital: CAP, tasa_aplicada: 0.20,
         fecha_corte: c, estado: 'en_mora', prorrogas_usadas: 0, nivel_socio: 'bronce' }, tarde);
       db.prestamos.push({ id: 'q' + i, numero: i + 1, socioId: 's1', capital: CAP, costoPct: 20,
-        fechaDesembolso: '2026-0' + (i + 1) + '-01', cicloActual: nuevo, cicloPago: nuevo,
+        fechaDesembolso: anio + '-0' + (i + 1) + '-01', cicloActual: nuevo, cicloPago: nuevo,
         pagado: true, fechaPagado: M.iso(M.sumarDias(M.aFechaLocal(nuevo), -1)),
         gananciaPago: COSTO, prorrogas: [lp.movimiento], abonosCapital: [], comprobantes: [],
         cobroRegistrado: true });
@@ -4594,9 +4810,20 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
        de nivel con trampa ya no abre un peso de crédito. Lo que seguía regalando
        era el ESCALÓN —y con él las prórrogas, que es lo único material que hoy
        da el nivel— y eso es lo que esta prueba fija. */
-    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), nivelViejo).cupo, 226250);
-    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), 'bronce').cupo, 226250,
+    /* 23-sep-2026 — 226.250 → 340.000 por decisión de Joan (80% en fecha y
+       tarde; la mora NO genera garantía). A mano: cada crédito paga 40.000 de
+       costo en la prórroga y 40.000 en el pago final = 64.000 de garantía; cinco
+       son 320.000, más los 20.000 del cupón de datos de esta ficha. Los 30.000 de
+       mora de cada prórroga van enteros a la empresa y no suman.
+       26-sep-2026 — eso es desde el 27-sep (la cartera de 2027). Esta es de
+       enero a mayo de 2026, y su mora conserva el 0,375 de entonces: 56.250
+       más, 396.250. */
+    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), nivelViejo).cupo, 396250);
+    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), 'bronce').cupo, 396250,
       'con trampa o sin trampa, el cupo es el mismo: el nivel no lo mueve');
+    const hoy = carteraLavada(2027);
+    assert.equal(M.cupoQuincenal(P.entradaGarantia(hoy.db, hoy.s), 'bronce').cupo, 340000,
+      'la misma trampa desde el 27-sep: la mora ya no deja nada');
     /* 2-sep-2026: hasta el premio de las prórrogas desapareció — Joan las
        igualó en 2 para todos, así que la trampa ya no regala NADA: ni cupo,
        ni nombre (sale de pesos), ni prórrogas. */
@@ -4604,17 +4831,32 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
     assert.equal(M.prorrogasPermitidas('bronce'), 2);
   });
 
-  test('AHORA: ninguno cuenta para subir, y el socio se queda en bronce', () => {
+  test('AHORA: ninguno cuenta para subir, y el socio se queda en aluminio', () => {
     const { db, s } = carteraLavada();
     assert.equal(db.prestamos.filter(P.esPuntualParaNivel).length, 0);
     const m = P.migrarSocio(db, s);
     assert.equal(m.garantia.pagados_a_tiempo, 0);
     assert.equal(m.garantia.racha, 0);
-    /* 2-sep-2026: el nombre sale de los PESOS de la cartera lavada (226.250
-       → aluminio), no de contadores que la trampa pueda vestir. */
-    assert.equal(m.garantia.nivel, M.nivelPorGarantia(226250));
+    /* 2-sep-2026: el nombre sale de los PESOS de la cartera lavada, no de
+       contadores que la trampa pueda vestir.
+       23-sep-2026 (decisión de Joan: 80% del COSTO PACTADO, pague cuando pague,
+       y la mora íntegra a la empresa) — la cifra pasa de 226.250 a 340.000, a
+       mano: cada crédito lavado pagó 40.000 de costo en la prórroga y 40.000 en
+       el pago final, 80.000 × 0,80 = 64.000; por cinco, 320.000; más los 20.000
+       de cupón de la ficha de mostrador. Los 30.000 de mora de cada prórroga NO
+       suman: si esto da 460.000 (bronce), la mora de la prórroga volvió a
+       acreditar garantía, y con ella la trampa vuelve a comprar un escalón.
+       26-sep-2026 — eso vale para la mora pagada desde el 27-sep. Esta cartera
+       es de enero a mayo: su mora conserva el 0,375 que ya dejaba (56.250), y
+       queda en 396.250 — sigue en aluminio, que es lo que esta prueba protege. */
+    assert.equal(m.garantia.total, 396250);
+    assert.equal(m.garantia.nivel, M.nivelPorGarantia(396250));
     assert.equal(m.garantia.nivel, 'aluminio');
-    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), m.garantia.nivel).cupo, 226250);
+    assert.equal(M.cupoQuincenal(P.entradaGarantia(db, s), m.garantia.nivel).cupo, 396250);
+    const hoy = carteraLavada(2027);
+    const m27 = P.migrarSocio(hoy.db, hoy.s);
+    assert.equal(m27.garantia.total, 340000, 'desde el 27-sep, la mora no suma');
+    assert.equal(m27.garantia.nivel, 'aluminio');
     assert.equal(M.prorrogasPermitidas(m.garantia.nivel), 2,
       'todas las prórrogas son 2 desde el 2-sep: la trampa no regala ninguna');
   });
@@ -4626,14 +4868,18 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
        nuevo: ese ciclo lo compró la prórroga, no es una quincena limpia. Los tres
        pagos de cada crédito acreditan a la mitad, y siguen acreditando: ni uno
        queda en cero, que es lo que la promesa protege. */
-    assert.equal(P.garantiaGanadaDe(db, s), 440000);
+    /* 26-sep-2026 — cada crédito deja el 80% de sus dos pagos de costo (64.000)
+       y la mora de su prórroga, que es de enero a mayo, conserva su 0,375
+       (11.250): 75.250 por cinco. Ninguno queda en cero. */
+    assert.equal(P.garantiaGanadaDe(db, s), 5 * (64000 + 11250));
     const porCredito = db.prestamos.map(P.garantiaGanadaCredito);
     porCredito.forEach(g => assert.ok(g > 0, 'a un crédito prorrogado no se le borra la garantía'));
     assert.equal(porCredito[0],
-      M.acumularGarantia(COSTO, false) + M.acumularGarantia(M.recargoPorMora(CAP, 15), false)
+      M.acumularGarantia(COSTO, false)
+      + M.garantiaDeMoraPagada(M.recargoPorMora(CAP, 15), db.prestamos[0].prorrogas[0].fecha)
       + M.acumularGarantia(COSTO, false));
-    // Y el que NUNCA se atrasó conserva su 90%: la regla mira la mora, no la
-    // prórroga. Prorrogar en fecha sigue acreditando entero.
+    // Y el que NUNCA se atrasó cuenta como en fecha: la regla mira la mora, no
+    // la prórroga. (Desde el 23-sep eso ya no mueve pesos: 0,80 en los dos.)
     const c = db.prestamos[0];
     assert.equal(P.estuvoEnMora(c, '2026-01-20'), true, 'este sí estuvo vencido');
     assert.equal(P.prorrogaAcreditaEnFecha({ ciclo: '2026-08-15', fecha: '2026-08-15',
@@ -4693,6 +4939,9 @@ describe('la prórroga NO puede lavar el historial (4-ago-2026)', () => {
         f + ' escribe nivelSocio: si de verdad se persiste, esta prueba se cambia');
     });
     // Y el nivel sale igual sin él.
+    /* 23-sep-2026: sigue siendo aluminio con el 80/20 de Joan — 340.000 de
+       garantía, porque la mora de las prórrogas no suma. Si da bronce, no es
+       este campo: es la mora de la prórroga acreditando otra vez. */
     const { db, s } = carteraLavada();
     assert.equal(s.nivelSocio, undefined);
     assert.equal(P.migrarSocio(db, s).garantia.nivel, 'aluminio');
@@ -5042,7 +5291,10 @@ describe('lo causado no depende de cuánto capital quede después (4-ago-2026)',
     assert.equal(liq.costo, 40000);
     assert.equal(liq.recargo_mora, 40000);
     assert.equal(liq.total_a_pagar, 80000);
-    assert.equal(liq.garantia_generada, M.acumularGarantia(80000, false),
+    /* 26-sep-2026: el costo al 80%, y la mora solo porque este cobro es del
+       4-ago (antes del 27-sep conserva su 0,375; desde ese día no deja nada). */
+    assert.equal(liq.garantia_generada,
+      M.acumularGarantia(40000, false) + M.garantiaDeMoraPagada(40000, COBRO),
       'y le deja garantía al socio: pagó tarde, pero pagó');
   });
 
@@ -5089,9 +5341,11 @@ describe('lo causado no depende de cuánto capital quede después (4-ago-2026)',
     assert.equal(pr.recargo_mora, 40000, 'y los 20 días de recargo, también');
     assert.equal(pr.total_a_pagar, 80000, 'antes eran $0 y el corte se movía gratis');
     assert.ok(pr.fecha_corte_nueva > CORTE, 'y sí mueve el corte, como siempre');
+    /* 26-sep-2026: el costo al 80%; el recargo, porque esta prórroga es del
+       4-ago, conserva su 0,375. Desde el 27-sep el recargo no deja nada. */
     assert.equal(pr.garantia_generada,
-      M.acumularGarantia(40000, false) + M.acumularGarantia(40000, false),
-      'todo al 45%: se pagó, pero se pagó tarde');
+      M.acumularGarantia(40000, false) + M.garantiaDeMoraPagada(40000, COBRO),
+      'el costo y la mora de antes del 27-sep: se pagó, pero se pagó tarde');
     // Sin abonos de por medio, la prórroga contesta lo de siempre.
     assert.equal(panelPr(credito(), COBRO).total_a_pagar, 80000);
   });
@@ -5329,23 +5583,40 @@ describe('el nivel sale de la garantía y el paquete lo lleva (2-sep-2026)', () 
               antes.nivel === 'hierro');
   });
 
-  test('a igual capital, el puntual nunca queda con menos nombre', () => {
-    /* La desigualdad que sobrevive del mundo viejo, ahora en pesos: la misma
-       historia pagada en fecha acredita al 75% y pagada tarde al 37,5%. */
+  test('a igual capital, puntual y tardío quedan con el mismo nombre: la mora no compra pesos', () => {
+    /* 23-sep-2026 — DEROGADO «la puntualidad paga en pesos», por decisión de
+       Joan: se retiró el bono por puntualidad (FACTOR_GARANTIA_MORA ===
+       FACTOR_GARANTIA) y la mora ya no genera garantía, va íntegra a la
+       empresa. Antes la misma historia en fecha acreditaba al 75% y tarde al
+       37,5%; ahora las dos acreditan lo mismo sobre el costo pactado. No se
+       borra la prueba porque la mitad que protege sigue viva: el puntual NUNCA
+       queda con menos nombre. Y la otra mitad cambió de signo: el tardío paga
+       10 días de mora y esos pesos no le compran ni un peso de garantía. */
+    assert.equal(M.FACTOR_GARANTIA_MORA, M.FACTOR_GARANTIA,
+      'si vuelve el bono por puntualidad, esta prueba se reescribe, no se afloja');
     const sA = socio(), dbA = dbVacia(sA);
     const sB = socio(), dbB = dbVacia(sB);
-    let d = M.aFechaLocal('2026-01-15');
+    const mora = M.recargoPorMora(CAP, 10);
+    /* 26-sep-2026: desde octubre. Es la regla de hoy en adelante; la mora
+       pagada antes del 27-sep conserva el 0,375 que ya dejaba, y con esa
+       historia el tardío sí sumaría más (lo que ya ganó no se le quita). */
+    let d = M.aFechaLocal('2026-10-15');
     for (let i = 0; i < 10; i++) {
       const corte = M.iso(d);
       dbA.prestamos.push(cerrado('a' + i, i + 1, corte));
+      // El tardío, con los MISMOS campos que graba pagarTotal(): la mora viene
+      // dentro de gananciaPago y aparte en recargoMora.
       dbB.prestamos.push(cerrado('b' + i, i + 1, corte,
-        M.iso(M.sumarDias(M.aFechaLocal(corte), 10))));
+        M.iso(M.sumarDias(M.aFechaLocal(corte), 10)),
+        { gananciaPago: COSTO + mora, recargoMora: mora }));
       d = M.aFechaLocal(M.calcularFechaCorte(d));
     }
     const gA = P.migrarSocio(dbA, sA).garantia, gB = P.migrarSocio(dbB, sB).garantia;
-    assert.ok(gA.total > gB.total, 'la puntualidad paga en pesos');
+    assert.ok(mora > 0, 'el tardío sí pagó mora: 1% diario del capital');
+    assert.equal(gA.total, gB.total, 'la mora no genera garantía y la puntualidad ya no la bonifica');
+    assert.equal(gA.nivel, gB.nivel);
     assert.ok(M.NIVELES.indexOf(gA.nivel) >= M.NIVELES.indexOf(gB.nivel),
-      'y por eso el puntual nunca tiene menos nombre: ' + gA.nivel + ' vs ' + gB.nivel);
+      'el puntual nunca tiene menos nombre: ' + gA.nivel + ' vs ' + gB.nivel);
   });
 });
 
@@ -5735,6 +6006,12 @@ describe('pagar no puede rendir menos que no pagar (5-ago-2026)', () => {
     dejarProrroga(b.p11);
     const paga = foto(a.db, a.s), deja = foto(b.db, b.s);
 
+    /* 23-sep-2026 — la igualdad de abajo descansa en la decisión de Joan de que
+       LA MORA NO GENERA GARANTÍA: los dos caminos pagan 40.000 de costo y
+       254.000 de mora, y solo el costo acredita. Si la mora de la prórroga
+       acreditara y la del pago final no, prorrogar quedaría 203.200 arriba
+       (575.200 contra 372.000) y un escalón más alto: este mismo defecto con
+       otra cara. */
     assert.equal(paga.garantia, deja.garantia, 'la garantía es la misma en los dos caminos');
     assert.equal(deja.cont.meses, 0,
       'ANTES daba 7: la prórroga borraba la mora y el contador corría por encima');
@@ -5749,14 +6026,15 @@ describe('pagar no puede rendir menos que no pagar (5-ago-2026)', () => {
     pagarTodo(a.p11);
 
     const p = b.p11;
-    let cobradoDeja = 0;
-    cobradoDeja += dejarProrroga(p, '2026-08-05').total_a_pagar;
-    cobradoDeja += dejarProrroga(p, '2026-08-15').total_a_pagar;
+    let cobradoDeja = 0, moraDeja = 0;
+    [dejarProrroga(p, '2026-08-05'), dejarProrroga(p, '2026-08-15')].forEach(x => {
+      cobradoDeja += x.total_a_pagar; moraDeja += x.recargo_mora;
+    });
     const r = M.liquidarProrroga({ id: p.id, capital: CAP, tasa_aplicada: 0.20,
       fecha_corte: p.cicloActual, estado: 'en_mora', prorrogas_usadas: 2,
       nivel_socio: 'oro' }, '2026-08-31');
     assert.equal(r.ok, false, 'se le acabaron: la salida es el plan de pagos');
-    cobradoDeja += r.total_a_pagar;
+    cobradoDeja += r.total_a_pagar; moraDeja += r.recargo_mora;
     const plan = r.plan_de_pagos;
     p.planPagos = { creado: '2026-08-31', tasa_por_corte: plan.tasa_por_corte,
       entrada: { fecha: '2026-08-31', ciclo: r.fecha_corte_anterior, monto: r.total_a_pagar,
@@ -5771,19 +6049,36 @@ describe('pagar no puede rendir menos que no pagar (5-ago-2026)', () => {
     /* Los dos caminos, medidos el MISMO instante y un instante ESCRITO: el día
        en que el que encadena entra al plan. */
     const paga = foto(a.db, a.s, DIA_DEL_PLAN), deja = foto(b.db, b.s, DIA_DEL_PLAN);
-    // El NIVEL es lo que no se puede comprar encadenando plazo: ANTES la cadena
-    // lo dejaba en platino sin haber devuelto un peso de capital.
-    assert.equal(deja.nivel, paga.nivel, 'encadenar plazo no le compra un escalón');
+    // ANTES la cadena lo dejaba en platino sin haber devuelto un peso de capital.
     assert.notEqual(deja.nivel, 'platino');
     assert.equal(deja.cont.meses, 0, 'y los meses sin mora siguen en cero');
-    /* El cupo del que encadena sí queda más alto, y tiene que ser así: pagó
-       374.000 de costos contra 294.000, o sea 80.000 MÁS de plata, y toda plata
-       pagada suma garantía. Lo que no puede pasar —y es la regla— es que ese
-       cupo extra sea un regalo: POR CADA PESO PAGADO, saldar tiene que rendir
-       más que encadenar. */
+    /* 23-sep-2026 — DEROGADO «encadenar plazo no le compra un escalón» y la
+       comparación POR PESO PAGADO, por decisión de Joan. El nivel mide PESOS
+       de garantía desde el 2-sep, y el que encadena pagó tres ciclos de costo
+       (120.000) contra uno (40.000): esos 80.000 de costo de más le suman
+       64.000 y lo pasan de aluminio a bronce, comprando el nombre —que es lo
+       que el nombre significa ahora. La mora (254.000 en los dos caminos) es
+       una sanción, no un precio, y no compra nada.
+       Lo que la prueba fija ahora es que ese escalón NO es un regalo: la
+       diferencia de garantía entre los dos caminos es EXACTAMENTE el 80% del
+       costo extra, ni un peso de la mora. Por peso de costo, encadenar y saldar
+       rinden lo mismo; TOPE_DURO_PRORROGAS acota cuántos ciclos se encadenan. */
+    const costoPaga = a.p11.gananciaPago - a.p11.recargoMora;
+    const costoDeja = cobradoDeja - moraDeja;
+    assert.equal(costoPaga, 40000, 'saldar paga un solo ciclo de costo');
+    assert.equal(costoDeja, 120000, 'la cadena paga tres: dos prórrogas y la entrada al plan');
     assert.ok(cobradoDeja > 294000, 'el que encadena pagó más plata, no menos');
-    assert.ok(paga.cupo / 294000 > deja.cupo / cobradoDeja,
-      'por peso pagado, encadenar prórrogas rinde MENOS que saldar');
+    assert.equal(deja.garantia - paga.garantia, M.acumularGarantia(costoDeja - costoPaga),
+      'la cadena solo puede sumar el 80% del costo EXTRA que pagó; la mora no cuenta');
+    /* 26-sep-2026 — la mora de los dos caminos es de agosto y conserva el 0,375
+       de antes del 27-sep. Es la misma en los dos (254.000) y no la compró
+       ningún costo, así que se quita de los dos lados para medir lo que rinde
+       cada peso de COSTO. */
+    const deSuMora = m => M.garantiaDeMoraPagada(m, DIA_DEL_PLAN);
+    assert.equal(moraDeja, a.p11.recargoMora, 'la misma mora en los dos caminos');
+    assert.equal((P.garantiaGanadaCredito(p) - deSuMora(moraDeja)) / costoDeja,
+                 (P.garantiaGanadaCredito(a.p11) - deSuMora(a.p11.recargoMora)) / costoPaga,
+      'por peso de costo, encadenar prórrogas rinde lo mismo que saldar, no más');
   });
 
   test('y el que paga EN FECHA sí gana el escalón: no se premia atrasarse', () => {
@@ -5891,7 +6186,9 @@ describe('lo causado no se evapora al abonar, y la cuenta es una sola (5-ago-202
     const l = P.liquidarCiclo(p, COBRO);
     assert.equal(l.capital, 0);
     assert.equal(l.total_a_pagar, 80000, 'ANTES la app mostraba $0');
-    assert.equal(l.garantia_generada, M.acumularGarantia(80000, false));
+    // El costo al 80%, y la mora de este cobro de agosto con su 0,375 de antes.
+    assert.equal(l.garantia_generada,
+      M.acumularGarantia(40000, false) + M.garantiaDeMoraPagada(40000, COBRO));
   });
 
   test('el abono posterior tampoco baja el recargo del día en que se abonó', () => {
@@ -6047,10 +6344,13 @@ describe('el nivel no puede premiar al que no paga (5-ago-2026)', () => {
   /* La cartera de la decisión: `antes` quincenas limpias, después el crédito que
      se vence, y `despues` quincenas limpias posteriores al día de la decisión.
      Devuelve el crédito vencido y el día en que hay que decidir. */
-  function partida(antes, diasMora, despues) {
+  /* 26-sep-2026: `inicio` corre la cartera entera. Por defecto enero de 2026,
+     donde el crédito de la decisión es de antes del 27-sep y su mora sigue su
+     regla vieja; las pruebas de la regla de hoy la arrancan después. */
+  function partida(antes, diasMora, despues, inicio) {
     const s = socio();
     const db = { socios: [s], prestamos: [], respaldados: [], config: {}, contadores: {} };
-    let d = M.aFechaLocal('2026-01-15');
+    let d = M.aFechaLocal(inicio || '2026-01-15');
     for (let i = 0; i < antes; i++) {
       db.prestamos.push(limpio('a' + i, i + 1, M.iso(d)));
       d = M.aFechaLocal(M.calcularFechaCorte(d));
@@ -6131,7 +6431,11 @@ describe('el nivel no puede premiar al que no paga (5-ago-2026)', () => {
     const paga = foto(a.db, a.s), deja = foto(b.db, b.s);
 
     /* Las cuatro salidas eran (y siguen siendo) idénticas: el capital devuelto
-       no compra garantía. Lo que estaba al revés era la racha. */
+       no compra garantía. Lo que estaba al revés era la racha.
+       23-sep-2026: y la mora TAMPOCO compra garantía, por decisión de Joan, en
+       ninguna de las dos puertas. Los dos caminos pagan 254.000 de mora; si la
+       de la prórroga acreditara y la del pago no, prorrogar quedaría 203.200
+       arriba (555.200 contra 352.000) y estas igualdades se caen. */
     assert.equal(paga.garantia, deja.garantia);
     assert.equal(paga.nivel, deja.nivel);
     assert.equal(paga.cupo, deja.cupo);
@@ -6149,13 +6453,23 @@ describe('el nivel no puede premiar al que no paga (5-ago-2026)', () => {
     assert.equal(paga.a_tiempo, 6); assert.equal(deja.a_tiempo, 6);
     assert.equal(deja.racha, 2, 'ANTES daba 6: los 4 de antes se pegaban con los 2 de después');
     /* 2-sep-2026: el nombre sale de pesos. Lo que no puede pasar es que NO
-       pagar deje más nombre o más cupo que pagar. */
+       pagar deje más nombre o más cupo que pagar.
+       23-sep-2026: con el 80/20 de Joan los dos caminos pagan el mismo costo
+       y la misma mora (78 días), y la mora no genera garantía en ninguno: por
+       eso tienen que quedar IGUALES en pesos, no solo «pagar no menos». */
+    assert.equal(paga.garantia, deja.garantia, 'la mora de la prórroga no puede sumar garantía');
     assert.ok(escalon(paga.nivel) >= escalon(deja.nivel),
       'no pagar dejó más nombre que pagar');
     assert.ok(paga.cupo >= deja.cupo);
   });
 
   test('BARRIDO: pagar no deja PEOR en ninguna de las cuatro salidas, ni en la racha', () => {
+    /* 23-sep-2026 — el barrido no cambia con el 80/20 de Joan, y es a
+       propósito: la invariante no depende de los factores sino de que la MORA
+       NO GENERE GARANTÍA por ninguna puerta (pago final, prórroga, entrada al
+       plan o cuota). Pagar y prorrogar cobran la misma mora; si solo la del
+       pago final se excluye, prorrogar queda arriba en garantía, cupo y
+       respaldado desde el primer día de atraso. */
     let casos = 0;
     const peores = [];
     [0, 1, 2, 3, 4, 10].forEach(antes => {
@@ -6203,7 +6517,31 @@ describe('el nivel no puede premiar al que no paga (5-ago-2026)', () => {
        garantía y eso es correcto. Lo que no puede pasar —y era lo que pasaba— es
        que el peso del que NO paga rinda MÁS: la primera prórroga ponía el reloj
        de mora en cero y la segunda cobraba el 90% del que nunca se atrasó (50,4%
-       por peso pagado contra el 45% del que salda). */
+       por peso pagado contra el 45% del que salda).
+       23-sep-2026 — DECIDIDO por Joan: se compara por peso de COSTO PACTADO, ya
+       no por peso pagado. La mora es una sanción, no un precio: va íntegra a la
+       empresa y no genera garantía, así que meterla en el divisor castigaba al
+       que salda por la mora que ya pagó. Medido así,
+       encadenar y saldar rinden lo mismo, el 80% (FACTOR_GARANTIA), y
+       TOPE_DURO_PRORROGAS acota cuántos ciclos se pueden encadenar. Se mide la
+       garantía DEL CRÉDITO de la decisión: la cartera de antes es idéntica en
+       los caminos y solo diluiría la cuenta. */
+    // El costo pactado que pagó un crédito: lo cobrado menos la mora, por cada puerta.
+    const costoPagado = p =>
+      p.prorrogas.reduce((t, pr) => t + P.costoDeProrroga(pr), 0) +
+      (p.planPagos ? P.costoDeProrroga(p.planPagos.entrada) : 0) +
+      (p.pagado ? p.gananciaPago - p.recargoMora : 0);
+    /* 26-sep-2026 — estos créditos son de enero a junio, y la mora de un crédito
+       pedido antes del 27-sep sigue dejando su 0,375. Esa garantía no la compró
+       ningún peso de costo, así que se quita, por la misma regla que usa el
+       puente, para medir lo que rinde CADA PESO DE COSTO. */
+    const deSuMora = p => {
+      const f = P.fechaDelCredito(p);
+      return p.prorrogas.reduce((t, pr) => t + M.garantiaDeMoraPagada(P.moraDeProrroga(pr), f), 0) +
+        (p.planPagos ? M.garantiaDeMoraPagada(P.moraDeProrroga(p.planPagos.entrada), f) : 0) +
+        (p.pagado ? M.garantiaDeMoraPagada(Math.min(p.recargoMora, p.gananciaPago), f) : 0);
+    };
+    const porPeso = p => (P.garantiaGanadaCredito(p) - deSuMora(p)) / costoPagado(p);
     let casos = 0;
     [0, 2, 5, 10].forEach(antes => {
       // Con y sin atraso: encadenar en fecha tampoco puede rendir más por peso.
@@ -6219,46 +6557,64 @@ describe('el nivel no puede premiar al que no paga (5-ago-2026)', () => {
 
         // Con el plan de pagos encima, lo mismo.
         const c = partida(antes, dias, 0);
-        let cobradoPlan = prorrogar(c);
-        cobradoPlan += prorrogar(c, c.p.cicloActual);
-        cobradoPlan += pasarAPlan(c, c.p.cicloActual);
-        const plan = foto(c.db, c.s);
+        prorrogar(c);
+        prorrogar(c, c.p.cicloActual);
+        pasarAPlan(c, c.p.cicloActual);
 
         casos++;
         const donde = antes + '/' + dias + ': ';
         assert.ok(cobradoCadena > cobradoPaga, donde + 'la cadena pagó más ciclos, no menos');
-        assert.ok(paga.garantia / cobradoPaga >= cadena.garantia / cobradoCadena - 1e-9,
-          donde + 'por peso pagado, encadenar rinde MÁS que saldar');
-        assert.ok(paga.garantia / cobradoPaga >= plan.garantia / cobradoPlan - 1e-9,
-          donde + 'por peso pagado, el plan rinde MÁS que saldar');
+        assert.ok(costoPagado(b.p) > costoPagado(a.p), donde + 'y más costo pactado');
+        assert.ok(porPeso(a.p) >= porPeso(b.p) - 1e-9,
+          donde + 'por peso de costo, encadenar rinde MÁS que saldar');
+        assert.ok(porPeso(a.p) >= porPeso(c.p) - 1e-9,
+          donde + 'por peso de costo, el plan rinde MÁS que saldar');
+        // Y la cifra de la decisión: los tres caminos rinden el 80%, ni más ni menos.
+        [a, b, c].forEach(t => assert.ok(Math.abs(porPeso(t.p) - M.FACTOR_GARANTIA) < 1e-9,
+          donde + 'un camino no rinde el FACTOR_GARANTIA por peso de costo: ' + porPeso(t.p)));
+        assert.ok(cadena.garantia >= paga.garantia,
+          donde + 'la cadena pagó más costo y no puede tener menos garantía');
         /* 2-sep-2026 — DEROGADO «la cadena no compra nivel»: el nivel ahora
            mide PESOS de garantía, y la cadena paga más ciclos (la primera
            línea de este caso lo afirma), así que puede acumular más pesos y
            más nombre — comprando, literalmente, que es lo que el nombre
-           significa ahora. La guarda viva es POR PESO PAGADO (arriba) y la
-           racha, que sigue siendo puntualidad: */
+           significa ahora. La guarda viva es POR PESO DE COSTO (arriba, desde
+           el 23-sep) y la racha, que sigue siendo puntualidad: */
         assert.ok(paga.racha >= cadena.racha, donde + 'la cadena compró racha');
       });
     });
     assert.equal(casos, 20);
   });
 
-  test('EL NÚMERO DE LA CADENA: 425.250 con 334.000 pagados contra 410.250 con 494.000', () => {
-    const a = partida(10, 127, 0);
+  test('EL NÚMERO DE LA CADENA: 384.000 con 334.000 pagados contra 352.000 con 494.000', () => {
+    /* 23-sep-2026 — cifras nuevas por decisión de Joan (80% del COSTO PACTADO,
+       sin bono por puntualidad, la mora íntegra a la empresa). Con los factores
+       de la mañana del 5-ago esto se medía 528.300 contra 492.300; con el
+       75/37,5 de esa tarde, 425.250 contra 410.250. Ahora, a mano:
+         saldar:   10 limpias × 32.000 + el crédito 11 (40.000 × 0,80) = 352.000;
+                   los 254.000 de mora no suman nada.
+         encadenar: las mismas 320.000 + 32.000 de la primera prórroga (su mora
+                   tampoco suma) + 32.000 del ciclo que compró = 384.000.
+       DEROGADO «el ciclo que compró la prórroga va a la mitad»: sin bono por
+       puntualidad no hay mitad, y los 32.000 de diferencia son exactamente el
+       80% del ciclo de costo que la cadena pagó de más. Por peso de costo los
+       dos caminos rinden lo mismo (decisión de Joan). */
+    /* 26-sep-2026: la cartera arranca en octubre, para que el crédito de la
+       decisión sea de los pedidos desde el 27-sep. Con uno de antes, su mora
+       seguiría sumando el 0,375 de siempre en los dos caminos (95.250 más en
+       cada uno, la misma diferencia). */
+    const a = partida(10, 127, 0, '2026-10-15');
     assert.equal(pagarTodo(a), 294000, 'costo 40.000 + 127 días de recargo');
-    assert.equal(foto(a.db, a.s).garantia, 410250);
+    assert.equal(foto(a.db, a.s).garantia, 352000);
 
-    const b = partida(10, 127, 0);
+    const b = partida(10, 127, 0, '2026-10-15');
     let cadena = prorrogar(b);
     cadena += prorrogar(b, b.p.cicloActual);
     assert.equal(cadena, 334000, 'los 294.000 y un ciclo más de 40.000');
-    /* El ciclo que compró la prórroga acredita A LA MITAD, no completo. Con los
-       factores de la mañana del 5-ago esto se medía 528.300 contra 492.300; el
-       cambio de reparto de esa tarde lo baja a 425.250 contra 410.250 y la
-       relación es la misma: encadenar paga menos por peso. */
-    assert.equal(foto(b.db, b.s).garantia, 425250, 'el ciclo que compró la prórroga va a la mitad');
-    assert.equal(425250 - 410250, M.acumularGarantia(40000, false),
-      'la mitad de los 40.000 del ciclo nuevo, no el factor completo');
+    assert.equal(foto(b.db, b.s).garantia, 384000,
+      'si da 587.200, la mora de la prórroga está acreditando garantía');
+    assert.equal(384000 - 352000, M.acumularGarantia(40000),
+      'el 80% de los 40.000 del ciclo nuevo, y nada de la mora');
   });
 
   test('Y EL NIVEL SIGUE SIN BAJAR NUNCA, en los cuatro caminos', () => {
@@ -6355,10 +6711,17 @@ describe('el nivel no puede premiar al que no paga (5-ago-2026)', () => {
     assert.equal(P.prorrogaAcreditaEnFecha(p.planPagos.entrada, p), true,
       'el plan se pactó sin un día de mora: la entrada conserva su 90%');
     assert.equal(P.estuvoEnMora(p, '2026-07-30'), true, 'la cuota 1 se pagó 10 días tarde');
+    /* 26-sep-2026 — el recargo de la cuota 1 se pagó el 25-jul, antes del
+       27-sep: conserva el 0,375 que ya dejaba. Desde el 27-sep no dejaría nada.
+       Y desde el 23-sep en fecha y tarde valen lo mismo (0,80), así que la
+       diferencia de factor que dio origen a esta prueba ya no se ve en pesos:
+       lo que sigue vigilando es que el recargo tenga su propia regla. */
     assert.equal(P.garantiaGanadaCredito(p),
       M.acumularGarantia(120000, true)                                        // entrada
-      + M.acumularGarantia(30000, false) + M.acumularGarantia(20000, false)   // cuota 1, tarde
-      + M.acumularGarantia(20000, false));                                    // cuota 2, ANTES al 90%
+      + M.acumularGarantia(30000, false)                                      // cuota 1, su costo
+      + M.garantiaDeMoraPagada(20000, '2026-07-25')                           // cuota 1, su recargo de julio
+      + M.acumularGarantia(20000, false));                                    // cuota 2
+    assert.equal(P.garantiaGanadaCredito(p), 96000 + 24000 + 7500 + 16000);
   });
 
   test('LA REGLA DEL 90% VIVE EN EL MOTOR, y el dato histórico lo trae el puente', () => {
@@ -6452,10 +6815,16 @@ describe('socio.html liquida con el §4-bis, no contra él (5-ago-2026)', () => 
   const NOVENTA = M.acumularGarantia(COSTO, true);   // 30.000
   const CUARENTA = M.acumularGarantia(COSTO, false); // 15.000
 
-  test('los dos números del reclamo son los del enunciado', () => {
-    assert.equal(NOVENTA, 32000);
+  test('los dos números del reclamo ya son uno solo: 32.000 en fecha y tarde', () => {
+    /* 23-sep-2026 — DEROGADO por decisión de Joan: el reclamo era que la app
+       prometía el factor completo (el doble) a un crédito que ya se había
+       atrasado. Joan retiró el bono por puntualidad en la garantía: en fecha y
+       tarde acreditan el mismo 80%, así que «el doble» ya no existe y esta
+       prueba afirma lo contrario de lo que afirmaba. Que nadie reponga el
+       `NOVENTA === CUARENTA * 2`: sería reponer el bono. */
+    assert.equal(NOVENTA, 32000);    // 80% de los 40.000 de costo
     assert.equal(CUARENTA, 32000);
-    assert.equal(NOVENTA, CUARENTA * 2, 'el error era exactamente el doble');
+    assert.equal(NOVENTA, CUARENTA, 'el completo y el de mora son el mismo número');
   });
 
   /* --- ruta 1: HOY, con el paquete al día (la que pinta la tarjeta) --- */
@@ -6500,11 +6869,24 @@ describe('socio.html liquida con el §4-bis, no contra él (5-ago-2026)', () => 
     assert.equal(limpio.garantia_generada, NOVENTA);
     assert.equal(limpio.garantia_si_puntual, NOVENTA);
 
-    // Y con mora encima el 45% no cambia por venir de otra mora: ya era 45%.
-    const tarde = app.liquidacion(paquete(true), '2026-08-25');
+    /* Y con mora encima. 23-sep-2026 — antes la garantía era la mitad de
+       costo+recargo; por decisión de Joan la mora NO genera garantía, así que la
+       app tiene que acreditar solo el costo pactado aunque haya cobrado 20.000
+       de recargo. Si socio.html volviera a sumar el recargo, le prometería al
+       socio cupo que el Panel no le va a dar. */
+    /* 26-sep-2026: en octubre, que es la regla de hoy en adelante. */
+    const tarde = app.liquidacion(Object.assign(paquete(true), { corte: '2026-10-15', desembolso: '2026-10-01' }),
+      '2026-10-25');
     assert.equal(tarde.dias_mora, 10);
-    assert.equal(tarde.garantia_generada,
-      M.acumularGarantia(COSTO + tarde.recargo_mora, false));
+    assert.equal(tarde.recargo_mora, 20000);
+    assert.equal(tarde.garantia_generada, M.acumularGarantia(COSTO, false));
+    assert.notEqual(tarde.garantia_generada,
+      M.acumularGarantia(COSTO + tarde.recargo_mora, false), 'la mora no compra cupo');
+    // Y en un crédito pedido antes del 27-sep: ese recargo deja el 0,375 de siempre.
+    const viejo = app.liquidacion(Object.assign(paquete(true), { desembolso: '2026-08-01' }), '2026-08-25');
+    assert.equal(viejo.garantia_generada,
+      M.acumularGarantia(COSTO, false) + M.garantiaDeMoraPagada(20000, '2026-08-01'));
+    assert.equal(viejo.garantia_generada, M.acumularGarantia(COSTO, false) + 7500);
   });
 
   /* --- ruta 3: sin capital vigente (todo abonado) o sin corte --- */
@@ -6564,7 +6946,7 @@ describe('socio.html liquida con el §4-bis, no contra él (5-ago-2026)', () => 
     const liq = P.liquidarCiclo(p, '2026-08-15');
     assert.equal(liq.estuvo_en_mora, true);
     assert.equal(liq.pago_a_tiempo, true, 'el 15-ago es su corte: el pago llega en fecha');
-    assert.equal(liq.acredita_en_fecha, false, 'y aun así acredita al 45% (§4-bis)');
+    assert.equal(liq.acredita_en_fecha, false, 'y aun así no cuenta como puntual (§4-bis)');
     assert.equal(liq.garantia_generada, CUARENTA);
 
     // El paquete tal como viaja a la app (migrarSocio arma estos mismos campos).
@@ -6575,9 +6957,16 @@ describe('socio.html liquida con el §4-bis, no contra él (5-ago-2026)', () => 
     const q = app.liquidacion(c, '2026-08-15');
     assert.equal(q.garantia_generada, liq.garantia_generada,
       'la app y el Panel no pueden acreditar dos garantías del mismo pago');
+    /* 23-sep-2026 — acá se exigía que la promesa NO fuera el factor completo
+       (`notEqual(…, NOVENTA)`). Joan retiró el bono por puntualidad: completo y
+       tardío son el mismo 80%, así que la promesa y lo que entra coinciden por
+       regla, no por casualidad. Lo que la mora tapada sigue decidiendo es la
+       PUNTUALIDAD (acredita_en_fecha, la racha, «pagados a tiempo»), y eso ya
+       lo afirma arriba `liq.acredita_en_fecha === false`. */
+    assert.equal(q.acredita_en_fecha, false, 'la app tampoco lo cuenta como puntual');
     assert.equal(q.garantia_si_puntual, CUARENTA,
-      'y la tarjeta no puede prometer 36.000 cuando van a entrar 18.000');
-    assert.notEqual(q.garantia_si_puntual, NOVENTA);
+      'la tarjeta promete exactamente lo que va a entrar');
+    assert.equal(q.garantia_si_puntual, q.garantia_generada);
   });
 
   test('el defecto no puede volver: las tres salidas dejaron de tener el 90% escrito a mano', () => {
@@ -6600,80 +6989,78 @@ describe('socio.html liquida con el §4-bis, no contra él (5-ago-2026)', () => 
  * atrasó. Con el §4-bis, el que ya se atrasó suma el 45% aunque el corte nuevo
  * se pague puntual. Un número correcto debajo de una frase falsa sigue siendo
  * un reclamo: el socio lee la frase.
+ *
+ * 26-sep-2026 — Y DEJÓ DE SER CIERTO OTRA VEZ. Con el 80/20 de Joan (23-sep) en
+ * fecha y tarde suman lo mismo, y el recargo de los créditos pedidos desde el
+ * 27-sep no suma nada. Las frases que estas pruebas exigían —«tres cuartas
+ * partes», «la mitad de eso», «el doble de lo que sube pagando tarde»— pasaron
+ * a ser las falsas, y la app las dijo tres días. Ahora exigen lo contrario, y
+ * leen solo el CÓDIGO: los comentarios que cuentan el cambio citan las frases
+ * viejas, y un centinela que lee la prosa se caza a sí mismo.
  * ======================================================================== */
 
-describe('la app no promete el doble sin la excepción (5-ago-2026)', () => {
+describe('la app dice la regla de hoy: lo mismo en fecha y tarde, y el recargo aparte (26-sep-2026)', () => {
 
   const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
+  const sinComentarios = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
+  const CODIGO = sinComentarios(SOCIO);
   const cuerpoEnSocio = nombre => {
     const i = SOCIO.indexOf('\nfunction ' + nombre + '(');
     assert.ok(i >= 0, 'socio.html ya no declara ' + nombre);
     const j = SOCIO.indexOf('\nfunction ', i + 1);
-    return SOCIO.slice(i, j < 0 ? SOCIO.length : j);
+    return sinComentarios(SOCIO.slice(i, j < 0 ? SOCIO.length : j));
   };
 
-  test('la promesa vieja ya no está en ninguna pantalla', () => {
-    assert.ok(!/Si pagas en fecha, sumas el doble/.test(SOCIO),
-      'esa frase le promete el 90% a un crédito que puede venir de una mora');
-    assert.ok(!/Si te atrasas igual suma, pero la mitad\./.test(SOCIO),
-      'el remate viejo cerraba la idea sin nombrar la excepción');
+  test('las promesas viejas ya no están en ninguna pantalla', () => {
+    [/Si pagas en fecha, sumas el doble/, /Si te atrasas igual suma, pero la mitad\./,
+     /tres cuartas partes/, /la mitad de eso/, /el doble de lo que sube pagando tarde/,
+     /al doble de velocidad/, /suma la mitad/].forEach(re =>
+      assert.ok(!re.test(CODIGO), 'socio.html le sigue diciendo al socio ' + re));
   });
 
-  test('la tarjeta del crédito tiene DOS textos, y elige con el mismo dato que la cifra', () => {
+  test('la tarjeta del crédito da las cifras de la liquidación y dice qué pasa con el recargo', () => {
     const cuerpo = cuerpoEnSocio('tarjetaActivo');
-    assert.match(cuerpo, /q\.credito_estuvo_en_mora/,
-      'el texto sale de la misma liquidación que la cifra, o vuelven a decir cosas distintas');
-    assert.match(cuerpo, /ya se atrasó una vez/,
-      'al crédito que viene de mora hay que decírselo de frente');
-    assert.match(cuerpo, /puntualidad se premia desde el primer día/,
-      'y al que nunca se atrasó, que la puntualidad se premia desde el principio');
-    assert.match(cuerpo, /no la puntualidad|compra tiempo|compró tiempo/,
-      'la prórroga compra tiempo, no puntualidad: esa es la idea que cierra el reclamo');
+    assert.match(cuerpo, /q\.garantia_si_puntual/, 'la cifra sale de la liquidación, no de la frase');
+    assert.match(cuerpo, /recargoSumaEn\(c\)/,
+      'el recargo suma o no según el día en que se pidió el crédito: la tarjeta lo pregunta');
+    assert.match(cuerpo, /ese recargo no te suma garantía/);
   });
 
   test('el recordatorio del calendario dice lo mismo que la tarjeta', () => {
     const cuerpo = cuerpoEnSocio('armarICS');
-    assert.match(cuerpo, /q\.credito_estuvo_en_mora/,
-      'el ICS sale de liquidacion(): tiene que ramificar con el mismo dato');
-    assert.match(cuerpo, /el doble de lo que sube pagando tarde/);
-    assert.match(cuerpo, /ya se atrasó una vez/);
+    assert.match(cuerpo, /q\.garantia_si_puntual/);
+    assert.match(cuerpo, /recargoSumaEn\(c\)/);
+    assert.match(cuerpo, /no te suma/);
   });
 
-  test('la pantalla de las reglas explica la excepción con los números del motor', () => {
+  test('la pantalla de las reglas dice la regla con su fecha y los centavos del motor', () => {
     const cuerpo = cuerpoEnSocio('verReglas');
-    /* 8-sep-2026 — el socio no ve porcentajes (pedido de Joan): la excepción se
-       dice con palabras —tres cuartas partes, la mitad de eso— y el centinela
-       «el socio no ve porcentajes» vigila que no vuelva un número. Lo que esta
-       prueba sigue exigiendo es que la excepción ESTÉ dicha de frente. */
-    assert.match(cuerpo, /tres cuartas partes/, 'el factor completo tiene que estar dicho');
-    assert.match(cuerpo, /la mitad de eso/, 'y la mitad del atrasado también');
-    assert.match(cuerpo, /nunca<\/b> se atrasó/);
-    assert.match(cuerpo, /no se borra aplazando/,
-      'la regla se dice de frente: aplazar no limpia el atraso');
-    assert.ok(!/\b90%|\b45%/.test(cuerpo),
+    assert.match(cuerpo, /r\.garantia\.texto/, 'la regla sale del motor');
+    assert.match(cuerpo, /27 de septiembre de 2026/, 'desde cuándo el recargo no suma');
+    assert.match(cuerpo, /siguen con su regla/, 'y que los créditos de antes siguen con la suya');
+    assert.ok(!/\b(90|45|75|37,5|80)\s?%/.test(cuerpo),
       'ningún porcentaje escrito a mano en la pantalla del acuerdo');
   });
 
-  test('donde se ofrece el préstamo con garantía tampoco se promete el 90% a secas', () => {
-    const cuerpo = cuerpoEnSocio('setModo');
-    /* 8-sep-2026: con palabras, no con la constante — el socio no ve porcentajes. */
-    assert.match(cuerpo, /la mitad de eso/,
-      'decía "cada crédito que pagas te deja el 90%", sin decir a cambio de qué');
-    assert.match(cuerpo, /pagando en fecha/);
+  test('donde se ofrece el préstamo con garantía, los centavos salen del motor', () => {
+    assert.match(cuerpoEnSocio('setModo'), /centavosDeGarantia\(\)/);
   });
 
-  test('el plan de pagos ya no dice "igual que cualquier otro pago"', () => {
-    // Un crédito que llega al plan casi siempre venía atrasado: sus cuotas
-    // acreditan al 45%. Suma —eso es lo que importa ahí— pero no el doble.
-    assert.ok(!/igual que cualquier otro pago/.test(SOCIO));
-    /* 8-sep-2026: la mitad del atrasado, dicha con palabras (el socio ve pesos). */
-    assert.match(cuerpoEnSocio('bloquePlanDePagos'), /la mitad de eso si venía atrasado/);
+  test('el plan de pagos dice los centavos, y el recargo según el crédito', () => {
+    assert.ok(!/igual que cualquier otro pago/.test(CODIGO));
+    const cuerpo = cuerpoEnSocio('bloquePlanDePagos');
+    assert.match(cuerpo, /centavosDeGarantia\(\)/);
+    assert.match(cuerpo, /recargoSumaEn\(c\)/);
   });
 
   test('y la prórroga se ofrece diciendo lo que NO hace', () => {
-    const cuerpo = cuerpoEnSocio('verReglas');
-    assert.match(cuerpo, /no<\/b> hace es borrar el atraso/,
+    assert.match(cuerpoEnSocio('verReglas'), /no<\/b> hace es volver garantía el recargo/,
       'la prórroga se decide en esa pantalla: ahí tiene que estar la letra');
+  });
+
+  test('los centavos salen de la constante, y el recargo de la fecha del crédito', () => {
+    assert.match(CODIGO, /centavosDeGarantia = function \(\) \{ return Math\.round\(M\.FACTOR_GARANTIA \* 100\); \}/);
+    assert.match(CODIGO, /M\.garantiaDeMoraPagada\(100000, c\.desembolso \|\| null\)/);
   });
 });
 
@@ -6709,19 +7096,21 @@ describe('EL CASO DE 3 CRÉDITOS DE 100.000 con las reglas nuevas', () => {
     return { ganada, costos, montos };
   }
 
-  test('45.000 de garantía ganada, cupón 100.000, total 145.000, cupo 145.000', () => {
+  /* 23-sep-2026 (decisión de Joan): se llamaba "45.000 ... total 145.000". Con
+     el 80% del costo, tres créditos de 100.000 dejan 48.000 y el total es 148.000. */
+  test('48.000 de garantía ganada, cupón 100.000, total 148.000, cupo 148.000', () => {
     const { ganada, costos } = cuentaDePrueba();
     assert.equal(costos, 60000, '3 créditos de 100.000 al 20%');
-    assert.equal(ganada, 45000, 'el 75% de los 60.000');
+    assert.equal(ganada, 48000, 'el 80% de los 60.000');
 
     const e = { datos: datosCompletos(), acumulada: ganada };
     const c = M.cupoQuincenal(e, 'plata');
     assert.equal(c.cupon, undefined, 'cupoQuincenal no publica `cupon`: eso es del desglose');
     assert.equal(M.desglosarGarantia(e).cupon, 100000);
-    assert.equal(c.ganada, 45000);
-    assert.equal(c.total, 145000);
-    assert.equal(c.cupo, 145000);
-    assert.equal(c.respaldo_disponible, 45000, 'el respaldado se apoya solo en la ganada');
+    assert.equal(c.ganada, 48000);
+    assert.equal(c.total, 148000);
+    assert.equal(c.cupo, 148000);
+    assert.equal(c.respaldo_disponible, 48000, 'el respaldado se apoya solo en la ganada');
   });
 
   test('LO QUE DABA ANTES, para que se vea el tamaño del cambio', () => {
@@ -6823,24 +7212,34 @@ describe('el puente le cuenta a Joan el cupón y la ganancia (5-ago-2026)', () =
     assert.equal(c.garantia_socio + c.cupon_recuperado + c.ganancia_libre, c.cobrado);
   });
 
-  test('tres créditos devuelven 9.000 del cupón y quedan 91.000 en la calle', () => {
+  test('tres créditos no devuelven nada del cupón: quedan los 100.000 en la calle', () => {
+    /* 23-sep-2026 — DEROGADO por decisión de Joan: antes el 15% de los 60.000
+       devolvía 9.000 y dejaba 91.000 expuestos. Con el 80/20 el cupón se sigue
+       regalando pero no se amortiza, así que la exposición de Joan por este socio
+       NO baja por esta vía: es el cupón entero. Los 12.000 que quedan son el 20%
+       de 60.000, todo operativo. */
     const { db, s } = dbCon(3);
     const c = P.contabilidadCupon(db, s);
     assert.equal(c.cupon_prestado, 100000, 'la ficha completa');
-    assert.equal(c.cupon_recuperado, 0, 'el 15% de los 60.000');
-    assert.equal(c.cupon_pendiente, 91000);
-    assert.equal(c.expuesto, 91000, 'lo único que Joan tiene de verdad en riesgo');
+    assert.equal(c.cupon_recuperado, 0, 'ya no hay línea de cupón en el reparto');
+    assert.equal(c.cupon_pendiente, 100000);
+    assert.equal(c.expuesto, 100000, 'lo único que Joan tiene de verdad en riesgo');
     assert.equal(c.saldado, false);
-    assert.equal(c.ganancia_libre, 6000, 'el 10% operativo');
-    assert.equal(c.ganancia_cupon, 0, 'todavía no hay 15% liberado');
+    assert.equal(c.ganancia_libre, 12000, 'el 20% de los 60.000');
+    assert.equal(c.ganancia_cupon, 0, 'no hay 15% que liberar');
   });
 
-  test('LA EXPOSICIÓN BAJA CRÉDITO A CRÉDITO, CON CUALQUIER FICHA Y CON REFERIDOS', () => {
+  test('LA EXPOSICIÓN YA NO BAJA, PERO TAMPOCO SUBE: CON CUALQUIER FICHA Y CON REFERIDOS', () => {
     /* 6-ago-2026 — ESTA PRUEBA EJERCITABA SOLO LA FICHA COMPLETA Y SIN REFERIDOS,
        y por eso las 473 pasaban con el defecto vivo: con el cupón lleno el techo de
        la prestada muerde y los referidos no entran, así que la exposición bajaba
        igual. El cliente de mostrador —la mayoría de los reales— tenía 80.000 de
-       hueco libre debajo de ese techo, y ahí cada referido le sumaba exposición. */
+       hueco libre debajo de ese techo, y ahí cada referido le sumaba exposición.
+
+       23-sep-2026 — DEROGADA LA MITAD de «baja crédito a crédito», por decisión de
+       Joan: el cupón ya no se amortiza, así que la exposición se queda en el cupón
+       de la ficha para siempre. Lo que NO se deroga es la otra mitad, la que cazó
+       el defecto: ni créditos ni referidos la pueden SUBIR por encima del arranque. */
     const expo = (n, ficha, refs) => {
       const { db, s } = dbCon(n, false, ficha, refs);
       return P.contabilidadCupon(db, s);
@@ -6849,17 +7248,13 @@ describe('el puente le cuenta a Joan el cupón y la ganancia (5-ago-2026)', () =
     ['completa', 'mostrador', 'pelada'].forEach(ficha => {
       const arranque = expo(0, ficha, 0).cupon_prestado;
       [0, 1, 10, 40].forEach(refs => {
-        let anterior = arranque + 1;
         for (let n = 0; n <= 8; n++) {
           const c = expo(n, ficha, refs);
           const donde = ficha + '/' + refs + ' refs/' + n + ' créditos: ';
           casos++;
-          assert.ok(c.expuesto < anterior || (c.expuesto === 0 && anterior === 0),
-            donde + 'la exposición subió (' + anterior + ' → ' + c.expuesto + ')');
-          assert.ok(c.expuesto <= arranque, donde + 'se pasó del arranque ' + arranque);
+          assert.equal(c.expuesto, arranque, donde + 'la exposición se movió del cupón ' + arranque);
           // Y el número es EL MISMO que sin referidos: no son exposición.
           assert.equal(c.expuesto, expo(n, ficha, 0).expuesto, donde + 'los referidos la movieron');
-          anterior = c.expuesto;
         }
       });
     });
@@ -6872,30 +7267,44 @@ describe('el puente le cuenta a Joan el cupón y la ganancia (5-ago-2026)', () =
     // Los referidos existen y le suman cupo: lo que no suben es el riesgo.
     assert.equal(P.migrarSocio(dbCon(4, false, 'mostrador', 10).db,
                                dbCon(4, false, 'mostrador', 10).s).garantia.referidos, 50000);
-    assert.equal(expo(4, 'mostrador', 10).expuesto, 8000, 'ANTES: 58.000');
-    assert.equal(expo(8, 'mostrador', 10).saldado, true, 'ANTES: dejaba de estar saldado');
+    assert.equal(expo(4, 'mostrador', 10).expuesto, 20000,
+      'ANTES del 6-ago: 58.000; hasta el 23-sep: 8.000');
+    assert.equal(expo(8, 'mostrador', 10).saldado, false, 'el cupón ya no se salda (23-sep-2026)');
   });
 
-  test('pagar TARDE no frena la recuperación del cupón, y la ganancia sube', () => {
+  test('pagar TARDE no cambia la cuenta del cupón: misma garantía, misma ganancia', () => {
+    /* 23-sep-2026 — DEROGADO por decisión de Joan: esta prueba afirmaba que el
+       tarde dejaba menos garantía y más ganancia libre (el bono por puntualidad
+       vivía en la garantía). Joan igualó los factores en 0,80 y dejó de amortizar
+       el cupón. Estos créditos registran el mismo `gananciaPago` en los dos casos,
+       así que el mismo costo tiene que dar la misma cuenta, pague cuando pague. */
     const puntualDb = dbCon(3);
     const puntual = P.contabilidadCupon(puntualDb.db, puntualDb.s);
     const tardeDb = dbCon(3, true);
     const tarde = P.contabilidadCupon(tardeDb.db, tardeDb.s);
+    assert.equal(tarde.cupon_recuperado, 0);
     assert.equal(tarde.cupon_recuperado, puntual.cupon_recuperado);
-    assert.ok(tarde.garantia_socio < puntual.garantia_socio);
-    assert.ok(tarde.ganancia_libre > puntual.ganancia_libre);
+    assert.equal(tarde.garantia_socio, puntual.garantia_socio);
+    assert.equal(tarde.ganancia_libre, puntual.ganancia_libre);
+    assert.equal(tarde.expuesto, puntual.expuesto);
   });
 
   test('SE DERIVA DE LOS PAGOS: borrar un pago cambia la cuenta, no la desincroniza', () => {
+    /* 23-sep-2026 — el cupón ya no se amortiza (decisión de Joan), así que
+       `cupon_recuperado` vale 0 antes y después y ya no sirve para ver un
+       contador pegado. La invariante sigue igual de viva con lo que SÍ sale de
+       los pagos: lo cobrado, la garantía del socio y la ganancia libre. */
     const { db, s } = dbCon(3);
     const antes = P.contabilidadCupon(db, s);
     // Joan corrige un cobro que no era: el crédito vuelve a estar abierto.
     db.prestamos[2].pagado = false;
     db.prestamos[2].gananciaPago = 0;
     const despues = P.contabilidadCupon(db, s);
-    assert.ok(despues.cupon_recuperado < antes.cupon_recuperado,
-      'un contador guardado se habría quedado con los 9.000 para siempre');
-    assert.equal(despues.cupon_recuperado, 6000);
+    assert.ok(despues.cobrado < antes.cobrado,
+      'un contador guardado se habría quedado con los 60.000 para siempre');
+    assert.equal(despues.cobrado, 40000);
+    assert.equal(despues.ganancia_libre, 8000, 'el 20% de los 40.000');
+    assert.equal(despues.cupon_recuperado, 0);
     assert.equal(despues.garantia_socio, P.garantiaGanadaDe(db, s));
   });
 
@@ -7174,11 +7583,18 @@ describe('un día de mora se comporta igual que dos (6-ago-2026)', () => {
             if (b.cont.meses_sin_mora > a.cont.meses_sin_mora) peores.push(donde + 'meses');
             if (b.cont.racha > a.cont.racha) peores.push(donde + 'racha');
             if (b.cont.a_tiempo > a.cont.a_tiempo) peores.push(donde + 'a_tiempo');
-            // Y por peso de costo pagado, no pagar nunca puede rendir más.
+            /* Y por peso de COSTO PACTADO, no pagar nunca puede rendir más.
+               23-sep-2026, decisión de Joan: el divisor es el costo, no lo
+               cobrado — la mora es sanción, no precio, y no genera garantía.
+               Se mide el crédito de la decisión: lo demás es igual en los dos. */
             if (otros[k].cobrado > 0) {
               comparaciones++;
-              if (b.garantia / otros[k].cobrado > a.garantia / paga.cobrado + 1e-9) {
-                peores.push(donde + 'garantía por peso');
+              const costoDe = e => e.decision.pagado
+                ? e.decision.gananciaPago - e.decision.recargoMora
+                : e.decision.prorrogas.reduce((t, pr) => t + P.costoDeProrroga(pr), 0);
+              const porPeso = e => P.garantiaGanadaCredito(e.decision) / costoDe(e);
+              if (porPeso(otros[k]) > porPeso(paga) + 1e-9) {
+                peores.push(donde + 'garantía por peso de costo');
               }
             }
           });
@@ -7298,15 +7714,19 @@ describe('los referidos no pueden subirle la exposición a Joan (6-ago-2026)', (
   };
 
   test('LA TABLA DEL DEFECTO, CELDA POR CELDA: el de mostrador ya no sube', () => {
-    /* La fila de arriba es la buena y era la única que se cumplía: 20.000 que solo
-       bajan hasta saldarse en el crédito 8 (con 20.000 de cupón hacen falta menos
-       créditos que los 13 de la ficha completa). */
-    assert.deepEqual([0, 1, 2, 3, 4, 8].map(n => expuestoDe('mostrador', 0, n, 0)),
-      [20000, 17000, 14000, 11000, 8000, 0]);
-    // Y ahora las otras dos filas son IDÉNTICAS a la primera, no una escalera hacia arriba.
+    /* 23-sep-2026 — DEROGADA la fila que bajaba (20.000, 17.000 … 0, saldado en
+       el crédito 8), por decisión de Joan: el cupón SE SIGUE REGALANDO pero YA
+       NO SE AMORTIZA (REPARTO_COSTO.cupon = 0); sale del 20% de la empresa. La
+       exposición del de mostrador es su cupón de 20.000 y ningún crédito la
+       baja. Lo que esta tabla vigila sigue intacto: que NADA la suba. */
+    assert.equal(M.REPARTO_COSTO.cupon, 0, 'si el cupón vuelve a amortizarse, la fila vuelve a bajar');
+    const plana = [20000, 20000, 20000, 20000, 20000, 20000];
+    assert.deepEqual([0, 1, 2, 3, 4, 8].map(n => expuestoDe('mostrador', 0, n, 0)), plana,
+      'los créditos pagados ya no bajan la exposición: el cupón no se amortiza');
+    // Y las otras dos filas son IDÉNTICAS a la primera, no una escalera hacia arriba.
     [10, 40].forEach(nRefs => {
       assert.deepEqual([0, 1, 2, 3, 4, 8].map(n => expuestoDe('mostrador', nRefs, n, 0)),
-        [20000, 17000, 14000, 11000, 8000, 0], nRefs + ' referidos movieron la exposición');
+        plana, nRefs + ' referidos movieron la exposición');
     });
     /* Los números viejos, escritos para que se vea el tamaño del arreglo: con diez
        referidos, el socio del crédito 4 estaba en 58.000 y el SALDADO en 46.000. */
@@ -7317,23 +7737,27 @@ describe('los referidos no pueden subirle la exposición a Joan (6-ago-2026)', (
     });
   });
 
-  test('EL SOCIO SALDADO SIGUE SALDADO, con cualquier ficha y cualquier número', () => {
+  test('LOS REFERIDOS NO MUEVEN LA EXPOSICIÓN NI LA GANANCIA, con cualquier ficha y cualquier número', () => {
+    /* 23-sep-2026 — DEROGADO «el socio saldado sigue saldado», por decisión de
+       Joan: el cupón ya no se amortiza, así que nadie se salda, ni con 40
+       créditos. La invariante que esta prueba cuidaba era otra y sigue viva:
+       ningún número de referidos le devuelve exposición a Joan ni le encoge la
+       ganancia libre (el defecto viejo la llevaba de 71.758 a 68.701). */
     Object.keys(FICHAS).forEach(ficha => {
-      // Los créditos que hacen falta para saldar esa ficha: 3.000 por crédito.
       const cero = expuesto(caso(ficha, 0, 40, 0).entrada, costosDe(40, 0));
-      assert.equal(cero.expuesto, 0, ficha + ': no llegó a saldarse');
-      assert.equal(cero.saldado, true);
+      const cupon = M.desglosarGarantia(caso(ficha, 0, 40, 0).entrada).cupon;
+      assert.equal(cero.expuesto, cupon, ficha + ': la exposición no es el cupón entero');
+      assert.equal(cero.saldado, false, ficha + ': se saldó sin línea de cupón');
       const peores = [];
       CANTIDADES.forEach(n => {
         const x = expuesto(caso(ficha, n, 40, 0).entrada, costosDe(40, 0));
-        if (x.expuesto !== 0) peores.push(ficha + '/' + n + ' → expuesto ' + x.expuesto);
-        if (!x.saldado) peores.push(ficha + '/' + n + ' → dejó de estar saldado');
-        // Y la ganancia libre no se encoge HACIA ATRÁS: era 71.758 → 68.701.
+        if (x.expuesto !== cero.expuesto) peores.push(ficha + '/' + n + ' → expuesto ' + x.expuesto);
+        if (x.saldado) peores.push(ficha + '/' + n + ' → apareció saldado');
         if (x.ganancia_libre !== cero.ganancia_libre) {
           peores.push(ficha + '/' + n + ' → ganancia libre ' + x.ganancia_libre);
         }
       });
-      assert.deepEqual(peores, [], 'volvió a quedar expuesto: ' + peores.join(' · '));
+      assert.deepEqual(peores, [], 'los referidos movieron la cuenta: ' + peores.join(' · '));
     });
   });
 
@@ -7601,25 +8025,38 @@ describe('el cupo descuenta el capital que ya está afuera (6-ago-2026)', () => 
                cupo: q.cupo, afuera: afueraDe(db, s), calle: q.cupo + afueraDe(db, s) };
     };
     const a = fila(0, 0), b = fila(0, 2), c = fila(14, 2);
-    // Las ganadas de la tabla, para que se vea que es la misma escalera.
-    assert.deepEqual([a.ganada, b.ganada, c.ganada], [0, 30000, 240000]);
+    /* 23-sep-2026 — cifras nuevas por el 80/20 de Joan (antes 75%: 30.000 y
+       240.000). A mano: cada costo de 20.000 deja 16.000; dos prórrogas,
+       32.000; catorce créditos más esas dos, 256.000. La tabla de la cabecera
+       es la del 6-ago y se deja como quedó: es la evidencia del defecto. */
+    assert.deepEqual([a.ganada, b.ganada, c.ganada], [0, 32000, 256000]);
     // Los 100.000 abiertos, que antes no contaban para nada.
     assert.deepEqual([a.afuera, b.afuera, c.afuera], [100000, 100000, 100000]);
+    // Lo comprometido es lo que el capital afuera se come de la garantía:
+    // 20.000 de cupón; 20.000 + 32.000; y los 100.000 enteros.
     assert.deepEqual([a.comprometida, b.comprometida, c.comprometida],
-      [20000, 50000, 100000], 'ANTES: 0, 0 y 0');
-    assert.deepEqual([a.cupo, b.cupo, c.cupo], [0, 0, 160000], 'ANTES: 20.000, 50.000 y 260.000');
-    assert.deepEqual([a.calle, b.calle, c.calle], [100000, 100000, 260000],
+      [20000, 52000, 100000], 'ANTES: 0, 0 y 0');
+    // La prórroga sigue sin subir el cupo mientras el capital esté afuera, y en
+    // la fila de 14 créditos el cupo es la garantía (276.000) menos los 100.000.
+    assert.deepEqual([a.cupo, b.cupo, c.cupo], [0, 0, 176000], 'ANTES: 20.000, 50.000 y 260.000');
+    assert.deepEqual([a.calle, b.calle, c.calle], [100000, 100000, 276000],
       'ANTES: 120.000, 150.000 y 360.000');
   });
 
   test('una prórroga no puede subirle el cupo: paga costo, no devuelve capital', () => {
     const cupo = pr => P.cupoDelSocio(dbCalle(14, pr).db, dbCalle(14, pr).s, 'bronce').cupo;
-    /* Cada prórroga le suma 15.000 de garantía ganada porque paga 20.000 de costo
-       —eso está bien y es la regla— pero el capital sigue afuera, así que lo que
-       puede pedir DE NUEVO sube 15.000, no 15.000 más los 100.000 que ya tiene. */
-    assert.equal(cupo(0), 144000);
-    assert.equal(cupo(1), 160000);
-    assert.equal(cupo(2), 160000);
+    /* Cada prórroga le suma garantía ganada porque paga 20.000 de costo —eso
+       está bien y es la regla— pero el capital sigue afuera, así que lo que puede
+       pedir DE NUEVO sube exactamente esa garantía, no esa garantía más los
+       100.000 que ya tiene. 23-sep-2026: al 80% son 16.000 por prórroga (antes
+       15.000), y LAS DOS suben lo mismo: la cifra vieja decía que la segunda no
+       subía, lo que contradecía este mismo comentario. */
+    const porProrroga = M.acumularGarantia(20000, true);
+    // 20.000 del cupón de mostrador + 14 créditos al 80% de 20.000, menos los
+    // 100.000 abiertos.
+    assert.equal(cupo(0), 20000 + 14 * porProrroga - 100000);
+    assert.equal(cupo(1) - cupo(0), porProrroga, 'la primera prórroga');
+    assert.equal(cupo(2) - cupo(1), porProrroga, 'la segunda sube lo mismo');
     const enLaCalle = pr => cupo(pr) + afueraDe(dbCalle(14, pr).db, dbCalle(14, pr).s);
     [0, 1, 2].forEach(pr => {
       const g = P.cupoDelSocio(dbCalle(14, pr).db, dbCalle(14, pr).s, 'bronce').total;
@@ -7817,12 +8254,13 @@ describe('el cupo descuenta el capital que ya está afuera (6-ago-2026)', () => 
     assert.equal(P.entradaCupo(db, s).comprometida, 0);
     /* Y un abono a capital baja lo que está afuera, peso a peso: es la otra mitad
        de la promesa. Si el capital afuera resta cupo, devolver capital tiene que
-       devolverlo. Garantía 230.000 (20.000 de cupón + 210.000 de catorce créditos)
+       devolverlo. Garantía 244.000 (20.000 de cupón + 224.000 de catorce créditos
+       al 80% de 20.000; decía 230.000 con el 75%, cambio del 23-sep-2026)
        menos los 60.000 que le quedan afuera. */
-    assert.equal(P.cupoDelSocio(db, s, 'bronce').total, 230000);
+    assert.equal(P.cupoDelSocio(db, s, 'bronce').total, 244000);
     db.prestamos[db.prestamos.length - 1].abonosCapital = [{ fecha: '2026-02-01', monto: 40000 }];
     assert.equal(P.capitalQuincenalDe(db, s), 60000);
-    assert.equal(P.cupoDelSocio(db, s, 'bronce').cupo, 230000 - 60000);
+    assert.equal(P.cupoDelSocio(db, s, 'bronce').cupo, 244000 - 60000);
   });
 });
 
@@ -9600,9 +10038,10 @@ describe('la tasa pactada por crédito (29-ago-2026)', () => {
 
   test('y la fecha de las reglas subió con este cambio', () => {
     /* 29-ago: la tasa pactable. 2-sep: los niveles por garantía. 8-sep: el
-       techo del costo pasa al 50%, decisión de Joan. Cada regla de plata sube
-       la fecha, y esta prueba obliga a subirla a sabiendas. */
-    assert.equal(M.REGLAS_VIGENTES_DESDE, '2026-09-08',
+       techo del costo pasa al 50%, decisión de Joan. 27-sep: el 80/20 del
+       costo y la mora sin garantía en los créditos nuevos. Cada regla de plata
+       sube la fecha, y esta prueba obliga a subirla a sabiendas. */
+    assert.equal(M.REGLAS_VIGENTES_DESDE, '2026-09-27',
       'cambió una regla de plata sin subir la fecha: el sello de la app miente');
   });
 });

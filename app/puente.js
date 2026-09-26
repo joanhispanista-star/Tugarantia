@@ -591,7 +591,10 @@
       acredita_en_fecha: acredita,
       costo_total_pagado: costo + mora,
       total_a_pagar: capital + costo + mora,
-      garantia_generada: M.acumularGarantia(costo + mora, acredita),
+      /* 26-sep-2026: del COSTO, no de costo+mora. La mora es de la empresa en
+         los créditos pedidos desde el 27-sep; en los de antes sigue dejando lo
+         que dejaba (MotorReglas.garantiaDeMoraPagada). */
+      garantia_generada: M.acumularGarantia(costo, acredita) + M.garantiaDeMoraPagada(mora, fechaDelCredito(p)),
       /* Lo ya causado a esta fecha, para que quien quiera liquidar en OTRO día
          se lo pase a MotorReglas.liquidarCredito como {recargoCausado,
          diasCausados} y no vuelva a recalcular el 1% desde cero. */
@@ -628,11 +631,15 @@
     if (c.costo == null) return num(c.garantiaGenerada);
     var f = fechaFin(c.fechaPagado), corte = fechaFin(c.fecha);
     var enFecha = num(c.recargo) === 0 && (!f || !corte || f <= corte);
+    /* 26-sep-2026: el costo de la cuota, y su recargo solo si el crédito se
+       pidió antes del 27-sep. Sumaba `acumularGarantia(c.recargo, false)`, que
+       con el 80/20 acreditaba el 80% de la mora — contra la decisión de Joan de
+       que la mora no genera garantía. Los créditos de antes siguen con su regla
+       (punto 12 de los términos; MotorReglas.FECHA_MORA_SIN_GARANTIA). */
     return M.acumularGarantia(num(c.costo), M.cuentaComoPuntualParaGarantia({
              pagado_en_fecha: enFecha,
              credito_estuvo_en_mora: veniaDeMora(p, corte)
-           })) +
-           M.acumularGarantia(num(c.recargo), false);
+           })) + M.garantiaDeMoraPagada(num(c.recargo), fechaDelCredito(p));
   }
   function garantiaGanadaPlan(p) {
     return cuotasPlan(p).reduce(function (t, c) {
@@ -643,6 +650,11 @@
      Panel le cobra el costo del ciclo MÁS el recargo de mora ya causado, y
      guarda el recargo aparte en `pr.mora` para no perder de vista de qué está
      hecho ese monto. Las prórrogas viejas no traen `mora`: son todas costo. */
+  /* 26-sep-2026 — el día en que se PIDIÓ el crédito: es lo que decide si su
+     mora deja garantía (MotorReglas.FECHA_MORA_SIN_GARANTIA; punto 12 de los
+     términos). Sin fecha devuelve null, y el motor lo lee como crédito de antes:
+     todo crédito que crean el Panel, el espejo o una solicitud la graba. */
+  function fechaDelCredito(p) { return fechaFin(p && p.fechaDesembolso) || null; }
   function moraDeProrroga(pr) {
     return Math.min(Math.max(0, num(pr && pr.mora)), Math.max(0, num(pr && pr.monto)));
   }
@@ -681,14 +693,24 @@
       credito_estuvo_en_mora: !!credito && veniaDeMora(credito, pr && pr.ciclo)
     });
   }
-  /* La garantía que dejó UNA prórroga, con la misma regla del §4 que usa
-     cualquier otro pago: el costo con el factor de puntualidad de la prórroga y
-     el recargo de mora siempre a la mitad, porque es plata que solo existe porque
-     el corte ya había pasado. Es la ÚNICA cuenta: el Panel la muestra en el confirm
-     con esta misma función, así que Joan no puede ver un número y el socio otro. */
+  /* La garantía que dejó UNA prórroga: el COSTO con el factor de puntualidad de
+     la prórroga, y nada de la mora. Es la ÚNICA cuenta: el Panel la muestra en el
+     confirm con esta misma función, así que Joan no puede ver un número y el
+     socio otro.
+     26-sep-2026 — sumaba también la mora «siempre a la mitad». Con el 80/20 eso
+     acreditaba el 80% de la mora, y medido: una prórroga de 120.000 de costo y
+     120.000 de mora dejaba 192.000 de garantía, contra 96.000 si ese mismo día se
+     saldaba con la misma plata. Prorrogar rendía el DOBLE que pagar. La mora es
+     una sanción, no un precio: decisión de Joan del 23-sep.
+     Y en los créditos pedidos ANTES del 27-sep la mora de la prórroga sigue
+     sumando lo que sumaba: la garantía se recalcula desde el historial, y sin
+     esto la regla nueva les quitaba a los socios garantía ya ganada y les
+     cambiaba las reglas a créditos ya entregados (decisión de Joan del 26-sep;
+     ver MotorReglas.FECHA_MORA_SIN_GARANTIA). Sin el crédito no hay con qué
+     saberlo, y se aplica la regla de hoy: cero. */
   function garantiaGanadaProrroga(pr, credito) {
     return M.acumularGarantia(costoDeProrroga(pr), prorrogaAcreditaEnFecha(pr, credito)) +
-           M.acumularGarantia(moraDeProrroga(pr), false);
+           (credito ? M.garantiaDeMoraPagada(moraDeProrroga(pr), fechaDelCredito(credito)) : 0);
   }
   function gananciaCobrada(p) {
     return lista(p.prorrogas).reduce(function (s, pr) { return s + num(pr.monto); }, 0) +
@@ -1143,7 +1165,11 @@
             M.cuentaComoPuntualParaGarantia({
               pagado_en_fecha: esPuntual(p),
               credito_estuvo_en_mora: veniaDeMora(p, p.cicloPago)
-            }))
+            })) +
+          /* 26-sep-2026 — la mora del pago final: cero en los créditos pedidos
+             desde el 27-sep, y lo que siempre dejó en los de antes. Nunca más de
+             lo que entró. */
+          M.garantiaDeMoraPagada(Math.min(num(p.recargoMora), num(p.gananciaPago)), fechaDelCredito(p))
         : 0);
   }
 
@@ -1170,7 +1196,8 @@
 
   /* La garantía GANADA de un socio: lo que le dejó cada peso de costo que ya
      pagó, en el quincenal y en el de garantía. El factor lo pone el MOTOR
-     (0,75 en fecha y 0,375 tarde en el quincenal; 0,20 y 0,10 en el otro). Acá
+     (0,80 en fecha y tarde en el quincenal desde el 23-sep; 0,20 y 0,10 en el
+     otro; y la mora, solo en los créditos pedidos antes del 27-sep). Acá
      no se multiplica nada a mano y tampoco se deja de multiplicar: el costo
      COBRADO no es la garantía, y desde que FACTOR_GARANTIA dejó de ser 1,00 no
      hay forma de que coincidan. Es una sola cuenta para el paquete del socio y
@@ -1222,7 +1249,9 @@
     function empujar(fecha, tipo, monto, aTiempo, producto) {
       if (num(monto) <= 0) return;
       movs.push({ fecha: fechaFin(fecha) || null, tipo: tipo, monto: num(monto),
-                  aTiempo: aTiempo !== false, producto: producto || 'quincenal' });
+                  aTiempo: aTiempo !== false, producto: producto || 'quincenal',
+                  // La mora de los créditos pedidos antes del 27-sep sigue dejando garantía.
+                  fechaDelCredito: fechaDelCredito(p) });
     }
     lista(p && p.prorrogas).forEach(function (pr) {
       empujar(pr && pr.fecha, 'costo_prorroga', costoDeProrroga(pr), prorrogaAcreditaEnFecha(pr, p));
@@ -1247,26 +1276,37 @@
       empujar(c.fechaPagado || c.fecha, 'recargo_mora', num(c.recargo), false);
     });
     if (p && p.pagado) {
-      /* El pago final va con costo y recargo en un solo movimiento porque así lo
-         guarda el Panel (`gananciaPago` es el costo TOTAL cobrado) y así lo
-         acredita garantiaGanadaCredito. Partirlo acá daría otra garantía. */
-      empujar(p.fechaPagado, 'pago_final', Math.max(0, num(p.gananciaPago)),
+      /* El pago final se PARTE en costo y mora (26-sep-2026). Antes iba entero
+         porque así lo acreditaba garantiaGanadaCredito; desde el 23-sep esa
+         función le resta la mora, y con el movimiento entero eran estas dos
+         cuentas las que no casaban. `gananciaPago` sigue siendo lo que se cobró
+         de más; la mora que va adentro es `recargoMora`, topada a lo que entró. */
+      var moraFinal = Math.min(Math.max(0, num(p.recargoMora)), Math.max(0, num(p.gananciaPago)));
+      empujar(p.fechaPagado, 'pago_final', Math.max(0, num(p.gananciaPago)) - moraFinal,
         M.cuentaComoPuntualParaGarantia({
           pagado_en_fecha: esPuntual(p), credito_estuvo_en_mora: veniaDeMora(p, p.cicloPago) }));
+      empujar(p.fechaPagado, 'recargo_mora', moraFinal, false);
     }
     return movs;
   }
 
-  /* Las cuotas ya pagadas de un préstamo con garantía. Costo y recargo van
-     JUNTOS y con un solo factor, que es como los acredita el motor
-     (liquidarCuotaRespaldada), no como los acredita el quincenal. */
+  /* Las cuotas ya pagadas de un préstamo con garantía. Desde el 26-sep-2026
+     costo y recargo van en DOS movimientos: el motor ya acredita la cuota del
+     respaldado solo por su costo (liquidarCuotaRespaldada, 23-sep), y el recargo
+     etiquetado `recargo_mora` entra entero a operativo en amortizarCupon. */
   function movimientosCobradosRespaldado(r) {
-    return lista(r && r.cuotas).filter(function (c) { return c && c.pagado; })
-      .map(function (c) {
-        return { fecha: fechaFin(c.fechaPagado) || fechaFin(c.fecha) || null,
-                 tipo: 'cuota_respaldado', producto: 'respaldado',
-                 monto: num(c.costo) + num(c.recargo), aTiempo: num(c.recargo) === 0 };
-      }).filter(function (m) { return m.monto > 0; });
+    var movs = [];
+    lista(r && r.cuotas).forEach(function (c) {
+      if (!c || !c.pagado) return;
+      var fecha = fechaFin(c.fechaPagado) || fechaFin(c.fecha) || null;
+      var aTiempo = num(c.recargo) === 0;
+      var delCredito = fechaDelCredito(r);
+      if (num(c.costo) > 0) movs.push({ fecha: fecha, tipo: 'cuota_respaldado', producto: 'respaldado',
+                                        monto: num(c.costo), aTiempo: aTiempo, fechaDelCredito: delCredito });
+      if (num(c.recargo) > 0) movs.push({ fecha: fecha, tipo: 'recargo_mora', producto: 'respaldado',
+                                          monto: num(c.recargo), aTiempo: false, fechaDelCredito: delCredito });
+    });
+    return movs;
   }
 
   /** Todo lo que un socio pagó de costos, de los dos productos, cronológico.
@@ -1875,9 +1915,18 @@
       var socio = lista(db && db.socios).filter(function (x) { return x && p && x.id === p.socioId; })[0];
       pendiente = socio ? contabilidadCupon(db, socio).cupon_pendiente : undefined;
     } catch (e) { pendiente = undefined; }
-    var opc = { aTiempo: l.acredita_en_fecha !== false, producto: 'quincenal', cuponPendiente: pendiente };
-    var nominal = M.repartirCosto(Math.round(num(l.costo_total_pagado)), opc);
-    var cobrado = M.repartirCosto(entro, opc);
+    /* 26-sep-2026 — COSTO Y MORA POR SEPARADO. Se repartía costo+mora en un solo
+       número y la mora salía 80/20 como si fuera costo: la pantalla le prometía
+       al socio garantía por la mora que después no se acreditaba, y al perdonar
+       la mora decía que le costaba cupo a él y casi nada a Joan — al revés: la
+       mora es toda de Joan. Ahora la mora entra entera a operativo (motor). */
+    function repartir(costo, mora) {
+      return M.repartirCosto(costo, { aTiempo: l.acredita_en_fecha !== false, producto: 'quincenal',
+                                      cuponPendiente: pendiente, mora: mora,
+                                      fechaDelCredito: fechaDelCredito(p) });
+    }
+    var nominal = repartir(Math.round(num(l.costo)), Math.round(num(l.recargo_mora)));
+    var cobrado = repartir(costoCobrado, moraCobrada);
 
     return {
       condonado_costo: condCosto,
@@ -1965,11 +2014,15 @@
       var socio = lista(db && db.socios).filter(function (x) { return x && p && x.id === p.socioId; })[0];
       pendiente = socio ? contabilidadCupon(db, socio).cupon_pendiente : undefined;
     } catch (e) { pendiente = undefined; }
-    function reparto(monto, aTiempo) {
-      return M.repartirCosto(Math.max(0, monto), { aTiempo: aTiempo, producto: 'quincenal', cuponPendiente: pendiente });
+    /* 26-sep-2026: el costo con su factor y la mora ENTERA a operativo. Antes la
+       mora se repartía «a la mitad» como un costo más, y la pantalla de prórroga
+       prometía garantía por ella. */
+    function reparto(monto, moraDelPedazo) {
+      return M.repartirCosto(Math.max(0, monto), { aTiempo: acredita, producto: 'quincenal',
+                                                   cuponPendiente: pendiente, mora: Math.max(0, moraDelPedazo),
+                                                   fechaDelCredito: fechaDelCredito(p) });
     }
-    var nomC = reparto(costo, acredita), nomM = reparto(mora, false);
-    var cobC = reparto(costoCobrado, acredita), cobM = reparto(moraCobrada, false);
+    var nom = reparto(costo, mora), cob = reparto(costoCobrado, moraCobrada);
 
     return {
       condonado_costo: condCosto,
@@ -1979,13 +2032,15 @@
       mora_cobrada: moraCobrada,
       /* Lo que el socio paga por la prórroga: es lo que va a pr.monto. */
       monto: costoCobrado + moraCobrada,
-      garantia: M.acumularGarantia(costoCobrado, acredita) + M.acumularGarantia(moraCobrada, false),
-      garantia_sin_descuento: M.acumularGarantia(costo, acredita) + M.acumularGarantia(mora, false),
+      /* Del reparto, y no de acumularGarantia(costo): así lleva la misma cuenta
+         de la mora vieja que el resto (cero en toda prórroga de hoy en adelante). */
+      garantia: cob.garantia_socio,
+      garantia_sin_descuento: nom.garantia_socio,
       /* Las dos cifras suman el descuento entero: no hay plata perdonada sin
-         dueño en la pantalla. */
-      de_tu_ganancia: (nomC.operativo + nomC.amortiza_cupon + nomM.operativo + nomM.amortiza_cupon)
-                    - (cobC.operativo + cobC.amortiza_cupon + cobM.operativo + cobM.amortiza_cupon),
-      de_su_cupo: (nomC.garantia_socio + nomM.garantia_socio) - (cobC.garantia_socio + cobM.garantia_socio)
+         dueño en la pantalla. Perdonar MORA le cuesta todo a Joan y nada al cupo
+         del socio, porque la mora nunca fue garantía. */
+      de_tu_ganancia: (nom.operativo + nom.amortiza_cupon) - (cob.operativo + cob.amortiza_cupon),
+      de_su_cupo: nom.garantia_socio - cob.garantia_socio
     };
   }
 
@@ -2317,6 +2372,7 @@
     prorrogaFueATiempo: prorrogaFueATiempo,
     costoDeProrroga: costoDeProrroga,
     moraDeProrroga: moraDeProrroga,
+    fechaDelCredito: fechaDelCredito,
     gananciaCobrada: gananciaCobrada,
     capitalActual: capitalActual,
     K: K,

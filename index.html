@@ -258,7 +258,8 @@ tbody tr:last-child td{font-weight:700}
         último día del mes, el día que a ti te pagan.</p>
       <p class="tenue">Y algo que aquí no pasa: <b>atrasarte no te tumba.</b> No pierdes la
         garantía que llevas —y tu nivel es tu garantía, así que tampoco lo pierdes—, y puedes
-        volver a pedir. Lo que pagas sigue sumando aunque lo pagues tarde.</p>
+        volver a pedir. El costo que pagas te suma igual aunque lo pagues tarde; el recargo por
+        el atraso, no.</p>
     </div>
   </section>
 
@@ -270,10 +271,11 @@ tbody tr:last-child td{font-weight:700}
         <h2 style="font-size:clamp(25px,4.6vw,34px);color:var(--blanco-laca)">Esto no es una
           promesa. Es la aritmética.</h2>
         <p class="tenue">Empiezas con <b style="color:var(--amarillo)">$100.000</b> de garantía
-          que te presta la plataforma solo por darnos tus datos. De ahí en adelante, el
-          <b>tres cuartas partes de cada costo que pagas en fecha</b> se te vuelven garantía tuya — la mitad de eso si
-          pagas tarde. Y tu cupo es tu garantía, uno a uno: lo que tienes es lo que puedes
-          pedir. Cinco créditos pagados a tiempo se ven así:</p>
+          que te presta la plataforma solo por darnos tus datos. De ahí en adelante,
+          <b>80 centavos de cada peso de costo que pagas</b> se te vuelven garantía tuya, lo pagues
+          en la fecha o después; lo único que no suma es el recargo por atraso. Y tu cupo es tu
+          garantía, uno a uno: lo que tienes es lo que puedes pedir. Cinco créditos pagados a
+          tiempo se ven así:</p>
       </div>
 
       <p class="tenue" style="font-size:14.5px;max-width:60ch">Cinco créditos pagados en fecha,
@@ -292,22 +294,26 @@ tbody tr:last-child td{font-weight:700}
             </tr>
           </thead>
           <tbody>
-            <tr><td>1º</td><td>$100.000</td><td class="col-extra">$20.000</td><td>+$15.000</td><td class="gan">$115.000</td></tr>
-            <tr><td>2º</td><td>$115.000</td><td class="col-extra">$23.000</td><td>+$17.250</td><td class="gan">$132.250</td></tr>
-            <tr><td>3º</td><td>$132.250</td><td class="col-extra">$26.450</td><td>+$19.838</td><td class="gan">$152.088</td></tr>
-            <tr><td>4º</td><td>$152.088</td><td class="col-extra">$30.418</td><td>+$22.813</td><td class="gan">$174.901</td></tr>
-            <tr><td>5º</td><td>$174.901</td><td class="col-extra">$34.980</td><td>+$26.235</td><td class="gan">$201.136</td></tr>
+            <!-- 26-sep-2026 — recalculada con el motor al 80% (decisión de Joan del
+                 23-sep). Estuvo tres días diciendo la del 75% mientras la prueba del
+                 motor ya tenía la nueva: pruebas/la-mora-vieja-se-queda.test.js
+                 compara ahora esta tabla con proyectarCrecimiento, peso a peso. -->
+            <tr><td>1º</td><td>$100.000</td><td class="col-extra">$20.000</td><td>+$16.000</td><td class="gan">$116.000</td></tr>
+            <tr><td>2º</td><td>$116.000</td><td class="col-extra">$23.200</td><td>+$18.560</td><td class="gan">$134.560</td></tr>
+            <tr><td>3º</td><td>$134.560</td><td class="col-extra">$26.912</td><td>+$21.530</td><td class="gan">$156.090</td></tr>
+            <tr><td>4º</td><td>$156.090</td><td class="col-extra">$31.218</td><td>+$24.974</td><td class="gan">$181.064</td></tr>
+            <tr><td>5º</td><td>$181.064</td><td class="col-extra">$36.213</td><td>+$28.970</td><td class="gan">$210.034</td></tr>
           </tbody>
         </table>
       </div>
 
       <p class="tenue angosto" style="margin-top:var(--e2)">La última columna dice las dos cosas
         a la vez y no es un descuido: <b>tu cupo es tu garantía</b>. No la multiplicamos por
-        nada. Cada crédito que pagas en fecha te la sube: <b>tres cuartas partes de lo que pagaste
-        de costo</b> se te vuelven tuyas.</p>
+        nada. Cada crédito que pagas te la sube: <b>80 centavos de cada peso que pagaste
+        de costo</b> se te vuelven tuyos.</p>
 
-      <p class="tenue angosto">De esos $201.136, hay
-        <b style="color:var(--amarillo)">$101.136 que te ganaste tú</b> pagando. Los otros
+      <p class="tenue angosto">De esos $210.034, hay
+        <b style="color:var(--amarillo)">$110.034 que te ganaste tú</b> pagando. Los otros
         $100.000 son los que te prestamos al principio. La diferencia importa, y ahora verás
         por qué.</p>
 
@@ -329,7 +335,7 @@ tbody tr:last-child td{font-weight:700}
           barato pero casi no te hace crecer. Ninguno de los dos es el bueno: depende de para
           qué necesitas la plata.</p>
         <p class="tenue">Los números de abajo son los del socio de la escalera de arriba:
-          <b>$201.136</b> de garantía, de los cuales <b>$101.136</b> se los ganó pagando. Fíjate
+          <b>$210.034</b> de garantía, de los cuales <b>$110.034</b> se los ganó pagando. Fíjate
           en el "pides hasta" de cada tarjeta, porque no es el mismo.</p>
       </div>
 
@@ -339,9 +345,9 @@ tbody tr:last-child td{font-weight:700}
           <p class="tasa">$40.000 <span style="font-size:16px;color:var(--gris)">por cada $200.000</span></p>
           <dl>
             <div class="fila"><dt>Plazo</dt><dd>Hasta tu quincena</dd></div>
-            <div class="fila"><dt>Pides hasta</dt><dd>$201.136</dd></div>
+            <div class="fila"><dt>Pides hasta</dt><dd>$210.034</dd></div>
             <div class="fila"><dt>Si pides $100.000</dt><dd>cuesta $20.000</dd></div>
-            <div class="fila"><dt>Tu garantía sube</dt><dd>+$15.000</dd></div>
+            <div class="fila"><dt>Tu garantía sube</dt><dd>+$16.000</dd></div>
           </dl>
           <p class="nota">Cuesta más, pero <b>es el que te hace crecer</b>: va contra toda tu
             garantía y cada uno que pagas en fecha te sube el cupo.</p>
@@ -363,13 +369,13 @@ tbody tr:last-child td{font-weight:700}
           <p class="tasa">$15.000 <span style="font-size:16px;color:var(--gris)">al mes por cada $300.000</span></p>
           <dl>
             <div class="fila"><dt>Plazo</dt><dd>De 1 a 6 meses</dd></div>
-            <div class="fila"><dt>Pides hasta</dt><dd>$101.136</dd></div>
+            <div class="fila"><dt>Pides hasta</dt><dd>$110.034</dd></div>
             <div class="fila"><dt>$100.000 a 6 meses</dt><dd>$21.666 al mes</dd></div>
             <div class="fila"><dt>Tu garantía sube</dt><dd>+$6.000</dd></div>
           </dl>
           <p class="nota">Ese mismo $100.000 cuesta $30.000 en total, no $20.000 cada quincena.
             Pero <b>casi no crece tu garantía</b> —te deja 20 centavos por peso de costo, no
-            75— y mientras lo estás pagando tu cupo quincenal baja.</p>
+            80— y mientras lo estás pagando tu cupo quincenal baja.</p>
         </article>
       </div>
 
@@ -393,7 +399,7 @@ tbody tr:last-child td{font-weight:700}
         sin estudio de crédito.</p>
       <p class="tenue">Si te atrasas, cada día de atraso suma un recargo sobre el capital, que ves en pesos en tu app. Si no alcanzas a
         pagar todo el día del corte, puedes dejar una prórroga o pedir un plan de pagos en tres
-        cuotas — y las dos cosas también te suman garantía.</p>
+        cuotas — y las dos cosas también te suman garantía por el costo que pagues; el recargo, no.</p>
       <div class="aviso ambar">
         <b>Antes de pedir, haz la cuenta.</b> Un crédito de quince días es plata cara:
         es para resolver algo puntual entre quincenas, no para vivir de él. Si ya tienes tres
@@ -431,9 +437,9 @@ tbody tr:last-child td{font-weight:700}
         <div class="paso">
           <div class="n" aria-hidden="true"></div>
           <h3>Pagas y creces</h3>
-          <p>Pagando en fecha, tres cuartas partes de lo que pagas en costos se te vuelven garantía — el doble
-            que pagando tarde. Y un crédito que ya se atrasó suma la mitad aunque después lo
-            pongas al día: la prórroga te compra tiempo, no puntualidad.</p>
+          <p>De cada peso que pagas en costos, 80 centavos se te vuelven garantía, en la fecha o
+            después. Lo que no suma es el recargo por atraso: pagar tarde no te quita nada, pero te
+            sale más caro.</p>
         </div>
       </div>
     </div>

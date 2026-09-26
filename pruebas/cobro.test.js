@@ -59,20 +59,36 @@ function recortarFuncion(nombre) {
   return FUENTE.slice(i + 1, j + 3);
 }
 
-/* El entorno mínimo que esas dos funciones tocan: el motor, el puente (solo para
-   el cupón pendiente) y socioDe/DB. Nada más. */
-function armarEntorno(cuponPendiente) {
+/* El entorno que esas dos funciones tocan: el motor, el puente y socioDe/DB.
+
+   26-sep-2026 — AQUÍ VA EL PUENTE DE VERDAD. Hasta hoy iba uno de mentira con
+   solo `contabilidadCupon`, porque el espejo hacía la cuenta del cobro él mismo:
+   era una copia de puente.cuentasDelCobro, en contra de su propia regla 3. Esa
+   copia se quedó atrás cuando cambió la regla de la mora y le prometía al socio
+   garantía por ella. Ahora el espejo le pregunta al puente (`P.cuentasDelCobro`),
+   así que el entorno tiene que traer el puente entero.
+   `cuponPendiente` se queda en la firma para no tocar a quien llama, pero ya no
+   cambia ninguna cifra: desde el 23-sep el cupón no se amortiza. */
+function armarEntorno(cuponPendiente, db) {
+  const PU = require('../app/puente.js');
   const fuente = recortarFuncion('cuentasDelCobro') + '\n' + recortarFuncion('repartoDelDescuento');
   const fabrica = new Function('M', 'P', 'DB', 'socioDe', 'COP',
     fuente + '\nreturn {cuentasDelCobro: cuentasDelCobro, repartoDelDescuento: repartoDelDescuento};');
   return fabrica(
     M,
-    { contabilidadCupon: () => ({ cupon_pendiente: cuponPendiente === undefined ? Infinity : cuponPendiente }) },
-    { prestamos: [], socios: [] },
+    PU,
+    db || { prestamos: [], socios: [] },
     () => ({ id: 's1' }),
     n => '$' + Math.round(Number(n) || 0)
   );
 }
+
+/* 26-sep-2026 — un crédito pedido DESPUÉS del 27-sep: estas cuentas vigilan la
+   regla de hoy en adelante, donde la mora no deja garantía. Un crédito sin
+   fecha se lee como de antes (MotorReglas.garantiaDeMoraPagada) y su mora
+   todavía suma: eso va en su propia prueba, con CREDITO_VIEJO. */
+const CREDITO_NUEVO = { id: 'p1', socioId: 's1', fechaDesembolso: '2026-10-01' };
+const CREDITO_VIEJO = { id: 'p1', socioId: 's1', fechaDesembolso: '2026-09-20' };
 
 /* Una liquidación como la que devuelve el puente, con lo que este frente usa. */
 function liq(capital, costo, mora, acredita) {
@@ -81,7 +97,8 @@ function liq(capital, costo, mora, acredita) {
     costo_total_pagado: costo + mora,
     total_a_pagar: capital + costo + mora,
     acredita_en_fecha: acredita !== false,
-    garantia_generada: M.acumularGarantia(costo + mora, acredita !== false)
+    /* Del COSTO, no de costo+mora: así lo liquida el puente desde el 26-sep. */
+    garantia_generada: M.acumularGarantia(costo, acredita !== false)
   };
 }
 
@@ -156,7 +173,7 @@ describe('lo que la pantalla le promete a Joan antes de confirmar', () => {
           const l = liq(200000, costo, mora, aTiempo);
           for (const dMora of [0, Math.floor(mora / 2), mora]) {
             for (const dCosto of [0, Math.floor(costo / 3), costo]) {
-              const q = E.cuentasDelCobro({ id: 'p1', socioId: 's1' }, l,
+              const q = E.cuentasDelCobro(CREDITO_NUEVO, l,
                 { condonaCosto: dCosto, condonaMora: dMora });
               assert.equal(q.de_tu_ganancia + q.de_su_cupo, dCosto + dMora,
                 `descuento ${dCosto}+${dMora} sobre costo ${costo} mora ${mora}: no cuadra`);
@@ -171,28 +188,50 @@ describe('lo que la pantalla le promete a Joan antes de confirmar', () => {
     /* Capital 200.000, costo 40.000, en fecha, le perdona 20.000 del costo. */
     const E = armarEntorno();
     const l = liq(200000, 40000, 0, true);
-    const q = E.cuentasDelCobro({ id: 'p1', socioId: 's1' }, l, { condonaCosto: 20000 });
+    const q = E.cuentasDelCobro(CREDITO_NUEVO, l, { condonaCosto: 20000 });
     assert.equal(q.ganancia_pago, 20000, 'gananciaPago tiene que ser lo que entró');
     assert.equal(q.total_a_recibir, 220000);
-    assert.equal(q.garantia, 15000);
-    assert.equal(q.garantia_sin_descuento, 30000);
-    assert.equal(q.de_tu_ganancia, 5000, 'perdonar 20.000 de costo le cuesta a Joan 5.000');
-    assert.equal(q.de_su_cupo, 15000, 'y al socio 15.000 de cupo');
+    /* 23-sep-2026 (decisión de Joan: 80% garantía / 20% empresa, antes 75/10/15):
+       entran 20.000 de costo → 16.000 de garantía; sin descuento eran 40.000 → 32.000.
+       El perdón de 20.000 se reparte igual que el costo: 20% de Joan, 80% del socio. */
+    assert.equal(q.garantia, 16000);
+    assert.equal(q.garantia_sin_descuento, 32000);
+    assert.equal(q.de_tu_ganancia, 4000, 'perdonar 20.000 de costo le cuesta a Joan 4.000');
+    assert.equal(q.de_su_cupo, 16000, 'y al socio 16.000 de cupo');
   });
 
   test('perdonar la MORA le cuesta a Joan proporcionalmente más que perdonar el costo', () => {
-    /* El dato que debería hacerlo dudar: el 47,5% de operativo de la mora es
-       casi todo suyo. No es una regla del código, es una consecuencia — pero si
-       algún día deja de cumplirse, la pantalla estaría diciendo otra cosa. */
+    /* 23-sep-2026 — las cifras cambiaron por decisión de Joan: la mora NO genera
+       garantía, va ÍNTEGRA a la empresa. Antes la mora se repartía (47,5% de
+       operativo) y perdonarla le quitaba 7.500 de cupo al socio. Ahora perdonar
+       la mora le cuesta a Joan el 100% de lo perdonado y al socio cero: la
+       garantía sale solo de los 40.000 de costo pactado, con o sin descuento.
+       Si la pantalla dijera otra cosa, le estaría prometiendo al socio cupo que
+       el puente no le va a acreditar. */
     const E = armarEntorno();
     const l = liq(200000, 40000, 20000, false);   // pagó tarde
-    const q = E.cuentasDelCobro({ id: 'p1', socioId: 's1' }, l, { condonaMora: 20000 });
+    const q = E.cuentasDelCobro(CREDITO_NUEVO, l, { condonaMora: 20000 });
     assert.equal(q.ganancia_pago, 40000);
-    assert.equal(q.garantia, 15000);
-    assert.equal(q.garantia_sin_descuento, 22500);
-    assert.equal(q.de_tu_ganancia, 12500);
-    assert.equal(q.de_su_cupo, 7500);
+    assert.equal(q.garantia, 32000, 'el 80% de los 40.000 de costo');
+    assert.equal(q.garantia_sin_descuento, 32000, 'con la mora cobrada tampoco suma: no genera garantía');
+    assert.equal(q.de_tu_ganancia, 20000, 'la mora era entera de Joan: perdonarla le cuesta toda');
+    assert.equal(q.de_su_cupo, 0, 'y al socio no le quita ni un peso de cupo');
     assert.ok(q.de_tu_ganancia > q.de_su_cupo);
+  });
+
+  test('en un crédito pedido ANTES del 27-sep, la mora todavía le suma al socio', () => {
+    /* 26-sep-2026 — punto 12 de los términos: el crédito se rige por las reglas
+       del día en que se pidió. Sus 20.000 de mora dejan el 0,375 de siempre
+       (7.500), y perdonarlos le cuesta eso al socio; el resto, a Joan. La
+       pantalla lo dice igual que el puente lo acredita. */
+    const E = armarEntorno();
+    const l = liq(200000, 40000, 20000, false);
+    const sin = E.cuentasDelCobro(CREDITO_VIEJO, l, {});
+    assert.equal(sin.garantia, 32000 + 7500);
+    const q = E.cuentasDelCobro(CREDITO_VIEJO, l, { condonaMora: 20000 });
+    assert.equal(q.garantia, 32000);
+    assert.equal(q.de_su_cupo, 7500, 'la parte de la mora que le iba a sumar');
+    assert.equal(q.de_tu_ganancia, 12500, 'y el resto de la mora era de Joan');
   });
 
   test('sin descuento, cuentasDelCobro devuelve exactamente lo de hoy', () => {
@@ -202,7 +241,7 @@ describe('lo que la pantalla le promete a Joan antes de confirmar', () => {
     for (const mora of [0, 20000, 160000]) {
       for (const aTiempo of [true, false]) {
         const l = liq(200000, 40000, mora, aTiempo);
-        const q = E.cuentasDelCobro({ id: 'p1', socioId: 's1' }, l, {});
+        const q = E.cuentasDelCobro(CREDITO_NUEVO, l, {});
         assert.equal(q.ganancia_pago, l.costo_total_pagado);
         assert.equal(q.garantia, l.garantia_generada);
         assert.equal(q.total_a_recibir, l.total_a_pagar);
@@ -217,7 +256,7 @@ describe('lo que la pantalla le promete a Joan antes de confirmar', () => {
     const E = armarEntorno();
     const l = liq(200000, 40000, 20000, false);
     /* Se topa contra lo causado: pedir más se recorta, no se cuela al capital. */
-    const q = E.cuentasDelCobro({ id: 'p1', socioId: 's1' }, l,
+    const q = E.cuentasDelCobro(CREDITO_NUEVO, l,
       { condonaCosto: 999999, condonaMora: 999999 });
     assert.equal(q.condonado_costo, 40000);
     assert.equal(q.condonado_mora, 20000);
@@ -231,7 +270,7 @@ describe('lo que la pantalla le promete a Joan antes de confirmar', () => {
     const E = armarEntorno();
     const l = liq(200000, 40000, 20000, true);
     for (const malo of [-50000, NaN, null, undefined, 'mucho']) {
-      const q = E.cuentasDelCobro({ id: 'p1', socioId: 's1' }, l,
+      const q = E.cuentasDelCobro(CREDITO_NUEVO, l,
         { condonaCosto: malo, condonaMora: malo });
       assert.equal(q.condonado_total, 0);
       assert.equal(q.ganancia_pago, 60000);
@@ -417,11 +456,13 @@ describe('la interfaz no promete lo que el código no cumple', () => {
  * 6. LA LEY TIENE UNA SOLA COPIA, Y EL ESPEJO LA SIGUE PESO A PESO — 7-sep-2026
  *
  * Las tres funciones de arriba se llevaron a app/puente.js para que el
- * computador no las pegara como segunda copia. El espejo conserva la suya por
- * ahora (es un archivo de 186 KB que se toca aparte), así que este contrato
- * exige que las dos contesten EXACTAMENTE lo mismo en toda la rejilla: el día
- * que se separen, celular y computador le dirán dos cifras distintas al mismo
- * cliente por el mismo pago, y eso se descubre acá y no con el cliente delante.
+ * computador no las pegara como segunda copia. El espejo conservaba la suya, y
+ * este contrato exigía que las dos contestaran EXACTAMENTE lo mismo.
+ * 26-sep-2026 — se separaron igual: cambió la regla de la mora y la copia del
+ * espejo siguió repartiéndola como costo. Ahora el espejo ya no tiene copia —
+ * le pregunta al puente— y este contrato pasa a vigilar que siga siendo así: si
+ * alguien le vuelve a poner una cuenta propia, las cifras se separan aquí y no
+ * con el cliente delante.
  * ======================================================================== */
 describe('la ley del cobro vive en el puente, y el espejo la sigue peso a peso', () => {
 
@@ -441,7 +482,7 @@ describe('la ley del cobro vive en el puente, y el espejo la sigue peso a peso',
   test('cuentasDelCobro: el puente y el espejo dan el mismo objeto, campo por campo', () => {
     let casos = 0;
     for (const db of [sinSocio, conSocio]) {
-      const E = armarEntorno(pendienteDe(db));
+      const E = armarEntorno(pendienteDe(db), db);
       for (const costo of COSTOS) for (const mora of MORAS) for (const acredita of [true, false]) {
         const l = liq(200000, costo, mora, acredita);
         for (const dCosto of [0, 1, costo, Math.floor(costo / 3), costo + 5]) {
@@ -498,9 +539,10 @@ describe('la ley del cobro vive en el puente, y el espejo la sigue peso a peso',
 /* ==========================================================================
  * 7. LAS CUENTAS DE UNA PRÓRROGA CON PERDÓN — 8-sep-2026
  *
- * Una prórroga son DOS movimientos con dos factores (el costo con el de la
- * puntualidad, la mora siempre a la mitad). cuentasDeLaProrroga los reparte
- * por separado. Lo que se exige acá: que la garantía que Joan ve antes de
+ * Una prórroga son DOS pedazos con dos reglas: el costo con el factor de la
+ * puntualidad, y la mora, que no deja nada en los créditos pedidos desde el
+ * 27-sep-2026 y deja su 0,375 en los de antes (MotorReglas.garantiaDeMoraPagada).
+ * cuentasDeLaProrroga los reparte por separado. Lo que se exige acá: que la garantía que Joan ve antes de
  * confirmar sea EXACTAMENTE la que el puente le va a acreditar al socio por el
  * movimiento guardado, que el descuento esté entero explicado, y que lo que
  * entra más lo perdonado sea lo causado.
@@ -516,16 +558,23 @@ describe('cuentasDeLaProrroga: dos movimientos, una sola verdad', () => {
 
   test('la garantía de la pantalla es la del movimiento guardado, y el descuento queda entero explicado', () => {
     let casos = 0;
+    /* 26-sep-2026 — la rejilla corre con un crédito de cada lado del 27-sep: en
+       el pedido antes, la mora de la prórroga todavía deja garantía (punto 12
+       de los términos); en el pedido después, ninguna. La pantalla tiene que
+       saberlo por la FECHA DEL CRÉDITO, igual que el puente, o le dice a Joan
+       una cifra y le acredita otra. */
+    const nuevo = Object.assign({}, credito, { fechaDesembolso: '2026-10-01', cicloActual: '2026-10-15' });
+    for (const cred of [credito, nuevo])
     for (const costo of COSTOS) for (const mora of MORAS) for (const aTiempo of [true, false]) {
       for (const dCosto of [0, 1, costo, Math.floor(costo / 3), costo + 5]) {
         for (const dMora of [0, 1, mora, Math.floor(mora / 2), mora + 5]) {
-          const q = PU.cuentasDeLaProrroga(db, credito, { costo, mora, acredita_en_fecha: aTiempo },
+          const q = PU.cuentasDeLaProrroga(db, cred, { costo, mora, acredita_en_fecha: aTiempo },
             { condonaCosto: dCosto, condonaMora: dMora });
           casos++;
           assert.equal(q.monto + q.condonado_total, costo + mora, 'lo que entra más lo perdonado no es lo causado');
           assert.equal(q.de_tu_ganancia + q.de_su_cupo, q.condonado_total, 'hay plata perdonada sin dueño');
-          const pr = { fecha: '2026-08-20', ciclo: '2026-08-15', monto: q.monto, mora: q.mora_cobrada, aTiempo };
-          assert.equal(q.garantia, PU.garantiaGanadaProrroga(pr, credito),
+          const pr = { fecha: '2026-10-20', ciclo: cred.cicloActual, monto: q.monto, mora: q.mora_cobrada, aTiempo };
+          assert.equal(q.garantia, PU.garantiaGanadaProrroga(pr, cred),
             `la garantía de la pantalla no es la del puente (costo ${costo} mora ${mora} perdón ${dCosto}/${dMora})`);
           assert.ok(q.garantia <= q.garantia_sin_descuento, 'un perdón le subió la garantía al socio');
         }

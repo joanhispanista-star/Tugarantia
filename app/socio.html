@@ -716,7 +716,7 @@ details[open] summary::after{content:' ↑'}
    app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
    de CACHE en sw.js). */
-var VERSION_APP = '2026-09-09';
+var VERSION_APP = '2026-09-26';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -824,6 +824,19 @@ var esc = function (s) {
 var pct = function (t) {
   var n = Math.round(Number(t || 0) * 10000) / 100;
   return String(n).replace('.', ',') + '%';
+};
+/* 26-sep-2026 — CUÁNTO SE VUELVE GARANTÍA, DICHO EN CENTAVOS. El socio no ve
+   porcentajes (8-sep), y esta app decía «tres cuartas partes» escrito a mano en
+   seis pantallas: cuando Joan subió el factor al 80% todas se quedaron
+   prometiendo el 75%. Ahora sale de la constante del motor. */
+var centavosDeGarantia = function () { return Math.round(M.FACTOR_GARANTIA * 100); };
+/* ¿El recargo de ESTE crédito deja garantía? Sí en los pedidos antes del
+   27-sep-2026 —siguen con su regla hasta terminar, punto 12 de los términos—,
+   no en los de ese día en adelante. Lo contesta el motor con la fecha del
+   crédito (sin ella lo lee como viejo, igual que el puente); sin crédito a la
+   vista, la regla de hoy. */
+var recargoSumaEn = function (c) {
+  return !!c && M.garantiaDeMoraPagada(100000, c.desembolso || null) > 0;
 };
 
 function hoyISO() { return fechaRel(0); }
@@ -1587,10 +1600,11 @@ function vistaInicio() {
       /* LA REGLA DEL PRODUCTO, EN UNA LÍNEA (5-ago-2026). Antes acá había que
          explicar niveles y factores para que el socio entendiera de dónde salía
          su cupo; desde que el cupo es la garantía uno a uno, la regla entera
-         cabe en un renglón y va donde primero se mira. El porcentaje sale del
-         motor (crecimiento_por_credito = 0,20 × 0,75), nunca escrito acá. */
+         cabe en un renglón y va donde primero se mira.
+         26-sep-2026: decía «tres cuartas partes», escrito a mano aunque este
+         comentario dijera lo contrario. Ahora los centavos salen del motor. */
       '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
-      'Y cada crédito que pagas en fecha te sube el cupo: <b>tres cuartas partes de lo que pagaste de costo</b> se te vuelven garantía tuya.</div>' +
+      'Y cada crédito que pagas te sube el cupo: <b>' + centavosDeGarantia() + ' centavos de cada peso de costo</b> se te vuelven garantía tuya.</div>' +
       (S.maxRespaldado > 0
         ? '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
           'Y con la garantía que ya te ganaste puedes pedir hasta ' + COP(S.maxRespaldado) +
@@ -1617,7 +1631,7 @@ function vistaInicio() {
           garantía ES el cupo, y decirlo así ahorra la pantalla entera de
           explicación que antes hacía falta. */
        '<p class="sub">Es tu historial hecho número, y es tu cupo: puedes pedir exactamente ' +
-       'lo que tienes. No se retira, y cada crédito que pagas en fecha la sube: tres cuartas partes de lo que pagaste de costo se te vuelven garantía.</p>' +
+       'lo que tienes. No se retira, y cada crédito que pagas la sube: ' + centavosDeGarantia() + ' centavos de cada peso de costo se te vuelven garantía.</p>' +
        '<div class="barra"><i style="width:' + progresoNivel() + '%"></i></div>' +
        '<div class="muted" style="font-size:13px;margin-top:var(--e2)">' + textoProximoNivel() + '</div>' +
        '</div>';
@@ -1750,10 +1764,14 @@ function bloquePlanDePagos() {
        plan atrasado, sus cuotas acreditan al factor de mora (§4-bis). Suma, y eso
        es lo que importa acá, pero no se promete el factor completo que no va a
        llegar. Los dos porcentajes salen de las constantes —hoy 75% y 37,5%—, así
-       que esta pantalla no se puede quedar en el reparto viejo. */
+       que esta pantalla no se puede quedar en el reparto viejo.
+       26-sep-2026 — y se quedó igual: decía «tres cuartas partes… la mitad de
+       eso», escrito a mano. Desde el 23-sep el costo suma lo mismo en fecha y
+       tarde, y el recargo por atraso no suma. */
     '<div class="muted" style="font-size:13px;margin-top:var(--e3)">Todo lo que pagues en el plan te ' +
-    'sigue sumando garantía: tres cuartas partes del costo si el crédito nunca se ' +
-    'atrasó, la mitad de eso si venía atrasado. Y el plan es una salida, no ' +
+    'sigue sumando garantía: ' + centavosDeGarantia() + ' centavos de cada peso de costo, como en ' +
+    'cualquier crédito.' + (recargoSumaEn(c) ? '' : ' El recargo, si te atrasas en una cuota, no suma.') +
+    ' Y el plan es una salida, no ' +
     'un castigo: no pierdes un peso de la garantía que llevas construida.</div></div>';
 }
 
@@ -1786,14 +1804,19 @@ function verReglas() {
      regla entera. "Pagando en la fecha suma completo" es verdad del crédito que
      nunca se atrasó; el que ya se atrasó suma la mitad hasta que termine,
      aunque el corte que le compró la prórroga se pague puntual. Sin esto, el
-     acuerdo prometía algo que la cuenta no iba a dar. */
+     acuerdo prometía algo que la cuenta no iba a dar.
+     26-sep-2026 — y ahora prometía de MENOS: «las tres cuartas partes son del
+     crédito que nunca se atrasó; si se atrasa, suma la mitad». Desde el 23-sep
+     el costo suma lo mismo en fecha y tarde (decisión de Joan). Lo que hay que
+     decir de frente es lo que sí cuesta atrasarse: el recargo, que no se
+     vuelve garantía. Y lo ya ganado —también lo que dejó el recargo pagado
+     antes del 27-sep— no se toca. */
   h += bloque('De dónde sale la garantía', r.garantia.texto,
-    '<div class="aviso"><b>Y el atraso no se borra aplazando.</b><br>' +
-    'Las tres cuartas partes son del crédito que <b>nunca</b> se atrasó. Si uno se ' +
-    'atrasa, desde ahí suma la mitad de eso hasta que lo termines, aunque ' +
-    'pidas una prórroga y pagues puntual la fecha nueva: la prórroga te compra tiempo, que es para ' +
-    'lo que está, no te devuelve la puntualidad. Lo que ya ganaste no se toca nunca, y el crédito ' +
-    'siguiente arranca otra vez completo.</div>');
+    '<div class="aviso"><b>Atrasarte no te quita garantía, pero te sale más caro.</b><br>' +
+    'El recargo por los días de atraso lo pagas aparte y, en los créditos que pidas desde el ' +
+    '27 de septiembre de 2026, no se te vuelve garantía, tampoco si lo pagas con una prórroga. ' +
+    'Los que pediste antes siguen con su regla hasta que los termines, y lo que ya ganaste no se ' +
+    'toca nunca.</div>');
   h += bloque('Y crece dando tus datos', r.cupon.texto);
   h += bloque('Y crece trayendo gente', r.referidos.texto);
   if (r.respaldado) h += bloque('El préstamo con garantía', r.respaldado.texto);
@@ -1820,11 +1843,12 @@ function verReglas() {
   h += '<div class="card"><div class="etq">Si te atrasas</div>' +
     '<p style="margin:var(--e2) 0 0;font-size:14.5px">' + esc(r.mora.texto) + '</p>' +
     /* La prórroga se decide acá, así que acá se dice lo único que no se ve en
-       su precio: mueve la fecha, no limpia el historial del crédito (§4-bis). */
+       su precio. 26-sep-2026: decía que el crédito atrasado «sigue sumando la
+       mitad» aunque se prorrogue; desde el 23-sep suma lo mismo. Lo que la
+       prórroga no hace es volver garantía el recargo. */
     '<div class="aviso" style="margin-top:var(--e3)">' + esc(r.prorroga.texto) +
-    ' Lo que la prórroga <b>no</b> hace es borrar el atraso: si el crédito ya se atrasó, sigue ' +
-    'sumando la mitad de garantía hasta que lo termines, aunque ' +
-    'pagues puntual la fecha nueva.</div></div>';
+    ' Lo que la prórroga <b>no</b> hace es volver garantía el recargo: en los créditos pedidos ' +
+    'desde el 27 de septiembre de 2026, el costo de la quincena te suma y el recargo por atraso no.</div></div>';
 
   /* Va pegado al de arriba a propósito: el texto del motor nombra el plan y su
      5%, y el precio completo tiene que leerse en el mismo tirón, no dos
@@ -1864,12 +1888,12 @@ function textoProximoNivel() {
     return 'Estás en el nivel más alto. Tu cupo no depende del nivel: es tu ' +
       'garantía, uno a uno.';
   }
-  /* La puntualidad no desapareció del mapa: paga EN PESOS (75% del costo
-     contra 37,5%), así que decir «cada pago en fecha te acerca al doble de
-     velocidad» es una cuenta del motor, no una arenga. */
+  /* 26-sep-2026 — decía «cada pago en fecha te acerca al doble de velocidad
+     que uno tardío» (75% contra 37,5%). Desde el 23-sep valen lo mismo, así
+     que la frase le prometía al tardío menos de lo que recibe. */
   return 'Te faltan <b>' + esc(COP(sig.faltan)) + '</b> de garantía para pasar a <b>' +
-    esc(sig.nombre) + '</b>. Cada pago en fecha te acerca al doble de velocidad ' +
-    'que uno tardío.';
+    esc(sig.nombre) + '</b>. Cada crédito que pagas te acerca: ' + centavosDeGarantia() +
+    ' centavos de cada peso de costo.';
 }
 
 /* ============ QUÉ CICLO SE ESTÁ COBRANDO, Y A QUÉ PRECIO ============
@@ -1977,17 +2001,17 @@ function liquidacion(c, fecha) {
   var vieneDeMora = !!(c && c.estuvo_en_mora);
   /* Lo que acredita el pago que se está liquidando, y lo que acreditaría uno
      puntual. Con mora en la historia, ni pagando hoy en fecha vuelve el factor
-     completo: el techo honesto es la mitad. */
+     completo. (Desde el 23-sep los dos factores valen 0,80 y la respuesta es la
+     misma; la pregunta se sigue haciendo por si un día vuelven a separarse.) */
   var acreditaSi = function (enFecha) {
     return M.cuentaComoPuntualParaGarantia({
       pagado_en_fecha: enFecha, credito_estuvo_en_mora: vieneDeMora });
   };
   /* Lo que sumaría pagando TARDE, en pesos. Va en pesos y no como "la mitad"
      porque las dos cifras son dos constantes distintas del motor y ya cambiaron
-     una vez: FACTOR_GARANTIA y FACTOR_GARANTIA_MORA hoy son 0,75 y 0,375, o sea
-     mitad y doble exactos, pero eso es una coincidencia de dos números, no una
-     regla. Diciéndolo en pesos la frase no puede quedar prometiendo una relación
-     que dejó de existir. */
+     dos veces: eran 0,75 y 0,375 (mitad y doble exactos) y desde el 23-sep son
+     0,80 las dos. Diciéndolo en pesos la frase no puede quedar prometiendo una
+     relación que dejó de existir — que es justo lo que pasó con «el doble». */
   var garantiaSiTarde = function (costoBase) { return M.acumularGarantia(costoBase, false); };
 
   /* HOY, y con el paquete al día: se muestra lo que trae, sin tocarlo. Es la
@@ -2000,7 +2024,9 @@ function liquidacion(c, fecha) {
              acredita_en_fecha: acreditaSi(diasCausados === 0),
              costo_total_pagado: costo + moraCausada,
              total_a_pagar: Math.max(0, Number(c.total_hoy) || 0),
-             garantia_generada: M.acumularGarantia(costo + moraCausada, acreditaSi(diasCausados === 0)),
+             /* 26-sep-2026: la mora solo suma si el crédito se pidió antes del 27-sep. */
+             garantia_generada: M.acumularGarantia(costo, acreditaSi(diasCausados === 0)) +
+                                M.garantiaDeMoraPagada(moraCausada, (c && c.desembolso) || null),
              garantia_si_puntual: M.acumularGarantia(costo, acreditaSi(true)),
              garantia_si_tarde: garantiaSiTarde(costo),
              credito_estuvo_en_mora: vieneDeMora };
@@ -2016,8 +2042,10 @@ function liquidacion(c, fecha) {
       /* `estuvo_en_mora` viaja DENTRO del crédito: es de donde el motor lo lee
          (§4-bis). Sin él, el motor asume el crédito recién desembolsado y
          devuelve el factor completo. */
+      /* Y la fecha en que se pidió (26-sep-2026): decide si el recargo deja garantía. */
       var liq = M.liquidarCredito({ capital: capital, costo: costo, fecha_corte: corte,
-                                    estuvo_en_mora: vieneDeMora }, cuando, opciones);
+                                    estuvo_en_mora: vieneDeMora,
+                                    fecha_desembolso: (c && c.desembolso) || null }, cuando, opciones);
       liq.credito_estuvo_en_mora = vieneDeMora;
       liq.garantia_si_tarde = garantiaSiTarde(liq.costo);
       return liq;
@@ -2034,7 +2062,8 @@ function liquidacion(c, fecha) {
            acredita_en_fecha: acreditaSi(dias === 0),
            costo_total_pagado: costo + recargo,
            total_a_pagar: capital + costo + recargo,
-           garantia_generada: M.acumularGarantia(costo + recargo, acreditaSi(dias === 0)),
+           garantia_generada: M.acumularGarantia(costo, acreditaSi(dias === 0)) +
+                              M.garantiaDeMoraPagada(recargo, (c && c.desembolso) || null),
            garantia_si_puntual: M.acumularGarantia(costo, acreditaSi(true)),
            garantia_si_tarde: garantiaSiTarde(costo),
            credito_estuvo_en_mora: vieneDeMora };
@@ -2108,17 +2137,20 @@ function tarjetaActivo(c) {
          Y las dos ramas dicen los pesos de las DOS opciones, no "el doble": los
          factores son dos constantes que ya cambiaron una vez (90/45 → 75/37,5) y
          la relación entre ellas no es una regla del acuerdo. */
-      (q.credito_estuvo_en_mora
-        ? '<div class="aviso ambar"><b>Este crédito ya se atrasó una vez, y eso no se borra.</b><br>' +
-          'Pagando el ' + fmtFecha(c.corte) + ' o antes, tu cupo sube ' + COP(q.garantia_si_puntual) +
-          ': lo que suma un crédito que ya se atrasó, no lo que sumaría uno que nunca se atrasó. ' +
-          'La prórroga te compró tiempo, no la puntualidad. Págalo en fecha igual —te lo quitas de ' +
-          'encima— y el siguiente, si no se atrasa nunca, ya te vuelve a sumar completo.</div>'
-        : '<div class="aviso"><b>La puntualidad se premia desde el primer día.</b><br>' +
-          'Pagando el ' + fmtFecha(c.corte) + ' o antes, tu cupo sube ' + COP(q.garantia_si_puntual) +
-          '. Pagando tarde sube ' + COP(q.garantia_si_tarde) + ', que también suma. Y si te atrasas ' +
-          'una vez, este crédito sigue sumando lo de pagar tarde hasta que lo termines: aplazarlo ' +
-          'no lo vuelve a poner en cero.</div>');
+      /* 26-sep-2026 — eran dos textos: al que venía de mora le decía que sumaba
+         menos aunque pagara en fecha, y al otro, que pagando tarde sumaba menos.
+         Desde el 23-sep suma lo mismo en los dos casos (decisión de Joan): lo
+         único que separa pagar en fecha de pagar tarde es el recargo, que no se
+         vuelve garantía. Las dos cifras siguen saliendo de la liquidación. */
+      '<div class="aviso"><b>Pagar en fecha te sale más barato.</b><br>' +
+        'Pagando el ' + fmtFecha(c.corte) + ' o antes, tu cupo sube ' + COP(q.garantia_si_puntual) +
+        (recargoSumaEn(c)
+          /* Crédito de antes del 27-sep: su recargo todavía suma una parte, así
+             que no se le promete una cifra «si te atrasas» que no la cuenta. */
+          ? '. Si te atrasas pagas además un recargo por cada día, que cuesta mucho más de lo ' +
+            'que te suma.</div>'
+          : '. Si te atrasas sube ' + COP(q.garantia_si_tarde) + ', pero pagas además un recargo por ' +
+            'cada día, y ese recargo no te suma garantía.</div>');
   }
   if (ciclo.en_plan) {
     /* La cuota NO es la deuda: el saldo del crédito entero viene aparte en el
@@ -2246,16 +2278,16 @@ function setModo(m) {
   if (m !== 'quincenal' && m !== 'respaldado') return;
   if (m === 'respaldado' && S.maxRespaldado <= 0) {
     var a = $('calcAviso');
-    /* §4-bis: el factor completo es del crédito que nunca se atrasó, así que la
-       frase que lo promete tiene que decir a cambio de qué. Los dos porcentajes
-       salen de las constantes (hoy 75% y 37,5%), nunca escritos acá. */
-    if (a) a.innerHTML = 'Todavía no tienes garantía ganada. Se gana pagando en fecha: cada crédito ' +
-      'quincenal que pagas sin haberte atrasado te deja tres cuartas partes del costo. Si se atrasó alguna vez, la mitad de eso.';
+    /* 26-sep-2026: decía «se gana pagando en fecha… tres cuartas partes… si se
+       atrasó, la mitad de eso». Desde el 23-sep suma lo mismo pague cuando
+       pague; lo que no suma es el recargo por atraso. */
+    if (a) a.innerHTML = 'Todavía no tienes garantía ganada. Se gana pagando tus créditos quincenales: ' +
+      'de cada peso de costo, ' + centavosDeGarantia() + ' centavos se te vuelven garantía.';
     return;
   }
   /* Tiene garantía ganada, pero no le llega al mínimo. Es un estado NORMAL y va a
-     durar varias quincenas: con el reparto nuevo la ganada sube el 75% del costo,
-     así que un socio que pide 100.000 suma 15.000 por crédito y tarda cuatro en
+     durar varias quincenas: con el reparto de hoy la ganada sube el 80% del costo,
+     así que un socio que pide 100.000 suma 16.000 por crédito y tarda cuatro en
      llegar a los 50.000. Sin este corte, la barra queda de un solo punto —min y max
      pegados en la ganada— y el socio ve un control muerto sin entender por qué.
      Se le dice cuánto le falta, que es lo único útil que se le puede decir. */
@@ -2263,8 +2295,8 @@ function setModo(m) {
     var av = $('calcAviso');
     if (av) av.innerHTML = 'Llevas <b>' + COP(S.maxRespaldado) + '</b> de garantía ganada, y este ' +
       'préstamo arranca en ' + COP(M.MONTO_MINIMO) + '. Te faltan <b>' +
-      COP(M.MONTO_MINIMO - S.maxRespaldado) + '</b>, que se juntan pagando en fecha: cada crédito ' +
-      'quincenal te deja tres cuartas partes de su costo.';
+      COP(M.MONTO_MINIMO - S.maxRespaldado) + '</b>, que se juntan pagando tus créditos: cada crédito ' +
+      'quincenal te deja ' + centavosDeGarantia() + ' centavos de cada peso de costo.';
     return;
   }
   if (m === MODO) return;
@@ -2413,7 +2445,7 @@ function salidaCalc(s) {
        Se dice lo que la cifra dice: el 15% de lo que pide, que es la regla del
        producto entera. */
     '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
-      'desde ' + COP(s.cupo) + ': pagarlo en fecha te sube el cupo — tres cuartas partes del costo se te vuelven garantía.</div>' +
+      'desde ' + COP(s.cupo) + ': pagarlo te sube el cupo — ' + centavosDeGarantia() + ' centavos de cada peso de costo se te vuelven garantía.</div>' +
     fila(S.gd.comprometida > 0 ? 'Tu garantía libre hoy' : 'Tu garantía hoy', COP(s.garantia_disponible)) +
     fila('Suma este crédito', '+' + COP(s.garantia_que_deja)) +
     fila('Quedarías con', COP(s.garantia_despues)) +
@@ -2752,16 +2784,18 @@ function armarICS(c) {
        pruebas/motor.test.js fija la frase "el doble de lo que sube pagando tarde"
        en esta función, así que quien la quite tiene que tocar la prueba en el
        mismo movimiento — y ese es justo el momento de comprobar si los dos
-       factores siguen siendo mitad y doble. */
+       factores siguen siendo mitad y doble.
+       26-sep-2026 — ya no lo son: desde el 23-sep valen lo mismo, y «el doble»
+       le prometía al que paga en fecha una diferencia que no existe. La prueba
+       se reescribió en el mismo movimiento, como pedía este comentario. */
     (enMoraElCiclo(q)
       ? 'Aunque te atrases sigues siendo socio, y este pago te suma ' +
         COP(q.garantia_generada) + ' de garantía. '
-      : q.credito_estuvo_en_mora
-        ? 'Pagando en fecha tu cupo sube ' + COP(q.garantia_si_puntual) +
-          '. Es lo que suma un crédito que ya se atrasó una vez, y eso no se borra: la prórroga ' +
-          'compró tiempo, no puntualidad. '
-        : 'Pagando en fecha tu cupo sube ' + COP(q.garantia_si_puntual) +
-          ', el doble de lo que sube pagando tarde (' + COP(q.garantia_si_tarde) + '). ') +
+      : 'Pagando en fecha tu cupo sube ' + COP(q.garantia_si_puntual) + ' y no pagas recargo. ' +
+        (recargoSumaEn(c)
+          ? 'Si te atrasas, el recargo de cada día corre por tu cuenta. '
+          : 'Si te atrasas sube ' + COP(q.garantia_si_tarde) +
+            ', pero el recargo de cada día corre por tu cuenta y no te suma. ')) +
     /* La salida que DE VERDAD tiene este crédito: la decide salidasDelCredito con
        los datos del paquete, no esta línea. Antes se ofrecían las dos siempre. */
     fraseSalidas(c) + 'Y aunque te atrases sigues siendo socio.';
@@ -3047,7 +3081,7 @@ function vistaGarantia() {
     '<div class="muted" style="font-size:13px;margin-top:var(--e3)">Tu cupo hoy es <b>' +
       COP(M.calcularCupo(gd.base_cupo, S.nivel)) + '</b>' +
       (gd.comprometida > 0 ? ', con lo que tienes libre' : '') +
-      ', y sube con cada crédito que pagues en fecha: tres cuartas partes del costo se te vuelven garantía. La plataforma presta hasta <b>' +
+      ', y sube con cada crédito que pagues: ' + centavosDeGarantia() + ' centavos de cada peso de costo se te vuelven garantía. La plataforma presta hasta <b>' +
       COP(M.CUPO_MAXIMO) + '</b>.</div>' +
     '</div>';
 

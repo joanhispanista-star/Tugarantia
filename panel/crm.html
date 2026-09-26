@@ -989,8 +989,12 @@ const TASA_TECHO_PCT=Math.round((MotorReglas.TASA_CREDITO_MAXIMA||MotorReglas.TA
    `PCTN` da el porcentaje con coma decimal (37,5%), que es como se escribe acá.
    ========================================================================= */
 const PCTN=f=>(Math.round(f*1000)/10).toLocaleString('es-CO',{maximumFractionDigits:1})+'%';
-const PCT_GARANTIA=PCTN(MotorReglas.FACTOR_GARANTIA);            // 75%
-const PCT_GARANTIA_MORA=PCTN(MotorReglas.FACTOR_GARANTIA_MORA);  // 37,5%
+const PCT_GARANTIA=PCTN(MotorReglas.FACTOR_GARANTIA);            // 80% desde el 23-sep
+const PCT_GARANTIA_MORA=PCTN(MotorReglas.FACTOR_GARANTIA_MORA);  // 80% también: pague cuando pague
+/* 26-sep-2026: con los dos factores iguales, las frases «el 80% de lo que te
+   pagaron en fecha, el 80% de lo tarde» son verdad pero no dicen nada, y dan a
+   entender una diferencia que no hay. Donde se nombran los dos, se pregunta esto. */
+const MISMO_FACTOR=PCT_GARANTIA===PCT_GARANTIA_MORA;
 const PCT_CUPON=PCTN(MotorReglas.REPARTO_COSTO.cupon);           // 15%
 const PCT_OPERATIVO=PCTN(MotorReglas.REPARTO_COSTO.operativo);   // 10%
 const PCT_GARANTIA_RESP=PCTN(MotorReglas.FACTOR_GARANTIA_RESPALDADO);
@@ -5217,9 +5221,9 @@ function calcPago(id){
       ${liq.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">Recargo por ${liq.dias_mora} día(s) de mora · 1% diario</span><span class="v" style="color:var(--ambar)">${COP(liq.recargo_mora)}</span></div>`:''}
       ${filaDesc}
       <div class="calc-row"><span><b>${c?'Total de la cuota':'Total para saldar'}</b></span><span class="v"><b>${COP(total)}</b></span></div>
-      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(garantia)}${liq.acredita_en_fecha?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${liq.pago_a_tiempo?'porque el crédito ya venía de una mora':'por pagar tarde'})</span>`}</span></div>
+      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(garantia)}${(liq.acredita_en_fecha||PCT_GARANTIA_MORA===PCT_GARANTIA)?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${liq.pago_a_tiempo?'porque el crédito ya venía de una mora':'por pagar tarde'})</span>`}</span></div>
     </div>
-    ${s?bloqueReparto(s,c?liq.costo_total_pagado:q.ganancia_pago,liq.acredita_en_fecha,'quincenal'):''}
+    ${s?bloqueReparto(s,c?liq.costo:q.costo_cobrado,liq.acredita_en_fecha,'quincenal',c?liq.recargo_mora:q.mora_cobrada,PUENTE.fechaDelCredito(p)):''}
     ${avisoDesc}${avisoAcuerdo}${aviso}`;
   /* El monto: se muestra, y se le pone el valor por defecto SOLO mientras Joan
      no lo haya tocado. Si ya lo tocó, lo que él escribió manda. */
@@ -5464,7 +5468,7 @@ function calcProrroga(id,p,liq,e,s){
       ${pr0.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">Recargo por ${liq.dias_mora} día(s) de mora · 1% diario</span><span class="v" style="color:var(--ambar)">${COP(pr0.recargo_mora)}</span></div>`:''}
       ${q.condonado_total?`<div class="calc-row"><span style="color:var(--ambar)">Descuento <span class="muted">(${partes.join(' + ')})</span></span><span class="v" style="color:var(--ambar)">− ${COP(q.condonado_total)}</span></div>`:''}
       <div class="calc-row"><span><b>Paga por la prórroga</b></span><span class="v"><b>${COP(q.monto)}</b></span></div>
-      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(q.garantia)}${q.condonado_total?` <span class="muted">(sin perdón serían ${COP(q.garantia_sin_descuento)})</span>`:(pr0.acredita_en_fecha?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${pr0.a_tiempo?'porque el crédito ya venía de una mora':'por dejarla tarde'})</span>`)}</span></div>
+      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(q.garantia)}${q.condonado_total?` <span class="muted">(sin perdón serían ${COP(q.garantia_sin_descuento)})</span>`:(pr0.acredita_en_fecha||MISMO_FACTOR?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${pr0.a_tiempo?'porque el crédito ya venía de una mora':'por dejarla tarde'})</span>`)}</span></div>
       <div class="calc-row"><span>Prórroga</span><span class="v">${pr0.prorrogas_usadas+1} de ${pr0.prorrogas_permitidas}${pr0.prorrogas_restantes?'':' · <b>la última</b>'}</span></div>
     </div>
     ${q.condonado_total?`<div class="alerta warn solo-tuyo"><b class="tit-solo">Solo para ti · lo que cuesta este perdón</b>
@@ -5683,6 +5687,10 @@ function creditoMotor(p){
        el mismo agujero, un movimiento más allá. */
     costo:Math.round(K(p)),
     fecha_corte:PUENTE.corteDelCredito(p),
+    /* 26-sep-2026: el día en que se pidió. Decide si la mora del crédito deja
+       garantía (MotorReglas.FECHA_MORA_SIN_GARANTIA); sin él el motor lo lee
+       como crédito viejo y le promete garantía por la mora a uno nuevo. */
+    fecha_desembolso:PUENTE.fechaDelCredito(p),
     estado:p.pagado?'pagado':(tienePlan(p)?'plan_de_pagos':'en_corte'),
     prorrogas_usadas:(p.prorrogas||[]).length,
     /* 5-ago-2026 §4-bis — LA GARANTÍA COMPLETA ES DEL QUE NUNCA SE ATRASÓ, y el
@@ -5798,7 +5806,7 @@ function registrarProrroga(id,o){
       +(perd?`• DESCUENTO: ${COP(perd)} · motivo: ${motivo}\n`:'')+`\n`
       +`El capital pasa a la quincena del ${fmtFecha(r.fecha_corte_nueva)}.\n`
     : `Registrar prórroga de ${COP(r.total_a_pagar)} a ${p.socioNombre} y pasar el pago a ${fmtFecha(r.fecha_corte_nueva)}.\n`)
-    +`Le deja ${COP(r.garantia_generada)} de garantía${r.a_tiempo?'':' (el '+PCT_GARANTIA_MORA+', por dejarla tarde)'}.\n`
+    +`Le deja ${COP(r.garantia_generada)} de garantía${r.a_tiempo||MISMO_FACTOR?'':' (el '+PCT_GARANTIA_MORA+', por dejarla tarde)'}.\n`
     +`Es su prórroga ${r.prorrogas_usadas+1} de ${r.prorrogas_permitidas} (nivel ${r.nivel_socio}); `
     +(r.prorrogas_restantes?`le quedaría ${r.prorrogas_restantes}.`:'después de esta ya no le quedan: la salida sería el plan de pagos.')
     +` ¿Lo registro?`))return;
@@ -6912,16 +6920,28 @@ function fondoCuponCartera(){
    producto: 'quincenal' | 'respaldado'.
    `cuponPendiente` es lo que le falta devolver HOY, para que el motor sepa si
    este 15% todavía recupera capital o ya es ganancia. */
-function bloqueReparto(s,costo,aTiempo,producto){
+/* 26-sep-2026 — la MORA llega aparte (`mora`) y el motor la manda entera a tu
+   lado. Antes se le pasaba costo+mora en un solo número y este recuadro te
+   decía que el 80% de la mora se le volvía garantía al socio. Y ya no nombra el
+   cupón que «te devuelven» cuando no te devuelven nada: desde el 23-sep el
+   cupón se regala y no se amortiza (decisión de Joan). */
+/* Y `fechaDelCredito` (el día en que se pidió): en los créditos de antes del
+   27-sep parte de la mora le sigue sumando al socio (MotorReglas.
+   FECHA_MORA_SIN_GARANTIA), y el recuadro tiene que decirlo o te cuenta como
+   tuya plata que el puente le acredita a él. */
+function bloqueReparto(s,costo,aTiempo,producto,mora,fechaDelCredito){
   const f=fondoCuponDe(s);
-  const r=MotorReglas.repartirCosto(costo,{aTiempo:aTiempo!==false,producto:producto||'quincenal',cuponPendiente:f.cupon_pendiente});
-  const ganancia=r.ganancia_cupon
-    ? ` De esos ${COP(r.operativo)}, <b>${COP(r.ganancia_cupon)}</b> son <b>ganancia libre</b>: ya devolvió todo su cupón, así que ese ${PCT_CUPON} dejó de ser capital por recuperar.`
+  const r=MotorReglas.repartirCosto(costo,{aTiempo:aTiempo!==false,producto:producto||'quincenal',
+    cuponPendiente:f.cupon_pendiente,mora:Math.max(0,Number(mora)||0),fechaDelCredito});
+  const cupon=r.amortiza_cupon
+    ? ` y <b>${COP(r.amortiza_cupon)}</b> te devuelven parte del cupón de ${COP(f.cupon_prestado)} que le prestaste para arrancar`
     : '';
+  const deMora=!r.mora?''
+    :r.garantia_mora?` (de la mora, <b>${COP(r.mora-r.garantia_mora)}</b> es tuya y <b>${COP(r.garantia_mora)}</b> le suma a él: el crédito es de antes del 27-sep)`
+    :` (la mora, <b>${COP(r.mora)}</b>, es entera tuya)`;
   return `<div class="alerta info solo-tuyo"><b class="tit-solo">Solo para ti</b>
-    De los ${COP(r.total)} de costo: <b>${COP(r.garantia_socio)}</b> se le vuelven garantía (eso es lo único que él ve),
-    <b>${COP(r.operativo)}</b> son tu costo operativo y <b>${COP(r.amortiza_cupon)}</b> te devuelven parte del cupón de
-    ${COP(f.cupon_prestado)} que le prestaste para arrancar.${ganancia}</div>`;
+    De los ${COP(r.total)} que entran: <b>${COP(r.garantia_socio)}</b> se le vuelven garantía (eso es lo único que él ve),
+    <b>${COP(r.operativo)}</b> son tuyos${deMora}${cupon}.</div>`;
 }
 
 /* Los datos del cliente, en las claves que entiende el motor (DATOS_KYC).
@@ -7079,7 +7099,7 @@ function renderSocios(){
   document.getElementById('kpiSocios').innerHTML=`
     <div class="kpi dark"><div class="et">🛡️ Garantía total emitida</div><div class="nm">${COP(g.total)}</div><div class="x">${DB.socios.length} socios</div></div>
     <div class="kpi"><div class="et">🤝 Prestada por sus datos</div><div class="nm">${COP(g.cupon)}</div><div class="x">de un máximo de ${COP(DB.socios.length*MotorReglas.CUPON_KYC_MAXIMO)}</div></div>
-    <div class="kpi gan"><div class="et">💪 Ganada pagando</div><div class="nm">${COP(g.acum)}</div><div class="x">el ${PCT_GARANTIA} de lo que te pagaron en fecha, el ${PCT_GARANTIA_MORA} de lo tarde</div></div>
+    <div class="kpi gan"><div class="et">💪 Ganada pagando</div><div class="nm">${COP(g.acum)}</div><div class="x">${MISMO_FACTOR?`el ${PCT_GARANTIA} del costo que te pagaron, en fecha o tarde`:`el ${PCT_GARANTIA} de lo que te pagaron en fecha, el ${PCT_GARANTIA_MORA} de lo tarde`}</div></div>
     <div class="kpi gan"><div class="et">👥 Por referidos</div><div class="nm">${COP(g.refs)}</div><div class="x">${COP(MotorReglas.GARANTIA_POR_REFERIDO)} por cada uno que paga</div></div>
     <div class="kpi ${g.pend>0?'alert':''}"><div class="et">📋 Garantía sin entregar</div><div class="nm">${COP(g.pend)}</div><div class="x">te falta pedirles datos</div></div>
     <div class="kpi verde"><div class="et">💳 Cupo disponible</div><div class="nm">${COP(g.cupo)}</div><div class="x">${conActivo} con crédito abierto</div></div>
@@ -7191,7 +7211,7 @@ function revisarMigracion(id){
      abajo y si no las filas no sumarían el total. Lo que le llega al socio
      (m.garantia.acumulada) ya lo trae adentro: es una sola cifra para él. */
   openModal('Migración · '+s.nombre,`
-    <div class="info-row"><span class="k">Ganada pagando <span class="muted">(el ${PCT_GARANTIA} de lo que te pagó en fecha, el ${PCT_GARANTIA_MORA} de lo tarde)</span></span><b>${COP(garantiaGanadaDe(s))}</b></div>
+    <div class="info-row"><span class="k">Ganada pagando <span class="muted">(${MISMO_FACTOR?`el ${PCT_GARANTIA} del costo que te pagó`:`el ${PCT_GARANTIA} de lo que te pagó en fecha, el ${PCT_GARANTIA_MORA} de lo tarde`})</span></span><b>${COP(garantiaGanadaDe(s))}</b></div>
     <div class="info-row"><span class="k">Prestada por sus datos <span class="muted">(${m.perfil.porcentaje}% del perfil)</span></span><b>${COP(gg.cupon)}</b></div>
     <div class="info-row"><span class="k">Por referidos <span class="muted">(${m.referidos.pagaron} ya pagaron)</span></span><b>${COP(gg.referidos)}</b></div>
     ${aj?`<div class="info-row"><span class="k">Tu ajuste a mano</span><b class="${aj>0?'gano':''}">${aj>0?'+':''}${COP(aj)}</b></div>
@@ -7202,7 +7222,7 @@ function revisarMigracion(id){
     <div class="sub-h">De dónde salió lo ganado pagando</div>
     ${cerrados.length
       ? cerrados.map(c=>`<div class="info-row"><span class="k">${escHTML(c.codigo)} <span class="muted">${fmtFecha(c.desembolso)}</span></span><span class="vv">${COP(c.capital)} → <b class="gano">+${COP(c.garantia)}</b></span></div>`).join('')
-        +`<div class="muted" style="font-size:12px;margin-top:6px">Es lo que le dejó el costo y las prórrogas de cada crédito: el ${PCT_GARANTIA} si pagó en fecha, el ${PCT_GARANTIA_MORA} si pagó tarde.</div>`
+        +`<div class="muted" style="font-size:12px;margin-top:6px">Es lo que le dejó el costo y las prórrogas de cada crédito: ${MISMO_FACTOR?`el ${PCT_GARANTIA}, pagara cuando pagara. Los recargos solo suman en los créditos pedidos antes del 27-sep.`:`el ${PCT_GARANTIA} si pagó en fecha, el ${PCT_GARANTIA_MORA} si pagó tarde.`}</div>`
       : `<div class="alerta info">Todavía no ha cerrado ningún crédito, así que no tiene garantía ganada. Lo que ve viene de sus datos.</div>`}
 
     <div class="sub-h">¿El número le cuadra?</div>
@@ -12166,7 +12186,8 @@ function cobrarCuota(rid,n){
 function liqCuota(rid,n){
   const r=(DB.respaldados||[]).find(x=>x.id===rid); const c=cuotasDe(r).find(x=>x.n===n);
   const f=gv('cqFecha')||hoyISO();
-  return {r,c,f,liq:MotorReglas.liquidarCuotaRespaldada({capital:c.capital,costo:c.costo,fecha_corte:c.fecha},f)};
+  /* 26-sep-2026: con la fecha del préstamo, que decide si su recargo deja garantía. */
+  return {r,c,f,liq:MotorReglas.liquidarCuotaRespaldada({capital:c.capital,costo:c.costo,fecha_corte:c.fecha},f,{fechaDelCredito:PUENTE.fechaDelCredito(r)})};
 }
 function calcCuota(rid,n){
   const box=document.getElementById('cqCalc'); if(!box)return;
@@ -12179,7 +12200,7 @@ function calcCuota(rid,n){
       <div class="calc-row"><span><b>Total a cobrar</b></span><span class="v"><b>${COP(liq.total_a_pagar)}</b></span></div>
       <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(liq.garantia_generada)}${liq.pago_a_tiempo?'':' <span class="muted">(la mitad, por pagar tarde)</span>'}</span></div>
     </div>`
-    +(s.id?bloqueReparto(s,liq.costo_total_pagado,liq.pago_a_tiempo,'respaldado'):'');
+    +(s.id?bloqueReparto(s,liq.costo,liq.pago_a_tiempo,'respaldado',liq.recargo_mora,PUENTE.fechaDelCredito(r)):'');
 }
 async function subirComprobanteResp(e){ const f=e.target.files[0]; if(!f)return;
   try{ _compRespTmp=await comprimir(f); const box=document.getElementById('compRespBox'); box.classList.add('ok');

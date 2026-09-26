@@ -511,8 +511,9 @@ describe('creditos.js y motor.js no se pisan', () => {
     const M = require('../app/motor.js');
     assert.equal(M.TASA_CREDITO, 0.20);
     /* 29-ago: la tasa pactable. 2-sep: los niveles por garantia. 8-sep: el
-       techo del costo pasa al 50% (decision de Joan; el 20% sigue de estandar). */
-    assert.equal(M.REGLAS_VIGENTES_DESDE, '2026-09-08');
+       techo del costo pasa al 50% (decision de Joan; el 20% sigue de estandar).
+       27-sep: el 80/20 del costo y la mora sin garantia en los creditos nuevos. */
+    assert.equal(M.REGLAS_VIGENTES_DESDE, '2026-09-27');
   });
 });
 

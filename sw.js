@@ -1451,7 +1451,22 @@
    abriria el 404 viejo desde la cache.
 
    2.402 pruebas (mas las nuevas). */
-const CACHE = 'tugarantia-v111';
+
+/* v112 - 26-sep-2026. EL 80/20, PUBLICADO -- REGLA DE PLATA (suben tambien
+   REGLAS_VIGENTES_DESDE y VERSION_APP).
+
+   De cada peso de COSTO, 80 centavos son garantia del socio, pague cuando
+   pague (antes 75 en fecha y 37,5 tarde). La mora no genera garantia en los
+   creditos pedidos desde el 27-sep-2026; los pedidos antes siguen con su regla
+   hasta terminarlos, y lo ya ganado no se toca (decisiones de Joan del 23 y el
+   26-sep; punto 12 de los terminos).
+
+   Toca motor.js, puente.js, socio.html, index.html (la escalera recalculada),
+   legal/terminos.html (version del 27-sep), crm.html y espejo.html. Nada de
+   esto sirve si el telefono sigue con la copia vieja: por eso el numero.
+
+   2.463 pruebas. */
+const CACHE = 'tugarantia-v112';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -409,6 +409,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
  * ========================================================================= */
 
 var M = window.MotorReglas || null;
+/* 26-sep-2026: desde el 23-sep en fecha y tarde suman lo mismo, y el «(la
+   mitad, por pagar tarde)» de las pantallas quedó diciendo una rebaja que no
+   hay. Se pregunta esto antes de decirla. */
+var MISMO_FACTOR = !!M && M.FACTOR_GARANTIA_MORA === M.FACTOR_GARANTIA;
 var P = window.PuenteTuGarantia || null;
 var NUBE = window.NubeTuGarantia || null;
 var T = window.TandaTuGarantia || null;
@@ -653,6 +657,8 @@ function creditoMotor(p) {
     tasa_aplicada: (Number(p.costoPct) || Math.round(M.TASA_CREDITO * 100)) / 100,
     costo: Math.round(P.K(p)),
     fecha_corte: P.corteDelCredito(p),
+    // 26-sep-2026: decide si la mora de este crédito deja garantía (igual que en crm.html).
+    fecha_desembolso: P.fechaDelCredito(p),
     estado: p.pagado ? 'pagado' : (P.tienePlan(p) ? 'plan_de_pagos' : 'en_corte'),
     prorrogas_usadas: (p.prorrogas || []).length,
     estuvo_en_mora: !!P.liquidarCiclo(p).estuvo_en_mora,
@@ -700,47 +706,14 @@ function liqProrroga(p, fecha) {
    propio reparto devuelve. Restar dos respuestas del motor no es reimplementar
    una regla; inventar una tercera sí lo sería.
    ------------------------------------------------------------------------ */
+/* 26-sep-2026 — ERA UNA COPIA de puente.cuentasDelCobro, en contra de la regla 3
+   de este mismo archivo («acá no se reimplementa nada del motor ni del puente»).
+   Y pasó lo que esa regla evita: el 23-sep cambió la regla de la mora y las dos
+   copias quedaron repartiéndola como costo — esta pantalla le prometía al socio
+   garantía por la mora, y al perdonarla le decía a Joan que le costaba cupo al
+   socio cuando es toda de Joan. Ahora se le pregunta al puente, que es uno. */
 function cuentasDelCobro(p, l, o) {
-  o = o || {};
-  var condMora = Math.max(0, Math.min(Math.round(Number(o.condonaMora) || 0), Math.round(l.recargo_mora)));
-  var condCosto = Math.max(0, Math.min(Math.round(Number(o.condonaCosto) || 0), Math.round(l.costo)));
-  var costoCobrado = Math.round(l.costo) - condCosto;
-  var moraCobrada = Math.round(l.recargo_mora) - condMora;
-  /* Lo que entra por concepto de COSTO. El capital no vive acá: el capital no
-     genera garantía ni se reparte, vuelve y ya. */
-  var entro = costoCobrado + moraCobrada;
-
-  /* El 15% del cupón deja de cobrarse cuando ese socio ya devolvió el suyo, así
-     que el reparto necesita saber cuánto le falta. Lo contesta el puente. */
-  var pendiente;
-  try { pendiente = P.contabilidadCupon(DB, socioDe(p)).cupon_pendiente; }
-  catch (e) { pendiente = undefined; }
-  var opc = { aTiempo: l.acredita_en_fecha !== false, producto: 'quincenal', cuponPendiente: pendiente };
-  var nominal = M.repartirCosto(Math.round(l.costo_total_pagado), opc);
-  var cobrado = M.repartirCosto(entro, opc);
-
-  return {
-    condonado_costo: condCosto,
-    condonado_mora: condMora,
-    condonado_total: condCosto + condMora,
-    costo_cobrado: costoCobrado,
-    mora_cobrada: moraCobrada,
-    /* Lo que se guarda en p.gananciaPago. Mismo significado que hoy. */
-    ganancia_pago: entro,
-    /* Lo que el socio tiene que entregar con este descuento aplicado. */
-    total_a_recibir: Math.round(l.capital) + entro,
-    /* Los tres pedazos de la plata que ENTRÓ. Suman `entro` exacto por
-       construcción del motor (operativo absorbe el redondeo). */
-    reparto: cobrado,
-    garantia: cobrado.garantia_socio,
-    garantia_sin_descuento: nominal.garantia_socio,
-    /* Lo que el descuento le cuesta a Joan: el pedazo del reparto que era suyo
-       —operativo más el cupón que se iba a recuperar— y que ya no entra. El
-       resto del descuento se lo paga el socio en cupo que no recibe. */
-    de_tu_ganancia: (nominal.operativo + nominal.amortiza_cupon)
-                  - (cobrado.operativo + cobrado.amortiza_cupon),
-    de_su_cupo: nominal.garantia_socio - cobrado.garantia_socio
-  };
+  return P.cuentasDelCobro(DB, p, l, o);
 }
 
 /* Lo que este socio lleva perdonado, DERIVADO de los créditos, nunca de un
@@ -1425,7 +1398,7 @@ function prorrogar(id, fecha) {
     : 'Registrar prórroga de ' + COP(r.total_a_pagar) + ' a ' + (p.socioNombre || '')
       + ' y pasar el pago a ' + fmtFecha(r.fecha_corte_nueva) + '.\n')
     + 'Le deja ' + COP(r.garantia_generada) + ' de garantía'
-    + (r.a_tiempo ? '' : ' (la mitad, por dejarla tarde)') + '.\n'
+    + (r.a_tiempo || MISMO_FACTOR ? '' : ' (suma menos, por dejarla tarde)') + '.\n'
     + 'Es su prórroga ' + (r.prorrogas_usadas + 1) + ' de ' + r.prorrogas_permitidas
     + ' (nivel ' + r.nivel_socio + '); '
     + (r.prorrogas_restantes ? 'le quedaría ' + r.prorrogas_restantes + '.'
@@ -2733,8 +2706,8 @@ function vistaCredito() {
     +   '<span class="v"><b>' + COP(l.total_a_pagar) + '</b></span></div>'
     + '<div class="fila"><span class="k">Garantía que le deja</span><span class="v oro-tinta">'
     +   COP(l.garantia_generada)
-    +   (l.acredita_en_fecha ? ''
-        : ' <span class="muted">(la mitad, '
+    +   (l.acredita_en_fecha || MISMO_FACTOR ? ''
+        : ' <span class="muted">(suma menos, '
           + (l.pago_a_tiempo ? 'porque el crédito ya venía de una mora' : 'por pagar tarde') + ')</span>')
     + '</span></div>'
     + '<div class="fila"><span class="k">Vence</span><span class="v">' + fmtFecha(P.corteDelCredito(p)) + '</span></div>'
@@ -3111,8 +3084,8 @@ function calcCobro(id) {
        Las dos respuestas las trae el puente resueltas; acá no se deduce ninguna. */
     + '<div class="fila"><span class="k">Garantía que le deja</span>'
     +   '<span class="v oro-tinta">' + COP(l.garantia_generada)
-    +   (l.acredita_en_fecha ? ''
-        : ' <span class="muted">(la mitad, '
+    +   (l.acredita_en_fecha || MISMO_FACTOR ? ''
+        : ' <span class="muted">(suma menos, '
           + (l.pago_a_tiempo ? 'porque el crédito ya venía de una mora' : 'por pagar tarde') + ')</span>')
     +   '</span></div>'
     + '</div>';

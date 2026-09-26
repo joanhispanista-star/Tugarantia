@@ -197,7 +197,9 @@
    * SE SUBE CUANDO CAMBIA UNA REGLA DE PLATA —tasa, reparto, cupo, garantía,
    * mora—, no cuando se arregla una pantalla: para eso está VERSION_APP en
    * socio.html. Si esta fecha cambia, el cupo de alguien pudo haber cambiado. */
-  var REGLAS_VIGENTES_DESDE = '2026-09-08';
+  /* 27-sep-2026: el 80/20 de Joan (del COSTO, pague cuando pague) y la mora
+     sin garantía en los créditos pedidos desde FECHA_MORA_SIN_GARANTIA. */
+  var REGLAS_VIGENTES_DESDE = '2026-09-27';
 
   /* 2-sep-2026 — LOS NIVELES CAMBIAN DE NATURALEZA, por decision de Joan:
      ya no se ganan por puntualidad, son EL TRAMO DE LA GARANTIA de hoy. Nueve
@@ -432,6 +434,28 @@
      más cupo del que tenían ayer con la misma historia. */
   var FACTOR_GARANTIA = 0.80;        // pagó en la fecha de corte o antes
   var FACTOR_GARANTIA_MORA = 0.80;   // pagó tarde: 23-sep-2026, suma lo mismo
+  /* 26-sep-2026 — LA MORA YA NO SUMA, PERO LO QUE YA SUMÓ SE QUEDA.
+     Desde el 23-sep la mora es toda de la empresa (decisión de Joan). Pero la
+     garantía no se guarda: se recalcula desde el historial cada vez, así que
+     quitarle la garantía a la mora se la quitaba TAMBIÉN hacia atrás, y los
+     términos que firmaron los socios (versión del 6-ago) dicen que la parte de
+     cada pago que se vuelve garantía «queda fija el día en que pagas». Medido
+     sobre la cartera lavada de pruebas/motor.test.js: el socio perdía 56.250 de
+     garantía sin haber hecho nada.
+     Joan eligió el 26-sep que se quede, y lo afinó el mismo día: la llave es
+     el día en que se PIDIÓ el crédito, no el día en que se paga la mora,
+     porque el punto 12 de los términos dice que «un crédito se rige por las
+     reglas que estaban vigentes el día que lo pediste». Así:
+       · crédito pedido ANTES de esta fecha: toda su mora —la ya pagada y la
+         que pague hasta terminarlo— suma como siempre: 0,375 en el quincenal
+         (la «mitad» de entonces) y 0,10 en el de garantía;
+       · crédito pedido desde esta fecha: su mora no suma nada.
+     Son de quince días, así que en pocas semanas casi no quedan de los viejos.
+     La fecha es la de la versión de los términos que lo dice: si se publica
+     más tarde, se mueven las dos juntas
+     (pruebas/la-mora-vieja-se-queda.test.js lo vigila). */
+  var FECHA_MORA_SIN_GARANTIA = '2026-09-27';
+  var FACTOR_GARANTIA_MORA_VIEJA = 0.375;
   var DIAS_VENTANA_MINIMA = 5;     // §7.3
   var DIAS_CORTE_FIJO = 15;        // §7 — día 15 y último del mes
   var CUOTAS_PLAN_DE_PAGOS = 3;    // §8
@@ -1005,22 +1029,37 @@
         factor_mora: FACTOR_GARANTIA_MORA,
         /* Los centavos salen de la constante y no escritos a mano: cuando el
            factor bajó de 90 a 75 esta frase seguía diciendo 90 y la app le
-           prometía al socio un número que el motor ya no daba. */
+           prometía al socio un número que el motor ya no daba.
+           26-sep-2026 — y le pasó OTRA VEZ con el 80/20: seguía diciendo
+           «pagando tarde suma la mitad» cuando desde el 23-sep suma lo mismo.
+           Por eso la segunda frase también sale de las constantes: si un día se
+           separan de nuevo, dice lo que haya. Lo que ya no suma en ningún caso
+           es el recargo por atraso (FECHA_MORA_SIN_GARANTIA). */
         texto: 'De cada peso de costo que pagas, ' + Math.round(FACTOR_GARANTIA * 100) +
-               ' centavos se te vuelven garantía, y la garantía es tu cupo. Pagando en la ' +
-               'fecha suma completo; pagando tarde suma la mitad, pero suma.'
+               ' centavos se te vuelven garantía, y la garantía es tu cupo. ' +
+               (FACTOR_GARANTIA_MORA === FACTOR_GARANTIA
+                 ? 'Suma lo mismo si pagas en la fecha o después. '
+                 : 'Pagando en la fecha suma completo; pagando tarde suma ' +
+                   Math.round(FACTOR_GARANTIA_MORA * 100) + ' centavos por peso, pero suma. ') +
+               /* La fecha va escrita: es la de FECHA_MORA_SIN_GARANTIA, y
+                  pruebas/la-mora-vieja-se-queda.test.js exige que las dos coincidan. */
+               'En los créditos que pidas desde el 27 de septiembre de 2026, el recargo por ' +
+               'atraso no suma: ese no se vuelve garantía.'
       },
       /* 5-ago-2026 — EL CUPO, dicho de una vez, porque es lo que más se
          preguntó y lo que estaba repartido en dos pantallas: tu cupo es tu
          garantía, uno a uno. Ni factores ni niveles de por medio. */
       cupo: {
         uno_a_uno: true,
-        // Redondeado a cuatro decimales porque 0,20 × 0,75 en punto flotante da
-        // 0.15000000000000002, y eso terminaba impreso en una pantalla.
+        // Redondeado a cuatro decimales porque el producto en punto flotante
+        // (0,20 × 0,75 daba 0.15000000000000002) terminaba impreso en una pantalla.
         crecimiento_por_credito: Math.round(TASA_CREDITO * FACTOR_GARANTIA * 10000) / 10000,
+        /* 26-sep-2026: decía «tres cuartas partes» (el 75%) y «que pagas en
+           fecha». Los centavos salen de la constante, y desde el 23-sep sube
+           igual pague cuando pague. */
         texto: 'Tu cupo es tu garantía: puedes pedir exactamente lo que tienes. Y cada ' +
-               'crédito que pagas en fecha te lo sube: tres cuartas partes de lo que pagaste ' +
-               'de costo se te vuelven garantía tuya.'
+               'crédito que pagas te lo sube: ' + Math.round(FACTOR_GARANTIA * 100) +
+               ' centavos de cada peso de costo se te vuelven garantía tuya.'
       },
       cupon: {
         maximo: CUPON_KYC_MAXIMO,
@@ -1259,13 +1298,16 @@
   /**
    * Garantía que deja un costo pagado.
    *
-   * TODO lo que el socio paga suma —crédito, prórroga, recargo de mora, cuotas
-   * del plan de pagos—, esté al día o atrasado. El §4 original (donde la mora
-   * congelaba la acumulación) sigue derogado: nadie deja de sumar.
+   * Todo COSTO que el socio paga suma —crédito, prórroga, cuotas del plan de
+   * pagos—, esté al día o atrasado. El §4 original (donde la mora congelaba la
+   * acumulación) sigue derogado: nadie deja de sumar.
    *
-   * Lo que cambia (29-jul-2026) es cuánto: en fecha suma el factor completo,
-   * tarde la mitad. Es un bono al puntual, no una multa al que se atrasa.
-   * 5-ago-2026: el factor pasa de 0,90 a 0,75 (y de 0,45 a 0,375).
+   * El recargo de mora NO pasa por aquí: tiene su propia regla
+   * (garantiaDeMoraPagada) — nada desde el 27-sep-2026, y lo que ya dejaba si
+   * se pagó antes.
+   *
+   * Historia del factor: 29-jul-2026, en fecha completo y tarde la mitad;
+   * 5-ago, 0,75 y 0,375; 23-sep (decisión de Joan), 0,80 en los dos.
    *
    * @param {number} costoPagado
    * @param {boolean} [pagoFueATiempo]  si se omite, se asume puntual.
@@ -1278,6 +1320,33 @@
     }
     var factor = pagoFueATiempo === false ? FACTOR_GARANTIA_MORA : FACTOR_GARANTIA;
     return Math.round(costo * factor);
+  }
+
+  /**
+   * Garantía que deja un recargo de mora pagado, según el día en que se PIDIÓ
+   * el crédito (ver FECHA_MORA_SIN_GARANTIA arriba).
+   *
+   * Crédito pedido desde FECHA_MORA_SIN_GARANTIA: cero, la mora es de la
+   * empresa. Pedido antes: 0,375 (0,10 en el de garantía), en toda su mora.
+   *
+   * Sin una fecha legible se lee como crédito de ANTES: todo crédito que crean
+   * el Panel, el espejo o una solicitud graba su fechaDesembolso, así que solo
+   * llega sin ella un registro viejo. La contracara: quien liquide un crédito
+   * nuevo TIENE que pasar su fecha, o le promete garantía por la mora
+   * (creditoMotor, socio.html y el reparto la pasan; hay pruebas que lo vigilan).
+   *
+   * @param {number} moraPagada
+   * @param {string|Date} [fechaDelCredito]  el día en que se pidió, 'AAAA-MM-DD'.
+   * @param {string} [producto]  'quincenal' (por defecto) o 'respaldado'.
+   * @returns {number} entero, COP.
+   */
+  function garantiaDeMoraPagada(moraPagada, fechaDelCredito, producto) {
+    var mora = numeroNoNegativo(moraPagada, 'moraPagada');
+    var f = fechaDelCredito instanceof Date ? iso(fechaDelCredito)
+      : (fechaDelCredito == null ? '' : String(fechaDelCredito).slice(0, 10));
+    if (/^\d{4}-\d{2}-\d{2}$/.test(f) && f >= FECHA_MORA_SIN_GARANTIA) return 0;
+    var factor = producto === 'respaldado' ? FACTOR_GARANTIA_RESPALDADO_MORA : FACTOR_GARANTIA_MORA_VIEJA;
+    return Math.round(mora * factor);
   }
 
   /**
@@ -1505,7 +1574,10 @@
        * empresa. Es coherente con lo que la mora es: una sancion, no un precio.
        * Y sigue siendo una sola regla de explicar: 80/20 de lo que cobras.
        * ================================================================== */
-      garantia_generada: acumularGarantia(costo, acredita),
+      /* 26-sep-2026: más lo que deja la mora si el crédito se pidió antes del
+         27-sep; en los pedidos desde ese día, cero. */
+      garantia_generada: acumularGarantia(costo, acredita) +
+                         garantiaDeMoraPagada(recargo, credito.fecha_desembolso),
       // Lo que habría ganado pagando en fecha, para poder mostrárselo. Si el
       // crédito ya venía de una mora, el factor completo ya no está disponible ni
       // pagando hoy: el techo honesto es la mitad.
@@ -1528,10 +1600,10 @@
    * puerta de atrás, con los niveles viejos guardados en la nube ganando sin
    * que nadie lo note.
    *
-   * La puntualidad no se quedó sin premio: sigue pagando EN PESOS (el factor
-   * 0,75 contra 0,375 de la garantía que deja cada pago), así que a igual
-   * capital, el puntual llega antes al mismo nivel. La escalera es la misma;
-   * el que paga en fecha la sube al doble de velocidad.
+   * 26-sep-2026 — decía que la puntualidad «sigue pagando EN PESOS» (0,75
+   * contra 0,375). Ya no: desde el 23-sep en fecha y tarde valen lo mismo
+   * (0,80), por decisión de Joan. Lo que separa hoy al puntual del tardío es
+   * la plata, no la escalera: el tardío paga un recargo que no le sube nada.
    *
    * Entra `garantia.total` — lo que el socio ve como «tu garantía»—, no
    * base_cupo: base_cupo descuenta el capital en la calle y haría oscilar el
@@ -1869,16 +1941,20 @@
           opciones.diasCausados == null ? 0 : opciones.diasCausados, capital, dias, opciones)
       : recargoPorMora(capital, dias, opciones);
     var aTiempo = dias === 0;
-    /* El costo con su factor de puntualidad y el recargo SIEMPRE a la mitad: es
-       plata que solo existe porque el corte ya había pasado. Es la misma cuenta
-       que hace el puente sobre la prórroga ya guardada, y a propósito.
+    /* El costo con su factor de puntualidad, y el recargo de mora FUERA de la
+       garantía (26-sep-2026). Decía «el recargo SIEMPRE a la mitad»; con el 80/20
+       de Joan eso pasó a acreditar el 80% de la mora, y una prórroga tardía
+       dejaba el DOBLE de garantía que saldar ese mismo día con la misma plata.
+       La mora es una sanción, no un precio: va entera a la empresa. Es la misma
+       cuenta que hace el puente sobre la prórroga ya guardada, y a propósito.
        5-ago-2026 §4-bis: y el factor del costo mira además si el crédito YA
        venía de una mora. Si viene, esta prórroga acredita a la mitad aunque se
        registre el mismísimo día del corte nuevo — es el ciclo que la prórroga
        anterior le compró, no una quincena limpia. */
     var acredita = cuentaComoPuntualParaGarantia({
       pagado_en_fecha: aTiempo, credito_estuvo_en_mora: veniaDeMora(credito) });
-    var garantia = acumularGarantia(costo, acredita) + acumularGarantia(recargo, false);
+    var garantia = acumularGarantia(costo, acredita) +
+                   garantiaDeMoraPagada(recargo, credito.fecha_desembolso);
     var total = costo + recargo;
 
     return {
@@ -2216,10 +2292,11 @@
   /**
    * Garantía que deja un costo pagado del préstamo con garantía: solo el 20%.
    * Es a propósito que sea tan poco. El socio elige entre plata barata y
-   * crecer: el quincenal cuesta más pero le sube el cupo casi cuatro veces más
-   * rápido por cada peso de costo (0,75 contra 0,20).
+   * crecer: el quincenal cuesta más pero le sube el cupo cuatro veces más
+   * rápido por cada peso de costo (0,80 contra 0,20).
    *
-   * Mismo bono por puntualidad que el quincenal: tarde suma la mitad.
+   * Aquí SÍ sigue el bono por puntualidad: tarde suma la mitad. El 23-sep Joan
+   * lo quitó del quincenal; este es otro producto y su regla no se tocó.
    */
   function acumularGarantiaRespaldada(costoPagado, pagoFueATiempo) {
     var costo = numeroNoNegativo(costoPagado, 'costoPagado');
@@ -2428,7 +2505,9 @@
          su 20% y su mitad por pagar tarde, porque es otro producto y la regla
          que dio Joan hablaba del credito quincenal— pero el defecto de la base
          era el mismo y se arregla igual. */
-      garantia_generada: acumularGarantiaRespaldada(costo, aTiempo),
+      // La mora, solo si el préstamo se pidió antes del 27-sep (opciones.fechaDelCredito).
+      garantia_generada: acumularGarantiaRespaldada(costo, aTiempo) +
+        garantiaDeMoraPagada(recargo, opciones.fechaDelCredito, 'respaldado'),
       garantia_si_puntual: acumularGarantiaRespaldada(costo, true)
     };
   }
@@ -2465,10 +2544,23 @@
     }
     var pendiente = opciones.cuponPendiente == null ? Infinity : opciones.cuponPendiente;
     if (pendiente !== Infinity) numeroFinito(pendiente, 'cuponPendiente');
+    /* 26-sep-2026 — LA MORA VA APARTE, Y ES TODA DE LA EMPRESA. Decisión de Joan
+       del 23-sep: la garantía sale del COSTO PACTADO y la mora es una sanción, no
+       un precio. Hasta hoy cada pantalla le pasaba a esta función costo+mora en
+       un solo número y la mora salía repartida 80/20 como si fuera costo — el
+       cobro prometía garantía que después no se acreditaba, y los tableros de
+       Joan contaban como garantía del socio plata que era suya.
+       Ahora la regla vive AQUÍ, una vez: `mora` no toca la garantía ni el cupón y
+       entra entera a `operativo`. Quien llama pasa los dos pedazos por separado. */
+    var mora = opciones.mora == null ? 0 : Math.round(numeroNoNegativo(opciones.mora, 'mora'));
 
     var garantia = producto === 'respaldado'
       ? acumularGarantiaRespaldada(total, aTiempo)
       : acumularGarantia(total, aTiempo);
+    /* La excepción, también aquí: la mora de un crédito pedido antes del
+       27-sep sigue dejando garantía (`opciones.fechaDelCredito`). Sale de la
+       mora, no del costo. */
+    var garantiaMora = mora > 0 ? garantiaDeMoraPagada(mora, opciones.fechaDelCredito, producto) : 0;
 
     /* El 15% se deja de cobrar cuando ese socio ya devolvió todo su cupón. Lo
        que sobra de ese 15% NO desaparece: pasa a ganancia, y va aparte en
@@ -2483,12 +2575,17 @@
     if (operativo < 0) operativo = 0;
 
     return {
-      total: total,
-      garantia_socio: garantia,
+      // `total` es TODA la plata que entró: costo más mora. Los tres pedazos de
+      // abajo siguen sumándolo exacto.
+      total: total + mora,
+      garantia_socio: garantia + garantiaMora,
       amortiza_cupon: cupon,
-      operativo: operativo,
+      operativo: operativo + mora - garantiaMora,
+      mora: mora,
+      // Cuánto de `garantia_socio` salió de la mora: solo en créditos pedidos antes del 27-sep.
+      garantia_mora: garantiaMora,
       // Cuánto habría ido al cupón si quedara algo por recuperar, y cuánto de
-      // ese 15% ya es ganancia porque no quedaba. `operativo` los contiene.
+      // ese pedazo ya es ganancia porque no quedaba. `operativo` los contiene.
       cupon_nominal: nominal,
       ganancia_cupon: Math.min(Math.max(0, nominal - cupon), operativo)
     };
@@ -2532,10 +2629,18 @@
       if (!c || typeof c !== 'object') {
         throw new TypeError('costos[' + i + ']: se esperaba un objeto {monto, aTiempo}');
       }
-      var r = repartirCosto(c.monto == null ? 0 : c.monto, {
+      /* Los movimientos de mora llegan etiquetados (`tipo: 'recargo_mora'`,
+         puente.movimientosCobradosCredito): entran enteros a operativo, sin
+         garantía ni cupón. Sin esto los tableros de Joan contaban el 80% de su
+         mora como garantía del socio y le subestimaban la ganancia. */
+      var esMora = c.tipo === 'recargo_mora';
+      var monto = c.monto == null ? 0 : c.monto;
+      var r = repartirCosto(esMora ? 0 : monto, {
         aTiempo: c.aTiempo !== false,
         producto: c.producto == null ? 'quincenal' : c.producto,
-        cuponPendiente: pendiente
+        cuponPendiente: pendiente,
+        mora: esMora ? monto : 0,
+        fechaDelCredito: c.fechaDelCredito
       });
       pendiente = Math.max(0, pendiente - r.amortiza_cupon);
       cobrado += r.total;
@@ -2845,6 +2950,7 @@
     calcularCosto: calcularCosto,
     calcularCupo: calcularCupo,
     acumularGarantia: acumularGarantia,
+    garantiaDeMoraPagada: garantiaDeMoraPagada,
     nivelPorGarantia: nivelPorGarantia,
     TRAMOS_NIVEL: TRAMOS_NIVEL,
     nombreNivel: nombreNivel,
@@ -2935,6 +3041,8 @@
     TOPE_DURO_PRORROGAS: TOPE_DURO_PRORROGAS,
     FACTOR_GARANTIA: FACTOR_GARANTIA,
     FACTOR_GARANTIA_MORA: FACTOR_GARANTIA_MORA,
+    FECHA_MORA_SIN_GARANTIA: FECHA_MORA_SIN_GARANTIA,
+    FACTOR_GARANTIA_MORA_VIEJA: FACTOR_GARANTIA_MORA_VIEJA,
     DIAS_VENTANA_MINIMA: DIAS_VENTANA_MINIMA,
     CUOTAS_PLAN_DE_PAGOS: CUOTAS_PLAN_DE_PAGOS,
     TASA_PLAN_DE_PAGOS: TASA_PLAN_DE_PAGOS,
