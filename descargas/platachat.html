@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Instalar PlataChat — tu crédito por el chat</title>
+<meta name="description" content="Instala PlataChat en tu teléfono desde Chrome o Safari, sin descargar nada. Tu crédito, tu garantía y tu chat con quien te presta.">
+<meta name="theme-color" content="#0C0A0B">
+<link rel="icon" type="image/png" sizes="192x192" href="../platachat/icono-192.png">
+<link rel="apple-touch-icon" href="../platachat/icono-180.png">
+<!-- ============================================================================
+  La página que reparte PlataChat. Es hermana de index.html (la que reparte el
+  APK de Tu Garantía) y existe por lo mismo: lo que se manda al cliente por
+  WhatsApp es ESTE enlace, y el cliente prevenido instala mientras el
+  sorprendido se echa para atrás.
+
+  ES HONESTA A PROPÓSITO — 14-sep-2026, fase 1a. El instalador para Android
+  (el .apk) todavía NO está construido: lo construye Joan fuera de OneDrive con
+  android-kit, cuando la página esté publicada, porque Bubblewrap descarga los
+  iconos por URL. Así que esta página NO tiene un botón de descarga que lleve a
+  ninguna parte: el botón existe, está apagado, y dice cuándo se enciende.
+  Mientras tanto explica lo que SÍ funciona hoy: instalarla como app desde
+  Chrome o Safari («Añadir a pantalla de inicio»), que deja el mismo icono en
+  la misma pantalla y abre la misma app. Cuando el APK exista, se enciende el
+  botón con href="PlataChat.apk" y se quita el aviso; nada más cambia.
+
+  Los tokens de color son los de platachat/estilo.css, copiados a sabiendas: la
+  página se sirve sola y no carga la hoja de la app, igual que hace index.html
+  con la fachada. Sin porcentajes en el texto visible (el centinela de
+  pruebas/motor.test.js «el socio no ve porcentajes» se extiende a platachat/) y
+  por eso hasta los degradados del SVG van en fracciones y no en tanto por
+  ciento. Iconos: SVG de trazo, nunca emojis.
+============================================================================= -->
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --laca:#0C0A0B; --papel:#FFFFFF; --fondo:#F3F4F6; --tinta:#0C0A0B;
+  --luz:#FFFFFF; --sombra:#000000;
+  --marca:#07C160; --marca-oscuro:#06AD56; --marca-tinte:#E7F8EE; --marca-texto:#04803F; --marca-laca:#3DD97F;
+  --plata:#C9CDD4; --plata-luz:#F2F4F7; --plata-sombra:#8B929E; --plata-tinta:#5C6370;
+  --moneda-1:#FFFFFF; --moneda-2:#DCE0E6; --moneda-3:#9AA1AC; --moneda-4:#6F7682; --moneda-canto:#5C6370;
+  --ambar:#9A5B12; --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--luz));
+  --ambar-filete:color-mix(in srgb, var(--ambar) 40%, transparent); --ambar-tinta:var(--ambar);
+  --gris:#6E7480; --linea:#E3E6EB; --blanco-laca:#F7F8FA;
+  --serif:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Roboto,system-ui,sans-serif;
+  --e1:4px; --e2:8px; --e3:12px; --e4:20px; --e5:32px; --e6:52px;
+  --r:16px;
+}
+@media (prefers-color-scheme:dark){ :root{
+  --tinta:#EDEFF2; --papel:#141517; --fondo:#0B0B0C; --linea:#26292E; --gris:#9AA1AB;
+  --marca-tinte:#0F2418; --marca-texto:var(--marca-laca); --plata-tinta:#B3B9C3;
+  --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--papel));
+  --ambar-filete:var(--ambar); --ambar-tinta:var(--tinta);
+} }
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--fondo);color:var(--tinta);font-family:var(--sans);
+  font-size:17px;line-height:1.65}
+.wrap{max-width:640px;margin:0 auto;padding:0 var(--e4)}
+h1,h2{font-family:var(--serif);font-weight:600;margin:0;text-wrap:balance;letter-spacing:-.01em}
+p{margin:0}
+a{color:var(--marca-texto)}
+svg{flex:none}
+
+.tope{position:sticky;top:0;z-index:20;background:var(--laca);
+  border-bottom:1px solid color-mix(in srgb, var(--blanco-laca) 14%, transparent)}
+.tope .wrap{display:flex;align-items:center;justify-content:space-between;gap:var(--e3);min-height:60px}
+.logo{display:inline-flex;align-items:center;gap:10px;text-decoration:none;min-height:44px;
+  font-family:var(--serif);font-size:19px;letter-spacing:.02em;color:var(--blanco-laca)}
+.logo b{font-weight:inherit;color:var(--plata)}
+.logo .moneda{width:32px;height:32px}
+/* la moneda del logo: el hex vive en :root, el SVG solo lleva clases */
+.m1{stop-color:var(--moneda-1)} .m2{stop-color:var(--moneda-2)}
+.m3{stop-color:var(--moneda-3)} .m4{stop-color:var(--moneda-4)}
+.moneda .cara{fill:url(#plata-moneda);stroke:var(--moneda-canto);stroke-width:1}
+.moneda .aro{fill:none;stroke:var(--luz);stroke-opacity:.55;stroke-width:1.2}
+.moneda .burbuja{fill:var(--marca);stroke:var(--laca);stroke-width:2}
+.moneda .punto{fill:var(--luz)}
+.tope .otra{font-size:13px;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent);
+  text-decoration:none;min-height:44px;display:inline-flex;align-items:center}
+
+.portada{padding:var(--e6) 0 var(--e5)}
+.portada h1{font-size:34px;line-height:1.15}
+.portada .baja{margin-top:var(--e3);color:var(--gris);max-width:52ch}
+.direccion{display:inline-flex;align-items:center;gap:var(--e2);margin-top:var(--e3);
+  padding:var(--e2) 14px;border-radius:999px;background:var(--papel);border:1px solid var(--linea);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;color:var(--tinta);
+  text-decoration:none;min-height:44px}
+.direccion svg{color:var(--marca-texto)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  min-height:52px;padding:0 26px;border-radius:12px;border:0;cursor:pointer;
+  font-family:var(--sans);font-size:17px;font-weight:700;text-decoration:none;
+  transition:background .15s,transform .06s}
+.btn-marca{background:var(--marca);color:var(--luz)}
+.btn-marca:hover{background:var(--marca-oscuro)}
+.btn-marca:active{transform:translateY(1px)}
+.btn:focus-visible{outline:3px solid var(--plata);outline-offset:2px}
+/* El botón apagado: existe para que el cliente vea que el instalador viene, y
+   está apagado para que no prometa. Sin cursor de mano, sin sombra, y con el
+   texto que dice cuándo se enciende. */
+.btn-quieto{background:var(--papel);color:var(--gris);border:1px dashed var(--plata-sombra);
+  cursor:not-allowed;font-weight:600;text-align:left;line-height:1.3;padding:12px 18px}
+.botones{display:flex;flex-direction:column;gap:var(--e3);align-items:flex-start;margin-top:24px}
+.peso{margin-top:var(--e2);font-size:14px;color:var(--gris)}
+
+.banda{padding:var(--e5) 0}
+/* .et también viste al <h2> de los pasos: sin el font-family explícito
+   heredaría la serif de h1,h2 y dejaría de parecer el rótulo de sección. */
+.et{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--gris);margin-bottom:var(--e3);font-family:var(--sans)}
+
+.pasos{list-style:none;margin:0;padding:0}
+.paso{display:flex;gap:var(--e3);align-items:flex-start;padding:var(--e3) 0}
+.paso + .paso{border-top:1px solid var(--linea)}
+.paso .n{font-family:var(--serif);font-size:15px;width:30px;height:30px;border-radius:50%;
+  background:var(--laca);color:var(--plata);display:grid;place-items:center;flex:none}
+.paso b{display:block;margin-bottom:2px}
+.paso p{color:var(--gris)}
+.paso .ico{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:8px;
+  background:var(--papel);border:1px solid var(--linea);color:var(--tinta);font-size:15px;
+  vertical-align:middle;white-space:nowrap}
+.paso .ico svg{width:18px;height:18px}
+
+/* Ámbar solo sobre papel, como manda la ley de la paleta: es el tono de los
+   estados y avisos. Acá avisa lo que todavía no está. */
+.aviso{background:var(--ambar-papel);border:1px solid var(--ambar-filete);border-left:3px solid var(--ambar);
+  border-radius:var(--r);padding:var(--e4);color:var(--ambar-tinta)}
+.aviso b{color:var(--ambar-tinta)}
+
+.tarjeta{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);
+  padding:var(--e4)}
+.tarjeta + .tarjeta{margin-top:var(--e3)}
+.tarjeta h2{font-size:20px;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+.tarjeta h2 svg{color:var(--marca-texto);width:22px;height:22px}
+.tarjeta p{color:var(--gris)}
+.tarjeta.verde{background:var(--marca-tinte);border-color:color-mix(in srgb, var(--marca-texto) 25%, transparent)}
+.tarjeta.verde p{color:var(--tinta)}
+
+.pie{padding:var(--e5) 0 var(--e6);border-top:1px solid var(--linea);margin-top:var(--e5)}
+.pie p,.pie a{font-size:14px;color:var(--gris)}
+.pie .enlaces{display:flex;gap:var(--e4);flex-wrap:wrap;margin-top:var(--e2)}
+/* 44px de alto tocable aunque el texto mida 14px: mismo criterio que la marca
+   y el botón. Visualmente no cambia nada; al dedo sí. */
+.pie .enlaces a{display:inline-flex;align-items:center;min-height:44px}
+</style>
+</head>
+<body>
+
+<!-- La moneda de la marca, una sola vez en <defs>: las paradas del degradado
+     van en fracciones (0 a 1) y no en tanto por ciento, para que el centinela
+     de porcentajes no las confunda con un precio. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <radialGradient id="plata-moneda" cx="0.35" cy="0.28" r="0.78">
+      <stop offset="0" class="m1"/>
+      <stop offset="0.42" class="m2"/>
+      <stop offset="0.8" class="m3"/>
+      <stop offset="1" class="m4"/>
+    </radialGradient>
+  </defs>
+</svg>
+
+<header class="tope">
+  <div class="wrap">
+    <a class="logo" href="../platachat/" aria-label="PlataChat, abrir la app">
+      <svg class="moneda" viewBox="0 0 40 40" aria-hidden="true">
+        <circle class="cara" cx="20" cy="20" r="19"/>
+        <circle class="aro" cx="20" cy="20" r="13.5"/>
+        <circle class="burbuja" cx="29" cy="29" r="8"/>
+        <circle class="punto" cx="26" cy="29" r="1.1"/><circle class="punto" cx="29" cy="29" r="1.1"/><circle class="punto" cx="32" cy="29" r="1.1"/>
+      </svg>
+      <!-- el nombre va en UN solo <span>: .logo es flex con gap, y un texto
+           suelto más un <b> serían dos ítems con un hueco en medio -->
+      <span>Plata<b>Chat</b></span>
+    </a>
+    <a class="otra" href="index.html">¿Buscas la app de Tu Garantía?</a>
+  </div>
+</header>
+
+<main>
+  <section class="portada">
+    <div class="wrap">
+      <h1>Instala PlataChat en tu teléfono</h1>
+      <p class="baja">Sin descargar nada y sin tienda: la abres en el navegador, la
+      añades a tu pantalla de inicio y queda como una app más, con su icono.
+      Tu crédito, tu garantía y el chat con quien te presta, en un solo lugar.</p>
+
+      <a class="direccion" href="../platachat/">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+        tugarantia.net/platachat/
+      </a>
+
+      <div class="botones">
+        <a class="btn btn-marca" href="../platachat/">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z"/></svg>
+          Abrir PlataChat
+        </a>
+        <!-- Apagado a propósito: el .apk todavía no existe. Ver el comentario
+             de arriba. Es un <button disabled>, no un enlace, para que no
+             lleve a ninguna parte ni siquiera con el teclado. -->
+        <button class="btn btn-quieto" type="button" disabled aria-disabled="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+          El instalador para Android llega cuando Joan lo publique
+        </button>
+      </div>
+      <p class="peso">Sirve en cualquier Android con Chrome y en iPhone con Safari.</p>
+    </div>
+  </section>
+
+  <section class="banda" style="padding-top:0">
+    <div class="wrap">
+      <h2 class="et">Cómo se instala en Android, desde Chrome</h2>
+
+      <!-- Lista ordenada de verdad, no divs: el lector de pantalla anuncia
+           «lista, 4 elementos» y la posición. Los números pintados quedan como
+           adorno (aria-hidden); la numeración semántica la pone el <ol>. -->
+      <ol class="pasos">
+        <li class="paso">
+          <span class="n" aria-hidden="true">1</span>
+          <div><b>Abre la dirección en Chrome</b>
+          <p>Toca el botón verde de arriba, o escribe
+          <b>tugarantia.net/platachat/</b> en Chrome. Tiene que ser Chrome: el
+          navegador que viene dentro de WhatsApp no sabe instalar apps.</p></div>
+        </li>
+
+        <li class="paso">
+          <span class="n" aria-hidden="true">2</span>
+          <div><b>Toca el menú de los tres puntos</b>
+          <p>Está arriba a la derecha:
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg>Menú</span>.
+          A veces Chrome te lo propone él solo con una franja abajo que dice
+          «Añadir PlataChat a la pantalla de inicio»: si sale, tócala y sáltate
+          el paso 3.</p></div>
+        </li>
+
+        <li class="paso">
+          <span class="n" aria-hidden="true">3</span>
+          <div><b>Toca «Añadir a pantalla de inicio» o «Instalar aplicación»</b>
+          <p>Según la versión de Chrome dice una cosa o la otra; es lo mismo.
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg>Añadir a pantalla de inicio</span></p></div>
+        </li>
+
+        <li class="paso">
+          <span class="n" aria-hidden="true">4</span>
+          <div><b>Confirma con «Añadir» o «Instalar»</b>
+          <p>El icono de la moneda queda junto a tus otras apps. Desde ahí abre
+          a pantalla completa, sin barra del navegador, como cualquier app.</p></div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="banda" style="padding-top:0">
+    <div class="wrap">
+      <h2 class="et">Y en iPhone, desde Safari</h2>
+      <ol class="pasos">
+        <li class="paso">
+          <span class="n" aria-hidden="true">1</span>
+          <div><b>Abre tugarantia.net/platachat/ en Safari</b>
+          <p>Tiene que ser Safari, no Chrome ni el navegador de WhatsApp: en
+          iPhone solo Safari puede añadir apps a la pantalla de inicio.</p></div>
+        </li>
+        <li class="paso">
+          <span class="n" aria-hidden="true">2</span>
+          <div><b>Toca Compartir</b>
+          <p>Es el cuadrado con la flecha hacia arriba, abajo en el centro:
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M5 12v8h14v-8"/></svg>Compartir</span></p></div>
+        </li>
+        <li class="paso">
+          <span class="n" aria-hidden="true">3</span>
+          <div><b>Toca «Añadir a pantalla de inicio» y luego «Añadir»</b>
+          <p>Hay que bajar un poco en la lista para verlo. Queda instalada
+          igual que en Android.</p></div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="banda" style="padding-top:0">
+    <div class="wrap">
+      <div class="aviso">
+        <b>Lo que todavía no está, para que no lo busques.</b> El instalador
+        para Android (el archivo que se descarga y se abre) lo publica Joan más
+        adelante; cuando exista, el botón de arriba se enciende. Tampoco están
+        aún las notificaciones ni las notas de voz en el chat: llegan después,
+        y la app te lo dice donde corresponde. Mientras tanto, la app instalada
+        desde Chrome o Safari hace exactamente lo mismo que hará el instalador.
+      </div>
+    </div>
+  </section>
+
+  <section class="banda" style="padding-top:0">
+    <div class="wrap">
+      <div class="tarjeta">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>Se actualiza sola</h2>
+        <p>Instalas una vez. Cuando mejoramos algo, lo ves la próxima vez que
+        abras la app con internet, sin volver a instalar nada.</p>
+      </div>
+      <div class="tarjeta">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M11 17h2"/></svg>Para entrar: tu celular y una contraseña</h2>
+        <p>La primera vez tocas «Soy nuevo», pones tu celular, tu nombre y una
+        contraseña, y listo. Tu primer crédito lo pides por el chat de
+        Créditos.</p>
+      </div>
+      <div class="tarjeta verde">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>¿Ya eras cliente de Tu Garantía?</h2>
+        <p>PlataChat es la segunda app del mismo negocio: puedes tener las dos
+        instaladas y tu garantía es una sola. Después de entrar, ve a la
+        pestaña <b>Yo</b> y escribe tu código de acceso de Tu Garantía una
+        sola vez: desde ahí ves tu cupo, tu garantía y tu historial en las dos.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="pie">
+    <div class="wrap">
+      <p>PlataChat es un nombre comercial de Tu Garantía.</p>
+      <div class="enlaces">
+        <a href="../legal/terminos.html">Términos</a>
+        <a href="../legal/privacidad.html">Tus datos</a>
+        <a href="index.html">La app de Tu Garantía</a>
+        <a href="../index.html">Página principal</a>
+      </div>
+    </div>
+  </footer>
+</main>
+
+</body>
+</html>

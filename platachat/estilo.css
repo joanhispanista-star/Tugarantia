@@ -1,0 +1,697 @@
+/* ============================================================================
+ * PLATACHAT — LA PIEL. Fase 1a, 14 de septiembre de 2026.
+ *
+ * LOS TOKENS ESTÁN COPIADOS DE app/socio.html, A SABIENDAS Y CON PLAN.
+ * socio.html lleva su paleta en línea, dentro del propio archivo de 3.300
+ * líneas que Joan edita en paralelo. Sacarla de allá para compartirla sería
+ * tocar la app que hoy usan sus clientes por una mejora que no urge. Así que
+ * se copia la ANATOMÍA (medidas, radios, escala de espaciado, sombras, modo
+ * oscuro en tres bloques) y se revalúa el color; se dice acá que está copiada,
+ * como ya hace play/estilo.css; y el día que socio.html pase a una hoja
+ * externa, esta se apoya en ella y borra la copia. Es deuda anotada, no deuda
+ * escondida: la enfermedad de este proyecto es la copia que nadie declaró.
+ *
+ * LA LEY DE LA PALETA, REVALUADA A PLATA Y VERDE
+ *   Los dos materiales son los mismos de Tu Garantía: --laca (la placa negra
+ *   donde vive lo que es DEL CLIENTE) y --papel (todo lo demás). Cambian los
+ *   colores, no el sistema, y cada color sigue teniendo UN solo trabajo:
+ *
+ *   PLATA — lo que el cliente construyó. Ocupa el puesto del amarillo: la
+ *     garantía ganada, las monedas y los lingotes, el cupo. SOLO brilla sobre
+ *     la laca: sobre claro la plata es gris (lo demostró la dirección B del
+ *     lienzo, y por eso se descartó). Sobre papel solo pisa --plata-tinta, y
+ *     solo como texto.
+ *   VERDE — la marca, el gesto de avanzar y lo que el cliente escribió. Ocupa
+ *     el puesto del rojo: el botón, la barrita de la pestaña, la burbuja
+ *     propia, el globito de sin leer. Dos variables porque tiene dos trabajos:
+ *       --marca        el RELLENO (botón, burbuja, globito). Lleva letra
+ *                      blanca encima y es el mismo hex en los dos modos.
+ *                      Ojo: blanco sobre este verde da 2,4:1; es la
+ *                      convención de la marca (la misma de WeChat y WhatsApp)
+ *                      y por eso el verde de relleno se reserva a lo que se
+ *                      TOCA, a 16px, en negrita y con 44px de alto. Lo que
+ *                      hay que LEER no va nunca en blanco sobre --marca.
+ *       --marca-texto  el mismo verde cuando es TEXTO o filete sobre papel:
+ *                      en claro #04803F (5:1 sobre blanco), en oscuro la
+ *                      versión de laca, porque ahí el papel es oscuro.
+ *     El verde NUNCA es un estado y NUNCA es una cifra de plata.
+ *   ÁMBAR — los estados (mora, atraso, sin conexión, «no te alcanza»), y SOLO
+ *     sobre papel. Idéntico a socio.html, con sus tres variables y su giro en
+ *     oscuro (el ámbar no se aclara: se corre al filete y adentro escribe la
+ *     tinta).
+ *   NO HAY AZUL. En Tu Garantía el azul es el préstamo de 1 a 6 meses. Acá ese
+ *     producto no se vende: se muestra como meta lejana, en pesos y en
+ *     créditos, dentro de la tarjeta de la escalera. Sin producto no hay
+ *     color. Si un día lo tiene, se declara aquí primero.
+ *
+ * LOS ALIAS --rojo Y --rojo-tinte APUNTAN AL VERDE, Y NO ES UN ERROR.
+ *   app/chat.css es la hoja compartida del chat: la cargan socio.html, el CRM
+ *   y el espejo, y esta página también. No define ni un color propio: pinta la
+ *   burbuja propia, el globito y el foco con `var(--rojo)` y la burbuja
+ *   automática con `var(--rojo-tinte)`, tomándolos de la página que la carga.
+ *   Esta página no puede tocar chat.css —es de otra sesión y de tres pantallas
+ *   más—, así que le da lo que pide con el NOMBRE que pide: --rojo vale el
+ *   verde de la marca y --rojo-tinte su tinte. El chat sale verde sin una
+ *   línea cambiada en chat.css. Y el día que chat.css pase a tokens por
+ *   función (--marca), los dos alias se borran de aquí y nada más cambia.
+ *   Lo que NO se hace es escribir --rojo en ESTA hoja: aquí se escribe
+ *   --marca. Los alias existen para chat.css y para nadie más.
+ *
+ * CÓMO SE USA
+ *   Siempre por variable: un hex fuera de :root está mal. El espaciado sale
+ *   de la escala (--e1 4 / --e2 8 / --e3 12 / --e4 20): no hay márgenes a ojo.
+ *   Iconos: SVG de trazo en línea con `stroke="currentColor"`; nunca emojis.
+ *
+ * ESTE COMENTARIO ES LA LEY DE ESTA CARPETA. Si cambia el sistema, cambia acá
+ * primero.
+ * ==========================================================================*/
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  /* materiales: no son color, son el soporte */
+  --laca:#0C0A0B; --papel:#FFFFFF; --fondo:#F3F4F6; --tinta:#0C0A0B;
+  --luz:#FFFFFF; --sombra:#000000;   /* para los brillos y las sombras de la laca */
+  /* verde — la marca, el gesto de avanzar, lo que el cliente escribió */
+  --marca:#07C160; --marca-oscuro:#06AD56; --marca-tinte:#E7F8EE;
+  --marca-texto:#04803F; --marca-laca:#3DD97F;
+  /* plata — lo que el cliente construyó. SOLO brilla sobre laca */
+  --plata:#C9CDD4; --plata-luz:#F2F4F7; --plata-sombra:#8B929E; --plata-tinta:#5C6370;
+  /* la moneda: cuatro paradas del degradado radial, el canto y el signo. Van
+     acá y no en el SVG de la página para que el hex viva en un solo sitio;
+     la página los usa con las clases .m1 … .m4 sobre cada <stop>. */
+  --moneda-1:#FFFFFF; --moneda-2:#DCE0E6; --moneda-3:#9AA1AC; --moneda-4:#6F7682;
+  --moneda-canto:#5C6370; --moneda-signo:#4D5461;
+  /* estados: ámbar, y SOLO sobre papel. En claro el papel es claro y el ámbar
+     escribe encima; en oscuro el papel se oscurece y el ámbar se corre al
+     filete (ver la ley de arriba). */
+  --ambar:#9A5B12; --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--luz));
+  --ambar-filete:color-mix(in srgb, var(--ambar) 40%, transparent);
+  --ambar-tinta:var(--ambar);
+  --gris:#6E7480; --linea:#E3E6EB; --blanco-laca:#F7F8FA;
+  --r:16px;
+  /* espaciado por escala, nada a ojo */
+  --e1:4px; --e2:8px; --e3:12px; --e4:20px;
+  /* la barra de pestañas mide esto SIN el área segura; el cuerpo y la barra
+     de entrada del chat se apoyan en el mismo número para no taparse */
+  --nav-alto:64px;
+  /* La placa, en una sola variable: la usan .laca, .card.laca, la cabecera de
+     .tarjeta-propuesta y la bienvenida. Los tres grises del radial son los del
+     lienzo de diseño: un poco más fríos que los de Tu Garantía, para que la
+     plata tenga sobre qué brillar. */
+  --placa:
+    linear-gradient(103deg, transparent 32%, color-mix(in srgb, var(--luz) 5%, transparent) 45%, transparent 60%),
+    radial-gradient(140% 110% at 16% -25%, #23262B 0%, #121316 45%, #0C0A0B 100%);
+  /* LOS ALIAS PARA chat.css — ver la ley de arriba. Solo los lee chat.css. */
+  --rojo:var(--marca); --rojo-tinte:var(--marca-tinte);
+}
+/* ---------------- el modo oscuro ----------------
+   Lo que cambia en oscuro es el PAPEL, nunca la marca ni la plata: el verde
+   del botón lleva letra blanca encima y se queda; la plata vive sobre la laca,
+   que no cambia. Lo que sí se aclara es el verde y la plata cuando son TEXTO
+   sobre el papel, que ahora es oscuro: --marca-texto pasa a --marca-laca y
+   --plata-tinta a un plata claro. El ámbar hace el giro de socio.html: su
+   papel se oscurece como el tinte verde, adentro escribe --tinta y el ámbar se
+   queda en el filete, que es donde 3:1 le alcanza. */
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --tinta:#EDEFF2; --papel:#141517; --fondo:#0B0B0C; --linea:#26292E; --gris:#9AA1AB;
+  --marca-tinte:#0F2418; --marca-texto:var(--marca-laca);
+  --plata-tinta:#B3B9C3;
+  --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--papel));
+  --ambar-filete:var(--ambar); --ambar-tinta:var(--tinta);
+} }
+:root[data-theme="dark"]{
+  --tinta:#EDEFF2; --papel:#141517; --fondo:#0B0B0C; --linea:#26292E; --gris:#9AA1AB;
+  --marca-tinte:#0F2418; --marca-texto:var(--marca-laca);
+  --plata-tinta:#B3B9C3;
+  --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--papel));
+  --ambar-filete:var(--ambar); --ambar-tinta:var(--tinta);
+}
+:root[data-theme="light"]{
+  --laca:#0C0A0B; --papel:#FFFFFF; --fondo:#F3F4F6; --tinta:#0C0A0B;
+  --luz:#FFFFFF; --sombra:#000000;
+  --marca:#07C160; --marca-oscuro:#06AD56; --marca-tinte:#E7F8EE;
+  --marca-texto:#04803F; --marca-laca:#3DD97F;
+  --plata:#C9CDD4; --plata-luz:#F2F4F7; --plata-sombra:#8B929E; --plata-tinta:#5C6370;
+  --ambar:#9A5B12; --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--luz));
+  --ambar-filete:color-mix(in srgb, var(--ambar) 40%, transparent);
+  --ambar-tinta:var(--ambar);
+  --gris:#6E7480; --linea:#E3E6EB; --blanco-laca:#F7F8FA;
+}
+
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--fondo); color:var(--tinta);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Roboto,system-ui,sans-serif;
+  font-size:15px; line-height:1.5;
+  padding-bottom:calc(var(--nav-alto) + env(safe-area-inset-bottom));
+}
+h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;
+  font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+a{color:var(--marca-texto)}
+.wrap{max-width:520px;margin:0 auto;padding:0 16px}
+.muted{color:var(--gris)}
+.oculto{display:none!important}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.plata-tinta{color:var(--plata-tinta)}
+.marca-texto{color:var(--marca-texto)}
+
+/* ---------------- la laca ---------------- */
+.laca{
+  position:relative; isolation:isolate; border-radius:var(--r);
+  color:var(--blanco-laca); -webkit-font-smoothing:antialiased;
+  background:var(--placa);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--luz) 13%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--sombra) 55%, transparent),
+    0 18px 38px -20px color-mix(in srgb, var(--laca) 45%, transparent);
+}
+.laca::after{                       /* el filete de PLATA que se apaga en los extremos */
+  content:''; position:absolute; left:var(--e4); right:var(--e4); bottom:0; height:1px;
+  background:linear-gradient(90deg, transparent,
+    color-mix(in srgb, var(--plata) 55%, transparent) 20%,
+    color-mix(in srgb, var(--plata-luz) 95%, transparent) 50%,
+    color-mix(in srgb, var(--plata) 55%, transparent) 80%, transparent);
+}
+.laca::before{                      /* grano, contra el banding del degradado */
+  content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  opacity:.045; mix-blend-mode:overlay; background-size:140px 140px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+}
+.laca .muted{color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)}
+.laca .fila{border-color:color-mix(in srgb, var(--luz) 12%, transparent)}
+.laca .fila .k{color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)}
+.laca a{color:var(--marca-laca)}
+/* El barrido de lustre: pasa UNA vez al abrir, como en socio.html. El lienzo
+   lo tenía en bucle; en una pantalla que se mira treinta veces al día un
+   brillo que no para se vuelve un tic. */
+.lustre{position:absolute;inset:0;overflow:hidden;border-radius:inherit;pointer-events:none;z-index:2}
+.lustre i{position:absolute;top:-30%;bottom:-30%;width:38%;transform:skewX(-14deg);
+  background:linear-gradient(90deg,transparent,color-mix(in srgb, var(--luz) 10%, transparent),transparent);
+  animation:lustre 1.1s cubic-bezier(.25,.8,.25,1) .2s both}
+@keyframes lustre{from{transform:translateX(-40%) skewX(-14deg)}to{transform:translateX(140%) skewX(-14deg)}}
+@media (prefers-reduced-motion:reduce){.lustre{display:none}}
+
+/* ---------------- cabecera ---------------- */
+.cab{padding:calc(env(safe-area-inset-top) + 18px) 0 20px; border-radius:0 0 var(--r) var(--r)}
+/* El nombre de la marca: «Plata» en blanco de laca y «Chat» en plata, en la
+   serif de las cifras. Es una sola palabra —PlataChat— y no se parte nunca;
+   el cambio de color es el sello, no un espacio. El icono es la burbuja de
+   trazo, la misma de la pestaña Chats. OJO al marcado: el nombre va dentro
+   de UN <span> —<span>Plata<b>Chat</b></span>—, porque .logo es flex con
+   gap, y un texto suelto más un <b> serían dos ítems con un hueco en medio
+   (pasó en descargas/platachat.html el 14-sep). */
+.logo{display:inline-flex;align-items:center;gap:var(--e2);
+  font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;
+  font-size:19px;letter-spacing:.02em;color:var(--blanco-laca);white-space:nowrap}
+.logo b{font-weight:inherit;color:var(--plata)}
+.logo svg{width:22px;height:22px;flex:none;color:var(--plata)}
+.cab .lado{font-size:12px;color:color-mix(in srgb, var(--blanco-laca) 62%, transparent);
+  font-variant-numeric:tabular-nums;text-align:right}
+.cab h1{font-size:21px;margin-top:var(--e3);color:var(--blanco-laca)}
+.cab .arriba{display:flex;justify-content:space-between;align-items:center;gap:var(--e3)}
+/* la marca discreta de que estos datos salieron del Panel del equipo */
+.pto{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--marca-texto);flex:none}
+.laca .pto{background:var(--marca-laca)}
+
+/* ---------------- tarjetas ---------------- */
+.card{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);
+  padding:var(--e4);margin-top:var(--e3)}
+.card.laca{border:0;background:var(--placa);color:var(--blanco-laca)}
+.card.pegado{padding-left:0;padding-right:0;overflow:hidden}
+.card.quincenal{border-left:3px solid var(--marca-texto)}
+.etq{font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:700;color:var(--gris)}
+.etq.q{color:var(--marca-texto)}
+.laca .etq{color:color-mix(in srgb, var(--plata) 85%, transparent)}
+.laca .etq.q{color:var(--marca-laca)}
+.cifra{font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1.05;margin-top:6px;
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.cifra.sm{font-size:24px;font-weight:700}
+/* La cifra grande de la garantía va en la serif de los títulos, como en el
+   lienzo: es la única cifra de la app que es de PLATA y se distingue también
+   por la letra, no solo por el color. */
+.cifra.plata{color:var(--plata-luz);font-weight:600;font-size:40px;
+  font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;letter-spacing:-.01em}
+.cifra.verde{color:var(--marca-texto)}
+h3.tit{font-size:18px}
+.tit.sm{font-size:16px}
+.sub{font-size:14px;color:var(--gris);margin:var(--e2) 0 0}
+.fila{display:flex;justify-content:space-between;align-items:baseline;gap:var(--e3);padding:var(--e3) 0;
+  border-bottom:1px solid var(--linea)}
+.fila:last-child{border-bottom:0}
+.fila .k{color:var(--gris);font-size:14px}
+.fila .v{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.fila .v.plata{color:var(--plata)}
+.fila .v.verde{color:var(--marca-texto)}
+.laca .fila .v.verde{color:var(--marca-laca)}
+.sep{height:1px;background:var(--linea);margin:16px 0}
+.laca .sep{background:color-mix(in srgb, var(--luz) 12%, transparent)}
+.cinta{font-size:12px;color:var(--gris);text-align:center;padding:var(--e2) 16px 0}
+
+/* ---------------- barra de progreso ---------------- */
+.barra{height:var(--e2);border-radius:99px;background:var(--linea);overflow:hidden;margin-top:var(--e2)}
+.laca .barra{background:color-mix(in srgb, var(--luz) 16%, transparent)}
+.barra i{display:block;height:100%;border-radius:99px;background:var(--marca-texto);
+  transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.laca .barra i{background:var(--plata)}
+@media (prefers-reduced-motion:reduce){.barra i{transition:none}}
+
+/* ---------------- botones y campos ---------------- */
+/* .btn a secas es el botón de avanzar, y avanzar es verde: es el mismo papel
+   que tiene el rojo en socio.html. .btn.marca lo dice explícito para que el
+   HTML se lea; .btn.claro es el secundario sobre papel; .btn.sec, el
+   secundario sobre laca (borde de luz, letra de laca). */
+.btn{display:block;width:100%;padding:15px;border:0;border-radius:14px;font-size:16px;
+  font-weight:600;font-family:inherit;cursor:pointer;background:var(--marca);color:var(--luz);
+  text-align:center;text-decoration:none;transition:transform .12s;min-height:44px}
+.btn:active{transform:scale(.985)}
+.btn.marca{background:var(--marca);color:var(--luz)}
+.btn.claro{background:var(--papel);color:var(--tinta);border:1px solid var(--linea)}
+.btn.sec{background:transparent;color:var(--tinta);border:1px solid var(--linea)}
+.laca .btn.sec{color:var(--blanco-laca);border-color:color-mix(in srgb, var(--luz) 25%, transparent)}
+/* Un botón apagado sigue diciendo lo que haría; solo no lo hace todavía. El
+   title o el texto de al lado dicen por qué («en camino»). Sin cursor de
+   mano y sin encogerse al tocar: no responde, y se nota. */
+.btn[disabled],.btn[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+.btn[disabled]:active,.btn[aria-disabled="true"]:active{transform:none}
+.btn.sm{padding:var(--e3);font-size:14px;min-height:44px}
+.btn.arriba{margin-top:var(--e4)}
+.dos-btn{display:grid;grid-template-columns:1fr 1fr;gap:var(--e2);margin-top:var(--e3)}
+label{display:block;font-size:13px;font-weight:600;margin:16px 0 6px}
+input[type=text],input[type=tel],input[type=number],input[type=email],input[type=password],input[type=date],select,textarea{
+  width:100%;padding:14px;border:1px solid var(--linea);border-radius:14px;font-size:16px;
+  font-family:inherit;background:var(--papel);color:var(--tinta)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--marca-texto);outline-offset:2px}
+/* foco de teclado: lo tiene todo lo tocable, no solo los campos */
+:where(button,a,summary,[tabindex]):focus-visible{
+  outline:2px solid var(--marca-texto); outline-offset:2px; border-radius:8px}
+.laca :where(button,a,summary):focus-visible{outline-color:var(--marca-laca)}
+input[type=range]{width:100%;accent-color:var(--marca);height:44px;padding:0;border:0;background:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+  width:28px;height:28px;border-radius:50%;background:var(--marca);border:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:99px;background:var(--linea)}
+.rango-pies{display:flex;justify-content:space-between;font-size:11.5px;color:var(--gris)}
+/* la fila «Quieres pedir · $100.000» encima del deslizador */
+.pedir{display:flex;justify-content:space-between;align-items:baseline;margin-top:var(--e3)}
+.pedir .k{font-size:13px;color:var(--gris)}
+.pedir .v{font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;
+  font-size:28px;font-variant-numeric:tabular-nums}
+
+/* ---------------- casillas de autorización (habeas data) ------------------
+   Toda la fila es tocable, no solo el cuadrito: un checkbox de 18px en un
+   celular se falla, y este es el que decide si la persona puede abrir su
+   cuenta. El cuadrito va a 22px y la fila entera pasa de 44 de alto. */
+.permiso{display:flex;gap:12px;align-items:flex-start;margin:16px 0 0;padding:13px;
+  border:1px solid var(--linea);border-radius:14px;cursor:pointer;
+  font-size:14px;font-weight:400;line-height:1.5}
+.permiso:has(input:checked){border-color:var(--marca-texto);background:var(--marca-tinte)}
+.permiso input{width:22px;height:22px;flex:none;margin:1px 0 0;accent-color:var(--marca);cursor:pointer}
+.permiso:focus-within{outline:3px solid var(--plata);outline-offset:2px}
+.permiso .muted{display:block;margin-top:4px}
+
+/* ---------------- avisos: neutro, verde que explica, ámbar que avisa ------
+   El aviso que informa va en el tinte de la marca (en Tu Garantía era el
+   azul): es lo que acompaña y explica, no una alarma. El ámbar sigue siendo
+   el estado: mora, sin conexión, «no te alcanza». */
+.aviso{border-radius:14px;padding:14px;font-size:14px;margin-top:14px;line-height:1.5;
+  border:1px solid var(--linea)}
+.aviso.info{border-color:color-mix(in srgb, var(--marca-texto) 25%, transparent);
+  background:var(--marca-tinte); color:var(--tinta)}
+.aviso.info b{color:var(--marca-texto)}
+.aviso.ambar{border-color:var(--ambar-filete);border-left:3px solid var(--ambar);
+  background:var(--ambar-papel); color:var(--ambar-tinta)}
+.aviso.ambar b{color:var(--ambar-tinta)}
+.laca .aviso{border-color:color-mix(in srgb, var(--luz) 16%, transparent);
+  background:color-mix(in srgb, var(--luz) 5%, transparent);color:var(--blanco-laca)}
+.pill{display:inline-block;padding:var(--e1) 11px;border-radius:999px;font-size:11px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--linea);color:var(--gris)}
+.pill.ambar{border-color:var(--ambar-filete);background:var(--ambar-papel);color:var(--ambar-tinta)}
+.pill.verde{border-color:transparent;background:var(--marca-tinte);color:var(--marca-texto)}
+
+/* ---------------- el segmento -----------------------------------------------
+   Sirve para dos cosas con el mismo molde: los tres canales del chat
+   (Servicio · Cobranza · Créditos) y los dos productos de la calculadora
+   (Quincenal · 1 a 6 meses). Cabe cualquier número de botones: cada uno toma
+   una columna igual. El elegido se pinta de marca con letra blanca; el que no
+   está disponible se apaga (aria-disabled) pero se sigue leyendo, porque dice
+   «desde $1.000.000 ganados», que es información y no un botón muerto. */
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:var(--e2);margin-bottom:var(--e4)}
+.seg button{min-height:56px;padding:var(--e2) var(--e1);border:1px solid var(--linea);
+  border-radius:12px;background:var(--fondo);color:var(--gris);font-family:inherit;
+  cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;text-align:center;transition:background-color .12s}
+.seg button b{font-size:13px;font-weight:700;line-height:1.2}
+.seg button i{font-style:normal;font-size:11px;font-weight:600;line-height:1.2}
+.seg button.on{background:var(--marca);color:var(--luz);border-color:var(--marca)}
+.seg button[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+.seg.baja{margin-bottom:var(--e3)}
+.seg.baja button{min-height:44px}
+@media (prefers-reduced-motion:reduce){.seg button{transition:none}}
+
+/* ---------------- las fichas de monto ---------------- */
+.chips{display:flex;gap:var(--e2);flex-wrap:wrap;margin-top:var(--e3)}
+.chip{min-height:44px;display:inline-flex;align-items:center;padding:0 var(--e3);
+  border-radius:999px;border:1px solid var(--linea);background:transparent;
+  color:var(--tinta);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;
+  font-variant-numeric:tabular-nums}
+.chip.pz{min-width:44px;justify-content:center}
+/* El chip elegido se INVIERTE contra la tarjeta en la que vive, no contra un
+   negro fijo: en claro queda tinta con letra papel y en oscuro al revés. Con
+   --laca fijo, en oscuro el chip quedaba negro sobre una tarjeta casi negra y
+   no se veía cuál monto estaba escogido. */
+.chip.on{background:var(--tinta);color:var(--papel);border-color:var(--tinta)}
+.etq.suelta{margin-top:var(--e4);display:block}
+details{margin-top:var(--e3);border-top:1px solid var(--linea);padding-top:var(--e3)}
+summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--gris);list-style:none;
+  min-height:44px;display:flex;align-items:center}
+summary::-webkit-details-marker{display:none}
+summary::after{content:' ↓';color:var(--gris)}
+details[open] summary::after{content:' ↑'}
+
+/* ---------------- la salida de la calculadora ---------------- */
+/* Dos cajas enfrentadas: lo que pagas (fondo neutro) y lo que ganas (tinte de
+   marca). La segunda es verde porque es lo que el cliente TOCA con su pago;
+   la cifra de garantía que deja es texto sobre papel, así que va en
+   --marca-texto y no en plata (la plata solo brilla sobre laca). */
+.dos{display:grid;grid-template-columns:repeat(2, minmax(0,1fr));gap:10px;margin-top:16px}
+.caja{padding:var(--e3);border-radius:12px;background:var(--fondo)}
+.caja .k{font-size:12px;color:var(--gris)}
+.caja .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.25}
+.caja .ay{font-size:12px;color:var(--gris)}
+.caja.marca{background:var(--marca-tinte)}
+.caja.marca .k,.caja.marca .v,.caja.marca .ay{color:var(--marca-texto)}
+.remate{margin:14px 0 0;font-size:13.5px;line-height:1.5}
+
+/* ---------------- la escalera ---------------------------------------------
+   Barras (como en socio.html) y, debajo o en vez, los escalones en pesos:
+   «Pedir $200.000 · te faltan $55.000 de garantía · 3 créditos». */
+.crece{display:flex;align-items:flex-end;gap:6px;height:96px;margin-top:20px}
+.crece div{flex:1;background:var(--tinta);border-radius:4px 4px 2px 2px;min-height:4px;position:relative;
+  transition:height .6s cubic-bezier(.2,.8,.2,1)}
+.crece div:last-child{background:var(--marca-texto)}
+.crece div span{position:absolute;top:-16px;left:0;right:0;text-align:center;font-size:9.5px;
+  color:var(--gris);font-weight:600;font-variant-numeric:tabular-nums}
+.crece-pie{display:flex;gap:6px;margin-top:6px}
+.crece-pie span{flex:1;text-align:center;font-size:10px;color:var(--gris)}
+@media (prefers-reduced-motion:reduce){.crece div{transition:none}}
+.escalera{display:flex;flex-direction:column;gap:var(--e2);margin-top:var(--e3)}
+.escalon{display:grid;grid-template-columns:1fr auto;gap:var(--e3);align-items:center;
+  padding:10px var(--e3);border-radius:12px;background:var(--fondo)}
+.escalon .k{font-weight:600;font-variant-numeric:tabular-nums}
+.escalon .ay{font-size:12px;color:var(--gris)}
+.escalon .n{font-size:12.5px;font-weight:600;color:var(--plata-tinta);white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.escalon.lograda .n{color:var(--marca-texto)}
+
+/* ---------------- niveles y datos (pestaña Yo) ---------------- */
+.nivel,.dato{display:flex;align-items:center;gap:var(--e3);padding:var(--e3) 0;
+  min-height:44px;border-bottom:1px solid var(--linea)}
+.nivel:last-child,.dato:last-child{border-bottom:0}
+.nivel .txt,.dato .txt{flex:1;min-width:0}
+.nivel .nm,.dato .nm{font-weight:600;font-size:14px}
+/* La ayuda va DEBAJO del nombre del dato: son <span>, o sea inline, y en un
+   inline el margen de arriba no existe. Con display:block la línea baja. */
+.nivel .rq,.dato .ay{display:block;font-size:12px;color:var(--gris);margin-top:var(--e1)}
+.nivel .cp,.dato .vl{font-weight:600;font-size:14px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.nivel.aqui{border-left:2px solid var(--plata-tinta);padding-left:var(--e3);margin-left:-14px}
+.dato .tick{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-size:11px;border:1px solid var(--linea);color:var(--gris)}
+.dato.ok .tick{background:var(--tinta);border-color:var(--tinta);color:var(--papel)}
+.dato.ok .vl{color:var(--gris)}
+
+/* ---------------- historial ---------------- */
+.credito{border:1px solid var(--linea);border-radius:14px;padding:14px;margin-top:10px}
+.credito .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.credito .cod{font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--gris)}
+.credito .gan{margin-top:10px;padding-top:10px;border-top:1px solid var(--linea);font-size:13px;
+  display:flex;justify-content:space-between}
+
+/* ---------------- las monedas y los lingotes --------------------------------
+   Una moneda = $10.000 de garantía GANADA; un lingote = $100.000. El cupón por
+   datos NO se dibuja como plata: se dice en texto («Por tus datos: +$X»). Las
+   monedas se montan una sobre otra (margen negativo) como una pila puesta de
+   lado; la media moneda la recorta la página con el clipPath #media-moneda;
+   el molde vacío (punteado) es lo que se ve cuando todavía no hay ninguna, con
+   la frase «tus dos primeras monedas llegan al pagar tu primer crédito en
+   fecha». Debajo, SIEMPRE, la línea de que la garantía es cupo y no ahorro:
+   sin ella la pila sería publicidad engañosa.
+
+   El degradado radial vive en un <defs> de la página con id="plata-moneda" y
+   sus cuatro <stop> llevan las clases .m1 … .m4 de aquí, para que el hex no
+   se repita en el HTML:
+     <radialGradient id="plata-moneda" cx=".35" cy=".28" r=".78">
+       <stop offset="0" class="m1"/><stop offset=".42" class="m2"/>
+       <stop offset=".8" class="m3"/><stop offset="1" class="m4"/>
+     </radialGradient>
+   Y en cada moneda: <circle class="cara" .../> <circle class="aro" .../>
+   <text class="signo">$</text>. */
+.m1{stop-color:var(--moneda-1)} .m2{stop-color:var(--moneda-2)}
+.m3{stop-color:var(--moneda-3)} .m4{stop-color:var(--moneda-4)}
+.monedas{display:flex;align-items:flex-end;gap:14px;margin-top:14px}
+.monedas .pila{display:flex;align-items:flex-end}
+.monedas .aire{flex:1}
+.moneda{width:38px;height:38px;flex:none;margin-right:-12px;overflow:visible}
+.moneda:last-child{margin-right:0}
+.moneda .cara{fill:url(#plata-moneda);stroke:var(--moneda-canto);stroke-width:1}
+.moneda .aro{fill:none;stroke:var(--luz);stroke-opacity:.55;stroke-width:1.2}
+.moneda .signo{font-family:Georgia,"Times New Roman",serif;font-size:15px;font-weight:700;
+  fill:var(--moneda-signo);text-anchor:middle}
+/* la media moneda: el molde punteado atrás y la mitad recortada encima */
+.moneda.media .molde,.moneda.vacia .molde{fill:none;stroke:var(--plata);stroke-opacity:.5;
+  stroke-width:1.5;stroke-dasharray:4 4}
+.moneda.vacia{opacity:.7}
+.lingote{width:64px;height:32px;flex:none}
+.lingote .cuerpo{fill:url(#plata-moneda);stroke:var(--moneda-canto);stroke-width:1}
+.lingote.vacio .cuerpo{fill:none;stroke:var(--plata);stroke-opacity:.45;stroke-width:1.5;stroke-dasharray:4 4}
+/* Las dos leyendas («4 monedas y media · cada moneda son $10.000» y «un
+   lingote son $100.000») se reparten a los lados y, si no caben en un
+   teléfono de 360, la segunda baja de línea: con nowrap se salía de la placa
+   por la derecha (visto el 14-sep a 375px). */
+.monedas-pie{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--e1) var(--e3);
+  margin-top:var(--e2);font-size:12px;color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)}
+.cupon{margin-top:10px;font-size:13px;color:var(--plata-luz);font-variant-numeric:tabular-nums}
+.cupon strong{color:var(--plata-luz)}
+.cupo-frase{margin-top:6px;font-size:12px;line-height:1.4;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent)}
+/* El brillo: un respiro de luz sobre cada moneda, escalonado para que la pila
+   parezca pegar la luz de a una. Apagado con el movimiento reducido. */
+.brillo{animation:brillo 3.2s ease-in-out infinite}
+.monedas .brillo:nth-child(2){animation-delay:.4s}
+.monedas .brillo:nth-child(3){animation-delay:.8s}
+.monedas .brillo:nth-child(4){animation-delay:1.2s}
+.monedas .brillo:nth-child(5){animation-delay:1.6s}
+@keyframes brillo{0%,100%{filter:brightness(1)}50%{filter:brightness(1.18)}}
+@media (prefers-reduced-motion:reduce){.brillo{animation:none}}
+
+/* ---------------- el chat: lo que chat.css no trae -------------------------
+   chat.css pinta el hilo (burbujas, día, pie, visto) con los alias de arriba.
+   Aquí va lo que es solo de PlataChat: la etiqueta de autor, la barra de
+   entrada, la tarjeta de propuesta y el giro de la burbuja automática. */
+
+/* La etiqueta de quién habla («PlataChat», «tu gerente», «automático»). Va
+   dentro de la burbuja, arriba del texto, como .ch-auto. Dentro de la burbuja
+   propia (verde) escribe en luz. */
+.ch-quien{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--plata-tinta);margin-bottom:3px;font-weight:600}
+.ch-mio .ch-quien{color:color-mix(in srgb, var(--luz) 85%, transparent)}
+/* La burbuja AUTOMÁTICA va en plata y no en el tinte de la marca: el verde es
+   de lo que el cliente escribió y de lo que puede tocar; una máquina no es
+   ninguna de las dos. chat.css la pinta con --rojo-tinte (o sea verde claro)
+   y punteada; acá se le cambia el color y se le deja el punteado, que es la
+   señal de la promesa «sabes cuándo te contestó una máquina». Especificidad
+   mayor a propósito: chat.css carga DESPUÉS de esta hoja. */
+.ch-msg.ch-esauto .ch-burbuja{background:var(--plata-luz);border-color:var(--plata-sombra);color:var(--tinta)}
+.ch-burbuja .ch-auto{color:var(--plata-tinta)}
+.ch-hilo{padding-bottom:var(--e3)}
+
+/* La tarjeta de propuesta: el producto entero vive en el chat. Cabecera de
+   laca (con la moneda y el título en serif), cuerpo en papel con las filas en
+   pesos, la caja verde de lo que gana, dos botones y la nota de que aceptar
+   no desembolsa. El borde punteado dice, como en la burbuja automática, que
+   la armó el sistema. La fase 1a la muestra; los botones los enchufa la 1b
+   —hasta entonces, si se pintan, van [disabled] y con el motivo. */
+.tarjeta-propuesta{width:100%;max-width:92%;border-radius:var(--r);overflow:hidden;
+  border:1px dashed var(--plata-sombra);background:var(--papel);margin:6px 0;
+  box-shadow:0 1px 1px color-mix(in srgb, var(--sombra) 4%, transparent)}
+.tarjeta-propuesta .cabeza{padding:var(--e3) 14px;display:flex;align-items:center;gap:10px;
+  border-radius:0}
+.tarjeta-propuesta .cabeza::after{display:none}
+.tarjeta-propuesta .cabeza .moneda{width:26px;height:26px;margin:0}
+.tarjeta-propuesta .cabeza .etq{color:var(--plata);letter-spacing:.07em;font-size:10.5px}
+.tarjeta-propuesta .cabeza .tit{font-size:17px;color:var(--blanco-laca)}
+.tarjeta-propuesta .cuerpo{padding:var(--e3) 14px;display:flex;flex-direction:column;gap:var(--e2)}
+.tarjeta-propuesta .lin{display:flex;justify-content:space-between;gap:var(--e3);font-size:14px}
+.tarjeta-propuesta .lin .k{color:var(--gris)}
+.tarjeta-propuesta .lin strong{font-variant-numeric:tabular-nums}
+.tarjeta-propuesta .gana{margin-top:var(--e1);padding:10px var(--e3);border-radius:12px;
+  background:var(--marca-tinte);font-size:13px;line-height:1.45;color:var(--marca-texto)}
+.tarjeta-propuesta .gana strong{font-variant-numeric:tabular-nums}
+.tarjeta-propuesta .acciones{display:grid;grid-template-columns:repeat(2, minmax(0,1fr));gap:var(--e2);margin-top:var(--e1)}
+.tarjeta-propuesta .acciones .btn{padding:12px;font-size:14px;border-radius:12px}
+.tarjeta-propuesta .nota{font-size:11.5px;color:var(--gris);line-height:1.4}
+/* Fase 1b (15-sep-2026). La propuesta de una PERSONA lleva borde continuo:
+   el punteado es la señal de máquina, como en la burbuja automática, y una
+   propuesta de Joan o del gerente no puede llevarla. .dice es la frase de la
+   tarjeta (la hora límite, «te contesta una persona»); .acciones.una es la
+   tarjeta con un solo botón, a todo el ancho en vez de media rejilla. Dueño
+   único: index.html no trae ninguna de estas reglas. */
+.tarjeta-propuesta.humana{border-style:solid}
+.tarjeta-propuesta .dice{font-size:13.5px;line-height:1.45;color:var(--tinta)}
+.tarjeta-propuesta .acciones.una{grid-template-columns:1fr}
+
+/* La barra de entrada, la de Plaza: micrófono · píldora con el texto · foto ·
+   enviar. Se pega al borde de abajo, justo encima de la barra de pestañas,
+   para que no haya que bajar hasta el final del hilo para escribir. Los
+   botones redondos son de 40px pero su zona tocable llega a 44 con el
+   relleno de la barra. El micrófono nace [disabled] con title «Notas de voz:
+   en camino»: se ve para que el cliente sepa que viene, apagado para que no
+   prometa. */
+.entrada-chat{position:sticky;bottom:calc(var(--nav-alto) + env(safe-area-inset-bottom));z-index:10;
+  display:flex;align-items:flex-end;gap:var(--e2);padding:var(--e2) 0;
+  background:var(--fondo);border-top:1px solid var(--linea);margin-top:var(--e2)}
+.entrada-chat > button{width:40px;height:40px;flex:none;border-radius:50%;border:0;
+  background:transparent;color:var(--gris);display:grid;place-items:center;cursor:pointer;
+  font-family:inherit;padding:0}
+.entrada-chat > button svg{width:22px;height:22px}
+.entrada-chat > button[disabled]{opacity:.45;cursor:not-allowed}
+.entrada-chat .pildora{flex:1;min-height:40px;border-radius:20px;border:1px solid var(--linea);
+  background:var(--papel);display:flex;align-items:center;padding:0 var(--e2) 0 14px;gap:var(--e2)}
+.entrada-chat .pildora textarea{flex:1;min-height:38px;max-height:130px;padding:9px 0;border:0;
+  border-radius:0;background:transparent;color:var(--tinta);resize:none;font:inherit;font-size:15px;
+  line-height:1.4}
+.entrada-chat .pildora textarea:focus{outline:none}
+.entrada-chat .pildora:focus-within{border-color:var(--marca-texto);
+  box-shadow:0 0 0 2px color-mix(in srgb, var(--marca-texto) 25%, transparent)}
+.entrada-chat > button.enviar{background:var(--marca);color:var(--luz)}
+.entrada-chat > button.enviar[disabled]{opacity:.45}
+.entrada-chat .ch-cuenta.ch-pasado{color:var(--ambar-tinta)}  /* pasarse del largo es un estado: ámbar */
+
+/* los avatares de «quién te escribe aquí» */
+.avatar{width:34px;height:34px;flex:none;border-radius:50%;background:var(--laca);color:var(--plata);
+  display:grid;place-items:center;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;font-size:15px}
+.avatar.grande{width:46px;height:46px;font-size:18px}
+.avatar.plata{background:var(--plata-luz);border:1px solid var(--plata);color:var(--plata-tinta);
+  font-family:inherit;font-weight:700;font-size:14px}
+.avatar.auto{background:transparent;border:1.5px dashed var(--plata-sombra);color:var(--plata-tinta)}
+.avatar.auto svg{width:16px;height:16px}
+.quienes{margin-top:var(--e3);background:var(--papel);border:1px solid var(--linea);border-radius:12px;overflow:hidden}
+.quienes .q{display:grid;grid-template-columns:36px 1fr;gap:var(--e3);align-items:center;
+  padding:11px 14px;border-bottom:1px solid var(--linea);font-size:13.5px}
+.quienes .q:last-child{border-bottom:0}
+.quienes .q .muted{color:var(--gris)}
+
+/* ---------------- la barra de pestañas ----------------
+   Tres, con icono de trazo y rótulo: Chats · Plata · Yo. La barrita de la
+   activa es de marca, como en Tu Garantía era roja. No hay globito de «sin
+   leer» en la pestaña, y no es un olvido: la única función que sabe cuántos
+   faltan por leer (chat_leer_sesion) MARCA como leídos los que devuelve; un
+   globito alimentado con ella se apagaría solo. */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;
+  height:calc(var(--nav-alto) + env(safe-area-inset-bottom));
+  background:var(--papel);border-top:1px solid var(--linea);
+  padding-bottom:env(safe-area-inset-bottom)}
+.nav button{flex:1;border:0;background:transparent;font-family:inherit;cursor:pointer;
+  padding:10px 2px;min-height:48px;color:var(--gris);font-size:11.5px;font-weight:600;position:relative;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.nav button svg{width:24px;height:24px}
+.nav button.on{color:var(--tinta)}
+.nav button.on::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
+  bottom:6px;width:18px;height:2px;border-radius:2px;background:var(--marca)}
+
+.panel{animation:sube .3s cubic-bezier(.2,.8,.2,1)}
+@keyframes sube{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.panel{animation:none}}
+.pie{text-align:center;font-size:12px;color:var(--gris);margin:22px 0 8px;line-height:1.6}
+.pie a{color:var(--gris)}
+.cargando{text-align:center;padding:70px 0;color:var(--gris)}
+
+/* ---------------- la bienvenida ------------------------------------------
+   Mismo gesto que socio.html: dos segundos con el sello mientras la app
+   despierta, escritos en el HTML para verse desde el primer fotograma, con un
+   plazo de seguridad por si el script no llega. Los materiales son los de las
+   tarjetas (la placa, el grano) y el sello es la moneda: la garantía es lo
+   que esta app enseña, y es lo primero que se ve. La burbujita verde abajo a
+   la derecha es la marca: el mismo icono que hay en la pantalla de inicio. */
+#hola{position:fixed;inset:0;z-index:99;background:var(--laca);
+  display:grid;place-items:center;overflow:hidden;
+  transition:opacity .55s ease, visibility .55s ease}
+#hola.fuera{opacity:0;visibility:hidden;pointer-events:none}
+#hola .placa{position:absolute;inset:0;background:var(--placa)}
+/* el aura: dos luces que respiran, verde y plata, muy por debajo del umbral en
+   que un fondo compite con lo de encima. Solo transform: la compone la GPU. */
+#hola .aura{position:absolute;inset:-25%;pointer-events:none;
+  background:
+    radial-gradient(36% 30% at 24% 20%, color-mix(in srgb, var(--marca) 28%, transparent), transparent 68%),
+    radial-gradient(40% 34% at 78% 84%, color-mix(in srgb, var(--plata) 16%, transparent), transparent 70%);
+  animation:hola-aura 7.5s ease-in-out infinite alternate}
+#hola .grano{position:absolute;inset:0;pointer-events:none;
+  opacity:.055;mix-blend-mode:overlay;background-size:140px 140px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>")}
+#hola .vineta{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(115% 85% at 50% 42%, transparent 38%,
+    color-mix(in srgb, var(--sombra) 60%, transparent) 100%)}
+#hola .marco{position:relative;z-index:2;display:flex;flex-direction:column;
+  align-items:center;gap:var(--e4);padding:0 24px;text-align:center;
+  transition:transform .55s ease}
+#hola.fuera .marco{transform:translateY(-10px) scale(.985)}
+#hola .sello-caja{position:relative;display:grid;place-items:center}
+#hola .halo{position:absolute;width:96px;height:96px;border-radius:50%;
+  border:1px solid color-mix(in srgb, var(--plata) 60%, transparent);
+  animation:hola-halo 2.6s cubic-bezier(.2,.7,.2,1) .45s infinite}
+/* La moneda: el mismo radial de la pila, en CSS porque acá no hay <defs>. */
+#hola .sello{position:relative;width:96px;height:96px;border-radius:50%;
+  overflow:hidden;display:grid;place-items:center;color:var(--moneda-signo);
+  background:radial-gradient(78% 78% at 35% 28%, var(--moneda-1) 0%, var(--moneda-2) 42%, var(--moneda-3) 80%, var(--moneda-4) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--moneda-canto),
+    inset 0 0 0 12px color-mix(in srgb, var(--luz) 22%, transparent),
+    inset 0 0 0 13px color-mix(in srgb, var(--moneda-canto) 20%, transparent),
+    0 30px 64px -22px color-mix(in srgb, var(--plata) 70%, transparent);
+  animation:hola-sello .85s cubic-bezier(.2,.9,.25,1) both}
+#hola .sello span{position:relative;z-index:2;
+  font-family:Georgia,'Times New Roman',serif;font-size:44px;font-weight:700;line-height:1}
+#hola .sello::after{content:'';position:absolute;top:-40%;bottom:-40%;left:0;width:44%;
+  transform:translateX(-170%) skewX(-16deg);
+  background:linear-gradient(90deg,transparent,
+    color-mix(in srgb, var(--luz) 52%, transparent),transparent);
+  animation:hola-lustre 2.4s cubic-bezier(.3,.75,.35,1) .5s infinite}
+/* la burbuja verde de la marca, montada sobre el canto de la moneda */
+#hola .burbujita{position:absolute;right:-6px;bottom:-4px;width:34px;height:34px;border-radius:50%;
+  background:var(--marca);border:3px solid var(--laca);display:grid;place-items:center;
+  color:var(--luz);z-index:3;animation:hola-sube .5s ease .55s both}
+#hola .burbujita svg{width:16px;height:16px}
+#hola .nombre{font-size:13px;font-weight:700;letter-spacing:.3em;
+  text-transform:uppercase;color:color-mix(in srgb, var(--blanco-laca) 76%, transparent);
+  animation:hola-sube .6s ease .3s both}
+#hola .lema{margin-top:calc(var(--e3) * -1);
+  font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;
+  font-size:15.5px;font-style:italic;letter-spacing:.01em;
+  color:color-mix(in srgb, var(--plata) 88%, transparent);
+  animation:hola-sube .7s ease .62s both}
+#hola .filete{width:150px;height:2px;border-radius:2px;overflow:hidden;position:relative;
+  background:color-mix(in srgb, var(--luz) 13%, transparent);
+  animation:hola-sube .6s ease .82s both}
+#hola .filete i{position:absolute;top:0;bottom:0;width:42%;border-radius:2px;
+  background:linear-gradient(90deg,transparent,var(--plata-luz),transparent);
+  animation:hola-filete 1.25s ease-in-out .3s infinite}
+/* La versión, en chiquito y abajo: al 55% de blanco, que da más de 6:1 sobre
+   la laca. Es la única línea de esta pantalla que existe para ser LEÍDA. */
+#hola .version{position:absolute;left:0;right:0;z-index:2;
+  bottom:calc(env(safe-area-inset-bottom) + 24px);text-align:center;
+  font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;
+  color:color-mix(in srgb, var(--blanco-laca) 55%, transparent);
+  animation:hola-sube .6s ease 1.05s both}
+@keyframes hola-sello{from{opacity:0;transform:scale(.72) translateY(12px)}to{opacity:1;transform:none}}
+/* hola-sube y no sube: `sube` ya existe arriba, para las pestañas, y dos
+   @keyframes con el mismo nombre no conviven. */
+@keyframes hola-sube{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes hola-filete{0%{transform:translateX(-115%)}100%{transform:translateX(265%)}}
+@keyframes hola-lustre{0%{transform:translateX(-170%) skewX(-16deg)}55%{transform:translateX(320%) skewX(-16deg)}100%{transform:translateX(320%) skewX(-16deg)}}
+@keyframes hola-halo{0%{opacity:0;transform:scale(1)}16%{opacity:.6}100%{opacity:0;transform:scale(2)}}
+@keyframes hola-aura{from{transform:scale(1) rotate(0deg);opacity:.75}to{transform:scale(1.14) rotate(7deg);opacity:1}}
+/* Con el movimiento reducido, el sello aparece y ya. El filete se queda
+   lleno y apagado: sigue diciendo «esto está cargando» sin moverse. */
+@media (prefers-reduced-motion:reduce){
+  #hola .sello,#hola .nombre,#hola .lema,#hola .filete,#hola .version,
+  #hola .aura,#hola .sello::after,#hola .burbujita{animation:none}
+  #hola .halo{display:none}
+  #hola .filete i{animation:none;width:100%;opacity:.5}
+  #hola,#hola .marco{transition:none}
+}

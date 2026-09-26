@@ -1,0 +1,57 @@
+{
+  "_leeme": "EL TERCER ENVOLTORIO: PlataChat, la segunda marca de Tu Garantía, como APK de reparto directo (sin Google Play, igual que twa-manifest.json). Convive con twa-manifest.json (la app del socio) y con twa-play.json (el intento de tienda): tres artefactos, tres identidades. Se construye FUERA de OneDrive con android-kit\\construir-apk-platachat.ps1 (copia del de socio apuntando a este archivo; la escribe Joan cuando llegue el momento, ver LEEME.md). El packageId NO se cambia nunca después de la primera instalación: Android identifica la app por ese texto.",
+
+  "packageId": "co.tugarantia.platachat",
+  "_nota_paquete": "OTRO paquete, no el co.tugarantia.socio del APK de Tu Garantía. Android no admite dos apps con el mismo id: si compartieran uno, instalar PlataChat PISARÍA la app que los clientes ya tienen. Son dos apps del mismo negocio y conviven instaladas: la garantía y la cartera son una sola en la base, la app son dos iconos. Fijado el 14-sep-2026 (fase 1a), antes de que exista ningún APK. Pendiente de Joan: buscar «PlataChat» y «Plata Chat» en SIPI (sic.gov.co), clases 36, 38 y 42, ANTES de repartir el primer APK — si el nombre cambia después, el paquete ya no.",
+
+  "host": "tugarantia.net",
+  "name": "PlataChat",
+  "launcherName": "PlataChat",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#0C0A0B",
+  "themeColorDark": "#0C0A0B",
+  "navigationColor": "#0C0A0B",
+  "navigationColorDark": "#0C0A0B",
+  "navigationDividerColor": "#0C0A0B",
+  "navigationDividerColorDark": "#0C0A0B",
+  "backgroundColor": "#0C0A0B",
+  "_nota_colores": "Los cuatro salen de --laca (#0C0A0B), el mismo negro del <meta name=theme-color> de platachat/index.html y del background_color de platachat/app.webmanifest. La piel de PlataChat es plata y verde, pero la placa donde brilla la plata es la misma laca de Tu Garantía; si el envoltorio arrancara en verde, la app parpadearía entre que abre y que pinta.",
+
+  "enableNotifications": true,
+  "_nota_notificaciones": "ENCENDIDAS, y es lo contrario de las otras dos apps, a sabiendas. Hoy (fase 1a) PlataChat no manda ninguna notificación: los avisos de la fase 1b van por Telegram a Joan y al gerente, no al cliente. Pero el aviso al cliente por Web Push está fechado (segunda entrega del chat, 26-30 de octubre) y en un TWA la notificación la muestra el SISTEMA a nombre de la app: eso exige que el envoltorio nazca con la delegación de notificaciones y, en Android 13 o más nuevo, con el permiso POST_NOTIFICATIONS declarado en su manifiesto (Bubblewrap issue 730 / PR 731). Ambas cosas viven en el APK, no en la web. Y un APK de reparto directo NO se actualiza solo: el contenido web sí, el envoltorio no. Si naciera con esto en false, encender las notificaciones el 26 de octubre obligaría a cada cliente a volver a descargar e instalar el APK desde descargas/. Nacer con true no le pide nada al cliente hasta que la app pida el permiso, y la app no lo pide hasta que tenga qué avisar: la regla de «no pedir a cambio de nada» se cumple en el código de la página, no apagando el envoltorio.",
+
+  "startUrl": "/platachat/index.html",
+  "webManifestUrl": "https://tugarantia.net/platachat/app.webmanifest",
+  "_nota_alcance": "Nace ya con el dominio propio: el arranque es /platachat/index.html y el alcance es tugarantia.net/ entero (fullScopeUrl), no /platachat/ solo. Por qué entero: la app carga ../app/motor.js, ../app/chat.js y compañía, ../sw.js y los ../legal/; con el alcance recortado a /platachat/ los enlaces a Términos y a Tus datos abrirían en el navegador con barra de direcciones, fuera de la app. Fuera de la tienda no hay frontera que cuidar (esa era la razón de twa-play.json): las dos apps directas son del mismo negocio y del mismo dominio.",
+
+  "iconUrl": "https://tugarantia.net/platachat/icono-512.png",
+  "maskableIconUrl": "https://tugarantia.net/platachat/icono-maskable-512.png",
+  "_nota_iconos": "Los fabrica platachat/haz-iconos.js (geometría por código: moneda de plata y burbuja verde, sin el «$» del diseño porque Node no trae fuentes). Bubblewrap los DESCARGA por estas URL al construir: tienen que estar publicados en Pages antes de correr el build, no solo en la carpeta.",
+
+  "splashScreenFadeOutDuration": 300,
+  "_nota_splash": "300 ms y no más. index.html trae su propia bienvenida de 2 s con la moneda, así que aquí van a verse dos pantallas seguidas con el mismo icono: el splash del sistema mientras Chrome despierta y la bienvenida de la app. No bloquea; el arreglo fino —saltarse la bienvenida cuando corre en display-mode standalone— es un cambio de platachat/index.html, no de este archivo.",
+
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "_nota_version": "Empieza en 1: es una app NUEVA con su propio paquete y su propio historial de versiones. No hereda el versionCode 3 del APK de Tu Garantía. Android no deja pisar una versión con otra del mismo número: cada APK nuevo sube el code.",
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestJsonHash": "",
+  "fallbackType": "customtabs",
+  "_nota_fallback": "customtabs: si Digital Asset Links falla, la app abre en una pestaña de Chrome en vez de reventar. Se ve peor (sale la barra de direcciones) pero el cliente entra igual. Un APK que no abre es un cliente perdido. OJO, RECETA PARA JOAN: el apretón de manos exige una SEGUNDA entrada en .well-known/assetlinks.json con package_name co.tugarantia.platachat y la MISMA huella (E5:FB:DE:62…, misma llave). Es un arreglo JSON: se agrega el objeto, no se reemplaza el de co.tugarantia.socio. Sin esa entrada, PlataChat instalada abre siempre con barra de navegador. Y el assetlinks que Android consulta es el de la RAÍZ del dominio, tugarantia.net/.well-known/ — que sale del .well-known/ de este repositorio desde que hay dominio propio.",
+
+  "features": {},
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://tugarantia.net/",
+  "minSdkVersion": 23,
+  "_nota_minsdk": "23 es Android 6 (2015). Cubre prácticamente cualquier teléfono que siga encendido en Colombia. Subirlo dejaría gente afuera sin ganar nada.",
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "tugarantia"
+  },
+  "_nota_firma": "La MISMA llave y el mismo alias que el APK de Tu Garantía. Por eso la huella del assetlinks es la misma y por eso no hay que guardar una segunda llave. Sigue siendo el archivo más irreemplazable del proyecto: perderla es no poder actualizar NINGUNA de las dos apps instaladas."
+}

@@ -1,0 +1,2320 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<script>
+/* ===================== LA «s» DE HTTPS NO ES UN DETALLE =====================
+   Copia de app/socio.html (28-ago-2026). Para el navegador, http:// y https://
+   son dos sitios DISTINTOS con almacenamientos separados: si esta página se
+   abriera sin la «s», la sesión guardada y lo último bajado vivirían en OTRO
+   cajón, y eso se ve exactamente igual que «se perdió mi cuenta».
+
+   Va ARRIBA DEL TODO y antes que cualquier otro script, para que el redirect
+   ocurra antes de que la página lea nada del almacenamiento equivocado.
+   localhost, 127.0.0.1 y la red local quedan fuera a propósito: ahí no hay
+   https y así se prueba. `file://` tampoco entra: `protocol` no es 'http:'. */
+(function () {
+  var h = location.hostname;
+  if (location.protocol === 'http:' && h !== 'localhost' && h !== '127.0.0.1'
+      && h.indexOf('192.168.') !== 0 && h !== '[::1]') {
+    location.replace('https:' + location.href.substring(location.protocol.length));
+  }
+})();
+</script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<title>PlataChat · tu crédito por el chat</title>
+<meta name="theme-color" content="#0C0A0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PlataChat">
+<link rel="manifest" href="app.webmanifest">
+<link rel="apple-touch-icon" href="icono-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
+<!-- La piel (tokens plata + verde, tarjetas, monedas) vive en estilo.css. La
+     hoja del chat es la MISMA que usan la app del socio y el CRM: se carga tal
+     cual y pinta en verde porque estilo.css declara los alias --rojo/--rojo-tinte
+     sobre --marca. Así no hay dos hojas para la misma burbuja. -->
+<link rel="stylesheet" href="estilo.css">
+<link rel="stylesheet" href="../app/chat.css">
+<style>
+/* Lo que es SOLO de esta página y no de la piel compartida: las cajas de la
+   calculadora, los escalones de la escalera, la ficha y el historial. Con
+   prefijo pc- para que no choquen con estilo.css, y pintadas con los tokens
+   de :root, nunca a mano.
+
+   LO QUE NO ESTÁ ACÁ, A PROPÓSITO (14-sep-2026): la bienvenida (#hola), la
+   cabecera con la marca (.cab, .logo, .lado), la barra de escritura del chat
+   (.entrada-chat, .pildora, .enviar), los avatares (.avatar, .quienes) y las
+   monedas (.moneda, .lingote, .m1…m4) son de la piel y se usan con SUS
+   clases. La primera versión de esta página traía una copia propia de cada
+   una («por si la piel no llegó»), y la auditoría encontró lo que pasa con
+   dos dueños: por especificidad de id ganaba la piel en la bienvenida y
+   ganaba la página en los avatares, y nadie sabía cuál se estaba viendo. Si
+   la piel no llega, no llega NADA (tarjetas, barra, botones): un salvavidas
+   para la barra del chat sola no salva a nadie. Un solo dueño. */
+.pc-cajas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--e3);margin-top:var(--e4)}
+.pc-cajas > div{padding:var(--e3);border-radius:12px;background:var(--fondo);font-size:12px;color:var(--gris)}
+.pc-cajas > div b{display:block;font-size:20px;font-weight:600;color:var(--tinta);font-variant-numeric:tabular-nums}
+.pc-cajas > div.verde{background:var(--marca-tinte);color:var(--marca-texto)}
+.pc-cajas > div.verde b{color:var(--marca-texto)}
+@media (max-width:360px){.pc-cajas{grid-template-columns:1fr}}
+/* «O marca un día»: la etiqueta y el calendario en una fila; el calendario
+   se estira y la etiqueta no se parte. El campo lo pinta la piel (input[type=date]). */
+.pc-fecha{display:flex;align-items:center;gap:var(--e3);margin-top:var(--e3)}
+.pc-fecha label{margin:0;flex:none}
+.pc-fecha input{flex:1;min-width:0}
+
+.pc-escalon{display:grid;grid-template-columns:1fr auto;gap:var(--e3);align-items:center;padding:10px var(--e3);
+  border-radius:12px;background:var(--fondo);margin-top:var(--e2)}
+.pc-escalon .n{font-size:12.5px;font-weight:600;color:var(--plata-tinta);white-space:nowrap;font-variant-numeric:tabular-nums}
+.pc-escalon small{display:block;font-size:12px;color:var(--gris)}
+
+.pc-dato{display:grid;grid-template-columns:22px 1fr auto;gap:var(--e2);align-items:center;padding:8px 0;border-top:1px solid var(--linea);font-size:14px}
+.pc-dato:first-of-type{border-top:0}
+.pc-dato .ok{color:var(--marca-texto)}
+.pc-dato .falta{color:var(--plata-sombra)}
+.pc-dato small{display:block;font-size:12px;color:var(--gris)}
+.pc-dato .vl{font-size:12.5px;font-weight:600;color:var(--plata-tinta);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+.pc-credito{display:flex;justify-content:space-between;align-items:center;gap:var(--e3);padding:10px 0;border-top:1px solid var(--linea);font-size:14px}
+.pc-credito:first-of-type{border-top:0}
+.pc-credito small{display:block;font-size:12px;color:var(--gris)}
+.pc-credito .estado{font-size:12px;font-weight:600;color:var(--plata-tinta);white-space:nowrap}
+.pc-credito .estado.ambar{color:var(--ambar)}
+.pc-enlaces a{color:inherit}
+</style>
+</head>
+<body>
+
+<!-- ======================= BIENVENIDA =======================
+     El marcado es el que pide estilo.css (#hola …): la placa, el aura, el
+     grano y la viñeta atrás; la moneda de CSS con su halo y la burbujita verde
+     de la marca; el nombre, el lema y el filete que se mueve mientras carga.
+     La página no le pone ni una regla propia: la bienvenida es de la piel. -->
+<div id="hola" role="status" aria-label="Abriendo PlataChat">
+  <div class="placa" aria-hidden="true"></div>
+  <div class="aura" aria-hidden="true"></div>
+  <div class="grano" aria-hidden="true"></div>
+  <div class="vineta" aria-hidden="true"></div>
+  <div class="marco">
+    <div class="sello-caja">
+      <div class="halo" aria-hidden="true"></div>
+      <div class="sello" aria-hidden="true"><span>$</span></div>
+      <div class="burbujita" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/></svg></div>
+    </div>
+    <div class="nombre">PlataChat</div>
+    <div class="lema">tu crédito por el chat</div>
+    <div class="filete" aria-hidden="true"><i></i></div>
+  </div>
+  <div class="version" id="holaVersion" aria-hidden="true"></div>
+</div>
+<script>
+/* LA VERSIÓN DE LA APP, EN UN SOLO SITIO. Vive junto a la bienvenida porque es
+   donde se pinta primero; el pie de las pantallas la lee de esta misma
+   variable. Dos literales serían dos verdades sobre la misma versión, que es
+   la enfermedad que socio.html ya sufrió (dos copias publicadas, mismas caras,
+   reglas distintas). Al cambiar la app se sube esta fecha.
+
+   OJO (14-sep-2026): platachat/ todavía NO está en la lista ARCHIVOS de sw.js
+   —es un archivo ajeno y va por receta, RECETA-PLATACHAT.md—, así que hoy
+   subir CACHE allá no precarga esta app. Mientras la receta no se aplique, la
+   página y los .js llegan frescos (red primero) pero estilo.css y los iconos
+   se quedan con la copia guardada hasta que suba CACHE. Cuando la receta esté
+   aplicada, la regla vuelve a ser la de socio.html: fecha acá Y CACHE allá. */
+var VERSION_APP = '2026-09-26';
+(function () {
+  var v = document.getElementById('holaVersion');
+  if (v) v.textContent = 'Versión ' + VERSION_APP;
+})();
+/* El plazo de seguridad se arma ACÁ, pegado a la bienvenida: si el script
+   grande de abajo revienta, la bienvenida se va igual y no deja al cliente
+   mirando el sello para siempre. 5 s: claramente por encima de los 2 s que la
+   bienvenida se queda a propósito. */
+setTimeout(function () {
+  var h = document.getElementById('hola');
+  if (h) h.classList.add('fuera');
+}, 5000);
+</script>
+
+<!-- El degradado de la moneda y el recorte de la media moneda, una sola vez
+     para toda la página. El id y las clases .m1…m4 de las paradas son los que
+     estilo.css espera (.moneda .cara y .lingote .cuerpo pintan con
+     url(#plata-moneda)): los cuatro tonos viven en la piel, no acá. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- Fracciones y no porcentajes en la geometría: el centinela «el socio no
+         ve porcentajes» lee línea por línea y no distingue un radio de un precio. -->
+    <radialGradient id="plata-moneda" cx=".35" cy=".28" r=".78">
+      <stop offset="0" class="m1"/><stop offset=".42" class="m2"/>
+      <stop offset=".8" class="m3"/><stop offset="1" class="m4"/>
+    </radialGradient>
+    <clipPath id="media-moneda"><rect x="0" y="0" width="20" height="40"/></clipPath>
+  </defs>
+</svg>
+
+<!-- ======================= ENTRAR ======================= -->
+<!-- La cabecera es .cab/.logo/.lado de la piel. El nombre va dentro de UN
+     <span> —Plata<b>Chat</b>—: .logo es flex con gap, y un texto suelto más
+     un <b> serían dos ítems con un hueco en medio (estilo.css lo explica). -->
+<div id="pEntrar">
+  <div class="laca cab"><div class="lustre" aria-hidden="true"><i></i></div>
+    <div class="wrap">
+      <div class="arriba">
+        <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z"/></svg><span>Plata<b>Chat</b></span></span>
+      </div>
+      <h1>Tu crédito por el chat</h1>
+    </div>
+  </div>
+  <div class="wrap" id="entrarCuerpo"></div>
+</div>
+
+<div id="pCargando" class="oculto"><div class="wrap"><div class="card muted" style="text-align:center">Abriendo tu cuenta…</div></div></div>
+
+<!-- ======================= CUENTA ======================= -->
+<div id="pCuenta" class="oculto">
+  <div class="laca cab"><div class="lustre" aria-hidden="true"><i></i></div>
+    <div class="wrap">
+      <div class="arriba">
+        <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z"/></svg><span>Plata<b>Chat</b></span></span>
+        <span class="lado" id="uResumen">—</span>
+      </div>
+    </div>
+  </div>
+  <div class="wrap"><div id="cuerpo"></div></div>
+  <nav class="nav" id="nav" aria-label="Secciones">
+    <button type="button" data-t="chats"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z"/></svg>Chats</button>
+    <button type="button" data-t="plata" class="on"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4"/></svg>Plata</button>
+    <button type="button" data-t="yo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>Yo</button>
+  </nav>
+</div>
+
+<!-- Todo lo que decide números vive en app/: el motor, el puente, las reglas de
+     PlataChat y el proveedor de pagos. Esta página solo pinta. Y el chat es el
+     MISMO archivo que usan la app del socio y el CRM: quien arma el hilo y
+     escapa el texto es uno solo. -->
+<script src="../app/motor.js"></script>
+<!-- 15-sep-2026 — ficha.js lee el paquete del socio (nivel, cupo, máximo con
+     garantía) para socio.html, play/ y esta app: UNA sola aritmética. Va
+     justo después del motor porque lo toma de window.MotorReglas al cargar. -->
+<script src="../app/ficha.js"></script>
+<script src="../app/puente.js"></script>
+<script src="../app/cuenta.js"></script>
+<script src="../app/chat.js"></script>
+<script src="../app/platachat-reglas.js"></script>
+<script src="../app/pagos-proveedor.js"></script>
+<script src="sesion.js"></script>
+<script>
+'use strict';
+
+/* ======================= QUÉ ES ESTA PÁGINA =======================
+   PlataChat, fase 1a (14-sep-2026): la segunda marca de Tu Garantía. Mismo
+   motor, misma base, mismo chat; otra piel y otra puerta: celular + contraseña
+   en vez de cédula + código. Tres pestañas: Chats · Plata · Yo.
+
+   Está recortada de app/socio.html a propósito, no reescrita: cada función que
+   calcula (abrir, limitesCalc, setMonto, salidaCalc, chatTraer) es la de allá
+   con lo mínimo cambiado, para que cuando alguien arregle un defecto en una de
+   las dos apps lo reconozca en la otra.
+
+   LO QUE ESTA PANTALLA NO PROMETE, porque el código no lo hace todavía:
+     · Un plazo a la medida: la calculadora deja elegir PARA CUÁNDO se paga,
+       pero solo entre los cortes del motor (15 y último de mes) y con el
+       precio de la prórroga; no existe otro plazo y no se finge (15-sep).
+     · Notas de voz: el micrófono está y va deshabilitado, con «en camino».
+     · Una hora para responder (fase 1b, 15-sep-2026): pedir por el chat crea
+       una SOLICITUD con reloj (solicitar_platachat) y la tarjeta del chat de
+       Créditos dice la hora real («antes de las 3:40 p. m.»), la propuesta
+       —de una persona o del automático— y los botones de aceptar. Pero SOLO
+       si la base ya corrió base/20261005_platachat_solicitud.sql: mientras
+       conteste 404, pedir vuelve a ser un mensaje en el chat y ninguna
+       pantalla promete hora (RELOJ_OK, abajo).
+     · Avisos en el teléfono, pagos por TumiPay: no se mencionan.
+   Y sin sesión o sin nube lo dice con palabras, no finge una caja de texto. */
+
+/* LA CONEXIÓN VIENE PUESTA DE FÁBRICA (18-ago-2026, la lección de socio.html:
+   vacía, la app moría en todo teléfono nuevo). La llave publishable es pública
+   por diseño: lo que protege los datos es el RLS de la base. Misma llave y
+   misma cajita `socio_cfg` que la app del socio, porque es el mismo origen y
+   la misma base: quien apunte una app a otro proyecto desde ?cfg apunta las
+   dos, y no hay dos conexiones que puedan desincronizarse. */
+var CFG_POR_DEFECTO = {
+  url: 'https://wnsioekvjspwtghbodbg.supabase.co',
+  anon: 'sb_publishable_uWFyReBljFSh7l0KYkWmmg_Swo4SOxj'
+};
+var CFG = (function () {
+  try { var g = JSON.parse(localStorage.getItem('socio_cfg') || 'null');
+        if (g && g.url && g.anon) return g; } catch (e) {}
+  return CFG_POR_DEFECTO;
+})();
+
+/* Todos por `window.` y no por el nombre pelado: si un archivo no llegó (red
+   mala, un service worker viejo sin la lista nueva), el nombre pelado es un
+   ReferenceError que no ejecuta NI UNA línea de esta página. Con `window.`
+   queda undefined, y cada pantalla dice qué le falta en vez de morirse. */
+var M = window.MotorReglas;
+var F = window.FichaSocio;   /* lee el paquete del socio; la misma lectura que socio.html y play/ */
+var CHAT = window.ChatTuGarantia;
+var U = window.CuentaSocio;
+var R = window.PlataChatReglas;
+var PP = window.PagosProveedor;
+var SP = window.SesionPlataChat;
+
+/* El número oficial del negocio, para el enlace de WhatsApp cuando el chat no
+   se puede ofrecer. Escrito acá y no leído de ningún paquete: un enlace armado
+   a mano no puede cambiar a quién le escribe el cliente. */
+var WHATSAPP_OFICIAL = '573103606348';
+
+var $ = function (id) { return document.getElementById(id); };
+var COP = function (n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); };
+var COPc = function (n) {
+  n = Math.round(n || 0);
+  if (n >= 1000000) return '$' + (n / 1000000).toFixed(n % 1000000 ? 1 : 0) + 'M';
+  if (n >= 1000) return '$' + Math.round(n / 1000) + 'k';
+  return '$' + n;
+};
+var esc = (CHAT && CHAT.esc) || function (s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; });
+};
+
+function hoyISO() {
+  var x = new Date();
+  return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+}
+function fmtFecha(iso) {
+  if (!iso) return '—';
+  var p = String(iso).slice(0, 10).split('-');
+  var mes = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return Number(p[2]) + ' ' + mes[Number(p[1]) - 1] + ' ' + p[0];
+}
+function fila(k, v) { return '<div class="fila"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>'; }
+function fallo(el, msg) { if (!el) return; el.textContent = msg; el.classList.remove('oculto'); }
+function mostrar(cual) {
+  ['pEntrar', 'pCargando', 'pCuenta'].forEach(function (p) { var e = $(p); if (e) e.classList.toggle('oculto', p !== cual); });
+  window.scrollTo(0, 0);
+}
+
+/* ============================ ESTADO ============================ */
+var S = null;            /* el socio abierto: se arma en abrir() o en cuentaVacia() */
+var SES = null;          /* la sesión de Auth: la guarda y refresca sesion.js */
+var TAB = 'plata';
+var CANAL = 'creditos';  /* el canal del chat que se está mirando */
+var MONTO = 100000, MODO = 'quincenal', PLAZO = 3;
+var CORTES = 1;          /* para cuándo paga el quincenal: cuántos cortes (1 = el primero que viene) */
+var SIN_NUBE = false;    /* la última traída falló por red: se pinta lo guardado y se dice */
+var AVISO_NUBE = '';     /* un motivo de la nube que hay que decir arriba (p. ej. migración sin correr) */
+var AVISO_FICHA = '';    /* app/ficha.js no llegó: se abre sin ficha y se dice arriba */
+var BORRADOR = '';       /* un texto que no se pudo mandar y se le devuelve al cliente en la caja */
+
+/* --- la negociación con reloj (fase 1b, 15-sep-2026) --- */
+var SOL = null;          /* la última solicitud de PlataChat del cliente (nueva, contrapropuesta, aceptada…); null si no hay o la base no la sabe */
+var RELOJ_OK = false;    /* la base contestó a una función del reloj (no 404): existe, y solo entonces se promete la hora */
+var ACEPTANDO = false;   /* un aceptar en vuelo: el botón no se dispara dos veces */
+/* SOL_GEN sube en cada traída y en cada escritura local de SOL (pedir,
+   aceptar, salir): una traída que vuelva con otro número es vieja y se bota.
+   Es el mismo patrón que GEN en chatTraer. Sin esto, una traída lanzada por
+   el latido que llegara DESPUÉS de una aceptación recién hecha pisaba SOL
+   con la fila en 'contrapropuesta' y resucitaba el botón «Acepto» de algo
+   que ya se aceptó (auditoría del 15-sep-2026). */
+var SOL_GEN = 0;
+/* El reloj del teléfono no manda: la base devuelve `ahora` en
+   mi_solicitud_platachat precisamente para que la hora la ponga ella. En
+   Android sin hora automática es frecuente ir minutos corrido, y con el
+   teléfono adelantado la tarjeta decía «la hora se cumplió» mientras la base
+   seguía esperando al gerente. Se mide al recibir la respuesta e incluye la
+   latencia de red (segundos), despreciable frente a los minutos que se
+   corrigen. Sin `ahora` (404, 5xx) se queda como estaba (15-sep-2026). */
+var DESFASE_RELOJ = 0;
+/* La política pública de PlataChat tal como la base la tenga
+   (capital_tope, costo_pct, dias, costo_pct_cupo, capital_minimo,
+   capital_maximo, espera_minutos): la trae politica_platachat() una vez al
+   abrir la cuenta. La calculadora cotiza con ella y las constantes del motor
+   y de las reglas quedan de salvavidas: la base firma el precio con
+   politica_app (que se cambia desde el CRM con politica_app_guardar sin
+   tocar código), y hasta el 15-sep-2026 la página cotizaba con literales que
+   coincidían por casualidad; el día que Joan cambiara el 35 % o los 8 días,
+   el cliente vería dos cifras distintas para lo mismo. Null hasta que
+   llegue, y null se queda si la función no está (404, migración sin correr)
+   o si la nube falla: se cotiza como el 14-sep y no se avisa nada, porque el
+   cliente no tiene nada que hacer con eso (15-sep-2026). */
+var POL = null;
+/* Las dos frases de debajo del botón de pedir. La de la hora SOLO se enseña
+   cuando la base contestó al reloj (RELOJ_OK): con la migración sin correr
+   sería la interfaz prometiendo lo que el código no hace. Y se puede prometer
+   desde el botón porque la base la cumple sola —resolver_vencidas corre al
+   leer y, con pg_cron, cada minuto—, no depende de que alguien tenga el CRM
+   abierto.
+
+   NINGÚN plazo escrito a mano: la espera vive en politica_app.espera_minutos
+   (1..1440, se cambia desde el CRM) y la hora exacta la dice
+   horaLimite(SOL.responder_antes_de) apenas la solicitud existe. Acá, que es
+   el único sitio donde hay que hablar en abstracto —antes de que exista la
+   solicitud—, se usa la espera REAL si la conocemos (POL, o la que vino con
+   la última solicitud) y una frase sin cifra si no. Hasta el 15-sep-2026
+   decía «antes de una hora» clavado: con la espera en 180 el botón decía una
+   hora y la tarjeta decía la hora de tres horas después. */
+var FRASE_RELOJ_SIN_CIFRA = 'Llega al CRM y te contestan por el chat de Créditos; la hora límite la ves ahí mismo apenas pidas, y si nadie alcanza a esa hora contesta el automático.';
+var FRASE_RELOJ = FRASE_RELOJ_SIN_CIFRA;
+var FRASE_HOY = 'Se manda como mensaje al chat de Créditos. Te contestamos por ahí mismo.';
+var AVISO_SIN_RELOJ = 'La negociación con reloj todavía no está encendida en la base (falta correr base/20261005_platachat_solicitud.sql): ' +
+                      'tu pedido quedó como mensaje y te contestamos por aquí.';
+
+/* Los tres canales, con la palabra que ve el cliente y lo que se le dice cuando
+   el hilo está vacío. El orden es el del segmento. */
+var CANALES = [
+  { id: 'servicio', nombre: 'Servicio',  vacio: 'Escríbenos aquí lo que necesites: dudas, tus datos, un cambio de número.' },
+  { id: 'cobranza', nombre: 'Cobranza',  vacio: 'Por aquí te recordamos tus fechas y por aquí nos mandas la foto de tu pago.' },
+  { id: 'creditos', nombre: 'Créditos',  vacio: 'Por aquí pides plata. Cuéntanos cuánto y para cuándo, y te contestamos por aquí mismo.' }
+];
+/* Quién habla, por el valor de `de` en la base. 'equipo' es el gerente o el
+   asesor (base/20260923: chat_responder_equipo escribe con ese autor, nacido
+   el 14-sep para esto). 'agente' NO está a propósito: en app/chat.js es el
+   asistente, una máquina, y chat.js ya lo rotula y lo puntea solo. Si acá
+   dijera «tu gerente» el cliente vería a un robot con nombre de persona. */
+var QUIEN = { panel: 'PlataChat', equipo: 'tu gerente', auto: 'automático' };
+
+/* --- lo que sale de las reglas de PlataChat y del proveedor de pagos.
+   Con salvavidas: si platachat-reglas.js no llegó, la garantía que deja un
+   crédito sale del motor (hoy da lo mismo, porque el proveedor es manual y el
+   gasto es cero) y la escalera dice que no cargó, en vez de inventarse una. */
+function gastoDe(capital, costo) {
+  return PP && PP.gastoCredito ? PP.gastoCredito(PP.PROVEEDOR_ACTIVO, capital, costo) : 0;
+}
+function garantiaQueGana(costo, capital) {
+  if (R && R.repartir) return R.repartir(costo, gastoDe(capital, costo), { aTiempo: true }).garantia;
+  return M.acumularGarantia(costo, true);
+}
+function nombreProveedor() {
+  var p = PP && PP.PROVEEDORES && PP.PROVEEDORES[PP.PROVEEDOR_ACTIVO];
+  return (p && p.nombre) || 'Nequi / transferencia a mano';
+}
+/* El precio y el rango del primer crédito y del quincenal dentro del cupo:
+   primero lo que la base mandó (POL, ver arriba), y si no llegó —404,
+   primer pintado antes de traerSolicitud— las constantes de las reglas y del
+   motor. Así la calculadora dice lo mismo que va a firmar resolver_vencidas
+   porque lee la MISMA política, no por fe en que los literales coincidan
+   (15-sep-2026). Nunca se pinta el porcentaje: todo pasa a pesos. */
+function polNum(clave) { var v = POL && Number(POL[clave]); return (v && isFinite(v) && v > 0) ? v : 0; }
+function topeNuevo() { return polNum('capital_tope') || (R && R.TOPE_NUEVO) || M.POLITICA_NUEVOS_DEF.capital; }
+function tasaNuevo() { return (polNum('costo_pct') / 100) || (R && R.TASA_NUEVO) || (M.POLITICA_NUEVOS_DEF.costo_pct / 100); }
+function diasNuevo() { return polNum('dias') || M.POLITICA_NUEVOS_DEF.dias; }
+function tasaEstandar() { return (polNum('costo_pct_cupo') / 100) || (R && R.TASA_ESTANDAR) || M.TASA_CREDITO; }
+/* El piso y el techo de lo que la base acepta (solicitar_platachat rechaza
+   con «fuera de rango» por fuera de capital_minimo..capital_maximo); el piso
+   es también el mínimo por debajo del cual el automático no propone. */
+function capitalMinimo() { return polNum('capital_minimo') || M.MONTO_MINIMO; }
+function capitalMaximo() { return polNum('capital_maximo') || TOPE_CALCULADORA_PLATACHAT; }
+/* La espera de la política en minutos, para la única frase que tiene que
+   hablar en abstracto (el botón, antes de que exista la solicitud). Manda la
+   de POL —es la que se le va a aplicar al próximo pedido— y, si no llegó, la
+   que la base estampó en la última solicitud (pedido.espera_minutos). Fuera
+   de 1..1440 no puede venir de politica_app: se ignora y la frase va sin
+   cifra, que es la que nunca miente (15-sep-2026). */
+function esperaMinutos() {
+  var p = (SOL && SOL.pedido) || {};
+  var m = Math.round(polNum('espera_minutos') || Number(p.espera_minutos) || 0);
+  return (m >= 1 && m <= 1440) ? m : 0;
+}
+/* Arma la frase del botón con esa espera. Se rehace en cada pintado porque
+   POL y la solicitud llegan DESPUÉS del primer pintado. El plazo en palabras
+   se escribe en esta única línea —la misma que nombra FRASE_RELOJ— para que
+   ningún otro sitio de la página prometa un tiempo de respuesta por su
+   cuenta; sin espera conocida, la frase sin cifra (15-sep-2026). */
+function fijarFraseReloj() {
+  var m = esperaMinutos();
+  FRASE_RELOJ = !m ? FRASE_RELOJ_SIN_CIFRA : 'Llega al CRM y te contestan por el chat de Créditos antes de ' + (m === 60 ? 'una hora' : (m % 60 === 0 ? palabraNumero(m / 60) + ' horas' : m + ' minutos')) + '; la hora exacta la ves ahí mismo apenas pidas, y si nadie alcanza a esa hora contesta el automático.';
+}
+function valorMoneda() { return (R && R.MONEDA) || 10000; }
+function valorLingote() { return (R && R.LINGOTE) || 100000; }
+
+/* Quien no tiene NINGUNA garantía —ni ganada ni prestada por sus datos— es un
+   cliente nuevo para el motor: su primer crédito va con la política de nuevos
+   (tope y costo propios), no con la tasa estándar. Es la misma pregunta que
+   contesta PlataChatReglas.tasaPorCupo con motivo 'nuevo'. */
+function esNuevo() { return !S || !S.vinculada || Number(S.garantia || 0) <= 0; }
+
+/* ============================ ENTRAR ============================ */
+function pintarEntrar() {
+  var caja = $('entrarCuerpo'); if (!caja) return;
+  caja.innerHTML =
+    '<div class="card">' +
+      '<h3 class="tit">Entrar</h3>' +
+      '<p class="sub">Con tu celular y la contraseña que tú pusiste.</p>' +
+      '<label for="inCelular">Tu celular</label>' +
+      '<input id="inCelular" type="tel" inputmode="numeric" autocomplete="username" placeholder="300 111 2233" oninput="tecleaTel(this)">' +
+      '<label for="inClave">Tu contraseña</label>' +
+      '<input id="inClave" type="password" autocomplete="current-password" placeholder="••••••••">' +
+      '<button type="button" class="btn marca" id="btnEntrar" style="margin-top:var(--e4)">Entrar</button>' +
+      '<div id="errEntrar" class="aviso ambar oculto"></div>' +
+      '<div class="muted" style="font-size:12.5px;margin-top:var(--e3)">¿Olvidaste tu contraseña? Escríbenos por WhatsApp y la cambiamos contigo: ' +
+        '<a href="https://wa.me/' + WHATSAPP_OFICIAL + '" target="_blank" rel="noopener" style="color:inherit">abrir WhatsApp</a>.</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<h3 class="tit">Soy nuevo</h3>' +
+      '<p class="sub">Tu cuenta se abre con tu celular. La contraseña la eliges tú; la cédula es opcional y ayuda a que te reconozcamos.</p>' +
+      '<label for="inNuevoCelular">Tu celular</label>' +
+      '<input id="inNuevoCelular" type="tel" inputmode="numeric" autocomplete="username" placeholder="300 111 2233" oninput="tecleaTel(this)">' +
+      '<label for="inNuevoNombre">Tu nombre</label>' +
+      '<input id="inNuevoNombre" type="text" autocomplete="name" placeholder="Como aparece en la cédula">' +
+      '<label for="inNuevoCedula">Tu cédula <span class="muted">(opcional)</span></label>' +
+      '<input id="inNuevoCedula" type="text" inputmode="numeric" autocomplete="off" placeholder="Solo los números">' +
+      '<label for="inNuevoClave">Una contraseña</label>' +
+      '<input id="inNuevoClave" type="password" autocomplete="new-password" placeholder="Mínimo ' +
+        ((U && U.LARGO_MINIMO_CLAVE) || 8) + ' caracteres">' +
+      '<button type="button" class="btn claro" id="btnRegistrar" style="margin-top:var(--e4)">Abrir mi cuenta</button>' +
+      '<div id="errRegistrar" class="aviso ambar oculto"></div>' +
+      '<div class="muted" style="font-size:12.5px;margin-top:var(--e3)">Al abrir la cuenta aceptas los ' +
+        '<a href="../legal/terminos.html" target="_blank" rel="noopener" style="color:inherit">Términos</a> y el ' +
+        '<a href="../legal/privacidad.html" target="_blank" rel="noopener" style="color:inherit">uso de tus datos</a>.</div>' +
+    '</div>' +
+    '<div class="aviso info">¿Ya eras cliente de Tu Garantía? Después de entrar escribe tu código en <b>Yo</b>, ' +
+      'y tu garantía, tu cupo y tu historial aparecen aquí también.</div>' +
+    '<div class="pie">Tus datos solo los ves tú, con tu celular y tu contraseña.' + enlacesLegales() + selloDeVersion() + '</div>';
+  var b = $('btnEntrar'); if (b) b.addEventListener('click', entrar);
+  var r = $('btnRegistrar'); if (r) r.addEventListener('click', registrar);
+  var c = $('inClave'); if (c) c.addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+  var k = $('inNuevoClave'); if (k) k.addEventListener('keydown', function (e) { if (e.key === 'Enter') registrar(); });
+}
+
+function tecleaTel(el) {
+  if (!U) return;
+  var t = U.normalizarTelefono(el.value);
+  if (t) el.value = U.telefonoBonito(t);
+}
+
+function entrar() {
+  var err = $('errEntrar');
+  if (!SP) return fallo(err, 'No cargó una parte de la app (sesion.js). Cierra y vuelve a abrir con internet.');
+  fallo(err, 'Entrando…');
+  SP.entrar(CFG, $('inCelular').value, $('inClave').value).then(function (r) {
+    if (!r.ok) return fallo(err, r.motivo);
+    if (err) err.classList.add('oculto');
+    SES = r.sesion;
+    mostrar('pCargando');
+    return cargarCuenta();
+  });
+}
+
+function registrar() {
+  var err = $('errRegistrar');
+  if (!SP) return fallo(err, 'No cargó una parte de la app (sesion.js). Cierra y vuelve a abrir con internet.');
+  fallo(err, 'Abriendo tu cuenta…');
+  SP.registrar(CFG, {
+    celular: $('inNuevoCelular').value, nombre: $('inNuevoNombre').value,
+    cedula: $('inNuevoCedula').value, clave: $('inNuevoClave').value
+  }).then(function (r) {
+    if (!r.ok) return fallo(err, r.motivo);
+    if (err) err.classList.add('oculto');
+    SES = r.sesion;
+    /* El recién llegado cae en Créditos: es por donde pide su primer crédito,
+       y la pestaña Plata se lo dice también. */
+    CANAL = 'creditos'; TAB = 'plata';
+    mostrar('pCargando');
+    return cargarCuenta();
+  });
+}
+
+/* ==================== TRAER LA CUENTA ====================
+   mi_cuenta() contesta con la sesión: {vinculada:false} para el que todavía no
+   demostró quién es (cupo cero, chat propio), o {vinculada:true, nombre,
+   datos, actualizado_en} con el MISMO paquete que consume socio.html.
+
+   Lo último que contestó se guarda dentro de la sesión: si el cliente abre en
+   el bus sin señal, ve sus números al día de la última vez, con fecha, y la
+   pantalla dice «sin conexión» en vez de una pantalla de error. */
+function cargarCuenta() {
+  if (!SES || !SP) { salir(); return Promise.resolve(); }
+  return SP.rpc(CFG, SES, 'mi_cuenta').then(function (j) {
+    if (!j || j.ok !== true) throw { sinSesion: true };
+    SIN_NUBE = false; AVISO_NUBE = '';
+    SES.ultimo = j; SES.ultimoEl = hoyISO();
+    SP.guardar(SES);
+    abrir(j);
+    marcarAcceso();
+    /* La solicitud viva y la política se traen DESPUÉS de pintar y sin
+       esperarlas: la cuenta no se queda en «Abriendo…» por dos funciones que
+       quizá no existen todavía. */
+    traerSolicitud();
+    traerPolitica();
+  }).catch(function (e) {
+    if (e && e.sinSesion) {
+      salir('Tu sesión venció, así que te pedimos entrar de nuevo. Si no fuiste tú, escríbenos.');
+      return;
+    }
+    if (e && e.estado === 404) {
+      /* La función no existe: la migración 20260914b no se corrió. La app
+         abre igual, como cuenta sin vincular, y lo dice arriba de todo. */
+      SIN_NUBE = false;
+      AVISO_NUBE = 'La base todavía no tiene encendida la cuenta de PlataChat (falta correr base/20260914b_tres_canales.sql). ' +
+                   'Mientras tanto ves la app como cliente nuevo.';
+      abrir((SES && SES.ultimo) || { ok: true, vinculada: false });
+      return;
+    }
+    /* «Sin conexión» SOLO cuando no se llegó a la nube (sesion.js marca
+       red:true únicamente si el fetch rechazó o no hay conexión configurada).
+       Un 500 o un 429 es la nube contestando: culpar a la señal del cliente
+       lo manda a revisar su internet por un error que no es suyo (14-sep). */
+    if (e && e.red) {
+      SIN_NUBE = true; AVISO_NUBE = '';
+    } else {
+      SIN_NUBE = false;
+      AVISO_NUBE = 'La nube contestó con un error (' + ((e && e.estado) || '?') + '). Vuelve a intentar en un momento. ' +
+                   'Mientras tanto ves tus números al ' + fmtFecha((SES && SES.ultimoEl) || hoyISO()) + '.';
+    }
+    abrir((SES && SES.ultimo) || { ok: true, vinculada: false });
+  });
+}
+
+/* Cuenta «abrieron la app», sin tocar socios_historial. Si la función no
+   existe todavía o no hay señal, no pasa nada: es una métrica, no la app. */
+function marcarAcceso() {
+  if (!SES || !SP) return;
+  SP.rpc(CFG, SES, 'marcar_acceso', { p_app: 'platachat' }).catch(function () {});
+}
+
+/* LA POLÍTICA CON LA QUE LA BASE FIRMA (fase 1b, 15-sep-2026). Una sola vez
+   al abrir la cuenta: politica_platachat() devuelve la MISMA fila de
+   politica_app que leen solicitar_platachat y resolver_vencidas, así que la
+   calculadora cotiza lo que el automático va a proponer, y no lo que dicen
+   unas constantes que hasta hoy coincidían por casualidad (el día que Joan
+   cambiara el precio o los días desde el CRM, el cliente vería dos cifras
+   distintas para lo mismo).
+
+   Si la función no está (404: la migración no se ha corrido), la nube
+   contesta 5xx o la llamada falla, POL se queda en null y se cotiza con las
+   constantes del motor y de las reglas, exactamente como antes. Sin aviso en
+   pantalla a propósito: el cliente no tiene nada que hacer con eso y el
+   precio que ve sigue siendo uno solo. */
+function traerPolitica() {
+  if (!SES || !SP) return Promise.resolve();
+  var ses = SES;
+  return SP.rpc(CFG, SES, 'politica_platachat').then(function (j) {
+    if (SES !== ses) return;                         /* salió, o entró otro */
+    if (!j || j.ok !== true || !j.politica || typeof j.politica !== 'object') return;
+    POL = j.politica;
+    /* La calculadora ya está pintada con las constantes: se rehace con el
+       precio de verdad, y con ella el botón y su frase. No se repinta la
+       pestaña entera porque eso manda el scroll arriba; la escalera —que es
+       una proyección, no un precio— se pone al día en el próximo pintado. */
+    if (TAB === 'plata') sincronizarCalc();
+  }).catch(function () {});
+}
+
+/* ==================== PREPARAR AL SOCIO ====================
+   El paquete {nombre, datos, actualizado_en} se vuelve S. La aritmética de la
+   garantía —el nivel derivado del total y nunca leído del paquete, la
+   prestada por resta, la comprometida recortada contra la ganada, el cupo y
+   el máximo con garantía sacados de maximoRespaldado— vive en app/ficha.js
+   (14-sep), el MISMO archivo con el que socio.html y play/ abren ese
+   paquete. Hasta el 15-sep esta página traía su propia copia de esas
+   cuentas; el día que una cambiara, el mismo socio vería dos cupos según la
+   app que abriera. Acá solo se agregan los campos que esta pantalla usa y
+   ficha.js no da (nombre, código, fecha, perfil, referidos, resumen). */
+function abrir(resp) {
+  if (!resp || !resp.vinculada) { S = cuentaVacia(); return pintarCuenta(); }
+  if (!F || !F.leer) {
+    /* Sin ficha.js no hay con qué leer el paquete. Se abre como cuenta sin
+       vincular y se dice arriba: mejor un cupo en cero con aviso que un cupo
+       calculado a mano por una segunda copia (el mismo criterio que la
+       escalera con platachat-reglas.js). */
+    AVISO_FICHA = 'No cargó la parte de la app que lee tu ficha (app/ficha.js), así que por ahora no ves tu garantía ni tu cupo. ' +
+                  'Cierra y vuelve a abrir con internet.';
+    S = cuentaVacia();
+    return pintarCuenta();
+  }
+  AVISO_FICHA = '';
+  var d = resp.datos || {};
+  var f = F.leer(d);
+  S = {
+    vinculada: true,
+    nombre: resp.nombre || (SES && SES.nombre) || 'Cliente',
+    codigo: (d.socio && d.socio.codigo) || '',
+    actualizado: resp.actualizado_en,
+    g: f.g, gd: f.gd,
+    garantia: f.gd.total,
+    nivel: f.nivel,
+    cupo: f.cupo,
+    maxRespaldado: f.maxRespaldado,
+    creditos: f.creditos,
+    respaldados: f.respaldados,
+    activo: f.activo,
+    pagados: f.pagados,
+    perfil: f.entrada.datos,
+    referidos: d.referidos || { total: 0, pagaron: 0, lista: [] },
+    resumen: d.resumen || {}
+  };
+  pintarCuenta();
+}
+
+/* El que entró pero todavía no juntó su historial (o es nuevo de verdad):
+   cupo cero, sin créditos, y las pantallas lo dicen. No es un error. */
+function cuentaVacia() {
+  var gd = { cupon: 0, referidos: 0, prestada: 0, ganada: 0, comprometida: 0, total: 0, ganada_libre: 0, base_cupo: 0 };
+  return {
+    vinculada: false,
+    nombre: (SES && SES.nombre) || 'Cliente',
+    codigo: '', actualizado: null, g: {}, gd: gd, garantia: 0,
+    nivel: M.nivelPorGarantia(0), cupo: 0, maxRespaldado: 0,
+    creditos: [], respaldados: [], activo: null, pagados: [],
+    perfil: {}, referidos: { total: 0, pagaron: 0, lista: [] }, resumen: {}
+  };
+}
+
+function pintarCuenta() {
+  MODO = 'quincenal'; PLAZO = 3; CORTES = 1;
+  var l = limitesCalc();
+  /* Abre en un monto vivo: lo menor entre su cupo y 500.000, al escalón. Para
+     el nuevo, el tope de la política de nuevos. Ver el comentario en socio.html. */
+  var techoIni = esNuevo() ? topeNuevo() : Math.min(S.cupo || 300000, 500000);
+  MONTO = Math.max(l.min, Math.floor(techoIni / l.paso) * l.paso);
+  var u = $('uResumen');
+  if (u) u.textContent = S.vinculada
+    ? COP(S.gd.ganada) + ' ganados · cupo ' + COP(S.cupo)
+    : 'Tu cupo hoy: ' + COP(0);
+  irA(TAB || 'plata');
+  mostrar('pCuenta');
+}
+
+/* La entrada que entiende el motor: la misma cuenta que hizo el Panel. */
+function entradaMotor() {
+  return { datos: S.perfil, referidos: Number(S.referidos.pagaron || 0),
+           acumulada: S.gd.ganada, ajuste: 0, comprometida: S.gd.comprometida };
+}
+
+function irA(tab) {
+  if (!S) return;
+  TAB = tab;
+  var nav = $('nav');
+  var b = nav ? nav.querySelectorAll('button') : [];
+  for (var i = 0; i < b.length; i++) b[i].classList.toggle('on', b[i].dataset.t === tab);
+  $('cuerpo').innerHTML = '<div class="panel">' + avisosArriba() +
+    (tab === 'chats' ? vistaChats() : tab === 'yo' ? vistaYo() : vistaPlata()) + '</div>';
+  if (tab === 'plata') sincronizarCalc();
+  /* En Plata nadie relee la solicitud (el latido es de Chats): una 'nueva'
+     cuya hora ya pasó se quedaría en memoria diciendo «te contestamos antes
+     de las 3:40» a las 4:10. Se pregunta una vez al entrar, y como
+     mi_solicitud_platachat corre el reloj al leer, lo que vuelve es la
+     propuesta automática (o el «te contesta una persona»), no la hora
+     vencida. Una traída, no un temporizador (15-sep-2026). */
+  if (tab === 'plata' && solicitudVencidaEnMemoria()) traerSolicitud();
+  /* Al salir de Chats el latido se apaga de una, no en su próximo vencimiento:
+     un temporizador que sigue vivo con la pestaña cerrada es un sondeo que
+     nadie mira. */
+  if (tab === 'chats') arrancarChat(); else apagarLatido();
+  window.scrollTo(0, 0);
+}
+
+/* Lo que hay que decir antes que nada, en todas las pestañas. */
+function avisosArriba() {
+  var h = '';
+  if (SIN_NUBE) {
+    h += '<div class="aviso ambar"><b>Sin conexión.</b> Estos son tus números al ' +
+      fmtFecha((SES && SES.ultimoEl) || hoyISO()) + '. En cuanto vuelva la señal se actualizan solos al abrir.</div>';
+  }
+  if (AVISO_NUBE) h += '<div class="aviso ambar">' + esc(AVISO_NUBE) + '</div>';
+  if (AVISO_FICHA) h += '<div class="aviso ambar">' + esc(AVISO_FICHA) + '</div>';
+  return h;
+}
+
+/* ============================ PLATA ============================ */
+function vistaPlata() {
+  /* #plSolicitud: la solicitud en curso, arriba de la calculadora; con su
+     propia caja para que traerSolicitud() la repinte sola, sin rehacer la
+     pestaña (y sin mandar el scroll arriba) cuando llega una respuesta. */
+  return cabeceraPlata() + '<div id="plSolicitud">' + tarjetaSolicitudEnCurso() + '</div>' + vistaCalculadora() + tarjetaEscalera() + pie();
+}
+
+/* La garantía GANADA como monedas y lingotes, y debajo, siempre, la frase que
+   dice qué es. Sin esa frase las monedas parecerían plata guardada, y no lo
+   son: son cupo (Ley 1480, información engañosa). */
+function cabeceraPlata() {
+  var gd = S.gd;
+  return '<div class="card laca"><div class="lustre" aria-hidden="true"><i></i></div>' +
+    '<div class="etq">Garantía ganada pagando en fecha</div>' +
+    '<div class="cifra plata">' + COP(gd.ganada) + '</div>' +
+    monedasHTML(gd.ganada) +
+    /* Las dos leyendas van en .monedas-pie de la piel: se reparten a los lados
+       y en un teléfono de 360 la segunda baja de línea en vez de salirse. */
+    '<div class="monedas-pie"><span>' + esc(monedasEnPalabras(gd.ganada)) + ' · cada moneda son ' + COP(valorMoneda()) + '</span>' +
+      '<span>un lingote son ' + COP(valorLingote()) + '</span></div>' +
+    '<div class="sep"></div>' +
+    fila('Por tus datos', '+' + COP(gd.cupon)) +
+    (gd.referidos > 0 ? fila('Por la gente que trajiste', '+' + COP(gd.referidos)) : '') +
+    (gd.comprometida > 0 ? fila('Comprometida en tu préstamo', '−' + COP(gd.comprometida)) : '') +
+    fila('Tu cupo', COP(S.cupo)) +
+    '<div class="cupo-frase">Tu garantía es tu cupo, no un ahorro: ' +
+      'no se retira ni se devuelve; crece cuando pagas en fecha.</div>' +
+    (S.vinculada ? '' :
+      '<div class="aviso info" style="margin-top:var(--e3)">Tu historial está en camino: si ya eras cliente, escribe tu código en <b>Yo</b>; ' +
+      'si eres nuevo, tu primer crédito lo pides por el chat de <b>Créditos</b>.</div>') +
+    '</div>';
+}
+
+function contarMonedas(ganada) {
+  if (R && R.monedas) return R.monedas(ganada);
+  var g = Math.max(0, Math.floor(Number(ganada) || 0)), L = valorLingote(), Mo = valorMoneda();
+  return { lingotes: Math.floor(g / L), monedas: Math.floor((g % L) / Mo), media: (g % Mo) >= Mo / 2, total: g };
+}
+function monedasEnPalabras(ganada) {
+  var m = contarMonedas(ganada);
+  if (!m.lingotes && !m.monedas && !m.media) return 'Todavía sin monedas: la primera llega con tu primer pago en fecha';
+  var partes = [];
+  if (m.lingotes) partes.push(m.lingotes + ' lingote' + (m.lingotes !== 1 ? 's' : ''));
+  if (m.monedas || m.media) {
+    partes.push(m.monedas
+      ? m.monedas + ' moneda' + (m.monedas !== 1 ? 's' : '') + (m.media ? ' y media' : '')
+      : 'media moneda');
+  }
+  return partes.join(' y ');
+}
+/* Las monedas y los lingotes se pintan con las clases de la piel (.cara, .aro,
+   .signo, .molde, .cuerpo): el color, el canto y el brillo escalonado viven
+   en estilo.css, y acá solo va la geometría. */
+function svgMoneda(clase) {
+  return '<svg class="moneda ' + clase + '" viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">' +
+    '<circle class="cara" cx="20" cy="20" r="19"/>' +
+    '<circle class="aro" cx="20" cy="20" r="13.5"/>' +
+    '<text class="signo" x="20" y="25.5">$</text></svg>';
+}
+function svgMediaMoneda() {
+  return '<svg class="moneda media" viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">' +
+    '<circle class="molde" cx="20" cy="20" r="19"/>' +
+    '<g clip-path="url(#media-moneda)"><circle class="cara" cx="20" cy="20" r="19"/></g></svg>';
+}
+function svgMoldeVacio() {
+  return '<svg class="moneda vacia" viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">' +
+    '<circle class="molde" cx="20" cy="20" r="19"/></svg>';
+}
+function svgLingote(vacio) {
+  return '<svg class="lingote' + (vacio ? ' vacio' : '') + '" viewBox="0 0 64 32" width="64" height="32" aria-hidden="true">' +
+    '<polygon class="cuerpo" points="8,28 16,6 48,6 56,28"/></svg>';
+}
+/* Una moneda por cada 10.000 ganados, un lingote por cada 100.000. Con nada
+   ganado se pinta el molde vacío punteado: se ve el hueco donde va a ir la
+   primera. Más de diez lingotes se resumen con «×N» para que la fila no se
+   salga de la pantalla. Cada grupo va en su .pila (la piel monta las monedas
+   una sobre otra con margen negativo, y escalona el brillo por hijo). */
+function monedasHTML(ganada) {
+  var m = contarMonedas(ganada);
+  var lingotes = '', monedas = '';
+  if (m.lingotes > 10) lingotes = svgLingote(false) + '<span class="muted" style="font-size:13px">×' + m.lingotes + '</span>';
+  else for (var i = 0; i < m.lingotes; i++) lingotes += svgLingote(false);
+  for (var j = 0; j < m.monedas; j++) monedas += svgMoneda('brillo');
+  if (m.media) monedas += svgMediaMoneda();
+  if (!m.lingotes && !m.monedas && !m.media) { monedas = svgMoldeVacio(); lingotes = svgLingote(true); }
+  return '<div class="monedas">' +
+    (lingotes ? '<div class="pila">' + lingotes + '</div>' : '') +
+    (monedas ? '<div class="pila">' + monedas + '</div>' : '') + '</div>';
+}
+
+/* ------- la calculadora: la de socio.html recortada al quincenal dentro del
+   cupo, con el préstamo de 1 a 6 meses solo cuando la garantía ganada llega al
+   piso del producto (MONTO_MINIMO_RESPALDADO, decisión del 11-sep). ------- */
+function respaldadoDisponible() { return S.maxRespaldado >= M.MONTO_MINIMO_RESPALDADO; }
+
+/* LA BARRA LLEGA A DOS MILLONES Y EL CLIENTE ELIGE PARA CUÁNDO PAGA
+   (15-sep-2026). Pedido literal de Joan, el 14 por la tarde: «la calculadora
+   sea desde los 50 mil hasta los 2 millones para que se vea más interesante y
+   que puedas seleccionar los días y seleccionar las fechas de pago». Cómo se
+   interpreta acá, para que nadie tenga que adivinarlo:
+
+   (1) La barra del quincenal va SIEMPRE de 50.000 a 2.000.000, tenga el cupo
+       que tenga el cliente, y también para el que no tiene garantía: Joan
+       quiere que vea hasta dónde llega el producto. Lo que NO cambia es la
+       honestidad de la salida: por encima del cupo no se cotiza como si fuera
+       posible —se dice en pesos cuánta garantía le falta y que puede pedirlo
+       igual por el chat, que lo revisa Joan—, y al nuevo, por encima de los
+       100.000 del primer crédito, se le dice el tope y cuántos créditos
+       pagados en fecha le faltan para pedir esa cifra (la misma escalera de
+       la tarjeta de abajo). El motor tiene su propio techo para pedir solo
+       (MONTO_MAXIMO_CALCULADORA, cinco millones) y no se toca: este es el de
+       PlataChat, más bajo. Si un día un cupo supera los dos millones, la
+       barra crece hasta ese cupo: recortarle la barra a quien ya tiene la
+       garantía sería mentirle al revés.
+
+   (2) «Elegir los días y la fecha de pago»: la única regla de plazo que hoy
+       existe en el motor es el corte (el 15 y el último de cada mes, corridos
+       por domingos y festivos) y la prórroga, que lleva el crédito al corte
+       siguiente por el mismo precio. Así que el cliente dentro de su cupo
+       elige PARA CUÁNDO paga entre los cortes que su nivel admite (uno más
+       las prórrogas permitidas: hoy tres), con fichas o con un calendario que
+       salta al corte que cubre el día marcado. Cada corte de más cuesta lo
+       mismo que el crédito (tasaDeProrroga del motor: la prórroga cuesta lo
+       que el crédito) y deja la misma garantía: costo × cortes, garantía ×
+       cortes. La cuenta de cortes es PlataChatReglas.cortesHasta con el
+       motor de esta misma página. El primer crédito del nuevo no elige: va a
+       8 días por la política de nuevos, y la pantalla lo dice. */
+var TOPE_CALCULADORA_PLATACHAT = 2000000;
+/* Los atajos, en el orden del pedido; «tu cupo» se suma cuando cabe. */
+var ATAJOS_CALCULADORA = [50000, 100000, 300000, 500000, 1000000, 2000000];
+
+function vistaCalculadora() {
+  var l = limitesCalc();
+  return '<div class="card">' +
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:var(--e3)">' +
+      '<h3 class="tit">Calculadora</h3><span class="muted" style="font-size:12px">' +
+      (esNuevo() ? 'tu primer crédito' : 'dentro de tu cupo') + '</span></div>' +
+    '<div class="seg" id="calcSeg" role="tablist" aria-label="Qué quieres pedir">' +
+      '<button type="button" role="tab" data-modo="quincenal" class="on" onclick="setModo(\'quincenal\')">Quincenal</button>' +
+      '<button type="button" role="tab" data-modo="respaldado" onclick="setModo(\'respaldado\')"' +
+        (respaldadoDisponible() ? '' : ' disabled title="Se abre cuando lleves ' + esc(COP(M.MONTO_MINIMO_RESPALDADO)) + ' ganados"') +
+        '>' + M.PLAZO_RESPALDADO_MIN + ' a ' + M.PLAZO_RESPALDADO_MAX + ' meses · desde ' + esc(COP(M.MONTO_MINIMO_RESPALDADO)) + ' ganados</button>' +
+    '</div>' +
+    '<div class="fila" style="margin-top:var(--e4)"><span class="k" id="calcSub">Quieres pedir</span>' +
+      '<span class="v cifra sm" id="calcMonto">' + COP(MONTO) + '</span></div>' +
+    '<input type="range" id="calcRange" min="' + l.min + '" max="' + Math.max(l.min, l.max) +
+      '" step="1" value="' + MONTO + '" oninput="setMonto(this.value)" aria-label="Cuánto quieres pedir">' +
+    '<div class="muted" id="calcAviso" style="font-size:12.5px;min-height:var(--e4)"></div>' +
+    '<div class="chips" id="calcChips"></div>' +
+    '<div id="calcPlazo"></div>' +
+    '<div id="calcSalida"></div>' +
+    '</div>';
+}
+
+var ESCALON_MONTO = 1000;
+
+function limitesCalc() {
+  /* El piso es el capital_minimo de la política si la base lo mandó (POL),
+     si no el del motor: es la misma reja de solicitar_platachat. */
+  var piso = capitalMinimo();
+  if (MODO === 'respaldado') {
+    var max = Math.min(Math.max(0, Math.floor(S.maxRespaldado)), M.MONTO_MAXIMO_CALCULADORA);
+    return { min: Math.min(M.MONTO_MINIMO_RESPALDADO, max), max: max, paso: ESCALON_MONTO };
+  }
+  /* El techo es el de PlataChat (dos millones, o el capital_maximo que la
+     base mandó), siempre por debajo del que el motor deja pedir solo; ver el
+     comentario de TOPE_CALCULADORA_PLATACHAT. */
+  var techo = Math.min(capitalMaximo(), M.MONTO_MAXIMO_CALCULADORA);
+  if (esNuevo()) return { min: Math.min(piso, topeNuevo()), max: techo, paso: ESCALON_MONTO };
+  /* El piso cede ante un cupo más chico, como en la escalera: el que tiene
+     30.000 de cupo puede mirar 30.000. Y un cupo mayor que el techo lo estira. */
+  var cupo = Math.max(0, Math.floor(S.cupo || 0));
+  return { min: cupo > 0 ? Math.min(piso, cupo) : piso,
+           max: Math.min(Math.max(techo, cupo), M.MONTO_MAXIMO_CALCULADORA), paso: ESCALON_MONTO };
+}
+
+function setModo(m) {
+  if (m !== 'quincenal' && m !== 'respaldado') return;
+  if (m === 'respaldado' && !respaldadoDisponible()) {
+    var a = $('calcAviso');
+    if (a) a.innerHTML = 'El préstamo de ' + M.PLAZO_RESPALDADO_MIN + ' a ' + M.PLAZO_RESPALDADO_MAX + ' meses arranca cuando lleves <b>' +
+      COP(M.MONTO_MINIMO_RESPALDADO) + '</b> de garantía ganada. Llevas <b>' + COP(S.gd.ganada_libre) +
+      '</b>. Abajo te decimos cuántos créditos faltan.';
+    return;
+  }
+  if (m === MODO) return;
+  MODO = m;
+  var l = limitesCalc();
+  MONTO = Math.max(l.min, Math.min(MONTO, l.max));
+  sincronizarCalc();
+}
+function setPlazo(n) { PLAZO = Math.max(M.PLAZO_RESPALDADO_MIN, Math.min(Number(n) || 3, M.PLAZO_RESPALDADO_MAX)); sincronizarCalc(); }
+
+/* Redondea al escalón sin perder los extremos; la grilla se ancla en CERO
+   para que los montos redondos siempre existan (socio.html, 4-ago). */
+function alEscalon(v, l) {
+  if (v <= l.min) return l.min;
+  if (v >= l.max) return l.max;
+  var n = Math.round(v / l.paso) * l.paso;
+  return Math.max(l.min, Math.min(n, l.max));
+}
+/* La barra y los atajos ya llegan hasta el techo: no hay montos por fuera
+   que haya que dejar entrar (hasta el 14-sep un atajo podía estirar la barra). */
+function setMonto(v) {
+  var l = limitesCalc();
+  MONTO = alEscalon(Number(v) || 0, l);
+  var r = $('calcRange');
+  if (r) r.value = MONTO;
+  sincronizarCalc();
+}
+function bloquePlazo() {
+  var h = '<span class="etq">¿En cuántos meses?</span><div class="chips">';
+  for (var n = M.PLAZO_RESPALDADO_MIN; n <= M.PLAZO_RESPALDADO_MAX; n++) {
+    h += '<button type="button" class="chip' + (n === PLAZO ? ' on' : '') + '" onclick="setPlazo(' + n + ')">' + n + '</button>';
+  }
+  return h + '</div><div class="muted" style="font-size:13px;margin-top:var(--e2)">Una cuota por mes, siempre en una fecha de corte.</div>';
+}
+
+/* ---- ¿PARA CUÁNDO? Los cortes entre los que el cliente puede elegir
+   (15-sep-2026). El primero es el del motor para un desembolso de hoy; cada
+   uno más es una prórroga, con el tope de prórrogas del nivel (dos para
+   todos desde el 2-sep, decisión de Joan). Solo dentro del cupo: por encima
+   no se cotiza, y el nuevo va a 8 días. Null si platachat-reglas.js no
+   llegó: entonces se cotiza al primer corte y no se ofrece elegir, en vez de
+   inventar fechas. ---- */
+var NOMBRE_CORTE = ['este corte', 'el siguiente', 'en dos cortes'];
+function maxCortes() { return 1 + M.prorrogasPermitidas(S.nivel); }
+function cortesElegidos() {
+  if (!R || !R.cortesDesde || !M.prorrogasPermitidas) return null;
+  var fechas = R.cortesDesde(hoyISO(), maxCortes(), M);
+  CORTES = Math.max(1, Math.min(Math.round(CORTES) || 1, fechas.length));
+  var fecha = fechas[CORTES - 1];
+  return { cortes: CORTES, fechas: fechas, fecha: fecha,
+           dias: M.diasEntre(M.aFechaLocal(hoyISO()), M.aFechaLocal(fecha)) };
+}
+function setCortes(n) { CORTES = Math.max(1, Math.round(Number(n)) || 1); sincronizarCalc(); }
+/* El día que el cliente marca en el calendario salta al corte que lo cubre:
+   el primer corte que no queda antes de ese día. Un día pasado o vacío no
+   mueve nada. */
+function setFechaPago(iso) {
+  if (!R || !R.cortesHasta || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) return;
+  CORTES = R.cortesHasta(hoyISO(), iso, M, { maxCortes: maxCortes() }).cortes;
+  sincronizarCalc();
+}
+function fmtDia(iso) {
+  var p = String(iso).slice(0, 10).split('-');
+  var mes = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return Number(p[2]) + ' ' + mes[Number(p[1]) - 1];
+}
+function palabraNumero(n) { return ['cero', 'una', 'dos', 'tres', 'cuatro', 'cinco', 'seis'][n] || String(n); }
+function enumerar(partes) {
+  if (partes.length <= 1) return partes.join('');
+  return partes.slice(0, -1).join(', ') + ' y ' + partes[partes.length - 1];
+}
+function bloqueCortes(c) {
+  var h = '<span class="etq suelta">¿Para cuándo lo pagas?</span><div class="chips">';
+  c.fechas.forEach(function (f, i) {
+    var nombre = NOMBRE_CORTE[i] || ('en ' + i + ' cortes');
+    h += '<button type="button" class="chip' + (i + 1 === c.cortes ? ' on' : '') + '" onclick="setCortes(' + (i + 1) + ')">' +
+      esc(nombre) + ' · ' + esc(fmtDia(f)) + '</button>';
+  });
+  h += '</div>';
+  var manana = M.iso(M.sumarDias(M.aFechaLocal(hoyISO()), 1));
+  h += '<div class="pc-fecha"><label for="calcFecha">O marca un día</label>' +
+    '<input type="date" id="calcFecha" min="' + esc(manana) + '" max="' + esc(c.fechas[c.fechas.length - 1]) + '" value="' + esc(c.fecha) +
+    '" onchange="setFechaPago(this.value)"></div>' +
+    '<div class="muted" style="font-size:12.5px;margin-top:var(--e2)">Se paga en un corte, el 15 o el último del mes: el día que marques salta al corte que lo cubre. ' +
+    'Cada corte de más cuesta lo mismo que el crédito.</div>';
+  return h;
+}
+
+function sincronizarCalc() {
+  if (!S || !$('calcSeg')) return;
+  var resp = MODO === 'respaldado', l = limitesCalc();
+  MONTO = Math.max(l.min, Math.min(MONTO, l.max));
+
+  var bs = $('calcSeg').querySelectorAll('button');
+  for (var i = 0; i < bs.length; i++) {
+    var esEste = bs[i].getAttribute('data-modo') === MODO;
+    bs[i].classList.toggle('on', esEste);
+    bs[i].setAttribute('aria-selected', esEste ? 'true' : 'false');
+  }
+  $('calcMonto').textContent = COP(MONTO);
+
+  var r = $('calcRange');
+  r.min = l.min; r.max = Math.max(l.min, l.max); r.step = 1;
+  r.value = MONTO;
+
+  var chips;
+  if (resp) {
+    chips = [0.25, 0.5, 1].map(function (f) { return Math.max(l.min, Math.round(S.maxRespaldado * f / 10000) * 10000); });
+  } else {
+    /* Los seis atajos del pedido de Joan, los mismos para el nuevo y para el
+       que ya tiene cupo (el nuevo ve el tope de su primer crédito entre
+       ellos), más «tu cupo» cuando cabe en la barra. */
+    chips = ATAJOS_CALCULADORA.filter(function (v) { return v >= l.min && v <= l.max; });
+    if (!chips.length || l.min < chips[0]) chips.unshift(l.min);
+    if (!esNuevo() && S.cupo > 0 && S.cupo <= l.max && chips.indexOf(S.cupo) < 0) chips.push(S.cupo);
+    chips.sort(function (a, b) { return a - b; });
+  }
+  chips = chips.filter(function (v, i, a) { return v > 0 && a.indexOf(v) === i; });
+  $('calcChips').innerHTML = chips.map(function (v) {
+    return '<button type="button" class="chip' + (v === MONTO ? ' on' : '') + '" onclick="setMonto(' + v + ')">' +
+      (v === S.cupo && !esNuevo() ? 'tu cupo' : COPc(v)) + '</button>';
+  }).join('');
+
+  if (resp) {
+    $('calcPlazo').innerHTML = bloquePlazo();
+    var sr = M.simularPrestamoRespaldado(Math.max(1, MONTO), PLAZO, entradaMotor(),
+      { nivelSocio: S.nivel, fechaDesembolso: hoyISO() });
+    $('calcAviso').innerHTML = sr.dentro_del_respaldo
+      ? 'Puedes pedir hasta ' + COP(sr.respaldo_disponible) + ': es la garantía que te ganaste pagando.'
+      : 'Es más que tu garantía ganada de ' + COP(sr.respaldo_disponible) + '.';
+    $('calcSalida').innerHTML = salidaRespaldado(sr);
+  } else if (esNuevo()) {
+    $('calcPlazo').innerHTML = '';
+    $('calcAviso').innerHTML = 'Sin garantía todavía, el primer crédito llega hasta ' + COP(topeNuevo()) + '.';
+    $('calcSalida').innerHTML = MONTO <= topeNuevo() ? salidaNuevo(MONTO) : salidaNuevoSobreTope(MONTO);
+  } else {
+    var s = M.simularCredito(MONTO, S.gd.base_cupo, { nivelSocio: S.nivel, fechaDesembolso: hoyISO() });
+    $('calcAviso').innerHTML = s.dentro_del_cupo
+      ? 'Dentro de tu cupo de ' + COP(s.cupo) + '.'
+      : 'Es más que tu cupo de ' + COP(s.cupo) + '.';
+    var c = s.dentro_del_cupo ? cortesElegidos() : null;
+    $('calcPlazo').innerHTML = c ? bloqueCortes(c) : '';
+    $('calcSalida').innerHTML = salidaCalc(s, c);
+  }
+}
+
+/* Las dos cajas del diseño: lo que pagarías y lo que ganas al pagarlo en
+   fecha. La garantía que deja sale de repartir() con el gasto real del
+   proveedor activo (hoy manual, gasto cero: coincide con el motor). `cuando`
+   es la frase de la fecha, ya armada por quien sabe si es un solo pago o
+   varios cortes. */
+function cajasSalida(total, cuando, gana, ganadaDespues, cupoDespues) {
+  return '<div class="pc-cajas">' +
+    '<div>Lo que pagarías<b>' + COP(total) + '</b>' + cuando + '</div>' +
+    '<div class="verde">Al pagarlo en fecha, ganas<b>+' + COP(gana) + '</b>de garantía: ' + COP(ganadaDespues) +
+      ' ganados, cupo ' + COP(cupoDespues) + '</div>' +
+    '</div>';
+}
+
+/* La tasa, en pesos y nunca en porcentaje: lo que cuesta ESTE crédito con la
+   garantía de hoy, frente a lo que cuesta un primer crédito sin garantía. */
+function fraseCosto(costo, esPrimero) {
+  var primero = M.contrapropuestaNuevo({ capital: topeNuevo(), costo_pct: Math.round(tasaNuevo() * 100), dias: diasNuevo() }, hoyISO());
+  if (esPrimero) {
+    return '<p style="margin:var(--e4) 0 0;font-size:13.5px">Este primer crédito te cuesta <b>' + COP(costo) +
+      '</b>. Cuando tengas garantía, un crédito de ' + COP(topeNuevo()) + ' cuesta <b>' +
+      COP(M.calcularCosto(topeNuevo(), tasaEstandar())) + '</b>: pagar en fecha te lo baja.</p>';
+  }
+  return '<p style="margin:var(--e4) 0 0;font-size:13.5px">Con tu garantía de hoy este crédito te cuesta <b>' + COP(costo) +
+    '</b>. Sin garantía, un primer crédito de ' + COP(primero.capital) + ' cuesta <b>' + COP(primero.costo) + '</b>.</p>';
+}
+
+/* El botón lleva la fecha, los días y los cortes elegidos, para que la
+   solicitud (o el mensaje, si la base no tiene el reloj) diga lo mismo que
+   la pantalla. Con una solicitud viva cambia de verbo (15-sep-2026, fase 1b):
+   «Cambiar mi solicitud» si está abierta, y apagado si ya la aceptó —después
+   de aceptar no se pide otra: se espera la entrega—. El préstamo a meses no
+   entra al reloj (ver pedirPorChat) y conserva el botón y la frase de hoy. */
+function botonPedir(capital, fechaISO, dias, cortes) {
+  fijarFraseReloj();   /* la espera puede haber llegado (POL) después del primer pintado */
+  var d = (dias == null || !isFinite(Number(dias))) ? 'null' : String(Math.round(Number(dias)));
+  var conReloj = MODO !== 'respaldado';
+  var texto, frase, apagado = false;
+  if (conReloj && SOL && SOL.estado === 'aceptada') {
+    texto = 'Ya aceptaste ' + COP(capitalDe(SOL)) + ': espera la entrega';
+    frase = 'Te la entregamos por ' + nombreProveedor() + ' y te avisamos por el chat de Créditos.';
+    apagado = true;
+  } else if (conReloj && solicitudAbierta()) {
+    texto = 'Cambiar mi solicitud a ' + COP(capital);
+    frase = RELOJ_OK ? FRASE_RELOJ : FRASE_HOY;
+  } else {
+    texto = 'Pedir ' + COP(capital) + ' por el chat';
+    frase = (conReloj && RELOJ_OK) ? FRASE_RELOJ : FRASE_HOY;
+  }
+  return '<button type="button" class="btn marca" style="margin-top:var(--e4)"' + (apagado ? ' disabled' : '') + ' onclick="pedirPorChat(' +
+    Math.round(capital) + ',\'' + esc(String(fechaISO).slice(0, 10)) + '\',' + d + ',' + (Math.round(Number(cortes)) || 1) +
+    ')">' + esc(texto) + '</button>' +
+    '<div id="errPedir" class="aviso ambar oculto"></div>' +
+    '<div class="muted" style="font-size:12px;margin-top:var(--e2)">' + esc(frase) + '</div>';
+}
+
+/* La explicación en pesos de los cortes elegidos: cuánto cuesta cada
+   quincena y qué se paga en cada corte. La prórroga se paga en el corte que
+   se corre (así la registra el Panel: el costo del ciclo ese día, y el
+   capital sigue), por eso el plan dice el costo en cada corte y todo al
+   final. */
+function fraseCortes(s, c) {
+  var n = c.cortes, costo = s.costo;
+  if (n === 1) {
+    return '<p style="margin:var(--e4) 0 0;font-size:13.5px">Pagas el ' + esc(fmtFecha(c.fecha)) + ', en ' + c.dias + ' días: ' +
+      COP(s.capital) + ' más ' + COP(costo) + ' de costo, una quincena.</p>';
+  }
+  var pagos = c.fechas.slice(0, n).map(function (f, i) {
+    return COP(i === n - 1 ? s.capital + costo : costo) + ' el ' + fmtFecha(f);
+  });
+  return '<p style="margin:var(--e4) 0 0;font-size:13.5px">Hasta el ' + esc(fmtFecha(c.fecha)) + ', en ' + c.dias + ' días: <b>' +
+    COP(costo * n) + '</b> de costo, son ' + palabraNumero(n) + ' quincenas de ' + COP(costo) +
+    '. Se paga por cortes: ' + esc(enumerar(pagos)) + '.</p>';
+}
+
+/* El quincenal dentro del cupo (o por encima, con el aviso). Con `c` (los
+   cortes elegidos) el costo y la garantía se multiplican por los cortes; sin
+   `c` —por encima del cupo, o sin platachat-reglas.js— es un solo corte, el
+   del motor. */
+function salidaCalc(s, c) {
+  var cortes = c ? c.cortes : 1;
+  var fecha = c ? c.fecha : s.fecha_corte;
+  var gana = garantiaQueGana(s.costo, s.capital) * cortes;
+  var total = s.capital + s.costo * cortes;
+  var cuando = 'el ' + esc(fmtFecha(fecha)) + (c ? ', en ' + c.dias + ' días' : '') +
+    (cortes > 1 ? ', por cortes' : ', en un solo pago');
+  var h = cajasSalida(total, cuando, gana, S.gd.ganada + gana, s.cupo + gana) +
+    (c ? fraseCortes(s, c) : '') +
+    fraseCosto(s.costo, false);
+  if (!s.dentro_del_cupo) {
+    h += '<div class="aviso ambar" style="margin-top:var(--e3)"><b>Te falta ' + COP(s.falta_garantia) + ' de garantía para pedir ' +
+      COP(s.capital) + '.</b> Puedes pedirlo igual por el chat y lo revisamos, o pide hasta ' + COP(s.cupo) + ' que ya tienes.</div>';
+  }
+  return h + botonPedir(s.capital, fecha, c ? c.dias : null, cortes);
+}
+
+/* El primer crédito del que no tiene garantía: la política de nuevos
+   (capital tope, costo y días), calculada con contrapropuestaNuevo. Es la
+   MISMA cuenta que hace la base cuando responde sola porque el tope, el
+   costo y los días salen de la política que la base mandó (POL) y solo sin
+   ella de las constantes; la igualdad no se garantiza por fe en los
+   literales (15-sep-2026). Los días los fija la política, no el cliente, y
+   se le dice. */
+function salidaNuevo(capital) {
+  var p = M.contrapropuestaNuevo({ capital: Math.max(1, capital), costo_pct: Math.round(tasaNuevo() * 100), dias: diasNuevo() }, hoyISO());
+  var gana = garantiaQueGana(p.costo, p.capital);
+  return cajasSalida(p.total, 'el ' + esc(fmtFecha(p.fecha_pago)) + ', en ' + p.dias + ' días, en un solo pago', gana, gana, gana + S.gd.cupon) +
+    fraseCosto(p.costo, true) +
+    '<div class="muted" style="font-size:12.5px;margin-top:var(--e2)">Tu primer crédito es a ' + p.dias + ' días; desde el segundo eliges la fecha.</div>' +
+    botonPedir(p.capital, p.fecha_pago, p.dias, 1);
+}
+
+/* El nuevo que corre la barra por encima del tope del primer crédito: NO se
+   cotiza esa cifra —la política de nuevos tiene tope y en la fase 1b la va a
+   firmar un reloj sin que nadie la mire—; se le dice el tope, cuántos
+   créditos pagados en fecha le faltan para pedir lo que marcó (la misma
+   escalera de la tarjeta de abajo) y, debajo, lo que sí puede pedir hoy. */
+function salidaNuevoSobreTope(capital) {
+  var tope = topeNuevo();
+  var h = '<div class="aviso ambar" style="margin-top:var(--e3)"><b>Sin garantía, el primer crédito llega hasta ' + COP(tope) + '.</b> ';
+  if (R && R.creditosHasta) {
+    var n = R.creditosHasta(capital, S.gd.ganada, S.gd.cupon,
+      { tasa: tasaEstandar(), gasto: gastoDe, primero: { capital: tope, tasa: tasaNuevo() } });
+    h += (n === null || n === undefined)
+      ? 'Para pedir ' + COP(capital) + ' hacen falta más de 60 créditos pagados en fecha, y eso no se promete.'
+      : 'Para pedir ' + COP(capital) + ' te faltan ' + n + ' crédito' + (n !== 1 ? 's' : '') +
+        ' pagados en fecha, pidiendo cada vez todo tu cupo.';
+  } else {
+    h += 'Para pedir ' + COP(capital) + ' primero hay que juntar garantía pagando en fecha.';
+  }
+  h += '</div><div class="muted" style="font-size:12.5px;margin-top:var(--e3)">Lo que sí puedes pedir hoy, ' + COP(tope) + ':</div>';
+  return h + salidaNuevo(tope);
+}
+
+function salidaRespaldado(r) {
+  var h = '<div class="pc-cajas">' +
+    '<div>Tu cuota, cada mes<b>' + COP(r.cuota_fija) + '</b>' + r.plazo_meses + ' cuota' + (r.plazo_meses !== 1 ? 's' : '') +
+      ', la primera el ' + esc(fmtFecha(r.primera_fecha)) + '</div>' +
+    '<div class="verde">Al pagarlo todo en fecha, ganas<b>+' + COP(r.garantia_que_deja) + '</b>de garantía</div>' +
+    '</div>' +
+    fila('Te llevas', COP(r.capital)) +
+    fila('Costo total', COP(r.costo_total)) +
+    fila('Total a devolver', COP(r.total_a_pagar)) +
+    '<div class="muted" style="font-size:12.5px;margin-top:var(--e2)">El costo baja cada mes porque baja el saldo. Mientras lo pagas, ' +
+      COP(r.garantia_comprometida) + ' de tu garantía ganada quedan comprometidos.</div>';
+  if (!r.dentro_del_respaldo) {
+    h += '<div class="aviso ambar" style="margin-top:var(--e3)">Te falta ' + COP(r.falta_garantia_ganada) +
+      ' de garantía ganada para este monto.</div>';
+  }
+  return h + botonPedir(r.capital, r.primera_fecha, null, 1);
+}
+
+/* PEDIR POR EL CHAT (fase 1b, 15-sep-2026). Ya no manda un mensaje: crea una
+   SOLICITUD con reloj —solicitar_platachat— o, si ya hay una abierta, la
+   cambia —reproponer_platachat—, y lleva a Créditos, donde la tarjeta dice
+   la hora real. El mensaje del hilo lo escribe la base (de='socio', la misma
+   frase de siempre) para que Joan y el gerente lo lean en el CRM como hoy.
+
+   Si la base contesta 404 —la migración 20261005 no se corrió— se hace lo
+   de hoy: el texto va como mensaje por chat_escribir_sesion y arriba del
+   hilo se dice por qué no hay hora. Un 5xx NO cae al mensaje: la nube está
+   contestando mal, y un mensaje que sí entrara sería un pedido sin reloj que
+   el cliente repetiría cuando la nube volviera; se queda en Plata con el
+   error y vuelve a intentar. Sin chat disponible, como hoy: borrador.
+
+   El préstamo a meses (MODO respaldado) NO entra al reloj: solicitar_platachat
+   cotiza quincenas (capital × costo × cortes) y la automática le propondría
+   un precio de quincenal a un préstamo de cuotas mensuales, que no es lo que
+   la calculadora le enseñó. Ese se pide como mensaje y lo cotiza una persona
+   desde el CRM (la contrapropuesta a cuotas), como hasta hoy. */
+function pedirPorChat(capital, fechaISO, dias, cortes) {
+  var n = Math.round(Number(cortes)) || 1;
+  var conDias = dias != null && isFinite(Number(dias));
+  var texto = 'Quiero pedir ' + COP(capital) + ' para el ' + fmtFecha(fechaISO) +
+    (conDias ? ' (en ' + Math.round(Number(dias)) + ' días' + (n > 1 ? ', ' + palabraNumero(n) + ' quincenas' : '') + ')' : '') +
+    '. ¿Me alcanza?';
+  if (!chatDisponible()) {
+    CANAL = 'creditos'; BORRADOR = texto;
+    irA('chats');
+    return;
+  }
+  if (MODO === 'respaldado') { pedirComoMensaje(texto, ''); return; }
+  var err = $('errPedir');
+  fallo(err, 'Mandando…');
+  var fecha = String(fechaISO).slice(0, 10);
+  var abierta = solicitudAbierta();
+  var pedido = abierta
+    ? SP.rpc(CFG, SES, 'reproponer_platachat', { p_id: Number(SOL.id), p_capital: Math.round(capital), p_fecha_pago: fecha, p_cortes: n, p_texto: '' })
+    : SP.rpc(CFG, SES, 'solicitar_platachat', { p_capital: Math.round(capital), p_fecha_pago: fecha, p_cortes: n });
+  pedido.then(function (j) {
+    RELOJ_OK = true;
+    if (!j || j.ok !== true) {
+      var msg = motivoPedir(j && j.motivo);
+      fallo(err, msg);
+      /* «Ya no está abierta»: la base dice que la solicitud cambió por
+         debajo (Joan la atendió o la descartó desde la bandeja mientras el
+         cliente miraba Plata). Se trae para que el botón deje de decir
+         «Cambiar mi solicitud» y cada reintento no falle igual; y el aviso
+         se vuelve a poner porque sincronizarCalc() rehace el botón y nace
+         oculto. Solo con ese motivo: en los frenos por cantidad SOL no
+         cambió y sería una llamada de más (15-sep-2026). */
+      if (/abierta/i.test(String((j && j.motivo) || ''))) {
+        traerSolicitud().then(function () { var e2 = $('errPedir'); if (e2 && e2 !== err) fallo(e2, msg); });
+      }
+      return;
+    }
+    SOL_GEN++;
+    SOL = j.solicitud || SOL;
+    BORRADOR = '';
+    if (err) err.classList.add('oculto');
+    CANAL = 'creditos';
+    irA('chats');
+    /* ya_habia: la base encontró una abierta que esta pantalla no sabía
+       (abrió antes de que llegara la solicitud, o esa traída falló) y
+       devolvió esa: se le dice, nombrando el botón que SU tarjeta pinta. */
+    if (j.ya_habia) fallo($('chError'), avisoYaHabia(SOL));
+  }).catch(function (e) {
+    if (e && e.sinSesion) { salir('Tu sesión venció. Entra de nuevo para pedir.'); return; }
+    if (e && e.estado === 404) { pedirComoMensaje(texto, AVISO_SIN_RELOJ); return; }
+    fallo(err, (e && e.humano) || 'No pude mandar tu solicitud. Revisa tu internet y vuelve a intentar.');
+  });
+}
+
+/* El camino de hoy: el texto como mensaje en Créditos. `aviso`, si viene, se
+   dice arriba del hilo (por qué no hubo reloj). Si no se pudo mandar (sin
+   señal, sin base), el texto se le devuelve en la caja para que lo mande
+   cuando pueda — no se pierde. */
+function pedirComoMensaje(texto, aviso) {
+  fallo($('errPedir'), 'Mandando…');
+  return enviarTexto('creditos', texto).then(function () {
+    CANAL = 'creditos'; BORRADOR = '';
+    irA('chats');
+    if (aviso) fallo($('chError'), aviso);
+  }).catch(function (e) {
+    if (e && e.sinSesion) { salir('Tu sesión venció. Entra de nuevo para pedir.'); return; }
+    CANAL = 'creditos'; BORRADOR = texto;
+    irA('chats');
+    fallo($('chError'), (e && e.humano) || 'No pude mandarlo. Tu mensaje quedó en la caja: vuelve a intentar.');
+  });
+}
+
+/* Lo que la base contesta con ok:false, en palabras del cliente. Los motivos
+   son los de solicitar_platachat / reproponer_platachat (base/20261005): los
+   frenos por cantidad y las rejas de cifra y fecha; lo demás, una sola frase. */
+function motivoPedir(motivo) {
+  var m = String(motivo || '');
+  if (/demasiadas/i.test(m)) return 'Pediste varias veces seguidas: espera un rato y vuelve a intentar.';
+  /* 'demasiados mensajes seguidos' es el freno del chat (chat_puede_escribir),
+     que solicitar y reproponer también aplican: /demasiadas/ no lo casaba y
+     caía en la frase genérica (15-sep-2026). */
+  if (/demasiados/i.test(m)) return 'Escribiste varios mensajes seguidos: espera un rato y vuelve a intentar.';
+  if (/rango/i.test(m)) return 'Esa cifra o esa fecha no entran en lo que se puede pedir por aquí. Mueve la barra o la fecha y vuelve a intentar.';
+  /* 'esa solicitud ya no está abierta' (reproponer): reintentar no sirve,
+     lo que sirve es mirar en qué quedó. */
+  if (/abierta/i.test(m)) return 'Esa solicitud ya no está abierta: mira en Créditos en qué quedó.';
+  return 'No pudimos recibir tu solicitud ahora. Vuelve a intentar en un momento; si sigue igual, escríbenos por el chat de Servicio.';
+}
+
+/* ==================== LA SOLICITUD CON RELOJ (fase 1b, 15-sep-2026) ====================
+   SOL es la última solicitud de PlataChat del cliente, tal como la guarda la
+   base (to_jsonb de la fila: id, estado, capital, costo, total, fecha_corte,
+   pedido, contrapropuesta, responder_antes_de, aceptada_en, resuelta_en…).
+   La base es la única que decide su estado —el reloj lo corre
+   resolver_vencidas al leer—; esta página solo la trae, la pinta en Créditos
+   como tarjeta y cambia el verbo del botón de Plata. Se trae al abrir la
+   cuenta, al abrir Créditos y en cada tic del único latido mientras el
+   cliente mira Créditos; nunca con un temporizador propio.
+
+   Una traída que falle no borra nada: un latido perdido no puede quitarle
+   al cliente la propuesta que ya está mirando. Solo el 404 (la migración no
+   está) deja SOL en null, y sin aviso: el aviso se da cuando toque pedir. */
+function solicitudAbierta() { return !!SOL && (SOL.estado === 'nueva' || SOL.estado === 'contrapropuesta'); }
+function solicitudViva() { return solicitudAbierta() || (!!SOL && SOL.estado === 'aceptada'); }
+/* La cifra de la solicitud tal como está hoy: la de la propuesta si hay una
+   (la base copia cp.capital a la fila, pero se lee de la propuesta por si
+   una fila vieja no lo trae), si no la pedida. */
+function capitalDe(sol) {
+  var cp = sol && sol.contrapropuesta;
+  return Number((cp && cp.capital) || (sol && sol.capital) || 0);
+}
+/* Lo que cambia la pantalla: si nada de esto se movió, no se repinta. La
+   política entra en la firma porque la calculadora cotiza con ella: si la
+   base manda otra, Plata se repinta. */
+function firmaSolicitud() {
+  var cp = SOL && SOL.contrapropuesta;
+  return [RELOJ_OK, SOL && SOL.id, SOL && SOL.estado, SOL && SOL.responder_antes_de,
+          SOL && SOL.aceptada_en, cp && cp.creada_en, cp && cp.por,
+          POL ? JSON.stringify(POL) : ''].join('|');
+}
+/* El ahora con el reloj de la base (ver DESFASE_RELOJ). */
+function ahoraBase() { return Date.now() + DESFASE_RELOJ; }
+/* Una 'nueva' cuya hora ya pasó según lo que esta pantalla sabe: la base la
+   resuelve al leer, así que hay que releer, no seguir pintándola. */
+function solicitudVencidaEnMemoria() {
+  return !!SOL && SOL.estado === 'nueva' && !!SOL.responder_antes_de && Date.parse(SOL.responder_antes_de) <= ahoraBase();
+}
+
+function traerSolicitud() {
+  if (!SES || !SES.access_token || !SP) return Promise.resolve();
+  /* Con una aceptación en vuelo no se relee: la fila todavía dice
+     'contrapropuesta' y la respuesta llegaría a resucitar el botón «Acepto»
+     de algo que el cliente ya aceptó. SOL_GEN también lo botaría, pero es
+     una llamada que sobra; el camino de ok:false apaga ACEPTANDO ANTES de
+     pedir la que sí vale (15-sep-2026). */
+  if (ACEPTANDO) return Promise.resolve();
+  var gen = ++SOL_GEN, ses = SES, antes = firmaSolicitud();
+  return SP.rpc(CFG, SES, 'mi_solicitud_platachat').then(function (j) {
+    if (SES !== ses || gen !== SOL_GEN) return;   /* salió (o entró otro), o SOL ya cambió por otra vía: esta traída es vieja */
+    if (!j || j.ok !== true) return;
+    RELOJ_OK = true;
+    var a = Date.parse(String(j.ahora || ''));
+    if (isFinite(a)) DESFASE_RELOJ = a - Date.now();
+    SOL = j.solicitud || null;   /* la política NO viene por aquí: la trae politica_platachat() al abrir la cuenta */
+  }).catch(function (e) {
+    if (SES !== ses || gen !== SOL_GEN) return;
+    if (e && e.estado === 404) SOL = null;
+    /* Sin señal, 5xx, sesión vencida: se ignora y se conserva lo que ya se
+       sabía. La sesión vencida la atienden mi_cuenta y el chat, que sí
+       mandan a la puerta; dos «salir» seguidos serían dos avisos. */
+  }).then(function () {
+    if (SES !== ses || gen !== SOL_GEN || firmaSolicitud() === antes) return;
+    if (TAB === 'chats') { pintarPropuesta(); return; }
+    if (TAB === 'plata') {
+      var c = $('plSolicitud'); if (c) c.innerHTML = tarjetaSolicitudEnCurso();
+      sincronizarCalc();
+    }
+  });
+}
+
+/* La tarjeta del chat de Créditos, debajo del hilo. Vacía si no hay
+   solicitud, si el canal no es Créditos, o si la solicitud ya terminó hace
+   más de una semana (creada, aceptada o resuelta: la fecha más reciente de
+   las tres que la fila trae). Se rehace solo cuando el HTML cambia: los
+   botones de aceptar no desaparecen bajo el dedo en cada latido. */
+function pintarPropuesta() {
+  var caja = $('chPropuesta'); if (!caja) return;
+  var html = (CANAL === 'creditos' && SOL) ? tarjetaPropuesta(SOL) : '';
+  /* La marca de «esto ya está pintado» va en el propio elemento y no en una
+     variable: cuando irA() rehace el cuerpo, el #chPropuesta nuevo nace sin
+     marca y se pinta; una variable global habría que acordarse de vaciarla
+     en cada sitio que rehaga el DOM, y el día que uno se olvide, la tarjeta
+     vieja se queda. */
+  if (caja.__tarjeta === html) return;
+  caja.innerHTML = html;
+  caja.__tarjeta = html;
+}
+
+function diasDesde(iso) {
+  var ms = Date.parse(String(iso || ''));
+  return isFinite(ms) ? (ahoraBase() - ms) / 86400000 : 0;
+}
+/* El cupo que la base vio al recibir el pedido (pedido.cupo; la fila también
+   lo copia en `cupo`). */
+function cupoDe(sol) {
+  var p = (sol && sol.pedido) || {};
+  return Number(p.cupo != null ? p.cupo : (sol && sol.cupo)) || 0;
+}
+/* ¿QUIÉN va a contestar esta 'nueva' cuando se cumpla la hora? Lo dice la
+   base: estampa pedido.automatica al NACER la solicitud (y al repreguntar)
+   con tres valores — 'nuevo' (el automático propone el primer crédito),
+   'estandar' (propone dentro del cupo) y 'sin_cupo' (no propone nada:
+   contesta una persona, y el hilo ya se lo dijo en el recibido). Devuelve
+   'automatico', 'persona' o '' cuando no se sabe.
+
+   Se LEE la marca y no se adivina con el cupo: el espejo «tiene garantía y
+   cupo por debajo del mínimo» no puede ver politica_app.con_garantia, y con
+   'misma' la base sí propone —la tarjeta diría «una persona» y contestaría
+   el automático—. Una solicitud vieja, de antes de que la base estampara el
+   campo, o un valor que esta página todavía no conoce, se quedan en '': ahí
+   no se promete ni lo uno ni lo otro, solo «te contestamos por aquí», que es
+   verdad en los tres casos. Hasta el 15-sep-2026 la tarjeta prometía el
+   automático siempre, incluso donde la base ya había escrito dos dedos más
+   arriba que contestaba una persona. */
+function quienContesta(sol) {
+  var v = String((sol && sol.pedido && sol.pedido.automatica) || '');
+  if (v === 'nuevo' || v === 'estandar') return 'automatico';
+  /* 'sin_politica' no está en el contrato pero es el otro caso en que el
+     reloj se apaga sin proponer: si algún día llega, es una persona. */
+  if (v === 'sin_cupo' || v === 'sin_politica' || v === 'persona') return 'persona';
+  return '';
+}
+/* La base encontró una abierta que esta pantalla no sabía (abrió antes de
+   que volviera traerSolicitud, o esa traída falló) y devolvió esa. El aviso
+   nombra el botón que la tarjeta de ESE estado sí pinta: «Cambiar lo que
+   pedí» en nueva, «Proponer otra cifra» en contrapropuesta, y ninguno en
+   aceptada, donde ya no se cambia nada: se espera la entrega (15-sep-2026). */
+function avisoYaHabia(sol) {
+  var estado = sol && sol.estado;
+  if (estado === 'aceptada') return 'Ya habías aceptado ' + COP(capitalDe(sol)) + ': espera la entrega.';
+  if (estado === 'nueva') return 'Ya tenías una solicitud abierta: es esta. Si quieres otra cifra, toca «Cambiar lo que pedí».';
+  return 'Ya tenías una solicitud abierta: es esta. Si quieres otra cifra, toca «Proponer otra cifra».';
+}
+/* Quién armó la propuesta, por su `por`. Sin platachat-reglas.js no se
+   adivina: título neutro y borde punteado, que es el que no miente. */
+function quienProponeDe(por) {
+  if (R && R.quienPropone) return R.quienPropone(por);
+  return { clave: 'automatico', titulo: 'Propuesta' };
+}
+/* La hora límite en palabras («antes de las 3:40 p. m.», «mañana antes de
+   las 8:05 a. m.»), en hora de Colombia. La regla vive en platachat-reglas.js
+   y recibe el AHORA de esta página; si el archivo no llegó, la hora sola con
+   Intl —sin el «mañana», que sin reglas no se calcula— y nunca en blanco. */
+function horaLimite(iso) {
+  var ahora = new Date(ahoraBase()).toISOString();
+  if (R && R.horaLimiteEnPalabras) { try { return R.horaLimiteEnPalabras(iso, ahora); } catch (e) {} }
+  try {
+    var p = {};
+    new Intl.DateTimeFormat('en-US', { timeZone: 'America/Bogota', hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })
+      .formatToParts(Date.parse(iso)).forEach(function (x) { p[x.type] = x.value; });
+    var h = Number(p.hour) % 24, m = Number(p.minute);
+    if (!isFinite(h) || !isFinite(m)) throw 0;
+    return 'antes de las ' + (h % 12 || 12) + ':' + (m < 10 ? '0' : '') + m + (h < 12 ? ' a. m.' : ' p. m.');
+  } catch (e) { return 'antes de la hora que dice el hilo'; }
+}
+/* Los días de hoy a la fecha de pago, contados HOY y no cuando se armó la
+   propuesta: «en 15 días» leído dos días después sería mentira. */
+function diasHasta(fechaISO) {
+  if (!fechaISO || !M.aFechaLocal || !M.diasEntre) return null;
+  try { return M.diasEntre(M.aFechaLocal(hoyISO()), M.aFechaLocal(String(fechaISO).slice(0, 10))); } catch (e) { return null; }
+}
+/* La MISMA cuenta de la calculadora (salidaCalc): la garantía de un corte
+   por los cortes. Si algo viene roto en la propuesta, null y no se pinta. */
+function garantiaDePropuesta(costo, capital, cortes) {
+  try { return garantiaQueGana(Math.round(costo / cortes), capital) * cortes; } catch (e) { return null; }
+}
+/* «el 30 sep 2026, en 15 días, dos quincenas» — o las cuotas, si la
+   propuesta vino a cuotas desde el CRM (contrapropuesta_a_cuotas): decir
+   «devuelves $X el DD» de un plan mensual sería un solo pago que no existe. */
+function cuandoDe(cp) {
+  var cuotas = Array.isArray(cp.cuotas) && cp.cuotas.length > 1 ? cp.cuotas : null;
+  if (cuotas) return 'en ' + cuotas.length + ' cuotas, la última el ' + fmtFecha(cp.fecha_pago || cuotas[cuotas.length - 1].fecha);
+  var d = diasHasta(cp.fecha_pago), n = Math.max(1, Math.round(Number(cp.cortes)) || 1);
+  return 'el ' + fmtFecha(cp.fecha_pago) + (d != null && d >= 0 ? ', en ' + d + ' días' : '') +
+    (n > 1 ? ', ' + palabraNumero(n) + ' quincenas' : '');
+}
+
+/* La tarjeta: un estado, una cara. Todo en pesos, fechas y días —ni un
+   porcentaje: la tasa vive en la propuesta y acá no se lee—, y todo texto
+   que venga de la base pasa por esc(). El marcado es el de .tarjeta-propuesta
+   de la piel (cabeza de laca, cuerpo, .lin, .gana, .acciones, .nota). El
+   borde punteado de la piel dice «la armó el sistema»; la propuesta de una
+   persona lleva .humana (borde continuo), y quién es quién lo decide
+   quienPropone en platachat-reglas.js, sección 7. */
+function tarjetaPropuesta(sol) {
+  if (!sol) return '';
+  var estado = String(sol.estado || '');
+  var cp = sol.contrapropuesta || null;
+  var pedido = sol.pedido || {};
+  if ((estado === 'descartada' || estado === 'atendida') && diasDesde(sol.resuelta_en || sol.aceptada_en || sol.creada_en) > 7) return '';
+  var cabeza = function (titulo) {
+    return '<div class="cabeza laca">' + svgMoneda('brillo') + '<div><div class="etq">Créditos</div><div class="tit">' + esc(titulo) + '</div></div></div>';
+  };
+  var lin = function (k, v) { return '<div class="lin"><span class="k">' + esc(k) + '</span><strong>' + esc(v) + '</strong></div>'; };
+  var cambiar = '<div class="acciones una"><button type="button" class="btn claro" onclick="proponerOtraCifra()">Cambiar lo que pedí</button></div>';
+  var clase = 'tarjeta-propuesta', h = '';
+
+  if (estado === 'nueva') {
+    var capitalPedido = Number((pedido.capital != null ? pedido.capital : sol.capital) || 0);
+    var cortes = Math.max(1, Math.round(Number(pedido.cortes)) || 1);
+    h = cabeza('Tu solicitud llegó') + '<div class="cuerpo">' +
+      lin('Pediste', COP(capitalPedido)) +
+      lin('Para el', fmtFecha(pedido.fecha_pago || sol.fecha_corte) + (cortes > 1 ? ' (' + palabraNumero(cortes) + ' quincenas)' : ''));
+    if (sol.responder_antes_de) {
+      /* Vencida y todavía «nueva»: la base la resuelve en la próxima lectura
+         (el latido); se dice eso, no una hora que ya pasó. Vencida según el
+         reloj de la base (ahoraBase), no el del teléfono. */
+      var vencida = Date.parse(sol.responder_antes_de) <= ahoraBase();
+      /* Quién contesta a esa hora lo dice la base (pedido.automatica), no
+         esta pantalla: con 'sin_cupo' no se promete una propuesta que no va
+         a llegar, y sin marca no se promete nada de nadie. */
+      var quien = quienContesta(sol);
+      /* El cupo solo se nombra si la base lo mandó: es el mismo número que
+         el hilo ya dijo en el recibido. */
+      var conCupo = cupoDe(sol) > 0 ? ' (tu cupo de hoy, ' + esc(COP(cupoDe(sol))) + ', no alcanza para que el automático proponga)' : '';
+      h += '<div class="dice">' + (vencida
+        ? (quien === 'persona' ? 'La hora se cumplió: te contesta una persona por aquí' + conCupo + '.'
+          : quien === 'automatico' ? 'La hora se cumplió: en un momento te contesta el automático con una propuesta; la ves aquí mismo.'
+          : 'La hora se cumplió: en un momento te contestamos por aquí.')
+        /* Sin punto final: «p. m.» ya lo trae. */
+        : 'Te contestamos por aquí ' + esc(horaLimite(sol.responder_antes_de))) + '</div>' + cambiar;
+      if (!vencida && quien === 'persona') {
+        h += '<div class="nota">A esa hora no te contesta el automático' +
+          (cupoDe(sol) > 0 ? ': tu cupo de hoy es ' + esc(COP(cupoDe(sol))) + ' y no alcanza para que proponga solo; te contesta' : ' con una propuesta: te contesta') +
+          ' una persona por aquí.</div>';
+      } else if (!vencida && quien === 'automatico') {
+        h += '<div class="nota">Si nadie alcanza, a esa hora te contesta el automático con una propuesta; la ves aquí mismo.</div>';
+      }
+      /* Sin marca (solicitud vieja, o un valor que esta página no conoce) no
+         va nota: la única promesa que se sostiene es la del «dice». */
+    } else {
+      /* Sin hora: el reloj se apagó sin proponer (pedido.automatica =
+         'sin_cupo') y el automático lo dijo en el hilo; la contesta una
+         persona. Sin esa marca, tampoco se dice quién: solo que se contesta. */
+      h += '<div class="dice">' + (quienContesta(sol) === 'persona' ? 'Te contesta una persona por aquí.' : 'Te contestamos por aquí.') + '</div>' + cambiar +
+        (pedido.automatica === 'sin_cupo'
+          ? '<div class="nota">El automático no pudo contestarte solo con tu cupo de hoy; lo que dijo está en el hilo, arriba.</div>' : '');
+    }
+    h += '</div>';
+
+  } else if (estado === 'contrapropuesta' && cp) {
+    var q = quienProponeDe(cp.por);
+    if (q.clave !== 'automatico') clase += ' humana';
+    var capital = Number(cp.capital || 0), costo = Number(cp.costo || 0);
+    var total = Number(cp.total != null ? cp.total : capital + costo);
+    var n = Math.max(1, Math.round(Number(cp.cortes)) || 1);
+    var aCuotas = Array.isArray(cp.cuotas) && cp.cuotas.length > 1;
+    h = cabeza(q.titulo) + '<div class="cuerpo">' +
+      (cp.texto ? '<div class="dice">' + esc(cp.texto) + '</div>' : '') +
+      lin('Te prestamos', COP(capital)) + lin('Lo que cuesta', COP(costo)) + lin('Devuelves', COP(total)) +
+      lin('Cuándo', cuandoDe(cp));
+    if (aCuotas) {
+      cp.cuotas.forEach(function (c, i) {
+        var t = c && c.total != null ? c.total : Number((c && c.capital) || 0) + Number((c && c.costo) || 0);
+        h += lin('Cuota ' + (i + 1), COP(t) + ' el ' + fmtFecha(c && c.fecha));
+      });
+    } else {
+      /* La garantía que deja, con la misma cuenta de la calculadora; la de un
+         plan a cuotas la calcula el motor de otra forma y no se inventa acá. */
+      var gana = garantiaDePropuesta(costo, capital, n);
+      if (gana != null) h += '<div class="gana">Al pagarlo en fecha ganas <strong>+' + COP(gana) + '</strong> de garantía.</div>';
+    }
+    h += '<div class="acciones">' +
+      '<button type="button" class="btn marca" onclick="aceptarPropuesta(' + Number(sol.id) + ')"' + (ACEPTANDO ? ' disabled' : '') +
+        '>Acepto: recibo ' + esc(COP(capital)) + '</button>' +
+      '<button type="button" class="btn claro" onclick="proponerOtraCifra()">Proponer otra cifra</button></div>' +
+      '<div class="nota">Aceptar no te entrega la plata: te la entrega una persona de PlataChat por ' + esc(nombreProveedor()) +
+        ' y ahí nace el crédito. Si no te sirve, no aceptes.</div></div>';
+
+  } else if (estado === 'aceptada') {
+    h = cabeza('Aceptaste ' + COP(capitalDe(sol))) + '<div class="cuerpo">' +
+      (cp ? lin('Devuelves', COP(cp.total != null ? cp.total : Number(cp.capital || 0) + Number(cp.costo || 0))) + lin('Cuándo', cuandoDe(cp)) : '') +
+      '<div class="dice">Te la entregamos por ' + esc(nombreProveedor()) + ' y te avisamos por aquí. No tienes que hacer nada más.</div></div>';
+
+  } else if (estado === 'atendida') {
+    h = cabeza('Crédito creado') + '<div class="cuerpo"><div class="dice">Lo ves en Yo → tu historial cuando lo publiquen.</div></div>';
+
+  } else if (estado === 'descartada') {
+    h = cabeza('No pudimos con esta solicitud') + '<div class="cuerpo"><div class="dice">Escríbenos por aquí si quieres intentarlo de otra forma.</div></div>';
+
+  } else {
+    return '';
+  }
+  return '<div class="' + clase + '">' + h + '</div>';
+}
+
+/* ACEPTAR. Registra la aceptación en la base y vuelve a pintar con lo que la
+   base devolvió, no con lo que esta pantalla supone. Aceptar NO desembolsa:
+   la tarjeta lo dice antes y después. Si la base dice que no (la propuesta
+   cambió, ya no era suya, ya estaba aceptada), se trae la solicitud de nuevo
+   para que vea la que sí vale. */
+function aceptarPropuesta(id) {
+  if (!SES || !SP || ACEPTANDO) return;
+  var ce = $('chError'); if (ce) ce.classList.add('oculto');
+  ACEPTANDO = true; pintarPropuesta();
+  SP.rpc(CFG, SES, 'aceptar_propuesta_platachat', { p_id: Number(id) }).then(function (j) {
+    RELOJ_OK = true;
+    if (!j || j.ok !== true) {
+      fallo(ce, 'No pudimos registrar tu aceptación. Si la propuesta cambió, acá ves la nueva.');
+      ACEPTANDO = false;
+      return traerSolicitud();
+    }
+    ACEPTANDO = false;
+    SOL_GEN++;                            /* la aceptación manda: cualquier traída anterior en vuelo queda vieja */
+    SOL = j.solicitud || SOL;
+    pintarPropuesta();
+    chatTraer(false);
+  }).catch(function (e) {
+    ACEPTANDO = false;
+    if (e && e.sinSesion) { salir('Tu sesión venció. Entra de nuevo para aceptar.'); return; }
+    fallo(ce, (e && e.estado === 404) ? AVISO_SIN_RELOJ
+      : ((e && e.humano) || 'No pude registrar tu aceptación. Revisa tu internet y vuelve a intentar.'));
+    pintarPropuesta();
+  });
+}
+
+/* Proponer otra cifra es volver a la calculadora: con la solicitud abierta,
+   el botón de Plata ya dice «Cambiar mi solicitud a $Y». */
+function proponerOtraCifra() { irA('plata'); }
+
+/* Arriba de la calculadora, mientras haya una solicitud viva: qué pidió y
+   en qué va, con el camino a Créditos. Sin porcentajes ni promesas: el
+   estado en palabras es el que la base tiene. */
+function estadoEnPalabras(sol) {
+  if (sol.estado === 'nueva') {
+    /* Mismo criterio de vencida y de quién contesta que la tarjeta de
+       Créditos (tarjetaPropuesta): decir una hora que ya pasó, o prometer el
+       automático donde la base ya dijo que no propone, sería mentir; y sin
+       marca de la base no se nombra a nadie. La relectura que arma la
+       propuesta la lanza irA('plata') (15-sep-2026). */
+    var quien = quienContesta(sol);
+    if (!sol.responder_antes_de) return quien === 'persona' ? 'te contesta una persona' : 'te contestamos por aquí';
+    if (Date.parse(sol.responder_antes_de) <= ahoraBase()) {
+      return 'la hora se cumplió: ' + (quien === 'persona' ? 'te contesta una persona'
+        : quien === 'automatico' ? 'en un momento te contesta el automático' : 'te contestamos en un momento');
+    }
+    return (quien === 'persona' ? 'te contesta una persona, ' : 'te contestamos ') + horaLimite(sol.responder_antes_de);
+  }
+  if (sol.estado === 'contrapropuesta') return 'tienes una propuesta para mirar';
+  if (sol.estado === 'aceptada') return 'aceptada, esperando la entrega';
+  return String(sol.estado || '');
+}
+function tarjetaSolicitudEnCurso() {
+  if (!solicitudViva()) return '';
+  return '<div class="card"><div class="etq">Créditos</div>' +
+    '<div style="font-size:14px;margin-top:var(--e2)">Tienes una solicitud en curso: <b>' + COP(capitalDe(SOL)) + '</b> · ' + esc(estadoEnPalabras(SOL)) + '</div>' +
+    '<button type="button" class="btn claro" style="margin-top:var(--e3)" onclick="CANAL=\'creditos\';irA(\'chats\')">Verla en Créditos</button></div>';
+}
+
+/* ------- la escalera: cuántos créditos pagados en fecha faltan para pedir
+   200.000, 300.000 y el préstamo de 1 a 6 meses. Sale de platachat-reglas.js,
+   NO de proyectarCrecimiento del motor: el motor no sabe de gastos del pago, y
+   con un proveedor que cobre, prometería créditos de menos. ------- */
+function tarjetaEscalera() {
+  var h = '<div class="card"><h3 class="tit">Para pedir más, primero la garantía</h3>';
+  if (!R || !R.creditosHasta) {
+    return h + '<div class="aviso ambar">No cargó la parte de la app que calcula la escalera (platachat-reglas.js). ' +
+      'Cierra y vuelve a abrir con internet.</div></div>';
+  }
+  var ganada = S.gd.ganada, cupon = S.gd.cupon, cupo = S.cupo;
+  var op = {
+    tasa: tasaEstandar(), gasto: gastoDe,
+    primero: esNuevo() ? { capital: topeNuevo(), tasa: tasaNuevo() } : null
+  };
+  var enCreditos = function (n) {
+    if (n === null || n === undefined) return 'más de 60 créditos';
+    return n + ' crédito' + (n !== 1 ? 's' : '');
+  };
+  var escalon = function (titulo, faltan, n) {
+    return '<div class="pc-escalon"><div><b>' + esc(titulo) + '</b><small>' +
+      (faltan > 0 ? 'te faltan ' + COP(faltan) + ' de garantía' : 'ya puedes pedirlo') + '</small></div>' +
+      '<span class="n">' + (faltan > 0 ? esc(enCreditos(n)) : 'hoy') + '</span></div>';
+  };
+  h += '<p class="sub">Solo puedes pedir hasta tu cupo. Hoy ' + (cupo > 0 ? 'cubres hasta ' + COP(cupo) : 'tu cupo es ' + COP(0)) +
+    '. Pidiendo el máximo cada vez y pagando en fecha:</p>';
+  [200000, 300000].forEach(function (meta) {
+    h += escalon('Pedir ' + COP(meta), Math.max(0, meta - cupo), R.creditosHasta(meta, ganada, cupon, op));
+  });
+  /* La meta del préstamo largo es sobre la GANADA, no sobre el cupo: el cupón
+     no respalda un préstamo. Como cada paso de la escalera mide el cupo
+     (ganada + cupón), la meta se corre en el cupón para que «cupo ≥ meta»
+     signifique «ganada ≥ el piso del producto». */
+  var pisoR = M.MONTO_MINIMO_RESPALDADO;
+  h += escalon('Préstamo de ' + M.PLAZO_RESPALDADO_MIN + ' a ' + M.PLAZO_RESPALDADO_MAX + ' meses · desde ' + COP(pisoR) + ' ganados',
+    Math.max(0, pisoR - ganada), R.creditosHasta(pisoR + cupon, ganada, cupon, op));
+  h += '<p class="muted" style="margin:var(--e3) 0 0;font-size:12px">Cuatro de cada cinco pesos que pagas de costo se vuelven garantía tuya, ' +
+    'descontados los gastos del pago (hoy, por ' + esc(nombreProveedor()) + ', ninguno). Si te atrasas, la mora que pagas no suma. ' +
+    'La cuenta supone que cada crédito se paga en un solo pago.</p>';
+  return h + '</div>';
+}
+
+/* ============================ CHATS ============================
+   UNA conversación por cliente, en tres canales. El hilo lo arma
+   ChatTuGarantia.hiloHTML — el mismo archivo que usan la app del socio y el
+   CRM — y acá solo se le pone encima la etiqueta de quién habla. Sin sesión
+   o sin nube no hay a quién escribirle, y se dice. */
+var CH = { canal: '', gen: 0, mensajes: [], ultimo: 0, cargando: false, enviando: false, error: '' };
+var CHAT_CADA_MS = 20000;
+/* UN SOLO LATIDO (14-sep-2026). La primera versión arrancaba una cadena de
+   temporizadores por cada chatTraer(true) —o sea por cada cambio de canal—
+   y las cadenas no morían: tres cambios de canal eran tres chat_leer_sesion
+   cada 20 s, cada uno con su UPDATE de `visto` en la base, creciendo mientras
+   el cliente estuviera en Chats. LATIDO es el único temporizador vivo y GEN
+   es el número del hilo abierto: una respuesta que llegue con otro GEN es de
+   un hilo que ya se cerró (A→B→A con la traída de A todavía en vuelo) y se
+   bota, en vez de sumarse al hilo nuevo y duplicar mensajes. */
+var LATIDO = 0, GEN = 0;
+function apagarLatido() { if (LATIDO) clearTimeout(LATIDO); LATIDO = 0; }
+
+function chatDisponible() {
+  return !!(CHAT && CHAT.hiloHTML && SP && SES && SES.access_token && CFG.url && CFG.anon);
+}
+function canalDe(id) {
+  for (var i = 0; i < CANALES.length; i++) if (CANALES[i].id === id) return CANALES[i];
+  return CANALES[0];
+}
+
+function vistaChats() {
+  if (!chatDisponible()) {
+    return '<div class="card"><h3 class="tit">Chats</h3>' +
+      '<p class="sub">' + (CHAT && CHAT.hiloHTML
+        ? 'Para escribir por aquí hace falta internet y haber entrado con tu celular y tu contraseña. ' +
+          'Ahora mismo no puedo traer ni mandar mensajes.'
+        : 'No cargó una parte de la app (chat.js). Cierra y vuelve a abrir con internet.') + '</p>' +
+      '<a class="btn claro" target="_blank" rel="noopener" href="https://wa.me/' + WHATSAPP_OFICIAL + '">Escribir por WhatsApp</a>' +
+      '</div>' + pie();
+  }
+  var h = '<div class="card">' +
+    '<div class="seg" id="chSeg" role="tablist" aria-label="Canal">' + CANALES.map(function (c) {
+      return '<button type="button" role="tab" data-canal="' + c.id + '" class="' + (c.id === CANAL ? 'on' : '') +
+        '" onclick="setCanal(\'' + c.id + '\')">' + esc(c.nombre) + '</button>';
+    }).join('') + '</div>' +
+    '<p class="sub" id="chSub">' + esc(canalDe(CANAL).vacio) + '</p>' +
+    '<div class="ch-hilo" id="chHilo" style="max-height:52vh"><div class="ch-vacio">Trayendo tus mensajes…</div></div>' +
+    /* La tarjeta de la solicitud (fase 1b): debajo del hilo y encima de los
+       avisos; la llena pintarPropuesta(), solo en Créditos. */
+    '<div id="chPropuesta"></div>' +
+    '<div id="chError" class="aviso ambar oculto"></div>' +
+    '<div class="entrada-chat">' +
+      /* El micrófono está porque va a estar; hoy no graba, y lo dice. */
+      '<button type="button" class="mic" disabled title="Notas de voz: en camino" aria-label="Notas de voz: en camino">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' +
+      /* La barra entera (.entrada-chat, .pildora, .enviar) la pinta la piel. */
+      '<div class="pildora"><textarea id="chTexto" rows="1" placeholder="Escribe aquí…" maxlength="' + CHAT.LARGO_MAX +
+        '" oninput="chatContar()" aria-label="Tu mensaje"></textarea></div>' +
+      '<button type="button" class="foto" onclick="elegirFoto()" title="Mandar una foto, por ejemplo el comprobante de pago" aria-label="Mandar una foto, por ejemplo el comprobante de pago">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 15 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/></svg></button>' +
+      '<button type="button" class="enviar" id="chEnviar" onclick="enviarChat()" aria-label="Enviar">' +
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg></button>' +
+      '<input type="file" id="chFoto" accept="image/*" capture="environment" class="oculto" onchange="mandarFoto(this)">' +
+    '</div>' +
+    '<div class="ch-cuenta" id="chCuenta"></div>' +
+    '<div class="muted" style="font-size:12px;margin-top:var(--e2)">Notas de voz: en camino. Lo que se escribe queda guardado: es tu constancia y la nuestra.</div>' +
+    '</div>';
+
+  /* `quienes`/`q`/`avatar` son los de estilo.css. Lo que promete la tercera
+     fila —«siempre marcado con línea punteada»— lo cumple chat.js, que es
+     quien decide qué es automático; esta página no le quita el punteado a
+     nadie ni se lo pone. */
+  h += '<div class="card"><div class="etq">Quién te escribe aquí</div><div class="quienes">' +
+    '<div class="q"><div class="avatar">P</div><div><b>PlataChat</b><span class="muted"> · la persona que te presta</span></div></div>' +
+    '<div class="q"><div class="avatar plata">G</div><div><b>Tu gerente</b><span class="muted"> · te acompaña y te cobra en horario</span></div></div>' +
+    '<div class="q"><div class="avatar auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 12h8M12 9v6"/></svg></div>' +
+      '<div><b>Automático</b><span class="muted"> · siempre marcado con línea punteada</span></div></div>' +
+    '</div></div>';
+
+  h += '<a class="card" style="display:flex;align-items:center;gap:var(--e3);text-decoration:none;color:inherit" target="_blank" rel="noopener" ' +
+    'href="https://wa.me/?text=' + encodeURIComponent('Pide tu crédito por el chat con PlataChat: https://tugarantia.net/platachat/') + '">' +
+    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--marca-texto)" aria-hidden="true"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3z"/></svg>' +
+    '<span style="flex:1;font-size:13.5px">Invita a alguien por WhatsApp</span><span class="muted">›</span></a>';
+  return h + pie();
+}
+
+function setCanal(id) {
+  CANAL = canalDe(id).id;
+  var seg = $('chSeg');
+  var bs = seg ? seg.querySelectorAll('button') : [];
+  for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('on', bs[i].getAttribute('data-canal') === CANAL);
+  var sub = $('chSub'); if (sub) sub.textContent = canalDe(CANAL).vacio;
+  var ce = $('chError'); if (ce) ce.classList.add('oculto');
+  pintarPropuesta();
+  arrancarChat();
+}
+
+function arrancarChat() {
+  if (!chatDisponible()) return;
+  apagarLatido();
+  GEN++;
+  CH = { canal: CANAL, gen: GEN, mensajes: [], ultimo: 0, cargando: false, enviando: false, error: '' };
+  var ta = $('chTexto');
+  if (ta && BORRADOR) { ta.value = BORRADOR; BORRADOR = ''; chatContar(); }
+  pintarPropuesta();
+  /* Al abrir Créditos se pregunta de una por la solicitud, no en el próximo
+     latido: lo primero que quiere ver quien entra es si le contestaron. Es
+     una traída, no un temporizador: el latido sigue siendo uno. */
+  if (CANAL === 'creditos') traerSolicitud();
+  chatTraer(true);
+}
+
+function chatPintar() {
+  var caja = $('chHilo'); if (!caja) return;
+  pintarPropuesta();
+  if (CH.error) { caja.innerHTML = '<div class="ch-vacio">' + esc(CH.error) + '</div>'; return; }
+  caja.innerHTML = CHAT.hiloHTML(CH.mensajes, { yo: 'socio', textoVisto: 'Lo vieron', alVerFoto: 'verFotoChat', vacio: canalDe(CH.canal).vacio });
+  etiquetarAutores(caja);
+  caja.scrollTop = caja.scrollHeight;
+}
+
+/* La etiqueta de quién habla, encima de cada mensaje que no es del cliente.
+   Se pone sobre el DOM que armó hiloHTML —un .ch-msg por mensaje, en el mismo
+   orden que la lista— en vez de armar el HTML acá: el hilo lo escribe un solo
+   archivo. La marca de «automático» que trae chat.js se reemplaza por la
+   nuestra para no decir lo mismo dos veces; el punteado de chat.css se queda.
+
+   Y NO se toca la clase ch-esauto en ninguna dirección: quién es máquina lo
+   decide chat.js (esAutomatico), y esta página solo pone nombre. Por eso el
+   gerente escribe como 'equipo' y no como 'agente' (base/20260923, sección 1):
+   'agente' es el asistente para chat.js y saldría punteado, y quitarle acá el
+   punteado a un autor que chat.js llama máquina sería la segunda copia de la
+   regla que la fase 3 no puede permitirse. */
+function etiquetarAutores(caja) {
+  var nodos = caja.querySelectorAll ? caja.querySelectorAll('.ch-msg') : [];
+  for (var i = 0; i < nodos.length && i < CH.mensajes.length; i++) {
+    var m = CH.mensajes[i];
+    if (!m || m.de === 'socio' || !QUIEN[m.de]) continue;
+    var burbuja = nodos[i].firstElementChild;
+    if (!burbuja) continue;
+    var vieja = burbuja.querySelector('.ch-auto');
+    if (vieja) burbuja.removeChild(vieja);
+    var q = document.createElement('span');
+    q.className = 'ch-quien';
+    q.textContent = QUIEN[m.de] + (m.de === 'auto' && m.regla ? ' · ' + m.regla : '');
+    burbuja.insertBefore(q, burbuja.firstChild);
+  }
+}
+
+function chatContar() {
+  var t = $('chTexto'), c = $('chCuenta'); if (!t || !c) return;
+  var n = t.value.length;
+  c.textContent = n > CHAT.LARGO_MAX - 200 ? (CHAT.LARGO_MAX - n) + ' caracteres' : '';
+  c.classList.toggle('ch-pasado', n >= CHAT.LARGO_MAX);
+  /* La píldora crece con el texto, hasta el tope de la hoja. */
+  t.style.height = 'auto';
+  t.style.height = Math.min(120, t.scrollHeight || 24) + 'px';
+}
+
+/* Trae lo que falte del canal abierto. `desde` es el id del último que ya
+   tengo. Si el cliente cambió de canal mientras la respuesta venía, esa
+   respuesta se bota: era de otro hilo. Se compara el GEN y no el nombre del
+   canal: con A→B→A el nombre coincide y la traída vieja de A se sumaría a la
+   nueva (las dos desde p_desde 0): mensajes repetidos en el hilo. */
+function chatTraer(primera) {
+  if (!chatDisponible() || CH.cargando) return;
+  var gen = GEN, canal = CH.canal;
+  CH.cargando = true;
+  SP.rpc(CFG, SES, 'chat_leer_sesion', { p_canal: canal, p_desde: CH.ultimo }).then(function (j) {
+    if (gen !== GEN) return;
+    CH.cargando = false;
+    if (!j || j.ok !== true) {
+      CH.error = 'No pude abrir tus mensajes. Sal y vuelve a entrar; si sigue igual, escríbenos por WhatsApp.';
+      chatPintar(); return;
+    }
+    CH.error = '';
+    (j.mensajes || []).forEach(function (m) {
+      CH.mensajes.push(m);
+      if (Number(m.id) > CH.ultimo) CH.ultimo = Number(m.id);
+    });
+    SIN_NUBE = false;
+    chatPintar();
+  }).catch(function (e) {
+    if (gen !== GEN) return;
+    CH.cargando = false;
+    if (e && e.sinSesion) { salir('Tu sesión venció. Entra de nuevo para seguir la conversación.'); return; }
+    /* Con la conversación ya en pantalla, un corte de señal no la borra. */
+    if (!CH.mensajes.length) {
+      CH.error = (e && e.estado === 404)
+        ? 'El chat de PlataChat todavía no está encendido en la base (falta correr base/20260914b_tres_canales.sql).'
+        : ((e && e.humano) || 'No pude conectarme. Revisa tu internet.');
+      chatPintar();
+    }
+  }).then(function () {
+    /* Solo la primera traída del hilo VIVO arma el latido: una primera traída
+       de un hilo ya cerrado que llegue tarde no puede resucitar el sondeo. */
+    if (primera && gen === GEN) chatLatido();
+  });
+}
+
+/* El sondeo: cada 20 s, solo con la pestaña de chats abierta y la app a la
+   vista. Nadie gasta los datos de un cliente por una pantalla que no mira.
+   Antes de armar uno se apaga el que hubiera: nunca hay dos. */
+function chatLatido() {
+  apagarLatido();
+  LATIDO = setTimeout(function () {
+    LATIDO = 0;
+    if (TAB !== 'chats' || !$('chHilo')) return;
+    if (typeof document.hidden === 'boolean' && document.hidden) { chatLatido(); return; }
+    chatTraer(false);
+    /* En Créditos el MISMO tic trae también la solicitud (la propuesta que
+       llegó, la hora que venció): dentro del único latido, nunca con un
+       temporizador propio (15-sep-2026). */
+    if (CH.canal === 'creditos') traerSolicitud();
+    chatLatido();
+  }, CHAT_CADA_MS);
+}
+
+function enviarTexto(canal, texto) {
+  var r = CHAT.revisar(texto);
+  if (!r.ok) return Promise.reject({ humano: r.motivo });
+  return SP.rpc(CFG, SES, 'chat_escribir_sesion', { p_canal: canal, p_texto: r.texto }).then(function (j) {
+    if (!j || j.ok !== true) {
+      throw { humano: (j && /demasiados/.test(String(j.motivo || '')))
+        ? 'Escribiste varios seguidos: espera unos minutos y vuelve a intentar.'
+        : 'No pude mandarlo. Vuelve a intentar en un momento.' };
+    }
+    return j;
+  });
+}
+
+function enviarChat() {
+  if (!chatDisponible() || CH.enviando) return;
+  var ta = $('chTexto'), b = $('chEnviar'), err = $('chError');
+  if (err) err.classList.add('oculto');
+  var r = CHAT.revisar(ta ? ta.value : '');
+  if (!r.ok) return fallo(err, r.motivo);
+  CH.enviando = true; if (b) b.disabled = true;
+  enviarTexto(CH.canal, r.texto).then(function () {
+    if (ta) { ta.value = ''; chatContar(); }
+    /* Se vuelve a preguntar en vez de pintar el mensaje a mano: lo que se ve es
+       lo que quedó guardado de verdad, con su id y su hora de la base. */
+    chatTraer(false);
+  }).catch(function (e) {
+    if (e && e.sinSesion) { salir('Tu sesión venció. Entra de nuevo para seguir la conversación.'); return; }
+    fallo(err, (e && e.estado === 404)
+      ? 'El chat todavía no está encendido en la base (falta correr base/20260914b_tres_canales.sql).'
+      : ((e && e.humano) || 'No pude mandarlo. Revisa tu internet y vuelve a intentar.'));
+  }).then(function () {
+    CH.enviando = false; if (b) b.disabled = false;
+  });
+}
+
+/* ------- LA FOTO DEL CHAT (26-sep-2026): la misma de play/, no una segunda.
+
+   Hasta hoy PlataChat mandaba sus fotos a una tabla suya, con una
+   función suya. El 22-sep la app del cliente estrenó fotos en el chat
+   (base/20260922f_fotos_en_el_chat.sql, ya aplicada en la base), y es mejor
+   en todo lo que importa: cuelga la foto del MENSAJE con borrado en cascada
+   (así, cuando el socio pide borrar su conversación, las fotos se van con
+   ella, que es lo que promete la política de datos); guarda aparte una
+   miniatura para que abrir el hilo no baje la foto grande con los datos del
+   cliente; tiene tope por mes; y el CRM ya las enseña. Dos maneras de mandar
+   una foto serían dos bandejas donde buscar un comprobante y dos promesas de
+   borrado que cumplir. Se queda la que ya existe.
+
+   Se comprime como el resto de la casa: 900 px y calidad 0,6 la grande (unos
+   73 KB), 240 px la miniatura. El video se ataja aquí para poder explicar por
+   qué no cabe; el freno de verdad es el CHECK de la base. ------- */
+function elegirFoto() {
+  if (!chatDisponible()) return;
+  var f = $('chFoto'); if (f && f.click) f.click();
+}
+
+/* Lado mayor a `max` px y JPEG de calidad `q`. Copia de fotoDeLienzo de
+   play/index.html: son cuatro cuentas y viven en una página, no en app/. */
+function fotoDeLienzo(c, max, q) {
+  var w = c.width, h = c.height;
+  if (!w || !h) return '';
+  if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
+  else if (h >= w && h > max) { w = Math.round(w * max / h); h = max; }
+  var t = document.createElement('canvas'); t.width = w; t.height = h;
+  var x = t.getContext('2d'); if (!x) return '';
+  var out = '';
+  try { x.drawImage(c, 0, 0, w, h); out = t.toDataURL('image/jpeg', q); } catch (e) { out = ''; }
+  t.width = t.height = 1;
+  return out;
+}
+
+function mandarFoto(input) {
+  var err = $('chError');
+  var f = input && input.files && input.files[0];
+  try { input.value = ''; } catch (e) {}
+  if (!f) return;
+  /* El tipo que declara el teléfono NO decide: el lienzo recodifica a JPEG lo
+     que sea que llegue, y hay gestores de Android que mandan el tipo VACÍO
+     sobre una foto perfecta. Solo se ataja el video, para decir por qué. */
+  if (/^video\//.test(f.type || '')) {
+    return fallo(err, 'Por aquí solo se pueden mandar fotos. Un video no cabe en el chat.');
+  }
+  fallo(err, 'Preparando la foto…');
+  var lector = new FileReader();
+  lector.onerror = function () { fallo(err, 'No pude leer esa foto. Prueba con otra.'); };
+  lector.onload = function () {
+    var im = new Image();
+    im.onerror = function () { fallo(err, 'Eso no se pudo abrir como foto. Prueba con otra.'); };
+    im.onload = function () {
+      var c = document.createElement('canvas');
+      c.width = im.naturalWidth || im.width; c.height = im.naturalHeight || im.height;
+      if (!c.width || !c.height) return fallo(err, 'Esa foto salió vacía. Prueba con otra.');
+      try { c.getContext('2d').drawImage(im, 0, 0); }
+      catch (e) { return fallo(err, 'No pude preparar esa foto. Prueba con otra.'); }
+      var grande = fotoDeLienzo(c, 900, 0.6);
+      var mini = fotoDeLienzo(c, 240, 0.5);
+      c.width = c.height = 1;
+      if (!grande) return fallo(err, 'Tu teléfono no dejó preparar la foto. Prueba con otra.');
+      subirFotoChat(grande, mini);
+    };
+    im.src = lector.result;
+  };
+  lector.readAsDataURL(f);
+}
+
+/* Cada motivo de chat_foto_sesion dice algo distinto. «No se pudo» tapando un
+   tope alcanzado deja a la persona intentándolo para siempre. */
+function motivoFoto(m) {
+  return m === 'no_es_imagen' ? 'Por aquí solo se pueden mandar fotos. Un video no cabe en el chat.'
+    : m === 'muy_grande' ? 'Esa foto pesa demasiado. Tómala otra vez con menos calidad.'
+    : m === 'tope' ? 'Ya mandaste el máximo de fotos de este mes. Escríbenos por aquí y seguimos por texto.'
+    : m === 'muchas' ? 'Espera unos minutos antes de mandar otra.'
+    : m === 'lleno' ? 'Ahora mismo no podemos recibir fotos. Escríbenos por aquí y te decimos cómo hacernos llegar el comprobante.'
+    : m === 'sesion' ? 'Se cerró tu sesión. Entra otra vez y la mandas.'
+    : 'No pude mandar la foto. Vuelve a intentar en un momento.';
+}
+
+function subirFotoChat(grande, mini) {
+  var err = $('chError'), b = $('chEnviar'), ta = $('chTexto');
+  var pie = String((ta && ta.value) || '').trim();
+  /* El largo se revisa AQUÍ: un pie que la base recortara a mil dejaría a la
+     persona creyendo que mandó el resto. Sin pie la foto vale igual. */
+  if (pie.length > CHAT.LARGO_MAX) {
+    return fallo(err, 'El texto que acompaña la foto es muy largo. Déjalo en ' + CHAT.LARGO_MAX + ' caracteres o menos.');
+  }
+  fallo(err, 'Mandando la foto…');
+  CH.enviando = true; if (b) b.disabled = true;
+  SP.rpc(CFG, SES, 'chat_foto_sesion', {
+    p_canal: CH.canal, p_imagen: grande, p_miniatura: mini || null, p_texto: pie || null
+  }).then(function (j) {
+    if (!j || j.ok !== true) {
+      if (j && j.motivo === 'sesion') { salir('Tu sesión venció. Entra de nuevo para mandar la foto.'); return; }
+      fallo(err, motivoFoto(j && j.motivo));
+      return;
+    }
+    if (err) err.classList.add('oculto');
+    if (ta) { ta.value = ''; chatContar(); }
+    chatTraer(false);
+  }).catch(function (e) {
+    if (e && e.sinSesion) { salir('Tu sesión venció. Entra de nuevo para mandar la foto.'); return; }
+    fallo(err, (e && e.estado === 404)
+      ? 'Mandar fotos todavía no está encendido en la base. Escríbenos por aquí y te decimos cómo hacernos llegar el comprobante.'
+      : ((e && e.humano) || 'No pude mandar la foto. Revisa tu internet y vuelve a intentar.'));
+  }).then(function () {
+    CH.enviando = false; if (b) b.disabled = false;
+  });
+}
+
+/* LA FOTO GRANDE, AQUÍ MISMO Y CON LA FORMA COMPROBADA. Es la lección del
+   22-sep en play/: la foto que llega de la base NO se mete como texto en un
+   atributo (una cadena que empiece por data:image/ puede traer un onerror
+   detrás), y no se abre en otra pestaña (un about:blank hereda el origen de
+   quien lo abre). Se comprueba la forma entera con CHAT.esFoto, la fuente se
+   ASIGNA como propiedad, y se enseña encima de la página. */
+function mostrarFoto(imagen) {
+  if (!CHAT || !CHAT.esFoto || !CHAT.esFoto(imagen)) {
+    alert('Esa foto llegó dañada. Pide que la manden otra vez.');
+    return;
+  }
+  var capa = document.createElement('div');
+  capa.setAttribute('role', 'dialog');
+  capa.setAttribute('aria-label', 'Foto del chat');
+  capa.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);' +
+    'display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out';
+  var img = document.createElement('img');
+  img.alt = 'Foto que se mandó en el chat';
+  img.style.cssText = 'max-width:100%;max-height:100%;border-radius:10px';
+  img.src = imagen;               /* propiedad, nunca texto de un atributo */
+  capa.appendChild(img);
+  var pie = document.createElement('p');
+  pie.textContent = 'Toca para cerrar';
+  pie.style.cssText = 'position:absolute;bottom:14px;left:0;right:0;text-align:center;' +
+    'color:#FFFFFF;font-size:13px;opacity:.75;margin:0';
+  capa.appendChild(pie);
+  function cerrar() {
+    if (capa.parentNode) capa.parentNode.removeChild(capa);
+    document.removeEventListener('keydown', porTecla);
+  }
+  function porTecla(e) { if (e.key === 'Escape') cerrar(); }
+  capa.addEventListener('click', cerrar);
+  document.addEventListener('keydown', porTecla);
+  document.body.appendChild(capa);
+}
+
+/* Se pide la grande solo cuando alguien toca la miniatura. Nunca muda: una
+   foto que no abre sin decir por qué es una función que no existe. */
+function verFotoChat(id) {
+  if (!chatDisponible()) return;
+  SP.rpc(CFG, SES, 'chat_foto_sesion_ver', { p_id: Number(id) }).then(function (j) {
+    if (!j || j.ok !== true || !j.imagen) return alert('No pude abrir esa foto. Vuelve a intentar en un momento.');
+    mostrarFoto(j.imagen);
+  }).catch(function (e) {
+    if (e && e.sinSesion) { salir('Tu sesión venció. Entra de nuevo para ver la foto.'); return; }
+    alert((e && e.red) ? 'No pude abrir esa foto. Revisa tu internet y vuelve a intentar.'
+                       : 'No pude abrir esa foto. Vuelve a intentar en un momento.');
+  });
+}
+
+/* ============================== YO ============================== */
+function vistaYo() {
+  var h = '<div class="card"><h3 class="tit">' + esc(S.nombre) + '</h3>' +
+    '<p class="sub">' + esc(U && SES && SES.celular ? U.telefonoBonito(SES.celular) : (SES && SES.celular) || '') + '</p>' +
+    fila('Tu historial', S.vinculada ? 'junto con Tu Garantía' : 'en camino') +
+    (S.vinculada && S.actualizado ? fila('Datos al', fmtFecha(S.actualizado)) : '') +
+    '</div>';
+
+  if (!S.vinculada) {
+    h += '<div class="card"><h3 class="tit">¿Ya eras cliente de Tu Garantía?</h3>' +
+      '<p class="sub">Escribe tu cédula (o tu celular de entonces) y el código de ' + M.LARGO_CODIGO_ACCESO +
+        ' letras y números que te dimos. Es una sola vez: desde ahí ves tu garantía, tu cupo y tu historial también aquí.</p>' +
+      '<label for="inVincIdent">Tu cédula o tu celular</label>' +
+      '<input id="inVincIdent" type="text" inputmode="numeric" autocomplete="off" placeholder="Solo los números">' +
+      '<label for="inVincCodigo">Tu código</label>' +
+      '<input id="inVincCodigo" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="' +
+        M.LARGO_CODIGO_ACCESO + '" placeholder="Ej: K7QP3" style="text-transform:uppercase;letter-spacing:.18em">' +
+      '<button type="button" class="btn marca" id="btnVincular" style="margin-top:var(--e4)" onclick="vincular()">Juntar mi historial</button>' +
+      '<div id="errVinc" class="aviso ambar oculto"></div>' +
+      '<div class="muted" style="font-size:12.5px;margin-top:var(--e3)">¿No tienes código? Escríbenos por el chat de Servicio y lo revisamos.</div>' +
+      '</div>';
+    h += '<div class="aviso info">Tu historial está en camino: si ya eras cliente, escribe tu código; ' +
+      'si eres nuevo, tu primer crédito lo pides por el chat de <b>Créditos</b>.</div>';
+  } else {
+    h += tarjetaFicha() + tarjetaHistorial();
+  }
+
+  h += '<div class="card pc-enlaces"><div class="etq">Tu cuenta</div>' +
+    '<div class="fila"><span class="k"><a href="../legal/terminos.html" target="_blank" rel="noopener">Términos</a></span><span class="v muted">›</span></div>' +
+    '<div class="fila"><span class="k"><a href="../legal/privacidad.html" target="_blank" rel="noopener">Tus datos</a></span><span class="v muted">›</span></div>' +
+    '<div class="fila"><span class="k"><a href="borrar-cuenta.html">Borrar mi cuenta</a></span><span class="v muted">›</span></div>' +
+    '<div class="fila"><span class="k"><a href="#" onclick="salir();return false">Salir</a></span><span class="v muted">›</span></div>' +
+    '</div>';
+  return h + pie();
+}
+
+/* La ficha: cuánto cupo da cada dato, con los valores del motor (DATOS_KYC),
+   no escritos acá. Recortada de abrirPerfil: PlataChat no manda el formulario
+   por WhatsApp; el dato se escribe por el chat de Servicio y Joan lo carga. */
+function tarjetaFicha() {
+  var f = M.garantiaPorDatos(S.perfil);
+  var check = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>';
+  var punto = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="6" stroke-dasharray="3 3"/></svg>';
+  var h = '<div class="card"><h3 class="tit">Tus datos, en cupo</h3>' +
+    '<p class="sub">Por cada dato que tengamos cargado te prestamos garantía. Con todo completo son ' +
+      COP(M.CUPON_KYC_MAXIMO) + ' de cupo desde el primer día.</p>' +
+    '<div class="cifra sm">' + COP(f.total) + '<span class="muted" style="font-size:15px;font-weight:400"> de ' + COP(M.CUPON_KYC_MAXIMO) + '</span></div>' +
+    '<div style="margin-top:var(--e3)">' +
+    f.completos.map(function (d) {
+      return '<div class="pc-dato"><span class="ok">' + check + '</span><span>' + esc(d.etiqueta) + '<small>ya cargado</small></span>' +
+        '<span class="vl">+' + COPc(d.valor) + '</span></div>';
+    }).join('') +
+    f.faltantes.map(function (d) {
+      return '<div class="pc-dato"><span class="falta">' + punto + '</span><span>' + esc(d.etiqueta) + '<small>' + esc(d.ayuda) + '</small></span>' +
+        '<span class="vl">+' + COPc(d.valor) + '</span></div>';
+    }).join('') + '</div>';
+  if (f.faltantes.length) {
+    h += '<button type="button" class="btn claro" style="margin-top:var(--e4)" onclick="CANAL=\'servicio\';irA(\'chats\')">' +
+      'Mandar un dato por el chat de Servicio</button>' +
+      '<div class="muted" style="font-size:12px;margin-top:var(--e2)">Lo cargamos a mano y ahí tu cupo sube de verdad.</div>';
+  } else {
+    h += '<div class="aviso info" style="margin-top:var(--e3)">Tienes los datos completos.</div>';
+  }
+  return h + '</div>';
+}
+
+/* Los créditos, crédito por crédito, recortado de vistaHistorial: qué pidió,
+   cómo va y cuánta garantía le dejó. Los días de atraso son los que liquidó
+   el puente, no una segunda cuenta hecha acá. */
+function tarjetaHistorial() {
+  var h = '<div class="card"><h3 class="tit">Tus créditos</h3>';
+  if (!S.creditos.length) return h + '<p class="muted" style="margin-top:var(--e3)">Todavía no tienes créditos.</p></div>';
+  var lista = S.creditos.slice().reverse().slice(0, 8);
+  h += '<div style="margin-top:var(--e2)">' + lista.map(function (c) {
+    var puntual = c.fecha_pagado && c.corte && c.fecha_pagado <= c.corte;
+    var atraso = c.pagado ? 0 : Math.max(0, Number(c.dias_mora) || 0);
+    var estado = c.pagado ? (puntual ? 'Pagado en fecha' : 'Pagado')
+      : (atraso > 0 ? atraso + ' día' + (atraso !== 1 ? 's' : '') + ' de atraso' : 'En curso');
+    var suCapital = c.saldo_capital != null ? c.saldo_capital : c.capital;
+    return '<div class="pc-credito"><div><b>' + COP(suCapital) + '</b><small>' +
+      esc(fmtFecha(c.desembolso) + ' → ' + fmtFecha(c.fecha_pagado || c.corte)) +
+      (c.garantia ? ' · te dejó +' + COP(c.garantia) : '') + '</small></div>' +
+      '<span class="estado' + (atraso > 0 ? ' ambar' : '') + '">' + esc(estado) + '</span></div>';
+  }).join('') + '</div>';
+  if (S.creditos.length > lista.length) {
+    h += '<div class="muted" style="font-size:12px;margin-top:var(--e2)">Los últimos ' + lista.length + ' de ' + S.creditos.length + '.</div>';
+  }
+  return h + '</div>';
+}
+
+/* VINCULAR: el cliente viejo demuestra que es él con su cédula (o celular) y
+   su código, una sola vez. La base contesta {ok:false} sin decir cuál de los
+   dos falló, a propósito, y acá tampoco se adivina. */
+function vincular() {
+  var err = $('errVinc'), b = $('btnVincular');
+  if (!SP || !SES) return fallo(err, 'Entra de nuevo para juntar tu historial.');
+  var ident = String($('inVincIdent').value || '').replace(/\D/g, '');
+  var codigo = M.normalizarCodigoAcceso($('inVincCodigo').value || '');
+  if (!ident) return fallo(err, 'Escribe tu cédula o tu celular, solo los números.');
+  if (!codigo) return fallo(err, 'El código son ' + M.LARGO_CODIGO_ACCESO + ' letras y números, como K7QP3.');
+  fallo(err, 'Buscando tu historial…'); if (b) b.disabled = true;
+  SP.rpc(CFG, SES, 'vincular_cuenta', { p_ident: ident, p_codigo: codigo }).then(function (j) {
+    if (j && j.ok === true) {
+      if (err) err.classList.add('oculto');
+      mostrar('pCargando');
+      return cargarCuenta();
+    }
+    var motivo = String((j && j.motivo) || '');
+    fallo(err, /intentos/.test(motivo) ? 'Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.'
+      : /vinculada/.test(motivo) ? 'Ese historial ya está unido a otro teléfono. Escríbenos por el chat de Servicio y lo revisamos.'
+      : 'No encontré ese historial con ese código. Revisa los dos; si sigue igual, escríbenos por el chat de Servicio.');
+  }).catch(function (e) {
+    if (e && e.sinSesion) { salir('Tu sesión venció. Entra de nuevo.'); return; }
+    fallo(err, (e && e.estado === 404)
+      ? 'Juntar el historial todavía no está encendido en la base (falta correr base/20260914b_tres_canales.sql).'
+      : ((e && e.humano) || 'No pude conectarme. Revisa tu internet y vuelve a intentar.'));
+  }).then(function () { if (b) b.disabled = false; });
+}
+
+/* ============================ PIE ============================ */
+function enlacesLegales() {
+  return '<br><a href="../legal/terminos.html" target="_blank" rel="noopener" style="color:inherit">Términos</a> · ' +
+    '<a href="../legal/privacidad.html" target="_blank" rel="noopener" style="color:inherit">Tus datos</a>';
+}
+/* La versión de la app y la fecha de las reglas, en el pie de todas las
+   pantallas: si un día hay dos copias publicadas, se sabe cuál se mira. */
+function selloDeVersion() {
+  var reglas = (M && M.REGLAS_VIGENTES_DESDE) ? M.REGLAS_VIGENTES_DESDE : null;
+  return '<br><span class="muted" style="font-size:11px">Versión ' + esc(VERSION_APP) +
+    (reglas ? ' · reglas del ' + fmtFecha(reglas) : '') + '</span>';
+}
+/* El letrero de las reglas sale de reglasResumen(), nunca escrito a mano:
+   si cambian los números, cambia solo. Más la línea de la garantía neta de
+   gastos, que es lo único que PlataChat agrega. */
+function pie() {
+  var rr = M.reglasResumen();
+  return '<div class="pie">' +
+    esc(rr.cupo.texto) + ' ' + esc(rr.garantia.texto) + '<br>' +
+    'Si el pago tiene gastos de plataforma, se descuentan antes de repartir; hoy, por ' + esc(nombreProveedor()) + ', no hay.' +
+    (S && S.actualizado ? '<br>Datos al ' + fmtFecha(S.actualizado) + '.' : '') +
+    '<br>Si ves algo raro en tus números, escríbenos por el chat de Servicio.' +
+    enlacesLegales() + selloDeVersion() + '</div>';
+}
+
+/* ============================ SALIR ============================
+   Borra la sesión guardada (y con ella lo último bajado) y vuelve a la
+   puerta. `msg`, si viene, es lo que se le dice ahí: por qué lo sacaron. */
+function salir(msg) {
+  S = null; SES = null; SIN_NUBE = false; AVISO_NUBE = ''; BORRADOR = '';
+  SOL = null; RELOJ_OK = false; ACEPTANDO = false;
+  SOL_GEN++; DESFASE_RELOJ = 0; POL = null; fijarFraseReloj();   /* lo de la base es de esa sesión: una traída en vuelo se bota y el que entre después arranca en cero, también la frase con la espera */
+  apagarLatido(); GEN++;
+  CH = { canal: '', gen: GEN, mensajes: [], ultimo: 0, cargando: false, enviando: false, error: '' };
+  TAB = 'plata'; CANAL = 'creditos';
+  if (SP) SP.borrar();
+  pintarEntrar();
+  mostrar('pEntrar');
+  if (msg) fallo($('errEntrar'), msg);
+}
+
+/* ========================== ARRANQUE ========================== */
+(function () {
+  if (!M) {
+    document.body.innerHTML = '<div class="wrap"><div class="aviso ambar" style="margin-top:calc(var(--e4) * 2)">' +
+      'No pude cargar el motor de reglas (app/motor.js). Cierra y vuelve a abrir con internet.</div></div>';
+    return;
+  }
+  var nav = $('nav');
+  if (nav) nav.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('button') : null;
+    if (b && S) irA(b.dataset.t);
+  });
+  /* Al volver a la app con Chats abierto se pregunta de una, sin esperar el
+     próximo latido: lo primero que quiere ver quien vuelve es si le contestaron. */
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && TAB === 'chats' && S) {
+      chatTraer(false);
+      if (CH.canal === 'creditos') traerSolicitud();
+    }
+  });
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('../sw.js').catch(function () {});
+    });
+  }
+
+  pintarEntrar();
+
+  /* La bienvenida se queda 2 s como mínimo (socio.html, 6-ago): menos corta la
+     animación del sello a la mitad; en un celular lento el tiempo ya se
+     cumplió solo y esto no le suma nada. */
+  (function () {
+    var MINIMO_BIENVENIDA = 2000;
+    var h = $('hola'); if (!h) return;
+    var lleva = (window.performance && performance.now) ? performance.now() : MINIMO_BIENVENIDA;
+    setTimeout(function () { h.classList.add('fuera'); }, Math.max(0, MINIMO_BIENVENIDA - lleva));
+  })();
+
+  /* La sesión recordada: se le pregunta a la nube con lo guardado. Si contesta
+     con datos, adentro con números frescos; si contesta que la sesión ya no
+     vale, a la puerta; y si no hay señal, lo último guardado con su fecha. */
+  var ses = SP ? SP.leer() : null;
+  if (ses && ses.access_token) {
+    SES = ses;
+    mostrar('pCargando');
+    cargarCuenta();
+  }
+})();
+</script>
+</body>
+</html>

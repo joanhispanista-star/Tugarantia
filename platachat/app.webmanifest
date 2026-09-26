@@ -1,0 +1,45 @@
+{
+  "name": "PlataChat · tu crédito por el chat",
+  "short_name": "PlataChat",
+  "description": "Pide tu crédito por el chat, mira tu garantía ganada en monedas y lingotes, y calcula cuánto pagarías antes de pedirlo.",
+  "_nota_id": "El id identifica la instalación en el celular. Si se toca, el navegador la trata como otra app y las instalaciones existentes se rompen. Fijado el 14-sep-2026, antes de que hubiera ninguna instalada, y es distinto del de app/socio.html a propósito: son dos apps del mismo negocio y conviven instaladas.",
+  "id": "/platachat/",
+  "start_url": "index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "portrait",
+  "background_color": "#0C0A0B",
+  "theme_color": "#0C0A0B",
+  "_nota_colores": "Los dos son --laca, el mismo negro del <meta name=theme-color> de index.html y de android/twa-platachat.json. Si no coincidieran, la app parpadearía en otro color entre que abre y que pinta.",
+  "lang": "es-CO",
+  "dir": "ltr",
+  "categories": [
+    "finance"
+  ],
+  "icons": [
+    {
+      "src": "icono-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icono-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icono-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "_nota_iconos": "Los cuatro PNG (192, 512, maskable 512 y 180 para iPhone) los fabrica platachat/haz-iconos.js: son geometría dibujada por código, no un binario que alguien soltó. Se regeneran con `node platachat/haz-iconos.js` desde la raíz.",
+  "shortcuts": []
+}

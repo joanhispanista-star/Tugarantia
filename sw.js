@@ -1466,7 +1466,14 @@
    esto sirve si el telefono sigue con la copia vieja: por eso el numero.
 
    2.463 pruebas. */
-const CACHE = 'tugarantia-v112';
+/* v113 - 26-sep-2026. PLATACHAT, PUBLICADA: la segunda marca de Tu Garantia
+   entra al precache (platachat/ y las dos librerias nuevas de app/: las
+   reglas y el proveedor de pagos). Sin esto la app no abre sin senal y su
+   piel se quedaria congelada en la primera copia que bajara cada telefono.
+   Toca tambien panel/crm.html: la bandeja ya no ofrece desembolsar una
+   solicitud de PlataChat que el cliente no ha aceptado, y el total de una
+   propuesta a dos o tres cortes es el que el cliente acepto. */
+const CACHE = 'tugarantia-v113';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -1548,13 +1555,32 @@ const ARCHIVOS = [
   /* Y tanda.js, que hasta hoy solo cargaba el Panel del bolsillo. Ahora el CRM
      del computador tambien lo necesita: es quien aplica los topes de la Ley
      2300 antes de armar el archivo de envio. */
-  'panel/tanda.js'
+  'panel/tanda.js',
   /* 16-sep-2026 — el CRM pasa a cargar app/creditos.js (la tabla certificada del
      techo de usura, con fecha) para poder mandar propuestas a cuotas. NO se
      agrega aqui: ya esta tres lineas arriba, porque play/ lo carga desde el
      9-sep. Ponerlo dos veces no rompe nada —el install lo pediria dos veces y
      ya— pero una lista con repetidos se lee mal y la siguiente persona borra el
      equivocado. */
+  /* 26-sep-2026 — PlataChat, la segunda marca (platachat/). Comparte motor,
+     ficha, cuenta y chat, que ya estan arriba. Lo suyo: la pagina, la piel,
+     la sesion, el manifiesto, la pagina de borrar la cuenta, los iconos, y
+     las dos librerias nuevas de app/. descargas/platachat.html NO entra:
+     descargas/ va de largo en el fetch, como el APK. Sin esto la app abre
+     desde la red y, sin senal, la primera apertura cae a la web publica; y
+     su piel y sus iconos, que van cache-primero, no se actualizarian nunca. */
+  'platachat/',
+  'platachat/index.html',
+  'platachat/estilo.css',
+  'platachat/sesion.js',
+  'platachat/app.webmanifest',
+  'platachat/borrar-cuenta.html',
+  'platachat/icono-180.png',
+  'platachat/icono-192.png',
+  'platachat/icono-512.png',
+  'platachat/icono-maskable-512.png',
+  'app/platachat-reglas.js',
+  'app/pagos-proveedor.js'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {
