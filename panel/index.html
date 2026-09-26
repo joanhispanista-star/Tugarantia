@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<script>
+/* LA «s» DE HTTPS — la misma guarda que crm.html, espejo.html y socio.html, y
+   por lo mismo: http://tugarantia.net y https://tugarantia.net son dos cajones
+   DISTINTOS del navegador. Esta puerta decide mirando qué hay en el cajón, así
+   que abierta sin la «s» diría «tu cartera no está aquí» sobre un computador
+   que sí la tiene — y mandaría a Joan al sitio equivocado. Va arriba de todo. */
+(function () {
+  var h = location.hostname;
+  if (location.protocol === 'http:' && h !== 'localhost' && h !== '127.0.0.1'
+      && h.indexOf('192.168.') !== 0 && h !== '[::1]') {
+    location.replace('https:' + location.href.substring(location.protocol.length));
+  }
+})();
+</script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tu Garantía · Panel</title>
+<meta name="theme-color" content="#0C0A0B">
+<link rel="icon" type="image/png" sizes="192x192" href="panel-192.png">
+<link rel="apple-touch-icon" href="panel-180.png">
+<!-- ===========================================================================
+     LA PUERTA DEL PANEL — 26 de septiembre de 2026
+
+     Joan: «quiero solo dos links, uno para el panel de control y otro para el
+     cliente».
+
+     El del cliente ya era uno por diseño —tugarantia.net, la portada, con un
+     solo botón desde el 14-sep— y no se toca. El del panel NO existía:
+     tugarantia.net/panel daba 404, y el panel de verdad eran dos direcciones
+     según quién y desde dónde (crm.html en el computador, espejo.html en el
+     celular), más la puerta del equipo escondida dentro de crm.html.
+
+     Esta página es ESA dirección única. No tiene datos ni hace cuentas: decide a
+     dónde mandar a cada quien, y ahí se entra con lo de siempre (el PIN, el
+     celular y la contraseña, o la sesión del espejo). Ninguna seguridad vive
+     acá: cada destino tiene su propia reja.
+
+     ---------------------------------------------------------------------------
+     A JOAN NO SE LE MIRA EL APARATO: SE LE MIRA EL CAJÓN
+
+     La tentación era decidir por el tipo de aparato —celular al espejo,
+     computador al CRM—. Estaría mal justo donde importa: la cartera de Joan vive
+     en el localStorage de UN navegador, el de su computador. En cualquier otro
+     computador, crm.html abre impecable y VACÍO, y ese vacío miente: la cola de
+     cobro pinta un ✓ y dice «nada por gestionar hoy» (ver quincena-crm-en-la-nube).
+
+     Esta página comparte origen con crm.html, así que comparte el cajón. Por eso
+     puede mirar si en ESTE navegador está la cartera:
+       · si está  → el CRM completo, que es donde está todo;
+       · si no    → el Panel en el bolsillo, que trae de la nube y funciona en
+                    cualquier aparato.
+     Se mira el NOMBRE de la llave, no su contenido: la cartera pesa megas, y
+     leerla entera para saber si existe sería pagar por nada. Y esta página NO
+     ESCRIBE NUNCA en esa llave: es la cartera de Joan.
+
+     Y si se equivoca, hay salida: debajo del botón está el otro camino, dicho
+     con su consecuencia.
+
+     ---------------------------------------------------------------------------
+     SE ACUERDA DE QUIÉN ERES EN ESTE APARATO, pero sin encerrar a nadie: la
+     próxima vez entra solo, enseñando antes «Entrando como… · no soy yo». Es
+     una comodidad de este aparato y nada más; si el navegador no deja guardar,
+     simplemente pregunta otra vez.
+     ======================================================================= -->
+<style>
+:root{
+  --laca:#0C0A0B; --papel:#FFFFFF; --tinta:#0C0A0B;
+  --rojo:#D81F26; --gris:#6E6460; --linea:#E9E3DD; --blanco-laca:#FBF7F4;
+  --ambar:#9A5B12;
+  --r:16px;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --papel:#17141A; --tinta:#F4EFEA; --gris:#A79E98; --linea:#2E2A2F;
+}}
+:root[data-theme="dark"]{ --papel:#17141A; --tinta:#F4EFEA; --gris:#A79E98; --linea:#2E2A2F; }
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--laca);color:var(--tinta);
+  font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  padding:calc(24px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
+.carta{background:var(--papel);width:100%;max-width:380px;border-radius:var(--r);
+  padding:28px 22px 22px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.marca{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px}
+.sello{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:9px;
+  background:var(--rojo);color:#fff;font-weight:800}
+.et{margin:4px 0 22px;color:var(--gris);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+.btn{display:block;width:100%;min-height:52px;padding:14px 16px;border-radius:14px;
+  border:0;font:inherit;font-weight:700;font-size:16px;text-align:center;cursor:pointer;
+  text-decoration:none}
+.btn.rojo{background:var(--rojo);color:#fff}
+.btn.linea{background:transparent;color:var(--tinta);border:1.5px solid var(--linea)}
+.btn + .nota{margin-top:6px}
+.nota{color:var(--gris);font-size:12.5px;margin:6px 2px 0}
+.nota a{color:inherit}
+.bloque + .bloque{margin-top:18px}
+.aviso{margin-top:18px;padding:12px 14px;border-radius:12px;font-size:13.5px;
+  border:1px solid color-mix(in srgb, var(--ambar) 40%, transparent);
+  background:color-mix(in srgb, var(--ambar) 10%, var(--papel));color:var(--ambar)}
+.oculto{display:none}
+</style>
+</head>
+<body>
+<main class="carta" id="carta">
+  <div class="marca"><span class="sello">G</span>Tu Garantía</div>
+  <p class="et">Panel de control</p>
+
+  <div id="recordado" class="oculto">
+    <p id="recordadoTxt" style="margin:0 0 14px"></p>
+    <button class="btn linea" type="button" id="noSoyYo">No soy yo</button>
+  </div>
+
+  <div id="elegir">
+    <div class="bloque">
+      <a class="btn rojo" id="btnJoan" href="crm.html">Soy Joan</a>
+      <p class="nota" id="notaJoan"></p>
+    </div>
+    <div class="bloque">
+      <a class="btn linea" id="btnEquipo" href="crm.html#equipo">Soy del equipo (gerente o asesor)</a>
+      <p class="nota">Entras con tu celular y tu contraseña. Ves solo lo tuyo: eso lo decide el servidor.</p>
+    </div>
+  </div>
+
+  <noscript><p class="aviso">Esta puerta necesita JavaScript. Entra directo por
+    <a href="crm.html">crm.html</a>.</p></noscript>
+</main>
+
+<script>
+(function () {
+  var LLAVE_QUIEN = 'tg_puerta_panel';        /* 'joan' | 'equipo'. Comodidad de este aparato. */
+  var LLAVE_CARTERA = 'joan_socios_v1';       /* la cartera. Se mira su NOMBRE; no se lee ni se escribe. */
+
+  /* ¿Está la cartera de Joan en ESTE navegador? Se recorren los nombres de las
+     llaves en vez de hacer getItem: getItem traería megas de texto solo para
+     saber si existe. Y un navegador que no deja mirar (Safari privado lanza al
+     tocar localStorage) cuenta como «no está»: mandar al espejo, que funciona
+     en cualquier sitio, es el error barato. */
+  function hayCartera() {
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        if (localStorage.key(i) === LLAVE_CARTERA) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+  function leer() { try { return localStorage.getItem(LLAVE_QUIEN); } catch (e) { return null; } }
+  function guardar(v) { try { if (v) localStorage.setItem(LLAVE_QUIEN, v); else localStorage.removeItem(LLAVE_QUIEN); } catch (e) {} }
+
+  var cartera = hayCartera();
+  var destinoJoan = cartera ? 'crm.html' : 'espejo.html';
+
+  var btnJoan = document.getElementById('btnJoan');
+  btnJoan.href = destinoJoan;
+  document.getElementById('notaJoan').innerHTML = cartera
+    ? 'Tu cartera completa está en este aparato: entras al CRM con tu PIN. '
+      + '<a href="espejo.html">O abre el Panel en el bolsillo</a>.'
+    : 'Tu cartera completa vive en tu computador, así que aquí entras al '
+      + '<b>Panel en el bolsillo</b>, que trabaja con lo que está en la nube. '
+      + '<a href="crm.html">Abrir el CRM de todas formas</a> (aquí saldría vacío).';
+
+  btnJoan.addEventListener('click', function () { guardar('joan'); });
+  document.getElementById('btnEquipo').addEventListener('click', function () { guardar('equipo'); });
+
+  /* ?elegir fuerza el selector: es la salida si el aparato recuerda mal. */
+  var quien = /[?&]elegir\b/.test(location.search) ? null : leer();
+  if (quien === 'joan' || quien === 'equipo') {
+    var destino = quien === 'equipo' ? 'crm.html#equipo' : destinoJoan;
+    document.getElementById('elegir').classList.add('oculto');
+    document.getElementById('recordado').classList.remove('oculto');
+    document.getElementById('recordadoTxt').textContent = quien === 'equipo'
+      ? 'Entrando como alguien del equipo…'
+      : (cartera ? 'Entrando a tu CRM…' : 'Entrando al Panel en el bolsillo…');
+    /* Un respiro antes de irse, para que «No soy yo» se alcance a tocar. */
+    var t = setTimeout(function () { location.href = destino; }, 900);
+    document.getElementById('noSoyYo').addEventListener('click', function () {
+      clearTimeout(t); guardar(null);
+      document.getElementById('recordado').classList.add('oculto');
+      document.getElementById('elegir').classList.remove('oculto');
+    });
+  }
+})();
+</script>
+</body>
+</html>

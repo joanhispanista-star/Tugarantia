@@ -13185,6 +13185,16 @@ function entrar(){ if(document.getElementById('pinInput').value===DB.config.pin)
 document.getElementById('pinBtn').addEventListener('click',entrar);
 document.getElementById('pinInput').addEventListener('keydown',e=>{ if(e.key==='Enter')entrar(); });
 document.getElementById('pinInput').focus();
+/* 26-sep-2026 — `#equipo` ABRE DIRECTO LA PUERTA DEL EQUIPO. Es adonde manda la
+   puerta única del panel (panel/index.html) cuando alguien toca «Soy del
+   equipo». Sin esto el gerente llegaba al PIN de Joan y tenía que encontrar el
+   enlace pequeño de abajo — que es exactamente como alguien teclea un PIN que
+   no es suyo tres veces antes de preguntar.
+   Va DESPUÉS de enfocar el PIN a propósito: si pintarPuertaEquipo fallara, la
+   pantalla se queda en la entrada de Joan, que es la de siempre, y no en
+   blanco. Y solo con #equipo exacto: el hash también lleva `clave-nube=`
+   (ver más arriba) y eso no puede disparar la puerta del equipo. */
+if (/^#equipo(?:$|&)/.test(location.hash || '')) { try { pintarPuertaEquipo(); } catch (e) {} }
 </script>
 <script>
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){

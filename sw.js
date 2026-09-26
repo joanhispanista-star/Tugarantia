@@ -1426,7 +1426,32 @@
    carrete -- y se comprime a 900px/0,6 como todo el proyecto.
 
    2.402 pruebas. */
-const CACHE = 'tugarantia-v110';
+
+/* v111 - 26-sep-2026. DOS LINKS: UNO PARA EL PANEL, UNO PARA EL CLIENTE.
+
+   Joan: 'quiero solo dos links, uno para el panel de control y otro para el
+   cliente'.
+
+   El del cliente YA era uno por diseno -- tugarantia.net, con un solo boton
+   desde el 14-sep, y el cliente de siempre junta su historial desde adentro
+   pegando su codigo en Perfil (vincular_cuenta). No se toco. Casi se toca: se
+   leyo mal como un callejon sin salida hasta que aparecio vincularHistorial.
+
+   El del panel NO existia: tugarantia.net/panel daba 404. Ahora es una puerta
+   (panel/index.html) que manda a cada quien a su sitio. A Joan no se le mira el
+   aparato sino el CAJON: la puerta comparte origen con crm.html, asi que ve si
+   en este navegador esta la cartera. Si esta, el CRM completo; si no, el Panel
+   en el bolsillo -- porque crm.html en cualquier otro aparato abre vacio, y ese
+   vacio miente con un check verde.
+
+   Y crm.html aprende #equipo, que abre directo la puerta del gerente y los
+   asesores en vez del PIN de Joan.
+
+   panel/index.html entra a la precarga: si faltara, un celular sin senial
+   abriria el 404 viejo desde la cache.
+
+   2.402 pruebas (mas las nuevas). */
+const CACHE = 'tugarantia-v111';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -1448,6 +1473,7 @@ const ARCHIVOS = [
   'app/icono-512.png',
   'app/icono-maskable-512.png',
   'panel/crm.html',
+  'panel/index.html',
   'panel/panel.webmanifest',
   /* El Panel del bolsillo y lo suyo. motor.js y puente.js ya están arriba: los
      comparte con el CRM y con la app del socio, que es la razón de que este
