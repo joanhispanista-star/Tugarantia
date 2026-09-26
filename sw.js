@@ -1480,7 +1480,12 @@
    comprobantes. Ahora el CRM mide, carga los que caben, dice cuantos quedaron
    en el archivo y deshace la carga si aun asi no cupiera. Toca panel/crm.html
    y app/bases.js (cuantosCaben). */
-const CACHE = 'tugarantia-v114';
+/* v115 - 26-sep-2026. PLATACHAT SIN EL NUMERO DE JOAN. Joan lo quito de la app
+   del cliente el 21-sep («nada de compartir mi numero») y PlataChat lo seguia
+   publicando en tres sitios. Quien no puede entrar deja un recado
+   (pedir_ayuda_clave, el de play/), que cae en la bandeja de recados del CRM.
+   Toca platachat/index.html, platachat/sesion.js y platachat/borrar-cuenta.html. */
+const CACHE = 'tugarantia-v115';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

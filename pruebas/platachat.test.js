@@ -253,7 +253,7 @@ describe('PlataChat: todo el JavaScript compila', () => {
     [...bc.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
       .forEach((m, i) => assert.doesNotThrow(() => new vm.Script(m[1], { filename: 'borrar#' + i })));
     const SP = require('../platachat/sesion.js');
-    ['entrar', 'registrar', 'refrescar', 'rpc', 'guardar', 'leer', 'borrar', 'correoDe']
+    ['entrar', 'registrar', 'recado', 'refrescar', 'rpc', 'guardar', 'leer', 'borrar', 'correoDe']
       .forEach(f => assert.equal(typeof SP[f], 'function', 'sesion.js no expone ' + f));
     assert.equal(SP.LLAVE, 'platachat_sesion');
   });
@@ -1003,6 +1003,39 @@ describe('PlataChat: la página pintando de verdad', () => {
     assert.equal(caja.nodos[2].burbuja.quitoAuto, true, 'no reemplazó la marca de chat.js: diría «automático» dos veces');
     assert.equal(caja.nodos[3].burbuja.quitoAuto, false);
     assert.ok(!/ch-esauto/.test(sinComentarios(PAGINA)), 'index.html decide por su cuenta qué es automático: eso es de chat.js');
+  });
+  test('SIN EL NÚMERO DE JOAN: quien no puede entrar deja un recado, sin sesión, y nada publica su WhatsApp (26-sep-2026)', async () => {
+    /* Joan, 21-sep: «nada de compartir mi numero». play/ lo quitó ese día y
+       PlataChat lo siguió publicando en tres sitios hasta el 26. */
+    ['platachat/index.html', 'platachat/borrar-cuenta.html', 'descargas/platachat.html'].forEach(f =>
+      assert.ok(!/wa\.me\/57|573103606348/.test(leer(f)), f + ' vuelve a publicar el WhatsApp de Joan'));
+    assert.ok(!/WHATSAPP_OFICIAL/.test(sinComentarios(PAGINA)), 'volvió la constante con el número');
+    assert.match(leer('platachat/borrar-cuenta.html'), /Déjanos un recado/, 'borrar la cuenta sin poder entrar no tiene camino');
+
+    /* El recado corre de verdad: sin sesión, con la llave pública, a pedir_ayuda_clave. */
+    const n = nube({ pedir_ayuda_clave: { ok: true } });
+    const P = abrirPlataChat({ red: n.red });
+    P.ev('pintarEntrar()');
+    assert.match(P.elems.entrarCuerpo.innerHTML, /onclick="pintarRecado\(\)">¿Olvidaste tu contraseña o no puedes entrar\? Déjanos un recado/);
+    P.ev('pintarRecado()');
+    P.ev("$('rcCelular').value = '300 111 2233'; $('rcNota').value = 'quiero borrar mi cuenta'");
+    await P.ev('mandarRecado()');
+    await new Promise(r => setImmediate(r));
+    const ll = n.llamadas.filter(x => x.fn === 'pedir_ayuda_clave');
+    assert.equal(ll.length, 1, 'no se mandó el recado');
+    assert.deepEqual(ll[0].cuerpo, { p_celular: '3001112233', p_nota: 'quiero borrar mi cuenta' });
+    assert.equal(ll[0].cab.Authorization, 'Bearer ' + P.ev('CFG.anon'), 'el recado exige sesión: el que olvidó la contraseña no la tiene');
+    assert.match(P.elems.entrarCuerpo.innerHTML, /Listo, lo recibimos/);
+
+    /* Y un 404 (la función sin pegar) no culpa al internet de nadie. */
+    const n2 = nube({ pedir_ayuda_clave: { __estado: 404 } });
+    const P2 = abrirPlataChat({ red: n2.red });
+    P2.ev('pintarRecado()');
+    P2.ev("$('rcCelular').value = '3001112233'");
+    await P2.ev('mandarRecado()');
+    await new Promise(r => setImmediate(r));
+    assert.match(P2.elems.errRecado.textContent, /todavía no están encendidos/);
+    assert.ok(!/internet/.test(P2.elems.errRecado.textContent), 'culpa al internet de un 404 que es nuestro');
   });
 });
 

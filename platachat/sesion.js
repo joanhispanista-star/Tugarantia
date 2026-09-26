@@ -219,6 +219,36 @@
   }
 
   /* ------------------------------------------------------------------------
+     EL RECADO (26-sep-2026). Quien olvidó la contraseña o no logra entrar
+     deja su celular y una nota, y cae en la bandeja de recados del CRM.
+     Es la ÚNICA llamada de PlataChat que va con la llave pública y SIN
+     sesión, y por eso no pasa por rpc(), que exige sesión: si algún día se
+     metiera ahí, dejaría de funcionar para el único que la necesita. La
+     función de la base (pedir_ayuda_clave, 20260922) es la de play/, con su
+     freno. Reemplaza al WhatsApp de Joan, que él quitó el 21-sep.
+     Resuelve SIEMPRE: {ok} o {ok:false, motivo} con motivo 'celular',
+     'muchas', 'apagado' (404: la función sin pegar), o el texto de
+     NUBE_CAIDA / SIN_RED, con red:true solo cuando no se llegó a la nube.
+     ---------------------------------------------------------------------- */
+  function recado(cfg, celular, nota) {
+    var cel = normalizar(celular);
+    if (!cel) return Promise.resolve({ ok: false, motivo: 'celular' });
+    if (!conectada(cfg)) return Promise.resolve({ ok: false, motivo: SIN_RED, red: true });
+    return pedidor(cfg)(base(cfg) + '/rest/v1/rpc/pedir_ayuda_clave', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: cfg.anon, Authorization: 'Bearer ' + cfg.anon },
+      body: JSON.stringify({ p_celular: cel, p_nota: String(nota || '').slice(0, 300) })
+    }).then(leerCuerpo).then(function (r) {
+      if (r.estado === 404) return { ok: false, motivo: 'apagado', estado: 404 };
+      if (nubeCaida(r.estado)) return { ok: false, motivo: NUBE_CAIDA, estado: r.estado };
+      if (!r.ok || !r.j) return { ok: false, motivo: '', estado: r.estado };
+      return r.j.ok === true ? { ok: true, celular: cel } : { ok: false, motivo: r.j.motivo || '' };
+    }).catch(function () {
+      return { ok: false, motivo: SIN_RED, red: true };
+    });
+  }
+
+  /* ------------------------------------------------------------------------
      REFRESCAR. Resuelve con la sesión nueva, o con null si la nube dice que
      ese refresh ya no vale (sesión cerrada desde otro lado, cuenta borrada).
      Rechaza SOLO por red: null y «sin red» son cosas distintas y la página
@@ -327,6 +357,7 @@
     MARGEN_VENCIMIENTO_S: MARGEN_VENCIMIENTO_S,
     entrar: entrar,
     registrar: registrar,
+    recado: recado,
     refrescar: refrescar,
     rpc: rpc,
     guardar: guardar,

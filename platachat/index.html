@@ -259,10 +259,12 @@ var R = window.PlataChatReglas;
 var PP = window.PagosProveedor;
 var SP = window.SesionPlataChat;
 
-/* El número oficial del negocio, para el enlace de WhatsApp cuando el chat no
-   se puede ofrecer. Escrito acá y no leído de ningún paquete: un enlace armado
-   a mano no puede cambiar a quién le escribe el cliente. */
-var WHATSAPP_OFICIAL = '573103606348';
+/* 26-sep-2026 — AQUÍ VIVÍA EL WHATSAPP DE JOAN, y ya no vive nadie. Joan, el
+   21-sep: «nada de compartir mi numero». play/ lo quitó ese día; PlataChat lo
+   seguía publicando en tres sitios (recuperar la contraseña, el chat sin
+   conexión y la página de borrar la cuenta). Quien no puede entrar deja un
+   RECADO (pedir_ayuda_clave, la única puerta sin sesión, con freno), que cae
+   en la bandeja de recados del CRM. Ver pintarRecado. */
 
 var $ = function (id) { return document.getElementById(id); };
 var COP = function (n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); };
@@ -434,6 +436,66 @@ function valorLingote() { return (R && R.LINGOTE) || 100000; }
 function esNuevo() { return !S || !S.vinculada || Number(S.garantia || 0) <= 0; }
 
 /* ============================ ENTRAR ============================ */
+/* EL RECADO DE ACCESO (26-sep-2026) — el mismo de play/index.html (olvide y
+   mandarAyuda), para quien olvidó la contraseña o no logra entrar.
+
+   NO PUEDE SER POR EL CHAT: el chat exige sesión, y el que olvidó la
+   contraseña es justo el que no puede abrirla. pedir_ayuda_clave es la única
+   función del sistema que se llama con la llave pública y SIN sesión, con su
+   freno, y guarda solo un celular y una nota corta. Por eso va con fetch a
+   secas y no por SP.rpc: si algún día alguien la mete en SP.rpc, que exige
+   sesión, deja de funcionar para el único que la necesita. La llamada vive en
+   sesion.js (SP.recado), como toda la red de esta app. */
+function pintarRecado() {
+  var caja = $('entrarCuerpo'); if (!caja) return;
+  var tel = ($('inCelular') || {}).value || '';
+  caja.innerHTML =
+    '<div class="card">' +
+      '<h3 class="tit">Te ayudamos a entrar</h3>' +
+      /* Se dice qué pasa después y por dónde llega la respuesta. */
+      '<p class="sub">Déjanos tu celular y te escribimos para devolverte el acceso. ' +
+        'Revisamos los recados todos los días; no es automático ni es al instante. ' +
+        'Si lo que quieres es borrar tu cuenta, dilo aquí también.</p>' +
+      '<label for="rcCelular">Tu celular</label>' +
+      '<input id="rcCelular" type="tel" inputmode="numeric" autocomplete="username" placeholder="300 111 2233" value="' + esc(tel) + '" oninput="tecleaTel(this)">' +
+      '<label for="rcNota">¿Algo que debamos saber? <span class="muted">(opcional)</span></label>' +
+      '<input id="rcNota" type="text" maxlength="300" placeholder="Cambié de teléfono, por ejemplo">' +
+      '<button type="button" class="btn marca" style="margin-top:var(--e4)" onclick="mandarRecado()">Enviar el recado</button>' +
+      '<div id="errRecado" class="aviso ambar oculto"></div>' +
+      '<button type="button" class="btn claro" style="margin-top:var(--e3)" onclick="pintarEntrar()">Volver</button>' +
+    '</div>';
+  window.scrollTo(0, 0);
+}
+
+function mandarRecado() {
+  var err = $('errRecado'); if (!err) return;
+  if (!SP || !SP.recado) return fallo(err, 'No cargó una parte de la app (sesion.js). Cierra y vuelve a abrir con internet.');
+  var crudo = String(($('rcCelular') || {}).value || '');
+  var nota = String(($('rcNota') || {}).value || '').slice(0, 300);
+  fallo(err, 'Enviando…');
+  return SP.recado(CFG, crudo, nota).then(function (j) {
+    if (!j || j.ok !== true) {
+      var m = j && j.motivo;
+      /* Cada motivo dice algo distinto. Un 404 (la función sin pegar) no es
+         el internet de nadie; «revisa tu internet» solo cuando no se llegó. */
+      return fallo(err, m === 'celular' ? 'Nos falta tu celular, o no nos cuadra: son 10 números y empiezan por 3.'
+        : m === 'muchas' ? 'Ya nos dejaste un recado hace poco. Lo tenemos; dale un rato y te escribimos.'
+        : m === 'apagado' ? 'Los recados todavía no están encendidos. Vuelve a intentar más tarde.'
+        : j && j.red ? 'No pude enviar tu recado. Revisa tu internet y vuelve a intentar.'
+        : (m || 'No pudimos recibir tu recado ahora. Vuelve a intentar en unos minutos.'));
+    }
+    var tel = j.celular;
+    var caja = $('entrarCuerpo'); if (!caja) return;
+    caja.innerHTML =
+      '<div class="card"><div class="aviso verde"><b>Listo, lo recibimos.</b></div>' +
+        '<p class="sub" style="margin-top:var(--e4)">Te escribimos al ' + esc(U && U.telefonoBonito ? U.telefonoBonito(tel) : tel) +
+          '. Si recuerdas tu contraseña antes, entra normal: el recado no bloquea nada.</p>' +
+        '<button type="button" class="btn marca" onclick="pintarEntrar()">Volver a la entrada</button>' +
+      '</div>';
+    window.scrollTo(0, 0);
+  });
+}
+
 function pintarEntrar() {
   var caja = $('entrarCuerpo'); if (!caja) return;
   caja.innerHTML =
@@ -446,8 +508,7 @@ function pintarEntrar() {
       '<input id="inClave" type="password" autocomplete="current-password" placeholder="••••••••">' +
       '<button type="button" class="btn marca" id="btnEntrar" style="margin-top:var(--e4)">Entrar</button>' +
       '<div id="errEntrar" class="aviso ambar oculto"></div>' +
-      '<div class="muted" style="font-size:12.5px;margin-top:var(--e3)">¿Olvidaste tu contraseña? Escríbenos por WhatsApp y la cambiamos contigo: ' +
-        '<a href="https://wa.me/' + WHATSAPP_OFICIAL + '" target="_blank" rel="noopener" style="color:inherit">abrir WhatsApp</a>.</div>' +
+      '<button type="button" class="btn claro" style="margin-top:var(--e3)" onclick="pintarRecado()">¿Olvidaste tu contraseña o no puedes entrar? Déjanos un recado</button>' +
     '</div>' +
     '<div class="card">' +
       '<h3 class="tit">Soy nuevo</h3>' +
@@ -1728,7 +1789,7 @@ function vistaChats() {
         ? 'Para escribir por aquí hace falta internet y haber entrado con tu celular y tu contraseña. ' +
           'Ahora mismo no puedo traer ni mandar mensajes.'
         : 'No cargó una parte de la app (chat.js). Cierra y vuelve a abrir con internet.') + '</p>' +
-      '<a class="btn claro" target="_blank" rel="noopener" href="https://wa.me/' + WHATSAPP_OFICIAL + '">Escribir por WhatsApp</a>' +
+      '<p class="muted" style="font-size:12.5px">Vuelve a intentar en un rato. Si no logras entrar, en la entrada de la app toca «Déjanos un recado» y te escribimos.</p>' +
       '</div>' + pie();
   }
   var h = '<div class="card">' +
