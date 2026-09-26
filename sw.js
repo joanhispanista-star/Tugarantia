@@ -1473,7 +1473,14 @@
    Toca tambien panel/crm.html: la bandeja ya no ofrece desembolsar una
    solicitud de PlataChat que el cliente no ha aceptado, y el total de una
    propuesta a dos o tres cortes es el que el cliente acepto. */
-const CACHE = 'tugarantia-v113';
+/* v114 - 26-sep-2026. LA BASE TIENE QUE CABER. Joan pidio cargar 18.190
+   prospectos, y medido no caben: la cartera vive en el localStorage (unos 5
+   millones de caracteres) y cada prospecto se guarda tres veces. Cargarlos
+   todos habria hecho que guardar() salvara el libro tirando las fotos de los
+   comprobantes. Ahora el CRM mide, carga los que caben, dice cuantos quedaron
+   en el archivo y deshace la carga si aun asi no cupiera. Toca panel/crm.html
+   y app/bases.js (cuantosCaben). */
+const CACHE = 'tugarantia-v114';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -309,8 +309,70 @@
              sinCelular: sinCelular, senalesFinancieras: senales };
   }
 
+  /* ------------------------------------------------------------------------
+   * ¿CUÁNTOS CABEN? — 26 de septiembre de 2026
+   *
+   * Joan pidió cargar una base de 18.190 prospectos. Medido antes de hacerlo:
+   * la cartera vive en el localStorage del navegador, y Chrome da unos 5
+   * millones de caracteres por sitio. Un prospecto no se guarda una vez sino
+   * TRES: en la cartera (joan_socios_v1), en la copia de la nube que el Panel
+   * guarda para saber qué cambió (joan_panel_espejo, como texto dentro de
+   * texto, con cada comilla escapada) y en la cola de subida mientras viaja
+   * (joan_panel_cola). Los 18.190 son 2,95 millones de caracteres por copia:
+   * unos 9 millones, casi el doble de lo que cabe.
+   *
+   * Y lo que pasa cuando no cabe NO es un error visible: guardar() salva el
+   * libro sacrificando las FOTOS de los comprobantes (guardarSinFotos, en
+   * crm.html). Una base de prospectos no puede costar las fotos de la cartera.
+   *
+   * Esta cuenta dice cuántos de los nuevos caben dejando un margen, para que el
+   * CRM cargue esos y diga cuántos quedaron en el archivo. El resto entra en la
+   * siguiente carga del MISMO archivo: revisarBase ya salta los que están.
+   *
+   * @param {object} o
+   *   usado       caracteres que ya ocupa el localStorage del sitio
+   *   pesos       lista con el largo JSON de cada prospecto nuevo, en orden
+   *   limite      techo del sitio; por defecto LIMITE_NAVEGADOR
+   *   margen      lo que se deja libre para que la cartera siga creciendo
+   * @returns {{caben:number, total:number, porCopia:number, usado:number,
+   *            limite:number, libre:number}}
+   * ---------------------------------------------------------------------- */
+  var LIMITE_NAVEGADOR = 5000000;   // Chrome: ~5,2 millones de caracteres por sitio
+  var MARGEN_NAVEGADOR = 700000;    // aire para fotos, créditos nuevos y la cola
+  /* Cada prospecto se guarda tres veces, y en el espejo va como texto dentro de
+     texto: cada comilla se escapa. Se mide con el prospecto de verdad. */
+  function pesoEnDisco(largoJSON, comillas) {
+    return 3 * (largoJSON + 1) + comillas;
+  }
+  function cuantosCaben(o) {
+    o = o || {};
+    var usado = Math.max(0, Number(o.usado) || 0);
+    var limite = o.limite == null ? LIMITE_NAVEGADOR : Number(o.limite);
+    var margen = o.margen == null ? MARGEN_NAVEGADOR : Number(o.margen);
+    var pesos = Array.isArray(o.pesos) ? o.pesos : [];
+    var libre = Math.max(0, limite - margen - usado);
+    var caben = 0, gastado = 0, porCopia = 0;
+    for (var i = 0; i < pesos.length; i++) {
+      var p = pesos[i] || {};
+      var d = pesoEnDisco(Number(p.largo) || 0, Number(p.comillas) || 0);
+      if (gastado + d > libre) break;
+      gastado += d; porCopia += (Number(p.largo) || 0) + 1; caben++;
+    }
+    return { caben: caben, total: pesos.length, porCopia: porCopia, usado: usado,
+             limite: limite, libre: libre };
+  }
+  /* El largo y las comillas de un prospecto tal como lo va a guardar el CRM. */
+  function pesoDeProspecto(prospecto) {
+    var j = JSON.stringify(prospecto);
+    return { largo: j.length, comillas: (j.match(/"/g) || []).length };
+  }
+
   return {
-    VERSION: '2026-09-09',
+    VERSION: '2026-09-26',
+    LIMITE_NAVEGADOR: LIMITE_NAVEGADOR,
+    MARGEN_NAVEGADOR: MARGEN_NAVEGADOR,
+    cuantosCaben: cuantosCaben,
+    pesoDeProspecto: pesoDeProspecto,
     celularDe: celularDe,
     nombreDe: nombreDe,
     leerCSV: leerCSV,

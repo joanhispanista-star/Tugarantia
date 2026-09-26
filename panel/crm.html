@@ -10823,6 +10823,7 @@ function leerArchivoBase(file) {
     if (cols.celular < 0) throw new Error('No encontré ninguna columna con celulares colombianos.');
     const r = B.revisarBase(filas, cols, { socios: DB.socios, prospectos: prospectos() });
     _baseLeida = { archivo: file.name, cols, revision: r };
+    _baseLeida.espacio = espacioParaBase(_baseLeida);
     pintarPrevioBase();
   }).catch(err => {
     openModal('No pude leer ese archivo', `<div class="alerta warn">${escHTML(err.message || String(err))}</div>
@@ -10831,9 +10832,34 @@ function leerArchivoBase(file) {
   });
 }
 
+/* 26-sep-2026 — ¿CABEN EN ESTE NAVEGADOR? La cartera vive en el localStorage, y
+   cada prospecto se guarda tres veces (la cartera, la copia de la nube y la
+   cola de subida). Una base de 18.190 no cabe: son unos 9 millones de
+   caracteres contra unos 5. Y si no cabe, guardar() salva el libro tirando las
+   FOTOS de los comprobantes. La cuenta vive en app/bases.js (cuantosCaben);
+   acá solo se mide lo que ya hay. */
+function usoDelNavegador() {
+  let t = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i) || '';
+      t += k.length + (localStorage.getItem(k) || '').length;
+    }
+  } catch (e) {}
+  return t;
+}
+function espacioParaBase(b) {
+  const B = window.BasesTuGarantia, sello = Date.now(), hoy = hoyISO();
+  const pesos = b.revision.nuevos.map((p, i) => B.pesoDeProspecto({ id: 'P' + sello + '-' + i,
+    nombre: p.nombre, celular: p.celular, estado: 'nuevo', base: b.archivo, cargadoEn: hoy }));
+  return B.cuantosCaben({ usado: usoDelNavegador(), pesos });
+}
+
 function pintarPrevioBase() {
   const b = _baseLeida; if (!b) return;
   const r = b.revision;
+  const caben = b.espacio ? Math.min(b.espacio.caben, r.nuevos.length) : r.nuevos.length;
+  const faltan = r.nuevos.length - caben;
   const muestra = r.nuevos.slice(0, 5);
   openModal('Cargar ' + b.archivo, `
     <div class="two">
@@ -10860,8 +10886,17 @@ function pintarPrevioBase() {
     <div class="help">Queda guardado con la base. Si algún día alguien pregunta de dónde salió su
       teléfono, esta es la respuesta — y tiene que existir antes, no después.</div>
 
-    <button class="btn btn-rojo arriba" onclick="confirmarCargaBase()" ${r.nuevos.length ? '' : 'disabled'}>
-      Cargar ${r.nuevos.length} prospectos</button>`);
+    ${faltan ? `<div class="alerta warn" style="margin-top:14px">
+      <b>No caben todos en este navegador: entran ${caben} de ${r.nuevos.length}.</b>
+      <div style="margin-top:6px">Tu cartera vive en este navegador, que guarda unos 5 millones de
+      caracteres, y cada prospecto se guarda tres veces: en la cartera, en la copia de la nube y en
+      la cola de subida. Si se cargaran todos, al guardar se perderían las fotos de los comprobantes
+      para que cupiera el resto. Por eso no se ofrece.</div>
+      <div style="margin-top:6px">Los otros ${faltan} se quedan en el archivo, sin cargar. Para
+      tenerlos todos, los prospectos tienen que vivir en la nube y no en el navegador.</div></div>` : ''}
+
+    <button class="btn btn-rojo arriba" onclick="confirmarCargaBase()" ${caben ? '' : 'disabled'}>
+      Cargar ${caben} prospectos${faltan ? ' de ' + r.nuevos.length : ''}</button>`);
 }
 
 function confirmarCargaBase() {
@@ -10869,16 +10904,34 @@ function confirmarCargaBase() {
   const origen = gv('baseOrigen').trim();
   if (!origen) return alert('Escribe de dónde salió la base.\n\nNo es un trámite: es lo único que te permite contestar el día que alguien pregunte de dónde sacaste su teléfono.');
   const hoy = hoyISO(), sello = Date.now();
-  b.revision.nuevos.forEach((p, i) => {
+  /* Se vuelve a medir: entre leer el archivo y confirmar pudo guardarse otra
+     cosa. Entran los que caben, en el orden del archivo. */
+  const caben = Math.min(espacioParaBase(b).caben, b.revision.nuevos.length);
+  const entran = b.revision.nuevos.slice(0, caben);
+  const faltan = b.revision.nuevos.length - entran.length;
+  if (!entran.length) return alert('No cabe ninguno en este navegador sin arriesgar las fotos de la cartera. No cargué nada.');
+  const antes = prospectos().length, basesAntes = basesCargadas().length;
+  entran.forEach((p, i) => {
     prospectos().push({ id: 'P' + sello + '-' + i, nombre: p.nombre, celular: p.celular,
                         estado: 'nuevo', base: b.archivo, cargadoEn: hoy });
   });
   basesCargadas().push({ id: 'B' + sello, archivo: b.archivo, origen, fecha: hoy,
-                         entraron: b.revision.nuevos.length,
+                         entraron: entran.length, quedaron: faltan,
                          senales: b.revision.senalesFinancieras });
+  /* Y si aun así no cupiera, se deshace la carga ANTES de que guardar() llegue a
+     salvar el libro tirando las fotos: una base de prospectos nunca puede
+     costar un comprobante. */
+  try { localStorage.setItem(KEY, JSON.stringify(DB)); }
+  catch (e) {
+    prospectos().splice(antes); basesCargadas().splice(basesAntes);
+    cerrarModal();
+    return alert('No cupo en este navegador y no cargué nada: tu cartera quedó como estaba, con sus fotos.');
+  }
   _baseLeida = null;
   guardar(); cerrarModal(); render(); irA('bases');
-  alert('Listo: entraron ' + b.revision.nuevos.length + ' prospectos.\n\nRepártelos entre tus asesores desde «🔀 Repartir».');
+  alert('Listo: entraron ' + entran.length + ' prospectos.' +
+    (faltan ? '\n\nQuedaron ' + faltan + ' en el archivo, sin cargar: no caben en este navegador sin arriesgar las fotos de la cartera.' : '') +
+    '\n\nRepártelos entre tus asesores desde «🔀 Repartir».');
 }
 
 /* 10-sep-2026 — repartirProspectos se fue: el botón de Bases abre la MISMA
