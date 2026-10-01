@@ -188,6 +188,36 @@ setTimeout(function () {
     </linearGradient>
     <clipPath id="moneda-recorte"><circle cx="20" cy="20" r="19"/></clipPath>
     <clipPath id="lingote-recorte"><polygon points="8,28 16,6 48,6 56,28"/></clipPath>
+    <!-- 1-oct-2026 — EL ORO: los mismos degradados de la plata, en cálido (las
+         paradas .o1…o4 y .o-hondo toman el color de la piel). La mancha de
+         luz, la franja y los recortes son los mismos de la plata: la luz es
+         blanca sobre los dos metales. -->
+    <radialGradient id="oro-moneda" cx=".35" cy=".28" r=".78">
+      <stop offset="0" class="o1"/><stop offset=".42" class="o2"/>
+      <stop offset=".8" class="o3"/><stop offset="1" class="o4"/>
+    </radialGradient>
+    <linearGradient id="oro-bandas" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" class="m-luz" stop-opacity="0"/><stop offset=".18" class="m-luz" stop-opacity=".55"/>
+      <stop offset=".34" class="o-hondo" stop-opacity=".35"/><stop offset=".47" class="m-luz" stop-opacity="0"/>
+      <stop offset=".6" class="m-luz" stop-opacity=".65"/><stop offset=".74" class="o-hondo" stop-opacity=".3"/>
+      <stop offset="1" class="o-hondo" stop-opacity=".5"/>
+    </linearGradient>
+    <linearGradient id="oro-campo" x1="1" y1="1" x2="0" y2="0">
+      <stop offset="0" class="o1"/><stop offset=".45" class="o2"/>
+      <stop offset=".75" class="o3"/><stop offset="1" class="o4"/>
+    </linearGradient>
+    <linearGradient id="oro-letra" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" class="m-luz"/><stop offset=".42" class="o1"/>
+      <stop offset=".54" class="o2"/><stop offset=".64" class="o1"/><stop offset="1" class="m-luz"/>
+    </linearGradient>
+    <linearGradient id="oro-lingote" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" class="o1"/><stop offset=".3" class="o2"/><stop offset=".55" class="o4"/>
+      <stop offset=".72" class="o2"/><stop offset="1" class="o3"/>
+    </linearGradient>
+    <linearGradient id="oro-tapa" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" class="m-luz"/><stop offset=".35" class="o1"/><stop offset=".55" class="o3"/>
+      <stop offset=".72" class="o1"/><stop offset="1" class="o2"/>
+    </linearGradient>
   </defs>
 </svg>
 
@@ -813,6 +843,7 @@ function vistaPlata() {
 function cabeceraPlata() {
   var gd = S.gd;
   return '<div class="card laca"><div class="lustre" aria-hidden="true"><i></i></div>' +
+    botonBrillo() +
     '<div class="etq">Garantía ganada pagando en fecha</div>' +
     '<div class="cifra plata">' + COP(gd.ganada) + '</div>' +
     monedasHTML(gd.ganada) +
@@ -820,8 +851,9 @@ function cabeceraPlata() {
        y en un teléfono de 360 la segunda baja de línea en vez de salirse. */
     '<div class="monedas-pie"><span>' + esc(monedasEnPalabras(gd.ganada)) + ' · cada moneda son ' + COP(valorMoneda()) + '</span>' +
       '<span>un lingote son ' + COP(valorLingote()) + '</span></div>' +
+    oroHTML(gd) +
     '<div class="sep"></div>' +
-    fila('Por tus datos', '+' + COP(gd.cupon)) +
+    fila('Por tus datos', '+' + COP(cuponVivo(gd))) +
     (gd.referidos > 0 ? fila('Por la gente que trajiste', '+' + COP(gd.referidos)) : '') +
     (gd.comprometida > 0 ? fila('Comprometida en tu préstamo', '−' + COP(gd.comprometida)) : '') +
     fila('Tu cupo', COP(S.cupo)) +
@@ -840,7 +872,12 @@ function contarMonedas(ganada) {
 }
 function monedasEnPalabras(ganada) {
   var m = contarMonedas(ganada);
-  if (!m.lingotes && !m.monedas && !m.media) return 'Todavía sin monedas: la primera llega con tu primer pago en fecha';
+  /* «de plata» siempre: el cliente nuevo con cupón no tiene plata pero sí oro,
+     y «sin monedas» encima de una fila de oro sería mentira. */
+  if (!m.lingotes && !m.monedas && !m.media) return 'Todavía sin monedas de plata: la primera llega con tu primer pago en fecha';
+  return palabrasDe(m);
+}
+function palabrasDe(m) {
   var partes = [];
   if (m.lingotes) partes.push(m.lingotes + ' lingote' + (m.lingotes !== 1 ? 's' : ''));
   if (m.monedas || m.media) {
@@ -874,8 +911,8 @@ function svgMoneda(clase) {
   return '<svg class="moneda ' + clase + '" viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">' +
     capasMoneda() + '</svg>';
 }
-function svgMediaMoneda() {
-  return '<svg class="moneda media" viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">' +
+function svgMediaMoneda(oro) {
+  return '<svg class="moneda media' + (oro ? ' oro' : '') + '" viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">' +
     '<circle class="molde" cx="20" cy="20" r="19"/>' +
     '<g clip-path="url(#media-moneda)">' + capasMoneda() + '</g></svg>';
 }
@@ -885,10 +922,10 @@ function svgMoldeVacio() {
 }
 /* El lingote lleno va en barra: el cuerpo, los cuatro biseles y la tapa; el
    vacío es solo el contorno punteado (sin biseles: no hay metal todavía). */
-function svgLingote(vacio) {
+function svgLingote(vacio, oro) {
   var cuerpo = '<polygon class="cuerpo" points="8,28 16,6 48,6 56,28"/>';
   if (vacio) return '<svg class="lingote vacio" viewBox="0 0 64 32" width="64" height="32" aria-hidden="true">' + cuerpo + '</svg>';
-  return '<svg class="lingote" viewBox="0 0 64 32" width="64" height="32" aria-hidden="true">' + cuerpo +
+  return '<svg class="lingote' + (oro ? ' oro' : '') + '" viewBox="0 0 64 32" width="64" height="32" aria-hidden="true">' + cuerpo +
     '<polygon class="bisel-luz" fill="none" points="16,6 48,6 44,10 20,10"/>' +
     '<polygon class="bisel-luz" fill="none" points="8,28 16,6 20,10 14.5,23"/>' +
     '<polygon class="bisel-hondo" fill="none" points="48,6 56,28 49.5,23 44,10"/>' +
@@ -898,20 +935,106 @@ function svgLingote(vacio) {
 }
 /* Una moneda por cada 10.000 ganados, un lingote por cada 100.000. Con nada
    ganado se pinta el molde vacío punteado: se ve el hueco donde va a ir la
-   primera. Más de diez lingotes se resumen con «×N» para que la fila no se
-   salga de la pantalla. Cada grupo va en su .pila (la piel monta las monedas
+   primera. Más de OCHO lingotes se resumen con «×N»: cada lingote asoma 28px,
+   ocho miden 64 + 7·28 = 260 y caben en la placa de un teléfono de 320 (248
+   útiles más el relleno); nueve ya se salen, y pasa justo al llegar al millón
+   (antes el corte era diez y la revisión del 1-oct lo midió saliéndose). Una
+   .pila no se parte: el wrap de .monedas solo baja pilas enteras. Cada grupo va en su .pila (la piel monta las monedas
    una sobre otra con margen negativo, y escalona el brillo por hijo). */
 function monedasHTML(ganada) {
   var m = contarMonedas(ganada);
+  if (!m.lingotes && !m.monedas && !m.media) {
+    return '<div class="monedas"><div class="pila">' + svgLingote(true) + '</div>' +
+      '<div class="pila">' + svgMoldeVacio() + '</div></div>';
+  }
+  return '<div class="monedas">' + pilasDe(m, false) + '</div>';
+}
+/* Las pilas de un metal: los lingotes en la suya y las monedas en otra. La
+   misma para la plata y para el oro, para que las dos filas se cuenten igual. */
+function pilasDe(m, oro) {
   var lingotes = '', monedas = '';
-  if (m.lingotes > 10) lingotes = svgLingote(false) + '<span class="muted" style="font-size:13px">×' + m.lingotes + '</span>';
-  else for (var i = 0; i < m.lingotes; i++) lingotes += svgLingote(false);
-  for (var j = 0; j < m.monedas; j++) monedas += svgMoneda('brillo');
-  if (m.media) monedas += svgMediaMoneda();
-  if (!m.lingotes && !m.monedas && !m.media) { monedas = svgMoldeVacio(); lingotes = svgLingote(true); }
-  return '<div class="monedas">' +
-    (lingotes ? '<div class="pila">' + lingotes + '</div>' : '') +
-    (monedas ? '<div class="pila">' + monedas + '</div>' : '') + '</div>';
+  if (m.lingotes > 8) lingotes = svgLingote(false, oro) + '<span class="muted" style="font-size:13px">×' + m.lingotes + '</span>';
+  else for (var i = 0; i < m.lingotes; i++) lingotes += svgLingote(false, oro);
+  for (var j = 0; j < m.monedas; j++) monedas += svgMoneda(oro ? 'oro brillo' : 'brillo');
+  if (m.media) monedas += svgMediaMoneda(oro);
+  return (lingotes ? '<div class="pila">' + lingotes + '</div>' : '') +
+    (monedas ? '<div class="pila">' + monedas + '</div>' : '');
+}
+
+/* LAS MONEDAS DE ORO (1-oct-2026). Joan: «unas cuantas monedas de oro para
+   mejorar el diseño». Con una condición que él eligió: cada moneda cuenta
+   plata de verdad. El oro es la garantía que el cliente tiene SIN haberla
+   ganado pagando —por sus datos y por la gente que trajo—, que es gd.prestada:
+   ficha.js la saca por resta (total − ganada), así que la plata y el oro
+   juntos son la garantía entera, ni un peso más. Oro de adorno le mostraría
+   más de lo que tiene (Ley 1480). Sin nada que no haya ganado pagando, no
+   hay fila de oro: no se pinta un molde vacío, porque no es algo que el
+   cliente vaya a llenar pagando. */
+/* EL CUPÓN QUE DE VERDAD QUEDA. Un ajuste negativo del Panel más grande que la
+   ganada se come el cupón (motor.partesDeGarantia), y gd.cupon llega del
+   paquete sin ese recorte: la fila «Por tus datos» decía +$100.000 con el oro
+   en 80.000 (revisión del 1-oct). gd.prestada es total − ganada = cupón
+   recortado + referidos, así que esta resta da la cifra del motor, no una
+   segunda cuenta. La usan la fila y el oro: el mismo número en los dos. */
+function cuponVivo(gd) { return Math.max(0, Number(gd.prestada || 0) - Number(gd.referidos || 0)); }
+function oroHTML(gd) {
+  var m = contarMonedas(gd.prestada);
+  if (!m.lingotes && !m.monedas && !m.media) return '';
+  var datos = cuponVivo(gd) > 0, gente = Number(gd.referidos) > 0;
+  var origen = datos && gente ? 'por tus datos y por la gente que trajiste'
+    : gente ? 'por la gente que trajiste'
+    : datos ? 'por tus datos' : 'aparte de lo que ganaste pagando';
+  return '<div class="monedas oro">' + pilasDe(m, true) +
+    '<div class="oro-dice">En oro: ' + esc(palabrasDe(m)) + ', ' + origen + '</div></div>';
+}
+
+/* LA PAUSA DEL BRILLO (1-oct-2026). Joan pidió el brillo de las monedas
+   CONSTANTE y sutil; lo que se mueve solo más de cinco segundos junto a otro
+   contenido necesita un control para pararlo (WCAG 2.2.2, nivel A). Es el
+   botón de arriba a la derecha de la tarjeta de Plata: un botón de dos
+   estados (aria-pressed) con un nombre fijo. La elección se guarda en el
+   teléfono; si el almacén no deja (modo privado), vale mientras dure la
+   página. Pausado solo se apaga la luz que cruza: el metal se queda (ver
+   «LA LUZ, CONSTANTE Y SUTIL» en estilo.css). */
+var LLAVE_BRILLO = 'platachat_brillo';
+var BRILLO_QUIETO = (function () {
+  try { return localStorage.getItem(LLAVE_BRILLO) === 'quieto'; } catch (e) { return false; }
+})();
+function aplicarBrillo() {
+  try { document.documentElement.classList.toggle('brillo-quieto', BRILLO_QUIETO); } catch (e) {}
+}
+aplicarBrillo();
+function iconoBrillo() {
+  return BRILLO_QUIETO
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 5v14M15 5v14"/></svg>';
+}
+function tituloBrillo() { return BRILLO_QUIETO ? 'Volver a encender el brillo' : 'Pausar el brillo'; }
+function botonBrillo() {
+  return '<button type="button" class="pausa-brillo" id="btnBrillo" onclick="alternarBrillo()" ' +
+    'aria-label="Pausar el brillo de las monedas" aria-pressed="' + (BRILLO_QUIETO ? 'true' : 'false') + '" ' +
+    /* hidden A PROPÓSITO, no lo quites: la regla de la piel (.pausa-brillo,
+       display:grid) le gana al [hidden] del navegador, así que con la hoja
+       nueva el botón se ve. Con la hoja de antes (la caché de GitHub dura
+       diez minutos) no hay regla, el botón queda escondido —y esa hoja no
+       anima en bucle: no hay nada que pausar— en vez de un cuadro blanco
+       vacío encima de la etiqueta. Con movimiento reducido la piel lo vuelve
+       a esconder. */
+    'title="' + tituloBrillo() + '" hidden>' + iconoBrillo() + '</button>';
+}
+function alternarBrillo() {
+  BRILLO_QUIETO = !BRILLO_QUIETO;
+  try {
+    if (BRILLO_QUIETO) localStorage.setItem(LLAVE_BRILLO, 'quieto');
+    else localStorage.removeItem(LLAVE_BRILLO);
+  } catch (e) {}
+  aplicarBrillo();
+  var b = $('btnBrillo');
+  if (b) {
+    b.setAttribute('aria-pressed', BRILLO_QUIETO ? 'true' : 'false');
+    b.setAttribute('title', tituloBrillo());
+    b.innerHTML = iconoBrillo();
+  }
 }
 
 /* ------- la calculadora: la de socio.html recortada al quincenal dentro del

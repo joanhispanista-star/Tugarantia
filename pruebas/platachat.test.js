@@ -1020,6 +1020,142 @@ describe('PlataChat: la página pintando de verdad', () => {
     assert.match(P2.elems.errRecado.textContent, /todavía no están encendidos/);
     assert.ok(!/internet/.test(P2.elems.errRecado.textContent), 'culpa al internet de un 404 que es nuestro');
   });
+
+  /* ------------------------------------------------------------------------
+     1-oct-2026 — EL ORO Y LA PAUSA DEL BRILLO. Joan pidió el brillo constante y
+     sutil y «unas cuantas monedas de oro». El oro cuenta plata de verdad (la
+     garantía que no se ganó pagando: gd.prestada) y el brillo constante lleva
+     su botón de pausa (WCAG 2.2.2). */
+  const cabeceraCon = (gd, almacen) => {
+    const P = abrirPlataChat({ almacen });
+    P.ev('S = ' + JSON.stringify({ gd: Object.assign({ ganada: 0, cupon: 0, referidos: 0, prestada: 0, comprometida: 0 }, gd),
+                                   cupo: 0, vinculada: true }));
+    return { P, h: P.ev('cabeceraPlata()') };
+  };
+
+  test('CON LA CUENTA DE PRUEBA, el cupón de 100.000 sale como UN lingote de oro, «por tus datos»', async () => {
+    const n = nube({ mi_cuenta: CUENTA_PRUEBA });
+    const P = abrirPlataChat({ red: n.red });
+    P.ev(SESION_FALSA);
+    await P.ev('cargarCuenta()');
+    assert.equal(P.ev('S.gd.prestada'), 100000, 'la ficha no sacó la prestada por resta (145.000 − 45.000)');
+    const h = P.elems.cuerpo.innerHTML;
+    assert.equal((h.match(/class="lingote oro"/g) || []).length, 1, 'no es un lingote de oro');
+    assert.equal((h.match(/class="moneda oro brillo"/g) || []).length, 0);
+    assert.match(h, /<div class="oro-dice">En oro: 1 lingote, por tus datos<\/div>/);
+    /* La plata no cambió: el oro va en su propia fila, no en la cuenta de la plata. */
+    assert.equal((h.match(/class="moneda brillo"/g) || []).length, 4);
+    assert.ok(h.indexOf('<div class="monedas oro">') > h.indexOf('class="monedas-pie"'), 'el oro no va debajo de la leyenda de la plata');
+  });
+
+  test('el oro dice de dónde salió, y cuenta igual que la plata (7 monedas y media)', () => {
+    const { h } = cabeceraCon({ ganada: 145000, cupon: 60000, referidos: 15000, prestada: 75000 });
+    assert.equal((h.match(/class="moneda oro brillo"/g) || []).length, 7);
+    assert.equal((h.match(/class="moneda media oro"/g) || []).length, 1);
+    assert.match(h, /En oro: 7 monedas y media, por tus datos y por la gente que trajiste/);
+    const solo = cabeceraCon({ ganada: 0, referidos: 20000, prestada: 20000 }).h;
+    assert.match(solo, /En oro: 2 monedas, por la gente que trajiste/);
+  });
+
+  test('sin garantía fuera de la ganada no hay fila de oro (ni un molde vacío que prometa)', () => {
+    const { h } = cabeceraCon({ ganada: 45000 });
+    assert.ok(!/monedas oro|moneda oro|lingote oro|En oro/.test(h), 'pintó oro que el cliente no tiene');
+    /* Y medio peso de oro (menos de media moneda) tampoco se dibuja. */
+    assert.ok(!/En oro/.test(cabeceraCon({ ganada: 45000, cupon: 4000, prestada: 4000 }).h));
+  });
+
+  test('el oro sale de gd.prestada, que ficha.js saca por resta: plata + oro = la garantía entera', () => {
+    const fn = (PAGINA.match(/function oroHTML\(gd\) \{[\s\S]*?\n\}/) || [''])[0];
+    assert.match(fn, /contarMonedas\(gd\.prestada\)/, 'el oro dejó de contar la prestada');
+    assert.match(leer('app/ficha.js'), /prestada: Math\.max\(0, num\(g\.total\) - ganada\)/, 'ficha.js ya no saca la prestada por resta');
+  });
+
+  test('la pausa del brillo: botón de dos estados con nombre fijo, y se acuerda en el teléfono', () => {
+    const libre = cabeceraCon({ ganada: 45000 });
+    assert.match(libre.h, /<button type="button" class="pausa-brillo" id="btnBrillo" onclick="alternarBrillo\(\)" aria-label="Pausar el brillo de las monedas" aria-pressed="false"/);
+    assert.equal(libre.P.ev('BRILLO_QUIETO'), false);
+    libre.P.ev('alternarBrillo()');
+    assert.equal(libre.P.almacen.platachat_brillo, 'quieto', 'no guardó la pausa');
+    assert.equal(libre.P.ev('BRILLO_QUIETO'), true);
+
+    const quieto = cabeceraCon({ ganada: 45000 }, { platachat_brillo: 'quieto' });
+    assert.equal(quieto.P.ev('BRILLO_QUIETO'), true, 'no leyó la pausa guardada');
+    assert.match(quieto.h, /aria-label="Pausar el brillo de las monedas" aria-pressed="true"/);
+    quieto.P.ev('alternarBrillo()');
+    assert.ok(!('platachat_brillo' in quieto.P.almacen), 'al volver a encender no borró la pausa');
+  });
+
+  test('todo lo que brilla en bucle se para con la pausa y con el movimiento reducido (WCAG 2.2.2)', () => {
+    const reglas = ESTILO.replace(/\/\*[\s\S]*?\*\//g, '');
+    /* Cada animación infinita fuera de la bienvenida (que dura dos segundos y se va). */
+    const enBucle = [...reglas.matchAll(/([^{}]+)\{[^{}]*\binfinite\b[^{}]*\}/g)]
+      .map(m => m[1].trim()).filter(sel => !/^#hola/.test(sel));
+    assert.deepEqual(enBucle.sort(), [
+      '.cifra.plata',
+      '.moneda.brillo .barrido,.moneda.media .barrido,.lingote .barrido',
+      '.monedas .pila > .moneda:last-child .chispa,.tarjeta-propuesta .cabeza .moneda .chispa'
+    ].sort(), 'hay un brillo en bucle nuevo: necesita su lugar en la pausa');
+    assert.match(reglas, /\.brillo-quieto \.moneda \.barrido,\.brillo-quieto \.lingote \.barrido,\.brillo-quieto \.moneda \.chispa\{animation:none;display:none\}/);
+    assert.match(reglas, /\.brillo-quieto \.cifra\.plata\{animation:none\}/);
+    assert.match(reglas, /@media \(prefers-reduced-motion:reduce\)\{\.pausa-brillo\{display:none\}\}/);
+    /* La tarjeta del chat no repite: ahí no hay botón de pausa a mano. */
+    assert.match(reglas, /\.tarjeta-propuesta \.cabeza \.moneda \.barrido,\.tarjeta-propuesta \.cabeza \.moneda \.chispa\{animation-iteration-count:1\}/);
+  });
+
+  test('cada url(#…) de la piel existe en el <defs> de la página, y las capas nuevas traen fill="none" de respaldo', () => {
+    const ids = [...new Set([...ESTILO.matchAll(/url\(#([a-z-]+)\)/g)].map(m => m[1]))];
+    const faltan = ids.filter(id => PAGINA.indexOf('id="' + id + '"') < 0);
+    assert.deepEqual(faltan, [], 'la piel pinta con degradados que la página no define: ' + faltan.join(', '));
+    ['oro-moneda', 'oro-bandas', 'oro-campo', 'oro-letra', 'oro-lingote', 'oro-tapa'].forEach(id => assert.ok(ids.includes(id), 'la piel no usa #' + id));
+    /* Con la hoja vieja (la caché de GitHub dura diez minutos) una capa sin
+       regla sale NEGRA: el relleno por defecto de SVG. */
+    const dibujo = (PAGINA.match(/function capasMoneda\(\) \{[\s\S]*?\n\}/) || [''])[0] +
+                   (PAGINA.match(/function svgLingote\(vacio, oro\) \{[\s\S]*?\n\}/) || [''])[0];
+    assert.ok(dibujo.length > 500, 'no encontré capasMoneda ni svgLingote');
+    const sinRespaldo = [...dibujo.matchAll(/class=\\?"(bandas|campo|signo-sombra|destello|barrido|chispa|bisel-luz|bisel-hondo|tapa)\\?"(?! fill=\\?"none)/g)].map(m => m[1]);
+    assert.deepEqual(sinRespaldo, [], 'capas nuevas sin fill="none" de respaldo: ' + sinRespaldo.join(', '));
+  });
+
+  test('desde nueve lingotes, «×N»: ninguna pila de lingotes sin resumir pasa de 260px (la placa de 320)', () => {
+    const ocho = cabeceraCon({ ganada: 800000 }).h;
+    assert.equal((ocho.match(/class="lingote"/g) || []).length, 8);
+    assert.ok(!/×/.test(ocho), 'resumió ocho lingotes, que sí caben');
+    [900000, 1000000].forEach(g => {
+      const h = cabeceraCon({ ganada: g }).h;
+      assert.equal((h.match(/class="lingote"/g) || []).length, 1, g + ': no resumió los lingotes');
+      assert.match(h, new RegExp('×' + g / 100000 + '<'), g + ': no dice cuántos');
+    });
+    /* 64 + (n − 1)·28 ≤ 260 para todo n sin resumen. */
+    assert.ok(64 + (8 - 1) * 28 <= 260 && 64 + (9 - 1) * 28 > 260);
+  });
+
+  test('el cliente nuevo con cupón: «sin monedas» dice el metal, porque al lado hay oro', () => {
+    const { h } = cabeceraCon({ ganada: 0, cupon: 63000, prestada: 63000 });
+    assert.match(h, /En oro: 6 monedas, por tus datos/);
+    assert.match(h, /Todavía sin monedas de plata: la primera llega/);
+    assert.ok(!/sin monedas:/.test(h), 'dice «sin monedas» con monedas de oro pintadas al lado');
+  });
+
+  test('con un ajuste negativo que se comió el cupón, la fila y el oro dicen el mismo número', () => {
+    const { h } = cabeceraCon({ ganada: 0, cupon: 100000, prestada: 80000 });
+    assert.match(h, /En oro: 8 monedas, por tus datos/);
+    assert.match(h, /Por tus datos<\/span><span class="v">\+\$80\.000/, 'la fila promete el cupón entero');
+    const solo = cabeceraCon({ ganada: 0, cupon: 100000, referidos: 10000, prestada: 10000 }).h;
+    assert.match(solo, /En oro: 1 moneda, por la gente que trajiste</, 'atribuye a los datos un cupón que ya no queda');
+  });
+
+  test('el botón de pausa nace hidden (la piel lo muestra) y su ícono tiene tamaño propio', () => {
+    const { h } = cabeceraCon({ ganada: 45000 });
+    assert.match(h, /<button type="button" class="pausa-brillo"[^>]* hidden><svg width="16" height="16"/);
+    assert.match(ESTILO.replace(/\/\*[\s\S]*?\*\//g, ''), /\.pausa-brillo\{[^}]*display:grid/, 'sin display en la piel, el hidden lo esconde también con la hoja nueva');
+  });
+
+  test('la ley de la piel declara el ORO antes de usarlo, y sus tonos viven en :root', () => {
+    assert.match(ESTILO, /\*   ORO — la garantía que el cliente tiene SIN haberla ganado pagando/);
+    const root = (ESTILO.match(/:root\s*\{([\s\S]*?)\n\}/) || [, ''])[1];
+    ['--oro-1', '--oro-2', '--oro-3', '--oro-4', '--oro-canto', '--oro-hondo'].forEach(t =>
+      assert.match(root, new RegExp(t + ':#[0-9A-Fa-f]{6};'), 'el :root no define ' + t));
+  });
 });
 
 

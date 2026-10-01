@@ -1518,7 +1518,13 @@
    «foto» con una comilla corria codigo al abrir «Ver datos». Ahora pasan por
    fotoSegura (solo base64 limpio de jpeg/png/webp/gif) y la ubicacion por
    Number(). Toca panel/crm.html. */
-const CACHE = 'tugarantia-v121';
+/* v122 - 1-oct-2026. EL BRILLO CONSTANTE Y LAS MONEDAS DE ORO DE PLATACHAT. Joan
+   pidio brillo constante pero sutil y monedas de oro. La luz vuelve cada
+   6,5 s, a media luz, con un boton de pausa (WCAG 2.2.2) que se guarda en el
+   telefono; el oro es la garantia que no se gano pagando (gd.prestada: por
+   los datos y por la gente traida), en su propia fila. Toca
+   platachat/estilo.css y platachat/index.html. */
+const CACHE = 'tugarantia-v122';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

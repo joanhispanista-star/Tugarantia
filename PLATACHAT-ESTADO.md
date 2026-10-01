@@ -6,6 +6,71 @@
 > que no trae nada que no pueda ser público. Lo primero que tienes que hacer
 > está en «Lo que te toca a ti».
 
+## 1-oct — el brillo constante y las monedas de oro
+
+Joan: «quiero que sea un brillo constante pero sutil y quiero que también
+pongas unas cuantas monedas de oro para mejorar el diseño».
+
+**El brillo, constante y sutil.** La franja de luz vuelve cada 6,5 segundos y
+tarda poco más de un segundo en cruzar, a media luz. Cada fila tiene una sola
+chispa. La regla WCAG 2.2.2 (nivel A) dice que lo que se mueve solo más de
+cinco segundos junto a otro contenido necesita un control para pararlo. Por
+eso hay un **botón de pausa**: el ícono ‖ arriba a la derecha de la tarjeta
+de Plata.
+
+- Al pausar se apaga la luz que cruza, pero el metal se queda.
+- La elección se guarda en el teléfono (`platachat_brillo`).
+- La tarjeta de propuesta del chat brilla una sola vez, porque ahí no hay
+  botón a mano.
+- Con el movimiento reducido no se mueve nada y el botón no aparece.
+
+**El oro cuenta plata de verdad.** Joan eligió entre tres opciones: el oro es
+la garantía que el cliente tiene **sin haberla ganado pagando**, es decir, por
+sus datos y por la gente que trajo.
+
+- Es `gd.prestada`, que `app/ficha.js` saca por resta (total − ganada). Así
+  la plata más el oro es la garantía entera, ni un peso más.
+- Va en su propia fila, debajo de la plata, con la leyenda «En oro: 1 lingote,
+  por tus datos». Se cuenta igual que la plata: $10.000 la moneda y $100.000
+  el lingote.
+- Si no hay garantía aparte de la ganada, no hay fila de oro.
+- No se puso oro de adorno: le mostraría al cliente más garantía de la que
+  tiene (Ley 1480).
+- El ORO quedó declarado en la ley de colores de `estilo.css`.
+
+**De paso:** con nueve lingotes y nueve monedas la fila medía más de 500 px y
+se salía de la tarjeta. Ahora las pilas bajan de línea, los lingotes se montan
+uno sobre otro y, desde nueve lingotes, se dibuja uno con «×N».
+
+**Lo que encontró la revisión adversaria** (2 lentes y un escéptico por
+hallazgo; 5 confirmados y arreglados, 1 descartado):
+
+- **9 o 10 lingotes se salían de la tarjeta en un teléfono de 320 px.** Pasa
+  justo al llegar al millón. El «×N» entraba recién con más de diez; ahora
+  entra con más de ocho.
+- **«Todavía sin monedas» quedaba encima de una fila de oro.** Es el cliente
+  nuevo con datos: el estado más común. Ahora dice «sin monedas de plata».
+- **Con un ajuste negativo del Panel, la fila «Por tus datos» prometía el
+  cupón entero.** El oro, en cambio, mostraba lo que quedaba. Las dos salen
+  ahora de `cuponVivo(gd)` (prestada − referidos), que es la cifra del motor.
+- **Con la hoja vieja en caché, el botón de pausa salía como un cuadro blanco
+  vacío.** Ahora nace `hidden` y la piel lo muestra.
+
+**Pruebas:** 12 nuevas en `pruebas/platachat.test.js`. Las 8 primeras se
+verificaron rompiendo el código a propósito: 8 defectos metidos y 8
+detectados. Vigilan:
+
+- que el oro salga de la prestada y que la fila no aparezca sin oro;
+- el botón de pausa y lo que guarda;
+- que todo brillo en bucle tenga su pausa;
+- que cada `url(#…)` de la piel exista en la página;
+- el `fill="none"` de respaldo;
+- el «×N» desde nueve lingotes;
+- la frase «de plata»;
+- el cupón recortado.
+
+---
+
 ## 1-oct — las monedas en plata de verdad
 
 Joan: «quiero que esas monedas de plata tengan brillo como si fueran de plata y
@@ -19,20 +84,18 @@ cada capa:
 - **La moneda**: el canto con franjas, el fondo hundido y un poco más oscuro,
   el «$» en relieve de plata pulida con su sombra, y una mancha de luz fija.
 - **El lingote**: una barra con cuatro biseles y una tapa brillante.
-- **La luz que cruza**: cada vez que el cliente abre Plata, una franja de luz
-  pasa por la cifra y luego por los lingotes y las monedas, de una en una.
-  Termina antes de 3 segundos.
+- **La luz que cruza**: una franja de luz pasa por la cifra y luego por los
+  lingotes y las monedas, de una en una. (Esa misma tarde pasó a ser
+  constante, con su botón de pausa: ver el bloque de arriba.)
 - **La chispa**: solo en la moneda de encima de la pila y en la tarjeta de
   propuesta del chat.
 - **Las letras de plata**: la cifra de la garantía, el «Chat» del nombre y
   PLATACHAT en la bienvenida. Siguen siendo texto: se leen y se pueden copiar.
 - **El sello de la bienvenida**: metal torneado, con el «$» en plata.
 
-**Por qué la luz no va en bucle.** Lo que se mueve solo más de cinco segundos
-al lado de otro contenido necesita un botón para pararlo (WCAG 2.2.2, nivel A),
-y la calculadora está justo debajo. Si Joan lo quiere en bucle, hay que ponerle
-ese control. Con el movimiento reducido no se mueve nada, pero el metal se
-queda.
+**La luz iba una sola vez** por la regla WCAG 2.2.2. Joan la pidió
+constante esa misma tarde, y ahora va en bucle con su botón de pausa (ver
+«el brillo constante y las monedas de oro», arriba).
 
 **Dos cosas de la revisión adversaria** (3 lentes, 5 hallazgos confirmados y
 arreglados, 1 descartado):
