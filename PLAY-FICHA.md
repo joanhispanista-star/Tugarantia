@@ -5,7 +5,7 @@
 > `android/LEEME.md`. Esta ficha se conserva LISTA por si la tienda se retoma;
 > hoy no hay nada de esto que pegar en ninguna consola.
 
-**Generado desde el código para el 2026-08-15.** No lo edites a mano: sale de
+**Generado desde el código para el 2026-10-01.** No lo edites a mano: sale de
 `app/cumplimiento.js`, que a su vez lee los campos de `app/cuenta.js` y las cifras de
 `app/creditos.js`. Para regenerarlo:
 
@@ -53,7 +53,7 @@ CÓMO FUNCIONA
 3. Dejas tu solicitud. La revisamos y te respondemos por WhatsApp.
 
 DIVULGACIÓN DEL CRÉDITO
-Crédito de libre inversión en cuotas mensuales. Plazo mínimo: 3 meses. Plazo máximo: 6 meses. Tasa efectiva anual máxima: 23,99%. Ejemplo: por $500.000 a 6 meses pagas 6 cuotas de $88.683, para un total de $532.100 ($500.000 de capital y $32.100 de costo). Sin cuotas de manejo, sin seguros y sin cargos adicionales: el costo mostrado es el costo total. Tasa máxima legal vigente en Colombia: 29,66%.
+Crédito de libre inversión en cuotas mensuales. Plazo mínimo: 3 meses. Plazo máximo: 6 meses. Tasa efectiva anual máxima: 23,99%. Ejemplo: por $500.000 a 6 meses pagas 6 cuotas de $88.683, para un total de $532.100 ($500.000 de capital y $32.100 de costo). Sin cuotas de manejo, sin seguros y sin cargos adicionales: el costo mostrado es el costo total. Tasa máxima legal vigente en Colombia: 28,59%.
 
 LO QUE ESTA APP NO TE PIDE
 No accede a tus mensajes, ni a tus llamadas, ni a tus contactos, ni a tu ubicación, ni a las fotos de tu galería. Solo la cámara, y solo en el momento de tomar una foto.
@@ -78,7 +78,7 @@ salen de la misma función, así que no pueden decir números distintos.
 | Ejemplo · cuota | $88.683 × 6 |
 | Ejemplo · costo | $32.100 |
 | Ejemplo · total | **$532.100** |
-| Techo legal del mes | 29,66% (Resolución 1139 de 2026) |
+| Techo legal del mes | 28,59% (Resolución 1472 de 2026) |
 
 ⚠️ **La TAE cambia cuando cambia el techo de usura**, que la Superfinanciera certifica
 cada mes. Al agregar una fila a `TOPES` hay que regenerar este archivo y actualizar la

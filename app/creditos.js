@@ -115,7 +115,12 @@
     { desde: '2026-08-01', hasta: '2026-08-31', consumo_ordinario: 0.2966, ibc: 0.1977, fuente: 'Resolución 1139 de 2026' },
     /* 1-sep-2026: la más baja del año. La tasa fija del producto (24% E.A.)
        queda 5,24 puntos por debajo del techo — sigue legal, con aire. */
-    { desde: '2026-09-01', hasta: '2026-09-30', consumo_ordinario: 0.2924, ibc: 0.1949, fuente: 'Resolución 1260 de 2026' }
+    { desde: '2026-09-01', hasta: '2026-09-30', consumo_ordinario: 0.2924, ibc: 0.1949, fuente: 'Resolución 1260 de 2026' },
+    /* 1-oct-2026: la más baja de la tabla. Verificada contra el comunicado de la
+       Superfinanciera del 30-sep y la serie pare-7x5i. Con este techo la puerta
+       pública se niega a cotizar el préstamo con garantía 14 de los 31 días
+       (del 4 al 10 y del 20 al 26): se niega en vez de pasarse, que es lo legal. */
+    { desde: '2026-10-01', hasta: '2026-10-31', consumo_ordinario: 0.2859, ibc: 0.1906, fuente: 'Resolución 1472 de 2026' }
   ];
 
   /* El régimen de CONSUMO DE BAJO MONTO (que llega a 65,46%) NO está en esta
