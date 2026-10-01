@@ -12,6 +12,21 @@
 <link rel="icon" type="image/png" sizes="192x192" href="../app/icono-192.png">
 <link rel="stylesheet" href="../app/chat.css">
 <link rel="stylesheet" href="estilo.css">
+<script>
+/* 1-oct-2026 — EL MODO PLATACHAT se decide AQUÍ, antes de pintar nada: la piel
+   tiene que estar puesta cuando aparece la cabecera, o el cliente de PlataChat
+   ve un instante la de Tu Garantía. Ver MARCA en el script grande. */
+(function () {
+  if (!/(^|[?&])marca=platachat(&|$)/.test(String(location.search || '').slice(1))) return;
+  window.MARCA_PLATACHAT = true;
+  try {
+    document.documentElement.classList.add('marca-platachat');
+    var l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = '../platachat/piel-registro.css';
+    document.head.appendChild(l);
+  } catch (e) {}
+})();
+</script>
 <style>
 /* 8-sep-2026 — la cédula y el rostro */
 .foto-caja{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px;border:1.5px dashed rgba(255,255,255,.35);border-radius:14px;cursor:pointer;background:rgba(255,255,255,.04)}
@@ -315,7 +330,7 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 <script>
 'use strict';
 
-var VERSION_PLAY = '2026-09-22';
+var VERSION_PLAY = '2026-10-01';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -340,6 +355,116 @@ var EC = window.EscanerCedula;
 var M = window.MotorReglas;
 var FS = window.FichaSocio;
 var CH = window.ChatTuGarantia;
+
+/* ===========================================================================
+ * EL MODO PLATACHAT — 1 de octubre de 2026
+ *
+ * Joan: «el registro del cliente [de PlataChat] quiero que sea como el de
+ * garantía, muy moderno, y que parezca que se escanea la cara y la cédula».
+ *
+ * Este registro ES el de PlataChat, no una copia: play/?marca=platachat#registro.
+ * Copiarlo serían unas dos mil líneas —los nueve pasos, las dos cámaras en
+ * vivo, la vuelta de la cámara, la subida de fotos— que se separarían con el
+ * primer arreglo, y este es el código de la casa que más arreglos ha tenido.
+ * Así, un arreglo aquí le sirve a las dos marcas.
+ *
+ * La marca la decide el <head> (window.MARCA_PLATACHAT), antes de pintar nada,
+ * para que la piel ya esté puesta cuando aparece la cabecera. Lo que cambia
+ * con ella, y NADA MÁS:
+ *   · la piel (platachat/piel-registro.css) y el nombre de arriba;
+ *   · la bandeja: registrar_abierto_app con p_app 'platachat' —la misma puerta
+ *     con la etiqueta—, para que Joan vea en su CRM de qué app vino;
+ *   · el final: se ESPERA a que suban las fotos (en play/ las reintenta «la
+ *     próxima vez que abra su cuenta», y quien viene de PlataChat no vuelve a
+ *     abrir esta), se le pasa la sesión a PlataChat con platachat/sesion.js
+ *     —el formato es suyo y vive allá— y se le manda allá. Sin la oferta del
+ *     primer crédito de play/: en PlataChat se pide por el chat;
+ *   · sin la tarjeta del acompañamiento: PlataChat no tiene asesores todavía,
+ *     y un 'tg_acompana' que quedó de play/ en este teléfono NO puede ponerse
+ *     a publicar el avance de alguien que vino por otra puerta;
+ *   · «Volver» desde el primer paso, y cualquier arranque que en play/ llevaría
+ *     a la portada o a la cuenta de Tu Garantía, lleva a PlataChat.
+ * ======================================================================== */
+var MARCA = window.MARCA_PLATACHAT === true ? 'platachat' : 'tugarantia';
+var URL_PLATACHAT = '../platachat/index.html';
+
+function volverAPlataChat() { location.href = URL_PLATACHAT; }
+
+if (MARCA === 'platachat') {
+  try {
+    document.title = 'PlataChat · Abre tu cuenta';
+    var marcaCab = document.querySelector('.cab .marca');
+    if (marcaCab) marcaCab.innerHTML = '<span class="pin">P</span> PlataChat <span class="porNexeco">de Tu Garantía</span>';
+  } catch (e) {}
+}
+
+/* La sesión de esta página, en el formato de PlataChat. sesion.js se carga
+   solo aquí y solo con esta marca: es el dueño del formato, y copiarlo acá
+   serían dos verdades sobre la llave con la que PlataChat abre la cuenta. */
+function pasarSesionAPlataChat(sesion, celular, nombre) {
+  return cargarScript('../platachat/sesion.js').then(function () {
+    var SPC = window.SesionPlataChat;
+    if (!SPC || !SPC.sesionDe || !SPC.guardar) throw new Error('no cargó platachat/sesion.js');
+    if (!SPC.guardar(SPC.sesionDe(sesion, celular, { nombre: nombre }))) throw new Error('no se pudo guardar la sesión');
+  });
+}
+
+/* El final del registro con la marca. Primero las fotos y después la sesión:
+   si se le mandara a PlataChat antes, la subida moriría con esta página. */
+function pintarRegistradoPlataChat() {
+  VISTA = 'listo';
+  marcarVista('');
+  $('titulo').textContent = 'Tu cuenta de PlataChat quedó abierta';
+  $('cuerpo').innerHTML =
+    '<div class="card"><div class="aviso verde"><b>Listo.</b> Tu cuenta quedó creada.</div>' +
+      '<p class="sub" id="pcSubida" style="margin-top:var(--e4)">Subiendo tus fotos…</p>' +
+      '<div id="pcAcciones"></div>' +
+    '</div>' + pie();
+  window.scrollTo(0, 0);
+  return terminarEnPlataChat();
+}
+
+function terminarEnPlataChat() {
+  var s = $('pcSubida'), a = $('pcAcciones');
+  var nombre = ((REGISTRO.nombres || '') + ' ' + (REGISTRO.apellidos || '')).replace(/\s+/g, ' ').trim();
+  var cel = celularDeSesion() || REGISTRO.celular;
+  var desde = Date.now();
+  if (a) a.innerHTML = '';
+  return subirArchivosRegistro().then(function () { return true; }, function () { return false; })
+    .then(function (llego) {
+      /* subirArchivosRegistro resuelve también cuando la base RECHAZA o guarda
+         a medias: lo que pasó lo anota en leerSubida(). Se mira esa nota, y
+         solo si es de ESTA subida (una vieja diría otra cosa). Sin nota es que
+         no había nada que subir —no dio el permiso de fotos—, y eso no es un
+         fallo. */
+      var nota = leerSubida();
+      var deAhora = nota && Number(nota.t) >= desde;
+      var bien = llego && (!deAhora || nota.estado === 'ok');
+      if (bien) {
+        if (s) s.textContent = 'Listo. Te llevamos a PlataChat…';
+        return entrarAPlataChat(cel, nombre);
+      }
+      if (s) s.textContent = 'Tu cuenta quedó abierta, pero tus fotos no alcanzaron a subir. ' +
+        'Sin la foto de tu cédula no podemos revisar tu registro.';
+      if (a) a.innerHTML =
+        '<button class="btn arriba" onclick="terminarEnPlataChat()">Volver a intentar subirlas</button>' +
+        '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="entrarAPlataChat(\'' +
+          esc(cel) + '\', \'' + esc(nombre).replace(/'/g, '&#39;') + '\')">Entrar a PlataChat sin ellas</button>' +
+        '<div class="ayuda">Si entras sin ellas, mándanos la foto de tu cédula por el chat de Servicio.</div>';
+    });
+}
+
+function entrarAPlataChat(cel, nombre) {
+  if (!SESION || !SESION.access_token) { volverAPlataChat(); return Promise.resolve(); }
+  return pasarSesionAPlataChat(SESION, cel, nombre).then(volverAPlataChat, function () {
+    /* Sin la sesión pasada, PlataChat pide entrar: con el celular y la
+       contraseña que acaba de crear, que es la misma cuenta. Se le dice antes. */
+    var s = $('pcSubida');
+    if (s) s.textContent = 'Tu cuenta quedó abierta. En PlataChat entra con tu celular y la contraseña que acabas de crear.';
+    var a = $('pcAcciones');
+    if (a) a.innerHTML = '<button class="btn arriba" onclick="volverAPlataChat()">Ir a PlataChat</button>';
+  });
+}
 
 /* EL GUARDIÁN VA AQUÍ ARRIBA, Y ESO ES TODO EL ARREGLO — 16-sep-2026.
    Estaba al final, dentro del arranque, y por eso NUNCA SE EJECUTABA cuando
@@ -851,6 +976,7 @@ var ACOMPANA = false;
 try { ACOMPANA = localStorage.getItem('tg_acompana') === '1'; } catch (e) {}
 
 function tarjetaAcompanar() {
+  if (MARCA === 'platachat') return '';   // sin asesores en PlataChat (ver EL MODO PLATACHAT)
   /* Sin celular no hay a quién asociarlo: el asesor lo encuentra por su número. */
   if (!REGISTRO.celular) return '';
   return '<div class="aviso ' + (ACOMPANA ? 'verde' : 'info') + '" style="margin-top:var(--e3)">' +
@@ -882,6 +1008,7 @@ var CAMPOS_QUE_SE_PUBLICAN = ['nombres', 'apellidos', 'documento', 'tipo_doc',
                               'celular', 'correo', 'nacimiento'];
 
 function publicarAvance() {
+  if (MARCA === 'platachat') return Promise.resolve();   // ver EL MODO PLATACHAT
   if (!ACOMPANA || !REGISTRO.celular) return Promise.resolve();
   if (!CFG.url || !CFG.anon) return Promise.resolve();
 
@@ -972,7 +1099,7 @@ function pintarRegistro(paso) {
       '<button class="btn arriba" onclick="siguientePaso()">' +
         (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : 'Continuar') + '</button>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="' +
-        (PASO === 0 ? 'pintarEntrar()' : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
+        (PASO === 0 ? (MARCA === 'platachat' ? 'volverAPlataChat()' : 'pintarEntrar()') : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
     '</div>' + pie();
   window.scrollTo(0, 0);
   /* Cada vez que cambia de paso, si dio permiso, se publica. En un try porque un
@@ -1151,7 +1278,11 @@ function pasoCampos(grupo) {
 }
 
 function pasoPermiso() {
-  return '<p class="sub">Para abrir tu cuenta necesitamos tu permiso para tratar tus datos, ' +
+  return (MARCA === 'platachat'
+      ? '<div class="aviso info">PlataChat es un nombre comercial de Tu Garantía: quien recibe y cuida ' +
+        'tus datos es Tu Garantía, con las mismas reglas que lees aquí.</div>'
+      : '') +
+    '<p class="sub">Para abrir tu cuenta necesitamos tu permiso para tratar tus datos, ' +
       'como manda la Ley 1581 de 2012.</p>' +
     '<label class="permiso"><input type="checkbox" id="autGeneral"><span>' +
       '<b>Autorizo el tratamiento de mis datos personales.</b>' +
@@ -1320,16 +1451,31 @@ function enviarRegistro(sensibles) {
      falla no se crea nada y el cliente reintenta; y si la cuenta falla después,
      el registro YA está en la bandeja — reintentar no lo duplica, porque
      registrar_abierto es idempotente por celular. */
-  fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registrar_abierto', {
+  /* 1-oct-2026 — con la marca, la misma puerta CON LA ETIQUETA:
+     registrar_abierto_app es copia fiel de registrar_abierto más p_app
+     (base/20260921_platachat_app.sql). Y su 404 no se disfraza de «revisa tu
+     internet»: es la base sin esa migración, y se dice. */
+  var cuerpoRegistro = {
+    p_celular: REGISTRO.celular,
+    p_nombre: ((REGISTRO.nombres || '') + ' ' + (REGISTRO.apellidos || '')).replace(/\s+/g, ' ').trim(),
+    p_cedula: REGISTRO.documento || '',
+    p_datos: REGISTRO
+  };
+  if (MARCA === 'platachat') cuerpoRegistro.p_app = 'platachat';
+  /* Las dos rutas escritas enteras: el centinela de motor.test.js («la bandeja
+     va PRIMERO») las busca por su texto antes del signup. */
+  var rutaRegistro = MARCA === 'platachat' ? '/rest/v1/rpc/registrar_abierto_app' : '/rest/v1/rpc/registrar_abierto';
+  fetch(CFG.url.replace(/\/+$/, '') + rutaRegistro, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
-    body: JSON.stringify({
-      p_celular: REGISTRO.celular,
-      p_nombre: ((REGISTRO.nombres || '') + ' ' + (REGISTRO.apellidos || '')).replace(/\s+/g, ' ').trim(),
-      p_cedula: REGISTRO.documento || '',
-      p_datos: REGISTRO
+    body: JSON.stringify(cuerpoRegistro)
+  }).then(function (res) {
+      if (MARCA === 'platachat' && res.status === 404) {
+        throw { humano: 'El registro de PlataChat todavía no está encendido. Tus datos quedaron guardados en este teléfono: ' +
+                        'vuelve a intentar más tarde y no tendrás que escribirlos otra vez.' };
+      }
+      return res.ok ? res.json() : Promise.reject(new Error('http ' + res.status));
     })
-  }).then(function (res) { return res.ok ? res.json() : Promise.reject(new Error('http ' + res.status)); })
     .then(function (r) {
       if (!r || r.ok !== true) {
         throw { humano: 'No pudimos recibir tu registro. Revisa tu celular y tu nombre, y vuelve a intentar en unos minutos.' };
@@ -1419,6 +1565,7 @@ function entrarConLaClaveDelRegistro(err, autorizacion) {
 }
 
 function pintarRegistrado() {
+  if (MARCA === 'platachat') return pintarRegistradoPlataChat();
   VISTA = 'listo';
   /* 21-sep-2026 — se suelta #registro: una relanzada aquí caía en «Paso 1 de
      9» con el formulario vacío. Con la dirección limpia y la marca de cuenta
@@ -2929,6 +3076,10 @@ function anotarSubida(estado, pedidas, ok) {
    fallo desaparezca sin dejar rastro, que es como trece días de fotos se
    perdieron dentro de dos  vacíos. */
 function subidaEnSegundoPlano() {
+  /* 1-oct-2026 — con la marca, la subida la hace terminarEnPlataChat, ESPERANDO
+     el resultado antes de mandar a la persona a PlataChat. Sin esta línea las
+     dos corrían a la vez y cada foto se mandaba dos veces. */
+  if (MARCA === 'platachat') return;
   try { subirArchivosRegistro()['catch'](function () {}); } catch (e) {}
 }
 function leerSubida() {
@@ -5595,7 +5746,15 @@ function pie() {
   var sesionGuardada = leerSesionEnCurso();
   var veniaDelRegistro = hayPasoGuardado();
   var reciente = cuentaRecienCreada();
-  if (sesionGuardada) {
+  /* 1-oct-2026 — con la marca, lo que aquí abriría la cuenta o la portada de
+     Tu Garantía lleva a PlataChat: la sesión se le pasa, y quien ya tiene
+     cuenta entra allá. Ver EL MODO PLATACHAT. */
+  if (sesionGuardada && MARCA === 'platachat') {
+    SESION = sesionGuardada;
+    entrarAPlataChat(celularDeSesion(), '');
+  } else if (reciente && !veniaDelRegistro && MARCA === 'platachat') {
+    volverAPlataChat();
+  } else if (sesionGuardada) {
     pintarCuenta(sesionGuardada);
   } else if (reciente && !veniaDelRegistro) {
     /* 21-sep-2026 — la cuenta ya nació y la sesión se fue con la relanzada:
@@ -5603,7 +5762,7 @@ function pie() {
        para que al final le digan que ya existe. */
     pintarEntrar();
     avisarCuentaCreada(reciente);
-  } else if (veniaDelRegistro || location.hash === '#registro') {
+  } else if (veniaDelRegistro || location.hash === '#registro' || MARCA === 'platachat') {
     var donde = veniaDelRegistro ? leerPaso() : 0;
     pintarRegistro(donde);
     /* El aviso solo cuando de verdad hubo una interrupción: quien llega por el

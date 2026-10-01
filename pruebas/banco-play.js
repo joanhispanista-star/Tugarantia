@@ -58,8 +58,11 @@ function abrirPlay(opciones) {
     sessionStorage: { getItem: k => (k in sesion ? sesion[k] : null),
                       setItem: (k, v) => { sesion[k] = String(v); },
                       removeItem: k => { delete sesion[k]; } },
-    location: { href: 'https://tugarantia.net/play/' + (o.hash || ''), hash: o.hash || '',
-                pathname: '/play/', search: '', protocol: 'https:',
+    /* 1-oct-2026 — `search` se puede poner (o.search, '' por defecto): el modo
+       PlataChat del registro se reconoce por ?marca=platachat. Sin esto el banco
+       solo sabía abrir la puerta de Tu Garantía. */
+    location: { href: 'https://tugarantia.net/play/' + (o.search || '') + (o.hash || ''), hash: o.hash || '',
+                pathname: '/play/', search: o.search || '', protocol: 'https:',
                 host: 'tugarantia.net', origin: 'https://tugarantia.net', reload() {} },
     /* replaceState MUEVE EL HASH DE VERDAD, y no es un lujo del banco: la página
        marca dónde está la persona con él (marcarVista), y un replaceState de
@@ -69,7 +72,7 @@ function abrirPlay(opciones) {
     history: { replaceState(estado, titulo, url) {
       const i = String(url == null ? '' : url).indexOf('#');
       ctx.location.hash = i >= 0 ? String(url).slice(i) : '';
-      ctx.location.href = 'https://tugarantia.net/play/' + ctx.location.hash;
+      ctx.location.href = 'https://tugarantia.net/play/' + ctx.location.search + ctx.location.hash;
     } },
     navigator: { userAgent: 'node', serviceWorker: { register: () => Promise.resolve() },
                  geolocation: { getCurrentPosition() {} }, mediaDevices: null },

@@ -58,11 +58,13 @@ const CHAT = require('../app/chat.js');
 const blanquear = (s, re) => s.replace(re, m => m.replace(/[^\n]/g, ' '));
 const sinComentarios = s => blanquear(blanquear(s, /<!--[\s\S]*?-->/g), /\/\*[\s\S]*?\*\//g);
 
-/* Las siete funciones de la base que PlataChat tiene que llamar, y con las
-   que la página promete al cliente entrar, juntar su historial, chatear,
-   registrarse, contar el acceso y mandar su comprobante. */
+/* Las funciones de la base que PlataChat tiene que llamar, y con las que la
+   página promete al cliente entrar, juntar su historial, chatear, contar el
+   acceso y mandar su comprobante. registrar_abierto_app ya no está aquí: desde
+   el 1-oct el alta es la de play/ con ?marca=platachat, y la llama esa página
+   (pruebas/platachat-registro.test.js lo vigila allá). */
 const RPC_OBLIGATORIAS = ['mi_cuenta', 'vincular_cuenta', 'chat_leer_sesion', 'chat_escribir_sesion',
-                          'registrar_abierto_app', 'marcar_acceso', 'chat_foto_sesion'];
+                          'marcar_acceso', 'chat_foto_sesion'];
 
 /* Los ocho archivos que carga index.html, en el orden del contrato. El orden
    importa: ficha.js toma MotorReglas al cargar, sesion.js toma CuentaSocio,
@@ -222,7 +224,7 @@ describe('PlataChat: lo que carga y en qué orden', () => {
     assert.match(PAGINA, /<link rel="manifest" href="app.webmanifest">/);
     assert.match(PAGINA, /<meta name="theme-color" content="#0C0A0B">/);
     assert.match(PAGINA, /navigator\.serviceWorker\.register\('\.\.\/sw\.js'\)/);
-    assert.match(PAGINA, /var VERSION_APP = '2026-09-26'/);
+    assert.match(PAGINA, /var VERSION_APP = '2026-10-01'/);
   });
 
   test('la guarda de HTTPS es lo PRIMERO que corre, antes que cualquier lectura del almacén', () => {
@@ -253,8 +255,10 @@ describe('PlataChat: todo el JavaScript compila', () => {
     [...bc.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
       .forEach((m, i) => assert.doesNotThrow(() => new vm.Script(m[1], { filename: 'borrar#' + i })));
     const SP = require('../platachat/sesion.js');
-    ['entrar', 'registrar', 'recado', 'refrescar', 'rpc', 'guardar', 'leer', 'borrar', 'correoDe']
+    ['entrar', 'recado', 'refrescar', 'rpc', 'guardar', 'leer', 'borrar', 'correoDe', 'sesionDe']
       .forEach(f => assert.equal(typeof SP[f], 'function', 'sesion.js no expone ' + f));
+    /* 1-oct-2026: el alta propia se fue (sin cédula ni permiso de fotos). Que no vuelva. */
+    assert.equal(SP.registrar, undefined, 'volvió el alta propia de PlataChat: la puerta es el registro de play/');
     assert.equal(SP.LLAVE, 'platachat_sesion');
   });
 });
@@ -399,8 +403,13 @@ describe('PlataChat: la página pintando de verdad', () => {
     assert.doesNotThrow(() => P.ev('pintarEntrar()'));
     const h = P.elems.entrarCuerpo.innerHTML;
     assert.ok(h.length > 1500, 'la puerta salió casi vacía (' + h.length + ' letras)');
-    ['inCelular', 'inClave', 'btnEntrar', 'inNuevoCelular', 'inNuevoNombre', 'inNuevoCedula', 'inNuevoClave', 'btnRegistrar']
+    ['inCelular', 'inClave', 'btnEntrar', 'btnRegistrar']
       .forEach(id => assert.ok(h.indexOf('id="' + id + '"') >= 0, 'la puerta no tiene #' + id));
+    /* 1-oct-2026 — «Soy nuevo» lleva al registro con escáner de play/, con la marca. */
+    assert.match(h, /<a class="btn marca" id="btnRegistrar" href="\.\.\/play\/index\.html\?marca=platachat#registro"/,
+      '«Abrir mi cuenta» no lleva al registro con escáner');
+    assert.ok(!/inNuevoClave|inNuevoCelular/.test(h), 'volvió el formulario de cuatro cajas');
+    assert.match(h, /permiso aparte, antes de encender la cámara/, 'no dice que las fotos llevan su propio permiso');
     assert.match(h, /¿Ya eras cliente de Tu Garantía\? Después de entrar escribe tu código en <b>Yo<\/b>/);
     assert.equal(P.ev('S'), null, 'sin sesión no hay socio abierto');
     assert.equal(P.ev('SES'), null);
@@ -832,26 +841,6 @@ describe('PlataChat: la página pintando de verdad', () => {
     assert.equal(n.llamadas.length, antes);
   });
 
-  test('sesion.js: registrar va PRIMERO a la bandeja (registrar_abierto_app, anon) y DESPUÉS a Auth', async () => {
-    const n = nube(fn => (/auth\/v1\/signup/.test(fn)
-      ? { access_token: 'tok', refresh_token: 'ref', expires_in: 3600 }
-      : { ok: true }));
-    const P = abrirPlataChat({ red: n.red });
-    const r = await P.ev("SP.registrar(CFG, { celular: '3001112233', nombre: 'Ana Pérez', cedula: '', clave: 'una-clave-larga' })");
-    assert.equal(r.ok, true, r.motivo);
-    assert.equal(n.llamadas[0].fn, 'registrar_abierto_app', 'no fue primero a la bandeja');
-    assert.equal(n.llamadas[0].cab.Authorization, 'Bearer ' + P.ev('CFG.anon'), 'el registro va con el anon: todavía no hay sesión');
-    assert.equal(n.llamadas[0].cuerpo.p_app, 'platachat');
-    assert.equal(n.llamadas[0].cuerpo.p_celular, '3001112233');
-    assert.ok(/auth\/v1\/signup/.test(n.llamadas[1].url), 'la cuenta en Auth va después');
-    assert.equal(n.llamadas[1].cuerpo.data.app, 'platachat');
-    /* Si la bandeja falla, Auth NO se toca: reintentar no duplica nada. */
-    const m = nube(fn => (fn === 'registrar_abierto_app' ? { ok: false, motivo: 'datos' } : { ok: true }));
-    const Q = abrirPlataChat({ red: m.red });
-    const r2 = await Q.ev("SP.registrar(CFG, { celular: '3001112233', nombre: 'Ana Pérez', cedula: '', clave: 'una-clave-larga' })");
-    assert.equal(r2.ok, false);
-    assert.equal(m.llamadas.length, 1, 'con la bandeja caída igual intentó crear la cuenta en Auth');
-  });
 
   /* ------------------------------------------------------------------
      Lo que la auditoría adversaria del 14-sep encontró en este mismo
@@ -950,12 +939,6 @@ describe('PlataChat: la página pintando de verdad', () => {
     const Q = abrirPlataChat({ red: m.red });
     const r2 = await Q.ev("SP.entrar(CFG, '300 111 2233', 'otra-clave')");
     assert.match(r2.motivo, /Revísalos/);
-    /* El registro: la bandeja caída (503) no es «revisa tu celular y tu nombre». */
-    const k = nube(fn => (fn === 'registrar_abierto_app' ? { __estado: 503 } : { ok: true }));
-    const R = abrirPlataChat({ red: k.red });
-    const r3 = await R.ev("SP.registrar(CFG, { celular: '3001112233', nombre: 'Ana Pérez', cedula: '', clave: 'una-clave-larga' })");
-    assert.equal(r3.motivo, R.ev('SP.NUBE_CAIDA'));
-    assert.equal(k.llamadas.length, 1, 'con la bandeja caída igual fue a Auth');
     /* Y el rpc: un 502 no dice «revisa tu internet» y NO lleva red:true (por eso
        la página no lo pinta como «sin conexión»). */
     const j = nube(fn => (fn === 'mi_cuenta' ? { __estado: 502 } : { ok: true }));

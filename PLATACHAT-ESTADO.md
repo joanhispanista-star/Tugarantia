@@ -1,10 +1,39 @@
-# Parte del 26 de septiembre de 2026 — PlataChat, fases 1a y 1b
+# Parte del 1 de octubre de 2026 — PlataChat, fases 1a y 1b
 
 > Al día el 26 de septiembre (abierto el 14, fase 1b el 15). El plan es `PLAN-PLATACHAT.md`;
 > los toques a archivos ajenos están en `RECETA-PLATACHAT.md` (se queda en tu
 > computador: la ignora `.gitignore`). Este parte sí sube al repositorio, así
 > que no trae nada que no pueda ser público. Lo primero que tienes que hacer
 > está en «Lo que te toca a ti».
+
+## 1-oct — el registro con escáner
+
+Joan: «el registro del cliente quiero que sea como el de garantía, muy moderno
+y que parezca que se escanea la cara y la cédula».
+
+**No se copió.** El registro de Tu Garantía (`play/`) son unas dos mil líneas:
+nueve pasos, la cámara en vivo que lee el código de barras de la cédula y llena
+los datos, la del rostro, la vuelta de la cámara y la subida de fotos. Es el
+código de la casa con más arreglos. Una copia se habría separado con el primero.
+Ahora «Abrir mi cuenta» de PlataChat lleva a `play/index.html?marca=platachat#registro`,
+que es ese mismo registro con:
+
+- la piel de PlataChat (`platachat/piel-registro.css`, que solo cambia valores
+  de los colores que `play/` ya usa) y «PlataChat de Tu Garantía» arriba;
+- la bandeja con la etiqueta (`registrar_abierto_app`, `p_app` = `platachat`);
+- al final, las fotos suben ANTES de irse (si no suben, lo dice y deja
+  reintentar), la sesión pasa a PlataChat con `platachat/sesion.js` y la persona
+  vuelve a PlataChat, sin la oferta del primer crédito de `play/`;
+- sin la tarjeta del acompañamiento de un asesor.
+
+Sin la marca, `play/` no cambia: todas sus pruebas siguen en verde. El alta de
+cuatro cajas de PlataChat se quitó (no pedía la cédula ni el permiso de fotos).
+La cámara en vivo no se pudo ver desde el computador (el navegador de prueba la
+bloquea); es la misma que ya usan los clientes de Tu Garantía. **Sigue sin
+funcionar hasta que se peguen las tres migraciones:** al final dice que el
+registro de PlataChat todavía no está encendido, sin culpar al internet.
+
+---
 
 ## 26-sep — lo que cambió antes de publicar
 

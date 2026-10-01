@@ -1,0 +1,52 @@
+/* ============================================================================
+ * LA PIEL DE PLATACHAT PARA EL REGISTRO — 1 de octubre de 2026
+ *
+ * Joan: «el registro del cliente [de PlataChat] quiero que sea como el de
+ * garantía, muy moderno, y que parezca que se escanea la cara y la cédula».
+ *
+ * El registro de PlataChat ES el de play/ (play/?marca=platachat#registro),
+ * no una copia: nueve pasos, las dos cámaras en vivo, la vuelta de la cámara y
+ * la subida de fotos viven en un solo sitio, y un arreglo allá le sirve a las
+ * dos marcas. Lo único que cambia de aspecto es esta hoja, que play/ carga
+ * desde su <head> SOLO con ?marca=platachat (y le pone la clase
+ * .marca-platachat a <html> antes de pintar nada).
+ *
+ * CÓMO FUNCIONA: no redefine ni una regla de play/estilo.css. Le cambia el
+ * VALOR a los tokens que esa hoja ya usa (--rojo es «la marca», --amarillo «el
+ * dorado de las cifras»), con los colores de platachat/estilo.css: el verde
+ * de WeChat donde Tu Garantía tiene rojo, y plata donde tiene dorado. Si play/
+ * cambia una regla, aquí no hay nada que tocar; si cambia un token de nombre,
+ * la prueba de pruebas/platachat-registro.test.js se cae.
+ *
+ * LA ESPECIFICIDAD ES LA DE play/ MÁS UNA CLASE, a propósito: :root.marca-
+ * platachat gana a :root, y cada bloque oscuro de aquí gana al oscuro de allá.
+ * Sin los dos bloques oscuros, el bloque claro de esta hoja —que carga
+ * DESPUÉS— le ganaría al oscuro de play/ por orden, y en modo oscuro saldría
+ * el fondo claro con la letra clara.
+ * ==========================================================================*/
+
+:root.marca-platachat{
+  /* La marca: el verde de PlataChat. --rojo-texto es el verde oscuro que
+     aguanta 4,5:1 sobre el papel blanco; el de botón lleva letra blanca. */
+  --rojo:#07C160; --rojo-laca:#3DD97F; --rojo-tinte:#E7F8EE; --rojo-texto:#04803F;
+  /* El dorado de las cifras pasa a plata: PlataChat cuenta en monedas y
+     lingotes de plata, no de oro. */
+  --amarillo:#C9CDD4; --amarillo-tinta:#5C6370;
+  /* Los grises de PlataChat son un poco más fríos que los de Tu Garantía,
+     para que la plata tenga sobre qué brillar. */
+  --fondo:#F3F4F6; --gris:#6E7480; --linea:#E3E6EB; --blanco-laca:#F7F8FA;
+  --placa:
+    linear-gradient(103deg, transparent 32%, color-mix(in srgb, var(--luz) 5%, transparent) 45%, transparent 60%),
+    radial-gradient(140% 110% at 16% -25%, #23262B 0%, #121316 45%, #0C0A0B 100%);
+}
+
+@media (prefers-color-scheme:dark){ :root.marca-platachat:not([data-theme="light"]){
+  --tinta:#EDEFF2; --papel:#141517; --fondo:#0B0B0C; --linea:#26292E; --gris:#9AA1AB;
+  --rojo-tinte:#0F2418; --rojo-texto:var(--rojo-laca);
+  --amarillo-tinta:#B3B9C3;
+} }
+:root.marca-platachat[data-theme="dark"]{
+  --tinta:#EDEFF2; --papel:#141517; --fondo:#0B0B0C; --linea:#26292E; --gris:#9AA1AB;
+  --rojo-tinte:#0F2418; --rojo-texto:var(--rojo-laca);
+  --amarillo-tinta:#B3B9C3;
+}

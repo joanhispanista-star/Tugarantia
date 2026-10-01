@@ -1490,7 +1490,15 @@
    decia «Te faltan N por pagar». La lista viaja vacia, la tarjeta solo dice
    cuanta gente trajo y la garantia que el motor de verdad le acredita. Toca
    app/puente.js, app/socio.html y panel/crm.html. */
-const CACHE = 'tugarantia-v116';
+/* v117 - 1-oct-2026. EL REGISTRO DE PLATACHAT ES EL DE play/, CON LA MARCA. Joan
+   pidió que fuera «como el de garantía, muy moderno, que parezca que se escanea
+   la cara y la cédula». En vez de copiar las dos mil líneas del registro,
+   play/?marca=platachat#registro le pone la piel de PlataChat
+   (platachat/piel-registro.css, nueva en la precarga), lo manda a la bandeja
+   con la etiqueta de la app, sube las fotos ANTES de irse, y le pasa la sesión
+   a PlataChat. Sin la marca, play/ no cambia. Toca play/index.html,
+   platachat/index.html y platachat/sesion.js (fuera el alta de cuatro cajas). */
+const CACHE = 'tugarantia-v117';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -1589,6 +1597,8 @@ const ARCHIVOS = [
   'platachat/',
   'platachat/index.html',
   'platachat/estilo.css',
+  /* 1-oct-2026 — la piel de PlataChat para el registro de play/ con la marca. */
+  'platachat/piel-registro.css',
   'platachat/sesion.js',
   'platachat/app.webmanifest',
   'platachat/borrar-cuenta.html',

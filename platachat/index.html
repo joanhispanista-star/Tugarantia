@@ -121,7 +121,7 @@
    página y los .js llegan frescos (red primero) pero estilo.css y los iconos
    se quedan con la copia guardada hasta que suba CACHE. Cuando la receta esté
    aplicada, la regla vuelve a ser la de socio.html: fecha acá Y CACHE allá. */
-var VERSION_APP = '2026-09-26';
+var VERSION_APP = '2026-10-01';
 (function () {
   var v = document.getElementById('holaVersion');
   if (v) v.textContent = 'Versión ' + VERSION_APP;
@@ -265,6 +265,11 @@ var SP = window.SesionPlataChat;
    conexión y la página de borrar la cuenta). Quien no puede entrar deja un
    RECADO (pedir_ayuda_clave, la única puerta sin sesión, con freno), que cae
    en la bandeja de recados del CRM. Ver pintarRecado. */
+
+/* 1-oct-2026 — la puerta para abrir cuenta: el registro de play/ con la piel y la
+   etiqueta de PlataChat. Al terminar, esa página le pasa la sesión a esta
+   (platachat/sesion.js) y vuelve aquí. Ver «EL MODO PLATACHAT» en play/index.html. */
+var URL_REGISTRO = '../play/index.html?marca=platachat#registro';
 
 var $ = function (id) { return document.getElementById(id); };
 var COP = function (n) { return '$' + Math.round(n || 0).toLocaleString('es-CO'); };
@@ -510,21 +515,20 @@ function pintarEntrar() {
       '<div id="errEntrar" class="aviso ambar oculto"></div>' +
       '<button type="button" class="btn claro" style="margin-top:var(--e3)" onclick="pintarRecado()">¿Olvidaste tu contraseña o no puedes entrar? Déjanos un recado</button>' +
     '</div>' +
+    /* 1-oct-2026 — EL REGISTRO ES EL DE TU GARANTÍA, CON LA PIEL DE PLATACHAT.
+       Joan: «el registro del cliente quiero que sea como el de garantía, muy
+       moderno, y que parezca que se escanea la cara y la cédula». Aquí había
+       un formulario de cuatro cajas que no pedía ni la cédula ni el permiso de
+       las fotos; el de play/ tiene las dos cámaras en vivo, lee el código de
+       barras de la cédula y llena los datos con él, y sobrevive a la vuelta
+       de la cámara. Se usa ESE, con ?marca=platachat (ver URL_REGISTRO). */
     '<div class="card">' +
       '<h3 class="tit">Soy nuevo</h3>' +
-      '<p class="sub">Tu cuenta se abre con tu celular. La contraseña la eliges tú; la cédula es opcional y ayuda a que te reconozcamos.</p>' +
-      '<label for="inNuevoCelular">Tu celular</label>' +
-      '<input id="inNuevoCelular" type="tel" inputmode="numeric" autocomplete="username" placeholder="300 111 2233" oninput="tecleaTel(this)">' +
-      '<label for="inNuevoNombre">Tu nombre</label>' +
-      '<input id="inNuevoNombre" type="text" autocomplete="name" placeholder="Como aparece en la cédula">' +
-      '<label for="inNuevoCedula">Tu cédula <span class="muted">(opcional)</span></label>' +
-      '<input id="inNuevoCedula" type="text" inputmode="numeric" autocomplete="off" placeholder="Solo los números">' +
-      '<label for="inNuevoClave">Una contraseña</label>' +
-      '<input id="inNuevoClave" type="password" autocomplete="new-password" placeholder="Mínimo ' +
-        ((U && U.LARGO_MINIMO_CLAVE) || 8) + ' caracteres">' +
-      '<button type="button" class="btn claro" id="btnRegistrar" style="margin-top:var(--e4)">Abrir mi cuenta</button>' +
-      '<div id="errRegistrar" class="aviso ambar oculto"></div>' +
-      '<div class="muted" style="font-size:12.5px;margin-top:var(--e3)">Al abrir la cuenta aceptas los ' +
+      '<p class="sub">Abres tu cuenta en unos minutos. La cámara lee tu cédula y llena con ella tus datos, ' +
+        'y te toma la foto del rostro. La contraseña la eliges tú.</p>' +
+      '<a class="btn marca" id="btnRegistrar" href="' + URL_REGISTRO + '" style="margin-top:var(--e4)">Abrir mi cuenta</a>' +
+      '<div class="muted" style="font-size:12.5px;margin-top:var(--e3)">Las fotos de tu cédula y de tu rostro ' +
+        'te las pedimos con un permiso aparte, antes de encender la cámara. Al abrir la cuenta aceptas los ' +
         '<a href="../legal/terminos.html" target="_blank" rel="noopener" style="color:inherit">Términos</a> y el ' +
         '<a href="../legal/privacidad.html" target="_blank" rel="noopener" style="color:inherit">uso de tus datos</a>.</div>' +
     '</div>' +
@@ -532,9 +536,7 @@ function pintarEntrar() {
       'y tu garantía, tu cupo y tu historial aparecen aquí también.</div>' +
     '<div class="pie">Tus datos solo los ves tú, con tu celular y tu contraseña.' + enlacesLegales() + selloDeVersion() + '</div>';
   var b = $('btnEntrar'); if (b) b.addEventListener('click', entrar);
-  var r = $('btnRegistrar'); if (r) r.addEventListener('click', registrar);
   var c = $('inClave'); if (c) c.addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
-  var k = $('inNuevoClave'); if (k) k.addEventListener('keydown', function (e) { if (e.key === 'Enter') registrar(); });
 }
 
 function tecleaTel(el) {
@@ -551,25 +553,6 @@ function entrar() {
     if (!r.ok) return fallo(err, r.motivo);
     if (err) err.classList.add('oculto');
     SES = r.sesion;
-    mostrar('pCargando');
-    return cargarCuenta();
-  });
-}
-
-function registrar() {
-  var err = $('errRegistrar');
-  if (!SP) return fallo(err, 'No cargó una parte de la app (sesion.js). Cierra y vuelve a abrir con internet.');
-  fallo(err, 'Abriendo tu cuenta…');
-  SP.registrar(CFG, {
-    celular: $('inNuevoCelular').value, nombre: $('inNuevoNombre').value,
-    cedula: $('inNuevoCedula').value, clave: $('inNuevoClave').value
-  }).then(function (r) {
-    if (!r.ok) return fallo(err, r.motivo);
-    if (err) err.classList.add('oculto');
-    SES = r.sesion;
-    /* El recién llegado cae en Créditos: es por donde pide su primer crédito,
-       y la pestaña Plata se lo dice también. */
-    CANAL = 'creditos'; TAB = 'plata';
     mostrar('pCargando');
     return cargarCuenta();
   });

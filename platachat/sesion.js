@@ -139,84 +139,11 @@
     });
   }
 
-  /* ------------------------------------------------------------------------
-     REGISTRAR. PRIMERO la bandeja de Joan (registrar_abierto_app, con el anon),
-     DESPUÉS la cuenta en Auth — y el orden es la garantía, la misma lección de
-     play/: si la bandeja falla no se crea nada y el cliente reintenta; si la
-     cuenta falla después, el registro YA está en la bandeja y reintentar no lo
-     duplica, porque la función es idempotente por celular.
-
-     Es registrar_abierto_APP y no registrar_abierto: la vieja no sabe de qué
-     app viene el registro, y una sobrecarga con otra firma dejaría a PostgREST
-     sin saber cuál llamar. Función nueva, nombre nuevo (base/20260921).
-     ---------------------------------------------------------------------- */
-  function registrar(cfg, datos) {
-    var d = datos || {};
-    var cel = normalizar(d.celular);
-    var nombre = String(d.nombre || '').replace(/\s+/g, ' ').trim();
-    var cedula = String(d.cedula || '').replace(/\D/g, '');
-    if (!cel) return Promise.resolve({ ok: false, motivo: 'Escribe tu celular completo: son 10 números y empiezan por 3.' });
-    if (nombre.length < 3) return Promise.resolve({ ok: false, motivo: 'Escribe tu nombre como aparece en la cédula.' });
-    if (cedula && cedula.length < 5) return Promise.resolve({ ok: false, motivo: 'Esa cédula está incompleta. Si no la quieres dar ahora, deja el campo vacío.' });
-    var rc = Cuenta && Cuenta.revisarContrasena
-      ? Cuenta.revisarContrasena(String(d.clave || ''), { telefono: cel, cedula: cedula })
-      : { ok: !!d.clave, motivo: 'Escribe una contraseña.' };
-    if (!rc.ok) return Promise.resolve({ ok: false, motivo: rc.motivo });
-    if (!conectada(cfg)) return Promise.resolve({ ok: false, motivo: 'Todavía no hay conexión con la nube.', red: true });
-
-    var pedir = pedidor(cfg);
-    return pedir(base(cfg) + '/rest/v1/rpc/registrar_abierto_app', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: cfg.anon, Authorization: 'Bearer ' + cfg.anon },
-      body: JSON.stringify({
-        p_celular: cel, p_nombre: nombre.slice(0, 80), p_cedula: cedula,
-        p_datos: { celular: cel, nombre: nombre, cedula: cedula, app: APP },
-        p_app: APP
-      })
-    }).then(leerCuerpo).then(function (r) {
-      if (r.estado === 404) {
-        /* 404 en un RPC significa «la función no existe»: la migración no se
-           corrió. Se arregla pegando el SQL, no reintentando — y se dice. */
-        throw { humano: 'El registro de PlataChat todavía no está encendido en la base. ' +
-                        'Falta correr base/20260921_platachat_app.sql.' };
-      }
-      if (nubeCaida(r.estado)) throw { humano: NUBE_CAIDA };
-      if (!r.ok || !r.j || r.j.ok !== true) {
-        throw { humano: 'No pudimos recibir tu registro. Revisa tu celular y tu nombre, ' +
-                        'y vuelve a intentar en unos minutos.' };
-      }
-      return pedir(base(cfg) + '/auth/v1/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: cfg.anon },
-        body: JSON.stringify({
-          email: correoDe(cel), password: String(d.clave),
-          data: { telefono: cel, nombre: nombre, app: APP }
-        })
-      }).then(leerCuerpo);
-    }).then(function (r) {
-      if (!r.ok) {
-        if (nubeCaida(r.estado)) return { ok: false, motivo: NUBE_CAIDA, estado: r.estado };
-        var yaExiste = /registered|already/i.test(r.texto || '');
-        return { ok: false, yaExiste: yaExiste, motivo: yaExiste
-          ? 'Ya hay una cuenta con ese celular. Entra arriba con tu contraseña.'
-          : 'No pudimos crear la cuenta. Vuelve a intentar en un momento.' };
-      }
-      if (r.j && r.j.access_token) {
-        var s = sesionDe(r.j, cel, { nombre: nombre });
-        guardar(s);
-        return { ok: true, sesion: s };
-      }
-      /* Cuenta creada pero sin sesión en la respuesta (pasaría si alguien
-         enciende «Confirm email» en Supabase): se intenta entrar con lo mismo,
-         y si tampoco, se dice qué pasó en vez de un «error». */
-      return entrar(cfg, cel, d.clave).then(function (e) {
-        return e.ok ? e : { ok: false, motivo: 'La cuenta quedó creada pero no pudimos abrirla. ' +
-                                               'Entra arriba con tu celular y tu contraseña.' };
-      });
-    }).catch(function (e) {
-      return { ok: false, motivo: (e && e.humano) || SIN_RED, red: !(e && e.humano) };
-    });
-  }
+  /* 1-oct-2026 — AQUÍ ESTABA registrar(): el alta con cuatro cajas, sin cédula ni
+     permiso de fotos. El alta de PlataChat es ahora el registro de play/ con
+     ?marca=platachat, que al terminar guarda la sesión con sesionDe() y
+     guardar() de este mismo archivo. Se quitó para que no quede una segunda
+     puerta de registro más pobre que alguien vuelva a enchufar. */
 
   /* ------------------------------------------------------------------------
      EL RECADO (26-sep-2026). Quien olvidó la contraseña o no logra entrar
@@ -356,7 +283,6 @@
     NUBE_CAIDA: NUBE_CAIDA,
     MARGEN_VENCIMIENTO_S: MARGEN_VENCIMIENTO_S,
     entrar: entrar,
-    registrar: registrar,
     recado: recado,
     refrescar: refrescar,
     rpc: rpc,
