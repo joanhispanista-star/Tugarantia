@@ -1400,6 +1400,17 @@ function pintarAvisoGuardado(salvadoSinFotos){
 
 const COP=n=>'$'+Math.round(n||0).toLocaleString('es-CO');
 function escHTML(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+/* 1-oct-2026 — UNA FOTO SOLO SE PINTA SI ES UNA IMAGEN Y NADA MÁS. Las fotos del
+   registro las escribe cualquiera desde play/, y el servidor solo exigía que
+   empezaran por «data:image/» (base/20260922c_verificacion_cedula.sql:351). Se
+   pintaban crudas dentro de src="" y href="": una «foto» con una comilla
+   adentro corría código en este CRM al abrir «Ver datos» o «Cruzar con…». Acá
+   pasa solo base64 limpio de los cuatro formatos que produce una cámara; lo
+   demás vuelve vacío y la pantalla dice que llegó algo que no es una foto. */
+function fotoSegura(src){
+  const s=String(src==null?'':src);
+  return /^data:image\/(?:jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+\/]+={0,2}$/.test(s)?s:'';
+}
 function isoLocal(d){ const z=new Date(d.getTime()-d.getTimezoneOffset()*60000); return z.toISOString().slice(0,10); }
 function hoy0(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
 function hoyISO(){ return isoLocal(new Date()); }
@@ -4645,7 +4656,10 @@ let _fotosTmp={frente:null,reverso:null,selfie:null};
    el expediente de otra, que es el peor fallo posible de esta pantalla. */
 let _pedidoFotos=0;
 let _ubicTmp=null;
-function mapsUrl(u){ return 'https://www.google.com/maps?q='+u.lat+','+u.lng; }
+/* 1-oct-2026: Number() y no la cadena cruda. La ubicación del registro la manda
+   el teléfono de quien se registra, y va a parar dentro de href="". */
+function mapsUrl(u){ const la=Number(u&&u.lat), lo=Number(u&&u.lng);
+  return (isFinite(la)&&isFinite(lo))?'https://www.google.com/maps?q='+la+','+lo:'#'; }
 function pintarUbic(){ const b=document.getElementById('ubicBox'); if(!b)return;
   if(_ubicTmp){ b.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px"><span class="chip riesgo-bajo">📍 Ubicación guardada</span><a target="_blank" rel="noopener" href="'+mapsUrl(_ubicTmp)+'">Ver en Google Maps</a><span class="muted">±'+Math.round(_ubicTmp.acc||0)+' m · '+fmtFecha(_ubicTmp.fecha)+'</span><a href="#" onclick="quitarUbicacion();return false">quitar</a></div>'; }
   else { b.innerHTML='<span class="muted" style="font-size:12.5px">Sin ubicación aún. Estando donde el cliente, toca el botón para guardar el punto GPS.</span>'; } }
@@ -5133,7 +5147,9 @@ function verCredito(id){
      las prórrogas viejas, que no traen `mora`, se leen todas como costo. */
   const pr=(p.prorrogas||[]).map(x=>`<div class="info-row"><span class="k">${fmtFecha(x.fecha)}</span><span class="vv">prórroga ${COP(x.monto)}${moraDeProrroga(x)?` <span class="muted">(costo ${COP(costoDeProrroga(x))} + mora ${COP(moraDeProrroga(x))})</span>`:''} → pasó a ${fmtFecha(x.nuevoCiclo||proximaQuincena(x.ciclo))} <span class="muted">· dejó ${COP(garantiaDeProrroga(x,p))} de garantía</span></span></div>`).join('');
   const comps=(p.comprobantes||[]);
-  const gal=comps.length?`<div class="gal">${comps.map(c=>`<a href="${c.foto}" target="_blank"><img src="${c.foto}"><div class="cap">${({pago:'Pago',prorroga:'Prórroga',abono:'Abono',plan:'Plan de pagos'}[c.tipo]||'Comprob.')} ${COP(c.monto)}<br>${fmtFecha(c.fecha)}</div></a>`).join('')}</div>`:'<p class="muted">Sin comprobantes aún.</p>';
+  /* 1-oct-2026: la foto del comprobante pasa por fotoSegura, igual que las del
+     registro. Si no es una imagen, queda la tarjeta con su monto y fecha. */
+  const gal=comps.length?`<div class="gal">${comps.map(c=>{const ft=fotoSegura(c.foto);return `${ft?`<a href="${ft}" target="_blank"><img src="${ft}">`:'<a><span class="muted" style="display:block;padding:18px 6px;font-size:12px">sin imagen válida</span>'}<div class="cap">${({pago:'Pago',prorroga:'Prórroga',abono:'Abono',plan:'Plan de pagos'}[c.tipo]||'Comprob.')} ${COP(c.monto)}<br>${fmtFecha(c.fecha)}</div></a>`;}).join('')}</div>`:'<p class="muted">Sin comprobantes aún.</p>';
   /* El plan de pagos, cuota por cuota. Es el historial de la salida del §8: qué
      se cobró al pactarlo y en qué va. */
   const ent=PUENTE.entradaPlan(p);
@@ -7839,9 +7855,15 @@ function pintarFotosRegistro(celular,cajaId){
         'quiere decir que no pude preguntárselas a la nube. Vuelve a abrir la ficha en un minuto.</div></div>';
       return;
     }
-    const f=a.fotos||{}; const lista=[['Cédula (frente)',f.cedula_frente,'frente'],['Cédula (reverso)',f.cedula_reverso,'reverso'],['Rostro',f.selfie,'selfie']].filter(x=>x[1]);
-    if(!lista.length){ caja.innerHTML='<span class="muted">No subió fotos (o no autorizó).</span>'; return; }
-    caja.innerHTML=`<div class="gal">${lista.map(x=>`<a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>`).join('')}</div>`
+    const crudas=a.fotos||{};
+    /* Solo lo que pasa fotoSegura llega a src y a href. Las que no pasan se
+       cuentan para decirlo: callarlas sería «no subió fotos», y sí mandó algo. */
+    const f={cedula_frente:fotoSegura(crudas.cedula_frente),cedula_reverso:fotoSegura(crudas.cedula_reverso),selfie:fotoSegura(crudas.selfie)};
+    const raras=['cedula_frente','cedula_reverso','selfie'].filter(k=>crudas[k]&&!f[k]).length;
+    const avisoRaras=raras?`<div class="alerta warn" style="margin-bottom:8px">Llegó${raras>1?'ron '+raras+' archivos':' un archivo'} en lugar de foto que no ${raras>1?'son imágenes':'es una imagen'}. No se ${raras>1?'muestran':'muestra'}: nadie lo produce con la cámara del registro, así que trata este registro con cuidado.</div>`:'';
+    const lista=[['Cédula (frente)',f.cedula_frente,'frente'],['Cédula (reverso)',f.cedula_reverso,'reverso'],['Rostro',f.selfie,'selfie']].filter(x=>x[1]);
+    if(!lista.length){ caja.innerHTML=avisoRaras||'<span class="muted">No subió fotos (o no autorizó).</span>'; return; }
+    caja.innerHTML=avisoRaras+`<div class="gal">${lista.map(x=>`<a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>`).join('')}</div>`
       +(f.selfie&&f.cedula_frente?`<div id="regParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('regFoto_selfie','regFoto_frente','regParecido')">🔍 Comparar el rostro con la cédula</button></div>`:'')
       /* 22-sep-2026 — el cotejo contra la foto. Solo aparece si hay foto del
          REVERSO: el código de barras vive ahí y en ninguna otra parte. */

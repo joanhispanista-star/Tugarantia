@@ -1513,7 +1513,12 @@
    WCAG 2.2.2), y la cifra, el nombre y la bienvenida van en letra de plata.
    Toca platachat/estilo.css y platachat/index.html; las capas nuevas llevan
    fill="none" de respaldo por si llega la pagina nueva con la hoja vieja. */
-const CACHE = 'tugarantia-v120';
+/* v121 - 1-oct-2026. LAS FOTOS AJENAS NO CORREN CODIGO EN EL CRM. Las fotos del
+   registro y los comprobantes se pintaban crudos dentro de src y href; una
+   «foto» con una comilla corria codigo al abrir «Ver datos». Ahora pasan por
+   fotoSegura (solo base64 limpio de jpeg/png/webp/gif) y la ubicacion por
+   Number(). Toca panel/crm.html. */
+const CACHE = 'tugarantia-v121';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
