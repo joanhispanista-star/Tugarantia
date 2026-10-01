@@ -7188,7 +7188,10 @@ function renderSocios(){
         <td style="text-align:right"><button class="btn btn-wa btn-sm" onclick="pedirDatos('${f.s.id}')">💬 Pedírselos</button></td></tr>`;}).join('')}</tbody>
       ${flojos.length>30?`<tfoot><tr><td colspan="5" class="muted">…y ${flojos.length-30} más.</td></tr></tfoot>`:''}</table>`);
 
-  /* ---- Referidos ---- */
+  /* ---- Referidos ----
+     Los nombres salen de referidosDe y no del paquete del socio: desde el
+     1-oct-2026 ese paquete viaja con la lista vacía, porque llegaba al teléfono
+     del que invita (ver migrarSocio en ../app/puente.js). */
   const padrinos=foto.filter(f=>f.m.referidos.total>0)
     .sort((a,b)=>b.m.referidos.pagaron-a.m.referidos.pagaron);
   document.getElementById('socReferidos').innerHTML=
@@ -7198,7 +7201,7 @@ function renderSocios(){
       padrinos.map(f=>`<tr><td><b>${escHTML(f.s.nombre)}</b><div class="muted">${codCliente(f.s)}</div></td>
         <td class="num">${f.m.referidos.total}</td><td class="num">${f.m.referidos.pagaron}</td>
         <td class="num gano">${COP(f.m.garantia.referidos)}</td>
-        <td class="muted">${escHTML(f.m.referidos.lista.map(r=>r.nombre+(r.pago?' ✓':' ·')).join(', '))}</td></tr>`).join('')}</tbody></table>`);
+        <td class="muted">${escHTML(referidosDe(f.s).map(r=>String(r.nombre||'').split(' ')[0]+(r.pago?' ✓':' ·')).join(', '))}</td></tr>`).join('')}</tbody></table>`);
 }
 
 /* Ficha de revisión de un cliente: de dónde sale cada peso de su garantía,

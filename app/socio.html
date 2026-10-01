@@ -716,7 +716,7 @@ details[open] summary::after{content:' ↑'}
    app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
    de CACHE en sw.js). */
-var VERSION_APP = '2026-09-26';
+var VERSION_APP = '2026-10-01';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -3039,18 +3039,19 @@ function vistaGarantia() {
   }
   h += '</div>';
 
-  /* --- Referidos --- */
+  /* --- Referidos ---
+     1-oct-2026: fuera «Ya pagaron» y el aviso «Te faltan N por pagar». Le
+     decían al que invita cuántos de sus invitados no han pagado, y con uno solo,
+     que ESE no ha pagado: dato de un tercero que no es suyo (Ley 2300 art. 4).
+     Y la garantía es la que el motor de verdad le acredita (S.gd.referidos, ya
+     con su tope), no invitados × 5.000: con el tope eso le prometía cupo que el
+     Panel no le da. Los 5.000 por referido siguen; los decide el abogado. */
   var r = S.referidos;
   h += '<div class="card"><h3 class="tit">Trae gente, gana cupo</h3>' +
     '<p class="sub">Cada persona que traigas te suma ' + COP(M.GARANTIA_POR_REFERIDO) +
     ', desde que esa persona pague su crédito. Si no paga, no suma.</p>' +
     fila('Gente que has traído', String(r.total || 0)) +
-    fila('Ya pagaron', String(r.pagaron || 0)) +
-    fila('Garantía que te dieron', COP((r.pagaron || 0) * M.GARANTIA_POR_REFERIDO)) +
-    ((r.total || 0) > (r.pagaron || 0)
-      ? '<div class="aviso ambar">Te faltan ' + ((r.total || 0) - (r.pagaron || 0)) +
-        ' por pagar. Cuando lo hagan se te suman ' + COP(((r.total || 0) - (r.pagaron || 0)) * M.GARANTIA_POR_REFERIDO) + '.</div>'
-      : '') +
+    fila('Garantía que te dieron', COP(S.gd.referidos)) +
     '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="invitar()">Invitar a alguien</button>' +
     '</div>';
 

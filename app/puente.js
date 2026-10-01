@@ -1615,10 +1615,21 @@
         porcentaje: kyc.porcentaje,
         faltan: kyc.faltantes.map(function (d) { return { id: d.id, etiqueta: d.etiqueta, valor: d.valor }; })
       },
+      /* 1-oct-2026 — LA LISTA VIAJA VACÍA, Y A PROPÓSITO. Llevaba el nombre de
+         pila de cada invitado y si pagó: el teléfono del que invita recibía
+         «ERICK pagó, MARIA no, CRISTIAN no» aunque la pantalla no lo pintara, y
+         con un solo invitado el número ya decía «tu invitado no te ha pagado».
+         Que pagó o no un tercero no es dato de quien lo invitó (Ley 2300 art. 4)
+         y la política publicada promete «Ningún otro cliente puede ver los tuyos».
+         `lista` se queda como [] y no se borra: las apps que ya están en los
+         teléfonos la leen, y un campo que desaparece rompe una versión vieja.
+         `total` y `pagaron` siguen porque los 5.000 de cupo por referido están
+         en términos firmados y el cupo los necesita; esos esperan al abogado.
+         El Panel saca la lista de referidosDe, que nunca sale de este equipo. */
       referidos: {
         total: refs.length,
         pagaron: refs.filter(function (r) { return r.pago; }).length,
-        lista: refs.map(function (r) { return { nombre: String(r.nombre || '').split(' ')[0], pago: r.pago }; })
+        lista: []
       },
       /* 4-ago-2026 — LA APP LE MOSTRABA AL SOCIO EL CAPITAL ENTERO CON PLAN.
          `capital` viajaba como capitalActual(p) —todo el capital vigente—

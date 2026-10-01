@@ -1485,7 +1485,12 @@
    publicando en tres sitios. Quien no puede entrar deja un recado
    (pedir_ayuda_clave, el de play/), que cae en la bandeja de recados del CRM.
    Toca platachat/index.html, platachat/sesion.js y platachat/borrar-cuenta.html. */
-const CACHE = 'tugarantia-v115';
+/* v116 - 1-oct-2026. EL QUE INVITA YA NO VE QUIEN PAGO. El paquete de cada
+   cliente llevaba el nombre de pila de sus invitados y si pagaron, y la tarjeta
+   decia «Te faltan N por pagar». La lista viaja vacia, la tarjeta solo dice
+   cuanta gente trajo y la garantia que el motor de verdad le acredita. Toca
+   app/puente.js, app/socio.html y panel/crm.html. */
+const CACHE = 'tugarantia-v116';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
