@@ -2001,16 +2001,22 @@ describe('simularPrestamoRespaldado', () => {
        CUANDO SE ARREGLE, esta prueba va a fallar diciendo que ya hay aire. Ese
        día se borra y la de arriba se cambia a medir contra `masBajo`. */
     const CR = require(path.join(__dirname, '..', 'app', 'creditos.js'));
-    const K = require(path.join(__dirname, '..', 'app', 'cumplimiento.js'));
     const masBajo = CR.TOPES.reduce((m, t) => Math.min(m, t.consumo_ordinario), Infinity);
     const ult = CR.TOPES[CR.TOPES.length - 1];
     const vacia = { datos: {}, referidos: 0, acumulada: 20000000, ajuste: 0, comprometida: 0 };
     const minMeses = Math.ceil(CR.PLAZO_MINIMO_DIAS / 30);
 
+    /* 1-oct-2026 — SE MIDEN TODOS LOS DÍAS, NO SOLO LOS QUE SE OFRECEN. Medir
+       solo lo que la divulgación deja ofrecer era una pregunta circular el mes en
+       que el techo vigente ES el más bajo de la tabla (octubre, 28,59%): todo lo
+       ofrecido cabe en el techo del día, que es `masBajo`, y la prueba gritaba
+       «YA HAY AIRE» justo cuando hay menos. Medido ese día: la puerta pública se
+       niega a cotizar 14 de los 31 días de octubre (del 4 al 10 y del 20 al 26),
+       con tasas reales de hasta 32,81%. La pregunta de esta prueba es si el
+       PRODUCTO cabe en el techo más bajo, y eso se contesta con todos los días. */
     let sinAire = 0, conAire = 0, peor = 0, peorDia = '';
     for (let dia = 1; dia <= 28; dia++) {
       const desembolso = ult.desde.slice(0, 8) + String(dia).padStart(2, '0');
-      if (K.divulgacionRespaldado(desembolso).puede !== true) continue;
       for (let n = minMeses; n <= M.PLAZO_RESPALDADO_MAX; n++) {
         const sim = M.simularPrestamoRespaldado(1000000, n, vacia, { fechaDesembolso: desembolso });
         const ea = CR.efectivoAnualPorFechas(desembolso, sim.capital,

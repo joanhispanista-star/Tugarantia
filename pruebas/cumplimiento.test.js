@@ -265,10 +265,17 @@ describe('la ficha de Play se genera y cuadra', () => {
   test('el archivo en el repositorio está al día', () => {
     /* Esta es la que se cae cuando alguien agrega un campo y no regenera. El
        mensaje dice qué hacer, porque si no la reacción es borrar la prueba. */
+    /* 1-oct-2026: se compara contra la fecha que el archivo DICE tener, no
+       contra FECHA. El robot de la usura regenera la ficha con el día 1 del mes
+       nuevo (traer-usura.yml); contra una fecha fija, su propio PR habría
+       tumbado esta prueba el mes siguiente. Lo que se cuida sigue igual: que el
+       archivo sea exactamente lo que el código genera para su fecha. */
     const enDisco = leer('PLAY-FICHA.md');
-    assert.equal(enDisco, generar(FECHA),
+    const m = enDisco.match(/Generado desde el código para el (\d{4}-\d{2}-\d{2})/);
+    assert.ok(m, 'PLAY-FICHA.md ya no dice para qué fecha se generó');
+    assert.equal(enDisco, generar(m[1]),
       'PLAY-FICHA.md quedó desactualizado. Regenéralo:\n' +
-      '    node herramientas/ficha-play.js ' + FECHA);
+      '    node herramientas/ficha-play.js ' + m[1]);
   });
 
   test('la ficha trae las respuestas completas de Data Safety', () => {

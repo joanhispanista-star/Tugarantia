@@ -51,13 +51,18 @@ describe('el techo de usura vive en una tabla con fecha', () => {
     /* Lo más importante de la tabla. Heredar el mes anterior significaría que el
        día que nadie la actualice, el sistema cotiza contra un techo que ya no
        existe y nadie se entera. */
-    /* 1-sep-2026: septiembre ya se certificó (Res. 1260), así que el ejemplo
-       de «mes futuro sin fila» pasa a octubre. Esta prueba se corre el día 1
-       de cada mes, con la certificación nueva en la mano. */
-    assert.ok(C.topeVigente('2026-09-15'), 'septiembre SÍ está certificado');
-    assert.equal(C.topeVigente('2026-10-01'), null, 'octubre todavía no');
+    /* 1-oct-2026: las fechas salen de la ÚLTIMA fila y no se escriben a mano.
+       Con «octubre todavía no» escrito, la fila de octubre que trae el robot de
+       la usura (.github/workflows/traer-usura.yml) tumbaba esta prueba, y el
+       robot no abre el PR si las pruebas no pasan: la tabla se venció el 30-sep
+       y la calculadora pública quedó muda. Lo que se prueba es lo mismo —el día
+       siguiente a lo certificado no hereda nada— y ya no hay que tocarla cada mes. */
+    const ult = C.TOPES[C.TOPES.length - 1];
+    const siguiente = new Date(Date.parse(ult.hasta + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
+    assert.ok(C.topeVigente(ult.desde), 'el último mes de la tabla SÍ está certificado');
+    assert.equal(C.topeVigente(siguiente), null, siguiente + ' todavía no');
     assert.equal(C.topeVigente('2026-06-30'), null, 'junio tampoco');
-    assert.equal(C.topeVigente('2027-01-15'), null);
+    assert.equal(C.topeVigente('2099-01-15'), null);
   });
 
   test('los tramos no se pisan ni dejan huecos', () => {

@@ -2103,13 +2103,18 @@ describe('LA REJA DEL TECHO NO TIENE FECHA DE APERTURA (15-sep-2026)', () => {
   });
 
   test('el techo de referencia es el ÚLTIMO conocido, y dice que está vencido', () => {
+    /* 1-oct-2026: relativo a la última fila, no a meses escritos a mano. Con
+       '2026-10-01' escrito, la fila de octubre del robot de la usura tumbaba esta
+       prueba y el robot no abría el PR (ver creditos.test.js). */
     const C2 = require('../app/creditos.js');
-    const hoy = C2.topeDeReferencia('2026-09-15');
-    const oct = C2.topeDeReferencia('2026-10-01');
+    const ult = C2.TOPES[C2.TOPES.length - 1];
+    const siguiente = new Date(Date.parse(ult.hasta + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
+    const hoy = C2.topeDeReferencia(ult.desde);
+    const vencido = C2.topeDeReferencia(siguiente);
     assert.equal(hoy.vigente, true);
-    assert.equal(oct.vigente, false, 'octubre se reporta como vigente y no lo está');
-    assert.equal(oct.tope, hoy.tope, 'el de referencia no es el último conocido');
-    assert.ok(oct.vencio, 'no dice desde cuándo está vencido');
+    assert.equal(vencido.vigente, false, siguiente + ' se reporta como vigente y no lo está');
+    assert.equal(vencido.tope, hoy.tope, 'el de referencia no es el último conocido');
+    assert.ok(vencido.vencio, 'no dice desde cuándo está vencido');
   });
 
   test('la letra obligatoria tampoco anuncia un producto que se pasa', () => {
