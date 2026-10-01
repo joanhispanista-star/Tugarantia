@@ -136,10 +136,12 @@ setTimeout(function () {
 }, 5000);
 </script>
 
-<!-- El degradado de la moneda y el recorte de la media moneda, una sola vez
-     para toda la página. El id y las clases .m1…m4 de las paradas son los que
-     estilo.css espera (.moneda .cara y .lingote .cuerpo pintan con
-     url(#plata-moneda)): los cuatro tonos viven en la piel, no acá. -->
+<!-- Los degradados y los recortes del metal, una sola vez para toda la página.
+     Los ids y las clases de las paradas (.m1…m4, .m-luz, .m-espejo, .m-plata,
+     .m-sombra, .m-hondo) son los que estilo.css espera: .moneda .cara pinta
+     con url(#plata-moneda), .lingote .cuerpo con url(#plata-lingote), y para
+     qué es cada uno de los demás lo dice «EL METAL» en estilo.css. Los tonos
+     viven en la piel, no acá. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <!-- Fracciones y no porcentajes en la geometría: el centinela «el socio no
@@ -149,6 +151,43 @@ setTimeout(function () {
       <stop offset=".8" class="m3"/><stop offset="1" class="m4"/>
     </radialGradient>
     <clipPath id="media-moneda"><rect x="0" y="0" width="20" height="40"/></clipPath>
+    <!-- 1-oct-2026 — EL METAL (qué es cada pieza y por qué, en «EL METAL» de
+         estilo.css): las bandas del espejo, el campo hundido, el signo pulido,
+         la mancha de luz, la franja que cruza, el lingote y su tapa, y los
+         dos recortes que encierran la franja en la moneda y en el lingote.
+         Las paradas toman el color por clase; la opacidad sí va acá porque es
+         la forma del reflejo, no un color. -->
+    <linearGradient id="plata-bandas" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" class="m-luz" stop-opacity="0"/><stop offset=".18" class="m-luz" stop-opacity=".6"/>
+      <stop offset=".34" class="m-hondo" stop-opacity=".38"/><stop offset=".47" class="m-luz" stop-opacity="0"/>
+      <stop offset=".6" class="m-luz" stop-opacity=".75"/><stop offset=".74" class="m-hondo" stop-opacity=".32"/>
+      <stop offset="1" class="m-hondo" stop-opacity=".5"/>
+    </linearGradient>
+    <linearGradient id="plata-campo" x1="1" y1="1" x2="0" y2="0">
+      <stop offset="0" class="m-espejo"/><stop offset=".45" class="m-plata"/>
+      <stop offset=".75" class="m-sombra"/><stop offset="1" class="m4"/>
+    </linearGradient>
+    <linearGradient id="plata-letra" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" class="m-luz"/><stop offset=".42" class="m-espejo"/>
+      <stop offset=".54" class="m2"/><stop offset=".64" class="m-espejo"/><stop offset="1" class="m-luz"/>
+    </linearGradient>
+    <radialGradient id="plata-destello">
+      <stop offset="0" class="m-luz" stop-opacity=".95"/><stop offset="1" class="m-luz" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="plata-reflejo" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" class="m-luz" stop-opacity="0"/><stop offset=".5" class="m-luz" stop-opacity=".85"/>
+      <stop offset="1" class="m-luz" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="plata-lingote" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" class="m-luz"/><stop offset=".3" class="m2"/><stop offset=".55" class="m4"/>
+      <stop offset=".72" class="m-espejo"/><stop offset="1" class="m3"/>
+    </linearGradient>
+    <linearGradient id="plata-tapa" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" class="m-luz"/><stop offset=".35" class="m-espejo"/><stop offset=".55" class="m3"/>
+      <stop offset=".72" class="m-luz"/><stop offset="1" class="m2"/>
+    </linearGradient>
+    <clipPath id="moneda-recorte"><circle cx="20" cy="20" r="19"/></clipPath>
+    <clipPath id="lingote-recorte"><polygon points="8,28 16,6 48,6 56,28"/></clipPath>
   </defs>
 </svg>
 
@@ -811,27 +850,51 @@ function monedasEnPalabras(ganada) {
   }
   return partes.join(' y ');
 }
-/* Las monedas y los lingotes se pintan con las clases de la piel (.cara, .aro,
-   .signo, .molde, .cuerpo): el color, el canto y el brillo escalonado viven
-   en estilo.css, y acá solo va la geometría. */
+/* Las monedas y los lingotes se pintan con las clases de la piel: acá solo va
+   la geometría, y el metal, la luz que cruza y la chispa los pone estilo.css
+   (qué es cada capa y por qué, en «EL METAL»). El fill="none" de las capas
+   nuevas es un respaldo, no un color: cualquier regla de la piel le gana, y
+   si el teléfono trae esta página con la hoja de antes (la caché de GitHub
+   dura diez minutos), esas capas no salen negras —el relleno por defecto de
+   SVG— sino invisibles, y la moneda se ve como la de antes. capasMoneda() es una sola para
+   la moneda entera y para la media, que es la misma moneda recortada: si
+   fueran dos dibujos, la media se quedaría atrás con el primer retoque. */
+function capasMoneda() {
+  return '<circle class="cara" cx="20" cy="20" r="19"/>' +
+    '<circle class="bandas" fill="none" cx="20" cy="20" r="19"/>' +
+    '<circle class="campo" fill="none" cx="20" cy="20" r="15.4"/>' +
+    '<circle class="aro" cx="20" cy="20" r="13.5"/>' +
+    '<text class="signo-sombra" fill="none" x="20.6" y="26.3">$</text>' +
+    '<text class="signo" x="20" y="25.5">$</text>' +
+    '<ellipse class="destello" fill="none" cx="12.5" cy="10" rx="7" ry="3.6" transform="rotate(-38 12.5 10)"/>' +
+    '<g clip-path="url(#moneda-recorte)"><polygon class="barrido" fill="none" points="-8,-2 0,-2 -12,42 -20,42"/></g>' +
+    '<path class="chispa" fill="none" d="M10.5 4.5Q10.9 9.1 15.5 9.5Q10.9 9.9 10.5 14.5Q10.1 9.9 5.5 9.5Q10.1 9.1 10.5 4.5Z"/>';
+}
 function svgMoneda(clase) {
   return '<svg class="moneda ' + clase + '" viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">' +
-    '<circle class="cara" cx="20" cy="20" r="19"/>' +
-    '<circle class="aro" cx="20" cy="20" r="13.5"/>' +
-    '<text class="signo" x="20" y="25.5">$</text></svg>';
+    capasMoneda() + '</svg>';
 }
 function svgMediaMoneda() {
   return '<svg class="moneda media" viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">' +
     '<circle class="molde" cx="20" cy="20" r="19"/>' +
-    '<g clip-path="url(#media-moneda)"><circle class="cara" cx="20" cy="20" r="19"/></g></svg>';
+    '<g clip-path="url(#media-moneda)">' + capasMoneda() + '</g></svg>';
 }
 function svgMoldeVacio() {
   return '<svg class="moneda vacia" viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">' +
     '<circle class="molde" cx="20" cy="20" r="19"/></svg>';
 }
+/* El lingote lleno va en barra: el cuerpo, los cuatro biseles y la tapa; el
+   vacío es solo el contorno punteado (sin biseles: no hay metal todavía). */
 function svgLingote(vacio) {
-  return '<svg class="lingote' + (vacio ? ' vacio' : '') + '" viewBox="0 0 64 32" width="64" height="32" aria-hidden="true">' +
-    '<polygon class="cuerpo" points="8,28 16,6 48,6 56,28"/></svg>';
+  var cuerpo = '<polygon class="cuerpo" points="8,28 16,6 48,6 56,28"/>';
+  if (vacio) return '<svg class="lingote vacio" viewBox="0 0 64 32" width="64" height="32" aria-hidden="true">' + cuerpo + '</svg>';
+  return '<svg class="lingote" viewBox="0 0 64 32" width="64" height="32" aria-hidden="true">' + cuerpo +
+    '<polygon class="bisel-luz" fill="none" points="16,6 48,6 44,10 20,10"/>' +
+    '<polygon class="bisel-luz" fill="none" points="8,28 16,6 20,10 14.5,23"/>' +
+    '<polygon class="bisel-hondo" fill="none" points="48,6 56,28 49.5,23 44,10"/>' +
+    '<polygon class="bisel-hondo" fill="none" points="8,28 56,28 49.5,23 14.5,23"/>' +
+    '<polygon class="tapa" fill="none" points="20,10 44,10 49.5,23 14.5,23"/>' +
+    '<g clip-path="url(#lingote-recorte)"><polygon class="barrido" fill="none" points="-8,-2 0,-2 -12,34 -20,34"/></g></svg>';
 }
 /* Una moneda por cada 10.000 ganados, un lingote por cada 100.000. Con nada
    ganado se pinta el molde vacío punteado: se ve el hueco donde va a ir la

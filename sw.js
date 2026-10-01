@@ -1506,7 +1506,14 @@
    le pago a Joan antes de tiempo y no aparecia en Cobranzas: los creditos al
    dia no estaban en ninguna tabla. Tercera tabla, sin casillas, con historia,
    nota y pago. Toca panel/crm.html. */
-const CACHE = 'tugarantia-v119';
+/* v120 - 1-oct-2026. LAS MONEDAS DE PLATACHAT EN PLATA DE VERDAD. Joan pidio
+   brillo de plata, reflejo de luz y letras de plata. Las monedas y los
+   lingotes van en capas de metal (bandas de espejo, campo hundido, signo en
+   relieve), una franja de luz los cruza UNA vez al abrir Plata (no en bucle:
+   WCAG 2.2.2), y la cifra, el nombre y la bienvenida van en letra de plata.
+   Toca platachat/estilo.css y platachat/index.html; las capas nuevas llevan
+   fill="none" de respaldo por si llega la pagina nueva con la hoja vieja. */
+const CACHE = 'tugarantia-v120';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

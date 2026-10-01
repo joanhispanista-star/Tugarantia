@@ -80,6 +80,22 @@
      la página los usa con las clases .m1 … .m4 sobre cada <stop>. */
   --moneda-1:#FFFFFF; --moneda-2:#DCE0E6; --moneda-3:#9AA1AC; --moneda-4:#6F7682;
   --moneda-canto:#5C6370; --moneda-signo:#4D5461;
+  /* 1-oct-2026 — el fondo del metal: la banda más honda del reflejo y la
+     sombra del grabado. Con las cuatro de arriba, --plata-luz, --plata y
+     --plata-sombra hacen la escala entera del espejo (ver «EL METAL»). */
+  --moneda-hondo:#3A3F48;
+  /* LA LETRA DE PLATA (1-oct-2026): el metal de las letras que son plata y la
+     franja de luz que las cruza. Token para que la cifra, el nombre y la
+     bienvenida sean el MISMO metal. La banda oscura del medio es la línea
+     del horizonte que refleja un metal pulido: sin ella el degradado se lee
+     gris, no plata. Su parada más oscura (--moneda-3) da más de 7 a 1 sobre
+     la laca: la cifra se sigue leyendo. */
+  --letra-plata:linear-gradient(180deg, var(--luz) 0%, var(--plata-luz) 30%, var(--plata) 46%,
+    var(--moneda-3) 54%, var(--plata-luz) 72%, var(--luz) 100%);
+  --letra-destello:linear-gradient(105deg, transparent 40%,
+    color-mix(in srgb, var(--luz) 95%, transparent) 50%, transparent 60%);
+  /* lo que tarda UNA pasada de la luz sobre la plata (ver «LA LUZ PASA UNA VEZ») */
+  --paso-plata:1.2s;
   /* estados: ámbar, y SOLO sobre papel. En claro el papel es claro y el ámbar
      escribe encima; en oscuro el papel se oscurece y el ámbar se corre al
      filete (ver la ley de arriba). */
@@ -434,32 +450,84 @@ details[open] summary::after{content:' ↑'}
    fecha». Debajo, SIEMPRE, la línea de que la garantía es cupo y no ahorro:
    sin ella la pila sería publicidad engañosa.
 
-   El degradado radial vive en un <defs> de la página con id="plata-moneda" y
-   sus cuatro <stop> llevan las clases .m1 … .m4 de aquí, para que el hex no
-   se repita en el HTML:
-     <radialGradient id="plata-moneda" cx=".35" cy=".28" r=".78">
-       <stop offset="0" class="m1"/><stop offset=".42" class="m2"/>
-       <stop offset=".8" class="m3"/><stop offset="1" class="m4"/>
-     </radialGradient>
-   Y en cada moneda: <circle class="cara" .../> <circle class="aro" .../>
-   <text class="signo">$</text>. */
+   EL METAL (1-oct-2026). Joan: «que esas monedas de plata tengan brillo como
+   si fueran de plata y que se vea reflejo de luz, y que las letras también
+   sean de plata». Lo que hace que algo se lea como plata y no como gris no es
+   el tono: es el CONTRASTE EN BANDAS —claro, oscuro y claro otra vez en poco
+   espacio—, que es lo que hace un espejo curvo con el cuarto que tiene
+   enfrente. El radial suave que había, solo, daba una moneda de plástico gris.
+   Ahora cada moneda va en capas, y la página pone solo la geometría:
+     .cara       el disco entero con el radial de siempre (#plata-moneda): la
+                 luz que viene de arriba a la izquierda;
+     .bandas     encima, las bandas del espejo (#plata-bandas), en diagonal y
+                 semitransparentes para que el radial siga respirando debajo;
+     .campo      el fondo hundido, más oscuro y con la luz al revés (#plata-
+                 campo): es lo que deja el canto y el signo EN RELIEVE;
+     .aro        el filo brillante del borde interior;
+     .signo      el «$» de plata pulida (#plata-letra), con .signo-sombra
+                 debajo —el mismo «$» corrido medio punto, en el hondo—, que es
+                 lo que lo despega del campo y lo deja leer;
+     .destello   la mancha de luz quieta arriba a la izquierda: aunque nada se
+                 mueva (movimiento reducido), la moneda sigue siendo de metal;
+     .barrido    la franja de luz que cruza, encerrada en #moneda-recorte;
+     .chispa     la estrellita de cuatro puntas, SOLO en la moneda de encima de
+                 la pila y en la de la tarjeta de propuesta: en todas sería ruido.
+   El lingote es lo mismo en barra: .cuerpo con las bandas en horizontal
+   (#plata-lingote), cuatro biseles (.bisel-luz arriba y a la izquierda,
+   .bisel-hondo abajo y a la derecha) y la .tapa plana del medio, que es la que
+   más brilla; su franja va en #lingote-recorte.
+
+   LA LUZ PASA UNA VEZ. Cada vez que la pestaña Plata aparece (irA la vuelve a
+   pintar) la franja cruza la cifra y después baja a los lingotes y a las
+   monedas, de una en una (--i lo pone el nth-child; --base, la pila), y se
+   acaba: todo termina antes de cuatro segundos. La tarjeta de propuesta brilla
+   al aparecer, y solo se repinta cuando cambia. NO va en bucle, a sabiendas:
+   lo que se mueve solo más de cinco segundos junto a otro contenido necesita
+   un botón para pararlo (WCAG 2.2.2, nivel A), y la calculadora está justo
+   debajo; además, en una pantalla que se mira varias veces al día un brillo
+   que no para se vuelve un tic (la razón del barrido único de .lustre). Lo de
+   antes era un respiro de brillo infinito. Si un día se quiere en bucle, va
+   con su control de pausa. Con movimiento reducido no se mueve nada.
+
+   Los tonos viven en :root y las paradas de los degradados de la página los
+   toman por clase (.m1 … .m4 y .m-luz, .m-espejo, .m-plata, .m-sombra,
+   .m-hondo): el hex no se repite en el HTML. La opacidad de una parada sí va
+   en la página, porque es la forma del reflejo y no un color. */
 .m1{stop-color:var(--moneda-1)} .m2{stop-color:var(--moneda-2)}
 .m3{stop-color:var(--moneda-3)} .m4{stop-color:var(--moneda-4)}
+.m-luz{stop-color:var(--luz)} .m-espejo{stop-color:var(--plata-luz)} .m-plata{stop-color:var(--plata)}
+.m-sombra{stop-color:var(--plata-sombra)} .m-hondo{stop-color:var(--moneda-hondo)}
 .monedas{display:flex;align-items:flex-end;gap:14px;margin-top:14px}
-.monedas .pila{display:flex;align-items:flex-end}
+.monedas .pila{display:flex;align-items:flex-end;--base:.9s}
+.monedas .pila + .pila{--base:1.35s}
+.monedas .pila > :nth-child(2){--i:1} .monedas .pila > :nth-child(3){--i:2}
+.monedas .pila > :nth-child(4){--i:3} .monedas .pila > :nth-child(5){--i:4}
+.monedas .pila > :nth-child(6){--i:5} .monedas .pila > :nth-child(7){--i:6}
+.monedas .pila > :nth-child(8){--i:7} .monedas .pila > :nth-child(9){--i:8}
+.monedas .pila > :nth-child(10){--i:9} .monedas .pila > :nth-child(11){--i:10}
 .monedas .aire{flex:1}
-.moneda{width:38px;height:38px;flex:none;margin-right:-12px;overflow:visible}
+.moneda{width:38px;height:38px;flex:none;margin-right:-12px;overflow:visible;--viaje:64px}
 .moneda:last-child{margin-right:0}
-.moneda .cara{fill:url(#plata-moneda);stroke:var(--moneda-canto);stroke-width:1}
-.moneda .aro{fill:none;stroke:var(--luz);stroke-opacity:.55;stroke-width:1.2}
+.moneda .cara{fill:url(#plata-moneda);stroke:var(--moneda-canto);stroke-width:.8}
+.moneda .bandas{fill:url(#plata-bandas)}
+.moneda .campo{fill:url(#plata-campo);stroke:var(--moneda-hondo);stroke-opacity:.6;stroke-width:.7}
+.moneda .aro{fill:none;stroke:var(--luz);stroke-opacity:.7;stroke-width:.7}
 .moneda .signo{font-family:Georgia,"Times New Roman",serif;font-size:15px;font-weight:700;
-  fill:var(--moneda-signo);text-anchor:middle}
+  fill:url(#plata-letra) var(--moneda-signo);text-anchor:middle}
+.moneda .signo-sombra{font-family:Georgia,"Times New Roman",serif;font-size:15px;font-weight:700;
+  fill:var(--moneda-hondo);fill-opacity:.85;text-anchor:middle}
+.moneda .destello{fill:url(#plata-destello)}
+.moneda .chispa{fill:var(--luz);opacity:0;transform-box:fill-box;transform-origin:center}
+.moneda .barrido,.lingote .barrido{fill:url(#plata-reflejo)}
 /* la media moneda: el molde punteado atrás y la mitad recortada encima */
 .moneda.media .molde,.moneda.vacia .molde{fill:none;stroke:var(--plata);stroke-opacity:.5;
   stroke-width:1.5;stroke-dasharray:4 4}
 .moneda.vacia{opacity:.7}
-.lingote{width:64px;height:32px;flex:none}
-.lingote .cuerpo{fill:url(#plata-moneda);stroke:var(--moneda-canto);stroke-width:1}
+.lingote{width:64px;height:32px;flex:none;--viaje:84px}
+.lingote .cuerpo{fill:url(#plata-lingote) var(--moneda-3);stroke:var(--moneda-canto);stroke-width:.8;stroke-linejoin:round}
+.lingote .bisel-luz{fill:var(--luz);fill-opacity:.4}
+.lingote .bisel-hondo{fill:var(--moneda-hondo);fill-opacity:.45}
+.lingote .tapa{fill:url(#plata-tapa);stroke:var(--luz);stroke-opacity:.55;stroke-width:.6;stroke-linejoin:round}
 .lingote.vacio .cuerpo{fill:none;stroke:var(--plata);stroke-opacity:.45;stroke-width:1.5;stroke-dasharray:4 4}
 /* Las dos leyendas («4 monedas y media · cada moneda son $10.000» y «un
    lingote son $100.000») se reparten a los lados y, si no caben en un
@@ -470,15 +538,62 @@ details[open] summary::after{content:' ↑'}
 .cupon{margin-top:10px;font-size:13px;color:var(--plata-luz);font-variant-numeric:tabular-nums}
 .cupon strong{color:var(--plata-luz)}
 .cupo-frase{margin-top:6px;font-size:12px;line-height:1.4;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent)}
-/* El brillo: un respiro de luz sobre cada moneda, escalonado para que la pila
-   parezca pegar la luz de a una. Apagado con el movimiento reducido. */
-.brillo{animation:brillo 3.2s ease-in-out infinite}
-.monedas .brillo:nth-child(2){animation-delay:.4s}
-.monedas .brillo:nth-child(3){animation-delay:.8s}
-.monedas .brillo:nth-child(4){animation-delay:1.2s}
-.monedas .brillo:nth-child(5){animation-delay:1.6s}
-@keyframes brillo{0%,100%{filter:brightness(1)}50%{filter:brightness(1.18)}}
-@media (prefers-reduced-motion:reduce){.brillo{animation:none}}
+/* La franja de luz: nace a la izquierda, fuera del disco (el recorte la
+   esconde), cruza y sale por la derecha, y al acabar vuelve a su sitio de
+   partida, que también está fuera. --viaje es lo que tiene que andar para
+   salir entera: 64 en la moneda, 84 en el lingote, que es más ancho. La
+   chispa se enciende justo cuando la franja pasa por el destello de la
+   moneda de encima. */
+.moneda.brillo .barrido,.moneda.media .barrido,.lingote .barrido{
+  animation:reflejo var(--paso-plata) cubic-bezier(.45,.05,.35,1) 1;
+  animation-delay:calc(var(--base, 0s) + var(--i, 0) * .11s)}
+@keyframes reflejo{from{transform:translateX(0)}to{transform:translateX(var(--viaje))}}
+.monedas .pila > .moneda:last-child .chispa,.tarjeta-propuesta .cabeza .moneda .chispa{
+  animation:chispa var(--paso-plata) ease-out 1;
+  animation-delay:calc(var(--base, 0s) + var(--i, 0) * .11s)}
+@keyframes chispa{0%,22%{opacity:0;transform:scale(.2) rotate(0deg)}
+  45%{opacity:1;transform:scale(1) rotate(45deg)}80%,100%{opacity:0;transform:scale(.3) rotate(90deg)}}
+@media (prefers-reduced-motion:reduce){
+  .moneda .barrido,.lingote .barrido,.moneda .chispa{animation:none;display:none}
+}
+
+/* ---------------- la letra de plata -----------------------------------------
+   Mismo pedido (1-oct-2026): las letras que SON plata —la cifra de la
+   garantía, el «Chat» del nombre y PLATACHAT en la bienvenida— se pintan con
+   el metal de --letra-plata en vez de un gris liso, y la franja de luz de las
+   monedas cruza la cifra, una vez, antes que a ellas. Solo sobre la laca, como toda la
+   plata (la ley de arriba). Cuatro cuidados:
+   · el color de siempre se queda como base: un navegador que no sabe recortar
+     un fondo a la letra la pinta plata lisa, nunca un rectángulo de degradado
+     (por eso todo va dentro del @supports);
+   · sigue siendo texto: se lee, se copia y lo dice el lector de pantalla,
+     porque solo cambia el relleno;
+   · el nombre de arriba brilla UNA vez, cuando se va la bienvenida (antes, su
+     pasada se gastaba debajo de ella y nadie la veía); la cifra brilla cada
+     vez que se abre Plata, junto con las monedas;
+   · con colores forzados (alto contraste de Windows) se apaga el metal y
+     manda el sistema. */
+.cifra.plata{width:fit-content;max-width:100%}
+@supports ((-webkit-background-clip:text) or (background-clip:text)){
+  .cifra.plata,.logo b,#hola .nombre{
+    background-image:var(--letra-destello),var(--letra-plata);
+    background-size:250% 100%,100% 100%;background-repeat:no-repeat;
+    background-position:160% 0,0 0;
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent}
+  .cifra.plata{animation:letra-brillo var(--paso-plata) ease-in-out .35s 1}
+  .logo b{animation:letra-brillo var(--paso-plata) ease-in-out .5s 1}
+  /* Mientras la bienvenida tapa la pantalla, el nombre no gasta su pasada:
+     cuando #hola recibe .fuera, la animación pasa de none a letra-brillo y
+     arranca en ese momento. borrar-cuenta.html no tiene bienvenida y brilla
+     a los .5s. */
+  #hola:not(.fuera) ~ * .logo b{animation:none}
+}
+@keyframes letra-brillo{from{background-position:160% 0,0 0}to{background-position:-60% 0,0 0}}
+@media (prefers-reduced-motion:reduce){.cifra.plata,.logo b{animation:none}}
+@media (forced-colors:active){
+  .cifra.plata,.logo b,#hola .nombre{background:none;-webkit-text-fill-color:currentColor}
+}
 
 /* ---------------- el chat: lo que chat.css no trae -------------------------
    chat.css pinta el hilo (burbujas, día, pie, visto) con los alias de arriba.
@@ -639,6 +754,15 @@ details[open] summary::after{content:' ↑'}
 #hola .sello{position:relative;width:96px;height:96px;border-radius:50%;
   overflow:hidden;display:grid;place-items:center;color:var(--moneda-signo);
   background:radial-gradient(78% 78% at 35% 28%, var(--moneda-1) 0%, var(--moneda-2) 42%, var(--moneda-3) 80%, var(--moneda-4) 100%);
+  /* 1-oct-2026 — el sello en metal (ver «EL METAL»): de abajo arriba, el
+     torneado —las bandas que deja la luz en una plata pulida, en cono—, el
+     campo hundido y la mancha de luz. Un navegador sin conic-gradient
+     descarta esta declaración entera y se queda con el radial de arriba. */
+  background:
+    radial-gradient(55% 40% at 33% 22%, color-mix(in srgb, var(--luz) 78%, transparent), transparent 72%),
+    radial-gradient(circle closest-side, color-mix(in srgb, var(--moneda-hondo) 30%, transparent) 0 73%, transparent 74%),
+    conic-gradient(from 210deg, var(--moneda-1), var(--moneda-3) 12%, var(--plata-luz) 24%, var(--moneda-4) 37%,
+      var(--moneda-2) 50%, var(--moneda-1) 56%, var(--moneda-3) 68%, var(--plata-luz) 79%, var(--moneda-4) 90%, var(--moneda-1));
   box-shadow:
     inset 0 0 0 1px var(--moneda-canto),
     inset 0 0 0 12px color-mix(in srgb, var(--luz) 22%, transparent),
@@ -647,6 +771,15 @@ details[open] summary::after{content:' ↑'}
   animation:hola-sello .85s cubic-bezier(.2,.9,.25,1) both}
 #hola .sello span{position:relative;z-index:2;
   font-family:Georgia,'Times New Roman',serif;font-size:44px;font-weight:700;line-height:1}
+/* el «$» del sello en plata pulida, con el canto de luz arriba y la sombra
+   abajo que lo levantan del campo. drop-shadow y no text-shadow: con la letra
+   recortada al fondo, text-shadow se pinta ENCIMA del metal y lo tapa. */
+@supports ((-webkit-background-clip:text) or (background-clip:text)){
+  #hola .sello span{background-image:var(--letra-plata);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    filter:drop-shadow(0 1.5px 0 color-mix(in srgb, var(--moneda-hondo) 85%, transparent))
+      drop-shadow(0 -1px 0 color-mix(in srgb, var(--luz) 75%, transparent))}
+}
 #hola .sello::after{content:'';position:absolute;top:-40%;bottom:-40%;left:0;width:44%;
   transform:translateX(-170%) skewX(-16deg);
   background:linear-gradient(90deg,transparent,
@@ -659,7 +792,7 @@ details[open] summary::after{content:' ↑'}
 #hola .burbujita svg{width:16px;height:16px}
 #hola .nombre{font-size:13px;font-weight:700;letter-spacing:.3em;
   text-transform:uppercase;color:color-mix(in srgb, var(--blanco-laca) 76%, transparent);
-  animation:hola-sube .6s ease .3s both}
+  animation:hola-sube .6s ease .3s both, letra-brillo var(--paso-plata) ease-in-out .9s 1}
 #hola .lema{margin-top:calc(var(--e3) * -1);
   font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;
   font-size:15.5px;font-style:italic;letter-spacing:.01em;

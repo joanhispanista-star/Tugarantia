@@ -6,6 +6,48 @@
 > que no trae nada que no pueda ser público. Lo primero que tienes que hacer
 > está en «Lo que te toca a ti».
 
+## 1-oct — las monedas en plata de verdad
+
+Joan: «quiero que esas monedas de plata tengan brillo como si fueran de plata y
+que se vea reflejo de luz, y que las letras también sean de plata».
+
+El gris liso parecía plástico. Para que algo parezca plata hacen falta franjas
+claras y oscuras muy juntas, como las de un espejo curvo. Todo vive en
+`platachat/estilo.css`, en la sección «EL METAL», que dice para qué sirve
+cada capa:
+
+- **La moneda**: el canto con franjas, el fondo hundido y un poco más oscuro,
+  el «$» en relieve de plata pulida con su sombra, y una mancha de luz fija.
+- **El lingote**: una barra con cuatro biseles y una tapa brillante.
+- **La luz que cruza**: cada vez que el cliente abre Plata, una franja de luz
+  pasa por la cifra y luego por los lingotes y las monedas, de una en una.
+  Termina antes de 3 segundos.
+- **La chispa**: solo en la moneda de encima de la pila y en la tarjeta de
+  propuesta del chat.
+- **Las letras de plata**: la cifra de la garantía, el «Chat» del nombre y
+  PLATACHAT en la bienvenida. Siguen siendo texto: se leen y se pueden copiar.
+- **El sello de la bienvenida**: metal torneado, con el «$» en plata.
+
+**Por qué la luz no va en bucle.** Lo que se mueve solo más de cinco segundos
+al lado de otro contenido necesita un botón para pararlo (WCAG 2.2.2, nivel A),
+y la calculadora está justo debajo. Si Joan lo quiere en bucle, hay que ponerle
+ese control. Con el movimiento reducido no se mueve nada, pero el metal se
+queda.
+
+**Dos cosas de la revisión adversaria** (3 lentes, 5 hallazgos confirmados y
+arreglados, 1 descartado):
+
+- La caché de GitHub dura 10 minutos. Un teléfono podía recibir la página
+  nueva con la hoja de estilos vieja, y entonces las capas nuevas salían
+  negras. Ahora llevan `fill="none"` de respaldo en el marcado.
+- El brillo del nombre se gastaba debajo de la bienvenida. Ahora arranca
+  cuando la bienvenida se va.
+
+La página de descargas (`descargas/platachat.html`) sigue con la moneda vieja:
+es otra página y tiene otras pruebas.
+
+---
+
 ## 1-oct — el registro con escáner
 
 Joan: «el registro del cliente quiero que sea como el de garantía, muy moderno
