@@ -610,6 +610,12 @@
       <div class="card" id="cardFueraCob"><div class="card-h"><h3>🚫 Quién no, y por qué</h3>
         <span class="tag">Para que la lista no encoja sin explicación</span></div>
         <div id="tblFueraCob"></div></div>
+      <!-- 1-oct-2026 — «hoy me pagó un cliente anticipadamente y no lo encontré
+           en la pestaña de cobranzas». Los créditos al día no estaban en
+           ninguna de las dos tablas. Sin casillas: aquí no se envía nada. -->
+      <div class="card" id="cardNoToca"><div class="card-h"><h3>🗓️ Todavía no les toca</h3>
+        <span class="tag">Al día: <span id="cuentaNoToca">—</span></span></div>
+        <div id="tblNoToca"></div></div>
     </section>
 
     <!-- ===================================================================
@@ -2578,16 +2584,97 @@ function renderCobranzas() {
               botonesDeFila(c.socioId || '', c.id || '', c.cuantos || 1) + '</td></tr>';
         }).join('') + '</tbody></table>';
   }
+  pintarNoLesToca(fuera, r.filas || []);
   try { pintarEstrategia(); } catch (e) {}
+}
+
+/* ===========================================================================
+ * LOS QUE TODAVÍA NO LES TOCA — 1 de octubre de 2026
+ *
+ * Joan: «quiero que en la parte de cobranza me aparezcan todos los clientes,
+ * incluso los que no tienen que pagar aún. Hoy me pagó un cliente
+ * anticipadamente y no lo encontré en la pestaña de cobranzas».
+ *
+ * Las dos tablas de arriba nacen de casosDeCobroHoy, que solo toma créditos en
+ * mora, que vencen hoy o en dos días. Un crédito «al día» no estaba en ninguna:
+ * medido con el respaldo del 1-oct, 5 de los 16 créditos abiertos. Y el que paga
+ * antes de tiempo es justo uno de esos.
+ *
+ * ESTA TABLA NO TOCA A NINGUNO DE LOS QUE YA ESTÁN ARRIBA, y es a propósito:
+ * no pasa por tanda.js ni por la Ley 2300 porque no tiene envío. Solo trae la
+ * historia, la nota y el pago, que no son contactar. Por eso tampoco tiene
+ * casillas: si las tuviera, marcarTodoCob se las llevaría al envío.
+ *
+ * Toma el crédito, no la persona: quien tiene uno en mora (arriba) y otro al día
+ * aparece también aquí con el al día, avisado. Si no, ese segundo crédito
+ * volvía a quedar sin dónde registrarle el pago — el mismo defecto de hoy.
+ * Los de acuerdo vigente se quedan solo arriba, donde está su pacto.
+ * ========================================================================= */
+function pintarNoLesToca(fuera, filas) {
+  var caja = document.getElementById('tblNoToca');
+  var cuenta = document.getElementById('cuentaNoToca');
+  if (!caja) return;
+  var arriba = {};
+  (fuera || []).forEach(function (f) { if (f.caso && f.caso.socioId) arriba[f.caso.socioId] = true; });
+  (filas || []).forEach(function (f) { if (f.socio_id) arriba[f.socio_id] = true; });
+
+  var porSocio = {};
+  DB.prestamos.forEach(function (p) {
+    if (p.pagado || estadoPrestamo(p) !== 'al-dia' || acuerdoVigente(p)) return;
+    var s = DB.socios.find(function (x) { return x.id === p.socioId; });
+    if (!s) return;
+    var g = porSocio[s.id] || (porSocio[s.id] = { s: s, debe: 0, creditos: [], corte: '' });
+    g.debe += totalCiclo(p);
+    g.creditos.push(p);
+    var c = PUENTE.corteDelCredito(p) || '';
+    if (c && (!g.corte || c < g.corte)) { g.corte = c; g.primero = p; }
+    if (!g.primero) g.primero = p;
+  });
+  var lista = Object.keys(porSocio).map(function (k) { return porSocio[k]; })
+    .sort(function (a, b) { return (a.corte || '9999').localeCompare(b.corte || '9999') ||
+                                   String(a.s.nombre || '').localeCompare(String(b.s.nombre || '')); });
+
+  if (cuenta) cuenta.textContent = lista.length
+    ? lista.length + (lista.length === 1 ? ' persona' : ' personas') : 'nadie';
+  if (!lista.length) {
+    caja.innerHTML = '<div class="empty"><div class="ic">🗓️</div><p>Nadie tiene un crédito al día sin vencer.<br>' +
+      '<span class="muted">Todo lo abierto está en las tablas de arriba.</span></p></div>';
+    return;
+  }
+  caja.innerHTML =
+    '<div class="muted" style="padding:0 14px 8px;font-size:12px">Créditos abiertos que <b>todavía no ' +
+    'vencen</b>. No se les manda cobro, pero si alguien te paga antes de tiempo, aquí le registras el ' +
+    'pago con <b>💵 Pago</b>.</div>' +
+    '<table><thead><tr><th>Cliente</th><th>Debe</th><th>Créditos</th><th>Vence</th>' +
+    '<th style="width:1%">Gestión</th></tr></thead><tbody>' +
+    lista.map(function (g) {
+      var dias = g.primero ? diasPara(g.primero) : 0;
+      var vence = g.corte
+        ? escHTML(fmtFecha(g.corte)) + '<div class="muted" style="font-size:12px">' +
+          (dias === 1 ? 'falta 1 día' : 'faltan ' + dias + ' días') + '</div>'
+        : '<span class="muted">sin fecha</span>';
+      return '<tr><td><b>' + escHTML(g.s.nombre || '') + '</b><div class="muted">' +
+          escHTML(String(g.s.telefono || '')) + '</div>' +
+          (arriba[g.s.id] ? '<div class="muted" style="font-size:12px">También tiene uno vencido arriba</div>' : '') +
+          '</td>' +
+        '<td class="num">' + COP(g.debe) + '</td>' +
+        '<td class="num">' + (g.creditos.length > 1 ? '<b>' + g.creditos.length + '</b>' : '1') + '</td>' +
+        '<td>' + vence + '</td>' +
+        '<td style="white-space:nowrap">' +
+          botonesDeFila(g.s.id, g.primero ? g.primero.id : '', g.creditos.length, true) + '</td></tr>';
+    }).join('') + '</tbody></table>';
 }
 
 /* Los dos botones con los que Joan trabaja una fila, en LAS DOS tablas.
    Ninguno de los dos contacta a nadie: mirar la historia y registrar un pago se
    pueden hacer con cualquiera, incluso con quien la Ley 2300 dejo fuera hoy. Por
    eso la tabla de abajo gana botones y NO gana casillas. */
-function botonesDeFila(socioId, creditoId, cuantos) {
+function botonesDeFila(socioId, creditoId, cuantos, alDia) {
   if (!socioId) return '<span class="muted" style="font-size:12px">—</span>';
-  var ref = '\'' + socioId + '\',\'' + escHTML(creditoId || '') + '\',' + (Number(cuantos) || 1);
+  /* `alDia` (1-oct-2026): la fila viene de «Todavía no les toca». Solo cambia
+     lo que dice el selector de crédito, que hablaba de «créditos vencidos». */
+  var ref = '\'' + socioId + '\',\'' + escHTML(creditoId || '') + '\',' + (Number(cuantos) || 1) +
+    (alDia ? ',true' : '');
   return '<button class="btn btn-ghost btn-sm" onclick="verHistoriaCobro(\'' + socioId +
       '\')" title="Todo lo que se le ha escrito y hablado">🕘 Su historia</button> ' +
     '<button class="btn btn-ghost btn-sm" onclick="anotarCobro(' + ref + ')" ' +
@@ -2730,13 +2817,15 @@ function verHistoriaCobro(socioId) {
  * equivocado que este mismo archivo ya documento en otra pantalla. Si debe uno,
  * se abre. Si debe varios, se le enseñan y escoge el.
  * ========================================================================= */
-function pagoDesdeCobro(socioId, creditoId, cuantos) {
+function pagoDesdeCobro(socioId, creditoId, cuantos, alDia) {
   var s = DB.socios.find(function (x) { return x.id === socioId; });
   if (!s) { alert('No encontre ese cliente.'); return; }
   if (Number(cuantos) <= 1 && creditoId) { abrirPago(creditoId); return; }
   openModal('💵 ¿Cual credito le vas a abonar?',
     '<div class="alerta info" style="margin-bottom:12px"><b>' + escHTML(s.nombre) + '</b> tiene ' +
-    escHTML(String(cuantos)) + ' creditos vencidos, y el mensaje de cobro los suma todos. ' +
+    escHTML(String(cuantos)) + (alDia
+      ? ' creditos que todavia no vencen. '
+      : ' creditos vencidos, y el mensaje de cobro los suma todos. ') +
     'Escoge a cual entra este pago — el CRM no lo adivina, porque el recibo sale con ese monto.</div>' +
     bloqueCreditosHTML(s));
 }

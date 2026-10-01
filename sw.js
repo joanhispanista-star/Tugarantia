@@ -1502,7 +1502,11 @@
    alto fijo y overflow:hidden; con 16 botones, en la pantalla de Joan
    (1440x765) «Equipo» y «Ajustes» quedaban fuera y sin forma de llegar. Toca
    panel/crm.html. */
-const CACHE = 'tugarantia-v118';
+/* v119 - 1-oct-2026. COBRANZAS TRAE A LOS QUE TODAVIA NO LES TOCA. Un cliente
+   le pago a Joan antes de tiempo y no aparecia en Cobranzas: los creditos al
+   dia no estaban en ninguna tabla. Tercera tabla, sin casillas, con historia,
+   nota y pago. Toca panel/crm.html. */
+const CACHE = 'tugarantia-v119';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
