@@ -1498,7 +1498,11 @@
    con la etiqueta de la app, sube las fotos ANTES de irse, y le pasa la sesión
    a PlataChat. Sin la marca, play/ no cambia. Toca play/index.html,
    platachat/index.html y platachat/sesion.js (fuera el alta de cuatro cajas). */
-const CACHE = 'tugarantia-v117';
+/* v118 - 1-oct-2026. EL MENU DEL PANEL SE PUEDE BAJAR. La barra lateral tenia
+   alto fijo y overflow:hidden; con 16 botones, en la pantalla de Joan
+   (1440x765) «Equipo» y «Ajustes» quedaban fuera y sin forma de llegar. Toca
+   panel/crm.html. */
+const CACHE = 'tugarantia-v118';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

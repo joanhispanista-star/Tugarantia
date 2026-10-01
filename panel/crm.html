@@ -174,8 +174,12 @@
 
   .app{display:grid;grid-template-columns:228px 1fr;min-height:100vh}
   /* La barra lateral es la misma "laca negra" de la app: degradado radial, banda
-     diagonal y un filete de oro en el borde. */
-  .side{color:var(--blanco-laca);padding:18px 14px;display:flex;flex-direction:column;gap:3px;position:sticky;top:0;height:100vh;overflow:hidden;
+     diagonal y un filete de oro en el borde.
+     1-oct-2026 — overflow-y:auto Y NO overflow:hidden. Con 16 botones el menú
+     mide 924 px, y en la pantalla de Joan (1440×765) «Equipo» y «Ajustes»
+     quedaban debajo del borde SIN poder bajar: Joan buscó «Subir historiales» y
+     no había Ajustes. Lo horizontal se sigue recortando por la marca de agua. */
+  .side{color:var(--blanco-laca);padding:18px 14px;display:flex;flex-direction:column;gap:3px;position:sticky;top:0;height:100vh;overflow-x:hidden;overflow-y:auto;
     background-color:var(--laca);      /* debajo del degradado, por si no pinta */
     background-image:
       linear-gradient(103deg, transparent 32%, rgba(var(--papel-rgb),.05) 45%, transparent 60%),
