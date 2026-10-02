@@ -1532,7 +1532,16 @@
    cuando subio el computador (base/20261001_panel_ultima_subida.sql). Toca
    panel/crm.html, panel/nube-crm.js (nuevo), panel/espejo.html, panel/nube.js
    y panel/subir.html (la Etapa 0, en el mismo viaje). */
-const CACHE = 'tugarantia-v123';
+/* v124 - 2-oct-2026. LA BARRA NUEVA DEL CELULAR. Joan pidio manejar todo desde
+   el celular, vertical y ordenado: la barra pasa a Hoy, Clientes, Registrados,
+   Mensajes y Mas (Tanda, Quincena y Tu gente viven en Mas). Entra app/gente.js
+   a la precarga: el espejo lo carga con un <script src> y, sin el en la cache,
+   sin senal recibiria index.html por la caida de la rama de .js (el defecto
+   v19) y «Tu gente» diria que falta el archivo. Los registrados se leen con
+   base/20261002_panel_registros.sql, que Joan tiene que pegar; mientras no
+   este, el celular dice «falta un paso en la nube». Toca panel/espejo.html y
+   app/gente.js (nuevo). */
+const CACHE = 'tugarantia-v124';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -1571,6 +1580,8 @@ const ARCHIVOS = [
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
   'panel/nube-crm.js',
   'panel/tanda.js',
+  /* 2-oct-2026 — «Tu gente», los referidos del espejo. Ver la nota de v124. */
+  'app/gente.js',
   'panel/panel-180.png',
   'panel/panel-192.png',
   'panel/panel-512.png',

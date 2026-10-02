@@ -165,6 +165,12 @@ h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Tim
 .card.laca{border:0;background:var(--placa);color:var(--blanco-laca)}
 .card.tocable{cursor:pointer}
 .card.tocable:active{transform:scale(.995)}
+/* 2-oct-2026 — Una palabra sin espacios (un nombre escrito todo junto, un
+   enlace pegado en la nota de un registro, lo que Joan teclea en el buscador)
+   no se parte sola, y empujaba la página de lado: medido a 375 px, hasta 498.
+   El nombre y la nota los escribe gente que todavía no es cliente, así que no
+   se puede contar con que vengan bien. Se parten donde haga falta. */
+.card,.vacio,.aviso{overflow-wrap:anywhere}
 .etq{font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:700;color:var(--gris)}
 .laca .etq{color:color-mix(in srgb, var(--amarillo) 85%, transparent)}
 .cifra{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.05;margin-top:6px;
@@ -265,11 +271,31 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
    El `text-overflow` es la red de abajo: si algun dia no cupiera el texto, se
    corta con puntos suspensivos DENTRO de su pestania. Sin el, el texto se sale
    del boton y se monta sobre el de al lado, que se lee como una pantalla rota. */
+/* 2-oct-2026 — LA BARRA NUEVA: Hoy · Clientes · Registrados · Mensajes · Más.
+   «Registrados» es la palabra más larga que ha tenido esta barra (11 letras) y
+   a 375 px cada pestaña mide 75. Con 11,5px fijos cabía justo y en un iPhone de
+   320 se cortaba. Por eso la letra va con clamp(): baja hasta 10px en la
+   pantalla más angosta y no pasa de 11,5 en las anchas, y el relleno de los
+   lados baja de 4 a 2px. La red de los puntos suspensivos sigue debajo. */
 .nav{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .nav::-webkit-scrollbar{display:none}
 .nav button{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;border:0;background:transparent;font-family:inherit;cursor:pointer;
-  padding:12px 4px;min-height:52px;color:var(--gris);font-size:11.5px;font-weight:600;position:relative}
+  padding:12px 2px;min-height:52px;color:var(--gris);font-size:clamp(10px,2.95vw,11.5px);
+  font-weight:600;position:relative}
+/* El número de registros nuevos. Va EN ÁMBAR y no en rojo por la ley de esta
+   hoja: es un estado («hay gente esperando»), y el rojo es la marca. Va encima
+   de la palabra, en la esquina, y no al lado: al lado le robaría a
+   «Registrados» los pocos píxeles que tiene.
+   2-oct-2026 — Pegado al borde DERECHO del botón y no medido desde el centro:
+   desde el centro, «99+» terminaba en el píxel 73 de un botón de 72 (a 360 px)
+   y el overflow:hidden de la pestaña se lo comía. Arriba no pisa la palabra:
+   el globo va de 2 a 18 px y el texto empieza en 19. */
+.nav .globo{position:absolute;top:2px;right:2px;min-width:16px;height:16px;
+  padding:0 4px;border-radius:999px;background:var(--ambar);color:var(--luz);font-size:10px;
+  font-weight:800;line-height:16px;text-align:center;font-variant-numeric:tabular-nums}
+.vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);
+  white-space:nowrap}
 .nav button.on{color:var(--tinta)}
 .nav button.on::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
   bottom:6px;width:18px;height:2px;border-radius:2px;background:var(--rojo)}
@@ -314,7 +340,28 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
 .vista{animation:sube .28s cubic-bezier(.2,.8,.2,1)}
 @keyframes sube{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.vista{animation:none}}
+/* 2-oct-2026 — La entrada se anima al CAMBIAR de pantalla, no al repintar la
+   misma: el buscador de Clientes repinta en cada letra, y con la animación el
+   propio campo donde Joan escribe volvía a aparecer desde transparente. */
+.vista.quieta{animation:none}
 .pie{text-align:center;font-size:12px;color:var(--gris);margin:22px 0 8px;line-height:1.6}
+
+/* ---------------- lo de la barra nueva (2-oct-2026) ----------------
+   Nada de esto es un estilo nuevo: son las mismas tarjetas, píldoras y avisos
+   de arriba, acomodados. Lo único que se agrega es lo que hace falta para que
+   una tarjeta entera sea un BOTÓN de verdad (el menú de «Más»): con un <div>
+   tocable el lector de pantalla no sabe que se puede tocar. */
+.renglon{display:flex;align-items:center;justify-content:space-between;gap:var(--e3);
+  width:100%;min-height:64px;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.renglon b{display:block;font-size:16px}
+.renglon .flecha{flex:none;font-size:24px;line-height:1;color:var(--gris)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--e2)}
+.chips .pill{white-space:normal;text-align:left;line-height:1.35}
+/* El buscador de Clientes se queda arriba mientras la lista corre: con todos
+   los clientes en pantalla, volver a subir para afinar la búsqueda con una
+   sola mano es justo lo que no se puede pedir en la calle. */
+.pegado{position:sticky;top:calc(env(safe-area-inset-top) + 6px);z-index:5;
+  box-shadow:0 10px 18px -16px color-mix(in srgb, var(--sombra) 45%, transparent)}
 </style>
 </head>
 <body>
@@ -344,12 +391,18 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
   <button class="cinta" id="cinta" type="button">
     <span class="txt">Abriendo…</span>
   </button>
-  <nav class="nav" id="nav">
+  <!-- 2-oct-2026 — Joan: «desde mi celular quiero manejar todo verticalmente,
+       muy organizado y fácil de manejar». Cinco, que es lo que cabe sin achicar
+       (PLAN-CRM-OCTUBRE.md §4): lo de todos los días abajo, al alcance del
+       pulgar, y lo de una vez por semana (Tanda, Quincena, Tu gente) en «Más».
+       «Clientes» reemplaza a «Buscar»: buscar era lo único que se hacía ahí, y
+       ahora se ve a todos de una, ordenados por quién urge. -->
+  <nav class="nav" id="nav" aria-label="Secciones">
     <button data-v="hoy" class="on" type="button">Hoy</button>
-    <button data-v="tanda" type="button">Tanda</button>
+    <button data-v="clientes" type="button">Clientes</button>
+    <button data-v="registrados" type="button">Registrados<span class="globo" id="globoRegistrados" hidden></span></button>
     <button data-v="mensajes" type="button">Mensajes</button>
-    <button data-v="buscar" type="button">Buscar</button>
-    <button data-v="quincena" type="button">Quincena</button>
+    <button data-v="mas" type="button">Más</button>
   </nav>
 </div>
 
@@ -371,6 +424,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
      es exactamente el defecto que este proyecto lleva semanas quitándose. -->
 <script src="../app/motor.js"></script>
 <script src="../app/puente.js"></script>
+<!-- «Tu gente» (referidos), solo para Joan. Va DESPUÉS del motor y del puente
+     porque les pregunta la garantía por referidos con su tope: no la calcula.
+     La app del socio no carga este archivo, y una prueba lo vigila. -->
+<script src="../app/gente.js"></script>
 <!-- La efectiva anual. NO se copia la fórmula: `efectivoAnualPorFechas` ya la
      tiene, y crm.html lleva una segunda implementación propia (`eaEquivalente`)
      que da el MISMO número al decimal. Una tercera copia es como se separan. -->
@@ -409,7 +466,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
  *   · SÍ crea créditos desde el 23-sep-2026 (Fase C), pero solo CON SEÑAL: el
  *     número lo emite la nube. Los préstamos con garantía siguen siendo del
  *     computador — son otra figura y otro papeleo;
- *   · no pacta planes de pagos — es un compromiso a tres cortes y se firma sentado.
+ *   · no pacta planes de pagos — es un compromiso a tres cortes y se firma sentado;
+ *   · VE a los registrados (2-oct-2026) pero no los aprueba ni les abre la
+ *     ficha, y no ve sus fotos ni su cotejo completo: eso se decide mirando la
+ *     cédula y la selfie, y esas no salen del computador.
  * ========================================================================= */
 
 var M = window.MotorReglas || null;
@@ -421,6 +481,7 @@ var P = window.PuenteTuGarantia || null;
 var NUBE = window.NubeTuGarantia || null;
 var T = window.TandaTuGarantia || null;
 var CR = window.CreditosPublicables || null;
+var G = window.GenteTuGarantia || null;
 
 /* Los dos topes del costo SALEN DEL MOTOR, no se escriben acá. El techo subió
    del 20% al 50% el 8-sep-2026 por decisión de Joan, y el día que vuelva a
@@ -566,6 +627,8 @@ var _almacenFirme = null;   /* null = todavía no se sabe · true/false = respue
    {fecha, grupo, saltados:[{socioId, motivo}]}. Ni la lista de pendientes ni por
    dónde iba. Ver el comentario largo de vistaTanda(). */
 var TANDA_GUARDADA = null;
+/* La última pestaña de la barra que tocó Joan en ESTE aparato (2-oct-2026). */
+var PESTANIA_GUARDADA = null;
 
 /* normalizar() del puente devuelve SOLO lo que le importa al socio (socios,
    préstamos, respaldados, invitaciones, config, contadores) y deja fuera todo lo
@@ -591,7 +654,10 @@ function guardarUI() {
       /* Lo ÚNICO que la tanda guarda entre sesiones: en qué grupo estaba y a
          quién saltó, con la fecha. NO guarda la lista de pendientes ni por
          dónde iba — eso se recalcula. Ver vistaTanda(). */
-      tanda: TANDA_GUARDADA
+      tanda: TANDA_GUARDADA,
+      /* 2-oct-2026 — la última pestaña de la barra, para abrir donde Joan la
+         dejó. Es un nombre de pestaña y nada más: ningún dato de nadie. */
+      pestania: PESTANIA_GUARDADA
     }));
   }
   catch (e) { /* si no cabe esto, tampoco cabía nada: ya lo dirá guardarEstado */ }
@@ -1034,6 +1100,13 @@ function sincronizar(porOrdenDeJoan) {
       /* 1-oct-2026 — después de traer, preguntar cuándo subió el computador.
          Va aparte y después: si falla, lo traído ya está pintado y a salvo. */
       traerSubidaPC();
+      /* 2-oct-2026 — y cuántos registrados nuevos hay, para el número de la
+         pestaña. Con la pestaña abierta se trae la lista; si no, solo la
+         cuenta: no se bajan los datos de nadie para pintar un número.
+         Sin la orden de Joan no se fuerza: al abrir la app en Registrados la
+         propia pestaña ya pidió la lista hace un instante, y pedirla otra vez
+         acá era bajar dos veces los mismos nombres (lo midió la revisión). */
+      if (VISTA === 'registrados') traerRegistros(porOrdenDeJoan); else traerCuentaRegistros();
     })
     .catch(function (e) {
       _sincronizando = false;
@@ -1516,9 +1589,28 @@ var VISTA = 'hoy';
 var SEL = { socioId: null, creditoId: null };
 var BUSQUEDA = '';
 
-var TITULOS = { hoy: 'Hoy', tanda: 'Tanda de mensajes', buscar: 'Buscar',
+var TITULOS = { hoy: 'Hoy', tanda: 'Tanda de mensajes', clientes: 'Clientes',
                 ficha: 'Ficha del socio', credito: 'Crédito', quincena: 'Quincena',
-                mensajes: 'Mensajes' };
+                mensajes: 'Mensajes', registrados: 'Registrados', mas: 'Más',
+                gente: 'Tu gente' };
+
+/* ==========================================================================
+ * LA BARRA DE CINCO Y LO QUE VIVE EN «MÁS» — 2-oct-2026
+ *
+ * Las cinco de la barra son lo de TODOS los días: lo que vence (Hoy), la
+ * gente (Clientes), quién pidió entrar (Registrados) y quién escribió
+ * (Mensajes). Tanda, Quincena y Tu gente se usan una vez por semana o menos:
+ * viven en «Más», que es una lista vertical de tarjetas grandes.
+ *
+ * Estando en una de ellas, la barra enciende «Más» — por lo mismo que con
+ * Ficha y Crédito: la barra es el único sitio del teléfono donde Joan lee en
+ * qué parte de la app está, y si no encendiera nada se quedaría muda.
+ *
+ * No entran en DETALLE a propósito: a ellas se llega ENTRANDO (desde Más), no
+ * abriendo a alguien, así que entrar sí limpia el camino de volver.
+ * ======================================================================== */
+var DENTRO_DE_MAS = { tanda: 1, quincena: 1, gente: 1 };
+var PESTANIAS = ['hoy', 'clientes', 'registrados', 'mensajes', 'mas'];
 
 /* ==========================================================================
  * FICHA Y CREDITO NO SON DESTINOS: SON EL DETALLE DE ALGUIEN
@@ -1549,20 +1641,31 @@ var TITULOS = { hoy: 'Hoy', tanda: 'Tanda de mensajes', buscar: 'Buscar',
  * ======================================================================== */
 var DETALLE = { ficha: 1, credito: 1 };
 var PILA = [];
+/* 2-oct-2026 — Hasta dónde había bajado Joan en cada pantalla de la pila.
+   Volver de una ficha dejaba la lista arriba del todo: con trescientos
+   clientes, bajar hasta la mora, abrir a uno y volver era empezar a bajar otra
+   vez, en cada ida y vuelta. Se guarda al ENTRAR a un detalle y se usa solo al
+   volver; tocar una pestaña es empezar de nuevo, y empieza arriba. */
+var SCROLL = {};
 
 function ir(v) {
-  if (DETALLE[v]) { if (v !== VISTA) PILA.push(VISTA); }
-  else PILA.length = 0;
+  if (DETALLE[v]) {
+    if (v !== VISTA) { SCROLL[VISTA] = window.scrollY || 0; PILA.push(VISTA); }
+  } else { PILA.length = 0; SCROLL = {}; }
   pintarVista(v);
 }
 
 /* Volver NO apila. Si lo hiciera, cada ida y vuelta dejaria la pila creciendo y
    el boton de atras no saldria nunca de las dos ultimas pantallas. */
-function volver() { pintarVista(PILA.pop() || 'hoy'); }
+function volver() {
+  var a = PILA.pop() || 'hoy';
+  pintarVista(a);
+  if (SCROLL[a]) window.scrollTo(0, SCROLL[a]);
+}
 
 /* El texto del boton nombra A DONDE va, no «atras». En una pantalla de telefono
    «atras» puede ser el gesto del sistema, la flecha del navegador o esto; que
-   diga «Buscar» quita la duda antes de tocarlo. */
+   diga «Clientes» quita la duda antes de tocarlo. */
 function botonVolver() {
   var a = PILA[PILA.length - 1];
   return '<button class="btn sec sm" type="button" data-acc="volver">&larr; '
@@ -1580,17 +1683,52 @@ function pintarVista(v) {
     if (!DETALLE[PILA[i]]) { raiz = PILA[i]; break; }
   }
   var marca = DETALLE[v] ? raiz : v;
+  /* Tanda, Quincena y Tu gente no tienen pestaña propia: encienden «Más». */
+  if (DENTRO_DE_MAS[marca]) marca = 'mas';
   Array.prototype.forEach.call(document.querySelectorAll('#nav button'), function (b) {
-    b.classList.toggle('on', b.dataset.v === marca);
+    var on = b.dataset.v === marca;
+    b.classList.toggle('on', on);
+    /* 2-oct-2026 — La raya roja se ve; al lector de pantalla hay que decírselo,
+       o las cinco pestañas le suenan iguales y no sabe en cuál está. */
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
   document.getElementById('cabTitulo').textContent = TITULOS[v] || 'Panel';
+  /* 2-oct-2026 — Entrar a Registrados vuelve a pedir la lista, siempre. El
+     número de la pestaña se actualiza solo con cada sincronización, y la
+     lista no: Joan veía «3 nuevos» en la pestaña y, adentro, la lista de hace
+     una hora diciendo «se ven los 1 más recientes» o «no hay nadie
+     esperando». No se guarda en el teléfono, así que no hay copia vieja que
+     cuidar: se pregunta otra vez. Mientras llega, se ven las de antes con su
+     hora. Si ya va una pregunta en camino no se manda otra (se mira la
+     pregunta, no el estado: un «cargando» sin pregunta en camino dejaría la
+     pestaña diciendo «Preguntando…» para siempre), y si falta el SQL el aviso
+     se queda hasta que la cuenta diga que ya está (traerCuentaRegistros). */
+  if (v === 'registrados' && !_reg.enCurso && _reg.estado !== 'falta') _reg.estado = 'nada';
+  /* Se recuerda la pestaña de la BARRA, no la vista: abrir mañana en la ficha
+     de alguien que hoy ya pagó sería abrir en una pantalla vieja. */
+  if (PESTANIAS.indexOf(v) >= 0 && PESTANIA_GUARDADA !== v) {
+    PESTANIA_GUARDADA = v;
+    guardarUI();
+  }
   window.scrollTo(0, 0);
   pintar();
 }
 
+/* La salida de Tanda, Quincena y Tu gente: vuelve a la lista de «Más», que es
+   por donde se entró. La barra también lleva ahí, pero abajo y lejos del
+   título; este botón queda donde el ojo empieza a leer. */
+function botonMas() {
+  return '<button class="btn sec sm" type="button" data-acc="ir" data-destino="mas">&larr; Más</button>';
+}
+
+/* La última vista que se pintó, para saber si este repintado es de la MISMA
+   pantalla (ver .vista.quieta en la hoja de estilos). */
+var _vistaPintada = null;
+
 function pintar() {
   pintarCinta();
   pintarTraido();
+  pintarGlobos();
   var c = document.getElementById('cuerpo');
   var html = '';
   if (!M || !P) {
@@ -1601,16 +1739,23 @@ function pintar() {
   }
   html += bloqueChoques();
   html += bloqueAvisosDuros();
+  /* Dentro de un grupo de la tanda la salida ya existe («← Todos los
+     grupos»); dos botones de volver uno encima del otro no dicen cuál usar. */
+  if (DENTRO_DE_MAS[VISTA] && !(VISTA === 'tanda' && TANDA.grupo)) html += botonMas();
   if (VISTA === 'hoy') html += vistaHoy();
   else if (VISTA === 'tanda') html += vistaTanda();
-  else if (VISTA === 'buscar') html += vistaBuscar();
+  else if (VISTA === 'clientes') html += vistaClientes();
+  else if (VISTA === 'registrados') html += vistaRegistrados();
   else if (VISTA === 'ficha') html += vistaFicha();
   else if (VISTA === 'credito') html += vistaCredito();
   else if (VISTA === 'quincena') html += vistaQuincena();
   else if (VISTA === 'mensajes') html += vistaMensajes();
+  else if (VISTA === 'mas') html += vistaMas();
+  else if (VISTA === 'gente') html += vistaGente();
   html += '<div class="pie">Panel en el bolsillo · las reglas son las de '
     + esc(M.REGLAS_VIGENTES_DESDE || '—') + '</div>';
-  c.innerHTML = '<div class="vista">' + html + '</div>';
+  c.innerHTML = '<div class="vista' + (VISTA === _vistaPintada ? ' quieta' : '') + '">' + html + '</div>';
+  _vistaPintada = VISTA;
 }
 
 /* ================= MENSAJES EN LA CALLE — 28-ago-2026 =================
@@ -1999,7 +2144,10 @@ function vistaHoy() {
       +   '</div>'
       +   '<span class="pill ' + est + '">' + ESTADO_TXT[est] + '</span>'
       + '</div>'
-      + '<div class="fila"><span class="k">Total para saldar</span>'
+      /* 2-oct-2026 (revisión) — Con plan de pagos, liquidarCiclo liquida la
+         CUOTA que sigue, no la deuda: «Total para saldar» le decía a Joan que
+         con eso cerraba el crédito. Mismo rótulo que la vista Crédito. */
+      + '<div class="fila"><span class="k">' + (P.tienePlan(p) ? 'Total de la cuota' : 'Total para saldar') + '</span>'
       +   '<span class="v">' + COP(l.total_a_pagar) + '</span></div>'
       + (l.recargo_mora
           ? '<div class="fila"><span class="k">Recargo por ' + l.dias_mora + ' día(s)' + pctMora(l) + '</span>'
@@ -2508,62 +2656,632 @@ function tarjetaDeTanda(c, t, r) {
   return h;
 }
 
-/* ------------------------------ BUSCAR --------------------------------- */
-function vistaBuscar() {
-  var q = BUSQUEDA.trim().toLowerCase();
-  var h = '<div class="card ap">'
-    + '<label for="bq">Buscar por nombre, cédula, teléfono o código</label>'
+/* ------------------------------ CLIENTES --------------------------------
+   2-oct-2026 — reemplaza a «Buscar». Buscar solo servía si Joan ya sabía a
+   quién buscaba; en la calle lo que necesita es ver a TODOS y que arriba
+   salga quien urge. Por eso la lista está ordenada por urgencia (mora, vence
+   hoy, vence pronto, al día, sin deuda) y después por nombre, y el buscador
+   va encima, pegado, filtrando mientras escribe.
+
+   Lo que cada tarjeta dice sale de las mismas preguntas de siempre:
+   estadoPrestamo (la mora la declara el puente), totalCiclo (la liquidación
+   del puente) y corteDelCredito. Acá no se resta una fecha ni se suma un
+   costo a mano. */
+var URGENCIA = { mora: 0, hoy: 1, proximo: 2, 'al-dia': 3, 'sin-deuda': 4 };
+
+/* Sin tildes y en minúscula: en el teclado del teléfono «Maria» y «María»
+   son la misma persona, y obligar a Joan a poner la tilde para encontrar a
+   una clienta es obligarlo a fallar la primera vez. */
+function plano(t) {
+  var s = String(t == null ? '' : t).toLowerCase();
+  try { s = s.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) {}
+  return s;
+}
+
+/* 2-oct-2026 (revisión) — tres cosas que la primera versión decía mal:
+   · «Para saldar hoy» con plan de pagos era la CUOTA, no la deuda (con plan,
+     liquidarCiclo liquida la cuota que sigue; la vista Crédito ya la llama
+     «Total de la cuota»). Por eso se cuenta cuántos abiertos van con plan, y
+     la tarjeta escoge el rótulo con eso.
+   · Dentro de «En mora» se ordenaba por nombre: Andrés con un día salía
+     encima de Zulma con veinte. Ahora cada resumen trae la fecha que decide
+     su urgencia (`clave`), y a igual urgencia manda la fecha más vieja, como
+     en Hoy.
+   · El préstamo con garantía no contaba: quien solo tenía uno, con una cuota
+     vencida, salía «Sin créditos abiertos», sin píldora y al final, como si
+     no debiera nada. Su urgencia sale con la MISMA regla de estadoRespaldado
+     en crm.html (la cuota sin pagar más vieja contra hoy), con la resta de
+     días del motor. Su plata NO se suma a lo de arriba: esas cuotas se cobran
+     en el computador y mezclarlas haría un número que nadie cobra. */
+function resumenCliente(s) {
+  var r = { estado: 'sin-deuda', clave: null, estadoQ: 'sin-deuda', debe: 0, proxima: null, diasMora: 0,
+            abiertos: 0, conPlan: 0, respaldados: 0, resp: null };
+  var hoy = hoyISO();
+  function considerar(e, fecha) {
+    if (URGENCIA[e] < URGENCIA[r.estado] ||
+        (URGENCIA[e] === URGENCIA[r.estado] && fecha && (!r.clave || fecha < r.clave))) {
+      r.estado = e; r.clave = fecha || null;
+    }
+  }
+  DB.prestamos.forEach(function (p) {
+    if (p.socioId !== s.id || p.pagado) return;
+    r.abiertos++;
+    if (P.tienePlan(p)) r.conPlan++;
+    var e = estadoPrestamo(p);
+    if (URGENCIA[e] < URGENCIA[r.estadoQ]) r.estadoQ = e;
+    r.debe += totalCiclo(p);
+    var c = P.corteDelCredito(p);
+    considerar(e, c);
+    if (c && (!r.proxima || c < r.proxima)) r.proxima = c;
+    if (e === 'mora') r.diasMora = Math.max(r.diasMora, diasMora(p));
+  });
+  P.respaldadosDe(DB, s).forEach(function (x) {
+    var pend = (x.cuotas || []).filter(function (c) { return c && !c.pagado; });
+    if (!pend.length) return;
+    r.respaldados++;
+    var f = pend.filter(function (c) { return c.fecha; })
+      .map(function (c) { return String(c.fecha).slice(0, 10); }).sort()[0];
+    if (!f) return;   /* sin fecha no hay urgencia que decir, pero sí cuenta como abierto */
+    var e;
+    try {
+      var atraso = diasEntre(f, hoy);
+      e = atraso > 0 ? 'mora' : atraso === 0 ? 'hoy' : (-atraso <= 2 ? 'proximo' : 'al-dia');
+      if (!r.resp || URGENCIA[e] < URGENCIA[r.resp.estado] ||
+          (URGENCIA[e] === URGENCIA[r.resp.estado] && f < r.resp.fecha)) {
+        r.resp = { estado: e, fecha: f, diasMora: Math.max(0, atraso) };
+      }
+    } catch (err) { return; /* una fecha que el motor no entiende no inventa una urgencia */ }
+    considerar(e, f);
+  });
+  return r;
+}
+
+function vistaClientes() {
+  var q = plano(BUSQUEDA.trim());
+  var h = '<div class="card ap pegado">'
+    + '<label for="bq" style="margin-top:0">Buscar por nombre, cédula, teléfono o código</label>'
     + '<input id="bq" type="search" inputmode="search" autocomplete="off" '
     +   'placeholder="Ej.: María, 1032…, CL-0007" value="' + esc(BUSQUEDA) + '">'
     + '</div>';
 
-  var socios = DB.socios;
-  if (q) {
-    socios = socios.filter(function (s) {
-      var codigo = P.codCliente(s).toLowerCase();
-      return [s.nombre, s.cedula, s.telefono, s.telefono2, s.whatsappNumero, codigo]
-        .some(function (v) { return String(v == null ? '' : v).toLowerCase().indexOf(q) !== -1; });
-    });
+  /* Los dos vacíos que parecen uno: sin cartera este teléfono no sabe nada, y
+     tiene que decirlo en vez de contestar «no tienes clientes». */
+  if (!(DB.socios && DB.socios.length)) {
+    return h + '<div class="vacio"><div class="ic">☁</div>'
+      + '<p>Todavía no ha llegado tu cartera a este teléfono.</p>'
+      + '<p class="muted">Esto <b>no</b> quiere decir que no tengas clientes: quiere decir que este '
+      + 'aparato aún no los ha traído. Entra con tu correo y toca «Traer de la nube».</p></div>'
+      + botonClienteNuevo();
   }
-  socios = socios.slice().sort(function (a, b) {
-    return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
+
+  /* Primero se filtra y DESPUÉS se resume: el buscador repinta en cada letra,
+     y resumir a los trescientos para mostrar a once costaba ~10 ms por letra
+     en el computador (varias veces eso en un Android de gama media). */
+  var todos = DB.socios;
+  var vistos = (q ? todos.filter(function (s) {
+    return [s.nombre, s.cedula, s.telefono, s.telefono2, s.whatsappNumero, P.codCliente(s)]
+      .some(function (v) { return plano(v).indexOf(q) !== -1; });
+  }) : todos).map(function (s) { return { s: s, r: resumenCliente(s) }; });
+  vistos.sort(function (a, b) {
+    return (URGENCIA[a.r.estado] - URGENCIA[b.r.estado]) ||
+      String(a.r.clave || '').localeCompare(String(b.r.clave || '')) ||
+      String(a.s.nombre || '').localeCompare(String(b.s.nombre || ''), 'es');
   });
 
+  /* «＋ Nuevo» va arriba, al lado de la cuenta, y no al final: con todos los
+     clientes en pantalla, el final de la lista queda a veinte deslizadas. */
   h += '<div class="tit-bloque"><h3 class="tit">'
-    + (q ? socios.length + ' resultado(s)' : socios.length + ' socios')
-    + '</h3></div>';
+    + (q ? vistos.length + ' de ' + todos.length : todos.length + (todos.length === 1 ? ' cliente' : ' clientes'))
+    + '</h3>'
+    + '<button class="btn sec sm" style="width:auto" type="button" data-acc="nuevocliente">＋ Nuevo</button></div>';
 
-  if (!socios.length) {
-    h += '<div class="vacio"><div class="ic">🔍</div><p>Nadie con eso.</p></div>';
-  } else {
-    socios.slice(0, 60).forEach(function (s) {
-      var abiertos = DB.prestamos.filter(function (p) { return p.socioId === s.id && !p.pagado; });
-      var enMora = abiertos.filter(function (p) { return estadoPrestamo(p) === 'mora'; }).length;
-      h += '<div class="card ap tocable" data-acc="verficha" data-id="' + esc(s.id) + '">'
-        + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'
-        +   '<div style="min-width:0"><b>' + esc(s.nombre || 'Socio') + '</b>'
-        +     '<div class="mini mono">' + esc(P.codCliente(s)) + (s.cedula ? ' · ' + esc(s.cedula) : '') + '</div></div>'
-        +   (enMora ? '<span class="pill mora">' + enMora + ' en mora</span>' : '')
-        + '</div>'
-        + '<div class="mini">' + abiertos.length + ' crédito(s) abierto(s)'
-        +   (abiertos.length ? ' · ' + COP(abiertos.reduce(function (t, p) { return t + totalCiclo(p); }, 0)) + ' por cobrar' : '')
-        + '</div></div>';
-    });
-    if (socios.length > 60) {
-      h += '<div class="mini" style="margin-top:8px">Se muestran los primeros 60. Afina la búsqueda.</div>';
+  if (!vistos.length) {
+    h += '<div class="vacio"><div class="ic">🔍</div><p>Nadie con «' + esc(BUSQUEDA.trim()) + '».</p>'
+      + '<p class="muted">Se busca en el nombre, la cédula, los teléfonos y el código CL-.</p></div>';
+  }
+  vistos.forEach(function (x) { h += tarjetaCliente(x.s, x.r); });
+
+  h += avisoClienteNuevo();
+  return h;
+}
+
+function tarjetaCliente(s, r) {
+  /* flex:none solo en ESTA píldora: al lado de un nombre largo, «EN MORA» se
+     partía en dos renglones. No va en .pill en general porque las de
+     Registrados son frases y sí tienen que poder partirse. */
+  var pill = r.estado === 'sin-deuda' ? ''
+    : '<span class="pill ' + r.estado + '" style="flex:none">' + ESTADO_TXT[r.estado] + '</span>';
+  var cuando;
+  /* «Sin créditos abiertos» a quien tiene un préstamo con garantía abierto se
+     contradice con la línea de abajo: se dice cuáles no tiene. */
+  if (!r.abiertos) cuando = '<span class="muted">' + (r.respaldados ? 'Sin créditos quincenales abiertos' : 'Sin créditos abiertos') + '</span>';
+  else if (r.estadoQ === 'mora') cuando = 'Venció el ' + fmtFecha(r.proxima) + ' · hace ' + r.diasMora + ' día(s)';
+  else if (r.estadoQ === 'hoy') cuando = 'Vence hoy';
+  else cuando = 'Próximo pago: ' + fmtFecha(r.proxima)
+    + (r.proxima ? ' <span class="muted">· en ' + diasEntre(hoyISO(), r.proxima) + ' día(s)</span>' : '');
+  /* El rótulo de la plata depende de qué es: sin plan, pagar eso hoy salda el
+     crédito; con plan es solo la cuota que sigue (la deuda es más). */
+  var rotulo = !r.conPlan ? 'Para saldar hoy'
+    : (r.conPlan === r.abiertos ? 'Cuota de este ciclo' : 'Por cobrar este ciclo');
+  var resp = '';
+  if (r.respaldados) {
+    resp = 'Y ' + r.respaldados + ' préstamo(s) con garantía, que se cobran en el computador.';
+    if (r.resp && r.resp.estado === 'mora') {
+      resp += ' Una cuota venció el ' + fmtFecha(r.resp.fecha) + ' · hace ' + r.resp.diasMora + ' día(s).';
+    } else if (r.resp && r.resp.estado === 'hoy') {
+      resp += ' Una cuota vence hoy.';
     }
   }
+  return '<div class="card ap tocable" role="button" tabindex="0" data-acc="verficha" data-id="' + esc(s.id) + '">'
+    + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'
+    +   '<div style="min-width:0"><b>' + esc(s.nombre || 'Socio') + '</b>'
+    +     '<div class="mini mono">' + esc(P.codCliente(s)) + (s.cedula ? ' · ' + esc(s.cedula) : '') + '</div></div>'
+    +   pill
+    + '</div>'
+    + (r.abiertos
+        ? '<div class="fila"><span class="k">' + rotulo
+          + (r.abiertos > 1 ? ' (' + r.abiertos + ' créditos)' : '') + '</span>'
+          + '<span class="v">' + COP(r.debe) + '</span></div>'
+        : '')
+    + '<div class="mini">' + cuando + '</div>'
+    + (resp ? '<div class="mini">' + resp + '</div>' : '')
+    + '</div>';
+}
 
-  /* El botón NO se esconde sin señal: se muestra y se explica. Esconderlo dejaría
-     a Joan pensando que la función no existe; mostrarlo apagado sin decir por qué
-     es peor todavía. */
-  h += '<button class="btn arriba" type="button" data-acc="nuevocliente">＋ Cliente nuevo</button>';
-  h += nubeLista()
-    ? '<div class="mini" style="margin-top:8px">El número de cliente lo emite la nube al crearlo, para que no se repita con el del computador.</div>'
+function botonClienteNuevo() {
+  return '<button class="btn arriba" type="button" data-acc="nuevocliente">＋ Cliente nuevo</button>'
+    + avisoClienteNuevo();
+}
+/* El botón NO se esconde sin señal: se muestra y se explica. Esconderlo dejaría
+   a Joan pensando que la función no existe; mostrarlo apagado sin decir por qué
+   es peor todavía. */
+function avisoClienteNuevo() {
+  return nubeLista()
+    ? '<div class="mini" style="margin-top:8px">El número de un cliente nuevo lo emite la nube al crearlo, para que no se repita con el del computador.</div>'
     : '<div class="aviso ambar"><b>Sin señal no se puede crear un cliente.</b> El número (CL-0001, CL-0002…) '
       + 'lo emite la nube uno por uno; si el celular lo inventara, el computador podría estar entregando '
       + 'ese mismo número al mismo tiempo. Cobrar, prorrogar y marcar gestión sí funcionan sin señal.</div>';
+}
+
+/* ----------------------------- REGISTRADOS ------------------------------
+   2-oct-2026. Quién pidió entrar por la app y está esperando a que Joan le
+   abra la ficha. En el computador es 📥 Registrados; acá es la misma bandeja,
+   con tres diferencias que son a propósito:
+
+   1. SIN FOTOS. Ni la cédula ni la selfie viajan al teléfono: la selfie es
+      dato biométrico (Ley 1581) y la ficha del socio ya promete que las fotos
+      se quedan en el computador. La función de la nube no las devuelve, y esta
+      pantalla no tiene dónde pintarlas.
+   2. SIN APROBAR. No se abre la ficha ni se crea un cliente desde acá: eso se
+      decide mirando las fotos y el cotejo, y eso está en el computador. Lo que
+      sí se puede es lo que la persona pidió al registrarse: que la contacten.
+   3. NO SE GUARDA EN EL TELÉFONO. Igual que los mensajes: una lista vieja de
+      registrados se lee igual que una nueva, y son datos de gente que todavía
+      no es cliente. Vive en memoria y se vuelve a pedir.
+
+   Lee la bandeja con public.panel_registros (base/20261002_panel_registros.sql),
+   que pregunta panel_es_dueno() con la sesión de Joan. listar_registros, la
+   del computador, pide la clave de sincronización y devuelve la fila entera
+   con la IP y el GPS: no es para un teléfono que se puede perder en la calle.
+
+   Los estados se distinguen en pantalla porque significan cosas opuestas:
+     'nada'      todavía no se preguntó
+     'cargando'  preguntando
+     'ok'        la nube contestó (y puede contestar que no hay nadie)
+     'error'     no se pudo preguntar — eso NO es «no hay nadie»
+     'falta'     la función no existe en la nube (404): falta pegar el SQL */
+var _reg = registrosEnBlanco();
+var LIMITE_REGISTROS = 100;
+
+/* 2-oct-2026 (revisión) — Dos números que parecen el mismo y no lo son:
+     nuevos       la última cuenta que contestó la nube; la pinta la PESTAÑA.
+     nuevosLista  la cuenta que llegó EN LA MISMA respuesta que las tarjetas;
+                  la pinta el TÍTULO de la lista.
+   Con uno solo, la cuenta de las 10:05 quedaba encima de las tarjetas de las
+   9:00 y la pantalla decía «3 esperando · se ven los 1 más recientes». */
+function registrosEnBlanco() {
+  return { estado: 'nada', filas: [], nuevos: null, nuevosLista: null, error: '', pedidosLeidos: true,
+           leidoEn: null, pedidoEn: 0, enCurso: null };
+}
+
+/* forzar = la pidió Joan (entró a la pestaña, tocó «↻ Traer» o «Traer de la
+   nube»). Sin forzar —la sincronización de cada cinco minutos— no se vuelve a
+   bajar una lista que llegó hace menos de diez segundos. Y nunca se mandan
+   dos preguntas a la vez: la segunda espera a la que va en camino. */
+function traerRegistros(forzar) {
+  if (!NUBE || !NUBE.rpc || !nubeLista()) return Promise.resolve();
+  /* `reg` y no `_reg` adentro: si Joan cierra la sesión con la pregunta en
+     camino, «Cerrar sesión» pone una bandeja nueva en blanco, y la respuesta
+     tardía escribe en la vieja —la que ya nadie pinta— en vez de devolverle
+     los nombres a una pestaña sin sesión. */
+  var reg = _reg;
+  if (reg.enCurso) return reg.enCurso;
+  if (!forzar && reg.estado === 'ok' && Date.now() - reg.pedidoEn < 10000) return Promise.resolve();
+  reg.estado = 'cargando';
+  reg.enCurso = NUBE.rpc('panel_registros', { p_estado: 'nuevo', p_limite: LIMITE_REGISTROS })
+    .then(function (r) {
+      r = r || {};
+      reg.filas = Array.isArray(r.registros) ? r.registros : [];
+      reg.nuevos = Number(r.nuevos) || 0;
+      reg.nuevosLista = reg.nuevos;
+      reg.pedidosLeidos = r.pedidos_leidos !== false;
+      reg.estado = 'ok'; reg.error = ''; reg.pedidoEn = Date.now();
+      /* La hora la pone el SERVIDOR (servidor_ahora): «lo contestó la nube a
+         las…» no puede depender del reloj del teléfono, que puede estar corrido. */
+      var srv = Date.parse(r.servidor_ahora || '');
+      reg.leidoEn = isNaN(srv) ? Date.now() : srv;
+    }, function (e) {
+      if (e && e.estado === 404) { reg.estado = 'falta'; reg.filas = []; reg.nuevos = null; reg.nuevosLista = null; return; }
+      /* Lo que ya se había traído se queda en pantalla, con la hora: es
+         verdad de hace un rato, y borrarlo dejaría el «no hay nadie» a un
+         toque de distancia. */
+      reg.estado = 'error';
+      /* Sin señal, el texto general de nube.js habla de «lo que hiciste», que
+         es de la cola de cobros; acá no hiciste nada, solo se quería mirar. */
+      reg.error = (e && e.sin_red) ? 'Sin internet: los registrados se leen de la nube.'
+        : ((e && e.motivo) || 'No pude hablar con la nube.');
+    })
+    .then(function () {
+      reg.enCurso = null;
+      if (reg !== _reg) return;
+      pintarGlobos();
+      if (VISTA === 'registrados') pintar();
+    });
+  return reg.enCurso;
+}
+
+/* Solo el número, para la pestaña: p_limite 0 hace que la nube cuente sin
+   mandar los datos de nadie. Si falla, el número se queda como estaba: un
+   número viejo con la lista a un toque es mejor que un cero que miente. */
+function traerCuentaRegistros() {
+  if (!NUBE || !NUBE.rpc || !nubeLista()) return Promise.resolve();
+  var reg = _reg;   /* por lo mismo que en traerRegistros */
+  return NUBE.rpc('panel_registros', { p_estado: 'nuevo', p_limite: 0 })
+    .then(function (r) {
+      reg.nuevos = Number((r || {}).nuevos) || 0;
+      /* Si antes faltaba la función y ahora contestó, Joan ya pegó el SQL: la
+         pestaña vuelve a preguntar la lista la próxima vez que se abra, en vez
+         de seguir diciendo que falta un paso que ya se dio. */
+      if (reg.estado === 'falta') reg.estado = 'nada';
+    }, function (e) {
+      if (e && e.estado === 404) { reg.estado = 'falta'; reg.nuevos = null; }
+    })
+    .then(function () { if (reg === _reg) pintarGlobos(); });
+}
+
+/* El número de la pestaña. Solo sale cuando la NUBE contestó un número mayor
+   que cero: sin respuesta no hay número, porque un «0» sin haber preguntado
+   diría que no hay nadie. */
+function pintarGlobos() {
+  var g = document.getElementById('globoRegistrados');
+  if (!g) return;
+  var n = _reg.nuevos;
+  if (typeof n === 'number' && n > 0) {
+    g.innerHTML = '<span class="vh">, </span>' + (n > 99 ? '99+' : n)
+      + '<span class="vh"> ' + (n === 1 ? 'nuevo' : 'nuevos') + '</span>';
+    g.hidden = false;
+  } else {
+    g.innerHTML = '';
+    g.hidden = true;
+  }
+}
+
+/* 2-oct-2026 (revisión) — QUIÉN mandó la propuesta lo dice la nube (`por`):
+   la de solicitar_primer_credito la manda la app sola, apenas la persona
+   pide, y la de PlataChat la manda el reloj de la hora. «Le mandaste» a
+   todas le atribuía a Joan algo que no hizo. Lo que no se sabe se dice sin
+   sujeto («ya está atendida»), en vez de adivinar quién fue. */
+function textoEstadoPedido(ped) {
+  var por = ped.por;
+  var cifra = ped.propuesta ? ' de ' + COP(ped.propuesta) : '';
+  if (ped.estado === 'nueva') return 'esperando tu respuesta';
+  if (ped.estado === 'contrapropuesta') {
+    if (por === 'automatica') return 'la app le mandó una propuesta automática' + cifra;
+    if (por === 'joan') return 'le mandaste una contrapropuesta' + cifra;
+    if (por === 'gerente') return 'un gerente le mandó una contrapropuesta' + cifra;
+    return 'tiene una contrapropuesta' + cifra;
+  }
+  if (ped.estado === 'aceptada') {
+    if (por === 'automatica') return 'aceptó la propuesta automática' + cifra;
+    if (por === 'joan') return 'aceptó tu contrapropuesta' + cifra;
+    return 'aceptó la propuesta' + cifra;
+  }
+  if (ped.estado === 'atendida') return 'ya está atendida';
+  if (ped.estado === 'descartada') return 'está descartada';
+  return '';
+}
+
+/* «hoy a las 10:30 a. m.» ya termina en punto: pegarle otro dejaba «a. m..». */
+function conPunto(t) { t = String(t || ''); return /\.$/.test(t) ? t : t + '.'; }
+
+function vistaRegistrados() {
+  /* Lo primero de la pantalla es lo que NO se hace acá, para que nadie busque
+     un botón que no existe. */
+  var h = '<div class="aviso info"><b>Las fotos, el cotejo y abrirle la ficha se hacen en el computador.</b> '
+    + 'Acá ves quién pidió entrar y lo llamas o le escribes: te dejó su número para eso. '
+    + 'Las fotos de la cédula y la selfie no viajan al celular (la selfie es dato biométrico, Ley 1581).</div>';
+
+  if (!NUBE) {
+    return h + '<div class="aviso ambar"><b>Falta panel/nube.js.</b> Sin ese archivo no puedo preguntarle '
+      + 'a la nube quién se registró.</div>';
+  }
+  if (!nubeLista()) {
+    return h + '<div class="vacio"><div class="ic">☁</div><p>No me ha llegado ningún registro.</p>'
+      + '<p class="muted">Los registros viven en la nube y este teléfono no está conectado. Esto '
+      + '<b>no</b> quiere decir que no haya nadie esperando: quiere decir que no puedo mirar.</p></div>'
+      + '<button class="btn arriba" type="button" data-acc="conexion">Entrar con mi correo</button>';
+  }
+  if (_reg.estado === 'nada') { _reg.estado = 'cargando'; setTimeout(function () { traerRegistros(true); }, 0); }
+
+  h += '<button class="btn sm sec arriba" type="button" data-acc="reg-traer">↻ Traer de la nube</button>';
+
+  if (_reg.estado === 'falta') {
+    return h + '<div class="aviso ambar"><b>Falta un paso en la nube:</b> pegar '
+      + '<span class="mono">base/20261002_panel_registros.sql</span> en el SQL Editor de Supabase y '
+      + 'después «Reload schema». Hasta entonces este teléfono no puede leer la bandeja. '
+      + '<b>No quiere decir que no haya registrados</b>: en el computador, 📥 Registrados los muestra.</div>';
+  }
+  if (_reg.estado === 'cargando' && !_reg.filas.length) {
+    return h + '<div class="vacio"><div class="ic">⏳</div><p>Preguntando a la nube…</p></div>';
+  }
+  if (_reg.estado === 'error') {
+    h += '<div class="aviso ambar"><b>No pude traerlos.</b> ' + esc(_reg.error)
+      + (_reg.filas.length && _reg.leidoEn
+          ? ' Lo de abajo es lo que traje ' + esc(conPunto(fmtFechaHora(_reg.leidoEn)))
+          : '')
+      + '</div>';
+    if (!_reg.filas.length) {
+      return h + '<div class="vacio"><div class="ic">☁</div><p>No me ha llegado ningún registro.</p>'
+        + '<p class="muted">No pude preguntar, así que no sé si hay alguien esperando.</p></div>';
+    }
+  }
+  if (!_reg.filas.length) {
+    return h + '<div class="vacio"><div class="ic">📭</div><p>No hay nadie esperando.</p>'
+      + '<p class="muted">Lo contestó la nube ' + esc(conPunto(fmtFechaHora(_reg.leidoEn))) + ' Cuando alguien '
+      + 'se registre en la app, aparece acá.</p></div>';
+  }
+
+  /* El título cuenta con el número que llegó JUNTO con estas tarjetas
+     (nuevosLista), no con el de la pestaña: ver registrosEnBlanco(). */
+  var n = typeof _reg.nuevosLista === 'number' ? _reg.nuevosLista : _reg.filas.length;
+  h += '<div class="tit-bloque"><h3 class="tit">' + n + ' esperando</h3>'
+    + '<span class="muted">' + esc(fmtFechaHora(_reg.leidoEn)) + '</span></div>';
+  /* Mientras se vuelve a preguntar se ven las de antes, con su hora arriba, y
+     se dice que viene una lista nueva: sin esto, las viejas parecían la respuesta. */
+  if (_reg.estado === 'cargando') {
+    h += '<div class="mini">Preguntando a la nube si hay alguien más…</div>';
+  }
+  if (n > _reg.filas.length) {
+    h += '<div class="mini">Se ven los ' + _reg.filas.length + ' más recientes. Los demás, en el computador.</div>';
+  }
+  if (!_reg.pedidosLeidos) {
+    h += '<div class="aviso info">No puedo saber qué pidió cada uno: a la base le falta enlazar las '
+      + 'solicitudes con los registros. En el computador sí se ve.</div>';
+  }
+  _reg.filas.forEach(function (r) { h += tarjetaRegistro(r); });
   return h;
+}
+
+/* Una tarjeta por persona. Las píldoras salen SOLO cuando dicen algo: si todo
+   lo normal llevara distintivo, el distintivo dejaría de leerse a los tres
+   días (la misma razón de chipDeCotejo en crm.html). Y van en ámbar o en gris,
+   nunca en verde: un visto bueno al lado de un nombre se lee como «la casa
+   comprobó quién es», y eso no se comprueba. Lo que hay es un COTEJO con el
+   código de barras, y solo informa cuando NO cuadra. */
+function tarjetaRegistro(r) {
+  r = r || {};
+  var tel = String(r.telefono || '').replace(/\D/g, '').slice(-10);
+  var lugar = [r.ciudad, r.barrio].filter(Boolean).join(' · ');
+  var c = (r.cotejo && typeof r.cotejo === 'object') ? r.cotejo : {};
+  var chips = [];
+  if (c.menor) chips.push('<span class="pill mora">Su cédula dice que es menor de edad</span>');
+  if (c.documento_imposible) chips.push('<span class="pill mora">Marcó otro documento</span>');
+  if (c.estado === 'no_cuadra' && !c.menor && !c.documento_imposible) {
+    chips.push('<span class="pill mora">No cuadra con el código de su cédula</span>');
+  }
+  if (c.cedula_repetida) chips.push('<span class="pill mora">Cédula repetida</span>');
+  if (r.app === 'platachat') chips.push('<span class="pill">PlataChat</span>');
+
+  /* ¿Ya es cliente tuyo? Es la misma pregunta que hace la bandeja del
+     computador (candidatosDeCruce, en el puente), contra la cartera que este
+     teléfono ya tiene. Solo se pintan los cruces con fuerza: el parecido de
+     nombre solo, en un teléfono, es ruido. */
+  var cand = [];
+  try { cand = P.candidatosDeCruce(DB, { cedula: r.cedula, telefono: r.telefono, nombre: r.nombre }); }
+  catch (e) { cand = []; }
+  var c0 = cand[0];
+  var yaEs = '';
+  if (c0 && c0.fuerza >= 2) {
+    /* Un botón entero y no una píldora tocable: una píldora mide 24 px de alto
+       y en la calle, con una mano, eso es tocar al lado. */
+    yaEs = '<button class="btn sm sec arriba" type="button" data-acc="verficha" data-id="' + esc(c0.socio.id) + '">'
+      + 'Ya es tu cliente: abrir ' + esc(P.codCliente(c0.socio)) + '</button>';
+  } else if (c0 && c0.fuerza === 1) {
+    chips.push('<span class="pill mora">Mismo celular que ' + esc(P.codCliente(c0.socio)) + ', otra cédula</span>');
+  }
+
+  /* 2-oct-2026 (revisión) — «Pidió» es SOLO lo que la persona pidió
+     (pedido_monto, o el capital de su pedido en PlataChat). El primer crédito
+     de la app nace sin cifra del cliente, con la propuesta automática de la
+     casa: pintar esa propuesta como «Pidió $100.000» era ponerle en la boca
+     una cifra que no dijo. Y sin solicitud a la vista no se afirma que no
+     pidió: se dice que este teléfono no la ve (la nube las enlaza por el
+     registro y, si no, por el celular, y aun así puede faltar alguna). */
+  var ped = r.pedido;
+  var pidio = '';
+  if (ped && typeof ped === 'object') {
+    var producto = ' <span class="muted">· ' + (ped.producto === 'respaldado' ? 'con garantía' : 'quincenal') + '</span>';
+    var estadoPed = textoEstadoPedido(ped);
+    pidio = '<div class="fila"><span class="k">Pidió</span><span class="v">'
+      + (ped.monto ? COP(ped.monto) : 'un crédito') + producto + '</span></div>'
+      + (ped.monto ? '' : '<div class="mini">La solicitud no dice cuánto pidió.</div>')
+      + (ped.nota ? '<div class="mini">«' + esc(ped.nota) + '»</div>' : '')
+      + (estadoPed ? '<div class="mini">La solicitud: ' + estadoPed + '.</div>' : '');
+  } else if (_reg.pedidosLeidos) {
+    pidio = '<div class="mini">No le veo ninguna solicitud de crédito. En el computador, '
+      + '📥 Solicitudes las muestra todas.</div>';
+  }
+
+  return '<div class="card ap">'
+    + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'
+    +   '<div style="min-width:0"><b>' + esc(r.nombre || 'Sin nombre') + '</b>'
+    +     '<div class="mini">Se registró ' + esc(fmtFechaHora(r.creado_en) || '—')
+    +       (lugar ? ' · ' + esc(lugar) : '') + '</div></div>'
+    + '</div>'
+    + (chips.length ? '<div class="chips">' + chips.join('') + '</div>' : '')
+    + yaEs
+    + pidio
+    + (tel.length === 10
+        ? '<div class="fila"><span class="k">Celular</span><span class="v mono">' + esc(tel) + '</span></div>'
+          + '<div class="dos">'
+          +   '<a class="btn sm" href="' + esc(waLink(tel, '')) + '" target="_blank" rel="noopener">WhatsApp</a>'
+          +   '<a class="btn sm sec" href="tel:+57' + esc(tel) + '">Llamar</a>'
+          + '</div>'
+        : '<div class="mini">No dejó un celular de 10 dígitos: no hay a dónde llamarlo.</div>')
+    + '</div>';
+}
+
+/* --------------------------------- MÁS ----------------------------------
+   Una lista vertical de tarjetas-botón, grandes y a lo ancho. Lo que antes
+   vivía en la barra (Tanda y Quincena) más lo nuevo (Tu gente), y los dos
+   atajos que hoy solo se encuentran tocando la cinta o la cabecera. */
+function vistaMas() {
+  var n = pendientes();
+  var renglones = [
+    { acc: 'ir', destino: 'tanda', t: 'Tanda de mensajes',
+      d: 'A quién escribirle hoy, con el texto listo y la Ley 2300 al día.' },
+    { acc: 'ir', destino: 'quincena', t: 'Quincena',
+      d: 'Lo ganado en el ciclo, lo invertido y lo que vence.' },
+    { acc: 'ir', destino: 'gente', t: 'Tu gente',
+      d: 'Quién te trae clientes y cuánto costaría pagarles. Solo para ti.' },
+    { acc: 'cola', t: 'Lo que espera subir',
+      d: n ? n + (n === 1 ? ' cosa hecha en la calle que todavía no está en la nube.'
+                          : ' cosas hechas en la calle que todavía no están en la nube.')
+           : 'Nada esperando.' },
+    { acc: 'conexion', t: 'Conexión',
+      d: nubeLista() ? 'Tu sesión, y traer y subir ahora.' : 'Sin conectar: entra con tu correo.' }
+  ];
+  return renglones.map(function (x) {
+    return '<button class="card ap tocable renglon" type="button" data-acc="' + x.acc + '"'
+      + (x.destino ? ' data-destino="' + x.destino + '"' : '') + '>'
+      + '<span style="min-width:0"><b>' + esc(x.t) + '</b><span class="mini" style="display:block">'
+      + esc(x.d) + '</span></span><span class="flecha" aria-hidden="true">›</span></button>';
+  }).join('');
+}
+
+/* ------------------------------- TU GENTE -------------------------------
+   Los referidos, para Joan y para nadie más. Todas las cuentas las hace
+   app/gente.js (que le pregunta la garantía al motor); acá solo se pintan.
+   Nada de esta pantalla viaja a ningún lado: no se sube, no se guarda y no
+   llega a la app del cliente. */
+function vistaGente() {
+  /* 2-oct-2026 (revisión) — El aviso decía «nada de esto le llega: ni si
+     pagaron». No era cierto: migrarSocio (puente.js) todavía le manda al
+     teléfono de quien invita cuántos de su gente pagaron, y socio.html lo
+     convierte en «Garantía que te dieron» y en la insignia «Trajiste a
+     alguien». Con un solo invitado eso dice si esa persona pagó. Se quedó así
+     porque los 5.000 por referido están en términos firmados y esperan al
+     abogado (PLAN-CRM-OCTUBRE.md §3). Lo que sí no le llega se dice; lo que sí
+     le llega, también, para que Joan no crea cumplida una ley que no lo está. */
+  var h = '<div class="aviso info"><b>Solo para ti.</b> La lista de tu gente, quién está en mora y lo que '
+    + 'pagó cada uno no le llegan a quien invita (Ley 2300, art. 4). <b>Ojo:</b> su app sí le muestra la '
+    + 'garantía que gana por referidos y la insignia «Trajiste a alguien»; con un solo invitado, eso deja '
+    + 'saber si esa persona pagó. Está pendiente con el abogado.</div>';
+  if (!G) {
+    return h + '<div class="aviso ambar"><b>Falta app/gente.js.</b> Es el archivo que hace estas cuentas; '
+      + 'sin él no muestro números inventados.</div>';
+  }
+  if (!(DB.socios && DB.socios.length)) {
+    return h + '<div class="vacio"><div class="ic">☁</div><p>Todavía no ha llegado tu cartera a este teléfono.</p>'
+      + '<p class="muted">Esto <b>no</b> quiere decir que nadie te traiga gente: quiere decir que este '
+      + 'aparato aún no tiene a tus clientes. Entra con tu correo y toca «Traer de la nube».</p></div>';
+  }
+  var g = G.tuGente(DB, { hoy: hoyISO() });
+  var t = g.totales;
+  var rot = G.ROTULO_SIMULACION;
+
+  h += '<div class="card laca">'
+    + '<div class="etq">Llegaron por referido</div>'
+    + '<div class="cifra oro num">' + t.llegaron_referidos + ' de ' + t.clientes + '</div>'
+    + '<div class="sub" style="color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)">'
+    +   'clientes (' + t.pct_referidos + '%) · ' + t.padrinos + (t.padrinos === 1 ? ' persona trae gente' : ' personas traen gente')
+    + '</div>'
+    + '<div class="sep"></div>'
+    + '<div class="fila"><span class="k">Créditos que pagó esa gente</span><span class="v">' + t.creditos_pagados + '</span></div>'
+    + '<div class="fila"><span class="k">Garantía por referidos que ya les acredita el motor</span>'
+    +   '<span class="v oro">' + COP(t.garantia_acreditada) + '</span></div>'
+    + '<div class="fila"><span class="k">Si el programa estuviera encendido, a lo sumo</span>'
+    +   '<span class="v">' + COP(t.simulacion) + '</span></div>'
+    /* 2-oct-2026 (revisión) — Es un TECHO y se dice: cuenta cada crédito
+       pagado de toda la historia. La v3 (PLAN-REFERIDOS.md §1.2 y §1.4) junta
+       los que el mismo invitado tuvo abiertos a la vez, no cuenta los planes
+       de pago y empieza en el arranque; con la cartera del 1-oct daba 10.000
+       donde esta cifra dice 16.000. */
+    + '<div class="mini">' + esc(rot) + '. Es un techo: ' + COP(G.COMISION_SIMULADA) + ' por cada crédito '
+    +   'que pagó su gente, de toda la historia y uno por uno. La regla v3, que todavía no está aprobada, '
+    +   'cuenta como uno los créditos que estuvieron abiertos a la vez y solo los de después del arranque, '
+    +   'así que daría menos.</div>'
+    + '</div>';
+
+  if (t.garantia_sin_calcular) {
+    h += '<div class="aviso ambar">A ' + t.garantia_sin_calcular + ' no les pude calcular la garantía: '
+      + 'algún dato de su ficha no lo entiende el motor. Ese total no los incluye.</div>';
+  }
+  if (t.huerfanos) {
+    h += '<div class="aviso info">' + t.huerfanos + (t.huerfanos === 1 ? ' cliente llegó' : ' clientes llegaron')
+      + ' referido(s) por alguien que ya no está en tu cartera. Cuentan arriba como llegados por '
+      + 'referido, pero no hay a quién sumárselos.</div>';
+  }
+
+  /* 2-oct-2026 (revisión) — Quien figura solo como referido de sí mismo NO
+     trae gente (gente.js no lo cuenta en totales.padrinos), pero tiene una
+     alerta que Joan debe ver. Mezclado en «Quién trae gente», la pantalla
+     decía «0 personas traen gente» encima de una lista de 1. Va aparte. */
+  var traen = g.padrinos.filter(function (p) { return p.invitados > 0; });
+  var revisar = g.padrinos.filter(function (p) { return !(p.invitados > 0); });
+
+  if (!traen.length) {
+    h += '<div class="vacio"><div class="ic">👥</div><p>Nadie te ha traído a nadie todavía.</p>'
+      + '<p class="muted">El campo «Referido por» está en la ficha del cliente, en el computador.</p></div>';
+  } else {
+    h += '<div class="tit-bloque"><h3 class="tit">Quién trae gente</h3>'
+      + '<span class="muted">' + traen.length + '</span></div>';
+    traen.forEach(function (p) { h += tarjetaPadrino(p, rot); });
+  }
+  if (revisar.length) {
+    h += '<div class="tit-bloque"><h3 class="tit">Para revisar</h3>'
+      + '<span class="muted">' + revisar.length + '</span></div>';
+    revisar.forEach(function (p) { h += tarjetaPadrino(p, rot); });
+  }
+  return h;
+}
+
+/* Una tarjeta de «Tu gente». Tocable con el dedo y con el teclado: role y
+   tabindex para que el lector de pantalla sepa que abre la ficha. */
+function tarjetaPadrino(p, rot) {
+  var gar = p.garantia_acreditada == null
+    ? '<span class="muted">no pude calcularla</span>'
+    : COP(p.garantia_acreditada)
+      + (p.tope_mordio ? ' <span class="muted">de ' + COP(p.garantia_sin_tope) + ': el tope es su garantía ganada</span>' : '');
+  return '<div class="card ap tocable" role="button" tabindex="0" data-acc="verficha" data-id="' + esc(p.id) + '">'
+    + '<div><b>' + esc(p.nombre || 'Socio') + '</b><div class="mini mono">' + esc(p.codigo) + '</div></div>'
+    + '<div class="fila"><span class="k">Invitó</span><span class="v">' + p.invitados + '</span></div>'
+    /* «Ya sacaron crédito» y no «ya pidieron»: gente.js cuenta créditos de
+       la cartera, que son los desembolsados; una solicitud sin desembolsar
+       no está ahí. */
+    + '<div class="fila"><span class="k">Ya sacaron crédito</span><span class="v">' + p.pidieron + '</span></div>'
+    + '<div class="fila"><span class="k">Créditos que pagó su gente</span><span class="v">' + p.creditos_pagados + '</span></div>'
+    + '<div class="fila"><span class="k">Garantía por referidos</span><span class="v">' + gar + '</span></div>'
+    + '<div class="fila"><span class="k">Si el programa estuviera encendido, a lo sumo</span><span class="v">'
+    +   COP(p.simulacion) + '</span></div>'
+    + '<div class="mini">' + esc(rot) + '. Es un techo: ver arriba.</div>'
+    + (p.invitados_en_mora
+        ? '<div class="mini" style="color:var(--ambar-tinta)">' + p.invitados_en_mora
+          + (p.invitados_en_mora === 1 ? ' de su gente está en mora.' : ' de su gente están en mora.')
+          + ' Es solo para ti: no se lo comentes a quien invitó.</div>'
+        : '')
+    + p.alertas.map(function (a) { return '<div class="aviso ambar">' + esc(a) + '</div>'; }).join('')
+    + '</div>';
 }
 
 /* ------------------------------- FICHA --------------------------------- */
@@ -2572,7 +3290,7 @@ function vistaFicha() {
   if (!s) {
     return botonVolver()
       + '<div class="vacio"><div class="ic">👤</div><p>Todavía no has abierto la ficha de nadie.</p>'
-      + '<p class="muted">Búscalo en <b>Buscar</b> o entra desde un crédito de <b>Hoy</b>.</p></div>';
+      + '<p class="muted">Búscalo en <b>Clientes</b> o entra desde un crédito de <b>Hoy</b>.</p></div>';
   }
   var paq = P.migrarSocio(DB, s);
   var cupo = P.cupoDelSocio(DB, s, paq.garantia.nivel);
@@ -4055,6 +4773,17 @@ document.addEventListener('click', function (ev) {
   else if (acc === 'tanda-recuperar') { recuperarEnTanda(el.dataset.s); }
   else if (acc === 'vercredito') { SEL.creditoId = id; var p = creditoPorId(id); if (p) SEL.socioId = p.socioId; ir('credito'); }
   else if (acc === 'verficha') { SEL.socioId = id; ir('ficha'); }
+  /* 2-oct-2026 — la barra nueva. `data-destino` y no `data-v`: data-v ya
+     lleva MONTOS en la hoja de cobro, y un mismo atributo con dos sentidos es
+     como un toque termina cambiando de pantalla en vez de poner un monto. */
+  else if (acc === 'ir') {
+    var dst = el.dataset.destino;
+    /* Solo destinos que se ENTRAN: una ficha o un crédito se abren desde alguien. */
+    if (TITULOS[dst] && !DETALLE[dst]) ir(dst);
+  }
+  else if (acc === 'reg-traer') { traerRegistros(true); pintar(); }
+  else if (acc === 'conexion') { abrirConexion(); }
+  else if (acc === 'cola') { abrirCola(); }
   else if (acc === 'volver') { volver(); }
   else if (acc === 'cr-nuevo') { abrirNuevoCredito(id); }
   else if (acc === 'cr-pegar') { pegarParaCredito(); }
@@ -4066,6 +4795,12 @@ document.addEventListener('click', function (ev) {
   else if (acc === 'salir') {
     if (!confirm('¿Cerrar la sesión de este teléfono?\n\nLo que esté esperando subir se queda guardado, '
       + 'pero no va a subir hasta que vuelvas a entrar.')) return;
+    /* 2-oct-2026 (revisión) — Los registrados son de la sesión de Joan y viven
+       solo en memoria: al cerrarla se borran YA, con el número de la pestaña.
+       Si no, en esa misma pestaña otra cuenta veía los nombres y celulares de
+       la bandeja de Joan, primero sin aviso y después con «lo que traje hoy». */
+    _reg = registrosEnBlanco();
+    pintarGlobos();
     NUBE.salir().catch(function () {}).then(function () { cerrarHoja(); pintar(); });
   }
   else if (acc === 'sinc') { cerrarHoja(); sincronizar(true); }
@@ -4076,6 +4811,19 @@ document.addEventListener('click', function (ev) {
     _choqueAbierto = (_choqueAbierto === i) ? -1 : i;
     pintar();
   }
+});
+
+/* 2-oct-2026 — Las tarjetas que abren una ficha (Clientes, Tu gente) son
+   <div role="button" tabindex="0">: un <button> no puede llevar adentro los
+   bloques de la tarjeta. Con role="button" el lector de pantalla anuncia que se
+   toca, y entonces Enter y la barra espaciadora TIENEN que hacer lo mismo que
+   el dedo, o el anuncio sería una promesa falsa. */
+document.addEventListener('keydown', function (ev) {
+  if (ev.key !== 'Enter' && ev.key !== ' ') return;
+  var t = ev.target;
+  if (!t || !t.getAttribute || t.getAttribute('role') !== 'button' || !t.dataset || !t.dataset.acc) return;
+  ev.preventDefault();
+  t.click();
 });
 
 /* La búsqueda se escucha delegada porque el campo se vuelve a pintar en cada
@@ -4132,11 +4880,16 @@ document.addEventListener('visibilitychange', function () {
   var ui = leerUI();
   ULTIMO_TRAER = ui.ultimoTraer || null;
   TANDA_GUARDADA = ui.tanda || null;
+  /* 2-oct-2026 — se abre en la última pestaña de la barra que usó Joan en este
+     aparato. Solo si es una de las cinco: un nombre viejo («buscar», de antes
+     de esta fecha) o uno dañado abre en Hoy en vez de en una pantalla en
+     blanco. */
+  PESTANIA_GUARDADA = PESTANIAS.indexOf(ui.pestania) >= 0 ? ui.pestania : null;
   /* La misma lectura defensiva que hace el Panel al cargar, pero SIN escribir en
      su llave: un respaldo viejo, un socio en null o un crédito sin capital no
      pueden dejar la pantalla en blanco. */
   recargarDeDisco();
-  ir('hoy');
+  ir(PESTANIA_GUARDADA || 'hoy');
   sincronizar(false);
   /* Cada cinco minutos, si hay app abierta y señal. No es un reloj de
      sincronización: es que la cinta de abajo no puede mentir sobre la hora del
