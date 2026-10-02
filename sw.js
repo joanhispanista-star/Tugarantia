@@ -1541,7 +1541,10 @@
    base/20261002_panel_registros.sql, que Joan tiene que pegar; mientras no
    este, el celular dice «falta un paso en la nube». Toca panel/espejo.html y
    app/gente.js (nuevo). */
-const CACHE = 'tugarantia-v124';
+/* v125 - 2-oct-2026. LAS CIFRAS DEL CELULAR NO SE PARTEN. Visto en el sitio a
+   375 px: en Tu gente «$2.000» salia «$2.00» y «0» en dos renglones, por la
+   regla que parte las palabras largas de las tarjetas. Toca panel/espejo.html. */
+const CACHE = 'tugarantia-v125';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

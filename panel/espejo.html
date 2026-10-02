@@ -183,7 +183,12 @@ h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Tim
   padding:var(--e3) 0;border-bottom:1px solid var(--linea)}
 .fila:last-child{border-bottom:0}
 .fila .k{color:var(--gris);font-size:14px}
-.fila .v{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+/* 2-oct-2026 — la cifra no se parte. overflow-wrap:anywhere de .card (arriba)
+   también alcanzaba a los montos, y a 375 px «$2.000» salía «$2.00» y «0» en
+   dos renglones: se lee como otra cifra. Aquí se parte solo en los espacios:
+   una cifra queda entera y una frase larga («$0 de $5.000: el tope…») baja
+   de renglón sin salirse de la tarjeta (medido a 375 px). */
+.fila .v{font-weight:600;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:normal;word-break:normal}
 .fila .v.oro{color:var(--amarillo)}
 .fila .v.ambar{color:var(--ambar-tinta)}
 .sep{height:1px;background:var(--linea);margin:var(--e3) 0}

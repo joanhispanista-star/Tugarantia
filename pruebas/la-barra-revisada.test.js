@@ -530,3 +530,14 @@ describe('Tu gente: lo que promete y lo que cuenta', () => {
     assert.match(t, /Figura como referido de sí mismo/);
   });
 });
+
+/* 2-oct-2026 — visto en el sitio publicado a 375 px: overflow-wrap:anywhere de
+   .card partía los montos («$2.00» y «0» en dos renglones) en Tu gente. La
+   cifra de una fila se parte solo en los espacios. */
+test('las cifras de una fila no se parten por dentro', () => {
+  const html = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'panel', 'espejo.html'), 'utf8');
+  const regla = html.match(/\n\.fila \.v\{[^}]*\}/);
+  assert.ok(regla, 'no encontré la regla .fila .v');
+  assert.match(regla[0], /overflow-wrap:normal/);
+  assert.match(regla[0], /word-break:normal/);
+});
