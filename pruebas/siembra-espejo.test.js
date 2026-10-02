@@ -59,7 +59,11 @@ describe('esSuperconjunto (15-sep-2026)', () => {
 
   test('lo que el servidor no dice, no se exige', () => {
     assert.equal(N.esSuperconjunto({ a: 1 }, {}), true);
-    assert.equal(N.esSuperconjunto({ a: 1 }, null), true);
+    /* 1-oct-2026 — esto decía `true` para un null de la nube, y era la puerta
+       por donde se adoptaba una ficha donde la nube dice «nada» y la cartera
+       dice otra cosa. Un null SÍ es algo que el servidor dice. Ver
+       pruebas/adopcion-sin-mentir.test.js. */
+    assert.equal(N.esSuperconjunto({ a: 1 }, null), false);
   });
 });
 
@@ -281,8 +285,18 @@ describe('el espejo se invalida cuando la cartera se reemplaza (15-sep-2026)', (
     assert.equal(P.almacen['joan_panel_espejo_pc'], undefined,
       'importar() reemplazo la cartera y dejo vivo el espejo: la siguiente subida ' +
       'mandaria un diff contra una verdad que ya no existe');
-    assert.equal(P.almacen['joan_crm_sello'], undefined,
+    /* 1-oct-2026 (segunda vuelta) — el sello viejo tiene que irse; desde hoy
+       importar() sella la cartera NUEVA como de esta pestaña (fue ella quien
+       la escribió), para que la cinta no culpe a «otra pestaña». Lo que nunca
+       puede quedar es un sello que describa la cartera de antes. */
+    assert.notEqual(P.almacen['joan_crm_sello'], 'sello-de-otra-cartera',
       'importar() no invalido el sello');
+    if (P.almacen['joan_crm_sello'] !== undefined) {
+      const sello = JSON.parse(P.almacen['joan_crm_sello']);
+      assert.equal(sello.largo, P.almacen['joan_socios_v1'].length,
+        'el sello que dejó importar() no describe la cartera que quedó en el disco');
+      assert.equal(sello.quien, P.ev('_TAB'), 'el sello no es de la pestaña que importó');
+    }
     assert.match(aviso, /Respaldo importado/,
       'el importe no llego a buen puerto, asi que esta prueba no midio nada');
     assert.equal(JSON.parse(P.almacen['joan_socios_v1']).socios[0].nombre, 'Ana',

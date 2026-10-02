@@ -197,7 +197,7 @@
 
   <div id="avisoPanelAbierto" class="alerta warn oculto">
     <b class="tit">El Panel escribió mientras estabas acá</b>
-    Tienes <b>crm.html abierto en otra pestaña</b> y acaba de guardar. Lo que leí ya está viejo.
+    <span id="avisoPanelQue">Tienes crm.html abierto en otra pestaña y acaba de guardar. Lo que leí ya está viejo.</span>
     Cierra esa pestaña y aprieta «Volver a leer la cartera». Si aplicas algo con esto viejo, el Panel te lo pisa
     en el próximo guardado.
     <div class="fila-btn"><button class="btn btn-negro btn-sm" onclick="releerCartera()">Volver a leer la cartera</button></div>
@@ -580,12 +580,24 @@ function arrancar(){
      allá, acá nos enteramos. Sin esto, esta página aplicaría lo del celular
      encima de una lectura vieja y el Panel lo volvería a pisar al siguiente
      guardado — que es exactamente la plata que se pierde. */
-  window.addEventListener('storage', function(ev){
-    if(ev.key !== KEY) return;
-    E.panelEscribio = true;
-    $('avisoPanelAbierto').classList.remove('oculto');
-    trancarEscrituras();
-  });
+  window.addEventListener('storage', alEscribirOtraPagina);
+}
+/* 1-oct-2026 (segunda vuelta) — Y EL ESPEJO TAMBIÉN. Desde hoy el CRM sube
+   solo (panel/nube-crm.js) y mueve el espejo sin tocar la cartera: 3 s después
+   de que Joan entra acá, o a los 90 s de su último guardado. Con el espejo
+   leído al abrir, esta página mandaba esas filas con la revisión de antes
+   (choque falso: «porque el celular las había cambiado») y después escribía
+   su espejo viejo ENCIMA del nuevo, y la fila quedaba congelada en el CRM.
+   Mismo candado y mismo botón que cuando el Panel guarda. */
+function alEscribirOtraPagina(ev){
+  if(!ev || (ev.key !== KEY && ev.key !== LLAVE_ESPEJO)) return;
+  E.panelEscribio = true;
+  var que = $('avisoPanelQue');
+  if(que) que.textContent = ev.key === LLAVE_ESPEJO
+    ? 'Tienes crm.html abierto en otra pestaña y acaba de subir a la nube por su cuenta. Lo que leí ya está viejo.'
+    : 'Tienes crm.html abierto en otra pestaña y acaba de guardar. Lo que leí ya está viejo.';
+  $('avisoPanelAbierto').classList.remove('oculto');
+  trancarEscrituras();
 }
 
 function releerCartera(){
@@ -634,6 +646,22 @@ function leerEspejo(){
 function guardarEspejo(esp){
   try{ localStorage.setItem(LLAVE_ESPEJO, JSON.stringify(esp)); E.espejo=esp; }
   catch(e){ /* el espejo se puede reconstruir trayendo de la nube: no vale un susto */ }
+}
+/* 1-oct-2026 (segunda vuelta) — SOBRE QUÉ ESPEJO SE ANOTA. Sobre el del DISCO,
+   no sobre el que esta página leyó al abrir: desde hoy el CRM también lo mueve
+   (sube solo), y anotar sobre la copia de memoria lo devolvía a una revisión
+   vieja. Y si esta página lo leyó con filas y en el disco ya no tiene ninguna,
+   alguien lo soltó A PROPÓSITO (importar un respaldo, traer.html, una pestaña
+   vieja del CRM que guardó encima): resucitarlo haría que el espejo afirmara
+   filas de una cartera que ya no es esta, y la subida siguiente las pisaría
+   en la nube con la revisión buena. Entonces no se escribe (null). */
+function espejoConFilas(esp){
+  return !!esp && TABLAS.concat(['ajustes']).some(function(t){ return esp[t] && Object.keys(esp[t]).length; });
+}
+function espejoParaAnotar(){
+  var disco = leerEspejo();
+  if(espejoConFilas(E.espejo) && !espejoConFilas(disco)) return null;
+  return disco;
 }
 
 /* ================================================== PASO 1 · CONECTAR ====*/
@@ -773,6 +801,9 @@ function revisar(){
      y qué no, y para eso hay que ver todo lo que hay del otro lado. */
   NUBE.traer(null).then(function(paq){
     E.paquete = paq || {};
+    /* 1-oct-2026 (segunda vuelta) — el espejo, del DISCO y recién leído: el
+       CRM sube solo y pudo moverlo desde que se abrió esta página. */
+    E.espejo = leerEspejo();
     var enNube = (paq.socios||[]).length + (paq.creditos||[]).length +
                  (paq.respaldados||[]).length + (paq.ajustes||[]).length;
     var espejoVacio = !E.espejo || Object.keys(E.espejo).length===0 ||
@@ -1061,10 +1092,17 @@ function terminoLaSubida(){
      silencio, con el cobro del celular adentro. Sí: vuelve a chocar en la
      siguiente vuelta, y eso es exactamente lo que se quiere hasta que Joan
      elija. Lo que la nube tiene y acá no se aplicó no entra. */
-  guardarEspejo(NUBE.espejoTrasEmpujar(
-    E.espejo,
-    loteDe(E.unidades.slice(0, E.siguiente)),
-    {revisiones:E.revisionesSubida, choques:E.choquesSubida}));
+  var baseEsp = espejoParaAnotar();
+  if(baseEsp){
+    guardarEspejo(NUBE.espejoTrasEmpujar(
+      baseEsp,
+      loteDe(E.unidades.slice(0, E.siguiente)),
+      {revisiones:E.revisionesSubida, choques:E.choquesSubida}));
+  }else{
+    $('msg5').innerHTML += '<div class="alerta warn">Subió bien, pero mientras subía alguien soltó el espejo de este '+
+      'computador (se importó un respaldo, se trajo la nube o guardó una pestaña vieja del CRM). No lo vuelvo a '+
+      'escribir: el CRM te va a pedir emparejar, y emparejar compara con la nube antes de subir nada.</div>';
+  }
 
   /* Y se vuelve a leer la nube, pero solo para saber qué hay que bajar: el
      espejo ya quedó, y esta lectura no lo toca. */
@@ -1116,6 +1154,7 @@ function traer(){
   pinta('msg6','info','Trayendo…');
   NUBE.traer(null).then(function(paq){
     E.paquete = paq||{};
+    E.espejo = leerEspejo();   // del disco: el CRM sube solo (1-oct-2026)
     E.plan = planDeBajada(E.db, E.paquete, E.espejo, $('chkPapelera').checked);
     pintarPlanDeBajada();
     pintarChoques();
@@ -1189,7 +1228,11 @@ function planDeBajada(db, paq, espejo, sinPapelera){
            del celular y baja tranquila. Si la tengo, los dos la crearon o el
            espejo se perdió: eso lo elige Joan. */
         if(!local) { plan.aplicar.push(item); }
-        else if(normalizarJSON(localSinFotos)===normalizarJSON(fila.datos)) { plan.sinCambio++; }
+        /* 1-oct-2026 (segunda vuelta) — «igual» no es «sin novedad» si allá
+           está BORRADA y acá viva: eso es justo lo que el CRM congela como
+           «borrada en la nube», y contándola como sin cambio no aparecía en
+           ningún sitio donde Joan pudiera decidirla. Va a los choques. */
+        else if(!borradaEnNube && normalizarJSON(localSinFotos)===normalizarJSON(fila.datos)) { plan.sinCambio++; }
         else { plan.choques.push(item); }
         return;
       }
@@ -1248,13 +1291,32 @@ function aplicar(){
     return;
   }
   var elegidos = filasAAplicar();
-  if(!elegidos.length){ pinta('msg6','info','No hay nada para aplicar.'); return; }
+  /* 1-oct-2026 — «LO MÍO» TAMBIÉN ESCRIBE LA CARTERA. Antes las fichas marcadas
+     «Mandar lo mío encima» solo movían el espejo a la revisión del servidor: la
+     cartera se quedaba sin los abonos, comprobantes y gestiones que solo
+     estaban en la nube, y la subida siguiente mandaba la ficha de acá CONTRA LA
+     REVISIÓN BUENA. El servidor la aceptaba sin choque (`elsif v_rev = v_base`,
+     base/20260811_panel_nube.sql:448) y el cobro de la calle moría en los dos
+     aparatos. Y si en el paso 7 solo había fichas marcadas «lo mío», esto ni
+     corría: «No hay nada para aplicar».
+     Ahora esas fichas entran a la MISMA escritura que las demás —lo de Joan
+     encima, las listas del otro lado adentro (paqueteCon)— y el espejo avanza
+     DESPUÉS, solo si ese setItem entró. Las dos cosas o ninguna: un espejo que
+     avanza sin la cartera es exactamente el defecto. */
+  var mios = marcadosComoMio();
+  var miosQueEscriben = mios.filter(loMioEscribeAca);
+  var aEscribir = elegidos.concat(miosQueEscriben);
+  if(!elegidos.length && !mios.length){ pinta('msg6','info','No hay nada para aplicar.'); return; }
+  /* Solo hay «lo mío» que no toca la cartera (un ajuste que es un valor entero,
+     o una ficha que acá ya no existe): no hay nada que escribir ni que
+     respaldar, solo anotar contra qué revisión va a subir lo de Joan. */
+  if(!aEscribir.length){ anotarEnElEspejo(elegidos, mios, contarPorTabla([])); return; }
 
   /* Respaldo SIEMPRE, y recién bajado, no el de hace media hora: entre uno y
      otro Joan pudo cobrar tres créditos en el Panel. */
   if(!bajarRespaldo(false)) return;
 
-  var r = contarPorTabla(elegidos);
+  var r = contarPorTabla(aEscribir);
   var ok = confirm(
     'Voy a escribir en tu cartera, la de verdad.\n\n'+
     'Cambia:\n'+
@@ -1262,11 +1324,25 @@ function aplicar(){
     '  · '+r.creditos+' crédito(s)\n'+
     '  · '+r.respaldados+' respaldado(s)\n'+
     '  · '+r.ajustes+' ajuste(s)\n\n'+
+    (miosQueEscriben.length
+      ? 'De esos, '+miosQueEscriben.length+' son los que marcaste «lo mío manda»: queda lo tuyo, y se le '+
+        'juntan los abonos, comprobantes, prórrogas y gestiones que solo estaban en la nube.\n\n'
+      : '')+
     'Acabo de bajar un respaldo a tu carpeta de Descargas. Ábrela y compruébalo antes de seguir.\n\n'+
     '¿Aplico?');
   if(!ok){ pinta('msg6','info','No apliqué nada. Tu cartera quedó igual.'); return; }
 
-  var paqFiltrado = paqueteCon(elegidos);
+  var paqFiltrado;
+  try{
+    paqFiltrado = paqueteCon(aEscribir);
+  }catch(e){
+    /* Si no se pudo juntar lo de Joan con lo de la nube, NO se cae a «lo de
+       acá a secas»: eso sería el defecto de arriba con otro nombre. */
+    estado(6,'fallo','No apliqué');
+    pinta('msg6','warn','<b class="tit">No apliqué nada</b>No pude juntar lo tuyo con lo de la nube: '+
+      esc(motivo(e))+'. Tu Panel quedó exactamente como estaba.');
+    return;
+  }
   var res;
   try{
     res = NUBE.aplicarPaquete(E.db, paqFiltrado);
@@ -1294,6 +1370,13 @@ function aplicar(){
     return;
   }
 
+  anotarEnElEspejo(elegidos, mios, r);
+}
+
+/* Lo que aplicar() hace DESPUÉS de que la cartera quedó escrita (o de saber que
+   no había nada que escribir). Se separó el 1-oct-2026 para que los dos caminos
+   anoten el espejo con la misma regla y nunca antes de la cartera. */
+function anotarEnElEspejo(elegidos, mios, r){
   /* EL ESPEJO AVANZA SOLO POR LAS FILAS QUE DE VERDAD SE ESCRIBIERON ACÁ, más
      las que Joan marcó «lo mío manda» (esas tienen que quedar con la revisión
      del servidor: si no, chocarían otra vez en cada vuelta, en bucle).
@@ -1312,16 +1395,24 @@ function aplicar(){
      "cambiado" en cada subida, para siempre.
      Tampoco se mueve `servidor_ahora`: la marca de agua se queda atrás a
      propósito, porque quedaron filas de la nube sin aplicar. */
-  guardarEspejo(NUBE.espejoDe(
-    Object.assign({completo:false}, paqueteCrudoDe(elegidos.concat(marcadosComoMio()))),
-    E.espejo));
+  /* 1-oct-2026 (segunda vuelta) — sobre el espejo del disco (ver
+     espejoParaAnotar). Si alguien lo soltó, no se resucita: el CRM pedirá
+     emparejar. */
+  var baseEsp = espejoParaAnotar();
+  if(baseEsp) guardarEspejo(NUBE.espejoDe(
+    Object.assign({completo:false}, paqueteCrudoDe(elegidos.concat(mios))),
+    baseEsp));
   E.db = leerDB();
   estado(6,'listo','Aplicado');
-  pinta('msg6','ok','<b class="tit">Aplicado</b>Tu Panel ya tiene lo del celular: '+
-    r.socios+' socio(s), '+r.creditos+' crédito(s), '+r.respaldados+' respaldado(s), '+r.ajustes+' ajuste(s). '+
-    'Abre el Panel y míralo. Si algo quedó raro, el respaldo de hace un minuto está en Descargas.'+
-    (marcadosComoMio().length
-      ? '<br><br>Los '+marcadosComoMio().length+' que marcaste «lo mío manda» todavía no están arriba: '+
+  var escritas = r.socios + r.creditos + r.respaldados + r.ajustes;
+  pinta('msg6','ok','<b class="tit">Aplicado</b>'+
+    (escritas
+      ? 'Tu Panel ya tiene lo del celular: '+
+        r.socios+' socio(s), '+r.creditos+' crédito(s), '+r.respaldados+' respaldado(s), '+r.ajustes+' ajuste(s). '+
+        'Abre el Panel y míralo. Si algo quedó raro, el respaldo de hace un minuto está en Descargas.'
+      : 'No había nada que escribir en tu Panel: lo que elegiste ya es lo que tienes acá.')+
+    (mios.length
+      ? '<br><br>Los '+mios.length+' que marcaste «lo mío manda» todavía no están arriba: '+
         'aprieta «Revisar» y después «Subir a la nube» y se van.'
       : ''));
   $('btnAplicar').classList.add('oculto');
@@ -1334,10 +1425,11 @@ function contarPorTabla(items){
   return r;
 }
 
-/* Lo que de verdad se va a escribir: lo que baja sin discutir, más los choques
-   que Joan resolvió a favor de la nube. Los que resolvió a su favor NO se tocan
-   acá: se quedan como están y suben en el próximo paso 5. Un solo camino para
-   escribir en la nube es un camino menos donde equivocarse. */
+/* Lo que baja: lo que viene sin discutir, más los choques que Joan resolvió a
+   favor de la nube. Los que resolvió a su favor van aparte (marcadosComoMio):
+   desde el 1-oct-2026 también se escriben en la cartera —lo suyo encima, las
+   listas de la nube adentro, ver loMioEncima— y suben en el próximo paso 5.
+   Un solo camino para escribir en la nube es un camino menos donde equivocarse. */
 function filasAAplicar(){
   if(!E.plan) return [];
   var lista = E.plan.aplicar.slice();
@@ -1352,23 +1444,62 @@ function marcadosComoMio(){
 }
 function decisionesTomadas(){ return Object.keys(E.decisiones).length>0; }
 
-/* El paquete filtrado que se le entrega a nube.js. Dos cosas pasan acá:
+/* ¿«Lo mío» tiene algo que escribir en la cartera? — 1-oct-2026.
+     · una ficha que acá existe: SÍ, porque las listas de la nube tienen que
+       entrar antes de que el espejo avance;
+     · un ajuste que es LISTA (gestiones, asignaciones, actosComision…): SÍ, por
+       lo mismo. aplicarPaquete lo junta con fusionarAjuste, lo de acá primero;
+     · un ajuste que es un valor entero (config, plantillas, la papelera): NO.
+       aplicarPaquete lo REEMPLAZARÍA por el de la nube —fusionarAjuste devuelve
+       el entrante para toda clave sin identidad—, que es justo lo contrario de
+       lo que Joan eligió. Lo suyo ya está entero en la cartera;
+     · una ficha que acá ya no existe: NO. «Lo mío» es el borrado; meterle la de
+       la nube sería deshacer lo que Joan eligió. */
+function loMioEscribeAca(it){
+  if(it.tabla==='ajustes') return !!(NUBE.LISTAS_DE_AJUSTES && NUBE.LISTAS_DE_AJUSTES[it.id]);
+  return !!it.local;
+}
+
+/* «Mandar lo mío encima», escrito en la cartera: lo de Joan PRIMERO —fusionarFila
+   se queda con la primera en todo campo pisable—, y las listas que solo suman de
+   los dos lados. Es el espejo exacto de fusionarConLoMio, con los argumentos al
+   revés a propósito. Si la fusión no devuelve una ficha, se LANZA: caer a «lo de
+   acá a secas» dejaría la cartera sin los abonos de la nube con el espejo ya
+   avanzado, que es el defecto que esta función existe para cerrar. */
+function loMioEncima(tabla, deLaNube, mio){
+  var r = NUBE.fusionarFila(mio, deLaNube, NUBE.LISTAS_QUE_SUMAN);
+  if(!r || !r.fila || typeof r.fila!=='object' || Array.isArray(r.fila)){
+    throw new Error('juntar lo tuyo con lo de la nube no devolvió una ficha ('+tabla+')');
+  }
+  return r.fila;
+}
+
+/* El paquete filtrado que se le entrega a nube.js. Tres cosas pasan acá:
      · se devuelven las fotos, porque lo que bajó viene sin ellas y aplicar tal
        cual le borraría a Joan las cédulas y las selfies de sus clientes. Ese es
        el peor daño silencioso que podía tener esta pantalla;
      · si el choque se resolvió a favor de la nube, las listas que solo suman se
        FUSIONAN antes de escribir: quedarse con la versión de la nube a secas
-       borraría la gestión que Joan anotó en el computador esta mañana. */
+       borraría la gestión que Joan anotó en el computador esta mañana;
+     · si se resolvió a favor de Joan (1-oct-2026), lo suyo queda encima y las
+       listas de la nube entran igual. Y la ficha va con borrado:false aunque
+       allá esté borrada: «lo mío manda» sobre una ficha borrada en el celular
+       quiere decir «la quiero viva», y aplicarPaquete la tiraría. */
 function paqueteCon(items){
   var p={servidor_ahora:(E.paquete&&E.paquete.servidor_ahora)||null, completo:false,
          socios:[], creditos:[], respaldados:[], ajustes:[],
          contadores:(E.paquete&&E.paquete.contadores)||{}};
   items.forEach(function(it){
     var fila = Object.assign({}, it.fila);
+    var eleccion = E.decisiones[llaveDe(it.tabla,it.fila)];
     if(it.tabla!=='ajustes'){
       var datos = fila.datos;
-      if(E.decisiones[llaveDe(it.tabla,it.fila)]==='nube' && it.local){
+      if(eleccion==='nube' && it.local){
         datos = fusionarConLoMio(it.tabla, datos, it.local);
+      }
+      if(eleccion==='mio' && it.local){
+        datos = loMioEncima(it.tabla, datos, it.local);
+        fila.borrado = false;
       }
       fila.datos = devolverFotos(datos, it.local);
     }
@@ -1489,9 +1620,35 @@ function tarjetaChoque(it, ref){
     '<div class="elegido">'+(eleccion==='nube'
         ? 'Elegiste lo de la nube. Al aplicar, las gestiones, comprobantes, prórrogas y abonos de los dos lados se juntan.'
         : eleccion==='mio'
-        ? 'Elegiste lo tuyo. No se toca nada acá; se manda en la próxima subida.'
+        ? queHaceLoMio(it)
         : 'Sin elegir. Mientras no elijas, esta ficha no se toca en ninguno de los dos lados.')+'</div>'+
   '</div>';
+}
+
+/* Lo que de verdad pasa al aplicar «lo mío», dicho con las mismas reglas que
+   usa loMioEscribeAca. Hasta el 1-oct-2026 la tarjeta decía «No se toca nada
+   acá» en todos los casos; ahora que la cartera SÍ se toca cuando hay listas que
+   juntar, esa frase sería mentira justo en el caso que importa. */
+function queHaceLoMio(it){
+  if(it.tabla==='ajustes'){
+    return loMioEscribeAca(it)
+      ? 'Elegiste lo tuyo. Al aplicar, los elementos de los dos lados se juntan —ninguno se pierde— y '+
+        'se manda cuando aprietes «Subir a la nube» en esta página.'
+      : 'Elegiste lo tuyo. No se toca nada acá; se manda cuando aprietes «Subir a la nube» en esta página '+
+        'y reemplaza lo de la nube.';
+  }
+  if(!it.local){
+    return it.borrado
+      ? 'Elegiste lo tuyo: acá esta ficha no existe y allá también está borrada. No se toca nada.'
+      /* 1-oct-2026 (segunda vuelta) — «la próxima subida» ya no es una sola:
+         el CRM sube solo, pero NUNCA deduce un borrado de lo que falta. Este
+         borrado solo lo manda el botón de esta página. */
+      : 'Elegiste lo tuyo: acá esta ficha no existe, así que no se toca nada acá y se borra también en la '+
+        'nube cuando aprietes «Subir a la nube» en esta página.';
+  }
+  return 'Elegiste lo tuyo. Al aplicar, en lo que no coincide queda lo tuyo, y las gestiones, comprobantes, '+
+    'prórrogas y abonos de los dos lados se juntan; después se manda en la próxima subida.'+
+    (it.borrado ? ' Allá está borrada: con lo tuyo vuelve a quedar viva en la nube.' : '');
 }
 
 /* Lo que mandamos no viene de vuelta en la respuesta de panel_empujar (solo
@@ -1579,7 +1736,10 @@ function refrescarBotones(){
   $('btnSubir').disabled = !conectado || !E.respaldoHecho || !E.unidades.length ||
                            E.panelEscribio || hayChoquesSinResolver;
   $('btnReintentar').disabled = $('btnSubir').disabled;
-  $('btnAplicar').disabled = !E.respaldoHecho || E.panelEscribio || !filasAAplicar().length;
+  /* 1-oct-2026: «lo mío» también cuenta. Con solo fichas marcadas «lo mío» el
+     botón quedaba apagado y esas fichas volvían a chocar en cada subida. */
+  $('btnAplicar').disabled = !E.respaldoHecho || E.panelEscribio ||
+                             !(filasAAplicar().length || marcadosComoMio().length);
 
   $('btnSubir').title = $('btnSubir').disabled
     ? (!conectado ? 'Falta conectar (paso 1).'

@@ -1524,7 +1524,15 @@
    telefono; el oro es la garantia que no se gano pagando (gd.prestada: por
    los datos y por la gente traida), en su propia fila. Toca
    platachat/estilo.css y platachat/index.html. */
-const CACHE = 'tugarantia-v122';
+/* v123 - 1-oct-2026. EL CRM SUBE SOLO A LA NUBE (RECETA-NUBE-CRM.md, Etapa 1).
+   Entra panel/nube-crm.js a la precarga: sin el, sin senal, el <script src>
+   recibiria index.html por la caida de la rama de .js (el defecto v19, de
+   arriba) y la subida no arrancaria sin decir nada. Joan sabe que esta en la
+   version nueva porque la cinta del CRM dice «v2026-10-01». El celular dice
+   cuando subio el computador (base/20261001_panel_ultima_subida.sql). Toca
+   panel/crm.html, panel/nube-crm.js (nuevo), panel/espejo.html, panel/nube.js
+   y panel/subir.html (la Etapa 0, en el mismo viaje). */
+const CACHE = 'tugarantia-v123';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -1560,6 +1568,8 @@ const ARCHIVOS = [
   'app/bases.js',
   'panel/espejo.webmanifest',
   'panel/nube.js',
+  /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
+  'panel/nube-crm.js',
   'panel/tanda.js',
   'panel/panel-180.png',
   'panel/panel-192.png',

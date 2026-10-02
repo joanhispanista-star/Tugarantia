@@ -237,16 +237,18 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
     <div class="cuerpo">
       <div class="aviso ambar">
         <b class="tit">Este camino es para MIRAR</b>
-        El CRM de siempre <b>no sabe subir</b>. Todo lo que hagas en <span class="mono">crm.html</span> en este
-        teléfono —cobrar, crear un crédito, anotar una gestión— se queda <b>en este teléfono</b> hasta que lo
-        empujes a mano con <span class="mono">subir.html</span>.
+        <!-- 1-oct-2026 — decía «el CRM de siempre no sabe subir». Desde hoy sube
+             solo (panel/nube-crm.js) en cuanto se empareja; lo que sigue sin
+             hacer es BAJAR. -->
+        Desde el 1-oct-2026 el CRM <b>sube solo</b> lo que guardas, después de que lo emparejes una vez con la
+        nube (te lo pide su cinta ☁). Lo que <b>no hace es bajar</b>: lo que se haga en otro aparato no aparece en
+        <span class="mono">crm.html</span> de este teléfono hasta que vuelvas a traer, y traer reemplaza lo de acá.
       </div>
       <div class="aviso ambar">
-        <b class="tit">Y por este camino nadie avisa de los choques</b>
-        <span class="mono">crm.html</span> no conoce las revisiones: no sabe si alguien más tocó la misma ficha.
-        Si trabajas en el CRM del teléfono <b>y</b> en el del computador, uno de los dos va a pisar al otro
-        <b>sin avisar</b>, y lo pisado no se recupera. El espejo (<span class="mono">espejo.html</span>) sí
-        detecta el choque, te muestra las dos versiones y te pregunta.
+        <b class="tit">Y los choques se deciden en otro sitio</b>
+        Si la misma ficha la tocaron aquí y en otro aparato, el CRM no la pisa: la deja <b>en discusión</b> y no
+        la sube hasta que decidas en <span class="mono">subir.html</span>. Pero el CRM no te enseña la otra
+        versión. El espejo (<span class="mono">espejo.html</span>) sí te muestra las dos y te pregunta.
       </div>
       <div class="aviso info">
         <b class="tit">La recomendación, entonces</b>
@@ -259,7 +261,8 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
         <b class="tit">Las fotos no viajan en esta fase</b>
         Las cédulas, el reverso, la selfie y las fotos de los comprobantes se quedan en el computador: no suben a
         la nube, así que tampoco pueden bajar acá. Las fichas se van a ver <b>sin foto</b>. No se perdieron: están
-        en el computador de Joan, donde siempre.
+        en el computador donde se tomaron. Por eso esta página es para OTRO aparato: en ese computador, traer
+        reemplazaría su cartera y se llevaría las fotos.
       </div>
       <div class="aviso info">
         <b class="tit">El espejo y el CRM son dos copias distintas en este mismo teléfono</b>
@@ -377,9 +380,10 @@ input:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
       <a class="btn negro" id="btnAbrir" href="crm.html">Abrir el CRM completo</a>
       <div class="aviso ambar">
         <b class="tit">Recuerda antes de entrar</b>
-        Lo que hagas ahí adentro <b>no sube solo</b>. Se queda en este teléfono hasta que abras
-        <span class="mono">subir.html</span> y lo empujes. Y si el mismo crédito lo tocas también en el
-        computador, uno de los dos se pierde sin avisar.
+        Lo que hagas ahí adentro <b>sube solo</b> después de que emparejes el CRM con la nube (la primera vez
+        te lo pide). <b>No baja nada</b>: lo que hagan otros aparatos no lo vas a ver ahí. Y si el mismo crédito
+        lo tocas también en el computador, no se pisa: queda en discusión hasta que decidas en
+        <span class="mono">subir.html</span>.
       </div>
       <a class="btn sec sm" href="espejo.html">Mejor abrir el espejo (para cobrar)</a>
     </div>

@@ -1747,10 +1747,21 @@
    * superconjunto, porque adoptarlo perdería ese abono en la subida siguiente.
    * Usa jsonCanonico y no JSON.stringify porque al otro lado hay datos que
    * volvieron de un jsonb con las llaves reordenadas.
+   *
+   * 1-oct-2026 — UN null DE LA NUBE ES UN DATO. Hasta hoy la primera línea
+   * devolvía true para todo `null` del servidor —«eso no lo dice»—, y así se
+   * adoptaba una ficha donde la nube dice `fechaPagado: null` y la cartera
+   * dice «15-sep»: la subida siguiente mandaba el 15-sep contra la revisión
+   * buena y lo que dijo el otro aparato se perdía sin choque. La receta lo pide
+   * por jsonCanonico para todo primitivo, y null es un primitivo. Lo encontró
+   * el generador de pruebas/adopcion-sin-mentir.test.js al primer intento.
+   * Ausente y null siguen siendo el mismo dato (jsonCanonico escribe «null»
+   * para los dos), que es lo que deja pasar una foto: acá existe, sinFotos la
+   * quita, y la nube dice selfieFoto:null — no se contradicen.
    */
   function esSuperconjunto(local, servidor) {
-    if (servidor === null || servidor === undefined) return true;
-    if (Array.isArray(servidor) || typeof servidor !== 'object') {
+    if (servidor === null || servidor === undefined ||
+        Array.isArray(servidor) || typeof servidor !== 'object') {
       return jsonCanonico(local) === jsonCanonico(servidor);
     }
     if (local === null || typeof local !== 'object' || Array.isArray(local)) return false;
@@ -1805,23 +1816,35 @@
           r.adoptadas.push(apunte);
           return;
         }
-        /* (f) no está acá: baja sola en la primera bajada. No entra al espejo. */
-        if (!local) { r.soloAlla.push(apunte); return; }
-
-        var mio = jsonCanonico(sinFotos(local));
+        /* 1-oct-2026 — las reglas van en el MISMO orden que en la receta
+           (a, b, c, d, e, f). (c), (d) y (e) comparan contra la fila de acá, así
+           que solo se miran si existe; sin ella es (f). Antes (f) iba antes de
+           (c) y (c)/(d) iban en un solo `if`: daba lo mismo, pero leerlo contra
+           la receta obligaba a hacer la cuenta. */
+        var acaSinFotos = local ? sinFotos(local) : null;
         var suyo = jsonCanonico(f.datos);
-
-        /* (c) idénticas, y (d) lo de acá contiene todo lo de allá. En los dos
-           casos el espejo puede afirmar la revisión del servidor sin mentir. */
-        if (mio === suyo || esSuperconjunto(sinFotos(local), f.datos)) {
+        var adoptar = function () {
           e[t][id] = { revision: num(f.revision), json: suyo, borrado: false,
                        actualizado_en: f.actualizado_en || null,
                        actualizado_por: f.actualizado_por || null };
           r.adoptadas.push(apunte);
-          return;
-        }
-        /* (e) difieren de verdad: lo mira Joan. */
-        r.congelar.push({ tabla: t, id: id, motivo: 'difieren' });
+        };
+
+        /* (c) idénticas: el espejo puede afirmar la revisión del servidor. */
+        if (local && jsonCanonico(acaSinFotos) === suyo) { adoptar(); return; }
+        /* (d) lo de acá contiene todo lo de allá —los campos que cargar() agrega
+           al abrir—: la subida siguiente lo pisa sin perder nada del servidor. */
+        if (local && esSuperconjunto(acaSinFotos, f.datos)) { adoptar(); return; }
+        /* (e) difieren de verdad: lo mira Joan. Si el espejo previo traía una
+           entrada vieja, se QUEDA: es lo que la hace volver a chocar en vez de
+           pisar. */
+        if (local) { r.congelar.push({ tabla: t, id: id, motivo: 'difieren' }); return; }
+        /* (f) no está acá: baja sola en la primera bajada. No entra al espejo — y
+           si el espejo previo la traía, SALE (1-oct-2026): un espejo que afirma
+           una fila que la cartera no tiene es justo de donde armarLote con
+           marcarBorrados saca un borrado contra la revisión buena. */
+        delete e[t][id];
+        r.soloAlla.push(apunte);
       });
 
       Object.keys(locales).forEach(function (id) {

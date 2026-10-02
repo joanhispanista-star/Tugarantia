@@ -329,6 +329,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
     <!-- Cuándo fue la última vez que se trajo algo de la nube, CON HORA. Sin esto,
          una cartera de ayer y una de hace un minuto se ven exactamente igual. -->
     <div class="traido" id="cabTraido">—</div>
+    <!-- 1-oct-2026 — Y cuándo SUBIÓ EL COMPUTADOR. Que el celular haya traído hace un
+         minuto no dice nada si el computador no sube desde el lunes: lo que se ve
+         acá es tan nuevo como lo último que llegó de allá. -->
+    <div class="traido" id="cabComputador" hidden></div>
   </div>
 </header>
 
@@ -1027,6 +1031,9 @@ function sincronizar(porOrdenDeJoan) {
       recargarDeDisco();
       _sincronizando = false;
       pintar();
+      /* 1-oct-2026 — después de traer, preguntar cuándo subió el computador.
+         Va aparte y después: si falla, lo traído ya está pintado y a salvo. */
+      traerSubidaPC();
     })
     .catch(function (e) {
       _sincronizando = false;
@@ -2893,6 +2900,84 @@ function pintarTraido() {
     if (ses && ses.correo) partes.push(ses.correo);
   }
   el.textContent = partes.join(' · ');
+  pintarSubidaPC();
+}
+
+/* ====================== CUÁNDO SUBIÓ EL COMPUTADOR =======================
+   1-oct-2026. Desde hoy el CRM del computador sube solo (panel/nube-crm.js).
+   Lo que el celular muestra es tan nuevo como lo último que llegó de allá, y
+   eso se dice arriba, debajo de «Traído de la nube».
+
+   El dato sale de la nube, no de este teléfono: panel_ultima_subida lee la
+   bitácora de panel_empujar (base/20261001_panel_ultima_subida.sql). Las filas
+   no sirven para esto: si el celular toca las fichas que subió el computador,
+   ya ninguna dice «computador» y la pantalla mentiría con datos ciertos.
+
+   Mientras esa función no exista en la nube (contesta 404), se dice «todavía
+   no sé», sin alarma y sin reintentar en bucle: se vuelve a preguntar en la
+   próxima sincronización, que pasa igual. */
+var SUBIDA_PC = null;
+function traerSubidaPC() {
+  if (!NUBE || !NUBE.rpc || !nubeLista()) return Promise.resolve();
+  return NUBE.rpc('panel_ultima_subida', { p_dispositivo: 'computador' })
+    .then(function (r) {
+      r = r || {};
+      SUBIDA_PC = { ultima: r.ultima_subida || null, intento: r.ultimo_intento || null,
+                    servidorAhora: r.servidor_ahora || null, leidoEn: Date.now() };
+    }, function (e) {
+      if (e && e.estado === 404) SUBIDA_PC = { falta: true };
+      /* Cualquier otro fallo (sin señal, sesión): se conserva lo último que se
+         supo. La cuenta de «hace cuánto» sigue corriendo desde ahí. */
+    })
+    .then(pintarSubidaPC);
+}
+/* Pura a propósito —solo lo que recibe y Date—: pruebas/nube-crm.test.js la
+   recorta de este archivo y la prueba sin abrir un navegador. */
+function textoSubidaPC(s, ahoraMs) {
+  if (!s) return 'Todavía no sé cuándo subió el computador.';
+  if (s.falta) return 'Todavía no sé cuándo subió el computador: falta un paso en la nube.';
+  if (!s.ultima) return 'El computador todavía no ha subido nada a la nube.';
+  var ult = Date.parse(s.ultima), srv = Date.parse(s.servidorAhora);
+  if (isNaN(ult)) return 'Todavía no sé cuándo subió el computador.';
+  /* «Hace cuánto» con dos horas del MISMO reloj (el del servidor), más lo que
+     pasó en este teléfono desde que preguntó: el reloj del celular puede estar
+     corrido cinco minutos y eso no puede mover la frase. */
+  /* 1-oct-2026 (segunda vuelta) — UNA RESPUESTA VIEJA NO SE ESTIRA. Si el
+     teléfono no pudo volver a preguntar (sin señal, sesión vencida), sumarle el
+     tiempo que pasó convertía «subió hace 5 min» de las 14:00 en «subió hace
+     3 h» a las 17:00, cuando el computador pudo haber subido diez veces desde
+     entonces. Pasados 10 min sin preguntar, se dice A QUÉ HORA era cierto. */
+  var preguntado = Number(s.leidoEn) || ahoraMs;
+  var vieja = ahoraMs - preguntado > 10 * 60000;
+  var trans = (isNaN(srv) ? 0 : srv - ult) + (vieja ? 0 : Math.max(0, ahoraMs - preguntado));
+  var min = Math.floor(trans / 60000), frase;
+  if (min < 1) frase = 'El computador subió hace un momento';
+  else if (min < 60) frase = 'El computador subió hace ' + min + ' min';
+  else if (min < 24 * 60) frase = 'El computador subió hace ' + Math.floor(min / 60) + ' h';
+  else {
+    var d = new Date(ult);
+    frase = 'El computador no ha subido desde el ' + d.getDate() + '-' +
+      ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][d.getMonth()];
+  }
+  /* Un intento DESPUÉS de la última subida en el que no entró nada es un
+     choque allá: se dice, porque cambia lo que Joan puede esperar ver acá. */
+  var intento = Date.parse(s.intento);
+  if (!isNaN(intento) && intento - ult > 60000) frase += ' · lo intentó después y no entró nada';
+  if (vieja) {
+    var h = new Date(preguntado);
+    frase = 'A las ' + h.getHours() + ':' + String(h.getMinutes()).padStart(2, '0') +
+      ' (lo último que supe), e' + frase.slice(1).replace(' subió ', ' había subido ').replace(' no ha subido ', ' no había subido ');
+  }
+  return frase + '.';
+}
+function pintarSubidaPC() {
+  var el = document.getElementById('cabComputador');
+  if (!el) return;
+  /* Sin conexión no se pregunta nada, y no se dice nada: arriba ya dice que
+     falta conectarse. */
+  if (!nubeLista() && !SUBIDA_PC) { el.hidden = true; el.textContent = ''; return; }
+  el.textContent = textoSubidaPC(SUBIDA_PC, Date.now());
+  el.hidden = false;
 }
 function pintarCinta() {
   var el = document.getElementById('cinta');

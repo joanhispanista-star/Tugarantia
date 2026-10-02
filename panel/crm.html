@@ -859,9 +859,17 @@
              ================================================================ -->
         <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--linea)">
           <h3 style="margin:0 0 4px">🌎 Tu negocio en cualquier parte</h3>
-          <div class="help" style="margin-bottom:12px">Hoy tu cartera vive en ESTE navegador. Si el computador se pierde o Chrome borra los datos del sitio, se pierde quién te debe qué. Estos tres botones lo arreglan.</div>
+          <!-- 1-oct-2026 — «Hoy tu cartera vive en ESTE navegador» dejó de ser cierto
+               en cuanto el CRM sube solo: lo que pasa de verdad lo dice #nubeBarra,
+               justo abajo, y esta frase solo dice el riesgo de no estar conectado. -->
+          <div class="help" style="margin-bottom:12px">Mientras este computador no esté conectado a la nube, lo que cambies vive solo en ESTE navegador. Si el computador se pierde o Chrome borra los datos del sitio, se pierde quién te debe qué. Estos tres botones lo arreglan.</div>
 
           <div id="cfgRespaldoAviso"></div>
+
+          <!-- 1-oct-2026 — la subida automática (panel/nube-crm.js) se pinta acá y en
+               la barra lateral. Vacío NO quiere decir «todo bien»: si el archivo no
+               cargó, el aviso de abajo del todo (RECETA E) lo escribe acá. -->
+          <div id="nubeBarra"></div>
 
           <div class="info-row"><span class="k"><b>1. Sube tu cartera a la nube</b>
             <div class="muted">Se copia todo: socios, créditos, abonos y ajustes. Las fotos no suben (pesan y no hacen falta para cobrar).</div></span>
@@ -1117,10 +1125,77 @@ const PLANTILLAS_DEF={
   enlaceCorregido:{t:'El enlace bueno (corrección)',x:'Para quien recibió su código con la dirección vieja',m:'Hola {nombre} 🙂 Te pasamos el enlace bueno para entrar a la app: el que te mandamos antes ya no abre.\n\nEntras acá: {enlace}\n\nTu usuario y tu código son los mismos de antes, no cambian. Si no los tienes a mano, nos escribes y te los pasamos otra vez.'}
 };
 
+/* ===========================================================================
+ * EL SELLO DE LA CARTERA — 1-oct-2026 (RECETA-NUBE-CRM.md, Etapa 1, paso 1).
+ *
+ * panel/nube-crm.js sube a la nube lo que la cartera tiene GUARDADO en el
+ * disco, comparándolo con el espejo de lo que ya está allá. Eso solo es seguro
+ * si lo que hay en el disco es lo que ESTA pestaña escribió o leyó: si otra
+ * pestaña, subir.html, traer.html o un respaldo importado la reemplazó, el
+ * diff dejaría de ser una subida y pasaría a pisar lo del celular con la
+ * revisión buena, sin choque.
+ *
+ * Cada escritura deja {v, quien, largo, huella}. La huella y no solo el largo:
+ * un cobro de 260.000 corregido a 240.000 desde otra página tiene el mismo
+ * largo. FNV-1a de 32 bits, medido en 0,5 ms sobre la cartera de Joan del
+ * 1-oct (270 KB).
+ *
+ * Van con `var` y ANTES de `let DB=cargar()` a propósito: guardar() puede
+ * correr en el arranque (la migración de fechas, más abajo) y un `let` todavía
+ * no declarado ahí es zona muerta temporal: el script entero se cae y el botón
+ * Entrar no hace nada, sin un mensaje que lo explique.
+ * ======================================================================== */
+var _TAB=Math.random().toString(36).slice(2);
+var _SELLO_V=0;
+var _SELLO_MIO=null;   // lo último que esta pestaña selló: lo que cree que hay en el disco
+function _huella(t){ t=String(t==null?'':t); var h=0x811c9dc5; for(var i=0;i<t.length;i++){ h^=t.charCodeAt(i); h=Math.imul(h,0x01000193); } return (h>>>0).toString(36); }
+function _sello(t){
+  t=String(t==null?'':t);
+  _SELLO_MIO={v:++_SELLO_V, quien:_TAB, largo:t.length, huella:_huella(t)};
+  try{ localStorage.setItem('joan_crm_sello', JSON.stringify(_SELLO_MIO)); }catch(e){}
+}
+/* Lo que esta pestaña acaba de LEER. `escribir` dice si además reclama el
+   sello en el disco: al abrir NO (una pestaña olvidada en la pantalla del PIN
+   no le puede quitar el turno a la que trabaja), después del PIN sí. */
+function _selloDesdeDisco(escribir){
+  var t=''; try{ t=localStorage.getItem(KEY)||''; }catch(e){}
+  if(escribir) _sello(t); else _SELLO_MIO={v:_SELLO_V, quien:_TAB, largo:t.length, huella:_huella(t)};
+}
+/* Reclamar el turno SOLO si la cartera del disco es la que esta pestaña
+   conoce. Si otro la escribió, esta pestaña tiene una cartera vieja en memoria
+   y no puede sellarla como suya: tiene que recargar. */
+function _reclamarSello(){
+  var t=''; try{ t=localStorage.getItem(KEY)||''; }catch(e){ return false; }
+  if(!_SELLO_MIO || t.length!==_SELLO_MIO.largo || _huella(t)!==_SELLO_MIO.huella) return false;
+  _sello(t); return true;
+}
+/* ¿La cartera del disco la escribió otro desde la última vez que esta pestaña
+   la selló? Si el guardado que viene la va a pisar, el espejo de la nube deja
+   de describirla. Si no se sabe, se responde que sí: cuesta un emparejar, no
+   un cobro. */
+function _carteraAjena(){
+  try{
+    if(!_SELLO_MIO) return false;
+    var t=localStorage.getItem(KEY)||'';
+    return t.length!==_SELLO_MIO.largo || _huella(t)!==_SELLO_MIO.huella;
+  }catch(e){ return true; }
+}
+/* Lo que pasa DESPUÉS de cada escritura que sí entró, en las dos ramas de
+   guardar(). El orden importa: primero se suelta el espejo si se pisó algo
+   ajeno, después el sello, después el aviso a la subida. */
+function _trasGuardar(t, ajena){
+  if(ajena){ try{ localStorage.removeItem('joan_panel_espejo_pc'); }catch(e){} }
+  _sello(t);
+  try{ if(window.NubeCRM) NubeCRM.algoCambio(); }catch(e){}
+}
+
 /* 3-ago-2026: cuántas fechaPagado tocó la migración en ESTA carga. Se declara
    antes de la primera llamada a cargar() porque `let` no se iza. */
 let _fechasMigradas=0;
 let DB=cargar();
+/* 1-oct-2026 — esta pestaña sabe qué leyó. Sin reclamar el sello: eso pasa
+   después del PIN, en entrar(). */
+_selloDesdeDisco(false);
 
 /* 15-sep-2026 — QUE CHROME NO PUEDA BORRAR LA CARTERA.
    El libro entero del negocio vive en el localStorage de este navegador. Sin
@@ -1321,11 +1396,16 @@ function codRespaldado(r){ return PUENTE.codRespaldado(r); }
 var _guardadoOk = true;
 
 function guardar(){
+  /* 1-oct-2026 — se pregunta ANTES de escribir si lo que se va a pisar lo
+     escribió otro (ver EL SELLO DE LA CARTERA, arriba). */
+  var ajena = _carteraAjena(), t;
   try {
-    localStorage.setItem(KEY, JSON.stringify(DB));
+    t = JSON.stringify(DB);
+    localStorage.setItem(KEY, t);
   } catch (e) {
-    return guardarSinFotos();
+    return guardarSinFotos(ajena);
   }
+  _trasGuardar(t, ajena);
   /* EL AVISO VA FUERA DEL try DEL GUARDADO, y esto lo encontro una prueba.
      Estaba dentro, asi que si pintarAvisoGuardado reventaba —un elemento de
      mentira sin .remove(), un DOM a medias— el catch de abajo lo trataba como
@@ -1340,16 +1420,21 @@ function guardar(){
 }
 
 /* No cupo: se intenta salvar el LIBRO sacrificando las fotos. */
-function guardarSinFotos(){
+function guardarSinFotos(ajena){
   {
-    var salvado = false;
+    var salvado = false, t2;
     try {
       var N = window.NubeTuGarantia;
       if (N && N.dbSinFotos) {
-        localStorage.setItem(KEY, JSON.stringify(N.dbSinFotos(DB)));
+        t2 = JSON.stringify(N.dbSinFotos(DB));
+        localStorage.setItem(KEY, t2);
         salvado = true;
       }
     } catch (e2) { salvado = false; }
+    /* 1-oct-2026 — lo que entró sin fotos TAMBIÉN es un hecho en el disco, y
+       es exactamente lo que subiría (las fotos nunca suben): se sella igual.
+       Si no entró nada, no se sella nada: el disco sigue con lo de antes. */
+    if (salvado) { try { _trasGuardar(t2, ajena); } catch (e4) {} }
 
     _guardadoOk = false;
     try { pintarAvisoGuardado(salvado); } catch (e3) {}
@@ -3986,12 +4071,31 @@ function borrarCredito(id){
   p.borradoEn=hoyISO();
   DB.papelera=DB.papelera||[]; DB.papelera.unshift(p);
   DB.prestamos=DB.prestamos.filter(x=>x.id!==id);
+  anotarBorradoNube('creditos', p.id);
   guardar(); cerrarModal(); render();
+}
+/* 1-oct-2026 — LOS BORRADOS QUE VIAJAN SE ESCRIBEN, NO SE DEDUCEN.
+   panel/nube-crm.js no manda a la nube «lo que falta en la cartera»: una
+   cartera a medias (un respaldo viejo importado, el modo equipo que vacía DB,
+   otra pestaña) tendría la misma cara que un borrado y la nube lo aceptaría
+   sin choque. Lo único que se borra allá es lo anotado acá, en el MISMO
+   guardar() del borrado: no puede quedar a medias y sobrevive sin señal.
+   No viaja: nube.js solo lee las tres tablas y sus ajustes. */
+function anotarBorradoNube(tabla, id){
+  if(id==null) return;
+  DB.nubeBorrados=Array.isArray(DB.nubeBorrados)?DB.nubeBorrados:[];
+  if(!DB.nubeBorrados.some(b=>b&&b.tabla===tabla&&String(b.id)===String(id)))
+    DB.nubeBorrados.push({tabla:tabla, id:id, cuando:hoyISO()});
+}
+function quitarBorradoNube(tabla, id){
+  if(!Array.isArray(DB.nubeBorrados)) return;
+  DB.nubeBorrados=DB.nubeBorrados.filter(b=>!(b&&b.tabla===tabla&&String(b.id)===String(id)));
 }
 function restaurarCredito(id){
   const i=(DB.papelera||[]).findIndex(x=>x.id===id); if(i<0)return;
   const p=DB.papelera[i]; delete p.borradoEn;
   DB.prestamos.push(p); DB.papelera.splice(i,1);
+  quitarBorradoNube('creditos', p.id);
   guardar(); render();
 }
 function eliminarDefinitivo(id){
@@ -4043,6 +4147,10 @@ function borrarCliente(id){
   DB.socios=DB.socios.filter(x=>x.id!==id);
   DB.prestamos=DB.prestamos.filter(p=>p.socioId!==id);
   DB.respaldados=(DB.respaldados||[]).filter(r=>r.socioId!==id);
+  /* 1-oct-2026 — la ficha Y su historial: en la nube son filas aparte. */
+  anotarBorradoNube('socios', s.id);
+  ps.forEach(p=>anotarBorradoNube('creditos', p.id));
+  rs.forEach(r=>anotarBorradoNube('respaldados', r.id));
   guardar(); cerrarModal(); render();
 }
 function papeleraClientesHTML(){
@@ -4066,6 +4174,11 @@ function restaurarCliente(id){
   DB.respaldados=DB.respaldados||[];
   (e.prestamos||[]).forEach(p=>{ if(!DB.prestamos.some(x=>x.id===p.id))DB.prestamos.push(p); });
   (e.respaldados||[]).forEach(r=>{ if(!DB.respaldados.some(x=>x.id===r.id))DB.respaldados.push(r); });
+  /* 1-oct-2026 — devuelta, ya no se borra de la nube (y si ya se borró, la
+     subida siguiente la devuelve allá también). */
+  quitarBorradoNube('socios', e.socio.id);
+  (e.prestamos||[]).forEach(p=>quitarBorradoNube('creditos', p.id));
+  (e.respaldados||[]).forEach(r=>quitarBorradoNube('respaldados', r.id));
   DB.papeleraSocios.splice(i,1); guardar(); render();
 }
 function eliminarClienteDefinitivo(id){
@@ -8326,6 +8439,10 @@ function modoEquipo() {
          invitaciones: [], plantillas: {}, config: { negocio: 'Tu Garantía' },
          contadores: { cliente: 0, credito: 0, respaldado: 0 },
          equipo: [], asignaciones: [], prospectos: [], bases: [], actosComision: [] };
+  /* 1-oct-2026 — en modo equipo la cartera de Joan NO sube: se apaga la subida
+     con un interruptor que se queda apagado (no se lee CARTERA_EQUIPO una vez
+     al arrancar: en ese instante vale null siempre). */
+  try { if (window.NubeCRM) NubeCRM.apagar(); } catch (e) {}
   document.getElementById('gate').style.display = 'none';
   document.getElementById('app').style.display = 'grid';
   const yo = CARTERA_EQUIPO.yo;
@@ -11039,12 +11156,19 @@ function confirmarCargaBase() {
   /* Y si aun así no cupiera, se deshace la carga ANTES de que guardar() llegue a
      salvar el libro tirando las fotos: una base de prospectos nunca puede
      costar un comprobante. */
+  /* 1-oct-2026 (segunda vuelta) — esta prueba ES una escritura de la cartera, y
+     sin sello el guardar() de abajo la creía ajena y soltaba el espejo: cada
+     base de prospectos obligaba a emparejar otra vez, y emparejar congela lo
+     que el celular tocó entretanto. Se pregunta ANTES si lo de antes era ajeno
+     y se sella lo que entró, igual que guardar(). */
+  const ajenaBase = _carteraAjena();
   try { localStorage.setItem(KEY, JSON.stringify(DB)); }
   catch (e) {
     prospectos().splice(antes); basesCargadas().splice(basesAntes);
     cerrarModal();
     return alert('No cupo en este navegador y no cargué nada: tu cartera quedó como estaba, con sus fotos.');
   }
+  try { _trasGuardar(localStorage.getItem(KEY) || '', ajenaBase); } catch (e) {}
   _baseLeida = null;
   guardar(); cerrarModal(); render(); irA('bases');
   alert('Listo: entraron ' + entran.length + ' prospectos.' +
@@ -13399,7 +13523,14 @@ function importar(e){ const f=e.target.files[0]; if(!f)return; const inp=e.targe
       localStorage.removeItem('joan_panel_espejo_pc');
       localStorage.removeItem('joan_crm_sello');
     } catch (e) {}
-    DB=cargar(); if(_fechasMigradas) guardar(); render(); alert('Respaldo importado: '+nS+' cliente(s) y '+nP+' crédito(s).');
+    /* 1-oct-2026 (segunda vuelta) — y la sella como suya: esta pestaña acaba de
+       escribir la cartera. Sin el sello, la cinta acusaba a «otra pestaña» de
+       lo que Joan hizo aquí mismo. Sin espejo, lo que dice ahora es «falta
+       emparejar», que es la verdad. El sello va DESPUÉS de la migración de
+       fechas: si esa guardó, el sello describe lo que quedó en el disco. */
+    DB=cargar(); if(_fechasMigradas) guardar(); _selloDesdeDisco(true); render();
+    try{ if(window.NubeCRM) NubeCRM.algoCambio(); }catch(e){}
+    alert('Respaldo importado: '+nS+' cliente(s) y '+nP+' crédito(s).');
   }catch(err){ alert('Archivo inválido.'); } finally { inp.value=''; } }; r.readAsText(f); }
 
 /* ===== NAV / MODAL / PIN ===== */
@@ -13429,7 +13560,62 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
   if(v==='mensajes'){ renderMensajes(); traerConversaciones(); }
   if(v==='resp')renderRespaldados(); }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>irA(b.dataset.v)));
-function entrar(){ if(document.getElementById('pinInput').value===DB.config.pin){ document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='grid'; render(); } else document.getElementById('pinErr').textContent='PIN incorrecto.'; }
+function entrar(){ if(document.getElementById('pinInput').value===DB.config.pin){ document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='grid'; render();
+    /* 1-oct-2026 — EL ARRANQUE DE LA SUBIDA (RECETA-NUBE-CRM.md, Etapa 1, paso 15).
+       Acá y no arriba junto a la definición de render(): este es el único sitio
+       donde de verdad arranca la vista de Joan, y donde CARTERA_EQUIPO ya existe
+       (un `let` leído antes de su línea tumba el script entero y el botón
+       Entrar deja de hacer algo). Nunca en modo equipo, que entra por otra
+       puerta y además la apaga. Si nube-crm.js no llegó, el CRM sigue igual. */
+    try{ if(window.NubeCRM && !CARTERA_EQUIPO) NubeCRM.configurar({ barra:document.getElementById('nubeBarra'),
+      ocupado:estoyOcupado, sello:()=>_SELLO_MIO, huella:_huella, retomarSello:_reclamarSello, recargar:recargarCartera }); }catch(e){}
+    try{ if(!CARTERA_EQUIPO && !_oyendoCartera && typeof window.addEventListener==='function'){ _oyendoCartera=true; window.addEventListener('storage', alEscribirOtraPagina); } }catch(e){}
+  } else document.getElementById('pinErr').textContent='PIN incorrecto.'; }
+/* 1-oct-2026 (segunda vuelta) — CUANDO OTRA PÁGINA ESCRIBE LA CARTERA, ESTA
+   PESTAÑA SE ENTERA. subir.html aplica lo del celular (o resuelve un choque) y
+   escribe la cartera; si esta pestaña sigue con la DB de antes en memoria, su
+   próximo guardar() la pisa entera: la resolución desaparece de la cartera, el
+   espejo se suelta, y Joan vuelve a dar la vuelta emparejar → «en discusión»
+   → ☁ Subir. `storage` solo llega a las OTRAS pestañas, así que esto no se
+   dispara con lo que esta misma escribe.
+   Se recarga SIN reclamar el sello (si escribió otra pestaña del CRM, el turno
+   es suyo) y NUNCA debajo de Joan: con un modal abierto o un campo enfocado se
+   espera a que termine. No se recarga dentro de guardar(): ahí DB ya tiene en
+   memoria lo que Joan acaba de hacer, y recargar sería tirarlo. Si guarda
+   antes de que se recargue, guardar() suelta el espejo como siempre, y lo de
+   la nube sigue a salvo. Nunca en modo equipo: esa DB no es la de Joan. */
+var _oyendoCartera=false, _recargaPendiente=false;
+function alEscribirOtraPagina(ev){
+  try{
+    if(!ev || ev.key!==KEY || CARTERA_EQUIPO || !_carteraAjena()) return;
+    if(estoyOcupado()){ esperarParaRecargar(); return; }
+    recargarSinReclamar();
+  }catch(e){}
+}
+function recargarSinReclamar(){ _recargaPendiente=false; DB=cargar(); _selloDesdeDisco(false); if(_fechasMigradas) guardar(); render(); }
+function esperarParaRecargar(){
+  if(_recargaPendiente) return;
+  _recargaPendiente=true;
+  (function mirar(){ setTimeout(function(){
+    try{
+      if(!_recargaPendiente) return;
+      /* Ya guardó encima (y soltó el espejo) o ya se recargó: nada que hacer. */
+      if(CARTERA_EQUIPO || !_carteraAjena()){ _recargaPendiente=false; return; }
+      if(estoyOcupado()) return mirar();
+      recargarSinReclamar();
+    }catch(e){ _recargaPendiente=false; }
+  }, 2000); })();
+}
+/* 1-oct-2026 — ¿Joan está en mitad de algo? (RECETA D). En la Etapa 1 no frena
+   nada —lo que sube ya está en disco—; lo usará la bajada para no repintarle un
+   formulario mientras escribe. No conoce ids sueltos: Ajustes es `v-cfg` (no
+   existe ningún `v-ajustes`). Y si no sabe, dice que SÍ: se aplaza. */
+function estoyOcupado(){ try{ if(modal.classList.contains('on')) return true; var a=document.activeElement; if(a && (a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.tagName==='SELECT'||a.isContentEditable)) return true; var v=document.querySelector('.view.on'); return !!(v && (v.id==='v-cfg' || v.id==='v-plantillas')); }catch(e){ return true; } }
+/* 1-oct-2026 — lo que hace el botón de la cinta cuando otra página escribió la
+   cartera: las MISMAS tres líneas del arranque y de importar(), con el sello en
+   medio. Sin el `if(_fechasMigradas) guardar()`, la migración de fechas se
+   vuelve a correr y vuelve la garantía duplicada que cargar() documenta. */
+function recargarCartera(){ DB=cargar(); _selloDesdeDisco(true); if(_fechasMigradas) guardar(); render(); }
 document.getElementById('pinBtn').addEventListener('click',entrar);
 document.getElementById('pinInput').addEventListener('keydown',e=>{ if(e.key==='Enter')entrar(); });
 document.getElementById('pinInput').focus();
@@ -13443,6 +13629,17 @@ document.getElementById('pinInput').focus();
    blanco. Y solo con #equipo exacto: el hash también lleva `clave-nube=`
    (ver más arriba) y eso no puede disparar la puerta del equipo. */
 if (/^#equipo(?:$|&)/.test(location.hash || '')) { try { pintarPuertaEquipo(); } catch (e) {} }
+</script>
+<!-- 1-oct-2026 — LA SUBIDA AUTOMÁTICA (RECETA-NUBE-CRM.md, Etapa 1, paso 13). Va
+     DESPUÉS del bloque grande y no arriba con los demás: arranca desde entrar(),
+     que vive en ese bloque, y usa funciones que ese bloque declara. nube.js no se
+     repite: ya está arriba desde el 15-sep, antes de puente.js. -->
+<script src="nube-crm.js"></script>
+<script>
+/* 1-oct-2026 — RECETA E. Si nube-crm.js no llegó (un service worker viejo, sin
+   señal), la barra de Ajustes quedaría vacía, y un div vacío no se distingue de
+   «todo bien». Se dice. */
+setTimeout(function(){ if(!window.NubeCRM){ var b=document.getElementById('nubeBarra'); if(b) b.innerHTML='<div class="alerta warn">Este computador está sirviendo una versión vieja del CRM: la subida a la nube no cargó. Recárgalo con Ctrl+Shift+R.</div>'; } },1500);
 </script>
 <script>
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
