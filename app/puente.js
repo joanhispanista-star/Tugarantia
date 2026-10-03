@@ -2051,8 +2051,521 @@
          dueño en la pantalla. Perdonar MORA le cuesta todo a Joan y nada al cupo
          del socio, porque la mora nunca fue garantía. */
       de_tu_ganancia: (nom.operativo + nom.amortiza_cupon) - (cob.operativo + cob.amortiza_cupon),
-      de_su_cupo: nom.garantia_socio - cob.garantia_socio
+      de_su_cupo: nom.garantia_socio - cob.garantia_socio,
+      /* 3-oct-2026 — los tres pedazos de la plata que ENTRÓ por la prórroga, como
+         ya los devuelve cuentasDelCobro. Los necesita abonoConProrroga (más
+         abajo) para enseñarle a Joan el 80/20 antes de confirmar sin volver a
+         armar el reparto por su cuenta: una segunda llamada al motor con las
+         opciones copiadas a mano es como nacen dos verdades. */
+      reparto: cob
     };
+  }
+
+  /* ==========================================================================
+   * ABONO + PRÓRROGA EN UN SOLO PASO — 3-oct-2026
+   *
+   * Pedido de Joan, con una cliente real delante: «hizo un abono de 200.000 y
+   * el resto de la deuda se financia para la siguiente quincena, pero el CRM no
+   * tiene la función de abonos… quiero que yo tenga la posibilidad de hacerlo
+   * manual».
+   *
+   * Hasta hoy eso eran DOS botones —«Queda debiendo» (abonarCapital) y la
+   * prórroga (registrarProrroga)— y EL ORDEN EN QUE SE APRETABAN CAMBIABA LA
+   * PLATA. Medido con el caso real (400.000 al 20%, corte 1-oct, paga el 3-oct):
+   *
+   *   · prórroga PRIMERO y abono después: abonarCapital anota el abono en el
+   *     ciclo NUEVO (`ciclo: p.cicloActual`, que ya se movió) y le congela como
+   *     costo causado el que acaba de cotizar el puente: 80.000, sacados de los
+   *     400.000 de antes del abono. causadoDelCiclo lo toma de PISO y la
+   *     quincena siguiente cobra 80.000 sobre un capital de 288.000.
+   *   · abono PRIMERO y prórroga después: el abono se anota en el ciclo VIEJO
+   *     (1-oct) y su congelado se queda allá —causadoDelCiclo solo mira el
+   *     ciclo vigente—. El ciclo nuevo arranca el día de la prórroga
+   *     (inicioDelCiclo) y capitalVigenteEn de ese día ya descuenta el abono
+   *     del mismo día: 288.000 × 20% = 57.600. Es lo que Joan pidió: «el resto
+   *     se financia».
+   *
+   * Por eso esta función FIJA el segundo orden y devuelve, ya armados,
+   * EXACTAMENTE los registros que esos dos botones escribirían en ese orden
+   * (pruebas/abono-con-prorroga.test.js corre el CRM de verdad y los compara
+   * campo por campo). La pantalla solo los empuja a las listas que ya existen
+   * —abonosCapital, prorrogas, condonaciones, comprobantes— en UN guardar():
+   * los dos o ninguno. Sin campos nuevos: el historial, Cobranzas, el paquete
+   * del socio (migrarSocio) y la nube (LISTAS_QUE_SUMAN) ya los entienden.
+   *
+   * EL ORDEN EN QUE SE APLICA LA PLATA, que es el de la ley de pagos de
+   * siempre: primero el recargo de mora (menos lo que Joan perdone, con
+   * motivo), después el costo del ciclo —esos dos son el PRECIO de la
+   * prórroga, el mismo que cotiza MotorReglas.liquidarProrroga— y lo que sobre,
+   * a capital. El corte nuevo lo pone el motor (fechaCorteProrroga), el mismo
+   * de cualquier prórroga.
+   *
+   * LO QUE NO HACE, y por qué:
+   *   · No perdona COSTO. Si la plata alcanza para el costo y sobra para
+   *     capital, perdonarle costo sería cobrarle capital con plata que era
+   *     precio. Si NO alcanza para la prórroga, se dice y se ofrecen los
+   *     caminos que ya existen (prórroga con descuento, acuerdo, queda
+   *     debiendo): esa hoja sí sabe perdonar costo.
+   *   · No salda. Si la plata cubre el capital entero, es «Pagó todo» y se
+   *     dice: un abono que deja el capital en cero no es una prórroga.
+   *   · No inventa prórrogas. Pagado, en plan de pagos, capital en cero o sin
+   *     prórrogas en su nivel: se dice por qué, y en el último caso se ofrece
+   *     el plan de pagos del §8 que arma el motor, como hoy.
+   *   · El abono NO deja garantía: no es costo (garantiaGanadaCredito no mira
+   *     abonosCapital). La garantía y el 80/20 son los de la prórroga, ni un
+   *     peso más, y la mora deja lo que diga la fecha del crédito
+   *     (MotorReglas.garantiaDeMoraPagada, FECHA_MORA_SIN_GARANTIA).
+   * ========================================================================*/
+
+  /* El crédito en el idioma del motor: la MISMA traducción que creditoMotor()
+     de crm.html y de espejo.html, campo por campo. Vive acá adentro y no
+     exportada porque abonoConProrroga es su único cliente en el puente; el día
+     que el CRM y el espejo dejen sus dos copias (el espejo ya lo anuncia), se
+     exporta esta y se borran aquellas. La prueba compara los registros contra
+     el CRM corriendo de verdad: si esta traducción se separa de la suya, se
+     entera. */
+  function creditoParaElMotor(db, p, fecha) {
+    var s = lista(db && db.socios).filter(function (x) { return x && x.id === p.socioId; })[0];
+    var nivel = 'hierro';
+    if (s) { try { nivel = migrarSocio(db, s).garantia.nivel; } catch (e) { nivel = 'hierro'; } }
+    return {
+      id: p.id,
+      capital: capitalActual(p),
+      tasa_aplicada: (num(p.costoPct) || Math.round(M.TASA_CREDITO * 100)) / 100,
+      costo: Math.round(K(p)),
+      fecha_corte: corteDelCredito(p),
+      fecha_desembolso: fechaDelCredito(p),
+      estado: p.pagado ? 'pagado' : (tienePlan(p) ? 'plan_de_pagos' : 'en_corte'),
+      prorrogas_usadas: lista(p.prorrogas).length,
+      estuvo_en_mora: !!liquidarCiclo(p, fecha).estuvo_en_mora,
+      nivel_socio: nivel
+    };
+  }
+  /* La prórroga de ESE día, como la cotiza liqProrroga() del CRM: la mora que
+     cobra es la YA CAUSADA (liquidarCiclo recorre los hechos) menos el perdón,
+     con los mismos días, para que el motor no corra ni un día de más. */
+  function prorrogaDelMotor(db, p, f, condonaMora) {
+    if (!p || p.pagado || tienePlan(p) || capitalActual(p) <= 0) return null;
+    var liq = liquidarCiclo(p, f);
+    var cond = Math.min(Math.max(0, Math.round(num(condonaMora))), Math.round(liq.recargo_mora));
+    try {
+      return M.liquidarProrroga(creditoParaElMotor(db, p, f), f,
+        { recargoCausado: liq.recargo_mora - cond, diasCausados: liq.dias_mora });
+    } catch (e) { return null; }
+  }
+  /* Pesos a la colombiana sin depender del Intl del aparato: este texto lo leen
+     el CRM y el celular, y un navegador viejo sin datos de idioma pintaría
+     «400000» en uno y «400.000» en el otro. */
+  function pesos(n) {
+    var v = Math.round(num(n));
+    return (v < 0 ? '-$' : '$') + String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+  /* «15 de octubre de 2026», por la misma razón: el texto tiene que salir igual
+     en los dos aparatos. */
+  var MESES_TEXTO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+    'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  function fechaTexto(iso) {
+    var s = fechaFin(iso);
+    if (!s) return '';
+    return Number(s.slice(8, 10)) + ' de ' + MESES_TEXTO[Number(s.slice(5, 7)) - 1] + ' de ' + s.slice(0, 4);
+  }
+  /* «a, b o c»: las salidas que se ofrecen se leen como una frase. */
+  function unaU(partes) {
+    return partes.length < 2 ? (partes[0] || '')
+      : partes.slice(0, -1).join(', ') + ' o ' + partes[partes.length - 1];
+  }
+  /* Una copia del crédito con las listas copiadas: las cuentas de la línea de
+     tiempo solo LEEN, así que alcanza con que las listas nuevas no sean las del
+     crédito real. El crédito de Joan no se toca nunca (regla de oro de arriba). */
+  function creditoCon(p, cambios) {
+    var c = Object.assign({}, p, {
+      abonosCapital: lista(p.abonosCapital).slice(),
+      prorrogas: lista(p.prorrogas).slice(),
+      condonaciones: lista(p.condonaciones).slice()
+    });
+    return Object.assign(c, cambios || {});
+  }
+
+  /**
+   * Abono + prórroga: el cliente entrega `monto` el día `fecha`, se le paga la
+   * prórroga con eso y lo que sobra baja el capital, que pasa a la quincena
+   * siguiente.
+   *
+   * @param {object} db     la cartera (nivel del socio y cupón pendiente)
+   * @param {object} p      el crédito
+   * @param {string} fecha  'AAAA-MM-DD', el día en que pagó; por defecto hoy
+   * @param {number} monto  lo que entregó, en pesos (lo teclea Joan)
+   * @param {object} [o]    {condonaMora: pesos perdonados de la mora (el % lo
+   *                        convierte la pantalla, como en el cobro), motivo
+   *                        (obligatorio si hay perdón), quien ('computador')}
+   * @returns {object} ver `r` abajo. Si `ok`, `registros` trae {abono|null,
+   *          prorroga, condonacion|null, comprobante, cicloActual}; la pantalla
+   *          los empuja tal cual, el comprobante solo si hay foto (con su
+   *          `fecha` y su `foto`, como addComp).
+   */
+  function abonoConProrroga(db, p, fecha, monto, o) {
+    o = (o && typeof o === 'object') ? o : {};
+    var f = fechaFin(fecha) || hoyISO();
+    var x = Math.round(Number(monto));
+    var r = {
+      ok: false, motivo: null, detalle: '', caminos: [],
+      fecha: f, monto: isFinite(x) ? x : 0,
+      capital_antes: 0, corte_antes: null,
+      dias_mora: 0, a_tiempo: true,
+      mora: 0, mora_condonada: 0, mora_cobrada: 0, costo: 0, precio_prorroga: 0,
+      a_capital: 0, capital_despues: 0, total_para_saldar: 0, falta: 0, sobra: 0,
+      corte_nuevo: null, costo_siguiente: 0, total_siguiente: 0,
+      garantia: 0, reparto: null, de_tu_ganancia: 0, de_su_cupo: 0,
+      nivel_socio: null, prorrogas_usadas: 0, prorrogas_permitidas: 0, prorrogas_restantes: 0,
+      plan_de_pagos: null, hay_acuerdo: false, registros: null,
+      /* 3-oct-2026 (revisión): el acuerdo respetado, la plata de más del mismo
+         día de la prórroga, y lo que va a capital cuando se ofrece «Queda
+         debiendo» (en el plan de pagos es lo que sobra de la entrada). */
+      acuerdo: null, mora_condonada_acuerdo: 0, mismo_dia: null,
+      a_capital_sugerido: null, entrada_plan: 0
+    };
+    function no(motivo, detalle, caminos) {
+      r.ok = false; r.motivo = motivo; r.detalle = detalle; r.caminos = caminos || [];
+      r.registros = null;
+      return r;
+    }
+    /* La regla de la casa para este paquete: no lanza NUNCA. Un crédito con un
+       dato sucio no puede tumbar la hoja de cobro; dice que no pudo y no
+       registra nada. */
+    try { return cuenta(); }
+    catch (e) {
+      return no('error', 'No pude hacer la cuenta de este crédito (' +
+        String((e && e.message) || e).slice(0, 120) + '). No registré nada.');
+    }
+    function cuenta() {
+      if (!p || typeof p !== 'object') return no('sin_credito', 'No encontré el crédito.');
+      r.corte_antes = corteDelCredito(p) || null;
+      r.hay_acuerdo = !!(p.acuerdo && !p.pagado);
+
+      if (p.pagado) return no('pagado', 'Este crédito ya está pagado: no hay nada que prorrogar.');
+      if (tienePlan(p)) {
+        return no('plan_de_pagos', 'Este crédito está en plan de pagos: de ahí no se sale ' +
+          'prorrogando. Cóbrale la cuota que sigue.', ['cuota_del_plan']);
+      }
+      r.capital_antes = capitalActual(p);
+      if (r.capital_antes <= 0) {
+        return no('capital_cero', 'Este crédito no admite prórroga: su capital quedó en cero.');
+      }
+      /* LA MISMA OPERACIÓN DOS VECES NO SE PUEDE. Después de aplicarla, el corte
+         ya se movió y volver a calcular desde el crédito nuevo daría OTRA
+         prórroga —la 2 de 2— con la misma plata: un doble clic le quemaría al
+         socio su última prórroga y le cobraría dos veces el costo. Dos prórrogas
+         el mismo día no compran nada que una no compre, así que si ese día ya hay
+         una, se para acá. */
+      var hoyYa = lista(p.prorrogas).filter(function (pr) { return fechaFin(pr && pr.fecha) === f; })[0];
+      if (hoyYa) return yaRegistrado(hoyYa);
+
+      /* 3-oct-2026 (revisión) — EL ACUERDO SE RESPETA. Si el crédito tiene un
+         acuerdo pactado y paga a más tardar el día pactado, la prórroga cuesta
+         lo que se le prometió por WhatsApp («ese valor te lo respetamos pagando
+         ese día»): la mora congelada al pactar, no la causada hoy. Antes esta
+         operación cobraba lo causado y decía «queda cumplido»: con un pacto del
+         3-oct por 88.000 y el pago el 10-oct, cobraba 116.000. La diferencia es
+         un perdón, y entra por el MISMO camino que el descuento de Joan
+         (condonaMora, con su condonación anotada y su motivo): así el motor, la
+         garantía y el 80/20 la ven igual que cualquier perdón. Si Joan perdona
+         MÁS que el acuerdo, manda lo suyo. Tarde, el precio pactado venció y se
+         cobra lo causado, como en cumplirAcuerdo. */
+      var ac = r.hay_acuerdo ? p.acuerdo : null;
+      var acPara = ac ? fechaFin(ac.pactadaPara) : '';
+      var liqA = liquidarCiclo(p, f);
+      var condAcuerdo = (acPara && f <= acPara)
+        ? Math.max(0, Math.round(liqA.recargo_mora) - Math.round(num(ac.mora))) : 0;
+      r.acuerdo = ac ? { para: acPara, pactado: fechaFin(ac.pactadoEl) || null, monto: Math.round(num(ac.monto)),
+        mora: Math.round(num(ac.mora)), en_fecha: !!(acPara && f <= acPara), perdona: condAcuerdo } : null;
+      var condPedida = Math.max(0, Math.round(num(o.condonaMora)));
+      var condEfectiva = Math.max(condPedida, condAcuerdo);
+      var r0 = prorrogaDelMotor(db, p, f, condEfectiva);
+      if (!r0) return no('sin_prorroga', 'No pude liquidar la prórroga de este crédito.');
+      r.nivel_socio = r0.nivel_socio;
+      r.prorrogas_usadas = r0.prorrogas_usadas;
+      r.prorrogas_permitidas = r0.prorrogas_permitidas;
+      if (!r0.ok) {
+        /* Como registrarProrroga: el plan SIN el descuento. La entrada del plan la
+           arma otro flujo que no anota perdones, y una mora rebajada que nadie
+           registró es plata que desaparece en silencio. */
+        var sinDesc = prorrogaDelMotor(db, p, f, 0) || r0;
+        r.plan_de_pagos = sinDesc.plan_de_pagos || null;
+        r.entrada_plan = Math.round(num(sinDesc.total_a_pagar));
+        var txtPlan = 'Ya usó sus ' + r0.prorrogas_permitidas +
+          ' prórroga(s): es lo que da el nivel ' + r0.nivel_socio + '. No se puede pasar ' +
+          'a la quincena siguiente con un abono; la salida es el plan de pagos (§8): el ' +
+          'capital en ' + M.CUOTAS_PLAN_DE_PAGOS + ' cortes con un costo reducido del ' +
+          Math.round(M.TASA_PLAN_DE_PAGOS * 100) + '%.';
+        /* 3-oct-2026 (revisión) — LA PLATA QUE ENTREGÓ NO SE PUEDE PERDER. Con
+           200.000 y una entrada del plan de 92.000, el plan solo anota la entrada,
+           y después ya no se abona por fuera («está en plan de pagos»): los otros
+           108.000 no tenían dónde quedar. El orden que sirve es abono PRIMERO
+           —congela el costo y la mora del ciclo, así que la entrada no cambia— y
+           plan DESPUÉS, que se arma sobre el capital que quedó. Se dice, con la
+           cifra, y se ofrece «Queda debiendo» con ese monto y no con todo. */
+        var sobraPlan = (isFinite(x) && x > r.entrada_plan) ? x - r.entrada_plan : 0;
+        if (sobraPlan > 0 && sobraPlan >= r.capital_antes) {
+          r.total_para_saldar = r.capital_antes + r.entrada_plan;
+          return no('prorrogas_agotadas', txtPlan + ' Y con ' + pesos(x) + ' salda el crédito entero (' +
+            pesos(r.total_para_saldar) + '): eso es «Pagó todo».', ['pago_total', 'plan_de_pagos']);
+        }
+        if (sobraPlan > 0) {
+          r.a_capital_sugerido = sobraPlan;
+          return no('prorrogas_agotadas', txtPlan + ' Con ' + pesos(x) + ': la entrada del plan es ' +
+            pesos(r.entrada_plan) + ' y sobran ' + pesos(sobraPlan) + '. Anota PRIMERO esos ' +
+            pesos(sobraPlan) + ' como abono a capital («Queda debiendo») y DESPUÉS registra el plan: ' +
+            'la entrada sigue siendo ' + pesos(r.entrada_plan) + ' y el plan se arma sobre el capital ' +
+            'que quede. Al revés no se puede: con el plan registrado ya no se abona por fuera.',
+            ['queda_debiendo', 'plan_de_pagos']);
+        }
+        return no('prorrogas_agotadas', txtPlan, ['plan_de_pagos']);
+      }
+
+      var liq0 = liquidarCiclo(p, f);
+      r.dias_mora = liq0.dias_mora;
+      r.a_tiempo = !!r0.a_tiempo;
+      r.mora = Math.round(liq0.recargo_mora);
+      r.mora_condonada = Math.min(condEfectiva, r.mora);
+      /* Lo que perdona el acuerdo y lo que perdona Joan, separados para la
+         pantalla: el total es uno solo (el mayor), y si el del acuerdo manda, el
+         motivo es el acuerdo. */
+      r.mora_condonada_acuerdo = condAcuerdo >= condPedida ? Math.min(condAcuerdo, r.mora) : 0;
+      r.mora_cobrada = r0.recargo_mora;
+      r.costo = r0.costo_prorroga;
+      r.precio_prorroga = r0.total_a_pagar;
+      r.total_para_saldar = r.capital_antes + r.precio_prorroga;
+      r.corte_nuevo = r0.fecha_corte_nueva;
+
+      if (!isFinite(x) || x < 0) return no('monto_invalido', 'Escribe cuánto entregó, en pesos.');
+      if (x < r.precio_prorroga) {
+        /* No alcanza ni para la prórroga. No se inventa nada: se ofrecen los
+           caminos que ya existen, y cada uno con su regla. */
+        r.falta = r.precio_prorroga - x;
+        var caminos = ['prorroga_con_descuento'];
+        var frases = ['registrar la prórroga con descuento (le perdonas lo que falta, con su motivo)'];
+        if (!r.hay_acuerdo) { caminos.push('acuerdo'); frases.push('pactarla para otro día'); }
+        if (x > 0) {
+          caminos.push('queda_debiendo');
+          r.a_capital_sugerido = x;
+          frases.push('anotar los ' + pesos(x) + ' como abono a capital (sigue debiendo el costo ' +
+            'y la mora, y la mora sigue corriendo)');
+        }
+        return no('no_alcanza', 'Con ' + pesos(x) + ' no alcanza la prórroga: cuesta ' +
+          pesos(r.precio_prorroga) + ' (' + pesos(r.costo) + ' del costo del ciclo' +
+          (r.mora_cobrada ? ' + ' + pesos(r.mora_cobrada) + ' de mora' : '') + '). Faltan ' +
+          pesos(r.falta) + '. Puedes ' + unaU(frases) + '.', caminos);
+      }
+      if (x - r.precio_prorroga >= r.capital_antes) {
+        /* El abono nunca puede llevarse el capital entero: eso es saldar, y
+           `a_capital` se queda en cero para que ninguna pantalla pinte un abono
+           más grande que la deuda. */
+        r.sobra = x - r.total_para_saldar;
+        return no('paga_todo', 'Con ' + pesos(x) + ' salda el crédito entero: el total para ' +
+          'saldar es ' + pesos(r.total_para_saldar) + (r.sobra > 0 ? ' y le sobran ' +
+          pesos(r.sobra) : '') + '. Eso es «Pagó todo», no una prórroga.', ['pago_total']);
+      }
+      r.a_capital = x - r.precio_prorroga;
+      var motivo = String(o.motivo == null ? '' : o.motivo).trim().slice(0, 120);
+      /* El perdón del acuerdo trae su propio motivo: el pacto, con su fecha y
+         el motivo del descuento que se escribió al pactar, si lo hubo. */
+      if (!motivo && r.mora_condonada_acuerdo > 0) {
+        motivo = ('acuerdo pactado' + (r.acuerdo.pactado ? ' el ' + fechaTexto(r.acuerdo.pactado) : '') +
+          ': precio congelado' + (ac.motivoDescuento ? ' · ' + String(ac.motivoDescuento) : '')).slice(0, 120);
+      }
+      if (r.mora_condonada > 0 && !motivo) {
+        return no('falta_motivo', 'Falta el motivo del descuento: dentro de tres meses, un ' +
+          'descuento sin motivo es un cuadre que no cuadra.');
+      }
+
+      /* PRIMERO EL ABONO, en el ciclo VIEJO y con lo causado congelado: es
+         exactamente lo que abonarCapital(id, fecha) escribe si se aprieta antes
+         que la prórroga. Su congelado se queda en el ciclo viejo, que es donde se
+         causó. */
+      var abono = r.a_capital > 0 ? {
+        fecha: f, monto: r.a_capital, ciclo: p.cicloActual,
+        costoCausado: liq0.costo, moraCausada: liq0.recargo_mora, diasMoraCausada: liq0.dias_mora
+      } : null;
+      var conAbono = creditoCon(p, abono ? { abonosCapital: lista(p.abonosCapital).concat([abono]) } : null);
+
+      /* DESPUÉS LA PRÓRROGA, cotizada sobre el crédito YA abonado, como la
+         cotizaría registrarProrroga en ese momento. El precio no puede haber
+         cambiado: el costo ya estaba causado y la mora corrida es la del capital
+         que había. Si cambiara, la cuenta de arriba y la de abajo leyeron
+         estados distintos, y eso no se registra: se avisa. */
+      var liq1 = liquidarCiclo(conAbono, f);
+      var r1 = prorrogaDelMotor(db, conAbono, f, r.mora_condonada);
+      if (!r1 || !r1.ok || r1.total_a_pagar !== r.precio_prorroga ||
+          r1.fecha_corte_nueva !== r.corte_nuevo) {
+        return no('no_cuadra', 'No cuadra: la prórroga costaba ' + pesos(r.precio_prorroga) +
+          ' antes del abono y ' + pesos(r1 ? r1.total_a_pagar : 0) + ' después. No registré nada.');
+      }
+      var prorroga = { fecha: r1.fecha, ciclo: r1.fecha_corte_anterior, monto: r1.total_a_pagar,
+        mora: r1.recargo_mora, aTiempo: r1.a_tiempo, diasMora: r1.dias_mora,
+        nuevoCiclo: r1.fecha_corte_nueva,
+        costoCausado: Math.round(liq1.costo), moraCausada: Math.round(liq1.recargo_mora) };
+      var condonacion = r.mora_condonada > 0 ? { fecha: r1.fecha, costo: 0, mora: r.mora_condonada,
+        motivo: motivo, quien: String(o.quien || 'computador'), sobre: 'prorroga' } : null;
+
+      /* El crédito como queda, para PREGUNTARLE —no para deducir— lo que va a
+         deber: el costo del ciclo nuevo sale de K() sobre el capital que quedó. */
+      var despues = creditoCon(conAbono, { cicloActual: r1.fecha_corte_nueva });
+      despues.prorrogas.push(prorroga);
+      if (condonacion) despues.condonaciones.push(condonacion);
+      var liqN = liquidarCiclo(despues, r1.fecha_corte_nueva);
+      r.capital_despues = capitalActual(despues);
+      r.costo_siguiente = liqN.costo;
+      r.total_siguiente = liqN.total_a_pagar;
+      r.prorrogas_restantes = r1.prorrogas_restantes;
+
+      /* La garantía y el 80/20, de la prórroga y solo de la prórroga. Tres
+         respuestas que tienen que ser la misma: el motor al cotizar, el reparto
+         que ve Joan y lo que el puente le va a acreditar al socio por el
+         movimiento guardado. Si no lo son, no se registra. */
+      var cp = cuentasDeLaProrroga(db, conAbono,
+        { costo: r1.costo_prorroga, mora: Math.round(liq1.recargo_mora),
+          acredita_en_fecha: r1.acredita_en_fecha },
+        { condonaMora: r.mora_condonada });
+      var acreditada = garantiaGanadaProrroga(prorroga, despues);
+      if (cp.monto !== r1.total_a_pagar || cp.garantia !== r1.garantia_generada ||
+          acreditada !== r1.garantia_generada) {
+        return no('no_cuadra', 'No cuadra la garantía: el motor dice ' + pesos(r1.garantia_generada) +
+          ' y el socio vería ' + pesos(acreditada) + '. No registré nada.');
+      }
+      r.garantia = r1.garantia_generada;
+      r.reparto = cp.reparto;
+      r.de_tu_ganancia = cp.de_tu_ganancia;
+      r.de_su_cupo = cp.de_su_cupo;
+
+      r.ok = true;
+      r.motivo = null;
+      r.caminos = [];
+      r.registros = {
+        abono: abono,
+        prorroga: prorroga,
+        condonacion: condonacion,
+        /* UNA foto es UNA transferencia: la de todo lo que entregó.
+           3-oct-2026 (revisión) — con abono, el tipo es 'abonoProrroga' y la
+           galería lo nombra «Abono + prórroga»: con 'prorroga' decía «Prórroga
+           $200.000» al lado de una prórroga de $88.000. Sin abono es una
+           prórroga a secas y se llama como siempre. */
+        comprobante: { tipo: abono ? 'abonoProrroga' : 'prorroga', monto: x },
+        cicloActual: r1.fecha_corte_nueva
+      };
+      r.detalle = 'Entran ' + pesos(x) + ': ' +
+        (r.mora ? pesos(r.mora_cobrada) + ' de mora' +
+          (r.mora_condonada ? ' (' + pesos(r.mora_condonada) + ' perdonados' +
+            (r.mora_condonada_acuerdo ? ' por el acuerdo: es el precio que se le prometió' : '') + ')' : '') +
+          ', ' : '') +
+        pesos(r.costo) + ' del costo del ciclo —con eso queda pagada la prórroga— y ' +
+        (r.a_capital ? pesos(r.a_capital) + ' a capital' : 'nada a capital') + '. El capital ' +
+        (r.a_capital ? 'baja de ' + pesos(r.capital_antes) + ' a ' + pesos(r.capital_despues) + ' y ' : '') +
+        'pasa a la quincena del ' + fechaTexto(r.corte_nuevo) + ': ese día, si paga en fecha, son ' +
+        pesos(r.total_siguiente) + ' (' + pesos(r.capital_despues) + ' de capital + ' +
+        pesos(r.costo_siguiente) + ' de costo).';
+      return r;
+    }
+
+    /* 3-oct-2026 (revisión) — YA HAY UNA PRÓRROGA ESE DÍA, Y TRAJO MÁS PLATA.
+       Esto decía «anótala como abono a capital» y ofrecía «Queda debiendo»,
+       que es justo el orden que este archivo explica arriba que cobra de más:
+       abonarCapital ancla el abono al ciclo NUEVO y le congela como piso el
+       costo de 80.000 sacado de los 400.000 de antes. Medido: prórroga de
+       88.000 el 3-oct y 112.000 más ese día → 368.000 el 15-oct en vez de
+       345.600; y 200.000 + 50.000 el mismo día daba 295.600 contra 285.600 de
+       una sola operación de 250.000.
+       La plata del mismo día que abrió el ciclo es la MISMA entrega: va como
+       si se hubiera anotado antes de la prórroga, en el ciclo VIEJO, igual que
+       el abono de abonoConProrroga. Así el ciclo nuevo —que arrancó ese día—
+       se cobra sobre el capital que quedó. Se devuelve el abono armado en
+       `mismo_dia.abono` con el camino 'abono_mismo_dia', y NO con ok:true: es
+       otro botón, con su propio confirm que dice lo que ya entró ese día, para
+       que un doble clic sobre «Registrar» no meta la misma plata dos veces.
+       Solo si esa prórroga es la que abrió el ciclo de hoy: si después el
+       corte se movió otra vez, una fecha vieja reescribiría el costo de un
+       ciclo ya causado, y eso no se hace. */
+    function yaRegistrado(pr) {
+      var corteDeEsa = fechaFin(pr.nuevoCiclo) || r.corte_antes;
+      var aCapHoy = lista(p.abonosCapital).reduce(function (t, a) {
+        return (a && !a.cuotaPlan && fechaFin(a.fecha) === f) ? t + Math.round(num(a.monto)) : t;
+      }, 0);
+      var prs = lista(p.prorrogas);
+      var abre = prs[prs.length - 1] === pr && fechaFin(p.cicloActual) === fechaFin(pr.nuevoCiclo) &&
+        inicioDelCiclo(p) === f;
+      r.mismo_dia = { puede: abre, prorroga: Math.round(num(pr.monto)), a_capital_ya: aCapHoy,
+        abono: null, capital_despues: 0, corte: corteDeEsa, costo_siguiente: 0, total_siguiente: 0 };
+      var base = 'Este crédito ya tiene una prórroga registrada el ' + fechaTexto(f) + ' (pasó al ' +
+        fechaTexto(corteDeEsa) + '): ese día ya entraron ' + pesos(num(pr.monto) + aCapHoy) + ' (' +
+        pesos(pr.monto) + ' de la prórroga' + (aCapHoy ? ' y ' + pesos(aCapHoy) + ' a capital' : '') +
+        '). No registro otra prórroga.';
+      if (!abre) {
+        return no('ya_registrado', base + ' Si trajo más plata otro día, anótala con la fecha de ese día.');
+      }
+      if (!isFinite(x) || x <= 0) {
+        return no('ya_registrado', base + ' Si ese mismo día trajo MÁS plata aparte de esa, escribe ' +
+          'cuánto más: la sumo a capital como parte de la misma entrega, y la quincena del ' +
+          fechaTexto(corteDeEsa) + ' se cobra sobre el capital que quede.');
+      }
+      if (x >= r.capital_antes) {
+        return no('ya_registrado', base + ' Y ' + pesos(x) + ' más cubren el capital que queda (' +
+          pesos(r.capital_antes) + '): eso ya es «Pagó todo».', ['pago_total']);
+      }
+      var ab = { fecha: f, monto: x, ciclo: pr.ciclo,
+        costoCausado: pr.costoCausado != null ? Math.round(num(pr.costoCausado)) : costoDeProrroga(pr),
+        moraCausada: pr.moraCausada != null ? Math.round(num(pr.moraCausada)) : moraDeProrroga(pr),
+        diasMoraCausada: Math.round(num(pr.diasMora)) };
+      var despues = creditoCon(p, { abonosCapital: lista(p.abonosCapital).concat([ab]) });
+      var liqN = liquidarCiclo(despues, corteDelCredito(despues));
+      var md = r.mismo_dia;
+      md.abono = ab;
+      md.capital_despues = capitalActual(despues);
+      md.costo_siguiente = Math.round(liqN.costo);
+      md.total_siguiente = Math.round(liqN.total_a_pagar);
+      return no('ya_registrado', base + ' Si ADEMÁS de eso trajo ' + pesos(x) + ' más, los sumo a capital ' +
+        'como parte de la misma entrega: el capital baja de ' + pesos(r.capital_antes) + ' a ' +
+        pesos(md.capital_despues) + ' y el ' + fechaTexto(corteDeEsa) + ', si paga a tiempo, son ' +
+        pesos(md.total_siguiente) + ' (' + pesos(md.capital_despues) + ' de capital + ' +
+        pesos(md.costo_siguiente) + ' de costo).', ['abono_mismo_dia']);
+    }
+  }
+
+  /* 3-oct-2026 — EL RECIBO DEL ABONO + PRÓRROGA, leído de los HECHOS guardados
+     y no de la cuenta de la hoja de cobro. El WhatsApp que le queda a la
+     cliente se arma DESPUÉS de registrar —o mañana, si Joan reabre la
+     gestión—, y para entonces la hoja ya no existe: lo único que no cambia es
+     lo que quedó escrito. Es la lección del 4-ago (varsDePlantilla, crm.html):
+     el mensaje de la prórroga dijo 120.000 de los 330.000 que entraron porque
+     se recalculaba en vez de leerse. Vive acá y no en las dos pantallas porque
+     el computador y el celular mandan el MISMO recibo.
+       · entrego: la prórroga más los abonos a capital de ESE MISMO DÍA. Son
+         los dos pedazos de la misma plata; si Joan los anotó por separado con
+         los dos botones viejos, también fueron la misma entrega.
+       · total_en_fecha: lo que paga el día del corte nuevo si paga a tiempo,
+         preguntado a liquidarCiclo con el crédito como quedó, no restado a
+         mano. Con el caso real del 3-oct: 200.000 entregados, 288.000 de
+         capital y 345.600 el 15-oct.
+     Pura y sin lanzar: un dato sucio deja el mensaje sin cifra, nunca la hoja
+     de gestión rota. */
+  function reciboAbonoConProrroga(p) {
+    try {
+      if (!p || typeof p !== 'object') return null;
+      var prs = lista(p.prorrogas);
+      var u = prs.length ? prs[prs.length - 1] : null;
+      if (!u) return null;
+      var dia = fechaFin(u.fecha);
+      var aCapital = lista(p.abonosCapital).reduce(function (t, a) {
+        return (a && !a.cuotaPlan && dia && fechaFin(a.fecha) === dia) ? t + Math.round(num(a.monto)) : t;
+      }, 0);
+      var corte = corteDelCredito(p) || null;
+      var enFecha = corte ? liquidarCiclo(p, corte) : null;
+      return {
+        fecha: dia, prorroga: Math.round(num(u.monto)), a_capital: aCapital,
+        entrego: Math.round(num(u.monto)) + aCapital,
+        capital: capitalActual(p), corte: corte,
+        costo_en_fecha: enFecha ? Math.round(num(enFecha.costo)) : 0,
+        total_en_fecha: enFecha ? Math.round(num(enFecha.total_a_pagar)) : 0
+      };
+    } catch (e) { return null; }
   }
 
   /* Lo que un socio lleva perdonado, DERIVADO de sus créditos y nunca de un
@@ -2321,6 +2834,12 @@
        computador hoy y para el celular cuando deje la suya. */
     cuentasDelCobro: cuentasDelCobro,
     cuentasDeLaProrroga: cuentasDeLaProrroga,
+    /* Abono + prórroga en un solo paso (3-oct-2026): una sola regla para el
+       computador y el celular; las pantallas solo empujan sus registros. */
+    abonoConProrroga: abonoConProrroga,
+    /* Y su recibo, leído de lo guardado (3-oct-2026): el WhatsApp del
+       computador y el del celular dicen las mismas cifras. */
+    reciboAbonoConProrroga: reciboAbonoConProrroga,
     repartoDelDescuento: repartoDelDescuento,
     descuentosDelSocio: descuentosDelSocio,
     buscarSocio: buscarSocio,

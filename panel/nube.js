@@ -1034,6 +1034,52 @@
       fila[nombre] = fusionarListas(m[nombre], s[nombre], mapa[nombre]);
     });
 
+    /* 3-oct-2026 — LA MISMA ENTREGA, ANOTADA DISTINTO EN LOS DOS APARATOS.
+       El «💵 Abonó y el resto pasa…» escribe dos hechos de una sola plata: la
+       prórroga y un abono a capital del mismo día, en el ciclo que esa
+       prórroga pagó. Si el computador le perdonó mora (prórroga 84.000 + abono
+       116.000) y el celular no (88.000 + 112.000), la prórroga se juntaba UNA
+       vez —su identidad es fecha+ciclo desde el 4-sep— pero los abonos son
+       fecha+monto y entraban LOS DOS: el capital bajaba 228.000 por 200.000
+       entregados, sin choque y con la pantalla diciendo «no se pierde nada».
+       Medido: 172.000 de capital en vez de 284.000.
+       Una prórroga con la misma identidad y distinto monto es la misma
+       entrega contada dos veces. No se resuelve sola: va a `pisables` (lo que
+       entró por la prórroga y lo que fue a capital ese día, de los dos lados,
+       en pesos) para que decida Joan, y en `fila` —lo que se manda con «lo mío
+       encima»— la parte a capital de ESA entrega es la mía entera: sumar la
+       del otro lado sería cobrar la plata dos veces. Dos abonos distintos de
+       días o ciclos distintos siguen sumándose como siempre. Las condonaciones
+       no se tocan: un perdón de un lado sobrevive a la fusión, como desde el
+       14-ago, y no mueve capital. */
+    var idPr = mapa.prorrogas, idAb = mapa.abonosCapital;
+    if (idPr && idAb) {
+      lista(m.prorrogas).forEach(function (a) {
+        if (!a || typeof a !== 'object') return;
+        var llave = identidad(a, idPr);
+        var b = lista(s.prorrogas).filter(function (x) { return identidad(x, idPr) === llave; })[0];
+        if (!b || num(a.monto) === num(b.monto)) return;
+        var dia = texto(a.fecha).slice(0, 10), ciclo = texto(a.ciclo).slice(0, 10);
+        var deEsa = function (x) {
+          return !!x && typeof x === 'object' && !x.cuotaPlan &&
+            texto(x.fecha).slice(0, 10) === dia && texto(x.ciclo).slice(0, 10) === ciclo;
+        };
+        var suma = function (l) {
+          return lista(l).filter(deEsa).reduce(function (t, x) { return t + num(x.monto); }, 0);
+        };
+        pisables.push({ campo: 'prorrogas', mio: num(a.monto), suyo: num(b.monto) });
+        var abM = suma(m.abonosCapital), abS = suma(s.abonosCapital);
+        if (abM !== abS) pisables.push({ campo: 'abonosCapital', mio: abM, suyo: abS });
+        var mias = {};
+        lista(m.abonosCapital).forEach(function (x) { mias[identidad(x, idAb)] = true; });
+        if (Array.isArray(fila.abonosCapital)) {
+          fila.abonosCapital = fila.abonosCapital.filter(function (x) {
+            return !deEsa(x) || mias[identidad(x, idAb)];
+          });
+        }
+      });
+    }
+
     var claves = {};
     Object.keys(m).forEach(function (k) { claves[k] = true; });
     Object.keys(s).forEach(function (k) { claves[k] = true; });

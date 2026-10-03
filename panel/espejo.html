@@ -942,8 +942,13 @@ function aplicarVars(txt, p, s, extra) {
     .split('{nombre}').join((s.nombre || '').split(' ')[0] || s.nombre || '')
     .split('{negocio}').join((DB.config && DB.config.negocio) || 'Tu Garantía')
     .split('{monto}').join(COP(p ? capitalActual(p) : 0))
-    .split('{saldo}').join(COP(p ? totalCiclo(p) : 0))
+    /* 3-oct-2026 — {saldo} puede llegar hecho, como en crm.html: en el recibo
+       del abono + prórroga es lo que paga el día del corte si paga a tiempo. */
+    .split('{saldo}').join(e.saldo || COP(p ? totalCiclo(p) : 0))
     .split('{prorroga}').join(of == null ? '—' : of)
+    /* {abono}: solo lo contesta ese recibo. Si no llega, se deja con sus
+       llaves para que tokensSinResolver lo cante antes de abrir WhatsApp. */
+    .split('{abono}').join(e.abono != null ? e.abono : '{abono}')
     .split('{fecha_pago}').join(e.fecha_pago || (p ? fmtFecha(P.corteDelCredito(p)) : ''))
     .split('{dias_mora}').join(p ? String(diasMora(p)) : '0')
     .split('{enlace}').join(URL_APP_ESPEJO);
@@ -985,6 +990,16 @@ function textoPlantilla(p, s, clave) {
     var l = (p && p.prorrogas) || [];
     var u = l.length ? l[l.length - 1] : P.entradaPlan(p);
     if (u) extra.prorroga = COP(u.monto);
+  }
+  /* 3-oct-2026 — el recibo del abono + prórroga, con las cifras LEÍDAS de lo
+     guardado por el puente: la misma función que usa el computador, para que
+     los dos aparatos no le manden a la cliente dos recibos distintos. */
+  if (clave === 'abonoProrroga' && P && typeof P.reciboAbonoConProrroga === 'function') {
+    var rc = P.reciboAbonoConProrroga(p);
+    /* 3-oct-2026 (revisión): solo si ese día hubo abono a capital de verdad;
+       con una prórroga a secas decía «tu abono de $88.000». Sin abono, {abono}
+       queda con sus llaves y tokensSinResolver lo canta. */
+    if (rc && rc.a_capital > 0) { extra.abono = COP(rc.entrego); extra.prorroga = COP(rc.prorroga); extra.saldo = COP(rc.total_en_fecha); }
   }
   return aplicarVars(base, p, s, extra);
 }
@@ -1518,6 +1533,146 @@ function prorrogar(id, fecha) {
   ofrecerWhatsApp(p, 'prorroga', 'Prórroga registrada');
 }
 
+/* --- 2-bis. abonó y el resto pasa a la próxima quincena (3-oct-2026) ---
+   Pedido de Joan con una cliente delante: «hizo un abono de 200.000 y el
+   resto se financia para la siguiente quincena». Es UN paso: la regla entera
+   la contesta P.abonoConProrroga —la misma que usa el computador— y devuelve
+   los registros ya armados; acá se empujan tal cual a las listas que ya
+   existen (abonosCapital y prorrogas) y viaja UNA línea de la cola con la fila
+   entera, como la prórroga de arriba. Ningún campo nuevo en la nube.
+
+   LO QUE EL CELULAR NO HACE, y lo dice la hoja: perdonar mora (el
+   descuento con su motivo vive en el computador, como en la prórroga de
+   arriba) y adjuntar la foto del comprobante (las fotos no viajan en esta
+   fase). */
+function abonarYProrrogar(id, fecha, monto) {
+  var p = creditoPorId(id); if (!p) return;
+  if (!P || typeof P.abonoConProrroga !== 'function') {
+    alert('Este teléfono tiene una versión vieja de las reglas y no sabe hacer esta cuenta. '
+      + 'Cierra la app y vuelve a abrirla con señal para que se actualice. No registré nada.');
+    return;
+  }
+  var f = fecha || hoyISO();
+  var x = (monto == null || monto === '') ? NaN : Math.round(Number(monto));
+  var r = P.abonoConProrroga(DB, p, f, x, { quien: 'celular' });
+  if (!r.ok || !r.registros) { alert((r.detalle || 'No se puede registrar.') + '\n\nNo registré nada.'); return; }
+  /* La invariante, antes de escribir: la plata que entra es la prórroga más
+     el abono, sobre el corte que el crédito tiene AHORA. */
+  if (r.corte_antes !== P.corteDelCredito(p) || r.precio_prorroga + r.a_capital !== x) {
+    alert('No cuadra: entran ' + COP(x) + ' y la cuenta da ' + COP(r.precio_prorroga)
+      + ' de prórroga + ' + COP(r.a_capital) + ' a capital. No registré nada.');
+    return;
+  }
+  var s = socioDe(p);
+  var texto = 'Registrar lo que entregó ' + (p.socioNombre || '') + ': ' + COP(x) + '\n\n'
+    + (r.mora ? '• Recargo por ' + r.dias_mora + ' día(s) de mora: ' + COP(r.mora)
+      /* 3-oct-2026 (revisión): el único perdón que el celular registra es el del
+         acuerdo pactado, y se dice con su cifra. */
+      + (r.mora_condonada ? ' − ' + COP(r.mora_condonada) + ' que le perdona el acuerdo: cobra ' + COP(r.mora_cobrada) : '')
+      + '\n' : '')
+    + '• Costo del ciclo: ' + COP(r.costo) + ' — con eso queda pagada la prórroga\n'
+    + (r.a_capital ? '• A capital: ' + COP(r.a_capital) + '\n' : '• A capital: nada (es justo la prórroga)\n')
+    + '\nEl capital ' + (r.a_capital ? 'baja de ' + COP(r.capital_antes) + ' a ' + COP(r.capital_despues) + ' y ' : '')
+    + 'pasa a la quincena del ' + fmtFecha(r.corte_nuevo) + '.\n'
+    + 'Ese día, si paga a tiempo, son ' + COP(r.total_siguiente) + ' (' + COP(r.capital_despues)
+    + ' + ' + COP(r.costo_siguiente) + ' de costo).\n'
+    + 'Le deja ' + COP(r.garantia) + ' de garantía: la de la prórroga. El abono es capital y no deja garantía.\n'
+    + 'Es su prórroga ' + (r.prorrogas_usadas + 1) + ' de ' + r.prorrogas_permitidas
+    + ' (nivel ' + r.nivel_socio + '); '
+    + (r.prorrogas_restantes ? 'le quedaría ' + r.prorrogas_restantes + '.' : 'después de esta ya no le quedan.')
+    /* 3-oct-2026 (revisión) — decía «queda cumplido» sin más, cobrando lo
+       causado de hoy. Ahora el puente respeta el precio pactado si paga a
+       tiempo, y esto dice cuál de los dos casos es. */
+    + (r.hay_acuerdo
+        ? '\n\nTenía un acuerdo pactado'
+          + (r.acuerdo ? ' para el ' + fmtFecha(r.acuerdo.para) + ' por ' + COP(r.acuerdo.monto) : '') + ': '
+          + (r.acuerdo && r.acuerdo.en_fecha
+              ? 'paga a tiempo, así que se respeta ese precio y el acuerdo queda cumplido.'
+              : 'el precio pactado ya venció, así que se cobra lo causado de hoy; el acuerdo queda cumplido.')
+        : '')
+    + '\n\n¿Lo registro?';
+  if (!confirm(texto)) return;
+
+  /* LOS DOS O NINGUNO: se escribe todo en memoria y se guarda una vez. El
+     abono va en el ciclo VIEJO y antes que la prórroga: es lo que el puente
+     dejó armado para que la quincena siguiente se cobre sobre lo que quedó. */
+  var g = r.registros;
+  if (g.abono) { p.abonosCapital = p.abonosCapital || []; p.abonosCapital.push(g.abono); }
+  p.prorrogas = p.prorrogas || [];
+  p.prorrogas.push(g.prorroga);
+  if (g.condonacion) { p.condonaciones = p.condonaciones || []; p.condonaciones.push(g.condonacion); }
+  p.cicloActual = g.cicloActual;
+  /* El acuerdo era «paga la prórroga otro día» y se acaba de pagar: queda
+     cumplido, como hace cumplirAcuerdo en el computador.
+     3-oct-2026 (revisión) — en null y NO borrado: NUBE.fusionarFila copia sin
+     preguntar una llave que solo exista del otro lado, así que con «lo mío
+     encima» el acuerdo borrado volvía de la nube y la cola llamaba como
+     «🤝 Incumplido» a quien ya pagó. En null, la diferencia es un choque que
+     ve Joan, y todos los lectores ya leen null como «no hay acuerdo». */
+  if (r.hay_acuerdo) p.acuerdo = null;
+
+  encolar('prorroga', (s && s.nombre) || p.socioNombre || 'Socio',
+    'abonó ' + COP(x) + ' · ' + COP(r.a_capital) + ' a capital → ' + fmtFecha(r.corte_nuevo)
+    + ' · ' + P.codCredito(p), 'creditos', p.id);
+  guardarEstado(); cerrarHoja(); pintar(); sincronizar(false);
+  /* La plantilla del recibo nace en el computador y llega cuando se suben las
+     plantillas. Si todavía no está acá, va la de la prórroga —que es verdad
+     pero no nombra el abono— y se dice, para que Joan lo agregue a mano. */
+  var hay = !!(DB.plantillas && DB.plantillas.abonoProrroga);
+  /* 3-oct-2026 (revisión) — y si tampoco está la de la prórroga, no se dice
+     «te dejo el de la prórroga»: el chat se abre en blanco, y lo que sirve es
+     darle a Joan las tres cifras para que las escriba él. */
+  var hayPr = !!(DB.plantillas && DB.plantillas.prorroga);
+  ofrecerWhatsApp(p, hay ? 'abonoProrroga' : 'prorroga', 'Abono registrado',
+    hay ? '' : hayPr
+      ? '<div class="aviso ambar"><b>El recibo del abono todavía no llegó a este teléfono</b> '
+        + '(nace en el computador y viaja cuando subes las plantillas). Te dejo el de la prórroga, que '
+        + '<b>no dice el abono</b>: agrégale a mano «abonaste ' + esc(COP(x)) + '» antes de enviar.</div>'
+      : '<div class="aviso ambar"><b>Las plantillas todavía no llegaron a este teléfono</b> '
+        + '(nacen en el computador y viajan cuando subes las plantillas). Escríbele tú: abonó '
+        + esc(COP(x)) + ', queda debiendo ' + esc(COP(r.capital_despues)) + ' de capital y su próximo pago es de '
+        + esc(COP(r.total_siguiente)) + ' el ' + esc(fmtFecha(r.corte_nuevo)) + '.</div>');
+}
+
+/* 3-oct-2026 (revisión) — LA PLATA DE MÁS DEL DÍA DE LA PRÓRROGA, desde la
+   calle. Es la misma regla que en el computador (registrarAbonoMismoDia): el
+   puente arma el abono en el ciclo que pagó esa prórroga y la quincena nueva
+   se cobra sobre lo que quedó. Antes, la hoja decía «anótala como abono a
+   capital» y «Queda debiendo» lo anclaba al ciclo nuevo con el costo viejo de
+   piso: 368.000 el 15-oct en vez de 345.600. El confirm dice lo que YA entró
+   ese día, para que la misma plata no entre dos veces. Viaja como un abono:
+   la misma línea de la cola que abonarEnCalle. */
+function abonarMismoDia(id, fecha, monto) {
+  var p = creditoPorId(id); if (!p) return;
+  if (!P || typeof P.abonoConProrroga !== 'function') return;
+  var f = fecha || hoyISO();
+  var x = (monto == null || monto === '') ? NaN : Math.round(Number(monto));
+  var r = P.abonoConProrroga(DB, p, f, x, { quien: 'celular' });
+  var md = r.mismo_dia;
+  if (r.motivo !== 'ya_registrado' || !md || !md.abono || md.abono.monto !== x) {
+    alert((r.detalle || 'No se puede sumar esa plata.') + '\n\nNo registré nada.');
+    return;
+  }
+  if (!confirm((p.socioNombre || '') + ' YA tiene registrado el ' + fmtFecha(f) + ': '
+    + COP(md.prorroga) + ' de la prórroga' + (md.a_capital_ya ? ' y ' + COP(md.a_capital_ya) + ' a capital' : '') + '.\n\n'
+    + '¿Trajo ' + COP(x) + ' MÁS, aparte de eso?\n\n'
+    + '• Van a capital, como parte de esa misma entrega\n'
+    + '• El capital baja de ' + COP(capitalActual(p)) + ' a ' + COP(md.capital_despues) + '\n'
+    + '• El ' + fmtFecha(md.corte) + ', si paga a tiempo, son ' + COP(md.total_siguiente)
+    + ' (' + COP(md.capital_despues) + ' + ' + COP(md.costo_siguiente) + ' de costo)\n'
+    + '• No deja garantía: es capital que vuelve\n\n¿Lo registro?')) return;
+  p.abonosCapital = p.abonosCapital || [];
+  p.abonosCapital.push(md.abono);
+  /* La hoja se olvida del monto: un segundo toque con el mismo _abono
+     volvería a ofrecer la misma plata como «más». */
+  _abono = { id: null, monto: null };
+  var s = socioDe(p);
+  encolar('abono', (s && s.nombre) || p.socioNombre || 'Socio',
+    COP(x) + ' a capital (misma entrega del ' + fmtFecha(f) + ') · ' + P.codCredito(p), 'creditos', p.id);
+  guardarEstado(); cerrarHoja(); pintar(); sincronizar(false);
+  if (DB.plantillas && DB.plantillas.abonoProrroga) ofrecerWhatsApp(p, 'abonoProrroga', 'Abono registrado');
+}
+
 /* --- 3. marcar gestión ------------------------------------------------- */
 /* LA GESTIÓN AHORA GUARDA LA HORA, Y NO ES UN ADORNO.
    El artículo 3 de la Ley 2300 fija un horario (L–V 7–19, sábado 8–15, nunca
@@ -1553,11 +1708,11 @@ function marcarGestion(prestId, clave, o) {
   encolar('gestion', s.nombre || 'Socio', 'contacto por WhatsApp', 'socios', s.id);
   guardarEstado(); pintar(); sincronizar(false);
 }
-function ofrecerWhatsApp(p, clave, titulo) {
+function ofrecerWhatsApp(p, clave, titulo, aviso) {
   var s = socioDe(p); if (!s) return;
   var r = horarioPermitido();
   if (!r.ok) return;                      // fuera de horario no se propone escribir
-  setTimeout(function () { abrirGestion(p.id, clave, titulo); }, 250);
+  setTimeout(function () { abrirGestion(p.id, clave, titulo, aviso); }, 250);
 }
 
 /* --- crear cliente: SOLO con señal ------------------------------------- */
@@ -3548,6 +3703,9 @@ function vistaCredito() {
       + '<button class="btn" type="button" data-acc="cobro" data-id="' + esc(p.id) + '">Registrar pago</button>'
       + '<button class="btn sec" type="button" data-acc="prorroga" data-id="' + esc(p.id) + '">Prórroga</button>'
       + '</div>'
+      /* 3-oct-2026: el abono que pasa el resto a la otra quincena. */
+      + (cuota ? '' : '<button class="btn sec arriba" type="button" data-acc="abono-prorroga" data-id="' + esc(p.id) + '">'
+        + '💵 Abonó y el resto pasa a la próxima quincena</button>')
       + '<button class="btn sec arriba" type="button" data-acc="gestion" data-id="' + esc(p.id) + '">Marcar gestión / WhatsApp</button>';
   }
 
@@ -3883,7 +4041,11 @@ var ETIQUETAS = {
      «pagó todo» 260.000, sin ver los dos montos Joan no puede saber cuál de las
      dos versiones es la buena. */
   montoRecibido: 'Plata que entró', costoCausado: 'Costo causado',
-  moraCausada: 'Mora causada', saldoAFavor: 'Saldo a favor'
+  moraCausada: 'Mora causada', saldoAFavor: 'Saldo a favor',
+  /* 3-oct-2026 (revisión) — la MISMA entrega anotada distinto en los dos
+     aparatos (NUBE.fusionarFila): lo que entró por la prórroga y lo que fue a
+     capital ese día, en pesos, para que Joan vea cuál de las dos es la buena. */
+  prorrogas: 'Prórroga de ese día (lo que entró)', abonosCapital: 'A capital ese día'
 };
 function etiquetaCampo(k) { return ETIQUETAS[k] || k; }
 function valorCorto(campo, v) {
@@ -3966,7 +4128,9 @@ function calcCobro(id) {
     +   '</span></div>'
     + '</div>';
   h += '<div class="aviso info">El comprobante en foto <b>no se puede adjuntar desde el celular</b> en esta fase: '
-    + 'las fotos no viajan. Si te dio comprobante, guárdalo y adjúntalo en el computador.</div>';
+    /* 3-oct-2026: decía «adjúntalo en el computador», y el computador solo
+       adjunta la foto cuando el pago se registra allá. */
+    + 'las fotos no viajan. Si te dio comprobante, déjalo guardado en el chat de WhatsApp del cliente.</div>';
 
   /* ------------------------------------------------------------------ el monto
      EL CAMPO ARRANCA CON EL TOTAL EXACTO. Si Joan no lo toca, el cobro es el de
@@ -4010,6 +4174,16 @@ function calcCobro(id) {
   if (!c && pr && pr.ok) {
     h += '<button class="btn sec arriba" type="button" data-acc="prorroga-ok" data-id="' + esc(p.id) + '">'
       + '↻ Prórroga (' + COP(pr.total_a_pagar) + ')</button>';
+  }
+  /* 3-oct-2026 — el abono que pasa el resto a la otra quincena, al lado de
+     «Pagó todo» y de la prórroga, como en el computador. Sale aunque ya no le
+     queden prórrogas: adentro dice por qué no y qué hacer. */
+  if (!c) {
+    /* data-desde="cobro": el toque se lleva la fecha y el monto de ESTA hoja.
+       Desde la vista del crédito no, porque cerrarHoja solo la esconde y un
+       #pgFecha viejo seguiría ahí con la fecha de otro cobro. */
+    h += '<button class="btn sec arriba" type="button" data-acc="abono-prorroga" data-desde="cobro" data-id="' + esc(p.id) + '">'
+      + '💵 Abonó y el resto pasa a la próxima quincena</button>';
   }
   h += '<div id="pgDif"></div>';
   document.getElementById('pgCalc').innerHTML = h;
@@ -4153,6 +4327,25 @@ function pintarDif(id) {
       + ' <b>siguen debiéndose</b> y la mora sigue corriendo. '
       + 'El crédito <b>NO se cierra</b> y hoy no le deja ni un peso de garantía: '
       + 'la garantía sale del costo, y un abono no es costo.'
+      /* 3-oct-2026 — y la fecha no se mueve: este no es el abono que pasa el
+         resto a la otra quincena, que tiene su propio botón arriba. */
+      + '<br><br><b>La fecha de pago NO se mueve</b>: sigue siendo el ' + fmtFecha(P.corteDelCredito(p))
+      + '. Si con esta plata paga la prórroga y lo demás pasa a la próxima quincena, es '
+      + '<b>«💵 Abonó y el resto pasa a la próxima quincena»</b>.'
+      /* 3-oct-2026 (revisión) — si HOY ya pagó la prórroga que abrió este
+         ciclo, esta plata es más de esa entrega, y aquí cobraría de más: el
+         abono quedaría en el ciclo nuevo con el costo de antes de piso. Lo dice
+         el puente (mismo_dia), no esta hoja. */
+      + (function () {
+          var md = (P && typeof P.abonoConProrroga === 'function') ? P.abonoConProrroga(DB, p, f, monto).mismo_dia : null;
+          return md && md.puede
+            ? '<br><br><b>Ojo: hoy ya pagó la prórroga</b> que lo pasó al ' + fmtFecha(md.corte)
+              + '. Si esta plata es MÁS de esa misma entrega, usa <b>«💵 Abonó y el resto pasa a la próxima quincena»</b>: '
+              + 'la suma a capital antes de la quincena nueva'
+              + (md.abono ? ' y el ' + fmtFecha(md.corte) + ' paga ' + COP(md.total_siguiente) : '')
+              + '. Con «Queda debiendo», el costo de esa quincena se queda calculado sobre el capital de antes.'
+            : '';
+        })()
       + (monto >= cap
           ? '<br><br><b>Y así no se puede:</b> ' + COP(monto) + ' cubre el capital entero ('
             + COP(cap) + '). Para abonar y seguir debiendo tiene que entregar menos de ' + COP(cap) + '.'
@@ -4250,7 +4443,163 @@ function calcProrroga(id) {
     + '↻ Registrar la prórroga (' + COP(r.total_a_pagar) + ')</button>';
 }
 
-function abrirGestion(prestId, clave, tituloExtra) {
+/* -------------------------------------------------------------------------
+   «💵 ABONÓ Y EL RESTO PASA A LA PRÓXIMA QUINCENA» — 3-oct-2026.
+   La hoja del celular para el mismo paso que el computador: el monto lo
+   teclea Joan (arranca VACÍO: es la plata que entregó, no se adivina) y todo
+   lo demás lo contesta P.abonoConProrroga. El monto vive FUERA del bloque que
+   se repinta, como en el cobro: si viviera adentro, cada dígito mandaría el
+   cursor al principio con el cliente delante. */
+var _abono = { id: null, monto: null };
+/* Lo que no depende de la plata, dicho en el botón como en el computador
+   (NO_DEL_ABONO de crm.html): un botón gris que solo dice «No se puede» no
+   le dice a Joan qué buscar. */
+var NO_DEL_ABONO_CEL = { pagado: 'Este crédito ya está pagado', capital_cero: 'Su capital quedó en cero',
+  plan_de_pagos: 'Está en plan de pagos: no se prorroga', prorrogas_agotadas: 'Ya no le quedan prórrogas',
+  ya_registrado: 'Ya tiene una prórroga registrada ese día' };
+/* `fecha` y `monto` llegan solo desde la hoja de cobro: la fecha que Joan ya
+   puso allá y lo que ya había tecleado (si lo tocó). Desde la vista del
+   crédito no llega nada: hoy y el campo vacío. */
+function abrirAbonoProrroga(id, fecha, monto) {
+  var p = creditoPorId(id); if (!p) return;
+  var m = (monto == null || monto === '') ? null : Math.round(Number(monto));
+  if (m != null && !(isFinite(m) && m > 0)) m = null;
+  _abono = { id: id, monto: m };
+  abrirHoja('Abono · ' + ((socioDe(p) || {}).nombre || p.socioNombre || ''),
+    '<label for="apFecha">Fecha en que pagó</label>'
+    + '<input id="apFecha" type="date" value="' + esc(fecha || hoyISO()) + '">'
+    + '<label for="apMonto">¿Cuánto pagó?</label>'
+    + '<input id="apMonto" type="number" inputmode="numeric" step="1" min="0" value="' + (m == null ? '' : m) + '" placeholder="lo que entregó">'
+    /* El botón va FIJO debajo del monto, como en la hoja de cobro: lo que
+       cambia es su texto, nunca su sitio. */
+    + '<button class="btn arriba sec" id="apBtn" type="button" data-acc="abono-prorroga-ok" data-id="' + esc(p.id) + '" disabled>'
+    + 'Escribe cuánto pagó</button>'
+    + '<div id="apCalc"></div>');
+  var fe = document.getElementById('apFecha');
+  fe.value = fecha || hoyISO();
+  document.getElementById('apMonto').value = m == null ? '' : String(m);
+  fe.addEventListener('input', function () { calcAbonoProrroga(id); });
+  calcAbonoProrroga(id);
+}
+function calcAbonoProrroga(id) {
+  var p = creditoPorId(id); if (!p) return;
+  var caja = document.getElementById('apCalc'); if (!caja) return;
+  if (!P || typeof P.abonoConProrroga !== 'function') {
+    caja.innerHTML = '<div class="aviso ambar">Este teléfono tiene una versión vieja de las reglas. '
+      + 'Cierra la app y ábrela con señal para que se actualice.</div>';
+    return;
+  }
+  var f = (document.getElementById('apFecha') || {}).value || hoyISO();
+  var vacio = _abono.id !== id || _abono.monto == null;
+  var x = vacio ? 0 : _abono.monto;
+  var r = P.abonoConProrroga(DB, p, f, x, { quien: 'celular' });
+  var quedan = (r.prorrogas_permitidas || 0) - (r.prorrogas_usadas || 0) - 1;
+  var h = '';
+  if (r.corte_nuevo) {
+    var precio = (r.mora
+        ? '<div class="fila"><span class="k">1. Recargo por ' + r.dias_mora + ' día(s) de mora</span>'
+          + '<span class="v ambar">' + COP(r.mora) + '</span></div>' : '')
+      /* 3-oct-2026 (revisión): el único perdón que hace el celular es el del
+         acuerdo pactado (el puente lo respeta si paga a tiempo), y se ve. */
+      + (r.mora_condonada
+        ? '<div class="fila"><span class="k">Se la perdona el acuerdo (precio pactado)</span>'
+          + '<span class="v ambar">− ' + COP(r.mora_condonada) + '</span></div>' : '')
+      + '<div class="fila"><span class="k">' + (r.mora ? '2' : '1') + '. Costo del ciclo</span>'
+      + '<span class="v">' + COP(r.costo) + '</span></div>';
+    if (r.ok) {
+      h += '<div class="card ap" style="margin-top:14px">'
+        + '<div class="fila"><span class="k"><b>Entregó</b></span><span class="v"><b>' + COP(x) + '</b></span></div>'
+        + precio
+        + '<div class="fila"><span class="k muted">Con eso queda pagada la prórroga (' + COP(r.precio_prorroga) + ')</span><span class="v"></span></div>'
+        + '<div class="fila"><span class="k"><b>' + (r.mora ? '3' : '2') + '. A capital</b></span>'
+        +   '<span class="v"><b>' + COP(r.a_capital) + '</b></span></div>'
+        + '<div class="fila"><span class="k">Capital que queda</span><span class="v">' + COP(r.capital_despues) + '</span></div>'
+        + '<div class="fila"><span class="k">Nueva fecha de pago</span><span class="v"><b>' + fmtFecha(r.corte_nuevo) + '</b></span></div>'
+        + '<div class="fila"><span class="k">Ese día paga, si paga a tiempo</span><span class="v"><b>' + COP(r.total_siguiente) + '</b></span></div>'
+        + '<div class="fila"><span class="k">Garantía que le deja</span><span class="v oro-tinta">' + COP(r.garantia) + '</span></div>'
+        + '<div class="fila"><span class="k">Prórroga</span><span class="v">' + (r.prorrogas_usadas + 1) + ' de '
+        +   r.prorrogas_permitidas + (quedan > 0 ? '' : ' · la última') + '</span></div>'
+        + '</div>'
+        + '<div class="aviso info">' + esc(r.detalle) + ' El abono es capital: no deja garantía.</div>';
+    } else {
+      h += '<div class="card ap" style="margin-top:14px">'
+        + '<div class="fila"><span class="k">Capital</span><span class="v">' + COP(r.capital_antes) + '</span></div>'
+        + precio
+        + '<div class="fila"><span class="k"><b>La prórroga cuesta</b></span><span class="v"><b>' + COP(r.precio_prorroga) + '</b></span></div>'
+        + '<div class="fila"><span class="k">Total para saldar</span><span class="v">' + COP(r.total_para_saldar) + '</span></div>'
+        + '<div class="fila"><span class="k">Si se registra, pasa al</span><span class="v">' + fmtFecha(r.corte_nuevo) + '</span></div>'
+        + '</div>';
+      h += vacio
+        ? '<div class="aviso ambar">Escribe cuánto entregó. Con <b>' + COP(r.precio_prorroga) + '</b> paga justo la '
+          + 'prórroga; lo que pase de ahí baja el capital. Desde <b>' + COP(r.total_para_saldar) + '</b> ya salda todo.</div>'
+        : '<div class="aviso ambar">' + esc(r.detalle) + '</div>';
+    }
+  } else {
+    h += '<div class="aviso ambar">' + esc(r.detalle || 'Este crédito no admite este abono.') + '</div>';
+  }
+  /* Los caminos que no son de esta hoja se nombran y se dice dónde viven: la
+     prórroga con descuento, el acuerdo y el plan de pagos se registran en el
+     computador; «queda debiendo» y «pagó todo» están en la hoja de cobro. */
+  /* Con el campo vacío y la prórroga con precio, todavía no hay «no alcanza»
+     que explicar; lo que no depende de la plata (sin prórrogas, plan, ya
+     registrado) se explica desde el primer momento. */
+  if (!r.ok && !(vacio && r.corte_nuevo) && r.caminos && r.caminos.length) {
+    var donde = {
+      prorroga_con_descuento: 'la prórroga con descuento se registra en el computador',
+      acuerdo: 'el acuerdo para otra fecha, también en el computador',
+      queda_debiendo: '«Queda debiendo» está en la hoja de cobro (Registrar pago)',
+      pago_total: '«Pagó todo» está en la hoja de cobro (Registrar pago)',
+      plan_de_pagos: 'el plan de pagos se registra en el computador',
+      cuota_del_plan: 'la cuota del plan se cobra en Registrar pago'
+    };
+    var dichos = r.caminos.filter(function (k) { return donde[k]; });
+    if (dichos.length) {
+      h += '<div class="aviso info">' + dichos.map(function (k) { return donde[k]; }).join('; ') + '.</div>';
+    }
+  }
+  /* 3-oct-2026 (revisión) — la prórroga de hoy ya está y trajo MÁS plata: el
+     puente arma el abono de la misma entrega y acá se ofrece en su propio
+     botón (abonarMismoDia), nunca en «Registrar». */
+  if (r.motivo === 'ya_registrado' && r.mismo_dia && r.mismo_dia.abono && !vacio) {
+    h += '<button class="btn arriba" type="button" data-acc="abono-mismo-dia" data-id="' + esc(p.id) + '">'
+      + '💵 Sumar ' + COP(x) + ' a capital (misma entrega del ' + fmtFecha(f) + ')</button>';
+  }
+  /* 3-oct-2026 (revisión) — el acuerdo pactado, dicho: si paga a tiempo se
+     respeta el precio prometido; si no, venció. */
+  if (r.acuerdo) {
+    h += '<div class="aviso ' + (r.acuerdo.en_fecha ? 'info' : 'ambar') + '"><b>🤝 Tiene un acuerdo pactado</b> para el '
+      + fmtFecha(r.acuerdo.para) + ' por ' + COP(r.acuerdo.monto) + '. '
+      + (r.acuerdo.en_fecha
+        ? 'Paga a tiempo: esto respeta el precio pactado y da el acuerdo por cumplido.'
+        : 'El precio pactado ya venció: se cobra lo causado de hoy.') + '</div>';
+  }
+  /* 3-oct-2026 (revisión) — «regístralo en el computador» invitaba a anotar la
+     MISMA entrega en los dos aparatos; con montos distintos, la nube se quedaba
+     con los dos abonos. Se dice al revés: si va a perdonar, solo allá. */
+  if (r.mora) {
+    h += '<p class="mini">Si le vas a perdonar mora, <b>no lo registres acá</b>: hazlo solo en el computador, '
+      + 'donde el descuento queda con su motivo. Anotar la misma entrega en los dos aparatos la cuenta dos veces.</p>';
+  }
+  /* Y el comprobante: el computador solo adjunta la foto al registrar allá el
+     pago, así que «adjúntalo en el computador» mandaba a un camino que no hay. */
+  h += '<p class="mini">Si te dio comprobante, déjalo guardado en el chat de WhatsApp del cliente: '
+    + 'en esta fase las fotos no viajan desde el celular.</p>';
+  caja.innerHTML = h;
+  var listo = r.ok && !vacio;
+  var btn = document.getElementById('apBtn');
+  if (btn) {
+    btn.disabled = !listo;
+    btn.className = 'btn arriba' + (listo ? '' : ' sec');
+    btn.textContent = listo
+      ? (r.a_capital > 0 ? '💵 Registrar ' + COP(x) + ': ' + COP(r.a_capital) + ' a capital y pasa al ' + fmtFecha(r.corte_nuevo)
+                         : '↻ Registrar ' + COP(x) + ': paga la prórroga y pasa al ' + fmtFecha(r.corte_nuevo))
+      : (NO_DEL_ABONO_CEL[r.motivo] || (vacio && r.corte_nuevo ? 'Escribe cuánto pagó'
+         : (r.motivo === 'no_alcanza' ? 'No alcanza: la prórroga cuesta ' + COP(r.precio_prorroga)
+         : (r.motivo === 'paga_todo' ? 'Con eso salda todo: es «Pagó todo»' : 'No se puede registrar'))));
+  }
+}
+
+function abrirGestion(prestId, clave, tituloExtra, avisoExtra) {
   var p = creditoPorId(prestId); if (!p) return;
   var s = socioDe(p); if (!s) return;
   var k = clave || plantillaPara(p);
@@ -4258,7 +4607,9 @@ function abrirGestion(prestId, clave, tituloExtra) {
   var hor = horarioPermitido();
   var tel = waNum(s);
 
-  var h = '';
+  /* 3-oct-2026 — `avisoExtra`: lo que quien abre la hoja necesita decir antes
+     del texto (hoy, que la plantilla del abono no ha llegado y va otra). */
+  var h = avisoExtra || '';
   if (!hor.ok) {
     h += '<div class="aviso ambar"><b>Fuera de horario (Ley 2300):</b> ' + esc(hor.motivo)
       + '. Mejor no escribas ahora.</div>';
@@ -4810,6 +5161,21 @@ document.addEventListener('click', function (ev) {
     var g = document.getElementById('prFecha') || document.getElementById('pgFecha');
     prorrogar(id, g ? g.value : hoyISO());
   }
+  /* 3-oct-2026 — abonó y el resto pasa a la próxima quincena. */
+  else if (acc === 'abono-prorroga') {
+    var dc = el.dataset.desde === 'cobro';
+    var fc = dc ? (document.getElementById('pgFecha') || {}).value : '';
+    abrirAbonoProrroga(id, fc || hoyISO(), dc && _cobro.id === id ? _cobro.monto : null);
+  }
+  else if (acc === 'abono-prorroga-ok') {
+    var fa = document.getElementById('apFecha');
+    abonarYProrrogar(id, (fa && fa.value) || hoyISO(), _abono.id === id ? _abono.monto : null);
+  }
+  /* 3-oct-2026 (revisión) — la plata de más del día de la prórroga. */
+  else if (acc === 'abono-mismo-dia') {
+    var fm = document.getElementById('apFecha');
+    abonarMismoDia(id, (fm && fm.value) || hoyISO(), _abono.id === id ? _abono.monto : null);
+  }
   else if (acc === 'gestion') { abrirGestion(id); }
   else if (acc === 'gestion-ok') { marcarGestion(id, el.dataset.k); cerrarHoja(); }
   else if (acc === 'gestion-solo') { marcarGestion(id, el.dataset.k); cerrarHoja(); }
@@ -4913,6 +5279,14 @@ document.addEventListener('input', function (ev) {
     return;
   }
   if (ev.target && ev.target.id === 'pgMotivo') { _cobro.motivo = ev.target.value; return; }
+  /* 3-oct-2026 — el monto del abono + prórroga, por la misma razón que el del
+     cobro: repinta el bloque de abajo y el botón, nunca el campo. */
+  if (ev.target && ev.target.id === 'apMonto') {
+    var va = ev.target.value;
+    _abono.monto = (va === '' || va == null) ? null : Math.round(Number(va) || 0);
+    calcAbonoProrroga(_abono.id);
+    return;
+  }
   /* El texto de la tanda actualiza el enlace de WhatsApp y NADA MÁS. Repintar
      acá mandaría el cursor al principio en cada letra, con el cliente delante. */
   if (ev.target && ev.target.id === 'tdTexto') {

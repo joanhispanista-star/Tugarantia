@@ -5441,13 +5441,17 @@ describe('las plantillas hablan con una sola voz (4-ago-2026)', () => {
                            '\nreturn VOZ_UNICA;')();
   const migrar = t => VOZ.reduce((s, r) => s.replace(r[0], r[1]), t);
 
-  test('son quince y ninguna dice "obligación"', () => {
+  test('son dieciséis y ninguna dice "obligación"', () => {
     /* El número sube cuando se agrega una plantilla, y a propósito rompe la
        prueba cuando pasa: quien agregue una tiene que leer esta batería antes
        de escribirla. La decimotercera es la del código de acceso (10-ago-2026);
        la decimocuarta, el enlace corregido (28-ago-2026); la decimoquinta, el acuerdo de prórroga (29-ago-2026) — leída y pasada por
-       esta batería, como manda el comentario de arriba. */
-    assert.equal(mensajes().length, 15, 'cambió el número de plantillas: revisá la voz');
+       esta batería, como manda el comentario de arriba.
+       La decimosexta es el recibo del abono + prórroga (abonoProrroga,
+       3-oct-2026): «recibimos tu abono… cualquier cosa nos cuentas». Leída
+       contra esta batería: plural, con «nosotros» de remitente, sin
+       «obligación» y sin ninguna de las construcciones en singular. */
+    assert.equal(mensajes().length, 16, 'cambió el número de plantillas: revisá la voz');
     // En ninguna plantilla recomendada, y en ningún texto que le llegue al
     // socio. La palabra solo puede quedar viva en la regla que la borra.
     mensajes().forEach(m => assert.ok(!/obligaci[oó]n/i.test(m),

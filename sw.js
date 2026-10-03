@@ -1563,7 +1563,34 @@
    la precarga, asi que sin subir la cache seguiria con las reglas viejas.
    Toca tambien panel/espejo.html (la linea de lo que se mira en el
    computador). Ningun archivo nuevo entra a la lista. */
-const CACHE = 'tugarantia-v127';
+/* v128 - 3-oct-2026. ABONO + PRORROGA EN UN SOLO PASO. Joan pidio poder
+   anotar lo que abona un cliente y pasar el resto a la quincena siguiente
+   (caso real: 200.000 sobre 400.000 vencido el 1-oct). La regla nace en
+   app/puente.js (abonoConProrroga): mora, costo y lo que sobra a capital, con
+   el abono anotado ANTES de la prorroga para que la quincena siguiente se
+   cobre sobre el capital que quedo. El puente esta en la precarga del celular
+   y del computador: sin subir la cache, una pantalla nueva le preguntaria a un
+   puente viejo que no tiene la funcion. Ningun archivo nuevo entra a la
+   lista. */
+/* v129 - 3-oct-2026. LAS PANTALLAS DEL ABONO + PRORROGA. El boton
+   «Abono y el resto pasa a la proxima quincena» en la hoja de cobro del
+   computador (panel/crm.html: desglose, un solo guardar, recibo por WhatsApp
+   con la plantilla nueva abonoProrroga, y «pago» en la ficha) y del celular
+   (panel/espejo.html: la misma regla del puente y la misma linea de la cola
+   que la prorroga). Las dos paginas estan en la precarga: sin subir la cache
+   el celular seguiria con la hoja sin el boton. Ningun archivo nuevo entra a
+   la lista. */
+/* v130 - 3-oct-2026. LA REVISION DEL ABONO + PRORROGA. app/puente.js: la
+   plata de mas del dia de la prorroga va a capital como parte de la misma
+   entrega (ya no a «Queda debiendo», que cobraba de mas), el acuerdo pactado
+   se cobra al precio prometido, y sin prorrogas dice cuanto va a capital
+   antes del plan. panel/nube.js: la misma entrega anotada distinto en los dos
+   aparatos es un choque y no suma dos abonos. panel/crm.html y
+   panel/espejo.html: sus botones y textos, «Cumplio» con el precio congelado
+   de verdad y el acuerdo cumplido en null. Los cuatro estan en la precarga:
+   sin subir la cache, un celular con el puente viejo seguiria mandando a
+   «Queda debiendo». Ningun archivo nuevo entra a la lista. */
+const CACHE = 'tugarantia-v130';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -1112,6 +1112,12 @@ const PLANTILLAS_DEF={
   recibo:{t:'Pago recibido',x:'Confirmación cálida',m:'¡Recibido, {nombre}! Tu pago quedó registrado. De corazón, muchas gracias por tu cumplimiento y por la confianza. Cuando necesites, aquí nos tienes 🙂'},
   historial:{t:'Su historial de socio',x:'Le manda a su celular todo lo que ha construido contigo',m:'Hola {nombre} 🙂 Te compartimos tu historial de socio, para que lo veas cuando quieras desde tu celular. Ahí sale todo lo que has pagado, la garantía que llevas acumulada, hasta cuánto puedes pedir y con qué tasa. Y algo que queremos que tengas claro: aunque alguna vez te atrases, sigues siendo socio y aquí te seguimos prestando.\n\n{enlace}'},
   prorroga:{t:'Prórroga registrada',x:'Tras dejar la prórroga',m:'Listo {nombre}, ya registramos tu prórroga de {prorroga}, no te preocupes por nada. Tu pago de {saldo} pasa tranquilo para la quincena del {fecha_pago}. Gracias por avisarnos; cualquier cosa nos cuentas.'},
+  /* 3-oct-2026 — el recibo del «💵 Abonó y el resto pasa a la próxima
+     quincena». Dice las tres cifras que Joan pidió y que el de la prórroga no
+     dice: lo que entregó ({abono}), lo que queda debiendo de capital ({monto})
+     y cuánto y cuándo paga ({saldo}, {fecha_pago}). Las cifras salen de lo
+     GUARDADO (PUENTE.reciboAbonoConProrroga), no de la hoja. */
+  abonoProrroga:{t:'Abono registrado · pasa a la otra quincena',x:'Tras un abono que pasa el resto a la quincena siguiente',m:'Listo {nombre}, recibimos tu abono de {abono} 🙂 Lo demás pasa a la siguiente quincena: de capital quedas debiendo {monto} y tu próximo pago es de {saldo} el {fecha_pago}. Gracias por cumplirnos; cualquier cosa nos cuentas.'},
   invitacion:{t:'Invitación · código de entrada',x:'Para que alguien nuevo pueda abrir su cuenta',m:'Hola {nombre}, te escribimos para pasarte tu código de entrada: {codigo}\nEntras acá: {enlace}\nEl código sirve para una sola persona, así que no lo reenvíes.'},
   recordatorioRespaldado:{t:'Cuota del préstamo con garantía',x:'Antes de que venza una de las cuotas mensuales',m:'Hola {nombre}, ¿cómo va todo? Te escribimos 🙂 Te recordamos con tiempo la cuota {n} de {plazo} de tu préstamo con garantía: son {cuota} el {fecha_pago}. Cualquier cosa nos cuentas y lo organizamos.'},
   reciboRespaldado:{t:'Cuota con garantía recibida',x:'Confirmación de una cuota mensual',m:'¡Recibido, {nombre}! Ya quedó registrada tu cuota {n} de {plazo} por {cuota}. Gracias por tu cumplimiento 🙂 Te avisamos cuando se acerque la siguiente.'},
@@ -1847,8 +1853,17 @@ function aplicarVars(txt,p,s,enlace,extra){ const e=extra||{}; s=s||{};
   if(of==null) txt=sinFraseProrroga(txt);
   return txt
   .replaceAll('{nombre}',(s.nombre||'').split(' ')[0]||s.nombre||'').replaceAll('{negocio}',DB.config.negocio||'Tu Garantía')
-  .replaceAll('{monto}',COP(p?capitalActual(p):0)).replaceAll('{saldo}',COP(p?totalCiclo(p):0))
+  /* 3-oct-2026 — {saldo} puede llegar HECHO en `extra`, como {prorroga}: en el
+     recibo del abono + prórroga es «lo que paga el día del corte si paga a
+     tiempo», leído del crédito guardado. Sin `extra.saldo` es lo de siempre. */
+  .replaceAll('{monto}',COP(p?capitalActual(p):0)).replaceAll('{saldo}',e.saldo||COP(p?totalCiclo(p):0))
   .replaceAll('{prorroga}',of==null?'—':of)
+  /* 3-oct-2026 — {abono}: lo que entregó en el abono + prórroga. Solo lo
+     contesta ese recibo (varsDePlantilla).
+     3-oct-2026 (revisión) — si no hay qué contestar se deja CON SUS LLAVES, como
+     hace el celular, y gestionar lo avisa (avisoDeLlaves). Vacío, el recibo
+     salía «recibimos tu abono de  🙂» y nadie lo veía antes de mandarlo. */
+  .replaceAll('{abono}',e.abono!=null?e.abono:'{abono}')
   /* El corte también sale del puente: `p.cicloActual` es el resumen de hoy y en
      un crédito con plan de pagos es la fecha de la CUOTA que sigue. */
   .replaceAll('{fecha_pago}',e.fecha_pago||(p?fmtFecha(PUENTE.corteDelCredito(p)):''))
@@ -4582,6 +4597,8 @@ const TOKENS_POR_PLANTILLA={
   bienvenida:TOKENS_QUINCENAL, recordatorio2:TOKENS_QUINCENAL, recordatorio1:TOKENS_QUINCENAL,
   venceHoy:TOKENS_QUINCENAL, moraTemprana:TOKENS_QUINCENAL, mora:TOKENS_QUINCENAL,
   recibo:TOKENS_QUINCENAL.concat(['nivel']), prorroga:TOKENS_QUINCENAL,
+  /* 3-oct-2026: {abono} solo lo contesta este recibo (varsDePlantilla). */
+  abonoProrroga:TOKENS_QUINCENAL.concat(['abono']),
   /* Estas cuatro van sin crédito delante (p=null): {monto} y {saldo} saldrían
      en cero, así que tampoco se ofrecen. */
   historial:['nombre','negocio','enlace'],
@@ -4611,6 +4628,11 @@ function aplicarVarsDemo(txt,k){
        dirección puesta a mano, lo que se ve acá tiene que ser lo que va a salir
        de verdad. Una vista previa que enseña otra cosa no es una vista previa. */
     enlace:urlApp()+'#…'};
+  /* 3-oct-2026 — el recibo del abono + prórroga se previsualiza con el caso
+     real (200.000 sobre 400.000 al 20%): con las cifras de arriba diría que
+     abonó 200.000 y sigue debiendo los mismos 400.000, y una vista previa que
+     no cuadra hace dudar de la plantilla que sí cuadra. */
+  if(k==='abonoProrroga') Object.assign(d,{abono:'$200.000',monto:'$288.000',saldo:'$345.600',fecha_pago:'15 de octubre de 2026'});
   const buenos=tokensDe(k);
   /* Los que este mensaje no contesta se dejan TAL CUAL en la vista previa, con
      sus llaves. Resolverlos aquí sería enseñarle a Joan un mensaje que el
@@ -4697,6 +4719,17 @@ function varsDePlantilla(p,k){
      los del ciclo. Salen de p.acuerdo, que a su vez salió del motor al pactar. */
   if(k==='acuerdoPactado') return p.acuerdo
     ? {prorroga:COP(p.acuerdo.monto),fecha_pago:fmtFecha(p.acuerdo.pactadaPara)} : {};
+  /* 3-oct-2026 — el recibo del abono + prórroga: lo que entregó, la prórroga
+     que pagó con eso y lo que paga el día del corte si paga a tiempo, LEÍDOS
+     de lo guardado por el puente (la misma regla que usa el celular). */
+  /* 3-oct-2026 (revisión) — solo si ese día de verdad hubo abono a capital: con
+     una prórroga a secas el recibo decía «tu abono de $88.000», que era la
+     prórroga. Sin abono no contesta, {abono} queda con sus llaves y gestionar
+     lo avisa antes de abrir WhatsApp. */
+  if(k==='abonoProrroga'){
+    const rc=PUENTE.reciboAbonoConProrroga?PUENTE.reciboAbonoConProrroga(p):null;
+    return rc&&rc.a_capital>0?{abono:COP(rc.entrego),prorroga:COP(rc.prorroga),saldo:COP(rc.total_en_fecha)}:{};
+  }
   if(k!=='prorroga') return {};
   const u=ultimaProrroga(p)||PUENTE.entradaPlan(p);
   return u?{prorroga:COP(u.monto)}:{};
@@ -4712,6 +4745,7 @@ function gestionar(prestId,plantKey){
   const ops=Object.keys(PLANTILLAS_DEF).map(k=>`<option value="${k}" ${k===plantKey?'selected':''}>${PLANTILLAS_DEF[k].t}</option>`).join('');
   let av=''; if(!r.ok)av+=`<div class="alerta warn">⚠️ <b>Fuera de horario (Ley 2300):</b> ${r.motivo}.</div>`; if(yaHoy)av+=`<div class="alerta warn">⚠️ Ya contactaste a este cliente hoy (máx 1/día).</div>`;
   openModal('Gestionar · '+s.nombre,`${av}
+    <div id="gLlaves">${avisoDeLlaves(txt)}</div>
     <div class="field"><label>Plantilla</label><select id="gPlant" onchange="recalcGestion('${prestId}')">${ops}</select></div>
     <div class="field"><label>Mensaje (editable)</label><textarea id="gTexto">${txt}</textarea></div>
     <div class="preview" id="gPrev">${txt}</div>
@@ -4719,7 +4753,16 @@ function gestionar(prestId,plantKey){
     <p class="muted" style="margin-top:10px">Al abrir, queda registrada la gestión de hoy. Tú presionas enviar.</p>`);
   document.getElementById('gTexto').addEventListener('input',()=>{const v=document.getElementById('gTexto').value;document.getElementById('gPrev').textContent=v;document.getElementById('gWa').href=waLink(waNum(s),v);});
 }
+/* 3-oct-2026 (revisión) — el aviso de las llaves que quedaron sin contestar en
+   el mensaje que se va a mandar. Hoy solo {abono} puede quedar así (el recibo
+   del abono sobre un crédito sin abono ese día); se dice ANTES de abrir
+   WhatsApp, porque después ya salió. */
+function avisoDeLlaves(txt){
+  const ll=String(txt||'').match(/\{abono\}/g);
+  return ll?'<div class="alerta warn">⚠️ Este mensaje dice <b>{abono}</b> y este crédito no tiene un abono + prórroga registrado ese día: no hay cifra que poner. Escoge otra plantilla o escribe el monto a mano.</div>':'';
+}
 function recalcGestion(prestId){ const p=DB.prestamos.find(x=>x.id===prestId),s=DB.socios.find(x=>x.id===p.socioId),k=document.getElementById('gPlant').value,txt=aplicarVars(DB.plantillas[k]||PLANTILLAS_DEF[k].m,p,s,'',varsDePlantilla(p,k));
+  const gl=document.getElementById('gLlaves'); if(gl) gl.innerHTML=avisoDeLlaves(txt);
   document.getElementById('gTexto').value=txt;document.getElementById('gPrev').textContent=txt;document.getElementById('gWa').href=waLink(waNum(s),txt);document.getElementById('gWa').setAttribute('onclick',`marcarGestion('${prestId}','${k}')`); }
 function marcarGestion(prestId,k){ const p=DB.prestamos.find(x=>x.id===prestId),s=DB.socios.find(x=>x.id===p.socioId); s.gestiones=s.gestiones||[]; s.gestiones.push({fecha:hoyISO(),canal:'whatsapp',plantilla:k}); guardar(); setTimeout(render,300); }
 
@@ -5267,10 +5310,15 @@ function verCredito(id){
      parte el PUENTE, no una resta escrita acá: topa el recargo contra el monto y
      las prórrogas viejas, que no traen `mora`, se leen todas como costo. */
   const pr=(p.prorrogas||[]).map(x=>`<div class="info-row"><span class="k">${fmtFecha(x.fecha)}</span><span class="vv">prórroga ${COP(x.monto)}${moraDeProrroga(x)?` <span class="muted">(costo ${COP(costoDeProrroga(x))} + mora ${COP(moraDeProrroga(x))})</span>`:''} → pasó a ${fmtFecha(x.nuevoCiclo||proximaQuincena(x.ciclo))} <span class="muted">· dejó ${COP(garantiaDeProrroga(x,p))} de garantía</span></span></div>`).join('');
+  /* 3-oct-2026 — los abonos a capital, que esta hoja nunca mostraba: con el
+     «💵 Abonó y el resto pasa…» el crédito decía «prórroga $88.000» y los
+     $112.000 que bajaron el capital no aparecían en ningún renglón. Los de las
+     cuotas del plan no van: ya salen en su cuota. */
+  const abs=(p.abonosCapital||[]).filter(a=>a&&!a.cuotaPlan).map(a=>`<div class="info-row"><span class="k">${fmtFecha(a.fecha)}</span><span class="vv">abono a capital ${COP(a.monto)} <span class="muted">· no deja garantía: es capital que vuelve</span></span></div>`).join('');
   const comps=(p.comprobantes||[]);
   /* 1-oct-2026: la foto del comprobante pasa por fotoSegura, igual que las del
      registro. Si no es una imagen, queda la tarjeta con su monto y fecha. */
-  const gal=comps.length?`<div class="gal">${comps.map(c=>{const ft=fotoSegura(c.foto);return `${ft?`<a href="${ft}" target="_blank"><img src="${ft}">`:'<a><span class="muted" style="display:block;padding:18px 6px;font-size:12px">sin imagen válida</span>'}<div class="cap">${({pago:'Pago',prorroga:'Prórroga',abono:'Abono',plan:'Plan de pagos'}[c.tipo]||'Comprob.')} ${COP(c.monto)}<br>${fmtFecha(c.fecha)}</div></a>`;}).join('')}</div>`:'<p class="muted">Sin comprobantes aún.</p>';
+  const gal=comps.length?`<div class="gal">${comps.map(c=>{const ft=fotoSegura(c.foto);return `${ft?`<a href="${ft}" target="_blank"><img src="${ft}">`:'<a><span class="muted" style="display:block;padding:18px 6px;font-size:12px">sin imagen válida</span>'}<div class="cap">${({pago:'Pago',prorroga:'Prórroga',abonoProrroga:'Abono + prórroga',abono:'Abono',plan:'Plan de pagos'}[c.tipo]||'Comprob.')} ${COP(c.monto)}<br>${fmtFecha(c.fecha)}</div></a>`;}).join('')}</div>`:'<p class="muted">Sin comprobantes aún.</p>';
   /* El plan de pagos, cuota por cuota. Es el historial de la salida del §8: qué
      se cobró al pactarlo y en qué va. */
   const ent=PUENTE.entradaPlan(p);
@@ -5292,9 +5340,10 @@ function verCredito(id){
     ${(()=>{ /* solo los perdones del CIERRE: los de prórroga van en su renglón */ const cc=(p.condonaciones||[]).filter(c=>c&&c.sobre!=='prorroga'); return p.pagado&&p.montoRecibido!=null&&cc.length?`<div class="info-row"><span class="k">Entró de verdad</span><span class="vv"><b>${COP(p.montoRecibido)}</b> <span class="muted">con ${COP(cc.reduce((t,c)=>t+(Number(c.costo)||0)+(Number(c.mora)||0),0))} perdonados al cerrar: ${escHTML(cc.map(c=>c.motivo).filter(Boolean).join(' · '))}</span></span></div>`:''; })()}
     ${p.saldoAFavor>0?`<div class="info-row"><span class="k">Pagó de más</span><span class="vv"><b>${COP(p.saldoAFavor)}</b> <span class="muted">a su favor · anotado acá, NO se aplica solo al crédito siguiente</span></span></div>`:''}
     ${pr?`<div class="sub-h">Prórrogas</div>${pr}`:''}
+    ${abs?`<div class="sub-h">Abonos a capital</div>${abs}`:''}
     ${planHTML}
     <div class="sub-h">Comprobantes de pago</div>${gal}
-    <div class="two" style="margin-top:18px">${p.pagado?'<span></span>':`<button class="btn btn-rojo" onclick="abrirPago('${p.id}')">Registrar cobro / prórroga</button>`}<button class="btn btn-ghost" onclick="verCliente('${s.id}')">Ver cliente</button></div>
+    <div class="two" style="margin-top:18px">${p.pagado?'<span></span>':`<button class="btn btn-rojo" onclick="abrirPago('${p.id}')" title="Pagó todo, abonó y pasa a la otra quincena, o prórroga">Registrar cobro / abono / prórroga</button>`}<button class="btn btn-ghost" onclick="verCliente('${s.id}')">Ver cliente</button></div>
     <button class="btn btn-ghost btn-sm" style="margin-top:12px;width:100%" onclick="borrarCredito('${p.id}')">🗑 Borrar este crédito · quedó mal guardado</button>
     <div class="muted" style="text-align:center;margin-top:6px;font-size:12px">Va a la papelera, no se pierde.</div>`);
 }
@@ -5385,6 +5434,10 @@ function calcPago(id){
      bloque de arriba con el % y el de abajo con el monto tecleado, y la misma
      hoja llegó a decir dos garantías y dos totales distintos — el defecto del
      5-ago («la fila decía $18.000 y el bloque de al lado $36.000») otra vez. */
+  /* 3-oct-2026 — el modo «abonó y el resto pasa a la próxima quincena» pinta
+     su hoja entera (calcAbonoProrroga, más abajo): su cuenta es otra y la
+     contesta el puente de una sola vez. */
+  if(_cobro.id===id&&_cobro.tipo==='abonoProrroga') return calcAbonoProrroga(id,p);
   const e=estadoDelCobro(p,liq), d=e.d;
   if(e.tipo==='prorroga') return calcProrroga(id,p,liq,e,s);
   const lbl=document.getElementById('pgMontoLbl'); if(lbl)lbl.textContent='¿Cuánto pagó?';
@@ -5469,7 +5522,13 @@ function calcPago(id){
      moviera al aparecer el bloque de preguntas, el clic de memoria aterrizaría
      en otro botón con el cliente al frente. */
   const acc=document.getElementById('pgAccion');
-  if(acc) acc.innerHTML=`<div class="two"><button class="btn btn-rojo" id="pgBtn" onclick="registrarCobro('${p.id}')">${c?`✓ Pagó la cuota ${c.n} (${COP(liq.total_a_pagar)})`:`✓ Pagó todo (${COP(total)})`}</button>${btnProrroga}</div>${btnPactar}`;
+  /* 3-oct-2026 — «💵 Abonó y el resto pasa a la próxima quincena», SIEMPRE a
+     la vista al lado de «Pagó todo» y de la prórroga: es lo que Joan buscó con
+     Adriana delante y no encontró. No desaparece cuando no se puede (plan de
+     pagos, sin prórrogas): adentro dice por qué y ofrece la salida, porque un
+     botón que no está y no se explica es peor que uno que dice que no. */
+  const btnAbono=`<button class="btn btn-negro" style="margin-top:8px;width:100%" onclick="modoAbonoProrroga('${p.id}')" title="Escribes lo que entregó: paga la mora y el costo del ciclo, lo que sobra baja el capital y la fecha pasa a la próxima quincena">💵 Abonó y el resto pasa a la próxima quincena</button>`;
+  if(acc) acc.innerHTML=`<div class="two"><button class="btn btn-rojo" id="pgBtn" onclick="registrarCobro('${p.id}')">${c?`✓ Pagó la cuota ${c.n} (${COP(liq.total_a_pagar)})`:`✓ Pagó todo (${COP(total)})`}</button>${btnProrroga}</div>${btnAbono}${btnPactar}`;
   if(!c) pintarDif(id); else { const dif=document.getElementById('pgDif'); if(dif) dif.innerHTML=''; }
 }
 
@@ -5537,7 +5596,11 @@ function decisionDelCobro(p,liq,e){
   if(e.tipo==='prorroga'){
     if(!e.pr||!e.pr.ok) return {listo:false,txt:'Este crédito no admite prórroga'};
     if(e.vacio||e.monto<0) return {listo:false,txt:'Escribe cuánto pagó por la prórroga'};
-    if(e.falta<0) return {listo:false,txt:`Una prórroga no se paga de más: devuélvele ${COP(-e.falta)}`};
+    /* 3-oct-2026 — y si lo de más es abono, el botón de abajo: la prórroga
+       sola sigue sin poder cobrarse de más (art. 68 Ley 45), pero «devuélvele»
+       a secas mandaba a anotar el abono DESPUÉS, que es el orden que cobra de
+       más la quincena siguiente. */
+    if(e.falta<0) return {listo:false,txt:`Una prórroga no se paga de más: devuélvele ${COP(-e.falta)} o, si es abono, usa «💵 Abonó y el resto pasa…»`};
     if(e.falta===0) return {listo:true,txt:`↻ Registrar prórroga (${COP(e.total)})`};
     if(!e.motivo.trim()) return {listo:false,txt:'Falta el motivo del descuento'};
     return {listo:true,txt:`↻ Registrar prórroga de ${COP(e.monto)} con ${COP(e.falta)} de descuento`};
@@ -5559,7 +5622,9 @@ function decisionDelCobro(p,liq,e){
     const cap=capitalActual(p);
     if(e.monto<=0) return {listo:false,txt:'Escribe cuánto abonó'};
     if(e.monto>=cap) return {listo:false,txt:'Ese abono cubre el capital entero'};
-    return {listo:true,txt:`↓ Abonar ${COP(e.monto)} a capital (sigue debiendo)`};
+    /* 3-oct-2026: «misma fecha» en el botón, porque este NO es el abono que
+       pasa el resto a la otra quincena (ese es «💵 Abonó y el resto pasa…»). */
+    return {listo:true,txt:`↓ Abonar ${COP(e.monto)} a capital (sigue debiendo, misma fecha)`};
   }
   return {listo:false,txt:`Falta decir qué pasó con los ${COP(e.falta)}`};
 }
@@ -5591,6 +5656,10 @@ function modoCobro(id,m){
 function sobreCobro(id,s){ _cobro.id=id; _cobro.sobre=s; if(_cobro.modo==null)_cobro.modo='perdon'; calcPago(id); }
 function pintarBoton(id){
   const p=DB.prestamos.find(x=>x.id===id); const btn=document.getElementById('pgBtn'); if(!p||!btn) return;
+  if(_cobro.id===id&&_cobro.tipo==='abonoProrroga'){   // 3-oct-2026: su propia decisión
+    const da=decisionDelAbono(abonoDeLaHoja(p));
+    btn.disabled=!da.listo; btn.className=da.listo?'btn btn-rojo':'btn btn-ghost'; btn.textContent=da.txt; return;
+  }
   const liq=liqCredito(p,gv('pgFecha')||hoyISO()), e=estadoDelCobro(p,liq), dc=decisionDelCobro(p,liq,e);
   btn.disabled=!dc.listo; btn.className=dc.listo?'btn btn-rojo':'btn btn-ghost'; btn.textContent=dc.txt;
 }
@@ -5599,7 +5668,7 @@ function pintarBoton(id){
 function pintarDif(id){
   const caja=document.getElementById('pgDif'); if(!caja) return;
   const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
-  if(_cobro.id===p.id&&_cobro.tipo==='prorroga') return calcPago(id);
+  if(_cobro.id===p.id&&(_cobro.tipo==='prorroga'||_cobro.tipo==='abonoProrroga')) return calcPago(id);
   const f=gv('pgFecha')||hoyISO(), liq=liqCredito(p,f);
   const e=estadoDelCobro(p,liq), monto=e.monto, falta=e.falta;
   let h='';
@@ -5616,10 +5685,16 @@ function pintarDif(id){
         siguiente; se lo tienes que aplicar tú a mano, o devolvérselo. Lo vuelves a ver en el crédito y en su ficha.
         <b>No le suma cupo: no es costo.</b> La garantía sale del costo que entró, y esa plata es suya, no tuya.</div>`:''}`;
   } else if(falta>0){
+    /* 3-oct-2026 — una TERCERA respuesta, que es la de Adriana: abonó y lo
+       demás se financia a la próxima quincena. Va acá porque es justo donde
+       Joan mira después de escribir 200.000, y se lleva ese monto. Y «Queda
+       debiendo» dice ahora en el mismo botón que la fecha NO se mueve: eran
+       dos caminos con la misma cara y la plata termina distinta. */
     h=`<div class="alerta warn"><b>Faltan ${COP(falta)}. ¿Qué pasó?</b></div>
       <div class="two">
       <button class="btn ${e.modo==='perdon'?'btn-negro':'btn-ghost'}" onclick="modoCobro('${p.id}','perdon')">Se lo perdoné</button>
-      <button class="btn ${e.modo==='debe'?'btn-negro':'btn-ghost'}" onclick="modoCobro('${p.id}','debe')">Queda debiendo</button></div>
+      <button class="btn ${e.modo==='debe'?'btn-negro':'btn-ghost'}" onclick="modoCobro('${p.id}','debe')" title="Abono a capital: la fecha de pago NO se mueve">Queda debiendo (misma fecha)</button></div>
+      <button class="btn btn-ghost" style="width:100%;margin-top:6px" onclick="modoAbonoProrroga('${p.id}',${Math.max(0,Math.round(monto))})">💵 Abonó y el resto pasa a la próxima quincena</button>
       <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px" onclick="modoCobro('${p.id}','error')">Me equivoqué: volver a ${COP(e.total-e.d.mora)}</button>`;
     if(e.modo==='perdon'){
       const r=PUENTE.repartoDelDescuento(liq,falta,e.sobre);
@@ -5643,9 +5718,16 @@ function pintarDif(id){
     }
     if(e.modo==='debe'){
       const cap=capitalActual(p);
+      /* 3-oct-2026 — si HOY ya pagó la prórroga que abrió este ciclo, esta
+         plata es más de la misma entrega, y «Queda debiendo» la anclaría al
+         ciclo nuevo con el costo de antes del abono de pie: cobra de más. Lo
+         dice el puente (mismo_dia), no esta pantalla. */
+      const md=(typeof PUENTE.abonoConProrroga==='function')?PUENTE.abonoConProrroga(DB,p,f,monto).mismo_dia:null;
+      const avisoMd=md&&md.puede?`<br><br><b>Ojo: hoy ya pagó la prórroga</b> que lo pasó al ${fmtFecha(md.corte)}. Si esta plata es MÁS de esa misma entrega, usa <b>«💵 Abonó y el resto pasa a la próxima quincena»</b>: la suma a capital antes de la quincena nueva${md.abono?` y el ${fmtFecha(md.corte)} paga ${COP(md.total_siguiente)}`:''}. Con «Queda debiendo», el costo de esa quincena se queda calculado sobre el capital de antes.`:'';
       h+=`<div class="alerta warn" style="margin-top:8px">Los <b>${COP(monto)}</b> se le bajan del capital, con fecha ${fmtFecha(f)}. El costo del ciclo (${COP(liq.costo)})
         ${liq.recargo_mora?`y la mora (${COP(liq.recargo_mora)})`:''} <b>siguen debiéndose</b> y la mora sigue corriendo.
         El crédito <b>NO se cierra</b> y hoy no le deja ni un peso de garantía: la garantía sale del costo, y un abono no es costo.
+        <br><br><b>La fecha de pago NO se mueve:</b> ${PUENTE.corteDelCredito(p)<f?'ya venció el':'sigue siendo el'} <b>${fmtFecha(PUENTE.corteDelCredito(p))}</b>. Si con esta plata paga la prórroga y lo demás pasa a la próxima quincena, eso es <b>«💵 Abonó y el resto pasa a la próxima quincena»</b>, el botón de arriba.${avisoMd}
         ${monto>0&&monto>=cap?`<br><br><b>Y así no se puede:</b> ${COP(monto)} cubre el capital entero (${COP(cap)}). Para abonar y seguir debiendo tiene que entregar menos de ${COP(cap)}; si con eso salda, es «Pagó todo» o «Se lo perdoné».`:''}</div>`;
     }
   }
@@ -5736,7 +5818,14 @@ function calcProrroga(id,p,liq,e,s){
   if(caja){
     let h='';
     if(e.vacio) h=`<div class="alerta warn">Escribe cuánto pagó por la prórroga. El precio es ${COP(e.total)}.</div>`;
-    else if(e.falta<0) h=`<div class="alerta warn"><b>Te dio ${COP(-e.falta)} de más.</b> Una prórroga no se paga de más: devuélvele el cambio, o regístralo aparte como abono a capital.</div>`;
+    /* 3-oct-2026 — decía «regístralo aparte como abono a capital», y aparte
+       quería decir DESPUÉS de la prórroga: el abono quedaba anclado al ciclo
+       nuevo con el costo de antes de pie, y el caso real (88.000 de prórroga +
+       112.000) pagaba 368.000 el 15-oct en vez de 345.600. El botón hace las
+       dos cosas en un solo paso y en el orden bueno, con lo que Joan escribió. */
+    else if(e.falta<0) h=`<div class="alerta warn"><b>Te dio ${COP(-e.falta)} de más.</b> Una prórroga sola no se paga de más.
+        Si lo que sobra es abono, regístralo <b>todo junto</b> con el botón de abajo: los ${COP(e.monto)} pagan la prórroga y lo demás baja el capital <b>antes</b> de la quincena nueva, que se cobra sobre lo que quede. Si no, devuélvele el cambio.</div>
+      <button class="btn btn-negro" style="width:100%;margin-top:6px" onclick="modoAbonoProrroga('${p.id}',${Math.max(0,Math.round(e.monto))})">💵 Abonó y el resto pasa a la próxima quincena (${COP(e.monto)})</button>`;
     else if(e.falta>0){
       h=`<div class="alerta warn"><b>Faltan ${COP(e.falta)}: se le perdonan</b> (${partes.join(' + ')}).</div>`;
       if(rep.hay_eleccion) h+=`<div class="two" style="margin-top:8px">
@@ -5752,6 +5841,284 @@ function calcProrroga(id,p,liq,e,s){
   pintarBoton(id);
 }
 
+/* =========================================================================
+   «💵 ABONÓ Y EL RESTO PASA A LA PRÓXIMA QUINCENA» — 3-oct-2026.
+
+   Pedido de Joan, con una cliente real delante: «hizo un abono de 200.000 y el
+   resto de la deuda se financia para la siguiente quincena, pero el CRM no
+   tiene la función de abonos… quiero que yo tenga la posibilidad de hacerlo
+   manual».
+
+   Hasta hoy eso eran DOS botones —«Queda debiendo» y la prórroga— y el ORDEN
+   en que se apretaban cambiaba la plata: con la prórroga primero, la quincena
+   siguiente cobraba 80.000 sobre un capital de 288.000 en vez de 57.600 (el
+   porqué largo está en app/puente.js, abonoConProrroga). Este modo es UN solo
+   paso y NO tiene cuenta propia: PUENTE.abonoConProrroga contesta todo —mora,
+   costo, lo que va a capital, el corte nuevo, lo que pagará, la garantía, el
+   80/20— y devuelve los registros ya armados. Esta hoja los PINTA antes de
+   confirmar y los EMPUJA en un solo guardar(): los dos o ninguno. Es la misma
+   función que usa el celular, así que las dos pantallas no pueden cobrar
+   distinto el mismo abono.
+
+   Cómo se lee:
+   · «¿Cuánto pagó?» arranca VACÍO: es la plata que entregó y la teclea Joan.
+     Pre-llenarlo sería adivinarla. (Si llega desde «Faltan X. ¿Qué pasó?», se
+     trae lo que ya había escrito.)
+   · La plata se aplica en el orden de siempre: recargo de mora (menos el % que
+     Joan perdone arriba, con motivo), costo del ciclo —esos dos son el precio
+     de la prórroga— y lo que sobre, a capital.
+   · Si no alcanza para la prórroga, si alcanza para saldar, o si ya no hay
+     prórroga (plan de pagos, nivel agotado), lo dice el puente y la hoja ofrece
+     los caminos que YA existen. No se inventa ninguno.
+   ========================================================================= */
+function modoAbonoProrroga(id,monto){
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  const m=Math.round(Number(monto));
+  const trae=monto!=null&&isFinite(m)&&m>0;
+  _cobro={ id, tipo:'abonoProrroga', monto:trae?m:null, vacio:!trae, modo:null, sobre:'mora', motivo:'' };
+  const inp=document.getElementById('pgMonto'); if(inp) inp.value=trae?String(m):'';
+  calcPago(id);
+}
+/* La cuenta de la hoja, UNA vez: de acá salen el desglose, el botón y el
+   registro, así que si el botón dice que se puede, se puede (la lección del
+   7-sep). El % de la mora es el campo de siempre y entra en PESOS, topado
+   contra lo causado, igual que en el cobro y en la prórroga. */
+function abonoDeLaHoja(p){
+  const f=gv('pgFecha')||hoyISO(), liq=liqCredito(p,f);
+  const d=(!cuotaPlan(p)&&liq.recargo_mora>0)?descuentoDeMora(liq):{pct:0,mora:0,motivo:''};
+  const vacio=_cobro.vacio===true||_cobro.monto==null;
+  const x=vacio?0:Math.round(Number(_cobro.monto)||0);
+  /* Un puente viejo en la caché (el service worker todavía no actualizó) no
+     tiene la función: se dice, en vez de reventar la hoja con el cliente al
+     frente. */
+  if(typeof PUENTE.abonoConProrroga!=='function')
+    return {f,liq,d,vacio,x,r:{ok:false,motivo:'sin_funcion',caminos:[],registros:null,
+      detalle:'Este computador tiene una versión vieja de las reglas. Recarga la página (Ctrl+F5) y vuelve a abrir el cobro.'}};
+  const r=PUENTE.abonoConProrroga(DB,p,f,x,{condonaMora:d.mora,motivo:d.motivo,quien:'computador'});
+  return {f,liq,d,vacio,x,r};
+}
+/* El texto del botón y si se puede registrar. Primero lo que no depende de la
+   plata (pagado, plan, sin prórrogas, ya registrado), después el monto. */
+const NO_DEL_ABONO={ pagado:'Este crédito ya está pagado', capital_cero:'Su capital quedó en cero',
+  plan_de_pagos:'Está en plan de pagos: no se prorroga', prorrogas_agotadas:'Ya no le quedan prórrogas',
+  ya_registrado:'Ya tiene una prórroga registrada ese día', sin_funcion:'Falta recargar la página',
+  sin_prorroga:'No pude liquidar la prórroga', sin_credito:'No encontré el crédito', error:'No pude hacer la cuenta' };
+function decisionDelAbono(a){
+  const r=a.r;
+  if(NO_DEL_ABONO[r.motivo]) return {listo:false,txt:NO_DEL_ABONO[r.motivo]};
+  if(a.vacio) return {listo:false,txt:'Escribe cuánto pagó'};
+  if(r.ok) return {listo:true,txt:r.a_capital>0
+    ?`💵 Registrar ${COP(a.x)}: ${COP(r.a_capital)} a capital y pasa al ${fmtFecha(r.corte_nuevo)}`
+    :`↻ Registrar ${COP(a.x)}: paga la prórroga y pasa al ${fmtFecha(r.corte_nuevo)}`};
+  if(r.motivo==='no_alcanza') return {listo:false,txt:`No alcanza: la prórroga cuesta ${COP(r.precio_prorroga)}`};
+  if(r.motivo==='paga_todo') return {listo:false,txt:`Con ${COP(a.x)} salda todo: es «Pagó todo»`};
+  if(r.motivo==='falta_motivo') return {listo:false,txt:'Falta el motivo del descuento'};
+  if(r.motivo==='monto_invalido') return {listo:false,txt:'Escribe cuánto pagó, en pesos'};
+  return {listo:false,txt:'No se puede registrar'};
+}
+/* Los caminos que ofrece el puente cuando no se puede, cada uno a la pantalla
+   que YA existe para eso, llevándose la plata que Joan escribió. */
+function irAProrrogaCon(id,m){
+  modoProrroga(id);
+  if(_cobro.id===id&&_cobro.tipo==='prorroga') atajoMonto(id,Math.max(0,Math.round(Number(m)||0)));
+}
+function irAlCobroCon(id,m,modo){
+  reiniciarCobro(id);
+  const v=Math.round(Number(m)||0);
+  if(v>0){ _cobro.monto=v; _cobro.vacio=false; const i=document.getElementById('pgMonto'); if(i) i.value=String(v); }
+  if(modo) _cobro.modo=modo;
+  calcPago(id);
+}
+function botonesDeCaminos(id,a){
+  /* 3-oct-2026 (revisión) — «Queda debiendo» se lleva lo que el puente dice
+     que va a capital (en el plan de pagos, lo que sobra de la entrada), no
+     todo lo que Joan escribió. Y 'abono_mismo_dia' es la plata de MÁS del día
+     de la prórroga: su propio botón, con su propio confirm. */
+  const md=a.r.mismo_dia, aCap=a.r.a_capital_sugerido!=null?a.r.a_capital_sugerido:a.x;
+  const C={
+    prorroga_con_descuento:['↻ Prórroga con descuento (le perdonas lo que falta)',`irAProrrogaCon('${id}',${a.x})`],
+    acuerdo:['🤝 Pactar la prórroga para otra fecha',`pactarAcuerdo('${id}')`],
+    queda_debiendo:[`↓ Queda debiendo: ${COP(aCap)} a capital (misma fecha)`,`irAlCobroCon('${id}',${aCap},'debe')`],
+    abono_mismo_dia:[`💵 Sumar ${COP(a.x)} a capital (misma entrega del ${md?fmtFecha(a.f):''})`,`registrarAbonoMismoDia('${id}')`],
+    pago_total:['✓ Ir a «Pagó todo»',`irAlCobroCon('${id}',${a.x},null)`],
+    plan_de_pagos:['Ver el plan de pagos',`registrarProrroga('${id}')`],
+    cuota_del_plan:['← Cobrar la cuota del plan',`volverAlCobro('${id}')`]
+  };
+  return (a.r.caminos||[]).filter(k=>C[k]).map(k=>
+    `<button class="btn btn-ghost" style="width:100%;margin-top:6px" onclick="${C[k][1]}">${C[k][0]}</button>`).join('');
+}
+/* Lo que pinta la hoja en este modo: arriba el desglose del puente, en el
+   campo la plata, el botón diciendo la verdad y abajo por qué no, si no. */
+function calcAbonoProrroga(id,p){
+  const box=document.getElementById('pgCalc'); if(!box) return;
+  const a=abonoDeLaHoja(p), r=a.r, s=DB.socios.find(x=>x.id===p.socioId);
+  const ac=acuerdoDe(p);
+  /* `corte_nuevo` solo viene cuando el puente alcanzó a liquidar la prórroga:
+     con eso ya hay precio que enseñar aunque la plata todavía no alcance. */
+  const hayPrecio=!!r.corte_nuevo;
+  const n0=r.mora?1:0;
+  /* Las que le quedarían DESPUÉS de esta. Se cuenta acá y no se lee de
+     `prorrogas_restantes`, que el puente solo llena cuando la operación cabe:
+     con el campo vacío diría «la última» a quien le quedan dos. */
+  const quedan=(r.prorrogas_permitidas||0)-(r.prorrogas_usadas||0)-1;
+  const filasPrecio=hayPrecio?`
+      ${r.mora?`<div class="calc-row"><span style="color:var(--ambar)">1. Recargo por ${r.dias_mora} día(s) de mora · 1% diario</span><span class="v" style="color:var(--ambar)">${COP(r.mora)}</span></div>`:''}
+      ${r.mora_condonada?`<div class="calc-row"><span style="color:var(--ambar)">${r.mora_condonada_acuerdo?'Se la perdona el acuerdo <span class="muted">(precio congelado al pactar)</span>':`Descuento de la mora${a.d.pct?` (${a.d.pct}%)`:''}`}</span><span class="v" style="color:var(--ambar)">− ${COP(r.mora_condonada)}</span></div>`:''}
+      <div class="calc-row"><span>${n0+1}. Costo del ciclo (${p.costoPct}%)</span><span class="v gano">${COP(r.costo)}</span></div>`:'';
+  let h='';
+  if(r.ok){
+    h=`<div class="calc">
+      <div class="calc-row"><span><b>Entregó</b></span><span class="v"><b>${COP(a.x)}</b></span></div>
+      ${filasPrecio}
+      <div class="calc-row"><span class="muted">Con eso queda pagada la prórroga (${COP(r.precio_prorroga)})</span><span class="v"></span></div>
+      <div class="calc-row"><span><b>${n0+2}. A capital</b> <span class="muted">(lo que sobra)</span></span><span class="v"><b>${COP(r.a_capital)}</b></span></div>
+      <div class="calc-row"><span>Capital que queda</span><span class="v">${COP(r.capital_antes)} → <b>${COP(r.capital_despues)}</b></span></div>
+      <div class="calc-row"><span>Nueva fecha de pago</span><span class="v"><b>${fmtFecha(r.corte_nuevo)}</b></span></div>
+      <div class="calc-row"><span>Ese día paga, si paga a tiempo <span class="muted">(${COP(r.capital_despues)} + ${COP(r.costo_siguiente)} de costo)</span></span><span class="v"><b>${COP(r.total_siguiente)}</b></span></div>
+      <div class="calc-row"><span>Garantía que le deja <span class="muted">(la de la prórroga: el abono es capital y no deja garantía)</span></span><span class="v">${COP(r.garantia)}</span></div>
+      <div class="calc-row"><span>Prórroga</span><span class="v">${r.prorrogas_usadas+1} de ${r.prorrogas_permitidas}${quedan>0?'':' · <b>la última</b>'}</span></div>
+    </div>
+    ${r.reparto?`<div class="alerta info solo-tuyo"><b class="tit-solo">Solo para ti · el 80/20 de esta plata</b>
+      De los ${COP(r.reparto.total)} de la prórroga: <b>${COP(r.reparto.garantia_socio)}</b> se le vuelven garantía (eso es lo único que él ve), <b>${COP(r.reparto.operativo)}</b> son tuyos${r.reparto.amortiza_cupon?` y <b>${COP(r.reparto.amortiza_cupon)}</b> te devuelven parte del cupón que le prestaste para arrancar`:''}.
+      ${r.a_capital?`Los ${COP(r.a_capital)} del abono son capital que vuelve: ni ganancia ni garantía.`:''}</div>`:''}
+    ${r.mora_condonada?`<div class="alerta warn solo-tuyo"><b class="tit-solo">Solo para ti · lo que cuesta este perdón</b>
+      De los ${COP(r.mora_condonada)} perdonados, <b>${COP(r.de_tu_ganancia)}</b> salen de tu ganancia y <b>${COP(r.de_su_cupo)}</b> son garantía que él deja de recibir. Queda anotado en el crédito con su motivo.</div>`:''}`;
+  } else if(hayPrecio){
+    h=`<div class="calc">
+      <div class="calc-row"><span>Capital</span><span class="v">${COP(r.capital_antes)}</span></div>
+      ${filasPrecio}
+      <div class="calc-row"><span><b>La prórroga cuesta</b> <span class="muted">(se paga primero)</span></span><span class="v"><b>${COP(r.precio_prorroga)}</b></span></div>
+      <div class="calc-row"><span>Total para saldar</span><span class="v">${COP(r.total_para_saldar)}</span></div>
+      <div class="calc-row"><span>Si se registra, pasa al</span><span class="v">${fmtFecha(r.corte_nuevo)}</span></div>
+      <div class="calc-row"><span>Prórroga</span><span class="v">${r.prorrogas_usadas+1} de ${r.prorrogas_permitidas}${quedan>0?'':' · <b>la última</b>'}</span></div>
+    </div>`;
+  } else {
+    h=`<div class="calc">
+      <div class="calc-row"><span>Capital</span><span class="v">${COP(capitalActual(p))}</span></div>
+      <div class="calc-row"><span>Vence</span><span class="v">${fmtFecha(PUENTE.corteDelCredito(p))}</span></div>
+    </div>`;
+  }
+  /* 3-oct-2026 (revisión) — decía «usa ✓ Cumplió: respeta el precio
+     congelado» y ni Cumplió lo respetaba (le corrían los días desde el pacto)
+     ni este registro (cobraba lo causado de hoy y lo daba por cumplido). Ahora
+     los dos cobran lo prometido si paga a tiempo, y la nota dice lo que pasa. */
+  if(ac){
+    const ra=r.acuerdo, enF=ra?ra.en_fecha:ac.pactadaPara>=a.f;
+    h+=`<div class="alerta ${enF?'info':'warn'}"><b>🤝 Tiene un acuerdo pactado</b> para el ${fmtFecha(ac.pactadaPara)} por ${COP(ac.monto)}. `
+      +(enF?`Paga a tiempo: este registro <b>respeta el precio congelado</b> —la mora de ese día, no la de hoy— y da el acuerdo por cumplido.${ra&&ra.perdona?` La mora que corrió desde el pacto (${COP(ra.perdona)}) se le perdona y queda anotada con el acuerdo como motivo.`:''}`
+           :`<b>El precio pactado venció</b> el ${fmtFecha(ac.pactadaPara)}: este registro cobra lo causado de hoy y da el acuerdo por cumplido.`)
+      +`</div>`;
+  }
+  box.innerHTML=h;
+  /* Sin precio de prórroga (plan de pagos, sin prórrogas, ya registrada) no
+     hay plata que escribir acá: el campo se esconde y abajo queda el porqué
+     con su salida. Un campo que no sirve invita a teclear para nada.
+     3-oct-2026 (revisión) — salvo la prórroga de HOY que abrió el ciclo: ahí
+     sí hay plata que escribir, la que trajo DE MÁS (r.mismo_dia). */
+  const md=r.mismo_dia&&r.mismo_dia.puede;
+  const mBox=document.getElementById('pgMontoBox'); if(mBox)mBox.style.display=(hayPrecio||md)?'':'none';
+  const lbl=document.getElementById('pgMontoLbl'); if(lbl)lbl.textContent=md?'¿Cuánto MÁS trajo hoy?':'¿Cuánto pagó?';
+  const at=document.getElementById('pgAtajos'); if(at) at.innerHTML='';
+  const pista=document.getElementById('pgPista');
+  if(pista) pista.innerHTML=md
+    ?'<b>La prórroga de hoy ya está registrada.</b> Escribe solo la plata que trajo DE MÁS, aparte de lo que ya quedó anotado: se suma a capital como parte de la misma entrega.'
+    :'<b>Escribe lo que entregó de verdad.</b> Primero se paga la mora y el costo del ciclo —eso es la prórroga— y lo que sobre baja el capital; la fecha pasa a la próxima quincena.'
+    +(r.mora?' Para perdonarle mora, usa el % de arriba, con su motivo.':'');
+  const acc=document.getElementById('pgAccion');
+  if(acc) acc.innerHTML=`<div class="two"><button class="btn btn-rojo" id="pgBtn" onclick="registrarCobro('${p.id}')">💵 Registrar</button><button class="btn btn-ghost" onclick="volverAlCobro('${p.id}')">← Volver al cobro</button></div>`;
+  const caja=document.getElementById('pgDif');
+  if(caja){
+    let d='';
+    if(r.ok) d=`<div class="alerta info">${escHTML(r.detalle)}</div>`;
+    else if(a.vacio&&hayPrecio) d=`<div class="alerta warn">Escribe cuánto entregó. Con <b>${COP(r.precio_prorroga)}</b> paga justo la prórroga; lo que pase de ahí baja el capital. Desde <b>${COP(r.total_para_saldar)}</b> ya salda todo, y eso es «Pagó todo».</div>`;
+    else d=`<div class="alerta warn">${escHTML(r.detalle||'No se puede registrar.')}</div>`+botonesDeCaminos(p.id,a);
+    caja.innerHTML=d;
+  }
+  pintarBoton(id);
+}
+/* Registrar: lo que devolvió el puente, empujado TAL CUAL a las listas que ya
+   existen —abonosCapital, prorrogas, condonaciones, comprobantes— y UN
+   guardar(). Nada de calcular acá: si el puente no dijo que sí, no se escribe. */
+function registrarAbonoProrroga(id){
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  const a=abonoDeLaHoja(p), r=a.r, da=decisionDelAbono(a);
+  if(!da.listo||!r.ok||!r.registros)
+    return alert(da.txt+'.'+(r.detalle?'\n\n'+r.detalle:'')+'\n\nNo registré nada.');
+  /* La invariante, ANTES de escribir: la plata que entra es exactamente la
+     prórroga más el abono, y la cuenta se hizo sobre el corte que el crédito
+     tiene AHORA. Si no, la hoja y el crédito leyeron estados distintos. */
+  if(r.corte_antes!==PUENTE.corteDelCredito(p)||r.precio_prorroga+r.a_capital!==a.x)
+    return alert('No cuadra: entran '+COP(a.x)+' y la cuenta da '+COP(r.precio_prorroga)+' de prórroga + '+COP(r.a_capital)+' a capital.\n\nNo registré nada. Vuelve a abrir el cobro.');
+  const s=DB.socios.find(x=>x.id===p.socioId), g=r.registros, ac=acuerdoDe(p);
+  if(!confirm(`Registrar lo que entregó ${p.socioNombre}: ${COP(a.x)}\n\n`
+    +(r.mora?`• Recargo por ${r.dias_mora} día(s) de mora: ${COP(r.mora)}`
+      +(r.mora_condonada?` − ${COP(r.mora_condonada)} perdonados (${g.condonacion?g.condonacion.motivo:a.d.motivo}): cobra ${COP(r.mora_cobrada)}`:'')+'\n':'')
+    +`• Costo del ciclo: ${COP(r.costo)} — con eso queda pagada la prórroga\n`
+    +(r.a_capital?`• A capital: ${COP(r.a_capital)}\n`:'• A capital: nada (es justo el precio de la prórroga)\n')
+    +`\nEl capital ${r.a_capital?`baja de ${COP(r.capital_antes)} a ${COP(r.capital_despues)} y `:''}pasa a la quincena del ${fmtFecha(r.corte_nuevo)}.\n`
+    +`Ese día, si paga a tiempo, son ${COP(r.total_siguiente)} (${COP(r.capital_despues)} + ${COP(r.costo_siguiente)} de costo).\n`
+    +`Le deja ${COP(r.garantia)} de garantía: la de la prórroga. El abono es capital y no deja garantía.\n`
+    +`Es su prórroga ${r.prorrogas_usadas+1} de ${r.prorrogas_permitidas} (nivel ${r.nivel_socio}); `
+    +(r.prorrogas_restantes?`le quedaría ${r.prorrogas_restantes}.`:'después de esta ya no le quedan: la salida sería el plan de pagos.')
+    +(ac?`\n\nTenía un acuerdo pactado para el ${fmtFecha(ac.pactadaPara)} por ${COP(ac.monto)}: `
+      +(r.acuerdo&&r.acuerdo.en_fecha?'paga a tiempo, así que se respeta ese precio, y el acuerdo queda cumplido y se borra.'
+        :'el precio pactado ya venció, así que se cobra lo causado de hoy; el acuerdo queda cumplido y se borra.'):'')
+    +'\n\n¿Lo registro?')) return;
+  /* LOS DOS O NINGUNO: todo se escribe en memoria y se guarda una sola vez.
+     El abono va PRIMERO en su lista y en el ciclo viejo, que es lo que el
+     puente ya dejó armado (ver abonoConProrroga). */
+  if(g.abono){ p.abonosCapital=p.abonosCapital||[]; p.abonosCapital.push(g.abono); }
+  p.prorrogas=p.prorrogas||[]; p.prorrogas.push(g.prorroga);
+  if(g.condonacion){ p.condonaciones=p.condonaciones||[]; p.condonaciones.push(g.condonacion); }
+  /* UNA foto es UNA transferencia: la de todo lo que entregó. */
+  addComp(p,g.comprobante.tipo,g.comprobante.monto);
+  p.cicloActual=g.cicloActual;
+  /* El acuerdo era «paga la prórroga otro día», y la prórroga se acaba de
+     pagar: queda cumplido, como en cumplirAcuerdo. Si se quedara, la hoja lo
+     seguiría mostrando en el ciclo nuevo y, pasada su fecha, la cola llamaría
+     a alguien que ya pagó como «rompió el acuerdo».
+     3-oct-2026 (revisión) — en null y no borrado: la nube copia sin preguntar
+     una llave que solo exista del otro lado (fusionarFila), así que un acuerdo
+     BORRADO volvía con «lo mío manda» y la cola llamaba como «🤝 Incumplido» a
+     quien ya pagó. Con la llave en null, la diferencia es un choque que ve
+     Joan; acuerdoDe ya lee null como «no hay acuerdo». */
+  if(ac) p.acuerdo=null;
+  guardar(); cerrarModal(); render();
+  if(s&&confirm(`Listo: abonó ${COP(a.x)}, queda debiendo ${COP(r.capital_despues)} de capital y paga ${COP(r.total_siguiente)} el ${fmtFecha(r.corte_nuevo)}.\n\n¿Mandarle el recibo por WhatsApp?`))
+    gestionar(id,'abonoProrroga');
+}
+/* 3-oct-2026 (revisión) — LA PLATA DE MÁS DEL DÍA DE LA PRÓRROGA. El puente
+   la arma (abonoConProrroga → mismo_dia.abono): va a capital en el ciclo que
+   pagó esa prórroga, como si se hubiera anotado antes, y la quincena nueva se
+   cobra sobre lo que quedó. Es otro botón y no «Registrar», con un confirm que
+   dice lo que YA entró ese día: así un doble clic, o reabrir la hoja y volver
+   a escribir los mismos 200.000, no mete la misma plata dos veces sin que Joan
+   lo lea. */
+function registrarAbonoMismoDia(id){
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  const a=abonoDeLaHoja(p), r=a.r, md=r.mismo_dia;
+  if(r.motivo!=='ya_registrado'||!md||!md.abono||a.vacio)
+    return alert((r.detalle||'No se puede sumar esa plata.')+'\n\nNo registré nada.');
+  if(md.abono.monto!==a.x||a.x>=capitalActual(p))
+    return alert('No cuadra: la hoja dice '+COP(a.x)+' y el abono armado es de '+COP(md.abono.monto)+'.\n\nNo registré nada. Vuelve a abrir el cobro.');
+  const s=DB.socios.find(x=>x.id===p.socioId);
+  if(!confirm(`${p.socioNombre} YA tiene registrado el ${fmtFecha(a.f)}: `
+    +`${COP(md.prorroga)} de la prórroga${md.a_capital_ya?` y ${COP(md.a_capital_ya)} a capital`:''}.\n\n`
+    +`¿Trajo ${COP(a.x)} MÁS, aparte de eso?\n\n`
+    +`• Van a capital, como parte de esa misma entrega\n`
+    +`• El capital baja de ${COP(capitalActual(p))} a ${COP(md.capital_despues)}\n`
+    +`• El ${fmtFecha(md.corte)}, si paga a tiempo, son ${COP(md.total_siguiente)} (${COP(md.capital_despues)} + ${COP(md.costo_siguiente)} de costo)\n`
+    +`• No deja garantía: es capital que vuelve\n\n¿Lo registro?`)) return;
+  p.abonosCapital=p.abonosCapital||[]; p.abonosCapital.push(md.abono);
+  addComp(p,'abono',a.x);
+  /* La hoja se olvida del monto: una segunda llamada con el mismo _cobro
+     volvería a ofrecer la misma plata como «más». */
+  reiniciarCobro(id);
+  guardar(); cerrarModal(); render();
+  if(s&&confirm(`Listo: ese día entregó ${COP(md.prorroga+md.a_capital_ya+a.x)} en total. Queda debiendo ${COP(md.capital_despues)} de capital y paga ${COP(md.total_siguiente)} el ${fmtFecha(md.corte)}.\n\n¿Mandarle el recibo por WhatsApp?`))
+    gestionar(id,'abonoProrroga');
+}
+
 /* Traduce lo respondido a UNA de las tres salidas, que son tres hechos
    distintos:
      pagó lo que debía / se lo perdonaste → pagarTotal()    (CIERRA el crédito)
@@ -5762,6 +6129,9 @@ function calcProrroga(id,p,liq,e,s){
 function registrarCobro(id){
   const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
   const f=gv('pgFecha')||hoyISO();
+  /* 3-oct-2026 — el abono que pasa a la otra quincena va ANTES que el plan: si
+     el crédito está en plan, el puente lo dice y no registra nada. */
+  if(_cobro.id===id&&_cobro.tipo==='abonoProrroga') return registrarAbonoProrroga(id);
   if(cuotaPlan(p)) return pagarTotal(id);            // con plan, el cobro es el de siempre
   const liq=liqCredito(p,f);
   const e=estadoDelCobro(p,liq), dc=decisionDelCobro(p,liq,e);
@@ -6135,9 +6505,16 @@ function cumplirAcuerdo(id){
      pacto, que es exactamente lo que se le prometió. Tarde: lo causado real,
      porque el precio pactado era PARA esa fecha. En los dos casos el número
      final lo dice el motor, no el papelito del pacto. */
+  /* 3-oct-2026 — `diasCausados` son los días de mora de HOY, no los del día
+     del pacto. Con los del pacto el motor le sumaba el 1% diario de los días
+     de en medio: un pacto del 3-oct por 88.000 para el 10-oct se cobraba
+     116.000 el 10-oct (7 × 4.000 de más) y el confirm lo llamaba «el precio
+     congelado del pacto». Con los de hoy, el motor no corre ni un día: entra
+     exactamente la mora congelada, que es lo que se le prometió por WhatsApp. */
   let r=null;
   try{ r=enFecha
-    ? MotorReglas.liquidarProrroga(creditoMotor(p),f,{recargoCausado:a.mora,diasCausados:a.diasMora})
+    ? MotorReglas.liquidarProrroga(creditoMotor(p),f,{recargoCausado:a.mora,
+        diasCausados:Math.max(Number(a.diasMora)||0,liqCredito(p,f).dias_mora||0)})
     : liqProrroga(p,f); }catch(e){ r=null; }
   if(!r) return alert('No pude liquidar la prórroga de este crédito.');
   if(!r.ok) return ofrecerPlanDePagos(p,r);
@@ -6156,7 +6533,9 @@ function cumplirAcuerdo(id){
   }
   addComp(p,'prorroga',r.total_a_pagar);
   p.cicloActual=r.fecha_corte_nueva;
-  delete p.acuerdo;
+  /* 3-oct-2026: null y no delete — una llave borrada la devuelve la fusión de
+     la nube en silencio (ver registrarAbonoProrroga). */
+  p.acuerdo=null;
   guardar(); cerrarModal(); render();
   const s=DB.socios.find(x=>x.id===p.socioId); if(s&&confirm('Prórroga registrada. ¿Avisar por WhatsApp?'))gestionar(id,'prorroga');
 }
@@ -6164,7 +6543,7 @@ function romperAcuerdo(id){
   const p=DB.prestamos.find(x=>x.id===id), a=acuerdoDe(p); if(!p||!a) return;
   if(!confirm('Deshacer el acuerdo del '+fmtFecha(a.pactadaPara)+' con '+p.socioNombre+'.\n\n'
     +'No borra plata ni mueve nada: el crédito queda como estaba, con su mora corriendo desde el corte real.\n\n¿Lo deshago?')) return;
-  delete p.acuerdo;
+  p.acuerdo=null;   // 3-oct-2026: null, no delete (la fusión de la nube lo devolvería)
   guardar(); cerrarModal(); render();
 }
 
@@ -12070,7 +12449,11 @@ function bloqueCreditosHTML(s){
   const ps=DB.prestamos.filter(p=>p.socioId===s.id);
   if(!ps.length) return '<div class="muted">Todavía no le has dado ningún crédito.</div>';
   const activos=ps.filter(p=>!p.pagado), previos=ps.filter(p=>p.pagado);
-  const filaCred=p=>`<div class="info-row"><span class="k">${fmtFecha(p.fechaDesembolso)} · ${COP(p.capital)}</span><span class="vv"><span class="chip ${estadoPrestamo(p)}">${ESTADO_TXT[estadoPrestamo(p)]}</span> <span class="gano">${COP(gananciaCobrada(p))}</span> <a href="#" onclick="event.preventDefault();verCredito('${p.id}')">ver</a></span></div>`;
+  /* 3-oct-2026 — «💵 pago» al lado de «ver» en los activos: la hoja de cobro
+     (pagó todo, prórroga, abonó y pasa a la próxima quincena) a un clic desde
+     la ficha, que es donde Joan está cuando el cliente le escribe. Antes había
+     que entrar al crédito y de ahí al cobro. */
+  const filaCred=p=>`<div class="info-row"><span class="k">${fmtFecha(p.fechaDesembolso)} · ${COP(p.capital)}</span><span class="vv"><span class="chip ${estadoPrestamo(p)}">${ESTADO_TXT[estadoPrestamo(p)]}</span> <span class="gano">${COP(gananciaCobrada(p))}</span> <a href="#" onclick="event.preventDefault();verCredito('${p.id}')">ver</a>${p.pagado?'':` · <a href="#" onclick="event.preventDefault();abrirPago('${p.id}')" title="Pagó todo, prórroga, o abonó y el resto pasa a la próxima quincena">💵 pago</a>`}</span></div>`;
   const debeHoy=activos.reduce((t,p)=>t+totalCiclo(p),0);
   const capCalle=activos.reduce((t,p)=>t+capitalActual(p),0);
   const bloqueSuma=activos.length>1
