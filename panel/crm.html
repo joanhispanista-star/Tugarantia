@@ -576,7 +576,15 @@
 
     <section class="view" id="v-registrados">
       <div class="ph"><div><h1>Registrados<span class="dot">.</span></h1><div class="sub">Se registraron solos o canjearon un código — todavía no son clientes: tú decides</div></div>
-        <button class="btn btn-negro" onclick="traerRegistros()">↻ Traer de la nube</button></div>
+        <!-- 2-oct-2026 — «Revisar a todos» abre panel/revision.html en otra
+             pestaña: pasa cada registro nuevo por las reglas y dice «para
+             mirar, y por qué». Va aparte y no dentro del CRM porque baja y mide
+             las fotos de todos, uno por uno, y eso no tiene por qué frenar el
+             CRM; y en otra pestaña porque el CRM se queda abierto para ir a
+             «👁 Ver datos» de quien la revisión señale. -->
+        <div style="display:flex;gap:var(--e2);flex-wrap:wrap">
+          <a class="btn btn-ghost" style="text-decoration:none" href="revision.html" target="_blank" rel="noopener" title="Pasa a todos los registrados nuevos por las reglas de revisión, en este computador">🔎 Revisar a todos</a>
+          <button class="btn btn-negro" onclick="traerRegistros()">↻ Traer de la nube</button></div></div>
       <div class="card"><div class="card-h"><h3>📥 Quién pidió entrar</h3><span class="tag">Al abrirles la ficha y darles su primer crédito pasan a Clientes</span></div>
         <div id="tblRegistros"></div></div>
       <!-- 22-sep-2026 — aqui estaba «Cupo de bienvenida (ruleta)». Se fue con la
@@ -7798,37 +7806,11 @@ function cotejarConLaFoto(idImg,celular,cajaId){
   const img=document.getElementById(idImg);
   if(!img){ caja.innerHTML='<div class="alerta warn">No tengo la foto del respaldo a la vista.</div>'; return; }
   caja.innerHTML='<span class="muted">Leyendo el código de barras de la foto… (la primera vez baja el lector)</span>';
-  Promise.all([cargarScriptCRM(URL_ZXING_CRM),cargarScriptCRM(URL_ESCANER_CRM)])
-  .then(()=>{
-    const EC=window.EscanerCedula, U=window.CuentaSocio;
-    if(!EC||!U||!window.ZXing) throw new Error('no cargó el lector');
-    const c=document.createElement('canvas');
-    c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height;
-    if(!c.width||!c.height) throw new Error('la foto no terminó de cargar');
-    c.getContext('2d',{willReadFrequently:true}).drawImage(img,0,0,c.width,c.height);
-    /* Los mismos giros de rescate que usa la app: el respaldo se fotografía de
-       pie tan a menudo como acostado, y el lector solo lee acostado. */
-    const giros=[0,90,180,270,2,-2,4,-4];
-    for(const g of giros){
-      let lienzo=c;
-      if(g){
-        const norma=((g%360)+360)%360, recto=(norma>45&&norma<135)||(norma>225&&norma<315);
-        const g2=document.createElement('canvas');
-        g2.width=recto?c.height:c.width; g2.height=recto?c.width:c.height;
-        const x=g2.getContext('2d');
-        x.translate(g2.width/2,g2.height/2); x.rotate(norma*Math.PI/180);
-        x.drawImage(c,-c.width/2,-c.height/2);
-        lienzo=g2;
-      }
-      const d=lienzo.getContext('2d',{willReadFrequently:true}).getImageData(0,0,lienzo.width,lienzo.height).data;
-      const r=EC.decodificarLuminancias(window.ZXing,EC.grisDeImageData(d,lienzo.width,lienzo.height),lienzo.width,lienzo.height);
-      if(r&&r.texto){
-        const ced=EC.cedulaDelTexto(U.leerCedulaPDF417,r.texto);
-        if(ced) return ced;
-      }
-    }
-    return null;
-  })
+  /* 2-oct-2026 — la lectura (cargar ZXing, girar la foto, decodificar) se mudó
+     a app/revision-fotos.js, porque panel/revision.html hace lo mismo con cada
+     registrado y dos copias de los giros son una que se queda atrás. Lo de
+     aquí abajo —mandarlo a la base y pintar lo que conteste— no cambió. */
+  conRevisionFotos().then(RF=>RF.leerCodigoDeImagen(img,{zxing:URL_ZXING_CRM,escaner:URL_ESCANER_CRM}))
   .then(ced=>{
     if(!ced){
       /* Y esto NO es «los datos son falsos»: la foto puede estar movida, con
@@ -7993,17 +7975,40 @@ function pintarFotosRegistro(celular,cajaId){
    MIT); ver app/lib/ORIGEN.md. */
 const URL_FACE_CRM='../app/lib/rostro/face-api.js', URL_MODELOS_CRM='../app/lib/rostro';
 function cargarScriptCRM(url){ return new Promise((res,rej)=>{ if(document.querySelector('script[src="'+url+'"]')) return res(); const s=document.createElement('script'); s.src=url; s.onload=()=>res(); s.onerror=()=>rej(new Error('no cargó '+url)); document.head.appendChild(s); }); }
-function parecidoDeDistancia(d){ return Math.round(Math.max(0,Math.min(1,1-d/1.2))*100); }
+/* 2-oct-2026 — LOS DOS BOTONES DE LA FICHA Y panel/revision.html USAN LA MISMA
+   PIEZA: app/revision-fotos.js (cargar face-api y ZXing, la distancia entre
+   rostros, los giros del código de barras), que a su vez toma el corte del
+   rostro del motor de la revisión (app/revision-registro.js). Antes todo eso
+   vivía aquí, y la revisión automática habría sido la segunda copia. Se bajan
+   al primer toque, no al abrir el CRM: son para la ficha de un registrado, y
+   así el CRM arranca igual que antes. La promesa se guarda para que dos toques
+   seguidos no se encuentren la librería a medio bajar. */
+const URL_REVISION_REGISTRO='../app/revision-registro.js', URL_REVISION_FOTOS='../app/revision-fotos.js';
+let _revisionFotos=null;
+function conRevisionFotos(){
+  if(window.RevisionFotos&&window.RevisionRegistro) return Promise.resolve(window.RevisionFotos);
+  if(!_revisionFotos){
+    _revisionFotos=cargarScriptCRM(URL_REVISION_REGISTRO).then(()=>cargarScriptCRM(URL_REVISION_FOTOS)).then(()=>{
+      if(!window.RevisionFotos||!window.RevisionRegistro) throw new Error('no cargó app/revision-fotos.js');
+      return window.RevisionFotos;
+    });
+    _revisionFotos.catch(()=>{ _revisionFotos=null; });
+  }
+  return _revisionFotos;
+}
 function compararRostro(idSelfie,idCedula,cajaId){
   const caja=document.getElementById(cajaId); if(!caja) return; caja.innerHTML='<span class="muted">Comparando… (la primera vez baja el modelo, unos segundos)</span>';
-  cargarScriptCRM(URL_FACE_CRM).then(()=>{ const fa=window.faceapi; return Promise.all([fa.nets.tinyFaceDetector.loadFromUri(URL_MODELOS_CRM),fa.nets.faceLandmark68TinyNet.loadFromUri(URL_MODELOS_CRM),fa.nets.faceRecognitionNet.loadFromUri(URL_MODELOS_CRM)]); })
-  .then(()=>{ const fa=window.faceapi; const opc=new fa.TinyFaceDetectorOptions({inputSize:416,scoreThreshold:0.4});
-    const desc=id=>fa.detectSingleFace(document.getElementById(id),opc).withFaceLandmarks(true).withFaceDescriptor();
-    return Promise.all([desc(idSelfie),desc(idCedula)]); })
-  .then(([a,b])=>{
-    if(!a||!b){ caja.innerHTML='<div class="alerta warn">No encontré un rostro en '+(!a&&!b?'ninguna de las dos fotos':!a?'la foto del rostro':'la foto de la cédula')+'. Míralas tú.</div>'; return; }
-    const d=window.faceapi.euclideanDistance(a.descriptor,b.descriptor), p=parecidoDeDistancia(d);
-    caja.innerHTML=`<div class="alerta ${d<0.6?'info':'warn'}"><b>Parecido rostro–cédula: ${p}%</b> — ${d<0.6?'probablemente la misma persona':'no parece la misma persona'} <span class="muted">(distancia ${d.toFixed(2)}; por debajo de 0,60 suele ser la misma). Es una ayuda: la foto de la cédula es chica y vieja. Decide tú.</span></div>`;
+  conRevisionFotos().then(RF=>RF.compararRostros(document.getElementById(idSelfie),document.getElementById(idCedula),{face:URL_FACE_CRM,modelos:URL_MODELOS_CRM}))
+  .then(r=>{
+    if(r.sin_rostro){ caja.innerHTML='<div class="alerta warn">No encontré un rostro en '+(r.sin_rostro==='ambas'?'ninguna de las dos fotos':r.sin_rostro==='selfie'?'la foto del rostro':'la foto de la cédula')+'. Míralas tú.</div>'; return; }
+    /* 2-oct-2026 (noche) — sin «%» ni «probablemente la misma persona»: un
+       porcentaje se lee como probabilidad, y la distancia no lo es. Dice lo
+       mismo que la revisión automática (app/revision-registro.js, regla del
+       rostro) para la misma distancia: una ayuda, nunca un veredicto. */
+    const dd=Number(r.distancia).toFixed(2).replace('.',','), corte=Number(r.umbral).toFixed(2).replace('.',',');
+    caja.innerHTML=r.debajo
+      ? `<div class="alerta info"><b>El programa no encontró una diferencia grande (distancia ${dd}). No dice que sea la misma persona.</b> <span class="muted">Es una ayuda: la foto de la cédula es chica y vieja. Decide tú, mirando las dos fotos.</span></div>`
+      : `<div class="alerta warn"><b>Se parecen poco (distancia ${dd}; desde ${corte} se avisa).</b> <span class="muted">Es una ayuda, no un veredicto: la foto de la cédula es chica y vieja, y la cara cambia con los años. Míralas tú.</span></div>`;
   }).catch(e=>{ caja.innerHTML='<div class="alerta warn">No pude comparar: '+escHTML((e&&e.message)||'sin conexión')+'</div>'; });
 }
 function fichaDesdeRegistro(id){

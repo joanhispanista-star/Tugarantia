@@ -239,6 +239,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
 .pill.mora{border-color:var(--ambar-filete);background:var(--ambar-papel);color:var(--ambar-tinta)}
 .pill.hoy{border-color:var(--ambar-filete);color:var(--ambar-tinta)}
 .pill.ok{border-color:color-mix(in srgb, var(--azul-texto) 25%, transparent);color:var(--azul-texto)}
+/* 2-oct-2026 — «Para mirar, y por qué» en la tarjeta de un registrado: la
+   lista de razones de la revisión, cada una con su porqué debajo. */
+.razones ul{margin:6px 0 0;padding-left:18px}
+.razones li{margin-top:6px}
+.razones .razon{display:block;color:var(--ambar-tinta)}
 
 /* ---------------- la barra de abajo, en dos pisos ---------------- */
 .abajo{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--papel);
@@ -445,6 +450,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
 <script src="tanda.js"></script>
 <!-- El chat, el mismo archivo que cargan crm.html y app/socio.html. -->
 <script src="../app/chat.js"></script>
+<!-- 2-oct-2026 — Las reglas que revisan a quien se registró, las MISMAS que
+     corre panel/revision.html en el computador (una regla en dos sitios es una
+     que se queda atrás). Aquí corren con lo poco que el teléfono recibe: sin
+     fotos, sin rostro, sin IP ni aparato. Está en la precarga de sw.js porque
+     la pestaña Registrados se abre también sin señal. -->
+<script src="../app/revision-registro.js"></script>
 <script>
 'use strict';
 /* =========================================================================
@@ -3063,8 +3074,41 @@ function vistaRegistrados() {
     h += '<div class="aviso info">No puedo saber qué pidió cada uno: a la base le falta enlazar las '
       + 'solicitudes con los registros. En el computador sí se ve.</div>';
   }
-  _reg.filas.forEach(function (r) { h += tarjetaRegistro(r); });
+  var revs = revisionDelCelular(_reg.filas);
+  if (!revs) {
+    h += '<div class="aviso ambar"><b>La revisión automática no cargó en este teléfono</b> (falta '
+      + '<span class="mono">app/revision-registro.js</span>). Recarga la app. Que no salga nada para mirar '
+      + '<b>no</b> quiere decir que no haya nada: en el computador, «🔎 Revisar a todos» sí revisa.</div>';
+  }
+  _reg.filas.forEach(function (r) { h += tarjetaRegistro(r, revs ? revs[String(r && r.id)] : null); });
   return h;
+}
+
+/* 2-oct-2026 — LA REVISIÓN EN EL CELULAR: las mismas reglas del computador
+   (app/revision-registro.js), con lo que este teléfono tiene: los demás
+   registrados de la lista y la cartera que ya bajó. Cada registro se compara
+   contra todos los demás de la lista (la cédula o el celular repetidos) y
+   contra los clientes.
+   Lo que el teléfono NO tiene, no se inventa: ni fotos, ni rostro, ni IP, ni
+   aparato, ni referencias. Esas reglas dicen «se revisa en el computador»
+   (donde: 'celular'), y la tarjeta lo resume en una línea.
+   sinBiometria() va igual aunque aquí no haya nada del rostro: es la regla
+   de todo lo que llega al celular, y así no depende de que la fila siga
+   viniendo recortada.
+   Devuelve {id: revisión}, o null si el archivo no cargó: null no es «nada
+   que mirar», y la pantalla lo dice. */
+function revisionDelCelular(filas) {
+  var RR = window.RevisionRegistro;
+  if (!RR || !RR.revisarLista) return null;
+  try {
+    var cartera = (DB && Array.isArray(DB.socios)) ? { socios: DB.socios } : null;
+    var lista = RR.revisarLista(filas || [], { cartera: cartera, hoy: hoyISO(), donde: 'celular' });
+    var out = {};
+    lista.forEach(function (x) { out[String(x.id)] = RR.sinBiometria(x.resultado); });
+    return out;
+  } catch (e) {
+    return null;
+  }
 }
 
 /* Una tarjeta por persona. Las píldoras salen SOLO cuando dicen algo: si todo
@@ -3072,8 +3116,15 @@ function vistaRegistrados() {
    días (la misma razón de chipDeCotejo en crm.html). Y van en ámbar o en gris,
    nunca en verde: un visto bueno al lado de un nombre se lee como «la casa
    comprobó quién es», y eso no se comprueba. Lo que hay es un COTEJO con el
-   código de barras, y solo informa cuando NO cuadra. */
-function tarjetaRegistro(r) {
+   código de barras, y solo informa cuando NO cuadra.
+
+   2-oct-2026 — `rev` es la revisión de este registro (revisionDelCelular).
+   Las píldoras de arriba se quedan como estaban: son el titular. Debajo va
+   «Para mirar, y por qué», SOLO lo ámbar y con su porqué; las notas neutras
+   no se pintan en el teléfono (la más común, «no llegó lectura del código»,
+   es la mayoría y no dice nada de la persona). Y una línea dice lo que este
+   teléfono no puede mirar, para que un silencio no se lea como «todo bien». */
+function tarjetaRegistro(r, rev) {
   r = r || {};
   var tel = String(r.telefono || '').replace(/\D/g, '').slice(-10);
   var lugar = [r.ciudad, r.barrio].filter(Boolean).join(' · ');
@@ -3112,6 +3163,22 @@ function tarjetaRegistro(r) {
      una cifra que no dijo. Y sin solicitud a la vista no se afirma que no
      pidió: se dice que este teléfono no la ve (la nube las enlaza por el
      registro y, si no, por el celular, y aun así puede faltar alguna). */
+  var porque = '';
+  var mirar = (rev && Array.isArray(rev.para_mirar)) ? rev.para_mirar : [];
+  if (mirar.length) {
+    porque = '<div class="aviso ambar razones"><b>Para mirar, y por qué</b><ul>'
+      + mirar.map(function (x) {
+          return '<li><b>' + esc(x.texto) + '</b>'
+            + (x.detalle ? '<span class="mini razon">' + esc(x.detalle) + '</span>' : '') + '</li>';
+        }).join('')
+      + '</ul></div>';
+  }
+  /* 2-oct-2026 (noche) — no dice «código de barras»: esta misma tarjeta
+     muestra las razones del cotejo con el código. Y dice CUÁNDO: el
+     computador revisa solo cuando Joan abre «🔎 Revisar a todos». */
+  porque += '<div class="mini">Fotos y rostro: solo en el computador, al abrir 🔎 Revisar a todos. '
+    + 'Allí también se miran las referencias, la fecha de expedición y la red.</div>';
+
   var ped = r.pedido;
   var pidio = '';
   if (ped && typeof ped === 'object') {
@@ -3134,6 +3201,7 @@ function tarjetaRegistro(r) {
     +       (lugar ? ' · ' + esc(lugar) : '') + '</div></div>'
     + '</div>'
     + (chips.length ? '<div class="chips">' + chips.join('') + '</div>' : '')
+    + porque
     + yaEs
     + pidio
     + (tel.length === 10

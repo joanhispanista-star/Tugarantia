@@ -1544,7 +1544,26 @@
 /* v125 - 2-oct-2026. LAS CIFRAS DEL CELULAR NO SE PARTEN. Visto en el sitio a
    375 px: en Tu gente «$2.000» salia «$2.00» y «0» en dos renglones, por la
    regla que parte las palabras largas de las tarjetas. Toca panel/espejo.html. */
-const CACHE = 'tugarantia-v125';
+/* v126 - 2-oct-2026. LOS REGISTRADOS SE REVISAN SOLOS. Joan pidio automatizar
+   la revision de quien se registra (foto mala, datos que no cuadran, celular
+   repetido). Nace app/revision-registro.js, las reglas, y entra a la precarga
+   porque el espejo lo carga con un <script src> y la pestana Registrados se
+   abre sin senal: sin el en la cache recibiria index.html por la caida de la
+   rama de .js (el defecto v19). panel/revision.html (el computador) y
+   app/revision-fotos.js NO entran: necesitan la nube para traer las fotos, y
+   el CRM baja revision-fotos.js solo al tocar un boton de la ficha. Toca
+   panel/crm.html (los dos botones de la ficha usan la pieza compartida y
+   «Revisar a todos» en Registrados) y panel/espejo.html (las razones en cada
+   tarjeta). */
+/* v127 - 2-oct-2026 (noche). LA SEGUNDA VUELTA DE LA REVISION. Tres revisiones
+   adversarias (ley, seguridad, reglas) corrigieron app/revision-registro.js:
+   otra medida de la nitidez (la vieja llamaba borrosa a una cedula nitida de
+   noche y no veia el pulso de la mano), la selfie con el brillo de la app,
+   frases que afirmaban de mas y sospechas repetidas. El celular la tiene en
+   la precarga, asi que sin subir la cache seguiria con las reglas viejas.
+   Toca tambien panel/espejo.html (la linea de lo que se mira en el
+   computador). Ningun archivo nuevo entra a la lista. */
+const CACHE = 'tugarantia-v127';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -1585,6 +1604,8 @@ const ARCHIVOS = [
   'panel/tanda.js',
   /* 2-oct-2026 — «Tu gente», los referidos del espejo. Ver la nota de v124. */
   'app/gente.js',
+  /* 2-oct-2026 — las reglas de la revision de registrados. Ver la nota de v126. */
+  'app/revision-registro.js',
   'panel/panel-180.png',
   'panel/panel-192.png',
   'panel/panel-512.png',

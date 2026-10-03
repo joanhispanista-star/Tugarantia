@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+<meta charset="UTF-8">
+<script>
+/* La «s» de https, igual que en crm.html y por la misma razón: http y https son
+   dos cajones distintos del navegador, y en el de http no está ni la clave de
+   la nube ni la cartera. Va antes de cualquier otro script. */
+(function () {
+  var h = location.hostname;
+  if (location.protocol === 'http:' && h !== 'localhost' && h !== '127.0.0.1'
+      && h.indexOf('192.168.') !== 0 && h !== '[::1]') {
+    location.replace('https:' + location.href.substring(location.protocol.length));
+  }
+})();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Revisar registrados · Tu Garantía</title>
+<meta name="theme-color" content="#0C0A0B">
+<link rel="icon" type="image/png" href="panel-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* La paleta es la del CRM (ver LA LEY DE LA PALETA en crm.html): esta página
+     es una herramienta del mismo computador y tiene que leerse igual. Lo que
+     hay que mirar va en ÁMBAR, sobre papel. Nunca verde: un visto bueno al lado
+     de un nombre se lee como «la casa comprobó quién es», y eso no se
+     comprueba con nada de lo que hay aquí. */
+  :root{
+    --laca:#0C0A0B;--laca-2:#1A1618;
+    --papel:#FFFFFF;--papel-2:#FBF9F7;--fondo:#F6F3F0;--tinta:#111111;
+    --amarillo-tinta:#7A5A10;--amarillo-rgb:245,197,66;
+    --azul:#1B4FD8;--azul-tinte:#EDF2FE;--azul-rgb:27,79,216;
+    --rojo:#D81F26;--rojo-osc:#A8161C;
+    --ambar:#9A5B12;--ambar-tinte:#FBF0DE;--ambar-medio:#F3E2C4;
+    --gris:#6E6460;--gris-claro:#7A6F6A;--tinta-2:#4A423E;
+    --linea:#E9E3DD;--linea-2:#F1ECE7;--neutro-1:#EFEAE5;
+    --laca-rgb:12,10,11;
+    --sombra:rgba(var(--laca-rgb),.72);
+    --r:16px;
+    --e1:4px;--e2:8px;--e3:12px;--e4:20px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--fondo);color:var(--tinta);-webkit-font-smoothing:antialiased}
+  h1,h2,h3{line-height:1.12;letter-spacing:-.01em}
+  .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+  button,input{font-family:inherit}button{cursor:pointer}
+  .oculto{display:none !important}
+
+  .gate{position:fixed;inset:0;background:var(--laca);display:grid;place-items:center;z-index:100;padding:var(--e4)}
+  .gate-card{background:var(--papel);border-radius:18px;padding:38px;width:340px;max-width:100%;text-align:center;box-shadow:0 30px 80px -28px var(--sombra)}
+  .gate-card .mk{display:flex;align-items:center;justify-content:center;gap:11px;font-family:Georgia,'Times New Roman',serif;font-size:29px;color:var(--laca);line-height:1}
+  .gate-card .mk .sello{width:40px;height:40px;border-radius:11px;background:var(--rojo);color:var(--papel);display:grid;place-items:center;font-size:22px;font-weight:700;flex:none}
+  .gate-card .tag{font-size:12px;color:var(--gris);margin:8px 0 22px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+  .gate-card input{width:100%;text-align:center;font-family:'JetBrains Mono';font-size:24px;letter-spacing:.4em;padding:12px;border:2px solid var(--linea);border-radius:10px;background:var(--papel);margin-bottom:var(--e3)}
+  .gate-err{color:var(--ambar);font-size:13px;margin-top:var(--e2);min-height:18px}
+
+  .main{max-width:980px;margin:0 auto;padding:24px 30px 60px}
+  .ph{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin-bottom:var(--e4)}
+  .ph h1{font-family:'Archivo Black';font-size:26px}
+  .ph h1 .dot{color:var(--rojo)}
+  .ph .sub{color:var(--gris);font-size:14px;margin-top:4px;font-weight:500}
+  .acciones{display:flex;gap:var(--e2);flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:7px;border:none;font-weight:700;font-size:14px;padding:11px 18px;border-radius:10px;min-height:44px;text-decoration:none}
+  .btn-negro{background:var(--laca);color:var(--papel)}.btn-negro:hover{background:var(--laca-2)}
+  .btn-rojo{background:var(--rojo);color:var(--papel);width:100%;justify-content:center}.btn-rojo:hover{background:var(--rojo-osc)}
+  .btn-ghost{background:var(--papel);border:1.5px solid var(--linea);color:var(--laca)}.btn-ghost:hover{border-color:var(--rojo);color:var(--rojo)}
+  .btn:disabled{opacity:.5;cursor:default}
+
+  .alerta{border-radius:9px;padding:10px 13px;font-size:13px;margin-bottom:14px;line-height:1.45}
+  .alerta.warn{background:var(--ambar-tinte);color:var(--ambar);border:1px solid var(--ambar-medio)}
+  .alerta.info{background:var(--azul-tinte);color:var(--tinta-2);border:1px solid rgba(var(--azul-rgb),.22)}
+  .alerta ul{margin:6px 0 0 18px}.alerta li{margin-top:3px}
+  .muted{color:var(--gris);font-size:12.5px}
+
+  .progreso{font-size:13.5px;color:var(--tinta-2);background:var(--papel);border:1px solid var(--linea);border-radius:10px;padding:10px 14px;margin-bottom:var(--e4)}
+  .progreso:empty{display:none}
+  .grupo-h{display:flex;align-items:baseline;gap:var(--e3);margin:26px 0 var(--e3)}
+  .grupo-h h2{font-size:18px;font-weight:800}
+  .grupo-h.mirar h2{color:var(--ambar)}
+
+  .card{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);margin-bottom:14px;padding:16px 20px}
+  .card.mirar{border-left:4px solid var(--ambar)}
+  .reg-h{display:flex;justify-content:space-between;gap:var(--e3);flex-wrap:wrap;align-items:flex-start}
+  .reg-h b.nom{font-size:16px}
+  .reg-h .quien{min-width:0;overflow-wrap:anywhere}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap;background:var(--neutro-1);color:var(--tinta-2);vertical-align:middle}
+  .chip.mora{background:var(--ambar);color:var(--papel)}
+  .lista-mirar{list-style:none;margin-top:var(--e3)}
+  .lista-mirar li{border-left:3px solid var(--ambar-medio);background:var(--ambar-tinte);border-radius:0 8px 8px 0;padding:8px 12px;margin-top:6px;font-size:14px;color:var(--tinta);overflow-wrap:anywhere}
+  .lista-mirar li.p3{border-left-color:var(--ambar);border-left-width:5px}
+  .lista-mirar li.p2{border-left-color:var(--ambar)}
+  .lista-mirar li .det{display:block;color:var(--tinta-2);font-size:12.5px;margin-top:3px;line-height:1.4}
+  .nada{margin-top:var(--e3);font-size:14px;color:var(--tinta-2)}
+  .sub-h{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--amarillo-tinta);font-weight:800;margin:14px 0 6px}
+  .lista-sin,.lista-notas{margin-left:18px;font-size:13px;color:var(--gris);line-height:1.45}
+  .lista-sin li,.lista-notas li{margin-top:3px;overflow-wrap:anywhere}
+  details{margin-top:10px;font-size:13px}
+  summary{cursor:pointer;color:var(--tinta-2);font-weight:600}
+  table.medidas{border-collapse:collapse;margin-top:8px;font-size:12.5px;width:100%}
+  table.medidas th,table.medidas td{border-bottom:1px solid var(--linea-2);padding:5px 8px;text-align:left}
+  table.medidas td.n{font-family:'JetBrains Mono';font-variant-numeric:tabular-nums}
+  table.medidas td.fuera{color:var(--ambar);font-weight:700}
+  .abrir{margin-top:12px;font-size:12.5px;color:var(--gris);border-top:1px dashed var(--linea);padding-top:10px}
+  .pendiente{font-size:12.5px;color:var(--gris)}
+  .empty{padding:44px 20px;text-align:center;color:var(--gris);background:var(--papel);border:1px solid var(--linea);border-radius:var(--r)}
+  .empty .ic{font-size:32px;opacity:.45}
+  @media (max-width:640px){ .main{padding:16px} .card{padding:14px} table.medidas{font-size:11.5px} }
+</style>
+</head>
+<body>
+
+<!-- El PIN del Panel. El mismo de crm.html (config.pin de la cartera), por la
+     razón de subir.html: esta página muestra nombres, cédulas y la revisión de
+     quien se registró; si el Panel pide PIN y esta no, esta sería la puerta de
+     atrás del Panel. -->
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <div class="mk"><span class="sello">G</span> Tu&nbsp;Garantía</div>
+    <div class="tag">Revisar registrados</div>
+    <input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off" aria-label="PIN del Panel">
+    <button class="btn btn-rojo" type="button" data-acc="entrar">Entrar</button>
+    <div class="gate-err" id="pinErr" role="alert"></div>
+  </div>
+</div>
+
+<div class="main oculto" id="todo">
+  <div class="ph">
+    <div><h1>Revisar registrados<span class="dot">.</span></h1>
+      <div class="sub">Para mirar, y por qué. Revisa a los nuevos de la bandeja, uno por uno, en este computador.</div></div>
+    <div class="acciones">
+      <button class="btn btn-negro" type="button" data-acc="revisar" id="btnRevisar">↻ Volver a revisar</button>
+      <a class="btn btn-ghost" href="crm.html">Abrir el CRM</a>
+    </div>
+  </div>
+
+  <div class="alerta info">
+    <b>Qué hace y qué no.</b> Pasa a cada registrado nuevo por las reglas y te deja lo que hay que mirar, con el porqué. No decide por nadie y no le cambia el estado a ninguna ficha: decides tú, en el CRM.
+    <ul>
+      <li>Las fotos se bajan y se miden aquí, una persona a la vez. Ojo: el servidor guarda las fotos por número de celular, no por registro, y no mira si la persona marcó la autorización de fotos. Por eso solo se miden las que subió ese mismo registro; si el número está también en el registro de otra cédula, no se miden y se dice. Ninguna foto se guarda.</li>
+      <li>El parecido entre la selfie y la cédula es una ayuda, nunca un veredicto: la foto de la cédula es chica y vieja.</li>
+      <li>La revisión no se guarda en la nube ni viaja al celular. Para no volver a bajar todo al recargar, esta pestaña recuerda las medidas de las fotos y el cotejo (nunca una foto ni nada sacado del rostro) mientras siga abierta; «Reabrir pestaña cerrada» del navegador la puede traer de vuelta. Lo único que queda en la nube es el cotejo del código de barras contra la foto del reverso, lo mismo que guarda el botón «🔢 Leer el código de barras de la foto» de la ficha.</li>
+      <li>Ninguna regla sabe si un número tiene WhatsApp o es de la persona: eso solo lo dice escribirle.</li>
+    </ul>
+  </div>
+
+  <div id="avisos"></div>
+  <div id="progreso" class="progreso" aria-live="polite"></div>
+  <div id="resultado"></div>
+</div>
+
+<!-- El motor de reglas (puro) y la pieza que mira las fotos. Los dos los usa
+     también el CRM, para que una regla no viva en dos sitios. -->
+<script src="../app/revision-registro.js"></script>
+<script src="../app/revision-fotos.js"></script>
+<script>
+'use strict';
+/* =========================================================================
+ * REVISAR A TODOS LOS REGISTRADOS — 2 de octubre de 2026
+ *
+ * Joan, el 1-oct: «cuando un cliente se registre y tome la foto mal o envíe
+ * información errónea como WhatsApp falso, todo quiero que se pueda
+ * automatizar». Hasta hoy era botón por botón dentro de «👁 Ver datos»: el
+ * rostro, el código de barras, mirar la IP. Esta página lo hace con todos.
+ *
+ * CÓMO TRABAJA
+ *   1. Trae los nuevos de la bandeja con listar_registros (la misma clave del
+ *      CRM, de 'joan_socios_sb'), y los atendidos y descartados solo para
+ *      COMPARAR: la cédula repetida suele estar en uno ya descartado.
+ *   2. Corre las reglas que no necesitan fotos y pinta enseguida.
+ *   3. Después, UNO POR UNO (las fotos pesan): pide sus fotos, las mide, vuelve
+ *      a leer el código de barras del reverso y compara el rostro, y repinta.
+ *
+ * LA CARTERA SE LEE Y NO SE ESCRIBE. 'joan_socios_v1' es del CRM. Esta página
+ * la abre para cruzar cédulas y celulares con los clientes, y nunca la guarda:
+ * un setItem desde aquí pisaría lo que el CRM tenga en memoria en la otra
+ * pestaña. Una prueba lo vigila.
+ *
+ * DATOS BIOMÉTRICOS (Ley 1581). Las fotos y el rostro se procesan SOLO aquí.
+ * Lo que sale de comparar rostros no se manda a ningún lado: ni a la nube ni
+ * al celular, y desde el 2-oct-2026 (noche) tampoco a la pestaña: lo que se
+ * recuerda para no volver a bajar todo al recargar va a sessionStorage, que
+ * Chrome guarda en el disco para «Reabrir pestaña cerrada», y lleva las
+ * medidas de las fotos, el cotejo (con nombres y números de cédula: no son
+ * «solo números») y las notas; nunca una foto ni nada del rostro. Quien tenía
+ * comparación de rostros se vuelve a revisar entero al recargar.
+ *
+ * LAS FOTOS SON DEL CELULAR, NO DEL REGISTRO (2-oct-2026, noche). El servidor
+ * guarda una foto de cada tipo por celular (registro_archivos, unique
+ * (celular, tipo)) y archivos_de_registro las devuelve por celular, sin decir
+ * de qué registro son. Quien se registra con el número de otro —o vuelve con
+ * el suyo sin subir fotos— recibía las del registro anterior: se medían, se
+ * comparaba ESA cara bajo el nombre nuevo, y verificar_registro_foto escribía
+ * en la nube, sobre la fila nueva, un cotejo con ESE código de barras. Ver
+ * mirarFotos: solo se miden las fotos que subió ESTE registro.
+ *
+ * TODO LO QUE ESCRIBIÓ QUIEN SE REGISTRÓ ES DE LA CALLE. Pasa por escHTML al
+ * pintarse, y las fotos solo se abren si pasan la reja de bytesDeFoto (base64
+ * limpio de jpeg, png, webp o gif). Ninguna foto se pinta en esta página.
+ * ========================================================================= */
+
+var RR = window.RevisionRegistro || null;
+var RF = window.RevisionFotos || null;
+var LLAVE_CARTERA = 'joan_socios_v1';     // del CRM: SOLO se lee
+var LLAVE_NUBE = 'joan_socios_sb';        // la conexión del CRM: SOLO se lee
+var LLAVE_PESTANIA = 'tg_revision_registros_v1';   // sessionStorage, esta pestaña
+
+function $(id) { return document.getElementById(id); }
+function escHTML(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+  });
+}
+function esObjeto(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+function leerJSON(k) {
+  try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; }
+}
+function sbCfg() { var c = leerJSON(LLAVE_NUBE); return esObjeto(c) ? c : {}; }
+function nubeLista() { var c = sbCfg(); return !!(c.url && c.anon && c.clave); }
+function isoLocal(d) { var z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); }
+function hoyISO() { return isoLocal(new Date()); }
+function idDe(r) { return String(r && r.id != null ? r.id : ''); }
+function celularDe(r) { return String((r && r.telefono) || '').replace(/\D/g, '').slice(-10); }
+
+/* El PIN, el mismo de crm.html y con el mismo valor por defecto que pone su
+   cargar() cuando la cartera no trae configuración. */
+function pinGuardado() {
+  var d = leerJSON(LLAVE_CARTERA);
+  return (d && d.config && d.config.pin) ? String(d.config.pin) : '1234';
+}
+/* La cartera para cruzar: solo los socios, y solo leídos. */
+function carteraLeida() {
+  var d = leerJSON(LLAVE_CARTERA);
+  if (!esObjeto(d)) return null;
+  var s = Array.isArray(d.socios) ? d.socios : Array.isArray(d.clientes) ? d.clientes : null;
+  return s ? { socios: s } : null;
+}
+
+/* La fecha en Bogotá, como la nombra el motor: el CRM corta creado_en a sus
+   diez primeros caracteres, que es el día UTC, y un registro de las 8 de la
+   noche saldría al día siguiente. */
+var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function fechaBogota(v) {
+  var ms = Date.parse(String(v || ''));
+  if (!isFinite(ms)) return '';
+  var d = new Date(ms - 5 * 3600000);
+  return d.getUTCDate() + '-' + MESES[d.getUTCMonth()] + '-' + d.getUTCFullYear();
+}
+function horaLocal(ms) {
+  var d = new Date(ms);
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+/* ===== LA NUBE, con la misma puerta y los mismos errores que el CRM ===== */
+function rpc(fn, cuerpo) {
+  var c = sbCfg();
+  if (!nubeLista()) return Promise.reject({ motivo: 'Este navegador no tiene la conexión a la nube.' });
+  return fetch(String(c.url).replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: c.anon, Authorization: 'Bearer ' + c.anon },
+    body: JSON.stringify(cuerpo)
+  }).then(function (r) {
+    return r.text().then(function (t) {
+      if (r.status === 404) throw { motivo: 'Tu base todavía no tiene «' + fn + '».', estado: 404 };
+      if (!r.ok) {
+        throw { estado: r.status, motivo: t.indexOf('clave') >= 0
+          ? 'Tu clave de sincronización no es la que quedó en la base.'
+          : 'Supabase respondió ' + r.status + ': ' + t.slice(0, 140) };
+      }
+      try { return t ? JSON.parse(t) : null; } catch (e) { return t; }
+    });
+  }, function () {
+    throw { motivo: 'No hubo conexión con la nube. Revisa el internet y vuelve a intentar.' };
+  });
+}
+function motivoDe(e) { return (e && (e.motivo || e.message)) || 'sin motivo'; }
+
+/* ===== EL ESTADO =====
+   estado: 'nada' | 'cargando' | 'ok' | 'error' | 'sin_nube' | 'sin_motor'.
+   Son cosas distintas y la pantalla las dice distintas: «no pude preguntar»
+   no es «no hay nadie». */
+var EST = nuevoEstado();
+function nuevoEstado() {
+  return {
+    estado: 'nada', error: '', corrida: 0,
+    filas: [], ademas: [], ademasFallo: '', cartera: null, leidoEn: 0,
+    porId: {},      // id -> {fotos, rostro, cotejo}: lo que se le pasa al motor
+    notas: {},      // id -> [{clase:'mirar'|'neutro'|'sin', peso, texto, detalle, reintentar}]
+    hecho: {},      // id -> true cuando sus fotos ya se miraron
+    actual: '',     // el id que se está mirando ahora
+    rostroFallo: '', lectorFallo: '', cotejoFalta: false, fin: 0
+  };
+}
+
+/* ===== LO QUE SE RECUERDA EN ESTA PESTAÑA =====
+   Las medidas, el cotejo y las notas propias; ni una foto, ni nada del
+   rostro (ni la distancia ni dónde no hubo cara: es un dato sacado de la
+   cara, y sessionStorage llega al disco). Cada registro se reconoce por su id
+   Y su hora de registro, para no pegarle a alguien la revisión de otro. Lo
+   que falló por la nube no se guarda: la próxima vez se vuelve a intentar. */
+function firmaDe(r) { return idDe(r) + '|' + String((r && r.creado_en) || ''); }
+function guardarPestania() {
+  try {
+    var porId = {};
+    EST.filas.forEach(function (r) {
+      var id = idDe(r);
+      if (!EST.hecho[id]) return;
+      var notas = EST.notas[id] || [];
+      if (notas.some(function (n) { return n.reintentar; })) return;
+      var x = EST.porId[id] || {};
+      porId[id] = { firma: firmaDe(r), fotos: x.fotos || null, cotejo: x.cotejo || null, notas: notas };
+    });
+    sessionStorage.setItem(LLAVE_PESTANIA, JSON.stringify({ v: 1, porId: porId }));
+  } catch (e) { /* sin sessionStorage: se vuelve a revisar al recargar, y ya */ }
+}
+function recuperarPestania() {
+  var g = null;
+  try { g = JSON.parse(sessionStorage.getItem(LLAVE_PESTANIA) || 'null'); } catch (e) { g = null; }
+  if (!esObjeto(g) || !esObjeto(g.porId)) return;
+  EST.filas.forEach(function (r) {
+    var id = idDe(r), x = g.porId[id];
+    if (!esObjeto(x) || x.firma !== firmaDe(r)) return;
+    /* Quien tenía selfie y frente tuvo comparación de rostros, que no se
+       guardó: se revisa entero otra vez, para que «se parecen poco» no se
+       pierda al recargar. */
+    if (esObjeto(x.fotos) && esObjeto(x.fotos.selfie) && esObjeto(x.fotos.cedula_frente)) return;
+    EST.porId[id] = { fotos: esObjeto(x.fotos) ? x.fotos : null, rostro: null,
+                      cotejo: esObjeto(x.cotejo) ? x.cotejo : null };
+    EST.notas[id] = Array.isArray(x.notas) ? x.notas.filter(esObjeto) : [];
+    EST.hecho[id] = true;
+  });
+}
+function olvidarPestania() {
+  try { sessionStorage.removeItem(LLAVE_PESTANIA); } catch (e) {}
+}
+
+/* ===== REVISAR ===== */
+function revisarTodo(desdeCero) {
+  var corrida = EST.corrida + 1;
+  EST = nuevoEstado();
+  EST.corrida = corrida;
+  if (desdeCero) olvidarPestania();
+  if (!RR) { EST.estado = 'sin_motor'; pintar(); return Promise.resolve(); }
+  if (!nubeLista()) { EST.estado = 'sin_nube'; pintar(); return Promise.resolve(); }
+  EST.estado = 'cargando';
+  EST.cartera = carteraLeida();
+  pintar();
+  var clave = sbCfg().clave;
+  return rpc('listar_registros', { p_clave: clave, p_estado: 'nuevo' })
+    .then(function (filas) {
+      if (corrida !== EST.corrida) return;
+      EST.filas = (Array.isArray(filas) ? filas : []).filter(esObjeto);
+      EST.leidoEn = Date.now();
+      if (!EST.filas.length) { EST.estado = 'ok'; pintar(); return; }
+      return traerAdemas(clave, corrida).then(function () {
+        if (corrida !== EST.corrida) return;
+        EST.estado = 'ok';
+        recuperarPestania();
+        pintar();
+        return siguiente(corrida);
+      });
+    })
+    .catch(function (e) {
+      if (corrida !== EST.corrida) return;
+      EST.estado = 'error';
+      EST.error = motivoDe(e);
+      pintar();
+    });
+}
+
+/* Los atendidos y descartados, solo para comparar. Si no llegan, se sigue con
+   los nuevos y se dice: la cédula repetida de uno ya descartado no se vería. */
+function traerAdemas(clave, corrida) {
+  var malos = [];
+  var pedir = function (estado) {
+    return rpc('listar_registros', { p_clave: clave, p_estado: estado })
+      .then(function (f) { return (Array.isArray(f) ? f : []).filter(esObjeto); },
+            function (e) { malos.push(motivoDe(e)); return []; });
+  };
+  return Promise.all([pedir('atendido'), pedir('descartado')]).then(function (dos) {
+    if (corrida !== EST.corrida) return;
+    EST.ademas = dos[0].concat(dos[1]);
+    EST.ademasFallo = malos.length ? malos[0] : '';
+  });
+}
+
+/* Uno por uno, en orden. Cada vuelta mira las fotos de UNA persona y repinta. */
+function siguiente(corrida) {
+  if (corrida !== EST.corrida) return Promise.resolve();
+  var pend = EST.filas.filter(function (r) { return !EST.hecho[idDe(r)]; });
+  if (!pend.length) {
+    EST.actual = ''; EST.fin = Date.now();
+    guardarPestania();
+    pintar();
+    return Promise.resolve();
+  }
+  var r = pend[0], id = idDe(r);
+  EST.actual = id;
+  pintar();
+  /* 2-oct-2026 — lo que falle con UNA persona se queda en su ficha. Antes, un
+     error al medir una foto subía hasta revisarTodo y la página entera decía
+     «No pude traer los registrados», borrando lo de todos; y como la bandeja
+     viene de la más nueva a la más vieja, pasaba en cada vuelta. */
+  var p;
+  try { p = mirarFotos(r, corrida); } catch (e) { p = Promise.reject(e); }
+  return p.then(null, function (e) {
+    if (corrida !== EST.corrida) return;
+    (EST.notas[id] = EST.notas[id] || []).push({ clase: 'sin', reintentar: true,
+      texto: 'Algo falló al mirar sus fotos (' + motivoDe(e) + '): no se terminaron de revisar. Míralas en la ficha.' });
+  }).then(function () {
+    if (corrida !== EST.corrida) return;
+    EST.hecho[id] = true;
+    guardarPestania();
+    pintar();
+    return siguiente(corrida);
+  });
+}
+
+var NOMBRE_FOTO = { cedula_frente: 'la foto del frente de la cédula', cedula_reverso: 'la foto del reverso',
+                    selfie: 'la selfie' };
+var TIPO_FOTO = { cedula_frente: 'documento', cedula_reverso: 'documento', selfie: 'selfie' };
+
+/* Si algún día el registro trae que la persona dijo NO a las fotos
+   (RECETA-REVISION-PLAY.md: play/ va a mandar `fotos_autorizadas`), no se
+   piden ni se miran, aunque el servidor tuviera alguna. Mientras no llegue,
+   vale lo de siempre: play/ solo sube fotos con la casilla marcada. */
+function dijoNoALasFotos(r) {
+  var d = esObjeto(r.datos) ? r.datos : null;
+  if (!d || !Object.prototype.hasOwnProperty.call(d, 'fotos_autorizadas')) return false;
+  return /^(no|false|0)$/i.test(String(d.fotos_autorizadas).trim());
+}
+
+/* ===== ¿ESTAS FOTOS SON DE ESTE REGISTRO? (2-oct-2026, noche) =====
+   El servidor no lo dice (ver la cabecera). Lo que sí deja es la HUELLA: cada
+   vez que un teléfono sube fotos con su sesión, registro_archivos_guardar
+   escribe `momento` en la fila más nueva de ese celular. Así que:
+     · sin `momento`, o con uno de ANTES de que existiera este registro, este
+       registro no subió fotos: las que haya con ese número son de otro;
+     · con `momento` después del registro, las subió este registro… salvo que
+       el número esté también en el registro de OTRA cédula, o en uno más
+       nuevo (el servidor escribe en el más nuevo): entonces puede quedar
+       alguna foto del otro (se guarda una por tipo y celular, y una subida
+       solo pisa los tipos que trae), y no hay cómo saber cuál.
+   Ante la duda NO se miden: medir la cara de una persona bajo el nombre de
+   otra es tratar su dato biométrico sin su autorización, y el cotejo quedaría
+   escrito en la nube sobre la fila equivocada. El arreglo de fondo es del
+   servidor (atar las fotos al registro): ver el resumen del 2-oct. */
+function msDe(v) { var ms = Date.parse(String(v || '')); return isFinite(ms) ? ms : NaN; }
+function subioFotosEsteRegistro(r) {
+  var m = esObjeto(r.huella) ? msDe(r.huella.momento) : NaN, c = msDe(r.creado_en);
+  return isFinite(m) && isFinite(c) && m >= c;
+}
+function cedulaDe(r) {
+  var c = (r && r.cedula) || (r && esObjeto(r.datos) && r.datos.documento) || '';
+  return String(c).replace(/\D/g, '').replace(/^0+/, '');
+}
+function cualRegistro(o) {
+  var f = fechaBogota(o.creado_en);
+  return (f ? 'el registro del ' + f : 'otro registro')
+    + (o.estado === 'descartado' ? ' (descartado)' : o.estado === 'atendido' ? ' (atendido)' : '');
+}
+function hayFotos(a) {
+  var f = (esObjeto(a) && esObjeto(a.fotos)) ? a.fotos : {};
+  return ['cedula_frente', 'cedula_reverso', 'selfie'].some(function (k) { return !!f[k]; });
+}
+
+function mirarFotos(r, corrida) {
+  var id = idDe(r), tel = celularDe(r);
+  var extra = EST.porId[id] = { fotos: null, rostro: null, cotejo: null };
+  var notas = EST.notas[id] = [];
+  if (dijoNoALasFotos(r)) {
+    notas.push({ clase: 'neutro', texto: 'Dijo que no a las fotos: no se pidieron ni se miraron.' });
+    return Promise.resolve();
+  }
+  if (!RF) {
+    notas.push({ clase: 'sin', texto: 'No cargó app/revision-fotos.js: las fotos no se miraron. Recarga la página.', reintentar: true });
+    return Promise.resolve();
+  }
+  if (tel.length !== 10) {
+    notas.push({ clase: 'sin', texto: 'No tiene un celular de 10 dígitos, y las fotos se piden por el celular.' });
+    return Promise.resolve();
+  }
+  var clave = sbCfg().clave;
+
+  if (!subioFotosEsteRegistro(r)) {
+    /* Se pregunta solo si HAY fotos con ese número (eso sí dice algo: alguien
+       se registró con un celular que ya tenía fotos, sin subir las suyas). No
+       se abren, no se miden, no se compara la cara ni se coteja. */
+    return rpc('archivos_de_registro', { p_clave: clave, p_celular: tel }).then(function (a) {
+      if (corrida !== EST.corrida) return;
+      extra.fotos = {};
+      if (hayFotos(a)) {
+        notas.push({ clase: 'mirar', peso: 2,
+          texto: 'Hay fotos guardadas con este celular, pero no las subió este registro',
+          detalle: 'El servidor guarda las fotos por número de celular, no por registro, y este registro no tiene la huella que deja '
+            + 'una subida suya. Así que esas fotos son de un registro anterior con el mismo número y pueden ser de otra persona: '
+            + 'no se midieron ni se compararon. Si las miras en la ficha, no las des por suyas.' });
+      }
+    }, function (e) {
+      if (corrida !== EST.corrida) return;
+      notas.push({ clase: 'sin', reintentar: true,
+        texto: 'No pude preguntar si hay fotos con su celular: ' + motivoDe(e) + '.' });
+    });
+  }
+  var ced = cedulaDe(r), creado = msDe(r.creado_en);
+  var dudosos = EST.filas.concat(EST.ademas).filter(function (o) {
+    if (!esObjeto(o) || idDe(o) === id || celularDe(o) !== tel) return false;
+    var c = cedulaDe(o);
+    return !ced || !c || c !== ced || msDe(o.creado_en) > creado;
+  });
+  if (dudosos.length) {
+    notas.push({ clase: 'sin', fotosAjenas: true,
+      texto: 'No se miraron sus fotos: el servidor guarda las fotos por celular, no por registro, y este número también está en '
+        + dudosos.slice(0, 3).map(cualRegistro).join(', ') + (dudosos.length > 3 ? ' y otros' : '')
+        + '. Alguna puede ser de ese registro. Míralas en la ficha antes de darlas por suyas.' });
+    return Promise.resolve();
+  }
+
+  return rpc('archivos_de_registro', { p_clave: clave, p_celular: tel }).then(function (a) {
+    if (corrida !== EST.corrida) return;
+    var crudas = (esObjeto(a) && esObjeto(a.fotos)) ? a.fotos : {};
+    var limpias = {}, raras = 0;
+    ['cedula_frente', 'cedula_reverso', 'selfie'].forEach(function (k) {
+      if (!crudas[k]) return;
+      var s = RF.fotoSegura(crudas[k]);
+      if (s) limpias[k] = s; else raras++;
+    });
+    if (raras) {
+      notas.push({ clase: 'mirar', peso: 2,
+        texto: raras === 1 ? 'Llegó un archivo en lugar de foto que no es una imagen'
+                           : 'Llegaron ' + raras + ' archivos en lugar de foto que no son imágenes',
+        detalle: 'No se abrió. La cámara del registro no produce eso, así que trata este registro con cuidado.' });
+    }
+    var claves = Object.keys(limpias);
+    extra.fotos = {};
+    if (!claves.length) return;
+    var imgs = {}, fallaron = [], sinMedir = [], grandes = [];
+    /* Una foto a la vez: abrirla, medirla. La foto queda en memoria solo
+       mientras se mira a esta persona.
+       2-oct-2026 — una foto ENORME (imagenDe la rechaza con sus medidas) se
+       mira y no se dibuja; y si medir revienta (sin memoria, un lienzo raro),
+       esa foto no se usa para nada más, ni para el código ni para la cara. */
+    var cadena = claves.reduce(function (p, k) {
+      return p.then(function () {
+        if (corrida !== EST.corrida) return;
+        return RF.imagenDe(limpias[k]).then(function (img) {
+          var m = null;
+          try { m = RF.medirImagen(img, TIPO_FOTO[k], RR.bytesDeFoto(limpias[k])); }
+          catch (e) {
+            if (e && e.grande) grandes.push({ k: k, g: e.grande }); else sinMedir.push(k);
+            return;
+          }
+          imgs[k] = img;
+          if (m) extra.fotos[k] = m; else sinMedir.push(k);
+        }, function (e) {
+          if (e && e.grande) grandes.push({ k: k, g: e.grande }); else fallaron.push(k);
+        });
+      });
+    }, Promise.resolve());
+    return cadena.then(function () {
+      if (corrida !== EST.corrida) return;
+      grandes.forEach(function (x) {
+        var nom = NOMBRE_FOTO[x.k];
+        notas.push({ clase: 'mirar', peso: 2, fotoFallida: true,
+          texto: nom.charAt(0).toUpperCase() + nom.slice(1) + ' mide ' + (Number(x.g.ancho) || 0) + '×' + (Number(x.g.alto) || 0)
+            + ' px: la app no produce eso',
+          detalle: 'No se abrió para medirla: una imagen así de grande puede trabar el navegador. La app guarda las fotos de hasta 900 px '
+            + '(la selfie, 720), así que esta no salió de la app tal cual. Trata este registro con cuidado.' });
+      });
+      if (fallaron.length) {
+        notas.push({ clase: 'sin', texto: 'No pude abrir ' + fallaron.map(function (k) { return NOMBRE_FOTO[k]; }).join(' ni ')
+          + ': no se midió. Mírala en la ficha.', fotoFallida: true });
+      }
+      if (sinMedir.length) {
+        notas.push({ clase: 'sin', texto: 'No pude medir ' + sinMedir.map(function (k) { return NOMBRE_FOTO[k]; }).join(' ni ')
+          + ': no se usó para nada más. Mírala en la ficha.', fotoFallida: true });
+      }
+      return imgs.cedula_reverso ? leerYCotejar(imgs.cedula_reverso, tel, extra, notas, clave, corrida) : null;
+    }).then(function () {
+      if (corrida !== EST.corrida) return;
+      return (imgs.selfie && imgs.cedula_frente) ? compararCaras(imgs.selfie, imgs.cedula_frente, extra, notas) : null;
+    });
+  }, function (e) {
+    if (corrida !== EST.corrida) return;
+    notas.push({ clase: 'sin', reintentar: true,
+      texto: 'No pude traer sus fotos: ' + motivoDe(e) + '. Eso no quiere decir que no las haya subido.' });
+  });
+}
+
+/* El código de barras: lo lee este navegador de la foto que guarda el
+   servidor, y lo COMPARA la base (verificar_registro_foto → cedula_cotejar).
+   La regla no se escribe aquí: es la misma que corre el botón de la ficha. */
+function leerYCotejar(img, tel, extra, notas, clave, corrida) {
+  if (EST.lectorFallo) return Promise.resolve();
+  return RF.leerCodigoDeImagen(img).then(function (ced) {
+    if (corrida !== EST.corrida) return;
+    if (!ced) {
+      notas.push({ clase: 'neutro', texto: 'No se pudo leer el código de barras de la foto del reverso. Eso no dice nada sobre los datos: '
+        + 'la foto puede estar movida o con brillo, o ser una cédula nueva de plástico, que no lleva código de barras.' });
+      return;
+    }
+    if (EST.cotejoFalta) return;
+    return rpc('verificar_registro_foto', { p_clave: clave, p_celular: tel, p_leida: ced }).then(function (j) {
+      if (j && j.ok === true && esObjeto(j.cotejo)) extra.cotejo = j.cotejo;
+      else notas.push({ clase: 'sin', texto: 'Se leyó el código de barras, pero la base no lo cotejó: ' + motivoDe(j) + '.' });
+    }, function (e) {
+      if (e && e.estado === 404) { EST.cotejoFalta = true; return; }
+      notas.push({ clase: 'sin', reintentar: true, texto: 'Se leyó el código de barras, pero no pude mandarlo a cotejar: ' + motivoDe(e) + '.' });
+    });
+  }, function (e) {
+    /* El lector no CARGÓ: se dice una vez arriba y no se vuelve a intentar
+       con cada persona. Si lo que falló fue ESTA foto (2-oct-2026), se dice en
+       su ficha y los demás siguen: antes un fallo con una foto apagaba la
+       lectura de todos los que venían detrás, con el aviso equivocado. */
+    if (e && e.carga) { EST.lectorFallo = motivoDe(e); return; }
+    if (corrida !== EST.corrida) return;
+    notas.push({ clase: 'sin', texto: 'No pude leer el código de barras de esta foto (' + motivoDe(e) + '). '
+      + 'En la ficha, «🔢 Leer el código de barras de la foto» lo vuelve a intentar.' });
+  });
+}
+
+/* El rostro. Si el programa no carga, se dice una vez arriba y las demás
+   reglas siguen; si carga y falla con una foto, se dice en esa ficha. */
+function compararCaras(selfie, frente, extra, notas) {
+  if (EST.rostroFallo) return Promise.resolve();
+  return RF.cargarRostro().then(function () {
+    return RF.compararRostros(selfie, frente).then(function (res) {
+      /* Al motor le llega solo lo que necesita: la distancia, o dónde no hubo
+         cara. El parecido en porcentaje es la misma cifra dicha de otro modo. */
+      extra.rostro = res.sin_rostro ? { sin_rostro: res.sin_rostro } : { distancia: res.distancia };
+    }, function (e) {
+      notas.push({ clase: 'sin', texto: 'La comparación de rostros falló con estas fotos: ' + motivoDe(e) + '.' });
+    });
+  }, function (e) {
+    EST.rostroFallo = motivoDe(e);
+  });
+}
+
+/* ===== LO QUE DICEN LAS REGLAS ===== */
+function revisiones() {
+  var porId = {};
+  Object.keys(EST.porId).forEach(function (id) {
+    if (!EST.hecho[id] && EST.actual !== id) return;
+    var x = EST.porId[id];
+    porId[id] = { fotos: x.fotos || null, rostro: x.rostro || null, cotejo: x.cotejo || null };
+  });
+  var lista = RR.revisarLista(EST.filas, { cartera: EST.cartera, hoy: hoyISO(), donde: 'computador',
+                                           porId: porId, ademas: EST.ademas });
+  var porIdRes = {};
+  lista.forEach(function (x) { porIdRes[x.id] = x.resultado; });
+  return EST.filas.map(function (r, i) {
+    var id = idDe(r), res = porIdRes[id] || lista[i].resultado;
+    var notas = EST.notas[id] || [];
+    var hecho = !!EST.hecho[id];
+    var mirar = res.para_mirar.slice();
+    notas.filter(function (n) { return n.clase === 'mirar'; }).forEach(function (n) {
+      mirar.push({ peso: Number(n.peso) || 1, texto: n.texto, detalle: n.detalle || '' });
+    });
+    mirar.sort(function (a, b) { return b.peso - a.peso; });
+    var neutros = res.neutros.filter(function (x) {
+      /* «falta la selfie» sería falso si la selfie estaba y no se pudo abrir. */
+      return !(x.clave === 'fotos_incompletas' && notas.some(function (n) { return n.fotoFallida; }));
+    }).concat(notas.filter(function (n) { return n.clase === 'neutro'; }));
+    var ajenas = notas.some(function (n) { return n.fotosAjenas; });
+    var sin = res.reglas_sin_datos.filter(function (x) {
+      /* Mientras sus fotos esperan turno, lo de las fotos no es «no se pudo»:
+         es «todavía no». Eso lo dice la ficha aparte. Y si no se midieron por
+         ser quizá de otro registro, la nota propia ya dice por qué. */
+      if (ajenas && x.clave === 'fotos') return false;
+      return hecho || (x.clave !== 'fotos' && x.clave !== 'rostro' && x.clave !== 'cotejo');
+    }).map(function (x) { return x.texto; })
+      .concat(notas.filter(function (n) { return n.clase === 'sin'; }).map(function (n) { return n.texto; }));
+    return { fila: r, id: id, res: res, mirar: mirar, neutros: neutros, sin: sin, hecho: hecho,
+             medidas: (EST.porId[id] && EST.porId[id].fotos) || null,
+             peso: mirar.length ? mirar[0].peso : 0 };
+  });
+}
+
+/* ===== PINTAR ===== */
+function pintarProgreso() {
+  var p = $('progreso');
+  if (!p) return;
+  if (EST.estado !== 'ok' || !EST.filas.length) { p.innerHTML = ''; return; }
+  var n = EST.filas.length, hechos = EST.filas.filter(function (r) { return EST.hecho[idDe(r)]; }).length;
+  if (EST.actual) {
+    var r = EST.filas.filter(function (x) { return idDe(x) === EST.actual; })[0] || {};
+    p.innerHTML = '⏳ Revisando ' + (hechos + 1) + ' de ' + n + ': las fotos de <b>'
+      + escHTML(r.nombre || 'un registro sin nombre') + '</b>…';
+    return;
+  }
+  p.innerHTML = 'Listo: ' + n + (n === 1 ? ' registro revisado' : ' registros revisados')
+    + (EST.fin ? ' a las ' + horaLocal(EST.fin) : '')
+    + '. <span class="muted">No se guardó en la nube: la recuerda solo esta pestaña, sin fotos ni nada del rostro.</span>';
+}
+
+function pintarAvisos() {
+  var a = [];
+  if (!EST.cartera && (EST.estado === 'ok')) {
+    a.push('<b>No encontré tu cartera en este navegador.</b> La cédula y el celular no se cruzaron con tus clientes: ábrelo en el mismo navegador donde usas el CRM.');
+  }
+  if (EST.ademasFallo) {
+    a.push('<b>No pude traer los atendidos y descartados</b> (' + escHTML(EST.ademasFallo) + '). Cada registro se comparó solo con los nuevos: una cédula repetida en uno ya descartado no se vería.');
+  }
+  if (EST.rostroFallo) {
+    a.push('<b>No cargó el programa de rostros</b> (' + escHTML(EST.rostroFallo) + '). El parecido entre la selfie y la cédula no se calculó; las demás reglas sí corrieron.');
+  }
+  if (EST.lectorFallo) {
+    a.push('<b>No cargó el lector del código de barras</b> (' + escHTML(EST.lectorFallo) + '). No se volvió a leer la foto del reverso; las demás reglas sí corrieron.');
+  }
+  if (EST.cotejoFalta) {
+    a.push('<b>Tu base todavía no tiene el cotejo contra la foto.</b> Se leyó el código de barras, pero no se pudo cotejar: corre <span class="mono">base/20260922c_verificacion_cedula.sql</span> en el SQL Editor de Supabase.');
+  }
+  if (!RF && EST.estado === 'ok') {
+    a.push('<b>Falta app/revision-fotos.js.</b> Sin él no se miran las fotos ni el rostro; las demás reglas sí corrieron.');
+  }
+  $('avisos').innerHTML = a.map(function (t) { return '<div class="alerta warn">' + t + '</div>'; }).join('');
+}
+
+function pintar() {
+  pintarAvisos();
+  pintarProgreso();
+  var b = $('resultado');
+  var boton = $('btnRevisar');
+  if (boton) boton.disabled = EST.estado === 'cargando';
+  if (EST.estado === 'sin_motor') {
+    b.innerHTML = '<div class="alerta warn"><b>Falta app/revision-registro.js.</b> Sin él no hay reglas que correr. Recarga la página; si sigue, el archivo no llegó al sitio.</div>';
+    return;
+  }
+  if (EST.estado === 'sin_nube') {
+    b.innerHTML = '<div class="alerta warn"><b>Este navegador no tiene la conexión a la nube:</b> en el CRM, ⚙️ Ajustes → Compartir con mis clientes (dirección, llave y clave de sincronización), y vuelve a abrir esta página.</div>';
+    return;
+  }
+  if (EST.estado === 'cargando' || EST.estado === 'nada') {
+    b.innerHTML = '<div class="empty"><div class="ic">⏳</div><p>Trayendo los registrados nuevos de la nube…</p></div>';
+    return;
+  }
+  if (EST.estado === 'error') {
+    b.innerHTML = '<div class="alerta warn"><b>No pude traer los registrados.</b> ' + escHTML(EST.error)
+      + ' <span class="muted">Eso no quiere decir que no haya nadie esperando: quiere decir que no pude preguntar.</span></div>';
+    return;
+  }
+  if (!EST.filas.length) {
+    b.innerHTML = '<div class="empty"><div class="ic">📭</div><p>Nadie esperando.</p><p class="muted">La nube contestó a las '
+      + horaLocal(EST.leidoEn) + ' que no hay registros nuevos.</p></div>';
+    return;
+  }
+  var todas = revisiones();
+  var mirar = todas.filter(function (x) { return x.mirar.length; });
+  var nada = todas.filter(function (x) { return !x.mirar.length; });
+  var cuando = function (x) { var t = Date.parse(String(x.fila.creado_en || '')); return isFinite(t) ? t : 0; };
+  mirar.sort(function (a, b) { return (b.peso - a.peso) || (b.mirar.length - a.mirar.length) || (cuando(b) - cuando(a)); });
+  nada.sort(function (a, b) { return cuando(b) - cuando(a); });
+
+  var h = '';
+  h += '<div class="grupo-h mirar"><h2>Para mirar, y por qué</h2><span class="muted">' + mirar.length + '</span></div>';
+  h += mirar.length ? mirar.map(tarjeta).join('')
+    : '<p class="muted">Por ahora, nada. Puede cambiar mientras se miran las fotos.</p>';
+  h += '<div class="grupo-h"><h2>Sin nada que mirar</h2><span class="muted">' + nada.length + '</span></div>';
+  h += nada.length ? '<p class="muted" style="margin-bottom:10px">Que las reglas no encuentren nada no dice quién es la persona: un registro limpio puede ser de alguien que sabe hacerlo.</p>'
+    + nada.map(tarjeta).join('') : '<p class="muted">Ninguno.</p>';
+  b.innerHTML = h;
+}
+
+function chipOrigen(r) {
+  if (r.app === 'platachat') return '<span class="chip">PlataChat</span>';
+  if (r.origen === 'abierto') return '<span class="chip">📱 App</span>';
+  return '<span class="chip">🎟️ Invitación</span>';
+}
+
+function tarjeta(x) {
+  var r = x.fila, tel = celularDe(r), fecha = fechaBogota(r.creado_en);
+  var h = '<article class="card' + (x.mirar.length ? ' mirar' : '') + '">'
+    + '<div class="reg-h"><div class="quien"><b class="nom">' + escHTML(r.nombre || 'Sin nombre') + '</b> ' + chipOrigen(r)
+    + '<div class="muted">Se registró ' + (fecha ? 'el ' + escHTML(fecha) : '(sin fecha)')
+    + ' · cédula <span class="mono">' + escHTML(String(r.cedula || '—')) + '</span>'
+    + ' · celular <span class="mono">' + escHTML(tel || String(r.telefono || '—')) + '</span></div></div>'
+    + (x.hecho ? '' : '<div class="pendiente">' + (EST.actual === x.id ? '⏳ Mirando sus fotos…' : 'Sus fotos esperan turno') + '</div>')
+    + '</div>';
+
+  if (x.mirar.length) {
+    h += '<ul class="lista-mirar">' + x.mirar.map(function (m) {
+      return '<li class="p' + (Number(m.peso) || 1) + '"><b>' + escHTML(m.texto) + '</b>'
+        + (m.detalle ? '<span class="det">' + escHTML(m.detalle) + '</span>' : '') + '</li>';
+    }).join('') + '</ul>';
+  } else {
+    h += '<p class="nada">' + escHTML(x.res.resumen.frase) + '</p>';
+  }
+
+  if (x.sin.length) {
+    h += '<div class="sub-h">Lo que no se pudo revisar</div><ul class="lista-sin">'
+      + x.sin.map(function (t) { return '<li>' + escHTML(t) + '</li>'; }).join('') + '</ul>';
+  }
+  if (x.neutros.length) {
+    h += '<details><summary>Notas, que no son sospechas (' + x.neutros.length + ')</summary><ul class="lista-notas">'
+      + x.neutros.map(function (n) { return '<li>' + escHTML(n.texto) + '</li>'; }).join('') + '</ul></details>';
+  }
+  if (x.medidas && Object.keys(x.medidas).length) h += tablaMedidas(x.medidas);
+
+  h += '<div class="abrir">Para verlo con sus fotos: en el CRM, 📥 Registrados → «👁 Ver datos» de '
+    + escHTML(r.nombre || 'este registro') + (fecha ? ' (se registró el ' + escHTML(fecha) + ')' : '') + '.</div>';
+  return h + '</article>';
+}
+
+/* Los números medidos al lado del mínimo. Los umbrales salieron de imágenes
+   de prueba, no de cédulas de verdad (ver UMBRALES en revision-registro.js):
+   esta tabla existe para que Joan los corrija con sus primeros registros. */
+function tablaMedidas(med) {
+  var U = RR.UMBRALES;
+  var num = function (v, k) { var n = Number(v); return isFinite(n) ? n.toFixed(k).replace('.', ',') : '—'; };
+  var filas = ['cedula_frente', 'cedula_reverso', 'selfie'].filter(function (k) { return esObjeto(med[k]); }).map(function (k) {
+    var m = med[k], tipo = TIPO_FOTO[k];
+    var lado = Math.max(Number(m.ancho) || 0, Number(m.alto) || 0);
+    var chica = lado < U.LADO_MIN[tipo];
+    var borrosa = Number(m.nitidez) < U.NITIDEZ_MIN[tipo];
+    var bmin = U.BRILLO_MIN[tipo], bmax = U.BRILLO_MAX[tipo];   // la selfie, con los topes de la app (2-oct-2026)
+    var luz = Number(m.brillo) < bmin || Number(m.brillo) > bmax;
+    var reflejo = Number(m.saturados) > U.SATURADOS_MAX;
+    var nombre = NOMBRE_FOTO[k].charAt(0).toUpperCase() + NOMBRE_FOTO[k].slice(1);
+    return '<tr><td>' + escHTML(nombre) + '</td>'
+      + '<td class="n' + (chica ? ' fuera' : '') + '">' + num(m.ancho, 0) + '×' + num(m.alto, 0) + ' <span class="muted">(mín. ' + U.LADO_MIN[tipo] + ')</span></td>'
+      + '<td class="n' + (borrosa ? ' fuera' : '') + '">' + num(m.nitidez, 0) + ' <span class="muted">(mín. ' + U.NITIDEZ_MIN[tipo] + ')</span></td>'
+      + '<td class="n' + (luz ? ' fuera' : '') + '">' + num(m.brillo, 0) + ' <span class="muted">(' + bmin + '–' + bmax + ')</span></td>'
+      + '<td class="n' + (reflejo ? ' fuera' : '') + '">' + num(Number(m.saturados) * 100, 0) + '% <span class="muted">(máx. ' + Math.round(U.SATURADOS_MAX * 100) + '%)</span></td></tr>';
+  });
+  if (!filas.length) return '';
+  return '<details><summary>Las medidas de las fotos</summary>'
+    + '<p class="muted" style="margin-top:6px">Los mínimos son provisionales: salieron de imágenes de prueba. Si una foto que se lee bien sale marcada, el mínimo está alto.</p>'
+    + '<table class="medidas"><thead><tr><th>Foto</th><th>Tamaño (px)</th><th>Nitidez</th><th>Brillo</th><th>Reflejo</th></tr></thead><tbody>'
+    + filas.join('') + '</tbody></table></details>';
+}
+
+/* ===== LA PUERTA Y LOS TOQUES ===== */
+function entrar() {
+  var pin = $('pin');
+  if (!pin || pin.value !== pinGuardado()) {
+    $('pinErr').textContent = 'Ese no es el PIN del Panel.';
+    if (pin) pin.value = '';
+    return;
+  }
+  pin.value = '';
+  $('gate').classList.add('oculto');
+  $('todo').classList.remove('oculto');
+  revisarTodo(false);
+}
+
+document.addEventListener('click', function (ev) {
+  var t = ev.target && ev.target.closest ? ev.target.closest('[data-acc]') : null;
+  if (!t) return;
+  var acc = t.dataset ? t.dataset.acc : t.getAttribute('data-acc');
+  if (acc === 'entrar') entrar();
+  else if (acc === 'revisar') revisarTodo(true);
+});
+document.addEventListener('keydown', function (ev) {
+  if (ev.key === 'Enter' && ev.target && ev.target.id === 'pin') entrar();
+});
+</script>
+</body>
+</html>
