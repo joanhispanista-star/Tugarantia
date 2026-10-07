@@ -1590,7 +1590,24 @@
    de verdad y el acuerdo cumplido en null. Los cuatro estan en la precarga:
    sin subir la cache, un celular con el puente viejo seguiria mandando a
    «Queda debiendo». Ningun archivo nuevo entra a la lista. */
-const CACHE = 'tugarantia-v130';
+/* v131 - 7-oct-2026. LOS HISTORIALES DE LOS CLIENTES SUBEN SOLOS. Joan pidio
+   que «Subir historiales» fuera automatico. Nace panel/historiales-auto.js
+   y ENTRA A LA PRECARGA: crm.html lo carga con un <script src> y, sin el en
+   la cache, sin senal recibiria index.html por la caida de la rama de .js (el
+   defecto v19) y la subida sola no arrancaria (crm.html lo dice en Ajustes a
+   los 1,5 s). Sube solo el cliente cuyo paquete cambio, tras 90 s sin
+   cambios, y nunca cambia el codigo de nadie. app/puente.js: migrarSocio
+   acepta las cifras del grupo ya calculadas (el lote de 300 clientes pasa de
+   ~2 s a ~40 ms); esta en la precarga de los tres aparatos y sin subir la
+   cache seguirian con el puente de antes (que da lo mismo, mas lento). Toca
+   tambien panel/crm.html (los enganches y el boton por la pieza nueva).
+   Misma v131, segunda vuelta del mismo dia (nada de esto se habia publicado):
+   la subida sola arranca en un computador solo despues de tocar el boton
+   una vez ahi (y se pausa al importar un respaldo); dos fichas con el mismo
+   celular o la misma cedula no suben, ni solas ni con el boton (la nube le
+   pasaba a una el chat y la sesion de la otra); y no sube lo que guardar()
+   no alcanzo a guardar. Ningun archivo nuevo entra a la lista. */
+const CACHE = 'tugarantia-v131';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -1628,6 +1645,8 @@ const ARCHIVOS = [
   'panel/nube.js',
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
   'panel/nube-crm.js',
+  /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
+  'panel/historiales-auto.js',
   'panel/tanda.js',
   /* 2-oct-2026 — «Tu gente», los referidos del espejo. Ver la nota de v124. */
   'app/gente.js',

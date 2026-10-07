@@ -1560,8 +1560,20 @@
    *
    * La regla de este archivo ya era esta —si tu pregunta lleva una fecha
    * adentro, pásala en vez de deducirla— y justo aquí faltaba.
+   *
+   * 7-oct-2026 — `comunidad` ES OPCIONAL: las cifras del grupo YA CALCULADAS
+   * (fotoComunidad(db)). Nadie más la pasa y para ellos no cambia nada. La
+   * pasa el lote de historiales del CRM (loteMigracion), que arma el paquete
+   * de TODOS los socios seguido: fotoComunidad recorre la cartera entera, así
+   * que llamarla una vez por socio hacía el lote cuadrático. Medido con node
+   * en el banco de pruebas: 300 socios y 900 créditos, 1.967 ms el lote, y
+   * 1.713 de ellos eran fotoComunidad repetida 300 veces sobre la MISMA
+   * cartera. Desde que los historiales suben solos (panel/historiales-auto.js)
+   * ese lote se arma tras cada rato de calma, y dos segundos de pantalla
+   * congelada cada vez no se le pueden pedir a Joan. Es el mismo número: se
+   * calcula una vez en vez de trescientas.
    */
-  function migrarSocio(db, s, hasta) {
+  function migrarSocio(db, s, hasta, comunidad) {
     var prestamos = lista(db && db.prestamos);
     var ps = prestamos.filter(function (p) { return p.socioId === s.id; })
       .sort(function (a, b) { return String(a.fechaDesembolso).localeCompare(String(b.fechaDesembolso)); });
@@ -1592,7 +1604,7 @@
       // Joan y no tenga que buscar el chat.
       negocio: { nombre: (db.config && db.config.negocio) || 'Tu Garantía',
                  whatsapp: digitos(db.config && db.config.whatsapp) },
-      comunidad: fotoComunidad(db),
+      comunidad: comunidad || fotoComunidad(db),
       socio: { codigo: codCliente(s) },
       garantia: {
         /* `acumulada` viaja como la GANADA del motor (ya con el ajuste aplicado):

@@ -908,6 +908,8 @@
           <div class="field"><label>Project URL de Supabase</label><input id="cfgSbUrl" placeholder="https://xxxx.supabase.co"></div>
           <div class="field"><label>Llave anon public</label><input id="cfgSbAnon" placeholder="eyJ..."></div>
           <div class="field"><label>Tu clave de sincronización</label><input id="cfgSbClave" type="password" placeholder="la que pusiste en supabase.sql"><div class="help">Se guarda solo en este computador. Nunca viaja dentro de la página del cliente.</div></div>
+          <!-- 7-oct-2026 — la línea de estado de la subida sola (historiales-auto.js). -->
+          <div id="historialesBarra"></div>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             <button class="btn btn-rojo btn-sm" onclick="guardarSupabase()">Guardar conexión</button>
             <button class="btn btn-ghost btn-sm" onclick="probarSupabase()">🔌 Probar conexión</button>
@@ -1162,6 +1164,13 @@ const PLANTILLAS_DEF={
 var _TAB=Math.random().toString(36).slice(2);
 var _SELLO_V=0;
 var _SELLO_MIO=null;   // lo último que esta pestaña selló: lo que cree que hay en el disco
+/* 7-oct-2026 — ¿el último guardar() NO entró al disco, ni siquiera sin fotos?
+   Mientras sea así, lo que hay en memoria se pierde al recargar, y los
+   historiales no lo suben (historiales-auto.js, cfg.sinGuardar): el cliente
+   vería un pago que después desaparece. Lo pone guardarSinFotos y lo quita
+   cualquier escritura que sí entre (_trasGuardar). `var` y acá arriba por lo
+   mismo que el sello: guardar() puede correr antes de su línea. */
+var _libroSinGuardar=false;
 function _huella(t){ t=String(t==null?'':t); var h=0x811c9dc5; for(var i=0;i<t.length;i++){ h^=t.charCodeAt(i); h=Math.imul(h,0x01000193); } return (h>>>0).toString(36); }
 function _sello(t){
   t=String(t==null?'':t);
@@ -1200,7 +1209,11 @@ function _carteraAjena(){
 function _trasGuardar(t, ajena){
   if(ajena){ try{ localStorage.removeItem('joan_panel_espejo_pc'); }catch(e){} }
   _sello(t);
+  _libroSinGuardar=false;
   try{ if(window.NubeCRM) NubeCRM.algoCambio(); }catch(e){}
+  /* 7-oct-2026 — y los historiales de los clientes (historiales-auto.js):
+     el mismo aviso, su propio reloj de 90 s. */
+  try{ if(window.HistorialesAuto) HistorialesAuto.algoCambio(); }catch(e){}
 }
 
 /* 3-ago-2026: cuántas fechaPagado tocó la migración en ESTA carga. Se declara
@@ -1449,6 +1462,9 @@ function guardarSinFotos(ajena){
        es exactamente lo que subiría (las fotos nunca suben): se sella igual.
        Si no entró nada, no se sella nada: el disco sigue con lo de antes. */
     if (salvado) { try { _trasGuardar(t2, ajena); } catch (e4) {} }
+    /* 7-oct-2026 — sin fotos SÍ quedó el libro (las fotos nunca suben a los
+       clientes); si ni eso entró, lo de memoria no está en ninguna parte. */
+    else _libroSinGuardar = true;
 
     _guardadoOk = false;
     try { pintarAvisoGuardado(salvado); } catch (e3) {}
@@ -7399,6 +7415,8 @@ function guardarYPintar(){
 function guardarSupabase(){
   const c={url:gv('cfgSbUrl').replace(/\/+$/,''),anon:gv('cfgSbAnon'),clave:document.getElementById('cfgSbClave').value};
   localStorage.setItem(SB_KEY,JSON.stringify(c)); pintarCfg();
+  /* 7-oct-2026 — con la conexión nueva, los historiales prueban a subir ya. */
+  try{ if(window.HistorialesAuto) HistorialesAuto.conexionCambio(); }catch(e){}
   alert('Conexión guardada en este computador. No viaja a ninguna parte.');
 }
 function esPuntual(p){ return PUENTE.esPuntual(p); }
@@ -7572,7 +7590,7 @@ function fotoComunidad(){ return PUENTE.fotoComunidad(DB); }
    cupón (fondoCuponDe). Eso es contabilidad tuya. Para el socio su garantía es lo
    que le deja cada pago, y su cupo es esa garantía. Nada más. */
 function migrarSocio(s){ return PUENTE.migrarSocio(DB,s); }
-function loteMigracion(){
+function loteMigracion(conIds){
   const dig=v=>String(v||'').replace(/\D/g,'');
   /* El código va EN CLARO en el lote y la nube guarda solo su huella (ver
      huella_codigo en base/20260810_codigo_acceso.sql).
@@ -7584,9 +7602,21 @@ function loteMigracion(){
      tiene esa migración corrida, los sin cédula suben en el lote pero el SQL
      viejo los salta sin quejarse — por eso «¿Pueden entrar mis clientes?» es
      la comprobación que vale, no este contador. */
-  return DB.socios.map(s=>({ cedula:dig(s.cedula), telefono:dig(waNum(s)||s.telefono),
-      nombre:s.nombre||'Socio', codigo:codigoAccesoDe(s),
-      codigo_forzar:!!s.codigoForzar, datos:migrarSocio(s) }))
+  /* 7-oct-2026 — LAS CIFRAS DEL GRUPO SE CALCULAN UNA VEZ POR LOTE, no una por
+     socio (ver `comunidad` en migrarSocio, ../app/puente.js): es el mismo
+     número para todos y recorre la cartera entera. Con 300 socios el lote
+     pasa de ~2 s a ~0,15 s, y desde hoy lo arma solo historiales-auto.js.
+     `conIds` lo pide historiales-auto.js: necesita saber de QUÉ socio es cada
+     paquete para subir solo los que cambiaron. El id no viaja a la nube: esa
+     pieza arma lo que sube sin él. */
+  const comunidad=fotoComunidad();
+  return DB.socios.map(s=>{
+      const x={ cedula:dig(s.cedula), telefono:dig(waNum(s)||s.telefono),
+        nombre:s.nombre||'Socio', codigo:codigoAccesoDe(s),
+        codigo_forzar:!!s.codigoForzar, datos:PUENTE.migrarSocio(DB,s,undefined,comunidad) };
+      if(conIds) x.socioId=s.id;
+      return x;
+    })
     .filter(x=>x.cedula||x.telefono);
 }
 function verMigracion(){
@@ -8827,6 +8857,9 @@ function modoEquipo() {
      con un interruptor que se queda apagado (no se lee CARTERA_EQUIPO una vez
      al arrancar: en ese instante vale null siempre). */
   try { if (window.NubeCRM) NubeCRM.apagar(); } catch (e) {}
+  /* 7-oct-2026 — y los historiales de los clientes tampoco: esta DB vacía no
+     es la de Joan (historiales-auto.js). */
+  try { if (window.HistorialesAuto) HistorialesAuto.apagar(); } catch (e) {}
   document.getElementById('gate').style.display = 'none';
   document.getElementById('app').style.display = 'grid';
   const yo = CARTERA_EQUIPO.yo;
@@ -12627,7 +12660,7 @@ function aplicarCruce(idReg,idSocio){
      arregló que el código de acceso viaje con ella). Se avisa en pesos y en
      castellano, no con un tecnicismo. */
   if(marcados.indexOf('cedula')>=0&&!String(s.cedula||'').trim()){
-    if(!confirm('Le vas a cargar la cédula '+PUENTE.fichaDeclarada(r).cedula+' a '+s.nombre+', que hasta hoy la nube identifica por su celular.\n\nEs correcto y es lo que quieres hacer, pero pide que corras «☁ Subir historiales» después: hasta que subas, la nube lo sigue conociendo por el número.\n\n¿Sigo?')) return;
+    if(!confirm('Le vas a cargar la cédula '+PUENTE.fichaDeclarada(r).cedula+' a '+s.nombre+', que hasta hoy la nube identifica por su celular.\n\nEs correcto y es lo que quieres hacer. Su historial sube solo al rato de guardar si en este computador ya tocaste «☁ Subir historiales» alguna vez (si no, tócalo después); hasta que suba, la nube lo sigue conociendo por el número.\n\n¿Sigo?')) return;
   }
 
   const antes=JSON.parse(JSON.stringify(PUENTE.camposDelCruce(s,r).filter(f=>marcados.indexOf(f.campo)>=0)
@@ -13767,7 +13800,19 @@ function probarSupabase(){
     if(r.status===404) throw {paso:'La función <i>sincronizar_socios</i> no existe. Corre el archivo <b>base/supabase.sql</b> completo, no solo una parte.'};
     if(!r.ok&&r.t.indexOf('clave')>=0) throw {paso:'Tu clave no coincide con la de la base, o todavía no la pusiste allá (sale de fábrica sin definir). En Supabase → SQL Editor corre esta línea sola, con tu clave de verdad:<br><code>update public.config_privada set valor = \'TU-CLAVE\' where clave = \'clave_sync\';</code><br>Tiene que ser exactamente la misma que escribiste aquí arriba.'};
     if(!r.ok) throw {paso:'Al escribir respondió '+r.status+': '+r.t.slice(0,140)};
-    decir('✅','<b>Todo listo.</b> Las dos funciones responden y tu clave es la correcta. Ya puedes tocar “Subir historiales”.');
+    /* 7-oct-2026 — ya no hay que tocar nada: con la clave comprobada, los
+       historiales prueban a subir ahora mismo (y se suelta la espera de 15 min
+       que deja una clave rechazada; ver historiales-auto.js). */
+    /* 7-oct-2026 (segunda vuelta) — «suben solos desde ya» solo si Joan ya tocó
+       el botón una vez en este computador: antes de eso la subida sola espera
+       a ese «sí» (LA PRIMERA VEZ ES DEL BOTÓN, historiales-auto.js). */
+    const pieza=!!(window.HistorialesAuto&&HistorialesAuto.configurado());
+    const solos=pieza&&HistorialesAuto.habilitado();
+    decir('✅','<b>Todo listo.</b> Las dos funciones responden y tu clave es la correcta. '
+      +(solos?'Los historiales de tus clientes suben solos desde ya.'
+        :pieza?'Toca “☁ Subir historiales” una vez y desde ahí suben solos con cada cambio.'
+        :'Ya puedes tocar “Subir historiales”.'));
+    try{ if(pieza) HistorialesAuto.conexionCambio(); }catch(e){}
   })
   .catch(e=>{
     if(e&&e.paso) return decir('❌',e.paso);
@@ -13785,6 +13830,41 @@ function sincronizarSocios(){
     +(sinRev?'⚠️ '+sinRev+' de ellos todavía no tienen la garantía revisada por ti.\n\n':'')
     +'Cada uno lo va a poder ver entrando con su celular (o su cédula) y su código. ¿Continuar?'))return;
   const est=document.getElementById('sbEstado'); est.textContent='Subiendo…';
+  /* 18-ago-2026: estos dos textos seguían diciendo «los últimos 4 de su
+     celular», que es la puerta que se cerró el 10 de agosto. No es un detalle
+     de redacción: es la instrucción que Joan le repite al cliente por
+     WhatsApp, y mandarlo a entrar con algo que ya no abre lo deja llamando
+     para decir que la app no sirve. (7-oct: sube aquí arriba porque ahora lo
+     usan los dos caminos del botón; dos copias del mismo aviso se separan.) */
+  const AVISO_SUBIDOS='Historiales subidos.\n\nYa pueden entrar con su celular (o su cédula) y SU CÓDIGO. '
+    + 'A quien no le hayas mandado el suyo todavía no puede: ficha del cliente → 📲 Mandar código.';
+  /* 7-oct-2026 — EL BOTÓN PASA POR historiales-auto.js, que es quien lleva la
+     cuenta de qué tiene ya cada cliente en la nube. Sube a TODOS igual que
+     antes —con su código y su marca de forzar—, pero en pedazos de 25 y
+     anotando lo que la nube confirmó: así la subida sola no vuelve a mandar
+     lo que el botón acaba de subir, y un corte a mitad deja dicho cuántos
+     alcanzaron. La marca de forzar se limpia SOLO en los que subieron: el
+     que no alcanzó la necesita para la próxima. Sin esa pieza (un service
+     worker viejo), el camino de siempre, de abajo. */
+  if(window.HistorialesAuto && HistorialesAuto.configurado()){
+    HistorialesAuto.subirTodo().then(r=>{
+      const subieron=new Set((r.confirmados||[]).map(String));
+      let limpiados=false;
+      DB.socios.forEach(s=>{ if(s.codigoForzar && subieron.has(String(s.id))){ delete s.codigoForzar; limpiados=true; } });
+      if(limpiados) guardar();
+      /* 7-oct-2026 (segunda vuelta) — las fichas que la nube tomaría por la
+         misma persona (mismo celular o misma cédula) no suben: subirlas le
+         pasaba a una el chat, el código y la sesión de la otra. Se nombran con
+         el arreglo, en las dos salidas. */
+      const ch=r.chocan||[];
+      const fuera=ch.length?' '+ch.length+' no subieron porque comparten celular o cédula con otra ficha ('
+        +ch.slice(0,3).join(', ')+(ch.length>3?'…':'')+'): ponle la cédula a quien no la tiene, junta las repetidas o corrige el número.':'';
+      if(!r.ok){ est.textContent='No se pudo subir'+(r.subidos?' todo: alcanzaron '+r.subidos+' de '+r.total+' cliente(s)':'')+'. '+r.motivo+fuera; return; }
+      est.textContent='Listo: '+(r.aceptados||r.subidos)+' cliente(s) actualizados el '+fmtFecha(hoyISO())+'. De aquí en adelante suben solos con cada cambio.'+fuera;
+      alert(AVISO_SUBIDOS+(fuera?'\n\n⚠️'+fuera:''));
+    });
+    return;
+  }
   fetch(c.url+'/rest/v1/rpc/sincronizar_socios',{ method:'POST',
     headers:{'Content-Type':'application/json',apikey:c.anon,Authorization:'Bearer '+c.anon},
     body:JSON.stringify({p_clave:c.clave,p_lote:lote}) })
@@ -13798,13 +13878,7 @@ function sincronizarSocios(){
     let limpiados=false;
     DB.socios.forEach(s=>{ if(s.codigoForzar){ delete s.codigoForzar; limpiados=true; } });
     if(limpiados) guardar();
-    /* 18-ago-2026: estos dos textos seguían diciendo «los últimos 4 de su
-       celular», que es la puerta que se cerró el 10 de agosto. No es un detalle
-       de redacción: es la instrucción que Joan le repite al cliente por
-       WhatsApp, y mandarlo a entrar con algo que ya no abre lo deja llamando
-       para decir que la app no sirve. */
-    alert('Historiales subidos.\n\nYa pueden entrar con su celular (o su cédula) y SU CÓDIGO. '
-      + 'A quien no le hayas mandado el suyo todavía no puede: ficha del cliente → 📲 Mandar código.');
+    alert(AVISO_SUBIDOS);
   })
   .catch(()=>{ est.textContent='No hubo conexión. Revisa el internet y vuelve a intentar.'; });
 }
@@ -13918,6 +13992,10 @@ function importar(e){ const f=e.target.files[0]; if(!f)return; const inp=e.targe
        fechas: si esa guardó, el sello describe lo que quedó en el disco. */
     DB=cargar(); if(_fechasMigradas) guardar(); _selloDesdeDisco(true); render();
     try{ if(window.NubeCRM) NubeCRM.algoCambio(); }catch(e){}
+    /* 7-oct-2026 — un respaldo es casi siempre una cartera VIEJA: los
+       historiales no la suben solos (pisaría pagos que los clientes ya ven)
+       hasta que Joan toque «☁ Subir historiales» (historiales-auto.js). */
+    try{ if(window.HistorialesAuto) HistorialesAuto.carteraReemplazada('respaldo'); }catch(e){}
     alert('Respaldo importado: '+nS+' cliente(s) y '+nP+' crédito(s).');
   }catch(err){ alert('Archivo inválido.'); } finally { inp.value=''; } }; r.readAsText(f); }
 
@@ -13957,6 +14035,15 @@ function entrar(){ if(document.getElementById('pinInput').value===DB.config.pin)
        puerta y además la apaga. Si nube-crm.js no llegó, el CRM sigue igual. */
     try{ if(window.NubeCRM && !CARTERA_EQUIPO) NubeCRM.configurar({ barra:document.getElementById('nubeBarra'),
       ocupado:estoyOcupado, sello:()=>_SELLO_MIO, huella:_huella, retomarSello:_reclamarSello, recargar:recargarCartera }); }catch(e){}
+    /* 7-oct-2026 — LOS HISTORIALES DE LOS CLIENTES SUBEN SOLOS (historiales-auto.js).
+       Joan: «quiero que el punto 1 sea automático, no manual». Acá por lo mismo
+       que nube-crm.js: después del PIN y nunca en modo equipo. El sello es el
+       MISMO contrato; `equipo` lo vuelve a preguntar en cada vuelta. */
+    try{ if(window.HistorialesAuto && !CARTERA_EQUIPO) HistorialesAuto.configurar({ barra:document.getElementById('historialesBarra'),
+      lote:loteMigracion, cuantos:()=>DB.socios.length, conexion:sbCfg, ocupado:estoyOcupado, equipo:()=>!!CARTERA_EQUIPO,
+      sinGuardar:()=>_libroSinGuardar,
+      sello:()=>_SELLO_MIO, huella:_huella, retomarSello:_reclamarSello, recargar:recargarCartera,
+      irAjustes:()=>irA('cfg'), normalizarCodigo:c=>MotorReglas.normalizarCodigoAcceso(c) }); }catch(e){}
     try{ if(!CARTERA_EQUIPO && !_oyendoCartera && typeof window.addEventListener==='function'){ _oyendoCartera=true; window.addEventListener('storage', alEscribirOtraPagina); } }catch(e){}
   } else document.getElementById('pinErr').textContent='PIN incorrecto.'; }
 /* 1-oct-2026 (segunda vuelta) — CUANDO OTRA PÁGINA ESCRIBE LA CARTERA, ESTA
@@ -14028,6 +14115,16 @@ if (/^#equipo(?:$|&)/.test(location.hash || '')) { try { pintarPuertaEquipo(); }
    señal), la barra de Ajustes quedaría vacía, y un div vacío no se distingue de
    «todo bien». Se dice. */
 setTimeout(function(){ if(!window.NubeCRM){ var b=document.getElementById('nubeBarra'); if(b) b.innerHTML='<div class="alerta warn">Este computador está sirviendo una versión vieja del CRM: la subida a la nube no cargó. Recárgalo con Ctrl+Shift+R.</div>'; } },1500);
+</script>
+<!-- 7-oct-2026 — LOS HISTORIALES SUBEN SOLOS. Va después del bloque grande por
+     la misma razón que nube-crm.js: arranca desde entrar() y usa loteMigracion,
+     sbCfg y el sello, que ese bloque declara. -->
+<script src="historiales-auto.js"></script>
+<script>
+/* 7-oct-2026 — la misma RECETA E para los historiales: si historiales-auto.js
+   no llegó, la línea de Ajustes quedaría vacía, y vacía no se distingue de
+   «todo bien». El botón manual sigue sirviendo, y se dice. */
+setTimeout(function(){ if(!window.HistorialesAuto){ var b=document.getElementById('historialesBarra'); if(b) b.innerHTML='<div class="alerta warn">Este computador está sirviendo una versión vieja del CRM: los historiales de tus clientes NO suben solos. Recárgalo con Ctrl+Shift+R; mientras, usa ☁ Subir historiales.</div>'; } },1500);
 </script>
 <script>
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
