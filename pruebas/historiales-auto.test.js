@@ -89,7 +89,9 @@ function nubeDeMentira() {
   S.red = (url, cfg) => {
     /* Ajustes y otras pantallas del CRM también le preguntan cosas a la nube
        (registros, mensajes): se anotan aparte y no cuentan como subida. */
-    if (/\/rest\/v1\/rpc\/historial_socio_por_codigo$/.test(url)) { S.otras.push(url); return Promise.resolve(resp(200, 'null')); }
+    /* 7-oct-2026 — «🔌 Probar conexión» ya no lee por la puerta del código
+       (cerrada): prueba la clave y después que la nube tenga la puerta única. */
+    if (/\/rest\/v1\/rpc\/vinculos_listar$/.test(url)) { S.otras.push(url); return Promise.resolve(resp(200, '[]')); }
     if (!/\/rest\/v1\/rpc\/sincronizar_socios$/.test(url)) { S.otras.push(url); return Promise.reject(new Error('sin red en el banco')); }
     S.llamadas++;
     const cuerpo = JSON.parse(cfg.body);
@@ -209,8 +211,8 @@ describe('solo sube el cliente que cambió', () => {
       assert.deepEqual(Object.keys(x).sort(), CAMPOS.slice().sort(), 'viajó algo que sincronizar_socios no espera (¿el socioId?)');
       assert.equal(x.codigo_forzar, false);
     });
-    const codigos = m.P.ev('DB.socios.map(s=>s.codigoAcceso)');
-    assert.deepEqual(lote.map(x => x.codigo), codigos, 'la primera vez el código va el mismo de siempre (llenar, no cambiar)');
+    /* 7-oct-2026 — ningún código viaja: la puerta del código se cerró. */
+    lote.forEach(x => assert.equal(x.codigo, null, 'viajó un código de acceso'));
     assert.deepEqual(Object.keys(huellas(m)).sort(), ['C0', 'C1', 'C2']);
     assert.equal(e.cinta.fase, 'al-dia');
     assert.equal(e.cinta.l1, 'Tus clientes ven lo de hace un momento');
@@ -602,7 +604,11 @@ describe('el PIN, el modo equipo, Joan ocupado y la otra pestaña', () => {
 /* ======================================================================== */
 describe('el botón «☁ Subir historiales» sigue subiendo a todos', () => {
 
-  test('sube a TODOS, con su código y su forzar, limpia la marca y deja las huellas puestas', async () => {
+  /* 7-oct-2026 — SIN CÓDIGO. Hasta hoy el botón era el único que mandaba un
+     código regenerado (con su codigo_forzar). Los códigos se apagaron: el botón
+     sube a todos igual, sin código y sin forzar, y la nube conserva lo que
+     tenga. La marca vieja de forzar se sigue limpiando: es un dato muerto. */
+  test('sube a TODOS, sin código ni forzar, limpia la marca y deja las huellas puestas', async () => {
     const m = montar({ n: 3 });
     await primera(m);
     const nuevo = otroCodigo(99);
@@ -617,9 +623,10 @@ describe('el botón «☁ Subir historiales» sigue subiendo a todos', () => {
     const lote = m.srv.lotes[n];
     assert.equal(lote.length, 3, 'el botón no subió a todos');
     const c0 = lote.find(x => x.cedula === cedulaDe(m, 'C0'));
-    assert.equal(c0.codigo, nuevo);
-    assert.equal(c0.codigo_forzar, true, 'el botón dejó de forzar el código regenerado');
-    assert.equal(m.srv.filas[cedulaDe(m, 'C0')].codigo_hash, m.srv.huellaCodigo(nuevo));
+    assert.equal(c0.codigo, null, 'el botón mandó un código de acceso');
+    assert.equal(c0.codigo_forzar, false, 'el botón forzó un código');
+    assert.notEqual(m.srv.filas[cedulaDe(m, 'C0')].codigo_hash, m.srv.huellaCodigo(nuevo),
+      'la nube quedó con el código regenerado');
     assert.equal(m.P.ev('DB.socios[0].codigoForzar'), undefined, 'la marca de forzar quedó puesta');
     assert.match(m.P.elems.sbEstado.textContent, /^Listo: 3 cliente\(s\) actualizados/);
     assert.match((m.P.ctx._avisos || []).join(''), /Historiales subidos/);
@@ -658,9 +665,13 @@ describe('el botón «☁ Subir historiales» sigue subiendo a todos', () => {
 });
 
 /* ======================================================================== */
-describe('la subida sola no cambia ni genera el código de nadie', () => {
+describe('ningún código viaja, y la subida no genera ni cambia el de nadie (7-oct-2026)', () => {
 
-  test('un código REGENERADO no viaja solo: espera al botón, y la línea lo dice', async () => {
+  /* Hasta el 7-oct un código regenerado esperaba al botón y la línea lo
+     anunciaba («1 código nuevo espera»). Con la puerta del código cerrada no
+     hay nada que esperar: ninguno viaja, y la línea no anuncia lo que no va a
+     pasar. */
+  test('un código REGENERADO no viaja, y la línea no promete que viajará', async () => {
     const m = montar({ n: 3 });
     await primera(m);
     const viejo = m.srv.filas[cedulaDe(m, 'C1')].codigo_hash;
@@ -672,9 +683,7 @@ describe('la subida sola no cambia ni genera el código de nadie', () => {
     assert.equal(item.codigo_forzar, false);
     assert.equal(m.srv.filas[cedulaDe(m, 'C1')].codigo_hash, viejo, 'la subida sola le cambió el código al cliente');
     assert.equal(m.srv.filas[cedulaDe(m, 'C1')].nombre, 'Con Código Nuevo');
-    const c = cinta(m);
-    assert.equal(c.clase, 'ojo');
-    assert.match(c.l2, /1 código nuevo espera ☁ Subir historiales/);
+    assert.doesNotMatch(cinta(m).l2, /código nuevo espera/);
   });
 
   test('un código distinto SIN forzar (un respaldo viejo importado) tampoco viaja', async () => {
@@ -684,7 +693,7 @@ describe('la subida sola no cambia ni genera el código de nadie', () => {
     await cambiar(m, 'DB.socios[0].codigoAcceso=' + JSON.stringify(otroCodigo(5)) + '; DB.socios[0].nombre="Respaldo Viejo"');
     assert.equal(m.srv.filas[cedulaDe(m, 'C0')].codigo_hash, viejo);
     assert.equal(m.srv.lotes[m.srv.lotes.length - 1][0].codigo, null);
-    assert.match(cinta(m).l2, /1 código nuevo espera/);
+    assert.doesNotMatch(cinta(m).l2, /código nuevo espera/);
   });
 
   test('el código propio del cliente no se toca, y nunca sale un codigo_forzar:true', async () => {
@@ -710,15 +719,16 @@ describe('la subida sola no cambia ni genera el código de nadie', () => {
     m.srv.lotes.forEach(l => l.filter(x => x.cedula === cedulaDe(m, 'C1')).forEach(x => assert.equal(x.codigo, null)));
   });
 
-  test('el PRIMER código de un cliente sí viaja: llenar un hueco no es cambiar una llave', async () => {
+  test('tampoco el PRIMER código de un cliente: no se siembran llaves muertas', async () => {
     const db = conCodigos(cartera(2, 0));
     db.socios[0].codigoAcceso = '';
     const m = montar({ db });
     await primera(m);
     assert.equal(m.srv.filas[cedulaDe(m, 'C0')].codigo_hash, null);
     const cod = otroCodigo(42);
-    await cambiar(m, 'DB.socios[0].codigoAcceso=' + JSON.stringify(cod));
-    assert.equal(m.srv.filas[cedulaDe(m, 'C0')].codigo_hash, m.srv.huellaCodigo(cod));
+    await cambiar(m, 'DB.socios[0].codigoAcceso=' + JSON.stringify(cod) + '; DB.socios[0].nombre="Con Primer Código"');
+    assert.equal(m.srv.filas[cedulaDe(m, 'C0')].codigo_hash, null, 'la subida le sembró un código');
+    assert.equal(m.srv.filas[cedulaDe(m, 'C0')].nombre, 'Con Primer Código', 'el paquete dejó de subir');
     assert.doesNotMatch(cinta(m).l2, /código nuevo espera/);
   });
 });
@@ -880,20 +890,21 @@ describe('el plan, sin red', () => {
     assert.equal(plan([otra], regs, { ahora, grupoEn: '2026-10-07T08:59:00Z' }).enviar.length, 1);
   });
 
-  test('la regla del código, caso por caso', () => {
+  /* 7-oct-2026 — la regla del código se acabó: ninguno viaja, en ningún
+     caso, y un código distinto no es motivo para subir. */
+  test('ningún código viaja: ni el primero, ni el forzado, ni con el botón', () => {
     const p1 = plan([item('a')], {});
     const regs = { a: p1.enviar[0].rec };
-    assert.equal(p1.enviar[0].item.codigo, 'K7M3Q', 'la primera vez el código va');
+    assert.equal(p1.enviar[0].item.codigo, null, 'la primera vez viajó el código');
+    assert.equal(p1.enviar[0].item.codigo_forzar, false);
     const forzado = plan([item('a', { codigo: 'ZZ9ZZ', codigo_forzar: true })], regs);
-    assert.equal(forzado.retenidos.length, 1);
-    assert.equal(forzado.enviar.length, 0, 'un código regenerado, con el paquete igual, no es motivo para subir solo');
+    assert.equal(forzado.retenidos.length, 0, 'quedó un código «esperando» que no va a viajar nunca');
+    assert.equal(forzado.enviar.length, 0, 'un código distinto, con el paquete igual, no es motivo para subir');
     const distinto = plan([item('a', { codigo: 'ZZ9ZZ', nombre: 'Otro' })], regs);
     assert.equal(distinto.enviar[0].item.codigo, null);
-    assert.equal(distinto.enviar[0].rec.c, regs.a.c, 'anotaría como subido un código que no viajó');
     const manual = plan([item('a', { codigo: 'ZZ9ZZ', codigo_forzar: true })], regs, { manual: true });
-    assert.equal(manual.enviar[0].item.codigo, 'ZZ9ZZ');
-    assert.equal(manual.enviar[0].item.codigo_forzar, true);
-    assert.equal(manual.retenidos.length, 0);
+    assert.equal(manual.enviar[0].item.codigo, null, 'el botón mandó un código');
+    assert.equal(manual.enviar[0].item.codigo_forzar, false, 'el botón forzó un código');
   });
 
   test('clasificar lo que contesta sincronizar_socios', () => {

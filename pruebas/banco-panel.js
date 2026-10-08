@@ -159,6 +159,16 @@ function abrirPanel(opciones) {
      pasa a cargar para poder mandar una contrapropuesta a cuotas sin pasarse. */
   if (!o.sinCreditos) ctx.CreditosPublicables = require(path.join(RAIZ, 'app', 'creditos.js'));
   if (!o.sinBases) ctx.BasesTuGarantia = require(path.join(RAIZ, 'app', 'bases.js'));
+  /* 7-oct-2026 — la puerta única: las palabras del toque «¿Es la misma
+     persona?» y el pase de un uso de «Ver la app como la ve él», los dos
+     <script src> nuevos de crm.html. `sinUnaPuerta: true` simula que no llegaron.
+     revision-registro.js va también: el toque la usa y, en un navegador, el
+     CRM la baja al primer toque (cargarScriptCRM), que acá no hay. */
+  if (!o.sinUnaPuerta) {
+    ctx.UnaPuerta = require(path.join(RAIZ, 'panel', 'una-puerta.js'));
+    ctx.VerComo = require(path.join(RAIZ, 'app', 'ver-como.js'));
+    ctx.RevisionRegistro = require(path.join(RAIZ, 'app', 'revision-registro.js'));
+  }
   /* 16-sep-2026 — LOS DOS DE COBRANZAS, que faltaban. El CRM los toma de
      window.CobranzaEnvio y window.TandaTuGarantia, y el banco no se los daba:
      toda la pestaña de Cobranzas —la que manda mensajes de cobro y la que

@@ -5441,7 +5441,7 @@ describe('las plantillas hablan con una sola voz (4-ago-2026)', () => {
                            '\nreturn VOZ_UNICA;')();
   const migrar = t => VOZ.reduce((s, r) => s.replace(r[0], r[1]), t);
 
-  test('son dieciséis y ninguna dice "obligación"', () => {
+  test('son quince y ninguna dice "obligación"', () => {
     /* El número sube cuando se agrega una plantilla, y a propósito rompe la
        prueba cuando pasa: quien agregue una tiene que leer esta batería antes
        de escribirla. La decimotercera es la del código de acceso (10-ago-2026);
@@ -5450,8 +5450,13 @@ describe('las plantillas hablan con una sola voz (4-ago-2026)', () => {
        La decimosexta es el recibo del abono + prórroga (abonoProrroga,
        3-oct-2026): «recibimos tu abono… cualquier cosa nos cuentas». Leída
        contra esta batería: plural, con «nosotros» de remitente, sin
-       «obligación» y sin ninguna de las construcciones en singular. */
-    assert.equal(mensajes().length, 16, 'cambió el número de plantillas: revisá la voz');
+       «obligación» y sin ninguna de las construcciones en singular.
+       7-oct-2026 — quedan QUINCE: la del código de acceso pasó a ser «Cómo
+       entrar a la app» (comoEntrar: celular y contraseña) y la del enlace
+       corregido se fue con los códigos. Leída contra esta batería: «Ya puedes
+       ver tus números… Cuando confirmemos que eres tú», plural y sin
+       «obligación». */
+    assert.equal(mensajes().length, 15, 'cambió el número de plantillas: revisá la voz');
     // En ninguna plantilla recomendada, y en ningún texto que le llegue al
     // socio. La palabra solo puede quedar viva en la regla que la borra.
     mensajes().forEach(m => assert.ok(!/obligaci[oó]n/i.test(m),
@@ -8734,53 +8739,55 @@ describe('la app y el Panel, después del cambio', () => {
     assert.ok(!/p_tel4/.test(codigo), 'la app todavía le manda tel4 a la nube');
     assert.ok(!/Últimos 4 números de tu celular/.test(codigo), 'quedó el campo viejo');
     assert.ok(!/S\.tel4/.test(codigo), 'quedó el tel4 en el estado de la sesión');
-    assert.match(codigo, /historial_socio_por_codigo/,
-      'la app tiene que llamar a la función nueva de la nube');
+    /* 7-oct-2026 — y tampoco el CÓDIGO: Joan lo apagó. La app entra con la
+       cuenta (celular y contraseña, app/sesion-socio.js). */
+    assert.ok(!/historial_socio_por_codigo|crear_solicitud_por_codigo|cambiar_codigo_acceso/.test(codigo),
+      'la app todavía llama a la puerta del código, que la nube cerró');
+    assert.match(codigo, /SS\.entrar\(CFG, cel, clave\)/, 'la app tiene que entrar con la cuenta');
   });
 
-  test('el campo del código se limpia con el motor, no con una regla propia', () => {
-    const i = SOCIO.indexOf('\nfunction tecleaAcceso(');
-    assert.ok(i >= 0, 'socio.html ya no declara tecleaAcceso');
-    const cuerpo = SOCIO.slice(i, SOCIO.indexOf('\n}', i));
-    assert.match(cuerpo, /M\.limpiarCodigoAcceso/);
-    assert.ok(!/\[\^/.test(cuerpo),
-      'hay una expresión regular propia limpiando el código: si difiere del motor, ' +
-      'el cliente ve su código bien escrito y la app le dice que no existe');
+  test('ya no hay campo de código: la contraseña la revisa cuenta.js, la misma del registro', () => {
+    assert.ok(SOCIO.indexOf('\nfunction tecleaAcceso(') < 0, 'socio.html volvió a declarar tecleaAcceso');
+    assert.ok(!/id="inCodigo2"|id=\\?"inCodigo2/.test(SOCIO) && SOCIO.indexOf("'inCodigo2'") < 0,
+      'volvió el campo del código a la puerta');
+    const SS = fs.readFileSync(path.join(__dirname, '..', 'app', 'sesion-socio.js'), 'utf8');
+    assert.match(SS, /U\.revisarContrasena\(nueva/,
+      'el cambio de contraseña tiene que pasar por las reglas de cuenta.js, no por unas propias');
   });
 
-  test('el Panel no se escribe su propia versión de lo que sabe el motor', () => {
-    /* El centinela de la casa: llegó a haber doce copias de cuentas que el
-       puente ya hacía, y dos contestaban distinto. */
-    assert.match(CRM, /MotorReglas\.generarCodigoAcceso/, 'el Panel tiene que pedirle el código al motor');
-    assert.match(CRM, /PUENTE\.sinCodigoAcceso/, 'y la lista de los que faltan, al puente');
+  test('el Panel ya no genera códigos, ni con su propio generador', () => {
+    /* El centinela de la casa sigue: nada de alfabetos propios. Y desde el
+       7-oct el Panel ni siquiera le pide códigos al motor: se apagaron. */
+    assert.ok(!/MotorReglas\.generarCodigoAcceso/.test(CRM), 'el Panel volvió a generar códigos de acceso');
+    assert.ok(!/PUENTE\.sinCodigoAcceso/.test(CRM), 'volvió el aviso de los códigos que faltan');
     assert.ok(!/function generarCodigoAcceso\s*\(/.test(CRM),
       'el Panel volvió a declarar su propio generador de códigos');
     assert.ok(!/ALFABETO/.test(CRM),
       'el alfabeto del código está escrito en el Panel: tiene que salir del motor');
   });
 
-  test('el Panel genera con azar criptográfico, no con Math.random', () => {
-    const i = CRM.indexOf('function nuevoCodigoAccesoUnico(');
-    assert.ok(i >= 0, 'el Panel ya no declara nuevoCodigoAccesoUnico');
-    const cuerpo = CRM.slice(i, CRM.indexOf('\n}', i));
-    assert.match(cuerpo, /azarSeguro/,
-      'con Math.random los códigos se pueden predecir conociendo la semilla');
+  test('el pase de «Ver la app como la ve él» sale de azar criptográfico, no de Math.random', () => {
+    const VC = fs.readFileSync(path.join(__dirname, '..', 'app', 'ver-como.js'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ');   // el comentario cuenta por qué NO se usa Math.random
+    assert.match(VC, /crypto\.getRandomValues\(b\)/);
+    assert.ok(!/Math\.random/.test(VC), 'un pase con Math.random se adivina');
     assert.match(CRM, /function azarSeguro\(\)\{[^}]*getRandomValues/);
   });
 
-  test('el código viaja en el lote que sube a la nube', () => {
+  test('ningún código viaja en el lote que sube a la nube', () => {
     const i = CRM.indexOf('function loteMigracion(');
     const cuerpo = CRM.slice(i, CRM.indexOf('\n}', i));
-    assert.match(cuerpo, /codigo:codigoAccesoDe\(s\)/,
-      'sin esto la nube nunca recibe el código y nadie entra desde el celular');
+    assert.match(cuerpo, /codigo:null/, 'el lote volvió a mandar el código de acceso');
+    assert.match(cuerpo, /codigo_forzar:false/);
+    assert.ok(!/codigoAccesoDe/.test(cuerpo));
   });
 
-  test('cambiar un código que ya está en la calle pregunta antes', () => {
-    const i = CRM.indexOf('function regenerarCodigoAcceso(');
+  test('deshacer una unión equivocada pregunta antes', () => {
+    const i = CRM.indexOf('function deshacerUnion(');
     assert.ok(i >= 0);
     const cuerpo = CRM.slice(i, CRM.indexOf('\n}', i));
     assert.match(cuerpo, /confirm\(/,
-      'cambiarlo deja al cliente afuera hasta que le llegue el nuevo: no puede ser un clic');
+      'deshacerla le quita el historial a esa cuenta en el acto: no puede ser un clic');
   });
 });
 
@@ -9370,8 +9377,13 @@ describe('EL REGISTRO ABIERTO LLEGA AL CRM (24-ago-2026)', () => {
       'la forma V-##### cambió: revisá que no se confunda con los otros tres códigos');
     assert.ok(PLAY.indexOf('verificarPorWhatsApp') >= 0,
       'la pantalla de registrado perdió el botón de mandar el código');
-    assert.ok(CRM_R.indexOf('r.datos.verificacion') >= 0,
-      'la bandeja del CRM ya no muestra el código de verificación');
+    /* 7-oct-2026 (segunda vuelta) — AL REVÉS. play/ dejó de pedir que se mande
+       el código por WhatsApp el 8-sep (verificarPorWhatsApp se retiró), así que
+       el CRM ya no puede presentarlo como prueba: el código nace en el navegador
+       del que se registra y viaja en sus datos. La prueba ahora es llamar al
+       número de la ficha (panel/una-puerta.js). */
+    assert.ok(!/Si te llegó por WhatsApp desde ese número/.test(CRM_R) && !/Me llegó el código/.test(CRM_R),
+      'el CRM sigue presentando el código de verificación como prueba de que el celular es suyo');
   });
 
   test('LAS TRES PUERTAS PREGUNTAN ANTES DE PEDIR (25-ago-2026)', () => {
@@ -9383,7 +9395,10 @@ describe('EL REGISTRO ABIERTO LLEGA AL CRM (24-ago-2026)', () => {
        había llegado. */
     const WEB = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
-    assert.ok(SOCIO.indexOf('¿Ya tienes tu código?') >= 0 && SOCIO.indexOf('¿Eres nuevo?') >= 0,
+    /* 7-oct-2026 — la pregunta ya no es «¿tienes código?»: es «Entrar» (con
+       la cuenta) o «¿Todavía no te has registrado?». Lo que se protege es lo
+       mismo: que el nuevo vea su salida en la misma pantalla. */
+    assert.ok(SOCIO.indexOf("'<h3 class=\"tit\">Entrar</h3>'") >= 0 && SOCIO.indexOf('¿Todavía no te has registrado?') >= 0,
       'la app del socio dejó de preguntar: el nuevo vuelve a caer en una puerta cerrada');
     /* 8-sep-2026: la salida va DIRECTO al formulario (play/#registro), para que
        el nuevo no pase por la portada del producto a 6 meses ni por su login. */
@@ -9487,29 +9502,38 @@ describe('LA SESIÓN SE QUEDA Y EL CÓDIGO ES DEL SOCIO (20-ago-2026)', () => {
   const SOCIO = fs.readFileSync(path.join(__dirname, '..', 'app', 'socio.html'), 'utf8');
   const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
 
-  test('la sesión solo se guarda cuando la entrada fue por la nube', () => {
-    const m = /function guardarSesion\([\s\S]*?\n\}/.exec(SOCIO);
-    assert.ok(m, 'socio.html ya no declara guardarSesion');
-    assert.ok(/origen\s*!==\s*'nube'/.test(m[0]),
-      'guardarSesion dejó de exigir origen nube: el Panel de Joan recordaría clientes ajenos');
-    assert.ok(/function salir\(\)[\s\S]{0,200}borrarSesion\(\)/.test(SOCIO),
+  /* 7-oct-2026 — lo que se recuerda es la SESIÓN DE LA CUENTA (celular y
+     contraseña), y solo en la cuenta junta: Joan mirando la app ('panel') o
+     un enlace congelado no tienen sesión. Salir le avisa al servidor y borra
+     la sesión de esta app y la de play/ en la pestaña (es la misma cuenta). */
+  test('la sesión solo se guarda desde la cuenta, y salir la suelta entera', () => {
+    const m = /function cargarCuenta\(\)[\s\S]*?\n\}/.exec(SOCIO);
+    assert.ok(m, 'socio.html ya no declara cargarCuenta');
+    assert.match(m[0], /origen: 'nube'/);
+    const a = /function abrir\(resp\)[\s\S]*?\n\}/.exec(SOCIO);
+    assert.ok(a && !/guardarSesion/.test(a[0]),
+      'abrir() volvió a guardar sesión: el Panel de Joan recordaría clientes ajenos');
+    assert.ok(/function salir\(\)[\s\S]{0,300}cerrarSesionLocal\(\)/.test(SOCIO),
       'salir() ya no borra la sesión: el botón mentiría');
+    assert.ok(/function salir\(\)[\s\S]{0,200}avisarSalida/.test(SOCIO),
+      'salir() no le avisa al servidor: el token seguiría vivo hasta vencer');
+    assert.ok(/function cerrarSesionLocal\(\)[\s\S]{0,300}sessionStorage\.removeItem/.test(SOCIO),
+      'la sesión de play/ de la pestaña se quedaba: al recargar volvía a entrar sola');
   });
 
-  test('el cambio de código exige el actual y viaja a la nube', () => {
-    const m = /function cambiarCodigo\(\)[\s\S]*?\n\}/.exec(SOCIO);
-    assert.ok(m, 'socio.html ya no declara cambiarCodigo');
-    assert.ok(m[0].indexOf('p_codigo_actual') >= 0,
-      'el cambio ya no exige el código actual: cualquiera con el teléfono un minuto se queda la cuenta');
-    assert.ok(m[0].indexOf('cambiar_codigo_acceso') >= 0,
-      'el cambio dejó de pasar por la función de la nube');
+  test('cambiar la contraseña manda SOLO la contraseña, con la sesión', () => {
+    const SSJ = fs.readFileSync(path.join(__dirname, '..', 'app', 'sesion-socio.js'), 'utf8');
+    const m = /function cambiarClave\([\s\S]*?\n  \}/.exec(SSJ);
+    assert.ok(m, 'sesion-socio.js ya no declara cambiarClave');
+    assert.match(m[0], /auth\(cfg, 'user', 'PUT', \{ password: String\(nueva\) \}, x\.access_token\)/,
+      'el cambio tiene que ir a /auth/v1/user con la sesión y solo con la contraseña');
+    assert.ok(!/email/.test(m[0]), 'el cambio de contraseña manda el correo: la base lo niega y es la identidad');
   });
 
-  test('el lote de subida lleva la marca de forzar y la limpia al terminar', () => {
-    assert.ok(/codigo_forzar\s*:\s*!!s\.codigoForzar/.test(CRM),
-      'loteMigracion ya no manda codigo_forzar: el rescate de «Cambiar» dejó de funcionar');
+  test('el lote ya no fuerza códigos, y la marca vieja se limpia igual al subir', () => {
+    assert.ok(/codigo_forzar:false/.test(CRM), 'loteMigracion volvió a forzar códigos');
     assert.ok(/delete s\.codigoForzar/.test(CRM),
-      'la marca no se limpia tras subir: la próxima subida pisaría la clave que el socio se puso');
+      'la marca vieja de forzar ya no se limpia: quedaría como dato muerto en la ficha');
     const mig = path.join(__dirname, '..', 'base', '20260820b_codigo_propio.sql');
     assert.ok(fs.existsSync(mig), 'falta base/20260820b_codigo_propio.sql');
     const sql = fs.readFileSync(mig, 'utf8');
@@ -9576,14 +9600,18 @@ describe('ninguna pantalla llama a una función que la migración tiró (11-ago-
          mi_rol, gestion_anotar y gestiones_de quedaban FUERA del barrido —
          llamadas y sin comprobar que existan, que es justo el defecto que este
          barrido nació para cazar. */
-      ...[...t.matchAll(/rpc\w*\(\s*['"]([a-z_]+)['"]/g)].map(m => m[1])
+      ...[...t.matchAll(/rpc\w*\(\s*['"]([a-z_]+)['"]/g)].map(m => m[1]),
+      /* 7-oct-2026 — la app del socio llama con su sesión por
+         SesionSocio.conSesion(cfg, sesion, 'función', …): otro camino a la
+         misma nube, que el barrido también tiene que mirar. */
+      ...[...t.matchAll(/conSesion\(\s*\w+\s*,\s*\w+\s*,\s*['"]([a-z_]+)['"]/g)].map(m => m[1])
     ])];
   };
 
   /* play/index.html entra al barrido el 24-ago-2026: su play_solicitar estuvo
      LLAMADO Y SIN EXISTIR desde el 11-ago y nadie lo vio — exactamente el
      defecto que este barrido existe para cazar. */
-  ['app/socio.html', 'panel/crm.html', 'play/index.html'].forEach(archivo => {
+  ['app/socio.html', 'app/sesion-socio.js', 'panel/crm.html', 'play/index.html'].forEach(archivo => {
     test(archivo + ' — todas sus RPC existen después de la migración', () => {
       const usa = llamadasDe(archivo);
       assert.ok(usa.length > 0, archivo + ' no llama a ninguna RPC: el barrido no está midiendo nada');
@@ -9981,25 +10009,21 @@ describe('EL ENLACE QUE SE LE MANDA AL CLIENTE (28-ago-2026)', () => {
     const urls = bloque.match(/https?:\/\/[^\s'"]+/g) || [];
     assert.deepEqual(urls, [],
       'PLANTILLAS_DEF trae direcciones pegadas: ' + urls.join(', '));
-    const linea = bloque.split('\n').find(l => l.trim().startsWith('codigoAcceso:'));
-    assert.ok(linea, 'no encontré la plantilla codigoAcceso');
+    /* 7-oct-2026: la del código pasó a ser «Cómo entrar» (comoEntrar). */
+    const linea = bloque.split('\n').find(l => l.trim().startsWith('comoEntrar:'));
+    assert.ok(linea, 'no encontré la plantilla comoEntrar');
     assert.ok(linea.indexOf('{enlace}') >= 0,
-      'el mensaje del código de acceso dejó de usar {enlace}');
+      'el mensaje de cómo entrar dejó de usar {enlace}');
   });
 
-  test('a quien recibió el enlace viejo se le puede mandar el bueno', () => {
-    /* No basta con arreglar el Panel: los enlaces ya enviados están guardados
-       en el WhatsApp de cada cliente y ahí se quedan. */
-    assert.match(CRM, /enlaceCorregido:\{/, 'se fue la plantilla de la corrección');
-    assert.match(CRM, /function pudoRecibirEnlaceViejo\(s\)/);
-    assert.match(CRM, /function reenviarEnlaceBueno\(\)/);
-    /* Y mandar el código HOY saca al cliente de la lista: si no, seguiría
-       apareciendo para siempre por una fecha de envío que ya se pisó. */
-    const bloque = CRM.slice(CRM.indexOf('function mandarCodigoAcceso('),
-                             CRM.indexOf('function pudoRecibirEnlaceViejo('));
-    assert.match(bloque, /s\.enlaceReenviadoEn=hoyISO\(\)/,
-      'mandarCodigoAcceso no marca el reenvío: el cliente se queda en la lista ' +
-      'de reparación aunque ya recibió el enlace bueno');
+  test('el reenvío del enlace corregido se fue con los códigos', () => {
+    /* Hasta el 7-oct había una lista de «mandarles el enlace bueno» a quien
+       recibió su código con la dirección vieja. Sin códigos, el enlace de hoy
+       va en «Cómo entrar», armado por urlApp() cada vez que se manda. */
+    assert.ok(!/enlaceCorregido:\{/.test(CRM), 'volvió la plantilla de la corrección');
+    assert.ok(!/function pudoRecibirEnlaceViejo\(/.test(CRM));
+    assert.match(CRM, /function mensajeComoEntrar\(s\)\{\s*return aplicarVars\([^)]*urlApp\(\)/,
+      '«Cómo entrar» tiene que armar el enlace con urlApp() al mandarlo');
   });
 });
 
@@ -10293,10 +10317,14 @@ describe('un solo enlace para nuevos y antiguos (8-sep-2026)', () => {
   const SOCIO = leer('app/socio.html'), PLAY = leer('play/index.html');
 
   test('la entrada de la app ofrece las dos puertas, y la del nuevo va directo al formulario', () => {
-    const i = SOCIO.indexOf('function pintarEntrar()');
+    const i = SOCIO.indexOf('function pintarEntrar(');
+    assert.ok(i >= 0, 'socio.html ya no declara pintarEntrar');
     const cuerpo = SOCIO.slice(i, SOCIO.indexOf('\nfunction ', i + 1));
-    assert.match(cuerpo, /¿Ya tienes tu código\?/, 'la puerta del antiguo');
-    assert.match(cuerpo, /¿Eres nuevo\?/, 'la puerta del nuevo');
+    /* 7-oct-2026 — una sola puerta: «Entrar» con la cuenta (nuevos y antiguos
+       igual) y «Registrarme» para el que todavía no tiene cuenta. */
+    assert.match(cuerpo, /<h3 class="tit">Entrar<\/h3>/, 'la puerta del que ya tiene cuenta');
+    assert.match(cuerpo, /type="password"/, 'la puerta pide la contraseña');
+    assert.match(cuerpo, /¿Todavía no te has registrado\?/, 'la puerta del que no tiene cuenta');
     assert.match(cuerpo, /href="\.\.\/play\/#registro">Registrarme/,
       '«Registrarme» tiene que caer en el formulario, no en la portada del producto a 6 meses');
   });
@@ -10320,17 +10348,31 @@ describe('un solo enlace para nuevos y antiguos (8-sep-2026)', () => {
     /* 22-sep-2026 — esto miraba dónde partía la línea de JavaScript
        («: ' + 'con él entras…»), así que un reacomodo del texto la rompía sin
        que el cliente viera nada distinto. Ahora mira la IDEA, que es lo que hay
-       que garantizarle: que le van a dar un código y que con ese código vuelve
-       por el mismo enlace. */
-    assert.ok(/tu código de acceso<\/b>:/.test(PLAY) &&
-              /con él entras por el mismo enlace de siempre/.test(PLAY),
-      'el recién registrado tiene que saber que vuelve con el código, por el mismo enlace');
+       que garantizarle.
+       7-oct-2026 — Y LA IDEA CAMBIÓ: Joan apagó los códigos de acceso. Antes
+       se exigía «te mandamos tu código de acceso: con él entras por el mismo
+       enlace de siempre»; hoy esa frase es la pantalla prometiendo algo que ya
+       nadie le va a mandar. El aceptado vuelve como entró, con su celular y su
+       contraseña, y lo que se le garantiza es POR DÓNDE se entera: el chat de
+       la app. Se mira el aviso entero, no una palabra suelta. */
+    const i = PLAY.indexOf('<b>Listo: aceptaste ');
+    assert.ok(i >= 0, 'play/ ya no le dice al cliente que aceptó');
+    const aviso = PLAY.slice(i, PLAY.indexOf("</div>'", i));
+    assert.match(aviso, /Te avisamos <b>en el chat de la app<\/b> cuándo y por dónde recibes la plata/,
+      'el que aceptó tiene que saber por dónde le avisan');
+    assert.ok(!/c(o|ó)digo/i.test(aviso),
+      'el aviso de aceptada volvió a prometer un código que Joan apagó el 7-oct');
+    assert.ok(!/con él entras por el mismo enlace/.test(PLAY), 'volvió «con él entras», el código de acceso');
   });
 
   test('LA FRONTERA DE PLAY SIGUE EN PIE: play/ no enlaza de vuelta al quincenal', () => {
     /* Google Play prohíbe los créditos a menos de 60 días. Si play/ se vuelve a
        publicar, un enlace de ahí al quincenal es motivo de suspensión de por
-       vida. Se vuelve por WhatsApp, con el código, nunca con un botón. */
+       vida. Se vuelve por WhatsApp, con el código, nunca con un botón.
+       7-oct-2026 — ya sin código (Joan los apagó): se vuelve con el celular y
+       la contraseña. Si esta frontera sigue haciendo falta, con Play
+       descartado el 18-ago, es una decisión de Joan que está pendiente
+       (RECETA-UNA-PUERTA-PLAY.md); mientras no la tome, la prueba no se toca. */
     assert.ok(!/href=["'][^"']*socio\.html|location\.(href|assign|replace)[^;]*socio\.html/.test(PLAY),
       'play/ enlaza al quincenal: la frontera de Play se rompió');
   });

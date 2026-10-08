@@ -88,7 +88,13 @@
  *   guardado no entró (cfg.sinGuardar), no sube.
  *
  * LO QUE ESTO NO HACE NUNCA
- *   · NO CAMBIA EL CÓDIGO DE NADIE. La subida automática manda siempre
+ *   · 7-oct-2026 — NO MANDA NINGÚN CÓDIGO. Joan apagó los códigos de acceso
+ *     (base/20261007_una_puerta.sql): cada paquete viaja con codigo:null y
+ *     codigo_forzar:false, con el botón o sin él. Lo que sigue en este punto
+ *     es la regla de antes, que se queda escrita porque explica por qué la
+ *     nube conserva el código viejo (el coalesce) y por qué ya no hay
+ *     «retenidos» en la línea:
+ *     NO CAMBIA EL CÓDIGO DE NADIE. La subida automática manda siempre
  *     codigo_forzar:false, y el código del cliente solo si es el MISMO que ya
  *     confirmó la nube desde este computador o si nunca le había subido uno
  *     (llenar un hueco, no cambiar una llave: es lo que hizo siempre el botón).
@@ -151,7 +157,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (entorno) {
   'use strict';
 
-  var VERSION = '2026-10-07b';
+  var VERSION = '2026-10-07c';
   var E = entorno || {};
   var G = (typeof globalThis !== 'undefined') ? globalThis : {};
 
@@ -311,7 +317,9 @@
   }
   function huellaGrupo(x) { return huella(JSON.stringify(objeto(x && x.datos).comunidad || null)); }
   /* El código en el disco ya está en claro dentro de la cartera
-     (s.codigoAcceso): esta huella no expone nada que no esté ahí. */
+     (s.codigoAcceso): esta huella no expone nada que no esté ahí.
+     7-oct-2026: ya no se usa para decidir nada (ningún código viaja); se
+     queda porque las huellas guardadas en joan_crm_historiales la llevan. */
   function huellaCodigo(cod) { return cod ? huella('codigo|' + cod) : ''; }
 
   /* DOS FICHAS, UNA FILA (ver arriba). La llave de la nube se calcula IGUAL
@@ -354,7 +362,6 @@
    */
   function planDeSubida(lote, registros, op) {
     var o = objeto(op), regs = objeto(registros);
-    var norm = typeof o.normalizar === 'function' ? o.normalizar : normalizarCodigo;
     var todos = [], vivos = {}, llaves = {};
     lista(lote).forEach(function (x) {
       if (!x) return;
@@ -371,29 +378,28 @@
     todos.forEach(function (t) {
       var x = t.x, id = t.id, rec = t.rec;
       if (choque[id]) { chocan.push({ id: id, nombre: texto(x.nombre) || 'Socio', motivo: choque[id] }); return; }
-      var cod = norm(x.codigo) || '';
-      var hc = huellaCodigo(cod);
-      /* LA REGLA DEL CÓDIGO (ver LO QUE ESTO NO HACE NUNCA). */
-      var mandar, retenido = false;
-      if (o.manual) mandar = true;
-      else if (!cod) mandar = false;
-      else if (x.codigo_forzar) { mandar = false; retenido = true; }
-      else if (!rec || !rec.c || rec.c === hc) mandar = true;
-      else { mandar = false; retenido = true; }
+      /* 7-oct-2026 — NINGÚN CÓDIGO VIAJA, ni solo ni con el botón. Joan apagó
+         los códigos de acceso (base/20261007_una_puerta.sql): el cliente entra
+         con su celular y su contraseña, y la nube ya no deja usar un código
+         para nada. Mandar uno solo serviría para sembrar una llave muerta. Se
+         manda null y codigo_forzar:false siempre —sincronizar_socios conserva
+         lo que tenga, con su `coalesce`— y los paquetes siguen subiendo igual.
+         Por eso tampoco hay «retenidos»: ya no hay un código que esperar. La
+         lista se sigue devolviendo vacía para no cambiarle la forma al plan. */
+      var retenido = false;
       var h = huellaPaquete(x), g = huellaGrupo(x);
       var item = {
         cedula: texto(x.cedula), telefono: texto(x.telefono), nombre: x.nombre || 'Socio',
-        codigo: mandar ? (x.codigo == null ? null : x.codigo) : null,
-        codigo_forzar: o.manual ? !!x.codigo_forzar : false,
+        codigo: null,
+        codigo_forzar: false,
         datos: x.datos
       };
       /* `k`: la llave con que el cliente queda viviendo en la nube. Sirve para
          saber qué fila ocupa todavía y si la está estrenando. */
-      var nuevo = { h: h, c: (mandar && cod) ? hc : (rec ? texto(rec.c) : ''), g: g, k: t.ident };
+      var nuevo = { h: h, c: rec ? texto(rec.c) : '', g: g, k: t.ident };
       var e = { id: id, nombre: texto(x.nombre) || 'Socio', item: item, rec: nuevo, retenido: retenido,
                 ident: t.ident, cel: t.cel, migra: !!(rec && rec.k && rec.k !== t.ident) };
-      if (retenido) retenidos.push(e);
-      var propio = !rec || rec.h !== h || rec.k !== t.ident || (mandar && !!cod && rec.c !== hc);
+      var propio = !rec || rec.h !== h || rec.k !== t.ident;
       if (o.manual || propio) propios.push(e);
       else if (rec.g !== g) grupo.push(e);
     });
@@ -1131,8 +1137,8 @@
           '<b>📲 ' + t.l1 + '</b><div class="l2">' + t.l2 + '</div>' +
           '<div class="l3">Los historiales de tus clientes suben solos desde la primera vez que tocas «☁ Subir historiales» ' +
           'en este computador: al entrar, tras 90 s sin cambios, al volver la señal y cada 30 min. Sube solo el cliente ' +
-          'que cambió; las cifras del grupo se refrescan para todos cada 6 h. El botón sube a todos ya, y es el único ' +
-          'que cambia un código que regeneraste. Dos fichas con el mismo celular o la misma cédula no suben hasta que ' +
+          'que cambió; las cifras del grupo se refrescan para todos cada 6 h. El botón sube a todos ya. ' +
+          'Ningún código de acceso viaja: tus clientes entran con su celular y su contraseña. Dos fichas con el mismo celular o la misma cédula no suben hasta que ' +
           'las corrijas: la nube las tomaría por la misma persona. · versión ' + esc(VERSION) + '</div></div>';
       }
     } catch (e) { /* nada más que hacer */ }
@@ -1271,6 +1277,15 @@
     /* ¿Joan ya tocó el botón en este computador? (probarSupabase lo pregunta
        para no prometer «suben solos desde ya» cuando todavía no.) */
     habilitado: function () { return !!leerEstado().habilitado; },
+    /* 7-oct-2026 — ¿Con qué llave quedó este cliente en la nube, según la
+       última subida que la nube CONFIRMÓ desde este computador? null si
+       todavía no subió. crm.html la pregunta para juntar la cuenta del
+       cliente nuevo que Joan aprobó: juntar antes de que su ficha esté
+       arriba es preguntarle a la nube por una fila que no existe. */
+    llaveConfirmada: function (socioId) {
+      var r = objeto(leerEstado().socios[String(socioId)]);
+      return r.k ? texto(r.k) : null;
+    },
     algoCambio: algoCambio,
     conexionCambio: conexionCambio,
     carteraReemplazada: carteraReemplazada,

@@ -194,21 +194,34 @@ describe('el chat: cómo habla con la nube', () => {
     return { cfg, visto };
   }
 
-  test('el socio manda su identificador y su código, no su cédula a secas', async () => {
+  /* 7-oct-2026 — EL SOCIO HABLA CON SU SESIÓN. Hasta hoy mandaba su
+     identificador y su código a chat_escribir; la puerta del código se cerró
+     (base/20261007_una_puerta.sql) y el chat va por chat_escribir_sesion, que
+     saca de la sesión de quién es el hilo. En el cuerpo no viaja ni cédula ni
+     código: no hay dónde escribir el hilo de otro. */
+  test('el socio escribe con SU sesión: ni cédula ni código en el cuerpo', async () => {
     const b = banco();
-    await CHAT.escribir(b.cfg, '3001112233', 'K7QP3', '  hola  ');
+    b.cfg.token = 'token-de-su-sesion';
+    await CHAT.escribir(b.cfg, '  hola  ', 'servicio');
     assert.equal(b.visto.llamadas.length, 1);
-    assert.match(b.visto.llamadas[0].url, /\/rest\/v1\/rpc\/chat_escribir$/);
-    assert.deepEqual(b.visto.llamadas[0].cuerpo,
-      { p_cedula: '3001112233', p_codigo: 'K7QP3', p_texto: 'hola' });
-    /* La llave pública va en las dos cabeceras, como en el resto del proyecto. */
+    assert.match(b.visto.llamadas[0].url, /\/rest\/v1\/rpc\/chat_escribir_sesion$/);
+    assert.deepEqual(b.visto.llamadas[0].cuerpo, { p_canal: 'servicio', p_texto: 'hola' });
+    /* La llave pública en apikey; la sesión, en Authorization. */
     assert.equal(b.visto.llamadas[0].cab.apikey, 'llave-publica');
-    assert.equal(b.visto.llamadas[0].cab.Authorization, 'Bearer llave-publica');
+    assert.equal(b.visto.llamadas[0].cab.Authorization, 'Bearer token-de-su-sesion');
+  });
+
+  test('sin sesión el socio no escribe ni lee: se niega antes de pedir', async () => {
+    const b = banco();
+    await assert.rejects(() => CHAT.escribir(b.cfg, 'hola'), e => /contraseña/.test(e.humano));
+    await assert.rejects(() => CHAT.leer(b.cfg, 0, 'servicio'), e => /contraseña/.test(e.humano));
+    assert.equal(b.visto.llamadas.length, 0, 'preguntó a la nube sin sesión');
   });
 
   test('y un mensaje vacío NO sale a la red', async () => {
     const b = banco();
-    await assert.rejects(() => CHAT.escribir(b.cfg, '1', 'K', '   '));
+    b.cfg.token = 'token';
+    await assert.rejects(() => CHAT.escribir(b.cfg, '   ', 'servicio'));
     assert.equal(b.visto.llamadas.length, 0,
       'gastó una petición para preguntar algo que ya se sabía');
   });
@@ -217,13 +230,15 @@ describe('el chat: cómo habla con la nube', () => {
     const b = banco();
     await CHAT.conversaciones(b.cfg);
     await CHAT.responder(b.cfg, '52111222', 'listo');
-    await CHAT.leer(b.cfg, '52111222', 'K7QP3', 12);
+    await CHAT.leer(Object.assign({}, b.cfg, { token: 'token-del-socio' }), 12, 'cobranza');
     const [conv, resp, leer_] = b.visto.llamadas;
     assert.deepEqual(conv.cuerpo, { p_clave: 'la-clave-de-joan' });
     assert.equal(resp.cuerpo.p_clave, 'la-clave-de-joan');
     assert.equal(leer_.cuerpo.p_desde, 12);
+    assert.equal(leer_.cuerpo.p_canal, 'cobranza');
     assert.ok(!('p_clave' in leer_.cuerpo),
       'la clave de Joan viajó en una llamada del socio');
+    assert.equal(leer_.cab.Authorization, 'Bearer token-del-socio');
   });
 
   test('un 404 dice que falta correr la migración, no «error»', async () => {
@@ -357,11 +372,16 @@ describe('el chat: que esté de verdad cableado', () => {
 
   test('la app del socio no ofrece chat cuando no puede haberlo', () => {
     const t = leer('app/socio.html');
-    /* Sin nube, sin código o entrando por un enlace congelado no hay a quién
+    /* Sin nube, sin sesión o entrando por un enlace congelado no hay a quién
        escribirle. Decirlo es la regla de la casa; fingir una caja de texto que
-       no manda nada es lo que no se puede. */
+       no manda nada es lo que no se puede. 7-oct-2026: sin código; pide la
+       sesión de la cuenta, y nunca con Joan mirando la app ('panel'). */
     assert.match(t, /function chatDisponible\(\)/);
-    assert.match(t, /CFG\.url && CFG\.anon && S && S\.cedula && S\.acceso/);
+    const i = t.indexOf('function chatDisponible()');
+    const cuerpo = t.slice(i, t.indexOf('\n}', i));
+    assert.match(cuerpo, /CFG\.url && CFG\.anon && SESION && SESION\.access_token/);
+    assert.match(cuerpo, /\(!S \|\| S\.origen === 'nube'\)/);
+    assert.ok(!/S\.acceso/.test(cuerpo), 'el chat todavía pide el código');
   });
 
   test('el Panel no dice «no hay mensajes» cuando lo que pasa es que no miró', () => {

@@ -20,7 +20,11 @@ legal/
   privacidad.html       Política de datos personales (Ley 1581 de 2012).
 
 app/                    LA APP DEL SOCIO — la que ve el cliente.
-  socio.html            Una sola página. Voz: tuteo colombiano.
+  socio.html            Una sola página. Voz: tuteo colombiano. Desde el 7-oct-2026
+                        se entra con celular y contraseña (una sola puerta).
+  sesion-socio.js       La puerta: entrar, la sesión, mi_cuenta, «Olvidé mi
+                        contraseña» y cambiarla. Sin DOM, probada en node.
+  ver-como.js           El pase de un uso de «👁 Ver la app como la ve él» (CRM).
   motor.js              El motor del producto de HOY (quincenal y con garantía).
   creditos.js           El catálogo del producto a 6 meses, pensado para Play
                         (canal descartado el 18-ago — ver play/ abajo). Aparte
@@ -36,13 +40,27 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
 
 panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna parte.
   crm.html              Socios, créditos, cobros, invitaciones, plantillas.
+  una-puerta.js         Las palabras del toque «¿Es la misma persona?» (juntar la
+                        cuenta de un cliente antiguo), compartidas con espejo.html.
   panel.webmanifest
   panel-*.png           La G blanca sobre rojo, para no confundir las dos apps.
 
 base/
   supabase.sql                    Tablas, RLS y funciones. Se corre entero en el SQL Editor.
   20260810_codigo_acceso.sql      Entrar con código. Se corre DESPUÉS, y solo cuando
-                                  todos los clientes ya tengan el suyo.
+                                  todos los clientes ya tengan el suyo. (Apagado el
+                                  7-oct-2026 por 20261007_una_puerta.sql.)
+  20261007_una_puerta.sql         La puerta única: Joan junta cuentas con un toque,
+                                  la puerta del código se cierra. Después,
+                                  20261007b_una_puerta_comprobar.sql (solo mira).
+                                  Con señales raras (cuenta anterior al registro,
+                                  recado de contraseña) pide clave nueva al número
+                                  de la ficha y una hora; compara el nombre de la ficha.
+  20261007c_una_puerta_cierres.sql  Va justo después: la solicitud solo copia el
+                                  registro de esa cuenta y marca la de una cuenta sin
+                                  juntar; la subida no muda la unión a otra persona;
+                                  las fichas con cédula vuelven a subir. Después,
+                                  20261007d_cierres_comprobar.sql (solo mira).
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.

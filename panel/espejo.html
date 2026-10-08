@@ -456,6 +456,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
      fotos, sin rostro, sin IP ni aparato. Está en la precarga de sw.js porque
      la pestaña Registrados se abre también sin señal. -->
 <script src="../app/revision-registro.js"></script>
+<!-- 7-oct-2026 — las palabras del toque «¿Es la misma persona?», las MISMAS del
+     computador (panel/crm.html). Si no llega, la tarjeta no ofrece juntar: un
+     toque sin sus señales al lado es justo el que Joan decidió no dar. -->
+<script src="una-puerta.js"></script>
 <script>
 'use strict';
 /* =========================================================================
@@ -3307,6 +3311,16 @@ function tarjetaRegistro(r, rev) {
        y en la calle, con una mano, eso es tocar al lado. */
     yaEs = '<button class="btn sm sec arriba" type="button" data-acc="verficha" data-id="' + esc(c0.socio.id) + '">'
       + 'Ya es tu cliente: abrir ' + esc(P.codCliente(c0.socio)) + '</button>';
+    /* 7-oct-2026 — Y JUNTAR SU CUENTA, desde la calle. Decisión de Joan: el
+       cliente antiguo que se registra ve su historial cuando Joan confirma,
+       con un toque, que es la misma persona. Juntar NO es aprobar ni abrir una
+       ficha (eso sigue en el computador): es dejar que la cuenta con que se
+       registró vea la ficha que ya tiene. El toque se da en una hoja que
+       muestra la cuenta, la revisión y qué NO se puede mirar desde aquí. */
+    if (window.UnaPuerta && tel.length === 10) {
+      yaEs += '<button class="btn sm arriba" type="button" data-acc="reg-juntar" data-id="' + esc(String(r.id))
+        + '" data-socio="' + esc(c0.socio.id) + '">🔗 Es la misma persona: juntar su cuenta</button>';
+    }
   } else if (c0 && c0.fuerza === 1) {
     chips.push('<span class="pill mora">Mismo celular que ' + esc(P.codCliente(c0.socio)) + ', otra cédula</span>');
   }
@@ -3367,6 +3381,149 @@ function tarjetaRegistro(r, rev) {
           + '</div>'
         : '<div class="mini">No dejó un celular de 10 dígitos: no hay a dónde llamarlo.</div>')
     + '</div>';
+}
+
+/* ------------------------- JUNTAR UNA CUENTA ---------------------------
+   7-oct-2026 — «🔗 Es la misma persona», desde el celular.
+
+   Lo que se mira antes del toque, en una hoja:
+     · la ficha y lo que tiene afuera (si se junta, eso es lo que la cuenta
+       va a ver);
+     · la cuenta: cuándo se abrió, si hay un recado de contraseña, si el
+       celular no es el de la ficha (panel_cuentas_de_registros, con la
+       sesión de Joan: base/20261007_una_puerta.sql);
+     · «Para mirar, y por qué»: la revisión de este teléfono
+       (revisionDelCelular), sin biometría;
+     · y lo que NO se ve desde aquí: las fotos de la cédula y la selfie viven
+       en el computador.
+   El botón no aparece hasta que la nube contestó por la cuenta. La reja de
+   verdad es panel_vincular_cuenta (panel_es_dueno + las negativas de
+   vincular_interna). Nada de esto se guarda en el teléfono. */
+var _juntar = { id: null, socio: null, cuenta: null, estado: 'nada', texto: '' };
+
+function abrirJuntarCelular(idReg, socioId) {
+  var UP = window.UnaPuerta;
+  if (!UP || !NUBE || !NUBE.rpc || !nubeLista()) return;
+  _juntar = { id: String(idReg), socio: String(socioId), cuenta: null, estado: 'cargando', texto: '' };
+  pintarJuntarCelular();
+  var esta = _juntar;
+  NUBE.rpc('panel_cuentas_de_registros', { p_ids: [Number(idReg)] }).then(function (lista) {
+    if (esta !== _juntar) return;
+    esta.cuenta = (Array.isArray(lista) ? lista : [])[0] || null;
+    esta.estado = esta.cuenta ? 'ok' : 'error';
+    if (!esta.cuenta) esta.texto = 'La nube no encontró ese registro. Vuelve a traer los registrados.';
+    pintarJuntarCelular();
+  }, function (e) {
+    if (esta !== _juntar) return;
+    esta.estado = 'error';
+    esta.texto = (e && e.estado === 404)
+      ? 'Falta un paso en la nube: pegar base/20261007_una_puerta.sql en el SQL Editor de Supabase y «Reload schema».'
+      : (e && e.sin_red) ? 'Sin internet: la cuenta se pregunta a la nube.' : ((e && e.motivo) || 'No pude hablar con la nube.');
+    pintarJuntarCelular();
+  });
+}
+
+function pintarJuntarCelular() {
+  var UP = window.UnaPuerta, j = _juntar;
+  var r = null, s = null;
+  (_reg.filas || []).forEach(function (x) { if (String(x && x.id) === j.id) r = x; });
+  ((DB && DB.socios) || []).forEach(function (x) { if (String(x.id) === j.socio) s = x; });
+  if (!UP || !r || !s) { cerrarHoja(); return; }
+  /* 7-oct-2026 (segunda vuelta) — \D, no D: con /D/g un teléfono con espacios
+     o con 57 delante pintaba «la cuenta del …» con otro número. */
+  var tel = String(r.telefono || '').replace(/\D/g, '').slice(-10);
+  var paq = P.migrarSocio(DB, s);
+  var activos = (DB.prestamos || []).filter(function (p) { return p.socioId === s.id && !p.pagado; }).length;
+  var h = '<p class="mini">Si la juntas, la cuenta del <b>' + esc(UP.bonito(tel)) + '</b> ve desde ya el historial de '
+    + esc(P.codCliente(s)) + ': lo que debe, sus créditos y su chat. Juntar no aprueba nada ni abre una ficha.</p>'
+    + '<div class="card ap"><b>' + esc(P.codCliente(s)) + ' · ' + esc(s.nombre || 'Socio') + '</b>'
+    + '<div class="fila"><span class="k">Capital afuera</span><span class="v">' + COP(paq.garantia.capital_afuera) + '</span></div>'
+    + '<div class="fila"><span class="k">Créditos activos</span><span class="v">' + activos + '</span></div></div>';
+
+  if (j.estado === 'cargando') {
+    h += '<div class="aviso">Preguntando a la nube por esa cuenta…</div>';
+  } else if (j.estado === 'error') {
+    h += '<div class="aviso ambar">' + esc(j.texto) + '</div>';
+  } else if (j.cuenta) {
+    var c = j.cuenta;
+    h += '<div class="fila"><span class="k">Cuenta del</span><span class="v mono">' + esc(UP.bonito(c.celular)) + '</span></div>';
+    if (c.cuenta_creada_en) {
+      h += '<div class="fila"><span class="k">Abierta</span><span class="v">' + esc(fmtFechaHora(c.cuenta_creada_en)) + '</span></div>';
+    }
+    /* 7-oct-2026 (segunda vuelta) — sin el «Código de verificación»: play/ dejó
+       de pedir que se mande por WhatsApp el 8-sep, así que mirarlo no prueba
+       nada. Y las señales saben si la unión que ya existe es con ESTA ficha. */
+    UP.senales(c, s, [waNum(s), s.telefono], P.llaveEnLaNube(s)).forEach(function (x) {
+      h += '<div class="aviso' + (x.ojo ? ' ambar' : '') + '">' + esc(x.texto) + '</div>';
+    });
+  }
+
+  var revs = revisionDelCelular(_reg.filas);
+  var rev = revs ? revs[String(r.id)] : null;
+  var mirar = (rev && Array.isArray(rev.para_mirar)) ? rev.para_mirar : [];
+  h += mirar.length
+    ? '<div class="aviso ambar razones"><b>Para mirar, y por qué</b><ul>' + mirar.map(function (x) {
+        return '<li><b>' + esc(x.texto) + '</b>' + (x.detalle ? '<span class="mini razon">' + esc(x.detalle) + '</span>' : '') + '</li>';
+      }).join('') + '</ul></div>'
+    : (rev ? '<div class="aviso">Las reglas de este teléfono no encontraron nada. Eso no prueba que sea él.</div>'
+           : '<div class="aviso ambar">La revisión automática no cargó en este teléfono. Mírala en el computador antes de juntar.</div>');
+  h += '<div class="mini">Las fotos de su cédula y su selfie se ven en el computador: desde aquí no.</div>';
+
+  if (j.estado === 'hecho' || j.estado === 'no') {
+    h += '<div class="aviso' + (j.estado === 'no' ? ' ambar' : '') + '">' + esc(j.texto) + '</div>';
+  } else if (j.estado === 'ok' && j.cuenta && j.cuenta.cuenta && UP.requiereClaveNueva(j.cuenta)
+             && !UP.claveNuevaPara(j.cuenta, P.llaveEnLaNube(s), Date.now()).lista) {
+    /* 7-oct-2026 (segunda vuelta) — la cuenta se abrió antes que el registro o
+       hay un recado de contraseña abierto: la nube no junta con un toque (ver
+       vincular_interna). La clave nueva se da desde el computador, que es
+       donde se ve una sola vez y se manda al número de la ficha. */
+    h += '<div class="aviso ambar">Un toque no basta con esta cuenta: mirando no se sabe quién tiene su contraseña. '
+      + 'Desde el computador, en la ficha o en Registrados: «🔑 Clave nueva al número de su ficha». Una hora después se junta sola.</div>';
+  } else if (j.estado === 'ok' && j.cuenta && j.cuenta.cuenta) {
+    h += '<div class="aviso">' + esc(UP.textoConfirmacion(j.cuenta.verificacion, j.cuenta.celular, waNum(s))) + '</div>'
+      + '<button class="btn arriba" type="button" data-acc="reg-juntar-ok">🔗 Sí, es la misma persona: juntar</button>';
+  } else if (j.estado === 'juntando') {
+    h += '<div class="aviso">Juntando…</div>';
+  }
+  h += '<button class="btn sm sec arriba" type="button" data-acc="reg-juntar-no">'
+    + (j.estado === 'hecho' ? 'Listo' : 'Ahora no') + '</button>';
+  abrirHoja('¿Es la misma persona?', h);
+}
+
+function juntarDesdeCelular() {
+  var UP = window.UnaPuerta, j = _juntar;
+  if (!UP || j.estado !== 'ok' || !j.cuenta || !j.cuenta.cuenta) return;
+  var s = null;
+  ((DB && DB.socios) || []).forEach(function (x) { if (String(x.id) === j.socio) s = x; });
+  if (!s) return;
+  var revs = revisionDelCelular(_reg.filas);
+  var rev = revs ? revs[j.id] : null;
+  j.estado = 'juntando'; pintarJuntarCelular();
+  /* 7-oct-2026 (segunda vuelta) — con el NOMBRE de la ficha: la nube lo compara
+     con el de la fila de esa llave (mismo_nombre), para no juntar la cuenta con
+     la fila vieja de otra persona que comparte el celular. */
+  NUBE.rpc('panel_vincular_cuenta', { p_registro_id: Number(j.id), p_ficha: P.llaveEnLaNube(s),
+    p_revision: UP.revisionParaGuardar(rev, 'celular'), p_nombre: String(s.nombre || '') }).then(function (r) {
+    if (j !== _juntar) return;
+    if (r && r.ok === true) {
+      j.estado = 'hecho';
+      j.texto = r.ya_estaba ? 'Ya estaba junta con esta ficha: no cambió nada.'
+        : 'Listo: la cuenta quedó junta con ' + P.codCliente(s) + '. Desde ya ve su historial, y le llegó el aviso '
+          + 'en su chat. Las fotos y sus datos se cruzan en el computador. Si te equivocaste, se deshace allá: '
+          + '🔗 Cuentas juntas.';
+    } else {
+      j.estado = 'no';
+      j.texto = 'No la junté. ' + UP.textoMotivo(r);
+    }
+    pintarJuntarCelular();
+  }, function (e) {
+    if (j !== _juntar) return;
+    j.estado = 'no';
+    j.texto = (e && e.estado === 404)
+      ? 'Falta un paso en la nube: pegar base/20261007_una_puerta.sql y «Reload schema».'
+      : 'No la junté: ' + ((e && e.motivo) || 'no pude hablar con la nube.');
+    pintarJuntarCelular();
+  });
 }
 
 /* --------------------------------- MÁS ----------------------------------
@@ -4974,9 +5131,9 @@ function abrirNuevoCliente() {
     + '<label for="nvTel">Teléfono / WhatsApp</label><input id="nvTel" type="tel" inputmode="tel">'
     + '<button class="btn arriba" id="nvBtn" type="button" data-acc="cliente-ok"'
     + (nubeLista() ? '' : ' disabled') + '>Crear el cliente</button>'
-    + '<div class="aviso info">Acá se abre la ficha con lo mínimo. La dirección, la referencia, las fotos '
-    + 'y el <b>código de acceso</b> con el que el cliente entra a su app se llenan en el computador: '
-    + 'esas cosas no se piden bien de pie en la calle.</div>';
+    + '<div class="aviso info">Acá se abre la ficha con lo mínimo. La dirección, la referencia y las fotos '
+    + 'se llenan en el computador: esas cosas no se piden bien de pie en la calle. Su cuenta de la app se '
+    + 'junta cuando se registre.</div>';
   abrirHoja('Cliente nuevo', h);
 }
 
@@ -5221,6 +5378,10 @@ document.addEventListener('click', function (ev) {
     if (TITULOS[dst] && !DETALLE[dst]) ir(dst);
   }
   else if (acc === 'reg-traer') { traerRegistros(true); pintar(); }
+  /* 7-oct-2026 — juntar la cuenta de un cliente antiguo (ver JUNTAR UNA CUENTA). */
+  else if (acc === 'reg-juntar') { abrirJuntarCelular(id, el.dataset.socio); }
+  else if (acc === 'reg-juntar-ok') { juntarDesdeCelular(); }
+  else if (acc === 'reg-juntar-no') { _juntar = { id: null, socio: null, cuenta: null, estado: 'nada', texto: '' }; cerrarHoja(); }
   else if (acc === 'conexion') { abrirConexion(); }
   else if (acc === 'cola') { abrirCola(); }
   else if (acc === 'volver') { volver(); }

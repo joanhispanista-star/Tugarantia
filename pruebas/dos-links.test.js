@@ -165,12 +165,28 @@ describe('el link del cliente sigue siendo UNO, y su camino sigue vivo', () => {
        quien entra con su código de cinco letras. Si desapareciera, el link del
        cliente dejaría de ser uno y habría que volver a repartir socio.html. */
     const PLAY = leer('play/index.html');
-    assert.match(PLAY, /vincularHistorial/, 'play/ ya no deja juntar el historial con el código');
-    assert.match(PLAY, /vincular_cuenta/);
+    /* 7-oct-2026 — AL REVÉS. Esto exigía vincularHistorial y vincular_cuenta,
+       y desde que Joan apagó los códigos solo seguía en verde porque los
+       comentarios que cuentan por qué se fueron los nombran. El link sigue
+       siendo UNO por otro camino: el antiguo abre su cuenta en play/ como
+       cualquiera y Joan la junta con su ficha con un toque. Lo que se exige
+       ahora es que el código vivo no llame a la función cerrada y que Perfil
+       le diga que no tiene que hacer nada. */
+    const vivo = PLAY.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+    assert.ok(!/vincular_cuenta|function vincularHistorial|function tarjetaVincular/.test(vivo),
+      'play/ volvió a llamar a vincular_cuenta, que la nube le quitó a la sesión');
+    /* Se pegan los trozos «' + '» para que un reacomodo de líneas no la rompa. */
+    const pegado = vivo.replace(/'\s*\+\s*'/g, '');
+    assert.match(pegado, /Si ya eras cliente, no tienes que hacer nada: revisamos que seas tú y juntamos tu historial con esta cuenta\. Te avisamos por el chat cuando esté\./,
+      'Perfil ya no le dice al antiguo qué pasa con su historial');
   });
 
   test('y la portada se lo explica', () => {
-    assert.match(PORTADA, /pegas el código de cinco caracteres/);
+    /* 7-oct-2026 (segunda vuelta) — sin código: Joan los apagó el 7-oct. La
+       portada decía «pegas el código de cinco caracteres», y esa caja ya no
+       junta nada desde base/20261007_una_puerta.sql. */
+    assert.match(PORTADA, /No necesitas ningún código/);
+    assert.ok(!/pegas el código/.test(PORTADA), 'la portada todavía manda a pegar un código');
   });
 });
 

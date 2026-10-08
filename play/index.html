@@ -330,7 +330,10 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 <script>
 'use strict';
 
-var VERSION_PLAY = '2026-10-01';
+/* 7-oct-2026 — sube por la puerta única: sin códigos en la fachada, en la
+   solicitud aceptada ni en Perfil. Es la fecha que Joan le pide leer al
+   cliente para saber si ya ve la versión sin la caja de «pega tu código». */
+var VERSION_PLAY = '2026-10-07';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -721,15 +724,18 @@ function pintarEntrar() {
     '<div class="card">' +
       /* 14-sep-2026 — UNA SOLA PUERTA. Antes este título decía «¿Eres nuevo?»,
          y el cliente de toda la vida leía eso y se iba a buscar otra entrada que
-         ya no existe. Abre su cuenta igual que cualquiera y junta su historial
-         desde adentro, en Perfil. */
+         ya no existe. Abre su cuenta igual que cualquiera.
+         7-oct-2026 — y ya NO pega ningún código en Perfil: Joan apagó los
+         códigos de acceso (base/20261007_una_puerta.sql le quita a la sesión
+         vincular_cuenta). El historial lo junta Joan con un toque desde el CRM,
+         después de revisar que la cuenta sea de esa persona; el aviso le llega
+         al cliente en su chat de servicio (lo escribe vincular_interna). */
       '<h3 class="tit">Abre tu cuenta</h3>' +
       '<p class="sub"><b>No necesitas que nadie te presente.</b> Te tomará unos minutos: ' +
         'te pedimos los datos con los que evaluamos el crédito, y cada uno te decimos ' +
         'para qué es. Después revisamos tu solicitud y te respondemos en el chat de la app.</p>' +
-      '<p class="sub"><b>¿Ya eras cliente nuestro?</b> Ábrela igual: adentro, en ' +
-        'Perfil, pegas el código que te dimos y tu historial queda junto con tu ' +
-        'cuenta.</p>' +
+      '<p class="sub"><b>¿Ya eras cliente nuestro?</b> Ábrela igual: lo revisamos y ' +
+        'juntamos tu historial con tu cuenta. No necesitas ningún código.</p>' +
       '<div class="muted" style="font-size:13px;margin-top:var(--e3)">' + esc(TEXTOS.empujon_visitante) + '</div>' +
       '<button class="btn arriba" onclick="pintarRegistro(0)">Abrir mi cuenta</button>' +
     '</div>' +
@@ -841,8 +847,12 @@ function progreso(el, msg) {
    exactamente el que no puede abrir sesión. Por eso deja un recado en
    ayudas_clave, que es la única puerta del sistema que se abre sin sesión —con
    su freno, y guardando solo un celular y una nota corta. */
-function olvide() {
-  var tel = U.normalizarTelefono(($('inTel') || {}).value || '');
+/* 7-oct-2026 (tercera vuelta) — acepta el celular de quien lo llama: desde el
+   aviso de «ya tienes una cuenta» del registro no hay #inTel de dónde leerlo,
+   y mandarlo a teclear otra vez el número que acaba de escribir es un paso de
+   más en el peor momento. */
+function olvide(celular) {
+  var tel = U.normalizarTelefono(celular || ($('inTel') || {}).value || '');
   VISTA = 'ayuda';
   marcarVista('');
   $('titulo').textContent = 'Recuperar tu contraseña';
@@ -1116,8 +1126,13 @@ function pasoEntrada() {
     '<input id="rTel" type="tel" inputmode="numeric" autocomplete="username" placeholder="300 111 2233" ' +
       'oninput="anotarCelular(this)" value="' +
       esc(REGISTRO.celular ? U.telefonoBonito(REGISTRO.celular) : '') + '">' +
+    /* 7-oct-2026 — «una contraseña nueva», no «tu código». Desde que Joan
+       apagó los códigos de acceso, la palabra «código» en esta pantalla hace
+       pensar en el código que ya no existe; y lo que de verdad pasa con un
+       recado de «Olvidé mi contraseña» es que Joan le da una contraseña nueva
+       desde el CRM («🔑 Darle una clave nueva») y se la manda por WhatsApp. */
     '<div class="ayuda">Son 10 números y empiezan por 3. Tiene que tener WhatsApp: ' +
-      'por ahí te mandamos tu código si olvidas la contraseña.</div>' +
+      'si olvidas la contraseña, por ahí te mandamos una nueva.</div>' +
     /* 17-sep-2026 — LA CONTRASEÑA NO SE DEVUELVE AL CAMPO, Y SE PUEDE SEGUIR
        SIN TECLEARLA. Las dos mitades importan.
 
@@ -1544,11 +1559,21 @@ function entrarConLaClaveDelRegistro(err, autorizacion) {
   }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
     .then(function (res) {
       if (!res.ok || !res.j || !res.j.access_token) {
-        /* La contraseña no es la de esa cuenta. Se le dice sin regañarlo y se
-           le deja el celular puesto abajo, para que entre o recupere la clave. */
-        fallo(err, 'Ya tienes una cuenta con este celular, pero esa contraseña no es la suya. ' +
-          'Entra con la tuya aquí abajo, o toca «Olvidé mi contraseña» y te mandamos un código.');
-        var t = $('inTel'); if (t) t.value = U.telefonoBonito(REGISTRO.celular);
+        /* La contraseña no es la de esa cuenta. Se le dice sin regañarlo.
+           7-oct-2026 — sin «te mandamos un código»: no hay código (Joan los
+           apagó) y el recado no manda nada solo; se dice lo que dice olvide():
+           le escribimos para devolverle el acceso.
+           7-oct-2026 (tercera vuelta) — Y LAS SALIDAS VAN EN LA MISMA CAJA.
+           Decía «entra con la tuya aquí abajo, o toca «Olvidé mi contraseña»»,
+           y esto pasa en el paso 9 del registro, donde abajo no hay ni caja de
+           entrar ni ese botón (el celular se ponía en un #inTel que no existe
+           en esa pantalla). Las únicas salidas eran «Abrir mi cuenta», que
+           falla igual, o «Volver» paso por paso. Ver salidasYaTieneCuenta. */
+        avisoYaTieneCuenta(err, MARCA === 'platachat'
+          ? 'Ya tienes una cuenta con este celular, pero esa contraseña no es la suya. Entra en PlataChat con la tuya; ' +
+            'si no la recuerdas, ahí mismo nos dejas un recado y te escribimos para devolverte el acceso.'
+          : 'Ya tienes una cuenta con este celular, pero esa contraseña no es la suya. Entra con la tuya, ' +
+            'o toca «Olvidé mi contraseña» y te escribimos para devolverte el acceso.');
         return;
       }
       SESION = res.j; guardarSesionEnCurso(SESION);
@@ -1559,9 +1584,47 @@ function entrarConLaClaveDelRegistro(err, autorizacion) {
       pintarRegistrado();
       subidaEnSegundoPlano();   // sus fotos, que era lo que se perdía
     }, function () {
-      fallo(err, 'Ya tienes una cuenta con este celular. Revisa tu internet e inténtalo otra vez, ' +
-        'o entra con tu contraseña aquí abajo.');
+      avisoYaTieneCuenta(err, 'Ya tienes una cuenta con este celular. Revisa tu internet y toca otra vez ' +
+        '«Abrir mi cuenta», o entra con tu contraseña.');
     });
+}
+
+/* 7-oct-2026 (tercera vuelta) — EL AVISO DE «YA TIENES CUENTA», CON SUS
+   BOTONES ADENTRO. fallo() pone texto plano (y así lo leen las pruebas de la
+   caja); los botones se agregan después, en la misma caja, para que cada cosa
+   que el texto nombra esté debajo de él. */
+function avisoYaTieneCuenta(err, msg) {
+  fallo(err, msg);
+  err.innerHTML = esc(msg) + salidasYaTieneCuenta();
+}
+
+/* Adónde puede ir quien ya tenía cuenta. En Tu Garantía, a la portada con su
+   celular puesto —ahí están la contraseña y «Olvidé mi contraseña»— o derecho
+   al recado. En PlataChat NO: olvide() y pintarEntrar() son la portada de Tu
+   Garantía, con su «Volver» a la fachada de la otra marca; la entrada de
+   PlataChat tiene su propio «¿Olvidaste tu contraseña…? Déjanos un recado», que
+   escribe en la misma bandeja de recados. */
+function salidasYaTieneCuenta() {
+  if (MARCA === 'platachat') {
+    return '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="volverAPlataChat()">Ir a entrar en PlataChat</button>';
+  }
+  return '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="entrarConElCelularDelRegistro()">Entrar con mi contraseña</button>' +
+    '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="olvide(REGISTRO.celular)">Olvidé mi contraseña</button>';
+}
+
+/* La portada, con el celular del registro ya puesto y dicho por qué. Sale del
+   registro como «Volver» desde el paso 1 (pintarEntrar olvida el paso; el
+   borrador y las fotos se quedan): si entra con su contraseña, pintarCuenta
+   sube las fotos que tomó, que es lo que se perdía el 21-sep. */
+function entrarConElCelularDelRegistro() {
+  var cel = REGISTRO.celular;
+  pintarEntrar();
+  var t = $('inTel'); if (t && cel) t.value = U.telefonoBonito(cel);
+  var err = $('errEntrar');
+  if (err) progreso(err, 'Ya tienes una cuenta con este celular: escribe la contraseña que pusiste cuando la abriste. ' +
+    'Si no la recuerdas, toca «Olvidé mi contraseña», aquí abajo.');
+  try { var c = $('inClave'); if (c) c.focus(); } catch (e) {}
+  try { window.scrollTo(0, document.body.scrollHeight); } catch (e) {}
 }
 
 function pintarRegistrado() {
@@ -1586,6 +1649,16 @@ function pintarRegistrado() {
       '<p class="sub" style="margin-top:var(--e4)"><b>Ahora pide tu primer crédito.</b> ' +
       'Te mostramos de una la propuesta para clientes nuevos, en pesos, y la aceptas solo si te sirve. ' +
       'Revisamos tu solicitud y te avisamos aquí mismo cuándo y por dónde recibes la plata.</p>' +
+      /* 7-oct-2026 (tercera vuelta) — desde la puerta única TODO cliente
+         antiguo abre su cuenta por aquí, también el que tiene un crédito al
+         día o en mora, y esta pantalla le decía «pide tu primer crédito».
+         Si pide, solicitar_primer_credito le arma la propuesta de cliente
+         nuevo, y con base/20261007c la solicitud nace cuenta_sin_juntar: el
+         CRM no la pega a su ficha. No se le cierra el botón —aquí no se sabe
+         todavía quién es antiguo—; se le dice qué es la propuesta y qué le
+         conviene esperar. */
+      '<p class="sub"><b>¿Ya eras cliente nuestro?</b> Esta propuesta es la de cliente nuevo: mejor espera a que ' +
+      'juntemos tu historial con esta cuenta. Te avisamos por el chat cuando esté.</p>' +
       '<button class="btn arriba" onclick="pedirPrimerCredito()">Pedir mi primer crédito</button>' +
       '<div id="errPrimer" class="aviso ambar oculto"></div>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarCuenta()">Ir a mi cuenta</button>' +
@@ -1647,9 +1720,11 @@ function tarjetaContrapropuesta(sol) {
     '<div class="grupo-tit">Cuándo pagas</div>' +
     cuotasDePropuesta(cp);
   if (aceptada) {
+    /* 7-oct-2026 — sin «tu código de acceso»: Joan apagó los códigos, nadie se
+       lo iba a mandar y prometerlo era la pantalla afirmando algo que ya no
+       existe. Vuelve con su celular y su contraseña, que ya tiene. */
     h += '<div class="aviso verde" style="margin-top:var(--e3)"><b>Listo: aceptaste ' + COP(cp.capital) + '.</b> ' +
-      'Te avisamos <b>en el chat de la app</b> cuándo y por dónde recibes la plata, y ahí mismo ' +
-      'te mandamos <b>tu código de acceso</b>: con él entras por el mismo enlace de siempre. ' +
+      'Te avisamos <b>en el chat de la app</b> cuándo y por dónde recibes la plata. ' +
       'No tienes que hacer nada más por ahora.</div>';
   } else {
     h += '<p class="sub" style="margin-top:var(--e3)">Aceptar todavía no te entrega la plata: ' +
@@ -3591,11 +3666,24 @@ function garantiaSePuedeCotizar(c) {
   return ea <= t.tope;
 }
 
+/* 7-oct-2026 (tercera vuelta) — QUÉ HACER CUANDO NO SE PUEDE PUBLICAR EL
+   PRECIO, SEGÚN QUIÉN MIRA. La misma tarjeta sale en la fachada y en la
+   pestaña Crédito de la cuenta, y a quien ya abrió la cuenta le decía «Abre tu
+   cuenta y lo resolvemos». Con sesión, la salida es el chat de «Créditos
+   nuevos» (CANALES), que es donde se pide y se pregunta cuánto alcanza.
+   `enMedio`: la frase va después de una coma, en minúscula. */
+function salidaSinPrecio(enMedio) {
+  if (SESION && SESION.access_token) {
+    return (enMedio ? 'escríbenos' : 'Escríbenos') + ' por el chat de <b>Créditos nuevos</b> y lo resolvemos.';
+  }
+  return (enMedio ? 'abre' : 'Abre') + ' tu cuenta y lo resolvemos en el chat de la app.';
+}
+
 function tarjetaCalcGarantia() {
   var c = cotizacionGarantia();
   if (!c || !garantiaSePuedeCotizar(c)) {
     return '<div class="card"><h3 class="tit">El crédito con garantía</h3>' +
-      '<p class="sub">Hoy no podemos publicar su precio. Abre tu cuenta y lo resolvemos en el chat de la app.</p></div>';
+      '<p class="sub">Hoy no podemos publicar su precio. ' + salidaSinPrecio() + '</p></div>';
   }
   /* 16-sep-2026 — AQUÍ DECÍA «MÁS BARATO», Y EN ESTA MISMA PANTALLA ES MENTIRA.
      Se midieron los dos motores en las dieciséis combinaciones donde los dos
@@ -3691,7 +3779,12 @@ function techoDeGarantia() {
     /* Al visitante sin cuenta no se le afirma un saldo que nadie ha mirado: se
        le explica de dónde sale. Al registrado que sí sabemos que está en cero,
        se le dice el cero. */
-    var suyo = (FICHA_ESTADO === 'vinculada' || FICHA_ESTADO === 'nueva');
+    /* 7-oct-2026 (tercera vuelta) — 'nueva' YA NO ES «SABEMOS QUE TIENE
+       CERO». Desde la puerta única, todo cliente antiguo queda en 'nueva'
+       hasta que Joan junta su cuenta con su ficha, y trae garantía de verdad;
+       el aviso de arriba le dice «no tienes que hacer nada» y esta línea le
+       decía «hoy tienes $0». Solo la cuenta junta sabe su cero. */
+    var suyo = FICHA_ESTADO === 'vinculada';
     return '<div class="aviso ambar" style="margin-top:0"><b>Esto todavía no lo puedes pedir.</b> ' +
       'El crédito con garantía se abre con la garantía que se gana pagando, peso a peso. ' +
       (suyo ? 'Hoy tienes <b>$0</b>: empieza' : 'Empieza') +
@@ -3731,7 +3824,7 @@ function cifrasDeGarantia() {
      Ahora el guardián está en los DOS caminos: el primer pintado y cada arrastre. */
   if (!garantiaSePuedeCotizar(c)) {
     return '<div class="aviso ambar">Con ese monto y ese plazo no podemos publicar un ' +
-      'precio hoy. Prueba con otro, o abre tu cuenta y lo resolvemos en el chat de la app.</div>';
+      'precio hoy. Prueba con otro, o ' + salidaSinPrecio(true) + '</div>';
   }
   /* 17-sep-2026 — ESTE COMENTARIO DECÍA QUE LAS DOS CALCULADORAS ENCABEZAN CON
      LA MISMA CIFRA, y desde ayer ya no es verdad: la de arriba encabeza con lo
@@ -4552,6 +4645,10 @@ function historialDeSesion(s) {
 var TAB = 'credito';
 var FICHA = null;          // lo que devolvió mi_cuenta, ya leído por ficha.js
 var FICHA_ESTADO = 'sin';  // sin | cargando | nueva | vinculada | apagada | falla
+/* 7-oct-2026 (tercera vuelta) — en qué va el registro de la cuenta sin juntar,
+   según mi_registro: '' (no se sabe) | nuevo | atendido | descartado |
+   sin_registro. Ver preguntarMiRegistro. */
+var MI_REGISTRO = '';
 
 var PESTANAS = [['credito', 'Crédito'], ['historial', 'Historial'],
                 ['chat', 'Chat'], ['perfil', 'Perfil']];
@@ -4631,6 +4728,7 @@ function causaDe(e) {
   return 'falla';
 }
 function cargarFicha() {
+  MI_REGISTRO = '';
   if (!SESION || !SESION.access_token) { FICHA_ESTADO = 'sin'; return; }
   FICHA_ESTADO = 'cargando';
   rpcSesion('mi_cuenta').then(function (j) {
@@ -4638,7 +4736,9 @@ function cargarFicha() {
     if (!j.vinculada) {
       /* NO ES UN ERROR: es un registrado nuevo, o uno antiguo al que Joan
          todavía no le ha cargado el historial. Se le contesta así. */
-      FICHA = null; FICHA_ESTADO = 'nueva'; return pintarLamina();
+      FICHA = null; FICHA_ESTADO = 'nueva'; pintarLamina();
+      preguntarMiRegistro();
+      return;
     }
     FICHA = FS.leer(j.datos || {});
     FICHA.nombre = j.nombre || '';
@@ -4653,6 +4753,55 @@ function cargarFicha() {
   });
 }
 
+/* 7-oct-2026 (tercera vuelta) — ¿EN QUÉ VA EL REGISTRO DE ESTA CUENTA SIN
+   JUNTAR? «Revisamos que seas tú y juntamos tu historial; te avisamos» es
+   verdad mientras el registro esté en la bandeja de Joan, que es de donde sale
+   el toque de juntar (📥 Registrados). Deja de serlo en dos casos que la nube
+   sabe y la pantalla no: Joan ya lo DESCARTÓ, o la cuenta no tiene un registro
+   hecho junto con ella (a una hora de abrirla) y en la bandeja no hay nada que
+   revisar. mi_registro (base/20261007_una_puerta.sql, §8-bis) se escribió para
+   eso, y la app del socio ya lo usa (app/sesion-socio.js, textoSinJuntar).
+
+   Una vez por apertura de la cuenta, después de pintar: lo de siempre sale en
+   el acto y solo se corrige si la nube contesta uno de esos dos casos. Con 404
+   (la migración sin correr), 401 o sin red se queda lo de siempre: no saber no
+   es razón para cambiar de promesa. */
+function preguntarMiRegistro() {
+  var ses = SESION;
+  rpcSesion('mi_registro', {}).then(function (j) {
+    if (SESION !== ses || FICHA_ESTADO !== 'nueva') return;   // salió, entró otro, o ya está junta
+    MI_REGISTRO = leerMiRegistro(j);
+    /* El chat no muestra este aviso, y repintarlo le reabre el canal a quien
+       está escribiendo: al cambiar de pestaña ya sale con lo nuevo. */
+    if (textoSinJuntarDistinto() && TAB !== 'chat') pintarLamina();
+  })['catch'](function () { /* se queda lo de siempre: ver arriba */ });
+}
+/* Lo mismo que lee app/sesion-socio.js (miRegistro), con una diferencia a
+   propósito: una respuesta SIN la llave `registro` no es «sin registro», es
+   una respuesta que no dice nada (la base contesta {ok, registro: null} con
+   la llave puesta). */
+function leerMiRegistro(j) {
+  if (!j || j.ok !== true || !Object.prototype.hasOwnProperty.call(j, 'registro')) return '';
+  if (j.registro === null) return 'sin_registro';
+  var e = String((j.registro && j.registro.estado) || '');
+  return (e === 'nuevo' || e === 'atendido' || e === 'descartado') ? e : '';
+}
+/* Las palabras son las de la app del socio (textoSinJuntar), para que el mismo
+   cliente lea lo mismo en las dos; «por el chat de servicio al cliente» en vez
+   de «por este chat», porque aquí el chat es otra pestaña. Vacío = se dice lo
+   de siempre. */
+function textoSinJuntarDistinto() {
+  if (MI_REGISTRO === 'descartado') {
+    return 'Revisamos tu registro y por ahora no pudimos abrirte la cuenta con nosotros. ' +
+      'Si quieres saber por qué, escríbenos por el chat de servicio al cliente.';
+  }
+  if (MI_REGISTRO === 'sin_registro') {
+    return 'No encontramos un registro hecho junto con esta cuenta. Si te registraste antes, en otro intento, ' +
+      'escríbenos por el chat de servicio al cliente y lo buscamos contigo.';
+  }
+  return '';
+}
+
 /* El aviso del estado de la ficha, en palabras, una sola vez y no en cada
    tarjeta. Devuelve cadena vacía cuando hay ficha: no hay nada que explicar. */
 function avisoFicha() {
@@ -4661,7 +4810,17 @@ function avisoFicha() {
     return '<div class="aviso">Buscando tu historial…</div>';
   }
   if (FICHA_ESTADO === 'nueva') {
-    return '<div class="aviso">Tu cuenta está abierta y todavía no tiene historial con nosotros. Si ya eras cliente, vete a <b>Perfil</b> y pega el código que te dimos: ahí se junta tu historial con esta cuenta.</div>';
+    /* 7-oct-2026 — ya no lo manda a Perfil a pegar un código: no hay código y
+       no hay caja. El antiguo no hace nada; Joan junta la cuenta con su ficha
+       con un toque, y vincular_interna le deja el aviso en el chat de servicio
+       («Listo, ya juntamos tu historial…»), que es lo que esta línea promete.
+       7-oct-2026 (tercera vuelta) — salvo que mi_registro diga que no hay qué
+       juntar: ver preguntarMiRegistro. */
+    var distinto = textoSinJuntarDistinto();
+    if (distinto) return '<div class="aviso">' + esc(distinto) + '</div>';
+    return '<div class="aviso">Tu cuenta está abierta y todavía no tiene historial con nosotros. ' +
+      'Si ya eras cliente, no tienes que hacer nada: revisamos que seas tú y juntamos tu historial ' +
+      'con esta cuenta. Te avisamos por el chat cuando esté.</div>';
   }
   if (FICHA_ESTADO === 'apagada') {
     return '<div class="aviso ambar"><b>Esta parte todavía no está encendida.</b> Tu cuenta y tu solicitud funcionan; el historial y la garantía los estamos conectando. No es tu teléfono ni tu internet.</div>';
@@ -5088,7 +5247,7 @@ function laminaPerfil() {
       '<div class="ayuda">Tu usuario es tu celular y no se cambia desde aquí: es con lo que te identificamos. Si cambiaste de número, escríbenos por el chat de servicio al cliente y lo movemos nosotros.</div>' +
     '</div>' +
     tarjetaCambiarClave() +
-    tarjetaVincular() +
+    tarjetaTuHistorial() +
     '<div class="card">' +
       '<button class="btn sec" onclick="salirDeCuenta()">Salir</button>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarBorrar()">' +
@@ -5146,53 +5305,44 @@ function cambiarClave() {
     .catch(function () { fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.'); });
 }
 
-/* JUNTAR EL HISTORIAL VIEJO CON ESTA CUENTA. Es la mitad que faltaba de la
-   puerta única: el cliente antiguo se registra como cualquiera y después pega el
-   código que ya tenía. La reja está en el servidor (vincular_cuenta): el código
-   se compara contra la huella guardada, hay freno por intentos y una ficha solo
-   se puede reclamar UNA vez. */
-function tarjetaVincular() {
+/* TU HISTORIAL, EN PERFIL — 7-oct-2026. Aquí estaba la caja de «pega el código
+   que te dimos» (tarjetaVincular) y su función (vincularHistorial), que llamaba
+   a vincular_cuenta. Joan apagó los códigos de acceso: «¿Por qué cada cliente
+   necesita un código? Eso ya no debería existir.» Desde
+   base/20261007_una_puerta.sql la sesión ya no puede llamar a vincular_cuenta
+   (401/403), y causaDe() lo habría traducido a «Tu sesión se venció»: la
+   pantalla mintiendo sobre la causa. Por eso se quitó la llamada entera y no
+   solo el texto: lo que no se llama no puede fallar con una excusa falsa.
+
+   Quien junta ahora es Joan, con un toque desde el CRM o desde su celular,
+   después de revisar que la cuenta sea de esa persona; vincular_interna deja
+   en el chat de servicio «Listo, ya juntamos tu historial…». Eso es lo que la
+   tarjeta promete, y nada más.
+
+   SOLO en 'nueva' se dice «no tienes que hacer nada»: es el único estado en que
+   la nube contestó que esta cuenta no está junta. Con la ficha cargando, la
+   nube apagada o la sesión vencida no se sabe, y decirlo podría ser falso para
+   quien ya está junto; esos casos ya los explica avisoFicha() en las otras
+   láminas. */
+function tarjetaTuHistorial() {
   if (FICHA_ESTADO === 'vinculada') {
     return '<div class="card"><div class="etq">Tu historial</div>' +
       '<div class="aviso verde" style="margin-top:var(--e3)">Ya está junto con esta cuenta' +
       ((FICHA && FICHA.nombre) ? ', ' + esc(FICHA.nombre) : '') + '.</div></div>';
   }
+  if (FICHA_ESTADO !== 'nueva') return '';
+  /* 7-oct-2026 (tercera vuelta) — y en 'nueva', la promesa solo mientras
+     mi_registro no diga que no hay qué juntar (ver preguntarMiRegistro). */
+  var distinto = textoSinJuntarDistinto();
+  if (distinto) {
+    return '<div class="card"><div class="etq">Tu historial</div>' +
+      '<p class="sub" style="margin-top:var(--e3)">' + esc(distinto) + '</p></div>';
+  }
   return '<div class="card">' +
     '<h3 class="tit">¿Ya eras cliente?</h3>' +
-    '<p class="sub">Si te dimos un código antes, pégalo aquí con tu cédula o tu celular y juntamos tu historial con esta cuenta. Se hace una sola vez.</p>' +
-    '<label for="vIdent">Tu cédula o tu celular</label>' +
-    '<input id="vIdent" type="tel" inputmode="numeric" placeholder="1.234.567.890">' +
-    '<label for="vCodigo">El código que te dimos</label>' +
-    '<input id="vCodigo" type="text" autocomplete="off" placeholder="XXXX">' +
-    '<button class="btn sec arriba" onclick="vincularHistorial()">Juntar mi historial</button>' +
-    '<div id="errVinc" class="aviso ambar oculto"></div>' +
+    '<p class="sub">Si ya eras cliente, no tienes que hacer nada: revisamos que seas tú y juntamos tu ' +
+      'historial con esta cuenta. Te avisamos por el chat cuando esté.</p>' +
     '</div>';
-}
-
-function vincularHistorial() {
-  var i = $('vIdent'), c = $('vCodigo'), err = $('errVinc');
-  if (!i || !c || !err) return;
-  if (!i.value.trim()) return fallo(err, 'Nos falta tu cédula o tu celular.');
-  if (!c.value.trim()) return fallo(err, 'Nos falta el código que te dimos.');
-  fallo(err, 'Buscando…');
-  rpcSesion('vincular_cuenta', { p_ident: i.value, p_codigo: c.value }).then(function (j) {
-    if (!j || j.ok !== true) {
-      /* El servidor contesta con un motivo SOLO cuando decirlo no delata a
-         nadie (por ejemplo: esa ficha ya la reclamó otro teléfono). Cuando no lo
-         manda, acá no se inventa uno: se dice que no cuadró. */
-      return fallo(err, (j && j.motivo) ? j.motivo
-        : 'No me cuadran esos datos con ningún historial. Revísalos, y si siguen sin funcionar escríbenos por el chat.');
-    }
-    fallo(err, j.ya_estaba ? 'Ya estaba junto. Todo en orden.' : 'Listo: tu historial quedó junto con esta cuenta.');
-    cargarFicha();
-  }).catch(function (e) {
-    var c = causaDe(e);
-    fallo(err, c === 'apagado'
-      ? 'Esta parte todavía no está encendida. Escríbenos y te juntamos el historial nosotros.'
-      : c === 'sesion'
-      ? 'Tu sesión se venció. Vuelve a entrar y lo intentamos de nuevo.'
-      : 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
-  });
 }
 
 function salirDeCuenta() {

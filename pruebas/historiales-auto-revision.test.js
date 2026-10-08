@@ -194,7 +194,9 @@ function parejaQueComparteLinea(o) {
 }
 function betoSigueSiendoBeto(srv, B) {
   assert.ok(srv.filas[P_], 'la fila de Beto desapareció de la nube');
-  assert.equal(srv.entrar(P_, B.codigoAcceso), 'Beto', 'Beto ya no entra con su celular y su código');
+  /* 7-oct-2026 — aquí también se miraba que Beto entrara con su código. Los
+     códigos se apagaron (base/20261007_una_puerta.sql): Beto es Beto si su fila
+     sigue, su SESIÓN ve su ficha y su chat sigue en su hilo. */
   assert.equal((srv.miCuenta(Q) || {}).cedula, P_, 'la sesión de Beto ve la ficha de otra persona');
   assert.equal(srv.mensajes[0].cedula, P_, 'el mensaje de Beto quedó en el hilo de otra persona');
 }
@@ -270,7 +272,10 @@ describe('[datos 1-3] dos fichas que la nube toma por la misma persona', () => {
     /* Joan le pone la cédula a Beto, como dice la línea. */
     await cambiar(m, 'DB.socios[1].cedula="79000111"');
     assert.equal((m.srv.miCuenta(Q) || {}).cedula, '79000111', 'la sesión de Beto quedó viendo otra ficha');
-    assert.equal(m.srv.entrar('79000111', B.codigoAcceso), 'Beto', 'Beto perdió su código al mudarse a su cédula');
+    /* 7-oct-2026 — aquí se miraba que Beto entrara con su código después de
+       mudarse a su cédula. Los códigos se apagaron y ninguno viaja: lo que
+       importa de Beto es que su SESIÓN siga viendo su ficha (arriba) y que su
+       chat se mude con él (abajo). */
     assert.equal(m.srv.mensajes[0].cedula, '79000111', 'el chat de Beto se fue con Ana');
     assert.equal(m.srv.filas['52111222'].auth_celular, null, 'Ana se quedó con la vinculación de Beto');
     assert.doesNotMatch(cinta(m).l2, /comparten celular/);

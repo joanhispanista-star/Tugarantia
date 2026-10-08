@@ -271,7 +271,18 @@
            «Socio» pelado. El que va a negociar su primer crédito por aquí es
            justo el que Joan no puede reconocer, y la llave del hilo —que es su
            celular— no salía en ninguna parte. Negociar así es a ciegas. */
-        '<span class="ch-conv-quien">' + esc(c.nombre || ('Socio nuevo · ' + (c.cedula || ''))) +
+        /* 7-oct-2026 — '0' + celular es el hilo de una cuenta SIN JUNTAR cuyo
+           número es el de una de tus fichas (llave_de_sesion,
+           base/20261007_una_puerta.sql). Se dice así, con el número sin el 0:
+           puede ser tu cliente esperando que lo juntes, o alguien usando su
+           número. Contestarle aquí NO le muestra nada de la ficha. */
+        /* 7-oct-2026 (segunda vuelta) — y se le advierte a Joan que no hable
+           de la deuda ahí: quien escribe en ese hilo no está verificado (Ley
+           1581: la deuda de tu cliente es dato suyo; Ley 2300: se cobra al
+           deudor, no a quien tenga su número). */
+        '<span class="ch-conv-quien">' + esc(c.nombre || (/^0\d{10}$/.test(String(c.cedula || ''))
+          ? 'Sin juntar · ' + String(c.cedula).slice(1) + ' (número de una ficha) · no sabemos si es él: no le hables de su deuda aquí'
+          : 'Socio nuevo · ' + (c.cedula || ''))) +
           (n ? '<span class="ch-sinleer">' + n + '</span>' : '') + '</span>' +
         '<span class="ch-conv-ultimo">' + esc(quien) + esc(c.ultimo || '') + '</span>' +
         '<span class="ch-conv-cuando">' + esc(cuandoCorto(c.ultimo_en, o.hoy)) + '</span>' +
@@ -298,12 +309,15 @@
     var pedir = c.fetch || (typeof fetch === 'function' ? fetch : null);
     if (!pedir) return Promise.reject({ humano: 'Este navegador no puede conectarse.' });
 
+    /* 7-oct-2026 — `c.token`: el socio habla con SU sesión (celular y
+       contraseña), no con la llave pública. Joan sigue con la pública más su
+       clave adentro del cuerpo. */
     return pedir(String(c.url).replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         apikey: c.anon,
-        Authorization: 'Bearer ' + c.anon
+        Authorization: 'Bearer ' + (c.token || c.anon)
       },
       body: JSON.stringify(cuerpo || {})
     }).then(function (r) {
@@ -327,19 +341,25 @@
 
   /* --- lo que hace el socio --- */
 
-  /* Devuelve el id del mensaje, o null. Y null significa lo mismo para «no
-     existe», «código malo» y «frenado»: la base no delata cuál fue, y esta
-     capa tampoco lo adivina. Quien llama traduce ese null a una sola frase. */
-  function escribir(cfg, ident, codigo, texto) {
+  /* 7-oct-2026 — EL SOCIO ESCRIBE Y LEE CON SU SESIÓN. Hasta hoy eran
+     chat_escribir/chat_leer con cédula + código; la puerta del código se cerró
+     (base/20261007_una_puerta.sql) y estas van a chat_*_sesion
+     (base/20260914b_tres_canales.sql), que sacan de la sesión de quién es el
+     hilo: no hay ningún parámetro donde escribir el de otro.
+     `cfg.token` es el access_token de la sesión; sin él no se pregunta.
+     escribir devuelve {ok} o {ok:false, motivo} tal cual lo dice la base;
+     leer devuelve la lista de mensajes, o null si la base dijo que no. */
+  function escribir(cfg, texto, canal) {
     var r = revisar(texto);
     if (!r.ok) return Promise.reject({ humano: r.motivo });
-    return llamar(cfg, 'chat_escribir',
-      { p_cedula: String(ident || ''), p_codigo: String(codigo || ''), p_texto: r.texto });
+    if (!cfg || !cfg.token) return Promise.reject({ humano: 'Entra con tu celular y tu contraseña para escribir.' });
+    return llamar(cfg, 'chat_escribir_sesion', { p_canal: String(canal || 'servicio'), p_texto: r.texto });
   }
 
-  function leer(cfg, ident, codigo, desde) {
-    return llamar(cfg, 'chat_leer',
-      { p_cedula: String(ident || ''), p_codigo: String(codigo || ''), p_desde: Number(desde) || 0 });
+  function leer(cfg, desde, canal) {
+    if (!cfg || !cfg.token) return Promise.reject({ humano: 'Entra con tu celular y tu contraseña para ver tus mensajes.' });
+    return llamar(cfg, 'chat_leer_sesion', { p_canal: String(canal || 'servicio'), p_desde: Number(desde) || 0 })
+      .then(function (j) { return (j && j.ok === true && Array.isArray(j.mensajes)) ? j.mensajes : null; });
   }
 
   /* --- lo que hace Joan. Todas piden su clave --- */

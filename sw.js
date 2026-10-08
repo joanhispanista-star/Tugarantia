@@ -1607,7 +1607,52 @@
    celular o la misma cedula no suben, ni solas ni con el boton (la nube le
    pasaba a una el chat y la sesion de la otra); y no sube lo que guardar()
    no alcanzo a guardar. Ningun archivo nuevo entra a la lista. */
-const CACHE = 'tugarantia-v131';
+/* v132 - 7-oct-2026. UNA SOLA PUERTA: CELULAR Y CONTRASENA. Joan apago los
+   codigos de acceso: app/socio.html entra con la cuenta (la misma que crea
+   play/ al registrarse) y la cuenta del cliente antiguo ve su historial cuando
+   Joan la junta con un toque. Nacen app/sesion-socio.js (la puerta),
+   app/ver-como.js (el pase de un uso de «Ver la app como la ve el») y
+   panel/una-puerta.js (las palabras del toque, en el CRM y el espejo), y
+   ENTRAN A LA PRECARGA: socio.html, crm.html y espejo.html los cargan con un
+   <script src> y, sin ellos en la cache, sin senal recibirian index.html por
+   la caida de la rama de .js (el defecto v19) y la puerta no abriria. Cambian
+   tambien app/socio.html, app/chat.js (el chat del socio va con su sesion),
+   app/puente.js (la llave de la ficha en la nube), panel/crm.html,
+   panel/espejo.html y panel/historiales-auto.js (ningun codigo viaja): sin
+   subir la cache, un celular seguiria con la app que pide codigo, contra una
+   nube que ya no lo acepta. */
+/* v133 - 7-oct-2026 (segunda vuelta). LOS CIERRES DE LA PUERTA UNICA, despues
+   de tres revisiones: la app del socio no abre el chat si la nube todavia no
+   tiene la puerta, le avisa al que entraba con codigo, y «Salir» cierra solo
+   su sesion (app/socio.html, app/sesion-socio.js); la bandeja de Joan advierte
+   del hilo sin juntar (app/chat.js); el toque ya no pide el WhatsApp con el
+   codigo, pide clave nueva cuando la cuenta es mas vieja que el registro,
+   manda el nombre de la ficha, no pega solicitudes de cuentas sin juntar a
+   ninguna ficha y deja por juntar lo que no junto (panel/crm.html,
+   panel/espejo.html, panel/una-puerta.js); y la portada ya no pide codigo
+   (index.html). Ningun archivo nuevo entra a la lista: sin subir la cache, un
+   celular seguiria con el toque que pide una prueba que no existe. */
+/* v134 - 7-oct-2026 (RECETA-UNA-PUERTA-PLAY.md). LA PUERTA UNICA EN play/ Y EN
+   PLATACHAT: se fueron la caja de «pega el codigo que te dimos» de Perfil
+   (play/index.html: tarjetaVincular y vincularHistorial) y la de «escribe tu
+   cedula y tu codigo» de Yo (platachat/index.html: vincular()), las dos que
+   llamaban a vincular_cuenta; y ninguna pantalla promete ya un codigo (la
+   fachada, la solicitud aceptada, el aviso de la ficha nueva, la recuperacion
+   de la contrasena, la puerta y Plata de PlataChat). Sube ANTES del SQL: con
+   la cache vieja, un celular seguiria con la caja que, desde que corre
+   base/20261007_una_puerta.sql, contesta «Tu sesion se vencio» (play/) o
+   «No pude conectarme» (PlataChat) a un 403. Ningun archivo nuevo entra a la
+   lista. */
+/* v135 - 7-oct-2026 (tercera vuelta, la revision de play/ y PlataChat). Lo que
+   la pantalla decia y no era: el registro de quien ya tenia cuenta mandaba a
+   una caja de entrar y a un «Olvide mi contrasena» que no estaban en ese paso
+   (ahora van como botones en el aviso); «Hoy tienes $0» a la cuenta sin juntar
+   del cliente de anos; «Abre tu cuenta» a quien ya la abrio; y la promesa de
+   «revisamos y juntamos» tambien al registro descartado o inexistente (ahora
+   se pregunta a mi_registro). Cambian play/index.html y platachat/index.html;
+   ningun archivo nuevo entra a la lista. Sin subir la cache, un celular
+   seguiria con las frases de v134. */
+const CACHE = 'tugarantia-v135';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -1622,6 +1667,9 @@ const ARCHIVOS = [
   /* El chat: lo comparten la app del socio, el CRM y el espejo, igual que el
      motor y el puente. Es la razón de que este service worker viva en la raíz. */
   'app/chat.js',
+  /* 7-oct-2026 — la puerta unica de la app del socio. Ver la nota de v132. */
+  'app/sesion-socio.js',
+  'app/ver-como.js',
   'app/chat.css',
   'app/app.webmanifest',
   'app/icono-180.png',
@@ -1647,6 +1695,8 @@ const ARCHIVOS = [
   'panel/nube-crm.js',
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
   'panel/historiales-auto.js',
+  /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132. */
+  'panel/una-puerta.js',
   'panel/tanda.js',
   /* 2-oct-2026 — «Tu gente», los referidos del espejo. Ver la nota de v124. */
   'app/gente.js',

@@ -1780,6 +1780,26 @@
     return null;
   }
 
+  /* 7-oct-2026 — LOS CÓDIGOS SE APAGARON (base/20261007_una_puerta.sql): el
+     cliente entra con su celular y su contraseña. buscarSocio y
+     sinCodigoAcceso se quedan porque las pruebas del motor los cubren y porque
+     los datos de los códigos se conservan, pero ninguna pantalla los llama ya:
+     la app no busca por código y el CRM no genera ni avisa de códigos.
+
+     LA LLAVE DE LA FICHA EN LA NUBE, en un solo sitio. Es la que pone
+     sincronizar_socios: los dígitos de la cédula o, si no hay, los del
+     teléfono que manda el lote (el WhatsApp de la ficha: loteMigracion en
+     crm.html). Juntar una cuenta (vincular_cuenta_joan / panel_vincular_cuenta)
+     se la pide a la nube con esta llave, desde el computador y desde el
+     celular: si cada pantalla la calculara a su manera, una juntaría la
+     cuenta con una fila que no existe. pruebas/una-puerta-crm.test.js la
+     compara con lo que sube el lote. */
+  function llaveEnLaNube(s) {
+    if (!s) return '';
+    var tel = s.whatsappIgual ? s.telefono : (s.whatsappNumero || s.telefono);
+    return digitos(s.cedula) || digitos(tel || s.telefono);
+  }
+
   /* Los clientes a los que todavía hay que generarles el código. El Panel lo usa
      para el aviso de "te faltan N" y para el botón que los crea de una. */
   function sinCodigoAcceso(db) {
@@ -2867,6 +2887,7 @@
        que el puente ya sabía hacer, y esta va a hacer falta también en la app. */
     codigoAccesoDe: codigoAccesoDe,
     sinCodigoAcceso: sinCodigoAcceso,
+    llaveEnLaNube: llaveEnLaNube,
     datosKycDe: datosKycDe,
     referidosDe: referidosDe,
     fotoComunidad: fotoComunidad,

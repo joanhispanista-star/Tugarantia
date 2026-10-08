@@ -496,8 +496,13 @@ Todo en archivos nuevos. Ninguno existente se tocó.
 
 **Funciones de la base que la app llama y que son de la otra sesión**
 (`base/20260914b_tres_canales.sql`, sin pegar): `mi_cuenta()`,
-`vincular_cuenta(p_ident, p_codigo)`, `chat_leer_sesion(p_canal, p_desde)`,
-`chat_escribir_sesion(p_canal, p_texto)`, y la interna `llave_de_sesion`.
+`chat_leer_sesion(p_canal, p_desde)`, `chat_escribir_sesion(p_canal, p_texto)`,
+y la interna `llave_de_sesion`. **7-oct-2026:** `vincular_cuenta` ya NO se llama
+(Joan apagó los códigos; `base/20261007_una_puerta.sql` se la quita a la sesión
+y junta Joan con un toque), y entra `mi_registro()` (§8-bis del mismo archivo):
+con la cuenta sin juntar, Plata y Yo dejan de prometer «revisamos y juntamos»
+si el registro está descartado o no existe. Sin el SQL contesta 404 y se dice
+lo de siempre.
 
 ---
 

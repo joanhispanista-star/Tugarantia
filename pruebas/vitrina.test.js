@@ -781,8 +781,16 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
        saldo que nadie ha mirado. */
     assert.ok(linea('sin').indexOf('Hoy tienes') === -1,
       'a un visitante sin cuenta le afirma cuánta garantía tiene');
-    /* Y al registrado que sí sabemos que está en cero, se le dice el cero. */
-    assert.match(linea('nueva'), /Hoy tienes/, 'al registrado en cero no le dice su cero');
+    /* Y al registrado que sí sabemos que está en cero, se le dice el cero.
+       7-oct-2026 (tercera vuelta) — ese ya no es 'nueva': desde la puerta
+       única, 'nueva' es «cuenta sin juntar», y ahí espera también el cliente
+       antiguo con garantía de verdad hasta que Joan la junta. Solo la cuenta
+       junta sabe su cero (pruebas/una-puerta-play.test.js). */
+    assert.ok(linea('nueva').indexOf('Hoy tienes') === -1,
+      'a una cuenta sin juntar —quizá un cliente de años— le afirma que tiene cero');
+    P.ev('FICHA = { maxRespaldado: 0 }');
+    assert.match(linea('vinculada'), /Hoy tienes/, 'al registrado en cero no le dice su cero');
+    P.ev('FICHA = null');
   });
 
   test('NO SE PROMETE UN MONTO QUE EL PRODUCTO NO PRESTA', () => {
@@ -1212,8 +1220,13 @@ describe('la cuenta del socio: cuatro pestañas que no mienten (14-sep-2026)', (
     return asentar().then(() => {
       assert.equal(P.ev('FICHA_ESTADO'), 'nueva');
       P.ev('irA("credito")');
-      assert.match(lamina(P), /Perfil/,
-        'al registrado nuevo no se le dice dónde juntar su historial');
+      /* 7-oct-2026 — antes se exigía /Perfil/: el aviso lo mandaba a Perfil a
+         pegar el código que le dimos. Joan apagó los códigos y esa caja se
+         fue; ahora el antiguo no hace nada (Joan junta la cuenta con un toque)
+         y lo que se le dice es eso, y por dónde se entera. */
+      assert.match(lamina(P), /Si ya eras cliente, no tienes que hacer nada: revisamos que seas tú y juntamos tu historial con esta cuenta\. Te avisamos por el chat cuando esté\./,
+        'al registrado nuevo no se le dice qué pasa con su historial');
+      assert.ok(!/c(o|ó)digo/i.test(lamina(P)), 'al registrado nuevo se le vuelve a hablar de un código');
       assert.ok(!/ambar/.test(lamina(P).slice(0, 400)) || !/error/i.test(lamina(P)),
         'estar sin vincular se está pintando como un fallo');
     });

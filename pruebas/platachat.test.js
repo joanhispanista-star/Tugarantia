@@ -62,8 +62,13 @@ const sinComentarios = s => blanquear(blanquear(s, /<!--[\s\S]*?-->/g), /\/\*[\s
    página promete al cliente entrar, juntar su historial, chatear, contar el
    acceso y mandar su comprobante. registrar_abierto_app ya no está aquí: desde
    el 1-oct el alta es la de play/ con ?marca=platachat, y la llama esa página
-   (pruebas/platachat-registro.test.js lo vigila allá). */
-const RPC_OBLIGATORIAS = ['mi_cuenta', 'vincular_cuenta', 'chat_leer_sesion', 'chat_escribir_sesion',
+   (pruebas/platachat-registro.test.js lo vigila allá).
+   7-oct-2026 — vincular_cuenta SALE de la lista, y al revés: ahora se exige
+   que NADIE la llame. Joan apagó los códigos de acceso y
+   base/20261007_una_puerta.sql se la quita a la sesión; la caja que la
+   llamaba habría contestado «No pude conectarme…» a un 403. El historial lo
+   junta Joan con un toque (vincular_interna, que no es del cliente). */
+const RPC_OBLIGATORIAS = ['mi_cuenta', 'chat_leer_sesion', 'chat_escribir_sesion',
                           'marcar_acceso', 'chat_foto_sesion'];
 
 /* Los ocho archivos que carga index.html, en el orden del contrato. El orden
@@ -224,7 +229,8 @@ describe('PlataChat: lo que carga y en qué orden', () => {
     assert.match(PAGINA, /<link rel="manifest" href="app.webmanifest">/);
     assert.match(PAGINA, /<meta name="theme-color" content="#0C0A0B">/);
     assert.match(PAGINA, /navigator\.serviceWorker\.register\('\.\.\/sw\.js'\)/);
-    assert.match(PAGINA, /var VERSION_APP = '2026-10-01'/);
+    /* 7-oct-2026 — sube con la puerta única (sin la caja del código en Yo). */
+    assert.match(PAGINA, /var VERSION_APP = '2026-10-07'/);
   });
 
   test('la guarda de HTTPS es lo PRIMERO que corre, antes que cualquier lectura del almacén', () => {
@@ -410,7 +416,11 @@ describe('PlataChat: la página pintando de verdad', () => {
       '«Abrir mi cuenta» no lleva al registro con escáner');
     assert.ok(!/inNuevoClave|inNuevoCelular/.test(h), 'volvió el formulario de cuatro cajas');
     assert.match(h, /permiso aparte, antes de encender la cámara/, 'no dice que las fotos llevan su propio permiso');
-    assert.match(h, /¿Ya eras cliente de Tu Garantía\? Después de entrar escribe tu código en <b>Yo<\/b>/);
+    /* 7-oct-2026 — antes se exigía «Después de entrar escribe tu código en
+       Yo». Joan apagó los códigos: el antiguo entra o abre su cuenta igual que
+       cualquiera, y el historial se lo junta Joan. */
+    assert.match(h, /¿Ya eras cliente de Tu Garantía\? Entra o abre tu cuenta igual, sin ningún código: revisamos que seas tú y juntamos tu historial con tu cuenta\. Te avisamos por el chat cuando esté/);
+    assert.ok(!/escribe tu c(o|ó)digo|tu c(o|ó)digo en <b>Yo/i.test(h), 'la puerta volvió a mandar a escribir un código');
     assert.equal(P.ev('S'), null, 'sin sesión no hay socio abierto');
     assert.equal(P.ev('SES'), null);
   });
@@ -663,7 +673,11 @@ describe('PlataChat: la página pintando de verdad', () => {
     assert.equal(P.elems.uResumen.textContent, 'Tu cupo hoy: $0');
     const plata = P.elems.cuerpo.innerHTML;
     assert.match(plata, /Tu cupo<\/span><span class="v">\$0</, 'no pinta el cupo en cero');
-    assert.match(plata, /Tu historial está en camino: si ya eras cliente, escribe tu código en <b>Yo<\/b>/);
+    /* 7-oct-2026 — era «si ya eras cliente, escribe tu código en Yo». Sin
+       códigos (Joan los apagó), al antiguo se le dice que no tiene que hacer
+       nada y por dónde se entera. */
+    assert.match(plata, /Tu historial está en camino: si ya eras cliente, no tienes que hacer nada; revisamos que seas tú, lo juntamos con tu cuenta y te avisamos por el chat\./);
+    assert.ok(!/c(o|ó)digo/i.test(plata), 'Plata volvió a hablarle de un código');
     assert.match(plata, /tu primer crédito lo pides por el chat de <b>Créditos<\/b>/);
     assert.match(plata, /Todavía sin monedas/);
     assert.match(plata, /Tu garantía es tu cupo, no un ahorro/);
@@ -702,10 +716,82 @@ describe('PlataChat: la página pintando de verdad', () => {
     P.ev('irA("yo")');
     const yo = P.elems.cuerpo.innerHTML;
     assert.match(yo, /¿Ya eras cliente de Tu Garantía\?/);
-    assert.ok(yo.indexOf('id="inVincIdent"') >= 0 && yo.indexOf('id="inVincCodigo"') >= 0, 'Yo no ofrece juntar el historial');
-    assert.match(yo, /Tu historial está en camino/);
+    /* 7-oct-2026 — AL REVÉS. Hasta hoy se exigía la caja de cédula y código
+       (inVincIdent, inVincCodigo) con su botón a vincular(). Joan apagó los
+       códigos y la nube le quita vincular_cuenta a la sesión: la caja
+       contestaría «No pude conectarme…» a un 403. Ahora Yo dice que el antiguo
+       no tiene que hacer nada, y no hay ni caja ni botón que llamen a nada. */
+    assert.ok(yo.indexOf('id="inVincIdent"') < 0 && yo.indexOf('id="inVincCodigo"') < 0, 'volvió la caja de escribir el código');
+    assert.ok(!/vincular\(\)/.test(yo), 'volvió el botón que llamaba a vincular_cuenta');
+    assert.match(yo, /Si ya eras cliente, no tienes que hacer nada: revisamos que seas tú y juntamos tu historial con esta cuenta\. Te avisamos por el chat cuando esté\./);
+    assert.ok(!/c(o|ó)digo/i.test(yo), 'Yo volvió a hablarle de un código');
+    assert.match(yo, /Tu historial<\/span><span class="v">en camino</);
     assert.match(yo, /href="borrar-cuenta\.html"/);
     assert.match(yo, /onclick="salir\(\);return false">Salir</);
+  });
+
+  /* 7-oct-2026 (tercera vuelta) — mi_registro (base/20261007_una_puerta.sql,
+     §8-bis) existe para que la cuenta sin juntar no oiga lo mismo pase lo que
+     pase. Plata y Yo prometían «revisamos que seas tú y juntamos tu historial;
+     te avisamos» también a quien Joan ya le DESCARTÓ el registro, y a la cuenta
+     sin registro hecho con ella, que no tiene nada en la bandeja de Joan para
+     revisar. Las dos fallaron ANTES del arreglo. */
+  const PROMETE_PC = /revisamos que seas tú,? (y )?(lo )?junta/;
+  async function sinJuntarCon(miRegistro) {
+    const n = nube({ mi_cuenta: { ok: true, vinculada: false }, mi_registro: miRegistro });
+    const P = abrirPlataChat({ red: n.red });
+    P.ev('SES = { access_token: "token-de-prueba", celular: "3001112233", nombre: "Nuevo" }');
+    await P.ev('cargarCuenta()');
+    await tick(); await tick(); await tick();
+    P.ev('irA("plata")');
+    const plata = P.elems.cuerpo.innerHTML;
+    P.ev('irA("yo")');
+    const yo = P.elems.cuerpo.innerHTML;
+    return { P, n, plata, yo };
+  }
+
+  test('SIN JUNTAR Y REGISTRO DESCARTADO: Plata y Yo no prometen juntar nada', async () => {
+    const { n, plata, yo } = await sinJuntarCon({ ok: true, registro: { estado: 'descartado', creado_en: '2026-10-07T12:00:00Z' } });
+    assert.equal(n.llamadas.filter(l => l.fn === 'mi_registro').length, 1, 'mi_registro se pregunta una vez por apertura');
+    [plata, yo].forEach(h => {
+      assert.ok(!PROMETE_PC.test(h), 'promete juntar un registro que Joan descartó');
+      assert.match(h, /Revisamos tu registro y por ahora no pudimos abrirte la cuenta con nosotros\. Si quieres saber por qué, escríbenos por el chat de <b>Servicio<\/b>\./);
+      assert.ok(!/primer crédito lo pides/.test(h), 'al descartado lo manda a pedir su primer crédito');
+    });
+    assert.match(yo, /Tu historial<\/span><span class="v">sin juntar</);
+  });
+
+  test('SIN JUNTAR Y SIN REGISTRO hecho con la cuenta: lo dice, y no promete revisar', async () => {
+    const { plata, yo } = await sinJuntarCon({ ok: true, registro: null });
+    [plata, yo].forEach(h => {
+      assert.ok(!PROMETE_PC.test(h), 'promete revisar un registro que no está en la bandeja');
+      assert.match(h, /No encontramos un registro hecho junto con esta cuenta\. Si te registraste antes, en otro intento, escríbenos por el chat de <b>Servicio<\/b> y lo buscamos contigo\./);
+    });
+  });
+
+  test('registro nuevo o atendido, o mi_registro sin pegar (404): se queda la promesa de siempre', async () => {
+    for (const r of [{ ok: true, registro: { estado: 'nuevo' } }, { ok: true, registro: { estado: 'atendido' } },
+                     { __estado: 404 }, { ok: true }]) {
+      const { plata, yo } = await sinJuntarCon(r);
+      assert.match(plata, /Tu historial está en camino: si ya eras cliente, no tienes que hacer nada/, 'con ' + JSON.stringify(r));
+      assert.match(yo, /Si ya eras cliente, no tienes que hacer nada: revisamos que seas tú/, 'con ' + JSON.stringify(r));
+      assert.match(yo, /Tu historial<\/span><span class="v">en camino</);
+    }
+  });
+
+  test('Yo NO dice «Tu historial: en camino» cuando la nube no pudo decir si está junta', async () => {
+    /* sinJuntarSabido() ya calla la promesa en esos casos; la fila de arriba
+       seguía diciendo «en camino» a todos. Con mi_cuenta en 404 la cuenta
+       pudo estar junta y simplemente no se pudo preguntar. */
+    const n = nube({ mi_cuenta: { __estado: 404 } });
+    const P = abrirPlataChat({ red: n.red });
+    P.ev(SESION_FALSA);
+    await P.ev('cargarCuenta()');
+    P.ev('irA("yo")');
+    const yo = P.elems.cuerpo.innerHTML;
+    assert.ok(!/<span class="v">en camino</.test(yo), 'afirma que el historial viene en camino sin saberlo');
+    assert.match(yo, /Tu historial<\/span><span class="v">no lo pude traer</);
+    assert.ok(n.llamadas.every(l => l.fn !== 'mi_registro'), 'preguntó por el registro de una cuenta que quizá está junta');
   });
 
   test('SIN NUBE con sesión guardada: pinta lo último bajado y dice «Sin conexión»', async () => {
@@ -1189,6 +1275,22 @@ describe('PlataChat: llama a la base por su nombre, y solo a lo que existe', () 
     RPC_OBLIGATORIAS.forEach(fn => assert.ok(LLAMADAS.has(fn), 'la página no llama a ' + fn));
   });
 
+  test('y NADIE llama a vincular_cuenta ni a las puertas del código (7-oct-2026)', () => {
+    /* base/20261007_una_puerta.sql se las quita a anon y authenticated. Una
+       llamada que queda viva contesta 401/403, y la pantalla lo traduciría a
+       «sesión vencida» o «sin internet»: una mentira sobre la causa. Lo que no
+       se llama no puede fallar con una excusa falsa. Se mira el código, no
+       los comentarios (que cuentan por qué se fue). */
+    const vivo = sinComentarios(PAGINA) + '\n' + sinComentarios(SESION_JS);
+    ['vincular_cuenta', 'historial_socio_por_codigo', 'crear_solicitud_por_codigo', 'cambiar_codigo_acceso']
+      .forEach(fn => {
+        assert.ok(!LLAMADAS.has(fn), 'la página llama a ' + fn + ', que la nube cerró');
+        assert.ok(vivo.indexOf(fn) < 0, 'la página nombra ' + fn + ' fuera de un comentario');
+      });
+    assert.ok(!/function vincular\s*\(/.test(vivo), 'volvió vincular()');
+    assert.ok(!/LARGO_CODIGO_ACCESO|normalizarCodigoAcceso/.test(vivo), 'la página volvió a pedir un código de acceso');
+  });
+
   test('y NINGUNA llamada va a una función que no exista en base/*.sql', () => {
     assert.ok(DEFINIDAS.size > 50, 'no encontré las funciones de base/*.sql');
     const huerfanas = [...LLAMADAS].filter(fn => !DEFINIDAS.has(fn));
@@ -1357,6 +1459,21 @@ describe('PlataChat: el manifiesto y el envoltorio de Android', () => {
     /* Los enlaces relativos que sí promete, existen. */
     ['../legal/terminos.html', '../legal/privacidad.html', 'index.html', '../index.html', '../platachat/icono-192.png']
       .forEach(h => assert.ok(existe(path.join('descargas', h)), 'descargas/platachat.html enlaza ' + h + ' y no existe'));
+  });
+
+  test('descargas/platachat.html no le dice al cliente de código que entre con una contraseña que no tiene (7-oct-2026)', () => {
+    /* Decía «Entras con tu celular y tu contraseña», y el cliente antiguo que
+       solo tuvo código nunca puso una: tocaba «Entrar», no entraba, dejaba un
+       recado, y clave_temporal_interna contestaba 'sin_cuenta' porque no
+       existe cuenta que reiniciar. Lo que le sirve es abrirla con «Soy nuevo». */
+    const t = sinComentarios(leer('descargas/platachat.html')).replace(/\s+/g, ' ');
+    const i = t.indexOf('¿Ya eras cliente de Tu Garantía?');
+    assert.ok(i > 0, 'se fue la tarjeta del cliente antiguo');
+    const tarjeta = t.slice(i, t.indexOf('</div>', i));
+    assert.ok(!/Entras con tu celular y tu contraseña\./.test(tarjeta), 'al que solo tuvo código lo manda a una contraseña que no tiene');
+    assert.match(tarjeta, /Si nunca abriste tu cuenta con contraseña, ábrela con «Soy nuevo»; si ya la abriste, entras con tu celular y tu contraseña\./);
+    assert.match(tarjeta, /Revisamos que seas tú y juntamos tu historial con tu cuenta; te avisamos por el chat cuando esté\./);
+    assert.ok(!/c(o|ó)digo/i.test(tarjeta), 'volvió a hablar de un código');
   });
 
   test('y los enlaces legales de la app existen', () => {

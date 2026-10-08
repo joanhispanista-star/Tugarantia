@@ -230,7 +230,11 @@ describe('lo que sí se hace desde acá: llamar o escribir', () => {
     const e = await abrirConRegistros(respuesta(FILAS));
     const h = await abrirPestania(e);
     const acciones = new Set([...h.matchAll(/data-acc="([^"]+)"/g)].map(m => m[1]));
-    acciones.forEach(a => assert.ok(['reg-traer', 'verficha'].includes(a),
+    /* 7-oct-2026 — una acción más, y solo esa: «🔗 Es la misma persona»
+       (reg-juntar), por decisión de Joan. Juntar no aprueba ni abre una ficha:
+       deja que la cuenta del cliente antiguo vea la ficha que ya tiene. Lo
+       vigila pruebas/una-puerta-celular.test.js. */
+    acciones.forEach(a => assert.ok(['reg-traer', 'verficha', 'reg-juntar'].includes(a),
       'la pestaña ofrece «' + a + '»: aprobar y abrir fichas se hace en el computador'));
     assert.ok(!/marcar_registro|fichaDesdeRegistro|descartar/i.test(h));
   });

@@ -120,8 +120,13 @@
    subir CACHE allá no precarga esta app. Mientras la receta no se aplique, la
    página y los .js llegan frescos (red primero) pero estilo.css y los iconos
    se quedan con la copia guardada hasta que suba CACHE. Cuando la receta esté
-   aplicada, la regla vuelve a ser la de socio.html: fecha acá Y CACHE allá. */
-var VERSION_APP = '2026-10-01';
+   aplicada, la regla vuelve a ser la de socio.html: fecha acá Y CACHE allá.
+
+   7-oct-2026 — sube por la puerta única: se fue la caja de «escribe tu cédula
+   y tu código» de Yo, y ninguna pantalla manda ya a escribir un código. Hoy
+   platachat/ SÍ está en ARCHIVOS de sw.js, así que la regla es la de
+   socio.html: fecha acá Y CACHE allá. */
+var VERSION_APP = '2026-10-07';
 (function () {
   var v = document.getElementById('holaVersion');
   if (v) v.textContent = 'Versión ' + VERSION_APP;
@@ -380,6 +385,7 @@ var CORTES = 1;          /* para cuándo paga el quincenal: cuántos cortes (1 =
 var SIN_NUBE = false;    /* la última traída falló por red: se pinta lo guardado y se dice */
 var AVISO_NUBE = '';     /* un motivo de la nube que hay que decir arriba (p. ej. migración sin correr) */
 var AVISO_FICHA = '';    /* app/ficha.js no llegó: se abre sin ficha y se dice arriba */
+var MI_REGISTRO = '';    /* 7-oct-2026: en qué va el registro de la cuenta sin juntar (mi_registro); '' = no se sabe. Ver traerMiRegistro */
 var BORRADOR = '';       /* un texto que no se pudo mandar y se le devuelve al cliente en la caja */
 
 /* --- la negociación con reloj (fase 1b, 15-sep-2026) --- */
@@ -601,8 +607,13 @@ function pintarEntrar() {
         '<a href="../legal/terminos.html" target="_blank" rel="noopener" style="color:inherit">Términos</a> y el ' +
         '<a href="../legal/privacidad.html" target="_blank" rel="noopener" style="color:inherit">uso de tus datos</a>.</div>' +
     '</div>' +
-    '<div class="aviso info">¿Ya eras cliente de Tu Garantía? Después de entrar escribe tu código en <b>Yo</b>, ' +
-      'y tu garantía, tu cupo y tu historial aparecen aquí también.</div>' +
+    /* 7-oct-2026 — sin «escribe tu código en Yo»: Joan apagó los códigos de
+       acceso y desde base/20261007_una_puerta.sql la sesión ya no puede llamar
+       a vincular_cuenta. Junta Joan, con un toque, y vincular_interna deja el
+       aviso en el chat de Servicio: eso, y solo eso, es lo que se promete. */
+    '<div class="aviso info">¿Ya eras cliente de Tu Garantía? Entra o abre tu cuenta igual, sin ningún código: ' +
+      'revisamos que seas tú y juntamos tu historial con tu cuenta. Te avisamos por el chat cuando esté, y desde ahí ' +
+      'tu garantía, tu cupo y tu historial aparecen aquí también.</div>' +
     '<div class="pie">Tus datos solo los ves tú, con tu celular y tu contraseña.' + enlacesLegales() + selloDeVersion() + '</div>';
   var b = $('btnEntrar'); if (b) b.addEventListener('click', entrar);
   var c = $('inClave'); if (c) c.addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
@@ -642,6 +653,7 @@ function cargarCuenta() {
     SIN_NUBE = false; AVISO_NUBE = '';
     SES.ultimo = j; SES.ultimoEl = hoyISO();
     SP.guardar(SES);
+    if (j.vinculada) MI_REGISTRO = '';
     abrir(j);
     marcarAcceso();
     /* La solicitud viva y la política se traen DESPUÉS de pintar y sin
@@ -649,6 +661,9 @@ function cargarCuenta() {
        quizá no existen todavía. */
     traerSolicitud();
     traerPolitica();
+    /* 7-oct-2026 (tercera vuelta) — y solo si la nube dijo «sin juntar»: a
+       una cuenta junta no hay registro que preguntarle. */
+    if (!j.vinculada) traerMiRegistro();
   }).catch(function (e) {
     if (e && e.sinSesion) {
       salir('Tu sesión venció, así que te pedimos entrar de nuevo. Si no fuiste tú, escríbenos.');
@@ -773,6 +788,70 @@ function cuentaVacia() {
   };
 }
 
+/* 7-oct-2026 — ¿LA NUBE DIJO DE VERDAD QUE ESTA CUENTA NO ESTÁ JUNTA? S sale
+   de cuentaVacia() también cuando no se pudo preguntar: ficha.js no llegó
+   (AVISO_FICHA, y la cuenta puede estar junta), la nube contestó 404 o un
+   error (AVISO_NUBE), o no hubo señal y no había nada guardado. En esos casos
+   decirle «si ya eras cliente, no tienes que hacer nada; te avisamos» podría
+   ser falso para quien ya está junto: arriba ya se dice por qué no se ve su
+   cuenta, y eso basta. */
+function sinJuntarSabido() {
+  if (!S || S.vinculada) return false;
+  if (AVISO_FICHA || AVISO_NUBE) return false;
+  if (SIN_NUBE && !(SES && SES.ultimo)) return false;
+  return true;
+}
+
+/* 7-oct-2026 (tercera vuelta) — ¿EN QUÉ VA EL REGISTRO DE ESTA CUENTA SIN
+   JUNTAR? «Revisamos que seas tú, lo juntamos y te avisamos» es verdad
+   mientras el registro esté en la bandeja de Joan, que es de donde sale el
+   toque de juntar (📥 Registrados). Deja de serlo en dos casos que la nube
+   sabe y esta pantalla no sabía: Joan ya lo DESCARTÓ, o la cuenta no tiene un
+   registro hecho junto con ella (a una hora de abrirla) y en la bandeja no hay
+   nada que revisar. mi_registro (base/20261007_una_puerta.sql, §8-bis) se
+   escribió para eso, y la app del socio ya lo usa (app/sesion-socio.js).
+
+   Una vez por apertura, sin esperarla: lo de siempre sale en el acto y solo
+   se corrige si la nube contesta uno de esos dos casos. Con 404 (la migración
+   sin correr), sesión vencida o sin red se queda lo de siempre: no saber no es
+   razón para cambiar de promesa. */
+function traerMiRegistro() {
+  if (!SES || !SP) return Promise.resolve();
+  var ses = SES;
+  return SP.rpc(CFG, SES, 'mi_registro', {}).then(function (j) {
+    if (SES !== ses || !S || S.vinculada) return;        /* salió, entró otro, o ya está junta */
+    var antes = MI_REGISTRO;
+    MI_REGISTRO = leerMiRegistro(j);
+    /* Solo Plata y Yo lo dicen; repintar Chats le reharía la conversación a
+       quien está escribiendo. Al cambiar de pestaña ya sale lo nuevo. */
+    if (MI_REGISTRO !== antes && (TAB === 'plata' || TAB === 'yo')) irA(TAB);
+  }).catch(function () {});
+}
+/* Lo mismo que lee app/sesion-socio.js (miRegistro), con una diferencia a
+   propósito: una respuesta SIN la llave `registro` no es «sin registro», es
+   una respuesta que no dice nada (la base contesta {ok, registro: null} con la
+   llave puesta). */
+function leerMiRegistro(j) {
+  if (!j || j.ok !== true || !Object.prototype.hasOwnProperty.call(j, 'registro')) return '';
+  if (j.registro === null) return 'sin_registro';
+  var e = String((j.registro && j.registro.estado) || '');
+  return (e === 'nuevo' || e === 'atendido' || e === 'descartado') ? e : '';
+}
+/* Las palabras de la app del socio (textoSinJuntar), con el chat de Servicio
+   por su nombre, que aquí es una de dos conversaciones. HTML ya armado (lleva
+   <b>). Vacío = se dice lo de siempre. */
+function textoSinJuntarDistinto() {
+  if (MI_REGISTRO === 'descartado') {
+    return 'Revisamos tu registro y por ahora no pudimos abrirte la cuenta con nosotros. ' +
+      'Si quieres saber por qué, escríbenos por el chat de <b>Servicio</b>.';
+  }
+  if (MI_REGISTRO === 'sin_registro') {
+    return 'No encontramos un registro hecho junto con esta cuenta. Si te registraste antes, en otro intento, ' +
+      'escríbenos por el chat de <b>Servicio</b> y lo buscamos contigo.';
+  }
+  return '';
+}
+
 function pintarCuenta() {
   MODO = 'quincenal'; PLAZO = 3; CORTES = 1;
   var l = limitesCalc();
@@ -859,9 +938,16 @@ function cabeceraPlata() {
     fila('Tu cupo', COP(S.cupo)) +
     '<div class="cupo-frase">Tu garantía es tu cupo, no un ahorro: ' +
       'no se retira ni se devuelve; crece cuando pagas en fecha.</div>' +
-    (S.vinculada ? '' :
-      '<div class="aviso info" style="margin-top:var(--e3)">Tu historial está en camino: si ya eras cliente, escribe tu código en <b>Yo</b>; ' +
-      'si eres nuevo, tu primer crédito lo pides por el chat de <b>Créditos</b>.</div>') +
+    /* 7-oct-2026 — el antiguo ya no escribe ningún código: se le dice que no
+       tiene que hacer nada y que el aviso le llega por el chat (ver vistaYo). */
+    /* 7-oct-2026 (tercera vuelta) — salvo que mi_registro diga que no hay qué
+       juntar (ver traerMiRegistro): entonces se dice eso, y no se le manda a
+       pedir un primer crédito con un registro descartado o que no está. */
+    (!sinJuntarSabido() ? '' :
+      '<div class="aviso info" style="margin-top:var(--e3)">' + (textoSinJuntarDistinto() ||
+      'Tu historial está en camino: si ya eras cliente, no tienes que hacer nada; ' +
+      'revisamos que seas tú, lo juntamos con tu cuenta y te avisamos por el chat. ' +
+      'Si eres nuevo, tu primer crédito lo pides por el chat de <b>Créditos</b>.') + '</div>') +
     '</div>';
 }
 
@@ -2339,27 +2425,43 @@ function verFotoChat(id) {
 
 /* ============================== YO ============================== */
 function vistaYo() {
+  /* 7-oct-2026 (tercera vuelta) — «en camino» solo cuando de verdad viene:
+     la nube dijo «sin juntar» (sinJuntarSabido) y el registro no está
+     descartado ni falta (textoSinJuntarDistinto). Con la nube en 404, en error
+     o sin ficha.js la cuenta pudo estar junta: no se pudo traer, y se dice. */
+  var distinto = textoSinJuntarDistinto();
   var h = '<div class="card"><h3 class="tit">' + esc(S.nombre) + '</h3>' +
     '<p class="sub">' + esc(U && SES && SES.celular ? U.telefonoBonito(SES.celular) : (SES && SES.celular) || '') + '</p>' +
-    fila('Tu historial', S.vinculada ? 'junto con Tu Garantía' : 'en camino') +
+    fila('Tu historial', S.vinculada ? 'junto con Tu Garantía'
+      : !sinJuntarSabido() ? 'no lo pude traer'
+      : distinto ? 'sin juntar' : 'en camino') +
     (S.vinculada && S.actualizado ? fila('Datos al', fmtFecha(S.actualizado)) : '') +
     '</div>';
 
   if (!S.vinculada) {
-    h += '<div class="card"><h3 class="tit">¿Ya eras cliente de Tu Garantía?</h3>' +
-      '<p class="sub">Escribe tu cédula (o tu celular de entonces) y el código de ' + M.LARGO_CODIGO_ACCESO +
-        ' letras y números que te dimos. Es una sola vez: desde ahí ves tu garantía, tu cupo y tu historial también aquí.</p>' +
-      '<label for="inVincIdent">Tu cédula o tu celular</label>' +
-      '<input id="inVincIdent" type="text" inputmode="numeric" autocomplete="off" placeholder="Solo los números">' +
-      '<label for="inVincCodigo">Tu código</label>' +
-      '<input id="inVincCodigo" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="' +
-        M.LARGO_CODIGO_ACCESO + '" placeholder="Ej: K7QP3" style="text-transform:uppercase;letter-spacing:.18em">' +
-      '<button type="button" class="btn marca" id="btnVincular" style="margin-top:var(--e4)" onclick="vincular()">Juntar mi historial</button>' +
-      '<div id="errVinc" class="aviso ambar oculto"></div>' +
-      '<div class="muted" style="font-size:12.5px;margin-top:var(--e3)">¿No tienes código? Escríbenos por el chat de Servicio y lo revisamos.</div>' +
-      '</div>';
-    h += '<div class="aviso info">Tu historial está en camino: si ya eras cliente, escribe tu código; ' +
-      'si eres nuevo, tu primer crédito lo pides por el chat de <b>Créditos</b>.</div>';
+    /* 7-oct-2026 — AQUÍ ESTABA LA CAJA DE «ESCRIBE TU CÉDULA Y TU CÓDIGO», y con
+       ella vincular(), que llamaba a vincular_cuenta. Joan apagó los códigos de
+       acceso («¿Por qué cada cliente necesita un código? Eso ya no debería
+       existir.») y base/20261007_una_puerta.sql le quita esa función a la
+       sesión: la caja habría contestado «No pude conectarme…» a un 403, que es
+       la pantalla mintiendo sobre la causa. Se quitó la llamada entera, no solo
+       el texto. Ahora junta Joan, con un toque, después de revisar que la
+       cuenta sea de esa persona; vincular_interna le deja el aviso en el chat
+       de Servicio, que es lo que esta tarjeta promete. Y solo se promete cuando
+       la nube de verdad contestó «sin juntar» (sinJuntarSabido). */
+    /* 7-oct-2026 (tercera vuelta) — y si mi_registro dice que no hay qué
+       juntar, se dice eso, sin la promesa ni el «pide tu primer crédito». */
+    if (sinJuntarSabido() && distinto) {
+      h += '<div class="card"><h3 class="tit">Tu historial</h3><p class="sub">' + distinto + '</p></div>';
+    } else {
+      if (sinJuntarSabido()) {
+        h += '<div class="card"><h3 class="tit">¿Ya eras cliente de Tu Garantía?</h3>' +
+          '<p class="sub">Si ya eras cliente, no tienes que hacer nada: revisamos que seas tú y juntamos tu ' +
+            'historial con esta cuenta. Te avisamos por el chat cuando esté.</p>' +
+          '</div>';
+      }
+      h += '<div class="aviso info">Si eres nuevo, tu primer crédito lo pides por el chat de <b>Créditos</b>.</div>';
+    }
   } else {
     h += tarjetaFicha() + tarjetaHistorial();
   }
@@ -2427,35 +2529,6 @@ function tarjetaHistorial() {
   return h + '</div>';
 }
 
-/* VINCULAR: el cliente viejo demuestra que es él con su cédula (o celular) y
-   su código, una sola vez. La base contesta {ok:false} sin decir cuál de los
-   dos falló, a propósito, y acá tampoco se adivina. */
-function vincular() {
-  var err = $('errVinc'), b = $('btnVincular');
-  if (!SP || !SES) return fallo(err, 'Entra de nuevo para juntar tu historial.');
-  var ident = String($('inVincIdent').value || '').replace(/\D/g, '');
-  var codigo = M.normalizarCodigoAcceso($('inVincCodigo').value || '');
-  if (!ident) return fallo(err, 'Escribe tu cédula o tu celular, solo los números.');
-  if (!codigo) return fallo(err, 'El código son ' + M.LARGO_CODIGO_ACCESO + ' letras y números, como K7QP3.');
-  fallo(err, 'Buscando tu historial…'); if (b) b.disabled = true;
-  SP.rpc(CFG, SES, 'vincular_cuenta', { p_ident: ident, p_codigo: codigo }).then(function (j) {
-    if (j && j.ok === true) {
-      if (err) err.classList.add('oculto');
-      mostrar('pCargando');
-      return cargarCuenta();
-    }
-    var motivo = String((j && j.motivo) || '');
-    fallo(err, /intentos/.test(motivo) ? 'Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.'
-      : /vinculada/.test(motivo) ? 'Ese historial ya está unido a otro teléfono. Escríbenos por el chat de Servicio y lo revisamos.'
-      : 'No encontré ese historial con ese código. Revisa los dos; si sigue igual, escríbenos por el chat de Servicio.');
-  }).catch(function (e) {
-    if (e && e.sinSesion) { salir('Tu sesión venció. Entra de nuevo.'); return; }
-    fallo(err, (e && e.estado === 404)
-      ? 'Juntar el historial todavía no está encendido en la base (falta correr base/20260914b_tres_canales.sql).'
-      : ((e && e.humano) || 'No pude conectarme. Revisa tu internet y vuelve a intentar.'));
-  }).then(function () { if (b) b.disabled = false; });
-}
-
 /* ============================ PIE ============================ */
 function enlacesLegales() {
   return '<br><a href="../legal/terminos.html" target="_blank" rel="noopener" style="color:inherit">Términos</a> · ' +
@@ -2485,7 +2558,7 @@ function pie() {
    Borra la sesión guardada (y con ella lo último bajado) y vuelve a la
    puerta. `msg`, si viene, es lo que se le dice ahí: por qué lo sacaron. */
 function salir(msg) {
-  S = null; SES = null; SIN_NUBE = false; AVISO_NUBE = ''; BORRADOR = '';
+  S = null; SES = null; SIN_NUBE = false; AVISO_NUBE = ''; BORRADOR = ''; MI_REGISTRO = '';   /* el registro es de esa cuenta: el que entre después no hereda un «descartado» */
   SOL = null; RELOJ_OK = false; ACEPTANDO = false;
   SOL_GEN++; DESFASE_RELOJ = 0; POL = null; fijarFraseReloj();   /* lo de la base es de esa sesión: una traída en vuelo se bota y el que entre después arranca en cero, también la frase con la espera */
   apagarLatido(); GEN++;

@@ -334,7 +334,7 @@ h3.tit{font-size:18px}
 .btn.sm{padding:var(--e3);font-size:14px;min-height:44px}
 .btn.arriba{margin-top:var(--e4)}
 label{display:block;font-size:13px;font-weight:600;margin:16px 0 6px}
-input[type=text],input[type=number],input[type=email],select,textarea{
+input[type=text],input[type=number],input[type=email],input[type=tel],input[type=password],select,textarea{
   width:100%;padding:14px;border:1px solid var(--linea);border-radius:14px;font-size:16px;
   font-family:inherit;background:var(--papel);color:var(--tinta)}
 input:focus,select:focus{outline:2px solid var(--rojo-texto);outline-offset:2px}
@@ -716,7 +716,7 @@ details[open] summary::after{content:' ↑'}
    app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
    de CACHE en sw.js). */
-var VERSION_APP = '2026-10-01';
+var VERSION_APP = '2026-10-07';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -771,14 +771,22 @@ setTimeout(function () {
      quien decide de qué lado va un mensaje y cómo se escapa el texto es un solo
      archivo, para que no haya dos verdades sobre la misma conversación. -->
 <script src="chat.js"></script>
+<!-- 7-oct-2026 — LA PUERTA ÚNICA. cuenta.js arma el correo de la cuenta desde el
+     celular (la misma regla de play/); sesion-socio.js habla con Supabase Auth y
+     con mi_cuenta; ver-como.js es el pase de un uso del «👁 Ver la app como la
+     ve él» del CRM. Si alguno no llega, la pantalla de entrar lo dice. -->
+<script src="cuenta.js"></script>
+<script src="sesion-socio.js"></script>
+<script src="ver-como.js"></script>
 <script>
 'use strict';
 
 /* LA CONEXIÓN VIENE PUESTA DE FÁBRICA — 18-ago-2026.
 
    ESTABA VACÍA, y eso dejaba la app MUERTA en el teléfono de cada cliente. Sin
-   url ni llave, buscarEnNube() se corta antes de preguntar (ver su primera
-   línea); el respaldo es el Panel de ESTE equipo, que en el teléfono de un
+   url ni llave, la entrada (entonces buscarEnNube; desde el 7-oct-2026, la
+   del celular y la contraseña) se corta antes de preguntar; el respaldo era
+   el Panel de ESTE equipo, que en el teléfono de un
    cliente está vacío; y la app termina contestando «No encontré esa cédula con
    ese código» a un socio que existe y escribió bien. En el computador de Joan
    nunca se vio, porque ahí la conexión estaba guardada de pruebas viejas: el
@@ -912,13 +920,15 @@ function nombreJoan() { return contactoOficial().nombre; }
    verdad entrando, una cuenta de mentira en la pantalla de entrada solo sirve
    para que alguien vea números que no son de nadie y crea que son los suyos.
 
-   Los clientes entran por una de tres puertas, y todas son de datos reales: la
-   nube (historial_socio), el Panel de este mismo equipo —solo en el computador
-   de Joan— y el enlace de WhatsApp con el historial adentro. Ver entrar().
+   Los clientes entran por una de tres puertas, y todas son de datos reales: su
+   cuenta (celular y contraseña, desde el 7-oct-2026; ver entrar()), el Panel
+   de este mismo equipo —solo en el computador de Joan, con el pase de un uso
+   del CRM— y el enlace de WhatsApp con el historial adentro.
 
-   Si hace falta probar la app sin tocar la cuenta de un cliente, se crea un
-   cliente de prueba EN EL PANEL, con su código como cualquier otro. Así se
-   prueba el camino de verdad y no una copia que se puede desviar de él.        */
+   Si hace falta probar la app sin tocar la cuenta de un cliente, se registra
+   un celular de prueba por «Registrarme» y Joan lo junta con una ficha de
+   prueba EN EL PANEL. Así se prueba el camino de verdad y no una copia que se
+   puede desviar de él.                                                        */
 
 /* ============ HISTORIAL QUE VIENE DENTRO DEL ENLACE ============ */
 function desdeEnlace() {
@@ -958,13 +968,22 @@ function mostrar(cual) {
    localStorage: acá se leen sus clientes de verdad, sin nube y sin enlaces.
 
    SOLO LECTURA. Esa llave es la cartera real de Joan. Acá no hay ni puede
-   haber un setItem ni un removeItem: si esto escribe, le borra los clientes.
+   haber un setItem ni un removeItem sobre ella: si esto escribe, le borra los
+   clientes.
 
-   En el celular de un cliente esa llave está vacía, así que no se filtra nada,
-   y aun en el equipo de Joan sigue haciendo falta cédula + 4 dígitos: no se
-   puede listar a nadie. */
+   7-oct-2026 — YA NO SE ENTRA CON CÉDULA + CÓDIGO. Se entra con el pase de UN
+   uso que deja el CRM al tocar «👁 Ver la app como la ve él» (app/ver-como.js:
+   vence en 60 s, se borra al leerlo y busca por el id de la ficha). En el
+   celular de un cliente no hay ni pase ni cartera, así que esto no abre nada
+   desde otro aparato. */
 var LLAVE_PANEL = 'joan_socios_v1';
 var P = window.PuenteTuGarantia || null;
+/* Las tres piezas de la puerta única (7-oct-2026). Por `window.` y no por el
+   nombre pelado: si una no llegó (un service worker viejo), la app no se cae
+   entera — la pantalla de entrar lo dice. */
+var SS = window.SesionSocio || null;
+var VC = window.VerComo || null;
+var U = window.CuentaSocio || null;
 
 function leerPanel() {
   try {
@@ -975,214 +994,264 @@ function leerPanel() {
     return P.normalizar(JSON.parse(crudo));
   } catch (e) { return null; }
 }
-/* El enlace que abre el Panel: #p=cedula-CÓDIGO. Va en el hash a propósito,
-   porque el hash no sale del navegador; un ?p= quedaría en los registros del
-   servidor. Y solo sirve donde vive el Panel: en el celular de un cliente esa
-   llave está vacía.
 
-   10-ago-2026: eran 4 dígitos y ahora son los 5 caracteres del código, para que
-   "ver la app como la ve él" pase por la misma puerta que el cliente. Si esto
-   siguiera aceptando los 4 del celular, quedaría una segunda entrada más débil
-   viva en el mismo archivo — y las segundas entradas son las que se olvidan. */
+/* El pase del CRM: #v=<nonce>. Devuelve el paquete del cliente, null si no
+   hay pase en la dirección, o {vencido:true} si había uno y ya no sirve (se
+   usó, pasó el minuto, o la ficha no está en esta cartera). El hash se limpia
+   siempre: un pase usado no se queda en la barra ni en el historial. */
 function desdePanel() {
-  var m = /[#&]p=(\d{5,15})-([0-9A-Za-z]{5})\b/.exec(location.hash || '');
-  return m ? buscarEnPanel(m[1], m[2]) : null;
-}
-function buscarEnPanel(ced, codigo) {
+  if (!/[#&]v=/.test(location.hash || '')) return null;
+  var id = null;
+  try { id = (VC && location.protocol !== 'file:') ? VC.consumir(localStorage, location.hash, Date.now()) : null; }
+  catch (e) { id = null; }
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  if (!id) return { vencido: true };
   try {
-    var db = leerPanel(); if (!db) return null;
-    var s = P.buscarSocio(db, ced, codigo); if (!s) return null;
-    return { nombre: s.nombre || 'Socio', datos: P.migrarSocio(db, s),
-             actualizado_en: null, origen: 'panel', cedula: ced,
-             codigo: M.normalizarCodigoAcceso(codigo) };
-  } catch (e) { return null; }
+    var db = leerPanel(); if (!db) return { vencido: true };
+    var r = VC.buscar(db, id); if (!r.socio) return { vencido: true };
+    var s = r.socio;
+    return { nombre: s.nombre || 'Socio', datos: P.migrarSocio(db, s), actualizado_en: null,
+             origen: 'panel',
+             cedula: String(s.cedula || '').replace(/\D/g, '') || String(s.telefono || '').replace(/\D/g, '').slice(-10) };
+  } catch (e) { return { vencido: true }; }
 }
 
-/* ============================ ENTRAR ============================
-   Dos fuentes, siempre en este orden: la nube y el Panel de este equipo. Si una
-   no está disponible se salta, no se cae. (Había una tercera, los socios de
-   prueba; se fue el 10-ago-2026 — ver el bloque de arriba.)
+/* ============================ ENTRAR — 7-oct-2026 ============================
+   UNA SOLA PUERTA. Joan: «¿Por qué cada cliente necesita un código? Eso ya no
+   debería existir. Quiero que todos se registren igual».
 
-   10-ago-2026: la nube se pregunta por CÓDIGO, no por los 4 del celular. La
-   función nueva se llama historial_socio_por_codigo y vive en la migración
-   base/20260810_codigo_acceso.sql. Mientras esa migración no esté corrida en
-   Supabase, esta llamada devuelve 404 y el que entra cae al Panel — que es el
-   camino que funciona hoy en el computador de Joan. */
-function buscarEnNube(ced, cod) {
-  if (!CFG.url || !CFG.anon) return Promise.resolve({ dato: null, falloRed: false });
-  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/historial_socio_por_codigo', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
-    body: JSON.stringify({ p_cedula: ced, p_codigo: cod })
-  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
-    .then(function (j) { return { dato: j || null, falloRed: false }; })
-    .catch(function () { return { dato: null, falloRed: true }; });
+   · «Entrar»: celular + contraseña, la cuenta de Supabase Auth que crea play/
+     al registrarse (el correo lo arma app/cuenta.js desde el celular).
+   · «Registrarme»: play/#registro, sin cambios. Nuevos y antiguos igual.
+
+   TENER CUENTA NO ES VER EL HISTORIAL. mi_cuenta() solo devuelve el paquete si
+   Joan juntó esa cuenta con la ficha (un toque suyo en el CRM o en el
+   celular; al cliente nuevo, al aprobarlo). La cédula y el celular son datos
+   públicos: quien registre el número de otra persona no ve nada de ella
+   (base/20261007_una_puerta.sql).
+
+   Lo que se fue: la cédula + el código de cinco caracteres, «No tengo mi
+   código», el código de invitación y «Cambiar mi código». Las funciones de la
+   nube que los atendían se cerraron para la llave pública el mismo día.
+
+   Y LO QUE NO CAMBIÓ: de play/ no se vuelve a esta app con un botón (ver la
+   cabecera de play/index.html). Si eso sigue teniendo sentido con el APK
+   directo es una decisión de Joan que está escrita en la receta de play/. */
+var SESION = null;   /* la sesión del socio (app/sesion-socio.js), o null */
+
+/* Guarda la sesión renovada SIN perder el último paquete que venía con ella.
+   La que llegó de play/ en esta pestaña no se guarda en el disco: play/ la
+   tiene en sessionStorage a propósito (ver su cabecera) y no se le cambia esa
+   decisión por la espalda. */
+function guardarSesionSocio(n) {
+  if (!n) return;
+  if (SESION && n !== SESION) {
+    if (SESION.paquete && !n.paquete) { n.paquete = SESION.paquete; n.paqueteEn = SESION.paqueteEn; }
+    if (SESION.soloEstaPestana) n.soloEstaPestana = true;
+    if (!n.celular) n.celular = SESION.celular;
+  }
+  SESION = n;
+  if (!SS || n.soloEstaPestana) return;
+  SS.guardar(localStorage, n);
 }
 
 function entrar() {
-  var ced = ($('inCedula').value || '').replace(/\D/g, '');
-  var cod = M.normalizarCodigoAcceso($('inCodigo2').value || '');
-  $('errEntrar').classList.add('oculto');
-  if (ced.length < 5) return fallo('Escribe tu número de celular (o tu cédula) completo.');
-  /* El código mal escrito muere ACÁ, en el teléfono, y no gasta uno de los ocho
-     intentos que da el freno de la nube. Es lo que compra tener una forma fija:
-     cinco caracteres del alfabeto y nada más. */
-  if (!cod) {
-    return fallo('Tu código tiene ' + M.LARGO_CODIGO_ACCESO + ' caracteres, como ' +
-      'K7QP3. Revísalo en el mensaje que te mandamos.');
-  }
-  mostrar('pCargando');
-
-  buscarEnNube(ced, cod).then(function (n) {
-    if (n.dato) { n.dato.cedula = ced; n.dato.codigo = cod; n.dato.origen = 'nube'; return abrir(n.dato); }
-
-    var p = buscarEnPanel(ced, cod);
-    if (p) return abrir(p);
-
-    /* Nunca se dice "la cédula existe pero el código no coincide": eso
-       convertiría la app en un oráculo de cédulas. */
-    fallo(n.falloRed
-      ? 'No pude conectarme. Revisa que tengas internet y vuelve a intentar.'
-      : 'No encontré ese número con ese código. Revísalos, y si siguen sin salir escríbenos.' +
-        (location.protocol === 'file:'
-          ? ' Si estás abriendo esto como archivo, ábrelo desde la dirección web: así las dos páginas se ven entre sí.'
-          : ''));
+  var err = $('errEntrar');
+  if (err) { err.classList.add('oculto'); err.classList.add('ambar'); }
+  if (!SS || !U) return fallo('No cargó una parte de la app. Cierra y vuelve a abrirla con internet.');
+  var cel = ($('inCel') && $('inCel').value) || '';
+  var clave = ($('inClave') && $('inClave').value) || '';
+  if (!U.normalizarTelefono(cel)) return fallo(SS.TEXTOS.celular);
+  if (!clave) return fallo(SS.TEXTOS.clave);
+  if (!CFG.url || !CFG.anon) return fallo(SS.TEXTOS.red);
+  var b = $('btnEntrar'); if (b) b.disabled = true;
+  progreso('Entrando…');
+  SS.entrar(CFG, cel, clave).then(function (r) {
+    if (b) b.disabled = false;
+    /* Nunca «ese celular no tiene cuenta» ni «la contraseña no es»: la nube
+       contesta lo mismo a propósito, y así se dice. */
+    if (!r.ok) return fallo(SS.TEXTOS[r.motivo] || SS.TEXTOS.red);
+    try { $('inClave').value = ''; } catch (e) {}
+    guardarSesionSocio(r.sesion);
+    cargarCuenta();
   });
 
-  function fallo(msg) { $('errEntrar').textContent = msg; $('errEntrar').classList.remove('oculto'); mostrar('pEntrar'); }
+  function progreso(msg) { if (!err) return; err.textContent = msg; err.classList.remove('ambar'); err.classList.remove('oculto'); }
+  function fallo(msg) {
+    if (!err) return;
+    err.textContent = msg; err.classList.add('ambar'); err.classList.remove('oculto');
+    mostrar('pEntrar');
+  }
+}
+
+/* Con sesión: ¿qué ve esta cuenta? Junta → su cuenta, con números frescos (y
+   se guardan para abrir sin señal). Sin juntar → la verdad sobre su registro,
+   con el chat. Cada fallo con su palabra: la sesión vencida se arregla
+   entrando, la función que falta no la arregla el teléfono, y sin señal se
+   muestra lo de la última vez CON su fecha. */
+function cargarCuenta() {
+  if (!SS || !SESION) { pintarEntrar(); mostrar('pEntrar'); return; }
+  mostrar('pCargando');
+  SS.miCuenta(CFG, SESION, guardarSesionSocio).then(function (r) {
+    if (r.estado === 'junta') {
+      var resp = { nombre: r.paquete.nombre, datos: r.paquete.datos, actualizado_en: r.paquete.actualizado_en,
+                   origen: 'nube', cedula: SESION.celular || '' };
+      SESION.paquete = resp; SESION.paqueteEn = hoyISO(); guardarSesionSocio(SESION);
+      return abrir(resp);
+    }
+    /* Ya no está junta (o nunca lo estuvo): si había un paquete guardado de
+       antes —Joan deshizo una unión equivocada—, se borra YA del teléfono. */
+    if (SESION.paquete) { delete SESION.paquete; delete SESION.paqueteEn; guardarSesionSocio(SESION); }
+    return SS.miRegistro(CFG, SESION, guardarSesionSocio).then(pintarSinJuntar);
+  }).catch(function (e) {
+    var c = e && e.causa;
+    if (c === 'sesion') {
+      cerrarSesionLocal();
+      pintarEntrar(SS.TEXTOS.vencida); mostrar('pEntrar');
+      return;
+    }
+    if (c !== 'apagado' && SESION && SESION.paquete) return abrir(SESION.paquete);
+    pintarSinRed(c === 'apagado' ? SS.TEXTOS.apagado : SS.TEXTOS.red);
+  });
+}
+
+function pintarSinRed(msg) {
+  $('entrarCuerpo').innerHTML = '<div class="card">' +
+    '<div class="aviso ambar">' + esc(msg) + '</div>' +
+    '<button class="btn arriba" onclick="cargarCuenta()">Volver a intentar</button>' +
+    '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="salir()">Salir</button>' +
+    '</div>';
+  mostrar('pEntrar');
+}
+
+/* LA CUENTA SIN JUNTAR. No es un error: es una persona que se registró y
+   todavía no está junta con una ficha (o es nueva y Joan no la ha aprobado).
+   Se le dice en qué va SU registro —el estado real, de mi_registro— y se le
+   deja el chat abierto: es por donde le llega el aviso de que ya está (lo
+   escribe la base al juntar) y por donde pregunta. Su chat es un hilo aparte
+   que no ve nada de ninguna ficha hasta que Joan la junte. */
+/* 7-oct-2026 (segunda vuelta) — SIN CHAT SI LA NUBE TODAVÍA NO TIENE LA
+   PUERTA (estado 'apagado': mi_registro contesta 404). Entre publicar esta app
+   y pegar base/20261007_una_puerta.sql, el hilo de una cuenta sin juntar es
+   todavía el de la ficha de su número (llave_de_sesion): abrirle el chat sería
+   mostrarle la cobranza de otra persona a quien registró ese número. */
+function pintarSinJuntar(estado) {
+  var t = SS.textoSinJuntar(estado);
+  var conChat = estado !== 'apagado';
+  S = null; TAB = 'chat';
+  $('entrarCuerpo').innerHTML =
+    '<div class="card">' +
+      '<h3 class="tit">' + esc(t.titulo) + '</h3>' +
+      '<p class="sub">' + esc(t.texto) + '</p>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="cargarCuenta()">Volver a mirar</button>' +
+    '</div>' +
+    (conChat ? vistaChat() : '') +
+    '<div class="pie">Entraste con el ' + esc(U && U.telefonoBonito ? U.telefonoBonito(SESION && SESION.celular) : '') + '.<br>' +
+      '<a href="#" onclick="pantallaCambiarClave();return false" style="color:inherit">Cambiar mi contraseña</a> · ' +
+      '<a href="#" onclick="salir();return false" style="color:inherit">Salir</a>' +
+      enlacesLegales() + selloDeVersion() + '</div>';
+  mostrar('pEntrar');
+  if (conChat) arrancarChat();
 }
 
 /* ================= LA PANTALLA DE ENTRAR =================
-   10-ago-2026: se entra con cédula + CÓDIGO, no con los últimos 4 del celular.
-   Ver el comentario largo de generarCodigoAcceso en motor.js: los cuatro dígitos
-   del celular de alguien circulan en todos los grupos de WhatsApp de los que esa
-   persona hace parte, y la cédula en Colombia está en cada factura.
-
-   20-ago-2026: el identificador también puede ser el CELULAR completo. El
-   primer cliente real del APK no pudo entrar: su ficha no tiene cédula, como
-   la mayoría — el CRM conoce a la gente por su celular. Esto NO es la puerta
-   que se cerró el 10-ago: el secreto sigue siendo el código; el celular solo
-   identifica, igual de público que la cédula que ya se pedía. La regla vive
-   en buscarSocio del puente y en la migración 20260820 de la nube. */
-/* ================= LAS DOS PUERTAS — 25-ago-2026 =================
-   Hasta hoy esta pantalla pedía un código y punto, y al que no lo tenía le
-   decía «se entra solo por invitación» — una frase que dejó de ser verdad el
-   24-ago, cuando se abrió el registro. O sea que el desconocido que instalaba
-   el APK aterrizaba en una puerta cerrada, con un cartel equivocado y sin
-   salida: se iba, y Joan nunca se enteraba de que había llegado.
-
-   Ahora la pantalla PREGUNTA antes de pedir nada, que es lo que Joan pidió:
-   quien ya es socio entra con su código; quien es nuevo se registra solo, sin
-   que nadie lo presente.
-
-   9-sep-2026 — LOS DOS CAMINOS YA SE CRUZAN, y es a propósito. Hasta hoy el
-   que perdía su código terminaba en un WhatsApp pidiéndoselo a Joan, y Joan no
-   recibía ni un dato: ni la cédula, ni la foto, ni desde dónde escribía. Ahora
-   los tres —el nuevo, el antiguo sin código y el antiguo con código— pasan por
-   el mismo formulario, y en el CRM aparece la mesa de cruce que junta lo que la
-   persona declara con la ficha que Joan ya tenía. La ficha vieja se completa;
-   no nace una segunda.
-
-   LO QUE NO CAMBIÓ: de play/ NO se vuelve a esta app con un botón. Se vuelve
-   por WhatsApp, con el código que manda Joan. Esa asimetría es la frontera de
-   Play —Google prohíbe los créditos a menos de 60 días—, no un descuido (ver el
-   comentario de cabecera de play/index.html). */
-function pintarEntrar() {
+   Arriba lo que busca el que ya tiene cuenta; abajo el que todavía no. El
+   enlace que Joan manda es UNO (esta página) para nuevos y antiguos. */
+function pintarEntrar(aviso) {
   $('entrarCuerpo').innerHTML =
     '<div class="card">' +
-      '<h3 class="tit">¿Ya tienes tu código?</h3>' +
-      '<p class="sub">El que te mandamos por WhatsApp. Es tuyo y no cambia.</p>' +
-      '<label for="inCedula">Tu celular (o tu cédula)</label>' +
-      '<input id="inCedula" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 3001234567">' +
-      '<label for="inCodigo2">Tu código</label>' +
-      '<input id="inCodigo2" type="text" autocomplete="off" autocapitalize="characters" ' +
-        'spellcheck="false" maxlength="' + M.LARGO_CODIGO_ACCESO +
-        '" placeholder="Ej: K7QP3" style="text-transform:uppercase;letter-spacing:.18em" ' +
-        'oninput="tecleaAcceso(this)">' +
-      '<button class="btn arriba" id="btnEntrar">Ver mi cuenta</button>' +
+      '<h3 class="tit">Entrar</h3>' +
+      '<p class="sub">Con tu celular y tu contraseña: los mismos con los que te registraste.</p>' +
+      '<label for="inCel">Tu celular</label>' +
+      '<input id="inCel" type="tel" inputmode="numeric" autocomplete="username" placeholder="Ej: 300 123 4567">' +
+      '<label for="inClave">Tu contraseña</label>' +
+      '<input id="inClave" type="password" autocomplete="current-password">' +
+      '<button class="btn arriba" id="btnEntrar">Entrar</button>' +
       '<div id="errEntrar" class="aviso ambar oculto"></div>' +
-      /* La salida del que perdió el código. Hasta el 8-sep abría un WhatsApp
-         pidiéndoselo a Joan; desde el 9 abre la pantalla de recuperar, cuyo
-         camino principal es el registro. El texto del botón no cambia: es el
-         que la persona busca con los ojos. */
-      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pedirCodigo()">' +
-        'No tengo mi código</button>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="olvide()">Olvidé mi contraseña</button>' +
     '</div>' +
     '<div class="card">' +
-      '<h3 class="tit">¿Eres nuevo?</h3>' +
-      '<p class="sub">Regístrate tú mismo — <b>no necesitas que nadie te presente</b>. ' +
-        'Te preguntamos tus datos, ves ahí mismo cuánto costaría tu crédito, y te ' +
-        'escribimos por WhatsApp cuando revisemos tu solicitud.</p>' +
-      /* 8-sep-2026 — el enlace que Joan manda es UNO (esta página) para nuevos y
-         antiguos. El nuevo cae DIRECTO en el formulario de registro (play/ lo
-         abre al ver #registro), sin pasar por la portada del producto a 6 meses
-         ni por su login con contraseña, que es otra cuenta y confundía. */
+      '<h3 class="tit">¿Todavía no te has registrado?</h3>' +
+      '<p class="sub">Regístrate tú mismo: <b>nuevos y antiguos, igual</b>. Te preguntamos tus datos y ' +
+        'eliges tu contraseña. Si ya eras cliente, tu historial no se pierde ni se duplica: revisamos ' +
+        'que seas tú y lo juntamos con tu cuenta.</p>' +
+      /* 8-sep-2026 — el nuevo cae DIRECTO en el formulario de registro (play/
+         lo abre al ver #registro). */
       '<a class="btn sec arriba" href="../play/#registro">Registrarme</a>' +
-      /* La invitación sigue viva, pero abajo y en pequeño: desde que el registro
-         es abierto, es el camino de la minoría — y ponerlo arriba haría creer
-         otra vez que sin código no se puede entrar. */
-      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="abrirRegistro()">' +
-        'Alguien me dio un código de invitación</button>' +
     '</div>' +
     tarjetaInstalar() +
-    '<div class="pie">Tus datos solo los ves tú, con tu número y tu código.<br>' +
-      '¿No te reconoce? Escríbenos y lo revisamos.' + selloDeVersion() + '</div>';
+    /* 7-oct-2026 (segunda vuelta) — las DOS salidas: el que nunca se registró
+       (el cliente de antes del 24-ago, que entraba con código) no tiene
+       contraseña que olvidar, y mandarlo a «Olvidé mi contraseña» lo dejaba
+       esperando una clave que no existe. */
+    '<div class="pie">Tus datos solo los ves tú, entrando con tu celular y tu contraseña.<br>' +
+      '¿Nunca te registraste? Toca «Registrarme». ¿Olvidaste tu contraseña? Toca «Olvidé mi contraseña».' +
+      selloDeVersion() + '</div>';
   $('btnEntrar').addEventListener('click', entrar);
-  $('inCedula').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('inCodigo2').focus(); });
-  $('inCodigo2').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+  $('inCel').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('inClave').focus(); });
+  $('inClave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+  if (aviso) {
+    var err = $('errEntrar');
+    err.textContent = aviso; err.classList.remove('oculto');
+  }
 }
 
-/* Va limpiando mientras teclea. La limpieza la hace el MOTOR, no una expresión
-   regular escrita acá: si la app aceptara un carácter que el motor rechaza —o al
-   revés— el cliente vería su código escrito bien y le diría que no existe. */
-function tecleaAcceso(el) {
-  el.value = M.limpiarCodigoAcceso(el.value).slice(0, M.LARGO_CODIGO_ACCESO);
-}
-
-/* ===================== EL QUE NO TIENE SU CÓDIGO =====================
-   9-sep-2026 — decisión de Joan: «que lleve a todos los clientes,
-   independientemente que sea nuevo o antiguo, y que yo desde el CRM tenga la
-   información».
-
-   El camino principal es REGISTRARSE, aunque ya sea cliente de toda la vida. No
-   es un rodeo: es lo único que le deja a Joan datos con que reconocerlo —su
-   cédula por el código de barras, su rostro, desde dónde escribe— y es lo que
-   completa la ficha vieja, que casi siempre está a medias. En el CRM le sale
-   marcado como «ya es tu cliente» y Joan cruza las dos, sin crear una segunda.
-
-   LO QUE ESTA PANTALLA NO PROMETE: que el código llegue solo. No llega: Joan lo
-   revisa y lo manda. Decirlo acá es la diferencia entre una espera y un
-   engaño — y esta app ya se ganó una regla por eso.
-
-   El WhatsApp se queda abajo y en pequeño, para el que no tiene datos, ni
-   cámara, ni paciencia. Quitarlo del todo dejaría a ese sin ninguna puerta. */
-function pedirCodigo() {
-  var cel = String(($('inCedula') && $('inCedula').value) || '').replace(/\D/g, '');
+/* ===================== OLVIDÉ MI CONTRASEÑA =====================
+   NO va por el chat, y conviene tenerlo claro antes de «mejorarlo»: el chat
+   pide sesión, y el que olvidó la contraseña es justo el que no puede abrirla
+   (regla de la casa, 22-sep). Deja un recado con pedir_ayuda_clave —la única
+   llamada de esta puerta sin sesión—, Joan lo ve en el CRM y desde ahí le da
+   una contraseña nueva que le manda por WhatsApp AL NÚMERO DE SU FICHA. Por
+   eso este texto no promete «a ese número»: si el número es de un cliente, la
+   clave le llega a él y no a quien la pidió. Y no promete «ya»: Joan revisa
+   los recados a mano. */
+function olvide() {
+  var cel = String(($('inCel') && $('inCel').value) || '').replace(/\D/g, '');
   $('entrarCuerpo').innerHTML =
     '<div class="card">' +
-      '<h3 class="tit">¿Perdiste tu código?</h3>' +
-      '<p class="sub">Tu código no se puede adivinar ni reenviar solo: lo tiene ' + esc(nombreJoan()) +
-        ' y te lo manda él. Lo que sí puedes hacer ahora es <b>identificarte</b>, para que sepa que ' +
-        'eres tú y te lo mande de una.</p>' +
-      '<a class="btn arriba" href="../play/#registro">Identificarme ahora</a>' +
-      '<p class="ayuda">Son unos minutos: tus datos, la foto de tu cédula y una foto tuya. ' +
-        'Si ya eres cliente, <b>no se te abre una cuenta nueva</b>: ' + esc(nombreJoan()) +
-        ' ve que eres tú y te completa la que ya tienes, con tu historial intacto.</p>' +
-      '<div class="pie" style="text-align:left">¿Sin datos o sin cámara?<br>' +
-        '<button class="btn sec sm" style="margin-top:var(--e2)" onclick="porCodigoWhatsApp()">' +
-          'Que me escriban por WhatsApp</button></div>' +
+      '<h3 class="tit">Te ayudamos a entrar</h3>' +
+      '<p class="sub">Déjanos tu celular y te escribimos por WhatsApp para devolverte el acceso. ' +
+        'Revisamos los recados todos los días; no es automático ni es al instante.</p>' +
+      '<label for="ayTel">Tu celular</label>' +
+      '<input id="ayTel" type="tel" inputmode="numeric" autocomplete="username" placeholder="Ej: 300 123 4567" value="' +
+        esc(cel) + '">' +
+      '<label for="ayNota">¿Algo que debamos saber? (opcional)</label>' +
+      '<input id="ayNota" type="text" maxlength="300" placeholder="Cambié de teléfono, por ejemplo">' +
+      '<button class="btn arriba" id="ayBoton" onclick="mandarAyuda()">Enviar</button>' +
+      '<div id="errAyuda" class="aviso ambar oculto"></div>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarEntrar()">Volver</button>' +
     '</div>' +
-    '<div class="pie">Tus datos solo los ves tú, con tu número y tu código.' + selloDeVersion() + '</div>';
-  if (cel) { try { $('entrarCuerpo').dataset.cel = cel; } catch (e) {} }
+    '<div class="pie">' + selloDeVersion() + '</div>';
   window.scrollTo(0, 0);
 }
-function porCodigoWhatsApp() {
-  var cel = '';
-  try { cel = ($('entrarCuerpo') && $('entrarCuerpo').dataset.cel) || ''; } catch (e) {}
-  porWhatsApp('Hola, soy socio de ' + nombreJoan() + ' y no tengo mi código para entrar a la app. ' +
-    'Mi número es ' + (cel || '…') + '. ¿Me lo puedes reenviar?');
+
+function mandarAyuda() {
+  var err = $('errAyuda'); if (!err) return;
+  var aviso = function (m, color) {
+    err.textContent = m; err.classList.toggle('ambar', color !== 'azul'); err.classList.remove('oculto');
+  };
+  if (!SS) return aviso(SS_FALTA);
+  var b = $('ayBoton'); if (b) b.disabled = true;
+  aviso('Enviando…', 'azul');
+  SS.pedirAyuda(CFG, ($('ayTel') || {}).value || '', ($('ayNota') || {}).value || '').then(function (r) {
+    if (b) b.disabled = false;
+    if (!r.ok) {
+      return aviso(r.motivo === 'celular' ? SS.TEXTOS.celular
+        : r.motivo === 'muchas' ? 'Ya nos dejaste un recado hace poco. Lo tenemos; dale un rato y te escribimos.'
+        : r.motivo === 'apagado' ? SS.TEXTOS.apagado
+        : 'No pudimos recibir tu recado ahora. Revisa tu internet y vuelve a intentar.');
+    }
+    $('entrarCuerpo').innerHTML = '<div class="card">' +
+      '<h3 class="tit">Listo, lo recibimos</h3>' +
+      /* 7-oct-2026 (segunda vuelta) — sin prometer una contraseña: si ese
+         celular nunca se registró, no hay contraseña que devolver, y lo que le
+         llega es cómo registrarse. */
+      '<p class="sub">Te escribimos por WhatsApp para devolverte el acceso: si tienes cuenta, con una contraseña ' +
+        'nueva (entra con ella y cámbiala por una tuya); si nunca te registraste, para decirte cómo hacerlo.</p>' +
+      '<button class="btn sec arriba" onclick="pintarEntrar()">Volver</button></div>';
+  });
 }
+var SS_FALTA = 'No cargó una parte de la app. Cierra y vuelve a abrirla con internet.';
 
 /* ==================== INSTALARLA EN EL CELULAR ====================
    10-ago-2026. Esta app NO va a estar en Play Store: la política de préstamos
@@ -1258,125 +1327,11 @@ function tarjetaInstalar() {
     '<button class="btn sec arriba" onclick="instalarApp()">Instalar la app</button></div>';
 }
 
-/* ============ ENTRAR POR INVITACIÓN ============
-   Nadie crea cuenta solo. Un código sirve para una persona. Acá solo se
-   revisa la FORMA del código: si existe y si ya se usó lo sabe la nube o lo
-   sabe Joan, nunca este teléfono. */
-function abrirRegistro() {
-  $('entrarCuerpo').innerHTML = '<div class="card">' +
-    '<h3 class="tit">Tengo un código</h3>' +
-    /* Acá NO va el nombre de la marca. "en Tu Garantía" se lee "en tu garantía",
-       o sea en el saldo del socio, y la frase queda diciendo otra cosa. La voz
-       de toda la app es la primera del plural: te abrimos, lo revisamos. */
-    '<p class="sub">Escribe el código que te pasaron y tus datos. Con eso te abrimos la cuenta.</p>' +
-    '<label for="inCodigo">Tu código</label>' +
-    '<input id="inCodigo" type="text" autocomplete="off" autocapitalize="characters" ' +
-      /* El maxlength sale del motor, no a mano: el prefijo pasó de 'QNC' (3) a 'TG' (2)
-         y un 13 fijo dejaba teclear un carácter de más. */
-      'spellcheck="false" maxlength="' + (M.PREFIJO_CODIGO.length + M.LARGO_CODIGO + 2) +
-      '" placeholder="' + M.PREFIJO_CODIGO + '-XXXX-XXXX" oninput="tecleaCodigo(this)">' +
-    '<label for="regNombre">Tu nombre completo</label>' +
-    '<input id="regNombre" type="text" autocomplete="name" placeholder="Ej: Ana Ruiz">' +
-    '<label for="regCedula">Tu cédula</label>' +
-    '<input id="regCedula" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 52111222">' +
-    '<label for="regTel">Tu celular</label>' +
-    '<input id="regTel" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 3001112233">' +
-    '<button class="btn arriba" onclick="pedirCuenta()">Pedir mi cuenta</button>' +
-    '<div id="errRegistro" class="aviso ambar oculto"></div>' +
-    '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarEntrar()">Volver</button>' +
-    '</div>' +
-    '<div class="pie">El código te lo pasa quien ya es socio, o nos lo pides a nosotros.</div>';
-  window.scrollTo(0, 0);
-}
-
-/* Se formatea solo mientras escribe: así el guion no lo tiene que poner él. */
-function tecleaCodigo(el) {
-  var t = (el.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (t.indexOf(M.PREFIJO_CODIGO) === 0) t = t.slice(M.PREFIJO_CODIGO.length);
-  t = t.slice(0, M.LARGO_CODIGO);
-  el.value = t ? M.PREFIJO_CODIGO + '-' + (t.length > 4 ? t.slice(0, 4) + '-' + t.slice(4) : t) : '';
-}
-
-function pedirCuenta() {
-  var err = $('errRegistro');
-  var falla = function (m) { err.className = 'aviso ambar'; err.innerHTML = m; };
-  var cod = $('inCodigo').value || '';
-  var nom = ($('regNombre').value || '').trim();
-  var ced = ($('regCedula').value || '').replace(/\D/g, '');
-  var tel = ($('regTel').value || '').replace(/\D/g, '');
-
-  if (!M.codigoInvitacionValido(cod)) {
-    return falla('<b>Ese código no es válido.</b> Fíjate que no falte ni sobre una letra; los códigos ' +
-      'son de ' + M.LARGO_CODIGO + ' caracteres, como ' + M.PREFIJO_CODIGO + '-A3F7-K92M.');
-  }
-  if (nom.length < 3) return falla('Escribe tu nombre completo.');
-  if (ced.length < 5) return falla('Escribe tu número de cédula completo.');
-  if (tel.length < 7) return falla('Escribe tu número de celular completo.');
-
-  var codigo = M.normalizarCodigoInvitacion(cod);
-  err.className = 'aviso oculto';
-
-  if (CFG.url && CFG.anon) {
-    return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/canjear_invitacion', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
-      body: JSON.stringify({ p_codigo: codigo, p_cedula: ced, p_telefono: tel, p_nombre: nom })
-    }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
-      .then(function (j) {
-        if (j && j.ok) return registroListo(codigo, nom, ced, tel, 'nube');
-        var motivo = (j && j.motivo) || 'no_existe';
-        /* No se distingue "no existe" de "anulada": si no, la app se vuelve un
-           adivinador de códigos. */
-        falla(motivo === 'usada'
-          ? '<b>Ese código ya lo usó otra persona.</b> Cada código sirve para uno solo. Pídele otro a quien te invitó.'
-          : motivo === 'vencida'
-            ? '<b>Ese código ya venció.</b> Pídele uno nuevo a quien te invitó.'
-            : motivo === 'datos'
-              ? 'Revisa tu cédula y tu celular: alguno quedó incompleto.'
-              : '<b>No encuentro ese código.</b> Revisa que esté completo y vuelve a probar.');
-      })
-      .catch(function () { registroListo(codigo, nom, ced, tel, 'sin_conexion'); });
-  }
-  registroListo(codigo, nom, ced, tel, 'local');
-}
-
-var TEXTO_REGISTRO = '';
-function registroListo(codigo, nom, ced, tel, via) {
-  TEXTO_REGISTRO = 'Hola, me invitaron a ' + nombreJoan() + ' y quiero abrir mi cuenta:\n\n' +
-    '• Nombre: ' + nom + '\n• Cédula: ' + ced + '\n• Celular: ' + tel + '\n• Código: ' + codigo +
-    '\n\nGracias.';
-  var enNube = via === 'nube';
-  var h = '<div class="card">' +
-    '<h3 class="tit" style="text-align:center">Listo</h3>' +
-    '<p class="sub" style="text-align:center">' +
-      (enNube
-        ? 'Ya tenemos tu solicitud.'
-        : 'Manda esto por WhatsApp a ' + esc(nombreJoan()) + ' y te abrimos la cuenta.') + '</p>' +
-    (via === 'sin_conexion'
-      ? '<div class="aviso ambar">No pude conectarme, pero puedes mandárnoslo directo por WhatsApp.</div>'
-      : '') +
-    '<div class="aviso info">' +
-      (enNube
-        ? 'Te vamos a escribir por WhatsApp para terminar de abrirte la cuenta. Guarda tu cédula y los ' +
-          'últimos 4 de tu celular: con eso entras.'
-        : 'Tu código: <b>' + esc(codigo) + '</b>') + '</div>' +
-    '<button class="btn arriba" onclick="porWhatsApp(TEXTO_REGISTRO)">Escribirle por WhatsApp</button>' +
-    (enNube ? '' : '<div class="muted" style="font-size:12px;margin-top:var(--e2);text-align:center">' +
-      'El código lo revisamos cuando te creamos la cuenta.</div>') +
-    '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarEntrar()">Volver</button>' +
-    '</div>';
-  $('entrarCuerpo').innerHTML = h;
-  window.scrollTo(0, 0);
-}
-
 /* ==================== PREPARAR AL SOCIO ==================== */
-/* OJO CON LOS DOS CÓDIGOS, que se llaman parecido y no son lo mismo:
-     S.codigo  — el CL-0001 del cliente. Es su número de orden y sirve para
-                 nombrarlo en un WhatsApp o en un recibo. No abre nada.
-     S.acceso  — los 5 caracteres con los que entró. Es la llave.
-   El segundo NO viaja en el enlace de WhatsApp ni en la solicitud: solo se
-   guarda mientras la sesión está abierta, para poder volver a preguntarle a la
-   nube por los mismos datos. */
+/* S.codigo es el CL-0001 del cliente: su número de orden, para nombrarlo en
+   un WhatsApp o en un recibo. No abre nada. (Hasta el 7-oct-2026 había al
+   lado un S.acceso, el código de cinco caracteres con el que entraba; se fue
+   con la puerta del código.) */
 function abrir(resp) {
   var d = resp.datos || {};
   var g = d.garantia || {};
@@ -1414,7 +1369,7 @@ function abrir(resp) {
   S = {
     nombre: resp.nombre || 'Socio',
     codigo: (d.socio && d.socio.codigo) || '',
-    cedula: resp.cedula || '', acceso: resp.codigo || '',
+    cedula: resp.cedula || '',
     deEnlace: !!resp.deEnlace, actualizado: resp.actualizado_en,
     origen: resp.origen || (resp.deEnlace ? 'enlace' : 'nube'),
     g: g,
@@ -1449,9 +1404,9 @@ function abrir(resp) {
     comunidad: d.comunidad || null
   };
   NUEVOS = {};
-  /* La sesión se guarda aquí, donde la entrada YA pasó por la puerta de
-     verdad: guardarSesion decide sola si el origen amerita recordar. */
-  guardarSesion(resp);
+  /* 7-oct-2026 — la sesión ya no se guarda aquí: la guarda cargarCuenta, que
+     es la única puerta que tiene una (la cuenta junta). 'panel' y 'enlace'
+     no tienen sesión y no se recuerdan. */
   MODO = 'quincenal'; PLAZO = 3;
   /* Abre en un monto donde los DOS productos están VIVOS. Si el arranque pasa
      la garantía ganada, la comparación —que es lo primero que el socio mira
@@ -2916,20 +2871,21 @@ function mandarSolicitud(monto) {
      WhatsApp sale, y en la bandeja de Joan no entra nada. Sin error, sin log, y
      sin forma de notarlo hasta que un cliente reclame por una solicitud que
      nadie recibió. */
-  if (CFG.url && CFG.anon && S.cedula && S.acceso) {
-    fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/crear_solicitud_por_codigo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
-      body: JSON.stringify({
-        p_cedula: S.cedula, p_codigo: S.acceso,
-        p_producto: resp ? 'respaldado' : 'quincenal',
-        p_plazo: resp ? s.plazo_meses : null,
-        p_datos: { capital: s.capital, tasa: resp ? s.tasa_mensual : s.tasa, costo: costo,
-          total: s.total_a_pagar, fecha_corte: fechaFin, garantia: S.garantia, cupo: S.cupo,
-          sobre_cupo: seExcede, producto: resp ? 'respaldado' : 'quincenal',
-          plazo_meses: resp ? s.plazo_meses : null }
-      })
-    }).catch(function () {});
+  /* 7-oct-2026 — CON LA SESIÓN, no con el código. solicitar_por_sesion
+     (base/20261007_una_puerta.sql) guarda bajo la llave de SU ficha, con el
+     mismo tope de 5 por hora y los mismos campos. Solo desde la cuenta junta
+     (origen 'nube'): Joan mirando la app ('panel') o un enlace congelado no
+     piden nada a nombre de nadie. Sigue sin esperar la respuesta, por lo que
+     dice el párrafo de arriba: el WhatsApp sale igual. */
+  if (SS && SESION && S.origen === 'nube' && CFG.url && CFG.anon) {
+    SS.conSesion(CFG, SESION, 'solicitar_por_sesion', {
+      p_producto: resp ? 'respaldado' : 'quincenal',
+      p_plazo: resp ? s.plazo_meses : null,
+      p_datos: { capital: s.capital, tasa: resp ? s.tasa_mensual : s.tasa, costo: costo,
+        total: s.total_a_pagar, fecha_corte: fechaFin, garantia: S.garantia, cupo: S.cupo,
+        sobre_cupo: seExcede, producto: resp ? 'respaldado' : 'quincenal',
+        plazo_meses: resp ? s.plazo_meses : null }
+    }, guardarSesionSocio).catch(function () {});
   }
 
   var texto = 'Hola, soy ' + S.nombre +
@@ -3411,89 +3367,64 @@ function pie() {
     (S.origen === 'panel' ? 'Datos del Panel de este equipo.<br>' : '') +
     'Si ves algo raro en tus números, escríbenos.' +
     enlacesLegales() +
-    /* Cambiar el código solo tiene sentido en el teléfono del socio (origen
-       nube): desde el Panel de Joan sería cambiarle la llave a otro. */
+    /* Cambiar la contraseña solo tiene sentido en el teléfono del socio
+       (origen nube, con su sesión): desde el Panel de Joan no hay cuenta. */
     (S.origen === 'nube'
-      ? '<br><a href="#" onclick="pantallaCambiarCodigo();return false" style="color:inherit">Cambiar mi código</a> · ' +
+      ? '<br><a href="#" onclick="pantallaCambiarClave();return false" style="color:inherit">Cambiar mi contraseña</a> · ' +
         '<a href="#" onclick="salir();return false" style="color:inherit">Salir</a>'
       : '<br><a href="#" onclick="salir();return false" style="color:inherit">Salir</a>') +
     selloDeVersion() +
     '</div>';
 }
 
-/* ================= CAMBIAR EL CÓDIGO — 20-ago-2026 =================
-   Pedido de Joan: que el socio pueda ponerse la clave que quiera. Mantiene la
-   forma de siempre (5 letras y números, la que valida el motor) para que todos
-   los textos de la casa sigan diciendo la verdad: es "tu código", solo que
-   ahora puede ser SUYO de verdad.
-
-   El cambio pasa por la nube (cambiar_codigo_acceso, migración 20260820b):
-   exige el código ACTUAL, pasa por el mismo freno de intentos de la entrada, y
-   la nube guarda solo la huella nueva. Ojo con la consecuencia, que está
-   avisada en la ficha del Panel: el código que Joan guarda en claro deja de
-   ser el que abre — si el socio lo pierde, Joan usa «Cambiar» y ese sí lo
-   pisa (codigo_forzar en la sincronización). */
-function pantallaCambiarCodigo() {
-  $('cuerpo').innerHTML = '<div class="panel"><div class="card">' +
-    '<h3 class="tit">Cambia tu código</h3>' +
-    '<p class="sub">El nuevo también es de ' + M.LARGO_CODIGO_ACCESO + ' letras y números, como ' +
-      'K7QP3. Desde que lo cambies, el viejo deja de servir en todos lados.</p>' +
-    '<label for="ccNuevo">Tu código nuevo</label>' +
-    '<input id="ccNuevo" type="text" autocomplete="off" autocapitalize="characters" ' +
-      'spellcheck="false" maxlength="' + M.LARGO_CODIGO_ACCESO + '" placeholder="Ej: MI4B9" ' +
-      'style="text-transform:uppercase;letter-spacing:.18em" oninput="tecleaAcceso(this)">' +
-    '<label for="ccRepite">Repítelo, para estar seguros</label>' +
-    '<input id="ccRepite" type="text" autocomplete="off" autocapitalize="characters" ' +
-      'spellcheck="false" maxlength="' + M.LARGO_CODIGO_ACCESO + '" ' +
-      'style="text-transform:uppercase;letter-spacing:.18em" oninput="tecleaAcceso(this)">' +
-    '<button class="btn arriba" id="ccBoton">Cambiar mi código</button>' +
+/* ================= CAMBIAR LA CONTRASEÑA — 7-oct-2026 =================
+   Reemplaza a «Cambiar mi código» (20-ago). Va con la sesión: el servidor
+   cambia la contraseña de la cuenta que la pide y de ninguna otra. Se manda
+   SOLO la contraseña: el correo es la identidad de la cuenta y la base niega
+   cambiarlo (20260914_el_correo_no_se_cambia.sql).
+   Es también el final del camino de «Olvidé mi contraseña»: Joan le manda una
+   contraseña nueva por WhatsApp y el mensaje le dice que la cambie aquí. Las
+   reglas de qué contraseña sirve son las de app/cuenta.js, las mismas del
+   registro. */
+function pantallaCambiarClave() {
+  var dentro = '<div class="card">' +
+    '<h3 class="tit">Cambia tu contraseña</h3>' +
+    '<p class="sub">La nueva tiene que tener al menos 8 caracteres, y que no sea tu celular ni tu cédula. ' +
+      'Desde que la cambies, la de antes deja de servir.</p>' +
+    '<label for="ccNueva">Tu contraseña nueva</label>' +
+    '<input id="ccNueva" type="password" autocomplete="new-password">' +
+    '<label for="ccRepite">Escríbela otra vez</label>' +
+    '<input id="ccRepite" type="password" autocomplete="new-password">' +
+    '<button class="btn arriba" id="ccBoton">Cambiar mi contraseña</button>' +
     '<div id="ccMsg" class="aviso ambar oculto"></div>' +
-    '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="irA(\'inicio\')">Volver</button>' +
-    '</div></div>';
+    '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="volverDeLaClave()">Volver</button>' +
+    '</div>';
+  /* Desde la cuenta junta se pinta en su lugar de siempre; desde la cuenta
+     sin juntar, en la pantalla de entrar, que es donde vive esa vista. */
+  if (S) $('cuerpo').innerHTML = '<div class="panel">' + dentro + '</div>';
+  else { $('entrarCuerpo').innerHTML = dentro; mostrar('pEntrar'); }
   window.scrollTo(0, 0);
-  $('ccBoton').addEventListener('click', cambiarCodigo);
+  $('ccBoton').addEventListener('click', cambiarClave);
 }
+function volverDeLaClave() { if (S) irA('inicio'); else cargarCuenta(); }
 
-function cambiarCodigo() {
-  var nuevo = M.normalizarCodigoAcceso($('ccNuevo').value || '');
-  var repite = M.normalizarCodigoAcceso($('ccRepite').value || '');
+function cambiarClave() {
+  var nueva = ($('ccNueva') || {}).value || '', repite = ($('ccRepite') || {}).value || '';
   var msg = $('ccMsg');
-  function aviso(t) { msg.textContent = t; msg.classList.remove('oculto'); }
-  msg.classList.add('oculto');
-  if (!nuevo) return aviso('El código nuevo va de ' + M.LARGO_CODIGO_ACCESO +
-    ' letras y números, como K7QP3. Revísalo.');
-  if (nuevo !== repite) return aviso('No escribiste el mismo código dos veces. Revísalos.');
-  if (nuevo === S.acceso) return aviso('Ese ya es tu código de ahora. Escribe uno distinto.');
-  if (!CFG.url || !CFG.anon) return aviso('No pude conectarme. Revisa tu internet y vuelve a intentar.');
-
+  function aviso(t, azul) { msg.textContent = t; msg.classList.toggle('ambar', !azul); msg.classList.remove('oculto'); }
+  if (!SS || !SESION) return aviso('Se cerró tu sesión. Entra otra vez y lo hacemos.');
+  if (nueva !== repite) return aviso('Las dos no quedaron iguales. Escríbelas otra vez, sin afán.');
   $('ccBoton').disabled = true;
-  fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/cambiar_codigo_acceso', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
-    body: JSON.stringify({ p_identificador: S.cedula, p_codigo_actual: S.acceso, p_codigo_nuevo: nuevo })
-  }).then(function (r) {
-    if (r.status === 404) { throw { humano: 'Esta opción se está encendiendo. Inténtalo más tarde o escríbenos.' }; }
-    return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status));
-  }).then(function (ok) {
-    if (ok !== true) {
-      throw { humano: 'No pude cambiarlo. Sal, vuelve a entrar con tu código de ahora, e inténtalo de nuevo.' };
-    }
-    /* La sesión y el estado en memoria se actualizan YA: si se quedara el
-       viejo, el próximo arranque intentaría entrar con un código muerto y lo
-       sacaría de la app justo después de cambiarlo. */
-    S.acceso = nuevo;
-    var ses = sesionGuardada();
-    if (ses) { ses.codigo = nuevo; if (ses.resp) ses.resp.codigo = nuevo;
-      try { localStorage.setItem(LLAVE_SESION_SOCIO, JSON.stringify(ses)); } catch (e) {} }
-    $('cuerpo').innerHTML = '<div class="panel"><div class="card">' +
-      '<h3 class="tit">Listo: tu código nuevo es ' + esc(nuevo) + '</h3>' +
-      '<p class="sub">Es tuyo y solo tuyo: ni nosotros lo vemos. Guárdalo. ' +
-      'El anterior dejó de servir desde ya, y con este entras aquí y en cualquier teléfono.</p>' +
-      '<button class="btn arriba" onclick="irA(\'inicio\')">Volver a mi cuenta</button>' +
-      '</div></div>';
+  aviso('Guardando…', true);
+  SS.cambiarClave(CFG, SESION, nueva, guardarSesionSocio).then(function (r) {
+    if (!r.ok) { aviso(r.motivo); return; }
+    var listo = '<div class="card">' +
+      '<h3 class="tit">Listo: tu contraseña quedó cambiada</h3>' +
+      '<p class="sub">La próxima vez entra con tu celular y la nueva. Es tuya: nosotros no la vemos.</p>' +
+      '<button class="btn arriba" onclick="volverDeLaClave()">Volver</button></div>';
+    if (S) $('cuerpo').innerHTML = '<div class="panel">' + listo + '</div>';
+    else $('entrarCuerpo').innerHTML = listo;
     window.scrollTo(0, 0);
-  }).catch(function (e) {
-    aviso(e && e.humano ? e.humano : 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
   }).then(function () { var b = $('ccBoton'); if (b) b.disabled = false; });
 }
 
@@ -3525,16 +3456,17 @@ function cambiarCodigo() {
    una pantalla que hoy no se puede ofrecer. */
 var CHAT = window.ChatTuGarantia;
 
-var CH = { mensajes: [], ultimo: 0, cargando: false, enviando: false, error: '' };
-var CHAT_CADA_MS = 20000;   /* mirar si llegó algo: cada 20 s y solo con la pestaña abierta */
-
-/* Puede chatear quien entró de verdad por la nube con su código. Los otros dos
-   orígenes no tienen con qué: 'enlace' es una foto del momento sin código, y
-   'panel' es Joan mirando, no el cliente. */
+/* Puede chatear quien entró con su celular y su contraseña: en su cuenta
+   junta (origen 'nube') o en la pantalla de la cuenta sin juntar (S vacío).
+   Los otros dos orígenes no tienen con qué: 'enlace' es una foto del momento
+   sin sesión, y 'panel' es Joan mirando —aunque este navegador tuviera una
+   sesión de socio, no es la del cliente que está mirando—. (7-oct-2026: antes
+   pedía cédula + código; esa puerta se cerró.) */
 function chatDisponible() {
   /* CHAT primero: si `chat.js` no llegó, esta pantalla no existe hoy — y se
      dice, en vez de ofrecer una caja de texto que no manda a ninguna parte. */
-  return !!(CHAT && CHAT.hiloHTML && CFG.url && CFG.anon && S && S.cedula && S.acceso);
+  return !!(CHAT && CHAT.hiloHTML && CFG.url && CFG.anon && SESION && SESION.access_token &&
+            (!S || S.origen === 'nube'));
 }
 
 function vistaChat() {
@@ -3543,7 +3475,7 @@ function vistaChat() {
     return '<div class="card">' +
       '<h3 class="tit">Mensajes</h3>' +
       '<p class="sub">' + (CHAT && CHAT.hiloHTML
-        ? 'Esta pantalla necesita internet y que hayas entrado con tu código. ' +
+        ? 'Esta pantalla necesita internet y que hayas entrado con tu celular y tu contraseña. ' +
           'Ahora mismo estás viendo tus datos guardados, así que no puedo mandar ' +
           'ni traer mensajes.'
         : 'No cargó una parte de la app. Cierra y vuelve a abrir con internet, y ' +
@@ -3592,42 +3524,71 @@ function chatContar() {
   c.classList.toggle('ch-pasado', n >= CHAT.LARGO_MAX);
 }
 
+/* LOS TRES HILOS EN UNO. La nube guarda cada mensaje en un canal (servicio,
+   cobranza, créditos: 20260914b) y chat_leer_sesion lee uno por vez. Esta app
+   tiene UNA pestaña de mensajes, como siempre: se leen los tres y se pintan
+   juntos por orden, para que un recordatorio de cobranza o una respuesta de
+   créditos no quede en un cajón que el socio no puede abrir. Lo que él
+   escribe va a servicio, que es el cajón neutro (el que Joan contesta). */
+var CANALES_SOCIO = ['servicio', 'cobranza', 'creditos'];
+var CH = { mensajes: [], ultimo: {}, cargando: false, enviando: false, error: '' };
+var CHAT_CADA_MS = 20000;   /* mirar si llegó algo: cada 20 s y solo con la pestaña abierta */
+
 function arrancarChat() {
   if (!chatDisponible()) return;
-  CH = { mensajes: [], ultimo: 0, cargando: false, enviando: false, error: '' };
+  CH = { mensajes: [], ultimo: {}, cargando: false, enviando: false, error: '' };
   chatTraer(true);
 }
 
-/* Trae lo que falte. `desde` es el id del último que ya tengo, así que la
-   segunda vuelta en adelante solo baja lo nuevo — y no vuelve a marcar como
-   leído lo que ya estaba leído. */
+/* El token de la sesión dura una hora y el chat se queda abierto más: antes
+   de cada vuelta se renueva si está por vencer. */
+function cfgChat() {
+  var listo = (SS && !SS.vigente(SESION, Date.now()))
+    ? SS.refrescar(CFG, SESION).then(function (n) { guardarSesionSocio(n); return SESION; })
+    : Promise.resolve(SESION);
+  return listo.then(function (s) { return { url: CFG.url, anon: CFG.anon, token: s.access_token }; });
+}
+
+/* Trae lo que falte. `ultimo[canal]` es el id del último que ya tengo de ese
+   canal, así que la segunda vuelta en adelante solo baja lo nuevo — y no
+   vuelve a marcar como leído lo que ya estaba leído. */
 function chatTraer(primera) {
   if (!chatDisponible() || CH.cargando) return;
   CH.cargando = true;
-  CHAT.leer(CFG, S.cedula, S.acceso, CH.ultimo).then(function (lista) {
+  var vuelta = CH;
+  cfgChat().then(function (cfg) {
+    return Promise.all(CANALES_SOCIO.map(function (canal) {
+      return CHAT.leer(cfg, vuelta.ultimo[canal] || 0, canal).then(function (lista) {
+        return { canal: canal, lista: lista };
+      });
+    }));
+  }).then(function (partes) {
+    if (vuelta !== CH) return;
     CH.cargando = false;
-    /* null es la respuesta de la base cuando la identidad no cuadró — y no
-       distingue entre «no existe», «código malo» y «frenado», a propósito. La
-       causa realista aquí es que le cambiaron el código: se dice eso, que es
-       lo único accionable. */
-    if (lista === null) {
-      CH.error = 'No pude abrir tus mensajes. Si te cambiaron el código, sal y ' +
-                 'vuelve a entrar con el nuevo.';
+    /* null es la base diciendo que no (la sesión dejó de valer): se dice lo
+       único accionable, que es volver a entrar. */
+    if (partes.some(function (p) { return p.lista === null; })) {
+      CH.error = 'No pude abrir tus mensajes. Sal y vuelve a entrar con tu celular y tu contraseña.';
       chatPintar(); return;
     }
     CH.error = '';
-    (lista || []).forEach(function (m) {
-      CH.mensajes.push(m);
-      if (Number(m.id) > CH.ultimo) CH.ultimo = Number(m.id);
+    var nuevos = false;
+    partes.forEach(function (p) {
+      p.lista.forEach(function (m) {
+        CH.mensajes.push(m); nuevos = true;
+        if (Number(m.id) > (CH.ultimo[p.canal] || 0)) CH.ultimo[p.canal] = Number(m.id);
+      });
     });
+    if (nuevos) CH.mensajes.sort(function (a, b) { return Number(a.id) - Number(b.id); });
     chatPintar();
   }).catch(function (e) {
+    if (vuelta !== CH) return;
     CH.cargando = false;
     /* Solo se pinta el error si no hay nada que enseñar. Con la conversación ya
        en pantalla, un corte de señal no puede borrarla: lo que se cayó fue la
        consulta, no lo que ya se dijo. */
     if (!CH.mensajes.length) {
-      CH.error = (e && e.humano) || 'No pude conectarme. Revisa tu internet.';
+      CH.error = (e && e.humano) || (e && e.causa === 'sesion' ? SS.TEXTOS.vencida : 'No pude conectarme. Revisa tu internet.');
       chatPintar();
     }
   }).then(function () {
@@ -3654,12 +3615,13 @@ function chatEnviar() {
   if (!r.ok) { alert(r.motivo); return; }
 
   CH.enviando = true; if (b) b.disabled = true;
-  CHAT.escribir(CFG, S.cedula, S.acceso, r.texto).then(function (id) {
-    /* null acá casi siempre es el tope de 20 mensajes cada 15 minutos. Se dice
-       lo que pasa y qué hacer, no «error». */
-    if (id === null) {
-      alert('No pude mandarlo. Si escribiste varios seguidos, espera unos ' +
-            'minutos y vuelve a intentar.');
+  cfgChat().then(function (cfg) { return CHAT.escribir(cfg, r.texto, 'servicio'); }).then(function (j) {
+    /* La base dice por qué no: «demasiados mensajes seguidos» es el tope de
+       la casa, y se le dice así en vez de «error». */
+    if (!j || j.ok !== true) {
+      alert(j && j.motivo
+        ? 'No pude mandarlo: ' + j.motivo + '. Espera unos minutos y vuelve a intentar.'
+        : 'No pude mandarlo. Sal y vuelve a entrar, y prueba otra vez.');
       return;
     }
     if (ta) { ta.value = ''; chatContar(); }
@@ -3669,49 +3631,42 @@ function chatEnviar() {
        cliente un mensaje que nadie va a leer. */
     chatTraer(false);
   }).catch(function (e) {
-    alert((e && e.humano) || 'No pude mandarlo. Revisa tu internet y vuelve a intentar.');
+    alert((e && e.humano) || (e && e.causa === 'sesion' ? SS.TEXTOS.vencida
+      : 'No pude mandarlo. Revisa tu internet y vuelve a intentar.'));
   }).then(function () {
     CH.enviando = false; if (b) b.disabled = false;
   });
 }
 
-/* ================= LA SESIÓN QUE SE QUEDA — 20-ago-2026 =================
-   Pedido de Joan con el primer cliente real adentro: entrar UNA vez y que la
-   app se quede abierta, como cualquier app de verdad. Nadie teclea su clave
-   cada mañana.
+/* ================= LA SESIÓN QUE SE QUEDA =================
+   20-ago-2026, pedido de Joan con el primer cliente real adentro: entrar UNA
+   vez y que la app se quede abierta, como cualquier app de verdad. Nadie
+   teclea su clave cada mañana.
 
-   Se guarda SOLO cuando la entrada fue por la nube — o sea, el teléfono del
-   cliente. Nunca con origen 'panel' (Joan mirando la app como la ve él: si se
-   guardara, su navegador abriría con la cuenta del último cliente revisado) ni
-   'enlace' (una foto congelada que alguien pudo reenviar).
+   7-oct-2026 — LO QUE SE RECUERDA ES LA SESIÓN DE SU CUENTA (celular y
+   contraseña), no un código. Vive en app/sesion-socio.js: la sesión con su
+   token de renovar, y el último paquete que contestó la nube para abrir sin
+   señal CON su fecha. Si la nube contesta que la sesión ya no vale (cambió la
+   contraseña en otro teléfono, o Joan le dio una nueva), se borra y se vuelve
+   a la puerta. Nunca se guarda con origen 'panel' (Joan mirando la app como
+   la ve un cliente) ni 'enlace' (una foto congelada que alguien pudo
+   reenviar): esas entradas no tienen sesión. */
 
-   Se guarda también el último paquete de datos: si el cliente abre SIN señal,
-   ve sus números al día de la última vez — con su fecha, que el pie ya
-   muestra. Y si la nube contesta que el código ya no vale (lo cambió, o Joan
-   se lo renovó), la sesión se borra y se vuelve a la puerta: el código manda,
-   la sesión solo lo recuerda. */
-var LLAVE_SESION_SOCIO = 'socio_sesion';
-
-function guardarSesion(resp) {
-  if (!resp || resp.origen !== 'nube') return;
-  try {
-    localStorage.setItem(LLAVE_SESION_SOCIO, JSON.stringify({
-      ident: resp.cedula, codigo: resp.codigo, resp: resp, guardadoEl: hoyISO()
-    }));
-  } catch (e) { /* sin espacio o sin permiso: la app sigue, solo no recuerda */ }
-}
-function sesionGuardada() {
-  try { return JSON.parse(localStorage.getItem(LLAVE_SESION_SOCIO) || 'null'); }
-  catch (e) { return null; }
-}
-function borrarSesion() {
-  try { localStorage.removeItem(LLAVE_SESION_SOCIO); } catch (e) {}
+/* Suelta la sesión en este teléfono, sin avisarle al servidor (cuando el
+   servidor ya dijo que no vale, no hay a quién avisar). Y la de play/ en esta
+   pestaña, que es la MISMA cuenta: si se quedara, al recargar volvería a
+   entrar sola y «Salir» no saldría. */
+function cerrarSesionLocal() {
+  SESION = null;
+  if (SS) SS.borrar(localStorage);
+  try { sessionStorage.removeItem(SS ? SS.LLAVE_PLAY : 'play_sesion'); } catch (e) {}
 }
 
 function salir() {
-  S = null; NUEVOS = {};
+  if (SS && SESION) SS.avisarSalida(CFG, SESION);
+  cerrarSesionLocal();
+  S = null; NUEVOS = {}; TAB = 'inicio';
   MODO = 'quincenal'; PLAZO = 3;
-  borrarSesion();
   if (location.hash) {
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
   }
@@ -3763,7 +3718,7 @@ function pantallaConfig() {
   });
   window.addEventListener('hashchange', function () {
     var nuevo = desdeEnlace(); if (nuevo) return abrir(nuevo);
-    var p = desdePanel(); if (p) abrir(p);
+    var p = desdePanel(); if (p && !p.vencido) abrir(p);
   });
 
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
@@ -3797,39 +3752,42 @@ function pantallaConfig() {
     setTimeout(function () { h.classList.add('fuera'); }, falta);
   })();
 
+  /* 7-oct-2026 — LA SESIÓN DE CÓDIGO DE ANTES SE BORRA, antes que nada. Si se
+     quedara, nadie la lee ya en esta versión, pero una pestaña con la app
+     vieja abierta la seguiría leyendo: la nube le contestaría que no (la
+     puerta del código se cerró), lo tomaría por «sin red» y mostraría para
+     siempre el paquete guardado como si fuera de hoy. */
+  /* 7-oct-2026 (segunda vuelta) — se mira ANTES de borrarla, para decirle al
+     que tenía la app abierta con el código qué cambió (TEXTOS.cambioDePuerta),
+     en vez de dejarlo frente a un formulario que no conoce. */
+  var teniaCodigo = false;
+  try { teniaCodigo = !!(SS && SS.teniaSesionVieja(localStorage)); } catch (e) { teniaCodigo = false; }
+  if (SS) SS.borrarVieja(localStorage);
+
   var delEnlace = desdeEnlace();
   if (delEnlace) return abrir(delEnlace);
 
-  /* "Ver la app como la ve él": Joan abre desde su Panel #p=cedula-código.
-     El hash no viaja al servidor, y sin esos dos datos no abre nada. */
+  /* «Ver la app como la ve él»: el pase de un uso que deja el CRM (#v=). Si
+     había uno y ya no sirve, se dice: Joan tocó el botón hace más de un minuto
+     o el navegador bloqueó la ventana y la abrió después. */
   var delPanel = desdePanel();
-  if (delPanel) return abrir(delPanel);
-
-  /* La sesión recordada (20-ago-2026). Primero se le pregunta a la nube con lo
-     guardado: si contesta con datos, adentro con números frescos; si contesta
-     que NO (el código cambió o se lo renovaron), la sesión se borra y a la
-     puerta — la sesión recuerda el código, no lo reemplaza. Y si no hay señal,
-     el último paquete guardado: números con fecha, no una pantalla de error,
-     porque abrir la app en el bus sin datos es el caso normal, no el raro. */
-  var ses = sesionGuardada();
-  if (ses && ses.ident && ses.codigo) {
-    mostrar('pCargando');
-    buscarEnNube(ses.ident, ses.codigo).then(function (n) {
-      if (n.dato) {
-        n.dato.cedula = ses.ident; n.dato.codigo = ses.codigo; n.dato.origen = 'nube';
-        return abrir(n.dato);
-      }
-      if (n.falloRed && ses.resp) return abrir(ses.resp);
-      borrarSesion();
-      pintarEntrar(); mostrar('pEntrar');
-      var e = $('errEntrar');
-      if (e && !n.falloRed) {
-        e.textContent = 'Tu código cambió, así que te pedimos entrar de nuevo. ' +
-          'Si no fuiste tú, escríbenos.';
-        e.classList.remove('oculto');
-      }
-    });
+  if (delPanel && !delPanel.vencido) return abrir(delPanel);
+  if (delPanel && delPanel.vencido) {
+    pintarEntrar('Ese pase para ver la app como la ve un cliente ya no sirve: se usa una sola vez y dura ' +
+      'un minuto. Vuelve a tocar «👁 Ver la app como la ve él» en el CRM.');
+    return;
   }
+
+  /* La sesión recordada; si no hay, la que dejó play/ en esta misma pestaña
+     (el que acaba de registrarse y vuelve acá no tiene que entrar dos veces).
+     Primero se le pregunta a la nube; sin señal, cargarCuenta abre el último
+     paquete guardado, con su fecha. */
+  var ses = SS ? SS.leer(localStorage) : null;
+  if (!ses && SS) {
+    try { ses = SS.deSesionDePlay(sessionStorage, Date.now()); if (ses) ses.soloEstaPestana = true; } catch (e) { ses = null; }
+  }
+  if (ses) { SESION = ses; cargarCuenta(); }
+  else if (teniaCodigo) pintarEntrar(SS.TEXTOS.cambioDePuerta);
 })();
 </script>
 </body>

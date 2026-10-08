@@ -168,7 +168,9 @@ describe('nada nuevo que tocar desde el celular', () => {
   test('las únicas acciones siguen siendo traer y abrir la ficha de un cliente', async () => {
     const h = (await pestania()).cuerpo();
     const acciones = new Set([...h.matchAll(/data-acc="([^"]+)"/g)].map(m => m[1]));
-    acciones.forEach(a => assert.ok(['reg-traer', 'verficha'].includes(a), 'la pestaña ofrece «' + a + '»'));
+    /* 7-oct-2026 — más «reg-juntar»: juntar la cuenta del antiguo (decisión de
+       Joan). No aprueba ni descarta. */
+    acciones.forEach(a => assert.ok(['reg-traer', 'verficha', 'reg-juntar'].includes(a), 'la pestaña ofrece «' + a + '»'));
   });
 
   test('y la revisión no se guarda en el teléfono', async () => {

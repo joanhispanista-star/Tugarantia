@@ -52,18 +52,22 @@ const UN_CLIENTE = {
 
 describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
 
-  test('EL MENSAJE DEL CÓDIGO NO DEJA NINGÚN TOKEN SIN CONTESTAR', () => {
-    /* La regresión que da nombre a este archivo. Si vuelve a faltar una línea
-       en aplicarVars, el token aparece acá y no en el teléfono del cliente. */
+  /* 7-oct-2026 — el mensaje del código se fue con los códigos; el que lo
+     reemplaza es «Cómo entrar» (celular y contraseña). La regresión que da
+     nombre a este archivo se vigila igual sobre él: ni un token sin contestar,
+     y el enlace de casa adentro. Y NO lleva el código, aunque la ficha lo tenga
+     guardado: mandarlo sería mandar a buscar una puerta cerrada. */
+  test('EL MENSAJE DE CÓMO ENTRAR NO DEJA NINGÚN TOKEN SIN CONTESTAR, ni lleva el código', () => {
     const P = abrirPanel();
     P.cargarCartera(UN_CLIENTE);
-    const msg = P.ev('mensajeCodigoAcceso(DB.socios[0])');
+    const msg = P.ev('mensajeComoEntrar(DB.socios[0])');
     const sueltos = msg.match(/\{[a-zA-Z_][a-zA-Z0-9_]*\}/g) || [];
     assert.deepEqual(sueltos, [],
       'el mensaje sale con tokens sin resolver (' + sueltos.join(' ') + '): ' +
       'al cliente le llegan así, con las llaves, o vacíos');
-    assert.ok(msg.indexOf('3001112233') >= 0, 'no lleva el usuario que el cliente teclea');
-    assert.ok(msg.indexOf('K7QP3') >= 0, 'no lleva su código');
+    assert.ok(msg.indexOf('K7QP3') < 0, 'el mensaje todavía manda el código de acceso');
+    assert.match(msg, /celular y tu contraseña/);
+    assert.match(msg, /Registrarme/);
     assert.ok(msg.indexOf(CASA) >= 0, 'no lleva el enlace de la app');
   });
 
@@ -71,8 +75,7 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
     const P = abrirPanel();
     P.cargarCartera(UN_CLIENTE);
     const muerta = /github\.io|localhost|127\.0\.0\.1|tugarantia\.co[^m]|file:\/\//;
-    ['mensajeCodigoAcceso(DB.socios[0])',
-     'mensajeEnlaceCorregido(DB.socios[0])'].forEach(expr => {
+    ['mensajeComoEntrar(DB.socios[0])'].forEach(expr => {
       const m = P.ev(expr);
       assert.ok(!muerta.test(m), expr + ' manda una dirección que no abre: ' + m);
       assert.ok(m.indexOf(CASA) >= 0, expr + ' no lleva el enlace de casa');
@@ -102,27 +105,26 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
       'cargar() se quedó con la dirección muerta: el próximo respaldo la reparte');
   });
 
-  test('a quien recibió el enlace viejo se le puede mandar el bueno, una vez', () => {
+  /* 7-oct-2026 — aquí se probaba la lista de «mandarles el enlace bueno» a
+     quien recibió su código con la dirección vieja. Se fue con los códigos: el
+     enlace de hoy va en «Cómo entrar», que lo arma urlApp() cada vez. */
+  test('los botones del código ya no existen en el CRM', () => {
     const P = abrirPanel();
     P.cargarCartera(UN_CLIENTE);
-    assert.equal(P.ev('pudoRecibirEnlaceViejo(DB.socios[0])'), true,
-      'un cliente con el código mandado antes del arreglo tiene que salir en la lista');
-    P.ev("DB.socios[0].enlaceReenviadoEn='2026-08-28'");
-    assert.equal(P.ev('pudoRecibirEnlaceViejo(DB.socios[0])'), false,
-      'después de mandárselo sigue en la lista: se le mandaría dos veces');
+    ['pudoRecibirEnlaceViejo', 'reenviarEnlaceBueno', 'mandarCodigoAcceso', 'regenerarCodigoAcceso',
+     'generarCodigosFaltantes', 'revisarQuienPuedeEntrar', 'avisoCodigosHTML'].forEach(f =>
+      assert.equal(P.ev('typeof ' + f), 'undefined', f + ' sigue vivo en el CRM'));
   });
 
   test('las tres pantallas que se tocaron hoy se pintan sin reventar', () => {
     /* Un error acá no rompe una función: deja la pantalla en blanco. */
     const P = abrirPanel();
     P.cargarCartera(UN_CLIENTE);
-    const aviso = P.ev('avisoCodigosHTML()');
+    const aviso = P.ev('avisoEntradaHTML()');
     assert.ok(aviso.indexOf(CASA) >= 0, 'el aviso ya no enseña el enlace que se manda');
-    assert.ok(aviso.indexOf('Mandarles el enlace bueno') >= 0,
-      'el aviso no ofrece mandar el enlace corregido');
-    P.ev('reenviarEnlaceBueno()');
-    assert.ok((P.elems['mBody'].innerHTML || '').indexOf('María Pérez') >= 0,
-      'la lista de reparación salió vacía');
+    assert.ok(aviso.indexOf('cuentasJuntas()') >= 0, 'el aviso no lleva a las cuentas juntas');
+    assert.match(aviso, /celular y su contraseña/);
+    assert.ok(!/código/.test(aviso.replace(/<[^>]+>/g, '')), 'el aviso todavía habla de códigos');
     P.ev('verCliente("s1")');
     assert.ok((P.elems['mBody'].innerHTML || '').indexOf(CASA) >= 0,
       'la ficha del cliente ya no enseña el enlace que le va a llegar');
@@ -145,8 +147,8 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
        llegaba "Entras acá: " y nada. */
     const P = abrirPanel();
     P.cargarCartera(UN_CLIENTE);
-    const conEnlace = P.ev("aplicarVarsDemo('Entras acá: {enlace}','codigoAcceso')");
-    assert.ok(conEnlace.indexOf(CASA) >= 0, 'el mensaje del código sí manda enlace');
+    const conEnlace = P.ev("aplicarVarsDemo('Entras acá: {enlace}','comoEntrar')");
+    assert.ok(conEnlace.indexOf(CASA) >= 0, 'el mensaje de cómo entrar sí manda enlace');
     const sinEnlace = P.ev("aplicarVarsDemo('Entras acá: {enlace}','mora')");
     assert.ok(sinEnlace.indexOf('{enlace}') >= 0,
       'la vista previa resolvió un enlace que el mensaje de mora no manda');
@@ -154,7 +156,9 @@ describe('el Panel corriendo: los mensajes salen enteros (28-ago-2026)', () => {
        contexto de la página y su prototipo es el de ESE mundo, así que la
        comparación estricta lo rechaza aunque tenga lo mismo adentro. */
     assert.equal(P.ev("tokensSueltos('hola {enlace} {nombre}','mora').join(' ')"), '{enlace}');
-    assert.equal(P.ev("tokensSueltos('hola {enlace} {nombre}','codigoAcceso').join(' ')"), '');
+    assert.equal(P.ev("tokensSueltos('hola {enlace} {nombre}','comoEntrar').join(' ')"), '');
+    /* Y {codigo_acceso} ya no lo contesta ninguna: se avisa como suelto. */
+    assert.equal(P.ev("tokensSueltos('tu código: {codigo_acceso}','comoEntrar').join(' ')"), '{codigo_acceso}');
   });
 
   test('la bandeja de mensajes se pinta, y sin nube dice la verdad', () => {
@@ -1455,7 +1459,11 @@ describe('la mesa de cruce: un registro y una ficha vieja (9-sep-2026)', () => {
     assert.match(h, /\$300\.000/, 'no muestra el crédito que ya le dio');
     assert.match(h, /41\.?999\.?888|41999888/, 'no muestra la cédula que declaró');
     assert.match(h, /Kennedy/);
-    assert.match(h, /V-3F9K/, 'no ofrece la comprobación por WhatsApp');
+    /* 7-oct-2026 (segunda vuelta): la comprobación ya no es «me llegó el código
+       V-… por WhatsApp» —play/ dejó de pedir ese WhatsApp el 8-sep— sino llamar
+       al número de la ficha. */
+    assert.match(h, /\(el número de su ficha\) y me confirmó que este registro es suyo/, 'no ofrece la comprobación');
+    assert.ok(!/Me llegó el código/.test(h), 'sigue pidiendo un WhatsApp que nadie manda');
     assert.match(h, /pesado/, 'no marca los campos que deciden plata o identidad');
   });
 

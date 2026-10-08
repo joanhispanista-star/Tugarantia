@@ -299,16 +299,31 @@ svg{flex:none}
       </div>
       <div class="tarjeta">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M11 17h2"/></svg>Para entrar: tu celular y una contraseña</h2>
-        <p>La primera vez tocas «Soy nuevo», pones tu celular, tu nombre y una
-        contraseña, y listo. Tu primer crédito lo pides por el chat de
-        Créditos.</p>
+        <!-- 7-oct-2026 — decía «pones tu celular, tu nombre y una contraseña,
+             y listo», que era el formulario de cuatro cajas que PlataChat
+             retiró el 1-oct: «Soy nuevo» lleva desde entonces al registro de
+             play/ con la cámara (cédula y rostro). Se dice lo que de verdad
+             pide, con las palabras de la puerta de platachat/index.html. -->
+        <p>La primera vez tocas «Soy nuevo» y abres tu cuenta en unos minutos:
+        la cámara lee tu cédula y te toma la foto del rostro, y la contraseña
+        la eliges tú. Tu primer crédito lo pides por el chat de Créditos.</p>
       </div>
       <div class="tarjeta verde">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>¿Ya eras cliente de Tu Garantía?</h2>
+        <!-- 7-oct-2026 — sin «escribe tu código de acceso en Yo»: Joan apagó
+             los códigos y la caja de Yo se quitó (base/20261007_una_puerta.sql
+             le quita vincular_cuenta a la sesión). El historial lo junta Joan
+             con un toque, y el aviso le llega al cliente por el chat.
+             7-oct-2026 (tercera vuelta) — decía «Entras con tu celular y tu
+             contraseña», y el cliente que solo tuvo código nunca puso una:
+             tocaba «Entrar», no entraba, dejaba un recado, y Joan no tenía
+             cuenta a la que darle una clave nueva (clave_temporal_interna
+             contesta 'sin_cuenta'). Lo que le sirve es abrirla con «Soy nuevo». -->
         <p>PlataChat es la segunda app del mismo negocio: puedes tener las dos
-        instaladas y tu garantía es una sola. Después de entrar, ve a la
-        pestaña <b>Yo</b> y escribe tu código de acceso de Tu Garantía una
-        sola vez: desde ahí ves tu cupo, tu garantía y tu historial en las dos.</p>
+        instaladas y tu garantía es una sola. Si nunca abriste tu cuenta con
+        contraseña, ábrela con «Soy nuevo»; si ya la abriste, entras con tu
+        celular y tu contraseña. Revisamos que seas tú y juntamos tu historial
+        con tu cuenta; te avisamos por el chat cuando esté.</p>
       </div>
     </div>
   </section>
