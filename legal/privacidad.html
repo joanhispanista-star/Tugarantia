@@ -133,9 +133,11 @@ td.ob{white-space:nowrap;color:var(--gris)}
        pruebas/responsable-nexeco.test.js amarra las tres fechas. -->
 
   <!-- ===== QUIÉN RESPONDE — EL ÚNICO BLOQUE CON DATOS DE LA EMPRESA (8-oct-2026) =====
-       El NIT, la dirección y el correo llegaron el 9-oct-2026. El teléfono (lo exige el
-       Decreto 1377 de 2013, art. 13) sigue pendiente: el 22-sep se decidió no publicar
-       el celular del dueño, así que va una línea de la empresa o nada. Si uno cambia:
+       La dirección, el correo y el teléfono llegaron el 9-oct-2026. El NIT sigue
+       pendiente: el que llegó ese día (901.228.648-0) es el de TUMIPAY S.A.S. según
+       PLAN-PLATACHAT.md; va solo el que diga el RUT o el certificado de NEXECO. El
+       teléfono lo exige el Decreto 1377 de 2013, art. 13, y el dueño lo dio como línea
+       de la empresa. Si uno cambia:
          1. se escribe el valor nuevo dentro de su <dd>,
          2. se hace exactamente lo mismo en legal/terminos.html, que tiene el mismo bloque.
        Si alguno deja de valer, se vuelve a marcar con data-pendiente y la clase
@@ -149,7 +151,7 @@ td.ob{white-space:nowrap;color:var(--gris)}
       <div><dt>Responsable</dt><dd data-dato="razon_social">NEXECO S.A.S.</dd></div>
       <div><dt>Qué es</dt><dd>Una sociedad por acciones simplificada: la empresa que opera Tu Garantía</dd></div>
       <div><dt>Domicilio</dt><dd data-dato="domicilio">Bogotá D.C., Colombia</dd></div>
-      <div><dt>NIT</dt><dd data-dato="nit">901.228.648-0</dd></div>
+      <div><dt>NIT</dt><dd data-dato="nit" data-pendiente="nit" class="pendiente">Lo publicamos aquí en cuanto quede confirmado</dd></div>
       <div><dt>Dirección</dt><dd data-dato="direccion">Av. Calle 90 # 84-09, Bogotá D.C.</dd></div>
       <div><dt>Correo</dt><dd data-dato="correo"><a href="mailto:nexecobancaplata@gmail.com">nexecobancaplata@gmail.com</a></dd></div>
       <div><dt>Teléfono</dt><dd data-dato="telefono"><a href="tel:+573245374784">+57 324 537 4784</a></dd></div>
