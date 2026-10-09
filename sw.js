@@ -1652,7 +1652,28 @@
    se pregunta a mi_registro). Cambian play/index.html y platachat/index.html;
    ningun archivo nuevo entra a la lista. Sin subir la cache, un celular
    seguiria con las frases de v134. */
-const CACHE = 'tugarantia-v135';
+/* v136 - 8-oct-2026 (con su segunda vuelta). LO QUE JOAN PIDIO REGISTRANDOSE
+   EL MISMO, y lo que encontraron las tres revisiones (ley, telefono,
+   seguridad). El registro: correo obligatorio, direccion opcional, sin la
+   pregunta del acompanamiento (el aviso va una vez en el paso 1 y solo publica
+   quien lo leyo, sin fotos), sin los comentarios de cada pregunta, los pesos
+   con punto y coma al teclear, el respaldo de la cedula que dispara solo
+   cuando ve el codigo y se guarda derecho, la selfie que se toma sola. Pedir:
+   la calculadora sin precio (app/calculadora-solicitud.js, NUEVA, ENTRA A LA
+   LISTA: la cargan play/, platachat/ e index.html con un <script src>), hasta
+   seis meses, y las condiciones de cada propuesta con el recargo por atraso en
+   pesos y su techo legal; aceptar sin constancia ya no se puede. La portada
+   (index.html) sin precios ni «quincena». Los textos legales (NEXECO S.A.S.,
+   sin datos de Joan) y el aviso del cambio de responsable en play/ y
+   PlataChat. app/rostro-en-vivo.js (NUEVO, la selfie) entra tambien: play/ lo
+   pide al llegar al paso del rostro; face-api y sus modelos (app/lib/rostro)
+   se quedan fuera por lo mismo que zxing: pesan y casi nadie los usa sin senal.
+   Cambian tambien app/cuenta.js, app/escaner-cedula.js, app/puente.js (el
+   techo del recargo de los creditos con condiciones), app/cumplimiento.js,
+   app/socio.html, panel/crm.html y panel/revision.html. Sin subir la cache, un
+   celular seguiria con la calculadora que publicaba precio y aceptando
+   propuestas sin constancia. */
+const CACHE = 'tugarantia-v136';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -1774,7 +1795,12 @@ const ARCHIVOS = [
   'platachat/icono-512.png',
   'platachat/icono-maskable-512.png',
   'app/platachat-reglas.js',
-  'app/pagos-proveedor.js'
+  'app/pagos-proveedor.js',
+  /* 8-oct-2026 — la calculadora del pedido y las condiciones de cada propuesta
+     (play/, platachat/ e index.html), y la selfie que se toma sola (play/, al
+     llegar al paso). Ver la nota de v136. */
+  'app/calculadora-solicitud.js',
+  'app/rostro-en-vivo.js'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {

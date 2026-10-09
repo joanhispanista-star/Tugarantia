@@ -125,8 +125,12 @@
    7-oct-2026 — sube por la puerta única: se fue la caja de «escribe tu cédula
    y tu código» de Yo, y ninguna pantalla manda ya a escribir un código. Hoy
    platachat/ SÍ está en ARCHIVOS de sw.js, así que la regla es la de
-   socio.html: fecha acá Y CACHE allá. */
-var VERSION_APP = '2026-10-07';
+   socio.html: fecha acá Y CACHE allá.
+
+   8-oct-2026 — sube con las condiciones de cada propuesta y la casilla «Leí
+   y acepto» (app/calculadora-solicitud.js, nuevo: tiene que entrar también a
+   ARCHIVOS de sw.js). */
+var VERSION_APP = '2026-10-08';
 (function () {
   var v = document.getElementById('holaVersion');
   if (v) v.textContent = 'Versión ' + VERSION_APP;
@@ -273,6 +277,13 @@ setTimeout(function () {
 <script src="../app/ficha.js"></script>
 <script src="../app/puente.js"></script>
 <script src="../app/cuenta.js"></script>
+<!-- 8-oct-2026 — las condiciones de cada propuesta (y la casilla «Leí y
+     acepto»), las mismas de play/. Va después de cuenta.js y del motor.
+     Segunda vuelta: y después de creditos.js, la tabla de usura, de donde las
+     condiciones sacan el techo legal del recargo por atraso en pesos por día
+     (sin ella dicen el techo en palabras, sin cifra). -->
+<script src="../app/creditos.js"></script>
+<script src="../app/calculadora-solicitud.js"></script>
 <script src="../app/chat.js"></script>
 <script src="../app/platachat-reglas.js"></script>
 <script src="../app/pagos-proveedor.js"></script>
@@ -329,6 +340,11 @@ var M = window.MotorReglas;
 var F = window.FichaSocio;   /* lee el paquete del socio; la misma lectura que socio.html y play/ */
 var CHAT = window.ChatTuGarantia;
 var U = window.CuentaSocio;
+/* 8-oct-2026 — las condiciones de la propuesta. Sin él, la tarjeta sigue
+   como estaba (cifras, fechas y «Acepto») y se acepta con la función de
+   siempre: una propuesta nunca se queda sin poder aceptarse por un archivo. */
+var CS = window.CalculadoraSolicitud;
+if (CS && CS.conectar) CS.conectar(window);   // su almacén y su DOM son los de ESTA página
 var R = window.PlataChatReglas;
 var PP = window.PagosProveedor;
 var SP = window.SesionPlataChat;
@@ -905,7 +921,36 @@ function avisosArriba() {
   }
   if (AVISO_NUBE) h += '<div class="aviso ambar">' + esc(AVISO_NUBE) + '</div>';
   if (AVISO_FICHA) h += '<div class="aviso ambar">' + esc(AVISO_FICHA) + '</div>';
+  h += avisoResponsablePC();
   return h;
+}
+
+/* EL AVISO DEL CAMBIO DE RESPONSABLE — 8-oct-2026 (segunda vuelta). Desde el
+   8-oct la responsable de los datos es NEXECO S.A.S., y ese cambio hay que
+   contárselo a cada titular (Decreto 1377 de 2013, art. 5). Vivía solo en
+   app/socio.html: quien se registró por PlataChat nunca lo veía (lo encontró
+   la revisión de ley). Una vez, arriba de todo, con «Entendido»; la llave es
+   por celular, la misma de socio.html y play/. Aquí no se sabe cuándo se abrió
+   la cuenta, así que lo ven todos: avisar de más es mejor que callar. */
+var AVISO_RESPONSABLE_PC = { llave: 'tg_aviso_responsable_20261008_' };
+var AVISO_RESPONSABLE_PC_CERRADO = false;
+function llaveAvisoResponsablePC() { return AVISO_RESPONSABLE_PC.llave + ((SES && SES.celular) || 'anon'); }
+function avisoResponsablePC() {
+  if (AVISO_RESPONSABLE_PC_CERRADO) return '';
+  try { if (localStorage.getItem(llaveAvisoResponsablePC()) === '1') return ''; } catch (e) {}
+  return '<div class="aviso" id="avisoResponsable" role="status">' +
+    '<b>Un cambio sobre tus datos.</b> Desde el 8 de octubre de 2026, la responsable de tus datos personales es ' +
+    '<b>NEXECO S.A.S.</b>, la empresa que opera Tu Garantía y PlataChat. Tus derechos no cambian: cuando quieras ' +
+    'puedes pedirnos qué tenemos tuyo, corregirlo o borrarlo, por el chat de Servicio. Ese mismo día actualizamos ' +
+    'la política: <a href="../legal/privacidad.html#cambios" target="_blank" rel="noopener">mira qué cambió</a>.' +
+    '<div><button type="button" class="btn claro" style="margin-top:8px" onclick="cerrarAvisoResponsablePC()">Entendido</button></div>' +
+    '</div>';
+}
+function cerrarAvisoResponsablePC() {
+  AVISO_RESPONSABLE_PC_CERRADO = true;
+  try { localStorage.setItem(llaveAvisoResponsablePC(), '1'); } catch (e) { /* modo privado: en memoria */ }
+  var el = $('avisoResponsable');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
 }
 
 /* ============================ PLATA ============================ */
@@ -1867,27 +1912,63 @@ function tarjetaPropuesta(sol) {
     var total = Number(cp.total != null ? cp.total : capital + costo);
     var n = Math.max(1, Math.round(Number(cp.cortes)) || 1);
     var aCuotas = Array.isArray(cp.cuotas) && cp.cuotas.length > 1;
+    /* 8-oct-2026 (segunda vuelta) — CON LAS CONDICIONES A LA VISTA, LAS CIFRAS
+       NO SE REPITEN. La revisión del teléfono encontró la tarjeta diciendo
+       todo dos veces: Te prestamos / Lo que cuesta / Devuelves / Cuándo, y
+       debajo el bloque de condiciones con lo mismo; la garantía y «aceptar no
+       te entrega la plata», también dos veces. Cuando el bloque existe, él es
+       la tarjeta; las filas sueltas quedan solo para cuando el módulo de las
+       condiciones no llegó (una propuesta nunca se queda sin cifras). */
+    var cond = condicionesDe(sol);
     h = cabeza(q.titulo) + '<div class="cuerpo">' +
-      (cp.texto ? '<div class="dice">' + esc(cp.texto) + '</div>' : '') +
-      lin('Te prestamos', COP(capital)) + lin('Lo que cuesta', COP(costo)) + lin('Devuelves', COP(total)) +
-      lin('Cuándo', cuandoDe(cp));
-    if (aCuotas) {
-      cp.cuotas.forEach(function (c, i) {
-        var t = c && c.total != null ? c.total : Number((c && c.capital) || 0) + Number((c && c.costo) || 0);
-        h += lin('Cuota ' + (i + 1), COP(t) + ' el ' + fmtFecha(c && c.fecha));
-      });
-    } else {
-      /* La garantía que deja, con la misma cuenta de la calculadora; la de un
-         plan a cuotas la calcula el motor de otra forma y no se inventa acá. */
-      var gana = garantiaDePropuesta(costo, capital, n);
-      if (gana != null) h += '<div class="gana">Al pagarlo en fecha ganas <strong>+' + COP(gana) + '</strong> de garantía.</div>';
+      (cp.texto ? '<div class="dice">' + esc(cp.texto) + '</div>' : '');
+    if (!cond) {
+      h += lin('Te prestamos', COP(capital)) + lin('Lo que cuesta', COP(costo)) + lin('Devuelves', COP(total)) +
+        lin('Cuándo', cuandoDe(cp));
+      if (aCuotas) {
+        cp.cuotas.forEach(function (c, i) {
+          var t = c && c.total != null ? c.total : Number((c && c.capital) || 0) + Number((c && c.costo) || 0);
+          h += lin('Cuota ' + (i + 1), COP(t) + ' el ' + fmtFecha(c && c.fecha));
+        });
+      } else {
+        /* La garantía que deja, con la misma cuenta de la calculadora; la de un
+           plan a cuotas la calcula el motor de otra forma y no se inventa acá. */
+        var gana = garantiaDePropuesta(costo, capital, n);
+        if (gana != null) h += '<div class="gana">Al pagarlo en fecha ganas <strong>+' + COP(gana) + '</strong> de garantía.</div>';
+      }
     }
+    /* 8-oct-2026 — LAS CONDICIONES DE ESTE CRÉDITO, Y LA CASILLA. Joan: «al
+       momento de la contrapropuesta que se le muestren los términos y
+       condiciones de ese crédito en específico». Debajo de las cifras de
+       siempre, el bloque completo (app/calculadora-solicitud.js): lo que
+       pasa si se atrasa y que se negocia, la garantía que deja, cómo se paga.
+       La garantía va la de ESTA página (descuenta los gastos del pago) y el
+       cómo se paga, el proveedor de PlataChat. El «Acepto» no se puede tocar
+       sin la casilla, y la marca vive en CONDICIONES_LEIDAS y no en el DOM:
+       el latido repinta la tarjeta cuando cambia, y una casilla que se
+       desmarca sola bajo el dedo es peor que no tenerla. */
+    var leidas = !!(cond && CONDICIONES_LEIDAS[CS.llaveDeCasilla(sol)]);
+    if (cond) {
+      h += CS.condicionesHTML(cond) +
+        CS.casillaHTML('pcCondLeidas', 'marcarCondicionesPlataChat(this.checked, ' + Number(sol.id) + ')', leidas);
+    }
+    /* 8-oct-2026 (segunda vuelta) — SIN LA CASILLA, EL BOTÓN AVISA EN VEZ DE
+       CALLAR. Con `disabled` el toque no hacía nada y no decía por qué (la
+       revisión del teléfono lo probó: ni el mensaje de «marca la casilla»
+       salía). Ahora se ve apagado (aria-disabled) pero se puede tocar, y
+       aceptarPropuesta dice qué falta. `disabled` queda solo mientras acepta,
+       para que un segundo toque no mande dos aceptaciones. */
+    var falta = !!(cond && !leidas);
     h += '<div class="acciones">' +
-      '<button type="button" class="btn marca" onclick="aceptarPropuesta(' + Number(sol.id) + ')"' + (ACEPTANDO ? ' disabled' : '') +
+      '<button type="button" class="btn marca" onclick="aceptarPropuesta(' + Number(sol.id) + ')"' +
+        (ACEPTANDO ? ' disabled' : '') + (falta ? ' aria-disabled="true" style="opacity:.55"' : '') +
         '>Acepto: recibo ' + esc(COP(capital)) + '</button>' +
       '<button type="button" class="btn claro" onclick="proponerOtraCifra()">Proponer otra cifra</button></div>' +
-      '<div class="nota">Aceptar no te entrega la plata: te la entrega una persona de PlataChat por ' + esc(nombreProveedor()) +
-        ' y ahí nace el crédito. Si no te sirve, no aceptes.</div></div>';
+      (falta ? '<div class="nota">Para aceptar, marca primero la casilla de arriba.</div>' : '') +
+      (cond
+        ? '<div class="nota">Si no te sirve, no aceptes: no pasa nada y no pierdes nada.</div></div>'
+        : '<div class="nota">Aceptar no te entrega la plata: te la entrega una persona de PlataChat por ' + esc(nombreProveedor()) +
+          ' y ahí nace el crédito. Si no te sirve, no aceptes.</div></div>');
 
   } else if (estado === 'aceptada') {
     h = cabeza('Aceptaste ' + COP(capitalDe(sol))) + '<div class="cuerpo">' +
@@ -1911,14 +1992,79 @@ function tarjetaPropuesta(sol) {
    la tarjeta lo dice antes y después. Si la base dice que no (la propuesta
    cambió, ya no era suya, ya estaba aceptada), se trae la solicitud de nuevo
    para que vea la que sí vale. */
+/* 8-oct-2026 — LAS CONDICIONES Y LA CASILLA (ver tarjetaPropuesta). La marca
+   va por solicitud Y por propuesta (CS.llaveDeCasilla): si cambia la
+   propuesta, la marca de la vieja no vale. Con la casilla, aceptar va por
+   aceptar_condiciones (base/20261008_condiciones_aceptadas.sql), que guarda lo
+   que se leyó y no acepta si el monto, el total, la fecha o la propuesta misma
+   cambiaron mientras leía. Con 404 (esa migración sin correr) NO se acepta
+   (segunda vuelta del 8-oct: ver aceptarPropuesta). */
+var CONDICIONES_LEIDAS = {};
+function condicionesDe(sol) {
+  if (!CS || !CS.condiciones) return null;
+  var cp = sol && sol.contrapropuesta;
+  if (!cp) return null;
+  var capital = Number(cp.capital || 0), costo = Number(cp.costo || 0);
+  var n = Math.max(1, Math.round(Number(cp.cortes)) || 1);
+  var aCuotas = Array.isArray(cp.cuotas) && cp.cuotas.length > 1;
+  try {
+    return CS.condiciones(sol, {
+      hoy: hoyISO(),
+      /* La de un solo pago, con la cuenta de esta página (descuenta los gastos
+         del pago); la de cuotas, la del motor. */
+      garantia: aCuotas ? undefined : garantiaDePropuesta(costo, capital, n),
+      /* La propuesta a varios cortes lo dice en su renglón de pago (8-oct-2026,
+         segunda vuelta: la fila «Cuándo» de encima ya no se repite). */
+      detallePago: (!aCuotas && n > 1) ? palabraNumero(n) + ' quincenas' : '',
+      /* 8-oct-2026 (segunda vuelta) — «Por Nequi / transferencia a mano, a la
+         cuenta…» se leía torcido: el nombre del proveedor va solo. */
+      comoPagas: 'Pagas por ' + nombreProveedor() + '. La cuenta te la damos por el chat de Créditos, y ' +
+        'solo pagas a cuentas que te demos por ahí.',
+      entrega: 'Aceptar no te entrega la plata: te la entrega una persona de PlataChat por ' + nombreProveedor() +
+        ', te avisamos por aquí, y ahí nace el crédito.'
+    });
+  } catch (e) { return null; }
+}
+function marcarCondicionesPlataChat(si, id) {
+  if (!CS || !SOL || Number(SOL.id) !== Number(id)) return;
+  CONDICIONES_LEIDAS[CS.llaveDeCasilla(SOL)] = !!si;
+  pintarPropuesta();
+}
+
 function aceptarPropuesta(id) {
   if (!SES || !SP || ACEPTANDO) return;
   var ce = $('chError'); if (ce) ce.classList.add('oculto');
+  var sol = (SOL && Number(SOL.id) === Number(id)) ? SOL : null;
+  var cond = sol ? condicionesDe(sol) : null;
+  if (cond && !CONDICIONES_LEIDAS[CS.llaveDeCasilla(sol)]) {
+    fallo(ce, 'Marca la casilla «' + CS.TEXTO_CASILLA + '» para seguir.');
+    return;
+  }
   ACEPTANDO = true; pintarPropuesta();
-  SP.rpc(CFG, SES, 'aceptar_propuesta_platachat', { p_id: Number(id) }).then(function (j) {
+  /* 8-oct-2026 (segunda vuelta) — SIN EL PLAN B. Con 404 (la migración del
+     8-oct sin correr) se aceptaba con aceptar_propuesta_platachat y no quedaba
+     guardado nada de lo leído, mientras los términos prometen «guardamos una
+     copia tal como las viste». Ahora no se acepta: se dice, y que nos escriba
+     por el chat si le urge. Mejor una aceptación que espera que una sin constancia. */
+  (cond
+    ? SP.rpc(CFG, SES, 'aceptar_condiciones', { p_id: Number(id), p_vio: CS.paraAceptar(cond) })
+        .catch(function (e) {
+          if (e && e.estado === 404) return { ok: false, motivo: 'sin_constancia' };
+          throw e;
+        })
+    : SP.rpc(CFG, SES, 'aceptar_propuesta_platachat', { p_id: Number(id) })).then(function (j) {
+    if (j && j.motivo === 'sin_constancia') {
+      ACEPTANDO = false;
+      fallo(ce, 'No pudimos registrar tu aceptación todavía (no es tu teléfono ni tu internet). ' +
+        'Tu propuesta sigue aquí: vuelve a intentarlo más tarde, o escríbenos por este chat y lo resolvemos.');
+      pintarPropuesta();
+      return;
+    }
     RELOJ_OK = true;
     if (!j || j.ok !== true) {
-      fallo(ce, 'No pudimos registrar tu aceptación. Si la propuesta cambió, acá ves la nueva.');
+      fallo(ce, (j && j.motivo === 'cambio')
+        ? 'La propuesta cambió mientras la leías. Acá ves la nueva: léela antes de aceptar.'
+        : 'No pudimos registrar tu aceptación. Si la propuesta cambió, acá ves la nueva.');
       ACEPTANDO = false;
       return traerSolicitud();
     }
@@ -2558,6 +2704,7 @@ function pie() {
    Borra la sesión guardada (y con ella lo último bajado) y vuelve a la
    puerta. `msg`, si viene, es lo que se le dice ahí: por qué lo sacaron. */
 function salir(msg) {
+  AVISO_RESPONSABLE_PC_CERRADO = false;   /* el aviso es por persona: el que entre después lo ve si no lo cerró */
   S = null; SES = null; SIN_NUBE = false; AVISO_NUBE = ''; BORRADOR = ''; MI_REGISTRO = '';   /* el registro es de esa cuenta: el que entre después no hereda un «descartado» */
   SOL = null; RELOJ_OK = false; ACEPTANDO = false;
   SOL_GEN++; DESFASE_RELOJ = 0; POL = null; fijarFraseReloj();   /* lo de la base es de esa sesión: una traída en vuelo se bota y el que entre después arranca en cero, también la frase con la espera */

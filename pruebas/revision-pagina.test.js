@@ -179,9 +179,19 @@ describe('nada del rostro sale del computador, y la cartera no se toca', () => {
     const todo = e.llamadas.map(l => String(l.crudo || '')).join('\n');
     ['distancia', 'sin_rostro', 'parecido', 'nitidez', 'rostro'].forEach(x =>
       assert.ok(!todo.includes(x), 'una petición a la nube lleva «' + x + '»'));
-    const fns = new Set(e.llamadas.map(l => l.url.split('/rpc/')[1]));
+    /* 8-oct-2026 — la página también consulta la ubicación aproximada de la
+       IP en ipwho.is (un GET sin cuerpo) y la anota en el registro con
+       anotar_ubicacion_ip (pruebas/ubicacion-ip-revision.test.js). Ninguna de
+       las dos lleva nada del rostro: lo mira el barrido de arriba, sobre TODAS
+       las peticiones. Aquí se separan para que la lista siga diciendo con qué
+       habla la página y nada más. */
+    const otras = e.llamadas.filter(l => !l.url.includes('/rpc/'));
+    assert.ok(otras.every(l => l.url.startsWith('https://ipwho.is/') && !l.crudo),
+      'la página habló con un servicio de afuera que no es el de la ubicación aproximada');
+    const fns = new Set(e.llamadas.filter(l => l.url.includes('/rpc/')).map(l => l.url.split('/rpc/')[1]));
+    fns.delete('anotar_ubicacion_ip');
     assert.deepEqual([...fns].sort(), ['archivos_de_registro', 'listar_registros', 'verificar_registro_foto'],
-      'la página habló con una función que no es para leer la bandeja, sus fotos o el cotejo');
+      'la página habló con una función que no es para leer la bandeja, sus fotos, el cotejo o anotar la ubicación');
   });
 
   test('lo que se recuerda va a sessionStorage, sin fotos', async () => {

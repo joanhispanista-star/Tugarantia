@@ -1336,9 +1336,18 @@ describe('la bandeja del primer crédito del nuevo (8-sep-2026)', () => {
     assert.equal(P.ev('DB.prestamos.length'), 0, 'creó el crédito sin aceptación');
   });
 
+  /* 8-oct-2026 (segunda vuelta) — lo aceptado trae su CONSTANCIA (lo que deja
+     aceptar_condiciones en contrapropuesta.condiciones, con las cifras de la
+     base al lado). Sin ella la bandeja avisa «Aceptó SIN constancia» y
+     desembolsar pide confirmación: ver la prueba de abajo. */
+  const conConstancia = s => Object.assign({}, s, { contrapropuesta: Object.assign({}, s.contrapropuesta, {
+    condiciones: { version: '2026-10-08', aceptadas_en: '2026-09-08T15:00:00Z',
+                   lineas: [{ clave: 'recibes', k: 'Recibes', v: '$100.000' }, { clave: 'total', k: 'Total a pagar', v: '$135.000' }],
+                   base: { capital: 100000, total: 135000, fecha_pago: '2026-09-16', creada_en: '' } } }) });
+
   test('aceptó: al desembolsar nace la ficha (de lo declarado) y el crédito con lo aceptado', async () => {
     const P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
-    const h = conBandeja(P, sol('aceptada'));
+    const h = conBandeja(P, conConstancia(sol('aceptada')));
     assert.match(h, /✅ Aceptó/); assert.match(h, /Desembolsar/);
     assert.match(h, /la ficha se crea al desembolsar/);
     P.ev("confirm=t=>String(t).indexOf('bienvenida')<0");
@@ -1363,12 +1372,54 @@ describe('la bandeja del primer crédito del nuevo (8-sep-2026)', () => {
     const P = abrirPanel();
     const d = JSON.parse(JSON.stringify(UN_CLIENTE)); d.socios[0].telefono = '3005550000';
     P.cargarCartera(d);
-    conBandeja(P, sol('aceptada'));
+    conBandeja(P, conConstancia(sol('aceptada')));
     P.ev("confirm=t=>String(t).indexOf('bienvenida')<0"); P.ev("crearDesdeSolicitud('77')");
     assert.equal(P.ev('DB.socios.length'), 1, 'duplicó la ficha');
     assert.equal(P.ev('DB.prestamos[0].socioId'), 's1');
-    const h = conBandeja(P, { id: 78, origen: 'nube', cedula: '3001112233', nombre: 'María Pérez', capital: 200000, estado: 'nueva', producto: 'quincenal' });
-    assert.match(h, /Quincenal/); assert.match(h, /Crear crédito/); assert.ok(!/Cambiar propuesta/.test(h));
+    /* 8-oct-2026 (segunda vuelta) — ANTES: «sin contrapropuesta la bandeja es la
+       de siempre», con «Crear crédito». Los términos (punto 3) dicen que todo
+       crédito pasa por una propuesta con sus condiciones aceptadas en la app, y
+       esta puerta desembolsaba las solicitudes de app/socio.html sin ninguna
+       (revisión de ley). Ahora: «✏️ Proponer», y desembolsar sin propuesta se
+       frena. Las «pegadas» (llegaron por WhatsApp) siguen como antes. */
+    const sinProp = { id: 78, origen: 'nube', cedula: '3001112233', nombre: 'María Pérez', capital: 200000, estado: 'nueva', producto: 'quincenal' };
+    const h = conBandeja(P, sinProp);
+    assert.match(h, /Quincenal/); assert.match(h, /✏️ Proponer/); assert.ok(!/Crear crédito|Desembolsar/.test(h), 'se puede prestar sin propuesta');
+    const antes = P.ev('DB.prestamos.length');
+    P.ev("window.__avisos=[]; alert=t=>window.__avisos.push(String(t)); crearDesdeSolicitud('78')");
+    assert.equal(P.ev('DB.prestamos.length'), antes, 'desembolsó una solicitud sin propuesta');
+    assert.match(P.ev('window.__avisos.join("|")'), /todavía no le has propuesto nada/);
+    const pegada = conBandeja(P, Object.assign({}, sinProp, { origen: 'pegada' }));
+    assert.match(pegada, /Crear crédito/, 'una pegada (por WhatsApp) no tiene app donde aceptar: sigue como antes');
+  });
+
+  test('aceptó SIN constancia (puerta vieja): la bandeja lo dice y desembolsar pregunta', () => {
+    const P = abrirPanel();
+    const d = JSON.parse(JSON.stringify(UN_CLIENTE)); d.socios[0].telefono = '3005550000';
+    P.cargarCartera(d);
+    const h = conBandeja(P, sol('aceptada'));
+    assert.match(h, /Aceptó SIN constancia de condiciones/);
+    P.ev("window.__pregs=[]; confirm=t=>{ window.__pregs.push(String(t)); return false; }; crearDesdeSolicitud('77')");
+    assert.equal(P.ev('DB.prestamos.length'), 0, 'desembolsó sin preguntar una aceptación sin constancia');
+    assert.match(P.ev('window.__pregs.join("|")'), /SIN constancia/);
+  });
+
+  test('la constancia: lo de la base al lado de lo de su app, el descuadre se marca, y se puede mandar por correo', () => {
+    const P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
+    const s = conConstancia(sol('aceptada'));
+    conBandeja(P, s);
+    P.ev("verCondicionesAceptadas('77')");
+    const m = P.ev('document.getElementById("mBody").innerHTML');
+    assert.match(m, /Según la base/); assert.match(m, /Según su app/);
+    assert.match(m, /href="mailto:n%40p\.co\?subject=/, 'no ofrece mandarle las condiciones por correo');
+    /* Su app dice otra cifra que la base: se marca, en la fila y en «Ver». */
+    const mala = JSON.parse(JSON.stringify(s)); mala.contrapropuesta.condiciones.lineas[1].v = '$1';
+    const h = conBandeja(P, mala);
+    assert.match(h, /Lo que dice su app no casa con la base: total/);
+    /* Lo que viene del teléfono se escapa. */
+    const rara = JSON.parse(JSON.stringify(s)); rara.contrapropuesta.condiciones.lineas[0].k = '<img src=x onerror=alert(1)>';
+    conBandeja(P, rara); P.ev("verCondicionesAceptadas('77')");
+    assert.ok(!/<img src=x/.test(P.ev('document.getElementById("mBody").innerHTML')), 'un renglón del teléfono se pintó sin escapar');
   });
 
   test('Ajustes trae la política del primer crédito y la previsualiza en pesos', () => {

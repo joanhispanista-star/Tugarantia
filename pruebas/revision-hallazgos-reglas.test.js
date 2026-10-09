@@ -22,10 +22,10 @@ const HOY = '2026-10-02';
 function registro(extra) {
   return Object.assign({
     id: 101, codigo: '', origen: 'abierto', estado: 'nuevo', nombre: 'Ana Ruiz',
-    cedula: '1018447274', telefono: '3001112233', creado_en: '2026-09-30T15:00:00+00:00',
+    cedula: '1029384274', telefono: '3001112233', creado_en: '2026-09-30T15:00:00+00:00',
     datos: {
       nombres: 'Ana', apellidos: 'Ruiz', tipo_doc: 'Cédula de ciudadanía',
-      documento: '1018447274', expedicion: '2010-06-01', celular: '3001112233',
+      documento: '1029384274', expedicion: '2010-06-01', celular: '3001112233',
       ref1_celular: '3104445566', ref2_celular: '3157778899'
     },
     huella: { ip: '181.50.1.2', momento: '2026-09-30T15:01:00+00:00' }
@@ -90,7 +90,7 @@ describe('ley 5 / reglas 4: la bandera «ya es socio con otro celular»', () => 
     repetida: true, otros_registros: 0, ya_es_socio_con_otro_celular: true };
 
   test('si el cliente de la cartera tiene ESTE celular (aunque sea su WhatsApp), no se mira', () => {
-    const cartera = [{ numero: 12, cedula: '1018447274', telefono: '3115550000', whatsappNumero: '3001112233' }];
+    const cartera = [{ numero: 12, cedula: '1029384274', telefono: '3115550000', whatsappNumero: '3001112233' }];
     const res = R.revisarRegistro(conCotejo(registro(), BANDERA), { hoy: HOY, cartera, otros: [] });
     assert.ok(!claves(res).includes('cedula_repetida_al_registrarse'),
       'ámbar «otro celular» al lado de la nota «el mismo celular»: ' + todo(res));
@@ -98,7 +98,7 @@ describe('ley 5 / reglas 4: la bandera «ya es socio con otro celular»', () => 
   });
 
   test('si la ficha del cliente no tiene celular, la base la cuenta como «otro»: tampoco se mira', () => {
-    const cartera = [{ numero: 12, cedula: '1018447274' }];
+    const cartera = [{ numero: 12, cedula: '1029384274' }];
     const res = R.revisarRegistro(conCotejo(registro(), BANDERA), { hoy: HOY, cartera, otros: [] });
     assert.ok(!claves(res).includes('cedula_repetida_al_registrarse'));
     assert.ok(neutros(res).includes('cedula_ya_cliente_sin_celular'));
@@ -152,7 +152,7 @@ describe('ley 8 / reglas 7: las referencias que ya conoces no son una sospecha',
 
 describe('ley 9: la edad sin fecha de nacimiento es la del día del cotejo', () => {
   test('en el celular (solo la bandera «menor»): «cuando se cotejó»', () => {
-    const fila = { id: 5, cedula: '1018447274', telefono: '3001112233', estado: 'nuevo', creado_en: '2026-09-30T15:00:00Z',
+    const fila = { id: 5, cedula: '1029384274', telefono: '3001112233', estado: 'nuevo', creado_en: '2026-09-30T15:00:00Z',
       cotejo: { estado: 'no_cuadra', nivel: 'foto', menor: true } };
     const res = R.revisarRegistro(fila, { hoy: HOY, donde: 'celular' });
     const it = item(res, 'menor_de_edad');
@@ -178,7 +178,7 @@ describe('ley 9: la edad sin fecha de nacimiento es la del día del cotejo', () 
 describe('ley 10: «sin_codigo» porque el cotejo falló en la base no es «no llegó lectura»', () => {
   test('con la nota del fallo: lo dice, y sigue neutro', () => {
     const r = Object.assign({}, registro(), { huella: Object.assign({}, registro().huella, {
-      cedula_leida: { documento: '1018447274', nombres: 'ANA' },
+      cedula_leida: { documento: '1029384274', nombres: 'ANA' },
       cotejo: { estado: 'sin_codigo', nivel: 'app', nota: 'el cotejo fallo: division by zero' } }) });
     const res = R.revisarRegistro(r, { hoy: HOY });
     const n = item(res, 'cotejo_sin_codigo');
@@ -276,7 +276,7 @@ describe('reglas 3: la selfie se juzga como selfie', () => {
 
 describe('reglas 6: alguien que ya descartaste vuelve', () => {
   test('misma cédula y mismo celular que un registro descartado: para mirar, peso 2', () => {
-    const viejo = otro({ id: 7, cedula: '1018447274', telefono: '3001112233', estado: 'descartado' });
+    const viejo = otro({ id: 7, cedula: '1029384274', telefono: '3001112233', estado: 'descartado' });
     const res = R.revisarRegistro(registro(), { hoy: HOY, otros: [viejo], cartera: [] });
     const it = res.para_mirar.find(x => x.clave === 'ya_descartado');
     assert.ok(it, 'el descartado que vuelve quedó en «Sin nada que mirar»');
@@ -292,7 +292,7 @@ describe('reglas 6: alguien que ya descartaste vuelve', () => {
   });
 
   test('si el registro igual fue atendido, sigue siendo una nota', () => {
-    const viejo = otro({ id: 7, cedula: '1018447274', telefono: '3001112233', estado: 'atendido' });
+    const viejo = otro({ id: 7, cedula: '1029384274', telefono: '3001112233', estado: 'atendido' });
     const res = R.revisarRegistro(registro(), { hoy: HOY, otros: [viejo], cartera: [] });
     assert.ok(!res.para_mirar.some(x => x.clave === 'ya_descartado'));
     assert.ok(neutros(res).includes('cedula_ya_registrada'));
@@ -301,8 +301,8 @@ describe('reglas 6: alguien que ya descartaste vuelve', () => {
 
 describe('reglas 8: un mismo hecho no se cuenta dos veces', () => {
   test('el cliente que cambió de número: una sola cosa para mirar, y no peso 3', () => {
-    const suyo = otro({ id: 7, cedula: '1018447274', telefono: '3110000001', estado: 'atendido' });
-    const cartera = [{ numero: 12, cedula: '1018447274', telefono: '3110000001' }];
+    const suyo = otro({ id: 7, cedula: '1029384274', telefono: '3110000001', estado: 'atendido' });
+    const cartera = [{ numero: 12, cedula: '1029384274', telefono: '3110000001' }];
     const res = R.revisarRegistro(registro(), { hoy: HOY, otros: [suyo], cartera });
     const ced = res.para_mirar.filter(x => x.regla === 'cedula');
     assert.deepEqual(ced.map(x => x.clave), ['cedula_de_cliente'], 'contó el mismo cambio de número dos veces');
@@ -310,10 +310,10 @@ describe('reglas 8: un mismo hecho no se cuenta dos veces', () => {
   });
 
   test('un registro atendido con otro celular y sin cliente a mano: peso 2, no 3', () => {
-    const suyo = otro({ id: 7, cedula: '1018447274', telefono: '3110000001', estado: 'atendido' });
+    const suyo = otro({ id: 7, cedula: '1029384274', telefono: '3110000001', estado: 'atendido' });
     const it = R.revisarRegistro(registro(), { hoy: HOY, otros: [suyo], cartera: [] }).para_mirar.find(x => x.clave === 'cedula_en_otro_registro');
     assert.equal(it.peso, 2);
-    const nuevo = otro({ id: 8, cedula: '1018447274', telefono: '3110000001', estado: 'nuevo' });
+    const nuevo = otro({ id: 8, cedula: '1029384274', telefono: '3110000001', estado: 'nuevo' });
     assert.equal(R.revisarRegistro(registro(), { hoy: HOY, otros: [nuevo], cartera: [] })
       .para_mirar.find(x => x.clave === 'cedula_en_otro_registro').peso, 3, 'uno nuevo o descartado sigue pesando 3');
   });
@@ -364,7 +364,7 @@ describe('reglas 11: el mismo aparato y la misma red pesan poco', () => {
 describe('reglas 12: el número cambiado con el lector de respaldo pesa 2', () => {
   test('lectura «tokens»: peso 2 y lo dice', () => {
     const c = { estado: 'no_cuadra', documento: 'cambiado', nombre: 'igual', lectura: 'tokens', nivel: 'foto',
-      visto: { documento_codigo: '12345', documento_escrito: '1018447274' } };
+      visto: { documento_codigo: '12345', documento_escrito: '1029384274' } };
     const it = item(R.revisarRegistro(conCotejo(registro(), c), { hoy: HOY }), 'cotejo_documento');
     assert.equal(it.peso, 2);
     assert.match(it.detalle, /lector de respaldo/);
@@ -372,7 +372,7 @@ describe('reglas 12: el número cambiado con el lector de respaldo pesa 2', () =
 
   test('con el lector normal sigue pesando 3', () => {
     const c = { estado: 'no_cuadra', documento: 'cambiado', nombre: 'igual', lectura: 'anchos_fijos', nivel: 'foto',
-      visto: { documento_codigo: '1018447275', documento_escrito: '1018447274' } };
+      visto: { documento_codigo: '1029384275', documento_escrito: '1029384274' } };
     assert.equal(item(R.revisarRegistro(conCotejo(registro(), c), { hoy: HOY }), 'cotejo_documento').peso, 3);
   });
 });
@@ -390,7 +390,7 @@ describe('las invariantes siguen en pie con los arreglos', () => {
   test('ningún texto nuevo dice verificado, aprobado, confiable ni «coincide»', () => {
     const r = conCotejo(registro(), { estado: 'retocado', documento: 'igual', nombre: 'otro', lectura: 'tokens', nivel: 'foto',
       visto: { nombre_codigo: 'X Y', nombre_escrito: 'Z W' } });
-    const res = R.revisarRegistro(r, { hoy: HOY, otros: [otro({ cedula: '1018447274', telefono: '3001112233', estado: 'descartado' })], cartera: [] });
+    const res = R.revisarRegistro(r, { hoy: HOY, otros: [otro({ cedula: '1029384274', telefono: '3001112233', estado: 'descartado' })], cartera: [] });
     assert.equal(/verific|aprobad|confiable|coincide|✓|✔|✅/i.test(todo(res)), false);
   });
 });

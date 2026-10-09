@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tu Garantía · Tu historial es tu garantía</title>
-<meta name="description" content="Crédito por quincena para gente que trabaja. Cada crédito que pagas en fecha te sube el cupo: pides más y, cuando tengas garantía, más barato. Puedes registrarte tú mismo: cada solicitud se revisa y se aprueba a mano.">
+<meta name="description" content="Crédito a tu medida para gente que trabaja: dinos cuánto necesitas y para cuándo, y te mandamos una propuesta con el costo exacto antes de que aceptes nada. Cada crédito que pagas te sube el cupo. Puedes registrarte tú mismo.">
 <meta name="theme-color" content="#0C0A0B">
 <meta name="robots" content="index,follow">
 <link rel="apple-touch-icon" href="app/icono-180.png">
@@ -21,14 +21,14 @@
 <meta property="og:locale" content="es_CO">
 <meta property="og:url" content="https://tugarantia.net/">
 <meta property="og:title" content="Tu historial es tu garantía">
-<meta property="og:description" content="Crédito por quincena para gente que trabaja. Sin fiador. Cada crédito que pagas en fecha te sube el cupo. Regístrate tú mismo.">
+<meta property="og:description" content="Crédito a tu medida para gente que trabaja. Sin fiador. Cada crédito que pagas te sube el cupo. Regístrate tú mismo.">
 <meta property="og:image" content="https://tugarantia.net/portada.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Tu Garantía — Tu historial es tu garantía">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Tu historial es tu garantía">
-<meta name="twitter:description" content="Crédito por quincena para gente que trabaja. Sin fiador. Regístrate tú mismo.">
+<meta name="twitter:description" content="Crédito a tu medida para gente que trabaja. Sin fiador. Regístrate tú mismo.">
 <meta name="twitter:image" content="https://tugarantia.net/portada.png">
 <style>
 /* ===========================================================================
@@ -233,16 +233,38 @@ tbody tr:last-child td{font-weight:700}
   <section class="laca portada">
     <div class="wrap">
       <h1 class="frase">Tu historial<br>es <i>tu garantía</i>.</h1>
-      <p class="bajo tenue">Crédito por quincena para gente que trabaja. Sin fiador, sin
+      <!-- 8-oct-2026 (segunda vuelta) — sin «por quincena» ni «más barato». Joan quitó
+           la modalidad y el precio de los términos («eso lo defino yo desde el CRM»), y
+           esta portada seguía vendiendo las dos cosas: dos textos públicos diciendo
+           productos distintos. -->
+      <p class="bajo tenue">Crédito a tu medida para gente que trabaja. Sin fiador, sin
         codeudor, sin dejar nada empeñado. <b>Cada crédito que pagas en fecha te sube el
-        cupo</b>, y tu cupo <b>es</b> tu garantía: puedes pedir exactamente lo que tienes —
-        y, cuando ya la tengas, pedir más barato.</p>
+        cupo</b>, y tu cupo <b>es</b> tu garantía: puedes pedir exactamente lo que tienes.</p>
       <div class="acciones">
-        <a class="btn btn-rojo" href="#escalera">Ver cómo crece</a>
-        <a class="btn btn-linea" href="#entrar">Registrarme</a>
+        <a class="btn btn-rojo" href="#pedir">Pide lo que necesitas</a>
+        <a class="btn btn-linea" href="#escalera">Ver cómo crece</a>
       </div>
       <p class="solo-invita"><span class="punto" aria-hidden="true"></span>
         Puedes registrarte tú mismo. Cada solicitud la revisamos y la aprobamos a mano.</p>
+    </div>
+  </section>
+
+  <!-- ===================== PIDE LO QUE NECESITAS =====================
+       8-oct-2026. Joan: «quiero que esta misma calculadora se vea al inicio de
+       la plataforma para que los clientes nuevos, antes de registrarse, puedan
+       interactuar». Es la de app/calculadora-solicitud.js, la misma de play/:
+       cuánto y para cuándo, SIN PRECIO —el costo lo pone Joan en la propuesta
+       de cada cliente, y un precio publicado aquí sería una oferta que obliga
+       (Ley 1480, art. 29) y que habría que medir cada mes contra el techo de
+       usura—. El botón guarda lo movido en este teléfono y abre el registro de
+       play/, que lo trae puesto en el paso de pedir. Sin JavaScript se queda el
+       enlace al registro: la página no depende de esto para funcionar. -->
+  <section class="laca banda" id="pedir" style="padding-top:0">
+    <div class="wrap angosto">
+      <div id="calcPedido" style="border:1px solid var(--linea-laca);border-radius:var(--r);padding:var(--e4)">
+        <p class="tenue">Dinos cuánto necesitas y para cuándo, y te mandamos una propuesta con el costo exacto.</p>
+        <div class="acciones" style="margin-top:var(--e3)"><a class="btn btn-rojo" href="play/#registro">Abrir mi cuenta y pedirlo</a></div>
+      </div>
     </div>
   </section>
 
@@ -250,12 +272,12 @@ tbody tr:last-child td{font-weight:700}
   <section class="banda">
     <div class="wrap angosto pila">
       <p class="et">Para quién es</p>
-      <h2 style="font-size:clamp(25px,4.6vw,34px)">Te pagan el 15 y el 30. A veces la plata no
-        llega hasta la otra quincena.</h2>
-      <p class="tenue">No es mala administración: es que el sueldo entra dos veces al mes y los
+      <h2 style="font-size:clamp(25px,4.6vw,34px)">A veces la plata no llega hasta el próximo
+        pago.</h2>
+      <p class="tenue">No es mala administración: es que el sueldo entra en sus fechas y los
         problemas no preguntan la fecha. La cuota del colegio, el mercado, una droga, el bus.
-        Tu Garantía presta contra tu quincena y se cobra en la fecha de tu quincena — el 15 o el
-        último día del mes, el día que a ti te pagan.</p>
+        Tú nos dices para cuándo puedes pagar —el día que te pagan— y te proponemos fechas
+        que te sirvan.</p>
       <p class="tenue">Y algo que aquí no pasa: <b>atrasarte no te tumba.</b> No pierdes la
         garantía que llevas —y tu nivel es tu garantía, así que tampoco lo pierdes—, y puedes
         volver a pedir. El costo que pagas te suma igual aunque lo pagues tarde; el recargo por
@@ -288,7 +310,6 @@ tbody tr:last-child td{font-weight:700}
             <tr>
               <th scope="col">N°</th>
               <th scope="col">Pides</th>
-              <th scope="col" class="col-extra">Cuesta</th>
               <th scope="col">Te suma</th>
               <th scope="col">Tu garantía = tu cupo</th>
             </tr>
@@ -297,12 +318,16 @@ tbody tr:last-child td{font-weight:700}
             <!-- 26-sep-2026 — recalculada con el motor al 80% (decisión de Joan del
                  23-sep). Estuvo tres días diciendo la del 75% mientras la prueba del
                  motor ya tenía la nueva: pruebas/la-mora-vieja-se-queda.test.js
-                 compara ahora esta tabla con proyectarCrecimiento, peso a peso. -->
-            <tr><td>1º</td><td>$100.000</td><td class="col-extra">$20.000</td><td>+$16.000</td><td class="gan">$116.000</td></tr>
-            <tr><td>2º</td><td>$116.000</td><td class="col-extra">$23.200</td><td>+$18.560</td><td class="gan">$134.560</td></tr>
-            <tr><td>3º</td><td>$134.560</td><td class="col-extra">$26.912</td><td>+$21.530</td><td class="gan">$156.090</td></tr>
-            <tr><td>4º</td><td>$156.090</td><td class="col-extra">$31.218</td><td>+$24.974</td><td class="gan">$181.064</td></tr>
-            <tr><td>5º</td><td>$181.064</td><td class="col-extra">$36.213</td><td>+$28.970</td><td class="gan">$210.034</td></tr>
+                 compara ahora esta tabla con proyectarCrecimiento, peso a peso.
+                 8-oct-2026 (segunda vuelta) — SIN LA COLUMNA «CUESTA». Era un precio
+                 publicado (el 20% del quincenal, en pesos) en la misma página que dice
+                 «el costo exacto te lo mandamos en la propuesta»; y 20% en quince
+                 días, medido como efectiva anual, pasa de lejos el techo de usura. -->
+            <tr><td>1º</td><td>$100.000</td><td>+$16.000</td><td class="gan">$116.000</td></tr>
+            <tr><td>2º</td><td>$116.000</td><td>+$18.560</td><td class="gan">$134.560</td></tr>
+            <tr><td>3º</td><td>$134.560</td><td>+$21.530</td><td class="gan">$156.090</td></tr>
+            <tr><td>4º</td><td>$156.090</td><td>+$24.974</td><td class="gan">$181.064</td></tr>
+            <tr><td>5º</td><td>$181.064</td><td>+$28.970</td><td class="gan">$210.034</td></tr>
           </tbody>
         </table>
       </div>
@@ -325,84 +350,42 @@ tbody tr:last-child td{font-weight:700}
     </div>
   </section>
 
-  <!-- ===================== LOS DOS CRÉDITOS ===================== -->
-  <section class="banda">
-    <div class="wrap pila">
-      <div class="angosto pila-s">
-        <p class="et">Los dos créditos</p>
-        <h2 style="font-size:clamp(25px,4.6vw,34px)">Cuando ya tienes garantía ganada, eliges.</h2>
-        <p class="tenue">El de siempre es rápido y hace crecer tu cupo. El otro es mucho más
-          barato pero casi no te hace crecer. Ninguno de los dos es el bueno: depende de para
-          qué necesitas la plata.</p>
-        <p class="tenue">Los números de abajo son los del socio de la escalera de arriba:
-          <b>$210.034</b> de garantía, de los cuales <b>$110.034</b> se los ganó pagando. Fíjate
-          en el "pides hasta" de cada tarjeta, porque no es el mismo.</p>
-      </div>
-
-      <div class="dos">
-        <article class="prod q">
-          <p class="tag">Crédito quincenal</p>
-          <p class="tasa">$40.000 <span style="font-size:16px;color:var(--gris)">por cada $200.000</span></p>
-          <dl>
-            <div class="fila"><dt>Plazo</dt><dd>Hasta tu quincena</dd></div>
-            <div class="fila"><dt>Pides hasta</dt><dd>$210.034</dd></div>
-            <div class="fila"><dt>Si pides $100.000</dt><dd>cuesta $20.000</dd></div>
-            <div class="fila"><dt>Tu garantía sube</dt><dd>+$16.000</dd></div>
-          </dl>
-          <p class="nota">Cuesta más, pero <b>es el que te hace crecer</b>: va contra toda tu
-            garantía y cada uno que pagas en fecha te sube el cupo.</p>
-        </article>
-
-        <article class="prod r">
-          <p class="tag">Préstamo con garantía</p>
-          <!-- 22-sep-2026 — ESTA LÍNEA ESTABA ROTA EN LA PUERTA PÚBLICA desde el
-               8-sep, y se veía: el atributo de estilo salía impreso en pantalla,
-               en la tarjeta que dice cuánto cuesta prestar.
-               La causa, encontrada en el historial: el commit que pasó los
-               precios de porcentajes a pesos («al cliente no le aparezca ningún
-               porcentaje, solo los valores») hizo una sustitución automática
-               sobre «5%» y se comió el «$1» junto con el cierre de la etiqueta.
-               Decía «5% al mes»; tenía que decir «$15.000 al mes por cada
-               $300.000», que es el mismo 5% en pesos y cuadra con el resto de la
-               tarjeta: $100.000 a seis meses cuesta $30.000, o sea $5.000 al mes
-               por cada $100.000. -->
-          <p class="tasa">$15.000 <span style="font-size:16px;color:var(--gris)">al mes por cada $300.000</span></p>
-          <dl>
-            <div class="fila"><dt>Plazo</dt><dd>De 1 a 6 meses</dd></div>
-            <div class="fila"><dt>Pides hasta</dt><dd>$110.034</dd></div>
-            <div class="fila"><dt>$100.000 a 6 meses</dt><dd>$21.666 al mes</dd></div>
-            <div class="fila"><dt>Tu garantía sube</dt><dd>+$6.000</dd></div>
-          </dl>
-          <p class="nota">Ese mismo $100.000 cuesta $30.000 en total, no $20.000 cada quincena.
-            Pero <b>casi no crece tu garantía</b> —te deja 20 centavos por peso de costo, no
-            80— y mientras lo estás pagando tu cupo quincenal baja.</p>
-        </article>
-      </div>
-
-      <div class="aviso azul angosto">
-        Lo decimos claro porque después nadie se puede sentir engañado: el préstamo con garantía
-        <b>solo lo respalda la garantía que te ganaste pagando</b>, no los $100.000 que te
-        prestamos al entrar. Y mientras lo pagas, esa garantía queda comprometida — tu cupo
-        quincenal baja hasta que termines.
-      </div>
-    </div>
-  </section>
-
+  <!-- ===================== LOS DOS CRÉDITOS — se fue el 8-oct-2026 =====================
+       Aquí iban dos tarjetas con precio en pesos: la del quincenal y la del préstamo
+       con garantía. Se fueron en la
+       segunda vuelta del 8-oct, por lo que encontraron las revisiones de ley y del
+       teléfono: (1) Joan quitó de los términos el precio y la modalidad quincenal
+       —«eso lo defino yo desde el CRM, no todos piden el mismo servicio»— y esta
+       portada los seguía anunciando; (2) medidos como efectiva anual, el 20% en quince
+       días y el 5% plano al mes pasan el techo de usura, y aquí estaban publicados;
+       (3) el motor ya no cobraba ese 5% (ahora es 2% al mes sobre el saldo, desde
+       1.000.000) y la tarjeta decía «pides hasta $110.034». Cada crédito llega con su
+       precio en la propuesta, antes de aceptarlo. -->
   <!-- ===================== LO QUE CUESTA ===================== -->
   <section class="banda" style="background:var(--papel)">
     <div class="wrap angosto pila">
       <p class="et">Lo que cuesta, sin letra chica</p>
-      <h2 style="font-size:clamp(23px,4.2vw,30px)">El costo lo ves en pesos antes de pedir.</h2>
-      <p class="tenue">El crédito quincenal tiene un costo fijo que te decimos en pesos antes de
-        pedir, y <b>ese valor no cambia</b>: ni por tu historial, ni por la fecha. Por ejemplo,
-        si pides $200.000, devuelves $240.000. Sin cuotas de manejo, sin seguros, sin papeleo,
-        sin estudio de crédito.</p>
-      <p class="tenue">Si te atrasas, cada día de atraso suma un recargo sobre el capital, que ves en pesos en tu app. Si no alcanzas a
-        pagar todo el día del corte, puedes dejar una prórroga o pedir un plan de pagos en tres
-        cuotas — y las dos cosas también te suman garantía por el costo que pagues; el recargo, no.</p>
+      <!-- 8-oct-2026 — EL COSTO SE VE EN LA PROPUESTA, NO AQUÍ. Joan: «no quiero que se
+           indique cuánto se paga… eso lo defino yo desde el CRM, no todos los clientes piden
+           el mismo servicio». Decía «si pides $200.000, devuelves $240.000»: un precio
+           anunciado obliga (Ley 1480, art. 29) y no es el que se le propone a cada uno. -->
+      <h2 style="font-size:clamp(23px,4.2vw,30px)">El costo lo ves en pesos antes de aceptar.</h2>
+      <p class="tenue">Cada crédito tiene un costo fijo en pesos que ves en tu propuesta, junto con
+        la fecha de pago y todas sus condiciones, antes de aceptar nada. Una vez aceptado,
+        <b>ese valor no cambia</b>. Sin cuotas de manejo, sin seguros, sin papeleo, sin estudio
+        de crédito.</p>
+      <!-- 8-oct-2026 (segunda vuelta) — decía «que ves en pesos en tu app»: el recargo
+           no se veía en ninguna parte. Ahora cada propuesta lo trae en pesos por día
+           (app/calculadora-solicitud.js, «Si te atrasas»), con el techo legal. -->
+      <p class="tenue">Si te atrasas, cada día de atraso suma un recargo. Cuánto, en pesos por día y
+        como máximo, lo dicen las condiciones de tu crédito antes de que lo aceptes, y nunca pasa de lo
+        que permite la ley. Ese recargo se puede negociar: si ves que no llegas, escríbenos antes de la fecha y buscamos una
+        salida juntos. Si no alcanzas a pagar todo el día del corte, puedes dejar una prórroga o pedir un
+        plan de pagos en tres cuotas — y las dos cosas también te suman garantía por el costo que pagues;
+        el recargo, no.</p>
       <div class="aviso ambar">
-        <b>Antes de pedir, haz la cuenta.</b> Un crédito de quince días es plata cara:
-        es para resolver algo puntual entre quincenas, no para vivir de él. Si ya tienes tres
+        <b>Antes de pedir, haz la cuenta.</b> Un crédito corto es plata cara:
+        es para resolver algo puntual entre un pago y otro, no para vivir de él. Si ya tienes tres
         deudas encima, esto no te va a ayudar — te va a hundir. Prefiero decírtelo aquí que
         cobrártelo después.
       </div>
@@ -431,8 +414,10 @@ tbody tr:last-child td{font-weight:700}
         <div class="paso">
           <div class="n" aria-hidden="true"></div>
           <h3>Pides desde el celular</h3>
-          <p>Calculas antes de pedir: ves cuánto te cuesta, qué día se paga y cuánta garantía te
-            va a dejar. Después mandas la solicitud.</p>
+          <!-- 8-oct-2026 — decía «calculas antes de pedir: ves cuánto te cuesta»;
+               la calculadora ya no publica precio, el costo llega en la propuesta. -->
+          <p>Nos dices cuánto necesitas y para cuándo. Te mandamos una propuesta con el costo
+            exacto en pesos, el día de pago y la garantía que te deja, y la aceptas solo si te sirve.</p>
         </div>
         <div class="paso">
           <div class="n" aria-hidden="true"></div>
@@ -458,10 +443,13 @@ tbody tr:last-child td{font-weight:700}
       <div class="angosto pila-s">
         <p class="et">Cómo entrar</p>
         <p class="frase">Una sola puerta, seas nuevo o de toda la vida.</p>
+        <!-- 8-oct-2026 — decía «ves ahí mismo cuánto costaría tu crédito, y te
+             escribimos por WhatsApp»: ni lo uno (el costo llega en la propuesta)
+             ni lo otro (la respuesta va por la app, no por WhatsApp). -->
         <p class="tenue"><b>Abres tu cuenta tú mismo</b>: no necesitas que nadie te presente.
-          Te preguntamos tus datos, ves ahí mismo cuánto costaría tu crédito, y te escribimos
-          por WhatsApp cuando revisemos tu solicitud. Aprobar es una decisión nuestra y la
-          tomamos hablando contigo: no es un trámite automático.</p>
+          Te preguntamos tus datos, nos dices cuánto necesitas y para cuándo, y te respondemos
+          con una propuesta en la app. Aprobar es una decisión nuestra y la tomamos hablando
+          contigo: no es un trámite automático.</p>
         <!-- 7-oct-2026 (segunda vuelta) — sin código: Joan los apagó el 7-oct
              (base/20261007_una_puerta.sql). Antes mandaba a Perfil a pegar el
              código que le dimos, y esa caja ya no junta nada. No se promete el
@@ -500,7 +488,7 @@ tbody tr:last-child td{font-weight:700}
         <p class="et">En tu celular</p>
         <p class="frase">Instálala y ábrela como cualquier app.</p>
         <p class="tenue">No está en Play Store y no va a estarlo: Google no admite apps de
-          créditos que se paguen en menos de 60 días, y los nuestros son de quince. Se instala
+          créditos que se paguen en menos de 60 días, y muchos de los nuestros son así de cortos. Se instala
           directo desde el navegador, queda con su icono en tu pantalla y abre a pantalla
           completa, sin barra de direcciones. Funciona igual, y ocupa menos.</p>
 
@@ -541,5 +529,34 @@ tbody tr:last-child td{font-weight:700}
   </div>
 </footer>
 
+<!-- 8-oct-2026 — la calculadora del pedido (ver la sección «Pide lo que
+     necesitas»). cuenta.js va primero: es el que escribe los pesos como los
+     pidió Joan (1,500.000). Si alguno no llega, se queda el enlace al registro
+     que ya está pintado en la sección: nada de esta página depende de esto. -->
+<script src="app/cuenta.js"></script>
+<script src="app/calculadora-solicitud.js"></script>
+<script>
+(function () {
+  'use strict';
+  var CS = window.CalculadoraSolicitud;
+  var caja = document.getElementById('calcPedido');
+  if (!CS || !caja) return;
+  if (CS.conectar) CS.conectar(window);
+  /* Lo movido se guarda en este teléfono en cada movimiento (solo monto y
+     días): el registro de play/ lo encuentra puesto al terminar. */
+  window.pedirDesdeElSitio = function () {
+    CS.guardar(CS.estado());
+    location.href = 'play/#registro';
+  };
+  try {
+    caja.innerHTML = CS.html(CS.leerGuardado() || { monto: 300000, dias: 30 }, {
+      titulo: 'Dinos cuánto necesitas y para cuándo',
+      boton: 'Abrir mi cuenta y pedirlo',
+      accion: 'pedirDesdeElSitio()',
+      alCambiar: function (e) { CS.guardar(e); }
+    });
+  } catch (e) { /* se queda el enlace al registro que ya estaba */ }
+})();
+</script>
 </body>
 </html>

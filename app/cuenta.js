@@ -195,6 +195,14 @@
    * Y los `sensible: true` son los que la Ley 1581 trata aparte: piden su propia
    * casilla, separada y opcional, y no se puede condicionar el servicio a que
    * los entregue.
+   *
+   * 8-oct-2026 — EL `porque` YA NO SE PINTA DEBAJO DE CADA PREGUNTA. Joan: «en
+   * cada pregunta hay un comentario y creo que no son necesarios». Se quitó de
+   * la pantalla (play/index.html, pasoCampos) y NO del código: sigue siendo el
+   * filtro de «no pidas lo que no vas a usar», y la prueba que exige que cada
+   * campo lo tenga sigue en pie. Lo que el cliente necesita saber por ley —para
+   * qué se usan sus datos— está en la casilla de autorización del último paso
+   * y en la política de privacidad, que es donde la Ley 1581 lo pide.
    * ======================================================================== */
 
   var CAMPOS = [
@@ -212,20 +220,36 @@
       porque: 'Es el dato que piden las centrales de riesgo para confirmar que la cédula es de quien dice.' },
 
     /* --- cómo se le habla --- */
-    { id: 'celular',      etiqueta: 'Tu celular',             grupo: 'contacto',  tipo: 'celular', obligatorio: true,
+    /* 8-oct-2026 (segunda vuelta) — «con el que entras»: sin los comentarios
+       de debajo de cada pregunta, nada decía que este celular es el usuario, y
+       en play/ se ve de solo lectura (es el del paso 1). */
+    { id: 'celular',      etiqueta: 'Tu celular (con el que entras)', grupo: 'contacto', tipo: 'celular', obligatorio: true,
       porque: 'Es tu usuario para entrar, y por ahí te llegan los avisos de pago.' },
     { id: 'celular2',     etiqueta: 'Otro celular',           grupo: 'contacto',  tipo: 'celular', obligatorio: false,
       porque: 'Para poder ubicarte si el primero falla. Opcional.' },
-    { id: 'correo',       etiqueta: 'Tu correo',              grupo: 'contacto',  tipo: 'correo',  obligatorio: false,
-      porque: 'Para mandarte el contrato y los comprobantes. Opcional.' },
+    /* 8-oct-2026 — EL CORREO PASA A SER OBLIGATORIO, decisión de Joan («el
+       correo es opcional, quiero que sea un requisito»). Es por donde viajan el
+       contrato y los comprobantes, y desde hoy las condiciones de cada crédito
+       que el cliente acepta: un papel que no le llega a nadie no le sirve a
+       nadie. Se valida la forma (revisarVinculacion) y nada más: no se manda
+       ningún correo de prueba, así que la pantalla no puede decir «verificado». */
+    { id: 'correo',       etiqueta: 'Tu correo',              grupo: 'contacto',  tipo: 'correo',  obligatorio: true,
+      porque: 'Para mandarte el contrato, los comprobantes y las condiciones de cada crédito.' },
 
     /* --- dónde vive --- */
     { id: 'ciudad',       etiqueta: 'Ciudad',                 grupo: 'domicilio', tipo: 'texto',  obligatorio: true,
       porque: 'Define a qué corte y a qué gestión perteneces.' },
     { id: 'barrio',       etiqueta: 'Barrio',                 grupo: 'domicilio', tipo: 'texto',  obligatorio: true,
       porque: 'Lo mismo, y ayuda a ubicarte si hay que visitarte.' },
-    { id: 'direccion',    etiqueta: 'Dirección',              grupo: 'domicilio', tipo: 'texto',  obligatorio: true,
-      porque: 'Es la dirección del contrato y a donde se notifica.' },
+    /* 8-oct-2026 — OPCIONAL, decisión de Joan: «no es necesario preguntar por
+       la dirección, mejor con la dirección IP validamos una ubicación
+       aproximada». Se quitó también la frase «es la dirección del contrato y a
+       donde se notifica»: sin el campo obligatorio, decirlo era prometer un
+       domicilio de notificación que muchos no van a dar. La ubicación
+       aproximada la busca el CRM de Joan desde SU navegador con la IP que ya
+       guarda la huella del registro; nada de eso pasa por este teléfono. */
+    { id: 'direccion',    etiqueta: 'Dirección',              grupo: 'domicilio', tipo: 'texto',  obligatorio: false,
+      porque: 'Opcional. Con la ciudad y el barrio nos basta para saber por dónde vives.' },
     { id: 'tipo_vivienda', etiqueta: 'Tu vivienda es',        grupo: 'domicilio', tipo: 'opcion', obligatorio: true,
       opciones: ['Propia', 'Arriendo', 'Familiar', 'Otra'],
       porque: 'Vivienda propia y arriendo pesan distinto al evaluar cuánto te queda libre al mes.' },
@@ -244,9 +268,18 @@
     { id: 'antiguedad',   etiqueta: 'Cuánto llevas ahí',      grupo: 'ingresos',  tipo: 'opcion', obligatorio: false,
       opciones: ['Menos de 6 meses', '6 meses a 1 año', '1 a 3 años', 'Más de 3 años'],
       porque: 'La antigüedad es lo que separa un ingreso estable de uno que puede parar el mes que viene.' },
+    /* 8-oct-2026 (segunda vuelta) — cada pregunta de plata con SU ejemplo
+       (`ejemplo`, en la forma de escribir de Joan): los gastos repetían el del
+       ingreso, y eso sugería que se te va todo lo que ganas. */
     { id: 'ingreso_mes',  etiqueta: 'Cuánto ganas al mes',    grupo: 'ingresos',  tipo: 'pesos',  obligatorio: true,
+      ejemplo: '1,500.000',
       porque: 'Es la mitad de la cuenta de cuánto puedes pagar sin ahogarte.' },
+    /* Y aquí el cero VALE: quien vive con su familia y no paga arriendo ni
+       cuotas existe, y «Escribe un valor en pesos» con un 0 escrito lo dejaba
+       sin salida (ceroVale, revisarVinculacion). Obligatorio sigue siendo:
+       vacío no es lo mismo que cero. */
     { id: 'gastos_mes',   etiqueta: 'Cuánto se te va fijo al mes', grupo: 'ingresos', tipo: 'pesos', obligatorio: true,
+      ejemplo: '600.000', ceroVale: true,
       porque: 'La otra mitad. Sin esto, el ingreso solo no dice nada.' },
     { id: 'dia_pago',     etiqueta: 'Qué día te pagan',       grupo: 'ingresos',  tipo: 'opcion', obligatorio: true,
       opciones: ['Quincenal (15 y 30)', 'Mensual, fin de mes', 'Semanal', 'No es fijo'],
@@ -255,13 +288,15 @@
     /* --- quién responde por él --- */
     { id: 'ref1_nombre',  etiqueta: 'Nombre de una referencia', grupo: 'referencias', tipo: 'texto', obligatorio: true,
       porque: 'Alguien que te conozca y con quien podamos hablar si no te ubicamos.' },
-    { id: 'ref1_parentesco', etiqueta: 'Qué es tuyo',         grupo: 'referencias', tipo: 'texto', obligatorio: true,
+    /* 8-oct-2026 (segunda vuelta) — sin el comentario de debajo, «Qué es tuyo»
+       se leía como «¿qué cosa es tuya?». El ejemplo va en la etiqueta. */
+    { id: 'ref1_parentesco', etiqueta: 'Qué es tuyo (mamá, amigo, compañero…)', grupo: 'referencias', tipo: 'texto', obligatorio: true,
       porque: 'Un familiar y un compañero de trabajo no dan la misma información.' },
     { id: 'ref1_celular', etiqueta: 'Su celular',             grupo: 'referencias', tipo: 'celular', obligatorio: true,
       porque: 'Sin número, la referencia no sirve de nada.' },
     { id: 'ref2_nombre',  etiqueta: 'Nombre de otra referencia', grupo: 'referencias', tipo: 'texto', obligatorio: true,
       porque: 'Dos, para no depender de que una sola conteste el día que haga falta.' },
-    { id: 'ref2_parentesco', etiqueta: 'Qué es tuyo',         grupo: 'referencias', tipo: 'texto', obligatorio: true,
+    { id: 'ref2_parentesco', etiqueta: 'Qué es tuyo (mamá, amigo, compañero…)', grupo: 'referencias', tipo: 'texto', obligatorio: true,
       porque: 'Dos referencias del mismo hogar no son dos: conviene que una sea de fuera.' },
     { id: 'ref2_celular', etiqueta: 'Su celular',             grupo: 'referencias', tipo: 'celular', obligatorio: true,
       porque: 'Sin número, la segunda referencia tampoco sirve de nada.' }
@@ -282,6 +317,58 @@
     return CAMPOS.filter(function (c) { return c.obligatorio; });
   }
 
+  /* ==========================================================================
+   * EL CORREO Y LOS PESOS — 8 de octubre de 2026
+   * ======================================================================== */
+
+  /** Forma de correo: algo, una @, algo, un punto y algo. Sin espacios. No
+   *  dice que el buzón exista: eso solo lo sabe quien escriba a ese buzón. */
+  function correoValido(texto) {
+    var t = String(texto == null ? '' : texto).trim();
+    /* 8-oct-2026 (segunda vuelta) — y sin puntos de sobra: «juan@gmail.com.»
+       (el punto final que pone el teclado) y «juan..perez@gmail.com» pasaban,
+       y a ese buzón no llega nada. Tampoco un punto pegado a la @. */
+    if (/\.\.|\.$|^\.|\.@|@\./.test(t)) return false;
+    return t.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t);
+  }
+
+  /**
+   * Los pesos como los pidió Joan: «separados con punto cuando es mil y con la
+   * coma cuando pase del millón, para que sea más claro y no se vea ese poco de
+   * ceros juntos». 850.000 · 1,500.000 · 12,350.000.
+   *
+   * Es la costumbre colombiana de escribir a mano (el apóstrofo de los millones
+   * hecho coma), y por eso los separadores se ALTERNAN de derecha a izquierda:
+   * punto para los miles, coma para los millones, punto otra vez para los miles
+   * de millones. Un ingreso de esos no llega, pero un dedo de más sí, y la
+   * cifra tiene que seguir leyéndose.
+   *
+   * Solo pinta. Lo que se guarda y viaja al CRM son los dígitos solos
+   * (leerPesos): una coma guardada se leería como decimal en cualquier hoja de
+   * cálculo, y el CRM ya lee estos campos quitando todo lo que no es dígito.
+   */
+  function pesosConSeparadores(valor) {
+    var d = String(valor == null ? '' : valor).replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+    if (!d) return '';
+    var grupos = [];
+    for (var i = d.length; i > 0; i -= 3) grupos.unshift(d.slice(Math.max(0, i - 3), i));
+    var salida = grupos[0];
+    for (var g = 1; g < grupos.length; g++) {
+      /* El separador que va ANTES del grupo g, contado desde la derecha: el
+         último grupo lleva punto (miles), el penúltimo coma (millones)… */
+      var desdeLaDerecha = grupos.length - g;          // 1 = miles, 2 = millones, 3 = miles de millones
+      salida += (desdeLaDerecha % 2 === 1 ? '.' : ',') + grupos[g];
+    }
+    return salida;
+  }
+
+  /** El camino de vuelta: lo que la persona tecleó, con o sin separadores, a
+   *  un número. Cadena vacía o sin dígitos → 0. */
+  function leerPesos(texto) {
+    var d = String(texto == null ? '' : texto).replace(/\D/g, '');
+    return d ? Number(d) : 0;
+  }
+
   /**
    * Qué falta para poder mandar el registro.
    * @returns {object} {ok, faltan:[{id, etiqueta}], errores:[{id, motivo}]}
@@ -299,8 +386,14 @@
       if (c.tipo === 'celular' && !telefonoValido(v)) {
         errores.push({ id: c.id, motivo: 'Ese celular no parece de Colombia: son 10 dígitos y empiezan por 3.' });
       }
-      if (c.tipo === 'pesos' && !(Number(String(v).replace(/\D/g, '')) > 0)) {
+      var pesosLeidos = Number(String(v).replace(/\D/g, ''));
+      if (c.tipo === 'pesos' && !(pesosLeidos > 0 || (c.ceroVale && /\d/.test(String(v)) && pesosLeidos === 0))) {
         errores.push({ id: c.id, motivo: 'Escribe un valor en pesos.' });
+      }
+      /* 8-oct-2026 — con el correo obligatorio, «a» o «juan@» no pueden pasar
+         por un correo: el contrato y las condiciones irían a ninguna parte. */
+      if (c.tipo === 'correo' && !correoValido(v)) {
+        errores.push({ id: c.id, motivo: 'Ese correo no parece completo: revisa que tenga @ y un punto después, como nombre@gmail.com.' });
       }
       if (c.tipo === 'opcion' && c.opciones && c.opciones.indexOf(String(v)) === -1) {
         errores.push({ id: c.id, motivo: 'Escoge una de las opciones.' });
@@ -313,7 +406,11 @@
    * LA AUTORIZACIÓN DE DATOS (Ley 1581)
    * ======================================================================== */
 
-  var VERSION_AUTORIZACION = '2026-08-11';
+  /* 8-oct-2026 — la fecha de legal/privacidad.html nueva (responsable NEXECO
+     S.A.S., correo obligatorio, ubicación aproximada por IP, selfie automática).
+     El que se registra desde hoy queda constando que aceptó ESE texto, no el de
+     agosto. pruebas/responsable-nexeco.test.js amarra las dos fechas. */
+  var VERSION_AUTORIZACION = '2026-10-08';
 
   /**
    * Guarda fecha, hora y VERSIÓN del texto aceptado. La versión es lo que
@@ -513,6 +610,18 @@
    * Y POR ESO LA PANTALLA DICE «ENCUADRE», NO «TE RECONOCÍ». Un cartón con una
    * foto impresa pasaría esta prueba. Quien verifica que la persona es la de la
    * cédula es Joan, mirando las dos fotos en su CRM.
+   *
+   * 8-oct-2026 — JOAN PIDIÓ QUE EL TELÉFONO BUSQUE LA CARA, y se hizo sin
+   * cruzar la línea de arriba en lo que importa. Ahora un DETECTOR (solo el
+   * modelo que dice dónde hay una cara, app/rostro-en-vivo.js) decide cuándo
+   * disparar; no saca puntos de la cara ni ningún vector, no compara con nada
+   * y lo que mira no sale del teléfono: sigue llegando solo la foto. Corre
+   * únicamente con la autorización de datos sensibles, que es la que ya cubre
+   * la foto del rostro, y la política lo cuenta («La foto de tu cara, que se
+   * toma sola»). La ficha de Data Safety no cambia: lo que se procesa dentro
+   * del teléfono y no sale de él no es un dato «recogido».
+   * Este encuadre se queda como respaldo: si el detector no baja (señal
+   * floja, un teléfono sin WebGL), la selfie se dispara como hasta hoy.
    * ======================================================================== */
 
   /* Los umbrales, juntos y con nombre, porque son lo único de esto que hay que
@@ -642,6 +751,11 @@
     camposDelGrupo: camposDelGrupo,
     camposObligatorios: camposObligatorios,
     revisarVinculacion: revisarVinculacion,
+
+    /* el correo y los pesos (8-oct-2026) */
+    correoValido: correoValido,
+    pesosConSeparadores: pesosConSeparadores,
+    leerPesos: leerPesos,
 
     /* habeas data */
     VERSION_AUTORIZACION: VERSION_AUTORIZACION,

@@ -715,8 +715,10 @@ details[open] summary::after{content:' ↑'}
    enfermedad que esta constante viene a curar: ese día había dos copias de la
    app publicadas, una del 4 y otra del 5 de agosto, con reglas distintas y la
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
-   de CACHE en sw.js). */
-var VERSION_APP = '2026-10-07';
+   de CACHE en sw.js).
+   8-oct-2026: el aviso de la responsable nueva (NEXECO S.A.S.) y la autorización
+   que se vuelve a pedir. El CACHE de sw.js lo sube la etapa final de esta entrega. */
+var VERSION_APP = '2026-10-08';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1479,7 +1481,9 @@ function proximoCorte() {
 }
 
 function vistaInicio() {
-  var h = '';
+  /* 8-oct-2026: el aviso de la responsable nueva va primero, una sola vez
+     (avisoResponsable, junto a la autorización de datos). */
+  var h = avisoResponsable();
 
   var cuota = proximaCuotaRespaldado();
   /* "Este corte" se mide contra el corte que viene DE VERDAD, no contra el
@@ -3189,10 +3193,59 @@ function insignias() {
      que es lo que le deja a Joan la constancia por escrito.
 
    Se guarda por cédula, no global: en un teléfono prestado no queda autorizando el de
-   al lado. */
-var VERSION_AUTORIZACION = '2026-08-04';
+   al lado.
+
+   8-oct-2026 — sube a la fecha de la política nueva (responsable NEXECO S.A.S., correo
+   obligatorio, ubicación aproximada por IP, selfie automática). Quien autorizó el texto
+   de agosto vuelve a ver esta pantalla la próxima vez que complete su perfil: aceptó
+   algo que ya no es lo que está publicado. pruebas/responsable-nexeco.test.js exige
+   que esta fecha y la de legal/privacidad.html sean la misma. */
+var VERSION_AUTORIZACION = '2026-10-08';
 
 function llaveAutorizacion() { return 'tg_autorizacion_' + (S && S.cedula ? S.cedula : 'anon'); }
+
+/* ============ EL AVISO DE LA RESPONSABLE NUEVA — 8-oct-2026 ============
+   Desde el 8-oct-2026 la responsable de los datos es NEXECO S.A.S. Cambiar de
+   responsable no es un ajuste de redacción: la Ley 1581 (y el art. 5 del Decreto
+   1377) obliga a comunicárselo al titular a más tardar el día en que rige, y la
+   política (punto 10) promete avisar dentro de la app o por WhatsApp. El WhatsApp
+   es la plantilla «Aviso · responsable de tus datos» del CRM; esto es la otra mitad.
+
+   Se ve UNA vez por cédula y por teléfono, arriba de Inicio, y se cierra con
+   «Entendido». No bloquea nada: es un aviso, no una autorización nueva (esa se
+   vuelve a pedir sola al completar el perfil, porque subió VERSION_AUTORIZACION).
+   No sale cuando quien mira es el equipo («ver como él», origen 'panel'): ahí el
+   «Entendido» lo tocaría el equipo y el cliente no lo vería nunca.
+   Si el teléfono no deja guardar (modo privado), se recuerda mientras la página
+   siga abierta; volver a verlo en la próxima visita es un mal menor que no verlo. */
+var AVISO_RESPONSABLE = { desde: '2026-10-08', llave: 'tg_aviso_responsable_20261008_' };
+var AVISO_RESPONSABLE_CERRADO = false;
+
+function llaveAvisoResponsable() { return AVISO_RESPONSABLE.llave + (S && S.cedula ? S.cedula : 'anon'); }
+
+function avisoResponsableVisto() {
+  if (AVISO_RESPONSABLE_CERRADO) return true;
+  try { return localStorage.getItem(llaveAvisoResponsable()) === '1'; } catch (e) { return false; }
+}
+
+function avisoResponsable() {
+  if (!S || S.origen === 'panel' || avisoResponsableVisto()) return '';
+  return '<div class="aviso info" id="avisoResponsable" role="status" style="margin-top:0;margin-bottom:var(--e4)">' +
+    '<b>Un cambio sobre tus datos.</b> Desde el ' + fmtFecha(AVISO_RESPONSABLE.desde) +
+    ', la responsable de tus datos personales es <b>NEXECO S.A.S.</b>, la empresa que opera ' +
+    'Tu Garantía. Tus derechos no cambian: cuando quieras puedes pedirnos qué tenemos tuyo, ' +
+    'corregirlo o borrarlo, por el chat de la app. Ese mismo día actualizamos la política: ' +
+    '<a href="../legal/privacidad.html#cambios" target="_blank" rel="noopener">mira qué cambió</a>.' +
+    '<button class="btn sec sm" type="button" style="margin-top:var(--e3)" onclick="cerrarAvisoResponsable()">Entendido</button>' +
+    '</div>';
+}
+
+function cerrarAvisoResponsable() {
+  AVISO_RESPONSABLE_CERRADO = true;
+  try { localStorage.setItem(llaveAvisoResponsable(), '1'); } catch (e) { /* modo privado: queda en memoria */ }
+  var el = $('avisoResponsable');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
 
 function autorizacionDada() {
   try {

@@ -114,13 +114,27 @@
    *          `falla` dice QUÉ falta: 'poca_luz' | 'mucha_luz' | 'sin_tarjeta' |
    *          'borrosa' | 'movimiento' | ''
    */
-  function medirTarjeta(gris, previa, w, h) {
+  function medirTarjeta(gris, previa, w, h, interior) {
     var g = gris || [], n = g.length;
     if (!n || !w || !h || w * h !== n || w < 16 || h < 8) {
       return { luz: 0, textura: 0, anillo: 0, nitidez: 0, movimiento: 999, ok: false, falla: 'sin_tarjeta' };
     }
     var x0 = Math.floor(w * 0.15), x1 = Math.ceil(w * 0.85);
     var y0 = Math.floor(h * 0.15), y1 = Math.ceil(h * 0.85);
+    /* 8-oct-2026 — DÓNDE ESTÁ DE VERDAD EL MARCO DENTRO DEL CUADRO CHICO.
+       El 15-85 % supone que alrededor del marco cupo su anillo entero. Con el
+       RESPALDO no cabe: el marco de pie ocupa el 84 % del alto y el 92 % del
+       ancho del video, el anillo se recorta contra el borde del cuadro, y el
+       «interior» del 15-85 % quedaba corrido: el anillo se llenaba de cédula
+       y de su borde contra la mesa, salía con más detalle que el interior, y
+       el escáner decía «Pon la cédula dentro del marco» con la cédula
+       perfecta en el marco. Como el respaldo solo intentaba leer en verde, ni
+       siquiera llegaba a intentarlo. Quien recorta sabe dónde quedó el marco
+       y ahora lo dice (`interior`, en píxeles del cuadro chico). */
+    if (interior && interior.x1 > interior.x0 && interior.y1 > interior.y0) {
+      x0 = Math.max(0, Math.floor(interior.x0)); x1 = Math.min(w, Math.ceil(interior.x1));
+      y0 = Math.max(0, Math.floor(interior.y0)); y1 = Math.min(h, Math.ceil(interior.y1));
+    }
 
     var si = 0, si2 = 0, ni = 0, sa = 0, sa2 = 0, na = 0, grad = 0, ng = 0;
     for (var y = 0; y < h; y++) {
@@ -187,6 +201,11 @@
    * con la selfie, y una cara al revés no se compara. Acostado no hay giro, no
    * hay ambigüedad, y para una cara no hacen falta 3 px por módulo.
    * `acostada` fuerza ese caso.
+   *
+   * 8-oct-2026 — «PARA EL RESPALDO DA IGUAL» ERA FALSO, y Joan lo vio en su
+   * CRM: al LECTOR le da igual, a la FOTO no. La mitad de las veces el
+   * respaldo se guardaba cabeza abajo. Ahora se endereza antes de guardarlo
+   * (orientacionDelRespaldo, más abajo).
    */
   function rectanguloGuia(w, h, acostada) {
     var vertical = !acostada && h > w;
@@ -229,13 +248,340 @@
       var mapa = new Z.BinaryBitmap(new Z.HybridBinarizer(fuente));
       var res = new Z.PDF417Reader().decode(mapa, null);
       var texto = res && (typeof res.getText === 'function' ? res.getText() : res.text);
-      return texto ? { texto: String(texto) } : { error: 'ilegible' };
+      if (!texto) return { error: 'ilegible' };
+      /* 8-oct-2026 — Y DÓNDE LO VIO. Las esquinas del código las da el lector
+         en el marco «derecho» del código: si tuvo que voltear la imagen para
+         leerla, las da volteadas. Eso es justo lo que sirve para saber si la
+         foto del respaldo quedó cabeza abajo (orientacionDelRespaldo). Solo
+         números: nada de esto sale del teléfono. */
+      var salida = { texto: String(texto) };
+      var pts = puntosDe(res);
+      if (pts.length) salida.puntos = pts;
+      return salida;
     } catch (e) {
       var nombre = (e && e.constructor && e.constructor.name) || (e && e.name) || '';
       if (Z.NotFoundException && e instanceof Z.NotFoundException) return { error: 'no_hay' };
       if (/NotFound/.test(nombre)) return { error: 'no_hay' };
       return { error: 'ilegible' };
     }
+  }
+
+  function puntosDe(res) {
+    var crudos = [];
+    try { crudos = (typeof res.getResultPoints === 'function' ? res.getResultPoints() : res.resultPoints) || []; }
+    catch (e) { crudos = []; }
+    var out = [];
+    for (var i = 0; i < crudos.length; i++) {
+      var p = crudos[i]; if (!p) continue;
+      var x = typeof p.getX === 'function' ? p.getX() : p.x, y = typeof p.getY === 'function' ? p.getY() : p.y;
+      if (isFinite(x) && isFinite(y)) out.push({ x: +x, y: +y });
+    }
+    return out;
+  }
+
+  /* ==========================================================================
+   * EL RESPALDO SE GUARDA DERECHO — 8 de octubre de 2026
+   *
+   * Joan: «cuando la tomé, en el CRM se ve al revés».
+   *
+   * LA CAUSA. El respaldo se escanea DE PIE (el código de barras necesita el
+   * lado largo del cuadro) y el recorte se gira 90° SIEMPRE HACIA EL MISMO
+   * LADO antes de leerlo y de guardarlo. Pero una cédula se pone de pie
+   * girándola a la derecha o a la izquierda, y nadie sabe cuál le tocaba: con
+   * la mitad de las personas la foto quedaba cabeza abajo. El lector no se
+   * entera porque el PDF417 se lee a 0° y a 180° (ver arriba), así que la
+   * lectura salía bien y el defecto solo aparecía en el CRM.
+   *
+   * LA CURA no depende de cómo esté diseñada la cédula, que acá no se sabe
+   * de memoria: depende del propio código de barras, que tiene un derecho. El
+   * PDF417 empieza a la izquierda con una barra de 8 módulos pegada a la zona
+   * blanca, y termina a la derecha con una barra de 7 seguida de un peine de
+   * cuatro rayitas. Volteado, el peine queda afuera a la izquierda y la zona
+   * blanca a la derecha. Dos formas de verlo:
+   *
+   *   · «lectura»: si el lector leyó, sus esquinas vienen en el marco derecho.
+   *     Si en la imagen real el código está donde dicen las esquinas, la foto
+   *     está derecha; si está en el lugar espejado, el lector la volteó para
+   *     leerla, y la foto está cabeza abajo. Es la más segura.
+   *   · «patrón»: si no leyó (que es justo el caso de Joan), se miran las dos
+   *     barras gruesas de los extremos del código en la franja donde está, y
+   *     de qué lado está el peine.
+   *
+   * Si ninguna de las dos está segura, NO se gira: dejar la foto como venía
+   * es lo de siempre, y para eso el CRM tiene su «↻ Girar». Girar a ciegas
+   * podría voltear una foto que estaba bien.
+   *
+   * Medido con códigos fabricados (pruebas/respaldo-derecho.test.js): acierta
+   * con desenfoque de celular, ruido, 2-4° de inclinación y fondo oscuro a los
+   * lados; y con una tarjeta sin código, una selfie o una pared, no opina.
+   * ======================================================================== */
+
+  /* Por fila: cuánto más cambia a lo ancho que a lo alto. Las barras del
+     código son verticales, así que en su franja esto es muy grande; el texto
+     y la huella cambian parecido en las dos direcciones. */
+  function puntajeDeFilas(g, w, h) {
+    var s = new Float64Array(h);
+    for (var y = 0; y < h - 1; y++) {
+      var dx = 0, dy = 0, b = y * w;
+      for (var x = 0; x < w - 1; x++) {
+        var v = g[b + x];
+        dx += Math.abs(g[b + x + 1] - v);
+        dy += Math.abs(g[b + w + x] - v);
+      }
+      s[y] = (dx - dy) / w;
+    }
+    if (h > 1) s[h - 1] = s[h - 2];
+    return s;
+  }
+  function mediaEntre(s, a, b) {
+    a = Math.max(0, Math.floor(a)); b = Math.min(s.length, Math.ceil(b));
+    var t = 0;
+    for (var i = a; i < b; i++) t += s[i];
+    return b > a ? t / (b - a) : 0;
+  }
+  function suavizar(s, k) {
+    var n = s.length, o = new Float64Array(n), r = Math.floor(k / 2);
+    for (var i = 0; i < n; i++) {
+      var t = 0, c = 0;
+      for (var j = i - r; j <= i + r; j++) if (j >= 0 && j < n) { t += s[j]; c++; }
+      o[i] = c ? t / c : 0;
+    }
+    return o;
+  }
+  /* La franja del código: la racha de filas más «de barras» de la imagen. */
+  function franjaDelCodigo(s, h) {
+    var ss = suavizar(s, Math.max(3, Math.round(h * 0.03)));
+    var m = -1e9, ym = 0;
+    for (var y = 0; y < h; y++) if (ss[y] > m) { m = ss[y]; ym = y; }
+    if (m < ORIENTACION.FUERZA_MIN) return null;
+    var u = m * 0.5, a = ym, b = ym;
+    while (a > 0 && ss[a - 1] >= u) a--;
+    while (b < h - 1 && ss[b + 1] >= u) b++;
+    if (b - a + 1 < Math.max(6, h * 0.04)) return null;
+    return { y0: a, y1: b + 1 };
+  }
+  function percentil(g, w, y0, y1, p) {
+    var hist = new Uint32Array(256), n = 0;
+    for (var y = y0; y < y1; y++) for (var x = 0; x < w; x += 2) { hist[g[y * w + x] | 0]++; n++; }
+    var meta = n * p, acc = 0;
+    for (var v = 0; v < 256; v++) { acc += hist[v]; if (acc >= meta) return v; }
+    return 255;
+  }
+  /* Lo que opina UNA tajada horizontal de la franja: 0, 180 o null. */
+  function votoDeTajada(g, w, y0, y1, blanco, negro) {
+    var D = new Float64Array(w), rango = Math.max(1, blanco - negro), n = y1 - y0;
+    for (var x = 0; x < w; x++) {
+      var t = 0;
+      for (var y = y0; y < y1; y++) { var d = (blanco - g[y * w + x]) / rango; t += d < 0 ? 0 : (d > 1 ? 1 : d); }
+      D[x] = t / n;
+    }
+    /* Columnas negras en TODAS las filas de la tajada: las barras de inicio y
+       de fin son iguales en cada fila del código; los datos no. */
+    var corridas = [], ini = -1;
+    for (var c = 0; c <= w; c++) {
+      var on = c < w && D[c] >= 0.7;
+      if (on && ini < 0) ini = c;
+      if (!on && ini >= 0) { if (c - ini >= ORIENTACION.BARRA_MIN) corridas.push({ a: ini, b: c }); ini = -1; }
+    }
+    var mejor = null;
+    for (var i = 0; i < corridas.length; i++) {
+      for (var j = i + 1; j < corridas.length; j++) {
+        var A = corridas[i], B = corridas[j], wa = A.b - A.a, wb = B.b - B.a, r = wa / wb;
+        if (r < 0.6 || r > 1.65) continue;                     // 8 y 7 módulos: parecidas
+        if (B.a - A.b < 0.35 * w) continue;                     // el código va de lado a lado
+        if (A.a - wa < 0 || B.b + wb > w) continue;             // sin afuera no hay con qué comparar
+        var cruces = 0;
+        for (var k = A.b + 1; k < B.a; k++) if ((D[k] >= 0.5) !== (D[k - 1] >= 0.5)) cruces++;
+        if (cruces < 20) continue;                              // entre las dos, datos: muchas barras
+        var p = Math.min(wa, wb) * 1e5 + (B.a - A.b);           // las más gruesas, y las más separadas
+        if (!mejor || p > mejor.p) mejor = { A: A, B: B, p: p };
+      }
+    }
+    if (!mejor) return null;
+    var A2 = mejor.A, B2 = mejor.B, la = A2.b - A2.a, lb = B2.b - B2.a;
+    var afueraA = mediaEntre(D, A2.a - la, A2.a), afueraB = mediaEntre(D, B2.b, B2.b + lb);
+    var Q = ORIENTACION;
+    /* Derecho: zona blanca a la izquierda, peine a la derecha, y la barra de
+       inicio (8) un poco más gruesa que la de fin (7). Volteado, al revés. */
+    if (afueraA <= Q.BLANCO_MAX && afueraB >= Q.PEINE_MIN && afueraB <= Q.PEINE_MAX && la >= lb) return 0;
+    if (afueraB <= Q.BLANCO_MAX && afueraA >= Q.PEINE_MIN && afueraA <= Q.PEINE_MAX && lb >= la) return 180;
+    return null;
+  }
+
+  /* Promedio de cajas k×k: achica sin inventar bordes. */
+  function achicar(g, w, h, k) {
+    var nw = Math.floor(w / k), nh = Math.floor(h / k), o = new Uint8ClampedArray(nw * nh), kk = k * k;
+    for (var y = 0; y < nh; y++) {
+      for (var x = 0; x < nw; x++) {
+        var t = 0;
+        for (var j = 0; j < k; j++) { var b = (y * k + j) * w + x * k; for (var i = 0; i < k; i++) t += g[b + i]; }
+        o[y * nw + x] = t / kk;
+      }
+    }
+    return { g: o, w: nw, h: nh };
+  }
+
+  var ORIENTACION = {
+    ANCHO_ANALISIS: 900,// la escala a la que se mide (ver orientacionDelRespaldo)
+    FUERZA_MIN: 4,      // franja de barras: más cambio a lo ancho que a lo alto
+    BARRA_MIN: 6,       // px: la barra de inicio a 2,5 px/módulo son 20
+    BLANCO_MAX: 0.2,    // la zona blanca de afuera del inicio
+    PEINE_MIN: 0.18,    // el peine de afuera del fin: 4 rayitas en 7 módulos
+    PEINE_MAX: 0.55,
+    TAJADAS: 4,
+    VOTOS_MIN: 3,       // de 4, y ninguno en contra
+    LECTURA_VENTAJA: 1.5
+  };
+
+  /**
+   * ¿Hay que voltear la foto del respaldo para que quede derecha?
+   *
+   * @param gris   luminancias del recorte YA ACOSTADO (como lo ve el lector)
+   * @param o      { puntos: las esquinas que devolvió decodificarLuminancias }
+   * @returns {giro: 0|180, seguro: bool, por: 'lectura'|'patron'|''}
+   *          Con `seguro` en false, `giro` es 0: no se toca la foto.
+   */
+  function orientacionDelRespaldo(gris, w, h, o) {
+    var nada = { giro: 0, seguro: false, por: '' };
+    if (!gris || !w || !h || gris.length !== w * h || w < 32 || h < 16) return nada;
+    var pts = (o && o.puntos) || [];
+    /* SE MIDE A UNA ESCALA FIJA (~900 px de ancho), no a la del recorte. Los
+       umbrales son de cambio POR PÍXEL, y a resolución completa un código
+       desenfocado reparte cada borde en varios píxeles: medido con el video
+       fabricado de una cédula borrosa, a 1765 px no se decidía y a la mitad sí
+       (y acertaba). De paso cuesta la cuarta parte. */
+    var k = Math.max(1, Math.round(w / ORIENTACION.ANCHO_ANALISIS));
+    if (k > 1) {
+      var a = achicar(gris, w, h, k);
+      gris = a.g; w = a.w; h = a.h;
+      pts = pts.map(function (p) { return { x: p.x / k, y: p.y / k }; });
+    }
+    var s = puntajeDeFilas(gris, w, h);
+    if (pts.length >= 2) {
+      var y0 = Infinity, y1 = -Infinity;
+      for (var i = 0; i < pts.length; i++) { y0 = Math.min(y0, pts[i].y); y1 = Math.max(y1, pts[i].y); }
+      if (y1 - y0 >= 4) {
+        var real = mediaEntre(s, y0, y1 + 1), espejo = mediaEntre(s, h - 1 - y1, h - y0);
+        var V = ORIENTACION.LECTURA_VENTAJA, F = ORIENTACION.FUERZA_MIN;
+        if (real >= V * espejo && real > F) return { giro: 0, seguro: true, por: 'lectura' };
+        if (espejo >= V * real && espejo > F) return { giro: 180, seguro: true, por: 'lectura' };
+      }
+    }
+    var f = franjaDelCodigo(s, h);
+    if (!f) return nada;
+    var blanco = percentil(gris, w, f.y0, f.y1, 0.9), negro = percentil(gris, w, f.y0, f.y1, 0.1);
+    if (blanco - negro < 40) return nada;
+    /* Tajadas finas: con la cédula inclinada 3°, promediar la franja entera
+       corre las columnas varios módulos; en una tajada, menos de uno. */
+    var m = Math.round((f.y1 - f.y0) * 0.1), a = f.y0 + m, b = f.y1 - m;
+    var N = ORIENTACION.TAJADAS, alto = (b - a) / N, v0 = 0, v180 = 0;
+    for (var k = 0; k < N; k++) {
+      var t0 = Math.round(a + k * alto), t1 = Math.round(a + (k + 1) * alto);
+      if (t1 - t0 < 2) continue;
+      var v = votoDeTajada(gris, w, t0, t1, blanco, negro);
+      if (v === 0) v0++; else if (v === 180) v180++;
+    }
+    if (v0 >= ORIENTACION.VOTOS_MIN && !v180) return { giro: 0, seguro: true, por: 'patron' };
+    if (v180 >= ORIENTACION.VOTOS_MIN && !v0) return { giro: 180, seguro: true, por: 'patron' };
+    return nada;
+  }
+
+  /**
+   * La ventana del gris chico de la puerta: el marco más un anillo alrededor
+   * (el 21,43 % de cada lado, para que el marco quede en el 15-85 %), recortada
+   * contra el borde del video, y DÓNDE QUEDA EL MARCO dentro de ella una vez
+   * recortada. 8-oct-2026 — antes la página daba por hecho el 15-85 %, y con
+   * el respaldo (marco de pie: 84 % del alto, 92 % del ancho) el anillo nunca
+   * cabe: ver medirTarjeta.
+   * @returns {sx, sy, sw, sh, gw, gh, interior: {x0, x1, y0, y1}} o null
+   */
+  function ventanaDeGuia(g, vw, vh, alto) {
+    if (!g || !vw || !vh) return null;
+    var mx = g.w * 0.2143, my = g.h * 0.2143;   // m/(1+2m) = 0,15
+    var sx = Math.max(0, g.x - mx), sy = Math.max(0, g.y - my);
+    var sw = Math.min(vw - sx, g.w + 2 * mx), sh = Math.min(vh - sy, g.h + 2 * my);
+    if (sw <= 0 || sh <= 0) return null;
+    var gh = alto || 96, gw = Math.max(16, Math.round(gh * sw / sh));
+    return {
+      sx: sx, sy: sy, sw: sw, sh: sh, gw: gw, gh: gh,
+      interior: { x0: (g.x - sx) * gw / sw, x1: (g.x + g.w - sx) * gw / sw,
+                  y0: (g.y - sy) * gh / sh, y1: (g.y + g.h - sy) * gh / sh }
+    };
+  }
+
+  /**
+   * El recorte de la cédula con un poco de aire alrededor del marco.
+   * 8-oct-2026 — quien acerca la cédula «para que se vea bien» la saca por los
+   * bordes del marco, y un PDF417 sin su barra de inicio o de fin no se lee
+   * NUNCA. Unos puntos de aire, sin salirse del cuadro, se lo perdonan.
+   */
+  function margenDeLectura(g, vw, vh, f) {
+    if (!g || !vw || !vh) return g;
+    var k = f == null ? 0.06 : f;
+    var mx = Math.round(g.w * k), my = Math.round(g.h * k);
+    var x = Math.max(0, g.x - mx), y = Math.max(0, g.y - my);
+    var x1 = Math.min(vw, g.x + g.w + mx), y1 = Math.min(vh, g.y + g.h + my);
+    return { x: x, y: y, w: Math.max(1, x1 - x), h: Math.max(1, y1 - y), vertical: g.vertical };
+  }
+
+  /* ==========================================================================
+   * EL RESPALDO TAMBIÉN DISPARA SOLO — 8 de octubre de 2026
+   *
+   * Joan: «la primera foto sin problema, el teléfono solo enfocó y la tomó;
+   * pero en la del respaldo algo pasó y me tocó tomarla a mí porque el celular
+   * no escaneó».
+   *
+   * LA CAUSA. El frente disparaba con el ENCUADRE (seis cuadros quietos y
+   * nítidos); el respaldo solo disparaba si el código de barras SE LEÍA. Y del
+   * video no siempre se lee: la cámara entrega menos resolución de la pedida,
+   * un reflejo en el plástico, la cédula unos grados torcida, o la persona la
+   * acerca tanto que la barra de inicio queda fuera del recorte. Entonces el
+   * escáner se quedaba en «Leyendo el código…» sin fin, y solo a los 20
+   * segundos sugería el botón. Leer era requisito para disparar.
+   *
+   * AHORA LEER ES LO QUE SE INTENTA, NO LO QUE SE EXIGE. Con la cédula en el
+   * marco, nítida y quieta, se le da al lector un rato para leer (y si lee,
+   * se dispara en ese instante, con los datos). Si en ese rato no lee, se
+   * toma la foto igual, en un cuadro nítido, y los datos se escriben en el
+   * paso siguiente. La barra de progreso cuenta ESE rato, que es algo que de
+   * verdad pasa — no una barra de adorno.
+   * ======================================================================== */
+  var RESPALDO = {
+    MS_LEYENDO: 2500,     // cédula bien puesta: el lector tiene este rato
+    LECTURAS_MIN: 3,      // ... y por lo menos estas oportunidades de leer
+    MS_SIN_LECTOR: 6000,  // si el lector ni llegó (señal floja), no se espera más que esto
+    NITIDEZ_RELATIVA: 0.85 // el disparo, en un cuadro casi tan nítido como el mejor visto
+  };
+  /**
+   * @param e {estables, msVerde, lecturas, nitidez, mejorNitidez, vioCodigo}
+   *          estables: cuadros seguidos en verde; msVerde: tiempo acumulado en
+   *          verde de este lado; lecturas: intentos de lectura terminados;
+   *          vioCodigo: si en ESTE lado ya se vio un código de barras (uno que
+   *          el lector encontró sin poder leerlo, o el patrón de barras de
+   *          orientacionDelRespaldo).
+   * @returns {disparar: bool, avance: 0..1, voltear: bool}
+   *
+   * 8-oct-2026 (segunda vuelta) — SOLO DISPARA SI VIO UN CÓDIGO. La primera
+   * versión miraba solo el rato, la quietud y la nitidez, y el FRENTE de la
+   * cédula también es una tarjeta nítida y quieta: quien la ponía al revés en
+   * el marco de pie quedaba con la foto del frente guardada como respaldo
+   * («El código no se pudo leer»), y el paso siguiente («Ahora el frente»)
+   * guardaba el otro lado. Fotos cambiadas, sin datos automáticos, y el CRM
+   * comparando la selfie contra el lado del código de barras (lo encontró la
+   * revisión del teléfono). Ahora, sin código a la vista, no se dispara: pasado
+   * el rato se pide voltearla (`voltear`), y el botón de tomarla a mano sigue
+   * ahí para la cédula nueva, que no trae código.
+   */
+  function decidirRespaldo(e) {
+    var x = e || {};
+    var ms = Math.max(0, +x.msVerde || 0), lect = Math.max(0, +x.lecturas || 0);
+    var avance = Math.min(1, ms / RESPALDO.MS_LEYENDO);
+    var tiempo = (ms >= RESPALDO.MS_LEYENDO && lect >= RESPALDO.LECTURAS_MIN) || ms >= RESPALDO.MS_SIN_LECTOR;
+    var quieta = (+x.estables || 0) >= TARJETA.CUADROS_FRENTE;
+    var nitida = !(+x.mejorNitidez > 0) || (+x.nitidez || 0) >= RESPALDO.NITIDEZ_RELATIVA * x.mejorNitidez;
+    var codigo = x.vioCodigo === true;
+    return { disparar: !!(tiempo && quieta && nitida && codigo), avance: avance,
+             voltear: !!(tiempo && quieta && !codigo) };
   }
 
   /**
@@ -280,7 +626,7 @@
   }
 
   return {
-    VERSION: '2026-09-21',
+    VERSION: '2026-10-08',
     PROPORCION: PROPORCION,
     HORAS_REGISTRO_VIVO: HORAS_REGISTRO_VIVO,
     TARJETA: TARJETA,
@@ -290,6 +636,13 @@
     textoDeTarjeta: textoDeTarjeta,
     rectanguloGuia: rectanguloGuia,
     decodificarLuminancias: decodificarLuminancias,
+    /* 8-oct-2026 — el respaldo derecho y el respaldo que dispara solo */
+    ORIENTACION: ORIENTACION,
+    orientacionDelRespaldo: orientacionDelRespaldo,
+    margenDeLectura: margenDeLectura,
+    ventanaDeGuia: ventanaDeGuia,
+    RESPALDO: RESPALDO,
+    decidirRespaldo: decidirRespaldo,
     cedulaDelTexto: cedulaDelTexto,
     fotosPertenecen: fotosPertenecen,
     checkpointFresco: checkpointFresco

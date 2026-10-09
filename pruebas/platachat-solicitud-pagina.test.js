@@ -223,7 +223,9 @@ function nubeViva(inicial, extra) {
       estado.viva = solNueva({ id: cuerpo.p_id, capital: cuerpo.p_capital, pedido: { capital: cuerpo.p_capital, fecha_pago: cuerpo.p_fecha_pago, cortes: cuerpo.p_cortes } });
       return { ok: true, solicitud: estado.viva };
     }
-    if (fn === 'aceptar_propuesta_platachat') {
+    /* 8-oct-2026 — aceptar_condiciones (base/20261008) acepta igual que
+       aceptar_propuesta_platachat, y además guarda lo que se leyó. */
+    if (fn === 'aceptar_propuesta_platachat' || fn === 'aceptar_condiciones') {
       estado.viva = solAceptada();
       return { ok: true, solicitud: estado.viva };
     }
@@ -495,19 +497,40 @@ describe('PlataChat con reloj: la tarjeta de la solicitud', () => {
     assert.match(h, /^<div class="tarjeta-propuesta">/, 'la automática tiene que conservar el borde punteado de la piel (sin .humana)');
     assert.match(h, /class="tit">Propuesta automática</);
     assert.match(h, /<div class="dice">Dentro de tu cupo, al precio de siempre\.<\/div>/);
-    assert.match(h, /<span class="k">Te prestamos<\/span><strong>\$100\.000<\/strong>/);
-    assert.match(h, /<span class="k">Lo que cuesta<\/span><strong>\$20\.000<\/strong>/);
-    assert.match(h, /<span class="k">Devuelves<\/span><strong>\$120\.000<\/strong>/);
-    assert.match(h, new RegExp('<span class="k">Cuándo</span><strong>el ' + re(fmtFecha(P, FECHA_PAGO)) + ', en 15 días</strong>'));
+    /* 8-oct-2026 (segunda vuelta) — LAS CIFRAS VAN UNA VEZ, en el bloque de las
+       condiciones. La revisión del teléfono encontró la tarjeta diciéndolo todo
+       dos veces (Te prestamos / Lo que cuesta / Devuelves / Cuándo, y debajo el
+       bloque con lo mismo; la garantía y «aceptar no te entrega la plata»,
+       también dos veces). Lo que se mira ahora son los renglones del bloque. */
+    const fila = (k, v) => new RegExp('<dt>' + k + '</dt><dd>' + v);
+    assert.match(h, fila('Recibes', '\\$100\\.000</dd>'));
+    assert.match(h, fila('Lo que cuesta', '\\$20\\.000, ya sumado en el total'));
+    assert.match(h, fila('Total a pagar', '\\$120\\.000</dd>'));
+    assert.match(h, fila('Pagas', 'Un solo pago de \\$120\\.000 el ' + re(P.ev('CS.fechaLarga("' + FECHA_PAGO + '")')) + ', en 15 días</dd>'));
+    assert.ok(!/<span class="k">Te prestamos<\/span>|<span class="k">Devuelves<\/span>|<div class="gana">/.test(h),
+      'las cifras salen dos veces: arriba sueltas y en las condiciones');
     /* La garantía que deja: la MISMA cuenta de la calculadora (+15.000 por 20.000 de costo). */
     const gana = P.ev('garantiaQueGana(20000, 100000)');
     assert.equal(gana, M.acumularGarantia(20000, true));
-    assert.ok(h.indexOf('<div class="gana">Al pagarlo en fecha ganas <strong>+' + P.ev('COP(' + gana + ')') + '</strong> de garantía.</div>') >= 0,
-      'la garantía que gana no es la de la calculadora (+' + P.ev('COP(' + gana + ')') + ')');
-    assert.match(h, /<button type="button" class="btn marca" onclick="aceptarPropuesta\(41\)">Acepto: recibo \$100\.000<\/button>/);
+    assert.match(h, fila('La garantía que te deja', 'Al pagarlo te suma ' + re(P.ev('CS.pesos(' + gana + ')')) + ' de garantía'),
+      'la garantía que gana no es la de la calculadora');
+    /* 8-oct-2026 — EL «ACEPTO» NACE APAGADO, con las condiciones de este
+       crédito encima y la casilla «Leí y acepto…». Joan: «al momento de la
+       contrapropuesta que se le muestren los términos y condiciones de ese
+       crédito en específico». Marcada la casilla, se prende.
+       Segunda vuelta: apagado pero NO MUDO (aria-disabled, y una línea dice
+       qué falta); `disabled` le quitaba hasta el aviso. */
+    assert.match(h, /Las condiciones de este crédito/);
+    assert.match(h, /Leí y acepto las condiciones de este crédito/);
+    assert.match(h, /<button type="button" class="btn marca" onclick="aceptarPropuesta\(41\)" aria-disabled="true"[^>]*>Acepto: recibo \$100\.000<\/button>/);
+    assert.match(h, /Para aceptar, marca primero la casilla de arriba\./);
+    P.ev('SOL = ' + JSON.stringify(sol) + '; marcarCondicionesPlataChat(true, 41);');
+    assert.match(tarjeta(P, sol), /<button type="button" class="btn marca" onclick="aceptarPropuesta\(41\)">Acepto: recibo \$100\.000<\/button>/,
+      'marcar la casilla no prendió el «Acepto»');
     assert.match(h, /<button type="button" class="btn claro" onclick="proponerOtraCifra\(\)">Proponer otra cifra<\/button>/);
-    assert.match(h, /Aceptar no te entrega la plata: te la entrega una persona de PlataChat por [^<]+ y ahí nace el crédito\. Si no te sirve, no aceptes\./);
-    assert.ok(h.indexOf(P.ev('nombreProveedor()')) >= 0, 'la nota no dice por dónde llega la plata');
+    assert.match(h, fila('Cuándo recibes la plata', 'Aceptar no te entrega la plata: te la entrega una persona de PlataChat por [^<]+, te avisamos por aquí, y ahí nace el crédito\\.'));
+    assert.equal((h.match(/Aceptar no te entrega la plata/g) || []).length, 1, '«aceptar no te entrega la plata» sale dos veces');
+    assert.ok(h.indexOf(P.ev('nombreProveedor()')) >= 0, 'la tarjeta no dice por dónde llega la plata');
     sinPorcentaje(h, 'la propuesta automática');
     assert.ok(h.indexOf('0.2') < 0 && h.indexOf('costo_pct') < 0, 'se filtró la tasa');
   });
@@ -519,7 +542,8 @@ describe('PlataChat con reloj: la tarjeta de la solicitud', () => {
     assert.match(h, /class="tit">Tu gerente te propone</);
     assert.match(h, /<div class="dice">Te dejo 90 mil a 20 días<\/div>/);
     assert.match(h, /Acepto: recibo \$90\.000</);
-    assert.match(h, /Devuelves<\/span><strong>\$108\.000/);
+    /* 8-oct-2026 (segunda vuelta): el total va en el bloque de las condiciones. */
+    assert.match(h, /<dt>Total a pagar<\/dt><dd>\$108\.000<\/dd>/);
     assert.ok(h.indexOf('3001234567') < 0, 'el celular del gerente se ve en la tarjeta');
     sinPorcentaje(h, 'la propuesta del gerente');
   });
@@ -538,17 +562,19 @@ describe('PlataChat con reloj: la tarjeta de la solicitud', () => {
   test('CONTRAPROPUESTA con dos cortes: «dos quincenas», la garantía por dos, y el texto de la base escapado', () => {
     const P = abrirPlataChat();
     const h = tarjeta(P, solContra('automatica_1h', { cortes: 2, costo: 40000, total: 140000, dias: 30, texto: '<b>ojo</b> & más' }));
-    assert.match(h, /, en 15 días, dos quincenas<\/strong>/);
-    assert.match(h, /Lo que cuesta<\/span><strong>\$40\.000/);
+    /* 8-oct-2026 (segunda vuelta): «dos quincenas» va en el renglón del pago de
+       las condiciones (detallePago), no en una fila «Cuándo» suelta encima. */
+    assert.match(h, /<dt>Pagas<\/dt><dd>Un solo pago de \$140\.000 el [^<]+, en 15 días, dos quincenas<\/dd>/);
+    assert.match(h, /<dt>Lo que cuesta<\/dt><dd>\$40\.000/);
     const gana = P.ev('garantiaQueGana(20000, 100000)') * 2;
-    assert.ok(h.indexOf('+' + P.ev('COP(' + gana + ')')) >= 0, 'la garantía de dos cortes no es la de un corte por dos');
+    assert.ok(h.indexOf('te suma ' + P.ev('CS.pesos(' + gana + ')') + ' de garantía') >= 0, 'la garantía de dos cortes no es la de un corte por dos');
     assert.ok(h.indexOf('&lt;b&gt;ojo&lt;/b&gt; &amp; más') >= 0, 'el texto de la propuesta no llegó escapado');
     assert.ok(h.indexOf('<b>ojo</b>') < 0);
     /* A cuotas (contrapropuesta_a_cuotas del CRM): se listan y NO se inventa la garantía. */
     const hc = tarjeta(P, solContra('joan', { cuotas: [{ fecha: '2026-10-15', capital: 50000, costo: 10000 }, { fecha: '2026-11-15', capital: 50000, costo: 10000, total: 60000 }], fecha_pago: '2026-11-15' }));
-    assert.match(hc, /Cuándo<\/span><strong>en 2 cuotas, la última el 15 nov 2026<\/strong>/);
-    assert.match(hc, /Cuota 1<\/span><strong>\$60\.000 el 15 oct 2026/);
-    assert.match(hc, /Cuota 2<\/span><strong>\$60\.000 el 15 nov 2026/);
+    assert.match(hc, /<dt>Pagas<\/dt><dd>2 cuotas, en estas fechas:<\/dd>/);
+    assert.match(hc, /<dt>Cuota 1<\/dt><dd>\$60\.000 el jueves 15 de octubre de 2026<\/dd>/);
+    assert.match(hc, /<dt>Cuota 2<\/dt><dd>\$60\.000 el domingo 15 de noviembre de 2026<\/dd>/);
     assert.ok(!/class="gana"/.test(hc), 'inventa la garantía de un plan a cuotas con la cuenta del quincenal');
     sinPorcentaje(hc, 'la propuesta a cuotas');
   });
@@ -607,18 +633,35 @@ describe('PlataChat con reloj: la tarjeta de la solicitud', () => {
  * ======================================================================== */
 describe('PlataChat con reloj: aceptar', () => {
 
-  test('aceptarPropuesta llama a aceptar_propuesta_platachat con {p_id}, repinta con lo que la base devolvió y vuelve a traer el hilo', async () => {
+  /* 8-oct-2026 — ACEPTAR PIDE LA CASILLA, Y VA POR aceptar_condiciones con lo
+     que se leyó (p_vio: el monto, el total y el texto de las condiciones). La
+     base compara esas dos cifras con su propuesta y, si casan, acepta con
+     aceptar_propuesta_platachat por dentro (el «Acepto» del hilo lo sigue
+     escribiendo ella). Con 404 se cae a la de siempre: ver la cuarta prueba. */
+  test('aceptarPropuesta, con la casilla, llama a aceptar_condiciones con {p_id, p_vio}, repinta con lo que la base devolvió y vuelve a traer el hilo', async () => {
     const n = nubeViva(solContra('automatica_1h'));
     const P = await abrirConCuenta(n);
     P.ev('irA("chats")');
     await ticks();
-    assert.match(P.elems.chPropuesta.innerHTML, /onclick="aceptarPropuesta\(41\)"/);
+    /* 8-oct-2026 (segunda vuelta): apagado pero tocable (aria-disabled), para
+       que el aviso de abajo se pueda alcanzar. */
+    assert.match(P.elems.chPropuesta.innerHTML, /onclick="aceptarPropuesta\(41\)" aria-disabled="true"/);
+    /* Sin la casilla no se manda nada, y se dice por qué. */
+    P.ev('aceptarPropuesta(41)');
+    await ticks();
+    assert.ok(!n.llamadas.some(l => /^aceptar_/.test(l.fn)), 'aceptó sin la casilla marcada');
+    assert.match(P.elems.chError.textContent, /Marca la casilla «Leí y acepto las condiciones de este crédito»/);
+    P.ev('marcarCondicionesPlataChat(true, 41)');
     const hilosAntes = cuantas(n, 'chat_leer_sesion');
     P.ev('aceptarPropuesta(41)');
     await ticks();
-    const ac = n.llamadas.find(l => l.fn === 'aceptar_propuesta_platachat');
-    assert.ok(ac, 'no llamó a aceptar_propuesta_platachat');
-    assert.deepEqual(ac.cuerpo, { p_id: 41 });
+    const ac = n.llamadas.find(l => l.fn === 'aceptar_condiciones');
+    assert.ok(ac, 'no llamó a aceptar_condiciones');
+    assert.equal(ac.cuerpo.p_id, 41);
+    assert.equal(ac.cuerpo.p_vio.capital, 100000);
+    assert.equal(ac.cuerpo.p_vio.total, 120000);
+    assert.match(ac.cuerpo.p_vio.texto, /^Las condiciones de este crédito/);
+    assert.ok(!n.llamadas.some(l => l.fn === 'aceptar_propuesta_platachat'), 'aceptó dos veces');
     assert.equal(ac.cab.Authorization, 'Bearer token-de-prueba');
     assert.equal(P.ev('SOL.estado'), 'aceptada', 'SOL no es lo que devolvió la base');
     assert.equal(P.ev('ACEPTANDO'), false);
@@ -629,17 +672,18 @@ describe('PlataChat con reloj: aceptar', () => {
   });
 
   test('mientras el aceptar va en vuelo el botón queda apagado y un segundo toque no manda nada', async () => {
-    const n = nubeViva(solContra('joan'), fn => (fn === 'aceptar_propuesta_platachat' ? { __colgar: true, ok: true, solicitud: solAceptada() } : null));
+    const n = nubeViva(solContra('joan'), fn => (fn === 'aceptar_condiciones' ? { __colgar: true, ok: true, solicitud: solAceptada() } : null));
     const P = await abrirConCuenta(n);
     P.ev('irA("chats")');
     await ticks();
+    P.ev('marcarCondicionesPlataChat(true, 41)');   /* 8-oct-2026: sin la casilla no se acepta */
     P.ev('aceptarPropuesta(41)');
     await ticks();
     assert.equal(P.ev('ACEPTANDO'), true);
     assert.match(P.elems.chPropuesta.innerHTML, /onclick="aceptarPropuesta\(41\)" disabled>/, 'el botón sigue vivo con el aceptar en vuelo');
     P.ev('aceptarPropuesta(41)');
     await ticks();
-    assert.equal(cuantas(n, 'aceptar_propuesta_platachat'), 1, 'el segundo toque mandó otro aceptar');
+    assert.equal(cuantas(n, 'aceptar_condiciones'), 1, 'el segundo toque mandó otro aceptar');
     n.colgadas[0]();
     await ticks();
     assert.equal(P.ev('ACEPTANDO'), false);
@@ -648,13 +692,14 @@ describe('PlataChat con reloj: aceptar', () => {
 
   test('si la base dice que no (la propuesta cambió), lo dice y vuelve a traer la solicitud que sí vale', async () => {
     const n = nubeViva(solContra('automatica_1h'), (fn, c, ll, estado) => {
-      if (fn !== 'aceptar_propuesta_platachat') return null;
+      if (fn !== 'aceptar_condiciones') return null;
       estado.viva = solContra('gerente:3001234567', { capital: 80000, costo: 16000, total: 96000 });
       return { ok: false };
     });
     const P = await abrirConCuenta(n);
     P.ev('irA("chats")');
     await ticks();
+    P.ev('marcarCondicionesPlataChat(true, 41)');   /* 8-oct-2026: sin la casilla no se acepta */
     const traidasAntes = cuantas(n, 'mi_solicitud_platachat');
     P.ev('aceptarPropuesta(41)');
     await ticks();
@@ -664,16 +709,31 @@ describe('PlataChat con reloj: aceptar', () => {
     assert.equal(P.ev('ACEPTANDO'), false);
   });
 
-  test('aceptar con la migración sin correr (404) o con la nube caída: el aviso, y la tarjeta sigue', async () => {
-    const n = nubeViva(solContra('joan'), fn => (fn === 'aceptar_propuesta_platachat' ? { __estado: 404 } : null));
+  /* 8-oct-2026 (segunda vuelta) — ANTES: «solo sin la del 8-oct, se acepta con
+     la de siempre». Las revisiones de ley y de seguridad lo marcaron: esa
+     aceptación no dejaba constancia de lo leído, y los términos prometen
+     «guardamos una copia tal como las viste». Ahora, sin aceptar_condiciones,
+     NO se acepta: se dice, y la propuesta sigue ahí. */
+  test('aceptar con la migración sin correr (404) o con la nube caída: no acepta sin constancia, lo dice, y la tarjeta sigue', async () => {
+    const n = nubeViva(solContra('joan'), fn => (/^aceptar_/.test(fn) ? { __estado: 404 } : null));
     const P = await abrirConCuenta(n);
     P.ev('irA("chats")'); await ticks();
+    P.ev('marcarCondicionesPlataChat(true, 41)');
     P.ev('aceptarPropuesta(41)'); await ticks();
-    assert.equal(P.elems.chError.textContent, P.ev('AVISO_SIN_RELOJ'));
+    assert.match(P.elems.chError.textContent, /No pudimos registrar tu aceptación todavía/);
     assert.match(P.elems.chPropuesta.innerHTML, /Acepto: recibo/);
-    const m = nubeViva(solContra('joan'), fn => (fn === 'aceptar_propuesta_platachat' ? { __estado: 503 } : null));
+    const v = nubeViva(solContra('joan'), fn => (fn === 'aceptar_condiciones' ? { __estado: 404 } : null));
+    const V = await abrirConCuenta(v);
+    V.ev('irA("chats")'); await ticks();
+    V.ev('marcarCondicionesPlataChat(true, 41)');
+    V.ev('aceptarPropuesta(41)'); await ticks();
+    assert.ok(!v.llamadas.some(l => l.fn === 'aceptar_propuesta_platachat'),
+      'con aceptar_condiciones sin correr aceptó por la puerta que no deja constancia');
+    assert.equal(V.ev('SOL.estado'), 'contrapropuesta');
+    const m = nubeViva(solContra('joan'), fn => (fn === 'aceptar_condiciones' ? { __estado: 503 } : null));
     const Q = await abrirConCuenta(m);
     Q.ev('irA("chats")'); await ticks();
+    Q.ev('marcarCondicionesPlataChat(true, 41)');
     Q.ev('aceptarPropuesta(41)'); await ticks();
     assert.equal(Q.elems.chError.textContent, Q.ev('SP.NUBE_CAIDA'));
     assert.ok(!/internet/.test(Q.elems.chError.textContent));

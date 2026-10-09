@@ -167,7 +167,11 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    racha de cuadros quietos. El respaldo no lo lleva a propósito — ahí no hay
    nada que contar hasta que el código de barras se lee, y una barra que avanza
    sin saber hacia dónde es justamente la clase de mentira que este escáner no
-   se permite. */
+   se permite.
+   8-oct-2026 — AHORA EL RESPALDO SÍ TIENE HACIA DÓNDE: dispara solo cuando
+   pasa su rato bien puesto (EC.decidirRespaldo), así que la barra cuenta ese
+   rato —tiempo en verde, no reloj— y llega al final justo cuando se toma la
+   foto. Si el código se lee antes, se dispara antes. */
 .doc-progreso{position:absolute;left:0;right:0;bottom:-10px;height:4px;border-radius:4px;
   background:rgba(255,255,255,.18);overflow:hidden;opacity:0;transition:opacity .2s linear}
 .escaner-doc.midiendo .doc-progreso{opacity:1}
@@ -300,9 +304,11 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
        nombre o razón social, documento o NIT, dirección y contacto en
        legal/terminos.html y legal/privacidad.html — lo exige la Ley 1581 para
        el responsable del tratamiento y el Estatuto del Consumidor para quien
-       vende. Un «powered by» no identifica a nadie. Mientras NEXECO no tenga
-       su NIT escrito, esos dos documentos siguen nombrando a Joan, que es la
-       verdad de hoy. -->
+       vende. Un «powered by» no identifica a nadie.
+       8-oct-2026 — desde hoy esos dos documentos nombran a NEXECO S.A.S. como
+       responsable (decisión de Joan), con el NIT, la dirección, el correo y el
+       teléfono marcados como pendientes en su recuadro «Quién responde» hasta
+       que estén confirmados. Ya no nombran a Joan. -->
   <div class="marca"><span class="pin">G</span> Tu Garantía
     <span class="porNexeco">powered by NEXECO</span></div>
   <h1 id="titulo">Tu crédito rápido y fácil</h1>
@@ -312,6 +318,10 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 
 <script src="../app/creditos.js"></script>
 <script src="../app/cuenta.js"></script>
+<!-- 8-oct-2026 — la calculadora del pedido (cuánto y para cuándo, sin precio)
+     y las condiciones de cada propuesta. Va DESPUÉS de cuenta.js, que es quien
+     sabe escribir los pesos como los pidió Joan (1,500.000). -->
+<script src="../app/calculadora-solicitud.js"></script>
 <script src="../app/escaner-cedula.js"></script>
 <!-- 14-sep-2026 — el motor del préstamo con garantía y el lector de la ficha.
      Son los MISMOS que usa el CRM de Joan: la calculadora de la garantía que
@@ -332,8 +342,11 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 
 /* 7-oct-2026 — sube por la puerta única: sin códigos en la fachada, en la
    solicitud aceptada ni en Perfil. Es la fecha que Joan le pide leer al
-   cliente para saber si ya ve la versión sin la caja de «pega tu código». */
-var VERSION_PLAY = '2026-10-07';
+   cliente para saber si ya ve la versión sin la caja de «pega tu código».
+   8-oct-2026 — sube otra vez: la calculadora del pedido (sin precio), las
+   condiciones de cada propuesta con su casilla, el correo obligatorio, los
+   pesos con separadores y el acompañamiento sin pregunta. */
+var VERSION_PLAY = '2026-10-08';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -355,6 +368,12 @@ var U = window.CuentaSocio;
    de quién son las fotos. Puro, probado sin cámara. Si no llegó, todo lo
    que lo usa cae al camino de la foto fija (se pregunta `if (!EC)`). */
 var EC = window.EscanerCedula;
+/* 8-oct-2026 — pedir lo que uno quiera y leer las condiciones de la propuesta.
+   NO entra al guardián de abajo a propósito: si no llegó, la portada y el
+   paso de pedir lo dicen en su tarjeta y el resto de la página sigue viva
+   (registrarse no depende de esto). Ver tarjetaPedir. */
+var CS = window.CalculadoraSolicitud;
+if (CS && CS.conectar) CS.conectar(window);   // su almacén y su DOM son los de ESTA página
 var M = window.MotorReglas;
 var FS = window.FichaSocio;
 var CH = window.ChatTuGarantia;
@@ -701,9 +720,18 @@ function pintarEntrar() {
      esto no es para él. El orden es el mensaje. */
   $('cuerpo').innerHTML =
     /* LA CALCULADORA VA PRIMERO Y ES LO MÁS GRANDE. El visitante saca algo útil
-       en los primeros cinco segundos —cuánto le costaría— sin cuenta, sin
-       registro y sin pedirle nada a cambio. Todo lo demás cuelga de ahí. */
-    tarjetaCalculadora() +
+       en los primeros cinco segundos sin cuenta, sin registro y sin pedirle
+       nada a cambio. Todo lo demás cuelga de ahí.
+       8-oct-2026 — ES OTRA CALCULADORA. La de antes cotizaba el producto a 6
+       meses con su precio y su tasa (tarjetaCalculadora, que se queda en el
+       archivo con sus pruebas del motor pero ya no se pinta). Joan: «el
+       cliente puede pedir lo que quiera y yo soy el encargado de darle una
+       contrapropuesta, y quiero que esta misma calculadora se vea al inicio
+       para que los clientes nuevos, antes de registrarse, puedan
+       interactuar». Ahora el visitante mueve cuánto y para cuándo, ve su
+       pedido en palabras, y lo que movió lo encuentra puesto al terminar el
+       registro. Sin precio: el costo lo pone Joan en cada propuesta. */
+    tarjetaPedirPortada() +
     /* 16-sep-2026 — ACÁ ESTABA LA CALCULADORA DEL CRÉDITO CON GARANTÍA, Y AHORA
        ESTÁ ABAJO. Joan: «quitar la explicación de cuando tengas garantía y la
        lista de cuotas del final, que confunden».
@@ -731,9 +759,13 @@ function pintarEntrar() {
          después de revisar que la cuenta sea de esa persona; el aviso le llega
          al cliente en su chat de servicio (lo escribe vincular_interna). */
       '<h3 class="tit">Abre tu cuenta</h3>' +
+      /* 8-oct-2026 — sin «y cada uno te decimos para qué es»: desde hoy las
+         preguntas ya no llevan su comentario debajo (pedido de Joan), y la
+         frase habría prometido algo que el formulario dejó de hacer. Para qué
+         se usan los datos lo dice la autorización del último paso. */
       '<p class="sub"><b>No necesitas que nadie te presente.</b> Te tomará unos minutos: ' +
-        'te pedimos los datos con los que evaluamos el crédito, y cada uno te decimos ' +
-        'para qué es. Después revisamos tu solicitud y te respondemos en el chat de la app.</p>' +
+        'te pedimos los datos con los que evaluamos el crédito. ' +
+        'Después revisamos tu solicitud y te respondemos con una propuesta en la app.</p>' +
       '<p class="sub"><b>¿Ya eras cliente nuestro?</b> Ábrela igual: lo revisamos y ' +
         'juntamos tu historial con tu cuenta. No necesitas ningún código.</p>' +
       '<div class="muted" style="font-size:13px;margin-top:var(--e3)">' + esc(TEXTOS.empujon_visitante) + '</div>' +
@@ -959,56 +991,92 @@ var PASOS = [
 ];
 
 /* ===========================================================================
- * «QUIERO QUE MI ASESOR ME ACOMPAÑE» — 15-sep-2026
+ * EL ACOMPAÑAMIENTO, SIN PREGUNTAR — 8-oct-2026 (antes: «QUIERO QUE MI ASESOR
+ * ME ACOMPAÑE», 15-sep-2026)
  *
- * Joan pidió poder ver al cliente registrándose, con sus fotos, para guiarlo por
- * teléfono. Construirlo sin más tenía un problema que no es de opinión:
+ * Joan: «en cada paso aparece una opción que le pregunta al cliente si prefiere
+ * seguir solo o si un asesor lo acompaña. No quiero que se pregunte eso: yo
+ * quiero siempre ver desde mi CRM y poder guiar al cliente». Se quitó la
+ * tarjeta de cada paso y el avance se publica siempre.
  *
- * HOY NADA SALE DE ESTE TELÉFONO HASTA EL PASO 9, y la casilla que autoriza las
- * fotos está EN el paso 9. Quien la desmarca consigue que sus fotos no salgan —
- * eso funciona de verdad, está en tomarFoto/siguientePaso. Publicar la foto en
- * el paso 2 volvería esa garantía papel mojado: cuando la persona llegue a
- * decidir, el asesor ya la vio, y eso no se deshace.
+ * LO QUE NO SE PODÍA QUITAR, Y POR QUÉ: mandar el nombre, la cédula y el
+ * celular de alguien a un servidor mientras llena un formulario es tratar sus
+ * datos, y la Ley 1581 pide que lo sepa ANTES (autorización previa e
+ * informada; el Decreto 1377 de 2013, art. 7, la deja dar con una conducta
+ * inequívoca). Por eso el paso 1 —y SOLO el paso 1, no cada paso como la
+ * tarjeta de antes— lleva una línea que dice qué ve el equipo y que tocar
+ * «Continuar» es la autorización (avisoAcompana). Y por eso no se publica
+ * NADA en el paso 1: la primera publicación sale cuando ya tocó «Continuar».
  *
- * Así que el permiso va PRIMERO y es del cliente: toca el botón, y solo desde
- * ahí se publica. Se apaga cuando quiera, con el mismo botón.
- *
- * LO QUE NO SE MANDA NUNCA, ni con el permiso puesto:
+ * LO QUE SIGUE SIN SALIR NUNCA, con o sin pregunta:
  *   · las referencias — son nombre y celular de DOS personas que no son quien
  *     está registrándose y que no autorizaron nada. Y la Ley 2300 ya le prohíbe
  *     a Joan contactarlas: tenerlas anotadas sería exposición sin ningún uso.
  *   · la contraseña.
- *   · la ubicación — el GPS se pide en el paso 2 pero se autoriza en el 9.
- * Acá se filtra, y el SERVIDOR lo vuelve a filtrar (registro_vivo_publicar).
- * Dos rejas para lo mismo: una pantalla se puede saltar.
+ *   · la ubicación.
+ *   · la selfie (ver publicarAvance).
+ *   · 8-oct-2026 (segunda vuelta) — NINGUNA FOTO, tampoco las de la cédula.
+ *     Antes salían si marcaba la casilla de datos sensibles, pero esa casilla
+ *     autoriza las fotos «para confirmar que soy yo», no para que alguien las
+ *     mire mientras escribe; y para guiar a alguien por teléfono basta saber
+ *     en qué paso va. Las fotos le llegan a Joan igual, al terminar.
+ * Acá se filtra, y el SERVIDOR lo vuelve a filtrar (registro_vivo_publicar,
+ * y la lectura de Joan, registro_vivo_joan). Dos rejas: una pantalla se puede
+ * saltar.
+ *
+ * EL TESTIGO, que faltaba desde el 22-sep. registro_vivo_publicar le entrega
+ * a la primera publicación un testigo y desde ahí exige ese testigo para
+ * actualizar o borrar la fila de ese celular (base/20260919_asesor.sql y
+ * 20260922n). Esta página nunca lo guardó: la PRIMERA publicación entraba y
+ * todas las demás volvían «ocupado», así que el asesor veía para siempre el
+ * paso 2 sin fotos, y «Prefiero seguir solo» no borraba nada. Ahora se guarda
+ * (por celular) y viaja en las dos llamadas.
+ *
+ * QUIÉN LO VE, dicho sin adornos: Joan, en su CRM (📥 Registrados →
+ * «Registrándose ahora», base/20261008c_registro_vivo_joan.sql), a todos; y
+ * los asesores con sesión, solo a clientes de su cartera (registro_vivo_mirar).
+ * Hasta el 8-oct el CRM de Joan no tenía esa vista y el aviso prometía una
+ * ayuda que nadie podía dar: lo marcaron las tres revisiones. El aviso dice
+ * «puede ver», no «está viendo»: nadie mira cada registro en vivo.
+ *
+ * Y SOLO SI LEYÓ EL AVISO EN ESTA VERSIÓN (8-oct-2026, segunda vuelta). Una
+ * persona a mitad de registro antes de publicar esto —que pudo haber escogido
+ * «Prefiero seguir solo»— vuelve con el paso guardado y nunca ve el paso 1:
+ * publicar su avance sería tratar sus datos con un aviso que no leyó. La
+ * marca LLAVE_AVISO_VIVO la pone tocar «Continuar» en el paso 1 (donde está
+ * el aviso), y sin ella no se publica nada.
  * ========================================================================= */
-var ACOMPANA = false;
-try { ACOMPANA = localStorage.getItem('tg_acompana') === '1'; } catch (e) {}
-
-function tarjetaAcompanar() {
-  if (MARCA === 'platachat') return '';   // sin asesores en PlataChat (ver EL MODO PLATACHAT)
-  /* Sin celular no hay a quién asociarlo: el asesor lo encuentra por su número. */
-  if (!REGISTRO.celular) return '';
-  return '<div class="aviso ' + (ACOMPANA ? 'verde' : 'info') + '" style="margin-top:var(--e3)">' +
-    (ACOMPANA
-      ? '<b>Tu asesor te está acompañando.</b> Ve en qué paso vas y las fotos que subas, ' +
-        'para poder guiarte si llamas. No ve tu contraseña, ni tus referencias, ni dónde estás.' +
-        '<button class="btn sec sm" style="margin-top:var(--e2)" onclick="acompanar(false)">' +
-        'Prefiero seguir solo</button>'
-      : '<b>¿Quieres que un asesor te acompañe?</b> Si lo activas, podrá ver en qué paso vas ' +
-        'y las fotos que subas, para guiarte por teléfono. Nunca ve tu contraseña, ni tus ' +
-        'referencias, ni dónde estás. Lo puedes apagar cuando quieras.' +
-        '<button class="btn sec sm" style="margin-top:var(--e2)" onclick="acompanar(true)">' +
-        'Sí, que me acompañe</button>') +
-    '</div>';
+var LLAVE_AVISO_VIVO = 'tg_vivo_aviso_8oct2026';
+function vioAvisoVivo() {
+  try { return localStorage.getItem(LLAVE_AVISO_VIVO) === '1'; } catch (e) { return false; }
 }
+function anotarAvisoVivo() { try { localStorage.setItem(LLAVE_AVISO_VIVO, '1'); } catch (e) {} }
+function olvidarAvisoVivo() { try { localStorage.removeItem(LLAVE_AVISO_VIVO); } catch (e) {} }
+var LLAVE_TESTIGO_VIVO = 'tg_vivo_testigo';
+function testigoVivo(cel) {
+  try {
+    var t = JSON.parse(localStorage.getItem(LLAVE_TESTIGO_VIVO) || 'null');
+    return (t && t.celular === cel && t.testigo) ? String(t.testigo) : '';
+  } catch (e) { return ''; }
+}
+function anotarTestigoVivo(cel, testigo) {
+  try { localStorage.setItem(LLAVE_TESTIGO_VIVO, JSON.stringify({ celular: cel, testigo: String(testigo) })); } catch (e) {}
+}
+function olvidarTestigoVivo() { try { localStorage.removeItem(LLAVE_TESTIGO_VIVO); } catch (e) {} }
 
-function acompanar(si) {
-  ACOMPANA = !!si;
-  try { localStorage.setItem('tg_acompana', si ? '1' : '0'); } catch (e) {}
-  if (si) publicarAvance();
-  else borrarAvance();
-  pintarRegistro(PASO);
+/* La línea del paso 1. Es de las pocas que se quedaron cuando Joan pidió
+   quitar los comentarios de cada pregunta: esta no es un comentario, es el
+   aviso que la ley pide antes de tratar los datos (ver arriba). */
+function avisoAcompana() {
+  if (MARCA === 'platachat') return '';   // sin asesores en PlataChat (ver EL MODO PLATACHAT)
+  /* 8-oct-2026 (segunda vuelta) — dice TODO lo que sale (le faltaban la fecha
+     de nacimiento y el tipo de documento, que sí se publicaban), ya no ofrece
+     las fotos, y dice cuándo se borra. */
+  return '<div class="ayuda" id="avisoAcompana" style="margin-top:var(--e4)">' +
+    '<b>Te acompañamos mientras te registras.</b> Nuestro equipo puede ver en qué paso vas, tus nombres y ' +
+    'apellidos, tu tipo y número de documento, tu fecha de nacimiento, tu celular y tu correo, para escribirte ' +
+    'si te atascas. Nunca tu contraseña, tus referencias, tu ubicación ni tus fotos. Se borra solo a las dos ' +
+    'horas. Al tocar «Continuar» nos das ese permiso.</div>';
 }
 
 /* Lo que se publica. Se arma una lista BLANCA —lo que sí entra— y no una negra:
@@ -1019,7 +1087,9 @@ var CAMPOS_QUE_SE_PUBLICAN = ['nombres', 'apellidos', 'documento', 'tipo_doc',
 
 function publicarAvance() {
   if (MARCA === 'platachat') return Promise.resolve();   // ver EL MODO PLATACHAT
-  if (!ACOMPANA || !REGISTRO.celular) return Promise.resolve();
+  /* Desde el paso 2: el permiso se da tocando «Continuar» en el 1 — y solo si
+     ese toque fue con el aviso de esta versión a la vista (vioAvisoVivo). */
+  if (!(PASO >= 1) || !REGISTRO.celular || !vioAvisoVivo()) return Promise.resolve();
   if (!CFG.url || !CFG.anon) return Promise.resolve();
 
   var avance = {};
@@ -1027,42 +1097,44 @@ function publicarAvance() {
     if (REGISTRO[k]) avance[k] = String(REGISTRO[k]).slice(0, 80);
   });
 
-  /* Las fotos SOLO si la persona ya marcó la autorización de fotos. Es la misma
-     casilla del paso 9: si todavía no la marcó, el acompañamiento muestra el
-     avance pero no las imágenes. Dos permisos distintos para dos cosas
-     distintas, y ninguno vale por el otro. */
+  /* 8-oct-2026 (segunda vuelta) — SIN FOTOS (ver el encabezado). La selfie ya
+     no viajaba; ahora tampoco la cédula. p_fotos va vacío y no se quita de la
+     llamada: la firma de registro_vivo_publicar lo pide. */
   var fotos = {};
-  if (FOTOS.sensibles) {
-    ['cedula_frente', 'cedula_reverso'].forEach(function (k) {
-      if (FOTOS[k]) fotos[k] = FOTOS[k];
-    });
-    /* LA SELFIE NO VIAJA. Es biometría —la categoría más sensible de la Ley
-       1581— y para guiar a alguien por teléfono no hace falta: lo que se
-       atasca es el código de barras de la cédula, no la cara. */
-  }
 
+  var cel = REGISTRO.celular;
   return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registro_vivo_publicar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + CFG.anon },
     body: JSON.stringify({
-      p_celular: REGISTRO.celular,
+      p_celular: cel,
       p_paso: PASO + 1,
       p_de: PASOS.length,
       p_nombre: ((REGISTRO.nombres || '') + ' ' + (REGISTRO.apellidos || '')).trim(),
       p_avance: avance,
-      p_fotos: fotos
+      p_fotos: fotos,
+      p_testigo: testigoVivo(cel) || null
     })
-  }).catch(function () { /* sin señal se sigue registrando igual */ });
+  }).then(function (r) { return r && r.ok ? r.json() : null; })
+    .then(function (j) { if (j && j.ok === true && j.testigo) anotarTestigoVivo(cel, j.testigo); })
+    .catch(function () { /* sin señal se sigue registrando igual */ });
 }
 
+/* Borra la fila de ESTE celular, con su testigo. Sin el testigo la base no
+   borra nada y contesta ok igual (para no delatar quién se registra): por eso
+   sin testigo ni se llama. */
 function borrarAvance() {
+  if (MARCA === 'platachat') return Promise.resolve();
   if (!REGISTRO.celular || !CFG.url || !CFG.anon) return Promise.resolve();
+  var cel = REGISTRO.celular, testigo = testigoVivo(cel);
+  if (!testigo) return Promise.resolve();
+  olvidarTestigoVivo();
   return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registro_vivo_borrar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + CFG.anon },
-    body: JSON.stringify({ p_celular: REGISTRO.celular })
+    body: JSON.stringify({ p_celular: cel, p_testigo: testigo })
   }).catch(function () {});
 }
 
@@ -1101,10 +1173,10 @@ function pintarRegistro(paso) {
       barra +
       '<h3 class="tit" style="margin-top:var(--e3)">' + esc(p.titulo) + '</h3>' +
       cuerpo +
-      /* 15-sep-2026 — el acompanamiento. Va DESPUES del contenido del paso y
-         antes del boton: es una eleccion sobre lo que acaba de hacer, no una
-         puerta para entrar. */
-      tarjetaAcompanar() +
+      /* 8-oct-2026 — aquí iba la tarjeta «¿quieres que un asesor te
+         acompañe?», en CADA paso. Joan la quitó: el acompañamiento ya no se
+         pregunta. El aviso que la ley sí pide va una sola vez, en el paso 1
+         (avisoAcompana, dentro de pasoEntrada). */
       '<div id="errReg" class="aviso ambar oculto"></div>' +
       '<button class="btn arriba" onclick="siguientePaso()">' +
         (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : 'Continuar') + '</button>' +
@@ -1112,11 +1184,15 @@ function pintarRegistro(paso) {
         (PASO === 0 ? (MARCA === 'platachat' ? 'volverAPlataChat()' : 'pintarEntrar()') : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
     '</div>' + pie();
   window.scrollTo(0, 0);
-  /* Cada vez que cambia de paso, si dio permiso, se publica. En un try porque un
-     acompanamiento que falle NO puede impedirle abrir su cuenta. */
+  /* Cada vez que cambia de paso se publica (desde el 2: ver publicarAvance). En
+     un try porque un acompañamiento que falle NO puede impedirle abrir su
+     cuenta. */
   try { publicarAvance(); } catch (e) {}
   if (p.id === 'rostro' && FOTOS.sensibles && !hayFotoLista('selfie')) setTimeout(iniciarEscaner, 50);
   if (p.id === 'documento' && FOTOS.sensibles && !FOTOS.gps && !FOTOS.gps_error) pedirGps();
+  /* 8-oct-2026 — el detector de la selfie se BAJA (no se enciende) mientras
+     la persona está con la cédula: ver precalentarDetectorRostro. */
+  if (p.id === 'documento' && FOTOS.sensibles) precalentarDetectorRostro();
 }
 
 function pasoEntrada() {
@@ -1126,13 +1202,12 @@ function pasoEntrada() {
     '<input id="rTel" type="tel" inputmode="numeric" autocomplete="username" placeholder="300 111 2233" ' +
       'oninput="anotarCelular(this)" value="' +
       esc(REGISTRO.celular ? U.telefonoBonito(REGISTRO.celular) : '') + '">' +
-    /* 7-oct-2026 — «una contraseña nueva», no «tu código». Desde que Joan
-       apagó los códigos de acceso, la palabra «código» en esta pantalla hace
-       pensar en el código que ya no existe; y lo que de verdad pasa con un
-       recado de «Olvidé mi contraseña» es que Joan le da una contraseña nueva
-       desde el CRM («🔑 Darle una clave nueva») y se la manda por WhatsApp. */
-    '<div class="ayuda">Son 10 números y empiezan por 3. Tiene que tener WhatsApp: ' +
-      'si olvidas la contraseña, por ahí te mandamos una nueva.</div>' +
+    /* 8-oct-2026 — SIN EL COMENTARIO DE DEBAJO. Joan: «en cada pregunta hay
+       un comentario y creo que no son necesarios». Decía «Son 10 números y
+       empiezan por 3. Tiene que tener WhatsApp…»: lo de los 10 números ya lo
+       dice el ejemplo de la casilla y, si se equivoca, el aviso de error; lo
+       del WhatsApp es por dónde le llega una contraseña nueva si la olvida, y
+       eso se le dice el día que la olvide (olvide()). */
     /* 17-sep-2026 — LA CONTRASEÑA NO SE DEVUELVE AL CAMPO, Y SE PUEDE SEGUIR
        SIN TECLEARLA. Las dos mitades importan.
 
@@ -1148,12 +1223,19 @@ function pasoEntrada() {
        sessionStorage, no toca localStorage y no viaja en el borrador. */
     '<label for="rClave">' + (CLAVE_EN_MEMORIA ? 'Tu contraseña' : 'Crea tu contraseña') + '</label>' +
     campoClave('rClave', 'new-password') +
-    '<div class="ayuda">' + (CLAVE_EN_MEMORIA
-      ? 'Ya creaste tu contraseña en este teléfono. Déjalo en blanco para seguir con la misma, o escribe una nueva.'
-      : 'Mínimo ' + U.LARGO_MINIMO_CLAVE + ' caracteres. No uses tu celular ' +
-        'ni tu cédula: son lo primero que alguien probaría.') + '</div>' +
+    /* 8-oct-2026 — de las dos ayudas de la contraseña queda UNA, y no es un
+       comentario: con una contraseña ya creada en esta pestaña, el campo se
+       puede dejar en blanco, y sin decirlo nadie lo adivinaría (se quedaría
+       tecleándola otra vez o creería que la perdió). La otra —«mínimo 8
+       caracteres, no uses tu celular ni tu cédula»— se fue con los demás
+       comentarios: si la contraseña no sirve, revisarContrasena lo dice al
+       tocar «Continuar», con la razón exacta. */
+    (CLAVE_EN_MEMORIA
+      ? '<div class="ayuda">Ya creaste tu contraseña en este teléfono. Déjalo en blanco para seguir con la misma, o escribe una nueva.</div>'
+      : '') +
     '<label for="rClave2">' + (CLAVE_EN_MEMORIA ? 'Si la cambias, escríbela otra vez' : 'Escríbela otra vez') + '</label>' +
-    campoClave('rClave2', 'new-password');
+    campoClave('rClave2', 'new-password') +
+    avisoAcompana();
 }
 
 /* BORRAR EL REGISTRO DE OTRO — 17-sep-2026.
@@ -1170,9 +1252,16 @@ function empezarDeNuevo() {
   olvidarPaso(); olvidarClaveEnCurso(); olvidarDuenoDeLasFotos(); olvidarCuentaCreada();
   /* 21-sep-2026 — el acompañamiento también. «Empezar de cero» prometía borrar
      TODO y dejaba encendido el del anterior: el asesor de otra persona seguiría
-     viendo el paso y las fotos del que llegue después en ese teléfono. */
-  ACOMPANA = false;
-  try { localStorage.setItem('tg_acompana', '0'); } catch (e) {}
+     viendo el paso y las fotos del que llegue después en ese teléfono.
+     8-oct-2026 — ya no hay interruptor que apagar (se publica siempre): lo que
+     se hace es BORRAR lo publicado del anterior, con su testigo, ANTES de
+     soltar su celular, y olvidar el testigo. La marca vieja 'tg_acompana' se
+     quita para que no quede basura en el teléfono. */
+  try { borrarAvance(); } catch (e) {}
+  olvidarTestigoVivo();
+  /* Y el permiso del anterior: el que llegue después lo da él, leyendo el aviso. */
+  olvidarAvisoVivo();
+  try { localStorage.removeItem('tg_acompana'); } catch (e) {}
   REGISTRO = {}; FOTOS = {}; CLAVE_EN_MEMORIA = '';
   pintarRegistro(0);
 }
@@ -1261,7 +1350,22 @@ function pasoCampos(grupo) {
        de kilos y escribirlo cuesta menos que el temporizador que lo evitaría. */
     var apunta = ' oninput="anotarCampo(this)" onchange="anotarCampo(this)"';
     var campo;
-    if (c.tipo === 'opcion') {
+    if (c.tipo === 'pesos') {
+      /* 8-oct-2026 — LOS PESOS CON SUS SEPARADORES, MIENTRAS ESCRIBE. Joan:
+         «quiero que se vea separados con punto cuando es mil y con la coma
+         cuando pase del millón para que sea más claro y no se vea ese poco de
+         ceros juntos». Lo que se ve es 1,500.000; lo que se guarda en el
+         borrador y viaja al CRM son los dígitos (anotarPesos), porque una coma
+         guardada se leería como decimal en cualquier otro lado. */
+      /* 8-oct-2026 (segunda vuelta) — `event` viaja para saber si PEGÓ la cifra
+         (con centavos al final, «1.500.000,00» se leía cien veces más grande),
+         y cada pregunta lleva SU ejemplo: los gastos repetían el del ingreso,
+         y eso sugería que se le va todo lo que gana. */
+      campo = '<input id="f_' + c.id + '" type="text" inputmode="numeric" autocomplete="off"' +
+        ' oninput="anotarPesos(this, event)" onchange="anotarPesos(this)"' +
+        ' placeholder="Por ejemplo ' + esc(c.ejemplo || '1,500.000') + '" value="' +
+        esc(String(v) === '' ? '' : U.pesosConSeparadores(v)) + '">';
+    } else if (c.tipo === 'opcion') {
       campo = '<select id="f_' + c.id + '"' + apunta + '>' +
         /* 21-sep-2026 — Joan: «en el cuestionario aparece una opción de escoge
            como una opción de respuesta lo cual es incorrecto». Tenía razón: se
@@ -1282,28 +1386,87 @@ function pasoCampos(grupo) {
                : c.tipo === 'numero' || c.tipo === 'pesos' ? 'text' : 'text';
       var modo = (c.tipo === 'celular' || c.tipo === 'numero' || c.tipo === 'pesos')
         ? ' inputmode="numeric"' : '';
-      campo = '<input id="f_' + c.id + '" type="' + tipo + '"' + modo + apunta +
+      /* 8-oct-2026 (segunda vuelta) — EL CORREO, AHORA OBLIGATORIO, con su
+         ejemplo y con el autocompletado del teléfono: escribirlo a mano en un
+         teclado de celular es donde más se equivoca la gente. */
+      var extra = c.tipo === 'correo'
+        ? ' autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="nombre@gmail.com"' : '';
+      /* Y EL CELULAR DEL PASO DE CONTACTO ES EL DEL PASO 1: es el usuario con
+         el que entra (el signup sale con REGISTRO.celular). Editable aquí
+         cambiaba en silencio con qué número entra, sin que nada lo dijera. Se
+         ve, no se toca, y la etiqueta dice por qué (cuenta.js, «con el que
+         entras»); para cambiarlo, «Volver» al paso 1. */
+      if (c.id === 'celular') {
+        extra += ' readonly aria-readonly="true"';
+        v = REGISTRO.celular ? U.telefonoBonito(REGISTRO.celular) : v;
+      }
+      campo = '<input id="f_' + c.id + '" type="' + tipo + '"' + modo + extra + apunta +
         ' value="' + esc(v) + '">';
     }
-    /* El porqué se le MUESTRA al socio, no se queda en el código. Si un dato
-       vale la pena pedirlo, vale la pena decir para qué; y si da vergüenza
-       escribirlo, ese es el aviso de que no había que pedirlo. */
-    return etiqueta + campo + '<div class="ayuda">' + esc(c.porque) + '</div>';
+    /* 8-oct-2026 — EL PORQUÉ YA NO SE PINTA DEBAJO DE CADA PREGUNTA. Hasta hoy
+       se le mostraba al socio («si un dato vale la pena pedirlo, vale la pena
+       decir para qué»), y Joan lo quitó: «en cada pregunta hay un comentario y
+       creo que no son necesarios». El `porque` sigue en app/cuenta.js como
+       filtro de lo que se pide, y para qué se usan los datos —lo que la Ley
+       1581 sí exige decir— está en la casilla de autorización del último paso
+       y en la política de privacidad. */
+    return etiqueta + campo;
   }).join('');
+}
+
+/* Los pesos, con los separadores de Joan mientras teclea, y SIN que el cursor
+   salte al final: quien corrige un dígito del medio no puede ver que el
+   siguiente que teclea cae en otra parte. Se cuenta cuántos dígitos había
+   antes del cursor y se lo vuelve a poner detrás de ese mismo dígito. */
+/* 8-oct-2026 (segunda vuelta) — Y SI LA PEGÓ con centavos («$1.500.000,00»,
+   como sale de un extracto o de un WhatsApp), los centavos se quitan ANTES de
+   juntar los dígitos: si no, se guardaba 150000000. Solo al pegar (el
+   inputType del evento): mientras teclea, «1,500.00» es 150.000 a medio
+   borrar, no 1.500 con centavos. La regla es la de la calculadora
+   (CS.leerPesos), para que las dos casillas de plata lean igual. */
+function anotarPesos(el, ev) {
+  if (!el || !el.id || el.id.indexOf('f_') !== 0) return;
+  var antes = String(el.value || '');
+  var pegado = /^insertFromPaste|^insertFromDrop|^insertReplacementText|^insertFromYank/.test(String((ev && ev.inputType) || ''));
+  var limpio = pegado ? antes.replace(/[.,]\d{1,2}\s*$/, '') : antes;
+  var cursor = pegado ? limpio.length : (typeof el.selectionStart === 'number' ? el.selectionStart : antes.length);
+  var digitosAntes = limpio.slice(0, cursor).replace(/\D/g, '').length;
+  var d = limpio.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 10);
+  var bonito = U.pesosConSeparadores(d);
+  if (bonito !== antes) {
+    el.value = bonito;
+    var pos = 0, vistos = 0;
+    while (pos < bonito.length && vistos < digitosAntes) {
+      if (/\d/.test(bonito.charAt(pos))) vistos++;
+      pos++;
+    }
+    try { if (el.setSelectionRange && document.activeElement === el) el.setSelectionRange(pos, pos); } catch (e) {}
+  }
+  REGISTRO[el.id.slice(2)] = d;
+  guardarBorrador(REGISTRO);
 }
 
 function pasoPermiso() {
   return (MARCA === 'platachat'
+      /* 8-oct-2026 (segunda vuelta) — decía «quien recibe y cuida tus datos es
+         Tu Garantía»: Tu Garantía es un nombre comercial; la responsable es la
+         empresa. */
       ? '<div class="aviso info">PlataChat es un nombre comercial de Tu Garantía: quien recibe y cuida ' +
-        'tus datos es Tu Garantía, con las mismas reglas que lees aquí.</div>'
+        'tus datos es NEXECO S.A.S., la empresa que opera Tu Garantía, con las mismas reglas que lees aquí.</div>'
       : '') +
     '<p class="sub">Para abrir tu cuenta necesitamos tu permiso para tratar tus datos, ' +
       'como manda la Ley 1581 de 2012.</p>' +
+    /* 8-oct-2026 (segunda vuelta) — LA UBICACIÓN POR IP VA EN LA CASILLA, no
+       solo en la política: es un tercero (ipwho.is) que recibe un dato
+       personal fuera de Colombia, y la autorización tiene que nombrarlo. La
+       revisión de ley lo marcó: la casilla no decía nada de esa transferencia. */
     '<label class="permiso"><input type="checkbox" id="autGeneral"><span>' +
       '<b>Autorizo el tratamiento de mis datos personales.</b>' +
       '<span class="muted">Los usamos para evaluar y llevar tu crédito, y para escribirte ' +
-      'sobre tus pagos. No los vendemos. Puedes pedirnos que te digamos qué tenemos tuyo, ' +
-      'que lo corrijamos o que lo borremos, cuando quieras.</span></span></label>' +
+      'sobre tus pagos. Con la dirección IP de tu registro buscamos tu ciudad aproximada en ' +
+      'ipwho.is, un servicio fuera de Colombia que solo recibe la IP. No los vendemos. Puedes ' +
+      'pedirnos que te digamos qué tenemos tuyo, que lo corrijamos o que lo borremos, cuando ' +
+      'quieras.</span></span></label>' +
     '<label class="permiso"><input type="checkbox" id="autSensible"' + (FOTOS.sensibles ? ' checked' : '') + '><span>' +
       'Autorizo también la foto de mi cédula, la de mi rostro y mi ubicación.' +
       '<span class="muted">Esto es aparte y es opcional: tu cuenta se abre igual sin ' +
@@ -1343,7 +1506,12 @@ function recogerPaso() {
   if (p.id === 'documento' || p.id === 'rostro') return {};
   U.camposDelGrupo(p.id).forEach(function (c) {
     var el = $('f_' + c.id);
-    if (el) REGISTRO[c.id] = el.value;
+    /* 8-oct-2026 — el celular de este paso es de solo lectura (es el del paso
+       1, pintado bonito): no se vuelve a leer de la casilla. */
+    if (c.id === 'celular') return;
+    /* Los pesos se guardan en dígitos (ver anotarPesos): en pantalla dicen
+       1,500.000, en el borrador y en el CRM 1500000. */
+    if (el) REGISTRO[c.id] = c.tipo === 'pesos' ? String(el.value || '').replace(/\D/g, '') : el.value;
   });
   guardarBorrador(REGISTRO);
   return {};
@@ -1381,6 +1549,10 @@ function siguientePaso() {
     CLAVE_EN_MEMORIA = extra.clave;
     guardarClaveEnCurso(extra.clave);
     guardarBorrador(REGISTRO);
+    /* 8-oct-2026 — tocó «Continuar» con el aviso del acompañamiento a la
+       vista: eso es el permiso (ver vioAvisoVivo). En PlataChat no hay aviso
+       ni se publica nada. */
+    if (MARCA !== 'platachat') anotarAvisoVivo();
     return pintarRegistro(PASO + 1);
   }
 
@@ -1470,11 +1642,16 @@ function enviarRegistro(sensibles) {
      registrar_abierto_app es copia fiel de registrar_abierto más p_app
      (base/20260921_platachat_app.sql). Y su 404 no se disfraza de «revisa tu
      internet»: es la base sin esa migración, y se dice. */
+  /* 8-oct-2026 (segunda vuelta) — LA VERSIÓN DE LA POLÍTICA QUE ACEPTÓ viaja en
+     los datos del registro (autorizacion_version). La guardaba solo la cuenta,
+     y el CRM —que decide si consulta la ubicación por IP— no podía saber si
+     esta persona aceptó el texto que nombra a ipwho.is o el de antes. Se suma
+     a una copia: el borrador del teléfono no la necesita. */
   var cuerpoRegistro = {
     p_celular: REGISTRO.celular,
     p_nombre: ((REGISTRO.nombres || '') + ' ' + (REGISTRO.apellidos || '')).replace(/\s+/g, ' ').trim(),
     p_cedula: REGISTRO.documento || '',
-    p_datos: REGISTRO
+    p_datos: Object.assign({}, REGISTRO, { autorizacion_version: autorizacion.version })
   };
   if (MARCA === 'platachat') cuerpoRegistro.p_app = 'platachat';
   /* Las dos rutas escritas enteras: el centinela de motor.test.js («la bandeja
@@ -1630,50 +1807,62 @@ function entrarConElCelularDelRegistro() {
 function pintarRegistrado() {
   if (MARCA === 'platachat') return pintarRegistradoPlataChat();
   VISTA = 'listo';
+  /* 8-oct-2026 — el registro terminó: lo que el equipo veía «en vivo» ya está
+     en Registrados, y la fila de acompañamiento sobra (se borra con su
+     testigo; si no lo hay, no se llama a nadie). */
+  try { borrarAvance(); } catch (e) {}
+  olvidarAvisoVivo();   // el próximo registro en este teléfono vuelve a leer el aviso
   /* 21-sep-2026 — se suelta #registro: una relanzada aquí caía en «Paso 1 de
      9» con el formulario vacío. Con la dirección limpia y la marca de cuenta
      creada, cae en la portada diciendo la verdad. */
   marcarVista('');
   $('titulo').textContent = 'Tu cuenta quedó abierta';
   /* 8-sep-2026 — Joan: «lo que quiero es que el cliente, después de que se
-     registre, pueda automáticamente aplicar a un crédito». Antes esta pantalla
-     mandaba a WhatsApp con un código de verificación; ahora el siguiente paso
-     es pedir, y la propuesta sale al instante. El código de verificación sigue
-     viajando en los datos del registro, para el CRM, sin pedirle nada a él. */
+     registre, pueda automáticamente aplicar a un crédito».
+     8-oct-2026 — Y QUE PIDA LO QUE QUIERA. Hasta hoy el botón «Pedir mi primer
+     crédito» llamaba solicitar_primer_credito(), que no recibe nada y contesta
+     al instante con la política del nuevo: el cliente no podía escoger ni el
+     monto ni la fecha, y lo que veía era una propuesta que nadie había mirado.
+     Joan: «no me dejó solicitar lo que yo quería ni el plazo que quería, ni
+     siquiera se ve una calculadora… yo soy el encargado de darle una
+     contrapropuesta». Ahora aquí está la calculadora (la misma de la
+     portada, con lo que haya movido antes de registrarse) y el pedido llega a
+     la bandeja de Joan, que contesta. */
   $('cuerpo').innerHTML =
     '<div class="card"><div class="aviso verde"><b>Listo.</b> Tu cuenta quedó creada.</div>' +
       /* 21-sep-2026 — sin nombres propios. Joan: «no quiero que le digas al
-         cliente que joan decide». Y sin inventar una verificación que no
-         existe: se dice lo que de verdad pasa —se revisa y se contesta—, que
-         es honesto y suena mejor que una persona decidiendo a mano. */
-      '<p class="sub" style="margin-top:var(--e4)"><b>Ahora pide tu primer crédito.</b> ' +
-      'Te mostramos de una la propuesta para clientes nuevos, en pesos, y la aceptas solo si te sirve. ' +
-      'Revisamos tu solicitud y te avisamos aquí mismo cuándo y por dónde recibes la plata.</p>' +
+         cliente que joan decide». Se dice lo que de verdad pasa: se revisa y
+         se contesta con una propuesta. */
+      '<p class="sub" style="margin-top:var(--e4)"><b>Ahora pide tu crédito.</b> ' +
+      'Dinos cuánto necesitas y para cuándo. Revisamos tu solicitud y te mandamos una propuesta con el ' +
+      'costo exacto en pesos; la aceptas solo si te sirve.</p>' +
       /* 7-oct-2026 (tercera vuelta) — desde la puerta única TODO cliente
-         antiguo abre su cuenta por aquí, también el que tiene un crédito al
-         día o en mora, y esta pantalla le decía «pide tu primer crédito».
-         Si pide, solicitar_primer_credito le arma la propuesta de cliente
-         nuevo, y con base/20261007c la solicitud nace cuenta_sin_juntar: el
-         CRM no la pega a su ficha. No se le cierra el botón —aquí no se sabe
-         todavía quién es antiguo—; se le dice qué es la propuesta y qué le
-         conviene esperar. */
-      '<p class="sub"><b>¿Ya eras cliente nuestro?</b> Esta propuesta es la de cliente nuevo: mejor espera a que ' +
-      'juntemos tu historial con esta cuenta. Te avisamos por el chat cuando esté.</p>' +
-      '<button class="btn arriba" onclick="pedirPrimerCredito()">Pedir mi primer crédito</button>' +
-      '<div id="errPrimer" class="aviso ambar oculto"></div>' +
-      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pintarCuenta()">Ir a mi cuenta</button>' +
-    '</div>' + pie();
+         antiguo abre su cuenta por aquí. No se le cierra el botón —aquí no se
+         sabe todavía quién es antiguo—; se le dice qué le conviene esperar.
+         8-oct-2026 — ya no hay «propuesta de cliente nuevo» al instante: lo
+         que se le dice es cómo se le va a responder si pide ya. */
+      '<p class="sub"><b>¿Ya eras cliente nuestro?</b> Si pides ahora, te respondemos como a un cliente nuevo: ' +
+      'mejor espera a que juntemos tu historial con esta cuenta. Te avisamos por el chat cuando esté.</p>' +
+    '</div>' +
+    tarjetaPedir('pedirPrimerCredito()', 'Tu crédito') +
+    '<div class="card"><button class="btn sec" onclick="pintarCuenta()">Ir a mi cuenta</button></div>' +
+    pie();
   window.scrollTo(0, 0);
 }
 
-/* ================= EL PRIMER CRÉDITO DEL NUEVO — 8-sep-2026 =================
-   Pedido de Joan: que el recién registrado pida de una, reciba la contrapropuesta
-   estándar para nuevos (la arma la base al instante, con la política que Joan
-   edita en su CRM), la acepte aquí, y Joan solo tenga que desembolsar.
+/* ================= PEDIR LO QUE NECESITAS — 8-oct-2026 =================
+   (Antes: «el primer crédito del nuevo», 8-sep-2026, con la propuesta
+   automática al instante.)
 
-   Lo que esta pantalla NO hace: no crea un crédito. Aceptar es aceptar la
-   propuesta; la plata la entrega Joan, a mano, y ahí nace el crédito. Se dice
-   con esas palabras. Y al cliente se le habla en PESOS: ni un porcentaje. */
+   La calculadora es la de app/calculadora-solicitud.js: cuánto y para cuándo,
+   SIN PRECIO —el costo lo pone Joan cliente por cliente y se ve en la
+   propuesta, antes de aceptar—. El pedido va a solicitar_a_la_medida
+   (base/20261008_condiciones_aceptadas.sql), que lo deja 'nuevo' en la
+   bandeja del CRM con el monto, la FECHA que escogió y su nota.
+
+   Lo que esta pantalla NO hace: no crea un crédito ni promete uno. Pedir es
+   pedir; aceptar es aceptar la propuesta; la plata la entrega Joan, a mano, y
+   ahí nace el crédito. Y al cliente se le habla en PESOS: ni un porcentaje. */
 function rpcSesion(fn, cuerpo) {
   if (!SESION || !SESION.access_token) return Promise.reject({ sinSesion: true });
   return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
@@ -1684,63 +1873,224 @@ function rpcSesion(fn, cuerpo) {
   }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); });
 }
 
-function pedirPrimerCredito() {
-  var err = $('errPrimer'); if (err) err.classList.add('oculto');
+/* Con lo que la persona movió antes (en la portada del sitio o en la de aquí,
+   antes de registrarse), y si no, un punto de partida cualquiera: 300.000 a
+   un mes. */
+function estadoInicialDelPedido() {
+  return (CS && CS.leerGuardado()) || { monto: 300000, dias: 30 };
+}
+/* Lo movido se guarda en cada movimiento, y no solo al tocar el botón: la
+   lámina de Crédito se repinta sola cuando llega la ficha, y sin esto la
+   calculadora volvería a 300.000 debajo del dedo de quien la estaba moviendo. */
+function guardarPedidoMovido(e) { if (CS) CS.guardar(e); }
+
+/* La tarjeta de pedir. Si el módulo no llegó, se dice y se ofrece el chat:
+   registrarse y entrar no dependen de él. */
+function tarjetaPedir(accion, titulo) {
+  if (!CS) {
+    return '<div class="card"><div class="aviso ambar">No pude cargar la calculadora. Revisa tu internet y ' +
+      'vuelve a abrir la página; mientras tanto, escríbenos cuánto necesitas por el chat de Créditos nuevos.</div></div>';
+  }
+  return '<div class="card laca" id="cajaPedir">' +
+    CS.html(estadoInicialDelPedido(), { titulo: titulo || 'Pide lo que necesitas', boton: 'Pedir {monto}',
+                                        accion: accion, conNota: true, hoy: hoyISO(),
+                                        alCambiar: guardarPedidoMovido }) +
+    '<div id="pedirSalida"></div>' +
+    '</div>';
+}
+
+/* El nombre se queda: es el botón con el que «el recién registrado pide de
+   una» (pruebas/motor.test.js). Lo que cambió es lo que manda. */
+function pedirPrimerCredito() { return enviarPedido(); }
+
+var PIDIENDO = false;
+function enviarPedido() {
+  if (!CS) return;
+  var salida = $('pedirSalida'); if (salida) salida.innerHTML = '';
   if (!SESION || !SESION.access_token) {
-    /* Sin sesión no se puede pedir. Pasa si la cuenta se creó en otro aparato:
-       entra con su celular y su contraseña y de ahí sale la propuesta. */
+    /* Sin sesión no se puede pedir (la cuenta se creó en otro aparato, o se
+       venció). Lo movido se guarda y se le manda a entrar. */
+    CS.guardar(CS.estado());
     pintarEntrar();
     return;
   }
-  if (err) fallo(err, 'Pidiendo…');
-  rpcSesion('solicitar_primer_credito').then(function (j) {
-    if (!j || j.ok !== true || !j.solicitud) {
-      if (err) fallo(err, 'No pudimos recibir tu solicitud ahora. Espera unos minutos y vuelve a intentar.');
+  if (PIDIENDO) return;
+  var pedido = CS.pedidoParaEnviar(CS.estado(), hoyISO(), CS.nota());
+  CS.guardar(CS.estado());
+  var b = $('csBoton'); if (b) b.disabled = true;
+  CS.error('Enviando…');
+  PIDIENDO = true;
+  rpcSesion('solicitar_a_la_medida', pedido).then(function (j) {
+    PIDIENDO = false; if (b) b.disabled = false;
+    if (!j || j.ok !== true || !j.solicitud) { CS.error(motivoDelPedido(j)); return; }
+    CS.error('');
+    /* 8-oct-2026 (segunda vuelta) — SE QUEDA LO QUE PIDIÓ, no se olvida. Antes
+       se borraba y la calculadora volvía a $300.000 a un mes, mientras la
+       tarjeta de espera decía «mueve la calculadora y vuelve a tocar Pedir:
+       cambiamos esta misma solicitud»: un toque distraído cambiaba la
+       solicitud de verdad por la cifra de partida. */
+    CS.guardar(CS.estado(), null, hoyISO());
+    pintarSolicitud(j.solicitud, j.ya_habia ? 'ya_habia' : (j.cambiada ? 'cambiada' : ''));
+  }).catch(function (e) {
+    PIDIENDO = false; if (b) b.disabled = false;
+    var c = causaDe(e);
+    if (c === 'apagado') {
+      /* 404: la migración del 8-oct todavía no está en la base. No es su
+         teléfono ni su internet, y se dice; y su pedido no se pierde: se le
+         ofrece mandarlo por el chat de Créditos nuevos, ya escrito. */
+      CS.error('Pedir desde aquí todavía no está encendido de nuestro lado (no es tu teléfono ni tu internet).');
+      if (salida) salida.innerHTML = '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="pedirPorElChat()">' +
+        'Mandarlo por el chat de Créditos nuevos</button>';
       return;
     }
-    pintarSolicitud(j.solicitud);
-  }).catch(function () {
-    if (err) fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
+    CS.error(c === 'sesion' ? 'Se cerró tu sesión. Entra otra vez y tu solicitud sale al instante.'
+      : 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
   });
 }
 
-/* La propuesta, en pesos y con la explicación de Joan. El botón de aceptar dice
-   exactamente lo que se registra, y lo que NO pasa se dice también. */
+/* Cada motivo de la base, su frase. Las cifras del piso y del techo las dice
+   el SERVIDOR en la misma respuesta; si no vinieran, las del módulo, que son
+   las mismas (una prueba las compara con la migración). */
+function motivoDelPedido(j) {
+  var m = j && j.motivo;
+  return m === 'minimo' ? 'Lo mínimo que estudiamos es ' + CS.pesos(j.minimo || CS.MONTO_MIN) + '. Sube la cifra y lo vemos.'
+    : m === 'maximo' ? 'Por aquí llegamos hasta ' + CS.pesos(j.maximo || CS.MONTO_MAX) + '. Si necesitas más, escríbenos por el chat y lo hablamos.'
+    : m === 'fecha' ? 'Escoge un día entre mañana y dentro de seis meses.'
+    : m === 'sesion' ? 'Se cerró tu sesión. Entra otra vez y tu solicitud sale al instante.'
+    : m === 'muchas' ? 'Ya nos dejaste varias solicitudes hace poco. Las tenemos: dale un rato y te respondemos.'
+    : m === 'ocupado' ? 'Estamos recibiendo muchas solicitudes en este momento. Vuelve a intentar en unos minutos.'
+    : 'No pudimos recibir tu solicitud ahora. Espera unos minutos y vuelve a intentar.';
+}
+
+/* El pedido, escrito, en el chat de Créditos nuevos: la salida mientras la
+   base no tenga solicitar_a_la_medida. No se manda solo: queda en la casilla
+   para que la persona lo lea y toque «Enviar». */
+function pedirPorElChat() {
+  var t = CS ? CS.resumen(CS.estado(), hoyISO()).replace(/^Pides /, 'Quiero pedir ') : '';
+  CANAL = 'creditos'; TAB = 'chat';
+  pintarCuenta();
+  var x = $('chTexto'); if (x && t) x.value = t;
+}
+
+/* LA SOLICITUD QUE ESPERA PROPUESTA. Se dice lo pedido con sus palabras y en
+   qué va, sin promesas: ni una hora (la contesta una persona), ni un aviso que
+   no existe (la propuesta se ve aquí, al abrir la app, y no llega sola). */
+function tarjetaSolicitudEnEspera(sol) {
+  var p = (sol && sol.pedido) || {};
+  var monto = Number(p.capital != null ? p.capital : (sol.pedido_monto || sol.capital)) || 0;
+  var fecha = String(p.fecha_pago || sol.fecha_corte || '').slice(0, 10);
+  var P = CS ? CS.pesos : COP, F = CS ? CS.fechaLarga : fmtFecha;
+  return '<div class="card"><div class="aviso verde"><b>Recibimos tu solicitud.</b></div>' +
+    '<p class="sub" style="margin-top:var(--e4)">Pediste <b>' + esc(P(monto)) + '</b>' +
+      (fecha ? ' para pagar el <b>' + esc(F(fecha)) + '</b>' : '') + '. ' +
+      '<b>Todavía no es un crédito:</b> la revisamos y te mandamos una propuesta con el costo exacto en pesos. ' +
+      'Cuando la tengamos la ves aquí, en la pestaña Crédito, y la aceptas solo si te sirve.</p>' +
+    (sol.pedido_nota ? '<p class="sub">Nos dijiste: «' + esc(sol.pedido_nota) + '»</p>' : '') +
+    '<p class="sub">¿Quieres cambiar lo que pediste? Mueve la calculadora de la pestaña Crédito y vuelve a ' +
+      'tocar «Pedir»: cambiamos esta misma solicitud.</p>' +
+  '</div>';
+}
+function esperaPropuesta(sol) {
+  return !!sol && sol.estado === 'nueva' && !sol.contrapropuesta;
+}
+/* 8-oct-2026 (segunda vuelta) — MIENTRAS ESPERA, LA CALCULADORA DICE LO QUE
+   PIDIÓ. La tarjeta de espera le dice «mueve la calculadora y vuelve a tocar
+   Pedir»: si la calculadora arrancara en otra cifra (otro teléfono, o lo
+   guardado ya venció), «Pedir» sin mover nada cambiaría la solicitud por esa
+   otra. La solicitud de la base manda; lo que se esté escribiendo no se toca
+   (si la persona ya movió algo desde que abrió, se respeta). */
+var PEDIDO_PUESTO = '';
+function ponerCalculadoraEnLoPedido(sol) {
+  if (!CS || !sol) return;
+  var p = sol.pedido || {};
+  var monto = Number(p.capital != null ? p.capital : sol.pedido_monto) || 0;
+  var dias = CS.diasHasta(String(p.fecha_pago || sol.fecha_corte || '').slice(0, 10), hoyISO());
+  if (!(monto > 0) || dias === null) return;
+  var llave = String(sol.id) + '|' + monto + '|' + p.fecha_pago;
+  if (PEDIDO_PUESTO === llave) return;   // ya se puso: lo que movió después es suyo
+  PEDIDO_PUESTO = llave;
+  CS.poner({ monto: monto, dias: dias });
+  CS.guardar(CS.estado(), null, hoyISO());
+}
+
+/* LA PROPUESTA, CON LAS CONDICIONES DE ESE CRÉDITO — 8-oct-2026.
+   Joan: «al momento de la contrapropuesta que se le muestren los términos y
+   condiciones de ese crédito en específico». Debajo del texto de Joan va el
+   bloque «Las condiciones de este crédito» (qué recibe, cuándo paga, el
+   total, lo que cuesta, la garantía que le deja, qué pasa si se atrasa y que
+   eso se negocia, cómo se paga) y la casilla «Leí y acepto las condiciones de
+   este crédito». Sin la casilla el botón no se puede tocar, y lo que se
+   aceptó viaja con la aceptación (aceptar_condiciones).
+
+   La casilla se acuerda por solicitud Y por propuesta (CS.llaveDeCasilla): si
+   Joan cambia la propuesta, la marca de la vieja no vale para la nueva. */
+var CONDICIONES_LEIDAS = {};
+var SOL_EN_PANTALLA = null;
 function tarjetaContrapropuesta(sol) {
   var cp = sol.contrapropuesta || {};
   var aceptada = sol.estado === 'aceptada';
-  var cambiada = cp.por === 'joan' && !aceptada;
+  var P = CS ? CS.pesos : COP;
+  var cond = CS ? CS.condiciones(sol, { hoy: hoyISO() }) : null;
+  if (!aceptada) SOL_EN_PANTALLA = sol;
   var h = '<div class="card">' +
-    (cambiada ? '<div class="aviso ambar"><b>Te hicimos una propuesta nueva.</b> Léela y decide.</div>' : '') +
-    '<div class="etq">' + (aceptada ? 'Tu primer crédito, aceptado' : 'Tu primer crédito') + '</div>' +
+    (aceptada ? '' : '<div class="aviso ambar"><b>Te hicimos una propuesta.</b> Léela con calma y decide.</div>') +
+    '<div class="etq">' + (aceptada ? 'Tu crédito, aceptado' : 'Tu propuesta') + '</div>' +
     (cp.texto ? '<p class="sub">' + esc(cp.texto) + '</p>' : '') +
-    fila('Te prestamos', COP(cp.capital)) +
-    fila('Lo que cuesta', COP(cp.costo)) +
-    fila('Devuelves', COP(cp.total)) +
-    '<div class="grupo-tit">Cuándo pagas</div>' +
-    cuotasDePropuesta(cp);
+    /* Sin el módulo, lo de siempre: lo que recibe, lo que cuesta, lo que
+       devuelve y cuándo. Una propuesta nunca se queda sin cifras. */
+    (cond ? CS.condicionesHTML(cond)
+          : fila('Te prestamos', COP(cp.capital)) +
+            fila('Lo que cuesta', COP(cp.costo)) +
+            fila('Devuelves', COP(cp.total)) +
+            '<div class="grupo-tit">Cuándo pagas</div>' +
+            cuotasDePropuesta(cp));
   if (aceptada) {
-    /* 7-oct-2026 — sin «tu código de acceso»: Joan apagó los códigos, nadie se
-       lo iba a mandar y prometerlo era la pantalla afirmando algo que ya no
-       existe. Vuelve con su celular y su contraseña, que ya tiene. */
-    h += '<div class="aviso verde" style="margin-top:var(--e3)"><b>Listo: aceptaste ' + COP(cp.capital) + '.</b> ' +
+    /* 7-oct-2026 — sin «tu código de acceso»: Joan apagó los códigos. */
+    h += '<div class="aviso verde" style="margin-top:var(--e3)"><b>Listo: aceptaste ' + P(cp.capital) + '.</b> ' +
       'Te avisamos <b>en el chat de la app</b> cuándo y por dónde recibes la plata. ' +
       'No tienes que hacer nada más por ahora.</div>';
   } else {
-    h += '<p class="sub" style="margin-top:var(--e3)">Aceptar todavía no te entrega la plata: ' +
-        'es tu visto bueno a estas cifras. Después te avisamos cuándo y por dónde la recibes. ' +
-        'Y si no te cuadra, no aceptes: no pasa nada y no pierdes nada.</p>' +
-      '<button class="btn arriba" onclick="aceptarContrapropuesta(' + Number(sol.id) + ')">' +
-        'Acepto: recibo ' + COP(cp.capital) + ' y devuelvo ' + COP(cp.total) + '</button>' +
+    var marcada = !!(CS && CONDICIONES_LEIDAS[CS.llaveDeCasilla(sol)]);
+    h += (CS ? CS.casillaHTML('condLeidas', 'marcarCondiciones(this.checked)', marcada) : '') +
+      /* Con las condiciones a la vista, «aceptar no te entrega la plata» ya lo
+         dice su último renglón: aquí solo lo que falta, que no aceptar es gratis. */
+      (cond
+        ? '<p class="sub" style="margin-top:var(--e3)">Si no te cuadra, no aceptes: no pasa nada y no pierdes nada.</p>'
+        : '<p class="sub" style="margin-top:var(--e3)">Aceptar todavía no te entrega la plata: ' +
+          'es tu visto bueno a estas cifras. Después te avisamos cuándo y por dónde la recibes. ' +
+          'Y si no te cuadra, no aceptes: no pasa nada y no pierdes nada.</p>') +
+      /* 8-oct-2026 (segunda vuelta) — APAGADO PERO NO MUDO. Con `disabled` el
+         toque no hacía nada y no decía por qué: el aviso «Marca la casilla…»
+         de aceptarContrapropuesta nunca se alcanzaba (lo probó la revisión del
+         teléfono). Ahora se ve apagado (aria-disabled), se puede tocar, y al
+         tocarlo dice qué falta; y debajo, mientras falte, una línea lo dice. */
+      '<button class="btn arriba" id="btnAceptar" onclick="aceptarContrapropuesta(' + Number(sol.id) + ')"' +
+        (CS && !marcada ? ' aria-disabled="true" style="opacity:.55"' : '') + '>' +
+        'Acepto: recibo ' + P(cp.capital) + ' y devuelvo ' + P(cp.total) + '</button>' +
+      (CS ? '<div class="ayuda" id="faltaCasilla"' + (marcada ? ' style="display:none"' : '') + '>' +
+        'Para aceptar, marca primero la casilla de arriba.</div>' : '') +
       '<div id="errAceptar" class="aviso ambar oculto"></div>';
   }
   return h + '</div>';
 }
 
+function marcarCondiciones(si) {
+  if (!CS || !SOL_EN_PANTALLA) return;
+  CONDICIONES_LEIDAS[CS.llaveDeCasilla(SOL_EN_PANTALLA)] = !!si;
+  var b = $('btnAceptar');
+  if (b && b.setAttribute) {
+    if (si) { b.removeAttribute && b.removeAttribute('aria-disabled'); if (b.style) b.style.opacity = ''; }
+    else { b.setAttribute('aria-disabled', 'true'); if (b.style) b.style.opacity = '.55'; }
+  }
+  var f = $('faltaCasilla'); if (f && f.style) f.style.display = si ? 'none' : '';
+  var err = $('errAceptar'); if (err && si) err.classList.add('oculto');
+}
+
 /* Las cuotas de una propuesta, segmentadas. Si la propuesta trae cuotas se
    pintan una por una; si trae un solo pago se pinta ESE, con su fecha y su
    monto. Partir un pago único en tres renglones inventados sería la pantalla
-   fabricando un acuerdo que nadie hizo. */
+   fabricando un acuerdo que nadie hizo. (8-oct-2026: es el respaldo de la
+   tarjeta cuando app/calculadora-solicitud.js no llegó.) */
 function cuotasDePropuesta(cp) {
   if (cp.cuotas && cp.cuotas.length) return cuadroCuotas(cp.cuotas);
   if (!cp.fecha_pago) return '';
@@ -1749,35 +2099,95 @@ function cuotasDePropuesta(cp) {
       'que recibas la plata. No hay cuotas intermedias ni nada que pagar antes.</div>';
 }
 
-function pintarSolicitud(sol) {
+/* Lo que dice arriba de la tarjeta según cómo se llegó a ella. */
+function avisoDeSolicitud(nota) {
+  if (nota === 'ya_habia') return '<div class="card"><div class="aviso">Ya tenías una solicitud abierta: es esta.</div></div>';
+  if (nota === 'cambiada') return '<div class="card"><div class="aviso">Cambiamos tu solicitud con lo que acabas de pedir.</div></div>';
+  if (nota === 'cambio') {
+    return '<div class="card"><div class="aviso ambar"><b>La propuesta cambió mientras la leías.</b> ' +
+      'Esta es la nueva: léela antes de aceptar.</div></div>';
+  }
+  return '';
+}
+
+function pintarSolicitud(sol, nota) {
   VISTA = 'solicitud';
   marcarVista('');
-  $('titulo').textContent = sol.estado === 'aceptada' ? 'Tu primer crédito' : 'Tu propuesta';
-  $('cuerpo').innerHTML = tarjetaContrapropuesta(sol) +
+  $('titulo').textContent = sol.estado === 'aceptada' ? 'Tu crédito'
+    : esperaPropuesta(sol) ? 'Solicitud enviada' : 'Tu propuesta';
+  $('cuerpo').innerHTML = avisoDeSolicitud(nota) +
+    (esperaPropuesta(sol) ? tarjetaSolicitudEnEspera(sol) : tarjetaContrapropuesta(sol)) +
     '<div class="card"><button class="btn sec" onclick="pintarCuenta()">Ir a mi cuenta</button></div>' + pie();
   window.scrollTo(0, 0);
 }
 
+/* ACEPTAR, con las condiciones que vio. La base compara el monto, el total, la
+   fecha de pago y el sello de la propuesta que la persona tenía delante con la
+   vigente: si Joan la cambió mientras leía, contesta 'cambio' y se le muestra
+   la nueva, con la casilla sin marcar.
+   8-oct-2026 (segunda vuelta) — CON 404 YA NO SE ACEPTA «CON LA DE SIEMPRE».
+   La migración del 8-oct sin correr hacía caer en aceptar_contrapropuesta, que
+   no guarda nada de lo leído, mientras los términos prometen «guardamos una
+   copia tal como las viste». Ahora se dice que no se pudo y que nos escriba
+   por el chat si le urge: mejor una aceptación que espera que una sin constancia. */
 function aceptarContrapropuesta(id) {
-  var err = $('errAceptar'); if (err) fallo(err, 'Registrando…');
-  rpcSesion('aceptar_contrapropuesta', { p_id: id }).then(function (j) {
-    if (!j || j.ok !== true || !j.solicitud) {
-      if (err) fallo(err, 'No pudimos registrar tu aceptación. Vuelve a abrir la app: si la propuesta cambió, verás la nueva.');
-      return;
-    }
-    pintarSolicitud(j.solicitud);
+  var err = $('errAceptar');
+  var sol = (SOL_EN_PANTALLA && Number(SOL_EN_PANTALLA.id) === Number(id)) ? SOL_EN_PANTALLA : null;
+  if (CS && !(sol && CONDICIONES_LEIDAS[CS.llaveDeCasilla(sol)])) {
+    if (err) fallo(err, 'Marca la casilla «' + CS.TEXTO_CASILLA + '» para seguir.');
+    return;
+  }
+  var cond = (CS && sol) ? CS.condiciones(sol, { hoy: hoyISO() }) : null;
+  if (err) progreso(err, 'Registrando…');
+  var conCondiciones = !!cond;
+  (conCondiciones
+    ? rpcSesion('aceptar_condiciones', { p_id: Number(id), p_vio: CS.paraAceptar(cond) })
+    : rpcSesion('aceptar_contrapropuesta', { p_id: Number(id) }))
+    .catch(function (e) {
+      if (conCondiciones && causaDe(e) === 'apagado') return { ok: false, motivo: 'sin_constancia' };
+      throw e;
+    })
+    .then(function (j) {
+      if (j && j.motivo === 'sin_constancia') {
+        if (err) fallo(err, 'No pudimos registrar tu aceptación todavía (no es tu teléfono ni tu internet). ' +
+          'Tu propuesta sigue aquí: vuelve a intentarlo más tarde, o escríbenos por el chat de la app y lo resolvemos.');
+        return;
+      }
+      if (!j || j.ok !== true || !j.solicitud) {
+        if (j && j.motivo === 'cambio') return recargarPropuesta('cambio');
+        if (err) fallo(err, 'No pudimos registrar tu aceptación. Vuelve a abrir la app: si la propuesta cambió, verás la nueva.');
+        return;
+      }
+      pintarSolicitud(j.solicitud);
+    })
+    .catch(function () {
+      if (err) fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
+    });
+}
+
+function recargarPropuesta(nota) {
+  return rpcSesion('mi_solicitud').then(function (j) {
+    var sol = j && j.ok === true ? j.solicitud : null;
+    if (sol) pintarSolicitud(sol, nota);
   }).catch(function () {
-    if (err) fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
+    var err = $('errAceptar');
+    if (err) fallo(err, 'La propuesta cambió mientras la leías. Vuelve a abrir la app para ver la nueva.');
   });
 }
 
 /* La «notificación»: cada vez que abre su cuenta, la app pregunta por su
    solicitud. Si hay una propuesta esperando (nueva o cambiada por Joan), sale
-   arriba de todo; si ya aceptó, sale el aviso de que Joan le escribe. */
+   arriba de todo; si ya aceptó, sale el aviso de que le escribimos; y desde el
+   8-oct, si pidió y todavía no hay propuesta, sale lo que pidió. */
 function cargarMiSolicitud() {
   var caja = $('solicitudBox'); if (!caja || !SESION || !SESION.access_token) return;
   rpcSesion('mi_solicitud').then(function (j) {
     var sol = j && j.ok === true ? j.solicitud : null;
+    if (sol && esperaPropuesta(sol) && sol.pedido && sol.pedido.origen === 'play') {
+      caja.innerHTML = tarjetaSolicitudEnEspera(sol);
+      ponerCalculadoraEnLoPedido(sol);
+      return;
+    }
     if (!sol || !sol.contrapropuesta) { caja.innerHTML = ''; return; }
     if (sol.estado !== 'contrapropuesta' && sol.estado !== 'aceptada') { caja.innerHTML = ''; return; }
     caja.innerHTML = tarjetaContrapropuesta(sol);
@@ -1798,6 +2208,16 @@ function cargarMiSolicitud() {
    —el parecido con la cédula— la calcula el CRM de Joan, en su computador,
    cuando abre a la persona. Así la app no procesa biometría ni llama a
    servidores ajenos, que es lo que declara Data Safety.
+
+   8-oct-2026 — LO DE «NO DETECTA» CAMBIÓ, por pedido de Joan («que la enfoque,
+   que se escanee y cuando esté centrada la cara tome la foto sola, que parezca
+   más reconocimiento facial»). Ahora el teléfono SÍ DETECTA dónde hay una cara
+   (app/rostro-en-vivo.js, solo el detector chico, desde el propio sitio), y
+   con eso decide cuándo disparar. Sigue sin MEDIR ni COMPARAR: no saca puntos
+   de la cara ni ningún vector, y la caja de la cara vive en la memoria del
+   bucle y muere con él — lo único que sale del teléfono es la foto. Solo
+   corre después de la autorización de datos sensibles. La política
+   (legal/privacidad.html, «La foto de tu cara, que se toma sola») lo dice así.
 
    Las fotos no viajan en el registro (que recorta cada dato a 200 caracteres):
    se suben aparte, con la sesión, después de crear la cuenta. Si la subida
@@ -1951,8 +2371,8 @@ function textoGps() {
 function pasoDocumento() {
   var con = !!FOTOS.sensibles, vivo = hayCamaraEnVivo();
   return '<p class="sub">' + (vivo
-      ? 'Pon tu cédula <b>de pie</b> dentro del marco y la cámara la lee sola: primero el <b>respaldo</b> ' +
-        '(el del código de barras), que nos deja escritos tu número y tu nombre; después el frente, que confirma que es tuya.'
+      ? 'Pon tu cédula dentro del marco y la cámara toma las fotos sola: primero el <b>respaldo</b> ' +
+        '(el del código de barras), de pie; después el frente, acostado.'
       : 'Con la foto del <b>respaldo</b> de tu cédula (el del código de barras) leemos tu ' +
         'número y tu nombre y te los dejamos escritos. La del frente confirma que es tuya.') + '</p>' +
     '<label class="permiso"><input type="checkbox" id="autFotos"' + (con ? ' checked' : '') +
@@ -1979,6 +2399,7 @@ function cambiarConsentimiento(v) {
   FOTOS.sensibles = !!v; guardarFotos();
   var caja = $('docCaja'); if (caja) caja.classList.toggle('oculto', !v);
   if (v && !FOTOS.gps) pedirGps();
+  if (v) precalentarDetectorRostro();
   if (!v) { delete FOTOS.gps; delete FOTOS.gps_error; guardarFotos(); }
   var g = $('docGps'); if (g) g.innerHTML = textoGps();
 }
@@ -2206,8 +2627,10 @@ function tomarFoto(ev, key) {
 function leerCodigoDeBarras(lienzo) {
   var leido = $('docLeido');
   if (leido) { leido.classList.remove('oculto'); leido.innerHTML = 'Leyendo el código de barras…'; }
+  var giro = null;
   return cargarScript(URL_ZXING).then(respiro).then(function () {
-    var r = leerCedulaDeLienzo(lienzo, EC ? EC.GIROS_DE_RESCATE : null);
+    var r = leerCedulaDeLienzo(lienzo, EC ? EC.GIROS_DE_RESCATE : null, 'siempre');
+    giro = r.giro;
     if (!r.cedula) throw new Error(r.error || 'sin datos');
     anotarCedulaLeida(r.cedula);
     if (leido) leido.innerHTML = textoLeido();
@@ -2216,7 +2639,12 @@ function leerCodigoDeBarras(lienzo) {
     delete FOTOS.cedula_leida; guardarFotos();
     if (leido) leido.innerHTML = 'No pude leer el código de barras de esa foto (enfócalo bien, con luz y de cerca). ' +
       'No pasa nada: escribes tus datos en el paso siguiente.';
-  }).then(function () { soltarLienzo(lienzo); soltarLienzoGiro(); LIENZO_PENDIENTE = null; });
+  }).then(function () {
+    soltarLienzo(lienzo); soltarLienzoGiro(); LIENZO_PENDIENTE = null;
+    /* 8-oct-2026 — y la foto guardada se endereza, ya con el lienzo grande
+       suelto (ver enderezarFotoGuardada). */
+    if (giro) return enderezarFotoGuardada('cedula_reverso', giro);
+  });
 }
 function soltarLienzo(c) { try { if (c && c.width !== undefined) { c.width = c.height = 1; } } catch (e) {} }
 /* UN RESPIRO PARA QUE SE VEA «Leyendo…» — 21-sep-2026.
@@ -2278,39 +2706,62 @@ function notaCedulaLeida() {
    también girado 90°, porque el lector solo lee acostado; y si el código se
    vio pero no se corrigió, los giros de rescate que le pasen (o ninguno).
    Devuelve {cedula, error}: error = 'sin_lector' | 'no_hay' | 'ilegible'. */
-function leerCedulaDeLienzo(lienzo, giros) {
-  if (!EC || !window.ZXing || !lienzo || !lienzo.width) return { cedula: null, error: 'sin_lector' };
+/* 8-oct-2026 — Y DICE CUÁNTO HAY QUE GIRAR LA FOTO PARA QUE QUEDE DERECHA
+   (`giro`: 0, 90, 180, 270, o null si no se sabe y no se toca). Joan vio el
+   respaldo cabeza abajo en su CRM: el lector lee a 0° y a 180°, así que leía
+   bien una foto que se guardaba volteada. `orientar`:
+     'si_lee'  → solo si leyó (el bucle del escáner: cuatro veces por segundo
+                 no se puede pagar el análisis de cada cuadro);
+     'siempre' → también si no leyó, por el patrón del código (el disparo
+                 final y la foto de la galería). */
+function leerCedulaDeLienzo(lienzo, giros, orientar) {
+  if (!EC || !window.ZXing || !lienzo || !lienzo.width) return { cedula: null, error: 'sin_lector', giro: null };
   var bases = [0];
   if (lienzo.height > lienzo.width) bases.push(90);
-  var ultimo = 'no_hay';
+  var ultimo = 'no_hay', giroSinLeer = null, patron = false;
   for (var b = 0; b < bases.length; b++) {
-    var r = decodificarConGiro(lienzo, bases[b]);
+    var r = decodificarConGiro(lienzo, bases[b], b === 0 ? orientar : (orientar ? 'si_lee' : ''));
+    if (b === 0 && r.orientacion && r.orientacion.seguro) { giroSinLeer = r.orientacion.giro; patron = true; }
     if (r.texto) {
       var ced = EC.cedulaDelTexto(U.leerCedulaPDF417, r.texto);
-      if (ced) return { cedula: ced, error: '' };
+      if (ced) return { cedula: ced, error: '', giro: giroTotal(bases[b], r.orientacion) };
       ultimo = 'ilegible'; continue;
     }
     ultimo = r.error;
     if (r.error === 'ilegible' && giros && giros.length) {
       for (var i = 0; i < giros.length; i++) {
-        var rr = decodificarConGiro(lienzo, bases[b] + giros[i]);
+        var rr = decodificarConGiro(lienzo, bases[b] + giros[i], orientar ? 'si_lee' : '');
         if (rr.texto) {
           var c2 = EC.cedulaDelTexto(U.leerCedulaPDF417, rr.texto);
-          if (c2) return { cedula: c2, error: '' };
+          /* Los giros de rescate son de 2 y 4 grados: para la foto no cuentan. */
+          if (c2) return { cedula: c2, error: '', giro: giroTotal(bases[b], rr.orientacion) };
         }
       }
     }
   }
-  return { cedula: null, error: ultimo };
+  /* `patron`: el análisis vio barras de PDF417 aunque no leyera (8-oct-2026,
+     segunda vuelta): es lo que le dice al bucle que sí es el lado del código. */
+  return { cedula: null, error: ultimo, giro: giroSinLeer ? giroSinLeer : null, patron: patron };
 }
-function decodificarConGiro(lienzo, grados) {
-  if (!grados) return decodificarLienzo(lienzo);
+/* El giro de la foto = el de la base en que se leyó (0 o 90) + lo que diga la
+   orientación (0 o 180). Sin orientación segura: la base sola si la hubo
+   (una foto de pie que solo se leyó acostada, al menos se acuesta), y si no,
+   null — no se toca lo que no se sabe. */
+function giroTotal(base, ori) {
+  var g = (base || 0) + (ori && ori.seguro ? ori.giro : 0);
+  g = ((g % 360) + 360) % 360;
+  return g ? g : (ori && ori.seguro ? 0 : null);
+}
+function decodificarConGiro(lienzo, grados, orientar) {
+  if (!grados) return decodificarLienzo(lienzo, orientar);
   var g = lienzoGirado(lienzo, grados);
-  return g ? decodificarLienzo(g) : { error: 'no_hay' };
+  return g ? decodificarLienzo(g, orientar) : { error: 'no_hay' };
 }
 /* La ruta pura: píxeles → gris → ZXing, una vez, sin <img>, sin data URL, sin
-   lienzo de captura interno. Lo que reserva se suelta al salir. */
-function decodificarLienzo(c) {
+   lienzo de captura interno. Lo que reserva se suelta al salir.
+   8-oct-2026 — la orientación se mide sobre ESTE MISMO gris, mientras vive:
+   pedirle otra vez los píxeles al lienzo serían otros 7 MB en el peor momento. */
+function decodificarLienzo(c, orientar) {
   var gris, w, h;
   try {
     var x = c.getContext('2d', { willReadFrequently: true });
@@ -2324,7 +2775,54 @@ function decodificarLienzo(c) {
        fallar una reserva. */
     return { error: 'no_hay' };
   }
-  return EC.decodificarLuminancias(window.ZXing, gris, w, h);
+  var r = EC.decodificarLuminancias(window.ZXing, gris, w, h);
+  if (EC.orientacionDelRespaldo && ((orientar && r.texto) || orientar === 'siempre')) {
+    try { r.orientacion = EC.orientacionDelRespaldo(gris, w, h, { puntos: r.puntos }); } catch (e) {}
+  }
+  return r;
+}
+/* Sin lector (o con el detector nativo, que no dice cómo leyó): la
+   orientación por el patrón del código, sobre los píxeles del recorte. */
+function giroPorPatron(c) {
+  if (!EC || !EC.orientacionDelRespaldo || !c || !c.width) return null;
+  try {
+    var x = c.getContext('2d', { willReadFrequently: true });
+    var w = c.width, h = c.height;
+    var gris = EC.grisDeImageData(x.getImageData(0, 0, w, h).data, w, h);
+    var o = EC.orientacionDelRespaldo(gris, w, h, {});
+    return o.seguro ? o.giro : null;
+  } catch (e) { return null; }
+}
+/* Endereza una foto YA GUARDADA (la del <input type=file>): se gira la de
+   900 px, no la original de la cámara, y después de soltar el lienzo grande
+   del lector — nunca las dos en memoria a la vez. Si mientras tanto la
+   persona tomó otra, no se pisa la nueva. */
+function enderezarFotoGuardada(key, giro) {
+  var src = FOTOS[key];
+  if (!src || !giro || typeof Image !== 'function') return Promise.resolve(false);
+  return new Promise(function (res) {
+    var img = new Image();
+    img.onload = function () {
+      var out = '';
+      try {
+        var t = document.createElement('canvas');
+        t.width = img.naturalWidth || img.width; t.height = img.naturalHeight || img.height;
+        t.getContext('2d').drawImage(img, 0, 0, t.width, t.height);
+        out = fotoDeLienzo(t, 900, 0.6, giro);
+        t.width = t.height = 1;
+      } catch (e) { out = ''; }
+      img.onload = img.onerror = null;
+      if (!out || FOTOS[key] !== src) return res(false);
+      FOTOS[key] = out;
+      guardarFotos();
+      var caja = $('fot_' + key), im = caja && caja.querySelector ? caja.querySelector('img') : null;
+      if (im) im.src = out;
+      refrescarDoc();
+      res(true);
+    };
+    img.onerror = function () { res(false); };
+    img.src = src;
+  });
 }
 var LIENZO_GIRO = null;   // uno solo, reutilizado: girar no reserva memoria nueva cada vez
 function soltarLienzoGiro() { if (LIENZO_GIRO) soltarLienzo(LIENZO_GIRO); }
@@ -2388,7 +2886,14 @@ function lienzoGirado(lienzo, grados) {
 var ESCDOC = { activo: false, pausado: false, stream: null, lado: '', estables: 0, previa: null,
                ultima: 0, dura: 0, leyendo: false, ilegibles: 0, lecturas: 0, desde: 0, tempo: null, espera: null,
                gris: null, grisW: 0, grisH: 0, recorte: null, guiaCaja: null, guiaVideo: null,
-               cajaW: 0, cajaH: 0, videoW: 0, videoH: 0, nativo: null, linterna: false, vigilando: false };
+               cajaW: 0, cajaH: 0, videoW: 0, videoH: 0, nativo: null, linterna: false, vigilando: false,
+               /* 8-oct-2026 — el respaldo dispara solo (EC.decidirRespaldo): cuánto
+                  lleva en verde, el cuadro más nítido visto, y cuándo pasó el último. */
+               msVerde: 0, mejorNitidez: 0, tUltimo: 0,
+               /* 8-oct-2026 (segunda vuelta) — si en ESTE lado ya se vio un código
+                  de barras (leído o no): sin eso el respaldo no dispara solo
+                  (EC.decidirRespaldo), y cuándo se miró el patrón por última vez. */
+               vioCodigo: false, tPatron: 0 };
 var ALTO_GRIS_DOC = 96;        // el gris chico de la puerta: 96 px de alto, ancho proporcional
 var MS_ESPERA_CAMARA = 9000;   // si el permiso nunca contesta, no se queda «Encendiendo…» para siempre
 
@@ -2455,13 +2960,20 @@ function refrescarDoc() {
 function textoDelLado(lado) {
   return lado === 'frente'
     ? 'Ahora el frente, acostado y con tu foto a la izquierda'
-    : 'Pon el respaldo de tu cédula de pie en el marco. Nosotros la leemos.';
+    : 'Pon el respaldo de tu cédula de pie en el marco: la foto se toma sola.';
+}
+/* 8-oct-2026 — un lado nuevo empieza de cero: la racha, el rato en verde y el
+   mejor cuadro son de ESTE lado, no del anterior. */
+function reiniciarCuentaDoc() {
+  ESCDOC.estables = 0; ESCDOC.previa = null; ESCDOC.desde = 0; ESCDOC.ilegibles = 0;
+  ESCDOC.lecturas = 0; ESCDOC.msVerde = 0; ESCDOC.mejorNitidez = 0; ESCDOC.tUltimo = 0;
+  ESCDOC.vioCodigo = false; ESCDOC.tPatron = 0;
 }
 function iniciarEscanerDoc(lado) {
   if (!hayCamaraEnVivo()) return escanerDocSinCamara('Este navegador no deja usar la cámara en vivo.');
   detenerEscanerDoc();
-  ESCDOC.lado = lado || 'reverso'; ESCDOC.estables = 0; ESCDOC.previa = null; ESCDOC.desde = 0;
-  ESCDOC.ilegibles = 0; ESCDOC.lecturas = 0; ESCDOC.ultima = 0; ESCDOC.dura = 0; ESCDOC.pausado = false;
+  ESCDOC.lado = lado || 'reverso'; reiniciarCuentaDoc();
+  ESCDOC.ultima = 0; ESCDOC.dura = 0; ESCDOC.pausado = false;
   ESCDOC.cajaW = ESCDOC.cajaH = ESCDOC.videoW = ESCDOC.videoH = 0; ESCDOC.guiaCaja = ESCDOC.guiaVideo = null;
   ESCDOC.activo = true;
   /* Cada encendido lleva número. El flujo de un intento anterior que llegue
@@ -2631,11 +3143,19 @@ function pintarGuiaCaja(g) {
    que medirTarjeta pueda comparar el interior con lo de afuera. */
 function grisDeGuia(v) {
   var g = ESCDOC.guiaVideo; if (!g) return null;
-  var mx = g.w * 0.2143, my = g.h * 0.2143;   // m/(1+2m) = 0,15 → la tarjeta es justo el 15-85 %
-  var sx = Math.max(0, g.x - mx), sy = Math.max(0, g.y - my);
-  var sw = Math.min(v.videoWidth - sx, g.w + 2 * mx), sh = Math.min(v.videoHeight - sy, g.h + 2 * my);
-  if (sw <= 0 || sh <= 0) return null;
-  var gh = ALTO_GRIS_DOC, gw = Math.max(16, Math.round(gh * sw / sh));
+  /* 8-oct-2026 — la cuenta de la ventana vive en EC.ventanaDeGuia (se prueba
+     sin cámara), y trae DÓNDE quedó el marco una vez recortado el anillo. */
+  var vg;
+  if (EC.ventanaDeGuia) vg = EC.ventanaDeGuia(g, v.videoWidth, v.videoHeight, ALTO_GRIS_DOC);
+  else {
+    /* Un escaner-cedula.js viejo en la caché: la cuenta de antes, sin interior. */
+    var mx = g.w * 0.2143, my = g.h * 0.2143, sx0 = Math.max(0, g.x - mx), sy0 = Math.max(0, g.y - my);
+    var sw0 = Math.min(v.videoWidth - sx0, g.w + 2 * mx), sh0 = Math.min(v.videoHeight - sy0, g.h + 2 * my);
+    vg = (sw0 > 0 && sh0 > 0) ? { sx: sx0, sy: sy0, sw: sw0, sh: sh0, gh: ALTO_GRIS_DOC,
+      gw: Math.max(16, Math.round(ALTO_GRIS_DOC * sw0 / sh0)), interior: null } : null;
+  }
+  if (!vg) return null;
+  var sx = vg.sx, sy = vg.sy, sw = vg.sw, sh = vg.sh, gh = vg.gh, gw = vg.gw;
   if (!ESCDOC.gris) ESCDOC.gris = document.createElement('canvas');
   var c = ESCDOC.gris;
   if (c.width !== gw || c.height !== gh) { c.width = gw; c.height = gh; }
@@ -2644,12 +3164,25 @@ function grisDeGuia(v) {
   try { x.drawImage(v, sx, sy, sw, sh, 0, 0, gw, gh); d = x.getImageData(0, 0, gw, gh).data; }
   catch (e) { return null; }
   ESCDOC.grisW = gw; ESCDOC.grisH = gh;
+  /* 8-oct-2026 — DÓNDE QUEDÓ EL MARCO dentro de este gris. El «15-85 %» de
+     arriba solo es cierto si el anillo cupo entero, y con el respaldo nunca
+     cabe (el marco de pie llena el 84 % del alto y el 92 % del ancho): el
+     anillo se recortaba contra el borde, se llenaba de cédula, y el escáner
+     decía «Pon la cédula dentro del marco» con la cédula perfecta en el marco.
+     Medido con un cuadro fabricado: sin esto, «sin_tarjeta» con la cédula
+     llenando el marco; con esto, en verde. Ver EC.medirTarjeta. */
+  ESCDOC.interiorGris = vg.interior;
   return EC.grisDeImageData(d, gw, gh);
 }
 /* El recorte del marco a resolución completa, ACOSTADO: si el marco va de pie
-   se gira 90° al dibujar (el lector no lee de pie). Un solo lienzo, reutilizado. */
+   se gira 90° al dibujar (el lector no lee de pie). Un solo lienzo, reutilizado.
+   8-oct-2026 — con un poco de aire alrededor del marco (EC.margenDeLectura):
+   quien acerca la cédula de más le cortaba al código su barra de inicio o de
+   fin, y así no se lee nunca. El giro de 90° es siempre el mismo; si con eso
+   la foto queda cabeza abajo, lo corrige quien la guarda (ver giroTotal). */
 function recortarGuia(v) {
   var g = ESCDOC.guiaVideo; if (!g) return null;
+  if (EC.margenDeLectura && v && v.videoWidth) g = EC.margenDeLectura(g, v.videoWidth, v.videoHeight, 0.06);
   if (!ESCDOC.recorte) ESCDOC.recorte = document.createElement('canvas');
   var c = ESCDOC.recorte, w = g.vertical ? g.h : g.w, h = g.vertical ? g.w : g.h;
   if (!w || !h) return null;
@@ -2671,18 +3204,45 @@ function bucleEscanerDoc() {
   if (!ESCDOC.desde) ESCDOC.desde = Date.now();
   medirCajaDoc(v);
   var g = grisDeGuia(v);
-  var m = g ? EC.medirTarjeta(g, ESCDOC.previa, ESCDOC.grisW, ESCDOC.grisH) : null;
+  var m = g ? EC.medirTarjeta(g, ESCDOC.previa, ESCDOC.grisW, ESCDOC.grisH, ESCDOC.interiorGris) : null;
   ESCDOC.previa = g;
   var verde = !!(m && m.ok);
   if (verde) ESCDOC.estables++; else ESCDOC.estables = 0;
   var esFrente = ESCDOC.lado === 'frente';
-  dibujarMarcoDoc(verde, esFrente ? Math.min(1, ESCDOC.estables / EC.TARJETA.CUADROS_FRENTE) : 0);
+  /* 8-oct-2026 — EL RESPALDO TAMBIÉN DISPARA SOLO (EC.decidirRespaldo). Se
+     cuenta el rato que la cédula pasa bien puesta —en verde, no el reloj— y
+     el cuadro más nítido visto, para no disparar en un parpadeo del enfoque. */
+  var ahora = Date.now(), dt = ESCDOC.tUltimo ? Math.min(400, ahora - ESCDOC.tUltimo) : 0;
+  ESCDOC.tUltimo = ahora;
+  if (verde) {
+    ESCDOC.msVerde += dt;
+    if (m.nitidez > ESCDOC.mejorNitidez) ESCDOC.mejorNitidez = m.nitidez;
+  }
+  /* 8-oct-2026 (segunda vuelta) — sin ZXing (todavía bajando, o solo con el
+     detector nativo, que no dice nada de un código que no pudo leer), el
+     patrón de barras se mira aparte, dos veces por segundo, solo con la
+     tarjeta en verde y solo hasta verlo. */
+  if (!esFrente && verde && !ESCDOC.vioCodigo && !window.ZXing &&
+      (ahora - ESCDOC.tPatron) >= 500) {
+    ESCDOC.tPatron = ahora;
+    if (giroPorPatron(recortarGuia(v)) !== null) ESCDOC.vioCodigo = true;
+  }
+  var resp = (!esFrente && EC.decidirRespaldo)
+    ? EC.decidirRespaldo({ estables: ESCDOC.estables, msVerde: ESCDOC.msVerde, lecturas: ESCDOC.lecturas,
+                           nitidez: m ? m.nitidez : 0, mejorNitidez: ESCDOC.mejorNitidez,
+                           vioCodigo: ESCDOC.vioCodigo })
+    : { disparar: false, avance: 0, voltear: false };
+  dibujarMarcoDoc(verde, esFrente ? Math.min(1, ESCDOC.estables / EC.TARJETA.CUADROS_FRENTE) : resp.avance);
   var t = (Date.now() - ESCDOC.desde) / 1000;
   if (estado) {
     var txt = g ? EC.textoDeTarjeta(m) : 'Encendiendo la cámara…';
-    if (verde && !esFrente) txt = (!window.ZXing && !ESCDOC.nativo) ? 'Preparando el lector…'
+    if (verde && !esFrente) txt = (resp.avance >= 1 && ESCDOC.lecturas >= EC.RESPALDO.LECTURAS_MIN) ? 'Quieta… tomando la foto'
+      : (!window.ZXing && !ESCDOC.nativo) ? 'Escaneando…'
       : (ESCDOC.ilegibles >= 2 ? 'Casi: enderézala y acércala un poco' : 'Leyendo el código…');
     if (verde && esFrente) txt = 'Quieta… ' + Math.max(1, Math.ceil((EC.TARJETA.CUADROS_FRENTE - ESCDOC.estables) / 3));
+    /* Bien puesta su rato y sin un solo código a la vista: casi seguro es el
+       frente. Se pide voltearla en vez de guardar el lado equivocado. */
+    if (verde && !esFrente && resp.voltear) txt = '¿Es el lado del código de barras? Voltéala';
     if (t > 20 && !verde) txt = 'Tranquilo: si no sale, toca «Tomar la foto ahora»';
     /* Doce segundos viendo la tarjeta bien puesta y sin encontrar ningún
        código: casi seguro es la cédula nueva, la gris de plástico, que no
@@ -2696,6 +3256,11 @@ function bucleEscanerDoc() {
   }
   if (esFrente) {
     if (ESCDOC.estables >= EC.TARJETA.CUADROS_FRENTE) { capturarDoc(); return; }
+  } else if (verde && !ESCDOC.leyendo && resp.disparar) {
+    /* No leyó en su rato: se toma la foto igual. capturarDoc le da al lector
+       una última oportunidad con giros, y si tampoco, los datos se escriben
+       en el paso siguiente — que es lo mismo que pasaba al tocar el botón. */
+    capturarDoc(); return;
   } else if (verde && !ESCDOC.leyendo && (Date.now() - ESCDOC.ultima) >= Math.max(EC.TARJETA.MS_ENTRE_LECTURAS, ESCDOC.dura)) {
     leerCuadroDoc(v);
     if (!ESCDOC.activo) return;   // leyó y ya cerró el bucle
@@ -2711,24 +3276,33 @@ function leerCuadroDoc(v) {
   var t0 = Date.now();
   var giros = ESCDOC.ilegibles >= 2 && EC ? EC.GIROS_DE_RESCATE.slice(0, 2) : null;
   var miTurno = ESCDOC.turno;
-  var termina = function (cedula, error) {
+  /* 8-oct-2026 — `giro`: cuánto girar la foto para que quede derecha. ZXing
+     lo sabe por cómo leyó; el nativo no lo dice, y leidaDoc lo mide aparte. */
+  var termina = function (cedula, error, giro, patron) {
     ESCDOC.leyendo = false;
     if (miTurno !== ESCDOC.turno || !ESCDOC.stream) return;   // se canceló mientras leía
     ESCDOC.dura = Date.now() - t0; ESCDOC.ultima = Date.now(); ESCDOC.lecturas++;
-    if (cedula) { leidaDoc(cedula); return; }
+    if (cedula) { leidaDoc(cedula, giro); return; }
     if (error === 'ilegible') ESCDOC.ilegibles++;
+    /* Un código que el lector encontró sin poder leerlo, o el patrón de sus
+       barras: es el lado del código, y desde ahí el disparo automático vale. */
+    if (error === 'ilegible' || patron) ESCDOC.vioCodigo = true;
   };
   if (Z) {
-    var r = leerCedulaDeLienzo(c, giros);
-    if (r.cedula || !ESCDOC.nativo) return termina(r.cedula, r.error);
+    /* Mientras no haya visto un código en este lado, cada lectura mira también
+       el patrón de barras ('siempre'): cuesta un análisis a 900 px, una vez por
+       lectura, y deja de pagarse en cuanto lo ve. */
+    var r = leerCedulaDeLienzo(c, giros, ESCDOC.vioCodigo ? 'si_lee' : 'siempre');
+    if (r.cedula || !ESCDOC.nativo) return termina(r.cedula, r.error, r.giro, r.patron);
   }
+  var patronZ = !!(Z && r && r.patron);
   if (ESCDOC.nativo) {
     ESCDOC.leyendo = true;
     ESCDOC.nativo.detect(c).then(function (codigos) {
       var cod = (codigos || []).filter(function (k) { return k && k.rawValue; })[0];
       var ced = cod ? EC.cedulaDelTexto(U.leerCedulaPDF417, cod.rawValue) : null;
-      termina(ced, cod ? 'ilegible' : 'no_hay');
-    })['catch'](function () { ESCDOC.nativo = null; termina(null, 'no_hay'); });
+      termina(ced, cod ? 'ilegible' : 'no_hay', undefined, patronZ);
+    })['catch'](function () { ESCDOC.nativo = null; termina(null, 'no_hay', undefined, patronZ); });
   }
 }
 /* El dibujo dice la verdad: ámbar y punteado mientras busca, verde y entero
@@ -2758,26 +3332,36 @@ function dibujarMarcoDoc(enganchado, avance) {
 
 /* La foto que se guarda: el RECORTE de la tarjeta, a 900 px de lado mayor y
    JPEG 0,6. Es más legible que la foto entera de antes (la tarjeta llena el
-   cuadro, no la mesa) y pesa menos. */
-function fotoDeLienzo(c, max, q) {
+   cuadro, no la mesa) y pesa menos.
+   8-oct-2026 — `giro` (0, 90, 180, 270; opcional) la guarda DERECHA: el CRM la
+   veía cabeza abajo y Joan tenía que adivinar. Se gira al dibujar, en el mismo
+   lienzo chico: no cuesta memoria. */
+function fotoDeLienzo(c, max, q, giro) {
   var w = c.width, h = c.height;
   if (!w || !h) return '';
   if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
   else if (h >= w && h > max) { w = Math.round(w * max / h); h = max; }
-  var t = document.createElement('canvas'); t.width = w; t.height = h;
+  var g = (((+giro || 0) % 360) + 360) % 360, de90 = g === 90 || g === 270;
+  var t = document.createElement('canvas'); t.width = de90 ? h : w; t.height = de90 ? w : h;
   var x = t.getContext('2d'); if (!x) return '';
   var out = '';
-  try { x.drawImage(c, 0, 0, w, h); out = t.toDataURL('image/jpeg', q); } catch (e) { out = ''; }
+  try {
+    if (g) { x.translate(t.width / 2, t.height / 2); x.rotate(g * Math.PI / 180); x.drawImage(c, -w / 2, -h / 2, w, h); }
+    else x.drawImage(c, 0, 0, w, h);
+    out = t.toDataURL('image/jpeg', q);
+  } catch (e) { out = ''; }
   t.width = t.height = 1;
   return out;
 }
 /* Leyó: se guarda ese mismo cuadro (ya se sabe que está enfocado), se deja la
    cédula escrita, se celebra un segundo y se sigue con el frente sin apagar la
-   cámara. */
-function leidaDoc(cedula) {
+   cámara. 8-oct-2026 — derecha: `giro` viene del lector; si no vino (el
+   detector nativo no dice cómo leyó), se mide por el patrón del código. */
+function leidaDoc(cedula, giro) {
   ESCDOC.activo = false;
   if (ESCDOC.tempo) { clearTimeout(ESCDOC.tempo); ESCDOC.tempo = null; }
-  var jpeg = ESCDOC.recorte ? fotoDeLienzo(ESCDOC.recorte, 900, 0.6) : '';
+  if (giro === undefined) giro = giroPorPatron(ESCDOC.recorte);
+  var jpeg = ESCDOC.recorte ? fotoDeLienzo(ESCDOC.recorte, 900, 0.6, giro) : '';
   if (jpeg) FOTOS.cedula_reverso = jpeg;
   marcarDuenoDeLasFotos();
   var aSalvo = anotarCedulaLeida(cedula);
@@ -2793,14 +3377,18 @@ function leidaDoc(cedula) {
   }, 1500);
 }
 function reanudarEscanerDoc(lado) {
-  ESCDOC.lado = lado; ESCDOC.estables = 0; ESCDOC.previa = null; ESCDOC.desde = 0; ESCDOC.ilegibles = 0;
+  ESCDOC.lado = lado; reiniciarCuentaDoc();
   ESCDOC.activo = true;
   var e = $('docEstado'); if (e) e.textContent = textoDelLado(lado);
   bucleEscanerDoc();
 }
-/* «Tomar la foto ahora», o el frente cuando lleva seis cuadros quieto. Si es el
-   respaldo, se intenta leer UNA vez con giros; si no lee, la foto queda igual
-   y se dice: los datos se escriben en el paso siguiente. */
+/* «Tomar la foto ahora», el frente cuando lleva seis cuadros quieto, y desde el
+   8-oct-2026 también el respaldo cuando pasó su rato bien puesto sin leerse
+   (EC.decidirRespaldo). Si es el respaldo, se intenta leer UNA vez con giros;
+   si no lee, la foto queda igual y se dice: los datos se escriben en el paso
+   siguiente. Y se guarda DERECHA: este es el camino por el que a Joan se le
+   veía cabeza abajo en el CRM (el giro de 90° del recorte es siempre el
+   mismo, y la cédula se puede poner de pie hacia los dos lados). */
 function capturarDoc() {
   var v = $('docVideo');
   if (!v || !v.videoWidth) { var e0 = $('docEstado'); if (e0) e0.textContent = 'La cámara todavía no está lista…'; return; }
@@ -2808,13 +3396,14 @@ function capturarDoc() {
   var lado = ESCDOC.lado || 'reverso';
   ESCDOC.activo = false;
   if (ESCDOC.tempo) { clearTimeout(ESCDOC.tempo); ESCDOC.tempo = null; }
-  var leyo = false;
+  var leyo = false, giro = null;
   if (lado === 'reverso') {
-    var r = window.ZXing && EC ? leerCedulaDeLienzo(c, EC.GIROS_DE_RESCATE) : { cedula: null };
+    var r = window.ZXing && EC ? leerCedulaDeLienzo(c, EC.GIROS_DE_RESCATE, 'siempre') : { cedula: null, giro: giroPorPatron(c) };
+    giro = r.giro;
     if (r.cedula) { anotarCedulaLeida(r.cedula); leyo = true; }
     else { delete FOTOS.cedula_leida; }
   }
-  var jpeg = fotoDeLienzo(c, 900, 0.6);
+  var jpeg = fotoDeLienzo(c, 900, 0.6, giro);
   if (!jpeg) {
     /* toDataURL falló (memoria, o un lienzo manchado): no se guarda nada y no
        se dice «Listo» sobre una foto que no existe. */
@@ -2835,7 +3424,10 @@ function capturarDoc() {
   ESCDOC.tempo = setTimeout(function () {
     ocultarListoDoc();
     if (sigue) reanudarEscanerDoc('frente'); else cerrarEscanerDoc();
-  }, leyo ? 1500 : 2600);
+    /* 8-oct-2026 (segunda vuelta) — 4,5 s y no 2,6 cuando NO leyó: son unas
+       veinte palabras («Foto tomada. El código no se pudo leer: escribes tus
+       datos…»), y en 2,6 s se iban antes de terminar de leerlas. */
+  }, leyo ? 1500 : 4500);
 }
 function mostrarListoDoc(txt) {
   var e = $('escDoc'); if (e) e.classList.add('leido');
@@ -2845,25 +3437,73 @@ function ocultarListoDoc() { var e = $('escDoc'); if (e) e.classList.remove('lei
 
 /* ---------------------------------------------------------- paso: el rostro */
 var ESCANER = { stream: null, activo: false, estables: 0, temporizador: null,
-                previa: null, lienzoMedir: null, ultima: null };
+                previa: null, lienzoMedir: null, ultima: null,
+                /* 8-oct-2026 — la selfie que busca la cara (app/rostro-en-vivo.js).
+                   modo: 'cargando' mientras baja el detector, 'rostro' cuando
+                   ya busca la cara, 'encuadre' si no llegó (el de siempre). */
+                modo: 'encuadre', detector: null, cargando: null, desdeCarga: 0,
+                detectando: false, medida: null, previaCara: null, mejorNitidez: 0,
+                lienzoDetectar: null, lienzoCara: null, turno: 0, fallos: 0 };
 /* Cuántos píxeles de lado se miran. 32×32 son 1.024 números por fotograma: en
    un celular de gama baja eso es nada, y alcanza de sobra para saber si hay una
    cara o una pared. Subirlo no mejora la decisión y sí calienta el teléfono. */
 var LADO_MEDIR = 32;
+/* 8-oct-2026 — el detector de caras vive en el propio sitio, como ZXing: la
+   app no llama a ningún servidor ajeno (pruebas/cumplimiento.test.js). El
+   módulo es chico; face-api y el modelo del detector (1,5 MB) los baja él,
+   y SOLO al llegar a este paso, que a su vez solo existe con la autorización
+   de datos sensibles marcada. */
+var URL_ROSTRO_VIVO = '../app/rostro-en-vivo.js';
+var BASE_ROSTRO = '../app/lib/rostro';
+/* BAJARLO ANTES, SIN ENCENDERLO. Con señal floja, 1,5 MB son varios segundos
+   de «Preparando el escáner…» con la cara ya en el óvalo. Mientras la persona
+   está con la cédula (ya autorizó las fotos) se le pide al navegador que los
+   vaya bajando con la prioridad más baja que tiene (rel=prefetch): quedan en
+   la caché y nada se ejecuta — ni la librería, ni la cámara, ni el detector —
+   hasta el paso del rostro. Una vez por página. */
+var DETECTOR_PRECALENTADO = false;
+function precalentarDetectorRostro() {
+  if (DETECTOR_PRECALENTADO || !FOTOS.sensibles) return;
+  DETECTOR_PRECALENTADO = true;
+  try {
+    [URL_ROSTRO_VIVO, BASE_ROSTRO + '/face-api.js',
+     BASE_ROSTRO + '/tiny_face_detector_model-weights_manifest.json',
+     BASE_ROSTRO + '/tiny_face_detector_model.bin'].forEach(function (u) {
+      var l = document.createElement('link');
+      l.rel = 'prefetch'; l.href = u;
+      document.head.appendChild(l);
+    });
+  } catch (e) {}
+}
+/* El detector mira el cuadro achicado a este ancho: lo que decide es dónde
+   está la cara, no sus poros, y subir esto solo calienta el teléfono. */
+var ANCHO_DETECTAR = 320;
+var LADO_CARA = 64;
+/* Quien pidió quietud en su teléfono no ve la línea que barre ni la malla
+   que se mueve; el óvalo, la caja de la cara y el arco de la racha se quedan,
+   que son lo que informa. */
+var MOVIMIENTO_REDUCIDO = (function () {
+  try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  catch (e) { return false; }
+})();
 function pasoRostro() {
   if (!FOTOS.sensibles) {
     return '<p class="sub">No marcaste la autorización de fotos en el paso anterior, así que este paso se ' +
       'salta: tu cuenta se abre igual.</p>';
   }
   var tiene = hayFotoLista('selfie');
-  return '<p class="sub">Mira a la cámara con buena luz y sin gafas oscuras. El escáner toma la foto solo ' +
-      'cuando tu rostro está quieto y centrado; si prefieres, tómala tú con el botón de abajo.</p>' +
+  /* 8-oct-2026 — la frase dice lo que pasa en los dos modos: con el detector
+     y sin él (el encuadre de siempre) la foto se toma sola con la cara en el
+     óvalo y quieta. Lo de «acércate» o «centra tu cara» lo dice el escáner en
+     vivo, cuando de verdad lo está viendo. */
+  return '<p class="sub">Pon tu cara dentro del óvalo, con buena luz y sin gafas oscuras: ' +
+      'la foto se toma sola cuando está centrada y quieta.</p>' +
     '<div class="escaner' + (tiene ? ' oculto' : '') + '" id="escaner">' +
       '<video id="camVideo" playsinline muted autoplay></video>' +
       '<canvas id="camLienzo"></canvas>' +
       /* 21-sep-2026 — las mismas capas que la cédula, para que las dos cámaras
          se sientan el mismo aparato. El lienzo sigue dibujando lo que SÍ mide
-         (el óvalo, la malla y el arco de la racha); esto es la envoltura. */
+         (el óvalo, la caja de la cara y el arco de la racha); esto es la envoltura. */
       '<div class="cara-red"></div>' +
       '<div class="cara-barrido"><div class="cara-linea"></div></div>' +
       '<div class="cara-esq"></div>' +
@@ -2871,7 +3511,7 @@ function pasoRostro() {
     '</div>' +
     '<div id="selfieListo"' + (tiene ? '' : ' class="oculto"') + '>' +
       '<img id="selfiePrev" class="selfie-prev" alt="" src="' + (FOTOS.selfie || '') + '">' +
-      '<div class="aviso verde">Rostro registrado.</div>' +
+      '<div class="aviso verde">¡Listo! Tu foto quedó tomada.</div>' +
       '<button class="btn sec sm" type="button" onclick="repetirRostro()">Repetir la foto</button>' +
     '</div>' +
     '<button class="btn sec sm' + (tiene ? ' oculto' : '') + '" id="btnCapturar" type="button" style="margin-top:var(--e3)" onclick="capturarRostro()">Tomar la foto ahora</button>' +
@@ -2889,6 +3529,17 @@ function iniciarEscaner() {
   var v = $('camVideo'), estado = $('camEstado'); if (!v) return;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return escanerSinCamara('Tu navegador no deja usar la cámara en vivo.');
   ESCANER.activo = true; ESCANER.estables = 0; ESCANER.desde = 0; ESCANER.previa = null; ESCANER.ultima = null;
+  ESCANER.turno++; ESCANER.medida = null; ESCANER.previaCara = null; ESCANER.mejorNitidez = 0; ESCANER.fallos = 0;
+  /* 8-oct-2026 (segunda vuelta) — EL ÓVALO, CENTRADO EN LA PANTALLA. El paso
+     arranca arriba de todo, y en un teléfono real (375×660 con las barras del
+     navegador) la línea que guía —«Centra tu cara», «Acércate»— y el botón de
+     tomarla a mano quedaban debajo del borde: la persona veía el óvalo sin
+     instrucciones. La cédula ya lo hacía (iniciarEscanerDoc). */
+  var cajaCam = $('escaner');
+  if (cajaCam && cajaCam.scrollIntoView) { try { cajaCam.scrollIntoView({ block: 'center' }); } catch (e) { cajaCam.scrollIntoView(); } }
+  /* 8-oct-2026 — el detector empieza a bajar YA, mientras la cámara enciende y
+     el permiso se contesta: son los segundos que más se notan. */
+  prepararDetectorRostro();
   /* 21-sep-2026 — si el permiso nunca contesta (un visor sin diálogo de
      permisos), «Encendiendo la cámara…» se quedaba para siempre y «Tomar la
      foto ahora» callaba porque no había video. Ahora tiene tope. */
@@ -2908,13 +3559,57 @@ function iniciarEscaner() {
       if (ESCANER.espera) { clearTimeout(ESCANER.espera); ESCANER.espera = null; }
       if (!ESCANER.activo) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} return; }
       ESCANER.stream = stream; v.srcObject = stream;
-      return v.play().catch(function () {});
+      /* 8-oct-2026 — «que el teléfono la enfoque»: enfoque continuo si la
+         cámara lo tiene (la frontal de muchos Android lo trae apagado). Se
+         pregunta después de que el video arrancó, como en la cédula. */
+      var pista = stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
+      return v.play().catch(function () {}).then(function () { afinarCamaraRostro(pista); });
     })
-    .then(function () { if (estado) estado.textContent = 'Pon tu rostro dentro del óvalo'; bucleEscaner(); })
+    .then(function () { if (estado) estado.textContent = 'Pon tu cara dentro del óvalo'; bucleEscaner(); })
     .catch(function (e) {
       if (ESCANER.espera) { clearTimeout(ESCANER.espera); ESCANER.espera = null; }
       escanerSinCamara(e && e.name === 'NotAllowedError' ? 'Este navegador no dejó encender la cámara.' : 'No pude encender el escáner.');
     });
+}
+function afinarCamaraRostro(pista) {
+  if (!pista || typeof pista.getCapabilities !== 'function') return;
+  try {
+    var caps = pista.getCapabilities() || {};
+    if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) {
+      pista.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function () {});
+    }
+  } catch (e) {}
+}
+/* 8-oct-2026 — BAJA EL DETECTOR, UNA VEZ, Y SI NO LLEGA SE SIGUE SIN ÉL.
+   Mientras baja, el escáner dice «Preparando el escáner…» y no dispara (si
+   disparara por encuadre, la foto saldría antes de que el detector pudiera
+   mirarla). Si en ROSTRO.MS_ESPERA_DETECTOR no llegó, o falló, se vuelve al
+   encuadre de siempre (U.medirEncuadre): la persona no se queda atascada por
+   1,5 MB que su señal no alcanzó a bajar. Si llega tarde, se usa igual. */
+function prepararDetectorRostro() {
+  if (ESCANER.detector) { ESCANER.modo = 'rostro'; return; }
+  ESCANER.modo = 'cargando'; ESCANER.desdeCarga = Date.now();
+  if (ESCANER.cargando) return;
+  var p = cargarScript(URL_ROSTRO_VIVO).then(function () {
+    var RV = window.RostroEnVivo;
+    if (!RV || typeof RV.crearDetector !== 'function') throw new Error('no cargó ' + URL_ROSTRO_VIVO);
+    return RV.crearDetector({ cargarScript: cargarScript, base: BASE_ROSTRO });
+  });
+  ESCANER.cargando = p;
+  p.then(function (d) {
+    ESCANER.cargando = null;
+    /* La persona ya tomó su foto, o se fue del paso: no hay a quién servirle. */
+    if (!ESCANER.activo) { try { d.liberar(); } catch (e) {} if (ESCANER.modo === 'cargando') ESCANER.modo = 'encuadre'; return; }
+    ESCANER.detector = d; ESCANER.modo = 'rostro'; ESCANER.estables = 0; ESCANER.fallos = 0;
+  }, function () {
+    ESCANER.cargando = null;
+    if (ESCANER.modo === 'cargando') ESCANER.modo = 'encuadre';
+  });
+}
+function liberarDetectorRostro() {
+  if (ESCANER.detector) { try { ESCANER.detector.liberar(); } catch (e) {} }
+  ESCANER.detector = null; ESCANER.detectando = false;
+  soltarLienzo(ESCANER.lienzoDetectar); ESCANER.lienzoDetectar = null;
 }
 function escanerSinCamara(motivo) {
   detenerEscaner();
@@ -2929,14 +3624,23 @@ function escanerSinCamara(motivo) {
 }
 function detenerEscaner() {
   ESCANER.activo = false;
+  /* El turno invalida la detección que esté en vuelo: si contesta después de
+     «Repetir» o de cambiar de paso, no dispara nada. */
+  ESCANER.turno++;
   if (ESCANER.temporizador) { clearTimeout(ESCANER.temporizador); ESCANER.temporizador = null; }
   if (ESCANER.espera) { clearTimeout(ESCANER.espera); ESCANER.espera = null; }
   if (ESCANER.stream) { ESCANER.stream.getTracks().forEach(function (t) { t.stop(); }); ESCANER.stream = null; }
+  liberarDetectorRostro();
 }
 /* El escáner DIBUJA, no reconoce: el óvalo, las esquinas, los anillos de los
    ojos y una malla que respira. En el teléfono no se detecta ni se mide nada
    del rostro (eso sería biometría, y la app declara que no la procesa). A los
-   tres segundos con la cámara encendida, dispara solo. */
+   tres segundos con la cámara encendida, dispara solo.
+   8-oct-2026 — YA NO ES ASÍ: ahora SÍ detecta dónde está la cara (ver el
+   comentario de LA CÉDULA, EL ROSTRO Y LA HUELLA), sin medirla ni compararla.
+   Los anillos de los ojos se quitaron: se dibujaban «donde suelen estar los
+   ojos», y al lado de una detección de verdad habrían parecido otra medida
+   que no se hace. */
 /* Recorta el interior del óvalo del VÍDEO —no del lienzo pintado, que solo
    tiene el dibujo— y lo devuelve en gris, de LADO_MEDIR×LADO_MEDIR. El lienzo
    de medir no está en la pantalla: nadie lo ve y nunca sale del teléfono. */
@@ -2960,6 +3664,66 @@ function fotogramaGris(v) {
   }
   return g;
 }
+/* 8-oct-2026 — el cuadro que mira el detector: el video achicado a
+   ANCHO_DETECTAR, en un lienzo que se reutiliza. Sus fracciones son las del
+   video, así que la caja que vuelve se dibuja sobre el video tal cual. */
+function lienzoParaDetectar(v) {
+  var w = v.videoWidth, h = v.videoHeight; if (!w || !h) return null;
+  var dw = Math.min(ANCHO_DETECTAR, w), dh = Math.round(h * dw / w);
+  if (!ESCANER.lienzoDetectar) ESCANER.lienzoDetectar = document.createElement('canvas');
+  var c = ESCANER.lienzoDetectar;
+  if (c.width !== dw || c.height !== dh) { c.width = dw; c.height = dh; }
+  var x = c.getContext('2d'); if (!x) return null;
+  try { x.drawImage(v, 0, 0, dw, dh); } catch (e) { return null; }
+  return c;
+}
+/* La nitidez de la CARA, no del cuadro: el fondo puede estar nítido con la
+   cara movida. Se mira el interior de la caja (el 80 % del medio, para que el
+   borde de la caja —pelo, fondo— no decida). Solo un número sale de acá. */
+function nitidezDeCara(v, cara) {
+  var RV = window.RostroEnVivo; if (!RV || !cara) return 0;
+  var w = v.videoWidth, h = v.videoHeight; if (!w || !h) return 0;
+  if (!ESCANER.lienzoCara) { ESCANER.lienzoCara = document.createElement('canvas'); ESCANER.lienzoCara.width = LADO_CARA; ESCANER.lienzoCara.height = LADO_CARA; }
+  var c = ESCANER.lienzoCara, x = c.getContext('2d', { willReadFrequently: true }); if (!x) return 0;
+  var sx = (cara.x + cara.w * 0.1) * w, sy = (cara.y + cara.h * 0.1) * h, sw = cara.w * 0.8 * w, sh = cara.h * 0.8 * h;
+  sx = Math.max(0, sx); sy = Math.max(0, sy); sw = Math.min(w - sx, sw); sh = Math.min(h - sy, sh);
+  if (sw < 4 || sh < 4) return 0;
+  var d;
+  try { x.drawImage(v, sx, sy, sw, sh, 0, 0, LADO_CARA, LADO_CARA); d = x.getImageData(0, 0, LADO_CARA, LADO_CARA).data; }
+  catch (e) { return 0; }
+  var g = new Array(LADO_CARA * LADO_CARA);
+  for (var i = 0, j = 0; i < d.length; i += 4, j++) g[j] = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
+  return RV.nitidezDe(g, LADO_CARA, LADO_CARA);
+}
+/* Una detección: asíncrona, una a la vez, y la que llega tarde (después de
+   «Repetir», de la foto o de cambiar de paso) no hace nada. */
+function detectarCara(v, luz) {
+  var d = ESCANER.detector, RV = window.RostroEnVivo; if (!d || !RV) return;
+  var c = lienzoParaDetectar(v); if (!c) return;
+  ESCANER.detectando = true; ESCANER.detectandoDesde = Date.now();
+  var turno = ESCANER.turno;
+  d.detectar(c).then(function (caras) {
+    if (ESCANER.detector !== d) return;   // se soltó mientras miraba (ver el vigilante del bucle)
+    ESCANER.detectando = false;
+    if (!ESCANER.activo || turno !== ESCANER.turno) return;
+    ESCANER.fallos = 0;
+    var cara = RV.caraPrincipal(caras);
+    var nit = cara ? nitidezDeCara(v, cara) : 0;
+    if (nit) ESCANER.mejorNitidez = RV.mejorNitidez(ESCANER.mejorNitidez, nit);
+    var m = RV.medirRostro(caras, { luz: luz, nitidez: nit, mejorNitidez: ESCANER.mejorNitidez, previa: ESCANER.previaCara });
+    ESCANER.medida = m; ESCANER.previaCara = m.cara;
+    var r = RV.contarRacha(ESCANER.estables, m);
+    ESCANER.estables = r.estables;
+    if (r.disparar) capturarRostro();
+  }, function () {
+    if (ESCANER.detector !== d) return;
+    ESCANER.detectando = false;
+    if (turno !== ESCANER.turno) return;
+    /* Tres fallos seguidos (el teléfono perdió el contexto gráfico, por
+       ejemplo): se suelta el detector y se sigue con el encuadre. */
+    if (++ESCANER.fallos >= 3) { liberarDetectorRostro(); ESCANER.modo = 'encuadre'; ESCANER.estables = 0; }
+  });
+}
 
 /* EL BUCLE MIRA EL FOTOGRAMA, NO EL RELOJ (9-sep-2026).
    Hasta ayer disparaba a los 3,2 segundos pasara lo que pasara —la pantalla
@@ -2969,24 +3733,51 @@ function fotogramaGris(v) {
    Lo que decide está en app/cuenta.js, fuera de esta pantalla, para poder
    probarlo con fotogramas de mentira. Y lo que decide es un ENCUADRE: acá no se
    reconoce a nadie (eso sería biometría en el teléfono, y cambiaría la ficha de
-   Data Safety). El parecido con la cédula lo saca el CRM de Joan. */
+   Data Safety). El parecido con la cédula lo saca el CRM de Joan.
+   8-oct-2026 — con el detector (modo 'rostro') la racha la cuentan las
+   DETECCIONES (RostroEnVivo.contarRacha: una cara, centrada, cerca, nítida y
+   quieta), y el disparo sale de detectarCara. Sin él, el encuadre de siempre.
+   Tampoco aquí se reconoce a nadie: se sabe DÓNDE hay una cara, no DE QUIÉN. */
 function bucleEscaner() {
   if (!ESCANER.activo) return;
   var v = $('camVideo'), c = $('camLienzo'), estado = $('camEstado');
   if (!v || !c || !v.videoWidth) { ESCANER.temporizador = setTimeout(bucleEscaner, 120); return; }
   if (!ESCANER.desde) ESCANER.desde = Date.now();
   var t = (Date.now() - ESCANER.desde) / 1000;
+  var RV = window.RostroEnVivo;
+  if (ESCANER.modo === 'cargando' && RV && RV.ROSTRO && (Date.now() - ESCANER.desdeCarga) > RV.ROSTRO.MS_ESPERA_DETECTOR) ESCANER.modo = 'encuadre';
+  if (ESCANER.modo === 'cargando' && !RV && (Date.now() - ESCANER.desdeCarga) > 8000) ESCANER.modo = 'encuadre';
 
   var g = fotogramaGris(v);
   var m = g ? U.medirEncuadre(g, ESCANER.previa, LADO_MEDIR) : null;
   ESCANER.previa = g;
   ESCANER.ultima = m;
-  if (m && m.ok) ESCANER.estables++; else ESCANER.estables = 0;
-  var avance = Math.min(1, ESCANER.estables / U.ENCUADRE.CUADROS);
+  /* EL VIGILANTE: una detección que no contesta en 6 s (el primer cuadro
+     compila los programas de la tarjeta gráfica y puede tardar 2 o 3; más que
+     eso es un teléfono que no puede) no deja el escáner mudo: se suelta el
+     detector y se sigue con el encuadre. */
+  if (ESCANER.modo === 'rostro' && ESCANER.detectando && (Date.now() - (ESCANER.detectandoDesde || 0)) > 6000) {
+    liberarDetectorRostro(); ESCANER.modo = 'encuadre'; ESCANER.estables = 0;
+  }
+  var conCara = ESCANER.modo === 'rostro' && !!ESCANER.detector && !!RV;
+  var enganchado, avance, mr = null;
+  if (conCara) {
+    if (!ESCANER.detectando) detectarCara(v, m ? m.luz : 128);
+    mr = ESCANER.medida;
+    enganchado = !!(mr && mr.ok);
+    avance = Math.min(1, ESCANER.estables / RV.ROSTRO.CUADROS);
+  } else if (ESCANER.modo === 'encuadre') {
+    if (m && m.ok) ESCANER.estables++; else ESCANER.estables = 0;
+    enganchado = !!(m && m.ok);
+    avance = Math.min(1, ESCANER.estables / U.ENCUADRE.CUADROS);
+  } else {
+    /* Bajando el detector: no se dispara por encuadre, ver prepararDetectorRostro. */
+    ESCANER.estables = 0; enganchado = false; avance = 0;
+  }
   /* El mismo interruptor que la cédula: verde solo cuando de verdad hay una
      cara centrada y quieta, nunca por reloj. */
   var caja = $('escaner');
-  if (caja && caja.classList) caja.classList.toggle('enganchado', !!(m && m.ok));
+  if (caja && caja.classList) caja.classList.toggle('enganchado', enganchado);
   /* La altura real de la caja, para que el barrido la recorra entera: cambia
      con el ancho del teléfono, así que no se puede escribir en la hoja. */
   if (caja && caja.style && caja.style.setProperty && caja.clientHeight) {
@@ -3009,58 +3800,96 @@ function bucleEscaner() {
   }
   var ctx = c.getContext('2d');
   ctx.clearRect(0, 0, c.width, c.height);
-  dibujarMarco(ctx, c.width, c.height, t, !!(m && m.ok), avance);
+  dibujarMarco(ctx, c.width, c.height, t, enganchado, avance,
+    { cara: conCara && mr ? mr.cara : null, cargando: ESCANER.modo === 'cargando', conCara: conCara });
 
   if (estado) {
     /* Ni un fotograma mudo: si algo falta, se dice QUÉ hacer. Y si lleva mucho
        rato peleando, se le recuerda que puede disparar a mano — quedarse
        atascado en el paso 3 de 9 con el teléfono en la cara es peor que una
        foto mal encuadrada. */
-    var txt = m && m.ok
-      ? 'Quieto… ' + Math.max(1, Math.ceil((U.ENCUADRE.CUADROS - ESCANER.estables) / 6))
-      : U.textoDeEncuadre(m);
+    var txt;
+    if (conCara) {
+      txt = enganchado
+        ? 'Quieto… ' + Math.max(1, RV.ROSTRO.CUADROS - ESCANER.estables)
+        : (mr ? RV.textoDeRostro(mr) : 'Buscando tu cara…');
+    } else if (ESCANER.modo === 'cargando') {
+      txt = 'Preparando el escáner…';
+    } else {
+      txt = m && m.ok
+        ? 'Quieto… ' + Math.max(1, Math.ceil((U.ENCUADRE.CUADROS - ESCANER.estables) / 6))
+        : U.textoDeEncuadre(m);
+    }
     if (!g) txt = 'Encendiendo la cámara…';
-    else if (t > 18 && !(m && m.ok)) txt = 'Si no lo logras, toca «Tomar la foto ahora»';
+    else if (t > 18 && !enganchado) txt = 'Si no lo logras, toca «Tomar la foto ahora»';
     estado.textContent = txt;
   }
 
-  if (ESCANER.estables >= U.ENCUADRE.CUADROS) { capturarRostro(); return; }
+  if (ESCANER.modo === 'encuadre' && ESCANER.estables >= U.ENCUADRE.CUADROS) { capturarRostro(); return; }
   ESCANER.temporizador = setTimeout(bucleEscaner, 80);
 }
 /* 9-sep-2026 — el dibujo dice la verdad: ámbar y punteado mientras busca,
    verde y entero cuando de verdad hay una cara centrada y quieta. Un escáner
-   que se ve igual en los dos casos es decoración; este es una señal. */
-function dibujarMarco(ctx, w, h, t, enganchado, avance) {
+   que se ve igual en los dos casos es decoración; este es una señal.
+   8-oct-2026 — con el detector, además, unas esquinas SIGUEN la cara que se
+   detectó (es la caja de verdad, no un adorno), con una retícula y una línea
+   que la recorre: eso es lo que hace que se sienta como un escaneo de cara.
+   `extra`: {cara (fracciones del cuadro), cargando, conCara}. */
+function dibujarMarco(ctx, w, h, t, enganchado, avance, extra) {
+  var x2 = extra || {};
   ctx.save();
   var cx = w / 2, cy = h / 2, rx = w * 0.32, ry = h * 0.36;
-  var col = enganchado ? '124,255,196' : '245,197,66';
+  var col = enganchado ? '124,255,196' : (x2.cargando ? '255,255,255' : '245,197,66');
   /* el óvalo y las esquinas */
   ctx.strokeStyle = 'rgba(' + col + ',.95)'; ctx.lineWidth = 3;
   if (!enganchado) ctx.setLineDash([9, 9]);
+  if (!enganchado && !MOVIMIENTO_REDUCIDO) ctx.lineDashOffset = -t * 18;   // el punteado gira: está buscando
   ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
-  ctx.setLineDash([]);
+  ctx.setLineDash([]); ctx.lineDashOffset = 0;
   var L = Math.min(w, h) * 0.08, m = Math.min(w, h) * 0.06;
   [[m, m, 1, 1], [w - m, m, -1, 1], [m, h - m, 1, -1], [w - m, h - m, -1, -1]].forEach(function (k) {
     ctx.beginPath(); ctx.moveTo(k[0], k[1] + L * k[3]); ctx.lineTo(k[0], k[1]); ctx.lineTo(k[0] + L * k[2], k[1]); ctx.stroke();
   });
-  /* De acá para abajo, solo cuando hay algo enganchado: la malla y los anillos
-     encendidos sobre una pared vacía serían la misma mentira de ayer. */
+
+  /* La cara que se detectó: esquinas que la siguen, retícula y la línea que
+     la recorre. Solo con una detección de verdad: sobre una pared vacía no se
+     pinta ninguna cara. */
+  if (x2.cara) {
+    var fx = x2.cara.x * w, fy = x2.cara.y * h, fw = x2.cara.w * w, fh = x2.cara.h * h;
+    var colCara = enganchado ? '124,255,196' : '245,197,66';
+    ctx.save();
+    ctx.beginPath(); ctx.rect(fx, fy, fw, fh); ctx.clip();
+    ctx.strokeStyle = 'rgba(' + colCara + ',' + (MOVIMIENTO_REDUCIDO ? 0.22 : (0.16 + 0.1 * Math.sin(t * 3))) + ')';
+    ctx.lineWidth = 1;
+    var paso = Math.max(10, fw / 8);
+    for (var gx = fx + paso; gx < fx + fw; gx += paso) { ctx.beginPath(); ctx.moveTo(gx, fy); ctx.lineTo(gx, fy + fh); ctx.stroke(); }
+    for (var gy = fy + paso; gy < fy + fh; gy += paso) { ctx.beginPath(); ctx.moveTo(fx, gy); ctx.lineTo(fx + fw, gy); ctx.stroke(); }
+    if (!MOVIMIENTO_REDUCIDO) {
+      var ly = fy + fh * (0.5 + 0.5 * Math.sin(t * 2.6));
+      var grad = ctx.createLinearGradient(0, ly - 18, 0, ly);
+      grad.addColorStop(0, 'rgba(' + colCara + ',0)'); grad.addColorStop(1, 'rgba(' + colCara + ',.35)');
+      ctx.fillStyle = grad; ctx.fillRect(fx, ly - 18, fw, 18);
+      ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(fx, ly); ctx.lineTo(fx + fw, ly); ctx.stroke();
+    }
+    ctx.restore();
+    var e = Math.min(fw, fh) * 0.22;
+    ctx.strokeStyle = 'rgba(' + colCara + ',.95)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    [[fx, fy, 1, 1], [fx + fw, fy, -1, 1], [fx, fy + fh, 1, -1], [fx + fw, fy + fh, -1, -1]].forEach(function (k) {
+      ctx.beginPath(); ctx.moveTo(k[0], k[1] + e * k[3]); ctx.lineTo(k[0], k[1]); ctx.lineTo(k[0] + e * k[2], k[1]); ctx.stroke();
+    });
+    ctx.lineCap = 'butt';
+  } else if (enganchado && !x2.conCara) {
+    /* Sin detector (el encuadre de siempre): la malla en el óvalo, como antes,
+       solo cuando hay algo enganchado. */
+    ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.clip();
+    ctx.strokeStyle = 'rgba(120,255,190,' + (MOVIMIENTO_REDUCIDO ? 0.24 : (0.18 + 0.12 * Math.sin(t * 3))) + ')'; ctx.lineWidth = 1;
+    var paso2 = Math.max(18, w / 14), dd = MOVIMIENTO_REDUCIDO ? 0 : (t * 12) % paso2;
+    for (var x = -paso2 + dd; x < w; x += paso2) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+    for (var y = -paso2 + dd; y < h; y += paso2) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+    ctx.restore();
+  }
   if (!enganchado) { ctx.restore(); return; }
-  /* la malla que respira dentro del óvalo */
-  ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.clip();
-  ctx.strokeStyle = 'rgba(120,255,190,' + (0.18 + 0.12 * Math.sin(t * 3)) + ')'; ctx.lineWidth = 1;
-  var paso = Math.max(18, w / 14), d = (t * 12) % paso;
-  for (var x = -paso + d; x < w; x += paso) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
-  for (var y = -paso + d; y < h; y += paso) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
-  ctx.restore();
-  /* los anillos de los ojos, donde suelen estar, latiendo */
-  var pulso = 1 + 0.08 * Math.sin(t * 5);
-  [[cx - rx * 0.42, cy - ry * 0.18], [cx + rx * 0.42, cy - ry * 0.18]].forEach(function (o) {
-    ctx.strokeStyle = 'rgba(120,255,190,.95)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(o[0], o[1], rx * 0.20 * pulso, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(o[0], o[1], rx * 0.06, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(o[0] - rx * 0.28, o[1]); ctx.lineTo(o[0] - rx * 0.22, o[1]); ctx.moveTo(o[0] + rx * 0.22, o[1]); ctx.lineTo(o[0] + rx * 0.28, o[1]); ctx.stroke();
-  });
   /* El arco de progreso sale de la RACHA de fotogramas buenos, no del reloj:
      si la persona se mueve, se cae y vuelve a empezar — que es justo lo que
      tiene que ver para entender qué le piden. */
@@ -3083,9 +3912,13 @@ function capturarRostro() {
   var c = document.createElement('canvas'); c.width = w; c.height = h;
   c.getContext('2d').drawImage(v, 0, 0, w, h);
   FOTOS.selfie = c.toDataURL('image/jpeg', 0.7);
+  c.width = c.height = 1;
   marcarDuenoDeLasFotos();   // sin dueño no sube, y la pantalla diría «registrado» igual
   var aSalvo = guardarFotos();
+  /* 8-oct-2026 — detenerEscaner también suelta el detector y su memoria: lo
+     que viene es la subida, y ahí hace falta. La caja de la cara se va con él. */
   detenerEscaner();
+  ESCANER.medida = null; ESCANER.previaCara = null;
   $('escaner').classList.add('oculto'); $('btnCapturar').classList.add('oculto');
   $('selfiePrev').src = FOTOS.selfie; $('selfieListo').classList.remove('oculto');
   var nota = $('selfieNota');
@@ -3207,7 +4040,9 @@ function leerSubida() {
 var TEXTOS = {
   /* Ya no dice «cuánto te costaría»: esa frase, pegada encima de la cifra
      grande, hacía leer la CUOTA como si fuera el costo. */
-  gancho: 'Calcula tu crédito, ahora mismo y sin registrarte.',
+  /* 8-oct-2026 — la calculadora de la portada ya no cotiza: pide. «Calcula tu
+     crédito» prometía una cuenta de costo que ya no se hace aquí. */
+  gancho: 'Dinos cuánto necesitas y para cuándo, ahora mismo y sin registrarte.',
 
   historia_titulo: 'Por qué existe Tu Garantía',
   historia: [
@@ -3267,15 +4102,23 @@ var TEXTOS = {
   gente: [
     { dibujo: 'varas', dice: 'Para cuando te vares',
       porque: 'Lo pides desde tu celular, a la hora que sea y sin que nadie te presente. Revisamos tu solicitud y te respondemos en el chat de la app.' },
-    { dibujo: 'eliges', dice: 'Flexible: la cuota la armas tú',
+    { dibujo: 'eliges', dice: 'Flexible: tú dices cuánto y para cuándo',
       /* «Cuando te cuadre, eso es lo que pides» decía antes, y era falso: lo
          que se mueve aquí (CALC.monto) NO viaja a la solicitud — esa se arma
          adentro, con MONTO y PLAZO, después de abrir la cuenta. Y la letra
          obligatoria de dos tarjetas más arriba dice justamente lo contrario:
          «cuánto te podemos prestar a ti lo decidimos cuando hablemos». */
-      porque: 'Mueves cuánto necesitas y en cuántas cuotas lo pagas, y las cifras cambian contigo. Cuando te cuadre, abres tu cuenta y lo pides.' },
-    { dibujo: 'ayuda', dice: 'Una gran ayuda, con el precio a la vista',
-      porque: 'Es un crédito y se paga en cuotas mensuales. Lo que cuesta está aquí arriba, antes de que decidas nada.' }
+      /* 8-oct-2026 — «en cuántas cuotas» y «las cifras cambian contigo» eran
+         de la calculadora a 6 meses. La de hoy mueve cuánto y para cuándo, y lo
+         que movió SÍ viaja: lo encuentra puesto al terminar el registro. */
+      porque: 'Mueves cuánto necesitas y para cuándo lo pagas. Cuando te cuadre, abres tu cuenta y lo pides tal cual.' },
+    /* 8-oct-2026 — «con el precio a la vista… lo que cuesta está aquí arriba» y
+       «se paga en cuotas mensuales» dejaron de ser ciertos: la portada ya no
+       publica precio (cada crédito lo propone Joan, a la medida) y el plazo lo
+       escoge la persona. Lo que sí es cierto: el costo exacto se ve en pesos
+       ANTES de aceptar. */
+    { dibujo: 'ayuda', dice: 'Una gran ayuda, con el costo claro',
+      porque: 'Es un crédito: te mandamos una propuesta con el costo exacto en pesos y la fecha de pago, y la aceptas solo si te sirve.' }
   ],
   /* El descargo de la velocidad va acá y no en gris al final, porque es la
      contrapartida del «rápido» del título. Un descargo que da la razón se cree;
@@ -3288,7 +4131,41 @@ var TEXTOS = {
 };
 
 /* -------------------------------------------------------------------------
- * LA CALCULADORA
+ * LA CALCULADORA DEL PEDIDO, EN LA PORTADA — 8-oct-2026
+ *
+ * La misma de app/calculadora-solicitud.js que sale al terminar el registro y
+ * en la pestaña Crédito: cuánto y para cuándo, sin precio. El botón NO pide
+ * nada todavía (sin cuenta no hay a nombre de quién): guarda lo movido en
+ * este teléfono y abre el registro; al terminar, el paso de pedir lo trae
+ * puesto (estadoInicialDelPedido). Lo que se guarda es monto y días, nunca
+ * nada de la persona.
+ * ----------------------------------------------------------------------- */
+function tarjetaPedirPortada() {
+  if (!CS) {
+    return '<div class="card"><h3 class="tit">Pide lo que necesitas</h3>' +
+      '<p class="sub">No pude cargar la calculadora. Abre tu cuenta y nos dices cuánto necesitas y para cuándo.</p></div>';
+  }
+  return '<div class="card laca">' +
+    CS.html(estadoInicialDelPedido(), { titulo: TEXTOS.gancho, boton: 'Abrir mi cuenta y pedirlo',
+                                        accion: 'pedirDesdeLaPortada()', hoy: hoyISO(),
+                                        alCambiar: guardarPedidoMovido }) +
+    '</div>';
+}
+function pedirDesdeLaPortada() {
+  if (CS) CS.guardar(CS.estado());
+  pintarRegistro(0);
+}
+
+/* -------------------------------------------------------------------------
+ * LA CALCULADORA (del producto a 6 meses)
+ *
+ * 8-oct-2026 — YA NO SE PINTA en la portada ni en la cuenta: la reemplazó la
+ * calculadora del pedido, sin precio (ver arriba y tarjetaPedir). Se queda en
+ * el archivo porque sus funciones son las que prueban, contra el motor, que un
+ * precio publicado nunca pase el techo de usura (pruebas/vitrina.test.js): si
+ * algún día Joan vuelve a publicar un precio, este es el código que ya sabe
+ * hacerlo sin romper la ley. Si eso no pasa, se borra en una limpieza, con
+ * sus pruebas.
  *
  * Los números salen TODOS de C.simular(): ninguno se calcula acá. Es la regla
  * de la casa y en este archivo importa el doble, porque una cuenta escrita a
@@ -3734,7 +4611,12 @@ function tarjetaCalcGarantia() {
          de esta misma pantalla: medido en las dieciséis combinaciones donde los
          dos rangos se pisan, sale más caro SIEMPRE. La frase que invitaba a
          comparar era lo que impedía esa lectura. */
-      '<p class="sub">Se abre pagando en fecha, y <b>el costo se cobra sobre lo que te va quedando, no sobre lo que pediste</b>. Compáralo con el de arriba antes de pedirlo: no siempre sale mejor.</p>' +
+      /* 8-oct-2026 (segunda vuelta) — «Compáralo con el de arriba» comparaba
+         contra NADA: lo de arriba ahora es la calculadora del pedido, que no
+         tiene precio. La advertencia que esa frase cuidaba (que «sobre el
+         saldo» no se lea como «más barato») sigue, dicha sin señalar otra
+         tarjeta. */
+      '<p class="sub">Se abre pagando en fecha, y <b>el costo se cobra sobre lo que te va quedando, no sobre lo que pediste</b>. Que el costo baje con el saldo no quiere decir que pagues menos: mira el costo total en pesos antes de pedirlo.</p>' +
       '<div id="gcalcTecho">' + techoDeGarantia() + '</div>' +
       '<div id="gcalcCifras">' + cifrasDeGarantia() + '</div>' +
       '<div class="mando">' +
@@ -4673,6 +5555,7 @@ function pintarCuenta(sesion) {
   marcarVista('');
   olvidarPaso(); olvidarCuentaCreada();
   $('cuerpo').innerHTML = '<div id="tabs">' + barraPestanas() + '</div>' +
+    avisoResponsablePlay() +
     '<div id="lamina"></div>' + pie();
   /* La ficha se pide UNA vez al abrir y se reparte a las cuatro láminas. Pedirla
      en cada pestaña sería la misma pregunta cuatro veces por visita. */
@@ -4680,6 +5563,46 @@ function pintarCuenta(sesion) {
   irA(TAB);
   subidaEnSegundoPlano();
   window.scrollTo(0, 0);
+}
+
+/* ================= EL AVISO DEL CAMBIO DE RESPONSABLE — 8-oct-2026 =================
+   (segunda vuelta). Desde el 8-oct la responsable de los datos es NEXECO
+   S.A.S. Cambiar de responsable hay que contárselo a cada titular (Decreto 1377
+   de 2013, art. 5), y el aviso vivía solo en app/socio.html: quien se registró
+   aquí en play/ (o por PlataChat) bajo la política que nombraba a otra persona
+   nunca lo veía. Es el mismo aviso, con la misma llave de «ya lo vi» por
+   celular, una sola vez y con «Entendido».
+   A quien abrió su cuenta DESPUÉS del 8-oct no se le muestra: ya aceptó la
+   política que nombra a NEXECO, y un «cambio» que nunca vivió lo confundiría.
+   La fecha sale de la cuenta (SESION.user.created_at); sin fecha, se muestra:
+   avisar de más es mejor que callar. */
+/* La raíz de la llave es la de app/socio.html, armada con la fecha del aviso:
+   así nadie escribe a mano un número de ocho cifras que se confunda con una cifra. */
+var AVISO_RESPONSABLE_PLAY = { desde: '2026-10-08', llave: 'tg_aviso_responsable_' + '2026-10-08'.replace(/-/g, '') + '_' };
+var AVISO_RESPONSABLE_PLAY_CERRADO = false;
+function llaveAvisoResponsablePlay() {
+  var cel = (SESION && SESION.user && U.telefonoDeCorreo) ? U.telefonoDeCorreo(SESION.user.email || '') : '';
+  return AVISO_RESPONSABLE_PLAY.llave + (cel || 'anon');
+}
+function avisoResponsablePlay() {
+  if (MARCA === 'platachat' || AVISO_RESPONSABLE_PLAY_CERRADO) return '';
+  var creada = String((SESION && SESION.user && SESION.user.created_at) || '').slice(0, 10);
+  if (creada && creada > AVISO_RESPONSABLE_PLAY.desde) return '';
+  try { if (localStorage.getItem(llaveAvisoResponsablePlay()) === '1') return ''; } catch (e) {}
+  return '<div class="card" id="avisoResponsable"><div class="aviso info" role="status">' +
+    '<b>Un cambio sobre tus datos.</b> Desde el 8 de octubre de 2026, la responsable de tus datos ' +
+    'personales es <b>NEXECO S.A.S.</b>, la empresa que opera Tu Garantía. Tus derechos no cambian: ' +
+    'cuando quieras puedes pedirnos qué tenemos tuyo, corregirlo o borrarlo, por el chat de la app. ' +
+    'Ese mismo día actualizamos la política: <a href="../legal/privacidad.html#cambios" target="_blank" ' +
+    'rel="noopener">mira qué cambió</a>.' +
+    '<button class="btn sec sm" type="button" style="margin-top:var(--e3)" onclick="cerrarAvisoResponsablePlay()">Entendido</button>' +
+    '</div></div>';
+}
+function cerrarAvisoResponsablePlay() {
+  AVISO_RESPONSABLE_PLAY_CERRADO = true;
+  try { localStorage.setItem(llaveAvisoResponsablePlay(), '1'); } catch (e) { /* modo privado: en memoria */ }
+  var el = $('avisoResponsable');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
 }
 
 function irA(tab) {
@@ -4690,14 +5613,56 @@ function irA(tab) {
   window.scrollTo(0, 0);
 }
 
+/* Las casillas de la calculadora que se escriben a mano (ver pintarLamina). */
+var CASILLAS_ESCRITAS = ['csNota', 'csMontoLibre'];
+function guardarLoEscrito() {
+  var g = { valores: {}, foco: '', ini: null, fin: null };
+  CASILLAS_ESCRITAS.forEach(function (id) {
+    var el = $(id);
+    if (el && el.value) g.valores[id] = String(el.value);
+  });
+  try {
+    var a = document.activeElement;
+    if (a && a.id && CASILLAS_ESCRITAS.indexOf(a.id) >= 0) {
+      g.foco = a.id;
+      g.ini = typeof a.selectionStart === 'number' ? a.selectionStart : null;
+      g.fin = typeof a.selectionEnd === 'number' ? a.selectionEnd : null;
+    }
+  } catch (e) {}
+  return g;
+}
+function devolverLoEscrito(g) {
+  if (!g) return;
+  Object.keys(g.valores).forEach(function (id) {
+    var el = $(id);
+    if (el && !el.value) el.value = g.valores[id];
+  });
+  if (!g.foco) return;
+  var f = $(g.foco);
+  try {
+    if (f && f.focus) f.focus();
+    if (f && f.setSelectionRange && g.ini !== null) f.setSelectionRange(g.ini, g.fin === null ? g.ini : g.fin);
+  } catch (e) {}
+}
+
 /* Repinta la lámina que se está viendo. Se llama sola cuando llega la ficha: sin
    esto, el que abre en «Crédito» se queda viendo «cargando» hasta que toque otra
    pestaña, aunque la respuesta ya haya llegado. */
 function pintarLamina() {
   var l = $('lamina'); if (!l) return;
   if (TAB === 'credito') {
+    /* 8-oct-2026 (segunda vuelta) — LO QUE ESTABA ESCRIBIENDO SOBREVIVE AL
+       REPINTADO. La lámina se repinta sola cuando llegan mi_cuenta y
+       mi_registro, a veces con la persona escribiendo: la revisión del teléfono
+       escribió «Surtir la tienda» y 750.000, llegó la ficha, y las dos casillas
+       quedaron vacías y el teclado se cerró. La cifra y los días sobrevivían
+       (viven en el módulo); la nota y la casilla de la cifra no. Se guardan
+       antes y se ponen después, con el foco y el cursor donde estaban. */
+    var antes = guardarLoEscrito();
     l.innerHTML = laminaCredito();
-    pintarSimulacion();
+    devolverLoEscrito(antes);
+    /* 8-oct-2026 — sin pintarSimulacion(): el simulador ya no está en la
+       lámina (ver laminaCredito). */
     moverGCalc();
     cargarMiSolicitud();
   } else if (TAB === 'historial') {
@@ -4847,12 +5812,19 @@ function laminaCredito() {
   /* Y el plazo se pinza igual, por si un estado viejo trae uno fuera de rango:
      por debajo del piso de 90 días el motor lanza y la lámina sale en blanco. */
   PLAZO = Math.max(CALC_MESES_MIN, Math.min(CALC_MESES_MAX, PLAZO));
+  /* 8-oct-2026 — EL SIMULADOR SE FUE, Y EN SU SITIO VA EL PEDIDO. El simulador
+     cotizaba el producto a 6 meses (de 3 a 6 cuotas, con su precio y su tasa)
+     y mandaba la solicitud por play_solicitar como préstamo con garantía: en el
+     CRM de Joan caía con la etiqueta de un producto que el cliente no pidió.
+     Ahora se pide igual que al terminar el registro —cuánto y para cuándo— y
+     Joan contesta con la propuesta. tarjetaSimulador sigue en el archivo con
+     sus pruebas; ver LA CALCULADORA (del producto a 6 meses). */
   return '<div id="solicitudBox"></div>' +
     avisoFicha() +
     tarjetaCreditoActivo() +
     tarjetaMiGarantia() +
     tarjetaCupo(perfil) +
-    tarjetaSimulador(idPerfil) +
+    tarjetaPedir('enviarPedido()', 'Pide lo que necesitas') +
     tarjetaCalcGarantia();
 }
 
@@ -5375,7 +6347,7 @@ function tarjetaCupo(perfil) {
       '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
         'Todavía estamos revisando tus datos. Te avisamos en el chat de la app en cuanto ' +
         'terminemos y ahí te decimos hasta cuánto puedes pedir. Mientras tanto puedes ' +
-        'simular y dejar tu solicitud.</div></div>';
+        'dejar tu solicitud aquí abajo.</div></div>';
   }
   return '<div class="card laca">' +
     '<div class="etq">Puedes pedir hasta</div>' +

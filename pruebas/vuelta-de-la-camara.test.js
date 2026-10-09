@@ -208,7 +208,10 @@ describe('la cuenta recién creada, después de la relanzada', () => {
   });
 
   test('la propuesta también suelta la dirección del registro', () => {
-    assert.match(PLAY, /function pintarSolicitud\(sol\) \{[\s\S]{0,120}marcarVista\(''\)/);
+    /* 8-oct-2026 — pintarSolicitud recibe además una nota de cómo se llegó
+       («ya tenías una abierta», «la propuesta cambió»); lo que se cuida es lo
+       mismo: que suelte #registro antes de pintar. */
+    assert.match(PLAY, /function pintarSolicitud\(sol(, nota)?\) \{[\s\S]{0,120}marcarVista\(''\)/);
   });
 });
 

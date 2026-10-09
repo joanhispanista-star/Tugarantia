@@ -55,34 +55,49 @@ main{padding:var(--e6) 0 var(--e6)}
 
 section{margin-bottom:var(--e6);scroll-margin-top:var(--e4)}
 section h2{font-size:clamp(21px,3.6vw,27px);margin-bottom:var(--e3)}
+section h3{font-size:19px;margin:var(--e4) 0 var(--e2)}
 section > p, section > ul, section > ol{margin-bottom:var(--e3)}
 section ul, section ol{padding-left:1.25em}
 section li{margin-bottom:var(--e2)}
 .sub{color:var(--gris)}
 
+/* 8-oct-2026 — LA FICHA DE QUIÉN RESPONDE. Va arriba de todo porque es lo primero
+   que se busca en una política de datos, y es el único lugar de la página donde
+   viven el NIT, la dirección y el correo: el resto del texto remite aquí. Lo que
+   todavía no se sabe se ve como pendiente, en cursiva, nunca como un dato. */
+.ficha{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);
+  padding:var(--e4);margin-bottom:var(--e5)}
+.ficha h2{font-size:clamp(19px,3.2vw,23px);margin-bottom:var(--e3)}
+.ficha dl{margin:0;display:grid;gap:var(--e2)}
+.ficha dl > div{display:grid;grid-template-columns:minmax(120px,32%) 1fr;gap:var(--e3);
+  border-top:1px solid var(--linea);padding-top:var(--e2)}
+.ficha dl > div:first-child{border-top:0;padding-top:0}
+.ficha dt{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--gris-claro);padding-top:3px}
+.ficha dd{margin:0;font-size:15.5px;overflow-wrap:anywhere}
+.ficha dd.pendiente{color:var(--gris);font-style:italic}
+
 .tabla-caja{overflow-x:auto;border:1px solid var(--linea);border-radius:var(--r);
   background:var(--papel);margin:var(--e4) 0}
-table{border-collapse:collapse;width:100%;min-width:460px}
+table{border-collapse:collapse;width:100%;min-width:520px}
 th,td{padding:12px 15px;text-align:left;border-bottom:1px solid var(--linea);
   font-size:15px;vertical-align:top}
 th{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gris-claro)}
 tbody tr:last-child td{border-bottom:0}
 td b{font-weight:700}
+td.ob{white-space:nowrap;color:var(--gris)}
 
 .nota{border-radius:var(--r);padding:var(--e4);font-size:15.5px;line-height:1.6;margin:var(--e4) 0}
 .nota.ambar{background:var(--ambar-tinte);box-shadow:inset 0 0 0 1px rgba(154,91,18,.3)}
 .nota.ambar b{color:var(--ambar)}
 .nota.azul{background:var(--azul-tinte);box-shadow:inset 0 0 0 1px rgba(27,79,216,.22)}
 .nota.azul b{color:var(--azul)}
-
-.falta{background:#FFF3F2;border:2px dashed var(--rojo);border-radius:var(--r);
-  padding:var(--e4);margin:var(--e4) 0;font-size:15.5px}
-.falta b{color:var(--rojo)}
-mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
+.nota ul{margin-top:var(--e2);padding-left:1.25em}
 
 .pie{border-top:1px solid var(--linea);padding:var(--e5) 0;font-size:14px;color:var(--gris-claro)}
 .pie a{color:var(--gris)}
 @media (max-width:720px){ body{font-size:16px} main{padding:var(--e5) 0} .cab{padding:var(--e5) 0} }
+@media (max-width:440px){ .ficha dl > div{grid-template-columns:1fr;gap:2px} }
 </style>
 </head>
 <body>
@@ -94,91 +109,198 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
 <div class="cab"><div class="wrap">
   <h1>Qué hacemos con tus datos</h1>
   <p>Política de tratamiento de datos personales · Ley 1581 de 2012 y Decreto 1377 de 2013<br>
-     Última actualización: 22 de septiembre de 2026</p>
+     Última actualización: 8 de octubre de 2026</p>
 </div></div>
 
 <main><div class="wrap">
 
+  <!-- 8-oct-2026 — VERSIÓN NUEVA, Y POR QUÉ CAMBIÓ TANTO.
+       · El responsable pasó de la persona natural que fundó el servicio a NEXECO S.A.S.
+         Sus datos personales (nombre, cédula y domicilio) salieron de esta página por
+         decisión del propio fundador: el responsable es la empresa, no él.
+       · La página describe lo que el registro hace DESDE esta actualización: el correo es
+         obligatorio, la dirección opcional, la ubicación aproximada sale de la IP (la
+         consulta la herramienta del equipo, nunca el celular del cliente), la selfie se
+         toma sola con una detección de rostro que corre dentro del celular, y cada crédito
+         se acepta con «Las condiciones de este crédito» a la vista y queda la constancia.
+       · Se declaran las dos tablas de la entrada con celular y contraseña (vinculos y
+         claves_nuevas, base/20261007_una_puerta.sql), que existían sin estar aquí.
+       · Las referencias: esta página decía que se las contactaba «si no logramos
+         comunicarnos contigo». La Ley 2300 de 2023 (art. 4) prohíbe gestionar el cobro
+         con referencias, sin excepción; ahora dice lo que la ley permite.
+       Si cambias esta página, cambia también VERSION_AUTORIZACION en app/cuenta.js y en
+       app/socio.html: así el que se registre acepta el texto nuevo, no el viejo.
+       pruebas/responsable-nexeco.test.js amarra las tres fechas. -->
+
+  <!-- ===== QUIÉN RESPONDE — EL ÚNICO BLOQUE CON DATOS DE LA EMPRESA (8-oct-2026) =====
+       Cuatro datos de NEXECO S.A.S. no se conocen todavía: el NIT, la dirección, el
+       correo y el teléfono (este último lo exige el Decreto 1377 de 2013, art. 13; se
+       agregó el 8-oct en la segunda vuelta). Cada uno está marcado con data-pendiente.
+       Cuando llegue uno:
+         1. se escribe el valor dentro de su <dd>,
+         2. se borran el atributo data-pendiente y la clase "pendiente" de ese <dd>,
+         3. se hace exactamente lo mismo en legal/terminos.html, que tiene el mismo bloque.
+       pruebas/responsable-nexeco.test.js los muestra como pendientes mientras falten, y
+       cuando estén exige que el NIT tenga forma de NIT y que los dos documentos digan lo
+       mismo. NUNCA se pone un NIT «de mientras» ni uno encontrado en internet: hay varias
+       empresas de nombre parecido, y un NIT equivocado señalaría a otra. -->
+  <section class="ficha" id="responsable" aria-labelledby="tituloResponsable">
+    <h2 id="tituloResponsable">Quién responde</h2>
+    <dl>
+      <div><dt>Responsable</dt><dd data-dato="razon_social">NEXECO S.A.S.</dd></div>
+      <div><dt>Qué es</dt><dd>Una sociedad por acciones simplificada: la empresa que opera Tu Garantía</dd></div>
+      <div><dt>Domicilio</dt><dd data-dato="domicilio">Bogotá D.C., Colombia</dd></div>
+      <div><dt>NIT</dt><dd data-dato="nit" data-pendiente="nit" class="pendiente">Lo publicamos aquí en cuanto quede confirmado</dd></div>
+      <div><dt>Dirección</dt><dd data-dato="direccion" data-pendiente="direccion" class="pendiente">La publicamos aquí en cuanto quede confirmada</dd></div>
+      <div><dt>Correo</dt><dd data-dato="correo" data-pendiente="correo" class="pendiente">Lo publicamos aquí en cuanto quede habilitado</dd></div>
+      <div><dt>Teléfono</dt><dd data-dato="telefono" data-pendiente="telefono" class="pendiente">Lo publicamos aquí en cuanto quede habilitado</dd></div>
+      <div><dt>Para tus datos</dt><dd>El chat de la app, desde tu cuenta. Si no tienes cuenta o no puedes entrar: en la pantalla de entrar de la app toca «Olvidé mi contraseña», déjanos tu celular y escribe en la nota qué necesitas; te escribimos.</dd></div>
+    </dl>
+  </section>
 
   <div class="idx">
     <b>En esta página</b>
     <ol>
       <li><a href="#quien">Quién responde por tus datos</a></li>
-      <li><a href="#que">Qué datos te pedimos, y cuáles puedes no darnos</a></li>
+      <li><a href="#que">Qué datos te pedimos, y cuáles son opcionales</a></li>
+      <li><a href="#sensibles">Tu cédula, tu cara y tu ubicación</a></li>
       <li><a href="#para">Para qué los usamos</a></li>
       <li><a href="#donde">Dónde se guardan y quién más los ve</a></li>
       <li><a href="#cuanto">Cuánto tiempo los guardamos</a></li>
       <li><a href="#derechos">Tus derechos sobre tus datos</a></li>
       <li><a href="#como">Cómo los ejerces, y en cuánto te respondemos</a></li>
       <li><a href="#menores">Menores de edad</a></li>
-      <li><a href="#cambios">Si cambiamos esta política</a></li>
+      <li><a href="#cambios">Si cambiamos esta política, y qué cambió hoy</a></li>
     </ol>
   </div>
 
   <section id="quien">
     <h2>1. Quién responde por tus datos</h2>
-    <p>El responsable del tratamiento de tus datos personales es
-      <b>Joan Sebastián Ruiz Flórez</b>, identificado con cédula de ciudadanía
-      <b>1.018.447.274</b>, con domicilio en
-      <b>Avenida Calle 80 #91-08, Bogotá D.C., Colombia</b>.</p>
-    <p>Para cualquier cosa relacionada con tus datos puedes escribir a
-      <b>joan.hispanista@gmail.com</b>, o desde el <b>chat de la app</b> si ya tienes
-      cuenta. Los dos canales valen igual y por los dos te respondemos en los plazos
-      que dice el punto 7.</p>
-    <p class="sub">Tu Garantía es el nombre comercial del servicio. No somos un banco, no somos una
-      entidad vigilada por la Superintendencia Financiera, y no captamos dinero del público.</p>
+    <p>La responsable del tratamiento de tus datos personales es <b>NEXECO S.A.S.</b>, la
+      empresa que opera Tu Garantía. Sus datos están en el recuadro <b>«Quién responde»</b>,
+      arriba de todo.</p>
+    <!-- 8-oct-2026 (segunda vuelta) — decía «o al correo del recuadro de arriba. Los dos
+         canales valen igual», y ese correo todavía no existe (está pendiente en el
+         recuadro). Se nombran los dos canales que SÍ existen hoy: el chat, para quien
+         tiene cuenta, y el recado sin entrar, para quien no (una referencia, alguien que
+         dejó el registro a medias). Cuando el correo exista, se vuelve a nombrar aquí. -->
+    <p>Para cualquier cosa relacionada con tus datos, escríbenos por el <b>chat de la app</b>
+      desde tu cuenta. Si no tienes cuenta —por ejemplo, porque alguien te puso como su
+      referencia, o dejaste el registro a medias— o no puedes entrar, abre la pantalla de entrar
+      de la app, toca <b>«Olvidé mi contraseña»</b>, deja tu celular y escribe en la nota qué
+      necesitas: te escribimos. Por los dos te respondemos en los plazos del punto 8.</p>
+    <p>Desde el <b>8 de octubre de 2026</b> la responsable es NEXECO S.A.S.; antes lo era, como
+      persona natural, quien fundó Tu Garantía. Tus datos son los mismos y tus derechos no
+      cambian. Lo demás que cambió ese día está en el <a href="#cambios">punto 10</a>.</p>
+    <p class="sub">Tu Garantía es el nombre comercial del servicio, y PlataChat es otro nombre
+      del mismo servicio: esta política vale igual para los dos. No somos un banco, no somos
+      una entidad vigilada por la Superintendencia Financiera, y no captamos dinero del
+      público.</p>
   </section>
 
   <section id="que">
-    <h2>2. Qué datos te pedimos, y cuáles puedes no darnos</h2>
-    <p>Te los pedimos una sola vez, cuando abres tu cuenta, y cada dato que entregas te sube la
-      garantía con la que arrancas. <b>Ninguno es obligatorio:</b> puedes no dar los que no
-      quieras, y en ese caso simplemente arrancas con menos garantía.</p>
+    <h2>2. Qué datos te pedimos, y cuáles son opcionales</h2>
+    <p>Casi todo te lo pedimos una vez, cuando abres tu cuenta. Unos datos son obligatorios
+      —sin ellos no podemos evaluar tu solicitud ni hablar contigo— y otros son opcionales: si
+      no los das, tu solicitud sigue igual. La tabla dice cuál es cuál.</p>
 
     <div class="tabla-caja">
       <table>
-        <thead><tr><th>Dato</th><th>Para qué lo necesitamos</th></tr></thead>
+        <thead><tr><th>Dato</th><th>Para qué lo necesitamos</th><th>¿Obligatorio?</th></tr></thead>
         <tbody>
-          <tr><td><b>Nombre completo y número de cédula</b></td><td>Saber quién eres, llevar tu historial a tu nombre, y que puedas entrar a la app junto con tu código.</td></tr>
-          <tr><td><b>Celular y si tiene WhatsApp</b></td><td>Avisarte de tus pagos, responderte y mandarte tu código de acceso.</td></tr>
-          <tr><td><b>Un segundo teléfono</b></td><td>Poder ubicarte si el primero falla.</td></tr>
-          <tr><td><b>Correo electrónico</b></td><td>Mandarte comprobantes. Es opcional.</td></tr>
-          <tr><td><b>Ciudad, barrio y dirección</b></td><td>Saber dónde vives, para entregas y gestión.</td></tr>
-          <tr><td><b>Tipo de vivienda</b></td><td>Entender tu situación al evaluar el crédito.</td></tr>
-          <tr><td><b>Tu Nequi o llave de pago</b></td><td>Enviarte el dinero y recibir tus pagos.</td></tr>
-          <tr><td><b>Nombre y teléfono de una referencia</b></td><td>Poder ubicarte si no logramos comunicarnos contigo.</td></tr>
-          <tr><td><b>Foto de tu cédula por delante y por detrás</b></td><td>Confirmar que eres tú y evitar que alguien pida crédito con tu nombre.</td></tr>
-          <tr><td><b>Selfie sosteniendo tu cédula</b></td><td>Lo mismo: confirmar que la cédula es tuya.</td></tr>
-          <tr><td><b>Tu ubicación en el mapa</b></td><td>Registrar una sola vez dónde estás. No te rastreamos después.</td></tr>
-          <tr><td><b>Los datos técnicos de tu celular al registrarte</b> (modelo, sistema, navegador y dirección IP)</td><td>Seguridad: saber desde dónde se abrió la cuenta y detectar si alguien intenta registrarse con datos que no son suyos. No sirven para ubicarte con precisión ni para rastrearte.</td></tr>
-          <tr><td><b>Lo que nos escribes por el chat de la app</b></td><td>Atenderte y dejar constancia de lo que acordamos. Los mensajes quedan guardados; si prefieres que algo no quede por escrito, llámanos.</td></tr>
-          <tr><td><b>Las fotos que nos mandas por el chat</b> (por ejemplo, el comprobante de un pago)</td><td>Ver que el pago llegó y dejar constancia. Se guardan junto a la conversación y se borran con ella. Ten en cuenta que un comprobante suele llevar el nombre y el número de cuenta de otra persona: manda solo lo que haga falta.</td></tr>
+          <tr><td><b>Nombres, apellidos, tipo y número de documento, y fecha de expedición</b></td><td>Saber quién eres, a nombre de quién queda cada crédito, y confirmar que el documento es de quien dice ser.</td><td class="ob">Sí</td></tr>
+          <tr><td><b>Tu celular</b></td><td>Es tu usuario para entrar, junto con tu contraseña, y por ahí te avisamos de tus pagos.</td><td class="ob">Sí</td></tr>
+          <tr><td><b>Tu contraseña</b></td><td>Que solo tú puedas entrar. La guarda cifrada el servicio de cuentas: nadie la puede leer, tampoco nosotros.</td><td class="ob">Sí</td></tr>
+          <tr><td><b>Tu correo electrónico</b></td><td>Mandarte por escrito, cuando haga falta, las condiciones de cada crédito que aceptas y lo que acordemos contigo. Nadie te escribe a ese correo sin que una persona de nuestro equipo lo mande.</td><td class="ob">Sí</td></tr>
+          <tr><td><b>Otro celular</b></td><td>Poder ubicarte si el primero falla.</td><td class="ob">No</td></tr>
+          <tr><td><b>Ciudad y barrio</b></td><td>Saber por qué zona vives al evaluar tu solicitud.</td><td class="ob">Sí</td></tr>
+          <tr><td><b>Tu dirección</b></td><td>Solo si quieres darla. Para evaluarte nos bastan tu ciudad, tu barrio y la ubicación aproximada del <a href="#sensibles">punto 3</a>.</td><td class="ob">No</td></tr>
+          <tr><td><b>Tipo de vivienda y cuánto llevas viviendo ahí</b></td><td>Entender tu situación al evaluar el crédito.</td><td class="ob">Sí</td></tr>
+          <tr><td><b>A qué te dedicas, cuánto ganas y cuánto se te va fijo al mes, y qué día te pagan</b></td><td>Calcular cuánto puedes pagar sin ahogarte, y que tus fechas de pago caigan después de que te paguen.</td><td class="ob">Sí</td></tr>
+          <tr><td><b>Dónde trabajas, tu cargo y cuánto llevas ahí</b></td><td>Dar contexto al ingreso que declaras.</td><td class="ob">No</td></tr>
+          <tr><td><b>Dos referencias: su nombre, qué son tuyos y su celular</b></td><td>Saber, al evaluar tu solicitud, que hay gente que te conoce. Lee la nota de abajo.</td><td class="ob">Sí</td></tr>
+          <tr><td><b>La foto de tu cédula, la de tu cara y la ubicación de tu celular</b></td><td>Confirmar que eres tú. Son datos sensibles y van con su propia casilla: están explicados en el <a href="#sensibles">punto 3</a>.</td><td class="ob">No</td></tr>
+          <tr><td><b>Tu Nequi o llave de pago</b></td><td>Enviarte el dinero y recibir tus pagos.</td><td class="ob">No</td></tr>
+          <tr><td><b>Lo que pides y lo que pactamos</b> (montos, fechas, propuestas, pagos)</td><td>Es tu historial: lo que pediste, lo que te propusimos, lo que aceptaste y lo que pagaste, y la garantía que eso te deja.</td><td class="ob">Sale del uso</td></tr>
+          <tr><td><b>La constancia de las condiciones que aceptas</b></td><td>Cuando aceptas una propuesta en la app, guardamos una copia de «Las condiciones de este crédito» tal como las viste, con la fecha, la hora, la cuenta desde la que las aceptaste y los datos técnicos de esa conexión (IP y aparato). Es la prueba de lo que pactamos, para ti y para nosotros.</td><td class="ob">Sí, si aceptas</td></tr>
+          <tr><td><b>Tu avance mientras te registras</b> (en qué paso vas, tus nombres y apellidos, tu tipo y número de documento, tu fecha de nacimiento, tu celular y tu correo)</td><td>Que nuestro equipo pueda ver dónde te quedaste y escribirte si te atascas. Se manda desde el paso 2, después de que lo autorizas tocando «Continuar» en el paso 1, y <b>se borra solo a las dos horas</b>. No incluye tu contraseña, tus referencias, tu ubicación ni ninguna foto.</td><td class="ob">Desde el paso 2</td></tr>
+          <tr><td><b>Tu autorización</b></td><td>La fecha, la hora y la versión de esta política que aceptaste, para poder probarla.</td><td class="ob">Sí</td></tr>
+          <tr><td><b>Los datos técnicos de tu conexión al registrarte</b> (modelo del celular, sistema, navegador y dirección IP)</td><td>Seguridad: reconocer si varias cuentas salen del mismo aparato y detectar a quien se registra con datos que no son suyos. Los anota nuestro servidor de la propia conexión; no los manda tu celular.</td><td class="ob">Se anotan solos</td></tr>
+          <tr><td><b>Tu ubicación aproximada por internet</b></td><td>La ciudad aproximada de la red desde la que te registraste. Está explicada en el <a href="#sensibles">punto 3</a>.</td><td class="ob">Se calcula sola</td></tr>
+          <tr><td><b>Cuándo juntamos tu cuenta con tu historial</b></td><td>Si ya eras cliente, alguien de nuestro equipo junta tu cuenta de la app con tu historial después de revisar que eres tú. Queda anotado cuándo, con qué cuenta y celular, qué decía la revisión automática y, si se deshace, cuándo y por qué. Si te damos una contraseña nueva —porque olvidaste la tuya, o porque alguien abrió una cuenta con tu número antes que tú—, queda anotado a qué celular y cuándo; la contraseña no. Sirve para que nadie vea un historial que no es suyo, y para poder demostrarlo.</td><td class="ob">Se anota solo</td></tr>
+          <tr><td><b>Un recado sin entrar</b> (por ejemplo, si olvidaste tu contraseña)</td><td>Ayudarte a volver a entrar. Guardamos solo tu celular y la nota corta que escribas.</td><td class="ob">Si lo dejas</td></tr>
+          <tr><td><b>Lo que nos escribes por el chat de la app</b></td><td>Atenderte y dejar constancia de lo que acordamos. Los mensajes quedan guardados.</td><td class="ob">Si escribes</td></tr>
+          <tr><td><b>Las fotos que nos mandas por el chat</b> (por ejemplo, el comprobante de un pago)</td><td>Ver que el pago llegó y dejar constancia. Se guardan junto a la conversación y se borran con ella. Ten en cuenta que un comprobante suele llevar el nombre y el número de cuenta de otra persona: manda solo lo que haga falta.</td><td class="ob">Si las mandas</td></tr>
         </tbody>
       </table>
     </div>
 
-    <div class="nota ambar">
-      <b>Dos de estos son datos sensibles y merecen que te lo digamos aparte.</b> La selfie
-      sosteniendo tu cédula es un dato biométrico, y tu ubicación en el mapa dice dónde vives.
-      La ley te da derecho a <b>no darlos</b>, y a que nadie te obligue ni te condicione por eso.
-      Si decides no darlos, tu cuenta funciona igual: solo arrancas con menos garantía.
-    </div>
-
     <div class="nota azul">
-      <b>Sobre la referencia que nos das.</b> Cuando nos pasas el nombre y el teléfono de otra
-      persona, esa persona también tiene derechos sobre sus datos. Te pedimos que le avises de
-      que la pusiste como referencia. Nosotros la contactamos <b>solo</b> si no logramos
-      comunicarnos contigo, y nunca le contamos cuánto debes ni los detalles de tu crédito.
+      <b>Sobre las referencias que nos das.</b> Cuando nos pasas el nombre y el celular de otra
+      persona, esa persona también tiene derechos sobre sus datos: te pedimos que le avises de
+      que la pusiste como referencia. Las miramos al evaluar tu solicitud. <b>No las llamamos
+      para cobrarte</b> —la Ley 2300 de 2023 no lo permite— y nunca les contamos nada de tu
+      crédito.
     </div>
   </section>
 
+  <section id="sensibles">
+    <h2>3. Tu cédula, tu cara y tu ubicación</h2>
+    <p>Estos van aparte porque la ley los trata aparte: la foto de tu cara es un dato
+      biométrico, y tu ubicación dice dónde estás. Las fotos y la ubicación de tu celular
+      llevan <b>su propia casilla de autorización</b>, que es opcional de verdad: si no la
+      marcas, tu cuenta se abre igual y la cámara no se enciende para esto. La ley te da
+      derecho a no darlos, y a que nadie te obligue ni te condicione por eso.</p>
+
+    <h3>La foto de tu cédula</h3>
+    <p>Por delante y por detrás, para confirmar que la cédula es tuya y que nadie pide crédito
+      con tu nombre. En la foto de atrás, tu celular intenta leer el código de barras: de ahí
+      guardamos tu número, tus nombres, tus apellidos y tu fecha de nacimiento, y los comparamos
+      con lo que escribiste. <b>El sexo y el tipo de sangre (RH)</b>, que también vienen en ese
+      código, <b>se descartan en tu celular</b> antes de enviarnos nada.</p>
+
+    <h3>La foto de tu cara, que se toma sola</h3>
+    <p>Para tomarla sola, <b>un programa que corre dentro de tu celular</b> busca tu cara en la
+      cámara y dispara cuando hay una sola cara, centrada, cerca y quieta. Lo que ese programa
+      mira —dónde está tu cara en la imagen— <b>no se guarda ni sale de tu celular</b>: lo único
+      que nos llega es la foto. Si no la toma sola, la tomas tú con el botón.</p>
+    <p>Después, en el computador de quien revisa tu registro, otro programa compara la cara de
+      esa foto con la de tu cédula y da un número de parecido. No guardamos ninguna huella de tu
+      cara: lo que el programa saca de ella se descarta al terminar la comparación, y el
+      parecido lo decide una persona, no una máquina.</p>
+    <p class="sub">Si completas tu perfil desde la app, la foto que te pedimos es una selfie
+      sosteniendo tu cédula, para lo mismo: confirmar que la cédula es tuya.</p>
+
+    <h3>La ubicación de tu celular</h3>
+    <p>Si marcaste la casilla, al registrarte tu celular nos dice <b>una sola vez</b> dónde
+      estás. No te seguimos: no hay ubicación en segundo plano ni cuando la app está cerrada.</p>
+
+    <h3>Tu ubicación aproximada por internet (esta no la pide tu celular)</h3>
+    <p>Al registrarte, nuestro servidor anota la dirección IP de tu conexión. Cuando alguien de
+      nuestro equipo revisa tu registro, su herramienta —desde su propio computador, nunca
+      desde tu celular— consulta esa IP en <b>ipwho.is</b>, un servicio de geolocalización por
+      IP, y anota la ciudad y el departamento aproximados: por ejemplo, «Bogotá,
+      Cundinamarca». El resultado se anota para no volver a consultar la misma IP. A ipwho.is
+      le llega <b>solo la dirección IP</b>: ni tu nombre, ni tu cédula, ni tu celular. Solo se
+      consulta la IP de quien se registró aceptando esta versión de la política; la de quien se
+      registró antes, no.</p>
+    <p>Es aproximada de verdad: dice dónde está la red de tu operador, no tu casa, y a veces
+      marca otra ciudad. La usamos para lo mismo que los datos técnicos: detectar a quien se
+      registra con datos ajenos. Por eso tu dirección pasó a ser opcional.</p>
+  </section>
+
   <section id="para">
-    <h2>3. Para qué los usamos</h2>
+    <h2>4. Para qué los usamos</h2>
     <ol>
-      <li>Confirmar tu identidad y decidir si te damos un crédito y por cuánto.</li>
+      <li>Confirmar tu identidad y evitar que alguien pida crédito con tus datos.</li>
+      <li>Evaluar tu solicitud y decidir si te prestamos, por cuánto y en qué condiciones.</li>
+      <li>Mandarte la propuesta de cada crédito con sus condiciones, y guardar la constancia de
+        lo que aceptaste.</li>
       <li>Llevar tu historial: lo que has pagado, la garantía que has construido y tu nivel.</li>
-      <li>Escribirte por WhatsApp sobre tus pagos, tus vencimientos y lo que llevas construido.</li>
-      <li>Gestionar el cobro si te atrasas, respetando la Ley 2300 de 2023 en horarios y trato.</li>
+      <li>Escribirte por WhatsApp o por correo sobre tus pagos, tus vencimientos y lo que llevas
+        construido.</li>
+      <li>Gestionar el cobro si te atrasas, respetando la Ley 2300 de 2023 en horarios, canales
+        y trato.</li>
       <li>Cumplir con las obligaciones legales y contables que nos correspondan.</li>
     </ol>
     <p><b>Para nada más.</b> No vendemos tus datos, no los cedemos a terceros con fines
@@ -187,28 +309,34 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
   </section>
 
   <section id="donde">
-    <h2>4. Dónde se guardan y quién más los ve</h2>
+    <h2>5. Dónde se guardan y quién más los ve</h2>
     <p>Tus datos se guardan en dos sitios y en ningún otro:</p>
     <ul>
-      <li><b>En el computador y el teléfono desde donde manejamos el negocio</b>, dentro del
+      <li><b>En los computadores y teléfonos desde donde manejamos el negocio</b>, dentro del
         navegador, protegidos con clave.</li>
       <li><b>En un servidor de base de datos contratado con Supabase</b>, que es la empresa que nos
         presta ese servicio. Supabase actúa como encargado del tratamiento: guarda los datos por
         nosotros y no puede usarlos para otra cosa.</li>
     </ul>
+    <p>Además, para la ubicación aproximada del punto 3, <b>ipwho.is</b> recibe tu dirección IP
+      y nada más. No guardamos tus datos allí: solo le preguntamos en qué ciudad está esa IP.</p>
+    <p>Los programas que leen tu cédula y buscan tu cara se descargan de nuestra propia página,
+      no de otras empresas, y corren en tu celular.</p>
     <div class="nota azul">
       <b>Esto tiene que quedar claro porque la ley pide decirlo:</b> los servidores de Supabase
-      están <b>fuera de Colombia</b>. Eso significa que tus datos salen del país, lo que se llama
-      una transferencia internacional. Al autorizarnos el tratamiento estás autorizando también
-      esa transferencia. Si no estás de acuerdo, dínoslo y lo hablamos.
+      están <b>fuera de Colombia</b>, y el de ubicación por IP (ipwho.is) también puede
+      estarlo. Eso significa que tus datos salen del país, lo que se llama una transferencia
+      internacional. Al autorizarnos el tratamiento estás autorizando también esa
+      transferencia. Si no estás de acuerdo, dínoslo y lo hablamos.
     </div>
-    <p class="sub">Aparte de eso, tus datos solo los ve quien maneja el negocio. Ningún otro
-      cliente puede ver los tuyos: para entrar a tu cuenta hacen falta tu cédula y los últimos
-      cuatro dígitos de tu celular.</p>
+    <p class="sub">Aparte de eso, tus datos solo los ve el equipo que maneja el negocio: quien lo
+      dirige y, si te asignamos uno, tu asesor (que además puede ver tu avance mientras te
+      registras, si tu celular ya está entre sus clientes). Ningún otro cliente puede ver los
+      tuyos: para entrar a tu cuenta hacen falta tu celular y tu contraseña.</p>
   </section>
 
   <section id="cuanto">
-    <h2>5. Cuánto tiempo los guardamos</h2>
+    <h2>6. Cuánto tiempo los guardamos</h2>
     <p>Mientras seas socio, y después mientras haga falta para cumplir con las obligaciones
       legales y contables, o para defendernos si hubiera un reclamo. Cumplido eso, los borramos.</p>
     <p>Si nos pides que los borremos antes y no tienes deudas pendientes con nosotros, los
@@ -219,7 +347,7 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
   </section>
 
   <section id="derechos">
-    <h2>6. Tus derechos sobre tus datos</h2>
+    <h2>7. Tus derechos sobre tus datos</h2>
     <p>La ley te da estos derechos, y no nos cuestan nada:</p>
     <ul>
       <li><b>Conocer</b> qué datos tuyos tenemos. Gratis, cuantas veces quieras.</li>
@@ -234,10 +362,10 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
   </section>
 
   <section id="como">
-    <h2>7. Cómo los ejerces, y en cuánto te respondemos</h2>
-    <p>Escribes a <b>joan.hispanista@gmail.com</b>, o nos lo dices por el <b>chat de la
-      app</b> si ya tienes cuenta, y cuentas qué necesitas. No hace falta ningún formato
-      ni ningún trámite.</p>
+    <h2>8. Cómo los ejerces, y en cuánto te respondemos</h2>
+    <p>Nos lo dices por el <b>chat de la app</b> o, si no tienes cuenta, con un recado desde
+      «Olvidé mi contraseña» (punto 1), y cuentas qué necesitas. No hace falta ningún formato ni
+      ningún trámite.</p>
     <ul>
       <li>Si solo quieres <b>consultar</b> tus datos: te respondemos en máximo
         <b>diez días hábiles</b>.</li>
@@ -248,17 +376,36 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
   </section>
 
   <section id="menores">
-    <h2>8. Menores de edad</h2>
+    <h2>9. Menores de edad</h2>
     <p>Tu Garantía es solo para mayores de edad. No pedimos ni tratamos datos de menores, y no
       damos crédito a menores de 18 años.</p>
   </section>
 
   <section id="cambios">
-    <h2>9. Si cambiamos esta política</h2>
-    <p>Si la cambiamos, publicamos la versión nueva en esta misma página con su fecha, y si el
-      cambio te afecta de verdad te avisamos por WhatsApp antes de que empiece a regir.</p>
-    <p class="sub">Esta política rige desde el 4 de agosto de 2026 y se rige por las leyes de la
-      República de Colombia.</p>
+    <h2>10. Si cambiamos esta política, y qué cambió hoy</h2>
+    <p>Si la cambiamos, publicamos la versión nueva en esta misma página con su fecha. Si el
+      cambio te afecta de verdad, te avisamos dentro de la app o por WhatsApp antes de que
+      empiece a regir o, a más tardar, el día en que empieza. Y si cambia para qué usamos tus
+      datos, te pedimos de nuevo tu autorización.</p>
+    <div class="nota azul">
+      <b>Lo que cambió el 8 de octubre de 2026:</b>
+      <ul>
+        <li>La responsable de tus datos pasó a ser <b>NEXECO S.A.S.</b> (punto 1).</li>
+        <li>Entras con tu celular y tu contraseña: ya no hay códigos de acceso.</li>
+        <li>El correo pasó a ser obligatorio, y la dirección, opcional (punto 2).</li>
+        <li>Anotamos tu ubicación aproximada a partir de la IP de tu registro, consultándola en
+          ipwho.is, fuera de Colombia (puntos 3 y 5).</li>
+        <li>Mientras te registras, nuestro equipo puede ver en qué paso vas, para escribirte si te
+          atascas; se borra solo a las dos horas (punto 2).</li>
+        <li>La foto de tu cara se toma sola, con un programa que corre dentro de tu celular y no
+          envía nada más que la foto (punto 3).</li>
+        <li>Guardamos la constancia de las condiciones de cada crédito que aceptas, y el registro
+          de cuándo juntamos tu cuenta con tu historial (punto 2).</li>
+        <li>A tus referencias no las llamamos para cobrarte (punto 2).</li>
+      </ul>
+    </div>
+    <p class="sub">Esta versión rige desde el 8 de octubre de 2026; la primera rigió desde el 4
+      de agosto de 2026. Esta política se rige por las leyes de la República de Colombia.</p>
   </section>
 
 </div></main>

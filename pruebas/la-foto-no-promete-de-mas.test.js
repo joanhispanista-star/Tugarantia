@@ -151,7 +151,11 @@ describe('y el tratamiento de datos está declarado (Ley 1581)', () => {
   test('la fecha de la política es la de este cambio', () => {
     /* Sin esto el documento miente sobre sí mismo, y aquí un documento
        desactualizado cuenta como un defecto. */
-    assert.match(PRIV, /Última actualización: 22 de septiembre de 2026/,
+    /* 8-oct-2026 — la política se reescribió (responsable NEXECO S.A.S., correo
+       obligatorio, ubicación aproximada por IP, selfie automática) y la fecha se
+       movió con ella. Las tres filas de las fotos del chat siguen, y las vigilan
+       las dos pruebas de arriba. */
+    assert.match(PRIV, /Última actualización: 8 de octubre de 2026/,
       'se cambió la política y no se movió la fecha');
   });
 });

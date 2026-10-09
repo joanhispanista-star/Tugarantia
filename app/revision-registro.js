@@ -308,7 +308,8 @@
     return d.length === 10 && d.charAt(0) === '3';
   }
   /* La cédula para comparar: sin puntos ni ceros a la izquierda, como
-     cedula_repetida en la base. 1.018.447.274 y 1018447274 son la misma. */
+     cedula_repetida en la base. 1.029.384.756 y 1029384756 son la misma
+     (8-oct-2026: un número inventado; aquí estaba uno de verdad). */
   function cedulaNorm(v) {
     var d = digitos(v).replace(/^0+/, '');
     return d.length >= UMBRALES.CEDULA_MIN_DIGITOS ? d : '';

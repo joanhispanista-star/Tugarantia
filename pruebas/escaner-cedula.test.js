@@ -476,14 +476,30 @@ describe('lo que encontró la revisión (21-sep-2026)', () => {
       'quedó en el borrador del teléfono');
   });
 
-  test('«empezar de cero» apaga también el acompañamiento del anterior', () => {
-    const P = abrirPlay({ hash: '' });
-    P.ev('fetch = function () { return Promise.resolve({ ok: true, json: function () { return Promise.resolve({}); } }); };');
-    P.ev("REGISTRO.celular='3001112233'; acompanar(true);");
-    assert.equal(P.almacen.tg_acompana, '1');
+  test('«empezar de cero» apaga también el acompañamiento del anterior', async () => {
+    /* 8-oct-2026 — ya no hay interruptor (acompanar/ACOMPANA): el avance se
+       publica siempre, por pedido de Joan. «Apagar» el del anterior es ahora
+       BORRAR su fila en la base, con su testigo, y olvidar ese testigo; y la
+       marca vieja 'tg_acompana' no se queda en el teléfono. */
+    /* 8-oct-2026 (segunda vuelta): con la marca de que leyó el aviso del paso 1
+       (tg_vivo_aviso_8oct2026): sin ella ya no se publica nada (ver
+       vioAvisoVivo en play/), y «empezar de cero» la borra también. */
+    const P = abrirPlay({ hash: '', almacen: { tg_acompana: '1', tg_vivo_aviso_8oct2026: '1' } });
+    P.ev('window.__borrado = null;' +
+         'fetch = function (u, cfg) {' +
+         '  if (String(u).indexOf("registro_vivo_borrar") > -1) window.__borrado = JSON.parse(cfg.body);' +
+         '  return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ ok: true, testigo: "t-9" }); } });' +
+         '};');
+    P.ev("REGISTRO.celular='3001112233'; PASO = 2; publicarAvance();");
+    await new Promise(r => setImmediate(r));
+    await new Promise(r => setImmediate(r));
     P.ev('empezarDeNuevo()');
-    assert.equal(P.ev('ACOMPANA'), false, 'el asesor del anterior sigue viendo al siguiente');
-    assert.notEqual(P.almacen.tg_acompana, '1');
+    const b = JSON.parse(P.ev('JSON.stringify(window.__borrado)'));
+    assert.ok(b && b.p_celular === '3001112233' && b.p_testigo === 't-9',
+      'el asesor del anterior sigue viendo al siguiente: no se borró lo publicado');
+    assert.equal(P.almacen.tg_vivo_testigo, undefined, 'el testigo del anterior se quedó en el teléfono');
+    assert.equal(P.almacen.tg_acompana, undefined, 'la marca vieja del acompañamiento se quedó');
+    assert.equal(P.almacen.tg_vivo_aviso_8oct2026, undefined, 'el permiso del anterior le sirve al siguiente');
   });
 
   test('zxing se puede reintentar: una caída no deja la sesión sin lector', () => {
@@ -779,7 +795,9 @@ describe('la prueba con Sofía (21-sep-2026)', () => {
     P.ev("$('rTel').value='3001112233'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x';");
     P.ev('siguientePaso()');
     P.ev("FOTOS = { sensibles: true, cedula_reverso: 'data:x' }; marcarDuenoDeLasFotos(); guardarFotos();");
-    P.ev("REGISTRO = Object.assign(REGISTRO, { nombres:'Ana', apellidos:'Ruiz', tipo_doc:'Cédula de ciudadanía', documento:'123456', expedicion:'2010-01-01', celular:'3001112233', ciudad:'Bogotá', barrio:'Centro', direccion:'Calle 1', tipo_vivienda:'Arriendo', anos_direccion:'Más de 5 años', ocupacion:'Empleado', ingreso_mes:'2000000', gastos_mes:'800000', dia_pago:'Quincenal (15 y 30)', ref1_nombre:'Luz', ref1_parentesco:'Hermana', ref1_celular:'3002223344', ref2_nombre:'Juan', ref2_parentesco:'Amigo', ref2_celular:'3004445566' }); guardarBorrador(REGISTRO);");
+    /* 8-oct-2026 — con correo: desde que es obligatorio (pedido de Joan), un registro
+       sin él se queda en «nos falta tu correo» y esta prueba no llegaría a lo que mide. */
+    P.ev("REGISTRO = Object.assign(REGISTRO, { nombres:'Ana', apellidos:'Ruiz', tipo_doc:'Cédula de ciudadanía', documento:'123456', expedicion:'2010-01-01', celular:'3001112233', correo:'ana@correo.com', ciudad:'Bogotá', barrio:'Centro', direccion:'Calle 1', tipo_vivienda:'Arriendo', anos_direccion:'Más de 5 años', ocupacion:'Empleado', ingreso_mes:'2000000', gastos_mes:'800000', dia_pago:'Quincenal (15 y 30)', ref1_nombre:'Luz', ref1_parentesco:'Hermana', ref1_celular:'3002223344', ref2_nombre:'Juan', ref2_parentesco:'Amigo', ref2_celular:'3004445566' }); guardarBorrador(REGISTRO);");
     P.ev('pintarRegistro(8)');
     P.ev("$('autGeneral').checked = true; $('autSensible').checked = true;");
     return P;

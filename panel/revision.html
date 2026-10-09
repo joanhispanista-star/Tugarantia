@@ -103,6 +103,7 @@
   table.medidas td.fuera{color:var(--ambar);font-weight:700}
   .abrir{margin-top:12px;font-size:12.5px;color:var(--gris);border-top:1px dashed var(--linea);padding-top:10px}
   .pendiente{font-size:12.5px;color:var(--gris)}
+  .ubic{font-size:13px;margin-top:4px;color:var(--tinta-2);overflow-wrap:anywhere}   /* 8-oct-2026: la ubicación aproximada */
   .empty{padding:44px 20px;text-align:center;color:var(--gris);background:var(--papel);border:1px solid var(--linea);border-radius:var(--r)}
   .empty .ic{font-size:32px;opacity:.45}
   @media (max-width:640px){ .main{padding:16px} .card{padding:14px} table.medidas{font-size:11.5px} }
@@ -139,7 +140,8 @@
     <ul>
       <li>Las fotos se bajan y se miden aquí, una persona a la vez. Ojo: el servidor guarda las fotos por número de celular, no por registro, y no mira si la persona marcó la autorización de fotos. Por eso solo se miden las que subió ese mismo registro; si el número está también en el registro de otra cédula, no se miden y se dice. Ninguna foto se guarda.</li>
       <li>El parecido entre la selfie y la cédula es una ayuda, nunca un veredicto: la foto de la cédula es chica y vieja.</li>
-      <li>La revisión no se guarda en la nube ni viaja al celular. Para no volver a bajar todo al recargar, esta pestaña recuerda las medidas de las fotos y el cotejo (nunca una foto ni nada sacado del rostro) mientras siga abierta; «Reabrir pestaña cerrada» del navegador la puede traer de vuelta. Lo único que queda en la nube es el cotejo del código de barras contra la foto del reverso, lo mismo que guarda el botón «🔢 Leer el código de barras de la foto» de la ficha.</li>
+      <li>La revisión no se guarda en la nube ni viaja al celular. Para no volver a bajar todo al recargar, esta pestaña recuerda las medidas de las fotos y el cotejo (nunca una foto ni nada sacado del rostro) mientras siga abierta; «Reabrir pestaña cerrada» del navegador la puede traer de vuelta. En la nube quedan solo dos cosas: el cotejo del código de barras contra la foto del reverso, lo mismo que guarda el botón «🔢 Leer el código de barras de la foto» de la ficha, y la ubicación aproximada de la IP con que se registró.</li>
+      <li>La ubicación aproximada la consulta este navegador en ipwho.is con la IP del registro, una vez por IP, y queda anotada en el registro. Es la ciudad de la red, no la dirección de la casa: con datos del celular puede salir otra ciudad, y una VPN la pone en otro país.</li>
       <li>Ninguna regla sabe si un número tiene WhatsApp o es de la persona: eso solo lo dice escribirle.</li>
     </ul>
   </div>
@@ -153,6 +155,9 @@
      también el CRM, para que una regla no viva en dos sitios. -->
 <script src="../app/revision-registro.js"></script>
 <script src="../app/revision-fotos.js"></script>
+<!-- 8-oct-2026 — la ubicación aproximada por IP. La misma pieza que usa el
+     CRM, para que los dos digan lo mismo de la misma IP. -->
+<script src="../app/ubicacion-ip.js"></script>
 <script>
 'use strict';
 /* =========================================================================
@@ -201,6 +206,26 @@
 
 var RR = window.RevisionRegistro || null;
 var RF = window.RevisionFotos || null;
+/* 8-oct-2026 — LA UBICACIÓN APROXIMADA POR INTERNET. Joan dejó la dirección
+   como opcional en el registro: «con la dirección IP validamos una ubicación
+   aproximada y la dejamos anotada automáticamente». La consulta ESTE
+   navegador —nunca el teléfono del cliente— en ipwho.is, con la misma pieza
+   del CRM (app/ubicacion-ip.js: por qué ese servicio y sus condiciones), y se
+   anota en el registro (anotar_ubicacion_ip) para no volver a preguntar por
+   la misma IP. Lo que se recuerda aquí va a sessionStorage: el localStorage
+   es del CRM y esta página no le escribe; solo LEE la caché que el CRM ya
+   llenó, para no gastar una consulta en lo que ya se sabe. */
+var UI = window.UbicacionIP || null;
+var UBIC = null;
+function consultorUbicacion() {
+  if (UBIC || !UI) return UBIC;
+  var pestania = null, delCRM = null;
+  try { pestania = sessionStorage; } catch (e) { pestania = null; }
+  try { delCRM = localStorage; } catch (e) { delCRM = null; }
+  UBIC = UI.crearConsultor({ fetch: function (u, c) { return fetch(u, c); }, almacen: pestania,
+                             lecturas: delCRM ? [delCRM] : [], hoy: hoyISO });
+  return UBIC;
+}
 var LLAVE_CARTERA = 'joan_socios_v1';     // del CRM: SOLO se lee
 var LLAVE_NUBE = 'joan_socios_sb';        // la conexión del CRM: SOLO se lee
 var LLAVE_PESTANIA = 'tg_revision_registros_v1';   // sessionStorage, esta pestaña
@@ -288,7 +313,9 @@ function nuevoEstado() {
     notas: {},      // id -> [{clase:'mirar'|'neutro'|'sin', peso, texto, detalle, reintentar}]
     hecho: {},      // id -> true cuando sus fotos ya se miraron
     actual: '',     // el id que se está mirando ahora
-    rostroFallo: '', lectorFallo: '', cotejoFalta: false, fin: 0
+    rostroFallo: '', lectorFallo: '', cotejoFalta: false, fin: 0,
+    ubic: {},       // id -> {estado:'buscando'|'ok'|'fallo'|'sin_modulo', ubicacion, motivo} (8-oct-2026)
+    ubicNubeFalta: false
   };
 }
 
@@ -356,6 +383,7 @@ function revisarTodo(desdeCero) {
         if (corrida !== EST.corrida) return;
         EST.estado = 'ok';
         recuperarPestania();
+        ubicarTodos(corrida);   // 8-oct-2026: al lado de las fotos, sin esperarlas
         pintar();
         return siguiente(corrida);
       });
@@ -366,6 +394,49 @@ function revisarTodo(desdeCero) {
       EST.error = motivoDe(e);
       pintar();
     });
+}
+
+/* ===== LA UBICACIÓN APROXIMADA (8-oct-2026) =====
+   Corre al lado de las fotos y no en su fila: es una consulta chica por
+   persona (dos a la vez, en el módulo) y no tiene por qué esperar a que se
+   midan las fotos de todos. Lo que ya está anotado en el registro no se
+   vuelve a preguntar. */
+function ubicarTodos(corrida) {
+  EST.filas.forEach(function (r) {
+    var id = idDe(r), h = esObjeto(r.huella) ? r.huella : null;
+    if (!UI) { EST.ubic[id] = { estado: 'sin_modulo' }; return; }
+    var c = UI.ipConsultable(h ? h.ip : '');
+    if (c.motivo) { EST.ubic[id] = { estado: 'fallo', motivo: c.motivo }; return; }
+    /* 8-oct-2026 (segunda vuelta) — solo quien aceptó la política que nombra a
+       ipwho.is (autorizacion_version desde el 8-oct, en sus datos). Los de
+       antes no se consultan: ver autorizaUbicacion en app/ubicacion-ip.js. */
+    if (UI.autorizaUbicacion && !UI.autorizaUbicacion(esObjeto(r.datos) ? r.datos : null)) {
+      EST.ubic[id] = { estado: 'fallo', motivo: 'anterior' }; return;
+    }
+    var C = consultorUbicacion();
+    var ya = UI.ubicacionValida(h.ubicacion_ip, c.ip);
+    if (ya) { C.anotar(c.ip, ya); EST.ubic[id] = { estado: 'ok', ubicacion: ya, cruda: h.ip }; return; }
+    EST.ubic[id] = { estado: 'buscando' };
+    C.consultar(c.ip).then(function (res) {
+      if (corrida !== EST.corrida) return;
+      EST.ubic[id] = (res && res.ok) ? { estado: 'ok', ubicacion: res.ubicacion, cruda: h.ip }
+                                     : { estado: 'fallo', motivo: (res && res.motivo) || 'servicio' };
+      pintar();
+      if (res && res.ok) anotarUbicacion(r, res.ubicacion, corrida);
+    });
+  });
+}
+/* Anotarla en el registro. Si la base todavía no tiene la función, se dice
+   UNA vez arriba y no se vuelve a intentar en esta vuelta: la ubicación se ve
+   igual, solo no queda guardada. */
+function anotarUbicacion(r, u, corrida) {
+  if (EST.ubicNubeFalta) return;
+  rpc('anotar_ubicacion_ip', { p_clave: sbCfg().clave, p_id: Number(r.id), p_ubicacion: u }).then(function (j) {
+    if (j && j.ok === true && esObjeto(j.ubicacion_ip) && esObjeto(r.huella)) r.huella.ubicacion_ip = j.ubicacion_ip;
+  }, function (e) {
+    if (corrida !== EST.corrida) return;
+    if (e && e.estado === 404) { EST.ubicNubeFalta = true; pintarAvisos(); }
+  });
 }
 
 /* Los atendidos y descartados, solo para comparar. Si no llegan, se sigue con
@@ -713,6 +784,12 @@ function pintarAvisos() {
   if (!RF && EST.estado === 'ok') {
     a.push('<b>Falta app/revision-fotos.js.</b> Sin él no se miran las fotos ni el rostro; las demás reglas sí corrieron.');
   }
+  if (!UI && EST.estado === 'ok' && EST.filas.length) {
+    a.push('<b>No cargó app/ubicacion-ip.js.</b> La ubicación aproximada por internet no se consultó; las demás reglas sí corrieron.');
+  }
+  if (EST.ubicNubeFalta) {
+    a.push('<b>Tu base todavía no puede anotar la ubicación aproximada.</b> Se ve aquí, pero no queda guardada en el registro: corre <span class="mono">base/20261008_ubicacion_por_ip.sql</span> en el SQL Editor de Supabase.');
+  }
   $('avisos').innerHTML = a.map(function (t) { return '<div class="alerta warn">' + t + '</div>'; }).join('');
 }
 
@@ -773,7 +850,8 @@ function tarjeta(x) {
     + '<div class="reg-h"><div class="quien"><b class="nom">' + escHTML(r.nombre || 'Sin nombre') + '</b> ' + chipOrigen(r)
     + '<div class="muted">Se registró ' + (fecha ? 'el ' + escHTML(fecha) : '(sin fecha)')
     + ' · cédula <span class="mono">' + escHTML(String(r.cedula || '—')) + '</span>'
-    + ' · celular <span class="mono">' + escHTML(tel || String(r.telefono || '—')) + '</span></div></div>'
+    + ' · celular <span class="mono">' + escHTML(tel || String(r.telefono || '—')) + '</span></div>'
+    + lineaUbicacion(x.id) + '</div>'
     + (x.hecho ? '' : '<div class="pendiente">' + (EST.actual === x.id ? '⏳ Mirando sus fotos…' : 'Sus fotos esperan turno') + '</div>')
     + '</div>';
 
@@ -799,6 +877,26 @@ function tarjeta(x) {
   h += '<div class="abrir">Para verlo con sus fotos: en el CRM, 📥 Registrados → «👁 Ver datos» de '
     + escHTML(r.nombre || 'este registro') + (fecha ? ' (se registró el ' + escHTML(fecha) + ')' : '') + '.</div>';
   return h + '</article>';
+}
+
+/* El renglón de la ubicación (8-oct-2026). Siempre «aproximada» y «no es la
+   dirección»; si no hay, se dice por qué, sin culpar a la persona. Fuera de
+   Colombia se marca en ámbar: puede ser una VPN o alguien de afuera. */
+function lineaUbicacion(id) {
+  var u = EST.ubic[id];
+  if (!u || u.estado === 'sin_modulo' || !UI) return '';
+  if (u.estado === 'buscando') return '<div class="ubic muted">📍 Buscando la ubicación aproximada por internet…</div>';
+  if (u.estado !== 'ok') return '<div class="ubic muted">📍 ' + escHTML(UI.fraseFallo(u.motivo)) + '</div>';
+  var v = u.ubicacion;
+  return '<div class="ubic">📍 ' + escHTML(UI.frase(v))
+    + (UI.fueraDeColombia(v) ? ' <span class="chip mora" title="La red desde la que se registró no está en Colombia: puede ser una VPN o alguien de afuera. Pregúntale.">🌎 Fuera de Colombia</span>' : '')
+    + (v.red ? ' <span class="muted">· red: ' + escHTML(v.red) + '</span>' : '')
+    /* 8-oct-2026 (segunda vuelta) — varias IPs públicas en la cabecera: la
+       primera la puede poner el teléfono (ver cadenaSospechosa). */
+    + ((UI.cadenaSospechosa && UI.cadenaSospechosa(u.cruda))
+      ? ' <span class="chip mora" title="La conexión trajo varias IPs (' + escHTML(UI.ipsPublicas(u.cruda).join(', ')) +
+        '). La primera la puede escribir el propio teléfono: esta ciudad puede no ser real.">⚠️ IP en cadena</span>' : '')
+    + '</div>';
 }
 
 /* Los números medidos al lado del mínimo. Los umbrales salieron de imágenes

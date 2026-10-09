@@ -513,12 +513,53 @@
    * Es justo en las dos direcciones — no se borra lo corrido, y tampoco se le
    * cobra mora al socio sobre plata que ya devolvió.
    */
+  /**
+   * EL TECHO DEL RECARGO DE UN CRÉDITO — 8 de octubre de 2026.
+   *
+   * Los créditos que nacen de una propuesta ACEPTADA con «Las condiciones de
+   * este crédito» (app/calculadora-solicitud.js) le prometieron al cliente un
+   * recargo por atraso de, como mucho, la tasa de mora más alta que permite la
+   * ley, y que «si la ley baja ese tope, el recargo baja con él». El CRM, al
+   * desembolsarlos, les pone `topeMoraEA` (el techo de usura del día en que se
+   * aceptó). Aquí se cumple: la tasa diaria es la MENOR entre la del motor
+   * (TASA_MORA_DIARIA), la de ese techo y —si la tabla de usura está cargada,
+   * como en el CRM, que es el que cobra— la del techo del día en que se cobra.
+   *
+   * Los créditos sin `topeMoraEA` (todos los de antes) siguen exactamente
+   * igual: devuelve null y el motor usa su tasa. Lo que se cobre a ESOS es una
+   * decisión pendiente de Joan (RECETA-RETOMAR, «qué se cobra por mora»), no
+   * de este archivo.
+   *
+   * @returns {number|null} la tasa DIARIA, o null si el crédito no tiene techo
+   */
+  function tasaMoraDe(p, fecha) {
+    var ea = num(p && p.topeMoraEA);
+    if (!(ea > 0)) return null;
+    var C = (typeof globalThis !== 'undefined' && globalThis.CreditosPublicables) || null;
+    var f = fechaFin(fecha) || hoyISO();
+    if (C && typeof C.topeDeReferencia === 'function') {
+      try {
+        var hoy = C.topeDeReferencia(f);
+        if (hoy && Number(hoy.tope) > 0) ea = Math.min(ea, Number(hoy.tope));
+      } catch (e) { /* sin tabla para ese día: queda el techo de la aceptación */ }
+    }
+    /* Cinco decimales hacia abajo: la misma cuenta que publica la condición
+       (calculadora-solicitud.js, topeDeMora). */
+    var diaria = Math.floor((Math.pow(1 + ea, 1 / 365) - 1) * 1e5) / 1e5;
+    return Math.min(M.TASA_MORA_DIARIA, diaria);
+  }
+  function opcionesDeMora(p, fecha) {
+    var t = tasaMoraDe(p, fecha);
+    return t === null ? undefined : { tasaDiaria: t };
+  }
+
   function moraDelCiclo(p, hasta) {
     if (!p || p.pagado) return 0;
     var corte = corteDelCredito(p), fin = fechaFin(hasta) || hoyISO();
     if (!corte || fin <= corte) return 0;
+    var om = opcionesDeMora(p, fin);
     var cuota = cuotaPlanActual(p);
-    if (cuota) return M.recargoPorMora(num(cuota.capital), diasCal(corte, fin));
+    if (cuota) return M.recargoPorMora(num(cuota.capital), diasCal(corte, fin), om);
 
     var base = capitalVigenteEn(p, corte), cursor = corte, total = 0;
     lista(p.abonosCapital).map(function (a) {
@@ -528,18 +569,18 @@
     }).sort(function (x, y) {
       return x.f.localeCompare(y.f);
     }).forEach(function (a) {
-      total += M.recargoPorMora(base, diasCal(cursor, a.f));
+      total += M.recargoPorMora(base, diasCal(cursor, a.f), om);
       base = Math.max(0, base - a.m);
       cursor = a.f;
     });
-    total += M.recargoPorMora(base, diasCal(cursor, fin));
+    total += M.recargoPorMora(base, diasCal(cursor, fin), om);
 
     /* Y lo que el Panel congeló manda como PISO: si un día se guardó un recargo
        mayor del que sale del recorrido, lo ya causado no se baja. */
     var c = causadoDelCiclo(p);
     if (c.tiene) {
       total = Math.max(total, M.recargoPorMoraDesde(c.mora, c.dias, capitalDelCiclo(p),
-                                                    diasCal(corte, fin)));
+                                                    diasCal(corte, fin), om));
     }
     return total;
   }
@@ -2905,6 +2946,8 @@
     causadoDelCiclo: causadoDelCiclo,
     moraDelCiclo: moraDelCiclo,
     liquidarCiclo: liquidarCiclo,
+    /* 8-oct-2026 — el techo del recargo de los créditos con condiciones aceptadas */
+    tasaMoraDe: tasaMoraDe,
     ultimoDiaDeMora: ultimoDiaDeMora,
     estabaVencido: estabaVencido,
     // La regla única de la mora, y el estado que sale de ella (5-ago-2026).

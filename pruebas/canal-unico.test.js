@@ -186,10 +186,15 @@ describe('el crédito a la medida', () => {
   test('hay dónde escribir una cifra propia y para qué se quiere', () => {
     const P = enSimulador();
     const h = P.elems.lamina.innerHTML;
-    assert.match(h, /id="rMontoLibre"/, 'no hay casilla para escribir el monto');
-    assert.match(h, /id="rNota"/, 'no hay dónde decir para qué lo quiere');
+    /* 8-oct-2026 — en la lámina ya no está el simulador del producto a 6 meses
+       sino la calculadora del pedido (app/calculadora-solicitud.js), con sus
+       propias casillas: la cifra libre, la nota y el deslizador. Lo que esta
+       prueba cuida es lo mismo —que se pueda pedir una cifra propia y decir
+       para qué—, con los ids de la calculadora nueva. */
+    assert.match(h, /id="csMontoLibre"/, 'no hay casilla para escribir el monto');
+    assert.match(h, /id="csNota"/, 'no hay dónde decir para qué lo quiere');
     /* El deslizador se queda: es lo cómodo y lo que usa casi todo el mundo. */
-    assert.match(h, /id="rMonto"/, 'desapareció el deslizador del monto');
+    assert.match(h, /id="csMonto"/, 'desapareció el deslizador del monto');
   });
 
   test('la cifra escrita manda sobre el deslizador, aunque se le salga del tope', () => {

@@ -433,6 +433,10 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
        28-ago-2026). */
     if (!o.sinReglas) ctx.CreditosPublicables = require(path.join(RAIZ, 'app', 'creditos.js'));
     ctx.CuentaSocio = require(path.join(RAIZ, 'app', 'cuenta.js'));
+    /* 8-oct-2026 — la calculadora del pedido y las condiciones (copia propia
+       por banco: guarda el estado de la calculadora en el módulo). */
+    delete require.cache[require.resolve(path.join(RAIZ, 'app', 'calculadora-solicitud.js'))];
+    ctx.CalculadoraSolicitud = require(path.join(RAIZ, 'app', 'calculadora-solicitud.js'));
     ctx.EscanerCedula = require(path.join(RAIZ, 'app', 'escaner-cedula.js'));   // 21-sep-2026, el escáner de la cédula
     ctx.Cumplimiento = require(path.join(RAIZ, 'app', 'cumplimiento.js'));
     /* 14-sep-2026 — el motor y el lector de la ficha entraron a play/ con la
@@ -679,9 +683,14 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
         'se cobra ' + p[1] + '% y la letra que le sigue declara un máximo de ' +
         suya[1] + '%: la letra es de otro producto');
     });
-    assert.ok(miradas >= 2,
-      'esperaba al menos dos tarjetas con precio en la portada (el crédito normal y ' +
-      'el de garantía); encontré ' + miradas);
+    /* 8-oct-2026 — UNA, Y NO DOS. La calculadora del producto a 6 meses salió
+       de la portada: en su lugar está la del pedido (cuánto y para cuándo), que
+       NO publica precio porque el costo lo propone Joan cliente por cliente.
+       Queda la del crédito con garantía, y su letra se sigue mirando igual. Lo
+       que esta prueba cuida —ningún precio al lado de la letra de otro
+       producto— vale igual con una tarjeta que con dos. */
+    assert.ok(miradas >= 1,
+      'esperaba la tarjeta con precio del crédito con garantía en la portada; encontré ' + miradas);
   });
 
   test('la letra de la garantía sale de cumplimiento.js y no de esta pantalla', () => {
@@ -813,8 +822,12 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
 
   test('EL TOTAL SE VE, y es el del motor', () => {
     const P = abrirPlay();
-    P.ev('pintarEntrar()');
-    const h = P.elems.cuerpo.innerHTML;
+    /* 8-oct-2026 — se mira la tarjeta de la calculadora a 6 meses y no la
+       portada: la portada ya no la pinta (la reemplazó la del pedido, sin
+       precio). El código sigue en play/ por si Joan vuelve a publicar un
+       precio, y lo que esta prueba cuida —que lo que pinte salga del motor—
+       tiene que seguir siendo verdad para ese día. */
+    const h = P.ev('tarjetaCalculadora()');
     assert.match(h, /En total vas a pagar/,
       'la calculadora no dice cuánto va a pagar en total');
     /* Contra el día de la PÁGINA, no contra la constante del 9-sep de este
@@ -832,8 +845,12 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
 
   test('LAS CUOTAS SE VEN TODAS, con su fecha y su monto', () => {
     const P = abrirPlay();
-    P.ev('pintarEntrar()');
-    const h = P.elems.cuerpo.innerHTML;
+    /* 8-oct-2026 — se mira la tarjeta de la calculadora a 6 meses y no la
+       portada: la portada ya no la pinta (la reemplazó la del pedido, sin
+       precio). El código sigue en play/ por si Joan vuelve a publicar un
+       precio, y lo que esta prueba cuida —que lo que pinte salga del motor—
+       tiene que seguir siendo verdad para ese día. */
+    const h = P.ev('tarjetaCalculadora()');
     /* La fecha de HOY sale de la PÁGINA, no de la constante de este archivo: la
        constante es del 9-sep y la página cotiza contra el día de verdad, así que
        comparar contra ella hacía fallar la prueba por un motivo que no era el
@@ -888,8 +905,10 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
        mismo obligan a leer dos veces para comparar — que es exactamente lo que
        alguien hace ahí: comparar. */
     const P = abrirPlay();
-    P.ev('pintarEntrar()');
-    const h = P.elems.cuerpo.innerHTML;
+    /* 8-oct-2026 — ya no están una debajo de la otra en la portada: la del
+       producto a 6 meses no se pinta (ver «EL TOTAL SE VE»). Se comparan las
+       dos tarjetas juntas, que es como estarían el día que vuelva. */
+    const h = P.ev('tarjetaCalculadora()') + P.ev('tarjetaCalcGarantia()');
     assert.equal((h.match(/En total vas a pagar/g) || []).length, 2,
       'solo una de las dos calculadoras muestra el total de la misma forma');
     assert.equal((h.match(/Cuándo pagarías cada cuota/g) || []).length, 2,
@@ -1938,8 +1957,9 @@ describe('lo que recibe manda, pero lo que paga sigue en pantalla (16-sep-2026)'
        —las pidió él mismo esa misma mañana, «para dar claridad»— dentro de un
        <details> cerrado. Si alguien resuelve «menos» borrando, esto se cae. */
     const P = abrirPlay();
-    P.ev('pintarEntrar()');
-    const h = P.elems.cuerpo.innerHTML;
+    /* 8-oct-2026 — las dos tarjetas juntas y no la portada: la del producto
+       a 6 meses ya no se pinta ahí (ver «EL TOTAL SE VE»). */
+    const h = P.ev('tarjetaCalculadora()') + P.ev('tarjetaCalcGarantia()');
     assert.equal((h.match(/class="plegable det-cuotas"/g) || []).length, 2,
       'las dos calculadoras ya no pliegan su plan de pago de la misma forma');
     /* Cerrado de verdad: un <details> con `open` no pliega nada. */
@@ -1963,52 +1983,130 @@ describe('lo que recibe manda, pero lo que paga sigue en pantalla (16-sep-2026)'
   });
 });
 
-describe('EL ACOMPAÑAMIENTO: el permiso va primero (15-sep-2026)', () => {
+describe('EL ACOMPAÑAMIENTO, SIN PREGUNTAR (8-oct-2026; antes «el permiso va primero», 15-sep)', () => {
 
-  /* Joan pidió ver al cliente registrándose con sus fotos. Hoy NADA sale de ese
-     teléfono hasta el paso 9, y la casilla que autoriza las fotos está EN el
-     paso 9: quien la desmarca consigue que no salgan, y eso funciona de verdad.
-     Publicar en el paso 2 volvería esa garantía papel mojado.
-     Por eso el permiso es del cliente y va por delante. */
+  /* Joan, 8-oct-2026: «en cada paso aparece una opción que le pregunta al
+     cliente si prefiere seguir solo o si un asesor lo acompaña. No quiero que
+     se pregunte eso: yo quiero siempre ver desde mi CRM y poder guiar al
+     cliente». La tarjeta se fue de los nueve pasos y el avance se publica
+     siempre. Lo que NO se fue es lo que pide la ley: el aviso, UNA vez, en el
+     paso 1, y nada publicado antes de tocar «Continuar» ahí. Y lo que nunca
+     sale (referencias, contraseña, ubicación, selfie) sigue sin salir. */
 
-  test('no se publica NADA hasta que el cliente lo pide', () => {
+  /* La nube de mentira de este bloque: anota lo que le mandan a
+     registro_vivo_publicar / _borrar y contesta con un testigo. */
+  const conNube = P => {
+    P.ev('window.__vivo = [];' +
+         'fetch = function (u, cfg) {' +
+         '  var s = String(u);' +
+         '  if (s.indexOf("registro_vivo_") > -1) {' +
+         '    window.__vivo.push({ fn: s.split("/rpc/")[1], cuerpo: JSON.parse(cfg.body) });' +
+         '    return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ ok: true, testigo: "t-123" }); } });' +
+         '  }' +
+         '  return Promise.reject(new Error("sin red"));' +
+         '};' +
+         'CFG.url = "https://x.supabase.co"; CFG.anon = "llave";');
+    return () => JSON.parse(P.ev('JSON.stringify(window.__vivo)'));
+  };
+
+  test('ya no se pregunta en NINGÚN paso', () => {
     const P = abrirPlay();
-    let llamadas = 0;
-    P.ev('ACOMPANA = false; REGISTRO.celular = "3007778899";');
-    /* Sin permiso, publicarAvance no llama a nadie. Se comprueba mirando que
-       devuelva sin tocar la red: el banco no tiene red, así que si intentara
-       llamar reventaría. */
-    assert.doesNotThrow(() => P.ev('publicarAvance()'));
-    assert.equal(P.ev('ACOMPANA'), false);
-  });
-
-  test('la tarjeta solo aparece cuando ya hay celular', () => {
-    /* Sin número no hay a quién asociarlo: el asesor lo encuentra por ahí. */
-    const P = abrirPlay();
-    P.ev('REGISTRO.celular = "";');
-    assert.equal(P.ev('tarjetaAcompanar()'), '');
     P.ev('REGISTRO.celular = "3007778899";');
-    assert.match(P.ev('tarjetaAcompanar()'), /asesor te acompañe/);
+    for (let i = 0; i < 9; i++) {
+      P.ev('pintarRegistro(' + i + ')');
+      const h = P.elems.cuerpo.innerHTML;
+      assert.ok(!/asesor te acompañe|Prefiero seguir solo|que me acompañe/.test(h),
+        'el paso ' + (i + 1) + ' volvió a preguntar por el acompañamiento');
+    }
+    assert.ok(!/function tarjetaAcompanar|function acompanar\(/.test(VIVO),
+      'volvió el interruptor del acompañamiento');
   });
 
-  test('la tarjeta DICE qué se ve y qué no', () => {
+  test('el aviso va UNA vez, en el paso 1, y DICE qué se ve, qué no, y que Continuar es el permiso', () => {
     const P = abrirPlay();
-    P.ev('REGISTRO.celular = "3007778899"; ACOMPANA = false;');
-    const t = P.ev('tarjetaAcompanar()');
-    assert.match(t, /Nunca ve tu contraseña/);
-    assert.match(t, /referencias/);
-    assert.match(t, /dónde estás/);
-    assert.match(t, /apagar cuando quieras/);
+    P.ev('pintarRegistro(0)');
+    const h = P.elems.cuerpo.innerHTML;
+    assert.match(h, /id="avisoAcompana"/, 'el paso 1 no avisa del acompañamiento');
+    const t = P.ev('avisoAcompana()');
+    /* 8-oct-2026 (segunda vuelta): NINGUNA foto sale (antes, las de la cédula si
+       las autorizaba), y el aviso dice TODO lo que sí sale —le faltaban la
+       fecha de nacimiento y el tipo de documento— y cuándo se borra. */
+    assert.match(t, /Nunca tu contraseña, tus referencias, tu ubicación ni tus fotos/);
+    assert.match(t, /tipo y número de documento/);
+    assert.match(t, /fecha de nacimiento/);
+    assert.match(t, /Se borra solo a las dos horas/);
+    assert.match(t, /Al tocar «Continuar» nos das ese permiso/);
+    /* «puede ver», no «está viendo»: lo ve Joan en su CRM («Registrándose
+       ahora», base/20261008c_registro_vivo_joan.sql) y los asesores de su
+       cartera; nadie mira cada registro en vivo. */
+    assert.match(t, /puede ver/);
+    assert.ok(!/fotos de tu cédula, si las autorizas/.test(t), 'volvió a ofrecer las fotos de la cédula');
+    P.ev('pintarRegistro(3)');
+    assert.ok(!/avisoAcompana/.test(P.elems.cuerpo.innerHTML), 'el aviso se repite en otros pasos');
   });
 
-  test('se puede apagar, y apagarlo BORRA lo publicado', () => {
+  /* 8-oct-2026 (segunda vuelta): desde el 2 sí, PERO solo con la marca de que
+     tocó «Continuar» con el aviso a la vista (tg_vivo_aviso_8oct2026). */
+  const conAviso = P => { P.ev('anotarAvisoVivo()'); return P; };
+
+  test('en el paso 1 NO se publica nada; desde el 2, sí, sin preguntar', () => {
+    const P = conAviso(abrirPlay());
+    const vivo = conNube(P);
+    P.ev('REGISTRO.celular = "3007778899"; PASO = 0; publicarAvance();');
+    assert.equal(vivo().length, 0, 'se publicó antes de que tocara «Continuar» en el paso 1');
+    P.ev('PASO = 1; publicarAvance();');
+    assert.equal(vivo().length, 1, 'desde el paso 2 no se publicó');
+    assert.equal(vivo()[0].fn, 'registro_vivo_publicar');
+  });
+
+  /* 8-oct-2026 (segunda vuelta) — LA REVISIÓN DE SEGURIDAD: quien estaba a
+     mitad de registro antes de publicar esto (y pudo haber escogido «Prefiero
+     seguir solo») vuelve con su paso guardado y NUNCA ve el paso 1: publicar
+     su avance era tratar sus datos con un aviso que no leyó. */
+  test('sin haber leído el aviso (un registro restaurado a mitad), NO se publica', () => {
+    const P = abrirPlay({ almacen: { tg_acompana: '0' } });
+    const vivo = conNube(P);
+    P.ev('REGISTRO.celular = "3007778899"; PASO = 4; publicarAvance();');
+    assert.equal(vivo().length, 0, 'publicó el avance de alguien que nunca vio el aviso');
+  });
+
+  test('tocar «Continuar» en el paso 1 es el permiso: pone la marca, y abrir la cuenta la quita', () => {
     const P = abrirPlay();
-    P.ev('REGISTRO.celular = "3007778899"; ACOMPANA = true;');
-    assert.match(P.ev('tarjetaAcompanar()'), /Prefiero seguir solo/);
-    const i = PLAY.indexOf('function acompanar');
-    const c = PLAY.slice(i, PLAY.indexOf('\n}', i));
-    assert.match(c, /else borrarAvance\(\)/,
-      'apagar el acompañamiento no borra lo que ya se publicó');
+    P.ev('pintarRegistro(0)');
+    P.ev("document.getElementById('rTel').value = '3007778899';" +
+         "document.getElementById('rClave').value = 'Perro.2026x'; document.getElementById('rClave2').value = 'Perro.2026x';");
+    P.ev('siguientePaso()');
+    assert.equal(P.almacen.tg_vivo_aviso_8oct2026, '1', 'tocar Continuar con el aviso no quedó como permiso');
+    P.ev('try { pintarRegistrado(); } catch (e) {}');
+    assert.equal(P.almacen.tg_vivo_aviso_8oct2026, undefined, 'el permiso del que ya abrió su cuenta le sirve al siguiente');
+  });
+
+  test('EL TESTIGO se guarda y viaja: sin él, la segunda publicación volvía «ocupado»', async () => {
+    const P = conAviso(abrirPlay());
+    const vivo = conNube(P);
+    P.ev('REGISTRO.celular = "3007778899"; PASO = 2; publicarAvance();');
+    await new Promise(r => setImmediate(r));
+    await new Promise(r => setImmediate(r));
+    assert.match(String(P.almacen.tg_vivo_testigo || ''), /t-123/, 'no guardó el testigo que dio la base');
+    P.ev('PASO = 3; publicarAvance();');
+    assert.equal(vivo()[1].cuerpo.p_testigo, 't-123', 'la segunda publicación no llevó el testigo');
+    P.ev('borrarAvance();');
+    const b = vivo().filter(x => x.fn === 'registro_vivo_borrar')[0];
+    assert.ok(b, 'borrar no llamó a la base');
+    assert.equal(b.cuerpo.p_testigo, 't-123', 'borrar sin el testigo no borra nada en la base');
+  });
+
+  test('«empezar de cero» BORRA lo publicado del anterior, con su testigo, antes de soltar su celular', async () => {
+    const P = conAviso(abrirPlay());
+    const vivo = conNube(P);
+    P.ev('REGISTRO.celular = "3007778899"; PASO = 2; publicarAvance();');
+    await new Promise(r => setImmediate(r));
+    await new Promise(r => setImmediate(r));
+    P.ev('empezarDeNuevo()');
+    const b = vivo().filter(x => x.fn === 'registro_vivo_borrar')[0];
+    assert.ok(b && b.cuerpo.p_celular === '3007778899' && b.cuerpo.p_testigo === 't-123',
+      'el asesor seguiría viendo el registro del anterior: ' + JSON.stringify(vivo()));
+    assert.equal(P.almacen.tg_vivo_testigo, undefined, 'el testigo del anterior se quedó en el teléfono');
   });
 
   test('lo que se publica es una lista BLANCA, no una negra', () => {
@@ -2028,43 +2126,23 @@ describe('EL ACOMPAÑAMIENTO: el permiso va primero (15-sep-2026)', () => {
     }
   });
 
-  test('LA SELFIE NO VIAJA, ni con el permiso puesto', () => {
-    /* Es biometría —la categoría más sensible de la Ley 1581— y para guiar a
-       alguien por teléfono no hace falta: lo que se atasca es el código de
-       barras de la cédula, no la cara. */
-    /* Esto se COMPRUEBA ejecutando, no leyendo. La primera versión buscaba la
-       cadena «'selfie'» con comillas en el código; se le metió el error a
-       propósito con `fotos.selfie = FOTOS.selfie` —sin comillas— y no lo vio.
-       Un centinela que busca una forma de escribir aprueba cualquier otra. */
-    const P = abrirPlay();
-    P.ev('var _enviado = null;' +
-         'fetch = function (u, cfg) {' +
-         '  if (String(u).indexOf("registro_vivo_publicar") > -1) {' +
-         '    _enviado = JSON.parse(cfg.body);' +
-         '    return Promise.resolve({ ok: true, json: function () { return Promise.resolve({}); } });' +
-         '  }' +
-         '  return Promise.reject(new Error("sin red"));' +
-         '};');
-    P.ev('CFG.url = "https://x.supabase.co"; CFG.anon = "llave";' +
-         'ACOMPANA = true; REGISTRO.celular = "3007778899"; REGISTRO.nombres = "Luis";' +
+  /* 8-oct-2026 (segunda vuelta) — ANTES: «la selfie no viaja» y «las de la
+     cédula solo si marcó la autorización de fotos». Ahora NINGUNA: la casilla
+     de datos sensibles autoriza las fotos «para confirmar que soy yo», no para
+     que alguien las mire mientras la persona escribe (revisiones de ley y de
+     seguridad). Las fotos le llegan a Joan igual, al terminar el registro. Se
+     COMPRUEBA ejecutando, no leyendo. */
+  test('NINGUNA FOTO VIAJA en vivo, ni con las fotos autorizadas', () => {
+    const P = conAviso(abrirPlay());
+    const vivo = conNube(P);
+    P.ev('PASO = 2; REGISTRO.celular = "3007778899"; REGISTRO.nombres = "Luis";' +
          'FOTOS.sensibles = true;' +
          'FOTOS.cedula_reverso = "data:1"; FOTOS.cedula_frente = "data:2"; FOTOS.selfie = "data:3";' +
          'publicarAvance();');
-    const fotos = JSON.parse(P.ev('JSON.stringify(Object.keys((_enviado||{}).p_fotos || {}))'));
-    assert.ok(fotos.length > 0, 'no se publicó ninguna foto: la prueba no está midiendo');
-    assert.equal(fotos.indexOf('selfie'), -1,
-      'LA SELFIE SE ESTÁ PUBLICANDO. Es biometría: ' + JSON.stringify(fotos));
-    assert.ok(fotos.indexOf('cedula_reverso') > -1,
-      'no se publica la del código de barras, que es la que sirve para guiar');
-  });
-
-  test('las fotos SOLO si ya marcó la autorización de fotos', () => {
-    /* Son dos permisos distintos para dos cosas distintas, y ninguno vale por
-       el otro: acompañarme no es autorizar mis fotos. */
-    const i = PLAY.indexOf('function publicarAvance');
-    const c = PLAY.slice(i, PLAY.indexOf('\nfunction borrarAvance', i));
-    assert.match(c, /if \(FOTOS\.sensibles\)/,
-      'se publican las fotos sin mirar si autorizó las fotos');
+    assert.equal(vivo().length, 1, 'no se publicó el avance: la prueba no está midiendo');
+    const fotos = Object.keys(vivo()[0].cuerpo.p_fotos || {});
+    assert.deepEqual(fotos, [], 'SE ESTÁN PUBLICANDO FOTOS EN VIVO: ' + JSON.stringify(fotos));
+    assert.equal(vivo()[0].cuerpo.p_avance.nombres, 'Luis');
   });
 
   test('si el acompañamiento falla, el registro SIGUE', () => {
@@ -2377,7 +2455,11 @@ describe('lo que la revisión del 17-sep encontró y no puede volver', () => {
     P.ev('DIVULGACION = null; hayQueCotizar = function () { return false; };');
     P.ev('pintarEntrar()');
     const h = P.elems.cuerpo.innerHTML;
-    assert.match(h, /no publicamos un precio/i, 'el caso de prueba no llegó al estado degradado');
+    /* 8-oct-2026 — la portada ya no tiene un «estado degradado» que mirar: la
+       calculadora de arriba es la del pedido, que no publica precio y por eso
+       no depende de la certificación de usura. Lo que se exige ahora es que
+       siga ahí sin certificación, y que nada diga que hay un precio. */
+    assert.match(h, /id="csMonto"/, 'sin certificación de usura se fue también la calculadora del pedido, que no tiene precio');
     [/precio a la vista/i, /está aquí arriba/i, /las cifras cambian contigo/i]
       .forEach(p => assert.equal(p.test(h), false,
         'la portada sin precio sigue diciendo: ' + (h.match(p) || [])[0]));

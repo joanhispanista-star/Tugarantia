@@ -95,6 +95,11 @@ function abrirPlay(opciones) {
      el mismo proceso: ya pasó, y envenenó tres pruebas de otro archivo. */
   ctx.CreditosPublicables = Object.assign({}, require(path.join(RAIZ, 'app', 'creditos.js')));
   ctx.CuentaSocio = require(path.join(RAIZ, 'app', 'cuenta.js'));
+  /* 8-oct-2026 — la calculadora del pedido y las condiciones de la propuesta.
+     Copia propia por banco, como los créditos: guarda el estado de la
+     calculadora en el módulo, y dos bancos no pueden compartir el dedo. */
+  delete require.cache[require.resolve(path.join(RAIZ, 'app', 'calculadora-solicitud.js'))];
+  ctx.CalculadoraSolicitud = require(path.join(RAIZ, 'app', 'calculadora-solicitud.js'));
   /* 21-sep-2026 — el escáner de la cédula (encuadre, marco, decodificación, de
      quién son las fotos). Sin cámara en el banco, la página cae a las cajas de
      foto de siempre; lo puro se prueba con cuadros y códigos fabricados. */

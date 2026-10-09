@@ -775,7 +775,11 @@ describe('el CRM de verdad (crm.html en el banco de pruebas)', () => {
   });
 
   test('guardar() SIN espacio que salva sin fotos también sella; si no salva nada, no', () => {
-    const P = abrirPanel({ topeKB: 4 });
+    /* 8-oct-2026 — 5 KB y no 4: el libro sin fotos creció con la plantilla
+       nueva del aviso del cambio de responsable (cambioResponsable, ~600
+       caracteres) y pasó de 4.096. Lo que se mide sigue igual: el libro SIN
+       la foto entra y CON la foto (6.000 caracteres más) no. */
+    const P = abrirPanel({ topeKB: 5 });
     P.ev('DB.socios=[{id:"s1",nombre:"Ana",selfieFoto:"data:image/jpeg;base64,' + 'A'.repeat(6000) + '"}]; DB.prestamos=[];');
     assert.equal(P.ev('guardar()'), false);
     const t = P.almacen[KEY];

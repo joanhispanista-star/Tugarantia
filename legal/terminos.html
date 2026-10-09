@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Términos y condiciones · Tu Garantía</title>
-<meta name="description" content="Las reglas de Tu Garantía: cuánto cuesta cada crédito, cuándo se paga, qué pasa si te atrasas y qué es exactamente la garantía que construyes.">
+<meta name="description" content="Las reglas de Tu Garantía: cómo se pide un crédito, cómo se aceptan sus condiciones, qué pasa si te atrasas y qué es exactamente la garantía que construyes.">
 <meta name="theme-color" content="#0C0A0B">
 <link rel="apple-touch-icon" href="../app/icono-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="../app/icono-192.png">
@@ -45,25 +45,32 @@ main{padding:var(--e6) 0}
   padding:var(--e4);margin-bottom:var(--e6)}
 .idx b{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gris-claro)}
 .idx ol{margin:var(--e3) 0 0;padding-left:1.3em;font-size:15.5px}
-/* El índice son doce enlaces seguidos y esto se lee en un celular: pegados como iban
-   (4px entre uno y otro) el dedo falla y se abre el que no era. */
+/* El índice son once enlaces seguidos y esto se lee en un celular: pegados (4px entre
+   uno y otro) el dedo falla y se abre el que no era. */
 .idx li{margin-bottom:var(--e2)}
 .idx a{display:inline-block;padding:5px 0}
 
 section{margin-bottom:var(--e6);scroll-margin-top:var(--e4)}
 section h2{font-size:clamp(21px,3.6vw,27px);margin-bottom:var(--e3)}
+section h3{font-size:19px;margin:var(--e4) 0 var(--e2)}
 section > p, section > ul, section > ol{margin-bottom:var(--e3)}
 section ul, section ol{padding-left:1.25em}
 section li{margin-bottom:var(--e2)}
 .sub{color:var(--gris)}
 
-.tabla-caja{overflow-x:auto;border:1px solid var(--linea);border-radius:var(--r);
-  background:var(--papel);margin:var(--e4) 0}
-table{border-collapse:collapse;width:100%;min-width:440px}
-th,td{padding:12px 15px;text-align:left;border-bottom:1px solid var(--linea);font-size:15px;vertical-align:top}
-th{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gris-claro)}
-tbody tr:last-child td{border-bottom:0}
-td.n{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+/* 8-oct-2026 — la misma ficha de quién responde que la política de datos, con los
+   mismos datos: si un documento dice una empresa y el otro otra, ninguno sirve. */
+.ficha{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);
+  padding:var(--e4);margin-bottom:var(--e5)}
+.ficha h2{font-size:clamp(19px,3.2vw,23px);margin-bottom:var(--e3)}
+.ficha dl{margin:0;display:grid;gap:var(--e2)}
+.ficha dl > div{display:grid;grid-template-columns:minmax(120px,32%) 1fr;gap:var(--e3);
+  border-top:1px solid var(--linea);padding-top:var(--e2)}
+.ficha dl > div:first-child{border-top:0;padding-top:0}
+.ficha dt{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--gris-claro);padding-top:3px}
+.ficha dd{margin:0;font-size:15.5px;overflow-wrap:anywhere}
+.ficha dd.pendiente{color:var(--gris);font-style:italic}
 
 .nota{border-radius:var(--r);padding:var(--e4);font-size:15.5px;line-height:1.6;margin:var(--e4) 0}
 .nota.ambar{background:var(--ambar-tinte);box-shadow:inset 0 0 0 1px rgba(154,91,18,.3)}
@@ -72,15 +79,12 @@ td.n{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;white-sp
 .nota.azul b{color:var(--azul)}
 .nota.rojo{background:var(--rojo-tinte);box-shadow:inset 0 0 0 1px rgba(216,31,38,.28)}
 .nota.rojo b{color:var(--rojo)}
-
-.falta{background:#FFF3F2;border:2px dashed var(--rojo);border-radius:var(--r);
-  padding:var(--e4);margin:var(--e4) 0;font-size:15.5px}
-.falta b{color:var(--rojo)}
-mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
+.nota ul{margin-top:var(--e2);padding-left:1.25em}
 
 .pie{border-top:1px solid var(--linea);padding:var(--e5) 0;font-size:14px;color:var(--gris-claro)}
 .pie a{color:var(--gris)}
 @media (max-width:720px){ body{font-size:16px} main{padding:var(--e5) 0} .cab{padding:var(--e5) 0} }
+@media (max-width:440px){ .ficha dl > div{grid-template-columns:1fr;gap:2px} }
 </style>
 </head>
 <body>
@@ -91,24 +95,66 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
 
 <div class="cab"><div class="wrap">
   <h1>Las reglas, sin letra chica</h1>
-  <p>Términos y condiciones del servicio · Última actualización: 27 de septiembre de 2026</p>
+  <p>Términos y condiciones del servicio · Última actualización: 8 de octubre de 2026</p>
 </div></div>
 
 <main><div class="wrap">
 
-  <!-- 27-ago-2026: el recuadro de «faltan datos» se retiró porque los datos ya
-       están, salvo el NIT — que sigue marcado abajo y tiene su propio aviso, más
-       pequeño y más preciso. El encargo del abogado NO se retira: aquí se pacta
-       plata y Claude no es abogado. Queda escrito en el pie del documento para
-       que no se pierda, y en ESTADO-*.md como pendiente de Joan. -->
+  <!-- 8-oct-2026 — VERSIÓN NUEVA, Y POR QUÉ.
+       · Quien presta y responde es NEXECO S.A.S. El nombre, la cédula y el domicilio del
+         fundador salieron de esta página por decisión suya.
+       · Punto 2: decía que hacía falta un código de invitación y que no había registro
+         abierto. Ninguna de las dos cosas es verdad desde el 7-oct: el registro es abierto
+         y se entra con celular y contraseña.
+       · Puntos 3 y 4 de la versión anterior («Cuánto cuesta cada crédito», con su tabla de
+         productos y sus ejemplos en pesos, y «Cuándo se paga», con los cortes del 15 y fin
+         de mes): salieron. El monto, los días y el costo de cada crédito los define la
+         dirección en cada propuesta, porque no todos piden lo mismo, y el cliente los ve y
+         los acepta en «Las condiciones de este crédito» antes de recibir la plata. Una
+         tabla de precios aquí sería, además, un precio publicado que tendría que caber bajo
+         el techo de usura de cada mes.
+       · La garantía (antes punto 7, ahora 6) se explica con un ejemplo sobre $100.000 en
+         vez de centavos, y se dice que el recargo por atraso se puede negociar, sin
+         prometer un descuento concreto.
+       · Los ejemplos que mostraban el recargo diario en pesos (21 días sobre $200.000; 20
+         días sobre $300.000) salieron: dejaban leer una tasa de mora que cada crédito
+         define en sus propias condiciones.
+       · Las referencias: decía que se las contactaba «si no logramos comunicarnos
+         contigo». La Ley 2300 de 2023 (art. 4) prohíbe gestionar el cobro con referencias.
+       Lo que NO cambia y no puede cambiar sin decirlo: la regla del 27 de septiembre de
+       2026 (el recargo no suma garantía en créditos pedidos desde ese día) y que cada
+       crédito se rige por las reglas del día en que se pidió (punto 11). Las cifras que
+       quedan salen del motor (app/motor.js) y pruebas/responsable-nexeco.test.js las
+       compara con él una por una.
+       Este texto lo debe revisar un abogado: aquí se pacta plata. -->
+
+  <!-- ===== QUIÉN RESPONDE — EL MISMO BLOQUE QUE legal/privacidad.html (8-oct-2026) =====
+       Faltan el NIT, la dirección, el correo y el teléfono de NEXECO S.A.S. (data-pendiente;
+       el teléfono lo exige el Decreto 1377 de 2013, art. 13, y se agregó el 8-oct en la
+       segunda vuelta: sin él, quien no tiene cuenta no tenía por dónde llamar). Cuando
+       llegue uno se escribe el valor, se quitan data-pendiente y la clase "pendiente", y se
+       hace lo mismo en la política de datos. Nunca un NIT «de mientras»: uno equivocado
+       señala a otra empresa. pruebas/responsable-nexeco.test.js vigila los dos bloques. -->
+  <section class="ficha" id="responsable" aria-labelledby="tituloResponsable">
+    <h2 id="tituloResponsable">Quién responde</h2>
+    <dl>
+      <div><dt>Responsable</dt><dd data-dato="razon_social">NEXECO S.A.S.</dd></div>
+      <div><dt>Qué es</dt><dd>Una sociedad por acciones simplificada: la empresa que opera Tu Garantía</dd></div>
+      <div><dt>Domicilio</dt><dd data-dato="domicilio">Bogotá D.C., Colombia</dd></div>
+      <div><dt>NIT</dt><dd data-dato="nit" data-pendiente="nit" class="pendiente">Lo publicamos aquí en cuanto quede confirmado</dd></div>
+      <div><dt>Dirección</dt><dd data-dato="direccion" data-pendiente="direccion" class="pendiente">La publicamos aquí en cuanto quede confirmada</dd></div>
+      <div><dt>Correo</dt><dd data-dato="correo" data-pendiente="correo" class="pendiente">Lo publicamos aquí en cuanto quede habilitado</dd></div>
+      <div><dt>Teléfono</dt><dd data-dato="telefono" data-pendiente="telefono" class="pendiente">Lo publicamos aquí en cuanto quede habilitado</dd></div>
+      <div><dt>Para hablar con nosotros</dt><dd>El chat de la app, desde tu cuenta. Si no tienes cuenta o no puedes entrar: en la pantalla de entrar de la app toca «Olvidé mi contraseña», déjanos tu celular y escribe en la nota qué necesitas; te escribimos.</dd></div>
+    </dl>
+  </section>
 
   <div class="idx">
     <b>En esta página</b>
     <ol>
       <li><a href="#que">Qué es Tu Garantía y qué no es</a></li>
       <li><a href="#quien">Quién puede ser socio</a></li>
-      <li><a href="#costo">Cuánto cuesta cada crédito</a></li>
-      <li><a href="#cuando">Cuándo se paga</a></li>
+      <li><a href="#condiciones">Cada crédito tiene sus propias condiciones</a></li>
       <li><a href="#atraso">Qué pasa si te atrasas</a></li>
       <li><a href="#prorroga">La prórroga y el plan de pagos</a></li>
       <li><a href="#garantia">La garantía: qué es y qué no es</a></li>
@@ -122,10 +168,17 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
 
   <section id="que">
     <h2>1. Qué es Tu Garantía y qué no es</h2>
-    <p>Tu Garantía es un servicio de crédito de <b>Joan Sebastián Ruiz Flórez</b>, identificado
-      con cédula de ciudadanía <b>1.018.447.274</b>, con domicilio en
-      <b>Avenida Calle 80 #91-08, Bogotá D.C., Colombia</b>.
-      Prestamos dinero propio a personas que cobran por quincena.</p>
+    <p>Tu Garantía es un servicio de crédito de <b>NEXECO S.A.S.</b>, una sociedad por acciones
+      simplificada con domicilio en Bogotá D.C. Sus datos están en el recuadro
+      <b>«Quién responde»</b>, arriba. Prestamos recursos propios a personas.</p>
+    <!-- 8-oct-2026 (segunda vuelta) — LOS CRÉDITOS DE ANTES. La revisión de ley señaló
+         que decir «quien presta es NEXECO» sobre créditos que ya entregó otra persona
+         cambiaría el acreedor sin la notificación que exige el Código Civil (art. 1960).
+         Aquí no se resuelve eso: se dice lo que es verdad —esos créditos no cambian— y
+         queda para la dirección y su abogado decidir si se ceden y cómo. -->
+    <p class="sub">Los créditos que recibiste <b>antes del 8 de octubre de 2026</b> no cambian:
+      siguen con quien te los prestó y con las mismas condiciones. Si eso cambiara algún día, te
+      lo avisamos por escrito antes.</p>
     <div class="nota rojo">
       <b>No somos un banco.</b> No estamos vigilados por la Superintendencia Financiera, no
       captamos dinero del público, no recibimos ahorros ni depósitos, y no somos una cooperativa.
@@ -138,65 +191,64 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
   <section id="quien">
     <h2>2. Quién puede ser socio</h2>
     <ul>
-      <li>Ser mayor de edad y tener cédula colombiana.</li>
-      <li>Tener un <b>código de invitación</b> que te hayamos entregado. No hay registro abierto:
-        cada código sirve para una sola persona.</li>
-      <li>Darnos los datos que te pedimos. Ninguno es obligatorio, pero cada uno te sube la
-        garantía con la que arrancas.</li>
+      <li>Ser mayor de edad, con cédula de ciudadanía, cédula de extranjería o pasaporte.</li>
+      <li>Registrarte en la app. <b>El registro es abierto</b>: no necesitas invitación ni ningún
+        código. Tú eliges tu contraseña.</li>
+      <li>Darnos los datos que el registro marca como obligatorios, entre ellos tu correo
+        electrónico. Cuáles son y para qué sirven está en la
+        <a href="privacidad.html">política de datos personales</a>.</li>
     </ul>
-    <p class="sub">Tu cuenta es tuya y no se presta. Entrar requiere tu cédula y los últimos cuatro
-      dígitos de tu celular; cuídalos como cuidas tu clave.</p>
+    <p>Abrir tu cuenta no es tener un crédito aprobado: cada solicitud la revisamos
+      (<a href="#aprobacion">punto 8</a>).</p>
+    <p class="sub">Tu cuenta es tuya y no se presta. Entras con tu celular y tu contraseña;
+      cuídala como cuidas la clave de tu banco. Si la olvidas, desde la pantalla de entrar nos
+      dejas un recado y te ayudamos a recuperarla.</p>
   </section>
 
-  <section id="costo">
-    <h2>3. Cuánto cuesta cada crédito</h2>
-    <p>Hay dos productos y los dos tienen un costo <b>plano</b>: se calcula sobre lo que pides y
-      no cambia después, ni por tu historial, ni por el monto, ni por la fecha.</p>
-
-    <div class="tabla-caja">
-      <table>
-        <thead><tr><th>Producto</th><th>Costo</th><th>Plazo</th></tr></thead>
-        <tbody>
-          <tr>
-            <td><b>Crédito quincenal</b><br><span class="sub">el de siempre</span></td>
-            <td class="n">Un valor fijo en pesos, que ves y aceptas antes de recibir el crédito</td>
-            <td>Hasta la fecha de corte</td>
-          </tr>
-          <tr>
-            <td><b>Préstamo con garantía</b><br><span class="sub">solo con garantía ganada</span></td>
-            <td class="n">Un costo mensual fijo en pesos, que ves antes de pedir</td>
-            <td>De 1 a 6 meses</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <p><b>En pesos:</b> si pides $200.000 en el crédito quincenal, devuelves $240.000. Si pides
-      $300.000 en el préstamo con garantía a 6 meses, pagas $15.000 de costo cada mes más la parte
-      del capital: $90.000 de costo en total.</p>
-    <p>No cobramos cuotas de manejo, ni seguros, ni estudio de crédito, ni papeleo, ni ningún otro
-      cargo. Lo que ves en la calculadora antes de pedir es exactamente lo que pagas.</p>
-    <p>El préstamo con garantía solo puede llegar hasta el monto de tu <b>garantía ganada</b> y
-      libre —la que construiste pagando y que no esté respaldando otro préstamo—. No incluye la
-      que te prestamos al entrar ni la que te dejaron tus referidos: esa te la pusimos nosotros.
-      Está explicado en el <a href="#garantia">punto 7</a>.</p>
-  </section>
-
-  <section id="cuando">
-    <h2>4. Cuándo se paga</h2>
-    <p>Las fechas de corte son el <b>día 15 y el último día de cada mes</b>, que es cuando a ti te
-      pagan. Si el corte cae domingo o festivo, se corre al siguiente día hábil.</p>
-    <p>Entre que te entregamos el dinero y tu fecha de pago siempre hay al menos cinco días. Si
-      pides muy cerca de un corte, tu pago queda para el siguiente.</p>
-    <p>En el préstamo con garantía pagas una cuota cada mes, siempre en una fecha de corte, con
-      una parte del capital y el costo de ese mes.</p>
+  <section id="condiciones">
+    <h2>3. Cada crédito tiene sus propias condiciones</h2>
+    <p>Aquí no hay un precio de lista ni un plan igual para todos: cada persona necesita algo
+      distinto, y cada crédito se ofrece por separado.</p>
+    <ol>
+      <li><b>Tú pides lo que necesitas:</b> cuánto, y para cuándo quieres pagarlo. La calculadora
+        de la app te deja armarlo antes de pedir.</li>
+      <li><b>Nosotros lo revisamos y te mandamos una propuesta.</b> Puede ser lo que pediste, o
+        algo distinto: otro monto, otras fechas.</li>
+      <li><b>La propuesta trae completas «Las condiciones de este crédito»:</b> cuánto recibes, en
+        qué fecha o fechas pagas, cuánto pagas en total, cuánto es el costo en pesos, qué pasa si
+        te atrasas, qué garantía te deja y cómo se paga.</li>
+      <li><b>Las lees y decides.</b> Si no las aceptas, no hay crédito y no debes nada. Si las
+        aceptas en la app, marcas que las leíste y guardamos una copia tal como las viste, con
+        la fecha y la hora. Solo después te entregamos el dinero.</li>
+    </ol>
+    <p>Esas condiciones son las de tu crédito y no cambian después: ni por tu historial, ni por
+      el monto, ni porque cambien estas reglas (<a href="#cambios">punto 11</a>).</p>
+    <p>No cobramos nada que no esté en esas condiciones: ni cuotas de manejo, ni seguros, ni
+      estudio de crédito, ni papeleo.</p>
+    <p class="sub">La calculadora es para armar lo que quieres pedir. No es una oferta ni una
+      aprobación: lo que vale es la propuesta que te mandamos y tú aceptas.</p>
   </section>
 
   <section id="atraso">
-    <h2>5. Qué pasa si te atrasas</h2>
-    <p>Se cobra <b>un recargo diario fijo sobre el capital</b> por cada día de atraso —su valor en
-      pesos lo ves en tu app y en el ejemplo de más abajo—, contado desde tu fecha
-      de corte.</p>
+    <h2>4. Qué pasa si te atrasas</h2>
+    <!-- 8-oct-2026 (segunda vuelta) — decía «cuánto es está en las condiciones de tu crédito…
+         y lo ves en pesos en tu app», y las condiciones decían «como explican los términos»:
+         cada texto mandaba al otro y la cifra no estaba en ninguno. Ahora la cifra está en
+         las condiciones (app/calculadora-solicitud.js, «Si te atrasas»), en pesos por día, y
+         el CRM la cumple (app/puente.js, tasaMoraDe). -->
+    <p>Si llega la fecha de pago de tu crédito y no pagas, por cada día de atraso se causa un
+      <b>recargo</b> sobre lo que debes. En «Las condiciones de este crédito», las que aceptas
+      antes de recibir la plata, está escrito <b>en pesos por día</b> y como máximo, y nunca pasa
+      de la tasa de mora más alta que permite la ley: si la ley baja ese tope, tu recargo baja
+      con él.</p>
+
+    <div class="nota azul">
+      <b>El recargo se puede negociar.</b> Si te atrasaste, escríbenos cuanto antes: miramos tu
+      caso y buscamos juntos una salida que te sirva —un acuerdo de pago, una fecha nueva, una
+      prórroga o un ajuste del recargo—. Estamos para dar soluciones, no para ahogarte. No te
+      prometemos un descuento fijo, porque cada caso se mira aparte, y lo que acordemos te lo
+      confirmamos por escrito.
+    </div>
 
     <div class="nota azul">
       <b>Y algo que aquí no pasa, y queremos que quede por escrito:</b> atrasarte no te expulsa.
@@ -204,31 +256,25 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
       garantía, atrasarte tampoco te lo baja: pagar tarde nunca resta. Puedes volver a pedir
       aunque vengas de un atraso.
     </div>
-    <!-- 27-sep-2026: decía que lo pagado en fecha dejaba «el doble» que lo pagado tarde y que
-         el recargo sumaba «a la mitad». Desde el 23-sep el costo suma lo mismo en fecha y tarde,
-         y el recargo de los créditos pedidos desde el 27-sep no suma (decisión de Joan). -->
     <p>El costo que pagas te suma la misma garantía lo pagues en fecha o tarde. Lo que cambia es
-      cuánto pagas: el <b>recargo</b> por los días de atraso es plata que solo existe porque el
-      corte ya había pasado, y en los créditos que pidas desde el <b>27 de septiembre de 2026</b>
-      no se te vuelve garantía. Está explicado en el <a href="#garantia">punto 7</a> y conviene
+      cuánto pagas: el <b>recargo</b> por los días de atraso es plata que solo existe porque la
+      fecha ya había pasado, y en los créditos que pidas desde el <b>27 de septiembre de 2026</b>
+      no se te vuelve garantía. Está explicado en el <a href="#garantia">punto 6</a> y conviene
       leerlo hoy, no el día que te toque.</p>
 
-    <h3 style="font-size:19px;margin-top:var(--e4)">Si abonas una parte y no todo</h3>
+    <h3>Si abonas una parte y no todo</h3>
     <p>Puedes abonar lo que tengas el día que lo tengas: siempre te conviene y nunca te sube lo que
-      debes. Tu abono baja el capital, y <b>desde ese día</b> el recargo diario corre sobre el capital
-      que quedó, no sobre el que había. No te cobramos mora sobre plata que ya nos devolviste.</p>
-    <p>Pero lo que ya se causó no se deshace, y esto es lo que hay que entender bien:
-      <b>el costo del ciclo y los días de atraso que ya corrieron no bajan porque abones al
-      capital.</b> El costo del ciclo se causó completo el día que pediste, y cada día de atraso se causó
-      sobre el capital que estuvo debido ese día.</p>
-    <p>Un ejemplo con números, porque es más fácil de ver que de explicar: pediste $200.000, llevas
-      21 días de atraso y abonas $199.999. En la app vas a ver <b>Capital $1</b> —lo que te queda
-      por devolver—, <b>Costo $40.000</b> —el del ciclo, que ya estaba causado— y
-      <b>Recargo por los 21 días $42.000</b> —el recargo diario de esos 21 días, corrido sobre los
-      $200.000 que estuvieron debidos todo ese tiempo—. De ahí en adelante el recargo nuevo corre
-      sobre $1, o sea prácticamente nada.</p>
-    <p class="sub">Si fuera al revés —si recalculáramos el recargo entero sobre lo que quedó—,
-      abonar el último día borraría hacia atrás tres semanas de atraso. Sería cobrarle al que abonó
+      debes. Tu abono baja el capital, y <b>desde ese día</b> el recargo corre sobre el capital
+      que quedó, no sobre el que había. No te cobramos recargo sobre plata que ya nos devolviste.</p>
+    <p>Pero lo que ya se causó no se deshace: <b>el costo del crédito y los días de atraso que ya
+      corrieron no bajan porque abones al capital.</b> El costo se causó completo el día que
+      recibiste el dinero, y cada día de atraso se causó sobre el capital que estuvo debido ese
+      día.</p>
+    <p>Un ejemplo: te prestamos $100.000, te atrasas y un día abonas $60.000. Desde ese día el
+      recargo corre sobre los $40.000 que quedan, no sobre los $100.000. Los días que ya habían
+      corrido sobre los $100.000 se quedan como estaban.</p>
+    <p class="sub">Si fuera al revés —si recalculáramos todo el recargo sobre lo que quedó—,
+      abonar el último día borraría hacia atrás semanas de atraso. Sería cobrarle al que abonó
       desde el principio lo que le regalamos al que abonó al final.</p>
 
     <p>Si pasan <b>90 días sin que hagas ni un solo abono</b>, la cuenta queda suspendida y tu
@@ -236,139 +282,145 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
   </section>
 
   <section id="prorroga">
-    <h2>6. La prórroga y el plan de pagos</h2>
+    <h2>5. La prórroga y el plan de pagos</h2>
     <p>Si llega tu fecha de pago y no alcanzas a cubrir todo, tienes dos salidas y las dos son
       normales:</p>
     <ul>
-      <li><b>Prórroga:</b> pagas el costo de la quincena —más el atraso que se haya causado hasta
-        ese día, si venías atrasado— y el capital pasa a la siguiente fecha de corte. Desde el 2 de
-        septiembre de 2026 todos los socios pueden encadenar hasta <b>dos</b> prórrogas por
-        crédito, sin importar el nivel. Dos es el tope y no sube más.</li>
-      <li><b>Plan de pagos:</b> cuando se te acaban las prórrogas, el saldo se reparte en tres
-        cortes con un costo reducido sobre lo que falte, que ves en pesos antes de pactarlo.</li>
+      <li><b>Prórroga:</b> pagas el costo de ese periodo —más el recargo que se haya causado hasta
+        ese día, si venías atrasado— y el capital pasa a una nueva fecha de pago. Puedes
+        encadenar hasta <b>dos</b> prórrogas por crédito, sin importar tu nivel.</li>
+      <li><b>Plan de pagos:</b> cuando se te acaban las prórrogas, lo que debes se reparte en
+        <b>tres</b> pagos, con un costo reducido sobre lo que falte.</li>
     </ul>
-    <p>Las dos también te suman garantía, y nunca te vamos a cobrar por pedir una prórroga: pagas
-      el costo de la quincena que estás comprando, nada más.</p>
-    <p><b>Lo que te suman es el costo que pagas en ellas.</b> Si el día que pides la prórroga, o
-      el día que entras al plan, ya venías atrasado, el recargo de esos días lo pagas aparte y, en
-      los créditos pedidos desde el 27 de septiembre de 2026, no se te vuelve garantía. La
+    <p>Cuánto cuesta cada una te lo decimos en pesos antes de pactarla. Las dos te suman
+      garantía, y nunca te vamos a cobrar por pedir una prórroga: pagas el costo del tiempo que
+      estás comprando, nada más.</p>
+    <p><b>Lo que te suma es el costo que pagas en ellas.</b> Si el día que pides la prórroga, o
+      el día que entras al plan, ya venías atrasado, el recargo de esos días lo pagas aparte y,
+      en los créditos pedidos desde el 27 de septiembre de 2026, no se te vuelve garantía. La
       prórroga te compra tiempo, que es para lo que está. Está explicado completo en el
-      <a href="#garantia">punto 7</a>, y conviene que lo leas antes de necesitarlo.</p>
+      <a href="#garantia">punto 6</a>, y conviene que lo leas antes de necesitarlo.</p>
   </section>
 
   <section id="garantia">
-    <h2>7. La garantía: qué es y qué no es</h2>
-    <p>La garantía es tu historial convertido en número. Cada vez que pagas el costo de un crédito,
-      <b>80 centavos de cada peso</b> de ese costo se te vuelven garantía, lo hayas pagado en fecha
-      o tarde. En el préstamo con garantía suma menos: 20 centavos de cada peso de costo, y la
-      mitad de eso si pagaste tarde.</p>
+    <h2>6. La garantía: qué es y qué no es</h2>
+    <p>La garantía es tu historial convertido en número. Cada vez que pagas el costo de un
+      crédito, una parte de ese costo se te vuelve garantía, lo hayas pagado en fecha o tarde.</p>
+    <p><b>Con un ejemplo de $100.000:</b> si el costo de tu crédito es de $100.000 y lo pagas,
+      tu garantía sube <b>$80.000</b>. Si el crédito está respaldado con tu garantía ganada
+      —el préstamo con garantía—, suma menos: <b>$20.000</b> por cada $100.000 de costo, y
+      <b>$10.000</b> si lo pagaste tarde.</p>
     <div class="nota azul">
-      <b>Esto cambió en septiembre de 2026, y a tu favor.</b> Hasta el 23 de septiembre eran 75
-      centavos pagando en fecha y la mitad de eso pagando tarde, y un crédito que se atrasaba
-      sumaba la mitad hasta terminarlo. Desde esa fecha son 80 centavos siempre, también en los
-      créditos que ya tenías: tu garantía subió sola con la misma historia.
+      <b>Esto cambió en septiembre de 2026, y a tu favor.</b> Hasta el 23 de septiembre, por
+      cada $100.000 de costo te sumaban $75.000 pagando en fecha y $37.500 pagando tarde, y un
+      crédito que se atrasaba sumaba menos hasta terminarlo. Desde esa fecha son $80.000
+      siempre, también en los créditos que ya tenías: tu garantía subió sola con la misma
+      historia.
     </div>
-    <p>Y la garantía <b>es</b> tu cupo, uno a uno: puedes pedir exactamente lo que tienes, sin
-      multiplicarla por nada. Está en el <a href="#cupo">punto 8</a>.</p>
+    <p>Y la garantía <b>es</b> tu cupo, uno a uno: no se multiplica por nada. Está en el
+      <a href="#cupo">punto 7</a>.</p>
 
-    <h3 style="font-size:19px;margin-top:var(--e4)">El recargo por atraso no se vuelve garantía</h3>
+    <h3>El recargo por atraso no se vuelve garantía</h3>
     <p>Esto tienes que saberlo antes de atrasarte, no después. <b>En los créditos que pidas desde
       el 27 de septiembre de 2026, el recargo que pagas por los días de atraso no te suma
       garantía</b>: ni cuando saldas, ni cuando lo pagas con una prórroga, ni en el plan de pagos.
       Lo que te suma es el costo, siempre.</p>
     <p>Te contamos la razón entera: el recargo no es un precio, es lo que cuesta haberte pasado de
       la fecha. Si también se volviera garantía, atrasarte te dejaría más garantía que pagar a
-      tiempo. Míralo sobre un crédito de $300.000, cuyo costo es $60.000: pagando en fecha te
-      sumaría <b>$48.000</b>; pagando 20 días tarde, con $60.000 de recargo, te sumaría
-      <b>$96.000</b>, el doble, por haberte atrasado. La app te estaría enseñando que atrasarse
-      rinde más que pagar. No queremos enseñarte eso.</p>
+      tiempo. Míralo con $100.000: si el costo de tu crédito es de $100.000 y lo pagas en fecha,
+      tu garantía sube <b>$80.000</b>. Si te atrasaras y pagaras además $100.000 de recargo, y
+      ese recargo también sumara, subiría <b>$160.000</b>: el doble, por haberte atrasado. La app
+      te estaría enseñando que atrasarse rinde más que pagar. No queremos enseñarte eso.</p>
+    <p>Y recuerda que el recargo <b>se puede negociar</b> (<a href="#atraso">punto 4</a>): si te
+      atrasaste, háblanos antes de que crezca. Estamos para dar soluciones.</p>
     <p><b>Los créditos que pediste antes del 27 de septiembre de 2026 siguen con su regla</b>, la
-      del día en que los pediste (<a href="#cambios">punto 12</a>): su recargo te sigue sumando
-      lo que sumaba, 37,5 centavos de cada peso, hasta que los termines.</p>
+      del día en que los pediste (<a href="#cambios">punto 11</a>): su recargo te sigue sumando
+      $37.500 por cada $100.000, hasta que los termines.</p>
     <p><b>Y nada de lo que ya ganaste se toca.</b> La garantía que ya te dejaron tus pagos —también
       la que te dejaron los recargos que pagaste— es tuya, y ningún cambio de estas reglas la
       baja.</p>
 
-    <h3 style="font-size:19px;margin-top:var(--e4)">La que te prestamos nosotros</h3>
+    <h3>La que te prestamos nosotros</h3>
     <p>Al abrir tu cuenta te prestamos hasta <b>$100.000</b> de garantía, según los datos que nos
       des, para que puedas arrancar sin historial. Cada dato que entregas te sube esa cifra; con
       todos completos llegas a los $100.000 exactos.</p>
     <p>Y si traes gente, te sumamos <b>$5.000</b> por cada persona que invites, desde el momento
       en que esa persona pague un crédito. Antes de eso no suma nada, y no hay límite de cuántas
       puedes traer.</p>
-    <p>Esos dos —el cupón de tus datos y lo de tus referidos— son <b>garantía prestada</b>: te la
-      pusimos nosotros. Cuenta para tu cupo quincenal y para nada más. La <b>garantía ganada</b>
-      es la que salió de tus pagos, y es la única que respalda un préstamo con garantía.</p>
+    <p>Esos dos —lo de tus datos y lo de tus referidos— son <b>garantía prestada</b>: te la
+      pusimos nosotros. Cuenta para tu cupo y para nada más. La <b>garantía ganada</b> es la que
+      salió de tus pagos, y es la única que puede respaldar un préstamo con garantía.</p>
 
     <div class="nota ambar">
       <b>Esto es lo más importante de toda esta página: la garantía NO es dinero tuyo.</b>
       No es un ahorro, no es un depósito, no es una inversión y <b>no se puede retirar</b>. Es un
       puntaje que dice cuánto has pagado, y sirve para dos cosas: <b>ser</b> tu cupo, y respaldar
-      un préstamo más barato. Nadie te va a entregar esa plata en efectivo, porque esa plata no
+      un préstamo con garantía. Nadie te va a entregar esa plata en efectivo, porque esa plata no
       existe como plata: existe como historial.
     </div>
 
     <p>Mientras tengas un préstamo con garantía abierto, esa parte de tu garantía queda
-      comprometida y no cuenta para tu cupo quincenal. Al terminar de pagarlo se libera.</p>
+      comprometida y no cuenta para tu cupo. Al terminar de pagarlo se libera.</p>
   </section>
 
   <section id="cupo">
-    <h2>8. Tu cupo y tu nivel</h2>
-    <p><b>Tu cupo es tu garantía, uno a uno.</b> Puedes pedir exactamente lo que tienes: no la
-      multiplicamos por ningún factor y tu nivel no la mueve. Si tu garantía dice $132.250, tu
-      cupo es $132.250.</p>
+    <h2>7. Tu cupo y tu nivel</h2>
+    <p><b>Tu cupo es tu garantía, uno a uno.</b> No la multiplicamos por ningún factor y tu
+      nivel no la mueve. Si tu garantía dice $132.250, tu cupo es $132.250. Puedes pedir más
+      que tu cupo: lo revisamos y te respondemos con una propuesta.</p>
     <div class="nota azul">
       <b>Esto cambió el 5 de agosto de 2026.</b> Hasta ese día el cupo era tu garantía
-      multiplicada por un factor de 1,5 a 3 según tu nivel, y esa tabla de factores ya no existe.
+      multiplicada por un factor que dependía de tu nivel, y esa tabla de factores ya no existe.
       Lo hicimos para no prestarte más de lo que respaldas, y te lo decimos sin adornos: <b>si ya
       eras socio, desde esa fecha tu cupo es más bajo</b> que el que veías antes. Lo que no se
       toca es nada de lo que ya tenías: tu garantía sigue completa —ni un peso de lo que ganaste
       se borra— y los créditos que ya te entregamos se rigen por las reglas del
-      día en que los pediste (<a href="#cambios">punto 12</a>).
+      día en que los pediste (<a href="#cambios">punto 11</a>).
     </div>
     <p><b>Tu nivel es el tamaño de tu garantía</b> (desde el 2 de septiembre de 2026). La escala
       va doblando: hierro (hasta $200.000), aluminio (desde $200.000), bronce (desde $400.000),
       plata (desde $800.000), oro (desde $1.600.000), platino (desde $3.200.000), diamante (desde
       $6.400.000), Materia Oscura PRO (desde $12.800.000) y misterio (desde $25.000.000). No
-      decide cuánto puedes pedir —tu cupo es tu garantía, uno a uno— ni cuántas prórrogas
-      tienes —todos tienen dos (<a href="#prorroga">punto 6</a>)—: es el nombre de lo que llevas
-      construido.</p>
+      decide cuánto puedes pedir ni cuántas prórrogas tienes —todos tienen dos
+      (<a href="#prorroga">punto 5</a>)—: es el nombre de lo que llevas construido.</p>
     <p>El nivel sube cuando tu garantía sube, y baja si ella baja — cosa que en la práctica casi
-      no pasa, porque pagar nunca resta. El premio de la puntualidad es la plata: el que paga en
-      fecha no paga recargo.</p>
-    <p>Desde la app puedes pedir hasta <b>$5.000.000</b>; por encima de eso hablamos directamente.
-      Y hablando y todo, lo máximo que prestamos son <b>$20.000.000</b>: por alta que llegue a
-      estar tu garantía, el cupo no pasa de ahí.</p>
-    <p class="sub">El monto mínimo de cualquier crédito es de <b>$50.000</b>, en los dos
-      productos. Con una excepción a tu favor: si tu cupo todavía es menor que eso —o, en el
-      préstamo con garantía, tu garantía ganada—, puedes pedir hasta ese cupo. El mínimo nunca te
-      deja sin poder pedir nada.</p>
+      no pasa, porque pagar nunca resta.</p>
+    <p class="sub">Por alta que llegue a estar tu garantía, el cupo no pasa de
+      <b>$20.000.000</b>. Y el monto mínimo de un crédito es de <b>$50.000</b>, con una
+      excepción a tu favor: si tu cupo todavía es menor que eso, puedes pedir hasta tu cupo. El
+      mínimo nunca te deja sin poder pedir nada.</p>
   </section>
 
   <section id="aprobacion">
-    <h2>9. Nosotros decidimos si te prestamos</h2>
-    <p>Tener cupo no es lo mismo que tener el crédito aprobado. Cada solicitud la revisamos, y
-      podemos aprobarla, aprobarla por menos, o no aprobarla. Si no te la aprobamos te decimos
-      por qué.</p>
-    <p class="sub">La calculadora de la app es una simulación para que sepas a qué atenerte antes
-      de pedir. No es una oferta ni una aprobación.</p>
+    <h2>8. Nosotros decidimos si te prestamos</h2>
+    <p>Abrir tu cuenta o tener cupo no es lo mismo que tener el crédito aprobado. Cada solicitud
+      la revisamos, y podemos aprobarla como la pediste, proponerte otra cosa, o no aprobarla.
+      Si no te la aprobamos te decimos por qué.</p>
+    <p class="sub">Lo que vale es la propuesta que te mandamos con sus condiciones, y solo cuando
+      tú la aceptas (<a href="#condiciones">punto 3</a>).</p>
   </section>
 
   <section id="contacto">
-    <h2>10. Cómo te contactamos</h2>
-    <p>Te escribimos por WhatsApp al número que nos diste: para recordarte tus pagos, avisarte de
-      vencimientos y contarte lo que llevas construido.</p>
+    <h2>9. Cómo te contactamos</h2>
+    <!-- 8-oct-2026 (segunda vuelta) — decía que por correo también se recordaban los pagos y
+         los vencimientos: ningún código manda correos solos. Lo que es verdad: WhatsApp para
+         eso, y el correo lo manda una persona del equipo cuando hay algo que dejar por escrito
+         (el CRM tiene «✉️ Mandárselas por correo» en las condiciones aceptadas). -->
+    <p>Te escribimos por WhatsApp al número que nos diste para recordarte tus pagos, avisarte de
+      vencimientos y contarte lo que llevas construido. Y por correo, cuando haya algo que dejar
+      por escrito —por ejemplo, las condiciones de un crédito que aceptaste—: ese correo lo manda
+      una persona de nuestro equipo.</p>
     <p>Si te atrasas, gestionamos el cobro respetando la <b>Ley 2300 de 2023</b>: en los horarios
       que fija la ley, sin acosarte, sin gritarte y sin contarle tu deuda a nadie. Puedes pedirnos
       que ajustemos el horario o el canal y lo respetamos.</p>
-    <p>A la referencia que nos diste solo la contactamos si no logramos comunicarnos contigo, y
-      nunca le contamos cuánto debes.</p>
+    <p>A tus referencias no las llamamos para cobrarte —la ley no lo permite— y nunca les
+      contamos nada de tu crédito.</p>
   </section>
 
   <section id="salir">
-    <h2>11. Si te quieres retirar</h2>
+    <h2>10. Si te quieres retirar</h2>
     <p>Puedes dejar de ser socio cuando quieras, siempre que no tengas deudas pendientes. Nos
-      escribes y cerramos tu cuenta.</p>
+      escribes por el chat de la app y cerramos tu cuenta.</p>
     <p>Tus datos se manejan como dice la
       <a href="privacidad.html">política de datos personales</a>: puedes pedir que los borremos y
       lo hacemos, salvo lo que la ley nos obligue a conservar.</p>
@@ -377,13 +429,25 @@ mark{background:#FFE9A8;padding:1px 5px;border-radius:4px;font-weight:700}
   </section>
 
   <section id="cambios">
-    <h2>12. Si cambiamos estas reglas</h2>
+    <h2>11. Si cambiamos estas reglas</h2>
     <p>Podemos cambiarlas. Cuando lo hagamos, publicamos la versión nueva en esta página con su
-      fecha y te avisamos por WhatsApp antes de que rija.</p>
+      fecha y te avisamos dentro de la app o por WhatsApp antes de que rija.</p>
     <div class="nota azul">
       <b>Los créditos que ya tienes no cambian.</b> Un crédito se rige por las reglas que estaban
-      vigentes el día que lo pediste. Un cambio nunca te sube el costo de algo que ya te
-      entregamos.
+      vigentes el día que lo pediste y por las condiciones que aceptaste. Un cambio nunca te sube
+      el costo de algo que ya te entregamos.
+    </div>
+    <div class="nota azul">
+      <b>Lo que cambió el 8 de octubre de 2026:</b>
+      <ul>
+        <li>Los créditos nuevos los presta <b>NEXECO S.A.S.</b> (recuadro «Quién responde»); los
+          que ya tenías no cambian (punto 1).</li>
+        <li>El registro es abierto y entras con tu celular y tu contraseña: ya no hay códigos.</li>
+        <li>Estos términos ya no fijan un precio ni un plazo igual para todos: cada crédito trae sus
+          propias condiciones, que aceptas antes de recibir el dinero (punto 3).</li>
+        <li>El recargo por atraso viene en pesos en esas condiciones, nunca pasa del máximo legal y
+          se puede negociar (punto 4).</li>
+      </ul>
     </div>
     <p class="sub">Estos términos se rigen por las leyes de la República de Colombia. Cualquier
       diferencia intentamos resolverla hablando; si no se puede, resuelven los jueces

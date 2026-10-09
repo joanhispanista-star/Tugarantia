@@ -85,7 +85,9 @@ describe('PlataChat en la bandeja: nada se desembolsa sin propuesta aceptada (26
     assert.ok(!/\$120\.000/.test(h), 'cobra UNA quincena de una deuda de dos');
     assert.match(h, /2 cortes/);
     assert.match(h, /\(la puso el automático\)/, 'no distingue una propuesta del automático de una de Joan');
-    assert.match(h, /✅ Aceptó/);
+    /* 8-oct-2026 (segunda vuelta): esta aceptación no trae constancia de las
+       condiciones (es de antes de aceptar_condiciones), y la bandeja lo dice. */
+    assert.match(h, /Aceptó SIN constancia de condiciones/);
     /* El Panel todavía registra un solo corte: frena en vez de registrar mal. */
     P.ev('confirm=()=>true');
     P.ev("crearDesdeSolicitud('501')");
@@ -126,12 +128,18 @@ describe('PlataChat en la bandeja: nada se desembolsa sin propuesta aceptada (26
 
 describe('Tu Garantía en la bandeja: lo de siempre, sin cambios', () => {
 
-  test('una solicitud sin app sigue igual: nueva sin propuesta ofrece «Crear crédito» y no dice PlataChat', () => {
+  /* 8-oct-2026 (segunda vuelta) — ANTES: «nueva sin propuesta ofrece Crear
+     crédito». Los términos (punto 3) piden propuesta y condiciones aceptadas
+     antes de prestar, y esta puerta las saltaba (revisión de ley): ahora ofrece
+     «✏️ Proponer». Lo que esta prueba cuida sigue igual: no le pone reglas de
+     PlataChat a una solicitud de Tu Garantía. */
+  test('una solicitud de Tu Garantía sin propuesta: «Proponer», sin reglas de PlataChat', () => {
     const P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
     const s = { id: 88, origen: 'nube', cedula: '3004445566', nombre: 'Marta Ruiz', capital: 100000, tasa: 0.2, costo: 20000,
                 total: 120000, fecha_corte: '2026-10-15', producto: 'quincenal', estado: 'nueva' };
     const h = conBandeja(P, s);
-    assert.match(h, /Crear crédito/);
+    assert.match(h, /✏️ Proponer/);
+    assert.ok(!/Crear crédito/.test(h), 'se puede prestar sin propuesta');
     assert.ok(!/PlataChat|Esperando TU propuesta|sin proponer/.test(h), 'le puso reglas de PlataChat a una solicitud de Tu Garantía');
   });
 

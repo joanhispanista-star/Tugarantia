@@ -40,6 +40,8 @@ function llenarRegistro(P) {
       : c.tipo === 'pesos' ? '2000000'
       : c.tipo === 'fecha' ? '2010-01-01'
       : c.tipo === 'numero' ? '1010101010'
+      /* 8-oct-2026 — el correo es obligatorio desde hoy y se le revisa la forma. */
+      : c.tipo === 'correo' ? 'ana@correo.com'
       : 'Prueba';
   });
   REGISTRO.nombres = 'Ana'; REGISTRO.apellidos = 'Pérez';
@@ -126,21 +128,33 @@ describe('el registro con la marca, de punta a punta', () => {
   });
 
   test('sin acompañamiento, aunque en el teléfono haya quedado encendido de play/', () => {
+    /* 8-oct-2026 — la tarjeta «¿quieres que un asesor te acompañe?» ya no
+       existe (Joan: «no quiero que se pregunte eso»); en play/ el avance se
+       publica siempre, con el aviso del paso 1. Lo que esta prueba cuida sigue
+       igual: en PlataChat NO hay acompañamiento, ni aviso, ni publicación. */
     const P = abrirPlay({ search: CON_MARCA, almacen: { tg_acompana: '1' } });
-    P.ev("REGISTRO.celular = '3001112233'");
-    assert.equal(P.ev('tarjetaAcompanar()'), '', 'ofreció el acompañamiento de un asesor en PlataChat');
+    P.ev("REGISTRO.celular = '3001112233'; PASO = 3;");
+    assert.equal(P.ev('avisoAcompana()'), '', 'le avisó del acompañamiento de un asesor en PlataChat');
     const llamadas = nube(P, BIEN);
     P.ev('publicarAvance()');
     assert.equal(llamadas().length, 0, 'publicó el avance del registro de PlataChat');
-    /* En play/ sigue igual. */
-    const Q = abrirPlay({ almacen: { tg_acompana: '1' } });
-    Q.ev("REGISTRO.celular = '3001112233'");
-    assert.ok(Q.ev('tarjetaAcompanar()').length > 0);
+    /* En play/ sí: el aviso del paso 1 y la publicación desde el paso 2. */
+    /* 8-oct-2026 (segunda vuelta): con la marca de que leyó el aviso del paso 1
+       (anotarAvisoVivo, la pone «Continuar» ahí); sin ella no se publica. */
+    const Q = abrirPlay({ almacen: { tg_vivo_aviso_8oct2026: '1' } });
+    Q.ev("REGISTRO.celular = '3001112233'; PASO = 3;");
+    assert.ok(Q.ev('avisoAcompana()').length > 0);
+    const deQ = nube(Q, BIEN);
+    Q.ev('publicarAvance()');
+    assert.ok(deQ().some(x => /registro_vivo_publicar/.test(x.url)), 'en play/ el avance no se publicó');
   });
 
   test('la autorización dice que los datos los trata Tu Garantía, solo con la marca', () => {
     const P = abrirPlay({ search: CON_MARCA });
     assert.match(P.ev('pasoPermiso()'), /PlataChat es un nombre comercial de Tu Garantía/);
+    /* 8-oct-2026 (segunda vuelta): quien responde es la EMPRESA, no la marca
+       (decía «quien recibe y cuida tus datos es Tu Garantía»). */
+    assert.match(P.ev('pasoPermiso()'), /quien recibe y cuida tus datos es NEXECO S\.A\.S\./);
     assert.ok(!/PlataChat/.test(abrirPlay({}).ev('pasoPermiso()')), 'le habló de PlataChat a un cliente de Tu Garantía');
   });
 

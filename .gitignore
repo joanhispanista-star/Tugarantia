@@ -81,3 +81,8 @@ PLAN-REFERIDOS*
 # El plan del CRM de octubre describe huecos de seguridad del registro y del
 # CRM: mismo motivo que el de referidos (1-oct-2026).
 PLAN-CRM-*
+
+# 8-oct-2026 — los datos personales de Joan que las pruebas vigilan (su apellido,
+# su cédula, su dirección). Escritos en una prueba quedaban publicados en
+# tugarantia.net: la lista vive solo en este computador (pruebas/datos-privados.js).
+pruebas/privado/

@@ -96,13 +96,13 @@ del dispositivo.
 
 | Dato | ¿Obligatorio? | Para qué |
 |---|---|---|
-| Foto de tu rostro | No | Confirmar que la cédula es tuya. *Se guarda la FOTO y nada más. No se genera ni se almacena ninguna plantilla biométrica: el óvalo de la pantalla es un asistente de encuadre, no un verificador de identidad.* |
+| Foto de tu rostro | No | Confirmar que la cédula es tuya. *Se guarda la FOTO y nada más. En el teléfono no se genera ninguna plantilla biométrica: el óvalo es un asistente de encuadre, y para tomarla sola un detector de caras corre dentro del teléfono; dónde ve la cara no se guarda ni sale de él. Después, en el computador de quien revisa el registro, se saca de la foto una plantilla para medir el parecido con la cédula, y se descarta al terminar: no se guarda en ningún lado.* |
 
 ### Información de la app y rendimiento · Otros datos de la app
 
 | Dato | ¿Obligatorio? | Para qué |
 |---|---|---|
-| Tu dirección IP y tu aparato | Sí | Reconocer un registro hecho desde el mismo aparato que otro, y detectar suplantación. *No los manda el teléfono —se falsifican en un segundo—: los lee el servidor de la propia petición. La IP dice la ciudad aproximada de la red, no tu casa.* |
+| Tu dirección IP y tu aparato | Sí | Reconocer un registro hecho desde el mismo aparato que otro, y detectar suplantación. *No los manda el teléfono —se falsifican en un segundo—: los lee el servidor de la propia petición. La IP dice la ciudad aproximada de la red, no tu casa. Para saber esa ciudad, la herramienta del equipo (no el teléfono) consulta la IP en ipwho.is, un proveedor de servicio de geolocalización fuera de Colombia que solo recibe la IP; solo con quien aceptó la política del 8-oct-2026 o posterior.* |
 
 ### Información financiera · Historial de compras
 
@@ -133,14 +133,14 @@ del dispositivo.
 |---|---|---|
 | Ciudad | Sí | Define a qué corte y a qué gestión perteneces. |
 | Barrio | Sí | Lo mismo, y ayuda a ubicarte si hay que visitarte. |
-| Dirección | Sí | Es la dirección del contrato y a donde se notifica. |
+| Dirección | No | Opcional. Con la ciudad y el barrio nos basta para saber por dónde vives. |
 | Cuánto llevas ahí | Sí | Cuánto tiempo llevas en un mismo sitio es de los datos que mejor predicen si te vamos a poder ubicar. |
 
 ### Información personal · Dirección de correo electrónico
 
 | Dato | ¿Obligatorio? | Para qué |
 |---|---|---|
-| Tu correo | No | Para mandarte el contrato y los comprobantes. Opcional. |
+| Tu correo | Sí | Para mandarte el contrato, los comprobantes y las condiciones de cada crédito. |
 
 ### Información personal · Nombre
 
@@ -155,7 +155,7 @@ del dispositivo.
 
 | Dato | ¿Obligatorio? | Para qué |
 |---|---|---|
-| Tu celular | Sí | Es tu usuario para entrar, y por ahí te llegan los avisos de pago. |
+| Tu celular (con el que entras) | Sí | Es tu usuario para entrar, y por ahí te llegan los avisos de pago. |
 | Otro celular | No | Para poder ubicarte si el primero falla. Opcional. |
 | Su celular | Sí | Sin número, la referencia no sirve de nada. |
 | Su celular | Sí | Sin número, la segunda referencia tampoco sirve de nada. |
@@ -166,8 +166,8 @@ del dispositivo.
 |---|---|---|
 | Dónde trabajas | No | Para confirmar el ingreso si hace falta. Opcional si eres independiente. |
 | Tu cargo | No | Da contexto al ingreso que declaras. Opcional. |
-| Qué es tuyo | Sí | Un familiar y un compañero de trabajo no dan la misma información. |
-| Qué es tuyo | Sí | Dos referencias del mismo hogar no son dos: conviene que una sea de fuera. |
+| Qué es tuyo (mamá, amigo, compañero…) | Sí | Un familiar y un compañero de trabajo no dan la misma información. |
+| Qué es tuyo (mamá, amigo, compañero…) | Sí | Dos referencias del mismo hogar no son dos: conviene que una sea de fuera. |
 
 ### Información personal · Otros documentos de identificación
 

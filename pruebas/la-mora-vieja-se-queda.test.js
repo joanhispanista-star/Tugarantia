@@ -59,7 +59,14 @@ describe('la fecha es UNA: la del motor y la de los términos', () => {
     const m = T.match(/Última actualización: (\d{1,2}) de (\w+) de (\d{4})/);
     assert.ok(m, 'terminos.html perdió su fecha de versión');
     const iso = m[3] + '-' + String(MESES.indexOf(m[2]) + 1).padStart(2, '0') + '-' + m[1].padStart(2, '0');
-    assert.equal(iso, M.FECHA_MORA_SIN_GARANTIA,
+    /* 8-oct-2026 — antes era IGUAL a la fecha de la regla, porque los términos
+       se publicaron el mismo día que ella. Hoy hay una versión posterior
+       (responsable NEXECO S.A.S., condiciones por crédito), y eso está bien: lo
+       que no puede pasar es que los términos sean ANTERIORES a la regla, porque
+       entonces un crédito pedido en el medio no tendría texto que la anunciara.
+       Que la frase siga nombrando el 27 de septiembre lo vigila la prueba de
+       abajo. */
+    assert.ok(iso >= M.FECHA_MORA_SIN_GARANTIA,
       'la regla nueva empieza el ' + M.FECHA_MORA_SIN_GARANTIA + ' pero los términos dicen ' + iso +
       '. Si la publicación se corrió, se mueven las dos juntas — y la fecha tiene que ser la del ' +
       'día de publicar o una posterior, o un crédito pedido en el medio cambia de reglas.');
@@ -226,20 +233,30 @@ describe('lo que el socio lee dice la regla de hoy', () => {
   test('LA ESCALERA DE LA WEB ES LA DEL MOTOR, peso a peso', () => {
     /* Estuvo tres días mostrando la del 75% mientras motor.test.js ya tenía la
        del 80%: nada comparaba la tabla con el motor. Ahora sí. */
+    /* 8-oct-2026 (segunda vuelta) — LA COLUMNA «CUESTA» SE FUE, y con ella la
+       tarjeta del quincenal («si pides $100.000, cuesta $20.000») que la prueba
+       también miraba. Razón, escrita: Joan quitó de los términos el precio y la
+       modalidad quincenal («eso lo defino yo desde el CRM»), y la revisión de ley
+       encontró la portada publicando ese 20% —que como efectiva anual pasa el
+       techo de usura— junto a la calculadora que dice «el costo exacto te lo
+       mandamos en la propuesta». Lo que sigue comparándose con el motor, peso a
+       peso, es lo que la tabla todavía dice: lo pedido, lo que suma y la
+       garantía. Y se exige que el precio NO vuelva. */
     const W = leer('index.html');
-    const filas = [...W.matchAll(/<tr><td>(\d)º<\/td><td>\$([\d.]+)<\/td><td class="col-extra">\$([\d.]+)<\/td><td>\+\$([\d.]+)<\/td><td class="gan">\$([\d.]+)<\/td><\/tr>/g)]
+    const filas = [...W.matchAll(/<tr><td>(\d)º<\/td><td>\$([\d.]+)<\/td><td>\+\$([\d.]+)<\/td><td class="gan">\$([\d.]+)<\/td><\/tr>/g)]
       .map(m => m.slice(2).map(x => Number(x.replace(/\./g, ''))));
     assert.equal(filas.length, 5, 'la tabla de la escalera cambió de forma');
     const p = M.proyectarCrecimiento(100000, 100000, 5, 'bronce', { pideElCupo: true });
-    filas.forEach((f, i) => assert.deepEqual(f, [p[i].capital, p[i].costo, p[i].garantia_ganada, p[i].garantia],
+    filas.forEach((f, i) => assert.deepEqual(f, [p[i].capital, p[i].garantia_ganada, p[i].garantia],
       'fila ' + (i + 1) + ' de la escalera de index.html'));
     // Y las cifras que la web repite abajo salen de la misma última fila.
     const total = p[4].garantia, ganada = total - 100000;
     const cop = n => '$' + n.toLocaleString('es-CO');
     assert.ok(W.indexOf('De esos ' + cop(total)) >= 0, 'el párrafo de abajo no repite el total de la escalera');
     assert.ok(W.indexOf(cop(ganada) + ' que te ganaste tú') >= 0);
-    assert.ok(W.indexOf('<dd>+' + cop(M.acumularGarantia(20000)) + '</dd>') >= 0,
-      'la tarjeta del quincenal: lo que sube la garantía pidiendo 100.000');
+    const vista = sinComentarios(W);
+    assert.ok(!/col-extra">\$/.test(vista) && !/>Cuesta</.test(vista), 'volvió la columna del precio a la escalera');
+    p.forEach(f => assert.ok(vista.indexOf(cop(f.costo)) < 0, 'la portada volvió a publicar el costo ' + cop(f.costo)));
   });
 
   test('EL CABLE TRAMPA: si los dos factores se separan, estas frases mienten', () => {

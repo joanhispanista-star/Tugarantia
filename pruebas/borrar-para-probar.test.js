@@ -119,9 +119,18 @@ describe('el botón del CRM dice la verdad antes de borrar', () => {
     assert.match(CRM, /function borrarParaProbar\(celular, nombre\)/);
   });
 
-  test('la confirmación enumera lo que se va, y dice qué se queda', () => {
+  /* 9-oct-2026: el cuerpo entero de la función, no 2.600 caracteres fijos. La
+     actualización del 8-oct le sumó al aviso que también se olvida la ubicación
+     por IP, y el mensaje del 404 quedó en el carácter 2.806: seguía ahí, pero
+     fuera de la ventana. Una ventana fija se rompe cada vez que el aviso crece. */
+  const cuerpoDeBorrar = () => {
     const i = CRM.indexOf('function borrarParaProbar');
-    const t = CRM.slice(i, i + 2600);
+    const fin = CRM.indexOf('\nfunction ', i + 10);
+    return CRM.slice(i, fin > i ? fin : undefined);
+  };
+
+  test('la confirmación enumera lo que se va, y dice qué se queda', () => {
+    const t = cuerpoDeBorrar();
     ['cuenta de acceso', 'fotos', 'solicitudes'].forEach(x =>
       assert.ok(t.indexOf(x) >= 0, 'la confirmación no menciona: ' + x));
     assert.match(t, /NO se borra su ficha de cliente/,
@@ -131,16 +140,14 @@ describe('el botón del CRM dice la verdad antes de borrar', () => {
   });
 
   test('el resultado lo dice el SERVIDOR, no la pantalla', () => {
-    const i = CRM.indexOf('function borrarParaProbar');
-    const t = CRM.slice(i, i + 2600);
+    const t = cuerpoDeBorrar();
     ['j.fotos', 'j.registros', 'j.solicitudes', 'j.mensajes'].forEach(x =>
       assert.ok(t.indexOf(x) >= 0,
         'el aviso final no usa ' + x + ': un «listo» no se puede comprobar'));
   });
 
   test('si falta la migración, dice cuál', () => {
-    const i = CRM.indexOf('function borrarParaProbar');
-    const t = CRM.slice(i, i + 2600);
+    const t = cuerpoDeBorrar();
     assert.match(t, /20260922e_borrar_para_probar\.sql/,
       'ante un 404 no dice qué archivo correr, y manda a buscar donde no está');
   });

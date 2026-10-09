@@ -5441,7 +5441,7 @@ describe('las plantillas hablan con una sola voz (4-ago-2026)', () => {
                            '\nreturn VOZ_UNICA;')();
   const migrar = t => VOZ.reduce((s, r) => s.replace(r[0], r[1]), t);
 
-  test('son quince y ninguna dice "obligación"', () => {
+  test('son dieciséis y ninguna dice "obligación"', () => {
     /* El número sube cuando se agrega una plantilla, y a propósito rompe la
        prueba cuando pasa: quien agregue una tiene que leer esta batería antes
        de escribirla. La decimotercera es la del código de acceso (10-ago-2026);
@@ -5455,8 +5455,13 @@ describe('las plantillas hablan con una sola voz (4-ago-2026)', () => {
        entrar a la app» (comoEntrar: celular y contraseña) y la del enlace
        corregido se fue con los códigos. Leída contra esta batería: «Ya puedes
        ver tus números… Cuando confirmemos que eres tú», plural y sin
-       «obligación». */
-    assert.equal(mensajes().length, 15, 'cambió el número de plantillas: revisá la voz');
+       «obligación».
+       8-oct-2026 — DIECISÉIS: el aviso de la responsable nueva
+       (cambioResponsable: «desde el 8 de octubre de 2026, la responsable de tus
+       datos es NEXECO S.A.S.»). Leída contra esta batería: «Te escribimos…
+       Cualquier duda nos cuentas», plural, sin «obligación», sin singular y sin
+       ninguna dirección pegada. */
+    assert.equal(mensajes().length, 16, 'cambió el número de plantillas: revisá la voz');
     // En ninguna plantilla recomendada, y en ningún texto que le llegue al
     // socio. La palabra solo puede quedar viva en la regla que la borra.
     mensajes().forEach(m => assert.ok(!/obligaci[oó]n/i.test(m),
@@ -9260,10 +9265,22 @@ describe('LOS DOCUMENTOS LEGALES IDENTIFICAN AL RESPONSABLE (27-ago-2026)', () =
        Cuando la operación se mueva a la sociedad hay que cambiarlo AQUÍ y en
        los dos documentos a la vez — y avisarles a los socios, porque cambiar
        de responsable del tratamiento es un cambio que la Ley 1581 obliga a
-       comunicar, no un ajuste de redacción. */
-    ['Ruiz Flórez', '1.018.447.274', 'joan.hispanista@gmail.com']
-      .forEach(d => assert.ok(PRIV.indexOf(d) >= 0,
-        'la política perdió un dato del responsable: ' + d));
+       comunicar, no un ajuste de redacción.
+       8-oct-2026 — SE MOVIÓ. Joan: «quiero que quites mi información de ahí y
+       mi dirección», y decidió que la responsable sea NEXECO S.A.S. Esta prueba
+       se da vuelta: ya no exige sus datos, exige que NO estén. El NIT, la
+       dirección y el correo de la sociedad viven en UN bloque por documento
+       (id="responsable") y los vigila pruebas/responsable-nexeco.test.js; el
+       aviso a los socios es avisoResponsable (socio.html) y la plantilla
+       cambioResponsable del CRM. */
+    /* 8-oct-2026 (segunda vuelta) — sus datos ya no se escriben aquí: esta
+       prueba los publicaba (el repositorio se sirve en tugarantia.net). La
+       lista vive en pruebas/privado/datos-de-joan.json, que no se sube (ver
+       pruebas/datos-privados.js); sin ella, responsable-nexeco.test.js avisa. */
+    (require('./datos-privados.js').patronesLocales() || [])
+      .forEach(re => assert.ok(!re.test(PRIV),
+        'volvió un dato personal de Joan a la política: ' + re));
+    assert.ok(PRIV.indexOf('NEXECO S.A.S.') >= 0, 'la política no nombra a la responsable');
     /* 22-sep-2026 — el celular de Joan SALIÓ de la política. Era el cuarto dato
        de esta lista hasta hoy. Decisión suya: «nada de compartir mi numero».
        Lo que la Ley 1581 exige no es un teléfono: es un canal por donde de
@@ -9278,13 +9295,15 @@ describe('LOS DOCUMENTOS LEGALES IDENTIFICAN AL RESPONSABLE (27-ago-2026)', () =
   });
 
   test('los términos identifican al prestamista, sin huecos', () => {
-    ['Ruiz Flórez', '1.018.447.274', 'Avenida Calle 80'].forEach(d =>
-      assert.ok(TERM.indexOf(d) >= 0, 'los términos perdieron un dato del prestamista: ' + d));
+    /* 8-oct-2026 — el prestamista es NEXECO S.A.S.; los datos de Joan como
+       persona natural salieron por pedido suyo (ver la prueba de arriba). */
+    (require('./datos-privados.js').patronesLocales() || []).forEach(re =>
+      assert.ok(!re.test(TERM), 'volvió un dato personal de Joan a los términos: ' + re));
     ['[NOMBRE', '[DIRECCIÓN', '[NIT', '[CÉDULA', 'HAY QUE COMPLETARLO'].forEach(m =>
       assert.ok(TERM.indexOf(m) === -1, 'volvió el marcador «' + m + '» a los términos'));
     /* Los dos documentos tienen que nombrar al MISMO responsable: si uno dice
        la sociedad y el otro la persona, ninguno de los dos sirve. */
-    assert.ok(PRIV.indexOf('Ruiz Flórez') >= 0 && TERM.indexOf('Ruiz Flórez') >= 0,
+    assert.ok(PRIV.indexOf('NEXECO S.A.S.') >= 0 && TERM.indexOf('NEXECO S.A.S.') >= 0,
       'la política y los términos nombran responsables distintos');
   });
 
@@ -10468,7 +10487,14 @@ describe('el primer crédito del nuevo: la contrapropuesta (8-sep-2026)', () => 
     assert.ok(!/costo_pct|%/.test(tarjeta.replace(/\/\*[\s\S]*?\*\//g, '')), 'la propuesta le muestra un porcentaje al cliente');
     assert.match(tarjeta, /Aceptar todavía no te entrega la plata|Aceptar no te entrega la plata todavía/,
       'tiene que decir que aceptar no es recibir');
-    ['solicitar_primer_credito', 'mi_solicitud', 'aceptar_contrapropuesta'].forEach(fn =>
+    /* 8-oct-2026 — el recién registrado ya no pide con solicitar_primer_credito
+       (que no recibe nada y contesta con la propuesta automática del nuevo): pide
+       con solicitar_a_la_medida —el monto y la fecha que escogió— y Joan propone.
+       Acepta con aceptar_condiciones (lo que leyó viaja con la aceptación) y,
+       si esa migración no está, con aceptar_contrapropuesta, que por eso sigue. */
+    ['solicitar_a_la_medida', 'mi_solicitud', 'aceptar_condiciones', 'aceptar_contrapropuesta'].forEach(fn =>
       assert.ok(PLAY.indexOf("'" + fn + "'") >= 0, 'play/ no llama a ' + fn));
+    assert.ok(PLAY.indexOf("rpcSesion('solicitar_primer_credito'") === -1,
+      'play/ volvió a pedir la propuesta automática en vez de dejar pedir lo que se quiere');
   });
 });

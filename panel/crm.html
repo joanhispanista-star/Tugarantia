@@ -414,6 +414,13 @@
   .gal a{display:block;border:1px solid var(--linea);border-radius:9px;overflow:hidden}
   .gal img{width:100%;height:90px;object-fit:cover;display:block}
   .gal .cap{font-size:10px;color:var(--gris);padding:3px 5px;text-align:center}
+  /* 8-oct-2026 — cada foto del registro lleva su «↻ Girar» debajo, FUERA del
+     enlace: dentro, tocarlo abriría la foto en vez de girarla. */
+  .gal-it{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .btn-girar{border:1px solid var(--linea);background:var(--papel);color:var(--tinta-2);border-radius:7px;font:inherit;font-size:11.5px;font-weight:700;padding:5px 6px;min-height:30px;cursor:pointer}
+  .btn-girar:hover{border-color:var(--rojo);color:var(--rojo)}
+  /* 8-oct-2026 — la ubicación aproximada por IP, en la lista de Registrados. */
+  .ubic-ip.corta{display:block;margin-top:4px;font-size:12px}
 
   .plt{background:var(--papel);border:1px solid var(--linea);border-radius:11px;padding:16px;margin-bottom:13px}
   .plt h4{font-size:14.5px;margin-bottom:4px}.plt .et{font-size:12px;color:var(--gris);margin-bottom:9px}
@@ -587,6 +594,14 @@
           <!-- 7-oct-2026 — quién está junto con qué ficha, y deshacer una unión equivocada. -->
           <button class="btn btn-ghost" onclick="cuentasJuntas()" title="Las cuentas de la app juntas con una ficha, según la nube">🔗 Cuentas juntas</button>
           <button class="btn btn-negro" onclick="traerRegistros()">↻ Traer de la nube</button></div></div>
+      <!-- 8-oct-2026 (segunda vuelta) — «REGISTRÁNDOSE AHORA». Joan, al quitar la
+           pregunta del acompañamiento: «yo quiero siempre ver desde mi CRM y poder
+           guiar al cliente». play/ publicaba el avance pero solo los asesores lo
+           podían leer (y solo de su cartera): nadie veía a un cliente nuevo. Lo
+           trae registro_vivo_joan (base/20261008c_registro_vivo_joan.sql), sin
+           fotos, y se borra solo a las dos horas. -->
+      <div class="card"><div class="card-h"><h3>⏳ Registrándose ahora</h3><span class="tag">En qué paso va cada uno, para escribirle si se atasca · se borra solo a las 2 horas</span></div>
+        <div id="regEnVivo"></div></div>
       <div class="card"><div class="card-h"><h3>📥 Quién pidió entrar</h3><span class="tag">Al abrirles la ficha y darles su primer crédito pasan a Clientes</span></div>
         <div id="tblRegistros"></div></div>
       <!-- 22-sep-2026 — aqui estaba «Cupo de bienvenida (ruleta)». Se fue con la
@@ -1151,6 +1166,16 @@ const PLANTILLAS_DEF={
   /* 7-oct-2026 — aquí estaba «El enlace bueno (corrección)», el reenvío del
      enlace a quien recibió su código con la dirección vieja. Se fue con los
      códigos: el enlace de hoy va en «Cómo entrar a la app». */
+  /* 8-oct-2026 — EL AVISO DE LA RESPONSABLE NUEVA. Desde hoy la responsable de
+     los datos es NEXECO S.A.S. y no la persona natural: la Ley 1581 (art. 5 del
+     Decreto 1377) obliga a comunicárselo a cada cliente a más tardar el día en
+     que rige, y la política (punto 10) promete avisar por la app o por WhatsApp.
+     La app ya lo muestra sola (avisoResponsable en socio.html); esto es el
+     WhatsApp, para los que no abren la app. Se manda UNA vez a cada cliente
+     actual. Va sin {enlace} a propósito: «Gestionar» no lo contesta y saldría
+     vacío; los dos documentos están en el pie de la app. Al mandarla desde
+     «Gestionar» queda anotada como contacto del día, igual que cualquier otra. */
+  cambioResponsable:{t:'Aviso · responsable de tus datos',x:'Una vez a cada cliente actual: desde el 8-oct-2026 sus datos los cuida NEXECO S.A.S.',m:'Hola {nombre} 🙂 Te escribimos para contarte un cambio sobre tus datos personales: desde el 8 de octubre de 2026, la responsable de tus datos es NEXECO S.A.S., la empresa que opera Tu Garantía. Tus derechos no cambian: cuando quieras puedes pedirnos qué tenemos tuyo, corregirlo o borrarlo, por el chat de la app. Ese mismo día actualizamos la política de datos y los términos: los encuentras en la app, abajo, en «Términos» y «Tus datos». Cualquier duda nos cuentas.'},
 };
 /* La invitación de fábrica de antes del 7-oct, letra por letra: cargar() la
    reconoce en el disco y la cambia por la de hoy. */
@@ -2015,12 +2040,14 @@ function abrirJuntarCuenta(idReg,idSocio,soloJuntar){
     <div class="muted" style="margin-bottom:6px">Celular de la ficha: ${escHTML(celularesDeFicha(s).map(UP.bonito).join(' · ')||'—')}${s.cedula?' · CC '+escHTML(s.cedula):''}</div>
     ${bloqueCreditosHTML(s)}
     <div class="sub-h">La cuenta que se registró: ${escHTML(r.nombre||'')}</div>
+    <div style="margin-bottom:6px">${huecoUbicacion(r.huella,{registro:r},false)}</div>
     <div id="juntarCuenta"><div class="muted">Preguntando a la nube por esa cuenta…</div></div>
     <div class="sub-h">La revisión automática del registro</div>
     <div id="juntarRevision"><div class="muted">Revisando…</div></div>
     <div id="juntarBoton" style="margin-top:14px"></div>`);
   pintarRevisionDelToque(r);
   pintarCuentaDelToque(r,s,true,soloJuntar);
+  resolverUbicaciones();   // 8-oct-2026: de dónde es la red con que se registró
 }
 /* La cuenta del registro, pintada en #juntarCuenta; con `conBoton` pinta
    también el toque en #juntarBoton (el modal corto). La mesa de cruce la usa
@@ -4907,7 +4934,9 @@ const TOKENS_POR_PLANTILLA={
   comoEntrar:['nombre','negocio','enlace'],
   acuerdoPactado:['nombre','negocio','prorroga','fecha_pago'],
   recordatorioRespaldado:['nombre','negocio','cuota','n','plazo','fecha_pago'],
-  reciboRespaldado:['nombre','negocio','cuota','n','plazo','nivel']
+  reciboRespaldado:['nombre','negocio','cuota','n','plazo','nivel'],
+  /* 8-oct-2026: el aviso de NEXECO no habla de ningún crédito; solo el nombre. */
+  cambioResponsable:['nombre','negocio']
 };
 function tokensDe(k){ return TOKENS_POR_PLANTILLA[k]||TOKENS_QUINCENAL; }
 /* Los que el mensaje escribe y nadie va a contestar. Solo mira tokens con la
@@ -5183,10 +5212,13 @@ function verCliente(id){
      la nada. Los `id` NO cambian: compararRostro los busca por ahi.
      El boton de comparar ya no se pinta aca: lo pinta resolverFotos cuando las
      dos imagenes hayan llegado de verdad (ver el porque abajo). */
-  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div><div class="gal">${fotos.map((f,i)=>`<a data-foto="${f[1]}" target="_blank"><img data-foto="${f[1]}" id="fichaFoto_${['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Selfie con cédula'].indexOf(f[0])]}"><div class="cap">${f[0]}</div></a>`).join('')}</div>`
+  /* 8-oct-2026 — cada foto con su «↻ Girar», que se guarda EN LA FICHA (ver
+     ↻ GIRAR UNA FOTO): la que se ve al revés se endereza una vez y para siempre. */
+  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div><div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Selfie con cédula'].indexOf(f[0])];
+      return `<div class="gal-it"><a data-foto="${f[1]}" target="_blank"><img data-foto="${f[1]}" id="fichaFoto_${cual}"><div class="cap">${f[0]}</div></a>${botonGirar("girarFotoFicha('"+escHTML(s.id)+"','"+cual+"')")}</div>`; }).join('')}</div>`
     +(s.selfieFoto&&s.cedulaFrenteFoto?`<div id="fichaParecido" style="margin-top:8px"></div>`:''):'';
   /* 8-sep-2026 — desde dónde se registró (huella), si vino del registro abierto. */
-  const huellaHTML=s.huellaRegistro?bloqueHuella(Object.assign({},s.huellaRegistro,{gps:s.ubicacion||null})):'';
+  const huellaHTML=s.huellaRegistro?bloqueHuella(Object.assign({},s.huellaRegistro,{gps:s.ubicacion||null}),{socio:s}):'';
   const fondo=fondoCuponDe(s);
   /* 5-ago-2026 — EL NIVEL SIGUE EN LA FICHA, PERO YA NO PROMETE CUPO.
      Decisión explícita de Joan: los niveles se quedan. Lo que perdieron es
@@ -5292,7 +5324,11 @@ function verCliente(id){
      instante y las imagenes entran cuando llegan; antes la ficha cargaba 300 KB
      de base64 con ella. `mBody` es el cuerpo del modal que openModal acaba de
      llenar. */
+  /* 8-oct-2026 — los giros que esta ficha guarda (↻ Girar), y la ubicación
+     aproximada de su IP de registro. */
+  _girosFicha=(s.girosFotos&&typeof s.girosFotos==='object')?s.girosFotos:null;
   try { resolverFotos(document.getElementById('mBody')).then(()=>botonParecido()); } catch(e){}
+  try { resolverUbicaciones(); } catch(e){}
 }
 
 /* El boton de comparar rostros SOLO cuando las dos imagenes llegaron de verdad.
@@ -5368,6 +5404,7 @@ function editarCliente(id,pre){
   _pedidoFotos++;
   olvidarFotosReg();
   const s=id?DB.socios.find(x=>x.id===id):(pre||{});
+  _girosFicha=(s.girosFotos&&typeof s.girosFotos==='object')?s.girosFotos:null;   // 8-oct-2026: las miniaturas, como se dejaron giradas
   _fotosTmp={frente:s.cedulaFrenteFoto||null,reverso:s.cedulaReversoFoto||null,selfie:s.selfieFoto||null};
   _ubicTmp=s.ubicacion||null;
   const v=(k,d='')=>s[k]!==undefined&&s[k]!==null?s[k]:d; const va=(k,d='')=>escHTML(v(k,d)); const ref=s.referencia||{};
@@ -5441,6 +5478,11 @@ function guardarCliente(id){
        Negativo o basura se lee como cero, nunca se guarda un ingreso inventado. */
     ingresoQuincenal:Math.max(0,Number(gv('fIngreso'))||0),
     cedulaFrenteFoto:_fotosTmp.frente, cedulaReversoFoto:_fotosTmp.reverso, selfieFoto:_fotosTmp.selfie, ubicacion:_ubicTmp };
+  /* 8-oct-2026 — ↻ Girar: lo que Joan dejó girado mirando el registro se
+     guarda con la ficha, para que se vea derecho también en los otros aparatos. */
+  const girosF=girosDeFotos([_fotosTmp.frente,_fotosTmp.reverso,_fotosTmp.selfie],
+    id?((DB.socios.find(x=>x.id===id)||{}).girosFotos||null):null);
+  if(girosF) datos.girosFotos=girosF;
   const cod=MotorReglas.normalizarCodigoInvitacion(gv('fCodInv'));
   if(gv('fCodInv')&&!cod){ alert('Ese código de invitación no tiene la forma correcta.\n\nSon 8 caracteres, como TG-A3F7-K92M. Revísalo y vuelve a intentar; si prefieres, déjalo vacío y guarda igual.'); return; }
   datos.codigoInvitacion=cod||null;
@@ -5804,7 +5846,7 @@ function calcPago(id){
   box.innerHTML=`<div class="calc">
       <div class="calc-row"><span>${c?`Capital de la cuota ${c.n} de ${cs.length}`:'Capital'}</span><span class="v">${COP(liq.capital)}</span></div>
       <div class="calc-row"><span>${c?`Costo del plan (${pct}% del saldo)`:`Costo del ciclo (${pct}%)`}</span><span class="v gano">${COP(liq.costo)}</span></div>
-      ${liq.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">Recargo por ${liq.dias_mora} día(s) de mora · 1% diario</span><span class="v" style="color:var(--ambar)">${COP(liq.recargo_mora)}</span></div>`:''}
+      ${liq.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">Recargo por ${liq.dias_mora} día(s) de mora · ${escHTML(textoTasaMora(p))}</span><span class="v" style="color:var(--ambar)">${COP(liq.recargo_mora)}</span></div>`:''}
       ${filaDesc}
       <div class="calc-row"><span><b>${c?'Total de la cuota':'Total para saldar'}</b></span><span class="v"><b>${COP(total)}</b></span></div>
       <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(garantia)}${(liq.acredita_en_fecha||PCT_GARANTIA_MORA===PCT_GARANTIA)?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${liq.pago_a_tiempo?'porque el crédito ya venía de una mora':'por pagar tarde'})</span>`}</span></div>
@@ -6080,7 +6122,7 @@ function calcProrroga(id,p,liq,e,s){
   box.innerHTML=`<div class="calc">
       <div class="calc-row"><span>Capital <span class="muted">(no se cobra: pasa a la quincena del ${fmtFecha(pr0.fecha_corte_nueva)})</span></span><span class="v">${COP(liq.capital)}</span></div>
       <div class="calc-row"><span>Costo del ciclo (${p.costoPct}%)</span><span class="v gano">${COP(pr0.costo_prorroga)}</span></div>
-      ${pr0.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">Recargo por ${liq.dias_mora} día(s) de mora · 1% diario</span><span class="v" style="color:var(--ambar)">${COP(pr0.recargo_mora)}</span></div>`:''}
+      ${pr0.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">Recargo por ${liq.dias_mora} día(s) de mora · ${escHTML(textoTasaMora(p))}</span><span class="v" style="color:var(--ambar)">${COP(pr0.recargo_mora)}</span></div>`:''}
       ${q.condonado_total?`<div class="calc-row"><span style="color:var(--ambar)">Descuento <span class="muted">(${partes.join(' + ')})</span></span><span class="v" style="color:var(--ambar)">− ${COP(q.condonado_total)}</span></div>`:''}
       <div class="calc-row"><span><b>Paga por la prórroga</b></span><span class="v"><b>${COP(q.monto)}</b></span></div>
       <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(q.garantia)}${q.condonado_total?` <span class="muted">(sin perdón serían ${COP(q.garantia_sin_descuento)})</span>`:(pr0.acredita_en_fecha||MISMO_FACTOR?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${pr0.a_tiempo?'porque el crédito ya venía de una mora':'por dejarla tarde'})</span>`)}</span></div>
@@ -8224,8 +8266,64 @@ let _registroPendiente=null;
 /* La vinculación completa del registro abierto, esperando a que la ficha se
    guarde para viajar con el cliente. Mismo patrón que _registroPendiente. */
 let _vinculacionPendiente=null;
+/* ===== REGISTRÁNDOSE AHORA — 8-oct-2026 (segunda vuelta) =====
+   Lo que la gente lleva escrito mientras se registra en play/, para que Joan
+   pueda escribirle a quien se atasca (ver el comentario de la sección en el
+   HTML). Todo lo que llega lo escribió el teléfono de otra persona: se escapa
+   entero. Sin la migración (404) se dice cuál pegar, no «no hay nadie». */
+let _enVivo=[];
+function traerRegistroEnVivo(){
+  const b=document.getElementById('regEnVivo'); if(!b) return Promise.resolve();
+  if(!sbListo()){ b.innerHTML='<div class="muted" style="padding:14px 18px">Conecta la nube en Ajustes para ver quién se está registrando.</div>'; return Promise.resolve(); }
+  b.innerHTML='<div class="muted" style="padding:14px 18px">Buscando…</div>';
+  return rpc('registro_vivo_joan',{p_clave:sbCfg().clave})
+    .then(j=>{ _enVivo=(j&&j.ok===true&&Array.isArray(j.gente))?j.gente:[]; renderRegistroEnVivo(); })
+    .catch(e=>{
+      const m=errNube(e);
+      b.innerHTML=/todavía no tiene/.test(m)
+        ?'<div class="alerta warn" style="margin:14px">Tu base todavía no deja ver quién se está registrando. Pega <b>base/20261008c_registro_vivo_joan.sql</b> en el SQL Editor de Supabase y luego Settings → API → Reload schema.</div>'
+        :'<div class="alerta warn" style="margin:14px">No pude leer quién se está registrando. '+escHTML(m)+'</div>';
+    });
+}
+function renderRegistroEnVivo(){
+  const b=document.getElementById('regEnVivo'); if(!b) return;
+  if(!_enVivo.length){ b.innerHTML='<div class="muted" style="padding:14px 18px">Nadie se está registrando en este momento (o lleva más de dos horas sin avanzar).</div>'; return; }
+  b.innerHTML='<table><thead><tr><th>Quién</th><th>Va en</th><th>Celular</th><th>Último paso</th><th></th></tr></thead><tbody>'+
+    _enVivo.map(g=>{
+      const av=(g.avance&&typeof g.avance==='object')?g.avance:{};
+      const nombre=String(g.nombre||((av.nombres||'')+' '+(av.apellidos||''))).trim()||'Sin nombre todavía';
+      const t=g.actualizado?new Date(g.actualizado):null;
+      const hora=t&&!isNaN(t.getTime())?t.toLocaleTimeString('es-CO',{timeZone:'America/Bogota',hour:'numeric',minute:'2-digit'}):'—';
+      const cel=String(g.celular||'').replace(/\D/g,'').slice(-10);
+      const msj='Hola'+(av.nombres?' '+String(av.nombres).split(/\s+/)[0]:'')+' 🙂 Soy de '+(DB.config.negocio||'Tu Garantía')+
+        '. Vi que estás abriendo tu cuenta en la app y quería saber si te puedo ayudar en algo.';
+      return '<tr><td><b>'+escHTML(nombre)+'</b>'+(av.documento?'<div class="muted">'+escHTML(String(av.tipo_doc||'Documento'))+' '+escHTML(String(av.documento))+'</div>':'')+'</td>'+
+        '<td>Paso '+Number(g.paso||0)+' de '+Number(g.de_pasos||0)+'</td>'+
+        '<td>'+escHTML(cel||'—')+'</td>'+
+        '<td>'+escHTML(hora)+'</td>'+
+        '<td style="text-align:right">'+(cel?'<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="'+escHTML(waLink(cel,msj))+'">📲 Escribirle</a>':'')+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
+/* ===== EL AVISO DEL CAMBIO DE RESPONSABLE, A LOS REGISTRADOS — 8-oct-2026 =====
+   (segunda vuelta). La plantilla cambioResponsable solo llegaba a quien tiene
+   ficha (gestionar). Quien se registró ANTES del 8-oct bajo la política vieja
+   y todavía no tiene ficha también tiene que saberlo (Decreto 1377, art. 5):
+   a esos, un botón con la misma plantilla. Los que aceptaron la política nueva
+   (autorizacion_version desde el 8-oct) no lo necesitan. */
+function necesitaAvisoResponsable(r){
+  const v=String((r&&r.datos&&r.datos.autorizacion_version)||'');
+  return !(/^\d{4}-\d{2}-\d{2}$/.test(v)&&v>='2026-10-08');
+}
+function mensajeAvisoResponsable(r){
+  const nom=String((r&&r.nombre)||'').trim().split(/\s+/)[0]||'';
+  return String(DB.plantillas.cambioResponsable||PLANTILLAS_DEF.cambioResponsable.m)
+    .replace(/\{nombre\}/g,nom).replace(/\{negocio\}/g,DB.config.negocio||'Tu Garantía');
+}
+
 function traerRegistros(){
   const b=document.getElementById('tblRegistros'); if(!b)return;
+  traerRegistroEnVivo();
   if(!sbListo()){ _registros=[]; renderRegistros(); return; }
   b.innerHTML='<div class="muted" style="padding:14px 18px">Buscando…</div>';
   rpc('listar_registros',{p_clave:sbCfg().clave,p_estado:'nuevo'})
@@ -8272,12 +8370,12 @@ function renderRegistros(){
          ya tiene y quedan dos clientes donde hay una persona. La regla vive en
          el puente; acá solo se pinta. */
       const cand=PUENTE.candidatosDeCruce(DB,r), c0=cand[0];
-      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}</td>
+      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}${huecoUbicacion(r.huella,{registro:r},true)}</td>
       <td>${abierto?'<span class="chip al-dia">📱 App</span>':'<span class="chip pagado">🎟️ '+escHTML(r.codigo||'Invitación')+'</span>'}</td>
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
       <td>${fmtFecha(String(r.creado_en||'').slice(0,10))}</td>
-      <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}${c0
+      <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${r.telefono&&necesitaAvisoResponsable(r)?`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeAvisoResponsable(r)))}" title="Se registró con la política anterior: avísale que desde el 8-oct la responsable de sus datos es NEXECO S.A.S.">📣 Aviso de datos</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}${c0
         /* 7-oct-2026 — EL TOQUE. Cuando el puente lo reconoce con fuerza
            (la misma cédula, o el mismo celular sin nada que lo contradiga),
            el primer botón es «¿Es la misma persona?»: abre la ficha, lo que
@@ -8288,6 +8386,9 @@ function renderRegistros(){
         : `<button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button>`}
         <button class="btn btn-ghost btn-sm" onclick="descartarRegistro('${escHTML(String(r.id))}')" title="No abrirle cuenta">✕</button>
         ${r.telefono?`<button class="btn btn-ghost btn-sm" onclick="borrarParaProbar('${escHTML(String(r.telefono).replace(/\D/g,''))}','${escHTML(String(r.nombre||''))}')" title="Borra su cuenta y todo lo suyo para que el MISMO numero se pueda volver a registrar. No se puede deshacer.">🧪 Borrar y repetir</button>`:''}</td></tr>`;}).join('')}</tbody></table>`;
+  /* 8-oct-2026 — la ubicación aproximada de cada uno, sola (ver LA UBICACIÓN
+     APROXIMADA POR INTERNET). La lista ya se ve; las ciudades llegan después. */
+  resolverUbicaciones();
 }
 
 /* EL COTEJO EN LA BANDEJA, DE UNA SOLA CARA — 22-sep-2026.
@@ -8349,7 +8450,16 @@ function borrarParaProbar(celular, nombre){
     +'  · sus solicitudes de credito, su chat y las fotos que haya mandado por el\n\n'
     +'NO se borra su ficha de cliente ni su historial de creditos: eso vive en '
     +'este Panel y se queda. Solo se suelta el vinculo con la app.\n\n'
+    /* 8-oct-2026 (segunda vuelta) — la lista de arriba se leía como «todo»: la
+       constancia de las condiciones que aceptó NO se borra (es de solo agregar,
+       y es la prueba de lo pactado). Se dice. */
+    +'Tampoco se borra la constancia de las condiciones de credito que haya '
+    +'aceptado (condiciones_aceptadas): es la prueba de lo pactado y solo se '
+    +'borra a mano, si la persona lo pide.\n\n'
     +'¿Lo borro?')) return;
+  /* Y lo que ESTE navegador recuerda de su red (la ciudad por IP) se olvida con él. */
+  try{ const h=(_registros.find(x=>String(x.telefono||'').replace(/\D/g,'').slice(-10)===cel)||{}).huella;
+       const M=window.UbicacionIP; if(M&&M.olvidarIP&&h&&h.ip) M.olvidarIP(localStorage,h.ip); }catch(e){}
   rpc('borrar_cuenta_de_pruebas',{p_clave:sbCfg().clave,p_celular:cel})
     .then(j=>{
       if(!j||j.ok!==true){
@@ -8413,14 +8523,18 @@ function verDatosRegistro(id){
     +'Lo único que sabemos es de dónde salió cada texto, y eso lo dice el cotejo de aquí abajo. '
     +'Al abrirle la ficha se prellenan y viajan con el cliente.</div>'
     +(filas||'<div class="muted">No dejó datos además del nombre y el celular.</div>')
-    +bloqueHuella(r.huella)
+    +bloqueHuella(r.huella,{registro:r})
     +'<div class="sub-h">Fotos del registro</div><div id="regFotos" class="muted">Buscando las fotos…</div>');
   pintarFotosRegistro(r.telefono||r.cedula,'regFotos');
+  resolverUbicaciones();
 }
 /* 8-sep-2026 — LA HUELLA: desde qué aparato y desde qué IP se abrió la cuenta
    (lo leyó la base de la petición, no el teléfono), el punto GPS si lo
-   autorizó, y si la cédula se leyó del código de barras. Pedido de Joan. */
-function bloqueHuella(h){
+   autorizó, y si la cédula se leyó del código de barras. Pedido de Joan.
+   8-oct-2026 — `donde` ({registro:r} o {socio:s}) dice a quién se le anota la
+   ubicación aproximada que se consulte (ver LA UBICACIÓN APROXIMADA, abajo).
+   Quien pinta esto llama después a resolverUbicaciones(). */
+function bloqueHuella(h,donde){
   if(!h||typeof h!=='object') return '<div class="sub-h">Desde dónde se registró</div><div class="muted">Sin huella: se registró antes del 8-sep-2026 o la base no la guardó.</div>';
   const D=window.CuentaSocio, ap=h.aparato?(D&&D.dispositivoDe?D.dispositivoDe(h.aparato):h.aparato):'';
   const ip=String(h.ip||'').split(',')[0].trim();
@@ -8428,8 +8542,14 @@ function bloqueHuella(h){
   const cl=h.cedula_leida&&typeof h.cedula_leida==='object'?h.cedula_leida:null;
   return '<div class="sub-h">Desde dónde se registró</div>'
     +(ap?`<div class="info-row"><span class="k">Aparato</span><span class="vv">${escHTML(ap)}</span></div>`:'')
-    +(ip?`<div class="info-row"><span class="k">Dirección IP</span><span class="vv"><span class="mono">${escHTML(ip)}</span> <a target="_blank" rel="noopener" href="https://ipinfo.io/${encodeURIComponent(ip)}">ubicación aproximada</a> <span class="muted">(la de la red, no la de la casa)</span></span></div>`:'')
-    +(g?`<div class="info-row"><span class="k">Ubicación al registrarse</span><span class="vv"><a target="_blank" rel="noopener" href="${mapsUrl(g)}">Ver en Google Maps</a> <span class="muted">±${Math.round(g.acc||0)} m · ${fmtFecha(g.fecha||'')}</span></span></div>`:'<div class="info-row"><span class="k">Ubicación</span><span class="vv muted">No la autorizó o no hubo señal.</span></div>')
+    /* 8-oct-2026 — antes era un enlace a ipinfo.io que Joan tenía que tocar
+       registro por registro. Ahora la ubicación sale sola, escrita y anotada
+       (huecoUbicacion), y la IP queda al lado para quien quiera mirarla. */
+    /* 8-oct-2026 (segunda vuelta) — si la cabecera trajo varias IPs, se ven
+       TODAS: la primera la puede poner el teléfono (ver ubicacionHTML). */
+    +(ip?`<div class="info-row"><span class="k">Dirección IP</span><span class="vv"><span class="mono">${escHTML((window.UbicacionIP&&window.UbicacionIP.cadenaSospechosa&&window.UbicacionIP.cadenaSospechosa(h.ip))?String(h.ip).slice(0,200):ip)}</span></span></div>`
+        +`<div class="info-row"><span class="k">Ubicación aproximada</span><span class="vv">${huecoUbicacion(h,donde,false)}</span></div>`:'')
+    +(g?`<div class="info-row"><span class="k">Punto GPS al registrarse</span><span class="vv"><a target="_blank" rel="noopener" href="${mapsUrl(g)}">Ver en Google Maps</a> <span class="muted">±${Math.round(g.acc||0)} m · ${fmtFecha(g.fecha||'')}</span></span></div>`:'<div class="info-row"><span class="k">Punto GPS</span><span class="vv muted">No lo autorizó o no hubo señal.</span></div>')
     +(cl?`<div class="info-row"><span class="k">Cédula leída del código de barras</span><span class="vv">${escHTML((cl.nombres||'')+' '+(cl.apellidos||''))} · ${escHTML(cl.documento||'')}${cl.nacimiento?' · nació '+fmtFecha(cl.nacimiento):''}</span></div>`
       /* 22-sep-2026 — aquí decía «(coincide con lo declarado: —)»: un hueco con
          una raya a mano, que se lee como «coincide». Ahora o hay cotejo de
@@ -8447,6 +8567,266 @@ function bloqueHuella(h){
       +'o que la subida de sus fotos no llegara: son cosas distintas y desde aquí '
       +'no se distinguen.</span></div>')
     +(h.momento?`<div class="muted" style="font-size:12px">Registrado el ${fmtFecha(String(h.momento).slice(0,10))}.</div>`:'');
+}
+/* ==========================================================================
+ * LA UBICACIÓN APROXIMADA POR INTERNET — 8 de octubre de 2026
+ *
+ * Joan, el 8-oct: «no es necesario preguntar por la dirección, mejor con la
+ * dirección IP validamos una ubicación aproximada y la dejamos anotada
+ * automáticamente». La dirección pasó a ser opcional en play/, así que esto es
+ * lo que le queda para saber de dónde le escriben, y sale donde decide:
+ * 📥 Registrados (la lista y «👁 Ver datos»), la ficha y el cruce («¿Es la
+ * misma persona?» y la mesa campo por campo).
+ *
+ * LA CONSULTA LA HACE ESTE NAVEGADOR, nunca el teléfono del cliente, en
+ * ipwho.is (por qué ese servicio y sus condiciones: app/ubicacion-ip.js). El
+ * módulo se baja al primer registro con IP y no al abrir el CRM, como
+ * revision-fotos.js: el CRM arranca igual que antes, y sin internet no hay
+ * nada que consultar de todas formas.
+ *
+ * QUEDA ANOTADA, para no preguntar dos veces por la misma IP: en la nube,
+ * dentro del registro (anotar_ubicacion_ip, base/20261008_ubicacion_por_ip.sql),
+ * en la ficha (huellaRegistro.ubicacionIP) y en una caché de este navegador
+ * (tg_ubicacion_ip_v1). Si la nube todavía no tiene la función, «👁 Ver datos»
+ * lo dice y la caché sigue sirviendo.
+ *
+ * Y DICE LO QUE ES: «aproximada», «por internet», «no es la dirección». Lo que
+ * contesta el servicio es de afuera: el módulo lo limpia y aquí se escapa.
+ * Un fallo no se calla ni se disfraza: se dice qué pasó, en un renglón, y que
+ * no dice nada de la persona.
+ * ======================================================================== */
+const URL_UBICACION_IP='../app/ubicacion-ip.js';
+let _ubicIP=null, _ubicNubeFalta=false, _ubicPend=[], _ubicN=0;
+function conUbicacionIP(){
+  if(!_ubicIP){
+    const listo=()=>{
+      const M=window.UbicacionIP;
+      if(!M||!M.crearConsultor) throw new Error('no cargó app/ubicacion-ip.js');
+      return { M, C:M.crearConsultor({ fetch:(u,c)=>fetch(u,c), almacen:localStorage, hoy:hoyISO }) };
+    };
+    _ubicIP=(window.UbicacionIP?Promise.resolve():cargarScriptCRM(URL_UBICACION_IP)).then(listo);
+    _ubicIP.catch(()=>{ _ubicIP=null; });
+  }
+  return _ubicIP;
+}
+function ipDeHuella(h){ return (h&&typeof h==='object')?String(h.ip||'').split(',')[0].trim():''; }
+/* Lo ya anotado: `ubicacion_ip` en el registro (lo escribe la nube) o
+   `ubicacionIP` en la huella de la ficha (lo escribe este CRM). */
+function ubicacionAnotada(h){ return (h&&typeof h==='object')?(h.ubicacion_ip||h.ubicacionIP||null):null; }
+/* El hueco donde va la ubicación. Se llena con resolverUbicaciones() después
+   de pintar: así las pantallas que la muestran siguen siendo HTML de una vez.
+   `corta` es el renglón de la lista; ahí, sin IP no se pinta nada. */
+function huecoUbicacion(h,donde,corta){
+  if(corta&&!ipDeHuella(h)) return '';
+  const id='ubicIP_'+(++_ubicN);
+  _ubicPend.push({id,h,donde:donde||{},corta:!!corta});
+  return `<span id="${id}" class="ubic-ip${corta?' corta':''}"><span class="muted">${corta?'📍 …':'Buscando la ubicación aproximada…'}</span></span>`;
+}
+function resolverUbicaciones(){
+  const l=_ubicPend; _ubicPend=[];
+  if(!l.length) return Promise.resolve();
+  return conUbicacionIP().then(({M,C})=>Promise.all(l.map(p=>{
+    const c=M.ipConsultable(ipDeHuella(p.h));
+    if(c.motivo) return pintarUbicacion(p,{ok:false,motivo:c.motivo},M);
+    /* 8-oct-2026 (segunda vuelta) — SOLO CON LA AUTORIZACIÓN NUEVA. Quien se
+       registró antes aceptó una política que no nombraba a ipwho.is: su IP no
+       sale de aquí, ni siquiera se muestra lo que ya se hubiera anotado (ver
+       autorizaUbicacion en app/ubicacion-ip.js). */
+    if(M.autorizaUbicacion&&!M.autorizaUbicacion(datosDeDonde(p.donde))) return pintarUbicacion(p,{ok:false,motivo:'anterior'},M);
+    const ya=M.ubicacionValida(ubicacionAnotada(p.h),c.ip);
+    if(ya){ C.anotar(c.ip,ya); pintarUbicacion(p,{ok:true,ubicacion:ya},M); return anotarUbicacion(p,ya,c.ip,M); }
+    return C.consultar(c.ip).then(res=>{
+      pintarUbicacion(p,res,M);
+      if(res&&res.ok) return anotarUbicacion(p,res.ubicacion,c.ip,M);
+    });
+  }))).then(()=>{},()=>{ l.forEach(p=>pintarUbicacion(p,{ok:false,motivo:'sin_modulo'},null)); });
+}
+/* Los datos que dicen qué política aceptó: los del registro, o la vinculación
+   que viajó a la ficha. */
+function datosDeDonde(d){
+  d=d||{};
+  if(d.registro&&d.registro.datos&&typeof d.registro.datos==='object') return d.registro.datos;
+  if(d.socio&&d.socio.vinculacion&&typeof d.socio.vinculacion==='object') return d.socio.vinculacion;
+  return null;
+}
+function pintarUbicacion(p,res,M){
+  try{ const el=document.getElementById(p.id); if(el) el.innerHTML=ubicacionHTML(res,M,p.corta,!!(p.donde&&p.donde.registro),p.h&&p.h.ip); }
+  catch(e){ /* un hueco que ya no está en pantalla: nada que pintar */ }
+}
+function ubicacionHTML(res,M,corta,esRegistro,ipCruda){
+  if(!res||!res.ok||!M){
+    const t=M?M.fraseFallo(res&&res.motivo):'No cargó app/ubicacion-ip.js: la ubicación aproximada no se consultó. Recarga la página.';
+    return corta?`<span class="muted" title="${escHTML(t)}">📍 sin ubicación</span>`:`<span class="muted">${escHTML(t)}</span>`;
+  }
+  const u=res.ubicacion;
+  /* Fuera de Colombia es lo único que se marca: puede ser una VPN o alguien de
+     afuera, y vale la pregunta. En ámbar y sin veredicto, como el cotejo. */
+  const fuera=M.fueraDeColombia(u)?' <span class="chip mora" title="La red desde la que se registró no está en Colombia: puede ser una VPN o alguien de afuera. Pregúntale.">🌎 Fuera de Colombia</span>':'';
+  /* 8-oct-2026 (segunda vuelta) — una cadena con varias IPs públicas: la
+     primera la puede poner el teléfono (ver cadenaSospechosa). Se dice. */
+  const cadena=(M.cadenaSospechosa&&M.cadenaSospechosa(ipCruda))
+    ?' <span class="chip mora" title="La conexión trajo varias IPs ('+escHTML(M.ipsPublicas(ipCruda).join(', '))+'). La primera la puede escribir el propio teléfono: esta ciudad puede no ser real.">⚠️ IP en cadena</span>':'';
+  if(corta) return `<span class="muted" title="${escHTML(M.frase(u))}">📍 ${escHTML(M.lugar(u))} · aprox. por internet</span>${fuera}${cadena}`;
+  return `📍 ${escHTML(M.frase(u))}${fuera}${cadena}`
+    +(cadena?`<div class="muted" style="font-size:12px;color:var(--ambar)">La conexión trajo varias IPs: ${escHTML(M.ipsPublicas(ipCruda).join(', '))}. La primera la puede poner el propio teléfono, así que esta ciudad puede no ser real: no la uses para decidir.</div>`:'')
+    +(u.red?`<div class="muted" style="font-size:12px">Red: ${escHTML(u.red)}. Con datos del celular, el operador puede mostrar otra ciudad.</div>`:'')
+    +`<div class="muted" style="font-size:11.5px">Consultada en ${escHTML(u.fuente||'ipwho.is')}${u.consultada?' el '+escHTML(fmtFecha(u.consultada)):''}.`
+    +(esRegistro&&_ubicNubeFalta?' Quedó anotada solo en este navegador: falta pegar base/20261008_ubicacion_por_ip.sql en el SQL Editor de Supabase.':'')
+    +`</div>`;
+}
+/* Dejarla anotada donde corresponde. Nunca lanza: anotar es una comodidad, y
+   la pantalla ya dijo lo que había que decir. */
+function anotarUbicacion(p,u,ip,M){
+  try{
+    const d=p.donde||{};
+    if(d.registro){
+      const r=d.registro, h=(r.huella&&typeof r.huella==='object')?r.huella:null;
+      if(!h||M.ubicacionValida(h.ubicacion_ip,ip)||_ubicNubeFalta||!sbListo()||r.id==null) return;
+      return rpc('anotar_ubicacion_ip',{p_clave:sbCfg().clave,p_id:Number(r.id),p_ubicacion:u})
+        .then(j=>{ if(j&&j.ok===true&&j.ubicacion_ip&&typeof j.ubicacion_ip==='object') h.ubicacion_ip=j.ubicacion_ip; })
+        .catch(e=>{ if(/todavía no tiene/.test(errNube(e))){ _ubicNubeFalta=true; pintarUbicacion(p,{ok:true,ubicacion:u},M); } });
+    }
+    if(d.socio){
+      /* Se vuelve a buscar la ficha: entre la consulta y la respuesta pudo
+         entrar una sincronización y reemplazar el objeto. Y solo si su huella
+         sigue siendo de ESA IP. */
+      const s=DB.socios.find(x=>x.id===d.socio.id), hr=s&&s.huellaRegistro;
+      if(!hr||typeof hr!=='object'||M.normalizarIP(ipDeHuella(hr))!==ip||M.ubicacionValida(hr.ubicacionIP,ip)) return;
+      hr.ubicacionIP=u;
+      guardar();
+    }
+  }catch(e){ /* nada que anotar */ }
+}
+
+/* ==========================================================================
+ * ↻ GIRAR UNA FOTO DEL REGISTRO — 8 de octubre de 2026
+ *
+ * Joan, el 8-oct, registrándose él mismo: la foto del respaldo de la cédula la
+ * tuvo que tomar a mano, y «cuando la tomé, en el CRM se ve al revés».
+ *
+ * LA CAUSA está en la captura de play/: en un celular vertical el marco del
+ * respaldo va DE PIE, y recortarGuia gira siempre el recorte 90° hacia el
+ * mismo lado para dejar la tarjeta acostada, que es como lee el lector. Si la
+ * persona paró la cédula girada hacia el otro lado, el giro la deja de
+ * cabeza. El código de barras se lee igual (el lector prueba los dos
+ * sentidos), así que nadie se entera hasta que Joan la abre. Eso se arregla
+ * en play/; las fotos que ya están en la nube se quedan como llegaron.
+ *
+ * AQUÍ SE ARREGLA CÓMO SE VEN, sin reescribir la foto guardada: la del
+ * servidor es la evidencia que subió la persona —la que se cotejó y se
+ * midió— y no se toca. Se guardan los GRADOS con que mostrarla, con una llave
+ * sacada del CONTENIDO de la foto (no del celular): si la persona vuelve a
+ * subir otra foto con el mismo número, el giro de la vieja no se le pega a la
+ * nueva.
+ *
+ * DÓNDE QUEDAN: en este navegador apenas Joan toca ↻ (tg_giros_fotos_v1: solo
+ * llaves y grados, nunca una foto), y en la ficha (s.girosFotos) cuando la
+ * guarda, la cruza o la gira desde la ficha misma: así viaja con el cliente a
+ * los otros aparatos. La foto girada se arma en un lienzo para mostrarla y no
+ * se guarda en ningún lado.
+ * ======================================================================== */
+const LLAVE_GIROS='tg_giros_fotos_v1';
+let _girosFicha=null;              // s.girosFotos de la ficha abierta, si hay una
+const _origenFoto=new WeakMap();   // <img> → la foto tal como llegó, sin girar
+const _giroPuesto=new WeakMap();   // <img> → los grados con que se está viendo
+const TITULO_GIRAR='Gira la foto 90° si se ve de lado o al revés. La foto guardada no cambia: se recuerda cómo mostrarla.';
+function normaGiro(g){ const n=Math.round(Number(g)/90)*90; return isFinite(n)?((n%360)+360)%360:0; }
+function claveGiro(src){ return (typeof src==='string'&&src.slice(0,5)==='data:')?'f'+_huella(src)+'.'+src.length:''; }
+function girosLocales(){
+  try{ const g=JSON.parse(localStorage.getItem(LLAVE_GIROS)||'{}'); return (g&&typeof g==='object'&&!Array.isArray(g))?g:{}; }
+  catch(e){ return {}; }
+}
+function guardarGiroLocal(k,g){
+  if(!k) return;
+  try{
+    const m=girosLocales(); delete m[k];
+    if(normaGiro(g)) m[k]=normaGiro(g);
+    const ks=Object.keys(m); if(ks.length>400) ks.slice(0,ks.length-400).forEach(x=>{ delete m[x]; });
+    localStorage.setItem(LLAVE_GIROS,JSON.stringify(m));
+  }catch(e){ /* sin espacio: se ve girada hasta recargar, y ya */ }
+}
+/* Primero lo que dice la ficha abierta (lo que viaja), después este navegador. */
+function giroDe(src){
+  const k=claveGiro(src); if(!k) return 0;
+  if(_girosFicha&&typeof _girosFicha==='object'&&_girosFicha[k]!=null) return normaGiro(_girosFicha[k]);
+  const l=girosLocales(); return l[k]!=null?normaGiro(l[k]):0;
+}
+function fotoGirada(src,g){
+  const grados=normaGiro(g);
+  if(!grados) return Promise.resolve(src);
+  return new Promise((res,rej)=>{
+    if(typeof Image!=='function') return rej(new Error('sin Image'));
+    const im=new Image();
+    im.onload=()=>{
+      try{
+        const w=im.naturalWidth, h=im.naturalHeight;
+        /* El mismo tope de app/revision-fotos.js: la app guarda de hasta 900 px,
+           y algo mucho más grande no se dibuja (puede tumbar la pestaña). */
+        if(!w||!h||w>2000||h>2000||w*h>4000000) throw new Error('la foto no se puede girar aquí');
+        const lado=grados%180!==0, c=document.createElement('canvas');
+        c.width=lado?h:w; c.height=lado?w:h;
+        const x=c.getContext('2d');
+        x.translate(c.width/2,c.height/2); x.rotate(grados*Math.PI/180); x.drawImage(im,-w/2,-h/2);
+        res(c.toDataURL('image/jpeg',0.92));
+      }catch(e){ rej(e); }
+    };
+    im.onerror=()=>rej(new Error('la foto no se pudo abrir'));
+    im.src=src;
+  });
+}
+function ponerGirada(img,src,g){
+  const grados=normaGiro(g), a=img.parentElement;
+  _giroPuesto.set(img,grados);
+  if(!grados){ img.src=src; if(a&&a.tagName==='A') a.href=src; return Promise.resolve(); }
+  return fotoGirada(src,grados).then(u=>{
+    if(_origenFoto.get(img)!==src||_giroPuesto.get(img)!==grados) return;   // ya se puso otra
+    img.src=u; if(a&&a.tagName==='A') a.href=u;
+  }).catch(()=>{ /* sin lienzo o sin memoria: se queda la original, que es la verdad */ });
+}
+/* Lo llaman los dos pintores (pintarFotosRegistro y ponerFoto): recuerdan la
+   original y la ponen como se dejó girada. */
+function mostrarConGiro(img,src){
+  if(!img||typeof src!=='string') return;
+  try{ _origenFoto.set(img,src); const g=giroDe(src); _giroPuesto.set(img,g); if(g) ponerGirada(img,src,g); }
+  catch(e){ /* se queda como llegó */ }
+}
+function girarFoto(img,s){
+  const src=img&&_origenFoto.get(img);
+  if(!src){ alert('Esa foto todavía no ha llegado. Espera a que se vea y vuelve a tocar ↻.'); return; }
+  const g=normaGiro((_giroPuesto.get(img)||0)+90), k=claveGiro(src);
+  guardarGiroLocal(k,g);
+  const s2=s?DB.socios.find(x=>x.id===s.id):null;
+  if(s2){
+    const m=Object.assign({},(s2.girosFotos&&typeof s2.girosFotos==='object')?s2.girosFotos:{});
+    if(g) m[k]=g; else delete m[k];
+    if(Object.keys(m).length) s2.girosFotos=m; else delete s2.girosFotos;
+    _girosFicha=s2.girosFotos||null;
+    guardar();
+  }
+  ponerGirada(img,src,g);
+}
+function girarFotoRegistro(tipo){ girarFoto(document.getElementById('regFoto_'+tipo),null); }
+function girarFotoFicha(sid,tipo){ girarFoto(document.getElementById('fichaFoto_'+tipo),DB.socios.find(x=>x.id===sid)||null); }
+function botonGirar(onclick){ return `<button type="button" class="btn-girar" onclick="${onclick}" title="${escHTML(TITULO_GIRAR)}">↻ Girar</button>`; }
+/* La foto de verdad detrás de lo que guarda la ficha: un data: tal cual, o un
+   token que ya se trajo de la nube en esta ficha (_fotosReg). Sin ella no hay
+   llave, y no se inventa. */
+function fotoParaGiro(v){
+  if(typeof v!=='string') return '';
+  if(v.slice(0,5)==='data:') return v;
+  const t=parteToken(v), a=t&&_fotosReg[t.celular];
+  return (a&&a.fotos&&typeof a.fotos[t.tipo]==='string')?a.fotos[t.tipo]:'';
+}
+/* Los giros que se guardan en la ficha: los que tenía, más los que Joan dejó
+   en este navegador para las fotos que ahora tiene puestas. Doce como mucho:
+   son tres fotos, y lo demás son fotos que ya cambió. */
+function girosDeFotos(fotos,previo){
+  const out=Object.assign({},(previo&&typeof previo==='object'&&!Array.isArray(previo))?previo:{});
+  const l=girosLocales();
+  (fotos||[]).forEach(v=>{ const k=claveGiro(fotoParaGiro(v)); if(!k||l[k]==null) return;
+    const g=normaGiro(l[k]); delete out[k]; if(g) out[k]=g; });
+  const ks=Object.keys(out); if(ks.length>12) ks.slice(0,ks.length-12).forEach(k=>{ delete out[k]; });
+  return Object.keys(out).length?out:null;
 }
 /* EL COTEJO DE LA CÉDULA — 22-sep-2026.
 
@@ -8601,7 +8981,9 @@ function archivosDe(celular){
  *    que este trabajo entero existe para quitar.
  * ======================================================================== */
 let _fotosReg={};
-function olvidarFotosReg(){ _fotosReg={}; }
+/* 8-oct-2026 — y el giro de la ficha que se cierra (↻ Girar): si se quedara,
+   las fotos del registro que se abra después se mostrarían con él. */
+function olvidarFotosReg(){ _fotosReg={}; _girosFicha=null; }
 function resolverFotos(nodo){
   const raiz=nodo||document;
   const nodos=[].slice.call(raiz.querySelectorAll?raiz.querySelectorAll('[data-foto]'):[]);
@@ -8644,6 +9026,10 @@ function ponerFoto(el,url){
   else if(el.tagName==='A'){ el.href=url; }
   else { el.style.backgroundImage='url('+url+')'; }
   el.removeAttribute('data-foto');
+  /* 8-oct-2026 — ↻ Girar: se recuerda la original y, si Joan la dejó girada,
+     se muestra girada. Primero va la original (arriba), para que quien espera
+     a que cargue —el botón de comparar rostros— no se quede sin foto. */
+  if(el.tagName==='IMG') mostrarConGiro(el,url);
 }
 function ponerHueco(el,motivo){
   /* Un hueco EXPLICADO, no una imagen rota. La pantalla que se calla llena el
@@ -8674,11 +9060,16 @@ function pintarFotosRegistro(celular,cajaId){
     const avisoRaras=raras?`<div class="alerta warn" style="margin-bottom:8px">Llegó${raras>1?'ron '+raras+' archivos':' un archivo'} en lugar de foto que no ${raras>1?'son imágenes':'es una imagen'}. No se ${raras>1?'muestran':'muestra'}: nadie lo produce con la cámara del registro, así que trata este registro con cuidado.</div>`:'';
     const lista=[['Cédula (frente)',f.cedula_frente,'frente'],['Cédula (reverso)',f.cedula_reverso,'reverso'],['Rostro',f.selfie,'selfie']].filter(x=>x[1]);
     if(!lista.length){ caja.innerHTML=avisoRaras||'<span class="muted">No subió fotos (o no autorizó).</span>'; return; }
-    caja.innerHTML=avisoRaras+`<div class="gal">${lista.map(x=>`<a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>`).join('')}</div>`
+    /* 8-oct-2026 — cada foto con su «↻ Girar» (ver ↻ GIRAR UNA FOTO). */
+    caja.innerHTML=avisoRaras+`<div class="gal">${lista.map(x=>`<div class="gal-it"><a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>${botonGirar("girarFotoRegistro('"+x[2]+"')")}</div>`).join('')}</div>`
       +(f.selfie&&f.cedula_frente?`<div id="regParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('regFoto_selfie','regFoto_frente','regParecido')">🔍 Comparar el rostro con la cédula</button></div>`:'')
       /* 22-sep-2026 — el cotejo contra la foto. Solo aparece si hay foto del
          REVERSO: el código de barras vive ahí y en ninguna otra parte. */
       +(f.cedula_reverso?`<div id="regCotejo" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="cotejarConLaFoto('regFoto_reverso','${escHTML(String(celular).replace(/\D/g,''))}','regCotejo')">🔢 Leer el código de barras de la foto</button></div>`:'');
+    /* 8-oct-2026 — las que Joan ya dejó giradas en este navegador, giradas.
+       Fotos de un REGISTRO: el giro de una ficha abierta no cuenta aquí. */
+    _girosFicha=null;
+    lista.forEach(x=>mostrarConGiro(document.getElementById('regFoto_'+x[2]),x[1]));
   });
 }
 /* EL PARECIDO ROSTRO–CÉDULA, en el computador de Joan (el modelo pesa 4 MB y
@@ -12893,6 +13284,7 @@ function mesaDeCruce(idReg,idSocio){
     <div id="cruceCupo" style="margin-top:10px"></div>
 
     <div class="sub-h">Sus fotos y desde dónde se registró</div>
+    <div class="info-row"><span class="k">Ubicación aproximada</span><span class="vv">${huecoUbicacion(r.huella,{registro:r},false)}</span></div>
     <div id="cruceFotos"><div class="muted">Buscándolas…</div></div>
 
     ${UP?`<div class="sub-h">Su cuenta en la app</div>
@@ -12907,6 +13299,7 @@ function mesaDeCruce(idReg,idSocio){
     </div>`);
   pintarCambioDeCupo(idReg,idSocio);
   pintarFotosRegistro(r.telefono||r.cedula,'cruceFotos');
+  resolverUbicaciones();   // 8-oct-2026: el «desde dónde» del título, que antes solo eran fotos
   /* 7-oct-2026 (segunda vuelta) — sin nube la mesa se quedaba para siempre en
      «Preguntando a la nube…» y «Revisando…», con el botón de juntar activo. La
      revisión es de este computador y se pinta igual; la cuenta se dice que no
@@ -13048,6 +13441,9 @@ function aplicarCruce(idReg,idSocio,op){
     if(f.cedula_frente&&!s2.cedulaFrenteFoto)  s2.cedulaFrenteFoto =tokenReg(celCruce,'cedula_frente');
     if(f.cedula_reverso&&!s2.cedulaReversoFoto) s2.cedulaReversoFoto=tokenReg(celCruce,'cedula_reverso');
     if(f.selfie&&!s2.selfieFoto)                s2.selfieFoto       =tokenReg(celCruce,'selfie');
+    /* 8-oct-2026 — y lo que Joan dejó girado (↻) mirando este registro. */
+    const girosC=girosDeFotos([f.cedula_frente,f.cedula_reverso,f.selfie],s2.girosFotos||null);
+    if(girosC) s2.girosFotos=girosC;
     guardar();
     if(a.fallo){
       alert('Quedó cruzado, pero NO pude traer las fotos: '+a.fallo+
@@ -13231,6 +13627,11 @@ function guardarRespaldado(){
      solicitud queda atendida y desaparece. */
   const sol=gv('rSol')?_solicitudes.find(x=>String(x.id)===gv('rSol')):null;
   if(sol) nr.origen='solicitud';
+  /* 8-oct-2026 (segunda vuelta) — EL TECHO DEL RECARGO QUE ACEPTÓ (ver
+     topeMoraDeAceptacion). Sin condiciones aceptadas no lleva techo y cobra lo
+     de siempre: esa decisión es de Joan, no de esta pantalla. */
+  const tm=sol?topeMoraDeAceptacion(sol):null;
+  if(tm){ nr.topeMoraEA=tm.ea; nr.condicionesDe=String(sol.id); }
   DB.respaldados.push(nr);
   if(sol){ marcarEnNube(sol,'atendida'); quitarSolicitud(sol.id); }
   guardar(); cerrarModal(); render(); irA('resp');
@@ -13286,7 +13687,11 @@ function liqCuota(rid,n){
   const r=(DB.respaldados||[]).find(x=>x.id===rid); const c=cuotasDe(r).find(x=>x.n===n);
   const f=gv('cqFecha')||hoyISO();
   /* 26-sep-2026: con la fecha del préstamo, que decide si su recargo deja garantía. */
-  return {r,c,f,liq:MotorReglas.liquidarCuotaRespaldada({capital:c.capital,costo:c.costo,fecha_corte:c.fecha},f,{fechaDelCredito:PUENTE.fechaDelCredito(r)})};
+  /* 8-oct-2026 (segunda vuelta) — con el techo del recargo si el préstamo nació
+     de condiciones aceptadas (PUENTE.tasaMoraDe; null = la regla de siempre). */
+  const tmr=PUENTE.tasaMoraDe?PUENTE.tasaMoraDe(r,f):null;
+  return {r,c,f,liq:MotorReglas.liquidarCuotaRespaldada({capital:c.capital,costo:c.costo,fecha_corte:c.fecha},f,
+    Object.assign({fechaDelCredito:PUENTE.fechaDelCredito(r)},tmr!==null?{tasaDiaria:tmr}:{}))};
 }
 function calcCuota(rid,n){
   const box=document.getElementById('cqCalc'); if(!box)return;
@@ -13498,6 +13903,13 @@ function renderBandeja(){
          precio del Panel (20 % y su corte) mientras él tiene en pantalla otro
          precio y otra fecha. */
       const pc=String(s.app||'')==='platachat', pcNueva=pc&&s.estado==='nueva';
+      /* 8-oct-2026 — EL PEDIDO A LA MEDIDA DE play/ (solicitar_a_la_medida):
+         el cliente pidió un monto y UNA FECHA, y espera la propuesta de Joan.
+         Igual que la de PlataChat en 'nueva': se propone, no se desembolsa —
+         el botón rojo crearía un crédito al precio del Panel que el cliente
+         nunca vio ni aceptó—. `espera` junta las dos. */
+      const pideNueva=!pc&&s.estado==='nueva'&&!s.contrapropuesta&&!!(s.pedido&&s.pedido.origen==='play');
+      const espera=pcNueva||pideNueva;
       const ped=(s.pedido&&typeof s.pedido==='object')?s.pedido:{};
       /* Lo que el cliente VIO viaja en la fila; no se recalcula con TASA_FIJA_PCT,
          que es otra cifra. */
@@ -13509,8 +13921,25 @@ function renderBandeja(){
       const porQuien=!cp?'':cp.por==='joan'?' <span class="muted">(cambiada por ti)</span>'
         :String(cp.por||'').indexOf('gerente:')===0?' <span class="muted">(la puso tu gerente '+escHTML(String(cp.por).slice(-4))+')</span>'
         :String(cp.por||'').indexOf('automatica')===0?' <span class="muted">(la puso el automático)</span>':'';
-      const chip=pcNueva?`<span class="chip al-dia">⏳ Esperando TU propuesta${hasta?' · hasta las '+escHTML(hasta):''}</span>`
-        :!cp?'':s.estado==='aceptada'?'<span class="chip pagado">✅ Aceptó</span>':'<span class="chip al-dia">📨 Esperando que acepte</span>';
+      /* 8-oct-2026 (segunda vuelta) — LO QUE DICEN LOS TÉRMINOS, CUMPLIDO EN LA
+         BANDEJA. El punto 3 dice que todo crédito pasa por una propuesta con
+         «Las condiciones de este crédito», que el cliente acepta antes de
+         recibir la plata. Hasta hoy, una solicitud SIN propuesta (las que piden
+         los clientes desde app/socio.html, con su calculadora) mostraba «✓
+         Crear crédito» y se desembolsaba sin condiciones ni constancia (lo
+         encontró la revisión de ley). Ahora: sin propuesta → «✏️ Proponer»; y
+         una aceptada SIN la constancia (aceptó por la puerta vieja, o desde una
+         app en caché) se marca, y desembolsarla pide confirmación.
+         Las «pegadas» (llegaron por WhatsApp, no por la app) quedan como
+         estaban: no hay app donde aceptar. */
+      const cpRaw=(s.contrapropuesta&&typeof s.contrapropuesta==='object')?s.contrapropuesta:null;
+      const conConst=!!(cpRaw&&cpRaw.condiciones&&typeof cpRaw.condiciones==='object');
+      const pegada=s.origen==='pegada';
+      const proponerPrimero=!espera&&!cpRaw&&!pegada;
+      const sinConst=s.estado==='aceptada'&&!!cpRaw&&!conConst;
+      const chip=espera?`<span class="chip al-dia">⏳ Esperando TU propuesta${hasta?' · hasta las '+escHTML(hasta):''}</span>`
+        :proponerPrimero?'<span class="chip al-dia">✏️ Sin propuesta: propónle antes de prestar</span>'
+        :!cp&&!cpRaw?'':s.estado==='aceptada'?(sinConst?'<span class="chip mora" title="Aceptó por una puerta que no guarda lo que leyó (la app vieja, o la base sin la migración del 8-oct). Confírmale las condiciones por el chat antes de desembolsar.">⚠️ Aceptó SIN constancia de condiciones</span>':'<span class="chip pagado">✅ Aceptó</span>'):'<span class="chip al-dia">📨 Esperando que acepte</span>';
       /* Si su cupo no alcanza, el automático NO le va a proponer al vencer la
          hora: esa la contesta una persona o no la contesta nadie. */
       const sinCupo=pc&&ped.automatica==='sin_cupo'?'<div class="muted" style="color:var(--ambar)">su cupo no alcanza: el automático no va a proponer</div>':'';
@@ -13520,15 +13949,16 @@ function renderBandeja(){
          celular es el de una ficha, pero no se sabe si es esa persona (ver
          socioDeSolicitud). */
       const sinJuntar=esSolicitudSinJuntar(s)&&!socioDeSolicitud(s);
-      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${sinJuntar?'<div class="muted" style="color:var(--ambar)">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. Júntale la cuenta antes de prestarle.</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}</td>
+      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${sinJuntar?'<div class="muted" style="color:var(--ambar)">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. Júntale la cuenta antes de prestarle.</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}${condicionesAceptadasDe(s)}</td>
       <td class="num"><b>${COP(resp?s.capital:q.capital)}</b>${aviso}${notaDelCliente(s)}${sinCupo}</td>
       <td>${resp?`<b>Con garantía</b><div class="muted">${(Number(s.tasa)*100).toFixed(0)}% mensual · ${pz} mes${pz!==1?'es':''}</div>`
                 :pcNueva?`<b>Pidió por el chat</b><div class="muted">${pidePct||q.pct}% · ${pideCortes} corte${pideCortes!==1?'s':''} · todavía sin propuesta</div>`
+                :pideNueva?`<b>Pidió desde la app</b><div class="muted">${escHTML((plazoPedido(s)||{}).corto||'')} · todavía sin propuesta</div>`
                 :cp?`<b>Primer crédito</b><div class="muted">${q.pct}% · ${Number(cp.dias)} días${q.cortes>1?' · '+q.cortes+' cortes':''}</div>`:`<b>Quincenal</b><div class="muted">${q.pct}% la quincena</div>`}</td>
-      <td class="num">${pcNueva?'<span class="muted">sin proponer</span>':COP(resp?s.total:q.total)+descuadre}</td>
-      <td>${resp||pcNueva?(s.fecha_corte?fmtFecha(s.fecha_corte):'—'):fmtFecha(q.corte)}${resp?'<div class="muted">última cuota</div>':pcNueva?'<div class="muted">la que pidió</div>':''}</td>
+      <td class="num">${espera?'<span class="muted">sin proponer</span>':COP(resp?s.total:q.total)+descuadre}</td>
+      <td>${resp||espera?(s.fecha_corte?fmtFecha(s.fecha_corte):'—'):fmtFecha(q.corte)}${resp?'<div class="muted">última cuota</div>':espera?'<div class="muted">la que pidió</div>':''}</td>
       <td style="text-align:right">
-        ${cp||pcNueva?`<button class="btn ${pcNueva?'btn-rojo':'btn-ghost'} btn-sm" onclick="editarContrapropuesta('${s.id}')">✏️ ${pcNueva?'Proponer':'Cambiar propuesta'}</button> `:''}${pcNueva||(cp&&s.estado!=='aceptada')?'':`<button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="crearDesdeSolicitud('${s.id}')">✓ ${resp?'Revisar préstamo':cp?'Desembolsar':'Crear crédito'}</button>`}
+        ${cp||cpRaw||espera||proponerPrimero?`<button class="btn ${espera||proponerPrimero?'btn-rojo':'btn-ghost'} btn-sm" onclick="editarContrapropuesta('${s.id}')">✏️ ${espera||proponerPrimero?'Proponer':'Cambiar propuesta'}</button> `:''}${espera||proponerPrimero||((cp||cpRaw)&&s.estado!=='aceptada')?'':`<button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="crearDesdeSolicitud('${s.id}')">✓ ${resp?'Revisar préstamo':(cp||cpRaw)?'Desembolsar':'Crear crédito'}</button>`}
         <button class="btn btn-ghost btn-sm" onclick="descartarSolicitud('${s.id}')">✕</button></td></tr>`;
     }).join('')}</tbody></table>`;
 }
@@ -13547,9 +13977,137 @@ function notaDelCliente(s){
   const fila=Math.round(Number((s&&s.capital))||0);
   let h='';
   if(pedido&&pedido!==fila) h+='<div class="muted">pidió '+COP(pedido)+'</div>';
+  /* 8-oct-2026 — Y PARA CUÁNDO LO PIDIÓ. Se ve siempre, también después de
+     proponer: la fecha que el cliente escogió es la otra mitad de lo que hay
+     que comparar con la propuesta. */
+  const pz=plazoPedido(s);
+  if(pz) h+='<div class="muted">'+escHTML(pz.texto)+'</div>';
   const nota=String((s&&s.pedido_nota)||'').trim();
   if(nota) h+='<div class="muted" style="white-space:normal;max-width:28ch;font-style:italic">«'+escHTML(nota)+'»</div>';
   return h;
+}
+
+/* 8-oct-2026 — EL PLAZO QUE PIDIÓ EL CLIENTE DE play/. La calculadora nueva
+   manda una FECHA de pago (solicitar_a_la_medida la guarda en pedido.fecha_pago
+   y en fecha_corte). Se dice la fecha y cuántos días faltan HOY —no los que
+   faltaban cuando pidió: «en 8 días» leído tres días después sería mentira—.
+   Las de PlataChat y las viejas no traen pedido.origen 'play' y no pintan
+   nada aquí (las de PlataChat ya dicen su fecha en su columna). */
+function plazoPedido(s){
+  const p=(s&&s.pedido&&typeof s.pedido==='object')?s.pedido:null;
+  if(!p||p.origen!=='play'||!p.fecha_pago) return null;
+  const f=String(p.fecha_pago).slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(f)) return null;
+  const dias=Math.round((new Date(f+'T00:00:00')-new Date(hoyISO()+'T00:00:00'))/86400000);
+  const cuando=dias>0?'en '+dias+' día'+(dias!==1?'s':''):dias===0?'hoy':'ya pasó';
+  return { fecha:f, dias, corto:'para el '+fmtFecha(f)+' ('+cuando+')',
+           texto:'para pagar el '+fmtFecha(f)+' ('+cuando+')' };
+}
+
+/* 8-oct-2026 — LO QUE EL CLIENTE ACEPTÓ. aceptar_condiciones
+   (base/20261008_condiciones_aceptadas.sql) deja en contrapropuesta.condiciones
+   la versión, la hora y los renglones de «Las condiciones de este crédito» que
+   tenía en pantalla al marcar la casilla. Si Joan vuelve a proponer, la
+   propuesta nueva pisa esto entero: lo que se ve aquí es siempre lo aceptado
+   de la propuesta VIGENTE. La copia completa (con IP y aparato) queda en la
+   tabla condiciones_aceptadas, que solo se lee en la base. Todo lo que viene
+   del teléfono del cliente pasa por escHTML. */
+/* 8-oct-2026 (segunda vuelta) — LO QUE DIJO EL TELÉFONO NO SE PRESENTA COMO
+   HECHO. Los renglones de `lineas` los manda la app del cliente (es su palabra:
+   la base solo comprueba monto, total, fecha y el sello de la propuesta). Lo
+   que tenía LA BASE viaja aparte, en `condiciones.base`, y aquí se pone al
+   lado: si algo no casa, se marca (lo pidió la revisión de seguridad). */
+function digitosDe(v){ return String(v==null?'':v).replace(/\D/g,''); }
+function descuadreDeConstancia(s){
+  const cp=s&&s.contrapropuesta, c=cp&&cp.condiciones;
+  if(!c||typeof c!=='object') return [];
+  const b=(c.base&&typeof c.base==='object')?c.base:null;
+  const lin=k=>((Array.isArray(c.lineas)?c.lineas:[]).find(l=>l&&l.clave===k)||{}).v||'';
+  const malos=[];
+  if(!b){ malos.push('la constancia no trae las cifras de la base'); return malos; }
+  if(digitosDe(lin('recibes'))&&digitosDe(lin('recibes'))!==digitosDe(b.capital)) malos.push('recibe');
+  if(digitosDe(lin('total'))&&digitosDe(lin('total'))!==digitosDe(b.total)) malos.push('total');
+  if(digitosDe(cp.capital)&&digitosDe(cp.capital)!==digitosDe(b.capital)) malos.push('la propuesta cambió después');
+  return malos;
+}
+/* El techo del recargo que aceptó, calculado AQUÍ con la tabla de usura del
+   día en que aceptó (no el que dijo su teléfono). Lo usa el desembolso para
+   ponérselo al crédito (topeMoraEA → app/puente.js, tasaMoraDe). Null si no
+   hay condiciones aceptadas o no hay tabla. */
+function topeMoraDeAceptacion(s){
+  const c=s&&s.contrapropuesta&&s.contrapropuesta.condiciones;
+  if(!c||typeof c!=='object') return null;
+  const C=window.CreditosPublicables;
+  const dia=String(c.aceptadas_en||'').slice(0,10);
+  let ea=null;
+  try{ const r=C&&C.topeDeReferencia&&/^\d{4}-\d{2}-\d{2}$/.test(dia)?C.topeDeReferencia(dia):null; if(r&&Number(r.tope)>0) ea=Number(r.tope); }catch(e){}
+  if(ea===null) return null;
+  /* Si su teléfono le mostró un techo MÁS BAJO (otro mes), manda el más bajo:
+     lo que se le prometió es «hasta» esa cifra. */
+  const dijo=c.tope_mora&&Number(c.tope_mora.ea);
+  if(dijo>0&&dijo<ea) ea=dijo;
+  return { ea, dijo:dijo>0?dijo:null };
+}
+function textoTasaMora(p,fecha){
+  const t=PUENTE.tasaMoraDe?PUENTE.tasaMoraDe(p,fecha):null;
+  return t===null?(MotorReglas.TASA_MORA_DIARIA*100).toLocaleString('es-CO')+'% diario'
+    :'techo legal aceptado, '+(t*100).toLocaleString('es-CO',{maximumFractionDigits:3})+'% diario';
+}
+function condicionesAceptadasDe(s){
+  const c=s&&s.contrapropuesta&&typeof s.contrapropuesta==='object'?s.contrapropuesta.condiciones:null;
+  if(!c||typeof c!=='object') return '';
+  const t=c.aceptadas_en?new Date(c.aceptadas_en):null;
+  const cuando=t&&!isNaN(t.getTime())?t.toLocaleString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}):'';
+  const malos=descuadreDeConstancia(s);
+  return '<div class="muted" style="margin-top:4px">📄 Aceptó las condiciones'+(cuando?' · '+escHTML(cuando):'')+
+    ' <button class="btn btn-ghost btn-sm" onclick="verCondicionesAceptadas(\''+escHTML(String(s.id))+'\')">Ver</button></div>'+
+    (malos.length?'<div class="muted" style="color:var(--ambar)">⚠️ Lo que dice su app no casa con la base: '+escHTML(malos.join(', '))+'</div>':'');
+}
+/* El correo del cliente para mandarle las condiciones por escrito (el correo
+   es obligatorio desde el 8-oct «para mandarte por escrito las condiciones de
+   cada crédito»: sin esto, esa promesa de la política no la cumplía nadie). */
+function correoDeSolicitud(s){
+  const U=window.CuentaSocio, cli=socioDeSolicitud(s);
+  const cands=[s&&s.datos&&s.datos.correo, cli&&cli.correo, cli&&cli.vinculacion&&cli.vinculacion.correo];
+  for(const c of cands){ const t=String(c||'').trim(); if(t&&(!U||!U.correoValido||U.correoValido(t))) return t; }
+  return '';
+}
+function verCondicionesAceptadas(id){
+  const s=_solicitudes.find(x=>String(x.id)===String(id));
+  const c=s&&s.contrapropuesta&&s.contrapropuesta.condiciones;
+  if(!c) return;
+  const lineas=Array.isArray(c.lineas)?c.lineas:[];
+  const b=(c.base&&typeof c.base==='object')?c.base:null;
+  const malos=descuadreDeConstancia(s);
+  const tm=topeMoraDeAceptacion(s);
+  const correo=correoDeSolicitud(s);
+  const t=c.aceptadas_en?new Date(c.aceptadas_en):null;
+  const cuando=t&&!isNaN(t.getTime())?t.toLocaleString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit'}):'';
+  const cuerpoCorreo='Hola '+String(s.nombre||'').trim().split(/\s+/)[0]+',\n\nEstas son las condiciones del crédito que aceptaste en la app'+
+    (cuando?' el '+cuando:'')+':\n\n'+lineas.map(l=>'- '+String(l&&l.k||'')+': '+String(l&&l.v||'')).join('\n')+
+    '\n\nGuárdalo: es tu copia por escrito. Cualquier duda, escríbenos por el chat de la app.\n\n'+(DB.config.negocio||'Tu Garantía');
+  const mailto=correo?'mailto:'+encodeURIComponent(correo)+'?subject='+encodeURIComponent('Las condiciones de tu crédito')+
+    '&body='+encodeURIComponent(cuerpoCorreo):'';
+  openModal('Lo que aceptó · '+(s.nombre||''),
+    '<div class="help" style="margin-bottom:10px">Lo que '+escHTML(s.nombre||'el cliente')+' tenía en pantalla al marcar '+
+    '«Leí y acepto las condiciones de este crédito» (versión '+escHTML(c.version||'—')+'), <b>según su app</b>. La base '+
+    'comprobó el monto, el total, la fecha de pago y que fuera la propuesta vigente; el resto del texto lo armó su teléfono. '+
+    'La copia completa, con la IP y el aparato desde donde aceptó, queda en la base, en condiciones_aceptadas.</div>'+
+    (malos.length?'<div class="alerta warn">Lo que dice su app no casa con la base en: '+escHTML(malos.join(', '))+'. Confírmale las condiciones por el chat antes de desembolsar.</div>':'')+
+    '<div class="sub-h">Según la base</div>'+
+    (b?'<div class="info-row"><span class="k">Recibe</span><span class="vv">'+COP(Number(b.capital)||0)+'</span></div>'+
+       '<div class="info-row"><span class="k">Total a pagar</span><span class="vv">'+COP(Number(b.total)||0)+'</span></div>'+
+       '<div class="info-row"><span class="k">Fecha de pago</span><span class="vv">'+escHTML(b.fecha_pago?fmtFecha(String(b.fecha_pago).slice(0,10)):'—')+'</span></div>'
+      :'<div class="muted">Esta constancia no trae las cifras de la base (se aceptó con una versión anterior del archivo SQL).</div>')+
+    (tm?'<div class="info-row"><span class="k">Techo del recargo</span><span class="vv">'+escHTML((tm.ea*100).toLocaleString('es-CO',{maximumFractionDigits:2}))+
+       '% efectivo anual (la tasa de usura del día en que aceptó)'+(tm.dijo&&Math.abs(tm.dijo-tm.ea)>1e-9?' · su app le mostró '+escHTML((tm.dijo*100).toLocaleString('es-CO',{maximumFractionDigits:2}))+'%':'')+
+       '. Al desembolsar se le pone al crédito.</span></div>':'')+
+    '<div class="sub-h">Según su app</div>'+
+    (lineas.length?lineas.map(l=>'<div class="info-row"><span class="k">'+escHTML(l&&l.k)+'</span><span class="vv">'+
+      escHTML(l&&l.v)+'</span></div>').join(''):'<div class="muted">Sin renglones guardados.</div>')+
+    '<div style="margin-top:12px">'+(mailto
+      ?'<a class="btn btn-ghost btn-sm" href="'+escHTML(mailto)+'" title="Abre tu correo con las condiciones escritas, para mandárselas">✉️ Mandárselas por correo</a>'
+      :'<span class="muted">No tiene un correo válido guardado: pídeselo por el chat para mandarle sus condiciones por escrito.</span>')+'</div>');
 }
 
 /* ---------------------- LOS RECADOS DE ACCESO ---------------------- */
@@ -13659,6 +14217,14 @@ function crearDesdeSolicitud(id){
      desembolsar, y saltárselo le cambia el precio por debajo. */
   if(String(s.app||'')==='platachat'&&s.estado==='nueva') return alert(s.nombre+' pidió por el chat y todavía no tiene propuesta.\n\nEn PlataChat el orden es: le propones, él acepta, y ahí desembolsas. Usa «✏️ Proponer».\n\nSi dejas correr la hora, el automático le propone solo y te vuelve a aparecer acá, ya con el botón de desembolsar.');
   if(s.contrapropuesta&&s.estado!=='aceptada') return alert(s.nombre+' todavía no ha aceptado la propuesta.\n\nCuando la acepte desde su app te aparece «✅ Aceptó» y el botón de desembolsar. Si quieres cambiarle la propuesta, usa «✏️ Cambiar propuesta».');
+  /* 8-oct-2026 (segunda vuelta) — SIN PROPUESTA NO SE PRESTA. Los términos
+     (punto 3) dicen que todo crédito pasa por una propuesta con sus
+     condiciones, aceptada en la app antes de recibir la plata; esta puerta
+     desembolsaba las solicitudes de app/socio.html sin ninguna de las dos
+     cosas (revisión de ley). Las «pegadas» llegan por WhatsApp, sin app donde
+     aceptar: esas siguen como antes. */
+  if(!s.contrapropuesta&&s.origen!=='pegada') return alert(s.nombre+' pidió '+COP(Number(s.capital)||0)+' pero todavía no le has propuesto nada.\n\n'
+    +'Antes de prestar, mándale la propuesta con «✏️ Proponer»: en su app la ve con «Las condiciones de este crédito», la acepta, y ahí te aparece el botón de desembolsar.');
   if(!cli&&s.datos&&typeof s.datos==='object'&&Object.keys(s.datos).length){
     if(!confirm('«'+s.nombre+'» todavía no tiene ficha. La creo ahora con los datos que declaró al registrarse (sin verificar), y sigo con el crédito.\n\n¿Continúo?')) return;
     /* Primero sus fotos, su ubicación y su huella (una llamada); después la
@@ -13672,6 +14238,18 @@ function crearDesdeSolicitud(id){
       guardar(); crearDesdeSolicitud(id); });
   }
   if(!cli) return alert('No tengo ficha de "'+s.nombre+'" con el número '+(s.cedula||'—')+' (ni como cédula ni como celular).\n\nCréale la ficha primero desde Clientes y vuelve a intentar.');
+  /* 8-oct-2026 (segunda vuelta) — UNA ACEPTACIÓN SIN CONSTANCIA, O QUE NO CASA.
+     Aceptó por la puerta vieja (app en caché, o la base sin la migración del
+     8-oct) y no quedó lo que leyó; o lo que dice su app no casa con la base.
+     No se frena —puede ser legítimo—, pero se pregunta (revisión de seguridad). */
+  if(s.estado==='aceptada'&&s.contrapropuesta&&!s.contrapropuesta.condiciones&&s.origen!=='pegada'
+     &&!confirm('⚠️ '+s.nombre+' aceptó SIN constancia de las condiciones: no quedó guardado qué leyó.\n\n'
+       +'Los términos dicen que guardamos una copia de lo que aceptó antes de entregarle la plata. '
+       +'Lo seguro es confirmarle las condiciones por el chat, o mandarle la propuesta otra vez con «✏️ Cambiar propuesta».\n\n'
+       +'¿Desembolso igual?')) return;
+  const malosConst=descuadreDeConstancia(s);
+  if(malosConst.length&&!confirm('⚠️ Lo que dice la app de '+s.nombre+' no casa con la base en: '+malosConst.join(', ')+'.\n\n'
+       +'Confírmale las condiciones por el chat antes de desembolsar.\n\n¿Desembolso igual?')) return;
   /* Cada producto por su puerta. El préstamo con garantía NO se desembolsa
      desde acá: se abre el formulario de siempre, con el monto y el plazo que
      pidió el cliente ya puestos, porque ese es el único que sabe frenar cuando
@@ -13687,9 +14265,15 @@ function crearDesdeSolicitud(id){
   if(q.cortes>1) return alert(cli.nombre+' aceptó su crédito a '+q.cortes+' cortes (paga '+COP(q.total)+' el '+fmtFecha(q.corte)+').\n\nEsta pantalla todavía registra un solo corte, así que no lo desembolso desde acá para no dejarlo mal en el calendario.\n\nRegístralo a mano desde Créditos con '+q.cortes+' cortes, o cámbiale la propuesta a un solo corte con «✏️ Cambiar propuesta».');
   if(q.descuadre) return alert('Ojo: lo que el cliente aceptó ('+COP(q.descuadre)+') no coincide con lo que da el motor acá ('+COP(q.total)+').\n\nNo lo registro hasta que cuadre: revisa la propuesta con «✏️ Cambiar propuesta» y vuelve a mandársela.');
   const r=revisarCupo(cli,q.capital);
+  /* 8-oct-2026 (segunda vuelta) — EL TECHO DEL RECARGO QUE ACEPTÓ. Sus
+     condiciones le dijeron «hasta $X por día de atraso, lo más que permite la
+     ley»; el crédito lo lleva (topeMoraEA) y app/puente.js lo cumple al cobrar.
+     Sin condiciones aceptadas (una pegada) no lleva techo: la regla de siempre. */
+  const tm=topeMoraDeAceptacion(s);
   if(!confirm('Crear el crédito de '+cli.nombre+':\n\n'
     +'• Capital: '+COP(q.capital)+(q.capital%1000!==0?'   ⚠️ OJO: NO ES UNA CIFRA REDONDA':'')+'\n• Costo: '+q.pct+'% ('+COP(q.costo)+')\n'
     +'• Total a devolver: '+COP(q.total)+'\n• Paga el: '+fmtFecha(q.corte)+'\n'
+    +(tm?'• Recargo por atraso: con el techo legal que aceptó ('+(tm.ea*100).toLocaleString('es-CO',{maximumFractionDigits:2})+'% efectivo anual)\n':'')
     +((r&&(r.pasa||r.pasaSumando))?'\n'+textoCupo(r):'')
     +'\n¿Lo registro?'))return;
   const p={ id:'P'+Date.now(), numero:nextNumCredito(), socioId:cli.id, socioNombre:cli.nombre,
@@ -13697,6 +14281,7 @@ function crearDesdeSolicitud(id){
     fechaDesembolso:hoyISO(), cicloActual:q.corte,
     prorrogas:[], abonosCapital:[], comprobantes:[], pagado:false,
     fechaCreacion:new Date().toISOString(), origen:'solicitud' };
+  if(tm){ p.topeMoraEA=tm.ea; p.condicionesDe=String(s.id); }
   DB.prestamos.push(p);
   marcarEnNube(s,'atendida'); quitarSolicitud(id);
   guardar(); render();
@@ -13725,6 +14310,8 @@ function socioDesdeDatos(s,a,ident){
     cedulaFrenteFoto:f.cedula_frente?tokenReg(ident,'cedula_frente'):null,
     cedulaReversoFoto:f.cedula_reverso?tokenReg(ident,'cedula_reverso'):null,
     selfieFoto:f.selfie?tokenReg(ident,'selfie'):null,
+    /* 8-oct-2026 — lo que Joan dejó girado (↻) mirando su registro. */
+    girosFotos:girosDeFotos([f.cedula_frente,f.cedula_reverso,f.selfie],null)||undefined,
     ubicacion:(h&&h.gps&&h.gps.lat!=null)?{lat:h.gps.lat,lng:h.gps.lng,acc:h.gps.acc||0,fecha:h.gps.fecha||hoyISO()}:null,
     huellaRegistro:h?{ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''}:null,
     whatsappIgual:true,
@@ -13806,7 +14393,11 @@ function editarContrapropuesta(id, modo) {
      y lo que la calculadora le mostró; Joan lo cambia desde ahí. */
   const pideDias = s.fecha_corte ? Math.max(1, Math.min(60, Math.round(
     (new Date(String(s.fecha_corte).slice(0, 10) + 'T00:00:00') - new Date(hoyISO() + 'T00:00:00')) / 86400000))) : 0;
-  const cp = s.contrapropuesta || (String(s.app || '') === 'platachat' && Number(s.capital) > 0
+  /* 8-oct-2026 — Y LO MISMO CON EL PEDIDO A LA MEDIDA DE play/: arranca con
+     el monto y la fecha que el cliente escogió (los días, hasta 60, que es lo
+     que llega un pago único; ver plazoPedido para lo que pidió de verdad). */
+  const pz = plazoPedido(s);
+  const cp = s.contrapropuesta || ((String(s.app || '') === 'platachat' || pz) && Number(s.capital) > 0
     ? { capital: Math.round(Number(s.capital)), costo_pct: Math.round(Number(s.tasa || 0) * 100) || TASA_FIJA_PCT,
         dias: pideDias || 8, texto: '' }
     : MotorReglas.POLITICA_NUEVOS_DEF);
@@ -13821,7 +14412,8 @@ function editarContrapropuesta(id, modo) {
   openModal((s.contrapropuesta ? 'Cambiar la propuesta · ' : 'Proponer · ') + s.nombre, `
     <div class="help">Lo que pongas acá es lo que el cliente va a ver en su app, en pesos.
       Al guardar, la propuesta vuelve a «esperando que acepte».</div>
-    ${pidio ? `<div class="aviso" style="margin-top:10px">Pidió <b>${COP(pidio)}</b>.
+    ${pidio ? `<div class="aviso" style="margin-top:10px">Pidió <b>${COP(pidio)}</b>${pz ? ' ' + escHTML(pz.texto) : ''}.
+      ${pz && pz.dias > 60 ? '<b>Eso pasa de 60 días:</b> un solo pago llega hasta 60; para más tiempo usa «A cuotas» o díselo por el chat. ' : ''}
       ${cli ? (max > 0
         ? `Su garantía ganada le alcanza para <b>${COP(max)}</b>${
             pidio > max ? ' — <b>menos de lo que pidió</b>.' : '.'}`

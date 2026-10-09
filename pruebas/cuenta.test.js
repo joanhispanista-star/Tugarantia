@@ -153,7 +153,11 @@ describe('el formulario de vinculación', () => {
     assert.ok(r.faltan.length > 5);
     assert.ok(r.faltan.every(f => f.etiqueta), 'el que falta se nombra como lo ve el socio');
     assert.equal(r.faltan.some(f => f.id === 'nombres'), false, 'ese sí lo puso');
-    assert.equal(r.faltan.some(f => f.id === 'correo'), false, 'el correo es opcional');
+    /* 8-oct-2026 — SE DIO VUELTA. Joan: «el correo es opcional, quiero que sea
+       un requisito». Ahora falta si no está, y la dirección es la que pasó a
+       opcional («no es necesario preguntar por la dirección»). */
+    assert.equal(r.faltan.some(f => f.id === 'correo'), true, 'el correo es obligatorio desde el 8-oct-2026');
+    assert.equal(r.faltan.some(f => f.id === 'direccion'), false, 'la dirección es opcional desde el 8-oct-2026');
   });
 
   test('caza un celular y un valor mal puestos, sin confundirlos con un vacío', () => {
@@ -168,7 +172,10 @@ describe('el formulario de vinculación', () => {
   test('un formulario completo pasa', () => {
     const d = {};
     U.CAMPOS.forEach(c => {
+      /* 8-oct-2026 — el correo, con forma de correo: desde que es obligatorio
+         se revisa que tenga @ y dominio, y «algo» ya no pasa. */
       d[c.id] = c.tipo === 'celular' ? '3001112233'
+              : c.tipo === 'correo'  ? 'ana@correo.com'
               : c.tipo === 'pesos'   ? '1500000'
               : c.tipo === 'opcion'  ? c.opciones[0]
               : c.tipo === 'fecha'   ? '2015-04-20'
@@ -346,8 +353,8 @@ describe('la cédula leída del código de barras (8-sep-2026)', () => {
   });
 
   test('un solo apellido y un solo nombre también', () => {
-    const r = U.leerCedulaPDF417(registro('1018447274', 'RUIZ', '', 'JOAN', '', 'M', '19950101', 'A-'));
-    assert.deepEqual({ d: r.documento, a: r.apellidos, n: r.nombres, s: r.sexo, f: r.nacimiento }, { d: '1018447274', a: 'RUIZ', n: 'JOAN', s: 'M', f: '1995-01-01' });
+    const r = U.leerCedulaPDF417(registro('1029384274', 'SUAREZ', '', 'LUIS', '', 'M', '19950101', 'A-'));
+    assert.deepEqual({ d: r.documento, a: r.apellidos, n: r.nombres, s: r.sexo, f: r.nacimiento }, { d: '1029384274', a: 'SUAREZ', n: 'LUIS', s: 'M', f: '1995-01-01' });
   });
 
   test('si los anchos no cuadran, lee por tokens; y si no hay documento, null', () => {

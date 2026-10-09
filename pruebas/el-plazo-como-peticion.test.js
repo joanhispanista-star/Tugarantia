@@ -46,21 +46,27 @@ describe('el cliente puede pedir otro plazo', () => {
   test('hay dónde escribirlo, al lado de la cifra libre', () => {
     const P = enElSimulador();
     const h = P.elems.lamina.innerHTML;
-    assert.match(h, /id="rPlazoLibre"/, 'no hay casilla para pedir otro plazo');
-    assert.match(h, /id="rMontoLibre"/, 'desapareció la casilla de la cifra libre');
+    /* 8-oct-2026 — EL PLAZO YA NO SE ESCRIBE APARTE: SE ESCOGE. Joan: «no me
+       dejó solicitar lo que yo quería ni el plazo que quería». La calculadora
+       del pedido deja escoger cualquier día, de mañana a un año, con el
+       deslizador, con atajos o con el calendario (csFecha), y esa FECHA viaja
+       en la solicitud (solicitar_a_la_medida, p_fecha_pago), no en una nota. */
+    assert.match(h, /id="csFecha"[^>]*type="date"|type="date"[^>]*id="csFecha"/, 'no hay dónde escoger el día de pago');
+    assert.match(h, /id="csDias"/, 'no hay deslizador del plazo');
+    assert.match(h, /id="csMontoLibre"/, 'desapareció la casilla de la cifra libre');
   });
 
   test('la ayuda dice lo que PASA, no que se lo dan', () => {
     const P = enElSimulador();
     const h = P.elems.lamina.innerHTML;
-    assert.match(h, /lo leemos con tu solicitud y te contestamos/i,
-      'no se dice qué pasa con lo que escriba');
-    /* La trampa: prometer el plazo. Hoy no hay producto detrás de 12 cuotas. */
+    /* 8-oct-2026 — lo que pasa con lo pedido, en la calculadora nueva: se le
+       contesta con una propuesta, y el costo se ve antes de aceptar. Ya no se
+       dice «de 3 a 6 cuotas»: el plazo es una petición y lo contesta Joan. */
+    assert.match(h, /El costo exacto te lo mandamos en la propuesta, antes de que aceptes nada/,
+      'no se dice qué pasa con lo que pide');
+    /* La trampa sigue siendo la misma: prometer el plazo. */
     assert.equal(/te lo damos|lo aprobamos|puedes pedir hasta \d+ cuotas/i.test(h), false,
       'la pantalla promete un plazo que no existe como producto');
-    /* Y dice cuál es el rango real, para que la petición sea informada. */
-    assert.match(h, /Hoy prestamos de 3 a 6 cuotas/,
-      'no se dice cuál es el plazo que de verdad se presta');
   });
 
   test('lo escrito viaja en la NOTA, no en el plazo que se registra', () => {

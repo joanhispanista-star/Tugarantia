@@ -222,12 +222,12 @@ describe('el cotejo se ve sin buscarlo, y de una sola cara', () => {
 
   test('el caso que importa se ve en la lista, sin abrir nada', () => {
     const h = { cotejo: { estado: 'no_cuadra', documento: 'cambiado',
-      visto: { documento_codigo: '1018447274', documento_escrito: '1018447999' } } };
+      visto: { documento_codigo: '1029384274', documento_escrito: '1029384999' } } };
     const t = chip(h);
     assert.match(t, /No cuadra/, 'el único caso accionable no se ve en la bandeja');
     assert.match(t, /chip mora/, 'no se pinta en ámbar, que es el color de «míralo»');
     /* Y el porqué, en el título: Joan tiene que poder decidir sin abrir. */
-    assert.match(t, /1018447274[\s\S]{0,40}1018447999/,
+    assert.match(t, /1029384274[\s\S]{0,40}1029384999/,
       'el distintivo no lleva los dos números, así que hay que abrir la ficha igual');
   });
 

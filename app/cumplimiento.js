@@ -97,7 +97,15 @@
     { id: 'foto_rostro', etiqueta: 'Foto de tu rostro',
       categoria: 'Fotos y videos · Fotos',
       obligatorio: false, proposito: 'Confirmar que la cédula es tuya.',
-      nota: 'Se guarda la FOTO y nada más. No se genera ni se almacena ninguna plantilla biométrica: el óvalo de la pantalla es un asistente de encuadre, no un verificador de identidad.' },
+      /* 8-oct-2026 — la selfie se toma sola con un detector de caras que corre
+         DENTRO del teléfono (app/rostro-en-vivo.js). Se dice, porque es verdad,
+         y se dice qué no hace: lo que mira no sale del teléfono ni se guarda. */
+      /* 8-oct-2026 (segunda vuelta) — decía «no se genera ninguna plantilla
+         biométrica», y sí se genera una, fuera del teléfono: la revisión del
+         registro (app/revision-fotos.js) saca de la selfie y de la cédula un
+         vector de 128 números en el computador de quien revisa, para el
+         parecido, y lo descarta al terminar. Lo que es verdad es eso, y se dice. */
+      nota: 'Se guarda la FOTO y nada más. En el teléfono no se genera ninguna plantilla biométrica: el óvalo es un asistente de encuadre, y para tomarla sola un detector de caras corre dentro del teléfono; dónde ve la cara no se guarda ni sale de él. Después, en el computador de quien revisa el registro, se saca de la foto una plantilla para medir el parecido con la cédula, y se descarta al terminar: no se guarda en ningún lado.' },
     /* 9-sep-2026 — las dos que entraron con el registro verificado del 8-sep y
        no se habían declarado. Sin estas filas, la ficha de Google decía que la
        app no recoge ubicación mientras la pedía en pantalla. */
@@ -108,7 +116,14 @@
     { id: 'datos_tecnicos', etiqueta: 'Tu dirección IP y tu aparato',
       categoria: 'Información de la app y rendimiento · Otros datos de la app',
       obligatorio: true, proposito: 'Reconocer un registro hecho desde el mismo aparato que otro, y detectar suplantación.',
-      nota: 'No los manda el teléfono —se falsifican en un segundo—: los lee el servidor de la propia petición. La IP dice la ciudad aproximada de la red, no tu casa.' },
+      /* 8-oct-2026 (segunda vuelta) — la IP ahora sale a un tercero, ipwho.is,
+         para la ciudad aproximada (la consulta el CRM, no el teléfono). Para
+         Google eso NO es «compartir» si quien la recibe es un proveedor de
+         servicio que la procesa por cuenta de la casa (una consulta y nada
+         más), y así queda `compartido: false`; pero la nota lo dice, para que
+         nadie conteste el formulario creyendo que la IP no sale de la casa. Si
+         un abogado lo lee distinto, se cambia aquí y la ficha se regenera. */
+      nota: 'No los manda el teléfono —se falsifican en un segundo—: los lee el servidor de la propia petición. La IP dice la ciudad aproximada de la red, no tu casa. Para saber esa ciudad, la herramienta del equipo (no el teléfono) consulta la IP en ipwho.is, un proveedor de servicio de geolocalización fuera de Colombia que solo recibe la IP; solo con quien aceptó la política del 8-oct-2026 o posterior.' },
     { id: 'historial_credito', etiqueta: 'Tus créditos y tus pagos',
       categoria: 'Información financiera · Historial de compras',
       obligatorio: true, proposito: 'Es tu historial: lo que pediste, lo que pagaste y cuándo.',
@@ -135,7 +150,7 @@
       return {
         id: d.id, etiqueta: d.etiqueta, categoria: d.categoria,
         obligatorio: d.obligatorio, proposito: d.proposito,
-        compartido: false, nota: d.nota
+        compartido: d.compartido === true, nota: d.nota
       };
     });
     return delFormulario.concat(extra);

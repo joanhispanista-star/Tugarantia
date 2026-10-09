@@ -78,7 +78,10 @@ describe('la puerta única en play/ (7-oct-2026)', () => {
     /* Lo que hace Joan con el recado es «🔑 Darle una clave nueva» desde el CRM. */
     const P = abrirPlay({});
     const h = P.ev('pasoEntrada()');
-    assert.match(h, /Tiene que tener WhatsApp: si olvidas la contraseña, por ahí te mandamos una nueva\./);
+    /* 8-oct-2026 — la línea «Tiene que tener WhatsApp: si olvidas la
+       contraseña, por ahí te mandamos una nueva» se fue con los demás
+       comentarios de las preguntas (Joan: «no son necesarios»). Lo que esta
+       prueba cuida sigue en pie: el paso del celular no promete ningún código. */
     assert.ok(!/c(o|ó)digo/i.test(h), 'el paso del celular volvió a prometer un código');
   });
 });
@@ -103,7 +106,9 @@ describe('la revisión de play/ (7-oct-2026, tercera vuelta)', () => {
     P.ev('pintarRegistro(0)');
     P.ev("$('rTel').value='3001112233'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x';");
     P.ev('siguientePaso()');
-    P.ev("REGISTRO = Object.assign(REGISTRO, { nombres:'Ana', apellidos:'Ruiz', tipo_doc:'Cédula de ciudadanía', documento:'123456', expedicion:'2010-01-01', celular:'3001112233', ciudad:'Bogotá', barrio:'Centro', direccion:'Calle 1', tipo_vivienda:'Arriendo', anos_direccion:'Más de 5 años', ocupacion:'Empleado', ingreso_mes:'2000000', gastos_mes:'800000', dia_pago:'Quincenal (15 y 30)', ref1_nombre:'Luz', ref1_parentesco:'Hermana', ref1_celular:'3002223344', ref2_nombre:'Juan', ref2_parentesco:'Amigo', ref2_celular:'3004445566' }); guardarBorrador(REGISTRO);");
+    /* 8-oct-2026 — con correo: desde que es obligatorio (pedido de Joan), un registro
+       sin él se queda en «nos falta tu correo» y esta prueba no llegaría a lo que mide. */
+    P.ev("REGISTRO = Object.assign(REGISTRO, { nombres:'Ana', apellidos:'Ruiz', tipo_doc:'Cédula de ciudadanía', documento:'123456', expedicion:'2010-01-01', celular:'3001112233', correo:'ana@correo.com', ciudad:'Bogotá', barrio:'Centro', direccion:'Calle 1', tipo_vivienda:'Arriendo', anos_direccion:'Más de 5 años', ocupacion:'Empleado', ingreso_mes:'2000000', gastos_mes:'800000', dia_pago:'Quincenal (15 y 30)', ref1_nombre:'Luz', ref1_parentesco:'Hermana', ref1_celular:'3002223344', ref2_nombre:'Juan', ref2_parentesco:'Amigo', ref2_celular:'3004445566' }); guardarBorrador(REGISTRO);");
     P.ev('pintarRegistro(8)');
     P.ev("$('autGeneral').checked = true; $('autSensible').checked = true;");
   }
@@ -196,7 +201,11 @@ describe('la revisión de play/ (7-oct-2026, tercera vuelta)', () => {
     P.ev('pintarRegistrado()');
     const h = P.elems.cuerpo.innerHTML;
     assert.match(h, /pedirPrimerCredito\(\)/, 'el nuevo tiene que poder pedir de una');
-    assert.match(h, /<b>¿Ya eras cliente nuestro\?<\/b> Esta propuesta es la de cliente nuevo: mejor espera a que juntemos tu historial con esta cuenta\. Te avisamos por el chat cuando esté\./);
+    /* 8-oct-2026 — ya no hay «propuesta de cliente nuevo» al instante: el
+       cliente pide lo que quiere y Joan propone. La frase dice ahora cómo se le
+       va a responder si pide ya; lo que se cuida es lo mismo: al antiguo se le
+       avisa que le conviene esperar a que juntemos su historial. */
+    assert.match(h, /<b>¿Ya eras cliente nuestro\?<\/b> Si pides ahora, te respondemos como a un cliente nuevo: mejor espera a que juntemos tu historial con esta cuenta\. Te avisamos por el chat cuando esté\./);
   });
 
   test('con sesión, el crédito con garantía no le dice «Abre tu cuenta» a quien ya la abrió', () => {

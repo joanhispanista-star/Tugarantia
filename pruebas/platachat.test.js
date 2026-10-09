@@ -77,7 +77,17 @@ const RPC_OBLIGATORIAS = ['mi_cuenta', 'chat_leer_sesion', 'chat_escribir_sesion
    sitio es un `undefined` que no revienta al cargar y sí al tocar la
    pantalla. (15-sep: entra ../app/ficha.js justo después del motor, y con él
    la página deja de copiar la aritmética de la ficha.) */
-const SCRIPTS_EN_ORDEN = ['../app/motor.js', '../app/ficha.js', '../app/puente.js', '../app/cuenta.js', '../app/chat.js',
+/* 8-oct-2026 — NUEVE: entra app/calculadora-solicitud.js detrás de cuenta.js
+   (las condiciones de cada propuesta y la casilla «Leí y acepto las
+   condiciones de este crédito», las mismas de play/). Va después de cuenta.js
+   porque de ahí toma cómo escribir los pesos, y del motor la garantía. */
+/* 8-oct-2026 (segunda vuelta) — DIEZ: entra app/creditos.js antes de la
+   calculadora. Las condiciones de cada propuesta dicen ahora el recargo por
+   atraso en pesos por día con el techo legal (la tasa de usura del mes), y la
+   tabla de usura vive en creditos.js. Sin él, PlataChat decía el techo en
+   palabras y play/ en pesos: dos clientes, dos condiciones distintas. */
+const SCRIPTS_EN_ORDEN = ['../app/motor.js', '../app/ficha.js', '../app/puente.js', '../app/cuenta.js',
+                          '../app/creditos.js', '../app/calculadora-solicitud.js', '../app/chat.js',
                           '../app/platachat-reglas.js', '../app/pagos-proveedor.js', 'sesion.js'];
 
 
@@ -229,8 +239,9 @@ describe('PlataChat: lo que carga y en qué orden', () => {
     assert.match(PAGINA, /<link rel="manifest" href="app.webmanifest">/);
     assert.match(PAGINA, /<meta name="theme-color" content="#0C0A0B">/);
     assert.match(PAGINA, /navigator\.serviceWorker\.register\('\.\.\/sw\.js'\)/);
-    /* 7-oct-2026 — sube con la puerta única (sin la caja del código en Yo). */
-    assert.match(PAGINA, /var VERSION_APP = '2026-10-07'/);
+    /* 7-oct-2026 — sube con la puerta única (sin la caja del código en Yo).
+       8-oct-2026 — y con las condiciones de cada propuesta. */
+    assert.match(PAGINA, /var VERSION_APP = '2026-10-08'/);
   });
 
   test('la guarda de HTTPS es lo PRIMERO que corre, antes que cualquier lectura del almacén', () => {
@@ -400,7 +411,7 @@ describe('PlataChat: la página pintando de verdad', () => {
   test('el banco carga los ocho archivos y los ocho dejan su global', () => {
     const P = abrirPlataChat();
     assert.deepEqual(P.srcs, SCRIPTS_EN_ORDEN);
-    ['MotorReglas', 'FichaSocio', 'PuenteTuGarantia', 'CuentaSocio', 'ChatTuGarantia', 'PlataChatReglas', 'PagosProveedor', 'SesionPlataChat']
+    ['MotorReglas', 'FichaSocio', 'PuenteTuGarantia', 'CuentaSocio', 'CalculadoraSolicitud', 'ChatTuGarantia', 'PlataChatReglas', 'PagosProveedor', 'SesionPlataChat']
       .forEach(g => assert.equal(typeof P.ctx[g], 'object', g + ' no quedó en window'));
   });
 
@@ -1453,7 +1464,10 @@ describe('PlataChat: el manifiesto y el envoltorio de Android', () => {
     const t = sinComentarios(leer('descargas/platachat.html'));
     const apks = [...t.matchAll(/href="([^"]*\.apk)"/g)].map(m => m[1]);
     apks.forEach(a => assert.ok(existe(path.join('descargas', a)), 'enlaza ' + a + ' y no existe: un botón de descarga muerto'));
-    assert.match(t, /<button class="btn btn-quieto" type="button" disabled aria-disabled="true">[\s\S]*?El instalador para Android llega cuando Joan lo publique/);
+    /* 8-oct-2026 — decía «cuando Joan lo publique». El nombre del fundador salió
+       de toda página que lee el cliente (pedido suyo): la frase es la misma, en
+       la voz del negocio. */
+    assert.match(t, /<button class="btn btn-quieto" type="button" disabled aria-disabled="true">[\s\S]*?El instalador para Android llega cuando lo publiquemos/);
     assert.match(t, /href="\.\.\/platachat\/"/, 'no lleva a la app publicada');
     assert.match(t, /Añadir a pantalla de inicio/, 'no explica cómo instalarla hoy desde Chrome');
     /* Los enlaces relativos que sí promete, existen. */
