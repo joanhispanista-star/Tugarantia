@@ -9287,7 +9287,13 @@ describe('LOS DOCUMENTOS LEGALES IDENTIFICAN AL RESPONSABLE (27-ago-2026)', () =
        verdad se puedan ejercer los derechos, y el correo lo es. Así que esto
        deja de comprobar que el número esté y pasa a comprobar las dos cosas
        que sí importan: que no esté, y que siga habiendo por dónde escribir. */
-    assert.ok(!/3\d{2}[\s.-]?\d{3}[\s.-]?\d{4}/.test(PRIV),
+    /* 9-oct-2026 — Joan dio el 324 537 4784 como el teléfono de NEXECO S.A.S.
+       (el Decreto 1377, art. 13, lo pide). Vale SOLO dentro de la fila
+       data-dato="telefono" del bloque de la empresa: un celular en cualquier
+       otra parte de la política sigue siendo un dato que se coló. */
+    const sinTelefonoDeLaEmpresa = PRIV.replace(/<dd data-dato="telefono"[^>]*>[\s\S]*?<\/dd>/, '')
+      .replace(/<!--[\s\S]*?-->/g, '');
+    assert.ok(!/3\d{2}[\s.-]?\d{3}[\s.-]?\d{4}/.test(sinTelefonoDeLaEmpresa),
       'volvió un celular a la política de privacidad, que está publicada en vivo');
     assert.ok(/chat de la app/i.test(PRIV),
       'la política quitó el número pero no nombró el canal que lo reemplaza: ' +
