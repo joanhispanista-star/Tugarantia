@@ -1672,7 +1672,11 @@
    techo del recargo de los creditos con condiciones), app/cumplimiento.js,
    app/socio.html, panel/crm.html y panel/revision.html. Sin subir la cache, un
    celular seguiria con la calculadora que publicaba precio y aceptando
-   propuestas sin constancia. */
+   propuestas sin constancia.
+   13-oct-2026, en la misma version (v136 no habia salido todavia): el rayo de
+   play/ rehecho. Joan: «se ve falso y no es continuo». Ahora es continuo (salta
+   0,9 px por fotograma contra 6,5), sale del dedo en cuatro rayos con la yema
+   encendida, chispas y una onda al tocar, y se ve tambien sobre fondo claro. */
 const CACHE = 'tugarantia-v136';
 const BASE = new URL('./', self.location).pathname;
 

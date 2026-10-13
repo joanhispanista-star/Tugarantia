@@ -52,17 +52,28 @@ const VIVO = PLAY.replace(/\/\*[\s\S]*?\*\//g, ' ');
  * ------------------------------------------------------------------------ */
 function abrirPlay(opciones) {
   const o = opciones || {};
-  const trazos = [];
+  const trazos = [], rellenos = [];
+  /* 13-oct-2026 — el lienzo de mentiras aprendió lo que el de verdad ya tenía:
+     degradados, círculos, relleno y el modo de mezcla. El rayo nuevo los usa
+     para el núcleo de la yema y la onda del toque. `romper` hace reventar el
+     trazo, que es como se prueba que un dibujo roto apaga solo el adorno. */
   const ctx2d = {
-    _lw: 1, _ss: '',
+    _lw: 1, _ss: '', _gco: 'source-over',
     set lineWidth(v) { this._lw = v; }, get lineWidth() { return this._lw; },
     set strokeStyle(v) { this._ss = v; }, get strokeStyle() { return this._ss; },
-    lineCap: '', lineJoin: '',
+    set globalCompositeOperation(v) { this._gco = v; }, get globalCompositeOperation() { return this._gco; },
+    lineCap: '', lineJoin: '', fillStyle: '', globalAlpha: 1,
     save() {}, restore() {}, setTransform() {}, clearRect() {},
     beginPath() { this._pts = 0; },
     moveTo() { this._pts = 1; },
     lineTo() { this._pts++; },
-    stroke() { trazos.push({ puntos: this._pts, ancho: this._lw, color: this._ss }); }
+    arc() { this._pts++; },
+    createRadialGradient() { return { paradas: [], addColorStop(p, c) { this.paradas.push(c); } }; },
+    fill() { rellenos.push(this.fillStyle); },
+    stroke() {
+      if (o.romper) throw new Error('el lienzo reventó');
+      trazos.push({ puntos: this._pts, ancho: this._lw, color: this._ss, mezcla: this._gco });
+    }
   };
   const elems = {};
   const elem = id => (elems[id] = elems[id] || {
@@ -102,7 +113,8 @@ function abrirPlay(opciones) {
     requestAnimationFrame: f => { cola.push(f); return cola.length; },
     cancelAnimationFrame() {},
     /* El interruptor de «no quiero movimiento», que una prueba enciende. */
-    matchMedia: q => ({ matches: !!o.sinMovimiento && /reduced-motion/.test(q), addEventListener() {} }),
+    matchMedia: q => ({ matches: (!!o.sinMovimiento && /reduced-motion/.test(q)) ||
+                                 (!!o.oscuro && /prefers-color-scheme:\s*dark/.test(q)), addEventListener() {} }),
     /* `== null` y no `||`: una prueba necesita poder pedir ancho CERO —es el
        caso de la pestaña que todavía no se muestra— y con `||` el cero se caía
        al valor por defecto, así que esa prueba no probaba nada. */
@@ -146,7 +158,7 @@ function abrirPlay(opciones) {
     }
     return n;
   };
-  return { ev, tocar, pisar, trazos, elems, cola, reloj: () => reloj };
+  return { ev, tocar, pisar, trazos, rellenos, elems, cola, reloj: () => reloj };
 }
 
 describe('el rayo: corto, ramificado, y vivo mientras el dedo esté puesto', () => {
@@ -388,5 +400,155 @@ describe('el rayo: corto, ramificado, y vivo mientras el dedo esté puesto', () 
     /* Y cuando la pestaña por fin se muestra, se recupera solo. */
     P.ev('window.innerWidth = 390; window.innerHeight = 780;');
     assert.equal(P.ev('medirLienzo()'), true, 'no se recupera cuando la pestaña aparece');
+  });
+});
+
+/* ----------------------------------------------------------------------------
+ * 13-oct-2026 — Joan: «se ve un poco falso y no es continuo; quiero que siempre
+ * que toco la pantalla sea como si mi dedo expulsara energía».
+ *
+ * Lo falso tenía números. El camino se sorteaba entero en cada fotograma y cada
+ * punto saltaba en promedio 6,5 px de un fotograma al siguiente (el 8% del
+ * largo): eso se lee como ruido que parpadea, no como un rayo que se mueve. Y
+ * era un solo hilo hacia un lado, sin nada en la yema. Estas pruebas miden lo
+ * que se pidió: que sea continuo, que salga del dedo hacia todos lados, que un
+ * toque corto también descargue, y que se vea sobre el fondo claro.
+ * ------------------------------------------------------------------------- */
+describe('13-oct: la energía sale del dedo, y es continua', () => {
+
+  const caminos = P => JSON.parse(P.ev(
+    'JSON.stringify(RAYOS.vivos[0].hilos.map(function (h) { return h.camino; }))'));
+
+  test('CONTINUO: de un fotograma al siguiente el rayo es el mismo, retorciéndose', () => {
+    const P = abrirPlay();
+    P.ev('iniciarRayos()');
+    P.tocar('pointerdown', 195, 390);
+    P.pisar(20);                                 // ya terminó de salir disparado
+    const L = P.ev('RAYOS.vivos[0].largo');
+    let antes = caminos(P), suma = 0, n = 0;
+    for (let k = 0; k < 40; k++) {
+      P.pisar(1);
+      const ahora = caminos(P);
+      ahora.forEach((c, j) => c.forEach((p, i) => {
+        suma += Math.hypot(p.x - antes[j][i].x, p.y - antes[j][i].y); n++;
+      }));
+      antes = ahora;
+    }
+    const salto = suma / n;
+    assert.ok(salto < L * 0.04,
+      'cada punto salta ' + salto.toFixed(2) + ' px por fotograma (' + (salto / L * 100).toFixed(1) +
+      '% del largo): así se ve como ruido. El del 16-sep saltaba 6,5 px, el 8%');
+    /* Y continuo no es quieto: lo que pidió el 16-sep sigue valiendo. */
+    assert.ok(salto > 0.3, 'el rayo quedó quieto (' + salto.toFixed(2) + ' px por fotograma)');
+  });
+
+  test('SALE DEL DEDO HACIA TODOS LADOS, con la yema encendida', () => {
+    const P = abrirPlay();
+    P.ev('iniciarRayos()');
+    P.tocar('pointerdown', 195, 390);
+    for (let k = 0; k < 6; k++) {
+      P.pisar(15);
+      const hilos = caminos(P);
+      assert.ok(hilos.length >= 3, 'del dedo salen ' + hilos.length + ' rayos: es un cable, no energía');
+      hilos.forEach(c => assert.deepEqual([c[0].x, c[0].y], [195, 390],
+        'un rayo no nace en la yema'));
+      /* Repartidos alrededor: ningún hueco entre dos rayos vecinos pasa de 150°. */
+      const angs = hilos.map(c => Math.atan2(c[c.length - 1].y - 390, c[c.length - 1].x - 195))
+        .sort((a, b) => a - b);
+      let hueco = angs[0] + 2 * Math.PI - angs[angs.length - 1];
+      for (let i = 1; i < angs.length; i++) hueco = Math.max(hueco, angs[i] - angs[i - 1]);
+      assert.ok(hueco < 2.62, 'los rayos se amontonaron hacia un lado: queda un hueco de ' +
+        Math.round(hueco * 180 / Math.PI) + '°');
+    }
+    assert.ok(P.rellenos.length > 0, 'la yema no se enciende: no hay núcleo en el dedo');
+  });
+
+  test('UN TOQUE RÁPIDO TAMBIÉN DESCARGA: onda, chispas y rayos que salen disparados', () => {
+    /* «Siempre que toco la pantalla»: el toque normal dura menos de un
+       fotograma. Antes, tocar y soltar dejaba un parpadeo de 90 ms. */
+    const P = abrirPlay();
+    P.ev('iniciarRayos()');
+    P.tocar('pointerdown', 195, 390);
+    P.tocar('pointerup', 195, 390);
+    assert.equal(P.ev('RAYOS.ondas.length'), 1, 'el toque no abre la onda');
+    assert.ok(P.ev('RAYOS.chispas.length') >= 16, 'el toque no suelta su ráfaga de chispas');
+    P.pisar(8);                                   // 128 ms después de soltar
+    P.trazos.length = 0;
+    P.pisar(1);
+    assert.ok(P.trazos.length >= 20,
+      'a los 130 ms de un toque corto ya casi no se ve nada (' + P.trazos.length + ' trazos)');
+    /* Los rayos llegaron a salir: no se quedaron en la yema. */
+    const lejos = caminos(P).map(c => Math.hypot(c[c.length - 1].x - 195, c[c.length - 1].y - 390));
+    assert.ok(Math.max.apply(null, lejos) > 40, 'los rayos de un toque corto no salieron de la yema');
+    /* Y se apaga entero, bucle incluido. */
+    P.pisar(60);
+    assert.equal(P.ev('RAYOS.vivos.length + RAYOS.chispas.length + RAYOS.ondas.length'), 0);
+    assert.equal(P.ev('RAYOS.corriendo'), false, 'el bucle sigue girando después de la descarga');
+  });
+
+  test('LAS CHISPAS TIENEN TOPE, aunque tres dedos se arrastren a toda velocidad', () => {
+    const P = abrirPlay();
+    P.ev('iniciarRayos()');
+    const tope = P.ev('RAYO_CHISPAS_MAX');
+    [1, 2, 3].forEach(id => P.tocar('pointerdown', 100 * id, 300, id));
+    for (let k = 0; k < 200; k++) {
+      [1, 2, 3].forEach(id => P.tocar('pointermove', 100 * id + (k % 2 ? 45 : -45), 300 + (k % 3) * 40, id));
+      P.pisar(1);
+      const n = P.ev('RAYOS.chispas.length');
+      assert.ok(n <= tope, 'en el fotograma ' + k + ' hay ' + n + ' chispas, el tope es ' + tope);
+    }
+    assert.ok(P.ev('RAYOS.chispas.length') > tope / 2, 'arrastrar el dedo no suelta chispas');
+    [1, 2, 3].forEach(id => P.tocar('pointerup', 0, 0, id));
+    P.pisar(60);
+    assert.equal(P.ev('RAYOS.chispas.length'), 0, 'quedaron chispas vivas un segundo después de soltar');
+    assert.equal(P.ev('RAYOS.corriendo'), false);
+  });
+
+  test('SE VE EN LOS DOS FONDOS: luz que se suma en oscuro, ámbar profundo en claro', () => {
+    const C = abrirPlay();
+    C.ev('iniciarRayos()');
+    C.tocar('pointerdown', 195, 390);
+    C.pisar(3);
+    assert.ok(!C.trazos.some(t => t.mezcla === 'lighter'),
+      'en el fondo claro las capas se suman como luz y se lavan contra la crema');
+    /* El halo, que es lo que da el contraste: en claro tiene que ser oscuro
+       (el verde bajo es lo que lo vuelve ámbar y no amarillo pálido). */
+    const halo = C.trazos.find(t => t.ancho >= 8).color.match(/\d+/g).map(Number);
+    assert.ok(halo[1] < 170, 'el halo sobre fondo claro es rgb(' + halo.slice(0, 3) +
+      '): demasiado pálido contra la crema, que era por lo que casi no se veía');
+
+    const O = abrirPlay({ oscuro: true });
+    O.ev('iniciarRayos()');
+    O.tocar('pointerdown', 195, 390);
+    O.pisar(3);
+    assert.ok(O.trazos.length && O.trazos.every(t => t.mezcla === 'lighter'),
+      'en el fondo oscuro las capas no se suman como luz');
+
+    /* Y la placa oscura de la calculadora dentro de la página clara, que es
+       donde más se toca: lo que manda es lo que hay bajo el dedo (letra clara =
+       fondo oscuro), no el modo del teléfono. Se vio en el navegador el 13-oct. */
+    const M = abrirPlay();
+    M.ev('iniciarRayos(); document.elementFromPoint = function () { return {}; };' +
+         'window.getComputedStyle = function () { return { color: "rgb(251, 247, 244)" }; };');
+    M.tocar('pointerdown', 195, 390);
+    M.pisar(3);
+    assert.ok(M.trazos.length && M.trazos.every(t => t.mezcla === 'lighter'),
+      'sobre la placa oscura de una página clara el rayo no brilla como luz');
+  });
+
+  test('SI EL DIBUJO REVIENTA, SE APAGA EL ADORNO Y NADA MÁS', () => {
+    /* Un navegador raro que no sabe dibujar algo no puede dejar un bucle girando
+       sin fin ni tumbar la página. */
+    const P = abrirPlay({ romper: true });
+    assert.ok(P.elems.cuerpo.innerHTML.length > 800, 'la página no se pintó');
+    P.ev('iniciarRayos()');
+    P.tocar('pointerdown', 195, 390);
+    P.pisar(3);
+    assert.equal(P.ev('RAYOS.corriendo'), false, 'el bucle sigue girando con el dibujo roto');
+    assert.equal(P.ev('RAYOS.vivos.length + RAYOS.chispas.length'), 0);
+    /* Y el siguiente toque vuelve a intentarlo sin colgarse. */
+    P.tocar('pointerdown', 100, 100, 2);
+    P.pisar(3);
+    assert.equal(P.ev('RAYOS.corriendo'), false);
   });
 });

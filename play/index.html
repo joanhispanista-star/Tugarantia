@@ -345,8 +345,10 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    cliente para saber si ya ve la versión sin la caja de «pega tu código».
    8-oct-2026 — sube otra vez: la calculadora del pedido (sin precio), las
    condiciones de cada propuesta con su casilla, el correo obligatorio, los
-   pesos con separadores y el acompañamiento sin pregunta. */
-var VERSION_PLAY = '2026-10-08';
+   pesos con separadores y el acompañamiento sin pregunta.
+   13-oct-2026 — sube por el rayo: continuo, saliendo del dedo hacia todos
+   lados, y visible también sobre fondo claro. */
+var VERSION_PLAY = '2026-10-13';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -5170,53 +5172,64 @@ function instalarPlay() {
 }
 
 /* -------------------------------------------------------------------------
- * EL RAYO — rehecho el 16-sep-2026
+ * EL RAYO — rehecho el 16-sep-2026, y otra vez el 13-oct-2026
  *
- * Joan: «mejora el rayo, que no llegue tan lejos pero que se vea más
- * ramificado, y que sea un movimiento más constante y que se siga moviendo
- * mientras tocamos la pantalla».
+ * 16-sep — Joan: «que no llegue tan lejos pero que se vea más ramificado, y
+ * que sea un movimiento más constante y que se siga moviendo mientras tocamos
+ * la pantalla». De ahí salieron el alcance corto (LARGO), las ramas con ramas
+ * y el rayo que vive mientras el dedo está puesto. Todo eso sigue.
  *
- * LO QUE HABÍA Y POR QUÉ NO SERVÍA. El rayo era una cabeza que CAMINABA: un
- * punto por fotograma, con la dirección desviándose al azar. Eso trae tres
- * cosas que Joan notó y tenía razón:
- *   · llegaba lejísimos —veintiséis pasos de hasta 38px son media pantalla— y
- *     el dibujo terminaba siendo un garabato largo en vez de un rayo;
- *   · casi no se ramificaba, porque las ramas salían de un sorteo por paso y
- *     eran tres rayitas de 12px;
- *   · y no se movía: crecía una vez, se quedaba quieto, y se apagaba. Un rayo
- *     de verdad NO se queda quieto — vibra mientras dura.
+ * 13-oct — Joan: «se ve un poco falso y no es continuo; quiero que siempre que
+ * toco la pantalla sea como si mi dedo expulsara energía».
  *
- * CÓMO ESTÁ HECHO AHORA, y es otro algoritmo. El rayo ya no camina: se tiende
- * entre dos puntos —el dedo y un destino cerca— y el camino entre ellos se
- * REGENERA en cada fotograma por desplazamiento del punto medio, que es la
- * forma clásica de dibujar un relámpago. De ahí salen las tres cosas de una:
- *   · el alcance es un número y se acabó (LARGO), en vez de la suma de veinte
- *     pasos al azar;
- *   · la ramificación es natural: las ramas se tienden igual que el tronco y
- *     pueden tener sus propias ramas;
- *   · y el movimiento constante sale gratis, porque el camino se vuelve a
- *     sortear: es el mismo rayo temblando, no uno nuevo cada vez.
+ * POR QUÉ SE VEÍA FALSO. Eran tres cosas, y las tres se pueden medir:
+ *   · SE SORTEABA ENTERO EN CADA FOTOGRAMA. El camino se volvía a tirar al azar
+ *     sesenta veces por segundo: cada punto saltaba en promedio 6,5 px de un
+ *     fotograma al siguiente, el 8% del largo. El ojo no lee eso como un rayo
+ *     que se mueve sino como ruido que parpadea. Ese era el «no es continuo».
+ *   · ERA UN SOLO HILO hacia un lado, y en el dedo no había nada. No salía
+ *     energía del dedo: salía un cable desde ahí.
+ *   · SOBRE EL FONDO CLARO CASI NO SE VEÍA: dorado pálido con el centro casi
+ *     blanco, encima de crema.
  *
- * MIENTRAS EL DEDO ESTÁ PUESTO, EL RAYO VIVE. Nace en pointerdown, sigue al
- * dedo en pointermove, y solo empieza a apagarse cuando se levanta. Cada dedo
- * tiene el suyo, por su pointerId.
+ * CÓMO ES AHORA:
+ *   · CONTINUO. Cada desvío del camino es un número que se GUARDA y que camina
+ *     despacio hacia un objetivo que cambia cada décima de segundo; encima va un
+ *     chisporroteo fino que no se guarda. Es el mismo rayo de un fotograma al
+ *     otro, retorciéndose, y no uno nuevo cada vez. pruebas/rayo.test.js mide el
+ *     salto por fotograma para que no vuelva el parpadeo.
+ *   · ENERGÍA QUE SALE DEL DEDO. Un núcleo que late en la yema, cuatro rayos
+ *     que salen hacia afuera y giran despacio, como en una bola de plasma, y
+ *     chispas que salen disparadas y se frenan. Al tocar hay un golpe: los
+ *     rayos salen disparados desde la yema, se abre una onda y sale una ráfaga
+ *     de chispas. Al soltar, una última descarga. Un toque rápido también
+ *     descarga entero: no hace falta dejar el dedo para que se vea.
+ *   · SE VE EN LOS DOS FONDOS. En oscuro las capas se SUMAN como luz
+ *     ('lighter'); en claro van en ámbar profundo por fuera, para que el
+ *     dorado tenga contra qué brillar.
  *
- * LO QUE LO MANTIENE BARATO, que es la parte que importa en un celular de gama
- * baja —y es lo mismo que cuidaba la versión anterior—:
- *   · Un solo lienzo, y el bucle se APAGA cuando no queda ninguno vivo.
- *   · Máximo tres a la vez. El cuarto dedo no crea nada.
- *   · AUTODEGRADADO: se cronometran los primeros fotogramas y si este teléfono
- *     no da los 30 por segundo, el rayo baja a la mitad de detalle y regenera
- *     cada dos fotogramas en vez de cada uno. Un adorno no puede volver lenta
- *     una app de plata.
+ * MIENTRAS EL DEDO ESTÁ PUESTO, VIVE. Nace en pointerdown, sigue al dedo en
+ * pointermove, y solo se apaga cuando se levanta. Cada dedo tiene el suyo, por
+ * su pointerId.
+ *
+ * LO QUE LO MANTIENE BARATO, que es lo que importa en un celular de gama baja:
+ *   · Un solo lienzo, y el bucle se APAGA cuando no queda nada vivo: ni rayo,
+ *     ni chispa, ni onda.
+ *   · Máximo tres dedos a la vez, y un tope de chispas para toda la pantalla.
+ *   · AUTODEGRADADO: se cronometran los primeros fotogramas y, si este teléfono
+ *     no da los 30 por segundo, cada dedo saca dos rayos en vez de cuatro, con
+ *     menos detalle, ramas sin ramas y la mitad de chispas. Un adorno no puede
+ *     volver lenta una app de plata.
  *   · UN TOPE DE AGUANTE: por mucho que alguien deje el dedo puesto, a los seis
  *     segundos se apaga solo. Un adorno que corre indefinidamente porque un
  *     bolsillo aprieta la pantalla es batería regalada.
- *   · Sordo al tacto (pointer-events:none) y sin capturar el toque: jamás se
- *     queda con un toque que era para un botón.
+ *   · Sin shadowBlur: el brillo son trazos anchos y tenues debajo de los finos.
+ *   · Sordo al tacto (pointer-events:none): jamás se queda con un toque que era
+ *     para un botón.
+ *   · Y si algo del dibujo revienta, se apaga el adorno y nada más.
  * ----------------------------------------------------------------------- */
-var RAYOS = { lienzo: null, ctx: null, vivos: [], corriendo: false, dpr: 1,
-              medidos: 0, suma: 0, degradado: false, ultimo: 0 };
+var RAYOS = { lienzo: null, ctx: null, vivos: [], chispas: [], ondas: [], corriendo: false,
+              dpr: 1, medidos: 0, suma: 0, degradado: false, ultimo: 0, oscuro: false };
 
 /* EL ALCANCE. Joan pidió que no llegara tan lejos: es una fracción de la
    pantalla —para que se vea igual en un celular y en un computador— con un
@@ -5224,8 +5237,31 @@ var RAYOS = { lienzo: null, ctx: null, vivos: [], corriendo: false, dpr: 1,
    cruza el escritorio. */
 var RAYO_LARGO_FRAC = 0.20;
 var RAYO_LARGO_MAX = 190;
-var RAYO_AGUANTE = 6000;   // milisegundos con el dedo puesto, ver la cabecera
-var RAYO_APAGON = 320;     // lo que tarda en irse después de soltar
+var RAYO_AGUANTE = 6000;      // milisegundos con el dedo puesto, ver la cabecera
+var RAYO_APAGON = 420;        // lo que tarda en irse después de soltar
+var RAYO_HILOS = 4;           // rayos que salen de cada dedo (2 en un teléfono lento)
+var RAYO_NIVELES = 4;         // 17 puntos por rayo y 15 desvíos guardados
+var RAYO_CRECE = 120;         // lo que tardan los rayos en salir disparados al tocar
+var RAYO_CHISPAS_MAX = 48;    // para toda la pantalla, sumando los tres dedos
+var RAYO_CHISPA_VIDA = 420;   // lo que dura la chispa que más dura
+
+/* LOS COLORES, por fondo. Cada uno es «r,g,b» y la opacidad se pone al dibujar.
+   En claro el halo es ámbar oscuro a propósito: un halo dorado pálido sobre
+   crema no tiene contraste, y era lo que hacía que el rayo casi no se viera.
+   Y en claro el filamento es el dorado MÁS VIVO, no el más pálido: con el
+   centro pálido dentro de un borde ámbar, sobre blanco se leía como un tubo y
+   no como electricidad (visto en el navegador el 13-oct). */
+var PALETA_RAYO = {
+  oscuro: { halo: '245,197,66', medio: '255,210,90', centro: '255,250,235',
+            aHalo: 0.22, aMedio: 0.55, aCentro: 0.95,
+            n0: '255,252,240', n1: '255,214,102', n2: '245,197,66',
+            chispa0: '255,250,235', chispa1: '255,205,80' },
+  claro:  { halo: '214,120,0', medio: '240,150,0', centro: '255,176,20',
+            aHalo: 0.16, aMedio: 0.45, aCentro: 1,
+            n0: '255,200,60', n1: '245,150,0', n2: '214,120,0',
+            chispa0: '255,170,0', chispa1: '214,120,0' }
+};
+function rgbaRayo(c, a) { return 'rgba(' + c + ',' + Math.max(0, Math.min(1, a)).toFixed(3) + ')'; }
 
 function largoDeRayo() {
   var m = Math.min(window.innerWidth || 0, window.innerHeight || 0);
@@ -5263,9 +5299,11 @@ function iniciarRayos() {
     window.addEventListener(ev, function (e) { soltarRayo(e.pointerId); }, { passive: true });
   });
   /* Y si la pestaña se va a segundo plano con el dedo puesto, no vuelve nunca un
-     pointerup: se sueltan todos. */
+     pointerup: se sueltan todos, sin descarga, y las chispas se van con ellos. */
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden) RAYOS.vivos.forEach(function (r) { r.sujeto = false; });
+    if (!document.hidden) return;
+    RAYOS.vivos.forEach(function (r) { r.sujeto = false; });
+    RAYOS.chispas = []; RAYOS.ondas = [];
   });
 }
 /* Se vuelve a medir sola si hace falta, y no solo cuando el navegador avisa que
@@ -5288,25 +5326,80 @@ function medirLienzo() {
   return true;
 }
 
+/* EL FONDO SE MIRA DEBAJO DEL DEDO, en cada toque. No basta el modo del
+   teléfono: la página clara tiene partes oscuras —la placa de la calculadora,
+   que es justo donde más se toca—, y ahí el rayo tiene que brillar como luz.
+   Se mira el color de la LETRA bajo el dedo, que es más fiable que el del
+   fondo (la placa es un degradado y no tiene color de fondo): letra clara es
+   fondo oscuro. El lienzo no estorba: es sordo al tacto y elementFromPoint lo
+   salta. Si no se puede mirar, se usa el modo del teléfono. */
+function temaOscuroRayo(x, y) {
+  try {
+    var el = document.elementFromPoint && document.elementFromPoint(x, y);
+    var m = el && window.getComputedStyle && String(window.getComputedStyle(el).color).match(/[\d.]+/g);
+    if (m && m.length >= 3) {
+      return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255 > 0.6;
+    }
+  } catch (e) {}
+  try {
+    var t = document.documentElement && document.documentElement.getAttribute &&
+            document.documentElement.getAttribute('data-theme');
+    if (t === 'dark') return true;
+    if (t === 'light') return false;
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  } catch (e) { return false; }
+}
+
+function semillasRayo(n) {
+  var s = [];
+  for (var i = 0; i < n; i++) s.push(Math.random() - 0.5);
+  return s;
+}
+function sortearRayo(a) { for (var i = 0; i < a.length; i++) a[i] = Math.random() - 0.5; }
+function acercarRayo(sem, obj, k) { for (var i = 0; i < sem.length; i++) sem[i] += (obj[i] - sem[i]) * k; }
+
 function nacerRayo(x, y, id) {
   if (!RAYOS.ctx || RAYOS.vivos.length >= 3) return;
   /* Un dedo, un rayo. Sin esto, un `pointerdown` repetido del mismo dedo —pasa
      con algunos lápices y con el ratón arrastrando— dejaría dos pegados. */
   if (RAYOS.vivos.some(function (r) { return r.id === id; })) return;
+  RAYOS.oscuro = temaOscuroRayo(x, y);
   var L = largoDeRayo();
-  var a = Math.random() * Math.PI * 2;
+  var n = RAYOS.degradado ? 2 : RAYO_HILOS;
+  var hilos = [];
+  for (var i = 0; i < n; i++) hilos.push(nuevoHilo(i, n));
   RAYOS.vivos.push({
-    id: id, x: x, y: y,
-    /* El destino: a un largo del dedo, en una dirección cualquiera. */
-    dx: x + Math.cos(a) * L, dy: y + Math.sin(a) * L,
-    /* Y derivando despacio, que es lo que hace que el rayo se pasee en vez de
-       temblar en el sitio. */
-    va: (Math.random() - 0.5) * 0.06,
-    ang: a, largo: L,
-    sujeto: true, edad: 0, soltado: 0, alfa: 1,
-    camino: [], ramas: [], tic: 0
+    id: id, x: x, y: y, px: x, py: y,
+    /* Todos los rayos de un dedo giran juntos, despacio, y cada uno además se
+       mece por su cuenta: así se reparten alrededor de la yema y no se amontonan
+       hacia un lado. */
+    giro: Math.random() * Math.PI * 2,
+    vgiro: (Math.random() < 0.5 ? -1 : 1) * (0.0004 + Math.random() * 0.0005),
+    hilos: hilos, largo: L,
+    sujeto: true, edad: 0, soltado: 0, alfa: 1, destello: 1, acum: 0,
+    /* El primer rayo, el que leen las pruebas del 16-sep: su camino, sus ramas
+       y su punta. */
+    camino: [], ramas: [], dx: x, dy: y
   });
+  /* El golpe del toque: la onda que se abre y la ráfaga de chispas. */
+  RAYOS.ondas.push({ x: x, y: y, edad: 0, vida: 420, R: L * 0.8 });
+  soltarChispas(x, y, RAYOS.degradado ? 8 : 16, 0.42, null, 0);
   if (!RAYOS.corriendo) { RAYOS.corriendo = true; RAYOS.ultimo = 0; requestAnimationFrame(pasoRayos); }
+}
+
+function nuevoHilo(i, n) {
+  return {
+    /* Repartidos en círculo, con poco desorden: con más, dos rayos se juntan y
+       queda un hueco grande del otro lado. */
+    base: (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.3,
+    fase: Math.random() * Math.PI * 2, w: 0.0015 + Math.random() * 0.0015,
+    frac: 0.62 + Math.random() * 0.38,
+    sem: semillasRayo(Math.pow(2, RAYO_NIVELES) - 1),
+    obj: semillasRayo(Math.pow(2, RAYO_NIVELES) - 1), cambio: 0,
+    specs: ramasDeRayo(RAYOS.degradado ? 1 : 1 + Math.floor(Math.random() * 2), RAYOS.degradado ? 0 : 1),
+    rehace: 300 + Math.random() * 500, creceRamas: 1,
+    ang: 0, camino: [], ramas: [], dx: 0, dy: 0
+  };
 }
 
 function moverRayo(id, x, y) {
@@ -5318,26 +5411,51 @@ function moverRayo(id, x, y) {
 
 function soltarRayo(id) {
   for (var i = 0; i < RAYOS.vivos.length; i++) {
-    if (RAYOS.vivos[i].id === id) RAYOS.vivos[i].sujeto = false;
+    if (RAYOS.vivos[i].id === id && RAYOS.vivos[i].sujeto) descargarRayo(RAYOS.vivos[i]);
+  }
+}
+/* Al levantar el dedo, la última descarga: un destello y otra ráfaga. */
+function descargarRayo(r) {
+  r.sujeto = false; r.destello = 1;
+  soltarChispas(r.x, r.y, RAYOS.degradado ? 4 : 10, 0.5, null, 0);
+}
+
+/* LAS CHISPAS. Salen de la yema a toda velocidad y se frenan, como algo que se
+   suelta y no como algo que cae: no hay gravedad. `ang` null es en cualquier
+   dirección; con ángulo, salen por un abanico alrededor de él. */
+function soltarChispas(x, y, n, rapidez, ang, abanico) {
+  var tope = RAYOS.degradado ? RAYO_CHISPAS_MAX / 2 : RAYO_CHISPAS_MAX;
+  for (var i = 0; i < n && RAYOS.chispas.length < tope; i++) {
+    var a = ang == null ? Math.random() * Math.PI * 2 : ang + (Math.random() - 0.5) * abanico;
+    var v = rapidez * (0.45 + Math.random() * 0.75);
+    RAYOS.chispas.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, edad: 0,
+                         vida: 220 + Math.random() * (RAYO_CHISPA_VIDA - 220) });
   }
 }
 
 /* EL CAMINO, POR DESPLAZAMIENTO DEL PUNTO MEDIO. Se parte el segmento por la
-   mitad, se empuja ese punto medio de lado una cantidad al azar, y se repite
-   con las dos mitades empujando menos. Es la forma clásica de dibujar un
-   relámpago, y es barata: `niveles` duplica los puntos cada vuelta, así que
-   cuatro niveles son diecisiete puntos y no más. */
-function caminoRayo(x0, y0, x1, y1, desvio, niveles) {
-  var pts = [{ x: x0, y: y0 }, { x: x1, y: y1 }];
+   mitad, se empuja ese punto medio de lado, y se repite con las dos mitades
+   empujando menos. Es la forma clásica de dibujar un relámpago, y es barata:
+   cuatro niveles son diecisiete puntos y no más.
+   13-oct-2026 — CUÁNTO se empuja cada punto ya no se sortea aquí: viene en
+   `sem`, un desvío GUARDADO por punto, que es lo que hace que el rayo sea el
+   mismo de un fotograma al otro. `temblor` es el chisporroteo que va encima y
+   no se guarda; solo toca los niveles finos, para que el rayo crepite sin
+   saltar. Sin `sem` se sortea como antes. */
+function caminoRayo(x0, y0, x1, y1, desvio, niveles, sem, temblor) {
+  var pts = [{ x: x0, y: y0 }, { x: x1, y: y1 }], k = 0;
   for (var n = 0; n < niveles; n++) {
     var out = [];
     for (var i = 0; i < pts.length - 1; i++) {
       var a = pts[i], b = pts[i + 1];
       var ex = b.x - a.x, ey = b.y - a.y;
       var L = Math.sqrt(ex * ex + ey * ey) || 1;
+      var s = sem ? sem[k % sem.length] : (Math.random() - 0.5);
+      k++;
+      if (temblor && n >= 2) s += (Math.random() - 0.5) * temblor;
       /* La normal del segmento: se empuja de lado, nunca a lo largo. Empujar a
          lo largo haría que el rayo se doblara sobre sí mismo. */
-      var d = (Math.random() - 0.5) * desvio;
+      var d = s * desvio;
       out.push(a, { x: (a.x + b.x) / 2 - (ey / L) * d, y: (a.y + b.y) / 2 + (ex / L) * d });
     }
     out.push(pts[pts.length - 1]);
@@ -5347,26 +5465,20 @@ function caminoRayo(x0, y0, x1, y1, desvio, niveles) {
   return pts;
 }
 
-/* LAS RAMAS. Salen de un punto del tronco, en ángulo, y se tienden con el mismo
-   algoritmo — por eso se ven del mismo material que el tronco y no como rayitas
-   pegadas. Una rama puede tener su propia rama: eso es lo que da el aire
-   ramificado que Joan pidió, y se corta en `profundidad` para que no se vuelva
-   un árbol que come fotogramas. */
-function ramasDeRayo(pts, largo, cuantas, profundidad) {
+/* LAS RAMAS. Esta función decide CUÁNTAS y CÓMO son —de qué punto del tronco
+   salen, hacia qué lado, cuánto abren, qué tan largas—, y eso se guarda; el
+   dibujo de cada fotograma lo hace tenderRamas con lo guardado. Una rama puede
+   tener su propia rama: eso es lo que da el aire ramificado que Joan pidió, y
+   se corta en `profundidad` para que no se vuelva un árbol que come
+   fotogramas. */
+function ramasDeRayo(cuantas, profundidad) {
   var out = [];
-  if (pts.length < 4) return out;
   for (var k = 0; k < cuantas; k++) {
-    var i = 1 + Math.floor(Math.random() * (pts.length - 2));
-    var a = pts[i], b = pts[i + 1] || pts[i - 1];
-    var base = Math.atan2(b.y - a.y, b.x - a.x);
-    var ang = base + (Math.random() < 0.5 ? -1 : 1) * (0.45 + Math.random() * 0.75);
-    var L = largo * (0.20 + Math.random() * 0.32);
-    var camino = caminoRayo(a.x, a.y, a.x + Math.cos(ang) * L, a.y + Math.sin(ang) * L,
-                            L * 0.34, profundidad > 0 ? 3 : 2);
-    out.push({ pts: camino, nivel: profundidad });
-    if (profundidad > 0 && Math.random() < 0.65) {
-      out = out.concat(ramasDeRayo(camino, L, 1, profundidad - 1));
-    }
+    var s = { en: 0.2 + Math.random() * 0.55, lado: Math.random() < 0.5 ? -1 : 1,
+              abre: 0.45 + Math.random() * 0.7, frac: 0.25 + Math.random() * 0.3,
+              sem: semillasRayo(7), obj: semillasRayo(7), nivel: profundidad, hijas: [] };
+    if (profundidad > 0 && Math.random() < 0.65) s.hijas = ramasDeRayo(1, profundidad - 1);
+    out.push(s);
   }
   /* AL MENOS UNA RAMA DE RAMA, SIEMPRE — 15-sep-2026.
      Cada rama sorteaba por su cuenta si se ramificaba (0,65), asi que con dos
@@ -5380,25 +5492,73 @@ function ramasDeRayo(pts, largo, cuantas, profundidad) {
   if (profundidad > 0 && out.length) {
     var tieneHija = false;
     for (var q = 0; q < out.length; q++) {
-      if (out[q].nivel < profundidad) { tieneHija = true; break; }
+      if (out[q].hijas.length) { tieneHija = true; break; }
     }
-    if (!tieneHija) {
-      var madre = out[Math.floor(Math.random() * out.length)];
-      out = out.concat(ramasDeRayo(madre.pts, largo * 0.3, 1, profundidad - 1));
-    }
+    if (!tieneHija) out[Math.floor(Math.random() * out.length)].hijas = ramasDeRayo(1, profundidad - 1);
   }
   return out;
 }
 
-/* Rehace el rayo entero: el tronco y sus ramas. Se llama en cada fotograma
-   —o cada dos, en un teléfono lento— y eso es TODA la animación: el rayo no se
-   mueve, se vuelve a sortear. */
-function rehacerRayo(r) {
-  var niveles = RAYOS.degradado ? 3 : 4;
-  var cuantas = RAYOS.degradado ? 2 : (2 + Math.floor(Math.random() * 3));
-  var prof = RAYOS.degradado ? 0 : 1;
-  r.camino = caminoRayo(r.x, r.y, r.dx, r.dy, r.largo * 0.42, niveles);
-  r.ramas = ramasDeRayo(r.camino, r.largo, cuantas, prof);
+/* Tiende las ramas guardadas sobre el tronco de este fotograma. El ángulo sale
+   de la dirección del rayo entero y no del trocito de tronco de donde nace: el
+   trocito crepita, y la rama crepitaría con él de un lado al otro. */
+function tenderRamas(pts, specs, ang0, largo, crece, out) {
+  for (var k = 0; k < specs.length; k++) {
+    var s = specs[k];
+    var i = Math.max(1, Math.min(pts.length - 2, Math.round(s.en * (pts.length - 1))));
+    var a = pts[i];
+    var ang = ang0 + s.lado * s.abre;
+    var L = largo * s.frac * crece;
+    var camino = caminoRayo(a.x, a.y, a.x + Math.cos(ang) * L, a.y + Math.sin(ang) * L,
+                            L * 0.34, s.nivel > 0 ? 3 : 2, s.sem, 0.5);
+    out.push({ pts: camino, nivel: s.nivel });
+    if (s.hijas.length) tenderRamas(camino, s.hijas, ang, L, 1, out);
+  }
+  return out;
+}
+function moverSemillas(specs, k, nuevo) {
+  for (var i = 0; i < specs.length; i++) {
+    if (nuevo) sortearRayo(specs[i].obj);
+    acercarRayo(specs[i].sem, specs[i].obj, k);
+    moverSemillas(specs[i].hijas, k, nuevo);
+  }
+}
+
+/* Rehace los rayos de un dedo para este fotograma. Nada se sortea de cero: los
+   desvíos guardados caminan hacia su objetivo (`k` es cuánto del trecho se
+   anda en este fotograma, y depende del tiempo y no de cuántos fotogramas da
+   el teléfono), el objetivo cambia cada décima de segundo, y las ramas se
+   renuevan cada medio segundo creciendo desde el tronco. */
+function rehacerRayo(r, t, dt, W, H) {
+  var c = Math.min(1, r.edad / RAYO_CRECE);
+  var crece = 1 - (1 - c) * (1 - c) * (1 - c);     // sale disparado y frena
+  var k = 1 - Math.exp(-dt / 60);
+  var niveles = RAYOS.degradado ? 3 : RAYO_NIVELES;
+  r.giro += r.vgiro * dt;
+  for (var i = 0; i < r.hilos.length; i++) {
+    var h = r.hilos[i];
+    h.cambio -= dt;
+    var nuevo = h.cambio <= 0;
+    if (nuevo) { sortearRayo(h.obj); h.cambio = 70 + Math.random() * 110; }
+    acercarRayo(h.sem, h.obj, k);
+    moverSemillas(h.specs, k, nuevo);
+    h.rehace -= dt;
+    if (h.rehace <= 0) {
+      h.specs = ramasDeRayo(RAYOS.degradado ? 1 : 1 + Math.floor(Math.random() * 2), RAYOS.degradado ? 0 : 1);
+      h.creceRamas = 0; h.rehace = 350 + Math.random() * 550;
+    }
+    h.creceRamas = Math.min(1, h.creceRamas + dt / 90);
+    h.ang = r.giro + h.base + 0.25 * Math.sin(t * h.w + h.fase);
+    var L = r.largo * h.frac * (0.88 + 0.12 * Math.sin(t * h.w * 1.7 + h.fase * 2)) * crece;
+    /* Y no se sale de la pantalla: si la punta se iba fuera, medio rayo se
+       dibujaba donde nadie lo ve. */
+    h.dx = Math.max(6, Math.min(W - 6, r.x + Math.cos(h.ang) * L));
+    h.dy = Math.max(6, Math.min(H - 6, r.y + Math.sin(h.ang) * L));
+    h.camino = caminoRayo(r.x, r.y, h.dx, h.dy, Math.max(L, 8) * 0.42, niveles, h.sem, 0.35);
+    h.ramas = tenderRamas(h.camino, h.specs, h.ang, L, h.creceRamas, []);
+  }
+  var p = r.hilos[0];
+  r.camino = p.camino; r.ramas = p.ramas; r.dx = p.dx; r.dy = p.dy;
 }
 
 function pasoRayos(t) {
@@ -5414,67 +5574,138 @@ function pasoRayos(t) {
     if (RAYOS.medidos === 10 && (RAYOS.suma / 10) > 33) RAYOS.degradado = true;
   }
   RAYOS.ultimo = t;
+  /* Un fotograma que llega tarde —el teléfono se trabó un momento— no puede
+     mandar las chispas al otro lado de la pantalla de un salto. */
+  dt = Math.max(0, Math.min(50, dt));
 
   var W = window.innerWidth, H = window.innerHeight;
   ctx.clearRect(0, 0, W, H);
+  var P = RAYOS.oscuro ? PALETA_RAYO.oscuro : PALETA_RAYO.claro;
 
-  RAYOS.vivos = RAYOS.vivos.filter(function (r) {
-    r.edad += dt;
-    r.tic++;
+  try {
+    ctx.save();
+    ctx.globalCompositeOperation = RAYOS.oscuro ? 'lighter' : 'source-over';
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
-    if (r.sujeto) {
-      /* CON EL DEDO PUESTO NO ENVEJECE: solo el tope de aguante lo apaga. */
-      if (r.edad > RAYO_AGUANTE) r.sujeto = false;
-      r.alfa = Math.min(1, r.edad / 90);          // un encendido corto, no un salto
-    } else {
-      r.soltado += dt;
-      r.alfa = Math.max(0, 1 - r.soltado / RAYO_APAGON);
-      if (r.alfa <= 0) return false;
-    }
+    RAYOS.ondas = RAYOS.ondas.filter(function (o) {
+      o.edad += dt;
+      if (o.edad >= o.vida) return false;
+      dibujarOnda(ctx, o, P);
+      return true;
+    });
 
-    /* El destino se pasea alrededor del dedo, a un largo fijo. Que gire en vez
-       de saltar es lo que hace que el movimiento se lea como continuo. */
-    r.ang += r.va + (Math.random() - 0.5) * 0.05;
-    r.largo = largoDeRayo();
-    var dx = r.x + Math.cos(r.ang) * r.largo;
-    var dy = r.y + Math.sin(r.ang) * r.largo;
-    /* Y no se sale de la pantalla: si el destino se iba fuera, media rama se
-       dibujaba donde nadie la ve. */
-    r.dx = Math.max(6, Math.min(W - 6, dx));
-    r.dy = Math.max(6, Math.min(H - 6, dy));
+    RAYOS.vivos = RAYOS.vivos.filter(function (r) {
+      r.edad += dt;
+      if (r.sujeto) {
+        /* CON EL DEDO PUESTO NO SE APAGA: solo el tope de aguante lo suelta. */
+        if (r.edad > RAYO_AGUANTE) descargarRayo(r);
+        else r.alfa = 1;
+      }
+      if (!r.sujeto) {
+        r.soltado += dt;
+        r.alfa = Math.max(0, 1 - r.soltado / RAYO_APAGON);
+        if (r.alfa <= 0) return false;
+      }
+      r.largo = largoDeRayo();
+      r.destello = Math.max(0, r.destello - dt / 260);
 
-    /* Cada fotograma, o cada dos en un teléfono lento. */
-    if (!RAYOS.degradado || r.tic % 2 === 1) rehacerRayo(r);
-    if (r.camino.length) dibujarRayo(ctx, r, r.alfa);
-    return true;
-  });
+      /* Mientras el dedo está puesto, la yema suelta chispas sin parar, por el
+         lado de alguno de sus rayos; si el dedo se arrastra, suelta más. */
+      if (r.sujeto && dt > 0) {
+        var v = Math.sqrt((r.x - r.px) * (r.x - r.px) + (r.y - r.py) * (r.y - r.py)) / dt;
+        r.acum += dt * (0.03 + Math.min(0.12, v * 0.1)) * (RAYOS.degradado ? 0.5 : 1);
+        while (r.acum >= 1) {
+          r.acum -= 1;
+          var h = r.hilos[Math.floor(Math.random() * r.hilos.length)];
+          soltarChispas(r.x, r.y, 1, 0.38, h.ang, 0.9);
+        }
+      }
+      r.px = r.x; r.py = r.y;
 
-  if (RAYOS.vivos.length) requestAnimationFrame(pasoRayos);
+      rehacerRayo(r, t, dt, W, H);
+      dibujarRayo(ctx, r, r.alfa, t, P);
+      return true;
+    });
+
+    RAYOS.chispas = RAYOS.chispas.filter(function (c) {
+      c.edad += dt;
+      if (c.edad >= c.vida) return false;
+      var f = Math.exp(-dt / 240);
+      c.x += c.vx * dt; c.y += c.vy * dt; c.vx *= f; c.vy *= f;
+      var p = c.edad / c.vida;
+      /* Una estela corta hacia atrás: con la velocidad se alarga, y al frenarse
+         queda en un punto que se apaga. */
+      ctx.strokeStyle = rgbaRayo(p < 0.35 ? P.chispa0 : P.chispa1, (1 - p) * 0.95);
+      ctx.lineWidth = 1.7 - p * 0.9;
+      ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x - c.vx * 24, c.y - c.vy * 24); ctx.stroke();
+      return true;
+    });
+    ctx.restore();
+  } catch (e) {
+    /* Un adorno no puede apagar el negocio: si el dibujo revienta en un
+       navegador raro, se apaga el rayo y la página sigue como si nada. */
+    RAYOS.vivos = []; RAYOS.chispas = []; RAYOS.ondas = [];
+    try { ctx.restore(); ctx.clearRect(0, 0, W, H); } catch (e2) {}
+    RAYOS.corriendo = false;
+    if (window.console && console.warn) console.warn('el rayo se apagó:', e);
+    return;
+  }
+
+  if (RAYOS.vivos.length || RAYOS.chispas.length || RAYOS.ondas.length) requestAnimationFrame(pasoRayos);
   else { RAYOS.corriendo = false; ctx.clearRect(0, 0, W, H); }
 }
 
-function dibujarRayo(ctx, r, alfa) {
-  ctx.save();
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  /* Tres pasadas: un halo ancho y tenue, el filamento claro, y las ramas.
-     Sale más barato que un shadowBlur, que en Android recalcula el desenfoque
-     en cada fotograma — y con el camino regenerándose cada fotograma, ese coste
-     se pagaría sesenta veces por segundo. */
-  ctx.strokeStyle = 'rgba(245,197,66,' + (alfa * 0.20).toFixed(3) + ')';
-  ctx.lineWidth = 10; trazo(ctx, r.camino);
-  ctx.strokeStyle = 'rgba(255,240,200,' + (alfa * 0.95).toFixed(3) + ')';
-  ctx.lineWidth = 2; trazo(ctx, r.camino);
+function dibujarRayo(ctx, r, alfa, t, P) {
+  dibujarNucleo(ctx, r, alfa, t, P);
+  /* Tres pasadas por rayo: un halo ancho y tenue, un cuerpo de color y el
+     filamento claro del centro. Sale más barato que un shadowBlur, que en
+     Android recalcula el desenfoque en cada fotograma. El halo se ensancha un
+     instante con el destello del toque y del soltar. */
+  for (var i = 0; i < r.hilos.length; i++) {
+    var h = r.hilos[i];
+    if (h.camino.length < 2) continue;
+    ctx.strokeStyle = rgbaRayo(P.halo, alfa * P.aHalo);
+    ctx.lineWidth = 9 + 5 * r.destello; trazo(ctx, h.camino);
+    ctx.strokeStyle = rgbaRayo(P.medio, alfa * P.aMedio);
+    ctx.lineWidth = 3.4; trazo(ctx, h.camino);
+    ctx.strokeStyle = rgbaRayo(P.centro, alfa * P.aCentro);
+    ctx.lineWidth = 1.5; trazo(ctx, h.camino);
 
-  /* Las ramas, más finas y más apagadas cuanto más hondas: es lo que hace que
-     se lean como ramas y no como tres rayos encimados. */
-  for (var i = 0; i < r.ramas.length; i++) {
-    var b = r.ramas[i];
-    var f = b.nivel > 0 ? 1 : 0.6;
-    ctx.strokeStyle = 'rgba(245,197,66,' + (alfa * 0.60 * f).toFixed(3) + ')';
-    ctx.lineWidth = b.nivel > 0 ? 1.4 : 1;
-    trazo(ctx, b.pts);
+    /* Las ramas, más finas y más apagadas cuanto más hondas: es lo que hace que
+       se lean como ramas y no como rayos encimados. */
+    for (var j = 0; j < h.ramas.length; j++) {
+      var b = h.ramas[j];
+      if (b.nivel > 0) {
+        ctx.strokeStyle = rgbaRayo(P.medio, alfa * P.aMedio * 0.8);
+        ctx.lineWidth = 2.4; trazo(ctx, b.pts);
+      }
+      ctx.strokeStyle = rgbaRayo(b.nivel > 0 ? P.centro : P.medio, alfa * (b.nivel > 0 ? 0.85 : 0.6));
+      ctx.lineWidth = b.nivel > 0 ? 1.1 : 0.9; trazo(ctx, b.pts);
+    }
   }
-  ctx.restore();
+}
+
+/* EL NÚCLEO: la yema encendida. Late un poco —siete veces por segundo, apenas
+   un 20%— para que se lea como energía y no como un círculo pegado. Si el
+   navegador no tiene degradados en el lienzo, el rayo sale sin núcleo. */
+function dibujarNucleo(ctx, r, alfa, t, P) {
+  if (!ctx.createRadialGradient || !ctx.arc || !ctx.fill) return;
+  var R = (18 + 3.5 * Math.sin(t / 22) + 12 * r.destello) * (r.sujeto ? 1 : 0.6 + 0.4 * alfa);
+  var g = ctx.createRadialGradient(r.x, r.y, 0, r.x, r.y, R);
+  g.addColorStop(0, rgbaRayo(P.n0, alfa));
+  g.addColorStop(0.35, rgbaRayo(P.n1, alfa * 0.5));
+  g.addColorStop(1, rgbaRayo(P.n2, 0));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(r.x, r.y, R, 0, Math.PI * 2); ctx.fill();
+}
+
+/* LA ONDA del toque: un anillo que se abre rápido y se apaga. */
+function dibujarOnda(ctx, o, P) {
+  if (!ctx.arc) return;
+  var p = o.edad / o.vida, e = 1 - (1 - p) * (1 - p);
+  ctx.strokeStyle = rgbaRayo(P.medio, (1 - p) * 0.6);
+  ctx.lineWidth = 0.6 + 2.6 * (1 - p);
+  ctx.beginPath(); ctx.arc(o.x, o.y, Math.max(1, o.R * e), 0, Math.PI * 2); ctx.stroke();
 }
 function trazo(ctx, pts) {
   if (!pts || pts.length < 2) return;
