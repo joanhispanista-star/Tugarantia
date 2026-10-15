@@ -9444,15 +9444,103 @@ function confirmarCrearCuenta(id) {
     });
 }
 
+/* 15-oct-2026 — SE ACABÓ EL CALLEJÓN. Esta pantalla terminaba en «si no tienes
+   la contraseña de ahora, la única salida es que use otro celular», y así se
+   quedó Joan sin poder entrar como su gerente: la cuenta de Willian existía
+   desde el 10-sep y la clave que le «creó» después nunca se aplicó. Cambiar de
+   celular a quien tiene 497 prospectos a su nombre no es una salida.
+
+   La salida nueva NO es un botón de este CRM, y a propósito: lo que el CRM le
+   pide a la base viaja con la clave de sincronización, y 20261007c cerró que
+   con ella se pudiera cambiar la contraseña de alguien del equipo. Así que la
+   clave nueva se pone desde el editor SQL de Supabase, con la cuenta de
+   Supabase de Joan, llamando a equipo_poner_clave
+   (base/20261015c_clave_del_equipo.sql), que nadie de afuera puede llamar.
+
+   Y el CRM no se cree el «Listo» de palabra: este CRM no ve lo que contestó
+   Supabase, pero sí puede preguntarle a Supabase Auth si la clave sirve. Antes
+   de decir «Contraseña cambiada» entra con ella y, si entra, cierra al instante
+   esa sesión de prueba. La revisión del 15-oct lo encontró: sin esto, Joan
+   podía mandarle a su gerente una clave que no servía bajo un título que decía
+   que sí. La contraseña sigue sin guardarse: vive en esta ventana, atada a ESA
+   persona (_claveEnCurso), igual que en «Crear cuenta». */
+let _claveEnCurso = null;
+function editorSQLDeSupabase() {
+  const m = String((NUBE_EQUIPO && NUBE_EQUIPO.url) || '').match(/^https:\/\/([a-z0-9]+)\.supabase\.co/);
+  return m ? 'https://supabase.com/dashboard/project/' + m[1] + '/sql/new' : 'https://supabase.com/dashboard';
+}
+function lineaClaveEquipo(celular, clave) {
+  const lit = v => "'" + String(v).replace(/'/g, "''") + "'";
+  return 'select public.equipo_poner_clave(' + lit(celular) + ', ' + lit(clave) + ');';
+}
 function pantallaCuentaExiste(p, clave) {
+  /* El celular, igual que correoDeEquipo: los últimos diez dígitos. Así la línea
+     y la cuenta a la que después se entra para comprobar son la MISMA. */
+  const cel = String((p && p.celular) || '').replace(/\D/g, '').slice(-10);
+  _claveEnCurso = { id: String(p.id), clave: clave };
+  const linea = lineaClaveEquipo(cel, clave);
   openModal('Ya existe una cuenta con ese celular', `
-    <p class="sub">Puede ser porque ya se la creaste, o porque esta persona se registró
-      como cliente con el mismo número.</p>
-    <div class="aviso ambar">Para ponerle una contraseña nueva necesito la que tiene ahora.
-      Si no la tienes, la única salida es que use otro celular.</div>
+    <p class="sub">Con el celular <b>${escHTML(cel)}</b> ya hay una cuenta: se la creaste antes,
+      o esta persona se registró como cliente con ese número. Por eso la contraseña nueva
+      <b>no se aplicó</b>.</p>
+    <div class="sub-h">Si no sabes la contraseña que tiene ahora</div>
+    <p class="sub">Ponle una nueva desde Supabase, entrando con tu cuenta de Supabase. Desde aquí no se
+      puede, a propósito: así la clave de este CRM no sirve para cambiarle la contraseña a nadie del equipo.</p>
+    <ol class="sub" style="padding-left:20px;line-height:1.7">
+      <li><a href="${escHTML(editorSQLDeSupabase())}" target="_blank" rel="noopener">Abre el editor SQL de Supabase</a>.</li>
+      <li>Pega esta línea (ya lleva la contraseña nueva):
+        <div class="mono" id="ceLinea" style="margin:6px 0;padding:8px 10px;border-radius:8px;background:var(--fondo-2,#f3f1ec);overflow-wrap:anywhere">${escHTML(linea)}</div>
+        <button class="btn btn-ghost btn-sm" onclick="copiarLineaClave(this)">📋 Copiar la línea</button></li>
+      <li>Oprime <b>Run</b>. Tiene que decir «Listo». Si dice otra cosa, ese mensaje dice qué falta y no se cambió nada.
+        Después <b>borra la línea del editor</b>: lleva la contraseña, y Supabase guarda los borradores.
+        Si dice que <b>equipo_poner_clave</b> no existe, falta pegar primero <b>base/20261015c_clave_del_equipo.sql</b>.</li>
+    </ol>
+    <div class="muted" style="font-size:12.5px">Si esta persona también es cliente, es la misma cuenta: la contraseña nueva
+      también es la de su app de cliente.</div>
+    <div id="ceVerif"></div>
+    <button class="btn btn-rojo arriba" id="ceListo" onclick="claveListaEnSupabase('${escHTML(String(p.id))}')">Ya dijo «Listo»: comprobarla y entregársela</button>
+    <div class="sub-h" style="margin-top:22px">Si sí sabes la que tiene ahora</div>
     <div class="field"><label>Su contraseña de ahora</label>${campoConOjo('ceVieja', '')}</div>
     <div class="field"><label>La nueva</label><input id="ceNueva" value="${escHTML(clave)}"></div>
-    <button class="btn btn-rojo arriba" onclick="cambiarClave('${escHTML(p.id)}')">Cambiar la contraseña</button>`);
+    <button class="btn btn-ghost" onclick="cambiarClave('${escHTML(String(p.id))}')">Cambiar la contraseña aquí</button>`);
+}
+function copiarLineaClave(btn) {
+  const caja = document.getElementById('ceLinea');
+  const t = caja ? caja.textContent : '';
+  /* El patrón de la casa: si el navegador no deja copiar, se la deja a la mano. */
+  const aMano = () => prompt('Cópiala de aquí y pégala en el editor SQL:', t);
+  try {
+    navigator.clipboard.writeText(t).then(() => { if (btn) btn.textContent = '✓ Copiada'; }, aMano);
+  } catch (e) { aMano(); }
+}
+function claveListaEnSupabase(id) {
+  const p = personaDeEquipo(id); if (!p) return;
+  const enCurso = _claveEnCurso;
+  if (!enCurso || enCurso.id !== String(p.id)) {
+    return alert('Se perdió la contraseña de esta ventana. Vuelve a abrir «Crear cuenta» de esta persona.');
+  }
+  const caja = document.getElementById('ceVerif'), btn = document.getElementById('ceListo');
+  const decir = (html, tono) => { if (caja) caja.innerHTML = '<div class="aviso ' + (tono || 'info') + '" style="margin-top:12px">' + html + '</div>'; };
+  if (btn) { btn.disabled = true; btn.textContent = 'Comprobando con Supabase…'; }
+  authEquipo('/token?grant_type=password', { email: correoDeEquipo(p), password: enCurso.clave })
+    .then(res => {
+      if (!res.ok || !res.j || !res.j.access_token) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Ya dijo «Listo»: comprobarla y entregársela'; }
+        decir('<b>Supabase todavía no acepta esa contraseña.</b> ¿Pegaste la línea y le diste Run, y dijo «Listo»? ' +
+              'Si dijo otra cosa, ese mensaje dice qué falta. No le mandes nada a ' + escHTML(p.nombre) + ' todavía.', 'ambar');
+        return;
+      }
+      /* Entró: la clave sirve. Esa sesión era solo para comprobar, se cierra ya. */
+      authEquipo('/logout', {}, res.j.access_token).catch(() => {});
+      _claveEnCurso = null;
+      p.cuentaCreada = p.cuentaCreada || hoyISO();
+      guardar(); render();
+      pantallaEntregarCuenta(p, enCurso.clave, 'cambiada');
+    })
+    .catch(() => {
+      if (btn) { btn.disabled = false; btn.textContent = 'Ya dijo «Listo»: comprobarla y entregársela'; }
+      decir('No pude preguntarle a Supabase (¿sin señal?). Vuelve a intentar en un momento.', 'ambar');
+    });
 }
 
 /* Cambiar la contraseña sin la llave de servicio: se entra como esa persona

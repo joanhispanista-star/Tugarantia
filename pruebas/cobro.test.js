@@ -612,7 +612,13 @@ const { abrirPanel } = require('./banco-panel.js');
 describe('el precio de la prórroga se puede bajar a lo que Joan diga', () => {
 
   const conMora = () => {
-    const P = abrirPanel();
+    /* 15-oct-2026 — EL DÍA DEL ESCENARIO SE PASA. Todo este bloque vive el
+       18-sep (vence el 15, se cobra el 18: `_fechaCobro`), pero el CRM medía la
+       mora contra el reloj de verdad. A partir del 10-oct la mora acumulada ya
+       superaba los $50.000 de «por encima del precio», la prueba de abajo se
+       ponía roja sola y dejó el CI en rojo cinco días sin que nadie rompiera
+       nada. Con el reloj de la casa (pruebas/reloj.js) el escenario es el 18. */
+    const P = abrirPanel({ ahora: '2026-09-18T10:30:00' });
     P.ev(`DB.socios=[{id:'S1',nombre:'Prueba',telefono:'3001112233',nivel:1}];
           DB.prestamos=[{id:'C1',socioId:'S1',socioNombre:'Prueba',capital:200000,tasa:0.2,
                          fechaPago:'2026-09-15',cicloActual:'2026-09-15',estado:'activo',
