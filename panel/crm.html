@@ -1212,7 +1212,7 @@ const PLANTILLAS_DEF={
      actual. Va sin {enlace} a propósito: «Gestionar» no lo contesta y saldría
      vacío; los dos documentos están en el pie de la app. Al mandarla desde
      «Gestionar» queda anotada como contacto del día, igual que cualquier otra. */
-  cambioResponsable:{t:'Aviso · responsable de tus datos',x:'Una vez a cada cliente actual: desde el 8-oct-2026 sus datos los cuida NEXECO S.A.S.',m:'Hola {nombre} 🙂 Te escribimos para contarte un cambio sobre tus datos personales: desde el 8 de octubre de 2026, la responsable de tus datos es NEXECO S.A.S., la empresa que opera Tu Garantía. Tus derechos no cambian: cuando quieras puedes pedirnos qué tenemos tuyo, corregirlo o borrarlo, por el chat de la app. Ese mismo día actualizamos la política de datos y los términos: los encuentras en la app, abajo, en «Términos» y «Tus datos». Cualquier duda nos cuentas.'},
+  cambioResponsable:{t:'Aviso · responsable de tus datos',x:'Una vez a cada cliente actual: desde el 15-oct-2026 sus datos los cuida NEXECO S.A.S.',m:'Hola {nombre} 🙂 Te escribimos para contarte un cambio sobre tus datos personales: desde el 15 de octubre de 2026, la responsable de tus datos es NEXECO S.A.S., la empresa que opera Tu Garantía. Tus derechos no cambian: cuando quieras puedes pedirnos qué tenemos tuyo, corregirlo o borrarlo, por el chat de la app. Ese mismo día actualizamos la política de datos y los términos: los encuentras en la app, abajo, en «Términos» y «Tus datos». Cualquier duda nos cuentas.'},
 };
 /* La invitación de fábrica de antes del 7-oct, letra por letra: cargar() la
    reconoce en el disco y la cambia por la de hoy. */
@@ -8459,7 +8459,7 @@ function renderRegistros(){
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
       <td>${fmtFecha(String(r.creado_en||'').slice(0,10))}</td>
-      <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${r.telefono&&necesitaAvisoResponsable(r)?`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeAvisoResponsable(r)))}" title="Se registró con la política anterior: avísale que desde el 8-oct la responsable de sus datos es NEXECO S.A.S.">📣 Aviso de datos</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}${c0
+      <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${r.telefono&&necesitaAvisoResponsable(r)?`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeAvisoResponsable(r)))}" title="Se registró con la política anterior: avísale que desde el 15-oct la responsable de sus datos es NEXECO S.A.S.">📣 Aviso de datos</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}${c0
         /* 7-oct-2026 — EL TOQUE. Cuando el puente lo reconoce con fuerza
            (la misma cédula, o el mismo celular sin nada que lo contradiga),
            el primer botón es «¿Es la misma persona?»: abre la ficha, lo que

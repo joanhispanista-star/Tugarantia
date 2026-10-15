@@ -445,9 +445,11 @@ describe('4. la política dice lo nuevo, y es verdad', () => {
     assert.match(P, /fuera de Colombia/);
   });
 
-  test('dice qué cambió el 8 de octubre de 2026 y que el aviso llega por la app o por WhatsApp', () => {
+  test('dice qué cambió el 15 de octubre de 2026 y que el aviso llega por la app o por WhatsApp', () => {
     const s = visible((PRIV.match(/<section id="cambios">([\s\S]*?)<\/section>/) || [])[1] || '');
-    assert.match(s, /Lo que cambió el 8 de octubre de 2026/);
+    /* 15-oct-2026: la versión se escribió el 8 pero salió el 15, y la fecha que se
+       dice es la de salida (ver legal/privacidad.html). */
+    assert.match(s, /Lo que cambió el 15 de octubre de 2026/);
     assert.match(s, /NEXECO S\.A\.S\./);
     assert.match(s, /dentro de la app o por WhatsApp/);
   });

@@ -410,7 +410,12 @@
      S.A.S., correo obligatorio, ubicación aproximada por IP, selfie automática).
      El que se registra desde hoy queda constando que aceptó ESE texto, no el de
      agosto. pruebas/responsable-nexeco.test.js amarra las dos fechas. */
-  var VERSION_AUTORIZACION = '2026-10-08';
+  /* 15-oct-2026 — la fecha en que la política nueva SALIÓ al sitio. Es la regla
+     de esta casa: lo que se estampa al aceptar es la fecha que dice la política,
+     y la política dice el 15 porque el 15 fue cuando alguien pudo leerla. Las
+     comparaciones con '2026-10-08' (ubicacion-ip.js, crm.html) son «mayor o
+     igual» y siguen separando bien: la app vieja estampaba 2026-08-11. */
+  var VERSION_AUTORIZACION = '2026-10-15';
 
   /**
    * Guarda fecha, hora y VERSIÓN del texto aceptado. La versión es lo que

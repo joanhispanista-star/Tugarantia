@@ -200,8 +200,16 @@ describe('1. el teléfono: la calculadora, el registro y la cámara', () => {
     assert.equal(P.almacen['tg_aviso_responsable_20261008_3001112233'], '1', 'la llave no es la de app/socio.html');
     assert.equal(P.ev('avisoResponsablePlay()'), '');
     const Q = abrirPlay();
-    Q.ev("SESION = { access_token: 't', user: { email: '573001112233@tugarantia.net', created_at: '2026-10-09T10:00:00Z' } };");
+    Q.ev("SESION = { access_token: 't', user: { email: '573001112233@tugarantia.net', created_at: '2026-10-16T10:00:00Z' } };");
     assert.equal(Q.ev('avisoResponsablePlay()'), '', 'le avisó un «cambio» a quien abrió su cuenta con la política nueva');
+    /* 15-oct-2026 — Y A QUIEN ABRIÓ SU CUENTA ENTRE EL 8 Y EL 15, SÍ. La política
+       nueva se escribió el 8 pero salió el 15: esa semana la app en vivo hacía
+       aceptar la vieja. Con el corte en el 8, a ellos no se les avisaba nunca.
+       MUTANTE QUE CAZA: volver a poner `desde: '2026-10-08'`. */
+    const R = abrirPlay();
+    R.ev("SESION = { access_token: 't', user: { email: '573001112244@tugarantia.net', created_at: '2026-10-09T10:00:00Z' } };");
+    assert.match(R.ev('avisoResponsablePlay()'), /NEXECO S\.A\.S\./,
+      'a quien se registró del 9 al 15 (aceptando la política vieja) no se le avisó el cambio de responsable');
   });
 
   test('…y a PlataChat, arriba de todas las pestañas', () => {
@@ -224,7 +232,7 @@ describe('1. el teléfono: la calculadora, el registro y la cámara', () => {
     const P = abrirPlay();
     const i = leer('play/index.html').indexOf('var cuerpoRegistro = {');
     assert.match(leer('play/index.html').slice(i, i + 600), /autorizacion_version: autorizacion\.version/);
-    assert.equal(U.VERSION_AUTORIZACION, '2026-10-08');
+    assert.equal(U.VERSION_AUTORIZACION, '2026-10-15');   // 15-oct-2026: la fecha en que salió la política
     assert.ok(P);
   });
 });
@@ -436,8 +444,10 @@ describe('4. los textos: lo que se promete es lo que pasa', () => {
     assert.match(visible(TERM), /Estos términos ya no fijan un precio ni un plazo igual para todos/);
   });
 
-  test('los créditos de antes del 8-oct no cambian de manos en silencio', () => {
-    assert.match(visible(TERM), /Los créditos que recibiste antes del 8 de octubre de 2026 no cambian/);
+  test('los créditos de antes del 15-oct no cambian de manos en silencio', () => {
+    /* 15-oct-2026: el corte es el día en que los términos que nombran a NEXECO
+       salieron al sitio. Los créditos del 8 al 15 se aceptaron con los viejos. */
+    assert.match(visible(TERM), /Los créditos que recibiste antes del 15 de octubre de 2026 no cambian/);
     assert.ok(!/Quien presta y responde es/.test(visible(TERM)));
   });
 

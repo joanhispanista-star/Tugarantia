@@ -155,7 +155,9 @@ describe('y el tratamiento de datos está declarado (Ley 1581)', () => {
        obligatorio, ubicación aproximada por IP, selfie automática) y la fecha se
        movió con ella. Las tres filas de las fotos del chat siguen, y las vigilan
        las dos pruebas de arriba. */
-    assert.match(PRIV, /Última actualización: 8 de octubre de 2026/,
+    /* 15-oct-2026 — y otra vez: esa versión salió al sitio el 15, y la fecha que
+       dice es la de salida (ver legal/privacidad.html, punto 1). */
+    assert.match(PRIV, /Última actualización: 15 de octubre de 2026/,
       'se cambió la política y no se movió la fecha');
   });
 });

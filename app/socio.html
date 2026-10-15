@@ -3200,7 +3200,7 @@ function insignias() {
    de agosto vuelve a ver esta pantalla la próxima vez que complete su perfil: aceptó
    algo que ya no es lo que está publicado. pruebas/responsable-nexeco.test.js exige
    que esta fecha y la de legal/privacidad.html sean la misma. */
-var VERSION_AUTORIZACION = '2026-10-08';
+var VERSION_AUTORIZACION = '2026-10-15';   /* 15-oct-2026: la fecha en que salió la política (ver app/cuenta.js) */
 
 function llaveAutorizacion() { return 'tg_autorizacion_' + (S && S.cedula ? S.cedula : 'anon'); }
 
@@ -3218,7 +3218,9 @@ function llaveAutorizacion() { return 'tg_autorizacion_' + (S && S.cedula ? S.ce
    «Entendido» lo tocaría el equipo y el cliente no lo vería nunca.
    Si el teléfono no deja guardar (modo privado), se recuerda mientras la página
    siga abierta; volver a verlo en la próxima visita es un mal menor que no verlo. */
-var AVISO_RESPONSABLE = { desde: '2026-10-08', llave: 'tg_aviso_responsable_20261008_' };
+/* 15-oct-2026 — `desde` es lo que se le DICE al cliente («Desde el …»), y tiene
+   que ser el día en que la política nueva salió al sitio. La llave no cambia. */
+var AVISO_RESPONSABLE = { desde: '2026-10-15', llave: 'tg_aviso_responsable_20261008_' };
 var AVISO_RESPONSABLE_CERRADO = false;
 
 function llaveAvisoResponsable() { return AVISO_RESPONSABLE.llave + (S && S.cedula ? S.cedula : 'anon'); }
