@@ -1676,7 +1676,14 @@
    13-oct-2026, en la misma version (v136 no habia salido todavia): el rayo de
    play/ rehecho. Joan: «se ve falso y no es continuo». Ahora es continuo (salta
    0,9 px por fotograma contra 6,5), sale del dedo en cuatro rayos con la yema
-   encendida, chispas y una onda al tocar, y se ve tambien sobre fondo claro. */
+   encendida, chispas y una onda al tocar, y se ve tambien sobre fondo claro.
+   15-oct-2026, tambien en v136 (sigue sin salir): EL GERENTE VENDE. Joan
+   pidio que su gerente vea los registros de SU base (o los que Joan le
+   asigne) y venda dentro de unos topes. panel/gerente-vende.js (NUEVO, ENTRA A
+   LA LISTA: lo carga panel/crm.html con un <script src>) y panel/crm.html (la
+   pestana «Registros» del gerente, los topes en Ajustes, el 👤 de Registrados
+   y las filas del equipo que se desbordaban en el celular). Sin la cache
+   nueva, el gerente veria la pestana diciendo que falta el archivo. */
 const CACHE = 'tugarantia-v136';
 const BASE = new URL('./', self.location).pathname;
 
@@ -1722,6 +1729,8 @@ const ARCHIVOS = [
   'panel/historiales-auto.js',
   /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132. */
   'panel/una-puerta.js',
+  /* 15-oct-2026 — las reglas de la venta del gerente. Ver la nota de v136. */
+  'panel/gerente-vende.js',
   'panel/tanda.js',
   /* 2-oct-2026 — «Tu gente», los referidos del espejo. Ver la nota de v124. */
   'app/gente.js',

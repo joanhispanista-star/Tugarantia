@@ -387,6 +387,18 @@
   .calc.azul{background:var(--azul-tinte);border-color:var(--azul)}
   .calc-row{display:flex;justify-content:space-between;padding:4px 0;font-size:13.5px}.calc-row .v{font-family:'JetBrains Mono';font-weight:700}
   .info-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--linea);font-size:14px;gap:12px}.info-row .k{color:var(--gris);flex:none}.info-row .vv{text-align:right;word-break:break-word}
+  /* 15-oct-2026 — LAS FILAS DEL EQUIPO EN EL CELULAR. `.k` no se encoge
+     (flex:none), y en el equipo lleva el nombre, la plata y el consejo de la
+     etapa («Primera mora. Puedes ofrecer hasta 80%…»): en un celular esa
+     frase empujaba la fila hacia el lado y los botones quedaban fuera de la
+     pantalla, con barra horizontal. Visto en la vista de Willian. Solo dentro
+     del modo equipo (.wrapEq): el CRM de Joan usa .info-row para pares
+     etiqueta-valor y ahí está bien como está. */
+  .wrapEq .info-row{flex-wrap:wrap}
+  .wrapEq .info-row .k{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
+  .wrapEq .info-row .vv{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end}
+  .wrapEq .info-row .vv .btn{margin-left:0!important}
+  @media (max-width:560px){ .wrapEq .info-row .vv{flex:1 1 100%;justify-content:flex-start} }
   .alerta{border-radius:9px;padding:10px 13px;font-size:13px;margin-bottom:14px;line-height:1.45}
   .alerta.warn{background:var(--ambar-tinte);color:var(--ambar);border:1px solid var(--ambar-medio)}
   /* Lo que SALIO BIEN es verde. Se agrego el 15-sep-2026 con el envio de
@@ -805,6 +817,23 @@
         <div class="muted" id="cfgNuevoEstado" style="font-size:12px;margin-top:4px"></div>
         <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="guardarPoliticaNuevos()">Guardar en la nube</button>
 
+        <!-- 15-oct-2026 — LOS TOPES DE VENTA DEL EQUIPO. Joan decidió que la
+             propuesta del gerente le llegue al cliente directo, «dentro de tus
+             topes». Viven en la nube (topes_equipo) porque quien los hace
+             cumplir es la base, no esta pantalla. Sin topes el gerente no puede
+             proponer: cerrado por defecto. -->
+        <div class="sub-h">Topes de venta del gerente</div>
+        <div class="help">Hasta dónde puede proponer tu gerente sin preguntarte. Su propuesta le llega al cliente de una vez; el desembolso lo haces tú. La nube rechaza lo que se pase de aquí. El recargo por atraso lleva su techo legal en las condiciones de cada crédito.</div>
+        <div class="field"><label>Monto máximo</label><input type="number" inputmode="numeric" id="cfgTopeCap" min="10000" max="20000000"></div>
+        <div class="field"><label>Costo mínimo (%)</label><input type="number" inputmode="numeric" id="cfgTopePctMin" min="1" max="50"></div>
+        <div class="field"><label>Costo máximo (%)</label><input type="number" inputmode="numeric" id="cfgTopePctMax" min="1" max="50"></div>
+        <div class="field"><label>Días máximos para pagar</label><input type="number" inputmode="numeric" id="cfgTopeDias" min="1" max="60"></div>
+        <div class="muted" id="cfgTopeEstado" style="font-size:12px;margin-top:4px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn btn-ghost btn-sm" onclick="guardarTopesEquipo()">Guardar los topes</button>
+          <button class="btn btn-ghost btn-sm" onclick="apagarTopesEquipo()">Quitárselos (no puede proponer)</button>
+        </div>
+
         <!-- =====================================================================
              SOLTAR LA COPIA GUARDADA — 28-ago-2026.
 
@@ -970,6 +999,11 @@
      anda igual y esos botones dicen que falta el archivo. -->
 <script src="una-puerta.js"></script>
 <script src="../app/ver-como.js"></script>
+<!-- 15-oct-2026 — EL GERENTE VENDE. Las reglas para decirle al gerente el
+     estado de sus registros y si su propuesta cabe en los topes, antes de que
+     la base diga que no. Si no llega, la pestaña «Registros» del gerente dice
+     que falta el archivo; el resto del CRM anda igual. -->
+<script src="gerente-vende.js"></script>
 <!-- 15-sep-2026 — LA BASE PARA SMS Y VOZ. Dos archivos, y cada uno hace una cosa:
      tanda.js decide A QUIEN se le puede escribir hoy (los topes de la Ley 2300, que
      son por PERSONA y por SEMANA, no por credito); cobranza-envio.js arma el texto
@@ -7018,7 +7052,7 @@ function abonarCapital(id,fecha){ const p=DB.prestamos.find(x=>x.id===id),m=Numb
 function pintarCfg(){ document.getElementById('cfgNeg').value=DB.config.negocio; document.getElementById('cfgCosto').value=TASA_FIJA_PCT+'% estándar · de 1% a '+TASA_TECHO_PCT+'% por crédito'; document.getElementById('cfgUsura').value=DB.config.tasaUsuraEA||''; document.getElementById('cfgPin').value=DB.config.pin; document.getElementById('cfgWa').value=DB.config.whatsapp||''; try{ pintarMisNumeros(); }catch(e){}
   const c=sbCfg(); document.getElementById('cfgSbUrl').value=c.url||''; document.getElementById('cfgSbAnon').value=c.anon||''; document.getElementById('cfgSbClave').value=c.clave||'';
   document.getElementById('sbEstado').textContent=(c.url&&c.anon&&c.clave)?'Conexión lista. Sube los historiales cuando quieras.':'Todavía sin conectar. Corre base/supabase.sql y pega aquí los tres datos.';
-  pintarFreno(); cargarPoliticaNuevos(); }
+  pintarFreno(); cargarPoliticaNuevos(); cargarTopesEquipo(); }
 
 /* El freno por ingreso en Ajustes. Los tres textos con números salen de las
    constantes del motor: el porcentaje del cupón, el del costo y el ejemplo
@@ -8327,8 +8361,55 @@ function traerRegistros(){
   if(!sbListo()){ _registros=[]; renderRegistros(); return; }
   b.innerHTML='<div class="muted" style="padding:14px 18px">Buscando…</div>';
   rpc('listar_registros',{p_clave:sbCfg().clave,p_estado:'nuevo'})
-    .then(f=>{ _registros=Array.isArray(f)?f:[]; renderRegistros(); })
+    .then(f=>{ _registros=Array.isArray(f)?f:[]; renderRegistros(); traerQuienVe(); })
     .catch(e=>{ b.innerHTML='<div class="alerta warn" style="margin:14px">No pude leer quién pidió entrar. '+escHTML(errNube(e))+'</div>'; });
+}
+
+/* ¿QUIÉN DEL EQUIPO VE CADA REGISTRO? — 15-oct-2026. Joan pidió que su
+   gerente vea «solo los que yo le asigne»: la bandeja lo dice en cada fila
+   («👀 Lo ve WILLIAN · es de su base»), y el 👤 se lo asigna a mano. La regla
+   la pone la base (registros_quien_ve y registro_asignar en
+   base/20261015_el_gerente_vende.sql); aquí solo se pinta. Llega DESPUÉS de la
+   lista: si la nube no tiene la función todavía, la bandeja se ve igual, sin
+   las marcas. */
+let _quienVe=null, _quienVeFalta=false;
+function telDiez(t){ return String(t||'').replace(/\D/g,'').slice(-10); }
+function traerQuienVe(){
+  if(!sbListo()) return;
+  rpc('registros_quien_ve',{p_clave:sbCfg().clave})
+    .then(j=>{ const m={}; ((j&&j.registros)||[]).forEach(x=>{ m[telDiez(x.telefono)]=x; }); _quienVe=m; _quienVeFalta=false; renderRegistros(); })
+    .catch(e=>{ _quienVe=null; _quienVeFalta=/todavía no tiene/.test(errNube(e)); });
+}
+function chipQuienVe(r){
+  if(!_quienVe) return '';
+  const q=_quienVe[telDiez(r.telefono)];
+  if(!q) return '';
+  const deQuien=q.rol==='asesor'&&q.asesor_nombre?' (de '+q.asesor_nombre+')':'';
+  const porque=q.por==='asignado'?'se lo asignaste':'es de su base'+deQuien;
+  /* Un asesor sin gerente: está en una base, pero nadie ve su registro (los
+     registros solo los ve un gerente). Mejor decirlo que dejarlo creer. */
+  if(!q.gerente_nombre) return '<div style="margin-top:4px"><span class="chip mora">👀 Es de la base de '+escHTML(q.asesor_nombre||'alguien')+', pero ningún gerente lo ve</span></div>';
+  return '<div style="margin-top:4px"><span class="chip prorroga" title="Solo él (y tú) ven este registro">👀 Lo ve '
+    +escHTML(q.gerente_nombre)+' · '+escHTML(porque)+'</span></div>';
+}
+function asignarRegistro(tel, nombre){
+  if(_quienVeFalta) return alert('Para asignar registros falta correr base/20261015_el_gerente_vende.sql en la nube (SQL Editor → Run).');
+  const t=telDiez(tel);
+  const gente=equipo().filter(p=>p&&p.celular&&p.estado!=='retirado'&&!p.retirado);
+  if(!gente.length) return alert('Todavía no tienes a nadie en tu equipo. Créalo en la pestaña Equipo.');
+  const q=_quienVe&&_quienVe[t];
+  openModal('¿Quién atiende a '+(nombre||'esta persona')+'?',`
+    ${q&&q.gerente_nombre?`<div class="alerta info" style="margin-bottom:12px">Hoy lo ve <b>${escHTML(q.gerente_nombre)}</b> (${q.por==='asignado'?'se lo asignaste':'es de su base'}).</div>`:''}
+    <div class="help" style="margin-bottom:10px">Ve su registro completo, con las fotos, y le puede proponer dentro de los topes de Ajustes. Si se lo asignas a alguien, deja de verlo quien lo tenía por su base: nunca dos gerentes con el mismo cliente.</div>
+    ${gente.map(p=>`<button class="btn btn-ghost" style="width:100%;margin-bottom:8px;justify-content:space-between" onclick="confirmarAsignarRegistro('${escHTML(t)}','${escHTML(telDiez(p.celular))}')">
+        <span>${escHTML(p.nombre||'Sin nombre')}</span><span class="muted">${escHTML(p.rol==='gerente'?'Gerente':'Asesor')}</span></button>`).join('')}
+    ${q&&q.por==='asignado'?`<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px" onclick="confirmarAsignarRegistro('${escHTML(t)}','')">Quitarle la asignación (vuelve a su base, si tiene)</button>`:''}
+    <div class="muted" style="font-size:12px;margin-top:10px">Los registros solo los ve un gerente. Si se lo das a un asesor, lo ve su gerente.</div>`);
+}
+function confirmarAsignarRegistro(tel, a){
+  rpc('registro_asignar',{p_clave:sbCfg().clave,p_telefono:tel,p_a:a})
+    .then(j=>{ if(!j||j.ok!==true) return alert('La nube no lo asignó: '+((j&&j.motivo)||'sin motivo')); cerrarModal(); traerQuienVe(); })
+    .catch(e=>alert(/todavía no tiene/.test(errNube(e))?'Falta correr base/20261015_el_gerente_vende.sql en la nube.':errNube(e)));
 }
 /* 22-sep-2026 — aqui vivian traerGiros() y renderGiros(), la lista del cupo
    de bienvenida. Se fueron con la ruleta. */
@@ -8370,7 +8451,7 @@ function renderRegistros(){
          ya tiene y quedan dos clientes donde hay una persona. La regla vive en
          el puente; acá solo se pinta. */
       const cand=PUENTE.candidatosDeCruce(DB,r), c0=cand[0];
-      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}${huecoUbicacion(r.huella,{registro:r},true)}</td>
+      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}${huecoUbicacion(r.huella,{registro:r},true)}${chipQuienVe(r)}</td>
       <td>${abierto?'<span class="chip al-dia">📱 App</span>':'<span class="chip pagado">🎟️ '+escHTML(r.codigo||'Invitación')+'</span>'}</td>
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
@@ -8384,6 +8465,7 @@ function renderRegistros(){
         ? (c0.fuerza>=2?`<button class="btn btn-rojo btn-sm" onclick="abrirJuntarCuenta('${escHTML(String(r.id))}','${escHTML(c0.socio.id)}')" title="Mira la ficha, la cuenta y la revisión, y júntala con un toque">🔗 ¿Es la misma persona?</button> `:'')
           +`<button class="btn ${c0.fuerza>=2?'btn-ghost':'btn-rojo'} btn-sm" onclick="mesaDeCruce('${escHTML(String(r.id))}','')">🔗 Cruzar con ${escHTML(codCliente(c0.socio))}</button>`
         : `<button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button>`}
+        ${r.telefono?`<button class="btn btn-ghost btn-sm" onclick="asignarRegistro('${escHTML(String(r.telefono).replace(/\D/g,''))}','${escHTML(String(r.nombre||''))}')" title="Que lo vea y le venda alguien de tu equipo">👤</button>`:''}
         <button class="btn btn-ghost btn-sm" onclick="descartarRegistro('${escHTML(String(r.id))}')" title="No abrirle cuenta">✕</button>
         ${r.telefono?`<button class="btn btn-ghost btn-sm" onclick="borrarParaProbar('${escHTML(String(r.telefono).replace(/\D/g,''))}','${escHTML(String(r.nombre||''))}')" title="Borra su cuenta y todo lo suyo para que el MISMO numero se pueda volver a registrar. No se puede deshacer.">🧪 Borrar y repetir</button>`:''}</td></tr>`;}).join('')}</tbody></table>`;
   /* 8-oct-2026 — la ubicación aproximada de cada uno, sola (ver LA UBICACIÓN
@@ -9569,6 +9651,7 @@ function modoEquipo() {
       <div class="sep"></div>
       <nav class="nav">
         <button class="navbtn on" onclick="irEquipo('tablero')"><span class="ic">📊</span> Hoy</button>
+        ${yo.rol === 'gerente' ? '<button class="navbtn" onclick="irEquipo(\'registros\')"><span class="ic">📥</span> Registros</button>' : ''}
         <button class="navbtn" onclick="irEquipo('base')"><span class="ic">📋</span> Mi base</button>
         <button class="navbtn" onclick="irEquipo('cobrar')"><span class="ic">💵</span> Cuándo cobrar</button>
         <button class="navbtn" onclick="irEquipo('agenda')"><span class="ic">📅</span> Agenda</button>
@@ -9598,13 +9681,15 @@ function irEquipo(v) {
      nada. Y cualquier entrada nueva hereda el mismo fallo si no se agrega aquí. */
   const TITULO_EQ = { tablero: 'Hoy', base: 'Mi base', agenda: 'Agenda',
                       equipo: 'Mi equipo', vivo: 'En vivo', plata: 'Mi plata',
-                      whatsapp: 'Mi WhatsApp', jefe: 'Mensajes', cobrar: 'Cuándo cobrar' };
+                      whatsapp: 'Mi WhatsApp', jefe: 'Mensajes', cobrar: 'Cuándo cobrar',
+                      registros: 'Registros' };
   document.querySelectorAll('.side .navbtn').forEach(b => b.classList.toggle('on',
     !!TITULO_EQ[v] && b.textContent.trim().indexOf(TITULO_EQ[v]) >= 0));
   const main = document.querySelector('.main') || document.querySelector('.app > :last-child');
   if (!main) return;
   main.innerHTML = '<div class="wrapEq" style="padding:20px;max-width:760px;margin:0 auto">' +
     (v === 'base' ? vistaBaseEquipo() :
+     v === 'registros' ? vistaRegistrosEq() :
      v === 'agenda' ? vistaAgendaEq() :
      v === 'cobrar' ? vistaCobrarEq() :
      v === 'jefe' ? vistaJefeEq() :
@@ -9615,6 +9700,10 @@ function irEquipo(v) {
      corriendo en el bolsillo del asesor es bateria y son datos de su plan. */
   vigilarVivoEq(v === 'vivo');
   if (v === 'jefe') traerJefeEq();
+  /* Se piden cada vez que se abre la pestaña: un registro nuevo llega en
+     cualquier momento, y una lista vieja haría que el gerente le escriba tarde
+     justo al que acaba de pedir. */
+  if (v === 'registros' && REG_EQ.estado !== 'cargando') traerRegistrosEq();
   window.scrollTo(0, 0);
 }
 
@@ -10070,6 +10159,249 @@ function fichaHTML(j) {
     `<div class="muted" style="font-size:12px;margin-top:16px;line-height:1.5">
       Queda registrado que abriste esta ficha, con tu nombre y la hora. Son datos de
       una persona: se miran para verificar quién es, y para nada más.</div>`;
+}
+
+/* --------------------------------------------------------------------------
+ * LOS REGISTROS DEL GERENTE — 15-oct-2026
+ *
+ * Joan: «que [Willian] pueda ver los nuevos registros pero únicamente de los
+ * clientes que tenemos como prospectos y no todos, solo los que yo le asigne,
+ * y que él pueda hacer la venta».
+ *
+ * La lista la decide la BASE (gerente_registros, en
+ * base/20261015_el_gerente_vende.sql): el prospecto de su base que se
+ * registró, o el que Joan le asignó a mano, y nada más. Esta pantalla no
+ * filtra: si filtrara ella, un error aquí le mostraría a alguien lo que no le
+ * toca. Solo pinta.
+ *
+ * Joan decidió que vea el registro completo, con fotos. Las fotos se piden
+ * aparte, la base anota quién las abrió (vistas_de_datos), y la pantalla lo
+ * dice, para que nadie las abra «por si acaso».
+ *
+ * La venta: «✏️ Proponer» arma la propuesta dentro de los topes que puso Joan
+ * (GerenteVende.validar es la misma regla de gerente_proponer, para decirlo
+ * antes de mandar) y le llega al cliente de una vez. El desembolso es de Joan.
+ * ------------------------------------------------------------------------ */
+var REG_EQ = { estado: 'nada', registros: [], topes: null, motivo: '' };
+
+function traerRegistrosEq() {
+  REG_EQ.estado = 'cargando';
+  pintarRegistrosEq();
+  rpcEquipo('gerente_registros', {})
+    .then(res => {
+      const j = res.j || {};
+      if (!res.ok) {
+        /* 404 = la migración del 15-oct no está corrida. Decir «no hay
+           registros» en ese caso mandaría a Willian a esperar algo que nunca
+           va a llegar. */
+        REG_EQ.estado = esFinDeSesion(null, res) ? 'sesion' : res.status === 404 ? 'apagado' : 'error';
+      } else if (j.ok !== true) {
+        REG_EQ.estado = 'no'; REG_EQ.motivo = j.motivo || '';
+      } else {
+        REG_EQ.estado = 'ok';
+        REG_EQ.registros = Array.isArray(j.registros) ? j.registros : [];
+        REG_EQ.topes = j.topes || null;
+      }
+      pintarRegistrosEq();
+    })
+    .catch(e => { REG_EQ.estado = (e && e.sesion) ? 'sesion' : 'error'; pintarRegistrosEq(); });
+}
+function pintarRegistrosEq() {
+  if (VISTA_EQUIPO !== 'registros') return;
+  const caja = document.getElementById('regEqCuerpo'); if (!caja) return;
+  caja.innerHTML = cuerpoRegistrosEq();
+}
+function vistaRegistrosEq() {
+  return `<div class="ph"><div><h1>Registros<span class="dot">.</span></h1>
+      <div class="muted">Los que se registraron en la app y son de tu base, o te los asignó Joan.</div></div>
+      <button class="btn btn-ghost btn-sm" onclick="traerRegistrosEq()">↻ Volver a mirar</button></div>
+    <div id="regEqCuerpo">${cuerpoRegistrosEq()}</div>`;
+}
+function cuerpoRegistrosEq() {
+  if (!window.GerenteVende) {
+    return '<div class="alerta warn">Falta un archivo nuevo (panel/gerente-vende.js). Recarga con Ctrl+Shift+R.</div>';
+  }
+  const e = REG_EQ.estado;
+  if (e === 'nada' || e === 'cargando') return '<div class="muted" style="padding:14px 0">Buscando…</div>';
+  if (e === 'apagado') {
+    return '<div class="alerta warn"><b>Esta parte todavía no está encendida.</b>' +
+      '<div class="muted">Falta correr una migración en la nube. No es tu señal: avísale a Joan.</div></div>';
+  }
+  if (e === 'sesion') return '<div class="alerta warn">Tu sesión se venció. Toca «Salir» y vuelve a entrar.</div>';
+  if (e === 'error') {
+    return '<div class="alerta warn">No pude traer los registros. Revisa la señal y toca «Volver a mirar».' +
+      '<div class="muted">Eso <b>no</b> quiere decir que no haya: quiere decir que no pude preguntar.</div></div>';
+  }
+  if (e === 'no') return '<div class="alerta warn">' + escHTML(GerenteVende.textoMotivo(REG_EQ.motivo)) + '</div>';
+
+  const t = REG_EQ.topes;
+  const avisoTopes = t
+    ? `<div class="alerta info" style="margin-bottom:12px">Puedes proponer hasta <b>${COP(t.capital_max)}</b>, con un costo de
+        <b>${Number(t.costo_min) === Number(t.costo_max) ? escHTML(String(t.costo_min)) + '%' : escHTML(String(t.costo_min)) + '% a ' + escHTML(String(t.costo_max)) + '%'}</b>
+        y hasta <b>${escHTML(String(t.dias_max))} días</b>. El desembolso lo hace Joan.</div>`
+    : `<div class="alerta warn" style="margin-bottom:12px">${escHTML(GerenteVende.MOTIVOS.sin_topes)}</div>`;
+  const rs = REG_EQ.registros;
+  if (!rs.length) {
+    return avisoTopes + `<div class="empty"><div class="ic">📭</div><p>Nadie de tu base se ha registrado todavía.<br>
+      <span class="muted">Cuando alguien de tu base se registre en la app, o Joan te asigne a alguien, aparece aquí.</span></p></div>`;
+  }
+  /* Primero los que esperan respuesta: una solicitud sin contestar es la venta
+     que se pierde si se queda abajo de la lista. */
+  const espera = r => { const s = GerenteVende.ultimaSolicitud(r); return !!(s && GerenteVende.estadoSolicitud(s).puedeProponer); };
+  const ya = rs.filter(espera), resto = rs.filter(r => !espera(r));
+  return avisoTopes +
+    (ya.length ? `<div class="card"><div class="card-h"><h3>🙋 Esperan respuesta</h3><span class="tag">${ya.length}</span></div>
+      ${ya.map(filaRegistroEq).join('')}</div>` : '') +
+    (resto.length ? `<div class="card"><div class="card-h"><h3>${ya.length ? 'Los demás' : 'Todos'}</h3><span class="tag">${resto.length}</span></div>
+      ${resto.map(filaRegistroEq).join('')}</div>` : '');
+}
+function telDeRegistroEq(r) { return String((r && r.telefono) || '').replace(/\D/g, '').slice(-10); }
+function filaRegistroEq(r) {
+  const s = GerenteVende.ultimaSolicitud(r);
+  const est = GerenteVende.estadoSolicitud(s);
+  const tono = { gris: '', azul: 'prorroga', verde: 'al-dia', ambar: 'mora', rojo: 'mora' }[est.tono] || '';
+  const pidio = s ? GerenteVende.loQuePidio(s) : null;
+  const cp = s && s.contrapropuesta;
+  const tel = telDeRegistroEq(r);
+  const primero = String(r.nombre || '').split(/\s+/)[0] || '';
+  const yo = CARTERA_EQUIPO && CARTERA_EQUIPO.yo && CARTERA_EQUIPO.yo.celular;
+  const lineaSol = !s ? ''
+    : (s.estado === 'nueva' && pidio && pidio.monto)
+      ? `<div>Pidió <b>${COP(pidio.monto)}</b>${pidio.dias ? ' a ' + escHTML(String(pidio.dias)) + ' días' : ''}</div>`
+    : (cp && cp.total)
+      ? `<div>Propuesta: recibe <b>${COP(cp.capital)}</b>, devuelve <b>${COP(cp.total)}</b> el ${escHTML(fmtFecha(String(cp.fecha_pago || '').slice(0, 10)))}</div>`
+    : '';
+  return `<div class="info-row"><span class="k"><b>${escHTML(r.nombre || 'Sin nombre')}</b>
+      <div class="muted mono">${escHTML(tel)}${r.cedula ? ' · CC ' + escHTML(String(r.cedula)) : ''}</div>
+      <div class="muted">Se registró ${escHTML(haceCuanto(r.creado_en))} · ${escHTML(GerenteVende.porQue(r))}${
+        r.asesor_nombre && r.asesor !== yo ? ' · 🚶 ' + escHTML(r.asesor_nombre) : ''}</div>
+      ${lineaSol}
+      ${typeof chipDeCotejo === 'function' ? chipDeCotejo(r.huella) : ''}</span>
+    <span class="vv"><span class="chip ${tono}">${escHTML(est.etiqueta)}</span>
+      ${tel ? `<a class="btn btn-wa btn-sm" target="_blank" rel="noopener"
+        href="${escHTML(waLink(tel, 'Hola ' + primero + ' 🙂'))}" title="Escribirle por WhatsApp">📲</a>` : ''}
+      <button class="btn btn-ghost btn-sm" onclick="verRegistroEq('${escHTML(tel)}')" title="Ver su registro y sus fotos">🪪</button>
+      ${est.puedeProponer && s ? `<button class="btn btn-rojo btn-sm" onclick="proponerEq(${Number(s.id)})">✏️ Proponer</button>` : ''}</span></div>`;
+}
+
+function verRegistroEq(tel) {
+  const r = REG_EQ.registros.find(x => telDeRegistroEq(x) === String(tel));
+  if (!r) return;
+  openModal('Registro de ' + (r.nombre || 'esta persona'), '<div class="muted" style="padding:10px 0">Trayendo sus fotos…</div>');
+  rpcEquipo('gerente_archivos', { p_telefono: String(tel) })
+    .then(res => {
+      const caja = document.getElementById('mBody'); if (!caja) return;
+      const j = res.j || {};
+      if (!res.ok || j.ok !== true) {
+        caja.innerHTML = esFinDeSesion(null, res)
+          ? '<div class="alerta warn">Tu sesión se venció. Toca «Salir» y vuelve a entrar.</div>'
+          : res.status === 404
+            ? '<div class="alerta warn"><b>Esta parte todavía no está encendida.</b><div class="muted">Falta correr una migración en la nube. No es tu señal.</div></div>'
+            : j.motivo
+              ? '<div class="alerta warn">' + escHTML(GerenteVende.textoMotivo(j.motivo)) + '</div>'
+              : '<div class="alerta warn">No pude traer sus fotos. Revisa la señal y vuelve a intentar.</div>';
+        return;
+      }
+      /* Las fotos pasan por fotoSegura: solo una imagen de verdad llega a un
+         <img>. Lo que venga de la nube lo escribió el teléfono de otra persona. */
+      const fotos = {};
+      Object.keys(j.fotos || {}).forEach(k => { const f = fotoSegura(j.fotos[k]); if (f) fotos[k] = f; });
+      caja.innerHTML = '<div class="alerta info" style="margin-bottom:12px;font-size:12.5px">Queda anotado que abriste ' +
+          'las fotos de esta persona. Son datos que la ley protege: no las descargues ni las reenvíes.</div>' +
+        fichaHTML({ nombre: r.nombre, registrado_en: r.creado_en, cedula: r.cedula, celular: tel,
+                    datos: r.datos || {}, fotos: fotos, huella: j.huella || r.huella || {} });
+    })
+    .catch(() => {
+      const caja = document.getElementById('mBody'); if (!caja) return;
+      caja.innerHTML = '<div class="alerta warn">No pude conectarme. Revisa la señal y vuelve a intentar.</div>';
+    });
+}
+
+function solicitudDeRegistrosEq(id) {
+  for (const r of REG_EQ.registros) {
+    const s = (r.solicitudes || []).find(x => Number(x.id) === Number(id));
+    if (s) return { r, s };
+  }
+  return null;
+}
+function proponerEq(id) {
+  const par = solicitudDeRegistrosEq(id); if (!par) return;
+  const t = REG_EQ.topes;
+  if (!t) return alert(GerenteVende.MOTIVOS.sin_topes);
+  const pidio = GerenteVende.loQuePidio(par.s);
+  /* Arranca en lo que pidió, recortado a los topes; el costo, en el 20% de
+     siempre si cabe. Nunca arranca fuera de los topes: un formulario que abre
+     con un valor que la base va a rechazar enseña a ignorar el aviso. */
+  const cap0 = Math.min(Number(t.capital_max), pidio.monto || Number(t.capital_max));
+  const pct0 = (Number(t.costo_min) <= 20 && Number(t.costo_max) >= 20) ? 20 : Number(t.costo_max);
+  const dias0 = Math.min(Number(t.dias_max), pidio.dias || Number(t.dias_max));
+  openModal('Proponerle a ' + (par.r.nombre || 'este cliente'), `
+    ${pidio.monto ? `<div class="alerta info" style="margin-bottom:12px">Pidió <b>${COP(pidio.monto)}</b>${pidio.dias ? ' a ' + escHTML(String(pidio.dias)) + ' días' : ''}.</div>` : ''}
+    <div class="field"><label>Cuánto le prestas</label><input type="number" inputmode="numeric" id="propEqCap" value="${cap0}"
+      oninput="previsualizarPropuestaEq()"><div class="help">Hasta ${COP(t.capital_max)}.</div></div>
+    <div class="field"><label>Costo (%)</label><input type="number" inputmode="numeric" id="propEqPct" value="${pct0}"
+      oninput="previsualizarPropuestaEq()"><div class="help">${Number(t.costo_min) === Number(t.costo_max)
+        ? escHTML(String(t.costo_min)) + '%' : 'De ' + escHTML(String(t.costo_min)) + '% a ' + escHTML(String(t.costo_max)) + '%'}.</div></div>
+    <div class="field"><label>Días para pagar</label><input type="number" inputmode="numeric" id="propEqDias" value="${dias0}"
+      oninput="previsualizarPropuestaEq()"><div class="help">Hasta ${escHTML(String(t.dias_max))} días.</div></div>
+    <div class="field"><label>Una nota para el cliente (opcional)</label><textarea id="propEqTexto" rows="2" maxlength="400"></textarea></div>
+    <div id="propEqCalc" class="alerta" style="margin-top:8px"></div>
+    <button class="btn btn-rojo" style="width:100%;margin-top:12px" id="propEqBtn" onclick="enviarPropuestaEq(${Number(id)})">Mandarle la propuesta</button>
+    <div class="muted" style="font-size:12px;margin-top:10px;line-height:1.5">Le llega en su app con «Las condiciones de este
+      crédito». Cuando la acepte, a Joan le llega para desembolsar. Tú no mueves plata.</div>`);
+  previsualizarPropuestaEq();
+}
+function valoresPropuestaEq() {
+  const n = id => { const el = document.getElementById(id); return el ? Number(el.value) : NaN; };
+  return { capital: n('propEqCap'), costo_pct: n('propEqPct'), dias: n('propEqDias') };
+}
+function previsualizarPropuestaEq() {
+  const c = document.getElementById('propEqCalc'); if (!c) return;
+  const v = valoresPropuestaEq(), ok = GerenteVende.validar(v, REG_EQ.topes);
+  const btn = document.getElementById('propEqBtn'); if (btn) btn.disabled = !ok.ok;
+  if (!ok.ok) { c.className = 'alerta warn'; c.textContent = ok.texto; return; }
+  const k = GerenteVende.calcular(v.capital, v.costo_pct);
+  c.className = 'alerta info';
+  c.innerHTML = 'Recibe <b>' + COP(k.capital) + '</b> y devuelve <b>' + COP(k.total) + '</b> a los ' +
+    escHTML(String(v.dias)) + ' días. El costo es ' + COP(k.costo) + '.';
+}
+function enviarPropuestaEq(id) {
+  const v = valoresPropuestaEq(), ok = GerenteVende.validar(v, REG_EQ.topes);
+  if (!ok.ok) return alert(ok.texto);
+  const k = GerenteVende.calcular(v.capital, v.costo_pct);
+  if (!confirm('Le vas a proponer:\n\n• Recibe ' + COP(k.capital) + '\n• Devuelve ' + COP(k.total) + ' a los ' + v.dias +
+      ' días\n\nLe llega a su app de una vez. ¿Mandar?')) return;
+  const btn = document.getElementById('propEqBtn');
+  const soltar = () => { if (btn) { btn.disabled = false; btn.textContent = 'Mandarle la propuesta'; } };
+  if (btn) { btn.disabled = true; btn.textContent = 'Mandando…'; }
+  const nota = document.getElementById('propEqTexto');
+  rpcEquipo('gerente_proponer', { p_id: Number(id), p_capital: k.capital, p_costo_pct: k.costo_pct,
+                                  p_dias: v.dias, p_texto: nota ? nota.value : '' })
+    .then(res => {
+      const j = res.j || {};
+      if (!res.ok) {
+        soltar();
+        if (esFinDeSesion(null, res)) return avisarFinDeSesion('La propuesta NO se mandó. ');
+        return alert(res.status === 404 ? 'Esta parte todavía no está encendida en la nube. Avísale a Joan.'
+                                        : 'No pude mandarla. Revisa la señal y vuelve a intentar.');
+      }
+      if (j.ok !== true) {
+        soltar();
+        alert(GerenteVende.textoMotivo(j.motivo));
+        /* Si la base dice que cambió algo (ya aceptó, Joan quitó los topes),
+           la lista que se ve ya no es la verdad: se vuelve a pedir. */
+        if (j.motivo === 'no_esta_abierta' || j.motivo === 'sin_topes' || j.motivo === 'fuera_de_topes') traerRegistrosEq();
+        return;
+      }
+      cerrarModal();
+      alert('Listo: la propuesta le llegó a su app. Cuando la acepte, a Joan le llega para desembolsar.');
+      traerRegistrosEq();
+    })
+    .catch(e => {
+      soltar();
+      if (e && e.sesion) return avisarFinDeSesion('La propuesta NO se mandó. ');
+      alert('No pude conectarme: la propuesta NO se mandó. Revisa la señal y vuelve a intentar.');
+    });
 }
 
 function fechaCorta(iso) {
@@ -13919,7 +14251,10 @@ function renderBandeja(){
          'gerente:<celular>'. Antes solo se distinguía «(cambiada por ti)» y una
          del automático se leía igual que una que revisó una persona. */
       const porQuien=!cp?'':cp.por==='joan'?' <span class="muted">(cambiada por ti)</span>'
-        :String(cp.por||'').indexOf('gerente:')===0?' <span class="muted">(la puso tu gerente '+escHTML(String(cp.por).slice(-4))+')</span>'
+        /* 15-oct-2026 — con su NOMBRE: desde gerente_proponer la propuesta trae
+           por_nombre. Las de PlataChat (contrapropuesta_gerente) no lo traen y
+           siguen con los últimos cuatro dígitos del celular. */
+        :String(cp.por||'').indexOf('gerente:')===0?' <span class="muted">(la puso '+(cp.por_nombre?escHTML(String(cp.por_nombre))+', tu gerente':'tu gerente '+escHTML(String(cp.por).slice(-4)))+')</span>'
         :String(cp.por||'').indexOf('automatica')===0?' <span class="muted">(la puso el automático)</span>':'';
       /* 8-oct-2026 (segunda vuelta) — LO QUE DICEN LOS TÉRMINOS, CUMPLIDO EN LA
          BANDEJA. El punto 3 dice que todo crédito pasa por una propuesta con
@@ -14646,6 +14981,44 @@ function guardarPoliticaNuevos(){
   if(!confirm('Desde ahora, a TODO cliente nuevo que pida se le propone:\n\n• Recibe '+COP(r.capital)+'\n• Devuelve '+COP(r.total)+' a los '+r.dias+' días\n• Tu costo: '+r.costo_pct+'% ('+COP(r.costo)+')\n\n¿Lo guardo en la nube?')) return;
   rpc('politica_nuevos_guardar',{p_clave:sbCfg().clave,p_capital:r.capital,p_costo_pct:r.costo_pct,p_dias:r.dias,p_texto:r.texto})
     .then(j=>{ if(!j||j.ok!==true) return alert('La nube no guardó la política: '+((j&&j.motivo)||'sin motivo')); cargarPoliticaNuevos(); alert('Guardada. Aplica al próximo que pida.'); })
+    .catch(e=>alert(errNube(e)));
+}
+
+/* LOS TOPES DE VENTA DEL GERENTE — 15-oct-2026. Ver la tarjeta en Ajustes y
+   topes_equipo en base/20261015_el_gerente_vende.sql. Un 404 es la migración
+   sin correr, y se dice cuál: «no pude» mandaría a buscar el fallo en la señal. */
+function cargarTopesEquipo(){
+  const est=document.getElementById('cfgTopeEstado'); if(!est) return;
+  if(!sbListo()){ est.textContent='Conecta la nube para verlos y cambiarlos.'; return; }
+  est.textContent='Leyendo…';
+  rpc('topes_equipo_leer',{p_clave:sbCfg().clave}).then(j=>{
+    const t=j&&j.topes;
+    if(!t){ est.textContent='Sin topes: tu gerente puede ver las solicitudes de su base, pero NO puede proponer.'; return; }
+    document.getElementById('cfgTopeCap').value=t.capital_max; document.getElementById('cfgTopePctMin').value=t.costo_min;
+    document.getElementById('cfgTopePctMax').value=t.costo_max; document.getElementById('cfgTopeDias').value=t.dias_max;
+    est.textContent='Vigentes desde '+fmtFecha(String(t.actualizado||'').slice(0,10))+'.';
+  }).catch(e=>{ est.textContent=/todavía no tiene/.test(errNube(e))
+    ?'Falta correr base/20261015_el_gerente_vende.sql en la nube.':errNube(e); });
+}
+function guardarTopesEquipo(){
+  if(!sbListo()) return alert('Conecta la nube primero (Ajustes → Compartir con mis clientes).');
+  const n=id=>Number(document.getElementById(id).value);
+  const cap=n('cfgTopeCap'), min=n('cfgTopePctMin'), max=n('cfgTopePctMax'), dias=n('cfgTopeDias');
+  const entero=x=>Number.isFinite(x)&&Math.round(x)===x;
+  if(!entero(cap)||cap<10000||cap>20000000) return alert('El monto máximo va de $10.000 a $20.000.000.');
+  if(!entero(min)||!entero(max)||min<1||max>50||min>max) return alert('El costo va de 1% a 50%, y el mínimo no puede ser mayor que el máximo.');
+  if(!entero(dias)||dias<1||dias>60) return alert('Los días van de 1 a 60.');
+  const k=Math.round(cap*max/100);
+  if(!confirm('Desde ahora tu gerente puede proponer, sin preguntarte:\n\n• Hasta '+COP(cap)+'\n• Con un costo de '+(min===max?min+'%':min+'% a '+max+'%')+'\n• Hasta '+dias+' días\n\nEl caso más alto: recibe '+COP(cap)+' y devuelve '+COP(cap+k)+'. ¿Guardar?')) return;
+  rpc('topes_equipo_guardar',{p_clave:sbCfg().clave,p_capital_max:cap,p_costo_min:min,p_costo_max:max,p_dias_max:dias})
+    .then(j=>{ if(!j||j.ok!==true) return alert('La nube no guardó los topes: '+((j&&j.motivo)||'sin motivo')); cargarTopesEquipo(); alert('Guardados. Tu gerente los ve la próxima vez que abra «Registros».'); })
+    .catch(e=>alert(errNube(e)));
+}
+function apagarTopesEquipo(){
+  if(!sbListo()) return alert('Conecta la nube primero.');
+  if(!confirm('Tu gerente va a seguir viendo los registros de su base, pero ya NO va a poder proponer hasta que pongas topes otra vez. ¿Quitárselos?')) return;
+  rpc('topes_equipo_guardar',{p_clave:sbCfg().clave,p_capital_max:0,p_costo_min:1,p_costo_max:1,p_dias_max:1})
+    .then(j=>{ if(!j||j.ok!==true) return alert('La nube no los quitó.'); ['cfgTopeCap','cfgTopePctMin','cfgTopePctMax','cfgTopeDias'].forEach(id=>{ document.getElementById(id).value=''; }); cargarTopesEquipo(); })
     .catch(e=>alert(errNube(e)));
 }
 

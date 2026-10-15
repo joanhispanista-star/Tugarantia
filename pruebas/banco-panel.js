@@ -164,6 +164,9 @@ function abrirPanel(opciones) {
      <script src> nuevos de crm.html. `sinUnaPuerta: true` simula que no llegaron.
      revision-registro.js va también: el toque la usa y, en un navegador, el
      CRM la baja al primer toque (cargarScriptCRM), que acá no hay. */
+  /* 15-oct-2026 — las reglas de la venta del gerente, el <script src> nuevo
+     de crm.html. `sinGerenteVende: true` simula que no llegó. */
+  if (!o.sinGerenteVende) ctx.GerenteVende = require(path.join(RAIZ, 'panel', 'gerente-vende.js'));
   if (!o.sinUnaPuerta) {
     ctx.UnaPuerta = require(path.join(RAIZ, 'panel', 'una-puerta.js'));
     ctx.VerComo = require(path.join(RAIZ, 'app', 'ver-como.js'));
