@@ -711,6 +711,9 @@
         <button class="btn btn-ghost" onclick="publicarEquipo()">☁ Publicar a la nube</button>
         <button class="btn btn-ghost" onclick="pantallaAsignar('clientes')">🔀 Repartir</button>
         <button class="btn btn-rojo" onclick="editarPersona()">＋ Crear persona</button></div></div>
+      <!-- 15-oct-2026 — lo que hizo la publicación que corre sola (LA CARTERA DEL
+           EQUIPO SE PUBLICA SOLA): en una línea, nunca en un cuadro. -->
+      <div id="equipoPublicadoSolo" style="margin-bottom:12px"></div>
       <div class="kpis" id="kpiEquipo"></div>
       <div class="card"><div class="card-h"><h3>👥 Tu equipo</h3>
         <span class="tag">El libro de comisiones se calcula solo, sobre lo que ya pasó</span></div>
@@ -12705,6 +12708,9 @@ function hayComisiones() {
 
 function renderEquipo() {
   const caja = document.getElementById('tblEquipo'); if (!caja) return;
+  /* 15-oct-2026 — la línea de la publicación sola. Solo el «falta emparejar»
+     se calcula aquí; lo demás lo dice lo último que pasó. */
+  try { const p = puertaPublicarSolo(); pintarPublicadoSolo(p === 'sin_emparejar' ? p : undefined); } catch (e) { /* nada */ }
   if (!hayComisiones()) {
     caja.innerHTML = '<div class="alerta warn">No cargo el modulo de comisiones (app/comisiones.js). ' +
       'El resto del Panel funciona; esta pestana vuelve cuando recargues con senal.</div>';
@@ -12768,10 +12774,33 @@ function renderEquipo() {
  * asesor y Joan miran el mismo número.
  * ------------------------------------------------------------------------ */
 function publicarEquipo() {
-  if (!sbListo()) return alert('Primero conecta la nube en Ajustes.');
-  if (!ETAPAS) return alert('No cargó app/etapas.js. Recarga con señal.');
+  const a = armarPublicacionEquipo();
+  if (a.error) return alert(a.error);
+  /* SE TRAEN ANTES DE PUBLICAR, y esto no es un detalle: publicar sobrescribe
+     el estado de cada prospecto con el que hay en este computador. Si un asesor
+     marcó veinte «no contesta» desde su celular y Joan publica sin traerlos, los
+     veinte vuelven a «sin contactar» — el trabajo de una mañana, borrado sin un
+     error, sin un aviso, y sin que nadie pueda notarlo hasta que sea tarde. */
+  /* SE TRAE ANTES DE PUBLICAR. Desde el 11-sep el gerente también escribe —crea
+     asesores y reparte— y publicar es mandar la lista entera de este computador.
+     Sin traer primero, el asesor que creó el gerente esta mañana desaparece esta
+     tarde, sin un error y sin que nadie pueda notarlo. */
+  return traerEquipo(true)
+    .then(() => traerGestiones(true))
+    .then(() => publicarEquipoAhora(equipo().filter(p => p.celular), a.asig, a.ps))
+    .catch(() => {});   // dijo que mejor no; ya se le avisó
+}
+
+/* LO QUE VIAJA, ARMADO EN UN SOLO SITIO — 15-oct-2026. Lo usan la publicación
+   a mano (publicarEquipo) y la que corre sola (publicarEquipoSolo). Si cada una
+   armara lo suyo, el día que alguien le agregue un campo a una, la otra
+   seguiría mandando lo de antes, y lo que ve el gerente dependería de cuál
+   corrió último. Devuelve {asig, ps} o {error} con las palabras para Joan. */
+function armarPublicacionEquipo() {
+  if (!sbListo()) return { error: 'Primero conecta la nube en Ajustes.' };
+  if (!ETAPAS) return { error: 'No cargó app/etapas.js. Recarga con señal.' };
   const gente = equipo().filter(p => p.celular);
-  if (!gente.length) return alert('Ninguna persona del equipo tiene celular.\n\nSin celular no puede entrar: el celular ES su usuario.');
+  if (!gente.length) return { error: 'Ninguna persona del equipo tiene celular.\n\nSin celular no puede entrar: el celular ES su usuario.' };
   const hoy = hoyISO();
 
   /* Solo los que alguien está trabajando. Publicar los 697 cuando hay 30
@@ -12870,23 +12899,16 @@ function publicarEquipo() {
     return { id: String(a.id), persona_id: String(a.socio_id),
              asesor: per ? String(per.celular || '') : '', desde: String(a.desde || hoy) };
   }).filter(a => a.asesor);
-
-  /* SE TRAEN ANTES DE PUBLICAR, y esto no es un detalle: publicar sobrescribe
-     el estado de cada prospecto con el que hay en este computador. Si un asesor
-     marcó veinte «no contesta» desde su celular y Joan publica sin traerlos, los
-     veinte vuelven a «sin contactar» — el trabajo de una mañana, borrado sin un
-     error, sin un aviso, y sin que nadie pueda notarlo hasta que sea tarde. */
-  /* SE TRAE ANTES DE PUBLICAR. Desde el 11-sep el gerente también escribe —crea
-     asesores y reparte— y publicar es mandar la lista entera de este computador.
-     Sin traer primero, el asesor que creó el gerente esta mañana desaparece esta
-     tarde, sin un error y sin que nadie pueda notarlo. */
-  return traerEquipo(true)
-    .then(() => traerGestiones(true))
-    .then(() => publicarEquipoAhora(equipo().filter(p => p.celular), asig, ps))
-    .catch(() => {});   // dijo que mejor no; ya se le avisó
+  return { asig: asig, ps: ps };
 }
 
-function publicarEquipoAhora(gente, asig, ps) {
+/* `op.auto` (15-oct-2026): la publicación que corre sola. Sin la pregunta y
+   sin el «Publicado»: un cuadro que salta cada quince minutos en el
+   computador de Joan es uno que se aprende a cerrar sin leer, y con él se
+   cerraría también el que sí importa. Un fallo se devuelve a quien llamó, que
+   lo pinta en la línea de la pestaña Equipo. */
+function publicarEquipoAhora(gente, asig, ps, op) {
+  const auto = !!(op && op.auto);
   /* Con las gestiones ya traídas, el estado de cada potencial es el de verdad.
      Los clientes no se tocan: su etapa la calcula el motor con sus créditos. */
   ps.forEach(x => {
@@ -12897,7 +12919,7 @@ function publicarEquipoAhora(gente, asig, ps) {
   });
   const nCli = ps.filter(x => x.tipo === 'cliente').length;
   const sinCel = ps.filter(x => !x.celular).length;
-  if (!confirm('Voy a publicar a la nube:\n\n· ' + gente.length + ' personas del equipo\n· ' +
+  if (!auto && !confirm('Voy a publicar a la nube:\n\n· ' + gente.length + ' personas del equipo\n· ' +
     asig.length + ' asignaciones\n· ' + (ps.length - nCli) + ' potenciales\n· ' +
     nCli + ' clientes (para cobrarles)\n\n' +
     (sinCel ? '⚠ ' + sinCel + ' de ellos no tienen celular: van a salir sin el botón de WhatsApp.\n\n' : '') +
@@ -12932,18 +12954,104 @@ function publicarEquipoAhora(gente, asig, ps) {
              com_ganado: String(c.total_ganado) };
   };
 
-  rpc('equipo_publicar', { p_clave: sbCfg().clave,
+  return rpc('equipo_publicar', { p_clave: sbCfg().clave,
       p_equipo: gente.map(p => Object.assign(
         { celular: p.celular, nombre: p.nombre, rol: p.rol,
           estado: p.estado || 'activo', jefe: p.jefe || '' },
         plataDeAsesor(p))),
       p_asignaciones: asig, p_gente: ps })
     .then(r => {
+      if (auto) return r;
       alert('Publicado.\n\nEquipo: ' + (r.equipo || 0) + '\nAsignaciones: ' + (r.asignaciones || 0) +
         '\nGente repartida: ' + (r.gente || 0) + '\n\nYa pueden entrar en:\n' +
         ENLACE_PANEL);
     })
-    .catch(e => alert('No pude publicar: ' + errNube(e)));
+    .catch(e => { if (auto) throw e; alert('No pude publicar: ' + errNube(e)); });
+}
+
+/* --------------------------------------------------------------------------
+ * LA CARTERA DEL EQUIPO SE PUBLICA SOLA — 15-oct-2026
+ *
+ * Joan quiere que su gerente cobre, y para cobrar el gerente necesita la
+ * cifra y la fecha de cada cliente que le asignaron. Hasta hoy eso viajaba
+ * solo cuando Joan oprimía «Publicar equipo», y lo que viaja es una FOTO: el
+ * monto se calcula aquí, contra la fecha de hoy, con su mora. Una foto del
+ * lunes leída el viernes hace que el gerente cobre una cifra vieja.
+ *
+ * Por eso ahora se publica sola mientras el CRM de Joan está abierto: cada 15
+ * minutos mira, y publica si algo cambió o si cambió el día (la mora mueve
+ * los montos aunque nadie toque nada). Las tres puertas, en orden:
+ *   1. ESTE computador tiene que estar EMPAREJADO con la nube (NubeCRM en
+ *      'lista'), y su cartera no la puede haber escrito otra pestaña. Si no,
+ *      el CRM abierto en otro computador con una cartera vieja publicaría
+ *      montos viejos con la fecha de hoy al lado, que es peor que no publicar.
+ *   2. Se trae primero lo que hizo el equipo, como a mano. Si NO se puede
+ *      traer, NO se publica: la versión a mano pregunta, y aquí no hay a quién
+ *      preguntar, así que gana lo que no pisa el trabajo del gerente.
+ *   3. Nunca con Joan escribiendo en un formulario o con un modal abierto.
+ * Lo que pasó se pinta en una línea de la pestaña Equipo, nunca en un cuadro.
+ * ------------------------------------------------------------------------ */
+var PUBLICAR_SOLO_CADA_MS = 15 * 60 * 1000;
+var _publicandoSolo = false, _relojPublicarSolo = null;
+function leerPublicadoSolo() {
+  try { return JSON.parse(localStorage.getItem('tg_equipo_publicado_solo') || 'null'); } catch (e) { return null; }
+}
+function anotarPublicadoSolo(x) {
+  try { localStorage.setItem('tg_equipo_publicado_solo', JSON.stringify(x)); } catch (e) { /* nada */ }
+  pintarPublicadoSolo();
+}
+function puertaPublicarSolo() {
+  if (CARTERA_EQUIPO) return 'modo_equipo';
+  if (!sbListo()) return 'sin_nube';
+  if (!equipo().some(p => p.celular) || !asignaciones().length) return 'sin_equipo';
+  if (!window.NubeCRM || !NubeCRM.estado || NubeCRM.estado().fase !== 'lista') return 'sin_emparejar';
+  if (_carteraAjena()) return 'cartera_ajena';
+  if (estoyOcupado()) return 'ocupado';
+  return '';
+}
+function publicarEquipoSolo() {
+  if (_publicandoSolo) return Promise.resolve('en_curso');
+  const puerta = puertaPublicarSolo();
+  if (puerta) { pintarPublicadoSolo(puerta); return Promise.resolve(puerta); }
+  const a = armarPublicacionEquipo();
+  if (a.error) return Promise.resolve('no_se_pudo_armar');
+  /* La huella de lo que viajaría, y el día: si ninguno cambió, no se manda. */
+  const huella = _huella(JSON.stringify([a.asig, a.ps]));
+  const antes = leerPublicadoSolo();
+  if (antes && antes.ok && antes.huella === huella && antes.dia === hoyISO()) return Promise.resolve('sin_cambios');
+  _publicandoSolo = true;
+  return traerEquipo('auto')
+    .then(() => traerGestiones('auto'))
+    .then(() => publicarEquipoAhora(equipo().filter(p => p.celular), a.asig, a.ps, { auto: true }))
+    .then(() => { anotarPublicadoSolo({ ok: true, huella: huella, dia: hoyISO(), cuando: new Date().toISOString() }); return 'publicado'; })
+    .catch(e => {
+      anotarPublicadoSolo({ ok: false, huella: '', dia: hoyISO(), cuando: new Date().toISOString(), error: errNube(e) });
+      return 'fallo';
+    })
+    .then(r => { _publicandoSolo = false; return r; });
+}
+function arrancarPublicarSolo() {
+  if (_relojPublicarSolo != null || CARTERA_EQUIPO) return;
+  /* La primera, a los 100 s: deja que la subida de la cartera (nube-crm.js)
+     haga su vuelta y diga si este computador está emparejado, y no cae en el
+     mismo instante que los 90 s de calma de los historiales (historiales-auto.js):
+     dos subidas a la vez se reparten la misma señal. */
+  setTimeout(publicarEquipoSolo, 100 * 1000);
+  _relojPublicarSolo = setInterval(publicarEquipoSolo, PUBLICAR_SOLO_CADA_MS);
+}
+function pintarPublicadoSolo(puerta) {
+  const b = document.getElementById('equipoPublicadoSolo'); if (!b) return;
+  const x = leerPublicadoSolo();
+  const cuando = x && x.cuando ? fmtFechaHora(x.cuando) : '';
+  if (puerta === 'sin_emparejar') {
+    b.innerHTML = '<div class="alerta warn">La cartera de tu equipo se publica sola en cuanto este computador esté emparejado con la nube (Ajustes → «Sí, emparejar y subir»). Mientras tanto, usa «Publicar equipo».</div>';
+  } else if (x && x.ok === false) {
+    b.innerHTML = '<div class="alerta warn">No se pudo publicar sola (' + escHTML(cuando) + '): ' + escHTML(x.error || '') + '. Vuelve a intentar sola en 15 minutos, o usa «Publicar equipo».</div>';
+  } else if (x && x.ok) {
+    b.innerHTML = '<div class="muted" style="font-size:12.5px">☁ La cartera de tu equipo se publica sola mientras este CRM está abierto. Última: <b>' + escHTML(cuando) + '</b>.</div>';
+  } else {
+    b.innerHTML = '';
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -13036,6 +13144,9 @@ function traerEquipo(callado) {
       return nuevos + cambios;
     })
     .catch(e => {
+      /* 15-oct-2026 — 'auto' es la publicación que corre sola: no hay a quién
+         preguntar, así que no se publica (ver LA CARTERA DEL EQUIPO SE PUBLICA SOLA). */
+      if (callado === 'auto') throw e;
       if (!callado) alert('No pude traer el equipo: ' + errNube(e));
       else if (!confirm('No pude traer lo que hizo tu gerente:\n\n' + errNube(e) +
         '\n\nSi publico ahora, los asesores que él haya creado y lo que haya repartido se pueden perder.\n\n' +
@@ -13096,6 +13207,7 @@ function traerGestiones(callado) {
       return nuevas;
     })
     .catch(e => {
+      if (callado === 'auto') throw e;   // la que corre sola no publica sin traer
       if (!callado) alert('No pude traer las gestiones: ' + errNube(e));
       else if (!confirm('No pude traer las gestiones de tus asesores:\n\n' + errNube(e) +
         '\n\nSi publico ahora, lo que ellos anotaron desde su celular se puede perder.\n\n' +
@@ -15426,6 +15538,9 @@ function entrar(){ if(document.getElementById('pinInput').value===DB.config.pin)
       sello:()=>_SELLO_MIO, huella:_huella, retomarSello:_reclamarSello, recargar:recargarCartera,
       irAjustes:()=>irA('cfg'), normalizarCodigo:c=>MotorReglas.normalizarCodigoAcceso(c) }); }catch(e){}
     try{ if(!CARTERA_EQUIPO && !_oyendoCartera && typeof window.addEventListener==='function'){ _oyendoCartera=true; window.addEventListener('storage', alEscribirOtraPagina); } }catch(e){}
+    /* 15-oct-2026 — LA CARTERA DEL EQUIPO SE PUBLICA SOLA. Acá por lo mismo que
+       las dos de arriba: después del PIN y nunca en modo equipo. */
+    try{ if(!CARTERA_EQUIPO) arrancarPublicarSolo(); }catch(e){}
   } else document.getElementById('pinErr').textContent='PIN incorrecto.'; }
 /* 1-oct-2026 (segunda vuelta) — CUANDO OTRA PÁGINA ESCRIBE LA CARTERA, ESTA
    PESTAÑA SE ENTERA. subir.html aplica lo del celular (o resuelve un choque) y
