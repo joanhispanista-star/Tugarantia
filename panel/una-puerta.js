@@ -114,9 +114,17 @@
       return 'Ya le diste una clave nueva al número de su ficha. Se puede juntar' + (h ? ' desde las ' + h : ' en una hora') +
         ': hasta entonces, la sesión de quien estuviera adentro con ese número todavía vale. Se junta sola a esa hora.';
     }
+    /* 19-oct-2026 — decía «cámbiala tú en Supabase → Authentication», y ese
+       camino no existe: el panel de Supabase no deja escribirle una contraseña
+       a nadie, solo ofrece mandar un correo de recuperación a un buzón
+       57…@tugarantia.net que no existe. El camino que sí sirve es el del
+       15-oct (base/20261015c_clave_del_equipo.sql), y desde el 19-oct la
+       persona del equipo también puede cambiar la suya en «🔑 Mi contraseña». */
     if (m === 'equipo') {
       return 'Ese celular es de alguien de tu equipo (o es tu propia cuenta del Panel). Esa contraseña no se cambia desde ' +
-        'un recado: cámbiala tú en Supabase → Authentication, después de hablar con esa persona.';
+        'un recado. Habla primero con esa persona y, en el CRM del computador, ve a Equipo → esa persona → ' +
+        '«Ponerle otra contraseña»: te arma la línea para el editor SQL de Supabase y comprueba que la clave nueva sirve. ' +
+        'Si recuerda la de ahora, puede cambiarla ella misma desde su Panel, en «🔑 Mi contraseña».';
     }
     if (m === 'sin_registro') return 'Ese registro ya no está en la bandeja de la nube. Trae de nuevo los registrados.';
     if (m === 'celular') return 'El registro no trae un celular de 10 dígitos que empiece por 3: no hay a qué cuenta juntar.';

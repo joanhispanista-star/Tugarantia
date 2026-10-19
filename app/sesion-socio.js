@@ -298,7 +298,11 @@
   }
 
   /** Cambiar la contraseña. Se manda SOLO la contraseña: el correo es la
-   *  identidad de la cuenta y la base niega cambiarlo (20260914). */
+   *  identidad de la cuenta y la base niega cambiarlo (20260914).
+   *  19-oct-2026 — el «no» de Supabase sale en español (U.traducirErrorAuth).
+   *  Antes salía tal cual: «Password update requires reauthentication» es lo
+   *  que ve quien tiene la sesión abierta hace más de un día, y en inglés no
+   *  dice que la salida es volver a entrar. */
   function cambiarClave(cfg, s, nueva, alRenovar) {
     var revisa = U && U.revisarContrasena ? U.revisarContrasena(nueva, { telefono: s && s.celular }) : { ok: true };
     if (!revisa.ok) return Promise.resolve({ ok: false, motivo: revisa.motivo });
@@ -306,8 +310,8 @@
       return auth(cfg, 'user', 'PUT', { password: String(nueva) }, x.access_token).then(function (r) {
         if (r.ok) return { ok: true };
         if (r.estado === 401 || r.estado === 403) return Promise.reject({ causa: 'sesion' });
-        return { ok: false, motivo: (r.j && (r.j.msg || r.j.error_description)) ||
-          'No pude cambiar tu contraseña. Vuelve a intentar en un momento.' };
+        return { ok: false, motivo: (U && U.traducirErrorAuth) ? U.traducirErrorAuth(r.j, r.estado)
+          : 'No pude cambiar tu contraseña. Vuelve a intentar en un momento.' };
       });
     };
     var listo = vigente(s, ahora(cfg)) ? Promise.resolve(s)

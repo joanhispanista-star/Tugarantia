@@ -347,8 +347,10 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    condiciones de cada propuesta con su casilla, el correo obligatorio, los
    pesos con separadores y el acompañamiento sin pregunta.
    13-oct-2026 — sube por el rayo: continuo, saliendo del dedo hacia todos
-   lados, y visible también sobre fondo claro. */
-var VERSION_PLAY = '2026-10-15';
+   lados, y visible también sobre fondo claro.
+   19-oct-2026 — sube porque «Cambiar mi contraseña» dice en español lo que
+   antes salía en inglés de Supabase. */
+var VERSION_PLAY = '2026-10-19';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -6495,17 +6497,25 @@ function cambiarClave() {
   fallo(err, 'Guardando…');
   /* Se manda SOLO la contraseña. El correo no viaja acá ni por error: es la
      identidad de la cuenta, y la base tiene un disparador que niega el cambio
-     —fue por ahí por donde el 14-sep se pudo entrar a la cuenta de otro. */
+     —fue por ahí por donde el 14-sep se pudo entrar a la cuenta de otro.
+     19-oct-2026 — el «no» de Supabase sale en español y con qué hacer
+     (U.traducirErrorAuth, el mismo de la app del cliente y del Panel: es la
+     misma cuenta). Antes se pintaba r.j.msg tal cual, en inglés. El cuerpo
+     puede no ser JSON (un 502 de una puerta intermedia): eso no es «sin
+     internet», y por eso se lee aparte en vez de caer al catch. */
   fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + SESION.access_token },
     body: JSON.stringify({ password: c1 })
-  }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+  }).then(function (r) {
+    return r.json().catch(function () { return null; })
+      .then(function (j) { return { ok: r.ok, estado: r.status, j: j }; });
+  })
     .then(function (r) {
       if (!r.ok) {
-        return fallo(err, (r.j && r.j.msg) || (r.j && r.j.error_description) ||
-          'No pude cambiar tu contraseña. Vuelve a intentar en un momento.');
+        return fallo(err, (U && U.traducirErrorAuth) ? U.traducirErrorAuth(r.j, r.estado)
+          : 'No pude cambiar tu contraseña. Vuelve a intentar en un momento.');
       }
       a.value = ''; b.value = '';
       fallo(err, 'Listo: tu contraseña quedó cambiada. La próxima vez entra con la nueva.');

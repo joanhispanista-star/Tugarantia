@@ -167,6 +167,11 @@ function abrirPanel(opciones) {
   /* 15-oct-2026 — las reglas de la venta del gerente, el <script src> nuevo
      de crm.html. `sinGerenteVende: true` simula que no llegó. */
   if (!o.sinGerenteVende) ctx.GerenteVende = require(path.join(RAIZ, 'panel', 'gerente-vende.js'));
+  /* 19-oct-2026 — «🔑 Mi contraseña» del equipo, el <script src> nuevo de
+     crm.html. Trae sus reglas de app/cuenta.js por su cuenta (require), así
+     que no depende de que el banco le dé CuentaSocio a la página.
+     `sinMiClave: true` simula que no llegó. */
+  if (!o.sinMiClave) ctx.MiClave = require(path.join(RAIZ, 'panel', 'mi-clave.js'));
   if (!o.sinUnaPuerta) {
     ctx.UnaPuerta = require(path.join(RAIZ, 'panel', 'una-puerta.js'));
     ctx.VerComo = require(path.join(RAIZ, 'app', 'ver-como.js'));
