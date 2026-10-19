@@ -26,6 +26,12 @@
  * formulario y no hizo nada». No hay nada que restaurar y no puede secuestrar
  * el enlace. Solo a partir del paso 1 —que es donde está la cámara, el caso
  * para el que se escribió todo esto— se devuelve a la persona a su paso.
+ *
+ * 19-oct-2026 — LA CÉDULA VA PRIMERO, y el primer paso ES la cámara. La regla
+ * se afina sin aflojarse: el primer paso sigue sin contar por sí solo (abrir y
+ * cerrar no secuestra el enlace), pero cuenta si ya hay una foto de la cédula
+ * de este intento, que es justo lo que la cámara del sistema deja al tumbar la
+ * pestaña. Y los pasos se nombran (indiceDe), no se cuentan.
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -34,6 +40,8 @@ const { abrirPlay } = require('./banco-play.js');
 /* Lo que se ve al abrir: la portada o el formulario. */
 const esFormulario = P => /Paso \d+ de/.test(P.elems.cuerpo.innerHTML);
 const esPortada = P => /¿Ya abriste tu cuenta\?/.test(P.elems.cuerpo.innerHTML);
+/* El número que la pantalla muestra para un paso, por su nombre. */
+const numeroDe = (P, id) => P.ev("indiceDe('" + id + "')") + 1;
 
 /* Alguien que tocó «Abrir mi cuenta», vio el paso 1 y cerró sin escribir nada. */
 function soloAbrioElFormulario() {
@@ -57,7 +65,7 @@ describe('un vistazo al formulario no secuestra el enlace', () => {
 
   test('y el que SÍ iba a mitad vuelve a su paso, que es para lo que existe esto', () => {
     const P0 = abrirPlay({ hash: '' });
-    P0.ev('pintarRegistro(0)');
+    P0.ev("pintarRegistro(indiceDe('entrada'))");
     P0.ev("$('rTel').value='3001112233'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x';");
     P0.ev('siguientePaso()');
     /* La relanzada de Android: mismo localStorage, sessionStorage vacío. */
@@ -65,7 +73,7 @@ describe('un vistazo al formulario no secuestra el enlace', () => {
     assert.ok(esFormulario(P),
       'se perdió el arreglo de la cámara: quien iba a mitad del registro tiene que ' +
       'volver a su paso, no a la portada');
-    assert.match(P.elems.cuerpo.innerHTML, /Paso 2 de/,
+    assert.match(P.elems.cuerpo.innerHTML, new RegExp('Paso ' + numeroDe(P, 'rostro') + ' de'),
       'volvió al formulario pero no a su paso');
   });
 
@@ -87,12 +95,13 @@ describe('un vistazo al formulario no secuestra el enlace', () => {
        encuentra su celular ya puesto. Si esto se rompiera, el arreglo sería
        peor que el fallo. */
     const antes = abrirPlay({ hash: '' });
-    antes.ev('pintarRegistro(0)');
-    antes.ev("anotarCelular({ value: '3001112233' })");
+    antes.ev("pintarRegistro(indiceDe('entrada'))");
+    /* …y vuelve al primer paso antes de cerrar: el checkpoint queda en el 0. */
+    antes.ev("anotarCelular({ value: '3001112233' }); pintarRegistro(0)");
 
     const P = abrirPlay({ almacen: antes.almacen, sesion: {}, hash: '' });
     assert.ok(esPortada(P), 'no llevó a la portada');
-    P.ev('pintarRegistro(0)');
+    P.ev("pintarRegistro(indiceDe('entrada'))");
     assert.equal(P.ev('REGISTRO.celular'), '3001112233',
       'se perdió el celular que la persona ya había escrito');
   });
@@ -104,10 +113,41 @@ describe('la regla, en el código', () => {
     .readFileSync(require('node:path').join(__dirname, '..', 'play', 'index.html'), 'utf8');
 
   test('hayPasoGuardado exige progreso de verdad', () => {
+    /* 19-oct-2026 — por NOMBRE (indiceDelCheckpoint) y, en el primer paso, solo
+       con una foto de la cédula que la pantalla dé por buena (hayFotoLista). */
     const i = PLAY.indexOf('function hayPasoGuardado');
-    const cuerpo = PLAY.slice(i, PLAY.indexOf('\n}', i));
-    assert.match(cuerpo, /Number\(c\.paso\) > 0/,
+    const cuerpo = PLAY.slice(i, PLAY.indexOf('\n}', i)).replace(/\/\*[\s\S]*?\*\//g, ' ');
+    assert.match(cuerpo, /if \(indiceDelCheckpoint\(c\) > 0\) return true;/,
+      'el checkpoint se volvió a leer por número: con el orden nuevo eso lleva a otro paso');
+    assert.match(cuerpo, /return hayFotoLista\('cedula_reverso'\) \|\| hayFotoLista\('cedula_frente'\);/,
       'volvió a contar el paso 0 como un registro interrumpido: eso secuestra el enlace');
+  });
+
+  test('el primer paso CON una foto de la cédula sí vuelve; sin foto, a la portada', () => {
+    /* El caso nuevo: la cámara del sistema guardó el respaldo y el teléfono
+       tumbó la pestaña antes del frente. Sin esto, volvía a la portada y la
+       foto se quedaba en el teléfono sin que nadie la ofreciera. */
+    const P = abrirPlay({ hash: '' });
+    P.ev("pintarRegistro(0); FOTOS = { sensibles: true, cedula_reverso: 'data:image/jpeg;base64,AAAA' }; marcarDuenoDeLasFotos(); guardarFotos();");
+    const Q = abrirPlay({ almacen: P.almacen, sesion: {}, hash: '' });
+    assert.ok(esFormulario(Q), 'la foto de la cédula del primer paso no devolvió a la persona a su registro');
+    assert.match(Q.elems.cuerpo.innerHTML, /Paso 1 de/);
+    assert.match(Q.elems.errReg.innerHTML, /las fotos que ya habías tomado/);
+    /* Una foto de OTRO intento (otra persona) no cuenta: el enlace sigue abriendo la portada. */
+    const R = abrirPlay({ hash: '' });
+    R.ev("pintarRegistro(0); FOTOS = { sensibles: true, cedula_reverso: 'data:x', de: { celular: '', intento: 'de-otro', t: Date.now() } }; guardarFotos();");
+    assert.ok(esPortada(abrirPlay({ almacen: R.almacen, sesion: {}, hash: '' })),
+      'una cédula de otro intento secuestró el enlace');
+  });
+
+  test('un checkpoint de la versión anterior (solo con número) vuelve al MISMO paso, por su nombre', () => {
+    /* Hasta el 19-oct se guardaba {paso: n} con el orden viejo: el 1 era la
+       cédula y el 2 el rostro. Leído con el orden nuevo, el 2 sería «Tu celular». */
+    const P = abrirPlay({ hash: '' });
+    P.ev("REGISTRO.celular = '3001112233'; guardarBorrador(REGISTRO);");
+    P.almacen.play_registro_paso = JSON.stringify({ paso: 2, t: Date.now() });
+    const Q = abrirPlay({ almacen: P.almacen, sesion: {}, hash: '' });
+    assert.equal(Q.ev('PASOS[PASO].id'), 'rostro', 'el número viejo llevó a otro paso');
   });
 
   test('y el paso se sigue guardando, que es lo que salva la cámara', () => {

@@ -61,6 +61,22 @@
      tampoco, aunque sea el mismo. */
   var HORAS_REGISTRO_VIVO = 24;
 
+  /* 19-oct-2026 — CUÁNTO VALEN LAS FOTOS QUE TODAVÍA NO TIENEN DUEÑO.
+     Joan: «que lo primero que aparezca al momento de que un cliente se
+     registre sea el escanear la cédula». Con la cédula primero, las fotos se
+     toman ANTES de que exista el celular, y el celular era el dueño: sin él,
+     fotosPertenecen decía que no, la caja no decía «Listo» y la subida no las
+     mandaba nunca (reproducido en el banco el 19-oct).
+     Mientras no hay celular, el dueño es el INTENTO: un identificador al azar
+     que vive en el borrador del registro y que «empezar de cero» cambia. Y
+     vale poco rato a propósito: en un teléfono prestado, la cédula escaneada
+     de una persona no puede quedarle a la siguiente que abra el enlace. Una
+     hora alcanza para escanear, revisar los datos y escribir el celular; a
+     partir de ahí las fotos ya tienen dueño y valen el día de siempre. Pasada
+     la hora sin celular, no se ven listas ni suben, y al abrir la cuenta se
+     pregunta «¿Eres …?» antes de usarlas (play/, identidadEnDuda). */
+  var MINUTOS_SIN_DUENO = 60;
+
   /* Los umbrales del encuadre, juntos y con nombre, porque son lo único que hay
      que calibrar mirando teléfonos de verdad. Si quedan estrictos, la persona
      se atasca con la cédula en la mano; si quedan flojos, se decodifica basura
@@ -678,13 +694,68 @@
 
   /**
    * ¿Las fotos guardadas pertenecen a este registro?
-   * Sí cuando se tomaron para el mismo celular y hace menos de un día.
+   * Con dueño (fotos.de.celular): sí cuando se tomaron para el mismo celular y
+   * hace menos de un día — la regla de siempre, y la única que vale para SUBIR.
+   * Sin dueño todavía (19-oct-2026, la cédula va primero): sí cuando son del
+   * mismo intento de registro y de hace menos de MINUTOS_SIN_DUENO. El celular
+   * que llegue no cuenta para estas: todavía no son de nadie, son de este
+   * intento. `intento` es opcional: sin él, una foto sin dueño no es de nadie.
    */
-  function fotosPertenecen(fotos, celular, ahora) {
-    if (!fotos || !fotos.de || !celular) return false;
-    if (String(fotos.de.celular || '') !== String(celular)) return false;
+  function fotosPertenecen(fotos, celular, ahora, intento) {
+    if (!fotos || !fotos.de) return false;
     var t = Number(fotos.de.t) || 0;
-    return t > 0 && (ahora - t) >= 0 && (ahora - t) < HORAS_REGISTRO_VIVO * 3600 * 1000;
+    if (!(t > 0 && (ahora - t) >= 0)) return false;
+    var dueno = String(fotos.de.celular || '');
+    if (dueno) {
+      if (!celular || dueno !== String(celular)) return false;
+      return (ahora - t) < HORAS_REGISTRO_VIVO * 3600 * 1000;
+    }
+    if (!intento || !fotos.de.intento || String(fotos.de.intento) !== String(intento)) return false;
+    return (ahora - t) < MINUTOS_SIN_DUENO * 60 * 1000;
+  }
+
+  /**
+   * La fecha de expedición que la persona escribe a mano — 19-oct-2026.
+   * No viene en el código de barras (cuenta.js, leerCedulaPDF417), así que es
+   * el único dato de la identidad que siempre se teclea, y el más fácil de
+   * equivocar: se confunde con la de nacimiento, o se escribe el año de hoy.
+   * @param expedicion 'AAAA-MM-DD', lo que dejó la casilla de fecha.
+   * @param nacimiento 'AAAA-MM-DD' leído de la cédula, o '' si no se leyó.
+   * @param hoy        'AAAA-MM-DD' del teléfono.
+   * @param tipoDoc    el tipo de documento del formulario.
+   * @returns {ok, motivo}
+   * Vacía no es asunto de esta función: es obligatoria y eso lo dice
+   * CuentaSocio.revisarVinculacion. Lo de los 18 años solo con la cédula de
+   * ciudadanía y la fecha de nacimiento LEÍDA: la cédula se expide desde los
+   * 18, pero un pasaporte no, y una fecha de nacimiento que nadie leyó no
+   * sirve para rechazar nada.
+   */
+  function revisarExpedicion(expedicion, nacimiento, hoy, tipoDoc) {
+    var e = String(expedicion == null ? '' : expedicion).trim();
+    if (!e) return { ok: true, motivo: '' };
+    var forma = /^(\d{4})-(\d{2})-(\d{2})$/;
+    var m = forma.exec(e);
+    if (!m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > 31) {
+      return { ok: false, motivo: 'Esa fecha de expedición no se entiende. Escríbela como aparece en tu cédula.' };
+    }
+    var h = String(hoy || '');
+    if (forma.test(h) && e > h) {
+      return { ok: false, motivo: 'La fecha de expedición no puede ser después de hoy. Revísala en tu cédula.' };
+    }
+    var n = forma.exec(String(nacimiento || ''));
+    var esCedula = !tipoDoc || tipoDoc === 'Cédula de ciudadanía';
+    if (n && esCedula) {
+      /* Se compara como texto, y funciona: AAAA-MM-DD ordena igual que la
+         fecha. Un 29 de febrero da un «límite» que no existe (2006-02-29),
+         pero en el orden de texto cae justo entre el 28 y el 1 de marzo, que
+         es lo correcto. */
+      var limite = (Number(n[1]) + 18) + '-' + n[2] + '-' + n[3];
+      if (e < limite) {
+        return { ok: false, motivo: 'La cédula se expide desde los 18 años, y esa fecha es de antes. ' +
+          'Revísala en tu cédula: está en el respaldo, donde dice «FECHA Y LUGAR DE EXPEDICIÓN».' };
+      }
+    }
+    return { ok: true, motivo: '' };
   }
 
   /* ¿El registro a medias sigue vivo? Un checkpoint de hace más de un día no se
@@ -699,6 +770,9 @@
     VERSION: '2026-10-19',
     PROPORCION: PROPORCION,
     HORAS_REGISTRO_VIVO: HORAS_REGISTRO_VIVO,
+    /* 19-oct-2026 — la cédula va primero: fotos sin dueño y la expedición */
+    MINUTOS_SIN_DUENO: MINUTOS_SIN_DUENO,
+    revisarExpedicion: revisarExpedicion,
     TARJETA: TARJETA,
     GIROS_DE_RESCATE: GIROS_DE_RESCATE,
     grisDeImageData: grisDeImageData,

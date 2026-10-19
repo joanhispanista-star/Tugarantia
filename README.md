@@ -77,6 +77,13 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         APK se reparte directo — ver android/LEEME.md. Esto queda
                         listo por si la tienda se retoma.)
   index.html            Entrar, registrarse, simular, pedir y ver el historial.
+                        El registro (19-oct-2026) empieza por la cédula: un
+                        botón que autoriza y escanea (o «Prefiero escribir mis
+                        datos»), revisar lo leído, el celular y la contraseña,
+                        el rostro y lo demás. Las fotos se toman antes del
+                        celular: su dueño es el intento hasta que lo hay (ver
+                        pruebas/la-cedula-primero.test.js). PlataChat usa este
+                        mismo registro con ?marca=platachat.
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).

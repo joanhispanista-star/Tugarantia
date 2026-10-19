@@ -253,20 +253,31 @@ describe('la selfie dentro de la página', () => {
     assert.equal([...t.matchAll(/URL_ROSTRO_VIVO/g)].length, 4, 'apareció otro uso del módulo: revisa que no corra antes del paso del rostro');
   });
 
-  test('se BAJA antes, con la cédula, y solo con la autorización — sin encender nada', () => {
+  test('se BAJA antes, en el paso del celular, y solo con la autorización — sin encender nada', () => {
+    /* 19-oct-2026 — antes se bajaba «con la cédula» (al marcar la casilla y al
+       entrar a ese paso). La cédula va primero desde hoy, y lo primero no
+       puede cargar nada más que la cédula: se baja en el paso del celular, que
+       es el que va justo antes del rostro y no usa la red. La autorización
+       sola (el botón del primer paso) ya no baja nada. */
     const anota = P => P.ev('window.__links = []; document.createElement = function (t) { var e = { tag: t }; return e; };' +
       'document.head.appendChild = function (e) { if (e.tag === "link") window.__links.push(e.rel + " " + e.href); };');
     const sin = abrirPlay();
     sin.ev("REGISTRO.celular = '3001112233'; FOTOS = { sensibles: false }; guardarFotos();");
     anota(sin);
-    sin.ev('precalentarDetectorRostro(); cambiarConsentimiento(false);');
+    sin.ev("precalentarDetectorRostro(); cambiarConsentimiento(false); pintarRegistro(indiceDe('entrada'));");
     assert.deepEqual(JSON.parse(sin.ev('JSON.stringify(window.__links)')), [], 'se bajó el detector sin la autorización de fotos');
-    assert.match(PLAY, /if \(p\.id === 'documento' && FOTOS\.sensibles\) precalentarDetectorRostro\(\);/,
-      'el paso de la cédula dejó de bajar el detector solo con la autorización');
+    assert.match(PLAY, /if \(p\.id === 'entrada' && FOTOS\.sensibles\) precalentarDetectorRostro\(\);/,
+      'el paso del celular dejó de bajar el detector solo con la autorización');
+    const primero = abrirPlay();
+    primero.ev("REGISTRO.celular = '3001112233'; FOTOS = { sensibles: false }; guardarFotos();");
+    anota(primero);
+    primero.ev("cambiarConsentimiento(true); pintarRegistro(indiceDe('documento'));");
+    assert.deepEqual(JSON.parse(primero.ev('JSON.stringify(window.__links)')), [],
+      'el primer paso (la cédula) volvió a bajar el detector de rostro');
     const con = abrirPlay();
     con.ev("REGISTRO.celular = '3001112233'; FOTOS = { sensibles: false }; guardarFotos();");
     anota(con);
-    con.ev('cambiarConsentimiento(true); cambiarConsentimiento(true);');
+    con.ev("cambiarConsentimiento(true); pintarRegistro(indiceDe('entrada')); pintarRegistro(indiceDe('entrada'));");
     const links = JSON.parse(con.ev('JSON.stringify(window.__links)'));
     assert.deepEqual(links, ['prefetch ../app/rostro-en-vivo.js', 'prefetch ../app/lib/rostro/face-api.js',
       'prefetch ../app/lib/rostro/tiny_face_detector_model-weights_manifest.json', 'prefetch ../app/lib/rostro/tiny_face_detector_model.bin'],

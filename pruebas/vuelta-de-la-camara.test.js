@@ -34,7 +34,7 @@ const PLAY = fs.readFileSync(path.join(__dirname, '..', 'play', 'index.html'), '
 /* Como quien acaba de poner su celular y su contraseña y va a tomar la foto. */
 function aMitadDelRegistro() {
   const P = abrirPlay({ hash: '' });
-  P.ev('pintarRegistro(0)');
+  P.ev("pintarRegistro(indiceDe('entrada'))");   // 19-oct-2026: el celular ya no es el paso 1
   P.ev("$('rTel').value='3001112233'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x';");
   P.ev('siguientePaso()');
   return P;
@@ -43,15 +43,20 @@ function aMitadDelRegistro() {
    sessionStorage vacío. `hash` es lo que Android alcanzó a restaurar. */
 const relanzar = (P, hash) => abrirPlay({ almacen: P.almacen, sesion: {}, hash: hash || '' });
 const paso = P => { const m = /Paso (\d+) de/.exec(P.elems.cuerpo.innerHTML); return m ? Number(m[1]) : null; };
+/* 19-oct-2026 — la cédula va primero: los pasos se nombran, no se cuentan.
+   Después del celular viene la otra cámara, la del rostro; la vuelta de la
+   cámara en el primer paso (la cédula) la mide
+   pruebas/el-enlace-abre-la-portada.test.js. */
+const numeroDe = (P, id) => P.ev("indiceDe('" + id + "')") + 1;
 
 describe('la relanzada de Android (sessionStorage vacío)', () => {
 
   test('EL CASO DE JOAN: sin sessionStorage y sin dirección, vuelve al paso de la cédula', () => {
     const P = aMitadDelRegistro();
-    assert.equal(paso(P), 2, 'el caso de prueba no llegó al paso de la cédula');
+    assert.equal(paso(P), numeroDe(P, 'rostro'), 'el caso de prueba no llegó al paso del rostro (la cámara)');
     const Q = relanzar(P, '');
     assert.equal(Q.ev('VISTA'), 'registro', 'lo sacó del registro: es el defecto que Joan reportó');
-    assert.equal(paso(Q), 2, 'volvió al registro pero no al paso donde iba');
+    assert.equal(paso(Q), numeroDe(Q, 'rostro'), 'volvió al registro pero no al paso donde iba');
     assert.equal(/Ya abriste tu cuenta/.test(Q.elems.cuerpo.innerHTML), false, 'le pide celular y contraseña otra vez');
     assert.match(Q.elems.errReg.innerHTML, /La página se volvió a abrir/, 'no le explica qué pasó');
   });
@@ -61,7 +66,7 @@ describe('la relanzada de Android (sessionStorage vacío)', () => {
        decía «registro» pero el número de paso vivía en la pestaña. */
     const P = aMitadDelRegistro();
     const Q = relanzar(P, '#registro');
-    assert.equal(paso(Q), 2);
+    assert.equal(paso(Q), numeroDe(Q, 'rostro'));
     assert.equal(/Crea tu contraseña/.test(Q.elems.cuerpo.innerHTML), false);
   });
 
@@ -69,7 +74,7 @@ describe('la relanzada de Android (sessionStorage vacío)', () => {
     const P = aMitadDelRegistro();
     assert.equal(P.sesion.play_registro_paso, undefined, 'el paso sigue en sessionStorage, que Android no restaura');
     const cp = JSON.parse(P.almacen.play_registro_paso || 'null');
-    assert.ok(cp && cp.paso === 1 && cp.t > 0, 'el checkpoint no está en localStorage con su hora');
+    assert.ok(cp && cp.id === 'rostro' && cp.paso === P.ev("indiceDe('rostro')") && cp.t > 0, 'el checkpoint no está en localStorage con su hora');
     assert.equal(/sessionStorage\.setItem\(LLAVE_PASO/.test(PLAY), false, 'volvió a escribirse el paso en sessionStorage');
   });
 
@@ -97,7 +102,7 @@ describe('la contraseña, después de la relanzada', () => {
 
   function alFinal(P) {
     /* Con la relanzada se fue la clave en curso; el cliente llega al paso 9. */
-    P.ev('pintarRegistro(8)');
+    P.ev("pintarRegistro(indiceDe('permiso'))");
     P.ev("fetch = function (u) { (window.__llamadas = window.__llamadas || []).push(String(u)); return Promise.reject(new Error('corte')); };");
     P.ev("$('autGeneral').checked = true;");
     return P;
@@ -129,7 +134,7 @@ describe('la contraseña, después de la relanzada', () => {
 
   test('con la contraseña en memoria, el paso 9 NO la vuelve a pedir', () => {
     const P = aMitadDelRegistro();
-    P.ev('pintarRegistro(8)');
+    P.ev("pintarRegistro(indiceDe('permiso'))");
     assert.equal(/id="rClaveFin"/.test(P.elems.cuerpo.innerHTML), false, 'pide la contraseña que ya tiene');
   });
 
@@ -174,9 +179,12 @@ describe('las fotos, después de la relanzada', () => {
     assert.equal(Q.ev('window.__subio'), undefined);
   });
 
-  test('si en el paso 1 cambia el celular, las fotos del anterior no se le pegan', () => {
+  test('si en el paso del celular cambia el celular, las fotos de OTRO registro no se le pegan', () => {
+    /* 19-oct-2026 — conFotos no lleva intento: son de otro registro (o de la
+       versión anterior). Las de ESTE registro cambian de dueño en vez de
+       soltarse: ver pruebas/la-cedula-primero.test.js. */
     const P = aMitadDelRegistro(); conFotos(P, '3001112233');
-    P.ev('pintarRegistro(0)');
+    P.ev("pintarRegistro(indiceDe('entrada'))");
     P.ev("$('rTel').value='3009999999'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x';");
     P.ev('siguientePaso()');
     assert.equal(P.ev('FOTOS.cedula_frente'), undefined, 'la cédula del celular anterior siguió pegada al nuevo');
@@ -220,7 +228,7 @@ describe('lo que se escribe en el paso 1', () => {
     /* La página promete «con lo que ya habías escrito»; el celular no entraba
        en esa promesa. */
     const P = abrirPlay({ hash: '' });
-    P.ev("pintarRegistro(0); $('rTel').value = '3001112233'; anotarCelular($('rTel'));");
+    P.ev("pintarRegistro(indiceDe('entrada')); $('rTel').value = '3001112233'; anotarCelular($('rTel'));");
     assert.match(P.almacen.play_registro_borrador || '', /3001112233/, 'el celular tecleado no llegó al borrador');
     assert.match(PLAY, /id="rTel"[^>]*oninput="anotarCelular\(this\)"/, 'rTel dejó de anotarse por tecla');
   });

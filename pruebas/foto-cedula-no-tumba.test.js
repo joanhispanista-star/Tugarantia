@@ -174,10 +174,14 @@ describe('la foto de la cédula (16-sep-2026)', () => {
 describe('la vuelta de la cámara no puede devolver a nadie al login', () => {
 
   /* Deja la página a mitad del registro, como quien acaba de poner su celular y
-     su contraseña y va a tomar la foto de la cédula. */
+     su contraseña y va a tomar la foto de la cédula.
+     19-oct-2026 — la cédula va primero: después del celular viene la otra
+     cámara, la del rostro. La vuelta de la cámara en el primer paso (la
+     cédula) la mide pruebas/el-enlace-abre-la-portada.test.js. */
+  const numeroDe = (P, id) => P.ev("indiceDe('" + id + "')") + 1;
   function aMitadDelRegistro(hash) {
     const P = abrirPlay({ hash: hash || '' });
-    if (!hash) P.ev('pintarRegistro(0)');
+    P.ev("pintarRegistro(indiceDe('entrada'))");   // 19-oct-2026: el paso del celular ya no es el primero
     P.ev("REGISTRO.celular='3001112233';" +
          "$('rTel').value='3001112233';" +
          "$('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x';");
@@ -196,11 +200,11 @@ describe('la vuelta de la cámara no puede devolver a nadie al login', () => {
 
   test('EL CASO DE JOAN: sin #registro en la dirección, la cámara lo devolvía al login', () => {
     const P = aMitadDelRegistro('');
-    assert.equal(paso(P), 2, 'el caso de prueba no llegó al paso de la cédula');
+    assert.equal(paso(P), numeroDe(P, 'rostro'), 'el caso de prueba no llegó al paso del rostro (la cámara)');
     const Q = recargar(P);
     assert.equal(Q.ev('VISTA'), 'registro',
       'al volver de la cámara la página lo sacó del registro: eso es el defecto que reportó Joan');
-    assert.equal(paso(Q), 2, 'volvió al registro pero no al paso donde iba');
+    assert.equal(paso(Q), numeroDe(Q, 'rostro'), 'volvió al registro pero no al paso donde iba');
     assert.equal(/Ya abriste tu cuenta/.test(Q.elems.cuerpo.innerHTML), false,
       'le está pidiendo otra vez el celular y la contraseña');
   });
@@ -208,7 +212,7 @@ describe('la vuelta de la cámara no puede devolver a nadie al login', () => {
   test('por el enlace que Joan reparte (#registro) también vuelve donde iba', () => {
     const P = aMitadDelRegistro('#registro');
     const Q = recargar(P);
-    assert.equal(paso(Q), 2, 'el camino del enlace dejó de restaurar el paso');
+    assert.equal(paso(Q), numeroDe(Q, 'rostro'), 'el camino del enlace dejó de restaurar el paso');
   });
 
   test('el registro tiene su propia dirección, o la recarga no sabe dónde estaba', () => {
@@ -308,7 +312,13 @@ describe('la vuelta de la cámara no puede devolver a nadie al login', () => {
     /* Se cuenta desde DENTRO de la página y se compara un número: los objetos
        del banco vienen de otro realm y `deepEqual` de assert/strict compara
        también el prototipo, así que un [] de allá no es igual a un [] de acá. */
-    assert.equal(Q.ev('Object.keys(REGISTRO).length'), 0, 'quedaron datos del anterior en memoria');
+    /* 19-oct-2026 — lo único que queda es el INTENTO nuevo, que no es un dato
+       de nadie: y tiene que ser OTRO, o las fotos que tome el siguiente se
+       confundirían con las del anterior. */
+    assert.equal(Q.ev("Object.keys(REGISTRO).filter(function (k) { return k !== 'intento'; }).length"), 0,
+      'quedaron datos del anterior en memoria');
+    assert.ok(Q.ev('REGISTRO.intento') && Q.ev('REGISTRO.intento') !== P.ev('REGISTRO.intento'),
+      'empezar de cero no cambió el intento: las fotos del siguiente pasarían por las del anterior');
     assert.equal(Q.ev('Object.keys(FOTOS).length'), 0, 'quedaron fotos del anterior en memoria');
     assert.equal(Q.almacen['play_registro_borrador'], undefined, 'el borrador del anterior sigue en el teléfono');
     assert.equal(Q.almacen['play_fotos_borrador'], undefined, 'las fotos del anterior siguen en el teléfono');
@@ -323,7 +333,7 @@ describe('la vuelta de la cámara no puede devolver a nadie al login', () => {
        misma». */
     const P = aMitadDelRegistro('');
     const Q = recargar(P);
-    Q.ev('pintarRegistro(0)');
+    Q.ev("pintarRegistro(indiceDe('entrada'))");
     const h = Q.elems.cuerpo.innerHTML;
     assert.equal(/Perro\.2026x/.test(h), false,
       'la contraseña volvió al formulario: el siguiente que use el teléfono la tiene');
@@ -333,7 +343,7 @@ describe('la vuelta de la cámara no puede devolver a nadie al login', () => {
     /* Y de verdad continúa: con los dos campos vacíos pasa al paso 2. */
     Q.ev("$('rClave').value=''; $('rClave2').value='';");
     Q.ev('siguientePaso()');
-    assert.equal(paso(Q), 2, 'dejarlo en blanco no lo dejó continuar, así que la teclea otra vez');
+    assert.equal(paso(Q), numeroDe(Q, 'rostro'), 'dejarlo en blanco no lo dejó continuar, así que la teclea otra vez');
   });
 
   test('las fotos solo suben a la cuenta de quien las tomó', () => {

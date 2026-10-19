@@ -2023,9 +2023,9 @@ describe('EL ACOMPAÑAMIENTO, SIN PREGUNTAR (8-oct-2026; antes «el permiso va p
       'volvió el interruptor del acompañamiento');
   });
 
-  test('el aviso va UNA vez, en el paso 1, y DICE qué se ve, qué no, y que Continuar es el permiso', () => {
+  test('el aviso va UNA vez, en el paso del celular, y DICE qué se ve, qué no, y que Continuar es el permiso', () => {
     const P = abrirPlay();
-    P.ev('pintarRegistro(0)');
+    P.ev("pintarRegistro(indiceDe('entrada'))");   // 19-oct-2026: el del celular ya no es el paso 1
     const h = P.elems.cuerpo.innerHTML;
     assert.match(h, /id="avisoAcompana"/, 'el paso 1 no avisa del acompañamiento');
     const t = P.ev('avisoAcompana()');
@@ -2042,21 +2042,33 @@ describe('EL ACOMPAÑAMIENTO, SIN PREGUNTAR (8-oct-2026; antes «el permiso va p
        cartera; nadie mira cada registro en vivo. */
     assert.match(t, /puede ver/);
     assert.ok(!/fotos de tu cédula, si las autorizas/.test(t), 'volvió a ofrecer las fotos de la cédula');
-    P.ev('pintarRegistro(3)');
-    assert.ok(!/avisoAcompana/.test(P.elems.cuerpo.innerHTML), 'el aviso se repite en otros pasos');
+    /* 19-oct-2026 — en NINGÚN otro paso (antes se miraba uno solo, el 4). */
+    const n = P.ev('PASOS.length');
+    for (let i = 0; i < n; i++) {
+      if (i === P.ev("indiceDe('entrada')")) continue;
+      P.ev('pintarRegistro(' + i + ')');
+      assert.ok(!/avisoAcompana/.test(P.elems.cuerpo.innerHTML), 'el aviso se repite en el paso ' + (i + 1));
+    }
   });
 
   /* 8-oct-2026 (segunda vuelta): desde el 2 sí, PERO solo con la marca de que
      tocó «Continuar» con el aviso a la vista (tg_vivo_aviso_8oct2026). */
   const conAviso = P => { P.ev('anotarAvisoVivo()'); return P; };
 
-  test('en el paso 1 NO se publica nada; desde el 2, sí, sin preguntar', () => {
+  test('en el paso del celular, y ANTES, NO se publica nada; después, sí, sin preguntar', () => {
+    /* 19-oct-2026 — la cédula va primero: «el paso 1» de esta prueba es ahora
+       el del celular (el tercero), y lo que va antes —la cédula y «Revisa tus
+       datos»— tampoco publica, aunque el formulario ya tenga nombre y
+       documento: el aviso todavía no se ha visto. */
     const P = conAviso(abrirPlay());
     const vivo = conNube(P);
-    P.ev('REGISTRO.celular = "3007778899"; PASO = 0; publicarAvance();');
-    assert.equal(vivo().length, 0, 'se publicó antes de que tocara «Continuar» en el paso 1');
-    P.ev('PASO = 1; publicarAvance();');
-    assert.equal(vivo().length, 1, 'desde el paso 2 no se publicó');
+    P.ev('REGISTRO.celular = "3007778899"; REGISTRO.nombres = "Luis";');
+    ['documento', 'identidad', 'entrada'].forEach(id => {
+      P.ev('PASO = indiceDe("' + id + '"); publicarAvance();');
+      assert.equal(vivo().length, 0, 'se publicó en «' + id + '», antes de que tocara «Continuar» en el paso del celular');
+    });
+    P.ev('PASO = indiceDe("rostro"); publicarAvance();');
+    assert.equal(vivo().length, 1, 'después del paso del celular no se publicó');
     assert.equal(vivo()[0].fn, 'registro_vivo_publicar');
   });
 
@@ -2067,13 +2079,13 @@ describe('EL ACOMPAÑAMIENTO, SIN PREGUNTAR (8-oct-2026; antes «el permiso va p
   test('sin haber leído el aviso (un registro restaurado a mitad), NO se publica', () => {
     const P = abrirPlay({ almacen: { tg_acompana: '0' } });
     const vivo = conNube(P);
-    P.ev('REGISTRO.celular = "3007778899"; PASO = 4; publicarAvance();');
+    P.ev('REGISTRO.celular = "3007778899"; PASO = indiceDe("contacto"); publicarAvance();');
     assert.equal(vivo().length, 0, 'publicó el avance de alguien que nunca vio el aviso');
   });
 
-  test('tocar «Continuar» en el paso 1 es el permiso: pone la marca, y abrir la cuenta la quita', () => {
+  test('tocar «Continuar» en el paso del celular es el permiso: pone la marca, y abrir la cuenta la quita', () => {
     const P = abrirPlay();
-    P.ev('pintarRegistro(0)');
+    P.ev("pintarRegistro(indiceDe('entrada'))");
     P.ev("document.getElementById('rTel').value = '3007778899';" +
          "document.getElementById('rClave').value = 'Perro.2026x'; document.getElementById('rClave2').value = 'Perro.2026x';");
     P.ev('siguientePaso()');
@@ -2085,11 +2097,11 @@ describe('EL ACOMPAÑAMIENTO, SIN PREGUNTAR (8-oct-2026; antes «el permiso va p
   test('EL TESTIGO se guarda y viaja: sin él, la segunda publicación volvía «ocupado»', async () => {
     const P = conAviso(abrirPlay());
     const vivo = conNube(P);
-    P.ev('REGISTRO.celular = "3007778899"; PASO = 2; publicarAvance();');
+    P.ev('REGISTRO.celular = "3007778899"; PASO = indiceDe("rostro"); publicarAvance();');
     await new Promise(r => setImmediate(r));
     await new Promise(r => setImmediate(r));
     assert.match(String(P.almacen.tg_vivo_testigo || ''), /t-123/, 'no guardó el testigo que dio la base');
-    P.ev('PASO = 3; publicarAvance();');
+    P.ev('PASO = indiceDe("contacto"); publicarAvance();');
     assert.equal(vivo()[1].cuerpo.p_testigo, 't-123', 'la segunda publicación no llevó el testigo');
     P.ev('borrarAvance();');
     const b = vivo().filter(x => x.fn === 'registro_vivo_borrar')[0];
@@ -2100,7 +2112,7 @@ describe('EL ACOMPAÑAMIENTO, SIN PREGUNTAR (8-oct-2026; antes «el permiso va p
   test('«empezar de cero» BORRA lo publicado del anterior, con su testigo, antes de soltar su celular', async () => {
     const P = conAviso(abrirPlay());
     const vivo = conNube(P);
-    P.ev('REGISTRO.celular = "3007778899"; PASO = 2; publicarAvance();');
+    P.ev('REGISTRO.celular = "3007778899"; PASO = indiceDe("rostro"); publicarAvance();');
     await new Promise(r => setImmediate(r));
     await new Promise(r => setImmediate(r));
     P.ev('empezarDeNuevo()');
@@ -2136,7 +2148,7 @@ describe('EL ACOMPAÑAMIENTO, SIN PREGUNTAR (8-oct-2026; antes «el permiso va p
   test('NINGUNA FOTO VIAJA en vivo, ni con las fotos autorizadas', () => {
     const P = conAviso(abrirPlay());
     const vivo = conNube(P);
-    P.ev('PASO = 2; REGISTRO.celular = "3007778899"; REGISTRO.nombres = "Luis";' +
+    P.ev('PASO = indiceDe("rostro"); REGISTRO.celular = "3007778899"; REGISTRO.nombres = "Luis";' +
          'FOTOS.sensibles = true;' +
          'FOTOS.cedula_reverso = "data:1"; FOTOS.cedula_frente = "data:2"; FOTOS.selfie = "data:3";' +
          'publicarAvance();');

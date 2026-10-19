@@ -133,7 +133,7 @@ describe('el registro con la marca, de punta a punta', () => {
        publica siempre, con el aviso del paso 1. Lo que esta prueba cuida sigue
        igual: en PlataChat NO hay acompañamiento, ni aviso, ni publicación. */
     const P = abrirPlay({ search: CON_MARCA, almacen: { tg_acompana: '1' } });
-    P.ev("REGISTRO.celular = '3001112233'; PASO = 3;");
+    P.ev("REGISTRO.celular = '3001112233'; PASO = indiceDe('rostro');");
     assert.equal(P.ev('avisoAcompana()'), '', 'le avisó del acompañamiento de un asesor en PlataChat');
     const llamadas = nube(P, BIEN);
     P.ev('publicarAvance()');
@@ -142,7 +142,7 @@ describe('el registro con la marca, de punta a punta', () => {
     /* 8-oct-2026 (segunda vuelta): con la marca de que leyó el aviso del paso 1
        (anotarAvisoVivo, la pone «Continuar» ahí); sin ella no se publica. */
     const Q = abrirPlay({ almacen: { tg_vivo_aviso_8oct2026: '1' } });
-    Q.ev("REGISTRO.celular = '3001112233'; PASO = 3;");
+    Q.ev("REGISTRO.celular = '3001112233'; PASO = indiceDe('rostro');");
     assert.ok(Q.ev('avisoAcompana()').length > 0);
     const deQ = nube(Q, BIEN);
     Q.ev('publicarAvance()');
