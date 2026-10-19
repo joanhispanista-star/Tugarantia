@@ -1692,8 +1692,18 @@
    pesos), panel/crm.html, panel/espejo.html, panel/nube.js y panel/subir.html.
    Sin la cache nueva, un celular con la socio.html vieja le diria al cliente
    «Total para saldar $455.000» de un credito de 845.000 y que pago una
-   entrada que no existe. */
-const CACHE = 'tugarantia-v137';
+   entrada que no existe.
+   19-oct-2026, v138: LOS SIETE PUNTOS DE JOAN. «🔑 Mi contraseña» del equipo
+   (panel/mi-clave.js, NUEVO); el CRM pregunta por las solicitudes al entrar y
+   dice quien las pidio; el estimado del costo al 2% al mes, topado en la usura
+   (app/calculadora-solicitud.js, que ahora carga tambien el CRM); el chat se
+   ve (contadores, nombre, la causa real); el escaner ya no guarda el respaldo
+   como frente; el telefono de verdad (app/aparato.js, NUEVO); y la gente de la
+   portada dibujada por un ilustrador (play/gente/*.svg, NUEVOS: los .svg se
+   sirven desde la cache, asi que sin precargarlos el primer arranque sin senal
+   pintaria una imagen rota). Sin la cache nueva, el celular de William seguiria
+   con el crm.html viejo, sin su boton de clave. */
+const CACHE = 'tugarantia-v138';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -1740,6 +1750,8 @@ const ARCHIVOS = [
   'panel/una-puerta.js',
   /* 15-oct-2026 — las reglas de la venta del gerente. Ver la nota de v136. */
   'panel/gerente-vende.js',
+  /* 19-oct-2026 — «🔑 Mi contraseña» del equipo: crm.html la carga con <script src>. Ver la nota de v138. */
+  'panel/mi-clave.js',
   'panel/tanda.js',
   /* 2-oct-2026 — «Tu gente», los referidos del espejo. Ver la nota de v124. */
   'app/gente.js',
@@ -1761,6 +1773,15 @@ const ARCHIVOS = [
   'play/estilo.css',
   'play/app.webmanifest',
   'app/cuenta.js',
+  /* 19-oct-2026 — el telefono de verdad: play/, app/socio.html y el CRM lo
+     cargan con un <script src>. Sin el, la app instalada no anota el aparato
+     (la pagina se protege sola) y el CRM no lo pone en palabras. Ver v138. */
+  'app/aparato.js',
+  /* 19-oct-2026 — la gente de «Para que te sirve», de Open Peeps (CC0). Los
+     .svg van cache-primero: precargados, se ven sin senal. Ver v138. */
+  'play/gente/varas.svg',
+  'play/gente/eliges.svg',
+  'play/gente/ayuda.svg',
   /* 21-sep-2026 — el escaner de la cedula: play/ lo carga con un <script src>.
      Sin el, el paso de la cedula cae a las cajas de foto de siempre (la pagina
      se protege con `if (!EC)`), pero el cliente perderia el escaner que es
