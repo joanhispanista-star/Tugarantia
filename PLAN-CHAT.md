@@ -9,6 +9,27 @@
 > hizo y lo que se decidió NO hacer, está al final de `ESTADO-25-AGO-2026.md`.
 > Las fases 2 a 5 siguen siendo plan, y las decisiones A y B de §3 siguen
 > pendientes — la fase 2 no arranca sin ellas.
+>
+> **19 de octubre de 2026 — el chat se hace VISIBLE.** Funcionaba de punta a
+> punta y nadie se enteraba. Desde hoy (en el código; falta pegar el SQL y
+> publicar):
+> - la bandeja dice quién escribe aunque no tenga ficha: «Nombre (registrado,
+>   sin verificar) · celular», nunca en un hilo '0' + celular
+>   (`base/20261019_chat_quien_escribe.sql`, `app/chat.js` → `quienEs`);
+> - si la base no acepta la clave de sincronización, se dice eso y no «revisa
+>   el internet»;
+> - el celular de Joan (`panel/espejo.html`) tiene el número de Mensajes en la
+>   barra, vuelve a preguntar al entrar y cada 45 s con la app a la vista, y se
+>   detiene si la clave no pasa;
+> - el cliente (`play/`) ve «Chat (n)», el número en cada canal, entra donde le
+>   contestaron y mira cada 20 s con la página a la vista; el número sale de
+>   `chat_sin_leer_sesion`, que CUENTA sin marcar visto
+>   (`base/20261019b_chat_sin_leer_sesion.sql`);
+> - «💬 Escribirle por la app» en la ficha y en 📥 Registrados del CRM.
+>
+> **La decisión B sigue pendiente**: sin Telegram, el aviso a Joan solo existe
+> con el CRM o el celular abiertos, y al cliente no le llega nada con la app
+> cerrada. Las pantallas lo dicen.
 
 ---
 

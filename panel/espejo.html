@@ -411,7 +411,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
     <button data-v="hoy" class="on" type="button">Hoy</button>
     <button data-v="clientes" type="button">Clientes</button>
     <button data-v="registrados" type="button">Registrados<span class="globo" id="globoRegistrados" hidden></span></button>
-    <button data-v="mensajes" type="button">Mensajes</button>
+    <button data-v="mensajes" type="button">Mensajes<span class="globo" id="globoMensajes" hidden></span></button>
     <button data-v="mas" type="button">Más</button>
   </nav>
 </div>
@@ -2075,6 +2075,12 @@ function pintarVista(v) {
      pestaña diciendo «Preguntando…» para siempre), y si falta el SQL el aviso
      se queda hasta que la cuenta diga que ya está (traerCuentaRegistros). */
   if (v === 'registrados' && !_reg.enCurso && _reg.estado !== 'falta') _reg.estado = 'nada';
+  /* 19-oct-2026 — Mensajes, igual: entrar vuelve a preguntar. Antes traía las
+     conversaciones UNA vez por carga de la página (`_msj.estado === 'nada'`
+     solo al principio), así que Joan volvía a la pestaña y veía la lista de
+     hacía una hora hasta tocar ↻. Con un hilo abierto no: se vuelve a la
+     lista al cerrarlo, y el hilo tiene su propio «Abriendo…». */
+  if (v === 'mensajes' && !_msj.ident && _msj.estado !== 'cargando') _msj.estado = 'nada';
   /* Se recuerda la pestaña de la BARRA, no la vista: abrir mañana en la ficha
      de alguien que hoy ya pagó sería abrir en una pantalla vieja. */
   if (PESTANIAS.indexOf(v) >= 0 && PESTANIA_GUARDADA !== v) {
@@ -2146,7 +2152,12 @@ function pintar() {
    que llevaba escrito. */
 
 var _msj = { ident: null, quien: '', celular: '', convs: [], msgs: [], ultimo: 0,
-             estado: 'nada', error: '', borrador: '' };
+             estado: 'nada', error: '', borrador: '',
+             /* 19-oct-2026 — lo del sondeo (ver QUE JOAN SE ENTERE EN LA
+                CALLE): si la nube ya contestó alguna vez, cuántas preguntas
+                van en camino, cuándo fue la última, y si se detuvo por la
+                clave. */
+             sabido: false, enCurso: 0, ultimaVez: 0, parado: '' };
 
 /* ==========================================================================
  * LAS FOTOS DEL CHAT, DESDE LA CALLE — 23-sep-2026 (Fase D)
@@ -2306,7 +2317,11 @@ function vistaMensajes() {
   if (_msj.ident) return vistaHilo();
 
   var h = '<div class="card ap"><div class="tit">Conversaciones</div>'
-    + '<button class="btn sm sec arriba" type="button" onclick="traerConversaciones()">↻ Traer de la nube</button>';
+    + '<button class="btn sm sec arriba" type="button" onclick="traerConversaciones()">↻ Traer de la nube</button>'
+    /* 19-oct-2026 — el límite del aviso, dicho: el número de la barra se
+       actualiza solo mientras esta app está abierta y a la vista. */
+    + '<div class="muted" style="font-size:12px;margin:6px 0">Mientras tengas esta app abierta, la barra te dice '
+    + 'cuántos mensajes sin leer hay (pregunto cada 45 segundos). Con la app cerrada no te llega ningún aviso.</div>';
   if (_msj.estado === 'cargando' && !_msj.convs.length) {
     h += '<div class="ch-vacio">Preguntando a la nube…</div>';
   } else if (_msj.error && !_msj.convs.length) {
@@ -2367,14 +2382,114 @@ function guardarBorrador() {
 function traerConversaciones() {
   var cfg = chatCfg(); if (!cfg) return;
   _msj.estado = 'cargando';
+  _msj.enCurso++; _msj.ultimaVez = Date.now();
   ChatTuGarantia.conversaciones(cfg).then(function (lista) {
     _msj.convs = Array.isArray(lista) ? lista : [];
     _msj.estado = 'ok'; _msj.error = '';
+    /* Tocar ↻ con la clave ya arreglada vuelve a encender el sondeo. */
+    _msj.sabido = true; _msj.parado = '';
   }).catch(function (e) {
     _msj.estado = 'error';
     _msj.error = (e && e.humano) || 'No pude traerlas. Revisa el internet.';
-  }).then(function () { if (VISTA === 'mensajes') pintar(); });
+    if (e && e.clave) _msj.parado = 'clave';
+  }).then(function () {
+    _msj.enCurso--;
+    pintarGlobos();
+    if (VISTA === 'mensajes') pintar();
+  });
 }
+
+/* ==========================================================================
+ * QUE JOAN SE ENTERE EN LA CALLE — 19-oct-2026
+ *
+ * Esta pestaña no tenía contador ni volvía a preguntar: un cliente escribía y
+ * en el celular de Joan no pasaba nada hasta que entrara a Mensajes y tocara
+ * ↻. El CRM ya sondeaba cada 45 s; el celular, que es lo que Joan lleva
+ * encima, no.
+ *
+ * LO MISMO QUE EL CRM, Y POR LAS MISMAS RAZONES:
+ *   · 45 segundos y no menos. clave_ok cuenta los intentos en una secuencia
+ *     GLOBAL (base/supabase.sql) y desde base/20261002d un acierto la perdona
+ *     como mucho una vez cada 45 s: con el CRM y el celular sondeando a la
+ *     vez, bajar este número le devolvería intentos a quien esté probando
+ *     claves. El reloj vale también para la vuelta al primer plano: si la
+ *     última pregunta fue hace menos de 45 s, no se repite.
+ *   · Solo con la página a la vista. Preguntar cuando nadie mira es gastar la
+ *     cuota de la nube y los datos del teléfono de Joan.
+ *   · Si la nube no acepta la clave, el sondeo se DETIENE. Cada vuelta con la
+ *     clave mala es un intento fallido, y diez en un cuarto de hora dejan
+ *     afuera también al CRM con la clave buena. Vuelve a andar cuando un ↻
+ *     sale bien.
+ *
+ * El sondeo no repinta un hilo abierto: Joan puede estar escribiendo, y
+ * repintar le quitaría el teclado. Solo el número de la barra y, si está
+ * mirando la lista, la lista. Y no toca `_msj.estado` ni `_msj.error`, que
+ * son de lo que Joan pidió a mano: un corte de señal en segundo plano no
+ * puede pintarle «No pude traerlas» encima de un hilo que sí cargó.
+ *
+ * SU LÍMITE: con la app cerrada no hay aviso. Eso lo dice la pantalla.
+ * ======================================================================== */
+var MENSAJES_CADA_MS = 45000;
+var _relojMensajes = null;
+
+function vigilarMensajes() {
+  /* Si ya corre, no se arma otro: dos relojes son el doble de intentos. */
+  if (_relojMensajes) return;
+  _relojMensajes = setInterval(latidoMensajes, MENSAJES_CADA_MS);
+}
+
+/* Devuelve true si preguntó, para que las pruebas lo puedan ver sin reloj. */
+function latidoMensajes() {
+  if (document.hidden) return false;
+  /* `estado === 'cargando'`: hay una pregunta pedida a mano (o un hilo
+     abriéndose) en camino; una segunda a la vez sería un intento más del
+     freno para traer lo mismo. */
+  if (!window.ChatTuGarantia || _msj.parado || _msj.enCurso > 0 || _msj.estado === 'cargando') return false;
+  var cfg = chatCfg(); if (!cfg) return false;
+  if (_msj.ultimaVez && Date.now() - _msj.ultimaVez < MENSAJES_CADA_MS - 1000) return false;
+  _msj.enCurso++; _msj.ultimaVez = Date.now();
+  ChatTuGarantia.conversaciones(cfg).then(function (lista) {
+    _msj.convs = Array.isArray(lista) ? lista : [];
+    _msj.sabido = true;
+  }, function (e) {
+    if (e && e.clave) _msj.parado = 'clave';
+  }).then(function () {
+    _msj.enCurso--;
+    pintarGlobos();
+    if (VISTA === 'mensajes' && !_msj.ident && _msj.estado !== 'cargando') pintar();
+  });
+  return true;
+}
+
+/* El número de la barra: cuántos mensajes de clientes no ha abierto Joan.
+   Solo sale cuando la nube contestó: sin respuesta no hay número, porque un
+   «0» sin haber preguntado diría que nadie escribió. Con la clave rechazada
+   sale «?»: el número viejo no puede seguir ahí como si se supiera. */
+function pintarGloboMensajes() {
+  var g = document.getElementById('globoMensajes');
+  if (!g || typeof _msj === 'undefined' || !_msj) return;
+  if (_msj.parado === 'clave') {
+    g.innerHTML = '?<span class="vh"> no pude mirar los mensajes</span>';
+    g.title = 'La nube no aceptó la clave de sincronización: este número no se sabe';
+    g.hidden = false;
+    return;
+  }
+  var n = (_msj.sabido && window.ChatTuGarantia) ? ChatTuGarantia.totalSinLeer(_msj.convs) : 0;
+  if (n > 0) {
+    g.innerHTML = '<span class="vh">, </span>' + (n > 99 ? '99+' : n)
+      + '<span class="vh"> sin leer</span>';
+    g.title = '';
+    g.hidden = false;
+  } else {
+    g.innerHTML = '';
+    g.hidden = true;
+  }
+}
+
+document.addEventListener('visibilitychange', function () {
+  /* Al volver a la app: lo mismo que el reloj, con su mismo freno de 45 s. */
+  if (!document.hidden) latidoMensajes();
+});
 
 function abrirHilo(ident) {
   var c = null;
@@ -2382,7 +2497,12 @@ function abrirHilo(ident) {
     if (String(_msj.convs[i].cedula) === String(ident)) { c = _msj.convs[i]; break; }
   }
   _msj.ident = String(ident || '');
-  _msj.quien = (c && c.nombre) || 'Socio';
+  /* 19-oct-2026 — el título sale de la misma regla que la bandeja
+     (ChatTuGarantia.quienEs): decía «Socio» a secas para el registrado sin
+     ficha y para el hilo '0' + celular, que es donde Joan tiene que leer el
+     aviso de no hablar de la deuda. */
+  _msj.quien = ChatTuGarantia.quienEs ? ChatTuGarantia.quienEs(c || { cedula: _msj.ident })
+                                      : ((c && c.nombre) || 'Socio');
   _msj.celular = (c && c.celular) || '';
   _msj.msgs = []; _msj.ultimo = 0; _msj.borrador = ''; _msj.error = '';
   cargarHilo();
@@ -3344,6 +3464,9 @@ function traerCuentaRegistros() {
    que cero: sin respuesta no hay número, porque un «0» sin haber preguntado
    diría que no hay nadie. */
 function pintarGlobos() {
+  /* 19-oct-2026 — y el de Mensajes, que es otra fuente (el chat, con la
+     clave) y tiene su propia regla de cuándo no sabe. */
+  pintarGloboMensajes();
   var g = document.getElementById('globoRegistrados');
   if (!g) return;
   var n = _reg.nuevos;
@@ -5851,6 +5974,10 @@ document.addEventListener('visibilitychange', function () {
   recargarDeDisco();
   ir(PESTANIA_GUARDADA || 'hoy');
   sincronizar(false);
+  /* 19-oct-2026 — el número de Mensajes, desde que se abre la app y cada
+     45 s mientras esté a la vista (ver QUE JOAN SE ENTERE EN LA CALLE). */
+  latidoMensajes();
+  vigilarMensajes();
   /* Cada cinco minutos, si hay app abierta y señal. No es un reloj de
      sincronización: es que la cinta de abajo no puede mentir sobre la hora del
      último traer mientras Joan mira la pantalla. */

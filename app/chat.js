@@ -247,6 +247,51 @@
   }
 
   /* ---------------------------------------------------------------------
+     QUIÉN ES, EN UN SOLO SITIO — 19-oct-2026.
+     La bandeja del CRM, la del celular y el título del hilo abierto tienen que
+     decir lo mismo de la misma persona. Hasta hoy la regla vivía solo dentro
+     de listaHTML y el hilo abierto decía «Socio» a secas.
+
+     Y hay una cuarta línea. Un registrado que todavía no tiene ficha —William
+     el 19-oct— salía «Socio nuevo · 3001234567» aunque su nombre estaba en la
+     tabla `registros`. chat_conversaciones ya lo trae (`nombre_registro`,
+     base/20261019_chat_quien_escribe.sql), y se pinta CON SU RÓTULO: lo
+     escribió la propia persona al registrarse y nadie lo ha comprobado (Ley
+     1581; y registrar_abierto no ata el registro a la cuenta del celular).
+
+     El orden importa:
+       1. nombre de la FICHA, que es lo que Joan sabe;
+       2. hilo '0' + celular: el aviso, y NINGÚN nombre — ni el de la ficha ni
+          el del registro. Ese número es de una ficha y quien escribe no está
+          verificado: un nombre ahí se lee como «es él» y lleva a hablarle de
+          la deuda a quien tenga el número (Ley 1581 y Ley 2300);
+       3. el nombre del registro, solo si la llave es un celular (3 + nueve
+          dígitos), con «registrado, sin verificar»;
+       4. lo de siempre: «Socio nuevo» y la llave.
+     Devuelve texto SIN escapar: quien lo pinte, lo escapa.
+     ------------------------------------------------------------------- */
+  function quienEs(c) {
+    var x = c || {};
+    var llave = String(x.cedula || '');
+    if (x.nombre) return String(x.nombre);
+    /* 7-oct-2026 — '0' + celular es el hilo de una cuenta SIN JUNTAR cuyo
+       número es el de una de tus fichas (llave_de_sesion,
+       base/20261007_una_puerta.sql). Se dice así, con el número sin el 0:
+       puede ser tu cliente esperando que lo juntes, o alguien usando su
+       número. Contestarle aquí NO le muestra nada de la ficha. */
+    /* 7-oct-2026 (segunda vuelta) — y se le advierte a Joan que no hable
+       de la deuda ahí: quien escribe en ese hilo no está verificado (Ley
+       1581: la deuda de tu cliente es dato suyo; Ley 2300: se cobra al
+       deudor, no a quien tenga su número). */
+    if (/^0\d{10}$/.test(llave)) {
+      return 'Sin juntar · ' + llave.slice(1) + ' (número de una ficha) · no sabemos si es él: no le hables de su deuda aquí';
+    }
+    var reg = String(x.nombre_registro || '').replace(/\s+/g, ' ').trim();
+    if (reg && /^3\d{9}$/.test(llave)) return reg + ' (registrado, sin verificar) · ' + llave;
+    return 'Socio nuevo · ' + llave;
+  }
+
+  /* ---------------------------------------------------------------------
      LA LISTA DE CONVERSACIONES — solo la ve Joan.
      ------------------------------------------------------------------- */
   function listaHTML(conversaciones, opciones) {
@@ -270,19 +315,10 @@
            todavía no tiene ficha llegan nombre y celular VACÍOS y esto pintaba
            «Socio» pelado. El que va a negociar su primer crédito por aquí es
            justo el que Joan no puede reconocer, y la llave del hilo —que es su
-           celular— no salía en ninguna parte. Negociar así es a ciegas. */
-        /* 7-oct-2026 — '0' + celular es el hilo de una cuenta SIN JUNTAR cuyo
-           número es el de una de tus fichas (llave_de_sesion,
-           base/20261007_una_puerta.sql). Se dice así, con el número sin el 0:
-           puede ser tu cliente esperando que lo juntes, o alguien usando su
-           número. Contestarle aquí NO le muestra nada de la ficha. */
-        /* 7-oct-2026 (segunda vuelta) — y se le advierte a Joan que no hable
-           de la deuda ahí: quien escribe en ese hilo no está verificado (Ley
-           1581: la deuda de tu cliente es dato suyo; Ley 2300: se cobra al
-           deudor, no a quien tenga su número). */
-        '<span class="ch-conv-quien">' + esc(c.nombre || (/^0\d{10}$/.test(String(c.cedula || ''))
-          ? 'Sin juntar · ' + String(c.cedula).slice(1) + ' (número de una ficha) · no sabemos si es él: no le hables de su deuda aquí'
-          : 'Socio nuevo · ' + (c.cedula || ''))) +
+           celular— no salía en ninguna parte. Negociar así es a ciegas.
+           19-oct-2026 — la regla entera (ficha, '0' + celular, registrado sin
+           verificar) vive en quienEs, arriba: el hilo abierto la usa también. */
+        '<span class="ch-conv-quien">' + esc(quienEs(c)) +
           (n ? '<span class="ch-sinleer">' + n + '</span>' : '') + '</span>' +
         '<span class="ch-conv-ultimo">' + esc(quien) + esc(c.ultimo || '') + '</span>' +
         '<span class="ch-conv-cuando">' + esc(cuandoCorto(c.ultimo_en, o.hoy)) + '</span>' +
@@ -301,6 +337,30 @@
      Panel. `cfg.fetch` existe para poder probar esto sin red; en el navegador
      nadie lo pasa y usa el del propio navegador.
      ------------------------------------------------------------------- */
+  /* 19-oct-2026 — QUÉ ARCHIVO FALTA, SEGÚN LA FUNCIÓN. El 404 decía siempre
+     «falta 20260828b_chat.sql», y para las dos funciones de hoy eso mandaría a
+     Joan a correr un archivo que ya corrió hace dos meses. */
+  var SQL_DE = {
+    chat_sin_leer_sesion: '20261019b_chat_sin_leer_sesion.sql',
+    chat_hilo_de_celular: '20261019b_chat_sin_leer_sesion.sql'
+  };
+
+  /* 19-oct-2026 — LA CLAVE QUE LA BASE NO ACEPTA NO ES «REVISA EL INTERNET».
+     Todas las funciones de Joan empiezan con `if not clave_ok(...) then raise
+     exception 'clave incorrecta'`, y eso llega como un 400 con esas palabras en
+     el cuerpo. Se traducía a «No pude conectarme. Revisa el internet»: Joan iba
+     a revisar el wifi por algo que se arregla en Ajustes.
+     clave_ok dice que no en TRES casos y el mensaje nombra los tres que se
+     arreglan distinto: la clave no es la de la base, la base no tiene ninguna
+     (sale de fábrica sin definir), o el freno —10 intentos fallidos por cuarto
+     de hora, contados para TODOS— está puesto. «🔌 Probar conexión» del CRM es
+     lo que distingue cuál. `clave: true` va en el error para que quien sondee
+     cada 45 s se detenga: con la clave mala, cada vuelta es un intento fallido
+     que acerca el freno, y el freno deja afuera también a la clave buena. */
+  var CLAVE_NO_ACEPTADA = 'La nube no aceptó tu clave de sincronización: no es la que quedó en la base, ' +
+    'la base todavía no tiene ninguna, o hubo demasiados intentos fallidos en los últimos 15 minutos. ' +
+    'Pruébala en el CRM: Ajustes → 🔌 Probar conexión.';
+
   function llamar(cfg, fn, cuerpo) {
     var c = cfg || {};
     if (!c.url || !c.anon) {
@@ -328,9 +388,16 @@
            dando un 404 mudo. */
         if (r.status === 404) {
           throw { humano: 'El chat todavía no está encendido en la base. ' +
-                          'Falta correr base/20260828b_chat.sql.' };
+                          'Falta correr base/' + (SQL_DE[fn] || '20260828b_chat.sql') + '.' };
         }
         if (!r.ok) {
+          /* «clave incorrecta» (las del chat) y «clave de sincronización
+             incorrecta» (cuentas_de_registros y sus vecinas): las dos son la
+             clave. Se mira el MENSAJE de la base, no el código HTTP, porque un
+             raise exception sale como 400 igual que cualquier otro fallo. */
+          if (/clave( de sincronizaci(ó|o|\\u00f3)n)? incorrecta/i.test(t)) {
+            throw { humano: CLAVE_NO_ACEPTADA, clave: true, detalle: t.slice(0, 200) };
+          }
           throw { humano: 'No pude conectarme. Revisa el internet y vuelve a intentar.',
                   detalle: t.slice(0, 200) };
         }
@@ -362,10 +429,57 @@
       .then(function (j) { return (j && j.ok === true && Array.isArray(j.mensajes)) ? j.mensajes : null; });
   }
 
+  /* 19-oct-2026 — CUÁNTO LE FALTA POR LEER AL CLIENTE, SIN MARCARLO LEÍDO.
+     El contador de play/ no puede salir de chat_leer_sesion: esa función MARCA
+     como visto lo que devuelve (base/20260922f), y Joan vería «Lo vio» en un
+     mensaje que nadie ha leído. Lo cuenta chat_sin_leer_sesion
+     (base/20261019b_chat_sin_leer_sesion.sql), que solo cuenta.
+     sinLeerDe lee su respuesta: null si la base no dijo nada (sin sesión, sin
+     la función), porque «no sé» no se puede pintar como un cero. El total se
+     SUMA aquí y no se le cree al servidor: los tres números de los botones y
+     el de la pestaña tienen que cuadrar entre sí. */
+  function sinLeerDe(j) {
+    if (!j || j.ok !== true) return null;
+    var out = { total: 0 };
+    CANALES.forEach(function (x) {
+      var n = Math.max(0, Math.floor(Number(j[x[0]]) || 0));
+      out[x[0]] = n;
+      out.total += n;
+    });
+    return out;
+  }
+
+  /* En qué canal se abre el chat del cliente: en el que está, si tiene algo
+     sin leer; si no, en el primero que tenga; si ninguno, en el que está.
+     Abrir siempre en «Servicio» era cómo una respuesta de Joan en «Créditos
+     nuevos» se quedaba sin leer: el CRM contesta en el canal del último mensaje
+     del cliente (chat_responder), no en uno fijo. */
+  function canalConPendientes(cuenta, actual) {
+    var a = actual || 'servicio';
+    if (!cuenta) return a;
+    if (Number(cuenta[a]) > 0) return a;
+    for (var i = 0; i < CANALES.length; i++) {
+      if (Number(cuenta[CANALES[i][0]]) > 0) return CANALES[i][0];
+    }
+    return a;
+  }
+
   /* --- lo que hace Joan. Todas piden su clave --- */
 
   function conversaciones(cfg) {
     return llamar(cfg, 'chat_conversaciones', { p_clave: (cfg || {}).clave || '' });
+  }
+
+  /* 19-oct-2026 — ¿EN QUÉ HILO LEE ESE CELULAR? Para escribirle PRIMERO a un
+     registrado («💬 Escribirle por la app» en 📥 Registrados). La llave no la
+     decide la pantalla: la decide llave_de_sesion en la base —la cédula de la
+     ficha si la cuenta está junta, '0' + celular si el número es de una ficha
+     sin juntar, el celular si no—, y el CRM no sabe con certeza ninguna de las
+     dos cosas (lo que juntó el celular de Joan no está en este computador).
+     Adivinarla aquí es escribir en un hilo que nadie lee y mostrar «enviado». */
+  function hiloDeCelular(cfg, celular) {
+    return llamar(cfg, 'chat_hilo_de_celular',
+      { p_clave: (cfg || {}).clave || '', p_celular: String(celular || '') });
   }
 
   /** La foto grande de un mensaje, por el lado del Panel.
@@ -509,11 +623,16 @@
     agruparPorDia: agruparPorDia,
     hiloHTML: hiloHTML,
     listaHTML: listaHTML,
+    quienEs: quienEs,
     totalSinLeer: totalSinLeer,
+    sinLeerDe: sinLeerDe,
+    canalConPendientes: canalConPendientes,
+    CLAVE_NO_ACEPTADA: CLAVE_NO_ACEPTADA,
     llamar: llamar,
     escribir: escribir,
     leer: leer,
     conversaciones: conversaciones,
+    hiloDeCelular: hiloDeCelular,
     conversacion: conversacion,
     responder: responder,
     fotoDelPanel: fotoDelPanel,

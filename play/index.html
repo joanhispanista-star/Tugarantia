@@ -349,7 +349,9 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    13-oct-2026 — sube por el rayo: continuo, saliendo del dedo hacia todos
    lados, y visible también sobre fondo claro.
    19-oct-2026 — sube porque «Cambiar mi contraseña» dice en español lo que
-   antes salía en inglés de Supabase. */
+   antes salía en inglés de Supabase, y por el chat que se ve: «Chat (n)», el
+   número en cada canal, entrar donde contestaron y el latido de 20 s. Es la
+   fecha que Joan le pide leer al cliente que dice «no me llegó la respuesta». */
 var VERSION_PLAY = '2026-10-19';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
@@ -5772,9 +5774,14 @@ var TITULOS = { credito: 'Tu crédito', historial: 'Tu historial',
 
 function barraPestanas() {
   return '<div class="tabs" role="tablist">' + PESTANAS.map(function (x) {
+    /* 19-oct-2026 — «Chat (2)»: lo que el negocio le escribió y no ha abierto
+       (ver LO QUE LE FALTA POR LEER, en la lámina del chat). Sin número
+       cuando no se sabe: un «(0)» sin haber preguntado diría que no le han
+       contestado. */
+    var n = (x[0] === 'chat' && SIN_LEER) ? SIN_LEER.total : 0;
     return '<button class="tab' + (TAB === x[0] ? ' on' : '') + '" role="tab" ' +
       'aria-selected="' + (TAB === x[0] ? 'true' : 'false') + '" ' +
-      'onclick="irA(&quot;' + x[0] + '&quot;)">' + esc(x[1]) + '</button>';
+      'onclick="irA(&quot;' + x[0] + '&quot;)">' + esc(x[1]) + (n ? ' (' + n + ')' : '') + '</button>';
   }).join('') + '</div>';
 }
 
@@ -5795,6 +5802,9 @@ function pintarCuenta(sesion) {
   cargarFicha();
   irA(TAB);
   subidaEnSegundoPlano();
+  /* 19-oct-2026 — cuánto le falta por leer, ya, y cada 20 s mientras mire. */
+  contarSinLeer();
+  arrancarLatidoChat();
   window.scrollTo(0, 0);
 }
 
@@ -5844,6 +5854,15 @@ function cerrarAvisoResponsablePlay() {
 }
 
 function irA(tab) {
+  /* 19-oct-2026 — ENTRAR AL CHAT ABRE DONDE LE CONTESTARON. Abría siempre en
+     «Servicio», y el CRM contesta en el canal del último mensaje del cliente:
+     una respuesta en «Créditos nuevos» se quedaba sin leer. Solo al ENTRAR
+     desde otra pestaña: pedirPorElChat pone «Créditos nuevos» a propósito y
+     ya llega con TAB en 'chat', y estando adentro no se le cambia el canal
+     a nadie debajo del dedo. */
+  if (tab === 'chat' && TAB !== 'chat' && CH && CH.canalConPendientes) {
+    CANAL = CH.canalConPendientes(SIN_LEER, CANAL);
+  }
   TAB = tab;
   var b = $('tabs'); if (b) b.innerHTML = barraPestanas();
   $('titulo').textContent = TITULOS[tab] || 'Mi cuenta';
@@ -6146,6 +6165,130 @@ var CANALES = [['servicio', 'Servicio al cliente', 'Preguntas, datos, cualquier 
                ['creditos', 'Créditos nuevos', 'Pedir más, o preguntar cuánto te alcanza.']];
 var HILO = { canal: null, mensajes: [], estado: 'sin' };  // sin|cargando|listo|apagado|falla
 
+/* ==================== LO QUE LE FALTA POR LEER — 19-oct-2026 ====================
+   El chat funcionaba de punta a punta y el cliente no se enteraba de la
+   respuesta: la pestaña abría siempre en «Servicio», leía UN canal, una vez, y
+   no volvía a mirar. Si Joan contestaba en «Créditos nuevos» o en «Cobranzas»
+   —y el CRM contesta en el canal del último mensaje del cliente—, la respuesta
+   se quedaba ahí sin que nadie la viera.
+
+   Ahora: «Chat (n)» en la barra, «(n)» en cada canal, se entra donde hay algo
+   sin leer (irA), y un latido de 20 s —el mismo de app/socio.html— mientras
+   la página esté a la vista: cuenta, y si el chat está abierto trae lo nuevo
+   del canal que se está mirando.
+
+   EL NÚMERO NO PUEDE SALIR DE chat_leer_sesion: esa función MARCA como visto lo
+   que devuelve, y Joan vería «Lo vio» en el CRM sobre mensajes que nadie leyó.
+   Lo cuenta chat_sin_leer_sesion (base/20261019b_chat_sin_leer_sesion.sql),
+   que solo cuenta. Mientras esa migración no esté corrida contesta 404, y
+   entonces no se pinta ningún número —«no sé» no es «0»— ni se le vuelve a
+   preguntar en esta visita; el resto del chat funciona igual.
+
+   SU LÍMITE: con la app cerrada no le llega nada al teléfono. Eso no se
+   promete en ninguna parte de esta pantalla. */
+var SIN_LEER = null;            // null = no se sabe; si no, {servicio, cobranza, creditos, total}
+var SIN_LEER_APAGADO = false;   // la base contestó 404: todavía no tiene la función
+/* Cuántas veces se leyó cada canal en esta visita. Una cuenta pedida ANTES de
+   leer un canal llega vieja para ese canal: sin esto, abrir «Cobranzas» y
+   recibir justo después la cuenta de hace un segundo le volvía a poner «(1)»
+   a lo que el cliente estaba mirando. */
+var LEIDAS = { servicio: 0, cobranza: 0, creditos: 0 };
+var CHAT_CADA_MS = 20000;
+var LATIDO = null;              // la sesión para la que corre el latido
+
+function contarSinLeer() {
+  if (SIN_LEER_APAGADO || !SESION || !SESION.access_token || !CH || !CH.sinLeerDe) return Promise.resolve();
+  var ses = SESION;
+  var foto = { servicio: LEIDAS.servicio, cobranza: LEIDAS.cobranza, creditos: LEIDAS.creditos };
+  return rpcSesion('chat_sin_leer_sesion', {}).then(function (j) {
+    if (SESION !== ses) return;
+    var s = CH.sinLeerDe(j);
+    if (!s) return;
+    Object.keys(foto).forEach(function (c) {
+      if (LEIDAS[c] !== foto[c]) { s.total -= s[c]; s[c] = 0; }
+    });
+    SIN_LEER = s;
+    pintarContadores();
+  }, function (e) {
+    if (SESION !== ses) return;
+    var c = causaDe(e);
+    if (c === 'apagado') SIN_LEER_APAGADO = true;
+    /* Sesión vencida: ya no se sabe nada de esta cuenta, y el número viejo
+       no se puede quedar como si se supiera. Sin red, sí se queda: es lo
+       último que se supo, y la próxima vuelta lo corrige. */
+    if (c === 'sesion') { SIN_LEER = null; LATIDO = null; pintarContadores(); }
+  });
+}
+
+/* Leer un canal lo deja en cero en la pantalla sin esperar a la próxima
+   cuenta: chat_leer_sesion acaba de marcarlo visto en la base. */
+function yaLeido(canal) {
+  if (Object.prototype.hasOwnProperty.call(LEIDAS, canal)) LEIDAS[canal]++;
+  if (SIN_LEER && SIN_LEER[canal]) {
+    SIN_LEER.total -= SIN_LEER[canal];
+    SIN_LEER[canal] = 0;
+    pintarContadores();
+  }
+}
+
+/* Los números se repintan en su sitio: la barra y la fila de canales. Nunca la
+   lámina entera, que se llevaría lo que el cliente está escribiendo. */
+function pintarContadores() {
+  var b = $('tabs'); if (b && VISTA === 'cuenta') b.innerHTML = barraPestanas();
+  if (TAB !== 'chat') return;
+  var lam = $('lamina');
+  var filaC = (lam && lam.querySelector) ? lam.querySelector('.canales') : null;
+  if (filaC) filaC.innerHTML = botonesDeCanal();
+}
+
+function ultimoIdDe(lista) {
+  return (lista || []).reduce(function (a, m) { return Math.max(a, Number(m && m.id) || 0); }, 0);
+}
+
+/* Lo nuevo del canal que se está mirando, sin volver a bajar lo que ya está.
+   Se pinta SOLO el hilo (no el cuadro de texto). Un fallo aquí no borra nada:
+   lo que se cayó fue la pregunta, no lo que ya se dijo. */
+function traerNuevosDelCanal() {
+  if (TAB !== 'chat' || HILO.estado !== 'listo' || !HILO.canal) return Promise.resolve();
+  var h = HILO, c = HILO.canal;
+  return rpcSesion('chat_leer_sesion', { p_canal: c, p_desde: h.ultimo || 0 }).then(function (j) {
+    if (HILO !== h || !j || j.ok !== true) return;
+    var nuevos = (j.mensajes || []).filter(function (m) { return Number(m.id) > (h.ultimo || 0); });
+    yaLeido(c);
+    if (!nuevos.length) return;
+    h.mensajes = h.mensajes.concat(nuevos);
+    h.ultimo = ultimoIdDe(h.mensajes);
+    pintarHilo();
+  }, function () { /* ver arriba */ });
+}
+
+function paginaEscondida() {
+  return typeof document.hidden === 'boolean' && document.hidden;
+}
+
+/* El latido. Uno por sesión: pintarCuenta se llama más de una vez por visita
+   (al entrar, al volver de una solicitud), y dos latidos serían el doble de
+   preguntas. Se apaga solo al salir de la cuenta; con la página en segundo
+   plano sigue latiendo sin preguntar nada. */
+function arrancarLatidoChat() {
+  if (!SESION || LATIDO === SESION) return;
+  LATIDO = SESION;
+  latidoChat(SESION);
+}
+function latidoChat(ses) {
+  setTimeout(function () {
+    if (LATIDO !== ses) return;
+    if (SESION !== ses || VISTA !== 'cuenta') { LATIDO = null; return; }
+    if (paginaEscondida()) { latidoChat(ses); return; }
+    traerNuevosDelCanal().then(contarSinLeer).then(function () { latidoChat(ses); });
+  }, CHAT_CADA_MS);
+}
+/* Al volver a la app, sin esperar la vuelta: es cuando más se mira. */
+document.addEventListener('visibilitychange', function () {
+  if (paginaEscondida() || VISTA !== 'cuenta' || !SESION) return;
+  traerNuevosDelCanal().then(contarSinLeer);
+});
+
 function laminaChat() {
   return '<div class="card">' +
       '<div class="canales">' + botonesDeCanal() + '</div>' +
@@ -6194,8 +6337,12 @@ function abrirCanal(c) {
     if (HILO.canal !== c) return;
     if (!j || j.ok !== true) { HILO.estado = 'falla'; return pintarHilo(); }
     HILO.mensajes = j.mensajes || [];
+    /* 19-oct-2026 — desde dónde pedir lo nuevo en el latido, y el canal en
+       cero: la base acaba de marcar visto lo que se trajo. */
+    HILO.ultimo = ultimoIdDe(HILO.mensajes);
     HILO.estado = 'listo';
     pintarHilo();
+    yaLeido(c);
   }).catch(function (e) {
     if (HILO.canal !== c) return;
     HILO.estado = causaDe(e);
@@ -6205,8 +6352,11 @@ function abrirCanal(c) {
 
 function botonesDeCanal() {
   return CANALES.map(function (x) {
+    /* 19-oct-2026 — cada canal dice cuántos tiene sin leer: «Créditos nuevos
+       (1)» es lo que lleva al cliente a la respuesta que Joan le dejó ahí. */
+    var n = SIN_LEER ? Number(SIN_LEER[x[0]]) || 0 : 0;
     return '<button class="canal' + (CANAL === x[0] ? ' on' : '') + '" ' +
-      'onclick="abrirCanal(&quot;' + x[0] + '&quot;)">' + esc(x[1]) + '</button>';
+      'onclick="abrirCanal(&quot;' + x[0] + '&quot;)">' + esc(x[1]) + (n ? ' (' + n + ')' : '') + '</button>';
   }).join('');
 }
 
@@ -6582,6 +6732,9 @@ function salirDeCuenta() {
   SESION = null; FICHA = null; FICHA_ESTADO = 'sin'; TAB = 'credito';
   CANAL = 'servicio';
   HILO = { canal: null, mensajes: [], estado: 'sin' };
+  /* 19-oct-2026 — lo que se sabía de los no leídos era de ESA cuenta, y el
+     latido se apaga con ella (ver LO QUE LE FALTA POR LEER). */
+  SIN_LEER = null; LATIDO = null;
   pintarEntrar();
 }
 
