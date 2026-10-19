@@ -347,8 +347,11 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    condiciones de cada propuesta con su casilla, el correo obligatorio, los
    pesos con separadores y el acompañamiento sin pregunta.
    13-oct-2026 — sube por el rayo: continuo, saliendo del dedo hacia todos
-   lados, y visible también sobre fondo claro. */
-var VERSION_PLAY = '2026-10-15';
+   lados, y visible también sobre fondo claro.
+   19-oct-2026 — sube por el estimado del costo en la calculadora del pedido
+   («Costo estimado: $6.000 · Total estimado: $306.000»). Si el cliente dice
+   que no ve cifra debajo de su pedido, esta fecha dice si tiene la versión. */
+var VERSION_PLAY = '2026-10-19';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -1864,7 +1867,12 @@ function pintarRegistrado() {
 
    Lo que esta pantalla NO hace: no crea un crédito ni promete uno. Pedir es
    pedir; aceptar es aceptar la propuesta; la plata la entrega Joan, a mano, y
-   ahí nace el crédito. Y al cliente se le habla en PESOS: ni un porcentaje. */
+   ahí nace el crédito. Y al cliente se le habla en PESOS: ni un porcentaje.
+   19-oct-2026 — YA NO ES «SIN PRECIO»: la calculadora muestra un ESTIMADO en
+   pesos (decisión de Joan: el 2% al mes, debajo del techo de usura del día;
+   la cuenta y la reja viven en app/calculadora-solicitud.js, no aquí), con el
+   rótulo de que la propuesta puede ser distinta. Y ese estimado viaja con la
+   solicitud (anotarEstimado) para que Joan lo vea antes de proponer. */
 function rpcSesion(fn, cuerpo) {
   if (!SESION || !SESION.access_token) return Promise.reject({ sinSesion: true });
   return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
@@ -1918,6 +1926,10 @@ function enviarPedido() {
   }
   if (PIDIENDO) return;
   var pedido = CS.pedidoParaEnviar(CS.estado(), hoyISO(), CS.nota());
+  /* 19-oct-2026 — el estimado que tenía delante al tocar «Pedir» (null si la
+     calculadora no mostró cifra: sin techo de usura certificado hoy, o un
+     módulo viejo en caché sin la función). */
+  var estimado = CS.estimadoParaEnviar ? CS.estimadoParaEnviar(CS.estado(), hoyISO()) : null;
   CS.guardar(CS.estado());
   var b = $('csBoton'); if (b) b.disabled = true;
   CS.error('Enviando…');
@@ -1932,6 +1944,9 @@ function enviarPedido() {
        cambiamos esta misma solicitud»: un toque distraído cambiaba la
        solicitud de verdad por la cifra de partida. */
     CS.guardar(CS.estado(), null, hoyISO());
+    /* Si ya había una propuesta, lo pedido no cambió: el estimado de ahora no
+       es el de esa solicitud y no se anota. */
+    if (!j.ya_habia) anotarEstimado(j.solicitud, estimado);
     pintarSolicitud(j.solicitud, j.ya_habia ? 'ya_habia' : (j.cambiada ? 'cambiada' : ''));
   }).catch(function (e) {
     PIDIENDO = false; if (b) b.disabled = false;
@@ -1948,6 +1963,20 @@ function enviarPedido() {
     CS.error(c === 'sesion' ? 'Se cerró tu sesión. Entra otra vez y tu solicitud sale al instante.'
       : 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
   });
+}
+
+/* 19-oct-2026 — EL ESTIMADO VIAJA CON LO QUE PIDIÓ, para que Joan lo vea en
+   el CRM («El cliente vio un estimado de $6.000») y sepa si su propuesta se
+   aleja. Va DESPUÉS de pedir y aparte (anotar_estimado, base/20261019_el_
+   estimado_viaja.sql), no dentro de solicitar_a_la_medida: esa función ya
+   está viva y no se reescribe, y así pedir no depende de que la migración
+   nueva esté corrida. Si no lo está (404) o falla, no se le dice nada al
+   cliente —su solicitud ya llegó— y el CRM simplemente no dice que vio un
+   estimado, que es la verdad que puede probar. */
+function anotarEstimado(sol, estimado) {
+  if (!estimado || !sol || sol.id == null) return Promise.resolve(null);
+  return rpcSesion('anotar_estimado', { p_id: Number(sol.id), p_estimado: estimado })
+    .catch(function () { return null; });
 }
 
 /* Cada motivo de la base, su frase. Las cifras del piso y del techo las dice

@@ -62,7 +62,12 @@ describe('el cliente puede pedir otro plazo', () => {
     /* 8-oct-2026 — lo que pasa con lo pedido, en la calculadora nueva: se le
        contesta con una propuesta, y el costo se ve antes de aceptar. Ya no se
        dice «de 3 a 6 cuotas»: el plazo es una petición y lo contesta Joan. */
-    assert.match(h, /El costo exacto te lo mandamos en la propuesta, antes de que aceptes nada/,
+    /* 19-oct-2026 — con techo de usura certificado para el día, la frase va
+       con el estimado delante («Estimado: el costo exacto te lo mandamos en la
+       propuesta, y puede ser distinto»); sin techo, es la de siempre. Esta
+       prueba corre con el reloj de verdad, así que acepta las dos: lo que
+       cuida es que se diga qué pasa con lo pedido. */
+    assert.match(h, /[Ee]l costo exacto te lo mandamos en la propuesta/,
       'no se dice qué pasa con lo que pide');
     /* La trampa sigue siendo la misma: prometer el plazo. */
     assert.equal(/te lo damos|lo aprobamos|puedes pedir hasta \d+ cuotas/i.test(h), false,

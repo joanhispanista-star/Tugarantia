@@ -258,7 +258,15 @@ tbody tr:last-child td{font-weight:700}
        (Ley 1480, art. 29) y que habría que medir cada mes contra el techo de
        usura—. El botón guarda lo movido en este teléfono y abre el registro de
        play/, que lo trae puesto en el paso de pedir. Sin JavaScript se queda el
-       enlace al registro: la página no depende de esto para funcionar. -->
+       enlace al registro: la página no depende de esto para funcionar.
+       19-oct-2026 — CON UN ESTIMADO EN PESOS. Joan: «deja un estimado del 2%»,
+       «que no pase el nivel de usura». Debajo del pedido sale «Costo estimado ·
+       Total estimado» rotulado como estimado que puede ser distinto: no es la
+       oferta (la oferta sigue siendo la propuesta, con sus condiciones), y el
+       rótulo está para que nadie lo lea como el precio. Si el abogado dice que
+       aun así obliga (Ley 1480, art. 29), lo que se toca es el rótulo o la
+       tasa, en el módulo. La cuenta y la reja de usura viven en
+       app/calculadora-solicitud.js; aquí no se calcula nada. -->
   <section class="laca banda" id="pedir" style="padding-top:0">
     <div class="wrap angosto">
       <div id="calcPedido" style="border:1px solid var(--linea-laca);border-radius:var(--r);padding:var(--e4)">
@@ -532,8 +540,14 @@ tbody tr:last-child td{font-weight:700}
 <!-- 8-oct-2026 — la calculadora del pedido (ver la sección «Pide lo que
      necesitas»). cuenta.js va primero: es el que escribe los pesos como los
      pidió Joan (1,500.000). Si alguno no llega, se queda el enlace al registro
-     que ya está pintado en la sección: nada de esta página depende de esto. -->
+     que ya está pintado en la sección: nada de esta página depende de esto.
+     19-oct-2026 — entra app/creditos.js: la tabla certificada del techo de
+     usura, con fecha. La calculadora la necesita para el ESTIMADO del costo
+     (decisión de Joan: el 2% al mes, nunca por encima del techo del día). Si
+     no llega, o si hoy no hay techo certificado, la calculadora no muestra
+     cifra y dice lo de siempre: el costo exacto llega en la propuesta. -->
 <script src="app/cuenta.js"></script>
+<script src="app/creditos.js"></script>
 <script src="app/calculadora-solicitud.js"></script>
 <script>
 (function () {

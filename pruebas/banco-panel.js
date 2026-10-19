@@ -158,6 +158,14 @@ function abrirPanel(opciones) {
   /* 16-sep-2026 — la tabla certificada del techo de usura y la TIR, que el CRM
      pasa a cargar para poder mandar una contrapropuesta a cuotas sin pasarse. */
   if (!o.sinCreditos) ctx.CreditosPublicables = require(path.join(RAIZ, 'app', 'creditos.js'));
+  /* 19-oct-2026 — la calculadora del pedido, el <script src> nuevo de crm.html:
+     el CRM la usa para leer el estimado que vio el cliente y avisarle a Joan si
+     su propuesta se aleja. Copia propia por banco (guarda estado en el módulo,
+     como en banco-play.js). `sinCalculadora: true` simula que no llegó. */
+  if (!o.sinCalculadora) {
+    delete require.cache[require.resolve(path.join(RAIZ, 'app', 'calculadora-solicitud.js'))];
+    ctx.CalculadoraSolicitud = require(path.join(RAIZ, 'app', 'calculadora-solicitud.js'));
+  }
   if (!o.sinBases) ctx.BasesTuGarantia = require(path.join(RAIZ, 'app', 'bases.js'));
   /* 7-oct-2026 — la puerta única: las palabras del toque «¿Es la misma
      persona?» y el pase de un uso de «Ver la app como la ve él», los dos
