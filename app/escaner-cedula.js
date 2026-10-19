@@ -584,6 +584,76 @@
              voltear: !!(tiempo && quieta && !codigo) };
   }
 
+  /* ==========================================================================
+   * EL FRENTE NO ES EL RESPALDO — 19 de octubre de 2026
+   *
+   * Joan: «él tomó la foto de la cédula por los dos lados pero en mi panel
+   * solo se ve un lado».
+   *
+   * LA CAUSA, reproducida con la página de verdad y una cédula fabricada: al
+   * leer el respaldo el letrero dice «Ahora el frente, acostado…», y desde ahí
+   * el frente se disparaba con seis cuadros quietos y NADA MÁS. Quien acuesta
+   * la cédula antes de voltearla y la deja quieta medio segundo guarda el
+   * respaldo como frente: en el teléfono ve dos ✓, en la nube quedan dos
+   * filas, y en el CRM salen dos miniaturas del mismo lado. La reja contraria
+   * existía desde el 8-oct (decidirRespaldo no dispara sin código a la vista);
+   * para el frente no había ninguna, y el propio lector de la página leía el
+   * código de barras en ese «frente».
+   *
+   * LA CURA es la misma reja, al revés: el frente solo se guarda si NO se ve
+   * un código de barras. El escáner mira el recorte con la tarjeta en verde
+   * (el lector si ya bajó; si no, el patrón de las barras) y solo dispara con
+   * la tarjeta quieta, sin código a la vista y con al menos una mirada limpia
+   * en esta racha: sin esa mirada, seis cuadros quietos podían llegar antes de
+   * haber mirado nada. Y al guardar se mira una última vez (guardarFrente).
+   *
+   * EL RIESGO es el contrario: un frente de verdad que el lector confunda con
+   * un PDF417 no se dispararía nunca. Con 120 frentes fabricados no pasó
+   * ninguno, pero son de mentira; por eso un segundo toque A MANO en «Tomar la
+   * foto ahora», dentro de unos segundos, la guarda igual.
+   * ======================================================================== */
+  var FRENTE = {
+    MS_ENTRE_MIRADAS: 500,   // como mucho dos miradas por segundo, y solo en verde
+    MS_GUARDAR_IGUAL: 10000  // el segundo toque a mano vale si llega dentro de este rato
+  };
+  /**
+   * ¿Se dispara el frente? La gemela de decidirRespaldo.
+   * @param e {estables, vioCodigo, limpias}
+   *          estables: cuadros seguidos en verde; vioCodigo: en ESTA racha se
+   *          vio un código de barras (leído, encontrado sin leer o su patrón);
+   *          limpias: miradas de esta racha que no vieron ninguno. `limpias` es
+   *          opcional: si no viene, no se exige mirada.
+   * @returns {disparar: bool, voltear: bool}
+   *          voltear: lo que está en el marco es el lado del código; se le pide
+   *          a la persona que la voltee en vez de guardarlo.
+   */
+  function decidirFrente(e) {
+    var x = e || {};
+    var quieta = (+x.estables || 0) >= TARJETA.CUADROS_FRENTE;
+    var codigo = x.vioCodigo === true;
+    var mirada = x.limpias === undefined || (+x.limpias || 0) >= 1;
+    return { disparar: !!(quieta && mirada && !codigo), voltear: codigo };
+  }
+  /**
+   * La última reja, al guardar: ¿esta foto se guarda como frente?
+   * @param e {conCodigo, aMano, msDesdeRechazo}
+   *          conCodigo: en la foto se ve un código de barras;
+   *          aMano: la pidió la persona («Tomar la foto ahora»), no el bucle;
+   *          msDesdeRechazo: cuánto hace que se rechazó una toma A MANO por lo
+   *          mismo (null si no hubo).
+   * @returns {guardar: bool, forzada: bool}
+   *          forzada: se guarda aunque se vio un código, porque la persona
+   *          insistió. La revisión del computador lo vuelve a mirar.
+   */
+  function guardarFrente(e) {
+    var x = e || {};
+    if (x.conCodigo !== true) return { guardar: true, forzada: false };
+    var ms = x.msDesdeRechazo;
+    var insiste = x.aMano === true && typeof ms === 'number' && isFinite(ms) &&
+      ms >= 0 && ms <= FRENTE.MS_GUARDAR_IGUAL;
+    return { guardar: insiste, forzada: insiste };
+  }
+
   /**
    * Convierte el texto del código de barras en la cédula, sin el tipo de sangre.
    * El RH viaja en el código, pero es dato de SALUD (sensible bajo la Ley 1581,
@@ -626,7 +696,7 @@
   }
 
   return {
-    VERSION: '2026-10-08',
+    VERSION: '2026-10-19',
     PROPORCION: PROPORCION,
     HORAS_REGISTRO_VIVO: HORAS_REGISTRO_VIVO,
     TARJETA: TARJETA,
@@ -643,6 +713,10 @@
     ventanaDeGuia: ventanaDeGuia,
     RESPALDO: RESPALDO,
     decidirRespaldo: decidirRespaldo,
+    /* 19-oct-2026 — el frente no se guarda si se ve el código de barras */
+    FRENTE: FRENTE,
+    decidirFrente: decidirFrente,
+    guardarFrente: guardarFrente,
     cedulaDelTexto: cedulaDelTexto,
     fotosPertenecen: fotosPertenecen,
     checkpointFresco: checkpointFresco

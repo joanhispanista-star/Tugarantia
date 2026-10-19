@@ -472,9 +472,28 @@
   ];
   function mayuscula(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
+  /* 19-oct-2026 — EL FRENTE QUE ES EL RESPALDO. Joan: «él tomó la foto de la
+     cédula por los dos lados pero en mi panel solo se ve un lado». El escáner
+     del teléfono guardaba como frente el respaldo que la persona acostaba sin
+     voltear. La página del computador lee el código de barras también en la
+     foto del frente (`frente_codigo`), y como ese código solo está en el
+     respaldo, leerlo ahí quiere decir que las dos fotos son del mismo lado.
+     Pesa MEDIO: no dice nada malo de la persona, pero sin el frente no hay con
+     qué comparar la cara, y alguien tiene que pedírselo. */
+  function anotarFrenteEsRespaldo(anota) {
+    anota.mirar('frente_es_respaldo', MEDIO, 'La foto del frente es el respaldo; pídele el frente',
+      'En la foto que llegó como frente se leyó el código de barras, y ese código solo está en el respaldo: '
+      + 'las dos fotos son del mismo lado. Sin el frente no hay cara de la cédula con qué comparar la selfie. '
+      + 'Pídele una foto del frente, el lado con su foto.');
+  }
+
   function reglaFotos(ctx, anota) {
     var f = ctx.fotos;
+    var frenteEsRespaldo = ctx.frenteConCodigo === true;
     if (!esObjeto(f)) {
+      /* Si no se pudo medir ninguna, pero en el frente se leyó el código, eso
+         se dice igual: es lo único que hay que hacer con este registro. */
+      if (frenteEsRespaldo) return anotarFrenteEsRespaldo(anota);
       /* 2-oct-2026 — ya no dice «solo las de quien autorizó las fotos»: el
          servidor guarda las fotos por celular y no mira la casilla. Lo que la
          página del computador sí asegura es medir solo las que subió este
@@ -484,7 +503,11 @@
         : 'Las fotos no se midieron: se miden en el computador, y solo las que subió este mismo registro.');
     }
     var hay = FOTOS.filter(function (x) { return esObjeto(campo(f, x.k)) || esObjeto(campo(f, x.alterna)); });
-    if (!hay.length) return anota.sinDatos('No hay fotos de este registro: no autorizó las fotos o no llegaron.');
+    if (!hay.length) {
+      if (frenteEsRespaldo) return anotarFrenteEsRespaldo(anota);
+      return anota.sinDatos('No hay fotos de este registro: no autorizó las fotos o no llegaron.');
+    }
+    if (frenteEsRespaldo) anotarFrenteEsRespaldo(anota);
 
     var faltan = FOTOS.filter(function (x) { return hay.indexOf(x) < 0; });
     if (faltan.length) {
@@ -1143,7 +1166,9 @@
       donde: campo(c, 'donde') === 'celular' ? 'celular' : 'computador',
       fotos: campo(c, 'fotos'),
       rostro: campo(c, 'rostro'),
-      cotejo: esObjeto(campo(c, 'cotejo')) ? c.cotejo : reg.cotejo
+      cotejo: esObjeto(campo(c, 'cotejo')) ? c.cotejo : reg.cotejo,
+      /* 19-oct-2026 — en la foto del frente se leyó el código de barras */
+      frenteConCodigo: campo(c, 'frente_codigo') === true
     };
     var res = { version: VERSION, para_mirar: [], neutros: [], reglas_corridas: [], reglas_sin_datos: [] };
     var orden = 0;
@@ -1226,6 +1251,8 @@
    *            También acepta cedula_frente / cedula_reverso.
    *   rostro:  {distancia} o {sin_rostro: 'selfie'|'cedula'|'ambas'}, o null.
    *   cotejo:  un cotejo recién hecho en el computador; manda sobre el guardado.
+   *   frente_codigo: true si en la foto del FRENTE se leyó el código de barras
+   *            (19-oct-2026): esa foto es el respaldo.
    *   hoy:     'AAAA-MM-DD'. Lo pone quien llama: este archivo no mira el reloj.
    *   donde:   'computador' (por defecto) o 'celular': solo cambia cómo se
    *            explica lo que no se pudo revisar.
@@ -1252,7 +1279,7 @@
    * Normaliza cada fila UNA vez (con 200 filas son 40.000 cruces, no 40.000
    * normalizaciones).
    *
-   * @param contexto  {cartera, hoy, donde, porId: {<id>: {fotos, rostro, cotejo}},
+   * @param contexto  {cartera, hoy, donde, porId: {<id>: {fotos, rostro, cotejo, frente_codigo}},
    *                   ademas: [filas contra las que se compara pero que no se
    *                   revisan — los atendidos y descartados: la bandeja solo
    *                   trae los nuevos, y la cédula repetida suele estar ahí]}
@@ -1271,7 +1298,8 @@
       var extra = (reg.id && esObjeto(campo(porId, reg.id))) ? porId[reg.id] : {};
       var ctx = {
         hoy: campo(c, 'hoy'), donde: campo(c, 'donde'),
-        fotos: campo(extra, 'fotos'), rostro: campo(extra, 'rostro'), cotejo: campo(extra, 'cotejo')
+        fotos: campo(extra, 'fotos'), rostro: campo(extra, 'rostro'), cotejo: campo(extra, 'cotejo'),
+        frente_codigo: campo(extra, 'frente_codigo')
       };
       return { id: reg.id, resultado: revisarNormalizado(reg, otros, cartera, ctx) };
     });

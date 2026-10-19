@@ -5396,7 +5396,9 @@ function verCliente(id){
      dos imagenes hayan llegado de verdad (ver el porque abajo). */
   /* 8-oct-2026 — cada foto con su «↻ Girar», que se guarda EN LA FICHA (ver
      ↻ GIRAR UNA FOTO): la que se ve al revés se endereza una vez y para siempre. */
-  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div><div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Selfie con cédula'].indexOf(f[0])];
+  /* 19-oct-2026 — con un solo lado de la cédula, se dice cuál falta (ver
+     avisoLadoQueFalta). */
+  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div>${avisoLadoQueFalta(!!s.cedulaFrenteFoto,!!s.cedulaReversoFoto,'')}<div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Selfie con cédula'].indexOf(f[0])];
       return `<div class="gal-it"><a data-foto="${f[1]}" target="_blank"><img data-foto="${f[1]}" id="fichaFoto_${cual}"><div class="cap">${f[0]}</div></a>${botonGirar("girarFotoFicha('"+escHTML(s.id)+"','"+cual+"')")}</div>`; }).join('')}</div>`
     +(s.selfieFoto&&s.cedulaFrenteFoto?`<div id="fichaParecido" style="margin-top:8px"></div>`:''):'';
   /* 8-sep-2026 — desde dónde se registró (huella), si vino del registro abierto. */
@@ -10122,6 +10124,19 @@ function ponerHueco(el,motivo){
   if(el.tagName==='IMG'){ el.alt=motivo; el.removeAttribute('src'); el.classList.add('foto-hueco'); }
   el.removeAttribute('data-foto');
 }
+/* 19-oct-2026 — EL LADO DE LA CÉDULA QUE FALTA SE DICE. Joan: «él tomó la
+   foto de la cédula por los dos lados pero en mi panel solo se ve un lado». Las
+   tres vistas que pintan fotos (los registros, la ficha y la del equipo)
+   pintaban lo que había y callaban lo que no: con un solo lado no se sabía si
+   el otro no se tomó, no llegó, o no se estaba viendo. Habla solo cuando hay
+   UN lado: sin ninguno, cada vista ya tiene su propio «no subió fotos». La
+   `cola` la pone quien sabe de dónde vienen las fotos. */
+function avisoLadoQueFalta(hayFrente,hayReverso,cola){
+  if(!!hayFrente===!!hayReverso) return '';
+  const que=hayReverso?'Falta la foto del frente de la cédula: solo está la del respaldo.'
+                      :'Falta la foto del respaldo de la cédula: solo está la del frente.';
+  return `<div class="alerta warn" style="margin-bottom:8px"><b>${que}</b>${cola?`<div class="muted" style="margin-top:4px">${escHTML(cola)}</div>`:''}</div>`;
+}
 function pintarFotosRegistro(celular,cajaId){
   const caja=document.getElementById(cajaId); if(!caja) return;
   if(!sbListo()){ caja.innerHTML='<span class="muted">Las fotos viven en la nube. Conéctala en Ajustes para verlas.</span>'; return; }
@@ -10143,8 +10158,13 @@ function pintarFotosRegistro(celular,cajaId){
     const avisoRaras=raras?`<div class="alerta warn" style="margin-bottom:8px">Llegó${raras>1?'ron '+raras+' archivos':' un archivo'} en lugar de foto que no ${raras>1?'son imágenes':'es una imagen'}. No se ${raras>1?'muestran':'muestra'}: nadie lo produce con la cámara del registro, así que trata este registro con cuidado.</div>`:'';
     const lista=[['Cédula (frente)',f.cedula_frente,'frente'],['Cédula (reverso)',f.cedula_reverso,'reverso'],['Rostro',f.selfie,'selfie']].filter(x=>x[1]);
     if(!lista.length){ caja.innerHTML=avisoRaras||'<span class="muted">No subió fotos (o no autorizó).</span>'; return; }
+    /* 19-oct-2026 — con un solo lado se dice cuál falta. Se mira lo que LLEGÓ
+       (crudas), no lo que se muestra: un archivo raro ya tiene su aviso arriba
+       y sí llegó. */
+    const avisoLado=avisoLadoQueFalta(!!crudas.cedula_frente,!!crudas.cedula_reverso,
+      'No llegó a la nube: el teléfono no la subió o nunca la tomó. Pídesela antes de desembolsar.');
     /* 8-oct-2026 — cada foto con su «↻ Girar» (ver ↻ GIRAR UNA FOTO). */
-    caja.innerHTML=avisoRaras+`<div class="gal">${lista.map(x=>`<div class="gal-it"><a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>${botonGirar("girarFotoRegistro('"+x[2]+"')")}</div>`).join('')}</div>`
+    caja.innerHTML=avisoRaras+avisoLado+`<div class="gal">${lista.map(x=>`<div class="gal-it"><a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>${botonGirar("girarFotoRegistro('"+x[2]+"')")}</div>`).join('')}</div>`
       +(f.selfie&&f.cedula_frente?`<div id="regParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('regFoto_selfie','regFoto_frente','regParecido')">🔍 Comparar el rostro con la cédula</button></div>`:'')
       /* 22-sep-2026 — el cotejo contra la foto. Solo aparece si hay foto del
          REVERSO: el código de barras vive ahí y en ninguna otra parte. */
@@ -11241,6 +11261,7 @@ function fichaHTML(j) {
     </div>` +
     (hayFotos
       ? `<div class="sub-h">Lo que subió</div>
+         ${avisoLadoQueFalta(!!f.cedula_frente, !!f.cedula_reverso, 'Pídesela antes de desembolsar.')}
          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px">
            ${FOTOS.filter(x => f[x[0]]).map(x => `<figure style="margin:0">
                <img src="${escHTML(f[x[0]])}" alt="${escHTML(x[1])}"

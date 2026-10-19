@@ -92,6 +92,11 @@ function piezaDeMentira(bitacora, o) {
       bitacora.push('leer:' + img.src);
       if (x.lectorNoCarga) { const e = new Error('no cargó ../app/lib/zxing.min.js'); e.carga = true; return Promise.reject(e); }
       if (x.lectorFallaCon && x.lectorFallaCon[img.src]) return Promise.reject(new Error('la foto no terminó de cargar'));
+      /* 19-oct-2026 — desde hoy la revisión lee también la foto del FRENTE
+         (un PDF417 ahí quiere decir que es el respaldo:
+         pruebas/el-frente-no-es-el-respaldo.test.js). Un frente de verdad no
+         trae código de barras, y este lector de mentira tampoco lo encuentra. */
+      if (/-frente$/.test(Buffer.from(String(img.src).split(',')[1] || '', 'base64').toString())) return Promise.resolve(null);
       return Promise.resolve({ documento: '1', nombres: 'X' });
     },
     cargarRostro: () => Promise.resolve({}),
