@@ -5423,6 +5423,7 @@ function verCliente(id){
        <span class="vv"><button class="btn btn-ghost btn-sm" onclick="cuentaDeLaFicha('${s.id}')" title="Pregunta a la nube con qué cuenta está junta, y deja deshacerla">🔗 Ver en la nube</button>
          ${!cj&&!cpj?`<button class="btn btn-ghost btn-sm" onclick="buscarRegistroParaJuntar('${s.id}')" title="Trae el registro de su celular o su cédula, aunque ya lo hayas atendido, y abre el toque para juntar su cuenta">🔗 Buscar su registro</button>`:''}
          <button class="btn btn-wa btn-sm" onclick="mandarComoEntrar('${s.id}')" title="El enlace de la app y cómo se entra">📲 Cómo entrar</button>
+         <button class="btn btn-ghost btn-sm" onclick="escribirlePorLaApp('ficha','${s.id}')" title="Le escribes en el chat de su app, sin WhatsApp. Lo lee cuando su cuenta esté junta con esta ficha y abra la app: no le llega aviso al celular.">💬 Escribirle por la app</button>
          <div class="muted" style="font-size:11px;margin-top:4px">Le va este enlace: <span class="mono" style="word-break:break-all">${escHTML(urlApp())}</span></div></span></div>`
     +(cpj&&!cj?`<div class="alerta ${cpj.motivo?'warn':'info'}">${cpj.motivo?escHTML(cpj.motivo):esperaClave?'A esa hora vence la sesión de quien estuviera adentro con ese número.':'Si no se junta sola, tócalo tú.'}
          <div style="margin-top:8px">${cpj.pideClave?`<button class="btn btn-sm btn-rojo" onclick="claveNuevaYJuntar('${escHTML(String(cpj.registro_id))}','${s.id}',true)">🔑 Clave nueva al número de su ficha</button> `:''}<button class="btn btn-sm" onclick="juntarPendienteAhora('${s.id}')">🔗 Juntar su cuenta</button></div></div>`:'');
@@ -8414,15 +8415,26 @@ function cambiarCanalChat(canal){
   cargarHilo();
 }
 
-function abrirConversacion(ident){
+/* 19-oct-2026 — `extra` ({nombre, nota}) es para ESCRIBIRLE PRIMERO
+   (escribirlePorLaApp): el hilo todavía no está en la bandeja y de él no se
+   sabe ni el nombre. El título sale de la misma regla que la bandeja
+   (CHAT.quienEs): antes decía «Socio» a secas para todo el que no tuviera
+   ficha, incluido el hilo '0' + celular, que es justo donde Joan tiene que
+   leer el aviso de no hablar de la deuda. En ese hilo NO entra el nombre que
+   le pasen: el número es de una ficha y quien escribe no está verificado. */
+function abrirConversacion(ident,extra){
   if(!chatListo()) return renderMensajes();
   _chatAbierta=String(ident||''); _chatMsgs=[]; _chatUltimo=0;
-  const c=_convs.find(x=>String(x.cedula)===_chatAbierta)||{};
+  const c=_convs.find(x=>String(x.cedula)===_chatAbierta)||{cedula:_chatAbierta};
+  const x=extra||{};
   _chatCanal=canalDeEntrada(c);
-  const quien=c.nombre||'Socio';
+  const sinJuntar=/^0\d{10}$/.test(_chatAbierta);
+  const regla=CHAT.quienEs?CHAT.quienEs(c):(c.nombre||'Socio');
+  const quien=c.nombre||(!sinJuntar&&x.nombre)||regla;
   const cel=String(c.celular||'').replace(/\D/g,'');
   openModal(quien,
     `<div id="chPest">${pestanasCanal(c)}</div>
+     ${x.nota?`<div class="muted" style="font-size:12px;margin:-4px 0 8px">${escHTML(x.nota)}</div>`:''}
      <div class="ch-hilo" id="chHilo" style="max-height:46vh"><div class="ch-vacio">Abriendo…</div></div>
      <div class="ch-escribir">
        <textarea id="chResp" rows="1" placeholder="Escríbele por ${escHTML(CHAT.nombreCanal(_chatCanal).toLowerCase())}…" maxlength="${CHAT.LARGO_MAX}"></textarea>
@@ -8452,6 +8464,56 @@ function cargarHilo(){
     const caja=document.getElementById('chHilo');
     if(caja&&!_chatMsgs.length) caja.innerHTML='<div class="ch-vacio">'+escHTML((e&&e.humano)||'No pude abrirla. Revisa el internet.')+'</div>';
   });
+}
+
+/* ==========================================================================
+ * ESCRIBIRLE PRIMERO — 19-oct-2026
+ *
+ * Hasta hoy Joan solo podía CONTESTAR: el hilo aparecía en 💬 Mensajes cuando
+ * el cliente escribía. Para escribirle a alguien que no había escrito tocaba
+ * WhatsApp, que es justo lo que el chat vino a reemplazar. chat_responder ya
+ * escribe en un hilo que todavía no existe; faltaba el botón y, sobre todo,
+ * saber CUÁL es el hilo:
+ *
+ *   · desde la FICHA, el de la ficha (PUENTE.llaveEnLaNube, la misma llave que
+ *     sube sincronizar_socios). Nunca el '0' + celular: ese es el de quien
+ *     entró con su número SIN estar junto, y no se sabe si es él. Lo que se
+ *     escribe en la ficha lo lee su cuenta cuando está junta; si todavía no
+ *     lo está, le llega el día que se junte (llave_de_sesion), y se dice.
+ *   · desde 📥 REGISTRADOS, el que diga la base (chat_hilo_de_celular): la
+ *     ficha si su cuenta ya está junta, '0' + celular si el número es de una
+ *     ficha sin juntar, su celular si no. El computador no sabe lo que se
+ *     juntó desde el celular de Joan, y adivinar es escribir donde nadie lee.
+ *
+ * Y lo que NO hace, dicho en la pantalla: no le llega ningún aviso al
+ * teléfono del cliente. Lo ve cuando abre la app (play/ se lo marca en la
+ * pestaña Chat). Prometer más sería mentir.
+ * ======================================================================== */
+const AVISO_SIN_PUSH='No le llega aviso al celular: lo ve cuando abra la app, en la pestaña Chat.';
+function escribirlePorLaApp(desde,id){
+  if(!chatListo()) return alert('No cargó ../app/chat.js. Recarga con Ctrl+F5, y si sigue igual, Ajustes → 🧹 Soltar la copia guardada.');
+  if(!sbListo()) return alert('El chat vive en la nube y este computador no la tiene conectada. Conéctala en Ajustes → 📲 Compartir con mis clientes.');
+  if(desde==='ficha'){
+    const s=DB.socios.find(x=>x.id===id); if(!s) return;
+    const llave=PUENTE.llaveEnLaNube(s);
+    if(!llave) return alert('Esta ficha no tiene cédula ni celular: no hay hilo donde escribirle.');
+    return abrirConversacion(llave,{nombre:s.nombre||'',
+      nota:(s.cuentaJunta?'':'Esto queda en el hilo de su ficha: lo lee cuando su cuenta de la app esté junta con ella. ')+AVISO_SIN_PUSH});
+  }
+  const r=_registros.find(x=>String(x.id)===String(id)); if(!r) return;
+  const cel=String(r.telefono||'').replace(/\D/g,'').slice(-10);
+  if(!/^3\d{9}$/.test(cel)) return alert('Ese registro no tiene un celular de 10 dígitos: no hay hilo donde escribirle.');
+  if(!CHAT.hiloDeCelular) return alert('Este navegador tiene una copia vieja de ../app/chat.js. Recarga con Ctrl+F5.');
+  CHAT.hiloDeCelular(sbCfg(),cel).then(j=>{
+    if(!j||j.ok!==true||!j.hilo) return alert('La nube no me dijo en qué conversación lee ese celular. No te abro una a ciegas.');
+    const hilo=String(j.hilo);
+    /* Si la nube dice que es el hilo de una ficha (su cuenta ya está junta),
+       el nombre es el de la ficha: Joan ya dijo que es esa persona. Si no, es
+       el que escribió al registrarse, y se rotula. */
+    const ficha=(hilo!==cel&&!/^0\d{10}$/.test(hilo))?DB.socios.find(s=>PUENTE.llaveEnLaNube(s)===hilo):null;
+    const nom=String(r.nombre||'').replace(/\s+/g,' ').trim();
+    abrirConversacion(hilo,{nombre:ficha?ficha.nombre:(nom?nom+' (registrado, sin verificar)':''),nota:AVISO_SIN_PUSH});
+  }).catch(e=>alert('No pude preguntarle a la nube en qué conversación lee ese celular. '+((e&&e.humano)||'Revisa el internet y vuelve a intentar.')));
 }
 
 /* 22-sep-2026 — ABRIR LA FOTO QUE MANDÓ EL CLIENTE. El hilo trae la miniatura;
@@ -9333,7 +9395,7 @@ function renderRegistros(){
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
       <td>${fmtFecha(String(r.creado_en||'').slice(0,10))}</td>
-      <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${r.telefono&&necesitaAvisoResponsable(r)?`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeAvisoResponsable(r)))}" title="Se registró con la política anterior: avísale que desde el 15-oct la responsable de sus datos es NEXECO S.A.S.">📣 Aviso de datos</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}${c0
+      <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${r.telefono?`<button class="btn btn-ghost btn-sm" onclick="escribirlePorLaApp('registro','${escHTML(String(r.id))}')" title="En el chat de su app, sin WhatsApp. Lo ve cuando abra la app: no le llega aviso al celular.">💬 Escribirle por la app</button> `:''}${r.telefono&&necesitaAvisoResponsable(r)?`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeAvisoResponsable(r)))}" title="Se registró con la política anterior: avísale que desde el 15-oct la responsable de sus datos es NEXECO S.A.S.">📣 Aviso de datos</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}${c0
         /* 7-oct-2026 — EL TOQUE. Cuando el puente lo reconoce con fuerza
            (la misma cédula, o el mismo celular sin nada que lo contradiga),
            el primer botón es «¿Es la misma persona?»: abre la ficha, lo que
