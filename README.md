@@ -31,6 +31,11 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         de motor.js a propósito.
   cuenta.js             Entrar con teléfono y contraseña, el formulario de
                         vinculación, y los permisos que la app NO pide.
+                        Y el único lector del user-agent (leerUserAgent).
+  aparato.js            Desde qué teléfono (19-oct-2026): lo que el navegador
+                        sabe del aparato —modelo, versión, si va dentro de
+                        nuestra app— y sus palabras para el CRM. Se anota al
+                        registrarse, pedir y aceptar. En iPhone no hay modelo.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
                         divulgación del crédito y el borrado de cuenta.
@@ -61,6 +66,10 @@ base/
                                   juntar; la subida no muda la unión a otra persona;
                                   las fichas con cédula vuelven a subir. Después,
                                   20261007d_cierres_comprobar.sql (solo mira).
+  20261019_aparato_del_telefono.sql  El teléfono de verdad: aparatos_vistos (solo
+                                  por funciones), aparato_anotar (la app, con
+                                  sesión) y aparatos_de (el CRM, con la clave).
+                                  Va después de 20261008_condiciones_aceptadas.sql.
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.

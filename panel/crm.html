@@ -994,8 +994,14 @@
      quien decide de qué lado va un mensaje y cómo se escapa el texto vive en un
      solo archivo. Si esto se copiara aquí abajo, habría dos verdades. -->
 <script src="../app/chat.js"></script>
-<!-- 8-sep-2026: dispositivoDe (la huella del registro, en palabras). Opcional: si no llega, se muestra el user-agent crudo. -->
+<!-- 8-sep-2026: dispositivoDe (la huella del registro, en palabras).
+     19-oct-2026: ya NO se muestra el user-agent crudo si no llega: decía
+     «Mozilla/5.0 (Linux; Android 10; K)…» y se leía como el teléfono. -->
 <script src="../app/cuenta.js"></script>
+<!-- 19-oct-2026 — el teléfono de verdad: lo que informó el navegador del
+     cliente (modelo, versión, nuestra app) y sus palabras para la ficha. Va
+     después de cuenta.js, de donde toma el lector del user-agent. -->
+<script src="../app/aparato.js"></script>
 <!-- 7-oct-2026 — LA PUERTA ÚNICA. una-puerta.js son las palabras del toque
      «¿Es la misma persona?» (las mismas del celular); ver-como.js es el pase de
      un uso de «👁 Ver la app como la ve él», sin códigos. Si no llegan, el CRM
@@ -9494,13 +9500,23 @@ function verDatosRegistro(id){
    ubicación aproximada que se consulte (ver LA UBICACIÓN APROXIMADA, abajo).
    Quien pinta esto llama después a resolverUbicaciones(). */
 function bloqueHuella(h,donde){
-  if(!h||typeof h!=='object') return '<div class="sub-h">Desde dónde se registró</div><div class="muted">Sin huella: se registró antes del 8-sep-2026 o la base no la guardó.</div>';
-  const D=window.CuentaSocio, ap=h.aparato?(D&&D.dispositivoDe?D.dispositivoDe(h.aparato):h.aparato):'';
+  /* 19-oct-2026 — la tercera causa faltaba: sin la autorización de datos
+     sensibles no se suben fotos y, hasta hoy, tampoco se anotaba la huella. */
+  if(!h||typeof h!=='object') return '<div class="sub-h">Desde dónde se registró</div><div class="muted">Sin huella: se registró antes del 8-sep-2026, no autorizó los datos sensibles (fotos y ubicación), o la base no la guardó.</div>'
+    +huecoAparatos(celularDeDonde(donde));
+  /* 19-oct-2026 — «TIPO DE CELULAR», Y LO QUE SE SABE DE VERDAD. Decía
+     «Android 10 · K · Chrome» para todos los Android: era la cadena congelada
+     de Chrome leída como dato (ver app/cuenta.js, leerUserAgent). Ahora sale lo
+     que informó el navegador del teléfono si lo hay, y si no, se dice que el
+     modelo no se supo. Con su nota en gris: es lo que dice el teléfono, no
+     una prueba. */
+  const ap=aparatoDeHuellaCRM(h);
   const ip=String(h.ip||'').split(',')[0].trim();
   const g=h.gps&&typeof h.gps==='object'&&h.gps.lat!=null?h.gps:null;
   const cl=h.cedula_leida&&typeof h.cedula_leida==='object'?h.cedula_leida:null;
   return '<div class="sub-h">Desde dónde se registró</div>'
-    +(ap?`<div class="info-row"><span class="k">Aparato</span><span class="vv">${escHTML(ap)}</span></div>`:'')
+    +(ap?`<div class="info-row"><span class="k">Tipo de celular</span><span class="vv">${escHTML(ap.texto)}${ap.nota?`<div class="muted" style="font-size:12px">${escHTML(ap.nota)}</div>`:''}</span></div>`:'')
+    +huecoAparatos(celularDeDonde(donde))
     /* 8-oct-2026 — antes era un enlace a ipinfo.io que Joan tenía que tocar
        registro por registro. Ahora la ubicación sale sola, escrita y anotada
        (huecoUbicacion), y la IP queda al lado para quien quiera mirarla. */
@@ -9526,6 +9542,95 @@ function bloqueHuella(h,donde){
       +'o que la subida de sus fotos no llegara: son cosas distintas y desde aquí '
       +'no se distinguen.</span></div>')
     +(h.momento?`<div class="muted" style="font-size:12px">Registrado el ${fmtFecha(String(h.momento).slice(0,10))}.</div>`:'');
+}
+/* ==========================================================================
+ * EL TIPO DE CELULAR — 19 de octubre de 2026
+ *
+ * Una sola función decide qué se escribe del teléfono de una huella, y la usan
+ * la ficha de Joan (bloqueHuella) y la del gerente (fichaHTML): antes la del
+ * gerente pintaba los primeros 60 caracteres del user-agent crudo
+ * —«Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML»— y William
+ * veía eso. Las palabras las pone app/aparato.js; si no llegó, las de
+ * app/cuenta.js (solo la cabecera); si tampoco, nada: una cadena cruda se lee
+ * como el teléfono y no lo es.
+ * ======================================================================== */
+function aparatoDeHuellaCRM(h){
+  if(!h||typeof h!=='object') return null;
+  const A=window.Aparato, D=window.CuentaSocio;
+  try{ if(A&&A.deLaHuella){ const w=A.deLaHuella(h); if(w&&w.texto) return w; } }catch(e){}
+  if(h.aparato&&D&&D.dispositivoDe) return {texto:D.dispositivoDe(h.aparato), nota:''};
+  return null;
+}
+/* Lo de la huella que viaja a la ficha del cliente. Estaba escrito tres veces
+   igual (al abrir la ficha desde el registro, al juntarlo con una que ya
+   existía y al crearla desde una solicitud); con el teléfono de verdad
+   eran tres sitios donde olvidarlo, y la ficha habría vuelto a «no se supo». */
+function huellaParaFicha(h){
+  const r={ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''};
+  if(h.aparato_telefono&&typeof h.aparato_telefono==='object') r.aparato_telefono=h.aparato_telefono;
+  return r;
+}
+/* El celular (diez dígitos) de quien se mira: el del registro o el de la ficha. */
+function celularDeDonde(donde){
+  const d=donde||{}, r=d.registro, s=d.socio;
+  const t=String((r&&r.telefono)||(s&&s.telefono)||'').replace(/\D/g,'').slice(-10);
+  return t.length===10?t:'';
+}
+/* CADA VEZ QUE ENTRÓ: al registrarse, al pedir y al aceptar, con lo que informó
+   su teléfono cada vez (aparatos_de, base/20261019_aparato_del_telefono.sql).
+   Se pide al TOCAR y no al abrir: cada pregunta pasa por la clave del CRM, y
+   una ficha que se abre no tiene por qué gastar una. */
+let _aparatosN=0;
+function huecoAparatos(cel){
+  if(!cel) return '';
+  const id='aparatos_'+(++_aparatosN);
+  return `<div class="info-row"><span class="k">Desde qué celular pidió</span><span class="vv" id="${id}">`
+    +`<button class="btn btn-ghost btn-sm" onclick="verAparatosDe('${escHTML(cel)}','${id}')">📱 Ver al registrarse, al pedir y al aceptar</button></span></div>`;
+}
+function verAparatosDe(cel,id){
+  const caja=document.getElementById(id); if(!caja) return;
+  if(!sbListo()){ caja.innerHTML='<span class="muted">Esto vive en la nube. Conéctala en Ajustes para verlo.</span>'; return Promise.resolve(); }
+  caja.innerHTML='<span class="muted">Buscando…</span>';
+  return rpc('aparatos_de',{p_clave:sbCfg().clave,p_celular:String(cel||'')}).then(j=>{
+    const c=document.getElementById(id); if(!c) return;
+    if(!j||j.ok!==true){ c.innerHTML='<span class="muted">'+(j&&j.motivo==='celular'?'Ese celular no tiene diez dígitos.':'La nube no contestó lo que se esperaba.')+'</span>'; return; }
+    const A=window.Aparato;
+    if(!A||!A.filasDeAparatos){ c.innerHTML='<span class="muted">No cargó app/aparato.js: recarga la página (Ctrl+Shift+R).</span>'; return; }
+    const filas=A.filasDeAparatos(j.aparatos);
+    if(!filas.length){ c.innerHTML='<span class="muted">No hay nada anotado de este celular. Se anota desde el 19-oct-2026, al registrarse, al pedir y al aceptar en la app.</span>'; return; }
+    /* La hora en Bogotá, como la de «Aceptó las condiciones»: la de la base
+       viene en UTC y de noche cambiaría de día. */
+    const cuando=m=>{ const t=new Date(m); return isNaN(t.getTime())?String(m||''):t.toLocaleString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'}); };
+    c.innerHTML=filas.map(f=>`<div style="margin-bottom:8px"><b>${escHTML(f.cuando)}</b> <span class="muted">· ${escHTML(cuando(f.momento))}${f.ip?' · IP <span class="mono">'+escHTML(f.ip)+'</span>':''}</span>`
+      +`<div>${escHTML(f.texto)}</div>`
+      +(f.nota?`<div class="muted" style="font-size:12px">${escHTML(f.nota)}</div>`:'')+'</div>').join('');
+  }).catch(e=>{
+    const c=document.getElementById(id); if(!c) return;
+    /* El 404 del rpc() general manda a correr supabase.sql; lo que falta es
+       el archivo del 19-oct, y se dice ese. */
+    const m=errNube(e);
+    c.innerHTML='<span class="muted">'+escHTML(/todavía no tiene/.test(m)
+      ?'Falta correr base/20261019_aparato_del_telefono.sql en Supabase. Mientras tanto, solo se ve el tipo de celular de arriba.'
+      :m)+'</span>';
+  });
+}
+/* El celular de una solicitud: `celular` si lo trae, y si no `cedula`, que en
+   las de la app es el celular (la llave de la cuenta). Una cédula de verdad
+   no empieza por 3 con diez dígitos, y entonces no hay con qué buscar. */
+function celularDeSolicitud(s){
+  return [s&&s.celular,s&&s.cedula].map(v=>String(v||'').replace(/\D/g,'').slice(-10)).find(v=>/^3\d{9}$/.test(v))||'';
+}
+/* Desde la bandeja de solicitudes: el mismo hueco, en su propia ventana. */
+function verAparatosDeSolicitud(id){
+  const s=_solicitudes.find(x=>String(x.id)===String(id)); if(!s) return;
+  const cel=celularDeSolicitud(s);
+  openModal('Desde qué celular pidió · '+(s.nombre||''),
+    cel?'<div class="help" style="margin-bottom:10px">Lo informa el navegador de su teléfono cada vez que se registra, pide o acepta en la app. '
+       +'Es lo que el teléfono dice de sí mismo: sirve para orientarse, no es una prueba.</div>'
+       +huecoAparatos(cel)
+      :'<div class="muted">Esta solicitud no trae un celular con qué buscar.</div>');
+  /* En su propia ventana se busca de una: ahí la pidió Joan al tocar 📱. */
+  if(cel) return verAparatosDe(cel,'aparatos_'+_aparatosN);
 }
 /* ==========================================================================
  * LA UBICACIÓN APROXIMADA POR INTERNET — 8 de octubre de 2026
@@ -10108,7 +10213,7 @@ function fichaDesdeRegistro(id){
      la ficha: Joan no vuelve a pedirlas. */
   const h=r.huella&&typeof r.huella==='object'?r.huella:null;
   if(h&&h.gps&&h.gps.lat!=null){ _ubicTmp={lat:h.gps.lat,lng:h.gps.lng,acc:h.gps.acc||0,fecha:h.gps.fecha||hoyISO()}; pintarUbic(); }
-  _huellaPendiente=h?{ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''}:null;
+  _huellaPendiente=h?huellaParaFicha(h):null;
   /* 15-sep-2026 — YA NO SE COPIA LA FOTO, SE ANOTA DONDE ESTA. Antes esta linea
      metia 300 KB de base64 en la ficha; ahora tres tokens de 33 caracteres.
      Es el cambio que lleva a Joan de 17 clientes a mas de mil.
@@ -11066,6 +11171,7 @@ function fichaHTML(j) {
   const d = j.datos || {};
   const f = j.fotos || {};
   const h = j.huella || {};
+  const aparatoFicha = aparatoDeHuellaCRM(h);
   /* Los campos que el registro trae, con el nombre con el que el cliente los
      vio. Si mañana el formulario crece, lo que no esté en esta lista se pinta
      igual al final: una ficha «completa» a la que le falta la mitad es peor que
@@ -11115,11 +11221,16 @@ function fichaHTML(j) {
          </div>`
       : `<div class="alerta" style="margin-top:12px"><b>No subió fotos.</b>
            <div class="muted">Se registró sin cédula ni selfie. Pídeselas antes de desembolsar.</div></div>`) +
-    (h && (h.momento || h.gps)
+    /* 19-oct-2026 — el aparato ya no sale crudo: William veía los primeros 60
+       caracteres del user-agent («Mozilla/5.0 (Linux; Android 10; K)…») y los
+       leía como el teléfono. Ahora, las mismas palabras que ve Joan
+       (aparatoDeHuellaCRM), con su nota. */
+    (h && (h.momento || h.gps || aparatoFicha)
       ? `<div class="sub-h" style="margin-top:16px">Desde dónde se registró</div>
          ${h.momento ? filaInfo('Cuándo', fechaCorta(h.momento)) : ''}
          ${h.gps ? filaInfo('Ubicación', String(h.gps.lat || '?') + ', ' + String(h.gps.lon || h.gps.lng || '?')) : ''}
-         ${h.aparato ? filaInfo('Aparato', String(h.aparato).slice(0, 60)) : ''}`
+         ${aparatoFicha ? filaInfo('Tipo de celular', aparatoFicha.texto) +
+           (aparatoFicha.nota ? '<div class="muted" style="font-size:12px;margin:-4px 0 6px">' + escHTML(aparatoFicha.nota) + '</div>' : '') : ''}`
       : '') +
     `<div class="muted" style="font-size:12px;margin-top:16px;line-height:1.5">
       Queda registrado que abriste esta ficha, con tu nombre y la hora. Son datos de
@@ -14831,7 +14942,7 @@ function aplicarCruce(idReg,idSocio,op){
   /* Las fotos, la ubicación y la huella del registro se llevan a la ficha —es
      media razón por la que Joan quería el cruce— sin pisar lo que ya tuviera. */
   const h=(r.huella&&typeof r.huella==='object')?r.huella:null;
-  if(h){ if(!s.huellaRegistro){ s.huellaRegistro={ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''}; previo.puso.push('huella'); }
+  if(h){ if(!s.huellaRegistro){ s.huellaRegistro=huellaParaFicha(h); previo.puso.push('huella'); }
          if(!s.ubicacion&&h.gps&&h.gps.lat!=null){ s.ubicacion={lat:h.gps.lat,lng:h.gps.lng,acc:h.gps.acc||0,fecha:h.gps.fecha||hoyISO()}; previo.puso.push('ubicacion'); } }
   /* 15-sep-2026 — DOS CAMBIOS EN CINCO LINEAS, Y EL SEGUNDO NO ES DE TAMAÑO.
      (a) Se anotan tokens en vez de copiar 300 KB de base64.
@@ -15374,6 +15485,7 @@ function renderBandeja(){
       <td>${resp||espera?(s.fecha_corte?fmtFecha(s.fecha_corte):'—'):fmtFecha(q.corte)}${resp?'<div class="muted">última cuota</div>':espera?'<div class="muted">la que pidió</div>':''}</td>
       <td style="text-align:right">
         ${cp||cpRaw||espera||proponerPrimero?`<button class="btn ${espera||proponerPrimero?'btn-rojo':'btn-ghost'} btn-sm" onclick="editarContrapropuesta('${s.id}')">✏️ ${espera||proponerPrimero?'Proponer':'Cambiar propuesta'}</button> `:''}${espera||proponerPrimero||((cp||cpRaw)&&s.estado!=='aceptada')?'':`<button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="crearDesdeSolicitud('${s.id}')">✓ ${resp?'Revisar préstamo':(cp||cpRaw)?'Desembolsar':'Crear crédito'}</button>`}
+        <button class="btn btn-ghost btn-sm" onclick="verAparatosDeSolicitud('${s.id}')" title="Desde qué celular pidió (19-oct-2026)">📱</button>
         <button class="btn btn-ghost btn-sm" onclick="descartarSolicitud('${s.id}')">✕</button></td></tr>`;
     }).join('')}</tbody></table>`;
 }
@@ -15508,6 +15620,9 @@ function verCondicionesAceptadas(id){
     '«Leí y acepto las condiciones de este crédito» (versión '+escHTML(c.version||'—')+'), <b>según su app</b>. La base '+
     'comprobó el monto, el total, la fecha de pago y que fuera la propuesta vigente; el resto del texto lo armó su teléfono. '+
     'La copia completa, con la IP y el aparato desde donde aceptó, queda en la base, en condiciones_aceptadas.</div>'+
+    /* 19-oct-2026 — y ahora se puede ver: la constancia guardaba el aparato
+       y el CRM nunca lo mostraba. */
+    huecoAparatos(celularDeSolicitud(s))+
     (malos.length?'<div class="alerta warn">Lo que dice su app no casa con la base en: '+escHTML(malos.join(', '))+'. Confírmale las condiciones por el chat antes de desembolsar.</div>':'')+
     '<div class="sub-h">Según la base</div>'+
     (b?'<div class="info-row"><span class="k">Recibe</span><span class="vv">'+COP(Number(b.capital)||0)+'</span></div>'+
@@ -15728,7 +15843,7 @@ function socioDesdeDatos(s,a,ident){
     /* 8-oct-2026 — lo que Joan dejó girado (↻) mirando su registro. */
     girosFotos:girosDeFotos([f.cedula_frente,f.cedula_reverso,f.selfie],null)||undefined,
     ubicacion:(h&&h.gps&&h.gps.lat!=null)?{lat:h.gps.lat,lng:h.gps.lng,acc:h.gps.acc||0,fecha:h.gps.fecha||hoyISO()}:null,
-    huellaRegistro:h?{ip:h.ip||'',aparato:h.aparato||'',momento:h.momento||''}:null,
+    huellaRegistro:h?huellaParaFicha(h):null,
     whatsappIgual:true,
     vinculacion:Object.keys(d).length?d:null, origen:'registro_abierto',
     gestiones:[], fechaRegistro:new Date().toISOString() }, dec);

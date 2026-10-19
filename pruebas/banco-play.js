@@ -95,6 +95,9 @@ function abrirPlay(opciones) {
      el mismo proceso: ya pasó, y envenenó tres pruebas de otro archivo. */
   ctx.CreditosPublicables = Object.assign({}, require(path.join(RAIZ, 'app', 'creditos.js')));
   ctx.CuentaSocio = require(path.join(RAIZ, 'app', 'cuenta.js'));
+  /* 19-oct-2026 — el teléfono de verdad (modelo, versión, nuestra app).
+     `sinAparato: true` simula que ese <script src> no llegó. */
+  if (!o.sinAparato) ctx.Aparato = require(path.join(RAIZ, 'app', 'aparato.js'));
   /* 8-oct-2026 — la calculadora del pedido y las condiciones de la propuesta.
      Copia propia por banco, como los créditos: guarda el estado de la
      calculadora en el módulo, y dos bancos no pueden compartir el dedo. */
