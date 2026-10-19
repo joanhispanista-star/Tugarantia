@@ -8049,11 +8049,15 @@ function contarPendientes(){
 function pintarAvisos(){
   const c=contarPendientes();
   const falla=(_convsEstado==='error');
-  const poner=(id,n)=>{ const e=document.getElementById(id); if(!e) return;
-    e.textContent = falla ? ' (?)' : (n? ' ('+n+')' : '');
-    e.title = falla ? 'No pude preguntarle a la nube: este numero puede estar viejo' : ''; };
-  poner('navSinLeer', c.mensajes);
-  poner('navSolicitudes', c.solicitudes);
+  const poner=(id,n,f)=>{ const e=document.getElementById(id); if(!e) return;
+    e.textContent = f ? ' (?)' : (n? ' ('+n+')' : '');
+    e.title = f ? 'No pude preguntarle a la nube: este numero puede estar viejo' : ''; };
+  /* 19-oct-2026 — el de Socios también se pone en (?) cuando la que falló fue
+     la pregunta por las solicitudes, no solo la del chat. Con red, como
+     contarPendientes: `_solEstado` se declara más abajo en el archivo. */
+  let fallaSol=false; try{ fallaSol=(_solEstado==='error'); }catch(e){}
+  poner('navSinLeer', c.mensajes, falla);
+  poner('navSolicitudes', c.solicitudes, falla||fallaSol);
   const pie=document.getElementById('avisoPie');
   if(pie){
     pie.innerHTML = falla
@@ -9299,6 +9303,48 @@ function buscarPorCelular(cel){
   verCliente(c.id);
 }
 
+/* 19-oct-2026 — LO QUE PIDIÓ CADA UNO, DONDE JOAN MIRA. Joan busca a la gente
+   nueva en 📥 Registrados, y la solicitud vivía solo en 📋 Socios: la tabla de
+   Registrados no decía que Willian había pedido $300.000. Se cruza cada
+   registro con las solicitudes abiertas por el registro del que nacieron o por
+   el celular (telDeSolicitud, el mismo camino que la base), y se pinta con su
+   «✏️ Proponer», que abre el MISMO formulario de la bandeja. */
+function solicitudesDeRegistro(r){
+  const t=telDiez(r&&r.telefono);
+  return _solicitudes.filter(s=>s&&s.origen==='nube'&&(
+    (s.registro_id!=null&&r&&r.id!=null&&String(s.registro_id)===String(r.id))||
+    (t.length===10&&telDeSolicitud(s)===t)));
+}
+function pedidoEnRegistro(r){
+  return solicitudesDeRegistro(r).map(s=>{
+    const cp=(s.contrapropuesta&&typeof s.contrapropuesta==='object')?s.contrapropuesta:null;
+    const monto=Math.round(Number(s.pedido_monto)||Number(s.capital)||0);
+    const pz=plazoPedido(s);
+    const que='Pidió '+(monto?'<b>'+COP(monto)+'</b>':'un crédito')+(pz?' '+escHTML(pz.texto):'')
+      +(productoSolicitud(s)==='respaldado'?' · con garantía':'');
+    const id=escHTML(String(s.id));
+    /* Las mismas tres salidas que la bandeja: sin propuesta se propone; con
+       propuesta se puede cambiar mientras no la acepte; aceptada, se
+       desembolsa en Socios, que es donde vive ese botón. */
+    const accion=!cp
+      ? `<button class="btn btn-rojo btn-sm" onclick="editarContrapropuesta('${id}')">✏️ Proponer</button>`
+      : s.estado==='aceptada'
+        ? `<span class="chip pagado">✅ Aceptó</span> <button class="btn btn-ghost btn-sm" onclick="irA('socios')">Desembolsar en Socios</button>`
+        : `<span class="chip al-dia">📨 Esperando que acepte</span> <button class="btn btn-ghost btn-sm" onclick="editarContrapropuesta('${id}')">✏️ Cambiar propuesta</button>`;
+    return '<div style="margin-top:6px;white-space:normal">🙋 '+que+'<div style="margin-top:4px">'+accion+'</div></div>';
+  }).join('');
+}
+/* Lo que Registrados sabe de las solicitudes: si no le ha preguntado a la
+   nube, o la pregunta falló, que nadie lea «no pidió nada» donde no hay nada
+   pintado. */
+function avisoPedidosRegistrados(){
+  if(!sbListo()||_solEstado==='ok') return '';
+  const txt=_solEstado==='cargando'?'Preguntando a la nube qué pidió cada uno…'
+    :_solEstado==='error'?'No pude preguntarle a la nube qué pidió cada uno: si alguien pidió, puede no salir aquí. Míralo en 📋 Socios → «↻ Buscar en la nube».'
+    :'Todavía no le he preguntado a la nube qué pidió cada uno.';
+  return '<div class="muted" style="padding:10px 14px 0;font-size:12px">'+txt+'</div>';
+}
+
 function renderRegistros(){
   const b=document.getElementById('tblRegistros'); if(!b)return;
   if(!sbListo()){
@@ -9309,7 +9355,7 @@ function renderRegistros(){
     b.innerHTML=`<div class="empty"><div class="ic">📭</div><p>Nadie esperando.<br><span class="muted">Toca “↻ Traer de la nube” para volver a mirar.</span></p></div>`;
     return;
   }
-  b.innerHTML=`<div class="muted" style="padding:10px 14px 0;font-size:12px">Si alguien no aparece marcado como cliente tuyo, no quiere decir que sea nuevo: una ficha vieja sin cédula y con el número cambiado no se parece a nada. Búscalo por nombre en Clientes antes de abrirle una ficha.</div>
+  b.innerHTML=`${avisoPedidosRegistrados()}<div class="muted" style="padding:10px 14px 0;font-size:12px">Si alguien no aparece marcado como cliente tuyo, no quiere decir que sea nuevo: una ficha vieja sin cédula y con el número cambiado no se parece a nada. Búscalo por nombre en Clientes antes de abrirle una ficha.</div>
   <table><thead><tr><th>Quién</th><th>Origen</th><th>Cédula</th><th>Celular</th><th>Cuándo</th><th></th></tr></thead><tbody>${
     _registros.map(r=>{
       /* El chip cuenta de dónde vino: los de la app publicable se registraron
@@ -9328,7 +9374,7 @@ function renderRegistros(){
          ya tiene y quedan dos clientes donde hay una persona. La regla vive en
          el puente; acá solo se pinta. */
       const cand=PUENTE.candidatosDeCruce(DB,r), c0=cand[0];
-      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}${huecoUbicacion(r.huella,{registro:r},true)}${chipQuienVe(r)}</td>
+      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}${huecoUbicacion(r.huella,{registro:r},true)}${chipDelEquipo(r.telefono)}${pedidoEnRegistro(r)}${chipQuienVe(r)}</td>
       <td>${abierto?'<span class="chip al-dia">📱 App</span>':'<span class="chip pagado">🎟️ '+escHTML(r.codigo||'Invitación')+'</span>'}</td>
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
@@ -11230,6 +11276,12 @@ function filaRegistroEq(r) {
   const tel = telDeRegistroEq(r);
   const primero = String(r.nombre || '').split(/\s+/)[0] || '';
   const yo = CARTERA_EQUIPO && CARTERA_EQUIPO.yo && CARTERA_EQUIPO.yo.celular;
+  /* 19-oct-2026 — SU PROPIA SOLICITUD NO SE LA PROPONE ÉL. Si el gerente pidió
+     un crédito como cliente y su número cae en su alcance, la lista se lo
+     muestra como a cualquiera. El botón no sale: la propuesta se la hace Joan
+     (y, con base/20261019_el_gerente_no_se_propone.sql corrida, la base
+     también lo rechaza aunque alguien se salte la pantalla). */
+  const suyaPropia = !!(yo && tel && telDiez(yo) === tel);
   const lineaSol = !s ? ''
     : (s.estado === 'nueva' && pidio && pidio.monto)
       ? `<div>Pidió <b>${COP(pidio.monto)}</b>${pidio.dias ? ' a ' + escHTML(String(pidio.dias)) + ' días' : ''}</div>`
@@ -11246,7 +11298,8 @@ function filaRegistroEq(r) {
       ${tel ? `<a class="btn btn-wa btn-sm" target="_blank" rel="noopener"
         href="${escHTML(waLink(tel, 'Hola ' + primero + ' 🙂'))}" title="Escribirle por WhatsApp">📲</a>` : ''}
       <button class="btn btn-ghost btn-sm" onclick="verRegistroEq('${escHTML(tel)}')" title="Ver su registro y sus fotos">🪪</button>
-      ${est.puedeProponer && s ? `<button class="btn btn-rojo btn-sm" onclick="proponerEq(${Number(s.id)})">✏️ Proponer</button>` : ''}</span></div>`;
+      ${est.puedeProponer && s && !suyaPropia ? `<button class="btn btn-rojo btn-sm" onclick="proponerEq(${Number(s.id)})">✏️ Proponer</button>` : ''}
+      ${est.puedeProponer && s && suyaPropia ? `<span class="muted">${escHTML(GerenteVende.MOTIVOS.no_a_ti_mismo || '')}</span>` : ''}</span></div>`;
 }
 
 function verRegistroEq(tel) {
@@ -15250,6 +15303,39 @@ function pegarSolicitud(){
 }
 
 let _solicitudes=[];
+/* 19-oct-2026 — LA BANDEJA DICE SI PREGUNTÓ. Willian (el gerente) pidió
+   $300.000 desde play/ y a Joan «no le llegó la solicitud al panel»: el CRM no
+   preguntaba por las solicitudes ni al entrar con el PIN ni al abrir Socios
+   (solo el reloj de 45 s, que además se salta la primera vuelta, o el botón), y
+   mientras tanto la bandeja decía «Ninguna solicitud pendiente» SIN HABER
+   PREGUNTADO NADA. Un vacío falso es peor que no decir nada, porque Joan se lo
+   cree. Ahora la bandeja lleva el patrón de la casa: 'sin_preguntar' |
+   'cargando' | 'ok' | 'error', con la hora de la última respuesta buena, y
+   «Ninguna» solo sale con 'ok'. `_solTurno` numera cada pregunta: si dos se
+   cruzan (el reloj y el botón), manda la última y no la que llegue tarde. */
+let _solEstado='sin_preguntar', _solHora='', _solErrorHTML='', _solTurno=0, _solPreguntadaEn=0;
+/* EL FRENO, unos 15 s. Entrar, abrir Socios y abrir Registrados preguntan
+   solos, y cada pregunta es una llamada a clave_ok, que tiene un freno GLOBAL
+   de intentos (base/supabase.sql y base/20261002d): ir y venir entre Socios y
+   Registrados en un minuto no puede convertirse en seis llamadas. El botón
+   «↻ Buscar en la nube» no pasa por aquí: ese lo toca Joan a propósito. */
+const FRENO_SOLICITUDES_MS=15000;
+function traerSolicitudesSiToca(){
+  /* Nunca en modo #equipo: el gerente no tiene la clave de Joan, y la bandeja
+     es de Joan. */
+  if(CARTERA_EQUIPO||!sbListo()) return false;
+  if(Date.now()-_solPreguntadaEn<FRENO_SOLICITUDES_MS) return false;
+  traerSolicitudes(true);
+  return true;
+}
+/* Cuando la nube no contesta, se dice y la lista NO se vacía: lo que había
+   sigue a la vista con la hora en que se trajo. Borrarla haría que un corte de
+   señal se viera igual que «no pidió nadie». */
+function fallaSolicitudes(html){
+  _solEstado='error'; _solErrorHTML=html;
+  renderBandeja(); pintarAvisos();
+  if(_registros.length) renderRegistros();
+}
 function traerSolicitudes(callado){
   const c=sbCfg(), b=document.getElementById('bandeja');
   /* 22-sep-2026 — «callado» lo usa el reloj de los 45 segundos. Sin él, cada
@@ -15260,7 +15346,14 @@ function traerSolicitudes(callado){
     if(callado) return;
     return alert('Para recibir solicitudes solas hay que conectar Supabase primero (Ajustes → Compartir con mis clientes).\n\nMientras tanto puedes usar "Pegar el WhatsApp".');
   }
-  if(!callado) b.innerHTML='<div class="muted">Buscando…</div>';
+  const turno=++_solTurno;
+  _solPreguntadaEn=Date.now();
+  /* 19-oct-2026 — callado, la pantalla no se toca mientras pregunta (sigue
+     valiendo lo del 22-sep): lo que hay a la vista —la lista buena, o el aviso
+     de que la última vez falló— se queda hasta que llegue la respuesta. La
+     única excepción es cuando nunca se preguntó: ahí «Todavía no le he
+     preguntado» ya sería falso, y se dice que está preguntando. */
+  if(!callado||_solEstado==='sin_preguntar'){ _solEstado='cargando'; if(b) renderBandeja(); }
   /* 8-sep-2026 — una sola llamada trae lo nuevo, lo propuesto y lo aceptado
      (el primer crédito del nuevo vive en los dos estados del medio). */
   fetch(c.url+'/rest/v1/rpc/listar_solicitudes_abiertas',{method:'POST',
@@ -15268,13 +15361,18 @@ function traerSolicitudes(callado){
     body:JSON.stringify({p_clave:c.clave})})
   .then(r=>r.text().then(t=>({ok:r.ok,status:r.status,t})))
   .then(r=>{
-    if(r.status===404){ b.innerHTML='<div class="alerta warn">Tu base todavía no tiene la bandeja del primer crédito. Corre <b>base/20260908_primer_credito.sql</b> en el SQL Editor de Supabase.</div>'; return; }
-    if(!r.ok){ b.innerHTML='<div class="alerta warn">No pude leer las solicitudes ('+r.status+'). '+escHTML(r.t.slice(0,140))+'</div>'; return; }
+    if(turno!==_solTurno) return;
+    if(r.status===404) return fallaSolicitudes('Tu base todavía no tiene la bandeja del primer crédito. Corre <b>base/20260908_primer_credito.sql</b> en el SQL Editor de Supabase.');
+    if(!r.ok) return fallaSolicitudes('No pude leer las solicitudes ('+r.status+'). '+escHTML(r.t.slice(0,140)));
     const nube=(JSON.parse(r.t)||[]).map(x=>Object.assign({origen:'nube'},x));
     _solicitudes=nube.concat(_solicitudes.filter(x=>x.origen==='pegada'));
+    _solEstado='ok'; _solHora=horaCorta(); _solErrorHTML='';
     renderBandeja(); pintarAvisos();
+    /* Registrados dice qué pidió cada uno (pedidoEnRegistro): con la lista
+       nueva, se repinta. */
+    if(_registros.length) renderRegistros();
   })
-  .catch(()=>{ b.innerHTML='<div class="alerta warn">Sin conexión. Revisa el internet.</div>'; });
+  .catch(()=>{ if(turno===_solTurno) fallaSolicitudes('Sin conexión. Revisa el internet.'); });
   /* 22-sep-2026 — y de paso los recados de acceso. Un botón aparte para una
      lista que se mira una vez al día es un botón que nadie toca, y estos
      recados son gente que hoy no puede entrar a su cuenta. */
@@ -15283,11 +15381,13 @@ function traerSolicitudes(callado){
 
 function renderBandeja(){
   const b=document.getElementById('bandeja');
+  /* 19-oct-2026 — primero lo que la bandeja SABE (estadoDeLaBandeja): si no
+     hay lista, eso es todo lo que se pinta; si la hay, va encima de la tabla. */
   if(!_solicitudes.length){
-    b.innerHTML=`<div class="empty"><div class="ic">📭</div><p>Ninguna solicitud pendiente.<br><span class="muted">Entran solas si conectaste Supabase; si no, pega el WhatsApp que te manden.</span></p></div>`;
+    b.innerHTML=estadoDeLaBandeja(false);
     return;
   }
-  b.innerHTML=`<table><thead><tr><th>Cliente</th><th>Pide</th><th>Producto</th><th>Total a devolver</th><th>Última fecha</th><th></th></tr></thead><tbody>${
+  b.innerHTML=estadoDeLaBandeja(true)+`<table><thead><tr><th>Cliente</th><th>Pide</th><th>Producto</th><th>Total a devolver</th><th>Última fecha</th><th></th></tr></thead><tbody>${
     _solicitudes.map(s=>{
       const cli=DB.socios.find(x=>String(x.cedula||'').replace(/\D/g,'')===String(s.cedula||'').replace(/\D/g,''));
       /* Del respaldado NO nos creemos el tope que manda la app: el que manda es
@@ -15364,7 +15464,13 @@ function renderBandeja(){
          celular es el de una ficha, pero no se sabe si es esa persona (ver
          socioDeSolicitud). */
       const sinJuntar=esSolicitudSinJuntar(s)&&!socioDeSolicitud(s);
-      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${sinJuntar?'<div class="muted" style="color:var(--ambar)">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. Júntale la cuenta antes de prestarle.</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}${condicionesAceptadasDe(s)}</td>
+      /* 19-oct-2026 — QUIÉN ES, CON SU NÚMERO. Una cuenta que pidió sin haber
+         llenado el registro llega como «Registrado · sin ficha» (así la deja
+         solicitar_a_la_medida): sin el celular, Joan no reconocía a Willian.
+         Y si ese celular es de alguien de su equipo, se dice: le estaría
+         prestando a su propio gerente. Las dos cosas, solo en la vista de Joan. */
+      const telSol=CARTERA_EQUIPO?'':telDeSolicitud(s);
+      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${telSol?'<div class="muted mono">📱 '+escHTML(telSol)+'</div>':''}${chipDelEquipo(telSol)}${sinJuntar?'<div class="muted" style="color:var(--ambar)">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. Júntale la cuenta antes de prestarle.</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}${condicionesAceptadasDe(s)}</td>
       <td class="num"><b>${COP(resp?s.capital:q.capital)}</b>${aviso}${notaDelCliente(s)}${sinCupo}</td>
       <td>${resp?`<b>Con garantía</b><div class="muted">${(Number(s.tasa)*100).toFixed(0)}% mensual · ${pz} mes${pz!==1?'es':''}</div>`
                 :pcNueva?`<b>Pidió por el chat</b><div class="muted">${pidePct||q.pct}% · ${pideCortes} corte${pideCortes!==1?'s':''} · todavía sin propuesta</div>`
@@ -15376,6 +15482,63 @@ function renderBandeja(){
         ${cp||cpRaw||espera||proponerPrimero?`<button class="btn ${espera||proponerPrimero?'btn-rojo':'btn-ghost'} btn-sm" onclick="editarContrapropuesta('${s.id}')">✏️ ${espera||proponerPrimero?'Proponer':'Cambiar propuesta'}</button> `:''}${espera||proponerPrimero||((cp||cpRaw)&&s.estado!=='aceptada')?'':`<button class="btn ${resp?'btn-azul':'btn-rojo'} btn-sm" onclick="crearDesdeSolicitud('${s.id}')">✓ ${resp?'Revisar préstamo':(cp||cpRaw)?'Desembolsar':'Crear crédito'}</button>`}
         <button class="btn btn-ghost btn-sm" onclick="descartarSolicitud('${s.id}')">✕</button></td></tr>`;
     }).join('')}</tbody></table>`;
+}
+
+/* 19-oct-2026 — LO QUE LA BANDEJA SABE, en palabras. «Ninguna solicitud
+   pendiente» es una afirmación sobre la nube, y solo se puede hacer después de
+   preguntarle ('ok'). Antes de eso, o si la pregunta falló, se dice eso mismo.
+   `hayLista`: con filas, esto va encima de la tabla como una línea; sin
+   filas, es todo lo que se ve. */
+function estadoDeLaBandeja(hayLista){
+  const boton='<div style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="traerSolicitudes()">↻ Buscar en la nube</button></div>';
+  if(!sbListo()){
+    /* Sin nube no se puede preguntar: lo único que puede haber son las pegadas. */
+    return hayLista?'':`<div class="empty"><div class="ic">☁️</div><p>La nube no está conectada en este computador, así que aquí no entra nada solo.<br><span class="muted">Conéctala en Ajustes → Compartir con mis clientes. Mientras tanto, pega el WhatsApp que te manden.</span></p></div>`;
+  }
+  if(_solEstado==='cargando'){
+    return hayLista?'<div class="muted" style="font-size:12.5px;margin-bottom:8px">Preguntando a la nube por solicitudes nuevas…</div>'
+      :'<div class="muted" style="padding:10px 0">Preguntando a la nube…</div>';
+  }
+  if(_solEstado==='error'){
+    return `<div class="alerta warn" style="margin-bottom:10px">${_solErrorHTML}<div class="muted">Eso <b>no</b> quiere decir que no haya solicitudes: quiere decir que no pude preguntar.${hayLista&&_solHora?' Lo de abajo es lo que había a las '+escHTML(_solHora)+'.':''}</div>${hayLista?'':boton}</div>`;
+  }
+  if(_solEstado==='ok'){
+    return hayLista?`<div class="muted" style="font-size:12.5px;margin-bottom:8px">Le pregunté a la nube a las ${escHTML(_solHora)}.</div>`
+      :`<div class="empty"><div class="ic">📭</div><p>Ninguna solicitud pendiente.<br><span class="muted">Le pregunté a la nube a las ${escHTML(_solHora)}. Vuelvo a mirar cada 45 segundos mientras esta pestaña esté a la vista.</span></p></div>`;
+  }
+  /* 'sin_preguntar' */
+  return hayLista?'<div class="muted" style="font-size:12.5px;margin-bottom:8px">Todavía no le he preguntado a la nube: estas son solo las que pegaste.</div>'
+    :`<div class="empty"><div class="ic">☁️</div><p>Todavía no le he preguntado a la nube.<br><span class="muted">Si alguien pidió desde la app, aparece cuando le pregunte.</span></p>${boton}</div>`;
+}
+
+/* 19-oct-2026 — EL CELULAR DE UNA SOLICITUD, por el mismo camino que la base
+   (gerente_proponer): su columna celular, que es el de la sesión que pidió; y
+   si no, `cedula`, que guarda el celular mientras la cuenta no esté junta con
+   una ficha (o '0' + celular, el hilo aparte de PlataChat). Una cédula de
+   verdad no empieza por 3 con diez dígitos. */
+function telDeSolicitud(s){
+  const c=telDiez(s&&s.celular);
+  if(/^3\d{9}$/.test(c)) return c;
+  const d=String((s&&s.cedula)||'').replace(/\D/g,'');
+  const m=/^0?(3\d{9})$/.exec(d);
+  return m?m[1]:'';
+}
+/* ¿Ese celular es de alguien del equipo? Retirados incluidos: un gerente que
+   salió la semana pasada sigue siendo alguien a quien Joan conoce por dentro. */
+function delEquipoConCelular(tel){
+  const t=telDiez(tel);
+  if(t.length!==10) return null;
+  return equipo().find(p=>p&&telDiez(p.celular)===t)||null;
+}
+/* El chip «👥 Es de tu equipo», solo en la vista de Joan: en modo #equipo
+   el gerente no ve la bandeja de Joan ni el nombre de sus compañeros. */
+function chipDelEquipo(tel){
+  if(CARTERA_EQUIPO) return '';
+  const p=delEquipoConCelular(tel);
+  if(!p) return '';
+  const rol=(p.rol==='gerente'?'gerente':'asesor')+(p.estado==='retirado'||p.retirado?', retirado':'');
+  return '<div style="margin-top:4px"><span class="chip riesgo-medio" title="Este celular es el de una persona de tu equipo: le estarías prestando a alguien que trabaja contigo.">👥 Es de tu equipo: '
+    +escHTML(String(p.nombre||'sin nombre'))+' ('+escHTML(rol)+')</span></div>';
 }
 
 /* 22-sep-2026 — LO QUE EL CLIENTE PIDIÓ, CON SUS PALABRAS.
@@ -16481,7 +16644,13 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
   if(v==='comercial')renderComercial();
   /* Registrados trae de la nube SOLO al entrar a la pestaña, no en cada
      render(): una petición por visita, no una por teclazo. */
-  if(v==='registrados'){ renderRegistros(); traerRegistros(); }
+  if(v==='registrados'){ renderRegistros(); traerRegistros(); traerSolicitudesSiToca(); }
+  /* 19-oct-2026 — SOCIOS PREGUNTA POR LAS SOLICITUDES AL ABRIRSE, igual que
+     Registrados y Mensajes. Antes no: la bandeja esperaba al reloj de 45 s o
+     al botón, y entretanto decía «Ninguna». Registrados también pregunta,
+     porque desde hoy dice qué pidió cada uno. Las dos con el freno de 15 s
+     (traerSolicitudesSiToca). */
+  if(v==='socios'){ renderBandeja(); traerSolicitudesSiToca(); }
   /* Mensajes, igual que Registrados: una petición por visita a la pestaña, no
      una por cada render(). */
   if(v==='mensajes'){ renderMensajes(); traerConversaciones(); }
@@ -16509,6 +16678,11 @@ function entrar(){ if(document.getElementById('pinInput').value===DB.config.pin)
     /* 15-oct-2026 — LA CARTERA DEL EQUIPO SE PUBLICA SOLA. Acá por lo mismo que
        las dos de arriba: después del PIN y nunca en modo equipo. */
     try{ if(!CARTERA_EQUIPO) arrancarPublicarSolo(); }catch(e){}
+    /* 19-oct-2026 — LAS SOLICITUDES, AL ENTRAR. Sin esto la primera pregunta
+       llegaba a los 45 s (el reloj), y si Joan miraba Socios antes, leía
+       «Ninguna». Así el «(n)» de Socios sale desde el primer momento. Con red:
+       si algo falla aquí, el CRM sigue entrando. */
+    try{ if(!CARTERA_EQUIPO) traerSolicitudesSiToca(); }catch(e){}
   } else document.getElementById('pinErr').textContent='PIN incorrecto.'; }
 /* 1-oct-2026 (segunda vuelta) — CUANDO OTRA PÁGINA ESCRIBE LA CARTERA, ESTA
    PESTAÑA SE ENTERA. subir.html aplica lo del celular (o resuelve un choque) y

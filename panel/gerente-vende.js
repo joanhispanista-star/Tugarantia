@@ -38,7 +38,10 @@
     no_es_tuyo: 'Esta persona no es de tu base ni te la asignó Joan.',
     no_esta_abierta: 'Esta solicitud ya no está abierta: o el cliente ya aceptó (ahora le toca a Joan desembolsar) o se cerró.',
     sin_topes: 'Joan todavía no te puso topes de venta. Puedes ver la solicitud, pero no proponer hasta que los ponga en Ajustes.',
-    fuera_de_topes: 'Esa propuesta se pasa de los topes que puso Joan.'
+    fuera_de_topes: 'Esa propuesta se pasa de los topes que puso Joan.',
+    /* 19-oct-2026 — base/20261019_el_gerente_no_se_propone.sql: el gerente
+       que pide un crédito como cliente no se fija él mismo las condiciones. */
+    no_a_ti_mismo: 'Esta solicitud es de tu propio celular. A ti mismo no te puedes proponer: la propuesta te la hace Joan.'
   };
   function textoMotivo(m) {
     return MOTIVOS[m] || 'La nube dijo que no' + (m ? ' («' + m + '»)' : '') + '.';
