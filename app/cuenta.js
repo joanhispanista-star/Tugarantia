@@ -185,6 +185,119 @@
   }
 
   /* ==========================================================================
+   * LO QUE CONTESTA SUPABASE AL CAMBIAR LA CONTRASEÑA, EN ESPAÑOL
+   *
+   * 19-oct-2026 — las tres pantallas donde se cambia una contraseña (la app
+   * del cliente con app/sesion-socio.js, la puerta pública play/ y «Mi
+   * contraseña» del equipo en el Panel con panel/mi-clave.js) mostraban el
+   * rechazo de Supabase Auth tal cual llegaba: «Password update requires
+   * reauthentication», «New password should be different from the old
+   * password.». Se reprodujo con las respuestas reales. Quien lee eso no sabe
+   * qué hacer, y el primero que se topó con el callejón no fue un cliente: fue
+   * el gerente, tratando de cambiar la clave de su Panel.
+   *
+   * Vive AQUÍ, y no una copia en cada pantalla, porque las tres ya cargan este
+   * archivo y porque es UNA sola cuenta: la contraseña del Panel de alguien del
+   * equipo es la de su app de cliente. Si cada pantalla tradujera por su lado,
+   * el mismo rechazo diría dos cosas según dónde lo intente.
+   *
+   * Se lee el código (`error_code`, o `code` cuando Supabase contesta con la
+   * forma nueva) y, si no viene, el mensaje: las versiones viejas de GoTrue
+   * solo mandan el mensaje. `estado` es el código HTTP; sin respuesta y sin
+   * estado es que no hubo red.
+   * ======================================================================== */
+  var TEXTOS_AUTH = {
+    datos: 'Esa no es tu contraseña de ahora. Escríbela otra vez, despacio.',
+    misma: 'La nueva es igual a la que ya tienes. Escoge una distinta.',
+    /* «Secure password change» de Supabase: con una sesión de más de un día
+       pide un código que iría a un buzón que no existe (el correo de la cuenta
+       es inventado, ver DOMINIO_INTERNO). La salida real es entrar de nuevo,
+       que deja una sesión recién hecha. */
+    reautenticar: 'Por seguridad, la contraseña solo se puede cambiar poco después de entrar. Sal de tu cuenta, ' +
+      'entra otra vez con la contraseña de ahora y cámbiala enseguida.',
+    muchos: 'Hubo muchos intentos seguidos. Espera unos minutos y vuelve a probar.',
+    sesion: 'Tu sesión se venció. Entra otra vez con tu celular y tu contraseña, y vuelve a intentarlo.',
+    red: 'No pude conectarme. Revisa tu internet y vuelve a intentar.',
+    servidor: 'El sistema no contestó bien. No es tu teléfono: vuelve a intentar en un momento.',
+    otro: 'No pude cambiar tu contraseña. Vuelve a intentar en un momento.'
+  };
+
+  function codigoDeAuth(x) {
+    if (!x || typeof x !== 'object') return '';
+    return String(x.error_code || (typeof x.code === 'string' ? x.code : '') || x.error || '').toLowerCase();
+  }
+  function mensajeDeAuth(x) {
+    if (!x || typeof x !== 'object') return '';
+    return String(x.msg || x.message || x.error_description || '');
+  }
+
+  /** La causa, como palabra: datos, misma, debil, reautenticar, muchos,
+   *  sesion, servidor, red u otro. */
+  function causaErrorAuth(j, estado) {
+    var e = Number(estado) || 0;
+    var x = (j && typeof j === 'object') ? j : null;
+    if (!x && !e) return 'red';
+    var codigo = codigoDeAuth(x), msg = mensajeDeAuth(x);
+    /* invalid_grant también es «ese token de renovar ya no sirve»: eso es una
+       sesión vencida, no una contraseña mal escrita. */
+    if (codigo === 'invalid_credentials' || /invalid login credentials/i.test(msg) ||
+        (codigo === 'invalid_grant' && !/refresh/i.test(msg))) return 'datos';
+    if (codigo === 'same_password' || /different from the old password/i.test(msg)) return 'misma';
+    if (codigo === 'weak_password' || (x && x.weak_password) ||
+        /^password should|known to be weak/i.test(msg)) return 'debil';
+    if (/^reauth/.test(codigo) || /reauthenticat/i.test(msg)) return 'reautenticar';
+    if (e === 429 || /rate_limit/.test(codigo) || /rate limit/i.test(msg)) return 'muchos';
+    if (e === 401 || e === 403 || codigo === 'invalid_grant' ||
+        /^(session_not_found|session_expired|bad_jwt|no_authorization|refresh_token_not_found)$/.test(codigo)) return 'sesion';
+    if (e >= 500) return 'servidor';
+    return 'otro';
+  }
+
+  function enLista(xs) {
+    return xs.length < 2 ? xs.join('') : xs.slice(0, -1).join(', ') + ' y ' + xs[xs.length - 1];
+  }
+
+  /* La política de contraseñas se pone en el panel de Supabase y puede ser
+     más estricta que revisarContrasena (8 caracteres). Por eso la clave puede
+     pasar aquí y rebotar allá, y el rechazo tiene que decir QUÉ pide, que
+     viene escrito en el mensaje: los juegos de caracteres y el largo. */
+  function textoClaveDebil(x, msg) {
+    var razones = (x && x.weak_password && Array.isArray(x.weak_password.reasons)) ? x.weak_password.reasons : [];
+    var partes = [];
+    var largo = /at least (\d+) characters/i.exec(msg);
+    if (largo) partes.push('tener al menos ' + largo[1] + ' caracteres');
+    else if (razones.indexOf('length') >= 0) partes.push('ser más larga');
+    var tipos = [];
+    var juegos = msg.split(':').slice(1).join(':');
+    if (/abcdefghijklmnopqrstuvwxyz/.test(juegos)) tipos.push('una minúscula');
+    if (/ABCDEFGHIJKLMNOPQRSTUVWXYZ/.test(juegos)) tipos.push('una mayúscula');
+    if (/0123456789/.test(juegos)) tipos.push('un número');
+    if (/[!@#$%^&*]/.test(juegos)) tipos.push('un símbolo (como ! o #)');
+    if (tipos.length) partes.push('llevar al menos ' + enLista(tipos));
+    else if (razones.indexOf('characters') >= 0) partes.push('mezclar distintos tipos de caracteres (letras, números o símbolos)');
+    var t = partes.length ? 'Por seguridad, la contraseña tiene que ' + partes.join(' y ') + '.' : '';
+    if (razones.indexOf('pwned') >= 0 || /known to be weak/i.test(msg)) {
+      t += (t ? ' ' : '') + 'Esa contraseña aparece en listas de claves filtradas en internet: escoge otra que solo sepas tú.';
+    }
+    return t || 'Esa contraseña es muy fácil de adivinar. Escoge otra más larga, que mezcle letras y números.';
+  }
+
+  /** El texto para la persona. Nunca devuelve el mensaje de Supabase: si la
+   *  causa no se conoce, dice el código entre comillas (sirve para buscarlo)
+   *  y qué hacer. */
+  function traducirErrorAuth(j, estado) {
+    var causa = causaErrorAuth(j, estado);
+    if (causa === 'debil') return textoClaveDebil(j, mensajeDeAuth(j));
+    if (causa === 'otro') {
+      var c = codigoDeAuth(j);
+      return /^[a-z0-9_]{2,60}$/.test(c)
+        ? 'No pude cambiar tu contraseña (el sistema dijo «' + c + '»). Vuelve a intentar en un momento.'
+        : TEXTOS_AUTH.otro;
+    }
+    return TEXTOS_AUTH[causa];
+  }
+
+  /* ==========================================================================
    * EL FORMULARIO DE VINCULACIÓN
    *
    * Cada campo lleva `porque`. NO es documentación: es el filtro. Joan pidió "no
@@ -739,6 +852,10 @@
     /* la contraseña */
     LARGO_MINIMO_CLAVE: LARGO_MINIMO_CLAVE,
     revisarContrasena: revisarContrasena,
+    /* lo que contesta Supabase al cambiarla, en español (19-oct-2026) */
+    TEXTOS_AUTH: TEXTOS_AUTH,
+    causaErrorAuth: causaErrorAuth,
+    traducirErrorAuth: traducirErrorAuth,
 
     /* la cédula leída y el aparato (8-sep-2026) */
     leerCedulaPDF417: leerCedulaPDF417,

@@ -1007,6 +1007,11 @@
      la base diga que no. Si no llega, la pestaña «Registros» del gerente dice
      que falta el archivo; el resto del CRM anda igual. -->
 <script src="gerente-vende.js"></script>
+<!-- 19-oct-2026 — «🔑 Mi contraseña» del equipo: cambiar la propia con la de
+     ahora y guardar la sesión que queda viva. Usa las reglas de app/cuenta.js
+     (cargado arriba). Si no llega, esa pestaña dice que falta el archivo; el
+     resto del CRM anda igual. -->
+<script src="mi-clave.js"></script>
 <!-- 15-sep-2026 — LA BASE PARA SMS Y VOZ. Dos archivos, y cada uno hace una cosa:
      tanda.js decide A QUIEN se le puede escribir hoy (los topes de la Ley 2300, que
      son por PERSONA y por SEMANA, no por credito); cobranza-envio.js arma el texto
@@ -2575,9 +2580,20 @@ function darClaveNueva(idAyuda){
   rpc('clave_temporal_joan',{p_clave:sbCfg().clave,p_celular:cel,p_ficha:cli?PUENTE.llaveEnLaNube(cli):null})
     .then(j=>{
       if(!j||j.ok!==true){
+        /* 19-oct-2026 — si el recado es de alguien del equipo, el camino que
+           nombra textoMotivo se abre desde aquí mismo: la pantalla de
+           «Ponerle otra contraseña» de esa persona (la línea para el editor
+           SQL y la comprobación contra Supabase). Solo si está activa:
+           equipo_poner_clave no toca a un retirado. */
+        if(j&&j.motivo==='equipo'){
+          const p=equipo().find(x=>x.estado!=='retirado'&&dig(x.celular)===cel);
+          if(!p) return alert(UP.textoMotivo(j));
+          if(confirm(UP.textoMotivo(j)+'\n\n¿Abro ya «Ponerle otra contraseña» de '+(p.nombre||'esa persona')+'?'))
+            pantallaCuentaExiste(p,claveSugerida());
+          return;
+        }
         return alert(j&&j.motivo==='sin_cuenta'
           ?'Ese celular no tiene cuenta en la app: no hay contraseña que cambiar. Escríbele y dile que toque «Registrarme».'
-          :j&&j.motivo==='equipo'?UP.textoMotivo(j)
           :'No pude cambiar la contraseña. Vuelve a intentar.');
       }
       if(cli&&cli.cuentaPorJuntar&&cli.cuentaPorJuntar.pideClave){
@@ -10495,6 +10511,11 @@ function campoConOjo(id, atributos) {
     'onclick="alternarOjo(\'' + id + '\',this)">' + ojoSVG() + '</button></div>';
 }
 
+/* 19-oct-2026 — la puerta no tenía salida para quien olvida la clave: decía
+   «No encontré ese celular con esa contraseña» y ahí se quedaba. La salida no
+   es «Olvidé mi contraseña» de la app de cliente: ese recado no puede tocar
+   una cuenta del equipo (motivo 'equipo', base/20261007_una_puerta.sql). Es
+   pedírsela a Joan, que la pone con «Ponerle otra contraseña». */
 function pintarPuertaEquipo() {
   const c = document.querySelector('#gate .gate-card');
   if (!c) return;
@@ -10503,6 +10524,9 @@ function pintarPuertaEquipo() {
     ${campoConOjo('eqClaveIn', 'placeholder="Tu contraseña" aria-label="Tu contraseña"')}
     <button id="eqBtn">Entrar</button>
     <div class="gate-err" id="eqErr"></div>
+    <div class="gate-olvido" style="font-size:12.5px;color:var(--gris);margin-top:12px;line-height:1.45;text-align:left">
+      ¿Olvidaste tu contraseña? Escríbele a Joan y pídele una nueva. Él te la pone desde su CRM:
+      Equipo → tu nombre → «Ponerle otra contraseña».</div>
     <button class="gate-link" onclick="location.reload()">← Soy Joan</button>`;
   document.getElementById('eqBtn').addEventListener('click', entrarEquipo);
   document.getElementById('eqClaveIn').addEventListener('keydown', e => { if (e.key === 'Enter') entrarEquipo(); });
@@ -10629,6 +10653,7 @@ function modoEquipo() {
       <div style="padding:10px 14px;font-size:11.5px;line-height:1.5;opacity:.6">
         Solo ves lo que te asignaron. Lo decide el servidor, no esta pantalla.</div>
       <button class="navbtn" onclick="miWhatsappEq()"><span class="ic">📲</span> Mi WhatsApp</button>
+      <button class="navbtn" onclick="irEquipo('clave')"><span class="ic">🔑</span> Mi contraseña</button>
       <button class="navbtn" style="margin-top:auto" onclick="location.reload()"><span class="ic">🚪</span> Salir</button>`;
   }
   /* La agenda se pide al entrar y no al abrir su pestaña: lo de hoy se cuenta
@@ -10643,11 +10668,12 @@ function irEquipo(v) {
      «Mi plata» y «Mi WhatsApp»: para esas, el objeto devolvía undefined,
      indexOf('undefined') daba -1 y NINGUN botón quedaba encendido — el asesor
      abría la pantalla y el menú se apagaba entero, como si no hubiera pasado
-     nada. Y cualquier entrada nueva hereda el mismo fallo si no se agrega aquí. */
+     nada. Y cualquier entrada nueva hereda el mismo fallo si no se agrega aquí.
+     19-oct-2026 — «Mi contraseña» (clave) entra con ese aviso cumplido. */
   const TITULO_EQ = { tablero: 'Hoy', base: 'Mi base', agenda: 'Agenda',
                       equipo: 'Mi equipo', vivo: 'En vivo', plata: 'Mi plata',
                       whatsapp: 'Mi WhatsApp', jefe: 'Mensajes', cobrar: 'Cuándo cobrar',
-                      registros: 'Registros' };
+                      registros: 'Registros', clave: 'Mi contraseña' };
   document.querySelectorAll('.side .navbtn').forEach(b => b.classList.toggle('on',
     !!TITULO_EQ[v] && b.textContent.trim().indexOf(TITULO_EQ[v]) >= 0));
   const main = document.querySelector('.main') || document.querySelector('.app > :last-child');
@@ -10660,6 +10686,7 @@ function irEquipo(v) {
      v === 'jefe' ? vistaJefeEq() :
      v === 'equipo' ? vistaMiEquipo() :
      v === 'plata' ? vistaPlataEq() :
+     v === 'clave' ? vistaMiClaveEq() :
      v === 'vivo' ? vistaVivoEq() : vistaTableroEquipo()) + '</div>';
   /* El reloj del «en vivo» solo corre con esa pestana abierta. Uno que siguiera
      corriendo en el bolsillo del asesor es bateria y son datos de su plan. */
@@ -13074,6 +13101,67 @@ function guardarWhatsappEq() {
       if (esFinDeSesion(e)) return avisarFinDeSesion('');
       alert('No pude guardarlo: ' + (e.message || e));
     });
+}
+
+/* --------------------------------------------------------------------------
+ * 🔑 MI CONTRASEÑA — 19-oct-2026
+ *
+ * Joan: «William no puede cambiar la contraseña para ingresar al panel de
+ * control». No había dónde: la única pantalla que cambiaba una clave era la de
+ * Joan (pantallaCuentaExiste), y pide la clave de otro. Las reglas y las dos
+ * llamadas viven en panel/mi-clave.js; aquí solo se pinta y se guarda la
+ * sesión que queda viva (Supabase cierra las demás al cambiar la clave, y sin
+ * guardarla la siguiente acción diría «tu sesión se venció»).
+ * Los campos se leen sin recortar, igual que en la puerta del equipo.
+ * ------------------------------------------------------------------------ */
+function vistaMiClaveEq() {
+  const M = window.MiClave;
+  const cab = '<div class="ph"><div><h1>Mi contraseña<span class="dot">.</span></h1>' +
+    '<div class="sub">La que usas para entrar con tu celular</div></div></div>';
+  if (!M) return cab + '<div class="card"><div class="alerta warn">No cargó panel/mi-clave.js. ' +
+    'Recarga la página con señal.</div></div>';
+  const ancho = 'style="width:100%"';
+  return cab + `<div class="card" id="mcCaja" style="padding:16px">
+    <div class="alerta info">${escHTML(M.TEXTOS.misma_cuenta)}</div>
+    <div class="field"><label for="mcVieja">Tu contraseña de ahora</label>
+      ${campoConOjo('mcVieja', 'autocomplete="current-password" ' + ancho)}</div>
+    <div class="field"><label for="mcNueva">La nueva</label>
+      ${campoConOjo('mcNueva', 'autocomplete="new-password" ' + ancho)}
+      <div class="help">Al menos 8 caracteres, y que no sea tu celular.</div></div>
+    <div class="field"><label for="mcRepite">Repítela</label>
+      ${campoConOjo('mcRepite', 'autocomplete="new-password" ' + ancho)}</div>
+    <div id="mcMsg"></div>
+    <button class="btn btn-rojo" id="mcBtn" style="width:100%" onclick="guardarMiClaveEq()">Cambiar mi contraseña</button>
+    <div class="muted" style="font-size:12.5px;margin-top:12px">${escHTML(M.TEXTOS.joan)}</div>
+  </div>`;
+}
+function guardarMiClaveEq() {
+  const M = window.MiClave;
+  const btn = document.getElementById('mcBtn'), msg = document.getElementById('mcMsg');
+  const leerCampo = id => { const c = document.getElementById(id); return c ? String(c.value || '') : ''; };
+  const decir = (t, tono) => { if (msg) msg.innerHTML = '<div class="alerta ' + (tono || 'warn') + '">' + escHTML(t) + '</div>'; };
+  if (!M) return decir('No cargó panel/mi-clave.js. Recarga la página con señal.');
+  if (btn) { btn.disabled = true; btn.textContent = 'Cambiando…'; }
+  if (msg) msg.innerHTML = '';
+  return M.cambiarMiClave({
+    url: NUBE_EQUIPO.url, anon: NUBE_EQUIPO.anon,
+    celular: (CARTERA_EQUIPO && CARTERA_EQUIPO.yo && CARTERA_EQUIPO.yo.celular) || '',
+    vieja: leerCampo('mcVieja'), nueva: leerCampo('mcNueva'), repite: leerCampo('mcRepite'),
+    fetch: (u, c) => fetch(u, c)
+  }).then(r => {
+    /* La sesión del paso 1 es buena pase lo que pase: si no se sabe si la
+       clave quedó, la vieja puede estar muerta y esta no. */
+    if (r.sesion) guardarSesionEquipo(r.sesion);
+    if (!r.ok) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Cambiar mi contraseña'; }
+      return decir(r.texto, r.motivo === 'incierto' ? 'info' : 'warn');
+    }
+    const caja = document.getElementById('mcCaja');
+    if (caja) caja.innerHTML = '<div class="alerta ok"><b>' + escHTML(M.TEXTOS.listo) + '</b></div>' +
+      '<p class="sub">' + escHTML(M.TEXTOS.despues) + '</p>' +
+      '<div class="muted" style="font-size:12.5px;margin:10px 0 14px">' + escHTML(M.TEXTOS.joan) + '</div>' +
+      '<button class="btn btn-ghost" onclick="irEquipo(\'tablero\')">Volver a Hoy</button>';
+  });
 }
 
 /* ==========================================================================
