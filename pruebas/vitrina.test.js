@@ -2395,7 +2395,11 @@ describe('lo que se dibujó para vender no puede prometer (16-sep-2026)', () => 
        costumbre hace fallar «la app no llama a ningún servidor que no sea el
        suyo» — y el mensaje de error habla de un servidor, no de un dibujo, así
        que nadie entiende por qué. Dentro de HTML el xmlns no hace falta.
-       Esta prueba existe para que el error llegue con su nombre propio. */
+       Esta prueba existe para que el error llegue con su nombre propio.
+
+       19-oct-2026 — esto vale para los <svg> EN LÍNEA de index.html. Los de
+       play/gente/ son archivos que entran por un <img>, y ahí es al revés: sin
+       xmlns el navegador no los pinta. Los vigila pruebas/gente-ilustrada.test.js. */
     const svgs = VIVO.match(/<svg[^>]*>/g) || [];
     assert.ok(svgs.length > 0, 'se fueron todos los dibujos de la puerta pública');
     svgs.forEach(s => assert.equal(/xmlns/.test(s), false,
@@ -2409,8 +2413,22 @@ describe('lo que se dibujó para vender no puede prometer (16-sep-2026)', () => 
        de reposo, así que el fotograma quieto es la escena completa. */
     assert.match(CSS, /\.vj-cae\{animation:none\}/,
       'la plata sigue cayendo aunque el sistema pida quietud');
-    assert.match(CSS, /\.gente-esc \.g-vive[\s\S]{0,200}?animation:none/,
-      'la gente sigue moviéndose aunque el sistema pida quietud');
+    /* 19-oct-2026 — la gente dejó de moverse: desde que la dibujó un
+       ilustrador es un <img> de una sola pieza (play/gente/*.svg) y no tiene
+       partes que respirar. Esta mitad antes buscaba .g-vive, que ya no existe;
+       ahora vigila lo mismo sin depender del nombre: si CUALQUIER regla de la
+       gente vuelve a animarse, la quietud tiene que apagarla. */
+    const sinComentarios = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+    const quietas = (sinComentarios.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\n\}/g) || [])
+      .map(b => b.slice(b.indexOf('{') + 1, b.lastIndexOf('}')))
+      .flatMap(b => [...b.matchAll(/([^{}]+)\{([^}]*)\}/g)])
+      .filter(m => /animation\s*:\s*none/.test(m[2]))
+      .flatMap(m => m[1].split(',').map(s => s.trim()));
+    const seMueven = (sinComentarios.match(/[^{}]*\.gente[^{}]*\{[^}]*\}/g) || [])
+      .filter(r => /animation(-name)?\s*:\s*(?!none)/.test(r))
+      .flatMap(r => r.split('{')[0].split(',').map(s => s.trim()));
+    seMueven.forEach(sel => assert.ok(quietas.includes(sel),
+      'la gente se mueve (' + sel + ') y no se apaga cuando el sistema pide quietud'));
   });
 
   test('el sello de EJEMPLO llegó a la tarjeta de la cifra grande', () => {
@@ -2501,10 +2519,26 @@ describe('lo que la revisión del 17-sep encontró y no puede volver', () => {
        antes de buscar cifras, así que un ✓ o un «te consignamos $2.000.000»
        metido dentro del dibujo pasaba las tres pruebas que decían vigilarlo. */
     const P = abrirPlay();
-    const svgs = (P.ev('tarjetaGente()') + P.ev('lluviaDeCalc()'))
-      .match(/<svg[\s\S]*?<\/svg>/g) || [];
-    assert.ok(svgs.length === 4, 'cambió el número de dibujos: revisa esta prueba');
-    svgs.forEach(s => {
+    const pintado = P.ev('tarjetaGente()') + P.ev('lluviaDeCalc()');
+    const enLinea = pintado.match(/<svg[\s\S]*?<\/svg>/g) || [];
+    /* 19-oct-2026 — la gente salió del HTML: ahora son <img> que apuntan a
+       play/gente/*.svg (Open Peeps, de ilustrador). Mirar solo el HTML dejaría
+       este mismo agujero abierto por otra puerta —un ✓ dibujado DENTRO del
+       archivo no aparece en tarjetaGente()—, así que se leen los archivos: los
+       que la tarjeta pide y todos los que haya en la carpeta, por si alguien
+       cambia una ruta y deja el archivo nuevo sin barrer. */
+    const pedidos = [...pintado.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map(m => m[1]);
+    assert.ok(enLinea.length === 1 && pedidos.length === 3,
+      'cambió el número de dibujos: revisa esta prueba');
+    const carpeta = path.join(__dirname, '..', 'play', 'gente');
+    const enDisco = fs.readdirSync(carpeta).filter(f => /\.svg$/.test(f))
+      .map(f => path.join(carpeta, f));
+    pedidos.forEach(src => assert.ok(enDisco.includes(path.join(__dirname, '..', 'play', src)),
+      'la tarjeta pide ' + src + ' y no está en play/gente/: imagen rota en la puerta pública'));
+    const archivos = enDisco.map(f => fs.readFileSync(f, 'utf8'));
+    archivos.forEach(s => assert.equal(/aprobad|desembolsad|nequi|daviplata|bancolombia|davivienda|movii/i.test(s), false,
+      'un dibujo de play/gente/ dice «aprobado» o se viste de una marca ajena'));
+    enLinea.concat(archivos).forEach(s => {
       assert.equal(/[✓✔√]/.test(s), false, 'un dibujo lleva un visto bueno: eso es un «aprobado»');
       assert.equal(/\$[\d.]/.test(s), false, 'un dibujo lleva una cifra de plata escrita adentro');
       assert.equal(/<text|<foreignObject/i.test(s), false,

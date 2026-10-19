@@ -363,7 +363,9 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    que entrar a la precarga de sw.js, o la app instalada no lo manda).
    También sube por el estimado del costo en la calculadora del pedido
    («Costo estimado: $6.000 · Total estimado: $306.000»). Si el cliente dice
-   que no ve cifra debajo de su pedido, esta fecha dice si tiene la versión. */
+   que no ve cifra debajo de su pedido, esta fecha dice si tiene la versión.
+   También sube por la gente de «Para qué te sirve»: ahora son
+   ilustraciones de Open Peeps en play/gente/, no los dibujos hechos a mano. */
 var VERSION_PLAY = '2026-10-19';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
@@ -5136,139 +5138,78 @@ function lluviaDeCalc() {
 }
 
 /* =========================================================================
- * LA GENTE, DIBUJADA — 16-sep-2026
+ * LA GENTE — 16-sep-2026, y rehecha el 19-oct-2026
  *
- * Joan pidió «imágenes de gente feliz y textos cortos». No hay con qué generar
- * imágenes en esta sesión, y una foto de banco de imágenes en la puerta de una
- * fintech se reconoce a la legua: dice «esto es una plantilla», que es lo
- * contrario de lo que esta página vende. Así que la gente se dibuja. SVG en
- * línea: cero archivos, cero red, nada que se pueda quedar a medias.
+ * 19-oct-2026 — LAS PERSONAS AHORA LAS DIBUJÓ UN ILUSTRADOR. Joan, al verlas:
+ * «la calidad es muy baja… quiero que se vean más cercanas a lo que es una
+ * persona, no a dibujos de niño de 3 años». Tenía razón, y no se arreglaba
+ * puliendo: estaban hechas a mano en una cuadrícula de 96 y mostradas a 88 px,
+ * así que la cara entera eran tres trazos de unos 5 px, las manos manoplas y los
+ * brazos tubos. Se cambió DE DÓNDE sale el dibujo: Open Peeps, de Pablo
+ * Stanley, que su sitio (openpeeps.com) publica «Free for commercial and
+ * personal use under CC0 License». CC0 no obliga a dar crédito; se da igual,
+ * dentro de cada archivo.
  *
- * POR QUÉ NINGUNA PERSONA TIENE COLOR DE PIEL. Elegir un tono es elegir a quién
- * se parece el cliente de Tu Garantía, y el cliente de Tu Garantía es
- * cualquiera. Están dibujadas con la MISMA tinta de la página en cuatro
- * intensidades; lo que las hace distintas es la gorra, la cola de caballo, el
- * celular en la mano y la bolsa del mercado. Efecto secundario que sí importa:
- * en modo oscuro el dibujo se invierte solo, porque --tinta se invierte sola.
+ * Lo que se descartó, con su porqué (fase 7, punto 4): fotos gratis de bancos de
+ * imágenes —sus licencias excluyen a las personas reconocibles o que parezcan
+ * respaldar el producto, y una persona sonriendo junto a «una gran ayuda» en
+ * una página de préstamos es justo eso—, y Humaaans, que no tienen cara.
  *
- * LO QUE LOS DIBUJOS NO HACEN, Y ES A PROPÓSITO:
- *  - El celular tiene un mensaje SALIENDO, no una respuesta entrando. Es lo que
- *    pasa de verdad: la solicitud cae en la bandeja y Joan contesta. La burbuja
- *    va vacía porque a 88 píxeles un texto no se lee y cualquier símbolo ahí
- *    dentro —un ✓, sobre todo— se leería como «aprobado».
- *  - La pantalla del celular está en blanco: no imita la de nadie.
- *  - No hay ni una cifra. La única de la portada es la de la calculadora.
+ * POR QUÉ SIGUE SIN HABER COLOR DE PIEL. La regla del 16-sep se queda: elegir un
+ * tono es elegir a quién se parece el cliente de Tu Garantía, y el cliente de
+ * Tu Garantía es cualquiera. Open Peeps es tinta negra sobre relleno blanco, así
+ * que la respeta sin tocar un trazo.
  *
- * Cada escena es una función suelta y no vive dentro de tarjetaGente() por una
- * razón muy de este archivo: cuando una tarjeta se borra se lleva por delante
- * lo que tenga pegado —ya pasó con `fila`, y la página quedó en blanco—.
+ * POR QUÉ VAN EN ARCHIVO APARTE (play/gente/*.svg) Y NO EN LÍNEA COMO ANTES.
+ * Pesan 13-21 KB cada uno (5-8 KB comprimidos), contra 1-2 KB de los de antes.
+ * Metidos aquí los pagaría el cliente en CADA visita, porque esta página se
+ * pide a la red cada vez; en archivo aparte se bajan una vez y el service
+ * worker los sirve de su caché. Por eso tienen que estar en su precarga: si
+ * faltan, el primer arranque sin señal enseña una imagen rota. Y como sw.js
+ * sirve las imágenes caché-primero, cambiar un dibujo sin subir el número de
+ * caché (o sin cambiarle el nombre al archivo) deja a cada teléfono con el
+ * viejo. Nunca se enlazan desde un sitio ajeno: un dominio nuevo aquí
+ * contradice lo declarado en Data Safety (pruebas/cumplimiento.test.js).
+ *
+ * LO QUE SE PERDIÓ, A SABIENDAS: las animaciones de las partes (respirar, la
+ * perilla, la bolsa que se mecía). Un <img> es una sola pieza, y mover la
+ * imagen entera se ve como una calcomanía, no como una persona.
+ *
+ * LO QUE LOS DIBUJOS SIGUEN SIN HACER, Y ES A PROPÓSITO:
+ *  - Ni una cifra, ni un ✓, ni una palabra dentro: la hoja que mira el de
+ *    «Para cuando te vares» está en blanco. La única cifra de la portada es la
+ *    de la calculadora, y pruebas/vitrina.test.js barre los tres archivos.
+ *  - alt="" porque son decoración: el texto de al lado dice lo que importa, y
+ *    nadie con lector de pantalla necesita oír cómo es una persona que no
+ *    existe. La nota de la tarjeta ya dice que son ilustraciones.
+ *  - width y height van escritos para que el navegador guarde el hueco antes de
+ *    que llegue el archivo: sin eso, el texto salta de lado cuando aparece.
+ *
+ * Cada escena sigue siendo una función suelta y no vive dentro de tarjetaGente()
+ * por una razón muy de este archivo: cuando una tarjeta se borra se lleva por
+ * delante lo que tenga pegado —ya pasó con `fila`, y la página quedó en blanco—.
  * ======================================================================= */
 
-/* Escena 1 — el celular en alto y el mensaje que sale. */
+/* Escena 1 — alguien mira una hoja con los ojos muy abiertos: el día en que uno
+   se vara. Es la pose «Paper» de Open Peeps; entre las figuras sueltas no había
+   una con el celular en la mano, y la hoja va en blanco, que es lo que importa. */
 function escenaVaras() {
-  return '<svg class="gente-esc" viewBox="0 0 96 96" width="88" height="88" aria-hidden="true" focusable="false">' +
-    '<rect class="g-fondo" x="2" y="2" width="92" height="92" rx="24"/>' +
-    '<g class="g-vive">' +
-      '<path class="g-r3" d="M28 96 v-16 q0-11 11-14 l5-1.6 q5.5 4.2 11 0 l5 1.6 q11 3 11 14 v16 z"/>' +
-      '<path class="g-piel" d="M43 48 h9 v8 q-4.5 3 -9 0 z"/>' +
-      /* La cabeza va inclinada unos grados. Es lo que separa una persona de un
-         pictograma de baño: la simetría perfecta se lee como icono. */
-      '<g transform="rotate(-5 47 38)">' +
-        '<ellipse class="g-piel" cx="47" cy="38" rx="12.6" ry="13.6"/>' +
-        '<path class="g-r3" d="M34.5 38 q-1.5-17 12.5-17 q13.5 0 13.5 14.5 q-3.5-7.5 -11.5-7.5 q-11.5 0-13 11 q-1 2-1.5-1 z"/>' +
-        '<path class="g-fac" d="M40.5 38 q2.6-3.3 5.2 0"/>' +
-        '<path class="g-fac" d="M49 38.3 q2.6-3.3 5.2 0"/>' +
-        '<path class="g-fac" d="M43.5 44.6 q3.9 4.4 7.8 -.4"/>' +
-      '</g>' +
-      '<path class="g-brazo" d="M33 82 q-11-9 -10-20"/>' +
-    '</g>' +
-    /* El celular NO respira con el cuerpo: una mano que sostiene algo lo deja
-       quieto, y si sube y baja con el pecho se ve de goma. */
-    '<rect class="g-r2" x="13" y="30" width="19" height="29" rx="5"/>' +
-    '<rect class="g-pant" x="16" y="33.5" width="13" height="22" rx="2"/>' +
-    '<ellipse class="g-piel" cx="24" cy="59" rx="6.4" ry="4.6"/>' +
-    '<g class="g-envio">' +
-      '<rect class="g-oro" x="10" y="9" width="21" height="14" rx="5.5"/>' +
-      '<path class="g-oro" d="M15 22 v6.5 l7-6.5 z"/>' +
-    '</g>' +
-  '</svg>';
+  return '<img class="gente-esc" src="gente/varas.svg" alt="" width="112" height="112" loading="lazy" decoding="async">';
 }
 
-/* Escena 2 — las dos manos sobre un mando con su perilla: el mismo gesto que la
-   persona acaba de hacer con los deslizadores de arriba. */
+/* Escena 2 — alguien explicando, con la mano abierta: «tú dices cuánto y para
+   cuándo» lo dice la persona, no la plataforma. Pose «Explaining». */
 function escenaEliges() {
-  return '<svg class="gente-esc" viewBox="0 0 96 96" width="88" height="88" aria-hidden="true" focusable="false">' +
-    '<rect class="g-fondo" x="2" y="2" width="92" height="92" rx="24"/>' +
-    '<g class="g-vive">' +
-      '<path class="g-r2" d="M24 96 v-15 q0-11 11-14.5 l5.5-1.8 q7.5 4.6 15 0 l5.5 1.8 Q72 70 72 81 v15 z"/>' +
-      '<path class="g-piel" d="M43.5 53 h9 v8 q-4.5 3 -9 0 z"/>' +
-      '<g transform="rotate(4 48 43)">' +
-        '<ellipse class="g-piel" cx="48" cy="43" rx="12" ry="13"/>' +
-        '<path class="g-r3" d="M36 43 q-1.5-16 12-16 q13 0 13 14 q-3.5-7 -11-7 q-11 0-12.5 10.5 q-1 2-1.5-1.5 z"/>' +
-        '<ellipse class="g-r3" cx="48" cy="24.5" rx="6.2" ry="5.6"/>' +
-        '<path class="g-fac" d="M41.6 43 q2.5-3.2 5 0"/>' +
-        '<path class="g-fac" d="M49.6 43.3 q2.5-3.2 5 0"/>' +
-        '<path class="g-fac" d="M44.2 49.2 q3.7 4.2 7.4 -.4"/>' +
-      '</g>' +
-      '<path class="g-brazo" d="M34 72 q-5 5 -6 11"/>' +
-      '<path class="g-brazo" d="M62 72 q5 5 6 11"/>' +
-    '</g>' +
-    /* Las manos quedan quietas y lo único que se mueve es la perilla. Al revés
-       —mano y perilla viajando juntas— habría que estirar el antebrazo, y un
-       brazo de caucho es lo primero que se nota. */
-    '<rect class="g-r1" x="25" y="73" width="46" height="21" rx="5"/>' +
-    '<rect class="g-pant" x="29" y="77" width="38" height="13" rx="3"/>' +
-    '<path class="g-hilo" d="M34 83.5 h28"/>' +
-    '<circle class="g-perilla g-oro" cx="48" cy="83.5" r="5"/>' +
-    '<ellipse class="g-piel" cx="26" cy="84" rx="5.6" ry="4.8"/>' +
-    '<ellipse class="g-piel" cx="70" cy="84" rx="5.6" ry="4.8"/>' +
-  '</svg>';
+  return '<img class="gente-esc" src="gente/eliges.svg" alt="" width="112" height="112" loading="lazy" decoding="async">';
 }
 
-/* Escena 3 — dos personas, y el brazo de una sobre el hombro de la otra. La
-   «ayuda» del texto se dibuja como lo que es entre dos personas, y no como
-   plata cayendo: plata cayendo acá sería prometer el desembolso. */
+/* Escena 3 — dos personas juntas, sonriendo. La «ayuda» del texto se dibuja como
+   lo que es entre dos personas, y no como plata cayendo: plata cayendo acá sería
+   prometer el desembolso. Las dos figuras traían gafas de sol y un parche en el
+   ojo; en Open Peeps el accesorio es una capa aparte y se quitó entera, porque
+   unos ojos tapados no dan confianza en la puerta de una fintech. */
 function escenaAyuda() {
-  return '<svg class="gente-esc" viewBox="0 0 96 96" width="88" height="88" aria-hidden="true" focusable="false">' +
-    '<rect class="g-fondo" x="2" y="2" width="92" height="92" rx="24"/>' +
-    '<g class="g-vive">' +
-      /* El de atrás se dibuja primero y con la ropa más clara: es lo único que
-         da profundidad cuando no hay sombras. */
-      '<path class="g-r1" d="M48 96 v-15 q0-10 9.5-13 l4.5-1.5 q5 3.8 10 0 l4.5 1.5 Q86 71 86 81 v15 z"/>' +
-      '<path class="g-piel" d="M63 48 h8 v7 q-4 2.8 -8 0 z"/>' +
-      '<g transform="rotate(5 67 40)">' +
-        '<ellipse class="g-piel" cx="67" cy="40" rx="11" ry="11.8"/>' +
-        '<path class="g-r3" d="M56 36 q0-11 11-11 q11 0 11 11 z"/>' +
-        /* La visera sale hacia un solo lado. Con una tira recta de lado a lado
-           dejaba de ser una gorra y parecía un bombín. */
-        '<path class="g-r3" d="M57 35 q-13 .8 -14 4 q-.3 1.8 2 1.8 h12 z"/>' +
-        '<rect class="g-r3" x="55.5" y="34.4" width="23" height="3.4" rx="1.7"/>' +
-        '<path class="g-fac" d="M61.8 43 q2.3-3 4.6 0"/>' +
-        '<path class="g-fac" d="M68.6 43.3 q2.3-3 4.6 0"/>' +
-        '<path class="g-fac" d="M63.4 48.6 q3.4 3.9 6.8 -.3"/>' +
-      '</g>' +
-      '<path class="g-r3" d="M8 96 v-15 q0-11 10.5-14 l5-1.7 q5.5 4.2 11 0 l5 1.7 Q50 70 50 81 v15 z"/>' +
-      '<path class="g-piel" d="M25 50 h9 v8 q-4.5 3 -9 0 z"/>' +
-      '<g transform="rotate(-6 29 41)">' +
-        '<path class="g-r3" d="M18 37 q-7 5 -5.5 15 q.8 5 4 5.6 q-2.6-10.4 2.6-15.6 z"/>' +
-        '<ellipse class="g-piel" cx="29" cy="41" rx="12" ry="13"/>' +
-        '<path class="g-r3" d="M17 41 q-1.5-16 12-16 q13 0 13 14 q-3.5-7 -11-7 q-11 0-12.5 10.5 q-1 2-1.5-1.5 z"/>' +
-        '<path class="g-fac" d="M22.6 41 q2.6-3.3 5.2 0"/>' +
-        '<path class="g-fac" d="M31 41.3 q2.6-3.3 5.2 0"/>' +
-        '<path class="g-fac" d="M25.6 47.6 q3.9 4.4 7.8 -.4"/>' +
-      '</g>' +
-      '<path class="g-brazo g-claro" d="M58 72 q-12-6 -22-1"/>' +
-      '<ellipse class="g-piel" cx="35" cy="71.5" rx="5.4" ry="4.4"/>' +
-      '<path class="g-brazo" d="M17 74 q1 4 3 6"/>' +
-    '</g>' +
-    /* La bolsa se mece aparte del cuerpo y con otro compás: si se meciera con la
-       respiración parecería pintada encima de la persona. */
-    '<g class="g-bolsa">' +
-      '<path class="g-hilo" d="M15.5 78 q5.5-9 11 0"/>' +
-      '<path class="g-r1" d="M11 78 h20 l-2.5 17 h-15 z"/>' +
-      '<rect class="g-oro" x="16" y="84" width="10" height="2.8" rx="1.4"/>' +
-    '</g>' +
-  '</svg>';
+  return '<img class="gente-esc" src="gente/ayuda.svg" alt="" width="112" height="112" loading="lazy" decoding="async">';
 }
 
 function tarjetaGente() {
