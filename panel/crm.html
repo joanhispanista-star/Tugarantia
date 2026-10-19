@@ -1739,10 +1739,57 @@ function gananciaCobrada(p){ return PUENTE.gananciaCobrada(p); }
    de TODAS las cuotas que quedan, no solo el de la que vence: si no, el crédito
    que se pasó a plan haría desaparecer de tus proyecciones los dos costos
    siguientes. */
+/* 17-oct-2026, revisión — con cuotas, el costo que falta lo dice el PUENTE
+   (costoPendienteDelPlan): sumar el pactado entero de las cuotas sin pagar
+   contaba dos veces lo que un abono ya había metido a costo (y eso ya estaba
+   en gananciaCobrada), y no sabía que la cuota adelantada cuesta menos. La
+   mora, la de TODAS las cuotas vencidas, no solo la de la que corre. */
 function gananciaPendiente(p){ if(p.pagado)return 0;
-  const pend=cuotasPlan(p).filter(c=>!c.pagado);
-  return (pend.length?pend.reduce((t,c)=>t+(Number(c.costo)||0),0):K(p))+moraDe(p); }
+  if(cuotasPlan(p).some(c=>c&&!c.pagado))
+    return PUENTE.costoPendienteDelPlan(p)+PUENTE.cuotasVencidas(p,hoyISO()).reduce((t,v)=>t+(Number(v.mora)||0),0);
+  return K(p)+moraDe(p); }
 function gananciaEsperada(p){ return gananciaCobrada(p)+gananciaPendiente(p); }
+/* 17-oct-2026, revisión — LO VENCIDO DE UN CRÉDITO HOY. Con cuotas, la suma de
+   TODAS las vencidas (PUENTE.vencidoDelPlan): el 20-nov, sin haber pagado nada,
+   el crédito de Joan debe la 1 y la 2, y el KPI «En mora», la cola y el
+   WhatsApp de mora decían solo la 1. Sin cuotas, o si no hay nada vencido, lo
+   del ciclo, como siempre. */
+/* 17-oct-2026, segunda revisión — y la cuenta ya no se arma acá: es
+   PUENTE.aPagarHoy, la MISMA que usa el celular para su WhatsApp de mora. La
+   primera versión hacía aquí la suma (vencidoDelPlan o, si no, totalCiclo) y el
+   celular seguía mandando la mitad: dos copias de una regla terminan diciendo
+   dos cosas. Sin cuotas es liquidarCiclo de hoy, lo mismo que totalCiclo. */
+function vencidoHoy(p){
+  if(!p||p.pagado) return 0;
+  return PUENTE.aPagarHoy(p,hoyISO());
+}
+/* 17-oct-2026, segunda revisión — LO QUE SE ANUNCIA CON UNA FECHA. El
+   calendario, el .ics, «+Google», los recordatorios y la columna «A pagar»
+   ponen una cifra al lado de la fecha de la cuota, y esa cifra tiene que ser
+   la de ESE día. Para casi todos es la de hoy; la excepción es la última cuota
+   antes de que empiece su quincena: cerrarla hoy vale 325.000 (pagar todo antes
+   no cobra la quincena que no corrió), pero el 15-nov vale 390.000, y el
+   calendario le mandaba al cliente «tu pago de $325.000 es el 15-nov». La
+   cuenta es del puente (aPagarEnSuFecha; vencida, lo de hoy). El quincenal
+   sigue con totalCiclo: su cifra no cambia entre hoy y el corte. */
+function montoEnSuFecha(p){
+  if(!p||p.pagado) return 0;
+  return tienePlan(p)?PUENTE.aPagarEnSuFecha(p,hoyISO()):totalCiclo(p);
+}
+/* 17-oct-2026, revisión — «SI PAGA TODO HOY», el de la ficha del cliente. En el
+   crédito a cuotas es saldarlo con la regla de Joan (PUENTE.liquidarSaldoPlan);
+   en el plan del §8, el saldo de todas las cuotas más la mora de las vencidas
+   (su regla de pago anticipado no se decidió: se cobra entero). La primera
+   versión sumaba totalCiclo, que con cuotas es UNA cuota, y la ficha llegó a
+   decir «si paga todo hoy» una cifra por debajo del capital en la calle. */
+function siPagaTodoHoy(p){
+  if(!p||p.pagado) return 0;
+  const hoy=hoyISO();
+  if(PUENTE.esPlanDeAlta(p)&&cuotaPlan(p)){ const r=PUENTE.liquidarSaldoPlan(p,hoy); if(r) return r.total; }
+  if(tienePlan(p)&&cuotaPlan(p))
+    return PUENTE.saldoDelPlan(p)+PUENTE.cuotasVencidas(p,hoy).reduce((t,v)=>t+(Number(v.mora)||0),0);
+  return totalCiclo(p);
+}
 function capitalRecuperadoDe(p){ return PUENTE.capitalRecuperadoDe(p); }
 const PCT=n=>(isFinite(n)?n:0).toLocaleString('es-CO',{maximumFractionDigits:1})+'%';
 
@@ -1836,7 +1883,7 @@ function renderKpis(){
     <div class="kpi gan"><div class="et">📈 Ganancia ciclo actual</div><div class="nm">${COP(ganCiclo)}</div><div class="x">quincena ${fmtCorto(cg)}</div></div>
     <div class="kpi"><div class="et">🎁 Descuentos dados</div><div class="nm">${COP(descCiclo.total)}</div><div class="x">${descCiclo.total?`${descCiclo.clientes} cliente${descCiclo.clientes===1?'':'s'} · ya restados de la ganancia`:`ninguno en ${fmtCorto(cg)}`}</div></div>
     <div class="kpi dark"><div class="et">🏦 Invertido en el ciclo</div><div class="nm">${COP(invCiclo)}</div><div class="x">capital activo en ${fmtCorto(cg)}</div></div>
-    <div class="kpi alert"><div class="et">⚠️ En mora</div><div class="nm">${COP(moraA.reduce((s,p)=>s+totalCiclo(p),0))}</div><div class="x">${moraA.length} vencidos</div></div>`;
+    <div class="kpi alert"><div class="et">⚠️ En mora</div><div class="nm">${COP(moraA.reduce((s,p)=>s+vencidoHoy(p),0))}</div><div class="x">${moraA.length} vencidos</div></div>`;
 
   const invTotal=montoTotalInvertido(),ingTotal=ingresosTotales(),ganProrr=gananciaPorProrrogas(),pctMonto=pctRecuperacionMonto(),pctCtas=pctRecuperacionCuentas(),ganProy=gananciaProyectadaPendiente();
   document.getElementById('kpis2').innerHTML=`
@@ -2573,8 +2620,14 @@ function renderCola(){
     arr.map(p=>{ const s=DB.socios.find(x=>x.id===p.socioId)||{nombre:p.socioNombre,telefono:p.telefono,gestiones:[]};
       const est=estadoPrestamo(p),av=acuerdoVigente(p),ai=acuerdoIncumplido(p),k=(av||ai)?'acuerdoPactado':plantillaPara(p),dm=diasMora(p),dp=diasPara(p);
       const cuando=est==='hoy'?'Hoy':est==='mora'?`Hace ${dm}d`:`En ${dp}d`;
+      /* 17-oct-2026, revisión — con cuotas, «A pagar» es TODO lo vencido
+         (vencidoHoy), y debajo se nombra cada otra cuota vencida con su cifra:
+         con la 1 y la 2 vencidas la cola decía solo la 1. */
+      const cq=tienePlan(p)?cuotaPlan(p):null;
+      const otrasVencidas=cq?PUENTE.cuotasVencidas(p,hoyISO()).filter(v=>Number(v.n)!==Number(cq.n)):[];
+      const masVencidas=otrasVencidas.map(v=>` + cuota ${v.n} vencida ${COP(v.total)}`).join('');
       return `<tr><td><b>${escHTML(s.nombre||p.socioNombre)}</b><div class="muted">${escHTML(waNum(s))}</div></td>
-        <td class="num">${av?COP(av.monto):COP(totalCiclo(p))}<div class="muted">${av?'acuerdo · precio congelado':(ai?'acuerdo INCUMPLIDO · debe '+COP(totalCiclo(p)):(()=>{const v=prorrogaOfrecida(p);return v!=null?'prórroga '+COP(v):(tienePlan(p)?'plan de pagos':'sin prórrogas');})())}</div></td>
+        <td class="num">${av?COP(av.monto):COP(vencidoHoy(p))}<div class="muted">${av?'acuerdo · precio congelado':(ai?'acuerdo INCUMPLIDO · debe '+COP(totalCiclo(p)):(()=>{const v=prorrogaOfrecida(p);return v!=null?'prórroga '+COP(v):(tienePlan(p)?(PUENTE.esPlanDeAlta(p)?'a cuotas · cuota '+((cuotaPlan(p)||{}).n||'—')+' de '+cuotasPlan(p).length:'plan de pagos')+masVencidas:'sin prórrogas');})())}</div></td>
         <td>${av?fmtFecha(av.pactadaPara):fmtFecha(PUENTE.corteDelCredito(p))}<div class="muted">${av?'día pactado':cuando}</div></td>
         <td>${av?'<span class="chip al-dia">🤝 Acuerdo</span>':(ai?'<span class="chip mora">🤝 Incumplido</span>':`<span class="chip ${est}">${ESTADO_TXT[est]}</span>`)}</td>
         <td style="text-align:right">${contactadoHoy(s)?'<span class="muted">contactado</span> ':''}<button class="btn btn-wa btn-sm" onclick="gestionar('${p.id}','${k}')">💬</button> <button class="btn btn-negro btn-sm" onclick="abrirPago('${p.id}')">Pago</button></td></tr>`;}).join('')}</tbody></table>`;
@@ -2640,7 +2693,10 @@ function casosDeCobroHoy() {
     if (acuerdoVigente(p)) return;
     var k = p.socioId;
     if (!k) return;
-    totales[k] = (totales[k] || 0) + totalCiclo(p);
+    /* 17-oct-2026 — vencidoHoy y no totalCiclo: con dos cuotas vencidas de un
+       crédito a cuotas, el SMS y la voz decían solo la primera (523.250 de
+       929.500). Sin cuotas vencidas es el mismo totalCiclo de siempre. */
+    totales[k] = (totales[k] || 0) + vencidoHoy(p);
     cuantos[k] = (cuantos[k] || 0) + 1;
     var dm = diasMora(p);
     if (dm > (moraMax[k] || 0)) moraMax[k] = dm;
@@ -2660,8 +2716,13 @@ function casosDeCobroHoy() {
       id: p.id, socioId: s.id, socio: s, credito: p,
       telefono: waNum(s),
       nombre: s.nombre || p.socioNombre || '',
-      saldo: totalCiclo(p),
-      saldo_total: totales[s.id] || totalCiclo(p),
+      /* 17-oct-2026, segunda revisión — y la fila de UN solo crédito también:
+         filasDeEnvio usa `saldo` cuando la persona tiene un crédito, así que con
+         totalCiclo el SMS de un crédito a cuotas con dos cuotas vencidas seguía
+         diciendo 523.250 de 929.500 (la suma por persona solo se lee con dos o
+         más créditos). */
+      saldo: vencidoHoy(p),
+      saldo_total: totales[s.id] || vencidoHoy(p),
       cuantos: cuantos[s.id] || 1,
       fecha_pago: PUENTE.corteDelCredito(p) || '',
       /* Lo de la PERSONA, para que las estrategias no dependan del credito que
@@ -3128,7 +3189,10 @@ function pintarNoLesToca(fuera, filas) {
     var s = DB.socios.find(function (x) { return x.id === p.socioId; });
     if (!s) return;
     var g = porSocio[s.id] || (porSocio[s.id] = { s: s, debe: 0, creditos: [], corte: '' });
-    g.debe += totalCiclo(p);
+    /* 17-oct-2026, segunda revisión — «Debe» va al lado de «Vence»: lo de ESE
+       día (montoEnSuFecha). La última cuota antes de su quincena decía 325.000
+       y el día que vence son 390.000. */
+    g.debe += montoEnSuFecha(p);
     g.creditos.push(p);
     var c = PUENTE.corteDelCredito(p) || '';
     if (c && (!g.corte || c < g.corte)) { g.corte = c; g.primero = p; }
@@ -4362,16 +4426,29 @@ function enviarInvitaciones() {
     });
 }
 
+/* 17-oct-2026, segunda revisión — «A pagar» va al lado de «→ la fecha de la
+   cuota»: es lo de ESE día (montoEnSuFecha), no lo de cerrarla hoy. Con la
+   cuota 1 pagada el 30-oct, la fila decía $325.000 → 15-nov, y ese día son
+   $390.000. */
 function renderCred(){
   const arr=[...DB.prestamos].sort((a,b)=>{const o={mora:0,hoy:1,proximo:2,'al-dia':3,pagado:4};return o[estadoPrestamo(a)]-o[estadoPrestamo(b)]||new Date(a.cicloActual)-new Date(b.cicloActual);});
   const c=document.getElementById('tblCred'),usura=DB.config.tasaUsuraEA;
   if(!arr.length){ c.innerHTML=`<div class="empty"><div class="ic">💵</div><p>Sin créditos todavía.<br><span class="muted">Toca “＋ Nuevo crédito” para registrar el primero.</span></p></div>`+papeleraHTML(); return; }
-  const sumCap=arr.reduce((s,p)=>s+capitalActual(p),0),sumAPagar=arr.reduce((s,p)=>s+(p.pagado?0:totalCiclo(p)),0),sumGan=arr.reduce((s,p)=>s+gananciaCobrada(p),0);
+  const sumCap=arr.reduce((s,p)=>s+capitalActual(p),0),sumAPagar=arr.reduce((s,p)=>s+(p.pagado?0:montoEnSuFecha(p)),0),sumGan=arr.reduce((s,p)=>s+gananciaCobrada(p),0);
   c.innerHTML=`<div style="margin-bottom:12px"><button class="btn btn-ghost btn-sm" onclick="revisarCartera()" title="Busca montos raros, dobles registros y fechas que no cuadran">🔍 Revisar la cartera</button><span class="muted" style="margin-left:8px;font-size:12px">Montos raros, dobles registros, fechas que no cuadran.</span></div><table><thead><tr><th>N°</th><th>Cliente</th><th>Capital</th><th>A pagar</th><th>Ganancia</th><th>Desemb. → Quincena</th><th>E.A.</th><th>Estado</th><th></th></tr></thead><tbody>${
-    arr.map(p=>{ const est=estadoPrestamo(p),dias=diasEntre(p.fechaDesembolso,PUENTE.corteDelCredito(p)),ea=eaEquivalente(p.costoPct,dias),sobre=usura>0&&ea>usura,npr=(p.prorrogas||[]).length,s=DB.socios.find(x=>x.id===p.socioId);
-      return `<tr><td class="mono muted">${codCredito(p)}</td><td><b>${escHTML(p.socioNombre)}</b><div class="muted">${s?codCliente(s)+' · ':''}costo ${p.costoPct}%${npr?' · '+npr+' prórr.':''}${(p.comprobantes||[]).length?' · 📎'+p.comprobantes.length:''}</div></td>
+    arr.map(p=>{ const est=estadoPrestamo(p),dias=diasEntre(p.fechaDesembolso,PUENTE.corteDelCredito(p)),npr=(p.prorrogas||[]).length,s=DB.socios.find(x=>x.id===p.socioId);
+      /* 17-oct-2026, revisión — el crédito a cuotas no es «el % a N días»: la
+         plata vuelve en tramos, así que su E.A. sale de las fechas y los pesos
+         de las cuotas pactadas (la misma cuenta que la vista previa del alta), y
+         con ESA cifra se marca la usura. El texto lleva el % de la cuota que
+         corre (p.costoPct es el de la cuota 1) y en qué cuota va. */
+      const altaL=PUENTE.esPlanDeAlta(p), eaPlan=altaL?eaDelCreditoACuotas(p):null;
+      const ea=eaPlan!=null?eaPlan:eaEquivalente(p.costoPct,dias),sobre=usura>0&&ea>usura;
+      const cL=altaL?cuotaPlan(p):null, nL=altaL?cuotasPlan(p).length:0;
+      const costoTxt=altaL?`costo ${Math.round(PUENTE.tasaDelCiclo(p)*100)}% · a cuotas · ${cL?`cuota ${cL.n} de ${nL}`:`${nL} cuotas`}`:`costo ${p.costoPct}%`;
+      return `<tr><td class="mono muted">${codCredito(p)}</td><td><b>${escHTML(p.socioNombre)}</b><div class="muted">${s?codCliente(s)+' · ':''}${costoTxt}${npr?' · '+npr+' prórr.':''}${(p.comprobantes||[]).length?' · 📎'+p.comprobantes.length:''}</div></td>
       <td class="num">${COP(capitalActual(p))}</td>
-      <td class="num">${p.pagado?'—':COP(totalCiclo(p))}</td>
+      <td class="num">${p.pagado?'—':COP(montoEnSuFecha(p))}</td>
       <td class="gano">${COP(gananciaCobrada(p))}${!p.pagado?'<div class="muted" style="font-weight:400">esp. '+COP(gananciaEsperada(p))+'</div>':''}</td>
       <td>${fmtFecha(p.fechaDesembolso)} <span class="muted">→</span> ${fmtFecha(PUENTE.corteDelCredito(p))}<div class="muted">${dias} días</div></td>
       <td class="${sobre?'ea-bad':'ea-ok'}">${fmtEA(ea)}${sobre?' <span class="warn-ico" title="Supera la usura de referencia">⚠️</span>':''}</td>
@@ -4741,15 +4818,27 @@ function renderClientes(){
 function quincenasRelevantes(){
   if(!DB.prestamos.length)return [cicloActualGlobal()];
   const q=new Set([cicloActualGlobal()]);
-  DB.prestamos.forEach(p=>{ const c=PUENTE.corteDelCredito(p); if(c)q.add(c);
-    if(p.cicloPago)q.add(p.cicloPago);
-    (p.prorrogas||[]).forEach(pr=>{ if(pr.ciclo)q.add(pr.ciclo); }); });
+  DB.prestamos.forEach(p=>{ const c=PUENTE.corteDelCredito(p);
+    /* 16-oct-2026 — una cuota no abre fila propia: va en la quincena que
+       contiene su fecha (PUENTE.quincenaDe), la misma que usa el celular. La
+       del 30-oct es de la quincena del 31-oct. Así el KPI del ciclo actual y la
+       tabla dicen lo mismo, y lo mismo que el celular. */
+    if(c)q.add(tienePlan(p)?(PUENTE.quincenaDe(c)||c):c);
+    if(p.cicloPago)q.add(tienePlan(p)?(PUENTE.quincenaDe(p.cicloPago)||p.cicloPago):p.cicloPago);
+    (p.prorrogas||[]).forEach(pr=>{ if(pr.ciclo)q.add(pr.ciclo); });
+    cuotasPlan(p).forEach(x=>{ const d=x&&x.fecha&&PUENTE.quincenaDe(x.fecha); if(d)q.add(d); });
+    const en=PUENTE.entradaPlan(p); if(en&&en.ciclo)q.add(PUENTE.quincenaDe(en.ciclo)||en.ciclo); });
   const orden=Array.from(q).sort(), fin=orden[orden.length-1];
   let cur=orden[0],guard=0;
   while(cur<fin&&guard<240){ cur=MotorReglas.cortesSiguientes(cur,1)[0]; q.add(cur); guard++; }
   return Array.from(q).sort();
 }
-function gananciaDeQuincena(q){ let g=0; DB.prestamos.forEach(p=>{ (p.prorrogas||[]).forEach(pr=>{if(pr.ciclo===q)g+=pr.monto;}); if(p.pagado&&p.cicloPago===q)g+=(p.gananciaPago||0); }); return g; }
+/* 16-oct-2026 — más lo cobrado de los planes (cuotas y entrada del §8), cada
+   cuota en la quincena que contiene su fecha. Hasta hoy no entraba: cobrarCuotaDelPlan deja
+   gananciaPago en cero a propósito (la ganancia vive en las cuotas), así que un
+   plan entero cobrado no aparecía en ninguna quincena. La cuenta es del puente,
+   porque el celular tiene su copia de este tablero. */
+function gananciaDeQuincena(q){ let g=0; DB.prestamos.forEach(p=>{ (p.prorrogas||[]).forEach(pr=>{if(pr.ciclo===q)g+=pr.monto;}); if(p.pagado&&p.cicloPago===q)g+=(p.gananciaPago||0); g+=PUENTE.cobradoDelPlanEnQuincena(p,q); }); return g; }
 /* 5-ago-2026 — LO QUE HABÍA EN LA CALLE EN UNA QUINCENA ES UNA PREGUNTA DEL
    PASADO. Esta función sumaba `capitalActual(p)` —el capital de HOY— y decidía
    si el crédito estaba abierto comparando `p.cicloActual`, que es el corte de
@@ -4758,14 +4847,25 @@ function gananciaDeQuincena(q){ let g=0; DB.prestamos.forEach(p=>{ (p.prorrogas|
    corte no había llegado. Las dos respuestas las tiene el puente recorriendo los
    hechos: `corteVigenteEn` (qué corte regía ESE día) y `capitalVigenteEn`
    (cuánto se debía ESE día). */
+/* 17-oct-2026, segunda revisión — con cuotas, la fecha de la cuota se compara
+   con la quincena del tablero que la CONTIENE (PUENTE.quincenaDe), igual que
+   porCobrarEnQuincena y la ganancia. Una cuota del 30-oct es de la quincena del
+   31-oct, y comparar la fecha pelada (30-oct < 31-oct) sacaba al crédito a
+   cuotas del «Invertido en el ciclo» justo en la quincena en que se cobra: el
+   20-oct el KPI no contaba sus 650.000. */
 function invertidoEnQuincena(q){ return DB.prestamos.reduce((inv,p)=>{
   if(!p.fechaDesembolso||p.fechaDesembolso>q)return inv;
-  const corte=PUENTE.corteVigenteEn(p,q); if(corte&&corte<q)return inv;
+  const corte=PUENTE.corteVigenteEn(p,q), qc=(corte&&tienePlan(p))?PUENTE.quincenaDe(corte):corte;
+  if(qc&&qc<q)return inv;
   // Y si lo saldó ANTES de esa quincena, esa plata ya no estaba en la calle.
   if(p.pagado&&p.fechaPagado&&p.fechaPagado<q)return inv;
   return inv+PUENTE.capitalVigenteEn(p,q);
 },0); }
-function porCobrarEnQuincena(q){ return DB.prestamos.filter(p=>!p.pagado&&PUENTE.corteDelCredito(p)===q).reduce((s,p)=>s+totalCiclo(p),0); }
+/* Con cuotas, la que sigue cuenta en la quincena que contiene su fecha (16-oct-2026).
+   17-oct-2026, segunda revisión — y por lo que vale EN su fecha
+   (montoEnSuFecha): «Por cobrar» en la quincena del 17-nov es lo que se cobra
+   el 15-nov, no lo que costaría cerrar la cuota hoy. */
+function porCobrarEnQuincena(q){ return DB.prestamos.filter(p=>{ if(p.pagado)return false; const c=PUENTE.corteDelCredito(p); return (tienePlan(p)?PUENTE.quincenaDe(c):c)===q; }).reduce((s,p)=>s+montoEnSuFecha(p),0); }
 function renderCiclos(){
   const qs=quincenasRelevantes().reverse(),c=document.getElementById('tblCiclos'),cg=cicloActualGlobal();
   if(!qs.length){ c.innerHTML=`<div class="empty"><div class="ic">📈</div><p>Sin ciclos todavía.</p></div>`; return; }
@@ -4775,7 +4875,11 @@ function renderCiclos(){
      pr.monto ya viene rebajado del motor). Sin ese subtítulo, la pantalla
      invitaría a restar dos veces. */
   c.innerHTML=`<table><thead><tr><th>Quincena</th><th>Invertido (capital activo)</th><th>Por cobrar</th><th>Ganancia del ciclo</th><th>Descuentos dados<br><span class="muted" style="font-weight:400">ya restados de la ganancia</span></th><th>Vencen</th></tr></thead><tbody>${
-    qs.map(q=>{ const vencen=DB.prestamos.filter(p=>!p.pagado&&PUENTE.corteDelCredito(p)===q).length,esA=q===cg,d=PUENTE.descuentosDeQuincena(DB,q);
+    /* 17-oct-2026, segunda revisión — «Vencen» con la misma vara que «Por
+       cobrar»: con cuotas, la quincena que contiene la fecha de la cuota. La
+       cuota del 30-oct no es de ninguna fila «30-oct» (no existe) y no salía
+       contada en ninguna. */
+    qs.map(q=>{ const vencen=DB.prestamos.filter(p=>{ if(p.pagado)return false; const c=PUENTE.corteDelCredito(p); return (tienePlan(p)?PUENTE.quincenaDe(c):c)===q; }).length,esA=q===cg,d=PUENTE.descuentosDeQuincena(DB,q);
       return `<tr style="${esA?'background:var(--rojo-tinte)':''}"><td><b>${fmtFecha(q)}</b>${esA?' <span class="chip mora">actual</span>':''}</td>
       <td class="num">${COP(invertidoEnQuincena(q))}</td><td class="num">${COP(porCobrarEnQuincena(q))}</td>
       <td class="gano">${COP(gananciaDeQuincena(q))}</td>
@@ -4809,7 +4913,8 @@ function renderCalendario(){
   let html=''; for(let i=0;i<inicio;i++)html+=`<div class="cal-day empty"></div>`;
   for(let d=1;d<=dias;d++){ const iso=isoLocal(new Date(calY,calM,d)),ev=eventosDia(iso),q=esQuincena(iso),esHoy=iso===hoyISO();
     const total=ev.des.length+ev.ven.length+ev.pag.length+ev.pro.length+ev.cuo.length; let evs='';
-    ev.ven.slice(0,2).forEach(p=>evs+=`<div class="cal-ev ven">⏰ ${escHTML(p.socioNombre.split(' ')[0])} ${COP(totalCiclo(p))}</div>`);
+    /* 17-oct-2026, segunda revisión — la cifra al lado del día es la de ESE día (montoEnSuFecha). */
+    ev.ven.slice(0,2).forEach(p=>evs+=`<div class="cal-ev ven">⏰ ${escHTML(p.socioNombre.split(' ')[0])} ${COP(montoEnSuFecha(p))}</div>`);
     // Una cuota del plan es un cobro con fecha: se pinta igual que un vencimiento.
     ev.cuo.slice(0,2).forEach(c=>evs+=`<div class="cal-ev ven">⏰ ${escHTML(c.p.socioNombre.split(' ')[0])} ${COP(c.monto)} <span class="muted">c${c.n}/${c.de}</span></div>`);
     ev.des.slice(0,1).forEach(p=>evs+=`<div class="cal-ev des">💵 ${escHTML(p.socioNombre.split(' ')[0])}</div>`);
@@ -4837,14 +4942,17 @@ function gcalUrl(title,iso,details){ const a=iso.replace(/-/g,''),next=isoLocal(
 function detalleCobro(p,c){
   /* Una cuota del plan que todavía no es la que vence: su fecha y su monto están
      pactados y congelados, y de un plan no se sale prorrogando. */
-  if(c&&!c.vigente) return 'Cuota '+c.n+' de '+c.de+' del plan de pagos, ya pactada: '+COP(c.monto)+'.';
+  /* 16-oct-2026 — el crédito que nació a cuotas no es un «plan de pagos»: no
+     viene de una mora. Se dice lo que es. */
+  const delPlan=PUENTE.esPlanDeAlta(p)?'del crédito a cuotas':'del plan de pagos';
+  if(c&&!c.vigente) return 'Cuota '+c.n+' de '+c.de+' '+delPlan+', ya pactada: '+COP(c.monto)+'.';
   /* Y si el corte YA PASÓ, el evento es de HOY: hay que decir de qué corte viene
      y que la cifra es la de hoy, con el recargo adentro. */
   if(c&&c.acuerdo) return 'Acuerdo pactado el '+fmtFecha(p.acuerdo?p.acuerdo.pactadoEl:c.fecha)+': paga la prórroga de '+COP(c.monto)+' este día y su capital pasa a la quincena siguiente.';
   const atras=(c&&c.vencido)?'El corte era el '+fmtFecha(c.corte)+', así que este es el total de HOY, con el recargo. ':'';
   const v=prorrogaOfrecida(p);
   if(v!=null) return atras+'Prórroga posible: '+COP(v)+' · pasa al '+fmtFecha(nuevoCicloProrroga(p));
-  return atras+(tienePlan(p)?'Cuota '+(c&&c.de?c.n+' de '+c.de+' ':'')+'del plan de pagos'
+  return atras+(tienePlan(p)?'Cuota '+(c&&c.de?c.n+' de '+c.de+' ':'')+delPlan
                             :'Sin prórrogas: la salida es el plan de pagos'); }
 /* =========================================================================
    6-ago-2026 — TODO LO QUE HAY POR COBRARLE A UN CRÉDITO, CON LA FECHA Y EL
@@ -4882,10 +4990,17 @@ function cobrosDelCredito(p){
   const cobros=[acu
     ? { uid:p.id+'-a', p:p, vigente:true, acuerdo:true, vencido:false, corte:acu.pactadaPara,
         fecha:acu.pactadaPara, monto:acu.monto, n:pend.length?pend[0].n:0, de:cs.length }
+    /* 17-oct-2026, segunda revisión — el monto del cobro vigente es lo que vale
+       EN su fecha (montoEnSuFecha): el .ics y «+Google» le anunciaban «Cobro
+       $325.000» el 15-nov a una cuota que ese día vale 390.000. Vencido, es lo
+       de hoy, y con cuotas eso es TODO lo vencido. */
     : { uid:p.id+'-v', p:p, vigente:true, vencido:vencido, corte:corte||hoy,
-        fecha:vencido?hoy:(corte||hoy), monto:totalCiclo(p),
+        fecha:vencido?hoy:(corte||hoy), monto:montoEnSuFecha(p),
         n:pend.length?pend[0].n:0, de:cs.length }];
-  pend.slice(1).forEach(c=>cobros.push({ uid:p.id+'-c'+c.n, p:p, vigente:false, vencido:false,
+  /* Y por eso, una cuota de atrás que ya venció no sale otra vez en su fecha
+     vieja: su plata ya va en el cobro de hoy (sumarla en su día la contaba dos
+     veces), y un evento en el pasado no suena nunca. */
+  pend.slice(1).filter(c=>!(c.fecha&&c.fecha<hoy)).forEach(c=>cobros.push({ uid:p.id+'-c'+c.n, p:p, vigente:false, vencido:false,
                   corte:c.fecha, fecha:c.fecha, monto:Number(c.total)||0, n:c.n, de:cs.length }));
   return cobros; }
 function verDia(iso){
@@ -4908,10 +5023,10 @@ function verDia(iso){
       /* El evento de Google sale del MISMO cobro que el .ics: si el corte ya pasó
          se agenda HOY con el total de hoy, no en el día que se está mirando. */
       const c=cobrosDelCredito(p)[0];
-      return `<div class="info-row"><span class="k">${escHTML(p.socioNombre)}<div class="muted">${escHTML(ESTADO_TXT[estadoPrestamo(p)])} · ${escHTML(PLANTILLAS_DEF[k].t)}</div></span><span class="vv"><b>${COP(totalCiclo(p))}</b> · <a target="_blank" href="${gcalUrl('Cobro '+p.socioNombre+' '+COP(c.monto),c.fecha,detalleCobro(p,c))}">+Google</a> · <a target="_blank" title="${escHTML(PLANTILLAS_DEF[k].t)}" href="${waLink(waNum(s),mensajeParaCredito(p,s,k))}">WA</a></span></div>`;}).join(''); }
+      return `<div class="info-row"><span class="k">${escHTML(p.socioNombre)}<div class="muted">${escHTML(ESTADO_TXT[estadoPrestamo(p)])} · ${escHTML(PLANTILLAS_DEF[k].t)}</div></span><span class="vv"><b>${COP(montoEnSuFecha(p))}</b> · <a target="_blank" href="${gcalUrl('Cobro '+p.socioNombre+' '+COP(c.monto),c.fecha,detalleCobro(p,c))}">+Google</a> · <a target="_blank" title="${escHTML(PLANTILLAS_DEF[k].t)}" href="${waLink(waNum(s),mensajeParaCredito(p,s,k))}">WA</a></span></div>`;}).join(''); }
     /* Las cuotas del plan que caen este día y todavía no vencen: sin WhatsApp,
        que no hay nada que cobrar hoy, pero con su fecha y su monto pactados. */
-    if(ev.cuo.length){ h+=`<div class="sub-h">📅 Cuotas del plan de pagos</div>`+ev.cuo.map(c=>
+    if(ev.cuo.length){ h+=`<div class="sub-h">📅 Cuotas pactadas (a cuotas o plan de pagos)</div>`+ev.cuo.map(c=>
       `<div class="info-row"><span class="k">${escHTML(c.p.socioNombre)}<div class="muted">cuota ${c.n} de ${c.de}, ya pactada</div></span><span class="vv"><b>${COP(c.monto)}</b> · <a target="_blank" href="${gcalUrl('Cobro '+c.p.socioNombre+' '+COP(c.monto),c.fecha,detalleCobro(c.p,c))}">+Google</a></span></div>`).join(''); }
     if(ev.des.length){ h+=`<div class="sub-h">💵 Desembolsos</div>`+ev.des.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv"><b>${COP(p.capital)}</b> · <a target="_blank" href="${gcalUrl('Desembolso '+p.socioNombre+' '+COP(p.capital),iso,'')}">+Google</a></span></div>`).join(''); }
     if(ev.pag.length){ h+=`<div class="sub-h">✓ Pagos recibidos</div>`+ev.pag.map(p=>`<div class="info-row"><span class="k">${escHTML(p.socioNombre)}</span><span class="vv gano">${COP(p.capital)} + ganancia ${COP(p.gananciaPago||0)}</span></div>`).join(''); }
@@ -5103,6 +5218,18 @@ function varsDePlantilla(p,k){
     const rc=PUENTE.reciboAbonoConProrroga?PUENTE.reciboAbonoConProrroga(p):null;
     return rc&&rc.a_capital>0?{abono:COP(rc.entrego),prorroga:COP(rc.prorroga),saldo:COP(rc.total_en_fecha)}:{};
   }
+  /* 17-oct-2026, revisión — en los mensajes de MORA, con cuotas, {saldo} es
+     todo lo vencido (vencidoHoy): con la 1 y la 2 vencidas, «tu pago de
+     $523.250 sigue pendiente» le callaba al cliente la cuota 2. La bienvenida
+     y los recordatorios hablan de la cuota que viene y siguen como estaban. */
+  if((k==='moraTemprana'||k==='mora')&&PUENTE.tienePlan(p)&&!p.pagado) return {saldo:COP(vencidoHoy(p))};
+  /* 17-oct-2026, segunda revisión — y los que anuncian una FECHA («tu pago de
+     {saldo} es el {fecha_pago}», «mañana…», «hoy…») dicen lo que vale ESE día
+     (montoEnSuFecha). Con la cuota 1 pagada el 30-oct, el recordatorio decía
+     «tu pago de $325.000 es el 15-nov», y el 15-nov son $390.000: cerrar hoy la
+     última cuota no cobra su quincena, pagarla en su fecha sí. Vencido, lo de
+     hoy, que con cuotas es todo lo vencido. */
+  if((k==='recordatorio1'||k==='recordatorio2'||k==='venceHoy')&&PUENTE.tienePlan(p)&&!p.pagado) return {saldo:COP(montoEnSuFecha(p))};
   if(k!=='prorroga') return {};
   const u=ultimaProrroga(p)||PUENTE.entradaPlan(p);
   return u?{prorroga:COP(u.monto)}:{};
@@ -5222,7 +5349,9 @@ function verCliente(id){
      capitalActual. Acá no se calcula nada: se suma. Es la misma cuenta que ya
      hacen el buscador y vistaBuscar del espejo, y por eso las tres pantallas
      no pueden decir números distintos. */
-  const debeHoy=activos.reduce((t,p)=>t+totalCiclo(p),0);
+  /* 17-oct-2026, revisión — con cuotas, «si paga todo hoy» es saldar el crédito
+     entero (siPagaTodoHoy), no la cuota que corre. */
+  const debeHoy=activos.reduce((t,p)=>t+siPagaTodoHoy(p),0);
   const capCalle=activos.reduce((t,p)=>t+capitalActual(p),0);
   /* 9-sep-2026 — la lista de créditos se fue a bloqueCreditosHTML(s): la mesa
      de cruce también la necesita, y dos copias de «cuánto debe» son dos
@@ -5569,12 +5698,222 @@ function nuevoCredito(preId){
     <div class="two"><div class="field"><label>Celular</label><input id="qTel" inputmode="numeric" value="${pre?(pre.telefono||''):''}" oninput="calcRapido()"></div>
       <div class="field"><label>Correo <span class="muted">(opcional)</span></label><input id="qEmail" value="${pre?(pre.email||''):''}"></div></div>
     <div class="two"><div class="field"><label>Capital a desembolsar</label><input id="qCap" type="number" inputmode="numeric" placeholder="$" oninput="calcRapido()"></div>
-      <div class="field"><label>Costo (%)</label><input id="qCosto" type="number" inputmode="numeric" min="1" max="${TASA_TECHO_PCT}" step="1" value="${TASA_FIJA_PCT}" oninput="calcRapido()"><div class="help">El ${TASA_FIJA_PCT}% es el estándar. Puedes pactar de 1% a ${TASA_TECHO_PCT}% para este crédito; por encima del estándar te lo confirmo aparte con lo que equivale al año. Al cliente solo se le muestra el costo en pesos.</div></div></div>
+      <div class="field" id="qCostoBox"><label>Costo (%)</label><input id="qCosto" type="number" inputmode="numeric" min="1" max="${TASA_TECHO_PCT}" step="1" value="${TASA_FIJA_PCT}" oninput="calcRapido()"><div class="help">El ${TASA_FIJA_PCT}% es el estándar. Puedes pactar de 1% a ${TASA_TECHO_PCT}% para este crédito; por encima del estándar te lo confirmo aparte con lo que equivale al año. Al cliente solo se le muestra el costo en pesos.</div></div></div>
     <div class="field"><label>Fecha de desembolso</label><input id="qFecha" type="date" value="${hoyISO()}" oninput="calcRapido()"></div>
-    <div class="field"><label>Próxima quincena de pago <span class="muted">(opcional — para clientes que ya venían de antes)</span></label><input id="qCiclo" type="date" oninput="calcRapido()"><div class="help">Déjalo vacío y lo calculo solo desde la fecha de desembolso.</div></div>
+    <!-- 16-oct-2026 — UN SOLO PAGO O A CUOTAS. Los dos botones solo muestran u
+         ocultan bloques: NO reabren el modal, porque reabrirlo borraría lo que
+         Joan pegó de WhatsApp y lo que ya escribió arriba. -->
+    <div style="display:flex;gap:6px;margin:4px 0 12px;flex-wrap:wrap">
+      <button class="btn btn-negro btn-sm" id="qaModoUno" onclick="modoAlta('uno')">Un solo pago</button>
+      <button class="btn btn-ghost btn-sm" id="qaModoCuotas" onclick="modoAlta('cuotas')">A cuotas</button>
+    </div>
+    <div class="field" id="qCicloBox"><label>Próxima quincena de pago <span class="muted">(opcional — para clientes que ya venían de antes)</span></label><input id="qCiclo" type="date" oninput="calcRapido()"><div class="help">Déjalo vacío y lo calculo solo desde la fecha de desembolso.</div></div>
+    <div id="qaBloque" style="display:none">
+      <div class="field"><label>¿Cuántas cuotas?</label><input id="qaN" type="number" inputmode="numeric" min="${MotorReglas.CUOTAS_ALTA_MIN}" max="${MotorReglas.CUOTAS_ALTA_MAX}" step="1" oninput="filasAlta()">
+        <div class="help">De ${MotorReglas.CUOTAS_ALTA_MIN} a ${MotorReglas.CUOTAS_ALTA_MAX}. Cada cuota lleva su fecha y su %, y el % se cobra sobre lo que todavía debe al empezar esa cuota. La fecha se respeta aunque caiga domingo o festivo: te aviso cuánta mora le correría. Al cliente solo se le muestran pesos y fechas.</div></div>
+      <div id="qaFilas"></div>
+      <button class="btn btn-ghost btn-sm" onclick="repartirAltaIguales()">Repartir en partes iguales</button>
+      <div id="qaCalc" style="margin-top:12px"></div>
+    </div>
     <div id="qCalc"></div>
     <button class="btn btn-rojo" onclick="guardarRapido()">Registrar crédito</button>`);
+  _alta={modo:'uno',tocadas:false};
   calcRapido();
+}
+/* =========================================================================
+   16-oct-2026 — EL CRÉDITO QUE NACE A CUOTAS. Pedido de Joan, con su caso:
+   «un préstamo a cuotas de 650.000: paga la primera cuota el 30 de este mes =
+   20% de 650.000 + la mitad del capital = 455.000, y los 325.000 restantes el
+   15 de noviembre más el 20% (65.000) = 390.000. Quiero poder tener la opción
+   de un registro a cuotas y que el porcentaje y las fechas de pago de cada
+   cuota lo pueda modificar yo».
+
+   Esta pantalla NO hace una sola cuenta de plata. El plan lo arma el MOTOR
+   (construirPlanACuotas: costo de cada cuota, totales, garantía, días no
+   hábiles) y lo que se guarda lo arma el PUENTE (planPagosDeAlta), que es la
+   misma forma que guarda el celular. Si el motor dice que algo no cuadra, se
+   muestra su frase en ámbar y no se registra nada.
+
+   Lo único que se decide acá es la ROPA: qué fechas proponer de entrada
+   (los cortes del motor, que Joan cambia a su gusto) y cómo decir los avisos.
+   Los capitales vacíos los reparte el motor en partes iguales; por eso el
+   botón «Repartir en partes iguales» solo los vacía.
+   ========================================================================= */
+let _alta={modo:'uno',tocadas:false};
+function modoAlta(m){
+  _alta.modo=m==='cuotas'?'cuotas':'uno';
+  const cuotas=_alta.modo==='cuotas', ver=(id,si)=>{ const el=document.getElementById(id); if(el) el.style.display=si?'':'none'; };
+  const bU=document.getElementById('qaModoUno'), bC=document.getElementById('qaModoCuotas');
+  if(bU) bU.className='btn '+(cuotas?'btn-ghost':'btn-negro')+' btn-sm';
+  if(bC) bC.className='btn '+(cuotas?'btn-negro':'btn-ghost')+' btn-sm';
+  /* En cuotas no hay «próxima quincena» ni un % único: cada cuota trae los
+     suyos. Se ocultan, no se borran: si Joan vuelve a «Un solo pago», ahí
+     siguen. */
+  ver('qaBloque',cuotas); ver('qCicloBox',!cuotas); ver('qCostoBox',!cuotas); ver('qCalc',!cuotas);
+  if(cuotas){
+    const n=document.getElementById('qaN'); if(n&&!gv('qaN')) n.value=String(MotorReglas.CUOTAS_ALTA_MIN);
+    filasAlta();
+  } else calcRapido();
+}
+function cuantasCuotasAlta(){
+  const v=Math.round(Number(gv('qaN'))||MotorReglas.CUOTAS_ALTA_MIN);
+  return Math.max(MotorReglas.CUOTAS_ALTA_MIN,Math.min(MotorReglas.CUOTAS_ALTA_MAX,v));
+}
+/* Las fechas que se proponen: los cortes del MOTOR, encadenados desde el
+   desembolso (cada uno con su ventana mínima y corrido por domingo o
+   festivo). Solo son el punto de partida: la que Joan escribe manda, y no se
+   pisa aunque cambie la fecha de desembolso. */
+function fechasPropuestasAlta(f,actuales,n){
+  const fs=[];
+  for(let i=0;i<n;i++){
+    const ya=actuales[i];
+    if(ya){ fs.push(ya); continue; }
+    const base=i===0?f:fs[i-1];
+    let sig='';
+    try{ sig=base?MotorReglas.cortesSiguientes(base,1)[0]:''; }catch(e){ sig=''; }
+    fs.push(sig);
+  }
+  return fs;
+}
+/* Las filas se rehacen al cambiar cuántas cuotas son, y lo escrito se
+   conserva: se lee ANTES de repintar y se vuelve a poner DESPUÉS, porque el
+   innerHTML de un navegador nace con los campos vacíos. */
+function filasAlta(){
+  const caja=document.getElementById('qaFilas'); if(!caja) return;
+  const n=cuantasCuotasAlta(), antes=[];
+  for(let i=1;i<=MotorReglas.CUOTAS_ALTA_MAX;i++) antes.push({f:gv('qaF'+i),p:gv('qaP'+i),k:gv('qaK'+i)});
+  caja.innerHTML=Array.from({length:n},(_,i)=>`<div style="display:grid;grid-template-columns:1.3fr .6fr 1fr;gap:8px;align-items:end">
+      <div class="field"><label>Cuota ${i+1} · fecha</label><input id="qaF${i+1}" type="date" oninput="_alta.tocadas=true;calcAltaCuotas()"></div>
+      <div class="field"><label>%</label><input id="qaP${i+1}" type="number" inputmode="numeric" min="1" max="${TASA_TECHO_PCT}" step="1" oninput="calcAltaCuotas()"></div>
+      <div class="field"><label>Capital</label><input id="qaK${i+1}" type="number" inputmode="numeric" placeholder="partes iguales" oninput="calcAltaCuotas()"></div>
+    </div>`).join('');
+  const fechas=fechasPropuestasAlta(gv('qFecha'),_alta.tocadas?antes.map(x=>x.f):[],n);
+  for(let i=1;i<=n;i++){
+    const ef=document.getElementById('qaF'+i), ep=document.getElementById('qaP'+i), ek=document.getElementById('qaK'+i);
+    if(ef) ef.value=fechas[i-1]||'';
+    if(ep) ep.value=antes[i-1].p||String(TASA_FIJA_PCT);
+    if(ek) ek.value=antes[i-1].k||'';
+  }
+  calcAltaCuotas();
+}
+/* «Repartir en partes iguales» = dejar los capitales vacíos. Los reparte el
+   motor, que le da el resto de la división a la última: no se pierde un peso. */
+function repartirAltaIguales(){
+  for(let i=1;i<=MotorReglas.CUOTAS_ALTA_MAX;i++){ const el=document.getElementById('qaK'+i); if(el) el.value=''; }
+  calcAltaCuotas();
+}
+/* El motor habla de `cuotas[1].fecha`; Joan, de «Cuota 2». Solo se traduce el
+   rótulo: la frase es la del motor. */
+function fraseDelMotorAlta(e){
+  return String((e&&e.message)||e||'')
+    .replace(/cuotas\[(\d+)\](?:\.\w+)?:\s*/g,(m,i)=>'Cuota '+(Number(i)+1)+': ')
+    .replace(/^cuotas:\s*/,'').replace(/^capital:\s*/,'Capital: ');
+}
+/* EL plan, tal como lo arma el motor con lo que hay en el formulario.
+   {ok, plan} o {ok:false, error}. Nunca lanza. */
+function planDelAlta(cap,f){
+  const n=cuantasCuotasAlta(), entrada=[];
+  for(let i=1;i<=n;i++){
+    const fe=gv('qaF'+i), pc=gv('qaP'+i), k=gv('qaK'+i);
+    if(!fe) return {ok:false,error:'Pon la fecha de la cuota '+i+'.'};
+    if(pc==='') return {ok:false,error:'Pon el % de la cuota '+i+'. El estándar es '+TASA_FIJA_PCT+'.'};
+    entrada.push({fecha:fe,pct:Number(pc),capital:k===''?null:Number(k)});
+  }
+  try{ return {ok:true,plan:MotorReglas.construirPlanACuotas(cap,entrada,{fechaDesembolso:f})}; }
+  catch(e){ return {ok:false,error:fraseDelMotorAlta(e)}; }
+}
+/* La efectiva anual DE VERDAD, con las fechas de cada pago (creditos.js). No
+   la del 20% a 15 días: con dos cuotas a 14 y 30 días, la plata vuelve en
+   dos tramos y eso cambia la tasa. En %, o null si creditos.js no llegó. */
+function eaDelPlanAlta(f,cap,plan){
+  const C=window.CreditosPublicables;
+  if(!C||typeof C.efectivoAnualPorFechas!=='function'||!plan) return null;
+  const ea=C.efectivoAnualPorFechas(f,cap,plan.flujo);
+  return ea==null?null:ea*100;
+}
+/* 17-oct-2026, revisión — la E.A. de un crédito a cuotas YA registrado, en %:
+   con las fechas y los pesos PACTADOS de cada cuota (capital + su costo
+   pactado), no con lo que terminó cobrándose si se saldó antes: es la tasa del
+   contrato la que se compara con la usura. null si creditos.js no llegó. */
+function eaDelCreditoACuotas(p){
+  const C=window.CreditosPublicables;
+  if(!C||typeof C.efectivoAnualPorFechas!=='function'||!tienePlan(p)) return null;
+  const flujo=cuotasPlan(p).map(c=>({fecha:c.fecha,total:(Number(c.capital)||0)+(c.costoPactado!=null?Number(c.costoPactado)||0:Number(c.costo)||0)}));
+  const ea=C.efectivoAnualPorFechas(p.fechaDesembolso,Number(p.capital)||0,flujo);
+  return (ea==null||!isFinite(ea))?null:ea*100;
+}
+/* «30-oct-2026», o «15-nov» sin el año. */
+function fechaCortaCuota(iso,conAnio){
+  if(!iso) return '—';
+  const d=MotorReglas.aFechaLocal(iso);
+  return d.getDate()+'-'+MESES[d.getMonth()].slice(0,3)+(conAnio?'-'+d.getFullYear():'');
+}
+/* 16-oct-2026 — LAS FECHAS NO SE CORREN, PERO SE AVISA CON LA CIFRA. Decisión
+   de Joan: la cuota que él pone en domingo o festivo se queda ahí. Lo que no
+   se puede es callarlo: si el cliente paga el primer día hábil, le corre mora
+   por los días del medio, y eso se dice en pesos antes de guardar.
+   La cifra la contesta el PUENTE (cuotasVencidas) sobre el crédito tal como
+   quedaría guardado, en el primer día hábil: es la misma función que después
+   cobra esa mora, así que el aviso no puede decir un número y la hoja de cobro
+   otro. Acá no se multiplica el 1% a mano (lo vigila pruebas/motor.test.js).
+   `inhabiles` es la lista del motor; `credito`, el crédito con su planPagos
+   (el provisional del alta, o el reprogramado). Devuelve frases sin HTML. */
+function avisosInhabilesCuotas(inhabiles,credito){
+  return (inhabiles||[]).map(x=>{
+    const v=PUENTE.cuotasVencidas(credito,x.siguiente_habil).find(q=>Number(q.n)===Number(x.numero));
+    const dias=v?v.dias:diasEntre(x.fecha,x.siguiente_habil), mora=v?v.mora:0;
+    const f0=MotorReglas.aFechaLocal(x.fecha), partes=[];
+    for(let i=0;i<dias;i++){
+      const d=MotorReglas.sumarDias(f0,i), di=MotorReglas.iso(d);
+      const motivo=i===0?x.motivo:(d.getDay()===0?'domingo':'festivo');
+      partes.push(i===0?'El '+fechaCortaCuota(di)+' es '+motivo
+        :'el '+(d.getMonth()===f0.getMonth()?String(d.getDate()):fechaCortaCuota(di))+' '+motivo);
+    }
+    const dicho=partes.length<2?partes.join(''):partes.slice(0,-1).join(', ')+' y '+partes[partes.length-1];
+    return 'Cuota '+x.numero+' · '+dicho+': si paga el primer día hábil ('+fechaCortaCuota(x.siguiente_habil)+') le corren '
+      +dias+' día'+(dias===1?'':'s')+' de mora, '+COP(mora)+'.';
+  });
+}
+/* El crédito tal como quedaría guardado, solo para PREGUNTARLE al puente
+   (avisosInhabilesCuotas). No se guarda ni se toca DB: es una copia en el
+   aire con la misma forma que arma guardarRapidoACuotas. */
+function creditoProvisionalAlta(cap,f,plan){
+  return { id:'provisional', capital:cap, costoPct:plan.cuotas[0].pct, fechaDesembolso:f,
+    cicloActual:plan.cuotas[0].fecha_corte, prorrogas:[], abonosCapital:[], comprobantes:[], pagado:false,
+    planPagos:PUENTE.planPagosDeAlta(plan) };
+}
+/* La vista previa del crédito a cuotas, en vivo. */
+function calcAltaCuotas(){
+  const c=document.getElementById('qaCalc'); if(!c) return;
+  const cap=Number(gv('qCap'))||0, f=gv('qFecha');
+  /* El cupo, igual que en un solo pago: contra el capital ENTERO. */
+  const r=revisarCupo(socioDelCredito(gv('qTel')),cap);
+  const tope=r?`<div class="calc-row"><span>Su cupo${r.comprometida?' <span class="muted">(sin lo comprometido)</span>':''}</span><span class="v">${COP(r.cupo)}</span></div>`
+    :(gv('qTel').replace(/\D/g,'').length>=10?`<div class="calc-row"><span class="muted">Ese celular no está en tus clientes: va a quedar como ficha nueva.</span></div>`:'');
+  if(!f||!cap){ c.innerHTML=`<div class="calc">${tope}<span class="muted" style="font-size:12.5px">Completa capital y fecha.</span></div>`; return; }
+  const a=planDelAlta(cap,f);
+  if(!a.ok){ c.innerHTML=avisoCupo(r)+`<div class="calc">${tope}<span style="color:var(--ambar);font-size:12.5px">${escHTML(a.error)}</span></div>`; return; }
+  const plan=a.plan;
+  /* Lo que el motor repartió se ve en el mismo campo, sin escribirlo: así
+     «partes iguales» sigue siendo «vacío» y no un número que haya que borrar. */
+  plan.cuotas.forEach((q,i)=>{ const el=document.getElementById('qaK'+(i+1)); if(el) el.placeholder=COP(q.capital); });
+  const ea=eaDelPlanAlta(f,cap,plan), usura=DB.config.tasaUsuraEA, sobreUsura=ea!=null&&usura>0&&ea>usura;
+  const avisos=avisosInhabilesCuotas(plan.inhabiles,creditoProvisionalAlta(cap,f,plan));
+  const td='style="padding:4px 6px;text-align:right"';
+  c.innerHTML=avisoCupo(r)+`<div class="calc">${tope}
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin:4px 0 8px">
+      <thead><tr><th style="text-align:left;padding:4px 6px">Cuota</th><th style="text-align:left;padding:4px 6px">Fecha</th><th ${td}>%</th><th ${td}>Capital</th><th ${td}>Costo</th><th ${td}>Total</th></tr></thead>
+      <tbody>${plan.cuotas.map(q=>`<tr><td style="padding:4px 6px">${q.numero}</td><td style="padding:4px 6px">${fechaCortaCuota(q.fecha_corte,true)}${q.habil?'':' ⚠️'}</td><td ${td}>${q.pct}%</td><td ${td}>${COP(q.capital)}</td><td ${td} class="gano">${COP(q.costo)}</td><td ${td}><b>${COP(q.total)}</b></td></tr>`).join('')}</tbody>
+    </table>
+    <div class="calc-row"><span>Capital</span><span class="v">${COP(plan.total_capital)}</span></div>
+    <div class="calc-row"><span>Ganancia (costo de las cuotas)</span><span class="v gano">${COP(plan.total_costo)}</span></div>
+    <div class="calc-row"><span>Total a pagar</span><span class="v">${COP(plan.total_a_pagar)}</span></div>
+    <div class="calc-row"><span>Garantía que le deja <span class="muted">(si paga en fecha)</span></span><span class="v">${COP(plan.total_garantia)}</span></div>
+    <div class="calc-row"><span>E.A. real, con estas fechas</span><span class="v ${sobreUsura?'ea-bad':''}">${ea==null?'<span class="muted">no pude calcularla (falta creditos.js)</span>':fmtEA(ea)}</span></div>
+    ${sobreUsura?`<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ Supera la usura de referencia (${usura}%).</div>`:''}
+    ${plan.sobre_estandar?`<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ Hay cuotas por encima del estándar del ${TASA_FIJA_PCT}%: al registrar te lo confirmo aparte.</div>`:''}
+    ${avisos.map(t=>`<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ ${escHTML(t)} La fecha se queda como la pusiste.</div>`).join('')}
+    <div class="muted" style="font-size:12px;margin-top:6px">Un crédito a cuotas no se prorroga. Al cliente nunca se le muestra el %: solo pesos y fechas.</div></div>`;
 }
 function parsearPegado(){
   const t=document.getElementById('qPaste').value; if(!t.trim())return;
@@ -5618,6 +5957,13 @@ function costoAltaElegido(){
   return {ok:true,pct};
 }
 function calcRapido(){
+  /* 16-oct-2026 — a cuotas, la vista previa es otra (calcAltaCuotas). Si Joan
+     no ha tocado las fechas de las cuotas, siguen a la fecha de desembolso. */
+  if(_alta.modo==='cuotas'){
+    if(!_alta.tocadas) fechasPropuestasAlta(gv('qFecha'),[],cuantasCuotasAlta())
+      .forEach((x,i)=>{ const el=document.getElementById('qaF'+(i+1)); if(el) el.value=x||''; });
+    return calcAltaCuotas();
+  }
   const cc=costoAltaElegido();
   const cap=Number(gv('qCap'))||0,costo=cc.ok?cc.pct:TASA_FIJA_PCT,f=gv('qFecha'),ovr=gv('qCiclo'),c=document.getElementById('qCalc'); if(!c)return;
   if(!cc.ok&&gv('qCosto')!==''){ c.innerHTML=`<div class="calc"><span style="color:var(--ambar);font-size:12.5px">${escHTML(cc.motivo)}</span></div>`; return; }
@@ -5639,6 +5985,10 @@ function calcRapido(){
     ${sobre?`<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ Supera la usura de referencia (${usura}%).</div>`:''}</div>`;
 }
 function guardarRapido(){
+  /* 16-oct-2026 — a cuotas, el registro es otro (guardarRapidoACuotas): las
+     mismas rejas —cupo, cifra redonda, estándar aparte, ¿Lo registro?— con el
+     plan del motor en vez de un solo pago. */
+  if(_alta.modo==='cuotas') return guardarRapidoACuotas();
   const cc=costoAltaElegido(); if(!cc.ok){ alert(cc.motivo); return; }
   const nombre=gv('qNombre'),tel=gv('qTel'),cap=Number(gv('qCap'))||0,costo=cc.pct,f=gv('qFecha'),ovr=gv('qCiclo');
   if(!nombre||!tel){ alert('Pon al menos nombre y celular.'); return; } if(cap<=0){ alert('Pon el capital.'); return; }
@@ -5673,12 +6023,68 @@ function guardarRapido(){
     +'• Costo: '+costo+'%'+(costo<TASA_FIJA_PCT?' ⚠️ PACTADO POR DEBAJO DEL ESTÁNDAR':costo>TASA_FIJA_PCT?' ⚠️ PACTADO POR ENCIMA DEL ESTÁNDAR':'')+' ('+COP(kCosto)+')\n'
     +'• Total a devolver: '+COP(cap+kCosto)+'\n'
     +'• Paga el: '+fmtFecha(fCorte)+'\n\n¿Lo registro?'))return;
-  if(!s){ s={id:'C'+Date.now(),numero:nextNumCliente(),nombre,telefono:tel,email:gv('qEmail'),whatsappIgual:true,referencia:{nombre:'',telefono:''},gestiones:[],fechaRegistro:new Date().toISOString()}; DB.socios.push(s); }
-  else if(gv('qEmail')&&!s.email)s.email=gv('qEmail');
+  s=fichaDelAlta(s,nombre,tel);
   const p={ id:'P'+Date.now(),numero:nextNumCredito(),socioId:s.id,socioNombre:s.nombre,telefono:s.telefono,capital:cap,costoPct:costo,fechaDesembolso:f,cicloActual:ovr||MotorReglas.calcularFechaCorte(f),prorrogas:[],abonosCapital:[],comprobantes:[],pagado:false,fechaCreacion:new Date().toISOString() };
   DB.prestamos.push(p);
   guardar(); cerrarModal(); render(); irA('cred');
   if(confirm('✓ Crédito '+codCredito(p)+' registrado para '+s.nombre+' ('+codCliente(s)+').\n\n¿Enviar mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
+}
+/* La ficha del crédito que se registra: la que ya existe con ese celular, o
+   una nueva. Una sola para los dos registros del formulario (un solo pago y a
+   cuotas): si cada uno armara la suya, el día que la ficha gane un campo, uno
+   de los dos la crearía sin él. */
+function fichaDelAlta(s,nombre,tel){
+  if(!s){ s={id:'C'+Date.now(),numero:nextNumCliente(),nombre,telefono:tel,email:gv('qEmail'),whatsappIgual:true,referencia:{nombre:'',telefono:''},gestiones:[],fechaRegistro:new Date().toISOString()}; DB.socios.push(s); }
+  else if(gv('qEmail')&&!s.email)s.email=gv('qEmail');
+  return s;
+}
+/* 16-oct-2026 — EL REGISTRO A CUOTAS. Las mismas rejas que guardarRapido, en
+   el mismo orden y con las mismas palabras (las vigila un centinela gemelo en
+   pruebas/credito-a-cuotas-crm.test.js):
+     · el cupo, contra el capital entero, ANTES de tocar el DB;
+     · por encima del estándar, un confirm APARTE con la efectiva anual real y
+       el art. 305;
+     · el confirm final con cada cuota en pesos y fecha, la marca de CIFRA
+       REDONDA y «¿Lo registro?», ANTES del DB.prestamos.push.
+   El plan sale del motor y se guarda con la forma del puente. */
+function guardarRapidoACuotas(){
+  const nombre=gv('qNombre'),tel=gv('qTel'),cap=Number(gv('qCap'))||0,f=gv('qFecha');
+  if(!nombre||!tel){ alert('Pon al menos nombre y celular.'); return; } if(cap<=0){ alert('Pon el capital.'); return; }
+  if(!f){ alert('Pon la fecha de desembolso.'); return; }
+  const a=planDelAlta(cap,f);
+  if(!a.ok){ alert('No registré nada: el plan de cuotas no cuadra.\n\n'+a.error); return; }
+  const plan=a.plan;
+  let s=socioDelCredito(tel);
+  const r=revisarCupo(s,cap);
+  if(r&&(r.pasa||r.pasaSumando)&&!confirm(textoCupo(r)+'\n¿Lo registro igual?'))return;
+  const ea=eaDelPlanAlta(f,cap,plan), usura=DB.config.tasaUsuraEA;
+  const avisos=avisosInhabilesCuotas(plan.inhabiles,creditoProvisionalAlta(cap,f,plan));
+  if(plan.sobre_estandar){
+    const altas=plan.cuotas.filter(q=>q.pct>TASA_FIJA_PCT);
+    if(!confirm('COSTO POR ENCIMA DEL ESTÁNDAR en '+(altas.length===1?'la cuota ':'las cuotas ')
+      +altas.map(q=>q.numero+' ('+q.pct+'%)').join(', ')+' (el estándar es '+TASA_FIJA_PCT+'%).\n\n'
+      +(ea!=null?'Con estas fechas, el crédito entero equivale a '+fmtEA(ea)+' efectivo anual':'No pude calcular el efectivo anual con estas fechas (no cargó creditos.js)')
+      +(usura>0?' — el techo de usura que tienes anotado es '+usura+'%':'')+'.\n'
+      +'Cobrar por encima del techo legal es delito (art. 305 del Código Penal), y el responsable eres tú.\n\n'
+      +'Al cliente se le muestra en pesos: '+COP(plan.total_costo)+' de costo por '+COP(cap)+'.\n\n¿Lo registro con este costo?')) return;
+  }
+  if(!confirm('Registrar el crédito A CUOTAS de '+nombre+':\n\n'
+    +'• Capital: '+COP(cap)+(cap%1000!==0?'   ⚠️ OJO: NO ES UNA CIFRA REDONDA':'')+'\n'
+    +plan.cuotas.map(q=>'• Cuota '+q.numero+': '+COP(q.total)+' el '+fechaCortaCuota(q.fecha_corte,true)
+      +' (capital '+COP(q.capital)+' + costo '+COP(q.costo)+') · '+q.pct+'%'
+      +(q.pct<TASA_FIJA_PCT?' ⚠️ POR DEBAJO DEL ESTÁNDAR':q.pct>TASA_FIJA_PCT?' ⚠️ POR ENCIMA DEL ESTÁNDAR':'')).join('\n')+'\n'
+    +'• Total a devolver: '+COP(plan.total_a_pagar)+' (tu ganancia: '+COP(plan.total_costo)+')\n'
+    +'• Le deja de garantía, si paga en fecha: '+COP(plan.total_garantia)+'\n'
+    +(avisos.length?'\n⚠️ '+avisos.join('\n⚠️ ')+'\nLas fechas se quedan como las pusiste.\n':'')
+    +'\nUn crédito a cuotas no se prorroga.\n\n¿Lo registro?'))return;
+  s=fichaDelAlta(s,nombre,tel);
+  /* Los mismos campos que el de un solo pago, más el plan. `costoPct` y
+     `cicloActual` son los de la cuota 1: es lo que leen las pantallas que no
+     saben de cuotas, y el puente los mueve cuota por cuota. */
+  const p={ id:'P'+Date.now(),numero:nextNumCredito(),socioId:s.id,socioNombre:s.nombre,telefono:s.telefono,capital:cap,costoPct:plan.cuotas[0].pct,fechaDesembolso:f,cicloActual:plan.cuotas[0].fecha_corte,prorrogas:[],abonosCapital:[],comprobantes:[],pagado:false,fechaCreacion:new Date().toISOString(),planPagos:PUENTE.planPagosDeAlta(plan) };
+  DB.prestamos.push(p);
+  guardar(); cerrarModal(); render(); irA('cred');
+  if(confirm('✓ Crédito a cuotas '+codCredito(p)+' registrado para '+s.nombre+' ('+codCliente(s)+').\n\n¿Enviar mensaje de bienvenida por WhatsApp?')) gestionar(p.id,'bienvenida');
 }
 
 /* ===== VER CRÉDITO + comprobantes ===== */
@@ -5700,13 +6106,74 @@ function verCredito(id){
   const comps=(p.comprobantes||[]);
   /* 1-oct-2026: la foto del comprobante pasa por fotoSegura, igual que las del
      registro. Si no es una imagen, queda la tarjeta con su monto y fecha. */
-  const gal=comps.length?`<div class="gal">${comps.map(c=>{const ft=fotoSegura(c.foto);return `${ft?`<a href="${ft}" target="_blank"><img src="${ft}">`:'<a><span class="muted" style="display:block;padding:18px 6px;font-size:12px">sin imagen válida</span>'}<div class="cap">${({pago:'Pago',prorroga:'Prórroga',abonoProrroga:'Abono + prórroga',abono:'Abono',plan:'Plan de pagos'}[c.tipo]||'Comprob.')} ${COP(c.monto)}<br>${fmtFecha(c.fecha)}</div></a>`;}).join('')}</div>`:'<p class="muted">Sin comprobantes aún.</p>';
+  const gal=comps.length?`<div class="gal">${comps.map(c=>{const ft=fotoSegura(c.foto);return `${ft?`<a href="${ft}" target="_blank"><img src="${ft}">`:'<a><span class="muted" style="display:block;padding:18px 6px;font-size:12px">sin imagen válida</span>'}<div class="cap">${({pago:'Pago',prorroga:'Prórroga',abonoProrroga:'Abono + prórroga',abono:'Abono',abonoCuota:'Abono a cuota',plan:'Plan de pagos'}[c.tipo]||'Comprob.')} ${COP(c.monto)}<br>${fmtFecha(c.fecha)}</div></a>`;}).join('')}</div>`:'<p class="muted">Sin comprobantes aún.</p>';
   /* El plan de pagos, cuota por cuota. Es el historial de la salida del §8: qué
-     se cobró al pactarlo y en qué va. */
-  const ent=PUENTE.entradaPlan(p);
-  const planHTML=tienePlan(p)?`<div class="sub-h">Plan de pagos <span class="muted">· desde el ${fmtFecha(p.planPagos.creado)}</span></div>
+     se cobró al pactarlo y en qué va.
+     16-oct-2026 — y del crédito que NACIÓ a cuotas, que tiene otro título
+     porque es otra cosa: no es un rescate, lo pactó Joan al desembolsar. Cada
+     cuota dice su %, sus abonos parciales debajo, y «Vencida» cuando lo está:
+     el chip verde de «Pendiente» encima de una cuota con 20 días de atraso le
+     decía a Joan que todo iba bien. Los días los cuenta el puente. */
+  const ent=PUENTE.entradaPlan(p), altaP=PUENTE.esPlanDeAlta(p);
+  const vencidas=(!p.pagado&&tienePlan(p))?PUENTE.cuotasVencidas(p,hoyISO()):[];
+  const vencidaDe=n=>vencidas.find(v=>Number(v.n)===Number(n));
+  const cuotaHTML=c=>{
+    const v=!c.pagado&&vencidaDe(c.n);
+    const chip=c.pagado
+      ? ((c.saldadoAntes&&c.costoPactado!=null)
+          ? `<span class="chip pagado">Saldada antes · ${Number(c.costo)>0?`costo ${COP(c.costo)} de ${COP(c.costoPactado)} pactados`:`sin costo (pactado ${COP(c.costoPactado)})`}</span>`
+          : `<span class="chip pagado">Pagada ${fmtFecha(c.fechaPagado)}${c.saldadoAntes?' · al saldar':''}</span>`)
+      : (v?`<span class="chip mora">Vencida · ${v.dias} día${v.dias===1?'':'s'}</span>`:'<span class="chip al-dia">Pendiente</span>');
+    const abonos=PUENTE.abonosDeCuota(p,c.n).map(a=>{
+      const partes=[]; if(a.moraPagada) partes.push('mora '+COP(a.moraPagada)); if(a.costoPagado) partes.push('costo '+COP(a.costoPagado)); if(a.monto) partes.push('capital '+COP(a.monto));
+      return `<div class="info-row" style="padding-left:14px"><span class="k muted">↳ abono del ${fmtFecha(a.fecha)}</span><span class="vv">${COP(a.recibido)} <span class="muted">(${partes.join(' + ')||'—'})</span></span></div>`;
+    }).join('');
+    return `<div class="info-row"><span class="k">Cuota ${c.n} · ${fmtFecha(c.fecha)}${c.pct?` · ${c.pct}%`:''}${c.recargo?` <span class="muted">+${COP(c.recargo)} de mora</span>`:''}</span><span class="vv"><b class="num">${COP(c.total+(c.recargo||0))}</b> ${chip}</span></div>${abonos}`;
+  };
+  const cambiosPlan=tienePlan(p)?(p.planPagos.cambios||[]):[];
+  const cambiosHTML=cambiosPlan.length?`<div class="muted" style="margin-top:8px;font-size:12.5px"><b>Cambios después del alta</b></div>`+cambiosPlan.map(x=>{
+    const de=x.de||{}, a=x.a||{}, q=[];
+    if(de.fecha!==a.fecha) q.push(`del ${fmtFecha(de.fecha)} al ${fmtFecha(a.fecha)}`);
+    if(de.pct!==a.pct) q.push(`${de.pct}% → ${a.pct}%`);
+    if(de.costo!=null&&a.costo!=null&&de.costo!==a.costo) q.push(`costo ${COP(de.costo)} → ${COP(a.costo)}`);
+    return `<div class="info-row"><span class="k">${fmtFecha(x.fecha)}</span><span class="vv">cuota ${x.n}: ${q.join(' · ')||'sin cambio de cifras'}</span></div>`;
+  }).join(''):'';
+  const planHTML=tienePlan(p)?`<div class="sub-h">${altaP?'Cuotas pactadas al desembolsar':'Plan de pagos (§8)'} <span class="muted">· desde el ${fmtFecha(p.planPagos.creado)}</span></div>
     ${ent?`<div class="info-row"><span class="k">Al pactarlo</span><span class="vv">${COP(ent.monto)}${moraDeProrroga(ent)?` <span class="muted">(costo ${COP(costoDeProrroga(ent))} + mora ${COP(moraDeProrroga(ent))})</span>`:''} <span class="muted">· dejó ${COP(garantiaDeProrroga(ent,p))} de garantía</span></span></div>`:''}
-    ${cuotasPlan(p).map(c=>`<div class="info-row"><span class="k">Cuota ${c.n} · ${fmtFecha(c.fecha)}${c.recargo?` <span class="muted">+${COP(c.recargo)} de mora</span>`:''}</span><span class="vv"><b class="num">${COP(c.total+(c.recargo||0))}</b> ${c.pagado?`<span class="chip pagado">Pagada ${fmtFecha(c.fechaPagado)}</span>`:'<span class="chip al-dia">Pendiente</span>'}</span></div>`).join('')}`:'';
+    ${cuotasPlan(p).map(cuotaHTML).join('')}
+    ${cambiosHTML}
+    ${altaP&&!p.pagado?`<button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="reprogramarCuotas('${p.id}')" title="Solo las cuotas que no han vencido, no están pagadas y no tienen abonos">✏️ Cambiar fechas o %</button>`:''}`:'';
+  /* 16-oct-2026 — CON CUOTAS, «Total para saldar» ERA FALSO: mostraba la cuota
+     que sigue, y pagar eso no salda el crédito. Ahora dice qué es cada cifra:
+     la cuota, el saldo de todas las que faltan (con la mora que ya corrió en las
+     vencidas) y, en el crédito a cuotas, lo que costaría saldarlo HOY con la
+     regla de Joan (el costo de las cuotas que no han empezado no se cobra).
+     Y pagado, la fila de costo no puede decir el costo de UNA cuota al lado de
+     la ganancia de todas. */
+  const cP=p.pagado?null:cuotaPlan(p), pctC=Math.round(PUENTE.tasaDelCiclo(p)*100);
+  const hoyV=hoyISO(), saldoHoy=(altaP&&cP)?PUENTE.liquidarSaldoPlan(p,hoyV):null;
+  /* 17-oct-2026, segunda revisión — LA CUOTA, POR LO QUE VALE EN SU FECHA. La
+     fila decía lo de cerrarla HOY, y con la última cuota antes de que empiece
+     su quincena eso es pagar todo antes (325.000): Joan leía «Cuota 2 de 2
+     $325.000» y se lo repetía al cliente, que el 15-nov debe 390.000. Ahora la
+     cifra grande es la de su fecha y, si cerrarla hoy vale otra cosa (y el
+     puente deja cerrarla hoy), va al lado. */
+  const enSuFechaV=(altaP&&cP)?montoEnSuFecha(p):null, cierreHoyV=(altaP&&cP)?PUENTE.cierreDeCuota(p,hoyV):null;
+  const difiereHoyV=enSuFechaV!=null&&cP.fecha>hoyV&&cierreHoyV&&cierreHoyV.ok&&cierreHoyV.total!==enSuFechaV;
+  const filasSaldo=p.pagado
+    ? `<div class="info-row"><span class="k">Ganancia cobrada</span><b>${COP(gananciaCobrada(p))}</b></div>`
+    : (cP
+      ? `<div class="info-row"><span class="k">${PUENTE.pagadoDeCuota(p,cP).abonos?'Lo que falta de la cuota':'Cuota'} ${cP.n} de ${cuotasPlan(p).length}${altaP?'':' del plan'}${difiereHoyV?` · el ${fechaCortaCuota(cP.fecha)}`:''}</span>${difiereHoyV
+          ? `<span class="vv"><b>${COP(enSuFechaV)}</b> <span class="muted">(si la cierra hoy, ${COP(cierreHoyV.total)})</span></span>`
+          : `<b>${COP(liqCredito(p,hoyV).total_a_pagar)}</b>`}</div>
+         <div class="info-row"><span class="k">Saldo del crédito <span class="muted">(las cuotas que faltan${vencidas.some(v=>v.mora)?', con la mora de hoy':''})</span></span><b>${COP(PUENTE.saldoDelPlan(p)+vencidas.reduce((t,v)=>t+(Number(v.mora)||0),0))}</b></div>
+         ${saldoHoy?`<div class="info-row"><span class="k">Para saldarlo todo hoy</span><span class="vv"><b>${COP(saldoHoy.total)}</b>${saldoHoy.costo_que_no_se_cobra?` <span class="muted">· sin los ${COP(saldoHoy.costo_que_no_se_cobra)} de costo de cuotas que no han empezado</span>`:''}</span></div>`:''}`
+      : `<div class="info-row"><span class="k">Total para saldar</span><b>${COP(totalCiclo(p))}</b></div>`);
+  const filaCosto=(p.pagado&&tienePlan(p))
+    ? `<div class="info-row"><span class="k">Costo pactado de las cuotas</span><span class="vv">${p.planPagos.total_costo!=null?COP(p.planPagos.total_costo):'—'}</span></div>`
+    /* 17-oct-2026, revisión — con abonos, K(p) es lo que FALTA del costo de la
+       cuota: el % va con lo pactado, no al lado de lo que falta. */
+    : `<div class="info-row"><span class="k">${cP?(PUENTE.pagadoDeCuota(p,cP).abonos?`Lo que falta del costo de la cuota ${cP.n} <span class="muted">(pactado al ${pctC}%)</span>`:`Costo de la cuota ${cP.n} (${pctC}%)`):`Costo / ganancia (${pctC}%)`}</span><span class="vv gano">${COP(K(p))}</span></div>`;
   openModal('Crédito '+codCredito(p)+' · '+p.socioNombre,`
     <div class="info-row"><span class="k">N° crédito</span><b class="mono">${codCredito(p)}</b></div>
     <div class="info-row"><span class="k">N° cliente</span><b class="mono">${s.numero?codCliente(s):'—'}</b></div>
@@ -5714,11 +6181,11 @@ function verCredito(id){
     ${acuerdoDe(p)?`<div class="alerta ${acuerdoIncumplido(p)?'warn':'info'}"><b>🤝 Acuerdo pactado:</b> paga la prórroga de <b>${COP(p.acuerdo.monto)}</b> el <b>${fmtFecha(p.acuerdo.pactadaPara)}</b>.${acuerdoIncumplido(p)?' <b>Ese día no pagó</b>: el precio pactado venció y corre lo causado real.':' El precio queda congelado si cumple.'}
       <div style="margin-top:8px"><button class="btn btn-sm btn-negro" onclick="cumplirAcuerdo('${p.id}')">✓ Cumplió: recibí la prórroga</button>
       <button class="btn btn-ghost btn-sm" onclick="romperAcuerdo('${p.id}')">✕ Deshacer</button></div></div>`:''}
-    <div class="info-row"><span class="k">Capital</span><b>${COP(capitalActual(p))}</b></div>
-    <div class="info-row"><span class="k">Costo / ganancia (${p.costoPct}%)</span><span class="vv gano">${COP(K(p))}</span></div>
-    <div class="info-row"><span class="k">${p.pagado?'Ganancia cobrada':'Total para saldar'}</span><b>${p.pagado?COP(gananciaCobrada(p)):COP(totalCiclo(p))}</b></div>
+    <div class="info-row"><span class="k">${cP?'Capital pendiente del crédito':'Capital'}</span><b>${COP(capitalActual(p))}</b></div>
+    ${filaCosto}
+    ${filasSaldo}
     <div class="info-row"><span class="k">Desembolso</span><b>${fmtFecha(p.fechaDesembolso)}</b></div>
-    <div class="info-row"><span class="k">${p.pagado?'Pagado el':'Vence (quincena)'}</span><b>${p.pagado?fmtFecha(p.fechaPagado):fmtFecha(PUENTE.corteDelCredito(p))}</b></div>
+    <div class="info-row"><span class="k">${p.pagado?'Pagado el':(cP?`Vence la cuota ${cP.n}`:'Vence (quincena)')}</span><b>${p.pagado?fmtFecha(p.fechaPagado):fmtFecha(PUENTE.corteDelCredito(p))}</b></div>
     ${(()=>{ /* solo los perdones del CIERRE: los de prórroga van en su renglón */ const cc=(p.condonaciones||[]).filter(c=>c&&c.sobre!=='prorroga'); return p.pagado&&p.montoRecibido!=null&&cc.length?`<div class="info-row"><span class="k">Entró de verdad</span><span class="vv"><b>${COP(p.montoRecibido)}</b> <span class="muted">con ${COP(cc.reduce((t,c)=>t+(Number(c.costo)||0)+(Number(c.mora)||0),0))} perdonados al cerrar: ${escHTML(cc.map(c=>c.motivo).filter(Boolean).join(' · '))}</span></span></div>`:''; })()}
     ${p.saldoAFavor>0?`<div class="info-row"><span class="k">Pagó de más</span><span class="vv"><b>${COP(p.saldoAFavor)}</b> <span class="muted">a su favor · anotado acá, NO se aplica solo al crédito siguiente</span></span></div>`:''}
     ${pr?`<div class="sub-h">Prórrogas</div>${pr}`:''}
@@ -5738,10 +6205,21 @@ let _compTmp=null;
    préstamo con garantía. */
 function abrirPago(id){
   _compTmp=null; reiniciarCobro(id); const p=DB.prestamos.find(x=>x.id===id);
+  /* 16-oct-2026 — con cuotas, arriba decía «Capital 650.000 · Costo del ciclo
+     (20%) 130.000», que se lee como «hoy paga 780.000»: es el capital ENTERO
+     al lado del costo de UNA cuota. Ahora dice qué es cada cosa, y el % es el
+     de la cuota que corre (tasaDelCiclo), no el de la cuota 1. */
+  const c0=cuotaPlan(p), pct0=Math.round(PUENTE.tasaDelCiclo(p)*100);
+  /* 17-oct-2026, revisión — con abonos a la cuota, esas cifras son LO QUE
+     FALTA, y el % no va al lado: el 20% de 130.000 no son los 49.500 que
+     quedan después de un abono. */
+  const ab0=c0?PUENTE.pagadoDeCuota(p,c0).abonos:0;
   openModal('Cobro · '+p.socioNombre,`
-    <div class="info-row"><span class="k">Capital</span><b>${COP(capitalActual(p))}</b></div>
-    <div class="info-row"><span class="k">Costo del ciclo (${p.costoPct}%)</span><b>${COP(K(p))}</b></div>
-    <div class="info-row"><span class="k">Vence</span><b>${fmtFecha(PUENTE.corteDelCredito(p))}</b></div>
+    ${c0?`<div class="info-row"><span class="k">Capital pendiente del crédito</span><b>${COP(capitalActual(p))}</b></div>
+    <div class="info-row"><span class="k">${ab0?'Lo que falta de la cuota':'Cuota'} ${c0.n} de ${cuotasPlan(p).length} · vence ${fmtFecha(c0.fecha)}</span><b>${ab0?`${COP(capitalDelCiclo(p))} de capital + ${COP(K(p))} de costo`:`${COP(capitalDelCiclo(p))} + ${COP(K(p))} de costo (${pct0}%)`}</b></div>`
+    :`<div class="info-row"><span class="k">Capital</span><b>${COP(capitalActual(p))}</b></div>
+    <div class="info-row"><span class="k">Costo del ciclo (${pct0}%)</span><b>${COP(K(p))}</b></div>
+    <div class="info-row"><span class="k">Vence</span><b>${fmtFecha(PUENTE.corteDelCredito(p))}</b></div>`}
     ${(p.prorrogas||[]).length?`<div class="muted" style="margin-top:8px">Prórrogas: ${p.prorrogas.length} · ganancia acumulada ${COP(gananciaCobrada(p))}</div>`:''}
     <div class="field" style="margin-top:12px"><label>Fecha en que paga</label><input id="pgFecha" type="date" value="${hoyISO()}" oninput="calcPago('${p.id}')"></div>
     <!-- El descuento vive FUERA de #pgCalc a propósito: calcPago repinta ese
@@ -5806,6 +6284,9 @@ function calcPago(id){
   const p=DB.prestamos.find(x=>x.id===id); const f=gv('pgFecha'); const liq=liqCredito(p,f);
   const s=DB.socios.find(x=>x.id===p.socioId);
   const c=cuotaPlan(p), cs=cuotasPlan(p);
+  /* 16-oct-2026 — el crédito que nació a cuotas acepta abonos a la cuota y
+     saldarlo todo antes (decisiones de Joan del 16-oct); el plan del §8, no. */
+  const alta=!!c&&PUENTE.esPlanDeAlta(p);
   /* Con plan de pagos el descuento no se ofrece: la cuota ya es un precio
      reducido pactado por el §8, y perdonarle la mora encima sería una regla
      nueva decidida en una pantalla. Si algún día hace falta, pasa por el motor. */
@@ -5829,11 +6310,15 @@ function calcPago(id){
      corte pasa, si le queda alguna— y ya con el % de la mora restado del
      recargo: el % sigue siendo el descuento de la prórroga y del acuerdo. */
   const pr=liqProrroga(p,f,d.mora);
-  const pct=c?Math.round((p.planPagos.tasa_por_corte||0)*100):p.costoPct;
+  /* 16-oct-2026 — el % de la etiqueta es el de la cuota que corre (cada cuota
+     del crédito a cuotas trae el suyo), y lo dice el puente. */
+  const pct=Math.round(PUENTE.tasaDelCiclo(p)*100);
   /* Tres situaciones y tres avisos: con plan de pagos no hay prórroga que
      ofrecer; sin prórrogas queda la salida del §8; y si le quedan, se le dice
      cuántas, porque no son infinitas. */
-  const aviso=c
+  const aviso=alta
+    ? `<div class="alerta info">Este crédito es <b>a cuotas</b>: va por la cuota <b>${c.n} de ${cs.length}</b>. No se prorroga y no tiene descuento: se cobra cuota por cuota. Si trae <b>una parte</b>, escríbela en «¿Cuánto pagó?»: va primero a la mora, después al costo y después al capital, y lo que falta sigue en esta cuota y en su fecha. Si quiere <b>pagarlo todo</b>, el costo de las cuotas que no han empezado no se cobra.</div>`
+    : c
     ? `<div class="alerta info">Este crédito está en <b>plan de pagos</b>: va por la cuota <b>${c.n} de ${cs.length}</b>. De acá no se sale prorrogando; se cobran las cuotas una por una. El cobro con descuento no está disponible para los planes: una cuota trae su costo y su garantía materializados.</div>`
     : (pr&&!pr.ok
       ? `<div class="alerta warn"><b>Ya usó sus ${pr.prorrogas_permitidas} prórroga(s)</b> — es lo que da el nivel ${pr.nivel_socio}. Si no puede pagar todo, la salida es el <b>plan de pagos</b> del §8: el capital en ${MotorReglas.CUOTAS_PLAN_DE_PAGOS} cortes con un costo reducido del ${Math.round(MotorReglas.TASA_PLAN_DE_PAGOS*100)}%.</div>`
@@ -5859,7 +6344,9 @@ function calcPago(id){
      detrás de un botón que no existe. Ahora se dice en la hoja, que es donde
      se está mirando. Un botón que no está y no se explica es peor que uno
      deshabilitado. */
-  const porQueNoHayProrroga=c
+  const porQueNoHayProrroga=alta
+    ? 'Este crédito es <b>a cuotas</b>: no se prorroga. Cóbrale la cuota que sigue, un abono a esa cuota o todo el crédito.'
+    : c
     ? 'Este crédito está en <b>plan de pagos</b>: de ahí no se sale prorrogando. Cóbrale la cuota que sigue.'
     : (!pr ? 'Este crédito <b>no admite prórroga</b>: está pagado o su capital quedó en cero.' : '');
   const btnProrroga=porQueNoHayProrroga
@@ -5879,24 +6366,86 @@ function calcPago(id){
       De los ${COP(q.condonado_total)} perdonados, <b>${COP(q.de_tu_ganancia)}</b> salen de tu ganancia
       y <b>${COP(q.de_su_cupo)}</b> son garantía que él deja de recibir (le queda ${COP(q.garantia)}; sin perdón serían ${COP(q.garantia_sin_descuento)}). Queda anotado en el crédito con su motivo.</div>`
     : '';
-  const total=c?liq.total_a_pagar:q.total_a_recibir, garantia=c?liq.garantia_generada:q.garantia;
+  const total=c?liq.total_a_pagar:q.total_a_recibir;
+  /* 16-oct-2026 — lo que ya entró a esta cuota en abonos (lo parte el puente).
+     Las cifras de abajo ya son lo que FALTA: liquidarCiclo descuenta los abonos. */
+  const ya=c?PUENTE.pagadoDeCuota(p,c):null, conAbonos=!!(ya&&ya.abonos);
+  const filaYa=conAbonos?(()=>{ const pa=[]; if(ya.mora) pa.push('mora '+COP(ya.mora)); if(ya.costo) pa.push('costo '+COP(ya.costo)); if(ya.capital) pa.push('capital '+COP(ya.capital));
+    return `<div class="calc-row"><span class="muted">Ya abonó a esta cuota (${ya.abonos} abono${ya.abonos===1?'':'s'}: ${pa.join(' + ')||'—'})</span><span class="v muted">${COP(ya.recibido)}</span></div>`; })():'';
+  /* 16-oct-2026 — LA CUOTA DE ATRÁS NO SE CALLA. La hoja cobra la cuota que
+     sigue; si además hay otra vencida (el 20-nov sin haber pagado nada, la 1 y
+     la 2), Joan tiene que verla antes de cobrar solo una. */
+  const atras=c?PUENTE.cuotasVencidas(p,f||hoyISO()).filter(v=>Number(v.n)!==Number(c.n)):[];
+  const avisoAtras=atras.length?`<div class="alerta warn"><b>Además tiene vencida${atras.length>1?'s':''} ${atras.map(v=>`la cuota ${v.n}: ${COP(v.total)}${v.mora?` (con ${COP(v.mora)} de mora)`:''}`).join(' y ')}.</b> Esta hoja cobra la cuota ${c.n}; ${alta?'«Pagó todo el crédito» las cobra todas juntas.':'las otras se cobran después, una por una.'}</div>`:'';
+  /* 17-oct-2026, revisión — UNA GARANTÍA POR HOJA. En el crédito a cuotas la
+     decisión (qué se registra con el monto escrito) se toma ANTES de pintar: si
+     es un abono, la fila de la garantía y el «Solo para ti» son los del ABONO
+     (lo que fue a costo y a mora, y la garantía que calculó el puente); si es
+     pagar todo, la garantía nueva de todas las cuotas. La primera versión
+     mostraba la garantía del cobro completo encima del bloque del abono, que
+     decía otra: dos garantías del mismo pago, el defecto del 5-ago otra vez. */
+  const dA=alta?decisionCuotaDeAlta(p,f||hoyISO(),e):null;
+  let garantia=c?liq.garantia_generada:q.garantia, rotuloGar='Garantía que le deja';
+  let notaGar=(liq.acredita_en_fecha||PCT_GARANTIA_MORA===PCT_GARANTIA)?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${liq.pago_a_tiempo?'porque el crédito ya venía de una mora':'por pagar tarde'})</span>`;
+  /* Qué plata reparte el «Solo para ti» ({costo, mora}, o null si no se
+     pinta). Se decide acá y se pinta UNA vez abajo: el recuadro tiene una sola
+     llamada por pantalla (lo vigila pruebas/la-mora-vieja-se-queda.test.js,
+     que revisa que cada una lleve la fecha del crédito). */
+  let aRepartir={costo:c?liq.costo:q.costo_cobrado, mora:c?liq.recargo_mora:q.mora_cobrada};
+  if(dA&&dA.tipo==='abono'){
+    const ap=dA.ab.aplica;
+    garantia=dA.ab.garantia; rotuloGar='Garantía que le deja este abono';
+    /* Un abono que va entero a capital no reparte nada: el capital que vuelve
+       no es ganancia ni garantía, y el recuadro diría «de los $0 que entran». */
+    aRepartir=(ap.costo+ap.mora)>0?{costo:ap.costo,mora:ap.mora}:null;
+    if(!(ap.costo+ap.mora)) notaGar=' <span class="muted">(va todo a capital: el capital que vuelve no deja garantía)</span>';
+  } else if(dA&&dA.tipo==='todo'){
+    const g=garantiaYRepartoDelTodo(p,c,dA.todo);
+    garantia=g.garantia; aRepartir=g.aRepartir; rotuloGar='Garantía que le deja pagar todo';
+  }
+  const reparto=(s&&aRepartir)?bloqueReparto(s,aRepartir.costo,liq.acredita_en_fecha,'quincenal',aRepartir.mora,PUENTE.fechaDelCredito(p)):'';
+  /* 17-oct-2026, revisión — CON ABONOS, CADA RÓTULO DICE QUE ES LO QUE FALTA.
+     «Costo de la cuota (20%)» al lado de lo que quedaba después de un abono se
+     leía como el 20% de algo; y «Recargo por 21 días · 1% diario» al lado de la
+     mora que faltaba (la causada menos la abonada) no era 21 × 1% de nada. El
+     % va con lo pactado; lo que falta va sin %. */
+  const noEmpezo=alta&&dA&&dA.ci&&(dA.ci.motivo==='no_ha_empezado'||dA.ci.saldado_antes);
+  const rotCapital=c?(conAbonos?`Lo que falta del capital de la cuota ${c.n} de ${cs.length}`:`Capital de la cuota ${c.n} de ${cs.length}`):'Capital';
+  const rotCosto=!c?`Costo del ciclo (${pct}%)`
+    :(noEmpezo
+      ? (dA.ci.saldado_antes
+          ? `Costo de la cuota <span class="muted">(su quincena todavía no empieza: pagándola hoy no cuesta; pactado al ${pct}%)</span>`
+          : `Costo de la cuota cuando empiece su quincena <span class="muted">(${pct}% de lo que deba ese día)</span>`)
+      : (conAbonos?`Lo que falta del costo de la cuota <span class="muted">(pactado al ${pct}%)</span>`:`${alta?'Costo de la cuota':'Costo del plan'} (${pct}% del saldo)`));
+  const rotRecargo=conAbonos
+    ? `Lo que falta del recargo por mora <span class="muted">(${liq.dias_mora} día${liq.dias_mora===1?'':'s'} de atraso${ya.mora?` · ya abonó ${COP(ya.mora)} de mora`:''})</span>`
+    : `Recargo por ${liq.dias_mora} día(s) de mora · ${escHTML(textoTasaMora(p))}`;
   box.innerHTML=`<div class="calc">
-      <div class="calc-row"><span>${c?`Capital de la cuota ${c.n} de ${cs.length}`:'Capital'}</span><span class="v">${COP(liq.capital)}</span></div>
-      <div class="calc-row"><span>${c?`Costo del plan (${pct}% del saldo)`:`Costo del ciclo (${pct}%)`}</span><span class="v gano">${COP(liq.costo)}</span></div>
-      ${liq.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">Recargo por ${liq.dias_mora} día(s) de mora · ${escHTML(textoTasaMora(p))}</span><span class="v" style="color:var(--ambar)">${COP(liq.recargo_mora)}</span></div>`:''}
+      ${filaYa}
+      <div class="calc-row"><span>${rotCapital}</span><span class="v">${COP(liq.capital)}</span></div>
+      <div class="calc-row"><span>${rotCosto}</span><span class="v gano">${COP(liq.costo)}</span></div>
+      ${liq.recargo_mora?`<div class="calc-row"><span style="color:var(--ambar)">${rotRecargo}</span><span class="v" style="color:var(--ambar)">${COP(liq.recargo_mora)}</span></div>`:''}
       ${filaDesc}
-      <div class="calc-row"><span><b>${c?'Total de la cuota':'Total para saldar'}</b></span><span class="v"><b>${COP(total)}</b></span></div>
-      <div class="calc-row"><span>Garantía que le deja</span><span class="v">${COP(garantia)}${(liq.acredita_en_fecha||PCT_GARANTIA_MORA===PCT_GARANTIA)?'':` <span class="muted">(el ${PCT_GARANTIA_MORA}, ${liq.pago_a_tiempo?'porque el crédito ya venía de una mora':'por pagar tarde'})</span>`}</span></div>
+      <div class="calc-row"><span><b>${c?(conAbonos?'Lo que falta de la cuota':'Total de la cuota'):'Total para saldar'}</b></span><span class="v"><b>${COP(total)}</b></span></div>
+      <div class="calc-row"><span>${rotuloGar}</span><span class="v">${COP(garantia)}${notaGar}</span></div>
     </div>
-    ${s?bloqueReparto(s,c?liq.costo:q.costo_cobrado,liq.acredita_en_fecha,'quincenal',c?liq.recargo_mora:q.mora_cobrada,PUENTE.fechaDelCredito(p)):''}
-    ${avisoDesc}${avisoAcuerdo}${aviso}`;
+    ${reparto}
+    ${avisoAtras}${avisoDesc}${avisoAcuerdo}${aviso}`;
   /* El monto: se muestra, y se le pone el valor por defecto SOLO mientras Joan
-     no lo haya tocado. Si ya lo tocó, lo que él escribió manda. */
-  const mBox=document.getElementById('pgMontoBox'); if(mBox)mBox.style.display=c?'none':'';
+     no lo haya tocado. Si ya lo tocó, lo que él escribió manda.
+     16-oct-2026 — en el crédito a cuotas también se muestra: si trae menos que
+     la cuota, es un abono a ESA cuota (PUENTE.abonoACuota). 17-oct: y si la
+     cuota no se puede cerrar ese día, arranca vacío (estadoDelCobro). */
+  const conMonto=!c||alta;
+  const mBox=document.getElementById('pgMontoBox'); if(mBox)mBox.style.display=conMonto?'':'none';
   const inp=document.getElementById('pgMonto');
-  if(inp&&!c&&_cobro.monto==null&&!_cobro.vacio) inp.value=String(e.monto);
+  if(inp&&conMonto&&_cobro.monto==null&&!_cobro.vacio) inp.value=e.monto==null?'':String(e.monto);
   const pista=document.getElementById('pgPista');
-  if(pista) pista.innerHTML=c?'':'<b>Tú le pones el precio.</b> Escribe el valor que quieras —incluso <b>0</b>— y la diferencia se le perdona, con su motivo.';
+  /* 17-oct-2026, revisión — y si trae TODO, escribirlo basta: la hoja lo
+     reconoce y lo registra como pago total (decisionCuotaDeAlta). Dicho acá,
+     porque una salida que nadie sabe que existe no existe. */
+  if(pista) pista.innerHTML=alta?'<b>¿Trajo una parte?</b> Escribe lo que entregó: va primero a la mora, después al costo y después al capital, y lo que falta sigue en esta cuota y en su fecha. <b>¿Trajo todo el crédito?</b> Escribe ese total y se registra como pago total.'
+    :c?'':'<b>Tú le pones el precio.</b> Escribe el valor que quieras —incluso <b>0</b>— y la diferencia se le perdona, con su motivo.';
   const at=document.getElementById('pgAtajos');
   if(at) at.innerHTML=c?'':`${liq.recargo_mora?`<button class="btn btn-ghost btn-sm" onclick="atajoMonto('${p.id}',${Math.round(liq.total_a_pagar-liq.recargo_mora)})">Sin la mora (${COP(liq.total_a_pagar-liq.recargo_mora)})</button>`:'<span></span>'}${liq.capital>0&&liq.capital<liq.total_a_pagar?`<button class="btn btn-ghost btn-sm" onclick="atajoMonto('${p.id}',${Math.round(liq.capital)})">Solo el capital (${COP(liq.capital)})</button>`:'<span></span>'}`;
   /* EL BOTÓN PRIMARIO NO SE MUEVE NUNCA: siempre acá, debajo del monto. Lo que
@@ -5909,9 +6458,107 @@ function calcPago(id){
      Adriana delante y no encontró. No desaparece cuando no se puede (plan de
      pagos, sin prórrogas): adentro dice por qué y ofrece la salida, porque un
      botón que no está y no se explica es peor que uno que dice que no. */
-  const btnAbono=`<button class="btn btn-negro" style="margin-top:8px;width:100%" onclick="modoAbonoProrroga('${p.id}')" title="Escribes lo que entregó: paga la mora y el costo del ciclo, lo que sobra baja el capital y la fecha pasa a la próxima quincena">💵 Abonó y el resto pasa a la próxima quincena</button>`;
+  /* 16-oct-2026 — con cuotas (de alta o del §8) este botón se esconde: pasar
+     el resto a la próxima quincena es mover la fecha, y una cuota tiene la
+     suya pactada. Lo que sí existe en el crédito a cuotas es el abono a la
+     cuota, que va por «¿Cuánto pagó?», y la hoja ya lo dice arriba. */
+  const btnAbono=tienePlan(p)?'':`<button class="btn btn-negro" style="margin-top:8px;width:100%" onclick="modoAbonoProrroga('${p.id}')" title="Escribes lo que entregó: paga la mora y el costo del ciclo, lo que sobra baja el capital y la fecha pasa a la próxima quincena">💵 Abonó y el resto pasa a la próxima quincena</button>`;
+  if(alta){
+    /* El botón primario dice lo que va a registrar —todo el crédito, la cuota
+       entera o un abono a ella— con la MISMA decisión que usa registrarCobro
+       (dA, tomada arriba). Al lado, «Pagó todo el crédito» con la regla de Joan
+       (PUENTE.liquidarSaldoPlan)… salvo cuando el primario YA es eso: con la
+       última cuota, pagarla y pagar todo son el mismo cierre por la misma
+       plata, y dos botones con la misma cifra le preguntan a Joan una
+       diferencia que no existe. */
+    const todo=dA.todo, ci=dA.ci, tTodo=(todo&&!todo.rechazo)?todo.total:null;
+    const btnTodo=(tTodo!=null&&dA.tipo!=='todo')
+      ? `<button class="btn btn-negro" onclick="pagarTodoElCredito('${p.id}')" title="Capital de todas las cuotas, el costo de las que ya empezaron y la mora: el costo de las que no han empezado no se cobra">💰 Pagó todo el crédito (${COP(tTodo)})</button>`
+      : '<span></span>';
+    if(acc) acc.innerHTML=`<div class="two"><button class="btn ${dA.listo?'btn-rojo':'btn-ghost'}" id="pgBtn" ${dA.listo?'':'disabled'} onclick="registrarCobro('${p.id}')">${escHTML(dA.txt)}</button>${btnTodo}</div>`;
+    const dif=document.getElementById('pgDif');
+    let difHTML='';
+    if(dA.tipo==='abono'){
+      /* 17-oct-2026, segunda revisión — antes de que empiece su quincena, lo
+         que queda HOY es solo capital: se dice eso y lo que la cuota valdrá en
+         su fecha con el costo (quedaDelAbono), nunca «costo $0» al lado de la
+         fecha de la cuota. */
+      const ab=dA.ab, dq=quedaDelAbono(ab);
+      difHTML=`<div class="alerta info"><b>Abono a la cuota ${ab.n}:</b> ${COP(ab.aplica.mora)} a la mora, ${COP(ab.aplica.costo)} al costo y ${COP(ab.aplica.capital)} al capital.
+         ${dq.enSu
+           ? `En esta cuota, ${fraseEnSuFecha(dq,true)}.`
+           : `En esta cuota quedan <b>${COP(dq.q.total)}</b> (${dq.partes}), con la misma fecha: el <b>${fmtFecha(ab.fecha_cuota)}</b>. La mora corre solo sobre el capital que falta.`}
+         ${ab.empezo===false?'Su quincena todavía no empieza: el abono va entero a capital y, cuando empiece, la cuota cuesta su % sobre lo que quede. ':''}Le deja ${COP(ab.garantia)} de garantía.</div>`;
+    } else if(dA.tipo==='todo'){
+      difHTML=(ci&&ci.ok&&ci.ultima)
+        ? `<div class="alerta info"><b>Es la cuota ${ci.n}, la última:</b> pagarla es pagar todo el crédito.${ci.saldado_antes?' Su quincena todavía no empieza: sin costo.':''}</div>`
+        : `<div class="alerta info"><b>Con ${COP(tTodo)} salda todo el crédito:</b> el capital que falta (${COP(todo.capital)}), el costo de las cuotas cuya quincena ya empezó (${COP(todo.costo)})${todo.mora?` y la mora (${COP(todo.mora)})`:''}.${todo.costo_que_no_se_cobra?` No se cobran ${COP(todo.costo_que_no_se_cobra)} de costo de cuotas que no han empezado.`:''}</div>`;
+    } else if(dA.detalle){
+      /* La cuota del medio que no ha empezado, con el campo vacío, no es un
+         error: es la frase del puente diciendo qué sí se puede hacer. */
+      const tranquilo=e.vacio&&ci&&ci.motivo==='no_ha_empezado';
+      difHTML=`<div class="alerta ${tranquilo?'info':'warn'}">${escHTML(dA.detalle)}</div>`;
+    }
+    if(dif) dif.innerHTML=difHTML;
+    return;
+  }
   if(acc) acc.innerHTML=`<div class="two"><button class="btn btn-rojo" id="pgBtn" onclick="registrarCobro('${p.id}')">${c?`✓ Pagó la cuota ${c.n} (${COP(liq.total_a_pagar)})`:`✓ Pagó todo (${COP(total)})`}</button>${btnProrroga}</div>${btnAbono}${btnPactar}`;
   if(!c) pintarDif(id); else { const dif=document.getElementById('pgDif'); if(dif) dif.innerHTML=''; }
+}
+/* 16-oct-2026 — LA decisión del cobro de un crédito a cuotas: con la cuota
+   entera es la cuota (cobrarCuotaDelPlan, que la cierra y pasa el corte a la
+   siguiente); con menos, un abono a esa cuota, repartido por el PUENTE
+   (abonoACuota: mora, costo, capital); con más, el texto del puente, que
+   explica que se cobra la cuota y lo que sobra se anota aparte. La usan la
+   hoja y registrarCobro, para que el botón no pueda decir una cosa y el
+   registro hacer otra. */
+/* 17-oct-2026, revisión — EL ORDEN DE LAS PREGUNTAS ES LA REGLA. Primero
+   «¿esto paga todo el crédito?» (PUENTE.liquidarSaldoPlan): con la cuota 1
+   pagada el 30-oct, ese mismo día los 325.000 que trae el cliente son el
+   crédito entero, y la primera versión los anotaba como abono a la cuota 2 y
+   dejaba el crédito abierto, corriendo mora. Después «¿cierra la cuota?»
+   (PUENTE.cierreDeCuota, la misma cuenta que la registra), y si no, el abono
+   con los motivos del puente. Una cuota del MEDIO cuya quincena no ha empezado
+   no se cierra sola: ahí solo hay abono (hasta todo su capital) o pagar todo.
+   Devuelve también `ci` y `todo` para que la hoja no vuelva a preguntar. */
+/* 17-oct-2026, segunda revisión — el piso de la fecha ya no es el último abono
+   de ESA cuota sino el último hecho del CRÉDITO (PUENTE.ultimoHechoDelPlan: un
+   abono o el cierre de cualquier cuota). Con la cuota 1 cobrada el 2-nov, la 2
+   anotada el 29-oct pasaba por «quincena no empezada» y salía 65.000 más
+   barata. Por eso el botón dice «un pago ya anotado» y no «un abono»: lo que
+   frena puede ser el cobro de la cuota anterior. */
+function decisionCuotaDeAlta(p,f,e){
+  const c=cuotaPlan(p);
+  if(!c) return {listo:false,tipo:null,txt:'No tiene cuotas pendientes',detalle:''};
+  const ci=PUENTE.cierreDeCuota(p,f), todo=PUENTE.liquidarSaldoPlan(p,f);
+  const tTodo=(todo&&!todo.rechazo)?todo.total:null;
+  const base={ci,todo};
+  if(ci.motivo==='fecha_anterior') return Object.assign({listo:false,tipo:null,txt:'Esa fecha es anterior a un pago ya anotado',detalle:ci.detalle},base);
+  if(todo&&todo.rechazo) return Object.assign({listo:false,tipo:null,txt:'Esa fecha es anterior a un pago ya anotado',detalle:todo.rechazo},base);
+  if(e.vacio) return Object.assign({listo:false,tipo:null,txt:ci.motivo==='no_ha_empezado'?'Escribe cuánto abonó':'Escribe cuánto pagó',
+    detalle:ci.ok?('Si pagó la cuota entera, son '+COP(ci.total)+(tTodo!=null&&tTodo!==ci.total?'; todo el crédito, '+COP(tTodo):'')+'.'):(ci.detalle||'')},base);
+  if(tTodo!=null&&e.monto===tTodo) return Object.assign({listo:true,tipo:'todo',txt:`✓ Pagó todo el crédito (${COP(tTodo)})`,detalle:''},base);
+  if(ci.ok&&e.monto===ci.total) return Object.assign({listo:true,tipo:'cuota',txt:`✓ Pagó la cuota ${c.n} (${COP(ci.total)})`,detalle:''},base);
+  const ab=PUENTE.abonoACuota(p,f,e.monto);
+  if(ab.ok) return Object.assign({listo:true,tipo:'abono',txt:`✓ Abono de ${COP(ab.monto)} a la cuota ${ab.n}`,detalle:'',ab},base);
+  const txt=({salda_el_credito:'Eso paga más que todo el crédito',completa_la_cuota:'Eso pasa la cuota',
+    adelanta_de_mas:'Eso pasa el capital de la cuota',fecha_anterior:'Esa fecha es anterior a un pago ya anotado'})[ab.motivo]||'Así no se puede registrar';
+  return Object.assign({listo:false,tipo:null,txt,detalle:ab.detalle,ab},base);
+}
+/* 17-oct-2026, revisión — la garantía que deja PAGAR TODO, para la fila de la
+   hoja. El puente da la de cada cuota ENTERA al cerrarse (contando lo que sus
+   abonos ya dejaron); a esta hoja le importa la de ESTE pago, así que se resta
+   lo que los abonos de las cuotas pendientes ya acreditaron (la misma cuenta
+   del puente, garantiaGanadaCuotaPlan). El «Solo para ti» se muestra solo si la
+   plata de costo y mora cae en UNA cuota, la que corre: con varias, cada una
+   acredita a su factor y un solo recuadro mezclaría dos repartos. */
+function garantiaYRepartoDelTodo(p,c,todo){
+  const yaDejada=cuotasPlan(p).reduce((t,x)=>(!x||x.pagado)?t:t+(Number(PUENTE.garantiaGanadaCuotaPlan(p,x))||0),0);
+  const garantia=Math.max(0,(Number(todo&&todo.garantia)||0)-yaDejada);
+  const conPlata=((todo&&todo.filas)||[]).filter(x=>(Number(x.costo)||0)+(Number(x.mora)||0)>0);
+  const aRepartir=(c&&conPlata.length===1&&Number(conPlata[0].n)===Number(c.n))
+    ? {costo:Number(conPlata[0].costo)||0,mora:Number(conPlata[0].mora)||0} : null;
+  return {garantia,aRepartir};
 }
 
 /* =========================================================================
@@ -5962,6 +6609,14 @@ function estadoDelCobro(p,liq){
     let mv=String(_cobro.motivo||''); if(fp>0&&!mv.trim()) mv=String(d.motivo||'');
     return { tipo:'prorroga', pr, total:tp, monto:mp, falta:fp, modo:fp>0?'perdon':null, sobre:_cobro.sobre||'mora', motivo:mv, d, vacio, implicito:false };
   }
+  /* 17-oct-2026, revisión — en el crédito a cuotas, si la cuota que sigue NO se
+     puede cerrar en esa fecha (la del medio cuya quincena todavía no empieza, o
+     una fecha anterior a un pago ya anotado del crédito), el campo no arranca con un
+     número: no hay «cobro de siempre» que hacer con un clic, y prellenar lo que
+     la cuota valdría en su fecha dejaba el botón ofreciendo algo que no se
+     puede registrar. Queda vacío y la hoja dice por qué (decisionCuotaDeAlta). */
+  if(cuotaPlan(p)&&PUENTE.esPlanDeAlta(p)&&!(mio&&_cobro.monto!=null)&&!vacio&&!PUENTE.cierreDeCuota(p,liq.fecha).ok)
+    return { tipo:'cobro', total, monto:null, falta:0, modo:null, sobre:'mora', motivo:'', d, vacio:true, implicito:false, sinDefecto:true };
   const monto=(mio&&_cobro.monto!=null)?_cobro.monto:total-d.mora;
   const falta=total-monto;
   let modo=mio?_cobro.modo:null, sobre=(mio&&_cobro.sobre)||'mora', motivo=mio?String(_cobro.motivo||''):'';
@@ -6514,6 +7169,9 @@ function registrarCobro(id){
   /* 3-oct-2026 — el abono que pasa a la otra quincena va ANTES que el plan: si
      el crédito está en plan, el puente lo dice y no registra nada. */
   if(_cobro.id===id&&_cobro.tipo==='abonoProrroga') return registrarAbonoProrroga(id);
+  /* 16-oct-2026 — el crédito a cuotas: la cuota entera o un abono a ella, según
+     el monto (decisionCuotaDeAlta, la misma que pintó el botón). */
+  if(cuotaPlan(p)&&PUENTE.esPlanDeAlta(p)) return cobrarCuotaDeAlta(id,f);
   if(cuotaPlan(p)) return pagarTotal(id);            // con plan, el cobro es el de siempre
   const liq=liqCredito(p,f);
   const e=estadoDelCobro(p,liq), dc=decisionDelCobro(p,liq,e);
@@ -6540,7 +7198,11 @@ function registrarCobro(id){
   return pagarTotal(id,{montoRecibido:e.monto,condonaCosto:r.costo,condonaMora:r.mora,motivo:e.motivo});
 }
 async function subirComprobante(e){ const f=e.target.files[0]; if(!f)return; try{ _compTmp=await comprimir(f); const box=document.getElementById('compBox'); box.classList.add('ok'); let img=box.querySelector('img'); if(!img){img=document.createElement('img');box.appendChild(img);} img.src=_compTmp; box.querySelector('.lbl').textContent='Comprobante listo'; }catch(err){ alert('No pude procesar la imagen.'); } }
-function addComp(p,tipo,monto){ if(_compTmp){ p.comprobantes=p.comprobantes||[]; p.comprobantes.push({fecha:hoyISO(),tipo,monto,foto:_compTmp}); _compTmp=null; } }
+/* 17-oct-2026, revisión — `id` (opcional): el del hecho que el comprobante
+   respalda. panel/nube.js identifica un comprobante por [fecha, tipo, monto,
+   id]; sin id, dos abonos del mismo monto el mismo día —uno en el computador y
+   otro en el celular— se fundían en un solo comprobante. */
+function addComp(p,tipo,monto,id){ if(_compTmp){ p.comprobantes=p.comprobantes||[]; const cp={fecha:hoyISO(),tipo,monto,foto:_compTmp}; if(id!=null&&id!=='') cp.id=String(id); p.comprobantes.push(cp); _compTmp=null; } }
 /* 3-ago-2026 — el cobro del quincenal pasa por el MOTOR, igual que el del
    préstamo con garantía (confirmarCuota). Antes cobraba capital+costo y
    guardaba gananciaPago = K(p), o sea el costo pelado: el recargo del 1% diario
@@ -6556,7 +7218,7 @@ function pagarTotal(id,o){
   const f=gv('pgFecha')||hoyISO(), liq=liqCredito(p,f);
   /* Con plan de pagos, "pagó" es pagó LA CUOTA: el crédito no se cierra hasta
      la última. Misma pantalla, misma fecha, misma liquidación del motor. */
-  const c=cuotaPlan(p); if(c) return cobrarCuotaDelPlan(p,c,f,liq);
+  const c=cuotaPlan(p); if(c) return cobrarCuotaDelPlan(p,f);
   /* 7-sep-2026 — `o` es lo que decidió la pantalla (registrarCobro):
      {montoRecibido, condonaCosto, condonaMora, motivo, saldoAFavor}. SIN `o`
      hace EXACTAMENTE lo que hacía desde el 2-sep: lee el % de la mora y su
@@ -6768,7 +7430,8 @@ function registrarProrroga(id,o){
     return alert('Falta el motivo del descuento.\n\nEscribe en dos palabras por qué se lo perdonaste: dentro de tres meses, un descuento sin motivo es un cuadre que no cuadra.');
   const r=liqProrroga(p,f,condM,condC);
   if(!r) return alert(tienePlan(p)
-    ? 'Este crédito ya está en plan de pagos: de ahí no se sale prorrogando. Cóbrale la cuota que sigue.'
+    ? (PUENTE.esPlanDeAlta(p)?'Este crédito es a cuotas: no se prorroga. Cóbrale la cuota que sigue, un abono a esa cuota o todo el crédito.'
+      :'Este crédito ya está en plan de pagos: de ahí no se sale prorrogando. Cóbrale la cuota que sigue.')
     : 'Este crédito no admite prórroga (está pagado o su capital quedó en cero).');
   /* EL TOPE POR NIVEL. Cuando se acaban, la salida del §8 es el plan de pagos,
      y el motor ya lo trae armado: no hay que volver a preguntárselo. PERO SIN
@@ -6991,29 +7654,238 @@ function registrarPlanDePagos(id){
 /* Cobrar UNA cuota del plan. Usa la misma pantalla, la misma fecha y la misma
    liquidación del motor que cualquier otro cobro: acá lo único distinto es qué
    se marca como pagado. */
-function cobrarCuotaDelPlan(p,c,f,liq){
-  const cs=cuotasPlan(p), quedan=cs.filter(x=>!x.pagado).length-1;
-  if(!confirm(`Cobrar la cuota ${c.n} de ${cs.length} a ${p.socioNombre}: ${COP(liq.total_a_pagar)}\n\n`
-    +`• Capital de la cuota: ${COP(liq.capital)}\n• Costo: ${COP(liq.costo)}\n`
-    +(liq.recargo_mora?`• Recargo por ${liq.dias_mora} día(s) de mora: ${COP(liq.recargo_mora)}\n`:'')
-    +`\nLe deja ${COP(liq.garantia_generada)} de garantía. `
-    +(quedan?`Le quedan ${quedan} cuota(s).`:'Con esta termina de pagar el crédito.')))return;
-  c.pagado=true; c.fechaPagado=f; c.recargo=liq.recargo_mora; c.garantiaGenerada=liq.garantia_generada;
-  // El capital de la cuota se abona al crédito: así el saldo baja de verdad.
-  p.abonosCapital=p.abonosCapital||[]; p.abonosCapital.push({fecha:f,monto:c.capital,cuotaPlan:c.n});
-  addComp(p,'pago',liq.total_a_pagar);
-  const sig=cuotaPlan(p);
-  if(sig) p.cicloActual=sig.fecha;
-  else {
-    p.pagado=true; p.fechaPagado=f; p.cicloPago=c.fecha; p.cobroRegistrado=true;
-    /* Toda la ganancia del plan ya está contada cuota por cuota (y la entrada,
-       en planPagos.entrada). Dejar algo acá la contaría dos veces. */
-    p.gananciaPago=0; p.recargoMora=0;
-  }
+/* 17-oct-2026, revisión — LA CUENTA ES DEL PUENTE (cierreDeCuota), y esta
+   pantalla solo aplica lo que devuelve. Hasta ayer escribía sus campos por su
+   lado (pagado, recargo, garantía, el abono a capital, el corte siguiente) y el
+   celular por el suyo: con abonos de por medio, o con la última cuota cerrada
+   antes de que empezara su quincena, las dos copias guardaban cosas distintas
+   del mismo cobro. Ahora la cuota se cierra con UNA cuenta, la misma en los dos
+   aparatos, y si el puente dice que no (la cuota del medio que todavía no
+   empieza, una fecha anterior a un pago ya anotado de CUALQUIER cuota —17-oct,
+   segunda revisión—), no se registra nada. */
+function cobrarCuotaDelPlan(p,f){
+  const r=PUENTE.cierreDeCuota(p,f);
+  if(!r.ok||!r.registros) return alert((r.detalle||'No pude cerrar esta cuota.')+(/No registré nada/.test(r.detalle||'')?'':'\n\nNo registré nada.'));
+  const cs=cuotasPlan(p), c=cs.find(x=>Number(x.n)===Number(r.n)); if(!c) return alert('No encontré la cuota '+r.n+'. No registré nada.');
+  const liq=r.liq, reg=r.registros, quedan=cs.filter(x=>!x.pagado).length-1;
+  /* CON ABONOS PREVIOS A LA CUOTA, se cobra lo que FALTA: la liquidación del
+     puente ya descuenta lo abonado, así que el confirm dice lo pendiente y
+     menciona lo que ya entró. */
+  const ya=PUENTE.pagadoDeCuota(p,c);
+  const yaTxt=ya.abonos?(()=>{ const pa=[]; if(ya.mora) pa.push('mora '+COP(ya.mora)); if(ya.costo) pa.push('costo '+COP(ya.costo)); if(ya.capital) pa.push('capital '+COP(ya.capital));
+    return `Ya abonó ${COP(ya.recibido)} a esta cuota (${pa.join(' + ')||'—'}). Falta:\n`; })():'';
+  /* La cuota que se cierra antes de que empiece su quincena (solo puede ser la
+     última: el puente niega las del medio) no cuesta lo pactado, y eso se dice
+     con las dos cifras para que nadie lo lea como un error. */
+  const pactado=reg.cuota.costoPactado!=null?reg.cuota.costoPactado:(c.costoPactado!=null?c.costoPactado:c.costo);
+  const lineaCosto=r.saldado_antes
+    ? `• Costo: ${COP(liq.costo)} — su quincena todavía no empieza: ${liq.costo?'solo lo que corresponde':'sin costo'} (el pactado era ${COP(pactado)})\n`
+    : `• Costo: ${COP(liq.costo)}\n`;
+  const gar=Number(reg.cuota.garantiaGenerada)||0;
+  if(!confirm(`Cobrar ${ya.abonos?'lo que falta de ':''}la cuota ${r.n} de ${r.de} a ${p.socioNombre}: ${COP(r.total)}\n\n`
+    +yaTxt
+    +`• Capital de la cuota: ${COP(liq.capital)}\n`+lineaCosto
+    +(liq.recargo_mora?(ya.abonos?`• Lo que falta del recargo por mora: ${COP(liq.recargo_mora)}\n`:`• Recargo por ${liq.dias_mora} día(s) de mora: ${COP(liq.recargo_mora)}\n`):'')
+    +`\nLa cuota le deja ${COP(gar)} de garantía${ya.abonos?' en total, contando lo de sus abonos':''}. `
+    +(r.ultima?'Con esta termina de pagar el crédito.':`Le quedan ${quedan} cuota(s).`)))return;
+  Object.assign(c,reg.cuota);
+  p.abonosCapital=p.abonosCapital||[];
+  if(reg.abono) p.abonosCapital.push(reg.abono);
+  if(reg.cicloActual) p.cicloActual=reg.cicloActual;
+  if(reg.credito) Object.assign(p,reg.credito);
+  addComp(p,'pago',r.total);
   guardar(); cerrarModal(); render();
   const s=DB.socios.find(x=>x.id===p.socioId);
-  if(p.pagado) alert('✓ '+p.socioNombre+' terminó de pagar el crédito '+codCredito(p)+' con su plan de pagos.');
+  if(p.pagado) alert('✓ '+p.socioNombre+' terminó de pagar el crédito '+codCredito(p)+(PUENTE.esPlanDeAlta(p)?' a cuotas.':' con su plan de pagos.'));
   if(s&&confirm('Cuota registrada. ¿Mandarle el recibo por WhatsApp?'))gestionar(p.id,'recibo');
+}
+/* 16-oct-2026 — EL COBRO DE UN CRÉDITO A CUOTAS, según lo que entregó. Lo
+   decide decisionCuotaDeAlta, la misma que pintó el botón de la hoja. */
+function cobrarCuotaDeAlta(id,f){
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  const fecha=f||hoyISO(), liq=liqCredito(p,fecha), e=estadoDelCobro(p,liq), d=decisionCuotaDeAlta(p,fecha,e);
+  if(!d.listo) return alert(d.detalle||d.txt);
+  /* 17-oct-2026, revisión — tres salidas, y la de «todo» va primero en la
+     decisión: 325.000 el 30-oct con la cuota 1 ya pagada son el crédito entero,
+     no un abono que lo dejaba abierto y con mora. */
+  if(d.tipo==='todo') return pagarTodoElCredito(id,fecha);
+  if(d.tipo==='cuota') return cobrarCuotaDelPlan(p,fecha);
+  return abonarACuotaDelPlan(p,d.ab);
+}
+/* 16-oct-2026 — UN ABONO A LA CUOTA QUE SIGUE. Decisión de Joan: lo que entra
+   va primero a la mora, después al costo y después al capital; lo que falta
+   sigue en ESA cuota y en su fecha, y la mora corre solo sobre el capital que
+   falta. El reparto y el registro los arma el PUENTE (abonoACuota): acá solo se
+   muestra, se confirma y se empuja a p.abonosCapital, que es una lista que
+   solo suma y que el celular y el computador juntan sin pisarse. */
+/* 17-oct-2026, segunda revisión — LO QUE QUEDA DESPUÉS DE UN ABONO A UNA CUOTA,
+   leído igual por la hoja, el confirm y el aviso de después. Antes de que
+   empiece la quincena de la cuota, r.queda es SOLO capital (su costo todavía
+   no se debe), y las tres decían «quedan $225.000 (capital $225.000 + costo
+   $0), con la misma fecha: el 15-nov» de una cuota que ESE día vale 270.000.
+   El puente ya trae lo que valdrá en su fecha con este abono anotado
+   (r.en_su_fecha). Si difiere de lo de hoy, `enSu` lo trae y la pantalla dice
+   las dos cifras; si no, null y se dice como siempre. Una cuota vencida no
+   tiene su fecha por delante (ya pasó): ahí lo de hoy es lo que hay. Y nunca
+   se escribe «costo $0»: un costo que ya entró o que todavía no corre no es
+   una cifra que haya que leerle al cliente. */
+function quedaDelAbono(r){
+  const q=(r&&r.queda)||{capital:0,costo:0,mora:0,total:0}, en=r&&r.en_su_fecha;
+  const partes=['capital '+COP(q.capital)];
+  if(q.costo) partes.push('costo '+COP(q.costo));
+  if(q.mora) partes.push('mora '+COP(q.mora));
+  const enSu=(en&&en.fecha&&en.fecha>r.fecha&&(r.empezo===false||Number(en.total)!==Number(q.total)))?en:null;
+  return {q,partes:partes.join(' + '),soloCapital:!q.costo&&!q.mora,enSu};
+}
+/* «hoy quedan $X de capital; el {fecha}, con el costo de su quincena, la cuota
+   es $Y»: la frase de las dos cifras, con o sin negrilla. */
+function fraseEnSuFecha(d,html){
+  const b=t=>html?`<b>${t}</b>`:t;
+  return `hoy quedan ${b(COP(d.q.total))} ${d.soloCapital?'de capital':`(${d.partes})`}; el ${fmtFecha(d.enSu.fecha)}, con el costo de su quincena, la cuota es ${b(COP(d.enSu.total))} (capital ${COP(d.enSu.capital)} + costo ${COP(d.enSu.costo)})`;
+}
+function abonarACuotaDelPlan(p,r){
+  if(!r||!r.ok||!r.registros||!r.registros.abono) return alert((r&&r.detalle)||'No pude repartir ese abono. No registré nada.');
+  const dq=quedaDelAbono(r);
+  if(!confirm(`Abono de ${COP(r.monto)} a la cuota ${r.n} de ${r.de} de ${p.socioNombre}, el ${fmtFecha(r.fecha)}:\n\n`
+    +`• A la mora: ${COP(r.aplica.mora)}\n• Al costo: ${COP(r.aplica.costo)}\n• Al capital: ${COP(r.aplica.capital)}\n\n`
+    +(dq.enSu
+      ? `En esta cuota, ${fraseEnSuFecha(dq,false)}.${r.empezo===false?' Su quincena todavía no empieza: el abono va entero a capital.':''}\n\n`
+      : `En esta cuota queda debiendo ${COP(dq.q.total)} (${dq.partes}), con la misma fecha: el ${fmtFecha(r.fecha_cuota)}. La mora corre solo sobre el capital que falta.\n\n`)
+    +`Le deja ${COP(r.garantia)} de garantía. ¿Lo registro?`)) return;
+  p.abonosCapital=p.abonosCapital||[]; p.abonosCapital.push(r.registros.abono);
+  /* 17-oct-2026, revisión — el comprobante lleva el MISMO id del abono: la nube
+     identifica un comprobante por [fecha, tipo, monto, id], y dos abonos del
+     mismo monto el mismo día (uno en cada aparato) se fundían en uno. */
+  addComp(p,'abonoCuota',r.monto,r.registros.abono.id);
+  reiniciarCobro(p.id); guardar(); cerrarModal(); render();
+  const s=DB.socios.find(x=>x.id===p.socioId);
+  if(s&&confirm(`Abono registrado: en la cuota ${r.n}, `
+    +(dq.enSu?`${fraseEnSuFecha(dq,false)}.`:`quedan ${COP(dq.q.total)} para el ${fmtFecha(r.fecha_cuota)}.`)
+    +`\n\n¿Mandarle el recibo por WhatsApp?`)) gestionar(p.id,'recibo');
+}
+/* 16-oct-2026 — PAGÓ TODO EL CRÉDITO A CUOTAS ANTES DE TIEMPO. La regla es de
+   Joan y la cuenta del PUENTE (liquidarSaldoPlan): el capital que falta, el
+   costo de cada cuota cuyo período ya empezó y la mora; el costo de las cuotas
+   que no han empezado NO se cobra. En su caso, todo el 30-oct son 780.000.
+   La pantalla solo aplica lo que el puente devuelve en `registros`, igual que
+   el celular, para que los dos guarden lo mismo. */
+function pagarTodoElCredito(id,fecha){
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  const f=fecha||gv('pgFecha')||hoyISO(), r=PUENTE.liquidarSaldoPlan(p,f);
+  if(!r) return alert('Este crédito no es a cuotas o ya está pagado: no hay saldo que liquidar por acá.');
+  /* 17-oct-2026, revisión — con una fecha anterior a un pago ya anotado (un
+     abono o el cierre de cualquier cuota, desde la segunda revisión), el
+     puente no arma registros: anotar fuera de orden cobraría dos veces la mora
+     de días que ya se pagaron. Se dice y no se toca nada. */
+  if(r.rechazo||!r.registros) return alert((r.rechazo||'No pude liquidar el crédito.')+'\n\nNo registré nada.');
+  if(!confirm(`Saldar TODO el crédito de ${p.socioNombre} el ${fmtFecha(f)}: ${COP(r.total)}\n\n`
+    +r.filas.map(x=>`• Cuota ${x.n} (${fechaCortaCuota(x.fecha,true)}): capital ${COP(x.capital)}`
+      +(x.empezo?` + costo ${COP(x.costo)}`:` · sin costo: su quincena no ha empezado (${COP(x.costo_que_no_se_cobra)} que no se cobra)`)
+      +(x.mora?` + mora ${COP(x.mora)}`:'')+` = ${COP(x.total)}`).join('\n')
+    +`\n\nTotal: ${COP(r.total)} (capital ${COP(r.capital)} + costo ${COP(r.costo)}${r.mora?' + mora '+COP(r.mora):''}).`
+    +(r.costo_que_no_se_cobra?`\nNo se cobran ${COP(r.costo_que_no_se_cobra)} de costo de cuotas que no han empezado.`:'')
+    /* La garantía del puente es la de cada cuota ENTERA al cerrarse: si alguna
+       ya tenía abonos, incluye lo que esos abonos dejaron, y se dice. */
+    +`\nLas cuotas le dejan ${COP(r.garantia)} de garantía${cuotasPlan(p).some(c=>!c.pagado&&PUENTE.pagadoDeCuota(p,c).abonos)?' en total, contando lo de sus abonos':''}. El crédito queda CERRADO. ¿Lo registro?`)) return;
+  const cs=cuotasPlan(p);
+  r.registros.cuotas.forEach(x=>{ const c=cs.find(q=>Number(q.n)===Number(x.n)); if(c) Object.assign(c,x); });
+  p.abonosCapital=p.abonosCapital||[];
+  r.registros.abonos.forEach(a=>p.abonosCapital.push(a));
+  Object.assign(p,r.registros.credito);
+  addComp(p,'pago',r.total);
+  reiniciarCobro(id); guardar(); cerrarModal(); render();
+  const s=DB.socios.find(x=>x.id===p.socioId);
+  if(s&&confirm('✓ '+p.socioNombre+' saldó el crédito '+codCredito(p)+'.\n\n¿Mandarle el recibo por WhatsApp?')) gestionar(id,'recibo');
+}
+/* =========================================================================
+   16-oct-2026 — CAMBIAR LA FECHA O EL % DE UNA CUOTA DESPUÉS DEL ALTA.
+   Decisión de Joan: solo cuotas que no han vencido, no están pagadas y no
+   tienen abonos, y cada cambio queda anotado (planPagos.cambios). La regla y
+   las cuentas son del PUENTE (reprogramarPlan, que rehace el costo con el
+   motor y rechaza lo que borraría mora hacia atrás); esta pantalla solo
+   decide qué campos se pueden tocar y lo vuelve a preguntar al guardar.
+   ========================================================================= */
+function cuotaReprogramable(p,c,hoy){
+  return !!c&&!c.pagado&&!PUENTE.abonosDeCuota(p,c.n).length&&!!c.fecha&&c.fecha>=hoy;
+}
+function reprogramarCuotas(id){
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  if(p.pagado||!PUENTE.esPlanDeAlta(p)) return alert('Solo se cambian las cuotas de un crédito a cuotas que no esté pagado.');
+  const hoy=hoyISO(), cs=cuotasPlan(p);
+  openModal('Cambiar cuotas · '+p.socioNombre,`
+    <div class="help">Solo se cambian las cuotas que no han vencido, no están pagadas y no tienen abonos: mover una vencida le borraría la mora hacia atrás. El costo de cada cuota se rehace sobre lo que debe al empezarla. Cada cambio queda anotado en el crédito.</div>
+    ${cs.map(c=>cuotaReprogramable(p,c,hoy)
+      ? `<div class="two"><div class="field"><label>Cuota ${c.n} · fecha</label><input id="rpF${c.n}" type="date" oninput="calcReprogramar('${p.id}')"></div>
+         <div class="field"><label>% de la cuota ${c.n}</label><input id="rpP${c.n}" type="number" inputmode="numeric" min="1" max="${TASA_TECHO_PCT}" step="1" oninput="calcReprogramar('${p.id}')"></div></div>`
+      : `<div class="info-row"><span class="k">Cuota ${c.n} · ${fmtFecha(c.fecha)}${c.pct?` · ${c.pct}%`:''}</span><span class="vv muted">${c.pagado?'pagada':(PUENTE.abonosDeCuota(p,c.n).length?'tiene abonos':'vencida')} · no se cambia</span></div>`).join('')}
+    <div id="rpCalc" style="margin-top:10px"></div>
+    <button class="btn btn-rojo" style="margin-top:12px;width:100%" onclick="guardarReprogramacion('${p.id}')">Guardar los cambios</button>
+    <button class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%" onclick="verCredito('${p.id}')">Volver al crédito</button>`);
+  cs.forEach(c=>{
+    if(!cuotaReprogramable(p,c,hoy)) return;
+    const ef=document.getElementById('rpF'+c.n), ep=document.getElementById('rpP'+c.n);
+    if(ef) ef.value=c.fecha;
+    if(ep) ep.value=String(c.pct||Math.round((Number(p.planPagos.tasa_por_corte)||0)*100));
+  });
+  calcReprogramar(id);
+}
+/* Lo pedido: solo las cuotas que se pueden tocar. Las otras ni se preguntan, y
+   si alguien escribiera en sus campos, no viajan. El puente lo rechazaría
+   igual: esto es para que la pantalla no ofrezca lo que no se puede. */
+function pedidoDeReprogramacion(p,hoy){
+  return cuotasPlan(p).filter(c=>cuotaReprogramable(p,c,hoy))
+    .map(c=>({n:c.n,fecha:gv('rpF'+c.n),pct:gv('rpP'+c.n)}));
+}
+function calcReprogramar(id){
+  const box=document.getElementById('rpCalc'); if(!box) return;
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  const r=PUENTE.reprogramarPlan(p,pedidoDeReprogramacion(p,hoyISO()),hoyISO());
+  if(!r.ok){
+    box.innerHTML=r.motivo==='sin_cambios'?'<span class="muted" style="font-size:12.5px">Cambia una fecha o un % y te muestro cómo queda.</span>'
+      :`<div class="calc"><span style="color:var(--ambar);font-size:12.5px">${escHTML(fraseDelMotorAlta(r.detalle))}</span></div>`;
+    return;
+  }
+  /* 17-oct-2026, revisión — los domingos y festivos los dice el PUENTE
+     (r.inhabiles), que ya deja afuera las cuotas pagadas y las que vencieron:
+     avisar «si paga el primer día hábil le corre mora» de una cuota de la semana
+     pasada es hablar en futuro de algo que ya pasó. Acá no se vuelve a filtrar. */
+  const cs=r.planPagos.cuotas, avisos=avisosInhabilesCuotas(r.inhabiles||[],Object.assign({},p,{planPagos:r.planPagos}));
+  box.innerHTML=`<div class="calc">
+    ${cs.map(c=>`<div class="calc-row"><span>Cuota ${c.n} · ${fechaCortaCuota(c.fecha,true)} · ${c.pct}%${c.pagado?' <span class="muted">(pagada)</span>':''}</span><span class="v">${COP(c.total)} <span class="muted">(capital ${COP(c.capital)} + costo ${COP(c.costo)})</span></span></div>`).join('')}
+    <div class="calc-row"><span>Costo de todas las cuotas</span><span class="v gano">${COP(p.planPagos.total_costo)} → ${COP(r.planPagos.total_costo)}</span></div>
+    ${r.cambios.some(l=>Number(l.a.pct)>TASA_FIJA_PCT)?`<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ Queda por encima del estándar del ${TASA_FIJA_PCT}%: al guardar te lo confirmo aparte.</div>`:''}
+    ${avisos.map(t=>`<div style="color:var(--ambar);font-size:12px;margin-top:5px">⚠️ ${escHTML(t)} La fecha se queda como la pusiste.</div>`).join('')}</div>`;
+}
+function guardarReprogramacion(id){
+  const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  const hoy=hoyISO(), r=PUENTE.reprogramarPlan(p,pedidoDeReprogramacion(p,hoy),hoy);
+  if(!r.ok) return alert(r.motivo==='sin_cambios'?'No cambiaste nada.':'No guardé nada.\n\n'+fraseDelMotorAlta(r.detalle));
+  /* 17-oct-2026, revisión — los domingos y festivos los dice el PUENTE
+     (r.inhabiles), que ya deja afuera las cuotas pagadas y las que vencieron:
+     avisar «si paga el primer día hábil le corre mora» de una cuota de la semana
+     pasada es hablar en futuro de algo que ya pasó. Acá no se vuelve a filtrar. */
+  const cs=r.planPagos.cuotas, avisos=avisosInhabilesCuotas(r.inhabiles||[],Object.assign({},p,{planPagos:r.planPagos}));
+  const altas=r.cambios.filter(l=>Number(l.a.pct)>TASA_FIJA_PCT);
+  if(altas.length){
+    const C=window.CreditosPublicables, usura=DB.config.tasaUsuraEA;
+    const ea=(C&&typeof C.efectivoAnualPorFechas==='function')?C.efectivoAnualPorFechas(p.fechaDesembolso,Number(p.capital)||0,cs.map(c=>({fecha:c.fecha,total:c.total}))):null;
+    if(!confirm('COSTO POR ENCIMA DEL ESTÁNDAR en '+altas.map(l=>'la cuota '+l.n+' ('+l.a.pct+'%)').join(', ')+' (el estándar es '+TASA_FIJA_PCT+'%).\n\n'
+      +(ea!=null?'Con estas fechas, el crédito entero equivale a '+fmtEA(ea*100)+' efectivo anual':'No pude calcular el efectivo anual (no cargó creditos.js)')
+      +(usura>0?' — el techo de usura que tienes anotado es '+usura+'%':'')+'.\n'
+      +'Cobrar por encima del techo legal es delito (art. 305 del Código Penal), y el responsable eres tú.\n\n¿Lo guardo con este costo?')) return;
+  }
+  if(!confirm('Cambiar las cuotas de '+p.socioNombre+':\n\n'
+    +r.cambios.map(l=>'• Cuota '+l.n+': '+[l.de.fecha!==l.a.fecha?'del '+fechaCortaCuota(l.de.fecha,true)+' al '+fechaCortaCuota(l.a.fecha,true):'',
+      l.de.pct!==l.a.pct?l.de.pct+'% → '+l.a.pct+'%':'', 'costo '+COP(l.de.costo)+' → '+COP(l.a.costo)].filter(Boolean).join(' · ')).join('\n')
+    +'\n\nAsí quedan las que faltan:\n'
+    +cs.filter(c=>!c.pagado).map(c=>'• Cuota '+c.n+': '+COP(c.total)+' el '+fechaCortaCuota(c.fecha,true)+' (capital '+COP(c.capital)+' + costo '+COP(c.costo)+')').join('\n')
+    +(avisos.length?'\n\n⚠️ '+avisos.join('\n⚠️ '):'')
+    +'\n\nEl cambio queda anotado en el crédito. ¿Lo guardo?')) return;
+  p.planPagos=r.planPagos; p.cicloActual=r.cicloActual;
+  /* 17-oct-2026, revisión — p.costoPct es el % de la cuota 1 (es lo que leen
+     las pantallas que no saben de cuotas): si el cambio lo movió, se mueve. */
+  if(r.planPagos.cuotas[0]&&Number(r.planPagos.cuotas[0].pct)>0) p.costoPct=Number(r.planPagos.cuotas[0].pct);
+  guardar(); render(); verCredito(id);
 }
 /* 3-ago-2026 — el `return` que faltaba. Si el abono cubre todo el capital y Joan
    dice que NO a "¿marcar el ciclo como pagado?", la ejecución caía igual al push
@@ -7029,7 +7901,9 @@ function cobrarCuotaDelPlan(p,c,f,liq){
 function abonarCapital(id,fecha){ const p=DB.prestamos.find(x=>x.id===id),m=Number(document.getElementById('abCap').value)||0; if(m<=0){ alert('Monto inválido.'); return; }
   /* Con plan de pagos el capital baja cuota por cuota: un abono suelto por fuera
      dejaría el saldo del plan y el del crédito diciendo cosas distintas. */
-  if(tienePlan(p)){ alert('Este crédito está en plan de pagos: el capital baja con cada cuota. Cóbrale la cuota que sigue en vez de abonar por fuera.'); return; }
+  if(tienePlan(p)){ alert(PUENTE.esPlanDeAlta(p)
+    ? 'Este crédito es a cuotas: el capital baja con cada cuota. Si trajo una parte, escríbela en «¿Cuánto pagó?» y va a la cuota que sigue (mora, costo y después capital).'
+    : 'Este crédito está en plan de pagos: el capital baja con cada cuota. Cóbrale la cuota que sigue en vez de abonar por fuera.'); return; }
   if(m>=capitalActual(p)){
     if(confirm('Ese abono cubre todo el capital. ¿Marcar como pagado el ciclo completo?')) pagarTotal(id);
     else alert('No registré nada.\n\nEse abono cubre el capital entero, y eso es saldar el crédito: va por «Pagó todo», que cobra además el costo del ciclo y la mora y le deja la garantía al socio. Si va a seguir debiendo, registra lo que de verdad entregó a capital.');
@@ -12935,12 +13809,16 @@ function armarPublicacionEquipo() {
     const k = String(c.socioId || '');
     if (!k) return;
     const m = plataDe[k] || (plataDe[k] = { saldo_total: 0, creditos: 0, saldo: null, fecha_pago: '' });
-    m.saldo_total += totalCiclo(c);
+    /* 17-oct-2026, segunda revisión — al asesor le llega la cifra CON su fecha:
+       es lo de ese día (montoEnSuFecha), y vencido, todo lo vencido. Con
+       totalCiclo un crédito a cuotas con dos cuotas vencidas le decía la mitad, y
+       la última cuota antes de su quincena, 325.000 «para el 15-nov». */
+    m.saldo_total += montoEnSuFecha(c);
     m.creditos += 1;
     const corte = PUENTE.corteDelCredito(c) || '';
     if (corte && (!m.fecha_pago || corte < m.fecha_pago)) {
       m.fecha_pago = corte;
-      m.saldo = totalCiclo(c);   /* el del crédito que vence primero */
+      m.saldo = montoEnSuFecha(c);   /* el del crédito que vence primero */
     }
   });
 
@@ -13717,7 +14595,9 @@ function bloqueCreditosHTML(s){
      la ficha, que es donde Joan está cuando el cliente le escribe. Antes había
      que entrar al crédito y de ahí al cobro. */
   const filaCred=p=>`<div class="info-row"><span class="k">${fmtFecha(p.fechaDesembolso)} · ${COP(p.capital)}</span><span class="vv"><span class="chip ${estadoPrestamo(p)}">${ESTADO_TXT[estadoPrestamo(p)]}</span> <span class="gano">${COP(gananciaCobrada(p))}</span> <a href="#" onclick="event.preventDefault();verCredito('${p.id}')">ver</a>${p.pagado?'':` · <a href="#" onclick="event.preventDefault();abrirPago('${p.id}')" title="Pagó todo, prórroga, o abonó y el resto pasa a la próxima quincena">💵 pago</a>`}</span></div>`;
-  const debeHoy=activos.reduce((t,p)=>t+totalCiclo(p),0);
+  /* 17-oct-2026, revisión — con cuotas, «si paga todo hoy» es saldar el crédito
+     entero (siPagaTodoHoy), no la cuota que corre. */
+  const debeHoy=activos.reduce((t,p)=>t+siPagaTodoHoy(p),0);
   const capCalle=activos.reduce((t,p)=>t+capitalActual(p),0);
   const bloqueSuma=activos.length>1
     ? `<div class="info-row"><span class="k"><b>Todos sus créditos, juntos</b>

@@ -458,9 +458,9 @@ var POR_LOTE     = 200;
 var LISTAS_QUE_SUMAN = {
   socios:      { gestiones:['fecha','canal','plantilla'] },
   creditos:    { abonos:['fecha','monto'],
-                 abonosCapital:['fecha','monto'],
+                 abonosCapital:['fecha','monto','cuotaPlan','id'],
                  prorrogas:['fecha','ciclo'],
-                 comprobantes:['fecha','tipo','monto'],
+                 comprobantes:['fecha','tipo','monto','id'],
                  condonaciones:['fecha','costo','mora'] },
   respaldados: { comprobantes:['fecha','tipo','monto'] }
 };
@@ -472,8 +472,13 @@ var CAMPOS_MIRABLES = {
   /* 7-sep-2026 — la plata de un cobro: sin estos, dos cobros del mismo crédito
      que difieran solo en cuánto entró se veían con CERO campos en ámbar y Joan
      decidía el choque sin ver la plata. */
+  /* 17-oct-2026, revisión — y `planPagos`: con un crédito a cuotas, lo que
+     está en discusión casi siempre es QUÉ CUOTA quedó pagada y cuándo. Sin él,
+     la tarjeta de un choque entre dos cobros de cuota no enseñaba la cuota. Se
+     pinta resumido (resumenDelPlan), no como objeto. */
   creditos:    ['numero','capital','total','pagado','fechaPagado','fechaPago','cicloActual','costoPct',
-                'montoRecibido','gananciaPago','recargoMora','costoCausado','moraCausada','saldoAFavor'],
+                'montoRecibido','gananciaPago','recargoMora','costoCausado','moraCausada','saldoAFavor',
+                'planPagos'],
   respaldados: ['numero','capital','pagado','fechaPagado','plazo'],
   ajustes:     []
 };
@@ -1606,8 +1611,8 @@ function tarjetaChoque(it, ref){
       esc(it.fila.actualizado_por||'?')+'</b> el '+esc(fechaLarga(it.fila.actualizado_en))+
       (it.borrado?' · <b>allá está borrada</b>':'')+'</div>'+
     '<div class="caras">'+
-      cara('Lo de este computador', mio, suyo, it.tabla)+
-      cara('Lo de la nube', suyo, mio, it.tabla)+
+      cara('Lo de este computador', mio, suyo, it.tabla, cuotasEnDiscusion(it.tabla, mio, suyo, 'mio'))+
+      cara('Lo de la nube', suyo, mio, it.tabla, cuotasEnDiscusion(it.tabla, mio, suyo, 'suyo'))+
     '</div>'+
     '<div class="crudo" id="crudo-'+ref+'"><pre>'+
       esc('— ESTE COMPUTADOR —\n'+JSON.stringify(mio,null,1)+'\n\n— LA NUBE —\n'+JSON.stringify(suyo,null,1))+
@@ -1618,7 +1623,7 @@ function tarjetaChoque(it, ref){
       '<button class="btn btn-ghost btn-sm" onclick="verLasDos(\''+ref+'\')">Ver las dos</button>'+
     '</div>'+
     '<div class="elegido">'+(eleccion==='nube'
-        ? 'Elegiste lo de la nube. Al aplicar, las gestiones, comprobantes, prórrogas y abonos de los dos lados se juntan.'
+        ? queHaceLoDeLaNube(it)
         : eleccion==='mio'
         ? queHaceLoMio(it)
         : 'Sin elegir. Mientras no elijas, esta ficha no se toca en ninguno de los dos lados.')+'</div>'+
@@ -1646,9 +1651,31 @@ function queHaceLoMio(it){
       : 'Elegiste lo tuyo: acá esta ficha no existe, así que no se toca nada acá y se borra también en la '+
         'nube cuando aprietes «Subir a la nube» en esta página.';
   }
+  var pc = pagosDeCuotasEnChoque(it.tabla, NUBE.sinFotos(it.local||{}), it.fila && it.fila.datos);
+  if(pc){
+    return 'Elegiste lo tuyo. Al aplicar, en lo que no coincide queda lo tuyo, y las gestiones, comprobantes '+
+      'y prórrogas de los dos lados se juntan. Los pagos de las cuotas NO se juntan: quedan solo los de este '+
+      'computador ('+pc.mio+') y lo que trae la nube para esas cuotas ('+pc.suyo+') no entra. Si esa plata '+
+      'entró de verdad, vuelve a anotarla como abono a la cuota después. Lo tuyo se manda en la próxima subida.'+
+      (it.borrado ? ' Allá está borrada: con lo tuyo vuelve a quedar viva en la nube.' : '');
+  }
   return 'Elegiste lo tuyo. Al aplicar, en lo que no coincide queda lo tuyo, y las gestiones, comprobantes, '+
     'prórrogas y abonos de los dos lados se juntan; después se manda en la próxima subida.'+
     (it.borrado ? ' Allá está borrada: con lo tuyo vuelve a quedar viva en la nube.' : '');
+}
+/* 17-oct-2026, segunda revisión — «Dejar lo de la nube», dicho con lo que de
+   verdad hace fusionarConLoMio: las listas que solo suman se juntan, MENOS los
+   pagos de las cuotas cuando los dos lados traen un plan distinto (viajan con
+   su planPagos: NUBE.fusionarFila). Decía «los abonos de los dos lados se
+   juntan» justo en el caso en que los de este computador se quedan afuera. */
+function queHaceLoDeLaNube(it){
+  var pc = (it.tabla!=='ajustes' && it.local)
+    ? pagosDeCuotasEnChoque(it.tabla, NUBE.sinFotos(it.local||{}), it.fila && it.fila.datos) : null;
+  if(!pc) return 'Elegiste lo de la nube. Al aplicar, las gestiones, comprobantes, prórrogas y abonos de los dos lados se juntan.';
+  return 'Elegiste lo de la nube. Al aplicar, las gestiones, comprobantes y prórrogas de los dos lados se juntan. '+
+    'Los pagos de las cuotas NO se juntan: quedan los de la nube ('+pc.suyo+') y lo que trae este computador '+
+    'para esas cuotas ('+pc.mio+') no entra. Si esa plata entró de verdad, vuelve a anotarla como abono a la '+
+    'cuota después.';
 }
 
 /* Lo que mandamos no viene de vuelta en la respuesta de panel_empujar (solo
@@ -1668,8 +1695,9 @@ function tarjetaChoqueSubida(c, ref){
       esc(String(c.revision_servidor))+', la tocó <b>'+esc(c.actualizado_por||'?')+'</b> el '+
       esc(fechaLarga(c.actualizado_en))+'</div>'+
     '<div class="caras">'+
-      cara('Lo que mandé', mio, c.datos_servidor, c.tabla)+
-      cara('Lo que hay en la nube', c.datos_servidor, mio, c.tabla)+
+      cara('Lo que mandé', mio, c.datos_servidor, c.tabla, cuotasEnDiscusion(c.tabla, mio, c.datos_servidor, 'mio'))+
+      cara('Lo que hay en la nube', c.datos_servidor, mio, c.tabla,
+           cuotasEnDiscusion(c.tabla, mio, c.datos_servidor, 'suyo'))+
     '</div>'+
     '<div class="crudo" id="crudo-'+ref+'"><pre>'+
       esc('— LO QUE MANDÉ —\n'+JSON.stringify(mio,null,1)+'\n\n— LA NUBE —\n'+JSON.stringify(c.datos_servidor,null,1))+
@@ -1684,7 +1712,7 @@ function tarjetaChoqueSubida(c, ref){
 
 /* Las dos caras del choque. Se marcan en ámbar los campos que NO coinciden, que
    son los que hay que mirar; el resto se deja para que Joan reconozca la ficha. */
-function cara(titulo, obj, otro, tabla){
+function cara(titulo, obj, otro, tabla, enDiscusion){
   var campos = CAMPOS_MIRABLES[tabla] || [];
   var h='<div class="cara"><h5>'+esc(titulo)+'</h5>';
   if(!obj){ return h+'<div class="lin"><span>—</span><b>no existe de este lado</b></div></div>'; }
@@ -1694,7 +1722,7 @@ function cara(titulo, obj, otro, tabla){
   campos.forEach(function(c){
     var v=obj[c], o=otro?otro[c]:undefined;
     var dif = normalizarJSON(v)!==normalizarJSON(o);
-    h+='<div class="lin'+(dif?' dif':'')+'"><span>'+esc(c)+'</span><b>'+esc(muestra(v))+'</b></div>';
+    h+='<div class="lin'+(dif?' dif':'')+'"><span>'+esc(c)+'</span><b>'+esc(muestra(v, c))+'</b></div>';
   });
   /* Las listas que solo suman: se dice cuántas trae cada lado, porque es la
      pregunta que Joan se hace ("¿se me pierde el abono de esta mañana?"). */
@@ -1703,9 +1731,99 @@ function cara(titulo, obj, otro, tabla){
     var n=(Array.isArray(obj[nm])?obj[nm].length:0), m=(otro&&Array.isArray(otro[nm])?otro[nm].length:0);
     if(n||m) h+='<div class="lin'+(n!==m?' dif':'')+'"><span>'+esc(nm)+'</span><b>'+n+'</b></div>';
   });
+  /* 17-oct-2026, revisión — lo que de verdad está en discusión en los abonos
+     de una cuota, de este lado (cuotasEnDiscusion): contar «abonosCapital 2»
+     contra «1» no le dice a Joan cuál cobro es el bueno. */
+  (enDiscusion||[]).forEach(function(x){
+    h+='<div class="lin dif"><span>'+esc(x.k)+'</span><b>'+esc(x.v)+'</b></div>';
+  });
   return h+'</div>';
 }
-function muestra(v){
+/* 17-oct-2026, revisión — LOS PISABLES DE `abonosCapital`, LEGIBLES.
+   NUBE.fusionarFila los manda cuando una cuota del crédito a cuotas se cerró en
+   los dos aparatos, o recibió un abono después de cerrarse en el otro
+   ({mio:'Cuota 1: cierre 2026-10-30 $325000', suyo:'Cuota 1: abono 2026-11-02
+   $100000'}), y cuando una prórroga se anotó con montos distintos (lo que fue a
+   capital ese día, en pesos). Esta pantalla no los enseñaba: la tarjeta decía
+   cuántos abonos traía cada lado y Joan no veía que la misma cuota estaba
+   cobrada dos veces. `lado` es 'mio' (lo de este computador, que va primero en
+   la fusión, como en loMioEncima) o 'suyo'. */
+function cuotasEnDiscusion(tabla, mio, suyo, lado){
+  if(tabla!=='creditos' || !mio || !suyo || typeof NUBE.fusionarFila!=='function') return [];
+  var r=null;
+  try{ r=NUBE.fusionarFila(mio, suyo, NUBE.LISTAS_QUE_SUMAN); }catch(e){ r=null; }
+  return ((r&&r.pisables)||[]).filter(function(p){ return p && p.campo==='abonosCapital'; }).map(function(p){
+    var v=p[lado];
+    return typeof v==='string'
+      ? { k:'lo que entró por las cuotas', v:textoLegible(v) }
+      : { k:'a capital ese día', v:pesosCO(v) };
+  });
+}
+/* 17-oct-2026, segunda revisión — los pagos de cuotas que NO se juntan, de
+   cada lado y legibles, o null si no hay ese pisable. Es lo que dicen las dos
+   elecciones de la tarjeta: con un plan distinto en cada lado, gana el plan
+   del lado elegido y con él SUS pagos de cuotas; lo del otro lado no entra. */
+function pagosDeCuotasEnChoque(tabla, mio, suyo){
+  if(tabla!=='creditos' || !mio || !suyo || typeof NUBE.fusionarFila!=='function') return null;
+  var r=null;
+  try{ r=NUBE.fusionarFila(mio, suyo, NUBE.LISTAS_QUE_SUMAN); }catch(e){ r=null; }
+  var x=((r&&r.pisables)||[]).filter(function(p){ return p && p.campo==='abonosCapital' && typeof p.mio==='string'; })[0];
+  return x ? { mio:textoLegible(x.mio), suyo:textoLegible(x.suyo) } : null;
+}
+/* Fechas y pesos como los lee Joan: «30 oct 2026» y «$325.000». A mano y no
+   con toLocaleString, porque una fecha suelta leída como UTC sale con el día
+   anterior en Colombia. */
+var MESES_CORTOS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function fechaCorta(iso){
+  var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso||''));
+  return m ? Number(m[3])+' '+MESES_CORTOS[Number(m[2])-1]+' '+m[1] : '—';
+}
+function pesosCO(n){
+  var v=Math.round(Number(n)||0);
+  return (v<0?'-$':'$')+String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+}
+/* 17-oct-2026, segunda revisión — el pisable trae ahora lo que ENTRÓ por cada
+   cuota («Cuota 1: cierre 2026-10-30 $455000 | Cuota 2: …»): las cuotas van
+   separadas por punto y coma, y «nada» es que ese lado no anotó pagos de
+   cuotas. */
+function textoLegible(s){
+  if(String(s)==='nada') return 'ningún pago de cuotas anotado';
+  return String(s).replace(/\d{4}-\d{2}-\d{2}/g, fechaCorta)
+                  .replace(/\$(\d+)/g, function(x, n){ return pesosCO(n); })
+                  .split(' | ').join('; ');
+}
+/* El plan de cuotas en una línea: cuántas van pagadas y cuándo se pagó cada
+   una. Es lo que cambia cuando dos aparatos cobran la misma cuota.
+   17-oct-2026, segunda revisión — y cada PENDIENTE con su fecha, su % y su
+   total, más el último cambio de planPagos.cambios: una cuota reprogramada en
+   un aparato (otra fecha u otro %) y sin reprogramar en el otro se leían
+   iguales («pendiente») y Joan elegía sin ver la diferencia. */
+function resumenDelPlan(pp){
+  var cs=(pp&&Array.isArray(pp.cuotas))?pp.cuotas:[];
+  if(!cs.length) return 'sin cuotas';
+  var txt=cs.filter(function(c){ return c&&c.pagado; }).length+' de '+cs.length+' pagadas: '+
+    cs.map(function(c){
+      if(c&&c.pagado) return 'cuota '+(c.n||'?')+' pagada'+(c.fechaPagado?' el '+fechaCorta(c.fechaPagado):'');
+      return 'cuota '+((c&&c.n)||'?')+' pendiente'+
+        (c&&c.fecha?': '+fechaCorta(c.fecha):'')+
+        (c&&c.pct!=null&&c.pct!==''?' ('+c.pct+'%)':'')+
+        (c&&c.total!=null?' '+pesosCO(c.total):'');
+    }).join(' · ');
+  var cambios=(pp&&Array.isArray(pp.cambios))?pp.cambios:[];
+  var u=cambios[cambios.length-1];
+  if(u) txt+=' · último cambio'+(u.fecha?' ('+fechaCorta(u.fecha)+')':'')+': '+textoDelCambio(u);
+  return txt;
+}
+/* Un cambio de reprogramarPlan ({n, de:{fecha,pct}, a:{fecha,pct}}) en una
+   línea: solo lo que se movió. */
+function textoDelCambio(u){
+  var de=(u&&u.de)||{}, a=(u&&u.a)||{}, partes=[];
+  if(de.fecha!==a.fecha) partes.push(fechaCorta(de.fecha)+' → '+fechaCorta(a.fecha));
+  if(de.pct!==a.pct) partes.push(de.pct+'% → '+a.pct+'%');
+  return 'cuota '+((u&&u.n)||'?')+' '+(partes.join(', ')||'sin cambios');
+}
+function muestra(v, campo){
+  if(campo==='planPagos' && v!=null) return resumenDelPlan(v);
   if(v===undefined) return '—';
   if(v===null) return 'nada';
   if(typeof v==='boolean') return v?'sí':'no';

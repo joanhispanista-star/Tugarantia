@@ -460,6 +460,13 @@
   var DIAS_CORTE_FIJO = 15;        // §7 — día 15 y último del mes
   var CUOTAS_PLAN_DE_PAGOS = 3;    // §8
   var TASA_PLAN_DE_PAGOS = 0.05;   // §8 — costo fijo reducido sobre saldo insoluto
+  /* El crédito a cuotas que Joan pacta al desembolsar (16-oct-2026; ver
+     construirPlanACuotas). Seis cuotas y seis meses son el borde de lo que
+     todavía es un crédito de quincena partido en pagos: más allá ya es el
+     préstamo con garantía, que tiene sus propias reglas y su propia usura. */
+  var CUOTAS_ALTA_MIN = 2;
+  var CUOTAS_ALTA_MAX = 6;
+  var DIAS_ALTA_MAX = 186;         // la última cuota, a no más de ~6 meses del desembolso
   var TASA_MORA_DIARIA = 0.01;     // 1% diario sobre el capital (cambio 26-jul-2026)
   var DIAS_CASTIGO = 90;           // §6 — en_mora → castigado
 
@@ -1818,6 +1825,157 @@
     };
   }
 
+  /* ----------------------------------- el crédito a cuotas, pactado al alta --
+     16-oct-2026 — PEDIDO DE JOAN, con su caso: «un préstamo a cuotas de
+     650.000: paga la primera cuota el 30 de este mes, el 20% de 650.000 y la
+     mitad del capital (455.000), y los 325.000 restantes para el 15 de
+     noviembre más el 20% (390.000). Quiero poder tener la opción de un
+     registro a cuotas y que el porcentaje y las fechas de pago de cada cuota
+     lo pueda modificar yo».
+
+     La regla del costo es la del plan de pagos del §8 —cada cuota cuesta su %
+     sobre lo que se debe al empezarla— y con ella salen exactas sus cifras:
+     20% de 650.000 = 130.000 y 20% de 325.000 = 65.000. Pero es otra función
+     y no un parámetro de construirPlanDePagos, por tres diferencias: el % va
+     por cuota, las fechas las pone Joan, y no nace de una mora (no tiene
+     entrada). Aquella se queda como está: la fijan sus pruebas y la frase
+     «tres pagos» de los términos.
+
+     LAS FECHAS NO SE CORREN, y es decisión de Joan del 16-oct: una cuota que él
+     pone en domingo o festivo se queda ahí, y si el cliente paga el primer día
+     hábil le corre la mora de los días del medio (el 15-nov-2026 es domingo y
+     el 16 festivo: pagando el martes 17 son dos días). Los cortes quincenales
+     SÍ se corren (§7.1); esto es otra cosa, y este párrafo está para que nadie
+     lo «arregle». Lo que sí se hace es no callarlo: las fechas que no son
+     hábiles salen en `inhabiles`, para que la pantalla lo diga con la cifra
+     antes de guardar.
+
+     Revienta —no topa en silencio, como calcularCosto— con lo que no cuadra:
+       · un % que no sea entero de 1 al techo: el costo de cada cuota sale de
+         calcularCosto, así que hereda sus dos rejas (ni 0% ni más del 50%);
+       · una cuota de capital CERO: el recargo corre sobre el capital de la
+         cuota, y una cuota de puro costo se podría atrasar sin mora para
+         siempre;
+       · fechas que no crecen, una primera cuota el mismo día del desembolso o
+         antes, o una última a más de DIAS_ALTA_MAX días;
+       · capitales que no suman el crédito.
+     Los capitales que no vengan se reparten en partes iguales entre las
+     cuotas que no los traen, y la última de ellas se queda con el resto de la
+     división: no se pierde un peso.
+
+     @param {number} capital  el crédito entero, en pesos
+     @param {Array<{fecha, pct, capital?}>} cuotas  pct ENTERO (20 = 20%)
+     @param {object} opciones {fechaDesembolso} — obligatoria
+     @returns {object} la forma de construirPlanDePagos, más el % de cada
+       cuota, `inhabiles` y `flujo`. La efectiva anual NO se calcula aquí —el
+       motor no depende de nadie—: `flujo` es lo que necesita
+       CreditosPublicables.efectivoAnualPorFechas.
+  */
+  function construirPlanACuotas(capital, cuotas, opciones) {
+    opciones = opciones || {};
+    var total = numeroPositivo(capital, 'capital');
+    if (Math.floor(total) !== total) throw new RangeError('capital: debe ser entero (' + total + ')');
+    if (total > CUPO_MAXIMO) throw new RangeError('capital: lo máximo que se presta es ' + CUPO_MAXIMO + ', llegó ' + total);
+    if (!Array.isArray(cuotas)) throw new TypeError('cuotas: se esperaba la lista de cuotas');
+    var n = cuotas.length;
+    if (n < CUOTAS_ALTA_MIN || n > CUOTAS_ALTA_MAX) {
+      throw new RangeError('cuotas: van de ' + CUOTAS_ALTA_MIN + ' a ' + CUOTAS_ALTA_MAX + ', llegaron ' + n);
+    }
+    var desembolso = aFechaLocal(opciones.fechaDesembolso, 'fechaDesembolso');
+    var techo = Math.round(TASA_CREDITO_MAXIMA * 100);
+
+    var fechas = [], pcts = [];
+    for (var i = 0; i < n; i++) {
+      var q = cuotas[i];
+      if (!q || typeof q !== 'object') throw new TypeError('cuotas[' + i + ']: se esperaba {fecha, pct}');
+      var f = aFechaLocal(q.fecha, 'cuotas[' + i + '].fecha');
+      var antes = i === 0 ? desembolso : fechas[i - 1];
+      if (diasEntre(antes, f) < 1) {
+        throw new RangeError('cuotas[' + i + '].fecha: el ' + iso(f) + (i === 0
+          ? ' no es después del desembolso (' + iso(desembolso) + ')'
+          : ' no es después de la cuota anterior (' + iso(antes) + ')'));
+      }
+      var pct = numeroPositivo(q.pct, 'cuotas[' + i + '].pct');
+      if (Math.floor(pct) !== pct) throw new RangeError('cuotas[' + i + '].pct: el % va entero, llegó ' + pct);
+      if (pct > techo) throw new RangeError('cuotas[' + i + '].pct: el ' + techo + '% es el techo, llegó ' + pct);
+      fechas.push(f); pcts.push(pct);
+    }
+    var alUltimo = diasEntre(desembolso, fechas[n - 1]);
+    if (alUltimo > DIAS_ALTA_MAX) {
+      throw new RangeError('cuotas: la última cae a ' + alUltimo + ' días del desembolso; el tope es ' + DIAS_ALTA_MAX);
+    }
+
+    var dados = 0, faltan = [];
+    var caps = cuotas.map(function (q, i) {
+      if (q.capital == null || q.capital === '') { faltan.push(i); return null; }
+      var c = numeroPositivo(q.capital, 'cuotas[' + i + '].capital');
+      if (Math.floor(c) !== c) throw new RangeError('cuotas[' + i + '].capital: debe ser entero (' + c + ')');
+      dados += c;
+      return c;
+    });
+    var resto = total - dados;
+    if (faltan.length) {
+      var parte = Math.floor(resto / faltan.length);
+      if (parte < 1) {
+        throw new RangeError('cuotas: después de los capitales escritos (' + dados + ') no queda con qué repartir ' +
+          faltan.length + ' cuota(s) de un crédito de ' + total);
+      }
+      faltan.forEach(function (i, k) {
+        caps[i] = k === faltan.length - 1 ? resto - parte * (faltan.length - 1) : parte;
+      });
+    } else if (resto !== 0) {
+      throw new RangeError('cuotas: los capitales suman ' + dados + ' y el crédito es de ' + total);
+    }
+
+    var salida = [], saldo = total, totalCosto = 0, totalGarantia = 0, inhabiles = [], flujo = [];
+    for (var j = 0; j < n; j++) {
+      var tasa = pcts[j] / 100;
+      var costo = calcularCosto(saldo, tasa);
+      var gana = acumularGarantia(costo, true);
+      var fIso = iso(fechas[j]);
+      var habil = esDiaHabilDeCorte(fechas[j]);
+      if (!habil) {
+        inhabiles.push({ numero: j + 1, fecha: fIso, motivo: esDomingo(fechas[j]) ? 'domingo' : 'festivo',
+                         siguiente_habil: iso(siguienteDiaHabilDeCorte(fechas[j])) });
+      }
+      salida.push({
+        numero: j + 1,
+        fecha_corte: fIso,
+        pct: pcts[j],
+        tasa: tasa,
+        saldo_insoluto: saldo,
+        capital: caps[j],
+        costo: costo,
+        total: caps[j] + costo,
+        garantia_generada: gana,
+        dias_desde_anterior: diasEntre(j === 0 ? desembolso : fechas[j - 1], fechas[j]),
+        habil: habil
+      });
+      flujo.push({ fecha: fIso, total: caps[j] + costo });
+      totalCosto += costo;
+      totalGarantia += gana;
+      saldo -= caps[j];
+    }
+    var mayor = Math.max.apply(null, pcts);
+    return {
+      origen: 'alta',
+      fecha_desembolso: iso(desembolso),
+      // Decimal, como en construirPlanDePagos: el Panel lo multiplica por 100.
+      tasa_por_corte: pcts[0] / 100,
+      pct_mayor: mayor,
+      sobre_estandar: mayor > Math.round(TASA_CREDITO * 100),
+      cuotas: salida,
+      total_capital: total,
+      total_costo: totalCosto,
+      total_a_pagar: total + totalCosto,
+      total_garantia: totalGarantia,
+      genera_garantia: true,
+      dias_al_ultimo: alUltimo,
+      inhabiles: inhabiles,
+      flujo: flujo
+    };
+  }
+
   /* --------------------------------------------------------------------------
      4-ago-2026, tarde — LAS TRES PREGUNTAS DE LA PRÓRROGA, EN EL MOTOR.
 
@@ -3002,6 +3160,8 @@
     cortesSiguientes: cortesSiguientes,
     cortesNominalesDelMes: cortesNominalesDelMes,
     construirPlanDePagos: construirPlanDePagos,
+    // El crédito a cuotas pactado al desembolsar (16-oct-2026)
+    construirPlanACuotas: construirPlanACuotas,
 
     // Calendario
     festivosDelAnio: festivosDelAnio,
@@ -3046,6 +3206,9 @@
     DIAS_VENTANA_MINIMA: DIAS_VENTANA_MINIMA,
     CUOTAS_PLAN_DE_PAGOS: CUOTAS_PLAN_DE_PAGOS,
     TASA_PLAN_DE_PAGOS: TASA_PLAN_DE_PAGOS,
+    CUOTAS_ALTA_MIN: CUOTAS_ALTA_MIN,
+    CUOTAS_ALTA_MAX: CUOTAS_ALTA_MAX,
+    DIAS_ALTA_MAX: DIAS_ALTA_MAX,
     TASA_MORA_DIARIA: TASA_MORA_DIARIA,
     DIAS_CASTIGO: DIAS_CASTIGO,
     TRAMOS_MORA: TRAMOS_MORA,

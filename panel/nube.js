@@ -243,8 +243,20 @@
        es que el espejo aprenda a dar descuento en la prórroga. */
     prorrogas: ['fecha', 'ciclo'],
     abonos: ['fecha', 'monto'],
-    abonosCapital: ['fecha', 'monto'],
-    comprobantes: ['fecha', 'tipo', 'monto'],
+    /* 16-oct-2026 — LA CUOTA ENTRA EN LA IDENTIDAD. Con solo fecha+monto, dos
+       cuotas del mismo capital pagadas el mismo día —el crédito a cuotas de
+       650.000 tiene dos de 325.000, y «Pagó todo» las cierra juntas— eran UN
+       abono para fusionarListas, que deduplica también dentro de un mismo
+       lado: la primera sincronización se comía 325.000 de capital devuelto.
+       `cuotaPlan` las separa; `id` separa dos abonos parciales distintos a la
+       misma cuota el mismo día (puente.abonoACuota lo pone). Los abonos de
+       antes no traen ninguno de los dos, valen null, y su identidad no cambia. */
+    abonosCapital: ['fecha', 'monto', 'cuotaPlan', 'id'],
+    /* 16-oct-2026: `id` para el comprobante de un abono a una cuota (lleva el
+       mismo id del abono). Dos abonos iguales del mismo día son dos abonos, y
+       sus dos fotos tienen que sobrevivir; los comprobantes de antes no traen
+       id y su identidad no cambia. */
+    comprobantes: ['fecha', 'tipo', 'monto', 'id'],
     condonaciones: ['fecha', 'costo', 'mora']
   };
   var LISTAS_RESPALDADO = {
@@ -288,7 +300,12 @@
     if (v === null || typeof v !== 'object') return v;
     return JSON.parse(JSON.stringify(v));
   }
-  function igual(a, b) { return JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b); }
+  /* 16-oct-2026 — en orden canónico, por la trampa de jsonb de más abajo. Con
+     JSON.stringify a secas, un `planPagos` que volvía de la nube con las llaves
+     reordenadas salía como campo «en discusión» aunque los dos lados dijeran
+     lo mismo: todo crédito con cuotas que difiriera en cualquier otra cosa
+     terminaba en choque manual, y el choque de verdad se perdía entre falsos. */
+  function igual(a, b) { return jsonCanonico(a) === jsonCanonico(b); }
 
   /* -------------------------------------------------- JSON EN ORDEN CANÓNICO
      LA TRAMPA QUE NOS COSTÓ ESTE ARCHIVO, ESCRITA PARA QUE NO VUELVA:
@@ -1078,6 +1095,95 @@
           });
         }
       });
+    }
+
+    /* 16/17-oct-2026 — LOS ABONOS DE LAS CUOTAS VIAJAN CON SU planPagos.
+       Cobrar una cuota escribe dos hechos de una sola plata: la cuota pagada
+       dentro de `planPagos` (un campo que va entero y gana el lado que Joan
+       elija) y un abono a capital con `cuotaPlan` en una lista que suma. Si se
+       suman las listas de los dos lados pero el plan es el de uno solo, el
+       crédito queda contando plata que su plan no conoce: la misma cuota
+       cerrada en los dos aparatos dejaba el capital en cero con la cuota 2
+       viva; un cierre hecho sin conocer un abono del otro aparato devolvía más
+       capital del que la cuota tenía; un «Pagó todo» del otro lado le dejaba a
+       la cuota 2 un cierre que el plan elegido no tenía, y con eso costo cero
+       (revisiones del 16 y 17-oct). La primera versión de esta regla miraba
+       fechas («un abono anterior al cierre es historia normal») y no alcanzaba:
+       lo que decide no es la fecha, es si el cierre CONOCÍA ese abono.
+       La regla que sí cierra: cuando los dos lados traen un `planPagos`
+       distinto, los abonos de cuotas de `fila` —lo que se manda con «lo mío
+       encima»— son SOLO los de este lado, que son los que cuadran con este
+       plan; y la diferencia sale en `pisables`, en pesos, para que Joan vea qué
+       plata deja afuera según el lado que elija (si esa plata entró de verdad,
+       se vuelve a anotar). Con el MISMO plan —dos abonos parciales anotados en
+       aparatos distintos a una cuota abierta— se suman como siempre, salvo que
+       juntos devuelvan más capital o paguen más costo del que la cuota tiene. */
+    if (idAb && Array.isArray(fila.abonosCapital)) {
+      var deCuota = function (x) {
+        return !!x && typeof x === 'object' && x.cuotaPlan != null && x.cuotaPlan !== '';
+      };
+      var misAb = lista(m.abonosCapital).filter(deCuota), susAb = lista(s.abonosCapital).filter(deCuota);
+      /* Un abono de cuota es «el mismo en los dos lados» solo si coincide
+         ENTERO, no solo en su identidad: la misma cuota cerrada el mismo día por
+         355.000 en un aparato y por 455.000 en el otro tiene la misma identidad
+         (fecha, capital, cuota) y fusionarListas se quedaba con una sola cifra
+         sin decir nada (tercera revisión, 19-oct). */
+      var canonMios = {}, canonSuyos = {};
+      misAb.forEach(function (x) { canonMios[jsonCanonico(x)] = true; });
+      susAb.forEach(function (x) { canonSuyos[jsonCanonico(x)] = true; });
+      var soloMios = misAb.filter(function (x) { return !canonSuyos[jsonCanonico(x)]; });
+      var soloSuyos = susAb.filter(function (x) { return !canonMios[jsonCanonico(x)]; });
+      /* El plan es «distinto» solo si los DOS lados lo traen. Si uno no tiene
+         la llave (un crédito que nació quincenal y en el otro aparato pasó al
+         plan del §8), la fila copia el plan del otro sin preguntar —un campo que
+         solo existe allá no pisa nada—, y entonces sus abonos tienen que viajar
+         con él: quitarlos dejaba la cuota pagada con su capital debiéndose
+         (tercera revisión: 200.000 de más en la calle, contra HEAD). */
+      var planDistinto = tiene(m, 'planPagos') && tiene(s, 'planPagos') && !igual(m.planPagos, s.planPagos);
+      /* Con el MISMO plan, los dos lados le anotaron algo propio a la MISMA
+         cuota: cada reparto (mora → costo → capital) se hizo sin conocer el
+         otro, y sumarlos cobra dos veces la misma mora. */
+      var cuotasDeMi = {}, mismaCuota = false;
+      soloMios.forEach(function (x) { cuotasDeMi[texto(x.cuotaPlan)] = true; });
+      soloSuyos.forEach(function (x) { if (cuotasDeMi[texto(x.cuotaPlan)]) mismaCuota = true; });
+      var seExcede = false;
+      if (!planDistinto && soloSuyos.length) {
+        var cap = {}, cos = {};
+        fila.abonosCapital.filter(deCuota).forEach(function (x) {
+          var k = texto(x.cuotaPlan);
+          cap[k] = (cap[k] || 0) + num(x.monto);
+          cos[k] = (cos[k] || 0) + num(x.costoPagado);
+        });
+        lista(m.planPagos && m.planPagos.cuotas).forEach(function (c) {
+          var k = texto(c && c.n);
+          if ((cap[k] || 0) > num(c && c.capital) || (cos[k] || 0) > num(c && (c.costoPactado != null ? c.costoPactado : c.costo))) {
+            seExcede = true;
+          }
+        });
+      }
+      if ((planDistinto || mismaCuota || seExcede) && (soloSuyos.length || soloMios.length)) {
+        var idMios = {};
+        misAb.forEach(function (x) { idMios[jsonCanonico(x)] = true; });
+        fila.abonosCapital = fila.abonosCapital.filter(function (x) {
+          return !deCuota(x) || idMios[jsonCanonico(x)];
+        });
+        /* En la tarjeta va SOLO lo que difiere —lo que comparten los dos lados
+           se queda elija lo que elija—, en pesos que ENTRARON y agrupado por
+           cuota: es lo que Joan coteja con el cliente. Un cierre de antes del
+           16-oct no guardó lo recibido; de ese se dice lo que fue a capital, con
+           su nombre, en vez de hacerlo pasar por lo que entró. */
+        var resumir = function (l) {
+          var porCuota = {};
+          l.forEach(function (x) {
+            var k = texto(x.cuotaPlan);
+            (porCuota[k] = porCuota[k] || []).push((x.parcial ? 'abono ' : 'cierre ') + texto(x.fecha).slice(0, 10) +
+              (x.recibido != null ? ' $' + num(x.recibido) : ' (a capital $' + num(x.monto) + ')'));
+          });
+          var ks = Object.keys(porCuota).sort();
+          return ks.length ? ks.map(function (k) { return 'Cuota ' + k + ': ' + porCuota[k].join(' · '); }).join(' | ') : 'nada';
+        };
+        pisables.push({ campo: 'abonosCapital', mio: resumir(soloMios), suyo: resumir(soloSuyos) });
+      }
     }
 
     var claves = {};

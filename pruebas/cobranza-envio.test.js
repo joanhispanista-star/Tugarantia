@@ -679,7 +679,11 @@ describe('las dos pestañas nuevas (15-sep-2026)', () => {
     /* Si se sumara después, tanda.js ya se habría quedado con uno solo y el
        total sería el de ese crédito. */
     const c = trozo('function casosDeCobroHoy', 'function horarioLegalHoy');
-    assert.ok(c.indexOf('totales[k] = (totales[k] || 0) + totalCiclo(p)') > -1,
+    /* 17-oct-2026: lo de cada crédito es vencidoHoy(p) —todo lo vencido, que
+       con un crédito a cuotas pueden ser dos cuotas; sin cuotas vencidas es el
+       totalCiclo de siempre—. Lo que vigila esta prueba sigue igual: que se
+       sume por persona. */
+    assert.ok(c.indexOf('totales[k] = (totales[k] || 0) + vencidoHoy(p)') > -1,
       'no suma los créditos por persona');
     assert.ok(c.indexOf('saldo_total: totales[s.id]') > -1);
     assert.ok(c.indexOf('cuantos: cuantos[s.id]') > -1);

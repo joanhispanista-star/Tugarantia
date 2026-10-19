@@ -717,8 +717,11 @@ details[open] summary::after{content:' ↑'}
    misma cara. Al cambiar las reglas o la app, se sube esta fecha (y el número
    de CACHE en sw.js).
    8-oct-2026: el aviso de la responsable nueva (NEXECO S.A.S.) y la autorización
-   que se vuelve a pedir. El CACHE de sw.js lo sube la etapa final de esta entrega. */
-var VERSION_APP = '2026-10-08';
+   que se vuelve a pedir. El CACHE de sw.js lo sube la etapa final de esta entrega.
+   16-oct-2026: el crédito a cuotas (calendario, saldo, pagar todo antes) y el
+   historial que pintaba «$0» de los créditos pagados. El CACHE de sw.js, igual:
+   lo sube quien cierre la entrega. */
+var VERSION_APP = '2026-10-16';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -1512,7 +1515,11 @@ function vistaInicio() {
      tarjeta de abajo y el Panel decían "20 días de atraso". La pregunta la hace
      enMoraElCiclo, una sola vez y para las tres pantallas. */
   var atrasado = enMoraElCiclo(qAct);
-  var deCredito = qAct ? qAct.total_a_pagar : 0;
+  /* 17-oct-2026, revisión — la última cuota antes de que empiece su quincena
+     vale menos HOY que en su fecha. Esta cifra va con «el 15 nov», así que es
+     la de su fecha; la de hoy se dice aparte y con su porqué (cuotaEnSuFecha). */
+  var enSuFecha = S.activo ? cuotaEnSuFecha(S.activo) : null;
+  var deCredito = enSuFecha != null ? enSuFecha : (qAct ? qAct.total_a_pagar : 0);
   var deCuota = mismoCorte ? Number(cuota.total || 0) : 0;
   var aPagar = deCredito + deCuota;
 
@@ -1526,15 +1533,26 @@ function vistaInicio() {
       '<div class="cifra">' + COP(aPagar) + '</div>' +
       (deCredito && deCuota
         ? fila((cicloAct.en_plan ? 'Tu cuota ' + cicloAct.numero + ' de ' + cicloAct.cuotas +
-                                   ' del plan de pagos' : 'Tu crédito quincenal') +
-               (atrasado ? ', con el recargo' : ''), COP(deCredito)) +
+                                   (cicloAct.a_cuotas ? ' del crédito a cuotas' : ' del plan de pagos')
+                                 : 'Tu crédito quincenal') +
+               (atrasado && Number(qAct.recargo_mora) > 0 ? ', con el recargo' : ''), COP(deCredito)) +
           fila('Cuota ' + cuota.n + ' del préstamo con garantía', COP(deCuota))
         : '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
           (deCuota ? 'La cuota ' + cuota.n + ' de tu préstamo con garantía, el ' + fmtFecha(cuota.fecha) + '.'
                    : atrasado
-                     ? 'Es ' + cicloAct.nombre + ', que vencía el ' + fmtFecha(S.activo.corte) +
-                       '. Ya trae adentro el recargo de los ' + diasMora + ' días.'
-                     : 'Es ' + cicloAct.nombre + ', el ' + fmtFecha(S.activo.corte) + '.') + '</div>') +
+                     ? 'Es ' + cicloAct.nombre + ', que vencía el ' + fmtFecha(S.activo.corte) + '.' +
+                       fraseDelRecargo(qAct, cicloAct)
+                     : 'Es ' + cicloAct.nombre + ', el ' + fmtFecha(S.activo.corte) + '.' +
+                       (enSuFecha != null && vigenciaDeSaldar(S.activo).vale
+                         ? ' Si la pagas ' + (vigenciaDeSaldar(S.activo).esHoy ? 'hoy'
+                             : 'hasta el ' + fmtFecha(vigenciaDeSaldar(S.activo).hasta)) +
+                           ', son ' + COP(qAct.total_a_pagar) + ': abajo te decimos por qué.'
+                         : '')) + '</div>') +
+      /* 16-oct-2026 — la cifra de arriba es la cuota EN CURSO. Si la de después
+         también venció, esa cifra se queda corta y no se puede completar acá:
+         el paquete trae el recargo de la cuota en curso y no el de cada una. Se
+         dice cuál más venció y dónde mirarla, en vez de sumar a medias. */
+      otrasCuotasVencidas(cicloAct) +
       '<div class="sep"></div>' +
       '<div class="fila"><span class="k">Puedes pedir hasta</span>' +
         '<span class="v oro">' + esc(COP(S.cupo)) + '</span></div>' +
@@ -1734,6 +1752,37 @@ function bloquePlanDePagos() {
     'un castigo: no pierdes un peso de la garantía que llevas construida.</div></div>';
 }
 
+/* ============ LAS REGLAS DEL CRÉDITO A CUOTAS ============
+   16-oct-2026. Solo a quien tiene uno: al resto le sobraría un producto que no
+   se pide desde la app (lo pacta Joan al desembolsar). Son las cuatro decisiones
+   de Joan de ese día, dichas en pesos y en palabras —la cliente no ve
+   porcentajes—, y cada una la cumple el puente: el abono a una cuota
+   (abonoACuota), pagar todo antes (liquidarSaldoPlan), la fecha que no se corre
+   y la cuota que no se prorroga. */
+function bloqueCreditoACuotas() {
+  var suyo = null;
+  ((S && S.creditos) || []).forEach(function (c) { if (!suyo && c && c.plan_origen === 'alta') suyo = c; });
+  if (!suyo) return '';
+  return '<div class="card"><div class="etq">Crédito a cuotas</div>' +
+    '<p style="margin:var(--e2) 0 0;font-size:14.5px">Se paga por partes: cada cuota tiene su fecha y su ' +
+    'valor en pesos, con su parte del capital y su costo, y quedan acordadas el día del desembolso. ' +
+    'En <b>Inicio</b> las ves todas, con lo que ya pagaste.</p>' +
+    fila('Pagando cada cuota en su fecha', 'sin recargo') +
+    '<div class="muted" style="font-size:13px;margin-top:var(--e2)">Desde el día siguiente a la fecha corre un ' +
+    'recargo por cada día, solo sobre el capital de esa cuota que te falte. Si la fecha cae en domingo o ' +
+    'festivo no se corre: paga antes.</div>' +
+    '<div class="aviso" style="margin-top:var(--e3)"><b>No se prorroga, pero se puede abonar.</b><br>' +
+    'Si no te alcanza, escríbenos y abona lo que tengas: va primero al recargo, después al costo y después ' +
+    'al capital, y lo que falte sigue en esa misma cuota.</div>' +
+    '<div class="aviso info"><b>Si quieres pagar todo antes</b>, pagas el capital que te falta y el costo de ' +
+    'las cuotas que ya empezaron a correr, más el recargo si lo hay. El costo de las que todavía no ' +
+    'empiezan no se cobra. La primera cuota empieza a correr el día del desembolso, y cada una de las ' +
+    'siguientes, el día después de la fecha de la anterior.</div>' +
+    '<div class="muted" style="font-size:13px;margin-top:var(--e3)">El costo que pagas te suma garantía: ' +
+    centavosDeGarantia() + ' centavos de cada peso, como en cualquier crédito.' +
+    (recargoSumaEn(suyo) ? '' : ' El recargo, si te atrasas, no suma.') + '</div></div>';
+}
+
 /* Las reglas salen del motor, no de un texto suelto: si algún día cambia un
    número, esta pantalla cambia sola. No puede quedar prometiendo otra cosa. */
 function verReglas() {
@@ -1813,6 +1862,7 @@ function verReglas() {
      5%, y el precio completo tiene que leerse en el mismo tirón, no dos
      pantallas más allá. */
   h += bloquePlanDePagos();
+  h += bloqueCreditoACuotas();
 
   h += '<button class="btn sec" style="margin-top:var(--e3)" onclick="irA(\'inicio\')">Volver</button>';
   $('cuerpo').innerHTML = '<div class="panel">' + h + '</div>';
@@ -1873,8 +1923,42 @@ function cicloDelCredito(c) {
   var pagas = Math.max(0, Math.round(Number(c && c.plan_cuotas_pagadas) || 0));
   var enPlan = total > 0;
   var n = enPlan ? Math.min(total, pagas + 1) : 0;
+  /* 16-oct-2026 — EL CRÉDITO QUE NACE A CUOTAS NO ES UN PLAN DE PAGOS.
+     En esta app «plan de pagos» quiere decir «se te acabaron las prórrogas y
+     pagaste una entrada» (el rescate del §8). Un crédito que Joan pacta a
+     cuotas el día del desembolso no es eso, y con esos textos la app le decía
+     a la cliente que ya había pagado una entrada que nunca existió. El puente
+     manda la diferencia en `plan_origen` ('alta' | 'rescate'); un paquete viejo
+     no la trae, y entonces se queda con los textos del rescate, que eran los
+     únicos que había. Con él viajan el calendario en pesos (`plan`), lo que
+     falta si sigue el calendario (`saldo_plan`) y lo que pagaría saldándolo
+     hoy (`saldar_hoy`): la app no rehace ninguna de las tres cuentas. */
+  var origen = (c && (c.plan_origen === 'alta' || c.plan_origen === 'rescate')) ? c.plan_origen : null;
+  var aCuotas = enPlan && origen === 'alta';
   return {
     en_plan: enPlan,
+    a_cuotas: aCuotas,
+    plan_origen: origen,
+    plan: (c && Array.isArray(c.plan)) ? c.plan : [],
+    saldo_plan: Math.max(0, Math.round(Number(c && c.saldo_plan) || 0)),
+    saldar_hoy: (c && c.saldar_hoy != null && isFinite(Number(c.saldar_hoy)))
+      ? Math.max(0, Math.round(Number(c.saldar_hoy))) : null,
+    /* 17-oct-2026, revisión — hasta qué día vale `saldar_hoy` (saldarValeHasta
+       en el puente) y, si la cuota en curso todavía no empieza, lo que vale en
+       su fecha. La app pintaba «hasta el 15-nov» una cifra que cambiaba el
+       31-oct, porque deducía la vigencia del corte de la cuota. */
+    saldar_hasta: (c && /^\d{4}-\d{2}-\d{2}/.test(String(c.saldar_hasta || '')))
+      ? String(c.saldar_hasta).slice(0, 10) : null,
+    cuota_en_su_fecha: (c && c.cuota_en_su_fecha != null && isFinite(Number(c.cuota_en_su_fecha)))
+      ? Math.max(0, Math.round(Number(c.cuota_en_su_fecha))) : null,
+    /* 17-oct-2026, segunda revisión — si la quincena de la cuota en curso
+       todavía no empieza, el día en que empieza (`cuota_empieza`), y si es la
+       última que falta (`cuota_es_la_ultima`). Los dos los dice el puente: una
+       cuota del MEDIO no se cierra antes de ese día, y la app no puede
+       deducirlo de las fechas del calendario. Un paquete viejo no los trae. */
+    cuota_empieza: (c && /^\d{4}-\d{2}-\d{2}/.test(String(c.cuota_empieza || '')))
+      ? String(c.cuota_empieza).slice(0, 10) : null,
+    cuota_es_la_ultima: (c && typeof c.cuota_es_la_ultima === 'boolean') ? c.cuota_es_la_ultima : null,
     numero: n,
     cuotas: total,
     /* El porcentaje del producto que DE VERDAD rige. Si el paquete trae la tasa
@@ -1887,7 +1971,7 @@ function cicloDelCredito(c) {
     tasa: tasaDecimal((c && c.tasa != null) ? c.tasa
         : (enPlan ? M.TASA_PLAN_DE_PAGOS : M.TASA_CREDITO)),
     etiqueta_capital: enPlan ? 'Capital de la cuota ' + n + ' de ' + total : 'Capital',
-    nombre: enPlan ? 'la cuota ' + n + ' de ' + total + ' de tu plan de pagos'
+    nombre: enPlan ? 'la cuota ' + n + ' de ' + total + (aCuotas ? ' de tu crédito a cuotas' : ' de tu plan de pagos')
                    : 'tu crédito quincenal'
   };
 }
@@ -1938,6 +2022,16 @@ function liquidacion(c, fecha) {
   var cuando = fecha || hoy;
   var capital = Math.max(0, Number(c && c.capital) || 0);
   var costo = Math.max(0, Number(c && c.costo) || 0);
+  /* 17-oct-2026 — la última cuota de un crédito a cuotas, antes de que empiece
+     su quincena, viaja con costo 0 (pagarla ese día es pagar todo, y esa
+     quincena no se cobra) y esa cifra vale solo hasta `saldar_hasta`. Un
+     paquete de ese día abierto después —sin señal— liquidaba con el costo de
+     ese día y le decía al cliente 65.000 de menos. Pasada esa fecha, el costo
+     es el de la cuota en su fecha, que el puente manda hecho
+     (`costo_en_su_fecha`): acá no se calcula, solo se elige. */
+  var pasoSuQuincena = !!(c && c.costo_en_su_fecha != null && /^\d{4}-\d{2}-\d{2}/.test(String(c.saldar_hasta || '')) &&
+                          cuando > String(c.saldar_hasta).slice(0, 10));
+  if (pasoSuQuincena) costo = Math.max(0, Number(c.costo_en_su_fecha) || 0);
   var corte = (c && /^\d{4}-\d{2}-\d{2}/.test(String(c.corte || ''))) ? String(c.corte).slice(0, 10) : null;
   var dias = corte ? Math.max(0, M.diasDeMora(corte, cuando)) : 0;
 
@@ -1975,7 +2069,7 @@ function liquidacion(c, fecha) {
 
   /* HOY, y con el paquete al día: se muestra lo que trae, sin tocarlo. Es la
      única forma de que la app y el Panel no puedan decir dos cifras. */
-  if (cs && cuando === hoy && dias === diasCausados && c.total_hoy != null) {
+  if (cs && cuando === hoy && dias === diasCausados && c.total_hoy != null && !pasoSuQuincena) {
     return { capital: capital, costo: costo,
              recargo_mora: moraCausada,
              dias_mora: diasCausados,
@@ -2045,6 +2139,102 @@ function enMoraElCiclo(q) {
   return !!q && Math.max(0, Number(q.dias_mora) || 0) > 0;
 }
 
+/* ============ EL CRÉDITO A CUOTAS: TRES PREGUNTAS DE UNA SOLA FUENTE ============
+   17-oct-2026, revisión — la regla de Joan, dicha en general por el puente: el
+   costo de cada cuota es su % sobre lo que se debe CUANDO EMPIEZA SU QUINCENA
+   (la de la cuota 1 con el desembolso; la de cada siguiente, el día después de
+   la fecha de la anterior). Con eso, el 30-oct, recién pagada la cuota 1, la
+   cuota 2 cuesta 325.000 si se paga ESE día y 390.000 desde el 31. La app decía
+   «Total de esta cuota $325.000» con «Fecha de pago 15 nov»: una cifra que el
+   15-nov ya no es verdad. Inicio, la tarjeta, el bloque de las cuotas y el
+   recordatorio preguntan acá, para no volver a contestar distinto. */
+
+/* La cuota que corre: la primera sin pagar del calendario del paquete. */
+function cuotaEnCurso(ciclo) {
+  return (ciclo && ciclo.a_cuotas) ? ciclo.plan.filter(function (x) { return x && !x.pagado; })[0] || null : null;
+}
+/* Lo que vale la cuota en curso EN SU FECHA, cuando eso es más que lo de hoy:
+   solo pasa si su quincena todavía no empieza y es la última (pagarla antes es
+   pagar todo antes, y ese costo no se cobra). El número lo trae el puente
+   (`cuota_en_su_fecha`); acá solo se decide si hay que decir dos cifras. */
+function cuotaEnSuFecha(c) {
+  var ciclo = cicloDelCredito(c);
+  if (!ciclo.a_cuotas || ciclo.cuota_en_su_fecha == null) return null;
+  /* Un paquete viejo abierto después de la fecha de la cuota: ese valor ya no
+     es el de hoy (corre recargo) y la app no puede rehacerlo. */
+  var corte = String((c && c.corte) || '').slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(corte) && corte < hoyISO()) return null;
+  return ciclo.cuota_en_su_fecha > Math.max(0, Math.round(Number(c && c.total_hoy) || 0))
+    ? ciclo.cuota_en_su_fecha : null;
+}
+/* 17-oct-2026, segunda revisión — UNA CUOTA DEL MEDIO QUE TODAVÍA NO EMPIEZA.
+   900.000 en tres cuotas de 300.000 (30-oct, 15-nov, 30-nov), con la 1 pagada
+   el 20-oct: el 25-oct la app decía «pagando el 15 nov o antes, tu cupo sube
+   $96.000», y si la cliente llegaba el 26-oct con la cuota, Joan no podía
+   cerrarla (cierreDeCuota lo niega: lo que cuesta depende de cuánto siga
+   debiendo cuando empiece su quincena). Devuelve el día en que empieza su
+   quincena si hoy todavía no empezó, y null si no aplica: la última cuota tiene
+   su propio texto (pagarla antes es pagar todo), y un paquete viejo abierto ese
+   día o después ya no la tiene sin empezar. */
+function cuotaDelMedioSinEmpezar(c) {
+  var ciclo = cicloDelCredito(c);
+  if (!ciclo.a_cuotas || !ciclo.cuota_empieza || ciclo.cuota_es_la_ultima !== false) return null;
+  return ciclo.cuota_empieza > hoyISO() ? ciclo.cuota_empieza : null;
+}
+/* Lo que se le dice de esa cuota, en la tarjeta y en el recordatorio: cuándo
+   se paga y qué hacer si quiere adelantar. La garantía va solo si su costo
+   todavía no está abonado (con costo cero no hay nada que ganar). */
+function textoDeCuotaDelMedio(c, q, empieza) {
+  return 'Esta cuota se paga desde el ' + fmtFecha(empieza) + ' hasta el ' + fmtFecha(c.corte) +
+    ': pagándola en esos días no pagas recargo' +
+    (Number(q && q.costo) > 0 ? ' y tu cupo sube ' + COP(q.garantia_si_puntual) : '') +
+    '. Si quieres adelantar antes, escríbenos: lo que abones va a capital y baja su costo.';
+}
+/* 17-oct-2026, segunda revisión — lo que la cifra de Inicio trae de recargo.
+   Decía «Ya trae adentro el recargo de los 6 días» con el recargo en cero (un
+   abono de ese día ya lo había pagado), y con abonos no decía cuánto faltaba.
+   La cifra y los días salen de la liquidación del puente; el abono, del
+   calendario del paquete. */
+function fraseDelRecargo(q, ciclo) {
+  var rec = Math.max(0, Math.round(Number(q && q.recargo_mora) || 0));
+  var dias = Math.max(0, Number(q && q.dias_mora) || 0);
+  var enCurso = cuotaEnCurso(ciclo);
+  var abonado = enCurso ? Math.max(0, Math.round(Number(enCurso.abonado) || 0)) : 0;
+  if (rec <= 0) return ' Hoy no trae recargo pendiente.';
+  if (abonado > 0) {
+    return ' Ya trae adentro lo que falta del recargo: ' + COP(rec) + ' (' + dias + ' día' +
+      (dias !== 1 ? 's' : '') + ' de atraso).';
+  }
+  return ' Ya trae adentro el recargo de ' + (dias === 1 ? 'un día' : 'los ' + dias + ' días') + '.';
+}
+/* ¿La cuota en curso es la única que falta? Con una sola pendiente, pagarla
+   es pagar todo el crédito. */
+function esLaUltimaCuota(ciclo) {
+  return !!ciclo && ciclo.a_cuotas && ciclo.plan.filter(function (x) { return x && !x.pagado; }).length === 1;
+}
+/* ¿Hasta qué día vale el «pagar todo» del paquete? Lo dice el puente
+   (`saldar_hasta`): mientras la cuota en curso no empieza, hasta la víspera
+   de su quincena; empezada y sin vencer, hasta su fecha; vencida, solo el día
+   del paquete. Vale de ese día hasta `hasta`, así que alcanza con compararlo con
+   hoy. Un paquete de antes del 17-oct no lo trae: entonces vale solo el día en
+   que se armó, que es lo único seguro. */
+function vigenciaDeSaldar(c) {
+  var hoy = hoyISO();
+  var hasta = cicloDelCredito(c).saldar_hasta || diaDelPaquete();
+  return { hasta: hasta, vale: !!hasta && hasta >= hoy, esHoy: hasta === hoy };
+}
+/* El día en que se armó el paquete, en la hora del teléfono. Sin sello es un
+   paquete armado en este aparato ahora mismo (el que sale del Panel). Un sello
+   ilegible no da fecha: mejor «escríbenos» que una cifra de otro día. */
+function diaDelPaquete() {
+  var a = S && S.actualizado;
+  if (!a) return hoyISO();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(a))) return String(a);
+  var d = new Date(a);
+  if (isNaN(d.getTime())) return null;
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 function tarjetaActivo(c) {
   var ciclo = cicloDelCredito(c);
   var q = liquidacion(c);            // capital, costo, recargo y total: del puente
@@ -2057,8 +2247,22 @@ function tarjetaActivo(c) {
      diasDeMora lanza con una fecha vacía y esto se pinta antes que nada. */
   var faltan = /^\d{4}-\d{2}-\d{2}/.test(String(c.corte || ''))
     ? M.diasDeMora(String(c.corte).slice(0, 10), hoyISO()) : 0;
+  /* 16-oct-2026 — una cuota con abonos: el puente ya descuenta lo abonado y lo
+     que viaja es lo que FALTA de cada parte. Rotulado como «Costo» a secas, un
+     costo de 49.500 al lado de una cuota pactada con 130.000 parecía un error
+     (o un descuento); y «Recargo $0» con 6 días de atraso, un regalo. Se dice
+     lo que es: lo que falta, y cuánto ya abonó. */
+  var enCurso = cuotaEnCurso(ciclo);
+  var abonado = enCurso ? Math.max(0, Math.round(Number(enCurso.abonado) || 0)) : 0;
+  /* 17-oct-2026, revisión — la última cuota antes de su quincena: la tarjeta
+     va con lo que vale en su fecha, y lo de hoy se dice aparte (ver abajo). */
+  var enSuFecha = enMora ? null : cuotaEnSuFecha(c);
+  var rotCapital = abonado ? 'Lo que falta del capital de la cuota ' + ciclo.numero : ciclo.etiqueta_capital;
+  var rotCosto = abonado ? 'Lo que falta del costo' : 'Costo';
+  var filaAbonado = abonado ? fila('Ya abonaste a esta cuota', COP(abonado)) : '';
   var h = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center">' +
-    '<div class="etq">' + (ciclo.en_plan ? 'Tu plan de pagos · cuota ' + ciclo.numero + ' de ' + ciclo.cuotas
+    '<div class="etq">' + (ciclo.a_cuotas ? 'Tu crédito a cuotas · cuota ' + ciclo.numero + ' de ' + ciclo.cuotas
+                         : ciclo.en_plan ? 'Tu plan de pagos · cuota ' + ciclo.numero + ' de ' + ciclo.cuotas
                                          : 'Tu crédito de ahora') + '</div>' +
     '<span class="pill ' + (enMora ? 'ambar' : '') + '">' +
     (enMora ? q.dias_mora + ' día' + (q.dias_mora !== 1 ? 's' : '') + ' de atraso' :
@@ -2072,19 +2276,54 @@ function tarjetaActivo(c) {
        color propio: explica, no compite. */
     h += '<div class="muted" style="font-size:13px;margin-top:var(--e2)">' +
       'De qué está hecho lo que tienes que pagar hoy:</div>' +
-      fila(ciclo.etiqueta_capital, COP(q.capital)) +
-      fila('Costo', COP(q.costo)) +
-      fila('Recargo por los ' + q.dias_mora + ' días', COP(q.recargo_mora)) +
-      '<div class="fila"><span class="k">Total para saldar hoy</span>' +
+      filaAbonado +
+      fila(rotCapital, COP(q.capital)) +
+      fila(rotCosto, COP(q.costo)) +
+      fila((abonado ? 'Lo que falta del recargo de los ' : 'Recargo por los ') + q.dias_mora + ' días',
+           COP(q.recargo_mora)) +
+      /* 16-oct-2026 — con cuotas, esto es lo de UNA cuota y no salda nada: con
+         «Total para saldar» la cliente de 650.000 a dos cuotas leía 455.000 y
+         creía que con eso terminaba. Vale para el rescate y para el crédito a
+         cuotas por igual. */
+      '<div class="fila"><span class="k">' + (abonado ? 'Lo que falta de esta cuota hoy' : ciclo.en_plan ? 'Total de esta cuota hoy' : 'Total para saldar hoy') + '</span>' +
         '<span class="v"><b>' + esc(COP(q.total_a_pagar)) + '</b></span></div>' +
       '<div class="aviso ambar"><b>Aunque te atrases, sigues siendo socio.</b><br>' +
       'No pierdes garantía y puedes volver a pedir. Paga lo que puedas ' +
       'cuando puedas: todo lo que pagues sigue sumando a tu cupo.</div>';
+  } else if (enSuFecha != null) {
+    /* 17-oct-2026, revisión — LA ÚLTIMA CUOTA ANTES DE QUE EMPIECE SU QUINCENA.
+       Recién pagada la cuota 1 el 30-oct, cerrar la 2 ese mismo día cuesta
+       325.000 (su quincena empieza el 31 y antes no hay costo), pero el 15-nov
+       vale 390.000. Esta tarjeta decía «Total de esta cuota $325.000» al lado
+       de «Fecha de pago 15 nov»: la cliente esperaba al 15 con 325.000 y le
+       faltaban 65.000. Ahora la cifra grande es la de su fecha y la de hoy va
+       aparte, con su porqué y hasta cuándo vale.
+       No hay fila de costo: el paquete trae el valor de la cuota en su fecha y
+       no su costo por separado, y sacarlo restando sería una cuenta de plata
+       hecha en el teléfono. Tampoco se dicen pesos de garantía: la liquidación
+       de hoy la calcula con el costo de hoy, que es cero. */
+    var vig = vigenciaDeSaldar(c);
+    h += '<div class="cifra sm">' + COP(enSuFecha) + '</div>' +
+      '<div class="muted" style="font-size:13px">' + (abonado ? 'Lo que falta de esta cuota' : 'Total de esta cuota') +
+        ' el ' + esc(fmtFecha(c.corte)) + '</div>' +
+      filaAbonado +
+      fila(rotCapital, COP(q.capital)) +
+      fila('Fecha de pago', fmtFecha(c.corte)) +
+      (vig.vale
+        ? '<div class="aviso"><b>Si la pagas ' + (vig.esHoy ? 'hoy' : 'hasta el ' + esc(fmtFecha(vig.hasta))) +
+          ', son ' + esc(COP(q.total_a_pagar)) + '.</b><br>Su quincena empieza el día después del ' +
+          esc(fmtFecha(vig.hasta)) + ', y antes de eso su costo no se cobra.' +
+          (esLaUltimaCuota(ciclo) ? ' Es tu última cuota: pagarla antes es pagar todo el crédito.' : '') + '</div>'
+        : '') +
+      '<div class="aviso">Pagando el ' + esc(fmtFecha(c.corte)) + ' o antes no pagas recargo, y el costo de ' +
+        'esta cuota te suma garantía. Desde el día siguiente corre un recargo por cada día sobre el capital ' +
+        'que te falte' + (recargoSumaEn(c) ? '.' : ', y ese recargo no te suma garantía.') + '</div>';
   } else {
     h += '<div class="cifra sm">' + COP(q.total_a_pagar) + '</div>' +
-      '<div class="muted" style="font-size:13px">Total para saldar</div>' +
-      fila(ciclo.etiqueta_capital, COP(q.capital)) +
-      fila('Costo', COP(q.costo)) +
+      '<div class="muted" style="font-size:13px">' + (abonado ? 'Lo que falta de esta cuota' : ciclo.en_plan ? 'Total de esta cuota' : 'Total para saldar') + '</div>' +
+      filaAbonado +
+      fila(rotCapital, COP(q.capital)) +
+      fila(rotCosto, COP(q.costo)) +
       fila('Fecha de pago', fmtFecha(c.corte)) +
       /* 5-ago-2026 §4-bis — acá decía "si pagas en fecha, sumas el doble", y
          para el crédito que ya se atrasó una vez eso dejó de ser verdad: ese
@@ -2102,16 +2341,31 @@ function tarjetaActivo(c) {
          único que separa pagar en fecha de pagar tarde es el recargo, que no se
          vuelve garantía. Las dos cifras siguen saliendo de la liquidación. */
       '<div class="aviso"><b>Pagar en fecha te sale más barato.</b><br>' +
-        'Pagando el ' + fmtFecha(c.corte) + ' o antes, tu cupo sube ' + COP(q.garantia_si_puntual) +
+        /* 17-oct-2026, segunda revisión — una cuota del medio cuya quincena no
+           empieza no se paga «el 15 nov o antes»: antes de que empiece no se
+           puede cerrar. Se dice desde cuándo y hasta cuándo, y que adelantar
+           es un abono a capital. */
+        (cuotaDelMedioSinEmpezar(c)
+          ? textoDeCuotaDelMedio(c, q, cuotaDelMedioSinEmpezar(c)) + '</div>'
+        /* 16-oct-2026 — si el costo de la cuota ya entró en abonos, la garantía
+           ya se le sumó con ellos y esto decía «tu cupo sube $0»: lo único que
+           le queda por ganar o perder es el recargo. */
+        : abonado && !(Number(q.costo) > 0)
+          ? 'El costo de esta cuota ya lo abonaste. Pagando lo que falta el ' + fmtFecha(c.corte) +
+            ' o antes no pagas recargo; desde el día siguiente corre uno por cada día sobre el capital ' +
+            'que te falte.</div>'
+          : 'Pagando el ' + fmtFecha(c.corte) + ' o antes, tu cupo sube ' + COP(q.garantia_si_puntual) +
         (recargoSumaEn(c)
           /* Crédito de antes del 27-sep: su recargo todavía suma una parte, así
              que no se le promete una cifra «si te atrasas» que no la cuenta. */
           ? '. Si te atrasas pagas además un recargo por cada día, que cuesta mucho más de lo ' +
             'que te suma.</div>'
           : '. Si te atrasas sube ' + COP(q.garantia_si_tarde) + ', pero pagas además un recargo por ' +
-            'cada día, y ese recargo no te suma garantía.</div>');
+            'cada día, y ese recargo no te suma garantía.</div>'));
   }
-  if (ciclo.en_plan) {
+  if (ciclo.a_cuotas) {
+    h += bloqueACuotas(c, ciclo, q);
+  } else if (ciclo.en_plan) {
     /* La cuota NO es la deuda: el saldo del crédito entero viene aparte en el
        paquete y se dice, para que nadie crea que con esta cuota terminó. */
     h += (c.saldo_capital != null ? fila('Te falta del crédito', COP(c.saldo_capital)) : '') +
@@ -2125,8 +2379,146 @@ function tarjetaActivo(c) {
        /* El corte ya pasado no admite un "dos días antes": el recordatorio que
           se arma es de hoy, y acá se dice lo mismo que va a hacer. */
        (enMora ? 'Te lo pone en el calendario de hoy, con el total de hoy.'
-               : 'Te avisa dos días antes y el mismo día, aunque no tengas la app abierta.') + '</div>';
+               : (ciclo.en_plan ? 'Es para esta cuota: te avisa' : 'Te avisa') +
+                 ' dos días antes y el mismo día, aunque no tengas la app abierta.') + '</div>';
   return h + '</div>';
+}
+
+/* ============ EL CRÉDITO A CUOTAS, ENTERO Y EN PESOS ============
+   16-oct-2026. El caso que lo trajo: 650.000 en dos cuotas, 455.000 el 30-oct
+   y 390.000 el 15-nov. La app mostraba solo la primera, bajo «Total para
+   saldar», y le decía a la cliente que ya había pagado una entrada y que «las
+   de más adelante cuestan menos» —falso si Joan le pone a una posterior un
+   costo más alto—. Lo que ve ahora es lo que pactó: cada cuota con su fecha y
+   su valor, lo que ya pagó o abonó, cuánto le queda en total y cuánto pagaría
+   si salda todo de una vez. Todo viene HECHO en el paquete (plan, saldo_plan,
+   saldar_hoy, saldar_hasta, cuota_en_su_fecha, del puente); esta función solo
+   lo pinta y no hace una cuenta de plata propia: lo único que junta es lo que
+   el puente ya dijo por cuota (lo que falta y su recargo de hoy) cuando hay dos
+   vencidas (17-oct-2026). Nunca un porcentaje: la cliente ve pesos y fechas. */
+function bloqueACuotas(c, ciclo, q) {
+  var hoy = hoyISO();
+  var corte = /^\d{4}-\d{2}-\d{2}/.test(String(c.corte || '')) ? String(c.corte).slice(0, 10) : null;
+  /* El recargo de hoy es el de la cuota en curso: el mismo que ya va en el
+     desglose de arriba, de la misma liquidación. */
+  var mora = Math.max(0, Math.round(Number(q && q.recargo_mora) || 0));
+  var vencidas = 0, noHabil = false;
+  var filas = ciclo.plan.map(function (x) {
+    var f = /^\d{4}-\d{2}-\d{2}/.test(String((x && x.fecha) || '')) ? String(x.fecha).slice(0, 10) : '';
+    var abonado = Math.max(0, Math.round(Number(x.abonado) || 0));
+    var falta = Math.max(0, Math.round(Number(x.falta) || 0));
+    var vencio = !x.pagado && !!f && f < hoy;
+    if (vencio) vencidas++;
+    var dia = diaNoHabil(f);
+    if (dia && !x.pagado) noHabil = true;
+    var estado = x.pagado ? 'pagada'
+      : abonado > 0 ? (vencio ? 'vencida · ' : '') + 'abonaste ' + COP(abonado) + ', te faltan ' + COP(falta)
+      : (vencio ? 'vencida' : 'pendiente');
+    return '<div class="fila"><span class="k">Cuota ' + esc(String(x.n)) + ' · ' + esc(fmtFecha(f)) +
+      (dia ? ' (' + dia + ')' : '') + '<br><span style="font-size:12.5px">' + esc(estado) + '</span></span>' +
+      '<span class="v">' + esc(COP(x.total)) + '</span></div>';
+  }).join('');
+
+  var h = '<div class="sep"></div><div class="etq">Tus cuotas</div>' + filas;
+  if (mora > 0) {
+    h += '<div class="muted" style="font-size:12.5px">El valor de cada cuota es el pactado: el recargo ' +
+      'por atraso va aparte.</div>';
+  }
+  if (noHabil) {
+    /* Decisión de Joan del 16-oct: la fecha que él pone se respeta aunque caiga
+       domingo o festivo, no se corre. Así que se le dice a la cliente lo único
+       que le sirve: que pague antes, porque desde el día siguiente hay recargo. */
+    h += '<div class="muted" style="font-size:12.5px">Si una fecha cae en domingo o festivo no se corre: ' +
+      'si ese día no puedes, paga antes, porque desde el día siguiente corre el recargo.</div>';
+  }
+
+  /* Lo que le queda. Con una sola cuota vencida, su recargo es el de arriba y la
+     cifra es exacta. Con dos o más, cada una lleva el suyo.
+     17-oct-2026, revisión — el paquete ya trae la mora de HOY de cada cuota
+     (`plan[].mora`), así que con dos vencidas el total va CON los recargos: lo
+     que falta de cada cuota más su recargo, todo dicho por el puente. Antes se
+     daba «sin los recargos» y la cliente leía 845.000 de una deuda de 929.500.
+     Esa mora es la del día del paquete: si el paquete es de otro día (los días
+     de atraso no cuadran con los de hoy), se sigue diciendo sin recargos y que
+     nos escriba, porque la app no puede rehacer el recargo de cada cuota. */
+  var diasHoy = corte ? Math.max(0, M.diasDeMora(corte, hoy)) : 0;
+  var paqueteDeHoy = Math.max(0, Number(c.dias_mora) || 0) === diasHoy;
+  var teQueda = null;
+  if (vencidas > 1 && paqueteDeHoy) {
+    teQueda = ciclo.plan.reduce(function (t, x) {
+      return (!x || x.pagado) ? t
+        : t + Math.max(0, Math.round(Number(x.falta) || 0)) + Math.max(0, Math.round(Number(x.mora) || 0));
+    }, 0);
+    h += '<div class="fila"><span class="k">Te queda por pagar en total, con los recargos de hoy</span>' +
+      '<span class="v"><b>' + esc(COP(teQueda)) + '</b></span></div>' +
+      '<div class="aviso ambar">Tienes ' + vencidas + ' cuotas vencidas y cada una lleva su recargo por ' +
+      'los días de atraso: este total ya los trae, y sube cada día.</div>';
+  } else if (vencidas > 1) {
+    h += fila('Te queda por pagar, sin los recargos', COP(ciclo.saldo_plan)) +
+      '<div class="aviso ambar">Tienes ' + vencidas + ' cuotas vencidas y cada una lleva su recargo por ' +
+      'los días de atraso. Escríbenos y te decimos el total con la cuenta de hoy.</div>';
+  } else {
+    teQueda = ciclo.saldo_plan + mora;
+    h += '<div class="fila"><span class="k">Te queda por pagar en total' + (mora > 0 ? ', con el recargo de hoy' : '') +
+      '</span><span class="v"><b>' + esc(COP(teQueda)) + '</b></span></div>';
+  }
+
+  /* PAGAR TODO DE UNA VEZ. El valor es el del día en que se armó el paquete, y
+     se dice hasta cuándo vale.
+     17-oct-2026, revisión — ese «hasta» lo dice el puente (`saldar_hasta`), no
+     el corte de la cuota: recién pagada la cuota 1 el 30-oct, pagar todo son
+     325.000 SOLO ese día (el 31 empieza la quincena de la 2 y ya son 390.000),
+     y la app decía «o cualquier día hasta el 15 nov». Si el paquete es de un
+     día anterior y ese «hasta» ya pasó, la cifra no se muestra.
+     Se compara con la cifra con la que se presenta la cuota (la de su fecha,
+     si es la última antes de su quincena): si son la misma, no hay nada nuevo
+     que decir. */
+  var saldar = ciclo.saldar_hoy;
+  var enSuFecha = cuotaEnSuFecha(c);
+  var cuotaPresentada = enSuFecha != null ? enSuFecha : Math.round(Number(q && q.total_a_pagar) || 0);
+  if (saldar != null && saldar > 0 && saldar !== cuotaPresentada) {
+    var vig = vigenciaDeSaldar(c);
+    if (vig.vale) {
+      h += fila(vig.esHoy ? 'Si quieres pagar todo hoy'
+                          : 'Si quieres pagar todo hoy, o cualquier día hasta el ' + fmtFecha(vig.hasta), COP(saldar));
+    } else {
+      saldar = null;
+      h += '<div class="muted" style="font-size:13px">Si quieres pagar todo de una vez, escríbenos: ' +
+        (diasHoy > 0 ? 'con el recargo ese valor cambia cada día'
+                     : 'ese valor cambió' + (vig.hasta ? ' después del ' + fmtFecha(vig.hasta) : '')) +
+        ' y te lo decimos con la cuenta de hoy.</div>';
+    }
+    if (saldar != null && teQueda != null && saldar < teQueda) {
+      h += '<div class="muted" style="font-size:13px">Es menos porque, si pagas todo antes, pagas el capital ' +
+        'que te falta, el costo de las cuotas que ya empezaron a correr y el recargo si lo hay. El costo de ' +
+        'las cuotas que todavía no empiezan no se cobra.</div>';
+    }
+  }
+  return h + '<div class="aviso info">' + fraseSalidas(c) + '</div>';
+}
+/* Las cuotas vencidas DESPUÉS de la que está en curso (la en curso ya va en la
+   cifra de Inicio), dichas por su número y su valor pactado. */
+function otrasCuotasVencidas(ciclo) {
+  if (!ciclo || !ciclo.a_cuotas) return '';
+  var hoy = hoyISO();
+  var otras = ciclo.plan.filter(function (x) {
+    var f = String((x && x.fecha) || '').slice(0, 10);
+    return x && !x.pagado && /^\d{4}-\d{2}-\d{2}$/.test(f) && f < hoy;
+  }).slice(1);
+  if (!otras.length) return '';
+  return '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">También ' +
+    (otras.length === 1 ? 'venció la cuota ' : 'vencieron las cuotas ') +
+    otras.map(function (x) {
+      return esc(String(x.n)) + ' (' + (Number(x.abonado) > 0 ? 'te faltan ' + esc(COP(x.falta)) : esc(COP(x.total))) + ')';
+    }).join(' y ') +
+    ', con su propio recargo. Las ves abajo, en tus cuotas.</div>';
+}
+/* ¿La fecha cae en domingo o festivo? Lo contesta el calendario del motor, el
+   mismo que corre los cortes del quincenal. */
+function diaNoHabil(f) {
+  if (!f) return '';
+  try { return M.esDiaHabilDeCorte(f) ? '' : (M.esFestivo(f) ? 'festivo' : 'domingo'); }
+  catch (e) { return ''; }
 }
 
 /* El préstamo con garantía que tiene abierto: cuánto le falta y cuándo. */
@@ -2671,9 +3063,11 @@ function plegarICS(lineas) {
 function salidasDelCredito(c) {
   var usadas = Math.max(0, Math.round(Number(c && c.prorrogas) || 0));
   var permitidas = M.prorrogasPermitidas((S && S.nivel) || 'hierro');
-  var enPlan = cicloDelCredito(c).en_plan;
+  var ciclo = cicloDelCredito(c);
+  var enPlan = ciclo.en_plan;
   return {
     en_plan: enPlan,
+    a_cuotas: ciclo.a_cuotas,
     /* De un plan de pagos no se sale prorrogando (§8), y sin prórrogas libres
        tampoco: es el mismo ok:false que le contesta el motor al Panel. */
     prorroga: !enPlan && usadas < permitidas,
@@ -2687,6 +3081,17 @@ function salidasDelCredito(c) {
    costo nombrado, que es lo que el socio va a encontrarse el día del cobro. */
 function fraseSalidas(c) {
   var s = salidasDelCredito(c);
+  /* 16-oct-2026 — el crédito a cuotas tampoco se prorroga, pero su salida no
+     es «lo vemos»: Joan decidió que una cuota admite ABONOS (primero al
+     recargo, después al costo, después al capital) y que lo que falta se queda
+     en esa cuota y en su fecha. El abono lo anota Joan en el computador cuando
+     la cliente le entrega la plata; por eso la frase empieza en «escríbenos» y
+     no le promete un botón que la app no tiene. */
+  if (s.a_cuotas) {
+    return 'Esta es una cuota de tu crédito a cuotas: no se prorroga. Si ese día no te alcanza, ' +
+      'escríbenos: puedes abonar lo que tengas a la cuota y lo que falte sigue en la misma fecha, ' +
+      'con recargo solo sobre el capital que te falte. ';
+  }
   if (s.en_plan) {
     return 'Esta es una cuota de tu plan de pagos, y de un plan no se sale prorrogando: si ese día ' +
       'no puedes pagarla, escríbenos antes del corte y lo vemos. ';
@@ -2721,10 +3126,29 @@ function armarICS(c) {
   var f = dia.replace(/-/g, '');
   var sello = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
   var quien = nombreJoan();
-  var desc = 'Total a pagar: ' + COP(total) + ' (' + ciclo.etiqueta_capital.toLowerCase() + ' ' +
-    COP(q.capital) + ' + costo ' + COP(q.costo) +
-    (q.recargo_mora ? ' + recargo de ' + q.dias_mora + ' día' + (q.dias_mora !== 1 ? 's' : '') +
-                      ' ' + COP(q.recargo_mora) : '') + '). ' +
+  /* 17-oct-2026, revisión — DOS CASOS DEL CRÉDITO A CUOTAS QUE ESTO DECÍA MAL.
+     · La cuota con abonos: el paquete trae lo que FALTA de cada parte, y esto lo
+       rotulaba «costo» a secas (49.500 de una cuota pactada con 130.000) sin
+       decir que ya había abonado. Se dice cuánto abonó y que es lo que falta.
+     · La última cuota antes de su quincena: liquidarla en su fecha con el
+       costo de hoy (cero) daba 325.000 para el 15-nov, cuando ese día vale
+       390.000. El recordatorio es para su fecha, así que lleva lo de su fecha
+       (`cuota_en_su_fecha`, del puente); su costo no viaja aparte y no se
+       saca restando en el teléfono, así que se nombra sin cifra. */
+  var enCurso = cuotaEnCurso(ciclo);
+  var abonado = enCurso ? Math.max(0, Math.round(Number(enCurso.abonado) || 0)) : 0;
+  var enSuFecha = vencido ? null : cuotaEnSuFecha(c);
+  if (enSuFecha != null) total = enSuFecha;
+  var desc = (abonado ? 'Ya abonaste ' + COP(abonado) + ' a esta cuota. ' : '') +
+    (enSuFecha != null
+      ? (abonado ? 'Lo que falta' : 'Total a pagar') + ': ' + COP(total) + ' (' + ciclo.nombre +
+        (abonado ? ': lo que falta de su capital, ' : ': su capital, ') + COP(q.capital) +
+        ', y su costo, que corre desde que empieza su quincena). '
+      : (abonado ? 'Lo que falta: ' : 'Total a pagar: ') + COP(total) + ' (' +
+        (abonado ? 'lo que falta del capital ' + COP(q.capital) + ' + lo que falta del costo ' + COP(q.costo)
+                 : ciclo.etiqueta_capital.toLowerCase() + ' ' + COP(q.capital) + ' + costo ' + COP(q.costo)) +
+        (q.recargo_mora ? ' + ' + (abonado ? 'lo que falta del recargo de ' : 'recargo de ') + q.dias_mora +
+                          ' día' + (q.dias_mora !== 1 ? 's' : '') + ' ' + COP(q.recargo_mora) : '') + '). ') +
     /* §4-bis: la cifra la trae la liquidación, que ya sabe si este crédito
        viene de una mora; la frase tiene que decir lo mismo que la cifra, o el
        recordatorio promete el doble de lo que el Panel va a acreditar.
@@ -2750,6 +3174,14 @@ function armarICS(c) {
     (enMoraElCiclo(q)
       ? 'Aunque te atrases sigues siendo socio, y este pago te suma ' +
         COP(q.garantia_generada) + ' de garantía. '
+      /* 17-oct-2026, segunda revisión — una cuota del medio cuya quincena no
+         empieza: lo mismo que la tarjeta, no «pagando en fecha». */
+      : cuotaDelMedioSinEmpezar(c)
+        ? textoDeCuotaDelMedio(c, q, cuotaDelMedioSinEmpezar(c)) + ' '
+      /* 16-oct-2026: con el costo de la cuota ya abonado no queda garantía por
+         ganar en este pago, y «tu cupo sube $0» se leía como un castigo. */
+      : !(Number(q.costo) > 0)
+        ? 'Pagando en fecha no pagas recargo; si te atrasas, el recargo de cada día corre por tu cuenta. '
       : 'Pagando en fecha tu cupo sube ' + COP(q.garantia_si_puntual) + ' y no pagas recargo. ' +
         (recargoSumaEn(c)
           ? 'Si te atrasas, el recargo de cada día corre por tu cuenta. '
@@ -3108,7 +3540,10 @@ function vistaHistorial() {
     /* Acá manda el crédito ENTERO, no el ciclo: `capital` viaja como el capital
        de la cuota cuando hay plan de pagos, y en un listado de créditos esa
        cifra diría que el socio pidió 200.000 cuando pidió 600.000. */
-    var suCapital = c.saldo_capital != null ? c.saldo_capital : c.capital;
+    /* 16-oct-2026 — y un crédito PAGADO salía como «$0»: su saldo_capital es
+       cero (ya no debe nada) y se leía primero. Pagado, la cifra es lo que pidió,
+       que el paquete manda en `capital`; abierto, lo que le falta. */
+    var suCapital = c.pagado ? c.capital : (c.saldo_capital != null ? c.saldo_capital : c.capital);
     h += '<div class="credito"><div class="top">' +
       '<div><b>' + COP(suCapital) + '</b><div class="cod">' + esc(c.codigo || '') + '</div></div>' +
       '<span class="pill' + (atraso > 0 ? ' ambar' : '') + '">' + esc(estado) + '</span></div>' +
@@ -3118,7 +3553,8 @@ function vistaHistorial() {
         /* Un crédito en plan de pagos se veía igualito a uno normal, y no lo es:
            lo que se cobra es la cuota, no el capital. Se dice. */
         (Number(c.plan_cuotas || 0) > 0
-          ? ' · plan de pagos, ' + Number(c.plan_cuotas_pagadas || 0) + ' de ' +
+          ? (c.plan_origen === 'alta' ? ' · a cuotas, ' : ' · plan de pagos, ') +
+            Number(c.plan_cuotas_pagadas || 0) + ' de ' +
             Number(c.plan_cuotas) + ' cuotas pagadas' : '') + '</div>' +
       '<div class="gan"><span class="muted">Garantía que te dejó</span>' +
         (c.garantia ? '<b>+' + COP(c.garantia) + '</b>' : '<span class="muted">al pagarlo</span>') + '</div>' +

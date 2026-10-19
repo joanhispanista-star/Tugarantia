@@ -1683,8 +1683,17 @@
    LA LISTA: lo carga panel/crm.html con un <script src>) y panel/crm.html (la
    pestana «Registros» del gerente, los topes en Ajustes, el 👤 de Registrados
    y las filas del equipo que se desbordaban en el celular). Sin la cache
-   nueva, el gerente veria la pestana diciendo que falta el archivo. */
-const CACHE = 'tugarantia-v136';
+   nueva, el gerente veria la pestana diciendo que falta el archivo.
+   16-oct-2026, v137: EL CREDITO A CUOTAS. Joan pidio registrar un credito ya
+   partido en cuotas con el % y la fecha de cada una. Cambian app/motor.js
+   (construirPlanACuotas), app/puente.js (el abono a una cuota, pagar todo
+   antes, reprogramar, y el calendario que viaja al cliente), app/socio.html
+   (la tarjeta del credito a cuotas: «Total de esta cuota», el calendario en
+   pesos), panel/crm.html, panel/espejo.html, panel/nube.js y panel/subir.html.
+   Sin la cache nueva, un celular con la socio.html vieja le diria al cliente
+   «Total para saldar $455.000» de un credito de 845.000 y que pago una
+   entrada que no existe. */
+const CACHE = 'tugarantia-v137';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [

@@ -718,6 +718,98 @@ function liq(p, fecha) { return P.liquidarCiclo(p, fecha); }
 function totalCiclo(p) { return liq(p).total_a_pagar; }
 function diasMora(p) { return liq(p).dias_mora; }
 function diasPara(p) { var c = P.corteDelCredito(p); return c ? diasEntre(hoyISO(), c) : 0; }
+/* 16-oct-2026 — LOS RÓTULOS DE UNA CUOTA, en un solo sitio para las tres
+   pantallas que la pintan (Hoy, Crédito y la hoja de cobro).
+   · El crédito a cuotas no es el plan del §8: su costo no es «del plan sobre
+     el saldo», es el de ESA cuota, con el % que Joan le puso (y que puede ser
+     distinto en cada una). El % sale de `l.tasa` —tasaDelCiclo en el puente—,
+     igual que antes.
+   · Con abonos a la cuota, `l` trae lo que FALTA de cada parte (el puente ya
+     los descuenta): rotularlo «Costo» o «Total de la cuota» hacía creer que la
+     cuota costaba menos de lo pactado. */
+function rotuloCuota(p, l, que) {
+  var c = P.cuotaPlanActual(p);
+  var cs = P.cuotasPlan(p);
+  var conAbonos = !!c && P.pagadoDeCuota(p, c).abonos > 0;
+  var falta = conAbonos ? 'Lo que falta ' : '';
+  var pct = Math.round(((l && l.tasa) || 0) * 100);
+  if (que === 'capital') {
+    return (conAbonos ? 'Lo que falta del capital de la cuota ' : 'Capital de la cuota ')
+      + (c ? c.n : '') + ' de ' + cs.length;
+  }
+  if (que === 'costo') {
+    if (!P.esPlanDeAlta(p)) return 'Costo del plan (' + pct + '% del saldo)';
+    /* 17-oct-2026, segunda revisión — con abonos, la cifra de al lado es lo
+       que FALTA del costo (49.500 de 130.000): «(20%)» pegado a 49.500 se lee
+       como «49.500 es el 20%», que no es de nada. El % es el PACTADO. */
+    return conAbonos ? 'Lo que falta del costo de la cuota (pactado al ' + pct + '%)'
+                     : 'Costo de la cuota (' + pct + '%)';
+  }
+  return falta ? falta + 'de la cuota' : 'Total de la cuota';
+}
+/* 17-oct-2026, segunda revisión — EL RÓTULO DEL RECARGO, en un solo sitio para
+   la cola, la tanda, la vista del crédito y la hoja de cobro. Con abonos a la
+   cuota, el recargo que se ve es lo que FALTA (el abono ya pagó una parte y,
+   desde su día, corre sobre menos capital): «Recargo por 11 día(s) · 1%
+   diario» al lado de 16.250 —que no es 11 × 1% de nada— hacía creer que la
+   cuenta estaba mal. Se dice lo que es, con lo ya abonado al recargo, y sin el
+   % diario al lado de una cifra que no sale de multiplicarlo. */
+function rotuloRecargo(p, l) {
+  var c = P.tienePlan(p) ? P.cuotaPlanActual(p) : null;
+  var pag = c ? P.pagadoDeCuota(p, c) : null;
+  var dias = (l && l.dias_mora) || 0;
+  if (pag && pag.abonos > 0) {
+    return 'Lo que falta del recargo (' + dias + ' día(s) de atraso'
+      + (pag.mora > 0 ? ' · ya abonó ' + COP(pag.mora) : '') + ')';
+  }
+  return 'Recargo por ' + dias + ' día(s)' + pctMora(l);
+}
+/* 17-oct-2026, segunda revisión — LO QUE DEBE HOY UN CRÉDITO, para la cola y
+   la tanda. Con cuotas lo contesta el puente (aPagarHoy: todo lo vencido si
+   hay cuotas vencidas, y si no, lo de su ciclo), la misma cuenta que usa el
+   computador; sin cuotas es lo de su ciclo, como siempre. Antes las dos
+   pantallas decían solo la cuota en curso: el 20-nov, sin haber pagado nada,
+   523.250 de una deuda vencida de 929.500. */
+function debeHoy(p) {
+  return P.tienePlan(p) ? P.aPagarHoy(p, hoyISO()) : totalCiclo(p);
+}
+/* Las OTRAS cuotas vencidas hoy, además de la que está en curso. */
+function otrasCuotasVencidas(p) {
+  var c = (p && !p.pagado && P.tienePlan(p)) ? P.cuotaPlanActual(p) : null;
+  if (!c) return [];
+  return P.cuotasVencidas(p, hoyISO()).filter(function (x) { return Number(x.n) !== Number(c.n); });
+}
+/* La cuota en curso con lo suyo y cada otra vencida con lo suyo, como en la
+   cola del computador: «cuota 1 de 2 $523.250 + cuota 2 vencida $406.250». */
+function desgloseVencido(p, l, otras) {
+  var c = P.cuotaPlanActual(p);
+  var conAbonos = !!c && P.pagadoDeCuota(p, c).abonos > 0;
+  return 'cuota ' + (c ? c.n : '') + ' de ' + P.cuotasPlan(p).length + (conAbonos ? ' (lo que falta)' : '')
+    + ' ' + COP(l.total_a_pagar)
+    + (otras || []).map(function (x) { return ' + cuota ' + x.n + ' vencida ' + COP(x.total); }).join('');
+}
+/* 17-oct-2026, revisión — lo que la ficha del socio dice de un crédito
+   abierto. Con cuotas decía «$455.000 para saldar» de un crédito que debía
+   845.000: con la cuota 1 no se salda nada. Se dice qué cuota es y cuánto
+   vale, con el rótulo de las otras pantallas si ya tiene abonos. Y si es la
+   última y su quincena todavía no empieza, lo que vale en su fecha va primero
+   y lo de cerrarla hoy, aparte: la liquidación de hoy no le cobra un costo que
+   todavía no corre, pero en su fecha sí. */
+function resumenDelCobro(p) {
+  var c = P.cuotaPlanActual(p);
+  var l = liq(p);
+  if (!c) return COP(l.total_a_pagar) + ' para saldar';
+  var conAbonos = P.pagadoDeCuota(p, c).abonos > 0;
+  var cual = 'cuota ' + c.n + ' de ' + P.cuotasPlan(p).length
+    + (conAbonos ? ' · ' + rotuloCuota(p, l, 'total').toLowerCase() : '');
+  if (P.esPlanDeAlta(p) && !P.cuotaEmpezo(p, c, hoyISO())) {
+    var enSuFecha = liq(p, c.fecha).total_a_pagar;
+    if (enSuFecha > l.total_a_pagar) {
+      return cual + ': ' + COP(enSuFecha) + ' (si la cierra hoy, ' + COP(l.total_a_pagar) + ')';
+    }
+  }
+  return cual + ': ' + COP(l.total_a_pagar);
+}
 function nivelDe(s) { return P.migrarSocio(DB, s).garantia.nivel; }
 
 /* El estado de un crédito, con la misma regla del Panel: la mora la DECLARA el
@@ -1005,6 +1097,16 @@ function textoPlantilla(p, s, clave) {
        queda con sus llaves y tokensSinResolver lo canta. */
     if (rc && rc.a_capital > 0) { extra.abono = COP(rc.entrego); extra.prorroga = COP(rc.prorroga); extra.saldo = COP(rc.total_en_fecha); }
   }
+  /* 17-oct-2026, segunda revisión — en los mensajes de MORA de un crédito con
+     cuotas, {saldo} es TODO lo vencido (P.aPagarHoy), como en el computador.
+     Con {saldo} = totalCiclo, el 20-nov sin haber pagado nada el WhatsApp
+     decía «tu pago de $523.250 sigue pendiente» de una deuda vencida de
+     929.500: le callaba a la cliente la cuota 2, suelto y en la tanda (las dos
+     pasan por aquí). La bienvenida y los recordatorios hablan de la cuota que
+     viene y siguen con lo de su ciclo. */
+  if ((clave === 'moraTemprana' || clave === 'mora') && p && !p.pagado && P.tienePlan(p)) {
+    extra.saldo = COP(P.aPagarHoy(p, hoyISO()));
+  }
   return aplicarVars(base, p, s, extra);
 }
 
@@ -1023,20 +1125,49 @@ function gananciaDeQuincena(q) {
   DB.prestamos.forEach(function (p) {
     (p.prorrogas || []).forEach(function (pr) { if (pr.ciclo === q) g += Number(pr.monto) || 0; });
     if (p.pagado && p.cicloPago === q) g += Number(p.gananciaPago) || 0;
+    /* 16-oct-2026 — LO COBRADO DE LAS CUOTAS NO ENTRABA EN NINGUNA QUINCENA.
+       Cobrar una cuota deja `gananciaPago` en cero a propósito (la ganancia va
+       cuota por cuota), así que un crédito a cuotas entero —195.000 de costo en
+       el caso de Joan— no aparecía en este tablero. La cuenta la hace el puente
+       (cada cuota en la quincena que contiene su fecha, por pedazos si hubo
+       abonos), la misma que usa el computador. */
+    g += P.cobradoDelPlanEnQuincena(p, q);
   });
   return g;
 }
+/* 17-oct-2026, segunda revisión — con cuotas, el corte que rige es la fecha de
+   una cuota y no un corte de calendario: la del 30-oct es de la quincena del
+   31-oct (quincenaDe), y comparada a secas («30-oct < 31-oct») sacaba de esa
+   quincena los 650.000 que estaban en la calle justo esa quincena. Se compara
+   la quincena que contiene el corte, la misma pregunta que hacen el tablero
+   del computador y creditosQueVencenEn aquí abajo. Sin cuotas no cambia nada:
+   un corte de calendario es su propia quincena. */
 function invertidoEnQuincena(q) {
   return DB.prestamos.reduce(function (inv, p) {
     if (!p.fechaDesembolso || p.fechaDesembolso > q) return inv;
     var corte = P.corteVigenteEn(p, q);
+    if (corte && P.tienePlan(p)) corte = P.quincenaDe(corte) || corte;
     if (corte && corte < q) return inv;
     if (p.pagado && p.fechaPagado && p.fechaPagado < q) return inv;
     return inv + P.capitalVigenteEn(p, q);
   }, 0);
 }
+/* 17-oct-2026, revisión — UNA CUOTA VENCE EN LA QUINCENA QUE CONTIENE SU FECHA.
+   La del 30-oct es de la quincena del 31-oct; la del 15-nov (domingo, con el
+   16 festivo), de la del 17-nov. Lo contesta el puente (quincenaDe), la misma
+   pregunta que hace el computador en su tabla de ciclos, así que los dos
+   tableros ponen cada cuota en el mismo renglón. El 16-oct esta tarjeta juntaba
+   a mano las fechas de las cuotas que caían entre dos cortes
+   (fechasDeLaQuincena); con la ganancia contada ahora por quincena en el
+   puente (cobradoDelPlanEnQuincena), esa suma ya no hacía falta y era una
+   segunda forma de contestar lo mismo. Un corte de calendario es su propia
+   quincena, así que el quincenal no cambia. */
+function quincenaDelCobro(p) {
+  var c = P.corteDelCredito(p);
+  return (c && P.tienePlan(p)) ? (P.quincenaDe(c) || c) : c;
+}
 function creditosQueVencenEn(q) {
-  return DB.prestamos.filter(function (p) { return !p.pagado && P.corteDelCredito(p) === q; });
+  return DB.prestamos.filter(function (p) { return !p.pagado && quincenaDelCobro(p) === q; });
 }
 function porCobrarEnQuincena(q) {
   return creditosQueVencenEn(q).reduce(function (s, p) { return s + totalCiclo(p); }, 0);
@@ -1219,7 +1350,11 @@ function resolverChoque(indice, como) {
        (gestiones, abonos, prórrogas, comprobantes): ganar el choque no puede
        costarle a Joan una gestión que registró en el computador. La fusión la
        hace nube.js —`fila` es exactamente "lo mío con las listas completas"— y
-       la vigilan sus pruebas; acá no se junta ni una lista a mano. */
+       la vigilan sus pruebas; acá no se junta ni una lista a mano.
+       17-oct-2026, segunda revisión — con UNA excepción, que dice nube.js: si
+       los dos lados traen un plan de cuotas distinto, los pagos de las cuotas
+       viajan con su plan y quedan solo los míos. La tarjeta del choque lo
+       avisa antes (avisoPagosDeCuotas). */
     var mio = c.mio || filaLocal(c.tabla, c.id);
     var fila = mio;
     try {
@@ -1310,7 +1445,7 @@ function cobrar(id, fecha, o) {
   var l = liq(p, f);
   var s = socioDe(p);
   var c = P.cuotaPlanActual(p);
-  if (c) return cobrarCuotaDelPlan(p, c, f, l);
+  if (c) return cobrarCuotaDelPlan(p, c, f);
 
   o = o || {};
   var q = cuentasDelCobro(p, l, o);
@@ -1414,8 +1549,14 @@ function abonarEnCalle(id, monto, fecha) {
   var f = fecha || hoyISO();
   if (m <= 0) { alert('Ese monto no sirve para un abono.'); return; }
   if (P.tienePlan(p)) {
-    alert('Este crédito está en plan de pagos: el capital baja con cada cuota. '
-      + 'Cóbrale la cuota que sigue en vez de abonar por fuera.');
+    /* 16-oct-2026: al crédito a cuotas sí se le abona, pero a la CUOTA, con su
+       propia cascada (recargo, costo, capital) —P.abonoACuota—, y esa hoja vive
+       en el computador. Un abono suelto a capital acá se saltaría la cascada. */
+    alert(P.esPlanDeAlta(p)
+      ? 'Es un crédito a cuotas: el abono a una cuota se anota desde el computador, que lo reparte '
+        + 'entre recargo, costo y capital. Desde el celular, cóbrale la cuota completa.'
+      : 'Este crédito está en plan de pagos: el capital baja con cada cuota. '
+        + 'Cóbrale la cuota que sigue en vez de abonar por fuera.');
     return;
   }
   var cap = capitalActual(p);
@@ -1451,33 +1592,85 @@ function abonarEnCalle(id, monto, fecha) {
   guardarEstado(); cerrarHoja(); pintar(); sincronizar(false);
 }
 
-function cobrarCuotaDelPlan(p, c, f, l) {
-  var cs = P.cuotasPlan(p);
-  var quedan = cs.filter(function (x) { return !x.pagado; }).length - 1;
-  if (!confirm('Cobrar la cuota ' + c.n + ' de ' + cs.length + ' a ' + (p.socioNombre || '') + ': '
-    + COP(l.total_a_pagar) + '\n\n'
-    + '• Capital de la cuota: ' + COP(l.capital) + '\n'
-    + '• Costo: ' + COP(l.costo) + '\n'
-    + (l.recargo_mora ? '• Recargo por ' + l.dias_mora + ' día(s) de mora: ' + COP(l.recargo_mora) + '\n' : '')
-    + '\nLe deja ' + COP(l.garantia_generada) + ' de garantía. '
-    + (quedan ? 'Le quedan ' + quedan + ' cuota(s).' : 'Con esta termina de pagar el crédito.'))) return;
-  c.pagado = true; c.fechaPagado = f; c.recargo = l.recargo_mora; c.garantiaGenerada = l.garantia_generada;
-  // El capital de la cuota se abona al crédito: así el saldo baja de verdad.
-  p.abonosCapital = p.abonosCapital || [];
-  p.abonosCapital.push({ fecha: f, monto: c.capital, cuotaPlan: c.n });
-  var sig = P.cuotaPlanActual(p);
-  if (sig) { p.cicloActual = sig.fecha; }
-  else {
-    p.pagado = true; p.fechaPagado = f; p.cicloPago = c.fecha; p.cobroRegistrado = true;
-    /* Toda la ganancia del plan ya está contada cuota por cuota (y la entrada,
-       en planPagos.entrada). Dejar algo acá la contaría dos veces. */
-    p.gananciaPago = 0; p.recargoMora = 0;
+/* 17-oct-2026, revisión — LA CUOTA SE CIERRA CON LA CUENTA DEL PUENTE.
+   Hasta hoy esta función escribía sus campos por su lado (pagado, recargo,
+   garantía, el abono a capital, el corte siguiente) y el computador los suyos.
+   Con la regla nueva del costo —el de cada cuota es su % sobre lo que se debe
+   cuando EMPIEZA su quincena— eso ya no alcanza: cerrar la última antes de que
+   empiece cuesta menos, y una del medio que todavía no empieza no se cierra
+   sola. La cuenta es UNA (PUENTE.cierreDeCuota) y esta pantalla solo aplica lo
+   que devuelve en `registros`. Si dice que no (una cuota del medio sin
+   empezar, o una fecha anterior a un abono ya anotado), se dice por qué y no
+   se registra nada. */
+function cobrarCuotaDelPlan(p, c, f) {
+  var r = P.cierreDeCuota(p, f);
+  if (!r.ok) {
+    /* El detalle del puente ofrece el abono a la cuota y «Pagó todo el
+       crédito», que en esta entrega viven en el computador: se dice dónde,
+       para que el aviso no mande a Joan a buscar un botón que aquí no está. */
+    alert((r.detalle || 'No pude cerrar esta cuota. No registré nada.')
+      + (r.motivo === 'no_ha_empezado'
+          ? '\n\nDesde el celular no se anotan: el abono a una cuota y «pagar todo» se anotan en el computador.' : ''));
+    return;
   }
+  var l = r.liq;
+  var cs = P.cuotasPlan(p);
+  var yaEntro = P.pagadoDeCuota(p, c);
+  /* Con abonos, `l` es lo que falta: se dice así, con lo ya abonado arriba,
+     para que Joan no lea 49.500 de costo en una cuota pactada con 130.000 y
+     crea que la cuenta está mal. */
+  var falta = yaEntro.abonos ? 'Lo que falta del ' : '';
+  /* Y si la de después también venció, se dice: este cobro cierra SOLO esta. */
+  var otras = P.cuotasVencidas(p, f).filter(function (x) { return x.n !== Number(c.n); });
+  if (!confirm('Cobrar la cuota ' + r.n + ' de ' + r.de + ' a ' + (p.socioNombre || '') + ': '
+    + COP(r.total) + '\n\n'
+    + (yaEntro.abonos ? '• Ya abonó a esta cuota: ' + COP(yaEntro.recibido) + '\n' : '')
+    + '• ' + (falta ? falta + 'capital' : 'Capital de la cuota') + ': ' + COP(l.capital) + '\n'
+    + '• ' + (falta ? falta + 'costo' : 'Costo') + ': ' + COP(l.costo) + '\n'
+    + (l.recargo_mora ? '• ' + (falta ? rotuloRecargo(p, l) : 'Recargo por ' + l.dias_mora + ' día(s) de mora') + ': '
+        + COP(l.recargo_mora) + '\n' : '')
+    + (r.saldado_antes
+        ? '\nSu quincena todavía no empieza y es la última: cobrarla hoy es pagar todo antes, '
+          + 'y su costo no se cobra. En su fecha valdría ' + COP(liq(p, c.fecha).total_a_pagar) + '.\n' : '')
+    + '\nLe deja ' + COP(l.garantia_generada) + ' de garantía. '
+    + (r.ultima ? 'Con esta termina de pagar el crédito.' : 'Le quedan ' + (cs.filter(function (x) { return !x.pagado; }).length - 1) + ' cuota(s).')
+    + (otras.length ? '\n\nOjo: también ' + (otras.length === 1 ? 'venció la cuota ' : 'vencieron las cuotas ')
+        + otras.map(function (x) { return x.n + ' (' + COP(x.total) + ' hoy)'; }).join(' y ')
+        + '. Este cobro cierra solo la ' + r.n + '.' : ''))) return;
+  aplicarCierreDeCuota(p, r.registros);
   var s = socioDe(p);
   encolar('pago', (s && s.nombre) || p.socioNombre || 'Socio',
-    'cuota ' + c.n + '/' + cs.length + ' · ' + COP(l.total_a_pagar), 'creditos', p.id);
+    'cuota ' + r.n + '/' + r.de + ' · ' + COP(r.total), 'creditos', p.id);
   guardarEstado(); cerrarHoja(); pintar(); sincronizar(false);
   ofrecerWhatsApp(p, 'recibo', 'Cuota registrada');
+}
+/* 17-oct-2026, revisión — lo que la hoja de cobro y la vista del crédito dicen
+   del cierre de una cuota ese día, con las palabras del puente: si no se
+   puede cerrar (una cuota del medio que no empieza, o una fecha anterior a un
+   abono), su `detalle`; si se cierra antes de empezar su quincena —la última—,
+   que el total es menor porque es pagar todo antes, y lo que vale en su fecha.
+   Una sola función para que las dos pantallas no lo digan distinto. */
+function avisoDelCierre(p, cierre) {
+  if (!cierre) return '';
+  if (!cierre.ok) {
+    return '<div class="aviso ambar"><b>Esta cuota no se puede cobrar con esa fecha.</b> ' + esc(cierre.detalle) + '</div>';
+  }
+  if (!cierre.saldado_antes) return '';
+  var c = P.cuotaPlanActual(p);
+  return '<div class="aviso info">La cuota ' + cierre.n + ' todavía no empieza y es la última: cobrarla ese día es '
+    + '<b>pagar todo antes</b> (' + COP(cierre.total) + '), y su costo no se cobra. En su fecha ('
+    + fmtFecha(c && c.fecha) + ') vale ' + COP(liq(p, c && c.fecha).total_a_pagar) + '.</div>';
+}
+/* Lo que devuelve PUENTE.cierreDeCuota, escrito tal cual y en el orden que
+   dice el puente: la cuota (por su número), el abono a capital si queda
+   capital, el corte de la cuota siguiente o —si era la última— los campos del
+   crédito pagado. Aquí no se decide ni un peso. */
+function aplicarCierreDeCuota(p, reg) {
+  var cuota = P.cuotasPlan(p).filter(function (x) { return Number(x.n) === Number(reg.cuota.n); })[0];
+  if (cuota) Object.assign(cuota, reg.cuota);
+  if (reg.abono) { p.abonosCapital = p.abonosCapital || []; p.abonosCapital.push(reg.abono); }
+  if (reg.cicloActual) p.cicloActual = reg.cicloActual;
+  if (reg.credito) Object.assign(p, reg.credito);
 }
 
 /* --- 2. prorrogar ------------------------------------------------------ */
@@ -1486,7 +1679,10 @@ function prorrogar(id, fecha) {
   var f = fecha || hoyISO();
   var r = liqProrroga(p, f);
   if (!r) {
-    alert(P.tienePlan(p)
+    alert(P.esPlanDeAlta(p)
+      ? 'Es un crédito a cuotas: no se prorroga. Cóbrale la cuota que sigue; si trae solo una parte, '
+        + 'el abono a la cuota se anota desde el computador.'
+      : P.tienePlan(p)
       ? 'Este crédito ya está en plan de pagos: de ahí no se sale prorrogando. Cóbrale la cuota que sigue.'
       : 'Este crédito no admite prórroga (está pagado o su capital quedó en cero).');
     return;
@@ -2296,7 +2492,11 @@ function vistaHoy() {
       + '<p class="muted">Aparecen los créditos vencidos, los que vencen hoy y los que vencen en dos días o menos.</p></div>';
   }
 
-  var total = arr.reduce(function (s, p) { return s + totalCiclo(p); }, 0);
+  /* 17-oct-2026, segunda revisión — con cuotas, lo que se debe hoy es TODO lo
+     vencido (debeHoy → P.aPagarHoy), como en la cola del computador: el
+     20-nov, sin haber pagado nada, la cola sumaba 523.250 (la cuota 1) de una
+     deuda vencida de 929.500. */
+  var total = arr.reduce(function (s, p) { return s + debeHoy(p); }, 0);
   var enMora = arr.filter(function (p) { return estadoPrestamo(p) === 'mora'; }).length;
   h += '<div class="card laca ap"><div class="etq">La cola de hoy</div>'
     + '<div class="cifra oro">' + COP(total) + '</div>'
@@ -2311,6 +2511,7 @@ function vistaHoy() {
       : est === 'mora' ? 'hace ' + l.dias_mora + ' día(s)'
       : 'en ' + diasPara(p) + ' día(s)';
     var ofrecida = prorrogaOfrecida(p);
+    var otras = otrasCuotasVencidas(p);
     h += '<div class="card ap">'
       + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">'
       +   '<div style="min-width:0">'
@@ -2322,17 +2523,24 @@ function vistaHoy() {
       /* 2-oct-2026 (revisión) — Con plan de pagos, liquidarCiclo liquida la
          CUOTA que sigue, no la deuda: «Total para saldar» le decía a Joan que
          con eso cerraba el crédito. Mismo rótulo que la vista Crédito. */
-      + '<div class="fila"><span class="k">' + (P.tienePlan(p) ? 'Total de la cuota' : 'Total para saldar') + '</span>'
-      +   '<span class="v">' + COP(l.total_a_pagar) + '</span></div>'
+      /* 17-oct-2026, segunda revisión — y si además venció otra cuota, la
+         cifra es todo lo vencido y debajo se nombra cada cuota con la suya. */
+      + (otras.length
+          ? '<div class="fila"><span class="k">Todo lo vencido hoy</span>'
+            + '<span class="v">' + COP(debeHoy(p)) + '</span></div>'
+            + '<div class="mini">' + esc(desgloseVencido(p, l, otras)) + '</div>'
+          : '<div class="fila"><span class="k">' + (P.tienePlan(p) ? rotuloCuota(p, l, 'total') : 'Total para saldar') + '</span>'
+            + '<span class="v">' + COP(l.total_a_pagar) + '</span></div>')
       + (l.recargo_mora
-          ? '<div class="fila"><span class="k">Recargo por ' + l.dias_mora + ' día(s)' + pctMora(l) + '</span>'
+          ? '<div class="fila"><span class="k">' + (otras.length ? 'Cuota ' + P.cuotaPlanActual(p).n + ' · ' : '')
+            + rotuloRecargo(p, l) + '</span>'
             + '<span class="v ambar">' + COP(l.recargo_mora) + '</span></div>'
           : '')
       + '<div class="fila"><span class="k">Vence</span>'
       +   '<span class="v">' + fmtFecha(P.corteDelCredito(p)) + ' <span class="muted">· ' + cuando + '</span></span></div>'
       + '<div class="fila"><span class="k">Prórroga</span><span class="v">'
       +   (ofrecida != null ? COP(ofrecida)
-          : (P.tienePlan(p) ? '<span class="muted">en plan de pagos</span>'
+          : (P.tienePlan(p) ? '<span class="muted">' + (P.esPlanDeAlta(p) ? 'a cuotas: no se prorroga' : 'en plan de pagos') + '</span>'
              : '<span class="muted">ya no le quedan</span>')) + '</span></div>'
       + (avisoDeTope(s, true) ? '<div class="mini">' + esc(avisoDeTope(s, true)) + '</div>' : '')
       + '<div class="tres">'
@@ -2776,10 +2984,17 @@ function tarjetaDeTanda(c, t, r) {
 
   /* Los números son los del puente, los mismos de la pantalla de cobro. */
   if (!p.pagado) {
+    /* 17-oct-2026, segunda revisión — «Debe hoy» es lo que dice el mensaje de
+       mora ({saldo}): con dos cuotas vencidas, todo lo vencido, y debajo cada
+       cuota con lo suyo. Con la cuota en curso sola, la tarjeta y el WhatsApp
+       se contradecían delante de Joan. */
+    var otras = otrasCuotasVencidas(p);
     h += '<div class="fila"><span class="k">Debe hoy</span>'
-      + '<span class="v">' + COP(l.total_a_pagar) + '</span></div>';
+      + '<span class="v">' + COP(debeHoy(p)) + '</span></div>'
+      + (otras.length ? '<div class="mini">' + esc(desgloseVencido(p, l, otras)) + '</div>' : '');
     if (l.recargo_mora) {
-      h += '<div class="fila"><span class="k">Recargo por ' + l.dias_mora + ' día(s)' + pctMora(l) + '</span>'
+      h += '<div class="fila"><span class="k">' + (otras.length ? 'Cuota ' + P.cuotaPlanActual(p).n + ' · ' : '')
+        + rotuloRecargo(p, l) + '</span>'
         + '<span class="v ambar">' + COP(l.recargo_mora) + '</span></div>';
     }
     h += '<div class="fila"><span class="k">Vence</span>'
@@ -2796,7 +3011,8 @@ function tarjetaDeTanda(c, t, r) {
       + 'Se le escribe una sola vez: la Ley 2300 cuenta contactos por persona, no por crédito.</div>';
   }
   if (P.tienePlan(p)) {
-    h += '<div class="mini">Tiene plan de pagos: el mensaje no le ofrece prórroga, porque no se le puede dar.</div>';
+    h += '<div class="mini">' + (P.esPlanDeAlta(p) ? 'Es un crédito a cuotas' : 'Tiene plan de pagos')
+      + ': el mensaje no le ofrece prórroga, porque no se le puede dar.</div>';
   }
   if (huecos.length) {
     h += '<div class="aviso ambar"><b>Este mensaje tiene ' + huecos.length + ' hueco(s) sin llenar: </b>'
@@ -3741,7 +3957,7 @@ function vistaFicha() {
       +   '<span class="pill ' + est + '">' + ESTADO_TXT[est] + '</span></div>'
       + '<div class="mini">' + (p.pagado
           ? 'pagado el ' + fmtFecha(p.fechaPagado)
-          : 'vence el ' + fmtFecha(P.corteDelCredito(p)) + ' · ' + COP(totalCiclo(p)) + ' para saldar')
+          : 'vence el ' + fmtFecha(P.corteDelCredito(p)) + ' · ' + resumenDelCobro(p))
       + '</div></div>';
   });
 
@@ -3798,21 +4014,21 @@ function vistaCredito() {
     +   '<span class="pill ' + est + '">' + ESTADO_TXT[est] + '</span>'
     + '</div>'
     + '<div class="sep"></div>'
-    + '<div class="fila"><span class="k">' + (cuota ? 'Capital de la cuota ' + cuota.n + ' de ' + cuotas.length : 'Capital del ciclo') + '</span>'
+    + '<div class="fila"><span class="k">' + (cuota ? rotuloCuota(p, l, 'capital') : 'Capital del ciclo') + '</span>'
     +   '<span class="v">' + COP(l.capital) + '</span></div>'
     /* El porcentaje que se imprime es el que RIGE ESTE CICLO y lo dice el puente
        (`tasa`): con plan de pagos es el 5% sobre el saldo, no el 20% pactado. El
        día que se escribió a mano en ocho pantallas del Panel, ocho siguieron
        diciendo 90% cuando el motor ya acreditaba 75. */
     + '<div class="fila"><span class="k">'
-    +   (cuota ? 'Costo del plan (' + Math.round((l.tasa || 0) * 100) + '% del saldo)'
+    +   (cuota ? rotuloCuota(p, l, 'costo')
              : 'Costo del ciclo (' + Math.round((l.tasa || 0) * 100) + '%)') + '</span>'
     +   '<span class="v">' + COP(l.costo) + '</span></div>'
     + (l.recargo_mora
-        ? '<div class="fila"><span class="k">Recargo por ' + l.dias_mora + ' día(s)' + pctMora(l) + '</span>'
+        ? '<div class="fila"><span class="k">' + rotuloRecargo(p, l) + '</span>'
           + '<span class="v ambar">' + COP(l.recargo_mora) + '</span></div>'
         : '')
-    + '<div class="fila"><span class="k"><b>' + (cuota ? 'Total de la cuota' : 'Total para saldar') + '</b></span>'
+    + '<div class="fila"><span class="k"><b>' + (cuota ? rotuloCuota(p, l, 'total') : 'Total para saldar') + '</b></span>'
     +   '<span class="v"><b>' + COP(l.total_a_pagar) + '</b></span></div>'
     + '<div class="fila"><span class="k">Garantía que le deja</span><span class="v oro-tinta">'
     +   COP(l.garantia_generada)
@@ -3842,7 +4058,15 @@ function vistaCredito() {
     h += '<div class="aviso info">Este crédito ya está pagado (' + fmtFecha(p.fechaPagado) + '). '
       + 'No hay nada que cobrar ni que prorrogar.</div>';
   } else {
-    if (cuota) {
+    if (cuota && P.esPlanDeAlta(p)) {
+      /* 16-oct-2026: lo que el celular no hace, dicho donde Joan lo buscaría. */
+      h += '<div class="aviso info">Es un <b>crédito a cuotas</b>: va por la cuota <b>' + cuota.n
+        + ' de ' + cuotas.length + '</b>. No se prorroga; se cobran las cuotas una por una. '
+        + 'El abono a una cuota y «pagar todo» se anotan desde el computador.</div>'
+        /* 17-oct-2026, revisión: y si hoy no se cierra, o se cierra por menos
+           porque su quincena no empieza, se dice aquí también. */
+        + avisoDelCierre(p, P.cierreDeCuota(p, hoyISO()));
+    } else if (cuota) {
       h += '<div class="aviso info">Está en <b>plan de pagos</b>: va por la cuota <b>' + cuota.n
         + ' de ' + cuotas.length + '</b>. De acá no se sale prorrogando; se cobran las cuotas una por una.</div>';
     } else if (pr && pr.ok) {
@@ -3867,9 +4091,17 @@ function vistaCredito() {
   }
 
   if (cuotas.length) {
-    h += '<div class="tit-bloque"><h3 class="tit">Plan de pagos</h3></div><div class="card ap">';
+    /* 16-oct-2026 — en el crédito a cuotas Joan pone el % de cada cuota, así
+       que va al lado de su fecha (él sí ve porcentajes; el cliente no). Y una
+       cuota con abonos dice cuánto entró y cuánto falta: sin eso, la lista
+       decía «$455.000» de una cuota a la que ya le faltaban 374.500. */
+    var alta = P.esPlanDeAlta(p);
+    h += '<div class="tit-bloque"><h3 class="tit">' + (alta ? 'Cuotas' : 'Plan de pagos') + '</h3></div><div class="card ap">';
     cuotas.forEach(function (c) {
-      h += '<div class="linea-item"><span>Cuota ' + c.n + ' · ' + fmtFecha(c.fecha) + '</span>'
+      var ya = c.pagado ? null : P.pagadoDeCuota(p, c);
+      h += '<div class="linea-item"><span>Cuota ' + c.n + ' · ' + fmtFecha(c.fecha)
+        + (alta && c.pct ? ' <span class="muted">(' + c.pct + '%)</span>' : '')
+        + (ya && ya.abonos ? '<br><span class="muted">abonó ' + COP(ya.recibido) + '</span>' : '') + '</span>'
         + '<span>' + COP(c.total) + (c.pagado ? ' <span class="muted">pagada</span>' : '') + '</span></div>';
     });
     h += '</div>';
@@ -3889,7 +4121,12 @@ function vistaCredito() {
   if (abs.length) {
     h += '<div class="tit-bloque"><h3 class="tit">Abonos a capital</h3></div><div class="card ap">';
     abs.slice().reverse().forEach(function (x) {
-      h += '<div class="linea-item"><span>' + fmtFecha(x.fecha) + '</span><span>' + COP(x.monto) + '</span></div>';
+      /* 16-oct-2026: un abono a una cuota guarda en `monto` solo lo que fue a
+         capital (puede ser 0); la plata que entró es `recibido`. */
+      h += x.parcial
+        ? '<div class="linea-item"><span>' + fmtFecha(x.fecha) + ' · a la cuota ' + x.cuotaPlan
+          + '<br><span class="muted">' + COP(x.monto) + ' a capital</span></span><span>' + COP(x.recibido) + '</span></div>'
+        : '<div class="linea-item"><span>' + fmtFecha(x.fecha) + '</span><span>' + COP(x.monto) + '</span></div>';
     });
     h += '</div>';
   }
@@ -3905,7 +4142,13 @@ function vistaCredito() {
 /* ----------------------------- QUINCENA -------------------------------- */
 function vistaQuincena() {
   var q = cicloActualGlobal();
+  /* 17-oct-2026, revisión: una cuota del 30-oct cuenta en la quincena del
+     31-oct —como ganancia y como «vence»— porque el puente la pone en la
+     quincena que contiene su fecha (ver creditosQueVencenEn). Una sola
+     quincena, una sola pregunta por cifra. */
   var vencen = creditosQueVencenEn(q);
+  var ganancia = gananciaDeQuincena(q);
+  var porCobrar = porCobrarEnQuincena(q);
   var hoy = hoyISO();
 
   /* Lo que Joan registró HOY. Sale de los hechos guardados, no de un contador
@@ -3920,14 +4163,14 @@ function vistaQuincena() {
 
   var h = '<div class="card laca">'
     + '<div class="etq">Quincena del ' + fmtFecha(q) + '</div>'
-    + '<div class="cifra oro">' + COP(gananciaDeQuincena(q)) + '</div>'
+    + '<div class="cifra oro">' + COP(ganancia) + '</div>'
     + '<div class="sub" style="color:color-mix(in srgb, var(--blanco-laca) 62%, transparent)">'
-    +   'ganancia del ciclo (costos y prórrogas ya cobrados)</div>'
+    +   'ganancia del ciclo (costos, cuotas y prórrogas ya cobrados)</div>'
     + '<div class="sep"></div>'
     + '<div class="fila"><span class="k">Invertido en el ciclo</span>'
     +   '<span class="v">' + COP(invertidoEnQuincena(q)) + '</span></div>'
     + '<div class="fila"><span class="k">Por cobrar en el ciclo</span>'
-    +   '<span class="v">' + COP(porCobrarEnQuincena(q)) + '</span></div>'
+    +   '<span class="v">' + COP(porCobrar) + '</span></div>'
     + '<div class="fila"><span class="k">Créditos que vencen</span>'
     +   '<span class="v">' + vencen.length + '</span></div>'
     + '</div>';
@@ -4142,6 +4385,7 @@ function bloqueChoques() {
       + '. <b>Nada se ha perdido</b>: las dos versiones están guardadas en este teléfono. '
       + 'Decide cuál queda.</div>';
     if (_choqueAbierto === i) h += ladosHTML(c);
+    h += avisoPagosDeCuotas(c);
     h += '<div class="tres">'
       + '<button class="btn sm sec" type="button" data-acc="choque-nube" data-i="' + i + '">Dejar lo de la nube</button>'
       + '<button class="btn sm sec" type="button" data-acc="choque-mio" data-i="' + i + '">Mandar lo mío encima</button>'
@@ -4150,6 +4394,31 @@ function bloqueChoques() {
       + '</div></div>';
   });
   return h;
+}
+/* 17-oct-2026, segunda revisión — LOS PAGOS DE LAS CUOTAS NO SE JUNTAN, y se
+   dice antes de que Joan toque un botón. NUBE.fusionarFila hace viajar los
+   abonos de las cuotas con su planPagos: si los dos aparatos traen un plan
+   distinto, «Mandar lo mío encima» deja SOLO los pagos de cuotas de este
+   celular, y «Dejar lo de la nube» deja la versión de la nube tal cual (con
+   los suyos). Lo del otro lado no entra, y eso es plata que pudo haber entrado
+   de verdad: se dice cuánta, por cuota y en pesos que entraron (`recibido`),
+   y qué hacer si entró. Va fuera de «Ver las dos» porque es lo que decide qué
+   botón tocar. */
+function avisoPagosDeCuotas(c) {
+  if (!c || c.tabla !== 'creditos' || !NUBE || typeof NUBE.fusionarFila !== 'function') return '';
+  var mio = c.mio || filaLocal(c.tabla, c.id);
+  var r = null;
+  try { r = (mio && c.suyo) ? NUBE.fusionarFila(mio, c.suyo) : null; } catch (e) { r = null; }
+  var x = ((r && r.pisables) || []).filter(function (p) {
+    return p && p.campo === 'abonosCapital' && typeof p.mio === 'string';
+  })[0];
+  if (!x) return '';
+  return '<div class="aviso ambar"><b>Los pagos de las cuotas no se juntan.</b> '
+    + 'Con <b>Mandar lo mío encima</b> quedan solo los de este celular (' + esc(valorCorto('abonosCapital', x.mio))
+    + ') y lo que trae la nube para esas cuotas (' + esc(valorCorto('abonosCapital', x.suyo)) + ') no entra. '
+    + 'Con <b>Dejar lo de la nube</b> es al revés: queda lo de la nube y lo de este celular no entra. '
+    + 'Si la plata del lado que no queda entró de verdad, se vuelve a anotar después como abono a la cuota, '
+    + 'desde el computador.</div>';
 }
 function nombreDeFila(tabla, f) {
   if (!f) return '';
@@ -4183,8 +4452,8 @@ function ladosHTML(c) {
   var izq = '<div class="lado"><h4>Lo mío (este celular)</h4>';
   var der = '<div class="lado"><h4>Lo de la nube</h4>';
   pisables.slice(0, 12).forEach(function (p) {
-    izq += '<div class="d"><span>' + esc(etiquetaCampo(p.campo)) + '</span><span>' + esc(valorCorto(p.campo, p.mio)) + '</span></div>';
-    der += '<div class="d"><span>' + esc(etiquetaCampo(p.campo)) + '</span><span>' + esc(valorCorto(p.campo, p.suyo)) + '</span></div>';
+    izq += '<div class="d"><span>' + esc(etiquetaCampo(p.campo, p.mio)) + '</span><span>' + esc(valorCorto(p.campo, p.mio)) + '</span></div>';
+    der += '<div class="d"><span>' + esc(etiquetaCampo(p.campo, p.suyo)) + '</span><span>' + esc(valorCorto(p.campo, p.suyo)) + '</span></div>';
   });
   return '<div class="lados">' + izq + '</div>' + der + '</div></div>';
 }
@@ -4192,7 +4461,9 @@ var ETIQUETAS = {
   pagado: '¿Pagado?', fechaPagado: 'Fecha de pago', capital: 'Capital', total: 'Total',
   cicloActual: 'Corte vigente', cicloPago: 'Corte del pago', gananciaPago: 'Ganancia del pago',
   recargoMora: 'Recargo cobrado', nombre: 'Nombre', cedula: 'Cédula', telefono: 'Teléfono',
-  ajusteGarantia: 'Ajuste de garantía', planPagos: 'Plan de pagos', costoPct: 'Costo %',
+  /* 17-oct-2026, revisión: «Cuotas» y no «Plan de pagos», porque el campo
+     guarda también el crédito a cuotas, que no es el plan de rescate del §8. */
+  ajusteGarantia: 'Ajuste de garantía', planPagos: 'Cuotas', costoPct: 'Costo %',
   /* `montoRecibido` va acá porque es EL campo que resuelve el choque de un
      cobro: si el celular registró 240.000 con descuento y el computador
      «pagó todo» 260.000, sin ver los dos montos Joan no puede saber cuál de las
@@ -4204,10 +4475,35 @@ var ETIQUETAS = {
      capital ese día, en pesos, para que Joan vea cuál de las dos es la buena. */
   prorrogas: 'Prórroga de ese día (lo que entró)', abonosCapital: 'A capital ese día'
 };
-function etiquetaCampo(k) { return ETIQUETAS[k] || k; }
+/* 17-oct-2026, revisión — `abonosCapital` llega como pisable de DOS formas: en
+   pesos (lo que fue a capital el día de una prórroga, 3-oct) o en texto, cuando
+   los dos aparatos traen un plan de cuotas distinto (NUBE.fusionarFila). La
+   segunda no es «a capital ese día».
+   17-oct-2026, segunda revisión — ese texto ahora trae, por cuota, lo que
+   ENTRÓ cada vez (el cierre por lo que se cobró ese día, no por el capital):
+   es lo que Joan coteja con el cliente, y así se rotula. */
+function etiquetaCampo(k, v) {
+  if (k === 'abonosCapital' && typeof v === 'string') return 'Lo que entró por las cuotas';
+  return ETIQUETAS[k] || k;
+}
 function valorCorto(campo, v) {
   if (v === undefined) return '(no estaba)';
   if (v === null) return '—';
+  /* El plan de cuotas en una línea que Joan pueda leer: cuántas van pagadas y
+     cuándo se pagó cada una. «objeto» no le dejaba saber cuál de los dos
+     aparatos tenía el cobro bueno. */
+  if (campo === 'planPagos') return resumenDelPlan(v);
+  /* El texto del choque de una cuota trae fechas ISO y pesos sin puntos
+     («cierre 2026-10-30 $325000»): se dicen como en el resto del celular. */
+  if (campo === 'abonosCapital' && typeof v === 'string') {
+    /* Varias cuotas vienen separadas por « | »: se separan con punto y coma,
+       que es como se lee una lista. «nada» es que ese lado no anotó pagos de
+       cuotas. */
+    if (v === 'nada') return 'ningún pago de cuotas anotado';
+    return v.replace(/\d{4}-\d{2}-\d{2}/g, function (f) { return fmtFecha(f); })
+            .replace(/\$(\d+)/g, function (x, n) { return COP(Number(n)); })
+            .split(' | ').join('; ');
+  }
   if (Array.isArray(v)) return v.length + ' elemento(s)';
   if (typeof v === 'boolean') return v ? 'sí' : 'no';
   if (typeof v === 'object') return 'objeto';
@@ -4218,6 +4514,39 @@ function valorCorto(campo, v) {
   }
   if (/^\d{4}-\d{2}-\d{2}/.test(String(v))) return fmtFecha(v);
   return String(v);
+}
+/* 17-oct-2026, segunda revisión — cada cuota PENDIENTE con su fecha, su % y
+   su total, y el último cambio anotado en planPagos.cambios. Con solo
+   «pendiente», una cuota reprogramada en un aparato (otra fecha, otro %) y la
+   misma sin reprogramar en el otro se leían iguales, y Joan elegía sin ver
+   que un lado le cobraba el 15-nov y el otro el 20. Joan sí ve porcentajes. */
+function resumenDelPlan(pp) {
+  var cs = (pp && Array.isArray(pp.cuotas)) ? pp.cuotas : [];
+  if (!cs.length) return 'sin cuotas';
+  var pagas = cs.filter(function (c) { return c && c.pagado; }).length;
+  var txt = pagas + ' de ' + cs.length + ' cuotas pagadas: ' + cs.map(function (c) {
+    if (c && c.pagado) {
+      return 'cuota ' + (c.n || '?') + ' pagada' + (c.fechaPagado ? ' el ' + fmtFecha(c.fechaPagado) : '')
+        + (c.saldadoAntes ? ' (antes de empezar)' : '');
+    }
+    return 'cuota ' + ((c && c.n) || '?') + ' pendiente'
+      + (c && c.fecha ? ': ' + fmtFecha(c.fecha) : '')
+      + (c && c.pct != null && c.pct !== '' ? ' (' + c.pct + '%)' : '')
+      + (c && c.total != null ? ' ' + COP(c.total) : '');
+  }).join(' · ');
+  var cambios = (pp && Array.isArray(pp.cambios)) ? pp.cambios : [];
+  var u = cambios[cambios.length - 1];
+  if (u) txt += ' · último cambio' + (u.fecha ? ' (' + fmtFecha(u.fecha) + ')' : '') + ': ' + textoDelCambio(u);
+  return txt;
+}
+/* Un cambio de reprogramarPlan ({n, de:{fecha,pct}, a:{fecha,pct}}) dicho en
+   una línea: solo lo que se movió. */
+function textoDelCambio(u) {
+  var de = (u && u.de) || {}, a = (u && u.a) || {};
+  var partes = [];
+  if (de.fecha !== a.fecha) partes.push('del ' + fmtFecha(de.fecha) + ' al ' + fmtFecha(a.fecha));
+  if (de.pct !== a.pct) partes.push(de.pct + '% → ' + a.pct + '%');
+  return 'cuota ' + ((u && u.n) || '?') + ' ' + (partes.join(', ') || 'sin cambios');
 }
 
 /* ================================ HOJAS ================================= */
@@ -4262,17 +4591,17 @@ function calcCobro(id) {
   var c = P.cuotaPlanActual(p), cs = P.cuotasPlan(p);
   var pr = liqProrroga(p, f);
   var h = '<div class="card ap" style="margin-top:14px">'
-    + '<div class="fila"><span class="k">' + (c ? 'Capital de la cuota ' + c.n + ' de ' + cs.length : 'Capital') + '</span>'
+    + '<div class="fila"><span class="k">' + (c ? rotuloCuota(p, l, 'capital') : 'Capital') + '</span>'
     +   '<span class="v">' + COP(l.capital) + '</span></div>'
     + '<div class="fila"><span class="k">'
-    +   (c ? 'Costo del plan (' + Math.round((l.tasa || 0) * 100) + '% del saldo)'
+    +   (c ? rotuloCuota(p, l, 'costo')
            : 'Costo del ciclo (' + Math.round((l.tasa || 0) * 100) + '%)') + '</span>'
     +   '<span class="v">' + COP(l.costo) + '</span></div>'
     + (l.recargo_mora
-        ? '<div class="fila"><span class="k">Recargo por ' + l.dias_mora + ' día(s)' + pctMora(l) + '</span>'
+        ? '<div class="fila"><span class="k">' + rotuloRecargo(p, l) + '</span>'
           + '<span class="v ambar">' + COP(l.recargo_mora) + '</span></div>'
         : '')
-    + '<div class="fila"><span class="k"><b>' + (c ? 'Total de la cuota' : 'Total para saldar') + '</b></span>'
+    + '<div class="fila"><span class="k"><b>' + (c ? rotuloCuota(p, l, 'total') : 'Total para saldar') + '</b></span>'
     +   '<span class="v"><b>' + COP(l.total_a_pagar) + '</b></span></div>'
     /* Cuando acredita a la mitad se dice POR QUÉ, y son dos motivos distintos:
        pagar tarde, o pagar dentro de un corte que compró una prórroga (§4-bis).
@@ -4296,7 +4625,22 @@ function calcCobro(id) {
      Con PLAN DE PAGOS no se ofrece: una cuota del plan trae su costo y su
      garantía materializados, y descontar ahí es una cuenta que hoy no existe ni
      en el motor ni en el puente. Se dice, no se inventa. */
-  if (c) {
+  /* 17-oct-2026, revisión — el cierre de la cuota ESE día lo contesta el puente
+     antes de ofrecer el botón: una cuota del medio que todavía no empieza no
+     se cierra sola, y un cobro con fecha anterior a un abono ya anotado
+     tampoco. Si dice que no, se dice por qué aquí mismo y no se ofrece el
+     botón; si es la última antes de su quincena, se dice que el total es menor
+     porque cobrarla hoy es pagar todo antes. */
+  var cierre = (c && P.esPlanDeAlta(p)) ? P.cierreDeCuota(p, f) : null;
+  h += avisoDelCierre(p, cierre);
+  if (c && P.esPlanDeAlta(p)) {
+    /* 16-oct-2026 — el crédito a cuotas sí admite abonos a la cuota y pagar
+       todo antes (decisiones de Joan de ese día), pero esas dos hojas viven en
+       el computador en esta entrega. Se dice dónde, en vez de dejar que Joan
+       crea que no existen o, peor, que las cobre aquí como cuota completa. */
+    h += '<div class="aviso info">Es un <b>crédito a cuotas</b>: desde el celular la cuota se cobra '
+      + 'completa. <b>El abono a una cuota y «pagar todo» se anotan desde el computador.</b></div>';
+  } else if (c) {
     h += '<div class="aviso info">Este crédito está en <b>plan de pagos</b>: la cuota se cobra '
       + 'completa. El cobro con descuento todavía <b>no está en el celular</b> para los planes; '
       + 'si le vas a perdonar algo de una cuota, regístralo en el computador.</div>';
@@ -4325,9 +4669,14 @@ function calcCobro(id) {
      y lo que cambia es su TEXTO, que dice exactamente lo que se va a registrar.
      Si se moviera al aparecer el bloque de preguntas, el toque de memoria de
      Joan aterrizaría en otro botón con el cliente mirando. */
-  h += '<button class="btn arriba" id="pgBtn" type="button" data-acc="cobro-ok" data-id="' + esc(p.id) + '">'
-    + (c ? '✓ Pagó la cuota ' + c.n + ' (' + COP(l.total_a_pagar) + ')' : '✓ Pagó todo (' + COP(l.total_a_pagar) + ')')
-    + '</button>';
+  /* Sin cierre posible no hay botón: un botón que al tocarlo dice «no» es una
+     promesa que la hoja no cumple. Cambiando la fecha vuelve. */
+  if (!(cierre && !cierre.ok)) {
+    h += '<button class="btn arriba" id="pgBtn" type="button" data-acc="cobro-ok" data-id="' + esc(p.id) + '">'
+      + (c ? '✓ Pagó la cuota ' + c.n + ' (' + COP(cierre ? cierre.total : l.total_a_pagar) + ')'
+           : '✓ Pagó todo (' + COP(l.total_a_pagar) + ')')
+      + '</button>';
+  }
   if (!c && pr && pr.ok) {
     h += '<button class="btn sec arriba" type="button" data-acc="prorroga-ok" data-id="' + esc(p.id) + '">'
       + '↻ Prórroga (' + COP(pr.total_a_pagar) + ')</button>';
@@ -4571,7 +4920,10 @@ function calcProrroga(id) {
   var r = liqProrroga(p, f);
   var caja = document.getElementById('prCalc');
   if (!r) {
-    caja.innerHTML = '<div class="aviso ambar">' + (P.tienePlan(p)
+    caja.innerHTML = '<div class="aviso ambar">' + (P.esPlanDeAlta(p)
+      ? 'Es un <b>crédito a cuotas</b>: no se prorroga. Si trae solo una parte, el abono a la cuota se '
+        + 'anota desde el computador.'
+      : P.tienePlan(p)
       ? 'Este crédito está en <b>plan de pagos</b>: de ahí no se sale prorrogando.'
       : 'Este crédito no admite prórroga: está pagado o su capital quedó en cero.') + '</div>';
     return;
