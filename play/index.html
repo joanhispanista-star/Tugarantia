@@ -347,8 +347,10 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    condiciones de cada propuesta con su casilla, el correo obligatorio, los
    pesos con separadores y el acompañamiento sin pregunta.
    13-oct-2026 — sube por el rayo: continuo, saliendo del dedo hacia todos
-   lados, y visible también sobre fondo claro. */
-var VERSION_PLAY = '2026-10-15';
+   lados, y visible también sobre fondo claro.
+   19-oct-2026 — sube por el escáner del frente: ya no guarda el respaldo
+   como frente, y con un solo lado de la cédula se avisa. */
+var VERSION_PLAY = '2026-10-19';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -1585,8 +1587,19 @@ function siguientePaso() {
     if (!extra.sensibles) { FOTOS = { sensibles: false }; guardarFotos(); }
     return enviarRegistro(extra.sensibles);
   }
-  /* Los dos pasos de fotos son opcionales: se pasa con o sin foto. */
-  if (p.id === 'documento' || p.id === 'rostro') return pintarRegistro(PASO + 1);
+  /* Los dos pasos de fotos son opcionales: se pasa con o sin foto.
+     19-oct-2026 — PERO CON UN SOLO LADO DE LA CÉDULA SE AVISA, una vez. Antes
+     se pasaba callado: si la cámara en vivo no prendía y la segunda foto se
+     perdía con la vuelta de la cámara del sistema, nadie se enteraba, y Joan
+     veía en su panel un solo lado de alguien que creía haber tomado los dos.
+     No bloquea: el paso es opcional a propósito y la cuenta se abre igual; un
+     segundo «Continuar» (o «Seguir sin él») pasa. */
+  if (p.id === 'documento') {
+    var faltaLado = ladoQueFalta();
+    if (faltaLado && AVISO_UN_LADO !== faltaLado) { AVISO_UN_LADO = faltaLado; return avisarUnLado(err, faltaLado); }
+    return pintarRegistro(PASO + 1);
+  }
+  if (p.id === 'rostro') return pintarRegistro(PASO + 1);
 
   /* Falta algo obligatorio de ESTE paso. No se revisa el formulario entero:
      mandar al socio a un paso anterior por algo que aún no ha llenado es la
@@ -1600,6 +1613,41 @@ function siguientePaso() {
     return fallo(err, 'Nos falta ' + faltanAqui.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') + '. Con eso seguimos.');
   }
   pintarRegistro(PASO + 1);
+}
+
+/* 19-oct-2026 — EL LADO DE LA CÉDULA QUE FALTA, si falta uno solo. Sin la
+   autorización de las fotos no hay nada que avisar (no se piden), y sin
+   ninguno de los dos tampoco: eso es decidir no tomarlas, no perder una. Se
+   pregunta lo mismo que pinta el ✓ (hayFotoLista): la pantalla y el aviso no
+   pueden decir cosas distintas. */
+var AVISO_UN_LADO = '';   // el lado del que ya se avisó: el segundo «Continuar» pasa
+function ladoQueFalta() {
+  if (!FOTOS.sensibles) return '';
+  var frente = hayFotoLista('cedula_frente'), reverso = hayFotoLista('cedula_reverso');
+  if (frente === reverso) return '';
+  return frente ? 'reverso' : 'frente';
+}
+function avisarUnLado(err, falta) {
+  var frente = falta === 'frente';
+  err.innerHTML = '<b>' + (frente ? 'Te falta la foto del frente de tu cédula' : 'Te falta la foto del respaldo de tu cédula') +
+    '</b> (' + (frente ? 'el lado con tu foto' : 'el lado del código de barras') + '). ' +
+    (frente ? 'Con ella confirmamos que la cédula es tuya.' : 'Con ella leemos tus datos de la cédula.') +
+    ' Puedes seguir sin ella: tu cuenta se abre igual.' +
+    '<div style="display:flex;gap:var(--e2);flex-wrap:wrap;margin-top:var(--e2)">' +
+      '<button class="btn sec sm" type="button" onclick="tomarLadoQueFalta(\'' + falta + '\')">' +
+        (frente ? 'Tomar el frente' : 'Tomar el respaldo') + '</button>' +
+      '<button class="btn sec sm" type="button" onclick="siguientePaso()">Seguir sin él</button>' +
+    '</div>';
+  err.classList.add('ambar');
+  err.classList.remove('oculto');
+}
+function tomarLadoQueFalta(lado) {
+  AVISO_UN_LADO = '';   // si esta vez tampoco sale, se vuelve a avisar
+  var err = $('errReg'); if (err) err.classList.add('oculto');
+  if (hayCamaraEnVivo()) return iniciarEscanerDoc(lado);
+  var f = $('docFijo'); if (f) f.classList.remove('oculto');
+  var caja = $('fot_cedula_' + lado);
+  if (caja && caja.scrollIntoView) { try { caja.scrollIntoView({ block: 'center' }); } catch (e) { caja.scrollIntoView(); } }
 }
 
 function enviarRegistro(sensibles) {
@@ -2795,6 +2843,20 @@ function giroPorPatron(c) {
     return o.seguro ? o.giro : null;
   } catch (e) { return null; }
 }
+/* 19-oct-2026 — ¿SE VE UN CÓDIGO DE BARRAS EN ESTE RECORTE? Es la pregunta
+   que le faltaba al frente: el escáner guardaba como frente el respaldo que la
+   persona acostaba sin voltear, y este mismo lector lo leía. Cuenta lo mismo
+   que en el respaldo cuenta como «vio el código» (leerCuadroDoc): leído,
+   encontrado sin poder leerlo, o el patrón de sus barras. Sin ZXing (todavía
+   bajando), solo el patrón, que es aritmética de este archivo. */
+function codigoEnRecorte(c) {
+  if (!EC || !c || !c.width) return false;
+  if (window.ZXing) {
+    var r = leerCedulaDeLienzo(c, null, 'siempre');
+    return !!(r.cedula || r.error === 'ilegible' || r.patron);
+  }
+  return giroPorPatron(c) !== null;
+}
 /* Endereza una foto YA GUARDADA (la del <input type=file>): se gira la de
    900 px, no la original de la cámara, y después de soltar el lienzo grande
    del lector — nunca las dos en memoria a la vez. Si mientras tanto la
@@ -2895,7 +2957,12 @@ var ESCDOC = { activo: false, pausado: false, stream: null, lado: '', estables: 
                /* 8-oct-2026 (segunda vuelta) — si en ESTE lado ya se vio un código
                   de barras (leído o no): sin eso el respaldo no dispara solo
                   (EC.decidirRespaldo), y cuándo se miró el patrón por última vez. */
-               vioCodigo: false, tPatron: 0 };
+               vioCodigo: false, tPatron: 0,
+               /* 19-oct-2026 — en el FRENTE, `vioCodigo` es de la racha en verde
+                  (EC.decidirFrente): `limpias` cuenta las miradas de esta racha
+                  que no vieron código, y `tRechazoAMano` es cuándo se rechazó una
+                  toma a mano por traer código (el segundo toque la guarda igual). */
+               limpias: 0, tRechazoAMano: 0 };
 var ALTO_GRIS_DOC = 96;        // el gris chico de la puerta: 96 px de alto, ancho proporcional
 var MS_ESPERA_CAMARA = 9000;   // si el permiso nunca contesta, no se queda «Encendiendo…» para siempre
 
@@ -2964,12 +3031,22 @@ function textoDelLado(lado) {
     ? 'Ahora el frente, acostado y con tu foto a la izquierda'
     : 'Pon el respaldo de tu cédula de pie en el marco: la foto se toma sola.';
 }
+/* 19-oct-2026 — lo que se dice cuando en el marco del frente se ve el código
+   de barras: qué hacer, no qué pasó. Y la salida para quien está seguro de que
+   es el frente (un falso positivo del lector): va en la nota de abajo, que el
+   bucle no pisa diez veces por segundo como pisa el letrero. */
+var TEXTO_FRENTE_ES_RESPALDO = 'Ese es el lado del código de barras: voltéala y muestra el frente, con tu foto';
+var TEXTO_GUARDAR_FRENTE_IGUAL = 'Si de verdad es el frente (el lado con tu foto), vuelve a tocar «Tomar la foto ahora» y la guardamos así.';
+/* Y si lleva un rato atascada pidiendo voltearla, la salida se ofrece sola:
+   quien ya tiene el frente en el marco no tiene por qué adivinar el botón. */
+var TEXTO_FRENTE_DOS_TOQUES = 'Si ya tienes el frente en el marco (el lado con tu foto), toca «Tomar la foto ahora» dos veces y la guardamos así.';
 /* 8-oct-2026 — un lado nuevo empieza de cero: la racha, el rato en verde y el
    mejor cuadro son de ESTE lado, no del anterior. */
 function reiniciarCuentaDoc() {
   ESCDOC.estables = 0; ESCDOC.previa = null; ESCDOC.desde = 0; ESCDOC.ilegibles = 0;
   ESCDOC.lecturas = 0; ESCDOC.msVerde = 0; ESCDOC.mejorNitidez = 0; ESCDOC.tUltimo = 0;
   ESCDOC.vioCodigo = false; ESCDOC.tPatron = 0;
+  ESCDOC.limpias = 0; ESCDOC.tRechazoAMano = 0;
 }
 function iniciarEscanerDoc(lado) {
   if (!hayCamaraEnVivo()) return escanerDocSinCamara('Este navegador no deja usar la cámara en vivo.');
@@ -3234,14 +3311,39 @@ function bucleEscanerDoc() {
                            nitidez: m ? m.nitidez : 0, mejorNitidez: ESCDOC.mejorNitidez,
                            vioCodigo: ESCDOC.vioCodigo })
     : { disparar: false, avance: 0, voltear: false };
-  dibujarMarcoDoc(verde, esFrente ? Math.min(1, ESCDOC.estables / EC.TARJETA.CUADROS_FRENTE) : resp.avance);
+  /* 19-oct-2026 — EL FRENTE MIRA ANTES DE DISPARAR (EC.decidirFrente). Antes
+     bastaban seis cuadros quietos, y el respaldo acostado sin voltear también
+     es una tarjeta quieta: se guardaba como frente y Joan veía dos veces el
+     mismo lado. Con la tarjeta en verde se mira el recorte dos veces por
+     segundo; si trae código, no se dispara y se pide voltearla. Lo visto es de
+     ESTA racha: voltear la cédula la mueve, la racha se corta, y la cara nueva
+     se mira de cero. Un escaner-cedula.js viejo en la caché (sin
+     decidirFrente) dispara como antes: peor no queda. */
+  var fre = { disparar: false, voltear: false };
+  if (esFrente) {
+    if (!verde) { ESCDOC.vioCodigo = false; ESCDOC.limpias = 0; }
+    else if (EC.decidirFrente && (ahora - ESCDOC.tPatron) >= EC.FRENTE.MS_ENTRE_MIRADAS) {
+      ESCDOC.tPatron = ahora;
+      if (codigoEnRecorte(recortarGuia(v))) { ESCDOC.vioCodigo = true; ESCDOC.estables = 0; }
+      else if (!ESCDOC.vioCodigo) ESCDOC.limpias++;
+    }
+    fre = EC.decidirFrente
+      ? EC.decidirFrente({ estables: ESCDOC.estables, vioCodigo: ESCDOC.vioCodigo, limpias: ESCDOC.limpias })
+      : { disparar: ESCDOC.estables >= EC.TARJETA.CUADROS_FRENTE, voltear: false };
+  }
+  dibujarMarcoDoc(verde, esFrente ? (fre.voltear ? 0 : Math.min(1, ESCDOC.estables / EC.TARJETA.CUADROS_FRENTE)) : resp.avance);
   var t = (Date.now() - ESCDOC.desde) / 1000;
   if (estado) {
     var txt = g ? EC.textoDeTarjeta(m) : 'Encendiendo la cámara…';
     if (verde && !esFrente) txt = (resp.avance >= 1 && ESCDOC.lecturas >= EC.RESPALDO.LECTURAS_MIN) ? 'Quieta… tomando la foto'
       : (!window.ZXing && !ESCDOC.nativo) ? 'Escaneando…'
       : (ESCDOC.ilegibles >= 2 ? 'Casi: enderézala y acércala un poco' : 'Leyendo el código…');
-    if (verde && esFrente) txt = 'Quieta… ' + Math.max(1, Math.ceil((EC.TARJETA.CUADROS_FRENTE - ESCDOC.estables) / 3));
+    if (verde && esFrente) txt = fre.voltear ? TEXTO_FRENTE_ES_RESPALDO
+      : 'Quieta… ' + Math.max(1, Math.ceil((EC.TARJETA.CUADROS_FRENTE - ESCDOC.estables) / 3));
+    if (verde && esFrente && fre.voltear && t > 10) {
+      var nf = $('docNota');
+      if (nf && !nf.textContent) nf.textContent = TEXTO_FRENTE_DOS_TOQUES;
+    }
     /* Bien puesta su rato y sin un solo código a la vista: casi seguro es el
        frente. Se pide voltearla en vez de guardar el lado equivocado. */
     if (verde && !esFrente && resp.voltear) txt = '¿Es el lado del código de barras? Voltéala';
@@ -3257,12 +3359,13 @@ function bucleEscanerDoc() {
     estado.textContent = txt;
   }
   if (esFrente) {
-    if (ESCDOC.estables >= EC.TARJETA.CUADROS_FRENTE) { capturarDoc(); return; }
+    /* `true`: la pide el bucle, no la persona (ver capturarDoc). */
+    if (fre.disparar) { capturarDoc(true); return; }
   } else if (verde && !ESCDOC.leyendo && resp.disparar) {
     /* No leyó en su rato: se toma la foto igual. capturarDoc le da al lector
        una última oportunidad con giros, y si tampoco, los datos se escriben
        en el paso siguiente — que es lo mismo que pasaba al tocar el botón. */
-    capturarDoc(); return;
+    capturarDoc(true); return;
   } else if (verde && !ESCDOC.leyendo && (Date.now() - ESCDOC.ultima) >= Math.max(EC.TARJETA.MS_ENTRE_LECTURAS, ESCDOC.dura)) {
     leerCuadroDoc(v);
     if (!ESCDOC.activo) return;   // leyó y ya cerró el bucle
@@ -3390,20 +3493,44 @@ function reanudarEscanerDoc(lado) {
    si no lee, la foto queda igual y se dice: los datos se escriben en el paso
    siguiente. Y se guarda DERECHA: este es el camino por el que a Joan se le
    veía cabeza abajo en el CRM (el giro de 90° del recorte es siempre el
-   mismo, y la cédula se puede poner de pie hacia los dos lados). */
-function capturarDoc() {
+   mismo, y la cédula se puede poner de pie hacia los dos lados).
+   19-oct-2026 — `automatico`: true cuando la pide el bucle; el botón la llama
+   sin nada, y eso es «a mano». Solo importa en el frente (ver abajo). */
+function capturarDoc(automatico) {
   var v = $('docVideo');
   if (!v || !v.videoWidth) { var e0 = $('docEstado'); if (e0) e0.textContent = 'La cámara todavía no está lista…'; return; }
   var c = recortarGuia(v); if (!c) return;
   var lado = ESCDOC.lado || 'reverso';
   ESCDOC.activo = false;
   if (ESCDOC.tempo) { clearTimeout(ESCDOC.tempo); ESCDOC.tempo = null; }
-  var leyo = false, giro = null;
+  var leyo = false, giro = null, forzada = false;
   if (lado === 'reverso') {
     var r = window.ZXing && EC ? leerCedulaDeLienzo(c, EC.GIROS_DE_RESCATE, 'siempre') : { cedula: null, giro: giroPorPatron(c) };
     giro = r.giro;
     if (r.cedula) { anotarCedulaLeida(r.cedula); leyo = true; }
     else { delete FOTOS.cedula_leida; }
+  } else if (EC && EC.guardarFrente) {
+    /* 19-oct-2026 — LA ÚLTIMA REJA DEL FRENTE, también para «Tomar la foto
+       ahora»: si en lo que se va a guardar se ve el código de barras, es el
+       respaldo y no se guarda. Antes este camino no miraba nada y decía
+       «Listo: las dos caras.» con el respaldo guardado dos veces. Un segundo
+       toque A MANO dentro de unos segundos la guarda igual (EC.guardarFrente):
+       es la salida para un frente que el lector confunda con un código. */
+    var ahora = Date.now();
+    var gf = EC.guardarFrente({ conCodigo: codigoEnRecorte(c), aMano: automatico !== true,
+      msDesdeRechazo: ESCDOC.tRechazoAMano ? ahora - ESCDOC.tRechazoAMano : null });
+    if (!gf.guardar) {
+      if (automatico !== true) ESCDOC.tRechazoAMano = ahora;
+      ESCDOC.vioCodigo = true; ESCDOC.estables = 0; ESCDOC.limpias = 0;
+      var eR = $('docEstado'); if (eR) eR.textContent = TEXTO_FRENTE_ES_RESPALDO;
+      var nR = $('docNota'); if (nR && automatico !== true) nR.textContent = TEXTO_GUARDAR_FRENTE_IGUAL;
+      ESCDOC.activo = true; bucleEscanerDoc();
+      return;
+    }
+    forzada = gf.forzada;
+    ESCDOC.tRechazoAMano = 0;
+    var nG = $('docNota');
+    if (nG && (nG.textContent === TEXTO_GUARDAR_FRENTE_IGUAL || nG.textContent === TEXTO_FRENTE_DOS_TOQUES)) nG.textContent = '';
   }
   var jpeg = fotoDeLienzo(c, 900, 0.6, giro);
   if (!jpeg) {
@@ -3417,11 +3544,17 @@ function capturarDoc() {
   marcarDuenoDeLasFotos();
   var aSalvo = guardarFotos();
   var sigue = lado === 'reverso' && !FOTOS.cedula_frente;
+  /* 19-oct-2026 — «Listo: las dos caras.» solo cuando es cierto: el frente
+     pasó la reja de arriba Y el respaldo está guardado. Si la persona insistió
+     en guardar una con código, se le dice que se guardó como lo pidió (la
+     revisión del computador la vuelve a mirar). */
+  var textoFrente = forzada ? 'La guardamos como el frente, como pediste.'
+    : (FOTOS.cedula_reverso ? 'Listo: las dos caras.' : 'Listo: el frente. Falta el respaldo.');
   mostrarListoDoc(!aSalvo
     ? 'La tenemos, pero tu teléfono no dejó guardarla: termina sin cerrar esta página.'
     : (lado === 'reverso'
       ? (leyo ? '¡Leída!' + (sigue ? ' Ahora el frente.' : '') : 'Foto tomada. El código no se pudo leer: escribes tus datos en el paso siguiente.' + (sigue ? ' Ahora el frente.' : ''))
-      : 'Listo: las dos caras.'));
+      : textoFrente));
   refrescarDoc();
   ESCDOC.tempo = setTimeout(function () {
     ocultarListoDoc();

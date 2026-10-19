@@ -335,7 +335,10 @@ function guardarPestania() {
       var notas = EST.notas[id] || [];
       if (notas.some(function (n) { return n.reintentar; })) return;
       var x = EST.porId[id] || {};
-      porId[id] = { firma: firmaDe(r), fotos: x.fotos || null, cotejo: x.cotejo || null, notas: notas };
+      /* 19-oct-2026 — y si el frente resultó ser el respaldo: sin esto, al
+         recargar se perdía el hallazgo de quien no tiene selfie. */
+      porId[id] = { firma: firmaDe(r), fotos: x.fotos || null, cotejo: x.cotejo || null, notas: notas,
+                    frente_codigo: x.frente_codigo === true };
     });
     sessionStorage.setItem(LLAVE_PESTANIA, JSON.stringify({ v: 1, porId: porId }));
   } catch (e) { /* sin sessionStorage: se vuelve a revisar al recargar, y ya */ }
@@ -352,7 +355,7 @@ function recuperarPestania() {
        pierda al recargar. */
     if (esObjeto(x.fotos) && esObjeto(x.fotos.selfie) && esObjeto(x.fotos.cedula_frente)) return;
     EST.porId[id] = { fotos: esObjeto(x.fotos) ? x.fotos : null, rostro: null,
-                      cotejo: esObjeto(x.cotejo) ? x.cotejo : null };
+                      cotejo: esObjeto(x.cotejo) ? x.cotejo : null, frente_codigo: x.frente_codigo === true };
     EST.notas[id] = Array.isArray(x.notas) ? x.notas.filter(esObjeto) : [];
     EST.hecho[id] = true;
   });
@@ -649,7 +652,14 @@ function mirarFotos(r, corrida) {
       return imgs.cedula_reverso ? leerYCotejar(imgs.cedula_reverso, tel, extra, notas, clave, corrida) : null;
     }).then(function () {
       if (corrida !== EST.corrida) return;
-      return (imgs.selfie && imgs.cedula_frente) ? compararCaras(imgs.selfie, imgs.cedula_frente, extra, notas) : null;
+      return imgs.cedula_frente ? mirarCodigoEnElFrente(imgs.cedula_frente, extra, notas, corrida) : null;
+    }).then(function () {
+      if (corrida !== EST.corrida) return;
+      /* 19-oct-2026 — un «frente» que es el respaldo no tiene cara: compararla
+         con la selfie diría «no encontró el rostro», que es cierto y no ayuda.
+         La regla de las fotos ya dice lo que hay que hacer. */
+      return (imgs.selfie && imgs.cedula_frente && !extra.frente_codigo)
+        ? compararCaras(imgs.selfie, imgs.cedula_frente, extra, notas) : null;
     });
   }, function (e) {
     if (corrida !== EST.corrida) return;
@@ -690,6 +700,26 @@ function leerYCotejar(img, tel, extra, notas, clave, corrida) {
   });
 }
 
+/* 19-oct-2026 — EL FRENTE QUE ES EL RESPALDO. Joan: «él tomó la foto de la
+   cédula por los dos lados pero en mi panel solo se ve un lado». El escáner del
+   teléfono guardaba como frente el respaldo que la persona acostaba sin
+   voltear (arreglado en play/ el mismo día), y lo ya guardado así no se
+   arregla solo: aquí se encuentra. El PDF417 solo está en el respaldo, así que
+   si se lee en la foto del frente, esa foto es el respaldo. Es el mismo lector
+   que el del reverso, con sus ocho giros. */
+function mirarCodigoEnElFrente(img, extra, notas, corrida) {
+  if (EST.lectorFallo) return Promise.resolve();
+  return RF.leerCodigoDeImagen(img).then(function (ced) {
+    if (corrida !== EST.corrida) return;
+    if (ced) extra.frente_codigo = true;
+  }, function (e) {
+    if (e && e.carga) { EST.lectorFallo = motivoDe(e); return; }
+    if (corrida !== EST.corrida) return;
+    notas.push({ clase: 'sin', texto: 'No pude mirar si la foto del frente trae el código de barras del respaldo ('
+      + motivoDe(e) + '). Mírala en la ficha.' });
+  });
+}
+
 /* El rostro. Si el programa no carga, se dice una vez arriba y las demás
    reglas siguen; si carga y falla con una foto, se dice en esa ficha. */
 function compararCaras(selfie, frente, extra, notas) {
@@ -713,7 +743,8 @@ function revisiones() {
   Object.keys(EST.porId).forEach(function (id) {
     if (!EST.hecho[id] && EST.actual !== id) return;
     var x = EST.porId[id];
-    porId[id] = { fotos: x.fotos || null, rostro: x.rostro || null, cotejo: x.cotejo || null };
+    porId[id] = { fotos: x.fotos || null, rostro: x.rostro || null, cotejo: x.cotejo || null,
+                  frente_codigo: x.frente_codigo === true };
   });
   var lista = RR.revisarLista(EST.filas, { cartera: EST.cartera, hoy: hoyISO(), donde: 'computador',
                                            porId: porId, ademas: EST.ademas });
