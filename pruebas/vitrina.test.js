@@ -433,6 +433,7 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
        28-ago-2026). */
     if (!o.sinReglas) ctx.CreditosPublicables = require(path.join(RAIZ, 'app', 'creditos.js'));
     ctx.CuentaSocio = require(path.join(RAIZ, 'app', 'cuenta.js'));
+    ctx.Aparato = require(path.join(RAIZ, 'app', 'aparato.js'));   // 19-oct-2026, el teléfono de verdad
     /* 8-oct-2026 — la calculadora del pedido y las condiciones (copia propia
        por banco: guarda el estado de la calculadora en el módulo). */
     delete require.cache[require.resolve(path.join(RAIZ, 'app', 'calculadora-solicitud.js'))];

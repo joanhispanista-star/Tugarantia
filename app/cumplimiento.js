@@ -123,7 +123,12 @@
          más), y así queda `compartido: false`; pero la nota lo dice, para que
          nadie conteste el formulario creyendo que la IP no sale de la casa. Si
          un abogado lo lee distinto, se cambia aquí y la ficha se regenera. */
-      nota: 'No los manda el teléfono —se falsifican en un segundo—: los lee el servidor de la propia petición. La IP dice la ciudad aproximada de la red, no tu casa. Para saber esa ciudad, la herramienta del equipo (no el teléfono) consulta la IP en ipwho.is, un proveedor de servicio de geolocalización fuera de Colombia que solo recibe la IP; solo con quien aceptó la política del 8-oct-2026 o posterior.' },
+      /* 19-oct-2026 — decía «No los manda el teléfono: los lee el servidor de
+         la propia petición», y desde hoy el modelo SÍ lo manda el teléfono
+         (app/aparato.js → aparato_anotar): lo que dice la cabecera de Chrome en
+         Android es la misma cadena para todos y no trae el modelo. Se dice qué
+         sale de dónde, en qué tres momentos, y que nada de eso decide solo. */
+      nota: 'La IP y lo que anuncia el navegador los lee el servidor de la propia conexión. El modelo del celular, la versión del sistema y si entraste por la app los informa el navegador de tu teléfono al registrarte, al pedir y al aceptar (en iPhone el modelo no se puede saber). Todo esto se puede falsificar, así que no se usa solo para decidir nada. La IP dice la ciudad aproximada de la red, no tu casa. Para saber esa ciudad, la herramienta del equipo (no el teléfono) consulta la IP en ipwho.is, un proveedor de servicio de geolocalización fuera de Colombia que solo recibe la IP; solo con quien aceptó la política del 8-oct-2026 o posterior.' },
     { id: 'historial_credito', etiqueta: 'Tus créditos y tus pagos',
       categoria: 'Información financiera · Historial de compras',
       obligatorio: true, proposito: 'Es tu historial: lo que pediste, lo que pagaste y cuándo.',

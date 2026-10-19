@@ -318,6 +318,11 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 
 <script src="../app/creditos.js"></script>
 <script src="../app/cuenta.js"></script>
+<!-- 19-oct-2026 — el teléfono de verdad: lo que el navegador sabe del aparato
+     (modelo, versión) y si la página va dentro de nuestra app. Se manda al
+     registrarse, al pedir y al aceptar, sin esperar respuesta (anotarAparato).
+     Si no llega, no se manda nada y todo lo demás sigue igual. -->
+<script src="../app/aparato.js"></script>
 <!-- 8-oct-2026 — la calculadora del pedido (cuánto y para cuándo, sin precio)
      y las condiciones de cada propuesta. Va DESPUÉS de cuenta.js, que es quien
      sabe escribir los pesos como los pidió Joan (1,500.000). -->
@@ -353,7 +358,9 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    número en cada canal, entrar donde contestaron y el latido de 20 s. Es la
    fecha que Joan le pide leer al cliente que dice «no me llegó la respuesta».
    También sube por el escáner del frente: ya no guarda el respaldo
-   como frente, y con un solo lado de la cédula se avisa. */
+   como frente, y con un solo lado de la cédula se avisa.
+   También sube por el teléfono de verdad (app/aparato.js, nuevo: tiene
+   que entrar a la precarga de sw.js, o la app instalada no lo manda). */
 var VERSION_PLAY = '2026-10-19';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
@@ -385,6 +392,13 @@ if (CS && CS.conectar) CS.conectar(window);   // su almacén y su DOM son los de
 var M = window.MotorReglas;
 var FS = window.FichaSocio;
 var CH = window.ChatTuGarantia;
+/* 19-oct-2026 — SE ANOTA AL ABRIR, Y SOLO AL ABRIR. Que la página va dentro de
+   nuestra app de Android lo dice document.referrer («android-app://
+   co.tugarantia.creditos») únicamente en la primera carga; la recarga que
+   provoca la cámara ya no lo trae. Por eso app/aparato.js lo guarda ahora, en
+   localStorage. */
+var APARATO = window.Aparato;
+try { if (APARATO) APARATO.recordarApp(document, localStorage); } catch (e) {}
 
 /* ===========================================================================
  * EL MODO PLATACHAT — 1 de octubre de 2026
@@ -1769,6 +1783,9 @@ function enviarRegistro(sensibles) {
          fotos sin subir. Es el mismo defecto de la cámara, en el momento más
          caro del embudo. */
       if (res.j && res.j.access_token) { SESION = res.j; guardarSesionEnCurso(SESION); }
+      /* 19-oct-2026 — ANTES de pintar: en PlataChat pintarRegistrado se lleva
+         a la persona a otra página, y la llamada se iría con ella. */
+      anotarAparato('registro');
       pintarRegistrado();
       subidaEnSegundoPlano();   // si falla, queda anotado y se reintenta al abrir la cuenta
     })
@@ -1812,6 +1829,7 @@ function entrarConLaClaveDelRegistro(err, autorizacion) {
       olvidarPaso(); olvidarClaveEnCurso();
       CLAVE_EN_MEMORIA = '';
       anotarCuentaCreada(REGISTRO.celular);
+      anotarAparato('registro');   // 19-oct-2026: ya tenía cuenta, pero este es su registro
       pintarRegistrado();
       subidaEnSegundoPlano();   // sus fotos, que era lo que se perdía
     }, function () {
@@ -1927,6 +1945,37 @@ function rpcSesion(fn, cuerpo) {
   }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); });
 }
 
+/* ================= DESDE QUÉ TELÉFONO — 19-oct-2026 =================
+   El «tipo de celular» del CRM salía de la cabecera de la petición, que en
+   Android es la misma cadena congelada para todos («Android 10; K»). Aquí se
+   le pregunta al navegador lo que sí sabe (app/aparato.js) y se anota en la
+   base (aparato_anotar, base/20261019_aparato_del_telefono.sql) en los tres
+   momentos que Joan mira: al registrarse, al pedir y al aceptar.
+   SIN ESPERAR Y SIN QUE NADA DEPENDA DE ESTO: no se devuelve la promesa, el
+   error se traga con nombre (no es del cliente ni se le puede pedir nada), y
+   la pregunta al navegador tiene su propio límite de 800 ms. Va aunque no haya
+   dado la autorización de datos sensibles: son los datos técnicos que la
+   política declara como obligatorios (app/cumplimiento.js, datos_tecnicos).
+   CON keepalive y no por rpcSesion: en PlataChat, justo después del registro,
+   la página se va a otra; sin keepalive el navegador cancela lo que esté en
+   camino. La sesión se toma al llamar, no al volver la respuesta del aparato. */
+function anotarAparato(cuando) {
+  try {
+    if (!APARATO || !APARATO.leerAparato || !SESION || !SESION.access_token) return;
+    var token = SESION.access_token;
+    APARATO.leerAparato({ navegador: navigator, documento: document, almacen: localStorage,
+                          matchMedia: window.matchMedia ? function (q) { return window.matchMedia(q); } : null },
+                        { tiempo: APARATO.TIEMPO })
+      .then(function (declarado) {
+        return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/aparato_anotar', {
+          method: 'POST', keepalive: true,
+          headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + token },
+          body: JSON.stringify({ p_cuando: cuando, p_declarado: declarado })
+        });
+      })['catch'](function () { /* sin la migración del 19-oct, o sin señal: el resto no cambia */ });
+  } catch (e) { /* nunca tumba el paso que la llamó */ }
+}
+
 /* Con lo que la persona movió antes (en la portada del sitio o en la de aquí,
    antes de registrarse), y si no, un punto de partida cualquiera: 300.000 a
    un mes. */
@@ -1977,6 +2026,7 @@ function enviarPedido() {
   rpcSesion('solicitar_a_la_medida', pedido).then(function (j) {
     PIDIENDO = false; if (b) b.disabled = false;
     if (!j || j.ok !== true || !j.solicitud) { CS.error(motivoDelPedido(j)); return; }
+    anotarAparato('solicitud');   // 19-oct-2026: desde qué teléfono pidió
     CS.error('');
     /* 8-oct-2026 (segunda vuelta) — SE QUEDA LO QUE PIDIÓ, no se olvida. Antes
        se borraba y la calculadora volvía a $300.000 a un mes, mientras la
@@ -2212,6 +2262,7 @@ function aceptarContrapropuesta(id) {
         if (err) fallo(err, 'No pudimos registrar tu aceptación. Vuelve a abrir la app: si la propuesta cambió, verás la nueva.');
         return;
       }
+      anotarAparato('aceptacion');   // 19-oct-2026: desde qué teléfono aceptó
       pintarSolicitud(j.solicitud);
     })
     .catch(function () {
@@ -7208,6 +7259,7 @@ function pedir() {
           : m === 'muchas' ? 'Ya nos dejaste varias solicitudes hoy. Las tenemos todas; dale un rato y te respondemos en el chat.'
           : 'No pudimos recibir la solicitud ahora. Espera unos minutos y vuelve a intentar.');
       }
+      anotarAparato('solicitud');   // 19-oct-2026: desde qué teléfono pidió (solo con sesión)
       pintarPedido();
     })
     .catch(function () {

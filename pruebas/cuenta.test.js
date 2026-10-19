@@ -370,13 +370,18 @@ describe('la cédula leída del código de barras (8-sep-2026)', () => {
     assert.equal(U.leerCedulaPDF417(null), null);
   });
 
+  /* 19-oct-2026 — el formato cambió A PROPÓSITO: el modelo va primero, el
+     navegador con su versión, y «(app)» —que salía justo cuando la página iba
+     DENTRO de otra app y Joan leía «nuestra app»— dice dentro de cuál. Las
+     cadenas congeladas, que son las de más del 90% de los Android, están en
+     pruebas/aparato.test.js. */
   test('el aparato, en palabras', () => {
     assert.equal(U.dispositivoDe('Mozilla/5.0 (Linux; Android 13; SM-A155M Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.0.0 Mobile Safari/537.36'),
-      'Android 13 · SM-A155M · Chrome · (app)');
+      'SM-A155M · Android 13 · dentro de otra app');
     assert.equal(U.dispositivoDe('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'),
       'iPhone · iOS 17.5 · Safari');
     assert.equal(U.dispositivoDe('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36'),
-      'Windows · Chrome');
+      'Windows · Chrome 127');
     assert.equal(U.dispositivoDe(''), '');
   });
 });

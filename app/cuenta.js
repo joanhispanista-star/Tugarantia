@@ -665,36 +665,163 @@
     };
   }
 
-  /* EL APARATO, en palabras. La huella la lee la base de las cabeceras de la
-     petición (no del teléfono); esto solo traduce el user-agent a algo que Joan
-     pueda leer en la ficha: «Android 13 · Samsung SM-A155M · Chrome». */
+  /* ==========================================================================
+   * EL APARATO, EN PALABRAS — 8-sep-2026, rehecho el 19-oct-2026
+   *
+   * La huella del registro guarda el user-agent que llegó con la petición
+   * (base/20260922c_verificacion_cedula.sql) y esto lo traduce para la ficha.
+   *
+   * 19-oct-2026 — LA FICHA DECÍA «Android 10 · K · Chrome» PARA TODOS LOS
+   * ANDROID, Y LO DECÍA COMO DATO. Desde 2023 (Chrome 110) Chrome en Android
+   * manda la MISMA cadena congelada en todos los teléfonos:
+   *     Mozilla/5.0 (Linux; Android 10; K) … Chrome/129.0.0.0 Mobile Safari/537.36
+   * Ni el «10» es la versión ni la «K» es el modelo: un Galaxy A15 con Android
+   * 14 y un Redmi con Android 13 se ven idénticos. La app de Android también,
+   * porque es una TWA (Chrome por dentro); y Samsung Internet hace lo mismo.
+   * El regex de antes estaba escrito para el formato de 2022 y leía «10» y
+   * «K» sin pestañear. app/revision-registro.js ya lo sabía (por eso no usa
+   * esa cadena para el fraude); la pantalla seguía mostrándola.
+   * Lo mismo con el iPhone: Safari 26 congeló la cifra del sistema en
+   * «iPhone OS 18_6» (y 18_7 desde la 26.2) aunque el teléfono tenga iOS 26;
+   * la pista buena es «Version/26». Sin Version/ (Chrome, o el navegador de
+   * otra app) una cifra 18.6 o mayor puede ser la congelada, y se dice
+   * «o más nuevo» en vez de afirmar una versión que quizá no es.
+   * Y «(app)» engañaba: salía cuando la página iba DENTRO de Facebook,
+   * Instagram o TikTok —los únicos casos en que sí llega un modelo— y Joan lo
+   * leía como «nuestra app», que es justo lo contrario. Ahora se dice dentro de
+   * cuál. Nuestra app no se puede reconocer por el user-agent: eso lo averigua
+   * el teléfono (app/aparato.js) y lo manda aparte.
+   *
+   * UN SOLO LECTOR. leerUserAgent es el único sitio de la casa que parte un
+   * user-agent; app/aparato.js lo usa también para lo que manda el teléfono
+   * cuando el navegador no da más. Dos lectores con reglas distintas dirían
+   * dos teléfonos distintos para la misma cadena.
+   * ======================================================================== */
+
+  /* Lo que va dentro del paréntesis y NO es el modelo. «K» es el modelo de
+     mentira de la cadena congelada. */
+  var NO_ES_MODELO = /^(linux|u|wv|k|mobile|tablet|harmonyos|x11|cros\b.*|android\b.*|hmscore\b.*|rv:.*|[a-z]{2}([-_][a-z]{2,4})?|(arm|aarch|x86|i686).*)$/i;
+  /* La forma de un modelo: lo mismo que acepta la base (aparato_anotar, en
+     base/20261019_aparato_del_telefono.sql). Lo que no la tiene no se muestra. */
+  var MODELO_VALIDO = /^[A-Za-z0-9][A-Za-z0-9 ._()+\/-]{0,59}$/;
+
+  var NAVEGADORES_UA = [
+    [/EdgA\/(\d+)|EdgiOS\/(\d+)|Edg\/(\d+)/, 'Edge'],
+    [/SamsungBrowser\/(\d+)/, 'Samsung Internet'],
+    [/OPR\/(\d+)|OPT\/(\d+)|OPiOS\/(\d+)/, 'Opera'],
+    [/HuaweiBrowser\/(\d+)/, 'Navegador Huawei'],
+    [/MiuiBrowser\/(\d+)/, 'Navegador Xiaomi'],
+    [/Firefox\/(\d+)|FxiOS\/(\d+)/, 'Firefox'],
+    [/CriOS\/(\d+)/, 'Chrome'],
+    [/Chrome\/(\d+)/, 'Chrome'],
+    [/Version\/(\d+)[\d.]*(?:\s+Mobile\/\w+)?\s+Safari\//, 'Safari']
+  ];
+
+  /* Las palabras, en un solo sitio: app/aparato.js las toma de aquí. */
+  var PALABRAS_APARATO = {
+    plataforma: { windows: 'Windows', mac: 'Mac o iPad', linux: 'Linux', chromeos: 'Chromebook' },
+    dentro_de: { facebook: 'dentro de Facebook', instagram: 'dentro de Instagram',
+                 tiktok: 'dentro de TikTok', otra_app: 'dentro de otra app' },
+    congelado: 'el navegador oculta el modelo y la versión'
+  };
+
+  /** El user-agent, partido en sus piezas. Nunca inventa: lo que no viene, o
+   *  viene congelado, queda vacío. */
+  function leerUserAgent(ua) {
+    var u = String(ua || '');
+    var r = { plataforma: '', aparato: '', sistema_version: '', sistema_o_mas: false, modelo: '',
+              navegador: '', navegador_version: '', dentro_de: '', congelado: false };
+    if (!u) return r;
+    var m;
+    /* El paréntesis del principio, hasta el que va antes de «AppleWebKit» o
+       «Gecko»: un Motorola se anuncia «moto g(60)», con paréntesis adentro. */
+    var par = ((/\((.*?)\)\s+(?:AppleWebKit|Gecko\/|like Gecko)/.exec(u) || /\(([^)]*)\)/.exec(u) || [])[1]) || '';
+
+    if ((m = /\b(iPhone|iPad|iPod)\b/.exec(u))) {
+      r.aparato = m[1];
+      r.plataforma = m[1] === 'iPad' ? 'ipados' : 'ios';
+      var ver = /Version\/(\d+)(?:\.(\d+))?/.exec(u);
+      var os = /OS (\d+)[_.](\d+)/.exec(u);
+      if (ver && Number(ver[1]) >= 26) {
+        r.sistema_version = ver[1] + (ver[2] && ver[2] !== '0' ? '.' + ver[2] : '');
+      } else if (os) {
+        r.sistema_version = os[1] + '.' + os[2];
+        if (!ver && Number(os[1]) === 18 && Number(os[2]) >= 6) r.sistema_o_mas = true;
+      }
+    } else if (/Android/.test(u)) {
+      r.plataforma = 'android';
+      r.aparato = 'Android';
+      r.congelado = /\(Linux; Android 10; K\)/.test(u);
+      if (!r.congelado) {
+        if ((m = /Android (\d+(?:\.\d+)?)/.exec(u))) r.sistema_version = m[1];
+        var trozos = par.split(';');
+        for (var i = 0; i < trozos.length; i++) {
+          var t = trozos[i].replace(/\s+Build\/.*$/i, '').trim();
+          if (!t || NO_ES_MODELO.test(t)) continue;
+          if (MODELO_VALIDO.test(t)) { r.modelo = t; break; }
+        }
+      }
+    } else if (/Windows/.test(u)) {
+      r.plataforma = 'windows'; r.aparato = 'Windows';
+    } else if (/Macintosh|Mac OS X/.test(u)) {
+      /* Un iPad con iPadOS 13 o más pide la página «de escritorio» y se anuncia
+         como Mac. Desde la cadena sola no se distinguen. */
+      r.plataforma = 'mac'; r.aparato = 'Mac o iPad';
+    } else if (/CrOS/.test(u)) {
+      r.plataforma = 'chromeos'; r.aparato = 'Chromebook';
+    } else if (/Linux/.test(u)) {
+      r.plataforma = 'linux'; r.aparato = 'Linux';
+    } else {
+      r.plataforma = 'otro';
+    }
+
+    for (var k = 0; k < NAVEGADORES_UA.length; k++) {
+      var n = NAVEGADORES_UA[k][0].exec(u);
+      if (!n) continue;
+      r.navegador = NAVEGADORES_UA[k][1];
+      for (var j = 1; j < n.length; j++) if (n[j]) { r.navegador_version = n[j]; break; }
+      break;
+    }
+
+    if (/FBAN|FBAV|FB_IAB|FBIOS|FB4A/.test(u)) r.dentro_de = 'facebook';
+    else if (/Instagram/.test(u)) r.dentro_de = 'instagram';
+    else if (/musical_ly|Bytedance|TikTok|trill_/i.test(u)) r.dentro_de = 'tiktok';
+    /* «Version/4.0 Chrome/» es la firma del navegador incrustado; el de Xiaomi
+       la copia y sí es un navegador, por eso cuenta solo si no hubo otro nombre. */
+    else if (r.plataforma === 'android' &&
+             (/; wv\)/.test(u) || (/Version\/[\d.]+ Chrome\//.test(u) && r.navegador === 'Chrome'))) r.dentro_de = 'otra_app';
+    /* En iPhone el navegador de otra app no dice «Safari/». */
+    else if ((r.plataforma === 'ios' || r.plataforma === 'ipados') && /AppleWebKit/.test(u) && !/Safari\//.test(u)) r.dentro_de = 'otra_app';
+    return r;
+  }
+
+  /** El user-agent en palabras para la ficha:
+   *    «SM-A155M · Android 14 · dentro de Facebook»
+   *    «Android · el navegador oculta el modelo y la versión · Chrome 129»
+   *    «iPhone · iOS 26 · Safari»
+   *  Dentro de otra app no se nombra el navegador: es el de esa app. */
   function dispositivoDe(ua) {
     var u = String(ua || '');
     if (!u) return '';
+    var L = leerUserAgent(u);
     var partes = [];
-    var m;
-    if ((m = /Android (\d+(?:\.\d+)?)/.exec(u))) {
-      partes.push('Android ' + m[1]);
-      var mod = /;\s*([^;)]+?)\s+Build\//.exec(u) || /Android [\d.]+;\s*([^;)]+)\)/.exec(u);
-      if (mod && mod[1] && !/^[a-z]{2}-[a-z]{2}$/i.test(mod[1].trim())) partes.push(mod[1].trim());
-    } else if (/iPhone|iPad/.test(u)) {
-      partes.push(/iPad/.test(u) ? 'iPad' : 'iPhone');
-      if ((m = /OS (\d+)[_.](\d+)/.exec(u))) partes.push('iOS ' + m[1] + '.' + m[2]);
-    } else if (/Windows/.test(u)) {
-      partes.push('Windows');
-    } else if (/Macintosh/.test(u)) {
-      partes.push('Mac');
-    } else if (/Linux/.test(u)) {
-      partes.push('Linux');
+    if (L.modelo) partes.push(L.modelo);
+    if (L.plataforma === 'android') {
+      partes.push(L.congelado ? 'Android · ' + PALABRAS_APARATO.congelado
+                              : 'Android' + (L.sistema_version ? ' ' + L.sistema_version : ''));
+    } else if (L.plataforma === 'ios' || L.plataforma === 'ipados') {
+      partes.push(L.aparato);
+      if (L.sistema_version) {
+        partes.push((L.plataforma === 'ipados' ? 'iPadOS ' : 'iOS ') + L.sistema_version +
+                    (L.sistema_o_mas ? ' o más nuevo' : ''));
+      }
+    } else if (PALABRAS_APARATO.plataforma[L.plataforma]) {
+      partes.push(PALABRAS_APARATO.plataforma[L.plataforma]);
     }
-    if (/EdgA?\//.test(u)) partes.push('Edge');
-    else if (/SamsungBrowser/.test(u)) partes.push('Samsung Internet');
-    else if (/OPR\//.test(u)) partes.push('Opera');
-    else if (/Firefox\//.test(u)) partes.push('Firefox');
-    else if (/CriOS\//.test(u)) partes.push('Chrome');
-    else if (/Chrome\//.test(u)) partes.push('Chrome');
-    else if (/Safari\//.test(u)) partes.push('Safari');
-    if (/; wv\)|Version\/[\d.]+ Chrome/.test(u) && /Android/.test(u)) partes.push('(app)');
+    if (L.dentro_de) partes.push(PALABRAS_APARATO.dentro_de[L.dentro_de]);
+    else if (L.navegador) {
+      partes.push(L.navegador + (L.navegador_version && L.navegador !== 'Safari' ? ' ' + L.navegador_version : ''));
+    }
     return partes.join(' · ') || u.slice(0, 60);
   }
 
@@ -860,6 +987,9 @@
     /* la cédula leída y el aparato (8-sep-2026) */
     leerCedulaPDF417: leerCedulaPDF417,
     dispositivoDe: dispositivoDe,
+    /* 19-oct-2026 — el lector del user-agent, para app/aparato.js */
+    leerUserAgent: leerUserAgent,
+    PALABRAS_APARATO: PALABRAS_APARATO,
 
     /* el encuadre del rostro (9-sep-2026): la decision de cuando disparar,
        fuera de la pantalla para poder probarla con fotogramas de mentira. */

@@ -720,8 +720,10 @@ details[open] summary::after{content:' ↑'}
    que se vuelve a pedir. El CACHE de sw.js lo sube la etapa final de esta entrega.
    16-oct-2026: el crédito a cuotas (calendario, saldo, pagar todo antes) y el
    historial que pintaba «$0» de los créditos pagados. El CACHE de sw.js, igual:
-   lo sube quien cierre la entrega. */
-var VERSION_APP = '2026-10-16';
+   lo sube quien cierre la entrega.
+   19-oct-2026: desde qué teléfono pide (app/aparato.js, nuevo: ENTRA a la
+   precarga de sw.js con el CACHE que suba quien cierre la entrega). */
+var VERSION_APP = '2026-10-19';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -781,6 +783,9 @@ setTimeout(function () {
      con mi_cuenta; ver-como.js es el pase de un uso del «👁 Ver la app como la
      ve él» del CRM. Si alguno no llega, la pantalla de entrar lo dice. -->
 <script src="cuenta.js"></script>
+<!-- 19-oct-2026 — desde qué teléfono pide (modelo, versión, nuestra app), para
+     el CRM de Joan. Si no llega, no se manda nada y la app sigue igual. -->
+<script src="aparato.js"></script>
 <script src="sesion-socio.js"></script>
 <script src="ver-como.js"></script>
 <script>
@@ -989,6 +994,11 @@ var P = window.PuenteTuGarantia || null;
 var SS = window.SesionSocio || null;
 var VC = window.VerComo || null;
 var U = window.CuentaSocio || null;
+/* 19-oct-2026 — app/aparato.js. Que la página va dentro de la app de Android
+   (co.tugarantia.socio) lo dice document.referrer solo en la primera carga:
+   se anota ahora, al abrir. */
+var APARATO = window.Aparato || null;
+try { if (APARATO) APARATO.recordarApp(document, localStorage); } catch (e) {}
 
 function leerPanel() {
   try {
@@ -3290,6 +3300,23 @@ function pedirCredito() {
   window.scrollTo(0, 0);
 }
 
+/* 19-oct-2026 — DESDE QUÉ TELÉFONO PIDIÓ. Lo mismo que anotarAparato en
+   play/index.html: se le pregunta al navegador lo que sabe (app/aparato.js,
+   con su límite de 800 ms) y se manda a aparato_anotar con la sesión. Sin
+   esperar, y el error se traga: el WhatsApp de la solicitud sale igual. Solo
+   con la cuenta junta, como la solicitud misma. */
+function anotarAparatoSocio(cuando) {
+  try {
+    if (!APARATO || !APARATO.leerAparato || !SS || !SESION || !CFG.url || !CFG.anon) return;
+    APARATO.leerAparato({ navegador: navigator, documento: document, almacen: localStorage,
+                          matchMedia: window.matchMedia ? function (q) { return window.matchMedia(q); } : null },
+                        { tiempo: APARATO.TIEMPO })
+      .then(function (declarado) {
+        return SS.conSesion(CFG, SESION, 'aparato_anotar', { p_cuando: cuando, p_declarado: declarado }, guardarSesionSocio);
+      })['catch'](function () { /* sin la migración del 19-oct, o sin señal */ });
+  } catch (e) { /* nunca tumba la solicitud */ }
+}
+
 function mandarSolicitud(monto) {
   var resp = MODO === 'respaldado', s = simulacionDeAhora();
   var fechaFin = resp ? s.ultima_fecha : s.fecha_corte;
@@ -3321,7 +3348,10 @@ function mandarSolicitud(monto) {
         total: s.total_a_pagar, fecha_corte: fechaFin, garantia: S.garantia, cupo: S.cupo,
         sobre_cupo: seExcede, producto: resp ? 'respaldado' : 'quincenal',
         plazo_meses: resp ? s.plazo_meses : null }
-    }, guardarSesionSocio).catch(function () {});
+    }, guardarSesionSocio).then(function (j) {
+      /* 19-oct-2026 — y desde qué teléfono la pidió, solo si la base la recibió. */
+      if (j && j.ok === true) anotarAparatoSocio('solicitud');
+    }).catch(function () {});
   }
 
   var texto = 'Hola, soy ' + S.nombre +
