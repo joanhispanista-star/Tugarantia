@@ -75,7 +75,7 @@ describe('1. el teléfono: la calculadora, el registro y la cámara', () => {
     /* Mientras TECLEA no: borrar el último cero de 1,500.000 deja 150.000. */
     assert.equal(CS.leerPesos('1,500.00', 'deleteContentBackward'), 150000);
     const P = abrirPlay();
-    P.ev('pintarRegistro(6)');
+    P.ev('pintarRegistro(indiceDe("ingresos"))');
     P.ev("var el = document.getElementById('f_ingreso_mes'); el.value = '$1.500.000,00'; anotarPesos(el, { inputType: 'insertFromPaste' });");
     assert.equal(P.ev('REGISTRO.ingreso_mes'), '1500000', 'el ingreso pegado con centavos quedó cien veces más grande');
     P.ev("var e2 = document.getElementById('f_ingreso_mes'); e2.value = '1,500.00'; anotarPesos(e2, { inputType: 'deleteContentBackward' });");
@@ -183,7 +183,11 @@ describe('1. el teléfono: la calculadora, el registro y la cámara', () => {
   });
 
   test('«no se pudo leer» se queda en pantalla lo bastante para leerlo', () => {
-    assert.match(leer('play/index.html'), /\}, leyo \? 1500 : 4500\);/);
+    /* 19-oct-2026 — los 4,5 s son SOLO para ese texto (el respaldo sin leer).
+       El frente también «no leía» y esperaba lo mismo con «Listo: las dos
+       caras.»; desde que después de esa espera el registro pasa solo al paso
+       2, sobraban tres segundos de pantalla quieta. */
+    assert.match(leer('play/index.html'), /\}, \(lado === 'reverso' && !leyo\) \? 4500 : 1500\);/);
   });
 
   test('la tarjeta del crédito con garantía ya no compara con una tarjeta que no existe', () => {

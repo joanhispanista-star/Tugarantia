@@ -103,13 +103,13 @@ describe('la revisión de play/ (7-oct-2026, tercera vuelta)', () => {
      (escaner-cedula.test.js): la bandeja contesta bien, el signup dice «ya
      existe» y el login hace lo que diga `login` ('mal' | 'sin_red'). */
   function enElPaso9(P) {
-    P.ev('pintarRegistro(0)');
+    P.ev("pintarRegistro(indiceDe('entrada'))");   // 19-oct-2026: el celular ya no es el paso 1
     P.ev("$('rTel').value='3001112233'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x';");
     P.ev('siguientePaso()');
     /* 8-oct-2026 — con correo: desde que es obligatorio (pedido de Joan), un registro
        sin él se queda en «nos falta tu correo» y esta prueba no llegaría a lo que mide. */
     P.ev("REGISTRO = Object.assign(REGISTRO, { nombres:'Ana', apellidos:'Ruiz', tipo_doc:'Cédula de ciudadanía', documento:'123456', expedicion:'2010-01-01', celular:'3001112233', correo:'ana@correo.com', ciudad:'Bogotá', barrio:'Centro', direccion:'Calle 1', tipo_vivienda:'Arriendo', anos_direccion:'Más de 5 años', ocupacion:'Empleado', ingreso_mes:'2000000', gastos_mes:'800000', dia_pago:'Quincenal (15 y 30)', ref1_nombre:'Luz', ref1_parentesco:'Hermana', ref1_celular:'3002223344', ref2_nombre:'Juan', ref2_parentesco:'Amigo', ref2_celular:'3004445566' }); guardarBorrador(REGISTRO);");
-    P.ev('pintarRegistro(8)');
+    P.ev("pintarRegistro(indiceDe('permiso'))");
     P.ev("$('autGeneral').checked = true; $('autSensible').checked = true;");
   }
   function yaTeniaCuenta(P, login) {

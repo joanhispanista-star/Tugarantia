@@ -81,7 +81,7 @@ describe('el formulario del 8-oct: correo, dirección y pesos', () => {
 
   test('en pantalla: la pregunta de ingresos se pinta y se anota con separadores, y guarda DÍGITOS', () => {
     const P = abrirPlay({});
-    P.ev('REGISTRO.ingreso_mes = "1500000"; pintarRegistro(6);');
+    P.ev('REGISTRO.ingreso_mes = "1500000"; pintarRegistro(indiceDe("ingresos"));');
     const h = P.elems.cuerpo.innerHTML;
     /* 8-oct-2026 (segunda vuelta): con `event`, para saber si la cifra se pegó
        (los centavos de «1.500.000,00» se quitan solo al pegar). */
@@ -96,7 +96,16 @@ describe('el formulario del 8-oct: correo, dirección y pesos', () => {
   test('las preguntas ya no llevan su comentario debajo', () => {
     const P = abrirPlay({});
     ['identidad', 'contacto', 'domicilio', 'ingresos', 'referencias'].forEach(g => {
-      const h = P.ev('pasoCampos("' + g + '")');
+      let h = P.ev('pasoCampos("' + g + '")');
+      /* 19-oct-2026 — UNA excepción, con nombre y pedida por Joan: dónde
+         encontrar la fecha de expedición, el único dato de la identidad que no
+         sale del código de barras de la cédula. Se quita esa y se exige que no
+         quede ninguna otra. */
+      if (g === 'identidad') {
+        assert.match(h, /<div class="ayuda" id="ayudaExpedicion">[^<]*FECHA Y LUGAR DE EXPEDICIÓN[^<]*<\/div>/,
+          'se perdió la ayuda de dónde está la fecha de expedición');
+        h = h.replace(/<div class="ayuda" id="ayudaExpedicion">[^<]*<\/div>/, '');
+      }
       assert.ok(!/class="ayuda"/.test(h), 'el grupo «' + g + '» volvió a llevar comentarios debajo de las preguntas');
       U.camposDelGrupo(g).forEach(c => assert.ok(h.indexOf(c.porque) < 0, 'se pinta el porqué de «' + c.id + '»'));
     });

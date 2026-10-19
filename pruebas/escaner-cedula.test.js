@@ -191,8 +191,11 @@ describe('de quién son las fotos, y cuánto vive un registro a medias', () => {
    ------------------------------------------------------------------------ */
 describe('el paso de la cédula dentro de la página', () => {
 
+  /* 19-oct-2026 — con el dueño marcado, como lo deja tomarFoto ANTES de leer
+     el código: la nota «no los escribiste tú» solo se pinta para una lectura
+     de este registro (la misma pregunta que el ✓ de las fotos). */
   function enElPaso(P) {
-    P.ev("REGISTRO.celular = '3001112233'; FOTOS = { sensibles: true }; guardarFotos(); pintarRegistro(1);");
+    P.ev("REGISTRO.celular = '3001112233'; FOTOS = { sensibles: true }; marcarDuenoDeLasFotos(); guardarFotos(); pintarRegistro(indiceDe('documento'));");
     return P.elems.cuerpo.innerHTML;
   }
 
@@ -284,7 +287,7 @@ describe('el paso de la cédula dentro de la página', () => {
       assert.match(P.almacen.play_registro_borrador || '', /JUAN CARLOS/, 'lo leído no quedó en el borrador: una recarga lo pierde');
       assert.equal(P.ev('window.__lienzo.width'), 1, 'el lienzo grande no se soltó');
       /* Y el paso «Quién eres» lo dice. */
-      P.ev('pintarRegistro(3)');
+      P.ev("pintarRegistro(indiceDe('identidad'))");
       const h = P.elems.cuerpo.innerHTML;
       assert.match(h, /los leímos del código de barras/, 'el paso no dice de dónde salieron los datos');
       assert.match(h, /id="f_nombres"[^>]*value="JUAN CARLOS"/, 'los nombres no aparecen escritos en el formulario');
@@ -394,13 +397,13 @@ describe('lo que encontró la revisión (21-sep-2026)', () => {
     const P = abrirPlay();
     P.ev("REGISTRO.celular = '3001112233';");
     conFotos(P, '3001112233');
-    P.ev('pintarRegistro(1)');
+    P.ev("pintarRegistro(indiceDe('documento'))");
     assert.match(P.elems.cuerpo.innerHTML, /✓ Respaldo/, 'la foto propia y de hoy no se ve lista');
 
     const Q = abrirPlay();
     Q.ev("REGISTRO.celular = '3009999999';");
     conFotos(Q, '3001112233');
-    Q.ev('pintarRegistro(1)');
+    Q.ev("pintarRegistro(indiceDe('documento'))");
     assert.equal(/✓ Respaldo/.test(Q.elems.cuerpo.innerHTML), false,
       'dice «Listo» de una foto que no va a subir: la interfaz promete lo que el código no cumple');
     assert.equal(Q.ev("hayFotoLista('cedula_reverso')"), false);
@@ -439,7 +442,7 @@ describe('lo que encontró la revisión (21-sep-2026)', () => {
        y entraba a leerPaso() sin mirar la hora: un borrador de hace una semana
        —o de otra persona— se abría en su paso, sin el botón de salida. */
     const P = abrirPlay({ hash: '' });
-    P.ev('pintarRegistro(0)');
+    P.ev("pintarRegistro(indiceDe('entrada'))");
     P.ev("$('rTel').value='3001112233'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x'; siguientePaso();");
     P.almacen.play_registro_paso = JSON.stringify({ paso: 5, t: Date.now() - 50 * 3600e3 });
     const Q = abrirPlay({ almacen: P.almacen, sesion: {}, hash: '#registro' });
@@ -458,16 +461,25 @@ describe('lo que encontró la revisión (21-sep-2026)', () => {
     assert.equal(Q.ev("$('inTel').value"), '');
   });
 
-  test('cambiar el celular suelta las fotos Y la identidad del anterior', () => {
+  test('cambiar el celular suelta las fotos Y la identidad del anterior (fotos de OTRO registro)', () => {
     /* Se soltaban las fotos, pero el nombre, la cédula y el nacimiento seguían
        en el borrador: con el acompañamiento encendido, los datos de A se
-       publicaban al CRM bajo el celular de B. */
+       publicaban al CRM bajo el celular de B.
+       19-oct-2026 — la cédula va primero, y esto se parte en dos:
+         · fotos de OTRO registro (otro intento, o de la versión anterior, que
+           no lo tenía): la regla de siempre, entera — se sueltan, y lo que se
+           leyó de esa cédula se va con ellas. Es lo que mide esta prueba.
+         · fotos de ESTE registro: el dueño cambia y lo escaneado se queda
+           (decisión de Joan); el teléfono prestado lo cubre la pregunta
+           «¿Eres …?» y no se publica mientras haya duda. Eso lo mide
+           pruebas/la-cedula-primero.test.js. */
     const P = abrirPlay({ hash: '' });
-    P.ev('pintarRegistro(0)');
+    P.ev("pintarRegistro(indiceDe('entrada'))");
     P.ev("$('rTel').value='3001112233'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x'; siguientePaso();");
-    conFotos(P, '3001112233');
+    conFotos(P, '3001112233');   // sin intento: de antes del 19-oct, o de otro registro
+    P.ev("FOTOS.cedula_leida = { nombres: 'JUAN', apellidos: 'PEREZ', documento: '123' }; guardarFotos();");
     P.ev("REGISTRO.nombres='JUAN'; REGISTRO.apellidos='PEREZ'; REGISTRO.documento='123'; guardarBorrador(REGISTRO);");
-    P.ev('pintarRegistro(0)');
+    P.ev("pintarRegistro(indiceDe('entrada'))");
     P.ev("$('rTel').value='3009999999'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x'; siguientePaso();");
     assert.equal(P.ev('REGISTRO.nombres'), undefined, 'el nombre del anterior viaja con el celular del nuevo');
     assert.equal(P.ev('REGISTRO.documento'), undefined, 'la cédula del anterior viaja con el celular del nuevo');
@@ -490,7 +502,7 @@ describe('lo que encontró la revisión (21-sep-2026)', () => {
          '  if (String(u).indexOf("registro_vivo_borrar") > -1) window.__borrado = JSON.parse(cfg.body);' +
          '  return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ ok: true, testigo: "t-9" }); } });' +
          '};');
-    P.ev("REGISTRO.celular='3001112233'; PASO = 2; publicarAvance();");
+    P.ev("REGISTRO.celular='3001112233'; PASO = indiceDe('rostro'); publicarAvance();");
     await new Promise(r => setImmediate(r));
     await new Promise(r => setImmediate(r));
     P.ev('empezarDeNuevo()');
@@ -563,7 +575,7 @@ describe('lo que encontró la revisión (21-sep-2026)', () => {
   test('mientras el escáner está abierto no se ofrece volver a abrirlo', () => {
     const P = abrirPlay();
     P.ev('navigator.mediaDevices = { getUserMedia: function () { return new Promise(function () {}); } };');
-    P.ev("REGISTRO.celular = '3001112233'; FOTOS = { sensibles: true }; guardarFotos(); pintarRegistro(1);");
+    P.ev("REGISTRO.celular = '3001112233'; FOTOS = { sensibles: true }; guardarFotos(); pintarRegistro(indiceDe('documento'));");
     assert.match(P.elems.cuerpo.innerHTML, /btnEscanear/);
     P.ev('ESCDOC.activo = true;');
     assert.equal(P.ev('botonesDoc()'), '',
@@ -791,14 +803,14 @@ describe('la prueba con Sofía (21-sep-2026)', () => {
   const FUENTE = () => fs.readFileSync(path.join(RAIZ, 'play', 'index.html'), 'utf8');
 
   function enElPaso9(P) {
-    P.ev('pintarRegistro(0)');
+    P.ev("pintarRegistro(indiceDe('entrada'))");
     P.ev("$('rTel').value='3001112233'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x';");
     P.ev('siguientePaso()');
     P.ev("FOTOS = { sensibles: true, cedula_reverso: 'data:x' }; marcarDuenoDeLasFotos(); guardarFotos();");
     /* 8-oct-2026 — con correo: desde que es obligatorio (pedido de Joan), un registro
        sin él se queda en «nos falta tu correo» y esta prueba no llegaría a lo que mide. */
     P.ev("REGISTRO = Object.assign(REGISTRO, { nombres:'Ana', apellidos:'Ruiz', tipo_doc:'Cédula de ciudadanía', documento:'123456', expedicion:'2010-01-01', celular:'3001112233', correo:'ana@correo.com', ciudad:'Bogotá', barrio:'Centro', direccion:'Calle 1', tipo_vivienda:'Arriendo', anos_direccion:'Más de 5 años', ocupacion:'Empleado', ingreso_mes:'2000000', gastos_mes:'800000', dia_pago:'Quincenal (15 y 30)', ref1_nombre:'Luz', ref1_parentesco:'Hermana', ref1_celular:'3002223344', ref2_nombre:'Juan', ref2_parentesco:'Amigo', ref2_celular:'3004445566' }); guardarBorrador(REGISTRO);");
-    P.ev('pintarRegistro(8)');
+    P.ev("pintarRegistro(indiceDe('permiso'))");
     P.ev("$('autGeneral').checked = true; $('autSensible').checked = true;");
     return P;
   }
@@ -858,7 +870,7 @@ describe('la prueba con Sofía (21-sep-2026)', () => {
     assert.match(t, /<option value="" disabled hidden/,
       'la opción vacía dejó de estar deshabilitada: el navegador va a escoger la primera solo');
     const P = abrirPlay();
-    P.ev("REGISTRO.celular='3001112233'; pintarRegistro(5);");
+    P.ev("REGISTRO.celular='3001112233'; pintarRegistro(indiceDe('domicilio'));");
     const h = P.elems.cuerpo.innerHTML;
     assert.match(h, /disabled hidden selected>Toca para elegir/, 'el campo no arranca vacío');
     assert.equal(/>Escoge…</.test(h), false);

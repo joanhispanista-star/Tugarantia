@@ -583,8 +583,14 @@ function guardarBorrador(d) {
    por eso volvían). Va con la hora: un registro de hace más de un día no se
    retoma solo (ver EC.checkpointFresco). */
 var LLAVE_PASO = 'play_registro_paso';
+/* 19-oct-2026 — SE GUARDA EL NOMBRE DEL PASO, no solo su número. El orden
+   cambió (la cédula va primero) y un número guardado con el orden viejo
+   llevaría a otro paso: el «2» de ayer era la cédula y hoy es «Revisa tus
+   datos». El número se queda porque EC.checkpointFresco lo pide y porque así
+   lo guardaba la versión anterior; quien manda al leer es el nombre. */
 function guardarPaso(n) {
-  try { localStorage.setItem(LLAVE_PASO, JSON.stringify({ paso: n, t: Date.now() })); } catch (e) {}
+  var p = PASOS[n];
+  try { localStorage.setItem(LLAVE_PASO, JSON.stringify({ paso: n, id: p ? p.id : '', t: Date.now() })); } catch (e) {}
 }
 function leerCheckpoint() {
   try {
@@ -592,7 +598,14 @@ function leerCheckpoint() {
     return (c && typeof c.paso === 'number') ? c : null;
   } catch (e) { return null; }
 }
-function leerPaso() { var c = leerCheckpoint(); return c ? c.paso : 0; }
+/* El paso guardado, como índice del orden de HOY. Un checkpoint sin nombre es
+   de la versión anterior al 19-oct: su número se traduce con el orden viejo. */
+function indiceDelCheckpoint(c) {
+  if (!c) return 0;
+  var i = c.id ? indiceDe(c.id) : indiceDe(PASOS_HASTA_19OCT[Number(c.paso)] || '');
+  return i < 0 ? 0 : i;
+}
+function leerPaso() { return indiceDelCheckpoint(leerCheckpoint()); }
 /* 17-sep-2026 — «NO HAY PASO» Y «PASO 1» NO SON LO MISMO, y confundirlos era la
    mitad del problema. `leerPaso` devuelve 0 en los dos casos, así que con solo
    ese dato no se puede decidir si a alguien hay que devolverlo al registro o
@@ -615,8 +628,15 @@ function hayPasoGuardado() {
 
      Y lo que se hubiera tecleado en el paso 0 no se pierde: el borrador se
      guarda por tecla (anotarCampo) y se repinta al entrar al formulario. */
-  if (!(Number(c.paso) > 0)) return false;
-  return (!EC || EC.checkpointFresco(c, Date.now()));
+  if (!(!EC || EC.checkpointFresco(c, Date.now()))) return false;
+  /* 19-oct-2026 — EL PRIMER PASO AHORA ES LA CÉDULA, y ahí SÍ puede haber
+     algo que restaurar: la foto que la cámara del sistema alcanzó a guardar
+     antes de que el teléfono descartara la pestaña. Así que el primer paso
+     cuenta solo si hay una foto de la cédula de ESTE intento (hayFotoLista: la
+     misma pregunta que pinta el ✓). Sin foto sigue siendo «abrió el formulario
+     y no hizo nada», y el enlace vuelve a la portada como el 22-sep. */
+  if (indiceDelCheckpoint(c) > 0) return true;
+  return hayFotoLista('cedula_reverso') || hayFotoLista('cedula_frente');
 }
 function olvidarPaso() { try { localStorage.removeItem(LLAVE_PASO); } catch (e) {} }
 
@@ -1005,17 +1025,44 @@ function codigoVerificacion() {
    En pasos y no en una sola página de 26 campos: nadie llena eso de una
    sentada, y una pantalla de scroll infinito es donde la gente abandona. El
    borrador se guarda solo, menos la contraseña. */
+/* 19-oct-2026 — LA CÉDULA VA PRIMERO. Joan: «quiero que lo primero que
+   aparezca al momento de que un cliente se registre sea el escanear la cédula
+   para que el sistema tome automáticamente toda la información de la cédula y
+   se diligencie automáticamente, y que el cliente solo tenga que corregir».
+   El escáner y el autollenado ya existían; estaban detrás del celular, las dos
+   contraseñas y una casilla: cuatro campos y tres toques antes de la cámara.
+   Ahora: la cédula, los datos que salieron de ella para revisar, y después el
+   celular y la contraseña. PlataChat usa este mismo PASOS (play/?marca=platachat).
+   Lo que esto obligó a cambiar, y por qué:
+     · las fotos se toman ANTES de que haya celular, que era su dueño: ahora
+       tienen un dueño provisional, el INTENTO (ver marcarDuenoDeLasFotos);
+     · todo lo que preguntaba por el NÚMERO del paso pregunta por su NOMBRE
+       (indiceDe): con el orden nuevo, «el paso 1» ya no es el del celular. */
 var PASOS = [
-  { id: 'entrada',  titulo: 'Tu celular y tu contraseña' },
   { id: 'documento', titulo: 'Tu cédula' },
+  { id: 'identidad', titulo: 'Revisa tus datos' },
+  { id: 'entrada',  titulo: 'Tu celular y tu contraseña' },
   { id: 'rostro',    titulo: 'Tu rostro' },
-  { id: 'identidad', titulo: 'Quién eres' },
   { id: 'contacto',  titulo: 'Cómo te contactamos' },
   { id: 'domicilio', titulo: 'Dónde vives' },
   { id: 'ingresos',  titulo: 'De qué vives' },
   { id: 'referencias', titulo: 'Quién puede responder por ti' },
   { id: 'permiso',  titulo: 'Tu autorización' }
 ];
+/* El orden de antes del 19-oct, SOLO para leer un checkpoint guardado por la
+   versión anterior (que guardaba el número y no el nombre). No se usa para
+   nada más: quien esté a mitad de registro el día que esto se publique vuelve
+   al mismo paso por su nombre, no al que hoy tiene ese número. */
+var PASOS_HASTA_19OCT = ['entrada', 'documento', 'rostro', 'identidad', 'contacto',
+                         'domicilio', 'ingresos', 'referencias', 'permiso'];
+/* El número de un paso por su nombre (-1 si no existe). Toda decisión que
+   dependa de DÓNDE va la persona se pregunta así: «PASO >= 1» quería decir
+   «ya pasó por el celular», y con el orden nuevo habría querido decir otra
+   cosa sin que nada avisara. */
+function indiceDe(id) {
+  for (var i = 0; i < PASOS.length; i++) if (PASOS[i].id === id) return i;
+  return -1;
+}
 
 /* ===========================================================================
  * EL ACOMPAÑAMIENTO, SIN PREGUNTAR — 8-oct-2026 (antes: «QUIERO QUE MI ASESOR
@@ -1034,6 +1081,13 @@ var PASOS = [
  * tarjeta de antes— lleva una línea que dice qué ve el equipo y que tocar
  * «Continuar» es la autorización (avisoAcompana). Y por eso no se publica
  * NADA en el paso 1: la primera publicación sale cuando ya tocó «Continuar».
+ *
+ * 19-oct-2026 — «EL PASO 1» ES AHORA «EL PASO DEL CELULAR» (el tercero; la
+ * cédula va primero). El aviso se fue con él, porque es donde nace lo que se
+ * publica: sin celular no hay fila que publicar. Por eso la cédula y «Revisa
+ * tus datos» —antes del aviso— no publican nada, aunque ya haya nombre y
+ * documento en el formulario: la regla es «después de tocar Continuar con el
+ * aviso a la vista», no «desde el paso 2».
  *
  * LO QUE SIGUE SIN SALIR NUNCA, con o sin pregunta:
  *   · las referencias — son nombre y celular de DOS personas que no son quien
@@ -1091,9 +1145,10 @@ function anotarTestigoVivo(cel, testigo) {
 }
 function olvidarTestigoVivo() { try { localStorage.removeItem(LLAVE_TESTIGO_VIVO); } catch (e) {} }
 
-/* La línea del paso 1. Es de las pocas que se quedaron cuando Joan pidió
-   quitar los comentarios de cada pregunta: esta no es un comentario, es el
-   aviso que la ley pide antes de tratar los datos (ver arriba). */
+/* La línea del paso del celular (hasta el 19-oct, el paso 1). Es de las pocas
+   que se quedaron cuando Joan pidió quitar los comentarios de cada pregunta:
+   esta no es un comentario, es el aviso que la ley pide antes de tratar los
+   datos (ver arriba). */
 function avisoAcompana() {
   if (MARCA === 'platachat') return '';   // sin asesores en PlataChat (ver EL MODO PLATACHAT)
   /* 8-oct-2026 (segunda vuelta) — dice TODO lo que sale (le faltaban la fecha
@@ -1114,9 +1169,17 @@ var CAMPOS_QUE_SE_PUBLICAN = ['nombres', 'apellidos', 'documento', 'tipo_doc',
 
 function publicarAvance() {
   if (MARCA === 'platachat') return Promise.resolve();   // ver EL MODO PLATACHAT
-  /* Desde el paso 2: el permiso se da tocando «Continuar» en el 1 — y solo si
-     ese toque fue con el aviso de esta versión a la vista (vioAvisoVivo). */
-  if (!(PASO >= 1) || !REGISTRO.celular || !vioAvisoVivo()) return Promise.resolve();
+  /* Desde el paso que sigue al del celular: el permiso se da tocando
+     «Continuar» ahí — y solo si ese toque fue con el aviso de esta versión a
+     la vista (vioAvisoVivo). 19-oct-2026: por NOMBRE (era `PASO >= 1`, que con
+     la cédula primero habría publicado desde «Revisa tus datos», antes del aviso). */
+  if (!(PASO > indiceDe('entrada')) || !REGISTRO.celular || !vioAvisoVivo()) return Promise.resolve();
+  /* 19-oct-2026 — NI MIENTRAS LA IDENTIDAD ESTÁ EN DUDA: la cédula se escaneó
+     con otro celular o hace más de una hora (ver identidadEnDuda). Hasta el
+     19-oct, cambiar el celular BORRABA la identidad leída para que los datos de
+     A no salieran con el celular de B; ahora se conserva (Joan), así que lo que
+     no puede pasar es publicarla hasta que la persona diga que es suya. */
+  if (FOTOS.de && FOTOS.de.duda) return Promise.resolve();
   if (!CFG.url || !CFG.anon) return Promise.resolve();
 
   var avance = {};
@@ -1178,6 +1241,8 @@ function pintarRegistro(paso) {
      que Joan describió: «la página lo devuelve y nuevamente tiene que ingresar
      la contraseña». Reproducido recargando el banco de pruebas en el paso 2. */
   marcarVista('#registro');
+  /* 19-oct-2026 — el intento nace con el registro (ver marcarDuenoDeLasFotos). */
+  asegurarIntento();
   var p = PASOS[PASO];
   $('titulo').textContent = 'Abrir mi cuenta';
 
@@ -1194,32 +1259,86 @@ function pintarRegistro(paso) {
   else if (p.id === 'permiso') cuerpo = pasoPermiso();
   else                         cuerpo = (p.id === 'identidad' ? notaCedulaLeida() : '') + pasoCampos(p.id);
 
+  /* 19-oct-2026 — «Revisa tus datos» solo si hay algo que revisar: quien tocó
+     «Prefiero escribir mis datos», o cuya cédula no se leyó, encuentra el
+     formulario vacío, y decirle «revisa» sería hablarle de unos datos que la
+     app no llenó. */
+  var titulo = (p.id === 'identidad' && !cedulaLeidaDeEsteRegistro()) ? 'Escribe tus datos' : p.titulo;
+  /* Y en la cédula sin autorizar, «Continuar» sobra: las dos salidas son los
+     dos botones del paso («Autorizo y escaneo» y «Prefiero escribir mis
+     datos»), y un tercero que hace lo mismo que el segundo con otro nombre
+     solo hace dudar. */
+  var conContinuar = !(p.id === 'documento' && !FOTOS.sensibles);
+
   $('cuerpo').innerHTML =
     '<div class="card">' +
       '<div class="etq">Paso ' + (PASO + 1) + ' de ' + PASOS.length + '</div>' +
       barra +
-      '<h3 class="tit" style="margin-top:var(--e3)">' + esc(p.titulo) + '</h3>' +
+      '<h3 class="tit" style="margin-top:var(--e3)">' + esc(titulo) + '</h3>' +
       cuerpo +
       /* 8-oct-2026 — aquí iba la tarjeta «¿quieres que un asesor te
          acompañe?», en CADA paso. Joan la quitó: el acompañamiento ya no se
-         pregunta. El aviso que la ley sí pide va una sola vez, en el paso 1
-         (avisoAcompana, dentro de pasoEntrada). */
+         pregunta. El aviso que la ley sí pide va una sola vez, en el paso del
+         celular (avisoAcompana, dentro de pasoEntrada). */
       '<div id="errReg" class="aviso ambar oculto"></div>' +
-      '<button class="btn arriba" onclick="siguientePaso()">' +
-        (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : 'Continuar') + '</button>' +
+      (conContinuar
+        ? '<button class="btn arriba" onclick="siguientePaso()">' +
+            (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : 'Continuar') + '</button>'
+        : '') +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="' +
         (PASO === 0 ? (MARCA === 'platachat' ? 'volverAPlataChat()' : 'pintarEntrar()') : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
     '</div>' + pie();
   window.scrollTo(0, 0);
-  /* Cada vez que cambia de paso se publica (desde el 2: ver publicarAvance). En
-     un try porque un acompañamiento que falle NO puede impedirle abrir su
-     cuenta. */
+  /* Cada vez que cambia de paso se publica (después del paso del celular: ver
+     publicarAvance). En un try porque un acompañamiento que falle NO puede
+     impedirle abrir su cuenta. */
   try { publicarAvance(); } catch (e) {}
   if (p.id === 'rostro' && FOTOS.sensibles && !hayFotoLista('selfie')) setTimeout(iniciarEscaner, 50);
-  if (p.id === 'documento' && FOTOS.sensibles && !FOTOS.gps && !FOTOS.gps_error) pedirGps();
-  /* 8-oct-2026 — el detector de la selfie se BAJA (no se enciende) mientras
-     la persona está con la cédula: ver precalentarDetectorRostro. */
-  if (p.id === 'documento' && FOTOS.sensibles) precalentarDetectorRostro();
+  /* 19-oct-2026 — LA UBICACIÓN, EN EL PASO DEL ROSTRO Y NO EN EL PRIMERO. Con
+     la cédula primero, lo primero que habría visto el cliente eran dos
+     permisos a la vez: la cámara y la ubicación. Y aquí tampoco se pide junto
+     con la cámara de la selfie: si la selfie falta, se pide al tomarla (o al
+     seguir sin ella); si ya está, de una (ver pedirGpsSiFalta). */
+  if (p.id === 'rostro' && hayFotoLista('selfie')) pedirGpsSiFalta();
+  /* 8-oct-2026 — el detector de la selfie se BAJA (no se enciende) antes del
+     paso del rostro: ver precalentarDetectorRostro. 19-oct-2026 — en el paso
+     del celular, que es el que va justo antes, y ya no en el de la cédula: el
+     primer paso tiene que ser solo la cédula, y mientras se teclean el celular
+     y la contraseña la red está quieta. */
+  if (p.id === 'entrada' && FOTOS.sensibles) precalentarDetectorRostro();
+}
+
+/* ------------------------------------------------- EL INTENTO — 19-oct-2026
+   Un identificador al azar de ESTE registro, en el borrador. Es el dueño de
+   las fotos mientras no hay celular (ver marcarDuenoDeLasFotos). Nace la
+   primera vez que se pinta el formulario y muere con el borrador: «empezar de
+   cero» y la cuenta creada lo borran, y el siguiente registro en el teléfono
+   tiene otro. No es un dato de nadie y no sale del teléfono (datosDelRegistro).
+   Nace en memoria y se escribe con el borrador: abrir el formulario y cerrarlo
+   no deja nada en el teléfono. La primera foto sí lo escribe
+   (marcarDuenoDeLasFotos), porque desde ahí una recarga sin él dejaría la foto
+   sin dueño reconocible. */
+function asegurarIntento() {
+  if (REGISTRO.intento) return REGISTRO.intento;
+  var azar = '';
+  try {
+    if (window.crypto && window.crypto.getRandomValues) {
+      var a = new Uint32Array(2); window.crypto.getRandomValues(a);
+      azar = a[0].toString(36) + a[1].toString(36);
+    }
+  } catch (e) {}
+  /* Sin crypto (un visor viejo), el azar de siempre y la hora: no es un
+     secreto, solo tiene que no repetirse entre dos registros del teléfono. */
+  if (!azar) azar = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  REGISTRO.intento = Date.now().toString(36) + '-' + azar;
+  return REGISTRO.intento;
+}
+/* Lo que viaja a la nube (la bandeja y la cuenta): el borrador sin el intento,
+   que solo sirve para saber de quién son las fotos en ESTE teléfono. */
+function datosDelRegistro() {
+  var d = Object.assign({}, REGISTRO);
+  delete d.intento;
+  return d;
 }
 
 function pasoEntrada() {
@@ -1427,8 +1546,31 @@ function pasoCampos(grupo) {
         extra += ' readonly aria-readonly="true"';
         v = REGISTRO.celular ? U.telefonoBonito(REGISTRO.celular) : v;
       }
+      /* 19-oct-2026 — LA FECHA DE EXPEDICIÓN, el único dato de la identidad
+         que no sale del código de barras y siempre se teclea. El calendario
+         del teléfono no deja escoger mañana ni (con la cédula leída) una fecha
+         de antes de los 18 años; la misma regla se revisa al tocar «Continuar»
+         (EC.revisarExpedicion), porque hay teléfonos que dejan escribir la
+         fecha a mano sin mirar el tope. */
+      if (c.id === 'expedicion') {
+        extra += ' max="' + hoyISO() + '"';
+        var desde = expedicionMinima();
+        if (desde) extra += ' min="' + desde + '"';
+      }
       campo = '<input id="f_' + c.id + '" type="' + tipo + '"' + modo + extra + apunta +
         ' value="' + esc(v) + '">';
+    }
+    /* 19-oct-2026 — y dónde encontrarla. Es la única pregunta que conserva una
+       ayuda debajo después de que Joan quitó los comentarios (8-oct): con la
+       cédula leída, es lo único que la persona tiene que buscar en la tarjeta,
+       y sin decirle dónde se escribe la de nacimiento, que es la que se ve
+       primero. Antes de ella va la fecha de nacimiento LEÍDA, que no se
+       escribe (no hay casilla para ella en el formulario): se muestra para
+       que sepa cuál es cuál. */
+    if (c.id === 'expedicion') {
+      return nacimientoLeidoHTML() + etiqueta + campo +
+        '<div class="ayuda" id="ayudaExpedicion">No viene en el código de barras: escríbela tú. En la cédula de ' +
+        'ciudadanía está en el respaldo, donde dice «FECHA Y LUGAR DE EXPEDICIÓN», cerca de la firma del Registrador.</div>';
     }
     /* 8-oct-2026 — EL PORQUÉ YA NO SE PINTA DEBAJO DE CADA PREGUNTA. Hasta hoy
        se le mostraba al socio («si un dato vale la pena pedirlo, vale la pena
@@ -1567,12 +1709,11 @@ function siguientePaso() {
     /* Las fotos guardadas son de un celular. Si este es otro, son de otra
        persona (o de otro intento): no se le pegan a este registro — ni ellas ni
        lo que se leyó de esa cédula, que si no viajaría al CRM con el nombre del
-       anterior debajo del celular del nuevo. */
-    if (FOTOS.de && FOTOS.de.celular && FOTOS.de.celular !== REGISTRO.celular) {
-      soltarLasFotos();
-      ['nombres', 'apellidos', 'documento', 'tipo_doc', 'expedicion'].forEach(function (k) { delete REGISTRO[k]; });
-      guardarBorrador(REGISTRO);
-    }
+       anterior debajo del celular del nuevo.
+       19-oct-2026 — CON LA CÉDULA PRIMERO, AQUÍ ES DONDE LAS FOTOS RECIBEN
+       DUEÑO, y cambiar el celular dentro del mismo registro ya no borra lo
+       escaneado: ver atarFotosAlCelular. */
+    atarFotosAlCelular(REGISTRO.celular);
     CLAVE_EN_MEMORIA = extra.clave;
     guardarClaveEnCurso(extra.clave);
     guardarBorrador(REGISTRO);
@@ -1605,9 +1746,22 @@ function siguientePaso() {
       CLAVE_EN_MEMORIA = extra.claveFin;
       guardarClaveEnCurso(CLAVE_EN_MEMORIA);
     }
+    /* 19-oct-2026 — «¿ERES MARÍA?» ANTES DE ABRIR LA CUENTA, si la cédula de
+       este registro se escaneó con otro celular, hace más de una hora sin
+       celular, o en otro intento cuyo documento es el del formulario. Es el
+       teléfono prestado: la cédula se escanea antes del celular, así que la de
+       una persona puede quedarle a la siguiente que abra el enlace. Va ANTES de
+       mirar la casilla de las fotos, porque la duda es también del nombre y el
+       documento que quedaron escritos, no solo de las fotos. */
+    var duda = identidadEnDuda();
+    if (duda) return preguntarSiEsElMismo(err, duda);
     /* Si al final quita la casilla de sensibles, las fotos y el GPS que tomó no
        salen del teléfono: se borran antes de mandar nada. */
     if (!extra.sensibles) { FOTOS = { sensibles: false }; guardarFotos(); }
+    /* Y si llegan aquí sin dueño (de este intento y vigentes), el dueño es el
+       celular de la cuenta: sin él la subida no las manda, y la pantalla ya les
+       dijo «Listo». */
+    else ponerDuenoSiFalta(REGISTRO.celular);
     return enviarRegistro(extra.sensibles);
   }
   /* Los dos pasos de fotos son opcionales: se pasa con o sin foto.
@@ -1622,7 +1776,12 @@ function siguientePaso() {
     if (faltaLado && AVISO_UN_LADO !== faltaLado) { AVISO_UN_LADO = faltaLado; return avisarUnLado(err, faltaLado); }
     return pintarRegistro(PASO + 1);
   }
-  if (p.id === 'rostro') return pintarRegistro(PASO + 1);
+  if (p.id === 'rostro') {
+    /* 19-oct-2026 — si siguió sin la selfie, la ubicación se pide al salir: la
+       autorizó con las fotos, y aquí ya no compite con la cámara. */
+    pedirGpsSiFalta();
+    return pintarRegistro(PASO + 1);
+  }
 
   /* Falta algo obligatorio de ESTE paso. No se revisa el formulario entero:
      mandar al socio a un paso anterior por algo que aún no ha llenado es la
@@ -1635,7 +1794,130 @@ function siguientePaso() {
   if (faltanAqui.length) {
     return fallo(err, 'Nos falta ' + faltanAqui.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') + '. Con eso seguimos.');
   }
+  /* 19-oct-2026 — la fecha de expedición, que se teclea: ni después de hoy ni
+     (con la cédula leída) de antes de los 18 años. Ver EC.revisarExpedicion. */
+  if (p.id === 'identidad' && EC && EC.revisarExpedicion) {
+    var rex = EC.revisarExpedicion(REGISTRO.expedicion, nacimientoLeido(), hoyISO(), REGISTRO.tipo_doc);
+    if (!rex.ok) return fallo(err, rex.motivo);
+  }
   pintarRegistro(PASO + 1);
+}
+
+/* ===========================================================================
+ * DE QUIÉN SON LAS FOTOS CUANDO LA CÉDULA VA PRIMERO — 19 de octubre de 2026
+ *
+ * Hasta hoy el celular se escribía en el paso 1 y las fotos se tomaban
+ * después: su dueño era ese celular desde la primera foto. Con la cédula
+ * primero, las fotos nacen SIN celular, y la regla vieja las dejaba huérfanas:
+ * sin «Listo» y sin subir nunca (reproducido en el banco: «foto sin dueño +
+ * celular = foto que no sube»). Las piezas, en el orden en que pasan:
+ *
+ *   1. al tomar una foto, el dueño es el celular si ya lo hay y, si no, el
+ *      INTENTO (marcarDuenoDeLasFotos); EC.fotosPertenecen acepta esas fotos
+ *      una hora (EC.MINUTOS_SIN_DUENO);
+ *   2. antes de guardar una foto nueva se mira lo que ya había: si es de OTRO
+ *      intento y no es de este registro, se suelta (prepararFotoNueva);
+ *   3. al tocar «Continuar» en el paso del celular, las fotos reciben ese
+ *      celular como dueño (atarFotosAlCelular);
+ *   4. al tocar «Abrir mi cuenta», si algo quedó en duda, se pregunta
+ *      «¿Eres …?» (identidadEnDuda). La subida sigue exigiendo que el dueño
+ *      sea el celular de la cuenta, como siempre.
+ *
+ * LA DUDA (FOTOS.de.duda) es la marca de «estas fotos pueden no ser de quien
+ * está terminando»: se cambió el celular después de escanear, o pasó más de
+ * una hora sin celular. Hasta el 19-oct, cambiar el celular BORRABA la
+ * identidad leída —la regla del teléfono prestado—; Joan decidió conservarla
+ * («que el cliente solo tenga que corregir»: quien se equivoca en un número no
+ * puede perder su cédula escaneada). Lo que la regla protegía lo protege ahora
+ * la pregunta, y mientras tanto no se publica nada al acompañamiento.
+ * ========================================================================= */
+function hayContenidoEnFotos() {
+  return !!(FOTOS.cedula_frente || FOTOS.cedula_reverso || FOTOS.selfie || FOTOS.gps || FOTOS.cedula_leida);
+}
+function esteIntento(de) {
+  return !!(de && de.intento && REGISTRO.intento && String(de.intento) === String(REGISTRO.intento));
+}
+/* 2 — antes de guardar una foto (o la ubicación) nueva. */
+function prepararFotoNueva() {
+  if (!FOTOS.de || !hayContenidoEnFotos() || fotosSonDeEsteRegistro()) return;
+  /* De otro intento y sin ser de este registro: son de otra persona, o de una
+     cuenta que ya se abrió y no alcanzó a subirlas. Mezclarlas con la foto
+     nueva se las regalaría a este registro. */
+  if (!esteIntento(FOTOS.de)) { soltarLasFotos(); return; }
+  /* De este intento pero ya no valen (más de una hora sin celular, o de otro
+     celular): probablemente la misma persona que volvió. No se borran, pero
+     la foto nueva no las puede «refrescar» en silencio: quedan en duda. */
+  FOTOS.de.duda = true;
+}
+/* 3 — el celular de «Continuar» se vuelve el dueño de las fotos. */
+function atarFotosAlCelular(cel) {
+  if (!cel || !FOTOS.de || !hayContenidoEnFotos()) return;
+  var de = FOTOS.de;
+  if (de.celular && String(de.celular) === String(cel)) return;   // ya eran suyas
+  if (!esteIntento(de)) {
+    /* De otro registro: la regla de antes, entera para las fotos. Y lo que se
+       leyó de esa cédula se va con ellas SOLO si es lo que está escrito en el
+       formulario: con la cédula primero, la identidad que hay aquí la puso
+       ESTE registro, y borrarla sería borrarle a esta persona lo suyo. */
+    var leida = FOTOS.cedula_leida;
+    var deEsaCedula = !!(leida && REGISTRO.documento && String(leida.documento) === String(REGISTRO.documento));
+    soltarLasFotos();
+    if (deEsaCedula) {
+      ['nombres', 'apellidos', 'documento', 'tipo_doc', 'expedicion'].forEach(function (k) { delete REGISTRO[k]; });
+      guardarBorrador(REGISTRO);
+    }
+    return;
+  }
+  /* De este intento: el dueño pasa a ser este celular. Si tenían otro, o si
+     ya no valían (más de una hora sin dueño), queda la duda para el final. */
+  var vigentes = !de.celular && fotosSonDeEsteRegistro(cel);
+  FOTOS.de = { celular: String(cel), intento: REGISTRO.intento, t: Date.now() };
+  if (!vigentes || de.duda) FOTOS.de.duda = true;
+  guardarFotos();
+}
+/* Para «Abrir mi cuenta»: las fotos de este intento que siguen sin dueño
+   reciben el celular de la cuenta. Nada más: lo que esté en duda lo resolvió
+   antes la pregunta. */
+function ponerDuenoSiFalta(cel) {
+  if (!cel || !FOTOS.de || FOTOS.de.celular || FOTOS.de.duda || !hayContenidoEnFotos()) return;
+  if (!fotosSonDeEsteRegistro(cel)) return;
+  FOTOS.de.celular = String(cel); FOTOS.de.t = Date.now();
+  guardarFotos();
+}
+/* 4 — ¿hay que preguntar «¿Eres …?» antes de abrir la cuenta?
+   Devuelve null si no, o {nombre}. NO pregunta por fotos de otro registro que
+   no tienen nada que ver con este (otro intento y otro documento): esas no se
+   suben a esta cuenta, y preguntarle a alguien «¿Eres Ana?» por la cédula que
+   dejó otra persona solo lo asusta — y «Empezar de cero» le borraría lo suyo. */
+function identidadEnDuda() {
+  if (!FOTOS.de || !hayContenidoEnFotos()) return null;
+  var de = FOTOS.de, leida = FOTOS.cedula_leida;
+  if (fotosSonDeEsteRegistro() && !de.duda) return null;
+  var deEsaCedula = !!(leida && REGISTRO.documento && String(leida.documento) === String(REGISTRO.documento));
+  if (!esteIntento(de) && !deEsaCedula) return null;
+  var primero = String(REGISTRO.nombres || (leida && leida.nombres) || '').trim().split(/\s+/)[0] || '';
+  primero = primero ? primero.charAt(0).toUpperCase() + primero.slice(1).toLowerCase() : '';
+  return { nombre: primero };
+}
+function preguntarSiEsElMismo(err, duda) {
+  var quien = duda.nombre ? '¿Eres ' + esc(duda.nombre) + '?' : '¿Esta cédula es tuya?';
+  err.innerHTML = '<b>' + quien + '</b> La cédula de este registro se escaneó en este teléfono hace más de una hora, ' +
+    'o con otro celular. Antes de abrir la cuenta, confírmanos que es tuya.' +
+    '<div style="display:flex;gap:var(--e2);flex-wrap:wrap;margin-top:var(--e2)">' +
+      '<button class="btn sm" type="button" id="btnSoyYo" onclick="seguirSoyYo()">Seguir</button>' +
+      '<button class="btn sec sm" type="button" id="btnNoSoyYo" onclick="empezarDeNuevo()">Empezar de cero</button>' +
+    '</div>';
+  err.classList.add('ambar');
+  err.classList.remove('oculto');
+}
+/* «Seguir»: la persona dice que es suya. Las fotos y lo leído pasan a ser de
+   este registro y de este celular, y se vuelve a tocar «Abrir mi cuenta» por
+   ella (siguientePaso relee las casillas: si quitó la de las fotos, se borran
+   igual que siempre). */
+function seguirSoyYo() {
+  FOTOS.de = { celular: String(REGISTRO.celular || ''), intento: REGISTRO.intento || '', t: Date.now() };
+  guardarFotos();
+  siguientePaso();
 }
 
 /* 19-oct-2026 — EL LADO DE LA CÉDULA QUE FALTA, si falta uno solo. Sin la
@@ -1724,7 +2006,8 @@ function enviarRegistro(sensibles) {
     p_celular: REGISTRO.celular,
     p_nombre: ((REGISTRO.nombres || '') + ' ' + (REGISTRO.apellidos || '')).replace(/\s+/g, ' ').trim(),
     p_cedula: REGISTRO.documento || '',
-    p_datos: Object.assign({}, REGISTRO, { autorizacion_version: autorizacion.version })
+    /* 19-oct-2026 — sin el intento (datosDelRegistro): es de este teléfono. */
+    p_datos: Object.assign(datosDelRegistro(), { autorizacion_version: autorizacion.version })
   };
   if (MARCA === 'platachat') cuerpoRegistro.p_app = 'platachat';
   /* Las dos rutas escritas enteras: el centinela de motor.test.js («la bandeja
@@ -1751,7 +2034,7 @@ function enviarRegistro(sensibles) {
         body: JSON.stringify({
           email: U.correoDeTelefono(REGISTRO.celular),
           password: CLAVE_EN_MEMORIA,
-          data: { telefono: REGISTRO.celular, vinculacion: REGISTRO, autorizacion: autorizacion }
+          data: { telefono: REGISTRO.celular, vinculacion: datosDelRegistro(), autorizacion: autorizacion }
         })
       });
     })
@@ -2399,15 +2682,27 @@ function guardarFotos() {
    el siguiente se registra con OTRO celular, y con el mismo solo si vuelve
    el mismo día (y «empezar de cero» las borra). La marca vive DENTRO de
    FOTOS, en localStorage, con las fotos: no puede sobrevivir una sin la otra. */
+/* 19-oct-2026 — Y DEL INTENTO, porque con la cédula primero la foto llega
+   antes que el celular: ver «DE QUIÉN SON LAS FOTOS CUANDO LA CÉDULA VA
+   PRIMERO» (junto a siguientePaso). La duda, si la había, se queda: una foto
+   nueva no vuelve «de este registro» a las que estaban en duda. */
 function marcarDuenoDeLasFotos() {
-  FOTOS.de = { celular: REGISTRO.celular || '', t: Date.now() };
+  var duda = !!(FOTOS.de && FOTOS.de.duda);
+  /* El intento queda escrito en el borrador ANTES que en las fotos: si la
+     pestaña se cae entre las dos cosas, lo peor es un borrador con intento y
+     sin fotos, nunca una foto con un intento que nadie recuerda. */
+  if (!REGISTRO.intento) asegurarIntento();
+  guardarBorrador(REGISTRO);
+  FOTOS.de = { celular: REGISTRO.celular || '', intento: REGISTRO.intento || '', t: Date.now() };
+  if (duda) FOTOS.de.duda = true;
 }
 /* LA ÚNICA PREGUNTA QUE PUEDE PINTAR UN «LISTO» AL LADO DE UNA FOTO. Antes la
    caja decía «Listo» mirando solo si el dato existía, y la reja de la subida
    miraba otra cosa: así una foto podía verse lista y no subir nunca. Ahora la
-   pantalla y la subida preguntan lo MISMO. */
+   pantalla y la subida preguntan lo MISMO. (La subida además exige que el
+   dueño ya sea un celular: ver subirArchivosRegistro.) */
 function fotosSonDeEsteRegistro(celular) {
-  return !!(EC && EC.fotosPertenecen(FOTOS, celular || REGISTRO.celular, Date.now()));
+  return !!(EC && EC.fotosPertenecen(FOTOS, celular || REGISTRO.celular, Date.now(), REGISTRO.intento));
 }
 function hayFotoLista(key) { return !!FOTOS[key] && fotosSonDeEsteRegistro(); }
 function olvidarDuenoDeLasFotos() { delete FOTOS.de; }
@@ -2498,27 +2793,64 @@ function textoLeido() {
     (l.nacimiento ? ' · nació el ' + esc(fmtFecha(l.nacimiento)) : '') +
     '.<br><span class="muted">En el paso siguiente te los dejamos escritos; revísalos.</span>';
 }
+var GPS_PEDIDO = false;   // en esta página ya se le preguntó al teléfono (19-oct-2026)
 function textoGps() {
   if (!FOTOS.sensibles) return '';
   if (FOTOS.gps) return '📍 Ubicación registrada (una sola vez, ±' + Math.round(FOTOS.gps.acc || 0) + ' m).';
   if (FOTOS.gps_error) return '📍 ' + esc(FOTOS.gps_error);
+  /* 19-oct-2026 — la ubicación ya no se pide al entrar al paso, sino después
+     de la selfie: decir «pidiendo…» antes de pedirla sería mentir. */
+  if (!GPS_PEDIDO) return '📍 Después de la foto te pedimos tu ubicación, una sola vez (tu celular te va a preguntar).';
   return '📍 Pidiendo tu ubicación… (tu celular te va a preguntar)';
 }
+/* ---------------------------------------------------------------------------
+   EL PRIMER PASO: LA CÉDULA — 19 de octubre de 2026
+   Joan: «que lo primero que aparezca al momento de que un cliente se registre
+   sea el escanear la cédula … y que el cliente solo tenga que corregir».
+
+   LA AUTORIZACIÓN ES UN SOLO BOTÓN, decisión de Joan: «📷 Autorizo y escaneo
+   mi cédula», con el texto de la autorización de datos sensibles A LA VISTA
+   encima (el mismo que acompañaba la casilla autFotos), y tocarlo es la
+   autorización expresa. Se anota exactamente como se anotaba la casilla
+   (FOTOS.sensibles, por cambiarConsentimiento): ni marca nueva ni fecha
+   nueva, porque la constancia que viaja es la de siempre
+   (U.armarAutorizacion, al abrir la cuenta, con la casilla del último paso
+   que la confirma o la quita). Nada se marca solo: hasta que la persona toca
+   el botón, FOTOS.sensibles sigue en falso y la cámara no existe.
+
+   AL LADO, IGUAL DE VISIBLE, «Prefiero escribir mis datos»: cédula de
+   extranjería, pasaporte, una cédula que no se deja leer, o quien no quiere
+   dar las fotos. La ley no permite condicionar la cuenta a un dato sensible
+   (Ley 1581 de 2012, art. 6, y Decreto 1377 de 2013), así que esa salida no
+   puede ser un enlace escondido: es un botón del mismo tamaño.
+
+   Y SIN GPS NI DETECTOR DE ROSTRO en este paso: lo primero que ve el cliente
+   no pueden ser dos permisos a la vez (ver pintarRegistro). */
 function pasoDocumento() {
   var con = !!FOTOS.sensibles, vivo = hayCamaraEnVivo();
-  return '<p class="sub">' + (vivo
+  var arriba = '<p class="sub"><b>Escanea tu cédula y llenamos tus datos por ti.</b> Tú solo corriges si algo quedó mal.</p>';
+  if (!con) {
+    return arriba +
+      '<div class="permiso" id="autFotosTexto"><span>' +
+        '<b>Autorizo la foto de mi cédula, la de mi rostro y mi ubicación</b> para confirmar que soy yo.' +
+        '<span class="muted">Son datos sensibles: esto es aparte y es opcional. Al tocar «Autorizo y escaneo mi ' +
+        'cédula» nos das este permiso. Tu cuenta se abre igual sin darlo, escribiendo tus datos a mano.</span>' +
+      '</span></div>' +
+      '<button class="btn escanear" type="button" id="btnAutorizoEscaneo" onclick="autorizarYEscanear()">' +
+        '📷 Autorizo y escaneo mi cédula</button>' +
+      '<button class="btn sec" type="button" id="btnEscribirDatos" style="margin-top:var(--e3)" ' +
+        'onclick="prefieroEscribirMisDatos()">Prefiero escribir mis datos</button>' +
+      '<div class="ayuda">Escribe tus datos si tienes cédula de extranjería o pasaporte, o si tu cédula no se deja leer.</div>';
+  }
+  return arriba +
+    '<p class="sub">' + (vivo
       ? 'Pon tu cédula dentro del marco y la cámara toma las fotos sola: primero el <b>respaldo</b> ' +
         '(el del código de barras), de pie; después el frente, acostado.'
       : 'Con la foto del <b>respaldo</b> de tu cédula (el del código de barras) leemos tu ' +
         'número y tu nombre y te los dejamos escritos. La del frente confirma que es tuya.') + '</p>' +
-    '<label class="permiso"><input type="checkbox" id="autFotos"' + (con ? ' checked' : '') +
-      ' onchange="cambiarConsentimiento(this.checked)"><span>' +
-      '<b>Autorizo la foto de mi cédula, la de mi rostro y mi ubicación</b> para confirmar que soy yo.' +
-      '<span class="muted">Son datos sensibles: esto es aparte y es opcional. Tu cuenta se abre igual sin ' +
-      'marcarlo, escribiendo tus datos a mano.</span></span></label>' +
-    '<div id="docCaja"' + (con ? '' : ' class="oculto"') + '>' +
+    '<div id="docCaja">' +
       '<div id="docTarjetasCaja">' + tarjetasDoc() + '</div>' +
-      '<div id="docLeido" class="aviso info' + (FOTOS.cedula_leida ? '' : ' oculto') + '">' + textoLeido() + '</div>' +
+      '<div id="docLeido" class="aviso info' + (cedulaLeidaDeEsteRegistro() ? '' : ' oculto') + '">' + textoLeido() + '</div>' +
       '<div id="docEscaner" class="oculto">' + escanerDocHTML() + '</div>' +
       '<div id="docBotones">' + botonesDoc() + '</div>' +
       '<div id="docNota" class="doc-nota"></div>' +
@@ -2528,20 +2860,52 @@ function pasoDocumento() {
         cajaFoto('cedula_reverso', '📇', 'Foto del respaldo de tu cédula', 'environment') +
         cajaFoto('cedula_frente', '🪪', 'Foto del frente de tu cédula', 'environment') +
       '</div>' +
-      '<div id="docGps" class="ayuda">' + textoGps() + '</div>' +
+      /* Lo que dice la constancia, dicho aquí también: el permiso se dio, y se
+         puede quitar antes de mandar nada. */
+      '<div class="ayuda" id="docPermisoDado">Diste tu permiso para las fotos de tu cédula, de tu rostro y tu ubicación. ' +
+        'Si cambias de opinión, en el último paso lo puedes quitar y no se envía ninguna.</div>' +
     '</div>';
 }
+/* La marca de la autorización de datos sensibles: la de la casilla de antes,
+   y ahora la del botón. 19-oct-2026 — ya no pide la ubicación ni baja el
+   detector de rostro: los dos se fueron al paso del rostro y al del celular
+   (ver pintarRegistro). */
 function cambiarConsentimiento(v) {
   FOTOS.sensibles = !!v; guardarFotos();
   var caja = $('docCaja'); if (caja) caja.classList.toggle('oculto', !v);
-  if (v && !FOTOS.gps) pedirGps();
-  if (v) precalentarDetectorRostro();
   if (!v) { delete FOTOS.gps; delete FOTOS.gps_error; guardarFotos(); }
   var g = $('docGps'); if (g) g.innerHTML = textoGps();
 }
+/* «📷 Autorizo y escaneo mi cédula»: el toque es la autorización, y la cámara
+   se abre de una (sin el botón aparte de «Escanear» que había después de la
+   casilla). Sin cámara en vivo, quedan a la vista las cajas de foto de
+   siempre: la del respaldo abre la cámara del celular. */
+function autorizarYEscanear() {
+  cambiarConsentimiento(true);
+  pintarRegistro(indiceDe('documento'));
+  if (hayCamaraEnVivo()) return iniciarEscanerDoc(!hayFotoLista('cedula_reverso') ? 'reverso' : 'frente');
+  var f = $('docFijo'); if (f) f.classList.remove('oculto');
+}
+/* «Prefiero escribir mis datos»: al formulario, vacío si nada se escaneó. No
+   toca la autorización (si no la dio, sigue sin darla) ni avisa de lados que
+   faltan: escoger escribir no es perder una foto. */
+function prefieroEscribirMisDatos() {
+  detenerEscanerDoc();
+  pintarRegistro(indiceDe('identidad'));
+}
+/* 19-oct-2026 — la ubicación, una vez y cuando ya no compite con la cámara:
+   después de la selfie, o al seguir sin ella. */
+function pedirGpsSiFalta() {
+  if (!FOTOS.sensibles || FOTOS.gps || FOTOS.gps_error || GPS_PEDIDO) return;
+  pedirGps();
+}
 function pedirGps() {
+  GPS_PEDIDO = true;
   if (!navigator.geolocation) { FOTOS.gps_error = 'Este celular no da ubicación.'; guardarFotos(); return; }
   navigator.geolocation.getCurrentPosition(function (pos) {
+    /* 19-oct-2026 — antes de anotarla, que no se mezcle con fotos de otro
+       registro (ver prepararFotoNueva). */
+    prepararFotoNueva();
     FOTOS.gps = { lat: +pos.coords.latitude.toFixed(6), lng: +pos.coords.longitude.toFixed(6),
                   acc: Math.round(pos.coords.accuracy || 0), fecha: hoyISO() };
     delete FOTOS.gps_error; marcarDuenoDeLasFotos(); guardarFotos();
@@ -2710,7 +3074,9 @@ function tomarFoto(ev, key) {
 
   return comprimirVarias(file, tamanos).then(function (salidas) {
     file = null;                 /* el archivo de la cámara ya no hace falta */
-    /* 1. LO PRIMERO: guardar y pintar. A partir de acá la foto ya está a salvo. */
+    /* 1. LO PRIMERO: guardar y pintar. A partir de acá la foto ya está a salvo.
+       19-oct-2026 — sin mezclarla con fotos de otro registro (prepararFotoNueva). */
+    prepararFotoNueva();
     FOTOS[key] = salidas[0];
     /* 17-sep-2026 — Y LA PANTALLA DICE LO QUE DE VERDAD PASÓ. Si el teléfono no
        dejó escribirla, la foto vive solo en memoria: sirve para seguir ahora
@@ -2743,7 +3109,24 @@ function tomarFoto(ev, key) {
   }).catch(function () {
     if (caja) caja.querySelector('.lbl').textContent =
       'No pude usar esa foto. Tómala otra vez, o elige una de la galería.';
-  }).then(soltarCerrojo, soltarCerrojo);
+  }).then(soltarCerrojo, soltarCerrojo).then(function () {
+    /* 19-oct-2026 — con la cámara del celular también: tomada la selfie, la
+       ubicación; tomados los dos lados de la cédula (y leído el código, que
+       se encadena arriba), al paso de revisar los datos, solo. */
+    if (key === 'selfie') pedirGpsSiFalta();
+    else pasarSoloDeLaCedula();
+  });
+}
+/* 19-oct-2026 — «Y EL REGISTRO PASA SOLO AL PASO 2» (decisión de Joan): con
+   los dos lados de la cédula guardados, a revisar los datos sin tocar nada.
+   Solo desde el paso de la cédula —una foto repetida desde otro lado no
+   mueve a nadie— y con las dos fotos que la pantalla da por buenas
+   (hayFotoLista: la misma pregunta que el ✓). */
+function pasarSoloDeLaCedula() {
+  if (VISTA !== 'registro' || !PASOS[PASO] || PASOS[PASO].id !== 'documento') return false;
+  if (!hayFotoLista('cedula_reverso') || !hayFotoLista('cedula_frente')) return false;
+  pintarRegistro(indiceDe('identidad'));
+  return true;
 }
 /* El código de barras del respaldo, decodificado en el teléfono con ZXing, de la
    versión grande de la foto (1600 px: el código es chico y a 900 se vuelve
@@ -2830,12 +3213,51 @@ function anotarCedulaLeida(r) {
    igual y es mentira: no hay dos fuentes independientes, hay una fuente y la
    copia que esta misma app acaba de pegar en el formulario. */
 function notaCedulaLeida() {
-  if (!FOTOS.cedula_leida) return '';
-  return '<div class="aviso info"><b>Estos tres datos no los escribiste tú: los leímos del ' +
-    'código de barras del respaldo de tu cédula.</b> Revísalos igual y corrige lo que esté mal — ' +
-    'si cambias algo, nos queda anotado y lo miramos, que es justamente para lo que sirve. ' +
-    '<b>La fecha de expedición no viene en ese código:</b> búscala en tu cédula donde dice ' +
-    '«FECHA Y LUGAR DE EXPEDICIÓN», cerca de la firma del Registrador.</div>';
+  /* 19-oct-2026 — solo la lectura de ESTE registro (la misma pregunta que el
+     ✓ de las fotos): una lectura vencida o de otro celular no le dice a nadie
+     «esto lo leímos de tu cédula». */
+  if (!cedulaLeidaDeEsteRegistro()) {
+    /* Y si la foto del respaldo está pero el código no se leyó (la cédula
+       nueva, o una foto movida), se dice: si no, el formulario vacío parece
+       un error de la app. */
+    if (hayFotoLista('cedula_reverso')) {
+      return '<div class="aviso ambar" id="notaSinLeer">No alcanzamos a leer el código de barras de tu cédula, ' +
+        'así que esta vez los datos los escribes tú, como aparecen en ella. La foto sí quedó guardada.</div>';
+    }
+    return '';
+  }
+  /* 19-oct-2026 — ya no habla de la expedición: tiene su ayuda debajo de su
+     casilla (pasoCampos), que es donde se la busca. */
+  return '<div class="aviso info" id="notaLeida"><b>Estos datos no los escribiste tú: tus nombres, tus apellidos y tu ' +
+    'número de documento los leímos del código de barras del respaldo de tu cédula.</b> Revísalos y corrige lo que ' +
+    'esté mal — si cambias algo, nos queda anotado y lo miramos, que es justamente para lo que sirve.</div>';
+}
+/* ¿Hay una lectura del código de barras que sea de este registro? */
+function cedulaLeidaDeEsteRegistro() {
+  return !!(FOTOS.cedula_leida && FOTOS.cedula_leida.documento && fotosSonDeEsteRegistro());
+}
+/* La fecha de nacimiento que se leyó del código ('AAAA-MM-DD'), o ''. */
+function nacimientoLeido() {
+  return cedulaLeidaDeEsteRegistro() ? String(FOTOS.cedula_leida.nacimiento || '') : '';
+}
+/* 19-oct-2026 — la fecha de nacimiento leída, a la vista y sin casilla: el
+   formulario no la pide (nunca la pidió), pero la política dice que se guarda
+   y Joan pidió que se vea. De solo lectura, como el celular del paso de
+   contacto: si está mal, lo que está mal es la lectura, y eso lo ve Joan
+   comparando con la foto. */
+function nacimientoLeidoHTML() {
+  var n = nacimientoLeido();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(n)) return '';
+  return '<label for="nacLeido">Tu fecha de nacimiento <span class="opc">· leída de tu cédula</span></label>' +
+    '<input id="nacLeido" type="text" readonly aria-readonly="true" value="' + esc(fmtFecha(n)) + '">';
+}
+/* La expedición más temprana que tiene sentido: el día en que cumplió 18, si
+   se leyó la fecha de nacimiento de una cédula de ciudadanía. */
+function expedicionMinima() {
+  var n = nacimientoLeido();
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
+  if (!m || (REGISTRO.tipo_doc && REGISTRO.tipo_doc !== 'Cédula de ciudadanía')) return '';
+  return (Number(m[1]) + 18) + '-' + m[2] + '-' + m[3];
 }
 
 /* Decodifica un lienzo: primero tal cual; si vino de pie (más alto que ancho)
@@ -3553,6 +3975,7 @@ function leidaDoc(cedula, giro) {
   if (ESCDOC.tempo) { clearTimeout(ESCDOC.tempo); ESCDOC.tempo = null; }
   if (giro === undefined) giro = giroPorPatron(ESCDOC.recorte);
   var jpeg = ESCDOC.recorte ? fotoDeLienzo(ESCDOC.recorte, 900, 0.6, giro) : '';
+  prepararFotoNueva();   // 19-oct-2026: sin mezclarla con fotos de otro registro
   if (jpeg) FOTOS.cedula_reverso = jpeg;
   marcarDuenoDeLasFotos();
   var aSalvo = anotarCedulaLeida(cedula);
@@ -3564,7 +3987,8 @@ function leidaDoc(cedula, giro) {
   refrescarDoc();
   ESCDOC.tempo = setTimeout(function () {
     ocultarListoDoc();
-    if (sigue) reanudarEscanerDoc('frente'); else cerrarEscanerDoc();
+    /* 19-oct-2026 — con los dos lados, al paso de revisar los datos, solo. */
+    if (sigue) reanudarEscanerDoc('frente'); else { cerrarEscanerDoc(); pasarSoloDeLaCedula(); }
   }, 1500);
 }
 function reanudarEscanerDoc(lado) {
@@ -3591,6 +4015,7 @@ function capturarDoc(automatico) {
   if (ESCDOC.tempo) { clearTimeout(ESCDOC.tempo); ESCDOC.tempo = null; }
   var leyo = false, giro = null, forzada = false;
   if (lado === 'reverso') {
+    prepararFotoNueva();   // 19-oct-2026: antes de escribir la lectura (ver prepararFotoNueva)
     var r = window.ZXing && EC ? leerCedulaDeLienzo(c, EC.GIROS_DE_RESCATE, 'siempre') : { cedula: null, giro: giroPorPatron(c) };
     giro = r.giro;
     if (r.cedula) { anotarCedulaLeida(r.cedula); leyo = true; }
@@ -3626,6 +4051,7 @@ function capturarDoc(automatico) {
     ESCDOC.activo = true; bucleEscanerDoc();
     return;
   }
+  prepararFotoNueva();
   FOTOS['cedula_' + lado] = jpeg;
   marcarDuenoDeLasFotos();
   var aSalvo = guardarFotos();
@@ -3644,11 +4070,15 @@ function capturarDoc(automatico) {
   refrescarDoc();
   ESCDOC.tempo = setTimeout(function () {
     ocultarListoDoc();
-    if (sigue) reanudarEscanerDoc('frente'); else cerrarEscanerDoc();
+    /* 19-oct-2026 — con los dos lados, al paso de revisar los datos, solo. */
+    if (sigue) reanudarEscanerDoc('frente'); else { cerrarEscanerDoc(); pasarSoloDeLaCedula(); }
     /* 8-oct-2026 (segunda vuelta) — 4,5 s y no 2,6 cuando NO leyó: son unas
        veinte palabras («Foto tomada. El código no se pudo leer: escribes tus
-       datos…»), y en 2,6 s se iban antes de terminar de leerlas. */
-  }, leyo ? 1500 : 4500);
+       datos…»), y en 2,6 s se iban antes de terminar de leerlas.
+       19-oct-2026 — solo para ESE texto, el del respaldo sin leer. El frente
+       («Listo: las dos caras.») esperaba también 4,5 s porque nunca «lee», y
+       desde hoy esa espera es la que hay antes de pasar solo al paso 2. */
+  }, (lado === 'reverso' && !leyo) ? 4500 : 1500);
 }
 function mostrarListoDoc(txt) {
   var e = $('escDoc'); if (e) e.classList.add('leido');
@@ -3709,7 +4139,9 @@ var MOVIMIENTO_REDUCIDO = (function () {
 })();
 function pasoRostro() {
   if (!FOTOS.sensibles) {
-    return '<p class="sub">No marcaste la autorización de fotos en el paso anterior, así que este paso se ' +
+    /* 19-oct-2026 — la autorización ya no está en «el paso anterior»: es el
+       botón del primer paso. */
+    return '<p class="sub">No autorizaste las fotos en el primer paso, así que este paso se ' +
       'salta: tu cuenta se abre igual.</p>';
   }
   var tiene = hayFotoLista('selfie');
@@ -3739,7 +4171,10 @@ function pasoRostro() {
     '<label class="foto-caja' + (tiene ? ' oculto' : '') + '" id="fot_selfie" style="display:' + (tiene ? '' : 'none') + '"><span class="ic">🤳</span>' +
       '<span class="lbl">' + (tiene ? 'Listo · tocar para cambiar' : 'Tomar una selfie') + '</span>' +
       '<input type="file" accept="image/*" capture="user" onchange="tomarFoto(event,\'selfie\')"></label>' +
-    '<div id="selfieNota" class="doc-nota"></div>';
+    '<div id="selfieNota" class="doc-nota"></div>' +
+    /* 19-oct-2026 — la ubicación vive en este paso desde que la cédula va
+       primero (ver pintarRegistro y pedirGpsSiFalta). */
+    '<div id="docGps" class="ayuda">' + textoGps() + '</div>';
 }
 function repetirRostro() {
   delete FOTOS.selfie; guardarFotos();
@@ -4132,8 +4567,10 @@ function capturarRostro() {
   if (w > h && w > max) { h = h * max / w; w = max; } else if (h >= w && h > max) { w = w * max / h; h = max; }
   var c = document.createElement('canvas'); c.width = w; c.height = h;
   c.getContext('2d').drawImage(v, 0, 0, w, h);
-  FOTOS.selfie = c.toDataURL('image/jpeg', 0.7);
+  var selfie = c.toDataURL('image/jpeg', 0.7);
   c.width = c.height = 1;
+  prepararFotoNueva();   // 19-oct-2026: sin mezclarla con fotos de otro registro
+  FOTOS.selfie = selfie;
   marcarDuenoDeLasFotos();   // sin dueño no sube, y la pantalla diría «registrado» igual
   var aSalvo = guardarFotos();
   /* 8-oct-2026 — detenerEscaner también suelta el detector y su memoria: lo
@@ -4144,6 +4581,9 @@ function capturarRostro() {
   $('selfiePrev').src = FOTOS.selfie; $('selfieListo').classList.remove('oculto');
   var nota = $('selfieNota');
   if (nota) nota.textContent = aSalvo ? '' : 'La tenemos, pero tu teléfono no dejó guardarla: termina sin cerrar esta página.';
+  /* 19-oct-2026 — y ahora sí la ubicación: la cámara ya se apagó, así que no
+     son dos permisos a la vez. */
+  pedirGpsSiFalta();
 }
 
 /* -------------------------------------------- la subida, después de la cuenta */
@@ -4151,8 +4591,14 @@ function subirArchivosRegistro() {
   if (!FOTOS.sensibles) return Promise.resolve();
   /* 17-sep-2026 — SOLO SUBE LA PESTAÑA QUE LAS TOMÓ. Ver el comentario de
      LLAVE_FOTOS_MIAS: sin esta línea, la cédula que alguien dejó a medias en un
-     teléfono prestado se sube sola a la cuenta del siguiente que entre. */
-  if (!fotosSonDeEsteRegistro(celularDeSesion() || REGISTRO.celular)) return Promise.resolve();
+     teléfono prestado se sube sola a la cuenta del siguiente que entre.
+     19-oct-2026 — Y SOLO CON DUEÑO, que es el celular de la cuenta. Las fotos
+     sin dueño (la cédula va primero) son «de este intento» para la pantalla,
+     pero a una cuenta solo se suben con su celular escrito, y lo que esté en
+     duda no se sube hasta que la persona diga que es suyo. */
+  var celCuenta = celularDeSesion() || REGISTRO.celular;
+  if (!FOTOS.de || !FOTOS.de.celular || FOTOS.de.duda) return Promise.resolve();
+  if (!fotosSonDeEsteRegistro(celCuenta)) return Promise.resolve();
   var archivos = {};
   ['cedula_frente', 'cedula_reverso', 'selfie'].forEach(function (k) { if (FOTOS[k]) archivos[k] = FOTOS[k]; });
   var huella = {};
@@ -7443,8 +7889,11 @@ function pie() {
     pintarRegistro(donde);
     /* El aviso solo cuando de verdad hubo una interrupción: quien llega por el
        enlace, al paso 1 y sin nada guardado, no tiene ningún susto que
-       explicarle. */
-    if (veniaDelRegistro && donde > 0) {
+       explicarle. 19-oct-2026 — era `donde > 0`, y con la cédula primero el
+       paso 1 SÍ puede ser una interrupción (la foto que la cámara del sistema
+       alcanzó a guardar). hayPasoGuardado ya decide si hubo progreso de
+       verdad, por nombre y con las fotos de este intento. */
+    if (veniaDelRegistro) {
       var aviso = $('errReg');
       if (aviso) {
         aviso.classList.remove('oculto');
