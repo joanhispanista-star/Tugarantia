@@ -497,22 +497,16 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
 
 
 /* ===========================================================================
-   LA GENTE, DIBUJADA — 16-sep-2026
+   LA GENTE — 16-sep-2026, y rehecha el 19-oct-2026
 
-   Joan pidió «imágenes de gente feliz». No hay fotos y no se pueden generar
-   acá, así que la gente se dibuja: SVG en línea, cero archivos, cero red, nada
-   que una segunda petición pueda dejar a medias.
+   Desde el 19-oct las personas son ilustraciones de Open Peeps (Pablo Stanley,
+   CC0) en archivos aparte, play/gente/*.svg, y entran como <img>. Joan dijo que
+   las de antes parecían «dibujos de niño de 3 años»; el porqué largo del cambio
+   está en play/index.html, encima de escenaVaras().
 
-   Por qué no hay color de piel. Elegir un tono es elegir a quién se parece el
-   cliente de Tu Garantía, y el cliente de Tu Garantía es cualquiera. Las
-   personas se dibujan con la MISMA tinta de la página en cuatro intensidades, y
-   lo distinto entre ellas sale de la gorra, la cola de caballo, el celular y la
-   bolsa del mercado — no del tono. Efecto secundario que sí importa: en modo
-   oscuro el dibujo se invierte solo, porque --tinta se invierte sola.
-
-   Las mezclas van contra --papel y NO contra transparent: con fondos
-   translúcidos, el cuello debajo de la barbilla y el brazo sobre el torso se
-   suman y sale una mancha más oscura en cada cruce.
+   Siguen sin color de piel, por la misma razón del 16-sep: elegir un tono es
+   elegir a quién se parece el cliente, y el cliente es cualquiera. Open Peeps es
+   tinta negra sobre relleno blanco.
    ========================================================================= */
 .gente{display:grid;gap:18px;margin-top:var(--e4)}
 .gente-fila{display:flex;align-items:center;gap:14px}
@@ -523,58 +517,35 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
   margin-top:4px}
 .gente-nota{font-size:12px;line-height:1.5;margin:var(--e3) 0 0}
 
-/* 88 px y no más: a este tamaño la cara todavía se lee en un teléfono de 360 px
-   y le deja 186 al texto, que es lo que manda.
+/* 19-oct-2026 — 112 px y no 88. Estos dibujos tienen cara de verdad —cejas,
+   pupilas, dedos— y a 88 se perdía justo eso. En un teléfono de 360 px le
+   quedan 162 al texto, que sigue alcanzando para la frase y su apoyo.
 
-   El clip-path redondea la placa y recorta el torso, que se dibuja a propósito
-   hasta el borde de abajo para que la persona no parezca flotando. Se hace acá
-   y no con un clipPath dentro del SVG porque un clipPath necesita un id, y tres
-   ids fijos en una página que se repinta entera son tres colisiones esperando. */
-.gente-esc{flex:0 0 auto;width:88px;height:88px;display:block;
-  clip-path:inset(2.1% round 25%)}
-.gente-esc .g-fondo{fill:var(--fondo)}
-.gente-esc .g-piel{fill:color-mix(in srgb, var(--tinta) 14%, var(--papel))}
-.gente-esc .g-r1{fill:color-mix(in srgb, var(--tinta) 27%, var(--papel))}
-.gente-esc .g-r2{fill:color-mix(in srgb, var(--tinta) 44%, var(--papel))}
-.gente-esc .g-r3{fill:color-mix(in srgb, var(--tinta) 68%, var(--papel))}
-/* El filete de tinta es lo que separa esto de un icono de banco de imágenes:
-   sin él las siluetas se pegan entre sí y el dibujo se lee como pictograma. */
-.gente-esc .g-piel,.gente-esc .g-r1,.gente-esc .g-r2,.gente-esc .g-r3{
-  stroke:color-mix(in srgb, var(--tinta) 30%, transparent);stroke-width:1.1;
-  stroke-linejoin:round}
-.gente-esc .g-brazo{fill:none;stroke:color-mix(in srgb, var(--tinta) 68%, var(--papel));
-  stroke-width:8;stroke-linecap:round;stroke-linejoin:round}
-.gente-esc .g-brazo.g-claro{stroke:color-mix(in srgb, var(--tinta) 27%, var(--papel))}
-.gente-esc .g-hilo{fill:none;stroke:color-mix(in srgb, var(--tinta) 45%, transparent);
-  stroke-width:2.2;stroke-linecap:round}
-.gente-esc .g-fac{fill:none;stroke:color-mix(in srgb, var(--tinta) 82%, transparent);
-  stroke-width:1.9;stroke-linecap:round}
-/* --amarillo-tinta y no --amarillo: el amarillo solo va sobre laca y esta
-   tarjeta es de papel. Es el mismo cambio que ya hace .granTotal fuera de laca. */
-.gente-esc .g-oro{fill:var(--amarillo-tinta)}
-.gente-esc .g-pant{fill:color-mix(in srgb, var(--amarillo-tinta) 30%, var(--papel));
-  stroke:color-mix(in srgb, var(--tinta) 22%, transparent);stroke-width:1}
+   LA PLACA ES CLARA Y FIJA, y es lo que más importa de esta regla. Los dibujos
+   de antes se pintaban con --tinta y se invertían solos en modo oscuro; un
+   <img> no hereda nada de la hoja, así que estos son tinta negra siempre, y sobre
+   la tarjeta oscura la tinta desaparecería y quedarían flotando los rellenos
+   blancos. Por eso la placa se arma con dos tokens que NO cambian con el tema
+   (--laca y --blanco-laca): en modo claro casi es el --fondo de antes, y en el
+   oscuro queda como una foto clara sobre la mesa.
 
-/* transform-box:fill-box para que transform-origin cuente desde la caja del
-   dibujo y no desde el origen del lienzo: sin esto la bolsa se mece alrededor
-   de la esquina de arriba a la izquierda y sale volando. */
-.gente-esc .g-vive,.gente-esc .g-pant,.gente-esc .g-envio,
-.gente-esc .g-perilla,.gente-esc .g-bolsa{transform-box:fill-box}
-.gente-esc .g-vive{transform-origin:50% 100%;animation:gente-respira 5.2s ease-in-out infinite}
-/* Duraciones distintas y desfase negativo: si las tres respiran a la vez se ve
-   una máquina, no tres personas. Negativo para que arranquen ya separadas y no
-   haya que esperar seis segundos a que se desincronicen. */
-.gente-fila:nth-child(2) .g-vive{animation-duration:6.1s;animation-delay:-1.4s}
-.gente-fila:nth-child(3) .g-vive{animation-duration:5.6s;animation-delay:-2.9s}
-.gente-esc .g-pant{animation:gente-luz 4.4s ease-in-out infinite}
-.gente-esc .g-envio{animation:gente-sale 4.4s ease-in-out infinite}
-.gente-esc .g-perilla{animation:gente-elige 6.4s ease-in-out infinite}
-.gente-esc .g-bolsa{transform-origin:50% 3%;animation:gente-mece 4.8s ease-in-out infinite}
+   border-radius recorta la imagen, como hacía el clip-path de antes: el torso
+   llega hasta el borde de abajo para que la persona no parezca flotando.
+
+   Todo va sobre .gente-esc y nada sobre sus descendientes: dentro de un <img>
+   no hay nada que pintar, y una regla tipo «.gente img» se colaría en cualquier
+   otra tarjeta que algún día ponga una imagen (el noveno patrón de la casa). */
+.gente-esc{flex:0 0 auto;width:112px;height:112px;display:block;
+  border-radius:25%;background:color-mix(in srgb, var(--laca) 3%, var(--blanco-laca))}
 
 
 /* ---------------------------------------------------------------------------
-   LAS SEIS ANIMACIONES NUEVAS VAN AQUÍ, AL FINAL, CADA UNA EN VARIAS LÍNEAS Y
+   LAS ANIMACIONES NUEVAS VAN AQUÍ, AL FINAL, CADA UNA EN VARIAS LÍNEAS Y
    CON SU LLAVE DE CIERRE EN LA COLUMNA 0.
+
+   19-oct-2026 — eran seis; cinco eran de la gente dibujada en línea (respirar,
+   la luz del celular, el mensaje que sale, la perilla y la bolsa) y se fueron
+   con ella: los dibujos nuevos son un <img> y no tienen partes que mover.
 
    No es estilo: es lo que las deja VIGILADAS. El barrido de
    pruebas/vitrina.test.js («no se anima nada que obligue a recalcular la
@@ -596,27 +567,6 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
   35%{opacity:1;transform:translateY(-16px)}
   100%{opacity:1;transform:translateY(0)}
 }
-@keyframes gente-respira{
-  0%,100%{transform:translateY(0) scaleY(1)}
-  50%{transform:translateY(-1.1px) scaleY(1.009)}
-}
-@keyframes gente-luz{
-  0%,66%,100%{opacity:1}
-  80%{opacity:.4}
-}
-@keyframes gente-sale{
-  0%,6%{opacity:0;transform:translateY(7px)}
-  24%,60%{opacity:1;transform:translateY(0)}
-  82%,100%{opacity:0;transform:translateY(-9px)}
-}
-@keyframes gente-elige{
-  0%,100%{transform:translateX(-9px)}
-  50%{transform:translateX(9px)}
-}
-@keyframes gente-mece{
-  0%,100%{transform:rotate(-3.5deg)}
-  50%{transform:rotate(3.5deg)}
-}
 
 /* ---------------------------------------------------------------------------
    QUIETUD, SIN PERDER NADA — y en un bloque APARTE, al final.
@@ -628,13 +578,13 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
    metido en medio cortaría ese bloque y tumbaría la prueba. Al final no lo toca.
 
    Y apagar no significa enseñar menos: las cuatro piezas de plata se quedan a
-   la vista en su sitio de reposo, y la gente en su fotograma quieto. Es la
-   misma escena, congelada, no una versión pobre.
+   la vista en su sitio de reposo. Es la misma escena, congelada, no una
+   versión pobre. (La gente ya no tiene nada que apagar desde el 19-oct-2026: es
+   un <img> quieto. Si algún día vuelve a moverse, su animation:none va aquí,
+   y pruebas/vitrina.test.js lo exige.)
    ------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce){
   .vj-cae{animation:none}
-  .gente-esc .g-vive,.gente-esc .g-pant,.gente-esc .g-envio,
-  .gente-esc .g-perilla,.gente-esc .g-bolsa{animation:none}
 }
 
 /* ---------------------------------------------------------------------------
