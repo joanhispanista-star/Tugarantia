@@ -25,6 +25,15 @@
  *      usura (art. 305 del Código Penal). Sin precio no hay nada que se pase.
  *      Lo que sí dice, con todas las letras: «el costo exacto te lo mandamos en
  *      la propuesta, antes de que aceptes nada».
+ *      19-oct-2026 — AHORA DICE UN ESTIMADO, EN PESOS, Y DICE QUE ES UN
+ *      ESTIMADO. William pidió 300.000 y no vio cuánto le tocaba pagar; Joan
+ *      decidió: «deja un estimado del 2%» al mes, «que no pase el nivel de
+ *      usura». Las dos objeciones de arriba siguen en pie y por eso el estimado
+ *      (a) va rotulado «Estimado: el costo exacto te lo mandamos en la
+ *      propuesta, y puede ser distinto» —no es la oferta: la oferta sigue
+ *      siendo la propuesta de Joan, con sus condiciones— y (b) pasa por la reja
+ *      de usura del día (estimadoDelCosto, abajo). Sin techo certificado para
+ *      hoy, se calla la cifra y vuelve la frase de siempre.
  *
  *   2. LAS CONDICIONES DE ESA PROPUESTA. Cuando Joan contesta, el cliente lee
  *      en un solo bloque qué recibe, cuándo paga, cuánto en total, lo que
@@ -37,13 +46,16 @@
  * mismas fechas en palabras y la misma forma de escribir los pesos. Dos
  * archivos se separarían con el primer arreglo.
  *
- * LO QUE NO HACE: no calcula costos ni tasas (eso es de motor.js y del CRM de
- * Joan, que son los que tienen la tabla de usura), no decide nada y no habla
- * con la nube. Las pantallas llaman a sus funciones de la base; esto solo arma
- * lo que se ve y lo que se manda.
+ * LO QUE NO HACE: no calcula el costo de un crédito (eso es de motor.js y del
+ * CRM de Joan), no decide nada y no habla con la nube. Las pantallas llaman a
+ * sus funciones de la base; esto solo arma lo que se ve y lo que se manda.
+ * 19-oct-2026 — la ÚNICA cuenta de plata propia es el ESTIMADO del pedido
+ * (estimadoDelCosto), y no es un precio: la tabla de usura y la efectiva
+ * anual las pone app/creditos.js, que es donde viven.
  *
  * Lo usan: play/index.html (portada, pedido y propuesta), index.html (la
- * portada del sitio) y platachat/index.html (las condiciones de la propuesta).
+ * portada del sitio), platachat/index.html (las condiciones de la propuesta)
+ * y, desde el 19-oct-2026, panel/crm.html (lo que el cliente vio estimado).
  * ==========================================================================*/
 
 (function (raiz, fabrica) {
@@ -312,6 +324,178 @@
   function olvidarGuardado() { try { almacen().removeItem(LLAVE); } catch (x) {} }
 
   /* ==========================================================================
+   * EL ESTIMADO DEL COSTO — 19 de octubre de 2026
+   *
+   * Por qué existe: William pidió 300.000 y no vio cuánto le tocaba pagar. La
+   * calculadora decía «el costo exacto te lo mandamos en la propuesta» y nada
+   * más, y quien no ve una cifra se imagina la peor o se va. Joan, textual:
+   * «deja un estimado del 2%» (al mes) y «que no pase el nivel de usura».
+   *
+   * LA CUENTA: capital × 2% × días / 30, redondeado al peso. 300.000 a 30 días
+   * son 6.000. Se hace en ENTEROS (puntos básicos) y no con 0,02: 0,02 no
+   * existe exacto en binario, y en los casos de medio peso el redondeo caería
+   * del lado que no es según el capital.
+   *
+   * LA REJA DE USURA, que no se le delega a nadie. La efectiva anual del
+   * estimado se mide con efectivoAnualPorFechas (app/creditos.js, la MISMA
+   * cuenta con la que el CRM mide sus propuestas) sobre el flujo de verdad:
+   * hoy recibe el capital, el día escogido paga el total. Y se compara con el
+   * techo VIGENTE HOY (topeVigente). Si no queda ESTRICTAMENTE debajo —un
+   * crédito de pocos días al 2% mensual da 27,5% efectivo anual, y en enero de
+   * 2026 el techo estuvo en 24,36%—, se baja el costo, peso a peso, hasta el
+   * más alto que cabe debajo, y la tasa que se informa es la que quedó.
+   *
+   * SIN TECHO CERTIFICADO PARA HOY NO HAY CIFRA. Es la regla de la casa:
+   * sin certificación se calla la frase, no se inventa (topeVigente devuelve
+   * null desde el 1 de cada mes hasta que alguien agregue la fila). Tampoco se
+   * usa el «último techo conocido» de topeDeReferencia: eso sirve para PONER
+   * UN LÍMITE hacia abajo (el recargo por atraso), no para publicar una cifra
+   * que el cliente lee como lo que va a pagar. Sin cifra, la calculadora dice
+   * lo de siempre: «el costo exacto te lo mandamos en la propuesta».
+   *
+   * LO QUE NO ES: no es la oferta. La oferta es la propuesta de Joan, con «Las
+   * condiciones de este crédito» y su casilla. Por eso el rótulo dice que
+   * puede ser distinto, y por eso viaja con la solicitud (pedido.estimado,
+   * base/20261019_el_estimado_viaja.sql): el CRM le avisa a Joan si su
+   * propuesta se aleja de lo que el cliente vio.
+   *
+   * Al cliente se le dice en PESOS, nunca en porcentaje (regla del 8-sep). La
+   * tasa y la efectiva anual viajan para Joan, no se pintan.
+   * ======================================================================== */
+  var TASA_ESTIMADO_MENSUAL = 0.02;     // decisión de Joan, 19-oct-2026
+  var VERSION_ESTIMADO = '2026-10-19';
+
+  /**
+   * @param capital   lo que pide, en pesos
+   * @param fechaPago 'AAAA-MM-DD', el día del calendario que escogió
+   * @param hoy       'AAAA-MM-DD', el día en que lo ve (el desembolso supuesto)
+   * @param opciones  {creditos} — otra tabla de usura, para las pruebas
+   * @returns {costo, total, tasa_mensual, ea, techo, hasta, …} o null si no se
+   *          puede publicar una cifra (sin techo certificado, datos raros, o
+   *          un techo tan bajo que el costo quedaría en cero).
+   */
+  function estimadoDelCosto(capital, fechaPago, hoy, opciones) {
+    var o = opciones || {};
+    var C = o.creditos || creditos();
+    if (!C || typeof C.topeVigente !== 'function' || typeof C.efectivoAnualPorFechas !== 'function') return null;
+    var cap = entero(capital);
+    var h = String(hoy || hoyISO()).slice(0, 10), f = String(fechaPago || '').slice(0, 10);
+    if (!(cap > 0) || !fechaDeISO(h) || !fechaDeISO(f)) return null;
+    var dias = diasHasta(f, h);
+    if (!(dias >= 1)) return null;
+
+    var tope = null;
+    try { tope = C.topeVigente(h); } catch (e) { tope = null; }
+    var techo = tope ? Number(tope.consumo_ordinario) : NaN;
+    if (!(techo > 0)) return null;
+
+    var ea = function (costo) {
+      try { return C.efectivoAnualPorFechas(h, cap, [{ fecha: f, total: cap + costo }]); } catch (e) { return null; }
+    };
+    var puntos = Math.round(TASA_ESTIMADO_MENSUAL * 10000);          // 2% = 200 puntos básicos
+    var costo = Math.round(cap * dias * puntos / 300000);            // = cap × tasa × días / 30
+    var efectiva = ea(costo);
+    if (efectiva === null || !isFinite(efectiva)) return null;
+
+    var ajustado = false;
+    if (!(efectiva < techo)) {
+      /* El costo más alto que cabe debajo del techo: la cuenta cerrada da el
+         punto de partida y la MISMA medición de arriba decide. Hacia abajo
+         siempre: del techo no se pasa ni por un peso. */
+      var max = Math.floor(cap * (Math.pow(1 + techo, dias / 365) - 1));
+      /* Primero hacia arriba y después hacia abajo, con la medición de
+         creditos.js: en un huso con horario de verano un mes «de 30 días»
+         mide 30 días y una hora, y la cuenta cerrada se queda corta. */
+      for (var subir = 0; subir < 1000; subir++) {
+        var e1 = ea(max + 1);
+        if (e1 !== null && e1 < techo) max++; else break;
+      }
+      for (var vueltas = 0; max > 0 && vueltas < 1000; vueltas++) {
+        var e2 = ea(max);
+        if (e2 !== null && e2 < techo) break;
+        max--;
+      }
+      costo = Math.max(0, max);
+      efectiva = ea(costo);
+      ajustado = true;
+    }
+    /* Un estimado de $0 no es un estimado: es una promesa de gratis que nadie
+       hizo. Con un techo así de bajo se calla la cifra. */
+    if (!(costo > 0) || efectiva === null || !(efectiva < techo)) return null;
+
+    return {
+      capital: cap, fecha_pago: f, dias: dias,
+      costo: costo, total: cap + costo,
+      /* La que se aplicó: la de Joan, o la que dejó la reja si tuvo que bajar.
+         Hacia abajo, para no informar una tasa más alta que la cobrada. */
+      tasa_mensual: ajustado ? Math.floor(costo / cap * 30 / dias * 1e6) / 1e6 : TASA_ESTIMADO_MENSUAL,
+      ea: efectiva, techo: techo, hasta: tope.hasta || null, certificacion: tope.fuente || null,
+      ajustado: ajustado, version: VERSION_ESTIMADO
+    };
+  }
+
+  /** El estimado de lo que está en la calculadora. */
+  function estimadoDe(estado, hoy) {
+    var e = normalizar(estado), h = hoy || hoyISO();
+    return estimadoDelCosto(e.monto, fechaEn(e.dias, h), h);
+  }
+
+  /** Lo que viaja con la solicitud para que Joan lo vea (anotar_estimado en
+   *  base/20261019_el_estimado_viaja.sql). La base comprueba que sea de ESTE
+   *  pedido —el monto y la fecha— y que no pase el 2% de Joan; el momento lo
+   *  pone ella, no el teléfono. null si en pantalla no se mostró ninguna cifra:
+   *  no se le dice a Joan que el cliente vio algo que no vio. */
+  function estimadoParaEnviar(estado, hoy) {
+    var est = estimadoDe(estado, hoy);
+    if (!est) return null;
+    return { version: est.version, capital: est.capital, fecha_pago: est.fecha_pago,
+             costo: est.costo, total: est.total, tasa: est.tasa_mensual,
+             ea: Math.round(est.ea * 1e6) / 1e6, techo: est.techo };
+  }
+
+  /* LO QUE EL CRM LE DICE A JOAN. El estimado lo lee de la solicitud tal como
+     lo guardó la base (pedido.estimado); si no está —la app vieja, la base sin
+     la migración, o un día sin techo—, no se dice nada: «el cliente vio un
+     estimado» solo se escribe cuando hay constancia de que lo vio. */
+  function estimadoDeSolicitud(sol) {
+    var p = (sol && sol.pedido && typeof sol.pedido === 'object') ? sol.pedido : null;
+    var e = (p && p.estimado && typeof p.estimado === 'object') ? p.estimado : null;
+    if (!e) return null;
+    var costo = Number(e.costo), total = Number(e.total);
+    if (!isFinite(costo) || !(costo > 0) || !isFinite(total) || !(total > costo)) return null;
+    var tasa = Number(e.tasa);
+    return { costo: Math.round(costo), total: Math.round(total),
+             tasa: isFinite(tasa) ? tasa : null, cuando: String(e.cuando || '') };
+  }
+
+  /** «El cliente vio un estimado de $6.000» y, si la propuesta de Joan cobra
+   *  más, el aviso. No bloquea nada: Joan puede tener razones —un cliente sin
+   *  historial, un plazo distinto—; lo que no puede es mandarla sin saberlo,
+   *  porque el cliente sí lo sabe. */
+  function avisoDelEstimado(costoPropuesto, estimado) {
+    var est = cifrasDelEstimado(estimado);
+    if (!est) return null;
+    var vio = 'El cliente vio un estimado de ' + pesos(est.costo) + ' (total ' + pesos(est.total) + ')';
+    var p = Math.round(Number(costoPropuesto));
+    if (!isFinite(p) || p <= est.costo) return { vio: vio, supera: false, veces: null, aviso: '' };
+    var veces = p / est.costo, aviso;
+    if (veces >= 2) {
+      var v = Math.floor(veces * 10) / 10;
+      aviso = 'Tu propuesta (' + pesos(p) + ') es ' + String(v).replace('.', ',') +
+        ' veces lo que la app le estimó: dile por qué, o se va a sentir engañado.';
+    } else {
+      aviso = 'Tu propuesta (' + pesos(p) + ') es ' + pesos(p - est.costo) + ' más de lo que la app le estimó (' +
+        pesos(est.costo) + '): dile por qué, o se va a sentir engañado.';
+    }
+    return { vio: vio, supera: true, veces: Math.floor(veces * 10) / 10, aviso: aviso };
+  }
+  function cifrasDelEstimado(e) {
+    if (!e || typeof e !== 'object') return null;
+    var c = Number(e.costo), t = Number(e.total);
+    return (isFinite(c) && c > 0) ? { costo: Math.round(c), total: isFinite(t) ? Math.round(t) : 0 } : null;
+  }
+
+  /* ==========================================================================
    * LA CALCULADORA EN PANTALLA
    *
    * Una sola por página, y por eso su estado vive aquí (ESTADO) y sus
@@ -387,6 +571,11 @@
     '.cs .cs-resumen{margin-top:18px;padding:14px 16px;border-radius:14px;border:1px solid rgba(245,197,66,.45);' +
       'background:rgba(245,197,66,.08);font-size:16px;line-height:1.45}' +
     '.cs .cs-costo{margin-top:10px;font-size:14px;color:var(--cs-tenue);line-height:1.5}' +
+    /* 19-oct-2026 — el estimado se lee primero y en blanco de laca; el rótulo
+       que dice que es un estimado va pegado debajo, en el mismo bloque, para
+       que nadie lea la cifra sin leer que puede cambiar. */
+    '.cs .cs-estimado{display:block;font-size:16px;font-weight:700;color:var(--cs-luz);margin-bottom:4px;' +
+      'font-variant-numeric:tabular-nums;overflow-wrap:anywhere}' +
     '.cs .cs-boton{display:block;width:100%;margin-top:16px;min-height:52px;border:0;border-radius:14px;' +
       'background:#D81F26;color:#fff;font:inherit;font-size:17px;font-weight:700;cursor:pointer}' +
     '.cs .cs-boton:disabled{opacity:.5;cursor:not-allowed}' +
@@ -453,15 +642,34 @@
         '<div class="cs-resumen" id="csResumen" aria-live="polite">' + esc(resumen(e, hoy)) + '</div>' +
         /* LA FRASE QUE SOSTIENE TODO LO DE ARRIBA. Sin precio en pantalla,
            callarse por qué sería esconderlo; dicho así es la verdad: el costo
-           existe, depende de cada caso, y se ve antes de aceptar. */
-        '<div class="cs-costo">El costo exacto te lo mandamos en la propuesta, antes de que aceptes nada. ' +
-          'Pedir no te compromete: si la propuesta no te sirve, no la aceptas.</div>' +
+           existe, depende de cada caso, y se ve antes de aceptar.
+           19-oct-2026 — con el estimado encima cuando hay techo de usura
+           certificado para hoy (costoHTML). Va en una caja con id porque
+           cambia con el dedo: refrescar() la reescribe sin tocar controles. */
+        '<div class="cs-costo" id="csCosto">' + costoHTML(e, hoy) + '</div>' +
         (o.boton
           ? '<button type="button" class="cs-boton" id="csBoton" onclick="' + esc(o.accion || '') + '">' +
               esc(textoBoton(o.boton, e)) + '</button>'
           : '') +
         '<div class="cs-error" id="csError" role="status"></div>' +
       '</div>';
+  }
+
+  /* 19-oct-2026 — EL COSTO, CON SU ESTIMADO SI LO HAY. Con techo de usura
+     certificado para hoy: «Costo estimado: $6.000 · Total estimado: $306.000»
+     y debajo, en el mismo bloque, que es un estimado y puede ser distinto. Sin
+     techo: la frase de siempre, sin cifra. Nunca un porcentaje. */
+  var TEXTO_SIN_ESTIMADO = 'El costo exacto te lo mandamos en la propuesta, antes de que aceptes nada. ' +
+    'Pedir no te compromete: si la propuesta no te sirve, no la aceptas.';
+  var TEXTO_ESTIMADO = 'Estimado: el costo exacto te lo mandamos en la propuesta, y puede ser distinto. ' +
+    'Pedir no te compromete: si la propuesta no te sirve, no la aceptas.';
+  function costoHTML(estado, hoy) {
+    var est = null;
+    try { est = estimadoDe(estado, hoy); } catch (x) { est = null; }
+    if (!est) return esc(TEXTO_SIN_ESTIMADO);
+    return '<span class="cs-estimado" data-costo="' + est.costo + '" data-total="' + est.total + '">' +
+        esc('Costo estimado: ' + pesos(est.costo) + ' · Total estimado: ' + pesos(est.total)) + '</span>' +
+      esc(TEXTO_ESTIMADO);
   }
 
   /* El botón puede llevar la cifra: «Pedir $300.000». {monto} se reemplaza. */
@@ -485,6 +693,8 @@
     if (d && d.setAttribute) d.setAttribute('aria-valuetext', plazoEnPalabras(e.dias));
     var fe = porId('csFecha'); if (fe && salvo !== 'fecha') fe.value = f;
     var s = porId('csResumen'); if (s) s.textContent = resumen(e, hoy);
+    /* 19-oct-2026 — el estimado se mueve con el monto y con la fecha. */
+    var k = porId('csCosto'); if (k) k.innerHTML = costoHTML(e, hoy);
     var b = porId('csBoton'); if (b && OPCIONES.boton) b.textContent = textoBoton(OPCIONES.boton, e);
     marcarChips('csChipsMonto', 'data-monto', e.monto);
     marcarChips('csChipsDias', 'data-dias', e.dias);
@@ -853,6 +1063,17 @@
     guardar: guardar,
     leerGuardado: leerGuardado,
     olvidarGuardado: olvidarGuardado,
+
+    /* el estimado del costo (19-oct-2026) */
+    TASA_ESTIMADO_MENSUAL: TASA_ESTIMADO_MENSUAL,
+    VERSION_ESTIMADO: VERSION_ESTIMADO,
+    TEXTO_ESTIMADO: TEXTO_ESTIMADO,
+    TEXTO_SIN_ESTIMADO: TEXTO_SIN_ESTIMADO,
+    estimadoDelCosto: estimadoDelCosto,
+    estimadoDe: estimadoDe,
+    estimadoParaEnviar: estimadoParaEnviar,
+    estimadoDeSolicitud: estimadoDeSolicitud,
+    avisoDelEstimado: avisoDelEstimado,
 
     /* la calculadora en pantalla */
     conectar: conectar,

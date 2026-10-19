@@ -1051,6 +1051,11 @@
      Es la MISMA que usa la puerta pública: el precio que Joan manda desde acá y
      el que el cliente ve allá se miden contra el mismo techo. -->
 <script src="../app/creditos.js"></script>
+<!-- 19-oct-2026 — la calculadora del pedido (la MISMA de play/). Aquí no se
+     pinta: se usa para leer el estimado del costo que vio el cliente y para
+     armar el aviso cuando la propuesta se aleja de él. Va después de
+     creditos.js. Si no llega, la bandeja no habla del estimado. -->
+<script src="../app/calculadora-solicitud.js"></script>
 <script>
 const PUENTE=window.PuenteTuGarantia;
 /* 9-sep-2026 — las reglas de comision de los asesores. Va JUNTO a las otras
@@ -1065,6 +1070,11 @@ const COMIS=window.ComisionesTuGarantia;
 const ENLACE_PANEL='https://tugarantia.net/panel/crm.html';
 const ETAPAS=window.EtapasTuGarantia;
 const CHAT=window.ChatTuGarantia;
+/* 19-oct-2026 — la calculadora del pedido, para leer el ESTIMADO que el
+   cliente vio (pedido.estimado) y comparar la propuesta contra él. Si el
+   <script src> no llega, la bandeja no dice nada del estimado: nunca afirma
+   que el cliente vio algo sin poder leerlo. */
+const CSOL=window.CalculadoraSolicitud||null;
 const KEY=PUENTE.LLAVE_PANEL;
 /* El costo es fijo desde el 29-jul-2026. Se lee del motor para que no haya dos
    verdades; si algún día cambia, cambia en un solo lugar. */
@@ -15753,7 +15763,7 @@ function renderBandeja(){
          prestando a su propio gerente. Las dos cosas, solo en la vista de Joan. */
       const telSol=CARTERA_EQUIPO?'':telDeSolicitud(s);
       return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${telSol?'<div class="muted mono">📱 '+escHTML(telSol)+'</div>':''}${chipDelEquipo(telSol)}${sinJuntar?'<div class="muted" style="color:var(--ambar)">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. Júntale la cuenta antes de prestarle.</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}${condicionesAceptadasDe(s)}</td>
-      <td class="num"><b>${COP(resp?s.capital:q.capital)}</b>${aviso}${notaDelCliente(s)}${sinCupo}</td>
+      <td class="num"><b>${COP(resp?s.capital:q.capital)}</b>${aviso}${notaDelCliente(s)}${estimadoEnLaFila(s)}${sinCupo}</td>
       <td>${resp?`<b>Con garantía</b><div class="muted">${(Number(s.tasa)*100).toFixed(0)}% mensual · ${pz} mes${pz!==1?'es':''}</div>`
                 :pcNueva?`<b>Pidió por el chat</b><div class="muted">${pidePct||q.pct}% · ${pideCortes} corte${pideCortes!==1?'s':''} · todavía sin propuesta</div>`
                 :pideNueva?`<b>Pidió desde la app</b><div class="muted">${escHTML((plazoPedido(s)||{}).corto||'')} · todavía sin propuesta</div>`
@@ -15863,6 +15873,35 @@ function plazoPedido(s){
   const cuando=dias>0?'en '+dias+' día'+(dias!==1?'s':''):dias===0?'hoy':'ya pasó';
   return { fecha:f, dias, corto:'para el '+fmtFecha(f)+' ('+cuando+')',
            texto:'para pagar el '+fmtFecha(f)+' ('+cuando+')' };
+}
+
+/* 19-oct-2026 — LO QUE LA APP LE ESTIMÓ AL CLIENTE. Desde hoy la calculadora
+   de play/ le muestra un costo estimado (el 2% al mes, debajo del techo de
+   usura) y ese estimado viaja en pedido.estimado (anotar_estimado,
+   base/20261019_el_estimado_viaja.sql). Joan tiene que verlo ANTES de
+   proponer: si le propone diez veces eso, el cliente no lee una propuesta,
+   lee un engaño. El aviso no bloquea —Joan puede tener sus razones—; lo que
+   no puede es mandarla sin saberlo.
+   Las cuentas (cuántas veces, cuánto más) son del módulo
+   (CSOL.avisoDelEstimado), no de esta pantalla. Sin estimado guardado (una
+   app vieja, la base sin la migración, o un día sin techo certificado) no se
+   dice nada: «el cliente vio» solo se escribe con constancia. */
+function avisoContraEstimado(s,costo){
+  const est=CSOL&&CSOL.estimadoDeSolicitud&&s?CSOL.estimadoDeSolicitud(s):null;
+  return est?CSOL.avisoDelEstimado(costo,est):null;
+}
+function estimadoEnLaFila(s){
+  const cp=(s&&s.contrapropuesta&&typeof s.contrapropuesta==='object')?s.contrapropuesta:null;
+  const a=avisoContraEstimado(s,cp?(cp.costo!=null?cp.costo:s.costo):null);
+  if(!a) return '';
+  return '<div class="muted">'+escHTML(a.vio)+'</div>'+
+    (a.supera?'<div class="muted" style="color:var(--ambar);white-space:normal;max-width:28ch">⚠️ '+escHTML(a.aviso)+'</div>':'');
+}
+/* En «✏️ Proponer», contra la solicitud que está abierta en el modal. */
+function avisoEstimadoHTML(costo){
+  const s=_solicitudes.find(x=>String(x.id)===String(_cpSolId));
+  const a=avisoContraEstimado(s,costo);
+  return a&&a.supera?'<div class="alerta warn" id="cpAvisoEstimado" style="margin-top:8px">⚠️ '+escHTML(a.aviso)+'</div>':'';
 }
 
 /* 8-oct-2026 — LO QUE EL CLIENTE ACEPTÓ. aceptar_condiciones
@@ -16272,6 +16311,10 @@ function editarContrapropuesta(id, modo) {
   const cli = socioDeSolicitud(s);
   const max = cli ? maxRespaldadoDe(cli) : 0;
   const pidio = Math.round(Number(s.capital) || Number(cp.capital) || 0);
+  /* 19-oct-2026 — lo que la app le estimó, arriba y antes de cualquier
+     cifra de Joan; el aviso de cuánto se aleja su propuesta lo pinta cada
+     vista previa (avisoEstimadoHTML), porque cambia con lo que él escribe. */
+  const vioEst = avisoContraEstimado(s, null);
 
   openModal((s.contrapropuesta ? 'Cambiar la propuesta · ' : 'Proponer · ') + s.nombre, `
     <div class="help">Lo que pongas acá es lo que el cliente va a ver en su app, en pesos.
@@ -16283,6 +16326,8 @@ function editarContrapropuesta(id, modo) {
             pidio > max ? ' — <b>menos de lo que pidió</b>.' : '.'}`
         : 'Todavía no tiene garantía ganada: el préstamo con garantía no se le puede abrir.')
       : 'Todavía no tiene ficha acá, así que no puedo decirte cuánta garantía tiene.'}</div>` : ''}
+    ${vioEst ? `<div class="help" id="cpVioEstimado" style="margin-top:8px"><b>${escHTML(vioEst.vio)}.</b>
+      Es lo que la app le mostró al pedir, rotulado como estimado que puede ser distinto.</div>` : ''}
     <div style="display:flex;gap:6px;margin:14px 0 4px;flex-wrap:wrap">
       <button class="btn ${_cpModo === 'unico' ? 'btn-negro' : 'btn-ghost'} btn-sm"
         onclick="cambiarModoCp('unico','${s.id}')">Un solo pago</button>
@@ -16422,6 +16467,7 @@ function previsualizarCuotas() {
       (p.tope * 100).toFixed(2).replace('.', ',')}%</span></span></div>
     ${pasa ? `<div class="alerta warn" style="margin-top:8px"><b>Esa propuesta pasa el techo de usura.</b>
       No se puede mandar: bájale el costo o alárgale el plazo.</div>` : ''}
+    ${avisoEstimadoHTML(p.costo)}
     ${!p.dentro ? `<div class="alerta" style="margin-top:8px">Le estás prestando más de lo que
       respalda su garantía ganada (${COP(p.disponible)}). <b>Puedes hacerlo</b> —la decisión es tuya—
       pero ese excedente no está respaldado.</div>` : ''}
@@ -16448,11 +16494,14 @@ function guardarContrapropuestaCuotas(id) {
       (p.ea * 100).toFixed(2) + '% contra ' + (p.tope * 100).toFixed(2) + '%).\n\n' +
       'Bájale el costo o alárgale el plazo.');
   }
+  /* 19-oct-2026 — el aviso del estimado, como en «un solo pago»: no frena. */
+  const ae = avisoContraEstimado(s, p.costo);
   if (!confirm('Mandarle a ' + s.nombre + ':\n\n' +
     '• Recibe ' + COP(p.capital) + '\n' +
     '• ' + p.meses + ' cuotas de ' + COP(p.cuota) + '\n' +
     '• Devuelve ' + COP(p.total) + ' · última el ' + fmtFecha(p.cuotas[p.cuotas.length - 1].fecha) + '\n' +
     '• Tu costo: ' + COP(p.costo) + '\n\n' +
+    (ae && ae.supera ? '⚠️ ' + ae.aviso + '\n\n' : '') +
     'La propuesta vuelve a «esperando que acepte». ¿La mando?')) return;
 
   rpc('contrapropuesta_a_cuotas', { p_clave: sbCfg().clave, p_id: Number(s.id),
@@ -16473,13 +16522,18 @@ function previsualizarContrapropuesta(){
   try{
     const r=MotorReglas.contrapropuestaNuevo(politicaDelFormulario('cp'),hoyISO());
     c.innerHTML=`<div class="calc-row"><span>El cliente ve</span><span class="v">recibe <b>${COP(r.capital)}</b> · devuelve <b>${COP(r.total)}</b> el ${fmtFecha(r.fecha_pago)}</span></div>
-      <div class="calc-row"><span>Tu costo (${r.costo_pct}%)</span><span class="v gano">${COP(r.costo)}</span></div>`;
+      <div class="calc-row"><span>Tu costo (${r.costo_pct}%)</span><span class="v gano">${COP(r.costo)}</span></div>
+      ${avisoEstimadoHTML(r.costo)}`;
   }catch(e){ c.innerHTML=`<span style="color:var(--ambar);font-size:12.5px">${escHTML(e.message)}</span>`; }
 }
 function guardarContrapropuesta(id){
   const s=_solicitudes.find(x=>String(x.id)===String(id)); if(!s) return;
   let r; try{ r=MotorReglas.contrapropuestaNuevo(politicaDelFormulario('cp'),hoyISO()); }catch(e){ return alert(e.message); }
-  if(!confirm('Mandarle a '+s.nombre+':\n\n• Recibe '+COP(r.capital)+'\n• Devuelve '+COP(r.total)+' el '+fmtFecha(r.fecha_pago)+' ('+r.dias+' días)\n• Tu costo: '+r.costo_pct+'% ('+COP(r.costo)+')\n\nLa propuesta vuelve a «esperando que acepte». ¿La mando?')) return;
+  /* 19-oct-2026 — el aviso del estimado va también en la pregunta final: es
+     el último momento en que Joan lo puede leer antes de que el cliente vea la
+     propuesta. No la frena. */
+  const ae=avisoContraEstimado(s,r.costo);
+  if(!confirm('Mandarle a '+s.nombre+':\n\n• Recibe '+COP(r.capital)+'\n• Devuelve '+COP(r.total)+' el '+fmtFecha(r.fecha_pago)+' ('+r.dias+' días)\n• Tu costo: '+r.costo_pct+'% ('+COP(r.costo)+')'+(ae&&ae.supera?'\n\n⚠️ '+ae.aviso:'')+'\n\nLa propuesta vuelve a «esperando que acepte». ¿La mando?')) return;
   rpc('contrapropuesta_solicitud',{p_clave:sbCfg().clave,p_id:Number(s.id),p_capital:r.capital,p_costo_pct:r.costo_pct,p_dias:r.dias,p_texto:r.texto})
     .then(j=>{ if(!j||j.ok!==true) return alert('La nube no aceptó la propuesta: '+((j&&j.motivo)||'sin motivo')); cerrarModal(); traerSolicitudes(); })
     .catch(e=>alert(errNube(e)));

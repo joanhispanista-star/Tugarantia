@@ -137,8 +137,14 @@ describe('la calculadora del pedido (app/calculadora-solicitud.js)', () => {
     assert.ok(CS.DIAS_MAX <= 366 && CS.DIAS_MIN >= 1);
   });
 
-  test('NO PUBLICA NINGÚN PRECIO y dice que el costo llega en la propuesta', () => {
-    const h = CS.html({ monto: 1500000, dias: 37 }, { boton: 'Pedir {monto}', accion: 'x()', conNota: true, hoy: '2026-10-08' })
+  /* 19-oct-2026 — «SIN TECHO CERTIFICADO». Desde hoy la calculadora muestra un
+     ESTIMADO en pesos cuando hay techo de usura certificado para el día
+     (decisión de Joan; lo prueba el-estimado-del-costo.test.js). Lo que esta
+     prueba sigue cuidando es el otro camino: sin certificación no hay cifra, y
+     se dice lo de siempre. Por eso el día es uno que la tabla nunca va a
+     tener (antes de su primera fila), y no el 8-oct, que ya tiene techo. */
+  test('SIN TECHO CERTIFICADO NO PUBLICA NINGÚN PRECIO y dice que el costo llega en la propuesta', () => {
+    const h = CS.html({ monto: 1500000, dias: 37 }, { boton: 'Pedir {monto}', accion: 'x()', conNota: true, hoy: '2026-06-08' })
       .replace(/<style>[\s\S]*?<\/style>/g, '');
     const texto = h.replace(/<[^>]+>/g, ' ');
     assert.match(texto, /El costo exacto te lo mandamos en la propuesta, antes de que aceptes nada\./);
@@ -289,7 +295,9 @@ describe('la calculadora del pedido, en play/ y en index.html', () => {
   test('index.html carga la calculadora, guarda lo movido y lleva al registro', () => {
     const I = leer('index.html');
     const srcs = [...I.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
-    assert.deepEqual(srcs, ['app/cuenta.js', 'app/calculadora-solicitud.js'], 'cuenta.js va antes: es quien escribe los pesos');
+    /* 19-oct-2026 — entra app/creditos.js: sin la tabla de usura la calculadora
+       no puede estimar el costo (y se calla, que es lo correcto sin ella). */
+    assert.deepEqual(srcs, ['app/cuenta.js', 'app/creditos.js', 'app/calculadora-solicitud.js'], 'cuenta.js va antes: es quien escribe los pesos');
     assert.match(I, /id="calcPedido"/);
     assert.match(I, /location\.href = 'play\/#registro'/);
     assert.match(I, /<a class="btn btn-rojo" href="play\/#registro">Abrir mi cuenta y pedirlo<\/a>/, 'sin JavaScript no queda el enlace al registro');
