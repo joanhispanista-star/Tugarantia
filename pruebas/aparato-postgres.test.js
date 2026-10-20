@@ -155,6 +155,58 @@ describe('el teléfono de verdad, en un PostgreSQL de verdad', { skip: !BIN && '
     assert.equal(mio.huella.aparato_telefono.modelo, 'SM-A155M', 'el CRM no lo recibe');
   });
 
+  /* 20-oct-2026, revisión (F16) — el teléfono de otro día no pisa el del
+     registro. La clienta se registra el día 1 desde el teléfono 1; el día 4
+     vuelve a registrarse desde otro (el camino «ya tenías cuenta», que no crea
+     fila nueva). Antes, el teléfono 2 quedaba en la fila del día 1. */
+  test('OTRO DÍA NO PISA: lo informado al registrarse no se reemplaza, y en un registro viejo no se escribe', () => {
+    const cel = '3101230011';
+    sql("insert into public.registros (codigo, cedula, nombre, telefono, huella) values ('', '1029384275', 'Bea', '" + cel + "', " +
+        "'{\"ip\":\"181.50.1.2\",\"momento\":\"2026-10-01T15:00:00Z\"}')");
+    const uno = comoCuenta(cel, "public.aparato_anotar('registro', " + declarado({ plataforma: 'android', modelo: 'SM-A155M', sistema_version: '14' }) + ')');
+    assert.equal(uno.en_registro, true, JSON.stringify(uno));
+    /* El teléfono 2, en la misma fila: no la pisa, y dice por qué. */
+    const dos = comoCuenta(cel, "public.aparato_anotar('registro', " + declarado({ plataforma: 'android', modelo: 'RMX3710', sistema_version: '13' }) + ')');
+    assert.equal(dos.ok, true);
+    assert.equal(dos.en_registro, false, 'el teléfono de después pisó el del registro: ' + JSON.stringify(dos));
+    assert.equal(dos.registro, 'ya_lo_tenia');
+    assert.equal(json("select huella -> 'aparato_telefono' from public.registros where telefono = '" + cel + "'").modelo, 'SM-A155M');
+    /* Y no se pierde: queda en aparatos_vistos, con su hora. */
+    assert.equal(sql("select count(*) from public.aparatos_vistos where celular = '" + cel + "' and declarado ->> 'modelo' = 'RMX3710'"), '1');
+
+    /* Un registro de hace tres días, sin teléfono informado: lo de hoy no es
+       «desde dónde se registró». */
+    const cel2 = '3101230012';
+    sql("insert into public.registros (codigo, cedula, nombre, telefono, huella, creado_en) values ('', '1029384276', 'Caro', '" + cel2 + "', " +
+        "'{\"ip\":\"181.50.1.3\"}', now() - interval '3 days')");
+    const tres = comoCuenta(cel2, "public.aparato_anotar('registro', " + declarado({ plataforma: 'android', modelo: 'SM-A155M' }) + ')');
+    assert.equal(tres.en_registro, false, 'escribió el teléfono de hoy en un registro de hace tres días: ' + JSON.stringify(tres));
+    assert.equal(tres.registro, 'de_otro_dia');
+    assert.equal(sql("select huella ? 'aparato_telefono' from public.registros where telefono = '" + cel2 + "'"), 'f');
+    assert.equal(sql("select count(*) from public.aparatos_vistos where celular = '" + cel2 + "'"), '1');
+  });
+
+  /* 20-oct-2026, revisión (F2) — la IP que agrega el proxy va AL FINAL de
+     x-forwarded-for. Antes se guardaban los primeros 80 caracteres: quien
+     rellenaba la cabecera desde su teléfono borraba la IP de verdad. */
+  test('LA CADENA DE IPs: se guarda entera, y si es larguísima se queda su FINAL, desde una IP entera', () => {
+    const cel = '3101230013';
+    const relleno = Array.from({ length: 12 }, (_, i) => '10.0.0.' + (i + 1)).join(', ');
+    const cadena = '181.50.1.2, ' + relleno + ', 200.1.2.3';
+    assert.ok(cadena.length > 80);
+    comoCuenta(cel, "public.aparato_anotar('solicitud', '{}'::jsonb)", { 'x-forwarded-for': cadena });
+    assert.equal(sql("select ip from public.aparatos_vistos where celular = '" + cel + "'"), cadena,
+      'la cadena se cortó y se perdió lo que agrega el proxy');
+    /* Más de 400: el final, sin media IP al principio, y marcado con «…». */
+    const larga = '181.50.1.2, ' + Array.from({ length: 60 }, (_, i) => '10.0.' + Math.floor(i / 250) + '.' + (i % 250 + 1)).join(', ') + ', 200.1.2.3';
+    assert.ok(larga.length > 400);
+    comoCuenta(cel, "public.aparato_anotar('aceptacion', '{}'::jsonb)", { 'x-forwarded-for': larga });
+    const guardada = sql("select ip from public.aparatos_vistos where celular = '" + cel + "' and cuando = 'aceptacion'");
+    assert.match(guardada, /^…,\s*10\.0\.0\.\d+, /, 'no empieza en una IP entera con la marca del corte: ' + guardada.slice(0, 40));
+    assert.match(guardada, /, 200\.1\.2\.3$/, 'perdió la IP del final');
+    assert.ok(guardada.length <= 403, 'guardó de más: ' + guardada.length);
+  });
+
   test('sin registro (pedir o aceptar), anota igual y no toca ningún registro', () => {
     const cel = '3101230002';
     const j = comoCuenta(cel, "public.aparato_anotar('solicitud', " + declarado({ plataforma: 'ios', sistema_version: '26', navegador: 'Safari', sin_modelo: 'apple_no_lo_entrega' }) + ')');

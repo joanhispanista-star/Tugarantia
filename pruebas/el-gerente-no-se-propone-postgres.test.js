@@ -14,6 +14,14 @@
  * cierre lo de nadie más. Y la primera mira el hueco ANTES del arreglo: una
  * prueba que solo mira el «no» del final pasaría igual si el montaje no
  * alcanzara nunca la solicitud (un 'no_es_tuyo' también es un «no»).
+ *
+ * 20-oct-2026, revisión — LA PUERTA DE PLATACHAT. La revisión adversaria
+ * encontró la misma venta abierta por contrapropuesta_gerente (20261005): con
+ * su sesión, Willian se fijaba el 1% en su propia solicitud de PlataChat (la
+ * que responsable_de le pone a él) y le proponía $20.000.000 al 1% a un cliente
+ * de su base, por encima de sus topes. Las pruebas de PlataChat miran el hueco
+ * ANTES de la migración, y después que la reja y los topes lo cierren sin
+ * cerrarle la venta buena.
  * ==========================================================================*/
 
 const { test, describe, before, after } = require('node:test');
@@ -62,6 +70,19 @@ describe('el gerente no se propone a sí mismo, en un PostgreSQL de verdad', { s
     + (campos.registro_id == null ? 'null' : campos.registro_id) + ") returning id) select id from x"));
   const sigueIntacta = id => sql('select estado || \'|\' || (contrapropuesta is null) from public.solicitudes where id = ' + id);
   let deWillian, deCliente;
+  /* 20-oct-2026, revisión — PlataChat: una solicitud como la deja
+     solicitar_platachat (app 'platachat', el responsable que dice
+     responsable_de), metida a mano para no depender del reloj ni del cupo. */
+  const FIRMA_PC = 'public.contrapropuesta_gerente(bigint, bigint, integer, integer, text)';
+  const enPlataChat = (campos) => Number(sql(
+    "with x as (insert into public.solicitudes (cedula, celular, nombre, capital, tasa, costo, total, fecha_corte, producto, estado, app, registro_id, responsable, responder_antes_de) values ("
+    + [campos.cedula, campos.celular].map(v => v == null ? 'null' : "'" + v + "'").join(', ')
+    + ", 'Prueba PC', 300000, 0, 0, 0, public.hoy_bogota() + 20, 'quincenal', 'nueva', 'platachat', "
+    + (campos.registro_id == null ? 'null' : campos.registro_id) + ", '" + (campos.responsable || WILLIAN) + "', now() + interval '1 day') returning id) select id from x"));
+  const contraPC = (cel, id, capital, pct, dias) =>
+    como(cel, 'public.contrapropuesta_gerente(' + id + ', ' + capital + ', ' + pct + ', ' + dias + ", '')");
+  const reabrir = id => sql("update public.solicitudes set estado = 'nueva', contrapropuesta = null, capital = 300000 where id = " + id);
+  let deWillianPC, deClientePC;
 
   before(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tg-pg-a-si-mismo-'));
@@ -88,6 +109,11 @@ describe('el gerente no se propone a sí mismo, en un PostgreSQL de verdad', { s
         assert.equal(r.status, 0, f + ' no corrió en el banco: ' + r.stderr);
       });
     sql('grant execute on function public.gerente_proponer(bigint, bigint, integer, integer, text) to service_role');
+    /* La de PlataChat tiene que existir en el banco: si no, las pruebas de su
+       puerta no probarían nada. */
+    assert.equal(sql("select to_regprocedure('" + FIRMA_PC + "') is not null"), 't',
+      'base/20261005_platachat_solicitud.sql no dejó contrapropuesta_gerente en el banco');
+    sql('grant execute on function ' + FIRMA_PC + ' to service_role');
 
     sql(`
       insert into public.equipo (celular, nombre, rol, estado, jefe) values
@@ -116,6 +142,10 @@ describe('el gerente no se propone a sí mismo, en un PostgreSQL de verdad', { s
     /* Y Joan le asigna a Willian su propio registro sin darse cuenta: su número
        entra en su alcance. */
     assert.equal(json('select public.registro_asignar(' + CLAVE + ", '" + WILLIAN + "', '" + WILLIAN + "')").ok, true);
+    /* PlataChat: Willian pidió en PlataChat (responsable_de lo pone a él) y un
+       cliente de su base también. */
+    deWillianPC = enPlataChat({ cedula: WILLIAN, celular: WILLIAN });
+    deClientePC = enPlataChat({ cedula: CLIENTE, celular: CLIENTE });
   });
 
   after(() => {
@@ -131,6 +161,15 @@ describe('el gerente no se propone a sí mismo, en un PostgreSQL de verdad', { s
     sql("update public.solicitudes set estado = 'nueva', contrapropuesta = null, capital = 300000 where id = " + deWillian);
   });
 
+  test('EL HUECO DE PLATACHAT, ANTES DEL ARREGLO: se fija el 1% a sí mismo y le pasa 20 millones a un cliente', () => {
+    const a = contraPC(WILLIAN, deWillianPC, 300000, 1, 15);
+    assert.equal(a.ok, true, 'el montaje no alcanza el hueco de PlataChat (la prueba de después no probaría nada): ' + JSON.stringify(a));
+    assert.equal(sql('select costo from public.solicitudes where id = ' + deWillianPC), '3000', 'no quedó el 1% que se puso él mismo');
+    const b = contraPC(WILLIAN, deClientePC, 20000000, 1, 60);
+    assert.equal(b.ok, true, 'el montaje no alcanza el hueco de los topes: ' + JSON.stringify(b));
+    [deWillianPC, deClientePC].forEach(reabrir);
+  });
+
   test('LA HUELLA del archivo es la de la función que deja 20261015', () => {
     const huella = (/huella constant text := '([0-9a-f]{32})'/.exec(fs.readFileSync(MIGRACION, 'utf8')) || [])[1];
     assert.ok(huella, 'la migración no trae su huella');
@@ -138,16 +177,58 @@ describe('el gerente no se propone a sí mismo, en un PostgreSQL de verdad', { s
       huella, 'la huella de la migración no es la de gerente_proponer: en la base de Joan pararía sin parchar');
   });
 
+  test('LA HUELLA de PlataChat es la de la contrapropuesta_gerente que deja 20261005', () => {
+    const huellas = [...fs.readFileSync(MIGRACION, 'utf8').matchAll(/huella constant text := '([0-9a-f]{32})'/g)].map(m => m[1]);
+    assert.equal(huellas.length, 2, 'la migración no trae las dos huellas (una por función)');
+    assert.equal(sql("select md5(replace(prosrc, chr(13), '')) from pg_proc where oid = '" + FIRMA_PC + "'::regprocedure"),
+      huellas[1], 'la huella de PlataChat no es la de contrapropuesta_gerente: en la base de Joan pararía sin parchar');
+  });
+
   test('LA MIGRACIÓN corre limpia DOS veces, y la segunda no cambia nada', () => {
     const r1 = archivo(MIGRACION, true);
     assert.equal(r1.status, 0, 'la migración no corrió limpia: ' + r1.stderr);
-    assert.match(r1.stdout, /^t\|t\|t$/m, 'la fila para Joan no sale toda en true: ' + r1.stdout);
+    assert.match(r1.stdout, /^t\|t\|t\|t\|t$/m, 'la fila para Joan no sale toda en true: ' + r1.stdout);
+    const antesPC = sql("select md5(prosrc) from pg_proc where oid = '" + FIRMA_PC + "'::regprocedure");
     const antes = sql("select md5(prosrc) from pg_proc where oid = 'public.gerente_proponer(bigint, bigint, integer, integer, text)'::regprocedure");
     const r2 = archivo(MIGRACION, true);
     assert.equal(r2.status, 0, 'la segunda vuelta falló: ' + r2.stderr);
     assert.match(r2.stderr, /no se cambió nada/);
     assert.equal(sql("select md5(prosrc) from pg_proc where oid = 'public.gerente_proponer(bigint, bigint, integer, integer, text)'::regprocedure"),
       antes, 'la segunda vuelta volvió a parchar la función');
+    assert.equal(sql("select md5(prosrc) from pg_proc where oid = '" + FIRMA_PC + "'::regprocedure"),
+      antesPC, 'la segunda vuelta volvió a parchar la de PlataChat');
+    assert.match(r2.stderr, /contrapropuesta_gerente ya no deja/);
+  });
+
+  test('A SÍ MISMO NO, TAMBIÉN POR PLATACHAT: su solicitud, por los tres caminos, ni con el costo de los topes', () => {
+    const r = contraPC(WILLIAN, deWillianPC, 300000, 15, 15);
+    assert.equal(r.ok, false, 'Willian se propuso a sí mismo por PlataChat: ' + JSON.stringify(r));
+    assert.equal(r.motivo, 'no_a_ti_mismo');
+    /* El hilo aparte ('0' + celular, cuenta sin juntar), y su registro con otro
+       celular en la fila: los otros dos caminos. */
+    const hilo = enPlataChat({ cedula: '0' + WILLIAN, celular: null });
+    assert.equal(contraPC(WILLIAN, hilo, 300000, 15, 15).motivo, 'no_a_ti_mismo', 'se coló por el hilo aparte');
+    const regW = sql("with x as (insert into public.registros (cedula, nombre, telefono, datos, estado, origen) values ('79000444', 'Willian PC', '"
+      + WILLIAN + "', '{}', 'nuevo', 'abierto') returning id) select id from x");
+    const porReg = enPlataChat({ cedula: '3109990001', celular: '3109990001', registro_id: regW });
+    assert.equal(contraPC(WILLIAN, porReg, 300000, 15, 15).motivo, 'no_a_ti_mismo', 'se coló por su registro');
+    [deWillianPC, hilo, porReg].forEach(id => assert.equal(sigueIntacta(id), 'nueva|true', 'la solicitud cambió aunque la base dijo que no'));
+  });
+
+  test('LOS TOPES DE JOAN, TAMBIÉN POR PLATACHAT: 20 millones no, el 1% no; dentro de los topes, sí', () => {
+    const grande = contraPC(WILLIAN, deClientePC, 20000000, 1, 60);
+    assert.equal(grande.ok, false, 'pasó 20 millones al 1% por PlataChat: ' + JSON.stringify(grande));
+    assert.equal(grande.motivo, 'fuera_de_topes');
+    assert.equal(grande.topes.capital_max, 500000, 'no le dice cuáles son sus topes');
+    assert.equal(contraPC(WILLIAN, deClientePC, 300000, 1, 15).motivo, 'fuera_de_topes', 'el 1% por debajo del mínimo de Joan pasó');
+    assert.equal(contraPC(WILLIAN, deClientePC, 300000, 15, 45).motivo, 'fuera_de_topes', 'pasó de los días de los topes');
+    assert.equal(sigueIntacta(deClientePC), 'nueva|true');
+    /* Lo de los demás, igual: otro gerente no, y la venta buena sí. */
+    assert.equal(contraPC(OTRO, deClientePC, 300000, 15, 15).motivo, 'esa solicitud no es de tu base');
+    const bien = contraPC(WILLIAN, deClientePC, 300000, 15, 15);
+    assert.equal(bien.ok, true, 'la reja nueva cerró la venta buena por PlataChat: ' + JSON.stringify(bien));
+    assert.equal(bien.solicitud.contrapropuesta.por, 'gerente:' + WILLIAN);
+    assert.equal(bien.solicitud.cedula, undefined, 'la cédula volvió a viajar al gerente');
   });
 
   test('A SÍ MISMO NO: su solicitud, en su alcance, la rechaza y no la toca', () => {
@@ -196,11 +277,36 @@ describe('el gerente no se propone a sí mismo, en un PostgreSQL de verdad', { s
     assert.equal(sql('select contrapropuesta ->> \'por\' from public.solicitudes where id = ' + deWillian), 'joan');
   });
 
-  test('PERMISOS: la llama el gerente con su sesión y nadie más', () => {
-    const f = 'public.gerente_proponer(bigint, bigint, integer, integer, text)';
-    assert.equal(sql("select has_function_privilege('authenticated', '" + f + "', 'execute')"), 't');
-    assert.equal(sql("select has_function_privilege('anon', '" + f + "', 'execute')"), 'f');
-    assert.equal(sql("select has_function_privilege('service_role', '" + f + "', 'execute')"), 'f');
+  test('PERMISOS: la llama el gerente con su sesión y nadie más (las dos)', () => {
+    ['public.gerente_proponer(bigint, bigint, integer, integer, text)', FIRMA_PC].forEach(f => {
+      assert.equal(sql("select has_function_privilege('authenticated', '" + f + "', 'execute')"), 't', f);
+      assert.equal(sql("select has_function_privilege('anon', '" + f + "', 'execute')"), 'f', f);
+      assert.equal(sql("select has_function_privilege('service_role', '" + f + "', 'execute')"), 'f', f);
+    });
+  });
+
+  test('SIN TOPES, PLATACHAT TAMPOCO: Joan los apaga y el gerente no propone por ninguna puerta', () => {
+    const otra = enPlataChat({ cedula: '3101500002', celular: CLIENTE });
+    assert.equal(json('select public.topes_equipo_guardar(' + CLAVE + ', 0, 10, 20, 30)').ok, true);
+    try {
+      assert.equal(contraPC(WILLIAN, otra, 300000, 15, 15).motivo, 'sin_topes');
+      assert.equal(sigueIntacta(otra), 'nueva|true');
+    } finally {
+      assert.equal(json('select public.topes_equipo_guardar(' + CLAVE + ', 500000, 10, 20, 30)').ok, true);
+    }
+  });
+
+  test('SI LA DE PLATACHAT CAMBIÓ, el archivo para y no la toca', () => {
+    const t = fs.readFileSync(path.join(RAIZ, 'base', '20261005_platachat_solicitud.sql'), 'utf8').replace(/\r/g, '');
+    const i = t.indexOf('create or replace function public.contrapropuesta_gerente(');
+    const otra = t.slice(i, t.indexOf('\n$$;', i) + 4).replace(/\nbegin\n/, '\nbegin\n  -- otra sesión cambió algo aquí\n');
+    assert.ok(otra.includes('otra sesión cambió algo'));
+    sql(otra);
+    const r = archivo(MIGRACION, true);
+    assert.notEqual(r.status, 0, 'parchó una contrapropuesta_gerente que no conocía');
+    assert.match(r.stderr, /contrapropuesta_gerente cambió desde el 15-sep-2026/);
+    assert.equal(sql("select position('no_a_ti_mismo' in prosrc) > 0 from pg_proc where oid = '" + FIRMA_PC + "'::regprocedure"),
+      'f', 'tocó la función aunque dijo que paraba');
   });
 
   test('SI LA FUNCIÓN VIVA CAMBIÓ, el archivo para y no toca nada', () => {

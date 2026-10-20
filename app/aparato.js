@@ -86,7 +86,17 @@
     apple: 'Apple no deja a una página saber el modelo exacto.',
     computador: 'Es un computador, no un celular.',
     viejo: 'El modelo no se supo: el registro es anterior al 19-oct-2026, o su app no lo informó. Solo queda lo que anunció la conexión.',
-    cabecera: 'El teléfono no informó más: solo queda lo que anunció la conexión.'
+    cabecera: 'El teléfono no informó más: solo queda lo que anunció la conexión.',
+    /* 20-oct-2026, revisión — un iPad con Safari pide la página «de
+       escritorio» y su cabecera dice «Macintosh». Sin la pista de la pantalla
+       táctil (que solo tiene el teléfono, no la cabecera) no se distingue. */
+    macOiPad: 'Por la conexión no se distingue un Mac de un iPad que pide la página de escritorio.',
+    /* 20-oct-2026, revisión — lo que dijo la conexión EL MISMO DÍA que la IP,
+       cuando lo que informó el teléfono es de otro día. */
+    mismoMomento: 'Es lo que anunció la conexión en el mismo momento que lo demás de aquí. Lo que informó el teléfono es de otro día y va aparte.',
+    /* 20-oct-2026, revisión — la IP de x-forwarded-for (ver ipDeLaFila). */
+    ipEnCadena: 'La conexión trajo varias direcciones. La primera la puede escribir el propio teléfono, así que ninguna se toma sola como la suya: todavía no se sabe cuál agrega la red.',
+    ipConstancia: 'La constancia de la aceptación guarda solo la primera dirección de la cadena, que la puede escribir el propio teléfono.'
   };
 
   /* El lector del user-agent es UNO y vive en app/cuenta.js. Se busca al
@@ -378,8 +388,12 @@
       partes.push(plat === 'ipados' ? 'iPad' : 'iPhone');
       if (ver) partes.push((plat === 'ipados' ? 'iPadOS ' : 'iOS ') + ver + (x.sistema_o_mas === true ? ' o más nuevo' : ''));
     } else if (plat === 'mac') {
-      /* Lo dijo el teléfono, que ya descartó el iPad por la pantalla táctil. */
-      partes.push('Mac');
+      /* Lo dijo el teléfono, que ya descartó el iPad por la pantalla táctil.
+         20-oct-2026, revisión — salvo que venga SOLO de la cabecera
+         (`o.sinToques`, deLaCabecera): ahí no hay pantalla táctil que mirar, y
+         un iPad con Safari se anuncia como «Macintosh». Decir «Mac» y «es un
+         computador» de un iPad era afirmar algo que no se sabe. */
+      partes.push(o.sinToques ? 'Mac o iPad' : 'Mac');
     } else if (P.plataforma[plat]) {
       partes.push(P.plataforma[plat]);
     }
@@ -400,7 +414,8 @@
     }
 
     var nota;
-    if (!movil && plat && plat !== 'otro') nota = NOTA.computador;
+    if (plat === 'mac' && o.sinToques) nota = NOTA.macOiPad;
+    else if (!movil && plat && plat !== 'otro') nota = NOTA.computador;
     else if (modelo) nota = NOTA.informa;
     else if (plat === 'ios' || plat === 'ipados') nota = NOTA.apple;
     else nota = 'El navegador no dijo el modelo' + (plat === 'android' && !ver ? ' ni la versión de Android' : '') + '.';
@@ -412,7 +427,9 @@
     var u = texto(ua);
     if (!u) return null;
     var d = delUserAgent(u);
-    var w = enPalabras(d, { sinModelo: 'el modelo no se supo' });
+    /* 20-oct-2026, revisión — sinToques: la cabecera no sabe si hay pantalla
+       táctil, así que un «Macintosh» es «Mac o iPad» (ver enPalabras). */
+    var w = enPalabras(d, { sinModelo: 'el modelo no se supo', sinToques: true });
     if (!w.texto) w.texto = u.slice(0, 60);
     /* La nota de Apple y la del computador siguen siendo la verdad; la de
        «no se supo» solo cuando faltó un modelo que el navegador sí podía dar. */
@@ -425,20 +442,106 @@
    * panel/crm.html). Lo que informó el teléfono si lo hay (aparato_telefono,
    * desde el 19-oct-2026); si no, lo que anunció la conexión, diciendo que el
    * modelo no se supo. Null si no hay nada.
+   * 20-oct-2026, revisión — y CUÁNDO: `momento` (el de aparato_telefono, o el
+   * de la huella si es de la cabecera) y `fuente` ('telefono' | 'cabecera').
+   * Sin eso el CRM no podía saber que el teléfono era de otro día que la IP.
    */
   function deLaHuella(h) {
     if (!esObjeto(h)) return null;
     var at = h.aparato_telefono;
     if (esObjeto(at) && (at.plataforma || at.modelo || at.navegador)) {
       var w = enPalabras(at);
-      if (w.texto) return w;
+      if (w.texto) { w.momento = texto(at.momento); w.fuente = 'telefono'; return w; }
     }
-    return deLaCabecera(h.aparato, NOTA.viejo);
+    var c = deLaCabecera(h.aparato, NOTA.viejo);
+    if (c) { c.momento = texto(h.momento); c.fuente = 'cabecera'; }
+    return c;
+  }
+
+  /* El día en Colombia (UTC-5 todo el año: no hay horario de verano) de un
+     momento ISO, o de una fecha 'AAAA-MM-DD' tal cual (el GPS del registro se
+     anota así, con la fecha del teléfono). '' si no se entiende. */
+  function diaColombia(m) {
+    var s = texto(m);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    var t = Date.parse(s);
+    if (!isFinite(t)) return '';
+    return new Date(t - 5 * 3600000).toISOString().slice(0, 10);
+  }
+
+  /**
+   * 20-oct-2026, revisión — «DESDE DÓNDE SE REGISTRÓ», SIN MEZCLAR DÍAS.
+   *
+   * La huella de un registro la escriben dos funciones en momentos distintos:
+   * registro_archivos_guardar (IP, cabecera, `momento` y GPS, cada vez que
+   * suben fotos) y aparato_anotar (aparato_telefono, con su propio momento).
+   * La revisión encontró la ficha diciendo «Tipo de celular: teléfono 2» del
+   * día 4 junto a la IP, el GPS y «Registrado el» del día 1: una combinación
+   * que nunca ocurrió, bajo un título que la presenta como una sola.
+   *
+   * Esto devuelve el aparato que va DENTRO del bloque (el del mismo día que
+   * la IP) y, aparte, lo que el teléfono informó otro día:
+   *   {aparato: w|null, otroDia: w|null, dia: 'AAAA-MM-DD'|''}
+   * El día de referencia es el de la IP (h.momento); sin él, el del registro
+   * (`opciones.creado`). Si lo del teléfono es de otro día, en el bloque va lo
+   * que dijo la conexión al leer esa IP (la cabecera), y lo del teléfono sale
+   * con su fecha, aparte. Sin fecha en lo del teléfono no se sabe de qué día
+   * es, y tampoco se mezcla.
+   */
+  function aparatoDelRegistro(h, opciones) {
+    var o = opciones || {};
+    if (!esObjeto(h)) return { aparato: null, otroDia: null, dia: '' };
+    var w = deLaHuella(h);
+    var dia = diaColombia(h.momento) || diaColombia(o.creado);
+    if (!w || w.fuente !== 'telefono' || !dia) return { aparato: w, otroDia: null, dia: dia };
+    var suyo = diaColombia(w.momento);
+    if (suyo === dia) return { aparato: w, otroDia: null, dia: dia };
+    w.dia = suyo;
+    var c = deLaCabecera(h.aparato, NOTA.mismoMomento);
+    if (c) {
+      c.momento = texto(h.momento); c.fuente = 'cabecera';
+      /* Si la nota de la cabecera era la de Apple o la del computador, sigue
+         siendo verdad; se le agrega que lo del teléfono va aparte. */
+      if (c.nota !== NOTA.mismoMomento) c.nota = (c.nota ? c.nota + ' ' : '') + 'Lo que informó el teléfono es de otro día y va aparte.';
+    }
+    return { aparato: c, otroDia: w, dia: dia };
+  }
+
+  /* 20-oct-2026, revisión — LA IP DE CADA VEZ. aparatos_de devuelve la cadena
+     de x-forwarded-for como llegó. Antes se pintaba la PRIMERA, que es la que
+     puede escribir el propio teléfono (fetch y curl la dejan poner): un
+     estafador con VPN se ponía una IP de Bogotá y el CRM la mostraba sola. La
+     regla de la casa es la del 8-oct (bloqueHuella y ubicacionHTML, con
+     UbicacionIP.cadenaSospechosa): con MÁS DE UNA IP PÚBLICA se muestran
+     TODAS, con el aviso. Si app/ubicacion-ip.js no está a mano (el CRM la baja
+     tarde), se avisa con más de una de cualquier clase: callar es lo que no. */
+  function ubicacionIP() {
+    if (typeof module === 'object' && module.exports && typeof require === 'function') {
+      try { return require('./ubicacion-ip.js'); } catch (e) { return null; }
+    }
+    /* global UbicacionIP */
+    return typeof UbicacionIP !== 'undefined' ? UbicacionIP : null;
+  }
+  function ipDeLaFila(v, constancia) {
+    var cadena = texto(v).replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').split(',')
+      .map(function (x) { return x.trim().slice(0, 64); }).filter(Boolean).slice(0, 12);
+    var U = ubicacionIP();
+    var publicas = U && typeof U.ipsPublicas === 'function' ? U.ipsPublicas(cadena.join(',')) : null;
+    var enCadena = publicas ? publicas.length > 1 : cadena.length > 1;
+    /* Una sola pública entre direcciones internas: esa es la de afuera. */
+    var una = publicas && publicas.length === 1 ? publicas[0] : (cadena[0] || '');
+    return {
+      ip: enCadena ? cadena.join(', ') : una,
+      ipEnCadena: enCadena,
+      notaIP: enCadena ? NOTA.ipEnCadena : (constancia && cadena.length ? NOTA.ipConstancia : '')
+    };
   }
 
   /**
    * Las filas de aparatos_de para el CRM, de la más nueva a la más vieja:
-   * {cuando: 'Al pedir', momento, texto, nota, ip, constancia}.
+   * {cuando: 'Al pedir', momento, texto, nota, ip, ipEnCadena, notaIP, constancia}.
+   * `ip` es UNA dirección, o toda la cadena cuando trae varias públicas
+   * (`ipEnCadena`, con `notaIP` diciendo por qué); ver ipDeLaFila.
    * La constancia de una aceptación (condiciones_aceptadas, solo la cabecera)
    * sobra si el teléfono informó esa misma aceptación: se quita la que dice
    * menos, no se muestra dos veces lo mismo.
@@ -456,12 +559,15 @@
         var dec = esObjeto(f.declarado) && Object.keys(f.declarado).length ? f.declarado : null;
         var w = dec ? enPalabras(dec) : null;
         if (!w || !w.texto) w = deLaCabecera(f.ua, NOTA.cabecera);
+        var ip = ipDeLaFila(f.ip, f.origen === 'constancia');
         return {
           cuando: (CUANDO[f.cuando] || 'Otra vez') + (f.origen === 'constancia' ? ' (constancia)' : ''),
           momento: texto(f.momento),
           texto: w && w.texto ? w.texto : 'Sin datos del aparato',
           nota: w ? w.nota : '',
-          ip: texto(f.ip).split(',')[0].trim(),
+          ip: ip.ip,
+          ipEnCadena: ip.ipEnCadena,
+          notaIP: ip.notaIP,
           constancia: f.origen === 'constancia'
         };
       });
@@ -486,6 +592,8 @@
     leerAparato: leerAparato,
     enPalabras: enPalabras,
     deLaHuella: deLaHuella,
+    diaColombia: diaColombia,
+    aparatoDelRegistro: aparatoDelRegistro,
     filasDeAparatos: filasDeAparatos
   };
 });

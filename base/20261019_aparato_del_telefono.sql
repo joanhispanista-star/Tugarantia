@@ -34,7 +34,10 @@
 --      registro de ese celular, que es lo que el CRM ya lee (listar_registros
 --      devuelve la fila entera, y el gerente la ve por gerente_archivos):
 --      así no se toca registro_archivos_guardar, que es la función viva más
---      delicada de la casa.
+--      delicada de la casa. 20-oct-2026, revisión: solo la PRIMERA vez y solo
+--      si el registro se creó hace menos de un día; lo de otro día no pisa el
+--      del registro (ver la sección 2). Y la IP se guarda como cadena entera
+--      (o por su final), no sus primeros 80 caracteres.
 --
 --   3. aparatos_de(p_clave, p_celular): para el CRM de Joan, con su clave de
 --      sincronización. Devuelve lo anotado de ese celular, más la constancia
@@ -91,7 +94,7 @@ create table if not exists public.aparatos_vistos (
   celular      text        not null,                       -- 10 dígitos, de celular_de_sesion
   cuando       text        not null check (cuando in ('registro', 'solicitud', 'aceptacion')),
   momento      timestamptz not null default now(),
-  ip           text        not null default '',            -- de la cabecera, no del teléfono
+  ip           text        not null default '',            -- x-forwarded-for entera: la PRIMERA la puede escribir el teléfono
   ua_cabecera  text        not null default '',            -- User-Agent de la cabecera
   ch_cabecera  jsonb       not null default '{}'::jsonb,   -- sec-ch-ua*, si llegaron
   declarado    jsonb       not null default '{}'::jsonb    -- lo que informó el navegador, validado
@@ -129,6 +132,10 @@ declare
   v_reg   bigint;
   v_en_reg boolean := false;
   v_nota  text;
+  v_ip    text;
+  v_ya    boolean;
+  v_hoy   boolean;
+  v_por   text;
   x       text;
   k       text;
 begin
@@ -214,27 +221,60 @@ begin
     end if;
   end loop;
 
+  -- 20-oct-2026, revisión — LA CADENA DE IPs, ENTERA O POR SU FINAL. Antes se
+  -- guardaban los primeros 80 caracteres de x-forwarded-for. La PRIMERA IP de
+  -- esa cadena la puede escribir el propio teléfono (fetch y curl la dejan
+  -- poner), y lo que agrega el proxy va AL FINAL: rellenando 80 caracteres, la
+  -- IP de verdad ni se guardaba. La regla de la casa (8-oct, bloqueHuella con
+  -- UbicacionIP.cadenaSospechosa) es guardar la cadena y, si trae más de una
+  -- pública, mostrarlas todas con el aviso: eso hace el CRM con lo de aquí
+  -- (app/aparato.js, ipDeLaFila). Si la cadena pasa de 400 caracteres se queda
+  -- el final, empezando en una IP entera, con «…» delante para que se vea que
+  -- se cortó.
+  v_ip := regexp_replace(coalesce(cab ->> 'x-forwarded-for', cab ->> 'x-real-ip', ''), '[[:cntrl:]]', ' ', 'g');
+  if length(v_ip) > 400 then
+    v_ip := '…,' || regexp_replace(right(v_ip, 400), '^[^,]*,', '');
+  end if;
+
   insert into public.aparatos_vistos (celular, cuando, ip, ua_cabecera, ch_cabecera, declarado)
   values (cel, p_cuando,
-          left(regexp_replace(coalesce(cab ->> 'x-forwarded-for', cab ->> 'x-real-ip', ''), '[[:cntrl:]]', ' ', 'g'), 80),
+          v_ip,
           left(regexp_replace(coalesce(cab ->> 'user-agent', ''), '[[:cntrl:]]', ' ', 'g'), 300),
           v_ch, v_dec);
 
   -- EL REGISTRO. Con su propia red: si fallara, la fila de arriba ya quedó y
   -- el CRM la ve por aparatos_de; y no se calla, se devuelve qué pasó.
+  --
+  -- 20-oct-2026, revisión — UNA VEZ, Y SOLO EL DÍA DEL REGISTRO. Antes cada
+  -- 'registro' pisaba huella.aparato_telefono del último registro de ese
+  -- celular. Quien vuelve a registrarse días después (el camino «ya tenías
+  -- cuenta», el de la primera clienta real) no crea fila nueva —registrar_abierto
+  -- no toca la que hay—, así que el teléfono del día 4 quedaba en la fila del
+  -- día 1, y el CRM lo pintaba bajo «Desde dónde se registró» junto a la IP y
+  -- el GPS del día 1: una combinación que nunca ocurrió. Ahora se escribe solo
+  -- si la fila todavía no lo tiene y se creó hace menos de un día. Lo de los
+  -- otros días no se pierde: queda en aparatos_vistos (de solo agregar) y el
+  -- CRM lo muestra con su fecha en «📱 Ver al registrarse, al pedir y al
+  -- aceptar». Lo que contesta dice por qué no lo dejó: 'ya_lo_tenia' o
+  -- 'de_otro_dia'.
   if p_cuando = 'registro' then
     begin
-      select r.id into v_reg
+      select r.id, coalesce(r.huella, '{}'::jsonb) ? 'aparato_telefono', r.creado_en > now() - interval '1 day'
+        into v_reg, v_ya, v_hoy
         from public.registros r
        where right(public.solo_digitos(r.telefono), 10) = cel
        order by r.creado_en desc, r.id desc
        limit 1;
-      if v_reg is not null then
+      if v_reg is not null and not v_ya and coalesce(v_hoy, false) then
         update public.registros r
            set huella = coalesce(r.huella, '{}'::jsonb)
                         || jsonb_build_object('aparato_telefono', v_dec || jsonb_build_object('momento', now()))
-         where r.id = v_reg;
-        v_en_reg := true;
+         where r.id = v_reg
+           and not (coalesce(r.huella, '{}'::jsonb) ? 'aparato_telefono');
+        v_en_reg := found;
+        if not found then v_por := 'ya_lo_tenia'; end if;
+      elsif v_reg is not null then
+        v_por := case when v_ya then 'ya_lo_tenia' else 'de_otro_dia' end;
       end if;
     exception when others then
       v_en_reg := false;
@@ -243,6 +283,7 @@ begin
   end if;
 
   return jsonb_build_object('ok', true, 'en_registro', v_en_reg, 'declarado', v_dec)
+         || case when v_por is not null then jsonb_build_object('registro', v_por) else '{}'::jsonb end
          || case when v_nota is not null then jsonb_build_object('nota', v_nota) else '{}'::jsonb end;
 end
 $$;

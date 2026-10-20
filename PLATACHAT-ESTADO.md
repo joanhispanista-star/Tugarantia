@@ -219,7 +219,10 @@ aplicada en ninguna parte.**
    prometer hora. La pestaña Plata enseña el mismo estado en una línea.
 3. **La contrapropuesta del gerente** — `contrapropuesta_gerente`: el gerente
    cotiza desde su propio celular, con sesión y con las mismas rejas que Joan
-   (1 %–50 %, 1–60 días), y lo que manda cae en el hilo del cliente. Y
+   (1 %–50 %, 1–60 días), y lo que manda cae en el hilo del cliente.
+   **Desde base/20261019_el_gerente_no_se_propone.sql (revisión del 20-oct)**
+   además respeta los topes del gerente (`topes_equipo`: sin topes no propone)
+   y no deja que el gerente se proponga a sí mismo (`no_a_ti_mismo`). Y
    `resolver_vencidas()`: al vencer la hora sin que nadie alcance, la base
    propone sola con la política de PlataChat y lo marca como automática. Corre
    **al leer** (la llama la app del cliente, la bandeja de Joan y la del

@@ -462,9 +462,17 @@ describe('5. escribirle primero desde el CRM: «💬 Escribirle por la app»', (
   const REG = { id: 41, nombre: 'William   Registrado', cedula: '', telefono: '+57 300 123 4567', origen: 'abierto',
     estado: 'nuevo', creado_en: '2026-10-19T14:55:00Z', datos: {} };
 
+  /* 20-oct-2026, revisión (F3) — desde Registrados, el CRM pregunta primero
+     si ese celular tiene cuenta (cuentas_de_registros, con el rpc() del CRM).
+     El rpc() del CRM usa el fetch del banco: se le pasa al de Node, que es el
+     que cambia conNube, para que las dos preguntas vayan a la misma nube.
+     Fuera de conNube, sin red: nunca el internet de verdad. */
+  const FETCH_REAL = globalThis.fetch;
+  const CON_CUENTA = [{ registro_id: 41, celular: '3001234567', cuenta: true }];
   function crm(o) {
     o = o || {};
-    const P = abrirPanel({});
+    const P = abrirPanel({ red: (u, c) => globalThis.fetch === FETCH_REAL
+      ? Promise.reject(new Error('sin red en el banco de pruebas')) : globalThis.fetch(u, c) });
     if (o.conectado !== false) {
       P.almacen.joan_socios_sb = JSON.stringify({ url: 'https://prueba.supabase.co', anon: 'llave-anon', clave: CLAVE });
     }
@@ -511,7 +519,7 @@ describe('5. escribirle primero desde el CRM: «💬 Escribirle por la app»', (
 
   test('desde Registrados el hilo lo dice la base; si es un «0», va el aviso y NINGÚN nombre', async () => {
     const P = crm();
-    await conNube({ chat_hilo_de_celular: { ok: true, hilo: '03001234567' }, chat_de: [], chat_conversaciones: [] }, async N => {
+    await conNube({ cuentas_de_registros: CON_CUENTA, chat_hilo_de_celular: { ok: true, hilo: '03001234567' }, chat_de: [], chat_conversaciones: [] }, async N => {
       P.ev("escribirlePorLaApp('registro','41')");
       await asentar();
       assert.deepEqual(N.de('chat_hilo_de_celular')[0].cuerpo, { p_clave: CLAVE, p_celular: '3001234567' });
@@ -524,13 +532,13 @@ describe('5. escribirle primero desde el CRM: «💬 Escribirle por la app»', (
 
   test('si el hilo es su celular, el nombre del registro sale rotulado; si es una ficha junta, el de la ficha', async () => {
     const P = crm();
-    await conNube({ chat_hilo_de_celular: { ok: true, hilo: '3001234567' }, chat_de: [], chat_conversaciones: [] }, async () => {
+    await conNube({ cuentas_de_registros: CON_CUENTA, chat_hilo_de_celular: { ok: true, hilo: '3001234567' }, chat_de: [], chat_conversaciones: [] }, async () => {
       P.ev("escribirlePorLaApp('registro','41')");
       await asentar();
       assert.equal(P.ev('_chatAbierta'), '3001234567');
       assert.equal(P.elems.mTitle.textContent, 'William Registrado (registrado, sin verificar)');
     });
-    await conNube({ chat_hilo_de_celular: { ok: true, hilo: '52111222' }, chat_de: [], chat_conversaciones: [] }, async () => {
+    await conNube({ cuentas_de_registros: CON_CUENTA, chat_hilo_de_celular: { ok: true, hilo: '52111222' }, chat_de: [], chat_conversaciones: [] }, async () => {
       P.ev("escribirlePorLaApp('registro','41')");
       await asentar();
       assert.equal(P.ev('_chatAbierta'), '52111222');
@@ -540,7 +548,7 @@ describe('5. escribirle primero desde el CRM: «💬 Escribirle por la app»', (
 
   test('si la base no dice dónde, no abre nada a ciegas; y sin nube lo dice sin preguntar', async () => {
     const P = crm();
-    await conNube({ chat_hilo_de_celular: { status: 400, cuerpo: { message: 'clave incorrecta' } } }, async () => {
+    await conNube({ cuentas_de_registros: CON_CUENTA, chat_hilo_de_celular: { status: 400, cuerpo: { message: 'clave incorrecta' } } }, async () => {
       P.ev('_chatAbierta = null;');
       P.ev("escribirlePorLaApp('registro','41')");
       await asentar();

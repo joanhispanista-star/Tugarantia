@@ -75,6 +75,12 @@ base/
                                   por funciones), aparato_anotar (la app, con
                                   sesión) y aparatos_de (el CRM, con la clave).
                                   Va después de 20261008_condiciones_aceptadas.sql.
+                                  (20-oct: guarda la cadena de IPs entera, y el
+                                  teléfono del registro solo una vez y el mismo día.)
+  20261019_el_gerente_no_se_propone.sql  El gerente no se propone a sí mismo, ni
+                                  por gerente_proponer ni por la de PlataChat
+                                  (contrapropuesta_gerente, que además respeta
+                                  topes_equipo). Va después de 20261015_el_gerente_vende.sql.
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.
