@@ -23,7 +23,10 @@
  *      él (el defecto del 21-sep era una foto que decía «Listo» y no subía);
  *      las viejas o de otro intento no suben;
  *   5. cambiar el celular no borra lo escaneado, y el teléfono prestado lo
- *      cubre «¿Eres …?»;
+ *      cubre «¿Eres …?»; 20-oct-2026, otro celular — YA NO: si el celular
+ *      cambia a mitad del registro es otra persona, y lo escaneado se borra
+ *      (pruebas/el-celular-es-la-persona.test.js). «¿Eres …?» queda para la
+ *      cédula de más de una hora sin celular;
  *   6. PlataChat, que usa el mismo registro.
  *
  * Ninguna cédula de nadie: la cédula es fabricada (pruebas/fabrica-pdf417.js).
@@ -412,52 +415,61 @@ describe('4. las fotos sin dueño: se toman antes del celular y suben con él', 
   });
 });
 
-describe('5. cambiar el celular no borra lo escaneado, y «¿Eres …?» cubre el teléfono prestado', () => {
+/* 20-oct-2026, otro celular — ESTA SECCIÓN CAMBIÓ DE REGLA. Hasta hoy medía
+   lo que Joan decidió el 19-oct: cambiar el celular conservaba lo escaneado y
+   le dejaba el teléfono prestado a la pregunta «¿Eres …?». La verificación del
+   cierre (C1, C2) mostró que esa pregunta no alcanzaba —la selfie, la ubicación
+   y la contraseña de la persona anterior pasaban sin preguntar—, y la decisión
+   de mentor fue volver a la regla de antes: si el celular cambia a mitad del
+   registro, es otra persona, y lo de la anterior se borra. Las pruebas de la
+   regla nueva están en pruebas/el-celular-es-la-persona.test.js; aquí quedan
+   las de esta sección reescritas con ella, y la pregunta para lo que sigue
+   cubriendo (la cédula de más de una hora sin celular). */
+describe('5. cambiar el celular borra lo escaneado (es otra persona), y «¿Eres …?» cubre la cédula vieja', () => {
 
-  test('CAMBIAR EL CELULAR NO BORRA LO ESCANEADO: cambia el dueño', () => {
+  test('CAMBIAR EL CELULAR BORRA LO ESCANEADO: las fotos, la lectura y lo que el escáner escribió con ella', () => {
     const P = abrir();
     hastaElRostro(P, '3001112233');
     P.ev("pintarRegistro(indiceDe('entrada'))");
     celularYClave(P, '3005556677');
-    assert.equal(P.ev('REGISTRO.nombres'), 'MARIA JOSE', 'cambiar el celular borró los nombres escaneados');
-    assert.equal(P.ev('REGISTRO.documento'), '52123456', 'cambiar el celular borró el documento escaneado');
-    assert.equal(P.ev('FOTOS.cedula_reverso'), 'data:image/jpeg;base64,RESPALDO', 'cambiar el celular soltó las fotos');
-    assert.equal(P.ev('FOTOS.de.celular'), '3005556677', 'las fotos siguen siendo del celular anterior');
-    assert.equal(P.ev('FOTOS.de.duda'), true, 'nada recuerda que la cédula se escaneó con otro celular');
+    assert.equal(P.ev('REGISTRO.nombres'), undefined, 'los nombres leídos con el otro celular se quedaron');
+    assert.equal(P.ev('REGISTRO.documento'), undefined, 'el documento leído con el otro celular se quedó');
+    assert.equal(P.ev('FOTOS.cedula_reverso'), undefined, 'las fotos tomadas con el otro celular se quedaron');
+    assert.equal(P.ev('FOTOS.cedula_leida'), undefined);
+    assert.equal(pasoActual(P), 'identidad', 'sin nombre ni documento no se le pide escribirlos');
   });
 
-  test('…y mientras está en duda, nada se publica al acompañamiento', () => {
+  test('…y lo que se publica al acompañamiento con el celular nuevo no lleva nada de la cédula anterior', () => {
     const P = abrir();
     hastaElRostro(P, '3001112233');
     P.ev("pintarRegistro(indiceDe('entrada'))");
     celularYClave(P, '3005556677');
     const ll = nube(P);
-    P.ev("CFG.url = 'https://x.supabase.co'; CFG.anon = 'llave'; anotarAvisoVivo(); publicarAvance();");
-    assert.equal(ll().filter(x => /registro_vivo_publicar/.test(x.url)).length, 0,
+    P.ev("CFG.url = 'https://x.supabase.co'; CFG.anon = 'llave'; anotarAvisoVivo(); pintarRegistro(indiceDe('rostro')); publicarAvance();");
+    const publicado = ll().filter(x => /registro_vivo_publicar/.test(x.url));
+    assert.equal(/MARIA|52123456|RODRIGUEZ/.test(JSON.stringify(publicado)), false,
       'el nombre leído de una cédula se publicó bajo un celular distinto del que la escaneó');
   });
 
-  test('«¿ERES MARIA?» al abrir la cuenta: no manda nada hasta que diga que sí, y «Seguir» la abre con sus fotos', async () => {
+  test('…y al abrir la cuenta no sube nada de la cédula anterior, ni pregunta por ella', async () => {
     const P = abrir();
     hastaElRostro(P, '3001112233');
     P.ev("pintarRegistro(indiceDe('entrada'))");
     celularYClave(P, '3005556677');
+    casillas(P, 'identidad', { nombres: 'ANA', apellidos: 'GOMEZ', tipo_doc: 'Cédula de ciudadanía', documento: '222', expedicion: '2010-01-01' });
+    P.ev('siguientePaso()');
+    assert.equal(pasoActual(P), 'entrada');
+    P.ev("$('rClave').value = ''; $('rClave2').value = ''; siguientePaso();");   // la contraseña de ESTE celular, en blanco
+    assert.equal(pasoActual(P), 'rostro');
     const ll = nube(P);
     abrirLaCuenta(P);
     await asentar();
-    assert.equal(ll().length, 0, 'mandó el registro sin preguntar de quién es la cédula');
-    const caja = P.ev("$('errReg').innerHTML");
-    /* 20-oct-2026, revisión (F6) — se pregunta por la cédula LEÍDA (su número y
-       su nombre), no por lo que tecleó quien está terminando. */
-    assert.match(caja, /¿La cédula 52\.123\.456, de Maria, es tuya\?/);
-    assert.match(caja, /onclick="seguirSoyYo\(\)">Seguir</);
-    assert.match(caja, /onclick="empezarDeNuevo\(\)">Empezar de cero</);
-    P.ev('seguirSoyYo()');
-    await asentar();
-    const subida = ll().find(x => /registro_archivos_guardar/.test(x.url));
-    assert.ok(subida, '«Seguir» no subió las fotos');
-    assert.deepEqual(Object.keys(subida.cuerpo.p_archivos).sort(), ['cedula_frente', 'cedula_reverso']);
-    assert.equal(ll().find(x => /rpc\/registrar_abierto$/.test(x.url)).cuerpo.p_celular, '3005556677');
+    assert.equal(/¿La cédula/.test(P.ev("$('errReg').innerHTML")), false, 'preguntó por una cédula que ya no está');
+    assert.equal(ll().find(x => /registro_archivos_guardar/.test(x.url)), undefined, 'subió algo de la cédula anterior');
+    const bandeja = ll().find(x => /rpc\/registrar_abierto$/.test(x.url));
+    assert.ok(bandeja, 'no abrió la cuenta');
+    assert.equal(bandeja.cuerpo.p_celular, '3005556677');
+    assert.equal(/MARIA|52123456/.test(JSON.stringify(bandeja.cuerpo)), false, 'la bandeja recibió la identidad leída con el otro celular');
   });
 
   test('«¿Eres …?» también con una cédula de hace más de una hora; «Empezar de cero» lo borra TODO', async () => {

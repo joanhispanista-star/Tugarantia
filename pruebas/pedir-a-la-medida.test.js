@@ -116,7 +116,12 @@ describe('el formulario del 8-oct: correo, dirección y pesos', () => {
     assert.ok(!/Son 10 números y empiezan por 3/.test(e), 'volvió el comentario del celular');
     assert.ok(!/Mínimo 8 caracteres/.test(e), 'volvió el comentario de la contraseña');
     assert.match(e, /id="avisoAcompana"/);
-    assert.match(P.ev('CLAVE_EN_MEMORIA = "Perro.2026x"; pasoEntrada()'), /Déjalo en blanco para seguir con la misma/);
+    /* 20-oct-2026, otro celular — la contraseña en curso va con el celular con
+       que se creó, y «déjalo en blanco» solo se ofrece a ese celular. */
+    assert.match(P.ev('ponerClaveEnCurso("Perro.2026x", "3001112233"); REGISTRO.celular = "3001112233"; pasoEntrada()'),
+      /Déjalo en blanco para seguir con la misma/);
+    assert.ok(!/Déjalo en blanco/.test(P.ev('REGISTRO.celular = "3109998877"; pasoEntrada()')),
+      'se ofrece seguir con una contraseña creada con otro celular');
   });
 
   test('lo que la ley pide sigue en el último paso: la autorización y la de las fotos aparte', () => {

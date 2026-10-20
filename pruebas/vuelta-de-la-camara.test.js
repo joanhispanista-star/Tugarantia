@@ -81,7 +81,8 @@ describe('la relanzada de Android (sessionStorage vacío)', () => {
   test('la contraseña sigue SIN tocar localStorage: la regla no se aflojó', () => {
     const P = aMitadDelRegistro();
     assert.equal(/Perro\.2026x/.test(JSON.stringify(P.almacen)), false, 'la contraseña acabó en localStorage');
-    assert.equal(P.sesion.play_clave_en_curso, 'Perro.2026x');
+    /* 20-oct-2026, otro celular — con el celular con que se creó. */
+    assert.deepEqual(JSON.parse(P.sesion.play_clave_en_curso), { celular: '3001112233', clave: 'Perro.2026x' });
   });
 
   test('un registro de hace dos días no se retoma solo', () => {
@@ -120,7 +121,7 @@ describe('la contraseña, después de la relanzada', () => {
     Q.ev("$('rClaveFin').value = 'Perro.2026x'; $('rClaveFin2').value = 'Perro.2026x';");
     Q.ev('siguientePaso()');
     assert.equal(Q.ev('CLAVE_EN_MEMORIA'), 'Perro.2026x', 'no tomó la contraseña del paso 9');
-    assert.equal(Q.sesion.play_clave_en_curso, 'Perro.2026x');
+    assert.deepEqual(JSON.parse(Q.sesion.play_clave_en_curso), { celular: '3001112233', clave: 'Perro.2026x' });
     assert.equal(/Perro\.2026x/.test(JSON.stringify(Q.almacen)), false, 'la contraseña acabó en localStorage');
   });
 
@@ -193,7 +194,12 @@ describe('las fotos, después de la relanzada', () => {
     P.ev("$('rTel').value='3009999999'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x';");
     P.ev('siguientePaso()');
     assert.equal(P.ev('FOTOS.cedula_frente'), undefined, 'la cédula del celular anterior siguió pegada al nuevo');
-    assert.equal(P.ev('FOTOS.sensibles'), true, 'se perdió el consentimiento al cambiar el celular');
+    /* 20-oct-2026, otro celular — y el permiso también se va: este registro ya
+       había pasado el paso con 3001112233 (aMitadDelRegistro), así que el
+       celular CAMBIÓ, y eso es otra persona. Decía «se perdió el
+       consentimiento»; el de quien escribe su celular por PRIMERA vez sí se
+       queda: ver pruebas/el-celular-es-la-persona.test.js. */
+    assert.notEqual(P.ev('FOTOS.sensibles'), true, 'el permiso que se dio con el otro celular le quedó al nuevo');
   });
 
   test('el aviso de la relanzada nombra las fotos si ya había', () => {

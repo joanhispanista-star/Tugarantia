@@ -45,7 +45,9 @@ function llenarRegistro(P) {
       : 'Prueba';
   });
   REGISTRO.nombres = 'Ana'; REGISTRO.apellidos = 'Pérez';
-  CLAVE_EN_MEMORIA = 'Perro.2026x';`);
+  ponerClaveEnCurso('Perro.2026x', REGISTRO.celular);`);
+  /* 20-oct-2026, otro celular — la contraseña en curso va con el celular con
+     que se creó (ponerClaveEnCurso): una sola, sin celular, ya no abre cuenta. */
 }
 
 /* La nube de mentira: anota cada llamada y contesta por ruta. */
