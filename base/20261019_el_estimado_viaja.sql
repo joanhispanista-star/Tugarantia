@@ -24,6 +24,10 @@
 --
 -- Y para que no se vuelva un engaño, el estimado tiene que llegarle a Joan:
 -- si le propone 60.000 a quien vio 6.000, el CRM se lo dice ANTES de mandar.
+-- (20-oct-2026, revisión: esto solo era verdad para Joan. Su gerente proponía
+-- desde su «✏️ Proponer» sin ver el estimado ni el aviso; ahora los ve igual,
+-- en panel/crm.html, proponerEq. Las tres pantallas que mandan una propuesta
+-- —un solo pago, a cuotas y la del gerente— lo dicen.)
 --
 -- ---------------------------------------------------------------------------
 -- QUÉ TRAE: UNA función NUEVA, anotar_estimado(p_id, p_estimado).

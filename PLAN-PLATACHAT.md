@@ -358,7 +358,7 @@ Todas idempotentes, con RLS encendido y cero políticas como el resto de la base
 - Columnas `responder_antes_de timestamptz`, `responsable text`, `resuelta_en timestamptz` en `solicitudes`.
 - `solicitar_platachat(p_capital, p_dias)`: nace `nueva`, mira `socios_historial` (el antiguo no es novato), calcula `responsable` con `responsable_de(celular)`, idempotente por celular.
 - `resolver_vencidas()`: promueve las `nueva` vencidas a `contrapropuesta` con `politica_app` y `por='automatica_1h'`, fechas calculadas desde `responder_antes_de`. **Volatile**, sin grant a nadie, llamada al principio de `mi_solicitud`, `listar_solicitudes_abiertas`, `contrapropuesta_solicitud` y las nuevas. Trampa conocida: `mi_solicitud` es `stable` hoy y una función `stable` que escribe revienta con 25006 sin que nadie se entere (dos funciones estuvieron muertas dos días en septiembre): se vuelve `volatile` en la misma migración.
-- `contrapropuesta_gerente(p_id, p_capital, p_costo_pct, p_dias, p_texto)`: con sesión, rol gerente, solicitud dentro de su alcance, rejas 1–50 % y 1–60 días, `por='gerente:<celular>'`.
+- `contrapropuesta_gerente(p_id, p_capital, p_costo_pct, p_dias, p_texto)`: con sesión, rol gerente, solicitud dentro de su alcance, rejas 1–50 % y 1–60 días, `por='gerente:<celular>'`. Desde `base/20261019_el_gerente_no_se_propone.sql` (20-oct) también los topes de `topes_equipo` y la reja `no_a_ti_mismo`, como `gerente_proponer`.
 - Avisos: `pg_net` + disparador en `solicitudes` y `mensajes` → bot de Telegram (token en `config_privada`, solo `security definer`), el diseño de la fase 2 de `PLAN-CHAT.md`.
 - Bloque opcional: si existe la extensión `pg_cron`, programa `resolver_vencidas()` cada minuto. Si no existe, no hace nada.
 

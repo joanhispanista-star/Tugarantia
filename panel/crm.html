@@ -8522,6 +8522,10 @@ function cargarHilo(){
  *     ficha si su cuenta ya está junta, '0' + celular si el número es de una
  *     ficha sin juntar, su celular si no. El computador no sabe lo que se
  *     juntó desde el celular de Joan, y adivinar es escribir donde nadie lee.
+ *     20-oct-2026, revisión: y SOLO SI ESE CELULAR YA TIENE CUENTA
+ *     (cuentas_de_registros). Sin cuenta, el hilo lo leería quien primero la
+ *     abra con ese número, que no está verificado: no se abre, y se dice por
+ *     qué (SIN_CUENTA_NO_SE_ESCRIBE).
  *
  * Y lo que NO hace, dicho en la pantalla: no le llega ningún aviso al
  * teléfono del cliente. Lo ve cuando abre la app (play/ se lo marca en la
@@ -8542,7 +8546,30 @@ function escribirlePorLaApp(desde,id){
   const cel=String(r.telefono||'').replace(/\D/g,'').slice(-10);
   if(!/^3\d{9}$/.test(cel)) return alert('Ese registro no tiene un celular de 10 dígitos: no hay hilo donde escribirle.');
   if(!CHAT.hiloDeCelular) return alert('Este navegador tiene una copia vieja de ../app/chat.js. Recarga con Ctrl+F5.');
-  CHAT.hiloDeCelular(sbCfg(),cel).then(j=>{
+  /* 20-oct-2026, revisión — PRIMERO, ¿TIENE CUENTA? Un registro sin cuenta (el
+     signup falló, o nunca la abrió) no tiene quién lea: lo que Joan escribiera
+     quedaba en el hilo de ese celular pelado, y desde el 8-oct la cuenta se
+     abre con celular + contraseña, SIN código. El primero que abriera una
+     cuenta con ese número —sea o no la persona— leía «Hola María, vi tu
+     registro con la cédula…». Eso es un dato de una persona entregado a otra
+     (Ley 1581). Así que sin cuenta no se abre la conversación, y se dice por
+     qué. Lo dice la nube (cuentas_de_registros, la misma que usa «¿Es la
+     misma persona?»), no este computador. */
+  rpc('cuentas_de_registros',{p_clave:sbCfg().clave,p_ids:[Number(r.id)]}).then(lista=>{
+    const c=(Array.isArray(lista)?lista:[])[0]||null;
+    if(!c) return alert('La nube no encontró ese registro. Trae de nuevo los registrados (↻) y vuelve a intentar.');
+    if(c.cuenta!==true) return alert(SIN_CUENTA_NO_SE_ESCRIBE);
+    return abrirHiloDeRegistro(r,cel);
+  }).catch(e=>alert(/cuentas_de_registros/.test(errNube(e))
+    ?'Para saber si tiene cuenta falta correr base/20261007_una_puerta.sql en el SQL Editor. Mientras tanto no te abro la conversación: escríbele por WhatsApp.'
+    :'No pude preguntarle a la nube si ese celular tiene cuenta. '+errNube(e)));
+}
+const SIN_CUENTA_NO_SE_ESCRIBE='Este celular todavía no tiene cuenta en la app, así que no hay quién lea ahí.\n\n'
+  +'Si le escribes por la app, lo leería el primero que abra una cuenta con ese número, y ese número no está verificado: '
+  +'podría no ser esta persona. Por eso no te abro la conversación. Escríbele por WhatsApp («📲 Escribirle»). '
+  +'Cuando ese celular tenga cuenta, este botón sí te la abre.';
+function abrirHiloDeRegistro(r,cel){
+  return CHAT.hiloDeCelular(sbCfg(),cel).then(j=>{
     if(!j||j.ok!==true||!j.hilo) return alert('La nube no me dijo en qué conversación lee ese celular. No te abro una a ciegas.');
     const hilo=String(j.hilo);
     /* Si la nube dice que es el hilo de una ficha (su cuenta ya está junta),
@@ -9475,7 +9502,7 @@ function renderRegistros(){
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
       <td>${fmtFecha(String(r.creado_en||'').slice(0,10))}</td>
-      <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${r.telefono?`<button class="btn btn-ghost btn-sm" onclick="escribirlePorLaApp('registro','${escHTML(String(r.id))}')" title="En el chat de su app, sin WhatsApp. Lo ve cuando abra la app: no le llega aviso al celular.">💬 Escribirle por la app</button> `:''}${r.telefono&&necesitaAvisoResponsable(r)?`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeAvisoResponsable(r)))}" title="Se registró con la política anterior: avísale que desde el 15-oct la responsable de sus datos es NEXECO S.A.S.">📣 Aviso de datos</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}${c0
+      <td style="text-align:right">${r.telefono?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeSaludoRegistrado(r)))}" title="Escribirle para conocerlo antes de decidir">📲 Escribirle</a> `:''}${r.telefono?`<button class="btn btn-ghost btn-sm" onclick="escribirlePorLaApp('registro','${escHTML(String(r.id))}')" title="En el chat de su app, sin WhatsApp, solo si ese celular ya tiene cuenta (se le pregunta a la nube al tocarlo). Lo ve cuando abra la app: no le llega aviso al celular.">💬 Escribirle por la app</button> `:''}${r.telefono&&necesitaAvisoResponsable(r)?`<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${escHTML(waLink(r.telefono,mensajeAvisoResponsable(r)))}" title="Se registró con la política anterior: avísale que desde el 15-oct la responsable de sus datos es NEXECO S.A.S.">📣 Aviso de datos</a> `:''}${tieneDatos?`<button class="btn btn-ghost btn-sm" onclick="verDatosRegistro('${escHTML(String(r.id))}')">👁 Ver datos</button> `:''}${c0
         /* 7-oct-2026 — EL TOQUE. Cuando el puente lo reconoce con fuerza
            (la misma cédula, o el mismo celular sin nada que lo contradiga),
            el primer botón es «¿Es la misma persona?»: abre la ficha, lo que
@@ -9646,12 +9673,22 @@ function bloqueHuella(h,donde){
      que informó el navegador del teléfono si lo hay, y si no, se dice que el
      modelo no se supo. Con su nota en gris: es lo que dice el teléfono, no
      una prueba. */
-  const ap=aparatoDeHuellaCRM(h);
+  /* 20-oct-2026, revisión — SIN MEZCLAR DÍAS. La huella la escriben dos
+     funciones en momentos distintos (la IP y el GPS al subir las fotos; el
+     teléfono al registrarse), y este bloque juntaba el teléfono del día 4 con
+     la IP, el GPS y «Registrado el» del día 1 bajo un solo título. Ahora el
+     bloque lleva solo lo del día de la IP, y lo que el teléfono informó otro
+     día sale aparte, con su fecha (aparatoDelRegistroCRM). */
+  const am=aparatoDelRegistroCRM(h,(donde&&donde.registro&&donde.registro.creado_en)||'');
+  const ap=am.aparato;
   const ip=String(h.ip||'').split(',')[0].trim();
   const g=h.gps&&typeof h.gps==='object'&&h.gps.lat!=null?h.gps:null;
+  const gOtroDia=!!(g&&am.dia&&diaColombiaCRM(g.fecha)&&diaColombiaCRM(g.fecha)!==am.dia);
   const cl=h.cedula_leida&&typeof h.cedula_leida==='object'?h.cedula_leida:null;
+  const diaReg=diaColombiaCRM(donde&&donde.registro&&donde.registro.creado_en);
+  const diaIP=diaColombiaCRM(h.momento);
   return '<div class="sub-h">Desde dónde se registró</div>'
-    +(ap?`<div class="info-row"><span class="k">Tipo de celular</span><span class="vv">${escHTML(ap.texto)}${ap.nota?`<div class="muted" style="font-size:12px">${escHTML(ap.nota)}</div>`:''}</span></div>`:'')
+    +(ap?`<div class="info-row"><span class="k">Tipo de celular</span><span class="vv">${escHTML(ap.texto)}${ap.nota?`<div class="muted" style="font-size:12px">${escHTML(ap.nota)}</div>`:''}${ap.fuente==='telefono'&&diaColombiaCRM(ap.momento)?`<div class="muted" style="font-size:12px">Lo informó el ${escHTML(fmtFecha(diaColombiaCRM(ap.momento)))}.</div>`:''}</span></div>`:'')
     +huecoAparatos(celularDeDonde(donde))
     /* 8-oct-2026 — antes era un enlace a ipinfo.io que Joan tenía que tocar
        registro por registro. Ahora la ubicación sale sola, escrita y anotada
@@ -9660,7 +9697,7 @@ function bloqueHuella(h,donde){
        TODAS: la primera la puede poner el teléfono (ver ubicacionHTML). */
     +(ip?`<div class="info-row"><span class="k">Dirección IP</span><span class="vv"><span class="mono">${escHTML((window.UbicacionIP&&window.UbicacionIP.cadenaSospechosa&&window.UbicacionIP.cadenaSospechosa(h.ip))?String(h.ip).slice(0,200):ip)}</span></span></div>`
         +`<div class="info-row"><span class="k">Ubicación aproximada</span><span class="vv">${huecoUbicacion(h,donde,false)}</span></div>`:'')
-    +(g?`<div class="info-row"><span class="k">Punto GPS al registrarse</span><span class="vv"><a target="_blank" rel="noopener" href="${mapsUrl(g)}">Ver en Google Maps</a> <span class="muted">±${Math.round(g.acc||0)} m · ${fmtFecha(g.fecha||'')}</span></span></div>`:'<div class="info-row"><span class="k">Punto GPS</span><span class="vv muted">No lo autorizó o no hubo señal.</span></div>')
+    +(g?`<div class="info-row"><span class="k">Punto GPS al registrarse</span><span class="vv"><a target="_blank" rel="noopener" href="${mapsUrl(g)}">Ver en Google Maps</a> <span class="muted">±${Math.round(g.acc||0)} m · ${fmtFecha(g.fecha||'')}</span>${gOtroDia?`<div class="muted" style="font-size:12px;color:var(--ambar)">⚠️ El punto es del ${escHTML(fmtFecha(diaColombiaCRM(g.fecha)))} y lo demás de aquí es del ${escHTML(fmtFecha(am.dia))}: no son del mismo momento.</div>`:''}</span></div>`:'<div class="info-row"><span class="k">Punto GPS</span><span class="vv muted">No lo autorizó o no hubo señal.</span></div>')
     +(cl?`<div class="info-row"><span class="k">Cédula leída del código de barras</span><span class="vv">${escHTML((cl.nombres||'')+' '+(cl.apellidos||''))} · ${escHTML(cl.documento||'')}${cl.nacimiento?' · nació '+fmtFecha(cl.nacimiento):''}</span></div>`
       /* 22-sep-2026 — aquí decía «(coincide con lo declarado: —)»: un hueco con
          una raya a mano, que se lee como «coincide». Ahora o hay cotejo de
@@ -9677,7 +9714,42 @@ function bloqueHuella(h,donde){
       +'No llegó la lectura del código de barras. Puede ser que no lo escaneara, '
       +'o que la subida de sus fotos no llegara: son cosas distintas y desde aquí '
       +'no se distinguen.</span></div>')
-    +(h.momento?`<div class="muted" style="font-size:12px">Registrado el ${fmtFecha(String(h.momento).slice(0,10))}.</div>`:'');
+    /* 20-oct-2026, revisión — h.momento es cuándo se leyeron la IP y la
+       conexión (al subir las fotos), no cuándo se creó el registro: si la
+       persona volvió a subir fotos otro día, son fechas distintas y decir
+       «Registrado el» de la segunda era falso. Con el día de Colombia, no el
+       de UTC (de noche cambiaba de día). */
+    +(h.momento?`<div class="muted" style="font-size:12px">${diaReg&&diaIP&&diaReg!==diaIP
+        ?`La IP y la conexión se leyeron el ${escHTML(fmtFecha(diaIP))}; el registro es del ${escHTML(fmtFecha(diaReg))}: no son del mismo día.`
+        :`Registrado el ${escHTML(fmtFecha(diaIP||String(h.momento).slice(0,10)))}.`}</div>`:'')
+    +aparatoDeOtroDiaHTML(am);
+}
+/* 20-oct-2026, revisión — lo que informó el teléfono OTRO día que la IP: con
+   su fecha y fuera del bloque de arriba, para que nadie lo lea como «desde
+   dónde se registró». Lo usan la ficha de Joan y la del gerente. */
+function aparatoDeOtroDiaHTML(am){
+  const w=am&&am.otroDia; if(!w) return '';
+  const dia=diaColombiaCRM(w.momento);
+  return `<div class="sub-h">Lo que informó el teléfono otro día</div>`
+    +`<div class="info-row"><span class="k">${dia?'El '+escHTML(fmtFecha(dia)):'Sin fecha'}</span><span class="vv">${escHTML(w.texto)}`
+    +(w.nota?`<div class="muted" style="font-size:12px">${escHTML(w.nota)}</div>`:'')
+    +`<div class="muted" style="font-size:12px;color:var(--ambar)">No es del mismo momento que lo de «Desde dónde se registró»${am.dia?' ('+escHTML(fmtFecha(am.dia))+')':''}: por eso va aparte.</div></span></div>`;
+}
+/* El aparato de la huella, separado por día (app/aparato.js,
+   aparatoDelRegistro). Sin el módulo no hay lo del teléfono que separar: se
+   cae a lo de la conexión, que es del mismo momento que la IP. */
+function aparatoDelRegistroCRM(h,creado){
+  const A=window.Aparato;
+  try{ if(A&&A.aparatoDelRegistro){ const r=A.aparatoDelRegistro(h,{creado}); if(r) return r; } }catch(e){}
+  return {aparato:aparatoDeHuellaCRM(h),otroDia:null,dia:diaColombiaCRM((h&&h.momento)||creado)};
+}
+/* El día en Colombia de un momento (UTC-5, sin horario de verano), o la fecha
+   'AAAA-MM-DD' tal cual. '' si no se entiende. */
+function diaColombiaCRM(m){
+  const A=window.Aparato;
+  if(A&&A.diaColombia) return A.diaColombia(m);
+  const s=String(m||'').trim(); if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const t=Date.parse(s); return isFinite(t)?new Date(t-5*3600000).toISOString().slice(0,10):'';
 }
 /* ==========================================================================
  * EL TIPO DE CELULAR — 19 de octubre de 2026
@@ -9732,14 +9804,13 @@ function verAparatosDe(cel,id){
     if(!j||j.ok!==true){ c.innerHTML='<span class="muted">'+(j&&j.motivo==='celular'?'Ese celular no tiene diez dígitos.':'La nube no contestó lo que se esperaba.')+'</span>'; return; }
     const A=window.Aparato;
     if(!A||!A.filasDeAparatos){ c.innerHTML='<span class="muted">No cargó app/aparato.js: recarga la página (Ctrl+Shift+R).</span>'; return; }
-    const filas=A.filasDeAparatos(j.aparatos);
-    if(!filas.length){ c.innerHTML='<span class="muted">No hay nada anotado de este celular. Se anota desde el 19-oct-2026, al registrarse, al pedir y al aceptar en la app.</span>'; return; }
-    /* La hora en Bogotá, como la de «Aceptó las condiciones»: la de la base
-       viene en UTC y de noche cambiaría de día. */
-    const cuando=m=>{ const t=new Date(m); return isNaN(t.getTime())?String(m||''):t.toLocaleString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'}); };
-    c.innerHTML=filas.map(f=>`<div style="margin-bottom:8px"><b>${escHTML(f.cuando)}</b> <span class="muted">· ${escHTML(cuando(f.momento))}${f.ip?' · IP <span class="mono">'+escHTML(f.ip)+'</span>':''}</span>`
-      +`<div>${escHTML(f.texto)}</div>`
-      +(f.nota?`<div class="muted" style="font-size:12px">${escHTML(f.nota)}</div>`:'')+'</div>').join('');
+    pintarAparatos(id,j.aparatos);
+    /* 20-oct-2026, revisión — la regla de «IP en cadena» (más de una IP
+       pública) vive en app/ubicacion-ip.js, que el CRM baja tarde. Si todavía
+       no llegó, se pinta ya —avisando con más de una IP de cualquier clase— y
+       se repinta cuando llegue, con la regla exacta. No se espera: una página
+       sin red no tiene por qué dejar «Buscando…» para siempre. */
+    if(!window.UbicacionIP){ try{ conUbicacionIP().then(()=>pintarAparatos(id,j.aparatos),()=>{}); }catch(e){} }
   }).catch(e=>{
     const c=document.getElementById(id); if(!c) return;
     /* El 404 del rpc() general manda a correr supabase.sql; lo que falta es
@@ -9749,6 +9820,29 @@ function verAparatosDe(cel,id){
       ?'Falta correr base/20261019_aparato_del_telefono.sql en Supabase. Mientras tanto, solo se ve el tipo de celular de arriba.'
       :m)+'</span>';
   });
+}
+/* Cada vez que entró, en su caja. 20-oct-2026, revisión — LA IP, CON LA REGLA
+   DE LA CASA. Se pintaba solo la PRIMERA de x-forwarded-for, que es la que
+   puede escribir el propio teléfono: con VPN, alguien se ponía una IP de
+   Bogotá y aquí salía sola, sin aviso. Ahora, si la cadena trae varias
+   públicas, salen TODAS con «⚠️ IP en cadena», como en bloqueHuella; y la de
+   la constancia de la aceptación dice que es solo la primera (así la guardó
+   condiciones_aceptadas). Las palabras las pone app/aparato.js (ipDeLaFila). */
+function pintarAparatos(id,lista){
+  const c=document.getElementById(id); if(!c) return;
+  const A=window.Aparato; if(!A||!A.filasDeAparatos) return;
+  const filas=A.filasDeAparatos(lista);
+  if(!filas.length){ c.innerHTML='<span class="muted">No hay nada anotado de este celular. Se anota desde el 19-oct-2026, al registrarse, al pedir y al aceptar en la app.</span>'; return; }
+  /* La hora en Bogotá, como la de «Aceptó las condiciones»: la de la base
+     viene en UTC y de noche cambiaría de día. */
+  const cuando=m=>{ const t=new Date(m); return isNaN(t.getTime())?String(m||''):t.toLocaleString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'}); };
+  const ipDe=f=>!f.ip?'':f.ipEnCadena
+    ?' · IPs <span class="mono">'+escHTML(f.ip)+'</span> <span class="chip mora" title="'+escHTML(f.notaIP||'')+'">⚠️ IP en cadena</span>'
+    :' · IP <span class="mono">'+escHTML(f.ip)+'</span>';
+  c.innerHTML=filas.map(f=>`<div style="margin-bottom:8px"><b>${escHTML(f.cuando)}</b> <span class="muted">· ${escHTML(cuando(f.momento))}${ipDe(f)}</span>`
+    +`<div>${escHTML(f.texto)}</div>`
+    +(f.nota?`<div class="muted" style="font-size:12px">${escHTML(f.nota)}</div>`:'')
+    +(f.notaIP?`<div class="muted" style="font-size:12px${f.ipEnCadena?';color:var(--ambar)':''}">${escHTML(f.notaIP)}</div>`:'')+'</div>').join('');
 }
 /* El celular de una solicitud: `celular` si lo trae, y si no `cedula`, que en
    las de la app es el celular (la llave de la cuenta). Una cédula de verdad
@@ -11336,7 +11430,13 @@ function fichaHTML(j) {
   const d = j.datos || {};
   const f = j.fotos || {};
   const h = j.huella || {};
-  const aparatoFicha = aparatoDeHuellaCRM(h);
+  /* 20-oct-2026, revisión — lo del mismo día que «Cuándo» va en el bloque;
+     lo que el teléfono informó otro día, aparte y con su fecha (ver
+     bloqueHuella). William leía el teléfono del día 4 al lado de la fecha y
+     la ubicación del día 1. */
+  const amFicha = aparatoDelRegistroCRM(h, j.registrado_en || '');
+  const aparatoFicha = amFicha.aparato;
+  const gpsOtroDia = !!(h.gps && amFicha.dia && diaColombiaCRM(h.gps.fecha) && diaColombiaCRM(h.gps.fecha) !== amFicha.dia);
   /* Los campos que el registro trae, con el nombre con el que el cliente los
      vio. Si mañana el formulario crece, lo que no esté en esta lista se pinta
      igual al final: una ficha «completa» a la que le falta la mitad es peor que
@@ -11391,12 +11491,15 @@ function fichaHTML(j) {
        caracteres del user-agent («Mozilla/5.0 (Linux; Android 10; K)…») y los
        leía como el teléfono. Ahora, las mismas palabras que ve Joan
        (aparatoDeHuellaCRM), con su nota. */
-    (h && (h.momento || h.gps || aparatoFicha)
+    (h && (h.momento || h.gps || aparatoFicha || amFicha.otroDia)
       ? `<div class="sub-h" style="margin-top:16px">Desde dónde se registró</div>
          ${h.momento ? filaInfo('Cuándo', fechaCorta(h.momento)) : ''}
-         ${h.gps ? filaInfo('Ubicación', String(h.gps.lat || '?') + ', ' + String(h.gps.lon || h.gps.lng || '?')) : ''}
+         ${h.gps ? filaInfo('Ubicación', String(h.gps.lat || '?') + ', ' + String(h.gps.lon || h.gps.lng || '?')) +
+           (gpsOtroDia ? '<div class="muted" style="font-size:12px;margin:-4px 0 6px;color:var(--ambar)">⚠️ La ubicación es del ' +
+             escHTML(fmtFecha(diaColombiaCRM(h.gps.fecha))) + ': no es del mismo día que lo demás de aquí.</div>' : '') : ''}
          ${aparatoFicha ? filaInfo('Tipo de celular', aparatoFicha.texto) +
-           (aparatoFicha.nota ? '<div class="muted" style="font-size:12px;margin:-4px 0 6px">' + escHTML(aparatoFicha.nota) + '</div>' : '') : ''}`
+           (aparatoFicha.nota ? '<div class="muted" style="font-size:12px;margin:-4px 0 6px">' + escHTML(aparatoFicha.nota) + '</div>' : '') : ''}
+         ${aparatoDeOtroDiaHTML(amFicha)}`
       : '') +
     `<div class="muted" style="font-size:12px;margin-top:16px;line-height:1.5">
       Queda registrado que abriste esta ficha, con tu nombre y la hora. Son datos de
@@ -11423,6 +11526,11 @@ function fichaHTML(j) {
  * La venta: «✏️ Proponer» arma la propuesta dentro de los topes que puso Joan
  * (GerenteVende.validar es la misma regla de gerente_proponer, para decirlo
  * antes de mandar) y le llega al cliente de una vez. El desembolso es de Joan.
+ * 20-oct-2026, revisión — y con el ESTIMADO que vio el cliente, como Joan:
+ * arriba del formulario, en la vista previa y en la pregunta final
+ * (avisoContraEstimado). Antes el gerente proponía $60.000 a quien la app le
+ * estimó $6.000 sin enterarse, y el aviso solo lo veía Joan cuando el cliente
+ * ya tenía la propuesta.
  * ------------------------------------------------------------------------ */
 var REG_EQ = { estado: 'nada', registros: [], topes: null, motivo: '' };
 
@@ -11573,11 +11681,18 @@ function solicitudDeRegistrosEq(id) {
   }
   return null;
 }
+var _propEqSol = null;   // la solicitud del formulario abierto (para el aviso del estimado)
 function proponerEq(id) {
   const par = solicitudDeRegistrosEq(id); if (!par) return;
   const t = REG_EQ.topes;
   if (!t) return alert(GerenteVende.MOTIVOS.sin_topes);
   const pidio = GerenteVende.loQuePidio(par.s);
+  _propEqSol = par.s;
+  /* 20-oct-2026, revisión — lo que la app le estimó, arriba y antes de
+     cualquier cifra, igual que en la pantalla de Joan (editarContrapropuesta).
+     Sin estimado guardado no se dice nada: «el cliente vio» solo con
+     constancia. */
+  const vioEst = avisoContraEstimado(par.s, null);
   /* Arranca en lo que pidió, recortado a los topes; el costo, en el 20% de
      siempre si cabe. Nunca arranca fuera de los topes: un formulario que abre
      con un valor que la base va a rechazar enseña a ignorar el aviso. */
@@ -11586,6 +11701,8 @@ function proponerEq(id) {
   const dias0 = Math.min(Number(t.dias_max), pidio.dias || Number(t.dias_max));
   openModal('Proponerle a ' + (par.r.nombre || 'este cliente'), `
     ${pidio.monto ? `<div class="alerta info" style="margin-bottom:12px">Pidió <b>${COP(pidio.monto)}</b>${pidio.dias ? ' a ' + escHTML(String(pidio.dias)) + ' días' : ''}.</div>` : ''}
+    ${vioEst ? `<div class="help" id="propEqVioEstimado" style="margin-bottom:12px"><b>${escHTML(vioEst.vio)}.</b>
+      Es lo que la app le mostró al pedir, rotulado como estimado que puede ser distinto. Si le propones más, dile por qué.</div>` : ''}
     <div class="field"><label>Cuánto le prestas</label><input type="number" inputmode="numeric" id="propEqCap" value="${cap0}"
       oninput="previsualizarPropuestaEq()"><div class="help">Hasta ${COP(t.capital_max)}.</div></div>
     <div class="field"><label>Costo (%)</label><input type="number" inputmode="numeric" id="propEqPct" value="${pct0}"
@@ -11610,16 +11727,24 @@ function previsualizarPropuestaEq() {
   const btn = document.getElementById('propEqBtn'); if (btn) btn.disabled = !ok.ok;
   if (!ok.ok) { c.className = 'alerta warn'; c.textContent = ok.texto; return; }
   const k = GerenteVende.calcular(v.capital, v.costo_pct);
-  c.className = 'alerta info';
+  /* 20-oct-2026, revisión — el mismo aviso que ve Joan si la propuesta pasa
+     lo que la app le estimó. No frena: dice. */
+  const ae = avisoContraEstimado(_propEqSol, k.costo);
+  c.className = ae && ae.supera ? 'alerta warn' : 'alerta info';
   c.innerHTML = 'Recibe <b>' + COP(k.capital) + '</b> y devuelve <b>' + COP(k.total) + '</b> a los ' +
-    escHTML(String(v.dias)) + ' días. El costo es ' + COP(k.costo) + '.';
+    escHTML(String(v.dias)) + ' días. El costo es ' + COP(k.costo) + '.' +
+    (ae && ae.supera ? '<div id="propEqAvisoEstimado" style="margin-top:6px">⚠️ ' + escHTML(ae.aviso) + '</div>' : '');
 }
 function enviarPropuestaEq(id) {
   const v = valoresPropuestaEq(), ok = GerenteVende.validar(v, REG_EQ.topes);
   if (!ok.ok) return alert(ok.texto);
   const k = GerenteVende.calcular(v.capital, v.costo_pct);
+  /* 20-oct-2026, revisión — el aviso del estimado también en la pregunta
+     final: es el último momento antes de que el cliente vea la propuesta. */
+  const par = solicitudDeRegistrosEq(id);
+  const ae = avisoContraEstimado(par ? par.s : null, k.costo);
   if (!confirm('Le vas a proponer:\n\n• Recibe ' + COP(k.capital) + '\n• Devuelve ' + COP(k.total) + ' a los ' + v.dias +
-      ' días\n\nLe llega a su app de una vez. ¿Mandar?')) return;
+      ' días\n\n' + (ae && ae.supera ? '⚠️ ' + ae.aviso + '\n\n' : '') + 'Le llega a su app de una vez. ¿Mandar?')) return;
   const btn = document.getElementById('propEqBtn');
   const soltar = () => { if (btn) { btn.disabled = false; btn.textContent = 'Mandarle la propuesta'; } };
   if (btn) { btn.disabled = true; btn.textContent = 'Mandando…'; }

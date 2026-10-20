@@ -25,7 +25,9 @@
 >   contestaron y mira cada 20 s con la página a la vista; el número sale de
 >   `chat_sin_leer_sesion`, que CUENTA sin marcar visto
 >   (`base/20261019b_chat_sin_leer_sesion.sql`);
-> - «💬 Escribirle por la app» en la ficha y en 📥 Registrados del CRM.
+> - «💬 Escribirle por la app» en la ficha y en 📥 Registrados del CRM. Desde
+>   📥 Registrados, solo si ese celular ya tiene cuenta (20-oct, revisión): sin
+>   cuenta lo leería quien primero la abra con ese número, y no se abre.
 >
 > **La decisión B sigue pendiente**: sin Telegram, el aviso a Joan solo existe
 > con el CRM o el celular abiertos, y al cliente no le llega nada con la app
