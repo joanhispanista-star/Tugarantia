@@ -233,7 +233,9 @@ describe('el escáner del frente', () => {
     /* Y a la nube solo va el lado que sí hay. */
     P.ev("window.__subida = null; celularDeSesion = function () { return '3001112233'; };" +
          "rpcSesion = function (f, a) { window.__subida = Object.keys(a.p_archivos); return Promise.resolve({ ok: true }); };");
-    P.ev('subirArchivosRegistro()');
+    /* 20-oct-2026, rediseño (A) — las fotos solo suben desde la cola que llena
+       el «Abrir mi cuenta» de este registro: primero eso, después la subida. */
+    P.ev('encolarLasFotosDelRegistro(REGISTRO.celular); subirArchivosRegistro()');
     assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__subida)')), ['cedula_reverso'],
       'subió dos llaves con la foto del respaldo');
     assert.deepEqual(P.fallos, []);

@@ -362,21 +362,31 @@ describe('la vuelta de la cámara no puede devolver a nadie al login', () => {
        la prueba dice lo que de verdad protege: las de otro no entran, las
        propias sí. Tal como estaba, pasaba por la razón equivocada (REGISTRO
        vacío en un banco nuevo), no por la regla. */
+    /* 20-oct-2026, rediseño (A) — Y AHORA TAMBIÉN DE DÓNDE: las propias suben
+       desde su «Abrir mi cuenta» (encolarLasFotosDelRegistro), no por entrar
+       con una sesión que tenga su celular. Con eso, entrar con la cuenta de la
+       misma persona sin haber abierto la cuenta en el registro tampoco las
+       sube (era el camino de V1). La cédula lleva el documento con que la
+       persona dijo «es mía»: sin código, es lo único que dice de quién es. */
     const P = aMitadDelRegistro('');
-    P.ev("FOTOS = { sensibles: true, cedula_frente: 'data:image/jpeg;base64,AAA' }; marcarDuenoDeLasFotos(); guardarFotos();");
+    P.ev("REGISTRO.documento = '1234567'; guardarBorrador(REGISTRO);" +
+         "FOTOS = { sensibles: true, cedula_frente: 'data:image/jpeg;base64,AAA', cedula_confirmada: '1234567' }; marcarDuenoDeLasFotos(); guardarFotos();");
     /* Otra pestaña: el mismo teléfono, el mismo localStorage, sessionStorage
-       nuevo. Es lo que pasa al día siguiente, o al volver de la cámara. */
+       nuevo. Es lo que pasa al volver de la cámara. */
     const otra = abrirPlay({ almacen: P.almacen, hash: '' });
-    const conCuenta = cel => {
+    const conCuenta = (cel, abrioSuCuenta) => {
       otra.ev("SESION = { access_token: 'tok', user: { email: '57" + cel + "@tugarantia.net' } };");
       otra.ev('window.__subio = false; rpcSesion = function () { window.__subio = true; return Promise.resolve({ ok: true }); };');
+      if (abrioSuCuenta) otra.ev("encolarLasFotosDelRegistro('" + cel + "')");
       otra.ev('subirArchivosRegistro()');
       return otra.ev('!!window.__subio');
     };
     assert.equal(conCuenta('3009999999'), false,
       'subió a esta cuenta las fotos de la cédula de otra persona');
-    assert.equal(conCuenta('3001112233'), true,
-      'la persona volvió de la cámara y sus propias fotos ya no suben: el CRM recibe el registro sin cédula');
+    assert.equal(conCuenta('3001112233'), false,
+      'entrar con la sesión de ese celular subió un registro que no pasó por su «Abrir mi cuenta»');
+    assert.equal(conCuenta('3001112233', true), true,
+      'la persona volvió de la cámara, abrió su cuenta, y sus propias fotos no subieron: el CRM recibe el registro sin cédula');
   });
 
   test('la contraseña sigue SIN tocar localStorage ni el borrador', () => {

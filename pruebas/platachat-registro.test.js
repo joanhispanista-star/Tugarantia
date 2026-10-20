@@ -191,7 +191,10 @@ describe('el registro con la marca, de punta a punta', () => {
     const P = abrirPlay({ search: CON_MARCA });
     conSesionJs(P);
     llenarRegistro(P);
-    P.ev("FOTOS.sensibles = true; FOTOS.cedula_frente = 'data:image/jpeg;base64,AAAA'; marcarDuenoDeLasFotos();");
+    /* 20-oct-2026, rediseño (C, V2) — la cédula sin código, con el documento con
+       que la persona dijo «es mía»: sin eso no sube. */
+    P.ev("FOTOS.sensibles = true; FOTOS.cedula_frente = 'data:image/jpeg;base64,AAAA'; marcarDuenoDeLasFotos();" +
+         " FOTOS.cedula_confirmada = normalizarDocumento(REGISTRO.documento);");
     const llamadas = nube(P, function (u) {
       if (/registro_archivos_guardar/.test(u)) return { ok: false };
       if (/auth\/v1\/signup/.test(u)) return { access_token: 'tok', refresh_token: 'ref', expires_in: 3600,

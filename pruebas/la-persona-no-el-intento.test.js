@@ -160,9 +160,13 @@ describe('1. la cédula es de quien dice su documento (F4, F6)', () => {
     mariaEscaneaYSeVa(P);
     tocarAbrirMiCuenta(P);
     nadaDeMaria(P, 'al tocar «Abrir mi cuenta»');
-    assert.match(cuerpo(P), /En este teléfono quedó un registro a medias\. ¿Es tuyo\?/,
-      'no le pregunta si el registro a medias es suyo');
-    assert.match(cuerpo(P), /onclick="empezarDeNuevo\(\)">Empezar de cero \(se borra\)/);
+    /* 20-oct-2026, rediseño (A) — decía «y le pregunta si el registro a medias
+       es suyo». Desde el rediseño, «Volver» hasta la portada ya soltó la
+       cédula de María y lo que el escáner escribió con ella: no queda nada suyo
+       por lo que preguntar. Lo que esta prueba cuidaba —que Pedro no vea nada
+       de María— se mira ahora también en el teléfono entero. */
+    assert.equal(/_MARIA|52123456|MARIA|RODRIGUEZ/.test(JSON.stringify(P.almacen)), false,
+      'algo de la cédula de María se quedó en el teléfono después de volver a la portada');
   });
 
   test('F4 — …y si Pedro dice «Seguir» y escribe SU documento, la cédula de María no sube a su cuenta', async () => {
@@ -171,7 +175,10 @@ describe('1. la cédula es de quien dice su documento (F4, F6)', () => {
     tocarAbrirMiCuenta(P);
     siPreguntaSeguir(P);
     P.ev("pintarRegistro(indiceDe('identidad'))");
-    casillas(P, 'identidad', { nombres: 'PEDRO LUIS', apellidos: 'GOMEZ DIAZ', documento: '79111222', expedicion: '2010-05-20' });
+    /* 20-oct-2026, rediseño (A) — con el tipo de documento: la portada ya soltó
+       la lectura de María y, con ella, lo que el escáner había escrito. */
+    casillas(P, 'identidad', { nombres: 'PEDRO LUIS', apellidos: 'GOMEZ DIAZ', tipo_doc: 'Cédula de ciudadanía',
+                               documento: '79111222', expedicion: '2010-05-20' });
     P.ev('siguientePaso()');
     if (pasoActual(P) === 'identidad') {
       assert.match(caja(P), /La cédula que escaneaste no es la del documento que escribiste: no la subimos/);
@@ -214,15 +221,22 @@ describe('1. la cédula es de quien dice su documento (F4, F6)', () => {
     P.ev("REGISTRO.documento = '79111222'; guardarBorrador(REGISTRO);");
     assert.equal(P.ev("hayFotoLista('cedula_reverso')"), false, 'dice «Listo» de una cédula cuyo número no es el escrito');
     /* La última reja: un lote que llegue a la subida con el número de otra
-       persona anotado no sale del teléfono, y se suelta. */
+       persona anotado no sale del teléfono, y se suelta.
+       20-oct-2026, rediseño (A) — desde la cola de la cuenta, que es lo único
+       que sube: el registro en curso no sube nunca por sí solo. */
     const Q = abrir();
     escanear(Q, MARIA, 'MARIA');
-    Q.ev("FOTOS.de.celular = '" + CEL_PEDRO + "'; FOTOS.de.documento = '79111222'; guardarFotos();" +
+    Q.ev("guardarCola('" + CEL_PEDRO + "', Object.assign({}, FOTOS, { de: { celular: '" + CEL_PEDRO + "', t: Date.now(), documento: '79111222' } }));" +
          "SESION = { access_token: 'tok', user: { email: '57" + CEL_PEDRO + "@tugarantia.net' } };");
     const ll = nube(Q);
     await Q.ev('subirArchivosRegistro()');
     assert.equal(ll().filter(x => /registro_archivos_guardar/.test(x.url)).length, 0, 'subió una cédula con el número de otro');
-    assert.equal(/_MARIA/.test(String(Q.almacen.play_fotos_borrador || '')), false, 'la cédula de otro se quedó en el teléfono');
+    assert.equal(/_MARIA/.test(String(Q.almacen.play_fotos_cola || '')), false, 'la cédula de otro se quedó en el teléfono');
+    /* Y con el documento VACÍO tampoco: vacío es «no se sabe», no «el mismo». */
+    Q.ev("guardarCola('" + CEL_PEDRO + "', Object.assign({}, FOTOS, { de: { celular: '" + CEL_PEDRO + "', t: Date.now(), documento: '' } }));");
+    await Q.ev('subirArchivosRegistro()');
+    assert.equal(ll().filter(x => /registro_archivos_guardar/.test(x.url)).length, 0, 'con el documento vacío subió la cédula de otro');
+    assert.equal(/_MARIA/.test(String(Q.almacen.play_fotos_cola || '')), false);
   });
 
   test('…y la de la propia persona sí sube, con su número', async () => {
@@ -333,19 +347,30 @@ describe('3. nada sensible sobrevive a otra persona (F7, F4, F11, F5)', () => {
     const P = abrir();
     escanear(P, MARIA, 'MARIA');
     assert.equal(pasoActual(P), 'identidad');
+    /* 20-oct-2026, rediseño (A) — con algo escrito a mano: lo que el escáner
+       escribió se va con la lectura cuando el registro queda abandonado, y sin
+       nada más no habría registro a medias por el que preguntar (eso lo mide
+       pruebas/lo-sensible-no-sale-del-registro.test.js). */
+    P.ev("REGISTRO.correo = 'ana@correo.com'; guardarBorrador(REGISTRO);");
     /* Ana se fue sin escribir su celular. Media hora después Beto abre el enlace. */
     const antes = Date.now() - 30 * 60e3;
     P.almacen.play_registro_toque = String(antes);
     P.almacen.play_registro_paso = JSON.stringify(Object.assign(JSON.parse(P.almacen.play_registro_paso), { t: antes }));
     const f = JSON.parse(P.almacen.play_fotos_borrador); f.de.t = antes; P.almacen.play_fotos_borrador = JSON.stringify(f);
+    const copia = Object.assign({}, P.almacen);   // el mismo teléfono, para la otra respuesta
     const Q = abrirPlay({ almacen: P.almacen, sesion: {}, hash: '' });
     nadaDeMaria(Q, 'al volver a abrir el enlace');
     assert.match(cuerpo(Q), /En este teléfono quedó un registro a medias\. ¿Es tuyo\?/);
-    /* «Empezar de cero» lo borra todo; «Seguir» la devuelve a su paso. */
-    const R = abrirPlay({ almacen: Object.assign({}, P.almacen), sesion: {}, hash: '' });
-    R.ev('seguirConElRegistro(' + R.ev("indiceDe('identidad')") + ', true)');
-    assert.equal(R.ev('PASOS[PASO].id'), 'identidad');
-    assert.match(cuerpo(R), /value="MARIA JOSE"/, '«Seguir» no la devolvió a lo suyo');
+    /* «Empezar de cero» lo borra todo; «Seguir» la devuelve a su registro.
+       20-oct-2026, rediseño (A) — sin la cédula: decía «a su paso, con MARIA
+       JOSE escrito». Pasada media hora el registro quedó abandonado y el
+       arranque ya soltó las fotos y la lectura; «Seguir» vuelve al primer paso
+       que le falta (la cédula), dice por qué, y trae lo escrito a mano. */
+    const R = abrirPlay({ almacen: copia, sesion: {}, hash: '' });
+    R.ev(/id="btnRestosSeguir" onclick="([^"]+)"/.exec(cuerpo(R))[1]);
+    assert.equal(R.ev('PASOS[PASO].id'), 'documento');
+    assert.match(R.elems.errReg.innerHTML, /por seguridad las borramos de este teléfono/, '«Seguir» no dice por qué no están sus fotos');
+    nadaDeMaria(R, 'tras «Seguir»');
     Q.ev('empezarDeNuevo()');
     assert.equal(/MARIA|RESPALDO/.test(JSON.stringify(Q.almacen)), false, 'quedó algo de la persona anterior en el teléfono');
   });

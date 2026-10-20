@@ -315,6 +315,11 @@ describe('el paso de la cédula dentro de la página', () => {
 
   test('la marca de las fotos vive CON las fotos, en localStorage, no en la pestaña', () => {
     const P = abrirPlay();
+    /* 20-oct-2026, rediseño (A) — con el paso guardado, que es lo que deja la
+       vuelta de la cámara: sin él, la página que se vuelve a abrir es un
+       registro abandonado y lo sensible se suelta (ver
+       pruebas/lo-sensible-no-sale-del-registro.test.js). */
+    P.ev("pintarRegistro(indiceDe('entrada'))");
     P.ev("REGISTRO.celular = '3001112233'; FOTOS = { sensibles: true, cedula_frente: 'data:x' }; marcarDuenoDeLasFotos(); guardarFotos();");
     assert.match(P.almacen.play_fotos_borrador, /"de":\{"celular":"3001112233"/, 'la marca no está con las fotos');
     assert.equal(P.sesion.play_fotos_de_esta_pestana, undefined, 'la marca volvió a sessionStorage, que Android no restaura');
@@ -413,8 +418,12 @@ describe('lo que encontró la revisión (21-sep-2026)', () => {
     /* Las de la v75 no llevaban dueño escrito (la marca vivía en la pestaña).
        Al estrenar esta versión se adoptan si esa marca sigue viva en esta
        pestaña, y si no se sueltan: que es lo que iba a pasarles igual. */
+    /* 20-oct-2026, rediseño (A) — con el paso que esa versión dejaba guardado:
+       la que vuelve de la cámara. Sin paso, lo que se abre es un registro
+       abandonado y lo sensible se suelta antes de nada. */
     const almacen = () => ({
       play_registro_borrador: JSON.stringify({ celular: '3001112233' }),
+      play_registro_paso: JSON.stringify({ paso: 1, t: Date.now() }),
       play_fotos_borrador: JSON.stringify({ sensibles: true, cedula_reverso: 'data:vieja' })
     });
     const adoptada = abrirPlay({ almacen: almacen(), sesion: { play_fotos_de_esta_pestana: '1' } });
@@ -749,31 +758,34 @@ describe('la pantalla dice la verdad sobre la cédula (21-sep-2026)', () => {
     assert.equal(/subirArchivosRegistro\(\)\.catch\(function \(\) \{\}\)/.test(t), false,
       'volvió un catch vacío: un fallo de la subida vuelve a ser invisible');
 
+    /* 20-oct-2026, rediseño (A) — lo que sube es la COLA de la cuenta (la llena
+       su «Abrir mi cuenta»), no el registro: la prueba arma la cola y mira la
+       cola. Lo que cuida no cambia. */
     const P = abrirPlay();
-    P.ev("REGISTRO.celular = '3001112233';");
-    P.ev("FOTOS = { sensibles: true, cedula_frente: 'data:a', cedula_reverso: 'data:b', selfie: 'data:c' }; marcarDuenoDeLasFotos(); guardarFotos();");
+    P.ev("guardarCola('3001112233', { sensibles: true, cedula_frente: 'data:a', cedula_reverso: 'data:b', selfie: 'data:c'," +
+         " cedula_confirmada: '123456', de: { celular: '3001112233', t: Date.now(), documento: '123456' } });");
     P.ev("SESION = { access_token: 'tok', user: { email: '573001112233@tugarantia.net' } };");
     /* El servidor solo se queda con dos de las tres. */
     P.ev("rpcSesion = function () { return Promise.resolve({ ok: true, fotos: 2, guardados: ['cedula_frente','selfie'] }); };");
     return P.ev('subirArchivosRegistro()').then(() => {
-      assert.equal(P.ev('FOTOS.cedula_frente'), undefined, 'no soltó la que sí entró');
-      assert.equal(P.ev('FOTOS.selfie'), undefined);
-      assert.equal(P.ev('FOTOS.cedula_reverso'), 'data:b',
+      assert.equal(P.ev("colaDe('3001112233').cedula_frente"), undefined, 'no soltó la que sí entró');
+      assert.equal(P.ev("colaDe('3001112233').selfie"), undefined);
+      assert.equal(P.ev("colaDe('3001112233').cedula_reverso"), 'data:b',
         'borró del teléfono una foto que el servidor NO confirmó: esa copia era la única');
       assert.equal(JSON.parse(P.almacen.play_subida_fotos).estado, 'parcial');
-      assert.ok(String(P.almacen.play_fotos_borrador).indexOf('data:b') > 0,
+      assert.ok(String(P.almacen.play_fotos_cola).indexOf('data:b') > 0,
         'la que falta ya no quedó guardada para reintentar');
     });
   });
 
   test('si el servidor rechaza, NO se borra nada del teléfono', () => {
     const P = abrirPlay();
-    P.ev("REGISTRO.celular = '3001112233';");
-    P.ev("FOTOS = { sensibles: true, cedula_reverso: 'data:b' }; marcarDuenoDeLasFotos(); guardarFotos();");
+    P.ev("guardarCola('3001112233', { sensibles: true, cedula_reverso: 'data:b', cedula_confirmada: '123456'," +
+         " de: { celular: '3001112233', t: Date.now(), documento: '123456' } });");
     P.ev("SESION = { access_token: 'tok', user: { email: '573001112233@tugarantia.net' } };");
     P.ev("rpcSesion = function () { return Promise.resolve({ ok: false }); };");
     return P.ev('subirArchivosRegistro()').then(() => {
-      assert.equal(P.ev('FOTOS.cedula_reverso'), 'data:b', 'borró la foto con un rechazo del servidor');
+      assert.equal(P.ev("colaDe('3001112233').cedula_reverso"), 'data:b', 'borró la foto con un rechazo del servidor');
       assert.equal(JSON.parse(P.almacen.play_subida_fotos).estado, 'rechazo');
     });
   });
@@ -813,7 +825,9 @@ describe('la prueba con Sofía (21-sep-2026)', () => {
     P.ev("pintarRegistro(indiceDe('entrada'))");
     P.ev("$('rTel').value='3001112233'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x';");
     P.ev('siguientePaso()');
-    P.ev("FOTOS = { sensibles: true, cedula_reverso: 'data:x' }; marcarDuenoDeLasFotos(); guardarFotos();");
+    /* 20-oct-2026, rediseño (C, V2) — una cédula sin código sube solo si la
+       persona la miró y dijo «es mía» con su documento (cedula_confirmada). */
+    P.ev("FOTOS = { sensibles: true, cedula_reverso: 'data:x', cedula_confirmada: '123456' }; marcarDuenoDeLasFotos(); guardarFotos();");
     /* 8-oct-2026 — con correo: desde que es obligatorio (pedido de Joan), un registro
        sin él se queda en «nos falta tu correo» y esta prueba no llegaría a lo que mide. */
     P.ev("REGISTRO = Object.assign(REGISTRO, { nombres:'Ana', apellidos:'Ruiz', tipo_doc:'Cédula de ciudadanía', documento:'123456', expedicion:'2010-01-01', celular:'3001112233', correo:'ana@correo.com', ciudad:'Bogotá', barrio:'Centro', direccion:'Calle 1', tipo_vivienda:'Arriendo', anos_direccion:'Más de 5 años', ocupacion:'Empleado', ingreso_mes:'2000000', gastos_mes:'800000', dia_pago:'Quincenal (15 y 30)', ref1_nombre:'Luz', ref1_parentesco:'Hermana', ref1_celular:'3002223344', ref2_nombre:'Juan', ref2_parentesco:'Amigo', ref2_celular:'3004445566' }); guardarBorrador(REGISTRO);");

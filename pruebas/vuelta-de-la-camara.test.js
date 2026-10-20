@@ -156,9 +156,14 @@ describe('las fotos, después de la relanzada', () => {
   test('SÍ suben tras la relanzada cuando la cuenta es del mismo celular', () => {
     /* Antes no: la marca vivía en la pestaña, la caja decía «Listo», y
        registro_archivos_guardar no se llamaba nunca. */
+    /* 20-oct-2026, rediseño (A) — suben desde su «Abrir mi cuenta», que es
+       donde las fotos pasan a la cola de la cuenta: después de la relanzada,
+       la persona sigue y abre su cuenta. La cédula sin código lleva el
+       documento con que dijo «es mía» (V2). */
     const P = aMitadDelRegistro(); conFotos(P, '3001112233');
+    P.ev("REGISTRO.documento = '1234567'; guardarBorrador(REGISTRO); FOTOS.cedula_confirmada = '1234567'; guardarFotos();");
     const Q = relanzar(P, '#registro'); cuentaDe(Q, '3001112233');
-    Q.ev('subirArchivosRegistro()');
+    Q.ev("encolarLasFotosDelRegistro(REGISTRO.celular); subirArchivosRegistro()");
     const subio = Q.ev('window.__subio');
     assert.ok(subio && subio.p_archivos && subio.p_archivos.cedula_frente, 'las fotos de la cédula no se subieron: el CRM recibe el registro sin cédula, en silencio');
     assert.equal(subio.p_archivos.de, undefined, 'la marca de dueño viajó a la nube');
