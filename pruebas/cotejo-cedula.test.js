@@ -282,7 +282,9 @@ describe('la evidencia no se puede borrar sin querer', () => {
   });
 
   test('la marca de edición viaja como PISTA, no como prueba', () => {
-    assert.match(PLAY, /huella\.cedula_editado = FOTOS\.cedula_editado/,
+    /* 20-oct-2026, revisión — la subida manda el LOTE de la cuenta (la memoria
+       se vacía al crearla): ver subirArchivosRegistro. */
+    assert.match(PLAY, /huella\.cedula_editado = (FOTOS|lote)\.cedula_editado/,
       'la marca de edición no llega al CRM');
     /* Y el servidor no la usa para decidir: compara los textos él mismo. */
     const SQLTXT = SQL;

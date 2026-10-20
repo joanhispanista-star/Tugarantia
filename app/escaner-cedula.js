@@ -77,6 +77,16 @@
      pregunta «¿Eres …?» antes de usarlas (play/, identidadEnDuda). */
   var MINUTOS_SIN_DUENO = 60;
 
+  /* 20-oct-2026, revisión — CUÁNTO TIEMPO UNA PÁGINA QUE VUELVE SOLA ES DE LA
+     MISMA PERSONA. La relanzada de Android (la cámara del sistema tumba la
+     pestaña y la vuelve a abrir) pasa en uno o dos minutos: ahí el registro se
+     retoma sin preguntar, porque preguntar en el peor momento del embudo es
+     perder gente. Pasado este rato, la página que vuelve sola puede ser de
+     otro (el teléfono prestado, F11 de la revisión: Beto abrió el enlace 30
+     minutos después de Ana y cayó en «Revisa tus datos» con lo de ella), y se
+     pregunta «¿Es tuyo?» sin enseñar nada de lo anterior (restosEnDuda). */
+  var MINUTOS_VUELTA_DE_LA_CAMARA = 10;
+
   /* Los umbrales del encuadre, juntos y con nombre, porque son lo único que hay
      que calibrar mirando teléfonos de verdad. Si quedan estrictos, la persona
      se atasca con la cédula en la mano; si quedan flojos, se decodifica basura
@@ -630,7 +640,14 @@
    * ======================================================================== */
   var FRENTE = {
     MS_ENTRE_MIRADAS: 500,   // como mucho dos miradas por segundo, y solo en verde
-    MS_GUARDAR_IGUAL: 10000  // el segundo toque a mano vale si llega dentro de este rato
+    MS_GUARDAR_IGUAL: 10000, // el segundo toque a mano vale si llega dentro de este rato
+    /* 20-oct-2026, revisión (F9) — Y NO ANTES DE ESTE RATO. Sin piso, un doble
+       toque (dos toques a 0-150 ms, o el dedo que rebota) contaba como
+       «insistir»: el respaldo quedaba guardado como frente, la pantalla decía
+       «La guardamos como el frente, como pediste» y a los 1,5 s pasaba sola a
+       «Revisa tus datos». Insistir es ver el aviso y volver a tocar; eso no se
+       hace en menos de un segundo y medio. */
+    MS_SEGUNDO_TOQUE: 1500
   };
   /**
    * ¿Se dispara el frente? La gemela de decidirRespaldo.
@@ -652,11 +669,13 @@
   }
   /**
    * La última reja, al guardar: ¿esta foto se guarda como frente?
-   * @param e {conCodigo, aMano, msDesdeRechazo}
+   * @param e {conCodigo, aMano, msDesdeRechazo, avisoMostrado}
    *          conCodigo: en la foto se ve un código de barras;
    *          aMano: la pidió la persona («Tomar la foto ahora»), no el bucle;
    *          msDesdeRechazo: cuánto hace que se rechazó una toma A MANO por lo
-   *          mismo (null si no hubo).
+   *          mismo (null si no hubo);
+   *          avisoMostrado: ese primer rechazo SÍ le mostró a la persona el
+   *          aviso de «vuelve a tocar» (20-oct-2026, F9).
    * @returns {guardar: bool, forzada: bool}
    *          forzada: se guarda aunque se vio un código, porque la persona
    *          insistió. La revisión del computador lo vuelve a mirar.
@@ -665,8 +684,11 @@
     var x = e || {};
     if (x.conCodigo !== true) return { guardar: true, forzada: false };
     var ms = x.msDesdeRechazo;
-    var insiste = x.aMano === true && typeof ms === 'number' && isFinite(ms) &&
-      ms >= 0 && ms <= FRENTE.MS_GUARDAR_IGUAL;
+    /* 20-oct-2026, revisión — insistir es haber VISTO el aviso y volver a
+       tocar después de leerlo: ni un doble toque (piso de MS_SEGUNDO_TOQUE)
+       ni un primer toque que no dijo nada en pantalla. */
+    var insiste = x.aMano === true && x.avisoMostrado === true && typeof ms === 'number' && isFinite(ms) &&
+      ms >= FRENTE.MS_SEGUNDO_TOQUE && ms <= FRENTE.MS_GUARDAR_IGUAL;
     return { guardar: insiste, forzada: insiste };
   }
 
@@ -766,12 +788,72 @@
     return t > 0 && (ahora - t) < HORAS_REGISTRO_VIVO * 3600 * 1000;
   }
 
+  /* ==========================================================================
+   * LA CÉDULA ES DE QUIEN DICE SU DOCUMENTO — 20 de octubre de 2026, revisión
+   *
+   * La revisión adversaria del registro con la cédula primero (F4, F6, F11,
+   * F15) encontró la misma raíz en cuatro caminos: las fotos y la lectura de
+   * la cédula se ataban al INTENTO (este registro, en este teléfono) y no a la
+   * PERSONA. En un teléfono prestado, María escanea, se va, y Pedro abre el
+   * registro en el mismo intento: la cédula de María subía a la cuenta de
+   * Pedro aunque él escribiera su nombre y su documento.
+   *
+   * La persona la define el NÚMERO que trae el código de barras, que el PDF417
+   * no se inventa (lleva su propia corrección de errores). Así que la regla
+   * dura es: la cédula leída solo viaja con un registro cuyo documento escrito
+   * es ese mismo número. Se compara normalizado —solo dígitos y sin los ceros
+   * de la izquierda, que el código trae y nadie teclea («0052123456» es
+   * «52.123.456»)—.
+   * ======================================================================== */
+  function normalizarDocumento(d) {
+    return String(d == null ? '' : d).replace(/\D/g, '').replace(/^0+/, '');
+  }
+  /** ¿Son el mismo documento? Vacío contra lo que sea es «no se sabe»: false. */
+  function mismoDocumento(a, b) {
+    var x = normalizarDocumento(a), y = normalizarDocumento(b);
+    return !!(x && y && x === y);
+  }
+
+  /**
+   * ¿Lo que quedó de un registro a medias en el teléfono puede ser de OTRA
+   * persona? Entonces se pregunta «¿Es tuyo?» ANTES de pintar nada de ello
+   * (play/, pintarPreguntaRestos). 20-oct-2026, revisión (F4, F7, F11).
+   * @param e {hayRestos, t, ahora, retomando}
+   *          hayRestos: hay datos escritos o fotos de ese registro;
+   *          t: la última vez que alguien tocó ese registro (ms), 0 si no se sabe;
+   *          retomando: la página volvió sola a un paso guardado (la relanzada
+   *          de la cámara); false si la persona entra por la portada o el enlace.
+   * @returns bool
+   * Entrando por la portada o por el enlace, SIEMPRE que haya restos: quien
+   * toca «Abrir mi cuenta» en un teléfono que ya tiene un registro a medias
+   * puede ser cualquiera (F4: María toca «Volver» hasta la portada y presta el
+   * teléfono; Pedro toca «Abrir mi cuenta» y veía la cédula de María). Al
+   * retomar solo, se pregunta si pasó el rato de la cámara o cambió el día:
+   * dentro de ese rato es la misma persona volviendo de la cámara.
+   */
+  function restosEnDuda(e) {
+    var x = e || {};
+    if (!x.hayRestos) return false;
+    if (!x.retomando) return true;
+    var t = Number(x.t) || 0, ahora = Number(x.ahora) || 0;
+    if (!(t > 0) || ahora - t < 0) return true;
+    if (ahora - t >= MINUTOS_VUELTA_DE_LA_CAMARA * 60 * 1000) return true;
+    var a = new Date(t), b = new Date(ahora);
+    return a.getFullYear() !== b.getFullYear() || a.getMonth() !== b.getMonth() || a.getDate() !== b.getDate();
+  }
+
   return {
-    VERSION: '2026-10-19',
+    VERSION: '2026-10-20',
     PROPORCION: PROPORCION,
     HORAS_REGISTRO_VIVO: HORAS_REGISTRO_VIVO,
     /* 19-oct-2026 — la cédula va primero: fotos sin dueño y la expedición */
     MINUTOS_SIN_DUENO: MINUTOS_SIN_DUENO,
+    /* 20-oct-2026, revisión — la cédula es de quien dice su documento, y lo
+       que queda en el teléfono no se le enseña a otro */
+    MINUTOS_VUELTA_DE_LA_CAMARA: MINUTOS_VUELTA_DE_LA_CAMARA,
+    normalizarDocumento: normalizarDocumento,
+    mismoDocumento: mismoDocumento,
+    restosEnDuda: restosEnDuda,
     revisarExpedicion: revisarExpedicion,
     TARJETA: TARJETA,
     GIROS_DE_RESCATE: GIROS_DE_RESCATE,

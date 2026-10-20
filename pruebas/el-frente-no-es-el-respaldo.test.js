@@ -143,8 +143,10 @@ describe('EC.guardarFrente: la última reja, y el segundo toque a mano', () => {
   });
 
   test('el segundo toque a mano, dentro del rato, la guarda igual y lo dice', () => {
-    assert.deepEqual(EC.guardarFrente({ conCodigo: true, aMano: true, msDesdeRechazo: 1500 }), { guardar: true, forzada: true });
-    assert.equal(EC.guardarFrente({ conCodigo: true, aMano: true, msDesdeRechazo: RATO + 1 }).guardar, false,
+    /* 20-oct-2026, revisión (F9) — insistir es VER el aviso y volver a tocar:
+       con el aviso en pantalla y desde EC.FRENTE.MS_SEGUNDO_TOQUE. */
+    assert.deepEqual(EC.guardarFrente({ conCodigo: true, aMano: true, msDesdeRechazo: 1500, avisoMostrado: true }), { guardar: true, forzada: true });
+    assert.equal(EC.guardarFrente({ conCodigo: true, aMano: true, msDesdeRechazo: RATO + 1, avisoMostrado: true }).guardar, false,
       'un toque de hace un rato largo no es «insistir»');
     assert.equal(EC.guardarFrente({ conCodigo: true, aMano: true, msDesdeRechazo: -5 }).guardar, false);
   });
@@ -295,9 +297,12 @@ describe('«Tomar la foto ahora» en el frente', () => {
     assert.equal(P.ev("$('docNota').textContent"), '', 'ofreció guardarla igual antes de tiempo');
     P.ev('ESCDOC.desde = Date.now() - 11000;');
     cuadros(P, 2);
-    assert.match(P.ev("$('docNota').textContent"), /toca «Tomar la foto ahora» dos veces/,
+    /* 20-oct-2026, revisión (F9) — la salida ya no es «dos veces» (eso es un
+       doble toque, que no guarda): es tocar, esperar el aviso y volver a tocar. */
+    assert.match(P.ev("$('docNota').textContent"), /toca «Tomar la foto ahora», espera el aviso y vuelve a tocarlo/,
       'un frente que el lector confunda se quedaría pidiendo voltearla para siempre, sin decir la salida');
     P.ev('capturarDoc()');
+    P.ev('ESCDOC.tRechazoAMano -= ' + EC.FRENTE.MS_SEGUNDO_TOQUE + ';');   // pasa el rato de leer el aviso
     P.ev('capturarDoc()');
     assert.equal(P.ev('FOTOS.cedula_frente'), 'data:image/jpeg;base64,FOTO_2', 'los dos toques que promete la nota no la guardaron');
     assert.equal(P.ev("$('docNota').textContent"), '', 'la nota se quedó después de guardar');
@@ -316,6 +321,7 @@ describe('«Tomar la foto ahora» en el frente', () => {
     const P = escaner();
     leerElRespaldo(P);
     P.ev('capturarDoc()');
+    P.ev('ESCDOC.tRechazoAMano -= ' + EC.FRENTE.MS_SEGUNDO_TOQUE + ';');   // 20-oct-2026: el rato de leer el aviso (F9)
     P.ev('capturarDoc()');
     assert.equal(P.ev('FOTOS.cedula_frente'), 'data:image/jpeg;base64,FOTO_2', 'la salida para un frente confundido no sirvió');
     assert.equal(P.ev("$('docListoTxt').textContent"), 'La guardamos como el frente, como pediste.');

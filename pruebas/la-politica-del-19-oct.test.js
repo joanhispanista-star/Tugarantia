@@ -240,7 +240,9 @@ describe('2. el avance, la ubicación y la cédula leída, en el orden nuevo', (
     assert.ok(!/los comparamos con lo que escribiste/.test(s), 'vuelve a decir que la persona escribió lo que la app llenó');
     assert.match(PLAY, /var CAMPOS_DE_LA_CEDULA = \['nombres', 'apellidos', 'documento'\];/,
       'la cédula llena otros campos que los que nombra la política');
-    assert.match(PLAY, /huella\.cedula_editado = FOTOS\.cedula_editado/, 'ya no sube qué corrigió, y la política dice que sí');
+    /* 20-oct-2026, revisión — la subida manda el LOTE de la cuenta (la memoria
+       se vacía al crearla): ver subirArchivosRegistro. */
+    assert.match(PLAY, /huella\.cedula_editado = (FOTOS|lote)\.cedula_editado/, 'ya no sube qué corrigió, y la política dice que sí');
   });
 });
 

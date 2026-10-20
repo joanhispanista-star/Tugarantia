@@ -423,7 +423,11 @@ describe('lo que encontró la revisión (21-sep-2026)', () => {
     const huerfana = abrirPlay({ almacen: almacen(), sesion: {} });
     assert.equal(huerfana.ev('FOTOS.cedula_reverso'), undefined,
       'quedó una foto sin dueño: se vería lista y no subiría nunca');
-    assert.equal(huerfana.ev('FOTOS.sensibles'), true, 'se perdió el consentimiento al sanear');
+    /* 20-oct-2026, revisión (F5) — y SIN el permiso. Hasta hoy esta línea
+       exigía lo contrario («se perdió el consentimiento al sanear»), y ese era
+       uno de los tres caminos por los que la autorización de una persona le
+       quedaba a la siguiente: las fotos se iban y la marca se quedaba. */
+    assert.notEqual(huerfana.ev('FOTOS.sensibles'), true, 'las fotos se soltaron y el permiso de su dueño se quedó para el siguiente');
   });
 
   test('la cédula de otra persona no se queda en el teléfono para siempre', () => {
@@ -446,8 +450,11 @@ describe('lo que encontró la revisión (21-sep-2026)', () => {
     P.ev("$('rTel').value='3001112233'; $('rClave').value='Perro.2026x'; $('rClave2').value='Perro.2026x'; siguientePaso();");
     P.almacen.play_registro_paso = JSON.stringify({ paso: 5, t: Date.now() - 50 * 3600e3 });
     const Q = abrirPlay({ almacen: P.almacen, sesion: {}, hash: '#registro' });
-    assert.match(Q.elems.cuerpo.innerHTML, /Paso 1 de/, 'retomó un registro de hace dos días sin preguntar');
-    assert.match(Q.elems.errReg.innerHTML, /empezarDeNuevo\(\)/, 'no le da forma de soltar el registro de otro');
+    /* 20-oct-2026, revisión (regla 3) — ya no se pinta el paso 1 con lo del
+       anterior y la salida encima: se pregunta antes, sin enseñar nada. */
+    assert.equal(/Paso \d+ de/.test(Q.elems.cuerpo.innerHTML), false, 'retomó un registro de hace dos días sin preguntar');
+    assert.match(Q.elems.cuerpo.innerHTML, /En este teléfono quedó un registro a medias\. ¿Es tuyo\?/);
+    assert.match(Q.elems.cuerpo.innerHTML, /onclick="empezarDeNuevo\(\)">Empezar de cero \(se borra\)/, 'no le da forma de soltar el registro de otro');
   });
 
   test('«Tu cuenta ya quedó creada» trae salida: en un teléfono prestado es de otro', () => {
