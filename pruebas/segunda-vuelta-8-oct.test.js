@@ -236,7 +236,9 @@ describe('1. el teléfono: la calculadora, el registro y la cámara', () => {
     const P = abrirPlay();
     const i = leer('play/index.html').indexOf('var cuerpoRegistro = {');
     assert.match(leer('play/index.html').slice(i, i + 600), /autorizacion_version: autorizacion\.version/);
-    assert.equal(U.VERSION_AUTORIZACION, '2026-10-15');   // 15-oct-2026: la fecha en que salió la política
+    /* 19-oct-2026: la política cambió otra vez (la cédula primero, el modelo del
+       teléfono), y la versión que viaja es la de ese texto. */
+    assert.equal(U.VERSION_AUTORIZACION, '2026-10-19');
     assert.ok(P);
   });
 });

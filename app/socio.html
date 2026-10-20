@@ -3666,7 +3666,7 @@ function insignias() {
    de agosto vuelve a ver esta pantalla la próxima vez que complete su perfil: aceptó
    algo que ya no es lo que está publicado. pruebas/responsable-nexeco.test.js exige
    que esta fecha y la de legal/privacidad.html sean la misma. */
-var VERSION_AUTORIZACION = '2026-10-15';   /* 15-oct-2026: la fecha en que salió la política (ver app/cuenta.js) */
+var VERSION_AUTORIZACION = '2026-10-19';   /* 19-oct-2026: la fecha de la política que dice lo del registro con la cédula primero y el modelo del teléfono (ver app/cuenta.js) */
 
 function llaveAutorizacion() { return 'tg_autorizacion_' + (S && S.cedula ? S.cedula : 'anon'); }
 
@@ -3686,6 +3686,10 @@ function llaveAutorizacion() { return 'tg_autorizacion_' + (S && S.cedula ? S.ce
    siga abierta; volver a verlo en la próxima visita es un mal menor que no verlo. */
 /* 15-oct-2026 — `desde` es lo que se le DICE al cliente («Desde el …»), y tiene
    que ser el día en que la política nueva salió al sitio. La llave no cambia. */
+/* 19-oct-2026 — y NO sube con VERSION_AUTORIZACION: este aviso dice desde
+   cuándo responde NEXECO S.A.S., y eso fue el 15. Decir «desde el 19» sería
+   mentir sobre el responsable. pruebas/responsable-nexeco.test.js lo amarra a
+   la fecha del punto 1 de la política, no a la versión. */
 var AVISO_RESPONSABLE = { desde: '2026-10-15', llave: 'tg_aviso_responsable_20261008_' };
 var AVISO_RESPONSABLE_CERRADO = false;
 
@@ -3728,9 +3732,12 @@ function pantallaAutorizacion() {
     '<p class="sub">La ley nos obliga a pedirte permiso antes de guardar nada tuyo, y nos parece bien: ' +
     'son tuyos. Esto se lee en un minuto.</p>' +
 
+    /* 19-oct-2026 — decía solo «por WhatsApp … Nada más», y desde 1aaa07d el
+       equipo puede escribirle primero por el chat de la app (CRM, «💬
+       Escribirle por la app»). Igual en el punto 4 de la política. */
     '<div class="aviso" style="margin-top:var(--e4)">' +
     '<b>Qué vamos a hacer con ellos.</b> Guardarlos para confirmar quién eres, decidir tu crédito, ' +
-    'llevar tu historial y escribirte por WhatsApp sobre tus pagos. Nada más. No los vendemos, ' +
+    'llevar tu historial y escribirte por WhatsApp o por el chat de la app sobre tus pagos. Nada más. No los vendemos, ' +
     'no los pasamos a nadie con fines comerciales y no te mandamos publicidad de otros.' +
     '</div>' +
 

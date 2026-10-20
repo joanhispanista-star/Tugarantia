@@ -528,7 +528,12 @@
      y la política dice el 15 porque el 15 fue cuando alguien pudo leerla. Las
      comparaciones con '2026-10-08' (ubicacion-ip.js, crm.html) son «mayor o
      igual» y siguen separando bien: la app vieja estampaba 2026-08-11. */
-  var VERSION_AUTORIZACION = '2026-10-15';
+  /* 19-oct-2026 — la política dice lo que hace el registro con la cédula primero
+     (el botón «Autorizo y escaneo mi cédula» en vez de la casilla, el avance
+     desde el paso del celular, la ubicación en el del rostro) y que el teléfono
+     informa su modelo (app/aparato.js). Quien se registre desde que salga acepta
+     ESE texto. Si sale otro día, esta fecha se mueve con la de la política. */
+  var VERSION_AUTORIZACION = '2026-10-19';
 
   /**
    * Guarda fecha, hora y VERSIÓN del texto aceptado. La versión es lo que

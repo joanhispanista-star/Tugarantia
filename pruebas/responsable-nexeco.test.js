@@ -69,6 +69,17 @@ const enPalabras = iso => { const [a, m, d] = iso.split('-').map(Number); return
 const PRIV = leer('legal/privacidad.html');
 const TERM = leer('legal/terminos.html');
 const DOCS = { 'legal/privacidad.html': PRIV, 'legal/terminos.html': TERM };
+const isoDe = palabras => {
+  const m = String(palabras || '').match(/^(\d{1,2}) de (\w+) de (\d{4})$/);
+  return m ? m[3] + '-' + String(MESES.indexOf(m[2]) + 1).padStart(2, '0') + '-' + m[1].padStart(2, '0') : '';
+};
+/* 19-oct-2026 — EL DÍA EN QUE NEXECO EMPEZÓ A RESPONDER, tal como lo dice el
+   punto 1 de la política. Hasta el 19 era la misma fecha que la versión de la
+   autorización y las pruebas usaban una por la otra. El 19 cambió la política
+   (la cédula primero, el modelo del teléfono) y NO el responsable: los avisos
+   del cambio de responsable siguen diciendo el 15, y lo que los amarra es esta
+   fecha, no la versión. */
+const DESDE_NEXECO = (visible(PRIV).match(/Desde el (\d{1,2} de \w+ de \d{4}) la responsable es NEXECO S\.A\.S\./) || [])[1] || '';
 
 /* Lo que identifica a Joan como persona natural.
    8-oct-2026 (segunda vuelta) — SU APELLIDO, SU CÉDULA Y SU DIRECCIÓN YA NO
@@ -387,8 +398,29 @@ describe('4. la política dice lo nuevo, y es verdad', () => {
       'app/cuenta.js guarda la autorización con otra versión: el que se registra queda aceptando un texto que no es el publicado');
     const socio = (leer('app/socio.html').match(/var VERSION_AUTORIZACION = '([\d-]+)'/) || [])[1];
     assert.equal(socio, iso, 'app/socio.html pide la autorización con la versión vieja');
-    assert.equal((leer('legal/terminos.html').match(/Última actualización: ([^<]+)</) || [])[1], enPalabras(iso),
-      'los términos y la política se publicaron en fechas distintas');
+  });
+
+  /* 19-oct-2026 — decía «los términos y la política se publicaron en fechas
+     distintas» si la fecha de los términos no era la de la política. Valía
+     mientras los dos cambiaban juntos (el 15, con NEXECO). El 19 cambió solo la
+     política, y mover la fecha de los términos sin cambiarlos sería afirmar un
+     cambio que no hubo. Lo que se vigila ahora es lo que esa igualdad cuidaba:
+     que los dos digan el mismo día para NEXECO, y que ninguno mueva su fecha sin
+     decir qué cambió ese día (ni cambie sin moverla: la lista nueva lleva la
+     fecha nueva). */
+  test('cada documento dice qué cambió el día de su fecha, y los dos dicen el mismo día para NEXECO', () => {
+    [['legal/privacidad.html', PRIV], ['legal/terminos.html', TERM]].forEach(([f, doc]) => {
+      const fecha = (doc.match(/Última actualización: ([^<]+)</) || [])[1];
+      assert.ok(fecha, f + ' perdió su fecha');
+      const listas = [...visible(doc).matchAll(/Lo que cambió el (\d{1,2} de \w+ de \d{4}):/g)].map(m => m[1]);
+      assert.ok(listas.length, f + ' no dice qué cambió');
+      assert.equal(listas[0], fecha.trim(), f + ' tiene fecha ' + fecha + ' y la primera lista de cambios es la del ' + listas[0]);
+    });
+    assert.ok(DESDE_NEXECO, 'la política ya no dice desde cuándo responde NEXECO S.A.S. (punto 1)');
+    assert.match(visible(TERM), new RegExp('Los créditos que recibiste antes del ' + DESDE_NEXECO + ' no cambian'),
+      'los términos y la política dicen días distintos para el cambio a NEXECO');
+    assert.ok(U.VERSION_AUTORIZACION >= isoDe(DESDE_NEXECO),
+      'la versión de la autorización es anterior a NEXECO: el que se registra aceptaría un texto que no la nombra');
   });
 
   test('el correo es obligatorio y la dirección opcional, como en el formulario (CAMPOS)', () => {
@@ -449,9 +481,15 @@ describe('4. la política dice lo nuevo, y es verdad', () => {
     const s = visible((PRIV.match(/<section id="cambios">([\s\S]*?)<\/section>/) || [])[1] || '');
     /* 15-oct-2026: la versión se escribió el 8 pero salió el 15, y la fecha que se
        dice es la de salida (ver legal/privacidad.html). */
+    /* 19-oct-2026: la lista del 15 se QUEDA debajo de la del 19. El aviso del
+       cambio de responsable («mira qué cambió») trae aquí a quien todavía no lo
+       leyó, y lo que busca es lo del 15: NEXECO. */
     assert.match(s, /Lo que cambió el 15 de octubre de 2026/);
     assert.match(s, /NEXECO S\.A\.S\./);
     assert.match(s, /dentro de la app o por WhatsApp/);
+    assert.match(s, /Lo que cambió el 19 de octubre de 2026/, 'la versión del 19 no dice qué cambió');
+    assert.ok(s.indexOf('Lo que cambió el 19 de octubre de 2026') < s.indexOf('Lo que cambió el 15 de octubre de 2026'),
+      'lo más nuevo va primero');
   });
 });
 
@@ -515,8 +553,18 @@ describe('5. el aviso a los socios: en la app y en el CRM', () => {
     const S = sinComentarios(leer('app/socio.html'));
     const f = S.slice(S.indexOf('function avisoResponsable('), S.indexOf('function cerrarAvisoResponsable('));
     assert.match(f, /S\.origen === 'panel'/, 'el aviso le saldría al equipo, y su «Entendido» se lo escondería al cliente');
+    /* 19-oct-2026 — contra el día en que empezó NEXECO (punto 1 de la política),
+       no contra la versión de la autorización: la política cambió el 19 y el
+       responsable no, y un aviso «desde el 19» mentiría sobre quién responde.
+       Se vigila también el de play/, que tiene su propia constante. */
     const desde = (S.match(/AVISO_RESPONSABLE = \{ desde: '([\d-]+)'/) || [])[1];
-    assert.equal(desde, U.VERSION_AUTORIZACION, 'el aviso dice una fecha y la política otra');
+    assert.ok(DESDE_NEXECO, 'la política ya no dice desde cuándo responde NEXECO S.A.S.');
+    assert.equal(desde, isoDe(DESDE_NEXECO), 'el aviso dice una fecha y la política otra');
+    const play = sinComentarios(leer('play/index.html'));
+    const desdePlay = (play.match(/AVISO_RESPONSABLE_PLAY = \{ desde: '([\d-]+)'/) || [])[1];
+    assert.equal(desdePlay, isoDe(DESDE_NEXECO), 'el aviso de play/ dice una fecha y la política otra');
+    const fn = play.slice(play.indexOf('function avisoResponsablePlay('), play.indexOf('function cerrarAvisoResponsablePlay('));
+    assert.ok(fn.indexOf('Desde el ' + DESDE_NEXECO) >= 0, 'el texto del aviso de play/ no dice el día de NEXECO');
   });
 
   test('el CRM tiene la plantilla de WhatsApp, sin direcciones pegadas y en la voz de siempre', () => {
@@ -527,7 +575,8 @@ describe('5. el aviso a los socios: en la app y en el CRM', () => {
     const linea = DEF.slice(i).split('\n')[1];
     const m = linea.match(/m:'((?:[^'\\]|\\.)*)'/)[1];
     assert.match(m, /NEXECO S\.A\.S\./);
-    assert.ok(m.indexOf(enPalabras(U.VERSION_AUTORIZACION)) >= 0, 'la plantilla no dice desde cuándo, o dice otra fecha');
+    /* 19-oct-2026 — el día de NEXECO, no la versión de la política (ver arriba). */
+    assert.ok(DESDE_NEXECO && m.indexOf(DESDE_NEXECO) >= 0, 'la plantilla no dice desde cuándo, o dice otra fecha');
     assert.match(m, /Te escribimos/);
     assert.ok(!/https?:\/\//.test(m), 'una dirección escrita a mano se queda vieja');
     const tokens = [...m.matchAll(/\{(\w+)\}/g)].map(x => x[1]);

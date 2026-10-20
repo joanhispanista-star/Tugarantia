@@ -109,10 +109,32 @@ td.ob{white-space:nowrap;color:var(--gris)}
 <div class="cab"><div class="wrap">
   <h1>Qué hacemos con tus datos</h1>
   <p>Política de tratamiento de datos personales · Ley 1581 de 2012 y Decreto 1377 de 2013<br>
-     Última actualización: 15 de octubre de 2026</p>
+     Última actualización: 19 de octubre de 2026</p>
 </div></div>
 
 <main><div class="wrap">
+
+  <!-- 19-oct-2026 — LO QUE EL CÓDIGO DEL 19 VOLVIÓ FALSO, Y SE CORRIGE AQUÍ.
+       · El registro empieza por la cédula (play/index.html, b508c96): la autorización de
+         las fotos y la ubicación ya no es una casilla del segundo paso sino el botón
+         «📷 Autorizo y escaneo mi cédula», con el texto a la vista, al lado de «Prefiero
+         escribir mis datos». En el último paso queda una casilla que la confirma o la
+         quita (y quitarla borra las fotos antes de mandar nada). El avance se publica
+         después del paso del celular, que ya no es el primero, y la ubicación se pide en
+         el paso del rostro. Esta página decía «paso 2», «casilla» y «al registrarte».
+       · Los datos técnicos: decía que el celular no manda nada, y desde 706146a el
+         navegador del teléfono informa el modelo, las versiones y si se entró por la app
+         (app/aparato.js → aparato_anotar), al registrarse, al pedir y al aceptar.
+       · La lectura de la cédula llena el formulario: ya no se compara «con lo que
+         escribiste» sino con lo que dejaste escrito al revisar, y se anota qué corregiste.
+       · El equipo puede escribirle primero al cliente por el chat de la app (1aaa07d).
+       · La IP por ipwho.is se consulta desde la versión del 15-oct en adelante
+         (app/ubicacion-ip.js compara «desde el 8-oct»): decir «esta versión» habría
+         dejado por fuera, en el papel, a quien se registró del 15 al 19.
+       La fecha de arriba es la de PUBLICACIÓN (regla del 15-oct): si esto sale al sitio
+       otro día, se mueve aquí, en «Lo que cambió», y en VERSION_AUTORIZACION de
+       app/cuenta.js y app/socio.html. pruebas/la-politica-del-19-oct.test.js amarra cada
+       frase nueva al código que la hace verdad. -->
 
   <!-- 8-oct-2026 — VERSIÓN NUEVA, Y POR QUÉ CAMBIÓ TANTO.
        · El responsable pasó de la persona natural que fundó el servicio a NEXECO S.A.S.
@@ -228,13 +250,13 @@ td.ob{white-space:nowrap;color:var(--gris)}
           <tr><td><b>A qué te dedicas, cuánto ganas y cuánto se te va fijo al mes, y qué día te pagan</b></td><td>Calcular cuánto puedes pagar sin ahogarte, y que tus fechas de pago caigan después de que te paguen.</td><td class="ob">Sí</td></tr>
           <tr><td><b>Dónde trabajas, tu cargo y cuánto llevas ahí</b></td><td>Dar contexto al ingreso que declaras.</td><td class="ob">No</td></tr>
           <tr><td><b>Dos referencias: su nombre, qué son tuyos y su celular</b></td><td>Saber, al evaluar tu solicitud, que hay gente que te conoce. Lee la nota de abajo.</td><td class="ob">Sí</td></tr>
-          <tr><td><b>La foto de tu cédula, la de tu cara y la ubicación de tu celular</b></td><td>Confirmar que eres tú. Son datos sensibles y van con su propia casilla: están explicados en el <a href="#sensibles">punto 3</a>.</td><td class="ob">No</td></tr>
+          <tr><td><b>La foto de tu cédula, la de tu cara y la ubicación de tu celular</b></td><td>Confirmar que eres tú. Son datos sensibles y van con su propia autorización, aparte de la general: están explicados en el <a href="#sensibles">punto 3</a>.</td><td class="ob">No</td></tr>
           <tr><td><b>Tu Nequi o llave de pago</b></td><td>Enviarte el dinero y recibir tus pagos.</td><td class="ob">No</td></tr>
           <tr><td><b>Lo que pides y lo que pactamos</b> (montos, fechas, propuestas, pagos)</td><td>Es tu historial: lo que pediste, lo que te propusimos, lo que aceptaste y lo que pagaste, y la garantía que eso te deja.</td><td class="ob">Sale del uso</td></tr>
           <tr><td><b>La constancia de las condiciones que aceptas</b></td><td>Cuando aceptas una propuesta en la app, guardamos una copia de «Las condiciones de este crédito» tal como las viste, con la fecha, la hora, la cuenta desde la que las aceptaste y los datos técnicos de esa conexión (IP y aparato). Es la prueba de lo que pactamos, para ti y para nosotros.</td><td class="ob">Sí, si aceptas</td></tr>
-          <tr><td><b>Tu avance mientras te registras</b> (en qué paso vas, tus nombres y apellidos, tu tipo y número de documento, tu fecha de nacimiento, tu celular y tu correo)</td><td>Que nuestro equipo pueda ver dónde te quedaste y escribirte si te atascas. Se manda desde el paso 2, después de que lo autorizas tocando «Continuar» en el paso 1, y <b>se borra solo a las dos horas</b>. No incluye tu contraseña, tus referencias, tu ubicación ni ninguna foto.</td><td class="ob">Desde el paso 2</td></tr>
+          <tr><td><b>Tu avance mientras te registras</b> (en qué paso vas, tus nombres y apellidos, tu tipo y número de documento, tu fecha de nacimiento, tu celular y tu correo)</td><td>Que nuestro equipo pueda ver dónde te quedaste y escribirte si te atascas. Se manda después de que escribes tu celular y tu contraseña y tocas «Continuar» en ese paso —con eso lo autorizas—, y <b>se borra solo a las dos horas</b>. Antes de ese paso (la foto de tu cédula y la revisión de tus datos) no se manda nada. No incluye tu contraseña, tus referencias, tu ubicación ni ninguna foto.</td><td class="ob">Después del paso de tu celular</td></tr>
           <tr><td><b>Tu autorización</b></td><td>La fecha, la hora y la versión de esta política que aceptaste, para poder probarla.</td><td class="ob">Sí</td></tr>
-          <tr><td><b>Los datos técnicos de tu conexión al registrarte</b> (modelo del celular, sistema, navegador y dirección IP)</td><td>Seguridad: reconocer si varias cuentas salen del mismo aparato y detectar a quien se registra con datos que no son suyos. Los anota nuestro servidor de la propia conexión; no los manda tu celular.</td><td class="ob">Se anotan solos</td></tr>
+          <tr><td><b>Los datos técnicos de tu celular y de tu conexión al registrarte, al pedir y al aceptar</b> (dirección IP; marca y modelo del celular, versión del sistema y del navegador, y si entraste por nuestra app, por el navegador o desde dentro de otra app, como Facebook o TikTok)</td><td>Seguridad: reconocer si varias cuentas salen del mismo aparato y detectar a quien se registra con datos que no son suyos. La IP y lo que anuncia tu navegador los anota nuestro servidor de la propia conexión; el modelo, las versiones y por dónde entraste los informa el navegador de tu celular. En iPhone el modelo no se puede saber. Son datos que un celular puede falsear, así que no deciden nada por sí solos.</td><td class="ob">Se anotan solos</td></tr>
           <tr><td><b>Tu ubicación aproximada por internet</b></td><td>La ciudad aproximada de la red desde la que te registraste. Está explicada en el <a href="#sensibles">punto 3</a>.</td><td class="ob">Se calcula sola</td></tr>
           <tr><td><b>Cuándo juntamos tu cuenta con tu historial</b></td><td>Si ya eras cliente, alguien de nuestro equipo junta tu cuenta de la app con tu historial después de revisar que eres tú. Queda anotado cuándo, con qué cuenta y celular, qué decía la revisión automática y, si se deshace, cuándo y por qué. Si te damos una contraseña nueva —porque olvidaste la tuya, o porque alguien abrió una cuenta con tu número antes que tú—, queda anotado a qué celular y cuándo; la contraseña no. Sirve para que nadie vea un historial que no es suyo, y para poder demostrarlo.</td><td class="ob">Se anota solo</td></tr>
           <tr><td><b>Un recado sin entrar</b> (por ejemplo, si olvidaste tu contraseña)</td><td>Ayudarte a volver a entrar. Guardamos solo tu celular y la nota corta que escribas.</td><td class="ob">Si lo dejas</td></tr>
@@ -257,18 +279,32 @@ td.ob{white-space:nowrap;color:var(--gris)}
     <h2>3. Tu cédula, tu cara y tu ubicación</h2>
     <p>Estos van aparte porque la ley los trata aparte: la foto de tu cara es un dato
       biométrico, y tu ubicación dice dónde estás. Las fotos y la ubicación de tu celular
-      llevan <b>su propia casilla de autorización</b>, que es opcional de verdad: si no la
-      marcas, tu cuenta se abre igual y la cámara no se enciende para esto. La ley te da
-      derecho a no darlos, y a que nadie te obligue ni te condicione por eso.</p>
+      llevan <b>su propia autorización</b>, aparte de la general: la das tocando «Autorizo y
+      escaneo mi cédula» en el primer paso del registro, con este permiso escrito a la vista,
+      y la puedes quitar en el último paso, antes de abrir tu cuenta: si la quitas, las fotos
+      que tomaste y tu ubicación se borran de tu celular y no nos llega ninguna. Es opcional
+      de verdad: si tocas «Prefiero escribir mis datos», tu cuenta se abre igual y la cámara no
+      se enciende para esto. La ley te da derecho a no darlos, y a que nadie te obligue ni te
+      condicione por eso.</p>
+    <!-- 19-oct-2026 — decía «su propia casilla de autorización … si no la marcas». Desde
+         b508c96 la autorización es el botón del primer paso (pasoDocumento); la casilla que
+         queda es la del último paso (pasoPermiso, autSensible), que sale marcada si tocaste
+         el botón y, desmarcada, borra las fotos y el GPS antes de enviarRegistro. -->
 
     <h3>La foto de tu cédula</h3>
     <p>Por delante y por detrás, para confirmar que la cédula es tuya y que nadie pide crédito
-      con tu nombre. En la foto de atrás, tu celular intenta leer el código de barras: de ahí
-      guardamos tu número, tus nombres, tus apellidos y tu fecha de nacimiento, y los comparamos
-      con lo que escribiste. <b>El sexo y el tipo de sangre (RH)</b>, que también vienen en ese
+      con tu nombre. En la foto de atrás, tu celular intenta leer el código de barras: con eso
+      te dejamos escritos tus nombres, tus apellidos y tu número de documento, y tú solo
+      corriges lo que haya quedado mal. Guardamos lo que se leyó —tu número, tus nombres, tus
+      apellidos y tu fecha de nacimiento— y qué datos corregiste, para compararlo con lo que
+      dejaste escrito. <b>El sexo y el tipo de sangre (RH)</b>, que también vienen en ese
       código, <b>no los guardamos como datos</b>: se descartan en tu celular. Pero están
-      impresos en la cédula, así que <b>se ven en las fotos</b> que nos mandas si marcas la
-      casilla.</p>
+      impresos en la cédula, así que <b>se ven en las fotos</b> que nos mandas si nos das esa
+      autorización.</p>
+    <!-- 19-oct-2026 — decía «y los comparamos con lo que escribiste»: con la cédula primero,
+         la lectura LLENA el formulario (anotarCedulaLeida) y la persona corrige; lo que sube
+         es la lectura (huella.cedula_leida) y qué campos tocó (huella.cedula_editado), que
+         esta página nunca había nombrado. -->
     <!-- 15-oct-2026 — decía que se descartaban «antes de enviarnos nada», y salen
          impresos en la foto de la cédula que sí se sube con la casilla marcada. -->
 
@@ -282,11 +318,16 @@ td.ob{white-space:nowrap;color:var(--gris)}
       cara: lo que el programa saca de ella se descarta al terminar la comparación, y el
       parecido lo decide una persona, no una máquina.</p>
     <p class="sub">Si completas tu perfil desde la app, la foto que te pedimos es una selfie
-      sosteniendo tu cédula, para lo mismo: confirmar que la cédula es tuya.</p>
+      sosteniendo tu cédula, para lo mismo: confirmar que la cédula es tuya. Ahí la autorización
+      de las fotos y la ubicación es una casilla aparte, también opcional.</p>
 
     <h3>La ubicación de tu celular</h3>
-    <p>Si marcaste la casilla, al registrarte tu celular nos dice <b>una sola vez</b> dónde
-      estás. No te seguimos: no hay ubicación en segundo plano ni cuando la app está cerrada.</p>
+    <p>Si nos diste esa autorización, en el paso de la foto de tu cara tu celular nos dice
+      <b>una sola vez</b> dónde estás. No te seguimos: no hay ubicación en segundo plano ni
+      cuando la app está cerrada.</p>
+    <!-- 19-oct-2026 — decía «si marcaste la casilla, al registrarte». La ubicación se pide
+         en el paso del rostro, después de la selfie o al seguir sin ella (pedirGpsSiFalta),
+         nunca en el de la cédula: lo primero no pueden ser dos permisos a la vez. -->
 
     <h3>Tu ubicación aproximada por internet (esta no la pide tu celular)</h3>
     <p>Al registrarte, nuestro servidor anota la dirección IP de tu conexión. Cuando alguien de
@@ -295,8 +336,8 @@ td.ob{white-space:nowrap;color:var(--gris)}
       IP, y anota la ciudad y el departamento aproximados: por ejemplo, «Bogotá,
       Cundinamarca». El resultado se anota para no volver a consultar la misma IP. A ipwho.is
       le llega <b>solo la dirección IP</b>: ni tu nombre, ni tu cédula, ni tu celular. Solo se
-      consulta la IP de quien se registró aceptando esta versión de la política; la de quien se
-      registró antes, no.</p>
+      consulta la IP de quien se registró aceptando esta política en su versión del 15 de
+      octubre de 2026 o en una posterior; la de quien se registró antes, no.</p>
     <p>Es aproximada de verdad: dice dónde está la red de tu operador, no tu casa, y a veces
       marca otra ciudad. La usamos para lo mismo que los datos técnicos: detectar a quien se
       registra con datos ajenos. Por eso tu dirección pasó a ser opcional.</p>
@@ -310,8 +351,10 @@ td.ob{white-space:nowrap;color:var(--gris)}
       <li>Mandarte la propuesta de cada crédito con sus condiciones, y guardar la constancia de
         lo que aceptaste.</li>
       <li>Llevar tu historial: lo que has pagado, la garantía que has construido y tu nivel.</li>
-      <li>Escribirte por WhatsApp o por correo sobre tus pagos, tus vencimientos y lo que llevas
-        construido.</li>
+      <!-- 19-oct-2026 — el equipo puede escribirle primero al cliente por el chat de la app
+           («💬 Escribirle por la app» en el CRM, 1aaa07d); antes el chat solo contestaba. -->
+      <li>Escribirte por WhatsApp, por el chat de la app o por correo sobre tus pagos, tus
+        vencimientos y lo que llevas construido.</li>
       <li>Gestionar el cobro si te atrasas, respetando la Ley 2300 de 2023 en horarios, canales
         y trato.</li>
       <li>Cumplir con las obligaciones legales y contables que nos correspondan.</li>
@@ -400,6 +443,22 @@ td.ob{white-space:nowrap;color:var(--gris)}
       cambio te afecta de verdad, te avisamos dentro de la app o por WhatsApp antes de que
       empiece a regir o, a más tardar, el día en que empieza. Y si cambia para qué usamos tus
       datos, te pedimos de nuevo tu autorización.</p>
+    <!-- 19-oct-2026 — la lista del 15 se queda debajo: el aviso del cambio de responsable
+         (app/socio.html y play/, «mira qué cambió») trae aquí a quien todavía no lo ha
+         leído, y lo que busca es esa lista. Para qué se usan tus datos no cambió. -->
+    <div class="nota azul">
+      <b>Lo que cambió el 19 de octubre de 2026:</b>
+      <ul>
+        <li>El registro empieza por tu cédula: el permiso para las fotos y la ubicación lo das
+          tocando «Autorizo y escaneo mi cédula», o sigues sin darlo con «Prefiero escribir mis
+          datos»; ya no es una casilla (puntos 2 y 3).</li>
+        <li>Tu avance mientras te registras se manda después del paso de tu celular, y la
+          ubicación de tu celular se pide en el paso de la foto de tu cara (puntos 2 y 3).</li>
+        <li>Al registrarte, al pedir y al aceptar, el navegador de tu celular nos informa su marca
+          y modelo, la versión del sistema y del navegador, y por dónde entraste (punto 2).</li>
+        <li>Nuestro equipo también te puede escribir por el chat de la app (punto 4).</li>
+      </ul>
+    </div>
     <div class="nota azul">
       <b>Lo que cambió el 15 de octubre de 2026:</b>
       <ul>
@@ -417,8 +476,9 @@ td.ob{white-space:nowrap;color:var(--gris)}
         <li>A tus referencias no las llamamos para cobrarte (punto 2).</li>
       </ul>
     </div>
-    <p class="sub">Esta versión rige desde el 15 de octubre de 2026; la primera rigió desde el 4
-      de agosto de 2026. Esta política se rige por las leyes de la República de Colombia.</p>
+    <p class="sub">Esta versión rige desde el 19 de octubre de 2026; la anterior rigió desde el
+      15 de octubre de 2026, y la primera, desde el 4 de agosto de 2026. Esta política se rige
+      por las leyes de la República de Colombia.</p>
   </section>
 
 </div></main>

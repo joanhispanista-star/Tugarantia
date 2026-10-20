@@ -1702,7 +1702,14 @@
    portada dibujada por un ilustrador (play/gente/*.svg, NUEVOS: los .svg se
    sirven desde la cache, asi que sin precargarlos el primer arranque sin senal
    pintaria una imagen rota). Sin la cache nueva, el celular de William seguiria
-   con el crm.html viejo, sin su boton de clave. */
+   con el crm.html viejo, sin su boton de clave.
+   Y el registro empieza por la cedula: play/index.html y app/escaner-cedula.js
+   tienen que llegar JUNTOS (la pagina nueva llama EC.revisarExpedicion, que el
+   escaner viejo no tiene, y EC.fotosPertenecen con el intento, que el viejo no
+   conoce: la cedula escaneada antes del celular nunca saldria «Listo» ni
+   subiria), con la politica del
+   19-oct (legal/privacidad.html, VERSION_AUTORIZACION 2026-10-19 en
+   app/cuenta.js y app/socio.html), que dice lo que ese registro hace. */
 const CACHE = 'tugarantia-v138';
 const BASE = new URL('./', self.location).pathname;
 

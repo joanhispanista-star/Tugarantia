@@ -17,7 +17,12 @@ sw.js                   Un solo service worker para todo el sitio.
 
 legal/
   terminos.html         Términos y condiciones del servicio.
-  privacidad.html       Política de datos personales (Ley 1581 de 2012).
+  privacidad.html       Política de datos personales (Ley 1581 de 2012). Versión
+                        del 19-oct-2026 (la cédula primero, el modelo del
+                        teléfono). Si cambia, sube VERSION_AUTORIZACION en
+                        app/cuenta.js y app/socio.html a la fecha en que SALE
+                        al sitio; pruebas/la-politica-del-19-oct.test.js amarra
+                        cada frase al código.
 
 app/                    LA APP DEL SOCIO — la que ve el cliente.
   socio.html            Una sola página. Voz: tuteo colombiano. Desde el 7-oct-2026
