@@ -1709,7 +1709,13 @@
    conoce: la cedula escaneada antes del celular nunca saldria «Listo» ni
    subiria), con la politica del
    19-oct (legal/privacidad.html, VERSION_AUTORIZACION 2026-10-19 en
-   app/cuenta.js y app/socio.html), que dice lo que ese registro hace. */
+   app/cuenta.js y app/socio.html), que dice lo que ese registro hace. 
+   20-oct-2026, tambien en v138 (sigue sin salir): LA CEDULA ES DE QUIEN DICE
+   SU DOCUMENTO. La revision encontro que, con la cedula antes del celular, en
+   un telefono prestado la cedula de una persona podia subir a la cuenta de
+   otra. play/index.html y app/escaner-cedula.js vuelven a cambiar juntos: sin
+   la cache nueva, un telefono con el escaner viejo seguiria atando las fotos
+   al «intento» y no a la persona.*/
 const CACHE = 'tugarantia-v138';
 const BASE = new URL('./', self.location).pathname;
 
