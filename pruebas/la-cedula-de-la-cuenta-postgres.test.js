@@ -17,10 +17,14 @@
  *     código no pisan las que entraron con código; sin registro no se sabe;
  *   · V6: la cédula de María escrita con el celular de Pedro ya no le tumba
  *     el registro a María, y la misma persona no se duplica;
- *   · 20-oct-2026, buena fe (A1, A2): quien corrige su documento entra como
- *     fila nueva y su cédula pasa la reja; una fila escrita sin sesión con
- *     otro documento ya no le rechaza a la titular la suya, y cuando no se
- *     sabe cuál es el documento de la cuenta el motivo es «en_duda».
+ *   · 20-oct-2026, buena fe (A1): una fila escrita sin sesión con otro
+ *     documento ya no le rechaza a la titular la suya, y cuando no se sabe
+ *     cuál es el documento de la cuenta el motivo es «en_duda»;
+ *   · 20-oct-2026, cierre (B1): sin sesión, quien sabe el celular de alguien
+ *     con su fila en la bandeja NO le escribe otra con otro documento (el
+ *     atajo vuelve a mirar solo el teléfono). Por eso quien corrige su
+ *     documento después de la primera fila (A2) no entra: molestia aceptada,
+ *     que el teléfono dice con honestidad («No pudimos confirmar…»).
  *
  * Sin TG_PG_BIN se salta (la parte que lee el archivo corre siempre). Las dos
  * cédulas son de mentira: las de pruebas/la-persona-no-el-intento.test.js.
@@ -59,6 +63,19 @@ describe('el archivo de la migración', () => {
     assert.match(SQL, /position\('cedula_rechazada' in cuerpo\) > 0/);
     assert.match(SQL, /position\('cedula_repetida_al_registrarse' in cuerpo\) > 0/);
     assert.match(SQL, /add column if not exists documento/);
+  });
+
+  test('B1 — el atajo de las dos puertas vuelve a mirar SOLO el teléfono: ni la cédula sola (V6) ni el par (teléfono, cédula)', () => {
+    /* 20-oct-2026, cierre — sin comentarios, para que una línea explicada no
+       cuente como código. */
+    const codigo = SQL.replace(/--[^\n]*/g, '');
+    assert.equal(/telefono\s*=\s*cel\s+and\s+cedula\s*=\s*ced/.test(codigo), false,
+      'el atajo mira (teléfono, cédula): cualquiera sin sesión escribe otra fila con tu celular y otro documento');
+    assert.equal((codigo.match(/where\s+estado\s*=\s*'nuevo'\s+and\s+telefono\s*=\s*cel\s*\)\s*then/g) || []).length, 2,
+      'alguna de las dos puertas no quedó con el atajo solo por teléfono');
+    assert.equal(/otro_documento_mismo_celular'\s*,\s*jsonb_build_object/.test(codigo), false, 'quedó la marca de la corrección (A2), que era del atajo por (teléfono, cédula)');
+    /* El borrador de la tarde, si alguien lo corrió, no pasa por «ya aplicada». */
+    assert.match(codigo, /position\('otro_documento_mismo_celular' in cuerpo\) > 0 then\s+raise exception/);
   });
 
   test('las huellas son las de los cuerpos que dejaron sus migraciones', () => {
@@ -260,45 +277,68 @@ describe('la cédula de la cuenta, en un PostgreSQL de verdad', { skip: !BIN && 
     assert.ok(json("select huella from public.registros where telefono = '" + celM + "'").cedula_repetida_al_registrarse);
   });
 
-  /* 20-oct-2026, buena fe — la verificación del rediseño confirmó que el
-     atacante ya no cruza cédulas, pero que la persona de buena fe perdía su
-     propia cédula en la base (A1, A2 de la verificación). Las tres fallan con
-     la migración de la mañana (5724dd5). */
-  test('A2 — QUIEN CORRIGE SU DOCUMENTO NO PIERDE SU CÉDULA: la corrección entra como fila nueva, marcada y sin pisar la vieja, y la reja acepta su lectura', () => {
+  /* 20-oct-2026, cierre (B1) — la verificación de la tanda de buena fe mostró
+     que el atajo por (teléfono, cédula) de la tarde dejaba que cualquiera, SIN
+     SESIÓN y sabiendo un celular, le metiera a esa persona otra fila con otro
+     documento; esa fila era la última, la que leen solicitar_a_la_medida,
+     solicitar_primer_credito y solicitar_platachat. Falla con la migración de
+     la tarde (cdd7707). */
+  test('B1 — SIN SESIÓN, QUIEN SABE EL CELULAR DE ANA NO LE CAMBIA LA IDENTIDAD DE SU SOLICITUD: con su fila en la bandeja, otro documento no entra, y la última fila sigue siendo la suya', () => {
+    const cel = '3201110020';
+    const ana = { documento: '1029384756', direccion: 'Carrera 7 # 12-30', ref1_nombre: 'Luz', ref1_celular: '3002223344' };
+    assert.equal(json("select public.registrar_abierto('" + cel + "', 'Ana Torres', '1029384756', " + jb(ana) + ')').ok, true);
+    /* Un tercero, con la clave anónima y sin sesión: el celular de Ana, otro
+       nombre, otro documento, otra dirección y otras referencias. */
+    const otro = { documento: '80999888', direccion: 'Calle falsa 123', ref1_nombre: 'Cómplice', ref1_celular: '3159990000' };
+    const a = json("select public.registrar_abierto('" + cel + "', 'Otro Nombre', '80999888', " + jb(otro) + ')');
+    assert.deepEqual(a, { ok: true }, 'la respuesta tiene que ser la misma (no delata quién está en la bandeja)');
+    const b = json("select public.registrar_abierto_app('" + cel + "', 'Otro Nombre', '80999888', " + jb(otro) + ", 'platachat')");
+    assert.deepEqual(b, { ok: true });
+    assert.equal(sql("select count(*) from public.registros where telefono = '" + cel + "'"), '1',
+      'entró una fila escrita sin sesión con el celular de Ana y otro documento');
+    /* La fila que toman las solicitudes (la última del celular) es la de Ana. */
+    const ultima = sql("select nombre || '|' || cedula || '|' || (datos ->> 'direccion') from public.registros" +
+      " where right(public.solo_digitos(telefono), 10) = '" + cel + "' order by creado_en desc, id desc limit 1");
+    assert.equal(ultima, 'Ana Torres|1029384756|Carrera 7 # 12-30', 'la solicitud de Ana le llegaría a Joan con la identidad de otro');
+    assert.equal(/Calle falsa|Cómplice|80999888/.test(sql("select string_agg(datos::text || nombre || cedula, ' ') from public.registros where telefono = '" + cel + "'")), false);
+  });
+
+  /* 20-oct-2026, buena fe — A2 era: quien corrige su documento después de la
+     primera fila perdía su cédula. 20-oct-2026, cierre — con el atajo solo por
+     teléfono (B1), esa corrección no entra: es una MOLESTIA ACEPTADA. Lo que
+     se cuida es que la fila vieja no se toque, que nada de esa lectura se
+     guarde, y que el teléfono no le afirme que la cédula no es suya (eso lo
+     mira la-persona-de-buena-fe.test.js: «No pudimos confirmar…» y el chat). */
+  test('A2 (molestia aceptada) — QUIEN CORRIGE SU DOCUMENTO DESPUÉS DE LA PRIMERA FILA: la corrección no entra, la fila vieja no se toca, y la reja no guarda una cédula que no puede confirmar', () => {
     const cel = '3201110001';
     /* La primera vez tecleó mal su documento (la bandeja entró; la cuenta no). */
     const r1 = json("select public.registrar_abierto('" + cel + "', 'María Rodríguez', '52123465', '{\"documento\":\"52123465\"}'::jsonb)");
     assert.equal(r1.ok, true);
     /* Escanea su cédula, el documento queda bien, y vuelve a tocar «Abrir mi cuenta». */
     const r2 = json("select public.registrar_abierto('" + cel + "', 'María Rodríguez', '52123456', '{\"documento\":\"52123456\"}'::jsonb)");
-    assert.equal(r2.ok, true);
-    assert.equal(sql("select string_agg(cedula, ',' order by id) from public.registros where telefono = '" + cel + "'"), '52123465,52123456',
-      'la corrección no entró a la bandeja: la reja va a comparar su cédula con la fila vieja');
-    assert.equal(sql("select coalesce(huella::text, '') || '|' || (datos ->> 'documento') from public.registros where telefono = '" + cel + "' and cedula = '52123465'"),
+    assert.deepEqual(r2, { ok: true });
+    assert.equal(sql("select string_agg(cedula, ',' order by id) from public.registros where telefono = '" + cel + "'"), '52123465',
+      'la corrección entró como fila nueva: por ahí cualquiera sin sesión cambia la identidad de la solicitud (B1)');
+    assert.equal(sql("select coalesce(huella::text, '') || '|' || (datos ->> 'documento') from public.registros where telefono = '" + cel + "'"),
       '|52123465', 'la fila vieja se tocó');
-    assert.ok(json("select huella from public.registros where telefono = '" + cel + "' and cedula = '52123456'").otro_documento_mismo_celular,
-      'la corrección no quedó marcada para Joan');
-    /* El doble toque sigue sin duplicar. */
-    json("select public.registrar_abierto('" + cel + "', 'María Rodríguez', '52123456', '{\"documento\":\"52123456\"}'::jsonb)");
-    assert.equal(sql("select count(*) from public.registros where telefono = '" + cel + "'"), '2', 'el doble toque duplicó la fila');
-    /* Y su cédula, con su lectura, entra. */
-    const r = subir(cel, { cedula_frente: 'data:image/jpeg;base64,FRENTEMARIA', cedula_reverso: 'data:image/jpeg;base64,RESPALDOMARIA' },
-      { cedula_leida: LECTURA('0052123456', 'MARIA JOSE') });
-    assert.equal(r.ok, true, 'la reja le rechazó a María su propia cédula: ' + JSON.stringify(r));
-    assert.deepEqual(r.guardados.sort(), ['cedula_frente', 'cedula_reverso']);
-    assert.equal(fotoDe(cel, 'cedula_reverso'), 'data:image/jpeg;base64,RESPALDOMARIA|52123456');
-    assert.equal(json("select huella from public.registros where telefono = '" + cel + "' and cedula = '52123456'").cotejo.documento, 'igual');
+    /* Su cédula, con su lectura, no se puede confirmar contra esa fila: no se guarda nada de esa llamada. */
+    const r = subir(cel, { cedula_frente: 'data:image/jpeg;base64,FRENTEMARIA', cedula_reverso: 'data:image/jpeg;base64,RESPALDOMARIA',
+      selfie: 'data:image/jpeg;base64,CARA' }, { cedula_leida: LECTURA('0052123456', 'MARIA JOSE'), gps: { lat: 4.6, lng: -74.1 } });
+    assert.equal(r.ok, false, 'la base guardó una cédula que no puede confirmar: ' + JSON.stringify(r));
+    assert.equal(sql("select count(*) from public.registro_archivos where celular = '" + cel + "'"), '0', 'algo de esa llamada entró');
+    const h = json("select huella from public.registros where telefono = '" + cel + "'");
+    assert.ok(h.cedula_rechazada, 'Joan no tiene cómo saber que pasó');
+    assert.equal(/52123456|MARIA/.test(JSON.stringify(h)), false, 'quedó un dato de la lectura en la fila');
   });
 
-  test('A2 — …y lo mismo por la puerta de PlataChat: la corrección entra con su etiqueta, y el doble toque no duplica', () => {
+  test('A2 (molestia aceptada) — …y lo mismo por la puerta de PlataChat: una sola fila, con su etiqueta', () => {
     const cel = '3201110004';
     json("select public.registrar_abierto_app('" + cel + "', 'María Rodríguez', '1022334465', '{}'::jsonb, 'platachat')");
     json("select public.registrar_abierto_app('" + cel + "', 'María Rodríguez', '1022334456', '{}'::jsonb, 'platachat')");
     json("select public.registrar_abierto_app('" + cel + "', 'María Rodríguez', '1022334456', '{}'::jsonb, 'platachat')");
     assert.equal(sql("select string_agg(cedula || ':' || app, ',' order by id) from public.registros where telefono = '" + cel + "'"),
-      '1022334465:platachat,1022334456:platachat', 'la corrección no entró, o el doble toque la duplicó');
-    assert.equal(sql("select coalesce(huella::text, '') from public.registros where telefono = '" + cel + "' and cedula = '1022334465'"), '');
-    assert.ok(json("select huella from public.registros where telefono = '" + cel + "' and cedula = '1022334456'").otro_documento_mismo_celular);
+      '1022334465:platachat', 'entró una segunda fila con el mismo celular');
+    assert.equal(sql("select coalesce(huella::text, '') from public.registros where telefono = '" + cel + "'"), '');
   });
 
   test('A1 — SIN SESIÓN, UNA FILA CON OTRO DOCUMENTO Y EL CELULAR DE LA TITULAR YA NO LE RECHAZA SU CÉDULA, y la lectura va a SU fila', () => {

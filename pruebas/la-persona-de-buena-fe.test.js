@@ -14,6 +14,11 @@
  * (pruebas/fabrica-pdf417.js). Cada prueba con su A en el título falla con la
  * página de 5724dd5. La parte de la base (A1, A2: la reja y la corrección del
  * documento) está en pruebas/la-cedula-de-la-cuenta-postgres.test.js.
+ * 20-oct-2026, cierre (B1) — la corrección del documento después de la primera
+ * fila ya no entra en la base (abría que cualquiera sin sesión cambiara la
+ * identidad de una solicitud): es una molestia aceptada, y lo que se cuida
+ * aquí es que el teléfono no le afirme a la titular que la cédula no es suya
+ * (las dos pruebas de A1 de abajo, que valen igual para ese caso).
  *
  * Y lo que la mañana cerró sigue cerrado: las pruebas de
  * lo-sensible-no-sale-del-registro.test.js (V1-V7) y de la persona-no-el-intento
