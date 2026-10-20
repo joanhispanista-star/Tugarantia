@@ -447,7 +447,9 @@ describe('5. cambiar el celular no borra lo escaneado, y «¿Eres …?» cubre e
     await asentar();
     assert.equal(ll().length, 0, 'mandó el registro sin preguntar de quién es la cédula');
     const caja = P.ev("$('errReg').innerHTML");
-    assert.match(caja, /¿Eres Maria\?/);
+    /* 20-oct-2026, revisión (F6) — se pregunta por la cédula LEÍDA (su número y
+       su nombre), no por lo que tecleó quien está terminando. */
+    assert.match(caja, /¿La cédula 52\.123\.456, de Maria, es tuya\?/);
     assert.match(caja, /onclick="seguirSoyYo\(\)">Seguir</);
     assert.match(caja, /onclick="empezarDeNuevo\(\)">Empezar de cero</);
     P.ev('seguirSoyYo()');
@@ -469,7 +471,7 @@ describe('5. cambiar el celular no borra lo escaneado, y «¿Eres …?» cubre e
     abrirLaCuenta(P);
     await asentar();
     assert.equal(ll().length, 0, 'abrió la cuenta con una cédula escaneada hace más de una hora sin preguntar');
-    assert.match(P.ev("$('errReg').innerHTML"), /¿Eres Maria\?/);
+    assert.match(P.ev("$('errReg').innerHTML"), /¿La cédula 52\.123\.456, de Maria, es tuya\?/);
     P.ev('empezarDeNuevo()');
     assert.equal(pasoActual(P), 'documento');
     assert.equal(P.ev('REGISTRO.nombres'), undefined, 'el nombre del anterior se quedó');

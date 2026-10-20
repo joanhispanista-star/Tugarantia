@@ -143,11 +143,19 @@ describe('la regla, en el código', () => {
   test('un checkpoint de la versión anterior (solo con número) vuelve al MISMO paso, por su nombre', () => {
     /* Hasta el 19-oct se guardaba {paso: n} con el orden viejo: el 1 era la
        cédula y el 2 el rostro. Leído con el orden nuevo, el 2 sería «Tu celular». */
+    /* 20-oct-2026, revisión (F12, F14) — con lo que la versión anterior ya
+       tenía en el rostro: la cédula (de ese celular) y la identidad. Sin ellas
+       vuelve al primer paso que le falta, no al rostro: eso lo mide
+       pruebas/la-persona-no-el-intento.test.js. */
     const P = abrirPlay({ hash: '' });
-    P.ev("REGISTRO.celular = '3001112233'; guardarBorrador(REGISTRO);");
+    P.ev("Object.assign(REGISTRO, { celular: '3001112233', nombres: 'ANA', apellidos: 'GOMEZ', tipo_doc: 'Cédula de ciudadanía'," +
+         " documento: '222', expedicion: '2010-01-01' }); guardarBorrador(REGISTRO);");
+    P.almacen.play_fotos_borrador = JSON.stringify({ sensibles: true, cedula_reverso: 'data:x', cedula_frente: 'data:y',
+      de: { celular: '3001112233', t: Date.now() } });
     P.almacen.play_registro_paso = JSON.stringify({ paso: 2, t: Date.now() });
     const Q = abrirPlay({ almacen: P.almacen, sesion: {}, hash: '' });
     assert.equal(Q.ev('PASOS[PASO].id'), 'rostro', 'el número viejo llevó a otro paso');
+    assert.match(Q.elems.errReg.innerHTML, /Seguimos en el paso donde ibas/);
   });
 
   test('y el paso se sigue guardando, que es lo que salva la cámara', () => {

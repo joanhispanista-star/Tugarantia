@@ -239,7 +239,9 @@ describe('la selfie dentro de la página', () => {
     const P = abrirPlay();
     P.ev('FOTOS = { sensibles: false };');
     assert.equal(/camVideo/.test(P.ev('pasoRostro()')), false, 'sin autorización se pintó el escáner');
-    assert.match(PLAY, /p\.id === 'rostro' && FOTOS\.sensibles && !hayFotoLista\('selfie'\)\) setTimeout\(iniciarEscaner/,
+    /* 20-oct-2026, revisión (F5) — la autorización de ESTE intento, no una marca
+       heredada de otra persona (autorizoEsteIntento). */
+    assert.match(PLAY, /p\.id === 'rostro' && autorizoEsteIntento\(\) && !hayFotoLista\('selfie'\)\) setTimeout\(iniciarEscaner/,
       'el escáner del rostro dejó de depender de la autorización');
     /* El detector solo se pide desde iniciarEscaner. */
     const t = sinComentarios(PLAY);
@@ -266,7 +268,7 @@ describe('la selfie dentro de la página', () => {
     anota(sin);
     sin.ev("precalentarDetectorRostro(); cambiarConsentimiento(false); pintarRegistro(indiceDe('entrada'));");
     assert.deepEqual(JSON.parse(sin.ev('JSON.stringify(window.__links)')), [], 'se bajó el detector sin la autorización de fotos');
-    assert.match(PLAY, /if \(p\.id === 'entrada' && FOTOS\.sensibles\) precalentarDetectorRostro\(\);/,
+    assert.match(PLAY, /if \(p\.id === 'entrada' && autorizoEsteIntento\(\)\) precalentarDetectorRostro\(\);/,
       'el paso del celular dejó de bajar el detector solo con la autorización');
     const primero = abrirPlay();
     primero.ev("REGISTRO.celular = '3001112233'; FOTOS = { sensibles: false }; guardarFotos();");
