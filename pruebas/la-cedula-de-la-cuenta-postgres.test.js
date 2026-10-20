@@ -16,7 +16,11 @@
  *   · la propia persona sí sube, con su lectura y su cotejo; unas fotos sin
  *     código no pisan las que entraron con código; sin registro no se sabe;
  *   · V6: la cédula de María escrita con el celular de Pedro ya no le tumba
- *     el registro a María, y la misma persona no se duplica.
+ *     el registro a María, y la misma persona no se duplica;
+ *   · 20-oct-2026, buena fe (A1, A2): quien corrige su documento entra como
+ *     fila nueva y su cédula pasa la reja; una fila escrita sin sesión con
+ *     otro documento ya no le rechaza a la titular la suya, y cuando no se
+ *     sabe cuál es el documento de la cuenta el motivo es «en_duda».
  *
  * Sin TG_PG_BIN se salta (la parte que lee el archivo corre siempre). Las dos
  * cédulas son de mentira: las de pruebas/la-persona-no-el-intento.test.js.
@@ -254,6 +258,79 @@ describe('la cédula de la cuenta, en un PostgreSQL de verdad', { skip: !BIN && 
     json("select public.registrar_abierto_app('" + celM + "', 'María Rodríguez', '" + doc + "', '{}'::jsonb, 'platachat')");
     assert.equal(sql("select count(*) || '|' || min(app) from public.registros where telefono = '" + celM + "'"), '1|platachat');
     assert.ok(json("select huella from public.registros where telefono = '" + celM + "'").cedula_repetida_al_registrarse);
+  });
+
+  /* 20-oct-2026, buena fe — la verificación del rediseño confirmó que el
+     atacante ya no cruza cédulas, pero que la persona de buena fe perdía su
+     propia cédula en la base (A1, A2 de la verificación). Las tres fallan con
+     la migración de la mañana (5724dd5). */
+  test('A2 — QUIEN CORRIGE SU DOCUMENTO NO PIERDE SU CÉDULA: la corrección entra como fila nueva, marcada y sin pisar la vieja, y la reja acepta su lectura', () => {
+    const cel = '3201110001';
+    /* La primera vez tecleó mal su documento (la bandeja entró; la cuenta no). */
+    const r1 = json("select public.registrar_abierto('" + cel + "', 'María Rodríguez', '52123465', '{\"documento\":\"52123465\"}'::jsonb)");
+    assert.equal(r1.ok, true);
+    /* Escanea su cédula, el documento queda bien, y vuelve a tocar «Abrir mi cuenta». */
+    const r2 = json("select public.registrar_abierto('" + cel + "', 'María Rodríguez', '52123456', '{\"documento\":\"52123456\"}'::jsonb)");
+    assert.equal(r2.ok, true);
+    assert.equal(sql("select string_agg(cedula, ',' order by id) from public.registros where telefono = '" + cel + "'"), '52123465,52123456',
+      'la corrección no entró a la bandeja: la reja va a comparar su cédula con la fila vieja');
+    assert.equal(sql("select coalesce(huella::text, '') || '|' || (datos ->> 'documento') from public.registros where telefono = '" + cel + "' and cedula = '52123465'"),
+      '|52123465', 'la fila vieja se tocó');
+    assert.ok(json("select huella from public.registros where telefono = '" + cel + "' and cedula = '52123456'").otro_documento_mismo_celular,
+      'la corrección no quedó marcada para Joan');
+    /* El doble toque sigue sin duplicar. */
+    json("select public.registrar_abierto('" + cel + "', 'María Rodríguez', '52123456', '{\"documento\":\"52123456\"}'::jsonb)");
+    assert.equal(sql("select count(*) from public.registros where telefono = '" + cel + "'"), '2', 'el doble toque duplicó la fila');
+    /* Y su cédula, con su lectura, entra. */
+    const r = subir(cel, { cedula_frente: 'data:image/jpeg;base64,FRENTEMARIA', cedula_reverso: 'data:image/jpeg;base64,RESPALDOMARIA' },
+      { cedula_leida: LECTURA('0052123456', 'MARIA JOSE') });
+    assert.equal(r.ok, true, 'la reja le rechazó a María su propia cédula: ' + JSON.stringify(r));
+    assert.deepEqual(r.guardados.sort(), ['cedula_frente', 'cedula_reverso']);
+    assert.equal(fotoDe(cel, 'cedula_reverso'), 'data:image/jpeg;base64,RESPALDOMARIA|52123456');
+    assert.equal(json("select huella from public.registros where telefono = '" + cel + "' and cedula = '52123456'").cotejo.documento, 'igual');
+  });
+
+  test('A2 — …y lo mismo por la puerta de PlataChat: la corrección entra con su etiqueta, y el doble toque no duplica', () => {
+    const cel = '3201110004';
+    json("select public.registrar_abierto_app('" + cel + "', 'María Rodríguez', '1022334465', '{}'::jsonb, 'platachat')");
+    json("select public.registrar_abierto_app('" + cel + "', 'María Rodríguez', '1022334456', '{}'::jsonb, 'platachat')");
+    json("select public.registrar_abierto_app('" + cel + "', 'María Rodríguez', '1022334456', '{}'::jsonb, 'platachat')");
+    assert.equal(sql("select string_agg(cedula || ':' || app, ',' order by id) from public.registros where telefono = '" + cel + "'"),
+      '1022334465:platachat,1022334456:platachat', 'la corrección no entró, o el doble toque la duplicó');
+    assert.equal(sql("select coalesce(huella::text, '') from public.registros where telefono = '" + cel + "' and cedula = '1022334465'"), '');
+    assert.ok(json("select huella from public.registros where telefono = '" + cel + "' and cedula = '1022334456'").otro_documento_mismo_celular);
+  });
+
+  test('A1 — SIN SESIÓN, UNA FILA CON OTRO DOCUMENTO Y EL CELULAR DE LA TITULAR YA NO LE RECHAZA SU CÉDULA, y la lectura va a SU fila', () => {
+    const cel = '3201110002';
+    registro(cel, '1029384711');                                  // su registro, que Joan ya atendió
+    sql("update public.registros set estado = 'atendido' where telefono = '" + cel + "'");
+    /* Cualquiera, sin sesión, con ese celular y otro documento: la fila entra y es la última. */
+    const a = json("select public.registrar_abierto('" + cel + "', 'Otro Nombre', '1234567890', '{}'::jsonb)");
+    assert.equal(a.ok, true);
+    assert.equal(sql("select count(*) from public.registros where telefono = '" + cel + "'"), '2');
+    const r = subir(cel, { cedula_reverso: 'data:image/jpeg;base64,SUYA' }, { cedula_leida: LECTURA('1029384711', 'LA TITULAR') });
+    assert.equal(r.ok, true, 'una fila escrita sin sesión le rechazó a la titular su propia cédula: ' + JSON.stringify(r));
+    assert.equal(fotoDe(cel, 'cedula_reverso'), 'data:image/jpeg;base64,SUYA|1029384711');
+    const suya = json("select huella from public.registros where telefono = '" + cel + "' and cedula = '1029384711'");
+    assert.equal(suya.cotejo.documento, 'igual', 'el cotejo miró la fila del otro');
+    const otra = sql("select coalesce(huella::text, '') from public.registros where telefono = '" + cel + "' and cedula = '1234567890'");
+    assert.equal(/LA TITULAR|1029384711|cedula_leida|cedula_rechazada/.test(otra), false, 'la lectura de la titular quedó en la fila que escribió otro: ' + otra);
+  });
+
+  test('A1 — SI LOS REGISTROS DEL CELULAR DICEN DOCUMENTOS DISTINTOS y la lectura no es de ninguno, «en_duda» (no se afirma «otro documento»), y nada entra', () => {
+    const cel = '3201110003';
+    registro(cel, '1029384722');
+    registro(cel, '1029384733', "now() + interval '1 minute'");
+    const r = subir(cel, { cedula_reverso: 'data:image/jpeg;base64,X', selfie: 'data:image/jpeg;base64,C' },
+      { cedula_leida: LECTURA('52123456', 'X'), gps: { lat: 4.6, lng: -74.1 } });
+    assert.deepEqual(r, { ok: false, motivo: 'en_duda' });
+    assert.equal(sql("select count(*) from public.registro_archivos where celular = '" + cel + "'"), '0', 'algo de esa llamada entró');
+    /* Un registro que Joan DESCARTÓ no sirve para aceptar una cédula. */
+    sql("update public.registros set estado = 'descartado', cedula = '52123456', datos = '{\"documento\":\"52123456\"}'::jsonb" +
+        " where telefono = '" + cel + "' and cedula = '1029384733'");
+    assert.deepEqual(subir(cel, { cedula_reverso: 'data:image/jpeg;base64,X' }, { cedula_leida: LECTURA('52123456', 'X') }),
+      { ok: false, motivo: 'otro_documento' });
   });
 
   test('los permisos no cambiaron: la subida solo con sesión; el registro abierto sin ella', () => {

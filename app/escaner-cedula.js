@@ -836,10 +836,23 @@
     if (!x.hayRestos) return false;
     if (!x.retomando) return true;
     var t = Number(x.t) || 0, ahora = Number(x.ahora) || 0;
-    if (!(t > 0) || ahora - t < 0) return true;
-    if (ahora - t >= MINUTOS_VUELTA_DE_LA_CAMARA * 60 * 1000) return true;
+    if (!dentroDeLaVueltaDeLaCamara(t, ahora)) return true;
     var a = new Date(t), b = new Date(ahora);
     return a.getFullYear() !== b.getFullYear() || a.getMonth() !== b.getMonth() || a.getDate() !== b.getDate();
+  }
+  /**
+   * ¿Volvió dentro del rato que toma ir a la cámara del sistema y volver?
+   * 20-oct-2026, buena fe (A7) — aparte de restosEnDuda, y SIN la regla del
+   * cambio de día: esta es la que decide si lo sensible se SUELTA al abrir
+   * (play/, el arranque). Quien toma la foto a las 23:59 y vuelve a las 00:01
+   * estuvo fuera dos minutos; el cambio de día sigue decidiendo si se pregunta
+   * «¿Es tuyo?», que no borra nada.
+   * @param t     la última vez que alguien tocó el registro o la página se fue (ms)
+   * @param ahora (ms)
+   */
+  function dentroDeLaVueltaDeLaCamara(t, ahora) {
+    t = Number(t) || 0; ahora = Number(ahora) || 0;
+    return t > 0 && ahora - t >= 0 && ahora - t < MINUTOS_VUELTA_DE_LA_CAMARA * 60 * 1000;
   }
 
   return {
@@ -854,6 +867,8 @@
     normalizarDocumento: normalizarDocumento,
     mismoDocumento: mismoDocumento,
     restosEnDuda: restosEnDuda,
+    /* 20-oct-2026, buena fe — el rato de la cámara, sin el cambio de día */
+    dentroDeLaVueltaDeLaCamara: dentroDeLaVueltaDeLaCamara,
     revisarExpedicion: revisarExpedicion,
     TARJETA: TARJETA,
     GIROS_DE_RESCATE: GIROS_DE_RESCATE,

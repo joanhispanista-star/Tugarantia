@@ -500,28 +500,109 @@ function terminarEnPlataChat() {
   if (!nombre && REGISTRADO) nombre = REGISTRADO.nombre || '';
   if (!cel && REGISTRADO) cel = REGISTRADO.celular || '';
   var desde = Date.now();
+  var delRegistro = (REGISTRADO && Number(REGISTRADO.desde)) || desde;
   if (a) a.innerHTML = '';
+  /* Los argumentos del botón, como JavaScript y después como atributo: un
+     nombre con apóstrofo («D'Angelo») rompía el onclick, porque &#39; vuelve a
+     ser ' antes de que lo lea JavaScript (20-oct-2026, buena fe). */
+  var irse = esc(JSON.stringify(String(cel || ''))) + ', ' + esc(JSON.stringify(String(nombre || '')));
   return subirArchivosRegistro().then(function () { return true; }, function () { return false; })
     .then(function (llego) {
       /* subirArchivosRegistro resuelve también cuando la base RECHAZA o guarda
          a medias: lo que pasó lo anota en leerSubida(). Se mira esa nota, y
          solo si es de ESTA subida (una vieja diría otra cosa). Sin nota es que
          no había nada que subir —no dio el permiso de fotos—, y eso no es un
-         fallo. */
+         fallo.
+         20-oct-2026, buena fe (A3) — Y SE MIRA LA COLA. Después de un rechazo
+         de la base la cola ya no existe, y «Volver a intentar subirlas» no
+         mandaba nada: la nota era anterior, y esto decía «Listo» con la cédula
+         sin subir. Ahora: si queda cola, no subió (y se puede reintentar); si
+         no queda y hay un aviso de ESTE registro de que se borraron, se dice
+         por qué, sin botón de reintentar; y solo si no hay nada de eso, «Listo». */
       var nota = leerSubida();
-      var deAhora = nota && Number(nota.t) >= desde;
-      var bien = llego && (!deAhora || nota.estado === 'ok');
-      if (bien) {
-        if (s) s.textContent = 'Listo. Te llevamos a PlataChat…';
+      var deAhora = nota && String(nota.celular || '') === String(cel) && Number(nota.t) >= desde;
+      var queda = !!colaDe(cel);
+      var borradas = queda ? null : avisoDeFotosDe(cel);
+      if (borradas && !(Number(borradas.t) >= delRegistro)) borradas = null;
+      if (borradas) {
+        if (s) s.textContent = 'Tu cuenta quedó abierta. ' + porqueSeBorraron(borradas) + ' ' + queHacerSinLasFotos(borradas);
+        if (a) a.innerHTML = '<button class="btn arriba" onclick="entrarAPlataChat(' + irse + ')">Entrar a PlataChat</button>';
+        return;
+      }
+      if (llego && !queda) {
+        /* A8: si la base dejó las fotos de cédula que ya tenía, se dice. */
+        var dejamos = deAhora ? queDejamosDeAntes(cel).replace(/<[^>]+>/g, '') : '';
+        if (s) s.textContent = (dejamos ? dejamos + ' ' : 'Listo. ') + 'Te llevamos a PlataChat…';
         return entrarAPlataChat(cel, nombre);
       }
       if (s) s.textContent = 'Tu cuenta quedó abierta, pero tus fotos no alcanzaron a subir. ' +
         'Sin la foto de tu cédula no podemos revisar tu registro.';
       if (a) a.innerHTML =
         '<button class="btn arriba" onclick="terminarEnPlataChat()">Volver a intentar subirlas</button>' +
-        '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="entrarAPlataChat(\'' +
-          esc(cel) + '\', \'' + esc(nombre).replace(/'/g, '&#39;') + '\')">Entrar a PlataChat sin ellas</button>' +
-        '<div class="ayuda">Si entras sin ellas, mándanos la foto de tu cédula por el chat de Servicio.</div>';
+        '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="irAPlataChatSinLasFotos(' + irse + ')">Entrar a PlataChat sin ellas</button>' +
+        '<div class="ayuda">Si entras sin ellas, las borramos de este teléfono: mándanos la foto de tu cédula por el chat de Servicio.</div>';
+    });
+}
+/* 20-oct-2026, buena fe (A3, A4) — IRSE SIN LAS FOTOS LAS BORRA, Y SE DICE.
+   PlataChat no sube nada de play/, y quien entra allá no vuelve a abrir esta
+   página: la cola se quedaba un día en el teléfono, sin que nadie la subiera
+   ni se lo dijera. Se suelta al irse, que es lo que el botón ya dice. */
+function irAPlataChatSinLasFotos(cel, nombre) {
+  /* Y queda dicho para su cuenta de play/, si algún día la abre: quien tocó
+     esto puede no ser ella (la pantalla de la relanzada la ve cualquiera que
+     abra la página ese día en este teléfono). */
+  if (colaDe(cel)) { guardarCola(cel, null); guardarAvisoDeFotos(cel, { estado: 'sin_ellas', t: Date.now() }); }
+  return entrarAPlataChat(cel, nombre);
+}
+
+/* 20-oct-2026, buena fe (A4) — LA PESTAÑA SE RELANZÓ CON LAS FOTOS SUBIENDO.
+   Con señal débil la cuenta se abre (son peticiones chicas) y la subida de
+   las tres fotos se queda pegada; Android mata la pestaña, y el arranque con
+   la marca la mandaba derecho a PlataChat: la cola caducaba al día sin que
+   nadie la subiera ni se lo dijera (el aviso de «caducada» solo se pinta en la
+   cuenta de play/, que quien viene de PlataChat no abre). Ahora el arranque
+   la trae aquí antes. Con sesión, sube como al final del registro
+   (pintarRegistradoPlataChat). Sin sesión —Android no devuelve el
+   sessionStorage después de matar la pestaña—, se le pide la contraseña para
+   subirlas, con la salida de irse sin ellas al lado. */
+function pintarFotosPendientesPlataChat(cel) {
+  VISTA = 'listo';
+  marcarVista('');
+  REGISTRADO = { celular: String(cel), nombre: '' };
+  $('titulo').textContent = 'Tu cuenta de PlataChat quedó abierta';
+  $('cuerpo').innerHTML =
+    '<div class="card"><div class="aviso ambar"><b>Tus fotos todavía no han subido.</b> Tu cuenta quedó abierta, ' +
+      'pero las fotos de tu registro siguen en este teléfono. Escribe tu contraseña y las subimos ahora; después te llevamos a PlataChat.</div>' +
+      '<label for="pcClave">Tu contraseña</label>' + campoClave('pcClave', 'current-password') +
+      '<button class="btn arriba" type="button" onclick="entrarYSubirEnPlataChat()">Subir mis fotos</button>' +
+      '<p class="sub" id="pcSubida" style="margin-top:var(--e4)"></p>' +
+      '<div id="pcAcciones">' +
+        '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="irAPlataChatSinLasFotos(' + esc(JSON.stringify(String(cel))) + ', \'\')">Ir a PlataChat sin ellas</button>' +
+        '<div class="ayuda">Si vas sin ellas, las borramos de este teléfono: mándanos la foto de tu cédula por el chat de Servicio.</div>' +
+      '</div>' +
+    '</div>' + pie();
+  window.scrollTo(0, 0);
+}
+function entrarYSubirEnPlataChat() {
+  var cel = (REGISTRADO && REGISTRADO.celular) || '';
+  var c = $('pcClave'), clave = c ? String(c.value || '') : '';
+  var s = $('pcSubida');
+  if (!clave) { if (s) s.textContent = 'Escribe la contraseña que pusiste al abrir tu cuenta.'; return Promise.resolve(); }
+  if (s) s.textContent = 'Entrando…';
+  return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
+    body: JSON.stringify({ email: U.correoDeTelefono(cel), password: clave })
+  }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (res) {
+      if (!res.ok || !res.j || !res.j.access_token) {
+        if (s) s.textContent = 'Esa contraseña no es la de tu cuenta. Revísala con calma; si no la recuerdas, ve a PlataChat sin las fotos y ahí mismo nos dejas un recado.';
+        return;
+      }
+      SESION = res.j; guardarSesionEnCurso(SESION);
+      return pintarRegistradoPlataChat();
+    }, function () {
+      if (s) s.textContent = 'No pude conectarme. Revisa tu internet y vuelve a intentar.';
     });
 }
 
@@ -598,6 +679,40 @@ function ultimoToque() {
   var c = leerCheckpoint(); if (c && Number(c.t) > t) t = Number(c.t);
   if (FOTOS && FOTOS.de && Number(FOTOS.de.t) > t && esteIntento(FOTOS.de)) t = Number(FOTOS.de.t);
   return t;
+}
+/* 20-oct-2026, buena fe (A5) — LOS DIEZ MINUTOS MIDEN LA AUSENCIA, NO LA
+   QUIETUD. El toque solo lo escribían el borrador, el paso y cada foto, así
+   que contaba desde lo último que se TECLEÓ: María llega a «Tu rostro», le
+   entra una llamada de doce minutos sin tocar la página, cuelga, toca la caja
+   de la selfie, la cámara del sistema tumba la pestaña y Android la relanza
+   al minuto. Para el arranque habían pasado trece minutos, y le borraba la
+   cédula diciendo «Pasó un rato». Había estado fuera uno.
+   Ahora se anota también al irse: al tocar una caja de foto (antes de que se
+   abra la cámara del sistema: ver cajaFoto y la caja de la selfie) y cuando la
+   página deja de verse (visibilitychange → hidden, pagehide). Solo DENTRO de
+   un paso del registro: en «¿Es tuyo?» no, porque ahí lo que hay puede ser de
+   otro, y anotar su salida le ahorraría la pregunta al que vuelva. */
+function anotarSalidaDelRegistro() {
+  if (VISTA === 'registro') anotarToque();
+}
+try {
+  if (document.addEventListener) {
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden' || document.hidden === true) anotarSalidaDelRegistro();
+    });
+  }
+  if (window.addEventListener) window.addEventListener('pagehide', anotarSalidaDelRegistro);
+} catch (e) {}
+/* ¿La página volvió sola dentro del rato de la cámara? Es lo que decide, al
+   abrir, si lo sensible del registro se suelta. SIN el cambio de día (A7): a
+   las 00:01 quien tomó la foto a las 23:59 estuvo fuera dos minutos. El día
+   sigue decidiendo si se pregunta «¿Es tuyo?» (restosParaPreguntar), que no
+   borra nada. Un escaner-cedula.js viejo en la caché no trae la función nueva:
+   entonces se usa la regla de antes, que suelta de más pero nunca de menos. */
+function volvioDentroDelRatoDeLaCamara() {
+  var t = ultimoToque(), ahora = Date.now();
+  if (EC && EC.dentroDeLaVueltaDeLaCamara) return EC.dentroDeLaVueltaDeLaCamara(t, ahora);
+  return !(EC && EC.restosEnDuda({ hayRestos: true, t: t, ahora: ahora, retomando: true }));
 }
 
 /* ------------------------------------------------- POR DÓNDE IBA (9-sep-2026)
@@ -1628,10 +1743,17 @@ function avisarRegistroCambio() {
    registro: tiene su propia llave en el teléfono, y las fotos pasan a ella
    ANTES de llegar aquí (encolarLasFotosDelRegistro). Ver LA COLA DE UNA CUENTA
    YA CREADA, junto a subirArchivosRegistro. */
-var REGISTRADO = null;     // {celular, nombre} de la cuenta recién creada: lo usa PlataChat al reintentar
+var REGISTRADO = null;     // {celular, nombre, desde} de la cuenta recién creada: lo usa PlataChat al reintentar
+/* 20-oct-2026, buena fe (A3) — `desde`: cuándo salieron las fotos de este
+   registro a la cola (encolarLasFotosDelRegistro). Con eso el final de
+   PlataChat sabe si un aviso de «las borramos» es de ESTE registro, también
+   cuando la cola ya no está y la nota de la última subida es vieja. Se
+   conserva si se vuelve a anotar la misma cuenta. */
 function anotarRegistrado() {
+  var antes = REGISTRADO;
   REGISTRADO = { celular: REGISTRO.celular || '',
                  nombre: ((REGISTRO.nombres || '') + ' ' + (REGISTRO.apellidos || '')).replace(/\s+/g, ' ').trim() };
+  if (antes && antes.desde && String(antes.celular) === String(REGISTRADO.celular)) REGISTRADO.desde = antes.desde;
 }
 function cerrarElRegistroEnMemoria() {
   anotarRegistrado();
@@ -1677,7 +1799,7 @@ function soltarLoSensibleDelRegistro() {
        como estaba, aunque quitarIdentidadLeida reescriba el borrador. */
     var toque = null;
     try { toque = localStorage.getItem(LLAVE_TOQUE); } catch (e) {}
-    quitarIdentidadLeida(l, esteIntento(FOTOS.de) ? FOTOS.cedula_editado : null);
+    quitarIdentidadLeida(l, esteIntento(FOTOS.de) ? FOTOS.cedula_editado : null, true);
     try { if (toque === null) localStorage.removeItem(LLAVE_TOQUE); else localStorage.setItem(LLAVE_TOQUE, toque); } catch (e) {}
   }
   FOTOS = {};
@@ -2455,7 +2577,14 @@ function lecturaQueNoSalio() {
 /* Los campos del formulario que salieron de una lectura (o se corrigieron
    sobre ella). Si el documento venía de ahí, también su tipo y su expedición:
    son de esa cédula. */
-function quitarIdentidadLeida(l, ed) {
+/* 20-oct-2026, buena fe (A5) — `conservarLoTecleado`: al SOLTAR lo sensible
+   (salir del registro, o el arranque pasado el rato de la cámara) la fecha de
+   expedición se queda. La tecleó la persona —el código de barras no la trae—,
+   y lo escrito a mano se queda detrás de «¿Es tuyo?»; el aviso de las fotos
+   soltadas le dice «Lo que escribiste a mano sigue aquí», y con la expedición
+   borrada eso era falso. Cuando la lectura se reemplaza dentro del registro
+   (otro respaldo que no se leyó) sí se va: era de ESA cédula. */
+function quitarIdentidadLeida(l, ed, conservarLoTecleado) {
   if (!l) return;
   var quitoDoc = false;
   CAMPOS_DE_LA_CEDULA.forEach(function (c) {
@@ -2465,7 +2594,7 @@ function quitarIdentidadLeida(l, ed) {
       if (c === 'documento') quitoDoc = true;
     }
   });
-  if (quitoDoc) { delete REGISTRO.tipo_doc; delete REGISTRO.expedicion; }
+  if (quitoDoc) { delete REGISTRO.tipo_doc; if (!conservarLoTecleado) delete REGISTRO.expedicion; }
   guardarBorrador(REGISTRO);
 }
 
@@ -2545,7 +2674,12 @@ function enviarRegistro(sensibles) {
      registro se iba solo a Supabase Auth y nadie lo leía). Así, si la bandeja
      falla no se crea nada y el cliente reintenta; y si la cuenta falla después,
      el registro YA está en la bandeja — reintentar no lo duplica, porque
-     registrar_abierto es idempotente por celular. */
+     registrar_abierto es idempotente por celular.
+     20-oct-2026, buena fe (A2) — por celular Y documento
+     (base/20261020_la_cedula_de_la_cuenta.sql): reintentar con el mismo no
+     duplica, y quien corrige su documento entra como fila nueva, marcada, sin
+     pisar la vieja. Así la reja de la subida compara su cédula con la fila de
+     ESTE registro, y no con la del documento mal tecleado. */
   /* 1-oct-2026 — con la marca, la misma puerta CON LA ETIQUETA:
      registrar_abierto_app es copia fiel de registrar_abierto más p_app
      (base/20260921_platachat_app.sql). Y su 404 no se disfraza de «revisa tu
@@ -2667,9 +2801,11 @@ function entrarConLaClaveDelRegistro(err, autorizacion) {
            entrar ni ese botón (el celular se ponía en un #inTel que no existe
            en esa pantalla). Las únicas salidas eran «Abrir mi cuenta», que
            falla igual, o «Volver» paso por paso. Ver salidasYaTieneCuenta. */
+        /* 20-oct-2026, buena fe (A3) — en PlataChat también se escribe aquí
+           (salidasYaTieneCuenta); el recado sigue estando allá. */
         avisoYaTieneCuenta(err, MARCA === 'platachat'
-          ? 'Ya tienes una cuenta con este celular, pero esa contraseña no es la suya. Entra en PlataChat con la tuya; ' +
-            'si no la recuerdas, ahí mismo nos dejas un recado y te escribimos para devolverte el acceso.'
+          ? 'Ya tienes una cuenta con este celular, pero esa contraseña no es la suya. Escribe aquí la de tu cuenta para terminar ' +
+            'tu registro con tus fotos. Si no la recuerdas, entra en PlataChat: ahí mismo nos dejas un recado y te escribimos para devolverte el acceso.'
           : 'Ya tienes una cuenta con este celular, pero esa contraseña no es la suya. Entra con la tuya, ' +
             'o toca «Olvidé mi contraseña» y te escribimos para devolverte el acceso.');
         return;
@@ -2706,17 +2842,29 @@ function avisoYaTieneCuenta(err, msg) {
    PlataChat tiene su propio «¿Olvidaste tu contraseña…? Déjanos un recado», que
    escribe en la misma bandeja de recados. */
 function salidasYaTieneCuenta() {
-  if (MARCA === 'platachat') {
-    return '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="volverAPlataChat()">Ir a entrar en PlataChat</button>';
-  }
   /* 20-oct-2026, rediseño (A) — PRIMERO, LA CONTRASEÑA AQUÍ MISMO. Desde hoy
      las fotos del registro solo suben dentro de su «Abrir mi cuenta», y salir
      a la portada las borra del teléfono (pintarEntrar). Quien ya tenía cuenta
      y puso otra contraseña la escribe aquí y termina este mismo registro, con
      sus fotos, por entrarConLaClaveDelRegistro. La portada sigue estando, y se
-     dice lo que cuesta. */
-  return '<label for="rClaveCuenta">La contraseña de tu cuenta</label>' + campoClave('rClaveCuenta', 'current-password') +
-    '<button class="btn sm" type="button" style="margin-top:var(--e3)" onclick="entrarConOtraClaveDelRegistro()">Entrar y terminar mi registro</button>' +
+     dice lo que cuesta.
+     20-oct-2026, buena fe (A3) — TAMBIÉN EN PLATACHAT. Ahí la única salida era
+     «Ir a entrar en PlataChat», que llama volverAPlataChat: soltaba las fotos,
+     la lectura, la selfie y el GPS sin una palabra, y PlataChat no sube nada de
+     play/. La clienta de Tu Garantía que se inscribía en PlataChat con su
+     celular y otra contraseña perdía su cédula sin saberlo.
+     entrarConLaClaveDelRegistro ya termina con la marca (pintarRegistrado →
+     pintarRegistradoPlataChat). La salida a PlataChat se queda, y dice lo que
+     cuesta. */
+  var conClave = '<label for="rClaveCuenta">La contraseña de tu cuenta</label>' + campoClave('rClaveCuenta', 'current-password') +
+    '<button class="btn sm" type="button" style="margin-top:var(--e3)" onclick="entrarConOtraClaveDelRegistro()">Entrar y terminar mi registro</button>';
+  if (MARCA === 'platachat') {
+    return conClave +
+      '<div class="ayuda" id="ayudaClaveCuenta">Así tus fotos suben a tu cuenta. Si te vas a PlataChat sin terminar aquí, ' +
+        'las fotos de tu cédula se borran de este teléfono y nos las tendrás que mandar por el chat de Servicio.</div>' +
+      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="volverAPlataChat()">Ir a entrar en PlataChat</button>';
+  }
+  return conClave +
     '<div class="ayuda" id="ayudaClaveCuenta">Así tus fotos suben a tu cuenta. Si sales al inicio, se borran de este teléfono.</div>' +
     '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="entrarConElCelularDelRegistro()">Entrar con mi contraseña</button>' +
     '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="olvide(REGISTRO.celular)">Olvidé mi contraseña</button>';
@@ -3247,7 +3395,11 @@ var LLAVE_COLA = 'play_fotos_cola';             // { "<celular>": lote }
 var COLAS_EN_MEMORIA = {};
 var LLAVE_SUBIDA = 'play_subida_fotos';
 var LLAVE_AVISOS_FOTOS = 'play_fotos_avisos';   // { "<celular>": { estado, t } }
-var PERDIDAS = ['caducada', 'otro_documento', 'sin_documento', 'sin_confirmar', 'sin_dueno'];
+/* 20-oct-2026, buena fe — 'no_confirmada': la BASE no pudo confirmar de quién
+   es la cédula (A1, A2); 'version_anterior': unas fotos que dejó la versión
+   publicada y que no se pudieron atar a una cuenta (A6); 'sin_ellas': en el
+   final de PlataChat se tocó «sin ellas» (A3, A4). */
+var PERDIDAS = ['caducada', 'otro_documento', 'sin_documento', 'sin_confirmar', 'sin_dueno', 'no_confirmada', 'version_anterior', 'sin_ellas'];
 /* 17-sep-2026 — DICE SI DE VERDAD GUARDÓ. Antes se tragaba el error y devolvía
    nada, así que la caja de la foto se pintaba «Listo · tocar para cambiar»
    aunque el teléfono no hubiera podido escribirla: cuota llena, almacenamiento
@@ -3393,15 +3545,34 @@ function soltarLasFotos(conservarPermiso) {
    versión publicada no lo tenía), sin un registro en curso con ese celular, y
    con la marca de que en este teléfono se acaba de abrir la cuenta de ese
    celular (anotarCuentaCreada)—, pasa a la cola de esa cuenta. Si no, es un
-   registro, y sigue su suerte en el arranque. Sin la marca no se adopta nada:
-   un formulario abandonado con el celular de alguien es justo lo que no puede
-   llegarle a su cuenta (V1). */
+   registro, y sigue su suerte en el arranque. Un formulario abandonado con el
+   celular de alguien es justo lo que no puede llegarle a su cuenta (V1): ese
+   deja su borrador, y con borrador y sin la marca no se adopta (ver abajo,
+   buena fe). */
+/* 20-oct-2026, buena fe (A6) — LA MARCA NO ES LO ÚNICO QUE LO DICE, y en el
+   caso común ya no está: la versión publicada borra play_cuenta_creada en
+   cuanto la persona entra a su cuenta (su pintarCuenta), que es justo lo que
+   hace quien ve «Ir a mi cuenta» después de una subida que falló. Con eso, sus
+   fotos pendientes se soltaban en silencio al estrenar esta versión. Pero esa
+   versión solo borra el BORRADOR al crear la cuenta (o con «Empezar de cero»,
+   que se lleva las fotos con él): unas fotos con dueño y sin intento, en un
+   teléfono SIN borrador, son la cola de la cuenta de ese celular, que se creó
+   aquí. Un formulario abandonado (V1) siempre deja su borrador. Y si no se
+   adoptan porque hay otro registro en el teléfono, no se sueltan calladas:
+   queda el aviso para la cuenta de ese celular. */
 function adoptarLaColaVieja() {
   var de = FOTOS && FOTOS.de;
   if (!de || !de.celular || de.intento || !hayContenidoEnFotos()) return;
   if (String(REGISTRO.celular || '') === String(de.celular)) return;
   var c = cuentaRecienCreada();
-  if (!c || String(c.celular) !== String(de.celular)) return;
+  var conMarca = !!(c && String(c.celular) === String(de.celular));
+  var sinBorrador = !Object.keys(leerBorrador()).some(function (k) { return k !== 'intento'; });
+  if (!conMarca && !sinBorrador) {
+    guardarAvisoDeFotos(de.celular, { estado: 'version_anterior', t: Date.now() });
+    FOTOS = {};
+    try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
+    return;
+  }
   var lote = FOTOS;
   lote.de = { celular: String(de.celular), t: Number(de.t) || 0, legado: true };
   if (!colaDe(de.celular)) guardarCola(de.celular, lote);
@@ -3466,7 +3637,10 @@ function cajaFoto(key, ic, lbl, cam) {
   return '<label class="foto-caja' + (lista ? ' ok' : '') + '" id="fot_' + key + '">' +
     (lista ? '<img src="' + FOTOS[key] + '" alt="">' : '<span class="ic">' + ic + '</span>') +
     '<span class="lbl">' + (lista ? 'Listo · tocar para cambiar' : lbl) + '</span>' +
-    '<input type="file" accept="image/*" capture="' + cam + '" onchange="tomarFoto(event,\'' + key + '\')"></label>';
+    /* 20-oct-2026, buena fe (A5) — el toque se anota AL TOCAR la caja, antes de
+       que se abra la cámara del sistema: lo que venga después es ausencia (ver
+       anotarSalidaDelRegistro). */
+    '<input type="file" accept="image/*" capture="' + cam + '" onclick="anotarToque()" onchange="tomarFoto(event,\'' + key + '\')"></label>';
 }
 function textoLeido() {
   var l = FOTOS.cedula_leida;
@@ -4936,7 +5110,7 @@ function pasoRostro() {
     '<button class="btn sec sm' + (tiene ? ' oculto' : '') + '" id="btnCapturar" type="button" style="margin-top:var(--e3)" onclick="capturarRostro()">Tomar la foto ahora</button>' +
     '<label class="foto-caja' + (tiene ? ' oculto' : '') + '" id="fot_selfie" style="display:' + (tiene ? '' : 'none') + '"><span class="ic">🤳</span>' +
       '<span class="lbl">' + (tiene ? 'Listo · tocar para cambiar' : 'Tomar una selfie') + '</span>' +
-      '<input type="file" accept="image/*" capture="user" onchange="tomarFoto(event,\'selfie\')"></label>' +
+      '<input type="file" accept="image/*" capture="user" onclick="anotarToque()" onchange="tomarFoto(event,\'selfie\')"></label>' +
     '<div id="selfieNota" class="doc-nota"></div>' +
     /* 19-oct-2026 — la ubicación vive en este paso desde que la cédula va
        primero (ver pintarRegistro y pedirGpsSiFalta). */
@@ -5441,7 +5615,9 @@ function motivoParaNoSubir(lote, cel, doc, autorizo) {
 function encolarLasFotosDelRegistro(cel) {
   var lote = FOTOS, autorizo = autorizoEsteIntento();
   var doc = normalizarDocumento(REGISTRO.documento);
+  var desde = Date.now();
   anotarRegistrado();
+  REGISTRADO.desde = desde;   // 20-oct-2026, buena fe (A3): ver anotarRegistrado
   FOTOS = {};
   try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
   GPS_PEDIDO = false;
@@ -5503,9 +5679,16 @@ function subirArchivosRegistro() {
     /* 20-oct-2026, rediseño (D) — LA REJA DE LA BASE dijo que esa cédula no es
        la del registro de esta cuenta (o que no hay registro con qué
        compararla): no entra nunca, así que no se reintenta. Se suelta y se
-       dice. */
-    if (j && j.ok === false && (j.motivo === 'otro_documento' || j.motivo === 'sin_documento')) {
-      anotarSubida(j.motivo, pedidas, [], cel);
+       dice.
+       20-oct-2026, buena fe (A1, A2) — Y SE DICE LO QUE SE SABE, que no es
+       «no son las del documento de tu cuenta»: la base compara con registros
+       que cualquiera escribe sin sesión, y el teléfono ya comprobó al encolar
+       que la lectura es la del documento de ESTE registro (salvo en la cola
+       que dejó la versión anterior, que no traía con qué). Lo que se sabe es
+       que no se pudo confirmar de quién es ('no_confirmada', con el motivo de
+       la base al lado), y se le ofrece mandarla por el chat. */
+    if (j && j.ok === false && (j.motivo === 'otro_documento' || j.motivo === 'sin_documento' || j.motivo === 'en_duda')) {
+      anotarSubida('no_confirmada', pedidas, [], cel, { motivo: j.motivo });
       guardarCola(cel, null);
       return;
     }
@@ -5521,7 +5704,9 @@ function subirArchivosRegistro() {
     var descartados = (j.descartados && j.descartados.length !== undefined) ? j.descartados : [];
     ok.concat(descartados).forEach(function (k) { delete lote[k]; });
     var faltan = pedidas.filter(function (k) { return ok.indexOf(k) < 0 && descartados.indexOf(k) < 0; });
-    anotarSubida(faltan.length ? 'parcial' : 'ok', pedidas, ok, cel);
+    /* 20-oct-2026, buena fe (A8) — lo descartado queda en la nota: la pantalla
+       decía «Listo: tus fotos llegaron» de unas fotos que no entraron. */
+    anotarSubida(faltan.length ? 'parcial' : 'ok', pedidas, ok, cel, descartados.length ? { descartadas: descartados } : null);
     if (faltan.length) { guardarCola(cel, lote); return; }
     /* Todas entraron: recién ahí se suelta la copia del teléfono. */
     guardarCola(cel, null);
@@ -5544,13 +5729,18 @@ function subirArchivosRegistro() {
    semana. Sin fotos: solo qué pasó y cuándo. */
 /* LLAVE_SUBIDA, LLAVE_AVISOS_FOTOS y PERDIDAS se declaran junto a LLAVE_FOTOS:
    la cola que caduca al abrir la página ya anota (sanearColas). */
-function anotarSubida(estado, pedidas, ok, cel) {
-  try {
-    localStorage.setItem(LLAVE_SUBIDA, JSON.stringify({
-      estado: estado, pedidas: pedidas, guardadas: ok, t: Date.now(), celular: cel || ''
-    }));
-  } catch (e) {}
-  if (cel && PERDIDAS.indexOf(estado) >= 0) guardarAvisoDeFotos(cel, { estado: estado, t: Date.now() });
+/* 20-oct-2026, buena fe — `extra` (opcional) va en la nota y en el aviso: el
+   motivo de la base cuando no se pudo confirmar la cédula, y las fotos que la
+   base no dejó pisar las que ya tenía con código (`descartadas`). */
+function anotarSubida(estado, pedidas, ok, cel, extra) {
+  var nota = { estado: estado, pedidas: pedidas, guardadas: ok, t: Date.now(), celular: cel || '' };
+  if (extra) Object.keys(extra).forEach(function (k) { nota[k] = extra[k]; });
+  try { localStorage.setItem(LLAVE_SUBIDA, JSON.stringify(nota)); } catch (e) {}
+  if (cel && PERDIDAS.indexOf(estado) >= 0) {
+    var aviso = { estado: estado, t: Date.now() };
+    if (extra && extra.motivo) aviso.motivo = extra.motivo;
+    guardarAvisoDeFotos(cel, aviso);
+  }
   else if (cel && estado === 'ok') guardarAvisoDeFotos(cel, null);
   if (window.console && console.warn && estado !== 'ok') {
     console.warn('las fotos del registro no entraron:', estado, pedidas, ok);
@@ -5622,7 +5812,13 @@ function avisoDeFotos(donde, momento) {
   var cel = celularDeSesion() || (REGISTRADO && REGISTRADO.celular) || '';
   if (!cel) return '';
   var caja = function (clase, html) { return '<div class="card"><div class="aviso ' + clase + '" role="status">' + html + '</div></div>'; };
-  if (momento === 'llegaron') return caja('verde', '<b>Listo: tus fotos llegaron.</b> Ya las tenemos para revisar tu registro.');
+  if (momento === 'llegaron') {
+    /* 20-oct-2026, buena fe (A8) — si la base dejó las fotos de cédula que ya
+       tenía (leídas con su código) en vez de estas, se dice eso y no «llegaron». */
+    var dejamos = queDejamosDeAntes(cel);
+    if (dejamos) return caja('verde', dejamos);
+    return caja('verde', '<b>Listo: tus fotos llegaron.</b> Ya las tenemos para revisar tu registro.');
+  }
   var cola = colaDe(cel);
   if (cola) {
     if (momento === 'subiendo') return caja('', 'Subiendo las fotos de tu registro…');
@@ -5636,13 +5832,43 @@ function avisoDeFotos(donde, momento) {
   }
   var aviso = avisoDeFotosDe(cel);
   if (!aviso) return '';
-  var porque = aviso.estado === 'caducada'
-    ? 'Las fotos de tu registro no alcanzaron a subir y, como pasó un día, las borramos de este teléfono.'
-    : aviso.estado === 'otro_documento'
-    ? 'Las fotos de la cédula que se tomaron en tu registro no son las del documento de tu cuenta, así que no las subimos y las borramos de este teléfono.'
-    : 'Las fotos de tu registro no se pudieron subir y las borramos de este teléfono.';
-  return caja('ambar', '<b>' + porque + '</b> Sin la foto de tu cédula no podemos revisar tu registro: mándanosla por el chat de Servicio.' +
+  return caja('ambar', '<b>' + porqueSeBorraron(aviso) + '</b> ' + queHacerSinLasFotos(aviso) +
     '<button class="btn sec sm" type="button" style="margin-top:var(--e3)" onclick="entendidoAvisoDeFotos()">Entendido</button>');
+}
+/* Por qué se borraron sin subir. Lo usan la cuenta (avisoDeFotos) y el final
+   de PlataChat (terminarEnPlataChat): las dos dicen lo mismo.
+   20-oct-2026, buena fe (A1, A2) — ninguna afirma «no son las del documento de
+   tu cuenta» si no se sabe. 'otro_documento' lo decide el TELÉFONO al abrir la
+   cuenta (la lectura contra el documento escrito en ese registro), y eso sí se
+   sabe; lo que la base no pudo confirmar se dice así. */
+function porqueSeBorraron(aviso) {
+  var e = aviso && aviso.estado;
+  if (e === 'caducada') return 'Las fotos de tu registro no alcanzaron a subir y, como pasó un día, las borramos de este teléfono.';
+  if (e === 'otro_documento') return 'La cédula de las fotos de tu registro no es la del documento que escribiste en él, así que no las subimos y las borramos de este teléfono.';
+  if (e === 'no_confirmada') return 'No pudimos confirmar de quién es la cédula de las fotos de tu registro, así que no las subimos y las borramos de este teléfono.';
+  if (e === 'sin_ellas') return 'Las fotos de tu registro no se subieron: en este teléfono se eligió seguir a PlataChat sin ellas, así que las borramos.';
+  if (e === 'version_anterior') return 'En este teléfono quedaron unas fotos de cédula de un registro con tu celular, de antes de una actualización de la app. ' +
+    'No pudimos confirmar que fueran de tu cuenta, así que no las subimos y las borramos.';
+  return 'Las fotos de tu registro no se pudieron subir y las borramos de este teléfono.';
+}
+function queHacerSinLasFotos(aviso) {
+  /* Las de antes de la actualización pueden ser de una cuenta que ya mandó las
+     suyas: no se le dice que sin ellas no se puede revisar nada. */
+  if (aviso && aviso.estado === 'version_anterior') return 'Si todavía no nos has mandado la foto de tu cédula, mándanosla por el chat de Servicio.';
+  return 'Sin la foto de tu cédula no podemos revisar tu registro: mándanosla por el chat de Servicio.';
+}
+/* 20-oct-2026, buena fe (A8) — la última subida de esta cuenta entró, pero la
+   base dejó las fotos de cédula que ya tenía, leídas con su código (no las
+   pisa una foto sin código: base/20261020_la_cedula_de_la_cuenta.sql). '' si
+   no fue así. */
+function queDejamosDeAntes(cel) {
+  var nota = leerSubida();
+  if (!nota || String(nota.celular || '') !== String(cel || '') || nota.estado !== 'ok') return '';
+  var d = nota.descartadas || [];
+  if (!d.length) return '';
+  var otras = (nota.guardadas || []).filter(function (k) { return d.indexOf(k) < 0; });
+  return '<b>Ya teníamos fotos de tu cédula leídas con su código: dejamos esas.</b>' +
+    (otras.indexOf('selfie') >= 0 ? ' Tu foto de la cara sí llegó.' : '');
 }
 
 /* ==========================================================================
@@ -8870,21 +9096,39 @@ function pie() {
      CÁMARA. Si la página vuelve sola a un paso guardado dentro del rato que
      toma ir a la cámara y volver (EC.restosEnDuda), es la misma persona y
      sigue con sus fotos. Si no —se abrió por el enlace o la portada, o pasó
-     más rato, u otro día—, el registro quedó abandonado: las fotos, la
+     más rato—, el registro quedó abandonado: las fotos, la
      lectura, la selfie, la ubicación y el permiso se borran ANTES de nada, y
      lo escrito a mano espera detrás de «¿Es tuyo?». Hasta hoy se guardaban
-     para quien contestara «Seguir». */
-  if (hayContenidoEnFotos() &&
-      !(veniaDelRegistro && !EC.restosEnDuda({ hayRestos: true, t: ultimoToque(), ahora: Date.now(), retomando: true }))) {
+     para quien contestara «Seguir».
+     20-oct-2026, buena fe (A5, A7) — el rato se mide desde que la página se
+     fue (anotarSalidaDelRegistro), no desde la última tecla, y el cambio de
+     día ya no suelta nada: solo hace la pregunta de abajo. */
+  if (hayContenidoEnFotos() && !(veniaDelRegistro && volvioDentroDelRatoDeLaCamara())) {
     soltarLoSensibleDelRegistro();
     FOTOS_SOLTADAS_AL_ABRIR = veniaDelRegistro;   // había un registro que retomar: se le dice por qué no están
     veniaDelRegistro = hayPasoGuardado();
   }
   var reciente = cuentaRecienCreada();
+  /* 20-oct-2026, buena fe (A4) — con la marca, ANTES de irse a PlataChat: si la
+     cuenta que se acaba de abrir en este teléfono tiene fotos en su cola, se
+     suben (con su sesión) o se pide la contraseña para subirlas. Ver
+     pintarFotosPendientesPlataChat. */
+  var colaPlataChat = '';
+  if (MARCA === 'platachat') {
+    if (sesionGuardada) {
+      SESION = sesionGuardada;
+      if (colaDe(celularDeSesion())) colaPlataChat = celularDeSesion();
+    } else if (reciente && !veniaDelRegistro && colaDe(reciente.celular)) colaPlataChat = String(reciente.celular);
+  }
   /* 1-oct-2026 — con la marca, lo que aquí abriría la cuenta o la portada de
      Tu Garantía lleva a PlataChat: la sesión se le pasa, y quien ya tiene
      cuenta entra allá. Ver EL MODO PLATACHAT. */
-  if (sesionGuardada && MARCA === 'platachat') {
+  if (colaPlataChat && sesionGuardada) {
+    REGISTRADO = { celular: colaPlataChat, nombre: '' };
+    pintarRegistradoPlataChat();
+  } else if (colaPlataChat) {
+    pintarFotosPendientesPlataChat(colaPlataChat);
+  } else if (sesionGuardada && MARCA === 'platachat') {
     SESION = sesionGuardada;
     entrarAPlataChat(celularDeSesion(), '');
   } else if (reciente && !veniaDelRegistro && MARCA === 'platachat') {

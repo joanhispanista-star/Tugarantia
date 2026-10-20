@@ -321,8 +321,14 @@ describe('V5. la cola de una cuenta ya creada', () => {
     await asentar();
     assert.equal(subidas(ll).length, 1, 'la cola que dejó la versión anterior se perdió al actualizar');
     /* Sin la marca, es un formulario abandonado con el celular de alguien: el
-       camino de V1. No sube, aunque entre esa cuenta. */
-    const sinMarca = abrir({ hash: '', sesion: {}, almacen: { play_fotos_borrador: lote } });
+       camino de V1. No sube, aunque entre esa cuenta.
+       20-oct-2026, buena fe (A6) — y un formulario abandonado deja su BORRADOR
+       (la versión publicada solo lo borra al crear la cuenta, o con «Empezar de
+       cero», que se lleva las fotos): sin borrador, esas fotos son la cola de
+       la cuenta que se creó aquí, y sí se adoptan (la-persona-de-buena-fe).
+       Aquí va el borrador de quien lo dejó a medias, como queda de verdad. */
+    const sinMarca = abrir({ hash: '', sesion: {}, almacen: { play_fotos_borrador: lote,
+      play_registro_borrador: JSON.stringify({ celular: CEL_MARIA, nombres: 'MARIA JOSE', documento: '52123456' }) } });
     const ll2 = nube(sinMarca);
     sinMarca.ev("pintarCuenta({ access_token: 'tok-m', user: { email: '57" + CEL_MARIA + "@tugarantia.net' } })");
     await asentar();

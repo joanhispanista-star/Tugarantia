@@ -45,9 +45,17 @@ function abrirPlay(opciones) {
     setAttribute() {}, getAttribute: () => null, focus() {},
     play: () => Promise.resolve(), getContext: () => null, scrollIntoView() {}
   });
+  /* 20-oct-2026, buena fe — el documento GUARDA sus oyentes (y dice si se ve),
+     como la ventana: la vuelta de la cámara mide la ausencia desde que la
+     página deja de verse (visibilitychange), y una prueba tiene que poder
+     decir «la página se fue». Sin esto el oyente se tiraba y nadie lo veía. */
   const doc = {
     getElementById: elem, querySelector: () => null, querySelectorAll: () => [],
-    createElement: () => elem('creado-' + Math.random()), addEventListener() {},
+    createElement: () => elem('creado-' + Math.random()),
+    _oyentes: {},
+    addEventListener(t, f) { (doc._oyentes[t] = doc._oyentes[t] || []).push(f); },
+    removeEventListener() {},
+    visibilityState: 'visible', hidden: false,
     head: elem('head'), body: elem('body'), documentElement: elem('html'), title: ''
   };
   const ctx = {
@@ -80,7 +88,10 @@ function abrirPlay(opciones) {
     setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
     requestAnimationFrame: () => 0, cancelAnimationFrame() {},
     matchMedia: () => ({ matches: false, addEventListener() {} }),
-    Date, Math, JSON, URL, Intl, TextEncoder, TextDecoder, Promise, Error,
+    /* 20-oct-2026, buena fe — `o.Date`: un reloj de mentira para la página (la
+       medianoche de la vuelta de la cámara). Los módulos reciben la hora como
+       argumento, así que basta con el de la página. */
+    Date: o.Date || Date, Math, JSON, URL, Intl, TextEncoder, TextDecoder, Promise, Error,
     btoa: s => Buffer.from(s, 'binary').toString('base64'),
     atob: s => Buffer.from(s, 'base64').toString('binary'),
     Image: class {}, FileReader: class {}, Blob: class {}, File: class {},

@@ -34,12 +34,15 @@
 -- nunca. Esto es por si otro camino lo vuelve a intentar.)
 --
 -- LO QUE CAMBIA EN registro_archivos_guardar, ANTES de guardar nada:
---   1. una cedula_leida cuyo documento NO es el del registro de esa cuenta (el
---      último de ese celular, el mismo que mira el cotejo) no entra: ni la
---      lectura, ni las fotos de la cédula, ni la selfie, ni el GPS de esa
---      llamada. Contesta {ok:false, motivo:'otro_documento'} y deja en la
---      huella del registro una marca SIN DATOS de la otra persona
---      (cedula_rechazada: motivo y momento), para que Joan sepa que pasó;
+--   1. una cedula_leida cuyo documento NO es el de ninguno de los registros de
+--      ese celular no entra: ni la lectura, ni las fotos de la cédula, ni la
+--      selfie, ni el GPS de esa llamada. Contesta {ok:false, motivo} y deja en
+--      la huella del último registro una marca SIN DATOS de la otra persona
+--      (cedula_rechazada: motivo y momento), para que Joan sepa que pasó. El
+--      motivo es 'otro_documento' si ese celular tiene un solo documento (o si
+--      la cuenta ya tiene fotos de cédula con otro), y 'en_duda' si sus
+--      registros dicen documentos distintos: entonces no se sabe cuál es el de
+--      la cuenta, y la página no lo afirma (ver BUENA FE, abajo);
 --   2. sin registro con qué comparar (o un documento vacío) es «no se sabe»,
 --      nunca «es el mismo»: la lectura tampoco entra ('sin_documento');
 --   3. LAS FOTOS DE CÉDULA QUE YA HABÍA NO SE PISAN con las de una lectura que
@@ -51,20 +54,53 @@
 --      código, que no dicen de quién son. Las que no entran por esto vuelven
 --      en `descartados`, para que el teléfono no las reintente.
 -- Lo demás de la función sigue igual: el cotejo, la cédula repetida, el
--- desempate y los tres bloques protegidos.
+-- desempate y los tres bloques protegidos. Solo cambia QUÉ fila mira el
+-- cotejo cuando hay lectura: la de ese documento, si la hay (la de ESTE
+-- registro), y si no la última, como siempre.
 --
 -- Y EN registrar_abierto Y registrar_abierto_app (V6): el atajo contra el
 -- doble toque miraba el teléfono O LA CÉDULA. Si alguien había abierto antes
 -- una fila 'nuevo' con la cédula de María y su propio celular —la escribió a
 -- mano, o la dejó puesta del escaneo de ella—, el registro de María no entraba
 -- a la bandeja y la función contestaba ok: ella leía «Listo. Revisamos tu
--- solicitud» y Joan no tenía fila suya. Ahora el atajo mira SOLO el teléfono
--- (dos toques del mismo botón siguen sin duplicar, y la misma persona que se
--- vuelve a registrar con su celular tampoco). Una cédula que ya está en otra
--- fila 'nuevo' con otro teléfono entra igual, marcada en la huella
--- (cedula_repetida_al_registrarse), para que Joan decida cuál es la de verdad.
--- La revisión de 📥 Registrados ya compara las cédulas de las filas que tiene
--- a mano (app/revision-registro.js, «La cédula repetida»).
+-- solicitud» y Joan no tenía fila suya. Ahora el atajo mira el teléfono Y la
+-- cédula JUNTOS (dos toques del mismo botón siguen sin duplicar, y la misma
+-- persona que se vuelve a registrar con su celular y su documento tampoco).
+-- Una cédula que ya está en otra fila 'nuevo' con otro teléfono entra igual,
+-- marcada en la huella (cedula_repetida_al_registrarse), para que Joan decida
+-- cuál es la de verdad. La revisión de 📥 Registrados ya compara las cédulas
+-- de las filas que tiene a mano (app/revision-registro.js, «La cédula
+-- repetida»).
+--
+-- BUENA FE — 20-oct-2026, segunda vuelta. La verificación del rediseño
+-- confirmó que el atacante ya no cruza cédulas entre cuentas, pero que la
+-- persona de buena fe perdía sus propias fotos en dos casos de la base:
+--   A2. María tiene una fila 'nuevo' con el documento mal tecleado (de una
+--       inscripción anterior, o de este mismo registro si la bandeja alcanzó a
+--       entrar y la cuenta no salió por falta de señal). Lo corrige escaneando
+--       su cédula y vuelve a tocar «Abrir mi cuenta». El atajo «solo por
+--       teléfono» contestaba ok SIN insertar, la reja comparaba su lectura con
+--       la fila vieja y le contestaba 'otro_documento': la página soltaba sus
+--       fotos y le decía que no eran las del documento de su cuenta. Ahora el
+--       atajo mira (teléfono, cédula): una corrección entra como fila NUEVA,
+--       marcada (otro_documento_mismo_celular) y SIN pisar la vieja —que era
+--       lo que protegía el «a propósito NO se actualiza» de 20260909: quien
+--       sepa tu celular no puede cambiarte los datos que Joan va a mirar—.
+--   A1. registrar_abierto se llama SIN SESIÓN. Cualquiera que sepa un celular
+--       podía escribir una fila con otro documento (si la de la titular ya no
+--       estaba 'nuevo'), volverla «el último registro de la cuenta», y la reja
+--       le rechazaba a la titular su propia cédula. Una fila que cualquiera
+--       escribe no puede decidir sola un rechazo: la lectura entra si es el
+--       documento de CUALQUIERA de los registros de ese celular (salvo los que
+--       Joan descartó), y si sus registros dicen documentos distintos y la
+--       lectura no es de ninguno, el motivo es 'en_duda', no 'otro_documento'.
+--       Las fotos que la cuenta ya tiene con su código sí deciden: esas solo
+--       las sube la sesión de la cuenta.
+-- Lo que esto NO cambia: quien DELIBERADAMENTE escribe una fila con el
+-- documento de otra persona y su propio celular, y después sube esa cédula
+-- desde su cuenta, entra (ya era así con «la última fila»: el residual
+-- declarado en play/, LA CÉDULA SIN CÓDIGO SE CONFIRMA MIRÁNDOLA). Lo ven en
+-- el CRM la cara contra la foto y la cédula repetida.
 --
 -- LAS FUNCIONES NO SE COPIAN. Se lee la que está viva con pg_get_functiondef,
 -- se le meten los bloques nuevos en sus anclas y se vuelve a crear (lección de
@@ -131,9 +167,10 @@ begin
     $r$guardados text[] := '{}';
   -- 20-oct-2026 (base/20261020_la_cedula_de_la_cuenta.sql): la reja de la cédula.
   v_tg_doc_leido    text;
-  v_tg_doc_registro text;
   v_tg_doc_fotos    text;
   v_tg_reg          bigint;
+  v_tg_reg_igual    bigint;
+  v_tg_docs         integer := 0;
   v_tg_motivo       text;
   v_tg_descartados  text[] := '{}';$r$,
     '');
@@ -150,17 +187,19 @@ begin
     $r$\1
 
   -- 20-oct-2026 (base/20261020_la_cedula_de_la_cuenta.sql) — LA CÉDULA ES LA
-  -- DEL REGISTRO DE ESTA CUENTA. Antes de guardar nada: una lectura del
-  -- código de barras cuyo documento no es el del último registro de este
-  -- celular (el mismo que mira el cotejo), o sin registro con qué compararla,
-  -- no entra; y las fotos de cédula que ya hay, con su documento, no las
-  -- reemplaza una lectura de otro documento ni unas fotos sin código.
+  -- DE UN REGISTRO DE ESTA CUENTA. Antes de guardar nada: una lectura del
+  -- código de barras cuyo documento no es el de ningún registro de este
+  -- celular, o sin registro con qué compararla, no entra; y las fotos de
+  -- cédula que ya hay, con su documento, no las reemplaza una lectura de otro
+  -- documento ni unas fotos sin código.
+  -- 20-oct-2026, buena fe — CUALQUIER registro, y no solo el último: los
+  -- registros se escriben SIN SESIÓN (registrar_abierto), y una fila que
+  -- cualquiera escribe con tu celular no puede rechazarte tu propia cédula
+  -- (A1), ni la fila vieja de un documento mal tecleado la corrección (A2).
+  -- Los que Joan descartó no cuentan.
   p_archivos := coalesce(p_archivos, '{}'::jsonb);
   p_huella   := coalesce(p_huella, '{}'::jsonb);
-  select r.id,
-         regexp_replace(regexp_replace(
-           coalesce(nullif(coalesce(r.datos ->> 'documento', ''), ''), r.cedula, ''), '\\D', '', 'g'), '^0+', '')
-    into v_tg_reg, v_tg_doc_registro
+  select r.id into v_tg_reg
     from public.registros r
    where right(public.solo_digitos(r.telefono), 10) = right(cel, 10)
    order by r.creado_en desc, r.id desc
@@ -174,11 +213,26 @@ begin
   if p_huella ? 'cedula_leida' then
     v_tg_doc_leido := regexp_replace(regexp_replace(
       coalesce(p_huella -> 'cedula_leida' ->> 'documento', ''), '\\D', '', 'g'), '^0+', '');
-    if coalesce(v_tg_doc_leido, '') = '' or coalesce(v_tg_doc_registro, '') = '' then
+    -- Cuántos documentos distintos dicen los registros de este celular, y el
+    -- último que dice el de la lectura (la fila de ESTE registro).
+    select count(distinct d.doc),
+           (array_agg(d.id order by d.creado_en desc, d.id desc) filter (where d.doc = v_tg_doc_leido))[1]
+      into v_tg_docs, v_tg_reg_igual
+      from (select r.id, r.creado_en,
+                   regexp_replace(regexp_replace(
+                     coalesce(nullif(coalesce(r.datos ->> 'documento', ''), ''), r.cedula, ''), '\\D', '', 'g'), '^0+', '') as doc
+              from public.registros r
+             where right(public.solo_digitos(r.telefono), 10) = right(cel, 10)
+               and coalesce(r.estado, '') <> 'descartado') d
+     where d.doc <> '';
+    if coalesce(v_tg_doc_leido, '') = '' or coalesce(v_tg_docs, 0) = 0 then
       v_tg_motivo := 'sin_documento';
-    elsif v_tg_doc_leido <> v_tg_doc_registro
-       or (coalesce(v_tg_doc_fotos, '') <> '' and v_tg_doc_fotos <> v_tg_doc_leido) then
+    elsif coalesce(v_tg_doc_fotos, '') <> '' and v_tg_doc_fotos <> v_tg_doc_leido then
+      -- Las fotos que la cuenta ya tiene con su código las subió la sesión de
+      -- esta cuenta: eso sí lo sabe la base.
       v_tg_motivo := 'otro_documento';
+    elsif v_tg_reg_igual is null then
+      v_tg_motivo := case when v_tg_docs > 1 then 'en_duda' else 'otro_documento' end;
     end if;
   elsif coalesce(v_tg_doc_fotos, '') <> '' then
     -- (alias propio: «k» ya es una variable de la función)
@@ -205,6 +259,21 @@ begin
     '');
   if nueva = src then
     raise exception 'No encontré en registro_archivos_guardar el «if cel is null then … return jsonb_build_object(''ok'', false); end if;». Alguien lo cambió: no se tocó nada. Compárala con pg_get_functiondef y avísale a Claude.';
+  end if;
+
+  -- (b2) 20-oct-2026, buena fe — la huella (la lectura, el GPS, el cotejo) va
+  -- a la fila de ESTE registro, la que la reja encontró con el documento
+  -- leído, y no a la última de ese celular: esa la pudo escribir cualquiera
+  -- sin sesión (A1), y el cotejo diría 'no_cuadra' de una cédula que sí es.
+  -- Sin lectura, la última, como siempre (el desempate por id se queda).
+  src := nueva;
+  nueva := regexp_replace(src,
+    $p$(select\s+r\.id,\s*r\.datos,\s*r\.cedula,\s*r\.nombre\s+into\s+v_reg,\s*v_datos,\s*v_ced,\s*v_nom\s+from\s+public\.registros\s+r\s+where\s+right\(public\.solo_digitos\(r\.telefono\),\s*10\)\s*=\s*right\(cel,\s*10\))\s+order\s+by\s+r\.creado_en\s+desc,\s*r\.id\s+desc$p$,
+    $r$\1
+     order by coalesce(r.id = v_tg_reg_igual, false) desc, r.creado_en desc, r.id desc$r$,
+    '');
+  if nueva = src then
+    raise exception 'No encontré en registro_archivos_guardar el BLOQUE 1 («select r.id, r.datos, r.cedula, r.nombre into v_reg …»). Alguien lo cambió: no se tocó nada. Compárala con pg_get_functiondef y avísale a Claude.';
   end if;
 
   -- (c) Cada foto de cédula guarda el documento de la lectura con que entra
@@ -234,7 +303,7 @@ begin
   execute nueva;
 end $$;
 
--- ====== 3. EL ATAJO DE registrar_abierto MIRA SOLO EL TELÉFONO (V6) ======
+-- ====== 3. EL ATAJO DE registrar_abierto MIRA EL TELÉFONO Y LA CÉDULA (V6; A2) ======
 do $$
 declare
   f      regprocedure := 'public.registrar_abierto(text, text, text, jsonb)'::regprocedure;
@@ -257,22 +326,38 @@ begin
   nueva := regexp_replace(src,
     $p$if\s+not\s+exists\s+\(\s*select\s+1\s+from\s+public\.registros\s+where\s+estado\s*=\s*'nuevo'\s+and\s+\(telefono\s*=\s*cel\s+or\s+\(ced\s*<>\s*''\s+and\s+cedula\s*=\s*ced\)\)\s*\)\s+then\s+insert\s+into\s+public\.registros\s+\(codigo,\s*cedula,\s*nombre,\s*telefono,\s*datos,\s*origen\)\s+values\s+\(''\s*,\s*ced,\s*nom,\s*cel,\s*limpio,\s*'abierto'\);\s+end\s+if;$p$,
     $r$-- 20-oct-2026 (base/20261020_la_cedula_de_la_cuenta.sql) — EL ATAJO MIRA
-  -- SOLO EL TELÉFONO. Miraba también la cédula, y quien había dejado antes una
-  -- fila con la cédula de otra persona (y su propio celular) le tumbaba en
-  -- silencio el registro a la dueña: no entraba y se le contestaba ok. Una
-  -- cédula que ya está en otra fila con otro teléfono entra igual, marcada.
+  -- EL TELÉFONO Y LA CÉDULA JUNTOS. Miraba el teléfono O la cédula, y quien
+  -- había dejado antes una fila con la cédula de otra persona (y su propio
+  -- celular) le tumbaba en silencio el registro a la dueña: no entraba y se le
+  -- contestaba ok. Una cédula que ya está en otra fila con otro teléfono entra
+  -- igual, marcada.
+  -- 20-oct-2026, buena fe — y no SOLO el teléfono: quien corrige su documento
+  -- (o se vuelve a inscribir con otro) no entraba, y la reja de
+  -- registro_archivos_guardar le rechazaba su propia cédula comparándola con
+  -- la fila vieja. La corrección entra como fila NUEVA, marcada
+  -- (otro_documento_mismo_celular), y la vieja NO se toca: quien sepa tu
+  -- celular sigue sin poder cambiar los datos que Joan va a mirar. Dos toques
+  -- del mismo botón siguen sin duplicar.
   if not exists (
        select 1 from public.registros
         where estado = 'nuevo'
           and telefono = cel
+          and cedula = ced
      ) then
     insert into public.registros (codigo, cedula, nombre, telefono, datos, huella, origen)
     values ('', ced, nom, cel, limpio,
-            case when ced <> '' and exists (
-                   select 1 from public.registros r2
-                    where r2.estado = 'nuevo' and r2.cedula = ced and r2.telefono <> cel)
-                 then jsonb_build_object('cedula_repetida_al_registrarse', jsonb_build_object('momento', now()))
-            end,
+            nullif(
+              (case when ced <> '' and exists (
+                      select 1 from public.registros r2
+                       where r2.estado = 'nuevo' and r2.cedula = ced and r2.telefono <> cel)
+                    then jsonb_build_object('cedula_repetida_al_registrarse', jsonb_build_object('momento', now()))
+                    else '{}'::jsonb end)
+              || (case when exists (
+                      select 1 from public.registros r3
+                       where r3.telefono = cel and r3.cedula <> ced)
+                    then jsonb_build_object('otro_documento_mismo_celular', jsonb_build_object('momento', now()))
+                    else '{}'::jsonb end),
+              '{}'::jsonb),
             'abierto');
   end if;$r$,
     '');
@@ -309,20 +394,30 @@ begin
   nueva := regexp_replace(src,
     $p$if\s+not\s+exists\s+\(\s*select\s+1\s+from\s+public\.registros\s+where\s+estado\s*=\s*'nuevo'\s+and\s+\(telefono\s*=\s*cel\s+or\s+\(ced\s*<>\s*''\s+and\s+cedula\s*=\s*ced\)\)\s*\)\s+then\s+insert\s+into\s+public\.registros\s+\(codigo,\s*cedula,\s*nombre,\s*telefono,\s*datos,\s*origen,\s*app\)\s+values\s+\(''\s*,\s*ced,\s*nom,\s*cel,\s*limpio,\s*'abierto',\s*v_app\);\s+end\s+if;$p$,
     $r$-- 20-oct-2026 (base/20261020_la_cedula_de_la_cuenta.sql) — EL ATAJO MIRA
-  -- SOLO EL TELÉFONO, como en registrar_abierto: una cédula que ya está en
-  -- otra fila con otro teléfono entra igual, marcada.
+  -- EL TELÉFONO Y LA CÉDULA JUNTOS, como en registrar_abierto: una cédula que
+  -- ya está en otra fila con otro teléfono entra igual, marcada; y una
+  -- corrección del documento con el mismo celular entra como fila nueva,
+  -- marcada, sin tocar la vieja (20-oct-2026, buena fe).
   if not exists (
        select 1 from public.registros
         where estado = 'nuevo'
           and telefono = cel
+          and cedula = ced
      ) then
     insert into public.registros (codigo, cedula, nombre, telefono, datos, huella, origen, app)
     values ('', ced, nom, cel, limpio,
-            case when ced <> '' and exists (
-                   select 1 from public.registros r2
-                    where r2.estado = 'nuevo' and r2.cedula = ced and r2.telefono <> cel)
-                 then jsonb_build_object('cedula_repetida_al_registrarse', jsonb_build_object('momento', now()))
-            end,
+            nullif(
+              (case when ced <> '' and exists (
+                      select 1 from public.registros r2
+                       where r2.estado = 'nuevo' and r2.cedula = ced and r2.telefono <> cel)
+                    then jsonb_build_object('cedula_repetida_al_registrarse', jsonb_build_object('momento', now()))
+                    else '{}'::jsonb end)
+              || (case when exists (
+                      select 1 from public.registros r3
+                       where r3.telefono = cel and r3.cedula <> ced)
+                    then jsonb_build_object('otro_documento_mismo_celular', jsonb_build_object('momento', now()))
+                    else '{}'::jsonb end),
+              '{}'::jsonb),
             'abierto', v_app);
   end if;$r$,
     '');
@@ -379,20 +474,30 @@ begin
   if position('cedula_rechazada' in src) > position('insert into public.registro_archivos' in src) then
     raise exception 'FALLO: la reja quedó DESPUÉS de guardar las fotos.';
   end if;
+  -- 20-oct-2026, buena fe: la reja mira TODOS los registros del celular (A1),
+  -- dice 'en_duda' cuando no se sabe, y la huella va a la fila de la lectura.
+  if position('en_duda' in src) = 0 or position('v_tg_reg_igual' in src) = 0
+     or src !~ 'order by coalesce\(r\.id = v_tg_reg_igual, false\) desc, r\.creado_en desc, r\.id desc' then
+    raise exception 'FALLO: la reja de registro_archivos_guardar no quedó con la buena fe (todos los registros, en_duda, la fila de la lectura).';
+  end if;
   select p.prosrc into src from pg_proc p
    where p.oid = 'public.registrar_abierto(text, text, text, jsonb)'::regprocedure;
   src := regexp_replace(src, '--[^' || chr(10) || ']*', '', 'g');
   if position('cedula_repetida_al_registrarse' in src) = 0 or src ~ 'cedula\s*=\s*ced\)\)'
+     or position('otro_documento_mismo_celular' in src) = 0
+     or src !~ 'telefono\s*=\s*cel\s+and\s+cedula\s*=\s*ced\s*\)\s*then'
      or src !~ 'puede_intentar_tope' or src !~ 'limpiar_fallos' then
-    raise exception 'FALLO: registrar_abierto no quedó con el atajo solo por teléfono, o perdió un freno.';
+    raise exception 'FALLO: registrar_abierto no quedó con el atajo por (teléfono, cédula), o perdió un freno.';
   end if;
   if to_regprocedure('public.registrar_abierto_app(text, text, text, jsonb, text)') is not null then
     select p.prosrc into src from pg_proc p
      where p.oid = 'public.registrar_abierto_app(text, text, text, jsonb, text)'::regprocedure;
     src := regexp_replace(src, '--[^' || chr(10) || ']*', '', 'g');
     if position('cedula_repetida_al_registrarse' in src) = 0 or src ~ 'cedula\s*=\s*ced\)\)'
+       or position('otro_documento_mismo_celular' in src) = 0
+       or src !~ 'telefono\s*=\s*cel\s+and\s+cedula\s*=\s*ced\s*\)\s*then'
        or src !~ 'origen, app\)' then
-      raise exception 'FALLO: registrar_abierto_app no quedó con el atajo solo por teléfono, o perdió la etiqueta.';
+      raise exception 'FALLO: registrar_abierto_app no quedó con el atajo por (teléfono, cédula), o perdió la etiqueta.';
     end if;
   end if;
   if has_function_privilege('anon', 'public.registro_archivos_guardar(jsonb, jsonb)', 'execute')

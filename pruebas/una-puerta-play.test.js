@@ -177,8 +177,14 @@ describe('la revisión de play/ (7-oct-2026, tercera vuelta)', () => {
     P.ev('siguientePaso()');
     return asentar().then(() => {
       const c = clics(P.ev("$('errReg').innerHTML"));
-      assert.deepEqual(c, ['volverAPlataChat()'], 'la caja de PlataChat lleva a otro lado: ' + c.join(', '));
-      assert.match(P.ev("$('errReg').textContent"), /Entra en PlataChat con la tuya/);
+      /* 20-oct-2026, buena fe (A3) — y la contraseña se escribe ahí mismo, como
+         en Tu Garantía: irse a PlataChat le borra las fotos del registro. Lo que
+         esta prueba cuida sigue igual: ninguna salida a la portada de Tu
+         Garantía (ni su entrada ni su «Olvidé mi contraseña»). */
+      assert.deepEqual(c, ["verClave('rClaveCuenta', this)", 'entrarConOtraClaveDelRegistro()', 'volverAPlataChat()'],
+        'la caja de PlataChat lleva a otro lado: ' + c.join(', '));
+      c.forEach(x => assert.equal(P.ev('typeof ' + x.slice(0, x.indexOf('('))), 'function', x + ' no existe'));
+      assert.match(P.ev("$('errReg').textContent"), /Si no la recuerdas, entra en PlataChat/);
     });
   });
 
