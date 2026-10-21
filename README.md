@@ -117,7 +117,7 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         calibrarlas con una cédula real
                         (herramientas/calibrar-ocr.js; la receta local
                         RECETA-OCR-CEDULA.md, que no va al repo).
-                        (22-oct-2026) Las letras escuchan al escáner por su
+                        (21-oct-2026) Las letras escuchan al escáner por su
                         enganche (alTomarLaCedula): leen EXACTAMENTE el
                         recorte de la foto que se guardó —las dos caras
                         acostadas, el mejor cuadro de la ventana—, con su giro

@@ -6252,7 +6252,7 @@ function soltarLienzosDoc() {
      puede quedarse viva fuera del registro. */
   soltarLienzo(ESCDOC.medida); soltarLienzo(ESCDOC.lienzoQr);
   ESCDOC.previa = null; ESCDOC.ventana = null; ESCDOC.mejorPendiente = false;
-  ESCDOC.marcoEnRecorte = null;   // 22-oct-2026 — era del recorte que se acaba de soltar
+  ESCDOC.marcoEnRecorte = null;   // 21-oct-2026 — era del recorte que se acaba de soltar
 }
 function repetirDoc(lado) {
   /* 20-oct-2026, revisión (F11, F15; regla 2) — repetir el respaldo es tomar
@@ -6355,7 +6355,7 @@ function recortarGuia(v) {
   if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
   var x = c.getContext('2d', { willReadFrequently: true }); if (!x) return null;
   try { x.drawImage(v, g.x, g.y, g.w, g.h, 0, 0, g.w, g.h); } catch (e) { ESCDOC.marcoEnRecorte = null; return null; }
-  /* 22-oct-2026 (integración del lote 1) — DÓNDE QUEDÓ EL MARCO DENTRO DE ESTE
+  /* 21-oct-2026 (integración del lote 1) — DÓNDE QUEDÓ EL MARCO DENTRO DE ESTE
      RECORTE, anotado AL DIBUJARLO. Las franjas de las letras (app/ocr-cedula.js)
      son fracciones de la tarjeta, no del recorte, y el recorte lleva aire
      alrededor (margenDeLectura, recortado contra el borde del video). Antes
@@ -6775,10 +6775,10 @@ function celebrarDisparoDoc() {
  *         resolucion: lo que la cámara entregó (EscanerCaptura.resolucionEfectiva),
  *         generacion: GENERACION_DEL_REGISTRO al tomarla,
  *         turno:   ESCDOC.turno al tomarla,
- *         guia:    22-oct-2026 — dónde quedó el MARCO dentro de `lienzo`
+ *         guia:    21-oct-2026 — dónde quedó el MARCO dentro de `lienzo`
  *                  ({x, y, w, h}, anotado al dibujar ese mismo cuadro:
  *                  ESCDOC.marcoEnRecorte), o null si no se sabe,
- *         forzada: 22-oct-2026 — un frente guardado a la fuerza, con un código
+ *         forzada: 21-oct-2026 — un frente guardado a la fuerza, con un código
  *                  a la vista (EC.guardarFrente): puede ser el respaldo }
  *
  * LAS REGLAS DE QUIEN ESCUCHE (son las del registro, no de este enganche):
@@ -6806,7 +6806,7 @@ function avisarCedulaTomada(lado, lienzo, giro, extra) {
             leida: x.leida === true, qr: x.qr === true, automatica: x.automatica === true,
             nitidez: (ESCDOC.ventana && ESCDOC.ventana.mejor) ? ESCDOC.ventana.mejor : null,
             resolucion: ESCDOC.resolucion, generacion: GENERACION_DEL_REGISTRO, turno: ESCDOC.turno,
-            /* 22-oct-2026 — el marco solo vale si el lienzo es el recorte que lo
+            /* 21-oct-2026 — el marco solo vale si el lienzo es el recorte que lo
                anotó: otro lienzo (o un recorte sin anotar) va sin él. */
             guia: (lienzo === ESCDOC.recorte && ESCDOC.marcoEnRecorte) ? ESCDOC.marcoEnRecorte : null,
             forzada: x.forzada === true };
@@ -6833,7 +6833,7 @@ function leidaDoc(cedula, giro) {
   var aSalvo = anotarCedulaLeida(cedula);
   /* 21-oct-2026 — el destello, y el enganche de lo visible con ESTE recorte
      (ver alTomarLaCedula), ya con la foto y la lectura en su sitio.
-     22-oct-2026 (integración del lote 1) — las franjas de las letras (la
+     21-oct-2026 (integración del lote 1) — las franjas de las letras (la
      expedición) salen de AQUÍ, por el enganche (ocrAlTomarLaCedula): el mismo
      recorte de la foto que se guardó, con su giro y su marco. */
   celebrarDisparoDoc();
@@ -6940,7 +6940,7 @@ function capturarDoc(automatico, delMejor) {
   var aSalvo = guardarFotos();
   /* 21-oct-2026 — el destello, y el enganche de lo visible con el recorte que
      se acaba de guardar (ver alTomarLaCedula).
-     22-oct-2026 (integración del lote 1) — las franjas de las letras de este
+     21-oct-2026 (integración del lote 1) — las franjas de las letras de este
      lado salen de AQUÍ, por el enganche (ocrAlTomarLaCedula), con `c`: el
      recorte de la foto que se guardó —el mejor cuadro de la ventana, o el de
      ahora con «Tomar la foto ahora»—, su giro y su marco. `forzada` viaja para
@@ -6969,7 +6969,7 @@ function capturarDoc(automatico, delMejor) {
            tus datos» ya no es lo que va a pasar: se intenta con las letras, y
            lo que no salga se escribe. Sin ellas (el módulo no bajó), lo de
            siempre.
-           22-oct-2026 (integración del lote 1) — las dos ramas escribieron
+           21-oct-2026 (integración del lote 1) — las dos ramas escribieron
            este texto a la vez; la digital va PRIMERO: sus letras no son las
            de la amarilla, y prometerle que se las llenamos sería falso. Desde
            la costura con el escáner, además, ni se leen (ocrAlTomarLaCedula). */
@@ -7038,7 +7038,7 @@ var BASE_OCR = '../app/';
 /* Si en este rato no terminó (sin señal para bajar el motor, un teléfono que
    no puede con él), se deja: la persona escribe lo que falte. */
 var MS_TOPE_OCR = 60000;
-/* 22-oct-2026 — `digital`: la foto del respaldo que se tomó por el QR (ver ocrAlTomarLaCedula). */
+/* 21-oct-2026 — `digital`: la foto del respaldo que se tomó por el QR (ver ocrAlTomarLaCedula). */
 var OCR_CEDULA = { pendientes: {}, estado: '', turno: 0, lector: null, tocados: {}, tope: null, precalentado: false, digital: null };
 var CAMPOS_DE_LA_VISTA = ['documento', 'apellidos', 'nombres', 'expedicion'];
 var TEXTO_LEIDO_DE_LA_CEDULA = '· leído de tu cédula · revísalo';
@@ -7047,7 +7047,7 @@ var TEXTO_LEIDO_DE_LA_CEDULA = '· leído de tu cédula · revísalo';
    de ahora (ESCDOC.guiaVideo) con el aire que le pone recortarGuia
    (EC.margenDeLectura). Las franjas son fracciones de la TARJETA, no del
    recorte. null si no se sabe (entonces el recorte entero hace de tarjeta).
-   22-oct-2026 (integración del lote 1) — ES SOLO EL RESPALDO de d.guia: el
+   21-oct-2026 (integración del lote 1) — ES SOLO EL RESPALDO de d.guia: el
    marco bueno es el que recortarGuia anotó al dibujar el cuadro que se guardó
    (ESCDOC.marcoEnRecorte), y llega con el enganche. Y ya no hay marco de pie:
    desde el escáner del 21-oct las dos caras van acostadas y el recorte no se
@@ -7065,7 +7065,7 @@ function marcoQueCabe(r, lienzo) {
   return r;
 }
 /* ===========================================================================
- * LAS LETRAS SE ENGANCHAN AL ESCÁNER — 22 de octubre de 2026 (integración
+ * LAS LETRAS SE ENGANCHAN AL ESCÁNER — 21 de octubre de 2026 (integración
  * del lote 1: l1-escaner + l1-ocr)
  *
  * Las dos ramas se escribieron a la vez. l1-ocr llamaba a ocrAnotarRecorte
@@ -7112,7 +7112,7 @@ alTomarLaCedula(ocrAlTomarLaCedula);
    con el RH y el sexo del respaldo, ni se copia) y quedan esperando a que la
    cámara se apague. Sin el módulo (no alcanzó a bajar), esta vez se escribe
    a mano, como antes.
-   22-oct-2026 — `guia`: el marco del cuadro que se guardó (d.guia del
+   21-oct-2026 — `guia`: el marco del cuadro que se guardó (d.guia del
    enganche); sin él, se calcula (guiaEnElRecorte). */
 function ocrAnotarRecorte(lado, lienzo, giro, guia) {
   ocrSoltarLado(lado);   // una foto nueva de este lado: lo de la anterior se va
@@ -7175,7 +7175,7 @@ function ocrSoltarLado(lado) {
 /* Un respaldo NUEVO (prepararRespaldoNuevo): el frente se va con el viejo, y
    todo lo que las letras de esa cédula escribieron, también. */
 function ocrSoltarVista() {
-  /* 22-oct-2026 — y la marca de cédula digital: el respaldo nuevo decide otra vez. */
+  /* 21-oct-2026 — y la marca de cédula digital: el respaldo nuevo decide otra vez. */
   if (typeof OCR_CEDULA === 'object' && OCR_CEDULA) { OCR_CEDULA.pendientes = {}; OCR_CEDULA.digital = null; }
   var v = FOTOS.cedula_vista;
   if (v) { ocrQuitarLoLlenado(v); delete FOTOS.cedula_vista; }

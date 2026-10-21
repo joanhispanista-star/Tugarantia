@@ -430,7 +430,7 @@ const cuerpo = P => P.ev("$('cuerpo').innerHTML");
 /* Las medidas del escáner con las que el marco cae donde lo dejó la fábrica
    (GUIA: 60, 38, 1000 × 631 dentro del recorte de 1120 × 708). Ver
    guiaEnElRecorte.
-   22-oct-2026 (integración del lote 1) — LAS DOS CARAS ACOSTADAS. Hasta hoy el
+   21-oct-2026 (integración del lote 1) — LAS DOS CARAS ACOSTADAS. Hasta hoy el
    respaldo iba de pie (el teléfono vertical, el recorte girado 90°); el
    escáner del 21-oct (l1-escaner) acuesta las dos, y el marco de pie ya no
    existe. Con el de pie de antes, el marco calculado no cabía en el recorte y

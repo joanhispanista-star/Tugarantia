@@ -1,6 +1,6 @@
 'use strict';
 /* ==========================================================================
- * DE LA CÁMARA A «ESTÁN BIEN», SIN TECLEAR NADA — 22 de octubre de 2026
+ * DE LA CÁMARA A «ESTÁN BIEN», SIN TECLEAR NADA — 21 de octubre de 2026
  *
  *   node --test pruebas/escaner-ocr-de-punta-a-punta.test.js
  *
@@ -285,7 +285,7 @@ function huellaDelRecorte(px, guia) {
  * LA PÁGINA, CON CÁMARA, RELOJ Y LETRAS
  * ======================================================================== */
 function abrir(motor) {
-  const reloj = { t: Date.parse('2026-10-22T10:00:00-05:00') };
+  const reloj = { t: Date.parse('2026-10-21T18:00:00-05:00') };
   class Reloj extends Date {
     constructor(...a) { if (a.length) super(...a); else super(reloj.t); }
     static now() { return reloj.t; }
