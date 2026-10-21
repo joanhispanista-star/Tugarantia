@@ -423,6 +423,16 @@ summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--gris);list-sty
 summary::-webkit-details-marker{display:none}
 summary::after{content:' ↓';color:var(--gris)}
 details[open] summary::after{content:' ↑'}
+/* 21-oct-2026 — el pliegue de Mi garantía va SUELTO entre tarjetas, no dentro
+   de una: lo que guarda son tarjetas enteras (la laca del desglose, los
+   niveles), y una tarjeta metida en otra se lee como un error. Sin la raya de
+   arriba, que entre tarjetas sobra, y con el renglón alineado al texto de las
+   tarjetas. */
+details.plegado{border-top:0;padding-top:0;margin-top:var(--e2)}
+details.plegado>summary{padding:0 var(--e4)}
+/* La frase de la garantía (FRASE_GARANTIA) sobre la laca: en el color de la
+   placa y no en el gris de .sub, porque es la línea que manda en la pantalla. */
+.frase-garantia{margin:var(--e2) 0 0;font-size:15px;line-height:1.45}
 
 /* ------- la comparación: dos lados enfrentados, cada uno con su color ------ */
 .dual{display:grid;grid-template-columns:1fr 1fr}
@@ -848,6 +858,18 @@ var pct = function (t) {
    seis pantallas: cuando Joan subió el factor al 80% todas se quedaron
    prometiendo el 75%. Ahora sale de la constante del motor. */
 var centavosDeGarantia = function () { return Math.round(M.FACTOR_GARANTIA * 100); };
+/* 21-oct-2026 — LA GARANTÍA EN UNA LÍNEA, con las palabras que eligió Joan.
+   Pidió «solo quiero que diga que cada vez que pagas cumplidamente la app te
+   suma garantía»; la versión con «es plata» se descartó porque los términos
+   (§6) dicen que la garantía NO es dinero del socio, y llamarla plata nacida
+   de lo que él pagó se lee como un saldo suyo, o sea captación.
+   Cada palabra es verdad acá y solo acá: en esta app calcularCupo ES la
+   garantía, uno a uno. En play/ el cupo sale del perfil (creditos.js), así que
+   la frase NO se copia allá ni al motor, que play/ también carga. Tampoco dice
+   «cumplidamente»: el costo suma igual pagado tarde (FACTOR_GARANTIA_MORA), y
+   la frase no puede insinuar que el tardío no suma.
+   Se escribe una sola vez: Inicio y Mi garantía la leen de aquí. */
+var FRASE_GARANTIA = 'Cada crédito que pagas te suma garantía, y tu garantía es tu cupo: lo que puedes pedir en la app.';
 /* ¿El recargo de ESTE crédito deja garantía? Sí en los pedidos antes del
    27-sep-2026 —siguen con su regla hasta terminar, punto 12 de los términos—,
    no en los de ese día en adelante. Lo contesta el motor con la fecha del
@@ -1584,14 +1606,12 @@ function vistaInicio() {
       '<div class="cifra oro">' + COP(S.cupo) + '</div>' +
       '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
       'El costo lo ves en pesos antes de pedir, y es todo lo que pagas: sin cuotas de manejo ni sorpresas.</div>' +
-      /* LA REGLA DEL PRODUCTO, EN UNA LÍNEA (5-ago-2026). Antes acá había que
-         explicar niveles y factores para que el socio entendiera de dónde salía
-         su cupo; desde que el cupo es la garantía uno a uno, la regla entera
-         cabe en un renglón y va donde primero se mira.
-         26-sep-2026: decía «tres cuartas partes», escrito a mano aunque este
-         comentario dijera lo contrario. Ahora los centavos salen del motor. */
-      '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
-      'Y cada crédito que pagas te sube el cupo: <b>' + centavosDeGarantia() + ' centavos de cada peso de costo</b> se te vuelven garantía tuya.</div>' +
+      /* 21-oct-2026 — AQUÍ IBA LA REGLA DE LOS CENTAVOS («Y cada crédito que
+         pagas te sube el cupo: 80 centavos de cada peso de costo…»), y se fue.
+         Con el socio al día, Inicio la decía tres veces: aquí, en «Tu garantía»
+         y en el renglón del nivel. Joan: «es mucha cosa lo que explica». La
+         regla queda UNA vez, en la tarjeta «Tu garantía» (FRASE_GARANTIA), y
+         los centavos, en Mi garantía detrás de «Ver cómo funciona». */
       (S.maxRespaldado > 0
         ? '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
           'Y con la garantía que ya te ganaste puedes pedir hasta ' + COP(S.maxRespaldado) +
@@ -1616,9 +1636,13 @@ function vistaInicio() {
        /* "Es lo que te deja pedir más" era la frase de cuando el cupo salía de
           multiplicar esto por un factor. Hoy no hay nada en el medio: la
           garantía ES el cupo, y decirlo así ahorra la pantalla entera de
-          explicación que antes hacía falta. */
-       '<p class="sub">Es tu historial hecho número, y es tu cupo: puedes pedir exactamente ' +
-       'lo que tienes. No se retira, y cada crédito que pagas la sube: ' + centavosDeGarantia() + ' centavos de cada peso de costo se te vuelven garantía.</p>' +
+          explicación que antes hacía falta.
+          21-oct-2026 — y ahora con la frase que eligió Joan, sin los centavos
+          ni el «No se retira»: los dos se mudaron al pliegue «Ver cómo
+          funciona» de Mi garantía (vistaGarantia), y lo que la garantía no es
+          lo dicen además los términos §6. La frase no insinúa nada de eso:
+          no la llama plata ni ahorro. */
+       '<p class="sub">' + esc(FRASE_GARANTIA) + '</p>' +
        '<div class="barra"><i style="width:' + progresoNivel() + '%"></i></div>' +
        '<div class="muted" style="font-size:13px;margin-top:var(--e2)">' + textoProximoNivel() + '</div>' +
        '</div>';
@@ -1874,7 +1898,12 @@ function verReglas() {
   h += bloquePlanDePagos();
   h += bloqueCreditoACuotas();
 
-  h += '<button class="btn sec" style="margin-top:var(--e3)" onclick="irA(\'inicio\')">Volver</button>';
+  /* 21-oct-2026 — vuelve a la pestaña desde la que se abrió: desde hoy se
+     llega también desde Mi garantía, y «Volver» mandaba siempre a Inicio. TAB
+     va a parar dentro de un onclick, así que se pasa por la lista de las cinco
+     pestañas aunque hoy solo lo escriban irA y los botones fijos de la barra. */
+  var volverA = /^(inicio|calc|garantia|historial|chat)$/.test(TAB) ? TAB : 'inicio';
+  h += '<button class="btn sec" style="margin-top:var(--e3)" onclick="irA(\'' + volverA + '\')">Volver</button>';
   $('cuerpo').innerHTML = '<div class="panel">' + h + '</div>';
   window.scrollTo(0, 0);
 }
@@ -1903,16 +1932,17 @@ function progresoNivel() {
 }
 function textoProximoNivel() {
   var sig = siguienteNivel();
-  if (!sig) {
-    return 'Estás en el nivel más alto. Tu cupo no depende del nivel: es tu ' +
-      'garantía, uno a uno.';
-  }
+  /* 21-oct-2026 — este renglón va debajo de FRASE_GARANTIA, en la misma
+     tarjeta de Inicio, y repetía la regla con otras palabras: «Tu cupo no
+     depende del nivel: es tu garantía, uno a uno» arriba, y «Cada crédito que
+     pagas te acerca: 80 centavos…» abajo. La frase ya dice las dos cosas; aquí
+     queda solo lo que la frase no dice: cuánto falta para el nivel. */
+  if (!sig) return 'Estás en el nivel más alto.';
   /* 26-sep-2026 — decía «cada pago en fecha te acerca al doble de velocidad
      que uno tardío» (75% contra 37,5%). Desde el 23-sep valen lo mismo, así
      que la frase le prometía al tardío menos de lo que recibe. */
   return 'Te faltan <b>' + esc(COP(sig.faltan)) + '</b> de garantía para pasar a <b>' +
-    esc(sig.nombre) + '</b>. Cada crédito que pagas te acerca: ' + centavosDeGarantia() +
-    ' centavos de cada peso de costo.';
+    esc(sig.nombre) + '</b>.';
 }
 
 /* ============ QUÉ CICLO SE ESTÁ COBRANDO, Y A QUÉ PRECIO ============
@@ -3400,8 +3430,30 @@ function vistaGarantia() {
   var tot = Math.max(1, gd.total);
   var anc = function (v) { return Math.max(2, Math.min(100, Math.round(v / tot * 100))); };
 
+  /* 21-oct-2026 — LA PESTAÑA ABRE CON LA FRASE, Y EL RESTO VA PLEGADO.
+     Joan: «es mucha cosa lo que explica». Esta pantalla abría con el desglose
+     ganada/prestada/comprometida y cinco tarjetas de explicación, unas 430
+     palabras, y la regla no estaba dicha en una línea en ninguna parte. Ahora
+     a la vista queda: la cifra, FRASE_GARANTIA, el cupo y las ACCIONES
+     (completar el perfil, invitar). El desglose, el préstamo con garantía, los
+     niveles y la puerta a «Cómo funciona esto» quedan detrás de «Ver cómo
+     funciona», cerrado de entrada.
+     Las acciones no se pliegan a propósito: «Completar y ganar» es la ÚNICA
+     puerta a abrirPerfil en toda la app, y plegarla escondía la única forma de
+     dar datos y subir el cupo. Con el perfil completo esa tarjeta ya no pide
+     nada, solo informa, y entonces sí va al pliegue. */
   var h = '<div class="card laca"><div class="etq">Tu garantía</div>' +
     '<div class="cifra oro">' + COP(S.garantia) + '</div>' +
+    '<p class="frase-garantia">' + esc(FRASE_GARANTIA) + '</p>' +
+    '<div class="sep"></div>' +
+    /* El cupo es lo construido, igual que en Inicio: mismo amarillo, misma laca. */
+    '<div class="fila"><span class="k">' +
+      (gd.comprometida > 0 ? 'Con eso puedes pedir hoy' : 'Con eso puedes pedir') +
+      '</span><span class="v oro">' + esc(COP(S.cupo)) + '</span></div>' +
+    '</div>';
+
+  /* --- El detalle, que va plegado --- */
+  var detalle = '<div class="card laca"><div class="etq">De qué está hecha</div>' +
     parteGarantia('Ganada', 'pagando tus créditos', COP(gd.ganada), 'oro', anc(gd.ganada)) +
     parteGarantia('Prestada', 'por tus datos, para arrancar', COP(gd.prestada), 'prestada', anc(gd.prestada)) +
     (gd.comprometida > 0
@@ -3409,17 +3461,19 @@ function vistaGarantia() {
                       'comprometida', anc(gd.comprometida))
       : '') +
     '<div class="sep"></div>' +
-    /* El cupo es lo construido, igual que en Inicio: mismo amarillo, misma laca. */
-    '<div class="fila"><span class="k">' +
-      (gd.comprometida > 0 ? 'Con eso puedes pedir hoy' : 'Con eso puedes pedir') +
-      '</span><span class="v oro">' + esc(COP(S.cupo)) + '</span></div>' +
     '<div class="fila"><span class="k">' +
       (gd.comprometida > 0 ? 'Te queda de préstamo con garantía' : 'Con la ganada, préstamo hasta') +
       '</span><span class="v azul">' + COP(S.maxRespaldado) + '</span></div>' +
+    /* 21-oct-2026 — el «No se retira» de la tarjeta de Inicio se fue con la
+       frase nueva, y era lo único de la app que decía lo que la garantía NO
+       es. Se queda aquí, con las palabras de los términos §6, para que nadie
+       la lea como un saldo suyo. */
+    '<div class="muted" style="font-size:13px;margin-top:var(--e3)">No es un ahorro ni un depósito, ' +
+      'y no se retira: es el historial de lo que has pagado.</div>' +
     '</div>';
 
   if (S.maxRespaldado > 0) {
-    h += '<div class="card respaldo"><div class="etq r">Préstamo con garantía</div>' +
+    detalle += '<div class="card respaldo"><div class="etq r">Préstamo con garantía</div>' +
       '<p style="margin:var(--e2) 0 0;font-size:14.5px">' + esc(M.reglasResumen().respaldado.texto) + '</p>' +
       '<button class="btn azul sm arriba" onclick="irACalcRespaldado()">Calcular uno</button></div>';
   }
@@ -3431,7 +3485,7 @@ function vistaGarantia() {
   Object.keys(NUEVOS).forEach(function (k) { conNuevos[k] = NUEVOS[k]; });
   var enCamino = M.garantiaPorDatos(conNuevos).total - yaTiene.total;
 
-  h += '<div class="card"><h3 class="tit">Completa tu perfil</h3>' +
+  var perfil = '<div class="card"><h3 class="tit">Completa tu perfil</h3>' +
     '<p class="sub">Te prestamos garantía por cada dato que nos des. Con todo completo son ' +
     COP(M.CUPON_KYC_MAXIMO) + ', y eso es cupo desde el primer día.</p>' +
     '<div class="cifra sm">' + COP(yaTiene.total) +
@@ -3441,12 +3495,12 @@ function vistaGarantia() {
       (enCamino > 0 ? ' · <b>+' + COP(enCamino) + ' en camino</b>' : '') + '</div>';
 
   if (yaTiene.completos.length) {
-    h += '<div class="muted" style="font-size:13px;margin-top:var(--e3)">✓ ' + yaTiene.completos.length +
+    perfil += '<div class="muted" style="font-size:13px;margin-top:var(--e3)">✓ ' + yaTiene.completos.length +
       ' dato' + (yaTiene.completos.length !== 1 ? 's' : '') + ' ya cargado' +
       (yaTiene.completos.length !== 1 ? 's' : '') + '</div>';
   }
   if (yaTiene.faltantes.length) {
-    h += '<div style="margin-top:var(--e3)">' + yaTiene.faltantes.map(function (d) {
+    perfil += '<div style="margin-top:var(--e3)">' + yaTiene.faltantes.map(function (d) {
       return '<div class="dato' + (NUEVOS[d.id] ? ' ok' : '') + '">' +
         '<span class="tick">' + (NUEVOS[d.id] ? '✓' : '') + '</span>' +
         '<span class="txt"><span class="nm" style="font-size:14px;font-weight:600">' + esc(d.etiqueta) + '</span>' +
@@ -3456,10 +3510,13 @@ function vistaGarantia() {
     '<button class="btn" style="margin-top:var(--e4)" onclick="abrirPerfil()">Completar y ganar ' +
       COP(M.CUPON_KYC_MAXIMO - yaTiene.total) + '</button>';
   } else {
-    h += '<div class="aviso" style="margin-top:var(--e3)">Tienes el perfil completo. Ya te ganaste los ' +
+    perfil += '<div class="aviso" style="margin-top:var(--e3)">Tienes el perfil completo. Ya te ganaste los ' +
       COP(M.CUPON_KYC_MAXIMO) + ' de garantía prestada.</div>';
   }
-  h += '</div>';
+  perfil += '</div>';
+  /* Con el perfil completo la tarjeta ya no pide nada: es explicación, y va
+     al pliegue (21-oct-2026). Con datos por dar, es una acción y se queda. */
+  if (!yaTiene.faltantes.length) { detalle += perfil; perfil = ''; }
 
   /* --- Referidos ---
      1-oct-2026: fuera «Ya pagaron» y el aviso «Te faltan N por pagar». Le
@@ -3469,7 +3526,7 @@ function vistaGarantia() {
      con su tope), no invitados × 5.000: con el tope eso le prometía cupo que el
      Panel no le da. Los 5.000 por referido siguen; los decide el abogado. */
   var r = S.referidos;
-  h += '<div class="card"><h3 class="tit">Trae gente, gana cupo</h3>' +
+  var referidos = '<div class="card"><h3 class="tit">Trae gente, gana cupo</h3>' +
     '<p class="sub">Cada persona que traigas te suma ' + COP(M.GARANTIA_POR_REFERIDO) +
     ', desde que esa persona pague su crédito. Si no paga, no suma.</p>' +
     fila('Gente que has traído', String(r.total || 0)) +
@@ -3489,7 +3546,7 @@ function vistaGarantia() {
      mover el cupo por nivel, esta tarjeta lo va a decir sola en vez de callarlo. */
   var niveles = M.proyeccionNiveles(gd.base_cupo, S.nivel);
   var nivelMueveElCupo = niveles.some(function (n) { return n.mueve_el_cupo; });
-  h += '<div class="card"><h3 class="tit">Tus niveles</h3>' +
+  detalle += '<div class="card"><h3 class="tit">Tus niveles</h3>' +
     '<p class="sub">' + esc(M.reglasResumen().niveles_texto) + '</p>' +
     '<div style="margin-top:var(--e2)">' + niveles.map(function (n) {
       return '<div class="nivel ' + (n.actual ? 'aqui' : '') + '">' +
@@ -3507,6 +3564,19 @@ function vistaGarantia() {
       ', y sube con cada crédito que pagues: ' + centavosDeGarantia() + ' centavos de cada peso de costo se te vuelven garantía. La plataforma presta hasta <b>' +
       COP(M.CUPO_MAXIMO) + '</b>.</div>' +
     '</div>';
+
+  /* La puerta a las reglas completas: «Cómo funciona esto» es donde vive la
+     letra del acuerdo (el 27-sep, lo que la prórroga NO hace), y hasta hoy solo
+     se llegaba desde la tarjeta de la comunidad en Inicio. */
+  detalle += '<div class="card" onclick="verReglas()" style="cursor:pointer">' +
+    '<div class="etq">Cómo funciona esto</div>' +
+    '<p style="margin:var(--e2) 0 0;font-size:14.5px">Las reglas del acuerdo, completas y sin letra chica.</p>' +
+    '</div>';
+
+  /* Cerrado de entrada: un pliegue que arranca abierto es lo mismo que no
+     plegar. Va pegado a la tarjeta de la frase, que es lo que explica. */
+  h += '<details class="plegado"><summary>Ver cómo funciona</summary>' + detalle + '</details>';
+  h += perfil + referidos;
 
   return h + pie();
 }
