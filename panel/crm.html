@@ -8749,7 +8749,11 @@ const URL_PUERTA_DEF = 'https://tugarantia.net/play/';
 
    Se manda el ENLACE y no el archivo porque WhatsApp bloquea los .apk. La
    página del otro lado explica el aviso de «app desconocida» antes de que le
-   salga, que es lo que decide si el cliente instala o se echa para atrás. */
+   salga, que es lo que decide si el cliente instala o se echa para atrás.
+   21-oct-2026 — el enlace es el mismo, lo que hay del otro lado cambió: ya no
+   ofrece el APK (decisión de Joan: Chrome «Instalar», sin APK) sino los pasos
+   para instalar app/socio.html desde Chrome o Safari, sin avisos de «app
+   desconocida». Ver descargas/index.html y app/instalar.js. */
 const URL_DESCARGA_APP = 'https://tugarantia.net/descargas/';
 function sbCfg(){ try{ return JSON.parse(localStorage.getItem(SB_KEY)||'{}'); }catch(e){ return {}; } }
 /* ===== HABLAR CON LA NUBE, UNA SOLA PUERTA =====

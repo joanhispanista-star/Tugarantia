@@ -361,6 +361,17 @@ input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:99px;b
 .permiso:focus-within{outline:3px solid var(--amarillo);outline-offset:2px}
 .permiso .muted{display:block;margin-top:4px}
 
+/* ---------------- instalarla (21-oct-2026) --------------------------------
+   Los pasos de app/instalar.js: una lista numerada de verdad (<ol>), para que
+   el lector de pantalla diga «paso 2 de 4». El enlace va en una caja que se
+   puede seleccionar: dentro de otra app el portapapeles suele estar bloqueado
+   y entonces se copia a mano. */
+.pasos-instalar{margin:var(--e3) 0 0;padding-left:1.4em;font-size:14.5px;line-height:1.5}
+.pasos-instalar li{margin-top:var(--e2)}
+.pasos-instalar li::marker{font-weight:700;color:var(--gris)}
+.nota-instalar{font-size:13px;line-height:1.5;margin:var(--e3) 0 0}
+input.enlace-instalar{margin-top:var(--e3);font-size:14px}
+
 /* ---------------- avisos: neutro, azul que explica, ámbar que avisa ------- */
 .aviso{border-radius:14px;padding:14px;font-size:14px;margin-top:14px;line-height:1.5;
   border:1px solid var(--linea)}
@@ -732,8 +743,12 @@ details.plegado>summary{padding:0 var(--e4)}
    historial que pintaba «$0» de los créditos pagados. El CACHE de sw.js, igual:
    lo sube quien cierre la entrega.
    19-oct-2026: desde qué teléfono pide (app/aparato.js, nuevo: ENTRA a la
-   precarga de sw.js con el CACHE que suba quien cierre la entrega). */
-var VERSION_APP = '2026-10-19';
+   precarga de sw.js con el CACHE que suba quien cierre la entrega).
+   21-oct-2026: instalarla paso a paso (app/instalar.js, nuevo: ya está en la
+   precarga de sw.js; el CACHE lo sube quien cierre la entrega). Si un cliente
+   dice que «no le sale cómo instalarla», esta fecha dice si tiene la versión
+   que se lo explica en Entrar, en la espera y al final de Inicio. */
+var VERSION_APP = '2026-10-21';
 
 (function () {
   var v = document.getElementById('holaVersion');
@@ -796,6 +811,9 @@ setTimeout(function () {
 <!-- 19-oct-2026 — desde qué teléfono pide (modelo, versión, nuestra app), para
      el CRM de Joan. Si no llega, no se manda nada y la app sigue igual. -->
 <script src="aparato.js"></script>
+<!-- 21-oct-2026 — instalarla paso a paso (la tarjeta de Entrar, de la espera y
+     del final de Inicio). Si no llega, no hay tarjeta y la app sigue igual. -->
+<script src="instalar.js"></script>
 <script src="sesion-socio.js"></script>
 <script src="ver-como.js"></script>
 <script>
@@ -1176,12 +1194,18 @@ function pintarSinJuntar(estado) {
   var t = SS.textoSinJuntar(estado);
   var conChat = estado !== 'apagado';
   S = null; TAB = 'chat';
+  /* 21-oct-2026 — la tarjeta de instalar: es el rato de esperar la respuesta.
+     Debajo del estado de su registro, que es lo que vino a mirar; dentro de
+     otra app, primero (desde ahí no se puede instalar). */
+  var instalar = tarjetaInstalar('espera'), arriba = instalarVaArriba();
   $('entrarCuerpo').innerHTML =
+    (arriba ? instalar : '') +
     '<div class="card">' +
       '<h3 class="tit">' + esc(t.titulo) + '</h3>' +
       '<p class="sub">' + esc(t.texto) + '</p>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="cargarCuenta()">Volver a mirar</button>' +
     '</div>' +
+    (arriba ? '' : instalar) +
     (conChat ? vistaChat() : '') +
     '<div class="pie">Entraste con el ' + esc(U && U.telefonoBonito ? U.telefonoBonito(SESION && SESION.celular) : '') + '.<br>' +
       '<a href="#" onclick="pantallaCambiarClave();return false" style="color:inherit">Cambiar mi contraseña</a> · ' +
@@ -1195,7 +1219,12 @@ function pintarSinJuntar(estado) {
    Arriba lo que busca el que ya tiene cuenta; abajo el que todavía no. El
    enlace que Joan manda es UNO (esta página) para nuevos y antiguos. */
 function pintarEntrar(aviso) {
+  /* 21-oct-2026 — dentro de Facebook, Instagram o TikTok el aviso de instalar
+     va ARRIBA: desde ahí no se puede, y conviene saberlo antes de escribir la
+     contraseña en un navegador que no es el suyo. En lo demás, abajo. */
+  var instalar = tarjetaInstalar('entrar'), arriba = instalarVaArriba();
   $('entrarCuerpo').innerHTML =
+    (arriba ? instalar : '') +
     '<div class="card">' +
       '<h3 class="tit">Entrar</h3>' +
       '<p class="sub">Con tu celular y tu contraseña: los mismos con los que te registraste.</p>' +
@@ -1216,7 +1245,7 @@ function pintarEntrar(aviso) {
          lo abre al ver #registro). */
       '<a class="btn sec arriba" href="../play/#registro">Registrarme</a>' +
     '</div>' +
-    tarjetaInstalar() +
+    (arriba ? '' : instalar) +
     /* 7-oct-2026 (segunda vuelta) — las DOS salidas: el que nunca se registró
        (el cliente de antes del 24-ago, que entraba con código) no tiene
        contraseña que olvidar, y mandarlo a «Olvidé mi contraseña» lo dejaba
@@ -1303,65 +1332,130 @@ var SS_FALTA = 'No cargó una parte de la app. Cierra y vuelve a abrirla con int
    `beforeinstallprompt` cuando la app cumple los requisitos y todavía no está
    instalada; si no avisa, no hay diálogo que abrir y un botón que no hace nada
    es peor que ninguno — la regla de la casa es que la pantalla no promete lo
-   que el código no cumple. En iPhone ese evento no existe y no lo va a haber,
-   así que ahí se explican los pasos de Safari, que son otros. */
-var PROMPT_INSTALAR = null;
+   que el código no cumple.
+
+   21-oct-2026 — LOS PASOS, SIEMPRE; EL BOTÓN, CUANDO SE PUEDE. Joan pidió que
+   la app explique paso a paso cómo dejarla en la pantalla del celular, y
+   decidió el camino: Chrome «Instalar», sin APK. Hasta hoy, en Android la
+   tarjeta nacía escondida y solo la destapaba el aviso de Chrome, que no
+   llega antes de 30 segundos y un toque, ni dentro de Instagram, ni en
+   Firefox: casi nadie la veía. Y vivía solo en la pantalla de Entrar, así que
+   quien ya tenía la sesión guardada no la veía nunca. Ahora:
+     · los pasos a mano salen siempre, con los nombres de los menús de hoy
+       (app/instalar.js, que dice cuáles son y por qué), y el botón «Instalar
+       la app» se suma cuando Chrome avisó;
+     · sale en Entrar, mientras espera la respuesta de su registro
+       (pintarSinJuntar) y al final de Inicio — nunca encima de la cuota;
+     · dentro de Facebook, Instagram, TikTok o WhatsApp va primero, con
+       «Copiar enlace»: desde ahí no se puede instalar;
+     · «Ahora no» la esconde siete días; y si ya está instalada, no sale.
+   Si app/instalar.js no llegó (un service worker viejo), no se pinta nada y
+   la app sigue igual: una tarjeta a medias diría pasos que no son. */
+var IA = window.InstalarApp || null;
+var INSTALAR = { aviso: null, estado: '', copia: '', ahoraNo: false };
+var DONDE_INSTALAR = ['entrar', 'espera', 'inicio'];
 
 window.addEventListener('beforeinstallprompt', function (e) {
   e.preventDefault();
-  PROMPT_INSTALAR = e;
-  var b = $('cajaInstalar');
-  if (b) b.classList.remove('oculto');
+  INSTALAR.aviso = e;
+  repintarInstalar();
 });
 window.addEventListener('appinstalled', function () {
-  PROMPT_INSTALAR = null;
-  var b = $('cajaInstalar');
-  if (b) b.classList.add('oculto');
+  INSTALAR.aviso = null;
+  INSTALAR.estado = 'instalada';
+  repintarInstalar();
 });
 
 function instalarApp() {
-  if (!PROMPT_INSTALAR) return;
-  PROMPT_INSTALAR.prompt();
-  PROMPT_INSTALAR.userChoice.then(function () {
-    /* Se use o se descarte, el evento no se puede volver a disparar: Chrome da
-       uno solo por carga. Guardarlo para "la próxima" deja un botón que ya no
-       abre nada. */
-    PROMPT_INSTALAR = null;
-    var b = $('cajaInstalar');
-    if (b) b.classList.add('oculto');
+  var ev = INSTALAR.aviso;
+  if (!ev) return;
+  /* Se use o se descarte, el evento no se puede volver a disparar: Chrome da
+     uno solo por carga. Se suelta YA, antes de la respuesta: un segundo toque
+     mientras el diálogo está abierto no puede pedir otro. */
+  INSTALAR.aviso = null;
+  try {
+    Promise.resolve(ev.prompt()).catch(function () {});
+    Promise.resolve(ev.userChoice).then(function (r) {
+      /* Aceptó: Chrome la está instalando y avisa con appinstalled. Lo
+         descartó: el botón se va (ya no abre nada) y los pasos se quedan. */
+      if (r && r.outcome === 'accepted' && INSTALAR.estado !== 'instalada') INSTALAR.estado = 'aceptada';
+      repintarInstalar();
+    }, function () { repintarInstalar(); });
+  } catch (x) { repintarInstalar(); }
+}
+
+/* Lo que el navegador sabe de este teléfono, para app/instalar.js. matchMedia
+   va envuelto: suelto, el navegador lo rechaza («Illegal invocation»). */
+function entornoInstalar() {
+  var alm = null;
+  try { alm = window.localStorage; } catch (e) { alm = null; }
+  return { navegador: navigator, documento: document, almacen: alm, ahora: Date.now(),
+           matchMedia: window.matchMedia ? function (q) { return window.matchMedia(q); } : null };
+}
+function decisionInstalar() {
+  if (!IA || INSTALAR.ahoraNo) return { mostrar: false };
+  try { return IA.decidir(entornoInstalar()); } catch (e) { return { mostrar: false }; }
+}
+function contenidoInstalar(d) {
+  if (INSTALAR.estado) return IA.tarjetaHTML(d, { estado: INSTALAR.estado });
+  if (!d.mostrar) return '';
+  return IA.tarjetaHTML(d, {
+    conAviso: !!INSTALAR.aviso, copia: INSTALAR.copia, enlace: IA.enlace(location),
+    acciones: { instalar: 'instalarApp()', ahoraNo: 'instalarAhoraNo()', copiar: 'copiarEnlaceInstalar()' }
+  });
+}
+/* La tarjeta de una pantalla, en su caja. `donde`: 'entrar' | 'espera' |
+   'inicio'; cada una con su id, porque la pantalla de entrar se queda en el
+   DOM (escondida) mientras se ve la cuenta, y dos cajas con el mismo id harían
+   que el aviso de Chrome repintara la que no se ve. */
+function tarjetaInstalar(donde) {
+  var d = decisionInstalar();
+  if (!d.mostrar && !INSTALAR.estado) return '';
+  return '<div id="cajaInstalar-' + donde + '">' + contenidoInstalar(d) + '</div>';
+}
+/* Dentro de otra app el aviso va primero (en Entrar y en la espera). */
+function instalarVaArriba() {
+  var d = decisionInstalar();
+  return !!(d.mostrar && d.arriba && !INSTALAR.estado);
+}
+function repintarInstalar() {
+  if (!IA) return;
+  var d = decisionInstalar();
+  DONDE_INSTALAR.forEach(function (donde) {
+    var c = document.getElementById('cajaInstalar-' + donde);
+    if (c) c.innerHTML = contenidoInstalar(d);
   });
 }
 
-/* ¿Ya está instalada y abierta como app? Entonces no hay nada que ofrecer. */
-function abiertaComoApp() {
-  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
-         window.navigator.standalone === true;
-}
-
-function esIPhone() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-function tarjetaInstalar() {
-  if (abiertaComoApp()) return '';
-  if (esIPhone()) {
-    /* En iPhone no hay botón posible: Safari no expone el diálogo. Se dicen los
-       pasos, y se dice que tiene que ser Safari — en Chrome de iPhone la opción
-       no aparece, y ese es el motivo número uno de "no me sale". */
-    return '<div class="card"><h3 class="tit">Tenla en tu pantalla de inicio</h3>' +
-      '<p class="sub">Abre esta página en <b>Safari</b> (en Chrome no sale la opción), ' +
-      'toca el botón de compartir <b>⬆</b> de abajo y elige <b>Añadir a pantalla de inicio</b>. ' +
-      'Queda con su icono y abre a pantalla completa.</p></div>';
+function instalarAhoraNo() {
+  INSTALAR.ahoraNo = true;   // por esta vez, aunque el almacenamiento falle
+  if (IA) {
+    var alm = null;
+    try { alm = window.localStorage; } catch (e) { alm = null; }
+    IA.posponer(alm, Date.now());
   }
-  /* Nace escondida y la destapa el evento. Salvo que el evento YA haya pasado
-     —pintarEntrar se vuelve a llamar al salir de la cuenta, y para entonces
-     Chrome ya avisó y no vuelve a avisar—, en cuyo caso nace visible. */
-  return '<div class="card' + (PROMPT_INSTALAR ? '' : ' oculto') + '" id="cajaInstalar">' +
-    '<h3 class="tit">Tenla en tu celular</h3>' +
-    '<p class="sub">Queda con su icono, abre a pantalla completa y funciona sin señal. ' +
-    'No pesa casi nada.</p>' +
-    '<button class="btn sec arriba" onclick="instalarApp()">Instalar la app</button></div>';
+  DONDE_INSTALAR.forEach(function (donde) {
+    var c = document.getElementById('cajaInstalar-' + donde);
+    if (c) c.innerHTML = '';
+  });
+}
+
+/* «Copiar enlace»: la app PELADA (IA.enlace), nunca location.href — en el #
+   puede ir el pase del CRM o un paquete de datos. Y «Copiado» solo cuando el
+   portapapeles dijo que sí: dentro de otra app suele estar bloqueado, y ahí se
+   dice cómo copiarlo a mano. */
+function copiarEnlaceInstalar() {
+  if (!IA) return;
+  var url = IA.enlace(location);
+  var listo = function (ok) { INSTALAR.copia = ok ? 'ok' : 'fallo'; repintarInstalar(); };
+  try {
+    var pp = navigator.clipboard;
+    if (pp && typeof pp.writeText === 'function') {
+      Promise.resolve(pp.writeText(url)).then(function () { listo(true); }, function () { listo(false); });
+      return;
+    }
+  } catch (e) { /* cae al aviso de copiarlo a mano */ }
+  listo(false);
 }
 
 /* ==================== PREPARAR AL SOCIO ==================== */
@@ -1648,6 +1742,12 @@ function vistaInicio() {
        '</div>';
 
   h += tarjetaComunidad();
+  /* 21-oct-2026 — instalarla, AL FINAL y nunca encima de la cuota: en cada
+     pantalla manda UNA cifra (ver arriba), y una tarjeta de instalar no puede
+     empujarla hacia abajo. Solo en la cuenta de la persona (origen nube): ni
+     en «Ver la app como la ve él» de Joan ni en un enlace #d=, que instalada
+     abriría en la pantalla de entrar y no en esos números. */
+  if (S.origen === 'nube') h += tarjetaInstalar('inicio');
   return h + pie();
 }
 

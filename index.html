@@ -493,30 +493,57 @@ tbody tr:last-child td{font-weight:700}
 
        Lo bueno es que instalada desde el navegador queda igual: icono propio,
        pantalla completa sin barra de direcciones, y abre sin señal. Esa parte ya
-       funciona (app.webmanifest + sw.js); lo único que le hace falta es HTTPS. -->
+       funciona (app.webmanifest + sw.js); lo único que le hace falta es HTTPS.
+
+       21-oct-2026 — LA QUE SE INSTALA ES app/socio.html, CON LOS MENÚS DE HOY.
+       Joan decidió el camino: Chrome «Instalar», sin APK. Esta sección mandaba
+       a instalar «el enlace que te mandamos», que podía ser play/ (instalada,
+       pide la contraseña cada vez y deja dos íconos «Tu Garantía» iguales), y
+       usaba nombres que ya no existen: «Instalar aplicación» y «Añadir a
+       pantalla de inicio» (Chrome cambió el menú en julio de 2026, Chrome 150;
+       el iPhone en español dice «Agregar a Inicio»), y «en Chrome no sale la
+       opción», que es falso desde iOS 16.4. Ahora el botón lleva a la app que
+       se instala, y adentro la tarjeta de app/instalar.js da los pasos del
+       teléfono que la abre. Los textos de aquí son los mismos de ese archivo:
+       si cambian allá, cambian aquí (pruebas/instalar.test.js mira los dos). -->
   <section class="banda" id="instalar">
     <div class="wrap pila">
       <div class="angosto pila-s">
         <p class="et">En tu celular</p>
         <p class="frase">Instálala y ábrela como cualquier app.</p>
         <p class="tenue">No está en Play Store y no va a estarlo: Google no admite apps de
-          créditos que se paguen en menos de 60 días, y muchos de los nuestros son así de cortos. Se instala
-          directo desde el navegador, queda con su icono en tu pantalla y abre a pantalla
-          completa, sin barra de direcciones. Funciona igual, y ocupa menos.</p>
+          créditos que se paguen en menos de 60 días, y muchos de los nuestros son así de cortos.
+          Se instala desde Chrome o Safari, sin descargar archivos: queda con su ícono en tu
+          pantalla, abre a pantalla completa y se actualiza sola cada vez que la abres con internet.</p>
+
+        <div class="acciones" style="margin-top:18px">
+          <a class="btn btn-rojo" href="app/socio.html">Abrir la app para instalarla</a>
+        </div>
 
         <div class="tabla-caja" style="margin-top:18px">
           <p style="margin:0 0 6px"><b>En Android</b> (Chrome)</p>
-          <p class="tenue" style="margin:0">Abre el enlace que te mandamos, toca los tres
-            puntos ⋮ de arriba a la derecha y elige <b>Instalar aplicación</b> (en algunos
-            teléfonos dice <i>Añadir a pantalla de inicio</i>). Listo.</p>
+          <p class="tenue" style="margin:0">Con la app abierta, toca <b>⋮</b> arriba a la derecha,
+            elige <b>«Instalar y crear acceso directo»</b> y después <b>«Instalar»</b>. En un Chrome
+            más viejo dice «Instalar app» o «Agregar a la pantalla principal». No elijas «Crear
+            acceso directo»: ese abre Chrome, no la app.</p>
         </div>
 
         <div class="tabla-caja" style="margin-top:12px">
           <p style="margin:0 0 6px"><b>En iPhone</b> (Safari)</p>
-          <p class="tenue" style="margin:0">Abre el enlace en <b>Safari</b> —en Chrome no
-            sale la opción—, toca el botón de compartir <b>⬆</b> de abajo y elige
-            <b>Añadir a pantalla de inicio</b>.</p>
+          <p class="tenue" style="margin:0">Con la app abierta, toca <b>···</b> y luego
+            <b>«Compartir»</b> (si ves <b>⬆</b>, tócalo directo), baja hasta <b>«Agregar a
+            Inicio»</b>, deja activado <b>«Abrir como app web»</b> y toca <b>«Agregar»</b>.
+            En Chrome o Edge: <b>⬆</b> en la barra de direcciones y «Agregar a Inicio».
+            Después ábrela desde el ícono y entra con tu celular y tu contraseña: tu
+            celular la guarda aparte del navegador.</p>
         </div>
+
+        <!-- Los permisos, sin prometer avisos: no hay emisor de push (sw.js no
+             escucha 'push'). Misma frase que app/instalar.js (PERMISOS). -->
+        <p class="tenue" style="margin-top:16px">La cámara la pedimos solo para tu cédula y tu
+          selfie, y la ubicación una vez al registrarte; siempre en el momento, como cualquier
+          app. Avisos al celular todavía no enviamos: te escribimos por el chat de la app y por
+          WhatsApp.</p>
 
         <!-- 7-oct-2026 — una sola puerta: celular y contraseña. Los códigos de
              acceso se apagaron (base/20261007_una_puerta.sql). -->

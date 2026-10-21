@@ -1479,7 +1479,13 @@ describe('PlataChat: el manifiesto y el envoltorio de Android', () => {
        la voz del negocio. */
     assert.match(t, /<button class="btn btn-quieto" type="button" disabled aria-disabled="true">[\s\S]*?El instalador para Android llega cuando lo publiquemos/);
     assert.match(t, /href="\.\.\/platachat\/"/, 'no lleva a la app publicada');
-    assert.match(t, /Añadir a pantalla de inicio/, 'no explica cómo instalarla hoy desde Chrome');
+    /* 21-oct-2026 — con los nombres de los menús de HOY. Esta prueba exigía
+       «Añadir a pantalla de inicio», que el Chrome de 2026 ya no dice (Chrome
+       150, julio: «Instalar y crear acceso directo» → «Instalar») ni el iPhone
+       en español («Agregar a Inicio»). Ver app/instalar.js. */
+    assert.match(t, /Instalar y crear acceso directo/, 'no explica cómo instalarla hoy desde Chrome');
+    assert.match(t, /Agregar a Inicio/, 'no explica cómo instalarla hoy desde el iPhone');
+    assert.ok(!/Añadir a pantalla de inicio|solo Safari puede/.test(t), 'volvió a usar los nombres de menú viejos');
     /* Los enlaces relativos que sí promete, existen. */
     ['../legal/terminos.html', '../legal/privacidad.html', 'index.html', '../index.html', '../platachat/icono-192.png']
       .forEach(h => assert.ok(existe(path.join('descargas', h)), 'descargas/platachat.html enlaza ' + h + ' y no existe'));

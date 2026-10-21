@@ -303,11 +303,20 @@ describe('instalar sí; pedir permisos que no se usan, no', () => {
       'las páginas dejaron de pedirse a la red primero');
   });
 
-  test('el botón de instalar solo aparece si el navegador dijo que puede', () => {
-    assert.match(VIVO, /beforeinstallprompt/,
-      'el botón se pinta siempre: en un iPhone o en un navegador que no instala, promete algo imposible');
-    assert.match(VIVO, /if \(!INSTALADOR\) return ''/,
-      'la tarjeta de instalar no comprueba que haya con qué instalar');
+  test('play/ ya NO se ofrece para instalar: la que se instala es app/socio.html (21-oct-2026)', () => {
+    /* Hasta el 21-oct esta prueba vigilaba que el botón de instalar de play/
+       saliera solo con el aviso de Chrome. Joan decidió UNA sola app
+       instalable: play/ también se llama «Tu Garantía» con los mismos íconos
+       (dos íconos iguales en el celular) y guarda la sesión en
+       sessionStorage, así que instalada pedía la contraseña cada vez. Lo que
+       se vigila ahora es lo contrario: que no se ofrezca, y que calle la
+       franja propia de Chrome. La guía vive en app/instalar.js y la prueba
+       que la ejecuta, en pruebas/instalar.test.js. */
+    assert.ok(!/cajaInstalar|tarjetaInstalarPlay|Agregar a mi pantalla de inicio/.test(VIVO),
+      'play/ volvió a ofrecer instalarse');
+    const oyente = (VIVO.match(/addEventListener\('beforeinstallprompt'[\s\S]{0,120}?\}\);/) || [''])[0];
+    assert.match(oyente, /preventDefault\(\)/, 'sin el preventDefault, Chrome ofrece instalar play/ con su propia franja');
+    assert.ok(!/\.prompt\(\)/.test(oyente), 'el oyente volvió a abrir el diálogo de instalar');
   });
 
   test('NO se pide el permiso de notificaciones mientras no haya quién mande una', () => {

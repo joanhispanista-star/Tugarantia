@@ -2,6 +2,30 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<script>
+/* 21-oct-2026 — LA «s» DE HTTPS, TAMBIÉN AQUÍ. Es el mismo cinturón que tienen
+   app/socio.html y platachat/index.html desde agosto (ver su comentario largo),
+   y esta era la única puerta sin él: «Enforce HTTPS» sigue apagado en GitHub
+   Pages y http://tugarantia.net/play/ contesta 200 sin redirigir (curl, 21-oct).
+   En http no hay service worker, ni cámara en vivo, ni GPS, y el registro
+   empieza por la cámara. Y http y https son dos cajones de almacenamiento
+   distintos: el paso guardado a medias quedaría en el que no se vuelve a abrir.
+
+   Va ARRIBA DEL TODO, antes que cualquier otro script, para que el salto
+   ocurra antes de leer nada del cajón equivocado. localhost, 127.0.0.1 y la
+   red de la casa quedan fuera: ahí no hay https. Con try: un banco de pruebas
+   sin `location` no puede caerse por esto. El arreglo de fondo sigue siendo
+   el clic de Joan en Settings → Pages. */
+(function () {
+  try {
+    var h = location.hostname;
+    if (location.protocol === 'http:' && h !== 'localhost' && h !== '127.0.0.1'
+        && String(h).indexOf('192.168.') !== 0 && h !== '[::1]') {
+      location.replace('https:' + location.href.substring(location.protocol.length));
+    }
+  } catch (e) {}
+})();
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Tu Garantía · Crédito rápido y fácil</title>
 <meta name="theme-color" content="#0C0A0B">
@@ -381,7 +405,11 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    celular cambia a mitad del registro, el registro empieza de cero: también
    lo escrito a mano se borra, y se vuelve al primer paso. Si alguien dice que
    su cuenta salió con el nombre de otra persona, esta fecha dice si tenía la
-   versión que lo impide. */
+   versión que lo impide.
+   21-oct-2026 (misma fecha, tampoco publicada) — y porque esta página dejó de
+   ofrecerse para instalar (la que se instala es app/socio.html) y salta sola
+   a https. Si alguien dice que todavía le sale «Agregar a mi pantalla de
+   inicio» aquí, esta fecha dice si tiene la versión vieja. */
 var VERSION_PLAY = '2026-10-21';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
@@ -1475,10 +1503,8 @@ function pintarEntrar() {
       '<div id="errEntrar" class="aviso ambar oculto"></div>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="olvide()">Olvidé mi contraseña</button>' +
     '</div>' +
-    /* La caja del instalador nace vacía y se llena sola SI el navegador avisa
-       que de verdad puede instalar. Un botón que promete instalar donde no se
-       puede es la clase de mentira chica que este proyecto no se permite. */
-    '<div id="cajaInstalar">' + tarjetaInstalarPlay() + '</div>' +
+    /* 21-oct-2026 — aquí iba la caja del instalador. Se fue: la app que se
+       instala es app/socio.html (ver «DEJARLA EN EL CELULAR», más abajo). */
     plegable('quePasa', TEXTOS.confianza_titulo, TEXTOS.confianza) +
     plegable('laHistoria', TEXTOS.historia_titulo, TEXTOS.historia) +
     pie();
@@ -7430,12 +7456,13 @@ var TEXTOS = {
     'Y funciona para los dos lados: tú consigues crédito donde no te lo daban, y nosotros conseguimos a quién prestarle sabiendo que vuelve. Eso es lo que hay: confianza, construida de a poco y por escrito.'
   ],
 
-  /* Los cuatro empujones. Cortos a propósito: un párrafo largo en un celular no
-     se lee. Cambian según dónde está la persona, para que ninguno mienta. */
+  /* Los empujones. Cortos a propósito: un párrafo largo en un celular no
+     se lee. Cambian según dónde está la persona, para que ninguno mienta.
+     21-oct-2026 — eran cuatro: el de instalar se fue con la tarjeta (ver
+     «DEJARLA EN EL CELULAR»). */
   empujon_visitante: 'Abre tu cuenta y empieza a construir tu historia. Es gratis y no te compromete a pedir nada.',
   empujon_registrado: 'Ya diste el primer paso. Cuando pidas tu primer crédito y lo pagues en fecha, empiezas a subir.',
   empujon_espera: 'Tu solicitud está con nosotros. Lo que decidas hacer con este crédito es lo que te abre el siguiente.',
-  empujon_instalar: 'Déjala en tu pantalla de inicio y la abres como cualquier app, sin buscar el enlace.',
 
   /* LAS TRES RAZONES, CON SU GENTE — 16-sep-2026.
      Joan las pidió con estas palabras: «te desvara súper rápido y cuando
@@ -8447,9 +8474,22 @@ function plegable(id, titulo, parrafos) {
 /* -------------------------------------------------------------------------
  * DEJARLA EN EL CELULAR
  *
- * Solo aparece cuando el navegador de verdad puede instalarla: Chrome avisa con
- * `beforeinstallprompt` y si no avisó, el botón mentiría. Es la misma regla que
- * ya sigue app/socio.html.
+ * 21-oct-2026 — ESTA PÁGINA YA NO SE OFRECE PARA INSTALAR. Joan decidió el
+ * camino («Chrome Instalar, sin APK») y una sola app instalable:
+ * app/socio.html, que explica los pasos en su propia tarjeta (app/instalar.js).
+ * Hasta hoy esta puerta también ofrecía «Agregar a mi pantalla de inicio», y
+ * eso dejaba dos problemas en el celular del cliente:
+ *   · DOS ÍCONOS IGUALES. play/app.webmanifest también se llama «Tu Garantía»
+ *     y usa los mismos íconos: quien instalara las dos tenía dos íconos
+ *     idénticos que no hacen lo mismo.
+ *   · UNA APP QUE PIDE LA CONTRASEÑA CADA VEZ. Esta página guarda la sesión en
+ *     sessionStorage a propósito (se abre en teléfonos prestados, ver
+ *     LLAVE_SESION), y Android no la devuelve al reabrir: instalada, cada
+ *     apertura era volver a escribir la contraseña. No es «una app normal».
+ * El oyente se queda y SOLO calla a Chrome (preventDefault): sin él, Chrome
+ * podría ofrecer instalar esta página con su propia franja, y volveríamos a
+ * los dos íconos. El manifiesto NO se quita ni se toca su `id`: quien ya la
+ * instaló la sigue abriendo igual (README, «Los id de los .webmanifest»).
  *
  * LO QUE NO SE PIDE: el permiso de notificaciones. Joan lo pidió y no se hace
  * todavía, con motivo: hoy no hay quién mande una — el service worker no
@@ -8458,25 +8498,9 @@ function plegable(id, titulo, parrafos) {
  * preguntar el día que sí haga falta. Es la misma decisión que ya está escrita
  * en android/twa-manifest.json y que vigila una prueba.
  * ----------------------------------------------------------------------- */
-var INSTALADOR = null;
 window.addEventListener('beforeinstallprompt', function (e) {
-  e.preventDefault(); INSTALADOR = e;
-  var c = $('cajaInstalar'); if (c) c.innerHTML = tarjetaInstalarPlay();
+  try { e.preventDefault(); } catch (x) {}
 });
-function tarjetaInstalarPlay() {
-  if (!INSTALADOR) return '';
-  return '<div class="card"><h3 class="tit">Déjala en tu celular</h3>' +
-    '<p class="sub">' + esc(TEXTOS.empujon_instalar) + ' Ocupa menos que una foto y abre sin señal.</p>' +
-    '<button class="btn sec arriba" onclick="instalarPlay()">Agregar a mi pantalla de inicio</button></div>';
-}
-function instalarPlay() {
-  if (!INSTALADOR) return;
-  INSTALADOR.prompt();
-  INSTALADOR.userChoice.then(function () {
-    INSTALADOR = null;
-    var c = $('cajaInstalar'); if (c) c.innerHTML = '';
-  }).catch(function () {});
-}
 
 /* -------------------------------------------------------------------------
  * EL RAYO — rehecho el 16-sep-2026, y otra vez el 13-oct-2026
