@@ -1731,7 +1731,7 @@
      solo en un momento seguro (cada pagina tiene su lista blanca); el CRM y el
      espejo solo avisan. Entra a la precarga: las cinco paginas lo cargan con
      un <script src>.
-   · CADA PAGINA DECLARA VERSION_SITIO = el numero de CACHE de abajo ('v138').
+   · CADA PAGINA DECLARA VERSION_SITIO = el numero de CACHE de abajo ('v139').
      AL SUBIR CACHE HAY QUE SUBIR VERSION_SITIO EN play/index.html,
      app/socio.html, platachat/index.html, panel/crm.html y panel/espejo.html:
      pruebas/se-actualiza-sola.test.js no deja pasar uno sin los otros. Es lo
@@ -1748,7 +1748,43 @@
      updateViaCache (developer.chrome.com/blog/fresher-sw). Lo que de verdad
      llenaba la cache nueva con archivos viejos era la precarga; se deja
      updateViaCache:'none' porque en Safari no se verifico. */
-const CACHE = 'tugarantia-v138';
+/* 21/22-oct-2026, v139: EL LOTE 1, INTEGRADO (rama l1-integrado: l1-garantia,
+   l1-instalar, l1-actualizar, l1-escaner y l1-ocr, en ese orden). Lo que trae:
+   · LA GARANTIA EN UNA LINEA: app/socio.html (Inicio la dice una vez; Mi
+     garantia pliega el detalle) e index.html («el primero ya te da cupo»).
+   · INSTALARLA PASO A PASO: app/instalar.js (NUEVO, en la precarga) y
+     app/socio.html; play/ deja de ofrecerse para instalar y salta a https;
+     index.html y descargas/ ya no mandan al APK.
+   · SE ACTUALIZA SOLA: app/actualizar.js (NUEVO, en la precarga), las cinco
+     paginas con VERSION_SITIO = 'v139', y la red-primero y la precarga con
+     'no-cache' (ver la nota de arriba).
+   · EL ESCANER: las dos caras de la cedula ACOSTADAS y la foto del MEJOR
+     cuadro (app/escaner-captura.js, NUEVO, en la precarga; app/escaner-
+     cedula.js cambia: franjaDeBarras, saturados, el marco sin modo de pie).
+   · LO QUE SE VE EN LA CEDULA LLENA «REVISA TUS DATOS»: app/ocr-cedula.js
+     (NUEVO, en la precarga) y el motor en app/lib/ocr/ (Tesseract.js 7 y el
+     espanol, ~6 MB, FUERA de la precarga: play/ lo pide con rel=prefetch al
+     disparar el respaldo, y solo quien escanea lo paga). Las letras leen el
+     recorte de la foto que se guarda por el enganche del escaner
+     (alTomarLaCedula), con su giro y su marco.
+   TIENEN QUE LLEGAR JUNTOS play/index.html, app/escaner-cedula.js,
+   app/escaner-captura.js, app/ocr-cedula.js, app/lib/ocr/*, app/actualizar.js
+   y app/instalar.js, y por eso sube el numero:
+   · play/ nueva con el escaner-cedula.js viejo: sin franjaDeBarras el lector
+     se come el recorte 4K entero en cada lectura (la memoria que tumba la
+     pestana) y sin `saturados` la linterna no se apaga con el reflejo;
+   · play/ nueva sin escaner-captura.js: cae a la cuenta de antes, sin mejor
+     cuadro ni linterna, y las letras leen el sexto cuadro quieto (el que
+     pidio Joan que no se tomara);
+   · ocr-cedula.js sin SU app/lib/ocr/ (las rutas y la version del nucleo
+     van atadas, ORIGEN.md): el motor no arranca y la persona teclea todo,
+     con la pantalla habiendole dicho que se lo llenabamos;
+   · las cinco paginas sin actualizar.js no se enteran de la version nueva
+     sino por el camino viejo, y socio.html sin instalar.js no explica como
+     instalarla.
+   Sin subir la cache, un telefono con v138 seguiria con el escaner de pie y
+   ningun archivo de este lote. */
+const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
