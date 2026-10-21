@@ -1715,7 +1715,15 @@
    un telefono prestado la cedula de una persona podia subir a la cuenta de
    otra. play/index.html y app/escaner-cedula.js vuelven a cambiar juntos: sin
    la cache nueva, un telefono con el escaner viejo seguiria atando las fotos
-   al «intento» y no a la persona.*/
+   al «intento» y no a la persona.
+   21-oct-2026, tambien en v138 (sigue sin salir): LO DE UNA PERSONA NO
+   TERMINA EN LA CUENTA DE OTRA. Cambiar de celular a mitad del registro lo
+   empieza de cero; una respuesta lenta solo vale para quien la pidio (el tope
+   de 30 s desbloquea, no corta); nada sensible sube sin la constancia de su
+   autorizacion; y el «Salir» de PlataChat sale de verdad. play/index.html,
+   platachat/index.html y platachat/sesion.js tienen que llegar JUNTOS: una
+   pagina de PlataChat nueva con el sesion.js viejo seguiria guardando la
+   sesion por su cuenta (SP.entrar) y un refresco tardio la resucitaria.*/
 const CACHE = 'tugarantia-v138';
 const BASE = new URL('./', self.location).pathname;
 

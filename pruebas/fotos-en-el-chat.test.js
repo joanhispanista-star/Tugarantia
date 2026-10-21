@@ -118,8 +118,13 @@ describe('el hilo no baja la imagen entera', () => {
   });
 
   test('la app manda DOS tamaños', () => {
+    /* 21-oct-2026 — hasta la siguiente función, no 1.600 caracteres fijos: con
+       los finales CRLF de la carpeta de Windows cada línea suma uno, y cuando
+       mandarFoto creció (la sesión tomada al escoger la foto) la miniatura
+       quedó en el carácter 1.606 y la prueba la dio por perdida. */
     const i = PLAY.indexOf('function mandarFoto');
-    const t = PLAY.slice(i, i + 1600);
+    const fin = PLAY.indexOf('\nfunction ', i + 1);
+    const t = PLAY.slice(i, fin > i ? fin : undefined);
     assert.match(t, /fotoDeLienzo\(c, 900, 0\.6\)/, 'la foto no se comprime como el resto de la casa');
     assert.match(t, /fotoDeLienzo\(c, 240, 0\.5\)/, 'no se hace miniatura: el hilo bajaría la grande');
   });
