@@ -12,6 +12,15 @@ no aplican: esto es distribución directa y es perfectamente normal.
 > que los clientes usan. La configuración de `/play/` vive en el historial de
 > git por si la tienda se retoma.
 
+> **21-oct-2026 — decisión de Joan: Chrome «Instalar», sin APK.** A los clientes
+> nuevos ya no se les ofrece el APK: la app se instala desde el navegador (la
+> tarjeta de `app/socio.html`, con los pasos de `app/instalar.js`). El APK queda
+> para quien ya lo tiene: `descargas/TuGarantia.apk` se sigue sirviendo para no
+> romper enlaces viejos, pero ninguna página lo enlaza, y `descargas/` ahora
+> explica la instalación desde Chrome. Pendiente de Joan antes de 2027: Android
+> extiende a todo el mundo la verificación de desarrolladores (Colombia todavía
+> sin fecha); o se registra como desarrollador verificado, o el APK se retira.
+
 ---
 
 ## Antes de nada: la PWA ya hace casi todo esto, y mejor
@@ -100,6 +109,9 @@ Al construir se crea `android.keystore`. Esa llave **es** la identidad de tu app
 ---
 
 ## Cómo se lo mandas al cliente
+
+> **Histórico desde el 21-oct-2026** (ver la nota de arriba): `descargas/` ya no
+> ofrece el APK. Lo de abajo queda para reconstruirlo si algún día se retoma.
 
 **WhatsApp no deja enviar archivos `.apk`.** Bloquea la extensión. Por eso el
 APK se reparte desde el propio sitio: vive en `descargas/TuGarantia.apk` (la

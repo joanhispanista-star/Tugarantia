@@ -45,7 +45,15 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         18-ago): Data Safety derivado de los campos, la
                         divulgación del crédito y el borrado de cuenta.
   puente.js             Traduce los datos del Panel a lo que consume la app.
-  app.webmanifest       Para instalarla en el celular.
+  instalar.js           Instalarla paso a paso (21-oct-2026): en qué teléfono y
+                        navegador está, si ya está instalada, los pasos con los
+                        menús de hoy (Chrome 150, iPhone «Agregar a Inicio»),
+                        «Copiar enlace» dentro de Instagram y compañía, y «Ahora
+                        no» por 7 días. La tarjeta sale en Entrar, en la espera
+                        del registro y al final de Inicio. No promete avisos.
+  app.webmanifest       Para instalarla en el celular. ES LA ÚNICA APP QUE SE
+                        OFRECE PARA INSTALAR (decisión de Joan, 21-oct-2026:
+                        Chrome «Instalar», sin APK).
   icono-*.png           La G amarilla sobre laca negra.
 
 panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna parte.
@@ -100,6 +108,10 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         comentario de arriba del archivo).
   app.webmanifest       El alcance es /play/: eso deja app/socio.html FUERA de la
                         app instalada, y la frontera la impone el sistema.
+                        Desde el 21-oct-2026 play/ ya NO se ofrece para instalar
+                        (dos íconos «Tu Garantía» iguales, y pide la contraseña
+                        en cada apertura); el manifiesto se queda para quien ya
+                        la instaló.
 
 android/
   LEEME.md              Cómo sacar el APK, cómo se reparte por enlace, y por qué
@@ -110,9 +122,11 @@ android/
                         corre FUERA de OneDrive, en android-kit (ver LEEME.md).
 
 descargas/
-  index.html            La página cuyo enlace se manda al cliente por WhatsApp:
-                        explica el aviso de «app desconocida» ANTES de que salga.
-  TuGarantia.apk        El APK firmado que reparte Pages. La única excepción
+  index.html            La página cuyo enlace se mandaba al cliente por WhatsApp.
+                        Desde el 21-oct-2026 ya no ofrece el APK: manda a instalar
+                        app/socio.html desde Chrome o Safari, con los pasos.
+  TuGarantia.apk        El APK firmado. Queda para quien ya lo tiene: ninguna
+                        página lo enlaza desde el 21-oct-2026. La única excepción
                         binaria del .gitignore, con su porqué escrito ahí.
 
 herramientas/

@@ -1788,7 +1788,11 @@ const ARCHIVOS = [
      app/cuenta.js, app/creditos.js y app/cumplimiento.js son los tres <script>
      que play/ carga, y app/lib/zxing.min.js lo pide el paso de la cedula —ese
      ultimo NO entra: son 330 KB que la mayoria no va a usar, y se baja solo
-     cuando la persona llega a ese paso. */
+     cuando la persona llega a ese paso.
+     21-oct-2026 — play/ ya NO se ofrece para instalar: la que se instala es
+     app/socio.html (dos iconos «Tu Garantia» iguales, y play/ pide la
+     contrasena en cada apertura). Sigue en la precarga porque quien ya la
+     instalo, y quien se registra con mala senal, la abren igual. */
   'play/',
   'play/index.html',
   'play/estilo.css',
@@ -1798,6 +1802,11 @@ const ARCHIVOS = [
      cargan con un <script src>. Sin el, la app instalada no anota el aparato
      (la pagina se protege sola) y el CRM no lo pone en palabras. Ver v138. */
   'app/aparato.js',
+  /* 21-oct-2026 — instalarla paso a paso: app/socio.html lo carga con un
+     <script src>. Sin el, la app instalada que abre sin senal no pinta la
+     tarjeta (la pagina se protege sola con `if (!IA)`). El numero de CACHE lo
+     sube quien cierre la entrega, con su nota. */
+  'app/instalar.js',
   /* 19-oct-2026 — la gente de «Para que te sirve», de Open Peeps (CC0). Los
      .svg van cache-primero: precargados, se ven sin senal. Ver v138. */
   'play/gente/varas.svg',

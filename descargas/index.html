@@ -4,10 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Instalar la app — Tu Garantía</title>
-<meta name="description" content="Descarga la app de Tu Garantía para Android, directo de nosotros, sin pasar por la tienda.">
+<meta name="description" content="Instala la app de Tu Garantía desde Chrome o Safari, sin tienda y sin descargar archivos.">
 <meta name="theme-color" content="#0C0A0B">
 <!-- ============================================================================
-  La página que reparte el APK. Existe porque WhatsApp bloquea los archivos .apk:
+  La página que repartía el APK (hasta el 21-oct-2026: ver la nota de abajo).
+  Existía porque WhatsApp bloquea los archivos .apk:
   lo que se manda al cliente es ESTE enlace, no el archivo. Y existe como página
   —no como enlace pelado al .apk— por lo que dice LEEME.md de android/: el aviso
   de "app desconocida" hay que explicárselo al cliente ANTES de que le salga.
@@ -15,6 +16,15 @@
 
   Los colores y tipos son los de index.html (la fachada): el cliente pasa de la
   web a esta página en el mismo minuto y no debe sentir que cambió de negocio.
+
+  21-oct-2026 — YA NO REPARTE EL APK. Joan decidió el camino: Chrome
+  «Instalar», sin APK. La PWA no muestra «app desconocida» ni Play Protect, se
+  actualiza sola entera (el envoltorio del APK no) y no la frena la
+  verificación de desarrolladores de Android de 2027. Este enlace ya circuló
+  por WhatsApp, así que la página se queda y ahora manda a instalar
+  app/socio.html desde el navegador, con los nombres de los menús de hoy (los
+  mismos de app/instalar.js). El APK queda para quien ya lo tiene: el archivo
+  sigue en descargas/TuGarantia.apk, sin enlace desde aquí.
 ============================================================================= -->
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -112,53 +122,86 @@ a{color:inherit}
 <main>
   <section class="portada">
     <div class="wrap">
-      <h1>Instala la app en tu Android</h1>
-      <p class="baja">Directo de nosotros, sin pasar por la tienda de Google.
-      Descargas el archivo, lo abres y listo.</p>
+      <h1>Instala la app desde tu navegador</h1>
+      <p class="baja">Ya no hace falta descargar ningún archivo: la app se instala
+      desde Chrome (o desde Safari en iPhone), sin avisos de «app desconocida», y se
+      actualiza sola cada vez que la abres con internet.</p>
       <p style="margin-top:24px">
-        <a class="btn btn-rojo" href="TuGarantia.apk" download>Descargar la app</a>
+        <a class="btn btn-rojo" href="../app/socio.html">Abrir la app para instalarla</a>
       </p>
-      <p class="peso">Pesa alrededor de 1 MB · Sirve en Android 6 o más nuevo</p>
+      <p class="peso">Sirve en Android con Chrome y en iPhone con Safari, Chrome o Edge.</p>
     </div>
   </section>
 
   <section class="banda" style="padding-top:0">
     <div class="wrap">
-      <h2 class="et">Cómo se instala</h2>
+      <h2 class="et">En Android, desde Chrome</h2>
 
       <!-- Lista ordenada de verdad, no divs: el lector de pantalla anuncia
-           «lista, 3 elementos» y la posición. Los números pintados quedan como
-           adorno (aria-hidden); la numeración semántica la pone el <ol>. -->
+           «lista, 4 elementos» y la posición. Los números pintados quedan como
+           adorno (aria-hidden); la numeración semántica la pone el <ol>.
+           21-oct-2026 — los nombres del menú son los de Chrome 150 (julio de
+           2026) y los del Chrome de antes; ver app/instalar.js. -->
       <ol class="pasos">
         <li class="paso">
           <span class="n" aria-hidden="true">1</span>
-          <div><b>Descarga el archivo</b>
-          <p>Toca el botón rojo. El archivo se llama <b>TuGarantia.apk</b> y queda
-          en tus descargas.</p></div>
+          <div><b>Abre la app en Chrome</b>
+          <p>Toca el botón rojo de arriba. Tiene que ser Chrome: desde el navegador
+          que viene dentro de Facebook, Instagram o TikTok no se puede instalar.
+          A veces la propia app te muestra un botón «Instalar la app»: si sale,
+          tócalo y sáltate los pasos 2 y 3.</p></div>
         </li>
 
         <li class="paso">
           <span class="n" aria-hidden="true">2</span>
-          <div><b>Ábrelo</b>
-          <p>Android te pregunta si permites instalar aplicaciones de esta fuente.
-          Dile que sí.</p></div>
+          <div><b>Toca ⋮, arriba a la derecha</b>
+          <p>Es el menú de los tres puntos de Chrome.</p></div>
         </li>
 
         <li class="paso">
           <span class="n" aria-hidden="true">3</span>
-          <div><b>Si sale un aviso de «app desconocida»</b>
-          <p>Toca «Más detalles» y luego «Instalar de todos modos».</p></div>
+          <div><b>Elige «Instalar y crear acceso directo» y después «Instalar»</b>
+          <p>En un Chrome más viejo dice «Instalar app» o «Agregar a la pantalla
+          principal». No elijas «Crear acceso directo»: ese abre Chrome, no la app.</p></div>
+        </li>
+
+        <li class="paso">
+          <span class="n" aria-hidden="true">4</span>
+          <div><b>Ábrela desde su ícono</b>
+          <p>Queda en tu pantalla o entre tus apps como «Tu Garantía». Si no la
+          ves en tu pantalla, búscala ahí.</p></div>
         </li>
       </ol>
+    </div>
+  </section>
 
-      <div class="aviso" style="margin-top:20px">
-        <b>Ese aviso es normal y no es por nuestra app.</b> Android se lo pone a
-        cualquier aplicación que no venga de su tienda. La nuestra viene directo
-        de aquí, de nuestra propia página — por eso te lo contamos antes de que
-        te salga. En teléfonos más viejos no hay pregunta sino un paso más:
-        Android te manda a Ajustes a activar «Orígenes desconocidos». Actívalo,
-        instala la app, y si quieres lo vuelves a apagar después.
-      </div>
+  <section class="banda" style="padding-top:0">
+    <div class="wrap">
+      <h2 class="et">En iPhone</h2>
+      <ol class="pasos">
+        <li class="paso">
+          <span class="n" aria-hidden="true">1</span>
+          <div><b>Abre la app en Safari</b>
+          <p>Toca el botón rojo de arriba. En Chrome o Edge también se puede
+          (iOS 16.4 o más nuevo): toca ⬆ en la barra de direcciones y luego
+          «Agregar a Inicio».</p></div>
+        </li>
+        <li class="paso">
+          <span class="n" aria-hidden="true">2</span>
+          <div><b>Toca ··· y luego «Compartir»</b>
+          <p>Si ves el botón ⬆, tócalo directo.</p></div>
+        </li>
+        <li class="paso">
+          <span class="n" aria-hidden="true">3</span>
+          <div><b>Baja y toca «Agregar a Inicio»</b>
+          <p>Deja activado «Abrir como app web» y toca «Agregar».</p></div>
+        </li>
+        <li class="paso">
+          <span class="n" aria-hidden="true">4</span>
+          <div><b>Ábrela desde el ícono y entra otra vez</b>
+          <p>Con tu celular y tu contraseña: tu celular la guarda aparte de Safari.</p></div>
+        </li>
+      </ol>
     </div>
   </section>
 
@@ -167,7 +210,7 @@ a{color:inherit}
       <div class="tarjeta">
         <h2>Se actualiza sola</h2>
         <p>Instalas una vez. Cuando mejoramos algo, lo ves la próxima vez que
-        abras la app, sin volver a descargar nada.</p>
+        abras la app con internet, sin volver a instalar nada.</p>
       </div>
       <div class="tarjeta">
         <!-- 7-oct-2026 — sin código: la app se abre con la cuenta. -->
@@ -175,12 +218,23 @@ a{color:inherit}
         <p>La app se abre con tu cuenta de Tu Garantía. Si todavía no te has
         registrado, toca «Registrarme» en la app: nuevos y antiguos, igual.</p>
       </div>
+      <div class="tarjeta">
+        <!-- 21-oct-2026 — los permisos, sin prometer avisos: no hay emisor de
+             push. Misma frase que app/instalar.js (PERMISOS). -->
+        <h2>Los permisos, como cualquier app</h2>
+        <p>La cámara la pedimos solo para tu cédula y tu selfie, y la ubicación
+        una vez al registrarte; siempre en el momento, como cualquier app.
+        Avisos al celular todavía no enviamos: te escribimos por el chat de la
+        app y por WhatsApp.</p>
+      </div>
       <div class="tarjeta iphone">
-        <h2>¿Tienes iPhone?</h2>
-        <p>Esta descarga es solo para Android. En iPhone abre
-        <a href="../app/socio.html">la app en Safari</a> y usa
-        <b>Compartir&nbsp;→ Agregar a inicio</b> (en algunos teléfonos dice
-        «Añadir a pantalla de inicio»): queda instalada igual.</p>
+        <!-- 21-oct-2026 — el APK ya no se ofrece a nadie nuevo (decisión de
+             Joan). El archivo sigue en descargas/TuGarantia.apk para que no se
+             rompa un enlace viejo, pero esta página no lo enlaza. -->
+        <h2>¿Ya tienes la app que se descargaba?</h2>
+        <p>Si la instalaste con el archivo, sigue funcionando y se actualiza
+        sola: no tienes que hacer nada. Si la borraste o cambiaste de celular,
+        instálala como dice arriba: es la misma app, con tu misma cuenta.</p>
       </div>
     </div>
   </section>
