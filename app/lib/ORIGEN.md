@@ -17,6 +17,7 @@ por dos razones que no son de gusto:
 | `rostro/tiny_face_detector_model.*` | Modelo: dónde está la cara | ídem | MIT | CRM, y la selfie de `play/` (8-oct-2026) |
 | `rostro/face_landmark_68_tiny_model.*` | Modelo: ojos, nariz, boca | ídem | MIT | CRM |
 | `rostro/face_recognition_model.*` | Modelo: el vector con el que se comparan dos caras | ídem | MIT | CRM |
+| `ocr/` | Lector de letras impresas (Tesseract.js 7, núcleo WebAssembly y el español): la fecha de expedición, y el número y los nombres cuando el código de barras no se lee | `tesseract.js` 7.0.0, `tesseract.js-core` 7.0.0, `@tesseract.js-data/spa` 1.0.0 — detalle y sumas en `ocr/ORIGEN.md` | Apache-2.0 (el modelo, MIT el paquete) | `app/ocr-cedula.js`, desde `play/index.html`, paso «Tu cédula» (21-oct-2026) |
 
 **El teléfono carga `rostro/` desde el 8-oct-2026, pero SOLO el detector.**
 Joan pidió que la selfie se tome sola cuando la cara esté centrada y enfocada.
