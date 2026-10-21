@@ -648,19 +648,126 @@ function tecleaTel(el) {
   if (!U) return;
   var t = U.normalizarTelefono(el.value);
   if (t) el.value = U.telefonoBonito(t);
+  /* 21-oct-2026 — I2: con otro número en la casilla (también uno a medias),
+     el «Entrar» que sigue en camino ya no es de quien escribe: su respuesta
+     se descarta y su sesión se cierra (ver EL «ENTRAR», CON LAS REGLAS DE
+     play/). Y su aviso («Entrando…», «Seguimos esperando…») se va con él. */
+  var f = ENTRAR_EN_CAMINO;
+  if (f && String(t || '') !== String(f.celular || '')) {
+    soltarElEntrar();
+    var err = $('errEntrar'); if (err) { err.textContent = ''; err.classList.add('oculto'); }
+  }
 }
 
+/* ===========================================================================
+ * EL «ENTRAR», CON LAS REGLAS DE play/ — 21-oct-2026 (I2)
+ *
+ * Es el G1 que play/ cerró el 21-oct, aquí. Pedro tocaba «Entrar» con la señal
+ * floja: no había tope ni botón apagado, y decía «Entrando…» para siempre. Se
+ * cansaba y dejaba el teléfono; María, en la misma pestaña, entraba con la
+ * suya. Cuando llegaba la respuesta de Pedro, sesion.js la guardaba en el
+ * teléfono y la página hacía SES = esa: María quedaba operando la cuenta de
+ * Pedro (su cupo, su chat, pedir a su nombre), y la sesión de Pedro quedaba
+ * recordada para el siguiente que abriera PlataChat. La regla, la de play/
+ * (G1 y H1 en play/index.html, «UNA RESPUESTA DE LA RED SOLO VALE PARA QUIEN
+ * LA PIDIÓ»):
+ *   · UN «ENTRAR» A LA VEZ: el botón se apaga mientras viaja, y a los 30 s
+ *     se enciende con un aviso que no promete nada (el tope DESBLOQUEA, no
+ *     aborta: con señal floja de verdad la respuesta tarda más que eso, y
+ *     cortarla dejaba a la gente afuera para siempre).
+ *   · LA FOTO DEL TOQUE: el número del viaje y el celular se toman al tocar.
+ *   · AL VOLVER, la respuesta solo se adopta si nadie hizo otra cosa: no salió
+ *     otro «Entrar», no se tocó «Salir», el celular de la casilla sigue
+ *     siendo ese, y nadie entró mientras. Si no, la sesión que llegó se
+ *     cierra en el servidor (scope=local, SP.cerrar) sin guardarse en
+ *     ninguna parte: una cuenta abierta que nadie ve es lo que no se deja.
+ *   · Se guarda en el teléfono AQUÍ, después de esa comprobación: sesion.js
+ *     ya no guarda por su cuenta (SP.entrar).
+ * ======================================================================== */
+var MS_TOPE_ENTRAR = 30000;
+var VIAJE_ENTRAR = 0;          // el número del último «Entrar» que cuenta
+var ENTRAR_EN_CAMINO = null;   // la foto del «Entrar» cuya respuesta no ha llegado
+/* Deja atrás el «Entrar» en camino: su número ya no es el último, así que su
+   respuesta se descarta al llegar; y el botón se enciende ya. */
+function soltarElEntrar() {
+  VIAJE_ENTRAR++;
+  var f = ENTRAR_EN_CAMINO;
+  ENTRAR_EN_CAMINO = null;
+  if (f && f.reloj) { try { clearTimeout(f.reloj); } catch (e) {} f.reloj = null; }
+  var b = $('btnEntrar'); if (b) b.disabled = false;
+}
 function entrar() {
   var err = $('errEntrar');
   if (!SP) return fallo(err, 'No cargó una parte de la app (sesion.js). Cierra y vuelve a abrir con internet.');
+  if (ENTRAR_EN_CAMINO && ENTRAR_EN_CAMINO.apagado) return;   // un «Entrar» a la vez
+  var crudo = $('inCelular').value;
+  var foto = { viaje: ++VIAJE_ENTRAR, celular: (U && U.normalizarTelefono) ? (U.normalizarTelefono(crudo) || '') : String(crudo || ''),
+               apagado: true, reloj: null };
+  if (ENTRAR_EN_CAMINO && ENTRAR_EN_CAMINO.reloj) { try { clearTimeout(ENTRAR_EN_CAMINO.reloj); } catch (e) {} }
+  ENTRAR_EN_CAMINO = foto;
+  var b = $('btnEntrar'); if (b) b.disabled = true;
   fallo(err, 'Entrando…');
-  SP.entrar(CFG, $('inCelular').value, $('inClave').value).then(function (r) {
-    if (!r.ok) return fallo(err, r.motivo);
-    if (err) err.classList.add('oculto');
+  foto.reloj = setTimeout(function () {
+    foto.reloj = null;
+    if (ENTRAR_EN_CAMINO !== foto || !foto.apagado) return;
+    foto.apagado = false;
+    var b2 = $('btnEntrar'); if (b2) b2.disabled = false;
+    fallo($('errEntrar'), 'La conexión tardó demasiado en contestar. Seguimos esperando: si la respuesta llega, entras sin hacer ' +
+      'nada más. Si se te cayó el internet, vuelve a tocar «Entrar» cuando vuelva.');
+  }, MS_TOPE_ENTRAR);
+  SP.entrar(CFG, crudo, $('inClave').value).then(function (r) {
+    var deAqui = foto.viaje === VIAJE_ENTRAR && !SES;
+    if (ENTRAR_EN_CAMINO === foto) {
+      ENTRAR_EN_CAMINO = null;
+      if (foto.reloj) { try { clearTimeout(foto.reloj); } catch (e) {} foto.reloj = null; }
+      var b3 = $('btnEntrar'); if (b3) b3.disabled = false;
+    }
+    if (!deAqui) {
+      if (r && r.ok && r.sesion && r.sesion.access_token) SP.cerrar(CFG, r.sesion.access_token);
+      return;
+    }
+    var e2 = $('errEntrar');
+    if (!r.ok) return fallo(e2, r.motivo);
+    if (e2) e2.classList.add('oculto');
     SES = r.sesion;
+    SP.guardar(SES);
     mostrar('pCargando');
     return cargarCuenta();
   });
+}
+
+/* ===========================================================================
+ * LO QUE PIDE LA CUENTA ES DE LA SESIÓN QUE LO PIDIÓ — 21-oct-2026 (I2)
+ *
+ * El H2 de play/, aquí. «Salir» no corta lo que va en camino: María abría la
+ * foto de su cédula en el chat, pedía $450.000 o tocaba «Acepto», la red iba
+ * lenta, tocaba «Salir» y Pedro entraba. Al llegar, la foto de María se abría
+ * a pantalla completa sobre la cuenta de Pedro (o sobre la entrada), su
+ * solicitud y su aceptación se pintaban en la pantalla de él y la saltaban a
+ * Créditos, y lo que llegaba de mi_cuenta se guardaba DENTRO de la sesión de
+ * Pedro. Solo traerSolicitud, traerPolitica y traerMiRegistro miraban la
+ * sesión, una por una.
+ * La regla, en UN sitio: toda llamada de la cuenta sale por rpcSesion, que
+ * toma la sesión AL PEDIR (`ses`), sale con el token de ESA sesión —nunca con
+ * SES en vivo— y solo deja seguir la respuesta si SES todavía es esa. Si no,
+ * la promesa se queda callada para siempre (enSilencio): ni el .then ni el
+ * .catch de quien llamó corren, así que no se pinta, no se guarda, no se
+ * llama nada más y un «tu sesión venció» tardío no saca al que entró después.
+ * El refresco que muta la sesión en su sitio no la cambia de dueño: SES sigue
+ * siendo el mismo objeto. salir() deja en su estado inicial lo que la cuenta
+ * tenía a medias (ACEPTANDO, CH, SOL…), como ya hacía.
+ * ======================================================================== */
+function enSilencio() { return new Promise(function () {}); }
+/* La promesa de una llamada hecha con `ses`, atada a ella. */
+function deEstaSesion(ses, promesa) {
+  return promesa.then(function (v) { return SES === ses ? v : enSilencio(); },
+                      function (e) { if (SES === ses) throw e; return enSilencio(); });
+}
+/* `ses` (opcional) es la sesión que pidió; sin ella, la de este momento. */
+function rpcSesion(fn, cuerpo, ses) {
+  if (ses === undefined) ses = SES;
+  if (!SP) return Promise.reject({ humano: 'No cargó una parte de la app (sesion.js). Cierra y vuelve a abrir con internet.' });
+  return deEstaSesion(ses, SP.rpc(CFG, ses, fn, cuerpo));
 }
 
 /* ==================== TRAER LA CUENTA ====================
@@ -673,11 +780,16 @@ function entrar() {
    pantalla dice «sin conexión» en vez de una pantalla de error. */
 function cargarCuenta() {
   if (!SES || !SP) { salir(); return Promise.resolve(); }
-  return SP.rpc(CFG, SES, 'mi_cuenta').then(function (j) {
+  /* 21-oct-2026 — I2: con la sesión que pidió (rpcSesion). Lo que contesta
+     mi_cuenta se guarda DENTRO de esa sesión: si mientras tanto salió y entró
+     otro, los números de María quedaban guardados en la sesión de Pedro, y
+     abrir() los pintaba sin señal («tus números al…»). */
+  var ses = SES;
+  return rpcSesion('mi_cuenta', undefined, ses).then(function (j) {
     if (!j || j.ok !== true) throw { sinSesion: true };
     SIN_NUBE = false; AVISO_NUBE = '';
-    SES.ultimo = j; SES.ultimoEl = hoyISO();
-    SP.guardar(SES);
+    ses.ultimo = j; ses.ultimoEl = hoyISO();
+    SP.guardar(ses);
     if (j.vinculada) MI_REGISTRO = '';
     abrir(j);
     marcarAcceso();
@@ -722,7 +834,7 @@ function cargarCuenta() {
    existe todavía o no hay señal, no pasa nada: es una métrica, no la app. */
 function marcarAcceso() {
   if (!SES || !SP) return;
-  SP.rpc(CFG, SES, 'marcar_acceso', { p_app: 'platachat' }).catch(function () {});
+  rpcSesion('marcar_acceso', { p_app: 'platachat' }).catch(function () {});
 }
 
 /* LA POLÍTICA CON LA QUE LA BASE FIRMA (fase 1b, 15-sep-2026). Una sola vez
@@ -741,7 +853,7 @@ function marcarAcceso() {
 function traerPolitica() {
   if (!SES || !SP) return Promise.resolve();
   var ses = SES;
-  return SP.rpc(CFG, SES, 'politica_platachat').then(function (j) {
+  return rpcSesion('politica_platachat', undefined, ses).then(function (j) {
     if (SES !== ses) return;                         /* salió, o entró otro */
     if (!j || j.ok !== true || !j.politica || typeof j.politica !== 'object') return;
     POL = j.politica;
@@ -843,7 +955,7 @@ function sinJuntarSabido() {
 function traerMiRegistro() {
   if (!SES || !SP) return Promise.resolve();
   var ses = SES;
-  return SP.rpc(CFG, SES, 'mi_registro', {}).then(function (j) {
+  return rpcSesion('mi_registro', {}, ses).then(function (j) {
     if (SES !== ses || !S || S.vinculada) return;        /* salió, entró otro, o ya está junta */
     var antes = MI_REGISTRO;
     MI_REGISTRO = leerMiRegistro(j);
@@ -1601,9 +1713,13 @@ function pedirPorChat(capital, fechaISO, dias, cortes) {
   fallo(err, 'Mandando…');
   var fecha = String(fechaISO).slice(0, 10);
   var abierta = solicitudAbierta();
+  /* 21-oct-2026 — I2: con la sesión que pidió (rpcSesion): la solicitud de
+     María que contesta después de «Salir» ya no salta la pantalla de Pedro a
+     Créditos con el monto, el total y la fecha de ella. */
+  var ses = SES;
   var pedido = abierta
-    ? SP.rpc(CFG, SES, 'reproponer_platachat', { p_id: Number(SOL.id), p_capital: Math.round(capital), p_fecha_pago: fecha, p_cortes: n, p_texto: '' })
-    : SP.rpc(CFG, SES, 'solicitar_platachat', { p_capital: Math.round(capital), p_fecha_pago: fecha, p_cortes: n });
+    ? rpcSesion('reproponer_platachat', { p_id: Number(SOL.id), p_capital: Math.round(capital), p_fecha_pago: fecha, p_cortes: n, p_texto: '' }, ses)
+    : rpcSesion('solicitar_platachat', { p_capital: Math.round(capital), p_fecha_pago: fecha, p_cortes: n }, ses);
   pedido.then(function (j) {
     RELOJ_OK = true;
     if (!j || j.ok !== true) {
@@ -1721,7 +1837,7 @@ function traerSolicitud() {
      pedir la que sí vale (15-sep-2026). */
   if (ACEPTANDO) return Promise.resolve();
   var gen = ++SOL_GEN, ses = SES, antes = firmaSolicitud();
-  return SP.rpc(CFG, SES, 'mi_solicitud_platachat').then(function (j) {
+  return rpcSesion('mi_solicitud_platachat', undefined, ses).then(function (j) {
     if (SES !== ses || gen !== SOL_GEN) return;   /* salió (o entró otro), o SOL ya cambió por otra vía: esta traída es vieja */
     if (!j || j.ok !== true) return;
     RELOJ_OK = true;
@@ -2055,13 +2171,17 @@ function aceptarPropuesta(id) {
      guardado nada de lo leído, mientras los términos prometen «guardamos una
      copia tal como las viste». Ahora no se acepta: se dice, y que nos escriba
      por el chat si le urge. Mejor una aceptación que espera que una sin constancia. */
+  /* 21-oct-2026 — I2: con la sesión que aceptó (rpcSesion): la aceptación de
+     María que contesta después de «Salir» ya no pinta en la cuenta de Pedro
+     «Aceptaste $450.000 · Devuelves $495.000», ni le apaga el botón de pedir. */
+  var ses = SES;
   (cond
-    ? SP.rpc(CFG, SES, 'aceptar_condiciones', { p_id: Number(id), p_vio: CS.paraAceptar(cond) })
+    ? rpcSesion('aceptar_condiciones', { p_id: Number(id), p_vio: CS.paraAceptar(cond) }, ses)
         .catch(function (e) {
           if (e && e.estado === 404) return { ok: false, motivo: 'sin_constancia' };
           throw e;
         })
-    : SP.rpc(CFG, SES, 'aceptar_propuesta_platachat', { p_id: Number(id) })).then(function (j) {
+    : rpcSesion('aceptar_propuesta_platachat', { p_id: Number(id) }, ses)).then(function (j) {
     if (j && j.motivo === 'sin_constancia') {
       ACEPTANDO = false;
       fallo(ce, 'No pudimos registrar tu aceptación todavía (no es tu teléfono ni tu internet). ' +
@@ -2330,7 +2450,9 @@ function chatTraer(primera) {
   if (!chatDisponible() || CH.cargando) return;
   var gen = GEN, canal = CH.canal;
   CH.cargando = true;
-  SP.rpc(CFG, SES, 'chat_leer_sesion', { p_canal: canal, p_desde: CH.ultimo }).then(function (j) {
+  /* 21-oct-2026 — I2: rpcSesion además de GEN: GEN dice de qué hilo es, la
+     sesión dice de quién. */
+  rpcSesion('chat_leer_sesion', { p_canal: canal, p_desde: CH.ultimo }).then(function (j) {
     if (gen !== GEN) return;
     CH.cargando = false;
     if (!j || j.ok !== true) {
@@ -2383,7 +2505,10 @@ function chatLatido() {
 function enviarTexto(canal, texto) {
   var r = CHAT.revisar(texto);
   if (!r.ok) return Promise.reject({ humano: r.motivo });
-  return SP.rpc(CFG, SES, 'chat_escribir_sesion', { p_canal: canal, p_texto: r.texto }).then(function (j) {
+  /* 21-oct-2026 — I2: con la sesión de este momento, que es la del toque
+     (enviarChat y pedirComoMensaje llaman aquí al tocar): la respuesta del
+     mensaje de María no le borra a Pedro lo que está escribiendo. */
+  return rpcSesion('chat_escribir_sesion', { p_canal: canal, p_texto: r.texto }).then(function (j) {
     if (!j || j.ok !== true) {
       throw { humano: (j && /demasiados/.test(String(j.motivo || '')))
         ? 'Escribiste varios seguidos: espera unos minutos y vuelve a intentar.'
@@ -2453,6 +2578,10 @@ function fotoDeLienzo(c, max, q) {
 
 function mandarFoto(input) {
   var err = $('chError');
+  /* 21-oct-2026 — I2: la sesión de quien escogió la foto. Leer y comprimir
+     es asíncrono: si en ese rato salió y entró otro, la foto no sale con el
+     token del que llegó (subirFotoChat la compara). */
+  var ses = SES;
   var f = input && input.files && input.files[0];
   try { input.value = ''; } catch (e) {}
   if (!f) return;
@@ -2478,7 +2607,7 @@ function mandarFoto(input) {
       var mini = fotoDeLienzo(c, 240, 0.5);
       c.width = c.height = 1;
       if (!grande) return fallo(err, 'Tu teléfono no dejó preparar la foto. Prueba con otra.');
-      subirFotoChat(grande, mini);
+      subirFotoChat(grande, mini, ses);
     };
     im.src = lector.result;
   };
@@ -2497,7 +2626,11 @@ function motivoFoto(m) {
     : 'No pude mandar la foto. Vuelve a intentar en un momento.';
 }
 
-function subirFotoChat(grande, mini) {
+/* 21-oct-2026 — I2: `ses`, la sesión de quien escogió la foto (mandarFoto).
+   Si ya no es la de la página, no sale nada: era de otra persona. */
+function subirFotoChat(grande, mini, ses) {
+  if (ses === undefined) ses = SES;
+  if (!ses || ses !== SES) return;
   var err = $('chError'), b = $('chEnviar'), ta = $('chTexto');
   var pie = String((ta && ta.value) || '').trim();
   /* El largo se revisa AQUÍ: un pie que la base recortara a mil dejaría a la
@@ -2507,9 +2640,9 @@ function subirFotoChat(grande, mini) {
   }
   fallo(err, 'Mandando la foto…');
   CH.enviando = true; if (b) b.disabled = true;
-  SP.rpc(CFG, SES, 'chat_foto_sesion', {
+  rpcSesion('chat_foto_sesion', {
     p_canal: CH.canal, p_imagen: grande, p_miniatura: mini || null, p_texto: pie || null
-  }).then(function (j) {
+  }, ses).then(function (j) {
     if (!j || j.ok !== true) {
       if (j && j.motivo === 'sesion') { salir('Tu sesión venció. Entra de nuevo para mandar la foto.'); return; }
       fallo(err, motivoFoto(j && j.motivo));
@@ -2565,10 +2698,15 @@ function mostrarFoto(imagen) {
 }
 
 /* Se pide la grande solo cuando alguien toca la miniatura. Nunca muda: una
-   foto que no abre sin decir por qué es una función que no existe. */
+   foto que no abre sin decir por qué es una función que no existe.
+   21-oct-2026 — I2: CON LA SESIÓN QUE LA PIDIÓ (rpcSesion). La foto de la
+   cédula que María mandó por Servicio llegaba después de su «Salir» y se
+   abría a pantalla completa encima de la entrada, o de la cuenta de Pedro
+   (su cara: un dato sensible, Ley 1581). Ahora esa respuesta se calla, y
+   también su «tu sesión venció», que habría sacado a Pedro. */
 function verFotoChat(id) {
   if (!chatDisponible()) return;
-  SP.rpc(CFG, SES, 'chat_foto_sesion_ver', { p_id: Number(id) }).then(function (j) {
+  rpcSesion('chat_foto_sesion_ver', { p_id: Number(id) }).then(function (j) {
     if (!j || j.ok !== true || !j.imagen) return alert('No pude abrir esa foto. Vuelve a intentar en un momento.');
     mostrarFoto(j.imagen);
   }).catch(function (e) {
@@ -2724,13 +2862,24 @@ function pie() {
    sin armar un fetch por su cuenta: el aviso va por sesion.js.
    Con `msg` (la nube ya dijo que la sesión no vale) no hay a quién avisarle
    por ESA sesión, igual que en la app del socio (cerrarSesionLocal); la
-   copia de la pestaña, si es otra, sí se cierra. */
+   copia de la pestaña, si es otra, sí se cierra.
+   21-oct-2026 — I2: LA SESIÓN SE SUELTA, NO SOLO SE BORRA (SP.soltar). Con el
+   token vencido el logout era un 401 que no cerraba nada, y un refresco que
+   iba en camino volvía a escribir la sesión de María en el teléfono, con su
+   refresh_token vivo: el siguiente que abría PlataChat entraba a su cuenta.
+   soltar la marca `cerrada` (sesion.js ya no la guarda, ni la refresca para
+   nadie: el refresco que llegue la cierra con el token nuevo) y, si venció,
+   refresca para poder cerrarla de verdad. Y un «Entrar» que siguiera en
+   camino queda atrás (soltarElEntrar): su respuesta ya no es de nadie. */
 function salir(msg) {
-  var tokenPC = (SES && SES.access_token) || '';
+  var ses = SES;
+  var tokenPC = (ses && ses.access_token) || '';
   var dePlay = null;
   try { dePlay = JSON.parse(sessionStorage.getItem(LLAVE_PLAY) || 'null'); } catch (e) { dePlay = null; }
+  soltarElEntrar();
+  if (SP && SP.soltar) SP.soltar(CFG, ses, !!msg);
+  else if (SP && SP.cerrar && !msg) SP.cerrar(CFG, tokenPC);   // un sesion.js de antes en la caché
   if (SP && SP.cerrar) {
-    if (!msg) SP.cerrar(CFG, tokenPC);
     if (dePlay && dePlay.access_token && dePlay.access_token !== tokenPC) SP.cerrar(CFG, dePlay.access_token);
   }
   try { sessionStorage.removeItem(LLAVE_PLAY); } catch (e) {}

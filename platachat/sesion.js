@@ -19,9 +19,14 @@
  * localStorage (bajo LLAVE) el access_token, el refresh_token y el celular —
  * NUNCA la contraseña, que se manda una sola vez y no se retiene en ninguna
  * variable de este archivo. «Salir» la borra (ver borrar) y, desde el
- * 21-oct-2026, le avisa al servidor (ver cerrar); y si la nube dice
+ * 21-oct-2026, le avisa al servidor (ver cerrar y soltar); y si la nube dice
  * que el refresh ya no vale, la página la borra también: la base manda, la
  * sesión solo recuerda.
+ * 21-oct-2026 — I2: QUIÉN GUARDA ES LA PÁGINA, Y SOLO LO QUE SIGUE SIENDO
+ * SUYO. entrar() ya no guarda por su cuenta (la página guarda después de
+ * comprobar que el toque sigue vigente), y una sesión que la página soltó
+ * (soltar, marca `cerrada`) no se vuelve a guardar ni a refrescar para nadie:
+ * ver refrescar, rpc y guardar.
  *
  * QUÉ NO HAY, A PROPÓSITO
  *   · Ninguna pantalla, ningún texto pintado. Los `motivo` que salen de acá
@@ -118,6 +123,12 @@
   /* ------------------------------------------------------------------------
      ENTRAR. Devuelve siempre un objeto, nunca rechaza: la página no tiene que
      distinguir un catch de un {ok:false} — solo pinta el motivo.
+     21-oct-2026 — I2: Y NO GUARDA. Guardaba la sesión en el teléfono antes de
+     devolverla, así que aunque la página la descartara (la respuesta de Pedro
+     que llegó cuando María ya había entrado a la suya), el siguiente arranque
+     abría la cuenta de Pedro. Ahora devuelve la sesión y la página la guarda
+     (guardar) solo después de comprobar que ese «Entrar» sigue siendo el de
+     quien tiene el teléfono; si no, la cierra en el servidor (cerrar).
      ---------------------------------------------------------------------- */
   function entrar(cfg, celular, clave) {
     var cel = normalizar(celular);
@@ -132,9 +143,7 @@
     }).then(leerCuerpo).then(function (r) {
       if (nubeCaida(r.estado)) return { ok: false, motivo: NUBE_CAIDA, estado: r.estado };
       if (!r.ok || !r.j || !r.j.access_token) return { ok: false, motivo: DATOS_MALOS };
-      var s = sesionDe(r.j, cel);
-      guardar(s);
-      return { ok: true, sesion: s };
+      return { ok: true, sesion: sesionDe(r.j, cel) };
     }).catch(function () {
       return { ok: false, motivo: SIN_RED, red: true };
     });
@@ -186,6 +195,15 @@
      Muta la sesión que recibe además de devolverla: la página guarda una sola
      referencia (SES) y así no tiene que acordarse de reasignarla en cada sitio
      desde donde llama a rpc(). Se persiste acá mismo por la misma razón.
+     21-oct-2026 — I2: SALVO QUE LA PÁGINA YA LA HAYA SOLTADO. María estaba en
+     Chats con el token vencido; chatTraer salía a refrescar con la señal
+     lenta, ella tocaba «Salir» (el logout iba con el token vencido: GoTrue lo
+     rechaza y no cierra nada) y, al llegar el refresco, esto mutaba la sesión
+     vieja y la volvía a escribir en el teléfono, con un refresh_token vivo:
+     el siguiente que abría PlataChat entraba a la cuenta de María. Ahora, si
+     al volver la sesión está marcada `cerrada` (soltar), no se toca, no se
+     guarda y no se devuelve; y el token NUEVO, que es el único que el
+     servidor todavía acepta, se usa para cerrarla allá (scope=local).
      ---------------------------------------------------------------------- */
   function refrescar(cfg, sesion) {
     if (!sesion || !sesion.refresh_token) return Promise.resolve(null);
@@ -197,6 +215,7 @@
     }).then(leerCuerpo, function () { throw { humano: SIN_RED, red: true }; })
       .then(function (r) {
         if (!r.ok || !r.j || !r.j.access_token) return null;
+        if (sesion.cerrada) { cerrar(cfg, r.j.access_token); return null; }
         var nueva = sesionDe(r.j, sesion.celular, { nombre: sesion.nombre });
         Object.keys(nueva).forEach(function (k) { sesion[k] = nueva[k]; });
         guardar(sesion);
@@ -217,7 +236,8 @@
          «sin conexión» ÚNICAMENTE con esa marca.
      ---------------------------------------------------------------------- */
   function rpc(cfg, sesion, fn, cuerpo) {
-    if (!sesion || !sesion.access_token) return Promise.reject({ sinSesion: true, humano: 'Entra de nuevo para seguir.' });
+    /* 21-oct-2026 — I2: una sesión soltada no pide nada más (ni refresca). */
+    if (!sesion || !sesion.access_token || sesion.cerrada) return Promise.reject({ sinSesion: true, humano: 'Entra de nuevo para seguir.' });
     if (!conectada(cfg)) return Promise.reject({ humano: 'Todavía no hay conexión con la nube.', red: true });
     var pedir = pedidor(cfg);
 
@@ -263,7 +283,8 @@
      revienta: guardar no hace nada y leer devuelve null.
      ---------------------------------------------------------------------- */
   function guardar(sesion) {
-    var a = almacen(); if (!a || !sesion) return false;
+    /* 21-oct-2026 — I2: lo soltado no vuelve al teléfono, venga de donde venga. */
+    var a = almacen(); if (!a || !sesion || sesion.cerrada) return false;
     try { a.setItem(LLAVE, JSON.stringify(sesion)); return true; } catch (e) { return false; }
   }
   function leer() {
@@ -299,12 +320,37 @@
     } catch (e) { /* salir no depende de la red */ }
   }
 
+  /* ------------------------------------------------------------------------
+     21-oct-2026 — I2: SOLTAR. Lo que hace «Salir» con la sesión que deja: la
+     marca `cerrada` (refrescar, rpc y guardar ya no la tocan), y la cierra en
+     el servidor. Con el token que tenga, si todavía vale; y si ya venció
+     —un logout con un token vencido es un 401 que no cierra nada, y el
+     refresh_token seguía vivo— se refresca para tener uno que el servidor
+     acepte, y refrescar, al verla cerrada, cierra con ese token nuevo. Un
+     refresco que ya iba en camino termina igual: cierra y no guarda.
+     `sinAvisar`: la nube ya dijo que esa sesión no vale; solo se marca.
+     Sin esperar y sin mirar la respuesta, como cerrar.
+     ---------------------------------------------------------------------- */
+  function soltar(cfg, sesion, sinAvisar) {
+    if (!sesion) return;
+    sesion.cerrada = true;
+    if (sinAvisar) return;
+    cerrar(cfg, sesion.access_token);
+    if (vencida(sesion) && sesion.refresh_token && conectada(cfg)) {
+      try {
+        var p = refrescar(cfg, sesion);
+        if (p && p['catch']) p['catch'](function () {});
+      } catch (e) { /* salir no depende de la red */ }
+    }
+  }
+
   return {
     LLAVE: LLAVE,
     /* La copia que deja el registro de play/ en la pestaña (app/sesion-socio.js
        la llama igual): «Salir» la borra también. */
     LLAVE_PLAY: 'play_sesion',
     cerrar: cerrar,
+    soltar: soltar,
     APP: APP,
     NUBE_CAIDA: NUBE_CAIDA,
     MARGEN_VENCIMIENTO_S: MARGEN_VENCIMIENTO_S,

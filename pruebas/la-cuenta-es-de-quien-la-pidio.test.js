@@ -18,6 +18,9 @@
  * Pedro (o nadie), se suelta la respuesta. Nada de ella se pinta, se anota ni
  * llama a nadie más; y lo que la cuenta tenía a medias vuelve a su estado
  * inicial con «Salir». Todas FALLAN con la página de f1bcfde.
+ * 21-oct-2026 — I3: con UNA excepción, la subida de la cola de fotos, que sí
+ * anota (y suelta la copia del teléfono) con el celular de su dueña, sin
+ * pintar nada: ver pruebas/la-cola-que-si-llego.test.js.
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -222,7 +225,12 @@ describe('H2 — la solicitud, la contraseña, el chat y las fotos', () => {
       'la foto que escogió María salió después de «Salir», con el token de Pedro');
   });
 
-  test('H2 — la subida de la cola de María que contesta después de «Salir» no anota nada, no le borra su cola, y no frena la de Pedro', async () => {
+  /* 21-oct-2026 — I3: esta prueba fijaba que la cola de María NO se borrara
+     y que no se anotara nada. Era el defecto: la base ya tenía las fotos, y
+     el teléfono prestado se quedaba con la copia hasta caducar con un aviso
+     falso. Ahora la contabilidad corre con el celular de María y solo se
+     calla lo que pinta (ver pruebas/la-cola-que-si-llego.test.js). */
+  test('H2, I3 — la subida de la cola de María que contesta después de «Salir» suelta SU cola y anota con SU celular, sin pintar nada en la cuenta de Pedro ni frenar la de él', async () => {
     const lote = { sensibles: true, selfie: 'data:image/jpeg;base64,CARA_MARIA',
       de: { celular: B.CEL_MARIA, intento: 'reg-maria', t: Date.now() - 60000, documento: '52123456' } };
     const almacen = { play_fotos_cola: JSON.stringify({ [B.CEL_MARIA]: lote }) };
@@ -237,8 +245,10 @@ describe('H2 — la solicitud, la contraseña, el chat y las fotos', () => {
     await salirYEntraPedro(P);
     B.soltar(P, 0, { ok: true, guardados: ['selfie'] });
     await B.asentar(20);
-    assert.equal(P.almacen.play_subida_fotos, undefined, 'se anotó en el teléfono una subida cuya sesión ya salió');
-    assert.ok(JSON.parse(P.almacen.play_fotos_cola || '{}')[B.CEL_MARIA], 'la cola de María se borró por una respuesta que nadie esperaba');
+    const nota = JSON.parse(P.almacen.play_subida_fotos || 'null');
+    assert.ok(nota && nota.celular === B.CEL_MARIA && nota.estado === 'ok', 'la subida que llegó no quedó anotada con el celular de María: ' + JSON.stringify(nota));
+    assert.equal(JSON.parse(P.almacen.play_fotos_cola || '{}')[B.CEL_MARIA], undefined,
+      'la cara de María se quedó en el teléfono prestado después de llegar a la base');
     assert.equal(/tus fotos llegaron/.test(B.texto((P.elems.avisoFotos || {}).innerHTML)), false, 'a Pedro se le dijo que «sus» fotos llegaron');
     assert.equal(P.ev('SUBIDA_EN_CURSO'), null, '«Salir» dejó la subida de María como «la que ya va»');
     /* Y la de Pedro (no tiene cola) no queda esperando la de María. */

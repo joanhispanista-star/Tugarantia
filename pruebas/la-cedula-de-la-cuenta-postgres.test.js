@@ -169,10 +169,40 @@ describe('la cédula de la cuenta, en un PostgreSQL de verdad', { skip: !BIN && 
   test('la autocomprobación corre los tres caminos y no deja nada suyo', () => {
     const r = archivo(path.join(RAIZ, 'base', NOMBRE), true);
     assert.equal(r.status, 0, r.stderr);
-    /* 21-oct-2026 (H4) — con el paso de la autorización de datos sensibles. */
-    assert.match(r.stderr, /1 sin-sesion; 2 sin-autorizacion-no; 3 sin-registro-no; 4 sin-lectura-no-pisa;/, r.stderr);
+    /* 21-oct-2026 (H4) — con el paso de la autorización de datos sensibles.
+       21-oct-2026 (I5) — y sin los pasos que necesitaban una cuenta en
+       auth.users: esos caminos los prueban, con cuentas, las pruebas de abajo
+       («SIN REGISTRO CON QUÉ COMPARAR», «UNAS FOTOS SIN CÓDIGO NO PISAN…»). */
+    assert.match(r.stderr, /1 sin-sesion; 2 sin-autorizacion-no; 3 cuenta-sin-autorizacion-no;/, r.stderr);
     assert.equal(sql("select count(*) from public.registro_archivos where celular = '3009990820'"), '0');
     assert.equal(sql("select count(*) from auth.users where email = '573009990820@tugarantia.net'"), '0', 'la cuenta de mentira de la prueba se quedó');
+  });
+
+  /* 21-oct-2026 (I5) — LA AUTOCOMPROBACIÓN NO ESCRIBE EN auth.users DE
+     PRODUCCIÓN, ni dentro de un bloque que se deshace. auth.users es la tabla
+     de las cuentas de verdad, con disparadores de Supabase y del proyecto que
+     el archivo no ve; Joan lo pega en producción. Se mira el texto (ningún
+     insert, update ni delete sobre auth.users fuera de los comentarios) y se
+     mira la base: un disparador que AVISA (un notice no se deshace con el
+     bloque) en cada fila que se escriba en auth.users, y el archivo corrido
+     otra vez. Con el archivo de f380a19 —que creaba y deshacía una cuenta de
+     mentira— las dos fallan. */
+  test('I5 — la autocomprobación es de solo lectura sobre auth.users: ni en el texto ni corriendo', () => {
+    const codigo = SQL.replace(/--[^\n]*/g, '');
+    assert.equal(/(insert\s+into|update|delete\s+from)\s+auth\.users\b/i.test(codigo), false,
+      'el archivo que Joan pega en producción escribe en auth.users');
+    sql("create or replace function public.tg_vigia_auth_users() returns trigger language plpgsql as $$ begin " +
+        "raise notice 'ESCRIBIERON-EN-AUTH-USERS %', tg_op; return coalesce(new, old); end $$;" +
+        " drop trigger if exists tg_vigia on auth.users;" +
+        " create trigger tg_vigia before insert or update or delete on auth.users for each row execute function public.tg_vigia_auth_users();");
+    try {
+      const r = archivo(path.join(RAIZ, 'base', NOMBRE), true);
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(r.stderr, /3 cuenta-sin-autorizacion-no;/, 'la autocomprobación no corrió entera: ' + r.stderr);
+      assert.equal(/ESCRIBIERON-EN-AUTH-USERS/.test(r.stderr), false, 'la autocomprobación escribió en auth.users: ' + r.stderr);
+    } finally {
+      sql('drop trigger if exists tg_vigia on auth.users; drop function if exists public.tg_vigia_auth_users();');
+    }
   });
 
   test('V1 — CON LA SESIÓN DE PEDRO, LA LECTURA DE MARÍA NO ENTRA, Y LAS FOTOS DE PEDRO NO SE REEMPLAZAN', () => {

@@ -523,7 +523,11 @@ function terminarEnPlataChat() {
      nombre con apóstrofo («D'Angelo») rompía el onclick, porque &#39; vuelve a
      ser ' antes de que lo lea JavaScript (20-oct-2026, buena fe). */
   var irse = esc(JSON.stringify(String(cel || ''))) + ', ' + esc(JSON.stringify(String(nombre || '')));
-  return subirArchivosRegistro().then(function () { return true; }, function () { return false; })
+  /* 21-oct-2026 — I3: la subida anota siempre lo que pasó (ver
+     SUBIDA_EN_CURSO); lo que sigue pinta y pasa la sesión a PlataChat, y eso
+     solo si la sesión que la empezó sigue siendo la de la página. */
+  var ses = SESION;
+  return deEstaSesion(ses, subirArchivosRegistro()).then(function () { return true; }, function () { return false; })
     .then(function (llego) {
       /* subirArchivosRegistro resuelve también cuando la base RECHAZA o guarda
          a medias: lo que pasó lo anota en leerSubida(). Se mira esa nota, y
@@ -678,8 +682,18 @@ function entrarYSubirEnPlataChat() {
    la suya (platachat_sesion, platachat/sesion.js) y la renueva sola; y lo que
    play/ tenía que hacer con ella antes de irse —subir la cola de fotos— ya
    pasó (o se soltó) antes de llegar aquí. Por eso se olvida en cuanto el
-   paso resolvió. Si NO se pudo pasar, se queda: PlataChat pedirá entrar, y la
-   página sigue siendo la que la tiene.
+   paso resolvió.
+   21-oct-2026 — I2: Y TAMBIÉN SI NO SE PUDO PASAR. Se quedaba «para que
+   PlataChat pidiera entrar», y esa copia no le servía a nadie más que al
+   siguiente: el pase fallaba una vez (sesion.js no cargó con la señal floja
+   de una primera visita, o el almacén no dejó escribir), María iba a
+   PlataChat, veía la entrada y no entraba; Pedro tocaba «Abrir cuenta» en la
+   misma pestaña, el arranque de play/ encontraba la sesión de ella y esta vez
+   el pase sí funcionaba: PlataChat le abría a Pedro la cuenta de María. La
+   persona ya leyó que en PlataChat entra con su celular y su contraseña, así
+   que se olvidan la copia y la marca. El reintento, si lo hay, es SOLO de esta
+   página y con la sesión que tiene en memoria (irAPlataChatDespuesDelPase),
+   nunca desde el arranque de una página nueva.
    Y con ella la marca de «la cuenta que acaba de nacer» (play_cuenta_creada),
    como al entrar a una cuenta de Tu Garantía (pintarCuenta): esa marca es
    para quien perdió la sesión ANTES de entrar, y aquí ya entró. Con la marca
@@ -694,12 +708,37 @@ function entrarAPlataChat(cel, nombre) {
     return volverAPlataChat();
   }, function () {
     /* Sin la sesión pasada, PlataChat pide entrar: con el celular y la
-       contraseña que acaba de crear, que es la misma cuenta. Se le dice antes. */
+       contraseña que acaba de crear, que es la misma cuenta. Se le dice antes.
+       21-oct-2026 — I2: y la copia de la pestaña y la marca se olvidan aquí
+       también (ver arriba): ninguna página nueva vuelve a pasar esta sesión. */
+    olvidarSesionEnCurso();
+    olvidarCuentaCreada();
     var s = $('pcSubida');
     if (s) s.textContent = 'Tu cuenta quedó abierta. En PlataChat entra con tu celular y la contraseña que acabas de crear.';
     var a = $('pcAcciones');
-    if (a) a.innerHTML = '<button class="btn arriba" onclick="volverAPlataChat()">Ir a PlataChat</button>';
+    var irse = esc(JSON.stringify(String(cel || ''))) + ', ' + esc(JSON.stringify(String(nombre || '')));
+    if (a) a.innerHTML = '<button class="btn arriba" onclick="irAPlataChatDespuesDelPase(' + irse + ')">Ir a PlataChat</button>';
   });
+}
+/* 21-oct-2026 — I2: «IR A PLATACHAT» DESPUÉS DE UN PASE QUE NO SE PUDO. Un
+   intento más con la sesión que ESTA página tiene en memoria —la que se acaba
+   de abrir aquí—: si sesion.js no cargó por un corte, ahora suele cargar, y
+   la persona entra sin volver a escribir la contraseña. Si tampoco, la sesión
+   se cierra en el servidor (scope=local): nadie en el teléfono la va a tener,
+   y una sesión abierta que nadie ve es justo lo que no se deja. En los dos
+   casos se va a PlataChat, como dice el botón. */
+function irAPlataChatDespuesDelPase(cel, nombre) {
+  if (viajando()) return Promise.resolve();
+  var ses = SESION;
+  if (!ses || !ses.access_token) { volverAPlataChat(); return Promise.resolve(); }
+  return pasarSesionAPlataChat(ses, cel, nombre).then(function () { return true; }, function () { return false; })
+    .then(function (paso) {
+      if (SESION !== ses) return;   // la pestaña ya es de otra cosa: lo de esta sesión no sigue
+      if (!paso) cerrarSesionHuerfana(ses);
+      SESION = null;
+      olvidarSesionEnCurso();
+      volverAPlataChat();
+    });
 }
 
 /* EL GUARDIÁN VA AQUÍ ARRIBA, Y ESO ES TODO EL ARREGLO — 16-sep-2026.
@@ -1087,6 +1126,18 @@ function olvidarSesionEnCurso() { try { sessionStorage.removeItem(LLAVE_SESION);
  *      se adopta si nadie hizo otra cosa (regla 3); y el reintento después de
  *      un tope en el que el signup ya salió prueba primero entrar con la
  *      contraseña, que es una sola llamada (ver enviarRegistro).
+ *   5. 21-oct-2026 — I1: LO TECLEADO TAMBIÉN CUENTA. «Otra cosa» no es solo
+ *      tocar un botón: pasado el tope, Pedro toca «Volver» hasta «Tu celular
+ *      y tu contraseña» y escribe el suyo (la página ya le dice que el
+ *      registro empieza de cero), o María escribe el suyo en #inTel mientras
+ *      el «Entrar» de Pedro sigue en camino. La generación solo sube con
+ *      «Continuar» y no había salido otro viaje: la respuesta vieja se
+ *      adoptaba y Pedro quedaba dentro de la cuenta nueva de María (y de su
+ *      PlataChat), o María dentro de la de Pedro. Ahora, en cuanto la casilla
+ *      del celular (anotarCelular) o #inTel (tecleaTel) muestra otro número
+ *      que el de la foto del toque —también uno a medias—, el viaje en camino
+ *      deja de ser «de aquí» (otroCelularTecleado): su respuesta se descarta y
+ *      su sesión se cierra con scope=local, como cualquier huérfana.
  * Lo asíncrono del escáner y de la ubicación (la lectura del código de una
  * foto fija, el GPS en vuelo) usa la misma generación: si cambió, se descarta
  * (tomarFoto, leerCodigoDeBarras, leerCuadroDoc, pedirGps). Era la carrera que
@@ -1109,14 +1160,38 @@ function fotoDelToque(lo) {
    había hecho nada más, y aun así se quedaba fuera de la cuenta que acababa
    de crear. El tope ya no decide: decide si la persona hizo otra cosa (otra
    generación) o volvió a tocar (otro viaje). Una foto sin viaje (no salió por
-   empezarViaje) solo mira la generación. */
+   empezarViaje) solo mira la generación.
+   21-oct-2026 — I1: escribir otro celular también cuenta como «otra cosa»:
+   otroCelularTecleado sube el número del viaje, y esto lo ve sin mirar el
+   DOM (la casilla puede no estar en pantalla cuando llega la respuesta). */
 function sigueSiendoDeAqui(f) {
   return !!f && f.generacion === GENERACION_DEL_REGISTRO && (!f.viaje || f.viaje === ULTIMO_VIAJE);
 }
 var MS_TOPE_DE_LA_RED = 30000;
 var EN_VUELO = null;   // la foto del toque cuya petición está en camino (una a la vez)
 var ULTIMO_VIAJE = 0;  // 21-oct-2026 — H1: el número del último viaje que salió
+/* 21-oct-2026 — I1: la foto del último viaje que salió. EN_VUELO se suelta al
+   tope, y la respuesta puede llegar después: para saber qué celular pidió ese
+   viaje hace falta guardarla aparte. */
+var ULTIMA_FOTO = null;
 function viajando() { return !!EN_VUELO; }
+/* 21-oct-2026 — I1 (regla 5): la casilla del celular muestra `cel`. Si el
+   último viaje que salió en esta generación pidió con OTRO celular (o el que
+   se ve está a medias), ese viaje deja de ser «de aquí»: su número ya no es el
+   último, así que sigueSiendoDeAqui lo descarta cuando vuelva y su sesión se
+   cierra en el servidor. Si todavía no había vencido el tope, los botones se
+   encienden ya: lo que se esperaba ya no es de quien tiene el teléfono.
+   Devuelve true si soltó un viaje. Volver a escribir el número de antes no lo
+   revive: es más seguro volver a tocar que adivinar quién escribió. */
+function otroCelularTecleado(cel) {
+  var f = ULTIMA_FOTO;
+  if (!f || f.viaje !== ULTIMO_VIAJE || f.generacion !== GENERACION_DEL_REGISTRO) return false;
+  if (String(cel || '') === String(f.celular || '')) return false;
+  ULTIMO_VIAJE++;
+  ULTIMA_FOTO = null;
+  terminarViaje(f);
+  return true;
+}
 /* Los botones que se apagan mientras viaja: TODOS los de la pantalla (en la
    portada son «Entrar», los dos «Abrir mi cuenta» y «Olvidé mi contraseña»;
    en el registro, «Continuar»/«Abrir mi cuenta» y «Volver»), y además, por su
@@ -1136,6 +1211,7 @@ function empezarViaje(f, alDesbloquear) {
   if (EN_VUELO && EN_VUELO !== f) terminarViaje(EN_VUELO);
   EN_VUELO = f;
   f.viaje = ++ULTIMO_VIAJE;
+  ULTIMA_FOTO = f;   // 21-oct-2026 — I1: ver otroCelularTecleado
   f.desbloqueada = false;
   f.apagados = [];
   var botones = [];
@@ -1413,6 +1489,14 @@ function pintarEntrar() {
 function tecleaTel(el) {
   var t = U.normalizarTelefono(el.value);
   if (t) el.value = U.telefonoBonito(t);
+  /* 21-oct-2026 — I1: con otro número en #inTel, el «Entrar» que sigue en
+     camino ya no es de quien escribe (ver otroCelularTecleado). Y el aviso de
+     ese «Entrar» («Seguimos esperando…», «Entrando…») se va con él: decía que
+     iba a entrar sola, y esa respuesta ya no se va a adoptar. */
+  if (otroCelularTecleado(t)) {
+    var err = $('errEntrar');
+    if (err) { err.textContent = ''; err.classList.add('oculto'); }
+  }
 }
 function noSoyYo() {
   olvidarCuentaCreada();
@@ -2370,6 +2454,11 @@ function anotarCampo(el) {
    ya habías escrito». La contraseña NO: esa sigue sin guardarse por tecla. */
 function anotarCelular(el) {
   var t = U.normalizarTelefono(el && el.value);
+  /* 21-oct-2026 — I1: con otro número en la casilla (o uno a medias), el
+     «Abrir mi cuenta» que sigue en camino ya no es de quien escribe: su
+     respuesta se descarta y su sesión se cierra (ver otroCelularTecleado).
+     Antes de anotar nada: el número que cuenta es el que se ve. */
+  otroCelularTecleado(t);
   if (t) { REGISTRO.celular = t; guardarBorrador(REGISTRO); }
   /* 20-oct-2026, otro celular (C2) — «déjalo en blanco» solo con el celular
      de esa contraseña: con un número a medias o con otro, se pide una nueva. */
@@ -3780,14 +3869,24 @@ function laConstanciaYaEsDeEsteRegistro(meta, aut, foto) {
   return s.momentos.indexOf(String(a.momento || '')) >= 0 && a.version === aut.version &&
     a.general === aut.general && !!a.sensibles === !!aut.sensibles;
 }
-/* Resuelve true si la constancia quedó (o ya estaba), false si no: nunca
-   rechaza. Con el token de ESA sesión, no con SESION, que todavía no se ha
-   adoptado. */
+/* Nunca rechaza. Con el token de ESA sesión, no con SESION, que todavía no se
+   ha adoptado. Resuelve uno de TRES estados:
+     · 'guardada'  — la constancia quedó (o ya estaba);
+     · 'rechazada' — el servidor contestó que no (o no hay con qué pedirla);
+     · 'sin_saber' — la petición no volvió (el fetch se rechazó).
+   21-oct-2026 — I4: EL TERCERO EXISTE PORQUE «NO VOLVIÓ» NO ES «NO SE
+   GUARDÓ». Con señal floja el PUT llega, la cuenta guarda la autorización y
+   la vuelta se cae; resolvía false igual que un «no» del servidor, y la
+   pantalla afirmaba «no pudimos guardar la autorización» de una constancia
+   que ya estaba en la cuenta. Con 'sin_saber' se dice solo lo que se sabe:
+   que no se pudo confirmar. Lo que hace la página es lo mismo en los dos
+   casos —no adopta la sesión ni sube nada— porque sin confirmación no hay
+   constancia que mostrar si alguien reclama. */
 function guardarLaConstancia(sesion, aut, foto) {
-  if (!sesion || !sesion.access_token || !aut || !CFG.url || !CFG.anon) return Promise.resolve(false);
+  if (!sesion || !sesion.access_token || !aut || !CFG.url || !CFG.anon) return Promise.resolve('rechazada');
   var u = (sesion.user && typeof sesion.user === 'object') ? sesion.user : {};
   var meta = (u.user_metadata && typeof u.user_metadata === 'object') ? u.user_metadata : {};
-  if (laConstanciaYaEsDeEsteRegistro(meta, aut, foto)) return Promise.resolve(true);
+  if (laConstanciaYaEsDeEsteRegistro(meta, aut, foto)) return Promise.resolve('guardada');
   var antes = Array.isArray(meta.autorizaciones) ? meta.autorizaciones.slice() : [];
   /* La de la cuenta entra al historial si todavía no está (la del signup no
      venía en ninguna lista). */
@@ -3801,12 +3900,12 @@ function guardarLaConstancia(sesion, aut, foto) {
       headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + sesion.access_token },
       body: JSON.stringify({ data: datos })
     }).then(function (r) {
-      if (!r || !r.ok) return false;
+      if (!r || !r.ok) return 'rechazada';
       /* La copia de la sesión dice lo mismo que la cuenta. */
       try { u.user_metadata = Object.assign({}, meta, datos); sesion.user = u; } catch (e) {}
-      return true;
-    }, function () { return false; });
-  } catch (e) { return Promise.resolve(false); }
+      return 'guardada';
+    }, function () { return 'sin_saber'; });
+  } catch (e) { return Promise.resolve('sin_saber'); }
 }
 
 /* Entra con el celular y la contraseña del registro, para el caso de quien ya
@@ -3883,22 +3982,30 @@ function entrarConLaClaveDelRegistro(err, autorizacion, foto, opc) {
       /* 21-oct-2026 — H4: PRIMERO LA CONSTANCIA, DESPUÉS TODO LO DEMÁS. Con el
          token que acaba de llegar (no se ha adoptado: si la pestaña cambia
          de dueño mientras se guarda, se cierra como cualquier otro). */
-      return guardarLaConstancia(res.j, aut, foto).then(function (guardada) {
+      return guardarLaConstancia(res.j, aut, foto).then(function (estado) {
         if (!sigueSiendoDeAqui(foto)) {
           cerrarSesionHuerfana(res.j);
           terminarViaje(foto);
           return;
         }
         terminarViaje(foto);
-        if (!guardada) {
+        if (estado !== 'guardada') {
           /* Sin la constancia la sesión no se queda: no se encola nada, no
-             sube nada, y el registro sigue entero para volver a tocar. */
+             sube nada, y el registro sigue entero para volver a tocar.
+             21-oct-2026 — I4: y el texto dice lo que se sabe. Con
+             'sin_saber' la constancia pudo quedar (la vuelta se cayó): no se
+             afirma que no se guardó. Volver a tocar no la duplica: si quedó,
+             la próxima entrada la trae en la cuenta y
+             laConstanciaYaEsDeEsteRegistro la reconoce (no sale otro PUT). */
           cerrarSesionHuerfana(res.j);
-          var dice = 'Tu celular y tu contraseña son los de tu cuenta, pero no pudimos guardar la autorización que nos ' +
-            'diste en este registro. Sin ella no subimos nada' +
-            (hayContenidoEnFotos() ? ': ni la foto de tu cédula, ni la de tu cara, ni tu ubicación.' : ' y no terminamos tu registro.') +
-            ' Revisa tu internet y vuelve a tocar ' + (propio ? '«Entrar y terminar mi registro»' : '«Abrir mi cuenta»') +
+          var nada = (hayContenidoEnFotos() ? ': ni la foto de tu cédula, ni la de tu cara, ni tu ubicación.' : ' y no terminamos tu registro.');
+          var otraVez = ' Revisa tu internet y vuelve a tocar ' + (propio ? '«Entrar y terminar mi registro»' : '«Abrir mi cuenta»') +
             ': lo que llenaste sigue aquí.';
+          var dice = estado === 'sin_saber'
+            ? 'No pudimos confirmar que quedó guardada la autorización que nos diste en este registro; sin esa confirmación ' +
+              'no subimos nada' + nada + otraVez
+            : 'Tu celular y tu contraseña son los de tu cuenta, pero no pudimos guardar la autorización que nos ' +
+              'diste en este registro. Sin ella no subimos nada' + nada + otraVez;
           if (propio) avisoYaTieneCuenta(err, dice); else fallo(err, dice);
           return;
         }
@@ -4102,6 +4209,11 @@ function pintarRegistrado() {
  * .catch de quien llamó corren, así que no se pinta, no se anota y no se
  * llama nada más. salirDeCuenta deja en su estado inicial lo que la cuenta
  * tenía a medias (PIDIENDO y compañía).
+ * 21-oct-2026 — I3: UNA EXCEPCIÓN, Y SOLO UNA: la subida de la cola de fotos.
+ * Lo que anota (soltar la cola de ese celular, la nota de cómo le fue) no
+ * pinta nada y es de la cuenta que pidió; callarlo dejaba en el teléfono
+ * prestado la cédula que ya había llegado. Sale con rpcSesion «suelta» y se
+ * calla solo lo que pinta (ver SUBIDA_EN_CURSO).
  * ======================================================================== */
 function enSilencio() { return new Promise(function () {}); }
 /* La promesa de una llamada hecha con `ses`, atada a ella. */
@@ -4109,11 +4221,27 @@ function deEstaSesion(ses, promesa) {
   return promesa.then(function (v) { return SESION === ses ? v : enSilencio(); },
                       function (e) { if (SESION === ses) throw e; return enSilencio(); });
 }
-/* `ses` (opcional) es la sesión que pidió; sin ella, la de este momento. */
-function rpcSesion(fn, cuerpo, ses) {
+/* `ses` (opcional) es la sesión que pidió; sin ella, la de este momento.
+   21-oct-2026 — I3: `suelta` (opcional): LA MISMA LLAMADA, SIN ATARLA A LA
+   PANTALLA. Sale igual con el token de `ses`, pero su respuesta llega
+   SIEMPRE, aunque SESION ya sea otra. Solo para lo que no pinta nada y es de
+   la cuenta que pidió: la contabilidad de la cola de fotos
+   (subirArchivosRegistro), que anota con el celular de esa cuenta. Atada, una
+   subida que SÍ llegó dejaba la cédula, la selfie y la ubicación de María en
+   el teléfono prestado, y al día siguiente su cuenta le decía que «no
+   alcanzaron a subir». Quien pinta lo que pasó la ata aparte, con
+   deEstaSesion (subirLaColaYDecirlo, terminarEnPlataChat). */
+function rpcSesion(fn, cuerpo, ses, suelta) {
   if (ses === undefined) ses = SESION;
   if (!ses || !ses.access_token) return Promise.reject({ sinSesion: true });
-  return deEstaSesion(ses, fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
+  var p = rpcConToken(fn, cuerpo, ses);
+  return suelta ? p : deEstaSesion(ses, p);
+}
+/* La llamada cruda, con el token de `ses`. Todo lo de la cuenta pasa por
+   rpcSesion, que decide si la respuesta se ata a la sesión. */
+function rpcConToken(fn, cuerpo, ses) {
+  if (!ses || !ses.access_token) return Promise.reject({ sinSesion: true });
+  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + ses.access_token },
@@ -4125,7 +4253,7 @@ function rpcSesion(fn, cuerpo, ses) {
        (ver subirArchivosRegistro). El mensaje sigue siendo el de siempre. */
     var e = new Error('http ' + r.status); e.status = r.status;
     return Promise.reject(e);
-  }));
+  });
 }
 
 /* ================= DESDE QUÉ TELÉFONO — 19-oct-2026 =================
@@ -6928,11 +7056,21 @@ function sanearColas() {
 }
 
 /* Una sola a la vez: «Ir a mi cuenta» no duplica la que ya va.
-   21-oct-2026 — H2: {ses, p}, la de UNA sesión. La respuesta de una subida
-   cuya sesión salió se queda callada (rpcSesion): no anota nada en el
-   teléfono, y la cola sigue esperando a su cuenta. Sin la sesión al lado, la
-   subida callada de María le quedaba como «la que ya va» a la cuenta de
-   Pedro, que esperaba para siempre una promesa que no iba a volver. */
+   21-oct-2026 — H2: {ses, p}, la de UNA sesión. Sin la sesión al lado, la
+   subida de María le quedaba como «la que ya va» a la cuenta de Pedro, que
+   esperaba una promesa que no era suya.
+   21-oct-2026 — I3: LA CONTABILIDAD NO SE CALLA, LA PANTALLA SÍ. H2 callaba
+   la respuesta entera de una subida cuya sesión ya había salido, y con ella
+   lo que no pinta nada: soltar la cola y anotar que llegó. María tocaba
+   «Salir» con su cola subiendo, la base guardaba su cédula, su cara y su
+   ubicación, y el teléfono prestado se quedaba con la copia; al día
+   siguiente sanearColas la daba por «caducada» y su cuenta le decía que «no
+   alcanzaron a subir» y le pedía mandar la cédula otra vez. Ahora la llamada
+   sale con el token de `ses` y su respuesta llega SIEMPRE (rpcSesion suelta):
+   guardarCola, anotarSubida y guardarAvisoDeFotos corren con el `cel` tomado
+   al pedir, que es el de la cuenta dueña de la cola. Lo que pinta se calla
+   aparte, con deEstaSesion, en quien pinta (subirLaColaYDecirlo y
+   terminarEnPlataChat): nada de María aparece en la cuenta de otro. */
 var SUBIDA_EN_CURSO = null;
 function subirArchivosRegistro() {
   /* 17-sep-2026 — SOLO SUBE LA PESTAÑA QUE LAS TOMÓ. Ver el comentario de
@@ -6964,7 +7102,9 @@ function subirArchivosRegistro() {
   if (lote.cedula_editado) huella.cedula_editado = lote.cedula_editado;
   if (!pedidas.length && !Object.keys(huella).length) { guardarCola(cel, null); return Promise.resolve(); }
   var ses = SESION;
-  var p = rpcSesion('registro_archivos_guardar', { p_archivos: archivos, p_huella: huella }, ses).then(function (j) {
+  /* 21-oct-2026 — I3: suelta (el `true` del final): la respuesta llega
+     aunque la sesión ya haya salido (ver SUBIDA_EN_CURSO). */
+  var p = rpcSesion('registro_archivos_guardar', { p_archivos: archivos, p_huella: huella }, ses, true).then(function (j) {
     /* 21-oct-2026 — H4: LA BASE NO TIENE LA AUTORIZACIÓN DE DATOS SENSIBLES de
        esta cuenta (base/20261020_la_cedula_de_la_cuenta.sql): sin ella no
        entran ni la cédula, ni la cara, ni la ubicación, ni la lectura, y
@@ -7111,8 +7251,12 @@ function leerSubida() {
   if (NOTA_EN_MEMORIA && !(guardada && Number(guardada.t) > Number(NOTA_EN_MEMORIA.t))) return NOTA_EN_MEMORIA;
   return guardada;
 }
-/* Sube la cola de la cuenta abierta y pinta en #avisoFotos lo que pasó. */
+/* Sube la cola de la cuenta abierta y pinta en #avisoFotos lo que pasó.
+   21-oct-2026 — I3: lo que pinta es de la sesión que empezó la subida: si
+   salió (o entró otra) antes de la respuesta, no se pinta nada. Lo que la
+   subida anota en el teléfono ya pasó adentro, con el celular de la cola. */
 function subirLaColaYDecirlo(donde) {
+  var ses = SESION;
   var cel = celularDeSesion() || (REGISTRADO && REGISTRADO.celular) || '';
   var habia = !!colaDe(cel), desde = Date.now();
   pintarAvisoDeFotos(donde, habia ? 'subiendo' : '');
@@ -7123,7 +7267,7 @@ function subirLaColaYDecirlo(donde) {
     var llegaron = habia && !colaDe(cel) && nota && nota.celular === cel && nota.estado === 'ok' && Number(nota.t) >= desde;
     pintarAvisoDeFotos(donde, llegaron ? 'llegaron' : '');
   };
-  return p.then(fin, fin);
+  return deEstaSesion(ses, p).then(fin, fin);
 }
 function reintentarSubidaDeFotos() { return subirLaColaYDecirlo(VISTA === 'cuenta' ? 'cuenta' : 'registro'); }
 function pintarAvisoDeFotos(donde, momento) {
@@ -9932,7 +10076,10 @@ function salirDeCuenta() {
      llegara la respuesta de María. Lo mismo la subida de fotos que «ya va»,
      la propuesta en pantalla y sus casillas, la solicitud puesta en la
      calculadora, el registro sin juntar, el aviso del responsable que ella
-     cerró y lo que leyó en cada canal. */
+     cerró y lo que leyó en cada canal.
+     21-oct-2026 — I3: la subida de la cola SÍ sigue y anota lo que pasó con
+     el celular de su dueña (ver SUBIDA_EN_CURSO); se suelta aquí solo para
+     que la cuenta del siguiente no la tome por «la que ya va». */
   PIDIENDO = false; SUBIDA_EN_CURSO = null;
   SOL_EN_PANTALLA = null; CONDICIONES_LEIDAS = {}; PEDIDO_PUESTO = '';
   MI_REGISTRO = ''; AVISO_RESPONSABLE_PLAY_CERRADO = false;

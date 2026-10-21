@@ -1083,7 +1083,11 @@ describe('PlataChat con reloj: llama a la base por nombres que existen', () => {
     const definidas = new Set([...sql.matchAll(/create or replace function public\.([a-z_0-9]+)\s*\(/g)].map(m => m[1]));
     NUEVAS.forEach(fn => assert.ok(definidas.has(fn), MIGRACION + ' no define ' + fn));
     const p = sinComentarios(PAGINA);
-    const llamadas = new Set([...p.matchAll(/\.rpc\(\s*CFG\s*,\s*SES\s*,\s*'([a-z_0-9]+)'/g)].map(m => m[1]));
+    /* 21-oct-2026 (I2) — la página llama a la base por rpcSesion('…'), que
+       ata la respuesta a la sesión que pidió; la forma vieja se sigue
+       contando por si vuelve. */
+    const llamadas = new Set([...p.matchAll(/\.rpc\(\s*CFG\s*,\s*SES\s*,\s*'([a-z_0-9]+)'/g)].map(m => m[1])
+      .concat([...p.matchAll(/\brpcSesion\(\s*'([a-z_0-9]+)'/g)].map(m => m[1])));
     NUEVAS.forEach(fn => assert.ok(llamadas.has(fn), 'la página no llama a ' + fn));
     /* Y no llama a lo que es del equipo o de Joan. */
     ['contrapropuesta_gerente', 'contrapropuesta_solicitud', 'listar_solicitudes_abiertas', 'resolver_vencidas', 'politica_app_leer',

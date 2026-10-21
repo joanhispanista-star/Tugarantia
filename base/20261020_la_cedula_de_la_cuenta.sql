@@ -4,7 +4,8 @@
 -- PARA JOAN: Supabase → SQL Editor → New query → pegar TODO este archivo → Run.
 -- Se puede correr dos veces: la segunda ve que ya está y no cambia nada. No
 -- toca ninguna fila de clientes (agrega una columna vacía y, al final, prueba
--- llamando con un celular de mentira y deshace lo que la prueba escribió). Va
+-- llamando con un celular de mentira por caminos que no escriben nada, y lo
+-- comprueba; 21-oct-2026: tampoco crea cuentas en auth.users). Va
 -- DESPUÉS de base/20260922c_verificacion_cedula.sql (registro_archivos_guardar
 -- con el cotejo), base/20260909_una_sola_puerta.sql (registrar_abierto) y, si
 -- PlataChat está aplicado, base/20260921_platachat_app.sql. Convive con
@@ -542,19 +543,26 @@ notify pgrst, 'reload schema';
 -- ====== 5. QUÉ SE COMPRUEBA ======
 -- No basta con que el texto esté: PL/pgSQL compila cada consulta la primera vez
 -- que la CORRE (así vivió trece días rota registro_archivos_guardar). Se llama
--- con un celular de mentira que no es de nadie, por los caminos nuevos, y lo
--- que escribe se deshace dentro de la misma prueba (un bloque que termina en
--- su propia excepción, atrapada: la base vuelve atrás solo ese bloque). No se
--- crea ningún registro: la tabla de registros puede tener avisos enganchados
--- desde el panel de Supabase. Si algo falla, el archivo entero se deshace.
--- 21-oct-2026 (H4): para probar los caminos de una cuenta que SÍ autorizó, se
--- crea una cuenta de mentira en auth.users DENTRO del bloque que se deshace
--- (no queda ni un segundo después del bloque). Si el proyecto no deja
--- escribir ahí, esos pasos se saltan y se dice.
+-- con un celular de mentira que no es de nadie, por caminos que se devuelven
+-- ANTES de escribir (sin sesión; una sesión sin la autorización de datos
+-- sensibles; una sesión cuyo `sub` no es ninguna cuenta), y al final se
+-- comprueba que no quedó nada. No se crea ningún registro: la tabla de
+-- registros puede tener avisos enganchados desde el panel de Supabase. Si
+-- algo falla, el archivo entero se deshace.
+-- 21-oct-2026 (I5): ESTA PRUEBA NO ESCRIBE EN auth.users, NI UN SEGUNDO. La
+-- versión de la mañana creaba una cuenta de mentira ahí, dentro de un bloque
+-- que se deshacía, para probar los caminos de una cuenta que SÍ autorizó.
+-- auth.users es la tabla de las cuentas de producción, de Supabase y no
+-- nuestra: le cuelgan disparadores que este archivo no ve (crear un perfil,
+-- avisar a otro sistema), y un archivo que Joan pega en producción no tiene
+-- por qué ponerlos a correr, ni dentro de un bloque que se deshace.
+-- Esos caminos (sin registro no se sabe, las fotos sin código no pisan) se
+-- prueban con cuentas de verdad en la réplica de pruebas
+-- (pruebas/la-cedula-de-la-cuenta-postgres.test.js), no aquí.
 do $prueba$
 declare
   v_cel  text := '3009990820';
-  v_uid  uuid := gen_random_uuid();   -- 21-oct-2026 (H4): la cuenta de mentira que autorizó
+  v_uid  uuid := gen_random_uuid();   -- 21-oct-2026 (I5): un `sub` que no es de ninguna cuenta (no se crea)
   j      jsonb;
   pasos  text := '';
   src    text;
@@ -641,56 +649,28 @@ begin
   end if;
   pasos := pasos || '2 sin-autorizacion-no; ';
 
-  -- Lo demás, con una cuenta de mentira que SÍ autorizó, creada y deshecha
-  -- dentro del mismo bloque (la base vuelve atrás solo ese bloque). Si este
-  -- proyecto no deja escribir en auth.users desde el editor, esos pasos no
-  -- corren y se dice (lo de arriba sí se comprobó).
-  begin
-    begin
-      insert into auth.users (id, email, raw_user_meta_data)
-      values (v_uid, '57' || v_cel || '@tugarantia.net',
-              '{"autorizacion":{"version":"prueba-20261020","general":true,"sensibles":true}}'::jsonb);
-    exception when others then
-      raise exception 'sin-cuenta-de-prueba-20261020';
-    end;
+  -- 21-oct-2026 (I5): una sesión cuyo `sub` no es ninguna cuenta de auth.users
+  -- tampoco sube nada sensible: la reja no encuentra la autorización y
+  -- contesta 'sin_autorizacion' antes de escribir nada. Es la misma reja que
+  -- el paso 2, llamada como la llama una sesión de verdad (con su `sub`).
+  if exists (select 1 from auth.users where id = v_uid) then
+    raise notice 'La cuenta de prueba % existe (no debería): el paso 3 no corre (lo de arriba sí se comprobó).', v_uid;
+  else
     perform set_config('request.jwt.claims', '{"sub":"' || v_uid || '","email":"57' || v_cel || '@tugarantia.net","role":"authenticated"}', true);
-
-    -- Una lectura sin registro con qué compararla: no se sabe, no entra.
     j := public.registro_archivos_guardar(
-           '{"cedula_reverso":"data:image/jpeg;base64,AAAA"}'::jsonb,
-           '{"cedula_leida":{"documento":"52123456"}}'::jsonb);
-    if j ->> 'motivo' is distinct from 'sin_documento'
+           '{"cedula_reverso":"data:image/jpeg;base64,AAAA","selfie":"data:image/jpeg;base64,AAAA"}'::jsonb,
+           '{"cedula_leida":{"documento":"52123456"},"gps":{"lat":4.6,"lng":-74.1}}'::jsonb);
+    if j ->> 'motivo' is distinct from 'sin_autorizacion'
        or exists (select 1 from public.registro_archivos where celular = v_cel) then
-      raise exception 'FALLO: una lectura sin registro con qué compararla entró: %.', j;
+      raise exception 'FALLO: una sesión sin cuenta que haya autorizado subió algo: %.', j;
     end if;
-    pasos := pasos || '3 sin-registro-no; ';
-
-    -- Fotos sin lectura a una cuenta sin fotos de cédula: entran (vacío el
-    -- documento). Y encima de unas con documento: no las pisan.
-    j := public.registro_archivos_guardar('{"cedula_reverso":"data:image/jpeg;base64,AAAA"}'::jsonb, '{}'::jsonb);
-    if j ->> 'ok' is distinct from 'true' or (j -> 'guardados') <> '["cedula_reverso"]'::jsonb
-       or (select documento from public.registro_archivos where celular = v_cel and tipo = 'cedula_reverso') is not null then
-      raise exception 'FALLO: una foto sin lectura a una cuenta sin fotos no entró como siempre: %.', j;
-    end if;
-    update public.registro_archivos set documento = '79111222', imagen = 'data:image/jpeg;base64,BBBB'
-     where celular = v_cel and tipo = 'cedula_reverso';
-    j := public.registro_archivos_guardar('{"cedula_reverso":"data:image/jpeg;base64,CCCC"}'::jsonb, '{}'::jsonb);
-    if (j -> 'descartados') <> '["cedula_reverso"]'::jsonb
-       or (select imagen from public.registro_archivos where celular = v_cel and tipo = 'cedula_reverso') <> 'data:image/jpeg;base64,BBBB' then
-      raise exception 'FALLO: unas fotos sin código pisaron las que tenían documento: %.', j;
-    end if;
-    pasos := pasos || '4 sin-lectura-no-pisa; ';
-    raise exception 'deshacer-la-prueba-20261020';
-  exception when others then
-    if sqlerrm = 'sin-cuenta-de-prueba-20261020' then
-      raise notice 'No pude crear la cuenta de prueba en auth.users: los pasos con una cuenta que autorizó no corrieron (lo de arriba sí se comprobó).';
-    elsif sqlerrm <> 'deshacer-la-prueba-20261020' then
-      raise;
-    end if;
-  end;
+    pasos := pasos || '3 cuenta-sin-autorizacion-no; ';
+  end if;
+  -- Y nada de lo de arriba escribió: las tres llamadas se devuelven antes de
+  -- guardar. Si alguna dejara algo, el archivo entero se deshace.
   if exists (select 1 from public.registro_archivos where celular = v_cel)
-     or exists (select 1 from auth.users where id = v_uid) then
-    raise exception 'FALLO: la prueba no deshizo lo que escribió.';
+     or exists (select 1 from public.registros where right(public.solo_digitos(coalesce(telefono, '')), 10) = v_cel) then
+    raise exception 'FALLO: la prueba escribió algo, y no debía.';
   end if;
   perform set_config('request.jwt.claims', '', true);
   raise notice 'La cédula de la cuenta: %', pasos;

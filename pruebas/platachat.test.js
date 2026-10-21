@@ -923,11 +923,16 @@ describe('PlataChat: la página pintando de verdad', () => {
       ? { access_token: 'tok-nuevo', refresh_token: 'ref-nuevo', expires_in: 3600, user: { user_metadata: { nombre: 'Ana' } } }
       : { ok: true }));
     const P = abrirPlataChat({ red: n.red });
-    const r = await P.ev("SP.entrar(CFG, '300 111 2233', 'una-clave-larga')");
+    const r = await P.ev("window.__r = SP.entrar(CFG, '300 111 2233', 'una-clave-larga')");
     assert.equal(r.ok, true);
     assert.equal(n.llamadas[0].cuerpo.email, U.correoDeTelefono('3001112233'));
     assert.equal(n.llamadas[0].cuerpo.email, '573001112233@tugarantia.net');
     assert.equal(n.llamadas[0].cab.apikey, P.ev('CFG.anon'));
+    /* 21-oct-2026 (I2) — SP.entrar ya no guarda por su cuenta: guarda la
+       página, después de comprobar que ese «Entrar» sigue siendo de quien
+       tiene el teléfono (ver pruebas/platachat-la-respuesta-es-de-quien-la-pidio.test.js). */
+    assert.equal(P.almacen.platachat_sesion, undefined, 'SP.entrar guardó la sesión antes de que la página la revisara');
+    assert.equal(await P.ev('window.__r.then(function (r) { return SP.guardar(r.sesion); })'), true);
     const g = JSON.parse(P.almacen.platachat_sesion);
     assert.equal(g.access_token, 'tok-nuevo');
     assert.equal(g.celular, '3001112233');
@@ -1267,11 +1272,15 @@ describe('PlataChat: llama a la base por su nombre, y solo a lo que existe', () 
 
   /* Los nombres que la página y sesion.js mandan a /rest/v1/rpc/, sacados de
      los dos sitios donde pueden estar: la URL escrita y el nombre pasado a
-     rpc(CFG, SES, '…'). */
+     rpc(CFG, SES, '…').
+     21-oct-2026 (I2) — y un tercero: rpcSesion('…'), el ayudante por donde
+     sale ahora toda llamada de la cuenta (la respuesta solo vale para la
+     sesión que la pidió). Sin él, este barrido no veía ninguna. */
   function llamadasDe(texto) {
     const s = new Set();
     for (const m of texto.matchAll(/rpc\/([a-z_0-9]+)/g)) s.add(m[1]);
     for (const m of texto.matchAll(/\.rpc\(\s*CFG\s*,\s*SES\s*,\s*'([a-z_0-9]+)'/g)) s.add(m[1]);
+    for (const m of texto.matchAll(/\brpcSesion\(\s*'([a-z_0-9]+)'/g)) s.add(m[1]);
     return s;
   }
   const LLAMADAS = new Set([...llamadasDe(PAGINA), ...llamadasDe(SESION_JS)]);

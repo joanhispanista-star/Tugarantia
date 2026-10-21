@@ -6,6 +6,38 @@
 > que no trae nada que no pueda ser público. Lo primero que tienes que hacer
 > está en «Lo que te toca a ti».
 
+## 21-oct — lo que llega tarde es de quien lo pidió
+
+No tienes que pegar nada: son cambios de la app (`platachat/index.html`,
+`platachat/sesion.js`) y del final del registro (`play/index.html`).
+
+Con señal floja, una respuesta puede llegar cuando el teléfono ya es de otra
+persona. PlataChat la adoptaba sin preguntar, y eso abría cinco caminos para que
+alguien quedara dentro de la cuenta de otro o viera sus datos. Ya pasaban antes;
+`play/` los había cerrado y PlataChat no.
+
+- **«Entrar», uno a la vez.** El botón se apaga mientras viaja y a los 30 s se
+  enciende con un aviso que no promete nada. Si la respuesta llega cuando ya se
+  tocó otro «Entrar», se tocó «Salir» o se escribió otro celular, se descarta y
+  esa sesión se cierra en el servidor. `sesion.js` ya no guarda por su cuenta:
+  guarda la página después de comprobarlo.
+- **Lo que pide la cuenta es de la sesión que lo pidió.** La foto del chat, la
+  solicitud, el «Acepto», el mensaje, el hilo y lo que trae `mi_cuenta` solo se
+  pintan o se guardan si la sesión sigue siendo la misma. Un «tu sesión venció»
+  que llegue tarde tampoco saca al que entró después.
+- **«Salir» con un refresco en camino.** El refresco ya no vuelve a escribir la
+  sesión en el teléfono: la cierra en el servidor con el token nuevo. Si el
+  token ya había vencido, «Salir» lo refresca para poder cerrarla de verdad.
+- **El pase que falló.** Si el registro no puede pasarle la sesión a PlataChat,
+  la copia de la pestaña y la marca de «cuenta recién creada» también se
+  olvidan. «Ir a PlataChat» lo reintenta una vez desde esa misma página; si
+  tampoco puede, cierra esa sesión y la persona entra con su contraseña.
+
+Las pruebas están en `pruebas/platachat-la-respuesta-es-de-quien-la-pidio.test.js`,
+con la página real y una nube que retiene las respuestas.
+
+---
+
 ## 1-oct — el brillo constante y las monedas de oro
 
 Joan: «quiero que sea un brillo constante pero sutil y quiero que también
@@ -350,7 +382,7 @@ se tocó desde acá).
    15-oct → 2, el 31-oct → 3, una fecha entre cortes salta al que la cubre. El
    mensaje de «Pedir por el chat» lleva la fecha y los días («Quiero pedir
    $100.000 para el 15 oct 2026 (en 30 días, dos quincenas). ¿Me alcanza?»).
-   `VERSION_APP = '2026-09-15'`. Sigue sin verse en un teléfono de verdad.
+   `VERSION_APP = '2026-10-21'`. Sigue sin verse en un teléfono de verdad.
 2. **La ficha:** `index.html` carga `../app/ficha.js` (ocho scripts ahora,
    justo después del motor porque lo toma de `window.MotorReglas` al cargar) y
    `abrir()` arma `S` con `FichaSocio.leer(resp.datos)` en vez de copiar la
@@ -480,8 +512,8 @@ Todo en archivos nuevos. Ninguno existente se tocó.
 
 | Archivo | Qué es |
 |---|---|
-| `platachat/index.html` | La app: un solo archivo con HTML y script, como `socio.html`. Pantallas `#hola` (bienvenida 2 s), `#pEntrar` (Entrar · Soy nuevo), `#pCargando`, `#pCuenta` con nav de tres pestañas. `VERSION_APP = '2026-09-15'`. Carga, en este orden, `estilo.css`, `../app/chat.css`, y ocho scripts: motor, ficha, puente, cuenta, chat, platachat-reglas, pagos-proveedor, `sesion.js`. Guarda HTTPS al principio; registra `../sw.js`. La calculadora (15-sep): barra de 50.000 a 2.000.000 (`TOPE_CALCULADORA_PLATACHAT`), «para cuándo lo pagas» por cortes dentro del cupo, `abrir()` por `FichaSocio.leer`. **La negociación (15-sep, fase 1b):** la tarjeta de propuesta en el hilo de Créditos con sus cuatro caras, la hora límite en hora de Bogotá, «Acepto» / «Proponer otra cifra», el estado en una línea en Plata, y `RELOJ_OK` — con una base sin la migración (404) la app vuelve a hablar como antes y **no promete hora** |
-| `platachat/sesion.js` | `window.SesionPlataChat`: `entrar`, `registrar` (primero `registrar_abierto_app` con el anon, después el signup), `rpc` (Bearer = access_token, apikey = anon; 401 → refresca UNA vez y repite), `refrescar`, `guardar`/`leer`/`borrar` en `localStorage['platachat_sesion']` sin contraseña, `correoDe`, `NUBE_CAIDA`. Probable en Node con un fetch de mentira |
+| `platachat/index.html` | La app: un solo archivo con HTML y script, como `socio.html`. Pantallas `#hola` (bienvenida 2 s), `#pEntrar` (Entrar · Soy nuevo), `#pCargando`, `#pCuenta` con nav de tres pestañas. `VERSION_APP = '2026-10-21'`. Carga, en este orden, `estilo.css`, `../app/chat.css`, y ocho scripts: motor, ficha, puente, cuenta, chat, platachat-reglas, pagos-proveedor, `sesion.js`. Guarda HTTPS al principio; registra `../sw.js`. La calculadora (15-sep): barra de 50.000 a 2.000.000 (`TOPE_CALCULADORA_PLATACHAT`), «para cuándo lo pagas» por cortes dentro del cupo, `abrir()` por `FichaSocio.leer`. **La negociación (15-sep, fase 1b):** la tarjeta de propuesta en el hilo de Créditos con sus cuatro caras, la hora límite en hora de Bogotá, «Acepto» / «Proponer otra cifra», el estado en una línea en Plata, y `RELOJ_OK` — con una base sin la migración (404) la app vuelve a hablar como antes y **no promete hora** |
+| `platachat/sesion.js` | `window.SesionPlataChat`: `entrar` (desde el 21-oct no guarda: guarda la página después de comprobar que el toque sigue vigente), `rpc` (Bearer = access_token, apikey = anon; 401 → refresca UNA vez y repite), `refrescar` (no guarda ni devuelve una sesión soltada: la cierra con el token nuevo), `soltar` y `cerrar` (el «Salir», con `/auth/v1/logout?scope=local`), `recado`, `guardar`/`leer`/`borrar` en `localStorage['platachat_sesion']` sin contraseña, `correoDe`, `NUBE_CAIDA`. El alta (`registrar`) se quitó el 1-oct: es el registro de `play/` con la marca. Se prueba en Node con un fetch de mentira |
 | `platachat/estilo.css` | La piel: tokens `--marca` (verde), `--plata*`, `--laca`, `--papel`…; los alias `--rojo`/`--rojo-tinte` → verde para que `app/chat.css` pinte sin tocarlo; modo oscuro con los tres bloques; `#hola`, `.cab`, `.entrada-chat`, avatares, monedas y lingotes (un solo dueño: la página no redefine nada de esto) |
 | `platachat/app.webmanifest` | `id "/platachat/"`, `start_url index.html`, `scope ./`, standalone, portrait, `#0C0A0B`, `es-CO`, `finance`, tres iconos |
 | `platachat/haz-iconos.js` + `icono-192/512/maskable-512/180.png` | Los iconos, dibujados por código (moneda de plata + burbuja verde; sin el «$» del diseño porque Node no trae fuentes). `node platachat/haz-iconos.js` los regenera |
