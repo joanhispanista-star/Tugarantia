@@ -462,6 +462,7 @@ var URL_PLATACHAT = '../platachat/index.html';
    salida a propósito, no una relanzada. Después de abrir la cuenta no hay nada
    que soltar: las fotos ya están en la cola de esa cuenta, que esto no toca. */
 function volverAPlataChat() {
+  if (viajando()) return;   // 21-oct-2026 — G1: no se sale mientras viaja (ver UNA RESPUESTA DE LA RED…)
   try { olvidarPaso(); soltarLoSensibleDelRegistro(); } catch (e) {}
   location.href = URL_PLATACHAT;
 }
@@ -575,6 +576,7 @@ function terminarEnPlataChat() {
    página: la cola se quedaba un día en el teléfono, sin que nadie la subiera
    ni se lo dijera. Se suelta al irse, que es lo que el botón ya dice. */
 function irAPlataChatSinLasFotos(cel, nombre) {
+  if (viajando()) return Promise.resolve();   // 21-oct-2026 — G1: no mientras «Subir mis fotos» va en camino
   /* Y queda dicho para su cuenta de play/, si algún día la abre: quien tocó
      esto puede no ser ella (la pantalla de la relanzada la ve cualquiera que
      abra la página ese día en este teléfono). */
@@ -612,27 +614,43 @@ function pintarFotosPendientesPlataChat(cel, motivo) {
       (motivo === 'sesion' ? 'Tu sesión se venció antes de que subieran. ' : '') + 'Tu cuenta quedó abierta, ' +
       donde + 'Escribe tu contraseña y las subimos ahora; después te llevamos a PlataChat.</div>' +
       '<label for="pcClave">Tu contraseña</label>' + campoClave('pcClave', 'current-password') +
-      '<button class="btn arriba" type="button" onclick="entrarYSubirEnPlataChat()">Subir mis fotos</button>' +
+      '<button class="btn arriba" type="button" id="btnSubirMisFotos" onclick="entrarYSubirEnPlataChat()">Subir mis fotos</button>' +
       '<p class="sub" id="pcSubida" style="margin-top:var(--e4)"></p>' +
       '<div id="pcAcciones">' +
-        '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="irAPlataChatSinLasFotos(' + esc(JSON.stringify(String(cel))) + ', \'\')">Ir a PlataChat sin ellas</button>' +
+        '<button class="btn sec sm" id="btnIrSinEllas" style="margin-top:var(--e3)" onclick="irAPlataChatSinLasFotos(' + esc(JSON.stringify(String(cel))) + ', \'\')">Ir a PlataChat sin ellas</button>' +
         '<div class="ayuda">Si vas sin ellas, las borramos de este teléfono: mándanos la foto de tu cédula por el chat de Servicio.</div>' +
       '</div>' +
     '</div>' + pie();
   window.scrollTo(0, 0);
 }
+/* 21-oct-2026 — G1: también aquí, la foto del toque y el viaje (ver UNA
+   RESPUESTA DE LA RED SOLO VALE PARA QUIEN LA PIDIÓ): mientras dice
+   «Entrando…» no se sale, y una sesión que llegue con la pestaña en otra cosa
+   (o pasado el tope) se cierra en el servidor sin adoptarse. */
 function entrarYSubirEnPlataChat() {
+  if (viajando()) return Promise.resolve();
   var cel = (REGISTRADO && REGISTRADO.celular) || '';
   var c = $('pcClave'), clave = c ? String(c.value || '') : '';
   var s = $('pcSubida');
   if (!clave) { if (s) s.textContent = 'Escribe la contraseña que pusiste al abrir tu cuenta.'; return Promise.resolve(); }
+  var foto = fotoDelToque({ celular: String(cel) });
   if (s) s.textContent = 'Entrando…';
+  var senal = empezarViaje(foto, function () {
+    if (s) s.textContent = 'La conexión tardó demasiado y no pudimos entrar. Revisa tu internet y vuelve a tocar «Subir mis fotos».';
+  });
   return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/token?grant_type=password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
-    body: JSON.stringify({ email: U.correoDeTelefono(cel), password: clave })
+    body: JSON.stringify({ email: U.correoDeTelefono(foto.celular), password: clave }),
+    signal: senal
   }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
     .then(function (res) {
+      if (!sigueSiendoDeAqui(foto)) {
+        if (res.ok && res.j && res.j.access_token) cerrarSesionHuerfana(res.j);
+        terminarViaje(foto);
+        return;
+      }
+      terminarViaje(foto);
       if (!res.ok || !res.j || !res.j.access_token) {
         if (s) s.textContent = 'Esa contraseña no es la de tu cuenta. Revísala con calma; si no la recuerdas, ve a PlataChat sin las fotos y ahí mismo nos dejas un recado.';
         return;
@@ -640,6 +658,8 @@ function entrarYSubirEnPlataChat() {
       SESION = res.j; guardarSesionEnCurso(SESION);
       return pintarRegistradoPlataChat();
     }, function () {
+      terminarViaje(foto);
+      if (!sigueSiendoDeAqui(foto)) return;
       if (s) s.textContent = 'No pude conectarme. Revisa tu internet y vuelve a intentar.';
     });
 }
@@ -991,6 +1011,126 @@ function leerSesionEnCurso() {
 }
 function olvidarSesionEnCurso() { try { sessionStorage.removeItem(LLAVE_SESION); } catch (e) {} }
 
+/* ===========================================================================
+ * UNA RESPUESTA DE LA RED SOLO VALE PARA QUIEN LA PIDIÓ — 21-oct-2026
+ *
+ * La verificación de f915cd9 encontró dos caminos con una sola raíz: lo que
+ * sale de esta pestaña a la red sigue vivo aunque la pestaña ya sea de otra
+ * persona, y al volver se adoptaba sin preguntar de quién era.
+ *   · María toca «Abrir mi cuenta», el signup se queda colgado con señal floja
+ *     y devuelve el teléfono. Pedro toca «Volver» hasta «Tu celular y tu
+ *     contraseña» y pone el suyo (el registro empieza de cero), o sale a la
+ *     portada y entra a SU cuenta. Llega la respuesta de María: la pestaña de
+ *     Pedro quedaba con la SESIÓN de María (su cuenta, su crédito, su
+ *     PlataChat), el borrador de Pedro borrado y su celular anotado como
+ *     «cuenta creada».
+ *   · Si lo colgado era la bandeja (registrar_abierto), al volver el signup
+ *     salía con lo que hubiera EN VIVO: el celular y la contraseña de Pedro, su
+ *     registro a medias y la autorización de la Ley 1581 que tocó María. La
+ *     cuenta de Pedro nacía sin fila en el CRM y con un permiso que él nunca
+ *     dio.
+ * La regla que cierra la clase, no el caso:
+ *   1. LA GENERACIÓN: un número que sube cada vez que la pestaña cambia de
+ *      persona o de flujo — empezar de cero (también por el celular nuevo),
+ *      salir del registro (portada, PlataChat o entrar a una cuenta: todos
+ *      pasan por soltarLoSensibleDelRegistro), salir de una cuenta, cerrar el
+ *      registro de una cuenta ya creada, y abrir el registro u «Olvidé mi
+ *      contraseña» desde la portada.
+ *   2. LA FOTO DEL TOQUE: «Abrir mi cuenta», «Entrar y terminar mi registro»,
+ *      «Entrar» de la portada y «Subir mis fotos» de PlataChat anotan AL TOCAR
+ *      la generación y lo que van a mandar (celular, contraseña, datos,
+ *      autorización), y todas sus llamadas encadenadas salen con eso, nunca
+ *      con lo que haya en vivo después de una ida a la red.
+ *   3. AL VOLVER, si la generación cambió (o venció el tope de la regla 4), la
+ *      respuesta se descarta entera: no se adopta la sesión —el token que
+ *      llegó se cierra en el servidor, sin esperar—, ni se toca el borrador,
+ *      la marca de cuenta creada, la cola de fotos, la pantalla ni PlataChat;
+ *      y si la cadena no ha llegado al signup, no lo llama.
+ *   4. MIENTRAS VIAJA no se sale de la pantalla: «Volver», «Continuar»,
+ *      «Abrir mi cuenta» y lo que lleva a la portada quedan apagados (con
+ *      `disabled`, y además sus funciones no hacen nada: un botón repintado o
+ *      un toque que se cuele no puede saltarse la regla). Con TOPE: a los
+ *      30 s se aborta la petición, se encienden otra vez con un aviso que no
+ *      afirma lo que no se sabe, y lo que llegue después cae en la regla 3.
+ * Lo asíncrono del escáner y de la ubicación (la lectura del código de una
+ * foto fija, el GPS en vuelo) usa la misma generación: si cambió, se descarta
+ * (tomarFoto, leerCodigoDeBarras, leerCuadroDoc, pedirGps). Era la carrera que
+ * quedaba anotada como riesgo conocido: la ubicación de María caía en el
+ * registro de Pedro después de empezar de cero.
+ * Se declara aquí arriba, antes de cualquier línea que corra al cargar y
+ * pueda subirla: una generación sin número dejaría todo descartado.
+ * ======================================================================== */
+var GENERACION_DEL_REGISTRO = 0;
+function otraGeneracion() { GENERACION_DEL_REGISTRO = (Number(GENERACION_DEL_REGISTRO) || 0) + 1; }
+/* Lo que se manda, tomado al tocar, con la generación de ese momento. */
+function fotoDelToque(lo) {
+  var f = lo || {};
+  f.generacion = GENERACION_DEL_REGISTRO;
+  f.vencida = false;
+  return f;
+}
+function sigueSiendoDeAqui(f) {
+  return !!f && !f.vencida && f.generacion === GENERACION_DEL_REGISTRO;
+}
+var MS_TOPE_DE_LA_RED = 30000;
+var EN_VUELO = null;   // la foto del toque cuya petición está en camino (una a la vez)
+function viajando() { return !!EN_VUELO; }
+/* Los botones que se apagan mientras viaja: TODOS los de la pantalla (en la
+   portada son «Entrar», los dos «Abrir mi cuenta» y «Olvidé mi contraseña»;
+   en el registro, «Continuar»/«Abrir mi cuenta» y «Volver»), y además, por su
+   id, los que sacan de ella: así se ven apagados también donde no se puede
+   recorrer la pantalla. */
+var SALIDAS_DEL_VIAJE = ['btnSeguir', 'btnVolver', 'btnEntrar', 'btnSubirMisFotos', 'btnIrSinEllas'];
+/* Apaga las salidas y arma el tope. Devuelve la señal para abortar el fetch
+   (sin AbortController, un visor viejo: el tope igual descarta lo que llegue).
+   Solo enciende después lo que ella apagó: un botón que ya venía apagado por
+   otra razón se queda como estaba. */
+function empezarViaje(f, alVencer) {
+  if (EN_VUELO && EN_VUELO !== f) terminarViaje(EN_VUELO);
+  EN_VUELO = f;
+  f.control = null;
+  try { if (typeof AbortController === 'function') f.control = new AbortController(); } catch (e) { f.control = null; }
+  f.apagados = [];
+  var botones = [];
+  try {
+    var cu = $('cuerpo');
+    if (cu && cu.querySelectorAll) botones = Array.prototype.slice.call(cu.querySelectorAll('button'));
+  } catch (e) { botones = []; }
+  SALIDAS_DEL_VIAJE.forEach(function (id) { var b = $(id); if (b && botones.indexOf(b) < 0) botones.push(b); });
+  botones.forEach(function (b) {
+    if (b && !b.disabled) { b.disabled = true; f.apagados.push(b); }
+  });
+  f.reloj = setTimeout(function () {
+    if (EN_VUELO !== f) return;
+    f.vencida = true;
+    try { if (f.control) f.control.abort(); } catch (e) {}
+    terminarViaje(f);
+    if (alVencer) alVencer();
+  }, MS_TOPE_DE_LA_RED);
+  return f.control ? f.control.signal : undefined;
+}
+function terminarViaje(f) {
+  if (!f || EN_VUELO !== f) return;
+  EN_VUELO = null;
+  if (f.reloj) { try { clearTimeout(f.reloj); } catch (e) {} f.reloj = null; }
+  (f.apagados || []).forEach(function (b) { try { b.disabled = false; } catch (e) {} });
+  f.apagados = [];
+}
+/* El token que llegó para una pestaña que ya es de otro: se cierra en el
+   servidor (como «Salir»), sin esperar ni mirar la respuesta. Guardarlo en
+   ninguna parte sería una cuenta abierta que nadie ve. */
+function cerrarSesionHuerfana(j) {
+  var t = j && j.access_token;
+  if (!t || !CFG.url || !CFG.anon) return;
+  try {
+    var p = fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/logout', {
+      method: 'POST',
+      headers: { apikey: CFG.anon, Authorization: 'Bearer ' + t }
+    });
+    if (p && p['catch']) p['catch'](function () {});
+  } catch (e) {}
+}
+
 /* ------------------------------------------------- DÓNDE ESTÁ LA PERSONA
    El registro tiene su propia dirección (#registro) y las otras dos vistas la
    quitan. No es cosmética: es lo que hace que una recarga —la que provoca la
@@ -1024,30 +1164,52 @@ var LLAVE_CLAVE = 'play_clave_en_curso';
    solicitudes; él no podía entrar a la suya. Lo que dejó la versión anterior
    (la contraseña sola, sin celular) no se puede atar a nadie: no se lee, y el
    último paso la pide otra vez (cajaClaveFinal). */
-function guardarClaveEnCurso(c, cel) {
-  try { sessionStorage.setItem(LLAVE_CLAVE, JSON.stringify({ celular: String(cel || ''), clave: String(c || '') })); } catch (e) {}
+/* 21-oct-2026 — G2: Y CON EL INTENTO, {celular, clave, intento}: la
+   contraseña es de UN registro, como el celular confirmado
+   (celularDelRegistro) y las fotos (FOTOS.de). Iba sin él, y sobrevivía a
+   todo lo que no fuera «Empezar de cero» o la cuenta creada: María tocaba
+   «Ya tienes una cuenta… Entrar con mi contraseña», entraba a la suya y
+   tocaba «Salir»; en la misma pestaña su hermano abría un registro NUEVO,
+   escribía sus datos y ponía SU celular por primera vez, y soltarLoDeOtroCelular
+   veía el celular de la contraseña de María, le borraba todo lo suyo y le
+   decía «Cambiaste el celular», que era falso. Ahora una contraseña de otro
+   intento no cuenta para nada (ni para borrar, ni para «déjalo en blanco», ni
+   para el signup), y «Salir» la olvida (salirDeCuenta). Lo que dejó la versión
+   anterior, sin intento, tampoco se puede atar a ningún registro: no se lee, y
+   el último paso la pide otra vez. */
+function guardarClaveEnCurso(c, cel, intento) {
+  try {
+    sessionStorage.setItem(LLAVE_CLAVE, JSON.stringify({ celular: String(cel || ''), clave: String(c || ''), intento: String(intento || '') }));
+  } catch (e) {}
 }
 function leerClaveEnCurso() {
   try {
     var x = JSON.parse(sessionStorage.getItem(LLAVE_CLAVE) || 'null');
-    return (x && typeof x === 'object' && x.clave && x.celular) ? { celular: String(x.celular), clave: String(x.clave) } : null;
+    return (x && typeof x === 'object' && x.clave && x.celular && x.intento)
+      ? { celular: String(x.celular), clave: String(x.clave), intento: String(x.intento) } : null;
   } catch (e) { return null; }
 }
 function olvidarClaveEnCurso() {
   try { sessionStorage.removeItem(LLAVE_CLAVE); } catch (e) {}
-  CLAVE_EN_MEMORIA = ''; CLAVE_DEL_CELULAR = '';
+  CLAVE_EN_MEMORIA = ''; CLAVE_DEL_CELULAR = ''; CLAVE_DEL_INTENTO = '';
 }
-/* La única forma de poner una contraseña en curso: con su celular, en la
-   memoria y en la pestaña a la vez. */
+/* La única forma de poner una contraseña en curso: con su celular y el intento
+   de este registro, en la memoria y en la pestaña a la vez. */
 function ponerClaveEnCurso(c, cel) {
   CLAVE_EN_MEMORIA = String(c || ''); CLAVE_DEL_CELULAR = String(cel || '');
-  guardarClaveEnCurso(CLAVE_EN_MEMORIA, CLAVE_DEL_CELULAR);
+  CLAVE_DEL_INTENTO = String(asegurarIntento() || '');
+  guardarClaveEnCurso(CLAVE_EN_MEMORIA, CLAVE_DEL_CELULAR, CLAVE_DEL_INTENTO);
 }
-/* La contraseña en curso SI es de este celular; '' si no hay, o si se creó con
-   otro. Es lo único que deciden «déjalo en blanco» (pasoEntrada), la caja del
-   último paso (cajaClaveFinal) y el signup (enviarRegistro). */
+/* ¿Hay una contraseña en curso, y es de ESTE registro? */
+function claveDeEsteIntento() {
+  return !!(CLAVE_EN_MEMORIA && CLAVE_DEL_INTENTO && REGISTRO.intento && String(CLAVE_DEL_INTENTO) === String(REGISTRO.intento));
+}
+/* La contraseña en curso SI es de este registro y de este celular; '' si no
+   hay, si se creó con otro celular o si es de otro registro. Es lo único que
+   deciden «déjalo en blanco» (pasoEntrada), la caja del último paso
+   (cajaClaveFinal) y el signup (enviarRegistro, en la foto del toque). */
 function claveDeEsteCelular(cel) {
-  return (CLAVE_EN_MEMORIA && CLAVE_DEL_CELULAR && cel && String(CLAVE_DEL_CELULAR) === String(cel)) ? CLAVE_EN_MEMORIA : '';
+  return (claveDeEsteIntento() && CLAVE_DEL_CELULAR && cel && String(CLAVE_DEL_CELULAR) === String(cel)) ? CLAVE_EN_MEMORIA : '';
 }
 
 var VISTA = 'entrar';
@@ -1075,12 +1237,19 @@ function fila(k, v) {
 }
 
 function pintarEntrar() {
+  /* 21-oct-2026 — G1: mientras viaja un «Abrir mi cuenta» o un «Entrar», la
+     portada no se pinta encima (ver UNA RESPUESTA DE LA RED SOLO VALE PARA
+     QUIEN LA PIDIÓ). Nada de este archivo la pide durante un viaje: cada
+     cadena lo termina (terminarViaje) antes de pintar. */
+  if (viajando()) return;
   VISTA = 'entrar';
   /* Volver a la portada es una salida DELIBERADA del registro: se suelta la
      dirección y se olvida el paso. Sin esto, quien toca «Volver» hasta acá y
      más tarde recarga se encontraría otra vez dentro del formulario, sin
      haberlo pedido. La contraseña en curso NO se borra aquí a propósito: si
-     vuelve a entrar al registro, la trae puesta y no la teclea dos veces. */
+     vuelve a entrar al registro, la trae puesta y no la teclea dos veces.
+     21-oct-2026 — G2: solo si vuelve a ESE registro (va atada a su intento);
+     «Salir» de una cuenta sí la olvida (salirDeCuenta). */
   marcarVista('');
   olvidarPaso();
   /* 20-oct-2026, rediseño (A) — Y LO SENSIBLE DEL REGISTRO SE SUELTA: las fotos
@@ -1214,6 +1383,7 @@ function avisarCuentaCreada(c) {
 }
 
 function entrar() {
+  if (viajando()) return;   // 21-oct-2026 — G1: un «Entrar» a la vez
   var tel = U.normalizarTelefono($('inTel').value);
   var clave = $('inClave').value || '';
   var err = $('errEntrar');
@@ -1224,16 +1394,35 @@ function entrar() {
     return fallo(err, 'Todavía no está conectada la base de datos, así que aún no se puede entrar. ' +
       'Esto es una versión en construcción.');
   }
-  fallo(err, 'Conectando…');
+  /* 21-oct-2026 — G1: LA FOTO DEL TOQUE Y EL VIAJE (ver UNA RESPUESTA DE LA
+     RED SOLO VALE PARA QUIEN LA PIDIÓ). Pedro tocaba «Entrar» con señal floja,
+     se cansaba y le pasaba el teléfono a María, que abría su registro; cuando
+     por fin llegaba la sesión de Pedro, la pestaña de María saltaba a la
+     cuenta de él. Ahora, mientras dice «Entrando…», nada de la portada se
+     puede tocar; a los 30 s se dice y se puede volver a intentar, y lo que
+     llegue después (o con la pestaña ya en otra cosa) se descarta y se cierra
+     en el servidor. Decía «Conectando…»: es lo mismo, dicho como lo que pasa. */
+  var foto = fotoDelToque({ celular: tel });
+  fallo(err, 'Entrando…');
+  var senal = empezarViaje(foto, function () {
+    fallo(err, 'La conexión tardó demasiado y no pudimos entrar. Revisa tu internet y vuelve a tocar «Entrar».');
+  });
   /* Supabase Auth. El correo lo arma cuenta.js desde el teléfono; el socio nunca
      lo ve. La contraseña se manda una sola vez y no se guarda en ninguna parte
      de este archivo. */
   fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/token?grant_type=password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
-    body: JSON.stringify({ email: U.correoDeTelefono(tel), password: clave })
+    body: JSON.stringify({ email: U.correoDeTelefono(tel), password: clave }),
+    signal: senal
   }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
     .then(function (r) {
+      if (!sigueSiendoDeAqui(foto)) {
+        if (r.ok) cerrarSesionHuerfana(r.j);
+        terminarViaje(foto);
+        return;
+      }
+      terminarViaje(foto);
       if (!r.ok) {
         /* Nunca se dice "ese celular existe pero la contraseña no": eso
            convertiría la app en un oráculo de quién es cliente. */
@@ -1243,7 +1432,11 @@ function entrar() {
       err.classList.add('oculto');
       pintarCuenta(r.j);
     })
-    .catch(function () { fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.'); });
+    .catch(function () {
+      terminarViaje(foto);
+      if (!sigueSiendoDeAqui(foto)) return;
+      fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
+    });
 }
 
 function fallo(el, msg) {
@@ -1275,6 +1468,10 @@ function progreso(el, msg) {
    y mandarlo a teclear otra vez el número que acaba de escribir es un paso de
    más en el peor momento. */
 function olvide(celular) {
+  /* 21-oct-2026 — G1: no mientras viaja un «Entrar»; y es otro flujo: lo que
+     estuviera en camino ya no es de esta pantalla (otraGeneracion). */
+  if (viajando()) return;
+  otraGeneracion();
   var tel = U.normalizarTelefono(celular || ($('inTel') || {}).value || '');
   VISTA = 'ayuda';
   marcarVista('');
@@ -1583,6 +1780,10 @@ function borrarAvance(celular) {
 }
 
 function pintarRegistro(paso) {
+  /* 21-oct-2026 — G1: mientras dice «Creando tu cuenta…», «Volver» (que es
+     esto) no lleva a ninguna parte; ver UNA RESPUESTA DE LA RED SOLO VALE
+     PARA QUIEN LA PIDIÓ. */
+  if (viajando()) return;
   VISTA = 'registro';
   PASO = Math.max(0, Math.min(paso, PASOS.length - 1));
   guardarPaso(PASO);   // por si el teléfono recarga al volver de la cámara
@@ -1635,11 +1836,13 @@ function pintarRegistro(paso) {
          pregunta. El aviso que la ley sí pide va una sola vez, en el paso del
          celular (avisoAcompana, dentro de pasoEntrada). */
       '<div id="errReg" class="aviso ambar oculto"></div>' +
+      /* 21-oct-2026 — con id: son los que se apagan mientras viaja «Abrir mi
+         cuenta» (empezarViaje). */
       (conContinuar
-        ? '<button class="btn arriba" onclick="siguientePaso()">' +
+        ? '<button class="btn arriba" id="btnSeguir" onclick="siguientePaso()">' +
             (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : 'Continuar') + '</button>'
         : '') +
-      '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="' +
+      '<button class="btn sec sm" id="btnVolver" style="margin-top:var(--e3)" onclick="' +
         (PASO === 0 ? (MARCA === 'platachat' ? 'volverAPlataChat()' : 'pintarEntrar()') : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
     '</div>' + pie();
   window.scrollTo(0, 0);
@@ -1740,8 +1943,36 @@ function pasoEntrada() {
        «Crea tu contraseña» y la ayuda se va (anotarCelular →
        refrescarClaveDelCelular): a Pedro no se le dice «Ya creaste tu
        contraseña» por la que creó María. */
+    avisoOtroCelularHTML(REGISTRO.celular) +
     textosDeLaClave(!!claveDeEsteCelular(REGISTRO.celular)) +
     avisoAcompana();
+}
+/* 21-oct-2026 — G4: EL AVISO VA ANTES, NO SOLO DESPUÉS. Que el registro
+   vuelva a empezar con otro celular (soltarLoDeOtroCelular) se decía al tocar
+   «Continuar», cuando ya estaba borrado. Quien solo quería corregir un dígito
+   mal tecleado no tenía cómo saber que eso le costaba la cédula escaneada y
+   lo escrito. Ahora, en cuanto la casilla muestra un número válido distinto
+   del que este registro ya confirmó, una línea lo dice ANTES de tocar nada;
+   si vuelve al número confirmado (o el número queda a medias), se va. Se
+   decide con la misma pregunta que borra (celularesDelRegistro): la línea
+   sale exactamente cuando «Continuar» va a empezar de cero. Sin datos de
+   nadie: ni el número anterior ni lo que se borraría. */
+var TEXTO_OTRO_CELULAR = 'Con otro celular, el registro vuelve a empezar desde tu cédula.';
+function vaAEmpezarDeCero(cel) {
+  cel = String(cel || '');
+  return !!cel && celularesDelRegistro().some(function (c) { return c !== cel; });
+}
+function avisoOtroCelularHTML(cel) {
+  var si = vaAEmpezarDeCero(cel);
+  return '<div class="aviso ambar' + (si ? '' : ' oculto') + '" id="avisoOtroCelular" role="status" style="margin-top:var(--e2)">' +
+    (si ? esc(TEXTO_OTRO_CELULAR) : '') + '</div>';
+}
+function refrescarAvisoOtroCelular(cel) {
+  var a = $('avisoOtroCelular');
+  if (!a) return;
+  var si = vaAEmpezarDeCero(cel);
+  a.textContent = si ? TEXTO_OTRO_CELULAR : '';
+  a.classList.toggle('oculto', !si);
 }
 /* 8-oct-2026 — de las dos ayudas de la contraseña queda UNA, y no es un
    comentario: con una contraseña ya creada en esta pestaña, el campo se puede
@@ -1777,12 +2008,14 @@ function refrescarClaveDelCelular(cel) {
    —incluida la contraseña en curso y la marca que autoriza a subir las fotos—,
    no solo lo que se ve. */
 function empezarDeNuevo() {
+  if (viajando()) return;   // 21-oct-2026 — G1: nada se borra debajo de un «Abrir mi cuenta» en camino
   borrarTodoElRegistro();
   pintarRegistro(0);
 }
 /* 20-oct-2026, revisión — lo mismo, sin pintar: también lo usa la regla 2
    (otraPersonaEnElRegistro), que se queda en la cédula con su propio aviso. */
 function borrarTodoElRegistro() {
+  otraGeneracion();   // 21-oct-2026 — G1: es otra persona; lo que esté en camino ya no es suyo
   olvidarToque();
   GPS_PEDIDO = false; AVISO_UN_LADO = ''; PERMISO_SOLTADO = false; FOTOS_SOLTADAS_AL_ABRIR = false;
   try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
@@ -1801,7 +2034,7 @@ function borrarTodoElRegistro() {
   olvidarAvisoVivo();
   try { localStorage.removeItem('tg_acompana'); } catch (e) {}
   olvidarCelularDelRegistro();   // 20-oct-2026, otro celular: el celular de ESTE registro se va con él
-  REGISTRO = {}; FOTOS = {}; CLAVE_EN_MEMORIA = ''; CLAVE_DEL_CELULAR = '';
+  REGISTRO = {}; FOTOS = {}; CLAVE_EN_MEMORIA = ''; CLAVE_DEL_CELULAR = ''; CLAVE_DEL_INTENTO = '';
 }
 
 /* ===========================================================================
@@ -1824,11 +2057,24 @@ function borrarTodoElRegistro() {
  * (EC.restosEnDuda). Lo que no tiene datos —solo el permiso que alguien tocó
  * y se fue— no se pregunta: se suelta.
  * ========================================================================= */
-function hayRestosDelRegistro() {
-  var escrito = Object.keys(REGISTRO).some(function (k) {
-    return k !== 'intento' && REGISTRO[k] !== undefined && REGISTRO[k] !== null && String(REGISTRO[k]) !== '';
+function hayAlgoEscritoEn(r) {
+  return Object.keys(r || {}).some(function (k) {
+    return k !== 'intento' && r[k] !== undefined && r[k] !== null && String(r[k]) !== '';
   });
-  return escrito || (hayContenidoEnFotos() && (esteIntento(FOTOS.de) || fotosSonDeEsteRegistro()));
+}
+function hayRestosDelRegistro() {
+  return hayAlgoEscritoEn(REGISTRO) || (hayContenidoEnFotos() && (esteIntento(FOTOS.de) || fotosSonDeEsteRegistro()));
+}
+/* 21-oct-2026 — G3: si la memoria no tiene nada escrito y el teléfono sí, la
+   memoria vuelve a leer el registro del teléfono (ver abrirRegistro). Nunca
+   al revés: lo escrito en esta página es lo último, y el teléfono puede no
+   haber dejado guardarlo. Devuelve si lo releyó. */
+function releerElRegistroDelTelefono() {
+  if (hayAlgoEscritoEn(REGISTRO)) return false;
+  var guardado = leerBorrador();
+  if (!hayAlgoEscritoEn(guardado)) return false;
+  REGISTRO = guardado;
+  return true;
 }
 function restosParaPreguntar(retomando) {
   var hay = hayRestosDelRegistro();
@@ -1844,7 +2090,24 @@ function soltarPermisoSinDatos() {
   }
 }
 /* «Abrir mi cuenta» de la portada. */
+/* 21-oct-2026 — G3: LA MEMORIA Y EL TELÉFONO DICEN LO MISMO. Se decidía solo
+   con la memoria (hayRestosDelRegistro mira REGISTRO), y la memoria podía
+   quedar vacía con un registro a medias vivo en el teléfono: María dejaba el
+   suyo en la portada, su hermano entraba a su cuenta y tocaba «Salir», y
+   «Abrir mi cuenta» pintaba el primer paso vacío con un intento nuevo, sin
+   preguntar «¿Es tuyo?». La primera tecla de María pisaba su borrador sin una
+   palabra (si hubiera recargado, la página sí le habría preguntado). Ahora, si
+   en la memoria no hay nada escrito y en el teléfono sí, se vuelve a leer del
+   teléfono ANTES de decidir, y la pregunta sale como promete pintarEntrar.
+   Solo lo escrito: lo sensible ya se soltó al salir del registro, y el
+   borrador nunca lo guardó. salirDeCuenta tampoco lo deja vacío desde hoy;
+   esto es la reja de cualquier otro camino que lo haga.
+   Y es otro flujo: lo que estuviera en camino ya no es de esta pantalla
+   (otraGeneracion), y mientras viaja un «Entrar» no se abre (G1). */
 function abrirRegistro() {
+  if (viajando()) return;
+  otraGeneracion();
+  releerElRegistroDelTelefono();
   if (restosParaPreguntar(false)) return pintarPreguntaRestos(0, true);
   soltarPermisoSinDatos();
   pintarRegistro(0);
@@ -1960,6 +2223,7 @@ function anotarRegistrado() {
   if (antes && antes.desde && String(antes.celular) === String(REGISTRADO.celular)) REGISTRADO.desde = antes.desde;
 }
 function cerrarElRegistroEnMemoria() {
+  otraGeneracion();   // 21-oct-2026 — G1: el registro terminó; nada de lo que siga en camino es de él
   anotarRegistrado();
   /* Lo que quedara en el registro ya no tiene a dónde subir: las fotos de esta
      cuenta están en su cola desde el «Abrir mi cuenta». */
@@ -1993,6 +2257,11 @@ function cerrarElRegistroEnMemoria() {
  * de «¿Es tuyo?» (pintarPreguntaRestos), como antes.
  * ========================================================================= */
 function soltarLoSensibleDelRegistro() {
+  /* 21-oct-2026 — G1: salir del registro (a la portada, a PlataChat, a una
+     cuenta) es cambiar de flujo: la lectura de una foto o la ubicación que
+     sigan en camino ya no tienen a qué registro llegar, y un «Abrir mi cuenta»
+     de antes tampoco. */
+  otraGeneracion();
   if (!FOTOS || typeof FOTOS !== 'object') FOTOS = {};
   var l = FOTOS.cedula_leida || FOTOS.leida_anterior;
   /* Lo escrito con la lectura, solo si la lectura era de este registro (o de
@@ -2048,6 +2317,8 @@ function anotarCelular(el) {
   /* 20-oct-2026, otro celular (C2) — «déjalo en blanco» solo con el celular
      de esa contraseña: con un número a medias o con otro, se pide una nueva. */
   refrescarClaveDelCelular(t);
+  /* 21-oct-2026 — G4: y si este número hace empezar de cero, se dice ya. */
+  refrescarAvisoOtroCelular(t);
 }
 
 /* ------------------------------------------------- VER LA CONTRASEÑA
@@ -2254,14 +2525,19 @@ function pasoPermiso() {
 /* 20-oct-2026, otro celular (C2) — y cuando la que hay se creó con OTRO
    celular: esa no abre esta cuenta (claveDeEsteCelular), y se dice así, no
    «escríbela una vez más». */
+/* 21-oct-2026 — G2: «era para otro celular» solo si la que hay es de ESTE
+   registro (claveDeEsteIntento); la de otro registro no se nombra, y el
+   porqué de no tenerla ya no es solo la página que se volvió a abrir: también
+   se olvida al salir de una cuenta en esta pestaña. */
 function cajaClaveFinal() {
   if (claveDeEsteCelular(REGISTRO.celular)) return '';
   return '<div class="aviso ambar" id="cajaClaveFin" style="margin-top:var(--e4)">' +
-      (CLAVE_EN_MEMORIA
+      (claveDeEsteIntento()
         ? '<b>Una cosa más: la contraseña de este celular.</b> La que se creó en este teléfono era para otro celular, ' +
           'así que no abre esta cuenta. Crea la tuya y escríbela dos veces.'
-        : '<b>Una cosa más: tu contraseña.</b> Por seguridad no se guarda en el teléfono, ' +
-          'y si la página se volvió a abrir ya no la tenemos. Escríbela una vez más y abrimos tu cuenta con ella.') +
+        : '<b>Una cosa más: tu contraseña.</b> Por seguridad no se guarda en el teléfono, y a veces ya no la ' +
+          'tenemos (si la página se volvió a abrir, o si en esta pestaña se entró a una cuenta y se salió). ' +
+          'Escríbela una vez más y abrimos tu cuenta con ella.') +
       '<label for="rClaveFin">Tu contraseña</label>' + campoClave('rClaveFin', 'new-password') +
       '<label for="rClaveFin2">Escríbela otra vez</label>' + campoClave('rClaveFin2', 'new-password') +
     '</div>';
@@ -2303,8 +2579,12 @@ function recogerPaso() {
 
 var CLAVE_EN_MEMORIA = (leerClaveEnCurso() || {}).clave || '';      // vive solo mientras la pestaña está abierta
 var CLAVE_DEL_CELULAR = (leerClaveEnCurso() || {}).celular || '';   // 20-oct-2026, otro celular: el celular con que se creó
+var CLAVE_DEL_INTENTO = (leerClaveEnCurso() || {}).intento || '';   // 21-oct-2026, G2: el registro en que se creó
 
 function siguientePaso() {
+  /* 21-oct-2026 — G1: «Abrir mi cuenta» una vez; mientras viaja, «Continuar»
+     no hace nada (ver UNA RESPUESTA DE LA RED SOLO VALE PARA QUIEN LA PIDIÓ). */
+  if (viajando()) return;
   var err = $('errReg');
   err.classList.add('oculto');
   var extra = recogerPaso();
@@ -2547,11 +2827,14 @@ function siguientePaso() {
  *      nuevo, aunque sea del mismo documento, pide el frente otra vez
  *      (prepararRespaldoNuevo). Ninguna foto nueva refresca la hora de una
  *      vieja (marcarDuenoDeLasFotos).
- *   3. NADA SENSIBLE SOBREVIVE A OTRA PERSONA: la cuenta creada y «Salir»
- *      vacían la memoria (cerrarElRegistroEnMemoria); lo que quede en el
+ *   3. NADA SENSIBLE SOBREVIVE A OTRA PERSONA: la cuenta creada vacía la
+ *      memoria (cerrarElRegistroEnMemoria) y entrar a una cuenta o salir de
+ *      ella suelta lo sensible (21-oct-2026, G3: «Salir» deja en la memoria
+ *      lo mismo que el teléfono, solo lo escrito); lo que quede en el
  *      teléfono se pregunta sin enseñarse (pintarPreguntaRestos); y la
- *      autorización vale solo para el intento en que se tocó
- *      (autorizoEsteIntento).
+ *      autorización, el celular confirmado y la contraseña en curso (G2)
+ *      valen solo para el intento en que se dieron (autorizoEsteIntento,
+ *      celularDelRegistro, claveDeEsteIntento).
  * ========================================================================= */
 function hayContenidoEnFotos() { return hayContenidoEn(FOTOS); }
 function hayContenidoEn(f) {
@@ -2647,10 +2930,14 @@ function prepararFotoNueva() {
    se le dice por qué.
    La primera vez que se escribe el celular no hay otro, y no se borra nada.
    Devuelve null si no hubo cambio, o lo que se borró (para decirlo). */
+/* 21-oct-2026 — G2: los tres son de ESTE registro. El celular confirmado y el
+   dueño de las fotos ya miraban el intento; la contraseña en curso no, y una
+   que quedaba de otro registro en la misma pestaña (María entraba a su cuenta
+   y salía) hacía que el PRIMER celular de Pedro pareciera un cambio. */
 function celularesDelRegistro() {
   var v = [];
   var m = celularDelRegistro(); if (m) v.push(m);
-  if (CLAVE_EN_MEMORIA && CLAVE_DEL_CELULAR) v.push(String(CLAVE_DEL_CELULAR));
+  if (claveDeEsteIntento() && CLAVE_DEL_CELULAR) v.push(String(CLAVE_DEL_CELULAR));
   if (FOTOS.de && FOTOS.de.celular && esteIntento(FOTOS.de) && (hayContenidoEnFotos() || FOTOS.gps_error)) v.push(String(FOTOS.de.celular));
   return v;
 }
@@ -2688,7 +2975,7 @@ function loQueSeLlenoEnEsteRegistro() {
     selfie: deEste && !!FOTOS.selfie,
     gps: deEste && !!FOTOS.gps,
     permiso: autorizoEsteIntento(),
-    clave: !!CLAVE_EN_MEMORIA
+    clave: claveDeEsteIntento()   // 21-oct-2026 — G2: la de otro registro no era de este
   };
 }
 /* 21-oct-2026 — E-A1: EMPEZAR DE CERO CON EL CELULAR NUEVO. Es lo que hace
@@ -2705,7 +2992,13 @@ function loQueSeLlenoEnEsteRegistro() {
    El borrador del teléfono se BORRA antes de escribir el nuevo: en un teléfono
    que no deja escribir, lo de la otra persona no puede quedarse ahí para la
    próxima vez que se abra la página. */
+/* 21-oct-2026 — G1: Y ES OTRA GENERACIÓN. Era la promesa que no se cumplía:
+   «por seguridad borramos…», y el «Abrir mi cuenta» de María que seguía en
+   camino llegaba después y le abría a Pedro la sesión de ella. Ahora lo que
+   esté en camino de antes del cambio se descarta al volver (ver UNA
+   RESPUESTA DE LA RED SOLO VALE PARA QUIEN LA PIDIÓ). */
 function empezarDeCeroConEsteCelular(cel) {
+  otraGeneracion();
   var intento = REGISTRO.intento;
   GPS_PEDIDO = false; AVISO_UN_LADO = ''; PERMISO_SOLTADO = false;
   FOTOS_SOLTADAS_AL_ABRIR = false; LO_SOLTADO_AL_ABRIR = {};
@@ -3175,7 +3468,36 @@ function enviarRegistro(sensibles) {
     return fallo($('errReg'), 'Nos falta la contraseña de este celular: créala en la casilla de abajo, escríbela dos veces y vuelve a tocar «Abrir mi cuenta».');
   }
 
+  /* 21-oct-2026 — G1: LA FOTO DEL TOQUE. Lo que sale a la bandeja y al
+     signup se toma AQUÍ, al tocar «Abrir mi cuenta», y ninguna llamada de la
+     cadena vuelve a mirar REGISTRO, la contraseña en curso ni las casillas:
+     entre una y otra hay idas a la red, y en ese rato la pestaña puede ser de
+     otra persona (ver UNA RESPUESTA DE LA RED SOLO VALE PARA QUIEN LA PIDIÓ).
+     Hasta hoy el signup leía en vivo el celular, la contraseña y los datos
+     después de la bandeja, con la autorización que se tocó antes: si la
+     bandeja de María tardaba, la cuenta de Pedro nacía con el permiso de la
+     Ley 1581 que dio ella. La contraseña ya se revisó arriba: es la de este
+     celular y de este registro. */
+  var foto = fotoDelToque({
+    celular: String(REGISTRO.celular || ''),
+    clave: claveDeEsteCelular(REGISTRO.celular),
+    datos: datosDelRegistro(),
+    autorizacion: autorizacion
+  });
   fallo(err, 'Creando tu cuenta…');
+  /* Mientras dice «Creando tu cuenta…» no se sale de aquí; a los 30 s se
+     dice lo único que se sabe —que no se sabe si alcanzó a crearse— y lo que
+     sirve en los dos casos: volver a tocar «Abrir mi cuenta» crea la cuenta,
+     o si ya existe entra con la misma contraseña (el «ya tenías cuenta» de
+     abajo), con las fotos. Nada se borró: el registro sigue entero. */
+  var senal = empezarViaje(foto, function () {
+    fallo(err, 'La conexión tardó demasiado y no sabemos si tu cuenta alcanzó a crearse. Vuelve a tocar ' +
+      '«Abrir mi cuenta»: si ya se creó, entramos a ella con tu celular y tu contraseña; si no, la creamos. ' +
+      'Lo que llenaste sigue aquí.');
+  });
+  /* El aviso de que la respuesta ya no es de esta pestaña: corta la cadena sin
+     tocar nada (el catch de abajo lo reconoce). */
+  var TARDE = { tarde: true };
   /* PRIMERO la bandeja de Joan, DESPUÉS la cuenta — y el orden es la garantía.
      Si fuera al revés y la bandeja fallara, la cuenta quedaría creada pero
      invisible para Joan (el defecto que este flujo tuvo hasta el 24-ago: el
@@ -3201,11 +3523,11 @@ function enviarRegistro(sensibles) {
      esta persona aceptó el texto que nombra a ipwho.is o el de antes. Se suma
      a una copia: el borrador del teléfono no la necesita. */
   var cuerpoRegistro = {
-    p_celular: REGISTRO.celular,
-    p_nombre: ((REGISTRO.nombres || '') + ' ' + (REGISTRO.apellidos || '')).replace(/\s+/g, ' ').trim(),
-    p_cedula: REGISTRO.documento || '',
+    p_celular: foto.celular,
+    p_nombre: ((foto.datos.nombres || '') + ' ' + (foto.datos.apellidos || '')).replace(/\s+/g, ' ').trim(),
+    p_cedula: foto.datos.documento || '',
     /* 19-oct-2026 — sin el intento (datosDelRegistro): es de este teléfono. */
-    p_datos: Object.assign(datosDelRegistro(), { autorizacion_version: autorizacion.version })
+    p_datos: Object.assign({}, foto.datos, { autorizacion_version: autorizacion.version })
   };
   if (MARCA === 'platachat') cuerpoRegistro.p_app = 'platachat';
   /* Las dos rutas escritas enteras: el centinela de motor.test.js («la bandeja
@@ -3214,8 +3536,10 @@ function enviarRegistro(sensibles) {
   fetch(CFG.url.replace(/\/+$/, '') + rutaRegistro, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
-    body: JSON.stringify(cuerpoRegistro)
+    body: JSON.stringify(cuerpoRegistro),
+    signal: senal
   }).then(function (res) {
+      if (!sigueSiendoDeAqui(foto)) throw TARDE;
       if (MARCA === 'platachat' && res.status === 404) {
         throw { humano: 'El registro de PlataChat todavía no está encendido. Tus datos quedaron guardados en este teléfono: ' +
                         'vuelve a intentar más tarde y no tendrás que escribirlos otra vez.' };
@@ -3223,26 +3547,39 @@ function enviarRegistro(sensibles) {
       return res.ok ? res.json() : Promise.reject(new Error('http ' + res.status));
     })
     .then(function (r) {
+      /* 21-oct-2026 — G1: si mientras contestaba la bandeja la pestaña pasó a
+         ser de otro (o venció el tope), aquí se corta: el signup NO sale. */
+      if (!sigueSiendoDeAqui(foto)) throw TARDE;
       if (!r || r.ok !== true) {
         throw { humano: 'No pudimos recibir tu registro. Revisa tu celular y tu nombre, y vuelve a intentar en unos minutos.' };
       }
       /* 20-oct-2026, otro celular (C2) — la contraseña que sale es la de ESTE
-         celular, mirada otra vez aquí: entre la reja de arriba y esta línea
-         hay una ida a la red. */
-      var clave = claveDeEsteCelular(REGISTRO.celular);
-      if (!clave) throw { humano: 'Nos falta la contraseña de este celular: toca «Volver» hasta «Tu celular y tu contraseña» y créala.' };
+         celular. 21-oct-2026 — G1: la de la foto del toque, ya revisada
+         arriba; mirarla «otra vez aquí», en vivo, era justo el agujero: lo
+         que hubiera en vivo después de la bandeja podía ser de Pedro. */
+      if (!foto.clave) throw { humano: 'Nos falta la contraseña de este celular: toca «Volver» hasta «Tu celular y tu contraseña» y créala.' };
       return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
         body: JSON.stringify({
-          email: U.correoDeTelefono(REGISTRO.celular),
-          password: clave,
-          data: { telefono: REGISTRO.celular, vinculacion: datosDelRegistro(), autorizacion: autorizacion }
-        })
+          email: U.correoDeTelefono(foto.celular),
+          password: foto.clave,
+          data: { telefono: foto.celular, vinculacion: foto.datos, autorizacion: foto.autorizacion }
+        }),
+        signal: senal
       });
     })
     .then(function (res) { return res.json().then(function (j) { return { ok: res.ok, j: j }; }); })
     .then(function (res) {
+      /* 21-oct-2026 — G1: la cuenta se creó, pero la pestaña ya no es de quien
+         la pidió (o venció el tope): su sesión no se adopta, se cierra en el
+         servidor, y no se toca nada de aquí. Quien la creó entra con su
+         celular y su contraseña cuando quiera; su fila ya está en la bandeja. */
+      if (!sigueSiendoDeAqui(foto)) {
+        if (res.ok) cerrarSesionHuerfana(res.j);
+        terminarViaje(foto);
+        return;
+      }
       if (!res.ok) {
         var yaExiste = /registered|already/i.test(JSON.stringify(res.j || {}));
         /* 21-sep-2026 — YA TENÍA CUENTA: SE ENTRA, NO SE LE CIERRA LA PUERTA.
@@ -3256,13 +3593,17 @@ function enviarRegistro(sensibles) {
            intenta entrar con ella. Si es la correcta sigue como si nada —con su
            sesión, y sus fotos suben—. Si no lo es, recién ahí se le dice, y con
            el celular ya puesto en la caja de entrar. */
-        if (yaExiste) return entrarConLaClaveDelRegistro(err, autorizacion);
+        /* 21-oct-2026 — G1: sigue el mismo viaje, con la misma foto del toque. */
+        if (yaExiste) return entrarConLaClaveDelRegistro(err, autorizacion, foto);
+        terminarViaje(foto);
         return fallo(err, 'No pudimos crear tu cuenta en este momento. Vuelve a intentarlo en un ratico; tus datos no se perdieron.');
       }
+      /* El viaje termina ANTES de pintar nada: lo que sigue (la pantalla de
+         «Listo», el paso a PlataChat) ya no es un «Abrir mi cuenta» en camino. */
+      terminarViaje(foto);
       try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
       olvidarPaso(); olvidarClaveEnCurso();
-      CLAVE_EN_MEMORIA = '';
-      anotarCuentaCreada(REGISTRO.celular);
+      anotarCuentaCreada(foto.celular);
       /* 8-sep-2026 — con «Confirm email» apagado en Supabase, el signup devuelve
          la sesión entera: el recién registrado ya puede pedir. */
       /* 17-sep-2026 — Y SE GUARDA AQUÍ MISMO, que es el peor sitio donde
@@ -3278,7 +3619,7 @@ function enviarRegistro(sensibles) {
          cuenta» de abajo), las fotos salen del registro: a la cola de ESTA
          cuenta, con el documento de ESTE registro. Ver LA COLA DE UNA CUENTA
          YA CREADA. */
-      encolarLasFotosDelRegistro(REGISTRO.celular);
+      encolarLasFotosDelRegistro(foto.celular);
       /* 19-oct-2026 — ANTES de pintar: en PlataChat pintarRegistrado se lleva
          a la persona a otra página, y la llamada se iría con ella. */
       anotarAparato('registro');
@@ -3290,6 +3631,10 @@ function enviarRegistro(sensibles) {
       cerrarElRegistroEnMemoria();
     })
     .catch(function (e) {
+      terminarViaje(foto);
+      /* 21-oct-2026 — G1: una respuesta que ya no es de esta pestaña (o que
+         llegó después del tope, que ya dijo lo suyo) no escribe nada. */
+      if (e === TARDE || !sigueSiendoDeAqui(foto)) return;
       fallo(err, (e && e.humano) ? e.humano
         : 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
     });
@@ -3298,14 +3643,35 @@ function enviarRegistro(sensibles) {
 /* Entra con el celular y la contraseña del registro, para el caso de quien ya
    tenía cuenta. Devuelve la misma promesa que el camino normal, así que el
    resto de enviarRegistro no se entera de por dónde vino la sesión. */
-function entrarConLaClaveDelRegistro(err, autorizacion) {
+/* 21-oct-2026 — G1: `foto`, la foto del toque. Desde el «ya existe» de
+   enviarRegistro llega la de «Abrir mi cuenta», con su viaje en curso: entra
+   con ESE celular y ESA contraseña, no con lo que haya en vivo. Desde «Entrar
+   y terminar mi registro» (entrarConOtraClaveDelRegistro) no llega ninguna, y
+   el toque es este: se toma aquí y empieza su propio viaje, con su tope. Al
+   volver, la misma regla: si la pestaña ya es de otro, la sesión no se adopta
+   y se cierra en el servidor. */
+function entrarConLaClaveDelRegistro(err, autorizacion, foto) {
+  var propio = !foto;
+  if (propio) foto = fotoDelToque({ celular: String(REGISTRO.celular || ''), clave: claveDeEsteCelular(REGISTRO.celular) });
   fallo(err, 'Ya tenías una cuenta con este celular. Te estamos entrando…');
+  var senal = !propio ? (foto.control ? foto.control.signal : undefined)
+    : empezarViaje(foto, function () {
+        avisoYaTieneCuenta(err, 'La conexión tardó demasiado y no pudimos entrar a tu cuenta. Revisa tu internet y ' +
+          'vuelve a escribir aquí la contraseña de tu cuenta.');
+      });
   return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/token?grant_type=password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
-    body: JSON.stringify({ email: U.correoDeTelefono(REGISTRO.celular), password: CLAVE_EN_MEMORIA })
+    body: JSON.stringify({ email: U.correoDeTelefono(foto.celular), password: foto.clave }),
+    signal: senal
   }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
     .then(function (res) {
+      if (!sigueSiendoDeAqui(foto)) {
+        if (res.ok && res.j && res.j.access_token) cerrarSesionHuerfana(res.j);
+        terminarViaje(foto);
+        return;
+      }
+      terminarViaje(foto);
       if (!res.ok || !res.j || !res.j.access_token) {
         /* La contraseña no es la de esa cuenta. Se le dice sin regañarlo.
            7-oct-2026 — sin «te mandamos un código»: no hay código (Joan los
@@ -3329,14 +3695,15 @@ function entrarConLaClaveDelRegistro(err, autorizacion) {
       SESION = res.j; guardarSesionEnCurso(SESION);
       try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
       olvidarPaso(); olvidarClaveEnCurso();
-      CLAVE_EN_MEMORIA = '';
-      anotarCuentaCreada(REGISTRO.celular);
-      encolarLasFotosDelRegistro(REGISTRO.celular);   // 20-oct-2026, rediseño (A): como en la cuenta nueva
+      anotarCuentaCreada(foto.celular);
+      encolarLasFotosDelRegistro(foto.celular);   // 20-oct-2026, rediseño (A): como en la cuenta nueva
       anotarAparato('registro');   // 19-oct-2026: ya tenía cuenta, pero este es su registro
       pintarRegistrado();
       subidaEnSegundoPlano();   // sus fotos, que era lo que se perdía
       cerrarElRegistroEnMemoria();   // 20-oct-2026, revisión (F7): como en la cuenta nueva
     }, function () {
+      terminarViaje(foto);
+      if (!sigueSiendoDeAqui(foto)) return;   // 21-oct-2026 — G1: ya no es de esta pestaña, o el tope ya habló
       avisoYaTieneCuenta(err, 'Ya tienes una cuenta con este celular. Revisa tu internet y toca otra vez ' +
         '«Abrir mi cuenta», o entra con tu contraseña.');
     });
@@ -3389,6 +3756,7 @@ function salidasYaTieneCuenta() {
    dentro del registro. Si es la buena, entrarConLaClaveDelRegistro sigue como
    si nada (y encola las fotos para esa cuenta); si no, vuelve a la misma caja. */
 function entrarConOtraClaveDelRegistro() {
+  if (viajando()) return;   // 21-oct-2026 — G1: un toque a la vez
   var c = $('rClaveCuenta'), clave = c ? String(c.value || '') : '';
   if (!clave) {
     var a = $('ayudaClaveCuenta');
@@ -3407,6 +3775,7 @@ function entrarConOtraClaveDelRegistro() {
    solo sube lo que encoló su propio «Abrir mi cuenta» (ese era el camino de V1).
    Por eso la caja ofrece primero escribir la contraseña sin salir. */
 function entrarConElCelularDelRegistro() {
+  if (viajando()) return;   // 21-oct-2026 — G1: no se sale a la portada mientras viaja
   var cel = REGISTRO.celular;
   pintarEntrar();
   var t = $('inTel'); if (t && cel) t.value = U.telefonoBonito(cel);
@@ -4350,7 +4719,16 @@ function pedirGpsSiFalta() {
 function pedirGps() {
   GPS_PEDIDO = true;
   if (!navigator.geolocation) { FOTOS.gps_error = 'Este celular no da ubicación.'; guardarFotos(); return; }
+  /* 21-oct-2026 — G1: LA UBICACIÓN ES DE QUIEN LA PIDIÓ. El teléfono puede
+     tardar en contestar (12 s de tope, más lo que tarde el permiso), y en ese
+     rato María devolvía el teléfono: Pedro cambiaba el celular, el registro
+     empezaba de cero, y la ubicación de María caía en el registro de Pedro, a
+     su nombre y con su celular como dueño. Si la generación cambió (ver UNA
+     RESPUESTA DE LA RED SOLO VALE PARA QUIEN LA PIDIÓ), se descarta: ni la
+     ubicación ni el error se anotan. */
+  var gen = GENERACION_DEL_REGISTRO;
   navigator.geolocation.getCurrentPosition(function (pos) {
+    if (gen !== GENERACION_DEL_REGISTRO) return;
     /* 19-oct-2026 — antes de anotarla, que no se mezcle con fotos de otro
        registro (ver prepararFotoNueva). */
     prepararFotoNueva();
@@ -4359,6 +4737,7 @@ function pedirGps() {
     delete FOTOS.gps_error; marcarDuenoDeLasFotos('gps'); guardarFotos();
     var g = $('docGps'); if (g) g.innerHTML = textoGps();
   }, function (err) {
+    if (gen !== GENERACION_DEL_REGISTRO) return;
     FOTOS.gps_error = err && err.code === 1 ? 'No diste permiso de ubicación. Tu cuenta se abre igual.'
                     : 'No hubo señal de ubicación. Tu cuenta se abre igual.';
     guardarFotos();
@@ -4519,9 +4898,20 @@ function tomarFoto(ev, key) {
   if (key === 'selfie') { try { detenerEscaner(); } catch (e) {} }
   var quiereCodigo = key === 'cedula_reverso';
   var tamanos = quiereCodigo ? [[900, 0.6], [1600, null]] : [[900, 0.6]];
+  /* 21-oct-2026 — G1: LA FOTO ES DEL REGISTRO QUE LA TOMÓ. Comprimirla y leer
+     su código toma segundos en un teléfono barato; si en ese rato la pestaña
+     cambió de persona o de flujo (salió a la portada, empezó de cero, otro
+     celular: ver UNA RESPUESTA DE LA RED SOLO VALE PARA QUIEN LA PIDIÓ), la
+     foto y su lectura se descartan al llegar: ni se guardan, ni escriben el
+     formulario, ni mueven la pantalla. */
+  var gen = GENERACION_DEL_REGISTRO;
 
   return comprimirVarias(file, tamanos).then(function (salidas) {
     file = null;                 /* el archivo de la cámara ya no hace falta */
+    if (gen !== GENERACION_DEL_REGISTRO) {
+      if (salidas && salidas[1]) soltarLienzo(salidas[1]);
+      return;
+    }
     /* 1. LO PRIMERO: guardar y pintar. A partir de acá la foto ya está a salvo.
        19-oct-2026 — sin mezclarla con fotos de otro registro (prepararFotoNueva). */
     prepararFotoNueva();
@@ -4565,12 +4955,14 @@ function tomarFoto(ev, key) {
          25 MB vivos mientras decodifica. Sin el return, el cerrojo se soltaba
          antes de tiempo y el solapamiento seguía siendo posible. */
       LIENZO_PENDIENTE = grande;
-      return leerCodigoDeBarras(grande);
+      return leerCodigoDeBarras(grande, gen);
     }
   }).catch(function () {
+    if (gen !== GENERACION_DEL_REGISTRO) return;   // 21-oct-2026 — G1: esa pantalla ya no es de esta foto
     if (caja) caja.querySelector('.lbl').textContent =
       'No pude usar esa foto. Tómala otra vez, o elige una de la galería.';
   }).then(soltarCerrojo, soltarCerrojo).then(function () {
+    if (gen !== GENERACION_DEL_REGISTRO) return;   // 21-oct-2026 — G1: ni la ubicación ni el paso siguiente
     /* 19-oct-2026 — con la cámara del celular también: tomada la selfie, la
        ubicación; tomados los dos lados de la cédula (y leído el código, que
        se encadena arriba), al paso de revisar los datos, solo. */
@@ -4604,11 +4996,18 @@ function pasarSoloDeLaCedula() {
    pestaña. Ahora se decodifica por la ruta pura (EC.decodificarLuminancias):
    una vez, y como mucho cuatro giros de rescate si el código se vio torcido,
    más uno de 90° si la foto vino de pie. Después se dice la verdad. */
-function leerCodigoDeBarras(lienzo) {
+/* 21-oct-2026 — G1: `gen`, la generación en que se tomó la foto (tomarFoto).
+   Bajar el lector y decodificar puede tardar; si al terminar la pestaña ya es
+   de otra persona o de otro flujo, la lectura no escribe nada: ni el nombre y
+   el documento en el formulario, ni la lectura en las fotos, ni el aviso. El
+   lienzo se suelta igual. Sin `gen` (una llamada suelta), la de ahora. */
+function leerCodigoDeBarras(lienzo, gen) {
+  if (gen === undefined) gen = GENERACION_DEL_REGISTRO;
   var leido = $('docLeido');
   if (leido) { leido.classList.remove('oculto'); leido.innerHTML = 'Leyendo el código de barras…'; }
   var giro = null;
   return cargarScript(URL_ZXING).then(respiro).then(function () {
+    if (gen !== GENERACION_DEL_REGISTRO) return;
     var r = leerCedulaDeLienzo(lienzo, EC ? EC.GIROS_DE_RESCATE : null, 'siempre');
     giro = r.giro;
     if (!r.cedula) throw new Error(r.error || 'sin datos');
@@ -4621,6 +5020,7 @@ function leerCodigoDeBarras(lienzo) {
     if (leido) leido.innerHTML = textoLeido();
     refrescarDoc();
   }).catch(function () {
+    if (gen !== GENERACION_DEL_REGISTRO) return;   // 21-oct-2026 — G1: ver arriba
     /* 20-oct-2026, revisión — y lo que el escáner había escrito con una
        lectura anterior se va con ella (lecturaQueNoSalio). */
     lecturaQueNoSalio(); guardarFotos();
@@ -4630,7 +5030,7 @@ function leerCodigoDeBarras(lienzo) {
     soltarLienzo(lienzo); soltarLienzoGiro(); LIENZO_PENDIENTE = null;
     /* 8-oct-2026 — y la foto guardada se endereza, ya con el lienzo grande
        suelto (ver enderezarFotoGuardada). */
-    if (giro) return enderezarFotoGuardada('cedula_reverso', giro);
+    if (giro && gen === GENERACION_DEL_REGISTRO) return enderezarFotoGuardada('cedula_reverso', giro);
   });
 }
 function soltarLienzo(c) { try { if (c && c.width !== undefined) { c.width = c.height = 1; } } catch (e) {} }
@@ -5372,11 +5772,13 @@ function leerCuadroDoc(v) {
   var t0 = Date.now();
   var giros = ESCDOC.ilegibles >= 2 && EC ? EC.GIROS_DE_RESCATE.slice(0, 2) : null;
   var miTurno = ESCDOC.turno;
+  var gen = GENERACION_DEL_REGISTRO;   // 21-oct-2026 — G1: la lectura nativa es asíncrona
   /* 8-oct-2026 — `giro`: cuánto girar la foto para que quede derecha. ZXing
      lo sabe por cómo leyó; el nativo no lo dice, y leidaDoc lo mide aparte. */
   var termina = function (cedula, error, giro, patron) {
     ESCDOC.leyendo = false;
     if (miTurno !== ESCDOC.turno || !ESCDOC.stream) return;   // se canceló mientras leía
+    if (gen !== GENERACION_DEL_REGISTRO) return;               // la pestaña ya es de otro registro
     ESCDOC.dura = Date.now() - t0; ESCDOC.ultima = Date.now(); ESCDOC.lecturas++;
     if (cedula) { leidaDoc(cedula, giro); return; }
     if (error === 'ilegible') ESCDOC.ilegibles++;
@@ -5888,10 +6290,11 @@ function detectarCara(v, luz) {
   var c = lienzoParaDetectar(v); if (!c) return;
   ESCANER.detectando = true; ESCANER.detectandoDesde = Date.now();
   var turno = ESCANER.turno;
+  var gen = GENERACION_DEL_REGISTRO;   // 21-oct-2026 — G1: la selfie que dispara tarde es del registro que la pidió
   d.detectar(c).then(function (caras) {
     if (ESCANER.detector !== d) return;   // se soltó mientras miraba (ver el vigilante del bucle)
     ESCANER.detectando = false;
-    if (!ESCANER.activo || turno !== ESCANER.turno) return;
+    if (!ESCANER.activo || turno !== ESCANER.turno || gen !== GENERACION_DEL_REGISTRO) return;
     ESCANER.fallos = 0;
     var cara = RV.caraPrincipal(caras);
     var nit = cara ? nitidezDeCara(v, cara) : 0;
@@ -8411,11 +8814,17 @@ function causaDe(e) {
   if (/\b401\b/.test(m) || /\b403\b/.test(m)) return 'sesion';
   return 'falla';
 }
+/* 21-oct-2026 — G1: la ficha es de la sesión que la pidió. Si mientras
+   contestaba mi_cuenta la persona tocó «Salir» y otra entró a la suya, la
+   respuesta vieja pintaba el nombre y el historial del primero en la cuenta
+   del segundo. Se descarta, como ya hacían mi_registro y el chat. */
 function cargarFicha() {
   MI_REGISTRO = '';
   if (!SESION || !SESION.access_token) { FICHA_ESTADO = 'sin'; return; }
   FICHA_ESTADO = 'cargando';
+  var ses = SESION;
   rpcSesion('mi_cuenta').then(function (j) {
+    if (SESION !== ses) return;
     if (!j || j.ok !== true) { FICHA_ESTADO = 'falla'; return pintarLamina(); }
     if (!j.vinculada) {
       /* NO ES UN ERROR: es un registrado nuevo, o uno antiguo al que Joan
@@ -8430,6 +8839,7 @@ function cargarFicha() {
     FICHA_ESTADO = 'vinculada';
     pintarLamina();
   }).catch(function (e) {
+    if (SESION !== ses) return;
     /* Cada causa, su palabra: ver causaDe. */
     var c = causaDe(e);
     FICHA_ESTADO = c === 'apagado' ? 'apagada' : (c === 'sesion' ? 'sesion' : 'falla');
@@ -8792,11 +9202,13 @@ function abrirCanal(c) {
   var caja = $('hilo'); if (!caja) return;
   HILO = { canal: c, mensajes: [], estado: 'cargando' };
   caja.innerHTML = '<div class="ch-vacio">Buscando tus mensajes…</div>';
+  var ses = SESION;
   rpcSesion('chat_leer_sesion', { p_canal: c, p_desde: 0 }).then(function (j) {
     /* Si mientras llegaba la respuesta la persona cambió de canal, esto ya no es
        suyo: pintarlo pondría los mensajes de cobranzas en la pestaña de
-       créditos. */
-    if (HILO.canal !== c) return;
+       créditos. 21-oct-2026 — G1: ni si cambió de CUENTA (salió y entró
+       otra al mismo canal): serían los mensajes de otra persona. */
+    if (HILO.canal !== c || SESION !== ses) return;
     if (!j || j.ok !== true) { HILO.estado = 'falla'; return pintarHilo(); }
     HILO.mensajes = j.mensajes || [];
     /* 19-oct-2026 — desde dónde pedir lo nuevo en el latido, y el canal en
@@ -8806,7 +9218,7 @@ function abrirCanal(c) {
     pintarHilo();
     yaLeido(c);
   }).catch(function (e) {
-    if (HILO.canal !== c) return;
+    if (HILO.canal !== c || SESION !== ses) return;
     HILO.estado = causaDe(e);
     pintarHilo();
   });
@@ -9006,7 +9418,9 @@ function mostrarFoto(imagen) {
 /* Abrir la grande. Se pide solo cuando alguien toca la miniatura. */
 function verFotoChat(id) {
   var caja = $('hilo'); if (!caja) return;
+  var ses = SESION;   // 21-oct-2026 — G1: la foto que llega después de «Salir» no se le abre al siguiente
   rpcSesion('chat_foto_sesion_ver', { p_id: Number(id) }).then(function (j) {
+    if (SESION !== ses) return;
     if (!j || j.ok !== true || !j.imagen) {
       /* Un `return` pelado deja a la persona tocando una foto que nunca abre y
          sin saber por qué. Una función muda no existe. */
@@ -9014,6 +9428,7 @@ function verFotoChat(id) {
     }
     mostrarFoto(j.imagen);
   }).catch(function (e) {
+    if (SESION !== ses) return;
     var c = causaDe(e);
     alert(c === 'sesion'
       ? 'Tu sesión se venció. Vuelve a entrar para ver la foto.'
@@ -9203,7 +9618,25 @@ function salirDeCuenta() {
      teléfono con su dueño, y sube cuando ESA cuenta vuelva a entrar.
      20-oct-2026, rediseño (A, V5) — en su cola, con su propia llave: la que
      ningún registro nuevo pisa (ver LA COLA DE UNA CUENTA YA CREADA). */
-  REGISTRO = {}; FOTOS = {}; REGISTRADO = null;
+  /* 21-oct-2026 — G3: …PERO LA MEMORIA DICE LO MISMO QUE EL TELÉFONO. Aquí
+     se vaciaba REGISTRO y el borrador del teléfono se quedaba: si había un
+     registro a medias de OTRA persona (María dejó el suyo en la portada; su
+     hermano entró a su cuenta y salió), «Abrir mi cuenta» no veía nada en la
+     memoria, no preguntaba «¿Es tuyo?» y la primera tecla lo pisaba. Lo que
+     pintarEntrar promete («lo escrito a mano se queda, detrás de “¿Es
+     tuyo?”») tiene que cumplirse también después de «Salir»: la memoria
+     vuelve a leer el borrador del teléfono, que solo trae lo escrito (lo
+     sensible lo soltó pintarCuenta al entrar, y aquí FOTOS se vacía igual).
+     Si el borrador era de esta misma cuenta (entró desde su registro con
+     «Entrar con mi contraseña»), le pasa lo mismo que en la portada: queda
+     detrás de la pregunta, para que el siguiente lo suelte o lo siga.
+     21-oct-2026 — G2: y la contraseña en curso se olvida: la creó alguien que
+     ya no está en la pestaña. Su registro, si vuelve, la pide otra vez.
+     21-oct-2026 — G1: y es otra generación: nada de lo que haya salido antes
+     de «Salir» llega a lo que venga después. */
+  otraGeneracion();
+  olvidarClaveEnCurso();
+  REGISTRO = leerBorrador(); FOTOS = {}; REGISTRADO = null;
   GPS_PEDIDO = false; AVISO_UN_LADO = ''; PERMISO_SOLTADO = false;
   pintarEntrar();
 }

@@ -81,8 +81,9 @@ describe('la relanzada de Android (sessionStorage vacío)', () => {
   test('la contraseña sigue SIN tocar localStorage: la regla no se aflojó', () => {
     const P = aMitadDelRegistro();
     assert.equal(/Perro\.2026x/.test(JSON.stringify(P.almacen)), false, 'la contraseña acabó en localStorage');
-    /* 20-oct-2026, otro celular — con el celular con que se creó. */
-    assert.deepEqual(JSON.parse(P.sesion.play_clave_en_curso), { celular: '3001112233', clave: 'Perro.2026x' });
+    /* 20-oct-2026, otro celular — con el celular con que se creó.
+       21-oct-2026 — G2: y con el intento del registro en que se creó. */
+    assert.deepEqual(JSON.parse(P.sesion.play_clave_en_curso), { celular: '3001112233', clave: 'Perro.2026x', intento: P.ev('REGISTRO.intento') });
   });
 
   test('un registro de hace dos días no se retoma solo', () => {
@@ -121,7 +122,7 @@ describe('la contraseña, después de la relanzada', () => {
     Q.ev("$('rClaveFin').value = 'Perro.2026x'; $('rClaveFin2').value = 'Perro.2026x';");
     Q.ev('siguientePaso()');
     assert.equal(Q.ev('CLAVE_EN_MEMORIA'), 'Perro.2026x', 'no tomó la contraseña del paso 9');
-    assert.deepEqual(JSON.parse(Q.sesion.play_clave_en_curso), { celular: '3001112233', clave: 'Perro.2026x' });
+    assert.deepEqual(JSON.parse(Q.sesion.play_clave_en_curso), { celular: '3001112233', clave: 'Perro.2026x', intento: Q.ev('REGISTRO.intento') });
     assert.equal(/Perro\.2026x/.test(JSON.stringify(Q.almacen)), false, 'la contraseña acabó en localStorage');
   });
 
