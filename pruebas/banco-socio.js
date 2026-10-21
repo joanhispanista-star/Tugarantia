@@ -54,6 +54,7 @@ function almacen(inicial) {
  *                   navegador, y con 'node' de user-agent no hay teléfono.
  *   matchMedia      21-oct-2026 — (consulta) => {matches}. Con él una prueba
  *                   dice «la abrieron instalada» (display-mode: standalone).
+ *   performanceNow  cuánto lleva abierta la página (3000 si no se dice)
  *
  * 21-oct-2026 — la ventana GUARDA sus oyentes (como en banco-play.js) y
  * `disparar(tipo, evento)` los llama: beforeinstallprompt y appinstalled los
@@ -97,7 +98,10 @@ function abrirSocio(o) {
     scrollTo() {},
     addEventListener(t, fn) { (oyentes[t] = oyentes[t] || []).push(fn); },
     open: (u) => { (ctx._abiertos = ctx._abiertos || []).push(String(u)); },
-    performance: { now: () => 3000 },
+    /* 21-oct-2026 — `o.performanceNow`: cuánto lleva abierta la página. Con
+       3000 la bienvenida de 2 s ya se cumplió sola; para ver si se la salta
+       (la recarga de SE ACTUALIZA SOLA) hace falta una página recién abierta. */
+    performance: { now: () => (o.performanceNow != null ? o.performanceNow : 3000) },
     setTimeout: (fn, ms) => { temporizadores.push({ fn, ms }); return temporizadores.length; },
     clearTimeout() {},
     fetch: (url, opciones) => {
