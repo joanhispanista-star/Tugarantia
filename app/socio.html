@@ -722,12 +722,20 @@ details[open] summary::after{content:' ↑'}
    historial que pintaba «$0» de los créditos pagados. El CACHE de sw.js, igual:
    lo sube quien cierre la entrega.
    19-oct-2026: desde qué teléfono pide (app/aparato.js, nuevo: ENTRA a la
-   precarga de sw.js con el CACHE que suba quien cierre la entrega). */
-var VERSION_APP = '2026-10-19';
+   precarga de sw.js con el CACHE que suba quien cierre la entrega).
+   21-oct-2026: se actualiza sola (app/actualizar.js, nuevo: también entra a
+   la precarga) y el sello dice el número de la caché. */
+var VERSION_APP = '2026-10-21';
+/* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
+   ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
+   es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
+   tiene lo último (las fechas son tres y van a mano). Sube con CACHE, siempre:
+   pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
+var VERSION_SITIO = 'v138';
 
 (function () {
   var v = document.getElementById('holaVersion');
-  if (v) v.textContent = 'Versión ' + VERSION_APP;
+  if (v) v.textContent = 'Versión ' + VERSION_APP + ' · ' + VERSION_SITIO;
 })();
 
 /* El plazo de seguridad se arma ACÁ, pegado al splash, y no al final del archivo:
@@ -788,6 +796,9 @@ setTimeout(function () {
 <script src="aparato.js"></script>
 <script src="sesion-socio.js"></script>
 <script src="ver-como.js"></script>
+<!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
+     momento seguro (momentoSeguroSocio). Si no llega, la app sigue igual. -->
+<script src="actualizar.js"></script>
 <script>
 'use strict';
 
@@ -964,11 +975,18 @@ function desdeEnlace() {
 
 /* ============================ ESTADO ============================ */
 var S = null, TAB = 'inicio', MONTO = 300000, NUEVOS = {};
+/* 21-oct-2026 — QUÉ PANTALLA SE ESTÁ VIENDO. TAB no alcanza: la mitad de las
+   pantallas (pedir, la autorización, el perfil, la contraseña, la comunidad)
+   se pintan encima del cuerpo sin pasar por irA, y TAB seguiría diciendo
+   'inicio'. Cada función que pinta el cuerpo o la entrada la pone (lo vigila
+   pruebas/se-actualiza-sola.test.js); la lee momentoSeguroSocio. */
+var PANTALLA = '';
 /* Qué producto está mirando en la calculadora. El quincenal sale por defecto:
    es el de todos los días. El de garantía hay que ir a buscarlo. */
 var MODO = 'quincenal', PLAZO = 3;
 
 function mostrar(cual) {
+  if (cual === 'pCargando') PANTALLA = 'cargando';   // 21-oct-2026 — una cuenta pidiéndose a la nube no es momento de recargar
   ['pEntrar', 'pCargando', 'pCuenta'].forEach(function (p) { $(p).classList.toggle('oculto', p !== cual); });
   window.scrollTo(0, 0);
 }
@@ -1131,6 +1149,7 @@ function cargarCuenta() {
 }
 
 function pintarSinRed(msg) {
+  PANTALLA = 'sin_red';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   $('entrarCuerpo').innerHTML = '<div class="card">' +
     '<div class="aviso ambar">' + esc(msg) + '</div>' +
     '<button class="btn arriba" onclick="cargarCuenta()">Volver a intentar</button>' +
@@ -1151,6 +1170,7 @@ function pintarSinRed(msg) {
    todavía el de la ficha de su número (llave_de_sesion): abrirle el chat sería
    mostrarle la cobranza de otra persona a quien registró ese número. */
 function pintarSinJuntar(estado) {
+  PANTALLA = 'sin_juntar';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var t = SS.textoSinJuntar(estado);
   var conChat = estado !== 'apagado';
   S = null; TAB = 'chat';
@@ -1167,12 +1187,14 @@ function pintarSinJuntar(estado) {
       enlacesLegales() + selloDeVersion() + '</div>';
   mostrar('pEntrar');
   if (conChat) arrancarChat();
+  avisarQueEsMomento();   // 21-oct-2026 — la cuenta sin juntar es el inicio de quien se registró
 }
 
 /* ================= LA PANTALLA DE ENTRAR =================
    Arriba lo que busca el que ya tiene cuenta; abajo el que todavía no. El
    enlace que Joan manda es UNO (esta página) para nuevos y antiguos. */
 function pintarEntrar(aviso) {
+  PANTALLA = 'entrar';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   $('entrarCuerpo').innerHTML =
     '<div class="card">' +
       '<h3 class="tit">Entrar</h3>' +
@@ -1209,6 +1231,7 @@ function pintarEntrar(aviso) {
     var err = $('errEntrar');
     err.textContent = aviso; err.classList.remove('oculto');
   }
+  avisarQueEsMomento();   // 21-oct-2026 — la entrada vacía es de la lista
 }
 
 /* ===================== OLVIDÉ MI CONTRASEÑA =====================
@@ -1221,6 +1244,7 @@ function pintarEntrar(aviso) {
    clave le llega a él y no a quien la pidió. Y no promete «ya»: Joan revisa
    los recados a mano. */
 function olvide() {
+  PANTALLA = 'olvide';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var cel = String(($('inCel') && $('inCel').value) || '').replace(/\D/g, '');
   $('entrarCuerpo').innerHTML =
     '<div class="card">' +
@@ -1241,6 +1265,7 @@ function olvide() {
 }
 
 function mandarAyuda() {
+  PANTALLA = 'olvide';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var err = $('errAyuda'); if (!err) return;
   var aviso = function (m, color) {
     err.textContent = m; err.classList.toggle('ambar', color !== 'azul'); err.classList.remove('oculto');
@@ -1439,7 +1464,9 @@ function abrir(resp) {
   $('uNivel').innerHTML = esc('Socio ' + M.nombreNivel(nivel) + ' · ' + COP(S.garantia)) +
     (S.origen === 'panel'
       ? '<span class="pto" title="Datos leídos del Panel de este dispositivo"></span>' : '');
-  irA('inicio');
+  /* 21-oct-2026 — si esta carga la hizo SE ACTUALIZA SOLA, vuelve a la
+     pestaña donde estaba (solo las de la lista, y solo con su cuenta). */
+  irA(pestanaAlVolver() || 'inicio');
   mostrar('pCuenta');
 }
 
@@ -1453,6 +1480,7 @@ function entradaMotor() {
 
 function irA(tab) {
   TAB = tab;
+  PANTALLA = tab;   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var b = $('nav').querySelectorAll('button');
   for (var i = 0; i < b.length; i++) b[i].classList.toggle('on', b[i].dataset.t === tab);
   $('cuerpo').innerHTML = '<div class="panel">' +
@@ -1463,6 +1491,7 @@ function irA(tab) {
   if (tab === 'calc') sincronizarCalc();
   if (tab === 'chat') arrancarChat();
   window.scrollTo(0, 0);
+  avisarQueEsMomento();   // 21-oct-2026 — Inicio, Historial y Garantía son de la lista
 }
 
 /* ============================ INICIO ============================
@@ -1657,6 +1686,7 @@ function tarjetaComunidad() {
 }
 
 function verComunidad() {
+  PANTALLA = 'comunidad';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var c = S.comunidad || {};
   var h = '<div class="card laca"><div class="etq">Somos</div>' +
     '<div class="cifra">' + (c.socios || 0) + ' socios</div>' +
@@ -1796,6 +1826,7 @@ function bloqueCreditoACuotas() {
 /* Las reglas salen del motor, no de un texto suelto: si algún día cambia un
    número, esta pantalla cambia sola. No puede quedar prometiendo otra cosa. */
 function verReglas() {
+  PANTALLA = 'reglas';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var r = M.reglasResumen();
   /* `extra` va en crudo y solo lo pone esta función: es para la letra que el
      motor no trae en su resumen y que la pantalla no puede callarse. */
@@ -3257,6 +3288,7 @@ function simulacionDeAhora() {
 }
 
 function pedirCredito() {
+  PANTALLA = 'pedir';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var resp = MODO === 'respaldado', s = simulacionDeAhora();
   var h = '<div class="card"><h3 class="tit">Revisa antes de pedir</h3>' +
     '<p class="sub">Esto es todo lo que hay. No hay cobros escondidos ni letra chica.</p>' +
@@ -3318,6 +3350,7 @@ function anotarAparatoSocio(cuando) {
 }
 
 function mandarSolicitud(monto) {
+  PANTALLA = 'pedir';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var resp = MODO === 'respaldado', s = simulacionDeAhora();
   var fechaFin = resp ? s.ultima_fecha : s.fecha_corte;
   var costo = resp ? s.costo_total : s.costo;
@@ -3727,6 +3760,7 @@ function autorizacionDada() {
 }
 
 function pantallaAutorizacion() {
+  PANTALLA = 'autorizacion';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   $('cuerpo').innerHTML = '<div class="panel"><div class="card">' +
     '<h3 class="tit">Antes de pedirte tus datos</h3>' +
     '<p class="sub">La ley nos obliga a pedirte permiso antes de guardar nada tuyo, y nos parece bien: ' +
@@ -3782,6 +3816,7 @@ function aceptarAutorizacion() {
 }
 
 function abrirPerfil() {
+  PANTALLA = 'perfil';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var aut = autorizacionDada();
   if (!aut) return pantallaAutorizacion();
   var faltan = M.garantiaPorDatos(S.perfil).faltantes;
@@ -3881,7 +3916,7 @@ function enlacesLegales() {
    5-ago-2026 o después, ese cupo salió de un código viejo. */
 function selloDeVersion() {
   var reglas = (M && M.REGLAS_VIGENTES_DESDE) ? M.REGLAS_VIGENTES_DESDE : null;
-  return '<br><span class="muted" style="font-size:11px">Versión ' + esc(VERSION_APP) +
+  return '<br><span class="muted" style="font-size:11px">Versión ' + esc(VERSION_APP) + ' · ' + esc(VERSION_SITIO) +
     (reglas ? ' · reglas del ' + fmtFecha(reglas) : '') + '</span>';
 }
 
@@ -3915,6 +3950,7 @@ function pie() {
    reglas de qué contraseña sirve son las de app/cuenta.js, las mismas del
    registro. */
 function pantallaCambiarClave() {
+  PANTALLA = 'clave';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var dentro = '<div class="card">' +
     '<h3 class="tit">Cambia tu contraseña</h3>' +
     '<p class="sub">La nueva tiene que tener al menos 8 caracteres, y que no sea tu celular ni tu cédula. ' +
@@ -3937,6 +3973,7 @@ function pantallaCambiarClave() {
 function volverDeLaClave() { if (S) irA('inicio'); else cargarCuenta(); }
 
 function cambiarClave() {
+  PANTALLA = 'clave';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var nueva = ($('ccNueva') || {}).value || '', repite = ($('ccRepite') || {}).value || '';
   var msg = $('ccMsg');
   function aviso(t, azul) { msg.textContent = t; msg.classList.toggle('ambar', !azul); msg.classList.remove('oculto'); }
@@ -4233,6 +4270,62 @@ function pantallaConfig() {
   };
 }
 
+/* ======================= SE ACTUALIZA SOLA — 21-oct-2026 =======================
+   Joan: «que cuando tengamos actualizaciones el cliente pueda actualizar de una
+   forma automática». app/actualizar.js busca la versión nueva y recarga, pero
+   CUÁNDO es seguro lo dice esta página con una LISTA BLANCA: lo que no está aquí
+   no recarga nunca. Fuera quedan, a propósito: la calculadora (el monto movido
+   vive en MONTO, en memoria), pedir y la solicitud en camino, el chat, la
+   autorización (la casilla marcada se perdería), el perfil, cambiar la
+   contraseña, «Olvidé mi contraseña», la comunidad y las reglas (se pierde el
+   lugar), la cuenta cargándose, y SIEMPRE el «Ver como» de Joan (el pase es de
+   un solo uso y «no sirve… ni para recargar», app/ver-como.js), la cuenta
+   abierta desde un enlace y el modo ?cfg.
+   Lo que SÍ: la entrada sin nada tecleado; Inicio, Historial y Garantía de la
+   cuenta del propio socio; y la cuenta sin juntar con el chat vacío y nada
+   saliendo. Y aun aquí, recarga al salir de la app, al volver antes de tocar
+   nada o al llegar a una de estas pantallas; nunca debajo del dedo. */
+var ACT = null;   // el controlador de app/actualizar.js; null si ese <script src> no llegó
+var PANTALLAS_SEGURAS = ['entrar', 'inicio', 'historial', 'garantia', 'sin_juntar'];
+var PESTANAS_QUE_VUELVEN = ['historial', 'garantia'];
+var PESTANA_AL_VOLVER = '';
+function sinTeclear(id) {
+  var el = $(id);
+  return !el || !String(el.value || '').trim();
+}
+function momentoSeguroSocio() {
+  if (location.search.indexOf('cfg') >= 0) return false;
+  if (S && S.origen !== 'nube') return false;
+  if (PANTALLAS_SEGURAS.indexOf(PANTALLA) < 0) return false;
+  if (PANTALLA === 'entrar') return sinTeclear('inCel') && sinTeclear('inClave');
+  if (PANTALLA === 'sin_juntar') return sinTeclear('chTexto') && !CH.enviando;
+  return true;
+}
+/* Lo único que cruza la recarga: el nombre de la pestaña. La sesión ya está
+   guardada por sesion-socio.js; nada más sale de aquí. */
+function lugarSocio() {
+  return (S && S.origen === 'nube' && PESTANAS_QUE_VUELVEN.indexOf(PANTALLA) >= 0) ? { tab: PANTALLA } : null;
+}
+/* Una sola vez, y solo para la cuenta del propio socio (abrir la pide). */
+function pestanaAlVolver() {
+  var t = PESTANA_AL_VOLVER; PESTANA_AL_VOLVER = '';
+  return (t && S && S.origen === 'nube') ? t : '';
+}
+function arrancarActualizar() {
+  var A = window.Actualizar;
+  if (!A || typeof A.iniciar !== 'function') return;
+  try {
+    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroSocio, lugar: lugarSocio });
+  } catch (e) { ACT = null; return; }
+  var l = ACT && ACT.vuelta && ACT.vuelta.lugar;
+  if (l && PESTANAS_QUE_VUELVEN.indexOf(l.tab) >= 0) PESTANA_AL_VOLVER = l.tab;
+}
+/* La página llegó a una pantalla de la lista: si hay versión esperando, es el
+   momento (un cambio de pantalla que la persona pidió). */
+function avisarQueEsMomento() {
+  if (ACT) { try { ACT.yaEsSeguro(); } catch (e) {} }
+}
+
 /* ========================== ARRANQUE ========================== */
 (function () {
   if (location.search.indexOf('cfg') >= 0) return pantallaConfig();
@@ -4254,6 +4347,9 @@ function pantallaConfig() {
       navigator.serviceWorker.register("../sw.js", { updateViaCache: "none" }).catch(function () {});
     });
   }
+  /* 21-oct-2026 — SE ACTUALIZA SOLA, antes de pintar nada: decide la
+     bienvenida (abajo) y la pestaña a la que se vuelve. */
+  arrancarActualizar();
 
   pintarEntrar();
 
@@ -4273,10 +4369,14 @@ function pantallaConfig() {
      esto no le suma ni un milisegundo. */
   (function () {
     var MINIMO_BIENVENIDA = 2000;
+    /* 21-oct-2026 — SIN BIENVENIDA SI LA RECARGA FUE NUESTRA: la persona no
+       pidió abrir la app, y dos segundos de logo en medio de lo que estaba
+       haciendo parecerían que se cayó. */
+    var minimo = (ACT && ACT.vuelta) ? 0 : MINIMO_BIENVENIDA;
     var h = document.getElementById('hola');
     if (!h) return;
-    var llevaAbierta = performance.now ? performance.now() : MINIMO_BIENVENIDA;
-    var falta = Math.max(0, MINIMO_BIENVENIDA - llevaAbierta);
+    var llevaAbierta = performance.now ? performance.now() : minimo;
+    var falta = Math.max(0, minimo - llevaAbierta);
     setTimeout(function () { h.classList.add('fuera'); }, falta);
   })();
 

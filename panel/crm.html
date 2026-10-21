@@ -17229,9 +17229,26 @@ setTimeout(function(){ if(!window.NubeCRM){ var b=document.getElementById('nubeB
    «todo bien». El botón manual sigue sirviendo, y se dice. */
 setTimeout(function(){ if(!window.HistorialesAuto){ var b=document.getElementById('historialesBarra'); if(b) b.innerHTML='<div class="alerta warn">Este computador está sirviendo una versión vieja del CRM: los historiales de tus clientes NO suben solos. Recárgalo con Ctrl+Shift+R; mientras, usa ☁ Subir historiales.</div>'; } },1500);
 </script>
+<!-- 21-oct-2026 — se actualiza sola, pero EL CRM SOLO AVISA: nunca se recarga
+     solo (ver abajo). -->
+<script src="../app/actualizar.js"></script>
 <script>
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
   window.addEventListener('load',()=>{ navigator.serviceWorker.register("../sw.js", { updateViaCache: "none" }).catch(()=>{}); });
+}
+/* 21-oct-2026 — SE ACTUALIZA SOLA, PERO EL CRM NUNCA SE RECARGA SOLO.
+   app/actualizar.js busca la versión nueva igual que en la app del cliente,
+   pero aquí solo AVISA con una franja y su botón «Recargar»: el CRM (y el
+   gerente y el asesor, que entran por esta misma página) guarda la cola de
+   cobros sin señal y un estado enorme a medio llenar, y ninguna lista blanca
+   dice con certeza cuándo eso está en paz. Lo decide quien lo usa. Hasta hoy
+   la única salida era «Soltar la copia guardada» o Ctrl+Shift+R, y solo
+   cuando alguien sospechaba.
+   VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
+   él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
+var VERSION_SITIO = 'v138';
+if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
+  try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }
 </script>
 </body>

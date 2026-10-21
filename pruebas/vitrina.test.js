@@ -453,6 +453,10 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
        calladas y ninguna prueba se queja. Lo encontro el centinela de arriba el
        dia que se escribio, no una persona mirando. */
     ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
+    /* 21-oct-2026 — se actualiza sola. Con require (Node no tiene service
+       worker) es el controlador que no hace nada: lo que esta vitrina prueba no
+       cuelga de él, pero la página lo carga y el centinela de abajo lo pide. */
+    ctx.Actualizar = require(path.join(RAIZ, 'app', 'actualizar.js'));
     vm.createContext(ctx);
     const fallos = [];
     [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]

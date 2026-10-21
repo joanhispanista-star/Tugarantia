@@ -124,6 +124,12 @@ function abrirPlay(opciones) {
   ctx.RuletaCupo = require(path.join(RAIZ, 'app', 'ruleta.js'));
   ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
   vm.createContext(ctx);
+  /* 21-oct-2026 — se actualiza sola. Este corre DENTRO del contexto y no con
+     require: lee la ventana de la página (su sessionStorage, su navigator), y
+     con require vería los de Node. En el banco no hay service worker, así que
+     es el controlador que no hace nada —como en un navegador sin él—, pero la
+     vuelta de una recarga suya (la pestaña donde estaba) sí se lee. */
+  vm.runInContext(fs.readFileSync(path.join(RAIZ, 'app', 'actualizar.js'), 'utf8'), ctx, { filename: 'actualizar.js' });
   const fallos = [];
   [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
     .forEach((m, i) => {

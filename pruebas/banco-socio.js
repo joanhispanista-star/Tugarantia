@@ -48,6 +48,7 @@ function almacen(inicial) {
  *   hash            location.hash al abrir
  *   red             (url, opciones) => {status, cuerpo} | Promise de eso
  *   ahora           milisegundos para Date.now() (las sesiones vencen)
+ *   performanceNow  cuánto lleva abierta la página (3000 si no se dice)
  */
 function abrirSocio(o) {
   o = o || {};
@@ -86,7 +87,10 @@ function abrirSocio(o) {
     scrollTo() {},
     addEventListener() {},
     open: (u) => { (ctx._abiertos = ctx._abiertos || []).push(String(u)); },
-    performance: { now: () => 3000 },
+    /* 21-oct-2026 — `o.performanceNow`: cuánto lleva abierta la página. Con
+       3000 la bienvenida de 2 s ya se cumplió sola; para ver si se la salta
+       (la recarga de SE ACTUALIZA SOLA) hace falta una página recién abierta. */
+    performance: { now: () => (o.performanceNow != null ? o.performanceNow : 3000) },
     setTimeout: (fn, ms) => { temporizadores.push({ fn, ms }); return temporizadores.length; },
     clearTimeout() {},
     fetch: (url, opciones) => {

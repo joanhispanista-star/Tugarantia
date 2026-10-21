@@ -342,6 +342,10 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
      marca de «esto te lo contestó una máquina» y el «leído» son reglas, no
      adorno, y no se escriben dos veces. -->
 <script src="../app/chat.js"></script>
+<!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
+     momento seguro (momentoSeguroPlay, abajo). Si no llega, la página funciona
+     igual que antes: solo no avisa. -->
+<script src="../app/actualizar.js"></script>
 <script>
 'use strict';
 
@@ -383,6 +387,12 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    su cuenta salió con el nombre de otra persona, esta fecha dice si tenía la
    versión que lo impide. */
 var VERSION_PLAY = '2026-10-21';
+/* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
+   ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
+   es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
+   Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no deja pasar
+   uno sin el otro. Sale también en el sello del pie. */
+var VERSION_SITIO = 'v138';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -1484,6 +1494,7 @@ function pintarEntrar() {
     pie();
   $('btnEntrar').addEventListener('click', entrar);
   $('inClave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+  avisarQueEsMomento();   // 21-oct-2026 — la portada es de la lista de SE ACTUALIZA SOLA
 }
 
 function tecleaTel(el) {
@@ -1667,6 +1678,7 @@ function mandarAyuda() {
           : 'No pudimos recibir tu recado ahora. Vuelve a intentar en unos minutos.');
       }
       $('titulo').textContent = 'Recado enviado';
+      VISTA = 'ayuda';   // 21-oct-2026 — cada pantalla dice cuál es: SE ACTUALIZA SOLA mira VISTA
       $('cuerpo').innerHTML =
         '<div class="card"><div class="aviso verde"><b>Listo, lo recibimos.</b></div>' +
           '<p class="sub" style="margin-top:var(--e4)">Te escribimos al ' +
@@ -4478,7 +4490,10 @@ function tarjetaContrapropuesta(sol) {
   var aceptada = sol.estado === 'aceptada';
   var P = CS ? CS.pesos : COP;
   var cond = CS ? CS.condiciones(sol, { hoy: hoyISO() }) : null;
-  if (!aceptada) SOL_EN_PANTALLA = sol;
+  /* 21-oct-2026 — con una propuesta ya aceptada se SUELTA: no tiene casilla ni
+     botón de aceptar, y SE ACTUALIZA SOLA (casillaDeLaPropuestaMarcada) seguía
+     viendo la de antes, con su marca, y no recargaba nunca más en Crédito. */
+  SOL_EN_PANTALLA = aceptada ? null : sol;
   var h = '<div class="card">' +
     (aceptada ? '' : '<div class="aviso ambar"><b>Te hicimos una propuesta.</b> Léela con calma y decide.</div>') +
     '<div class="etq">' + (aceptada ? 'Tu crédito, aceptado' : 'Tu propuesta') + '</div>' +
@@ -9178,6 +9193,7 @@ function irA(tab) {
   $('titulo').textContent = TITULOS[tab] || 'Mi cuenta';
   pintarLamina();
   window.scrollTo(0, 0);
+  avisarQueEsMomento();   // 21-oct-2026 — SE ACTUALIZA SOLA: Crédito e Historial son de la lista
 }
 
 /* Las casillas de la calculadora que se escriben a mano (ver pintarLamina). */
@@ -10478,6 +10494,7 @@ function anotarPlazoLibre(el) {
 }
 
 function pintarPedido() {
+  VISTA = 'pedido';   // 21-oct-2026 — era 'cuenta' por herencia: SE ACTUALIZA SOLA la habría creído la cuenta
   $('titulo').textContent = 'Solicitud enviada';
   $('cuerpo').innerHTML =
     '<div class="card"><div class="aviso verde"><b>Recibimos tu solicitud.</b></div>' +
@@ -10565,6 +10582,7 @@ function imprimirCertificado() {
 }
 
 function pintarBorrar() {
+  VISTA = 'borrar';   // 21-oct-2026 — ver pintarPedido: cada pantalla dice cuál es
   $('titulo').textContent = 'Borrar mi cuenta';
   var K = window.Cumplimiento;
   var B = K.BORRADO;
@@ -10592,8 +10610,69 @@ function pie() {
   return '<div class="pie">' +
     '<a href="../legal/terminos.html" style="color:inherit">Términos</a> · ' +
     '<a href="../legal/privacidad.html" style="color:inherit">Tus datos</a><br>' +
-    '<span class="muted" style="font-size:11px">Versión ' + esc(VERSION_PLAY) +
+    '<span class="muted" style="font-size:11px">Versión ' + esc(VERSION_PLAY) + ' · ' + esc(VERSION_SITIO) +
     ' · reglas del ' + esc(C.TOPES[C.TOPES.length - 1].desde) + '</span></div>';
+}
+
+/* ======================= SE ACTUALIZA SOLA — 21-oct-2026 =======================
+   Joan: «que cuando tengamos actualizaciones el cliente pueda actualizar de una
+   forma automática». app/actualizar.js busca la versión nueva y recarga, pero
+   CUÁNDO es seguro lo dice esta página, y lo dice con una LISTA BLANCA: lo que
+   no está aquí no recarga nunca. Fuera quedan, a propósito:
+     · el registro en CUALQUIER paso (recargar ahí dispara «La página se volvió
+       a abrir» o suelta las fotos de la cédula: la vuelta de la cámara), «¿Es
+       tuyo?», el «Listo» mientras suben las fotos y PlataChat esperando;
+     · cualquier viaje en camino (viajando: un «Entrar» o un «Abrir mi
+       cuenta»), un pedido saliendo (PIDIENDO) y una subida de fotos
+       (SUBIDA_EN_CURSO);
+     · la propuesta con la casilla «Leí y acepto» marcada (se perdería la
+       marca), la pantalla de la solicitud, el chat, el perfil (la contraseña
+       nueva), «Recuperar tu contraseña» y borrar la cuenta.
+   Lo que SÍ: la portada sin nada tecleado, y la cuenta en Crédito o en
+   Historial. app/actualizar.js agrega dos guardas más para todas las páginas:
+   texto tecleado a la vista y una cámara encendida. Y aun aquí, recarga al
+   salir de la app, al volver antes de tocar nada o al llegar a una de estas
+   pantallas; nunca debajo del dedo. */
+var ACT = null;   // el controlador de app/actualizar.js; null si ese <script src> no llegó
+var PESTANAS_QUE_VUELVEN = ['credito', 'historial'];
+function casillaDeLaPropuestaMarcada() {
+  if (!SOL_EN_PANTALLA) return false;
+  /* Sin el módulo de la calculadora no hay casilla: se acepta con un toque, y
+     una propuesta en pantalla ya es una decisión a medias. */
+  if (!CS) return true;
+  try { return !!CONDICIONES_LEIDAS[CS.llaveDeCasilla(SOL_EN_PANTALLA)]; } catch (e) { return true; }
+}
+function sinTeclear(id) {
+  var el = $(id);
+  return !el || !String(el.value || '').trim();
+}
+function momentoSeguroPlay() {
+  if (viajando() || PIDIENDO || SUBIDA_EN_CURSO) return false;
+  if (VISTA === 'entrar') return sinTeclear('inTel') && sinTeclear('inClave') && sinTeclear('csMontoLibre');
+  if (VISTA !== 'cuenta') return false;
+  if (TAB === 'historial') return true;
+  if (TAB === 'credito') return !casillaDeLaPropuestaMarcada() && sinTeclear('csNota') && sinTeclear('csMontoLibre');
+  return false;
+}
+/* Lo único que cruza la recarga: el nombre de la pestaña. La sesión ya la
+   guarda guardarSesionEnCurso; nada del registro sale de aquí. */
+function lugarPlay() {
+  return (VISTA === 'cuenta' && PESTANAS_QUE_VUELVEN.indexOf(TAB) >= 0) ? { tab: TAB } : null;
+}
+function arrancarActualizar() {
+  var A = window.Actualizar;
+  if (!A || typeof A.iniciar !== 'function') return;
+  try {
+    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroPlay, lugar: lugarPlay });
+  } catch (e) { ACT = null; return; }
+  var l = ACT && ACT.vuelta && ACT.vuelta.lugar;
+  if (l && PESTANAS_QUE_VUELVEN.indexOf(l.tab) >= 0) TAB = l.tab;
+}
+/* La página llegó a una pantalla de la lista: si hay versión esperando, es el
+   momento (es un cambio de pantalla que la persona pidió, no una recarga bajo
+   el dedo). */
+function avisarQueEsMomento() {
+  if (ACT) { try { ACT.yaEsSeguro(); } catch (e) {} }
 }
 
 /* ============================== ARRANQUE ============================== */
@@ -10605,6 +10684,10 @@ function pie() {
       navigator.serviceWorker.register('../sw.js', { updateViaCache: 'none' }).catch(function () {});
     });
   }
+  /* 21-oct-2026 — SE ACTUALIZA SOLA, antes de decidir dónde cae la persona: si
+     esta carga la hizo app/actualizar.js, la pestaña de la cuenta donde
+     estaba (Crédito o Historial) vuelve puesta. */
+  arrancarActualizar();
   /* 8-sep-2026 — #registro abre el formulario de una: es adonde manda el botón
      «Registrarme» de app/socio.html, que es el único enlace que Joan reparte.
      Quien llega así es un socio nuevo del quincenal: no tiene por qué ver la

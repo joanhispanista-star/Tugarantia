@@ -41,6 +41,11 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         sabe del aparato —modelo, versión, si va dentro de
                         nuestra app— y sus palabras para el CRM. Se anota al
                         registrarse, pedir y aceptar. En iPhone no hay modelo.
+  actualizar.js         Se actualiza sola (21-oct-2026): busca la versión nueva
+                        al abrir, al volver a la app y cada 30 min; play/,
+                        socio.html y platachat/ recargan solas SOLO en un
+                        momento seguro (lista blanca de cada página); el CRM y
+                        el espejo solo avisan. Probada en node.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
                         divulgación del crédito y el borrado de cuenta.
@@ -266,10 +271,16 @@ Pages sobre la rama principal, y queda en
 
 Tres cuidados:
 
-- **Al cambiar cualquier archivo, subir el número de `CACHE` en `sw.js`.** Si no, los
-  teléfonos que ya tienen la app siguen mostrando la versión vieja. Y al cambiar la app,
-  subir también `VERSION_APP` en `app/socio.html`; si lo que cambió es una regla de
-  plata, `REGLAS_VIGENTES_DESDE` en `app/motor.js`.
+- **Al cambiar cualquier archivo, subir el número de `CACHE` en `sw.js`, y con él
+  `VERSION_SITIO` en las cinco páginas que se actualizan solas** (`play/index.html`,
+  `app/socio.html`, `platachat/index.html`, `panel/crm.html`, `panel/espejo.html`;
+  `pruebas/se-actualiza-sola.test.js` no deja pasar uno sin el otro). Las páginas y los
+  `.js` llegan nuevos igual, porque van red primero; sin subir `CACHE` lo que queda
+  viejo son los iconos y la copia sin señal, y una página abierta no se entera de que
+  hay versión nueva (21-oct-2026: `app/actualizar.js` la busca al abrir, al volver a la
+  app y cada 30 min, y recarga sola solo en un momento seguro; el CRM y el espejo solo
+  avisan). Y al cambiar la app, subir también `VERSION_APP` en `app/socio.html`; si lo
+  que cambió es una regla de plata, `REGLAS_VIGENTES_DESDE` en `app/motor.js`.
 - **Una sola copia publicada.** El 6 de agosto de 2026 había dos —esta y una de prueba
   del 4 en otro repositorio— y Joan abrió la vieja: le decía que podía pedir 308.000
   cuando el número correcto era 145.000. Dos copias no son un respaldo, son dos apps

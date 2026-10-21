@@ -1724,6 +1724,30 @@
    platachat/index.html y platachat/sesion.js tienen que llegar JUNTOS: una
    pagina de PlataChat nueva con el sesion.js viejo seguiria guardando la
    sesion por su cuenta (SP.entrar) y un refresco tardio la resucitaria.*/
+/* 21-oct-2026 — PARA LA QUE SIGA A v138 (esta rama NO sube el numero: lo sube
+   quien integra). SE ACTUALIZA SOLA, SIN QUE NADIE PIERDA NADA.
+   · app/actualizar.js, NUEVO: play/, app/socio.html y platachat/ buscan
+     version nueva al abrir, al volver a la app y cada 30 min, y recargan SOLAS
+     solo en un momento seguro (cada pagina tiene su lista blanca); el CRM y el
+     espejo solo avisan. Entra a la precarga: las cinco paginas lo cargan con
+     un <script src>.
+   · CADA PAGINA DECLARA VERSION_SITIO = el numero de CACHE de abajo ('v138').
+     AL SUBIR CACHE HAY QUE SUBIR VERSION_SITIO EN play/index.html,
+     app/socio.html, platachat/index.html, panel/crm.html y panel/espejo.html:
+     pruebas/se-actualiza-sola.test.js no deja pasar uno sin los otros. Es lo
+     que le dice a una pagina abierta que ella es la vieja; sin eso, la
+     primera apertura despues de publicar recargaria de gana.
+   · La rama red-primero y la precarga piden con cache 'no-cache' (ver
+     pedidoFresco y el install): siempre se pregunta al servidor con la ETag,
+     asi que la ventana de 10 min de max-age ya no mezcla una pagina nueva con
+     un .js viejo (lo que las notas de v138 piden: «tienen que llegar
+     JUNTOS»), y lo que no cambio baja como un 304 de pocos bytes en vez de
+     los ~1,9 MB que bajaba cada telefono en cada publicacion con 'reload'.
+   · CORRECCION a la nota del 14-sep (SUBIR EL NUMERO NO BASTA): desde Chrome
+     68 la busqueda de sw.js ya no pasa por la cache HTTP aunque falte
+     updateViaCache (developer.chrome.com/blog/fresher-sw). Lo que de verdad
+     llenaba la cache nueva con archivos viejos era la precarga; se deja
+     updateViaCache:'none' porque en Safari no se verifico. */
 const CACHE = 'tugarantia-v138';
 const BASE = new URL('./', self.location).pathname;
 
@@ -1864,7 +1888,12 @@ const ARCHIVOS = [
      (play/, platachat/ e index.html), y la selfie que se toma sola (play/, al
      llegar al paso). Ver la nota de v136. */
   'app/calculadora-solicitud.js',
-  'app/rostro-en-vivo.js'
+  'app/rostro-en-vivo.js',
+  /* 21-oct-2026 — se actualiza sola: play/, app/socio.html, platachat/, el
+     CRM y el espejo lo cargan con un <script src>. Sin el en la cache, la app
+     instalada sin senal abre igual (cada pagina se protege con
+     `window.Actualizar`), pero no sabria avisar de la version nueva. */
+  'app/actualizar.js'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {
@@ -1881,8 +1910,15 @@ self.addEventListener('install', e => {
       // siguiente cambio de numero — no diez minutos: hasta la proxima publicacion.
       // Comprobado en vivo: la cache paso a v41 y la pagina seguia diciendo
       // «Version 2026-09-09».
+      //
+      // 21-oct-2026 — 'no-cache' Y NO 'reload'. Los dos van al servidor (ninguno
+      // acepta la copia de la cache HTTP sin preguntar, que era el defecto de
+      // arriba); 'reload' baja SIEMPRE el archivo entero, y 'no-cache' pregunta
+      // con la ETag: lo que no cambio vuelve como un 304 de pocos bytes. Con
+      // 'reload' cada publicacion le costaba ~1,9 MB a cada telefono, aunque
+      // solo hubiera cambiado una pagina; en prepago eso se nota.
       .then(c => Promise.all(ARCHIVOS.map(f =>
-        c.add(new Request(f, { cache: 'reload' })).catch(() => c.add(f).catch(() => null)))))
+        c.add(new Request(f, { cache: 'no-cache' })).catch(() => c.add(f).catch(() => null)))))
       .then(() => self.skipWaiting())
   );
 });
@@ -1899,6 +1935,24 @@ self.addEventListener('activate', e => {
       .then(() => self.clients.claim())
   );
 });
+
+/* 21-oct-2026 — RED PRIMERO DE VERDAD: cache 'no-cache'. Un fetch(req) a secas
+   pasa por la cache HTTP del navegador, y con el max-age=600 de GitHub Pages
+   cada archivo pedido en los ultimos diez minutos salia VIEJO de ahi aunque el
+   servidor ya tuviera el nuevo (MDN, Request.cache 'default': lo «fresco» se
+   devuelve sin preguntar). Asi se mezclaban una pagina nueva y un .js viejo
+   —play/index.html con el escaner de antes—, justo lo que las notas de v138
+   prohiben. 'no-cache' pregunta SIEMPRE con la ETag: si no cambio, un 304 de
+   pocos bytes; si cambio, lo nuevo.
+   POR QUE new Request EN UN try Y NO fetch(req, {...}): con una navegacion
+   (mode 'navigate') hay navegadores viejos que se niegan a copiar el pedido
+   con opciones («Cannot construct a Request with a Request whose mode is
+   'navigate' and a non-empty RequestInit»). Dentro de fetch() eso seria un
+   rechazo, y el .catch de abajo serviria la copia guardada CON SENAL, para
+   siempre. Asi, si no se puede, se pide como antes. */
+function pedidoFresco(req) {
+  try { return new Request(req, { cache: 'no-cache' }); } catch (_) { return req; }
+}
 
 self.addEventListener('fetch', e => {
   const req = e.request;
@@ -1931,7 +1985,7 @@ self.addEventListener('fetch', e => {
 
   if (frescoPrimero) {
     e.respondWith(
-      fetch(req)
+      fetch(pedidoFresco(req))
         .then(r => {
           const copia = r.clone();
           caches.open(CACHE).then(c => c.put(req, copia)).catch(() => {});

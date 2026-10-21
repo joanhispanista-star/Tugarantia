@@ -86,9 +86,12 @@ const RPC_OBLIGATORIAS = ['mi_cuenta', 'chat_leer_sesion', 'chat_escribir_sesion
    atraso en pesos por día con el techo legal (la tasa de usura del mes), y la
    tabla de usura vive en creditos.js. Sin él, PlataChat decía el techo en
    palabras y play/ en pesos: dos clientes, dos condiciones distintas. */
+/* 21-oct-2026 — y app/actualizar.js al final (se actualiza sola): no lo usa
+   ninguno de los otros, y la página lo toma al arrancar. */
 const SCRIPTS_EN_ORDEN = ['../app/motor.js', '../app/ficha.js', '../app/puente.js', '../app/cuenta.js',
                           '../app/creditos.js', '../app/calculadora-solicitud.js', '../app/chat.js',
-                          '../app/platachat-reglas.js', '../app/pagos-proveedor.js', 'sesion.js'];
+                          '../app/platachat-reglas.js', '../app/pagos-proveedor.js', 'sesion.js',
+                          '../app/actualizar.js'];
 
 
 /* ==========================================================================
