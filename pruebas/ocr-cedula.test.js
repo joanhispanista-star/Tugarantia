@@ -427,11 +427,19 @@ function pasa(P, ms) {
 }
 const pasoActual = P => P.ev('PASOS[PASO].id');
 const cuerpo = P => P.ev("$('cuerpo').innerHTML");
-/* Las dos medidas del escáner con las que el marco cae donde lo dejó la
-   fábrica: de pie para el respaldo (el teléfono vertical), acostado para el
-   frente. Ver guiaEnElRecorte. */
+/* Las medidas del escáner con las que el marco cae donde lo dejó la fábrica
+   (GUIA: 60, 38, 1000 × 631 dentro del recorte de 1120 × 708). Ver
+   guiaEnElRecorte.
+   22-oct-2026 (integración del lote 1) — LAS DOS CARAS ACOSTADAS. Hasta hoy el
+   respaldo iba de pie (el teléfono vertical, el recorte girado 90°); el
+   escáner del 21-oct (l1-escaner) acuesta las dos, y el marco de pie ya no
+   existe. Con el de pie de antes, el marco calculado no cabía en el recorte y
+   las franjas salían de la tarjeta entera con su aire: la prueba de «solo las
+   franjas» lo vio. Aquí recortarGuia está de mentira y no anota su marco
+   (ESCDOC.marcoEnRecorte), así que se lee el calculado; el de verdad, el
+   anotado al dibujar, lo prueba pruebas/escaner-ocr-de-punta-a-punta.test.js. */
 const VIDEO = {
-  reverso: "$('docVideo').videoWidth = 800; $('docVideo').videoHeight = 1200; ESCDOC.guiaVideo = { x: 100, y: 100, w: 631, h: 1000, vertical: true };",
+  reverso: "$('docVideo').videoWidth = 1200; $('docVideo').videoHeight = 800; ESCDOC.guiaVideo = { x: 100, y: 100, w: 1000, h: 631, vertical: false };",
   frente: "$('docVideo').videoWidth = 1200; $('docVideo').videoHeight = 800; ESCDOC.guiaVideo = { x: 100, y: 100, w: 1000, h: 631, vertical: false };"
 };
 /* El escáner en vivo, lado por lado. Sin `cedula`, el respaldo NO se lee

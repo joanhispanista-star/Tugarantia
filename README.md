@@ -117,6 +117,14 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         calibrarlas con una cédula real
                         (herramientas/calibrar-ocr.js; la receta local
                         RECETA-OCR-CEDULA.md, que no va al repo).
+                        (22-oct-2026) Las letras escuchan al escáner por su
+                        enganche (alTomarLaCedula): leen EXACTAMENTE el
+                        recorte de la foto que se guardó —las dos caras
+                        acostadas, el mejor cuadro de la ventana—, con su giro
+                        y el marco anotado al dibujarlo. La cédula digital (la
+                        del QR) no se lee con las franjas de la amarilla. De
+                        la cámara a «Están bien», con ZXing y Tesseract de
+                        verdad: pruebas/escaner-ocr-de-punta-a-punta.test.js.
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).
