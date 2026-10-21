@@ -11,7 +11,7 @@
  *     SIEMPRE termina en una sola llamada — el bucle infinito de
  *     decodeFromImageUrl era el defecto vivo;
  *   · la puerta del encuadre: tarjeta quieta sí, mesa no, oscuro no, borrosa no;
- *   · el marco: de pie en vertical, acostado en apaisado;
+ *   · el marco: acostado siempre (21-oct-2026; antes iba de pie en vertical);
  *   · de quién son las fotos: mismo celular y mismo día;
  *   · y dentro de la página real: sin cámara caen las cajas de siempre, con
  *     cámara aparece el escáner, y la foto fija LEE y RELLENA el formulario.
@@ -77,7 +77,10 @@ describe('el lector del PDF417, por la ruta pura', () => {
     } finally { F.Z.PDF417Reader.prototype.decode = original; }
   });
 
-  test('de pie (girado 90°) no lee: por eso el recorte se gira ANTES de leer', () => {
+  /* 21-oct-2026 — el recorte del escáner ya no se gira (las dos caras van
+     acostadas); quien sigue necesitando el giro es la foto de la galería, que
+     puede venir de pie. */
+  test('de pie (girado 90°) no lee: por eso la foto de pie se prueba girada ANTES de leer', () => {
     F.latin1EnNode(true);
     try {
       const r0 = F.render(CODIGO, 3, 1.0, 6);
@@ -146,15 +149,23 @@ describe('la puerta del encuadre (medirTarjeta)', () => {
 });
 
 describe('el marco de la cédula', () => {
-  test('en un cuadro vertical la cédula va DE PIE y cabe', () => {
-    const g = EC.rectanguloGuia(1080, 1920);
-    assert.equal(g.vertical, true);
-    assert.ok(g.h > g.w, 'el marco no está de pie');
-    assert.ok(Math.abs(g.h / g.w - EC.PROPORCION) < 0.02, 'el marco no tiene la proporción de una cédula');
-    assert.ok(g.x >= 0 && g.y >= 0 && g.x + g.w <= 1080 && g.y + g.h <= 1920, 'el marco se sale del cuadro');
-    /* Y lo que importa de verdad: el lado largo llena el cuadro para que el
-       código salga a 3 px por módulo. */
-    assert.ok(g.h >= 1920 * 0.8, 'el marco es chico: el código saldría por debajo de los 3 px por módulo');
+  /* 21-oct-2026 — REESCRITA CON LA REGLA NUEVA. Decía «en un cuadro vertical
+     la cédula va DE PIE» y exigía que el marco llenara el 80 % del lado largo
+     para dar 3 px por módulo. Eso obligaba a poner la cédula a ~7,8 cm del
+     lente, y la cámara no enfocaba: la cédula amarilla de Joan nunca se leyó.
+     Ahora va ACOSTADA en cualquier cuadro, a lo ancho, y los píxeles por
+     módulo los pone la resolución que se pide (EscanerCaptura.CAMARA). */
+  test('en un cuadro vertical la cédula va ACOSTADA, a lo ancho, y cabe', () => {
+    for (const acostada of [undefined, false, true]) {
+      const g = EC.rectanguloGuia(1080, 1920, acostada);
+      assert.equal(g.vertical, false, 'el marco volvió a ponerse de pie (acostada=' + acostada + ')');
+      assert.ok(g.w > g.h, 'el marco no está acostado');
+      assert.ok(Math.abs(g.w / g.h - EC.PROPORCION) < 0.02, 'el marco no tiene la proporción de una cédula');
+      assert.ok(g.x >= 0 && g.y >= 0 && g.x + g.w <= 1080 && g.y + g.h <= 1920, 'el marco se sale del cuadro');
+      /* Y que llene el ANCHO: así la cédula queda a ~13,6 cm, donde la cámara
+         enfoca, y es lo más grande que cabe acostada. */
+      assert.ok(g.w >= 1080 * 0.8, 'el marco es chico: la cédula saldría con menos píxeles de los que la cámara da');
+    }
   });
   test('en un cuadro apaisado va acostada', () => {
     const g = EC.rectanguloGuia(1280, 720);
@@ -370,8 +381,11 @@ describe('el paso de la cédula dentro de la página', () => {
     const enLinea = HTML.slice(HTML.indexOf('<style>'), HTML.indexOf('</style>'));
     assert.match(enLinea, /\.escaner\.escaner-doc video,\.escaner\.escaner-doc canvas\{transform:none\}/,
       'el video de la cédula volvió a espejarse, o la regla salió del <style> en línea: un código de barras espejado no se lee');
-    assert.match(enLinea, /\.escaner\.escaner-doc\{aspect-ratio:9\/16/,
-      'la caja dejó de ser 9:16 (o se fue a la hoja aparte): el código saldría a 2 px por módulo');
+    /* 21-oct-2026 — REESCRITA: la caja era 9:16 para que la cédula de pie
+       llenara el alto. Con las dos caras acostadas es 4:5 y más ancha: el
+       video se ve entero a lo ancho, que es donde va la cédula. */
+    assert.match(enLinea, /\.escaner\.escaner-doc\{aspect-ratio:4\/5;max-width:420px/,
+      'la caja dejó de ser 4:5 y ancha (o se fue a la hoja aparte): la cédula acostada se vería chica');
     assert.match(enLinea, /\.doc-linea\{/, 'la línea que barre se fue a la hoja aparte: puede llegar rancia');
     assert.match(enLinea, /\.clave-caja \.ojo\{/, 'el ojo de la contraseña se fue a la hoja aparte');
     const CSS = fs.readFileSync(path.join(RAIZ, 'play', 'estilo.css'), 'utf8');
@@ -576,19 +590,29 @@ describe('lo que encontró la revisión (21-sep-2026)', () => {
     assert.equal(P.ev('LIENZO_GIRO.width'), 400, 'un giro chico no debe intercambiar los lados');
   });
 
-  test('el frente va ACOSTADO: una cara al revés no la compara el CRM', () => {
+  test('las DOS caras van ACOSTADAS: ni el frente al revés ni el respaldo fuera de foco', () => {
     /* Con el marco de pie el recorte se gira 90°, y según hacia dónde apunte el
-       borde de arriba la foto queda cabeza abajo. Al respaldo le da igual (el
-       lector prueba 0° y 180°); al frente no, que es el que el CRM compara con
-       la selfie. */
-    const g = EC.rectanguloGuia(1080, 1920, true);
-    assert.equal(g.vertical, false, 'el marco del frente volvió a ser vertical');
-    assert.ok(g.w > g.h);
-    assert.ok(g.x >= 0 && g.x + g.w <= 1080 && g.y + g.h <= 1920);
+       borde de arriba la foto queda cabeza abajo; por eso el frente ya iba
+       acostado. 21-oct-2026 — REESCRITA CON LA REGLA NUEVA: el respaldo
+       también. De pie había que ponerlo a ~7,8 cm del lente y no enfocaba
+       (Joan: «no me toque tomarla de forma vertical»). */
+    for (const lado of ['frente', 'reverso']) {
+      const g = EC.rectanguloGuia(1080, 1920, lado === 'frente');
+      assert.equal(g.vertical, false, 'el marco del ' + lado + ' es vertical');
+      assert.ok(g.w > g.h);
+      assert.ok(g.x >= 0 && g.x + g.w <= 1080 && g.y + g.h <= 1920);
+    }
     const t = FUENTE();
-    assert.ok(t.indexOf("rectanguloGuia(cw, ch, ESCDOC.lado === 'frente')") >= 0,
-      'el marco dejó de acostarse para el frente');
+    assert.ok(t.indexOf('rectanguloGuia(cw, ch, true)') >= 0,
+      'la página dejó de pedir el marco acostado en los dos lados');
+    assert.equal(t.indexOf("rectanguloGuia(cw, ch, ESCDOC.lado === 'frente')"), -1,
+      'volvió el marco que depende del lado: el respaldo se pondría de pie');
     assert.ok(t.indexOf('con tu foto a la izquierda') >= 0, 'no le dice cómo poner el frente');
+    assert.ok(t.indexOf('Pon tu cédula acostada dentro del marco') >= 0, 'no le dice que la ponga acostada');
+    /* Y el recorte ya no se gira: el giro era el que dejaba la foto de lado. */
+    const i = t.indexOf('function recortarGuia');
+    const cuerpo = t.slice(i, t.indexOf('\nfunction ', i + 1));
+    assert.equal(/rotate\(/.test(cuerpo), false, 'el recorte del escáner se volvió a girar');
   });
 
   test('mientras el escáner está abierto no se ofrece volver a abrirlo', () => {

@@ -1809,6 +1809,12 @@ const ARCHIVOS = [
      justo lo que evita la vuelta de la camara. zxing.min.js sigue fuera: son
      330 KB que se bajan solo al llegar a ese paso. */
   'app/escaner-cedula.js',
+  /* 21-oct-2026 — el escaner que escoge la foto mas nitida (la cedula
+     acostada, la linterna sola, el QR de la digital): play/ lo carga con un
+     <script src>. Sin el, el escaner sigue con la cuenta de antes (ECAP), y la
+     cedula amarilla de Joan volveria a no leerse. Tiene que llegar JUNTO con
+     play/index.html y app/escaner-cedula.js: quien integra sube el CACHE. */
+  'app/escaner-captura.js',
   'app/creditos.js',
   'app/cumplimiento.js',
   /* 14-sep-2026 — lo que play/ carga desde que es la puerta unica. ficha.js lee

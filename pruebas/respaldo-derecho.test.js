@@ -218,33 +218,73 @@ function grisDeLaVentana(Y, VW, vg) {
   return g;
 }
 
+/* 21-oct-2026 — el marco de pie del respaldo ya no existe (EC.rectanguloGuia
+   acuesta las dos caras). Para que la historia de `interior` se pueda seguir
+   reproduciendo, aquí queda la cuenta que lo ponía de pie, tal cual era. */
+function guiaDePieDeAntes(w, h) {
+  let largo = h * 0.84, corto = largo / EC.PROPORCION;
+  const tope = w * 0.92;
+  if (corto > tope) { corto = tope; largo = corto * EC.PROPORCION; }
+  return { x: Math.round((w - corto) / 2), y: Math.round((h - largo) / 2), w: Math.round(corto), h: Math.round(largo), vertical: true };
+}
+/* Y la cédula ACOSTADA, centrada, como la pone ahora la gente en el marco. */
+function cuadroAcostado(VW, VH, tarjetaW) {
+  const t = respaldo({ W: tarjetaW });
+  const Y = new Float32Array(VW * VH);
+  for (let y = 0; y < VH; y++) for (let x = 0; x < VW; x++) Y[y * VW + x] = 70 + 20 * Math.sin(x / 9) * Math.cos(y / 13);
+  const x0 = Math.round((VW - t.W) / 2), y0 = Math.round((VH - t.H) / 2);
+  for (let y = 0; y < t.H; y++) for (let x = 0; x < t.W; x++) {
+    const X = x0 + x, Yy = y0 + y;
+    if (X >= 0 && X < VW && Yy >= 0 && Yy < VH) Y[Yy * VW + X] = t.lum[y * t.W + x];
+  }
+  return Y;
+}
+
 describe('la puerta del respaldo se ponía en verde (la causa de «no escaneó»)', () => {
   const VW = 540, VH = 960;   // la mitad de 1080×1920: la misma geometría
-  const guia = EC.rectanguloGuia(VW, VH, false);
-  const vg = EC.ventanaDeGuia(guia, VW, VH, 96);
-  const Y = cuadroDePie(VW, VH, Math.round(guia.h * 0.98));
-  const gris = grisDeLaVentana(Y, VW, vg);
+  /* EL 8-OCT-2026, CON EL MARCO DE PIE: la historia de por qué la página le
+     pasa `interior` a la puerta. Se queda reproducida con la cuenta de antes. */
+  const deP = guiaDePieDeAntes(VW, VH);
+  const vgP = EC.ventanaDeGuia(deP, VW, VH, 96);
+  const grisP = grisDeLaVentana(cuadroDePie(VW, VH, Math.round(deP.h * 0.98)), VW, vgP);
 
-  test('con el respaldo de pie, el anillo NO cabe en el cuadro: el marco no queda en el 15-85 %', () => {
-    assert.equal(guia.vertical, true);
-    assert.ok(vg.interior.x0 < vg.gw * 0.1 && vg.interior.x1 > vg.gw * 0.9,
+  test('con el respaldo de pie (8-oct), el anillo NO cabía en el cuadro', () => {
+    assert.ok(vgP.interior.x0 < vgP.gw * 0.1 && vgP.interior.x1 > vgP.gw * 0.9,
       'el marco quedó en el 15-85 %: entonces la medida vieja servía y esta prueba no mide nada');
   });
 
-  test('ANTES: con la cédula llenando el marco decía «Pon la cédula dentro del marco»', () => {
-    const m = EC.medirTarjeta(gris, gris, vg.gw, vg.gh);
+  test('ANTES: con la cédula llenando el marco de pie decía «Pon la cédula dentro del marco»', () => {
+    const m = EC.medirTarjeta(grisP, grisP, vgP.gw, vgP.gh);
     assert.equal(m.falla, 'sin_tarjeta', 'la medida vieja ya veía la cédula: ' + JSON.stringify(m));
     assert.ok(m.anillo > m.textura, 'el anillo no se estaba llenando de cédula');
   });
 
   test('AHORA: sabiendo dónde quedó el marco, en verde', () => {
+    const m = EC.medirTarjeta(grisP, grisP, vgP.gw, vgP.gh, vgP.interior);
+    assert.equal(m.ok, true, JSON.stringify(m));
+  });
+
+  /* 21-oct-2026 — REESCRITAS CON LA REGLA NUEVA: las dos caras acostadas. */
+  const guia = EC.rectanguloGuia(VW, VH, true);
+  const vg = EC.ventanaDeGuia(guia, VW, VH, 96);
+  const gris = grisDeLaVentana(cuadroAcostado(VW, VH, Math.round(guia.w * 0.98)), VW, vg);
+
+  test('ACOSTADA (21-oct), el anillo tampoco cabe a los lados: el marco llena el 84 % del ancho', () => {
+    assert.equal(guia.vertical, false);
+    assert.ok(vg.interior.x0 < vg.gw * 0.1 && vg.interior.x1 > vg.gw * 0.9,
+      'el marco acostado quedó en el 15-85 %: la página no tendría que pasar `interior`');
+  });
+
+  test('ACOSTADA y llenando el marco: en verde, y el anillo es la mesa, no la cédula', () => {
     const m = EC.medirTarjeta(gris, gris, vg.gw, vg.gh, vg.interior);
     assert.equal(m.ok, true, JSON.stringify(m));
+    assert.ok(m.anillo * 10 < m.textura, 'el anillo se está llenando de cédula: ' + JSON.stringify(m));
   });
 
   test('y una mesa sola sigue sin pasar, con o sin interior', () => {
     const mesa = new Uint8ClampedArray(vg.gw * vg.gh).fill(90);
     assert.equal(EC.medirTarjeta(mesa, mesa, vg.gw, vg.gh, vg.interior).falla, 'sin_tarjeta');
+    assert.equal(EC.medirTarjeta(mesa, mesa, vgP.gw, vgP.gh, vgP.interior).falla, 'sin_tarjeta');
   });
 
   test('la página le pasa el interior a la puerta', () => {
@@ -255,10 +295,12 @@ describe('la puerta del respaldo se ponía en verde (la causa de «no escaneó»
 });
 
 describe('el recorte con aire', () => {
-  test('crece alrededor del marco sin salirse del cuadro, y no pierde el «de pie»', () => {
+  /* 21-oct-2026 — REESCRITA: decía «y no pierde el de pie». El marco ya no va
+     de pie (EC.rectanguloGuia), y el aire tampoco tiene que inventarlo. */
+  test('crece alrededor del marco sin salirse del cuadro, y sigue acostado', () => {
     const g = EC.rectanguloGuia(1080, 1920, false);
     const m = EC.margenDeLectura(g, 1080, 1920, 0.06);
-    assert.equal(m.vertical, true);
+    assert.equal(m.vertical, false);
     assert.ok(m.x <= g.x && m.y < g.y && m.x + m.w >= g.x + g.w && m.y + m.h > g.y + g.h, 'no creció');
     assert.ok(m.x >= 0 && m.y >= 0 && m.x + m.w <= 1080 && m.y + m.h <= 1920, 'se salió del cuadro');
     assert.equal(EC.margenDeLectura(null, 10, 10), null);
@@ -435,11 +477,18 @@ describe('el bucle dispara el respaldo sin lectura', () => {
      en el marco de pie (también es una tarjeta nítida y quieta), a los 2,5 s se
      guardaba como respaldo y el paso siguiente guardaba el otro lado: fotos
      cambiadas. Sin un solo código visto, se pide voltearla y no se dispara. */
-  test('sin ningún código a la vista NO dispara: pide voltearla', () => {
+  /* 21-oct-2026 — REESCRITA: la pantalla decía «¿Es el lado del código de
+     barras? Voltéala», y era falso con la cédula digital (su lado de atrás trae
+     QR) y con la amarilla desenfocada (el código estaba, no se veía). En este
+     camino —sin medida de nitidez— no se sabe cuál es: se dicen las dos
+     salidas, y sigue sin disparar. */
+  test('sin ningún código a la vista NO dispara, y no afirma que haya que voltearla', () => {
     const P = abrirPlay();
     assert.ok(!enElBucle(P, { estables: 10, msVerde: 7000, lecturas: 8, vioCodigo: false }).includes('foto'),
       'guardó como respaldo una cara sin código de barras (el frente puesto al revés)');
-    assert.match(P.ev("$('docEstado').textContent"), /¿Es el lado del código de barras\? Voltéala/);
+    const t = P.ev("$('docEstado').textContent");
+    assert.equal(t, 'No vemos el código: aléjala un poco o, si es el frente, voltéala');
+    assert.equal(/¿Es el lado del código de barras\? Voltéala/.test(t), false, 'volvió el «Voltéala» que no sabe si es verdad');
   });
 
   test('un código encontrado sin leer, o el patrón de sus barras, cuentan como «vio el código»', () => {

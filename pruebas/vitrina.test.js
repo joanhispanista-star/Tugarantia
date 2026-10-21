@@ -439,6 +439,7 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
     delete require.cache[require.resolve(path.join(RAIZ, 'app', 'calculadora-solicitud.js'))];
     ctx.CalculadoraSolicitud = require(path.join(RAIZ, 'app', 'calculadora-solicitud.js'));
     ctx.EscanerCedula = require(path.join(RAIZ, 'app', 'escaner-cedula.js'));   // 21-sep-2026, el escáner de la cédula
+    ctx.EscanerCaptura = require(path.join(RAIZ, 'app', 'escaner-captura.js'));   // 21-oct-2026, la foto más nítida, acostada
     ctx.Cumplimiento = require(path.join(RAIZ, 'app', 'cumplimiento.js'));
     /* 14-sep-2026 — el motor y el lector de la ficha entraron a play/ con la
        calculadora de la garantía. Si se olvidan acá, la página revienta en el

@@ -32,8 +32,9 @@
  *   · el lector PDF417 lee desde ~2 px por módulo nítido, 2,5 con el desenfoque
  *     normal de un celular, 3 para tener margen; y solo tolera 1-4° de
  *     inclinación, así que el marco tiene que ayudar a poner la cédula recta;
- *   · lee a 0° y 180°, NUNCA a 90°: si la cédula va de pie (teléfono vertical),
- *     el recorte se gira antes de decodificar;
+ *   · lee a 0° y 180°, NUNCA a 90°: una foto de pie (la de la galería) se
+ *     prueba girada antes de decodificar. 21-oct-2026 — el recorte del video
+ *     ya no: las dos caras se escanean acostadas (ver rectanguloGuia);
  *   · `decodeFromImageUrl` de ZXing reintenta a 0 ms PARA SIEMPRE cuando el
  *     código se ve pero no se corrige (ChecksumException): 21 mapas de bits de
  *     10 MB en 300 ms, y la promesa nunca vuelve. Era el camino vivo hasta hoy.
@@ -136,14 +137,16 @@
    *
    * @param gris   luminancias 0..255 de un cuadro de w×h
    * @param previa el mismo arreglo del cuadro anterior, o null
-   * @returns {luz, textura, anillo, nitidez, movimiento, ok, falla}
+   * @returns {luz, textura, anillo, nitidez, movimiento, saturados, ok, falla}
    *          `falla` dice QUÉ falta: 'poca_luz' | 'mucha_luz' | 'sin_tarjeta' |
    *          'borrosa' | 'movimiento' | ''
+   *          `saturados` (21-oct-2026): la fracción del interior quemada (≥ 250).
+   *          No decide el verde: la lee la linterna (EscanerCaptura.decidirLinterna).
    */
   function medirTarjeta(gris, previa, w, h, interior) {
     var g = gris || [], n = g.length;
     if (!n || !w || !h || w * h !== n || w < 16 || h < 8) {
-      return { luz: 0, textura: 0, anillo: 0, nitidez: 0, movimiento: 999, ok: false, falla: 'sin_tarjeta' };
+      return { luz: 0, textura: 0, anillo: 0, nitidez: 0, movimiento: 999, saturados: 0, ok: false, falla: 'sin_tarjeta' };
     }
     var x0 = Math.floor(w * 0.15), x1 = Math.ceil(w * 0.85);
     var y0 = Math.floor(h * 0.15), y1 = Math.ceil(h * 0.85);
@@ -162,12 +165,17 @@
       y0 = Math.max(0, Math.floor(interior.y0)); y1 = Math.min(h, Math.ceil(interior.y1));
     }
 
-    var si = 0, si2 = 0, ni = 0, sa = 0, sa2 = 0, na = 0, grad = 0, ng = 0;
+    var si = 0, si2 = 0, ni = 0, sa = 0, sa2 = 0, na = 0, grad = 0, ng = 0, quemados = 0;
     for (var y = 0; y < h; y++) {
       for (var x = 0; x < w; x++) {
         var v = g[y * w + x];
         if (y >= y0 && y < y1 && x >= x0 && x < x1) {
           si += v; si2 += v * v; ni++;
+          /* 21-oct-2026 — EL REFLEJO SE CUENTA, NO SE PROMEDIA. La linterna sobre
+             el plástico de la cédula hace un brillo en un punto que la media
+             (LUZ_MAX) no ve: un 5 % del interior quemado apenas la mueve, y ese
+             5 % puede ser justo el código de barras o la fecha. */
+          if (v >= 250) quemados++;
           if (x + 1 < x1) { grad += Math.abs(g[y * w + x + 1] - v); ng++; }
         } else { sa += v; sa2 += v * v; na++; }
       }
@@ -176,7 +184,8 @@
     var textura = ni ? (si2 / ni) - luz * luz : 0;
     var anillo = na ? (sa2 / na) - (sa / na) * (sa / na) : 0;
     var nitidez = ng ? grad / ng : 0;
-    var base = { luz: luz, textura: textura, anillo: anillo, nitidez: nitidez, movimiento: 999, ok: false };
+    var base = { luz: luz, textura: textura, anillo: anillo, nitidez: nitidez, movimiento: 999,
+                 saturados: ni ? quemados / ni : 0, ok: false };
 
     if (luz < TARJETA.LUZ_MIN) { base.falla = 'poca_luz'; return base; }
     if (luz > TARJETA.LUZ_MAX) { base.falla = 'mucha_luz'; return base; }
@@ -197,12 +206,16 @@
     return base;
   }
 
-  /* Lo que la persona lee. Cada frase dice qué hacer, no qué pasó. */
+  /* Lo que la persona lee. Cada frase dice qué hacer, no qué pasó.
+     21-oct-2026 — `borrosa` decía «Acércala un poco»: con el marco de pie lo
+     probable era tenerla lejos. Acostada, lo probable es lo contrario —quien
+     llena el marco la pega al lente y la cámara no enfoca, que fue lo de
+     Joan—, y desde 96 px no se sabe cuál de las dos es. Se dicen las dos. */
   var TEXTO_TARJETA = {
     poca_luz: 'Busca un sitio con más luz',
     mucha_luz: 'Hay un reflejo: inclínala un poco',
     sin_tarjeta: 'Pon la cédula dentro del marco',
-    borrosa: 'Acércala un poco y espera el enfoque',
+    borrosa: 'Aléjala o acércala un poco y espera el enfoque',
     movimiento: 'Quieta…',
     '': 'Leyendo…'
   };
@@ -214,6 +227,7 @@
   /**
    * Dónde va el marco de la cédula dentro de un cuadro de w×h.
    *
+   * (Hasta el 21-oct-2026; ver el final de este comentario.)
    * EL RESPALDO VA DE PIE en un teléfono vertical (su lado largo sobre el lado
    * largo del cuadro): así el código de barras ocupa ~85 % de 1920 px y sale a
    * 3-4 px por módulo; acostado apenas llegaría a 2 y el lector fallaría.
@@ -232,17 +246,30 @@
    * CRM: al LECTOR le da igual, a la FOTO no. La mitad de las veces el
    * respaldo se guardaba cabeza abajo. Ahora se endereza antes de guardarlo
    * (orientacionDelRespaldo, más abajo).
+   *
+   * 21-oct-2026 — LAS DOS CARAS VAN ACOSTADAS, Y YA NO HAY MARCO DE PIE.
+   * Joan: «no me toque tomarla de forma vertical, quiero que las dos fotos de
+   * la cédula se tomen horizontal». Y no era solo comodidad: el marco de pie
+   * llenaba el 82 % del lado largo del video, lo que obliga a poner la cédula
+   * a ~7,8 cm del lente (lente típico de 26 mm equivalentes; cuenta en
+   * scratchpad inv-escaner/geometria.js), cerca o por debajo de la distancia
+   * mínima de enfoque de muchas cámaras. Acostada, a lo ancho del mismo video,
+   * va a ~13,6 cm y la cámara enfoca. Lo que se pierde de píxeles por módulo
+   * del código lo recupera la resolución que ahora se pide (EscanerCaptura,
+   * CAMARA: 4K ideal). De paso desaparecen el giro de 90° del recorte y el
+   * riesgo de guardar la foto de lado.
+   * `acostada` queda en la firma por compatibilidad (una página vieja la
+   * manda) y ya no cambia nada; `vertical` sale siempre en false para quien
+   * todavía la lea.
    */
-  function rectanguloGuia(w, h, acostada) {
-    var vertical = !acostada && h > w;
-    var largo = (vertical ? h : w) * 0.84;
+  function rectanguloGuia(w, h) {
+    var largo = w * 0.84;
     var corto = largo / PROPORCION;
-    var tope = (vertical ? w : h) * 0.92;
+    var tope = h * 0.92;
     if (corto > tope) { corto = tope; largo = corto * PROPORCION; }
-    var rw = vertical ? corto : largo, rh = vertical ? largo : corto;
     return {
-      x: Math.round((w - rw) / 2), y: Math.round((h - rh) / 2),
-      w: Math.round(rw), h: Math.round(rh), vertical: vertical
+      x: Math.round((w - largo) / 2), y: Math.round((h - corto) / 2),
+      w: Math.round(largo), h: Math.round(corto), vertical: false
     };
   }
 
@@ -386,6 +413,14 @@
     if (b - a + 1 < Math.max(6, h * 0.04)) return null;
     return { y0: a, y1: b + 1 };
   }
+  /* 21-oct-2026 — LA MISMA FRANJA, PARA QUIEN LEE. Con video 4K el recorte
+     entero de la cédula son ~8 MB de píxeles; la página la busca en el gris
+     chico con que mide la nitidez (480 px) y le da al lector solo esas filas
+     (EscanerCaptura.bandaDeLectura). null: no se ve una franja de barras. */
+  function franjaDeBarras(gris, w, h) {
+    if (!gris || !w || !h || gris.length !== w * h || w < 32 || h < 16) return null;
+    return franjaDelCodigo(puntajeDeFilas(gris, w, h), h);
+  }
   function percentil(g, w, y0, y1, p) {
     var hist = new Uint32Array(256), n = 0;
     for (var y = y0; y < y1; y++) for (var x = 0; x < w; x += 2) { hist[g[y * w + x] | 0]++; n++; }
@@ -518,7 +553,9 @@
    * contra el borde del video, y DÓNDE QUEDA EL MARCO dentro de ella una vez
    * recortada. 8-oct-2026 — antes la página daba por hecho el 15-85 %, y con
    * el respaldo (marco de pie: 84 % del alto, 92 % del ancho) el anillo nunca
-   * cabe: ver medirTarjeta.
+   * cabe: ver medirTarjeta. 21-oct-2026 — con las dos caras acostadas pasa lo
+   * mismo a los lados (el marco llena el 84 % del ancho del video), así que el
+   * interior sigue viniendo de aquí y no del 15-85 %.
    * @returns {sx, sy, sw, sh, gw, gh, interior: {x0, x1, y0, y1}} o null
    */
   function ventanaDeGuia(g, vw, vh, alto) {
@@ -856,7 +893,7 @@
   }
 
   return {
-    VERSION: '2026-10-20',
+    VERSION: '2026-10-21',
     PROPORCION: PROPORCION,
     HORAS_REGISTRO_VIVO: HORAS_REGISTRO_VIVO,
     /* 19-oct-2026 — la cédula va primero: fotos sin dueño y la expedición */
@@ -880,6 +917,8 @@
     /* 8-oct-2026 — el respaldo derecho y el respaldo que dispara solo */
     ORIENTACION: ORIENTACION,
     orientacionDelRespaldo: orientacionDelRespaldo,
+    /* 21-oct-2026 — leer el PDF417 solo de su franja (video 4K) */
+    franjaDeBarras: franjaDeBarras,
     margenDeLectura: margenDeLectura,
     ventanaDeGuia: ventanaDeGuia,
     RESPALDO: RESPALDO,
