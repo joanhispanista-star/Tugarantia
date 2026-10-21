@@ -123,9 +123,14 @@ function barrer(fechas) {
 
   const filas = [];
   for (const f of fechas) {
+    /* 21-oct-2026 — maxBuffer: spawnSync corta la salida en 1 MB por defecto y
+       mata al hijo SIN avisar. La suite pasó de 1 MB (4.371 pruebas) y el
+       barrido dejó de ver los totales: imprimía «?» y, como «?» no es una
+       falla, remataba con «Nada se vence». 256 MB da para muchos años. */
     const r = spawnSync(process.execPath, ['--test'], {
       cwd: PRUEBAS,
       encoding: 'utf8',
+      maxBuffer: 256 * 1024 * 1024,
       env: Object.assign({}, process.env, {
         FECHA_FALSA: f,
         NODE_OPTIONS: ((process.env.NODE_OPTIONS || '') + ' --require ' + yo).trim()
@@ -152,9 +157,20 @@ function barrer(fechas) {
     for (const r of x.rotas) console.log('                       · ' + r);
   }
 
+  /* 21-oct-2026 — una fecha cuyos totales no se pudieron leer NO es una fecha
+     verde: es una fecha que nadie miró. Se dice, y no se remata con «Nada se
+     vence». */
+  const ciegas = filas.filter(function (x) { return x.pasan == null || x.fallan == null; });
   const hoyRoto = !!(filas[0] && filas[0].fallan);
   const futuroRoto = filas.slice(1).some(function (x) { return !!x.fallan; });
   console.log('');
+  if (ciegas.length) {
+    console.log('NO SE PUDO LEER el resultado de ' + ciegas.length + ' fecha(s): ' +
+                ciegas.map(function (x) { return x.fecha; }).join(', ') + '.');
+    console.log('Eso no es verde: la suite no terminó o su salida no llegó entera.');
+    process.exitCode = 1;
+    return filas;
+  }
   if (!hoyRoto && !futuroRoto) {
     console.log('Nada se vence: la suite dice lo mismo hoy que en dos años.');
   } else if (!hoyRoto && futuroRoto) {

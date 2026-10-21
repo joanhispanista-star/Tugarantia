@@ -109,7 +109,12 @@ describe('1. el teléfono: la calculadora, el registro y la cámara', () => {
 
   test('pedir no borra lo pedido, y mientras espera la calculadora dice lo que pidió', async () => {
     const P = abrirPlay();
-    const sol = { id: 5, estado: 'nueva', contrapropuesta: null, pedido: { origen: 'play', capital: 750000, fecha_pago: '2026-11-20' } };
+    /* 21-oct-2026 — la fecha de pago, a 20 días de HOY y no '2026-11-20' fijo:
+       desde el 21-nov esa fecha ya pasó, la calculadora no se pone en una
+       solicitud con fecha vencida, y la prueba se habría puesto roja sola
+       (el barrido del reloj, ya sin el corte de 1 MB, la vio). */
+    const fp = new Date(Date.parse(P.ev('hoyISO()') + 'T12:00:00Z') + 20 * 86400000).toISOString().slice(0, 10);
+    const sol = { id: 5, estado: 'nueva', contrapropuesta: null, pedido: { origen: 'play', capital: 750000, fecha_pago: fp } };
     P.ev('SESION = { access_token: "t", user: { email: "573001112233@tugarantia.net" } };' +
          'fetch = function () { return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ ok: true, solicitud: ' + JSON.stringify(sol) + ' }); } }); };');
     P.ev('CS.poner({ monto: 750000, dias: 20 }); enviarPedido();');
@@ -120,7 +125,8 @@ describe('1. el teléfono: la calculadora, el registro y la cámara', () => {
     const Q = abrirPlay();
     Q.ev('ponerCalculadoraEnLoPedido(' + JSON.stringify(sol) + ')');
     assert.equal(Q.ev('CS.estado().monto'), 750000, 'la calculadora no arrancó en lo que está pedido');
-    assert.equal(Q.ev('CS.diasHasta("2026-11-20", hoyISO())'), Q.ev('CS.estado().dias'));
+    assert.equal(Q.ev('CS.diasHasta("' + fp + '", hoyISO())'), Q.ev('CS.estado().dias'));
+    assert.equal(Q.ev('CS.estado().dias'), 20, 'la calculadora no tomó los días de lo pedido');
   });
 
   test('la lámina de Crédito se repinta sin borrar la nota ni la cifra que estaba escribiendo', () => {
