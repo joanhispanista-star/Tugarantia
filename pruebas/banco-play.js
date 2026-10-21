@@ -143,9 +143,12 @@ function abrirPlay(opciones) {
       catch (e) { fallos.push(e); }
     });
   /* `almacen` y `sesion` salen a la vista para que una prueba pueda volver a
-     abrir el banco con ellos: eso es una recarga. */
+     abrir el banco con ellos: eso es una recarga.
+     21-oct-2026 — y la ventana, para darle a la página un objeto de Node que
+     una cadena de P.ev no puede escribir: el Tesseract.js de verdad
+     (pruebas/banco-ocr.js) en la prueba de punta a punta del OCR. */
   return { ev: e => vm.runInContext(e, ctx, { filename: 'banco' }), elems, fallos,
-           almacen, sesion, hash: () => ctx.location.hash };
+           almacen, sesion, hash: () => ctx.location.hash, ventana: ctx };
 }
 
 

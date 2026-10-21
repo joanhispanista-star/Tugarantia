@@ -108,6 +108,15 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         celular: su dueño es el intento hasta que lo hay (ver
                         pruebas/la-cedula-primero.test.js). PlataChat usa este
                         mismo registro con ?marca=platachat.
+                        (21-oct-2026) Lo IMPRESO en la cédula también llena
+                        «Revisa tus datos»: la fecha de expedición, y el número
+                        y los nombres si el código de barras no se lee
+                        (app/ocr-cedula.js + app/lib/ocr/, Tesseract.js del
+                        propio sitio). Vive aparte de la lectura del código y
+                        nunca decide de quién es la cédula. Las franjas faltan
+                        calibrarlas con una cédula real
+                        (herramientas/calibrar-ocr.js; la receta local
+                        RECETA-OCR-CEDULA.md, que no va al repo).
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).

@@ -1908,7 +1908,14 @@ const ARCHIVOS = [
      CRM y el espejo lo cargan con un <script src>. Sin el en la cache, la app
      instalada sin senal abre igual (cada pagina se protege con
      `window.Actualizar`), pero no sabria avisar de la version nueva. */
-  'app/actualizar.js'
+  'app/actualizar.js',
+  /* 21-oct-2026 — las letras de la cédula (play/, al escanear): el módulo
+     chico, que recorta las franjas en el disparo y tiene que estar ahí sin
+     esperar la red. El motor de app/lib/ocr/ (unos 6 MB) NO entra: precargarlo
+     sería pagarle esos datos a cada socio que abre la app, y solo los usa
+     quien se registra, una vez (play/ los pide con rel=prefetch al disparar el
+     respaldo). El número de CACHE lo sube quien publica. */
+  'app/ocr-cedula.js'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {

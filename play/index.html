@@ -1217,7 +1217,12 @@ function olvidarSesionEnCurso() { try { sessionStorage.removeItem(LLAVE_SESION);
  * pueda subirla: una generación sin número dejaría todo descartado.
  * ======================================================================== */
 var GENERACION_DEL_REGISTRO = 0;
-function otraGeneracion() { GENERACION_DEL_REGISTRO = (Number(GENERACION_DEL_REGISTRO) || 0) + 1; }
+function otraGeneracion() {
+  GENERACION_DEL_REGISTRO = (Number(GENERACION_DEL_REGISTRO) || 0) + 1;
+  /* 21-oct-2026 — y la lectura de las letras de la cédula: lo pendiente se
+     olvida y el motor se termina (ver LO QUE SE VE EN LA CÉDULA SE LLENA SOLO). */
+  ocrOlvidar();
+}
 /* Lo que se manda, tomado al tocar, con la generación de ese momento. */
 function fotoDelToque(lo) {
   var f = lo || {};
@@ -2027,13 +2032,15 @@ function pintarRegistro(paso) {
   else if (p.id === 'documento') cuerpo = pasoDocumento();
   else if (p.id === 'rostro')  cuerpo = pasoRostro();
   else if (p.id === 'permiso') cuerpo = pasoPermiso();
-  else                         cuerpo = (p.id === 'identidad' ? notaCedulaLeida() : '') + pasoCampos(p.id);
+  else                         cuerpo = (p.id === 'identidad' ? notaCedulaLeida() + notaDeLaFoto() : '') + pasoCampos(p.id);
 
   /* 19-oct-2026 — «Revisa tus datos» solo si hay algo que revisar: quien tocó
      «Prefiero escribir mis datos», o cuya cédula no se leyó, encuentra el
      formulario vacío, y decirle «revisa» sería hablarle de unos datos que la
-     app no llenó. */
-  var titulo = (p.id === 'identidad' && !cedulaLeidaDeEsteRegistro()) ? 'Escribe tus datos' : p.titulo;
+     app no llenó.
+     21-oct-2026 — las letras de la cédula también llenan (o están llenando):
+     eso también es algo que revisar. */
+  var titulo = (p.id === 'identidad' && !cedulaLeidaDeEsteRegistro() && !hayLecturaVisible()) ? 'Escribe tus datos' : p.titulo;
   /* Y en la cédula sin autorizar, «Continuar» sobra: las dos salidas son los
      dos botones del paso («Autorizo y escaneo» y «Prefiero escribir mis
      datos»), y un tercero que hace lo mismo que el segundo con otro nombre
@@ -2055,7 +2062,9 @@ function pintarRegistro(paso) {
          cuenta» (empezarViaje). */
       (conContinuar
         ? '<button class="btn arriba" id="btnSeguir" onclick="siguientePaso()">' +
-            (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : 'Continuar') + '</button>'
+            /* 21-oct-2026 — «Están bien» en «Revisa tus datos» cuando todo
+               está lleno y algo salió de la cédula: el toque que confirma. */
+            (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : (p.id === 'identidad' ? textoBotonIdentidad() : 'Continuar')) + '</button>'
         : '') +
       '<button class="btn sec sm" id="btnVolver" style="margin-top:var(--e3)" onclick="' +
         (PASO === 0 ? (MARCA === 'platachat' ? 'volverAPlataChat()' : 'pintarEntrar()') : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
@@ -2078,6 +2087,9 @@ function pintarRegistro(paso) {
      primer paso tiene que ser solo la cédula, y mientras se teclean el celular
      y la contraseña la red está quieta. */
   if (p.id === 'entrada' && autorizoEsteIntento()) precalentarDetectorRostro();
+  /* 21-oct-2026 — si quedaron letras de la cédula por leer (se llegó aquí sin
+     cerrar el escáner), se leen ya: la cámara de este paso no existe. */
+  if (p.id === 'identidad') ocrLeerLoPendiente();
 }
 
 /* ------------------------------------------------- EL INTENTO — 19-oct-2026
@@ -2493,6 +2505,8 @@ function soltarLoSensibleDelRegistro() {
     var ed = esteIntento(FOTOS.de) ? FOTOS.cedula_editado : null;
     sinTocarElToque(function () { quitarIdentidadLeida(l, ed, true); });
   }
+  /* 21-oct-2026 — y lo que escribieron las letras de la cédula, igual. */
+  ocrSoltarConLasFotos();
   FOTOS = {};
   try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
   GPS_PEDIDO = false; AVISO_UN_LADO = ''; PERMISO_SOLTADO = false;
@@ -2525,6 +2539,19 @@ function anotarCampo(el) {
   }
   REGISTRO[campo] = el.value;
   guardarBorrador(REGISTRO);
+  /* 21-oct-2026 — lo que la persona toca, las letras de la cédula ya no lo
+     llenan (aunque lo deje vacío: borrar también es decidir); si cambia lo
+     que llenaron, queda anotado para Joan como con el código (cedula_editado),
+     y su marca «leído de tu cédula» y el botón dicen lo que hay ahora. */
+  if (typeof OCR_CEDULA === 'object' && OCR_CEDULA) OCR_CEDULA.tocados[campo] = true;
+  var vv = FOTOS.cedula_vista;
+  if (vv && vv.llenados && vv.llenados[campo] !== undefined && String(el.value || '') !== String(vv.llenados[campo])) {
+    vv.corregidos = vv.corregidos || {}; vv.corregidos[campo] = true; guardarFotos();
+  }
+  if (CAMPOS_DE_LA_VISTA.indexOf(campo) >= 0) {
+    refrescarMarcaDeLaCedula(campo);
+    var bs = $('btnSeguir'); if (bs && PASOS[PASO] && PASOS[PASO].id === 'identidad') bs.textContent = textoBotonIdentidad();
+  }
 }
 /* 21-sep-2026 — el celular del paso 1 también se anota por tecla. Solo llegaba
    al borrador al tocar «Continuar», así que quien lo escribía y perdía la
@@ -2581,7 +2608,14 @@ function pasoCampos(grupo) {
   return U.camposDelGrupo(grupo).map(function (c) {
     var v = REGISTRO[c.id] === undefined ? '' : REGISTRO[c.id];
     var etiqueta = '<label for="f_' + c.id + '">' + esc(c.etiqueta) +
-      (c.obligatorio ? '' : ' <span class="opc">· opcional</span>') + '</label>';
+      (c.obligatorio ? '' : ' <span class="opc">· opcional</span>') +
+      /* 21-oct-2026 — lo que salió de la cédula (el código o las letras) lo
+         dice en su casilla, y la marca se va si la persona lo cambia
+         (refrescarMarcaDeLaCedula). La caja existe vacía para poder llenarla
+         cuando la lectura de las letras termine con el paso a la vista. */
+      (CAMPOS_DE_LA_VISTA.indexOf(c.id) >= 0
+        ? ' <span class="opc" id="leido_' + c.id + '">' + (deLaCedula(c.id) ? TEXTO_LEIDO_DE_LA_CEDULA : '') + '</span>' : '') +
+      '</label>';
     /* 17-sep-2026 — SE GUARDA MIENTRAS SE ESCRIBE, no al tocar «Continuar».
        El borrador solo se escribía al pasar de paso, así que quien tecleaba su
        dirección y perdía la pestaña —la cámara la tumba, pero la memoria de un
@@ -2664,9 +2698,10 @@ function pasoCampos(grupo) {
        escribe (no hay casilla para ella en el formulario): se muestra para
        que sepa cuál es cuál. */
     if (c.id === 'expedicion') {
+      /* 21-oct-2026 — y dice de dónde salió: el código no la trae, pero las
+         letras del respaldo sí (textoAyudaExpedicion). */
       return nacimientoLeidoHTML() + etiqueta + campo +
-        '<div class="ayuda" id="ayudaExpedicion">No viene en el código de barras: escríbela tú. En la cédula de ' +
-        'ciudadanía está en el respaldo, donde dice «FECHA Y LUGAR DE EXPEDICIÓN», cerca de la firma del Registrador.</div>';
+        '<div class="ayuda" id="ayudaExpedicion">' + esc(textoAyudaExpedicion()) + '</div>';
     }
     /* 8-oct-2026 — EL PORQUÉ YA NO SE PINTA DEBAJO DE CADA PREGUNTA. Hasta hoy
        se le mostraba al socio («si un dato vale la pena pedirlo, vale la pena
@@ -3545,6 +3580,9 @@ function prepararRespaldoNuevo() {
   delete FOTOS.cedula_frente;
   delete FOTOS.cedula_confirmada;
   if (FOTOS.cedula_leida) { FOTOS.leida_anterior = FOTOS.cedula_leida; delete FOTOS.cedula_leida; }
+  /* 21-oct-2026 — lo leído de las LETRAS de la cédula anterior no se aparta
+     para comparar nada (no decide de quién es): se va, con lo que escribió. */
+  ocrSoltarVista();
   return habiaFrente;
 }
 /* ¿La cédula recién leída es de otra persona que la de antes en este registro? */
@@ -4965,6 +5003,9 @@ function sanearFotos() {
    siguiente. `conservarPermiso` solo deja el que dio quien está llenando ESTE
    intento (autorizoEsteIntento): soltar las fotos de OTRO no le quita el suyo. */
 function soltarLasFotos(conservarPermiso) {
+  /* 21-oct-2026 — lo que las letras de esa cédula escribieron en este
+     registro se va con sus fotos (lo corregido a mano se queda). */
+  ocrSoltarConLasFotos();
   var mio = conservarPermiso === true && autorizoEsteIntento();
   FOTOS = mio ? { sensibles: true, sensibles_intento: FOTOS.sensibles_intento || asegurarIntento() } : { sensibles: false };
   guardarFotos();
@@ -5587,8 +5628,12 @@ function notaCedulaLeida() {
     /* Y si la foto del respaldo está pero el código no se leyó (la cédula
        nueva, o una foto movida), se dice: si no, el formulario vacío parece
        un error de la app. */
+    /* 21-oct-2026 — mientras las letras de la cédula se leen (o si ya
+       llenaron algo), «los escribes tú» no es lo que pasa: la nota se
+       esconde y habla notaDeLaFoto. Si la lectura no saca nada, vuelve
+       (ocrRefrescarIdentidad). */
     if (hayFotoLista('cedula_reverso')) {
-      return '<div class="aviso ambar" id="notaSinLeer">No alcanzamos a leer el código de barras de tu cédula, ' +
+      return '<div class="aviso ambar' + (hayLecturaVisible() ? ' oculto' : '') + '" id="notaSinLeer">No alcanzamos a leer el código de barras de tu cédula, ' +
         'así que esta vez los datos los escribes tú, como aparecen en ella. La foto sí quedó guardada.</div>';
     }
     return '';
@@ -6020,6 +6065,11 @@ function iniciarEscanerDoc(lado) {
   var estado = $('docEstado'); if (estado) estado.textContent = 'Encendiendo la cámara…';
   var v = $('docVideo'); if (!v) return;
   cargarScript(URL_ZXING).catch(function () {});   // se precalienta mientras la cámara enciende
+  /* 21-oct-2026 — la cámara se enciende: una lectura de las letras en curso se
+     deja (nunca las dos juntas), y el módulo chico de las franjas se baja ya,
+     para que esté al disparar (ver LO QUE SE VE EN LA CÉDULA SE LLENA SOLO). */
+  ocrPausar();
+  cargarScript(URL_OCR_CEDULA).catch(function () {});
   prepararDetectorNativo();
   vigilarVisibilidadDoc();
   ESCDOC.espera = setTimeout(function () {
@@ -6189,6 +6239,8 @@ function cerrarEscanerDoc() {
   var e = $('docEscaner'); if (e) e.classList.add('oculto');
   ocultarListoDoc();
   refrescarDoc();
+  /* 21-oct-2026 — con la cámara apagada, las letras de lo que se disparó. */
+  ocrLeerLoPendiente();
 }
 /* Los tres lienzos del escáner se quedaban vivos toda la sesión después de
    cerrar: el del recorte a resolución completa son 2,4-6,3 MB, y el de girar
@@ -6758,6 +6810,9 @@ function leidaDoc(cedula, giro) {
   delete FOTOS.leida_anterior;
   if (jpeg) FOTOS.cedula_reverso = jpeg;
   marcarDuenoDeLasFotos('cedula_reverso');
+  /* 21-oct-2026 — las franjas de las letras (la expedición), para leerlas con
+     la cámara ya apagada (ver LO QUE SE VE EN LA CÉDULA SE LLENA SOLO). */
+  if (jpeg) ocrAnotarRecorte('reverso', ESCDOC.recorte, giro);
   var aSalvo = anotarCedulaLeida(cedula);
   /* 21-oct-2026 — el destello, y el enganche de lo visible con ESTE recorte
      (ver alTomarLaCedula), ya con la foto y la lectura en su sitio. */
@@ -6862,6 +6917,12 @@ function capturarDoc(automatico, delMejor) {
   prepararFotoNueva();
   FOTOS['cedula_' + lado] = jpeg;
   marcarDuenoDeLasFotos('cedula_' + lado);
+  /* 21-oct-2026 — las franjas de las letras de este lado, para leerlas con la
+     cámara apagada. Un frente guardado a la fuerza (con código a la vista)
+     puede ser el respaldo: sus letras no se leen como frente. */
+  if (!forzada) ocrAnotarRecorte(lado, c, lado === 'reverso' ? giro : 0);
+  else ocrSoltarLado(lado);   // pero lo que leyó el frente anterior se va igual
+  var conLetras = lado === 'reverso' && !leyo && !!OCR_CEDULA.pendientes.reverso;
   var aSalvo = guardarFotos();
   /* 21-oct-2026 — el destello, y el enganche de lo visible con el recorte que
      se acaba de guardar (ver alTomarLaCedula). */
@@ -6881,8 +6942,16 @@ function capturarDoc(automatico, delMejor) {
       ? (leyo ? '¡Leída!' + (sigue ? ' Ahora el frente.' : '')
         /* 21-oct-2026 — la cédula digital: su QR se vio (por eso se tomó
            sola), pero sus datos todavía no se leen. Decir «el código no se
-           pudo leer» sonaba a foto mala, y la foto está bien. */
+           pudo leer» sonaba a foto mala, y la foto está bien.
+           21-oct-2026 — y con las franjas de la amarilla guardadas, «escribes
+           tus datos» ya no es lo que va a pasar: se intenta con las letras, y
+           lo que no salga se escribe. Sin ellas (el módulo no bajó), lo de
+           siempre.
+           22-oct-2026 (integración del lote 1) — las dos ramas escribieron
+           este texto a la vez; la digital va PRIMERO: sus letras no son las
+           de la amarilla, y prometerle que se las llenamos sería falso. */
         : (conQr ? 'Foto tomada. Tu cédula es la nueva (la del QR): por ahora tus datos los escribes tú en el paso siguiente.'
+          : conLetras ? 'Foto tomada. El código no se pudo leer: en el paso siguiente te llenamos lo que alcancemos a leer de las letras, y tú lo revisas.'
           : 'Foto tomada. El código no se pudo leer: escribes tus datos en el paso siguiente.') + (sigue ? ' Ahora el frente.' : ''))
       : textoFrente));
   refrescarDoc();
@@ -6903,6 +6972,338 @@ function mostrarListoDoc(txt) {
   var t = $('docListoTxt'); if (t) t.textContent = txt;
 }
 function ocultarListoDoc() { var e = $('escDoc'); if (e) e.classList.remove('leido'); }
+
+/* ===========================================================================
+ * LO QUE SE VE EN LA CÉDULA SE LLENA SOLO — 21 de octubre de 2026
+ *
+ * Joan: «si la información es visible en la cédula no quiero que nada se
+ * diligencie a mano, quiero que sea lo más eficiente posible para el cliente
+ * al momento de registrarse». El código de barras del respaldo ya llenaba el
+ * número, los nombres y los apellidos; la fecha de expedición se tecleaba
+ * siempre (el código no la trae) y, sin código leído, se tecleaba todo. Ahora
+ * las letras impresas se leen de las fotos (app/ocr-cedula.js, con el
+ * Tesseract.js del propio sitio) y llenan las casillas vacías; la persona
+ * confirma con «Están bien» o corrige.
+ *
+ * LAS REGLAS QUE ESTO NO PUEDE ROMPER, y por qué:
+ *   · Lo leído de las letras vive en FOTOS.cedula_vista y NUNCA en
+ *     FOTOS.cedula_leida. No decide de quién es la cédula (esDeOtraPersona, la
+ *     reja de la base, motivoParaNoSubir), no se salta el «¿Es tuya?» de la
+ *     cédula sin código y no viaja como lectura: un dígito mal leído no puede
+ *     dejar a nadie sin sus fotos para siempre (investigación del 21-oct).
+ *   · Con el código leído manda el código: las letras solo completan la
+ *     expedición, y si el número impreso es otro queda `numero_distinto` para
+ *     Joan. A nadie se le dice «verificado».
+ *   · Solo casillas VACÍAS que la persona no tocó (OCR_CEDULA.tocados), solo
+ *     antes de pasar «Revisa tus datos», y nunca se pasa sola al paso
+ *     siguiente: la que confirma es la persona.
+ *   · Nunca con la cámara encendida: el motor junto a la cámara y ZXing es el
+ *     pico de memoria que tumba la pestaña. Las franjas se recortan al
+ *     disparar (unos cientos de KB) y se leen cuando el escáner se cerró; el
+ *     motor se termina al acabar y al salir del registro (otraGeneracion).
+ *   · Una lectura es del registro y de la foto que la pidió: si cambió la
+ *     generación (G1) o la foto ya no es esa, no escribe nada.
+ *   · Lo que la lectura escribió se va con sus fotos, como lo que escribió el
+ *     código (ocrQuitarLoLlenado): un respaldo nuevo, un «No es mía», las
+ *     fotos que vencen, salir del registro. Lo que la persona corrigió no: ya
+ *     es suyo.
+ *   · Solo con el escáner en vivo: la foto de la cámara del celular es la
+ *     escena entera, sin marco, y las franjas no saben dónde está la tarjeta.
+ * ========================================================================= */
+var URL_OCR_CEDULA = '../app/ocr-cedula.js';
+var BASE_OCR = '../app/';
+/* Si en este rato no terminó (sin señal para bajar el motor, un teléfono que
+   no puede con él), se deja: la persona escribe lo que falte. */
+var MS_TOPE_OCR = 60000;
+var OCR_CEDULA = { pendientes: {}, estado: '', turno: 0, lector: null, tocados: {}, tope: null, precalentado: false };
+var CAMPOS_DE_LA_VISTA = ['documento', 'apellidos', 'nombres', 'expedicion'];
+var TEXTO_LEIDO_DE_LA_CEDULA = '· leído de tu cédula · revísalo';
+
+/* Dónde quedó el marco dentro del recorte del escáner: recortarGuia le pone
+   aire alrededor (EC.margenDeLectura) y, de pie, lo gira 90°. Las franjas son
+   fracciones de la TARJETA, no del recorte. null si no se sabe (entonces el
+   recorte entero hace de tarjeta). */
+function guiaEnElRecorte(lienzo) {
+  var g = ESCDOC.guiaVideo, v = $('docVideo');
+  if (!g || !lienzo || !lienzo.width || !lienzo.height) return null;
+  var m = (EC && EC.margenDeLectura && v && v.videoWidth) ? EC.margenDeLectura(g, v.videoWidth, v.videoHeight, 0.06) : g;
+  var dx = g.x - m.x, dy = g.y - m.y;
+  var r = g.vertical ? { x: m.h - (dy + g.h), y: dx, w: g.h, h: g.w } : { x: dx, y: dy, w: g.w, h: g.h };
+  if (!(r.w > 0 && r.h > 0) || r.x < 0 || r.y < 0 || r.x + r.w > lienzo.width + 1 || r.y + r.h > lienzo.height + 1) return null;
+  return r;
+}
+/* Al disparar un lado: se recortan SOLO sus franjas (el resto de la tarjeta,
+   con el RH y el sexo del respaldo, ni se copia) y quedan esperando a que la
+   cámara se apague. Sin el módulo (no alcanzó a bajar), esta vez se escribe
+   a mano, como antes. */
+function ocrAnotarRecorte(lado, lienzo, giro) {
+  ocrSoltarLado(lado);   // una foto nueva de este lado: lo de la anterior se va
+  var O = window.OcrCedula;
+  if (!O || typeof O.recortarDeLienzo !== 'function' || !lienzo || !lienzo.getContext) return;
+  var r = null;
+  try { r = O.recortarDeLienzo(lado, lienzo, { giro: giro === 180 ? 180 : 0, guia: guiaEnElRecorte(lienzo) }); } catch (e) { r = null; }
+  if (!r || !r.zonas || !r.zonas.length) return;
+  OCR_CEDULA.pendientes[lado] = { recorte: r, gen: GENERACION_DEL_REGISTRO, foto: FOTOS['cedula_' + lado] };
+  if (lado === 'reverso') ocrPrecalentarMotor();
+}
+/* EL MOTOR SE BAJA MIENTRAS LA PERSONA VOLTEA LA CÉDULA. Son unos 6 MB la
+   primera vez (el núcleo y el español; ORIGEN.md), y bajarlos después del
+   frente era dejarla mirando «Leyendo…». rel=prefetch: la prioridad más baja
+   del navegador, a la caché, sin ejecutar nada (como el detector de rostro).
+   Solo después del primer disparo: quien no escanea no paga esos datos. */
+function ocrPrecalentarMotor() {
+  var O = window.OcrCedula;
+  if (OCR_CEDULA.precalentado || !O || typeof O.rutas !== 'function') return;
+  OCR_CEDULA.precalentado = true;
+  try {
+    var r = O.rutas(BASE_OCR);
+    [r.libreria, r.workerPath, r.corePath, r.langPath + '/spa.traineddata.gz'].forEach(function (u) {
+      var l = document.createElement('link');
+      l.rel = 'prefetch'; l.href = u;
+      document.head.appendChild(l);
+    });
+  } catch (e) {}
+}
+/* Lo que la lectura escribió y sigue igual se va; lo que la persona corrigió
+   se queda (ya es suyo). También de la casilla en pantalla, que es lo que lee
+   «Continuar» (recogerPaso). `campos`: solo esos (opcional). */
+function ocrQuitarLoLlenado(v, campos) {
+  if (!v || !v.llenados) return;
+  var quito = false;
+  Object.keys(v.llenados).forEach(function (c) {
+    if (campos && campos.indexOf(c) < 0) return;
+    var val = String(v.llenados[c]);
+    if (REGISTRO[c] !== undefined && String(REGISTRO[c]) === val) {
+      delete REGISTRO[c]; quito = true;
+      var i = $('f_' + c); if (i && String(i.value) === val) i.value = '';
+    }
+    delete v.llenados[c];
+  });
+  if (quito) sinTocarElToque(function () { guardarBorrador(REGISTRO); });
+}
+/* Una foto nueva de UN lado: lo que la anterior de ese lado escribió se va,
+   y su lectura pendiente también. */
+function ocrSoltarLado(lado) {
+  if (typeof OCR_CEDULA === 'object' && OCR_CEDULA) delete OCR_CEDULA.pendientes[lado];
+  var v = FOTOS.cedula_vista;
+  if (!v) return;
+  ocrQuitarLoLlenado(v, lado === 'frente' ? ['documento', 'apellidos', 'nombres', 'tipo_doc'] : ['expedicion']);
+  if (v.lados) delete v.lados[lado];
+  if (v.leidos) (lado === 'frente' ? ['documento', 'apellidos', 'nombres'] : ['expedicion']).forEach(function (c) { delete v.leidos[c]; });
+  if (lado === 'frente') delete v.numero_distinto;
+  if (!v.lados || !Object.keys(v.lados).length) delete FOTOS.cedula_vista;
+  guardarFotos();
+}
+/* Un respaldo NUEVO (prepararRespaldoNuevo): el frente se va con el viejo, y
+   todo lo que las letras de esa cédula escribieron, también. */
+function ocrSoltarVista() {
+  if (typeof OCR_CEDULA === 'object' && OCR_CEDULA) OCR_CEDULA.pendientes = {};
+  var v = FOTOS.cedula_vista;
+  if (v) { ocrQuitarLoLlenado(v); delete FOTOS.cedula_vista; }
+}
+/* Las fotos se sueltan (soltarLasFotos, soltarLoSensibleDelRegistro): lo que
+   su lectura escribió en ESTE registro se va con ellas. Lo de otro intento no
+   se toca: ese formulario ya es de quien está aquí. */
+function ocrSoltarConLasFotos() {
+  var v = FOTOS && FOTOS.cedula_vista;
+  if (v && (esteIntento(FOTOS.de) || !(FOTOS.de && FOTOS.de.intento))) ocrQuitarLoLlenado(v);
+}
+/* Otra generación (G1): salir del registro, otra persona, la cuenta creada.
+   Nada en camino escribe, nada pendiente se lee, y el motor se termina. */
+function ocrOlvidar() {
+  if (typeof OCR_CEDULA !== 'object' || !OCR_CEDULA) return;
+  OCR_CEDULA.pendientes = {}; OCR_CEDULA.tocados = {};
+  ocrParar('');
+}
+function ocrParar(estado) {
+  var P = OCR_CEDULA;
+  P.turno++;
+  if (P.tope) { clearTimeout(P.tope); P.tope = null; }
+  if (P.lector) { var l = P.lector; P.lector = null; try { l.terminar(); } catch (e) {} }
+  P.estado = estado;
+}
+/* La cámara se vuelve a encender (repetir un lado): la lectura en curso se
+   deja —el motor se termina— y lo pendiente espera a que se apague otra vez. */
+function ocrPausar() {
+  if (typeof OCR_CEDULA === 'object' && OCR_CEDULA && OCR_CEDULA.estado === 'leyendo') ocrParar('');
+}
+function ocrHayPendiente() {
+  var P = OCR_CEDULA;
+  return ['reverso', 'frente'].some(function (l) { var p = P.pendientes[l]; return !!p && p.gen === GENERACION_DEL_REGISTRO; });
+}
+/* Lee lo pendiente, el respaldo primero (trae la expedición, la casilla que
+   siempre quedaba vacía). Cada lado escribe en cuanto termina. */
+function ocrLeerLoPendiente() {
+  if (typeof OCR_CEDULA !== 'object' || !OCR_CEDULA) return;
+  var P = OCR_CEDULA;
+  if (P.estado === 'leyendo' || !ocrHayPendiente()) return;
+  if (ESCDOC.activo || ESCDOC.stream) return;   // nunca con la cámara encendida
+  ocrParar('leyendo');
+  var turno = P.turno, gen = GENERACION_DEL_REGISTRO, O = null;
+  var vale = function () { return turno === P.turno && gen === GENERACION_DEL_REGISTRO; };
+  P.tope = setTimeout(function () { if (vale()) { ocrParar('fallo'); P.pendientes = {}; ocrRefrescarIdentidad(); } }, MS_TOPE_OCR);
+  ocrRefrescarIdentidad();
+  cargarScript(URL_OCR_CEDULA).then(function () {
+    O = window.OcrCedula;
+    if (!O || typeof O.crearLector !== 'function') throw new Error('no cargó ' + URL_OCR_CEDULA);
+    var r = O.rutas(BASE_OCR);
+    return cargarScript(r.libreria).then(function () {
+      if (!vale()) throw new Error('ya no es de este registro');
+      return O.crearLector(window.Tesseract, r);
+    });
+  }).then(function (lector) {
+    if (!vale()) { try { lector.terminar(); } catch (e) {} return; }
+    P.lector = lector;
+    return ['reverso', 'frente'].reduce(function (cadena, lado) {
+      return cadena.then(function () {
+        var p = P.pendientes[lado];
+        if (!vale() || !p || p.gen !== gen) return;
+        return O.leerRecorte(lector, p.recorte, { hoy: hoyISO(), nacimientoLeido: nacimientoLeido() }).then(function (res) {
+          if (!vale() || P.pendientes[lado] !== p) return;
+          delete P.pendientes[lado];
+          /* La foto de la que salió tiene que seguir siendo la de este lado. */
+          if (FOTOS['cedula_' + lado] !== p.foto || !hayFotoLista('cedula_' + lado)) return;
+          ocrAplicar(lado, (res && res.campos) || {});
+          ocrRefrescarIdentidad();
+        });
+      });
+    }, Promise.resolve());
+  }).then(function () {
+    if (!vale()) return;
+    ocrParar('listo'); ocrRefrescarIdentidad();
+    if (ocrHayPendiente()) ocrLeerLoPendiente();   // un lado repetido mientras se leía
+  }, function () {
+    if (!vale()) return;
+    ocrParar('fallo'); P.pendientes = {}; ocrRefrescarIdentidad();
+  });
+}
+/* Lo que leyó un lado, a FOTOS.cedula_vista y a las casillas que se pueden
+   llenar (OcrCedula.planDeLlenado). La fecha de nacimiento leída de las letras
+   solo sirvió para comprobar la de expedición: no se guarda ni se pide. */
+function ocrAplicar(lado, campos) {
+  var O = window.OcrCedula; if (!O) return;
+  var v = FOTOS.cedula_vista || { fuente: 'ocr', version: O.VERSION };
+  v.lados = v.lados || {}; v.llenados = v.llenados || {}; v.leidos = v.leidos || {};
+  v.lados[lado] = true;
+  var vista = {};
+  CAMPOS_DE_LA_VISTA.forEach(function (c) { if (campos[c]) { vista[c] = String(campos[c]); v.leidos[c] = true; } });
+  var plan = O.planDeLlenado({ vista: vista, leida: cedulaLeidaDeEsteRegistro() ? FOTOS.cedula_leida : null,
+                               registro: REGISTRO, tocados: OCR_CEDULA.tocados });
+  if (lado === 'frente' && typeof plan.numero_distinto === 'boolean') v.numero_distinto = plan.numero_distinto;
+  /* Solo antes de pasar «Revisa tus datos»: lo que se llenara después nadie
+     lo vería antes de mandarlo. */
+  if (VISTA === 'registro' && PASO <= indiceDe('identidad')) {
+    var llenar = plan.llenar || {};
+    Object.keys(llenar).forEach(function (c) { REGISTRO[c] = llenar[c]; v.llenados[c] = llenar[c]; });
+    if (Object.keys(llenar).length) sinTocarElToque(function () { guardarBorrador(REGISTRO); });
+  }
+  FOTOS.cedula_vista = v;
+  guardarFotos();
+}
+/* ¿Este valor de la casilla salió de la cédula —del código o de las letras— y
+   sigue igual? Es lo que pinta «leído de tu cédula · revísalo». */
+function deLaCedula(c) {
+  if (REGISTRO[c] === undefined || REGISTRO[c] === null || String(REGISTRO[c]) === '') return false;
+  var val = String(REGISTRO[c]);
+  if (cedulaLeidaDeEsteRegistro() && CAMPOS_DE_LA_CEDULA.indexOf(c) >= 0 && val === String(FOTOS.cedula_leida[c] || '')) return true;
+  var v = FOTOS.cedula_vista;
+  return !!(v && v.llenados && v.llenados[c] !== undefined && val === String(v.llenados[c]) &&
+            (esteIntento(FOTOS.de) || fotosSonDeEsteRegistro()));
+}
+function llenadosDeLaFoto() {
+  var v = FOTOS.cedula_vista;
+  if (!v || !v.llenados) return [];
+  return CAMPOS_DE_LA_VISTA.filter(function (c) { return v.llenados[c] !== undefined && deLaCedula(c); });
+}
+/* ¿Hay (o está por haber) algo leído de las letras en «Revisa tus datos»? */
+function hayLecturaVisible() {
+  return ocrEstado().estado === 'leyendo' || llenadosDeLaFoto().length > 0;
+}
+var NOMBRE_DE_CAMPO_LEIDO = { documento: 'tu número de documento', apellidos: 'tus apellidos', nombres: 'tus nombres', expedicion: 'la fecha de expedición' };
+/* El estado de la lectura, también si se pregunta antes de que este bloque
+   haya corrido al cargar la página (el arranque pinta el registro). */
+function ocrEstado() {
+  return (typeof OCR_CEDULA === 'object' && OCR_CEDULA) ? OCR_CEDULA : { pendientes: {}, estado: '', lector: null };
+}
+function notaDeLaFotoTexto() {
+  if (ocrEstado().estado === 'leyendo') {
+    return 'Estamos leyendo las letras de tu cédula para llenarte lo que falta. La primera vez tarda unos segundos; ' +
+      'si prefieres, escribe tú: lo que escribas no lo cambiamos.';
+  }
+  var ll = llenadosDeLaFoto();
+  if (!ll.length) return '';
+  return '<b>Leímos de las fotos de tu cédula ' + enLista(ll.map(function (c) { return NOMBRE_DE_CAMPO_LEIDO[c]; })) + '.</b> ' +
+    'Revísalo con tu cédula en la mano: leer letras de una foto se puede equivocar, y lo que no sea igual, corrígelo.';
+}
+function notaDeLaFoto() {
+  var t = notaDeLaFotoTexto();
+  return '<div class="aviso info' + (t ? '' : ' oculto') + '" id="notaFoto">' + t + '</div>';
+}
+/* La ayuda de la expedición dice de dónde salió (o por qué no), sin etiquetas
+   adentro: pedir-a-la-medida.test.js la busca entera. */
+function textoAyudaExpedicion() {
+  var donde = 'donde dice «FECHA Y LUGAR DE EXPEDICIÓN»';
+  if (deLaCedula('expedicion') && FOTOS.cedula_vista && FOTOS.cedula_vista.llenados &&
+      FOTOS.cedula_vista.llenados.expedicion !== undefined) {
+    return 'La leímos del respaldo de tu cédula, ' + donde + '. Revísala: si no es la misma, corrígela.';
+  }
+  var P = ocrEstado();
+  if (P.estado === 'leyendo' && (P.pendientes.reverso || P.lector)) {
+    return 'Estamos leyéndola del respaldo de tu cédula, ' + donde + '. Si prefieres, escríbela tú.';
+  }
+  var v = FOTOS.cedula_vista;
+  if ((v && v.lados && v.lados.reverso && !(v.leidos && v.leidos.expedicion)) || P.estado === 'fallo') {
+    return 'No la pudimos leer de la foto: escríbela tú. En la cédula de ciudadanía está en el respaldo, ' + donde +
+      ', cerca de la firma del Registrador.';
+  }
+  return 'No viene en el código de barras: escríbela tú. En la cédula de ciudadanía está en el respaldo, ' + donde +
+    ', cerca de la firma del Registrador.';
+}
+/* UN TOQUE: con todo lo de «Revisa tus datos» lleno y algo salido de la
+   cédula, el botón dice lo que la persona hace al tocarlo. Revisa igual que
+   «Continuar» (siguientePaso): solo cambia la palabra. */
+function textoBotonIdentidad() {
+  if (!PASOS[PASO] || PASOS[PASO].id !== 'identidad') return 'Continuar';
+  var r = U.revisarVinculacion(REGISTRO);
+  var ids = U.camposDelGrupo('identidad').map(function (c) { return c.id; });
+  var falta = r.faltan.concat(r.errores).some(function (f) { return ids.indexOf(f.id) >= 0; });
+  return !falta && CAMPOS_DE_LA_VISTA.some(deLaCedula) ? 'Están bien' : 'Continuar';
+}
+/* «Revisa tus datos» sin repintarlo (repintar le cerraría el teclado a quien
+   está escribiendo): las casillas que se llenaron, sus marcas, la nota, la
+   ayuda de la expedición y el botón. Nada más: no se mueve de paso. */
+function ocrRefrescarIdentidad() {
+  if (VISTA !== 'registro' || !PASOS[PASO] || PASOS[PASO].id !== 'identidad') return;
+  var v = FOTOS.cedula_vista, ll = (v && v.llenados) || {};
+  CAMPOS_DE_LA_VISTA.concat(['tipo_doc']).forEach(function (c) {
+    var i = $('f_' + c);
+    if (i && ll[c] !== undefined && String(REGISTRO[c]) === String(ll[c]) && !i.value) i.value = ll[c];
+  });
+  CAMPOS_DE_LA_VISTA.forEach(refrescarMarcaDeLaCedula);
+  var n = $('notaFoto');
+  if (n) { var t = notaDeLaFotoTexto(); n.innerHTML = t; n.classList.toggle('oculto', !t); }
+  var s = $('notaSinLeer'); if (s) s.classList.toggle('oculto', hayLecturaVisible());
+  var a = $('ayudaExpedicion'); if (a) a.textContent = textoAyudaExpedicion();
+  var b = $('btnSeguir'); if (b) b.textContent = textoBotonIdentidad();
+}
+function refrescarMarcaDeLaCedula(c) {
+  var s = $('leido_' + c); if (s) s.textContent = deLaCedula(c) ? TEXTO_LEIDO_DE_LA_CEDULA : '';
+}
+/* Lo que viaja con las fotos para Joan (huella.cedula_vista): QUÉ casillas
+   llenaron las letras, cuáles corrigió la persona y si el número impreso no
+   es el del código. Nombres de campos y un sí/no: ningún valor, que los que
+   valen ya van en el registro, escritos o confirmados por la persona. */
+function resumenDeLaVista(lote) {
+  var v = lote && lote.cedula_vista;
+  if (!v || v.fuente !== 'ocr') return null;
+  var r = { fuente: 'ocr', version: String(v.version || '') };
+  var ll = Object.keys(v.llenados || {}).filter(function (c) { return CAMPOS_DE_LA_VISTA.indexOf(c) >= 0; });
+  var co = Object.keys(v.corregidos || {}).filter(function (c) { return CAMPOS_DE_LA_VISTA.indexOf(c) >= 0; });
+  if (ll.length) r.llenados = ll;
+  if (co.length) r.corregidos = co;
+  if (typeof v.numero_distinto === 'boolean') r.numero_distinto = v.numero_distinto;
+  return (r.llenados || r.corregidos || r.numero_distinto !== undefined) ? r : null;
+}
 
 /* ---------------------------------------------------------- paso: el rostro */
 var ESCANER = { stream: null, activo: false, estables: 0, temporizador: null,
@@ -7601,6 +8002,13 @@ function subirArchivosRegistro() {
      servidor no la usa para decidir: compara los textos él mismo. Sirve para
      que Joan distinga «no lo tocó» de «lo corrigió y quedó igual». */
   if (lote.cedula_editado) huella.cedula_editado = lote.cedula_editado;
+  /* 21-oct-2026 — y lo de las LETRAS de la cédula, en su propia llave y sin
+     ningún valor: qué casillas llenaron, cuáles corrigió la persona y si el
+     número impreso no es el del código (resumenDeLaVista). Nunca dentro de
+     cedula_leida: no decide de quién es la cédula. Hasta que la base tenga la
+     migración de RECETA-OCR-CEDULA.md, registro_archivos_guardar lo ignora. */
+  var vistaResumen = resumenDeLaVista(lote);
+  if (vistaResumen) huella.cedula_vista = vistaResumen;
   if (!pedidas.length && !Object.keys(huella).length) { guardarCola(cel, null); return Promise.resolve(); }
   var ses = SESION;
   /* 21-oct-2026 — I3: suelta (el `true` del final): la respuesta llega
