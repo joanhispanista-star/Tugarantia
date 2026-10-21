@@ -1864,7 +1864,14 @@ const ARCHIVOS = [
      (play/, platachat/ e index.html), y la selfie que se toma sola (play/, al
      llegar al paso). Ver la nota de v136. */
   'app/calculadora-solicitud.js',
-  'app/rostro-en-vivo.js'
+  'app/rostro-en-vivo.js',
+  /* 21-oct-2026 — las letras de la cédula (play/, al escanear): el módulo
+     chico, que recorta las franjas en el disparo y tiene que estar ahí sin
+     esperar la red. El motor de app/lib/ocr/ (unos 6 MB) NO entra: precargarlo
+     sería pagarle esos datos a cada socio que abre la app, y solo los usa
+     quien se registra, una vez (play/ los pide con rel=prefetch al disparar el
+     respaldo). El número de CACHE lo sube quien publica. */
+  'app/ocr-cedula.js'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {
