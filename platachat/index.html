@@ -550,9 +550,16 @@ function esNuevo() { return !S || !S.vinculada || Number(S.garantia || 0) <= 0; 
    freno, y guarda solo un celular y una nota corta. Por eso va con fetch a
    secas y no por SP.rpc: si algún día alguien la mete en SP.rpc, que exige
    sesión, deja de funcionar para el único que la necesita. La llamada vive en
-   sesion.js (SP.recado), como toda la red de esta app. */
+   sesion.js (SP.recado), como toda la red de esta app.
+   21-oct-2026 — ir al recado es OTRO FLUJO, como olvide() en play/: el
+   «Entrar» que viaja queda atrás (soltarElEntrar). Sin eso, quien tocaba
+   «Entrar» con señal floja, pasaba al recado y volvía encontraba la casilla
+   repintada VACÍA (un input nuevo, sin oninput): tecleaTel no veía otro
+   número, y la respuesta llegaba, se adoptaba y se guardaba en la pantalla
+   de quien tuviera el teléfono. */
 function pintarRecado() {
   var caja = $('entrarCuerpo'); if (!caja) return;
+  soltarElEntrar();
   var tel = ($('inCelular') || {}).value || '';
   caja.innerHTML =
     '<div class="card">' +
@@ -601,8 +608,13 @@ function mandarRecado() {
   });
 }
 
+/* 21-oct-2026 — repintar la entrada también deja atrás el «Entrar» que viaja:
+   la casilla nace vacía y sin oninput, así que «el celular de la casilla
+   sigue siendo ese» ya no se puede comprobar, y el botón nuevo nace
+   encendido. Cualquier camino que vuelva aquí es otro flujo. */
 function pintarEntrar() {
   var caja = $('entrarCuerpo'); if (!caja) return;
+  soltarElEntrar();
   caja.innerHTML =
     '<div class="card">' +
       '<h3 class="tit">Entrar</h3>' +

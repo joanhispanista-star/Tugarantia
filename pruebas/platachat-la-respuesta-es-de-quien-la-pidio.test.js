@@ -120,6 +120,36 @@ describe('I2 — el «Entrar» de PlataChat: uno a la vez, con tope, y la respue
     assert.match(PC.logouts()[0].auth, /tok-Pedro-/);
   });
 
+  /* 21-oct-2026 — la verificación de da4c912: «Déjanos un recado» seguía
+     encendido mientras el «Entrar» de Pedro viajaba, y al volver de él la
+     entrada se repinta con la casilla VACÍA (un input nuevo, sin oninput):
+     tecleaTel nunca veía otro número y la respuesta de Pedro se adoptaba y
+     se guardaba en la pantalla de quien tuviera el teléfono. Ir al recado (o
+     repintar la entrada) es otro flujo, como olvide() en play/. */
+  for (const [nombre, pasos] of [
+    ['va al recado y vuelve con la casilla vacía', ['pintarRecado()', 'pintarEntrar()']],
+    ['solo va al recado', ['pintarRecado()']],
+    ['pasado el tope, va al recado y vuelve', ['TOPE', 'pintarRecado()', 'pintarEntrar()']],
+  ]) {
+    test('I2 — con el «Entrar» de Pedro en camino, ' + nombre + ': su respuesta no se adopta, no se guarda y se cierra', async () => {
+      const PC = abrirPlataChat();
+      await asentar(10);
+      PC.st.colgar = /grant_type=password/;
+      await PC.entrarComo(CEL_PEDRO, CLAVE_PEDRO);
+      for (const p of pasos) { if (p === 'TOPE') PC.pasa(30000); else PC.ev(p); }
+      PC.st.colgar = null;
+      PC.suelta(0);
+      await asentar(20);
+      assert.equal(PC.ev('SES'), null, 'se adoptó la sesión de Pedro después de pasar por el recado');
+      assert.equal(PC.guardada(), null, 'la sesión de Pedro quedó guardada en el teléfono');
+      assert.equal(PC.logouts().length, 1);
+      assert.match(PC.logouts()[0].auth, /tok-Pedro-/);
+      if (pasos[pasos.length - 1] === 'pintarEntrar()') {
+        assert.equal(PC.elems.btnEntrar.disabled, false, '«Entrar» quedó apagado por un viaje que ya no es de nadie');
+      }
+    });
+  }
+
   test('I2, control — pasado el tope, si nadie hizo nada, la respuesta llega, se adopta y se guarda (el tope no deja a nadie afuera)', async () => {
     const PC = abrirPlataChat();
     await asentar(10);
