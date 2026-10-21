@@ -371,8 +371,13 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    pintar nada de otro, la cédula que no es del documento escrito no sube, y
    la pregunta del final es «¿La cédula 52.123.456, de Maria, es tuya?». Si
    alguien dice que vio la cédula de otra persona al registrarse, esta fecha
-   dice si tenía la versión con las reglas. */
-var VERSION_PLAY = '2026-10-20';
+   dice si tenía la versión con las reglas.
+   21-oct-2026 — sube porque «Continuar» en «Tu celular y tu contraseña» decide
+   con el número que muestra la casilla («Revisa tu celular» si no sirve), y
+   porque corregir un número mal tecleado ya no borra unas fotos que eran
+   suyas. Si alguien dice que su cuenta salió con otro celular, esta fecha
+   dice si tenía la versión que lo revisa. */
+var VERSION_PLAY = '2026-10-21';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -893,16 +898,42 @@ function olvidarPaso() { try { localStorage.removeItem(LLAVE_PASO); } catch (e) 
    soltar si el celular cambia. Se va con el borrador (borrarTodoElRegistro) y
    con la cuenta creada (cerrarElRegistroEnMemoria). */
 var LLAVE_CELULAR_DEL_REGISTRO = 'play_registro_celular';
-function anotarCelularDelRegistro(cel) {
-  try { localStorage.setItem(LLAVE_CELULAR_DEL_REGISTRO, JSON.stringify({ celular: String(cel || ''), intento: asegurarIntento() })); } catch (e) {}
+/* 21-oct-2026 — D3: CON EL CELULAR VA LO QUE QUEDÓ PENDIENTE DE DECIR
+   (`pendiente`): lo que soltarLoDeOtroCelular borró y que ningún «Continuar»
+   que pase ha dicho todavía (ver borradoPendiente). Va con el celular y el
+   intento porque es de ese cambio, y se guarda igual que él: si la pestaña se
+   relanza entre el «Continuar» que borró y el que pasa, el desvío a «Revisa
+   tus datos» no se pierde. Solo booleanos y nombres de campos: nada de lo
+   borrado viaja aquí.
+   21-oct-2026 — D4: Y UNA COPIA EN LA MEMORIA DE LA PÁGINA, que se lee
+   primero. Desde hoy este es también el dueño de las fotos nuevas
+   (marcarDuenoDeLasFotos): con el teléfono que no deja escribir, la selfie
+   del paso siguiente nacería sin dueño. Primero la memoria porque es siempre
+   lo último que se anotó en esta página; si la escritura falló, el
+   localStorage puede tener uno anterior. */
+var CELULAR_DEL_REGISTRO_EN_MEMORIA = null;   // {celular, intento, pendiente}
+function anotarCelularDelRegistro(cel, pendiente) {
+  var c = { celular: String(cel || ''), intento: asegurarIntento(), pendiente: pendiente || null };
+  CELULAR_DEL_REGISTRO_EN_MEMORIA = c;
+  try { localStorage.setItem(LLAVE_CELULAR_DEL_REGISTRO, JSON.stringify(c)); } catch (e) {}
+}
+function leerCelularDelRegistro() {
+  var c = CELULAR_DEL_REGISTRO_EN_MEMORIA;
+  if (!c) { try { c = JSON.parse(localStorage.getItem(LLAVE_CELULAR_DEL_REGISTRO) || 'null'); } catch (e) { c = null; } }
+  return (c && c.celular && c.intento && REGISTRO.intento && String(c.intento) === String(REGISTRO.intento)) ? c : null;
 }
 function celularDelRegistro() {
-  try {
-    var c = JSON.parse(localStorage.getItem(LLAVE_CELULAR_DEL_REGISTRO) || 'null');
-    return (c && c.celular && c.intento && REGISTRO.intento && String(c.intento) === String(REGISTRO.intento)) ? String(c.celular) : '';
-  } catch (e) { return ''; }
+  var c = leerCelularDelRegistro();
+  return c ? String(c.celular) : '';
 }
-function olvidarCelularDelRegistro() { try { localStorage.removeItem(LLAVE_CELULAR_DEL_REGISTRO); } catch (e) {} }
+function borradoPendiente() {
+  var c = leerCelularDelRegistro();
+  return (c && c.pendiente && typeof c.pendiente === 'object') ? c.pendiente : null;
+}
+function olvidarCelularDelRegistro() {
+  CELULAR_DEL_REGISTRO_EN_MEMORIA = null;
+  try { localStorage.removeItem(LLAVE_CELULAR_DEL_REGISTRO); } catch (e) {}
+}
 
 /* LA CUENTA QUE ACABA DE NACER — 21-sep-2026. Si el teléfono relanza la página
    justo después de crear la cuenta (la sesión vive en sessionStorage y se
@@ -2218,9 +2249,17 @@ function cajaClaveFinal() {
 function recogerPaso() {
   var p = PASOS[PASO];
   if (p.id === 'entrada') {
-    var tel = U.normalizarTelefono($('rTel').value);
+    /* 21-oct-2026 — D1: EL CELULAR ES EL QUE MUESTRA LA CASILLA, no el que
+       quedó en el borrador. Un número que no sirve (a medias, vacío, con un
+       dígito de más) dejaba REGISTRO.celular con el anterior, y «Continuar»
+       seguía callado con él: Pedro escribía «310 999 887», no veía ningún
+       error, y su cuenta nacía con el celular, la selfie y la ubicación de
+       María (y con la casilla en blanco, con la contraseña de ella).
+       `celular` sale vacío si la casilla no trae un número válido, y
+       siguientePaso falla con eso antes de mirar nada más. */
+    var tel = U.normalizarTelefono($('rTel').value) || '';
     if (tel) REGISTRO.celular = tel;
-    return { clave: $('rClave').value, clave2: $('rClave2').value };
+    return { celular: tel, clave: $('rClave').value, clave2: $('rClave2').value };
   }
   if (p.id === 'permiso') {
     var cf = $('rClaveFin'), cf2 = $('rClaveFin2');
@@ -2251,13 +2290,29 @@ function siguientePaso() {
   var p = PASOS[PASO];
 
   if (p.id === 'entrada') {
-    if (!REGISTRO.celular) return fallo(err, 'Nos falta tu celular: son 10 números y empiezan por 3.');
+    /* 21-oct-2026 — D1: se decide con lo que MUESTRA la casilla (recogerPaso),
+       y un número que no sirve se dice AQUÍ, antes de soltarLoDeOtroCelular,
+       de «déjalo en blanco» y de claveDeEsteCelular. Antes se miraba
+       REGISTRO.celular, que con un número a medias seguía siendo el de antes:
+       todo lo de abajo trabajaba con el celular de María sin que nadie lo
+       viera. Vacío o inválido, el mismo aviso: lo que hay en la casilla no es
+       un celular, y lo que hay que hacer es revisarlo. */
+    var cel = extra.celular;
+    if (!cel) return fallo(err, 'Revisa tu celular: son 10 números y empiezan por 3.');
     /* 20-oct-2026, otro celular (C1, C2) — SI EL CELULAR CAMBIA, ES OTRA
        PERSONA, y lo de la anterior se borra ANTES de nada: sus fotos, su
        lectura, su selfie, su ubicación, su permiso y su contraseña en curso.
        Ver soltarLoDeOtroCelular. La primera vez que se escribe el celular no
-       hay otro, y no se borra nada. */
-    var otro = soltarLoDeOtroCelular(REGISTRO.celular);
+       hay otro, y no se borra nada.
+       21-oct-2026 — D3: LO BORRADO QUEDA PENDIENTE HASTA EL «CONTINUAR» QUE
+       PASA. Si este toque borra y luego falla por la contraseña, el siguiente
+       ya no ve ningún cambio (el celular nuevo quedó anotado al borrar), y
+       sin esto la persona seguía a «Tu rostro» sin su nombre ni su documento,
+       sin un aviso, a enterarse en el paso 9. Ahora el desvío a «Revisa tus
+       datos» y el aviso salen de lo pendiente (borradoPendiente), lo haya
+       borrado este toque o uno anterior. */
+    soltarLoDeOtroCelular(cel);
+    var otro = borradoPendiente();
     var dicho = otro ? textoDeOtroCelular(otro) : '';
     var antesDe = function (m) { return (dicho ? dicho + ' ' : '') + m; };
     /* En blanco Y con una contraseña ya creada en esta pestaña = «sigo con la
@@ -2265,14 +2320,14 @@ function siguientePaso() {
        volvió del susto de la cámara continuar sin teclearla dos veces sin que
        la contraseña tenga que volver al formulario.
        20-oct-2026, otro celular (C2) — solo si se creó con ESTE celular. */
-    var laMisma = claveDeEsteCelular(REGISTRO.celular);
+    var laMisma = claveDeEsteCelular(cel);
     if (!extra.clave && !extra.clave2 && laMisma) {
       extra.clave = extra.clave2 = laMisma;
     }
     if (otro && !extra.clave && !extra.clave2) {
       return fallo(err, antesDe('Con este celular la contraseña es nueva: créala y escríbela dos veces.'));
     }
-    var rc = U.revisarContrasena(extra.clave, { telefono: REGISTRO.celular, cedula: REGISTRO.documento });
+    var rc = U.revisarContrasena(extra.clave, { telefono: cel, cedula: REGISTRO.documento });
     if (!rc.ok) return fallo(err, antesDe(rc.motivo));
     if (extra.clave !== extra.clave2) return fallo(err, antesDe('Las dos contraseñas no quedaron iguales. Escríbelas otra vez, sin afán.'));
     /* Las fotos guardadas son de un celular. Si este es otro, son de otra
@@ -2283,9 +2338,11 @@ function siguientePaso() {
        DUEÑO: ver atarFotosAlCelular. (Ese día cambiar el celular dentro del
        mismo registro dejó de borrar lo escaneado; desde el 20-oct lo vuelve a
        borrar soltarLoDeOtroCelular, arriba.) */
-    atarFotosAlCelular(REGISTRO.celular);
-    ponerClaveEnCurso(extra.clave, REGISTRO.celular);
-    anotarCelularDelRegistro(REGISTRO.celular);
+    atarFotosAlCelular(cel);
+    ponerClaveEnCurso(extra.clave, cel);
+    /* Y lo pendiente se cierra aquí, en el «Continuar» que pasa: se anota el
+       celular sin nada pendiente (21-oct-2026, D3). */
+    anotarCelularDelRegistro(cel);
     guardarBorrador(REGISTRO);
     /* 8-oct-2026 — tocó «Continuar» con el aviso del acompañamiento a la
        vista: eso es el permiso (ver vioAvisoVivo). En PlataChat no hay aviso
@@ -2293,9 +2350,11 @@ function siguientePaso() {
     if (MARCA !== 'platachat') anotarAvisoVivo();
     /* Si con la lectura se fueron el nombre o el documento que el escáner
        había escrito, se escriben ahora: sin ellos «Abrir mi cuenta» no abre, y
-       mandarla adelante sería mandarla a enterarse en el paso 9. */
-    pintarRegistro(otro && otro.identidad && faltaAlgoDelPaso('identidad') ? indiceDe('identidad') : PASO + 1);
-    if (dicho) avisarOtroCelular(dicho, otro);
+       mandarla adelante sería mandarla a enterarse en el paso 9.
+       21-oct-2026 — D3: `otro` es lo pendiente, no solo lo de este toque. */
+    var aSusDatos = !!(otro && otro.identidad && faltaAlgoDelPaso('identidad'));
+    pintarRegistro(aSusDatos ? indiceDe('identidad') : PASO + 1);
+    if (dicho) avisarOtroCelular(dicho, otro, aSusDatos);
     return;
   }
 
@@ -2562,14 +2621,20 @@ function soltarLoDeOtroCelular(cel) {
     gps: deEste && !!FOTOS.gps,
     permiso: autorizoEsteIntento(),
     clave: !!CLAVE_EN_MEMORIA,
-    identidad: false
+    identidad: false,
+    datos: []
   };
   var l = FOTOS.cedula_leida || FOTOS.leida_anterior;
   if (l && (deEste || !(FOTOS.de && FOTOS.de.intento))) {
-    var id = function () { return [REGISTRO.nombres, REGISTRO.apellidos, REGISTRO.documento].join('|'); };
-    var antesId = id();
+    /* 21-oct-2026 — D3: se anota CUÁLES se fueron (también el tipo de
+       documento y la fecha de expedición, que quitarIdentidadLeida se lleva
+       con el documento aunque se hayan tecleado), para decirlo entero. */
+    var antesDatos = CAMPOS_BORRADOS_CON_LA_CEDULA.map(function (k) { return REGISTRO[k]; });
     quitarIdentidadLeida(l, FOTOS.cedula_editado);   // sin conservar lo corregido: era sobre la cédula de la otra
-    b.identidad = id() !== antesId;
+    b.datos = CAMPOS_BORRADOS_CON_LA_CEDULA.filter(function (k, i) {
+      return antesDatos[i] !== undefined && antesDatos[i] !== '' && REGISTRO[k] === undefined;
+    });
+    b.identidad = b.datos.length > 0;
   }
   antes.forEach(function (c, i) { if (antes.indexOf(c) === i) { try { borrarAvance(c); } catch (e) {} } });
   soltarLasFotos(false);
@@ -2578,9 +2643,31 @@ function soltarLoDeOtroCelular(cel) {
   olvidarClaveEnCurso();
   /* El celular del registro pasa a ser este YA, también si la contraseña nueva
      no pasa: lo de antes ya se borró, y el segundo «Continuar» no tiene nada
-     más que borrar ni que decir. */
-  anotarCelularDelRegistro(cel);
+     más que borrar.
+     21-oct-2026 — D3: …pero SÍ que decir. Decía «ni que decir», y por eso el
+     segundo «Continuar» mandaba a «Tu rostro» sin aviso a quien se le había
+     borrado el nombre. Lo borrado queda pendiente con este celular (junto con
+     lo que ya estuviera pendiente de un cambio anterior) hasta el «Continuar»
+     que pasa. */
+  anotarCelularDelRegistro(cel, juntarBorrados(borradoPendiente(), b));
   return b;
+}
+/* 21-oct-2026 — D3: los campos de la identidad que pueden irse con la lectura
+   de la cédula (quitarIdentidadLeida), con su nombre para la pantalla. */
+var CAMPOS_BORRADOS_CON_LA_CEDULA = ['nombres', 'apellidos', 'tipo_doc', 'documento', 'expedicion'];
+var NOMBRE_DEL_CAMPO_BORRADO = { nombres: 'los nombres', apellidos: 'los apellidos', tipo_doc: 'el tipo de documento',
+  documento: 'el número de documento', expedicion: 'la fecha de expedición' };
+/* Dos cambios de celular sin un «Continuar» que pase en medio: se dice todo lo
+   que se borró en los dos (lo del primero ya no está para el segundo). */
+function juntarBorrados(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  var r = {};
+  ['cedula', 'leida', 'selfie', 'gps', 'permiso', 'clave', 'identidad'].forEach(function (k) { r[k] = !!(a[k] || b[k]); });
+  r.datos = CAMPOS_BORRADOS_CON_LA_CEDULA.filter(function (k) {
+    return (a.datos || []).indexOf(k) !== -1 || (b.datos || []).indexOf(k) !== -1;
+  });
+  return r;
 }
 /* Lo que se borró, dicho entero y sin decir de quién era. '' si de este
    registro no se borró nada que se vea (solo la contraseña: eso lo dice el
@@ -2592,6 +2679,11 @@ function textoDeOtroCelular(b) {
   var cosas = [];
   if (b.cedula) cosas.push('las fotos de la cédula');
   if (b.leida) cosas.push(b.cedula ? 'lo que leímos de ella' : 'lo que leímos de la cédula');
+  /* 21-oct-2026 — D3: y lo que se fue del formulario con esa lectura. El
+     aviso del «Continuar» que falla por la contraseña solo nombraba las
+     fotos y la lectura: la fecha de expedición tecleada se iba sin decirlo. */
+  var datos = (b.datos || []).map(function (k) { return NOMBRE_DEL_CAMPO_BORRADO[k]; }).filter(Boolean);
+  if (datos.length) cosas.push('lo que estaba escrito de esa cédula (' + datos.join(', ') + ')');
   if (b.selfie) cosas.push('la foto de la cara');
   if (b.gps) cosas.push('la ubicación');
   if (b.permiso) cosas.push('el permiso de las fotos');
@@ -2599,12 +2691,15 @@ function textoDeOtroCelular(b) {
   return 'Cambiaste el celular, así que por seguridad borramos de este teléfono ' + enLista(cosas) +
     ': eran del registro con el otro celular.';
 }
-function avisarOtroCelular(dicho, b) {
+/* 21-oct-2026 — D3: `aSusDatos` dice si siguientePaso la mandó a «Revisa tus
+   datos». «Escribe tus datos otra vez» solo si de verdad faltan: si ya los
+   escribió entre un «Continuar» y otro, pedírselos otra vez sería falso. */
+function avisarOtroCelular(dicho, b, aSusDatos) {
   var a = $('errReg');
   if (!a) return;
   var fotos = b.cedula || b.leida || b.selfie;
   a.innerHTML = '<b>' + esc(dicho) + '</b>' +
-    (b.identidad ? ' Escribe tus datos otra vez, o escanea tu cédula.' : ' Lo que escribiste a mano sigue aquí.') +
+    (b.identidad ? (aSusDatos ? ' Escribe tus datos otra vez, o escanea tu cédula.' : '') : ' Lo que escribiste a mano sigue aquí.') +
     (fotos || b.permiso ? ' Si quieres dar las fotos, empieza por el primer paso.' : '') +
     (fotos || b.permiso
       ? '<button class="btn sec sm" type="button" style="margin-top:var(--e3)" onclick="pintarRegistro(indiceDe(\'documento\'))">Ir al primer paso</button>'
@@ -2827,8 +2922,12 @@ function preguntarSiEsElMismo(err, duda) {
    este registro y de este celular, y se vuelve a tocar «Abrir mi cuenta» por
    ella (siguientePaso relee las casillas: si quitó la de las fotos, se borran
    igual que siempre). */
+/* 21-oct-2026 — D4: el dueño es el celular CONFIRMADO, como en
+   marcarDuenoDeLasFotos. Si no hay ninguno anotado (el registro que viene de
+   la versión publicada), queda '' y ponerDuenoSiFalta les pone el de la
+   cuenta en este mismo «Abrir mi cuenta», con la hora de ahora. */
 function seguirSoyYo() {
-  FOTOS.de = { celular: String(REGISTRO.celular || ''), intento: REGISTRO.intento || '', t: Date.now() };
+  FOTOS.de = { celular: celularDelRegistro(), intento: REGISTRO.intento || '', t: Date.now() };
   guardarFotos();
   siguientePaso();
 }
@@ -3830,9 +3929,27 @@ function marcarDuenoDeLasFotos(nueva) {
   var otras = ['cedula_frente', 'cedula_reverso', 'selfie', 'gps', 'cedula_leida'].some(function (k) {
     return k !== nueva && !(nueva === 'cedula_reverso' && k === 'cedula_leida') && FOTOS[k];
   });
-  if (otras && antes && Number(antes.t) > 0 && EC &&
-      EC.fotosPertenecen({ de: antes }, antes.celular || REGISTRO.celular, ahora, REGISTRO.intento)) t = Number(antes.t);
-  FOTOS.de = { celular: REGISTRO.celular || '', intento: REGISTRO.intento || '', t: t };
+  var juegoVigente = !!(otras && antes && Number(antes.t) > 0 && EC &&
+      EC.fotosPertenecen({ de: antes }, antes.celular || REGISTRO.celular, ahora, REGISTRO.intento));
+  if (juegoVigente) t = Number(antes.t);
+  /* 21-oct-2026 — D4: EL DUEÑO ES UN CELULAR CONFIRMADO (el que ya pasó
+     «Continuar», celularDelRegistro), no el que se va tecleando. Era
+     REGISTRO.celular, que anotarCelular escribe tecla por tecla: María
+     tecleaba 3001112234 sin tocar «Continuar», volvía a repetir el frente, y
+     esa foto quedaba a nombre del número mal escrito; al corregirlo, el
+     PRIMER «Continuar» lo tomaba por un cambio de celular, le borraba la
+     cédula, la lectura y el permiso, y le decía «eran del registro con el
+     otro celular», que era falso. Sin ninguno confirmado, '' como las fotos
+     de antes del paso del celular (valen por el intento; atarFotosAlCelular
+     les pone dueño en el «Continuar»).
+     Una excepción, y no es tecleada: si la foto nueva se suma a un juego que
+     ya tenía dueño y en esta página no hay celular anotado (el registro que
+     empezó en la versión publicada, donde el celular era el primer paso y
+     pasó su «Continuar»), el juego lo conserva. Dejarlo en '' lo pasaría a
+     la regla de la hora sin dueño, y unas fotos de hace dos horas que valían
+     el día se perderían todas por tomar una más. */
+  var dueno = celularDelRegistro() || (juegoVigente && antes.celular ? String(antes.celular) : '');
+  FOTOS.de = { celular: dueno, intento: REGISTRO.intento || '', t: t };
   if (duda) FOTOS.de.duda = true;
   /* 20-oct-2026, rediseño (C, V2) — «es mía» se dijo mirando OTRAS fotos: una
      foto nueva de la cédula se vuelve a mirar. */
@@ -3843,8 +3960,14 @@ function marcarDuenoDeLasFotos(nueva) {
    miraba otra cosa: así una foto podía verse lista y no subir nunca. Ahora la
    pantalla y la subida preguntan lo MISMO. (La subida además exige que el
    dueño ya sea un celular: ver subirArchivosRegistro.) */
+/* 21-oct-2026 — D4: y se pregunta con el MISMO celular que les pone dueño:
+   el confirmado, si lo hay. Con el tecleado, la foto que María acababa de
+   tomar mientras la casilla tenía un número sin «Continuar» se vería sin ✓
+   (su dueño es el confirmado) y la tomaría por ajena. Lo tecleado no decide
+   nada hasta el «Continuar»; sin ninguno confirmado, el del borrador, como
+   antes (las fotos de la versión publicada traen ese dueño). */
 function fotosSonDeEsteRegistro(celular) {
-  return !!(EC && EC.fotosPertenecen(FOTOS, celular || REGISTRO.celular, Date.now(), REGISTRO.intento));
+  return !!(EC && EC.fotosPertenecen(FOTOS, celular || celularDelRegistro() || REGISTRO.celular, Date.now(), REGISTRO.intento));
 }
 /* 20-oct-2026, revisión (regla 1) — y la pregunta también mira el documento:
    una cédula leída cuyo número no es el escrito no es de esta persona, y no se

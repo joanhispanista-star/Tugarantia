@@ -32,6 +32,20 @@
  * corren play/index.html DE VERDAD (pruebas/banco-play.js), con la cédula
  * fabricada (pruebas/fabrica-pdf417.js). Lo de las tandas anteriores (V1-V7,
  * F4-F15, A1-A8, B1-B7) sigue en sus archivos y corre igual.
+ *
+ * 21-oct-2026 — la verificación de 74e8922 confirmó D1-D4. Al final del
+ * archivo, las de la página (cada una con su D en el título falla con
+ * 74e8922):
+ *   · D1: un celular que no sirve (a medias, vacío, con un dígito de más)
+ *     dejaba seguir con el de María: «Continuar» miraba REGISTRO.celular y no
+ *     la casilla, y C1 y C2 se volvían a abrir.
+ *   · D3: si el «Continuar» que borraba fallaba por la contraseña, el
+ *     siguiente mandaba a «Tu rostro» sin el nombre ni el documento, y sin
+ *     decirlo.
+ *   · D4: una foto tomada mientras la casilla tenía un número sin «Continuar»
+ *     quedaba a nombre de ese número, y corregirlo lo borraba todo.
+ *   D2 (el atajo sin sesión de registrar_abierto, del 9-sep) va en otra tanda:
+ *   queda nombrado como riesgo conocido en base/20261020_la_cedula_de_la_cuenta.sql.
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -612,5 +626,242 @@ describe('C6. la foto de la versión publicada que cruza la actualización conse
     const Q = abrirPlay({ almacen: laVersionPublicada(12, 11), sesion: {}, hash: '#registro' });
     const s = boton(cuerpo(Q), 'Seguir'); if (s) Q.ev(s);
     assert.equal(Q.ev('FOTOS.cedula_reverso'), undefined, 'una foto de hace once minutos volvió a valer');
+  });
+});
+
+/* ==========================================================================
+ * 21-oct-2026 — D1, D3 y D4 (verificación de 74e8922). Cada prueba con su D
+ * en el título falla con la página de 74e8922.
+ * ======================================================================== */
+
+/* El celular tecla por tecla, como el oninput de verdad (anotarCelular), sin
+   tocar «Continuar». */
+function teclear(P, cel) {
+  P.ev("$('rTel').value = ''; anotarCelular($('rTel'));");
+  for (let i = 1; i <= cel.length; i++) {
+    P.ev("$('rTel').value = " + JSON.stringify(cel.slice(0, i)) + "; anotarCelular($('rTel'));");
+  }
+}
+/* El celular y las dos casillas de la contraseña, cada una con lo suyo, y
+   «Continuar». */
+function toque(P, cel, c1, c2) {
+  P.ev("$('rTel').value = " + JSON.stringify(cel) + "; anotarCelular($('rTel'));" +
+       "$('rClave').value = " + JSON.stringify(c1) + "; $('rClave2').value = " + JSON.stringify(c2) + '; siguientePaso();');
+}
+/* Repetir el frente desde «Tu cédula» con el botón de la tarjeta (solo existe
+   si la tarjeta tiene su ✓) y tomarlo con la cámara en vivo. */
+function repetirElFrente(P, quien) {
+  assert.match(cuerpo(P), /repetirDoc\('frente'\)/, 'el frente no se ve tomado: no hay «Repetir»');
+  P.ev("repetirDoc('frente')");
+  camara(P, quien);
+  P.ev("ESCDOC.lado = 'frente'; capturarDoc(true)");
+  try { pasa(P, 1500); } catch (e) { /* si no pasó sola, se sigue a mano */ }
+}
+/* La caja de avisos del banco es UN objeto que sobrevive a cada repintada (en
+   el teléfono, pintarRegistro la crea vacía): se vacía antes de un toque cuyo
+   aviso se mira, para no leer el del toque anterior. */
+function cajaEnBlanco(P) {
+  if (P.elems.errReg) { P.elems.errReg.innerHTML = ''; P.elems.errReg.textContent = ''; }
+}
+/* De donde quede después de la foto hasta «Tu celular y tu contraseña». */
+function hastaElCelular(P) {
+  if (pasoActual(P) === 'documento') P.ev('siguientePaso()');
+  if (pasoActual(P) === 'identidad') { casillas(P, 'identidad'); P.ev('siguientePaso()'); }
+  assert.equal(pasoActual(P), 'entrada', 'no llegó al celular: ' + texto(caja(P)));
+}
+const DATOS_MARIA = { nombres: 'MARIA JOSE', apellidos: 'RODRIGUEZ PEREZ', tipo_doc: 'Cédula de ciudadanía',
+  documento: '52123456', expedicion: '2010-05-20' };
+
+describe('D1. «Continuar» decide con el celular que MUESTRA la casilla', () => {
+
+  [['A MEDIAS (9 dígitos)', '310 999 887'],
+   ['VACÍA', ''],
+   ['CON UN DÍGITO DE MÁS (11, pegados)', '31099988771']].forEach(([como, enLaCasilla]) => {
+    test('D1 — LA CASILLA ' + como + ': «Revisa tu celular» con contraseña nueva y en blanco, y no sigue con el celular ni la contraseña de María', async () => {
+      const P = mariaSinCedulaConSuCara();
+      pedroHastaSuCelular(P);
+      for (const clave of [CLAVE_PEDRO, '']) {
+        celularYClave(P, enLaCasilla, clave);
+        assert.equal(pasoActual(P), 'entrada',
+          'con la casilla ' + como.toLowerCase() + ' y la contraseña ' + (clave ? 'nueva' : 'en blanco') + ' siguió con el celular de María');
+        assert.match(P.elems.errReg.textContent, /Revisa tu celular: son 10 números y empiezan por 3/);
+        /* El aviso sale ANTES de soltar nada y antes de «déjalo en blanco»:
+           ni dice que borró, ni usó la contraseña de María. */
+        assert.equal(/borramos/.test(P.elems.errReg.textContent), false, 'borró algo con un número que no sirve');
+      }
+      /* Con su número completo, ahora sí: lo de María se va y la cuenta es suya. */
+      const ll = nube(P);
+      celularYClave(P, CEL_PEDRO, CLAVE_PEDRO);
+      assert.equal(pasoActual(P), 'rostro');
+      assert.equal(P.ev('FOTOS.selfie'), undefined, 'la selfie de María se quedó');
+      abrirLaCuenta(P);
+      const seguir = boton(caja(P), 'Seguir');
+      if (seguir) P.ev(seguir);
+      await asentar();
+      const s = signups(ll);
+      assert.equal(s.length, 1, 'no se abrió la cuenta: ' + texto(caja(P)));
+      assert.equal(s[0].cuerpo.email, U.correoDeTelefono(CEL_PEDRO), 'la cuenta nació con el celular de María');
+      assert.equal(s[0].cuerpo.password, CLAVE_PEDRO, 'la cuenta nació con la contraseña de María');
+      nadaDeMaria(JSON.stringify(subidas(ll)), 'subió a la cuenta de Pedro algo de María');
+      assert.equal(/Maria\.Secreta9/.test(JSON.stringify(ll())), false, 'la contraseña de María salió del teléfono');
+    });
+  });
+
+  test('con el MISMO celular de siempre en la casilla, sigue como antes (con espacios, y en blanco)', () => {
+    const P = abrir();
+    P.ev('prefieroEscribirMisDatos()');
+    casillas(P, 'identidad', DATOS_MARIA);
+    P.ev('siguientePaso()');
+    celularYClave(P, '300 111 2233', CLAVE_MARIA);   // con espacios, como lo escribe la gente
+    assert.equal(pasoActual(P), 'rostro', texto(caja(P)));
+    volver(P);
+    celularYClave(P, CEL_MARIA, '');
+    assert.equal(pasoActual(P), 'rostro', texto(caja(P)));
+  });
+});
+
+describe('D3. el desvío a «Revisa tus datos» y el aviso no dependen de que el «Continuar» que borró sea el que pasa', () => {
+
+  /* María escanea su cédula y teclea la fecha de expedición; pone 3001112234
+     por error y sigue; desde «Tu rostro» vuelve y lo corrige. */
+  function mariaVuelveACorregirSuCelular() {
+    const P = abrir();
+    escanear(P, MARIA, 'MARIA');
+    casillas(P, 'identidad', { expedicion: '2010-05-20' });
+    P.ev('siguientePaso()');
+    assert.equal(pasoActual(P), 'entrada');
+    celularYClave(P, '3001112234', CLAVE_MARIA);
+    assert.equal(pasoActual(P), 'rostro');
+    volver(P);
+    assert.equal(pasoActual(P), 'entrada');
+    return P;
+  }
+
+  [['EN BLANCO (lo que le ofrecía «Déjalo en blanco»)', '', ''],
+   ['QUE NO QUEDA IGUAL LAS DOS VECES', CLAVE_MARIA, 'Maria.Secreta8'],
+   ['MUY CORTA', 'abc', 'abc']].forEach(([como, c1, c2]) => {
+    test('D3 — EL PRIMER «CONTINUAR» FALLA (CONTRASEÑA ' + como + '): dice que se borraron sus datos, y el que pasa la lleva a «Revisa tus datos»', () => {
+      const P = mariaVuelveACorregirSuCelular();
+      toque(P, CEL_MARIA, c1, c2);
+      assert.equal(pasoActual(P), 'entrada', 'la contraseña no servía y siguió');
+      assert.equal(P.ev('REGISTRO.documento'), undefined, 'no se borró lo de la cédula: la prueba no cuenta el caso');
+      const f = P.elems.errReg.textContent;
+      assert.match(f, /los nombres/, 'el aviso calla que se borraron los nombres: ' + f);
+      assert.match(f, /número de documento/, 'el aviso calla que se borró el documento: ' + f);
+      assert.match(f, /fecha de expedición/, 'el aviso calla la fecha de expedición que tecleó: ' + f);
+      /* El segundo «Continuar», con la contraseña bien, ya no ve ningún cambio
+         de celular: lo que decide es lo que quedó pendiente. */
+      cajaEnBlanco(P);
+      toque(P, CEL_MARIA, CLAVE_MARIA, CLAVE_MARIA);
+      assert.equal(pasoActual(P), 'identidad', 'la mandó adelante sin su nombre ni su documento (se entera en el paso 9)');
+      const c = texto(caja(P));
+      assert.match(c, /Escribe tus datos otra vez/, 'no le dice que escriba sus datos: ' + c);
+      assert.match(c, /fecha de expedición/, 'no le dice que también se fue la fecha de expedición: ' + c);
+      /* Y lo pendiente se cerró: el siguiente paso por su celular no lo repite. */
+      casillas(P, 'identidad', DATOS_MARIA);
+      P.ev('siguientePaso()');
+      cajaEnBlanco(P);
+      celularYClave(P, CEL_MARIA, '');
+      assert.equal(pasoActual(P), 'rostro', texto(caja(P)));
+      assert.equal(/borramos/.test(caja(P) + P.elems.errReg.textContent), false, 'repite el aviso de lo borrado en un «Continuar» que ya no borró nada');
+    });
+  });
+
+  test('D3 — …y si la pestaña se relanza entre los dos «Continuar», lo pendiente sigue', () => {
+    const P = mariaVuelveACorregirSuCelular();
+    toque(P, CEL_MARIA, '', '');
+    assert.equal(pasoActual(P), 'entrada');
+    const Q = abrir({ almacen: P.almacen, sesion: {} });
+    const s = boton(cuerpo(Q), 'Seguir'); if (s) Q.ev(s);   // «¿Es tuyo?», si lo pregunta
+    Q.ev("pintarRegistro(indiceDe('entrada'))");
+    cajaEnBlanco(Q);
+    toque(Q, CEL_MARIA, CLAVE_MARIA, CLAVE_MARIA);
+    assert.equal(Q.ev('PASOS[PASO].id'), 'identidad', 'tras la relanzada la mandó adelante sin sus datos');
+    assert.match(texto(caja(Q)), /Escribe tus datos otra vez/);
+  });
+
+  test('D3 — SI ESCRIBIÓ SUS DATOS ENTRE UN «CONTINUAR» Y OTRO: el que pasa dice lo que se borró, y no se los pide otra vez', () => {
+    const P = mariaVuelveACorregirSuCelular();
+    toque(P, CEL_MARIA, '', '');
+    volver(P);
+    assert.equal(pasoActual(P), 'identidad');
+    casillas(P, 'identidad', DATOS_MARIA);
+    P.ev('siguientePaso()');
+    cajaEnBlanco(P);
+    toque(P, CEL_MARIA, CLAVE_MARIA, CLAVE_MARIA);
+    assert.equal(pasoActual(P), 'rostro', texto(caja(P)));
+    const c = texto(caja(P));
+    assert.match(c, /borramos/, 'en el «Continuar» que pasa no se dice lo que se borró');
+    assert.equal(/Escribe tus datos otra vez/.test(c), false, 'le pide otra vez unos datos que ya escribió: ' + c);
+  });
+});
+
+describe('D4. el dueño de una foto es un celular que ya pasó «Continuar», no el que se va tecleando', () => {
+
+  test('D4 — LA PRIMERA VEZ: un número mal tecleado, sin «Continuar», no se vuelve dueño de la foto que se repite; al corregirlo no se borra nada', () => {
+    const P = abrir();
+    escanear(P, MARIA, 'MARIA');
+    casillas(P, 'identidad', { expedicion: '2010-05-20' });
+    P.ev('siguientePaso()');
+    assert.equal(pasoActual(P), 'entrada');
+    teclear(P, '3001112234');                          // mal, y sin «Continuar»
+    volver(P); volver(P);                              // entrada → identidad → documento
+    assert.equal(pasoActual(P), 'documento');
+    repetirElFrente(P, 'MARIA');
+    assert.equal(P.ev('FOTOS.de.celular'), '', 'la foto quedó a nombre de un número que nunca pasó «Continuar»');
+    hastaElCelular(P);
+    teclear(P, CEL_MARIA);
+    cajaEnBlanco(P);
+    P.ev("$('rClave').value = '" + CLAVE_MARIA + "'; $('rClave2').value = '" + CLAVE_MARIA + "'; siguientePaso();");
+    assert.equal(pasoActual(P), 'rostro', 'la primera vez que pasa su celular la mandó a otra parte: ' + texto(caja(P)));
+    assert.equal(P.ev('FOTOS.cedula_frente'), 'data:image/jpeg;base64,FRENTE_MARIA', 'se borró el frente que acababa de tomar');
+    assert.equal(P.ev('FOTOS.cedula_reverso'), 'data:image/jpeg;base64,RESPALDO_MARIA', 'se borró el respaldo');
+    assert.equal(P.ev('REGISTRO.nombres'), 'MARIA JOSE', 'se borró lo leído de su cédula');
+    assert.equal(P.ev('REGISTRO.expedicion'), '2010-05-20', 'se borró la fecha que tecleó');
+    assert.equal(P.ev('autorizoEsteIntento()'), true, 'se borró el permiso que dio');
+    assert.equal(/borramos|otro celular/.test(caja(P) + P.elems.errReg.textContent), false, 'le dice que cambió de celular, y no lo cambió: ' + texto(caja(P)));
+    assert.equal(P.ev('FOTOS.de.celular'), CEL_MARIA, 'su «Continuar» no les puso dueño');
+  });
+
+  test('D4 — CON SU CELULAR YA CONFIRMADO: teclea otro sin «Continuar», repite una foto y vuelve al suyo; no se borra nada, ni la contraseña', () => {
+    const P = abrir();
+    escanear(P, MARIA, 'MARIA');
+    casillas(P, 'identidad', { expedicion: '2010-05-20' });
+    P.ev('siguientePaso()');
+    celularYClave(P, CEL_MARIA, CLAVE_MARIA);
+    assert.equal(pasoActual(P), 'rostro');
+    volver(P);                                         // rostro → entrada
+    teclear(P, '3001112234');                          // sin «Continuar»
+    volver(P); volver(P);                              // entrada → identidad → documento
+    /* Sus fotos se ven como suyas: el número tecleado no decide nada todavía. */
+    repetirElFrente(P, 'MARIA');
+    assert.equal(P.ev('FOTOS.de.celular'), CEL_MARIA, 'la foto quedó a nombre del número tecleado');
+    hastaElCelular(P);
+    teclear(P, CEL_MARIA);
+    cajaEnBlanco(P);
+    P.ev("$('rClave').value = ''; $('rClave2').value = ''; siguientePaso();");
+    assert.equal(pasoActual(P), 'rostro', 'con su mismo celular confirmado no la dejó seguir: ' + texto(caja(P)));
+    assert.equal(P.ev('FOTOS.cedula_frente'), 'data:image/jpeg;base64,FRENTE_MARIA');
+    assert.equal(P.ev('FOTOS.cedula_reverso'), 'data:image/jpeg;base64,RESPALDO_MARIA');
+    assert.equal(P.ev('REGISTRO.nombres'), 'MARIA JOSE');
+    assert.equal(P.ev('CLAVE_EN_MEMORIA'), CLAVE_MARIA, 'se le borró la contraseña de su propio celular');
+    assert.equal(/borramos|Cambiaste el celular/.test(caja(P) + P.elems.errReg.textContent), false, 'le dice que cambió de celular: ' + texto(caja(P)));
+  });
+
+  test('D4 — LAS FOTOS SE SIGUEN VIENDO SUYAS mientras el número tecleado no pasa «Continuar»; si pasa con otro, se van', () => {
+    const P = abrir();
+    escanear(P, MARIA, 'MARIA');
+    casillas(P, 'identidad', { expedicion: '2010-05-20' });
+    P.ev('siguientePaso()');
+    celularYClave(P, CEL_MARIA, CLAVE_MARIA);
+    volver(P);
+    teclear(P, CEL_PEDRO);
+    volver(P); volver(P);
+    repetirElFrente(P, 'MARIA');
+    hastaElCelular(P);
+    teclear(P, CEL_PEDRO);
+    P.ev("$('rClave').value = '" + CLAVE_PEDRO + "'; $('rClave2').value = '" + CLAVE_PEDRO + "'; siguientePaso();");
+    assert.equal(P.ev('hayContenidoEnFotos()'), false, 'las fotos tomadas antes del cambio se quedaron con el celular nuevo');
+    assert.equal(P.ev('autorizoEsteIntento()'), false);
   });
 });

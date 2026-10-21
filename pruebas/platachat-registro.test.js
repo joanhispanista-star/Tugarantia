@@ -45,9 +45,13 @@ function llenarRegistro(P) {
       : 'Prueba';
   });
   REGISTRO.nombres = 'Ana'; REGISTRO.apellidos = 'Pérez';
-  ponerClaveEnCurso('Perro.2026x', REGISTRO.celular);`);
+  ponerClaveEnCurso('Perro.2026x', REGISTRO.celular);
+  anotarCelularDelRegistro(REGISTRO.celular);`);
   /* 20-oct-2026, otro celular — la contraseña en curso va con el celular con
-     que se creó (ponerClaveEnCurso): una sola, sin celular, ya no abre cuenta. */
+     que se creó (ponerClaveEnCurso): una sola, sin celular, ya no abre cuenta.
+     21-oct-2026 (D4) — y el celular queda anotado como el que pasó «Continuar»
+     (anotarCelularDelRegistro), que es lo que hace ese toque: desde hoy es el
+     dueño de las fotos que se tomen después, no el REGISTRO.celular tecleado. */
 }
 
 /* La nube de mentira: anota cada llamada y contesta por ruta. */

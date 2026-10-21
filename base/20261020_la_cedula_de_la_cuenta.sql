@@ -319,6 +319,13 @@ begin
 end $$;
 
 -- ====== 3. EL ATAJO DE registrar_abierto MIRA SOLO EL TELÉFONO (V6; B1) ======
+-- 21-oct-2026 — RIESGO CONOCIDO (D2), NO CERRADO AQUÍ: el atajo protege a
+-- quien YA tiene su fila 'nuevo', no a quien todavía no la tiene. Sin sesión,
+-- alguien que sabe el celular de María escribe primero una fila con OTRO
+-- documento; la de ella no entra (se le contesta ok), su solicitud lee la de
+-- él, y la reja de registro_archivos_guardar le rechaza su propia cédula
+-- ('otro_documento'). Es el atajo del 9-sep, en producción desde entonces; se
+-- arregla en otra tanda (que la identidad de la cuenta sea la del signup).
 do $$
 declare
   f      regprocedure := 'public.registrar_abierto(text, text, text, jsonb)'::regprocedure;

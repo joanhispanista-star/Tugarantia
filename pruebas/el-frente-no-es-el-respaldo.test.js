@@ -201,7 +201,10 @@ function escaner(opc) {
   P.ev('window.__n = 0; fotoDeLienzo = function () { window.__n++; return "data:image/jpeg;base64,FOTO_" + window.__n; };');
   P.ev('recortarGuia = function () { return window.__lienzo; };');
   P.ev("$('docVideo').videoWidth = 1080; $('docVideo').videoHeight = 1920;");
-  P.ev("REGISTRO.celular = '3001112233'; FOTOS = { sensibles: true }; guardarFotos();");
+  /* 21-oct-2026 (D4) — con el celular ya confirmado en «Continuar»
+     (anotarCelularDelRegistro): desde hoy ese, y no el escrito en el
+     borrador, es el dueño de las fotos que se tomen. */
+  P.ev("REGISTRO.celular = '3001112233'; anotarCelularDelRegistro('3001112233'); FOTOS = { sensibles: true }; guardarFotos();");
   P.ev("medirCajaDoc = function () {}; grisDeGuia = function () { return [1]; };");
   P.ev('window.__medida = { ok: true, nitidez: 23.2, falla: "" };');
   P.ev('EC = Object.assign({}, EC, { medirTarjeta: function () { return window.__medida; } });');

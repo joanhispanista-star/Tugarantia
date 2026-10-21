@@ -340,7 +340,11 @@ describe('la vuelta de la cámara no puede devolver a nadie al login', () => {
     assert.match(h, /Déjalo en blanco para seguir con la misma/,
       'no le dice que puede continuar sin volver a escribirla');
     assert.match(h, /id="rTel"[^>]*value="[^"]+"/, 'perdió el celular');
-    /* Y de verdad continúa: con los dos campos vacíos pasa al paso 2. */
+    /* Y de verdad continúa: con los dos campos vacíos pasa al paso 2.
+       21-oct-2026 (D1) — «Continuar» lee el celular de la casilla, y el banco
+       no lleva el value="…" del HTML a la casilla de mentira: se pone a mano
+       lo que la página pintó en ella. */
+    Q.ev("$('rTel').value = " + JSON.stringify(/id="rTel"[^>]*value="([^"]+)"/.exec(h)[1]) + ';');
     Q.ev("$('rClave').value=''; $('rClave2').value='';");
     Q.ev('siguientePaso()');
     assert.equal(paso(Q), numeroDe(Q, 'rostro'), 'dejarlo en blanco no lo dejó continuar, así que la teclea otra vez');

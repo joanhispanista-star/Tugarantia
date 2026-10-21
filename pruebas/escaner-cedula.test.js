@@ -320,7 +320,10 @@ describe('el paso de la cédula dentro de la página', () => {
        registro abandonado y lo sensible se suelta (ver
        pruebas/lo-sensible-no-sale-del-registro.test.js). */
     P.ev("pintarRegistro(indiceDe('entrada'))");
-    P.ev("REGISTRO.celular = '3001112233'; FOTOS = { sensibles: true, cedula_frente: 'data:x' }; marcarDuenoDeLasFotos(); guardarFotos();");
+    /* 21-oct-2026 (D4) — el dueño es el celular que ya pasó «Continuar»
+       (anotarCelularDelRegistro), no el que está escrito en el borrador. */
+    P.ev("REGISTRO.celular = '3001112233'; anotarCelularDelRegistro('3001112233');" +
+         " FOTOS = { sensibles: true, cedula_frente: 'data:x' }; marcarDuenoDeLasFotos(); guardarFotos();");
     assert.match(P.almacen.play_fotos_borrador, /"de":\{"celular":"3001112233"/, 'la marca no está con las fotos');
     assert.equal(P.sesion.play_fotos_de_esta_pestana, undefined, 'la marca volvió a sessionStorage, que Android no restaura');
     assert.equal(P.ev('fotosSonDeEsteRegistro()'), true);
