@@ -118,6 +118,12 @@ function abrirPlay(opciones) {
      quién son las fotos). Sin cámara en el banco, la página cae a las cajas de
      foto de siempre; lo puro se prueba con cuadros y códigos fabricados. */
   ctx.EscanerCedula = require(path.join(RAIZ, 'app', 'escaner-cedula.js'));
+  /* 21-oct-2026 — la captura (la ventana del mejor cuadro, la linterna, el QR).
+     No guarda estado, así que la copia compartida no envenena a nadie. Sin
+     lienzo de verdad en el banco, la medida de nitidez da null y el bucle sigue
+     con la cuenta de antes; las pruebas de la ventana le dan su propia medida
+     (pruebas/escaner-captura.test.js). */
+  ctx.EscanerCaptura = require(path.join(RAIZ, 'app', 'escaner-captura.js'));
   ctx.Cumplimiento = require(path.join(RAIZ, 'app', 'cumplimiento.js'));
   ctx.MotorReglas = require(path.join(RAIZ, 'app', 'motor.js'));
   ctx.FichaSocio = require(path.join(RAIZ, 'app', 'ficha.js'));
