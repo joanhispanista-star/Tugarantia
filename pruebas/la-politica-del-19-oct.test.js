@@ -261,8 +261,9 @@ describe('3. los datos técnicos: unos los anota el servidor, otros los informa 
   });
 
   test('los tres momentos son los del código: registro, solicitud y aceptación', () => {
+    /* 21-oct-2026 — con o sin la sesión que pidió (H2: anotarAparato('solicitud', ses)). */
     ['registro', 'solicitud', 'aceptacion'].forEach(c =>
-      assert.ok(PLAY.indexOf("anotarAparato('" + c + "')") >= 0, 'play/ ya no anota el aparato en «' + c + '» y la política dice que sí'));
+      assert.ok(new RegExp("anotarAparato\\('" + c + "'(, ses)?\\)").test(PLAY), 'play/ ya no anota el aparato en «' + c + '» y la política dice que sí'));
     assert.ok(SOCIO.indexOf("anotarAparatoSocio('solicitud')") >= 0, 'la app del socio ya no anota el aparato al pedir');
   });
 

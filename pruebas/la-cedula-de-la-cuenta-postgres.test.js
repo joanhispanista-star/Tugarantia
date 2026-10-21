@@ -113,9 +113,16 @@ describe('la cédula de la cuenta, en un PostgreSQL de verdad', { skip: !BIN && 
     ['-h', 'localhost', '-p', String(puerto), '-U', 'postgres', '-d', 'tg', '-v', 'ON_ERROR_STOP=1'].concat(una ? ['-1'] : []).concat(['-f', f]),
     { encoding: 'utf8', env: Object.assign({}, process.env, { PGCLIENTENCODING: 'UTF8' }) });
   const json = q => JSON.parse(sql(q));
-  /* Como la app: con la sesión de esa cuenta. */
+  /* Como la app: con la sesión de esa cuenta.
+     21-oct-2026 (H4) — una cuenta de verdad en auth.users (con su `sub` en el
+     JWT) que AUTORIZÓ los datos sensibles: desde el paso 2-bis la base no deja
+     subir cédula, selfie, ubicación ni lectura sin esa constancia, y lo que
+     estas pruebas miran es la reja de la cédula, que va después. La reja nueva
+     se prueba en pruebas/la-autorizacion-antes-de-lo-sensible-postgres.test.js. */
   const comoCuenta = (cel, q) => JSON.parse(sql(
-    "select set_config('request.jwt.claims', '{\"email\":\"57" + cel + "@tugarantia.net\"}', false);" +
+    "insert into auth.users (id, email, raw_user_meta_data) select md5('57" + cel + "')::uuid, '57" + cel + "@tugarantia.net'," +
+    " '{\"autorizacion\":{\"general\":true,\"sensibles\":true}}'::jsonb where not exists (select 1 from auth.users where id = md5('57" + cel + "')::uuid);" +
+    " select set_config('request.jwt.claims', '{\"sub\":\"' || md5('57" + cel + "')::uuid || '\",\"email\":\"57" + cel + "@tugarantia.net\"}', false);" +
     ' select (' + q + ')::text').split('\n').pop());
   const jb = o => "'" + JSON.stringify(o).replace(/'/g, "''") + "'::jsonb";
   const subir = (cel, archivos, huella) => comoCuenta(cel,
@@ -162,8 +169,10 @@ describe('la cédula de la cuenta, en un PostgreSQL de verdad', { skip: !BIN && 
   test('la autocomprobación corre los tres caminos y no deja nada suyo', () => {
     const r = archivo(path.join(RAIZ, 'base', NOMBRE), true);
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stderr, /1 sin-sesion; 2 sin-registro-no; 3 sin-lectura-no-pisa;/, r.stderr);
+    /* 21-oct-2026 (H4) — con el paso de la autorización de datos sensibles. */
+    assert.match(r.stderr, /1 sin-sesion; 2 sin-autorizacion-no; 3 sin-registro-no; 4 sin-lectura-no-pisa;/, r.stderr);
     assert.equal(sql("select count(*) from public.registro_archivos where celular = '3009990820'"), '0');
+    assert.equal(sql("select count(*) from auth.users where email = '573009990820@tugarantia.net'"), '0', 'la cuenta de mentira de la prueba se quedó');
   });
 
   test('V1 — CON LA SESIÓN DE PEDRO, LA LECTURA DE MARÍA NO ENTRA, Y LAS FOTOS DE PEDRO NO SE REEMPLAZAN', () => {

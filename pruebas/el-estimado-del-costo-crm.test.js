@@ -227,7 +227,8 @@ describe('base/20261019_el_estimado_viaja.sql', () => {
   });
 
   test('play/ llama a la función con los nombres que la base espera', () => {
-    assert.match(PLAY, /rpcSesion\('anotar_estimado', \{ p_id: Number\(sol\.id\), p_estimado: estimado \}\)/);
+    /* 21-oct-2026 — con la sesión que pidió (H2), si viene. */
+    assert.match(PLAY, /rpcSesion\('anotar_estimado', \{ p_id: Number\(sol\.id\), p_estimado: estimado \}(, ses)?\)/);
     assert.match(SQL, /function public\.anotar_estimado\(p_id bigint, p_estimado jsonb\)/);
   });
 });

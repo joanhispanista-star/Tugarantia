@@ -18,7 +18,8 @@
  * Un chat que pide contraseña cada vez que se abre no se abre. Se guarda en
  * localStorage (bajo LLAVE) el access_token, el refresh_token y el celular —
  * NUNCA la contraseña, que se manda una sola vez y no se retiene en ninguna
- * variable de este archivo. «Salir» la borra (ver borrar), y si la nube dice
+ * variable de este archivo. «Salir» la borra (ver borrar) y, desde el
+ * 21-oct-2026, le avisa al servidor (ver cerrar); y si la nube dice
  * que el refresh ya no vale, la página la borra también: la base manda, la
  * sesión solo recuerda.
  *
@@ -277,8 +278,33 @@
     try { a.removeItem(LLAVE); } catch (e) {}
   }
 
+  /* ------------------------------------------------------------------------
+     21-oct-2026 — H3: «SALIR» TAMBIÉN LE AVISA AL SERVIDOR. borrar() solo
+     quita la llave del teléfono, y el refresh_token seguía vivo: la sesión
+     quedaba abierta con el candado puesto por fuera (la misma razón del
+     «Salir» de play/ y de app/socio.html). scope=local cierra ESA sesión, y
+     no las de otros teléfonos de la persona: es el scope del «Salir» de la
+     app del socio (app/sesion-socio.js, avisarSalida). Sin esperar y sin
+     mirar la respuesta: si no llega, igual se sale; quedarse adentro porque
+     falló la red sería lo peor de los dos mundos.
+     ---------------------------------------------------------------------- */
+  function cerrar(cfg, token) {
+    if (!token || !conectada(cfg)) return;
+    try {
+      var p = pedidor(cfg)(base(cfg) + '/auth/v1/logout?scope=local', {
+        method: 'POST',
+        headers: { apikey: cfg.anon, Authorization: 'Bearer ' + token }
+      });
+      if (p && p['catch']) p['catch'](function () {});
+    } catch (e) { /* salir no depende de la red */ }
+  }
+
   return {
     LLAVE: LLAVE,
+    /* La copia que deja el registro de play/ en la pestaña (app/sesion-socio.js
+       la llama igual): «Salir» la borra también. */
+    LLAVE_PLAY: 'play_sesion',
+    cerrar: cerrar,
     APP: APP,
     NUBE_CAIDA: NUBE_CAIDA,
     MARGEN_VENCIMIENTO_S: MARGEN_VENCIMIENTO_S,

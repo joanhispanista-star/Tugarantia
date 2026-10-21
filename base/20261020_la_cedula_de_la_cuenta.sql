@@ -53,6 +53,11 @@
 --      documento en un registro nuevo de esta cuenta), ni unas fotos sin
 --      código, que no dicen de quién son. Las que no entran por esto vuelven
 --      en `descartados`, para que el teléfono no las reintente.
+--   4. 21-oct-2026 (H4, paso 2-bis) — ANTES QUE TODO LO ANTERIOR: si la
+--      llamada trae la cédula, la selfie, la ubicación o la lectura del
+--      código, la cuenta (auth.users, no el JWT) tiene que tener una
+--      autorización con sensibles:true. Si no, {ok:false,
+--      motivo:'sin_autorizacion'} y no se escribe nada.
 -- Lo demás de la función sigue igual: el cotejo, la cédula repetida, el
 -- desempate y los tres bloques protegidos. Solo cambia QUÉ fila mira el
 -- cotejo cuando hay lectura: la de ese documento, si la hay (la de ESTE
@@ -318,6 +323,80 @@ begin
   execute nueva;
 end $$;
 
+-- ====== 2-bis. SIN AUTORIZACIÓN DE DATOS SENSIBLES, NADA SENSIBLE ENTRA ======
+-- 21-oct-2026 (H4; Ley 1581, art. 6, 9 y 17-b). La autorización de los datos
+-- sensibles solo quedaba en la cuenta por el signup. Quien ya tenía cuenta y
+-- se registraba otra vez («ya tenías cuenta») recibía un 422 en el signup
+-- —GoTrue no toca la cuenta— y después subía su cédula, su cara y su
+-- ubicación: la base las guardaba con una constancia vieja que podía decir
+-- sensibles:false y nombrar a otro responsable. La página ya guarda la de ESE
+-- registro antes de subir nada (play/index.html, guardarLaConstancia, con
+-- PUT /auth/v1/user); esta es la reja de verdad, porque el teléfono lo
+-- controla quien lo tiene en la mano.
+-- Antes de guardar NADA: si la llamada trae la cédula (frente o respaldo), la
+-- selfie, la ubicación (gps) o la lectura del código (cedula_leida), la
+-- cuenta tiene que tener, en auth.users.raw_user_meta_data de auth.uid(), una
+-- `autorizacion` con sensibles = true. Se lee de la CUENTA y no del JWT: el
+-- token se firmó al entrar y puede traer la metadata de antes de la
+-- constancia (o una vieja que ya cambió). La que manda es la última
+-- (`autorizacion`); `autorizaciones` es el historial y no habilita nada. Si no
+-- la tiene, contesta {ok:false, motivo:'sin_autorizacion'} y no escribe nada
+-- (ni la marca de la reja de la cédula, que va después). Una llamada sin nada
+-- sensible sigue como siempre.
+-- QUIÉN LLAMA, revisado el 21-oct-2026: registro_archivos_guardar solo la
+-- llama play/index.html (subirArchivosRegistro), con la cola de una cuenta
+-- que nace en su «Abrir mi cuenta». La cuenta nueva trae la autorización en
+-- el signup (sensibles:true si dejó las fotos: sin la casilla, las fotos se
+-- borran antes de mandar nada), y el «ya tenías cuenta» la guarda antes de
+-- encolar. Ni app/, ni panel/, ni platachat/ la llaman. Lo único que pierde
+-- la subida es una cola que dejó una versión anterior de la app en una
+-- cuenta cuya constancia no autorizó fotos: el teléfono lo dice
+-- ('sin_autorizacion') y le pide la cédula por el chat de Servicio.
+do $$
+declare
+  f      regprocedure := 'public.registro_archivos_guardar(jsonb, jsonb)'::regprocedure;
+  cuerpo text;
+  src    text;
+  nueva  text;
+begin
+  select p.prosrc into cuerpo from pg_proc p where p.oid = f;
+
+  -- Ya aplicada: la segunda corrida no cambia nada.
+  if position('sin_autorizacion' in cuerpo) > 0 then
+    raise notice 'registro_archivos_guardar ya pide la autorización de datos sensibles: no se cambió nada.';
+    return;
+  end if;
+  -- Va encima de la reja de la cédula (2): sin ella, este parche no sabría
+  -- dónde está parado.
+  if position('cedula_rechazada' in cuerpo) = 0 then
+    raise exception 'registro_archivos_guardar no tiene la reja de la cédula (paso 2 de este archivo). No se tocó nada: compárala con pg_get_functiondef y avísale a Claude.';
+  end if;
+
+  src := pg_get_functiondef(f);
+  nueva := regexp_replace(src,
+    $p$(if\s+cel\s+is\s+null\s+then\s+perform\s+pg_sleep\(0\.3\);\s+return\s+jsonb_build_object\('ok',\s*false\);\s+end\s+if;)$p$,
+    $r$\1
+
+  -- 21-oct-2026 (base/20261020_la_cedula_de_la_cuenta.sql, 2-bis) — SIN LA
+  -- AUTORIZACIÓN DE DATOS SENSIBLES DE LA CUENTA, NADA SENSIBLE ENTRA: ni la
+  -- cédula, ni la selfie, ni la ubicación, ni la lectura del código. Se lee
+  -- de auth.users (la cuenta), no del JWT, que puede ser de antes de la
+  -- constancia. Va antes que todo: no escribe nada.
+  if coalesce(p_archivos, '{}'::jsonb) ?| array['cedula_frente', 'cedula_reverso', 'selfie']
+     or coalesce(p_huella, '{}'::jsonb) ?| array['gps', 'cedula_leida'] then
+    if not coalesce((select (u.raw_user_meta_data -> 'autorizacion' ->> 'sensibles') = 'true'
+                       from auth.users u
+                      where u.id = auth.uid()), false) then
+      return jsonb_build_object('ok', false, 'motivo', 'sin_autorizacion');
+    end if;
+  end if;$r$,
+    '');
+  if nueva = src then
+    raise exception 'No encontré en registro_archivos_guardar el «if cel is null then … return jsonb_build_object(''ok'', false); end if;». Alguien lo cambió: no se tocó nada. Compárala con pg_get_functiondef y avísale a Claude.';
+  end if;
+  execute nueva;
+end $$;
+
 -- ====== 3. EL ATAJO DE registrar_abierto MIRA SOLO EL TELÉFONO (V6; B1) ======
 -- 21-oct-2026 — RIESGO CONOCIDO (D2), NO CERRADO AQUÍ: el atajo protege a
 -- quien YA tiene su fila 'nuevo', no a quien todavía no la tiene. Sin sesión,
@@ -468,9 +547,14 @@ notify pgrst, 'reload schema';
 -- su propia excepción, atrapada: la base vuelve atrás solo ese bloque). No se
 -- crea ningún registro: la tabla de registros puede tener avisos enganchados
 -- desde el panel de Supabase. Si algo falla, el archivo entero se deshace.
+-- 21-oct-2026 (H4): para probar los caminos de una cuenta que SÍ autorizó, se
+-- crea una cuenta de mentira en auth.users DENTRO del bloque que se deshace
+-- (no queda ni un segundo después del bloque). Si el proyecto no deja
+-- escribir ahí, esos pasos se saltan y se dice.
 do $prueba$
 declare
   v_cel  text := '3009990820';
+  v_uid  uuid := gen_random_uuid();   -- 21-oct-2026 (H4): la cuenta de mentira que autorizó
   j      jsonb;
   pasos  text := '';
   src    text;
@@ -488,6 +572,13 @@ begin
   end if;
   if position('cedula_rechazada' in src) > position('insert into public.registro_archivos' in src) then
     raise exception 'FALLO: la reja quedó DESPUÉS de guardar las fotos.';
+  end if;
+  -- 21-oct-2026 (H4): la autorización de datos sensibles se pide ANTES que
+  -- todo (antes de la reja de la cédula, que escribe su marca), y de la
+  -- cuenta (auth.users), no del JWT.
+  if position('sin_autorizacion' in src) = 0 or position('auth.users' in src) = 0
+     or position('sin_autorizacion' in src) > position('cedula_rechazada' in src) then
+    raise exception 'FALLO: registro_archivos_guardar no pide la autorización de datos sensibles antes de todo.';
   end if;
   -- 20-oct-2026, buena fe: la reja mira TODOS los registros del celular (A1),
   -- dice 'en_duda' cuando no se sabe, y la huella va a la fila de la lectura.
@@ -539,19 +630,43 @@ begin
   pasos := pasos || '1 sin-sesion; ';
 
   perform set_config('request.jwt.claims', '{"email":"57' || v_cel || '@tugarantia.net","role":"authenticated"}', true);
-  -- Una lectura sin registro con qué compararla: no se sabe, no entra.
+  -- 21-oct-2026 (H4): una sesión cuya cuenta no tiene la autorización de
+  -- datos sensibles no sube ni la selfie ni la ubicación.
   j := public.registro_archivos_guardar(
-         '{"cedula_reverso":"data:image/jpeg;base64,AAAA"}'::jsonb,
-         '{"cedula_leida":{"documento":"52123456"}}'::jsonb);
-  if j ->> 'motivo' is distinct from 'sin_documento'
+         '{"selfie":"data:image/jpeg;base64,AAAA"}'::jsonb,
+         '{"gps":{"lat":4.6,"lng":-74.1}}'::jsonb);
+  if j ->> 'motivo' is distinct from 'sin_autorizacion'
      or exists (select 1 from public.registro_archivos where celular = v_cel) then
-    raise exception 'FALLO: una lectura sin registro con qué compararla entró: %.', j;
+    raise exception 'FALLO: sin la autorización de datos sensibles entró algo: %.', j;
   end if;
-  pasos := pasos || '2 sin-registro-no; ';
+  pasos := pasos || '2 sin-autorizacion-no; ';
 
-  -- Fotos sin lectura a una cuenta sin fotos de cédula: entran (vacío el
-  -- documento). Y encima de unas con documento: no las pisan. Todo se deshace.
+  -- Lo demás, con una cuenta de mentira que SÍ autorizó, creada y deshecha
+  -- dentro del mismo bloque (la base vuelve atrás solo ese bloque). Si este
+  -- proyecto no deja escribir en auth.users desde el editor, esos pasos no
+  -- corren y se dice (lo de arriba sí se comprobó).
   begin
+    begin
+      insert into auth.users (id, email, raw_user_meta_data)
+      values (v_uid, '57' || v_cel || '@tugarantia.net',
+              '{"autorizacion":{"version":"prueba-20261020","general":true,"sensibles":true}}'::jsonb);
+    exception when others then
+      raise exception 'sin-cuenta-de-prueba-20261020';
+    end;
+    perform set_config('request.jwt.claims', '{"sub":"' || v_uid || '","email":"57' || v_cel || '@tugarantia.net","role":"authenticated"}', true);
+
+    -- Una lectura sin registro con qué compararla: no se sabe, no entra.
+    j := public.registro_archivos_guardar(
+           '{"cedula_reverso":"data:image/jpeg;base64,AAAA"}'::jsonb,
+           '{"cedula_leida":{"documento":"52123456"}}'::jsonb);
+    if j ->> 'motivo' is distinct from 'sin_documento'
+       or exists (select 1 from public.registro_archivos where celular = v_cel) then
+      raise exception 'FALLO: una lectura sin registro con qué compararla entró: %.', j;
+    end if;
+    pasos := pasos || '3 sin-registro-no; ';
+
+    -- Fotos sin lectura a una cuenta sin fotos de cédula: entran (vacío el
+    -- documento). Y encima de unas con documento: no las pisan.
     j := public.registro_archivos_guardar('{"cedula_reverso":"data:image/jpeg;base64,AAAA"}'::jsonb, '{}'::jsonb);
     if j ->> 'ok' is distinct from 'true' or (j -> 'guardados') <> '["cedula_reverso"]'::jsonb
        or (select documento from public.registro_archivos where celular = v_cel and tipo = 'cedula_reverso') is not null then
@@ -564,16 +679,21 @@ begin
        or (select imagen from public.registro_archivos where celular = v_cel and tipo = 'cedula_reverso') <> 'data:image/jpeg;base64,BBBB' then
       raise exception 'FALLO: unas fotos sin código pisaron las que tenían documento: %.', j;
     end if;
+    pasos := pasos || '4 sin-lectura-no-pisa; ';
     raise exception 'deshacer-la-prueba-20261020';
   exception when others then
-    if sqlerrm <> 'deshacer-la-prueba-20261020' then raise; end if;
+    if sqlerrm = 'sin-cuenta-de-prueba-20261020' then
+      raise notice 'No pude crear la cuenta de prueba en auth.users: los pasos con una cuenta que autorizó no corrieron (lo de arriba sí se comprobó).';
+    elsif sqlerrm <> 'deshacer-la-prueba-20261020' then
+      raise;
+    end if;
   end;
-  if exists (select 1 from public.registro_archivos where celular = v_cel) then
+  if exists (select 1 from public.registro_archivos where celular = v_cel)
+     or exists (select 1 from auth.users where id = v_uid) then
     raise exception 'FALLO: la prueba no deshizo lo que escribió.';
   end if;
-  pasos := pasos || '3 sin-lectura-no-pisa; ';
   perform set_config('request.jwt.claims', '', true);
   raise notice 'La cédula de la cuenta: %', pasos;
-  raise notice 'Listo: la cédula ya no se cuela en la cuenta de otro. Falta: Settings → API → Reload schema.';
+  raise notice 'Listo: la cédula ya no se cuela en la cuenta de otro, y nada sensible entra sin la autorización de la cuenta. Falta: Settings → API → Reload schema.';
 end
 $prueba$;

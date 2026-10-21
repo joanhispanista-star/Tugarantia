@@ -244,13 +244,17 @@ describe('play/: anota sin esperar', () => {
 
   test('al registrarse: en los dos caminos que abren la cuenta, ANTES de pintar (PlataChat se va de la página)', () => {
     const PLAY = leer('play/index.html');
+    /* 21-oct-2026 — la marca, con la sangría que sea: desde H4 el final del
+       «ya tenías cuenta» va dentro de la promesa de la constancia, un nivel
+       más adentro. Lo que se mira es lo mismo: la línea de antes anota. */
     const caminos = [
-      ['enviarRegistro', 'pintarRegistrado();\r\n      subidaEnSegundoPlano();   // si falla'],
-      ['entrarConLaClaveDelRegistro', 'pintarRegistrado();\r\n      subidaEnSegundoPlano();   // sus fotos']
+      ['enviarRegistro', /pintarRegistrado\(\);\r\n\s*subidaEnSegundoPlano\(\);   \/\/ si falla/],
+      ['entrarConLaClaveDelRegistro', /pintarRegistrado\(\);\r\n\s*subidaEnSegundoPlano\(\);   \/\/ sus fotos/]
     ];
     caminos.forEach(([nombre, marca]) => {
       const t = PLAY.replace(/\r?\n/g, '\r\n');
-      const i = t.indexOf(marca);
+      const m = marca.exec(t);
+      const i = m ? m.index : -1;
       assert.ok(i > 0, 'no encontré el final de ' + nombre);
       const antes = t.slice(Math.max(0, i - 400), i);
       /* La línea de justo antes de pintarRegistrado() es la que anota. */

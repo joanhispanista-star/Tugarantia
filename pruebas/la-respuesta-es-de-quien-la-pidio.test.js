@@ -233,23 +233,44 @@ describe('G1 — mientras dice «Creando tu cuenta…» no se sale, y a los 30 s
     assert.match(dice, /no sabemos si tu cuenta alcanzó a crearse/, 'el aviso afirma algo que no se sabe');
     assert.equal(/quedó creada|Listo/.test(dice), false, 'el aviso del tope dice que la cuenta se creó');
 
-    /* Y la respuesta que llega después del tope se descarta: la sesión se
-       cierra en el servidor, y nada de esta pestaña cambia. */
+    /* 21-oct-2026 — H1: el tope DESBLOQUEA, NO ABORTA. Decía «la respuesta
+       que llega después del tope se descarta»: con señal floja pero estable la
+       cuenta se creaba en el servidor y la persona no entraba nunca. Ahora,
+       si nadie hizo otra cosa en la pestaña, la respuesta tardía se adopta:
+       es la cuenta que esta misma persona pidió. Lo que la descarta es otra
+       generación u otro viaje (las pruebas de abajo y
+       pruebas/la-red-lenta-no-deja-afuera.test.js). */
     soltar(P, 0, TOKEN_MARIA);
     await asentar(20);
-    assert.equal(pasoActual(P), 'permiso', 'la respuesta tardía pintó otra pantalla');
-    assert.equal(P.ev('SESION'), null, 'se adoptó una sesión que llegó después del tope');
-    assert.equal(P.sesion.play_sesion, undefined);
-    assert.equal(P.almacen.play_cuenta_creada, undefined);
-    assert.match(P.almacen.play_registro_borrador || '', /MARIA JOSE/, 'se borró el registro con una respuesta tardía');
-    assert.equal(cerradas(ll, 'tok-MARIA').length, 1, 'la sesión huérfana no se cerró en el servidor');
-    assert.match(texto(caja(P)), /tardó demasiado/, 'la respuesta tardía reescribió el aviso');
+    assert.equal(P.ev('VISTA'), 'listo', 'la respuesta que llegó después del tope, sin que nadie hiciera nada, no abrió la cuenta');
+    assert.equal(P.ev('SESION && SESION.access_token'), 'tok-MARIA');
+    assert.equal(cerradas(ll, 'tok-MARIA').length, 0, 'se cerró la sesión de la cuenta que la persona acababa de crear');
+  });
 
-    /* Volver a tocar «Abrir mi cuenta» funciona. */
+  test('H1 — después del tope, volver a tocar «Abrir mi cuenta» deja atrás el primer viaje: entra con la contraseña, y la respuesta vieja se cierra sola (scope=local)', async () => {
+    const P = abrir();
+    const ll = nube(P);
+    mariaHastaElPermiso(P, false);
+    P.ev('window.__colgar = /auth\\/v1\\/signup/;');
+    tocar(P, 'Abrir mi cuenta');
+    await asentar();
+    assert.equal(tope(P), true);
     P.ev('window.__colgar = null;');
     tocar(P, 'Abrir mi cuenta');
     await asentar(20);
+    /* El signup ya había salido: el reintento entra primero con la contraseña. */
+    const despues = ll().slice(ll().findIndex(x => /auth\/v1\/signup/.test(x.url)) + 1);
+    assert.equal(/auth\/v1\/token/.test((despues[0] || {}).url || ''), true,
+      'el reintento no probó primero entrar con la contraseña: ' + despues.map(x => x.url).join(', '));
     assert.equal(P.ev('VISTA'), 'listo', 'después del tope, «Abrir mi cuenta» ya no abre la cuenta');
+    const nueva = P.ev('SESION.access_token');
+    /* Llega la respuesta del primero: ya hubo otro viaje, no se adopta. */
+    soltar(P, 0, TOKEN_MARIA);
+    await asentar(20);
+    assert.equal(P.ev('SESION.access_token'), nueva, 'la respuesta vieja pisó la sesión del reintento');
+    const c = cerradas(ll, 'tok-MARIA');
+    assert.equal(c.length, 1, 'la sesión huérfana no se cerró en el servidor');
+    assert.match(c[0].url, /logout\?scope=local/, 'el cierre de la huérfana es global: se llevaría la sesión del reintento');
   });
 });
 

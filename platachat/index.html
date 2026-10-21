@@ -129,8 +129,13 @@
 
    8-oct-2026 — sube con las condiciones de cada propuesta y la casilla «Leí
    y acepto» (app/calculadora-solicitud.js, nuevo: tiene que entrar también a
-   ARCHIVOS de sw.js). */
-var VERSION_APP = '2026-10-08';
+   ARCHIVOS de sw.js).
+
+   21-oct-2026 — sube con el «Salir» que sale de verdad (H3: avisa al
+   servidor y borra la copia de la sesión que dejó el registro en la
+   pestaña) y con sesion.js, que trae cerrar(). CACHE de sw.js también tiene
+   que subir al publicar: esta tanda no toca sw.js. */
+var VERSION_APP = '2026-10-21';
 (function () {
   var v = document.getElementById('holaVersion');
   if (v) v.textContent = 'Versión ' + VERSION_APP;
@@ -348,6 +353,10 @@ if (CS && CS.conectar) CS.conectar(window);   // su almacén y su DOM son los de
 var R = window.PlataChatReglas;
 var PP = window.PagosProveedor;
 var SP = window.SesionPlataChat;
+/* 21-oct-2026 — H3: la copia de la sesión que deja el registro de play/ en
+   esta pestaña (la misma llave que lee app/sesion-socio.js). «Salir» la
+   borra: ver salir(). */
+var LLAVE_PLAY = (SP && SP.LLAVE_PLAY) || 'play_sesion';
 
 /* 26-sep-2026 — AQUÍ VIVÍA EL WHATSAPP DE JOAN, y ya no vive nadie. Joan, el
    21-sep: «nada de compartir mi numero». play/ lo quitó ese día; PlataChat lo
@@ -2702,8 +2711,34 @@ function pie() {
 
 /* ============================ SALIR ============================
    Borra la sesión guardada (y con ella lo último bajado) y vuelve a la
-   puerta. `msg`, si viene, es lo que se le dice ahí: por qué lo sacaron. */
+   puerta. `msg`, si viene, es lo que se le dice ahí: por qué lo sacaron.
+   21-oct-2026 — H3: Y SALE DE VERDAD, como el «Salir» de play/ y el de la app
+   del socio. Solo borraba platachat_sesion: el refresh_token seguía vivo en
+   el servidor y la copia que dejó el registro en esta pestaña (play_sesion)
+   también. Pedro tocaba «Abrir mi cuenta» en la misma pestaña, el arranque de
+   play/ encontraba la sesión de María y PlataChat se le abría dentro de la
+   cuenta de ella (su crédito, su chat, sus datos), y lo mismo play/ sin la
+   marca o app/socio.html. Ahora se le avisa al servidor (SP.cerrar, sin
+   esperar: si no llega, igual se sale) con el token de esta sesión, y con el
+   de la copia de la pestaña si es otro; y la copia se borra. La página sigue
+   sin armar un fetch por su cuenta: el aviso va por sesion.js.
+   Con `msg` (la nube ya dijo que la sesión no vale) no hay a quién avisarle
+   por ESA sesión, igual que en la app del socio (cerrarSesionLocal); la
+   copia de la pestaña, si es otra, sí se cierra. */
 function salir(msg) {
+  var tokenPC = (SES && SES.access_token) || '';
+  var dePlay = null;
+  try { dePlay = JSON.parse(sessionStorage.getItem(LLAVE_PLAY) || 'null'); } catch (e) { dePlay = null; }
+  if (SP && SP.cerrar) {
+    if (!msg) SP.cerrar(CFG, tokenPC);
+    if (dePlay && dePlay.access_token && dePlay.access_token !== tokenPC) SP.cerrar(CFG, dePlay.access_token);
+  }
+  try { sessionStorage.removeItem(LLAVE_PLAY); } catch (e) {}
+  /* Y la marca de «la cuenta que acaba de nacer» del registro de play/ (desde
+     el 21-oct-2026 play/ la suelta al pasar la sesión; esto es por la que
+     haya dejado una versión anterior): con ella, el siguiente «Abrir mi
+     cuenta» de este teléfono rebotaba aquí durante un día. */
+  try { localStorage.removeItem('play_cuenta_creada'); } catch (e) {}
   AVISO_RESPONSABLE_PC_CERRADO = false;   /* el aviso es por persona: el que entre después lo ve si no lo cerró */
   S = null; SES = null; SIN_NUBE = false; AVISO_NUBE = ''; BORRADOR = ''; MI_REGISTRO = '';   /* el registro es de esa cuenta: el que entre después no hereda un «descartado» */
   SOL = null; RELOJ_OK = false; ACEPTANDO = false;

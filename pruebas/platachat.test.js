@@ -240,8 +240,9 @@ describe('PlataChat: lo que carga y en qué orden', () => {
     assert.match(PAGINA, /<meta name="theme-color" content="#0C0A0B">/);
     assert.match(PAGINA, /navigator\.serviceWorker\.register\('\.\.\/sw\.js'\)/);
     /* 7-oct-2026 — sube con la puerta única (sin la caja del código en Yo).
-       8-oct-2026 — y con las condiciones de cada propuesta. */
-    assert.match(PAGINA, /var VERSION_APP = '2026-10-08'/);
+       8-oct-2026 — y con las condiciones de cada propuesta.
+       21-oct-2026 — y con el «Salir» que sale de verdad (H3). */
+    assert.match(PAGINA, /var VERSION_APP = '2026-10-21'/);
   });
 
   test('la guarda de HTTPS es lo PRIMERO que corre, antes que cualquier lectura del almacén', () => {

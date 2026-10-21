@@ -49,8 +49,11 @@ end $$;
 create schema if not exists extensions;
 create extension if not exists pgcrypto with schema extensions;
 create schema if not exists auth;
+-- 21-oct-2026: raw_user_meta_data, como en Supabase. La reja de los datos
+-- sensibles (base/20261020_la_cedula_de_la_cuenta.sql) lee de ahí la autorización.
 create table auth.users (id uuid primary key default gen_random_uuid(), email text, encrypted_password text,
-  created_at timestamptz default now(), updated_at timestamptz default now(), last_sign_in_at timestamptz);
+  created_at timestamptz default now(), updated_at timestamptz default now(), last_sign_in_at timestamptz,
+  raw_user_meta_data jsonb);
 create table auth.sessions (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade);
 create table auth.refresh_tokens (id bigserial primary key, user_id varchar(255), session_id uuid references auth.sessions(id) on delete cascade);
 create or replace function auth.jwt() returns jsonb language sql stable as $f$

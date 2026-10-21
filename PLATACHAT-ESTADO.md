@@ -128,7 +128,12 @@ que es ese mismo registro con:
 - la bandeja con la etiqueta (`registrar_abierto_app`, `p_app` = `platachat`);
 - al final, las fotos suben ANTES de irse (si no suben, lo dice y deja
   reintentar), la sesión pasa a PlataChat con `platachat/sesion.js` y la persona
-  vuelve a PlataChat, sin la oferta del primer crédito de `play/`;
+  vuelve a PlataChat, sin la oferta del primer crédito de `play/`. Desde el
+  21-oct-2026 la sesión se PASA, no se copia: `play/` suelta la suya
+  (`play_sesion`) en cuanto PlataChat la recibe, y el «Salir» de PlataChat le
+  avisa al servidor (`/auth/v1/logout?scope=local`) y borra la que haya en la
+  pestaña. Antes, después de ese «Salir», el siguiente «Abrir mi cuenta» de la
+  misma pestaña entraba a la cuenta de la persona anterior;
 - sin la tarjeta del acompañamiento de un asesor.
 
 Sin la marca, `play/` no cambia: todas sus pruebas siguen en verde. El alta de

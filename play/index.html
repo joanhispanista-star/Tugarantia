@@ -626,7 +626,9 @@ function pintarFotosPendientesPlataChat(cel, motivo) {
 /* 21-oct-2026 — G1: también aquí, la foto del toque y el viaje (ver UNA
    RESPUESTA DE LA RED SOLO VALE PARA QUIEN LA PIDIÓ): mientras dice
    «Entrando…» no se sale, y una sesión que llegue con la pestaña en otra cosa
-   (o pasado el tope) se cierra en el servidor sin adoptarse. */
+   (otra generación, o se volvió a tocar) se cierra en el servidor sin
+   adoptarse. 21-oct-2026 — H1: pasado el tope, si nadie hizo nada más, sí
+   se adopta. */
 function entrarYSubirEnPlataChat() {
   if (viajando()) return Promise.resolve();
   var cel = (REGISTRADO && REGISTRADO.celular) || '';
@@ -635,14 +637,16 @@ function entrarYSubirEnPlataChat() {
   if (!clave) { if (s) s.textContent = 'Escribe la contraseña que pusiste al abrir tu cuenta.'; return Promise.resolve(); }
   var foto = fotoDelToque({ celular: String(cel) });
   if (s) s.textContent = 'Entrando…';
-  var senal = empezarViaje(foto, function () {
-    if (s) s.textContent = 'La conexión tardó demasiado y no pudimos entrar. Revisa tu internet y vuelve a tocar «Subir mis fotos».';
+  /* 21-oct-2026 — H1: el tope desbloquea y la petición sigue: el aviso dice
+     las dos salidas que funcionan (esperar, o volver a tocar con señal). */
+  empezarViaje(foto, function () {
+    if (s) s.textContent = 'La conexión tardó demasiado en contestar. Seguimos esperando: si la respuesta llega, tus fotos ' +
+      'suben sin que hagas nada más. Si se te cayó el internet, vuelve a tocar «Subir mis fotos» cuando vuelva.';
   });
   return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/token?grant_type=password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
-    body: JSON.stringify({ email: U.correoDeTelefono(foto.celular), password: clave }),
-    signal: senal
+    body: JSON.stringify({ email: U.correoDeTelefono(foto.celular), password: clave })
   }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
     .then(function (res) {
       if (!sigueSiendoDeAqui(foto)) {
@@ -664,9 +668,31 @@ function entrarYSubirEnPlataChat() {
     });
 }
 
+/* 21-oct-2026 — H3: LA SESIÓN SE PASA, NO SE COPIA. Hasta hoy la copia de la
+   pestaña (play_sesion, con su refresh_token) se quedaba después de pasarla a
+   PlataChat, y el «Salir» de PlataChat solo borra la suya: en la misma
+   pestaña, el siguiente que tocaba «Abrir mi cuenta» caía en el arranque con
+   la sesión de María (sesionGuardada → entrarAPlataChat) y PlataChat se le
+   abría dentro de la cuenta de ella; lo mismo play/ sin la marca y la app del
+   socio, que también la adoptan. PlataChat no la necesita después: lee solo
+   la suya (platachat_sesion, platachat/sesion.js) y la renueva sola; y lo que
+   play/ tenía que hacer con ella antes de irse —subir la cola de fotos— ya
+   pasó (o se soltó) antes de llegar aquí. Por eso se olvida en cuanto el
+   paso resolvió. Si NO se pudo pasar, se queda: PlataChat pedirá entrar, y la
+   página sigue siendo la que la tiene.
+   Y con ella la marca de «la cuenta que acaba de nacer» (play_cuenta_creada),
+   como al entrar a una cuenta de Tu Garantía (pintarCuenta): esa marca es
+   para quien perdió la sesión ANTES de entrar, y aquí ya entró. Con la marca
+   viva, después del «Salir» de PlataChat el siguiente que tocaba «Abrir mi
+   cuenta» en ese teléfono rebotaba a PlataChat durante un día, sin poder
+   abrir la suya. */
 function entrarAPlataChat(cel, nombre) {
   if (!SESION || !SESION.access_token) { volverAPlataChat(); return Promise.resolve(); }
-  return pasarSesionAPlataChat(SESION, cel, nombre).then(volverAPlataChat, function () {
+  return pasarSesionAPlataChat(SESION, cel, nombre).then(function () {
+    olvidarSesionEnCurso();
+    olvidarCuentaCreada();
+    return volverAPlataChat();
+  }, function () {
     /* Sin la sesión pasada, PlataChat pide entrar: con el celular y la
        contraseña que acaba de crear, que es la misma cuenta. Se le dice antes. */
     var s = $('pcSubida');
@@ -1041,17 +1067,26 @@ function olvidarSesionEnCurso() { try { sessionStorage.removeItem(LLAVE_SESION);
  *      la generación y lo que van a mandar (celular, contraseña, datos,
  *      autorización), y todas sus llamadas encadenadas salen con eso, nunca
  *      con lo que haya en vivo después de una ida a la red.
- *   3. AL VOLVER, si la generación cambió (o venció el tope de la regla 4), la
- *      respuesta se descarta entera: no se adopta la sesión —el token que
- *      llegó se cierra en el servidor, sin esperar—, ni se toca el borrador,
- *      la marca de cuenta creada, la cola de fotos, la pantalla ni PlataChat;
- *      y si la cadena no ha llegado al signup, no lo llama.
+ *   3. AL VOLVER, si la generación cambió o salió OTRO viaje después (la
+ *      persona ya hizo otra cosa), la respuesta se descarta entera: no se
+ *      adopta la sesión —el token que llegó se cierra en el servidor, sin
+ *      esperar—, ni se toca el borrador, la marca de cuenta creada, la cola
+ *      de fotos, la pantalla ni PlataChat; y si la cadena no ha llegado al
+ *      signup, no lo llama.
  *   4. MIENTRAS VIAJA no se sale de la pantalla: «Volver», «Continuar»,
  *      «Abrir mi cuenta» y lo que lleva a la portada quedan apagados (con
  *      `disabled`, y además sus funciones no hacen nada: un botón repintado o
  *      un toque que se cuele no puede saltarse la regla). Con TOPE: a los
- *      30 s se aborta la petición, se encienden otra vez con un aviso que no
- *      afirma lo que no se sabe, y lo que llegue después cae en la regla 3.
+ *      30 s se encienden otra vez con un aviso que no afirma lo que no se
+ *      sabe. 21-oct-2026 — H1: EL TOPE DESBLOQUEA, NO ABORTA. Hasta hoy
+ *      también cortaba la petición (AbortController) y descartaba lo que
+ *      llegara después: con señal floja pero estable (16 s por llamada) la
+ *      cuenta se creaba en el servidor y el «Abrir mi cuenta» no terminaba
+ *      NUNCA, porque el reintento —bandeja, signup «ya existe» y la entrada—
+ *      sumaba más que el primero. Ahora la petición sigue viva y su respuesta
+ *      se adopta si nadie hizo otra cosa (regla 3); y el reintento después de
+ *      un tope en el que el signup ya salió prueba primero entrar con la
+ *      contraseña, que es una sola llamada (ver enviarRegistro).
  * Lo asíncrono del escáner y de la ubicación (la lectura del código de una
  * foto fija, el GPS en vuelo) usa la misma generación: si cambió, se descarta
  * (tomarFoto, leerCodigoDeBarras, leerCuadroDoc, pedirGps). Era la carrera que
@@ -1066,14 +1101,21 @@ function otraGeneracion() { GENERACION_DEL_REGISTRO = (Number(GENERACION_DEL_REG
 function fotoDelToque(lo) {
   var f = lo || {};
   f.generacion = GENERACION_DEL_REGISTRO;
-  f.vencida = false;
   return f;
 }
+/* 21-oct-2026 — H1: «de aquí» es la misma generación Y el último viaje que
+   salió. Antes también exigía que no hubiera vencido el tope, y eso tiraba la
+   respuesta buena de una red lenta que nadie había reemplazado: la persona no
+   había hecho nada más, y aun así se quedaba fuera de la cuenta que acababa
+   de crear. El tope ya no decide: decide si la persona hizo otra cosa (otra
+   generación) o volvió a tocar (otro viaje). Una foto sin viaje (no salió por
+   empezarViaje) solo mira la generación. */
 function sigueSiendoDeAqui(f) {
-  return !!f && !f.vencida && f.generacion === GENERACION_DEL_REGISTRO;
+  return !!f && f.generacion === GENERACION_DEL_REGISTRO && (!f.viaje || f.viaje === ULTIMO_VIAJE);
 }
 var MS_TOPE_DE_LA_RED = 30000;
 var EN_VUELO = null;   // la foto del toque cuya petición está en camino (una a la vez)
+var ULTIMO_VIAJE = 0;  // 21-oct-2026 — H1: el número del último viaje que salió
 function viajando() { return !!EN_VUELO; }
 /* Los botones que se apagan mientras viaja: TODOS los de la pantalla (en la
    portada son «Entrar», los dos «Abrir mi cuenta» y «Olvidé mi contraseña»;
@@ -1081,15 +1123,20 @@ function viajando() { return !!EN_VUELO; }
    id, los que sacan de ella: así se ven apagados también donde no se puede
    recorrer la pantalla. */
 var SALIDAS_DEL_VIAJE = ['btnSeguir', 'btnVolver', 'btnEntrar', 'btnSubirMisFotos', 'btnIrSinEllas'];
-/* Apaga las salidas y arma el tope. Devuelve la señal para abortar el fetch
-   (sin AbortController, un visor viejo: el tope igual descarta lo que llegue).
-   Solo enciende después lo que ella apagó: un botón que ya venía apagado por
-   otra razón se queda como estaba. */
-function empezarViaje(f, alVencer) {
+/* Apaga las salidas, le da número al viaje y arma el tope. Solo enciende
+   después lo que ella apagó: un botón que ya venía apagado por otra razón se
+   queda como estaba.
+   21-oct-2026 — H1: A LOS 30 s SE DESBLOQUEA, Y NADA MÁS. La petición sigue
+   viva —no hay AbortController que corte la cadena— y lo que conteste se
+   adopta mientras nadie haya hecho otra cosa (sigueSiendoDeAqui). Cortarla
+   era peor que esperar: con 16 s por llamada la cuenta nacía en el servidor
+   y la pestaña no se enteraba nunca. `alDesbloquear` pinta el aviso, que dice
+   las salidas que sí funcionan: esperar, o volver a tocar cuando haya señal. */
+function empezarViaje(f, alDesbloquear) {
   if (EN_VUELO && EN_VUELO !== f) terminarViaje(EN_VUELO);
   EN_VUELO = f;
-  f.control = null;
-  try { if (typeof AbortController === 'function') f.control = new AbortController(); } catch (e) { f.control = null; }
+  f.viaje = ++ULTIMO_VIAJE;
+  f.desbloqueada = false;
   f.apagados = [];
   var botones = [];
   try {
@@ -1102,12 +1149,10 @@ function empezarViaje(f, alVencer) {
   });
   f.reloj = setTimeout(function () {
     if (EN_VUELO !== f) return;
-    f.vencida = true;
-    try { if (f.control) f.control.abort(); } catch (e) {}
+    f.desbloqueada = true;
     terminarViaje(f);
-    if (alVencer) alVencer();
+    if (alDesbloquear) alDesbloquear();
   }, MS_TOPE_DE_LA_RED);
-  return f.control ? f.control.signal : undefined;
 }
 function terminarViaje(f) {
   if (!f || EN_VUELO !== f) return;
@@ -1118,12 +1163,18 @@ function terminarViaje(f) {
 }
 /* El token que llegó para una pestaña que ya es de otro: se cierra en el
    servidor (como «Salir»), sin esperar ni mirar la respuesta. Guardarlo en
-   ninguna parte sería una cuenta abierta que nadie ve. */
+   ninguna parte sería una cuenta abierta que nadie ve.
+   21-oct-2026 — H1: CON scope=local, solo ESA sesión. Desde que el tope no
+   aborta, la respuesta vieja de un «Abrir mi cuenta» puede llegar cuando el
+   reintento de la misma persona ya entró a su cuenta: un logout sin scope es
+   «global» en GoTrue y le cerraba también la sesión nueva (y con ella la
+   constancia de la autorización, que se guarda con /auth/v1/user). Es el
+   mismo scope del «Salir» de la app del socio (app/sesion-socio.js). */
 function cerrarSesionHuerfana(j) {
   var t = j && j.access_token;
   if (!t || !CFG.url || !CFG.anon) return;
   try {
-    var p = fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/logout', {
+    var p = fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/logout?scope=local', {
       method: 'POST',
       headers: { apikey: CFG.anon, Authorization: 'Bearer ' + t }
     });
@@ -1400,12 +1451,19 @@ function entrar() {
      por fin llegaba la sesión de Pedro, la pestaña de María saltaba a la
      cuenta de él. Ahora, mientras dice «Entrando…», nada de la portada se
      puede tocar; a los 30 s se dice y se puede volver a intentar, y lo que
-     llegue después (o con la pestaña ya en otra cosa) se descarta y se cierra
-     en el servidor. Decía «Conectando…»: es lo mismo, dicho como lo que pasa. */
+     llegue con la pestaña ya en otra cosa (otro registro, otro «Entrar») se
+     descarta y se cierra en el servidor. Decía «Conectando…»: es lo mismo,
+     dicho como lo que pasa.
+     21-oct-2026 — H1: a los 30 s se desbloquea, NO se corta: con una llamada
+     de más de 30 s (señal floja de verdad) ya no se podía entrar nunca, y el
+     aviso pedía volver a tocar lo mismo que acababa de fallar. Ahora la
+     respuesta que llega tarde se adopta si nadie hizo otra cosa en la
+     pestaña; y el aviso dice eso y la otra salida, sin prometer nada. */
   var foto = fotoDelToque({ celular: tel });
   fallo(err, 'Entrando…');
-  var senal = empezarViaje(foto, function () {
-    fallo(err, 'La conexión tardó demasiado y no pudimos entrar. Revisa tu internet y vuelve a tocar «Entrar».');
+  empezarViaje(foto, function () {
+    fallo(err, 'La conexión tardó demasiado en contestar. Seguimos esperando: si la respuesta llega, entras sin hacer nada ' +
+      'más. Si se te cayó el internet, vuelve a tocar «Entrar» cuando vuelva.');
   });
   /* Supabase Auth. El correo lo arma cuenta.js desde el teléfono; el socio nunca
      lo ve. La contraseña se manda una sola vez y no se guarda en ninguna parte
@@ -1413,8 +1471,7 @@ function entrar() {
   fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/token?grant_type=password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
-    body: JSON.stringify({ email: U.correoDeTelefono(tel), password: clave }),
-    signal: senal
+    body: JSON.stringify({ email: U.correoDeTelefono(tel), password: clave })
   }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
     .then(function (r) {
       if (!sigueSiendoDeAqui(foto)) {
@@ -3484,17 +3541,40 @@ function enviarRegistro(sensibles) {
     datos: datosDelRegistro(),
     autorizacion: autorizacion
   });
-  fallo(err, 'Creando tu cuenta…');
+  /* 21-oct-2026 — H1: ¿YA SALIÓ UN SIGNUP EN ESTE REGISTRO? Se mira ANTES de
+     empezar el viaje nuevo (que deja atrás al anterior). */
+  var entrarPrimero = yaSalioUnSignup(foto);
+  fallo(err, entrarPrimero ? 'Revisando si tu cuenta ya quedó creada…' : 'Creando tu cuenta…');
   /* Mientras dice «Creando tu cuenta…» no se sale de aquí; a los 30 s se
      dice lo único que se sabe —que no se sabe si alcanzó a crearse— y lo que
-     sirve en los dos casos: volver a tocar «Abrir mi cuenta» crea la cuenta,
-     o si ya existe entra con la misma contraseña (el «ya tenías cuenta» de
-     abajo), con las fotos. Nada se borró: el registro sigue entero. */
-  var senal = empezarViaje(foto, function () {
-    fallo(err, 'La conexión tardó demasiado y no sabemos si tu cuenta alcanzó a crearse. Vuelve a tocar ' +
-      '«Abrir mi cuenta»: si ya se creó, entramos a ella con tu celular y tu contraseña; si no, la creamos. ' +
+     sirve. Nada se borró: el registro sigue entero.
+     21-oct-2026 — H1: EL TOPE YA NO CORTA LA PETICIÓN. Decía «Vuelve a tocar
+     «Abrir mi cuenta»: si ya se creó, entramos a ella», y con 16 s por
+     llamada eso no se cumplía nunca: el tope abortaba el signup que ya había
+     creado la cuenta, y el reintento (bandeja, signup «ya existe», entrada)
+     sumaba más que el primero. Ahora la respuesta del primero se adopta si
+     llega (nadie hizo otra cosa), y el aviso dice las dos salidas que sí
+     funcionan: esperar, o volver a tocar cuando haya señal —que entra primero
+     con la contraseña (abajo)—. */
+  empezarViaje(foto, function () {
+    fallo(err, 'La conexión tardó demasiado en contestar y todavía no sabemos si tu cuenta alcanzó a crearse. ' +
+      'Seguimos esperando: si la respuesta llega, sigues sin hacer nada más. Si se te cayó el internet, vuelve a tocar ' +
+      '«Abrir mi cuenta» cuando vuelva: si tu cuenta ya se creó, entramos a ella con tu celular y tu contraseña. ' +
       'Lo que llenaste sigue aquí.');
   });
+  /* 21-oct-2026 — H1: EL REINTENTO DESPUÉS DE UN SIGNUP QUE YA SALIÓ ENTRA
+     PRIMERO. Si en este mismo registro, con este mismo celular, ya salió un
+     signup del que no se adoptó nada (el tope habló antes, o volvió con la
+     señal caída), lo más probable es que la cuenta YA exista: se prueba
+     entrar con la contraseña, que es una sola llamada, y la cuenta se abre
+     con su constancia (ver guardarLaConstancia). Si esa contraseña no abre
+     nada, recién ahí la cadena de siempre: bandeja y signup. */
+  if (entrarPrimero) {
+    return entrarConLaClaveDelRegistro(err, autorizacion, foto, { primero: true, siNoEntra: crearLaCuenta });
+  }
+  return crearLaCuenta();
+
+  function crearLaCuenta() {
   /* El aviso de que la respuesta ya no es de esta pestaña: corta la cadena sin
      tocar nada (el catch de abajo lo reconoce). */
   var TARDE = { tarde: true };
@@ -3533,11 +3613,10 @@ function enviarRegistro(sensibles) {
   /* Las dos rutas escritas enteras: el centinela de motor.test.js («la bandeja
      va PRIMERO») las busca por su texto antes del signup. */
   var rutaRegistro = MARCA === 'platachat' ? '/rest/v1/rpc/registrar_abierto_app' : '/rest/v1/rpc/registrar_abierto';
-  fetch(CFG.url.replace(/\/+$/, '') + rutaRegistro, {
+  return fetch(CFG.url.replace(/\/+$/, '') + rutaRegistro, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
-    body: JSON.stringify(cuerpoRegistro),
-    signal: senal
+    body: JSON.stringify(cuerpoRegistro)
   }).then(function (res) {
       if (!sigueSiendoDeAqui(foto)) throw TARDE;
       if (MARCA === 'platachat' && res.status === 404) {
@@ -3548,7 +3627,8 @@ function enviarRegistro(sensibles) {
     })
     .then(function (r) {
       /* 21-oct-2026 — G1: si mientras contestaba la bandeja la pestaña pasó a
-         ser de otro (o venció el tope), aquí se corta: el signup NO sale. */
+         ser de otro (o se volvió a tocar: otro viaje), aquí se corta: el
+         signup NO sale. */
       if (!sigueSiendoDeAqui(foto)) throw TARDE;
       if (!r || r.ok !== true) {
         throw { humano: 'No pudimos recibir tu registro. Revisa tu celular y tu nombre, y vuelve a intentar en unos minutos.' };
@@ -3558,6 +3638,7 @@ function enviarRegistro(sensibles) {
          arriba; mirarla «otra vez aquí», en vivo, era justo el agujero: lo
          que hubiera en vivo después de la bandeja podía ser de Pedro. */
       if (!foto.clave) throw { humano: 'Nos falta la contraseña de este celular: toca «Volver» hasta «Tu celular y tu contraseña» y créala.' };
+      anotarSignup(foto);   // 21-oct-2026 — H1: desde aquí la cuenta puede existir aunque no llegue la respuesta
       return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
@@ -3565,16 +3646,18 @@ function enviarRegistro(sensibles) {
           email: U.correoDeTelefono(foto.celular),
           password: foto.clave,
           data: { telefono: foto.celular, vinculacion: foto.datos, autorizacion: foto.autorizacion }
-        }),
-        signal: senal
+        })
       });
     })
     .then(function (res) { return res.json().then(function (j) { return { ok: res.ok, j: j }; }); })
     .then(function (res) {
       /* 21-oct-2026 — G1: la cuenta se creó, pero la pestaña ya no es de quien
-         la pidió (o venció el tope): su sesión no se adopta, se cierra en el
-         servidor, y no se toca nada de aquí. Quien la creó entra con su
-         celular y su contraseña cuando quiera; su fila ya está en la bandeja. */
+         la pidió (otra generación, u otro viaje: se volvió a tocar): su sesión
+         no se adopta, se cierra en el servidor, y no se toca nada de aquí.
+         Quien la creó entra con su celular y su contraseña cuando quiera; su
+         fila ya está en la bandeja. 21-oct-2026 — H1: si solo pasó el tope y
+         nadie hizo nada más, ESTA respuesta se adopta, como si hubiera
+         llegado a tiempo. */
       if (!sigueSiendoDeAqui(foto)) {
         if (res.ok) cerrarSesionHuerfana(res.j);
         terminarViaje(foto);
@@ -3632,12 +3715,98 @@ function enviarRegistro(sensibles) {
     })
     .catch(function (e) {
       terminarViaje(foto);
-      /* 21-oct-2026 — G1: una respuesta que ya no es de esta pestaña (o que
-         llegó después del tope, que ya dijo lo suyo) no escribe nada. */
+      /* 21-oct-2026 — G1: una respuesta que ya no es de esta pestaña no
+         escribe nada. H1: la que llega después del tope, sin que nadie haya
+         hecho otra cosa, sí dice lo que pasó (es más que el aviso del tope). */
       if (e === TARDE || !sigueSiendoDeAqui(foto)) return;
       fallo(err, (e && e.humano) ? e.humano
         : 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
     });
+  }
+}
+
+/* 21-oct-2026 — H1: LOS SIGNUPS QUE SALIERON EN ESTE REGISTRO. Desde que el
+   tope no corta la petición, un signup que salió puede haber creado la cuenta
+   aunque su respuesta no se haya adoptado (llegó después de que se volvió a
+   tocar, o la señal se cayó a la vuelta). El reintento lo necesita para
+   entrar primero (enviarRegistro) y la constancia para saber si la
+   autorización que tiene la cuenta ES la de este registro, la que viajó en
+   ese signup (guardarLaConstancia). Solo de esta generación y este celular:
+   el de otro registro no le dice nada a este. Sin datos: el momento de cada
+   autorización que salió. */
+var SIGNUP_DEL_REGISTRO = null;   // { generacion, celular, momentos: [] }
+function anotarSignup(foto) {
+  var s = SIGNUP_DEL_REGISTRO, cel = String(foto.celular || '');
+  if (!s || s.generacion !== foto.generacion || s.celular !== cel) {
+    s = SIGNUP_DEL_REGISTRO = { generacion: foto.generacion, celular: cel, momentos: [] };
+  }
+  if (foto.autorizacion && foto.autorizacion.momento) s.momentos.push(String(foto.autorizacion.momento));
+}
+function yaSalioUnSignup(foto) {
+  var s = SIGNUP_DEL_REGISTRO;
+  return !!s && s.generacion === foto.generacion && s.celular === String(foto.celular || '') && s.momentos.length > 0;
+}
+
+/* ===========================================================================
+ * LA CONSTANCIA DE LA AUTORIZACIÓN, ANTES DE LO SENSIBLE — 21-oct-2026 (H4)
+ *
+ * La autorización de la Ley 1581 solo viajaba en el signup. Quien YA tenía
+ * cuenta y se registraba otra vez («ya tenías cuenta»: con la misma
+ * contraseña, o con «Entrar y terminar mi registro») recibía un 422 en el
+ * signup —GoTrue no toca la cuenta— y después entraba y SUBÍA su cédula, su
+ * cara y su ubicación. La única constancia que quedaba era la del signup de
+ * hace semanas, que podía decir sensibles:false y nombrar a otro responsable:
+ * si reclamaba, no había cómo probar el permiso para datos sensibles (art. 6,
+ * 9 y 17-b; Decreto 1377, art. 8). PLAY-FICHA.md llama a esa constancia «la
+ * prueba de que nos diste permiso».
+ * Ahora, con la sesión recién obtenida y ANTES de encolar o subir nada, se
+ * guarda la de ESTE registro en la cuenta (PUT /auth/v1/user, data):
+ * `autorizacion` es la nueva y `autorizaciones` el historial anterior más la
+ * nueva, sin borrar ninguna. Si no se puede guardar, no se encola ni se sube
+ * nada sensible y se dice la verdad. La reja de verdad está en la base:
+ * registro_archivos_guardar rechaza cédula, selfie, ubicación y lectura si la
+ * cuenta no tiene una autorización con sensibles:true
+ * (base/20261020_la_cedula_de_la_cuenta.sql, 'sin_autorizacion').
+ * Se salta UN caso: que la autorización que ya tiene la cuenta sea la que
+ * viajó en un signup de ESTE registro (el reintento después del tope que
+ * entra primero con la contraseña), con las mismas casillas. Esa ya es la
+ * constancia de este registro, y pedirla otra vez sumaría una llamada justo
+ * con la señal floja.
+ * ======================================================================== */
+function laConstanciaYaEsDeEsteRegistro(meta, aut, foto) {
+  var a = meta && meta.autorizacion, s = SIGNUP_DEL_REGISTRO;
+  if (!a || !aut || !s || !foto) return false;
+  if (s.generacion !== foto.generacion || s.celular !== String(foto.celular || '')) return false;
+  return s.momentos.indexOf(String(a.momento || '')) >= 0 && a.version === aut.version &&
+    a.general === aut.general && !!a.sensibles === !!aut.sensibles;
+}
+/* Resuelve true si la constancia quedó (o ya estaba), false si no: nunca
+   rechaza. Con el token de ESA sesión, no con SESION, que todavía no se ha
+   adoptado. */
+function guardarLaConstancia(sesion, aut, foto) {
+  if (!sesion || !sesion.access_token || !aut || !CFG.url || !CFG.anon) return Promise.resolve(false);
+  var u = (sesion.user && typeof sesion.user === 'object') ? sesion.user : {};
+  var meta = (u.user_metadata && typeof u.user_metadata === 'object') ? u.user_metadata : {};
+  if (laConstanciaYaEsDeEsteRegistro(meta, aut, foto)) return Promise.resolve(true);
+  var antes = Array.isArray(meta.autorizaciones) ? meta.autorizaciones.slice() : [];
+  /* La de la cuenta entra al historial si todavía no está (la del signup no
+     venía en ninguna lista). */
+  if (meta.autorizacion && !antes.some(function (x) { return x && meta.autorizacion && x.momento === meta.autorizacion.momento; })) {
+    antes.push(meta.autorizacion);
+  }
+  var datos = { autorizacion: aut, autorizaciones: antes.concat([aut]) };
+  try {
+    return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + sesion.access_token },
+      body: JSON.stringify({ data: datos })
+    }).then(function (r) {
+      if (!r || !r.ok) return false;
+      /* La copia de la sesión dice lo mismo que la cuenta. */
+      try { u.user_metadata = Object.assign({}, meta, datos); sesion.user = u; } catch (e) {}
+      return true;
+    }, function () { return false; });
+  } catch (e) { return Promise.resolve(false); }
 }
 
 /* Entra con el celular y la contraseña del registro, para el caso de quien ya
@@ -3650,20 +3819,34 @@ function enviarRegistro(sensibles) {
    el toque es este: se toma aquí y empieza su propio viaje, con su tope. Al
    volver, la misma regla: si la pestaña ya es de otro, la sesión no se adopta
    y se cierra en el servidor. */
-function entrarConLaClaveDelRegistro(err, autorizacion, foto) {
+/* 21-oct-2026 — H1, H4: `opc` (opcional):
+     · primero: es el reintento que entra ANTES de crear (enviarRegistro): no
+       se sabe todavía si hay cuenta, así que no se dice «ya tenías una»;
+     · siNoEntra: qué hacer si esa contraseña no abre ninguna cuenta (en el
+       reintento, la cadena de siempre: bandeja y signup).
+   Y la sesión que llega NO se adopta hasta guardar en la cuenta la
+   autorización de ESTE registro (guardarLaConstancia): sin constancia no se
+   encola ni se sube nada sensible. */
+function entrarConLaClaveDelRegistro(err, autorizacion, foto, opc) {
+  var o = opc || {};
   var propio = !foto;
-  if (propio) foto = fotoDelToque({ celular: String(REGISTRO.celular || ''), clave: claveDeEsteCelular(REGISTRO.celular) });
-  fallo(err, 'Ya tenías una cuenta con este celular. Te estamos entrando…');
-  var senal = !propio ? (foto.control ? foto.control.signal : undefined)
-    : empezarViaje(foto, function () {
-        avisoYaTieneCuenta(err, 'La conexión tardó demasiado y no pudimos entrar a tu cuenta. Revisa tu internet y ' +
-          'vuelve a escribir aquí la contraseña de tu cuenta.');
-      });
+  if (propio) {
+    foto = fotoDelToque({ celular: String(REGISTRO.celular || ''), clave: claveDeEsteCelular(REGISTRO.celular),
+                          autorizacion: autorizacion });
+  }
+  var aut = foto.autorizacion || autorizacion;
+  fallo(err, o.primero ? 'Revisando si tu cuenta ya quedó creada…' : 'Ya tenías una cuenta con este celular. Te estamos entrando…');
+  /* 21-oct-2026 — H1: el tope desbloquea y la petición sigue (ver empezarViaje). */
+  if (propio) {
+    empezarViaje(foto, function () {
+      avisoYaTieneCuenta(err, 'La conexión tardó demasiado en contestar. Seguimos esperando: si la respuesta llega, tu registro ' +
+        'termina sin que hagas nada más. Si se te cayó el internet, vuelve a escribir aquí la contraseña de tu cuenta cuando vuelva.');
+    });
+  }
   return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/token?grant_type=password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
-    body: JSON.stringify({ email: U.correoDeTelefono(foto.celular), password: foto.clave }),
-    signal: senal
+    body: JSON.stringify({ email: U.correoDeTelefono(foto.celular), password: foto.clave })
   }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
     .then(function (res) {
       if (!sigueSiendoDeAqui(foto)) {
@@ -3671,8 +3854,13 @@ function entrarConLaClaveDelRegistro(err, autorizacion, foto) {
         terminarViaje(foto);
         return;
       }
-      terminarViaje(foto);
       if (!res.ok || !res.j || !res.j.access_token) {
+        /* 21-oct-2026 — H1: en el reintento que entra primero, que esa
+           contraseña no abra nada no es un error: la cuenta no alcanzó a
+           crearse (o es de antes, con otra contraseña). Sigue el mismo viaje
+           por la cadena de siempre, que lo averigua y lo dice. */
+        if (o.siNoEntra) return o.siNoEntra();
+        terminarViaje(foto);
         /* La contraseña no es la de esa cuenta. Se le dice sin regañarlo.
            7-oct-2026 — sin «te mandamos un código»: no hay código (Joan los
            apagó) y el recado no manda nada solo; se dice lo que dice olvide():
@@ -3692,18 +3880,44 @@ function entrarConLaClaveDelRegistro(err, autorizacion, foto) {
             'o toca «Olvidé mi contraseña» y te escribimos para devolverte el acceso.');
         return;
       }
-      SESION = res.j; guardarSesionEnCurso(SESION);
-      try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
-      olvidarPaso(); olvidarClaveEnCurso();
-      anotarCuentaCreada(foto.celular);
-      encolarLasFotosDelRegistro(foto.celular);   // 20-oct-2026, rediseño (A): como en la cuenta nueva
-      anotarAparato('registro');   // 19-oct-2026: ya tenía cuenta, pero este es su registro
-      pintarRegistrado();
-      subidaEnSegundoPlano();   // sus fotos, que era lo que se perdía
-      cerrarElRegistroEnMemoria();   // 20-oct-2026, revisión (F7): como en la cuenta nueva
+      /* 21-oct-2026 — H4: PRIMERO LA CONSTANCIA, DESPUÉS TODO LO DEMÁS. Con el
+         token que acaba de llegar (no se ha adoptado: si la pestaña cambia
+         de dueño mientras se guarda, se cierra como cualquier otro). */
+      return guardarLaConstancia(res.j, aut, foto).then(function (guardada) {
+        if (!sigueSiendoDeAqui(foto)) {
+          cerrarSesionHuerfana(res.j);
+          terminarViaje(foto);
+          return;
+        }
+        terminarViaje(foto);
+        if (!guardada) {
+          /* Sin la constancia la sesión no se queda: no se encola nada, no
+             sube nada, y el registro sigue entero para volver a tocar. */
+          cerrarSesionHuerfana(res.j);
+          var dice = 'Tu celular y tu contraseña son los de tu cuenta, pero no pudimos guardar la autorización que nos ' +
+            'diste en este registro. Sin ella no subimos nada' +
+            (hayContenidoEnFotos() ? ': ni la foto de tu cédula, ni la de tu cara, ni tu ubicación.' : ' y no terminamos tu registro.') +
+            ' Revisa tu internet y vuelve a tocar ' + (propio ? '«Entrar y terminar mi registro»' : '«Abrir mi cuenta»') +
+            ': lo que llenaste sigue aquí.';
+          if (propio) avisoYaTieneCuenta(err, dice); else fallo(err, dice);
+          return;
+        }
+        SESION = res.j; guardarSesionEnCurso(SESION);
+        try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
+        olvidarPaso(); olvidarClaveEnCurso();
+        anotarCuentaCreada(foto.celular);
+        encolarLasFotosDelRegistro(foto.celular);   // 20-oct-2026, rediseño (A): como en la cuenta nueva
+        anotarAparato('registro');   // 19-oct-2026: ya tenía cuenta, pero este es su registro
+        pintarRegistrado();
+        subidaEnSegundoPlano();   // sus fotos, que era lo que se perdía
+        cerrarElRegistroEnMemoria();   // 20-oct-2026, revisión (F7): como en la cuenta nueva
+      });
     }, function () {
       terminarViaje(foto);
-      if (!sigueSiendoDeAqui(foto)) return;   // 21-oct-2026 — G1: ya no es de esta pestaña, o el tope ya habló
+      if (!sigueSiendoDeAqui(foto)) return;   // 21-oct-2026 — G1: ya no es de esta pestaña
+      /* 21-oct-2026 — H1: en el reintento que entra primero no se sabe si hay
+         cuenta: no se le dice «ya tienes una». */
+      if (o.primero) return fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a tocar «Abrir mi cuenta»: lo que llenaste sigue aquí.');
       avisoYaTieneCuenta(err, 'Ya tienes una cuenta con este celular. Revisa tu internet y toca otra vez ' +
         '«Abrir mi cuenta», o entra con tu contraseña.');
     });
@@ -3763,8 +3977,23 @@ function entrarConOtraClaveDelRegistro() {
     if (a) a.textContent = 'Escribe la contraseña de tu cuenta, la que pusiste cuando la abriste.';
     return;
   }
+  /* 21-oct-2026 — H4: LA AUTORIZACIÓN DE ESTE REGISTRO, con las casillas del
+     paso de la autorización (este aviso vive en ese paso). Antes esta puerta
+     ni siquiera la armaba: entraba y subía la cédula, la cara y la ubicación
+     con la constancia vieja de la cuenta. Sin la casilla general no se sigue
+     (es la misma regla del «Abrir mi cuenta»); sin la de sensibles, lo
+     sensible se suelta antes de entrar, como allá. */
+  var g = $('autGeneral'), s = $('autSensible');
+  if (!(g && g.checked)) {
+    var ay = $('ayudaClaveCuenta');
+    if (ay) ay.textContent = 'Marca arriba la casilla «Autorizo el tratamiento de mis datos personales»: sin ella la ley no nos deja terminar tu registro.';
+    return;
+  }
+  var sensibles = !!(s && s.checked);
+  if (!sensibles && hayContenidoEnFotos()) { FOTOS = {}; guardarFotos(); }
+  var autorizacion = U.armarAutorizacion(new Date().toISOString(), sensibles);
   ponerClaveEnCurso(clave, REGISTRO.celular);   // 20-oct-2026, otro celular: con el celular de la cuenta
-  return entrarConLaClaveDelRegistro($('errReg'));
+  return entrarConLaClaveDelRegistro($('errReg'), autorizacion);
 }
 
 /* La portada, con el celular del registro ya puesto y dicho por qué. Sale del
@@ -3853,12 +4082,41 @@ function pintarRegistrado() {
    la cuenta y la reja viven en app/calculadora-solicitud.js, no aquí), con el
    rótulo de que la propuesta puede ser distinta. Y ese estimado viaja con la
    solicitud (anotarEstimado) para que Joan lo vea antes de proponer. */
-function rpcSesion(fn, cuerpo) {
-  if (!SESION || !SESION.access_token) return Promise.reject({ sinSesion: true });
-  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
+/* ===========================================================================
+ * LO QUE PIDE LA CUENTA ES DE LA SESIÓN QUE LO PIDIÓ — 21-oct-2026 (H2)
+ *
+ * «Salir» no corta lo que va en camino. María toca «Pedir $450.000» con la
+ * nota «debo el arriendo de 2 meses…», se queda en «Enviando…», toca «Salir»
+ * y presta el teléfono; Pedro entra a SU cuenta. Cuando llegaba la respuesta
+ * de María, pintarSolicitud repintaba la pantalla de Pedro con el monto, la
+ * fecha y la nota de ella (la Ley 1581 en la salida), y anotarAparato salía
+ * con el token de Pedro: el CRM anotaba «pidió» en la cuenta equivocada. Lo
+ * mismo «Aceptar» (la propuesta aceptada de María, con sus cifras), la
+ * propuesta recargada, la solicitud que pone la calculadora en lo pedido, la
+ * contraseña nueva, el chat, la foto del chat y la cola de fotos. La ficha y
+ * el chat ya miraban la sesión una por una (G1); los demás no.
+ * La regla, en UN sitio y no en quince: toda llamada de la vista de la cuenta
+ * toma la sesión AL PEDIR (`ses`), sale con el token de ESA sesión —nunca con
+ * SESION en vivo— y su respuesta solo sigue si SESION todavía es esa. Si no,
+ * la promesa se queda callada para siempre (enSilencio): ni el .then ni el
+ * .catch de quien llamó corren, así que no se pinta, no se anota y no se
+ * llama nada más. salirDeCuenta deja en su estado inicial lo que la cuenta
+ * tenía a medias (PIDIENDO y compañía).
+ * ======================================================================== */
+function enSilencio() { return new Promise(function () {}); }
+/* La promesa de una llamada hecha con `ses`, atada a ella. */
+function deEstaSesion(ses, promesa) {
+  return promesa.then(function (v) { return SESION === ses ? v : enSilencio(); },
+                      function (e) { if (SESION === ses) throw e; return enSilencio(); });
+}
+/* `ses` (opcional) es la sesión que pidió; sin ella, la de este momento. */
+function rpcSesion(fn, cuerpo, ses) {
+  if (ses === undefined) ses = SESION;
+  if (!ses || !ses.access_token) return Promise.reject({ sinSesion: true });
+  return deEstaSesion(ses, fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
-               Authorization: 'Bearer ' + SESION.access_token },
+               Authorization: 'Bearer ' + ses.access_token },
     body: JSON.stringify(cuerpo || {})
   }).then(function (r) {
     if (r.ok) return r.json();
@@ -3867,7 +4125,7 @@ function rpcSesion(fn, cuerpo) {
        (ver subirArchivosRegistro). El mensaje sigue siendo el de siempre. */
     var e = new Error('http ' + r.status); e.status = r.status;
     return Promise.reject(e);
-  });
+  }));
 }
 
 /* ================= DESDE QUÉ TELÉFONO — 19-oct-2026 =================
@@ -3883,15 +4141,21 @@ function rpcSesion(fn, cuerpo) {
    política declara como obligatorios (app/cumplimiento.js, datos_tecnicos).
    CON keepalive y no por rpcSesion: en PlataChat, justo después del registro,
    la página se va a otra; sin keepalive el navegador cancela lo que esté en
-   camino. La sesión se toma al llamar, no al volver la respuesta del aparato. */
-function anotarAparato(cuando) {
+   camino. La sesión se toma al llamar, no al volver la respuesta del aparato.
+   21-oct-2026 — H2: `ses`, la sesión de quien pidió (sin ella, la de este
+   momento). Si mientras se le pregunta al teléfono (hasta 800 ms) esa sesión
+   salió, no se anota en nadie: con SESION en vivo, el «pidió» de María caía
+   en la cuenta de Pedro. */
+function anotarAparato(cuando, ses) {
   try {
-    if (!APARATO || !APARATO.leerAparato || !SESION || !SESION.access_token) return;
-    var token = SESION.access_token;
+    if (ses === undefined) ses = SESION;
+    if (!APARATO || !APARATO.leerAparato || !ses || !ses.access_token) return;
+    var token = ses.access_token;
     APARATO.leerAparato({ navegador: navigator, documento: document, almacen: localStorage,
                           matchMedia: window.matchMedia ? function (q) { return window.matchMedia(q); } : null },
                         { tiempo: APARATO.TIEMPO })
       .then(function (declarado) {
+        if (SESION !== ses) return;
         return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/aparato_anotar', {
           method: 'POST', keepalive: true,
           headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + token },
@@ -3952,10 +4216,14 @@ function enviarPedido() {
   var b = $('csBoton'); if (b) b.disabled = true;
   CS.error('Enviando…');
   PIDIENDO = true;
-  rpcSesion('solicitar_a_la_medida', pedido).then(function (j) {
+  /* 21-oct-2026 — H2: la sesión que pide (ver LO QUE PIDE LA CUENTA ES DE LA
+     SESIÓN QUE LO PIDIÓ). Si sale antes de la respuesta, nada de abajo corre:
+     ni la pantalla de «Recibimos tu solicitud», ni el estimado, ni el aparato. */
+  var ses = SESION;
+  rpcSesion('solicitar_a_la_medida', pedido, ses).then(function (j) {
     PIDIENDO = false; if (b) b.disabled = false;
     if (!j || j.ok !== true || !j.solicitud) { CS.error(motivoDelPedido(j)); return; }
-    anotarAparato('solicitud');   // 19-oct-2026: desde qué teléfono pidió
+    anotarAparato('solicitud', ses);   // 19-oct-2026: desde qué teléfono pidió
     CS.error('');
     /* 8-oct-2026 (segunda vuelta) — SE QUEDA LO QUE PIDIÓ, no se olvida. Antes
        se borraba y la calculadora volvía a $300.000 a un mes, mientras la
@@ -3965,7 +4233,7 @@ function enviarPedido() {
     CS.guardar(CS.estado(), null, hoyISO());
     /* Si ya había una propuesta, lo pedido no cambió: el estimado de ahora no
        es el de esa solicitud y no se anota. */
-    if (!j.ya_habia) anotarEstimado(j.solicitud, estimado);
+    if (!j.ya_habia) anotarEstimado(j.solicitud, estimado, ses);
     pintarSolicitud(j.solicitud, j.ya_habia ? 'ya_habia' : (j.cambiada ? 'cambiada' : ''));
   }).catch(function (e) {
     PIDIENDO = false; if (b) b.disabled = false;
@@ -3992,9 +4260,10 @@ function enviarPedido() {
    nueva esté corrida. Si no lo está (404) o falla, no se le dice nada al
    cliente —su solicitud ya llegó— y el CRM simplemente no dice que vio un
    estimado, que es la verdad que puede probar. */
-function anotarEstimado(sol, estimado) {
+/* 21-oct-2026 — H2: con `ses`, la sesión que pidió (no la que esté en vivo). */
+function anotarEstimado(sol, estimado, ses) {
   if (!estimado || !sol || sol.id == null) return Promise.resolve(null);
-  return rpcSesion('anotar_estimado', { p_id: Number(sol.id), p_estimado: estimado })
+  return rpcSesion('anotar_estimado', { p_id: Number(sol.id), p_estimado: estimado }, ses)
     .catch(function () { return null; });
 }
 
@@ -4190,9 +4459,13 @@ function aceptarContrapropuesta(id) {
   var cond = (CS && sol) ? CS.condiciones(sol, { hoy: hoyISO() }) : null;
   if (err) progreso(err, 'Registrando…');
   var conCondiciones = !!cond;
+  /* 21-oct-2026 — H2: la sesión que acepta. Si sale antes de la respuesta, la
+     propuesta aceptada no se pinta en la cuenta del siguiente, ni se anota
+     el aparato en ella, ni se recarga nada con su token. */
+  var ses = SESION;
   (conCondiciones
-    ? rpcSesion('aceptar_condiciones', { p_id: Number(id), p_vio: CS.paraAceptar(cond) })
-    : rpcSesion('aceptar_contrapropuesta', { p_id: Number(id) }))
+    ? rpcSesion('aceptar_condiciones', { p_id: Number(id), p_vio: CS.paraAceptar(cond) }, ses)
+    : rpcSesion('aceptar_contrapropuesta', { p_id: Number(id) }, ses))
     .catch(function (e) {
       if (conCondiciones && causaDe(e) === 'apagado') return { ok: false, motivo: 'sin_constancia' };
       throw e;
@@ -4204,11 +4477,11 @@ function aceptarContrapropuesta(id) {
         return;
       }
       if (!j || j.ok !== true || !j.solicitud) {
-        if (j && j.motivo === 'cambio') return recargarPropuesta('cambio');
+        if (j && j.motivo === 'cambio') return recargarPropuesta('cambio', ses);
         if (err) fallo(err, 'No pudimos registrar tu aceptación. Vuelve a abrir la app: si la propuesta cambió, verás la nueva.');
         return;
       }
-      anotarAparato('aceptacion');   // 19-oct-2026: desde qué teléfono aceptó
+      anotarAparato('aceptacion', ses);   // 19-oct-2026: desde qué teléfono aceptó
       pintarSolicitud(j.solicitud);
     })
     .catch(function () {
@@ -4216,8 +4489,9 @@ function aceptarContrapropuesta(id) {
     });
 }
 
-function recargarPropuesta(nota) {
-  return rpcSesion('mi_solicitud').then(function (j) {
+/* 21-oct-2026 — H2: `ses`, la sesión que aceptó (sin ella, la de este momento). */
+function recargarPropuesta(nota, ses) {
+  return rpcSesion('mi_solicitud', undefined, ses).then(function (j) {
     var sol = j && j.ok === true ? j.solicitud : null;
     if (sol) pintarSolicitud(sol, nota);
   }).catch(function () {
@@ -4230,9 +4504,13 @@ function recargarPropuesta(nota) {
    solicitud. Si hay una propuesta esperando (nueva o cambiada por Joan), sale
    arriba de todo; si ya aceptó, sale el aviso de que le escribimos; y desde el
    8-oct, si pidió y todavía no hay propuesta, sale lo que pidió. */
+/* 21-oct-2026 — H2: la solicitud es de la sesión que la preguntó. La de María
+   que llegaba después de «Salir» ponía la calculadora del siguiente en lo que
+   ella pidió (ponerCalculadoraEnLoPedido, que además lo guarda en el
+   teléfono): rpcSesion la calla si la sesión ya no es esa. */
 function cargarMiSolicitud() {
   var caja = $('solicitudBox'); if (!caja || !SESION || !SESION.access_token) return;
-  rpcSesion('mi_solicitud').then(function (j) {
+  rpcSesion('mi_solicitud', undefined, SESION).then(function (j) {
     var sol = j && j.ok === true ? j.solicitud : null;
     if (sol && esperaPropuesta(sol) && sol.pedido && sol.pedido.origen === 'play') {
       caja.innerHTML = tarjetaSolicitudEnEspera(sol);
@@ -4303,7 +4581,9 @@ var AVISOS_EN_MEMORIA = {};    // { "<celular>": aviso, o null si no se pudo bor
    es la cédula (A1, A2); 'version_anterior': unas fotos que dejó la versión
    publicada y que no se pudieron atar a una cuenta (A6); 'sin_ellas': en el
    final de PlataChat se tocó «sin ellas» (A3, A4). */
-var PERDIDAS = ['caducada', 'otro_documento', 'sin_documento', 'sin_confirmar', 'sin_dueno', 'no_confirmada', 'version_anterior', 'sin_ellas'];
+/* 21-oct-2026 — H4: 'sin_autorizacion': la base no tiene la autorización de
+   datos sensibles de esa cuenta (ver subirArchivosRegistro). */
+var PERDIDAS = ['caducada', 'otro_documento', 'sin_documento', 'sin_confirmar', 'sin_dueno', 'no_confirmada', 'version_anterior', 'sin_ellas', 'sin_autorizacion'];
 /* 17-sep-2026 — DICE SI DE VERDAD GUARDÓ. Antes se tragaba el error y devolvía
    nada, así que la caja de la foto se pintaba «Listo · tocar para cambiar»
    aunque el teléfono no hubiera podido escribirla: cuota llena, almacenamiento
@@ -6647,7 +6927,13 @@ function sanearColas() {
   });
 }
 
-var SUBIDA_EN_CURSO = null;   // una sola a la vez: «Ir a mi cuenta» no duplica la que ya va
+/* Una sola a la vez: «Ir a mi cuenta» no duplica la que ya va.
+   21-oct-2026 — H2: {ses, p}, la de UNA sesión. La respuesta de una subida
+   cuya sesión salió se queda callada (rpcSesion): no anota nada en el
+   teléfono, y la cola sigue esperando a su cuenta. Sin la sesión al lado, la
+   subida callada de María le quedaba como «la que ya va» a la cuenta de
+   Pedro, que esperaba para siempre una promesa que no iba a volver. */
+var SUBIDA_EN_CURSO = null;
 function subirArchivosRegistro() {
   /* 17-sep-2026 — SOLO SUBE LA PESTAÑA QUE LAS TOMÓ. Ver el comentario de
      LLAVE_FOTOS_MIAS: sin esta línea, la cédula que alguien dejó a medias en un
@@ -6655,7 +6941,7 @@ function subirArchivosRegistro() {
      19-oct-2026 — Y SOLO CON DUEÑO, que es el celular de la cuenta.
      20-oct-2026, rediseño (A) — Y SOLO DE LA COLA DE ESA CUENTA: lo que encoló
      su «Abrir mi cuenta». El registro en curso no sube nunca por aquí. */
-  if (SUBIDA_EN_CURSO) return SUBIDA_EN_CURSO;
+  if (SUBIDA_EN_CURSO && SUBIDA_EN_CURSO.ses === SESION) return SUBIDA_EN_CURSO.p;
   var cel = celularDeSesion() || (REGISTRADO && REGISTRADO.celular) || '';
   var lote = colaDe(cel);
   if (!lote) return Promise.resolve();
@@ -6677,7 +6963,19 @@ function subirArchivosRegistro() {
      que Joan distinga «no lo tocó» de «lo corrigió y quedó igual». */
   if (lote.cedula_editado) huella.cedula_editado = lote.cedula_editado;
   if (!pedidas.length && !Object.keys(huella).length) { guardarCola(cel, null); return Promise.resolve(); }
-  var p = rpcSesion('registro_archivos_guardar', { p_archivos: archivos, p_huella: huella }).then(function (j) {
+  var ses = SESION;
+  var p = rpcSesion('registro_archivos_guardar', { p_archivos: archivos, p_huella: huella }, ses).then(function (j) {
+    /* 21-oct-2026 — H4: LA BASE NO TIENE LA AUTORIZACIÓN DE DATOS SENSIBLES de
+       esta cuenta (base/20261020_la_cedula_de_la_cuenta.sql): sin ella no
+       entran ni la cédula, ni la cara, ni la ubicación, ni la lectura, y
+       reintentar no lo arregla. Pasa con una cola que dejó una versión
+       anterior de la app en una cuenta que ya existía (su constancia dice que
+       no autorizó fotos). Se suelta y se dice eso, sin inventar otra causa. */
+    if (j && j.ok === false && j.motivo === 'sin_autorizacion') {
+      anotarSubida('sin_autorizacion', pedidas, [], cel);
+      guardarCola(cel, null);
+      return;
+    }
     /* 20-oct-2026, rediseño (D) — LA REJA DE LA BASE dijo que esa cédula no es
        la del registro de esta cuenta (o que no hay registro con qué
        compararla): no entra nunca, así que no se reintenta. Se suelta y se
@@ -6726,8 +7024,8 @@ function subirArchivosRegistro() {
     anotarSubida(vencida ? 'sesion' : 'sin_red', pedidas, [], cel);
     throw e;
   });
-  SUBIDA_EN_CURSO = p;
-  var fin = function () { if (SUBIDA_EN_CURSO === p) SUBIDA_EN_CURSO = null; };
+  SUBIDA_EN_CURSO = { ses: ses, p: p };
+  var fin = function () { if (SUBIDA_EN_CURSO && SUBIDA_EN_CURSO.p === p) SUBIDA_EN_CURSO = null; };
   p.then(fin, fin);
   return p;
 }
@@ -6895,6 +7193,9 @@ function porqueSeBorraron(aviso) {
   if (e === 'otro_documento') return 'La cédula de las fotos de tu registro no es la del documento que escribiste en él, así que no las subimos y las borramos de este teléfono.';
   if (e === 'no_confirmada') return 'No pudimos confirmar de quién es la cédula de las fotos de tu registro, así que no las subimos y las borramos de este teléfono.';
   if (e === 'sin_ellas') return 'Las fotos de tu registro no se subieron: en este teléfono se eligió seguir a PlataChat sin ellas, así que las borramos.';
+  /* 21-oct-2026 — H4: lo que de verdad pasó, y nada más. */
+  if (e === 'sin_autorizacion') return 'No subimos las fotos de tu registro porque en tu cuenta no quedó guardado tu permiso para ' +
+    'la foto de tu cédula, la de tu cara y tu ubicación. Las borramos de este teléfono.';
   if (e === 'version_anterior') return 'En este teléfono quedaron unas fotos de cédula de un registro con tu celular, de antes de una actualización de la app. ' +
     'No pudimos confirmar que fueran de tu cuenta, así que no las subimos y las borramos.';
   return 'Las fotos de tu registro no se pudieron subir y las borramos de este teléfono.';
@@ -9283,6 +9584,7 @@ function mandarFoto(input) {
     return fallo(err, 'Por aquí solo se pueden mandar fotos. Un video no cabe en el chat.');
   }
   progreso(err, 'Preparando la foto…');
+  var ses = SESION;   // H2: ver subirFotoChat
   var lector = new FileReader();
   lector.onerror = function () { fallo(err, 'No pude leer esa foto. Prueba con otra.'); };
   lector.onload = function () {
@@ -9298,14 +9600,18 @@ function mandarFoto(input) {
       var mini = fotoDeLienzo(c, 240, 0.5);
       c.width = c.height = 1;
       if (!grande) return fallo(err, 'Tu teléfono no dejó preparar la foto. Prueba con otra.');
-      subirFotoChat(grande, mini, err);
+      subirFotoChat(grande, mini, err, ses);
     };
     im.src = lector.result;
   };
   lector.readAsDataURL(f);
 }
 
-function subirFotoChat(grande, mini, err) {
+/* 21-oct-2026 — H2: `ses`, la sesión que escogió la foto (sin ella, la de
+   este momento). Si ya no es la de la pestaña, no se manda nada. */
+function subirFotoChat(grande, mini, err, ses) {
+  if (ses === undefined) ses = SESION;
+  if (SESION !== ses) return;
   progreso(err, 'Mandando la foto…');
   var pie = String((($('chTexto') || {}).value || '')).trim();
   /* El largo se revisa AQUÍ y no se deja que la base lo recorte: un pie que
@@ -9318,7 +9624,7 @@ function subirFotoChat(grande, mini, err) {
   }
   rpcSesion('chat_foto_sesion', {
     p_canal: CANAL, p_imagen: grande, p_miniatura: mini || null, p_texto: pie || null
-  }).then(function (j) {
+  }, ses).then(function (j) {
     if (!j || j.ok !== true) {
       var m = j && j.motivo;
       /* Cada motivo dice algo distinto: «no se pudo» tapando un tope alcanzado
@@ -9445,7 +9751,10 @@ function enviarChat() {
   if (!v.ok) return fallo(err, v.motivo);
   err.classList.add('oculto');
   var canal = CANAL, texto = v.texto;
-  rpcSesion('chat_escribir_sesion', { p_canal: canal, p_texto: texto }).then(function (j) {
+  /* 21-oct-2026 — H2: si sale antes de la respuesta, ni se borra la casilla
+     del siguiente ni se le abre el canal con su token. */
+  var ses = SESION;
+  rpcSesion('chat_escribir_sesion', { p_canal: canal, p_texto: texto }, ses).then(function (j) {
     if (!j || j.ok !== true) {
       return fallo(err, (j && j.motivo) ? j.motivo
         : 'No pude enviar tu mensaje. Vuelve a intentar en un momento.');
@@ -9522,6 +9831,10 @@ function cambiarClave() {
   if (c1 !== c2) return fallo(err, 'Las dos no quedaron iguales. Escríbelas otra vez, sin afán.');
   if (!SESION || !SESION.access_token) return fallo(err, 'Se cerró tu sesión. Entra otra vez y lo hacemos.');
   fallo(err, 'Guardando…');
+  /* 21-oct-2026 — H2: con el token de la sesión que la pidió, y atada a ella:
+     el «Listo: tu contraseña quedó cambiada» de María no se le pinta al
+     siguiente que entre (deEstaSesion). */
+  var ses = SESION;
   /* Se manda SOLO la contraseña. El correo no viaja acá ni por error: es la
      identidad de la cuenta, y la base tiene un disparador que niega el cambio
      —fue por ahí por donde el 14-sep se pudo entrar a la cuenta de otro.
@@ -9530,15 +9843,15 @@ function cambiarClave() {
      misma cuenta). Antes se pintaba r.j.msg tal cual, en inglés. El cuerpo
      puede no ser JSON (un 502 de una puerta intermedia): eso no es «sin
      internet», y por eso se lee aparte en vez de caer al catch. */
-  fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
+  deEstaSesion(ses, fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
-               Authorization: 'Bearer ' + SESION.access_token },
+               Authorization: 'Bearer ' + ses.access_token },
     body: JSON.stringify({ password: c1 })
   }).then(function (r) {
     return r.json().catch(function () { return null; })
       .then(function (j) { return { ok: r.ok, estado: r.status, j: j }; });
-  })
+  }))
     .then(function (r) {
       if (!r.ok) {
         return fallo(err, (U && U.traducirErrorAuth) ? U.traducirErrorAuth(r.j, r.estado)
@@ -9612,6 +9925,18 @@ function salirDeCuenta() {
   /* 19-oct-2026 — lo que se sabía de los no leídos era de ESA cuenta, y el
      latido se apaga con ella (ver LO QUE LE FALTA POR LEER). */
   SIN_LEER = null; LATIDO = null;
+  /* 21-oct-2026 — H2: Y LO QUE ESA CUENTA TENÍA A MEDIAS VUELVE A SU ESTADO
+     INICIAL. Las respuestas que siguen en camino ya no corren (rpcSesion las
+     calla al ver otra sesión), así que nadie más las iba a soltar: PIDIENDO
+     se quedaba en true y el «Pedir» del siguiente no hacía nada hasta que
+     llegara la respuesta de María. Lo mismo la subida de fotos que «ya va»,
+     la propuesta en pantalla y sus casillas, la solicitud puesta en la
+     calculadora, el registro sin juntar, el aviso del responsable que ella
+     cerró y lo que leyó en cada canal. */
+  PIDIENDO = false; SUBIDA_EN_CURSO = null;
+  SOL_EN_PANTALLA = null; CONDICIONES_LEIDAS = {}; PEDIDO_PUESTO = '';
+  MI_REGISTRO = ''; AVISO_RESPONSABLE_PLAY_CERRADO = false;
+  LEIDAS = { servicio: 0, cobranza: 0, creditos: 0 };
   /* 20-oct-2026, revisión (F7; regla 3) — y nada del registro de esta cuenta
      se queda en la pestaña para el siguiente: ni el formulario, ni el intento,
      ni las fotos, ni la autorización. Lo que faltaba por subir sigue en el
@@ -9939,11 +10264,14 @@ function pedir() {
   /* La solicitud NO es un crédito: entra a la bandeja de Joan y él responde. La
      pantalla lo dice con esas palabras para que nadie salga creyendo que ya le
      desembolsaron. */
-  fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/play_solicitar', {
+  /* 21-oct-2026 — H2: la sesión que pide (o ninguna); la respuesta se calla si
+     al volver la pestaña ya es de otra (deEstaSesion). */
+  var ses = SESION;
+  deEstaSesion(ses, fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/play_solicitar', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json', apikey: CFG.anon,
-      Authorization: 'Bearer ' + ((SESION && SESION.access_token) || CFG.anon)
+      Authorization: 'Bearer ' + ((ses && ses.access_token) || CFG.anon)
     },
     /* El plazo que el socio escogió, no el del producto: play_solicitar acepta
        de 1 a 6 y lo guarda en plazo_meses desde el 9-sep. Mandar el fijo era
@@ -9955,7 +10283,7 @@ function pedir() {
        pide de más es información para Joan, no una instrucción para la base. */
     body: JSON.stringify({ p_capital: MONTO, p_meses: PLAZO,
                            p_nota: notaConPlazo() })
-  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); }))
     .then(function (j) {
       /* La función contesta {ok:false} con HTTP 200 cuando algo no cuadra o el
          freno de solicitudes está lleno: decir «recibimos» ahí sería mentir.
@@ -9978,7 +10306,7 @@ function pedir() {
           : m === 'muchas' ? 'Ya nos dejaste varias solicitudes hoy. Las tenemos todas; dale un rato y te respondemos en el chat.'
           : 'No pudimos recibir la solicitud ahora. Espera unos minutos y vuelve a intentar.');
       }
-      anotarAparato('solicitud');   // 19-oct-2026: desde qué teléfono pidió (solo con sesión)
+      anotarAparato('solicitud', ses);   // 19-oct-2026: desde qué teléfono pidió (solo con sesión)
       pintarPedido();
     })
     .catch(function () {
