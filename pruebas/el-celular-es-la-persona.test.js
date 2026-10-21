@@ -46,6 +46,20 @@
  *     quedaba a nombre de ese número, y corregirlo lo borraba todo.
  *   D2 (el atajo sin sesión de registrar_abierto, del 9-sep) va en otra tanda:
  *   queda nombrado como riesgo conocido en base/20261020_la_cedula_de_la_cuenta.sql.
+ *
+ * 21-oct-2026, más tarde — LA REGLA CAMBIÓ (E-A1, decisión de mentor): si el
+ * celular cambia, el registro EMPIEZA DE CERO. Ya no se borra «lo sensible» y
+ * se queda lo escrito a mano: se borra todo lo de la persona, y el «Continuar»
+ * que pasa lleva al primer paso. Las pruebas de aquí que afirmaban la regla
+ * vieja se cambiaron a la nueva, y lo dicen donde cambian:
+ *   · C1, C2 y D1: Pedro, después de cambiar el celular, va al primer paso y
+ *     escribe otra vez lo suyo (pedroOtraVezDesdeElPrimerPaso) antes de abrir
+ *     su cuenta; lo que había escrito antes del cambio también se borró;
+ *   · «CON LA CÉDULA ESCANEADA…»: lleva al primer paso, no a «Revisa tus datos»;
+ *   · D3: el aviso dice que el registro volvió a empezar (no nombra campo por
+ *     campo), y el «Continuar» que pasa lleva al primer paso.
+ * Las pruebas nuevas de esa regla (y de E1 y E2) están en
+ * pruebas/el-celular-nuevo-empieza-de-cero.test.js.
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -234,6 +248,21 @@ function pedroHastaSuCelular(P) {
   P.ev('siguientePaso()');
   assert.equal(pasoActual(P), 'entrada', 'Pedro no llegó a su celular: ' + texto(caja(P)));
 }
+/* 21-oct-2026 — E-A1: con el celular nuevo el registro empezó de cero, y el
+   «Continuar» que pasa lleva al primer paso. Pedro escribe otra vez lo suyo
+   (lo que había escrito antes de cambiar el celular también se borró: la
+   página no sabe quién escribió cada casilla) y vuelve a su celular, donde su
+   contraseña se conservó (en blanco, «sigo con la misma»). */
+function pedroOtraVezDesdeElPrimerPaso(P) {
+  assert.equal(pasoActual(P), 'documento', 'el «Continuar» con otro celular no llevó al primer paso: ' + texto(caja(P)));
+  P.ev(boton(cuerpo(P), 'Prefiero escribir mis datos'));
+  assert.equal(pasoActual(P), 'identidad');
+  casillas(P, 'identidad', PEDRO);
+  P.ev('siguientePaso()');
+  assert.equal(pasoActual(P), 'entrada', 'Pedro no llegó otra vez a su celular: ' + texto(caja(P)));
+  P.ev("$('rTel').value = '" + CEL_PEDRO + "'; anotarCelular($('rTel')); $('rClave').value = ''; $('rClave2').value = ''; siguientePaso();");
+  assert.equal(pasoActual(P), 'rostro', 'con su celular y su contraseña de antes no lo dejó seguir: ' + texto(caja(P)));
+}
 
 describe('C1. la selfie y la ubicación de otra persona no pasan a la cuenta del celular nuevo', () => {
 
@@ -251,6 +280,9 @@ describe('C1. la selfie y la ubicación de otra persona no pasan a la cuenta del
     assert.match(c, /la foto de la cara/, 'no dice que borró la selfie: ' + c);
     assert.match(c, /ubicación/, 'no dice que borró la ubicación: ' + c);
     assert.equal(/cédula/.test(c), false, 'habla de una cédula que nunca se escaneó: ' + c);
+    /* 21-oct-2026 — regla nueva (E-A1): el registro empezó de cero, y Pedro
+       escribe otra vez lo suyo desde el primer paso. */
+    pedroOtraVezDesdeElPrimerPaso(P);
     /* Pedro abre su cuenta: no sube nada de María. */
     const ll = nube(P);
     abrirLaCuenta(P);
@@ -265,10 +297,18 @@ describe('C1. la selfie y la ubicación de otra persona no pasan a la cuenta del
     const P = mariaSinCedulaConSuCara();
     pedroHastaSuCelular(P);
     celularYClave(P, CEL_PEDRO, CLAVE_PEDRO);
-    /* Para tomarse la suya tiene que volver a dar el permiso: el de María se fue. */
-    P.ev("pintarRegistro(indiceDe('documento'))");
+    /* Para tomarse la suya tiene que volver a dar el permiso: el de María se fue.
+       21-oct-2026 — regla nueva (E-A1): el «Continuar» ya lo dejó en el primer
+       paso, con el registro en cero. Da SU permiso, sigue sin la cédula,
+       escribe sus datos y vuelve a su celular (su contraseña se conservó). */
+    assert.equal(pasoActual(P), 'documento', 'el «Continuar» con otro celular no llevó al primer paso');
     P.ev('autorizarYEscanear()');
-    P.ev("pintarRegistro(indiceDe('rostro'))");
+    P.ev('siguientePaso()');
+    assert.equal(pasoActual(P), 'identidad');
+    casillas(P, 'identidad', PEDRO);
+    P.ev('siguientePaso()');
+    P.ev("$('rTel').value = '" + CEL_PEDRO + "'; anotarCelular($('rTel')); $('rClave').value = ''; $('rClave2').value = ''; siguientePaso();");
+    assert.equal(pasoActual(P), 'rostro', texto(caja(P)));
     selfie(P, 'PEDRO');
     assert.deepEqual(JSON.parse(P.ev('JSON.stringify(FOTOS.gps)')), { lat: 4.6, lng: -74.1, acc: 30, fecha: P.ev('hoyISO()') },
       'la ubicación de Pedro no se pidió: quedó la de María');
@@ -325,9 +365,11 @@ describe('C2. ninguna cuenta nace con la contraseña creada con otro celular', (
     assert.match(P.elems.errReg.textContent, /la contraseña es nueva: créala y escríbela dos veces/);   // fallo() escribe texto
     assert.equal(P.ev('CLAVE_EN_MEMORIA'), '', 'la contraseña de María sigue en la pestaña');
     assert.equal(/Maria\.Secreta9/.test(JSON.stringify(P.sesion)), false, 'la contraseña de María sigue en el sessionStorage');
-    /* Con la suya, sigue; y su cuenta nace con ella. */
+    /* Con la suya, sigue; y su cuenta nace con ella.
+       21-oct-2026 — regla nueva (E-A1): sigue al primer paso, con el registro
+       en cero, y escribe otra vez lo suyo; la contraseña que creó se queda. */
     P.ev("$('rClave').value = '" + CLAVE_PEDRO + "'; $('rClave2').value = '" + CLAVE_PEDRO + "'; siguientePaso();");
-    assert.equal(pasoActual(P), 'rostro');
+    pedroOtraVezDesdeElPrimerPaso(P);
     abrirLaCuenta(P);
     const seguir = boton(caja(P), 'Seguir');
     if (seguir) P.ev(seguir);
@@ -408,7 +450,10 @@ describe('la regla: si el celular cambia, se borra lo de la persona anterior; la
     assert.equal(/borramos/.test(caja(P)), false, 'le dice que borró lo suyo');
   });
 
-  test('CON LA CÉDULA ESCANEADA, otro celular se lleva las fotos, la lectura y lo que el escáner escribió con ella, y lleva a escribir los datos', () => {
+  /* 21-oct-2026 — regla nueva (E-A1): decía «y lleva a escribir los datos»
+     («Revisa tus datos»); ahora el registro empieza de cero y lleva al primer
+     paso. */
+  test('CON LA CÉDULA ESCANEADA, otro celular se lleva las fotos, la lectura y lo que el escáner escribió con ella, y lleva al primer paso', () => {
     const P = abrir();
     escanear(P, MARIA, 'MARIA');
     casillas(P, 'identidad', { expedicion: '2010-05-20' });
@@ -422,7 +467,7 @@ describe('la regla: si el celular cambia, se borra lo de la persona anterior; la
     assert.equal(P.ev('REGISTRO.documento'), undefined, 'el documento leído de la cédula anterior se quedó');
     assert.equal(P.ev('hayContenidoEnFotos()'), false, 'quedó algo sensible de la persona anterior: ' + P.ev('Object.keys(FOTOS).join()'));
     assert.equal(P.ev('autorizoEsteIntento()'), false);
-    assert.equal(pasoActual(P), 'identidad', 'sin nombre ni documento lo mandó adelante');
+    assert.equal(pasoActual(P), 'documento', 'el registro no volvió a empezar por el primer paso');
     const c = texto(caja(P));
     assert.match(c, /las fotos de la cédula/);
     assert.match(c, /lo que leímos de ella/);
@@ -689,11 +734,13 @@ describe('D1. «Continuar» decide con el celular que MUESTRA la casilla', () =>
            ni dice que borró, ni usó la contraseña de María. */
         assert.equal(/borramos/.test(P.elems.errReg.textContent), false, 'borró algo con un número que no sirve');
       }
-      /* Con su número completo, ahora sí: lo de María se va y la cuenta es suya. */
+      /* Con su número completo, ahora sí: lo de María se va y la cuenta es suya.
+         21-oct-2026 — regla nueva (E-A1): el registro empieza de cero y Pedro
+         escribe otra vez lo suyo desde el primer paso. */
       const ll = nube(P);
       celularYClave(P, CEL_PEDRO, CLAVE_PEDRO);
-      assert.equal(pasoActual(P), 'rostro');
       assert.equal(P.ev('FOTOS.selfie'), undefined, 'la selfie de María se quedó');
+      pedroOtraVezDesdeElPrimerPaso(P);
       abrirLaCuenta(P);
       const seguir = boton(caja(P), 'Seguir');
       if (seguir) P.ev(seguir);
@@ -720,7 +767,15 @@ describe('D1. «Continuar» decide con el celular que MUESTRA la casilla', () =>
   });
 });
 
-describe('D3. el desvío a «Revisa tus datos» y el aviso no dependen de que el «Continuar» que borró sea el que pasa', () => {
+/* 21-oct-2026 — regla nueva (E-A1): este bloque decía «el desvío a «Revisa tus
+   datos»» y esperaba un aviso que nombraba campo por campo («los nombres», «el
+   número de documento», «la fecha de expedición») y «Escribe tus datos otra
+   vez». Con el registro que empieza de cero, el aviso dice que volvió a
+   empezar y lo que se borró por clases («los datos del formulario»), y el
+   «Continuar» que pasa lleva al primer paso. Lo que D3 cuida no cambia: el
+   aviso y la vuelta salen de lo pendiente, aunque el toque que borró haya
+   fallado o la pestaña se haya relanzado. */
+describe('D3. la vuelta al primer paso y el aviso no dependen de que el «Continuar» que borró sea el que pasa', () => {
 
   /* María escanea su cédula y teclea la fecha de expedición; pone 3001112234
      por error y sigue; desde «Tu rostro» vuelve y lo corrige. */
@@ -740,24 +795,24 @@ describe('D3. el desvío a «Revisa tus datos» y el aviso no dependen de que el
   [['EN BLANCO (lo que le ofrecía «Déjalo en blanco»)', '', ''],
    ['QUE NO QUEDA IGUAL LAS DOS VECES', CLAVE_MARIA, 'Maria.Secreta8'],
    ['MUY CORTA', 'abc', 'abc']].forEach(([como, c1, c2]) => {
-    test('D3 — EL PRIMER «CONTINUAR» FALLA (CONTRASEÑA ' + como + '): dice que se borraron sus datos, y el que pasa la lleva a «Revisa tus datos»', () => {
+    test('D3 — EL PRIMER «CONTINUAR» FALLA (CONTRASEÑA ' + como + '): dice que el registro volvió a empezar, y el que pasa la lleva al primer paso', () => {
       const P = mariaVuelveACorregirSuCelular();
       toque(P, CEL_MARIA, c1, c2);
       assert.equal(pasoActual(P), 'entrada', 'la contraseña no servía y siguió');
       assert.equal(P.ev('REGISTRO.documento'), undefined, 'no se borró lo de la cédula: la prueba no cuenta el caso');
+      assert.equal(P.ev('REGISTRO.expedicion'), undefined, 'la fecha que tecleó se quedó: el registro no empezó de cero');
       const f = P.elems.errReg.textContent;
-      assert.match(f, /los nombres/, 'el aviso calla que se borraron los nombres: ' + f);
-      assert.match(f, /número de documento/, 'el aviso calla que se borró el documento: ' + f);
-      assert.match(f, /fecha de expedición/, 'el aviso calla la fecha de expedición que tecleó: ' + f);
+      assert.match(f, /Cambiaste el celular, así que el registro volvió a empezar/, 'el aviso no dice que el registro volvió a empezar: ' + f);
+      assert.match(f, /los datos del formulario/, 'el aviso calla que se borraron sus datos: ' + f);
       /* El segundo «Continuar», con la contraseña bien, ya no ve ningún cambio
          de celular: lo que decide es lo que quedó pendiente. */
       cajaEnBlanco(P);
       toque(P, CEL_MARIA, CLAVE_MARIA, CLAVE_MARIA);
-      assert.equal(pasoActual(P), 'identidad', 'la mandó adelante sin su nombre ni su documento (se entera en el paso 9)');
+      assert.equal(pasoActual(P), 'documento', 'la mandó adelante con el registro en cero (se entera en el paso 9)');
       const c = texto(caja(P));
-      assert.match(c, /Escribe tus datos otra vez/, 'no le dice que escriba sus datos: ' + c);
-      assert.match(c, /fecha de expedición/, 'no le dice que también se fue la fecha de expedición: ' + c);
+      assert.match(c, /volvió a empezar/, 'no le dice por qué está otra vez en el primer paso: ' + c);
       /* Y lo pendiente se cerró: el siguiente paso por su celular no lo repite. */
+      P.ev(boton(cuerpo(P), 'Prefiero escribir mis datos'));
       casillas(P, 'identidad', DATOS_MARIA);
       P.ev('siguientePaso()');
       cajaEnBlanco(P);
@@ -776,8 +831,8 @@ describe('D3. el desvío a «Revisa tus datos» y el aviso no dependen de que el
     Q.ev("pintarRegistro(indiceDe('entrada'))");
     cajaEnBlanco(Q);
     toque(Q, CEL_MARIA, CLAVE_MARIA, CLAVE_MARIA);
-    assert.equal(Q.ev('PASOS[PASO].id'), 'identidad', 'tras la relanzada la mandó adelante sin sus datos');
-    assert.match(texto(caja(Q)), /Escribe tus datos otra vez/);
+    assert.equal(Q.ev('PASOS[PASO].id'), 'documento', 'tras la relanzada la mandó adelante con el registro en cero');
+    assert.match(texto(caja(Q)), /volvió a empezar/);
   });
 
   test('D3 — SI ESCRIBIÓ SUS DATOS ENTRE UN «CONTINUAR» Y OTRO: el que pasa dice lo que se borró, y no se los pide otra vez', () => {

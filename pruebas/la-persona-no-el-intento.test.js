@@ -431,7 +431,13 @@ function sinPermisoHeredado(P, donde) {
   assert.notEqual(P.ev('FOTOS.sensibles'), true, donde + ': la autorización de otro le vale');
   P.ev("pintarRegistro(indiceDe('rostro'))");
   assert.equal(/camVideo/.test(cuerpo(P)), false, donde + ': el rostro enciende la cámara con el permiso de otro');
-  assert.match(cuerpo(P), /No autorizaste las fotos/);
+  /* 21-oct-2026 — E2: decía solo /No autorizaste las fotos/. Desde hoy «No
+     autorizaste» sale únicamente cuando la página vio el registro entero sin
+     un permiso; con un intento que viene de otra carga (o en el que alguien
+     tocó «Autorizo» y se fue), no se sabe qué pasó, y sale el texto que es
+     verdad en todos los casos. Lo que esta prueba cuida no cambia: el rostro
+     se salta y ninguna frase afirma un permiso que no se dio. */
+  assert.match(cuerpo(P), /No autorizaste las fotos|Sin el permiso de las fotos este paso se salta/);
   assert.equal(/id="autSensible" checked/.test(P.ev('pasoPermiso()')), false, donde + ': la casilla de las fotos sale marcada');
 }
 

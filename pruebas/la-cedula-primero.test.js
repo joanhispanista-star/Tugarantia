@@ -424,7 +424,13 @@ describe('4. las fotos sin dueño: se toman antes del celular y suben con él', 
    registro, es otra persona, y lo de la anterior se borra. Las pruebas de la
    regla nueva están en pruebas/el-celular-es-la-persona.test.js; aquí quedan
    las de esta sección reescritas con ella, y la pregunta para lo que sigue
-   cubriendo (la cédula de más de una hora sin celular). */
+   cubriendo (la cédula de más de una hora sin celular).
+   21-oct-2026 — Y OTRA VEZ (E-A1, decisión de mentor): si el celular cambia,
+   el registro EMPIEZA DE CERO, también lo escrito a mano, y el «Continuar»
+   que pasa lleva al primer paso. Dos pruebas de aquí esperaban «Revisa tus
+   datos» después del cambio; ahora esperan el primer paso, y la que abre la
+   cuenta escribe los datos desde ahí. Las de la regla nueva están en
+   pruebas/el-celular-nuevo-empieza-de-cero.test.js. */
 describe('5. cambiar el celular borra lo escaneado (es otra persona), y «¿Eres …?» cubre la cédula vieja', () => {
 
   test('CAMBIAR EL CELULAR BORRA LO ESCANEADO: las fotos, la lectura y lo que el escáner escribió con ella', () => {
@@ -436,7 +442,9 @@ describe('5. cambiar el celular borra lo escaneado (es otra persona), y «¿Eres
     assert.equal(P.ev('REGISTRO.documento'), undefined, 'el documento leído con el otro celular se quedó');
     assert.equal(P.ev('FOTOS.cedula_reverso'), undefined, 'las fotos tomadas con el otro celular se quedaron');
     assert.equal(P.ev('FOTOS.cedula_leida'), undefined);
-    assert.equal(pasoActual(P), 'identidad', 'sin nombre ni documento no se le pide escribirlos');
+    /* 21-oct-2026 — regla nueva (E-A1): era 'identidad'; el registro empieza
+       de cero y lleva al primer paso. */
+    assert.equal(pasoActual(P), 'documento', 'el registro no volvió a empezar por el primer paso');
   });
 
   test('…y lo que se publica al acompañamiento con el celular nuevo no lleva nada de la cédula anterior', () => {
@@ -456,6 +464,10 @@ describe('5. cambiar el celular borra lo escaneado (es otra persona), y «¿Eres
     hastaElRostro(P, '3001112233');
     P.ev("pintarRegistro(indiceDe('entrada'))");
     celularYClave(P, '3005556677');
+    /* 21-oct-2026 — regla nueva (E-A1): el «Continuar» la dejó en el primer
+       paso, con el registro en cero; escribe sus datos desde ahí. */
+    assert.equal(pasoActual(P), 'documento');
+    P.ev('prefieroEscribirMisDatos()');
     casillas(P, 'identidad', { nombres: 'ANA', apellidos: 'GOMEZ', tipo_doc: 'Cédula de ciudadanía', documento: '222', expedicion: '2010-01-01' });
     P.ev('siguientePaso()');
     assert.equal(pasoActual(P), 'entrada');
