@@ -1280,7 +1280,7 @@
       if (nadaQueDecidir) {
         if (pactoSPendiente) fila.planPagos = clonar(ppS);
       } else {
-        pisables.push({ campo: 'pagoAcordado', mio: ladoDelPacto(ppM, fueraDeM), suyo: ladoDelPacto(ppS, fueraDeS) });
+        pisables.push({ campo: 'pagoAcordado', mio: ladoDelPacto(ppM, fueraDeM, m), suyo: ladoDelPacto(ppS, fueraDeS, s) });
         if (pactoM) {
           /* Mi pacto se queda: lo que no conocía del otro lado no entra. */
           quitarDeFila(fila, 'abonosCapital', fueraDeS.abonos, mapa);
@@ -1350,8 +1350,29 @@
        «pago acordado $280000 el 2026-11-20, perdonando $10000 de capital»
        «sin pago acordado: abono 2026-11-05 $50000 · prórroga 2026-10-31 $125000»
      Lo que va después de los dos puntos es lo que el pacto del otro lado no
-     conocía: con ese lado, entra; con el otro, no. */
-  function ladoDelPacto(pp, fuera) {
+     conocía: con ese lado, entra; con el otro, no.
+
+     23-oct-2026 — EL MONTO ES EL DEL ACUERDO VIGENTE, NO EL TOTAL DE LA CUOTA.
+     Decía `cuota.total`, y al volver a acordar después de un abono la cuota
+     guarda su costo como «lo que ya pagó en abonos + lo que se cobra ese día»
+     y su capital sin restar lo abonado (puente.pactarProximoPago): Joan
+     acordaba 200.000 el 26-nov sobre una cuota a la que ya le habían entrado
+     100.000, y la tarjeta del choque —el texto que lee para elegir lado— decía
+     «pago acordado $300.000». El monto es el `a.total` del ÚLTIMO cambio con
+     pacto: el número que Joan escribió y que el puente confirmó al guardarlo.
+     Si después del acuerdo entraron abonos a esa cuota, se dice también lo
+     que ya entró y lo que falta («; ya abonó $100000 y faltan $180000»), que
+     es lo que el cliente paga ese día. `deLado` es la fila de ese mismo lado:
+     los abonos de la cuota viajan con su plan.
+     Cuánto entró ANTES del último acuerdo sale de la misma cuota: el puente la
+     guarda con total = lo pagado antes + lo acordado, así que
+     antes = cuota.total − a.total (exacto: el pacto no se guarda si la cuenta
+     de su fecha no da lo que Joan escribió). Y antes del acuerdo no pudo haber
+     recargo pagado: un pago vencido no se vuelve a acordar. La app del
+     cliente dice lo mismo con el puente (pactoVigente y liquidarCiclo); esta
+     cuenta vive acá porque nube.js no carga el puente, y
+     pacto-en-la-nube.test.js compara lo que falta con liquidarCiclo. */
+  function ladoDelPacto(pp, fuera, deLado) {
     var t;
     if (conPacto(pp)) {
       var cs = lista(pp.cuotas).filter(function (c) { return !!c && typeof c === 'object'; });
@@ -1359,9 +1380,30 @@
       var perdona = lista(pp.cambios).reduce(function (a, x) {
         return a + (x && x.pacto ? Math.max(0, Math.round(num(x.perdona))) : 0);
       }, 0);
-      t = 'pago acordado' + (c ? ' $' + Math.round(num(c.total)) + ' el ' + texto(c.fecha).slice(0, 10) +
+      var pactos = lista(pp.cambios).filter(function (x) { return !!x && typeof x === 'object' && !!x.pacto; });
+      var ult = pactos[pactos.length - 1];
+      var total = c ? Math.round(num(c.total)) : 0;
+      /* Sin el cambio del pacto (no lo hubo fuera de datos rotos), lo único
+         que hay es la cuota. */
+      var acordado = (ult && ult.a && ult.a.total != null && isFinite(Number(ult.a.total)))
+        ? Math.round(Number(ult.a.total)) : total;
+      var abonos = '';
+      if (c && !c.pagado) {
+        var aLaCuota = 0, entro = 0;
+        lista(deLado && deLado.abonosCapital).forEach(function (x) {
+          if (!x || typeof x !== 'object' || x.cuotaPlan == null || x.cuotaPlan === '' ||
+              texto(x.cuotaPlan) !== texto(c.n)) return;
+          aLaCuota += num(x.monto) + num(x.costoPagado);
+          entro += x.recibido != null ? num(x.recibido) : num(x.monto) + num(x.costoPagado) + num(x.moraPagada);
+        });
+        var desde = Math.round(entro) - Math.max(0, total - acordado);
+        if (desde > 0) {
+          abonos = '; ya abonó $' + desde + ' y faltan $' + Math.max(0, total - Math.round(aLaCuota));
+        }
+      }
+      t = 'pago acordado' + (c ? ' $' + acordado + ' el ' + texto(c.fecha).slice(0, 10) +
           (c.pagado ? ' (ya pagado)' : '') : '') +
-        (perdona ? ', perdonando $' + perdona + ' de capital' : '');
+        (perdona ? ', perdonando $' + perdona + ' de capital' : '') + abonos;
     } else {
       t = 'sin pago acordado';
     }

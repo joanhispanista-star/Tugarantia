@@ -1955,7 +1955,11 @@ function cicloDelCredito(c) {
   var pacto = (aCuotas && c && c.pacto && /^\d{4}-\d{2}-\d{2}/.test(String(c.pacto.fecha || '')) &&
                isFinite(Number(c.pacto.monto)))
     ? { fecha: String(c.pacto.fecha).slice(0, 10), monto: Math.max(0, Math.round(Number(c.pacto.monto))),
-        acordado: /^\d{4}-\d{2}-\d{2}/.test(String(c.pacto.acordado || '')) ? String(c.pacto.acordado).slice(0, 10) : null }
+        acordado: /^\d{4}-\d{2}-\d{2}/.test(String(c.pacto.acordado || '')) ? String(c.pacto.acordado).slice(0, 10) : null,
+        /* 23-oct-2026 — lo que se acordó ese día (un paquete de antes no lo
+           trae, y entonces se dice solo lo que paga). */
+        monto_acordado: (c.pacto.monto_acordado != null && isFinite(Number(c.pacto.monto_acordado)))
+          ? Math.max(0, Math.round(Number(c.pacto.monto_acordado))) : null }
     : null;
   return {
     en_plan: enPlan,
@@ -2417,13 +2421,23 @@ function tarjetaActivo(c) {
    acordaron 280.000 el 20-nov). La tarjeta de arriba ya dice el valor, el
    capital, el costo y la fecha; esto dice de dónde salen —se acordaron— y qué
    pasa si no llega a la fecha, sin hablar de un crédito a cuotas que ella no
-   pidió. Todo viene hecho del puente: acá no se calcula plata. */
+   pidió. Todo viene hecho del puente: acá no se calcula plata.
+   23-oct-2026 — dice el acuerdo VIGENTE. «Lo acordamos el» es el día del
+   último acuerdo (el puente lo manda así), y si después de ese día abonó,
+   primero va lo que se acordó y después lo que paga con lo abonado: con solo
+   «Pagas $180.000» debajo de «Lo acordamos el 2 nov», la cliente leía que ese
+   día acordó 180.000, y acordó 280.000. Comparar los dos números que manda el
+   puente no es una cuenta de plata: es elegir qué frase va. */
 function bloquePagoAcordado(c, ciclo) {
   var pa = ciclo.pacto;
   var dia = diaNoHabil(pa.fecha);
+  var conAbonos = pa.monto_acordado != null && pa.monto < pa.monto_acordado;
   return '<div class="sep"></div>' +
     (pa.acordado ? fila('Lo acordamos el', fmtFecha(pa.acordado)) : '') +
-    fila('Pagas', COP(pa.monto) + ' el ' + fmtFecha(pa.fecha)) +
+    (conAbonos
+      ? fila('Lo que acordamos', COP(pa.monto_acordado) + ' el ' + fmtFecha(pa.fecha)) +
+        fila('Con lo que abonaste, pagas', COP(pa.monto) + ' el ' + fmtFecha(pa.fecha))
+      : fila('Pagas', COP(pa.monto) + ' el ' + fmtFecha(pa.fecha))) +
     '<div class="muted" style="font-size:12.5px">Pagando el ' + esc(fmtFecha(pa.fecha)) + ' o antes no pagas ' +
     'recargo; desde el día siguiente corre uno por cada día, solo sobre el capital que te falte.' +
     (dia ? ' Esa fecha es ' + dia + ' y no se corre: si ese día no puedes, paga antes.' : '') + '</div>' +

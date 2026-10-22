@@ -1213,6 +1213,24 @@
   function esPacto(p) {
     return esPlanDeAlta(p) && !!p.planPagos.pacto && typeof p.planPagos.pacto === 'object';
   }
+  /* 23-oct-2026 — EL ACUERDO VIGENTE: el último cambio del plan con `pacto`.
+     `planPagos.pacto.creado` es el día del PRIMER acuerdo y volver a acordar
+     no lo toca (es historia, como `de`). La app del cliente lo mandaba como
+     «Lo acordamos el»: Joan acordaba el 2-nov 280.000 para el 20-nov, el 12-nov
+     lo volvía a acordar en 300.000 para el 4-dic, y la cliente leía «Lo
+     acordamos el 2 nov 2026 · Pagas $300.000 el 4 dic 2026». El día y el monto
+     que valen son los del último cambio con pacto (`fecha` y `a.total`: lo que
+     Joan escribió y el puente confirmó al guardarlo), como ya los lee el CRM
+     para la E.A. (eaDelCreditoACuotas). Un plan sin ese cambio (no lo hubo
+     fuera de datos rotos) se queda con `pacto.creado` y sin monto.
+     null si el crédito no tiene pago acordado. */
+  function pactoVigente(p) {
+    if (!esPacto(p)) return null;
+    var cb = lista(p.planPagos.cambios).filter(function (x) { return !!x && typeof x === 'object' && !!x.pacto; });
+    var u = cb.length ? cb[cb.length - 1] : null;
+    var monto = (u && u.a && u.a.total != null && isFinite(Number(u.a.total))) ? Math.round(Number(u.a.total)) : null;
+    return { acordado: fechaFin(u && u.fecha) || fechaFin(p.planPagos.pacto.creado) || null, monto: monto };
+  }
   /* El % con dos decimales, SOLO para mostrarlo: la verdad es el costo en pesos. */
   function pctDe(costo, capital) {
     return capital > 0 ? Math.round(num(costo) / capital * 10000) / 100 : 0;
@@ -2937,10 +2955,17 @@
           /* Y si lo fue alguna vez, también pagado: el historial no puede
              llamarlo «a cuotas, 1 de 1 cuotas pagadas». */
           pago_acordado: esPacto(p),
+          /* 23-oct-2026 — `acordado` es el día del acuerdo VIGENTE (el último:
+             pactoVigente), y `monto_acordado` lo que se acordó ese día. Si
+             después entraron abonos, `monto` (lo que paga en la fecha) es
+             menor, y la app dice las dos cosas: con solo `monto` al lado de
+             «Lo acordamos el», la cliente leía que acordó 180.000 un día en
+             que acordó 280.000. */
           pacto: (esPacto(p) && !p.pagado && cuotaPlanActual(p)) ? {
             fecha: fechaFin(cuotaPlanActual(p).fecha) || null,
             monto: Math.round(liquidarCiclo(p, fechaFin(cuotaPlanActual(p).fecha)).total_a_pagar),
-            acordado: fechaFin(p.planPagos.pacto.creado) || null
+            acordado: pactoVigente(p).acordado,
+            monto_acordado: pactoVigente(p).monto
           } : null,
           plan: tienePlan(p) ? cuotasPlan(p).map(function (c) {
             var pag = pagadoDeCuota(p, c);
@@ -4248,6 +4273,7 @@
        la app. */
     pactarProximoPago: pactarProximoPago,
     esPacto: esPacto,
+    pactoVigente: pactoVigente,
     gananciaDelCredito: gananciaDelCredito,
     gananciaDelCliente: gananciaDelCliente,
     capitalPerdonadoDe: capitalPerdonadoDe,

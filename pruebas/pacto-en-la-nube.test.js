@@ -466,3 +466,107 @@ describe('N5 · el celular dice los descuentos del cliente con la cuenta del pue
     assert.ok(!/condonaciones/.test(cuerpo), 'volvió la copia de la cuenta en el celular');
   });
 });
+
+/* ==========================================================================
+ * N6 — LA TARJETA DICE EL ACUERDO VIGENTE (23-oct-2026)
+ *
+ * La revisión de plata del 23-oct: después de un abono y de volver a acordar,
+ * la tarjeta del choque decía `cuota.total` como «pago acordado». Al volver a
+ * acordar, la cuota guarda su costo como lo ya pagado en abonos + lo que se
+ * cobra ese día, y su capital sin restar lo abonado: Joan acordaba 200.000 y
+ * leía «pago acordado $300.000» justo en el texto con el que elige lado. Con
+ * perdón, «$220.000» de un pago de 120.000. Estas pruebas fallan contra
+ * 1c9bdcd y miden cada monto contra lo que el puente cobra ese día.
+ * ======================================================================== */
+describe('N6 · la tarjeta del choque dice el pago acordado vigente, y lo que falta si ya abonó', () => {
+
+  const NUEVA = '2026-11-26';
+  /* El 2-nov Joan acuerda 280.000 el 20-nov (o 240.000 perdonando 10.000). */
+  function base(monto, motivo) {
+    return pactar(conAbonoYProrroga(credito()), { fecha: SUYA, monto: monto || 280000, motivo }, '2026-11-02');
+  }
+  /* El computador anota un abono a la cuota (lo que guarda «¿Cuánto pagó?»). */
+  function abonar(p, dia, monto) {
+    const r = P.abonoACuota(p, dia, monto);
+    assert.equal(r.ok, true, r.detalle);
+    p.abonosCapital.push(r.registros.abono);
+    return p;
+  }
+  /* El celular, con la copia del primer acuerdo, cobra el pago completo. */
+  function celularCobra(b) {
+    const e = abrirEspejo({ cartera: cartera([copia(b)]), ahora: '2026-11-10T10:30:00' });
+    e.ev("cobrar('c1', '2026-11-10')");
+    const cel = e.json('DB.prestamos[0]');
+    assert.equal(cel.planPagos.cuotas[0].pagado, true, 'el celular no cobró: la prueba no estaría mirando nada');
+    return { e, cel };
+  }
+  const lado = (f, cual) => f.pisables.find(x => x.campo === 'pagoAcordado')[cual];
+
+  test('abono de 100.000 y nuevo acuerdo de 200.000: la tarjeta dice 200.000, lo que el cliente paga ese día', () => {
+    const b = base();
+    const comp = pactar(abonar(copia(b), '2026-11-10', 100000), { fecha: NUEVA, monto: 200000 }, '2026-11-10');
+    assert.equal(comp.planPagos.cuotas[0].total, 300000, 'la cuota guarda lo ya abonado: es lo que confundía a la tarjeta');
+    assert.equal(P.liquidarCiclo(comp, NUEVA).total_a_pagar, 200000);
+    const { e, cel } = celularCobra(b);
+    const f = NUBE.fusionarFila(copia(comp), copia(cel));
+    assert.equal(lado(f, 'mio'), 'pago acordado $200000 el ' + NUEVA);
+    assert.equal(lado(f, 'suyo'), 'pago acordado $280000 el ' + SUYA + ' (ya pagado)');
+    const g = NUBE.fusionarFila(copia(cel), copia(comp));
+    assert.deepEqual([lado(g, 'mio'), lado(g, 'suyo')], [lado(f, 'suyo'), lado(f, 'mio')], 'los dos órdenes dicen lo mismo');
+    /* subir.html, eligiendo lo del computador, y el celular, con su tarjeta.
+       La fila «planPagos» sigue diciendo el total de la CUOTA (300.000, con
+       los 100.000 ya abonados en su propia fila): es la cuenta de la cuota,
+       no el pago acordado. Lo que se mira es el texto del pago acordado. */
+    const S = abrirSubir();
+    S.choque(copia(comp), copia(cel));
+    assert.match(S.loMio(), /queda lo de este computador \(pago acordado \$200\.000 el 26 nov 2026\) y lo de la nube/);
+    assert.ok(!/\$300\.000/.test(S.loMio()), 'el texto de «lo mío» dijo el total de la cuota como pago acordado');
+    assert.match(S.loDeLaNube(), /queda lo de la nube \(pago acordado \$280\.000 el 20 nov 2026 \(ya pagado\)\) y lo de este computador \(pago acordado \$200\.000 el 26 nov 2026\) no entra/);
+    assert.match(S.tarjeta(), /pago acordado pago acordado \$200\.000 el 26 nov 2026 /);
+    choqueEnElCelular(e, cel, comp);
+    const t = plano(e.ev('bloqueChoques()'));
+    const frase = t.slice(t.indexOf('El pago acordado no se junta'), t.indexOf('no entra.', t.indexOf('El pago acordado no se junta')));
+    assert.match(frase, /lo de la nube \(pago acordado \$200\.000 el 26 de nov de 2026\) $/);
+    assert.ok(!/\$300\.000/.test(frase), 'la tarjeta del celular dijo el total de la cuota como pago acordado');
+  });
+
+  test('con perdón en los dos acuerdos: 120.000 perdonando 30.000, no «$220.000»', () => {
+    const b = base(240000, 'diez');
+    const comp = pactar(abonar(copia(b), '2026-11-10', 100000), { fecha: NUEVA, monto: 120000, motivo: 'veinte' }, '2026-11-10');
+    assert.equal(P.liquidarCiclo(comp, NUEVA).total_a_pagar, 120000);
+    assert.equal(P.capitalPerdonadoDe(comp), 30000);
+    const { cel } = celularCobra(b);
+    const f = NUBE.fusionarFila(copia(comp), copia(cel));
+    assert.equal(lado(f, 'mio'), 'pago acordado $120000 el ' + NUEVA + ', perdonando $30000 de capital');
+    /* Y sin cobro del otro lado: cualquier cambio a la par basta para el choque. */
+    const otro = copia(b);
+    otro.comprobantes = [{ fecha: '2026-11-09', tipo: 'otro', monto: 0 }];
+    otro.notas = 'llamó';
+    const h = NUBE.fusionarFila(copia(comp), otro);
+    assert.equal(lado(h, 'mio'), 'pago acordado $120000 el ' + NUEVA + ', perdonando $30000 de capital');
+  });
+
+  test('un abono después del acuerdo, sin volver a acordar: el acuerdo, lo que ya entró y lo que falta', () => {
+    const b = base();
+    const comp = abonar(copia(b), '2026-11-10', 100000);
+    const falta = P.liquidarCiclo(comp, SUYA).total_a_pagar;
+    assert.equal(falta, 180000);
+    const { cel } = celularCobra(b);
+    const f = NUBE.fusionarFila(copia(comp), copia(cel));
+    assert.equal(lado(f, 'mio'), 'pago acordado $280000 el ' + SUYA + '; ya abonó $100000 y faltan $' + falta);
+    const S = abrirSubir();
+    S.choque(copia(comp), copia(cel));
+    assert.match(S.loMio(), /queda lo de este computador \(pago acordado \$280\.000 el 20 nov 2026; ya abonó \$100\.000 y faltan \$180\.000\)/);
+  });
+
+  test('abono, nuevo acuerdo y otro abono: cuenta solo lo que entró después del acuerdo vigente', () => {
+    const b = base();
+    const comp = pactar(abonar(copia(b), '2026-11-10', 100000), { fecha: NUEVA, monto: 200000 }, '2026-11-10');
+    abonar(comp, '2026-11-15', 50000);
+    const falta = P.liquidarCiclo(comp, NUEVA).total_a_pagar;
+    assert.equal(falta, 150000);
+    const { cel } = celularCobra(b);
+    const f = NUBE.fusionarFila(copia(comp), copia(cel));
+    assert.equal(lado(f, 'mio'), 'pago acordado $200000 el ' + NUEVA + '; ya abonó $50000 y faltan $' + falta);
+  });
+});

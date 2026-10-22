@@ -393,7 +393,8 @@ describe('A. la regla: el próximo pago lo decide Joan, con el tope y sin piso',
     assert.equal(c.total_hoy, 280000);
     assert.equal(c.capital, 250000);
     assert.equal(c.costo, 30000);
-    assert.deepEqual(c.pacto, { fecha: SUYA, monto: 280000, acordado: DIA });
+    // 23-oct-2026 — y lo que se acordó ese día (`monto_acordado`): con abonos después, `monto` es menor.
+    assert.deepEqual(c.pacto, { fecha: SUYA, monto: 280000, acordado: DIA, monto_acordado: 280000 });
     assert.equal(c.pago_acordado, true);
     assert.equal(c.plan_origen, 'alta', 'una app vieja lo ve como cuota 1 de 1: con su fecha y su valor, que es verdad');
     assert.ok(!/"pct"/.test(JSON.stringify(c)), 'el % viajó al teléfono del cliente');
@@ -651,6 +652,50 @@ describe('C. la app del cliente dice la fecha y el monto que puso Joan', () => {
     assert.match(t, /1 día de atraso/);
     assert.match(t, /Lo que pagas hoy, con el recargo \$282\.500/);
     assert.ok(!/Total de esta cuota/.test(t));
+  });
+
+  /* 23-oct-2026 — EL ACUERDO VIGENTE (revisión de plata). `pacto.creado` es el
+     día del PRIMER acuerdo y volver a acordar no lo toca: la app decía «Lo
+     acordamos el 31 oct» de un 300.000 el 4-dic que se acordó el 12-nov. Y con
+     un abono después del acuerdo, «Pagas $180.000» debajo de «Lo acordamos el
+     31 oct» afirmaba que ese día se acordó 180.000, y se acordó 280.000.
+     Fallan contra 1c9bdcd. */
+  test('volver a acordar: «Lo acordamos el» es el día del último acuerdo, con su monto y su fecha', async () => {
+    const p = pactado();
+    aplicarPacto(p, P.pactarProximoPago(cartera([p]), p, { fecha: '2026-12-04', monto: 300000 }, '2026-11-12'));
+    const db = cartera([p]);
+    assert.deepEqual(P.migrarSocio(db, db.socios[0], '2026-11-13').creditos[0].pacto,
+      { fecha: '2026-12-04', monto: 300000, acordado: '2026-11-12', monto_acordado: 300000 });
+    const t = (await appDelCliente([p], '2026-11-13')).inicio();
+    assert.match(t, /Lo acordamos el 12 nov 2026 Pagas \$300\.000 el 4 dic 2026/);
+    assert.ok(!/Lo acordamos el 31 oct/.test(t), 'dijo el día del primer acuerdo');
+  });
+
+  test('un abono después del acuerdo: dice lo que se acordó ese día y lo que paga con lo abonado', async () => {
+    const p = pactado();
+    const ab = P.abonoACuota(p, '2026-11-10', 100000);
+    assert.equal(ab.ok, true, ab.detalle);
+    p.abonosCapital.push(ab.registros.abono);
+    const db = cartera([p]);
+    assert.deepEqual(P.migrarSocio(db, db.socios[0], '2026-11-11').creditos[0].pacto,
+      { fecha: SUYA, monto: 180000, acordado: DIA, monto_acordado: 280000 });
+    const t = (await appDelCliente([p], '2026-11-11')).inicio();
+    assert.match(t, /Lo acordamos el 31 oct 2026 Lo que acordamos \$280\.000 el 20 nov 2026 Con lo que abonaste, pagas \$180\.000 el 20 nov 2026/);
+    assert.ok(!/Pagas \$180\.000/.test(t), 'dijo que ese día se acordó lo que falta');
+  });
+
+  test('abono y nuevo acuerdo: el día y el monto del nuevo, sin restarle el abono que ya conocía', async () => {
+    const p = pactado();
+    const ab = P.abonoACuota(p, '2026-11-10', 100000);
+    assert.equal(ab.ok, true, ab.detalle);
+    p.abonosCapital.push(ab.registros.abono);
+    aplicarPacto(p, P.pactarProximoPago(cartera([p]), p, { fecha: '2026-11-26', monto: 200000 }, '2026-11-10'));
+    const db = cartera([p]);
+    assert.deepEqual(P.migrarSocio(db, db.socios[0], '2026-11-11').creditos[0].pacto,
+      { fecha: '2026-11-26', monto: 200000, acordado: '2026-11-10', monto_acordado: 200000 });
+    const t = (await appDelCliente([p], '2026-11-11')).inicio();
+    assert.match(t, /Lo acordamos el 10 nov 2026 Pagas \$200\.000 el 26 nov 2026/);
+    assert.ok(!/Con lo que abonaste/.test(t), 'el abono de antes del acuerdo ya estaba en la cuenta del acuerdo');
   });
 });
 
