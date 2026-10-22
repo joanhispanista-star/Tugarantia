@@ -68,13 +68,21 @@
  *   empareja contra la nube: si este computador quedó emparejado y no hay
  *   ninguna ficha en discusión, lo que dice la cartera coincide con lo que la
  *   nube ya tenía o lo agrega, y entonces es la de hoy. La subida sola se
- *   enciende ahí misma, sola (cfg.libroAlDia → NubeCRM.libroAlDia). Una
- *   cartera vieja en otro origen no pasa: o no está conectada a la nube, o la
- *   nube tiene algo que ella no y eso queda en discusión. Mientras espera, la
- *   línea dice QUÉ espera y qué va a pasar, sin botón. Importar un respaldo
- *   sigue pausando, y se reanuda sola en cuanto el respaldo queda emparejado
- *   sin discusión. El botón queda en Ajustes → Avanzado para el caso raro
- *   (un computador sin sesión de la nube que igual quiere subir ya).
+ *   enciende ahí misma, sola (cfg.libroAlDia → NubeCRM.libroAlDia). Mientras
+ *   espera, la línea dice QUÉ espera y qué va a pasar, sin botón. Importar un
+ *   respaldo sigue pausando. El botón queda en Ajustes → Avanzado para el
+ *   caso raro (un computador sin sesión de la nube que igual quiere subir ya).
+ *
+ *   23-oct-2026 — «EMPAREJADA Y SIN DISCUSIÓN» NO ERA «LA DE HOY». Aquí decía
+ *   que una cartera vieja no pasaba porque «la nube tiene algo que ella no y
+ *   eso queda en discusión». No: lo que SOLO está en la nube (el crédito
+ *   nuevo que un respaldo viejo no tiene) nunca entra en discusión, y un
+ *   origen viejo emparejado hace semanas no choca con nada porque no tiene
+ *   nada que subir. Los dos encendían esto solo y le subían al cliente su
+ *   deuda sin ese crédito o sin ese abono. Ahora NubeCRM.libroAlDia dice «sí»
+ *   solo si, además, una comparación con la nube hecha en ESTA sesión no
+ *   encontró nada más nuevo allá que acá. Si lo encontró, la línea lo dice
+ *   («la nube tiene N fichas más nuevas») y manda a juntarlas en ☁ Subir.
  *
  * DOS FICHAS, UNA FILA: NO SUBEN
  *   sincronizar_socios identifica a cada cliente por su cédula o, si no tiene,
@@ -172,7 +180,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (entorno) {
   'use strict';
 
-  var VERSION = '2026-10-22';
+  var VERSION = '2026-10-23';
   var E = entorno || {};
   var G = (typeof globalThis !== 'undefined') ? globalThis : {};
 
@@ -583,9 +591,17 @@
         'sello-roto': 'Otra página cambió tu cartera: recarga esta pestaña y suben solos',
         'otra-pestana': 'Los sube la otra pestaña del CRM, que es la que está emparejada',
         'sin-modulo': 'No cargó la subida de la cartera (nube-crm.js), que es la que lo comprueba: recarga con Ctrl+Shift+R',
-        'cartera-ilegible': 'No pude leer tu cartera guardada: exporta un respaldo desde Ajustes antes de tocar nada'
+        'cartera-ilegible': 'No pude leer tu cartera guardada: exporta un respaldo desde Ajustes antes de tocar nada',
+        /* 23-oct-2026 — ver «EMPAREJADA Y SIN DISCUSIÓN» NO ERA «LA DE HOY», arriba. */
+        'nube-mas-nueva': 'La nube tiene ' + plural(num(u.fichas) || 1, 'ficha más nueva', 'fichas más nuevas') +
+          ' que esta cartera (lo que cobraste desde el celular, o lo que un respaldo viejo no alcanzó a tener). ' +
+          'No subo hasta que las juntes con lo tuyo en <a href="subir.html" target="_blank" rel="noopener">☁ Subir</a> (paso 6, «Aplicar»): después suben solos',
+        'comparando': 'Estoy comparando tu cartera con lo que hay en la nube; si allá no hay nada más nuevo, suben solos',
+        'sin-comparar': 'No pude comparar tu cartera con la nube (' + esc(u.detalle || 'la nube no contestó') + ')' +
+          (num(u.espera) ? ': pruebo otra vez sola en ' + Math.max(1, Math.round(num(u.espera) / 60000)) + ' min' : ''),
+        'navegador-lleno': 'El navegador está lleno y no pude terminar de emparejar tu cartera con la nube: exporta un respaldo desde Ajustes y libera espacio'
       }[u.motivo] || 'Estoy emparejando tu cartera con la nube; en cuanto termine, suben solos';
-      return c('esperando-libro', u.motivo === 'sin-modulo' || u.motivo === 'cartera-ilegible' ? 'mal' : 'ojo',
+      return c('esperando-libro', u.motivo === 'sin-modulo' || u.motivo === 'cartera-ilegible' || u.motivo === 'navegador-lleno' ? 'mal' : 'ojo',
         resp ? 'Importaste un respaldo: los historiales vuelven a subir solos en cuanto compruebe que es tu cartera de hoy'
              : 'Los historiales empiezan a subir solos en cuanto compruebe que esta es tu cartera de hoy',
         falta + ' · así una cartera vieja abierta en otro navegador no le cambia a tus clientes lo que ya ven' +
@@ -1042,6 +1058,7 @@
       var lib = libroAlDia();
       if (!lib.ok) {
         _ultimo = { fase: 'esperando-libro', motivo: texto(lib.motivo), congeladas: num(lib.congeladas),
+                    fichas: num(lib.fichas), espera: num(lib.espera), detalle: texto(lib.detalle),
                     pausa: texto(objeto(est0.pausa).motivo) };
         pintar();
         return Promise.resolve(estado());
@@ -1143,7 +1160,21 @@
   function libroCambio() {
     if (_apagado || !_configurado || _enVuelta) return;
     if (!_ultimo || _ultimo.fase !== 'esperando-libro') return;
-    if (!libroAlDia().ok) return;
+    var lib = libroAlDia();
+    if (!lib.ok) {
+      /* 23-oct-2026 — lo que se espera puede cambiar sin que esto suba nada:
+         «comparando» pasa a «la nube tiene N fichas más nuevas» cuando vuelve
+         la traída. Si la línea se quedara con lo de antes, diría que sigue
+         comparando algo que ya se sabe. */
+      var cambio = texto(lib.motivo) !== texto(_ultimo.motivo) || num(lib.fichas) !== num(_ultimo.fichas) ||
+                   num(lib.congeladas) !== num(_ultimo.congeladas) || texto(lib.detalle) !== texto(_ultimo.detalle);
+      if (cambio) {
+        _ultimo = { fase: 'esperando-libro', motivo: texto(lib.motivo), congeladas: num(lib.congeladas),
+                    fichas: num(lib.fichas), espera: num(lib.espera), detalle: texto(lib.detalle), pausa: _ultimo.pausa };
+        pintar();
+      }
+      return;
+    }
     vuelta(false);
   }
 

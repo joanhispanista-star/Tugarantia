@@ -14572,8 +14572,23 @@ function anotarPublicadoSolo(x) {
  * respaldo y en la subida, y otro computador creería tener un cambio que no
  * hizo. Si el navegador no la puede guardar, queda en memoria mientras la
  * pestaña siga abierta, que es lo que dura el reintento.
+ *
+ * 23-oct-2026 — LA MARCA PROTEGE SOLO LO QUE JOAN CAMBIÓ DE VERDAD. El 22 la
+ * marca protegía los tres campos de quien Joan tocara, cambiara lo que
+ * cambiara. Y el cuadro de editar muestra lo que hay en ESTE computador, que
+ * puede estar viejo: la vuelta de 15 min no trae mientras nada cambie acá.
+ * Así que Willian retiraba a Pedro desde su celular a las 10, Joan le corregía
+ * el nombre a las 11 con el cuadro diciendo «Activo», la marca le tapaba el
+ * «retirado» de la nube al traer, y se publicaba «activo»: Pedro volvía a ver
+ * la base de sus clientes y nadie se enteraba. Ahora guardarPersona compara
+ * rol, estado y jefe ANTES y DESPUÉS y la marca guarda solo los que difieren
+ * ({t, campos}); en lo demás manda la nube, como siempre. Solo el nombre
+ * cambió → la marca no protege nada → se trae el retiro → se publica el
+ * retiro. Una persona recién creada no tiene «antes»: sus tres campos son
+ * de Joan.
  * ------------------------------------------------------------------------ */
 var LLAVE_EQUIPO_POR_PUBLICAR = 'tg_equipo_por_publicar';
+var CAMPOS_QUE_MANDA_LA_NUBE = ['rol', 'estado', 'jefe'];
 var _equipoPorPublicarMem = {};
 function leerEquipoPorPublicar() {
   let x = {};
@@ -14585,15 +14600,28 @@ function escribirEquipoPorPublicar(x) {
   _equipoPorPublicarMem = Object.assign({}, x);
   try { localStorage.setItem(LLAVE_EQUIPO_POR_PUBLICAR, JSON.stringify(x)); } catch (e) { /* queda en memoria */ }
 }
-function anotarEquipoPorPublicar(id) {
+/* 23-oct-2026 — una marca del 22 era solo la ficha (un texto): no dice qué
+   campos cambió Joan, así que no protege ninguno. Equivocarse hacia «manda la
+   nube» es el lado seguro: es donde el gerente retira. */
+function camposDeMarca(m) { return (m && typeof m === 'object' && m.campos && typeof m.campos === 'object') ? m.campos : {}; }
+function fichaDeMarca(m) { return (m && typeof m === 'object') ? String(m.t || '') : String(m || ''); }
+/* `campos`: {estado:'retirado'}, {jefe:'300…'}… lo que Joan cambió de verdad.
+   Sin campos no se anota nada: una marca vacía no protege nada y solo haría
+   ruido. Si ya había una marca sin publicar, se suman (lo de antes sigue
+   siendo de Joan) y la ficha cambia, para que una publicación que salió ANTES
+   de este cambio no suelte la marca de este cambio. */
+function anotarEquipoPorPublicar(id, campos) {
+  const nuevos = campos || {};
+  if (!Object.keys(nuevos).length) return;
   const x = leerEquipoPorPublicar();
-  x[String(id)] = new Date().toISOString() + '#' + Math.random().toString(36).slice(2, 8);
+  x[String(id)] = { t: new Date().toISOString() + '#' + Math.random().toString(36).slice(2, 8),
+                    campos: Object.assign({}, camposDeMarca(x[String(id)]), nuevos) };
   escribirEquipoPorPublicar(x);
 }
 function soltarEquipoPublicado(marcas) {
   const x = leerEquipoPorPublicar();
   let cambio = false;
-  Object.keys(marcas || {}).forEach(k => { if (x[k] === marcas[k]) { delete x[k]; cambio = true; } });
+  Object.keys(marcas || {}).forEach(k => { if (x[k] && fichaDeMarca(x[k]) === fichaDeMarca(marcas[k])) { delete x[k]; cambio = true; } });
   if (cambio) escribirEquipoPorPublicar(x);
 }
 
@@ -14812,14 +14840,16 @@ function traerEquipo(callado) {
              se publicó (ver LO QUE JOAN CAMBIÓ Y TODAVÍA NO SUBIÓ): traer es
              el primer paso de publicar, y si aquí ganara la nube, retirar a
              alguien se deshacía justo antes de mandarlo. El WhatsApp lo pone
-             la persona desde su celular y se trae siempre. */
-          const manda = !porPublicar[String(mio.id)];
-          if ((manda && (mio.rol !== x.rol || mio.estado !== x.estado)) || (mio.whatsapp || '') !== (x.whatsapp || '')) cambios++;
-          if (manda) {
-            mio.rol = String(x.rol || mio.rol);
-            mio.estado = String(x.estado || mio.estado);
-            mio.jefe = jefeLocal(x.jefe) || mio.jefe;
-          }
+             la persona desde su celular y se trae siempre.
+             23-oct-2026 — campo por campo: solo se queda lo de acá en lo que
+             Joan cambió de verdad (LA MARCA PROTEGE SOLO LO QUE JOAN CAMBIÓ). */
+          const suyos = camposDeMarca(porPublicar[String(mio.id)]);
+          const manda = k => !Object.prototype.hasOwnProperty.call(suyos, k);
+          if ((manda('rol') && mio.rol !== x.rol) || (manda('estado') && mio.estado !== x.estado) ||
+              (mio.whatsapp || '') !== (x.whatsapp || '')) cambios++;
+          if (manda('rol')) mio.rol = String(x.rol || mio.rol);
+          if (manda('estado')) mio.estado = String(x.estado || mio.estado);
+          if (manda('jefe')) mio.jefe = jefeLocal(x.jefe) || mio.jefe;
           mio.whatsapp = x.whatsapp || '';
         }
       });
@@ -14932,7 +14962,19 @@ function editarPersona(id) {
      un jefe traído de la nube se guarda como id, y la comparación de antes
      (p.jefe === x.celular) no lo reconocía. El <select> salía en «Nadie», y
      corregirle el nombre a ese asesor le quitaba el jefe al guardar, ahora
-     publicado en ese mismo momento: su gerente dejaba de verlo. */
+     publicado en ese mismo momento: su gerente dejaba de verlo.
+     23-oct-2026 — y si su jefe ya no está entre los gerentes activos (lo
+     retiraron), sale igual, marcado y con «(retirado)»: sin esa opción el
+     cuadro mostraba «Nadie», y guardar sin tocarlo contaba como un cambio de
+     jefe que Joan no hizo, con la marca pisando lo que dijera la nube. */
+  const opcionesJefe = equipo().filter(x => x.rol === 'gerente' && x.estado !== 'retirado' && (!p || x.id !== p.id));
+  const celJefe = p && p.jefe ? celularDeJefe(p.jefe) : '';
+  const celDe = x => String(x.celular || '').replace(/\D/g, '').slice(-10);
+  let jefeFuera = '';
+  if (celJefe && !opcionesJefe.some(x => celDe(x) === celJefe)) {
+    const j = equipo().find(x => celDe(x) === celJefe);
+    jefeFuera = `<option value="${escHTML(celJefe)}" selected>${escHTML(j ? j.nombre : celJefe)}${j && j.estado === 'retirado' ? ' (retirado)' : j ? '' : ' (ya no está en el equipo)'}</option>`;
+  }
   openModal(p ? 'Editar a ' + p.nombre : 'Crear una persona del equipo', `
     <div class="field"><label>Nombre completo</label><input id="eqNombre" value="${p ? escHTML(p.nombre) : ''}"></div>
     <div class="field"><label>Celular</label><input id="eqTel" inputmode="numeric" value="${p ? escHTML(p.celular || '') : ''}"></div>
@@ -14942,8 +14984,7 @@ function editarPersona(id) {
       <div class="help" id="eqAyudaRol"></div></div>
     <div class="field"><label>Reporta a <span class="opc">(solo asesores)</span></label>
       <select id="eqJefe"><option value="">Nadie — reporta a ti</option>${
-        equipo().filter(x => x.rol === 'gerente' && x.estado !== 'retirado' && (!p || x.id !== p.id))
-          .map(x => `<option value="${escHTML(x.celular || '')}"${p && p.jefe && celularDeJefe(p.jefe) === String(x.celular || '').replace(/\D/g, '').slice(-10) ? ' selected' : ''}>${escHTML(x.nombre)}</option>`).join('')}</select>
+        opcionesJefe.map(x => `<option value="${escHTML(x.celular || '')}"${celJefe && celJefe === celDe(x) ? ' selected' : ''}>${escHTML(x.nombre)}</option>`).join('')}${jefeFuera}</select>
       <div class="help">Un gerente ve la base de los asesores que le reportan, y de nadie más.
         Si no eliges a ninguno, ese asesor solo lo ves tú.</div></div>
     ${p ? `<div class="field"><label>Estado</label><select id="eqEstado">
@@ -14986,6 +15027,12 @@ function guardarPersona(id) {
   if (!ROLES[rol]) return alert('Ese rol no existe.');
   const tel = String(gv('eqTel') || '').replace(/\D/g, '').slice(-10);
   const p = id ? personaDeEquipo(id) : null;
+  /* 23-oct-2026 — los tres campos en los que manda la nube, como estaban
+     ANTES de guardar (el jefe, como celular: acá vive como id o como celular
+     según de dónde llegó, y comparar el texto crudo daría un «cambio» que
+     Joan no hizo). Ver LA MARCA PROTEGE SOLO LO QUE JOAN CAMBIÓ. */
+  const comoViaja = x => ({ rol: String(x.rol || ''), estado: String(x.estado || 'activo'), jefe: celularDeJefe(x.jefe) });
+  const antes = p ? comoViaja(p) : null;
   if (p) {
     /* El ROL no se cambia desde acá a propósito: cambiarle el rol a alguien que
        ya tiene comisiones movería lo que ve y lo que puede ver, sin dejar
@@ -15003,8 +15050,13 @@ function guardarPersona(id) {
   }
   /* 22-oct-2026 — la marca va ANTES de guardar y publicar: publicar trae
      primero, y sin ella la nube le devolvería a esta persona el estado y el
-     jefe de antes (un retirado volvería a «activo» antes de salir). */
-  anotarEquipoPorPublicar(p ? p.id : equipo()[equipo().length - 1].id);
+     jefe de antes (un retirado volvería a «activo» antes de salir).
+     23-oct-2026 — y solo con lo que cambió: lo que el cuadro mostró y Joan
+     dejó igual puede ser viejo, y en eso manda la nube. */
+  const quien = p || equipo()[equipo().length - 1];
+  const despues = comoViaja(quien), cambio = {};
+  CAMPOS_QUE_MANDA_LA_NUBE.forEach(k => { if (!antes || antes[k] !== despues[k]) cambio[k] = despues[k]; });
+  anotarEquipoPorPublicar(quien.id, cambio);
   guardar(); cerrarModal(); render(); irA('equipo');
   /* 22-oct-2026 — crear, editar o retirar a alguien cambia lo que ve el
      equipo: se publica al terminar, sin cuadro (lo dice la línea de Equipo).
@@ -17390,7 +17442,10 @@ function importar(e){ const f=e.target.files[0]; if(!f)return; const inp=e.targe
     /* 7-oct-2026 — un respaldo es casi siempre una cartera VIEJA: los
        historiales no la suben solos (pisaría pagos que los clientes ya ven)
        hasta que el respaldo quede emparejado con la nube sin fichas en
-       discusión (22-oct-2026; antes, hasta el botón: historiales-auto.js). */
+       discusión (22-oct-2026; antes, hasta el botón: historiales-auto.js).
+       23-oct-2026 — y sin NADA más nuevo en la nube: un respaldo al que le
+       falta un crédito que solo está allá no entra en discusión, y antes
+       pasaba (NubeCRM.libroAlDia). */
     try{ if(window.HistorialesAuto) HistorialesAuto.carteraReemplazada('respaldo'); }catch(e){}
     alert('Respaldo importado: '+nS+' cliente(s) y '+nP+' crédito(s).');
   }catch(err){ alert('Archivo inválido.'); } finally { inp.value=''; } }; r.readAsText(f); }

@@ -57,13 +57,22 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         pregunta si la nube tiene OTRA cartera. Lo distinto queda
                         en discusión y se decide en subir.html (paso 7). Sola no
                         borra nada allá: lo borrado acá y vivo en la nube también
-                        queda en discusión (solo lo borra el «sí» de Joan).
+                        queda en discusión (solo lo borra el «sí» de Joan). Si el
+                        navegador está lleno y no deja anotar el emparejo, se para
+                        y lo dice en rojo (no vuelve a traer la nube sola).
   historiales-auto.js   Lo que ve cada cliente en su app sube solo. Desde el
-                        22-oct-2026 arranca sola cuando la cartera está emparejada
-                        y sin fichas en discusión (antes pedía un botón).
+                        22-oct-2026 arranca sola cuando la cartera está emparejada,
+                        sin fichas en discusión y —desde el 23-oct— AL DÍA con la
+                        nube: una comparación hecha en esa sesión no encontró nada
+                        más nuevo allá (un crédito que un respaldo viejo no tiene,
+                        un abono cobrado desde el celular). Si lo hay, espera y
+                        manda a juntarlo en ☁ Subir, paso 6.
                         La cartera del EQUIPO se publica sola desde crm.html: al
                         repartir, al crear, editar o retirar a alguien (en ese
-                        momento, aunque no tenga clientes) y cada 15 min. Las
+                        momento, aunque no tenga clientes) y cada 15 min. Editar
+                        solo impone lo que Joan cambió de verdad (rol, estado,
+                        jefe): en lo demás manda la nube, donde el gerente retira
+                        y reactiva desde su celular. Las
                         tres van en UNA línea, «☁ Todo sube solo», en la barra
                         lateral y en Ajustes; lo que falla sale en rojo y se
                         reintenta solo con espera creciente. Si falta
@@ -71,8 +80,9 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
   subir.html            Ajustes → Avanzado (plegado). Lo que todavía es a mano:
                         entrar con el correo la primera vez, traer lo hecho en el
                         celular, decidir choques y subir plantillas y configuración
-                        (no suben solas). Pruebas: pruebas/todo-sube-solo.test.js
-                        y pruebas/todo-sube-solo-revision.test.js.
+                        (no suben solas). Pruebas: pruebas/todo-sube-solo.test.js,
+                        pruebas/todo-sube-solo-revision.test.js y
+                        pruebas/todo-sube-solo-23-oct.test.js.
   panel.webmanifest
   panel-*.png           La G blanca sobre rojo, para no confundir las dos apps.
 
