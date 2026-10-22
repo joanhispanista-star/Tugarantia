@@ -55,6 +55,16 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         promete «se pone sola»: ofrece «Actualizar ahora».
                         La cuenta del enlace del CRM (#d=) sí se recarga.
                         Pruebas: pruebas/la-recarga-no-corta-nada.test.js.
+                        (22-oct-2026) La franja se vuelve a decidir SOLA
+                        mientras hay versión esperando: cuando la página
+                        cambia lo que muestra (MutationObserver), cuando la
+                        persona teclea o marca, y cuando empieza o termina
+                        una escritura; ninguna pantalla tiene que avisar.
+                        «Actualizar ahora» vuelve a preguntar al tocarlo:
+                        espera lo que va en camino, no recarga fuera de la
+                        lista y pregunta si hay algo escrito o la cámara
+                        abierta. Pruebas:
+                        pruebas/la-franja-no-se-queda-vieja.test.js.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
                         divulgación del crédito y el borrado de cuenta.

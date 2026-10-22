@@ -440,8 +440,12 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    21-oct-2026 (misma fecha, tampoco publicada) — y porque esta página dejó de
    ofrecerse para instalar (la que se instala es app/socio.html) y salta sola
    a https. Si alguien dice que todavía le sale «Agregar a mi pantalla de
-   inicio» aquí, esta fecha dice si tiene la versión vieja. */
-var VERSION_PLAY = '2026-10-21';
+   inicio» aquí, esta fecha dice si tiene la versión vieja.
+   22-oct-2026 (tampoco publicada) — y porque la franja de «versión nueva» se
+   vuelve a decidir al cambiar de pantalla y «Actualizar ahora» espera lo que
+   va en camino. Si alguien dice que el botón le cortó un pedido, esta fecha
+   dice si tenía la versión que lo impide. */
+var VERSION_PLAY = '2026-10-22';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
@@ -4485,6 +4489,7 @@ var LECTURAS_QUE_NO_FRENAN = ['chat_leer_sesion', 'chat_sin_leer_sesion', 'chat_
 function escrituraEnCamino(p) {
   if (!p || typeof p.then !== 'function') return p;
   ESCRITURAS_EN_CAMINO = (ESCRITURAS_EN_CAMINO || 0) + 1;
+  avisarQueEmpieza();
   var fin = function () {
     ESCRITURAS_EN_CAMINO = Math.max(0, (ESCRITURAS_EN_CAMINO || 0) - 1);
     avisarQueTermino();
@@ -4497,10 +4502,20 @@ function escrituraEnCamino(p) {
 function soltarLaSubida(p) {
   if (!p || typeof p.then !== 'function') return;
   SUBIDA_SUELTA = p;
+  avisarQueEmpieza();
   var fin = function () { if (SUBIDA_SUELTA === p) { SUBIDA_SUELTA = null; avisarQueTermino(); } };
   p.then(fin, fin);
 }
 function hayEscriturasEnCamino() { return (ESCRITURAS_EN_CAMINO || 0) > 0 || !!SUBIDA_SUELTA; }
+/* 22-oct-2026 (verificación de 35f0687) — EMPEZÓ UNA: la franja se vuelve a
+   mirar YA. Solo se miraba al terminar, y la que se pintó con la pantalla
+   segura seguía ofreciendo «Actualizar ahora» con el pedido, la aceptación o
+   el mensaje en el aire; tocarlo los cortaba. Es el único sitio por donde
+   salen las escrituras, así que ninguna pantalla tiene que acordarse. */
+function avisarQueEmpieza() {
+  if (typeof ACT === 'undefined' || !ACT || typeof ACT.volverAMirar !== 'function') return;
+  try { ACT.volverAMirar(); } catch (e) {}
+}
 /* Terminó la última: SE ACTUALIZA SOLA vuelve a mirar con la pantalla de
    ahora (revisar, no yaEsSeguro: la persona puede estar leyendo, y eso no es
    un cambio de pantalla que ella pidió). */
@@ -11821,8 +11836,15 @@ function sinTeclear(id) {
    camino, en NINGUNA pantalla: la subida que «Salir» dejó suelta, la foto o
    el mensaje del chat, la contraseña nueva, el aviso de salida (ver LO QUE
    VA EN CAMINO NO SE CORTA). */
+/* 22-oct-2026 (verificación de 35f0687) — LO QUE VA EN CAMINO, EN UNA
+   PREGUNTA que también le llega a app/actualizar.js (opción `ocupado`):
+   además de frenar la recarga sola, hace que «Actualizar ahora» espere a que
+   termine en vez de cortarlo. */
+function ocupadoPlay() {
+  return viajando() || !!PIDIENDO || !!SUBIDA_EN_CURSO || hayEscriturasEnCamino();
+}
 function momentoSeguroPlay() {
-  if (viajando() || PIDIENDO || SUBIDA_EN_CURSO || hayEscriturasEnCamino()) return false;
+  if (ocupadoPlay()) return false;
   if (VISTA === 'entrar') return sinTeclear('inTel') && sinTeclear('inClave') && sinTeclear('csMontoLibre');
   if (VISTA !== 'cuenta') return false;
   if (TAB === 'historial') return true;
@@ -11838,7 +11860,7 @@ function arrancarActualizar() {
   var A = window.Actualizar;
   if (!A || typeof A.iniciar !== 'function') return;
   try {
-    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroPlay, lugar: lugarPlay });
+    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroPlay, ocupado: ocupadoPlay, lugar: lugarPlay });
   } catch (e) { ACT = null; return; }
   var l = ACT && ACT.vuelta && ACT.vuelta.lugar;
   if (l && PESTANAS_QUE_VUELVEN.indexOf(l.tab) >= 0) TAB = l.tab;

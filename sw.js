@@ -1792,7 +1792,15 @@
    (app/actualizar.js y las tres paginas del cliente). app/sesion-socio.js y
    platachat/sesion.js devuelven la promesa del aviso de salida para que la
    pagina la cuente; con uno viejo la pagina no la cuenta y sale igual:
-   mezclarlos no rompe nada. */
+   mezclarlos no rompe nada.
+   22-oct-2026, la segunda verificacion (MISMA v139): la franja de «version
+   nueva» se vuelve a decidir sola cuando cambia la pantalla o sale/termina
+   una escritura, y «Actualizar ahora» espera lo que va en camino y pregunta
+   si hay algo escrito (app/actualizar.js y las tres paginas del cliente:
+   ocupado y volverAMirar). Mezclarlos tampoco rompe: una pagina nueva con el
+   actualizar.js viejo no llama volverAMirar (lo pregunta antes), y una vieja
+   con el nuevo frena el boton con su lista blanca (salvo en el modo «nunca»,
+   que queda como estaba). */
 const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 

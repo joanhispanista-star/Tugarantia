@@ -67,6 +67,34 @@
  *      se salta la bienvenida de 2 s —la persona no pidió abrir la app— y
  *      vuelve a la pestaña donde estaba (`lugar`, que guarda solo el nombre de
  *      la pestaña: nada sensible cruza la recarga).
+ *   9. 22-oct-2026 (verificación de 35f0687) — LA FRANJA VUELVE A MIRAR SOLA,
+ *      DESDE AQUÍ. Se pintaba al publicar, al volver a la app o al llegar a
+ *      una pantalla de la lista, y ahí se quedaba: la persona pasaba al
+ *      registro, a «Cambiar mi contraseña» o al recado, y seguía leyendo «se
+ *      pone sola cuando salgas de la app y vuelvas» con el botón, que ahí no
+ *      pasa (y el botón recargaba a mitad del registro). Arreglarlo pantalla
+ *      por pantalla (que cada función que pinta avise) era dejarlo a la
+ *      memoria de quien escriba la próxima. Mientras hay una versión
+ *      esperando, este archivo vuelve a decidir cada vez que:
+ *        · la página cambia lo que muestra (un MutationObserver sobre el
+ *          <body>: toda pantalla nueva es DOM nuevo, venga de un toque, de
+ *          una respuesta o de un reloj);
+ *        · la persona teclea, marca una casilla o toca (input, change,
+ *          click): lo escrito y lo marcado no cambian el DOM;
+ *        · empieza una escritura (la página llama volverAMirar() desde su
+ *          escrituraEnCamino, el único sitio por donde salen) o termina (la
+ *          página llama revisar(), como ya hacía).
+ *      Volver a mirar NUNCA recarga debajo del dedo: es la misma decisión de
+ *      siempre, y mirando solo cambia la franja.
+ *  10. 22-oct-2026 — «ACTUALIZAR AHORA» NO CORTA NADA. Recargaba en el acto,
+ *      con el pedido, la aceptación o el mensaje en el aire, porque el botón
+ *      seguía a la vista de cuando la pantalla era segura. Ahora el toque
+ *      vuelve a preguntar: si algo va en camino (o.ocupado: las escrituras
+ *      que cuenta la página), espera a que termine y lo dice; si la pantalla
+ *      ya no es de la lista de la página, no recarga y la franja dice lo de
+ *      esa pantalla; si hay algo escrito a la vista o la cámara abierta, lo
+ *      dice y pide confirmar («Actualizar igual» / «Ahora no»). Solo
+ *      entonces recarga.
  *
  * LO QUE NO PUEDE HACER, Y POR ESO NINGÚN TEXTO LO PROMETE:
  *   · Con la app CERRADA no corre nada: lo nuevo llega al abrirla, como antes.
@@ -99,6 +127,11 @@
      quita nada a nadie. Pasado esto, la persona ya está mirando. */
   var VENTANA_AL_VOLVER = 4000;
   var VUELTA_VIGENTE = 2 * 60 * 1000;
+  /* 22-oct-2026 — mientras «Actualizar ahora» espera a que termine lo que va
+     en camino, se vuelve a mirar cada tanto: una marca que la página suelta
+     sin cambiar el DOM (CH.enviando, PIDIENDO) no puede dejar a la persona
+     esperando para siempre con un texto que ya no es cierto. */
+  var ESPERA_ENTRE_MIRADAS = 1000;
   var ID_FRANJA = 'tgVersionNueva';
   var ID_ESTILO = 'tgVersionNuevaEstilo';
 
@@ -116,7 +149,18 @@
     nuncaSola: 'Hay una versión nueva. Cuando no tengas nada a medias, toca «Actualizar ahora».',
     panel: 'Hay una versión nueva del panel. Recárgalo cuando no tengas nada a medias.',
     panelSinSenal: 'Hay una versión nueva del panel. Recárgalo cuando vuelva la señal y no tengas nada a medias.',
+    /* 22-oct-2026 — lo que dice la franja DESPUÉS de tocar «Actualizar
+       ahora», cuando todavía no recarga. Ninguno promete el resultado:
+       «primero tiene que terminar» es lo que este archivo hace (no recarga
+       mientras algo va en camino), y al terminar vuelve a decidir y lo dice;
+       con algo escrito o la cámara abierta pregunta, porque recargar se lo
+       lleva. */
+    esperando: 'Hay una versión nueva. Primero tiene que terminar de enviarse lo que va en camino.',
+    confirmarTexto: 'Tienes algo escrito sin enviar: si actualizas ahora, se borra.',
+    confirmarCamara: 'La cámara está abierta: si actualizas ahora, se apaga y se pierde la foto que estás tomando.',
     boton: 'Actualizar ahora',
+    botonIgual: 'Actualizar igual',
+    ahoraNo: 'Ahora no',
     botonPanel: 'Recargar',
     cerrar: 'Cerrar este aviso'
   };
@@ -247,7 +291,12 @@
       location: de('location'),
       ahora: function () { return Date.now(); },
       setInterval: function (f, ms) { return w.setInterval ? w.setInterval(f, ms) : 0; },
-      clearInterval: function (id) { if (w.clearInterval) w.clearInterval(id); }
+      clearInterval: function (id) { if (w.clearInterval) w.clearInterval(id); },
+      setTimeout: function (f, ms) { return w.setTimeout ? w.setTimeout(f, ms) : 0; },
+      clearTimeout: function (id) { if (w.clearTimeout) w.clearTimeout(id); },
+      /* 22-oct-2026 — con qué mirar que la pantalla cambió. Sin él (un
+         navegador de antes de 2014) quedan los toques y las escrituras. */
+      MutationObserver: de('MutationObserver')
     };
   }
 
@@ -262,16 +311,25 @@
                       que está la página NINGUNA pantalla es segura (ni
                       volviendo al inicio). Entonces no recarga sola y la
                       franja no promete «se pone sola»: ofrece el botón.
+     o.ocupado        22-oct-2026 — () => boolean: true mientras la página
+                      tiene algo EN CAMINO (sus escrituras contadas, un pedido,
+                      el chat mandando). Con algo en camino nunca es momento
+                      seguro, y «Actualizar ahora» espera a que termine. Sin
+                      ella, nada se sabe en camino.
      o.soloAvisar     true en el CRM y el espejo: nunca recarga sola
      o.lugar          () => {tab: '...'} | null — lo que se recuerda al otro
                       lado de una recarga (solo nombres de pestaña)
      o.entorno        para las pruebas: window, document, navigator, caches,
-                      sessionStorage, location, ahora, setInterval, clearInterval
+                      sessionStorage, location, ahora, setInterval,
+                      clearInterval, setTimeout, clearTimeout, MutationObserver
 
-     Devuelve { vuelta, opciones, yaEsSeguro(), revisar(), buscar(),
-                recargar(), estado(), detener() }. Nunca lanza: sin service
-     worker (http://, file://, un navegador viejo, el banco de pruebas) es un
-     controlador que no hace nada. */
+     Devuelve { vuelta, opciones, yaEsSeguro(), revisar(), volverAMirar(),
+                buscar(), recargar(), estado(), detener() }. Nunca lanza: sin
+     service worker (http://, file://, un navegador viejo, el banco de
+     pruebas) es un controlador que no hace nada.
+     volverAMirar() (22-oct-2026): «algo cambió aquí» (la página lo llama al
+     EMPEZAR una escritura): vuelve a decidir la franja YA, sin esperar a las
+     cachés, para que el botón no siga a la vista con algo saliendo. */
   function iniciar(o) {
     o = o || {};
     var ent = entornoDelNavegador();
@@ -282,7 +340,7 @@
     var ctl = {
       vuelta: null,
       opciones: { version: String(o.version || ''), soloAvisar: !!o.soloAvisar },
-      yaEsSeguro: sinNada, revisar: sinNada, buscar: sinNada, recargar: sinNada, detener: sinNada,
+      yaEsSeguro: sinNada, revisar: sinNada, volverAMirar: sinNada, buscar: sinNada, recargar: sinNada, detener: sinNada,
       estado: function () { return { pagina: ctl.opciones.version, nueva: '', accion: 'nada', aviso: null }; }
     };
 
@@ -317,6 +375,15 @@
     var ultima = { accion: 'nada', aviso: null, nueva: '' };
     var franja = null, cerradoTexto = '';
     var oyentes = [];
+    /* 22-oct-2026 — «Actualizar ahora» ya no recarga en el acto: queda un
+       PEDIDO de la persona que sigue en pie hasta que se cumple o lo suelta.
+         ''           sin pedido
+         'pendiente'  acaba de tocar; se decide ya (seguirElPedido)
+         'esperando'  algo va en camino: no se recarga hasta que termine
+         'confirmar'  hay algo escrito o la cámara abierta: se le preguntó
+         'confirmado' dijo «Actualizar igual» */
+    var pedido = '', relojEspera = 0;
+    var observador = null, miradaPendiente = false;
 
     function oir(blanco, tipo, f, opc) {
       if (!blanco || typeof blanco.addEventListener !== 'function') return;
@@ -327,11 +394,22 @@
     function yaRecargoPor(version) {
       try { return !!ss && ss.getItem(LLAVE_RECARGA) === version; } catch (e) { return true; }
     }
+    /* 22-oct-2026 — lo que va en camino también lo mira ESTE archivo, no solo
+       la lista blanca de cada página: si una página nueva olvida contar sus
+       escrituras en momentoSeguro, ocupado sigue frenando. Si la pregunta
+       falla, se supone que sí: esperar de más no pierde nada. */
+    function preguntarOcupado() {
+      if (typeof o.ocupado !== 'function') return false;
+      try { return !!o.ocupado(); } catch (e) { return true; }
+    }
     function preguntarSeguro() {
       if (typeof o.momentoSeguro !== 'function') return false;
       var si = false;
       try { si = !!o.momentoSeguro(); } catch (e) { si = false; }
-      return si && !hayTextoALaVista(doc) && !hayCamaraEncendida(doc);
+      return si && !preguntarOcupado() && !hayTextoALaVista(doc) && !hayCamaraEncendida(doc);
+    }
+    function hayVersionNueva() {
+      return numeroDeVersion(versionDeCaches(claves)) > numeroDeVersion(ctl.opciones.version);
     }
     /* Si no se puede preguntar, NO es «nunca»: es la pregunta de siempre
        (momentoSeguro), que ya dice que no cuando falla. */
@@ -355,15 +433,22 @@
          cuatro pieles distintas (la clara de play/, la oscura de PlataChat, la
          del socio y la del CRM) y tiene que leerse igual en todas. Arriba, y
          no abajo: abajo están la barra de pestañas y los botones de seguir. */
+      /* 22-oct-2026 — la pregunta «¿Actualizar igual?» lleva dos botones: el
+         texto pasa a su propio renglón (tg-vn-dos) para que en un teléfono de
+         360 px no quede en una columna de tres letras, y la ✕ va al final
+         (order) aunque «Ahora no» se arme después de ella. */
       st.textContent =
-        '.tg-vn{position:fixed;left:0;right:0;top:0;z-index:1000;display:flex;align-items:center;gap:10px;' +
+        '.tg-vn{position:fixed;left:0;right:0;top:0;z-index:1000;display:flex;flex-wrap:wrap;align-items:center;gap:10px;' +
         'padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));background:#FFF4D6;color:#3D2C00;' +
         'border-bottom:1px solid #E8C66A;box-shadow:0 2px 10px rgba(0,0,0,.12);' +
         'font:500 14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}' +
         '.tg-vn-texto{flex:1;min-width:0}' +
+        '.tg-vn-dos .tg-vn-texto{flex-basis:100%}' +
         '.tg-vn-boton{flex:none;border:0;border-radius:999px;padding:8px 14px;background:#3D2C00;color:#FFF4D6;' +
         'font:inherit;font-weight:700;cursor:pointer}' +
-        '.tg-vn-cerrar{flex:none;border:0;background:transparent;color:inherit;font-size:20px;line-height:1;' +
+        '.tg-vn-otro{flex:none;border:1px solid #3D2C00;border-radius:999px;padding:7px 13px;background:transparent;' +
+        'color:#3D2C00;font:inherit;font-weight:600;cursor:pointer}' +
+        '.tg-vn-cerrar{order:1;flex:none;border:0;background:transparent;color:inherit;font-size:20px;line-height:1;' +
         'padding:4px 8px;cursor:pointer}';
       (doc.head || doc.body).appendChild(st);
     }
@@ -378,29 +463,68 @@
       var cerrar = doc.createElement('button'); cerrar.type = 'button'; cerrar.className = 'tg-vn-cerrar';
       cerrar.textContent = '×';
       if (cerrar.setAttribute) cerrar.setAttribute('aria-label', TEXTOS.cerrar);
-      caja.appendChild(texto); caja.appendChild(boton); caja.appendChild(cerrar);
-      boton.addEventListener('click', function () { recargar(true); });
+      /* «Ahora no», el cuarto: los tres primeros no cambian de lugar. */
+      var otro = doc.createElement('button'); otro.type = 'button'; otro.className = 'tg-vn-otro';
+      otro.style.display = 'none';
+      caja.appendChild(texto); caja.appendChild(boton); caja.appendChild(cerrar); caja.appendChild(otro);
+      boton.addEventListener('click', alTocarElBoton);
+      otro.addEventListener('click', function () { pedido = ''; evaluar(); });
       /* Cerrar esconde ESE texto; si el estado cambia (llega a una pantalla
-         segura y el texto es otro), la franja vuelve con lo nuevo que decir. */
-      cerrar.addEventListener('click', function () { cerradoTexto = texto.textContent; caja.style.display = 'none'; });
+         segura y el texto es otro), la franja vuelve con lo nuevo que decir.
+         22-oct-2026 — cerrarla con un pedido en curso lo suelta, y lo que
+         queda cerrado es lo que la franja diría sin él: si no, al soltarlo
+         volvería a salir con el texto de siempre, que nadie cerró. */
+      cerrar.addEventListener('click', function () {
+        if (pedido) {
+          pedido = '';
+          var x = decisionAhora();
+          cerradoTexto = x.d.aviso ? x.d.aviso.texto : '';
+          ultima = { accion: x.d.accion === 'recargar' ? 'avisar' : x.d.accion, aviso: x.d.aviso, nueva: x.nueva, momento: x.e.momento };
+        } else {
+          cerradoTexto = texto.textContent;
+        }
+        caja.style.display = 'none';
+      });
       doc.body.appendChild(caja);
-      franja = { caja: caja, texto: texto, boton: boton, cerrar: cerrar };
+      franja = { caja: caja, texto: texto, boton: boton, cerrar: cerrar, otro: otro };
       return franja;
+    }
+    /* ¿Este cambio del DOM es la franja misma? Pintarla no es «la pantalla
+       cambió»: sin esto se miraría a sí misma sin fin. */
+    function esDeLaFranja(r) {
+      if (!franja || !r) return false;
+      var n = r.target;
+      if (n === doc.body && r.type === 'childList') {
+        var todos = [];
+        try { todos = Array.prototype.slice.call(r.addedNodes || []).concat(Array.prototype.slice.call(r.removedNodes || [])); } catch (e) { todos = []; }
+        if (!todos.length) return false;
+        for (var i = 0; i < todos.length; i++) if (todos[i] !== franja.caja) return false;
+        return true;
+      }
+      for (var k = 0; n && k < 64; k++) { if (n === franja.caja) return true; n = n.parentNode; }
+      return false;
     }
     /* Se esconde con style.display y no con el atributo hidden: una regla
        display:flex le gana a [hidden] y la franja seguiría ahí (ya pasó en
        este proyecto, «pruebas que no miran»). */
     /* La ✕ siempre: en el CRM Joan puede estar una hora en algo y la franja no
        puede taparle la cabecera todo ese rato; y al cliente cerrarla no le
-       quita nada (la recarga sola sigue en pie al salir de la app). */
+       quita nada (la recarga sola sigue en pie al salir de la app).
+       22-oct-2026 — y solo se escribe lo que cambia: ahora se pinta cada vez
+       que la página cambia, y reescribir lo mismo es DOM nuevo para nadie
+       (y un lector de pantalla que vuelve a leer el aviso). */
+    function poner(obj, k, v) { if (obj && obj[k] !== v) obj[k] = v; }
     function pintar(aviso) {
       try {
-        if (!aviso || aviso.texto === cerradoTexto) { if (franja) franja.caja.style.display = 'none'; return; }
+        if (!aviso || aviso.texto === cerradoTexto) { if (franja) poner(franja.caja.style, 'display', 'none'); return; }
         var f = armarFranja(); if (!f) return;
-        f.texto.textContent = aviso.texto;
-        f.boton.textContent = aviso.boton || '';
-        f.boton.style.display = aviso.boton ? '' : 'none';
-        f.caja.style.display = '';
+        poner(f.caja, 'className', aviso.otro ? 'tg-vn tg-vn-dos' : 'tg-vn');
+        poner(f.texto, 'textContent', aviso.texto);
+        poner(f.boton, 'textContent', aviso.boton || '');
+        poner(f.boton.style, 'display', aviso.boton ? '' : 'none');
+        poner(f.otro, 'textContent', aviso.otro || '');
+        poner(f.otro.style, 'display', aviso.otro ? '' : 'none');
+        poner(f.caja.style, 'display', '');
       } catch (e) {}
     }
 
@@ -416,12 +540,12 @@
         }
       } catch (e) {}
       ultima = { accion: 'recargar', aviso: null, nueva: nueva };
+      pedido = '';
       try { loc.reload(); } catch (e) {}
     }
 
-    /* ---- evaluar: con las claves que se conocen ---- */
-    function evaluar(pedido) {
-      if (!vivo) return ultima;
+    /* ---- la decisión de AHORA, sin aplicarla ---- */
+    function decisionAhora(cuando) {
       var nueva = versionDeCaches(claves);
       var nunca = !o.soloAvisar && preguntarNunca();
       var e = {
@@ -433,12 +557,22 @@
         nunca: nunca,
         seguro: (o.soloAvisar || nunca) ? false : preguntarSeguro(),
         autoPosible: conMemoria && !yaRecargoPor(nueva),
-        momento: momentoActual(pedido)
+        momento: momentoActual(cuando)
       };
-      var d = decidir(e);
-      ultima = { accion: d.accion, aviso: d.aviso, nueva: nueva, momento: e.momento };
-      if (d.accion === 'recargar') { recargar(false); return ultima; }
-      pintar(d.aviso);
+      return { d: decidir(e), e: e, nueva: nueva };
+    }
+
+    /* ---- evaluar: con las claves que se conocen ---- */
+    function evaluar(cuando) {
+      if (!vivo) return ultima;
+      /* 22-oct-2026 — si la persona pidió actualizar, lo que manda es su
+         pedido (esperar, preguntar o recargar), no la franja de siempre. */
+      if (pedido) return seguirElPedido();
+      var x = decisionAhora(cuando);
+      ultima = { accion: x.d.accion, aviso: x.d.aviso, nueva: x.nueva, momento: x.e.momento };
+      if (x.d.accion === 'recargar') { recargar(false); return ultima; }
+      if (hayVersionNueva()) vigilarLaPagina();
+      pintar(x.d.aviso);
       return ultima;
     }
 
@@ -446,13 +580,116 @@
        La respuesta de caches.keys() llega después; lo que se decide con ella
        se decide con la pantalla de ese momento (momentoSeguro se pregunta al
        evaluar, no al pedir). */
-    function revisar(pedido) {
+    function revisar(cuando) {
       var c = ent.caches;
-      if (!c || typeof c.keys !== 'function') return Promise.resolve(evaluar(pedido));
+      if (!c || typeof c.keys !== 'function') return Promise.resolve(evaluar(cuando));
       return Promise.resolve()
         .then(function () { return c.keys(); })
         .then(function (k) { claves = k || []; }, function () {})
-        .then(function () { return evaluar(pedido); });
+        .then(function () { return evaluar(cuando); });
+    }
+
+    /* ---- «Actualizar ahora»: el pedido de la persona — 22-oct-2026 ----
+       El botón se pintó cuando la pantalla era segura; al tocarlo puede ya no
+       serlo (un pedido, una aceptación o un mensaje acaban de salir). Se
+       vuelve a preguntar AL TOCAR, y la respuesta se cumple en orden:
+         1. algo en camino → se espera, y la franja lo dice;
+         2. la pantalla ya no es de la lista de la página (salvo en un modo
+            «nunca», donde ninguna lo es y la decisión es de la persona) → no
+            se recarga: el pedido se suelta y la franja dice lo de siempre
+            para ESA pantalla («cuando termines y vuelvas al inicio»);
+         3. algo escrito a la vista o la cámara abierta → se pregunta;
+         4. nada → recarga.
+       Sin señal no se recarga (caería en lo guardado): se suelta el pedido y
+       la franja vuelve a lo de siempre, que sin señal no promete nada. */
+    function mostrar(aviso, nueva) {
+      ultima = { accion: 'avisar', aviso: aviso, nueva: nueva, momento: momentoActual(), pedido: pedido };
+      pintar(aviso);
+      return ultima;
+    }
+    function alTocarElBoton() {
+      if (o.soloAvisar) { recargar(true); return; }   // el CRM y el espejo: la franja ya le dice a Joan «cuando no tengas nada a medias»
+      cerradoTexto = '';
+      pedido = pedido === 'confirmar' ? 'confirmado' : 'pendiente';
+      seguirElPedido();
+    }
+    function seguirElPedido() {
+      if (!pedido || !vivo) return ultima;
+      var nueva = versionDeCaches(claves);
+      if (!enLinea()) { pedido = ''; return evaluar(); }
+      if (preguntarOcupado()) {
+        /* Lo que confirmó era lo que había ANTES de que algo saliera: al
+           terminar se vuelve a mirar y, si hace falta, a preguntar. */
+        pedido = 'esperando';
+        esperarUnRato();
+        return mostrar({ texto: TEXTOS.esperando, boton: null }, nueva);
+      }
+      /* La lista blanca de la página sin las dos guardas de este archivo (lo
+         tecleado y la cámara): esas se preguntan, no se callan. */
+      var paginaSegura = false;
+      try { paginaSegura = typeof o.momentoSeguro === 'function' && !!o.momentoSeguro(); } catch (e) { paginaSegura = false; }
+      if (!paginaSegura && !preguntarNunca()) { pedido = ''; return evaluar(); }
+      if (pedido !== 'confirmado') {
+        var falta = hayCamaraEncendida(doc) ? TEXTOS.confirmarCamara
+          : hayTextoALaVista(doc) ? TEXTOS.confirmarTexto : '';
+        if (falta) {
+          pedido = 'confirmar';
+          return mostrar({ texto: falta, boton: TEXTOS.botonIgual, otro: TEXTOS.ahoraNo }, nueva);
+        }
+      }
+      pedido = '';
+      recargar(true);
+      return ultima;
+    }
+    function esperarUnRato() {
+      if (relojEspera || typeof ent.setTimeout !== 'function') return;
+      try {
+        relojEspera = ent.setTimeout(function () {
+          relojEspera = 0;
+          if (vivo && pedido === 'esperando') seguirElPedido();
+        }, ESPERA_ENTRE_MIRADAS);
+      } catch (e) { relojEspera = 0; }
+    }
+
+    /* ---- volver a mirar — 22-oct-2026 ----
+       Mientras haya una versión esperando, la franja se decide otra vez cada
+       vez que algo cambia (ver el punto 9 de arriba). Juntas en una sola
+       mirada: una pantalla nueva son cientos de cambios del DOM, y basta con
+       mirar una vez cuando la página terminó de pintar (una microtarea
+       después: el oyente de la página ya corrió). */
+    function mirarOtraVez() {
+      if (!vivo || !claves || !hayVersionNueva()) return ultima;
+      return evaluar();
+    }
+    function programarMirada() {
+      if (miradaPendiente || !vivo) return;
+      miradaPendiente = true;
+      Promise.resolve().then(function () { miradaPendiente = false; mirarOtraVez(); });
+    }
+    /* El observador se conecta cuando hay versión nueva, no antes: mientras
+       no la haya, la página no paga ni una llamada por cada cambio. Ni en el
+       CRM ni en el espejo, cuyo texto no depende de la pantalla. */
+    function vigilarLaPagina() {
+      if (observador || o.soloAvisar || !doc || !doc.body) return;
+      var MO = ent.MutationObserver;
+      if (typeof MO !== 'function') return;
+      try {
+        observador = new MO(function (registros) {
+          var l = registros || [];
+          for (var i = 0; i < l.length; i++) {
+            if (!esDeLaFranja(l[i])) { programarMirada(); return; }
+          }
+        });
+        observador.observe(doc.body, { childList: true, subtree: true, attributes: true,
+                                       attributeFilter: ['style', 'class', 'hidden'] });
+      } catch (e) { observador = null; }
+    }
+    /* La página empezó algo (una escritura): se decide YA, con las claves que
+       se conocen. No recarga: con algo en camino nunca es momento seguro. */
+    function volverAMirar() {
+      if (!vivo) return Promise.resolve(ultima);
+      if (claves) return Promise.resolve(mirarOtraVez());
+      return revisar();
     }
 
     /* Sin registro todavía (ready no ha contestado) o sin señal, no hay a
@@ -483,6 +720,19 @@
     ['pointerdown', 'touchstart', 'keydown', 'input'].forEach(function (t) {
       oir(doc, t, function () { tocoDesdeQueVolvio = true; }, { capture: true, passive: true });
     });
+    /* 22-oct-2026 — lo que la persona hace también cambia la respuesta: lo
+       tecleado y la casilla marcada no tocan el DOM, así que el observador no
+       los ve. En burbuja y no en captura: así el oyente de la página (el
+       onchange de la casilla, el onclick del botón) ya corrió cuando se mira.
+       Los toques en la franja misma no cuentan: ya deciden ellos. */
+    if (!o.soloAvisar) {
+      ['click', 'input', 'change'].forEach(function (t) {
+        oir(doc, t, function (ev) {
+          if (ev && ev.target && franja) { var n = ev.target; for (var k = 0; n && k < 64; k++) { if (n === franja.caja) return; n = n.parentNode; } }
+          programarMirada();
+        }, { passive: true });
+      });
+    }
     try {
       intervalo = ent.setInterval(function () { if (!oculta()) buscar(); }, CADA);
     } catch (e) { intervalo = 0; }
@@ -495,17 +745,22 @@
 
     ctl.yaEsSeguro = yaEsSeguro;
     ctl.revisar = revisar;
+    ctl.volverAMirar = volverAMirar;
     ctl.buscar = buscar;
     ctl.recargar = function () { recargar(true); };
     ctl.estado = function () {
       return { pagina: ctl.opciones.version, nueva: ultima.nueva || '', accion: ultima.accion,
-               aviso: ultima.aviso, momento: ultima.momento || '' };
+               aviso: ultima.aviso, momento: ultima.momento || '', pedido: pedido };
     };
     ctl.detener = function () {
       vivo = false;
       oyentes.forEach(function (x) { try { x[0].removeEventListener(x[1], x[2], x[3]); } catch (e) {} });
       oyentes = [];
       try { if (intervalo) ent.clearInterval(intervalo); } catch (e) {}
+      try { if (relojEspera && typeof ent.clearTimeout === 'function') ent.clearTimeout(relojEspera); } catch (e) {}
+      relojEspera = 0;
+      try { if (observador) observador.disconnect(); } catch (e) {}
+      observador = null;
     };
     return ctl;
   }
@@ -518,6 +773,7 @@
     CADA: CADA,
     VENTANA_AL_VOLVER: VENTANA_AL_VOLVER,
     VUELTA_VIGENTE: VUELTA_VIGENTE,
+    ESPERA_ENTRE_MIRADAS: ESPERA_ENTRE_MIRADAS,
     ID_FRANJA: ID_FRANJA,
     TEXTOS: TEXTOS,
     numeroDeVersion: numeroDeVersion,

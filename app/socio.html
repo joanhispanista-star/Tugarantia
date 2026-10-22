@@ -749,8 +749,11 @@ details.plegado>summary{padding:0 var(--e4)}
    dice que «no le sale cómo instalarla», esta fecha dice si tiene la versión
    que se lo explica en Entrar, en la espera y al final de Inicio.
    21-oct-2026: se actualiza sola (app/actualizar.js, nuevo: también entra a
-   la precarga) y el sello dice el número de la caché. */
-var VERSION_APP = '2026-10-21';
+   la precarga) y el sello dice el número de la caché.
+   22-oct-2026: la franja de «versión nueva» se vuelve a decidir al cambiar
+   de pantalla, y «Actualizar ahora» espera lo que va en camino y pregunta si
+   hay algo escrito (la misma entrega, sin publicar). */
+var VERSION_APP = '2026-10-22';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
@@ -4490,10 +4493,17 @@ function sinTeclear(id) {
   var el = $(id);
   return !el || !String(el.value || '').trim();
 }
+/* 22-oct-2026 (verificación de 35f0687) — LO QUE VA EN CAMINO, EN UNA
+   PREGUNTA que también le llega a app/actualizar.js (opción `ocupado`): sin
+   ella «Actualizar ahora» recargaba con el mensaje del chat o la contraseña
+   nueva en el aire; con ella espera a que contesten. */
+function ocupadoSocio() {
+  return hayEscriturasEnCamino() || !!(CH && CH.enviando);
+}
 function momentoSeguroSocio() {
   if (location.search.indexOf('cfg') >= 0) return false;
   if (nuncaSeguroSocio()) return false;
-  if (hayEscriturasEnCamino() || (CH && CH.enviando)) return false;
+  if (ocupadoSocio()) return false;
   if (PANTALLAS_SEGURAS.indexOf(PANTALLA) < 0) return false;
   if (PANTALLA === 'entrar') return sinTeclear('inCel') && sinTeclear('inClave');
   if (PANTALLA === 'sin_juntar') return sinTeclear('chTexto');
@@ -4538,6 +4548,7 @@ var ESCRITURAS_EN_CAMINO = 0;
 function escrituraEnCamino(p) {
   if (!p || typeof p.then !== 'function') return p;
   ESCRITURAS_EN_CAMINO = (ESCRITURAS_EN_CAMINO || 0) + 1;
+  avisarQueEmpieza();
   var fin = function () {
     ESCRITURAS_EN_CAMINO = Math.max(0, (ESCRITURAS_EN_CAMINO || 0) - 1);
     avisarQueTermino();
@@ -4546,6 +4557,13 @@ function escrituraEnCamino(p) {
   return p;
 }
 function hayEscriturasEnCamino() { return (ESCRITURAS_EN_CAMINO || 0) > 0; }
+/* 22-oct-2026 (verificación de 35f0687) — EMPEZÓ UNA: la franja se vuelve a
+   mirar YA, no solo al terminar. La que se pintó en el Inicio seguía
+   ofreciendo «Actualizar ahora» con el mensaje o la contraseña en el aire. */
+function avisarQueEmpieza() {
+  if (!ACT || typeof ACT.volverAMirar !== 'function') return;
+  try { ACT.volverAMirar(); } catch (e) {}
+}
 /* Revisar y no yaEsSeguro: la persona puede estar leyendo, y que termine algo
    en camino no es un cambio de pantalla que ella pidió. */
 function avisarQueTermino() {
@@ -4556,7 +4574,7 @@ function arrancarActualizar() {
   var A = window.Actualizar;
   if (!A || typeof A.iniciar !== 'function') return;
   try {
-    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroSocio, nuncaEsSeguro: nuncaSeguroSocio, lugar: lugarSocio });
+    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroSocio, ocupado: ocupadoSocio, nuncaEsSeguro: nuncaSeguroSocio, lugar: lugarSocio });
   } catch (e) { ACT = null; return; }
   var l = ACT && ACT.vuelta && ACT.vuelta.lugar;
   if (l && PESTANAS_QUE_VUELVEN.indexOf(l.tab) >= 0) PESTANA_AL_VOLVER = l.tab;

@@ -134,8 +134,12 @@
    21-oct-2026 — sube con el «Salir» que sale de verdad (H3: avisa al
    servidor y borra la copia de la sesión que dejó el registro en la
    pestaña) y con sesion.js, que trae cerrar(). CACHE de sw.js también tiene
-   que subir al publicar: esta tanda no toca sw.js. */
-var VERSION_APP = '2026-10-21';
+   que subir al publicar: esta tanda no toca sw.js.
+
+   22-oct-2026 — sube con la franja de «versión nueva» que se vuelve a
+   decidir al cambiar de pantalla y con «Actualizar ahora» que espera lo que
+   va en camino (el pedido de Plata, la foto del chat) en vez de cortarlo. */
+var VERSION_APP = '2026-10-22';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja. Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no
@@ -841,6 +845,7 @@ var LECTURAS_QUE_NO_FRENAN = ['mi_cuenta', 'politica_platachat', 'mi_registro', 
 function escrituraEnCamino(p) {
   if (!p || typeof p.then !== 'function') return p;
   ESCRITURAS_EN_CAMINO = (ESCRITURAS_EN_CAMINO || 0) + 1;
+  avisarQueEmpieza();
   var fin = function () {
     ESCRITURAS_EN_CAMINO = Math.max(0, (ESCRITURAS_EN_CAMINO || 0) - 1);
     avisarQueTermino();
@@ -849,6 +854,13 @@ function escrituraEnCamino(p) {
   return p;
 }
 function hayEscriturasEnCamino() { return (ESCRITURAS_EN_CAMINO || 0) > 0; }
+/* 22-oct-2026 (verificación de 35f0687) — EMPEZÓ UNA: la franja se vuelve a
+   mirar YA, no solo al terminar. Con la calculadora movida el botón está
+   siempre, y tocarlo con «Pedir» en el aire cortaba el pedido. */
+function avisarQueEmpieza() {
+  if (typeof ACT === 'undefined' || !ACT || typeof ACT.volverAMirar !== 'function') return;
+  try { ACT.volverAMirar(); } catch (e) {}
+}
 function avisarQueTermino() {
   if (hayEscriturasEnCamino() || typeof ACT === 'undefined' || !ACT) return;
   try { ACT.revisar(); } catch (e) {}
@@ -3026,9 +3038,14 @@ function sinTeclear(id) {
   var el = $(id);
   return !el || !String(el.value || '').trim();
 }
+/* 22-oct-2026 (verificación de 35f0687) — LO QUE VA EN CAMINO, EN UNA
+   PREGUNTA que también le llega a app/actualizar.js (opción `ocupado`): con
+   ella «Actualizar ahora» espera a que termine en vez de cortarlo. */
+function ocupadoPC() {
+  return !!(ENTRAR_EN_CAMINO || PIDIENDO_PC || ACEPTANDO) || hayEscriturasEnCamino() || !!(CH && CH.enviando);
+}
 function momentoSeguroPC() {
-  if (ENTRAR_EN_CAMINO || PIDIENDO_PC || ACEPTANDO) return false;
-  if (hayEscriturasEnCamino() || (CH && CH.enviando)) return false;
+  if (ocupadoPC()) return false;
   if (nuncaSeguroPC()) return false;
   if (PANTALLA === 'entrar') return sinTeclear('inCelular') && sinTeclear('inClave');
   if (!S) return false;
@@ -3049,7 +3066,7 @@ function arrancarActualizar() {
   var A = window.Actualizar;
   if (!A || typeof A.iniciar !== 'function') return;
   try {
-    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroPC, nuncaEsSeguro: nuncaSeguroPC, lugar: lugarPC });
+    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroPC, ocupado: ocupadoPC, nuncaEsSeguro: nuncaSeguroPC, lugar: lugarPC });
   } catch (e) { ACT = null; return; }
   var l = ACT && ACT.vuelta && ACT.vuelta.lugar;
   if (l && PESTANAS_QUE_VUELVEN.indexOf(l.tab) >= 0) TAB = l.tab;
