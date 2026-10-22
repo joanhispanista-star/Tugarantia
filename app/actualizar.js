@@ -113,6 +113,24 @@
  *      es de la lista (fuera del modo «nunca», donde ninguna lo es y el
  *      botón sigue). Decidir sin saber cómo terminó es lo único seguro:
  *      este archivo no lee respuestas, y no tiene por qué empezar a hacerlo.
+ *  12. 23-oct-2026 (verificación de c213faf) — Y SIN TOCAR EL BOTÓN, IGUAL.
+ *      El punto 11 solo valía si la persona había tocado «Actualizar ahora».
+ *      Sin tocarlo: «Pedir» salía en Crédito de play/ (o en Plata de
+ *      PlataChat, con la calculadora como se abrió), la persona se iba a
+ *      WhatsApp con «Enviando…» en pantalla —o volvía y la respuesta llegaba
+ *      en los 4 s de VENTANA_AL_VOLVER, antes de tocar nada—, la base decía
+ *      que no (el tope, «muchas», un 500) y la recarga sola se lo llevaba:
+ *      con la app oculta o recién vuelta es justo cuando recarga. Al volver,
+ *      Crédito limpio; lo último leído, «Enviando…»; la solicitud no existía.
+ *      Ahora este archivo anota lo que SALE después de un toque (salioAlgo) y,
+ *      la primera vez que mira sin nada en camino, decide quién lo vio
+ *      llegar: con la persona mirando, nadie tiene nada que esperar (y desde
+ *      ahí vale lo de siempre); con la app oculta o recién vuelta, se pone el
+ *      mismo «ya terminó» del punto 11, con todo lo que trae: ninguna recarga
+ *      sola hasta que toque la página, el botón o la ✕. Lo que la página
+ *      manda sola sin que nadie haya tocado desde que volvió (marcar_acceso
+ *      al abrir PlataChat) no cuenta: no trae respuesta que leer, y «ya
+ *      terminó lo que iba en camino» le mentiría a quien no mandó nada.
  *
  * LO QUE NO PUEDE HACER, Y POR ESO NINGÚN TEXTO LO PROMETE:
  *   · Con la app CERRADA no corre nada: lo nuevo llega al abrirla, como antes.
@@ -410,6 +428,11 @@
        de arriba). No es un pedido: no recarga nada. Es lo contrario: mientras
        esté en pie, nada recarga solo y la franja dice TEXTOS.termino. */
     var terminoSinVer = false;
+    /* 23-oct-2026 (verificación de c213faf) — salió algo que la persona
+       disparó y todavía no se ha mirado cómo terminó (el punto 12 de
+       arriba). terminoSinVer nacía solo del botón; esta marca lo hace nacer
+       también sin él, cuando la respuesta llega sin nadie mirando. */
+    var salioAlgo = false;
     var observador = null, miradaPendiente = false;
 
     function oir(blanco, tipo, f, opc) {
@@ -449,6 +472,26 @@
       if (pedido === 'transicion') return 'transicion';
       if (!tocoDesdeQueVolvio && ahora() - volvioEn <= VENTANA_AL_VOLVER) return 'volviendo';
       return 'mirando';
+    }
+    /* 23-oct-2026 (verificación de c213faf) — ¿SALIÓ ALGO DE LA PERSONA, Y
+       YA TERMINÓ? Se pregunta antes de cualquier decisión (evaluar) y al
+       empezar una escritura (volverAMirar):
+         · algo en camino → se anota, si la persona tocó desde que volvió a
+           la app: lo que la página manda sola al abrir no tiene respuesta
+           que leer (y en el arranque recargar sí es lo que toca);
+         · ya nada en camino y había algo anotado → se decide UNA vez, con el
+           momento de verdad: mirando, la respuesta se pintó delante de ella
+           y vale lo de siempre; oculta o recién vuelta, nadie la vio y nace
+           «ya terminó» (terminoSinVer), igual que tras el botón.
+       El momento va sin 'transicion': que la página vuelva sola al inicio no
+       es que alguien esté mirando. Mirar de más solo frena la recarga sola
+       hasta el próximo toque: no pierde nada. */
+    function mirarLoQueSalio() {
+      if (o.soloAvisar) return;
+      if (preguntarOcupado()) { if (tocoDesdeQueVolvio) salioAlgo = true; return; }
+      if (!salioAlgo) return;
+      salioAlgo = false;
+      if (momentoActual() !== 'mirando') terminoSinVer = true;
     }
 
     /* ---- la franja ---- */
@@ -569,7 +612,7 @@
         }
       } catch (e) {}
       ultima = { accion: 'recargar', aviso: null, nueva: nueva };
-      pedido = ''; terminoSinVer = false;
+      pedido = ''; terminoSinVer = false; salioAlgo = false;
       try { loc.reload(); } catch (e) {}
     }
 
@@ -594,6 +637,10 @@
     /* ---- evaluar: con las claves que se conocen ---- */
     function evaluar(cuando) {
       if (!vivo) return ultima;
+      /* 23-oct-2026 (verificación de c213faf) — primero, si terminó algo que
+         la persona mandó sin que nadie lo viera llegar: eso decide si nace
+         «ya terminó» antes de que nada pueda recargar. */
+      mirarLoQueSalio();
       /* 22-oct-2026 — si la persona pidió actualizar, lo que manda es su
          pedido (esperar, preguntar o recargar), no la franja de siempre. */
       if (pedido) return seguirElPedido();
@@ -601,7 +648,8 @@
       /* 22-oct-2026 (verificación de e8f34eb) — terminó lo que el pedido
          esperaba y la persona no ha mirado: nada recarga solo (ni oculta, ni
          al volver, ni en una transición), y la franja lo dice mientras el
-         botón sirva de algo. */
+         botón sirva de algo. 23-oct-2026 — o terminó lo que mandó sin tocar
+         el botón, con la app oculta o recién vuelta (mirarLoQueSalio). */
       if (terminoSinVer) {
         var t = queHacerConLoQueTermino(x);
         if (t === 'decirlo') {
@@ -767,9 +815,13 @@
       } catch (e) { observador = null; }
     }
     /* La página empezó algo (una escritura): se decide YA, con las claves que
-       se conocen. No recarga: con algo en camino nunca es momento seguro. */
+       se conocen. No recarga: con algo en camino nunca es momento seguro.
+       23-oct-2026 — y se anota que salió, aunque todavía no haya versión
+       nueva que ofrecer: si llega mientras la respuesta está sin ver (la app
+       oculta), la recarga sola tiene que esperar a que la persona la mire. */
     function volverAMirar() {
       if (!vivo) return Promise.resolve(ultima);
+      mirarLoQueSalio();
       if (claves) return Promise.resolve(mirarOtraVez());
       return revisar();
     }
@@ -845,7 +897,8 @@
     ctl.recargar = function () { recargar(true); };
     ctl.estado = function () {
       return { pagina: ctl.opciones.version, nueva: ultima.nueva || '', accion: ultima.accion,
-               aviso: ultima.aviso, momento: ultima.momento || '', pedido: pedido, terminoSinVer: terminoSinVer };
+               aviso: ultima.aviso, momento: ultima.momento || '', pedido: pedido, terminoSinVer: terminoSinVer,
+               salioAlgo: salioAlgo };
     };
     ctl.detener = function () {
       vivo = false;

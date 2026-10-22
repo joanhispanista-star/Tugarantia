@@ -74,6 +74,14 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         persona toca la página, el botón o la ✕. Pruebas: la
                         sección 4 del mismo archivo, con el «no» de la base
                         en play/, socio y PlataChat.
+                        (23-oct-2026, verificación de c213faf) Y sin tocar el
+                        botón, igual: lo que la persona mandó y terminó con
+                        la app oculta o recién vuelta (antes de tocar nada)
+                        deja el mismo «ya terminó», y ninguna recarga sola
+                        hasta que la persona lo vea. Lo que la página manda
+                        sola sin un toque (marcar_acceso al abrir) no frena.
+                        Pruebas: la sección 5 del mismo archivo, con el
+                        «Pedir» de play/ y de PlataChat.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
                         divulgación del crédito y el borrado de cuenta.

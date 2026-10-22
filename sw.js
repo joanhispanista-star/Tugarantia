@@ -1805,7 +1805,11 @@
    esperaba, «Actualizar ahora» ya no recarga solo encima de la respuesta (un
    «no» de la base se perdia); dice «ya termino» con el boton. Solo cambia
    app/actualizar.js: con paginas de cualquiera de las dos vueltas funciona
-   igual. */
+   igual.
+   23-oct-2026, la cuarta verificacion (MISMA v139): y sin tocar el boton,
+   igual: si lo que la persona mando termina con la app oculta o recien
+   vuelta, la recarga sola espera a que lo vea (el mismo «ya termino»). Solo
+   cambia app/actualizar.js; las paginas ya llaman volverAMirar al empezar. */
 const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 

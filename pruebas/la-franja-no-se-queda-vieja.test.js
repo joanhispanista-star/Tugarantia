@@ -45,6 +45,13 @@
  * botón, y recarga cuando la persona lo toca), y la sección 4 corre el «no»
  * de la base en las tres páginas. Las de la sección 4 FALLAN con e8f34eb,
  * salvo la del chat del socio, que es centinela (ver allá por qué).
+ *
+ * 23-oct-2026 (verificación de c213faf) — Y SIN TOCAR EL BOTÓN, IGUAL. La
+ * sección 5 corre el «no» de la base cuando la persona NO tocó «Actualizar
+ * ahora» pero se fue de la app (o volvió) con «Enviando…» en pantalla: con
+ * c213faf la recarga sola se lo llevaba. 5a, el controlador; 5b, el «Pedir»
+ * de play/ y de PlataChat de verdad. FALLAN con c213faf, salvo las tres
+ * marcadas CENTINELA.
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -965,4 +972,228 @@ describe('4b. el «no» de la base, en las tres páginas de verdad', () => {
     assert.ok(dijo && !/Mandando/.test(dijo), 'la página no pintó el «no»: la prueba no prueba el caso (' + dijo + ')');
     await seVeYNoRecarga(P, N, 'chError', dijo);
   });
+});
+
+/* ==========================================================================
+ * 5. Y SIN TOCAR EL BOTÓN, IGUAL — 23-oct-2026 (verificación de c213faf)
+ *
+ * La sección 4 cubría la respuesta que llega después de tocar «Actualizar
+ * ahora». Sin tocarlo, la recarga sola seguía llevándose el «no»: la persona
+ * pedía en Crédito (play/) o en Plata (PlataChat, con la calculadora como se
+ * abrió), se iba a WhatsApp con «Enviando…» en pantalla —o volvía y la
+ * respuesta llegaba en los 4 s de «justo al volver»—, la base decía que no,
+ * y con la app oculta o recién vuelta la recarga sola estaba en su momento.
+ * Al volver: Crédito limpio, lo último leído «Enviando…», y la solicitud no
+ * existía. Regla: lo que llega sin nadie mirando se VE antes de cualquier
+ * recarga sola (el mismo «ya terminó, mira cómo quedó» del botón).
+ * Las de 5a y 5b FALLAN con c213faf (recargas 1 donde va 0), salvo las
+ * marcadas como CENTINELA: esas fijan lo que NO debe cambiar.
+ * ======================================================================== */
+describe('5a. el controlador: lo que la persona mandó y terminó sin nadie mirando', () => {
+
+  /* La persona toca algo que sale (su toque, y la página avisa que empieza). */
+  async function salePorUnToque() {
+    const N = navegadorConOjos();
+    const v = { enCamino: false };
+    const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
+    N.mirando();
+    await N.publicar('v140');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
+    v.enCamino = true;
+    await c.volverAMirar();           // la página: escrituraEnCamino → avisarQueEmpieza
+    return { N, c, v };
+  }
+
+  test('se va de la app mientras sale y termina allá: no recarga sola, ni al volver; dice «ya terminó» hasta que toca la página', async () => {
+    const { N, c, v } = await salePorUnToque();
+    await N.ocultar();
+    assert.equal(N.st.recargas, 0, 'recargó con algo en camino');
+    v.enCamino = false;
+    await c.revisar();                // la página: avisarQueTermino, con la app oculta
+    assert.equal(N.st.recargas, 0, 'terminó con la app oculta y la recarga sola se llevó la respuesta antes de que nadie la viera');
+    assert.equal(c.estado().terminoSinVer, true);
+    await N.volver();
+    assert.equal(N.st.recargas, 0, 'volvió a la app y recargó antes de que viera la respuesta');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    /* Toca la página: ya la está mirando. Desde ahí, lo de siempre. */
+    N.mirando();
+    N.mutar({ id: 'cuerpo' });
+    await asentar(4);
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
+    await N.ocultar();
+    assert.equal(N.st.recargas, 1, 'ya vio cómo quedó, salió de la app y no se puso sola, que es lo que la franja prometía');
+  });
+
+  test('sale, se va y vuelve, y la respuesta llega en los 4 s de «justo al volver»: tampoco recarga encima', async () => {
+    const { N, c, v } = await salePorUnToque();
+    await N.ocultar();
+    await N.volver();
+    v.enCamino = false;
+    await c.revisar();
+    assert.equal(N.st.recargas, 0, 'la respuesta llegó justo al volver, antes de tocar nada, y la recarga sola se la llevó');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    await N.ocultar();
+    assert.equal(N.st.recargas, 0, 'no había tocado la página: nadie dice que la vio, y al irse de la app recargó');
+  });
+
+  test('la página no avisa que empezó: la mirada al irse de la app lo encuentra en camino y lo anota igual', async () => {
+    const N = navegadorConOjos();
+    let enCamino = false;
+    const c = await N.arrancar({ momentoSeguro: () => !enCamino, ocupado: () => enCamino });
+    N.mirando();
+    await N.publicar('v140');
+    enCamino = true;                  // sin volverAMirar: una página que se olvidó de avisar
+    await N.ocultar();
+    enCamino = false;
+    await c.revisar();
+    assert.equal(N.st.recargas, 0, 'terminó con la app oculta y recargó encima: solo lo frenaba quien avisara al empezar');
+    await N.volver();
+    assert.equal(N.franja().texto, A.TEXTOS.termino);
+  });
+
+  test('la versión nueva aparece DESPUÉS de la respuesta (al volver): igual espera a que la vea', async () => {
+    const N = navegadorConOjos();
+    const v = { enCamino: false };
+    const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
+    N.mirando();
+    v.enCamino = true;
+    await c.volverAMirar();           // sin versión nueva todavía
+    await N.ocultar();
+    v.enCamino = false;
+    await c.revisar();                // terminó allá; no hay nada que actualizar aún
+    assert.equal(N.st.recargas, 0);
+    await N.volver();
+    await N.publicar('v140');         // la búsqueda del regreso la encuentra
+    assert.equal(N.st.recargas, 0, 'la versión llegó al volver y recargó encima de una respuesta que nadie había visto');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+  });
+
+  test('CENTINELA: con la persona mirando cuando llega, no nace nada: lo de siempre, y al salir de la app se pone sola', async () => {
+    const { N, c, v } = await salePorUnToque();
+    v.enCamino = false;
+    await c.revisar();
+    assert.equal(c.estado().terminoSinVer, false, 'la vio llegar y quedó «ya terminó»: frenaría la recarga sin motivo');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
+    await N.ocultar();
+    assert.equal(N.st.recargas, 1);
+  });
+
+  test('CENTINELA: lo que la página manda sola, sin un toque desde que se abrió, no frena la recarga del arranque', async () => {
+    const N = navegadorConOjos();
+    const v = { enCamino: true };
+    const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
+    await c.volverAMirar();           // marcar_acceso al abrir PlataChat: nadie lo pidió
+    await N.publicar('v140');
+    assert.equal(N.st.recargas, 0, 'recargó con algo en camino');
+    v.enCamino = false;
+    await c.revisar();                // termina en los 4 s del arranque
+    assert.equal(N.st.recargas, 1, 'un envío que nadie pidió dejó la página vieja: «ya terminó» le mentiría a quien no mandó nada');
+  });
+});
+
+describe('5b. el «no» de la base sin tocar el botón, en play/ y PlataChat de verdad', () => {
+
+  /* play/: la red retiene «Pedir» (solicitar_a_la_medida); lo demás contesta en el acto. */
+  async function playConElPedidoEnElAire() {
+    const P = abrirPlay({ sesion: { play_sesion: SESION_PLAY } });
+    P.ev('window.__pend = []; fetch = function (u, o) { u = String(u);' +
+         ' if (/solicitar_a_la_medida/.test(u)) return new Promise(function (res) { window.__pend.push(res); });' +
+         ' return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ ok: true }); } }); };');
+    const N = await navegadorConOjos().enLaPagina(P.ev, P.ventana);
+    P.ev("irA('credito')");
+    N.mirando();                      // el toque de «Pedir»
+    await N.publicar('v140');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
+    P.ev('enviarPedido()');
+    await asentar(8);
+    assert.equal(P.ev('window.__pend.length'), 1, 'el pedido no salió');
+    return { P, N };
+  }
+  const SE_VA = ['se va a otra app mientras dice «Enviando…»', N => N.ocultar()];
+  const VA_Y_VUELVE = ['se va y vuelve antes de la respuesta', async N => { await N.ocultar(); await N.volver(); }];
+
+  for (const [nombre, respuesta, mensaje] of [
+    ['la base dice que no (motivo «muchas»)',
+     "{ ok: true, status: 200, json: function () { return Promise.resolve({ ok: false, motivo: 'muchas' }); } }",
+     'Ya nos dejaste varias solicitudes hace poco. Las tenemos: dale un rato y te respondemos.'],
+    ['el servidor contesta 500',
+     "{ ok: false, status: 500, json: function () { return Promise.resolve({ message: 'boom' }); } }",
+     'No pude conectarme. Revisa tu internet y vuelve a intentar.']
+  ]) {
+    for (const [como, coreografia] of [SE_VA, VA_Y_VUELVE]) {
+      test('play/: «Pedir» en Crédito sin tocar el botón, ' + como + ', y ' + nombre + ': el «no» se ve antes de recargar', async () => {
+        const { P, N } = await playConElPedidoEnElAire();
+        await coreografia(N);
+        P.ev('window.__pend[0](' + respuesta + ')');
+        await asentar(16);
+        assert.equal(P.ev("$('csError').textContent"), mensaje, 'la página no pintó el «no»: la prueba no prueba el caso');
+        assert.equal(P.ev('momentoSeguroPlay()'), true, 'Crédito con el «no» dejó de ser de la lista: la prueba no prueba el caso');
+        assert.equal(N.st.recargas, 0, 'la base dijo que no sin nadie mirando y la recarga sola se lo llevó: la persona cree que pidió');
+        if (N.st.hidden) await N.volver();
+        assert.equal(N.st.recargas, 0, 'volvió a la app y la recarga se llevó el «no» antes de que lo viera');
+        assert.equal(P.ev("$('csError').textContent"), mensaje);
+        assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+        /* Lo lee y toca la página: desde ahí, salir de la app sí la pone. */
+        N.mirando();
+        await N.ocultar();
+        assert.equal(N.st.recargas, 1, 'ya vio el «no», salió de la app y no se puso sola');
+      });
+    }
+  }
+
+  test('CENTINELA play/: mirando todo el rato, el «no» llega delante de ella: lo de siempre, y al salir de la app se pone sola', async () => {
+    const { P, N } = await playConElPedidoEnElAire();
+    P.ev("window.__pend[0]({ ok: true, status: 200, json: function () { return Promise.resolve({ ok: false, motivo: 'muchas' }); } })");
+    await asentar(16);
+    assert.match(String(P.ev("$('csError').textContent")), /varias solicitudes/);
+    assert.equal(N.st.recargas, 0, 'recargó debajo del dedo');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
+    await N.ocultar();
+    assert.equal(N.st.recargas, 1);
+  });
+
+  /* PlataChat con la calculadora COMO SE ABRIÓ: Plata es de la lista, y ahí
+     la recarga sola sí está en su momento con la app oculta. */
+  async function plataConElPedidoEnElAire() {
+    const P = abrirPlataChat();
+    await asentar();
+    await P.entrarComo('3001112233', 'Maria.Secreta9');
+    const N = navegadorConOjos({ campos: camposVisibles(P.ev, 'cuerpo') });
+    await N.enLaPagina(P.ev, P.ctx);
+    N.mirando();                      // el toque de «Pedir»
+    await N.publicar('v140');
+    assert.equal(P.ev('nuncaSeguroPC()'), false, 'la calculadora quedó movida: ese caso es el de la sección 4b');
+    const html = String(P.ev("$('calcSalida').innerHTML"));
+    const pedir = (/onclick="(pedirPorChat\([^"]*\))"/.exec(html) || [])[1];
+    assert.ok(pedir, 'Plata no pintó el botón de pedir');
+    P.st.colgar = /solicitar_platachat|reproponer_platachat/;
+    P.ev(pedir.replace(/&#39;|&apos;/g, "'"));
+    await asentar(4);
+    assert.equal(P.st.colgadas.length, 1, 'el pedido no salió');
+    return { P, N };
+  }
+
+  for (const [nombre, resp] of [['un «no» por el tope', { ok: false, motivo: 'tope' }], ['un 500', { __estado: 500, message: 'boom' }]]) {
+    for (const [como, coreografia] of [SE_VA, VA_Y_VUELVE]) {
+      test('platachat/: «Pedir» en Plata sin tocar el botón, ' + como + ', y ' + nombre + ': el «no» se ve antes de recargar', async () => {
+        const { P, N } = await plataConElPedidoEnElAire();
+        await coreografia(N);
+        P.st.colgar = null;
+        P.suelta(0, resp);
+        await asentar(16);
+        const dijo = String(P.ev("$('errPedir').textContent"));
+        assert.ok(dijo && !/Mandando/.test(dijo), 'la página no pintó el «no»: la prueba no prueba el caso (' + dijo + ')');
+        assert.equal(P.ev('PANTALLA'), 'plata');
+        assert.equal(P.ev('momentoSeguroPC()'), true, 'Plata con el «no» dejó de ser de la lista: la prueba no prueba el caso');
+        assert.equal(N.st.recargas, 0, 'la base dijo que no sin nadie mirando y la recarga sola se lo llevó (' + dijo + ')');
+        if (N.st.hidden) await N.volver();
+        assert.equal(N.st.recargas, 0, 'volvió a la app y la recarga se llevó el «no» antes de que lo viera');
+        assert.equal(String(P.ev("$('errPedir').textContent")), dijo);
+        assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+        N.mirando();
+        await N.ocultar();
+        assert.equal(N.st.recargas, 1, 'ya vio el «no», salió de la app y no se puso sola');
+      });
+    }
+  }
 });
