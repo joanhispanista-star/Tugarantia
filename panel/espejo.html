@@ -925,18 +925,16 @@ function cuentasDelCobro(p, l, o) {
    contador guardado: un contador se desincroniza el día que Joan edita un pago
    y desde ahí miente para siempre (la misma razón escrita en puente.js:1213).
    Sirve para pintarlo en la pantalla de cobro con el cliente delante, que es lo
-   único que convierte un favor suelto en una política. */
+   único que convierte un favor suelto en una política.
+   22-oct-2026 — SE LO PREGUNTA AL PUENTE, como cuentasDelCobro. Esta copia
+   sumaba solo costo + mora, y desde que Joan pacta el próximo pago también
+   perdona capital: con un pago acordado de 10.000 perdonados, la hoja del
+   cobro decía «Ya lleva 1 descuento(s) por $0» mientras el CRM decía
+   $10.000. Era la copia número trece de una cuenta, separándose el primer día
+   que cambió la regla. El puente además cuenta solo los perdones de capital
+   del pacto que sigue vigente (P.perdonesDeCapital). */
 function descuentosDelSocio(s) {
-  var t = { veces: 0, monto: 0 };
-  if (!s) return t;
-  DB.prestamos.forEach(function (p) {
-    if (p.socioId !== s.id) return;
-    (p.condonaciones || []).forEach(function (c) {
-      t.veces++;
-      t.monto += (Number(c.costo) || 0) + (Number(c.mora) || 0);
-    });
-  });
-  return t;
+  return P.descuentosDelSocio(DB, s);
 }
 
 /* La Ley 2300 no cambia porque Joan esté en la calle: fuera de horario no se
@@ -1377,7 +1375,11 @@ function resolverChoque(indice, como) {
        17-oct-2026, segunda revisión — con UNA excepción, que dice nube.js: si
        los dos lados traen un plan de cuotas distinto, los pagos de las cuotas
        viajan con su plan y quedan solo los míos. La tarjeta del choque lo
-       avisa antes (avisoPagosDeCuotas). */
+       avisa antes (avisoPagosDeCuotas).
+       22-oct-2026 (revisión) — y otra: un pago acordado viaja entero con su
+       lado. Si es de la nube, «lo mío» se queda sin él; si es mío, lo que el
+       pacto no conocía de la nube (abonos sueltos, prórrogas) no entra. La
+       misma tarjeta lo dice con fechas y pesos. */
     var mio = c.mio || filaLocal(c.tabla, c.id);
     var fila = mio;
     try {
@@ -4568,16 +4570,38 @@ function avisoPagosDeCuotas(c) {
   var mio = c.mio || filaLocal(c.tabla, c.id);
   var r = null;
   try { r = (mio && c.suyo) ? NUBE.fusionarFila(mio, c.suyo) : null; } catch (e) { r = null; }
-  var x = ((r && r.pisables) || []).filter(function (p) {
+  var pis = (r && r.pisables) || [];
+  var x = pis.filter(function (p) {
     return p && p.campo === 'abonosCapital' && typeof p.mio === 'string';
   })[0];
-  if (!x) return '';
-  return '<div class="aviso ambar"><b>Los pagos de las cuotas no se juntan.</b> '
-    + 'Con <b>Mandar lo mío encima</b> quedan solo los de este celular (' + esc(valorCorto('abonosCapital', x.mio))
-    + ') y lo que trae la nube para esas cuotas (' + esc(valorCorto('abonosCapital', x.suyo)) + ') no entra. '
-    + 'Con <b>Dejar lo de la nube</b> es al revés: queda lo de la nube y lo de este celular no entra. '
-    + 'Si la plata del lado que no queda entró de verdad, se vuelve a anotar después como abono a la cuota, '
-    + 'desde el computador.</div>';
+  var h = '';
+  if (x) {
+    h += '<div class="aviso ambar"><b>Los pagos de las cuotas no se juntan.</b> '
+      + 'Con <b>Mandar lo mío encima</b> quedan solo los de este celular (' + esc(valorCorto('abonosCapital', x.mio))
+      + ') y lo que trae la nube para esas cuotas (' + esc(valorCorto('abonosCapital', x.suyo)) + ') no entra. '
+      + 'Con <b>Dejar lo de la nube</b> es al revés: queda lo de la nube y lo de este celular no entra. '
+      + 'Si la plata del lado que no queda entró de verdad, se vuelve a anotar después como abono a la cuota, '
+      + 'desde el computador.</div>';
+  }
+  /* 22-oct-2026 (revisión) — EL PAGO ACORDADO NO SE JUNTA CON LO QUE NO
+     CONOCÍA (NUBE.fusionarFila, pisable `pagoAcordado`). Antes esta tarjeta
+     reusaba el texto de las cuotas, y en el caso del celular sin el pacto
+     decía que «el pago acordado no entra» mientras el botón lo dejaba entrar
+     JUNTO con el abono del celular: 50.000 cobrados dos veces. Ahora cada
+     lado dice lo que trae —el pago acordado con su fecha y su monto, o «sin
+     pago acordado», y la plata que el pacto del otro no conocía— y los dos
+     botones hacen exactamente eso: «lo mío» deja lo de este celular entero y
+     «lo de la nube» deja la versión de la nube entera. */
+  var pa = pis.filter(function (p) { return p && p.campo === 'pagoAcordado'; })[0];
+  if (pa) {
+    h += '<div class="aviso ambar"><b>El pago acordado no se junta con lo que no conocía.</b> '
+      + 'Con <b>Mandar lo mío encima</b> queda lo de este celular (' + esc(valorCorto('pagoAcordado', pa.mio))
+      + ') y lo de la nube (' + esc(valorCorto('pagoAcordado', pa.suyo)) + ') no entra. '
+      + 'Con <b>Dejar lo de la nube</b> es al revés: queda lo de la nube y lo de este celular no entra. '
+      + 'Si la plata del lado que no queda entró de verdad, se vuelve a anotar desde el computador, y el '
+      + 'pago se vuelve a acordar sobre lo que quede.</div>';
+  }
+  return h;
 }
 function nombreDeFila(tabla, f) {
   if (!f) return '';
@@ -4632,7 +4656,10 @@ var ETIQUETAS = {
   /* 3-oct-2026 (revisión) — la MISMA entrega anotada distinto en los dos
      aparatos (NUBE.fusionarFila): lo que entró por la prórroga y lo que fue a
      capital ese día, en pesos, para que Joan vea cuál de las dos es la buena. */
-  prorrogas: 'Prórroga de ese día (lo que entró)', abonosCapital: 'A capital ese día'
+  prorrogas: 'Prórroga de ese día (lo que entró)', abonosCapital: 'A capital ese día',
+  /* 22-oct-2026 (revisión) — el pago acordado de cada lado y la plata que el
+     pacto del otro no conocía (NUBE.fusionarFila). */
+  pagoAcordado: 'Pago acordado'
 };
 /* 17-oct-2026, revisión — `abonosCapital` llega como pisable de DOS formas: en
    pesos (lo que fue a capital el día de una prórroga, 3-oct) o en texto, cuando
@@ -4652,6 +4679,12 @@ function valorCorto(campo, v) {
      cuándo se pagó cada una. «objeto» no le dejaba saber cuál de los dos
      aparatos tenía el cobro bueno. */
   if (campo === 'planPagos') return resumenDelPlan(v);
+  /* 22-oct-2026 — «pago acordado $280000 el 2026-11-20: abono 2026-11-05
+     $50000», dicho como el resto del celular. */
+  if (campo === 'pagoAcordado' && typeof v === 'string') {
+    return v.replace(/\d{4}-\d{2}-\d{2}/g, function (f) { return fmtFecha(f); })
+            .replace(/\$(\d+)/g, function (x, n) { return COP(Number(n)); });
+  }
   /* El texto del choque de una cuota trae fechas ISO y pesos sin puntos
      («cierre 2026-10-30 $325000»): se dicen como en el resto del celular. */
   if (campo === 'abonosCapital' && typeof v === 'string') {

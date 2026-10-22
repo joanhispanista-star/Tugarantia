@@ -1,0 +1,468 @@
+'use strict';
+/* ============================================================================
+ * EL PAGO ACORDADO EN LA NUBE — revisión del 22 de octubre de 2026
+ *
+ *   node --test pruebas/pacto-en-la-nube.test.js
+ *
+ * La revisión de plata del pago que pacta Joan (puente.pactarProximoPago, el
+ * commit ef3e74c) encontró cinco maneras de que la nube contara mal la plata.
+ * Estas pruebas corren las páginas de verdad —el celular (banco-espejo) con
+ * sus botones del choque, subir.html con sus dos fusiones y sus textos— y
+ * NUBE.fusionarFila en los dos órdenes, y fallan contra ef3e74c:
+ *
+ *   N1. el lado SIN pacto ganaba el choque y el pacto entraba igual, junto con
+ *       el abono del celular: 675.000 de capital por 625.000 prestados, con la
+ *       tarjeta diciendo «el pago acordado no entra»;
+ *   N2. una prórroga del celular que el pacto no conocía se sumaba callada al
+ *       pacto: el cliente pagaba 125.000 + 780.000 por lo que Joan acordó en
+ *       780.000, y la tarjeta prometía el corte del 17-nov;
+ *   N3. el perdón de capital de un pacto que perdió el choque seguía restando:
+ *       capitalRecuperadoDe 600.000 de 625.000 que sí entraron;
+ *   N4. dos perdones del mismo día y el mismo monto se fundían en uno;
+ *   N5. el celular decía «Ya lleva 1 descuento(s) por $0» de un perdón de
+ *       10.000 de capital.
+ *
+ * LA REGLA QUE VIGILAN: el pago acordado viaja ENTERO con su lado. Lo que el
+ * pacto no conocía del otro lado es un choque en pesos que Joan ve y decide,
+ * nunca una suma en silencio, y cada botón hace lo que su texto dice.
+ * ==========================================================================*/
+
+const { test, describe } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const M = require('../app/motor.js');
+const P = require('../app/puente.js');
+const NUBE = require('../panel/nube.js');
+const { abrirEspejo } = require('./banco-espejo.js');
+
+const DIA = '2026-10-31';        // sábado: vencía
+const CRM_FECHA = '2026-11-17';  // la quincena siguiente del motor (15 domingo, 16 festivo)
+const SUYA = '2026-11-20';       // la fecha que pone Joan
+const PRESTADO = 625000;
+
+const copia = o => JSON.parse(JSON.stringify(o));
+const plano = h => String(h || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+
+function credito(extra) {
+  return Object.assign({
+    id: 'c1', numero: 7, socioId: 's1', socioNombre: 'Cliente de prueba', telefono: '3001112233',
+    capital: PRESTADO, costoPct: 20, fechaDesembolso: '2026-10-16', cicloActual: DIA,
+    prorrogas: [], abonosCapital: [], comprobantes: [], pagado: false
+  }, extra || {});
+}
+function cartera(ps) {
+  return {
+    socios: [{ id: 's1', numero: 1, nombre: 'Cliente de prueba', telefono: '3001112233', whatsappIgual: true,
+               cedula: '52111222', gestiones: [], ajusteGarantia: 0 }],
+    prestamos: ps, config: { negocio: 'Tu Garantía' }
+  };
+}
+/* Lo que guarda el CRM con el «💵 Abonó y el resto pasa…» (registrarAbonoProrroga). */
+function conAbonoYProrroga(p) {
+  const r = P.abonoConProrroga(cartera([p]), p, DIA, 500000);
+  assert.equal(r.ok, true, r.detalle);
+  const g = r.registros;
+  p.abonosCapital.push(g.abono);
+  p.prorrogas.push(g.prorroga);
+  if (g.condonacion) (p.condonaciones = p.condonaciones || []).push(g.condonacion);
+  p.cicloActual = g.cicloActual;
+  return p;
+}
+/* Lo que guarda «✏️ Ajustar el próximo pago» (crm.html guardarAjuste). */
+function pactar(p, pedido, hoy) {
+  const r = P.pactarProximoPago(cartera([p]), p, pedido, hoy);
+  assert.equal(r.ok, true, r.detalle);
+  p.planPagos = r.registros.planPagos;
+  if (r.registros.condonacion) (p.condonaciones = p.condonaciones || []).push(r.registros.condonacion);
+  p.cicloActual = r.registros.cicloActual;
+  return p;
+}
+/* La cuenta de plata que no puede fallar: lo que ya entró a capital, más lo
+   que el crédito todavía cobra de capital en su próximo pago, más lo
+   perdonado, es lo prestado. Ni un peso más (cobrar dos veces) ni uno menos. */
+function capitalQueCobra(p) {
+  const abonado = (p.abonosCapital || []).reduce((t, a) => t + a.monto, 0);
+  const falta = p.pagado ? 0 : Math.round(P.liquidarCiclo(p, P.corteDelCredito(p)).capital);
+  return abonado + falta + P.capitalPerdonadoDe(p);
+}
+/* El choque, en el celular: lo de este celular contra lo que trae la nube. */
+function choqueEnElCelular(e, mio, suyo) {
+  e.ev('CHOQUES = [' + JSON.stringify({ tabla: 'creditos', id: 'c1', mio, suyo, revision_servidor: 7,
+    actualizado_por: 'computador', actualizado_en: '2026-11-05T15:00:00Z' }) + ']');
+}
+
+/* subir.html arrancada en una caja, como en credito-a-cuotas-socio.test.js. */
+function abrirSubir() {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'panel', 'subir.html'), 'utf8');
+  const elems = {};
+  const elem = id => (elems[id] = elems[id] || { id, value: '', checked: false, textContent: '',
+    innerHTML: '', dataset: {}, style: {}, disabled: false, title: '',
+    classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+    addEventListener() {}, querySelector: () => null, querySelectorAll: () => [],
+    appendChild() {}, setAttribute() {}, focus() {}, remove() {} });
+  const doc = { getElementById: elem, querySelector: () => null, querySelectorAll: () => [],
+    createElement: () => elem('nuevo'), addEventListener() {}, body: elem('body'),
+    documentElement: elem('html'), title: '' };
+  const almacen = {};
+  const ctx = { console, document: doc, alert() {}, confirm: () => true, prompt: () => null,
+    localStorage: { getItem: k => (k in almacen ? almacen[k] : null),
+                    setItem: (k, v) => { almacen[k] = String(v); }, removeItem: k => { delete almacen[k]; } },
+    location: { href: 'http://localhost/panel/subir.html', hash: '', pathname: '/panel/subir.html', search: '' },
+    history: { replaceState() {} }, navigator: { userAgent: 'node' },
+    fetch: () => Promise.reject(new Error('sin red')), setTimeout: () => 0, clearTimeout() {},
+    setInterval: () => 0, clearInterval() {}, TextEncoder, TextDecoder, URL, Intl, Date, Math, JSON,
+    btoa: s => Buffer.from(s, 'binary').toString('base64'),
+    atob: s => Buffer.from(s, 'base64').toString('binary'), Blob: class {}, FileReader: class {} };
+  ctx.window = ctx; ctx.self = ctx;
+  ctx.NubeTuGarantia = NUBE; ctx.MotorReglas = M; ctx.PuenteTuGarantia = P;
+  vm.createContext(ctx);
+  [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+    .forEach((m, i) => vm.runInContext(m[1], ctx, { filename: 'subir#' + i }));
+  const ev = e => vm.runInContext(e, ctx, { filename: 'banco' });
+  return {
+    ev,
+    /* El choque del paso 7: lo de este computador contra lo que trae la nube. */
+    choque(local, nube) {
+      ctx.__it = { tabla: 'creditos', id: 'c1', local,
+        fila: { id: 'c1', datos: nube, revision: 7, actualizado_por: 'celular', actualizado_en: '2026-11-05T15:00:00Z' } };
+    },
+    loMio: () => ev('queHaceLoMio(__it)'),
+    loDeLaNube: () => { ev("E.decisiones[llaveDe('creditos', __it.fila)] = 'nube'"); return plano(ev("tarjetaChoque(__it, 'b0')")); },
+    tarjeta: () => { ev("delete E.decisiones[llaveDe('creditos', __it.fila)]"); return plano(ev("tarjetaChoque(__it, 'b0')")); },
+    conLoMio: () => JSON.parse(ev("JSON.stringify(loMioEncima('creditos', __it.fila.datos, __it.local))")),
+    conLaNube: () => JSON.parse(ev("JSON.stringify(fusionarConLoMio('creditos', __it.fila.datos, __it.local))"))
+  };
+}
+
+/* ==========================================================================
+ * N1 — EL ABONO DEL CELULAR SIN SEÑAL Y EL PACTO DEL COMPUTADOR
+ * ======================================================================== */
+describe('N1 · el pago acordado viaja entero con su lado: nunca se copia a la versión que no lo trae', () => {
+
+  /* El 31-oct los dos aparatos anotaron el abono de 500.000 (quedan 250.000).
+     El 2-nov el computador pacta 280.000 el 20-nov. El 5-nov el celular, sin
+     señal y con la copia quincenal, anota un «Queda debiendo» de 50.000. */
+  function lados() {
+    const base = conAbonoYProrroga(credito());
+    const computador = pactar(copia(base), { fecha: SUYA, monto: 280000 }, '2026-11-02');
+    const e = abrirEspejo({ cartera: cartera([copia(base)]), ahora: '2026-11-05T10:30:00' });
+    e.ev("abonarEnCalle('c1', 50000, '2026-11-05')");
+    const celular = e.json('DB.prestamos[0]');
+    assert.equal(celular.abonosCapital.length, 2, 'el celular anotó su abono');
+    return { e, computador, celular };
+  }
+
+  test('NUBE.fusionarFila: la fila del lado sin pacto no trae el pacto; la del pacto no trae el abono que no conocía', () => {
+    const { computador, celular } = lados();
+    const f = NUBE.fusionarFila(copia(celular), copia(computador));
+    assert.equal(f.fila.planPagos, undefined, 'el pacto se copió a la versión que no lo trae');
+    assert.deepEqual(f.fila.abonosCapital.map(a => a.monto), [375000, 50000]);
+    assert.equal(P.capitalActual(f.fila), 200000);
+    assert.equal(capitalQueCobra(f.fila), PRESTADO, 'cobra capital dos veces');
+    const pa = f.pisables.find(x => x.campo === 'pagoAcordado');
+    assert.ok(pa, 'el choque del pago acordado no se avisó');
+    assert.equal(pa.mio, 'sin pago acordado: abono 2026-11-05 $50000');
+    assert.equal(pa.suyo, 'pago acordado $280000 el 2026-11-20');
+
+    const g = NUBE.fusionarFila(copia(computador), copia(celular));
+    assert.ok(P.esPacto(g.fila));
+    assert.deepEqual(g.fila.abonosCapital.map(a => a.monto), [375000], 'el pacto se quedó con un abono que no conocía');
+    assert.equal(P.liquidarCiclo(g.fila, SUYA).total_a_pagar, 280000);
+    assert.equal(capitalQueCobra(g.fila), PRESTADO);
+    const pb = g.pisables.find(x => x.campo === 'pagoAcordado');
+    assert.deepEqual([pb.mio, pb.suyo], [pa.suyo, pa.mio], 'los dos órdenes dicen lo mismo de cada lado');
+    nadaQueDecidir();
+    laSubidaNoHereda();
+  });
+
+  /* La subida del computador no hereda la revisión de una nube que trae un
+     abono que su pacto no conoce (nadaQueSumar, nube-crm.js). Con el aviso del
+     pago acordado, «lo mío» ya no trae el abono y las listas «cuadraban»: sin
+     contar `pagoAcordado` como algo que pisa, la subida se lo comía sin choque. */
+  function laSubidaNoHereda() {
+    /* La función de verdad, recortada de su archivo (es una pieza interna del
+       CRM, sin exportar) y evaluada con sus dos ayudantes y la nube de verdad. */
+    const src = fs.readFileSync(path.join(__dirname, '..', 'panel', 'nube-crm.js'), 'utf8').replace(/\r\n/g, '\n');
+    const i = src.indexOf('\n  function nadaQueSumar(');
+    assert.notEqual(i, -1, 'no encontré nadaQueSumar en nube-crm.js');
+    const caja = { N: NUBE, lista: v => (Array.isArray(v) ? v : []),
+                   objeto: v => ((v && typeof v === 'object' && !Array.isArray(v)) ? v : {}) };
+    vm.createContext(caja);
+    vm.runInContext(src.slice(i, src.indexOf('\n  }\n', i) + 4), caja);
+    const { computador, celular } = lados();
+    assert.equal(caja.nadaQueSumar(copia(computador), copia(celular)), false,
+      'la nube trae un abono que el pacto de acá no conoce: la subida no puede heredar su revisión');
+    assert.equal(caja.nadaQueSumar(copia(celular), copia(computador)), false);
+    assert.equal(caja.nadaQueSumar(copia(computador), copia(computador)), true, 'lo idéntico sigue sin choque');
+  }
+
+  /* LA EXCEPCIÓN: si el lado sin pacto no anotó nada que el pacto no
+     conociera y no hay otro campo en discusión, ese lado va atrás y el pacto
+     entra sin choque (con choque, Joan aprende a tocar «lo mío» sin leer). */
+  function nadaQueDecidir() {
+    /* Pacto del mismo día con otro monto (el corte no se mueve) y un celular
+       que solo anotó un comprobante. */
+    const base = conAbonoYProrroga(credito());
+    const computador = pactar(copia(base), { fecha: CRM_FECHA, monto: 290000 }, '2026-11-02');
+    const celular = copia(base);
+    celular.comprobantes = celular.comprobantes.concat([{ fecha: '2026-11-03', tipo: 'otro', monto: 0 }]);
+    const f = NUBE.fusionarFila(copia(celular), copia(computador));
+    assert.deepEqual(f.pisables, []);
+    assert.deepEqual(f.fila.planPagos, computador.planPagos);
+    assert.equal(P.liquidarCiclo(f.fila, CRM_FECHA).total_a_pagar, 290000);
+    /* Del otro lado, el plan es «un campo que solo tengo yo» —el pisable de
+       siempre, sin nada de allá que pisar— y no hay choque del pago acordado. */
+    const g = NUBE.fusionarFila(copia(computador), copia(celular));
+    assert.ok(!g.pisables.some(x => x.campo === 'pagoAcordado'));
+    assert.ok(g.pisables.every(x => x.suyo === undefined));
+    assert.deepEqual(g.fila.planPagos, computador.planPagos);
+  }
+
+  test('el celular: la tarjeta dice lo que hace cada botón, y los dos botones hacen eso: ninguno cobra dos veces', () => {
+    const { e, computador, celular } = lados();
+    choqueEnElCelular(e, celular, computador);
+    const t = plano(e.ev('bloqueChoques()'));
+    assert.match(t, /El pago acordado no se junta con lo que no conocía\. Con Mandar lo mío encima queda lo de este celular \(sin pago acordado: abono 05 de nov de 2026 \$50\.000\) y lo de la nube \(pago acordado \$280\.000 el 20 de nov de 2026\) no entra\./);
+    assert.match(t, /Con Dejar lo de la nube es al revés: queda lo de la nube y lo de este celular no entra\./);
+    assert.ok(!/Los pagos de las cuotas no se juntan/.test(t), 'le habló de cuotas a un pago acordado');
+    e.tocar('choque-mio', { i: '0' });
+    const q = e.json('DB.prestamos[0]');
+    assert.ok(!q.planPagos, 'con «lo mío» entró el pacto de la nube');
+    assert.deepEqual(q.abonosCapital.map(a => a.monto), [375000, 50000]);
+    assert.equal(capitalQueCobra(q), PRESTADO);
+    const sube = e.json('COLA').filter(c => c.id === 'c1')[0];
+    assert.ok(sube && !sube.datos.planPagos, 'a la nube sube la misma versión');
+    /* Y «Dejar lo de la nube» deja el pacto entero, sin el abono que no conocía. */
+    const otra = lados();
+    choqueEnElCelular(otra.e, otra.celular, otra.computador);
+    otra.e.tocar('choque-nube', { i: '0' });
+    const n = otra.e.json('DB.prestamos[0]');
+    assert.ok(P.esPacto(n));
+    assert.deepEqual(n.abonosCapital.map(a => a.monto), [375000]);
+    assert.equal(capitalQueCobra(n), PRESTADO);
+  });
+
+  test('subir.html: «Dejar lo de la nube» (la del celular) no mete el pacto, y su texto lo dice', () => {
+    const { computador, celular } = lados();
+    const S = abrirSubir();
+    S.choque(computador, celular);
+    const nube = S.loDeLaNube();
+    assert.match(nube, /El pago acordado no se junta con lo que no conocía: queda lo de la nube \(sin pago acordado: abono 5 nov 2026 \$50\.000\) y lo de este computador \(pago acordado \$280\.000 el 20 nov 2026\) no entra\./);
+    const conLaNube = S.conLaNube();
+    assert.equal(conLaNube.planPagos, undefined, 'fusionarConLoMio metió el pacto que el texto dice que no entra');
+    assert.equal(capitalQueCobra(conLaNube), PRESTADO);
+    const mio = S.loMio();
+    assert.match(mio, /queda lo de este computador \(pago acordado \$280\.000 el 20 nov 2026\) y lo de la nube \(sin pago acordado: abono 5 nov 2026 \$50\.000\) no entra/);
+    const conLoMio = S.conLoMio();
+    assert.ok(P.esPacto(conLoMio));
+    assert.equal(capitalQueCobra(conLoMio), PRESTADO);
+    /* Y la tarjeta enseña los dos lados en la misma línea. */
+    assert.match(S.tarjeta(), /pago acordado pago acordado \$280\.000 el 20 nov 2026 .*pago acordado sin pago acordado: abono 5 nov 2026 \$50\.000/);
+  });
+});
+
+/* ==========================================================================
+ * N2 — LA PRÓRROGA QUE EL PACTO NO CONOCÍA
+ * ======================================================================== */
+describe('N2 · una prórroga del otro lado no se suma callada a un pago acordado', () => {
+
+  /* El 28-oct Joan acuerda 780.000 el 20-nov (costo 155.000 por todo el
+     tramo). El 31-oct el celular, con la copia vieja, cobra la prórroga. */
+  function lados() {
+    const base = credito();
+    const computador = pactar(copia(base), { fecha: SUYA, monto: 780000 }, '2026-10-28');
+    const e = abrirEspejo({ cartera: cartera([copia(base)]), ahora: '2026-10-31T10:30:00' });
+    e.ev("prorrogar('c1', '2026-10-31')");
+    const celular = e.json('DB.prestamos[0]');
+    assert.equal(celular.prorrogas.length, 1, 'el celular cobró la prórroga');
+    assert.equal(celular.prorrogas[0].monto, 125000);
+    return { e, computador, celular };
+  }
+
+  test('el celular elige lo suyo: queda la prórroga sin el pacto, y el corte es el 17-nov que dijo la tarjeta', () => {
+    const { e, computador, celular } = lados();
+    choqueEnElCelular(e, celular, computador);
+    e.ev('_choqueAbierto = 0');
+    const t = plano(e.ev('bloqueChoques()'));
+    assert.match(t, /Corte vigente 17 de nov de 2026/);
+    assert.match(t, /queda lo de este celular \(sin pago acordado: prórroga 31 de oct de 2026 \$125\.000\) y lo de la nube \(pago acordado \$780\.000 el 20 de nov de 2026\) no entra/);
+    e.tocar('choque-mio', { i: '0' });
+    const q = e.json('DB.prestamos[0]');
+    assert.ok(!q.planPagos, 'el pacto entró callado junto con la prórroga');
+    assert.equal(P.corteDelCredito(q), CRM_FECHA, 'la tarjeta prometió el 17-nov');
+    const g = P.gananciaDelCredito(q);
+    assert.equal(g.cobrado, 125000);
+    assert.equal(g.cobrado + g.pendiente, 250000, 'dos quincenas al 20%, nada cobrado dos veces');
+  });
+
+  test('el pacto que se queda no trae la prórroga que no conocía: cobra lo que Joan acordó', () => {
+    const { computador, celular } = lados();
+    const g = NUBE.fusionarFila(copia(computador), copia(celular));
+    assert.ok(P.esPacto(g.fila));
+    assert.deepEqual(g.fila.prorrogas, [], 'la prórroga del celular se sumó al pacto');
+    assert.equal(P.liquidarCiclo(g.fila, SUYA).total_a_pagar, 780000);
+    assert.equal(P.gananciaDelCredito(g.fila).ganancia, 155000, 'el período se cobra una vez');
+    const pa = g.pisables.find(x => x.campo === 'pagoAcordado');
+    assert.equal(pa.suyo, 'sin pago acordado: prórroga 2026-10-31 $125000');
+    /* subir.html, con el computador eligiendo lo suyo: lo mismo. */
+    const S = abrirSubir();
+    S.choque(computador, celular);
+    assert.deepEqual(S.conLoMio().prorrogas, []);
+    assert.match(S.loMio(), /lo de la nube \(sin pago acordado: prórroga 31 oct 2026 \$125\.000\) no entra/);
+    assert.equal(S.conLaNube().planPagos, undefined);
+  });
+
+  test('una prórroga con su perdón de mora: el perdón se va con ella', () => {
+    const { computador, celular } = lados();
+    const otro = copia(celular);
+    otro.condonaciones = [{ fecha: '2026-10-31', costo: 0, mora: 3000, motivo: 'x', sobre: 'prorroga' }];
+    const g = NUBE.fusionarFila(copia(computador), otro);
+    assert.deepEqual(g.fila.condonaciones || [], [], 'quedó el perdón de una prórroga que no está');
+  });
+});
+
+/* ==========================================================================
+ * N3 — EL PERDÓN DE CAPITAL VA ATADO A SU PACTO
+ * ======================================================================== */
+describe('N3 · el perdón de capital existe solo mientras su pacto sea el vigente', () => {
+
+  test('el celular cobró «Pagó todo» y Joan elige el cobro: el perdón del pacto que perdió no resta nada', () => {
+    const base = credito();
+    const computador = pactar(copia(base), { fecha: SUYA, monto: 600000, motivo: 'se le murió el papá' }, '2026-10-25');
+    assert.equal(P.capitalPerdonadoDe(computador), 25000);
+    const e = abrirEspejo({ cartera: cartera([copia(base)]), ahora: '2026-10-31T10:30:00' });
+    e.ev("cobrar('c1', '2026-10-31')");
+    const celular = e.json('DB.prestamos[0]');
+    assert.equal(celular.pagado, true);
+    choqueEnElCelular(e, celular, computador);
+    e.tocar('choque-mio', { i: '0' });
+    const q = e.json('DB.prestamos[0]');
+    assert.equal(q.pagado, true);
+    assert.equal(P.capitalPerdonadoDe(q), 0);
+    assert.equal(P.capitalRecuperadoDe(q), PRESTADO, 'entraron los 625.000');
+    assert.deepEqual([P.gananciaDelCredito(q).ganancia, P.gananciaDelCredito(q).pct], [125000, 20]);
+    assert.deepEqual(P.descuentosDelSocio(cartera([q]), { id: 's1' }), { veces: 0, monto: 0, costo: 0, mora: 0 });
+    /* Y en el computador, «Dejar lo de la nube» (la del celular): igual. */
+    const S = abrirSubir();
+    S.choque(computador, celular);
+    const n = S.conLaNube();
+    assert.equal(P.capitalRecuperadoDe(n), PRESTADO);
+    assert.equal(P.gananciaDelCredito(n).ganancia, 125000);
+  });
+
+  test('una condonación de capital sin su pacto en el plan es un perdón que no existe', () => {
+    /* Como la dejaba la nube antes de esta revisión: la lista suma, el plan no. */
+    const conPacto = pactar(credito(), { fecha: SUYA, monto: 600000, motivo: 'x' }, '2026-10-25');
+    const huerfano = Object.assign(credito({ pagado: true, fechaPagado: DIA, cicloPago: DIA, gananciaPago: 125000,
+      montoRecibido: 750000 }), { condonaciones: copia(conPacto.condonaciones) });
+    assert.equal(P.capitalPerdonadoDe(huerfano), 0);
+    assert.equal(P.capitalRecuperadoDe(huerfano), PRESTADO);
+    assert.equal(P.gananciaDelCredito(huerfano).ganancia, 125000);
+    assert.deepEqual(P.descuentosDelSocio(cartera([huerfano]), { id: 's1' }).monto, 0);
+  });
+
+  test('dos pactos distintos: gana un plan y cuenta SU perdón, no los dos', () => {
+    const base = conAbonoYProrroga(credito());
+    const a = pactar(copia(base), { fecha: SUYA, monto: 240000, motivo: 'diez' }, '2026-11-02');
+    const b = pactar(copia(base), { fecha: SUYA, monto: 230000, motivo: 'veinte' }, '2026-11-02');
+    const f = NUBE.fusionarFila(copia(a), copia(b));
+    assert.deepEqual(f.fila.planPagos, a.planPagos);
+    assert.deepEqual(f.fila.condonaciones.map(c => c.capital), [10000]);
+    assert.equal(P.capitalActual(f.fila), 240000);
+    assert.equal(P.liquidarCiclo(f.fila, SUYA).total_a_pagar, 240000, 'la cuota y el capital dicen lo mismo');
+    assert.ok(f.pisables.some(x => x.campo === 'pagoAcordado' &&
+      /\$240000 el 2026-11-20, perdonando \$10000/.test(x.mio) && /\$230000 el 2026-11-20, perdonando \$20000/.test(x.suyo)));
+    /* Aunque la lista traiga los dos perdones, cuenta el del plan vigente. */
+    const union = Object.assign(copia(a), { condonaciones: a.condonaciones.concat(b.condonaciones) });
+    assert.equal(P.capitalPerdonadoDe(union), 10000);
+    assert.equal(P.capitalActual(union), 240000);
+    assert.equal(P.descuentosDelSocio(cartera([union]), { id: 's1' }).monto, 10000);
+  });
+});
+
+/* ==========================================================================
+ * N4 — DOS PERDONES IGUALES DEL MISMO DÍA SON DOS
+ * ======================================================================== */
+describe('N4 · cada perdón de un pacto lleva su id, y dos iguales del mismo día no se funden', () => {
+
+  function dosVeces() {
+    const base = conAbonoYProrroga(credito());
+    const uno = pactar(copia(base), { fecha: SUYA, monto: 240000, motivo: 'uno' }, DIA);
+    const dos = pactar(copia(uno), { fecha: SUYA, monto: 230000, motivo: 'dos' }, DIA);
+    return { uno, dos };
+  }
+
+  test('los dos perdones de 10.000 tienen ids distintos, atados a su cambio del plan', () => {
+    const { dos } = dosVeces();
+    assert.equal(dos.condonaciones.length, 2);
+    assert.notEqual(dos.condonaciones[0].id, dos.condonaciones[1].id);
+    assert.deepEqual(dos.condonaciones.map(c => c.id), dos.planPagos.cambios.map(c => c.id));
+    assert.deepEqual(P.perdonesDeCapital(dos).map(x => [x.capital, x.motivo]), [[10000, 'uno'], [10000, 'dos']]);
+    assert.equal(P.capitalActual(dos), 230000);
+  });
+
+  test('ninguna fusión los junta: ni contra sí mismo, ni «lo mío» contra la versión del primer pacto', () => {
+    const { uno, dos } = dosVeces();
+    const g = NUBE.fusionarFila(copia(dos), copia(dos));
+    assert.equal(g.fila.condonaciones.length, 2);
+    const f = NUBE.fusionarFila(copia(dos), copia(uno));
+    assert.equal(f.fila.condonaciones.length, 2);
+    assert.equal(P.capitalActual(f.fila), 230000);
+    assert.equal(P.liquidarCiclo(f.fila, SUYA).total_a_pagar, 230000);
+    /* Volver a pactar después de la fusión cuadra. */
+    const r = P.pactarProximoPago(cartera([f.fila]), f.fila, { fecha: SUYA, monto: 220000, motivo: 'tres' }, DIA);
+    assert.equal(r.ok, true, r.detalle);
+    /* Y el lado del primer pacto se queda con UN perdón, el suyo, y cuadra. */
+    const h = NUBE.fusionarFila(copia(uno), copia(dos));
+    assert.equal(h.fila.condonaciones.length, 1);
+    assert.equal(P.capitalActual(h.fila), 240000);
+    assert.equal(P.liquidarCiclo(h.fila, SUYA).total_a_pagar, 240000);
+  });
+
+  test('subir.html y nube.js le ponen el id a la identidad de las condonaciones; las viejas no cambian', () => {
+    assert.deepEqual(NUBE.LISTAS_QUE_SUMAN.condonaciones, ['fecha', 'costo', 'mora', 'capital', 'id']);
+    const S = abrirSubir();
+    assert.deepEqual(JSON.parse(S.ev('JSON.stringify(LISTAS_QUE_SUMAN.creditos.condonaciones)')),
+      ['fecha', 'costo', 'mora', 'capital', 'id']);
+    const vieja = { fecha: DIA, costo: 5000, mora: 2000, motivo: 'a' };
+    const f = NUBE.fusionarFila({ id: 'c1', condonaciones: [vieja] }, { id: 'c1', condonaciones: [Object.assign({}, vieja, { motivo: 'b' })] });
+    assert.equal(f.fila.condonaciones.length, 1, 'el mismo perdón viejo, anotado en los dos lados, es uno');
+    /* «Mandar lo mío encima» del computador con los dos perdones: quedan los dos. */
+    const { uno, dos } = dosVeces();
+    S.choque(dos, uno);
+    assert.equal(S.conLoMio().condonaciones.length, 2);
+  });
+});
+
+/* ==========================================================================
+ * N5 — EL CELULAR CUENTA LOS DESCUENTOS CON EL PUENTE
+ * ======================================================================== */
+describe('N5 · el celular dice los descuentos del cliente con la cuenta del puente', () => {
+
+  test('un perdón de 10.000 de capital: «Ya lleva 1 descuento(s) por $10.000», como el CRM', () => {
+    const c1 = pactar(conAbonoYProrroga(credito()), { fecha: SUYA, monto: 240000, motivo: 'uno' }, DIA);
+    const c2 = credito({ id: 'c2', numero: 8, capital: 200000, fechaDesembolso: '2026-10-20', cicloActual: '2026-11-04' });
+    const db = cartera([c1, c2]);
+    const e = abrirEspejo({ cartera: db, ahora: '2026-11-04T10:30:00' });
+    const d = e.json("descuentosDelSocio(socioDe(creditoPorId('c2')))");
+    assert.deepEqual(d, P.descuentosDelSocio(db, db.socios[0]));
+    assert.equal(d.monto, 10000);
+    /* En la hoja de cobro de verdad, con 5.000 menos y «Se lo perdoné». */
+    e.ev("document.querySelector=function(s){return s==='.hoja-caja'?{scrollTop:0}:null}");
+    e.ev("abrirCobro('c2')");
+    const total = e.ev("Math.round(liq(creditoPorId('c2'), '2026-11-04').total_a_pagar)");
+    e.ev("_cobro.monto = " + (total - 5000) + "; _cobro.modo = 'perdon'; pintarDif('c2')");
+    assert.match(plano(e.elems.pgDif.innerHTML), /Ya lleva 1 descuento\(s\) por \$10\.000\./);
+  });
+
+  test('el celular ya no tiene su copia de la cuenta', () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'panel', 'espejo.html'), 'utf8').replace(/\r\n/g, '\n');
+    const i = src.indexOf('\nfunction descuentosDelSocio(');
+    const cuerpo = src.slice(i, src.indexOf('\n}\n', i));
+    assert.match(cuerpo, /return P\.descuentosDelSocio\(DB, s\);/);
+    assert.ok(!/condonaciones/.test(cuerpo), 'volvió la copia de la cuenta en el celular');
+  });
+});

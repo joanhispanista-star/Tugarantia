@@ -5439,6 +5439,12 @@ function verCliente(id){
      desde ahí miente para siempre. Tenerlo en la ficha es lo que convierte un
      favor suelto en una política. */
   const dsc=PUENTE.descuentosDelSocio(DB,s), perdones={length:dsc.veces}, perdonado=dsc.monto;
+  /* 22-oct-2026 — de qué fue el perdón, con el capital que perdonó un pago
+     acordado (el monto del puente lo trae; costo y mora van aparte). Decía
+     « de mora» de un perdón que era todo capital. */
+  const partesDelPerdon=d=>{ const cap=Math.max(0,d.monto-d.costo-d.mora), ps=[];
+    if(d.mora) ps.push(['mora',d.mora]); if(d.costo) ps.push(['costo',d.costo]); if(cap) ps.push(['capital',cap]);
+    return ps.length>1?' ('+ps.map(x=>COP(x[1])+' de '+x[0]).join(' + ')+')':ps.length?' de '+ps[0][0]:''; };
   /* 7-sep-2026 — lo que te ha pagado DE MÁS, sumado. Es plata de él que tienes
      tú: se ve acá y en el crédito, y no se aplica sola a ningún crédito
      siguiente — la mano es la de Joan, y la pantalla no promete otra cosa. */
@@ -5532,7 +5538,7 @@ function verCliente(id){
     <div class="info-row"><span class="k">Nivel <span class="muted">(el tramo de su garantía · no le mueve el cupo)</span></span><span class="vv"><b>${escHTML(MotorReglas.nombreNivel(mg.nivel))}</b> <span class="muted">· le da ${nivProrr} prórroga${nivProrr!==1?'s':''} por crédito, y sigue a la garantía: si ella sube o baja, el nivel también</span></span></div>
     <div class="info-row"><span class="k">Cupo quincenal <span class="muted">(su garantía, uno a uno)</span></span><span class="vv"><b>${COP(qCupo.cupo)}</b>${qCupo.freno.aplicado?` <span class="muted">(topado por el freno de ingreso: sin él sería ${COP(qCupo.freno.cupo_sin_freno)})</span>`:''}</span></div>
     <div class="info-row"><span class="k">Riesgo (sugerido)</span><span class="vv"><span class="chip ${r.cls}">${r.txt}</span> <span class="muted">${npr} prórroga${npr!==1?'s':''} de ${ps.length} crédito${ps.length!==1?'s':''}</span></span></div>
-    ${perdones.length?`<div class="info-row"><span class="k">Descuentos que le has dado</span><span class="vv"><b>${COP(perdonado)}</b> <span class="muted">en ${perdones.length} perdón${perdones.length!==1?'es':''}${dsc.costo&&dsc.mora?` (${COP(dsc.mora)} de mora + ${COP(dsc.costo)} de costo)`:dsc.costo?' de costo':' de mora'}, con motivo anotado</span></span></div>`:''}
+    ${perdones.length?`<div class="info-row"><span class="k">Descuentos que le has dado</span><span class="vv"><b>${COP(perdonado)}</b> <span class="muted">en ${perdones.length} perdón${perdones.length!==1?'es':''}${partesDelPerdon(dsc)}, con motivo anotado</span></span></div>`:''}
     ${aFavorTotal>0?`<div class="info-row"><span class="k">Te ha pagado de más</span><span class="vv"><b>${COP(aFavorTotal)}</b> <span class="muted">anotado en sus créditos · NO se descuenta solo del siguiente: se lo aplicas tú a mano o se lo devuelves</span></span></div>`:''}
     ${fila('Celular',waNum(s)+(s.whatsappIgual?' (es WhatsApp)':(s.whatsappNumero?' · WA: '+s.whatsappNumero:'')))}
     ${fila('Celular 2 (opcional)',s.telefono2)}
@@ -6290,7 +6296,7 @@ function verCredito(id){
     ${filaGanancia}
     <div class="info-row"><span class="k">Desembolso</span><b>${fmtFecha(p.fechaDesembolso)}</b></div>
     <div class="info-row"><span class="k">${p.pagado?'Pagado el':(pactoV?'Paga (fecha acordada)':cP?`Vence la cuota ${cP.n}`:'Vence (quincena)')}</span><b>${p.pagado?fmtFecha(p.fechaPagado):fmtFecha(PUENTE.corteDelCredito(p))}</b></div>
-    ${(()=>{ /* solo los perdones del CIERRE: los de prórroga van en su renglón */ const cc=(p.condonaciones||[]).filter(c=>c&&c.sobre!=='prorroga'); return p.pagado&&p.montoRecibido!=null&&cc.length?`<div class="info-row"><span class="k">Entró de verdad</span><span class="vv"><b>${COP(p.montoRecibido)}</b> <span class="muted">con ${COP(cc.reduce((t,c)=>t+(Number(c.costo)||0)+(Number(c.mora)||0),0))} perdonados al cerrar: ${escHTML(cc.map(c=>c.motivo).filter(Boolean).join(' · '))}</span></span></div>`:''; })()}
+    ${(()=>{ /* solo los perdones del CIERRE: los de prórroga van en su renglón */ const cc=(p.condonaciones||[]).filter(c=>c&&c.sobre!=='prorroga'&&c.sobre!=='pacto'); /* 22-oct-2026: ni el capital perdonado al pactar, que no es un perdón del cierre */ return p.pagado&&p.montoRecibido!=null&&cc.length?`<div class="info-row"><span class="k">Entró de verdad</span><span class="vv"><b>${COP(p.montoRecibido)}</b> <span class="muted">con ${COP(cc.reduce((t,c)=>t+(Number(c.costo)||0)+(Number(c.mora)||0),0))} perdonados al cerrar: ${escHTML(cc.map(c=>c.motivo).filter(Boolean).join(' · '))}</span></span></div>`:''; })()}
     ${p.saldoAFavor>0?`<div class="info-row"><span class="k">Pagó de más</span><span class="vv"><b>${COP(p.saldoAFavor)}</b> <span class="muted">a su favor · anotado acá, NO se aplica solo al crédito siguiente</span></span></div>`:''}
     ${pr?`<div class="sub-h">Prórrogas</div>${pr}`:''}
     ${abs?`<div class="sub-h">Abonos a capital</div>${abs}`:''}

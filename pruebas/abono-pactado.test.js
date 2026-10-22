@@ -91,6 +91,21 @@ function abonoPactado(monto, motivo, fecha) {
     { pacto: { fecha: fecha || SUYA, monto, motivo }, quien: 'computador' });
   return { p, r };
 }
+/* 22-oct-2026 (revisión) — cada pacto lleva su `id` (reloj + azar), en su
+   cambio del plan y en su condonación: se mira que esté, y se compara el resto. */
+const ID_PACTO = /^pacto-\d{4}-\d{2}-\d{2}-[0-9a-z]+$/;
+function sinId(o) {
+  if (Array.isArray(o)) return o.map(sinId);
+  assert.match(String(o && o.id), ID_PACTO, 'cada pacto lleva su id');
+  const c = Object.assign({}, o);
+  delete c.id;
+  return c;
+}
+function planSinIds(pp) {
+  const c = copia(pp);
+  c.cambios = sinId(c.cambios || []);
+  return c;
+}
 /* El crédito del caso, ya registrado con el pago de Joan. */
 function pactado(monto, motivo) {
   const { p, r } = abonoPactado(monto == null ? 280000 : monto, motivo);
@@ -143,7 +158,7 @@ describe('A. la regla: el próximo pago lo decide Joan, con el tope y sin piso',
     const c = g.planPagos.cuotas[0];
     assert.deepEqual([c.fecha, c.capital, c.costo, c.total, c.pagado], [SUYA, 250000, 30000, 280000, false]);
     // Queda anotado quién, cuándo, cuánto y lo que decía el CRM.
-    assert.deepEqual(g.planPagos.cambios, [{ n: 1, fecha: DIA, pacto: true, quien: 'computador',
+    assert.deepEqual(sinId(g.planPagos.cambios), [{ n: 1, fecha: DIA, pacto: true, quien: 'computador',
       de: { fecha: CRM_FECHA, total: 300000, capital: 250000, costo: 50000 },
       a: { fecha: SUYA, total: 280000, capital: 250000, costo: 30000 }, perdona: 0 }]);
     assert.equal(g.condonacionPacto, null);
@@ -170,7 +185,8 @@ describe('A. la regla: el próximo pago lo decide Joan, con el tope y sin piso',
     assert.equal(r.proximo.perdona, 10000);
     assert.equal(r.proximo.capital, 240000);
     assert.equal(r.proximo.costo, 0);
-    assert.deepEqual(r.registros.condonacionPacto, { fecha: DIA, costo: 0, mora: 0, capital: 10000,
+    assert.equal(r.registros.condonacionPacto.id, r.registros.planPagos.cambios[0].id, 'el perdón va atado a su pacto');
+    assert.deepEqual(sinId(r.registros.condonacionPacto), { fecha: DIA, costo: 0, mora: 0, capital: 10000,
       motivo: 'cliente de años', quien: 'computador', sobre: 'pacto', para: SUYA });
     assert.equal(r.ganancia.ganancia, 115000);
     assert.equal(r.ganancia.perdonado, 10000);
@@ -473,7 +489,7 @@ describe('B. el CRM: las dos casillas, lo que te deja y «✏️ Ajustar el pró
     assert.equal(p.cicloActual, SUYA);
     assert.equal(p.prorrogas.length, 1);
     assert.equal(p.abonosCapital[0].monto, 375000);
-    assert.deepEqual(p.planPagos, abonoPactado(280000).r.registros.planPagos);
+    assert.deepEqual(planSinIds(p.planPagos), planSinIds(abonoPactado(280000).r.registros.planPagos));
     // El recibo por WhatsApp lee lo GUARDADO.
     B.ev("gestionar('c1','abonoProrroga')");
     const wa = String(B.elems.gTexto.value || plano(html(B, 'mBody')));
@@ -499,7 +515,8 @@ describe('B. el CRM: las dos casillas, lo que te deja y «✏️ Ajustar el pró
     assert.equal(B.ev('_guardados'), 1);
     assert.match(confs(B)[0], /le perdonas \$10\.000 \(cliente de años\): debe \$240\.000/);
     const p = leer(B).prestamos[0];
-    assert.deepEqual(p.condonaciones, [{ fecha: DIA, costo: 0, mora: 0, capital: 10000, motivo: 'cliente de años',
+    assert.equal(p.condonaciones[0].id, p.planPagos.cambios[0].id, 'el perdón va atado a su pacto');
+    assert.deepEqual(sinId(p.condonaciones), [{ fecha: DIA, costo: 0, mora: 0, capital: 10000, motivo: 'cliente de años',
                                           quien: 'computador', sobre: 'pacto', para: SUYA }]);
     assert.equal(P.capitalActual(p), 240000);
   });
@@ -569,7 +586,7 @@ describe('B. el CRM: las dos casillas, lo que te deja y «✏️ Ajustar el pró
     B.ev("guardarAjuste('c1')");
     const p = leer(B).prestamos[0];
     assert.equal(p.cicloActual, SUYA);
-    assert.deepEqual(p.planPagos, abonoPactado(280000).r.registros.planPagos);
+    assert.deepEqual(planSinIds(p.planPagos), planSinIds(abonoPactado(280000).r.registros.planPagos));
   });
 
   test('ajustar un pago VENCIDO: dice por qué, ofrece los caminos y no guarda nada', () => {
@@ -682,27 +699,42 @@ describe('E. la nube no pierde el pacto ni cuenta dos veces la plata', () => {
     return { computador: pactado(240000, 'cliente de años'), celular: sinPacto };
   }
 
-  test('el pacto de un lado entra al otro con su perdón, y el corte distinto es un choque que ve Joan', () => {
+  /* 22-oct-2026 (revisión) — esta prueba decía que el pacto «entra al otro con
+     su perdón». Era el defecto N1 de la revisión de plata: con el corte en
+     discusión, «lo mío» del lado sin pacto se quedaba con el pacto de allá
+     (el bucle de fusionarFila copia sin preguntar un campo que solo está de un
+     lado), y con cualquier abono del celular cobraba capital dos veces. El
+     pacto viaja entero con su lado: ver pruebas/pacto-en-la-nube.test.js. */
+  test('el pacto de un lado NO entra a la versión del otro cuando hay algo en discusión: lo decide Joan', () => {
     const { computador, celular } = lados();
     const f = NUBE.fusionarFila(copia(celular), copia(computador));
-    assert.deepEqual(f.fila.planPagos, computador.planPagos);
-    assert.deepEqual(f.fila.condonaciones, computador.condonaciones);
+    assert.equal(f.fila.planPagos, undefined, '«lo mío» del lado sin pacto se queda sin el pacto');
+    assert.deepEqual(f.fila.condonaciones, [], 'ni con su perdón');
     assert.equal(f.fila.prorrogas.length, 1, 'la misma prórroga no se cuenta dos veces');
     assert.equal(f.fila.abonosCapital.length, 1, 'el mismo abono no se cuenta dos veces');
-    assert.equal(P.capitalActual(f.fila), 240000);
-    assert.equal(P.corteDelCredito(f.fila), SUYA, 'el corte sale de la cuota acordada');
+    assert.equal(P.capitalActual(f.fila), 250000);
+    assert.equal(P.corteDelCredito(f.fila), CRM_FECHA);
     assert.ok(f.pisables.some(x => x.campo === 'cicloActual'));
+    assert.ok(f.pisables.some(x => x.campo === 'pagoAcordado' &&
+      x.suyo === 'pago acordado $240000 el ' + SUYA + ', perdonando $10000 de capital'));
     const g = NUBE.fusionarFila(copia(computador), copia(celular));
     assert.deepEqual(g.fila.planPagos, computador.planPagos);
+    assert.deepEqual(g.fila.condonaciones, computador.condonaciones);
     assert.equal(P.capitalActual(g.fila), 240000);
+    assert.equal(P.corteDelCredito(g.fila), SUYA, 'el corte sale de la cuota acordada');
   });
 
+  /* 22-oct-2026 (revisión) — con perdones de verdad, de dos pactos del mismo
+     día: desde la revisión el perdón se cuenta desde su plan (un perdón sin su
+     pacto no existe) y cada uno lleva su id. */
   test('dos perdones de capital del mismo día son dos hechos, no uno', () => {
-    const a = { fecha: DIA, costo: 0, mora: 0, capital: 10000, motivo: 'uno', sobre: 'pacto' };
-    const b = { fecha: DIA, costo: 0, mora: 0, capital: 5000, motivo: 'otro', sobre: 'pacto' };
-    const f = NUBE.fusionarFila({ id: 'c1', condonaciones: [a] }, { id: 'c1', condonaciones: [b] });
+    const p = pactado(240000, 'cliente de años');
+    const r = P.pactarProximoPago(cartera([p]), p, { fecha: SUYA, monto: 235000, motivo: 'otro' }, DIA);
+    aplicarPacto(p, r);
+    const f = NUBE.fusionarFila(copia(p), copia(p));
     assert.equal(f.fila.condonaciones.length, 2);
-    assert.equal(P.capitalPerdonadoDe({ condonaciones: f.fila.condonaciones }), 15000);
+    assert.equal(P.capitalPerdonadoDe(f.fila), 15000);
+    assert.equal(P.capitalActual(f.fila), 235000);
   });
 
   test('un abono suelto que el pacto no conocía es un choque en pesos, no capital contado dos veces', () => {
@@ -713,11 +745,14 @@ describe('E. la nube no pierde el pacto ni cuenta dos veces la plata', () => {
     otro.cicloActual = CRM_FECHA;
     otro.abonosCapital.push({ fecha: '2026-11-01', monto: 50000, ciclo: CRM_FECHA, costoCausado: 50000, moraCausada: 0 });
     const f = NUBE.fusionarFila(copia(computador), copia(otro));
-    const ch = f.pisables.find(x => x.campo === 'abonosCapital');
+    /* 22-oct-2026 (revisión): el choque se llama `pagoAcordado` —el de las
+       cuotas es otro, con otro texto— y trae lo de cada lado. */
+    const ch = f.pisables.find(x => x.campo === 'pagoAcordado');
     assert.ok(ch, 'debió avisar');
     assert.match(String(ch.suyo), /abono 2026-11-01 \$50000/);
     assert.equal(f.fila.abonosCapital.length, 1, '«lo mío encima» se queda con lo que el pacto conocía');
     const g = NUBE.fusionarFila(copia(otro), copia(computador));
-    assert.ok(g.pisables.some(x => x.campo === 'abonosCapital'), 'y desde el otro lado, también');
+    assert.ok(g.pisables.some(x => x.campo === 'pagoAcordado'), 'y desde el otro lado, también');
+    assert.equal(g.fila.planPagos, undefined, 'y desde ese lado el pacto no entra');
   });
 });

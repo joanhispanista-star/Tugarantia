@@ -292,15 +292,56 @@
      si siguiera contando en capitalActual, el cliente debería 250.000 y su
      próximo pago diría 240.000, y la mora, la «capital en la calle» y el
      recibo dirían cada uno una cosa. Con `hasta`, solo lo perdonado hasta ese
-     día (la línea de tiempo no le borra capital a un día que ya pasó). */
+     día (la línea de tiempo no le borra capital a un día que ya pasó).
+
+     22-oct-2026 — EL PERDÓN VIAJA ATADO A SU PACTO, y por eso se lee del PLAN,
+     no de la lista. La primera versión sumaba toda condonación con `capital`
+     de `p.condonaciones`, y esa lista solo suma en la nube: si en un choque
+     ganaba la versión SIN ese pacto (el celular cobró «Pagó todo» con la copia
+     vieja y Joan eligió el cobro), el perdón se quedaba igual, huérfano, y le
+     restaba 25.000 a una plata que sí entró: capitalRecuperadoDe 600.000 de
+     625.000, «te dejó 16%» en vez de 20% y «1 descuento por $25.000» de un
+     perdón que no existió. Con dos pactos distintos gana un plan y quedaban
+     los dos perdones (cuota de 230.000 con capital 220.000). El plan
+     (`planPagos`) es un campo que viaja ENTERO con el lado que Joan elige, y
+     cada pacto anota su perdón en `planPagos.cambios[].perdona`: ahí está el
+     perdón del plan VIGENTE y de ningún otro. Si gana la versión sin ese
+     pacto, el perdón no existe. La condonación de la lista se queda como el
+     registro con su motivo, atada al cambio por el mismo `id`. */
   function capitalPerdonadoDe(p, hasta) {
+    return perdonesDeCapital(p, hasta).reduce(function (t, x) { return t + x.capital; }, 0);
+  }
+  /* Los perdones de capital del plan vigente, uno por pacto que perdonó:
+     {fecha, capital, para, id, motivo}. El monto sale del cambio del plan; el
+     motivo, de su condonación (mismo `id`; un cambio sin id —no los hubo fuera
+     de las pruebas— se aparea por fecha y monto). Solo un plan con `pacto`
+     perdona capital: el crédito a cuotas y el plan del §8 no tienen esta
+     puerta. */
+  function perdonesDeCapital(p, hasta) {
+    var pp = p && p.planPagos;
+    if (!pp || typeof pp !== 'object' || !pp.pacto || typeof pp.pacto !== 'object') return [];
     var h = fechaFin(hasta);
-    return lista(p && p.condonaciones).reduce(function (t, c) {
-      var v = Math.max(0, Math.round(num(c && c.capital)));
-      if (!v) return t;
-      var f = fechaFin(c.fecha);
-      return (!h || !f || f <= h) ? t + v : t;
-    }, 0);
+    var conds = lista(p.condonaciones).filter(function (c) { return !!c && num(c.capital) > 0; });
+    var usadas = {};
+    var salida = [];
+    lista(pp.cambios).forEach(function (cb) {
+      var v = Math.max(0, Math.round(num(cb && cb.perdona)));
+      if (!cb || !cb.pacto || !v) return;
+      var f = fechaFin(cb.fecha);
+      if (h && f && f > h) return;
+      var cond = null;
+      for (var i = 0; i < conds.length && !cond; i++) {
+        if (usadas[i]) continue;
+        var c = conds[i];
+        var mismo = cb.id != null && cb.id !== ''
+          ? c.id === cb.id
+          : (c.id == null || c.id === '') && fechaFin(c.fecha) === f && Math.round(num(c.capital)) === v;
+        if (mismo) { usadas[i] = true; cond = c; }
+      }
+      salida.push({ fecha: f, capital: v, para: fechaFin(cb.a && cb.a.fecha) || fechaFin(cond && cond.para),
+                    id: cb.id == null ? null : cb.id, motivo: cond ? String(cond.motivo || '') : '' });
+    });
+    return salida;
   }
 
   /* Los días calendario del MOTOR, no los de acá arriba: `diasEntre` de este
@@ -1319,14 +1360,23 @@
       pp.total_capital = capCuota;
       pp.total_costo = costoCuota;
       pp.total_a_pagar = capCuota + costoCuota;
+      /* 22-oct-2026 — CADA PACTO LLEVA SU `id` (reloj + azar, como el abono a
+         una cuota), en su cambio del plan y en su condonación. Dos razones de
+         plata: (1) el perdón vive en el plan y la condonación es su registro
+         con motivo, y el `id` es lo que los ata (capitalPerdonadoDe); (2) en la
+         nube, dos perdones del MISMO día y el MISMO monto —pactó 240.000 con
+         motivo «uno» y en la tarde 230.000 con motivo «dos», 10.000 cada uno—
+         tenían la misma identidad [fecha, 0, 0, 10000] y fusionarListas los
+         fundía en uno: el capital volvía a 240.000 con la cuota en 230.000. */
+      var idPacto = 'pacto-' + h + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
       pp.cambios = lista(pp.cambios).concat([{
-        n: num(cuota.n), fecha: h, pacto: true, quien: quien,
+        id: idPacto, n: num(cuota.n), fecha: h, pacto: true, quien: quien,
         de: { fecha: r.sugerido.fecha, total: r.sugerido.monto, capital: r.sugerido.capital, costo: r.sugerido.costo },
         a: { fecha: fecha, total: monto, capital: capital - r.perdona, costo: r.costo },
         perdona: r.perdona
       }]);
       var condonacion = r.perdona > 0
-        ? { fecha: h, costo: 0, mora: 0, capital: r.perdona, motivo: motivo, quien: quien, sobre: 'pacto', para: fecha }
+        ? { id: idPacto, fecha: h, costo: 0, mora: 0, capital: r.perdona, motivo: motivo, quien: quien, sobre: 'pacto', para: fecha }
         : null;
 
       /* Cómo queda, para PREGUNTARLE —no para deducir— lo que va a cobrar.
@@ -3924,11 +3974,16 @@
     lista(db && db.prestamos).forEach(function (p) {
       if (!p || p.socioId !== s.id) return;
       lista(p.condonaciones).forEach(function (c) {
+        /* 22-oct-2026 — el perdón de capital se cuenta desde su PACTO VIGENTE
+           (perdonesDeCapital, abajo), no desde la lista: una condonación cuyo
+           pacto perdió en un choque de la nube es un perdón que no ocurrió, y
+           contarla le decía a Joan «1 descuento por $25.000» de nada. */
+        if (c && num(c.capital) > 0 && !num(c.costo) && !num(c.mora)) return;
         t.veces++;
         t.costo += num(c && c.costo);
         t.mora += num(c && c.mora);
-        capital += Math.max(0, num(c && c.capital));
       });
+      perdonesDeCapital(p).forEach(function (x) { t.veces++; capital += x.capital; });
     });
     t.monto = t.costo + t.mora + capital;
     return t;
@@ -4196,6 +4251,8 @@
     gananciaDelCredito: gananciaDelCredito,
     gananciaDelCliente: gananciaDelCliente,
     capitalPerdonadoDe: capitalPerdonadoDe,
+    /* 22-oct-2026 — los perdones de capital del plan vigente, uno por pacto. */
+    perdonesDeCapital: perdonesDeCapital,
     repartoDelDescuento: repartoDelDescuento,
     descuentosDelSocio: descuentosDelSocio,
     buscarSocio: buscarSocio,
