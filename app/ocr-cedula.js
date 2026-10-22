@@ -33,9 +33,13 @@
  *     no es el del código, gana el código y queda una señal para Joan
  *     (`numero_distinto`), que nunca se le muestra a nadie como «verificado».
  *   · El RH, el sexo y la estatura NO pasan por el OCR: solo se recortan las
- *     franjas que hacen falta (ZONAS), y de lo que salga de cada franja solo
- *     se queda lo que tiene forma de fecha, de número o de nombre. Nada de
- *     eso se guarda (decisión del 22-sep, EC.cedulaDelTexto). El lugar de
+ *     franjas que hacen falta (ZONAS) —que son las de la AMARILLA: la página
+ *     solo pide recortes con la amarilla PROBADA (21-oct-2026, verificación
+ *     del lote 1: en el frente de la digital el bloque cae sobre el RH; ver
+ *     «QUÉ CÉDULA ES EL RESPALDO GUARDADO» en play/index.html)—, y de lo
+ *     que salga de cada franja solo se queda lo que tiene forma de fecha, de
+ *     número o de nombre. Nada de eso se guarda (decisión del 22-sep,
+ *     EC.cedulaDelTexto). El lugar de
  *     expedición se lee de pasada en la franja de la fecha y se tira: no se
  *     pide.
  *   · El texto crudo del OCR no sale de aquí: ni a la página, ni al disco, ni

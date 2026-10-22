@@ -609,7 +609,9 @@ function mandarRecado() {
   var crudo = String(($('rcCelular') || {}).value || '');
   var nota = String(($('rcNota') || {}).value || '').slice(0, 300);
   fallo(err, 'Enviando…');
-  return SP.recado(CFG, crudo, nota).then(function (j) {
+  /* 21-oct-2026 (R3) — escritura en camino: «Volver» lleva a la entrada, que
+     es de la lista de SE ACTUALIZA SOLA, y la recarga cortaba el recado. */
+  return escrituraEnCamino(SP.recado(CFG, crudo, nota)).then(function (j) {
     if (!j || j.ok !== true) {
       var m = j && j.motivo;
       /* Cada motivo dice algo distinto. Un 404 (la función sin pegar) no es
@@ -801,11 +803,55 @@ function deEstaSesion(ses, promesa) {
   return promesa.then(function (v) { return SES === ses ? v : enSilencio(); },
                       function (e) { if (SES === ses) throw e; return enSilencio(); });
 }
-/* `ses` (opcional) es la sesión que pidió; sin ella, la de este momento. */
+/* `ses` (opcional) es la sesión que pidió; sin ella, la de este momento.
+   21-oct-2026 (verificación del lote 1, R3) — si ESCRIBE, cuenta como
+   escritura en camino, y se cuenta la llamada de la red (SP.rpc), que siempre
+   termina: la atada a la sesión se calla para siempre si la sesión cambia. */
 function rpcSesion(fn, cuerpo, ses) {
   if (ses === undefined) ses = SES;
   if (!SP) return Promise.reject({ humano: 'No cargó una parte de la app (sesion.js). Cierra y vuelve a abrir con internet.' });
-  return deEstaSesion(ses, SP.rpc(CFG, ses, fn, cuerpo));
+  var p = SP.rpc(CFG, ses, fn, cuerpo);
+  if ((LECTURAS_QUE_NO_FRENAN || []).indexOf(fn) < 0) escrituraEnCamino(p);
+  return deEstaSesion(ses, p);
+}
+
+/* ===========================================================================
+ * LO QUE VA EN CAMINO NO SE CORTA — 21 de octubre de 2026 (verificación del
+ * lote 1, R3)
+ *
+ * SE ACTUALIZA SOLA recarga al llegar a Plata o a Yo, y una recarga CORTA lo
+ * que esté en camino. La lista no miraba el chat: la persona mandaba la foto
+ * del comprobante («Mandando la foto…», CH.enviando), tocaba «Plata» y la
+ * recarga la cortaba a mitad de subida, sin un error; creía que la había
+ * mandado. Toda escritura (rpcSesion de las que escriben, la foto del chat,
+ * el recado, el aviso de «Salir») sale por escrituraEnCamino, que la cuenta
+ * (sube al salir, baja al contestar o fallar), y mientras haya una no es
+ * momento seguro en NINGUNA pantalla. Las lecturas (el latido del chat, la
+ * cuenta, la solicitud) no frenan: cortarlas no pierde nada. Al terminar la
+ * última se vuelve a preguntar (revisar, no yaEsSeguro: la persona puede
+ * estar mirando).
+ * ======================================================================== */
+var ESCRITURAS_EN_CAMINO = 0;
+/* Las RPC que solo leen. Lo que no está aquí cuenta como escritura: una
+   función nueva frena la recarga hasta que alguien diga que solo lee. */
+var LECTURAS_QUE_NO_FRENAN = ['mi_cuenta', 'politica_platachat', 'mi_registro', 'mi_solicitud_platachat',
+                              'chat_leer_sesion', 'chat_foto_sesion_ver'];
+/* Devuelve la MISMA promesa; el conteo va en una rama aparte que se traga el
+   error (no deja una promesa rechazada sin atender). */
+function escrituraEnCamino(p) {
+  if (!p || typeof p.then !== 'function') return p;
+  ESCRITURAS_EN_CAMINO = (ESCRITURAS_EN_CAMINO || 0) + 1;
+  var fin = function () {
+    ESCRITURAS_EN_CAMINO = Math.max(0, (ESCRITURAS_EN_CAMINO || 0) - 1);
+    avisarQueTermino();
+  };
+  p.then(fin, fin);
+  return p;
+}
+function hayEscriturasEnCamino() { return (ESCRITURAS_EN_CAMINO || 0) > 0; }
+function avisarQueTermino() {
+  if (hayEscriturasEnCamino() || typeof ACT === 'undefined' || !ACT) return;
+  try { ACT.revisar(); } catch (e) {}
 }
 
 /* ==================== TRAER LA CUENTA ====================
@@ -2924,10 +2970,14 @@ function salir(msg) {
   var dePlay = null;
   try { dePlay = JSON.parse(sessionStorage.getItem(LLAVE_PLAY) || 'null'); } catch (e) { dePlay = null; }
   soltarElEntrar();
-  if (SP && SP.soltar) SP.soltar(CFG, ses, !!msg);
-  else if (SP && SP.cerrar && !msg) SP.cerrar(CFG, tokenPC);   // un sesion.js de antes en la caché
+  /* 21-oct-2026 (verificación del lote 1, R3) — los avisos al servidor son
+     escrituras en camino: la entrada es de la lista de SE ACTUALIZA SOLA, y
+     recargar ahí mismo los cortaba (la sesión seguía viva allá). Un
+     sesion.js de antes en la caché no devuelve promesa: no se cuenta. */
+  if (SP && SP.soltar) escrituraEnCamino(SP.soltar(CFG, ses, !!msg));
+  else if (SP && SP.cerrar && !msg) escrituraEnCamino(SP.cerrar(CFG, tokenPC));   // un sesion.js de antes en la caché
   if (SP && SP.cerrar) {
-    if (dePlay && dePlay.access_token && dePlay.access_token !== tokenPC) SP.cerrar(CFG, dePlay.access_token);
+    if (dePlay && dePlay.access_token && dePlay.access_token !== tokenPC) escrituraEnCamino(SP.cerrar(CFG, dePlay.access_token));
   }
   try { sessionStorage.removeItem(LLAVE_PLAY); } catch (e) {}
   /* Y la marca de «la cuenta que acaba de nacer» del registro de play/ (desde
@@ -2959,7 +3009,17 @@ function salir(msg) {
    Lo que SÍ: la entrada sin nada tecleado, Plata con la calculadora como se
    abrió (el monto movido vive en MONTO, en memoria) y Yo. Y aun aquí, recarga
    al salir de la app, al volver antes de tocar nada o al llegar a una de
-   estas pantallas; nunca debajo del dedo. */
+   estas pantallas; nunca debajo del dedo.
+   21-oct-2026 (verificación del lote 1, R3) — y nada escribiéndose en camino,
+   en NINGUNA pantalla: la foto del comprobante, un mensaje, el recado, el
+   aviso de «Salir» (ver LO QUE VA EN CAMINO NO SE CORTA), ni el chat
+   mandando (CH.enviando).
+   21-oct-2026 (R5) — CON LA CALCULADORA MOVIDA NINGUNA PANTALLA ES SEGURA
+   (nuncaSeguroPC). La cifra movida vive en MONTO, en memoria, y se pierde
+   con una recarga desde Plata o desde Yo. Antes Yo seguía siendo segura (se
+   perdía igual) y la franja, en Plata, prometía «se pone sola cuando
+   termines y vuelvas al inicio»: Plata ES el inicio, y ya no lo iba a ser
+   hasta la próxima apertura. Ahora ofrece «Actualizar ahora» y no promete. */
 var ACT = null;   // el controlador de app/actualizar.js; null si ese <script src> no llegó
 var PESTANAS_QUE_VUELVEN = ['plata', 'yo'];
 function sinTeclear(id) {
@@ -2968,10 +3028,17 @@ function sinTeclear(id) {
 }
 function momentoSeguroPC() {
   if (ENTRAR_EN_CAMINO || PIDIENDO_PC || ACEPTANDO) return false;
+  if (hayEscriturasEnCamino() || (CH && CH.enviando)) return false;
+  if (nuncaSeguroPC()) return false;
   if (PANTALLA === 'entrar') return sinTeclear('inCelular') && sinTeclear('inClave');
   if (!S) return false;
-  if (PANTALLA === 'plata') return firmaCalc() === CALC_AL_ABRIR;
+  if (PANTALLA === 'plata') return true;
   return PANTALLA === 'yo';
+}
+/* 21-oct-2026 (R5) — el modo sin momento seguro: la cuenta abierta con la
+   calculadora movida (hasta que vuelva a como se abrió). */
+function nuncaSeguroPC() {
+  return !!S && CALC_AL_ABRIR !== '' && firmaCalc() !== CALC_AL_ABRIR;
 }
 /* Lo único que cruza la recarga: el nombre de la pestaña. La sesión ya la
    guarda sesion.js; nada más sale de aquí. */
@@ -2982,7 +3049,7 @@ function arrancarActualizar() {
   var A = window.Actualizar;
   if (!A || typeof A.iniciar !== 'function') return;
   try {
-    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroPC, lugar: lugarPC });
+    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroPC, nuncaEsSeguro: nuncaSeguroPC, lugar: lugarPC });
   } catch (e) { ACT = null; return; }
   var l = ACT && ACT.vuelta && ACT.vuelta.lugar;
   if (l && PESTANAS_QUE_VUELVEN.indexOf(l.tab) >= 0) TAB = l.tab;

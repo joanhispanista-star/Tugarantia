@@ -350,10 +350,14 @@
    *  sería lo peor de los dos mundos.
    *  7-oct-2026 (segunda vuelta) — scope=local: sin él, Supabase cierra TODAS
    *  las sesiones de la cuenta (es su valor por defecto), así que salir en un
-   *  teléfono sacaba también a PlataChat y a play/ en los otros. */
+   *  teléfono sacaba también a PlataChat y a play/ en los otros.
+   *  21-oct-2026 (verificación del lote 1, R3) — devuelve la promesa (que
+   *  nunca falla): nadie la espera para salir, pero la página la cuenta como
+   *  escritura en camino y no se recarga sola encima de ella. */
   function avisarSalida(cfg, s) {
-    if (!s || !s.access_token) return;
-    try { auth(cfg, 'logout?scope=local', 'POST', null, s.access_token).catch(function () {}); } catch (e) { /* nada */ }
+    if (!s || !s.access_token) return Promise.resolve();
+    try { return auth(cfg, 'logout?scope=local', 'POST', null, s.access_token).catch(function () {}); }
+    catch (e) { return Promise.resolve(); }
   }
 
   return {

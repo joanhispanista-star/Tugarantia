@@ -26,8 +26,8 @@
  *     leyendo la cédula amarilla fabricada (pruebas/fabricar-cedula-ocr.py).
  * De mentira solo lo que el banco no tiene: la cámara (un cuadro de video 4K
  * vertical con la cédula ACOSTADA dentro del marco, como la pone la persona),
- * un lienzo que dibuja en grises (abajo, LIENZO EN GRISES), el reloj y la
- * carga de <script> (la red).
+ * un lienzo que dibuja en grises (LIENZO EN GRISES, en pruebas/banco-camara.js),
+ * el reloj y la carga de <script> (la red).
  *
  * Tres casos, los de la calle: el respaldo con el código legible, el respaldo
  * con el código borroso (ilegible: lo ve pero no lo lee) y el respaldo cabeza
@@ -39,120 +39,18 @@
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const path = require('node:path');
-const crypto = require('node:crypto');
 const O = require('../app/ocr-cedula.js');
 const EC = require('../app/escaner-cedula.js');
 const F = require('./fabrica-pdf417.js');
-const { abrirPlay, RAIZ } = require('./banco-play.js');
+const { abrirPlay } = require('./banco-play.js');
 const { abrirTesseract, leerPGM } = require('./banco-ocr.js');
 const { asentar } = require('./esperar.js');
 
-const ZXING = fs.readFileSync(path.join(RAIZ, 'app', 'lib', 'zxing.min.js'), 'utf8');
-
-/* ==========================================================================
- * LIENZO EN GRISES
- * Lo mínimo de un <canvas> 2D para lo que el escáner hace: drawImage (de video
- * o de otro lienzo, a escala, con translate/rotate para la foto girada),
- * getImageData y toDataURL. Un canal de gris: la cédula fabricada es gris.
- * toDataURL no comprime nada: devuelve una marca con la huella de los
- * píxeles, y `FOTOS_HECHAS` guarda de qué recorte salió cada foto. Así la
- * prueba puede decir «las letras se leyeron del MISMO recorte de la foto».
- * ======================================================================== */
-const FOTOS_HECHAS = new Map();
-const huella = px => crypto.createHash('sha1').update(px).digest('hex').slice(0, 16);
-function multiplicar(m, n) {
-  return [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1],
-          m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3],
-          m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
-}
-function fuenteDe(src) {
-  if (src && src.__px) return { px: src.__px, W: src.videoWidth, H: src.videoHeight, huella: null };
-  if (src && src.__lienzo) return { px: src.__lienzo.px, W: src.width, H: src.height, huella: src.__lienzo };
-  throw new Error('drawImage de algo que no es video ni lienzo');
-}
-function crearLienzo() {
-  const L = { W: 0, H: 0, px: new Uint8ClampedArray(0), origen: null };
-  let T = [1, 0, 0, 1, 0, 0];
-  const pila = [];
-  const c = {
-    __lienzo: L,
-    get width() { return L.W; },
-    set width(v) { L.W = Math.max(0, v | 0); L.px = new Uint8ClampedArray(L.W * L.H); L.origen = null; },
-    get height() { return L.H; },
-    set height(v) { L.H = Math.max(0, v | 0); L.px = new Uint8ClampedArray(L.W * L.H); L.origen = null; },
-    getContext() { return ctx; },
-    toDataURL() {
-      const id = 'data:image/jpeg;base64,' + Buffer.from('LIENZO ' + L.W + 'x' + L.H + ' ' + huella(L.px)).toString('base64');
-      FOTOS_HECHAS.set(id, { W: L.W, H: L.H, px: Uint8ClampedArray.from(L.px), origen: L.origen });
-      return id;
-    }
-  };
-  const ctx = {
-    canvas: c,
-    save() { pila.push(T.slice()); },
-    restore() { if (pila.length) T = pila.pop(); },
-    setTransform(a, b, cc, d, e, f) { T = [a, b, cc, d, e, f]; },
-    translate(x, y) { T = multiplicar(T, [1, 0, 0, 1, x, y]); },
-    rotate(a) { const co = Math.cos(a), si = Math.sin(a); T = multiplicar(T, [co, si, -si, co, 0, 0]); },
-    scale(x, y) { T = multiplicar(T, [x, 0, 0, y, 0, 0]); },
-    fillRect() {}, clearRect() {}, putImageData() {},
-    drawImage(src, ...a) {
-      const f = fuenteDe(src);
-      let sx = 0, sy = 0, sw = f.W, sh = f.H, dx, dy, dw, dh;
-      if (a.length === 2) { [dx, dy] = a; dw = sw; dh = sh; }
-      else if (a.length === 4) { [dx, dy, dw, dh] = a; }
-      else { [sx, sy, sw, sh, dx, dy, dw, dh] = a; }
-      /* De qué lienzo salió este (la foto sale del recorte): la huella del
-         recorte en el momento de dibujar. */
-      L.origen = f.huella ? huella(f.huella.px) : null;
-      const recto = Math.abs(T[1]) < 1e-9 && Math.abs(T[2]) < 1e-9 && T[0] > 0 && T[3] > 0;
-      if (recto) {
-        const X0 = T[0] * dx + T[4], Y0 = T[3] * dy + T[5], DW = T[0] * dw, DH = T[3] * dh;
-        const kx = sw / DW, ky = sh / DH;
-        const i0 = Math.max(0, Math.floor(X0)), i1 = Math.min(L.W, Math.ceil(X0 + DW));
-        const j0 = Math.max(0, Math.floor(Y0)), j1 = Math.min(L.H, Math.ceil(Y0 + DH));
-        for (let j = j0; j < j1; j++) {
-          const ya = sy + (j - Y0) * ky, yb = ya + ky;
-          let y0 = Math.max(0, Math.floor(ya)), y1 = Math.min(f.H, Math.max(y0 + 1, Math.ceil(yb)));
-          for (let i = i0; i < i1; i++) {
-            const xa = sx + (i - X0) * kx, xb = xa + kx;
-            const x0 = Math.max(0, Math.floor(xa)), x1 = Math.min(f.W, Math.max(x0 + 1, Math.ceil(xb)));
-            if (x0 >= f.W || y0 >= f.H) continue;
-            let s = 0, n = 0;
-            for (let y = y0; y < y1; y++) { const b = y * f.W; for (let x = x0; x < x1; x++) { s += f.px[b + x]; n++; } }
-            L.px[j * L.W + i] = n ? s / n : 0;
-          }
-        }
-        return;
-      }
-      /* Girado (la foto derecha de fotoDeLienzo): al revés, punto a punto. */
-      const det = T[0] * T[3] - T[1] * T[2];
-      const inv = [T[3] / det, -T[1] / det, -T[2] / det, T[0] / det,
-                   (T[2] * T[5] - T[3] * T[4]) / det, (T[1] * T[4] - T[0] * T[5]) / det];
-      for (let j = 0; j < L.H; j++) for (let i = 0; i < L.W; i++) {
-        const u = inv[0] * (i + 0.5) + inv[2] * (j + 0.5) + inv[4], v = inv[1] * (i + 0.5) + inv[3] * (j + 0.5) + inv[5];
-        if (u < dx || v < dy || u >= dx + dw || v >= dy + dh) continue;
-        const x = Math.min(f.W - 1, Math.floor(sx + (u - dx) * sw / dw)), y = Math.min(f.H - 1, Math.floor(sy + (v - dy) * sh / dh));
-        L.px[j * L.W + i] = f.px[y * f.W + x];
-      }
-    },
-    getImageData(x, y, w, h) {
-      const d = new Uint8ClampedArray(w * h * 4);
-      for (let j = 0; j < h; j++) {
-        const yy = y + j;
-        for (let i = 0; i < w; i++) {
-          const xx = x + i, k = (j * w + i) * 4;
-          const v = (xx >= 0 && yy >= 0 && xx < L.W && yy < L.H) ? L.px[yy * L.W + xx] : 0;
-          d[k] = d[k + 1] = d[k + 2] = v; d[k + 3] = 255;
-        }
-      }
-      return { data: d, width: w, height: h };
-    }
-  };
-  return c;
-}
+/* 21-oct-2026 (verificación del lote 1) — la cámara, el lienzo en grises y la
+   página con su reloj viven en pruebas/banco-camara.js: la prueba de la
+   cédula digital (la-digital-no-se-lee.test.js) usa la MISMA cámara. */
+const { FOTOS_HECHAS, huella, crearLienzo, GUIA, TARJETA, VIDEO, escalar, abrirConCamara } = require('./banco-camara.js');
 
 /* ==========================================================================
  * LA CÉDULA FABRICADA, PUESTA EN EL MARCO
@@ -161,26 +59,10 @@ function crearLienzo() {
  * margenDeLectura. Se ponen en el cuadro de video de modo que ESE marco caiga
  * sobre el marco del escáner: es lo que hace la persona.
  * ======================================================================== */
-const GUIA = { x: 60, y: 38, w: 1000, h: 631 };
-const TARJETA = { x: 68, y: 44, w: 985, h: 622 };   // dónde cae la tarjeta en el recorte fabricado
-const VIDEO = { W: 2160, H: 3840, MESA: 70 };         // 4K vertical: lo que pide el escáner
 const CARTA = lado => leerPGM(path.join(__dirname, 'cedula-ocr-' + lado + '.pgm.gz'));
 const PERSONA = { documento: '0052123456', apellido1: 'PEREZ', apellido2: 'GOMEZ', nombre1: 'MARIA',
                   nombre2: 'ALEJANDRA', sexo: 'F', nacimiento: '19850315', municipio: '11001', rh: 'O+' };
 
-/* Escala bilineal del recorte fabricado al tamaño que tiene en el video. */
-function escalar(img, k) {
-  const W = Math.round(img.w * k), H = Math.round(img.h * k), o = new Uint8ClampedArray(W * H);
-  for (let y = 0; y < H; y++) {
-    const fy = Math.min(img.h - 1, Math.max(0, (y + 0.5) / k - 0.5)), y0 = Math.floor(fy), y1 = Math.min(img.h - 1, y0 + 1), ay = fy - y0;
-    for (let x = 0; x < W; x++) {
-      const fx = Math.min(img.w - 1, Math.max(0, (x + 0.5) / k - 0.5)), x0 = Math.floor(fx), x1 = Math.min(img.w - 1, x0 + 1), ax = fx - x0;
-      const g = img.gris;
-      o[y * W + x] = (g[y0 * img.w + x0] * (1 - ax) + g[y0 * img.w + x1] * ax) * (1 - ay) + (g[y1 * img.w + x0] * (1 - ax) + g[y1 * img.w + x1] * ax) * ay;
-    }
-  }
-  return { gris: o, w: W, h: H };
-}
 function girar180(img) {
   const g = new Uint8ClampedArray(img.gris.length);
   for (let i = 0; i < g.length; i++) g[i] = img.gris[g.length - 1 - i];
@@ -284,62 +166,7 @@ function huellaDelRecorte(px, guia) {
 /* ==========================================================================
  * LA PÁGINA, CON CÁMARA, RELOJ Y LETRAS
  * ======================================================================== */
-function abrir(motor) {
-  const reloj = { t: Date.parse('2026-10-21T18:00:00-05:00') };
-  class Reloj extends Date {
-    constructor(...a) { if (a.length) super(...a); else super(reloj.t); }
-    static now() { return reloj.t; }
-  }
-  const P = abrirPlay({ hash: '#registro', Date: Reloj });
-  assert.deepEqual(P.fallos, [], 'la página reventó al cargar');
-  const w = P.ventana;
-  /* El reloj de la página: los temporizadores esperan su hora en una cola, y
-     la prueba la hace pasar (correr). */
-  const cola = [];
-  let id = 0;
-  w.setTimeout = (fn, ms) => { cola.push({ id: ++id, t: reloj.t + (Number(ms) || 0), fn }); return id; };
-  w.clearTimeout = n => { const i = cola.findIndex(c => c.id === n); if (i >= 0) cola.splice(i, 1); };
-  /* La cámara: un video 4K vertical, con lo que la prueba le ponga delante. */
-  const pista = { stop() {}, getSettings: () => ({ width: VIDEO.W, height: VIDEO.H }),
-                  getCapabilities: () => ({}), applyConstraints: () => Promise.resolve() };
-  w.navigator.mediaDevices = { getUserMedia: () => Promise.resolve({ getVideoTracks: () => [pista], getTracks: () => [pista] }) };
-  P.ev("$('docVideo')");
-  const video = P.elems.docVideo;
-  video.videoWidth = VIDEO.W; video.videoHeight = VIDEO.H;
-  video.__px = new Uint8ClampedArray(VIDEO.W * VIDEO.H).fill(VIDEO.MESA);
-  /* Los lienzos, en grises; y la carga de scripts sin red: ZXing y las letras
-     ya están puestos, como si hubieran bajado. */
-  w.__crearLienzo = crearLienzo;
-  P.ev("var __ce = document.createElement; document.createElement = function (t) { return t === 'canvas' ? window.__crearLienzo() : __ce.call(document, t); };");
-  P.ev(ZXING);
-  P.ev("ZXing.ZXingStringEncoding.customDecoder = function (b) { var s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return s; };");
-  P.ev('window.__scripts = []; cargarScript = function (u) { window.__scripts.push(u); return Promise.resolve(); };');
-  /* Las letras de verdad, y un testigo de lo que se les da a recortar: el
-     lienzo (su huella), el giro y el marco. */
-  const recortes = [];
-  w.OcrCedula = Object.assign({}, O, {
-    recortarDeLienzo(lado, lienzo, op) {
-      recortes.push({ lado, huella: lienzo.__lienzo ? huella(lienzo.__lienzo.px) : null,
-                      W: lienzo.width, H: lienzo.height, giro: op && op.giro, guia: op && op.guia ? Object.assign({}, op.guia) : null });
-      return O.recortarDeLienzo(lado, lienzo, op);
-    }
-  });
-  w.Tesseract = motor.Tesseract;
-  const correr = async ms => {
-    const fin = reloj.t + ms;
-    for (;;) {
-      cola.sort((a, b) => a.t - b.t || a.id - b.id);
-      const c = cola[0];
-      if (!c || c.t > fin) break;
-      cola.shift();
-      reloj.t = Math.max(reloj.t, c.t);
-      c.fn();
-      await asentar(2);
-    }
-    reloj.t = fin;
-  };
-  return { P, video, reloj, correr, recortes };
-}
+function abrir(motor) { return abrirConCamara({ motor }); }
 const paso = P => P.ev('PASOS[PASO] && PASOS[PASO].id');
 /* El navegador pinta las casillas con el value= que la página escribió; el
    banco no convierte innerHTML en elementos, así que se copia aquí. No es
@@ -541,11 +368,17 @@ function oyente() {
 }
 const pendiente = (P, lado) => P.ev('!!OCR_CEDULA.pendientes.' + lado);
 
+/* 21-oct-2026 (verificación del lote 1, R1) — las letras solo se leen con la
+   amarilla PROBADA y anotada con la foto (FOTOS.cedula_reverso_tipo): aquí se
+   anota como lo hacen leidaDoc y capturarDoc antes de avisar. */
+const amarilla = (P, foto) => P.ev("FOTOS.cedula_reverso = '" + foto + "'; anotarTipoDelRespaldo('amarilla');");
+
 describe('el oyente de las letras (ocrAlTomarLaCedula), sin motor', () => {
 
   test('lee el lienzo de la foto con SU giro y SU marco (el anotado al dibujar), no uno recalculado', () => {
     const { P, recortes } = oyente();
-    P.ev("FOTOS.cedula_reverso = 'R1'; avisarCedulaTomada('reverso', __lienzo, 180, { leida: true, automatica: true });");
+    amarilla(P, 'R1');
+    P.ev("avisarCedulaTomada('reverso', __lienzo, 180, { leida: true, automatica: true });");
     assert.equal(pendiente(P, 'reverso'), true, 'el respaldo no dejó sus franjas');
     assert.deepEqual(recortes, [{ lado: 'reverso', giro: 180, guia: { x: 60, y: 38, w: 1000, h: 631 } }]);
     /* Sin marco anotado (otro lienzo), el calculado; y si no cabe, ninguno. */
@@ -555,18 +388,25 @@ describe('el oyente de las letras (ocrAlTomarLaCedula), sin motor', () => {
 
   test('la cédula DIGITAL (su respaldo se tomó por el QR) no se lee con las franjas de la amarilla, ni su frente', () => {
     const { P, recortes } = oyente();
-    P.ev("FOTOS.cedula_reverso = 'DIGITAL'; avisarCedulaTomada('reverso', __lienzo, null, { qr: true, automatica: true });");
+    P.ev("FOTOS.cedula_reverso = 'DIGITAL'; anotarTipoDelRespaldo('digital'); avisarCedulaTomada('reverso', __lienzo, null, { qr: true, automatica: true });");
     assert.equal(pendiente(P, 'reverso'), false);
     P.ev("FOTOS.cedula_frente = 'F1'; avisarCedulaTomada('frente', __lienzo, null, { automatica: true });");
     assert.equal(pendiente(P, 'frente'), false, 'el frente de la digital (con el RH y el sexo) pasó por las franjas');
     assert.equal(recortes.length, 0, 'se recortó algo de la digital');
-    /* Un respaldo NUEVO (la amarilla): la marca era de la foto de antes. */
+    /* Un respaldo NUEVO: la marca era de la foto de antes, y no le sirve a
+       esta para nada — ni como digital ni como amarilla. Sin su propia prueba
+       (21-oct-2026, R1) no se lee; con ella, sí. */
     P.ev("FOTOS.cedula_reverso = 'AMARILLA'; avisarCedulaTomada('frente', __lienzo, null, {});");
-    assert.equal(pendiente(P, 'frente'), true, 'la marca de digital se quedó pegada a un respaldo que ya no es el suyo');
+    assert.equal(P.ev('tipoDelRespaldo()'), '', 'la marca de la foto de antes se quedó pegada a un respaldo que ya no es el suyo');
+    assert.equal(pendiente(P, 'frente'), false, 'sin prueba de la amarilla se leyó el frente');
+    amarilla(P, 'AMARILLA');
+    P.ev("avisarCedulaTomada('frente', __lienzo, null, {});");
+    assert.equal(pendiente(P, 'frente'), true, 'con la amarilla probada el frente no se leyó');
   });
 
   test('un frente guardado a la fuerza no se lee como frente, y suelta lo del anterior; de través no se lee', () => {
     const { P } = oyente();
+    amarilla(P, 'R0');
     P.ev("FOTOS.cedula_frente = 'F1'; avisarCedulaTomada('frente', __lienzo, null, {});");
     assert.equal(pendiente(P, 'frente'), true);
     P.ev("FOTOS.cedula_frente = 'F2'; avisarCedulaTomada('frente', __lienzo, null, { forzada: true });");

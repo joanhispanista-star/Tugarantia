@@ -1783,7 +1783,16 @@
      sino por el camino viejo, y socio.html sin instalar.js no explica como
      instalarla.
    Sin subir la cache, un telefono con v138 seguiria con el escaner de pie y
-   ningun archivo de este lote. */
+   ningun archivo de este lote.
+   21-oct-2026, la verificacion del lote (MISMA v139: el lote sigue sin
+   publicar, y lo que cambia viaja con el): las letras solo con la amarilla
+   PROBADA y la marca con la foto (play/index.html, app/ocr-cedula.js); la
+   recarga sola nunca con una escritura en camino ni con una caja de solo
+   lectura, y un modo sin momento seguro no promete «se pone sola»
+   (app/actualizar.js y las tres paginas del cliente). app/sesion-socio.js y
+   platachat/sesion.js devuelven la promesa del aviso de salida para que la
+   pagina la cuente; con uno viejo la pagina no la cuenta y sale igual:
+   mezclarlos no rompe nada. */
 const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 

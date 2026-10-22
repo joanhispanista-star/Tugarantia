@@ -1324,7 +1324,9 @@ function mandarAyuda() {
   if (!SS) return aviso(SS_FALTA);
   var b = $('ayBoton'); if (b) b.disabled = true;
   aviso('Enviando…', 'azul');
-  SS.pedirAyuda(CFG, ($('ayTel') || {}).value || '', ($('ayNota') || {}).value || '').then(function (r) {
+  /* 21-oct-2026 (R3) — escritura en camino: «Volver» lleva a la entrada, que
+     es de la lista de SE ACTUALIZA SOLA, y la recarga cortaba el recado. */
+  escrituraEnCamino(SS.pedirAyuda(CFG, ($('ayTel') || {}).value || '', ($('ayNota') || {}).value || '')).then(function (r) {
     if (b) b.disabled = false;
     if (!r.ok) {
       return aviso(r.motivo === 'celular' ? SS.TEXTOS.celular
@@ -3474,7 +3476,8 @@ function anotarAparatoSocio(cuando) {
                           matchMedia: window.matchMedia ? function (q) { return window.matchMedia(q); } : null },
                         { tiempo: APARATO.TIEMPO })
       .then(function (declarado) {
-        return SS.conSesion(CFG, SESION, 'aparato_anotar', { p_cuando: cuando, p_declarado: declarado }, guardarSesionSocio);
+        /* 21-oct-2026 (R3) — escritura en camino (ver LO QUE VA EN CAMINO NO SE CORTA). */
+        return escrituraEnCamino(SS.conSesion(CFG, SESION, 'aparato_anotar', { p_cuando: cuando, p_declarado: declarado }, guardarSesionSocio));
       })['catch'](function () { /* sin la migración del 19-oct, o sin señal */ });
   } catch (e) { /* nunca tumba la solicitud */ }
 }
@@ -3504,14 +3507,17 @@ function mandarSolicitud(monto) {
      piden nada a nombre de nadie. Sigue sin esperar la respuesta, por lo que
      dice el párrafo de arriba: el WhatsApp sale igual. */
   if (SS && SESION && S.origen === 'nube' && CFG.url && CFG.anon) {
-    SS.conSesion(CFG, SESION, 'solicitar_por_sesion', {
+    /* 21-oct-2026 (R3) — escritura en camino: la pantalla de «Listo» lleva a
+       Inicio, que es de la lista de SE ACTUALIZA SOLA, y la recarga cortaba la
+       solicitud que el WhatsApp ya daba por hecha. */
+    escrituraEnCamino(SS.conSesion(CFG, SESION, 'solicitar_por_sesion', {
       p_producto: resp ? 'respaldado' : 'quincenal',
       p_plazo: resp ? s.plazo_meses : null,
       p_datos: { capital: s.capital, tasa: resp ? s.tasa_mensual : s.tasa, costo: costo,
         total: s.total_a_pagar, fecha_corte: fechaFin, garantia: S.garantia, cupo: S.cupo,
         sobre_cupo: seExcede, producto: resp ? 'respaldado' : 'quincenal',
         plazo_meses: resp ? s.plazo_meses : null }
-    }, guardarSesionSocio).then(function (j) {
+    }, guardarSesionSocio)).then(function (j) {
       /* 19-oct-2026 — y desde qué teléfono la pidió, solo si la base la recibió. */
       if (j && j.ok === true) anotarAparatoSocio('solicitud');
     }).catch(function () {});
@@ -4151,7 +4157,9 @@ function cambiarClave() {
   if (nueva !== repite) return aviso('Las dos no quedaron iguales. Escríbelas otra vez, sin afán.');
   $('ccBoton').disabled = true;
   aviso('Guardando…', true);
-  SS.cambiarClave(CFG, SESION, nueva, guardarSesionSocio).then(function (r) {
+  /* 21-oct-2026 (R3) — escritura en camino: sin esto, tocar «Inicio» mientras
+     guardaba la cortaba, y nunca veía «Listo» ni sabía cuál de las dos sirve. */
+  escrituraEnCamino(SS.cambiarClave(CFG, SESION, nueva, guardarSesionSocio)).then(function (r) {
     if (!r.ok) { aviso(r.motivo); return; }
     var listo = '<div class="card">' +
       '<h3 class="tit">Listo: tu contraseña quedó cambiada</h3>' +
@@ -4350,7 +4358,9 @@ function chatEnviar() {
   if (!r.ok) { alert(r.motivo); return; }
 
   CH.enviando = true; if (b) b.disabled = true;
-  cfgChat().then(function (cfg) { return CHAT.escribir(cfg, r.texto, 'servicio'); }).then(function (j) {
+  /* 21-oct-2026 (R3) — una escritura en camino: SE ACTUALIZA SOLA no recarga
+     encima de ella en ninguna pantalla (ver LO QUE VA EN CAMINO NO SE CORTA). */
+  escrituraEnCamino(cfgChat().then(function (cfg) { return CHAT.escribir(cfg, r.texto, 'servicio'); })).then(function (j) {
     /* La base dice por qué no: «demasiados mensajes seguidos» es el tope de
        la casa, y se le dice así en vez de «error». */
     if (!j || j.ok !== true) {
@@ -4398,7 +4408,10 @@ function cerrarSesionLocal() {
 }
 
 function salir() {
-  if (SS && SESION) SS.avisarSalida(CFG, SESION);
+  if (SS && SESION) escrituraEnCamino(SS.avisarSalida(CFG, SESION));
+  /* 21-oct-2026 (R3) — el aviso de salida es una escritura en camino: la
+     entrada es de la lista de SE ACTUALIZA SOLA, y recargar ahí mismo lo
+     cortaba (la sesión seguía viva en el servidor). */
   cerrarSesionLocal();
   S = null; NUEVOS = {}; TAB = 'inicio';
   MODO = 'quincenal'; PLAZO = 3;
@@ -4454,10 +4467,24 @@ function pantallaConfig() {
    Lo que SÍ: la entrada sin nada tecleado; Inicio, Historial y Garantía de la
    cuenta del propio socio; y la cuenta sin juntar con el chat vacío y nada
    saliendo. Y aun aquí, recarga al salir de la app, al volver antes de tocar
-   nada o al llegar a una de estas pantallas; nunca debajo del dedo. */
+   nada o al llegar a una de estas pantallas; nunca debajo del dedo.
+   21-oct-2026 (verificación del lote 1, R5) — LA CUENTA ABIERTA POR EL ENLACE
+   DEL CRM (#d=) TAMBIÉN, en Inicio, Historial y Garantía: el paquete viaja en
+   el # de la dirección, y una recarga abre la MISMA foto en el mismo sitio.
+   Fuera, esa cuenta nunca tenía momento seguro y la franja le decía «se pone
+   sola cuando termines y vuelvas al inicio» estando en el inicio. Lo que
+   sigue sin momento seguro NUNCA es el «Ver como» de Joan (nuncaSeguroSocio),
+   y ahí la franja ofrece el botón en vez de prometer.
+   21-oct-2026 (R3) — y nada se escribe en camino, en ninguna pantalla: el
+   mensaje del chat, la contraseña nueva, la solicitud, el recado y el aviso
+   de «Salir» (ESCRITURAS_EN_CAMINO, abajo). */
 var ACT = null;   // el controlador de app/actualizar.js; null si ese <script src> no llegó
 var PANTALLAS_SEGURAS = ['entrar', 'inicio', 'historial', 'garantia', 'sin_juntar'];
 var PESTANAS_QUE_VUELVEN = ['historial', 'garantia'];
+/* Las cuentas que una recarga vuelve a abrir igual: la de la sesión del socio
+   y la del enlace (su paquete va en la dirección). La del «Ver como» no: su
+   pase es de un solo uso. */
+var ORIGENES_QUE_VUELVEN = ['nube', 'enlace'];
 var PESTANA_AL_VOLVER = '';
 function sinTeclear(id) {
   var el = $(id);
@@ -4465,27 +4492,71 @@ function sinTeclear(id) {
 }
 function momentoSeguroSocio() {
   if (location.search.indexOf('cfg') >= 0) return false;
-  if (S && S.origen !== 'nube') return false;
+  if (nuncaSeguroSocio()) return false;
+  if (hayEscriturasEnCamino() || (CH && CH.enviando)) return false;
   if (PANTALLAS_SEGURAS.indexOf(PANTALLA) < 0) return false;
   if (PANTALLA === 'entrar') return sinTeclear('inCel') && sinTeclear('inClave');
-  if (PANTALLA === 'sin_juntar') return sinTeclear('chTexto') && !CH.enviando;
+  if (PANTALLA === 'sin_juntar') return sinTeclear('chTexto');
   return true;
+}
+/* 21-oct-2026 (R5) — el modo en que NINGUNA pantalla es segura: el «Ver como»
+   de Joan (el pase «no sirve… ni para recargar», app/ver-como.js) y el modo
+   ?cfg. app/actualizar.js no promete ahí que «se pone sola». */
+function nuncaSeguroSocio() {
+  if (location.search.indexOf('cfg') >= 0) return true;
+  return !!(S && ORIGENES_QUE_VUELVEN.indexOf(S.origen) < 0);
 }
 /* Lo único que cruza la recarga: el nombre de la pestaña. La sesión ya está
    guardada por sesion-socio.js; nada más sale de aquí. */
 function lugarSocio() {
-  return (S && S.origen === 'nube' && PESTANAS_QUE_VUELVEN.indexOf(PANTALLA) >= 0) ? { tab: PANTALLA } : null;
+  return (S && ORIGENES_QUE_VUELVEN.indexOf(S.origen) >= 0 && PESTANAS_QUE_VUELVEN.indexOf(PANTALLA) >= 0) ? { tab: PANTALLA } : null;
 }
-/* Una sola vez, y solo para la cuenta del propio socio (abrir la pide). */
+/* Una sola vez, y solo para una cuenta que la recarga vuelve a abrir igual
+   (abrir la pide). */
 function pestanaAlVolver() {
   var t = PESTANA_AL_VOLVER; PESTANA_AL_VOLVER = '';
-  return (t && S && S.origen === 'nube') ? t : '';
+  return (t && S && ORIGENES_QUE_VUELVEN.indexOf(S.origen) >= 0) ? t : '';
+}
+
+/* ===========================================================================
+ * LO QUE VA EN CAMINO NO SE CORTA — 21 de octubre de 2026 (verificación del
+ * lote 1, R3)
+ *
+ * SE ACTUALIZA SOLA recarga al llegar a Inicio, Historial o Garantía, y una
+ * recarga CORTA lo que esté en camino. La lista solo miraba el chat en la
+ * cuenta sin juntar: la persona mandaba un mensaje (o guardaba su contraseña
+ * nueva) y tocaba «Inicio», y la recarga lo cortaba sin un error, con lo
+ * escrito todavía en la caja. Toda escritura sale ahora por
+ * escrituraEnCamino, que la cuenta (sube al salir, baja al contestar o
+ * fallar), y mientras haya una no es momento seguro en NINGUNA pantalla.
+ * Las lecturas (mi_cuenta, el latido del chat) no frenan: cortarlas no
+ * pierde nada. Al terminar la última se vuelve a preguntar (revisar).
+ * ======================================================================== */
+var ESCRITURAS_EN_CAMINO = 0;
+/* Devuelve la MISMA promesa; el conteo va en una rama aparte que se traga el
+   error. */
+function escrituraEnCamino(p) {
+  if (!p || typeof p.then !== 'function') return p;
+  ESCRITURAS_EN_CAMINO = (ESCRITURAS_EN_CAMINO || 0) + 1;
+  var fin = function () {
+    ESCRITURAS_EN_CAMINO = Math.max(0, (ESCRITURAS_EN_CAMINO || 0) - 1);
+    avisarQueTermino();
+  };
+  p.then(fin, fin);
+  return p;
+}
+function hayEscriturasEnCamino() { return (ESCRITURAS_EN_CAMINO || 0) > 0; }
+/* Revisar y no yaEsSeguro: la persona puede estar leyendo, y que termine algo
+   en camino no es un cambio de pantalla que ella pidió. */
+function avisarQueTermino() {
+  if (hayEscriturasEnCamino() || !ACT) return;
+  try { ACT.revisar(); } catch (e) {}
 }
 function arrancarActualizar() {
   var A = window.Actualizar;
   if (!A || typeof A.iniciar !== 'function') return;
   try {
-    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroSocio, lugar: lugarSocio });
+    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroSocio, nuncaEsSeguro: nuncaSeguroSocio, lugar: lugarSocio });
   } catch (e) { ACT = null; return; }
   var l = ACT && ACT.vuelta && ACT.vuelta.lugar;
   if (l && PESTANAS_QUE_VUELVEN.indexOf(l.tab) >= 0) PESTANA_AL_VOLVER = l.tab;

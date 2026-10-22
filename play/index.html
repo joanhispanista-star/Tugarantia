@@ -1325,10 +1325,13 @@ function cerrarSesionHuerfana(j) {
   var t = j && j.access_token;
   if (!t || !CFG.url || !CFG.anon) return;
   try {
-    var p = fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/logout?scope=local', {
+    /* 21-oct-2026 (R3) — escritura en camino: una sesión que queda abierta
+       en el servidor porque la recarga cortó su cierre es justo lo que esto
+       evita. */
+    var p = escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/logout?scope=local', {
       method: 'POST',
       headers: { apikey: CFG.anon, Authorization: 'Bearer ' + t }
-    });
+    }));
     if (p && p['catch']) p['catch'](function () {});
   } catch (e) {}
 }
@@ -1723,12 +1726,14 @@ function mandarAyuda() {
     return fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
   }
   fallo(err, 'Enviando…');
-  fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/pedir_ayuda_clave', {
+  /* 21-oct-2026 (R3) — una escritura en camino: «Volver» lleva a la portada,
+     que es de la lista de SE ACTUALIZA SOLA, y la recarga cortaba el recado. */
+  escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/pedir_ayuda_clave', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + CFG.anon },
     body: JSON.stringify({ p_celular: tel, p_nota: nota })
-  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
+  })).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
     .then(function (j) {
       if (!j || j.ok !== true) {
         /* Cada motivo dice algo distinto. «No se pudo» tapando un celular mal
@@ -1956,7 +1961,8 @@ function publicarAvance() {
   var fotos = {};
 
   var cel = REGISTRO.celular;
-  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registro_vivo_publicar', {
+  /* 21-oct-2026 (R3) — escritura en camino (ver LO QUE VA EN CAMINO NO SE CORTA). */
+  return escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registro_vivo_publicar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + CFG.anon },
@@ -1970,7 +1976,7 @@ function publicarAvance() {
       p_testigo: testigoVivo(cel) || null
     })
   }).then(function (r) { return r && r.ok ? r.json() : null; })
-    .then(function (j) { if (j && j.ok === true && j.testigo) anotarTestigoVivo(cel, j.testigo); })
+    .then(function (j) { if (j && j.ok === true && j.testigo) anotarTestigoVivo(cel, j.testigo); }))
     .catch(function () { /* sin señal se sigue registrando igual */ });
 }
 
@@ -1987,12 +1993,15 @@ function borrarAvance(celular) {
   var testigo = testigoVivo(cel);
   if (!testigo) return Promise.resolve();
   olvidarTestigoVivo();
-  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registro_vivo_borrar', {
+  /* 21-oct-2026 (R3) — escritura en camino: quien sale del registro cae en la
+     portada (de la lista de SE ACTUALIZA SOLA), y la recarga dejaba su fila
+     publicada en el acompañamiento. */
+  return escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registro_vivo_borrar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + CFG.anon },
     body: JSON.stringify({ p_celular: cel, p_testigo: testigo })
-  }).catch(function () {});
+  })).catch(function () {});
 }
 
 function pintarRegistro(paso) {
@@ -3583,8 +3592,64 @@ function prepararRespaldoNuevo() {
   /* 21-oct-2026 — lo leído de las LETRAS de la cédula anterior no se aparta
      para comparar nada (no decide de quién es): se va, con lo que escribió. */
   ocrSoltarVista();
+  /* 21-oct-2026 (verificación del lote 1, R1) — y qué cédula era: el
+     respaldo nuevo lo decide otra vez, con su propia prueba. */
+  olvidarTipoDelRespaldo();
   return habiaFrente;
 }
+
+/* ===========================================================================
+ * QUÉ CÉDULA ES EL RESPALDO GUARDADO — 21 de octubre de 2026 (verificación
+ * del lote 1, R1: Ley 1581, el RH es un dato de salud)
+ *
+ * Las franjas de las letras (app/ocr-cedula.js, ZONAS) son las de la cédula
+ * AMARILLA. En la DIGITAL (la del QR) el RH, el sexo y la estatura van en el
+ * frente, justo donde cae el bloque que se lee, y el rótulo va encima del
+ * valor: los apellidos caían en «nombres» con «leído de tu cédula». La única
+ * defensa era OCR_CEDULA.digital, que vivía en la memoria y solo se ponía con
+ * un QR leído en vivo: se perdía al relanzar la pestaña (Android, el video
+ * 4K) y no existía si el teléfono no leía el QR y la persona tocaba «Tomar la
+ * foto ahora», que es lo que TEXTO_CEDULA_NUEVA le pide.
+ *
+ * LA REGLA, AL REVÉS: las letras de CUALQUIERA de los dos lados se leen solo
+ * con prueba POSITIVA de que el respaldo guardado es la amarilla — su PDF417
+ * leído, visto sin poder leerlo ('ilegible') o el patrón de sus barras EN EL
+ * RECORTE QUE SE GUARDÓ. No haber visto un QR no prueba nada. La decisión se
+ * guarda CON LA FOTO, en FOTOS (y por eso en el teléfono): sobrevive a
+ * relanzar, y se va con ella (prepararRespaldoNuevo, soltarLasFotos, otro
+ * celular, salir del flujo: todos sueltan FOTOS). Va firmada con la huella de
+ * la foto: si alguien pone otro respaldo por un camino que no pase por
+ * prepararRespaldoNuevo, la marca vieja no le sirve al nuevo.
+ *   'amarilla' — prueba de la amarilla; se leen las letras;
+ *   'digital'  — se vio un QR (en vivo o en el recorte guardado);
+ *   ''         — no se sabe: no se lee nada, y la pantalla no lo promete.
+ * ========================================================================= */
+/* La huella de una foto: el largo y un FNV-1a de 32 bits. Ni un carácter de
+   la foto queda escrito en la marca. (El primo de FNV, 2^24 + 0x193, va
+   armado así y no como literal: vitrina.test.js no deja cifras de siete
+   dígitos escritas a mano en play/.) */
+function firmaDeFoto(s) {
+  s = String(s || '');
+  var h = 0x811c9dc5, primo = (1 << 24) + 0x193;
+  for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, primo); }
+  return s.length.toString(36) + '.' + (h >>> 0).toString(36);
+}
+function anotarTipoDelRespaldo(tipo) {
+  if (!FOTOS.cedula_reverso || (tipo !== 'amarilla' && tipo !== 'digital')) { olvidarTipoDelRespaldo(); return; }
+  FOTOS.cedula_reverso_tipo = tipo;
+  FOTOS.cedula_reverso_tipo_de = firmaDeFoto(FOTOS.cedula_reverso);
+}
+function olvidarTipoDelRespaldo() {
+  if (!FOTOS) return;
+  delete FOTOS.cedula_reverso_tipo; delete FOTOS.cedula_reverso_tipo_de;
+}
+/* 'amarilla' | 'digital' | '' — del respaldo que está guardado AHORA. */
+function tipoDelRespaldo() {
+  var t = FOTOS && FOTOS.cedula_reverso_tipo;
+  if (!FOTOS || !FOTOS.cedula_reverso || (t !== 'amarilla' && t !== 'digital')) return '';
+  return FOTOS.cedula_reverso_tipo_de === firmaDeFoto(FOTOS.cedula_reverso) ? t : '';
+}
+function respaldoEsAmarilla() { return tipoDelRespaldo() === 'amarilla'; }
 /* ¿La cédula recién leída es de otra persona que la de antes en este registro? */
 function esDeOtraPersona(cedula) {
   var antes = FOTOS.cedula_leida || FOTOS.leida_anterior;
@@ -3818,11 +3883,15 @@ function enviarRegistro(sensibles) {
   /* Las dos rutas escritas enteras: el centinela de motor.test.js («la bandeja
      va PRIMERO») las busca por su texto antes del signup. */
   var rutaRegistro = MARCA === 'platachat' ? '/rest/v1/rpc/registrar_abierto_app' : '/rest/v1/rpc/registrar_abierto';
-  return fetch(CFG.url.replace(/\/+$/, '') + rutaRegistro, {
+  /* 21-oct-2026 (R3) — la bandeja y la cuenta son escrituras en camino: el
+     viaje las cubre mientras dice «Creando tu cuenta…», pero su tope de 30 s
+     desbloquea la pantalla y la petición sigue (ver LO QUE VA EN CAMINO NO
+     SE CORTA). */
+  return escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + rutaRegistro, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
     body: JSON.stringify(cuerpoRegistro)
-  }).then(function (res) {
+  })).then(function (res) {
       if (!sigueSiendoDeAqui(foto)) throw TARDE;
       if (MARCA === 'platachat' && res.status === 404) {
         throw { humano: 'El registro de PlataChat todavía no está encendido. Tus datos quedaron guardados en este teléfono: ' +
@@ -3844,7 +3913,7 @@ function enviarRegistro(sensibles) {
          que hubiera en vivo después de la bandeja podía ser de Pedro. */
       if (!foto.clave) throw { humano: 'Nos falta la contraseña de este celular: toca «Volver» hasta «Tu celular y tu contraseña» y créala.' };
       anotarSignup(foto);   // 21-oct-2026 — H1: desde aquí la cuenta puede existir aunque no llegue la respuesta
-      return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/signup', {
+      return escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
         body: JSON.stringify({
@@ -3852,7 +3921,7 @@ function enviarRegistro(sensibles) {
           password: foto.clave,
           data: { telefono: foto.celular, vinculacion: foto.datos, autorizacion: foto.autorizacion }
         })
-      });
+      }));
     })
     .then(function (res) { return res.json().then(function (j) { return { ok: res.ok, j: j }; }); })
     .then(function (res) {
@@ -4011,11 +4080,12 @@ function guardarLaConstancia(sesion, aut, foto) {
   }
   var datos = { autorizacion: aut, autorizaciones: antes.concat([aut]) };
   try {
-    return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
+    /* 21-oct-2026 (R3) — escritura en camino (ver LO QUE VA EN CAMINO NO SE CORTA). */
+    return escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + sesion.access_token },
       body: JSON.stringify({ data: datos })
-    }).then(function (r) {
+    })).then(function (r) {
       if (!r || !r.ok) return 'rechazada';
       /* La copia de la sesión dice lo mismo que la cuenta. */
       try { u.user_metadata = Object.assign({}, meta, datos); sesion.user = u; } catch (e) {}
@@ -4354,10 +4424,13 @@ function rpcSesion(fn, cuerpo, ses, suelta) {
   return suelta ? p : deEstaSesion(ses, p);
 }
 /* La llamada cruda, con el token de `ses`. Todo lo de la cuenta pasa por
-   rpcSesion, que decide si la respuesta se ata a la sesión. */
+   rpcSesion, que decide si la respuesta se ata a la sesión.
+   21-oct-2026 (verificación del lote 1, R3) — y si ESCRIBE, cuenta como
+   escritura en camino (escrituraEnCamino): SE ACTUALIZA SOLA no recarga
+   encima de ella en ninguna pantalla. */
 function rpcConToken(fn, cuerpo, ses) {
   if (!ses || !ses.access_token) return Promise.reject({ sinSesion: true });
-  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
+  var p = fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + ses.access_token },
@@ -4370,6 +4443,70 @@ function rpcConToken(fn, cuerpo, ses) {
     var e = new Error('http ' + r.status); e.status = r.status;
     return Promise.reject(e);
   });
+  return (LECTURAS_QUE_NO_FRENAN || []).indexOf(fn) >= 0 ? p : escrituraEnCamino(p);
+}
+
+/* ===========================================================================
+ * LO QUE VA EN CAMINO NO SE CORTA — 21 de octubre de 2026 (verificación del
+ * lote 1, R2 y R3)
+ *
+ * SE ACTUALIZA SOLA recarga la página al llegar a una pantalla de la lista
+ * (Crédito, Historial, la portada), y una recarga CORTA lo que el navegador
+ * tenga en camino. La lista miraba un pedido (PIDIENDO) y la subida de fotos
+ * de la cuenta (SUBIDA_EN_CURSO), y nada más:
+ *   · la foto del comprobante en el chat salía, la persona tocaba
+ *     «Historial» y la recarga la cortaba a mitad de subida, sin un error;
+ *   · lo mismo un mensaje del chat, la contraseña nueva (nunca veía
+ *     «Listo»), el estimado del pedido o el aviso de «Salir» al servidor;
+ *   · y «Salir» con las fotos del registro subiendo: I3 deja esa subida viva
+ *     a propósito (su respuesta suelta la copia del teléfono prestado), pero
+ *     SUBIDA_EN_CURSO queda en null y la portada recargaba en el acto. La
+ *     cédula, la cara y la ubicación de María se quedaban en el teléfono de
+ *     otro, y al día siguiente su cuenta le decía «no alcanzaron a subir».
+ * La regla, en UN sitio: toda escritura sale por escrituraEnCamino, que la
+ * cuenta (sube al salir, baja al contestar o fallar), y mientras haya una no
+ * es momento seguro en NINGUNA pantalla (momentoSeguroPlay). Las lecturas
+ * (el latido del chat, la ficha, la solicitud) no frenan nada: cortarlas no
+ * pierde nada, la recarga las vuelve a pedir. La subida que «Salir» deja
+ * suelta se guarda aparte (SUBIDA_SUELTA), por su nombre: es la promesa de I3.
+ * Cuando la última termina se vuelve a preguntar (avisarQueTermino): sin la
+ * persona mirando, recarga; mirando, solo cambia la franja.
+ * ======================================================================== */
+var ESCRITURAS_EN_CAMINO = 0;
+var SUBIDA_SUELTA = null;
+/* Las RPC de la cuenta que solo leen. Lo que no está aquí cuenta como
+   escritura: una función nueva frena la recarga hasta que alguien diga que
+   solo lee, y no al revés. */
+var LECTURAS_QUE_NO_FRENAN = ['chat_leer_sesion', 'chat_sin_leer_sesion', 'chat_foto_sesion_ver',
+                              'mi_cuenta', 'mi_registro', 'mi_solicitud'];
+/* Devuelve la MISMA promesa: quien llama sigue con su .then y su .catch como
+   siempre. El conteo va en una rama aparte que se traga el error (no deja
+   una promesa rechazada sin atender). */
+function escrituraEnCamino(p) {
+  if (!p || typeof p.then !== 'function') return p;
+  ESCRITURAS_EN_CAMINO = (ESCRITURAS_EN_CAMINO || 0) + 1;
+  var fin = function () {
+    ESCRITURAS_EN_CAMINO = Math.max(0, (ESCRITURAS_EN_CAMINO || 0) - 1);
+    avisarQueTermino();
+  };
+  p.then(fin, fin);
+  return p;
+}
+/* «Salir» suelta la subida de la cola de la cuenta (I3): se guarda aquí hasta
+   que conteste, para que ninguna pantalla la tome por momento seguro. */
+function soltarLaSubida(p) {
+  if (!p || typeof p.then !== 'function') return;
+  SUBIDA_SUELTA = p;
+  var fin = function () { if (SUBIDA_SUELTA === p) { SUBIDA_SUELTA = null; avisarQueTermino(); } };
+  p.then(fin, fin);
+}
+function hayEscriturasEnCamino() { return (ESCRITURAS_EN_CAMINO || 0) > 0 || !!SUBIDA_SUELTA; }
+/* Terminó la última: SE ACTUALIZA SOLA vuelve a mirar con la pantalla de
+   ahora (revisar, no yaEsSeguro: la persona puede estar leyendo, y eso no es
+   un cambio de pantalla que ella pidió). */
+function avisarQueTermino() {
+  if (hayEscriturasEnCamino() || typeof ACT === 'undefined' || !ACT) return;
+  try { ACT.revisar(); } catch (e) {}
 }
 
 /* ================= DESDE QUÉ TELÉFONO — 19-oct-2026 =================
@@ -5546,10 +5683,19 @@ function leerCodigoDeBarras(lienzo, gen) {
   var leido = $('docLeido');
   if (leido) { leido.classList.remove('oculto'); leido.innerHTML = 'Leyendo el código de barras…'; }
   var giro = null;
+  /* 21-oct-2026 (verificación del lote 1, R1) — la foto de la que sale ESTE
+     lienzo: la prueba de la amarilla se anota solo si sigue siendo ella. */
+  var foto = FOTOS.cedula_reverso;
   return cargarScript(URL_ZXING).then(respiro).then(function () {
     if (gen !== GENERACION_DEL_REGISTRO) return;
     var r = leerCedulaDeLienzo(lienzo, EC ? EC.GIROS_DE_RESCATE : null, 'siempre');
     giro = r.giro;
+    /* Su PDF417 leído, visto sin leer o su patrón, en la versión grande de
+       ESTA foto: es la amarilla (ver QUÉ CÉDULA ES EL RESPALDO). Un frente
+       escaneado después con la cámara en vivo se lee igual que antes. */
+    if ((r.cedula || r.error === 'ilegible' || r.patron) && foto && FOTOS.cedula_reverso === foto) {
+      anotarTipoDelRespaldo('amarilla'); guardarFotos();
+    }
     if (!r.cedula) throw new Error(r.error || 'sin datos');
     /* 20-oct-2026, revisión (regla 2) — otro número que el de la cédula que
        ya había en este registro es otra persona: se borra todo y se pide el
@@ -5803,6 +5949,9 @@ function codigoEnRecorte(c, banda) {
 function enderezarFotoGuardada(key, giro) {
   var src = FOTOS[key];
   if (!src || !giro || typeof Image !== 'function') return Promise.resolve(false);
+  /* 21-oct-2026 (verificación del lote 1, R1) — enderezarla es la MISMA foto:
+     qué cédula es se queda, firmado con la foto derecha. */
+  var tipo = key === 'cedula_reverso' ? tipoDelRespaldo() : '';
   return new Promise(function (res) {
     var img = new Image();
     img.onload = function () {
@@ -5817,6 +5966,7 @@ function enderezarFotoGuardada(key, giro) {
       img.onload = img.onerror = null;
       if (!out || FOTOS[key] !== src) return res(false);
       FOTOS[key] = out;
+      if (tipo) anotarTipoDelRespaldo(tipo);
       guardarFotos();
       var caja = $('fot_' + key), im = caja && caja.querySelector ? caja.querySelector('img') : null;
       if (im) im.src = out;
@@ -6406,6 +6556,13 @@ function qrEnLienzo(c) {
   var r = grisAEscala(c, 0, 0, c.width, c.height, w, h, 'lienzoQr');
   return !!(r && ECAP.buscarQr(window.ZXing, r.gris, r.w, r.h).hay);
 }
+/* 21-oct-2026 (verificación del lote 1, R1) — el QR del recorte que se va a
+   GUARDAR (capturarDoc). Un lienzo que no deja mirarse no es un QR visto: da
+   false, y entonces el respaldo tampoco es la amarilla probada salvo que su
+   PDF417 se haya visto (ver QUÉ CÉDULA ES EL RESPALDO). */
+function qrEnElRecorte(c) {
+  try { return qrEnLienzo(c); } catch (e) { return false; }
+}
 
 function bucleEscanerDoc() {
   if (!ESCDOC.activo) return;
@@ -6829,6 +6986,9 @@ function leidaDoc(cedula, giro) {
   if (esDeOtraPersona(cedula)) return otraPersonaEnElRegistro();
   delete FOTOS.leida_anterior;
   if (jpeg) FOTOS.cedula_reverso = jpeg;
+  /* 21-oct-2026 (verificación del lote 1, R1) — su PDF417 se LEYÓ: es la
+     amarilla, y queda anotado con la foto (ver QUÉ CÉDULA ES EL RESPALDO). */
+  if (jpeg) anotarTipoDelRespaldo('amarilla');
   marcarDuenoDeLasFotos('cedula_reverso');
   var aSalvo = anotarCedulaLeida(cedula);
   /* 21-oct-2026 — el destello, y el enganche de lo visible con ESTE recorte
@@ -6879,12 +7039,18 @@ function capturarDoc(automatico, delMejor) {
   var lado = ESCDOC.lado || 'reverso';
   ESCDOC.activo = false;
   if (ESCDOC.tempo) { clearTimeout(ESCDOC.tempo); ESCDOC.tempo = null; }
-  var leyo = false, giro = null, forzada = false;
+  var leyo = false, giro = null, forzada = false, pdf417 = false;
   if (lado === 'reverso') {
     prepararFotoNueva();   // 19-oct-2026: antes de escribir la lectura (ver prepararFotoNueva)
     prepararRespaldoNuevo();   // 20-oct-2026, revisión (regla 2): un respaldo nuevo pide el frente otra vez
-    var r = window.ZXing && EC ? leerCedulaDeLienzo(c, EC.GIROS_DE_RESCATE, 'siempre') : { cedula: null, giro: giroPorPatron(c) };
+    var r;
+    if (window.ZXing && EC) r = leerCedulaDeLienzo(c, EC.GIROS_DE_RESCATE, 'siempre');
+    else { var gp = giroPorPatron(c); r = { cedula: null, giro: gp, patron: gp !== null }; }
     giro = r.giro;
+    /* 21-oct-2026 (verificación del lote 1, R1) — LA PRUEBA DE LA AMARILLA,
+       EN ESTE RECORTE (el que se guarda): su PDF417 leído, visto sin poder
+       leerlo, o el patrón de sus barras. Ver QUÉ CÉDULA ES EL RESPALDO. */
+    pdf417 = !!(r.cedula || r.error === 'ilegible' || r.patron);
     if (r.cedula) {
       /* 20-oct-2026, revisión (regla 2) — otro número es otra persona. */
       if (esDeOtraPersona(r.cedula)) return otraPersonaEnElRegistro();
@@ -6934,8 +7100,18 @@ function capturarDoc(automatico, delMejor) {
     ESCDOC.activo = true; bucleEscanerDoc();
     return;
   }
+  /* 21-oct-2026 (verificación del lote 1, R1) — ¿UN QR EN LO QUE SE GUARDA?
+     El bucle solo lo busca mientras mira; con «Tomar la foto ahora» (lo que
+     TEXTO_CEDULA_NUEVA le pide a quien tiene la digital y un teléfono que no
+     la lee sola) nadie lo buscaba en el recorte guardado, y la digital
+     pasaba por amarilla. Ver o leer el QR gana sobre el patrón: ante la duda,
+     la cédula NO se lee. Y así la nota de la cédula nueva y este letrero
+     dicen lo mismo: sin la amarilla probada, «escribes tus datos». */
+  var conQr = lado === 'reverso' && !leyo && (ESCDOC.vioQr === true || qrEnElRecorte(c));
+  var tipo = lado !== 'reverso' ? '' : (leyo ? 'amarilla' : conQr ? 'digital' : pdf417 ? 'amarilla' : '');
   prepararFotoNueva();
   FOTOS['cedula_' + lado] = jpeg;
+  if (lado === 'reverso') anotarTipoDelRespaldo(tipo);
   marcarDuenoDeLasFotos('cedula_' + lado);
   var aSalvo = guardarFotos();
   /* 21-oct-2026 — el destello, y el enganche de lo visible con el recorte que
@@ -6946,11 +7122,13 @@ function capturarDoc(automatico, delMejor) {
      ahora con «Tomar la foto ahora»—, su giro y su marco. `forzada` viaja para
      que un frente guardado con un código a la vista (puede ser el respaldo)
      no se lea como frente. Y `conLetras` se pregunta DESPUÉS: el oyente es el
-     que deja las franjas pendientes. */
-  var conQr = lado === 'reverso' && !leyo && ESCDOC.vioQr === true;
+     que deja las franjas pendientes.
+     21-oct-2026 (verificación del lote 1, R1) — `conQr` ya se decidió arriba,
+     también con el QR del recorte guardado; y «te llenamos lo que alcancemos
+     a leer» pide la MISMA condición que las letras: la amarilla probada. */
   celebrarDisparoDoc();
   avisarCedulaTomada(lado, c, giro, { leida: leyo, qr: conQr, automatica: automatico === true, forzada: forzada === true });
-  var conLetras = lado === 'reverso' && !leyo && !conQr && !!OCR_CEDULA.pendientes.reverso;
+  var conLetras = lado === 'reverso' && !leyo && respaldoEsAmarilla() && !!OCR_CEDULA.pendientes.reverso;
   var sigue = lado === 'reverso' && !hayFotoLista('cedula_frente');   // 20-oct-2026, revisión (F11): el frente LISTO
   /* 19-oct-2026 — «Listo: las dos caras.» solo cuando es cierto: el frente
      pasó la reja de arriba Y el respaldo está guardado. Si la persona insistió
@@ -7038,8 +7216,10 @@ var BASE_OCR = '../app/';
 /* Si en este rato no terminó (sin señal para bajar el motor, un teléfono que
    no puede con él), se deja: la persona escribe lo que falte. */
 var MS_TOPE_OCR = 60000;
-/* 21-oct-2026 — `digital`: la foto del respaldo que se tomó por el QR (ver ocrAlTomarLaCedula). */
-var OCR_CEDULA = { pendientes: {}, estado: '', turno: 0, lector: null, tocados: {}, tope: null, precalentado: false, digital: null };
+/* 21-oct-2026 (verificación del lote 1, R1) — sin `digital`: qué cédula es el
+   respaldo vive con la foto (FOTOS.cedula_reverso_tipo, tipoDelRespaldo), no
+   en la memoria, que se pierde al relanzar la pestaña. */
+var OCR_CEDULA = { pendientes: {}, estado: '', turno: 0, lector: null, tocados: {}, tope: null, precalentado: false };
 var CAMPOS_DE_LA_VISTA = ['documento', 'apellidos', 'nombres', 'expedicion'];
 var TEXTO_LEIDO_DE_LA_CEDULA = '· leído de tu cédula · revísalo';
 
@@ -7090,22 +7270,24 @@ function marcoQueCabe(r, lienzo) {
  * cual: estas letras se leen A PROPÓSITO después, con la cámara apagada y el
  * turno ya cambiado. Lo que las ata es la generación y la FOTO (ver
  * ocrLeerLoPendiente: si FOTOS['cedula_' + lado] ya no es esa, no escribe).
+ *
+ * 21-oct-2026 (verificación del lote 1, R1) — LA DIGITAL YA NO SE RECONOCE
+ * POR SU QR, SE LEE SOLO LA AMARILLA PROBADA. La marca de la digital
+ * (OCR_CEDULA.digital) vivía en la memoria y solo existía con un QR leído en
+ * vivo: relanzar la pestaña, o un teléfono que no lee el QR y «Tomar la foto
+ * ahora», y el frente de la digital (con el RH, el sexo y la estatura) pasaba
+ * por el bloque de la amarilla. Ahora ninguno de los dos lados se lee si el
+ * respaldo guardado no es la amarilla PROBADA (respaldoEsAmarilla: QUÉ CÉDULA
+ * ES EL RESPALDO GUARDADO), que se anota con la foto antes de este aviso.
  * ========================================================================= */
 function ocrAlTomarLaCedula(d) {
   if (!d || (d.lado !== 'reverso' && d.lado !== 'frente')) return;
   var lado = d.lado;
   if (d.forzada) { ocrSoltarLado(lado); return; }
-  if (lado === 'reverso' && d.qr) { ocrSoltarLado(lado); OCR_CEDULA.digital = FOTOS.cedula_reverso || null; return; }
-  if (lado === 'frente' && ocrRespaldoEsDigital()) { ocrSoltarLado(lado); return; }
+  if (d.qr || !respaldoEsAmarilla()) { ocrSoltarLado(lado); return; }
   var giro = d.giro == null ? 0 : (((+d.giro || 0) % 360) + 360) % 360;
   if (giro === 90 || giro === 270) { ocrSoltarLado(lado); return; }
   ocrAnotarRecorte(lado, d.lienzo, giro, d.guia);
-}
-/* ¿El respaldo que está guardado AHORA es el de una cédula digital? Atado a la
-   foto: un respaldo nuevo (amarillo) deja de serlo solo. */
-function ocrRespaldoEsDigital() {
-  var dig = OCR_CEDULA.digital;
-  return !!dig && dig === FOTOS.cedula_reverso;
 }
 alTomarLaCedula(ocrAlTomarLaCedula);
 /* Al disparar un lado: se recortan SOLO sus franjas (el resto de la tarjeta,
@@ -7175,8 +7357,9 @@ function ocrSoltarLado(lado) {
 /* Un respaldo NUEVO (prepararRespaldoNuevo): el frente se va con el viejo, y
    todo lo que las letras de esa cédula escribieron, también. */
 function ocrSoltarVista() {
-  /* 21-oct-2026 — y la marca de cédula digital: el respaldo nuevo decide otra vez. */
-  if (typeof OCR_CEDULA === 'object' && OCR_CEDULA) { OCR_CEDULA.pendientes = {}; OCR_CEDULA.digital = null; }
+  /* 21-oct-2026 — el respaldo nuevo decide otra vez qué cédula es
+     (prepararRespaldoNuevo suelta la marca que va con la foto). */
+  if (typeof OCR_CEDULA === 'object' && OCR_CEDULA) OCR_CEDULA.pendientes = {};
   var v = FOTOS.cedula_vista;
   if (v) { ocrQuitarLoLlenado(v); delete FOTOS.cedula_vista; }
 }
@@ -7191,7 +7374,7 @@ function ocrSoltarConLasFotos() {
    Nada en camino escribe, nada pendiente se lee, y el motor se termina. */
 function ocrOlvidar() {
   if (typeof OCR_CEDULA !== 'object' || !OCR_CEDULA) return;
-  OCR_CEDULA.pendientes = {}; OCR_CEDULA.tocados = {}; OCR_CEDULA.digital = null;
+  OCR_CEDULA.pendientes = {}; OCR_CEDULA.tocados = {};
   ocrParar('');
 }
 function ocrParar(estado) {
@@ -7217,6 +7400,9 @@ function ocrLeerLoPendiente() {
   var P = OCR_CEDULA;
   if (P.estado === 'leyendo' || !ocrHayPendiente()) return;
   if (ESCDOC.activo || ESCDOC.stream) return;   // nunca con la cámara encendida
+  /* 21-oct-2026 (verificación del lote 1, R1) — y nunca sin la amarilla
+     probada: lo pendiente de un respaldo que dejó de serlo no se lee. */
+  if (!respaldoEsAmarilla()) { P.pendientes = {}; return; }
   ocrParar('leyendo');
   var turno = P.turno, gen = GENERACION_DEL_REGISTRO, O = null;
   var vale = function () { return turno === P.turno && gen === GENERACION_DEL_REGISTRO; };
@@ -10974,7 +11160,10 @@ function cambiarClave() {
      misma cuenta). Antes se pintaba r.j.msg tal cual, en inglés. El cuerpo
      puede no ser JSON (un 502 de una puerta intermedia): eso no es «sin
      internet», y por eso se lee aparte en vez de caer al catch. */
-  deEstaSesion(ses, fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
+  /* 21-oct-2026 (R3) — una escritura en camino: la recarga sola no la corta
+     (sin esto, tocar «Historial» mientras guardaba dejaba sin «Listo» y sin
+     saber cuál contraseña servía). */
+  deEstaSesion(ses, escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + ses.access_token },
@@ -10982,7 +11171,7 @@ function cambiarClave() {
   }).then(function (r) {
     return r.json().catch(function () { return null; })
       .then(function (j) { return { ok: r.ok, estado: r.status, j: j }; });
-  }))
+  })))
     .then(function (r) {
       if (!r.ok) {
         return fallo(err, (U && U.traducirErrorAuth) ? U.traducirErrorAuth(r.j, r.estado)
@@ -11040,11 +11229,13 @@ function salirDeCuenta() {
      es una cuenta abierta con el candado puesto por fuera. El aviso se manda y
      no se espera: si no llega, igual salimos — quedarse adentro porque falló la
      red sería lo peor de los dos mundos. */
+  /* 21-oct-2026 (R3) — y cuenta como escritura en camino: la portada es de
+     la lista de SE ACTUALIZA SOLA, y recargar ahí mismo cortaba este aviso. */
   if (SESION && SESION.access_token) {
-    fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/logout', {
+    escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/logout', {
       method: 'POST',
       headers: { apikey: CFG.anon, Authorization: 'Bearer ' + SESION.access_token }
-    }).catch(function () {});
+    })).catch(function () {});
   }
   /* Y la copia guardada se borra ANTES que nada: si el aviso al servidor falla
      o la pestaña se cierra en medio, lo que no puede quedar es una sesión que
@@ -11066,7 +11257,13 @@ function salirDeCuenta() {
      cerró y lo que leyó en cada canal.
      21-oct-2026 — I3: la subida de la cola SÍ sigue y anota lo que pasó con
      el celular de su dueña (ver SUBIDA_EN_CURSO); se suelta aquí solo para
-     que la cuenta del siguiente no la tome por «la que ya va». */
+     que la cuenta del siguiente no la tome por «la que ya va».
+     21-oct-2026 (verificación del lote 1, R2) — SUELTA, PERO A LA VISTA:
+     queda en SUBIDA_SUELTA hasta que conteste. Sin eso, la portada (que es
+     de la lista de SE ACTUALIZA SOLA) recargaba en este mismo instante y
+     mataba la subida que I3 dejó viva: la copia de María se quedaba en el
+     teléfono prestado. */
+  if (SUBIDA_EN_CURSO && SUBIDA_EN_CURSO.p) soltarLaSubida(SUBIDA_EN_CURSO.p);
   PIDIENDO = false; SUBIDA_EN_CURSO = null;
   SOL_EN_PANTALLA = null; CONDICIONES_LEIDAS = {}; PEDIDO_PUESTO = '';
   MI_REGISTRO = ''; AVISO_RESPONSABLE_PLAY_CERRADO = false;
@@ -11401,7 +11598,8 @@ function pedir() {
   /* 21-oct-2026 — H2: la sesión que pide (o ninguna); la respuesta se calla si
      al volver la pestaña ya es de otra (deEstaSesion). */
   var ses = SESION;
-  deEstaSesion(ses, fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/play_solicitar', {
+  /* 21-oct-2026 (R3) — escritura en camino: ver LO QUE VA EN CAMINO NO SE CORTA. */
+  deEstaSesion(ses, escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/play_solicitar', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json', apikey: CFG.anon,
@@ -11417,7 +11615,7 @@ function pedir() {
        pide de más es información para Joan, no una instrucción para la base. */
     body: JSON.stringify({ p_capital: MONTO, p_meses: PLAZO,
                            p_nota: notaConPlazo() })
-  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); }))
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })))
     .then(function (j) {
       /* La función contesta {ok:false} con HTTP 200 cuando algo no cuadra o el
          freno de solicitudes está lleno: decir «recibimos» ahí sería mentir.
@@ -11595,7 +11793,9 @@ function pie() {
        tuyo?», el «Listo» mientras suben las fotos y PlataChat esperando;
      · cualquier viaje en camino (viajando: un «Entrar» o un «Abrir mi
        cuenta»), un pedido saliendo (PIDIENDO) y una subida de fotos
-       (SUBIDA_EN_CURSO);
+       (SUBIDA_EN_CURSO); y desde la verificación del 21-oct-2026 (R2, R3),
+       CUALQUIER escritura en camino y la subida que «Salir» dejó suelta
+       (hayEscriturasEnCamino: ver LO QUE VA EN CAMINO NO SE CORTA);
      · la propuesta con la casilla «Leí y acepto» marcada (se perdería la
        marca), la pantalla de la solicitud, el chat, el perfil (la contraseña
        nueva), «Recuperar tu contraseña» y borrar la cuenta.
@@ -11617,8 +11817,12 @@ function sinTeclear(id) {
   var el = $(id);
   return !el || !String(el.value || '').trim();
 }
+/* 21-oct-2026 (verificación del lote 1, R2 y R3) — y ninguna escritura en
+   camino, en NINGUNA pantalla: la subida que «Salir» dejó suelta, la foto o
+   el mensaje del chat, la contraseña nueva, el aviso de salida (ver LO QUE
+   VA EN CAMINO NO SE CORTA). */
 function momentoSeguroPlay() {
-  if (viajando() || PIDIENDO || SUBIDA_EN_CURSO) return false;
+  if (viajando() || PIDIENDO || SUBIDA_EN_CURSO || hayEscriturasEnCamino()) return false;
   if (VISTA === 'entrar') return sinTeclear('inTel') && sinTeclear('inClave') && sinTeclear('csMontoLibre');
   if (VISTA !== 'cuenta') return false;
   if (TAB === 'historial') return true;

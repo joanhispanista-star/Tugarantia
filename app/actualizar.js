@@ -32,6 +32,15 @@
  *      «Ver como» de Joan... nada de eso está. Y este archivo agrega dos
  *      guardas que valen para todas: texto tecleado a la vista y una cámara
  *      encendida.
+ *      21-oct-2026 (verificación del lote 1, R2 y R3) — «una petición en
+ *      camino» no puede depender de que cada pantalla se acuerde: la foto del
+ *      comprobante salía, la persona tocaba «Plata» y la recarga la cortaba.
+ *      Cada página CUENTA sus escrituras en camino (ESCRITURAS_EN_CAMINO:
+ *      sube al salir, baja al contestar o fallar) y mientras haya una no es
+ *      momento seguro en NINGUNA pantalla; play/ además guarda la subida de
+ *      fotos que «Salir» deja viva (SUBIDA_SUELTA). Cuando la última
+ *      termina, la página vuelve a preguntar con revisar(): sin la persona
+ *      mirando recarga, y mirando solo cambia la franja.
  *      Aun en una pantalla segura, NO DEBAJO DEL DEDO: recarga cuando la app
  *      se va a segundo plano (la persona no la está mirando), justo al volver
  *      antes de tocar nada, o cuando la página vuelve al inicio por su cuenta
@@ -47,6 +56,13 @@
  *      las pantallas seguras (el inicio), el botón «Actualizar ahora».
  *   7. EL CRM Y EL ESPEJO NUNCA SE RECARGAN SOLOS: allá vive la cola de cobros
  *      sin señal y un estado enorme. Solo la franja con «Recargar».
+ *   7b. 21-oct-2026 (verificación del lote 1, R5) — UN MODO QUE NUNCA TIENE
+ *      MOMENTO SEGURO NO PROMETE «SE PONE SOLA». La página lo declara
+ *      (nuncaEsSeguro: el «Ver como» de Joan en la app del socio, PlataChat
+ *      con la calculadora movida) y la franja dice «Cuando no tengas nada a
+ *      medias, toca “Actualizar ahora”», con el botón. Antes decía «se pone
+ *      sola cuando termines y vuelvas al inicio» estando ya en el inicio, y
+ *      no se ponía nunca.
  *   8. AL VOLVER DE UNA RECARGA SUYA la página lo sabe (controlador.vuelta):
  *      se salta la bienvenida de 2 s —la persona no pidió abrir la app— y
  *      vuelve a la pestaña donde estaba (`lugar`, que guarda solo el nombre de
@@ -94,6 +110,10 @@
     alSalir: 'Hay una versión nueva: se pone sola cuando salgas de la app y vuelvas.',
     lista: 'Hay una versión nueva.',
     aMano: 'Hay una versión nueva. Cuando termines, vuelve al inicio y toca «Actualizar ahora».',
+    /* 21-oct-2026 (R5) — el modo que NUNCA es seguro: ni «se pone sola» ni
+       «vuelve al inicio» (el inicio tampoco lo es). El botón va siempre: la
+       decisión es de la persona, que sabe si tiene algo a medias. */
+    nuncaSola: 'Hay una versión nueva. Cuando no tengas nada a medias, toca «Actualizar ahora».',
     panel: 'Hay una versión nueva del panel. Recárgalo cuando no tengas nada a medias.',
     panelSinSenal: 'Hay una versión nueva del panel. Recárgalo cuando vuelva la señal y no tengas nada a medias.',
     boton: 'Actualizar ahora',
@@ -132,6 +152,8 @@
        pagina, nueva   'v138', 'v139' ('' si no se sabe)
        instalando      el service worker nuevo todavía no tomó el mando
        enLinea, soloAvisar, seguro
+       nunca           21-oct-2026 (R5) — la página dice que en el modo en que
+                       está NINGUNA pantalla es segura (gana sobre `seguro`)
        autoPosible     queda la recarga sola de esta versión en esta pestaña
        momento         'oculta' | 'volviendo' | 'transicion' | 'mirando'
      Devuelve { accion: 'nada' | 'recargar' | 'avisar', aviso: {texto, boton} | null }. */
@@ -148,6 +170,10 @@
        (la precarga no revienta si un archivo falta). Y cualquier texto de
        «se pone sola» dependería de una señal que no hay: se calla. */
     if (!e.enLinea) return { accion: 'nada', aviso: null };
+    /* 21-oct-2026 (R5) — un modo sin momento seguro no recarga ni promete:
+       «se pone sola cuando… vuelvas al inicio» era falso, porque en ese modo
+       el inicio tampoco es seguro. El botón, siempre. */
+    if (e.nunca) return { accion: 'avisar', aviso: { texto: TEXTOS.nuncaSola, boton: TEXTOS.boton } };
     if (e.seguro && e.autoPosible && e.momento !== 'mirando') return { accion: 'recargar', aviso: null };
     if (e.seguro) return { accion: 'avisar', aviso: { texto: e.autoPosible ? TEXTOS.alSalir : TEXTOS.lista, boton: TEXTOS.boton } };
     return { accion: 'avisar', aviso: { texto: e.autoPosible ? TEXTOS.alTerminar : TEXTOS.aMano, boton: null } };
@@ -158,8 +184,22 @@
      lo visible (getClientRects vacío = display:none), porque una página
      guarda pantallas enteras escondidas con lo de antes adentro. Los
      deslizadores y las fechas no cuentan: siempre traen valor, y lo suyo lo
-     guarda la calculadora. */
+     guarda la calculadora.
+     21-oct-2026 (verificación del lote 1, R4) — NI LO QUE NADIE PUEDE
+     ESCRIBIR. La tarjeta de instalar (app/instalar.js) pinta el enlace de la
+     app en un <input readonly> con valor en Edge, Firefox, Opera, Xiaomi y
+     dentro de Instagram o Facebook, y eso contaba como «algo tecleado»: la
+     app del socio no se recargaba nunca en la entrada ni en el inicio, y la
+     franja prometía lo contrario. Un campo de solo lectura o apagado no
+     guarda nada que la persona haya escrito (la fecha de nacimiento leída en
+     el registro de play/ es otro caso). Se mira la propiedad y el atributo:
+     un banco de pruebas, o un navegador viejo, puede traer solo uno. */
   var TIPOS_DE_TEXTO = ['', 'text', 'tel', 'password', 'email', 'search', 'number', 'url'];
+  function noSePuedeEscribir(el) {
+    if (el.readOnly === true || el.disabled === true) return true;
+    if (typeof el.hasAttribute === 'function' && (el.hasAttribute('readonly') || el.hasAttribute('disabled'))) return true;
+    return false;
+  }
   function hayTextoALaVista(doc) {
     try {
       if (!doc || typeof doc.querySelectorAll !== 'function') return false;
@@ -169,6 +209,7 @@
         var tag = String(el.tagName || '').toLowerCase();
         var tipo = String((el.getAttribute && el.getAttribute('type')) || el.type || '').toLowerCase();
         if (tag !== 'textarea' && TIPOS_DE_TEXTO.indexOf(tipo) < 0) continue;
+        if (noSePuedeEscribir(el)) continue;
         if (!String(el.value || '').trim()) continue;
         if (typeof el.getClientRects === 'function' && el.getClientRects().length === 0) continue;
         return true;
@@ -217,6 +258,10 @@
      o.version        VERSION_SITIO de la página ('v138')
      o.momentoSeguro  () => boolean — la lista blanca de la página; sin ella,
                       nunca es seguro
+     o.nuncaEsSeguro  21-oct-2026 (R5) — () => boolean: true si en el modo en
+                      que está la página NINGUNA pantalla es segura (ni
+                      volviendo al inicio). Entonces no recarga sola y la
+                      franja no promete «se pone sola»: ofrece el botón.
      o.soloAvisar     true en el CRM y el espejo: nunca recarga sola
      o.lugar          () => {tab: '...'} | null — lo que se recuerda al otro
                       lado de una recarga (solo nombres de pestaña)
@@ -287,6 +332,12 @@
       var si = false;
       try { si = !!o.momentoSeguro(); } catch (e) { si = false; }
       return si && !hayTextoALaVista(doc) && !hayCamaraEncendida(doc);
+    }
+    /* Si no se puede preguntar, NO es «nunca»: es la pregunta de siempre
+       (momentoSeguro), que ya dice que no cuando falla. */
+    function preguntarNunca() {
+      if (typeof o.nuncaEsSeguro !== 'function') return false;
+      try { return o.nuncaEsSeguro() === true; } catch (e) { return false; }
     }
     function momentoActual(pedido) {
       if (oculta()) return 'oculta';
@@ -372,13 +423,15 @@
     function evaluar(pedido) {
       if (!vivo) return ultima;
       var nueva = versionDeCaches(claves);
+      var nunca = !o.soloAvisar && preguntarNunca();
       var e = {
         pagina: ctl.opciones.version,
         nueva: nueva,
         instalando: !!(reg && (reg.installing || reg.waiting)),
         enLinea: enLinea(),
         soloAvisar: !!o.soloAvisar,
-        seguro: o.soloAvisar ? false : preguntarSeguro(),
+        nunca: nunca,
+        seguro: (o.soloAvisar || nunca) ? false : preguntarSeguro(),
         autoPosible: conMemoria && !yaRecargoPor(nueva),
         momento: momentoActual(pedido)
       };

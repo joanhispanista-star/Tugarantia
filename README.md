@@ -46,6 +46,15 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         socio.html y platachat/ recargan solas SOLO en un
                         momento seguro (lista blanca de cada página); el CRM y
                         el espejo solo avisan. Probada en node.
+                        (21-oct-2026, verificación del lote 1) Nunca con una
+                        escritura en camino (cada página las cuenta:
+                        ESCRITURAS_EN_CAMINO, y play/ la subida que «Salir»
+                        deja suelta); los campos de solo lectura no cuentan
+                        como texto tecleado; y un modo sin momento seguro (el
+                        «Ver como», PlataChat con la calculadora movida) no
+                        promete «se pone sola»: ofrece «Actualizar ahora».
+                        La cuenta del enlace del CRM (#d=) sí se recarga.
+                        Pruebas: pruebas/la-recarga-no-corta-nada.test.js.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
                         divulgación del crédito y el borrado de cuenta.
@@ -122,7 +131,13 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         recorte de la foto que se guardó —las dos caras
                         acostadas, el mejor cuadro de la ventana—, con su giro
                         y el marco anotado al dibujarlo. La cédula digital (la
-                        del QR) no se lee con las franjas de la amarilla. De
+                        del QR) no se lee con las franjas de la amarilla:
+                        (21-oct-2026, verificación) ningún lado se lee sin
+                        prueba POSITIVA de la amarilla (su PDF417 leído, visto
+                        o su patrón en el recorte guardado), anotada CON LA
+                        FOTO (FOTOS.cedula_reverso_tipo): sobrevive a relanzar
+                        y se va con ella (pruebas/la-digital-no-se-lee.test.js,
+                        con la cámara de pruebas/banco-camara.js). De
                         la cámara a «Están bien», con ZXing y Tesseract de
                         verdad: pruebas/escaner-ocr-de-punta-a-punta.test.js.
   borrar-cuenta.html    La URL pública de borrado que exige Play.
