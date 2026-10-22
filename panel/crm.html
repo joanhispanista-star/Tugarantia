@@ -14305,9 +14305,33 @@ function publicarEquipo() {
    armara lo suyo, el día que alguien le agregue un campo a una, la otra
    seguiría mandando lo de antes, y lo que ve el gerente dependería de cuál
    corrió último. Devuelve {asig, ps} o {error} con las palabras para Joan. */
+/* 22-oct-2026 — EL JEFE VIAJA COMO CELULAR, SIEMPRE. En este computador el
+   jefe vive de dos formas: guardarPersona lo guarda como el CELULAR del
+   gerente (es el value del <select>) y traerEquipo como su ID (jefeLocal).
+   Se publicaba tal cual, y el servidor se queda con los diez últimos dígitos
+   de lo que le llegue: el id 'E1729000000000' llegaba como '9000000000', un
+   gerente que no existe. Al asesor le cambiaba el jefe sin que nadie lo
+   tocara, y su gerente de verdad dejaba de alcanzarlo en mi_alcance. Hoy pesa
+   más porque editar a alguien publica en ese momento. Aquí se traduce, y solo
+   aquí: un id se cambia por el celular de esa persona, y lo que no se
+   reconoce no viaja (sin jefe, el asesor lo ve Joan, que es el lado seguro). */
+function celularDeJefe(jefe) {
+  const j = String(jefe == null ? '' : jefe).trim();
+  if (!j) return '';
+  const porId = equipo().find(x => String(x.id) === j);
+  if (porId) return String(porId.celular || '').replace(/\D/g, '').slice(-10);
+  return /^[\d\s+().-]+$/.test(j) ? j.replace(/\D/g, '').slice(-10) : '';
+}
+/* 22-oct-2026 — una persona del equipo tal como viaja. La usan la publicación
+   (p_equipo) y la huella de la que corre sola: si fueran dos listas, cambiar
+   un campo en una dejaría a la otra diciendo «sin cambios». */
+function filaDeEquipo(p) {
+  return { celular: p.celular, nombre: p.nombre, rol: p.rol,
+           estado: p.estado || 'activo', jefe: celularDeJefe(p.jefe) };
+}
 function armarPublicacionEquipo() {
   if (!sbListo()) return { error: 'Primero conecta la nube en Ajustes.' };
-  if (!ETAPAS) return { error: 'No cargó app/etapas.js. Recarga con señal.' };
+  if (!ETAPAS) return { error: 'No cargó app/etapas.js. Recarga con señal (Ctrl+Shift+R).' };
   const gente = equipo().filter(p => p.celular);
   if (!gente.length) return { error: 'Ninguna persona del equipo tiene celular.\n\nSin celular no puede entrar: el celular ES su usuario.' };
   const hoy = hoyISO();
@@ -14412,7 +14436,9 @@ function armarPublicacionEquipo() {
     return { id: String(a.id), persona_id: String(a.socio_id),
              asesor: per ? String(per.celular || '') : '', desde: String(a.desde || hoy) };
   }).filter(a => a.asesor);
-  return { asig: asig, ps: ps };
+  /* 22-oct-2026 — `eq`, la gente como viaja: la huella de la publicación sola
+     la necesita (retirar a alguien no cambia ni asig ni ps). */
+  return { asig: asig, ps: ps, eq: gente.map(filaDeEquipo) };
 }
 
 /* `op.auto` (15-oct-2026): la publicación que corre sola. Sin la pregunta y
@@ -14467,13 +14493,15 @@ function publicarEquipoAhora(gente, asig, ps, op) {
              com_ganado: String(c.total_ganado) };
   };
 
+  /* 22-oct-2026 — las marcas de lo que Joan cambió y aún no había subido, tal
+     como están al salir: solo esas se sueltan si la nube contesta bien. Un
+     cambio que entre mientras esto va en el aire conserva la suya. */
+  const marcas = leerEquipoPorPublicar();
   return rpc('equipo_publicar', { p_clave: sbCfg().clave,
-      p_equipo: gente.map(p => Object.assign(
-        { celular: p.celular, nombre: p.nombre, rol: p.rol,
-          estado: p.estado || 'activo', jefe: p.jefe || '' },
-        plataDeAsesor(p))),
+      p_equipo: gente.map(p => Object.assign(filaDeEquipo(p), plataDeAsesor(p))),
       p_asignaciones: asig, p_gente: ps })
     .then(r => {
+      soltarEquipoPublicado(marcas);
       if (auto) return r;
       alert('Publicado.\n\nEquipo: ' + (r.equipo || 0) + '\nAsignaciones: ' + (r.asignaciones || 0) +
         '\nGente repartida: ' + (r.gente || 0) + '\n\nYa pueden entrar en:\n' +
@@ -14526,15 +14554,62 @@ function anotarPublicadoSolo(x) {
   try { localStorage.setItem('tg_equipo_publicado_solo', JSON.stringify(x)); } catch (e) { /* nada */ }
   pintarPublicadoSolo();
 }
+/* --------------------------------------------------------------------------
+ * 22-oct-2026 — LO QUE JOAN CAMBIÓ Y TODAVÍA NO SUBIÓ, GANA AL TRAER.
+ *
+ * traerEquipo deja que la nube mande en rol, estado y jefe, porque son los
+ * tres que el gerente cambia desde su celular. Pero publicar TRAE PRIMERO
+ * (regla de dc57aab), así que retirar a alguien acá y publicar era: traer →
+ * la nube dice «activo» → el retiro de Joan se deshace en este computador →
+ * se publica «activo». El retirado seguía viendo su base, ahora con el sello
+ * de una publicación de hoy encima.
+ *
+ * Por eso guardarPersona anota a quién tocó Joan, y mientras esa marca exista
+ * traerEquipo no le cambia ni rol, ni estado, ni jefe. La marca se suelta solo
+ * cuando la nube acepta una publicación que salió con ella (publicarEquipoAhora):
+ * desde ahí vuelve a mandar la nube, y lo que el gerente haga después se trae.
+ * Vive en este navegador y no en la cartera a propósito: viajaría en el
+ * respaldo y en la subida, y otro computador creería tener un cambio que no
+ * hizo. Si el navegador no la puede guardar, queda en memoria mientras la
+ * pestaña siga abierta, que es lo que dura el reintento.
+ * ------------------------------------------------------------------------ */
+var LLAVE_EQUIPO_POR_PUBLICAR = 'tg_equipo_por_publicar';
+var _equipoPorPublicarMem = {};
+function leerEquipoPorPublicar() {
+  let x = {};
+  try { x = JSON.parse(localStorage.getItem(LLAVE_EQUIPO_POR_PUBLICAR) || '{}') || {}; } catch (e) { x = {}; }
+  if (typeof x !== 'object' || Array.isArray(x)) x = {};
+  return Object.assign({}, x, _equipoPorPublicarMem);
+}
+function escribirEquipoPorPublicar(x) {
+  _equipoPorPublicarMem = Object.assign({}, x);
+  try { localStorage.setItem(LLAVE_EQUIPO_POR_PUBLICAR, JSON.stringify(x)); } catch (e) { /* queda en memoria */ }
+}
+function anotarEquipoPorPublicar(id) {
+  const x = leerEquipoPorPublicar();
+  x[String(id)] = new Date().toISOString() + '#' + Math.random().toString(36).slice(2, 8);
+  escribirEquipoPorPublicar(x);
+}
+function soltarEquipoPublicado(marcas) {
+  const x = leerEquipoPorPublicar();
+  let cambio = false;
+  Object.keys(marcas || {}).forEach(k => { if (x[k] === marcas[k]) { delete x[k]; cambio = true; } });
+  if (cambio) escribirEquipoPorPublicar(x);
+}
+
 /* `op.porCambio` (22-oct-2026): la publica un acto de Joan en esta pestaña
    (repartir, crear o editar a alguien). Salta las dos puertas que existen para
    la vuelta de 15 min —estar emparejado, no estar escribiendo—, nunca la de
-   la cartera escrita por otra pestaña ni la de traer primero. */
+   la cartera escrita por otra pestaña ni la de traer primero.
+   22-oct-2026, revisión — y ya no pide asignaciones, a ninguna de las dos:
+   la lista del equipo viaja sola. Una persona recién creada necesita su
+   puesto antes de tener clientes (sin él no puede ni entrar), y un retiro
+   tiene que llegar aunque a nadie le quede nada repartido. */
 function puertaPublicarSolo(op) {
   const porCambio = !!(op && op.porCambio);
   if (CARTERA_EQUIPO) return 'modo_equipo';
   if (!sbListo()) return 'sin_nube';
-  if (!equipo().some(p => p.celular) || !asignaciones().length) return 'sin_equipo';
+  if (!equipo().some(p => p.celular)) return 'sin_equipo';
   if (!porCambio && (!window.NubeCRM || !NubeCRM.estado || NubeCRM.estado().fase !== 'lista')) return 'sin_emparejar';
   if (_carteraAjena()) return 'cartera_ajena';
   if (!porCambio && estoyOcupado()) return 'ocupado';
@@ -14551,11 +14626,21 @@ function publicarEquipoSolo(op) {
   const puerta = puertaPublicarSolo(o);
   if (puerta) { pintarPublicadoSolo(puerta); return Promise.resolve(puerta); }
   const a = armarPublicacionEquipo();
-  if (a.error) return Promise.resolve('no_se_pudo_armar');
-  /* La huella de lo que viajaría, y el día: si ninguno cambió, no se manda. */
-  const huella = _huella(JSON.stringify([a.asig, a.ps]));
+  /* 22-oct-2026 — sin armar no hay qué mandar, pero se repinta: la línea de
+     Equipo y la ☁ común miran en vivo si falta app/etapas.js y lo dicen en
+     rojo. Antes volvía callada y las dos seguían en calma con la hora de una
+     publicación de hace días. */
+  if (a.error) { try { pintarPublicadoSolo(); } catch (e) { /* idem */ } return Promise.resolve('no_se_pudo_armar'); }
+  /* La huella de lo que viajaría, y el día: si ninguno cambió, no se manda.
+     22-oct-2026 — con la lista del equipo adentro (celular, nombre, rol,
+     estado, jefe): sin ella, retirar a alguien o cambiarle el jefe daba la
+     misma huella y se quedaba en «sin cambios». Y un cambio de Joan
+     (porCambio) no toma ese atajo nunca: él acaba de tocar algo, y lo que
+     cueste mandarlo otra vez es nada al lado de un retirado que sigue
+     viendo la base de sus clientes. */
+  const huella = _huella(JSON.stringify([a.eq, a.asig, a.ps]));
   const antes = leerPublicadoSolo();
-  if (antes && antes.ok && antes.huella === huella && antes.dia === hoyISO()) return Promise.resolve('sin_cambios');
+  if (!o.porCambio && antes && antes.ok && antes.huella === huella && antes.dia === hoyISO()) return Promise.resolve('sin_cambios');
   _publicandoSolo = true;
   try { pintarNubeTodo(); } catch (e) { /* la línea común lo dirá en la vuelta siguiente */ }
   return traerEquipo('auto')
@@ -14639,7 +14724,17 @@ function pintarPublicadoSolo(puerta) {
   if (b) {
     const x = leerPublicadoSolo();
     const cuando = x && x.cuando ? fmtFechaHora(x.cuando) : '';
-    if (puerta === 'sin_emparejar') {
+    /* 22-oct-2026 — SIN app/etapas.js NO SE PUEDE ARMAR lo que viaja, y eso
+       no se arregla solo esperando: hace falta recargar. Se mira EN VIVO (no
+       se anota), para que tras la recarga no quede un rojo viejo diciendo lo
+       que ya no es cierto. Va primero: con el módulo faltando, «Última: …» en
+       calma sería afirmar que el equipo está al día. */
+    if (!ETAPAS && sbListo() && equipo().some(p => p.celular)) {
+      b.innerHTML = '<div class="alerta mal"><b>Tu equipo no recibe nada nuevo: no cargó app/etapas.js</b>. ' +
+        'Sin ese archivo no puedo calcular la etapa de cada cliente, así que no publico (ni al repartir, ni al crear o editar a alguien, ni cada 15 min). ' +
+        'Pasa con un service worker viejo o si se cortó la señal justo en ese archivo: <b>recarga esta pestaña con señal (Ctrl+Shift+R)</b>. ' +
+        'Mientras, tu equipo sigue viendo ' + (x && x.ok ? 'lo publicado el ' + escHTML(cuando) : 'lo último que se publicó') + '.</div>';
+    } else if (puerta === 'sin_emparejar') {
       b.innerHTML = '<div class="alerta warn">La cartera de tu equipo no se refresca sola cada 15 min: este computador todavía no está emparejado con la nube (se va a emparejar solo; la línea ☁ de la barra lateral dice qué falta). Lo que repartes sí se publica en el momento.</div>';
     } else if (x && x.ok === false) {
       b.innerHTML = '<div class="alerta mal"><b>No pude publicar la cartera de tu equipo</b> (' + escHTML(cuando) + '): ' + escHTML(x.error || '') +
@@ -14684,6 +14779,7 @@ function traerEquipo(callado) {
     .then(r => {
       const d = (r && typeof r === 'object') ? r : {};
       let nuevos = 0, cambios = 0;
+      const porPublicar = leerEquipoPorPublicar();
       const porCel = {};
       equipo().forEach(p => { if (p.celular) porCel[String(p.celular).replace(/\D/g, '').slice(-10)] = p; });
       (d.equipo || []).forEach(x => {
@@ -14711,11 +14807,19 @@ function traerEquipo(callado) {
           nuevos++;
         } else {
           /* La nube manda en rol, estado y jefe: son las tres que el gerente
-             puede cambiar desde su celular. El nombre lo deja Joan. */
-          if (mio.rol !== x.rol || mio.estado !== x.estado || (mio.whatsapp || '') !== (x.whatsapp || '')) cambios++;
-          mio.rol = String(x.rol || mio.rol);
-          mio.estado = String(x.estado || mio.estado);
-          mio.jefe = jefeLocal(x.jefe) || mio.jefe;
+             puede cambiar desde su celular. El nombre lo deja Joan.
+             22-oct-2026 — salvo si Joan tocó a esa persona acá y todavía no
+             se publicó (ver LO QUE JOAN CAMBIÓ Y TODAVÍA NO SUBIÓ): traer es
+             el primer paso de publicar, y si aquí ganara la nube, retirar a
+             alguien se deshacía justo antes de mandarlo. El WhatsApp lo pone
+             la persona desde su celular y se trae siempre. */
+          const manda = !porPublicar[String(mio.id)];
+          if ((manda && (mio.rol !== x.rol || mio.estado !== x.estado)) || (mio.whatsapp || '') !== (x.whatsapp || '')) cambios++;
+          if (manda) {
+            mio.rol = String(x.rol || mio.rol);
+            mio.estado = String(x.estado || mio.estado);
+            mio.jefe = jefeLocal(x.jefe) || mio.jefe;
+          }
           mio.whatsapp = x.whatsapp || '';
         }
       });
@@ -14824,6 +14928,11 @@ function traerGestiones(callado) {
 
 function editarPersona(id) {
   const p = id ? personaDeEquipo(id) : null;
+  /* 22-oct-2026 — el «Reporta a» se marca comparando CELULARES (celularDeJefe):
+     un jefe traído de la nube se guarda como id, y la comparación de antes
+     (p.jefe === x.celular) no lo reconocía. El <select> salía en «Nadie», y
+     corregirle el nombre a ese asesor le quitaba el jefe al guardar, ahora
+     publicado en ese mismo momento: su gerente dejaba de verlo. */
   openModal(p ? 'Editar a ' + p.nombre : 'Crear una persona del equipo', `
     <div class="field"><label>Nombre completo</label><input id="eqNombre" value="${p ? escHTML(p.nombre) : ''}"></div>
     <div class="field"><label>Celular</label><input id="eqTel" inputmode="numeric" value="${p ? escHTML(p.celular || '') : ''}"></div>
@@ -14834,7 +14943,7 @@ function editarPersona(id) {
     <div class="field"><label>Reporta a <span class="opc">(solo asesores)</span></label>
       <select id="eqJefe"><option value="">Nadie — reporta a ti</option>${
         equipo().filter(x => x.rol === 'gerente' && x.estado !== 'retirado' && (!p || x.id !== p.id))
-          .map(x => `<option value="${escHTML(x.celular || '')}"${p && p.jefe === x.celular ? ' selected' : ''}>${escHTML(x.nombre)}</option>`).join('')}</select>
+          .map(x => `<option value="${escHTML(x.celular || '')}"${p && p.jefe && celularDeJefe(p.jefe) === String(x.celular || '').replace(/\D/g, '').slice(-10) ? ' selected' : ''}>${escHTML(x.nombre)}</option>`).join('')}</select>
       <div class="help">Un gerente ve la base de los asesores que le reportan, y de nadie más.
         Si no eliges a ninguno, ese asesor solo lo ves tú.</div></div>
     ${p ? `<div class="field"><label>Estado</label><select id="eqEstado">
@@ -14892,9 +15001,17 @@ function guardarPersona(id) {
                     jefe: rol === 'asesor' ? (gv('eqJefe') || '') : '',
                     codigo: codigoDeEquipo(), estado: 'activo', creadoEn: hoyISO() });
   }
+  /* 22-oct-2026 — la marca va ANTES de guardar y publicar: publicar trae
+     primero, y sin ella la nube le devolvería a esta persona el estado y el
+     jefe de antes (un retirado volvería a «activo» antes de salir). */
+  anotarEquipoPorPublicar(p ? p.id : equipo()[equipo().length - 1].id);
   guardar(); cerrarModal(); render(); irA('equipo');
   /* 22-oct-2026 — crear, editar o retirar a alguien cambia lo que ve el
-     equipo: se publica al terminar, sin cuadro (lo dice la línea de Equipo). */
+     equipo: se publica al terminar, sin cuadro (lo dice la línea de Equipo).
+     Revisión del mismo día: con porCambio no hay «sin cambios» que valga, la
+     huella mira también la lista del equipo, y no hace falta que haya nada
+     repartido. Lo que no se pudo, sale en rojo en la línea de Equipo y se
+     reintenta solo. */
   return publicarEquipoPorCambio().then(x=>x.r);
 }
 
@@ -17484,10 +17601,22 @@ function piezaNubeHistoriales(ahoraMs){
 }
 function piezaNubeEquipo(ahoraMs){
   if(CARTERA_EQUIPO) return null;
-  if(!equipo().some(p=>p.celular)||!asignaciones().length) return null;   // sin equipo no hay nada que publicar
+  /* 22-oct-2026, revisión — sin asignaciones también hay algo que publicar:
+     la lista del equipo (un puesto nuevo, un retiro). Igual que la puerta. */
+  if(!equipo().some(p=>p.celular)) return null;   // sin equipo no hay nada que publicar
   if(!sbListo()) return {quien:'equipo',nombre:'👥 Tu equipo',normal:false,clase:'ojo',l1:'tu equipo no recibe nada',
     l2:'Falta conectar la nube: Ajustes → 📲 Compartir con mis clientes.'};
   const x=leerPublicadoSolo();
+  /* 22-oct-2026, revisión — sin app/etapas.js no se puede armar lo que viaja:
+     ni la vuelta de 15 min ni un reparto publican nada, y la pieza quedaba en
+     calma con la hora de la última publicación buena («☁ Todo sube solo»
+     mientras el gerente cobraba montos de hace días). Se mira en vivo, como
+     en la línea de Equipo, para que tras recargar no quede un rojo viejo. */
+  if(!ETAPAS) return {quien:'equipo',nombre:'👥 Tu equipo',normal:false,clase:'mal',
+    l1:'tu equipo no recibe nada nuevo: no cargó app/etapas.js',
+    l2:'Sin ese archivo no puedo armar lo que ve tu gerente, así que no publico (ni al repartir ni cada 15 min) · '+
+      'recarga esta pestaña con señal (Ctrl+Shift+R) · mientras, tu equipo ve '+
+      (x&&x.ok?'lo publicado '+escHTML(haceRatoNube(x.cuando,ahoraMs)):'lo último que se publicó')};
   if(_publicandoSolo) return {quien:'equipo',nombre:'👥 Tu equipo',normal:true,clase:'calma',enCurso:true,corto:'equipo publicándose',cuando:x&&x.ok?x.cuando:null};
   if(x&&x.ok===false){
     return {quien:'equipo',nombre:'👥 Tu equipo',normal:false,clase:'mal',l1:'no pude publicar la cartera de tu equipo',

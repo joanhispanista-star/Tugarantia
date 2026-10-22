@@ -1140,7 +1140,9 @@
   /**
    * 22-oct-2026 — LA DE SIEMPRE, SOLA. Trae lo que hay en la nube y, si es el
    * mismo libro (mismoLibro), empareja con las MISMAS reglas que el «sí» de
-   * Joan (aplicarEmparejo): nada se pisa, lo distinto queda en discusión. Si
+   * Joan (aplicarEmparejo): nada se pisa, lo distinto queda en discusión.
+   * (22-oct-2026, revisión) Con una diferencia: sola no borra nada allá; lo
+   * borrado acá y vivo en la nube queda en discusión (ver aplicarEmparejo). Si
    * la nube tiene otra cartera no sube nada, no abre ningún cuadro (uno que
    * salta solo se cierra sin leer) y la cinta en rojo pide el clic.
    */
@@ -1215,6 +1217,30 @@
     var r = calcularEmparejo(c.db, _paquete, leerEspejo());
     _paquete = null;
     _libroDistinto = null;
+    /* 22-oct-2026, revisión — LO QUE NADIE CONFIRMÓ NO BORRA NADA EN LA NUBE.
+       calcularEmparejo pone en borrarAlla las fichas que tienen renglón en
+       db.nubeBorrados y siguen vivas allá. Con el «sí» de Joan eso está bien:
+       las vio con nombre en el cuadro («Borradas acá y vivas en la nube»).
+       Sola, no: el renglón puede ser viejo. Joan borra P0 el 1-oct, exporta un
+       respaldo el 2, restaura P0 el 5 y le registra abonos hasta el 22; ese día
+       importa el respaldo del 2. El respaldo trae el renglón, la nube tiene P0
+       vivo con los abonos (y escrito por un computador), y la siembra sola lo
+       borraba allá sin un cuadro, con la cinta diciendo «nada se pisa». Los
+       abonos se perdían, porque la nube era la única copia que los tenía.
+       Así que, sola, esas fichas quedan EN DISCUSIÓN ('borrada-aca', la misma
+       que ya se usaba cuando lo último lo escribió el celular): sin entrada en
+       el espejo no se manda ningún borrado, la cinta lo dice en rojo, y en
+       ☁ Subir la ficha aparece para bajar: Joan la trae y, si de verdad
+       sobra, la borra otra vez (con su sí). Lo demás se empareja igual. */
+    var sinSi = [];
+    if (como !== 'joan') {
+      lista(r.borrarAlla).forEach(function (x) {
+        if (r.espejo[x.tabla]) delete r.espejo[x.tabla][x.id];
+        r.congelar.push({ tabla: x.tabla, id: x.id, motivo: 'borrada-aca' });
+        sinSi.push(x);
+      });
+      r.borrarAlla = [];
+    }
     var est = leerEstado();
     r.congelar.forEach(function (x) {
       var e = entrada(r.espejo, x.tabla, x.id);
@@ -1242,7 +1268,10 @@
       iguales: lista(r.adoptadas).length + lista(r.ajustesAdoptados).length,
       conAlgoNuevo: lista(r.heredadas).length, nuevas: lista(r.soloAca).length,
       soloEnLaNube: lista(r.soloAlla).length, seBorranAlla: lista(r.borrarAlla).length,
-      enDiscusion: lista(r.congelar).length };
+      /* 22-oct-2026, revisión — las borradas acá que, sola, no borré: se
+         cuentan aparte para que la barra diga POR QUÉ están en discusión. */
+      borradasSinSi: sinSi.length,
+      enDiscusion: lista(r.congelar).length - sinSi.length };
     guardarEstado(est2);
     _ultimo = null;
     anotarExito();
@@ -1343,7 +1372,7 @@
           (r.omitidas ? '<div class="l2">' + plural(r.omitidas, 'fila sin id no sube', 'filas sin id no suben') + ': hay que revisarlas.</div>' : '') +
           '<div class="l3">Sube sola: al entrar, tras 90 s sin cambios, al volver la señal y cuando tocas acá. ' +
           /* 22-oct-2026 — y se empareja sola: se dice cómo quedó la última vez. */
-          'Se empareja sola con la nube en cada computador (y tras importar un respaldo): lo igual se adopta, lo distinto queda en discusión y nada se pisa; ' +
+          'Se empareja sola con la nube en cada computador (y tras importar un respaldo): lo igual se adopta, lo distinto queda en discusión, nada se pisa y nada se borra allá sin tu sí; ' +
           'solo te pregunto si la nube tiene otra cartera. ' + fraseEmparejo(r.emparejo, r.ahora) +
           /* 1-oct-2026 (segunda vuelta) — decía «con ⬇ Traer o ☁ Subir». Traer
              NO junta: arma la cartera desde cero con lo de la nube, y en ESTE
@@ -1369,6 +1398,10 @@
     if (num(e.conAlgoNuevo)) partes.push(plural(num(e.conAlgoNuevo), 'con algo nuevo de acá', 'con algo nuevo de acá'));
     if (num(e.nuevas)) partes.push(plural(num(e.nuevas), 'nueva que subió', 'nuevas que subieron'));
     if (num(e.seBorranAlla)) partes.push(plural(num(e.seBorranAlla), 'borrada acá que se borra allá', 'borradas acá que se borran allá'));
+    /* 22-oct-2026, revisión — ver LO QUE NADIE CONFIRMÓ, en aplicarEmparejo. */
+    if (num(e.borradasSinSi)) partes.push(plural(num(e.borradasSinSi),
+      'borrada acá y viva en la nube que NO borré allá sin tu sí (en discusión: en ☁ Subir aparece para bajar; tráela y, si de verdad sobra, bórrala otra vez)',
+      'borradas acá y vivas en la nube que NO borré allá sin tu sí (en discusión: en ☁ Subir aparecen para bajar; tráelas y, si de verdad sobran, bórralas otra vez)'));
     if (num(e.soloEnLaNube)) partes.push(plural(num(e.soloEnLaNube), 'que solo está en la nube (no se toca)', 'que solo están en la nube (no se tocan)'));
     if (num(e.enDiscusion)) partes.push(plural(num(e.enDiscusion), 'en discusión', 'en discusión'));
     return (e.como === 'solo' ? 'Emparejada sola ' : 'Emparejada con tu sí ') + hace(e.cuando, num(ya) || ahora()) +

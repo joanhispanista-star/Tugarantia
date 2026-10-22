@@ -55,19 +55,24 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
   nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el
                         22-oct-2026, se empareja sola en cada computador: solo
                         pregunta si la nube tiene OTRA cartera. Lo distinto queda
-                        en discusión y se decide en subir.html (paso 7).
+                        en discusión y se decide en subir.html (paso 7). Sola no
+                        borra nada allá: lo borrado acá y vivo en la nube también
+                        queda en discusión (solo lo borra el «sí» de Joan).
   historiales-auto.js   Lo que ve cada cliente en su app sube solo. Desde el
                         22-oct-2026 arranca sola cuando la cartera está emparejada
                         y sin fichas en discusión (antes pedía un botón).
                         La cartera del EQUIPO se publica sola desde crm.html: al
-                        repartir, al crear o editar a alguien y cada 15 min. Las
+                        repartir, al crear, editar o retirar a alguien (en ese
+                        momento, aunque no tenga clientes) y cada 15 min. Las
                         tres van en UNA línea, «☁ Todo sube solo», en la barra
                         lateral y en Ajustes; lo que falla sale en rojo y se
-                        reintenta solo con espera creciente.
+                        reintenta solo con espera creciente. Si falta
+                        app/etapas.js no se puede publicar y la línea lo dice.
   subir.html            Ajustes → Avanzado (plegado). Lo que todavía es a mano:
                         entrar con el correo la primera vez, traer lo hecho en el
                         celular, decidir choques y subir plantillas y configuración
-                        (no suben solas). Pruebas: pruebas/todo-sube-solo.test.js.
+                        (no suben solas). Pruebas: pruebas/todo-sube-solo.test.js
+                        y pruebas/todo-sube-solo-revision.test.js.
   panel.webmanifest
   panel-*.png           La G blanca sobre rojo, para no confundir las dos apps.
 
