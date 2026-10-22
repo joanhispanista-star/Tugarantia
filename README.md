@@ -52,6 +52,22 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
   crm.html              Socios, créditos, cobros, invitaciones, plantillas.
   una-puerta.js         Las palabras del toque «¿Es la misma persona?» (juntar la
                         cuenta de un cliente antiguo), compartidas con espejo.html.
+  nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el
+                        22-oct-2026, se empareja sola en cada computador: solo
+                        pregunta si la nube tiene OTRA cartera. Lo distinto queda
+                        en discusión y se decide en subir.html (paso 7).
+  historiales-auto.js   Lo que ve cada cliente en su app sube solo. Desde el
+                        22-oct-2026 arranca sola cuando la cartera está emparejada
+                        y sin fichas en discusión (antes pedía un botón).
+                        La cartera del EQUIPO se publica sola desde crm.html: al
+                        repartir, al crear o editar a alguien y cada 15 min. Las
+                        tres van en UNA línea, «☁ Todo sube solo», en la barra
+                        lateral y en Ajustes; lo que falla sale en rojo y se
+                        reintenta solo con espera creciente.
+  subir.html            Ajustes → Avanzado (plegado). Lo que todavía es a mano:
+                        entrar con el correo la primera vez, traer lo hecho en el
+                        celular, decidir choques y subir plantillas y configuración
+                        (no suben solas). Pruebas: pruebas/todo-sube-solo.test.js.
   panel.webmanifest
   panel-*.png           La G blanca sobre rojo, para no confundir las dos apps.
 

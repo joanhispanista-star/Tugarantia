@@ -1825,11 +1825,14 @@ function abonarYProrrogar(id, fecha, monto) {
   var hayPr = !!(DB.plantillas && DB.plantillas.prorroga);
   ofrecerWhatsApp(p, hay ? 'abonoProrroga' : 'prorroga', 'Abono registrado',
     hay ? '' : hayPr
+      /* 22-oct-2026 — en el computador ya casi todo sube solo, pero las
+         plantillas NO: viajan con ☁ Subir, que desde hoy está en Ajustes →
+         Avanzado. Se dice dónde, o Joan buscaría un botón que ya no ve. */
       ? '<div class="aviso ambar"><b>El recibo del abono todavía no llegó a este teléfono</b> '
-        + '(nace en el computador y viaja cuando subes las plantillas). Te dejo el de la prórroga, que '
+        + '(nace en el computador y viaja cuando subes las plantillas: en el computador, Ajustes → Avanzado → ☁ Subir; no suben solas). Te dejo el de la prórroga, que '
         + '<b>no dice el abono</b>: agrégale a mano «abonaste ' + esc(COP(x)) + '» antes de enviar.</div>'
       : '<div class="aviso ambar"><b>Las plantillas todavía no llegaron a este teléfono</b> '
-        + '(nacen en el computador y viajan cuando subes las plantillas). Escríbele tú: abonó '
+        + '(nacen en el computador y viajan cuando subes las plantillas: en el computador, Ajustes → Avanzado → ☁ Subir; no suben solas). Escríbele tú: abonó '
         + esc(COP(x)) + ', queda debiendo ' + esc(COP(r.capital_despues)) + ' de capital y su próximo pago es de '
         + esc(COP(r.total_siguiente)) + ' el ' + esc(fmtFecha(r.corte_nuevo)) + '.</div>');
 }
@@ -5278,8 +5281,10 @@ function abrirGestion(prestId, clave, tituloExtra, avisoExtra) {
       ? '<div class="aviso info"><b>No tienes escrita la plantilla «' + esc(k) + '».</b> '
         + 'El chat se abre en blanco y escribes a mano. Si la quieres lista para la próxima, '
         + 'se escribe en el computador, en Plantillas.</div>'
+      /* 22-oct-2026 — «se guardan junto con la cartera» se leía como «suben
+         solas con ella», y no: la cartera sube sola, las plantillas no. */
       : '<div class="aviso info"><b>Todavía no han llegado tus plantillas.</b> Se guardan en la nube '
-        + 'junto con la cartera y este teléfono aún no las ha traído, así que el chat se abre en '
+        + 'cuando las subes desde el computador (Ajustes → Avanzado → ☁ Subir: la cartera sube sola, las plantillas no) y este teléfono aún no las ha traído, así que el chat se abre en '
         + 'blanco. No invento un texto: el mensaje que le queda al cliente tiene que ser el tuyo.</div>';
   }
   h += '<div class="dos">';

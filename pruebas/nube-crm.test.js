@@ -67,7 +67,9 @@ describe('la subida y la invariante del espejo', () => {
     assert.equal(est.cinta.fase, 'al-dia');
     assert.match(est.cinta.l1, /GUARDADA está en la nube/);
     assert.equal(est.cinta.clase, 'calma');
-    assert.match(est.cinta.l2, /v2026-10-01/, 'la cinta no lleva la versión: con caché vieja no hay cómo saberlo');
+    /* 22-oct-2026 — la versión del archivo, no una fecha escrita aquí: cada
+       entrega la sube, y lo que se vigila es que la cinta la lleve. */
+    assert.match(est.cinta.l2, new RegExp('v' + m.C.VERSION), 'la cinta no lleva la versión: con caché vieja no hay cómo saberlo');
   });
 
   test('una vuelta sin cambios no llama a la nube', async () => {
@@ -426,10 +428,14 @@ describe('el espejo que no cabe', () => {
     assert.equal(m.alm.getItem(ESPEJO), null);
     assert.equal(m.srv.lotes.length, 0, 'subió sin espejo');
     assert.equal(m.C.estado().cinta.fase, 'espejo-no-cabe', 'la cinta no dice por qué no se emparejó');
-    /* liberado el espacio, el clic vuelve a ofrecer emparejar */
+    /* liberado el espacio, el clic vuelve a emparejar. 22-oct-2026 — y ya no
+       abre el cuadro: la nube está vacía (o es el mismo libro), así que el clic
+       empareja y sube de una (pruebas/todo-sube-solo.test.js). */
     m.alm.llenas[ESPEJO] = false;
     await m.C.accion();
-    assert.ok(m.vent.modal, 'tras liberar espacio, el clic no volvió a ofrecer emparejar');
+    assert.ok(m.alm.getItem(ESPEJO), 'tras liberar espacio, el clic no volvió a emparejar');
+    assert.ok(m.srv.lotes.length > 0, 'emparejó pero no subió');
+    assert.equal(m.C.estado().cinta.fase, 'al-dia');
   });
 });
 

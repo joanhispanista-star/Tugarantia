@@ -234,7 +234,10 @@ describe('el tercer tapón: la pantalla ya no se bloquea sola', () => {
        quien quizá pidió que no, y la sanción le llega a Joan en persona. */
     assert.match(env, /p\.no_sms == null/,
       'con el dato ausente se mandaría igual');
-    assert.match(env, /volver a <b>publicar el equipo<\/b>/,
+    /* 22-oct-2026 — ya no es «Joan tiene que volver a publicar»: se publica
+       solo desde su Panel abierto. Lo que se vigila es lo mismo: que diga
+       cómo se arregla y a quién avisarle. */
+    assert.match(env, /<b>publique el equipo<\/b>, que pasa solo mientras lo tiene abierto: avísale/,
       'no se dice cómo arreglarlo, así que el asesor se queda atascado');
   });
 

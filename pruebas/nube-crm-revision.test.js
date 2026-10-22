@@ -57,7 +57,11 @@ describe('plata 1 · el espejo no renace encima de una cartera que cambió duran
     await mB.C.vuelta(false);
     const abonos = m.srv.creditos.P1.datos.abonos.map(a => a.monto);
     assert.ok(abonos.includes(77777), 'el cobro de 77.777 desapareció de la nube sin choque: ' + JSON.stringify(abonos));
-    assert.equal(mB.C.estado().cinta.fase, 'falta-emparejar');
+    /* 22-oct-2026 — la pestaña B ya no se queda en «falta emparejar»: se
+       empareja sola (es el mismo libro), y P1, que en la nube tiene el cobro
+       que su cartera vieja no, queda EN DISCUSIÓN en vez de subir encima. */
+    assert.ok(congeladas(m.alm)['creditos|P1'], 'P1 no quedó en discusión tras emparejar sola');
+    assert.equal(mB.C.estado().cinta.fase, 'congeladas');
   });
 
   test('plata 9 · la pestaña que pierde el sello a mitad de subida suelta su latido «en vuelta»', async () => {
@@ -138,12 +142,18 @@ describe('crm 1 · el espejo heredado de subir.html no se cree sin emparejar', (
     return m;
   }
 
-  test('sin emparejar no sube nada, aunque el espejo tenga filas', async () => {
+  /* 22-oct-2026 — decía «sin emparejar no sube nada». Ahora la vuelta se
+     empareja sola, así que lo que se vigila es lo mismo dicho de verdad: no
+     sube NADA contra el espejo heredado sin compararlo antes. El emparejo
+     solo saca a P0 del espejo y lo deja en discusión; el abono del celular
+     sigue allá. */
+  test('sin emparejar no sube nada a ciegas: la vuelta compara primero y el abono del celular sobrevive', async () => {
     const m = heredado();
     await m.C.vuelta(false);
-    assert.equal(m.srv.lotes.length, 0, 'subió con un espejo que nadie comparó');
-    assert.deepEqual(m.srv.creditos.P0.datos.abonos.map(a => a.monto), [30000]);
-    assert.equal(m.C.estado().cinta.fase, 'falta-emparejar');
+    assert.deepEqual(m.srv.creditos.P0.datos.abonos.map(a => a.monto), [30000], 'subió con un espejo que nadie comparó');
+    assert.ok(estadoDisco(m.alm).emparejadoEn, 'subió sin emparejar');
+    assert.ok(congeladas(m.alm)['creditos|P0'], 'P0 no quedó en discusión');
+    assert.equal(m.C.estado().cinta.fase, 'congeladas');
   });
 
   test('al emparejar: lo que le falta a la cartera se congela y SALE del espejo; lo que solo agrega, sube', async () => {

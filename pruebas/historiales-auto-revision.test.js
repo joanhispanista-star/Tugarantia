@@ -283,18 +283,24 @@ describe('[datos 1-3] dos fichas que la nube toma por la misma persona', () => {
 });
 
 /* ======================================================================== */
-describe('[datos 4 / robustez 1] la primera vez en un computador es del botón', () => {
+/* 22-oct-2026 — la primera vez ya no es del botón: arranca sola cuando
+   nube-crm.js comprueba que la cartera es la de hoy (pruebas/
+   todo-sube-solo.test.js). Lo que se sigue vigilando acá es la otra mitad: SIN
+   esa comprobación —aquí no se carga nube-crm.js— no sube a ciegas, y el botón
+   (ahora en Ajustes → Avanzado) sigue encendiéndola a mano. */
+describe('[datos 4 / robustez 1] la primera vez en un computador: ni a ciegas ni del botón', () => {
 
-  test('sin nada subido desde este computador, no sube solo: pide el botón una vez y desde ahí sí', async () => {
+  test('sin nada subido desde este computador y sin poder comprobar la cartera, no sube solo; el botón de Avanzado sí', async () => {
     const m = montar({ estado: null });
     await primera(m);
     await cambiar(m, 'DB.socios[0].nombre="Cambio"');
     m.reloj.avanzar(31 * 60000); m.t.disparar(1800000); await listo(m);
-    assert.equal(m.srv.llamadas, 0, 'subió sola una cartera que nadie confirmó en este computador');
+    assert.equal(m.srv.llamadas, 0, 'subió sola una cartera que nadie comprobó en este computador');
     const c = cinta(m);
-    assert.equal(c.fase, 'primera-vez');
-    assert.equal(c.l1, 'Los historiales todavía no suben solos en este computador');
-    assert.match(c.l2, /Toca ☁ Subir historiales una vez/);
+    assert.equal(c.fase, 'esperando-libro');
+    assert.equal(c.l1, 'Los historiales empiezan a subir solos en cuanto compruebe que esta es tu cartera de hoy');
+    assert.match(c.l2, /nube-crm\.js/, 'no dice qué le falta para comprobarla');
+    assert.doesNotMatch(c.l1 + c.l2, /Toca ☁ Subir historiales/, 'sigue pidiendo el botón');
     assert.notEqual(c.clase, 'calma');
     sinAvisos(m);
     await boton(m);
@@ -322,7 +328,7 @@ describe('[datos 4 / robustez 1] la primera vez en un computador es del botón',
     assert.equal(srv.filas[ced0].datos.creditos[0].pagado, true, 'un crédito pagado volvió a salir debido');
   });
 
-  test('importar un respaldo pausa la subida sola hasta que Joan toque el botón', async () => {
+  test('importar un respaldo pausa la subida sola mientras no se compruebe; el botón de Avanzado la reanuda', async () => {
     const m = montar({ n: 3 });
     await primera(m);
     const viejo = JSON.parse(m.P.almacen[KEY]); viejo.socios[0].nombre = 'Del Respaldo';
@@ -331,7 +337,8 @@ describe('[datos 4 / robustez 1] la primera vez en un computador es del botón',
     m.t.disparar(90000); await listo(m);
     await m.P.ev('HistorialesAuto.vuelta(false)');
     assert.equal(m.srv.llamadas, n, 'el respaldo importado subió solo');
-    assert.equal(cinta(m).l1, 'Importaste un respaldo: los historiales no suben solos hasta que lo confirmes');
+    /* 22-oct-2026 — ya no dice «hasta que lo confirmes»: dice qué espera. */
+    assert.equal(cinta(m).l1, 'Importaste un respaldo: los historiales vuelven a subir solos en cuanto compruebe que es tu cartera de hoy');
     await boton(m);
     assert.ok(nombresSubidos(m).includes('Del Respaldo'));
     await cambiar(m, 'DB.socios[2].nombre="Después Del Botón"');
