@@ -570,3 +570,115 @@ describe('N6 · la tarjeta del choque dice el pago acordado vigente, y lo que fa
     assert.equal(lado(f, 'mio'), 'pago acordado $200000 el ' + NUEVA + '; ya abonó $50000 y faltan $' + falta);
   });
 });
+
+/* ==========================================================================
+ * N7 — UN ABONO QUE LOS DOS LADOS YA TIENEN NO ES PLATA QUE «NO ENTRA»
+ * (23-oct-2026)
+ *
+ * La lente de abonos de la revisión del 23-oct, contra 7793481: el 2-nov se
+ * acuerdan 280.000 para el 20-nov; el 10-nov entra un abono A de 100.000 a la
+ * cuota y los DOS aparatos lo tienen (mismo plan: la lista suma); el 12-nov el
+ * computador vuelve a acordar 200.000 para el 26-nov, y el otro CRM, con el
+ * primer acuerdo, cambia cualquier cosa (o anota un abono B de 50.000). La
+ * tarjeta del lado del primer acuerdo decía «ya abonó $100.000 (o $150.000) y
+ * faltan…» DENTRO de lo que «no entra», y pedía volver a anotar «esa plata».
+ * Pero A está en los dos lados y se queda con cualquiera de los dos botones:
+ * si Joan lo volvía a anotar, el 26-nov la cuenta pedía 100.000 de menos.
+ * Estas pruebas corren el puente, NUBE.fusionarFila, subir.html y la tarjeta
+ * del celular de verdad, y miden lo que cada botón deja contra liquidarCiclo.
+ * ======================================================================== */
+describe('N7 · un abono que los dos lados ya tienen no se cuenta como «ya abonó» ni se pide volver a anotar', () => {
+
+  const NUEVA = '2026-11-26';
+  function abonar(p, dia, monto) {
+    const r = P.abonoACuota(p, dia, monto);
+    assert.equal(r.ok, true, r.detalle);
+    p.abonosCapital.push(r.registros.abono);
+    return p;
+  }
+  /* comp: el computador, que vuelve a acordar el 12-nov. otro: el otro CRM,
+     con el primer acuerdo y el abono A; con `conB`, anota además B. */
+  function lados(conB) {
+    const conA = abonar(pactar(conAbonoYProrroga(credito()), { fecha: SUYA, monto: 280000 }, '2026-11-02'),
+      '2026-11-10', 100000);
+    const comp = pactar(copia(conA), { fecha: NUEVA, monto: 200000 }, '2026-11-12');
+    const otro = copia(conA);
+    if (conB) abonar(otro, '2026-11-13', 50000);
+    else { otro.notas = 'llamó el 13-nov'; otro.comprobantes = [{ fecha: '2026-11-13', tipo: 'otro', monto: 0 }]; }
+    assert.equal(P.liquidarCiclo(comp, NUEVA).total_a_pagar, 200000);
+    return { comp, otro };
+  }
+  const lado = (f, cual) => f.pisables.find(x => x.campo === 'pagoAcordado')[cual];
+  const conA = f => f.abonosCapital.filter(a => a.cuotaPlan && a.fecha === '2026-11-10' && a.recibido === 100000).length;
+  /* El aviso del pago acordado en la tarjeta del celular, solo. */
+  function avisoDelCelular(mio, suyo) {
+    const e = abrirEspejo({ cartera: cartera([copia(mio)]), ahora: '2026-11-13T10:30:00' });
+    choqueEnElCelular(e, mio, suyo);
+    const h = String(e.ev('bloqueChoques()'));
+    const i = h.indexOf('El pago acordado no se junta');
+    assert.ok(i >= 0, 'la tarjeta del celular no habló del pago acordado: la prueba no estaría mirando nada');
+    return plano(h.slice(i, h.indexOf('</div>', i)));
+  }
+
+  test('sin otro abono: el lado del primer acuerdo dice lo que falta y que el abono está en los dos lados', () => {
+    const { comp, otro } = lados(false);
+    const f = NUBE.fusionarFila(copia(comp), copia(otro));
+    assert.equal(lado(f, 'mio'), 'pago acordado $200000 el ' + NUEVA);
+    assert.equal(lado(f, 'suyo'), 'pago acordado $280000 el ' + SUYA +
+      '; faltan $180000 (los $100000 abonados también los tiene el otro lado y se quedan con los dos)');
+    assert.equal(P.liquidarCiclo(otro, SUYA).total_a_pagar, 180000, 'lo que falta es lo que ese lado cobra');
+    const g = NUBE.fusionarFila(copia(otro), copia(comp));
+    assert.deepEqual([lado(g, 'mio'), lado(g, 'suyo')], [lado(f, 'suyo'), lado(f, 'mio')], 'los dos órdenes dicen lo mismo');
+
+    /* subir.html: el texto de «lo mío» no mete los 100.000 en «ya abonó», y
+       dice que lo que tienen los dos lados se queda. Y es verdad: con los dos
+       botones A sigue en la cuota y la cuenta cuadra. */
+    const S = abrirSubir();
+    S.choque(copia(comp), copia(otro));
+    const t = S.loMio();
+    assert.ok(!/ya abonó/.test(t), 'dijo «ya abonó» de un abono que los dos lados tienen: ' + t);
+    assert.match(t, /lo de la nube \(pago acordado \$280\.000 el 20 nov 2026; faltan \$180\.000 \(los \$100\.000 abonados también los tiene el otro lado y se quedan con los dos\)\) no entra\./);
+    assert.match(t, /Lo abonado que tienen los dos lados se queda con cualquiera de las dos\. Si la plata que solo trae la nube entró de verdad, vuelve a anotarla después/);
+    assert.ok(!/Si esa plata entró de verdad, vuelve a anotarla después y vuelve a acordar/.test(t),
+      'la instrucción de volver a anotar no puede quedar suelta detrás de un abono que se queda');
+    const mio = S.conLoMio();
+    assert.equal(conA(mio), 1, 'con «lo mío» el abono A se queda');
+    assert.equal(P.liquidarCiclo(mio, NUEVA).total_a_pagar, 200000);
+    const nube = S.conLaNube();
+    assert.equal(conA(nube), 1, 'con «lo de la nube» también');
+    assert.equal(P.liquidarCiclo(nube, SUYA).total_a_pagar, 180000);
+    assert.match(S.loDeLaNube(), /Lo abonado que tienen los dos lados se queda con cualquiera de las dos\. Si la plata que solo trae este computador entró de verdad/);
+
+    /* El celular, del lado del primer acuerdo: lo mismo con sus botones. */
+    const a = avisoDelCelular(otro, comp);
+    assert.ok(!/ya abonó/.test(a), 'el celular dijo «ya abonó» de un abono que los dos lados tienen: ' + a);
+    assert.match(a, /faltan \$\s?180\.000 \(los \$\s?100\.000 abonados también los tiene el otro lado y se quedan con los dos\)/);
+    assert.match(a, /Lo abonado que tienen los dos lados se queda con cualquiera de los dos botones\. Si la plata que solo trae el lado que no queda entró de verdad/);
+  });
+
+  test('con un abono B de 50.000 solo de un lado: «ya abonó» dice ese, y volver a anotarlo deja la cuenta bien', () => {
+    const { comp, otro } = lados(true);
+    const falta = P.liquidarCiclo(otro, SUYA).total_a_pagar;
+    assert.equal(falta, 130000);
+    const f = NUBE.fusionarFila(copia(comp), copia(otro));
+    assert.equal(lado(f, 'suyo'), 'pago acordado $280000 el ' + SUYA + '; ya abonó $50000 y faltan $' + falta +
+      ' (los otros $100000 abonados también los tiene el otro lado y se quedan con los dos)');
+    const S = abrirSubir();
+    S.choque(copia(comp), copia(otro));
+    const t = S.loMio();
+    assert.ok(!/ya abonó \$150\.000/.test(t), 'contó como «ya abonó» el abono que los dos lados tienen: ' + t);
+    assert.match(t, /ya abonó \$50\.000 y faltan \$130\.000 \(los otros \$100\.000 abonados también los tiene el otro lado y se quedan con los dos\)/);
+    /* Lo que de verdad deja «lo mío»: A sí, B no. Si Joan hace lo que dice la
+       tarjeta y vuelve a anotar SOLO los 50.000 de B, el 26-nov se cobra lo
+       que falta de verdad: 300.000 de la cuota menos 150.000 que entraron. */
+    const mio = S.conLoMio();
+    assert.equal(conA(mio), 1);
+    assert.equal(mio.abonosCapital.filter(a => a.cuotaPlan && a.fecha === '2026-11-13').length, 0, 'B no entra con «lo mío»');
+    assert.equal(P.liquidarCiclo(mio, NUEVA).total_a_pagar, 200000);
+    assert.equal(P.liquidarCiclo(abonar(copia(mio), '2026-11-14', 50000), NUEVA).total_a_pagar, 150000);
+
+    const a = avisoDelCelular(otro, comp);
+    assert.match(a, /ya abonó \$\s?50\.000 y faltan \$\s?130\.000 \(los otros \$\s?100\.000 abonados/);
+    assert.ok(!/ya abonó \$\s?150\.000/.test(a));
+  });
+});

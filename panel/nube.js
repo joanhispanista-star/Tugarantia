@@ -1280,7 +1280,7 @@
       if (nadaQueDecidir) {
         if (pactoSPendiente) fila.planPagos = clonar(ppS);
       } else {
-        pisables.push({ campo: 'pagoAcordado', mio: ladoDelPacto(ppM, fueraDeM, m), suyo: ladoDelPacto(ppS, fueraDeS, s) });
+        pisables.push({ campo: 'pagoAcordado', mio: ladoDelPacto(ppM, fueraDeM, m, s), suyo: ladoDelPacto(ppS, fueraDeS, s, m) });
         if (pactoM) {
           /* Mi pacto se queda: lo que no conocía del otro lado no entra. */
           quitarDeFila(fila, 'abonosCapital', fueraDeS.abonos, mapa);
@@ -1371,8 +1371,29 @@
      recargo pagado: un pago vencido no se vuelve a acordar. La app del
      cliente dice lo mismo con el puente (pactoVigente y liquidarCiclo); esta
      cuenta vive acá porque nube.js no carga el puente, y
-     pacto-en-la-nube.test.js compara lo que falta con liquidarCiclo. */
-  function ladoDelPacto(pp, fuera, deLado) {
+     pacto-en-la-nube.test.js compara lo que falta con liquidarCiclo.
+
+     23-oct-2026 — «YA ABONÓ» ES SOLO LO DE ESTE LADO. Las pantallas meten
+     esta línea dentro de lo que «no entra» con el otro botón y piden volver a
+     anotar «esa plata». Pero un abono de la cuota que el OTRO lado también
+     tiene (el mismo, entero: jsonCanonico, la vara de la regla de los abonos
+     de cuotas de arriba) no se pierde con ninguno de los dos botones. El caso
+     de la revisión: abono A de 100.000 en los dos aparatos, el computador
+     vuelve a acordar 200.000 y el otro CRM anota B de 50.000; este lado decía
+     «ya abonó $150000 … no entra», Joan volvía a anotar los 150.000 y el
+     26-nov la cuenta pedía 50.000 en vez de 150.000. Ahora «ya abonó» dice lo
+     que entró después del acuerdo y SOLO tiene este lado, y lo compartido va
+     aparte, con lo que hace: «; ya abonó $50000 y faltan $130000 (los otros
+     $100000 abonados también los tiene el otro lado y se quedan con los
+     dos)», o sin nada propio, «; faltan $180000 (los $100000 abonados…)».
+     `faltan` no cambia: es lo que el cliente paga ese día con este lado.
+     Cuánto de lo que entró después del acuerdo es SOLO de este lado:
+     min(lo de después, lo que solo tiene este lado). Lo que tienen los dos es
+     de antes de que los aparatos dejaran de verse; si el acuerdo vigente de
+     este lado es anterior a eso, todo lo propio entró después del acuerdo, y
+     si es posterior, todo lo de después del acuerdo es propio. En los dos
+     casos el mínimo da justo. `otroLado` es la fila del otro aparato. */
+  function ladoDelPacto(pp, fuera, deLado, otroLado) {
     var t;
     if (conPacto(pp)) {
       var cs = lista(pp.cuotas).filter(function (c) { return !!c && typeof c === 'object'; });
@@ -1389,16 +1410,26 @@
         ? Math.round(Number(ult.a.total)) : total;
       var abonos = '';
       if (c && !c.pagado) {
-        var aLaCuota = 0, entro = 0;
+        var enElOtro = {};
+        lista(otroLado && otroLado.abonosCapital).forEach(function (x) {
+          if (x && typeof x === 'object') enElOtro[jsonCanonico(x)] = true;
+        });
+        var aLaCuota = 0, entro = 0, soloAca = 0;
         lista(deLado && deLado.abonosCapital).forEach(function (x) {
           if (!x || typeof x !== 'object' || x.cuotaPlan == null || x.cuotaPlan === '' ||
               texto(x.cuotaPlan) !== texto(c.n)) return;
+          var r = x.recibido != null ? num(x.recibido) : num(x.monto) + num(x.costoPagado) + num(x.moraPagada);
           aLaCuota += num(x.monto) + num(x.costoPagado);
-          entro += x.recibido != null ? num(x.recibido) : num(x.monto) + num(x.costoPagado) + num(x.moraPagada);
+          entro += r;
+          if (!enElOtro[jsonCanonico(x)]) soloAca += r;
         });
         var desde = Math.round(entro) - Math.max(0, total - acordado);
         if (desde > 0) {
-          abonos = '; ya abonó $' + desde + ' y faltan $' + Math.max(0, total - Math.round(aLaCuota));
+          var propio = Math.min(desde, Math.round(soloAca)), compartido = desde - propio;
+          var falta = Math.max(0, total - Math.round(aLaCuota));
+          abonos = (propio > 0 ? '; ya abonó $' + propio + ' y faltan $' + falta : '; faltan $' + falta) +
+            (compartido > 0 ? ' (los ' + (propio > 0 ? 'otros ' : '') + '$' + compartido +
+              ' abonados también los tiene el otro lado y se quedan con los dos)' : '');
         }
       }
       t = 'pago acordado' + (c ? ' $' + acordado + ' el ' + texto(c.fecha).slice(0, 10) +

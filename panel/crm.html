@@ -5925,6 +5925,23 @@ function eaDelCreditoACuotas(p){
      Con el desembolso y el capital entero, la E.A. salía en 0% al lado de un
      costo del 12%, y la marca de usura no podía encenderse nunca. */
   if(PUENTE.esPacto&&PUENTE.esPacto(p)){
+    /* 23-oct-2026 — Y LOS PESOS SON LOS DEL ACUERDO, no los de la cuota. Esta
+       función ya tomaba la FECHA del último acuerdo, pero el capital y el
+       costo seguían saliendo de la cuota, que después de un abono y de volver
+       a acordar los guarda ACUMULADOS (puente.pactarProximoPago): Joan
+       acordaba 200.000 el 26-nov sobre los 180.000 que quedaban el 10-nov
+       (E.A. 1.006%) y la lista decía 6.302%, como si ese día se hubieran
+       prestado 250.000 para devolver 300.000. Con perdón, un pago SIN costo
+       salía con 2.734% y la ⚠️ de usura. Ahora: desde el día del acuerdo, el
+       capital que quedaba ese día y lo que Joan acordó cobrar
+       (puente.pactoVigente, la misma cuenta del % que le confirma el CRM al
+       guardar). Con perdón el costo es cero y la E.A. también. */
+    const v=PUENTE.pactoVigente?PUENTE.pactoVigente(p):null, cv=cuotaPlan(p)||cuotasPlan(p)[0];
+    if(v&&v.acordado&&v.capital>0&&v.monto!=null&&(v.fecha||(cv&&cv.fecha))){
+      const eaV=C.efectivoAnualPorFechas(v.acordado,v.capital,[{fecha:v.fecha||cv.fecha,total:v.monto}]);
+      return (eaV==null||!isFinite(eaV))?null:eaV*100;
+    }
+    /* Sin el cambio del acuerdo (no lo hubo fuera de datos rotos): la cuota. */
     const c=cuotaPlan(p)||cuotasPlan(p)[0], cb=(p.planPagos.cambios||[]).filter(x=>x&&x.pacto);
     const desde=(cb.length&&cb[cb.length-1].fecha)||p.planPagos.pacto.creado;
     if(!c||!desde) return null;

@@ -410,8 +410,20 @@
     if (c) {
       /* 22-oct-2026 — el pago que pactó Joan lleva el % que de verdad sale de
          sus pesos, aunque sea cero (cobrar solo el capital, o perdonar parte):
-         sin esto la etiqueta caía al 5% del plan del §8 al lado de un costo $0. */
-      if (esPacto(p)) return Math.max(0, num(c.pct)) / 100;
+         sin esto la etiqueta caía al 5% del plan del §8 al lado de un costo $0.
+         23-oct-2026 — Y ES EL % DEL ACUERDO VIGENTE, no el de la cuota. Al
+         volver a acordar después de un abono, la cuota guarda su costo como
+         «lo ya pagado en abonos + lo que se cobra ese día» y su capital sin
+         restar lo abonado, y `c.pct` sale de esos acumulados: Joan acordaba
+         200.000 sobre los 180.000 que quedaban (11,1%, y así se lo confirmaba
+         el CRM al guardar) y la lista decía «costo 20%»; con perdón, un pago
+         sin costo salía al 15,8%. El % es el que el puente calculó con lo que
+         Joan escribió (pactoVigente). `c.pct` se queda como está: va al lado
+         del total ACUMULADO de la cuota, y con ese cuadra. */
+      if (esPacto(p)) {
+        var v = pactoVigente(p);
+        return Math.max(0, num(v && v.pct != null ? v.pct : c.pct)) / 100;
+      }
       /* 16-oct-2026 — en el crédito a cuotas cada cuota trae su propio %: si la
          segunda va al 10%, la etiqueta no puede seguir diciendo el 20% de la
          primera al lado de un costo del 10%. */
@@ -1223,13 +1235,35 @@
      Joan escribió y el puente confirmó al guardarlo), como ya los lee el CRM
      para la E.A. (eaDelCreditoACuotas). Un plan sin ese cambio (no lo hubo
      fuera de datos rotos) se queda con `pacto.creado` y sin monto.
-     null si el crédito no tiene pago acordado. */
+     null si el crédito no tiene pago acordado.
+     23-oct-2026 — también dice el resto de ESE acuerdo, para que el % y la
+     E.A. del CRM salgan de él y no de la cuota (que, después de un abono y de
+     volver a acordar, guarda costo y capital ACUMULADOS: tasaDelCiclo y
+     eaDelCreditoACuotas): `fecha` (el día en que paga), `capital` (el que
+     quedaba ese día, antes del perdón), `costo` y `perdona` en pesos, y `pct`,
+     la misma cuenta que pactarProximoPago le confirmó a Joan (pctDe del costo
+     sobre ese capital). Todos null sin el cambio del pacto. */
   function pactoVigente(p) {
     if (!esPacto(p)) return null;
     var cb = lista(p.planPagos.cambios).filter(function (x) { return !!x && typeof x === 'object' && !!x.pacto; });
     var u = cb.length ? cb[cb.length - 1] : null;
-    var monto = (u && u.a && u.a.total != null && isFinite(Number(u.a.total))) ? Math.round(Number(u.a.total)) : null;
-    return { acordado: fechaFin(u && u.fecha) || fechaFin(p.planPagos.pacto.creado) || null, monto: monto };
+    var a = (u && u.a && typeof u.a === 'object') ? u.a : null;
+    var pesosDe = function (v) { return (v != null && v !== '' && isFinite(Number(v))) ? Math.round(Number(v)) : null; };
+    var monto = a ? pesosDe(a.total) : null;
+    var costo = a ? pesosDe(a.costo) : null;
+    var perdona = u ? Math.max(0, pesosDe(u.perdona) || 0) : null;
+    /* `a.capital` es lo que queda DESPUÉS del perdón; el % y la E.A. van sobre
+       lo que quedaba ese día, como en pactarProximoPago. */
+    var capital = (a && pesosDe(a.capital) != null) ? pesosDe(a.capital) + perdona : null;
+    return {
+      acordado: fechaFin(u && u.fecha) || fechaFin(p.planPagos.pacto.creado) || null,
+      monto: monto,
+      fecha: (a && fechaFin(a.fecha)) || null,
+      capital: capital,
+      costo: costo,
+      perdona: perdona,
+      pct: (capital != null && costo != null) ? pctDe(costo, capital) : null
+    };
   }
   /* El % con dos decimales, SOLO para mostrarlo: la verdad es el costo en pesos. */
   function pctDe(costo, capital) {

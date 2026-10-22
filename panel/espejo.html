@@ -4591,14 +4591,21 @@ function avisoPagosDeCuotas(c) {
      lado dice lo que trae —el pago acordado con su fecha y su monto, o «sin
      pago acordado», y la plata que el pacto del otro no conocía— y los dos
      botones hacen exactamente eso: «lo mío» deja lo de este celular entero y
-     «lo de la nube» deja la versión de la nube entera. */
+     «lo de la nube» deja la versión de la nube entera.
+     23-oct-2026 — un abono que los DOS lados tienen se queda con cualquiera
+     de los dos botones: NUBE.fusionarFila ya no lo cuenta como «ya abonó» (lo
+     dice aparte, «también los tiene el otro lado y se quedan con los dos»), y
+     la instrucción de volver a anotar habla solo de la plata que trae SOLO el
+     lado que no queda. Antes pedía anotar otra vez un abono que seguía ahí, y
+     el cliente quedaba debiendo esa plata de menos. */
   var pa = pis.filter(function (p) { return p && p.campo === 'pagoAcordado'; })[0];
   if (pa) {
     h += '<div class="aviso ambar"><b>El pago acordado no se junta con lo que no conocía.</b> '
       + 'Con <b>Mandar lo mío encima</b> queda lo de este celular (' + esc(valorCorto('pagoAcordado', pa.mio))
       + ') y lo de la nube (' + esc(valorCorto('pagoAcordado', pa.suyo)) + ') no entra. '
       + 'Con <b>Dejar lo de la nube</b> es al revés: queda lo de la nube y lo de este celular no entra. '
-      + 'Si la plata del lado que no queda entró de verdad, se vuelve a anotar desde el computador, y el '
+      + 'Lo abonado que tienen los dos lados se queda con cualquiera de los dos botones. '
+      + 'Si la plata que solo trae el lado que no queda entró de verdad, se vuelve a anotar desde el computador, y el '
       + 'pago se vuelve a acordar sobre lo que quede.</div>';
   }
   return h;

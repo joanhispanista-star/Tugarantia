@@ -31,7 +31,9 @@
  *      pago»; la lista y la ficha;
  *   C. la app del cliente y el recibo dicen la fecha y el monto de Joan;
  *   D. el celular cobra igual y no lo llama «crédito a cuotas»;
- *   E. la nube no pierde el pacto ni cuenta dos veces la plata.
+ *   E. la nube no pierde el pacto ni cuenta dos veces la plata;
+ *   F. (23-oct-2026) después de abonar y volver a acordar, el % y la E.A. que
+ *      dice el CRM son los del acuerdo vigente, no los de la cuota acumulada.
  * ==========================================================================*/
 
 const { test, describe } = require('node:test');
@@ -799,5 +801,95 @@ describe('E. la nube no pierde el pacto ni cuenta dos veces la plata', () => {
     const g = NUBE.fusionarFila(copia(otro), copia(computador));
     assert.ok(g.pisables.some(x => x.campo === 'pagoAcordado'), 'y desde el otro lado, también');
     assert.equal(g.fila.planPagos, undefined, 'y desde ese lado el pacto no entra');
+  });
+});
+
+/* ==========================================================================
+ * F. EL % Y LA E.A. SON LOS DEL ACUERDO VIGENTE — 23-oct-2026
+ *
+ * La lente de abonos de la revisión del 23-oct: al volver a acordar después
+ * de un abono, la cuota guarda su costo como «lo ya pagado + lo que se cobra
+ * ese día» y su capital sin restar lo abonado, y su `pct` sale de esos dos
+ * acumulados. El CRM leía ESE % y ESOS pesos: Joan acordaba 200.000 sobre los
+ * 180.000 que quedaban (11,1%, y así se lo confirmaba el propio CRM al
+ * guardar) y la lista decía «costo 20% · pago acordado» con una E.A. de
+ * 6.302% en vez de 1.006%. Con perdón, un pago sin costo salía «costo 15,8%»
+ * con E.A. 2.734% y la ⚠️ de usura encendida. Estas pruebas corren la lista y
+ * la ficha del CRM de verdad (banco-panel) y fallan contra 7793481.
+ * ======================================================================== */
+describe('F. después de abonar y volver a acordar, el % y la E.A. son los del acuerdo vigente', () => {
+
+  const CP = require('../app/creditos.js');
+  const NUEVA = '2026-11-26', HOY = '2026-11-10', USURA = 26.76;
+  /* El caso de Joan con 280.000 el 20-nov; el 10-nov abona 100.000 (30.000 a
+     costo, 70.000 a capital: quedan 180.000) y ese día vuelve a acordar. */
+  function reacordado(monto, motivo) {
+    const p = pactado();
+    const ab = P.abonoACuota(p, HOY, 100000);
+    assert.equal(ab.ok, true, ab.detalle);
+    assert.deepEqual(ab.aplica, { mora: 0, costo: 30000, capital: 70000 });
+    p.abonosCapital.push(ab.registros.abono);
+    const r = P.pactarProximoPago(cartera([p]), p, { fecha: NUEVA, monto, motivo }, HOY);
+    aplicarPacto(p, r);
+    assert.equal(P.liquidarCiclo(p, NUEVA).total_a_pagar, monto);
+    return { p, r };
+  }
+  /* La fila del crédito en la lista del CRM, con una usura de referencia
+     anotada (sin ella la ⚠️ no se enciende nunca). */
+  function filaDeLaLista(p) {
+    const db = cartera([p]);
+    db.config.tasaUsuraEA = USURA;
+    const B = abrirPanel({ ahora: HOY + 'T10:00:00' });
+    B.cargarCartera(db);
+    B.ev('renderCred()');
+    const l = plano(B.elems.tblCred.innerHTML);
+    return { B, fila: l.slice(l.indexOf('Cliente de prueba'), l.indexOf('Total (')) };
+  }
+  /* La E.A. de lo que se acordó ese día, con la cuenta de creditos.js. */
+  const eaAcordada = (capital, total) => CP.efectivoAnualPorFechas(HOY, capital, [{ fecha: NUEVA, total }]) * 100;
+
+  test('200.000 sobre los 180.000 que quedan: costo 11,1% y la E.A. de ese acuerdo, no el 20% de la cuota', () => {
+    const { p, r } = reacordado(200000);
+    assert.equal(r.pct, 11.11, 'lo que el CRM le confirma a Joan al guardar');
+    assert.equal(p.planPagos.cuotas[0].pct, 20, 'la cuota guarda su % acumulado: es lo que confundía al CRM');
+    assert.equal(Math.round(P.tasaDelCiclo(p) * 10000) / 100, 11.11);
+    const { B, fila } = filaDeLaLista(p);
+    assert.match(fila, /costo 11,1% · pago acordado/);
+    assert.ok(!/costo 20%/.test(fila), 'la lista dijo el % acumulado de la cuota: ' + fila);
+    const ea = eaAcordada(180000, 200000);
+    assert.equal(Math.round(B.ev('eaDelCreditoACuotas(DB.prestamos[0])')), Math.round(ea));
+    assert.ok(fila.includes(' ' + B.ev('fmtEA(' + ea + ')') + ' '), 'la E.A. de la lista no es la del acuerdo: ' + fila);
+    assert.ok(!/6\.302%/.test(fila));
+    B.ev("verCredito('c1')");
+    assert.match(plano(B.elems.mBody.innerHTML), /\(pactado al 11%\)/);
+  });
+
+  test('con perdón (120.000 de los 180.000, sin costo): costo 0%, E.A. 0% y sin la ⚠️ de usura', () => {
+    const { p, r } = reacordado(120000, 'se le enfermó el hijo');
+    assert.equal(r.costo, 0);
+    assert.equal(r.perdona, 60000);
+    assert.equal(P.tasaDelCiclo(p), 0);
+    const { B, fila } = filaDeLaLista(p);
+    assert.match(fila, /costo 0% · pago acordado/);
+    assert.equal(B.ev('eaDelCreditoACuotas(DB.prestamos[0])'), 0);
+    assert.ok(!/⚠️/.test(fila), 'la ⚠️ de usura se encendió en un pago sin costo: ' + fila);
+    assert.ok(!/2\.734%/.test(fila));
+  });
+
+  test('solo el capital que queda (180.000): costo 0%, E.A. 0%, sin ⚠️; y sin abono, el acuerdo de siempre', () => {
+    const { p } = reacordado(180000);
+    assert.equal(P.tasaDelCiclo(p), 0);
+    const { B, fila } = filaDeLaLista(p);
+    assert.match(fila, /costo 0% · pago acordado/);
+    assert.equal(B.ev('eaDelCreditoACuotas(DB.prestamos[0])'), 0);
+    assert.ok(!/⚠️/.test(fila), fila);
+    /* El primer acuerdo, sin abono de por medio, sigue diciendo lo mismo que
+       antes: 30.000 sobre 250.000 desde el 31-oct. */
+    const b = pactado();
+    assert.equal(Math.round(P.tasaDelCiclo(b) * 100), 12);
+    const L = filaDeLaLista(b);
+    assert.match(L.fila, /costo 12% · pago acordado/);
+    const ea0 = CP.efectivoAnualPorFechas(DIA, 250000, [{ fecha: SUYA, total: 280000 }]) * 100;
+    assert.equal(Math.round(L.B.ev('eaDelCreditoACuotas(DB.prestamos[0])')), Math.round(ea0));
   });
 });
