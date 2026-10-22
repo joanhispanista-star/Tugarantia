@@ -453,7 +453,9 @@ function abrirEquipo(o) {
     confirm = function (m) { _cuadros.push(String(m)); return true; };
     alert = function (m) { _cuadros.push(String(m)); };
     estoyOcupado = function () { return false; };
-    window.NubeCRM = { estado: function () { return { fase: ${JSON.stringify(o.fase)} }; } };
+    /* 23-oct-2026 — la de 15 min pregunta además si la cartera está al día
+       con la nube (libroAlDiaEsperando): aquí lo está. */
+    window.NubeCRM = { estado: function () { return { fase: ${JSON.stringify(o.fase)} }; }, libroAlDiaEsperando: function () { return Promise.resolve({ ok: true, motivo: 'al-dia' }); } };
     rpc = function (fn, args) {
       _orden.push(fn);
       if (fn === 'equipo_traer' || fn === 'gestiones_listar') {

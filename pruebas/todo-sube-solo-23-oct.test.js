@@ -157,7 +157,9 @@ function abrirConNube(o) {
     confirm = function (m) { _cuadros.push(String(m)); return true; };
     alert = function (m) { _cuadros.push(String(m)); };
     estoyOcupado = function () { return false; };
-    window.NubeCRM = { estado: function () { return { fase: 'lista' }; } };
+    /* 23-oct-2026 — la de 15 min pregunta además si la cartera está al día
+       con la nube (libroAlDiaEsperando): aquí lo está. */
+    window.NubeCRM = { estado: function () { return { fase: 'lista' }; }, libroAlDiaEsperando: function () { return Promise.resolve({ ok: true, motivo: 'al-dia' }); } };
     rpc = function (fn, args) { return _nube.rpc(fn, args); };
   `);
   return { P, nube, t };

@@ -592,7 +592,11 @@
         'otra-pestana': 'Los sube la otra pestaña del CRM, que es la que está emparejada',
         'sin-modulo': 'No cargó la subida de la cartera (nube-crm.js), que es la que lo comprueba: recarga con Ctrl+Shift+R',
         'cartera-ilegible': 'No pude leer tu cartera guardada: exporta un respaldo desde Ajustes antes de tocar nada',
-        /* 23-oct-2026 — ver «EMPAREJADA Y SIN DISCUSIÓN» NO ERA «LA DE HOY», arriba. */
+        /* 23-oct-2026 — ver «EMPAREJADA Y SIN DISCUSIÓN» NO ERA «LA DE HOY», arriba.
+           Y solo cuenta lo de ESTA cartera: las fichas de otra cartera sobre
+           la que Joan emparejó con su sí no llegan aquí (nube-crm.js, LO QUE
+           ERA DE LA OTRA CARTERA). Si llegaran, «más nuevas» sería falso y
+           «júntalas» mezclaría los clientes de la otra con los de esta. */
         'nube-mas-nueva': 'La nube tiene ' + plural(num(u.fichas) || 1, 'ficha más nueva', 'fichas más nuevas') +
           ' que esta cartera (lo que cobraste desde el celular, o lo que un respaldo viejo no alcanzó a tener). ' +
           'No subo hasta que las juntes con lo tuyo en <a href="subir.html" target="_blank" rel="noopener">☁ Subir</a> (paso 6, «Aplicar»): después suben solos',

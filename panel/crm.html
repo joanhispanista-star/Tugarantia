@@ -14526,6 +14526,8 @@ function publicarEquipoAhora(gente, asig, ps, op) {
  *      'lista'), y su cartera no la puede haber escrito otra pestaña. Si no,
  *      el CRM abierto en otro computador con una cartera vieja publicaría
  *      montos viejos con la fecha de hoy al lado, que es peor que no publicar.
+ *      23-oct-2026 — 'lista' ya no basta (se empareja sola): además, AL DÍA
+ *      con la nube, como los historiales (ver LA DE 15 MIN ESPERA, abajo).
  *   2. Se trae primero lo que hizo el equipo, como a mano. Si NO se puede
  *      traer, NO se publica: la versión a mano pregunta, y aquí no hay a quién
  *      preguntar, así que gana lo que no pisa el trabajo del gerente.
@@ -14551,8 +14553,73 @@ function leerPublicadoSolo() {
   try { return JSON.parse(localStorage.getItem('tg_equipo_publicado_solo') || 'null'); } catch (e) { return null; }
 }
 function anotarPublicadoSolo(x) {
+  /* 23-oct-2026 — lo último que pasó manda en la línea: una publicación
+     (buena o fallida) tapa el «no está al día» de una vuelta anterior. */
+  _libroEquipo = null;
   try { localStorage.setItem('tg_equipo_publicado_solo', JSON.stringify(x)); } catch (e) { /* nada */ }
   pintarPublicadoSolo();
+}
+/* --------------------------------------------------------------------------
+ * 23-oct-2026 — LA DE 15 MIN ESPERA A QUE LA CARTERA ESTÉ AL DÍA CON LA NUBE.
+ *
+ * La puerta 1 (arriba) pedía «NubeCRM en 'lista'» para que una cartera vieja
+ * no publicara montos viejos con la fecha de hoy. Eso valía cuando 'lista'
+ * exigía el «sí» de Joan al emparejar. Desde que la cartera se empareja sola
+ * (22-oct), importar el respaldo de la USB deja 'lista' en 90 s aunque traiga
+ * abierto un crédito que la nube ya tiene pagado: ese crédito queda en
+ * discusión (no sube), pero la publicación miraba solo 'lista' y en menos de
+ * 15 min le mandaba al gerente el saldo y la fecha de pago del respaldo.
+ * equipo_publicar pisa saldo, saldo_total y fecha_pago (el coalesce solo
+ * protege los null), así que el asesor cobraba un crédito ya pagado, con la
+ * fecha de hoy al lado, y se volvía a publicar cada día. Lo mismo en un
+ * computador que nunca se había emparejado, y en uno al día en lo suyo pero
+ * atrás de lo que el celular cobró.
+ *
+ * Ahora pide lo MISMO que los historiales para encenderse
+ * (NubeCRM.libroAlDia): emparejada, sin fichas en discusión y sin nada más
+ * nuevo en la nube según una comparación hecha en esta sesión. Y la ESPERA
+ * (libroAlDiaEsperando): el «sí» vale 5 min y la vuelta es cada 15, así que
+ * leer «comparando» y seguir era no publicar nunca. Solo se pregunta cuando
+ * hay algo que publicar (la huella o el día cambiaron): comparar es traer la
+ * nube entera. Si no está al día, no publica y la línea de Equipo y la ☁
+ * común dicen por qué y qué hacer. Lo que publica un acto de Joan
+ * (op.porCambio: repartir, crear, editar, retirar) NO espera: un retiro
+ * tiene que llegar ya, aunque la cartera esté atrás.
+ * ------------------------------------------------------------------------ */
+var _libroEquipo = null;      // la última respuesta que frenó la de 15 min
+/* Con tope: mientras se espera, _publicandoSolo deja en cola lo que publica un
+   acto de Joan (un retiro, entre ellos), y una traída que se cuelga no puede
+   dejarlo en cola para siempre. Pasado el tope, NO se publica y se dice. */
+var TOPE_CARTERA_AL_DIA_MS = 90 * 1000;
+function esperarCarteraAlDia() {
+  try {
+    /* Sin quién conteste, NO: sin esa comprobación esto vuelve a publicar a ciegas. */
+    if (!window.NubeCRM || typeof NubeCRM.libroAlDiaEsperando !== 'function') return Promise.resolve({ ok: false, motivo: 'sin-modulo' });
+    return new Promise(listo => {
+      let ya = false, reloj = null;
+      const fin = r => { if (ya) return; ya = true; try { clearTimeout(reloj); } catch (e) { /* nada */ } listo(r); };
+      reloj = setTimeout(() => fin({ ok: false, motivo: 'sin-comparar', detalle: 'la nube no contestó en ' + Math.round(TOPE_CARTERA_AL_DIA_MS / 1000) + ' s' }), TOPE_CARTERA_AL_DIA_MS);
+      let pr; try { pr = NubeCRM.libroAlDiaEsperando(); } catch (e) { pr = Promise.reject(e); }
+      Promise.resolve(pr)
+        .then(r => fin((r && typeof r === 'object') ? r : { ok: false, motivo: 'error' }), () => fin({ ok: false, motivo: 'error' }));
+    });
+  } catch (e) { return Promise.resolve({ ok: false, motivo: 'error' }); }
+}
+/* Por qué no sale, en palabras de Joan, con qué hacer. */
+function fraseLibroEquipo(lib) {
+  const l = lib || {}, n = Number(l.fichas) || 1, k = Number(l.congeladas) || 1;
+  const subir = '<a href="subir.html" target="_blank" rel="noopener">☁ Subir</a>';
+  switch (l.motivo) {
+    case 'nube-mas-nueva': return 'la nube tiene ' + (n === 1 ? '1 ficha más nueva' : n + ' fichas más nuevas') +
+      ' que esta cartera (lo que cobraste desde el celular, o lo que un respaldo viejo no alcanzó a tener), y publicarla así le daría a tu gerente montos viejos con la fecha de hoy. ' +
+      'Júntalas con lo tuyo en ' + subir + ' (paso 6, «Aplicar») y se publica sola';
+    case 'en-discusion': return (k === 1 ? 'hay 1 ficha' : 'hay ' + k + ' fichas') + ' de tu cartera en discusión con la nube (pasa, por ejemplo, al importar un respaldo viejo), y publicar ahora podría ponerle a tu gerente a cobrar un crédito que ya está pagado. ' +
+      'Decide en ' + subir + ' (paso 7) y se publica sola';
+    case 'comparando': return 'estoy comparando tu cartera con la nube antes de publicarla; pruebo otra vez en la vuelta siguiente';
+    case 'sin-comparar': return 'no pude comparar tu cartera con la nube (' + escHTML(l.detalle || 'la nube no contestó') + '), y sin eso no sé si es la de hoy; pruebo otra vez sola';
+    case 'sin-modulo': return 'no cargó la subida de la cartera (nube-crm.js), que es la que comprueba que esta es tu cartera de hoy: recarga esta pestaña con señal (Ctrl+Shift+R)';
+    default: return 'todavía no pude comprobar que esta es tu cartera de hoy (' + escHTML(l.motivo || 'sin respuesta') + '); la línea ☁ de tu cartera, en Ajustes → Avanzado, dice qué falta';
+  }
 }
 /* --------------------------------------------------------------------------
  * 22-oct-2026 — LO QUE JOAN CAMBIÓ Y TODAVÍA NO SUBIÓ, GANA AL TRAER.
@@ -14668,29 +14735,47 @@ function publicarEquipoSolo(op) {
      viendo la base de sus clientes. */
   const huella = _huella(JSON.stringify([a.eq, a.asig, a.ps]));
   const antes = leerPublicadoSolo();
-  if (!o.porCambio && antes && antes.ok && antes.huella === huella && antes.dia === hoyISO()) return Promise.resolve('sin_cambios');
+  if (!o.porCambio && antes && antes.ok && antes.huella === huella && antes.dia === hoyISO()) {
+    /* Nada que publicar: nada que frenar. */
+    if (_libroEquipo) { _libroEquipo = null; try { pintarPublicadoSolo(); } catch (e) { /* idem */ } }
+    return Promise.resolve('sin_cambios');
+  }
   _publicandoSolo = true;
   try { pintarNubeTodo(); } catch (e) { /* la línea común lo dirá en la vuelta siguiente */ }
-  return traerEquipo('auto')
-    .then(() => traerGestiones('auto'))
-    .then(() => publicarEquipoAhora(equipo().filter(p => p.celular), a.asig, a.ps, { auto: true }))
-    .then(() => {
-      _fallosEquipo = 0; _opEquipoFallo = null; cancelarReintentoEquipo();
-      anotarPublicadoSolo({ ok: true, huella: huella, dia: hoyISO(), cuando: new Date().toISOString() });
-      return 'publicado';
-    })
-    .catch(e => {
-      /* LA REGLA QUE SE QUEDA (15-oct): si no se pudo traer lo del equipo, no
-         se publicó nada encima. Se dice en rojo y se reintenta solo. */
-      _fallosEquipo++; _opEquipoFallo = o;
-      const espera = programarReintentoEquipo(o);
-      anotarPublicadoSolo({ ok: false, huella: '', dia: hoyISO(), cuando: new Date().toISOString(), error: errNube(e), espera: espera });
-      return 'fallo';
+  /* 23-oct-2026 — la de 15 min (y su reintento) espera a que la cartera esté
+     al día con la nube; un cambio de Joan no (LA DE 15 MIN ESPERA, arriba). */
+  return (o.porCambio ? Promise.resolve({ ok: true }) : esperarCarteraAlDia())
+    .then(lib => {
+      if (!lib.ok) { _libroEquipo = Object.assign({}, lib, { cuando: new Date().toISOString() }); return 'cartera_no_al_dia'; }
+      /* Mientras se comparaba pudo cambiar lo que miran las puertas (otra
+         pestaña escribió la cartera, Joan abrió un cuadro): se miran otra vez. */
+      let otraPuerta = '';
+      try { otraPuerta = o.porCambio ? '' : puertaPublicarSolo(o); } catch (e) { otraPuerta = 'sin_emparejar'; }
+      if (otraPuerta) return otraPuerta;
+      return traerEquipo('auto')
+        .then(() => traerGestiones('auto'))
+        .then(() => publicarEquipoAhora(equipo().filter(p => p.celular), a.asig, a.ps, { auto: true }))
+        .then(() => {
+          _fallosEquipo = 0; _opEquipoFallo = null; cancelarReintentoEquipo();
+          anotarPublicadoSolo({ ok: true, huella: huella, dia: hoyISO(), cuando: new Date().toISOString() });
+          return 'publicado';
+        })
+        .catch(e => {
+          /* LA REGLA QUE SE QUEDA (15-oct): si no se pudo traer lo del equipo, no
+             se publicó nada encima. Se dice en rojo y se reintenta solo. */
+          _fallosEquipo++; _opEquipoFallo = o;
+          const espera = programarReintentoEquipo(o);
+          anotarPublicadoSolo({ ok: false, huella: '', dia: hoyISO(), cuando: new Date().toISOString(), error: errNube(e), espera: espera });
+          return 'fallo';
+        });
     })
     .then(r => {
       _publicandoSolo = false;
       const otra = _otraVezEquipo; _otraVezEquipo = null;
       if (otra) publicarEquipoSolo(otra);
+      else if (r === 'cartera_no_al_dia' || r === 'sin_emparejar' || r === 'cartera_ajena' || r === 'ocupado') {
+        try { pintarPublicadoSolo(r === 'sin_emparejar' ? r : undefined); } catch (e) { /* idem */ }
+      }
       else { try { pintarNubeTodo(); } catch (e) { /* idem */ } }
       return r;
     });
@@ -14729,6 +14814,8 @@ function fraseTrasPublicar(r) {
     case 'sin_nube': return 'Tu equipo todavía no lo ve: falta conectar la nube (Ajustes → 📲 Compartir con mis clientes).';
     case 'sin_equipo': return 'Tu equipo todavía no lo ve: nadie del equipo tiene celular, y el celular es su usuario.';
     case 'cartera_ajena': return 'Tu equipo todavía no lo ve: otra pestaña cambió tu cartera. Recarga esta (Ctrl+Shift+R) y se publica sola.';
+    /* 23-oct-2026 — solo la de 15 min (o su reintento) llega aquí: un cambio de Joan no espera. */
+    case 'cartera_no_al_dia': return 'Tu equipo todavía no lo ve: ' + fraseLibroEquipo(_libroEquipo).replace(/<[^>]+>/g, '') + '.';
     case 'no_se_pudo_armar': return 'Tu equipo todavía no lo ve: ' + (armarPublicacionEquipo().error || 'no pude armar lo que viaja.');
     default: return '';
   }
@@ -14764,6 +14851,11 @@ function pintarPublicadoSolo(puerta) {
         'Mientras, tu equipo sigue viendo ' + (x && x.ok ? 'lo publicado el ' + escHTML(cuando) : 'lo último que se publicó') + '.</div>';
     } else if (puerta === 'sin_emparejar') {
       b.innerHTML = '<div class="alerta warn">La cartera de tu equipo no se refresca sola cada 15 min: este computador todavía no está emparejado con la nube (se va a emparejar solo; la línea ☁ de la barra lateral dice qué falta). Lo que repartes sí se publica en el momento.</div>';
+    } else if (_libroEquipo) {
+      /* 23-oct-2026 — ver LA DE 15 MIN ESPERA A QUE LA CARTERA ESTÉ AL DÍA. */
+      b.innerHTML = '<div class="alerta ' + (_libroEquipo.motivo === 'sin-modulo' ? 'mal' : 'warn') + '"><b>La cartera de tu equipo no se publica sola</b>: ' +
+        fraseLibroEquipo(_libroEquipo) + '. Mientras, tu equipo sigue viendo ' + (x && x.ok ? 'lo publicado el ' + escHTML(cuando) : 'lo último que se publicó') +
+        '. <a href="#" onclick="reintentarEquipoYa();return false">Comprobar ya</a></div>';
     } else if (x && x.ok === false) {
       b.innerHTML = '<div class="alerta mal"><b>No pude publicar la cartera de tu equipo</b> (' + escHTML(cuando) + '): ' + escHTML(x.error || '') +
         '. No publiqué encima, para no borrar lo que hizo tu gerente. ' +
@@ -14975,6 +15067,9 @@ function editarPersona(id) {
     const j = equipo().find(x => celDe(x) === celJefe);
     jefeFuera = `<option value="${escHTML(celJefe)}" selected>${escHTML(j ? j.nombre : celJefe)}${j && j.estado === 'retirado' ? ' (retirado)' : j ? '' : ' (ya no está en el equipo)'}</option>`;
   }
+  /* 23-oct-2026 — lo que este cuadro le muestra a Joan, para que guardar
+     compare contra ESO (ver LO QUE EL CUADRO MOSTRÓ, en guardarPersona). */
+  _cuadroEquipo = p ? { id: String(p.id), mostrado: loQueDiceElCuadro(p.rol, celJefe, p.estado) } : null;
   openModal(p ? 'Editar a ' + p.nombre : 'Crear una persona del equipo', `
     <div class="field"><label>Nombre completo</label><input id="eqNombre" value="${p ? escHTML(p.nombre) : ''}"></div>
     <div class="field"><label>Celular</label><input id="eqTel" inputmode="numeric" value="${p ? escHTML(p.celular || '') : ''}"></div>
@@ -15020,42 +15115,106 @@ function pintarAyudaRol() {
   caja.innerHTML = '<b>Ve:</b> ' + escHTML(r.que_ve) + '<br><b>Hace:</b> ' + escHTML(r.que_hace);
 }
 
+/* --------------------------------------------------------------------------
+ * 23-oct-2026 — LO QUE EL CUADRO MOSTRÓ, NO LO QUE HAY AL GUARDAR.
+ *
+ * guardarPersona comparaba el formulario con la persona tal como estaba en
+ * este computador AL GUARDAR. Si entre abrir el cuadro y guardar aterrizaba
+ * una traída del equipo (la de la publicación que salió al guardar a otra
+ * persona, la segunda vuelta de _otraVezEquipo, o el reintento de una que
+ * falló, que no espera a que Joan deje el cuadro), la persona ya decía
+ * «retirado» (lo hizo Willian desde su celular) y el cuadro seguía diciendo
+ * «Activo», porque traer repinta la vista pero no el cuadro abierto. Joan solo
+ * corregía el nombre, el «Activo» viejo contaba como un cambio suyo, la marca
+ * lo protegía y equipo_publicar lo escribía: el retirado volvía a tener
+ * alcance y a salir en Repartir, sin que nadie se enterara.
+ *
+ * Ahora editarPersona anota lo que el cuadro MOSTRÓ (_cuadroEquipo) y solo es
+ * cambio de Joan lo que el formulario dice distinto de eso. En lo que no tocó
+ * se queda lo de este computador, que puede haber llegado de la nube mientras
+ * tanto. Y si tocó un campo que la nube también cambió mientras el cuadro
+ * estaba abierto (y a otra cosa), se le dice antes de guardar, con los tres
+ * valores: Aceptar guarda lo suyo; Cancelar no guarda nada y le vuelve a abrir
+ * el cuadro con lo de ahora (el nombre y el celular que escribió se quedan).
+ * Sin cuadro anotado (no se abrió en esta pestaña), se compara con lo de
+ * ahora, como antes.
+ * ------------------------------------------------------------------------ */
+var _cuadroEquipo = null;
+/* Estado y jefe tal como los deja un cuadro (y como se guardan): el jefe como
+   celular y solo para un asesor; el estado, 'retirado' o 'activo'. Lo mismo
+   para lo que mostró, lo que Joan dejó y lo que hay ahora: comparar textos
+   crudos daría «cambios» que nadie hizo (el jefe vive como id o como celular). */
+function loQueDiceElCuadro(rol, jefe, estado) {
+  return { jefe: rol === 'asesor' ? celularDeJefe(jefe) : '', estado: String(estado || '') === 'retirado' ? 'retirado' : 'activo' };
+}
+function textoChoqueCuadro(p, campos, cuadro, ahora, form) {
+  const nombreJefe = c => {
+    if (!c) return 'Nadie (te reporta a ti)';
+    const j = equipo().find(x => String(x.celular || '').replace(/\D/g, '').slice(-10) === c);
+    return j ? j.nombre : c;
+  };
+  const valor = (k, v) => k === 'jefe' ? nombreJefe(v) : (v === 'retirado' ? 'Retirado' : 'Activo');
+  const etiqueta = { jefe: 'Reporta a', estado: 'Estado' };
+  return 'Mientras tenías abierto el cuadro de ' + p.nombre + ' llegó de la nube un cambio en lo mismo que tocaste ' +
+    '(desde el celular de tu gerente, o desde otro computador):\n\n' +
+    campos.map(k => '• ' + etiqueta[k] + ': el cuadro decía «' + valor(k, cuadro[k]) + '», ahora es «' +
+      valor(k, ahora[k]) + '» y tú pusiste «' + valor(k, form[k]) + '».').join('\n') +
+    '\n\n¿Guardo lo tuyo encima?\n\nAceptar: queda lo tuyo y se le publica a tu equipo.\n' +
+    'Cancelar: no guardo nada y te abro el cuadro otra vez con lo de ahora.';
+}
+
 function guardarPersona(id) {
   const nombre = gv('eqNombre').trim();
   if (!nombre) return alert('Falta el nombre.');
   const rol = gv('eqRol');
   if (!ROLES[rol]) return alert('Ese rol no existe.');
-  const tel = String(gv('eqTel') || '').replace(/\D/g, '').slice(-10);
+  const telEscrito = gv('eqTel');
+  const tel = String(telEscrito || '').replace(/\D/g, '').slice(-10);
   const p = id ? personaDeEquipo(id) : null;
-  /* 23-oct-2026 — los tres campos en los que manda la nube, como estaban
-     ANTES de guardar (el jefe, como celular: acá vive como id o como celular
-     según de dónde llegó, y comparar el texto crudo daría un «cambio» que
-     Joan no hizo). Ver LA MARCA PROTEGE SOLO LO QUE JOAN CAMBIÓ. */
+  /* 23-oct-2026 — los tres campos en los que manda la nube, como viajan (el
+     jefe, como celular). Ver LA MARCA PROTEGE SOLO LO QUE JOAN CAMBIÓ. */
   const comoViaja = x => ({ rol: String(x.rol || ''), estado: String(x.estado || 'activo'), jefe: celularDeJefe(x.jefe) });
-  const antes = p ? comoViaja(p) : null;
+  const cambio = {};
   if (p) {
     /* El ROL no se cambia desde acá a propósito: cambiarle el rol a alguien que
        ya tiene comisiones movería lo que ve y lo que puede ver, sin dejar
        rastro de cuándo cambió. Si hay que cambiarlo, se retira y se crea otra
        vez — así la historia queda partida en dos y se puede leer. */
+    /* 23-oct-2026 — ver LO QUE EL CUADRO MOSTRÓ, arriba. */
+    const ahora = loQueDiceElCuadro(p.rol, p.jefe, p.estado);
+    const cuadro = (_cuadroEquipo && _cuadroEquipo.id === String(p.id)) ? _cuadroEquipo.mostrado : ahora;
+    const form = loQueDiceElCuadro(rol, gv('eqJefe'), gv('eqEstado'));
+    const toco = k => form[k] !== cuadro[k];
+    const choques = ['estado', 'jefe'].filter(k => toco(k) && ahora[k] !== cuadro[k] && form[k] !== ahora[k]);
+    if (choques.length && !confirm(textoChoqueCuadro(p, choques, cuadro, ahora, form))) {
+      editarPersona(p.id);
+      const n = document.getElementById('eqNombre'), t = document.getElementById('eqTel');
+      if (n) n.value = nombre;
+      if (t) t.value = telEscrito;
+      return Promise.resolve('cancelado');
+    }
     p.nombre = nombre; p.celular = tel;
-    p.jefe = rol === 'asesor' ? (gv('eqJefe') || '') : '';
-    p.estado = gv('eqEstado') || 'activo';
+    if (toco('jefe')) p.jefe = rol === 'asesor' ? (gv('eqJefe') || '') : '';
+    if (toco('estado')) p.estado = form.estado;
     if (p.estado === 'retirado' && !p.retiradoEn) p.retiradoEn = hoyISO();
-    if (p.estado === 'activo') delete p.retiradoEn;
+    if (p.estado !== 'retirado') delete p.retiradoEn;
+    /* 22-oct-2026 — la marca va ANTES de guardar y publicar: publicar trae
+       primero, y sin ella la nube le devolvería a esta persona el estado y el
+       jefe de antes (un retirado volvería a «activo» antes de salir).
+       23-oct-2026 — y solo con lo que Joan tocó en el cuadro: lo que dejó
+       igual puede ser viejo, y en eso manda la nube. */
+    const despues = comoViaja(p);
+    ['estado', 'jefe'].forEach(k => { if (toco(k)) cambio[k] = despues[k]; });
   } else {
     equipo().push({ id: 'E' + Date.now(), nombre, celular: tel, rol,
                     jefe: rol === 'asesor' ? (gv('eqJefe') || '') : '',
                     codigo: codigoDeEquipo(), estado: 'activo', creadoEn: hoyISO() });
+    /* Una persona recién creada no tiene «antes»: sus tres campos son de Joan. */
+    const nueva = comoViaja(equipo()[equipo().length - 1]);
+    CAMPOS_QUE_MANDA_LA_NUBE.forEach(k => { cambio[k] = nueva[k]; });
   }
-  /* 22-oct-2026 — la marca va ANTES de guardar y publicar: publicar trae
-     primero, y sin ella la nube le devolvería a esta persona el estado y el
-     jefe de antes (un retirado volvería a «activo» antes de salir).
-     23-oct-2026 — y solo con lo que cambió: lo que el cuadro mostró y Joan
-     dejó igual puede ser viejo, y en eso manda la nube. */
   const quien = p || equipo()[equipo().length - 1];
-  const despues = comoViaja(quien), cambio = {};
-  CAMPOS_QUE_MANDA_LA_NUBE.forEach(k => { if (!antes || antes[k] !== despues[k]) cambio[k] = despues[k]; });
+  _cuadroEquipo = null;
   anotarEquipoPorPublicar(quien.id, cambio);
   guardar(); cerrarModal(); render(); irA('equipo');
   /* 22-oct-2026 — crear, editar o retirar a alguien cambia lo que ve el
@@ -17673,6 +17832,14 @@ function piezaNubeEquipo(ahoraMs){
       'recarga esta pestaña con señal (Ctrl+Shift+R) · mientras, tu equipo ve '+
       (x&&x.ok?'lo publicado '+escHTML(haceRatoNube(x.cuando,ahoraMs)):'lo último que se publicó')};
   if(_publicandoSolo) return {quien:'equipo',nombre:'👥 Tu equipo',normal:true,clase:'calma',enCurso:true,corto:'equipo publicándose',cuando:x&&x.ok?x.cuando:null};
+  /* 23-oct-2026 — la de 15 min no salió porque la cartera no está al día con
+     la nube (LA DE 15 MIN ESPERA). El clic comprueba otra vez. Si desde
+     entonces dejó de estar emparejado u otra pestaña escribió la cartera,
+     eso es lo de ahora y lo dicen las puertas, abajo. */
+  let puertaAhora=''; try{ puertaAhora=_libroEquipo?puertaPublicarSolo():''; }catch(e){ puertaAhora=''; }
+  if(_libroEquipo&&puertaAhora!=='sin_emparejar'&&puertaAhora!=='cartera_ajena') return {quien:'equipo',nombre:'👥 Tu equipo',normal:false,clase:_libroEquipo.motivo==='sin-modulo'?'mal':'ojo',
+    l1:'la cartera de tu equipo no se publica sola',
+    l2:fraseLibroEquipo(_libroEquipo)+' · mientras, tu equipo ve '+(x&&x.ok?'lo publicado '+escHTML(haceRatoNube(x.cuando,ahoraMs)):'lo último que se publicó')+' · clic para comprobar ya'};
   if(x&&x.ok===false){
     return {quien:'equipo',nombre:'👥 Tu equipo',normal:false,clase:'mal',l1:'no pude publicar la cartera de tu equipo',
       l2:escHTML(x.error||'La nube no contestó')+' ('+escHTML(haceRatoNube(x.cuando,ahoraMs))+'). No publiqué encima, para no borrar lo que hizo tu gerente · '+

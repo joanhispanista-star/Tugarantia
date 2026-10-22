@@ -66,13 +66,21 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         nube: una comparación hecha en esa sesión no encontró nada
                         más nuevo allá (un crédito que un respaldo viejo no tiene,
                         un abono cobrado desde el celular). Si lo hay, espera y
-                        manda a juntarlo en ☁ Subir, paso 6.
+                        manda a juntarlo en ☁ Subir, paso 6. Las fichas de OTRA
+                        cartera sobre la que Joan emparejó con su sí («la nube
+                        tiene otra cartera») no cuentan como más nuevas.
                         La cartera del EQUIPO se publica sola desde crm.html: al
                         repartir, al crear, editar o retirar a alguien (en ese
-                        momento, aunque no tenga clientes) y cada 15 min. Editar
-                        solo impone lo que Joan cambió de verdad (rol, estado,
-                        jefe): en lo demás manda la nube, donde el gerente retira
-                        y reactiva desde su celular. Las
+                        momento, aunque no tenga clientes) y cada 15 min. La de
+                        15 min, desde el 23-oct, solo con la cartera AL DÍA con
+                        la nube (la misma prueba de los historiales, esperando
+                        la comparación): un respaldo viejo no le publica al
+                        gerente un crédito ya pagado. Editar solo impone lo que
+                        Joan cambió EN EL CUADRO respecto de lo que el cuadro le
+                        mostró (estado, jefe): en lo demás manda la nube, donde
+                        el gerente retira y reactiva desde su celular; si la
+                        nube cambió lo mismo con el cuadro abierto, pregunta
+                        antes de guardar. Las
                         tres van en UNA línea, «☁ Todo sube solo», en la barra
                         lateral y en Ajustes; lo que falla sale en rojo y se
                         reintenta solo con espera creciente. Si falta
@@ -81,8 +89,9 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         entrar con el correo la primera vez, traer lo hecho en el
                         celular, decidir choques y subir plantillas y configuración
                         (no suben solas). Pruebas: pruebas/todo-sube-solo.test.js,
-                        pruebas/todo-sube-solo-revision.test.js y
-                        pruebas/todo-sube-solo-23-oct.test.js.
+                        pruebas/todo-sube-solo-revision.test.js,
+                        pruebas/todo-sube-solo-23-oct.test.js y
+                        pruebas/todo-sube-solo-cierre.test.js.
   panel.webmanifest
   panel-*.png           La G blanca sobre rojo, para no confundir las dos apps.
 

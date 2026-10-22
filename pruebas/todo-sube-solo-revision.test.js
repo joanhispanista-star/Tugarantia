@@ -152,7 +152,9 @@ function abrirConNube(o) {
     confirm = function (m) { _cuadros.push(String(m)); return true; };
     alert = function (m) { _cuadros.push(String(m)); };
     estoyOcupado = function () { return false; };
-    window.NubeCRM = { estado: function () { return { fase: 'lista' }; } };
+    /* 23-oct-2026 — la de 15 min pregunta además si la cartera está al día
+       con la nube (libroAlDiaEsperando): aquí lo está. */
+    window.NubeCRM = { estado: function () { return { fase: 'lista' }; }, libroAlDiaEsperando: function () { return Promise.resolve({ ok: true, motivo: 'al-dia' }); } };
     rpc = function (fn, args) { return _nube.rpc(fn, args); };
   `);
   return { P, nube, t };
@@ -397,7 +399,7 @@ describe('S3 · sin app/etapas.js la línea y la pestaña Equipo lo dicen en roj
     r.P.ctx._c = { cinta: { fase: 'al-dia', clase: 'calma', l1: 'Tu cartera GUARDADA está en la nube', l2: '' }, ultimaSubida: hace(2) };
     r.P.ctx._h = { cinta: { fase: 'al-dia', clase: 'calma', l1: 'Tus clientes ven lo de hace 3 min', l2: '' }, ultimaSubida: hace(3) };
     r.P.ev(`
-      window.NubeCRM = { estado: function () { return Object.assign({ fase: 'lista' }, _c); }, accion: function () {} };
+      window.NubeCRM = { estado: function () { return Object.assign({ fase: 'lista' }, _c); }, accion: function () {}, libroAlDiaEsperando: function () { return Promise.resolve({ ok: true, motivo: 'al-dia' }); } };
       window.HistorialesAuto = { estado: function () { return _h; }, accion: function () {} };
     `);
     return r;
