@@ -68,6 +68,21 @@ function abrirPlataChat(opc) {
         user: { user_metadata: { nombre: q } } });
     }
     if (/auth\/v1\/logout/.test(url)) return R(undefined, true, 204);
+    /* 22-oct-2026 — «Cambiar mi contraseña» (PUT /auth/v1/user): como GoTrue,
+       le cambia la clave a la cuenta DEL TOKEN, y la vieja deja de servir para
+       entrar. `resp.auth_user` (quien, cuerpo) contesta a mano (un rechazo de
+       Supabase, un 401). Un token que no es de nadie: 401. */
+    if (/\/auth\/v1\/user$/.test(url)) {
+      const q = quienDe(auth);
+      if (st.resp.auth_user) {
+        const r = st.resp.auth_user(q, c);
+        return r && r.__estado ? R(r, false, r.__estado) : R(r);
+      }
+      const correo = Object.keys(st.cuentas).find(k => st.cuentas[k].quien === q);
+      if (!correo) return R({ code: 401, error_code: 'bad_jwt', msg: 'invalid JWT' }, false, 401);
+      st.cuentas[correo].clave = String(c && c.password);
+      return R({ email: correo });
+    }
     const quien = quienDe(auth);
     if (st.resp[fn]) {
       const r = st.resp[fn](quien, c);

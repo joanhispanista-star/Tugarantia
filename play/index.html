@@ -381,8 +381,13 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    celular cambia a mitad del registro, el registro empieza de cero: también
    lo escrito a mano se borra, y se vuelve al primer paso. Si alguien dice que
    su cuenta salió con el nombre de otra persona, esta fecha dice si tenía la
-   versión que lo impide. */
-var VERSION_PLAY = '2026-10-21';
+   versión que lo impide.
+   22-oct-2026 — sube porque «Cambiar mi contraseña» del Perfil ya no acepta
+   el celular como contraseña (las reglas del registro), y porque el recado
+   de «Olvidé mi contraseña» ya no promete escribir al número del recado. Si
+   alguien dice que puso su celular de contraseña desde el Perfil, esta fecha
+   dice si tenía la versión que lo niega. */
+var VERSION_PLAY = '2026-10-22';
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -1667,10 +1672,17 @@ function mandarAyuda() {
           : 'No pudimos recibir tu recado ahora. Vuelve a intentar en unos minutos.');
       }
       $('titulo').textContent = 'Recado enviado';
+      /* 22-oct-2026 — sin «Te escribimos al <el número del recado>». La clave
+         no va a ese número: el CRM la manda al WhatsApp de la FICHA
+         (darClaveNueva), para que un recado con el número de otro no le
+         entregue su cuenta a quien lo dejó. Prometer el número del recado era
+         la pantalla diciendo lo contrario de lo que pasa (app/socio.html ya
+         lo evitaba). Sin «por WhatsApp», como antes: Joan no quiere que esta
+         puerta prometa ese canal (pruebas/canal-unico.test.js). */
       $('cuerpo').innerHTML =
         '<div class="card"><div class="aviso verde"><b>Listo, lo recibimos.</b></div>' +
-          '<p class="sub" style="margin-top:var(--e4)">Te escribimos al ' +
-          esc(U.telefonoBonito(tel)) + ' para devolverte el acceso. Si recuerdas tu ' +
+          '<p class="sub" style="margin-top:var(--e4)">Te escribimos para devolverte el acceso; ' +
+          'si ya eres cliente, te puede llegar al número que tenemos en tu ficha. Si recuerdas tu ' +
           'contraseña antes, entra normal: el recado no bloquea nada.</p>' +
           '<button class="btn arriba" onclick="pintarEntrar()">Volver a la entrada</button>' +
         '</div>' + pie();
@@ -9957,7 +9969,7 @@ function celularDeSesion() {
 function tarjetaCambiarClave() {
   return '<div class="card">' +
     '<h3 class="tit">Cambiar mi contraseña</h3>' +
-    '<p class="sub">La nueva tiene que tener al menos 8 caracteres.</p>' +
+    '<p class="sub">La nueva tiene que tener al menos 8 caracteres y no puede ser tu número de celular.</p>' +
     '<label for="clave1">Contraseña nueva</label>' +
     campoClave('clave1', 'new-password') +
     '<label for="clave2">Escríbela otra vez</label>' +
@@ -9971,7 +9983,16 @@ function cambiarClave() {
   var a = $('clave1'), b = $('clave2'), err = $('errClave');
   if (!a || !b || !err) return;
   var c1 = a.value || '', c2 = b.value || '';
-  if (c1.length < 8) return fallo(err, 'La contraseña nueva necesita al menos 8 caracteres.');
+  /* 22-oct-2026 — las reglas del registro (U.revisarContrasena), no solo el
+     largo. Aquí se miraba solo que tuviera 8 caracteres, así que el Perfil
+     aceptaba el número de celular como contraseña —lo primero que alguien
+     probaría—, y «12345678», que la app del socio y el registro niegan
+     (pruebas/una-puerta-socio.test.js). Una misma cuenta no puede tener dos
+     reglas según la pantalla desde donde se cambie. Sin cuenta.js (un
+     service worker viejo) queda el largo, que es lo que había. */
+  var revisa = (U && U.revisarContrasena) ? U.revisarContrasena(c1, { telefono: celularDeSesion() })
+    : (c1.length < 8 ? { ok: false, motivo: 'La contraseña nueva necesita al menos 8 caracteres.' } : { ok: true });
+  if (!revisa.ok) return fallo(err, revisa.motivo);
   if (c1 !== c2) return fallo(err, 'Las dos no quedaron iguales. Escríbelas otra vez, sin afán.');
   if (!SESION || !SESION.access_token) return fallo(err, 'Se cerró tu sesión. Entra otra vez y lo hacemos.');
   fallo(err, 'Guardando…');

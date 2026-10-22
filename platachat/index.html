@@ -134,8 +134,12 @@
    21-oct-2026 — sube con el «Salir» que sale de verdad (H3: avisa al
    servidor y borra la copia de la sesión que dejó el registro en la
    pestaña) y con sesion.js, que trae cerrar(). CACHE de sw.js también tiene
-   que subir al publicar: esta tanda no toca sw.js. */
-var VERSION_APP = '2026-10-21';
+   que subir al publicar: esta tanda no toca sw.js.
+
+   22-oct-2026 — sube con «Cambiar mi contraseña» en Yo (sesion.js trae
+   cambiarClave) y con el recado que ya no promete escribir «al <número del
+   recado>». Tampoco toca sw.js: CACHE sube el día que se publique el lote. */
+var VERSION_APP = '2026-10-22';
 (function () {
   var v = document.getElementById('holaVersion');
   if (v) v.textContent = 'Versión ' + VERSION_APP;
@@ -596,12 +600,19 @@ function mandarRecado() {
         : j && j.red ? 'No pude enviar tu recado. Revisa tu internet y vuelve a intentar.'
         : (m || 'No pudimos recibir tu recado ahora. Vuelve a intentar en unos minutos.'));
     }
-    var tel = j.celular;
     var caja = $('entrarCuerpo'); if (!caja) return;
+    /* 22-oct-2026 — sin «Te escribimos al <el número del recado>». La clave
+       nueva no va a ese número: el CRM la manda al WhatsApp de la FICHA
+       (darClaveNueva), para que un recado con el número de otro no le
+       entregue su cuenta a quien lo dejó. Prometer el número del recado era
+       la pantalla diciendo lo contrario de lo que pasa, y quien cambió de
+       teléfono se quedaba mirando el nuevo. app/socio.html ya lo evitaba (y
+       su prueba lo vigila). Sin nombrar el canal, como la pantalla del
+       recado: la misma regla de play/ (pruebas/canal-unico.test.js). */
     caja.innerHTML =
       '<div class="card"><div class="aviso verde"><b>Listo, lo recibimos.</b></div>' +
-        '<p class="sub" style="margin-top:var(--e4)">Te escribimos al ' + esc(U && U.telefonoBonito ? U.telefonoBonito(tel) : tel) +
-          '. Si recuerdas tu contraseña antes, entra normal: el recado no bloquea nada.</p>' +
+        '<p class="sub" style="margin-top:var(--e4)">Te escribimos para devolverte el acceso; si ya eres ' +
+          'cliente, te puede llegar al número que tenemos en tu ficha. Si recuerdas tu contraseña antes, entra normal: el recado no bloquea nada.</p>' +
         '<button type="button" class="btn marca" onclick="pintarEntrar()">Volver a la entrada</button>' +
       '</div>';
     window.scrollTo(0, 0);
@@ -2774,10 +2785,69 @@ function vistaYo() {
   h += '<div class="card pc-enlaces"><div class="etq">Tu cuenta</div>' +
     '<div class="fila"><span class="k"><a href="../legal/terminos.html" target="_blank" rel="noopener">Términos</a></span><span class="v muted">›</span></div>' +
     '<div class="fila"><span class="k"><a href="../legal/privacidad.html" target="_blank" rel="noopener">Tus datos</a></span><span class="v muted">›</span></div>' +
+    /* 22-oct-2026 — con ESTE nombre, letra por letra: es el que dice el
+       WhatsApp de la clave nueva (panel/una-puerta.js, mensajeClaveNueva). */
+    '<div class="fila"><span class="k"><a href="#" onclick="pintarCambiarClave();return false">Cambiar mi contraseña</a></span><span class="v muted">›</span></div>' +
     '<div class="fila"><span class="k"><a href="borrar-cuenta.html">Borrar mi cuenta</a></span><span class="v muted">›</span></div>' +
     '<div class="fila"><span class="k"><a href="#" onclick="salir();return false">Salir</a></span><span class="v muted">›</span></div>' +
     '</div>';
   return h + pie();
+}
+
+/* ===================== CAMBIAR MI CONTRASEÑA — 22-oct-2026 =====================
+   Joan: «los clientes deben de tener la opcion de cambiar contraseña y olvide
+   contraseña». Es el final del camino de «Olvidé mi contraseña»: Joan le da
+   una clave temporal desde el CRM, se la manda por WhatsApp, y ese mensaje le
+   dice que la cambie aquí. Hasta hoy PlataChat no tenía dónde: el que solo
+   usa PlataChat se quedaba con una clave que Joan vio y que viajó por un chat.
+   La red y las reglas viven en sesion.js (SP.cambiarClave), las mismas de la
+   app del socio y del Perfil de play/; esta pantalla solo pinta. Va dentro de
+   Yo (la pestaña sigue encendida) y con la sesión que la pidió
+   (deEstaSesion): si mientras viaja sale María y entra Pedro, el «Listo» de
+   ella no se le pinta a él ni le borra lo que esté escribiendo. */
+function pintarCambiarClave() {
+  if (!S || !SES) return;
+  $('cuerpo').innerHTML = '<div class="panel">' + avisosArriba() +
+    '<div class="card">' +
+      '<h3 class="tit">Cambiar mi contraseña</h3>' +
+      '<p class="sub">La nueva tiene que tener al menos 8 caracteres y no puede ser tu número de celular. ' +
+        'Desde que la cambies, la de antes deja de servir.</p>' +
+      '<label for="ccNueva">Tu contraseña nueva</label>' +
+      '<input id="ccNueva" type="password" autocomplete="new-password">' +
+      '<label for="ccRepite">Escríbela otra vez</label>' +
+      '<input id="ccRepite" type="password" autocomplete="new-password">' +
+      '<button type="button" class="btn marca" id="ccBoton" style="margin-top:var(--e4)" onclick="cambiarClave()">Guardar mi contraseña nueva</button>' +
+      '<div id="ccMsg" class="aviso ambar oculto"></div>' +
+      '<button type="button" class="btn claro" style="margin-top:var(--e3)" onclick="irA(\'yo\')">Volver</button>' +
+    '</div></div>';
+  /* El botón nace encendido: un cambio de otra sesión que quedó callado
+     (deEstaSesion) no puede dejarle el botón apagado al que entró después. */
+  var b = $('ccBoton'); if (b) b.disabled = false;
+  window.scrollTo(0, 0);
+}
+
+function cambiarClave() {
+  var msg = $('ccMsg'); if (!msg) return;
+  var nueva = ($('ccNueva') || {}).value || '', repite = ($('ccRepite') || {}).value || '';
+  var b = $('ccBoton');
+  if (!SP || !SP.cambiarClave) return fallo(msg, 'No cargó una parte de la app (sesion.js). Cierra y vuelve a abrir con internet.');
+  if (!SES) return fallo(msg, 'Se cerró tu sesión. Entra otra vez y lo hacemos.');
+  if (nueva !== repite) return fallo(msg, 'Las dos no quedaron iguales. Escríbelas otra vez, sin afán.');
+  if (b && b.disabled) return;   // un cambio a la vez
+  if (b) b.disabled = true;
+  fallo(msg, 'Guardando…');
+  var ses = SES;
+  deEstaSesion(ses, SP.cambiarClave(CFG, ses, nueva)).then(function (r) {
+    if (b) b.disabled = false;
+    if (r && r.sinSesion) { salir(r.motivo); return; }
+    if (!r || !r.ok) { fallo($('ccMsg'), (r && r.motivo) || 'No pude cambiar tu contraseña. Vuelve a intentar en un momento.'); return; }
+    $('cuerpo').innerHTML = '<div class="panel">' +
+      '<div class="card"><div class="aviso verde"><b>Listo: tu contraseña quedó cambiada.</b></div>' +
+        '<p class="sub" style="margin-top:var(--e4)">La próxima vez entra con tu celular y la nueva. Es tuya: nosotros no la vemos.</p>' +
+        '<button type="button" class="btn marca" onclick="irA(\'yo\')">Volver</button>' +
+      '</div></div>';
+    window.scrollTo(0, 0);
+  });
 }
 
 /* La ficha: cuánto cupo da cada dato, con los valores del motor (DATOS_KYC),
