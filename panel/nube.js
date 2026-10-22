@@ -127,7 +127,9 @@
                      desde el 2-sep-2026 también crm.html —pagarTotal,
                      registrarProrroga y cumplirAcuerdo— con `sobre:'prorroga'`
                      cuando el perdón fue al prorrogar; `sobre` queda FUERA de
-                     la identidad, como `motivo` y `quien`)
+                     la identidad, como `motivo` y `quien`; desde el 22-oct-2026
+                     también {capital, sobre:'pacto', para} cuando Joan perdona
+                     capital al pactar el próximo pago)
 
      14-ago-2026 — POR QUÉ LOS DESCUENTOS SON UNA LISTA Y NO UN CAMPO.
      Un descuento perdonado es un HECHO fechado, igual que una prórroga: pasó, y
@@ -257,7 +259,15 @@
        sus dos fotos tienen que sobrevivir; los comprobantes de antes no traen
        id y su identidad no cambia. */
     comprobantes: ['fecha', 'tipo', 'monto', 'id'],
-    condonaciones: ['fecha', 'costo', 'mora']
+    /* 22-oct-2026 — `capital` entra en la identidad. Desde que Joan pacta el
+       próximo pago puede perdonar CAPITAL (costo 0, mora 0, capital X), y dos
+       perdones de capital distintos del mismo día —pactó 240.000 en la mañana
+       y volvió a pactar más abajo en la tarde— tenían la misma identidad
+       [fecha, 0, 0]: la nube fundía los dos en uno y un aparato quedaba
+       debiendo capital que el otro ya había perdonado. Los perdones de antes
+       no traen `capital`, valen null, y su identidad no cambia de un lado al
+       otro. */
+    condonaciones: ['fecha', 'costo', 'mora', 'capital']
   };
   var LISTAS_RESPALDADO = {
     comprobantes: ['fecha', 'tipo', 'monto']
@@ -1183,6 +1193,44 @@
           return ks.length ? ks.map(function (k) { return 'Cuota ' + k + ': ' + porCuota[k].join(' · '); }).join(' | ') : 'nada';
         };
         pisables.push({ campo: 'abonosCapital', mio: resumir(soloMios), suyo: resumir(soloSuyos) });
+      }
+    }
+
+    /* 22-oct-2026 — EL PRÓXIMO PAGO QUE PACTÓ JOAN CONOCE SUS ABONOS. El pacto
+       (puente.pactarProximoPago) es un plan de una cuota cuyo capital es el
+       que quedaba ESE día. Si el otro aparato anotó un abono suelto a capital
+       que el lado del pacto no conocía (un «Queda debiendo» en el celular sin
+       señal mientras el computador pactaba), sumar las dos cosas deja la cuota
+       cobrando 250.000 de un capital que ya bajó a 200.000, sin choque y sin
+       que nadie lo vea. No se resuelve solo: va a `pisables`, en pesos, y en
+       `fila` —lo que se manda con «lo mío encima»— si el pacto es mío, quedan
+       solo los abonos que el pacto conocía (si esa plata entró de verdad, se
+       vuelve a anotar, y el pacto se vuelve a hacer sobre lo que quede). */
+    if (idAb && Array.isArray(fila.abonosCapital) &&
+        !pisables.some(function (x) { return x.campo === 'abonosCapital'; })) {
+      var planFila = tiene(m, 'planPagos') ? m.planPagos : s.planPagos;
+      if (planFila && typeof planFila === 'object' && planFila.pacto && typeof planFila.pacto === 'object') {
+        var ladoPacto = tiene(m, 'planPagos') ? m : s, otroLado = ladoPacto === m ? s : m;
+        var sueltos = function (x) {
+          return !!x && typeof x === 'object' && (x.cuotaPlan == null || x.cuotaPlan === '');
+        };
+        var conocidos = {};
+        lista(ladoPacto.abonosCapital).forEach(function (x) { conocidos[identidad(x, idAb)] = true; });
+        var ajenos = lista(otroLado.abonosCapital).filter(function (x) {
+          return sueltos(x) && !conocidos[identidad(x, idAb)];
+        });
+        if (ajenos.length) {
+          var dichos = ajenos.map(function (x) { return 'abono ' + texto(x.fecha).slice(0, 10) + ' $' + num(x.monto); })
+            .join(' · ');
+          var delPacto = 'el pago acordado, sin ' + (ajenos.length === 1 ? 'ese abono' : 'esos abonos');
+          pisables.push({ campo: 'abonosCapital', mio: ladoPacto === m ? delPacto : dichos,
+                          suyo: ladoPacto === m ? dichos : delPacto });
+          if (ladoPacto === m) {
+            fila.abonosCapital = fila.abonosCapital.filter(function (x) {
+              return !sueltos(x) || conocidos[identidad(x, idAb)];
+            });
+          }
+        }
       }
     }
 
