@@ -34,6 +34,17 @@
  * observador, igual que lo entrega un navegador.
  *
  * Todas FALLAN con 35f0687.
+ *
+ * 22-oct-2026 (verificación de e8f34eb) — LO QUE CONTESTÓ LA BASE SE VE
+ * ANTES DE ACTUALIZAR. «Actualizar ahora» esperaba lo que iba en camino y,
+ * al terminar, recargaba solo, encima de la respuesta: si la base decía que
+ * NO (el «Pedir», el «Acepto» o la foto del comprobante de PlataChat con la
+ * calculadora movida; el «Pedir» de Crédito en play/), la página lo pintaba
+ * y la recarga se lo llevaba. Las pruebas de aquí que fijaban «termina, y
+ * recarga» ahora fijan lo contrario (termina, dice «ya terminó» con el
+ * botón, y recarga cuando la persona lo toca), y la sección 4 corre el «no»
+ * de la base en las tres páginas. Las de la sección 4 FALLAN con e8f34eb,
+ * salvo la del chat del socio, que es centinela (ver allá por qué).
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -299,7 +310,9 @@ describe('1. la franja vuelve a mirar sola, desde app/actualizar.js', () => {
 
 describe('1b. «Actualizar ahora» vuelve a preguntar al tocarlo', () => {
 
-  test('con algo en camino espera y lo dice; termina, y recarga', async () => {
+  /* 22-oct-2026 (verificación de e8f34eb) — antes: «termina, y recarga».
+     Recargar ahí era hacerlo encima de la respuesta, que podía ser un «no». */
+  test('con algo en camino espera y lo dice; al terminar NO recarga solo: dice que terminó, y el botón recarga', async () => {
     const N = navegadorConOjos();
     let enCamino = false;
     await N.arrancar({ momentoSeguro: () => true, ocupado: () => enCamino });
@@ -315,7 +328,12 @@ describe('1b. «Actualizar ahora» vuelve a preguntar al tocarlo', () => {
     assert.equal(N.st.recargas, 0, 'recargó con el pedido todavía en el aire');
     enCamino = false;
     await N.pasaUnSegundo();
-    assert.equal(N.st.recargas, 1, 'terminó lo que iba en camino y no se puso, aunque la persona lo pidió');
+    assert.equal(N.st.recargas, 0, 'terminó lo que iba en camino y recargó encima de la respuesta, sin dejarla ver');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    assert.equal(/se pone sola|se envió|llegó|recibi/.test(A.TEXTOS.termino), false,
+      '«ya terminó» no puede prometer cómo terminó: este archivo no lee la respuesta');
+    N.franja().tocar();
+    assert.equal(N.st.recargas, 1, 'vio cómo quedó, tocó «Actualizar ahora» y no se puso');
   });
 
   test('termina lo que iba en camino y la pantalla ya no es de la lista: no recarga, y dice lo de esa pantalla', async () => {
@@ -530,7 +548,7 @@ describe('2b. hallazgo 2: «Actualizar ahora» con algo en el aire', () => {
     assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alTerminar, null]);
   });
 
-  test('play/: «Aceptar» en camino: el botón se va, y tocado igual no recarga hasta que contesta', async () => {
+  test('play/: «Aceptar» en camino: el botón se va; tocado igual, espera, y al contestar dice que terminó en vez de recargar', async () => {
     const P = abrirPlay({ sesion: { play_sesion: SESION_PLAY } });
     P.ev('window.__pend = []; fetch = function (u, o) { u = String(u);' +
          ' if (/aceptar_condiciones/.test(u)) return new Promise(function (res) { window.__pend.push(res); });' +
@@ -548,10 +566,15 @@ describe('2b. hallazgo 2: «Actualizar ahora» con algo en el aire', () => {
     P.ev("window.__pend[0]({ ok: true, status: 200, json: function () { return Promise.resolve({ ok: true }); } })");
     await asentar(16);
     await N.pasaUnSegundo();
-    assert.equal(N.st.recargas, 1, 'contestó, la pantalla sigue siendo Crédito, y no se puso aunque la persona lo pidió');
+    /* 22-oct-2026 (verificación de e8f34eb) — antes recargaba aquí solo:
+       encima de la respuesta, que podía ser un «no». */
+    assert.equal(N.st.recargas, 0, 'contestó y recargó encima de la respuesta, sin dejarla ver');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    N.franja().tocar();
+    assert.equal(N.st.recargas, 1, 'la pantalla sigue siendo Crédito, tocó «Actualizar ahora» y no se puso');
   });
 
-  test('app/socio.html sin juntar: «Enviar» en el chat; tocado igual espera, y recarga cuando el mensaje llegó', async () => {
+  test('app/socio.html sin juntar: «Enviar» en el chat; tocado igual espera, y cuando el mensaje llegó dice que terminó (y el botón recarga)', async () => {
     const CORREO = '573001112222@tugarantia.net';
     const pendientes = [];
     const red = (url, cuerpo) => {
@@ -588,10 +611,14 @@ describe('2b. hallazgo 2: «Actualizar ahora» con algo en el aire', () => {
     await asentar(16);
     await N.pasaUnSegundo();
     assert.equal(S.ev("$('chTexto').value"), '', 'la caja no se vació al llegar el mensaje: la prueba no prueba el caso');
-    assert.equal(N.st.recargas, 1, 'el mensaje llegó, la caja quedó vacía, y no se puso aunque la persona lo pidió');
+    /* 22-oct-2026 (verificación de e8f34eb) — antes recargaba aquí solo. */
+    assert.equal(N.st.recargas, 0, 'el mensaje llegó y recargó encima, sin dejar ver el hilo con lo que mandó');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    N.franja().tocar();
+    assert.equal(N.st.recargas, 1, 'la caja quedó vacía, tocó «Actualizar ahora» y no se puso');
   });
 
-  test('platachat/ con la calculadora movida (el botón siempre): «Pedir» en el aire; tocado, espera; contesta, y recarga', async () => {
+  test('platachat/ con la calculadora movida (el botón siempre): «Pedir» en el aire; tocado, espera; contesta, y dice que terminó', async () => {
     const P = abrirPlataChat();
     await asentar();
     await P.entrarComo('3001112233', 'Maria.Secreta9');
@@ -617,7 +644,11 @@ describe('2b. hallazgo 2: «Actualizar ahora» con algo en el aire', () => {
     P.suelta(0, { ok: true, solicitud: { id: 9, estado: 'pendiente', capital: 350000 } });
     await asentar(16);
     await N.pasaUnSegundo();
-    assert.equal(N.st.recargas, 1, 'el pedido contestó y no se puso, aunque la persona lo pidió');
+    /* 22-oct-2026 (verificación de e8f34eb) — antes recargaba aquí solo. */
+    assert.equal(N.st.recargas, 0, 'el pedido contestó y recargó encima de la respuesta');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    N.franja().tocar();
+    assert.equal(N.st.recargas, 1, 'vio cómo quedó, tocó «Actualizar ahora» y no se puso');
   });
 
   test('platachat/ con la calculadora movida y algo escrito en el chat: pregunta antes de borrarlo', async () => {
@@ -660,4 +691,278 @@ describe('3. el aviso de «empezó una escritura» sale del único sitio por don
         f + ': la lista blanca y el botón miran cosas distintas');
     });
   }
+});
+
+/* ==========================================================================
+ * 4. LO QUE CONTESTÓ LA BASE SE VE ANTES DE ACTUALIZAR
+ * 22-oct-2026 (verificación de e8f34eb)
+ *
+ * «Actualizar ahora» con algo en el aire esperaba a que terminara y,
+ * al terminar, recargaba solo, sin mirar cómo terminó. Si la base decía que
+ * NO, la página lo pintaba y la recarga se lo llevaba unos milisegundos
+ * después: la persona quedaba creyendo que pidió, aceptó o mandó el
+ * comprobante. Ahora, al terminar, la franja dice «ya terminó: mira cómo
+ * quedó» con el botón, y nada recarga solo hasta que la persona toca la
+ * página (ya la vio), toca el botón o cierra la franja.
+ * Aquí: el controlador de verdad (4a) y el «no» de la base —un motivo y un
+ * 500— en las tres páginas de verdad (4b).
+ * ======================================================================== */
+describe('4a. «ya terminó»: ni una recarga sola antes de que la persona vea la respuesta', () => {
+
+  /* Toca «Actualizar ahora» con algo saliendo, y lo deja terminar. */
+  async function tocoYTermina() {
+    const N = navegadorConOjos();
+    const v = { enCamino: false };
+    const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
+    N.mirando();
+    await N.publicar('v140');
+    const tocar = N.botonDeLaFranja();
+    v.enCamino = true;
+    tocar();
+    v.enCamino = false;
+    await c.revisar();          // la página avisa que terminó (su avisarQueTermino)
+    return { N, c, v };
+  }
+
+  test('se queda mientras nadie toque la página: ni la respuesta que se pinta, ni salir y volver a la app recargan', async () => {
+    const { N } = await tocoYTermina();
+    assert.equal(N.st.recargas, 0, 'terminó y recargó encima de la respuesta');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    N.mutar({ id: 'cuerpo' });          // la página pinta lo que contestó la base
+    await asentar(4);
+    assert.equal(N.franja().texto, A.TEXTOS.termino,
+      'la página pintó la respuesta y la franja volvió a lo de siempre: «ya terminó» no alcanzó a leerse');
+    await N.ocultar();
+    assert.equal(N.st.recargas, 0, 'se fue a otra app sin haber mirado la respuesta, y recargó');
+    await N.volver();
+    assert.equal(N.st.recargas, 0, 'volvió a la app y recargó antes de que viera la respuesta');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    /* Toca la página: ya la está mirando. Desde ahí, lo de siempre. */
+    N.mirando();
+    N.mutar({ id: 'cuerpo' });
+    await asentar(4);
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
+    await N.ocultar();
+    assert.equal(N.st.recargas, 1, 'ya vio cómo quedó, salió de la app y no se puso sola, que es lo que la franja prometía');
+  });
+
+  test('la ✕ sobre «ya terminó» la cierra, y no vuelve a salir con otro texto', async () => {
+    const { N } = await tocoYTermina();
+    assert.equal(N.st.recargas, 0, 'terminó y recargó encima de la respuesta');
+    assert.equal(N.franja().texto, A.TEXTOS.termino);
+    N.franja().cerrar();
+    assert.equal(N.franja(), null);
+    N.mutar({ id: 'cuerpo' });
+    await asentar(4);
+    assert.equal(N.franja(), null, 'cerró «ya terminó» y la franja volvió con lo de siempre, que nadie cerró');
+    assert.equal(N.st.recargas, 0);
+  });
+
+  test('algo sale otra vez sin que la persona toque (un envío de fondo): mientras sale no dice «ya terminó», y nada recarga', async () => {
+    const { N, c, v } = await tocoYTermina();
+    assert.equal(N.st.recargas, 0, 'terminó y recargó encima de la respuesta');
+    v.enCamino = true;
+    await c.volverAMirar();
+    assert.notEqual((N.franja() || {}).texto, A.TEXTOS.termino, 'con algo saliendo, la franja dice «ya terminó lo que iba en camino»');
+    await N.ocultar();
+    v.enCamino = false;
+    await c.revisar();
+    assert.equal(N.st.recargas, 0, 'terminó el envío de fondo con la app oculta y recargó encima de una respuesta que nadie vio');
+    await N.volver();
+    assert.equal(N.st.recargas, 0);
+    assert.equal(N.franja().texto, A.TEXTOS.termino);
+  });
+
+  test('se cae la señal con algo esperando: al volver la señal dice «ya terminó» (lo que falló por eso), y no recarga encima', async () => {
+    const N = navegadorConOjos();
+    let enCamino = false;
+    const c = await N.arrancar({ momentoSeguro: () => !enCamino, ocupado: () => enCamino });
+    N.mirando();
+    await N.publicar('v140');
+    const tocar = N.botonDeLaFranja();
+    enCamino = true;
+    tocar();
+    N.sinSenal();
+    enCamino = false;           // falló, sin señal
+    await c.revisar();
+    assert.equal(c.estado().pedido, '', 'sin señal el pedido quedó en pie');
+    assert.equal(N.franja(), null, 'sin señal prometió algo');
+    N.st.onLine = true;
+    (N.st.oyentes.win.online || []).forEach(f => f({ type: 'online' }));
+    await asentar(16);
+    assert.deepEqual([(N.franja() || {}).texto, (N.franja() || {}).boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    await N.ocultar();
+    assert.equal(N.st.recargas, 0, 'volvió la señal y recargó encima del «no pude conectarme», que nadie vio');
+  });
+});
+
+describe('4b. el «no» de la base, en las tres páginas de verdad', () => {
+
+  /* play/: la red retiene «Pedir» (solicitar_a_la_medida); lo demás contesta en el acto. */
+  for (const [nombre, respuesta, mensaje] of [
+    ['la base dice que no (motivo «muchas»)',
+     "{ ok: true, status: 200, json: function () { return Promise.resolve({ ok: false, motivo: 'muchas' }); } }",
+     'Ya nos dejaste varias solicitudes hace poco. Las tenemos: dale un rato y te respondemos.'],
+    ['el servidor contesta 500',
+     "{ ok: false, status: 500, json: function () { return Promise.resolve({ message: 'boom' }); } }",
+     'No pude conectarme. Revisa tu internet y vuelve a intentar.']
+  ]) {
+    test('play/: «Pedir» en Crédito, toca «Actualizar ahora», y ' + nombre + ': el «no» se ve, y la app no recarga encima', async () => {
+      const P = abrirPlay({ sesion: { play_sesion: SESION_PLAY } });
+      P.ev('window.__pend = []; fetch = function (u, o) { u = String(u);' +
+           ' if (/solicitar_a_la_medida/.test(u)) return new Promise(function (res) { window.__pend.push(res); });' +
+           ' return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ ok: true }); } }); };');
+      const N = await navegadorConOjos().enLaPagina(P.ev, P.ventana);
+      P.ev("irA('credito')");
+      N.mirando();
+      await N.publicar('v140');
+      const tocar = N.botonDeLaFranja();
+      P.ev('enviarPedido()');
+      assert.equal(P.ev('window.__pend.length'), 1, 'el pedido no salió');
+      tocar();                  // el dedo que llegó en el mismo instante
+      await asentar(8);
+      assert.equal(N.franja().texto, A.TEXTOS.esperando);
+      P.ev('window.__pend[0](' + respuesta + ')');
+      await asentar(16);
+      await N.pasaUnSegundo();
+      assert.equal(P.ev("$('csError').textContent"), mensaje, 'la página no pintó el «no»: la prueba no prueba el caso');
+      assert.equal(P.ev('momentoSeguroPlay()'), true, 'Crédito con el «no» dejó de ser de la lista: la prueba no prueba el caso');
+      assert.equal(N.st.recargas, 0, 'la base dijo que no y la app recargó encima: la persona nunca lo vio');
+      assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+      await N.ocultar(); await N.volver();
+      assert.equal(N.st.recargas, 0, 'salió y volvió sin haber tocado la página, y la recarga se llevó el «no»');
+      assert.equal(P.ev("$('csError').textContent"), mensaje);
+      N.franja().tocar();
+      assert.equal(N.st.recargas, 1, 'vio el «no», tocó «Actualizar ahora» y no se puso');
+    });
+  }
+
+  /* CENTINELA, no arreglo: en el chat del socio el «no» sale en un alert y
+     lo escrito se queda en la caja, así que su lista blanca (sinTeclear)
+     ya frenaba la recarga con e8f34eb. Esta prueba fija que siga así: que
+     «ya terminó» no le ofrezca el botón con lo escrito a la vista. */
+  test('app/socio.html sin juntar: el mensaje NO llega (500 y un «no» de la base): lo dice, lo escrito se queda, y nada recarga', async () => {
+    const CORREO = '573001112222@tugarantia.net';
+    for (const [nombre, resp] of [['500', { status: 500, cuerpo: { message: 'boom' } }],
+                                  ['un «no»', { status: 200, cuerpo: { ok: false, motivo: 'demasiados mensajes seguidos' } }]]) {
+      const pendientes = [];
+      const red = (url, cuerpo) => {
+        if (/chat_escribir_sesion/.test(url)) return new Promise(r => pendientes.push(r));
+        if (/grant_type=password$/.test(url)) return { status: 200, cuerpo: { access_token: 'acceso-1', refresh_token: 'r-1', expires_at: Math.floor(Date.now() / 1000) + 3600, user: { email: CORREO } } };
+        if (/rpc\/mi_cuenta$/.test(url)) return { status: 200, cuerpo: { ok: true, vinculada: false } };
+        if (/rpc\/mi_registro$/.test(url)) return { status: 200, cuerpo: { ok: true, registro: { estado: 'nuevo', creado_en: '2026-10-21T09:00:00Z' } } };
+        if (/rpc\/chat_leer_sesion$/.test(url)) return { status: 200, cuerpo: { ok: true, canal: cuerpo.p_canal, mensajes: [] } };
+        return { status: 404, cuerpo: { message: 'no existe' } };
+      };
+      const S = abrirSocio({ red });
+      await asentar();
+      S.elem('inCel').value = '3001112222'; S.elem('inClave').value = 'mi-clave-buena';
+      S.ev('entrar()');
+      await asentar(16);
+      S.elem('inCel').value = ''; S.elem('inClave').value = '';
+      assert.equal(S.ev('PANTALLA'), 'sin_juntar');
+      const N = navegadorConOjos({ campos: camposVisibles(S.ev, 'cuerpo') });
+      await N.enLaPagina(S.ev, S.ctx);
+      N.mirando();
+      await N.publicar('v140');
+      const tocar = N.botonDeLaFranja();
+      S.elem('chTexto').value = 'Ya consigné, ¿me confirman?';
+      S.ev('chatEnviar()');
+      await asentar(4);
+      assert.equal(pendientes.length, 1, nombre + ': el mensaje no salió');
+      tocar();
+      await asentar(8);
+      assert.equal(N.franja().texto, A.TEXTOS.esperando);
+      pendientes[0](resp);
+      await asentar(16);
+      await N.pasaUnSegundo();
+      assert.ok(S.avisos.some(a => /^No pude (mandarlo|conectarme)/.test(a)), nombre + ': la página no dijo que no se mandó: la prueba no prueba el caso. Dijo: ' + S.avisos.join(' | '));
+      assert.equal(S.ev("$('chTexto').value"), 'Ya consigné, ¿me confirman?', nombre + ': lo escrito no se quedó en la caja');
+      assert.equal(N.st.recargas, 0, nombre + ': el mensaje no llegó y la app recargó encima de lo escrito');
+      assert.equal(N.franja().boton, null, nombre + ': con lo escrito a la vista, la franja ofreció recargar');
+      await N.ocultar(); await N.volver();
+      assert.equal(N.st.recargas, 0, nombre + ': salió y volvió, y la recarga se llevó lo escrito');
+    }
+  });
+
+  /* PlataChat con la calculadora movida (el modo «nunca»: el botón siempre),
+     con los campos de verdad de la pantalla para la guarda de lo escrito. */
+  async function plataConLaCalculadoraMovida() {
+    const P = abrirPlataChat();
+    await asentar();
+    await P.entrarComo('3001112233', 'Maria.Secreta9');
+    P.ev('setMonto(MONTO + 50000)');
+    const N = navegadorConOjos({ campos: camposVisibles(P.ev, 'cuerpo') });
+    await N.enLaPagina(P.ev, P.ctx);
+    N.mirando();
+    await N.publicar('v140');
+    assert.equal(P.ev('nuncaSeguroPC()'), true, 'la calculadora no quedó movida: la prueba no prueba el caso');
+    return { P, N };
+  }
+  /* Toca «Actualizar ahora» con lo retenido en el aire, la nube contesta
+     `resp`, y devuelve lo que la página pintó en `idError`. */
+  async function tocaYLaNubeContesta(P, N, resp, idError) {
+    assert.equal(P.st.colgadas.length, 1, 'no salió nada: la prueba no prueba el caso');
+    N.franja().tocar();
+    await asentar(8);
+    assert.equal(N.st.recargas, 0, 'recargó con la escritura en el aire');
+    assert.equal(N.franja().texto, A.TEXTOS.esperando);
+    P.st.colgar = null;
+    P.suelta(0, resp);
+    await asentar(16);
+    await N.pasaUnSegundo();
+    return String(P.ev("$('" + idError + "').textContent"));
+  }
+  /* Lo que vale para los tres: el «no» se ve, la franja dice «ya terminó»
+     con el botón, nada recarga solo (ni saliendo y volviendo), y el botón,
+     sí. */
+  async function seVeYNoRecarga(P, N, idError, dijo) {
+    assert.equal(N.st.recargas, 0, 'la base dijo que no y la app recargó encima: la persona nunca lo vio (' + dijo + ')');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    await N.ocultar(); await N.volver();
+    assert.equal(N.st.recargas, 0, 'salió y volvió, y la recarga se llevó el «no»');
+    assert.equal(String(P.ev("$('" + idError + "').textContent")), dijo);
+    N.franja().tocar();
+    assert.equal(N.st.recargas, 1, 'vio el «no», tocó «Actualizar ahora» y no se puso');
+  }
+
+  for (const [nombre, resp] of [['un «no» por el tope', { ok: false, motivo: 'tope' }], ['un 500', { __estado: 500, message: 'boom' }]]) {
+    test('platachat/: «Pedir» con la calculadora movida y ' + nombre + ': el «no» se ve, y la app no recarga encima', async () => {
+      const { P, N } = await plataConLaCalculadoraMovida();
+      const html = String(P.ev("$('calcSalida').innerHTML"));
+      const pedir = (/onclick="(pedirPorChat\([^"]*\))"/.exec(html) || [])[1];
+      assert.ok(pedir, 'Plata no pintó el botón de pedir');
+      P.st.colgar = /solicitar_platachat|reproponer_platachat/;
+      P.ev(pedir.replace(/&#39;|&apos;/g, "'"));
+      await asentar(4);
+      const dijo = await tocaYLaNubeContesta(P, N, resp, 'errPedir');
+      assert.ok(dijo && !/Mandando/.test(dijo), 'la página no pintó el «no»: la prueba no prueba el caso (' + dijo + ')');
+      assert.equal(P.ev('PANTALLA'), 'plata');
+      await seVeYNoRecarga(P, N, 'errPedir', dijo);
+    });
+  }
+
+  test('platachat/: «Acepto» en la propuesta y la base dice que cambió: el aviso se ve, y la app no recarga encima', async () => {
+    const { P, N } = await plataConLaCalculadoraMovida();
+    P.ev("SOL = { id: 9, estado: 'propuesta', capital: 350000, total: 380000, fecha_pago: '2026-11-15' }; CANAL = 'creditos'; irA('chats');");
+    await asentar(8);
+    P.st.colgar = /aceptar_/;
+    P.ev('aceptarPropuesta(9)');
+    await asentar(4);
+    const dijo = await tocaYLaNubeContesta(P, N, { ok: false, motivo: 'cambio' }, 'chError');
+    assert.match(dijo, /La propuesta cambió mientras la leías/, 'la página no pintó el «no»: la prueba no prueba el caso');
+    await seVeYNoRecarga(P, N, 'chError', dijo);
+  });
+
+  test('platachat/: la foto del comprobante y la base dice que no (el tope del mes): el aviso se ve, y la app no recarga encima', async () => {
+    const { P, N } = await plataConLaCalculadoraMovida();
+    P.ev("CANAL = 'creditos'; irA('chats');");
+    await asentar(8);
+    P.st.colgar = /chat_foto_sesion/;
+    P.ev("subirFotoChat('data:image/jpeg;base64,AAAA', 'data:image/jpeg;base64,BBBB')");
+    await asentar(4);
+    const dijo = await tocaYLaNubeContesta(P, N, { ok: false, motivo: 'tope' }, 'chError');
+    assert.ok(dijo && !/Mandando/.test(dijo), 'la página no pintó el «no»: la prueba no prueba el caso (' + dijo + ')');
+    await seVeYNoRecarga(P, N, 'chError', dijo);
+  });
 });

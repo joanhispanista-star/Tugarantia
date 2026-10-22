@@ -95,6 +95,24 @@
  *      esa pantalla; si hay algo escrito a la vista o la cámara abierta, lo
  *      dice y pide confirmar («Actualizar igual» / «Ahora no»). Solo
  *      entonces recarga.
+ *  11. 22-oct-2026 (verificación de e8f34eb) — LO QUE CONTESTÓ LA BASE SE VE
+ *      ANTES DE ACTUALIZAR. El punto 10 esperaba a que terminara lo que iba
+ *      en camino y, al terminar, recargaba solo: encima de la respuesta. Si
+ *      la base decía que NO («La propuesta cambió mientras la leías», el tope
+ *      de fotos del comprobante, «No pudimos recibir tu solicitud»), la
+ *      página lo pintaba y unos milisegundos después la recarga se lo
+ *      llevaba; lo último que la persona había leído era «primero tiene que
+ *      terminar de enviarse», y quedaba creyendo que aceptó, pidió o mandó el
+ *      comprobante. Pasaba en PlataChat con la calculadora movida y en el
+ *      «Pedir» de Crédito de play/. Ahora, al terminar, NO recarga: suelta el
+ *      pedido y la franja dice «Ya terminó lo que iba en camino: mira cómo
+ *      quedó y toca “Actualizar ahora”», con el botón. Ese aviso se queda, y
+ *      con él ninguna recarga sola (ni saliendo de la app y volviendo, que
+ *      también es antes de verla), hasta que la persona toca la página (ya
+ *      la vio), toca el botón, cierra la franja o pasa a una pantalla que no
+ *      es de la lista (fuera del modo «nunca», donde ninguna lo es y el
+ *      botón sigue). Decidir sin saber cómo terminó es lo único seguro:
+ *      este archivo no lee respuestas, y no tiene por qué empezar a hacerlo.
  *
  * LO QUE NO PUEDE HACER, Y POR ESO NINGÚN TEXTO LO PROMETE:
  *   · Con la app CERRADA no corre nada: lo nuevo llega al abrirla, como antes.
@@ -152,10 +170,14 @@
     /* 22-oct-2026 — lo que dice la franja DESPUÉS de tocar «Actualizar
        ahora», cuando todavía no recarga. Ninguno promete el resultado:
        «primero tiene que terminar» es lo que este archivo hace (no recarga
-       mientras algo va en camino), y al terminar vuelve a decidir y lo dice;
-       con algo escrito o la cámara abierta pregunta, porque recargar se lo
-       lleva. */
+       mientras algo va en camino); con algo escrito o la cámara abierta
+       pregunta, porque recargar se lo lleva. */
     esperando: 'Hay una versión nueva. Primero tiene que terminar de enviarse lo que va en camino.',
+    /* 22-oct-2026 (verificación de e8f34eb) — y al terminar lo DICE en vez
+       de recargar: «terminó», no «se envió», porque este archivo no sabe si
+       la base dijo que sí o que no. Eso lo dice la página, y la persona lo
+       tiene que poder leer antes de que se vaya con la recarga. */
+    termino: 'Ya terminó lo que iba en camino: mira cómo quedó y toca «Actualizar ahora».',
     confirmarTexto: 'Tienes algo escrito sin enviar: si actualizas ahora, se borra.',
     confirmarCamara: 'La cámara está abierta: si actualizas ahora, se apaga y se pierde la foto que estás tomando.',
     boton: 'Actualizar ahora',
@@ -383,6 +405,11 @@
          'confirmar'  hay algo escrito o la cámara abierta: se le preguntó
          'confirmado' dijo «Actualizar igual» */
     var pedido = '', relojEspera = 0;
+    /* 22-oct-2026 (verificación de e8f34eb) — terminó lo que el pedido
+       esperaba y la persona todavía no ha mirado cómo quedó (ver el punto 11
+       de arriba). No es un pedido: no recarga nada. Es lo contrario: mientras
+       esté en pie, nada recarga solo y la franja dice TEXTOS.termino. */
+    var terminoSinVer = false;
     var observador = null, miradaPendiente = false;
 
     function oir(blanco, tipo, f, opc) {
@@ -473,10 +500,12 @@
          segura y el texto es otro), la franja vuelve con lo nuevo que decir.
          22-oct-2026 — cerrarla con un pedido en curso lo suelta, y lo que
          queda cerrado es lo que la franja diría sin él: si no, al soltarlo
-         volvería a salir con el texto de siempre, que nadie cerró. */
+         volvería a salir con el texto de siempre, que nadie cerró.
+         22-oct-2026 (verificación de e8f34eb) — lo mismo con «ya terminó»:
+         quien lo cierra ya está mirando la pantalla. */
       cerrar.addEventListener('click', function () {
-        if (pedido) {
-          pedido = '';
+        if (pedido || terminoSinVer) {
+          pedido = ''; terminoSinVer = false;
           var x = decisionAhora();
           cerradoTexto = x.d.aviso ? x.d.aviso.texto : '';
           ultima = { accion: x.d.accion === 'recargar' ? 'avisar' : x.d.accion, aviso: x.d.aviso, nueva: x.nueva, momento: x.e.momento };
@@ -540,7 +569,7 @@
         }
       } catch (e) {}
       ultima = { accion: 'recargar', aviso: null, nueva: nueva };
-      pedido = '';
+      pedido = ''; terminoSinVer = false;
       try { loc.reload(); } catch (e) {}
     }
 
@@ -569,6 +598,27 @@
          pedido (esperar, preguntar o recargar), no la franja de siempre. */
       if (pedido) return seguirElPedido();
       var x = decisionAhora(cuando);
+      /* 22-oct-2026 (verificación de e8f34eb) — terminó lo que el pedido
+         esperaba y la persona no ha mirado: nada recarga solo (ni oculta, ni
+         al volver, ni en una transición), y la franja lo dice mientras el
+         botón sirva de algo. */
+      if (terminoSinVer) {
+        var t = queHacerConLoQueTermino(x);
+        if (t === 'decirlo') {
+          if (hayVersionNueva()) vigilarLaPagina();
+          return mostrar({ texto: TEXTOS.termino, boton: TEXTOS.boton }, x.nueva);
+        }
+        if (t === 'aguardar') {
+          /* Algo salió otra vez (un envío de fondo) o no hay señal: «ya
+             terminó» sería mentira, así que se dice lo de siempre, pero sin
+             recargar: la respuesta sigue sin ver. */
+          if (hayVersionNueva()) vigilarLaPagina();
+          ultima = { accion: x.d.accion === 'recargar' ? 'avisar' : x.d.accion, aviso: x.d.aviso, nueva: x.nueva, momento: x.e.momento };
+          pintar(x.d.aviso);
+          return ultima;
+        }
+        terminoSinVer = false;
+      }
       ultima = { accion: x.d.accion, aviso: x.d.aviso, nueva: x.nueva, momento: x.e.momento };
       if (x.d.accion === 'recargar') { recargar(false); return ultima; }
       if (hayVersionNueva()) vigilarLaPagina();
@@ -593,7 +643,10 @@
        El botón se pintó cuando la pantalla era segura; al tocarlo puede ya no
        serlo (un pedido, una aceptación o un mensaje acaban de salir). Se
        vuelve a preguntar AL TOCAR, y la respuesta se cumple en orden:
-         1. algo en camino → se espera, y la franja lo dice;
+         1. algo en camino → se espera, y la franja lo dice; al terminar NO
+            se recarga (22-oct-2026, verificación de e8f34eb): la franja dice
+            «ya terminó», con el botón, y la persona vuelve a decidir después
+            de ver lo que contestó la base (el punto 11 de arriba);
          2. la pantalla ya no es de la lista de la página (salvo en un modo
             «nunca», donde ninguna lo es y la decisión es de la persona) → no
             se recarga: el pedido se suelta y la franja dice lo de siempre
@@ -610,24 +663,53 @@
     function alTocarElBoton() {
       if (o.soloAvisar) { recargar(true); return; }   // el CRM y el espejo: la franja ya le dice a Joan «cuando no tengas nada a medias»
       cerradoTexto = '';
+      terminoSinVer = false;   // 22-oct-2026 — tocó el botón: ya miró, y decide
       pedido = pedido === 'confirmar' ? 'confirmado' : 'pendiente';
       seguirElPedido();
+    }
+    /* La lista blanca de la página sin las dos guardas de este archivo (lo
+       tecleado y la cámara): esas se preguntan, no se callan. */
+    function preguntarLista() {
+      try { return typeof o.momentoSeguro === 'function' && !!o.momentoSeguro(); } catch (e) { return false; }
+    }
+    /* 22-oct-2026 (verificación de e8f34eb) — con «ya terminó» en pie, qué
+       toca AHORA:
+         'decirlo'   nada en camino, y el botón sirve (la pantalla es de la
+                     lista, o el modo «nunca» deja la decisión a la persona);
+         'aguardar'  algo salió otra vez, o no hay señal ni versión que
+                     ofrecer: no se dice «ya terminó» (sería mentira) y
+                     tampoco se recarga;
+         'soltar'    la pantalla ya no es de la lista («Solicitud enviada»):
+                     ahí no hay recarga sola que frenar, y la franja dice lo
+                     de esa pantalla, como cualquier otra vez. */
+    function queHacerConLoQueTermino(x) {
+      if (x.d.accion === 'nada' || preguntarOcupado()) return 'aguardar';
+      return (x.e.nunca || preguntarLista()) ? 'decirlo' : 'soltar';
     }
     function seguirElPedido() {
       if (!pedido || !vivo) return ultima;
       var nueva = versionDeCaches(claves);
-      if (!enLinea()) { pedido = ''; return evaluar(); }
-      if (preguntarOcupado()) {
+      if (enLinea() && preguntarOcupado()) {
         /* Lo que confirmó era lo que había ANTES de que algo saliera: al
            terminar se vuelve a mirar y, si hace falta, a preguntar. */
         pedido = 'esperando';
         esperarUnRato();
         return mostrar({ texto: TEXTOS.esperando, boton: null }, nueva);
       }
-      /* La lista blanca de la página sin las dos guardas de este archivo (lo
-         tecleado y la cámara): esas se preguntan, no se callan. */
-      var paginaSegura = false;
-      try { paginaSegura = typeof o.momentoSeguro === 'function' && !!o.momentoSeguro(); } catch (e) { paginaSegura = false; }
+      /* 22-oct-2026 (verificación de e8f34eb) — TERMINÓ LO QUE ESPERABA: no
+         se recarga. Aquí se recargaba sin mirar cómo terminó, y si la base
+         había dicho que no, la página lo pintaba y la recarga se lo llevaba.
+         Se suelta el pedido y la franja dice «ya terminó», con el botón: la
+         persona lee la respuesta y decide. También si se cayó la señal con
+         algo esperando: lo que falló por eso es lo primero que tiene que ver
+         cuando vuelva. */
+      if (pedido === 'esperando') {
+        pedido = '';
+        terminoSinVer = true;
+        return evaluar();
+      }
+      if (!enLinea()) { pedido = ''; return evaluar(); }
+      var paginaSegura = preguntarLista();
       if (!paginaSegura && !preguntarNunca()) { pedido = ''; return evaluar(); }
       if (pedido !== 'confirmado') {
         var falta = hayCamaraEncendida(doc) ? TEXTOS.confirmarCamara
@@ -717,8 +799,21 @@
       if (ahora() - ultimaBusqueda > MIN_ENTRE_BUSQUEDAS) buscar(); else revisar();
     });
     oir(ent.window, 'online', function () { buscar(); });
+    /* 22-oct-2026 (verificación de e8f34eb) — tocar o teclear en la PÁGINA
+       suelta «ya terminó»: la persona está mirando lo que contestó la base,
+       y desde ahí vale lo de siempre (con la app oculta, recarga sola). En
+       la franja no: su botón y su ✕ deciden ellos. */
+    function enLaFranja(ev) {
+      if (!franja || !ev || !ev.target) return false;
+      var n = ev.target;
+      for (var k = 0; n && k < 64; k++) { if (n === franja.caja) return true; n = n.parentNode; }
+      return false;
+    }
     ['pointerdown', 'touchstart', 'keydown', 'input'].forEach(function (t) {
-      oir(doc, t, function () { tocoDesdeQueVolvio = true; }, { capture: true, passive: true });
+      oir(doc, t, function (ev) {
+        tocoDesdeQueVolvio = true;
+        if (terminoSinVer && !enLaFranja(ev)) terminoSinVer = false;
+      }, { capture: true, passive: true });
     });
     /* 22-oct-2026 — lo que la persona hace también cambia la respuesta: lo
        tecleado y la casilla marcada no tocan el DOM, así que el observador no
@@ -728,7 +823,7 @@
     if (!o.soloAvisar) {
       ['click', 'input', 'change'].forEach(function (t) {
         oir(doc, t, function (ev) {
-          if (ev && ev.target && franja) { var n = ev.target; for (var k = 0; n && k < 64; k++) { if (n === franja.caja) return; n = n.parentNode; } }
+          if (enLaFranja(ev)) return;
           programarMirada();
         }, { passive: true });
       });
@@ -750,7 +845,7 @@
     ctl.recargar = function () { recargar(true); };
     ctl.estado = function () {
       return { pagina: ctl.opciones.version, nueva: ultima.nueva || '', accion: ultima.accion,
-               aviso: ultima.aviso, momento: ultima.momento || '', pedido: pedido };
+               aviso: ultima.aviso, momento: ultima.momento || '', pedido: pedido, terminoSinVer: terminoSinVer };
     };
     ctl.detener = function () {
       vivo = false;

@@ -65,6 +65,15 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         lista y pregunta si hay algo escrito o la cámara
                         abierta. Pruebas:
                         pruebas/la-franja-no-se-queda-vieja.test.js.
+                        (22-oct-2026, verificación de e8f34eb) Al terminar
+                        lo que esperaba, «Actualizar ahora» NO recarga solo:
+                        si la base dijo que no, la recarga se llevaba el
+                        aviso. La franja dice «Ya terminó lo que iba en
+                        camino: mira cómo quedó» con el botón, y nada recarga
+                        solo (ni saliendo y volviendo a la app) hasta que la
+                        persona toca la página, el botón o la ✕. Pruebas: la
+                        sección 4 del mismo archivo, con el «no» de la base
+                        en play/, socio y PlataChat.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
                         divulgación del crédito y el borrado de cuenta.

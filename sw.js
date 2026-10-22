@@ -1800,7 +1800,12 @@
    ocupado y volverAMirar). Mezclarlos tampoco rompe: una pagina nueva con el
    actualizar.js viejo no llama volverAMirar (lo pregunta antes), y una vieja
    con el nuevo frena el boton con su lista blanca (salvo en el modo «nunca»,
-   que queda como estaba). */
+   que queda como estaba).
+   22-oct-2026, la tercera verificacion (MISMA v139): al terminar lo que
+   esperaba, «Actualizar ahora» ya no recarga solo encima de la respuesta (un
+   «no» de la base se perdia); dice «ya termino» con el boton. Solo cambia
+   app/actualizar.js: con paginas de cualquiera de las dos vueltas funciona
+   igual. */
 const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 
