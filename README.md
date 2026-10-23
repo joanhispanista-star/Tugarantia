@@ -108,12 +108,17 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         sección 1.
                         (23-oct-2026) La cuenta a medio elegir en «¿A dónde
                         te consignamos?» frena la recarga como la casilla
-                        «Leí y acepto» marcada: en play/, Crédito deja de
-                        ser seguro (destinoAMedias); en PlataChat, Plata y
-                        Yo (destinoAMediasPC). Lo elegido vive solo en
+                        «Leí y acepto» marcada: en play/, Crédito e
+                        Historial dejan de ser seguros (destinoAMedias y
+                        casillaDeLaPropuestaMarcada, antes de mirar la
+                        pestaña); en PlataChat, Plata y Yo
+                        (destinoAMediasPC). Lo elegido vive solo en
                         memoria, y la recarga se lo llevaba sin aviso a
-                        quien salía a la app del banco a copiar el número.
-                        Pruebas: la sección 5 del mismo archivo.
+                        quien salía a la app del banco a copiar el número,
+                        o a quien pasaba a Historial antes de aceptar. Si
+                        la base dice que la propuesta ya no está, se suelta
+                        (cargarMiSolicitud) y deja de frenar. Pruebas: la
+                        sección 5 del mismo archivo.
   cuentas-pago.js       Dónde recibe la plata el cliente (22-oct-2026): Nequi,
                         Daviplata, llave Bre-B (las formas del Banco de la
                         República, ni una más) y cuenta de banco. Las reglas
@@ -295,6 +300,10 @@ base/
                                   computador lo comprobó (claveEquipoLista, al
                                   «Ya dijo Listo»); si no, dice que no está
                                   comprobado y ofrece «Ponerle otra contraseña».
+                                  La marca se cae cuando el signup crea una
+                                  cuenta NUEVA (la de antes se borró) y, con
+                                  la cuenta anotada, cuando cambia el celular:
+                                  la comprobación era de otra cuenta.
                                   El cuadro de «Crear cuenta» dice que falta
                                   ese paso (pruebas/el-equipo-con-la-clave-de-joan).
                                   (Se llamaba 20261022b_el_equipo_con_la_clave_de_joan.sql.)
