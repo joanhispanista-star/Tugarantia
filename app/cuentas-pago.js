@@ -286,7 +286,10 @@
 
   /** Una copia SIN los datos de pago. Es lo que viaja en la cuenta (el signup):
    *  lo que va ahí termina dentro de la sesión, y la sesión se guarda en el
-   *  teléfono. Los datos de pago van solo a la bandeja de Joan. */
+   *  teléfono. Los datos de pago van solo a la bandeja (la tabla de registros).
+   *  23-oct-2026 — esa bandeja ya no es solo de Joan: de SUS clientes la lee
+   *  también su equipo (ficha_de_mi_base, gerente_registros), porque Joan
+   *  decidió «pueden ver todo, está autorizado». Al teléfono, igual, no van. */
   function sinDatosDePago(obj) {
     var out = {};
     Object.keys(obj || {}).forEach(function (k) {

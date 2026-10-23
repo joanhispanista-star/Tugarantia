@@ -12241,20 +12241,25 @@ function fichaHTML(j) {
     ingresos: 'Ingresos', dia_pago: 'Día de pago',
     correo: 'Correo', referencia1: 'Referencia 1', referencia2: 'Referencia 2'
   };
-  /* 22-oct-2026 — LAS CUENTAS DE PAGO NO SE PINTAN AL EQUIPO. Desde el
-     registro con «¿Dónde te enviamos la plata?» los datos traen su Nequi, su
-     llave y su cuenta de banco, y para cobrar no hacen falta: quien consigna
-     es Joan, desde su bandeja. Se marcan como «usados» para que tampoco
-     salgan como extras con el nombre crudo. (La base todavía las manda en
-     ficha_de_mi_base: está en el resumen de la entrega, para que Joan decida.) */
-  /* 22-oct-2026 — ni el sello del registro (cuentas_sello), que no es un dato
-     de la persona: ver verDatosRegistro. */
+  /* 23-oct-2026 — LAS CUENTAS DE PAGO SÍ SE LE PINTAN AL EQUIPO. El 22-oct
+     se escondieron aquí mientras Joan decidía (la base ya las mandaba en
+     ficha_de_mi_base y en gerente_registros). Joan, a la pregunta «¿Tus
+     gerentes y asesores pueden ver las cuentas bancarias de tus clientes?»:
+     «pueden ver todo, está autorizado». Así que van con sus nombres, como en
+     la ficha de Joan (verCliente): Nequi, Daviplata, llave Bre-B y la cuenta
+     de banco en una línea (cuentasDelRegistroEq). Las llaves se siguen
+     marcando como «usadas» para que no salgan otra vez abajo, crudas, como
+     extras. La reja no es esta pantalla: es la base, que solo le manda la
+     ficha de SUS clientes (pruebas/el-equipo-ve-las-cuentas-postgres.test.js).
+     22-oct-2026 — y el sello del registro (cuentas_sello) sigue fuera: no es
+     un dato de la persona (ver verDatosRegistro). */
   const usados = { cuentas_sello: true };
   (CPAGO ? CPAGO.LLAVES_DEL_REGISTRO : ['nequi', 'daviplata', 'llave_breb', 'banco', 'banco_codigo', 'banco_tipo', 'banco_numero', 'cuentas_mias'])
     .forEach(k => { usados[k] = true; });
   const filas = Object.keys(CONOCIDOS)
     .filter(k => { usados[k] = true; return d[k] !== undefined && d[k] !== null && String(d[k]) !== ''; })
     .map(k => filaInfo(CONOCIDOS[k], String(d[k])));
+  const cuentas = cuentasDelRegistroEq(d);
   const extras = Object.keys(d)
     .filter(k => !usados[k] && d[k] !== null && typeof d[k] !== 'object' && String(d[k]) !== '')
     .map(k => filaInfo(k, String(d[k])));
@@ -12275,7 +12280,7 @@ function fichaHTML(j) {
         <span class="tag">${escHTML(fechaCorta(j.registrado_en))}</span></div>
       ${filaInfo('Cédula', String(j.cedula || '—'))}
       ${filaInfo('Celular', String(j.celular || '—'))}
-      ${filas.join('')}${extras.join('')}
+      ${filas.join('')}${cuentas}${extras.join('')}
     </div>` +
     (hayFotos
       ? `<div class="sub-h">Lo que subió</div>
@@ -12307,6 +12312,22 @@ function fichaHTML(j) {
     `<div class="muted" style="font-size:12px;margin-top:16px;line-height:1.5">
       Queda registrado que abriste esta ficha, con tu nombre y la hora. Son datos de
       una persona: se miran para verificar quién es, y para nada más.</div>`;
+}
+/* 23-oct-2026 — dónde recibe la plata, de los datos del registro (el paso
+   «¿Dónde te enviamos la plata?», app/cuentas-pago.js), con los nombres de la
+   ficha de Joan (verCliente) y la cuenta de banco en una línea, como
+   cuentaDeBancoEnPalabras. Solo lo que vino: quien se registró antes del
+   22-oct no trae ninguna, y no se inventa ninguna. El código de la
+   Superfinanciera (banco_codigo) no se pinta: a quien atiende no le dice nada
+   que no diga el nombre del banco. Ver fichaHTML: la decisión de Joan. */
+function cuentasDelRegistroEq(d) {
+  const t = k => String((d && d[k] != null) ? d[k] : '').trim();
+  const banco = [t('banco'), t('banco_tipo').toLowerCase(), t('banco_numero')].filter(Boolean).join(' · ');
+  const filas = [['Nequi', t('nequi')], ['Daviplata', t('daviplata')], ['Llave Bre-B', t('llave_breb')], ['Cuenta de banco', banco]]
+    .filter(x => x[1]).map(x => filaInfo(x[0], x[1]));
+  if (!filas.length) return '';
+  return filas.join('') + '<div class="muted" style="font-size:12px;margin:-4px 0 6px">Las dio al registrarse.' +
+    (t('cuentas_mias') === 'si' ? ' Dijo que son a su nombre.' : '') + '</div>';
 }
 
 /* --------------------------------------------------------------------------
@@ -12434,7 +12455,7 @@ function filaRegistroEq(r) {
       <div class="muted mono">${escHTML(tel)}${r.cedula ? ' · CC ' + escHTML(String(r.cedula)) : ''}</div>
       <div class="muted">Se registró ${escHTML(haceCuanto(r.creado_en))} · ${escHTML(GerenteVende.porQue(r))}${
         r.asesor_nombre && r.asesor !== yo ? ' · 🚶 ' + escHTML(r.asesor_nombre) : ''}</div>
-      ${lineaSol}
+      ${lineaSol}${destinoEnLaFilaEq(s, r)}
       ${typeof chipDeCotejo === 'function' ? chipDeCotejo(r.huella) : ''}</span>
     <span class="vv"><span class="chip ${tono}">${escHTML(est.etiqueta)}</span>
       ${tel ? `<a class="btn btn-wa btn-sm" target="_blank" rel="noopener"
@@ -12442,6 +12463,32 @@ function filaRegistroEq(r) {
       <button class="btn btn-ghost btn-sm" onclick="verRegistroEq('${escHTML(tel)}')" title="Ver su registro y sus fotos">🪪</button>
       ${est.puedeProponer && s && !suyaPropia ? `<button class="btn btn-rojo btn-sm" onclick="proponerEq(${Number(s.id)})">✏️ Proponer</button>` : ''}
       ${est.puedeProponer && s && suyaPropia ? `<span class="muted">${escHTML(GerenteVende.MOTIVOS.no_a_ti_mismo || '')}</span>` : ''}</span></div>`;
+}
+
+/* 23-oct-2026 — «💸 CONSIGNAR A», TAMBIÉN PARA EL GERENTE. Joan: «pueden ver
+   todo, está autorizado» (a la pregunta de si sus gerentes y asesores pueden
+   ver las cuentas bancarias de sus clientes). Es la misma cuenta que Joan ve
+   en su bandeja (ver CONSIGNAR A, junto a ella), con las mismas reglas: solo
+   en la aceptada, solo la de la propuesta vigente (destinoDeSolicitud) y
+   nunca en un enlace, el botón copia al portapapeles. Lo que cambia es la
+   frase de abajo: el gerente no gira («El desembolso lo hace Joan»), y la
+   de Joan («al girar, tu banco te muestra…») aquí sería falsa. La solicitud
+   llega con gerente_registros, que solo trae las de su alcance; el asesor no
+   tiene esta pestaña, y sus clientes los ve en la ficha (fichaHTML). */
+function destinoEnLaFilaEq(s, r) {
+  if (!s || s.estado !== 'aceptada') return '';
+  const d = destinoDeSolicitud(s);
+  if (!d) return '<div class="muted" style="margin-top:6px;color:var(--ambar)">⚠️ No eligió cuenta al aceptar: ' +
+    'hay que preguntarle por el chat a qué cuenta <b>a su nombre</b> se le consigna.</div>';
+  return `<div style="margin-top:6px"><b>💸 Consignar a:</b> <span class="mono">${escHTML(destinoEnPalabras(d))}</span>
+    <button class="btn btn-ghost btn-sm" onclick="copiarDestinoEq(${Number(s.id)})">📋 Copiar ${d.medio === 'breb' ? 'la llave' : 'el número'}</button>
+    <div class="muted">Es la que eligió al aceptar. El desembolso lo hace Joan, solo a una cuenta a nombre de ${escHTML((r && r.nombre) || 'el cliente')}.</div></div>`;
+}
+function copiarDestinoEq(id) {
+  const par = solicitudDeRegistrosEq(id); if (!par) return;
+  const t = numeroDeDestino(destinoDeSolicitud(par.s)); if (!t) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(() => {}, () => prompt('Cópialo de aquí:', t));
+  else prompt('Cópialo de aquí:', t);
 }
 
 function verRegistroEq(tel) {
@@ -17762,9 +17809,14 @@ function descartarSolicitud(id){
  * en el WhatsApp, ni en el correo de la constancia, ni en una dirección. El
  * botón copia al portapapeles.
  *
- * Solo en el CRM de Joan: el gerente propone pero no desembolsa
- * (CARTERA_EQUIPO). La base le sigue mandando la columna: ver el resumen de
- * esta entrega.
+ * 23-oct-2026 — EL EQUIPO TAMBIÉN LA VE. El 22-oct esto era «solo en el CRM
+ * de Joan: el gerente propone pero no desembolsa», con una excepción para
+ * CARTERA_EQUIPO en destinoEnLaFila, mientras Joan decidía. Joan, a la
+ * pregunta «¿Tus gerentes y asesores pueden ver las cuentas bancarias de tus
+ * clientes?»: «pueden ver todo, está autorizado». La excepción se fue. Esta
+ * bandeja igual no se le pinta al equipo (listar_solicitudes_abiertas pide la
+ * clave de Joan); el gerente ve lo mismo en su pestaña «Registros»
+ * (destinoEnLaFilaEq), y gerente_registros solo le trae lo de su alcance.
  * ======================================================================== */
 function destinoDeSolicitud(s){
   if(CPAGO) return CPAGO.destinoVigente(s);
@@ -17782,7 +17834,9 @@ function destinoEnPalabras(d){
 }
 function numeroDeDestino(d){ return d?String(d.medio==='breb'?(d.llave||''):(d.numero||'')):''; }
 function destinoEnLaFila(s){
-  if(CARTERA_EQUIPO||s.estado!=='aceptada'||s.origen==='pegada') return '';
+  /* 23-oct-2026 — sin la excepción del equipo: ver la cabecera, «pueden ver
+     todo, está autorizado». */
+  if(s.estado!=='aceptada'||s.origen==='pegada') return '';
   const d=destinoDeSolicitud(s);
   if(!d) return '<div class="muted" style="margin-top:6px;color:var(--ambar)">⚠️ No eligió cuenta: pregúntale por el chat a qué cuenta <b>a su nombre</b> le consignas.</div>';
   return `<div style="margin-top:6px"><b>💸 Consignar a:</b> <span class="mono">${escHTML(destinoEnPalabras(d))}</span>

@@ -127,6 +127,14 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         PlataChat) y del «💸 Consignar a» del CRM. La base
                         repite las mismas (destino_desembolso_limpio).
                         Pruebas: pruebas/cuentas-pago.test.js.
+                        Desde el 23-oct el equipo también las ve (Joan: «pueden
+                        ver todo, está autorizado»): la ficha del asesor y del
+                        gerente pinta las cuentas del registro, y «Registros»
+                        del gerente dice «💸 Consignar a» en la aceptada. Solo
+                        de SUS clientes: lo decide la base (ficha_de_mi_base,
+                        gerente_registros). Pruebas:
+                        pruebas/el-equipo-ve-las-cuentas.test.js y su
+                        -postgres.
   bancos-colombia.js    La lista de bancos y billeteras con su código de la
                         Superfinanciera, su fuente y su fecha arriba
                         (consultada el 22-oct-2026). Para ponerla al día se

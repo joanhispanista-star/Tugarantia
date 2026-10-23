@@ -8,10 +8,12 @@
  *     botón que copia el número; sin cuenta (o con la de una propuesta
  *     vieja) dice «No eligió cuenta: pregúntale»;
  *   · al desembolsar, la confirmación lo repite y el crédito lo guarda;
- *   · nada de eso para el gerente, ni para las pegadas;
+ *   · nada de eso para las pegadas (el equipo sí la ve desde el 23-oct:
+ *     pruebas/el-equipo-ve-las-cuentas.test.js);
  *   · «Lo que declaró» nombra las formas de pago; la ficha las muestra, las
  *     edita y las guarda; la ficha que nace del registro las trae;
- *   · la ficha del equipo NO las pinta;
+ *   · la ficha del equipo SÍ las pinta desde el 23-oct (decisión de Joan):
+ *     lo vigila pruebas/el-equipo-ve-las-cuentas.test.js;
  *   · la constancia (que sale por correo) no lleva el número.
  * Los números son de mentira.
  * ==========================================================================*/
@@ -73,13 +75,13 @@ describe('la bandeja dice a dónde consignar', () => {
     assert.match(h, /No eligió cuenta/);
   });
 
-  test('esperando que acepte, para el gerente, o pegada: nada', () => {
+  /* 23-oct-2026 — decía «esperando que acepte, para el gerente, o pegada»:
+     el gerente ya no es una excepción. Joan: «pueden ver todo, está
+     autorizado» (pruebas/el-equipo-ve-las-cuentas.test.js). */
+  test('esperando que acepte, o pegada: nada', () => {
     const P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
     assert.equal(/Consignar a|No eligió cuenta/.test(conBandeja(P, sol('contrapropuesta', { destino_desembolso: NEQUI }))), false);
     assert.equal(/Consignar a|No eligió cuenta/.test(conBandeja(P, sol('aceptada', { origen: 'pegada' }))), false);
-    P.ev('CARTERA_EQUIPO = { gerente: true }');
-    assert.equal(/Consignar a|No eligió cuenta|3005550000/.test(conBandeja(P, sol('aceptada', { destino_desembolso: NEQUI }))), false,
-      'el gerente ve a dónde se consigna: él propone, no desembolsa');
   });
 
   test('sin app/cuentas-pago.js, lo dice con lo que trae la fila', () => {
@@ -178,11 +180,8 @@ describe('la ficha y lo que declaró', () => {
     assert.equal(P_.fichaDeclarada({ datos: {} }).nequi, '');
   });
 
-  test('la ficha del equipo (gerente y asesor) NO pinta las cuentas', () => {
-    const P = abrirPanel(); P.cargarCartera(UN_CLIENTE);
-    const h = P.ev('fichaHTML(' + JSON.stringify({ nombre: 'Nuevo', registrado_en: '2026-10-22T15:00:00Z', cedula: '1010101010',
-      celular: '3005550000', datos: DATOS, fotos: {}, huella: {} }) + ')');
-    assert.equal(/NUEVO123|123456789|Bancolombia|banco_numero|llave_breb|cuentas_mias/.test(h), false, 'el equipo ve la cuenta del cliente');
-    assert.match(h, /Bogotá/, 'la ficha del equipo dejó de pintar lo demás');
-  });
+  /* 23-oct-2026 — aquí estaba «la ficha del equipo (gerente y asesor) NO
+     pinta las cuentas». Joan decidió lo contrario («pueden ver todo, está
+     autorizado»): ahora la pinta, con sus nombres y sin llaves crudas, y lo
+     vigila pruebas/el-equipo-ve-las-cuentas.test.js. */
 });
