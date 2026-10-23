@@ -110,6 +110,22 @@
                  'siempre en el momento, como cualquier app. Avisos al celular todavía no enviamos: ' +
                  'te escribimos por el chat de la app y por WhatsApp.';
   var BUSCALA = 'Si no la ves en tu pantalla, búscala en tus apps como «Tu Garantía».';
+  /* 23-oct-2026 — LOS PLAZOS, EN LA GUÍA. Joan: «al momento de mostrar cómo
+     instalar explica que sí hay créditos a meses pero que también tenemos la
+     opción de créditos quincenales o semanales». La frase dice SOLO lo que
+     existe (motor.js y el CRM):
+       · a meses: cuotas de 1 a 6 meses (el préstamo con garantía, y el
+         crédito a cuotas que Joan pacta al desembolsar);
+       · cortos, en un solo pago: el que cae en el corte del 15 o del último
+         (la quincena), o a 8 días si se pide y Joan lo propone.
+     «Semanal» NO: no hay crédito ni cuota semanal en ninguna parte, y lo
+     anunciado obliga (Ley 1480, art. 29). Tampoco cifras ni «desde $…»: la
+     propuesta a cuotas exige $1.000.000 y aquí no se publica nada de precio.
+     Decir «quincena» revierte lo que Joan decidió el 8-oct (no mostrar la
+     modalidad quincenal en la portada); su pedido del 23-oct manda. La misma
+     frase va en la sección #instalar de index.html, y las dos las vigila
+     pruebas/plazos-en-la-guia.test.js. */
+  var PLAZOS = 'Hay créditos a meses, en cuotas de hasta 6 meses, y también cortos, en un solo pago: a la quincena o a 8 días.';
 
   /* El lector del user-agent y el de nuestra app de Android viven en
      app/cuenta.js y app/aparato.js. Se buscan al usarlos y no al cargar: así
@@ -304,7 +320,7 @@
     var o = opciones || {};
     var v = VARIANTES.indexOf(d.variante) >= 0 ? d.variante : 'android_otro';
     var android = v.indexOf('android_') === 0;
-    var g = { titulo: 'Tenla en tu celular como una app', intro: INTRO, boton: '', antesDePasos: '',
+    var g = { titulo: 'Tenla en tu celular como una app', intro: INTRO, plazos: PLAZOS, boton: '', antesDePasos: '',
               pasos: [], nota: '', permisos: PERMISOS, copiar: false };
     if (android && o.conAviso) {
       g.boton = 'Instalar la app';
@@ -348,6 +364,9 @@
       var app = texto(d.nombreApp) || (d.dentroDe && NOMBRE_DE_APP[d.dentroDe]) || '';
       g.titulo = app ? 'Estás dentro de ' + app : 'Estás dentro de otra app';
       g.intro = 'Desde aquí no se puede instalar.';
+      /* Aquí solo sirve salir de esta app: los plazos los ve en la guía de
+         su navegador. */
+      g.plazos = '';
       g.boton = ''; g.antesDePasos = '';
       g.pasos = [
         /* Meta no publica los nombres exactos de ese menú, y cambian: por eso
@@ -426,6 +445,7 @@
     var h = '<div class="card instalar">' +
       '<h3 class="tit">' + esc(g.titulo) + '</h3>' +
       '<p class="sub">' + esc(g.intro) + '</p>';
+    if (g.plazos) h += '<p class="sub plazos-instalar">' + esc(g.plazos) + '</p>';
     if (g.boton && a.instalar) {
       h += '<button class="btn sec arriba" onclick="' + esc(a.instalar) + '">' + esc(g.boton) + '</button>';
     }
@@ -461,6 +481,7 @@
     DIRECCION: DIRECCION,
     VARIANTES: VARIANTES.slice(),
     INTRO: INTRO,
+    PLAZOS: PLAZOS,
     PERMISOS: PERMISOS,
     LLAVE_INSTALADA: LLAVE_INSTALADA,
     DIAS_RECORDADA: DIAS_RECORDADA,

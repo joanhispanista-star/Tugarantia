@@ -437,7 +437,20 @@ describe('4. los textos: lo que se promete es lo que pasa', () => {
   const TERM = leer('legal/terminos.html'), PRIV = leer('legal/privacidad.html');
 
   test('la portada no publica precio ni la modalidad quincenal', () => {
-    const W = leer('index.html'), v = visible(W);
+    const W = leer('index.html');
+    /* 23-oct-2026 — UNA EXCEPCIÓN, Y SOLO UNA. Joan, el 23-oct: «al momento de
+       mostrar cómo instalar explica que sí hay créditos a meses pero que
+       también tenemos la opción de créditos quincenales». Eso revierte, para
+       la guía de instalar, lo que decidió el 8-oct; su pedido nuevo manda. Se
+       admite la frase de app/instalar.js (PLAZOS), una vez y dentro de
+       #instalar; la quincena en cualquier otra parte de la portada sigue
+       prohibida, y la frase la cuida pruebas/plazos-en-la-guia.test.js. */
+    const PLAZOS = require('../app/instalar.js').PLAZOS;
+    const vTodo = visible(W);
+    const seccion = W.slice(W.indexOf('id="instalar"'), W.indexOf('</section>', W.indexOf('id="instalar"')));
+    assert.ok(visible(seccion).split(PLAZOS).length <= 2, 'la frase de los plazos va una vez, en #instalar');
+    const v = vTodo.split(PLAZOS).join(' ');
+    assert.ok(vTodo.split(PLAZOS).length - 1 === visible(seccion).split(PLAZOS).length - 1, 'la frase de los plazos salió fuera de #instalar');
     assert.ok(!/quincen/i.test(v), 'la portada sigue hablando de quincenas: ' + (v.match(/.{40}quincen.{40}/i) || [])[0]);
     assert.ok(!/por cada \$\d/.test(v), 'la portada publica un precio «por cada»');
     assert.ok(!/más barato/i.test(v), 'la portada promete «más barato»');
