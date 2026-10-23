@@ -4967,13 +4967,28 @@ function tarjetaContrapropuesta(sol) {
             '<div class="grupo-tit">Cuándo pagas</div>' +
             cuotasDePropuesta(cp));
   if (aceptada) {
-    /* 7-oct-2026 — sin «tu código de acceso»: Joan apagó los códigos. */
+    /* 7-oct-2026 — sin «tu código de acceso»: Joan apagó los códigos.
+       22-oct-2026 — con la cuenta que eligió, si la base la guardó para ESTA
+       propuesta (CP.destinoVigente); solo el final del número. Si no la hay
+       (aceptó por la puerta vieja), lo de siempre: se lo decimos por el chat. */
+    var dst = CP ? CP.destinoVigente(sol) : null;
     h += '<div class="aviso verde" style="margin-top:var(--e3)"><b>Listo: aceptaste ' + P(cp.capital) + '.</b> ' +
-      'Te avisamos <b>en el chat de la app</b> cuándo y por dónde recibes la plata. ' +
+      (dst
+        ? 'Te la consignamos a <b>' + esc(CP.describirDestino(dst)) + '</b>, a tu nombre. Te avisamos <b>en el chat de la app</b> cuando la enviemos. '
+        : 'Te avisamos <b>en el chat de la app</b> cuándo y por dónde recibes la plata. ') +
       'No tienes que hacer nada más por ahora.</div>';
   } else {
     var marcada = !!(CS && CONDICIONES_LEIDAS[CS.llaveDeCasilla(sol)]);
-    h += (CS ? CS.casillaHTML('condLeidas', 'marcarCondiciones(this.checked)', marcada) : '') +
+    /* 22-oct-2026 — «¿A DÓNDE TE CONSIGNAMOS?», ANTES DEL «ACEPTO». Joan: «al
+       momento de que el cliente acepte la contrapropuesta, que se le pregunte
+       nuevamente a qué cuenta desea que le consignen; recomendemos que sea por
+       billeteras digitales ya que es más rápido». Las que dio al registrarse
+       (sol.datos), billeteras y llave primero, y «Otra cuenta a tu nombre».
+       Solo si están las condiciones (CS): sin ellas la aceptación no puede
+       llevar la cuenta (aceptar_con_destino pide lo que vio), y una pregunta
+       cuya respuesta no viaja sería mentirle. */
+    h += (preguntaDestino(sol) ? '<div id="cajaDestino">' + eleccionDestinoHTML(sol) + '</div>' : '') +
+      (CS ? CS.casillaHTML('condLeidas', 'marcarCondiciones(this.checked)', marcada) : '') +
       /* Con las condiciones a la vista, «aceptar no te entrega la plata» ya lo
          dice su último renglón: aquí solo lo que falta, que no aceptar es gratis. */
       (cond
@@ -5008,6 +5023,67 @@ function marcarCondiciones(si) {
   var err = $('errAceptar'); if (err && si) err.classList.add('oculto');
 }
 
+/* ===========================================================================
+ * ¿A DÓNDE TE CONSIGNAMOS? — 22 de octubre de 2026
+ *
+ * Lo que eligió vive aquí, por solicitud Y por propuesta (como la casilla de
+ * las condiciones): si Joan cambia la propuesta, se le vuelve a preguntar. Y
+ * en memoria, no en el teléfono: es un dato de pago, y la pestaña se lo lleva
+ * al cerrarse. Se manda JUNTO con la aceptación (aceptar_con_destino): no
+ * hay un paso aparte que se pueda caer a la mitad y dejar una aceptación sin
+ * cuenta. Las reglas y el marcado, de app/cuentas-pago.js.
+ * ======================================================================== */
+var DESTINOS = {};
+function preguntaDestino(sol) { return !!(CP && CS && sol); }
+function llaveDeDestino(sol) {
+  var cp = (sol && sol.contrapropuesta) || {};
+  return String(sol && sol.id) + '|' + String(cp.creada_en || '');
+}
+function destinoDe(sol) {
+  var k = llaveDeDestino(sol);
+  if (!DESTINOS[k]) DESTINOS[k] = { eleccion: null, otra: {}, error: '' };
+  return DESTINOS[k];
+}
+function opcionesDeDestinoDe(sol) {
+  return CP ? CP.opcionesDeDestino((sol && sol.datos && typeof sol.datos === 'object') ? sol.datos : {}) : [];
+}
+function eleccionDestinoHTML(sol) {
+  var d = destinoDe(sol);
+  return CP.eleccionHTML({ opciones: opcionesDeDestinoDe(sol), estado: d, prefijo: 'dst',
+    alElegir: 'elegirDestino', alMedio: 'medioDestino', alEscribir: 'escribirDestino', error: d.error });
+}
+function repintarDestino() {
+  var c = $('cajaDestino');
+  if (c && SOL_EN_PANTALLA && preguntaDestino(SOL_EN_PANTALLA)) c.innerHTML = eleccionDestinoHTML(SOL_EN_PANTALLA);
+}
+function elegirDestino(v) {
+  if (!SOL_EN_PANTALLA) return;
+  var d = destinoDe(SOL_EN_PANTALLA);
+  d.eleccion = String(v); d.error = '';
+  repintarDestino();
+}
+function medioDestino(m) {
+  if (!SOL_EN_PANTALLA) return;
+  var d = destinoDe(SOL_EN_PANTALLA);
+  d.otra = { medio: String(m || ''), es_mia: !!(d.otra && d.otra.es_mia === true) };
+  d.error = '';
+  repintarDestino();
+}
+/* Mientras escribe NO se repinta (perdería el foco y el teclado); solo al
+   cambiar de banco, porque «Otro» abre la casilla del nombre. */
+function escribirDestino(campo, valor) {
+  if (!SOL_EN_PANTALLA) return;
+  var d = destinoDe(SOL_EN_PANTALLA);
+  d.otra = d.otra || {};
+  if (campo === 'es_mia') { d.otra.es_mia = valor === true; return; }
+  d.otra[campo] = String(valor == null ? '' : valor);
+  if (campo === 'banco_codigo') {
+    var b = CP && CP.bancoPorCodigo(valor);
+    d.otra.banco = (b && b.codigo !== 'otro') ? b.nombre : '';
+    repintarDestino();
+  }
+}
+
 /* Las cuotas de una propuesta, segmentadas. Si la propuesta trae cuotas se
    pintan una por una; si trae un solo pago se pinta ESE, con su fecha y su
    monto. Partir un pago único en tres renglones inventados sería la pantalla
@@ -5028,6 +5104,13 @@ function avisoDeSolicitud(nota) {
   if (nota === 'cambio') {
     return '<div class="card"><div class="aviso ambar"><b>La propuesta cambió mientras la leías.</b> ' +
       'Esta es la nueva: léela antes de aceptar.</div></div>';
+  }
+  /* 22-oct-2026 — aceptó, pero la base todavía no sabe guardar la cuenta
+     (aceptar_con_destino sin publicar: 404). La aceptación quedó; la cuenta
+     no, y se dice. */
+  if (nota === 'sin_destino') {
+    return '<div class="card"><div class="aviso ambar"><b>Tu aceptación quedó, pero no alcanzamos a guardar a qué cuenta te consignamos.</b> ' +
+      'Te lo preguntamos por el chat de la app antes de enviarte la plata.</div></div>';
   }
   return '';
 }
@@ -5060,20 +5143,54 @@ function aceptarContrapropuesta(id) {
     return;
   }
   var cond = (CS && sol) ? CS.condiciones(sol, { hoy: hoyISO() }) : null;
+  /* 22-oct-2026 — y a dónde se consigna: sin elegir (o con una cuenta mal
+     escrita, o sin «Es mía») no se acepta, y se dice ahí mismo. */
+  var destino = null;
+  if (cond && preguntaDestino(sol)) {
+    var de = CP.destinoElegido(opcionesDeDestinoDe(sol), destinoDe(sol));
+    if (!de.ok) {
+      destinoDe(sol).error = de.motivo;
+      repintarDestino();
+      if (err) fallo(err, de.motivo);
+      return;
+    }
+    destinoDe(sol).error = '';
+    destino = de.destino;
+  }
   if (err) progreso(err, 'Registrando…');
   var conCondiciones = !!cond;
   /* 21-oct-2026 — H2: la sesión que acepta. Si sale antes de la respuesta, la
      propuesta aceptada no se pinta en la cuenta del siguiente, ni se anota
      el aparato en ella, ni se recarga nada con su token. */
   var ses = SESION;
+  /* 22-oct-2026 — CON LA CUENTA, por aceptar_con_destino: la aceptación y la
+     cuenta en una sola transacción. Si la base todavía no la tiene (404: el
+     archivo base/20261022_destino_del_desembolso.sql sin correr), se acepta
+     como siempre y se dice que la cuenta se pregunta por el chat: mejor eso
+     que trabar una aceptación que la base sí sabe guardar. */
+  var sinDestinoGuardado = false;
+  var p_vio = conCondiciones ? CS.paraAceptar(cond) : null;
   (conCondiciones
-    ? rpcSesion('aceptar_condiciones', { p_id: Number(id), p_vio: CS.paraAceptar(cond) }, ses)
+    ? (destino
+        ? rpcSesion('aceptar_con_destino', { p_id: Number(id), p_vio: p_vio, p_destino: destino }, ses)
+            .catch(function (e) {
+              if (causaDe(e) !== 'apagado') throw e;
+              sinDestinoGuardado = true;
+              return rpcSesion('aceptar_condiciones', { p_id: Number(id), p_vio: p_vio }, ses);
+            })
+        : rpcSesion('aceptar_condiciones', { p_id: Number(id), p_vio: p_vio }, ses))
     : rpcSesion('aceptar_contrapropuesta', { p_id: Number(id) }, ses))
     .catch(function (e) {
       if (conCondiciones && causaDe(e) === 'apagado') return { ok: false, motivo: 'sin_constancia' };
       throw e;
     })
     .then(function (j) {
+      if (j && j.motivo === 'destino') {
+        /* La base no aceptó la cuenta (las reglas son las mismas: no debería
+           pasar). No se aceptó nada. */
+        if (err) fallo(err, 'No pudimos guardar esa cuenta. Revísala, o elige otra, y vuelve a tocar «Acepto».');
+        return;
+      }
       if (j && j.motivo === 'sin_constancia') {
         if (err) fallo(err, 'No pudimos registrar tu aceptación todavía (no es tu teléfono ni tu internet). ' +
           'Tu propuesta sigue aquí: vuelve a intentarlo más tarde, o escríbenos por el chat de la app y lo resolvemos.');
@@ -5085,7 +5202,7 @@ function aceptarContrapropuesta(id) {
         return;
       }
       anotarAparato('aceptacion', ses);   // 19-oct-2026: desde qué teléfono aceptó
-      pintarSolicitud(j.solicitud);
+      pintarSolicitud(j.solicitud, sinDestinoGuardado ? 'sin_destino' : undefined);
     })
     .catch(function () {
       if (err) fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.');

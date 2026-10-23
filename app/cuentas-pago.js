@@ -421,6 +421,21 @@
     return h + '</div>';
   }
 
+  /**
+   * La cuenta que eligió para la propuesta que tiene HOY (solicitud.
+   * destino_desembolso), o null. La base la sella con la propuesta aceptada
+   * (`propuesta` = contrapropuesta.creada_en): si Joan volvió a proponer, la
+   * de la vieja no es la de la nueva, y decir «Consignar a: …» con ella sería
+   * mandar la plata a donde el cliente no la pidió esta vez.
+   */
+  function destinoVigente(sol) {
+    var d = sol && sol.destino_desembolso;
+    if (!d || typeof d !== 'object' || !medio(d.medio)) return null;
+    var cp = (sol.contrapropuesta && typeof sol.contrapropuesta === 'object') ? sol.contrapropuesta : {};
+    if (d.propuesta != null && String(d.propuesta) !== String(cp.creada_en || '')) return null;
+    return d;
+  }
+
   /** De lo que hay en pantalla al destino que se manda. {ok, destino, motivo} */
   function destinoElegido(opciones, estado) {
     var est = estado || {}, op = opciones || [];
@@ -452,6 +467,7 @@
     opcionesDeDestino: opcionesDeDestino,
     revisarDestino: revisarDestino,
     destinoElegido: destinoElegido,
+    destinoVigente: destinoVigente,
     describirDestino: describirDestino,
     numeroDe: numeroDe,
     esRapido: esRapido,

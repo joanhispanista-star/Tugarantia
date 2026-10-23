@@ -247,13 +247,15 @@ describe('I2 — lo que pide la cuenta de PlataChat es de la sesión que lo pidi
       contrapropuesta: { capital: 450000, costo: 45000, total: 495000, fecha_pago: '2026-11-15', creada_en: new Date().toISOString(), por: 'auto' } };
     const aceptada = () => ({ ok: true, solicitud: Object.assign({}, solM, { estado: 'aceptada', aceptada_en: new Date().toISOString() }) });
     const PC = await mariaAdentro({ resp: {
-      aceptar_propuesta_platachat: aceptada, aceptar_condiciones: aceptada,
+      aceptar_propuesta_platachat: aceptada, aceptar_condiciones: aceptada, aceptar_con_destino: aceptada,
       mi_solicitud_platachat: q => ({ ok: true, solicitud: q === 'Maria' ? solM : null, ahora: new Date().toISOString() })
     } });
     PC.ev("CANAL = 'creditos'; irA('chats')");
     await asentar(10);
     assert.equal(PC.ev('SOL && SOL.id'), 41);
     PC.st.colgar = /aceptar_/;
+    /* 22-oct-2026 — y a dónde se le consigna: sin eso no se acepta. */
+    PC.ev("elegirDestinoPC('otra'); medioDestinoPC('nequi'); escribirDestinoPC('numero', '300 111 2233'); escribirDestinoPC('es_mia', true);");
     PC.ev('CONDICIONES_LEIDAS = new Proxy({}, { get: function () { return true; } }); aceptarPropuesta(41)');
     await asentar(5);
     assert.equal(PC.st.colgadas.length, 1, 'la aceptación no salió');

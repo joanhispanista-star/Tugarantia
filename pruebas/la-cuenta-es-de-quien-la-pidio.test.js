@@ -113,12 +113,14 @@ describe('H2 — «Aceptar» y la propuesta recargada', () => {
     assert.ok(P.ev('SOL_EN_PANTALLA && SOL_EN_PANTALLA.id') === 5, 'no se pintó la propuesta de María');
     P.ev('window.__resp = [];');   // lo que pida Pedro no es la propuesta de María
     P.ev('marcarCondiciones(true)');
+    /* 22-oct-2026 — y a dónde se le consigna: sin eso no se acepta. */
+    P.ev("elegirDestino('otra'); medioDestino('nequi'); escribirDestino('numero', '300 111 2233'); escribirDestino('es_mia', true);");
     return r;
   }
 
   test('H2 — la aceptación de María llega con Pedro adentro: no se pinta «Tu crédito» ni se anota nada con su token', async () => {
     const { P, ll } = await mariaConPropuesta();
-    P.ev('window.__colgar = /aceptar_condiciones|aceptar_contrapropuesta/;');
+    P.ev('window.__colgar = /aceptar_condiciones|aceptar_contrapropuesta|aceptar_con_destino/;');
     P.ev('aceptarContrapropuesta(5)');
     await B.asentar();
     assert.equal(B.colgadas(P).length, 1);
@@ -135,7 +137,7 @@ describe('H2 — «Aceptar» y la propuesta recargada', () => {
 
   test('H2 — la propuesta que cambió (recargarPropuesta) y llega después de «Salir» no se pinta en la cuenta de Pedro', async () => {
     const { P, ll } = await mariaConPropuesta();
-    P.ev('window.__resp = [[/aceptar_condiciones|aceptar_contrapropuesta/, { ok: false, motivo: "cambio" }]]; window.__colgar = /rpc\\/mi_solicitud/;');
+    P.ev('window.__resp = [[/aceptar_condiciones|aceptar_contrapropuesta|aceptar_con_destino/, { ok: false, motivo: "cambio" }]]; window.__colgar = /rpc\\/mi_solicitud/;');
     P.ev('aceptarContrapropuesta(5)');
     await B.asentar();
     assert.equal(B.colgadas(P).length, 1, 'no se pidió la propuesta nueva');

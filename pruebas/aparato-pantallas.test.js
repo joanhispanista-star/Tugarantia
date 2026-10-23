@@ -228,7 +228,9 @@ describe('play/: anota sin esperar', () => {
     assert.ok(!llamadas(P).some(x => /aparato_anotar/.test(x.u)), 'anotó una solicitud que la base no recibió');
   });
 
-  test('al aceptar: después de aceptar_condiciones', async () => {
+  /* 22-oct-2026 — la aceptación lleva la cuenta a dónde consignar
+     (aceptar_con_destino): se elige antes de tocar «Acepto». */
+  test('al aceptar: después de aceptar_con_destino', async () => {
     const PROPUESTA = { id: 9, estado: 'contrapropuesta',
       contrapropuesta: { capital: 1500000, costo: 300000, total: 1800000, fecha_pago: '2026-11-14', dias: 37,
                          costo_pct: 20, texto: 'Te propongo esto', por: 'joan', creada_en: '2026-10-08T15:00:00Z' } };
@@ -236,10 +238,11 @@ describe('play/: anota sin esperar', () => {
     P.ev(capturar);
     P.ev('window.__r = { ok: true, solicitud: ' + JSON.stringify(Object.assign({}, PROPUESTA, { estado: 'aceptada' })) + ' };');
     P.ev('SESION = { access_token: "t", user: { user_metadata: {} } }; pintarSolicitud(' + JSON.stringify(PROPUESTA) + ');');
-    P.ev('window.__l = []; marcarCondiciones(true); aceptarContrapropuesta(9);');
+    P.ev("window.__l = []; marcarCondiciones(true); elegirDestino('otra'); medioDestino('nequi');" +
+         " escribirDestino('numero', '300 111 2233'); escribirDestino('es_mia', true); aceptarContrapropuesta(9);");
     await ticks();
     const l = llamadas(P).map(x => x.u.replace(/^.*\/rpc\//, '') + (x.c.p_cuando ? ':' + x.c.p_cuando : ''));
-    assert.deepEqual(l.filter(x => /aceptar_condiciones|aparato_anotar/.test(x)), ['aceptar_condiciones', 'aparato_anotar:aceptacion']);
+    assert.deepEqual(l.filter(x => /aceptar_con|aparato_anotar/.test(x)), ['aceptar_con_destino', 'aparato_anotar:aceptacion']);
   });
 
   test('al registrarse: en los dos caminos que abren la cuenta, ANTES de pintar (PlataChat se va de la página)', () => {

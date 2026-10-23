@@ -88,7 +88,11 @@ const RPC_OBLIGATORIAS = ['mi_cuenta', 'chat_leer_sesion', 'chat_escribir_sesion
    palabras y play/ en pesos: dos clientes, dos condiciones distintas. */
 /* 21-oct-2026 — y app/actualizar.js al final (se actualiza sola): no lo usa
    ninguno de los otros, y la página lo toma al arrancar. */
+/* 22-oct-2026 — y la lista de bancos con las reglas de la cuenta, detrás de
+   cuenta.js: «¿A dónde te consignamos?» al aceptar. cuentas-pago.js toma la
+   lista de la ventana al cargar, así que bancos-colombia.js va primero. */
 const SCRIPTS_EN_ORDEN = ['../app/motor.js', '../app/ficha.js', '../app/puente.js', '../app/cuenta.js',
+                          '../app/bancos-colombia.js', '../app/cuentas-pago.js',
                           '../app/creditos.js', '../app/calculadora-solicitud.js', '../app/chat.js',
                           '../app/platachat-reglas.js', '../app/pagos-proveedor.js', 'sesion.js',
                           '../app/actualizar.js'];
