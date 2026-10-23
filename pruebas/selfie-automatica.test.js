@@ -19,6 +19,11 @@
  *   3. LA FRONTERA: solo el modelo del detector; nada de puntos de la cara ni
  *      vectores; la caja de la cara no se guarda ni sale del teléfono. Es lo
  *      que dice la política («La foto de tu cara, que se toma sola»).
+ *      22-oct-2026 — LA FRONTERA SE MUEVE, Y SE VIGILA DONDE QUEDÓ: detector
+ *      y el modelo CHICO de los puntos de la cara sí (de él salen solo los
+ *      doce puntos de los ojos, para dibujarlos); el modelo que saca el
+ *      VECTOR para comparar caras, nunca; y nada de lo que mira (la caja, los
+ *      ojos) se guarda ni sale del teléfono. La política dice eso desde hoy.
  *
  * Lo que necesita un teléfono de verdad (WebGL, la cámara frontal, el enfoque
  * continuo, cuánto tarda el detector) no se prueba aquí: va en la lista de lo
@@ -83,14 +88,25 @@ describe('la decisión (RostroEnVivo.medirRostro)', () => {
       'acercándose rápido también es moverse');
   });
 
-  test('LA MEDIDA SOLO TRAE NÚMEROS Y UNA CAJA: ahí no cabe nada de la cara', () => {
+  test('LA MEDIDA SOLO TRAE NÚMEROS, UNA CAJA Y LOS OJOS PARA DIBUJAR: ahí no cabe nada más de la cara', () => {
     /* El centinela de la frontera, como el de medirEncuadre en cuenta.test.js:
-       si algún día esto devolviera puntos de la cara o un vector, sería dato
-       biométrico y la política diría una cosa que el código no cumple. */
-    const m = RV.medirRostro([Object.assign({ marcas: [1, 2, 3], vector: [0.1, 0.2] }, CENTRADA)], bien());
-    assert.deepEqual(Object.keys(m).sort(), ['cara', 'caras', 'desvio', 'falla', 'movimiento', 'ok', 'tamano']);
+       si algún día esto devolviera los demás puntos de la cara o un vector,
+       la política diría una cosa que el código no cumple.
+       22-oct-2026 — los ojos sí salen (de la cara principal, para dibujarlos):
+       dos ojos de seis puntos, números entre 0 y 1, y nada más. */
+    const m = RV.medirRostro([Object.assign({ marcas: [1, 2, 3], vector: [0.1, 0.2], descriptor: [9] }, CENTRADA)], bien());
+    assert.deepEqual(Object.keys(m).sort(), ['cara', 'caras', 'desvio', 'falla', 'movimiento', 'ojos', 'ok', 'tamano']);
     assert.deepEqual(Object.keys(m.cara).sort(), ['h', 'w', 'x', 'y'], 'la caja trae algo más que la caja');
-    Object.keys(m).filter(k => k !== 'cara').forEach(k => assert.ok(['number', 'boolean', 'string'].includes(typeof m[k]), k));
+    assert.equal(m.ojos, null, 'sin ojos detectados no se inventan ojos');
+    Object.keys(m).filter(k => k !== 'cara' && k !== 'ojos').forEach(k => assert.ok(['number', 'boolean', 'string'].includes(typeof m[k]), k));
+    const ojo = (x0) => [0, 1, 2, 3, 4, 5].map(i => ({ x: x0 + i * 0.01, y: 0.45, nariz: 'x' }));
+    const con = RV.medirRostro([Object.assign({ ojos: [ojo(0.4), ojo(0.55)], mandibula: [[0.1, 0.2]] }, CENTRADA)], bien());
+    assert.equal(con.ojos.length, 2);
+    con.ojos.forEach(o => { assert.equal(o.length, 6); o.forEach(p => { assert.equal(p.length, 2); p.forEach(n => assert.ok(typeof n === 'number' && n >= 0 && n <= 1)); }); });
+    assert.equal(/nariz|mandibula|descriptor|vector|marcas/.test(JSON.stringify(con)), false, 'salió algo de la cara que no son los ojos');
+    /* Lejos, o con poca confianza en la cara, los ojos no se dibujan. */
+    assert.equal(RV.medirRostro([{ x: 0.45, y: 0.43, w: 0.1, h: 0.14, score: 0.9, ojos: [ojo(0.4), ojo(0.55)] }], bien()).ojos, null);
+    assert.equal(RV.medirRostro([Object.assign({}, CENTRADA, { score: 0.6, ojos: [ojo(0.4), ojo(0.55)] })], bien()).ojos, null);
   });
 
   test('cada falla dice QUÉ HACER, con las frases que pidió el escaneo', () => {
@@ -107,7 +123,8 @@ describe('la decisión (RostroEnVivo.medirRostro)', () => {
 });
 
 describe('la racha y la nitidez', () => {
-  test('cuatro detecciones buenas seguidas disparan; una mala vuelve a cero', () => {
+  /* 22-oct-2026 — eran cuatro; desde hoy son ROSTRO.CUADROS (tres). */
+  test('ROSTRO.CUADROS detecciones buenas seguidas disparan; una mala vuelve a cero', () => {
     let e = 0, r;
     for (let i = 0; i < RV.ROSTRO.CUADROS - 1; i++) { r = RV.contarRacha(e, { ok: true }); e = r.estables; assert.equal(r.disparar, false); }
     assert.equal(RV.contarRacha(e, { ok: false }).estables, 0, 'una detección mala no tumbó la racha');
@@ -142,35 +159,69 @@ describe('la racha y la nitidez', () => {
 });
 
 describe('el detector: SOLO el detector', () => {
+  /* 22-oct-2026 — con los puntos de la cara como los entrega face-api
+     (withFaceLandmarks(true) → {detection, landmarks}), y en ellos un
+     centinela (4321) en la nariz y la mandíbula: si sale, se copió algo más
+     que los ojos. */
+  const PUNTO = (x, y) => ({ x, y });
+  const ojoDe = x0 => [0, 1, 2, 3, 4, 5].map(i => PUNTO(x0 + i * 8, 160));
+  const puntosDeMentira = () => ({
+    getLeftEye: () => ojoDe(100), getRightEye: () => ojoDe(180),
+    getNose: () => [PUNTO(4321, 4321)], getJawOutline: () => [PUNTO(4321, 4321)],
+    positions: [PUNTO(4321, 4321)]
+  });
   function faceapiDeMentira(anotado, o) {
     const red = n => ({ isLoaded: false, loadFromUri(u) { anotado.modelos.push(n + '@' + u); this.isLoaded = true; return Promise.resolve(); },
       dispose() { anotado.liberadas.push(n); } });
+    const caras = () => (o && o.caras) || [{ box: { x: 80, y: 100, width: 160, height: 200 }, score: 0.9,
+      landmarks: [[1, 2]], descriptor: [0.1, 0.2] }];
     return {
       nets: { tinyFaceDetector: red('detector'), faceLandmark68TinyNet: red('marcas'), faceRecognitionNet: red('vector') },
       TinyFaceDetectorOptions: function (op) { anotado.opciones = op; },
       detectAllFaces() {
-        return { run: () => Promise.resolve((o && o.caras) || [{ box: { x: 80, y: 100, width: 160, height: 200 }, score: 0.9,
-          landmarks: [[1, 2]], descriptor: [0.1, 0.2] }]) };
+        return {
+          run: () => Promise.resolve(caras()),
+          withFaceLandmarks(chico) {
+            anotado.chico = chico;
+            return { run: () => Promise.resolve(caras().map(c => ({ detection: { box: c.box, score: c.score }, landmarks: puntosDeMentira(),
+              descriptor: [0.4321], unshiftedLandmarks: puntosDeMentira() }))) };
+          }
+        };
       },
-      tf: { ready: () => Promise.resolve() }
+      tf: { ready: () => Promise.resolve(), getBackend: () => (o && o.motor) || 'webgl' }
     };
   }
 
-  test('baja face-api y UN SOLO MODELO, del propio sitio', async () => {
+  test('baja face-api, el DETECTOR y el modelo CHICO de los puntos, del propio sitio — y nunca el del vector', async () => {
+    /* 22-oct-2026 — era «UN SOLO MODELO». Desde hoy son dos, y el segundo es
+       el chico de los puntos (para ubicar los ojos y dibujarlos). El del
+       vector, que es el que serviría para comparar caras, no se pide nunca. */
     const anotado = { modelos: [], liberadas: [], cargas: [] };
     const antes = globalThis.faceapi;
     globalThis.faceapi = faceapiDeMentira(anotado);
     try {
       const d = await RV.crearDetector({ cargarScript: u => { anotado.cargas.push(u); return Promise.resolve(); }, base: '../app/lib/rostro/' });
+      await new Promise(r => setImmediate(r));
       assert.deepEqual(anotado.cargas, ['../app/lib/rostro/face-api.js']);
-      assert.deepEqual(anotado.modelos, ['detector@../app/lib/rostro'],
-        'el teléfono pidió otro modelo además del detector: eso ya sería medir la cara');
-      assert.equal(anotado.opciones.inputSize, RV.ROSTRO.ENTRADA);
+      assert.deepEqual(anotado.modelos, ['detector@../app/lib/rostro', 'marcas@../app/lib/rostro'],
+        'el teléfono pidió otro modelo además del detector y el de los puntos');
+      assert.equal(anotado.modelos.some(m => /^vector@/.test(m)), false, 'el teléfono bajó el modelo del vector');
       const cajas = await d.detectar({ width: 320, height: 400 });
-      assert.deepEqual(cajas, [{ x: 0.25, y: 0.25, w: 0.5, h: 0.5, score: 0.9 }],
-        'lo que sale del detector trae algo más que la caja y el puntaje');
+      assert.equal(anotado.opciones.inputSize, RV.ROSTRO.ENTRADA);
+      assert.equal(anotado.chico, true, 'los puntos se pidieron con el modelo grande');
+      assert.equal(cajas.length, 1);
+      assert.deepEqual(Object.keys(cajas[0]).sort(), ['h', 'ojos', 'score', 'w', 'x', 'y'],
+        'lo que sale del detector trae algo más que la caja, el puntaje y los ojos');
+      assert.deepEqual([cajas[0].x, cajas[0].y, cajas[0].w, cajas[0].h, cajas[0].score], [0.25, 0.25, 0.5, 0.5, 0.9]);
+      assert.equal(cajas[0].ojos.length, 2);
+      cajas[0].ojos.forEach(o => assert.equal(o.length, 6));
+      /* Los ojos son los de la detección (36-41 y 42-47), en fracciones del cuadro. */
+      assert.deepEqual(cajas[0].ojos[0][0], [100 / 320, 160 / 400]);
+      assert.deepEqual(cajas[0].ojos[1][0], [180 / 320, 160 / 400]);
+      /* El centinela: lo demás de la cara (la nariz, la mandíbula, el vector) no sale. */
+      assert.equal(/4321|descriptor|nariz/.test(JSON.stringify(cajas)), false, 'salió algo de la cara que no son los ojos');
       d.liberar();
-      assert.deepEqual(anotado.liberadas, ['detector']);
+      assert.deepEqual(anotado.liberadas.sort(), ['detector', 'marcas']);
       assert.deepEqual(await d.detectar({ width: 320, height: 400 }), [], 'después de soltarlo siguió detectando');
     } finally { if (antes === undefined) delete globalThis.faceapi; else globalThis.faceapi = antes; }
   });
@@ -185,16 +236,25 @@ describe('el detector: SOLO el detector', () => {
     } finally { if (antes !== undefined) globalThis.faceapi = antes; }
   });
 
-  test('LA FRONTERA EN EL CÓDIGO: ni puntos de la cara, ni vectores, ni nada que salga', () => {
+  test('LA FRONTERA EN EL CÓDIGO: detector y puntos chicos sí; vectores, el modelo grande y nada que salga, no', () => {
+    /* 22-oct-2026 — withFaceLandmarks y el modelo CHICO de los puntos ya se
+       permiten (los ojos). Lo que nunca: el vector (withFaceDescriptor,
+       faceRecognitionNet, computeFaceDescriptor, descriptor, embedding), el
+       modelo GRANDE de los puntos (faceLandmark68Net), ni la malla, la
+       expresión o la edad. */
     const t = sinComentarios(FUENTE_RV);
-    ['withFaceLandmarks', 'withFaceDescriptor', 'faceRecognitionNet', 'faceLandmark68', 'computeFaceDescriptor',
-     'FaceMesh', 'descriptor', 'embedding', 'landmark', 'faceExpression', 'ageGender']
+    ['withFaceDescriptor', 'faceRecognitionNet', 'faceLandmark68Net', 'computeFaceDescriptor',
+     'FaceMesh', 'descriptor', 'embedding', 'faceExpression', 'ageGender']
       .forEach(p => assert.equal(t.toLowerCase().indexOf(p.toLowerCase()), -1, 'apareció «' + p + '» en el detector del teléfono'));
+    assert.match(t, /withFaceLandmarks\(true\)/, 'los puntos tienen que pedirse con el modelo CHICO (withFaceLandmarks(true))');
+    assert.match(t, /getLeftEye\(\)/); assert.match(t, /getRightEye\(\)/);
+    assert.equal(/getJawOutline|getNose|getMouth|getLeftEyeBrow|getRightEyeBrow|\.positions/.test(t), false,
+      'el teléfono lee de los puntos algo más que los ojos');
     ['fetch(', 'XMLHttpRequest', 'sendBeacon', 'WebSocket', 'localStorage', 'sessionStorage', 'indexedDB', 'http://', 'https://']
       .forEach(p => assert.equal(t.indexOf(p), -1, 'el detector del teléfono usa «' + p + '»: lo que mira no puede salir ni quedarse'));
     const redes = [...t.matchAll(/nets\.([A-Za-z0-9]+)/g)].map(m => m[1]);
     assert.ok(redes.length > 0);
-    assert.deepEqual([...new Set(redes)], ['tinyFaceDetector'], 'se pidió otra red: ' + redes.join(', '));
+    assert.deepEqual([...new Set(redes)].sort(), ['faceLandmark68TinyNet', 'tinyFaceDetector'], 'se pidió otra red: ' + redes.join(', '));
   });
 
   test('play/ no nombra la librería: todo pasa por el módulo', () => {
@@ -205,6 +265,25 @@ describe('el detector: SOLO el detector', () => {
       .forEach(p => assert.equal(PLAY.indexOf(p), -1, 'apareció «' + p + '» en play/'));
     assert.match(PLAY, /var URL_ROSTRO_VIVO = '\.\.\/app\/rostro-en-vivo\.js';/);
     assert.match(PLAY, /var BASE_ROSTRO = '\.\.\/app\/lib\/rostro';/, 'el detector tiene que bajar del propio sitio');
+  });
+
+  test('LA POLÍTICA DICE LO QUE EL CÓDIGO HACE: si el teléfono ubica los ojos, su sección los nombra', () => {
+    /* 22-oct-2026 — la frontera se movió (los ojos), y la política se movió
+       con ella en su sección «La foto de tu cara, que se toma sola». Si un día
+       el módulo vuelve a pedir solo el detector, esta prueba no estorba; si
+       pide los puntos y la política no nombra los ojos, se cae: la interfaz
+       (y la política) no prometen menos de lo que el código hace. */
+    const PRIV = fs.readFileSync(path.join(RAIZ, 'legal', 'privacidad.html'), 'utf8');
+    const i = PRIV.indexOf('<h3>La foto de tu cara, que se toma sola</h3>');
+    assert.ok(i > 0, 'la política perdió su sección de la foto de la cara');
+    const seccion = PRIV.slice(i, PRIV.indexOf('<h3>', i + 10)).replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const pideOjos = /nets\.faceLandmark68TinyNet/.test(sinComentarios(FUENTE_RV));
+    if (pideOjos) assert.match(seccion, /tu cara y tus ojos/, 'el teléfono ubica los ojos y la política no lo dice');
+    assert.match(seccion, /no se guarda ni sale de tu celular/);
+    assert.match(seccion, /lo único que nos llega es la foto/);
+    assert.match(seccion, /no nos llega ninguna imagen/, 'la política no dice qué se anota cuando la persona sigue sin la foto');
+    assert.equal(/reconoc|verific|biometr/i.test(seccion.split('Después, en el computador')[0]), false,
+      'la parte del teléfono promete reconocer o verificar algo');
   });
 });
 
@@ -297,16 +376,26 @@ describe('la selfie dentro de la página', () => {
     assert.equal(P.ev('ESCANER.modo'), 'rostro', 'el detector llegó y no se usa');
   });
 
-  test('una cara centrada y quieta dispara sola; antes no', async () => {
-    const P = abrirPlay();
+  test('una cara centrada y quieta dispara sola; antes no (ni antes de que se vea escanear)', async () => {
+    /* 22-oct-2026 — con reloj: además de CUADROS detecciones buenas seguidas
+       (la primera no cuenta: no sabe si está quieta), hace falta que la cara
+       lleve MS_ESCANEO_MIN a la vista. Una detección cada 250 ms. */
+    let ahora = Date.UTC(2026, 9, 22, 15, 0, 0);
+    const Real = Date;
+    class Reloj extends Real { constructor(...a) { if (a.length) super(...a); else super(ahora); } static now() { return ahora; } }
+    const P = abrirPlay({ Date: Reloj });
     conModulo(P);
     P.ev('iniciarEscaner()');
     await esperar(); await esperar();
-    for (let i = 0; i < RV.ROSTRO.CUADROS; i++) {
-      P.ev("detectarCara($('camVideo'), 128)"); await esperar();
-      assert.equal(P.ev('window.__disparo'), 0, 'disparó en la detección ' + (i + 1) + ': la primera no sabe si está quieta');
+    const PASO_MS = 250;
+    let n = 0;
+    while (P.ev('window.__disparo') === 0 && n < 30) {
+      P.ev("detectarCara($('camVideo'), 128)"); await esperar(); n++;
+      ahora += PASO_MS;
     }
-    P.ev("detectarCara($('camVideo'), 128)"); await esperar();
+    const minimo = Math.max(1 + RV.ROSTRO.CUADROS, 1 + Math.ceil(RV.ROSTRO.MS_ESCANEO_MIN / PASO_MS));
+    assert.equal(n, minimo, 'disparó en la detección ' + n + ' y tocaba en la ' + minimo +
+      ' (la primera no cuenta, y hacen falta ' + RV.ROSTRO.CUADROS + ' buenas y ' + RV.ROSTRO.MS_ESCANEO_MIN + ' ms con la cara a la vista)');
     assert.equal(P.ev('window.__disparo'), 1, 'con la cara centrada y quieta no disparó');
     assert.equal(P.ev('window.__soltado'), true, 'tomada la foto, el detector se quedó con su memoria');
     /* LO QUE MIRÓ NO QUEDÓ EN NINGÚN LADO. */
@@ -417,7 +506,7 @@ describe('el bucle y el dibujo', () => {
     assert.equal(P.ev('window.__soltado'), true);
   });
 
-  test('el dibujo: la caja solo con una cara de verdad, sin anillos de ojos, y quieto si el sistema lo pide', () => {
+  test('el dibujo: la caja solo con una cara de verdad, ojos solo si la detección los trajo, y quieto si el sistema lo pide', () => {
     const P = abrirPlay();
     conLienzos(P);
     P.ev('dibujarMarco(window.__ctx, 720, 960, 1, false, 0, { cara: null })');
@@ -427,12 +516,43 @@ describe('el bucle y el dibujo', () => {
     t = trazos(P);
     assert.ok(t.includes('rect'));
     assert.ok(t.includes('createLinearGradient'), 'no barre la cara');
-    assert.equal(t.includes('arc'), false, 'volvieron los anillos de los ojos: parecen una medida que no se hace');
+    /* 22-oct-2026 — era «sin anillos de ojos»: se dibujaban donde SUELEN estar.
+       Desde hoy hay ojos solo si el detector los vio (la prueba de abajo). */
+    assert.equal(t.includes('arc'), false, 'con cara y sin ojos de la detección se dibujaron ojos: serían inventados');
     P.ev('MOVIMIENTO_REDUCIDO = true;');
     P.ev('dibujarMarco(window.__ctx, 720, 960, 1, true, 0.5, { cara: { x: 0.32, y: 0.275, w: 0.36, h: 0.45 }, conCara: true })');
     t = trazos(P);
     assert.equal(t.includes('createLinearGradient'), false, 'con movimiento reducido la línea sigue barriendo');
     assert.ok(t.includes('ellipse'), 'con movimiento reducido se fue también el arco de la racha, que es lo que informa');
+  });
+
+  test('LOS OJOS SE DIBUJAN DONDE LOS VIO EL DETECTOR, y en ningún otro lado', () => {
+    /* 22-oct-2026 — un lienzo que anota los argumentos: las coordenadas que
+       llegan al dibujo de los ojos son las de la detección, en la zona que se
+       ve. Con un video 9:16 (720×1280) la zona es la franja del medio. */
+    const P = abrirPlay();
+    P.ev('window.__args = [];' +
+      'window.__ctx2 = new Proxy({}, { get: function (t, k) { if (k in t) return t[k];' +
+      '  return function () { window.__args.push([k].concat([].slice.call(arguments))); return k === "createLinearGradient" ? { addColorStop: function () {} } : undefined; }; },' +
+      '  set: function (t, k, v) { t[k] = v; return true; } });');
+    const ojo = (x0, y) => [0, 1, 2, 3, 4, 5].map(i => [x0 + i * 0.01, y]);
+    const ojos = [ojo(0.40, 0.45), ojo(0.55, 0.46)];
+    P.ev('dibujarMarco(window.__ctx2, 720, 1280, 1, true, 0.5, { cara: { x: 0.32, y: 0.275, w: 0.36, h: 0.45 }, conCara: true,' +
+      ' ojos: ' + JSON.stringify(ojos) + ', zona: zonaVisible(720, 1280) })');
+    const args = JSON.parse(P.ev('JSON.stringify(window.__args)'));
+    const z = JSON.parse(P.ev('JSON.stringify(zonaVisible(720, 1280))'));
+    assert.deepEqual(z, { x: 0, y: 160, w: 720, h: 960 }, 'la zona que se ve de un video 9:16 en la caja 3:4 no es la franja del medio');
+    const cerca = (a, b) => Math.abs(a - b) < 1e-6;
+    ojos.forEach(o => o.forEach(p => {
+      const px = z.x + p[0] * z.w, py = z.y + p[1] * z.h;
+      assert.ok(args.some(a => (a[0] === 'moveTo' || a[0] === 'lineTo') && cerca(a[1], px) && cerca(a[2], py)),
+        'el punto (' + px + ', ' + py + ') del ojo no llegó al dibujo');
+    }));
+    assert.equal(args.filter(a => a[0] === 'arc').length, 2, 'una mira por ojo, ni más ni menos');
+    /* Y el óvalo va en la zona que se ve, no en el cuadro entero. */
+    const ovalo = args.find(a => a[0] === 'ellipse');
+    assert.ok(ovalo && cerca(ovalo[1], 360) && cerca(ovalo[2], 160 + 480) && cerca(ovalo[3], 720 * 0.32) && cerca(ovalo[4], 960 * 0.36),
+      'el óvalo no está en la zona que se ve: ' + JSON.stringify(ovalo));
   });
 
   test('el texto de la pantalla no promete reconocer a nadie', () => {

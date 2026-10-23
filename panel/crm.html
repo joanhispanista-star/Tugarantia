@@ -5514,7 +5514,10 @@ function verCliente(id){
      tú: se ve acá y en el crédito, y no se aplica sola a ningún crédito
      siguiente — la mano es la de Joan, y la pantalla no promete otra cosa. */
   const aFavorTotal=ps.reduce((t,p)=>t+Math.max(0,Number(p.saldoAFavor)||0),0);
-  const fotos=[['Cédula (frente)',s.cedulaFrenteFoto],['Cédula (reverso)',s.cedulaReversoFoto],['Selfie con cédula',s.selfieFoto]].filter(f=>f[1]);
+  /* 22-oct-2026 (C3) — «Su cara», no «Selfie con cédula»: la selfie del registro
+     de play/ nunca lleva la cédula en la mano, y Joan buscaba una cédula que no
+     tenía por qué estar. */
+  const fotos=[['Cédula (frente)',s.cedulaFrenteFoto],['Cédula (reverso)',s.cedulaReversoFoto],['Su cara',s.selfieFoto]].filter(f=>f[1]);
   /* 15-sep-2026 — `data-foto` EN VEZ DE `src` Y `href`, y los dos en el mismo
      elemento porque este archivo mete el mismo valor en los dos sitios: quien
      solo arreglara el `src` dejaria la miniatura viendose y el enlace para
@@ -5526,7 +5529,7 @@ function verCliente(id){
      ↻ GIRAR UNA FOTO): la que se ve al revés se endereza una vez y para siempre. */
   /* 19-oct-2026 — con un solo lado de la cédula, se dice cuál falta (ver
      avisoLadoQueFalta). */
-  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div>${avisoLadoQueFalta(!!s.cedulaFrenteFoto,!!s.cedulaReversoFoto,'')}<div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Selfie con cédula'].indexOf(f[0])];
+  const gal=fotos.length?`<div class="sub-h">Fotos de verificación</div>${avisoLadoQueFalta(!!s.cedulaFrenteFoto,!!s.cedulaReversoFoto,'')}<div class="gal">${fotos.map((f,i)=>{ const cual=['frente','reverso','selfie'][['Cédula (frente)','Cédula (reverso)','Su cara'].indexOf(f[0])];
       return `<div class="gal-it"><a data-foto="${f[1]}" target="_blank"><img data-foto="${f[1]}" id="fichaFoto_${cual}"><div class="cap">${f[0]}</div></a>${botonGirar("girarFotoFicha('"+escHTML(s.id)+"','"+cual+"')")}</div>`; }).join('')}</div>`
     +(s.selfieFoto&&s.cedulaFrenteFoto?`<div id="fichaParecido" style="margin-top:8px"></div>`:''):'';
   /* 8-sep-2026 — desde dónde se registró (huella), si vino del registro abierto. */
@@ -5616,6 +5619,7 @@ function verCliente(id){
     ${fila('Ingreso por quincena',s.ingresoQuincenal?COP(s.ingresoQuincenal):'')}
     ${fila('Nota de riesgo (manual)',s.notaRiesgo)}
     ${gal}
+    <div id="fichaFotosNube"></div>
     <div class="sub-h">Créditos · historial</div>
     ${bloqueCreditosHTML(s)}
     ${!ps.length?'<p class="muted">Sin créditos.</p>':''}
@@ -5642,6 +5646,81 @@ function verCliente(id){
   _girosFicha=(s.girosFotos&&typeof s.girosFotos==='object')?s.girosFotos:null;
   try { resolverFotos(document.getElementById('mBody')).then(()=>botonParecido()); } catch(e){}
   try { resolverUbicaciones(); } catch(e){}
+  /* 22-oct-2026 (C2) — y lo que llegó a la nube DESPUÉS de crear la ficha. */
+  _fichaVista=s.id;
+  try { traerFotosTardias(s); } catch(e){}
+}
+
+/* ==========================================================================
+ * LA FOTO QUE LLEGÓ DESPUÉS DE LA FICHA — 22 de octubre de 2026 (C2)
+ *
+ * La ficha nacida de un registro anota SOLO las fotos que la nube tenía al
+ * crearla (fichaDesdeRegistro, socioDesdeDatos, el cruce): es a propósito, un
+ * token escrito a ciegas le sumaría cupo a una foto que no existe. Pero si la
+ * selfie (o un lado de la cédula) llegaba después —la cola del teléfono se
+ * reintenta cada vez que la persona entra a su cuenta—, la ficha se quedaba
+ * sin ella para siempre y callaba: Joan tenía que saber que existía «🔗
+ * Cruzar». Ahora, al abrir la ficha de quien vino de un registro, se le
+ * pregunta a la nube por las que faltan; las que ya llegaron se anotan (con su
+ * token, como siempre) y la ficha se vuelve a pintar con ellas. Y si la selfie
+ * sigue sin estar, la ficha lo DICE: «No llegó la selfie: pídesela», con lo
+ * que se sabe del porqué.
+ * ======================================================================== */
+let _fichaVista=null, _tardias=0;
+/* 22-oct-2026 — SOLO LOS CRUCES VIVOS. Un cruce deshecho se queda en s.cruces
+   (es un hecho fechado y no se borra), pero ya no dice nada de la ficha:
+   deshacerCruce soltó las fotos de ese registro porque eran de OTRA persona.
+   Contándolo, la ficha volvía a preguntarle a la nube por el celular del
+   cruce deshecho y se volvía a anotar sola, con guardar() y sin preguntar, la
+   cédula y la selfie del otro: 38.000 de cupo (motor.js da 10.000 por cada
+   lado de la cédula y 18.000 por la selfie) y la próxima selfie de la clienta
+   comparada contra una cara ajena. Es el mismo filtro que ultimoCruceDe y la
+   lista de cruzados de «🔗 Cruzar». */
+function crucesVivosConRegistro(s){
+  return (Array.isArray(s&&s.cruces)?s.cruces:[]).filter(x=>x&&!x.deshecho&&x.origen==='registro_abierto');
+}
+function vieneDeRegistro(s){
+  return !!(s&&(s.huellaRegistro||s.cuentaPorJuntar||s.origen==='registro_abierto'||crucesVivosConRegistro(s).length));
+}
+/* El celular con que se anotan sus fotos: el del último cruce VIVO si lo hay
+   (es el del registro), y si no el de la ficha. Con el cruce deshecho, la
+   ficha nacida de su propio registro vuelve a buscar las suyas. */
+function celularDeFotosDe(s){
+  const c=crucesVivosConRegistro(s).filter(x=>x.celular).map(x=>x.celular).pop();
+  return diez(c||s.telefono||'');
+}
+function traerFotosTardias(s){
+  const caja=document.getElementById('fichaFotosNube');
+  if(!caja||!s||!vieneDeRegistro(s)||!sbListo()) return Promise.resolve();
+  const faltan=[['cedulaFrenteFoto','cedula_frente'],['cedulaReversoFoto','cedula_reverso'],['selfieFoto','selfie']].filter(x=>!s[x[0]]);
+  if(!faltan.length) return Promise.resolve();
+  const cel=celularDeFotosDe(s); if(cel.length!==10) return Promise.resolve();
+  const pedido=++_tardias, id=s.id;
+  caja.innerHTML='<span class="muted" style="font-size:12.5px">Preguntándole a la nube si llegaron fotos después de crear la ficha…</span>';
+  /* La del resolvedor, si ya la trajo; si no, se pide y se le deja (vive
+     solo mientras la ficha está abierta, como siempre). */
+  const pedir=_fotosReg[cel]&&!_fotosReg[cel].fallo?Promise.resolve(_fotosReg[cel]):archivosDe(cel).then(a=>{ if(!a.fallo) _fotosReg[cel]=a; return a; });
+  return pedir.then(a=>{
+    if(pedido!==_tardias||_fichaVista!==id) return;   // ya se abrió otra ficha: esto no es suyo
+    const c2=document.getElementById('fichaFotosNube'); if(!c2) return;
+    if(a.fallo){
+      c2.innerHTML='<div class="alerta warn">No pude preguntarle a la nube por las fotos que le faltan a esta ficha: '+escHTML(a.fallo)+
+        '. Eso <b>no</b> quiere decir que no hayan llegado: vuelve a abrirla en un minuto.</div>';
+      return;
+    }
+    const f=a.fotos||{};
+    const s2=DB.socios.find(x=>x.id===id); if(!s2) return;
+    const puestas=[];
+    faltan.forEach(x=>{ if(f[x[1]]&&!s2[x[0]]){ s2[x[0]]=tokenReg(cel,x[1]); puestas.push(x[1]); } });
+    if(puestas.length){
+      const g=girosDeFotos(puestas.map(k=>f[k]),s2.girosFotos||null); if(g) s2.girosFotos=g;
+      guardar();
+      verCliente(id);   // se vuelve a pintar, ya con las que llegaron
+      return;
+    }
+    c2.innerHTML=avisoSelfieQueFalta({ cedula_frente:f.cedula_frente||s2.cedulaFrenteFoto, cedula_reverso:f.cedula_reverso||s2.cedulaReversoFoto,
+      selfie:f.selfie||s2.selfieFoto },a.huella,'Pídesela antes de desembolsar.');
+  });
 }
 
 /* El boton de comparar rostros SOLO cuando las dos imagenes llegaron de verdad.
@@ -5706,6 +5785,7 @@ function verComoSocio(id){
 /* `pre` solo se usa al crear: son los datos que ya te mandó el que canjeó un
    código desde su celular, para no volver a teclearlos. */
 function editarCliente(id,pre){
+  _fichaVista=null;   // 22-oct-2026: la ficha que se estaba mirando ya no está (traerFotosTardias)
   _registroPendiente=null;
   _vinculacionPendiente=null;   // si no, una ficha cancelada se la pega al próximo cliente
   /* 15-sep-2026 — los otros dos que faltaban por el mismo motivo que los dos de
@@ -10781,6 +10861,31 @@ function avisoLadoQueFalta(hayFrente,hayReverso,cola){
                       :'Falta la foto del respaldo de la cédula: solo está la del frente.';
   return `<div class="alerta warn" style="margin-bottom:8px"><b>${que}</b>${cola?`<div class="muted" style="margin-top:4px">${escHTML(cola)}</div>`:''}</div>`;
 }
+/* 22-oct-2026 — LA SELFIE QUE NO LLEGÓ SE DICE (C1). La de William no estaba
+   en la nube y ninguna pantalla de este CRM lo decía: «👁 Ver datos» pintaba
+   las dos caras de la cédula y callaba la tercera, como si fuera normal. Ahora,
+   con la cédula y sin la selfie, se dice, con lo que se sabe del porqué: lo
+   que hizo la persona en el teléfono (huella.selfie_omitida) o lo que la base
+   no aceptó (huella.fotos_rechazadas), desde
+   base/20261022_la_foto_que_no_entra_se_dice.sql. Sin ninguna de las dos, la
+   explicación honesta: no llegó, y no se sabe si se tomó. Sin cédula no
+   habla: cada vista ya tiene su propio «no subió fotos». */
+const MOTIVO_SIN_SELFIE={
+  siguio_sin_ella:'En el teléfono le avisamos que faltaba la foto de su cara, y eligió seguir sin ella.',
+  repitio_y_siguio:'Tocó «Repetir la foto» y siguió sin tomar la nueva.',
+  sin_camara:'La cámara en vivo no prendió en su teléfono, y siguió sin tomarla.',
+  camara_del_sistema_sin_volver:'Abrió la cámara del celular para la selfie y la foto no volvió a la página (pasa en iPhone cuando el teléfono recarga la página).'
+};
+function avisoSelfieQueFalta(fotos,huella,cola){
+  const f=fotos||{}, h=(huella&&typeof huella==='object')?huella:{};
+  if(f.selfie||!(f.cedula_frente||f.cedula_reverso)) return '';
+  const rech=(h.fotos_rechazadas&&Array.isArray(h.fotos_rechazadas.fotos))?h.fotos_rechazadas.fotos.find(x=>x&&x.tipo==='selfie'):null;
+  const om=h.selfie_omitida&&MOTIVO_SIN_SELFIE[h.selfie_omitida.motivo];
+  const porque=rech?('La foto llegó, pero la base no la aceptó ('+(rech.motivo==='muy_grande'?'era demasiado grande':'no era una imagen')+').')
+    :(om||'No llegó a la nube: el teléfono no la subió o nunca se tomó.');
+  return '<div class="alerta warn" style="margin-bottom:8px"><b>No llegó la selfie: pídesela.</b><div class="muted" style="margin-top:4px">'+
+    escHTML(porque)+(cola?' '+escHTML(cola):'')+'</div></div>';
+}
 function pintarFotosRegistro(celular,cajaId){
   const caja=document.getElementById(cajaId); if(!caja) return;
   if(!sbListo()){ caja.innerHTML='<span class="muted">Las fotos viven en la nube. Conéctala en Ajustes para verlas.</span>'; return; }
@@ -10806,7 +10911,8 @@ function pintarFotosRegistro(celular,cajaId){
        (crudas), no lo que se muestra: un archivo raro ya tiene su aviso arriba
        y sí llegó. */
     const avisoLado=avisoLadoQueFalta(!!crudas.cedula_frente,!!crudas.cedula_reverso,
-      'No llegó a la nube: el teléfono no la subió o nunca la tomó. Pídesela antes de desembolsar.');
+      'No llegó a la nube: el teléfono no la subió o nunca la tomó. Pídesela antes de desembolsar.')
+      +avisoSelfieQueFalta(crudas,a.huella,'Pídesela antes de desembolsar.');
     /* 8-oct-2026 — cada foto con su «↻ Girar» (ver ↻ GIRAR UNA FOTO). */
     caja.innerHTML=avisoRaras+avisoLado+`<div class="gal">${lista.map(x=>`<div class="gal-it"><a href="${x[1]}" target="_blank"><img src="${x[1]}" id="regFoto_${x[2]}"><div class="cap">${x[0]}</div></a>${botonGirar("girarFotoRegistro('"+x[2]+"')")}</div>`).join('')}</div>`
       +(f.selfie&&f.cedula_frente?`<div id="regParecido" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="compararRostro('regFoto_selfie','regFoto_frente','regParecido')">🔍 Comparar el rostro con la cédula</button></div>`:'')
@@ -11097,7 +11203,9 @@ function confirmarCrearCuenta(id) {
          y si se pierde se cambia. */
       p.cuentaCreada = hoyISO();
       guardar(); render();
-      pantallaEntregarCuenta(p, clave, 'creada');
+      /* 22-oct-2026 — creada no es lista: falta la clave de Joan (ver
+         pantallaCuentaExiste). */
+      pantallaCuentaExiste(p, clave, 'creada');
     })
     .catch(e => {
       if (btn) { btn.disabled = false; btn.textContent = 'Crear la cuenta'; }
@@ -11135,19 +11243,31 @@ function lineaClaveEquipo(celular, clave) {
   const lit = v => "'" + String(v).replace(/'/g, "''") + "'";
   return 'select public.equipo_poner_clave(' + lit(celular) + ', ' + lit(clave) + ');';
 }
-function pantallaCuentaExiste(p, clave) {
+/* 22-oct-2026 — `que`: 'creada' cuando la cuenta se acaba de crear desde aquí
+   («Crear cuenta»). Desde base/20261022b_el_equipo_con_la_clave_de_joan.sql
+   lo del equipo solo se abre con la clave que Joan pone desde Supabase
+   (equipo_poner_clave): una cuenta recién creada todavía no ve nada, y decir
+   «quedó lista» sería mentir. El paso es el mismo de «ya existe»: la línea. */
+function pantallaCuentaExiste(p, clave, que) {
   /* El celular, igual que correoDeEquipo: los últimos diez dígitos. Así la línea
      y la cuenta a la que después se entra para comprobar son la MISMA. */
   const cel = String((p && p.celular) || '').replace(/\D/g, '').slice(-10);
-  _claveEnCurso = { id: String(p.id), clave: clave };
+  const recien = que === 'creada';
+  _claveEnCurso = { id: String(p.id), clave: clave, que: recien ? 'creada' : 'cambiada' };
   const linea = lineaClaveEquipo(cel, clave);
-  openModal('Ya existe una cuenta con ese celular', `
-    <p class="sub">Con el celular <b>${escHTML(cel)}</b> ya hay una cuenta: se la creaste antes,
-      o esta persona se registró como cliente con ese número. Por eso la contraseña nueva
-      <b>no se aplicó</b>.</p>
-    <div class="sub-h">Si no sabes la contraseña que tiene ahora</div>
+  openModal(recien ? 'Falta un paso: tu clave del equipo' : 'Ya existe una cuenta con ese celular', `
+    ${recien
+      ? `<p class="sub">La cuenta de <b>${escHTML(p.nombre || '')}</b> quedó creada, pero <b>todavía no ve nada del equipo</b>.
+          Lo del equipo solo se abre con la clave que tú le pones desde Supabase: así nadie que se registre
+          como cliente con su celular entra a su puesto.</p>
+         <div class="sub-h">Ponle la clave desde Supabase</div>`
+      : `<p class="sub">Con el celular <b>${escHTML(cel)}</b> ya hay una cuenta: se la creaste antes,
+          la creó su gerente al darle el puesto, o esta persona se registró como cliente con ese
+          número. Por eso la contraseña nueva <b>no se aplicó</b>.</p>
+         <div class="sub-h">Si no sabes la contraseña que tiene ahora</div>`}
     <p class="sub">Ponle una nueva desde Supabase, entrando con tu cuenta de Supabase. Desde aquí no se
-      puede, a propósito: así la clave de este CRM no sirve para cambiarle la contraseña a nadie del equipo.</p>
+      puede, a propósito: así la clave de este CRM no sirve para cambiarle la contraseña a nadie del equipo.
+      Esa línea es también la que le abre lo del equipo.</p>
     <ol class="sub" style="padding-left:20px;line-height:1.7">
       <li><a href="${escHTML(editorSQLDeSupabase())}" target="_blank" rel="noopener">Abre el editor SQL de Supabase</a>.</li>
       <li>Pega esta línea (ya lleva la contraseña nueva):
@@ -11161,10 +11281,27 @@ function pantallaCuentaExiste(p, clave) {
       también es la de su app de cliente.</div>
     <div id="ceVerif"></div>
     <button class="btn btn-rojo arriba" id="ceListo" onclick="claveListaEnSupabase('${escHTML(String(p.id))}')">Ya dijo «Listo»: comprobarla y entregársela</button>
-    <div class="sub-h" style="margin-top:22px">Si sí sabes la que tiene ahora</div>
+    ${recien ? '' : `<div class="sub-h" style="margin-top:22px">Si sí sabes la que tiene ahora</div>
     <div class="field"><label>Su contraseña de ahora</label>${campoConOjo('ceVieja', '')}</div>
     <div class="field"><label>La nueva</label><input id="ceNueva" value="${escHTML(clave)}"></div>
-    <button class="btn btn-ghost" onclick="cambiarClave('${escHTML(String(p.id))}')">Cambiar la contraseña aquí</button>`);
+    <button class="btn btn-ghost" onclick="cambiarClave('${escHTML(String(p.id))}')">Cambiar la contraseña aquí</button>`}`);
+}
+/* 22-oct-2026 — ¿A LA CUENTA DE ESTA SESIÓN LE FALTA LA CLAVE DE JOAN?
+   (base/20261022b_el_equipo_con_la_clave_de_joan.sql, equipo_cuenta_sin_clave).
+   Que Supabase acepte la contraseña ya no prueba que la persona entre al
+   equipo: la cuenta recién creada desde aquí tiene esa misma contraseña sin
+   que nadie haya pegado la línea. true solo si la base lo dice; si no se pudo
+   preguntar (sin señal, o la base todavía sin el archivo), false: no se afirma
+   nada que no se sabe. */
+function faltaLaClaveDeJoan(token) {
+  try {
+    return fetch(NUBE_EQUIPO.url + '/rest/v1/rpc/equipo_cuenta_sin_clave', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: NUBE_EQUIPO.anon, Authorization: 'Bearer ' + token },
+      body: '{}'
+    }).then(r => (r && r.ok && typeof r.json === 'function') ? r.json().catch(() => null) : null)
+      .then(j => j === true, () => false);
+  } catch (e) { return Promise.resolve(false); }
 }
 function copiarLineaClave(btn) {
   const caja = document.getElementById('ceLinea');
@@ -11192,12 +11329,23 @@ function claveListaEnSupabase(id) {
               'Si dijo otra cosa, ese mensaje dice qué falta. No le mandes nada a ' + escHTML(p.nombre) + ' todavía.', 'ambar');
         return;
       }
-      /* Entró: la clave sirve. Esa sesión era solo para comprobar, se cierra ya. */
-      authEquipo('/logout', {}, res.j.access_token).catch(() => {});
-      _claveEnCurso = null;
-      p.cuentaCreada = p.cuentaCreada || hoyISO();
-      guardar(); render();
-      pantallaEntregarCuenta(p, enCurso.clave, 'cambiada');
+      /* Entró: la clave sirve. Esa sesión era solo para comprobar, se cierra ya.
+         22-oct-2026 — y antes de cerrarla se pregunta si la cuenta ya tiene la
+         clave de Joan (faltaLaClaveDeJoan): sin ella no ve nada del equipo. */
+      const token = res.j.access_token;
+      return faltaLaClaveDeJoan(token).then(falta => {
+        authEquipo('/logout', {}, token).catch(() => {});
+        if (falta) {
+          if (btn) { btn.disabled = false; btn.textContent = 'Ya dijo «Listo»: comprobarla y entregársela'; }
+          decir('<b>La contraseña sí sirve, pero a esta cuenta todavía le falta tu clave del equipo.</b> Pega la línea de arriba ' +
+                'en el editor SQL de Supabase y dale Run: sin eso ' + escHTML(p.nombre) + ' no ve nada del equipo. No le mandes nada todavía.', 'ambar');
+          return;
+        }
+        _claveEnCurso = null;
+        p.cuentaCreada = p.cuentaCreada || hoyISO();
+        guardar(); render();
+        pantallaEntregarCuenta(p, enCurso.clave, enCurso.que === 'creada' ? 'creada' : 'cambiada');
+      });
     })
     .catch(() => {
       if (btn) { btn.disabled = false; btn.textContent = 'Ya dijo «Listo»: comprobarla y entregársela'; }
@@ -11220,13 +11368,19 @@ function cambiarClave(id) {
         headers: { 'Content-Type': 'application/json', apikey: NUBE_EQUIPO.anon,
                    Authorization: 'Bearer ' + res.j.access_token },
         body: JSON.stringify({ password: nueva })
-      }).then(r => r.json().then(j => ({ ok: r.ok, j })));
+      }).then(r => r.json().then(j => ({ ok: r.ok, j, token: res.j.access_token })));
     })
     .then(res => {
       if (!res.ok) throw new Error((res.j && (res.j.msg || res.j.message)) || 'no pude cambiarla');
       p.cuentaCreada = p.cuentaCreada || hoyISO();
       guardar(); render();
-      pantallaEntregarCuenta(p, nueva, 'cambiada');
+      /* 22-oct-2026 — cambiar la contraseña no le pone la clave de Joan: si a la
+         cuenta le falta, se dice en vez de entregarla como lista. */
+      return faltaLaClaveDeJoan(res.token).then(falta => {
+        if (falta) return alert('La contraseña cambió, pero a esta cuenta le falta tu clave del equipo: usa la línea del editor ' +
+          'SQL de Supabase (arriba) y dale Run. Sin eso ' + p.nombre + ' no ve nada del equipo.');
+        pantallaEntregarCuenta(p, nueva, 'cambiada');
+      });
     })
     .catch(e => alert('No pude cambiarla: ' + (e.message || e)));
 }
@@ -11355,7 +11509,10 @@ function entrarEquipo() {
          la migración del equipo no se ha corrido en la nube. */
       if (j.code === 'PGRST202') throw { falta: 'migracion' };
       if (!res.ok) throw { falta: 'nube', detalle: j.message || j.msg || j.error || '' };
-      if (j.ok !== true) throw { falta: 'puesto' };
+      /* 22-oct-2026 — sin puesto puede ser que a ESTA cuenta le falte la clave
+         de Joan (base/20261022b_el_equipo_con_la_clave_de_joan.sql): se
+         pregunta, para no mandarlo a esperar un rol que ya tiene. */
+      if (j.ok !== true) return tokenDeEquipo().then(t => faltaLaClaveDeJoan(t), () => false).then(falta => { throw { falta: falta ? 'clave' : 'puesto' }; });
       CARTERA_EQUIPO = res.j;
       modoEquipo();
     })
@@ -11365,6 +11522,9 @@ function entrarEquipo() {
       if (t === 'migracion') {
         decir('<b>Tu contraseña sí sirve.</b> Lo que falta no es tuyo: Joan todavía no ha ' +
               'preparado el equipo en la nube. Avísale y vuelve a intentar.', 'aviso');
+      } else if (t === 'clave') {
+        decir('<b>Tu contraseña sí sirve</b>, pero a esta cuenta le falta la clave del equipo que pone Joan. ' +
+              'Pídele que te la ponga; con esa clave entras.', 'aviso');
       } else if (t === 'puesto') {
         decir('<b>Tu contraseña sí sirve</b>, pero todavía no tienes puesto acá. ' +
               /* 22-oct-2026 — ya no hay botón que pulsar: se publica solo
@@ -11944,6 +12104,7 @@ function fichaHTML(j) {
     (hayFotos
       ? `<div class="sub-h">Lo que subió</div>
          ${avisoLadoQueFalta(!!f.cedula_frente, !!f.cedula_reverso, 'Pídesela antes de desembolsar.')}
+         ${avisoSelfieQueFalta(f, h, 'Pídesela antes de desembolsar.')}
          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px">
            ${FOTOS.filter(x => f[x[0]]).map(x => `<figure style="margin:0">
                <img src="${escHTML(f[x[0]])}" alt="${escHTML(x[1])}"
@@ -13722,29 +13883,52 @@ function verBaseDe(asesor, filtro) {
  *
  * Al revés se crearía una cuenta que después no puede tener puesto, y quedaría
  * una cuenta huérfana en la nube por cada intento fallido.
+ *
+ * 23-oct-2026 — Y CON ESO TODAVÍA NO ENTRA. Desde
+ * base/20261022b_el_equipo_con_la_clave_de_joan.sql lo del equipo solo se abre
+ * con la clave que Joan pone desde Supabase (equipo_poner_clave) DESPUÉS de
+ * que nació la cuenta, y una cuenta recién creada aquí no la tiene. Esta
+ * pantalla seguía diciendo «ya puede entrar» y armaba el WhatsApp con la
+ * contraseña que eligió el gerente: el asesor entraba y su Panel le decía «le
+ * falta la clave del equipo que pone Joan», y cuando Joan se la ponía,
+ * equipo_poner_clave le cambiaba la contraseña y la del WhatsApp dejaba de
+ * servir. Así que el gerente ya no elige contraseña (la que vale es la de
+ * Joan): la cuenta nace con una de relleno que nadie ve (claveDeRelleno) —hace
+ * falta que exista para que la línea de Joan corra— y la pantalla dice lo que
+ * falta y le arma el aviso a Joan (pantallaFaltaClaveEq).
  * ------------------------------------------------------------------------ */
 function crearAsesorEq() {
   openModal('Crear un asesor', `
-    <p class="sub">Va a reportarte a ti. La contraseña la pones tú y se la mandas por WhatsApp;
-      su usuario es su celular.</p>
+    <p class="sub">Va a reportarte a ti. Su usuario es su celular, y <b>su contraseña se la pone Joan</b>:
+      lo del equipo solo se abre con la clave que él pone desde Supabase.</p>
     <div class="field"><label>Nombre completo</label><input id="naNombre" autocapitalize="words"></div>
     <div class="field"><label>Celular</label>
       <input id="naTel" inputmode="numeric" placeholder="3001234567">
       <div class="help">Diez dígitos, empieza por 3. Ese número <b>es</b> su usuario.</div></div>
-    <div class="field"><label>Contraseña</label>${campoConOjo('naClave', 'value="' + escHTML(claveSugerida()) + '"')}
-      <div class="help">Fácil de dictar por teléfono. Puedes cambiarla (mínimo 8).</div></div>
     <div class="aviso" style="margin-top:12px">Va a ver <b>solo lo que le repartas</b>, y nada de lo tuyo
       hasta que se lo des. Eso lo decide el servidor, no esta pantalla.</div>
     <button class="btn btn-rojo" id="naBtn" style="margin-top:14px" onclick="confirmarCrearAsesorEq()">Crear</button>`);
 }
 
+/* 23-oct-2026 — la contraseña con la que nace la cuenta del asesor que crea el
+   gerente. No la ve nadie y no hace falta: con ella no se abre nada del
+   equipo, y equipo_poner_clave la reemplaza por la de Joan. Larga y del azar
+   del navegador (no Math.random) porque no tiene por qué adivinarse. */
+function claveDeRelleno() {
+  try {
+    const b = new Uint8Array(18);
+    crypto.getRandomValues(b);
+    return Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    return claveSugerida() + claveSugerida() + claveSugerida();
+  }
+}
+
 function confirmarCrearAsesorEq() {
   const U = window.CuentaSocio;
   const nombre = gv('naNombre'), tel = U ? U.normalizarTelefono(gv('naTel')) : '';
-  const clave = (document.getElementById('naClave') || {}).value || '';
   if (!nombre) return alert('Falta el nombre.');
   if (!tel) return alert('Ese celular no me cuadra: son diez dígitos y empieza por 3.');
-  if (clave.trim().length < 8) return alert('La contraseña necesita al menos 8 caracteres.');
   const btn = document.getElementById('naBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
 
@@ -13754,21 +13938,21 @@ function confirmarCrearAsesorEq() {
         if (esFinDeSesion(null, res)) throw { sesion: true };
         throw new Error((res.j && res.j.motivo) || 'la nube no lo aceptó');
       }
-      /* El puesto ya existe. Ahora la cuenta con la que entra. */
-      return authEquipo('/signup', { email: U.correoDeTelefono(tel), password: clave.trim() });
+      /* El puesto ya existe. Ahora la cuenta con la que va a entrar, con una
+         contraseña de relleno: la que vale la pone Joan (ver arriba). */
+      return authEquipo('/signup', { email: U.correoDeTelefono(tel), password: claveDeRelleno() })
+        .catch(() => ({ ok: false, j: { msg: 'sin señal' } }));
     })
     .then(res => {
-      if (!res.ok) {
-        const ya = /registered|already/i.test(JSON.stringify(res.j || {}));
-        /* El puesto quedó creado; lo que falló es la contraseña. Se dice tal
-           cual, porque lo que hay que hacer es distinto en cada caso. */
-        throw new Error(ya
-          ? 'Ya existía una cuenta con ese celular. El puesto quedó creado, pero la contraseña ' +
-            'no la pude poner yo: pídele a Joan que se la cambie.'
-          : ((res.j && (res.j.msg || res.j.message)) || 'no pude crear la cuenta'));
-      }
+      /* 23-oct-2026 — el puesto quedó creado pase lo que pase con la cuenta:
+         si ya existía (se registró como cliente con ese celular, por ejemplo),
+         la clave de Joan va sobre esa misma; y si no se alcanzó a crear, la
+         crea Joan con el mismo paso («🔑 Crear cuenta» de su CRM). En los
+         tres casos lo que falta es lo mismo, y se dice. */
+      const ya = !res.ok && /registered|already/i.test(JSON.stringify(res.j || {}));
+      const sinCuenta = res.ok || ya ? '' : ((res.j && (res.j.msg || res.j.message)) || 'no pude crear la cuenta');
       cerrarModal();
-      return refrescarCarteraEq().then(() => entregarCuentaEq(nombre, tel, clave.trim()));
+      return refrescarCarteraEq().catch(() => {}).then(() => pantallaFaltaClaveEq(nombre, tel, sinCuenta));
     })
     .catch(e => {
       if (btn) { btn.disabled = false; btn.textContent = 'Crear'; }
@@ -13777,25 +13961,32 @@ function confirmarCrearAsesorEq() {
     });
 }
 
-function entregarCuentaEq(nombre, celular, clave) {
-  const msg = 'Hola ' + String(nombre).split(/\s+/)[0] + ', ya tienes tu acceso.\n\n' +
-    'Entra aquí: ' + ENLACE_PANEL + '\n' +
-    'Usuario: ' + celular + '\n' +
-    'Contraseña: ' + clave + '\n\n' +
-    'Guárdala. Si la pierdes, avísame y te pongo otra.';
-  openModal('Asesor creado', `
-    <div class="alerta ok"><b>${escHTML(nombre)}</b> ya puede entrar.</div>
-    <div class="sub-h">Lo que le tienes que mandar</div>
-    ${filaInfo('Entra en', ENLACE_PANEL)}
-    ${filaInfo('Usuario', celular)}
-    ${filaInfo('Contraseña', clave)}
-    <div class="aviso ambar" style="margin-top:14px"><b>Esta contraseña no se guarda en ningún lado.</b>
-      Mándasela ahora; si se pierde, hay que ponerle otra.</div>
+/* 23-oct-2026 — LO QUE VE EL GERENTE DESPUÉS DE CREAR UN ASESOR. Antes era
+   «X ya puede entrar» con su contraseña y un WhatsApp para mandársela, y con
+   la clave de Joan (base/20261022b) las dos cosas eran falsas (ver EL GERENTE
+   CREA UN ASESOR). Ahora: el puesto quedó, todavía no entra, y el aviso para
+   Joan con lo que tiene que tocar en su CRM. Sin contraseña y sin SQL en el
+   mensaje, a propósito: la línea de equipo_poner_clave la arma el CRM de Joan
+   (pantallaCuentaExiste) y Joan no tiene por qué pegar en Supabase algo que
+   le llegó por WhatsApp. Va sin número: el gerente elige a Joan en WhatsApp
+   (este Panel no guarda el celular de Joan). */
+function pantallaFaltaClaveEq(nombre, celular, sinCuenta) {
+  const primer = String(nombre || '').split(/\s+/)[0] || 'el asesor';
+  const msg = 'Joan, creé a ' + nombre + ' (celular ' + celular + ') como asesor de mi equipo. ' +
+    'Ponle la clave del equipo para que pueda entrar: en tu CRM, Equipo → «↻ Traer del equipo» ' +
+    'y después «🔑 Crear cuenta» de ' + primer + '. La contraseña que le pongas me la pasas a mí o se la mandas tú.';
+  openModal('Falta un paso: la clave de Joan', `
+    <div class="alerta ok">El puesto de <b>${escHTML(nombre)}</b> quedó creado en tu equipo.</div>
+    <div class="aviso ambar" style="margin-top:12px"><b>Todavía no puede entrar.</b> Lo del equipo solo se abre
+      con la clave que Joan le pone desde Supabase: así nadie que se registre como cliente con su celular
+      entra a su puesto. Esa clave es también su contraseña, y se la da Joan.</div>
+    ${sinCuenta ? `<div class="muted" style="margin-top:10px">Su cuenta de entrada no se alcanzó a crear desde aquí
+      (${escHTML(sinCuenta)}). Joan la crea con el mismo paso.</div>` : ''}
     <a class="btn btn-wa" style="margin-top:14px" target="_blank" rel="noopener"
-       href="${escHTML(waLink(celular, msg))}">📲 Mandársela por WhatsApp</a>
+       href="${escHTML('https://wa.me/?text=' + encodeURIComponent(msg))}">📲 Avisarle a Joan por WhatsApp</a>
     <button class="btn btn-ghost" style="margin-top:var(--e2)" onclick="cerrarModal()">Listo</button>
-    <div class="muted" style="font-size:12.5px;margin-top:12px">Todavía no ve nada:
-      repártele gente con «🔀 Repartir».</div>`);
+    <div class="muted" style="font-size:12.5px;margin-top:12px">Cuando entre, va a ver solo lo que le repartas:
+      «🔀 Repartir».</div>`);
 }
 
 /* --------------------------------------------------------------------------
@@ -18185,6 +18376,7 @@ function importar(e){ const f=e.target.files[0]; if(!f)return; const inp=e.targe
 const modal=document.getElementById('modal');
 function cerrarModal(){
   modal.classList.remove('on');
+  _fichaVista=null;   // 22-oct-2026: ver traerFotosTardias
   /* 15-sep-2026 — el cache de fotos de la nube vive SOLO mientras la ficha esta
      abierta. Nunca toca el disco: si se guardara, habriamos vuelto a tener la
      segunda copia que todo este trabajo existe para quitar. */

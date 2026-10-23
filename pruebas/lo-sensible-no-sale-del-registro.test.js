@@ -298,7 +298,10 @@ describe('V5. la cola de una cuenta ya creada', () => {
     M.ev(reintentar);
     await asentar();
     assert.equal(subidas(ll).length, 1, 'el botón no subió nada');
-    assert.match(avisoFotos(M), /llegaron/);
+    /* 22-oct-2026 — María abrió su cuenta sin tomarse la selfie: la caja dice
+       que la cédula llegó y que la foto de su cara no se tomó, y ya no «tus
+       fotos llegaron» (pruebas/la-selfie-que-no-se-tomo.test.js, T5). */
+    assert.match(avisoFotos(M), /Tu cédula llegó, pero no se tomó la foto de tu cara/);
     /* Y la cuenta de otro no ve nada de esto. */
     const O = abrir({ almacen: M.almacen, sesion: {}, hash: '' });
     nube(O);

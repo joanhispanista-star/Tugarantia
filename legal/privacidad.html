@@ -309,10 +309,32 @@ td.ob{white-space:nowrap;color:var(--gris)}
          impresos en la foto de la cédula que sí se sube con la casilla marcada. -->
 
     <h3>La foto de tu cara, que se toma sola</h3>
-    <p>Para tomarla sola, <b>un programa que corre dentro de tu celular</b> busca tu cara en la
-      cámara y dispara cuando hay una sola cara, centrada, cerca y quieta. Lo que ese programa
-      mira —dónde está tu cara en la imagen— <b>no se guarda ni sale de tu celular</b>: lo único
-      que nos llega es la foto. Si no la toma sola, la tomas tú con el botón.</p>
+    <!-- 22-oct-2026 — el programa ahora ubica también los OJOS (el modelo chico de los
+         puntos de la cara, app/rostro-en-vivo.js) para dibujarlos mientras escanea. No
+         decide nada con ellos, no saca ningún vector y lo que ve no sale del teléfono;
+         pruebas/selfie-automatica.test.js vigila esa frontera. Y si la persona sigue sin la
+         foto, el teléfono manda solo eso y uno de cuatro motivos —lo que HIZO, nada medido—,
+         sin ninguna imagen (huella.selfie_omitida, motivoSinSelfie en play/,
+         base/20261022_la_foto_que_no_entra_se_dice.sql). PENDIENTE: aprobar este texto, y
+         la fecha de «Última actualización» y VERSION_AUTORIZACION, que se suben una sola
+         vez con la otra tanda que toca esta política. -->
+    <!-- 22-oct-2026 (segunda vuelta) — decía solo «dispara cuando hay una sola cara», y hay un
+         camino donde el teléfono dispara sin buscarla: el encuadre de respaldo
+         (U.medirEncuadre), cuando el programa no carga o se traba. Mide luz, detalle y quietud
+         en el óvalo, no caras; por eso la pantalla le pide a la persona mirar la foto
+         (avisarFotoDelEncuadre en play/). Y si el programa carga pero en 12 s no ve ninguna
+         cara, ya no dispara solo (soloAMano): la toma la persona. La memoria de dónde estaban
+         la cara y los ojos se borra al apagar la cámara (detenerEscaner). -->
+    <p>Para tomarla sola, <b>un programa que corre dentro de tu celular</b> busca tu cara y tus
+      ojos en la cámara, te los muestra en la pantalla mientras te escanea, y dispara cuando hay
+      una sola cara, centrada, cerca y quieta. Lo que ese programa encuentra —dónde están tu
+      cara y tus ojos en la imagen— vive solo mientras la cámara está prendida: <b>no se guarda
+      ni sale de tu celular</b>, y lo único que nos llega es la foto. Si ese programa no alcanza
+      a cargar o se traba (por ejemplo, con poca señal), tu celular no busca tu cara: dispara
+      cuando ve algo quieto y con detalle dentro del óvalo, y por eso te pide mirar la foto y
+      repetirla si no se ve tu cara. Si no la toma sola, la tomas tú con el botón. Si sigues sin tomarla, no nos llega ninguna imagen: solo anotamos
+      que seguiste sin ella y en qué caso (si repetiste la foto, si la cámara no prendió o si la
+      cámara del celular no la devolvió), para pedírtela después.</p>
     <p>Después, en el computador de quien revisa tu registro, otro programa compara la cara de
       esa foto con la de tu cédula y da un número de parecido. No guardamos ninguna huella de tu
       cara: lo que el programa saca de ella se descarta al terminar la comparación, y el

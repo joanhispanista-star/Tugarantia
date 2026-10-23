@@ -193,6 +193,27 @@ base/
                                   por gerente_proponer ni por la de PlataChat
                                   (contrapropuesta_gerente, que además respeta
                                   topes_equipo). Va después de 20261015_el_gerente_vende.sql.
+  20261022_la_foto_que_no_entra_se_dice.sql  La foto que la base no guarda
+                                  (no es imagen, o pasa de 600.000) vuelve en
+                                  `rechazadas` y queda en la huella; y la huella
+                                  anota «siguió sin la foto de su cara» con su
+                                  motivo (selfie_omitida). Va después de
+                                  20261020_la_cedula_de_la_cuenta.sql; en cualquier
+                                  orden con la app.
+  20261022b_el_equipo_con_la_clave_de_joan.sql  Lo del equipo solo se abre con la
+                                  clave que Joan pone (equipo_poner_clave), puesta
+                                  después de crear la cuenta: una cuenta nacida de
+                                  un registro de cliente con el celular de alguien
+                                  del equipo ya no entra a su puesto. Al correrla,
+                                  NADIE del equipo entra hasta que Joan le pone la
+                                  clave: la tabla del final dice a quién. Va
+                                  después de 20261015c_clave_del_equipo.sql.
+                                  El asesor que crea un gerente tampoco entra
+                                  hasta esa clave: el Panel del gerente ya no le
+                                  pide contraseña ni dice «ya puede entrar»; le
+                                  arma el aviso a Joan, que se la pone con
+                                  «↻ Traer del equipo» y «🔑 Crear cuenta»
+                                  (pruebas/el-asesor-del-gerente-espera-la-clave).
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.
@@ -275,6 +296,32 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         franja. Pruebas:
                         pruebas/el-frente-sobre-rayas-finas.test.js, con el
                         frente nítido de pruebas/fabricar-cedula-nitida.py.
+                        (22-oct-2026) La selfie se toma sola de verdad: la racha
+                        aguanta la caja de una frontal barata, el óvalo y lo
+                        que mira el detector son la zona que SE VE (un iPhone
+                        da 9:16), sin WebGL vuelve al encuadre, y se dibujan
+                        los OJOS donde el detector los vio (app/rostro-en-vivo.js;
+                        nunca el modelo del vector). Y la que no se tomó se dice:
+                        «Seguir sin la foto», el aviso al primer «Continuar»,
+                        «Repetir» que no borra a ciegas, y la pantalla final que
+                        nombra lo que no llegó (pruebas/la-selfie-que-no-se-tomo,
+                        pruebas/la-selfie-se-toma-sola). Para calibrarla en
+                        un teléfono de verdad: play/?medir=1 pone debajo del
+                        escáner el motor, el video, lo que tarda cada
+                        detección, la falla y qué rompió cada racha (para un
+                        pantallazo; no se guarda ni sale del teléfono:
+                        pruebas/la-selfie-se-mide). Sin cara no se toma sola:
+                        si el detector no vio ninguna cara en 12 s, queda solo
+                        a mano (los 12 s y 8 miradas se cuentan desde su
+                        primera mirada a la cámara, no desde que cargó: el
+                        rato del permiso de la cámara no cuenta); sin detector, el encuadre no dispara con una
+                        textura pareja (baldosas, una camisa a rayas) y, cuando
+                        dispara, pide mirar la foto, como dice la política
+                        (pruebas/sin-cara-no-se-toma-sola). Al apagar la cámara
+                        se borra dónde estaban la cara y los ojos
+                        (pruebas/la-cara-muere-con-la-camara), y si la cámara
+                        prendió pero la foto no salió, no se anota «la cámara
+                        no prendió» (pruebas/la-camara-que-si-prendio).
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).
