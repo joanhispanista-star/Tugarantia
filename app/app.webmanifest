@@ -1,7 +1,8 @@
 {
   "name": "Tu Garantía · Mi cuenta de socio",
   "short_name": "Tu Garantía",
-  "description": "Mira tu cupo, tu garantía y tu historial, y calcula un crédito antes de pedirlo.",
+  "description": "Dinos cuánto necesitas y para cuándo, y con tu cuenta mira tu cupo, tu garantía y tu historial.",
+  "_nota_descripcion": "23-oct-2026 — decía «calcula un crédito antes de pedirlo» y sin cuenta la app no tenía calculadora. Ahora la del pedido es la primera tarjeta de Entrar y el atajo socio.html#calc lleva a la pestaña Calculadora (atajoDelManifiesto en socio.html).",
   "_nota_id": "El id identifica la instalacion en el celular. Si se toca, el navegador la trata como otra app y las instalaciones existentes se rompen. Fijado el 4-ago-2026, antes de que hubiera ninguna instalada.",
   "id": "/TuGarantia/app/socio.html",
   "start_url": "socio.html",

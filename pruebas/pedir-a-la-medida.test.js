@@ -312,7 +312,11 @@ describe('la calculadora del pedido, en play/ y en index.html', () => {
     const srcs = [...I.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1].split('?')[0]);
     /* 19-oct-2026 — entra app/creditos.js: sin la tabla de usura la calculadora
        no puede estimar el costo (y se calla, que es lo correcto sin ella). */
-    assert.deepEqual(srcs, ['app/cuenta.js', 'app/creditos.js', 'app/calculadora-solicitud.js'], 'cuenta.js va antes: es quien escribe los pesos');
+    assert.deepEqual(srcs.slice(0, 3), ['app/cuenta.js', 'app/creditos.js', 'app/calculadora-solicitud.js'], 'cuenta.js va antes: es quien escribe los pesos');
+    /* 23-oct-2026 — y después, solo app/instalar.js: la marca de «ya la
+       abriste desde su ícono» que esconde la guía de instalar
+       (pruebas/instalar-ya-la-abriste.test.js). No toca la calculadora. */
+    assert.deepEqual(srcs.slice(3), ['app/instalar.js']);
     assert.match(I, /id="calcPedido"/);
     assert.match(I, /location\.href = 'play\/#registro'/);
     assert.match(I, /<a class="btn btn-rojo" href="play\/#registro">Abrir mi cuenta y pedirlo<\/a>/, 'sin JavaScript no queda el enlace al registro');

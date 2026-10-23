@@ -34,6 +34,11 @@ legal/
 app/                    LA APP DEL SOCIO — la que ve el cliente.
   socio.html            Una sola página. Voz: tuteo colombiano. Desde el 7-oct-2026
                         se entra con celular y contraseña (una sola puerta).
+                        Desde el 23-oct-2026, sin sesión, lo primero de Entrar
+                        es la calculadora del pedido (calculadora-solicitud.js,
+                        la misma de play/ y de la portada) con el mismo traspaso
+                        a play/#registro; y el atajo #calc del ícono lleva a la
+                        pestaña Calculadora.
   sesion-socio.js       La puerta: entrar, la sesión, mi_cuenta, «Olvidé mi
                         contraseña» y cambiarla. Sin DOM, probada en node.
   ver-como.js           El pase de un uso de «👁 Ver la app como la ve él» (CRM).

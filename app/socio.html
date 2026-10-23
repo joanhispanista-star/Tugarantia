@@ -832,6 +832,14 @@ setTimeout(function () {
 <!-- 21-oct-2026 — instalarla paso a paso (la tarjeta de Entrar, de la espera y
      del final de Inicio). Si no llega, no hay tarjeta y la app sigue igual. -->
 <script src="instalar.js"></script>
+<!-- 23-oct-2026 — la calculadora del pedido, primera tarjeta de Entrar (ver
+     calculadoraDeEntrar): la misma de play/ y de la portada del sitio, con la
+     misma dirección versionada que la precarga de sw.js. creditos.js es la
+     tabla certificada del techo de usura: sin él la calculadora no da cifra y
+     dice que el costo llega en la propuesta. Si no llega el módulo, queda el
+     enlace al registro. -->
+<script src="creditos.js"></script>
+<script src="calculadora-solicitud.js?v=139"></script>
 <script src="sesion-socio.js?v=139"></script>
 <script src="ver-como.js"></script>
 <!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
@@ -1303,6 +1311,7 @@ function pintarEntrar(aviso) {
   var instalar = tarjetaInstalar('entrar'), arriba = instalarVaArriba();
   $('entrarCuerpo').innerHTML =
     (arriba ? instalar : '') +
+    calculadoraDeEntrar() +
     '<div class="card">' +
       '<h3 class="tit">Entrar</h3>' +
       '<p class="sub">Con tu celular y tu contraseña: los mismos con los que te registraste.</p>' +
@@ -1339,6 +1348,59 @@ function pintarEntrar(aviso) {
     err.textContent = aviso; err.classList.remove('oculto');
   }
   avisarQueEsMomento();   // 21-oct-2026 — la entrada vacía es de la lista
+}
+
+/* ============ LA CALCULADORA DEL PEDIDO, PRIMERA EN ENTRAR ============
+   23-oct-2026. Joan: «quiero que cuando se instale se pueda ver la
+   calculadora, no sé por qué desapareció, esa es una parte para enganchar al
+   cliente mostrándole cuánto puede pedir». Desapareció el 21-oct (95f5d1b):
+   hasta ese día la app instalada era play/, cuya portada abre con esta
+   calculadora; desde entonces la que se instala es esta página, que abría en
+   Entrar sin calculadora (nunca la cargó).
+   Es LA MISMA de play/ y de la portada del sitio (app/calculadora-solicitud.js):
+   cuánto y para cuándo, con el estimado rotulado como estimado y su reja de
+   usura, y el MISMO traspaso que index.html: lo movido se guarda en este
+   teléfono y el botón abre el registro de play/, que lo trae puesto en el
+   paso de pedir (mismo origen, misma llave). Dice «Dinos cuánto necesitas»,
+   no «cuánto puedes pedir»: el cupo lo decide Joan.
+   Solo aquí, en Entrar (quien no tiene sesión). Con cuenta está la pestaña
+   «Calculadora», que es otra: la del socio, con su cupo y su precio.
+   Si el módulo no llegó, queda el enlace al registro, como en index.html. */
+function calculadoraDeEntrar() {
+  var CS = window.CalculadoraSolicitud;
+  var titulo = 'Dinos cuánto necesitas y para cuándo';
+  var respaldo = '<div class="card laca" id="calcEntrar">' +
+    '<p class="muted" style="margin:0">' + esc(titulo) + ', y te mandamos una propuesta con el costo exacto.</p>' +
+    '<a class="btn arriba" href="../play/#registro">Abrir mi cuenta y pedirlo</a></div>';
+  if (!CS || typeof CS.html !== 'function') return respaldo;
+  try {
+    if (CS.conectar) CS.conectar(window);
+    return '<div class="card laca" id="calcEntrar">' +
+      CS.html(CS.leerGuardado() || { monto: 300000, dias: 30 }, {
+        titulo: titulo,
+        boton: 'Abrir mi cuenta y pedirlo',
+        accion: 'pedirDesdeLaApp()',
+        alCambiar: function (e) { CS.guardar(e); }
+      }) + '</div>';
+  } catch (e) { return respaldo; }
+}
+/* 23-oct-2026 — EL ATAJO «CALCULADORA» DEL MANIFIESTO (mantener el dedo sobre
+   el ícono) abre socio.html#calc, y desde el 4-ago nadie leía ese #: el atajo
+   abría Inicio. Con cuenta, lleva a la pestaña Calculadora; sin cuenta no hace
+   falta nada, porque la calculadora del pedido ya es lo primero de Entrar. El
+   # se quita al usarlo: una recarga después no vuelve a saltar. */
+function atajoDelManifiesto() {
+  if (!/^#calc$/.test(location.hash || '')) return '';
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* se queda el # */ }
+  return 'calc';
+}
+/* El traspaso al registro: lo movido queda guardado (solo monto y días) y
+   play/ lo encuentra puesto. Sale del alcance de la app (/app/): Android lo
+   abre con la barra del navegador, y está bien, es el registro. */
+function pedirDesdeLaApp() {
+  var CS = window.CalculadoraSolicitud;
+  try { if (CS) CS.guardar(CS.estado()); } catch (e) { /* el registro arranca con lo de siempre */ }
+  location.href = '../play/#registro';
 }
 
 /* ===================== OLVIDÉ MI CONTRASEÑA =====================
@@ -1677,8 +1739,9 @@ function abrir(resp) {
     (S.origen === 'panel'
       ? '<span class="pto" title="Datos leídos del Panel de este dispositivo"></span>' : '');
   /* 21-oct-2026 — si esta carga la hizo SE ACTUALIZA SOLA, vuelve a la
-     pestaña donde estaba (solo las de la lista, y solo con su cuenta). */
-  irA(pestanaAlVolver() || 'inicio');
+     pestaña donde estaba (solo las de la lista, y solo con su cuenta).
+     23-oct-2026 — y si la abrió el atajo «Calculadora» del ícono, a esa. */
+  irA(pestanaAlVolver() || atajoDelManifiesto() || 'inicio');
   mostrar('pCuenta');
 }
 
