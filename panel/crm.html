@@ -10760,7 +10760,9 @@ function confirmarCrearCuenta(id) {
          y si se pierde se cambia. */
       p.cuentaCreada = hoyISO();
       guardar(); render();
-      pantallaEntregarCuenta(p, clave, 'creada');
+      /* 22-oct-2026 — creada no es lista: falta la clave de Joan (ver
+         pantallaCuentaExiste). */
+      pantallaCuentaExiste(p, clave, 'creada');
     })
     .catch(e => {
       if (btn) { btn.disabled = false; btn.textContent = 'Crear la cuenta'; }
@@ -10798,19 +10800,31 @@ function lineaClaveEquipo(celular, clave) {
   const lit = v => "'" + String(v).replace(/'/g, "''") + "'";
   return 'select public.equipo_poner_clave(' + lit(celular) + ', ' + lit(clave) + ');';
 }
-function pantallaCuentaExiste(p, clave) {
+/* 22-oct-2026 — `que`: 'creada' cuando la cuenta se acaba de crear desde aquí
+   («Crear cuenta»). Desde base/20261022b_el_equipo_con_la_clave_de_joan.sql
+   lo del equipo solo se abre con la clave que Joan pone desde Supabase
+   (equipo_poner_clave): una cuenta recién creada todavía no ve nada, y decir
+   «quedó lista» sería mentir. El paso es el mismo de «ya existe»: la línea. */
+function pantallaCuentaExiste(p, clave, que) {
   /* El celular, igual que correoDeEquipo: los últimos diez dígitos. Así la línea
      y la cuenta a la que después se entra para comprobar son la MISMA. */
   const cel = String((p && p.celular) || '').replace(/\D/g, '').slice(-10);
-  _claveEnCurso = { id: String(p.id), clave: clave };
+  const recien = que === 'creada';
+  _claveEnCurso = { id: String(p.id), clave: clave, que: recien ? 'creada' : 'cambiada' };
   const linea = lineaClaveEquipo(cel, clave);
-  openModal('Ya existe una cuenta con ese celular', `
-    <p class="sub">Con el celular <b>${escHTML(cel)}</b> ya hay una cuenta: se la creaste antes,
-      o esta persona se registró como cliente con ese número. Por eso la contraseña nueva
-      <b>no se aplicó</b>.</p>
-    <div class="sub-h">Si no sabes la contraseña que tiene ahora</div>
+  openModal(recien ? 'Falta un paso: tu clave del equipo' : 'Ya existe una cuenta con ese celular', `
+    ${recien
+      ? `<p class="sub">La cuenta de <b>${escHTML(p.nombre || '')}</b> quedó creada, pero <b>todavía no ve nada del equipo</b>.
+          Lo del equipo solo se abre con la clave que tú le pones desde Supabase: así nadie que se registre
+          como cliente con su celular entra a su puesto.</p>
+         <div class="sub-h">Ponle la clave desde Supabase</div>`
+      : `<p class="sub">Con el celular <b>${escHTML(cel)}</b> ya hay una cuenta: se la creaste antes,
+          o esta persona se registró como cliente con ese número. Por eso la contraseña nueva
+          <b>no se aplicó</b>.</p>
+         <div class="sub-h">Si no sabes la contraseña que tiene ahora</div>`}
     <p class="sub">Ponle una nueva desde Supabase, entrando con tu cuenta de Supabase. Desde aquí no se
-      puede, a propósito: así la clave de este CRM no sirve para cambiarle la contraseña a nadie del equipo.</p>
+      puede, a propósito: así la clave de este CRM no sirve para cambiarle la contraseña a nadie del equipo.
+      Esa línea es también la que le abre lo del equipo.</p>
     <ol class="sub" style="padding-left:20px;line-height:1.7">
       <li><a href="${escHTML(editorSQLDeSupabase())}" target="_blank" rel="noopener">Abre el editor SQL de Supabase</a>.</li>
       <li>Pega esta línea (ya lleva la contraseña nueva):
@@ -10824,10 +10838,27 @@ function pantallaCuentaExiste(p, clave) {
       también es la de su app de cliente.</div>
     <div id="ceVerif"></div>
     <button class="btn btn-rojo arriba" id="ceListo" onclick="claveListaEnSupabase('${escHTML(String(p.id))}')">Ya dijo «Listo»: comprobarla y entregársela</button>
-    <div class="sub-h" style="margin-top:22px">Si sí sabes la que tiene ahora</div>
+    ${recien ? '' : `<div class="sub-h" style="margin-top:22px">Si sí sabes la que tiene ahora</div>
     <div class="field"><label>Su contraseña de ahora</label>${campoConOjo('ceVieja', '')}</div>
     <div class="field"><label>La nueva</label><input id="ceNueva" value="${escHTML(clave)}"></div>
-    <button class="btn btn-ghost" onclick="cambiarClave('${escHTML(String(p.id))}')">Cambiar la contraseña aquí</button>`);
+    <button class="btn btn-ghost" onclick="cambiarClave('${escHTML(String(p.id))}')">Cambiar la contraseña aquí</button>`}`);
+}
+/* 22-oct-2026 — ¿A LA CUENTA DE ESTA SESIÓN LE FALTA LA CLAVE DE JOAN?
+   (base/20261022b_el_equipo_con_la_clave_de_joan.sql, equipo_cuenta_sin_clave).
+   Que Supabase acepte la contraseña ya no prueba que la persona entre al
+   equipo: la cuenta recién creada desde aquí tiene esa misma contraseña sin
+   que nadie haya pegado la línea. true solo si la base lo dice; si no se pudo
+   preguntar (sin señal, o la base todavía sin el archivo), false: no se afirma
+   nada que no se sabe. */
+function faltaLaClaveDeJoan(token) {
+  try {
+    return fetch(NUBE_EQUIPO.url + '/rest/v1/rpc/equipo_cuenta_sin_clave', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: NUBE_EQUIPO.anon, Authorization: 'Bearer ' + token },
+      body: '{}'
+    }).then(r => (r && r.ok && typeof r.json === 'function') ? r.json().catch(() => null) : null)
+      .then(j => j === true, () => false);
+  } catch (e) { return Promise.resolve(false); }
 }
 function copiarLineaClave(btn) {
   const caja = document.getElementById('ceLinea');
@@ -10855,12 +10886,23 @@ function claveListaEnSupabase(id) {
               'Si dijo otra cosa, ese mensaje dice qué falta. No le mandes nada a ' + escHTML(p.nombre) + ' todavía.', 'ambar');
         return;
       }
-      /* Entró: la clave sirve. Esa sesión era solo para comprobar, se cierra ya. */
-      authEquipo('/logout', {}, res.j.access_token).catch(() => {});
-      _claveEnCurso = null;
-      p.cuentaCreada = p.cuentaCreada || hoyISO();
-      guardar(); render();
-      pantallaEntregarCuenta(p, enCurso.clave, 'cambiada');
+      /* Entró: la clave sirve. Esa sesión era solo para comprobar, se cierra ya.
+         22-oct-2026 — y antes de cerrarla se pregunta si la cuenta ya tiene la
+         clave de Joan (faltaLaClaveDeJoan): sin ella no ve nada del equipo. */
+      const token = res.j.access_token;
+      return faltaLaClaveDeJoan(token).then(falta => {
+        authEquipo('/logout', {}, token).catch(() => {});
+        if (falta) {
+          if (btn) { btn.disabled = false; btn.textContent = 'Ya dijo «Listo»: comprobarla y entregársela'; }
+          decir('<b>La contraseña sí sirve, pero a esta cuenta todavía le falta tu clave del equipo.</b> Pega la línea de arriba ' +
+                'en el editor SQL de Supabase y dale Run: sin eso ' + escHTML(p.nombre) + ' no ve nada del equipo. No le mandes nada todavía.', 'ambar');
+          return;
+        }
+        _claveEnCurso = null;
+        p.cuentaCreada = p.cuentaCreada || hoyISO();
+        guardar(); render();
+        pantallaEntregarCuenta(p, enCurso.clave, enCurso.que === 'creada' ? 'creada' : 'cambiada');
+      });
     })
     .catch(() => {
       if (btn) { btn.disabled = false; btn.textContent = 'Ya dijo «Listo»: comprobarla y entregársela'; }
@@ -10883,13 +10925,19 @@ function cambiarClave(id) {
         headers: { 'Content-Type': 'application/json', apikey: NUBE_EQUIPO.anon,
                    Authorization: 'Bearer ' + res.j.access_token },
         body: JSON.stringify({ password: nueva })
-      }).then(r => r.json().then(j => ({ ok: r.ok, j })));
+      }).then(r => r.json().then(j => ({ ok: r.ok, j, token: res.j.access_token })));
     })
     .then(res => {
       if (!res.ok) throw new Error((res.j && (res.j.msg || res.j.message)) || 'no pude cambiarla');
       p.cuentaCreada = p.cuentaCreada || hoyISO();
       guardar(); render();
-      pantallaEntregarCuenta(p, nueva, 'cambiada');
+      /* 22-oct-2026 — cambiar la contraseña no le pone la clave de Joan: si a la
+         cuenta le falta, se dice en vez de entregarla como lista. */
+      return faltaLaClaveDeJoan(res.token).then(falta => {
+        if (falta) return alert('La contraseña cambió, pero a esta cuenta le falta tu clave del equipo: usa la línea del editor ' +
+          'SQL de Supabase (arriba) y dale Run. Sin eso ' + p.nombre + ' no ve nada del equipo.');
+        pantallaEntregarCuenta(p, nueva, 'cambiada');
+      });
     })
     .catch(e => alert('No pude cambiarla: ' + (e.message || e)));
 }
@@ -11018,7 +11066,10 @@ function entrarEquipo() {
          la migración del equipo no se ha corrido en la nube. */
       if (j.code === 'PGRST202') throw { falta: 'migracion' };
       if (!res.ok) throw { falta: 'nube', detalle: j.message || j.msg || j.error || '' };
-      if (j.ok !== true) throw { falta: 'puesto' };
+      /* 22-oct-2026 — sin puesto puede ser que a ESTA cuenta le falte la clave
+         de Joan (base/20261022b_el_equipo_con_la_clave_de_joan.sql): se
+         pregunta, para no mandarlo a esperar un rol que ya tiene. */
+      if (j.ok !== true) return tokenDeEquipo().then(t => faltaLaClaveDeJoan(t), () => false).then(falta => { throw { falta: falta ? 'clave' : 'puesto' }; });
       CARTERA_EQUIPO = res.j;
       modoEquipo();
     })
@@ -11028,6 +11079,9 @@ function entrarEquipo() {
       if (t === 'migracion') {
         decir('<b>Tu contraseña sí sirve.</b> Lo que falta no es tuyo: Joan todavía no ha ' +
               'preparado el equipo en la nube. Avísale y vuelve a intentar.', 'aviso');
+      } else if (t === 'clave') {
+        decir('<b>Tu contraseña sí sirve</b>, pero a esta cuenta le falta la clave del equipo que pone Joan. ' +
+              'Pídele que te la ponga; con esa clave entras.', 'aviso');
       } else if (t === 'puesto') {
         decir('<b>Tu contraseña sí sirve</b>, pero todavía no tienes puesto acá. ' +
               'Falta que Joan te dé tu rol y pulse «Publicar a la nube».', 'aviso');

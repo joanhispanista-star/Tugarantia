@@ -137,6 +137,14 @@ base/
                                   motivo (selfie_omitida). Va después de
                                   20261020_la_cedula_de_la_cuenta.sql; en cualquier
                                   orden con la app.
+  20261022b_el_equipo_con_la_clave_de_joan.sql  Lo del equipo solo se abre con la
+                                  clave que Joan pone (equipo_poner_clave), puesta
+                                  después de crear la cuenta: una cuenta nacida de
+                                  un registro de cliente con el celular de alguien
+                                  del equipo ya no entra a su puesto. Al correrla,
+                                  NADIE del equipo entra hasta que Joan le pone la
+                                  clave: la tabla del final dice a quién. Va
+                                  después de 20261015c_clave_del_equipo.sql.
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.
