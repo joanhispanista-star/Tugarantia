@@ -361,6 +361,17 @@ input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:99px;b
 .permiso:focus-within{outline:3px solid var(--amarillo);outline-offset:2px}
 .permiso .muted{display:block;margin-top:4px}
 
+/* ---------------- instalarla (21-oct-2026) --------------------------------
+   Los pasos de app/instalar.js: una lista numerada de verdad (<ol>), para que
+   el lector de pantalla diga «paso 2 de 4». El enlace va en una caja que se
+   puede seleccionar: dentro de otra app el portapapeles suele estar bloqueado
+   y entonces se copia a mano. */
+.pasos-instalar{margin:var(--e3) 0 0;padding-left:1.4em;font-size:14.5px;line-height:1.5}
+.pasos-instalar li{margin-top:var(--e2)}
+.pasos-instalar li::marker{font-weight:700;color:var(--gris)}
+.nota-instalar{font-size:13px;line-height:1.5;margin:var(--e3) 0 0}
+input.enlace-instalar{margin-top:var(--e3);font-size:14px}
+
 /* ---------------- avisos: neutro, azul que explica, ámbar que avisa ------- */
 .aviso{border-radius:14px;padding:14px;font-size:14px;margin-top:14px;line-height:1.5;
   border:1px solid var(--linea)}
@@ -423,6 +434,16 @@ summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--gris);list-sty
 summary::-webkit-details-marker{display:none}
 summary::after{content:' ↓';color:var(--gris)}
 details[open] summary::after{content:' ↑'}
+/* 21-oct-2026 — el pliegue de Mi garantía va SUELTO entre tarjetas, no dentro
+   de una: lo que guarda son tarjetas enteras (la laca del desglose, los
+   niveles), y una tarjeta metida en otra se lee como un error. Sin la raya de
+   arriba, que entre tarjetas sobra, y con el renglón alineado al texto de las
+   tarjetas. */
+details.plegado{border-top:0;padding-top:0;margin-top:var(--e2)}
+details.plegado>summary{padding:0 var(--e4)}
+/* La frase de la garantía (FRASE_GARANTIA) sobre la laca: en el color de la
+   placa y no en el gris de .sub, porque es la línea que manda en la pantalla. */
+.frase-garantia{margin:var(--e2) 0 0;font-size:15px;line-height:1.45}
 
 /* ------- la comparación: dos lados enfrentados, cada uno con su color ------ */
 .dual{display:grid;grid-template-columns:1fr 1fr}
@@ -722,12 +743,27 @@ details[open] summary::after{content:' ↑'}
    historial que pintaba «$0» de los créditos pagados. El CACHE de sw.js, igual:
    lo sube quien cierre la entrega.
    19-oct-2026: desde qué teléfono pide (app/aparato.js, nuevo: ENTRA a la
-   precarga de sw.js con el CACHE que suba quien cierre la entrega). */
-var VERSION_APP = '2026-10-19';
+   precarga de sw.js con el CACHE que suba quien cierre la entrega).
+   21-oct-2026: instalarla paso a paso (app/instalar.js, nuevo: ya está en la
+   precarga de sw.js; el CACHE lo sube quien cierre la entrega). Si un cliente
+   dice que «no le sale cómo instalarla», esta fecha dice si tiene la versión
+   que se lo explica en Entrar, en la espera y al final de Inicio.
+   21-oct-2026: se actualiza sola (app/actualizar.js, nuevo: también entra a
+   la precarga) y el sello dice el número de la caché.
+   22-oct-2026: la franja de «versión nueva» se vuelve a decidir al cambiar
+   de pantalla, y «Actualizar ahora» espera lo que va en camino y pregunta si
+   hay algo escrito (la misma entrega, sin publicar). */
+var VERSION_APP = '2026-10-22';
+/* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
+   ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
+   es la vieja; y en el sello es lo que dice, sin ambigüedad, si el cliente
+   tiene lo último (las fechas son tres y van a mano). Sube con CACHE, siempre:
+   pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
+var VERSION_SITIO = 'v139';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 (function () {
   var v = document.getElementById('holaVersion');
-  if (v) v.textContent = 'Versión ' + VERSION_APP;
+  if (v) v.textContent = 'Versión ' + VERSION_APP + ' · ' + VERSION_SITIO;
 })();
 
 /* El plazo de seguridad se arma ACÁ, pegado al splash, y no al final del archivo:
@@ -786,8 +822,14 @@ setTimeout(function () {
 <!-- 19-oct-2026 — desde qué teléfono pide (modelo, versión, nuestra app), para
      el CRM de Joan. Si no llega, no se manda nada y la app sigue igual. -->
 <script src="aparato.js"></script>
+<!-- 21-oct-2026 — instalarla paso a paso (la tarjeta de Entrar, de la espera y
+     del final de Inicio). Si no llega, no hay tarjeta y la app sigue igual. -->
+<script src="instalar.js"></script>
 <script src="sesion-socio.js"></script>
 <script src="ver-como.js"></script>
+<!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
+     momento seguro (momentoSeguroSocio). Si no llega, la app sigue igual. -->
+<script src="actualizar.js"></script>
 <script>
 'use strict';
 
@@ -848,6 +890,18 @@ var pct = function (t) {
    seis pantallas: cuando Joan subió el factor al 80% todas se quedaron
    prometiendo el 75%. Ahora sale de la constante del motor. */
 var centavosDeGarantia = function () { return Math.round(M.FACTOR_GARANTIA * 100); };
+/* 21-oct-2026 — LA GARANTÍA EN UNA LÍNEA, con las palabras que eligió Joan.
+   Pidió «solo quiero que diga que cada vez que pagas cumplidamente la app te
+   suma garantía»; la versión con «es plata» se descartó porque los términos
+   (§6) dicen que la garantía NO es dinero del socio, y llamarla plata nacida
+   de lo que él pagó se lee como un saldo suyo, o sea captación.
+   Cada palabra es verdad acá y solo acá: en esta app calcularCupo ES la
+   garantía, uno a uno. En play/ el cupo sale del perfil (creditos.js), así que
+   la frase NO se copia allá ni al motor, que play/ también carga. Tampoco dice
+   «cumplidamente»: el costo suma igual pagado tarde (FACTOR_GARANTIA_MORA), y
+   la frase no puede insinuar que el tardío no suma.
+   Se escribe una sola vez: Inicio y Mi garantía la leen de aquí. */
+var FRASE_GARANTIA = 'Cada crédito que pagas te suma garantía, y tu garantía es tu cupo: lo que puedes pedir en la app.';
 /* ¿El recargo de ESTE crédito deja garantía? Sí en los pedidos antes del
    27-sep-2026 —siguen con su regla hasta terminar, punto 12 de los términos—,
    no en los de ese día en adelante. Lo contesta el motor con la fecha del
@@ -964,11 +1018,18 @@ function desdeEnlace() {
 
 /* ============================ ESTADO ============================ */
 var S = null, TAB = 'inicio', MONTO = 300000, NUEVOS = {};
+/* 21-oct-2026 — QUÉ PANTALLA SE ESTÁ VIENDO. TAB no alcanza: la mitad de las
+   pantallas (pedir, la autorización, el perfil, la contraseña, la comunidad)
+   se pintan encima del cuerpo sin pasar por irA, y TAB seguiría diciendo
+   'inicio'. Cada función que pinta el cuerpo o la entrada la pone (lo vigila
+   pruebas/se-actualiza-sola.test.js); la lee momentoSeguroSocio. */
+var PANTALLA = '';
 /* Qué producto está mirando en la calculadora. El quincenal sale por defecto:
    es el de todos los días. El de garantía hay que ir a buscarlo. */
 var MODO = 'quincenal', PLAZO = 3;
 
 function mostrar(cual) {
+  if (cual === 'pCargando') PANTALLA = 'cargando';   // 21-oct-2026 — una cuenta pidiéndose a la nube no es momento de recargar
   ['pEntrar', 'pCargando', 'pCuenta'].forEach(function (p) { $(p).classList.toggle('oculto', p !== cual); });
   window.scrollTo(0, 0);
 }
@@ -1131,6 +1192,7 @@ function cargarCuenta() {
 }
 
 function pintarSinRed(msg) {
+  PANTALLA = 'sin_red';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   $('entrarCuerpo').innerHTML = '<div class="card">' +
     '<div class="aviso ambar">' + esc(msg) + '</div>' +
     '<button class="btn arriba" onclick="cargarCuenta()">Volver a intentar</button>' +
@@ -1151,15 +1213,22 @@ function pintarSinRed(msg) {
    todavía el de la ficha de su número (llave_de_sesion): abrirle el chat sería
    mostrarle la cobranza de otra persona a quien registró ese número. */
 function pintarSinJuntar(estado) {
+  PANTALLA = 'sin_juntar';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var t = SS.textoSinJuntar(estado);
   var conChat = estado !== 'apagado';
   S = null; TAB = 'chat';
+  /* 21-oct-2026 — la tarjeta de instalar: es el rato de esperar la respuesta.
+     Debajo del estado de su registro, que es lo que vino a mirar; dentro de
+     otra app, primero (desde ahí no se puede instalar). */
+  var instalar = tarjetaInstalar('espera'), arriba = instalarVaArriba();
   $('entrarCuerpo').innerHTML =
+    (arriba ? instalar : '') +
     '<div class="card">' +
       '<h3 class="tit">' + esc(t.titulo) + '</h3>' +
       '<p class="sub">' + esc(t.texto) + '</p>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="cargarCuenta()">Volver a mirar</button>' +
     '</div>' +
+    (arriba ? '' : instalar) +
     (conChat ? vistaChat() : '') +
     '<div class="pie">Entraste con el ' + esc(U && U.telefonoBonito ? U.telefonoBonito(SESION && SESION.celular) : '') + '.<br>' +
       '<a href="#" onclick="pantallaCambiarClave();return false" style="color:inherit">Cambiar mi contraseña</a> · ' +
@@ -1167,13 +1236,20 @@ function pintarSinJuntar(estado) {
       enlacesLegales() + selloDeVersion() + '</div>';
   mostrar('pEntrar');
   if (conChat) arrancarChat();
+  avisarQueEsMomento();   // 21-oct-2026 — la cuenta sin juntar es el inicio de quien se registró
 }
 
 /* ================= LA PANTALLA DE ENTRAR =================
    Arriba lo que busca el que ya tiene cuenta; abajo el que todavía no. El
    enlace que Joan manda es UNO (esta página) para nuevos y antiguos. */
 function pintarEntrar(aviso) {
+  PANTALLA = 'entrar';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
+  /* 21-oct-2026 — dentro de Facebook, Instagram o TikTok el aviso de instalar
+     va ARRIBA: desde ahí no se puede, y conviene saberlo antes de escribir la
+     contraseña en un navegador que no es el suyo. En lo demás, abajo. */
+  var instalar = tarjetaInstalar('entrar'), arriba = instalarVaArriba();
   $('entrarCuerpo').innerHTML =
+    (arriba ? instalar : '') +
     '<div class="card">' +
       '<h3 class="tit">Entrar</h3>' +
       '<p class="sub">Con tu celular y tu contraseña: los mismos con los que te registraste.</p>' +
@@ -1194,7 +1270,7 @@ function pintarEntrar(aviso) {
          lo abre al ver #registro). */
       '<a class="btn sec arriba" href="../play/#registro">Registrarme</a>' +
     '</div>' +
-    tarjetaInstalar() +
+    (arriba ? '' : instalar) +
     /* 7-oct-2026 (segunda vuelta) — las DOS salidas: el que nunca se registró
        (el cliente de antes del 24-ago, que entraba con código) no tiene
        contraseña que olvidar, y mandarlo a «Olvidé mi contraseña» lo dejaba
@@ -1209,6 +1285,7 @@ function pintarEntrar(aviso) {
     var err = $('errEntrar');
     err.textContent = aviso; err.classList.remove('oculto');
   }
+  avisarQueEsMomento();   // 21-oct-2026 — la entrada vacía es de la lista
 }
 
 /* ===================== OLVIDÉ MI CONTRASEÑA =====================
@@ -1221,6 +1298,7 @@ function pintarEntrar(aviso) {
    clave le llega a él y no a quien la pidió. Y no promete «ya»: Joan revisa
    los recados a mano. */
 function olvide() {
+  PANTALLA = 'olvide';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var cel = String(($('inCel') && $('inCel').value) || '').replace(/\D/g, '');
   $('entrarCuerpo').innerHTML =
     '<div class="card">' +
@@ -1241,6 +1319,7 @@ function olvide() {
 }
 
 function mandarAyuda() {
+  PANTALLA = 'olvide';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var err = $('errAyuda'); if (!err) return;
   var aviso = function (m, color) {
     err.textContent = m; err.classList.toggle('ambar', color !== 'azul'); err.classList.remove('oculto');
@@ -1248,7 +1327,9 @@ function mandarAyuda() {
   if (!SS) return aviso(SS_FALTA);
   var b = $('ayBoton'); if (b) b.disabled = true;
   aviso('Enviando…', 'azul');
-  SS.pedirAyuda(CFG, ($('ayTel') || {}).value || '', ($('ayNota') || {}).value || '').then(function (r) {
+  /* 21-oct-2026 (R3) — escritura en camino: «Volver» lleva a la entrada, que
+     es de la lista de SE ACTUALIZA SOLA, y la recarga cortaba el recado. */
+  escrituraEnCamino(SS.pedirAyuda(CFG, ($('ayTel') || {}).value || '', ($('ayNota') || {}).value || '')).then(function (r) {
     if (b) b.disabled = false;
     if (!r.ok) {
       return aviso(r.motivo === 'celular' ? SS.TEXTOS.celular
@@ -1281,65 +1362,130 @@ var SS_FALTA = 'No cargó una parte de la app. Cierra y vuelve a abrirla con int
    `beforeinstallprompt` cuando la app cumple los requisitos y todavía no está
    instalada; si no avisa, no hay diálogo que abrir y un botón que no hace nada
    es peor que ninguno — la regla de la casa es que la pantalla no promete lo
-   que el código no cumple. En iPhone ese evento no existe y no lo va a haber,
-   así que ahí se explican los pasos de Safari, que son otros. */
-var PROMPT_INSTALAR = null;
+   que el código no cumple.
+
+   21-oct-2026 — LOS PASOS, SIEMPRE; EL BOTÓN, CUANDO SE PUEDE. Joan pidió que
+   la app explique paso a paso cómo dejarla en la pantalla del celular, y
+   decidió el camino: Chrome «Instalar», sin APK. Hasta hoy, en Android la
+   tarjeta nacía escondida y solo la destapaba el aviso de Chrome, que no
+   llega antes de 30 segundos y un toque, ni dentro de Instagram, ni en
+   Firefox: casi nadie la veía. Y vivía solo en la pantalla de Entrar, así que
+   quien ya tenía la sesión guardada no la veía nunca. Ahora:
+     · los pasos a mano salen siempre, con los nombres de los menús de hoy
+       (app/instalar.js, que dice cuáles son y por qué), y el botón «Instalar
+       la app» se suma cuando Chrome avisó;
+     · sale en Entrar, mientras espera la respuesta de su registro
+       (pintarSinJuntar) y al final de Inicio — nunca encima de la cuota;
+     · dentro de Facebook, Instagram, TikTok o WhatsApp va primero, con
+       «Copiar enlace»: desde ahí no se puede instalar;
+     · «Ahora no» la esconde siete días; y si ya está instalada, no sale.
+   Si app/instalar.js no llegó (un service worker viejo), no se pinta nada y
+   la app sigue igual: una tarjeta a medias diría pasos que no son. */
+var IA = window.InstalarApp || null;
+var INSTALAR = { aviso: null, estado: '', copia: '', ahoraNo: false };
+var DONDE_INSTALAR = ['entrar', 'espera', 'inicio'];
 
 window.addEventListener('beforeinstallprompt', function (e) {
   e.preventDefault();
-  PROMPT_INSTALAR = e;
-  var b = $('cajaInstalar');
-  if (b) b.classList.remove('oculto');
+  INSTALAR.aviso = e;
+  repintarInstalar();
 });
 window.addEventListener('appinstalled', function () {
-  PROMPT_INSTALAR = null;
-  var b = $('cajaInstalar');
-  if (b) b.classList.add('oculto');
+  INSTALAR.aviso = null;
+  INSTALAR.estado = 'instalada';
+  repintarInstalar();
 });
 
 function instalarApp() {
-  if (!PROMPT_INSTALAR) return;
-  PROMPT_INSTALAR.prompt();
-  PROMPT_INSTALAR.userChoice.then(function () {
-    /* Se use o se descarte, el evento no se puede volver a disparar: Chrome da
-       uno solo por carga. Guardarlo para "la próxima" deja un botón que ya no
-       abre nada. */
-    PROMPT_INSTALAR = null;
-    var b = $('cajaInstalar');
-    if (b) b.classList.add('oculto');
+  var ev = INSTALAR.aviso;
+  if (!ev) return;
+  /* Se use o se descarte, el evento no se puede volver a disparar: Chrome da
+     uno solo por carga. Se suelta YA, antes de la respuesta: un segundo toque
+     mientras el diálogo está abierto no puede pedir otro. */
+  INSTALAR.aviso = null;
+  try {
+    Promise.resolve(ev.prompt()).catch(function () {});
+    Promise.resolve(ev.userChoice).then(function (r) {
+      /* Aceptó: Chrome la está instalando y avisa con appinstalled. Lo
+         descartó: el botón se va (ya no abre nada) y los pasos se quedan. */
+      if (r && r.outcome === 'accepted' && INSTALAR.estado !== 'instalada') INSTALAR.estado = 'aceptada';
+      repintarInstalar();
+    }, function () { repintarInstalar(); });
+  } catch (x) { repintarInstalar(); }
+}
+
+/* Lo que el navegador sabe de este teléfono, para app/instalar.js. matchMedia
+   va envuelto: suelto, el navegador lo rechaza («Illegal invocation»). */
+function entornoInstalar() {
+  var alm = null;
+  try { alm = window.localStorage; } catch (e) { alm = null; }
+  return { navegador: navigator, documento: document, almacen: alm, ahora: Date.now(),
+           matchMedia: window.matchMedia ? function (q) { return window.matchMedia(q); } : null };
+}
+function decisionInstalar() {
+  if (!IA || INSTALAR.ahoraNo) return { mostrar: false };
+  try { return IA.decidir(entornoInstalar()); } catch (e) { return { mostrar: false }; }
+}
+function contenidoInstalar(d) {
+  if (INSTALAR.estado) return IA.tarjetaHTML(d, { estado: INSTALAR.estado });
+  if (!d.mostrar) return '';
+  return IA.tarjetaHTML(d, {
+    conAviso: !!INSTALAR.aviso, copia: INSTALAR.copia, enlace: IA.enlace(location),
+    acciones: { instalar: 'instalarApp()', ahoraNo: 'instalarAhoraNo()', copiar: 'copiarEnlaceInstalar()' }
+  });
+}
+/* La tarjeta de una pantalla, en su caja. `donde`: 'entrar' | 'espera' |
+   'inicio'; cada una con su id, porque la pantalla de entrar se queda en el
+   DOM (escondida) mientras se ve la cuenta, y dos cajas con el mismo id harían
+   que el aviso de Chrome repintara la que no se ve. */
+function tarjetaInstalar(donde) {
+  var d = decisionInstalar();
+  if (!d.mostrar && !INSTALAR.estado) return '';
+  return '<div id="cajaInstalar-' + donde + '">' + contenidoInstalar(d) + '</div>';
+}
+/* Dentro de otra app el aviso va primero (en Entrar y en la espera). */
+function instalarVaArriba() {
+  var d = decisionInstalar();
+  return !!(d.mostrar && d.arriba && !INSTALAR.estado);
+}
+function repintarInstalar() {
+  if (!IA) return;
+  var d = decisionInstalar();
+  DONDE_INSTALAR.forEach(function (donde) {
+    var c = document.getElementById('cajaInstalar-' + donde);
+    if (c) c.innerHTML = contenidoInstalar(d);
   });
 }
 
-/* ¿Ya está instalada y abierta como app? Entonces no hay nada que ofrecer. */
-function abiertaComoApp() {
-  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
-         window.navigator.standalone === true;
-}
-
-function esIPhone() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-function tarjetaInstalar() {
-  if (abiertaComoApp()) return '';
-  if (esIPhone()) {
-    /* En iPhone no hay botón posible: Safari no expone el diálogo. Se dicen los
-       pasos, y se dice que tiene que ser Safari — en Chrome de iPhone la opción
-       no aparece, y ese es el motivo número uno de "no me sale". */
-    return '<div class="card"><h3 class="tit">Tenla en tu pantalla de inicio</h3>' +
-      '<p class="sub">Abre esta página en <b>Safari</b> (en Chrome no sale la opción), ' +
-      'toca el botón de compartir <b>⬆</b> de abajo y elige <b>Añadir a pantalla de inicio</b>. ' +
-      'Queda con su icono y abre a pantalla completa.</p></div>';
+function instalarAhoraNo() {
+  INSTALAR.ahoraNo = true;   // por esta vez, aunque el almacenamiento falle
+  if (IA) {
+    var alm = null;
+    try { alm = window.localStorage; } catch (e) { alm = null; }
+    IA.posponer(alm, Date.now());
   }
-  /* Nace escondida y la destapa el evento. Salvo que el evento YA haya pasado
-     —pintarEntrar se vuelve a llamar al salir de la cuenta, y para entonces
-     Chrome ya avisó y no vuelve a avisar—, en cuyo caso nace visible. */
-  return '<div class="card' + (PROMPT_INSTALAR ? '' : ' oculto') + '" id="cajaInstalar">' +
-    '<h3 class="tit">Tenla en tu celular</h3>' +
-    '<p class="sub">Queda con su icono, abre a pantalla completa y funciona sin señal. ' +
-    'No pesa casi nada.</p>' +
-    '<button class="btn sec arriba" onclick="instalarApp()">Instalar la app</button></div>';
+  DONDE_INSTALAR.forEach(function (donde) {
+    var c = document.getElementById('cajaInstalar-' + donde);
+    if (c) c.innerHTML = '';
+  });
+}
+
+/* «Copiar enlace»: la app PELADA (IA.enlace), nunca location.href — en el #
+   puede ir el pase del CRM o un paquete de datos. Y «Copiado» solo cuando el
+   portapapeles dijo que sí: dentro de otra app suele estar bloqueado, y ahí se
+   dice cómo copiarlo a mano. */
+function copiarEnlaceInstalar() {
+  if (!IA) return;
+  var url = IA.enlace(location);
+  var listo = function (ok) { INSTALAR.copia = ok ? 'ok' : 'fallo'; repintarInstalar(); };
+  try {
+    var pp = navigator.clipboard;
+    if (pp && typeof pp.writeText === 'function') {
+      Promise.resolve(pp.writeText(url)).then(function () { listo(true); }, function () { listo(false); });
+      return;
+    }
+  } catch (e) { /* cae al aviso de copiarlo a mano */ }
+  listo(false);
 }
 
 /* ==================== PREPARAR AL SOCIO ==================== */
@@ -1439,7 +1585,9 @@ function abrir(resp) {
   $('uNivel').innerHTML = esc('Socio ' + M.nombreNivel(nivel) + ' · ' + COP(S.garantia)) +
     (S.origen === 'panel'
       ? '<span class="pto" title="Datos leídos del Panel de este dispositivo"></span>' : '');
-  irA('inicio');
+  /* 21-oct-2026 — si esta carga la hizo SE ACTUALIZA SOLA, vuelve a la
+     pestaña donde estaba (solo las de la lista, y solo con su cuenta). */
+  irA(pestanaAlVolver() || 'inicio');
   mostrar('pCuenta');
 }
 
@@ -1453,6 +1601,7 @@ function entradaMotor() {
 
 function irA(tab) {
   TAB = tab;
+  PANTALLA = tab;   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var b = $('nav').querySelectorAll('button');
   for (var i = 0; i < b.length; i++) b[i].classList.toggle('on', b[i].dataset.t === tab);
   $('cuerpo').innerHTML = '<div class="panel">' +
@@ -1463,6 +1612,7 @@ function irA(tab) {
   if (tab === 'calc') sincronizarCalc();
   if (tab === 'chat') arrancarChat();
   window.scrollTo(0, 0);
+  avisarQueEsMomento();   // 21-oct-2026 — Inicio, Historial y Garantía son de la lista
 }
 
 /* ============================ INICIO ============================
@@ -1584,14 +1734,12 @@ function vistaInicio() {
       '<div class="cifra oro">' + COP(S.cupo) + '</div>' +
       '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
       'El costo lo ves en pesos antes de pedir, y es todo lo que pagas: sin cuotas de manejo ni sorpresas.</div>' +
-      /* LA REGLA DEL PRODUCTO, EN UNA LÍNEA (5-ago-2026). Antes acá había que
-         explicar niveles y factores para que el socio entendiera de dónde salía
-         su cupo; desde que el cupo es la garantía uno a uno, la regla entera
-         cabe en un renglón y va donde primero se mira.
-         26-sep-2026: decía «tres cuartas partes», escrito a mano aunque este
-         comentario dijera lo contrario. Ahora los centavos salen del motor. */
-      '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
-      'Y cada crédito que pagas te sube el cupo: <b>' + centavosDeGarantia() + ' centavos de cada peso de costo</b> se te vuelven garantía tuya.</div>' +
+      /* 21-oct-2026 — AQUÍ IBA LA REGLA DE LOS CENTAVOS («Y cada crédito que
+         pagas te sube el cupo: 80 centavos de cada peso de costo…»), y se fue.
+         Con el socio al día, Inicio la decía tres veces: aquí, en «Tu garantía»
+         y en el renglón del nivel. Joan: «es mucha cosa lo que explica». La
+         regla queda UNA vez, en la tarjeta «Tu garantía» (FRASE_GARANTIA), y
+         los centavos, en Mi garantía detrás de «Ver cómo funciona». */
       (S.maxRespaldado > 0
         ? '<div class="muted" style="font-size:13.5px;margin-top:var(--e2)">' +
           'Y con la garantía que ya te ganaste puedes pedir hasta ' + COP(S.maxRespaldado) +
@@ -1616,14 +1764,24 @@ function vistaInicio() {
        /* "Es lo que te deja pedir más" era la frase de cuando el cupo salía de
           multiplicar esto por un factor. Hoy no hay nada en el medio: la
           garantía ES el cupo, y decirlo así ahorra la pantalla entera de
-          explicación que antes hacía falta. */
-       '<p class="sub">Es tu historial hecho número, y es tu cupo: puedes pedir exactamente ' +
-       'lo que tienes. No se retira, y cada crédito que pagas la sube: ' + centavosDeGarantia() + ' centavos de cada peso de costo se te vuelven garantía.</p>' +
+          explicación que antes hacía falta.
+          21-oct-2026 — y ahora con la frase que eligió Joan, sin los centavos
+          ni el «No se retira»: los dos se mudaron al pliegue «Ver cómo
+          funciona» de Mi garantía (vistaGarantia), y lo que la garantía no es
+          lo dicen además los términos §6. La frase no insinúa nada de eso:
+          no la llama plata ni ahorro. */
+       '<p class="sub">' + esc(FRASE_GARANTIA) + '</p>' +
        '<div class="barra"><i style="width:' + progresoNivel() + '%"></i></div>' +
        '<div class="muted" style="font-size:13px;margin-top:var(--e2)">' + textoProximoNivel() + '</div>' +
        '</div>';
 
   h += tarjetaComunidad();
+  /* 21-oct-2026 — instalarla, AL FINAL y nunca encima de la cuota: en cada
+     pantalla manda UNA cifra (ver arriba), y una tarjeta de instalar no puede
+     empujarla hacia abajo. Solo en la cuenta de la persona (origen nube): ni
+     en «Ver la app como la ve él» de Joan ni en un enlace #d=, que instalada
+     abriría en la pantalla de entrar y no en esos números. */
+  if (S.origen === 'nube') h += tarjetaInstalar('inicio');
   return h + pie();
 }
 
@@ -1657,6 +1815,7 @@ function tarjetaComunidad() {
 }
 
 function verComunidad() {
+  PANTALLA = 'comunidad';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var c = S.comunidad || {};
   var h = '<div class="card laca"><div class="etq">Somos</div>' +
     '<div class="cifra">' + (c.socios || 0) + ' socios</div>' +
@@ -1796,6 +1955,7 @@ function bloqueCreditoACuotas() {
 /* Las reglas salen del motor, no de un texto suelto: si algún día cambia un
    número, esta pantalla cambia sola. No puede quedar prometiendo otra cosa. */
 function verReglas() {
+  PANTALLA = 'reglas';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var r = M.reglasResumen();
   /* `extra` va en crudo y solo lo pone esta función: es para la letra que el
      motor no trae en su resumen y que la pantalla no puede callarse. */
@@ -1874,7 +2034,12 @@ function verReglas() {
   h += bloquePlanDePagos();
   h += bloqueCreditoACuotas();
 
-  h += '<button class="btn sec" style="margin-top:var(--e3)" onclick="irA(\'inicio\')">Volver</button>';
+  /* 21-oct-2026 — vuelve a la pestaña desde la que se abrió: desde hoy se
+     llega también desde Mi garantía, y «Volver» mandaba siempre a Inicio. TAB
+     va a parar dentro de un onclick, así que se pasa por la lista de las cinco
+     pestañas aunque hoy solo lo escriban irA y los botones fijos de la barra. */
+  var volverA = /^(inicio|calc|garantia|historial|chat)$/.test(TAB) ? TAB : 'inicio';
+  h += '<button class="btn sec" style="margin-top:var(--e3)" onclick="irA(\'' + volverA + '\')">Volver</button>';
   $('cuerpo').innerHTML = '<div class="panel">' + h + '</div>';
   window.scrollTo(0, 0);
 }
@@ -1903,16 +2068,17 @@ function progresoNivel() {
 }
 function textoProximoNivel() {
   var sig = siguienteNivel();
-  if (!sig) {
-    return 'Estás en el nivel más alto. Tu cupo no depende del nivel: es tu ' +
-      'garantía, uno a uno.';
-  }
+  /* 21-oct-2026 — este renglón va debajo de FRASE_GARANTIA, en la misma
+     tarjeta de Inicio, y repetía la regla con otras palabras: «Tu cupo no
+     depende del nivel: es tu garantía, uno a uno» arriba, y «Cada crédito que
+     pagas te acerca: 80 centavos…» abajo. La frase ya dice las dos cosas; aquí
+     queda solo lo que la frase no dice: cuánto falta para el nivel. */
+  if (!sig) return 'Estás en el nivel más alto.';
   /* 26-sep-2026 — decía «cada pago en fecha te acerca al doble de velocidad
      que uno tardío» (75% contra 37,5%). Desde el 23-sep valen lo mismo, así
      que la frase le prometía al tardío menos de lo que recibe. */
   return 'Te faltan <b>' + esc(COP(sig.faltan)) + '</b> de garantía para pasar a <b>' +
-    esc(sig.nombre) + '</b>. Cada crédito que pagas te acerca: ' + centavosDeGarantia() +
-    ' centavos de cada peso de costo.';
+    esc(sig.nombre) + '</b>.';
 }
 
 /* ============ QUÉ CICLO SE ESTÁ COBRANDO, Y A QUÉ PRECIO ============
@@ -3257,6 +3423,7 @@ function simulacionDeAhora() {
 }
 
 function pedirCredito() {
+  PANTALLA = 'pedir';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var resp = MODO === 'respaldado', s = simulacionDeAhora();
   var h = '<div class="card"><h3 class="tit">Revisa antes de pedir</h3>' +
     '<p class="sub">Esto es todo lo que hay. No hay cobros escondidos ni letra chica.</p>' +
@@ -3312,12 +3479,14 @@ function anotarAparatoSocio(cuando) {
                           matchMedia: window.matchMedia ? function (q) { return window.matchMedia(q); } : null },
                         { tiempo: APARATO.TIEMPO })
       .then(function (declarado) {
-        return SS.conSesion(CFG, SESION, 'aparato_anotar', { p_cuando: cuando, p_declarado: declarado }, guardarSesionSocio);
+        /* 21-oct-2026 (R3) — escritura en camino (ver LO QUE VA EN CAMINO NO SE CORTA). */
+        return escrituraEnCamino(SS.conSesion(CFG, SESION, 'aparato_anotar', { p_cuando: cuando, p_declarado: declarado }, guardarSesionSocio));
       })['catch'](function () { /* sin la migración del 19-oct, o sin señal */ });
   } catch (e) { /* nunca tumba la solicitud */ }
 }
 
 function mandarSolicitud(monto) {
+  PANTALLA = 'pedir';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var resp = MODO === 'respaldado', s = simulacionDeAhora();
   var fechaFin = resp ? s.ultima_fecha : s.fecha_corte;
   var costo = resp ? s.costo_total : s.costo;
@@ -3341,14 +3510,17 @@ function mandarSolicitud(monto) {
      piden nada a nombre de nadie. Sigue sin esperar la respuesta, por lo que
      dice el párrafo de arriba: el WhatsApp sale igual. */
   if (SS && SESION && S.origen === 'nube' && CFG.url && CFG.anon) {
-    SS.conSesion(CFG, SESION, 'solicitar_por_sesion', {
+    /* 21-oct-2026 (R3) — escritura en camino: la pantalla de «Listo» lleva a
+       Inicio, que es de la lista de SE ACTUALIZA SOLA, y la recarga cortaba la
+       solicitud que el WhatsApp ya daba por hecha. */
+    escrituraEnCamino(SS.conSesion(CFG, SESION, 'solicitar_por_sesion', {
       p_producto: resp ? 'respaldado' : 'quincenal',
       p_plazo: resp ? s.plazo_meses : null,
       p_datos: { capital: s.capital, tasa: resp ? s.tasa_mensual : s.tasa, costo: costo,
         total: s.total_a_pagar, fecha_corte: fechaFin, garantia: S.garantia, cupo: S.cupo,
         sobre_cupo: seExcede, producto: resp ? 'respaldado' : 'quincenal',
         plazo_meses: resp ? s.plazo_meses : null }
-    }, guardarSesionSocio).then(function (j) {
+    }, guardarSesionSocio)).then(function (j) {
       /* 19-oct-2026 — y desde qué teléfono la pidió, solo si la base la recibió. */
       if (j && j.ok === true) anotarAparatoSocio('solicitud');
     }).catch(function () {});
@@ -3400,8 +3572,30 @@ function vistaGarantia() {
   var tot = Math.max(1, gd.total);
   var anc = function (v) { return Math.max(2, Math.min(100, Math.round(v / tot * 100))); };
 
+  /* 21-oct-2026 — LA PESTAÑA ABRE CON LA FRASE, Y EL RESTO VA PLEGADO.
+     Joan: «es mucha cosa lo que explica». Esta pantalla abría con el desglose
+     ganada/prestada/comprometida y cinco tarjetas de explicación, unas 430
+     palabras, y la regla no estaba dicha en una línea en ninguna parte. Ahora
+     a la vista queda: la cifra, FRASE_GARANTIA, el cupo y las ACCIONES
+     (completar el perfil, invitar). El desglose, el préstamo con garantía, los
+     niveles y la puerta a «Cómo funciona esto» quedan detrás de «Ver cómo
+     funciona», cerrado de entrada.
+     Las acciones no se pliegan a propósito: «Completar y ganar» es la ÚNICA
+     puerta a abrirPerfil en toda la app, y plegarla escondía la única forma de
+     dar datos y subir el cupo. Con el perfil completo esa tarjeta ya no pide
+     nada, solo informa, y entonces sí va al pliegue. */
   var h = '<div class="card laca"><div class="etq">Tu garantía</div>' +
     '<div class="cifra oro">' + COP(S.garantia) + '</div>' +
+    '<p class="frase-garantia">' + esc(FRASE_GARANTIA) + '</p>' +
+    '<div class="sep"></div>' +
+    /* El cupo es lo construido, igual que en Inicio: mismo amarillo, misma laca. */
+    '<div class="fila"><span class="k">' +
+      (gd.comprometida > 0 ? 'Con eso puedes pedir hoy' : 'Con eso puedes pedir') +
+      '</span><span class="v oro">' + esc(COP(S.cupo)) + '</span></div>' +
+    '</div>';
+
+  /* --- El detalle, que va plegado --- */
+  var detalle = '<div class="card laca"><div class="etq">De qué está hecha</div>' +
     parteGarantia('Ganada', 'pagando tus créditos', COP(gd.ganada), 'oro', anc(gd.ganada)) +
     parteGarantia('Prestada', 'por tus datos, para arrancar', COP(gd.prestada), 'prestada', anc(gd.prestada)) +
     (gd.comprometida > 0
@@ -3409,17 +3603,19 @@ function vistaGarantia() {
                       'comprometida', anc(gd.comprometida))
       : '') +
     '<div class="sep"></div>' +
-    /* El cupo es lo construido, igual que en Inicio: mismo amarillo, misma laca. */
-    '<div class="fila"><span class="k">' +
-      (gd.comprometida > 0 ? 'Con eso puedes pedir hoy' : 'Con eso puedes pedir') +
-      '</span><span class="v oro">' + esc(COP(S.cupo)) + '</span></div>' +
     '<div class="fila"><span class="k">' +
       (gd.comprometida > 0 ? 'Te queda de préstamo con garantía' : 'Con la ganada, préstamo hasta') +
       '</span><span class="v azul">' + COP(S.maxRespaldado) + '</span></div>' +
+    /* 21-oct-2026 — el «No se retira» de la tarjeta de Inicio se fue con la
+       frase nueva, y era lo único de la app que decía lo que la garantía NO
+       es. Se queda aquí, con las palabras de los términos §6, para que nadie
+       la lea como un saldo suyo. */
+    '<div class="muted" style="font-size:13px;margin-top:var(--e3)">No es un ahorro ni un depósito, ' +
+      'y no se retira: es el historial de lo que has pagado.</div>' +
     '</div>';
 
   if (S.maxRespaldado > 0) {
-    h += '<div class="card respaldo"><div class="etq r">Préstamo con garantía</div>' +
+    detalle += '<div class="card respaldo"><div class="etq r">Préstamo con garantía</div>' +
       '<p style="margin:var(--e2) 0 0;font-size:14.5px">' + esc(M.reglasResumen().respaldado.texto) + '</p>' +
       '<button class="btn azul sm arriba" onclick="irACalcRespaldado()">Calcular uno</button></div>';
   }
@@ -3431,7 +3627,7 @@ function vistaGarantia() {
   Object.keys(NUEVOS).forEach(function (k) { conNuevos[k] = NUEVOS[k]; });
   var enCamino = M.garantiaPorDatos(conNuevos).total - yaTiene.total;
 
-  h += '<div class="card"><h3 class="tit">Completa tu perfil</h3>' +
+  var perfil = '<div class="card"><h3 class="tit">Completa tu perfil</h3>' +
     '<p class="sub">Te prestamos garantía por cada dato que nos des. Con todo completo son ' +
     COP(M.CUPON_KYC_MAXIMO) + ', y eso es cupo desde el primer día.</p>' +
     '<div class="cifra sm">' + COP(yaTiene.total) +
@@ -3441,12 +3637,12 @@ function vistaGarantia() {
       (enCamino > 0 ? ' · <b>+' + COP(enCamino) + ' en camino</b>' : '') + '</div>';
 
   if (yaTiene.completos.length) {
-    h += '<div class="muted" style="font-size:13px;margin-top:var(--e3)">✓ ' + yaTiene.completos.length +
+    perfil += '<div class="muted" style="font-size:13px;margin-top:var(--e3)">✓ ' + yaTiene.completos.length +
       ' dato' + (yaTiene.completos.length !== 1 ? 's' : '') + ' ya cargado' +
       (yaTiene.completos.length !== 1 ? 's' : '') + '</div>';
   }
   if (yaTiene.faltantes.length) {
-    h += '<div style="margin-top:var(--e3)">' + yaTiene.faltantes.map(function (d) {
+    perfil += '<div style="margin-top:var(--e3)">' + yaTiene.faltantes.map(function (d) {
       return '<div class="dato' + (NUEVOS[d.id] ? ' ok' : '') + '">' +
         '<span class="tick">' + (NUEVOS[d.id] ? '✓' : '') + '</span>' +
         '<span class="txt"><span class="nm" style="font-size:14px;font-weight:600">' + esc(d.etiqueta) + '</span>' +
@@ -3456,10 +3652,13 @@ function vistaGarantia() {
     '<button class="btn" style="margin-top:var(--e4)" onclick="abrirPerfil()">Completar y ganar ' +
       COP(M.CUPON_KYC_MAXIMO - yaTiene.total) + '</button>';
   } else {
-    h += '<div class="aviso" style="margin-top:var(--e3)">Tienes el perfil completo. Ya te ganaste los ' +
+    perfil += '<div class="aviso" style="margin-top:var(--e3)">Tienes el perfil completo. Ya te ganaste los ' +
       COP(M.CUPON_KYC_MAXIMO) + ' de garantía prestada.</div>';
   }
-  h += '</div>';
+  perfil += '</div>';
+  /* Con el perfil completo la tarjeta ya no pide nada: es explicación, y va
+     al pliegue (21-oct-2026). Con datos por dar, es una acción y se queda. */
+  if (!yaTiene.faltantes.length) { detalle += perfil; perfil = ''; }
 
   /* --- Referidos ---
      1-oct-2026: fuera «Ya pagaron» y el aviso «Te faltan N por pagar». Le
@@ -3469,7 +3668,7 @@ function vistaGarantia() {
      con su tope), no invitados × 5.000: con el tope eso le prometía cupo que el
      Panel no le da. Los 5.000 por referido siguen; los decide el abogado. */
   var r = S.referidos;
-  h += '<div class="card"><h3 class="tit">Trae gente, gana cupo</h3>' +
+  var referidos = '<div class="card"><h3 class="tit">Trae gente, gana cupo</h3>' +
     '<p class="sub">Cada persona que traigas te suma ' + COP(M.GARANTIA_POR_REFERIDO) +
     ', desde que esa persona pague su crédito. Si no paga, no suma.</p>' +
     fila('Gente que has traído', String(r.total || 0)) +
@@ -3489,7 +3688,7 @@ function vistaGarantia() {
      mover el cupo por nivel, esta tarjeta lo va a decir sola en vez de callarlo. */
   var niveles = M.proyeccionNiveles(gd.base_cupo, S.nivel);
   var nivelMueveElCupo = niveles.some(function (n) { return n.mueve_el_cupo; });
-  h += '<div class="card"><h3 class="tit">Tus niveles</h3>' +
+  detalle += '<div class="card"><h3 class="tit">Tus niveles</h3>' +
     '<p class="sub">' + esc(M.reglasResumen().niveles_texto) + '</p>' +
     '<div style="margin-top:var(--e2)">' + niveles.map(function (n) {
       return '<div class="nivel ' + (n.actual ? 'aqui' : '') + '">' +
@@ -3507,6 +3706,19 @@ function vistaGarantia() {
       ', y sube con cada crédito que pagues: ' + centavosDeGarantia() + ' centavos de cada peso de costo se te vuelven garantía. La plataforma presta hasta <b>' +
       COP(M.CUPO_MAXIMO) + '</b>.</div>' +
     '</div>';
+
+  /* La puerta a las reglas completas: «Cómo funciona esto» es donde vive la
+     letra del acuerdo (el 27-sep, lo que la prórroga NO hace), y hasta hoy solo
+     se llegaba desde la tarjeta de la comunidad en Inicio. */
+  detalle += '<div class="card" onclick="verReglas()" style="cursor:pointer">' +
+    '<div class="etq">Cómo funciona esto</div>' +
+    '<p style="margin:var(--e2) 0 0;font-size:14.5px">Las reglas del acuerdo, completas y sin letra chica.</p>' +
+    '</div>';
+
+  /* Cerrado de entrada: un pliegue que arranca abierto es lo mismo que no
+     plegar. Va pegado a la tarjeta de la frase, que es lo que explica. */
+  h += '<details class="plegado"><summary>Ver cómo funciona</summary>' + detalle + '</details>';
+  h += perfil + referidos;
 
   return h + pie();
 }
@@ -3727,6 +3939,7 @@ function autorizacionDada() {
 }
 
 function pantallaAutorizacion() {
+  PANTALLA = 'autorizacion';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   $('cuerpo').innerHTML = '<div class="panel"><div class="card">' +
     '<h3 class="tit">Antes de pedirte tus datos</h3>' +
     '<p class="sub">La ley nos obliga a pedirte permiso antes de guardar nada tuyo, y nos parece bien: ' +
@@ -3782,6 +3995,7 @@ function aceptarAutorizacion() {
 }
 
 function abrirPerfil() {
+  PANTALLA = 'perfil';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var aut = autorizacionDada();
   if (!aut) return pantallaAutorizacion();
   var faltan = M.garantiaPorDatos(S.perfil).faltantes;
@@ -3881,7 +4095,7 @@ function enlacesLegales() {
    5-ago-2026 o después, ese cupo salió de un código viejo. */
 function selloDeVersion() {
   var reglas = (M && M.REGLAS_VIGENTES_DESDE) ? M.REGLAS_VIGENTES_DESDE : null;
-  return '<br><span class="muted" style="font-size:11px">Versión ' + esc(VERSION_APP) +
+  return '<br><span class="muted" style="font-size:11px">Versión ' + esc(VERSION_APP) + ' · ' + esc(VERSION_SITIO) +
     (reglas ? ' · reglas del ' + fmtFecha(reglas) : '') + '</span>';
 }
 
@@ -3915,6 +4129,7 @@ function pie() {
    reglas de qué contraseña sirve son las de app/cuenta.js, las mismas del
    registro. */
 function pantallaCambiarClave() {
+  PANTALLA = 'clave';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var dentro = '<div class="card">' +
     '<h3 class="tit">Cambia tu contraseña</h3>' +
     '<p class="sub">La nueva tiene que tener al menos 8 caracteres, y que no sea tu celular ni tu cédula. ' +
@@ -3937,6 +4152,7 @@ function pantallaCambiarClave() {
 function volverDeLaClave() { if (S) irA('inicio'); else cargarCuenta(); }
 
 function cambiarClave() {
+  PANTALLA = 'clave';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var nueva = ($('ccNueva') || {}).value || '', repite = ($('ccRepite') || {}).value || '';
   var msg = $('ccMsg');
   function aviso(t, azul) { msg.textContent = t; msg.classList.toggle('ambar', !azul); msg.classList.remove('oculto'); }
@@ -3944,7 +4160,9 @@ function cambiarClave() {
   if (nueva !== repite) return aviso('Las dos no quedaron iguales. Escríbelas otra vez, sin afán.');
   $('ccBoton').disabled = true;
   aviso('Guardando…', true);
-  SS.cambiarClave(CFG, SESION, nueva, guardarSesionSocio).then(function (r) {
+  /* 21-oct-2026 (R3) — escritura en camino: sin esto, tocar «Inicio» mientras
+     guardaba la cortaba, y nunca veía «Listo» ni sabía cuál de las dos sirve. */
+  escrituraEnCamino(SS.cambiarClave(CFG, SESION, nueva, guardarSesionSocio)).then(function (r) {
     if (!r.ok) { aviso(r.motivo); return; }
     var listo = '<div class="card">' +
       '<h3 class="tit">Listo: tu contraseña quedó cambiada</h3>' +
@@ -4143,7 +4361,9 @@ function chatEnviar() {
   if (!r.ok) { alert(r.motivo); return; }
 
   CH.enviando = true; if (b) b.disabled = true;
-  cfgChat().then(function (cfg) { return CHAT.escribir(cfg, r.texto, 'servicio'); }).then(function (j) {
+  /* 21-oct-2026 (R3) — una escritura en camino: SE ACTUALIZA SOLA no recarga
+     encima de ella en ninguna pantalla (ver LO QUE VA EN CAMINO NO SE CORTA). */
+  escrituraEnCamino(cfgChat().then(function (cfg) { return CHAT.escribir(cfg, r.texto, 'servicio'); })).then(function (j) {
     /* La base dice por qué no: «demasiados mensajes seguidos» es el tope de
        la casa, y se le dice así en vez de «error». */
     if (!j || j.ok !== true) {
@@ -4191,7 +4411,10 @@ function cerrarSesionLocal() {
 }
 
 function salir() {
-  if (SS && SESION) SS.avisarSalida(CFG, SESION);
+  if (SS && SESION) escrituraEnCamino(SS.avisarSalida(CFG, SESION));
+  /* 21-oct-2026 (R3) — el aviso de salida es una escritura en camino: la
+     entrada es de la lista de SE ACTUALIZA SOLA, y recargar ahí mismo lo
+     cortaba (la sesión seguía viva en el servidor). */
   cerrarSesionLocal();
   S = null; NUEVOS = {}; TAB = 'inicio';
   MODO = 'quincenal'; PLAZO = 3;
@@ -4233,6 +4456,135 @@ function pantallaConfig() {
   };
 }
 
+/* ======================= SE ACTUALIZA SOLA — 21-oct-2026 =======================
+   Joan: «que cuando tengamos actualizaciones el cliente pueda actualizar de una
+   forma automática». app/actualizar.js busca la versión nueva y recarga, pero
+   CUÁNDO es seguro lo dice esta página con una LISTA BLANCA: lo que no está aquí
+   no recarga nunca. Fuera quedan, a propósito: la calculadora (el monto movido
+   vive en MONTO, en memoria), pedir y la solicitud en camino, el chat, la
+   autorización (la casilla marcada se perdería), el perfil, cambiar la
+   contraseña, «Olvidé mi contraseña», la comunidad y las reglas (se pierde el
+   lugar), la cuenta cargándose, y SIEMPRE el «Ver como» de Joan (el pase es de
+   un solo uso y «no sirve… ni para recargar», app/ver-como.js), la cuenta
+   abierta desde un enlace y el modo ?cfg.
+   Lo que SÍ: la entrada sin nada tecleado; Inicio, Historial y Garantía de la
+   cuenta del propio socio; y la cuenta sin juntar con el chat vacío y nada
+   saliendo. Y aun aquí, recarga al salir de la app, al volver antes de tocar
+   nada o al llegar a una de estas pantallas; nunca debajo del dedo.
+   21-oct-2026 (verificación del lote 1, R5) — LA CUENTA ABIERTA POR EL ENLACE
+   DEL CRM (#d=) TAMBIÉN, en Inicio, Historial y Garantía: el paquete viaja en
+   el # de la dirección, y una recarga abre la MISMA foto en el mismo sitio.
+   Fuera, esa cuenta nunca tenía momento seguro y la franja le decía «se pone
+   sola cuando termines y vuelvas al inicio» estando en el inicio. Lo que
+   sigue sin momento seguro NUNCA es el «Ver como» de Joan (nuncaSeguroSocio),
+   y ahí la franja ofrece el botón en vez de prometer.
+   21-oct-2026 (R3) — y nada se escribe en camino, en ninguna pantalla: el
+   mensaje del chat, la contraseña nueva, la solicitud, el recado y el aviso
+   de «Salir» (ESCRITURAS_EN_CAMINO, abajo). */
+var ACT = null;   // el controlador de app/actualizar.js; null si ese <script src> no llegó
+var PANTALLAS_SEGURAS = ['entrar', 'inicio', 'historial', 'garantia', 'sin_juntar'];
+var PESTANAS_QUE_VUELVEN = ['historial', 'garantia'];
+/* Las cuentas que una recarga vuelve a abrir igual: la de la sesión del socio
+   y la del enlace (su paquete va en la dirección). La del «Ver como» no: su
+   pase es de un solo uso. */
+var ORIGENES_QUE_VUELVEN = ['nube', 'enlace'];
+var PESTANA_AL_VOLVER = '';
+function sinTeclear(id) {
+  var el = $(id);
+  return !el || !String(el.value || '').trim();
+}
+/* 22-oct-2026 (verificación de 35f0687) — LO QUE VA EN CAMINO, EN UNA
+   PREGUNTA que también le llega a app/actualizar.js (opción `ocupado`): sin
+   ella «Actualizar ahora» recargaba con el mensaje del chat o la contraseña
+   nueva en el aire; con ella espera a que contesten. */
+function ocupadoSocio() {
+  return hayEscriturasEnCamino() || !!(CH && CH.enviando);
+}
+function momentoSeguroSocio() {
+  if (location.search.indexOf('cfg') >= 0) return false;
+  if (nuncaSeguroSocio()) return false;
+  if (ocupadoSocio()) return false;
+  if (PANTALLAS_SEGURAS.indexOf(PANTALLA) < 0) return false;
+  if (PANTALLA === 'entrar') return sinTeclear('inCel') && sinTeclear('inClave');
+  if (PANTALLA === 'sin_juntar') return sinTeclear('chTexto');
+  return true;
+}
+/* 21-oct-2026 (R5) — el modo en que NINGUNA pantalla es segura: el «Ver como»
+   de Joan (el pase «no sirve… ni para recargar», app/ver-como.js) y el modo
+   ?cfg. app/actualizar.js no promete ahí que «se pone sola». */
+function nuncaSeguroSocio() {
+  if (location.search.indexOf('cfg') >= 0) return true;
+  return !!(S && ORIGENES_QUE_VUELVEN.indexOf(S.origen) < 0);
+}
+/* Lo único que cruza la recarga: el nombre de la pestaña. La sesión ya está
+   guardada por sesion-socio.js; nada más sale de aquí. */
+function lugarSocio() {
+  return (S && ORIGENES_QUE_VUELVEN.indexOf(S.origen) >= 0 && PESTANAS_QUE_VUELVEN.indexOf(PANTALLA) >= 0) ? { tab: PANTALLA } : null;
+}
+/* Una sola vez, y solo para una cuenta que la recarga vuelve a abrir igual
+   (abrir la pide). */
+function pestanaAlVolver() {
+  var t = PESTANA_AL_VOLVER; PESTANA_AL_VOLVER = '';
+  return (t && S && ORIGENES_QUE_VUELVEN.indexOf(S.origen) >= 0) ? t : '';
+}
+
+/* ===========================================================================
+ * LO QUE VA EN CAMINO NO SE CORTA — 21 de octubre de 2026 (verificación del
+ * lote 1, R3)
+ *
+ * SE ACTUALIZA SOLA recarga al llegar a Inicio, Historial o Garantía, y una
+ * recarga CORTA lo que esté en camino. La lista solo miraba el chat en la
+ * cuenta sin juntar: la persona mandaba un mensaje (o guardaba su contraseña
+ * nueva) y tocaba «Inicio», y la recarga lo cortaba sin un error, con lo
+ * escrito todavía en la caja. Toda escritura sale ahora por
+ * escrituraEnCamino, que la cuenta (sube al salir, baja al contestar o
+ * fallar), y mientras haya una no es momento seguro en NINGUNA pantalla.
+ * Las lecturas (mi_cuenta, el latido del chat) no frenan: cortarlas no
+ * pierde nada. Al terminar la última se vuelve a preguntar (revisar).
+ * ======================================================================== */
+var ESCRITURAS_EN_CAMINO = 0;
+/* Devuelve la MISMA promesa; el conteo va en una rama aparte que se traga el
+   error. */
+function escrituraEnCamino(p) {
+  if (!p || typeof p.then !== 'function') return p;
+  ESCRITURAS_EN_CAMINO = (ESCRITURAS_EN_CAMINO || 0) + 1;
+  avisarQueEmpieza();
+  var fin = function () {
+    ESCRITURAS_EN_CAMINO = Math.max(0, (ESCRITURAS_EN_CAMINO || 0) - 1);
+    avisarQueTermino();
+  };
+  p.then(fin, fin);
+  return p;
+}
+function hayEscriturasEnCamino() { return (ESCRITURAS_EN_CAMINO || 0) > 0; }
+/* 22-oct-2026 (verificación de 35f0687) — EMPEZÓ UNA: la franja se vuelve a
+   mirar YA, no solo al terminar. La que se pintó en el Inicio seguía
+   ofreciendo «Actualizar ahora» con el mensaje o la contraseña en el aire. */
+function avisarQueEmpieza() {
+  if (!ACT || typeof ACT.volverAMirar !== 'function') return;
+  try { ACT.volverAMirar(); } catch (e) {}
+}
+/* Revisar y no yaEsSeguro: la persona puede estar leyendo, y que termine algo
+   en camino no es un cambio de pantalla que ella pidió. */
+function avisarQueTermino() {
+  if (hayEscriturasEnCamino() || !ACT) return;
+  try { ACT.revisar(); } catch (e) {}
+}
+function arrancarActualizar() {
+  var A = window.Actualizar;
+  if (!A || typeof A.iniciar !== 'function') return;
+  try {
+    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroSocio, ocupado: ocupadoSocio, nuncaEsSeguro: nuncaSeguroSocio, lugar: lugarSocio });
+  } catch (e) { ACT = null; return; }
+  var l = ACT && ACT.vuelta && ACT.vuelta.lugar;
+  if (l && PESTANAS_QUE_VUELVEN.indexOf(l.tab) >= 0) PESTANA_AL_VOLVER = l.tab;
+}
+/* La página llegó a una pantalla de la lista: si hay versión esperando, es el
+   momento (un cambio de pantalla que la persona pidió). */
+function avisarQueEsMomento() {
+  if (ACT) { try { ACT.yaEsSeguro(); } catch (e) {} }
+}
+
 /* ========================== ARRANQUE ========================== */
 (function () {
   if (location.search.indexOf('cfg') >= 0) return pantallaConfig();
@@ -4254,6 +4606,9 @@ function pantallaConfig() {
       navigator.serviceWorker.register("../sw.js", { updateViaCache: "none" }).catch(function () {});
     });
   }
+  /* 21-oct-2026 — SE ACTUALIZA SOLA, antes de pintar nada: decide la
+     bienvenida (abajo) y la pestaña a la que se vuelve. */
+  arrancarActualizar();
 
   pintarEntrar();
 
@@ -4273,10 +4628,14 @@ function pantallaConfig() {
      esto no le suma ni un milisegundo. */
   (function () {
     var MINIMO_BIENVENIDA = 2000;
+    /* 21-oct-2026 — SIN BIENVENIDA SI LA RECARGA FUE NUESTRA: la persona no
+       pidió abrir la app, y dos segundos de logo en medio de lo que estaba
+       haciendo parecerían que se cayó. */
+    var minimo = (ACT && ACT.vuelta) ? 0 : MINIMO_BIENVENIDA;
     var h = document.getElementById('hola');
     if (!h) return;
-    var llevaAbierta = performance.now ? performance.now() : MINIMO_BIENVENIDA;
-    var falta = Math.max(0, MINIMO_BIENVENIDA - llevaAbierta);
+    var llevaAbierta = performance.now ? performance.now() : minimo;
+    var falta = Math.max(0, minimo - llevaAbierta);
     setTimeout(function () { h.classList.add('fuera'); }, falta);
   })();
 

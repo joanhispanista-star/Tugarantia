@@ -2,6 +2,30 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<script>
+/* 21-oct-2026 — LA «s» DE HTTPS, TAMBIÉN AQUÍ. Es el mismo cinturón que tienen
+   app/socio.html y platachat/index.html desde agosto (ver su comentario largo),
+   y esta era la única puerta sin él: «Enforce HTTPS» sigue apagado en GitHub
+   Pages y http://tugarantia.net/play/ contesta 200 sin redirigir (curl, 21-oct).
+   En http no hay service worker, ni cámara en vivo, ni GPS, y el registro
+   empieza por la cámara. Y http y https son dos cajones de almacenamiento
+   distintos: el paso guardado a medias quedaría en el que no se vuelve a abrir.
+
+   Va ARRIBA DEL TODO, antes que cualquier otro script, para que el salto
+   ocurra antes de leer nada del cajón equivocado. localhost, 127.0.0.1 y la
+   red de la casa quedan fuera: ahí no hay https. Con try: un banco de pruebas
+   sin `location` no puede caerse por esto. El arreglo de fondo sigue siendo
+   el clic de Joan en Settings → Pages. */
+(function () {
+  try {
+    var h = location.hostname;
+    if (location.protocol === 'http:' && h !== 'localhost' && h !== '127.0.0.1'
+        && String(h).indexOf('192.168.') !== 0 && h !== '[::1]') {
+      location.replace('https:' + location.href.substring(location.protocol.length));
+    }
+  } catch (e) {}
+})();
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Tu Garantía · Crédito rápido y fácil</title>
 <meta name="theme-color" content="#0C0A0B">
@@ -61,11 +85,17 @@
    El ojo: un botón DENTRO del campo que alterna type password/text sobre el
    mismo <input>; el campo no cambia de sitio ni de id, solo se ve.
 
-   El escáner: la caja es 9:16 (no 3:4 como la del rostro) porque en un
-   teléfono vertical el video es 9:16 y así se ve ENTERO: la cédula va de pie y
-   ocupa el 84 % del alto, que es lo que le da al código de barras los 3 px por
-   módulo que el lector necesita. Recortada a 3:4 se perdería un cuarto del
-   cuadro y el código saldría a 2 px: al borde de no leerse.
+   El escáner: la caja era 9:16 (no 3:4 como la del rostro) porque en un
+   teléfono vertical el video es 9:16 y así se veía ENTERO: la cédula iba de pie
+   y ocupaba el 84 % del alto, que era lo que le daba al código de barras los
+   3 px por módulo que el lector necesita.
+   21-oct-2026 — LAS DOS CARAS VAN ACOSTADAS (pedido de Joan, y la causa de que
+   su cédula amarilla no se leyera: de pie había que ponerla a ~7,8 cm y la
+   cámara no enfocaba; ver app/escaner-captura.js). La caja pasa a 4:5 y más
+   ancha (hasta 420 px): el video sigue viéndose a lo ANCHO entero, que es el
+   lado donde ahora va la cédula, y lo que se recorta es arriba y abajo, donde
+   no hay nada que leer. Los píxeles por módulo que se pierden los pone la
+   resolución que se pide (4K ideal).
    El video de la cédula NO se espeja (el del rostro sí, para que se sienta un
    espejo): un código de barras espejado no se lee y una cédula espejada
    desconcierta. La regla lleva dos clases para ganarle a la del rostro, que
@@ -110,9 +140,13 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 .clave-caja .ojo:focus-visible{outline:2px solid var(--rojo-texto);outline-offset:-4px;
   border-radius:10px}
 
-.escaner.escaner-doc{aspect-ratio:9/16;max-width:300px;border-radius:20px;background:var(--laca);
-  --tono:245,197,66}
-.escaner.escaner-doc.enganchado{--tono:124,255,196}
+.escaner.escaner-doc{aspect-ratio:4/5;max-width:420px;border-radius:20px;background:var(--laca);
+  --tono:245,197,66;--mascara:12,10,11}
+/* 21-oct-2026 — «QUE LA PANTALLA SE PONGA VERDE» (Joan). Antes el verde era el
+   borde, las esquinas y la retícula: a un brazo de distancia no se notaba. Ahora
+   con la tarjeta enganchada —que es cuando se está midiendo la nitidez para
+   escoger la foto— vira a verde TODA la máscara de afuera del marco. */
+.escaner.escaner-doc.enganchado{--tono:124,255,196;--mascara:6,86,56}
 .escaner.escaner-doc video,.escaner.escaner-doc canvas{transform:none}
 .escaner.escaner-doc canvas{pointer-events:none}
 
@@ -121,11 +155,21 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    segundo. El borde cambia de punteado a entero y de ámbar a verde con una
    transición, así que el enganche se SIENTE en vez de parpadear. */
 .doc-guia{position:absolute;border-radius:14px;pointer-events:none;
-  box-shadow:0 0 0 9999px rgba(12,10,11,.52);
+  box-shadow:0 0 0 9999px rgba(var(--mascara),.52);
   outline:2px dashed rgba(var(--tono),.85);outline-offset:0;
   transition:outline-color .18s linear,box-shadow .25s linear}
 .escaner-doc.enganchado .doc-guia{outline-style:solid;
-  box-shadow:0 0 0 9999px rgba(12,10,11,.62),0 0 22px 2px rgba(var(--tono),.45) inset}
+  box-shadow:0 0 0 9999px rgba(var(--mascara),.72),0 0 22px 2px rgba(var(--tono),.45) inset}
+/* 21-oct-2026 — EL DESTELLO al tomar la foto: un blanco que se apaga solo. Es
+   la señal de «ya está» que da cualquier cámara, y junto con la vibración
+   (navigator.vibrate, donde exista) dice que se tomó sin tener que mirar. Solo
+   anima opacidad (pruebas/vitrina.test.js). */
+.doc-destello{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+.escaner-doc.destello .doc-destello{animation:doc-destello .45s ease-out}
+@keyframes doc-destello{
+  0%{opacity:.9}
+  100%{opacity:0}
+}
 
 /* LAS CUATRO ESQUINAS, que se cierran al enganchar. Dos capas con el mismo
    gradiente cónico: la de arriba solo pinta las esquinas porque el resto del
@@ -264,6 +308,9 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
   .doc-barrido,.cara-barrido{animation:none;transform:translateY(var(--alto,300px))}
   .doc-red,.cara-red{animation:none}
   .escaner-doc.leido .doc-check,.escaner-doc.leido .doc-listo{animation:none}
+  /* 21-oct-2026 — el destello es un relámpago blanco: a quien pidió menos
+     movimiento no se le dispara. Le queda la vibración y el ✓. */
+  .escaner-doc.destello .doc-destello{animation:none}
 }
 </style>
 </head>
@@ -328,6 +375,10 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
      sabe escribir los pesos como los pidió Joan (1,500.000). -->
 <script src="../app/calculadora-solicitud.js"></script>
 <script src="../app/escaner-cedula.js"></script>
+<!-- 21-oct-2026 — el escáner que escoge la foto más nítida, con la cédula
+     acostada, la linterna sola y el QR de la cédula digital. Puro, como el de
+     arriba; si no llega, el escáner sigue con la cuenta de antes (ECAP). -->
+<script src="../app/escaner-captura.js"></script>
 <!-- 14-sep-2026 — el motor del préstamo con garantía y el lector de la ficha.
      Son los MISMOS que usa el CRM de Joan: la calculadora de la garantía que
      ve el cliente y la cuota que le cobra Joan salen de la misma función.
@@ -342,6 +393,10 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
      marca de «esto te lo contestó una máquina» y el «leído» son reglas, no
      adorno, y no se escriben dos veces. -->
 <script src="../app/chat.js"></script>
+<!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
+     momento seguro (momentoSeguroPlay, abajo). Si no llega, la página funciona
+     igual que antes: solo no avisa. -->
+<script src="../app/actualizar.js"></script>
 <script>
 'use strict';
 
@@ -381,8 +436,26 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    celular cambia a mitad del registro, el registro empieza de cero: también
    lo escrito a mano se borra, y se vuelve al primer paso. Si alguien dice que
    su cuenta salió con el nombre de otra persona, esta fecha dice si tenía la
-   versión que lo impide. */
-var VERSION_PLAY = '2026-10-21';
+   versión que lo impide.
+   21-oct-2026 (misma fecha, tampoco publicada) — y porque esta página dejó de
+   ofrecerse para instalar (la que se instala es app/socio.html) y salta sola
+   a https. Si alguien dice que todavía le sale «Agregar a mi pantalla de
+   inicio» aquí, esta fecha dice si tiene la versión vieja.
+   22-oct-2026 (tampoco publicada) — y porque la franja de «versión nueva» se
+   vuelve a decidir al cambiar de pantalla y «Actualizar ahora» espera lo que
+   va en camino. Si alguien dice que el botón le cortó un pedido, esta fecha
+   dice si tenía la versión que lo impide.
+   23-oct-2026 (tampoco publicada) — y porque el escáner toma la cédula
+   difícil (el código gastado, el frente liso) y pide luz cuando falta. Si
+   alguien dice que la cámara le pedía «Aléjala…» sin parar, esta fecha dice
+   si tenía la versión que lo arregla. */
+var VERSION_PLAY = '2026-10-23';
+/* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
+   ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
+   es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
+   Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no deja pasar
+   uno sin el otro. Sale también en el sello del pie. */
+var VERSION_SITIO = 'v139';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 
 /* La conexión con la nube VIENE PUESTA DE FÁBRICA — 24-ago-2026, la misma
    decisión que salvó a socio.html el 20-ago: con el cajón vacío, cada aparato
@@ -404,6 +477,11 @@ var U = window.CuentaSocio;
    de quién son las fotos. Puro, probado sin cámara. Si no llegó, todo lo
    que lo usa cae al camino de la foto fija (se pregunta `if (!EC)`). */
 var EC = window.EscanerCedula;
+/* 21-oct-2026 — la captura: la ventana del mejor cuadro, la linterna, la
+   resolución y el QR (app/escaner-captura.js). Si no llegó (un teléfono con la
+   caché de ayer y sin señal), el escáner sigue con la cuenta de antes: el
+   bucle pregunta `if (ECAP …)` antes de usarla. */
+var ECAP = window.EscanerCaptura || null;
 /* 8-oct-2026 — pedir lo que uno quiera y leer las condiciones de la propuesta.
    NO entra al guardián de abajo a propósito: si no llegó, la portada y el
    paso de pedir lo dicen en su tarjeta y el resto de la página sigue viva
@@ -1147,7 +1225,12 @@ function olvidarSesionEnCurso() { try { sessionStorage.removeItem(LLAVE_SESION);
  * pueda subirla: una generación sin número dejaría todo descartado.
  * ======================================================================== */
 var GENERACION_DEL_REGISTRO = 0;
-function otraGeneracion() { GENERACION_DEL_REGISTRO = (Number(GENERACION_DEL_REGISTRO) || 0) + 1; }
+function otraGeneracion() {
+  GENERACION_DEL_REGISTRO = (Number(GENERACION_DEL_REGISTRO) || 0) + 1;
+  /* 21-oct-2026 — y la lectura de las letras de la cédula: lo pendiente se
+     olvida y el motor se termina (ver LO QUE SE VE EN LA CÉDULA SE LLENA SOLO). */
+  ocrOlvidar();
+}
 /* Lo que se manda, tomado al tocar, con la generación de ese momento. */
 function fotoDelToque(lo) {
   var f = lo || {};
@@ -1250,10 +1333,13 @@ function cerrarSesionHuerfana(j) {
   var t = j && j.access_token;
   if (!t || !CFG.url || !CFG.anon) return;
   try {
-    var p = fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/logout?scope=local', {
+    /* 21-oct-2026 (R3) — escritura en camino: una sesión que queda abierta
+       en el servidor porque la recarga cortó su cierre es justo lo que esto
+       evita. */
+    var p = escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/logout?scope=local', {
       method: 'POST',
       headers: { apikey: CFG.anon, Authorization: 'Bearer ' + t }
-    });
+    }));
     if (p && p['catch']) p['catch'](function () {});
   } catch (e) {}
 }
@@ -1475,15 +1561,14 @@ function pintarEntrar() {
       '<div id="errEntrar" class="aviso ambar oculto"></div>' +
       '<button class="btn sec sm" style="margin-top:var(--e3)" onclick="olvide()">Olvidé mi contraseña</button>' +
     '</div>' +
-    /* La caja del instalador nace vacía y se llena sola SI el navegador avisa
-       que de verdad puede instalar. Un botón que promete instalar donde no se
-       puede es la clase de mentira chica que este proyecto no se permite. */
-    '<div id="cajaInstalar">' + tarjetaInstalarPlay() + '</div>' +
+    /* 21-oct-2026 — aquí iba la caja del instalador. Se fue: la app que se
+       instala es app/socio.html (ver «DEJARLA EN EL CELULAR», más abajo). */
     plegable('quePasa', TEXTOS.confianza_titulo, TEXTOS.confianza) +
     plegable('laHistoria', TEXTOS.historia_titulo, TEXTOS.historia) +
     pie();
   $('btnEntrar').addEventListener('click', entrar);
   $('inClave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+  avisarQueEsMomento();   // 21-oct-2026 — la portada es de la lista de SE ACTUALIZA SOLA
 }
 
 function tecleaTel(el) {
@@ -1649,12 +1734,14 @@ function mandarAyuda() {
     return fallo(err, 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
   }
   fallo(err, 'Enviando…');
-  fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/pedir_ayuda_clave', {
+  /* 21-oct-2026 (R3) — una escritura en camino: «Volver» lleva a la portada,
+     que es de la lista de SE ACTUALIZA SOLA, y la recarga cortaba el recado. */
+  escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/pedir_ayuda_clave', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + CFG.anon },
     body: JSON.stringify({ p_celular: tel, p_nota: nota })
-  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
+  })).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })
     .then(function (j) {
       if (!j || j.ok !== true) {
         /* Cada motivo dice algo distinto. «No se pudo» tapando un celular mal
@@ -1667,6 +1754,7 @@ function mandarAyuda() {
           : 'No pudimos recibir tu recado ahora. Vuelve a intentar en unos minutos.');
       }
       $('titulo').textContent = 'Recado enviado';
+      VISTA = 'ayuda';   // 21-oct-2026 — cada pantalla dice cuál es: SE ACTUALIZA SOLA mira VISTA
       $('cuerpo').innerHTML =
         '<div class="card"><div class="aviso verde"><b>Listo, lo recibimos.</b></div>' +
           '<p class="sub" style="margin-top:var(--e4)">Te escribimos al ' +
@@ -1881,7 +1969,8 @@ function publicarAvance() {
   var fotos = {};
 
   var cel = REGISTRO.celular;
-  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registro_vivo_publicar', {
+  /* 21-oct-2026 (R3) — escritura en camino (ver LO QUE VA EN CAMINO NO SE CORTA). */
+  return escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registro_vivo_publicar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + CFG.anon },
@@ -1895,7 +1984,7 @@ function publicarAvance() {
       p_testigo: testigoVivo(cel) || null
     })
   }).then(function (r) { return r && r.ok ? r.json() : null; })
-    .then(function (j) { if (j && j.ok === true && j.testigo) anotarTestigoVivo(cel, j.testigo); })
+    .then(function (j) { if (j && j.ok === true && j.testigo) anotarTestigoVivo(cel, j.testigo); }))
     .catch(function () { /* sin señal se sigue registrando igual */ });
 }
 
@@ -1912,12 +2001,15 @@ function borrarAvance(celular) {
   var testigo = testigoVivo(cel);
   if (!testigo) return Promise.resolve();
   olvidarTestigoVivo();
-  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registro_vivo_borrar', {
+  /* 21-oct-2026 (R3) — escritura en camino: quien sale del registro cae en la
+     portada (de la lista de SE ACTUALIZA SOLA), y la recarga dejaba su fila
+     publicada en el acompañamiento. */
+  return escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/registro_vivo_borrar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + CFG.anon },
     body: JSON.stringify({ p_celular: cel, p_testigo: testigo })
-  }).catch(function () {});
+  })).catch(function () {});
 }
 
 function pintarRegistro(paso) {
@@ -1948,18 +2040,24 @@ function pintarRegistro(paso) {
 
   detenerEscaner();   // por si venía del paso del rostro
   detenerEscanerDoc();  // o del de la cédula
+  /* 21-oct-2026 — y sus lienzos: con video 4K el del mejor cuadro son ~8 MB, y
+     quien sale del paso con «Continuar» o «Volver» a mitad de un lado los
+     dejaba vivos el resto de la sesión. Se vuelven a crear si vuelve. */
+  soltarLienzosDoc();
   var cuerpo;
   if (p.id === 'entrada')      cuerpo = pasoEntrada();
   else if (p.id === 'documento') cuerpo = pasoDocumento();
   else if (p.id === 'rostro')  cuerpo = pasoRostro();
   else if (p.id === 'permiso') cuerpo = pasoPermiso();
-  else                         cuerpo = (p.id === 'identidad' ? notaCedulaLeida() : '') + pasoCampos(p.id);
+  else                         cuerpo = (p.id === 'identidad' ? notaCedulaLeida() + notaDeLaFoto() : '') + pasoCampos(p.id);
 
   /* 19-oct-2026 — «Revisa tus datos» solo si hay algo que revisar: quien tocó
      «Prefiero escribir mis datos», o cuya cédula no se leyó, encuentra el
      formulario vacío, y decirle «revisa» sería hablarle de unos datos que la
-     app no llenó. */
-  var titulo = (p.id === 'identidad' && !cedulaLeidaDeEsteRegistro()) ? 'Escribe tus datos' : p.titulo;
+     app no llenó.
+     21-oct-2026 — las letras de la cédula también llenan (o están llenando):
+     eso también es algo que revisar. */
+  var titulo = (p.id === 'identidad' && !cedulaLeidaDeEsteRegistro() && !hayLecturaVisible()) ? 'Escribe tus datos' : p.titulo;
   /* Y en la cédula sin autorizar, «Continuar» sobra: las dos salidas son los
      dos botones del paso («Autorizo y escaneo» y «Prefiero escribir mis
      datos»), y un tercero que hace lo mismo que el segundo con otro nombre
@@ -1981,7 +2079,9 @@ function pintarRegistro(paso) {
          cuenta» (empezarViaje). */
       (conContinuar
         ? '<button class="btn arriba" id="btnSeguir" onclick="siguientePaso()">' +
-            (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : 'Continuar') + '</button>'
+            /* 21-oct-2026 — «Están bien» en «Revisa tus datos» cuando todo
+               está lleno y algo salió de la cédula: el toque que confirma. */
+            (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : (p.id === 'identidad' ? textoBotonIdentidad() : 'Continuar')) + '</button>'
         : '') +
       '<button class="btn sec sm" id="btnVolver" style="margin-top:var(--e3)" onclick="' +
         (PASO === 0 ? (MARCA === 'platachat' ? 'volverAPlataChat()' : 'pintarEntrar()') : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
@@ -2004,6 +2104,9 @@ function pintarRegistro(paso) {
      primer paso tiene que ser solo la cédula, y mientras se teclean el celular
      y la contraseña la red está quieta. */
   if (p.id === 'entrada' && autorizoEsteIntento()) precalentarDetectorRostro();
+  /* 21-oct-2026 — si quedaron letras de la cédula por leer (se llegó aquí sin
+     cerrar el escáner), se leen ya: la cámara de este paso no existe. */
+  if (p.id === 'identidad') ocrLeerLoPendiente();
 }
 
 /* ------------------------------------------------- EL INTENTO — 19-oct-2026
@@ -2403,6 +2506,10 @@ function soltarLoSensibleDelRegistro() {
      sigan en camino ya no tienen a qué registro llegar, y un «Abrir mi cuenta»
      de antes tampoco. */
   otraGeneracion();
+  /* 21-oct-2026 — y la cámara de la cédula con su MEJOR cuadro: ese lienzo es
+     una foto de la cédula a resolución completa, y no puede quedarse en la
+     memoria de la página que ya es de otro flujo. */
+  try { detenerEscanerDoc(); soltarLienzosDoc(); } catch (e) {}
   if (!FOTOS || typeof FOTOS !== 'object') FOTOS = {};
   var l = FOTOS.cedula_leida || FOTOS.leida_anterior;
   /* Lo escrito con la lectura, solo si la lectura era de este registro (o de
@@ -2415,6 +2522,8 @@ function soltarLoSensibleDelRegistro() {
     var ed = esteIntento(FOTOS.de) ? FOTOS.cedula_editado : null;
     sinTocarElToque(function () { quitarIdentidadLeida(l, ed, true); });
   }
+  /* 21-oct-2026 — y lo que escribieron las letras de la cédula, igual. */
+  ocrSoltarConLasFotos();
   FOTOS = {};
   try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
   GPS_PEDIDO = false; AVISO_UN_LADO = ''; PERMISO_SOLTADO = false;
@@ -2447,6 +2556,19 @@ function anotarCampo(el) {
   }
   REGISTRO[campo] = el.value;
   guardarBorrador(REGISTRO);
+  /* 21-oct-2026 — lo que la persona toca, las letras de la cédula ya no lo
+     llenan (aunque lo deje vacío: borrar también es decidir); si cambia lo
+     que llenaron, queda anotado para Joan como con el código (cedula_editado),
+     y su marca «leído de tu cédula» y el botón dicen lo que hay ahora. */
+  if (typeof OCR_CEDULA === 'object' && OCR_CEDULA) OCR_CEDULA.tocados[campo] = true;
+  var vv = FOTOS.cedula_vista;
+  if (vv && vv.llenados && vv.llenados[campo] !== undefined && String(el.value || '') !== String(vv.llenados[campo])) {
+    vv.corregidos = vv.corregidos || {}; vv.corregidos[campo] = true; guardarFotos();
+  }
+  if (CAMPOS_DE_LA_VISTA.indexOf(campo) >= 0) {
+    refrescarMarcaDeLaCedula(campo);
+    var bs = $('btnSeguir'); if (bs && PASOS[PASO] && PASOS[PASO].id === 'identidad') bs.textContent = textoBotonIdentidad();
+  }
 }
 /* 21-sep-2026 — el celular del paso 1 también se anota por tecla. Solo llegaba
    al borrador al tocar «Continuar», así que quien lo escribía y perdía la
@@ -2503,7 +2625,14 @@ function pasoCampos(grupo) {
   return U.camposDelGrupo(grupo).map(function (c) {
     var v = REGISTRO[c.id] === undefined ? '' : REGISTRO[c.id];
     var etiqueta = '<label for="f_' + c.id + '">' + esc(c.etiqueta) +
-      (c.obligatorio ? '' : ' <span class="opc">· opcional</span>') + '</label>';
+      (c.obligatorio ? '' : ' <span class="opc">· opcional</span>') +
+      /* 21-oct-2026 — lo que salió de la cédula (el código o las letras) lo
+         dice en su casilla, y la marca se va si la persona lo cambia
+         (refrescarMarcaDeLaCedula). La caja existe vacía para poder llenarla
+         cuando la lectura de las letras termine con el paso a la vista. */
+      (CAMPOS_DE_LA_VISTA.indexOf(c.id) >= 0
+        ? ' <span class="opc" id="leido_' + c.id + '">' + (deLaCedula(c.id) ? TEXTO_LEIDO_DE_LA_CEDULA : '') + '</span>' : '') +
+      '</label>';
     /* 17-sep-2026 — SE GUARDA MIENTRAS SE ESCRIBE, no al tocar «Continuar».
        El borrador solo se escribía al pasar de paso, así que quien tecleaba su
        dirección y perdía la pestaña —la cámara la tumba, pero la memoria de un
@@ -2586,9 +2715,10 @@ function pasoCampos(grupo) {
        escribe (no hay casilla para ella en el formulario): se muestra para
        que sepa cuál es cuál. */
     if (c.id === 'expedicion') {
+      /* 21-oct-2026 — y dice de dónde salió: el código no la trae, pero las
+         letras del respaldo sí (textoAyudaExpedicion). */
       return nacimientoLeidoHTML() + etiqueta + campo +
-        '<div class="ayuda" id="ayudaExpedicion">No viene en el código de barras: escríbela tú. En la cédula de ' +
-        'ciudadanía está en el respaldo, donde dice «FECHA Y LUGAR DE EXPEDICIÓN», cerca de la firma del Registrador.</div>';
+        '<div class="ayuda" id="ayudaExpedicion">' + esc(textoAyudaExpedicion()) + '</div>';
     }
     /* 8-oct-2026 — EL PORQUÉ YA NO SE PINTA DEBAJO DE CADA PREGUNTA. Hasta hoy
        se le mostraba al socio («si un dato vale la pena pedirlo, vale la pena
@@ -2891,7 +3021,17 @@ function siguientePaso() {
   var errosAqui = r.errores.filter(function (e) { return idsDelPaso.indexOf(e.id) !== -1; });
   if (errosAqui.length) return fallo(err, errosAqui[0].motivo);
   if (faltanAqui.length) {
-    return fallo(err, 'Nos falta ' + faltanAqui.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') + '. Con eso seguimos.');
+    /* 23-oct-2026 — LO QUE LAS LETRAS TODAVÍA ESTÁN LEYENDO NO «FALTA». Quien
+       tocaba «Continuar» con la lectura en curso leía «Nos falta fecha de
+       expedición» al lado de «Estamos leyéndola del respaldo de tu cédula»
+       (la verificación del autollenado, caso 1b): dos frases que se
+       contradicen, y en un teléfono con la primera descarga del motor son
+       decenas de segundos. Se dice la verdad —todavía la estamos leyendo— y,
+       cuando la lectura termina, ocrRefrescarIdentidad quita el aviso (o dice
+       lo que de verdad faltó). No se pasa solo: la que revisa es la persona. */
+    var porLeer = p.id === 'identidad' ? camposPorLeerDeLasLetras(faltanAqui) : [];
+    if (porLeer.length) return fallo(err, textoEsperandoLasLetras(faltanAqui, porLeer));
+    return fallo(err, textoNosFalta(faltanAqui));
   }
   /* 19-oct-2026 — la fecha de expedición, que se teclea: ni después de hoy ni
      (con la cédula leída) de antes de los 18 años. Ver EC.revisarExpedicion. */
@@ -3467,8 +3607,67 @@ function prepararRespaldoNuevo() {
   delete FOTOS.cedula_frente;
   delete FOTOS.cedula_confirmada;
   if (FOTOS.cedula_leida) { FOTOS.leida_anterior = FOTOS.cedula_leida; delete FOTOS.cedula_leida; }
+  /* 21-oct-2026 — lo leído de las LETRAS de la cédula anterior no se aparta
+     para comparar nada (no decide de quién es): se va, con lo que escribió. */
+  ocrSoltarVista();
+  /* 21-oct-2026 (verificación del lote 1, R1) — y qué cédula era: el
+     respaldo nuevo lo decide otra vez, con su propia prueba. */
+  olvidarTipoDelRespaldo();
   return habiaFrente;
 }
+
+/* ===========================================================================
+ * QUÉ CÉDULA ES EL RESPALDO GUARDADO — 21 de octubre de 2026 (verificación
+ * del lote 1, R1: Ley 1581, el RH es un dato de salud)
+ *
+ * Las franjas de las letras (app/ocr-cedula.js, ZONAS) son las de la cédula
+ * AMARILLA. En la DIGITAL (la del QR) el RH, el sexo y la estatura van en el
+ * frente, justo donde cae el bloque que se lee, y el rótulo va encima del
+ * valor: los apellidos caían en «nombres» con «leído de tu cédula». La única
+ * defensa era OCR_CEDULA.digital, que vivía en la memoria y solo se ponía con
+ * un QR leído en vivo: se perdía al relanzar la pestaña (Android, el video
+ * 4K) y no existía si el teléfono no leía el QR y la persona tocaba «Tomar la
+ * foto ahora», que es lo que TEXTO_CEDULA_NUEVA le pide.
+ *
+ * LA REGLA, AL REVÉS: las letras de CUALQUIERA de los dos lados se leen solo
+ * con prueba POSITIVA de que el respaldo guardado es la amarilla — su PDF417
+ * leído, visto sin poder leerlo ('ilegible') o el patrón de sus barras EN EL
+ * RECORTE QUE SE GUARDÓ. No haber visto un QR no prueba nada. La decisión se
+ * guarda CON LA FOTO, en FOTOS (y por eso en el teléfono): sobrevive a
+ * relanzar, y se va con ella (prepararRespaldoNuevo, soltarLasFotos, otro
+ * celular, salir del flujo: todos sueltan FOTOS). Va firmada con la huella de
+ * la foto: si alguien pone otro respaldo por un camino que no pase por
+ * prepararRespaldoNuevo, la marca vieja no le sirve al nuevo.
+ *   'amarilla' — prueba de la amarilla; se leen las letras;
+ *   'digital'  — se vio un QR (en vivo o en el recorte guardado);
+ *   ''         — no se sabe: no se lee nada, y la pantalla no lo promete.
+ * ========================================================================= */
+/* La huella de una foto: el largo y un FNV-1a de 32 bits. Ni un carácter de
+   la foto queda escrito en la marca. (El primo de FNV, 2^24 + 0x193, va
+   armado así y no como literal: vitrina.test.js no deja cifras de siete
+   dígitos escritas a mano en play/.) */
+function firmaDeFoto(s) {
+  s = String(s || '');
+  var h = 0x811c9dc5, primo = (1 << 24) + 0x193;
+  for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, primo); }
+  return s.length.toString(36) + '.' + (h >>> 0).toString(36);
+}
+function anotarTipoDelRespaldo(tipo) {
+  if (!FOTOS.cedula_reverso || (tipo !== 'amarilla' && tipo !== 'digital')) { olvidarTipoDelRespaldo(); return; }
+  FOTOS.cedula_reverso_tipo = tipo;
+  FOTOS.cedula_reverso_tipo_de = firmaDeFoto(FOTOS.cedula_reverso);
+}
+function olvidarTipoDelRespaldo() {
+  if (!FOTOS) return;
+  delete FOTOS.cedula_reverso_tipo; delete FOTOS.cedula_reverso_tipo_de;
+}
+/* 'amarilla' | 'digital' | '' — del respaldo que está guardado AHORA. */
+function tipoDelRespaldo() {
+  var t = FOTOS && FOTOS.cedula_reverso_tipo;
+  if (!FOTOS || !FOTOS.cedula_reverso || (t !== 'amarilla' && t !== 'digital')) return '';
+  return FOTOS.cedula_reverso_tipo_de === firmaDeFoto(FOTOS.cedula_reverso) ? t : '';
+}
+function respaldoEsAmarilla() { return tipoDelRespaldo() === 'amarilla'; }
 /* ¿La cédula recién leída es de otra persona que la de antes en este registro? */
 function esDeOtraPersona(cedula) {
   var antes = FOTOS.cedula_leida || FOTOS.leida_anterior;
@@ -3702,11 +3901,15 @@ function enviarRegistro(sensibles) {
   /* Las dos rutas escritas enteras: el centinela de motor.test.js («la bandeja
      va PRIMERO») las busca por su texto antes del signup. */
   var rutaRegistro = MARCA === 'platachat' ? '/rest/v1/rpc/registrar_abierto_app' : '/rest/v1/rpc/registrar_abierto';
-  return fetch(CFG.url.replace(/\/+$/, '') + rutaRegistro, {
+  /* 21-oct-2026 (R3) — la bandeja y la cuenta son escrituras en camino: el
+     viaje las cubre mientras dice «Creando tu cuenta…», pero su tope de 30 s
+     desbloquea la pantalla y la petición sigue (ver LO QUE VA EN CAMINO NO
+     SE CORTA). */
+  return escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + rutaRegistro, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + CFG.anon },
     body: JSON.stringify(cuerpoRegistro)
-  }).then(function (res) {
+  })).then(function (res) {
       if (!sigueSiendoDeAqui(foto)) throw TARDE;
       if (MARCA === 'platachat' && res.status === 404) {
         throw { humano: 'El registro de PlataChat todavía no está encendido. Tus datos quedaron guardados en este teléfono: ' +
@@ -3728,7 +3931,7 @@ function enviarRegistro(sensibles) {
          que hubiera en vivo después de la bandeja podía ser de Pedro. */
       if (!foto.clave) throw { humano: 'Nos falta la contraseña de este celular: toca «Volver» hasta «Tu celular y tu contraseña» y créala.' };
       anotarSignup(foto);   // 21-oct-2026 — H1: desde aquí la cuenta puede existir aunque no llegue la respuesta
-      return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/signup', {
+      return escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: CFG.anon },
         body: JSON.stringify({
@@ -3736,7 +3939,7 @@ function enviarRegistro(sensibles) {
           password: foto.clave,
           data: { telefono: foto.celular, vinculacion: foto.datos, autorizacion: foto.autorizacion }
         })
-      });
+      }));
     })
     .then(function (res) { return res.json().then(function (j) { return { ok: res.ok, j: j }; }); })
     .then(function (res) {
@@ -3895,11 +4098,12 @@ function guardarLaConstancia(sesion, aut, foto) {
   }
   var datos = { autorizacion: aut, autorizaciones: antes.concat([aut]) };
   try {
-    return fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
+    /* 21-oct-2026 (R3) — escritura en camino (ver LO QUE VA EN CAMINO NO SE CORTA). */
+    return escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', apikey: CFG.anon, Authorization: 'Bearer ' + sesion.access_token },
       body: JSON.stringify({ data: datos })
-    }).then(function (r) {
+    })).then(function (r) {
       if (!r || !r.ok) return 'rechazada';
       /* La copia de la sesión dice lo mismo que la cuenta. */
       try { u.user_metadata = Object.assign({}, meta, datos); sesion.user = u; } catch (e) {}
@@ -4238,10 +4442,13 @@ function rpcSesion(fn, cuerpo, ses, suelta) {
   return suelta ? p : deEstaSesion(ses, p);
 }
 /* La llamada cruda, con el token de `ses`. Todo lo de la cuenta pasa por
-   rpcSesion, que decide si la respuesta se ata a la sesión. */
+   rpcSesion, que decide si la respuesta se ata a la sesión.
+   21-oct-2026 (verificación del lote 1, R3) — y si ESCRIBE, cuenta como
+   escritura en camino (escrituraEnCamino): SE ACTUALIZA SOLA no recarga
+   encima de ella en ninguna pantalla. */
 function rpcConToken(fn, cuerpo, ses) {
   if (!ses || !ses.access_token) return Promise.reject({ sinSesion: true });
-  return fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
+  var p = fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + ses.access_token },
@@ -4254,6 +4461,81 @@ function rpcConToken(fn, cuerpo, ses) {
     var e = new Error('http ' + r.status); e.status = r.status;
     return Promise.reject(e);
   });
+  return (LECTURAS_QUE_NO_FRENAN || []).indexOf(fn) >= 0 ? p : escrituraEnCamino(p);
+}
+
+/* ===========================================================================
+ * LO QUE VA EN CAMINO NO SE CORTA — 21 de octubre de 2026 (verificación del
+ * lote 1, R2 y R3)
+ *
+ * SE ACTUALIZA SOLA recarga la página al llegar a una pantalla de la lista
+ * (Crédito, Historial, la portada), y una recarga CORTA lo que el navegador
+ * tenga en camino. La lista miraba un pedido (PIDIENDO) y la subida de fotos
+ * de la cuenta (SUBIDA_EN_CURSO), y nada más:
+ *   · la foto del comprobante en el chat salía, la persona tocaba
+ *     «Historial» y la recarga la cortaba a mitad de subida, sin un error;
+ *   · lo mismo un mensaje del chat, la contraseña nueva (nunca veía
+ *     «Listo»), el estimado del pedido o el aviso de «Salir» al servidor;
+ *   · y «Salir» con las fotos del registro subiendo: I3 deja esa subida viva
+ *     a propósito (su respuesta suelta la copia del teléfono prestado), pero
+ *     SUBIDA_EN_CURSO queda en null y la portada recargaba en el acto. La
+ *     cédula, la cara y la ubicación de María se quedaban en el teléfono de
+ *     otro, y al día siguiente su cuenta le decía «no alcanzaron a subir».
+ * La regla, en UN sitio: toda escritura sale por escrituraEnCamino, que la
+ * cuenta (sube al salir, baja al contestar o fallar), y mientras haya una no
+ * es momento seguro en NINGUNA pantalla (momentoSeguroPlay). Las lecturas
+ * (el latido del chat, la ficha, la solicitud) no frenan nada: cortarlas no
+ * pierde nada, la recarga las vuelve a pedir. La subida que «Salir» deja
+ * suelta se guarda aparte (SUBIDA_SUELTA), por su nombre: es la promesa de I3.
+ * Cuando la última termina se vuelve a preguntar (avisarQueTermino): sin la
+ * persona mirando, recarga; mirando, solo cambia la franja.
+ * ======================================================================== */
+var ESCRITURAS_EN_CAMINO = 0;
+var SUBIDA_SUELTA = null;
+/* Las RPC de la cuenta que solo leen. Lo que no está aquí cuenta como
+   escritura: una función nueva frena la recarga hasta que alguien diga que
+   solo lee, y no al revés. */
+var LECTURAS_QUE_NO_FRENAN = ['chat_leer_sesion', 'chat_sin_leer_sesion', 'chat_foto_sesion_ver',
+                              'mi_cuenta', 'mi_registro', 'mi_solicitud'];
+/* Devuelve la MISMA promesa: quien llama sigue con su .then y su .catch como
+   siempre. El conteo va en una rama aparte que se traga el error (no deja
+   una promesa rechazada sin atender). */
+function escrituraEnCamino(p) {
+  if (!p || typeof p.then !== 'function') return p;
+  ESCRITURAS_EN_CAMINO = (ESCRITURAS_EN_CAMINO || 0) + 1;
+  avisarQueEmpieza();
+  var fin = function () {
+    ESCRITURAS_EN_CAMINO = Math.max(0, (ESCRITURAS_EN_CAMINO || 0) - 1);
+    avisarQueTermino();
+  };
+  p.then(fin, fin);
+  return p;
+}
+/* «Salir» suelta la subida de la cola de la cuenta (I3): se guarda aquí hasta
+   que conteste, para que ninguna pantalla la tome por momento seguro. */
+function soltarLaSubida(p) {
+  if (!p || typeof p.then !== 'function') return;
+  SUBIDA_SUELTA = p;
+  avisarQueEmpieza();
+  var fin = function () { if (SUBIDA_SUELTA === p) { SUBIDA_SUELTA = null; avisarQueTermino(); } };
+  p.then(fin, fin);
+}
+function hayEscriturasEnCamino() { return (ESCRITURAS_EN_CAMINO || 0) > 0 || !!SUBIDA_SUELTA; }
+/* 22-oct-2026 (verificación de 35f0687) — EMPEZÓ UNA: la franja se vuelve a
+   mirar YA. Solo se miraba al terminar, y la que se pintó con la pantalla
+   segura seguía ofreciendo «Actualizar ahora» con el pedido, la aceptación o
+   el mensaje en el aire; tocarlo los cortaba. Es el único sitio por donde
+   salen las escrituras, así que ninguna pantalla tiene que acordarse. */
+function avisarQueEmpieza() {
+  if (typeof ACT === 'undefined' || !ACT || typeof ACT.volverAMirar !== 'function') return;
+  try { ACT.volverAMirar(); } catch (e) {}
+}
+/* Terminó la última: SE ACTUALIZA SOLA vuelve a mirar con la pantalla de
+   ahora (revisar, no yaEsSeguro: la persona puede estar leyendo, y eso no es
+   un cambio de pantalla que ella pidió). */
+function avisarQueTermino() {
+  if (hayEscriturasEnCamino() || typeof ACT === 'undefined' || !ACT) return;
+  try { ACT.revisar(); } catch (e) {}
 }
 
 /* ================= DESDE QUÉ TELÉFONO — 19-oct-2026 =================
@@ -4478,7 +4760,10 @@ function tarjetaContrapropuesta(sol) {
   var aceptada = sol.estado === 'aceptada';
   var P = CS ? CS.pesos : COP;
   var cond = CS ? CS.condiciones(sol, { hoy: hoyISO() }) : null;
-  if (!aceptada) SOL_EN_PANTALLA = sol;
+  /* 21-oct-2026 — con una propuesta ya aceptada se SUELTA: no tiene casilla ni
+     botón de aceptar, y SE ACTUALIZA SOLA (casillaDeLaPropuestaMarcada) seguía
+     viendo la de antes, con su marca, y no recargaba nunca más en Crédito. */
+  SOL_EN_PANTALLA = aceptada ? null : sol;
   var h = '<div class="card">' +
     (aceptada ? '' : '<div class="aviso ambar"><b>Te hicimos una propuesta.</b> Léela con calma y decide.</div>') +
     '<div class="etq">' + (aceptada ? 'Tu crédito, aceptado' : 'Tu propuesta') + '</div>' +
@@ -4884,6 +5169,9 @@ function sanearFotos() {
    siguiente. `conservarPermiso` solo deja el que dio quien está llenando ESTE
    intento (autorizoEsteIntento): soltar las fotos de OTRO no le quita el suyo. */
 function soltarLasFotos(conservarPermiso) {
+  /* 21-oct-2026 — lo que las letras de esa cédula escribieron en este
+     registro se va con sus fotos (lo corregido a mano se queda). */
+  ocrSoltarConLasFotos();
   var mio = conservarPermiso === true && autorizoEsteIntento();
   FOTOS = mio ? { sensibles: true, sensibles_intento: FOTOS.sensibles_intento || asegurarIntento() } : { sensibles: false };
   guardarFotos();
@@ -5053,10 +5341,16 @@ function pasoDocumento() {
         'onclick="prefieroEscribirMisDatos()">Prefiero escribir mis datos</button>' +
       '<div class="ayuda">Escribe tus datos si tienes cédula de extranjería o pasaporte, o si tu cédula no se deja leer.</div>';
   }
+  /* 21-oct-2026 — LAS DOS CARAS ACOSTADAS, Y «SOLA» SOLO CUANDO ES VERDAD.
+     Decía «la cámara toma las fotos sola: primero el respaldo …, de pie», y
+     las dos cosas fallaban: de pie la cámara no enfocaba (Joan, con su cédula
+     amarilla), y la digital, sin código de barras, nunca se tomaba sola. Ahora
+     se dice cuándo se toma sola (nítida) y qué hacer si no. */
   return arriba +
     '<p class="sub">' + (vivo
-      ? 'Pon tu cédula dentro del marco y la cámara toma las fotos sola: primero el <b>respaldo</b> ' +
-        '(el del código de barras), de pie; después el frente, acostado.'
+      ? 'Pon tu cédula <b>acostada</b> dentro del marco: primero el <b>lado de atrás</b> ' +
+        '(el del código de barras, o el del QR si es la nueva), después el frente. Cuando se ve nítida, ' +
+        'la foto se toma sola; si tarda, toca «Tomar la foto ahora».'
       : 'Con la foto del <b>respaldo</b> de tu cédula (el del código de barras) leemos tu ' +
         'número y tu nombre y te los dejamos escritos. La del frente confirma que es tuya.') + '</p>' +
     '<div id="docCaja">' +
@@ -5116,6 +5410,10 @@ function autorizarYEscanear() {
    faltan: escoger escribir no es perder una foto. */
 function prefieroEscribirMisDatos() {
   detenerEscanerDoc();
+  /* 21-oct-2026 — y suelta los lienzos: desde hoy el botón también está DENTRO
+     del escáner abierto (escanerDocHTML), y con video 4K el del mejor cuadro
+     son ~8 MB que nadie va a volver a mirar. */
+  soltarLienzosDoc();
   pintarRegistro(indiceDe('identidad'));
 }
 /* 19-oct-2026 — la ubicación, una vez y cuando ya no compite con la cámara:
@@ -5414,10 +5712,19 @@ function leerCodigoDeBarras(lienzo, gen) {
   var leido = $('docLeido');
   if (leido) { leido.classList.remove('oculto'); leido.innerHTML = 'Leyendo el código de barras…'; }
   var giro = null;
+  /* 21-oct-2026 (verificación del lote 1, R1) — la foto de la que sale ESTE
+     lienzo: la prueba de la amarilla se anota solo si sigue siendo ella. */
+  var foto = FOTOS.cedula_reverso;
   return cargarScript(URL_ZXING).then(respiro).then(function () {
     if (gen !== GENERACION_DEL_REGISTRO) return;
     var r = leerCedulaDeLienzo(lienzo, EC ? EC.GIROS_DE_RESCATE : null, 'siempre');
     giro = r.giro;
+    /* Su PDF417 leído, visto sin leer o su patrón, en la versión grande de
+       ESTA foto: es la amarilla (ver QUÉ CÉDULA ES EL RESPALDO). Un frente
+       escaneado después con la cámara en vivo se lee igual que antes. */
+    if ((r.cedula || r.error === 'ilegible' || r.patron) && foto && FOTOS.cedula_reverso === foto) {
+      anotarTipoDelRespaldo('amarilla'); guardarFotos();
+    }
     if (!r.cedula) throw new Error(r.error || 'sin datos');
     /* 20-oct-2026, revisión (regla 2) — otro número que el de la cédula que
        ya había en este registro es otra persona: se borra todo y se pide el
@@ -5496,9 +5803,13 @@ function notaCedulaLeida() {
     /* Y si la foto del respaldo está pero el código no se leyó (la cédula
        nueva, o una foto movida), se dice: si no, el formulario vacío parece
        un error de la app. */
+    /* 21-oct-2026 — mientras las letras de la cédula se leen (o si ya
+       llenaron algo), «los escribes tú» no es lo que pasa: la nota se
+       esconde y habla notaDeLaFoto. Si la lectura no saca nada, vuelve
+       (ocrRefrescarIdentidad). */
     if (hayFotoLista('cedula_reverso')) {
-      return '<div class="aviso ambar" id="notaSinLeer">No alcanzamos a leer el código de barras de tu cédula, ' +
-        'así que esta vez los datos los escribes tú, como aparecen en ella. La foto sí quedó guardada.</div>';
+      return '<div class="aviso ambar' + (hayLecturaVisible() ? ' oculto' : '') + '" id="notaSinLeer">' +
+        textoSinLeer(tipoDelRespaldo()) + '</div>';
     }
     return '';
   }
@@ -5507,6 +5818,28 @@ function notaCedulaLeida() {
   return '<div class="aviso info" id="notaLeida"><b>Estos datos no los escribiste tú: tus nombres, tus apellidos y tu ' +
     'número de documento los leímos del código de barras del respaldo de tu cédula.</b> Revísalos y corrige lo que ' +
     'esté mal — si cambias algo, nos queda anotado y lo miramos, que es justamente para lo que sirve.</div>';
+}
+/* 23-oct-2026 — LA NOTA DE «LOS ESCRIBES TÚ», SEGÚN QUÉ CÉDULA ES. Decía
+   siempre «No alcanzamos a leer el código de barras de tu cédula», y la
+   verificación del autollenado la vio en la cédula DIGITAL, que no trae
+   código de barras: el escáner le acababa de decir «Tu cédula es la nueva
+   (la del QR)» y esta nota le contaba un fallo que no hubo. Lo que se sabe
+   del respaldo guardado (tipoDelRespaldo, la marca que va con la foto):
+     'digital'  — se vio su QR: sus datos todavía no se saben leer;
+     'amarilla' — se vio su PDF417 y no se leyó: lo de siempre;
+     ''         — no se sabe cuál es (la cámara del celular, o nada visto):
+                  ni código de barras ni QR, la cédula. */
+function textoSinLeer(tipo) {
+  if (tipo === 'digital') {
+    return 'Tu cédula es la nueva (la del QR) y sus datos todavía no los sabemos leer, así que los escribes tú, ' +
+      'como aparecen en ella. La foto sí quedó guardada.';
+  }
+  if (tipo === 'amarilla') {
+    return 'No alcanzamos a leer el código de barras de tu cédula, así que esta vez los datos los escribes tú, ' +
+      'como aparecen en ella. La foto sí quedó guardada.';
+  }
+  return 'No alcanzamos a leer tu cédula, así que esta vez los datos los escribes tú, como aparecen en ella. ' +
+    'La foto sí quedó guardada.';
 }
 /* ¿Hay una lectura del código de barras que sea de este registro? */
 function cedulaLeidaDeEsteRegistro() {
@@ -5548,13 +5881,18 @@ function expedicionMinima() {
                  no se puede pagar el análisis de cada cuadro);
      'siempre' → también si no leyó, por el patrón del código (el disparo
                  final y la foto de la galería). */
-function leerCedulaDeLienzo(lienzo, giros, orientar) {
+/* 21-oct-2026 — `banda` (opcional, {y0, y1} en filas del lienzo): leer solo la
+   franja del código (EscanerCaptura.bandaDeLectura). Con video 4K el recorte
+   entero son ~8 MB de píxeles por lectura; la franja, un tercio. Con banda no
+   se prueba el giro de 90°: la banda sale del recorte acostado del escáner,
+   nunca de una foto de pie. */
+function leerCedulaDeLienzo(lienzo, giros, orientar, banda) {
   if (!EC || !window.ZXing || !lienzo || !lienzo.width) return { cedula: null, error: 'sin_lector', giro: null };
   var bases = [0];
-  if (lienzo.height > lienzo.width) bases.push(90);
+  if (!banda && lienzo.height > lienzo.width) bases.push(90);
   var ultimo = 'no_hay', giroSinLeer = null, patron = false;
   for (var b = 0; b < bases.length; b++) {
-    var r = decodificarConGiro(lienzo, bases[b], b === 0 ? orientar : (orientar ? 'si_lee' : ''));
+    var r = decodificarConGiro(lienzo, bases[b], b === 0 ? orientar : (orientar ? 'si_lee' : ''), banda);
     if (b === 0 && r.orientacion && r.orientacion.seguro) { giroSinLeer = r.orientacion.giro; patron = true; }
     if (r.texto) {
       var ced = EC.cedulaDelTexto(U.leerCedulaPDF417, r.texto);
@@ -5564,7 +5902,7 @@ function leerCedulaDeLienzo(lienzo, giros, orientar) {
     ultimo = r.error;
     if (r.error === 'ilegible' && giros && giros.length) {
       for (var i = 0; i < giros.length; i++) {
-        var rr = decodificarConGiro(lienzo, bases[b] + giros[i], orientar ? 'si_lee' : '');
+        var rr = decodificarConGiro(lienzo, bases[b] + giros[i], orientar ? 'si_lee' : '', banda);
         if (rr.texto) {
           var c2 = EC.cedulaDelTexto(U.leerCedulaPDF417, rr.texto);
           /* Los giros de rescate son de 2 y 4 grados: para la foto no cuentan. */
@@ -5586,21 +5924,30 @@ function giroTotal(base, ori) {
   g = ((g % 360) + 360) % 360;
   return g ? g : (ori && ori.seguro ? 0 : null);
 }
-function decodificarConGiro(lienzo, grados, orientar) {
-  if (!grados) return decodificarLienzo(lienzo, orientar);
+function decodificarConGiro(lienzo, grados, orientar, banda) {
+  if (!grados) return decodificarLienzo(lienzo, orientar, banda);
   var g = lienzoGirado(lienzo, grados);
-  return g ? decodificarLienzo(g, orientar) : { error: 'no_hay' };
+  /* Los giros de rescate son de 2 y 4 grados: la franja se corre menos que el
+     aire que lleva (EscanerCaptura.bandaDeLectura). Uno de 90° no la tiene. */
+  return g ? decodificarLienzo(g, orientar, Math.abs(grados) < 45 ? banda : null) : { error: 'no_hay' };
 }
 /* La ruta pura: píxeles → gris → ZXing, una vez, sin <img>, sin data URL, sin
    lienzo de captura interno. Lo que reserva se suelta al salir.
    8-oct-2026 — la orientación se mide sobre ESTE MISMO gris, mientras vive:
-   pedirle otra vez los píxeles al lienzo serían otros 7 MB en el peor momento. */
-function decodificarLienzo(c, orientar) {
-  var gris, w, h;
+   pedirle otra vez los píxeles al lienzo serían otros 7 MB en el peor momento.
+   21-oct-2026 — con `banda`, solo esas filas, y la orientación se mide en
+   ELLAS: el lector da sus esquinas en el marco de la imagen que recibió (la
+   franja), volteada si la volteó para leer, así que la comparación con el
+   lugar espejado vale dentro de la franja igual que en la tarjeta entera. Si
+   la franja queda simétrica y esa comparación no decide, decide el patrón de
+   las barras, que cabe entero en la franja. */
+function decodificarLienzo(c, orientar, banda) {
+  var gris, w, h, y0 = 0;
   try {
     var x = c.getContext('2d', { willReadFrequently: true });
     w = c.width; h = c.height;
-    var d = x.getImageData(0, 0, w, h).data;
+    if (banda && banda.y1 > banda.y0 && banda.y0 >= 0 && banda.y1 <= h) { y0 = banda.y0; h = banda.y1 - banda.y0; }
+    var d = x.getImageData(0, y0, w, h).data;
     gris = EC.grisDeImageData(d, w, h); d = null;
   } catch (e) {
     /* No se pudo ni mirar el lienzo (memoria, o un lienzo manchado). Eso NO es
@@ -5633,11 +5980,16 @@ function giroPorPatron(c) {
    que en el respaldo cuenta como «vio el código» (leerCuadroDoc): leído,
    encontrado sin poder leerlo, o el patrón de sus barras. Sin ZXing (todavía
    bajando), solo el patrón, que es aritmética de este archivo. */
-function codigoEnRecorte(c) {
+/* 21-oct-2026 — Y EL QR. El lado de atrás de la cédula digital no trae PDF417
+   sino un QR: sin esto, quien la acostaba sin voltear en el marco del frente
+   guardaba el respaldo como frente (la falla de William, por la otra cédula).
+   `banda` (opcional): mirar el PDF417 solo en su franja (ver leerCedulaDeLienzo). */
+function codigoEnRecorte(c, banda) {
   if (!EC || !c || !c.width) return false;
   if (window.ZXing) {
-    var r = leerCedulaDeLienzo(c, null, 'siempre');
-    return !!(r.cedula || r.error === 'ilegible' || r.patron);
+    var r = leerCedulaDeLienzo(c, null, 'siempre', banda);
+    if (r.cedula || r.error === 'ilegible' || r.patron) return true;
+    return qrEnLienzo(c);
   }
   return giroPorPatron(c) !== null;
 }
@@ -5648,6 +6000,9 @@ function codigoEnRecorte(c) {
 function enderezarFotoGuardada(key, giro) {
   var src = FOTOS[key];
   if (!src || !giro || typeof Image !== 'function') return Promise.resolve(false);
+  /* 21-oct-2026 (verificación del lote 1, R1) — enderezarla es la MISMA foto:
+     qué cédula es se queda, firmado con la foto derecha. */
+  var tipo = key === 'cedula_reverso' ? tipoDelRespaldo() : '';
   return new Promise(function (res) {
     var img = new Image();
     img.onload = function () {
@@ -5662,6 +6017,7 @@ function enderezarFotoGuardada(key, giro) {
       img.onload = img.onerror = null;
       if (!out || FOTOS[key] !== src) return res(false);
       FOTOS[key] = out;
+      if (tipo) anotarTipoDelRespaldo(tipo);
       guardarFotos();
       var caja = $('fot_' + key), im = caja && caja.querySelector ? caja.querySelector('img') : null;
       if (im) im.src = out;
@@ -5720,10 +6076,19 @@ function lienzoGirado(lienzo, grados) {
  * decodeFromVideoDevice de ZXing: ese reintenta a 0 ms sobre el cuadro entero,
  * 4-10 MB de basura por intento con el hilo principal al 100 %.
  *
- * LA CÉDULA VA DE PIE en un teléfono vertical: así el código de barras ocupa
- * ~85 % de los 1920 px del cuadro y sale a 3-4 px por módulo (el lector
- * necesita 2,5 con el desenfoque normal de un celular); acostada apenas
- * llegaría a 2. Como el lector no lee de pie, el recorte se gira 90° antes.
+ * LA CÉDULA IBA DE PIE en un teléfono vertical, para que el código de barras
+ * ocupara ~85 % de los 1920 px del cuadro. 21-oct-2026 — YA NO: de pie había
+ * que ponerla a ~7,8 cm y la cámara no enfocaba (la cédula amarilla de Joan
+ * nunca se leyó). Las dos caras van ACOSTADAS, a lo ancho del video, se pide
+ * 4K para recuperar los píxeles por módulo, y el recorte ya no se gira.
+ *
+ * 21-oct-2026 — LA FOTO ES LA MÁS NÍTIDA, NO LA SEXTA QUIETA. La puerta de 96
+ * px sigue diciendo si hay tarjeta, con luz y quieta (es barata y no ve el
+ * desenfoque). En verde, cada cuadro se mide a la escala de la foto (480 px,
+ * EscanerCaptura.nitidezDeGris) y en una ventana de ~1 s se guarda SOLO el
+ * mejor, en el mismo lienzo del recorte: ese se lee y ese se dispara. Ver
+ * bucleConVentana. Sin esa medida (un escaner-captura.js que no llegó, o un
+ * lienzo que no deja leer sus píxeles) el bucle sigue con la cuenta de antes.
  *
  * SIEMPRE HAY SALIDA: «Tomar la foto ahora» dispara sin lectura; sin cámara en
  * vivo (permiso negado, visor sin cámara, o el permiso que nunca contesta) se
@@ -5746,7 +6111,28 @@ var ESCDOC = { activo: false, pausado: false, stream: null, lado: '', estables: 
                   (EC.decidirFrente): `limpias` cuenta las miradas de esta racha
                   que no vieron código, y `tRechazoAMano` es cuándo se rechazó una
                   toma a mano por traer código (el segundo toque la guarda igual). */
-               limpias: 0, tRechazoAMano: 0 };
+               limpias: 0, tRechazoAMano: 0,
+               /* 21-oct-2026 — la ventana del mejor cuadro (EscanerCaptura) y su
+                  lienzo chico de medir; `mejorPendiente`: el mejor guardado todavía
+                  no se leyó (respaldo) o no se miró (frente); `sinVentana`: este
+                  navegador no deja medir, y el bucle sigue con la cuenta de antes. */
+               ventana: null, medida: null, lienzoQr: null, mejorPendiente: false, sinVentana: false,
+               franjaMejor: null, altoMedida: 0,   // dónde se vio el código en el mejor (EC.franjaDeBarras)
+               franjaDelCodigo: false,             // 23-oct-2026 — y si esa franja es la del código (la banda solo con ella)
+               vioQr: false, aviso: null, msBorrosa: 0,
+               /* 23-oct-2026 — el PDF417 gastado. `vioFranja`: en ESTA racha se
+                  vio la franja de sus barras en su sitio (EC.franjaComoLaDelCodigo)
+                  sin código visto; con ella el respaldo dispara tras su rato
+                  (ECAP.decidirVentana). `vioBarras`: en ESTE lado se vio algo
+                  del PDF417 (la franja, su patrón, o encontrado sin leer): es
+                  la amarilla, y no se le sugiere la cédula digital
+                  (notaCedulaNueva). */
+               vioFranja: false, vioBarras: false,
+               /* 21-oct-2026 — la linterna sola: si la cámara la tiene, cuánto lleva
+                  oscuro, y si alguien (la persona o un reflejo) dijo que no. */
+               puedeLuz: false, msOscura: 0, luzNoAuto: false, luzReflejo: false, pedirLuz: false,
+               /* 21-oct-2026 — lo que la cámara entregó de verdad (track.getSettings). */
+               resolucion: null };
 var ALTO_GRIS_DOC = 96;        // el gris chico de la puerta: 96 px de alto, ancho proporcional
 var MS_ESPERA_CAMARA = 9000;   // si el permiso nunca contesta, no se queda «Encendiendo…» para siempre
 
@@ -5791,11 +6177,18 @@ function escanerDocHTML() {
         '<div class="doc-progreso"><i></i></div>' +
       '</div>' +
       '<div class="doc-listo"><div class="doc-check">' + iconoCheck() + '</div><div class="doc-listo-txt" id="docListoTxt"></div></div>' +
+      '<div class="doc-destello"></div>' +
       '<div class="escaner-estado" id="docEstado">Encendiendo la cámara…</div>' +
     '</div>' +
+    /* 21-oct-2026 — «Tomar la foto ahora» y «Prefiero escribir mis datos»
+       SIEMPRE a la vista, también con el escáner abierto: la foto automática
+       es la comodidad, no el único camino, y la cuenta no se puede condicionar
+       a un dato sensible (Ley 1581 de 2012, art. 6). La luz solo aparece si la
+       cámara la tiene (pintarBotonLuz), y dice lo que va a hacer. */
     '<div class="doc-acciones">' +
       '<button class="btn sec sm" type="button" id="btnDocCapturar" onclick="capturarDoc()">Tomar la foto ahora</button>' +
-      '<button class="btn sec sm oculto" type="button" id="btnDocLinterna" onclick="alternarLinterna()">🔦 Luz</button>' +
+      '<button class="btn sec sm oculto" type="button" id="btnDocLinterna" onclick="alternarLinterna()">Prender la luz</button>' +
+      '<button class="btn sec sm" type="button" id="btnDocEscribir" onclick="prefieroEscribirMisDatos()">Prefiero escribir mis datos</button>' +
       '<button class="btn sec sm" type="button" onclick="cerrarEscanerDoc()">Cancelar</button>' +
     '</div>';
 }
@@ -5810,13 +6203,16 @@ function refrescarDoc() {
   var f = $('docFijo'); if (f) f.innerHTML = cajasDoc();
 }
 
-/* Lo que se le pide en cada cara, y de una vez: el respaldo de pie (el código
-   necesita el lado largo del cuadro) y el frente acostado con la foto a la
-   izquierda, que es como se guarda derecho para el CRM. */
+/* Lo que se le pide en cada cara, y de una vez. 21-oct-2026 — LAS DOS
+   ACOSTADAS: el respaldo iba de pie (el código necesitaba el lado largo del
+   cuadro) y así la cámara no enfocaba. El frente sigue con la foto a la
+   izquierda, que es como se guarda derecho para el CRM. Y ya no dice «la foto
+   se toma sola»: con la cédula digital no se tomaba, y con una borrosa
+   tampoco; eso lo dice el letrero cuando de verdad la está buscando. */
 function textoDelLado(lado) {
   return lado === 'frente'
-    ? 'Ahora el frente, acostado y con tu foto a la izquierda'
-    : 'Pon el respaldo de tu cédula de pie en el marco: la foto se toma sola.';
+    ? 'Ahora el frente: tu cédula acostada, con tu foto a la izquierda'
+    : 'Pon tu cédula acostada dentro del marco, por el lado de atrás';
 }
 /* 19-oct-2026 — lo que se dice cuando en el marco del frente se ve el código
    de barras: qué hacer, no qué pasó. Y la salida para quien está seguro de que
@@ -5834,6 +6230,15 @@ var TEXTO_GUARDAR_FRENTE_IGUAL = 'Si de verdad es el frente (el lado con tu foto
 /* 20-oct-2026, revisión (F9) — decía «toca … dos veces», y eso es justo un
    doble toque, que ya no guarda: ahora dice lo que de verdad la guarda. */
 var TEXTO_FRENTE_DOS_TOQUES = 'Si ya tienes el frente en el marco (el lado con tu foto), toca «Tomar la foto ahora», espera el aviso y vuelve a tocarlo: la guardamos así.';
+/* 21-oct-2026 — el respaldo que no muestra ningún código en el camino SIN
+   medida de nitidez: puede ser el frente, o el lado de atrás desenfocado. */
+var TEXTO_SIN_CODIGO_A_CIEGAS = 'No vemos el código: aléjala un poco o, si es el frente, voltéala';
+/* 21-oct-2026 — la nota de la cédula digital. Decía que «no trae código de
+   barras»: no trae el PDF417, pero sí un QR, y desde hoy ese QR es lo que la
+   hace tomarse sola. Si a los 12 s nada se vio, puede que este teléfono no
+   lea QR: se dice qué hacer sin prometer que se toma sola. */
+var TEXTO_CEDULA_NUEVA = '¿Tu cédula es la nueva, gris y de plástico? Pon en el marco el lado del QR. ' +
+  'Sus datos todavía no los sabemos leer: si la foto no se toma sola, toca «Tomar la foto ahora» y escribes tus datos.';
 /* 8-oct-2026 — un lado nuevo empieza de cero: la racha, el rato en verde y el
    mejor cuadro son de ESTE lado, no del anterior. */
 function reiniciarCuentaDoc() {
@@ -5841,6 +6246,12 @@ function reiniciarCuentaDoc() {
   ESCDOC.lecturas = 0; ESCDOC.msVerde = 0; ESCDOC.mejorNitidez = 0; ESCDOC.tUltimo = 0;
   ESCDOC.vioCodigo = false; ESCDOC.tPatron = 0;
   ESCDOC.limpias = 0; ESCDOC.tRechazoAMano = 0; ESCDOC.avisoFrenteVisto = false;
+  /* 21-oct-2026 — la ventana, el QR visto y lo borroso son de ESTE lado; y un
+     reflejo en una cara no veta la linterna en la otra (la foto del frente
+     refleja distinto que el código). */
+  ESCDOC.ventana = null; ESCDOC.mejorPendiente = false; ESCDOC.vioQr = false;
+  ESCDOC.aviso = null; ESCDOC.msBorrosa = 0; ESCDOC.luzReflejo = false; ESCDOC.pedirLuz = false;
+  ESCDOC.vioFranja = false; ESCDOC.vioBarras = false;   // 23-oct-2026 — de ESTE lado
 }
 function iniciarEscanerDoc(lado) {
   if (!hayCamaraEnVivo()) return escanerDocSinCamara('Este navegador no deja usar la cámara en vivo.');
@@ -5848,6 +6259,11 @@ function iniciarEscanerDoc(lado) {
   ESCDOC.lado = lado || 'reverso'; reiniciarCuentaDoc();
   ESCDOC.ultima = 0; ESCDOC.dura = 0; ESCDOC.pausado = false;
   ESCDOC.cajaW = ESCDOC.cajaH = ESCDOC.videoW = ESCDOC.videoH = 0; ESCDOC.guiaCaja = ESCDOC.guiaVideo = null;
+  /* 21-oct-2026 — cada encendido pregunta otra vez qué trae la cámara, y quien
+     apagó la luz en el encendido anterior vuelve a tenerla automática. */
+  ESCDOC.puedeLuz = false; ESCDOC.luzNoAuto = false; ESCDOC.msOscura = 0; ESCDOC.resolucion = null;
+  ESCDOC.sinVentana = false;
+  pintarBotonLuz();
   ESCDOC.activo = true;
   /* Cada encendido lleva número. El flujo de un intento anterior que llegue
      tarde —la persona tocó «Escanear», canceló y volvió a tocar— se apaga en
@@ -5860,6 +6276,11 @@ function iniciarEscanerDoc(lado) {
   var estado = $('docEstado'); if (estado) estado.textContent = 'Encendiendo la cámara…';
   var v = $('docVideo'); if (!v) return;
   cargarScript(URL_ZXING).catch(function () {});   // se precalienta mientras la cámara enciende
+  /* 21-oct-2026 — la cámara se enciende: una lectura de las letras en curso se
+     deja (nunca las dos juntas), y el módulo chico de las franjas se baja ya,
+     para que esté al disparar (ver LO QUE SE VE EN LA CÉDULA SE LLENA SOLO). */
+  ocrPausar();
+  cargarScript(URL_OCR_CEDULA).catch(function () {});
   prepararDetectorNativo();
   vigilarVisibilidadDoc();
   ESCDOC.espera = setTimeout(function () {
@@ -5870,7 +6291,11 @@ function iniciarEscanerDoc(lado) {
       'Si prefieres, toma las fotos con la cámara del celular aquí abajo.';
     var f2 = $('docFijo'); if (f2) f2.classList.remove('oculto');
   }, MS_ESPERA_CAMARA);
-  navigator.mediaDevices.getUserMedia({
+  /* 21-oct-2026 — 4K ideal (EscanerCaptura.pedidoDeCamara): con la cédula
+     acostada, 1080 deja el código de barras en el límite del lector. Siempre
+     `ideal`, nunca `min`: un mínimo que la cámara no cumple tumba el escáner
+     entero. Lo que de verdad dio se lee después (afinarCamaraDoc). */
+  navigator.mediaDevices.getUserMedia(ECAP && ECAP.pedidoDeCamara ? ECAP.pedidoDeCamara() : {
     video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false
   }).then(function (stream) {
     if (ESCDOC.espera) { clearTimeout(ESCDOC.espera); ESCDOC.espera = null; }
@@ -5897,26 +6322,85 @@ function iniciarEscanerDoc(lado) {
 /* Enfoque continuo y linterna, si la cámara los tiene. Se pregunta DESPUÉS de
    que el video arrancó: recién pedido, getCapabilities suele venir vacío. */
 function afinarCamaraDoc(pista) {
+  /* 21-oct-2026 — LO QUE LA CÁMARA DIO DE VERDAD. Se pide 4K «ideal», y un
+     teléfono de 1080 da 1080: se anota para el que lee lo visible (el enganche
+     de alTomarLaCedula) y para quien mire por qué no autollenó. */
+  try {
+    if (pista && typeof pista.getSettings === 'function' && ECAP && ECAP.resolucionEfectiva) {
+      ESCDOC.resolucion = ECAP.resolucionEfectiva(pista.getSettings() || {});
+    }
+  } catch (e) {}
   if (!pista || typeof pista.getCapabilities !== 'function') return;
   try {
     var caps = pista.getCapabilities() || {};
     if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) {
       pista.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function () {});
     }
-    if (caps.torch) { var b = $('btnDocLinterna'); if (b) b.classList.remove('oculto'); }
+    /* La linterna, SOLO si la cámara la anuncia: en iPhone puede no venir, y
+       entonces la pantalla pide buscar luz en vez de prometer una que no hay. */
+    ESCDOC.puedeLuz = !!caps.torch;
+    pintarBotonLuz();
   } catch (e) {}
 }
+function pistaDoc() {
+  return ESCDOC.stream && ESCDOC.stream.getVideoTracks ? ESCDOC.stream.getVideoTracks()[0] : null;
+}
+/* 21-oct-2026 — EL BOTÓN DICE LO QUE VA A HACER. Antes era «🔦 Luz» para las
+   dos cosas; con la linterna que se prende sola, quien la ve encendida tiene
+   que encontrar cómo apagarla: «Apagar la luz». */
+function pintarBotonLuz() {
+  var b = $('btnDocLinterna'); if (!b) return;
+  if (b.classList) b.classList.toggle('oculto', !ESCDOC.puedeLuz);
+  b.textContent = ESCDOC.linterna ? 'Apagar la luz' : 'Prender la luz';
+}
+function ponerLinterna(prender) {
+  var pista = pistaDoc();
+  if (!pista || !ESCDOC.puedeLuz || typeof pista.applyConstraints !== 'function') return false;
+  var miTurno = ESCDOC.turno;
+  ESCDOC.linterna = !!prender;
+  pintarBotonLuz();
+  /* Asíncrono: si al volver ya es otro encendido (la persona canceló), no se
+     toca nada de este. */
+  pista.applyConstraints({ advanced: [{ torch: !!prender }] }).catch(function () {
+    if (miTurno !== ESCDOC.turno) return;
+    ESCDOC.linterna = false; pintarBotonLuz();
+  });
+  return true;
+}
 function alternarLinterna() {
-  var pista = ESCDOC.stream && ESCDOC.stream.getVideoTracks ? ESCDOC.stream.getVideoTracks()[0] : null;
-  if (!pista) return;
-  ESCDOC.linterna = !ESCDOC.linterna;
-  pista.applyConstraints({ advanced: [{ torch: ESCDOC.linterna }] }).catch(function () { ESCDOC.linterna = false; });
+  var prender = !ESCDOC.linterna;
+  /* La apagó la persona: no se vuelve a prender sola en este encendido. */
+  if (!prender) ESCDOC.luzNoAuto = true;
+  ponerLinterna(prender);
+}
+/* 21-oct-2026 — LA LINTERNA SOLA (Joan: «si no hay mucha iluminación …
+   prender el flash»). Cuenta la oscuridad con histéresis y la decisión es de
+   EscanerCaptura.decidirLinterna: se prende con poca luz, se apaga si hace
+   reflejo, y nunca antes de la autorización ni en una cámara sin torch. */
+function vigilarLinterna(m, dt) {
+  if (!ECAP || !ECAP.decidirLinterna || !m) return;
+  ESCDOC.msOscura = ECAP.acumularOscura(ESCDOC.msOscura, m.luz, dt);
+  var d = ECAP.decidirLinterna({ puede: ESCDOC.puedeLuz, autorizado: autorizoEsteIntento(),
+    prendida: ESCDOC.linterna, vetada: ESCDOC.luzNoAuto || ESCDOC.luzReflejo, luz: m.luz,
+    saturados: m.saturados, msOscura: ESCDOC.msOscura, msBorrosa: ESCDOC.msBorrosa });
+  ESCDOC.pedirLuz = d.pedirLuz;
+  if (d.accion === 'prender') { if (ponerLinterna(true)) avisoDoc(ECAP.TEXTO.LUZ_PRENDIDA); }
+  else if (d.accion === 'apagar') { ESCDOC.luzReflejo = true; ponerLinterna(false); avisoDoc(ECAP.TEXTO.REFLEJO); }
+}
+/* Un letrero que se queda un rato (ECAP.CAPTURA.MS_AVISO) aunque el bucle
+   repinte diez veces por segundo. */
+function avisoDoc(texto) {
+  ESCDOC.aviso = { texto: texto, hasta: Date.now() + (ECAP ? ECAP.CAPTURA.MS_AVISO : 1600) };
 }
 function prepararDetectorNativo() {
   ESCDOC.nativo = null;
   if (typeof BarcodeDetector !== 'function' || typeof BarcodeDetector.getSupportedFormats !== 'function') return;
   BarcodeDetector.getSupportedFormats().then(function (f) {
-    if (f && f.indexOf('pdf417') >= 0) ESCDOC.nativo = new BarcodeDetector({ formats: ['pdf417'] });
+    /* 21-oct-2026 — y el QR: es lo que distingue el lado de atrás de la cédula
+       digital, que no trae PDF417. Su contenido no se usa (clasificarCodigos). */
+    var formatos = ECAP && ECAP.formatosDelDetector ? ECAP.formatosDelDetector(f)
+      : ((f && f.indexOf('pdf417') >= 0) ? ['pdf417'] : []);
+    if (formatos.length) ESCDOC.nativo = new BarcodeDetector({ formats: formatos });
   }).catch(function () {});
 }
 /* Si la persona se va a otra app con la cámara encendida, se apaga (Safari la
@@ -5943,7 +6427,9 @@ function detenerEscanerDoc() {
   if (ESCDOC.espera) { clearTimeout(ESCDOC.espera); ESCDOC.espera = null; }
   if (ESCDOC.stream) { try { ESCDOC.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} ESCDOC.stream = null; }
   var v = $('docVideo'); if (v) { try { v.srcObject = null; } catch (e) {} }
-  ESCDOC.linterna = false;
+  ESCDOC.linterna = false;   // la pista se paró: la linterna se apagó con ella
+  ESCDOC.ventana = null; ESCDOC.mejorPendiente = false;
+  pintarBotonLuz();
 }
 function escanerDocSinCamara(motivo) {
   detenerEscanerDoc();
@@ -5964,13 +6450,20 @@ function cerrarEscanerDoc() {
   var e = $('docEscaner'); if (e) e.classList.add('oculto');
   ocultarListoDoc();
   refrescarDoc();
+  /* 21-oct-2026 — con la cámara apagada, las letras de lo que se disparó. */
+  ocrLeerLoPendiente();
 }
 /* Los tres lienzos del escáner se quedaban vivos toda la sesión después de
    cerrar: el del recorte a resolución completa son 2,4-6,3 MB, y el de girar
    otros tantos. En el teléfono en el que esto importa, sobran. */
 function soltarLienzosDoc() {
   soltarLienzo(ESCDOC.recorte); soltarLienzo(ESCDOC.gris); soltarLienzoGiro();
-  ESCDOC.previa = null;
+  /* 21-oct-2026 — y los dos chicos de la captura (medir la nitidez, buscar el
+     QR). El recorte es además el MEJOR cuadro: una foto de la cédula que no
+     puede quedarse viva fuera del registro. */
+  soltarLienzo(ESCDOC.medida); soltarLienzo(ESCDOC.lienzoQr);
+  ESCDOC.previa = null; ESCDOC.ventana = null; ESCDOC.mejorPendiente = false;
+  ESCDOC.marcoEnRecorte = null;   // 21-oct-2026 — era del recorte que se acaba de soltar
 }
 function repetirDoc(lado) {
   /* 20-oct-2026, revisión (F11, F15; regla 2) — repetir el respaldo es tomar
@@ -5990,12 +6483,15 @@ function repetirDoc(lado) {
    segundo. */
 function medirCajaDoc(v) {
   var caja = $('escDoc'); if (!caja) return;
-  var cw = caja.clientWidth || 300, ch = caja.clientHeight || Math.round(cw * 16 / 9);
+  var cw = caja.clientWidth || 300, ch = caja.clientHeight || Math.round(cw * 5 / 4);
   var vw = (v && v.videoWidth) || 0, vh = (v && v.videoHeight) || 0;
   if (cw === ESCDOC.cajaW && ch === ESCDOC.cajaH && vw === ESCDOC.videoW && vh === ESCDOC.videoH &&
       ESCDOC.ladoGuia === ESCDOC.lado) return;
   ESCDOC.cajaW = cw; ESCDOC.cajaH = ch; ESCDOC.videoW = vw; ESCDOC.videoH = vh; ESCDOC.ladoGuia = ESCDOC.lado;
-  var g = EC.rectanguloGuia(cw, ch, ESCDOC.lado === 'frente');
+  /* 21-oct-2026 — ACOSTADA EN LOS DOS LADOS (el `true` es para un
+     escaner-cedula.js viejo en la caché, que todavía sabe poner el respaldo de
+     pie: así tampoco lo pone). */
+  var g = EC.rectanguloGuia(cw, ch, true);
   ESCDOC.guiaCaja = g;
   /* 21-sep-2026 — el marco se dibuja desde el primer cuadro, aunque el video
      todavía no tenga medidas: antes había uno o dos segundos de caja negra con
@@ -6052,27 +6548,99 @@ function grisDeGuia(v) {
   ESCDOC.interiorGris = vg.interior;
   return EC.grisDeImageData(d, gw, gh);
 }
-/* El recorte del marco a resolución completa, ACOSTADO: si el marco va de pie
-   se gira 90° al dibujar (el lector no lee de pie). Un solo lienzo, reutilizado.
+/* El recorte del marco a resolución completa. Un solo lienzo, reutilizado.
    8-oct-2026 — con un poco de aire alrededor del marco (EC.margenDeLectura):
    quien acerca la cédula de más le cortaba al código su barra de inicio o de
-   fin, y así no se lee nunca. El giro de 90° es siempre el mismo; si con eso
-   la foto queda cabeza abajo, lo corrige quien la guarda (ver giroTotal). */
+   fin, y así no se lee nunca.
+   21-oct-2026 — YA NO SE GIRA: las dos caras van acostadas, y el giro de 90°
+   (siempre hacia el mismo lado) era lo que dejaba la mitad de los respaldos
+   cabeza abajo. Y desde hoy, con la tarjeta en verde, este lienzo guarda el
+   MEJOR cuadro de la ventana (bucleConVentana): solo se redibuja cuando llega
+   uno más nítido, no diez veces por segundo. */
 function recortarGuia(v) {
-  var g = ESCDOC.guiaVideo; if (!g) return null;
+  var marco = ESCDOC.guiaVideo, g = marco; if (!g) return null;
   if (EC.margenDeLectura && v && v.videoWidth) g = EC.margenDeLectura(g, v.videoWidth, v.videoHeight, 0.06);
   if (!ESCDOC.recorte) ESCDOC.recorte = document.createElement('canvas');
-  var c = ESCDOC.recorte, w = g.vertical ? g.h : g.w, h = g.vertical ? g.w : g.h;
+  var c = ESCDOC.recorte, w = g.w, h = g.h;
   if (!w || !h) return null;
   if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
   var x = c.getContext('2d', { willReadFrequently: true }); if (!x) return null;
-  try {
-    x.save();
-    if (g.vertical) { x.translate(w, 0); x.rotate(Math.PI / 2); }
-    x.drawImage(v, g.x, g.y, g.w, g.h, 0, 0, g.w, g.h);
-    x.restore();
-  } catch (e) { return null; }
+  try { x.drawImage(v, g.x, g.y, g.w, g.h, 0, 0, g.w, g.h); } catch (e) { ESCDOC.marcoEnRecorte = null; return null; }
+  /* 21-oct-2026 (integración del lote 1) — DÓNDE QUEDÓ EL MARCO DENTRO DE ESTE
+     RECORTE, anotado AL DIBUJARLO. Las franjas de las letras (app/ocr-cedula.js)
+     son fracciones de la tarjeta, no del recorte, y el recorte lleva aire
+     alrededor (margenDeLectura, recortado contra el borde del video). Antes
+     quien leía las letras lo recalculaba DESPUÉS, con el marco de ese momento;
+     con la ventana del mejor cuadro el recorte puede ser de hasta 1,5 s antes,
+     y si el video cambió de medidas entre tanto (el teléfono girado) las
+     franjas caían corridas — sobre la fila del RH, en el peor caso. Así viaja
+     el marco del MISMO cuadro que se guarda (alTomarLaCedula, d.guia). */
+  ESCDOC.marcoEnRecorte = { x: marco.x - g.x, y: marco.y - g.y, w: marco.w, h: marco.h };
   return c;
+}
+/* 21-oct-2026 — UN LIENZO CHICO, DIBUJADO A ESCALA, Y SU GRIS. Para medir la
+   nitidez (del video, a 480 px) y para buscar el QR (del mejor recorte, a 960):
+   lo caro no se hace a resolución completa. Cada uso tiene su lienzo y se
+   reutiliza (redimensionar uno reserva el mapa de bits de nuevo).
+   @returns {gris, w, h} o null (el banco de pruebas, o un lienzo manchado). */
+function grisAEscala(fuente, sx, sy, sw, sh, w, h, campo) {
+  if (!fuente || !w || !h || !sw || !sh) return null;
+  if (!ESCDOC[campo]) ESCDOC[campo] = document.createElement('canvas');
+  var c = ESCDOC[campo];
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  var x = c.getContext && c.getContext('2d', { willReadFrequently: true }); if (!x) return null;
+  try {
+    x.drawImage(fuente, sx, sy, sw, sh, 0, 0, w, h);
+    return { gris: EC.grisDeImageData(x.getImageData(0, 0, w, h).data, w, h), w: w, h: h };
+  } catch (e) { return null; }
+}
+/* La nitidez del cuadro de AHORA, a la escala de la foto: el mismo rectángulo
+   que recortarGuia (marco + aire), a ANCHO_MEDIDA. Es la que escoge el mejor
+   cuadro; la de la puerta (96 px) no ve el desenfoque.
+   23-oct-2026 — con ECAP.calidadDeGris: la mediana de siempre o el cuarto
+   más nítido de los mosaicos, el mayor. Con un PDF417 gastado o un frente
+   liso la mediana sola la deciden mosaicos que no ven el enfoque, y pedía
+   «Aléjala…» para siempre con la cédula enfocada (ver LA CALIDAD QUE JUZGA
+   LA VENTANA en app/escaner-captura.js). Un escaner-captura.js viejo en la
+   caché no la trae: la mediana, como antes.
+   22-oct-2026 — y `dentro`: las filas del MARCO en este gris. Alrededor queda
+   el aire, que es mesa, y una mesa de rayas finas daba una «franja de
+   barras» que hacía pasar el frente por respaldo (ver LA FRANJA ES DE LA
+   TARJETA en app/escaner-cedula.js). Se calcula del recorte de verdad: junto
+   al borde del video el aire se recorta y el 6 % no vale.
+   23-oct-2026 — y las COLUMNAS del marco (x0, x1): el aire de los lados
+   también es mesa, y sus rayas subían todas las filas de la tarjeta hasta
+   que un renglón del frente pasaba por la franja del código (ver LAS
+   COLUMNAS Y EL PISO DE LA TARJETA en app/escaner-cedula.js). */
+function medirNitidezDoc(v) {
+  if (!ECAP || !ECAP.nitidezDeGris || !v || !v.videoWidth) return null;
+  var g = ESCDOC.guiaVideo; if (!g) return null;
+  var marco = g;
+  if (EC.margenDeLectura) g = EC.margenDeLectura(g, v.videoWidth, v.videoHeight, 0.06);
+  var t = ECAP.tamanoDeMedida(g.w, g.h); if (!t) return null;
+  var r = grisAEscala(v, g.x, g.y, g.w, g.h, t.w, t.h, 'medida');
+  if (!r) return null;
+  r.nitidez = ECAP.calidadDeGris ? ECAP.calidadDeGris(r.gris, r.w, r.h) : ECAP.nitidezDeGris(r.gris, r.w, r.h);
+  r.dentro = { y0: (marco.y - g.y) * r.h / g.h, y1: (marco.y + marco.h - g.y) * r.h / g.h,
+               x0: (marco.x - g.x) * r.w / g.w, x1: (marco.x + marco.w - g.x) * r.w / g.w };
+  return r;
+}
+/* ¿Hay un QR LEÍDO en este lienzo? A 960 px como mucho: el de la cédula digital
+   sale ahí a 4-5 px por módulo, y el recorte entero en 4K serían 8 MB. Solo con
+   ZXing (el detector nativo lo ve por su lado, en leerCuadroDoc). El texto no
+   sale de EscanerCaptura.buscarQr. */
+function qrEnLienzo(c) {
+  if (!ECAP || !ECAP.buscarQr || !window.ZXing || !c || !c.width || !c.height) return false;
+  var w = Math.min(960, c.width), h = Math.max(1, Math.round(w * c.height / c.width));
+  var r = grisAEscala(c, 0, 0, c.width, c.height, w, h, 'lienzoQr');
+  return !!(r && ECAP.buscarQr(window.ZXing, r.gris, r.w, r.h).hay);
+}
+/* 21-oct-2026 (verificación del lote 1, R1) — el QR del recorte que se va a
+   GUARDAR (capturarDoc). Un lienzo que no deja mirarse no es un QR visto: da
+   false, y entonces el respaldo tampoco es la amarilla probada salvo que su
+   PDF417 se haya visto (ver QUÉ CÉDULA ES EL RESPALDO). */
+function qrEnElRecorte(c) {
+  try { return qrEnLienzo(c); } catch (e) { return false; }
 }
 
 function bucleEscanerDoc() {
@@ -6082,11 +6650,11 @@ function bucleEscanerDoc() {
   if (!ESCDOC.desde) ESCDOC.desde = Date.now();
   medirCajaDoc(v);
   var g = grisDeGuia(v);
-  var m = g ? EC.medirTarjeta(g, ESCDOC.previa, ESCDOC.grisW, ESCDOC.grisH, ESCDOC.interiorGris) : null;
+  var esFrente = ESCDOC.lado === 'frente';
+  var m = g ? EC.medirTarjeta(g, ESCDOC.previa, ESCDOC.grisW, ESCDOC.grisH, ESCDOC.interiorGris, opcionesDeLaPuerta(esFrente)) : null;
   ESCDOC.previa = g;
   var verde = !!(m && m.ok);
   if (verde) ESCDOC.estables++; else ESCDOC.estables = 0;
-  var esFrente = ESCDOC.lado === 'frente';
   /* 8-oct-2026 — EL RESPALDO TAMBIÉN DISPARA SOLO (EC.decidirRespaldo). Se
      cuenta el rato que la cédula pasa bien puesta —en verde, no el reloj— y
      el cuadro más nítido visto, para no disparar en un parpadeo del enfoque. */
@@ -6096,6 +6664,13 @@ function bucleEscanerDoc() {
     ESCDOC.msVerde += dt;
     if (m.nitidez > ESCDOC.mejorNitidez) ESCDOC.mejorNitidez = m.nitidez;
   }
+  /* 21-oct-2026 — la linterna mira TODOS los cuadros, verdes o no: la poca luz
+     es justo lo que no deja ponerse en verde. */
+  vigilarLinterna(m, dt);
+  /* 21-oct-2026 — LA FOTO MÁS NÍTIDA. Si este navegador deja medir, el bucle
+     sigue por la ventana del mejor cuadro y lo de abajo no corre; si no, lo de
+     abajo es la cuenta de antes, entera. */
+  if (bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado)) return;
   /* 8-oct-2026 (segunda vuelta) — sin ZXing (todavía bajando, o solo con el
      detector nativo, que no dice nada de un código que no pudo leer), el
      patrón de barras se mira aparte, dos veces por segundo, solo con la
@@ -6103,7 +6678,7 @@ function bucleEscanerDoc() {
   if (!esFrente && verde && !ESCDOC.vioCodigo && !window.ZXing &&
       (ahora - ESCDOC.tPatron) >= 500) {
     ESCDOC.tPatron = ahora;
-    if (giroPorPatron(recortarGuia(v)) !== null) ESCDOC.vioCodigo = true;
+    if (giroPorPatron(recortarGuia(v)) !== null) { ESCDOC.vioCodigo = true; ESCDOC.vioBarras = true; }
   }
   var resp = (!esFrente && EC.decidirRespaldo)
     ? EC.decidirRespaldo({ estables: ESCDOC.estables, msVerde: ESCDOC.msVerde, lecturas: ESCDOC.lecturas,
@@ -6133,28 +6708,27 @@ function bucleEscanerDoc() {
   dibujarMarcoDoc(verde, esFrente ? (fre.voltear ? 0 : Math.min(1, ESCDOC.estables / EC.TARJETA.CUADROS_FRENTE)) : resp.avance);
   var t = (Date.now() - ESCDOC.desde) / 1000;
   if (estado) {
-    var txt = g ? EC.textoDeTarjeta(m) : 'Encendiendo la cámara…';
+    var txt = textoDeLaPuerta(g, m);
+    /* 21-oct-2026 — «acércala» ya no: acostada, lo que desenfoca es tenerla
+       demasiado cerca, y ese consejo empujaba justo hacia el desenfoque. */
     if (verde && !esFrente) txt = (resp.avance >= 1 && ESCDOC.lecturas >= EC.RESPALDO.LECTURAS_MIN) ? 'Quieta… tomando la foto'
       : (!window.ZXing && !ESCDOC.nativo) ? 'Escaneando…'
-      : (ESCDOC.ilegibles >= 2 ? 'Casi: enderézala y acércala un poco' : 'Leyendo el código…');
+      : (ESCDOC.ilegibles >= 2 ? 'Casi: enderézala un poco y déjala quieta' : 'Leyendo el código…');
     if (verde && esFrente) txt = fre.voltear ? TEXTO_FRENTE_ES_RESPALDO
       : 'Quieta… ' + Math.max(1, Math.ceil((EC.TARJETA.CUADROS_FRENTE - ESCDOC.estables) / 3));
     if (verde && esFrente && fre.voltear && t > 10) {
       var nf = $('docNota');
       if (nf && !nf.textContent) nf.textContent = TEXTO_FRENTE_DOS_TOQUES;
     }
-    /* Bien puesta su rato y sin un solo código a la vista: casi seguro es el
-       frente. Se pide voltearla en vez de guardar el lado equivocado. */
-    if (verde && !esFrente && resp.voltear) txt = '¿Es el lado del código de barras? Voltéala';
+    /* Bien puesta su rato y sin un solo código a la vista: puede ser el frente.
+       21-oct-2026 — decía «¿Es el lado del código de barras? Voltéala», y era
+       falso dos veces: a la cédula digital (su lado de atrás trae QR, no
+       barras) y a la amarilla borrosa (el código estaba, pero no se veía). Sin
+       la medida de nitidez (este camino) no se sabe cuál de las tres es: se
+       dicen las dos salidas. */
+    if (verde && !esFrente && resp.voltear) txt = TEXTO_SIN_CODIGO_A_CIEGAS;
     if (t > 20 && !verde) txt = 'Tranquilo: si no sale, toca «Tomar la foto ahora»';
-    /* Doce segundos viendo la tarjeta bien puesta y sin encontrar ningún
-       código: casi seguro es la cédula nueva, la gris de plástico, que no
-       trae código de barras. Decirlo ahorra el minuto de pelea. */
-    if (!esFrente && t > 12 && ESCDOC.lecturas > 6 && !ESCDOC.ilegibles) {
-      var nd = $('docNota');
-      if (nd && !nd.textContent) nd.textContent = '¿Tu cédula es la nueva, gris y de plástico? ' +
-        'Esa no trae código de barras y todavía no la sabemos leer: toca «Tomar la foto ahora» y escribes tus datos.';
-    }
+    notaCedulaNueva(esFrente, t);
     estado.textContent = txt;
   }
   if (esFrente) {
@@ -6171,19 +6745,210 @@ function bucleEscanerDoc() {
   }
   ESCDOC.tempo = setTimeout(bucleEscanerDoc, 100);
 }
+/* Doce segundos viendo la tarjeta bien puesta y sin encontrar ningún código:
+   puede ser la cédula nueva en un teléfono que no lee su QR. Decirlo ahorra el
+   minuto de pelea. 21-oct-2026 — no con un QR ya visto: esa ya se toma sola.
+   23-oct-2026 — ni con algo del PDF417 visto en este lado (vioBarras: su
+   franja, su patrón o el código encontrado sin leer): esa es la AMARILLA, y
+   la verificación del autollenado vio a una amarilla con el código gastado
+   recibir «¿Tu cédula es la nueva, gris y de plástico?» sin ninguna prueba
+   de serlo. Antes solo lo frenaba un código encontrado sin leer. */
+function notaCedulaNueva(esFrente, t) {
+  if (esFrente || t <= 12 || ESCDOC.lecturas <= 6 || ESCDOC.ilegibles || ESCDOC.vioQr || ESCDOC.vioBarras) return;
+  var nd = $('docNota');
+  if (nd && !nd.textContent) nd.textContent = TEXTO_CEDULA_NUEVA;
+}
+/* 23-oct-2026 — LO QUE SE LE PIDE A LA PUERTA. El frente, mientras la
+   ventana del mejor cuadro mide (y no se ha caído a la cuenta de antes), con
+   el piso de bordes chico (EC.TARJETA.NITIDEZ_MIN_FRENTE): un frente liso no
+   llegaba a 9 y nunca se ponía en verde (la demo del 23-oct), y el que juzga
+   si está nítido es la ventana. El respaldo, y todo sin ventana, como
+   siempre. */
+function opcionesDeLaPuerta(esFrente) {
+  if (!esFrente || !ECAP || !ECAP.decidirVentana || ESCDOC.sinVentana || !EC.TARJETA ||
+      !isFinite(EC.TARJETA.NITIDEZ_MIN_FRENTE)) return undefined;
+  return { nitidezMin: EC.TARJETA.NITIDEZ_MIN_FRENTE };
+}
+/* 23-oct-2026 — EL LETRERO CON LA TARJETA FUERA DE VERDE. Con poca luz y sin
+   linterna (un iPhone sin torch en un cuarto oscuro) la puerta dice «borrosa»
+   —con poca luz no hay bordes— y el letrero pedía «Aléjala o acércala», que
+   no arregla nada: lo que falta es luz. vigilarLinterna ya lo sabe
+   (ESCDOC.pedirLuz: poca luz sostenida y una cámara sin linterna), pero eso
+   solo se decía con la tarjeta en verde, al cerrar una ventana. */
+function textoDeLaPuerta(g, m) {
+  if (!g) return 'Encendiendo la cámara…';
+  if (m && m.falla === 'borrosa' && ESCDOC.pedirLuz && ECAP && ECAP.TEXTO && ECAP.TEXTO.BUSCA_LUZ) return ECAP.TEXTO.BUSCA_LUZ;
+  return EC.textoDeTarjeta(m);
+}
+
+/* ===========================================================================
+ * EL BUCLE CON LA VENTANA DEL MEJOR CUADRO — 21 de octubre de 2026
+ *
+ * Joan: «que … tome la foto en el momento que se vea mejor enfocada». Con la
+ * tarjeta en verde (la puerta de siempre: hay cédula, con luz, quieta), cada
+ * cuadro se mide a la escala de la foto (medirNitidezDoc). El que supera al
+ * mejor de la ventana se dibuja a resolución completa en el lienzo del
+ * recorte —el único que hay—, y ese MEJOR es el que se lee y el que se
+ * dispara. Las reglas son las de siempre, en otro orden:
+ *   · el respaldo: lo que se le da al lector es solo la franja del código
+ *     (EscanerCaptura.bandaDeLectura), y si lee, se dispara en ese instante;
+ *     si no, al cerrar la ventana con un código a la vista (PDF417 sin leer,
+ *     su patrón, o el QR de la digital) se dispara con el mejor;
+ *   · el frente: se mira el mejor, y con un código a la vista no se dispara;
+ *   · lo visto es de ESTA racha en verde: voltear la cédula la mueve y se
+ *     empieza de cero (si no, el código del respaldo dejaba pasar el frente);
+ *   · si el mejor no pasa el piso de nitidez, no se toma nada y se dice
+ *     «Aléjala un poco y espera el enfoque».
+ * Devuelve false si este navegador no deja medir: el bucle sigue entonces con
+ * la cuenta de antes (y se queda en ella hasta el próximo encendido).
+ * ========================================================================= */
+function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
+  if (!ECAP || !ECAP.decidirVentana || ESCDOC.sinVentana) return false;
+  var medida = null;
+  if (verde) {
+    medida = medirNitidezDoc(v);
+    if (!medida) { ESCDOC.sinVentana = true; ESCDOC.ventana = null; return false; }
+  }
+  var t = (ahora - ESCDOC.desde) / 1000;
+  if (!verde) {
+    /* La racha se cortó: lo medido y lo visto eran de otra posición, o de la
+       otra cara. */
+    ESCDOC.ventana = null; ESCDOC.mejorPendiente = false;
+    ESCDOC.vioCodigo = false; ESCDOC.vioQr = false; ESCDOC.limpias = 0; ESCDOC.msBorrosa = 0;
+    ESCDOC.vioFranja = false;
+    dibujarMarcoDoc(false, 0);
+    pintarEstadoDoc(estado, textoDeLaPuerta(g, m), t, ahora, false);
+    notaCedulaNueva(esFrente, t);
+    ESCDOC.tempo = setTimeout(bucleEscanerDoc, 100);
+    return true;
+  }
+  if (!ESCDOC.ventana) { ESCDOC.ventana = ECAP.ventanaNueva(ahora); ESCDOC.mejorPendiente = false; }
+  /* El mejor se dibuja en el lienzo del recorte. Mientras el lector nativo lee
+     el anterior NO se pisa: la foto que se guarde tiene que ser la que se leyó. */
+  var guardado = false;
+  if (ECAP.esMejor(ESCDOC.ventana, medida.nitidez) && !ESCDOC.leyendo) guardado = !!recortarGuia(v);
+  ESCDOC.ventana = ECAP.anotarMedida(ESCDOC.ventana, medida.nitidez, guardado);
+  if (guardado) {
+    ESCDOC.mejorPendiente = true;
+    /* 22-oct-2026 — con las filas del marco (medida.dentro): solo una franja
+       DE LA TARJETA, nunca la de una mesa de rayas alrededor. Un escaner-
+       cedula.js viejo en la caché no mira el cuarto dato: la franja de antes. */
+    ESCDOC.franjaMejor = EC.franjaDeBarras ? EC.franjaDeBarras(medida.gris, medida.w, medida.h, medida.dentro) : null;
+    ESCDOC.altoMedida = medida.h;
+    /* 23-oct-2026 — ¿ES LA FRANJA DEL CÓDIGO? Se decide una vez, aquí, y
+       vale para las dos cosas que la usan: la prueba del gastado (abajo) y la
+       banda que se le da al lector (banda()). Un escaner-cedula.js viejo en
+       la caché, sin franjaComoLaDelCodigo: la franja de antes, sin pruebas. */
+    ESCDOC.franjaDelCodigo = !!ESCDOC.franjaMejor && (!EC.franjaComoLaDelCodigo ||
+      EC.franjaComoLaDelCodigo(ESCDOC.franjaMejor, medida.h, medida.dentro));
+    /* 23-oct-2026 — EL PDF417 GASTADO: su franja de barras, en su sitio, es
+       lo único que queda de él cuando el lector no lo encuentra (ver
+       EC.franjaComoLaDelCodigo y ECAP.decidirVentana). Solo en el respaldo: en
+       el frente, una franja es motivo para MIRAR si hay código, no prueba.
+       22-oct-2026 — en su sitio quiere decir también DENTRO del marco: la
+       franja de una mesa de rayas hacía guardar el frente como respaldo. */
+    if (!esFrente && EC.franjaComoLaDelCodigo && ESCDOC.franjaDelCodigo) {
+      ESCDOC.vioFranja = true; ESCDOC.vioBarras = true;
+    }
+  }
+  var C2 = ECAP.CAPTURA, w0 = ESCDOC.ventana;
+  /* Lo borroso con la tarjeta quieta: lo cuenta la linterna (con poca luz el
+     enfoque automático no engancha). */
+  if (w0.mejor >= C2.PISO_NITIDEZ) ESCDOC.msBorrosa = 0;
+  else if (w0.medidas >= C2.MEDIDAS_MIN) ESCDOC.msBorrosa += dt;
+  /* 23-oct-2026 — LA BANDA, SOLO DE LA FRANJA DEL CÓDIGO. Antes se armaba con
+     cualquier franja, también con una que franjaComoLaDelCodigo acababa de
+     rechazar: el renglón del centro de un frente sobre rayas finas (filas
+     171-184 de 303). El lector leía esa banda, el patrón votaba en el aire
+     rayado de sus lados, eso es «vio el código», y el frente quedaba en
+     cedula_reverso al segundo (y en su paso oía «Ese es el lado del código
+     de barras»). Sin franja del código, null: se lee el recorte entero, como
+     sin franja, y en el frente solo se busca el QR (la última reja,
+     capturarDoc, mira el recorte entero de todos modos). Y si el código
+     estuviera en otro lado, leer la banda de un renglón tampoco lo vería. */
+  var banda = function () {
+    if (!ESCDOC.franjaDelCodigo) return null;
+    return ECAP.bandaDeLectura(ESCDOC.franjaMejor, ESCDOC.altoMedida, ESCDOC.recorte ? ESCDOC.recorte.height : 0);
+  };
+  if (!esFrente && ESCDOC.mejorPendiente && !ESCDOC.leyendo) {
+    if (window.ZXing || ESCDOC.nativo) {
+      if ((ahora - ESCDOC.ultima) >= Math.max(EC.TARJETA.MS_ENTRE_LECTURAS, ESCDOC.dura)) {
+        ESCDOC.mejorPendiente = false;
+        leerCuadroDoc(v, { lienzo: ESCDOC.recorte, banda: banda() });
+        if (!ESCDOC.activo) return true;   // leyó: leidaDoc ya siguió con el frente
+      }
+    } else if (!ESCDOC.vioCodigo && (ahora - ESCDOC.tPatron) >= 500) {
+      /* El lector todavía baja: el patrón de las barras, dos veces por segundo
+         como mucho. El pendiente NO se gasta: cuando llegue el lector, este
+         mismo mejor es el primero que se lee (si no, una ventana ya cerrada
+         con un mejor muy nítido no volvería a intentarlo nunca). */
+      ESCDOC.tPatron = ahora;
+      if (giroPorPatron(ESCDOC.recorte) !== null) { ESCDOC.vioCodigo = true; ESCDOC.vioBarras = true; }
+    }
+  }
+  if (esFrente && ESCDOC.mejorPendiente && (ahora - ESCDOC.tPatron) >= EC.FRENTE.MS_ENTRE_MIRADAS) {
+    ESCDOC.tPatron = ahora; ESCDOC.mejorPendiente = false;
+    /* Sin franja de barras en el gris chico, el PDF417 no está a la vista:
+       solo queda mirar si hay un QR (el respaldo de la digital sin voltear).
+       Con franja, la mirada entera de siempre, sobre la franja. La última reja
+       (capturarDoc → EC.guardarFrente) vuelve a mirar el recorte entero. */
+    var bf = banda();
+    var hay = bf ? codigoEnRecorte(ESCDOC.recorte, bf) : qrEnLienzo(ESCDOC.recorte);
+    if (hay) ESCDOC.vioCodigo = true;
+    else if (!ESCDOC.vioCodigo) ESCDOC.limpias++;
+  }
+  var d = ECAP.decidirVentana(w0, { lado: esFrente ? 'frente' : 'reverso', ahora: ahora,
+    vioCodigo: ESCDOC.vioCodigo, limpias: ESCDOC.limpias, leyendo: ESCDOC.leyendo,
+    lectorListo: !!(window.ZXing || ESCDOC.nativo), msVerde: ESCDOC.msVerde,
+    vioFranja: !esFrente && ESCDOC.vioFranja === true });
+  dibujarMarcoDoc(true, d.avance);
+  var T = ECAP.TEXTO, txt = '';
+  if (d.estado === 'disparar') txt = T.TOMANDO;
+  else if (d.estado === 'alejala') { avisoDoc(ESCDOC.pedirLuz ? T.BUSCA_LUZ : T.ALEJALA); ESCDOC.ventana = null; }
+  else if (d.estado === 'sin_codigo') { avisoDoc(T.SIN_CODIGO); ESCDOC.ventana = null; }
+  else if (d.estado === 'con_codigo') { avisoDoc(TEXTO_FRENTE_ES_RESPALDO); ESCDOC.ventana = null; }
+  else txt = (!esFrente && (window.ZXing || ESCDOC.nativo)) ? T.LEYENDO : T.MIDIENDO;
+  if (d.estado === 'disparar') ESCDOC.aviso = null;
+  pintarEstadoDoc(estado, txt, t, ahora, true);
+  if (esFrente && ESCDOC.vioCodigo && t > 10) {
+    var nf = $('docNota');
+    if (nf && !nf.textContent) nf.textContent = TEXTO_FRENTE_DOS_TOQUES;
+  }
+  notaCedulaNueva(esFrente, t);
+  /* `true, true`: la pide el bucle (no la persona) y con el MEJOR cuadro, que
+     ya está en el recorte; no con el de ahora. */
+  if (d.disparar) { capturarDoc(true, true); return true; }
+  ESCDOC.tempo = setTimeout(bucleEscanerDoc, 100);
+  return true;
+}
+/* El letrero de abajo. Un aviso que cerró una ventana («Aléjala…», «Hay un
+   reflejo…») se deja leer su rato aunque el bucle repinte diez veces por
+   segundo; después, lo de ahora. */
+function pintarEstadoDoc(el, txt, t, ahora, verde) {
+  if (!el) return;
+  if (ESCDOC.aviso && ahora < ESCDOC.aviso.hasta) txt = ESCDOC.aviso.texto;
+  else if (!txt) txt = ECAP ? ECAP.TEXTO.MIDIENDO : 'Quieta…';
+  if (t > 20 && !verde) txt = 'Tranquilo: si no sale, toca «Tomar la foto ahora»';
+  el.textContent = txt;
+}
 /* Una lectura del recorte: la nativa si existe (asíncrona), si no ZXing (una
-   vez; giros de rescate solo después de ver el código torcido dos veces). */
-function leerCuadroDoc(v) {
+   vez; giros de rescate solo después de ver el código torcido dos veces).
+   21-oct-2026 — `mejor` ({lienzo, banda}): el bucle de la ventana le da el
+   mejor cuadro ya dibujado y la franja del código; sin eso, recorta el cuadro
+   de ahora, como siempre. Y busca también el QR de la cédula digital: un QR
+   LEÍDO es el lado de atrás (su contenido no se mira). */
+function leerCuadroDoc(v, mejor) {
   var Z = window.ZXing;
   if (!Z && !ESCDOC.nativo) return;   // el lector todavía baja: ni recortar vale la pena
-  var c = recortarGuia(v); if (!c) return;
+  var c = (mejor && mejor.lienzo) ? mejor.lienzo : recortarGuia(v); if (!c) return;
+  var banda = mejor ? mejor.banda : null;
   var t0 = Date.now();
   var giros = ESCDOC.ilegibles >= 2 && EC ? EC.GIROS_DE_RESCATE.slice(0, 2) : null;
   var miTurno = ESCDOC.turno;
   var gen = GENERACION_DEL_REGISTRO;   // 21-oct-2026 — G1: la lectura nativa es asíncrona
   /* 8-oct-2026 — `giro`: cuánto girar la foto para que quede derecha. ZXing
      lo sabe por cómo leyó; el nativo no lo dice, y leidaDoc lo mide aparte. */
-  var termina = function (cedula, error, giro, patron) {
+  var termina = function (cedula, error, giro, patron, qr) {
     ESCDOC.leyendo = false;
     if (miTurno !== ESCDOC.turno || !ESCDOC.stream) return;   // se canceló mientras leía
     if (gen !== GENERACION_DEL_REGISTRO) return;               // la pestaña ya es de otro registro
@@ -6191,24 +6956,35 @@ function leerCuadroDoc(v) {
     if (cedula) { leidaDoc(cedula, giro); return; }
     if (error === 'ilegible') ESCDOC.ilegibles++;
     /* Un código que el lector encontró sin poder leerlo, o el patrón de sus
-       barras: es el lado del código, y desde ahí el disparo automático vale. */
-    if (error === 'ilegible' || patron) ESCDOC.vioCodigo = true;
+       barras: es el lado del código, y desde ahí el disparo automático vale.
+       21-oct-2026 — y el QR leído de la cédula digital, que no trae barras. */
+    if (error === 'ilegible' || patron) { ESCDOC.vioCodigo = true; ESCDOC.vioBarras = true; }
+    if (qr) { ESCDOC.vioQr = true; ESCDOC.vioCodigo = true; }
   };
+  var r = null, qrZ = false;
   if (Z) {
     /* Mientras no haya visto un código en este lado, cada lectura mira también
        el patrón de barras ('siempre'): cuesta un análisis a 900 px, una vez por
        lectura, y deja de pagarse en cuanto lo ve. */
-    var r = leerCedulaDeLienzo(c, giros, ESCDOC.vioCodigo ? 'si_lee' : 'siempre');
-    if (r.cedula || !ESCDOC.nativo) return termina(r.cedula, r.error, r.giro, r.patron);
+    r = leerCedulaDeLienzo(c, giros, ESCDOC.vioCodigo ? 'si_lee' : 'siempre', banda);
+    /* El QR solo se busca donde no hay PDF417 a la vista: la amarilla no trae
+       QR, y así no se paga la búsqueda en cada lectura de la amarilla. */
+    qrZ = !r.cedula && r.error !== 'ilegible' && !r.patron && !ESCDOC.vioQr && qrEnLienzo(c);
+    if (r.cedula || !ESCDOC.nativo) return termina(r.cedula, r.error, r.giro, r.patron, qrZ);
   }
-  var patronZ = !!(Z && r && r.patron);
+  var patronZ = !!(r && r.patron);
   if (ESCDOC.nativo) {
     ESCDOC.leyendo = true;
     ESCDOC.nativo.detect(c).then(function (codigos) {
-      var cod = (codigos || []).filter(function (k) { return k && k.rawValue; })[0];
-      var ced = cod ? EC.cedulaDelTexto(U.leerCedulaPDF417, cod.rawValue) : null;
-      termina(ced, cod ? 'ilegible' : 'no_hay', undefined, patronZ);
-    })['catch'](function () { ESCDOC.nativo = null; termina(null, 'no_hay', undefined, patronZ); });
+      /* 21-oct-2026 — POR FORMATO: solo el PDF417 se vuelve datos (lleva
+         corrección de errores y es lo único que puede decir de quién es la
+         cédula); del QR solo se anota que estaba. Sin EscanerCaptura el
+         detector solo busca pdf417 (prepararDetectorNativo), como antes. */
+      var k = (ECAP && ECAP.clasificarCodigos) ? ECAP.clasificarCodigos(codigos)
+        : { pdf417: ((codigos || []).filter(function (x) { return x && x.rawValue; })[0] || {}).rawValue || '', qr: false };
+      var ced = k.pdf417 ? EC.cedulaDelTexto(U.leerCedulaPDF417, k.pdf417) : null;
+      termina(ced, k.pdf417 ? 'ilegible' : 'no_hay', undefined, patronZ, k.qr || qrZ);
+    })['catch'](function () { ESCDOC.nativo = null; termina(null, 'no_hay', undefined, patronZ, qrZ); });
   }
 }
 /* El dibujo dice la verdad: ámbar y punteado mientras busca, verde y entero
@@ -6227,8 +7003,12 @@ function leerCuadroDoc(v) {
    «pinta el estado del escáner». */
 function dibujarMarcoDoc(enganchado, avance) {
   var e = $('escDoc'); if (!e || !e.classList) return;
+  /* 21-oct-2026 — `enganchado` es también lo que vuelve verde TODA la máscara
+     (CSS, .escaner.escaner-doc.enganchado): en el camino de la ventana es
+     exactamente «estoy midiendo para escoger la foto». */
   e.classList.toggle('enganchado', !!enganchado);
-  /* La barra solo existe donde hay algo que contar: el frente. */
+  /* La barra solo existe donde hay algo que contar. 21-oct-2026 — con la
+     ventana del mejor cuadro, cuenta la ventana (EscanerCaptura.avanceDeVentana). */
   e.classList.toggle('midiendo', avance > 0);
   var g = $('docGuia');
   if (g && g.style && g.style.setProperty) {
@@ -6259,6 +7039,76 @@ function fotoDeLienzo(c, max, q, giro) {
   t.width = t.height = 1;
   return out;
 }
+/* 21-oct-2026 — EL DISPARO SE SIENTE: el destello blanco (CSS .destello, que
+   arranca de cero cada vez) y una vibración corta donde el teléfono la tenga
+   (Android sí; iPhone no tiene navigator.vibrate y no pasa nada). */
+function celebrarDisparoDoc() {
+  var e = $('escDoc');
+  if (e && e.classList) { e.classList.remove('destello'); void e.offsetWidth; e.classList.add('destello'); }
+  try { if (navigator.vibrate) navigator.vibrate(60); } catch (x) {}
+}
+
+/* ===========================================================================
+ * EL ENGANCHE PARA LEER LO VISIBLE — 21 de octubre de 2026
+ *
+ * Lo que la cédula trae IMPRESO y no viene en el código de barras (la fecha de
+ * expedición; los datos y la MRZ de la cédula digital) lo lee otro módulo,
+ * DESPUÉS de que cada lado se toma. Se engancha aquí sin tocar el escáner:
+ *
+ *   alTomarLaCedula(function (d) { … });
+ *
+ *   d = { lado: 'reverso' | 'frente',
+ *         lienzo:  el recorte a resolución completa de la foto que se guardó
+ *                  (el MEJOR cuadro, acostado, SIN girar),
+ *         giro:    0 | 90 | 180 | 270 | null — lo que hay que girarlo para que
+ *                  quede derecho (null: no se sabe, no se toca),
+ *         leida:   el PDF417 de ese lado se leyó (FOTOS.cedula_leida es de él),
+ *         qr:      se leyó un QR en ese lado (la cédula digital),
+ *         automatica: la tomó el escáner (false: «Tomar la foto ahora»),
+ *         nitidez: la del mejor cuadro (EscanerCaptura.nitidezDeGris a 480 px),
+ *                  o null si no se midió. 23-oct-2026 — es la calidad con
+ *                  que la ventana lo escogió (EscanerCaptura.calidadDeGris:
+ *                  la mediana o el cuarto más nítido, el mayor),
+ *         resolucion: lo que la cámara entregó (EscanerCaptura.resolucionEfectiva),
+ *         generacion: GENERACION_DEL_REGISTRO al tomarla,
+ *         turno:   ESCDOC.turno al tomarla,
+ *         guia:    21-oct-2026 — dónde quedó el MARCO dentro de `lienzo`
+ *                  ({x, y, w, h}, anotado al dibujar ese mismo cuadro:
+ *                  ESCDOC.marcoEnRecorte), o null si no se sabe,
+ *         forzada: 21-oct-2026 — un frente guardado a la fuerza, con un código
+ *                  a la vista (EC.guardarFrente): puede ser el respaldo }
+ *
+ * LAS REGLAS DE QUIEN ESCUCHE (son las del registro, no de este enganche):
+ *   · El lienzo vale DURANTE la llamada: el escáner lo reutiliza para el lado
+ *     siguiente y soltarLienzosDoc lo encoge al salir. Lo que haga falta (una
+ *     franja, la MRZ) se copia ahí mismo, de forma síncrona.
+ *   · Toda respuesta asíncrona (un OCR que tarda) se descarta si al volver
+ *     d.generacion !== GENERACION_DEL_REGISTRO o d.turno !== ESCDOC.turno.
+ *   · Lo leído sin corrección de errores NO es «la cédula leída»: no escribe
+ *     FOTOS.cedula_leida ni llama a esDeOtraPersona (la cédula es de quien dice
+ *     su documento, y solo el PDF417 —o una MRZ con TODOS sus dígitos de
+ *     control— puede decirlo). El RH y el sexo se tiran, como en cedulaDelTexto.
+ *   · Nada de lo leído sale del registro: vive en FOTOS/REGISTRO y se borra
+ *     con ellos.
+ *   · Un oyente que revienta no tumba la foto: se traga aquí.
+ * ========================================================================= */
+var OYENTES_DE_LA_CEDULA = [];
+function alTomarLaCedula(fn) {
+  if (typeof fn === 'function' && OYENTES_DE_LA_CEDULA.indexOf(fn) < 0) OYENTES_DE_LA_CEDULA.push(fn);
+}
+function avisarCedulaTomada(lado, lienzo, giro, extra) {
+  if (!OYENTES_DE_LA_CEDULA.length || !lienzo) return;
+  var x = extra || {};
+  var d = { lado: lado, lienzo: lienzo, giro: (giro === undefined ? null : giro),
+            leida: x.leida === true, qr: x.qr === true, automatica: x.automatica === true,
+            nitidez: (ESCDOC.ventana && ESCDOC.ventana.mejor) ? ESCDOC.ventana.mejor : null,
+            resolucion: ESCDOC.resolucion, generacion: GENERACION_DEL_REGISTRO, turno: ESCDOC.turno,
+            /* 21-oct-2026 — el marco solo vale si el lienzo es el recorte que lo
+               anotó: otro lienzo (o un recorte sin anotar) va sin él. */
+            guia: (lienzo === ESCDOC.recorte && ESCDOC.marcoEnRecorte) ? ESCDOC.marcoEnRecorte : null,
+            forzada: x.forzada === true };
+  OYENTES_DE_LA_CEDULA.forEach(function (fn) { try { fn(d); } catch (e) {} });
+}
 /* Leyó: se guarda ese mismo cuadro (ya se sabe que está enfocado), se deja la
    cédula escrita, se celebra un segundo y se sigue con el frente sin apagar la
    cámara. 8-oct-2026 — derecha: `giro` viene del lector; si no vino (el
@@ -6276,8 +7126,18 @@ function leidaDoc(cedula, giro) {
   if (esDeOtraPersona(cedula)) return otraPersonaEnElRegistro();
   delete FOTOS.leida_anterior;
   if (jpeg) FOTOS.cedula_reverso = jpeg;
+  /* 21-oct-2026 (verificación del lote 1, R1) — su PDF417 se LEYÓ: es la
+     amarilla, y queda anotado con la foto (ver QUÉ CÉDULA ES EL RESPALDO). */
+  if (jpeg) anotarTipoDelRespaldo('amarilla');
   marcarDuenoDeLasFotos('cedula_reverso');
   var aSalvo = anotarCedulaLeida(cedula);
+  /* 21-oct-2026 — el destello, y el enganche de lo visible con ESTE recorte
+     (ver alTomarLaCedula), ya con la foto y la lectura en su sitio.
+     21-oct-2026 (integración del lote 1) — las franjas de las letras (la
+     expedición) salen de AQUÍ, por el enganche (ocrAlTomarLaCedula): el mismo
+     recorte de la foto que se guardó, con su giro y su marco. */
+  celebrarDisparoDoc();
+  if (jpeg) avisarCedulaTomada('reverso', ESCDOC.recorte, giro, { leida: true, automatica: true });
   var nombre = String(cedula.nombres || '').split(' ')[0];
   /* 20-oct-2026, revisión (F11) — el frente que hay que pedir es el que no
      está LISTO (la misma pregunta que el ✓), no el que no existe: un frente
@@ -6307,20 +7167,30 @@ function reanudarEscanerDoc(lado) {
    veía cabeza abajo en el CRM (el giro de 90° del recorte es siempre el
    mismo, y la cédula se puede poner de pie hacia los dos lados).
    19-oct-2026 — `automatico`: true cuando la pide el bucle; el botón la llama
-   sin nada, y eso es «a mano». Solo importa en el frente (ver abajo). */
-function capturarDoc(automatico) {
+   sin nada, y eso es «a mano». Solo importa en el frente (ver abajo).
+   21-oct-2026 — `delMejor`: la pide la ventana del mejor cuadro, y la foto es
+   ESE cuadro (ya está en el recorte), no el de ahora. «Tomar la foto ahora»
+   toma el de ahora: es lo que dice el botón. */
+function capturarDoc(automatico, delMejor) {
   var v = $('docVideo');
   if (!v || !v.videoWidth) { var e0 = $('docEstado'); if (e0) e0.textContent = 'La cámara todavía no está lista…'; return; }
-  var c = recortarGuia(v); if (!c) return;
+  var c = (delMejor === true && ESCDOC.recorte && ESCDOC.recorte.width > 1) ? ESCDOC.recorte : recortarGuia(v);
+  if (!c) return;
   var lado = ESCDOC.lado || 'reverso';
   ESCDOC.activo = false;
   if (ESCDOC.tempo) { clearTimeout(ESCDOC.tempo); ESCDOC.tempo = null; }
-  var leyo = false, giro = null, forzada = false;
+  var leyo = false, giro = null, forzada = false, pdf417 = false;
   if (lado === 'reverso') {
     prepararFotoNueva();   // 19-oct-2026: antes de escribir la lectura (ver prepararFotoNueva)
     prepararRespaldoNuevo();   // 20-oct-2026, revisión (regla 2): un respaldo nuevo pide el frente otra vez
-    var r = window.ZXing && EC ? leerCedulaDeLienzo(c, EC.GIROS_DE_RESCATE, 'siempre') : { cedula: null, giro: giroPorPatron(c) };
+    var r;
+    if (window.ZXing && EC) r = leerCedulaDeLienzo(c, EC.GIROS_DE_RESCATE, 'siempre');
+    else { var gp = giroPorPatron(c); r = { cedula: null, giro: gp, patron: gp !== null }; }
     giro = r.giro;
+    /* 21-oct-2026 (verificación del lote 1, R1) — LA PRUEBA DE LA AMARILLA,
+       EN ESTE RECORTE (el que se guarda): su PDF417 leído, visto sin poder
+       leerlo, o el patrón de sus barras. Ver QUÉ CÉDULA ES EL RESPALDO. */
+    pdf417 = !!(r.cedula || r.error === 'ilegible' || r.patron);
     if (r.cedula) {
       /* 20-oct-2026, revisión (regla 2) — otro número es otra persona. */
       if (esDeOtraPersona(r.cedula)) return otraPersonaEnElRegistro();
@@ -6351,6 +7221,7 @@ function capturarDoc(automatico) {
         if (nR) { nR.textContent = TEXTO_GUARDAR_FRENTE_IGUAL; ESCDOC.avisoFrenteVisto = true; }
       }
       ESCDOC.vioCodigo = true; ESCDOC.estables = 0; ESCDOC.limpias = 0;
+      ESCDOC.ventana = null;   // 21-oct-2026 — la ventana que lo pidió ya no vale
       var eR = $('docEstado'); if (eR) eR.textContent = TEXTO_FRENTE_ES_RESPALDO;
       ESCDOC.activo = true; bucleEscanerDoc();
       return;
@@ -6365,13 +7236,39 @@ function capturarDoc(automatico) {
     /* toDataURL falló (memoria, o un lienzo manchado): no se guarda nada y no
        se dice «Listo» sobre una foto que no existe. */
     var er = $('docEstado'); if (er) er.textContent = 'No pude guardar esa foto. Inténtalo otra vez.';
+    ESCDOC.ventana = null;
     ESCDOC.activo = true; bucleEscanerDoc();
     return;
   }
+  /* 21-oct-2026 (verificación del lote 1, R1) — ¿UN QR EN LO QUE SE GUARDA?
+     El bucle solo lo busca mientras mira; con «Tomar la foto ahora» (lo que
+     TEXTO_CEDULA_NUEVA le pide a quien tiene la digital y un teléfono que no
+     la lee sola) nadie lo buscaba en el recorte guardado, y la digital
+     pasaba por amarilla. Ver o leer el QR gana sobre el patrón: ante la duda,
+     la cédula NO se lee. Y así la nota de la cédula nueva y este letrero
+     dicen lo mismo: sin la amarilla probada, «escribes tus datos». */
+  var conQr = lado === 'reverso' && !leyo && (ESCDOC.vioQr === true || qrEnElRecorte(c));
+  var tipo = lado !== 'reverso' ? '' : (leyo ? 'amarilla' : conQr ? 'digital' : pdf417 ? 'amarilla' : '');
   prepararFotoNueva();
   FOTOS['cedula_' + lado] = jpeg;
+  if (lado === 'reverso') anotarTipoDelRespaldo(tipo);
   marcarDuenoDeLasFotos('cedula_' + lado);
   var aSalvo = guardarFotos();
+  /* 21-oct-2026 — el destello, y el enganche de lo visible con el recorte que
+     se acaba de guardar (ver alTomarLaCedula).
+     21-oct-2026 (integración del lote 1) — las franjas de las letras de este
+     lado salen de AQUÍ, por el enganche (ocrAlTomarLaCedula), con `c`: el
+     recorte de la foto que se guardó —el mejor cuadro de la ventana, o el de
+     ahora con «Tomar la foto ahora»—, su giro y su marco. `forzada` viaja para
+     que un frente guardado con un código a la vista (puede ser el respaldo)
+     no se lea como frente. Y `conLetras` se pregunta DESPUÉS: el oyente es el
+     que deja las franjas pendientes.
+     21-oct-2026 (verificación del lote 1, R1) — `conQr` ya se decidió arriba,
+     también con el QR del recorte guardado; y «te llenamos lo que alcancemos
+     a leer» pide la MISMA condición que las letras: la amarilla probada. */
+  celebrarDisparoDoc();
+  avisarCedulaTomada(lado, c, giro, { leida: leyo, qr: conQr, automatica: automatico === true, forzada: forzada === true });
+  var conLetras = lado === 'reverso' && !leyo && respaldoEsAmarilla() && !!OCR_CEDULA.pendientes.reverso;
   var sigue = lado === 'reverso' && !hayFotoLista('cedula_frente');   // 20-oct-2026, revisión (F11): el frente LISTO
   /* 19-oct-2026 — «Listo: las dos caras.» solo cuando es cierto: el frente
      pasó la reja de arriba Y el respaldo está guardado. Si la persona insistió
@@ -6382,7 +7279,21 @@ function capturarDoc(automatico) {
   mostrarListoDoc(!aSalvo
     ? 'La tenemos, pero tu teléfono no dejó guardarla: termina sin cerrar esta página.'
     : (lado === 'reverso'
-      ? (leyo ? '¡Leída!' + (sigue ? ' Ahora el frente.' : '') : 'Foto tomada. El código no se pudo leer: escribes tus datos en el paso siguiente.' + (sigue ? ' Ahora el frente.' : ''))
+      ? (leyo ? '¡Leída!' + (sigue ? ' Ahora el frente.' : '')
+        /* 21-oct-2026 — la cédula digital: su QR se vio (por eso se tomó
+           sola), pero sus datos todavía no se leen. Decir «el código no se
+           pudo leer» sonaba a foto mala, y la foto está bien.
+           21-oct-2026 — y con las franjas de la amarilla guardadas, «escribes
+           tus datos» ya no es lo que va a pasar: se intenta con las letras, y
+           lo que no salga se escribe. Sin ellas (el módulo no bajó), lo de
+           siempre.
+           21-oct-2026 (integración del lote 1) — las dos ramas escribieron
+           este texto a la vez; la digital va PRIMERO: sus letras no son las
+           de la amarilla, y prometerle que se las llenamos sería falso. Desde
+           la costura con el escáner, además, ni se leen (ocrAlTomarLaCedula). */
+        : (conQr ? 'Foto tomada. Tu cédula es la nueva (la del QR): por ahora tus datos los escribes tú en el paso siguiente.'
+          : conLetras ? 'Foto tomada. El código no se pudo leer: en el paso siguiente te llenamos lo que alcancemos a leer de las letras, y tú lo revisas.'
+          : 'Foto tomada. El código no se pudo leer: escribes tus datos en el paso siguiente.') + (sigue ? ' Ahora el frente.' : ''))
       : textoFrente));
   refrescarDoc();
   ESCDOC.tempo = setTimeout(function () {
@@ -6402,6 +7313,465 @@ function mostrarListoDoc(txt) {
   var t = $('docListoTxt'); if (t) t.textContent = txt;
 }
 function ocultarListoDoc() { var e = $('escDoc'); if (e) e.classList.remove('leido'); }
+
+/* ===========================================================================
+ * LO QUE SE VE EN LA CÉDULA SE LLENA SOLO — 21 de octubre de 2026
+ *
+ * Joan: «si la información es visible en la cédula no quiero que nada se
+ * diligencie a mano, quiero que sea lo más eficiente posible para el cliente
+ * al momento de registrarse». El código de barras del respaldo ya llenaba el
+ * número, los nombres y los apellidos; la fecha de expedición se tecleaba
+ * siempre (el código no la trae) y, sin código leído, se tecleaba todo. Ahora
+ * las letras impresas se leen de las fotos (app/ocr-cedula.js, con el
+ * Tesseract.js del propio sitio) y llenan las casillas vacías; la persona
+ * confirma con «Están bien» o corrige.
+ *
+ * LAS REGLAS QUE ESTO NO PUEDE ROMPER, y por qué:
+ *   · Lo leído de las letras vive en FOTOS.cedula_vista y NUNCA en
+ *     FOTOS.cedula_leida. No decide de quién es la cédula (esDeOtraPersona, la
+ *     reja de la base, motivoParaNoSubir), no se salta el «¿Es tuya?» de la
+ *     cédula sin código y no viaja como lectura: un dígito mal leído no puede
+ *     dejar a nadie sin sus fotos para siempre (investigación del 21-oct).
+ *   · Con el código leído manda el código: las letras solo completan la
+ *     expedición, y si el número impreso es otro queda `numero_distinto` para
+ *     Joan. A nadie se le dice «verificado».
+ *   · Solo casillas VACÍAS que la persona no tocó (OCR_CEDULA.tocados), solo
+ *     antes de pasar «Revisa tus datos», y nunca se pasa sola al paso
+ *     siguiente: la que confirma es la persona.
+ *   · Nunca con la cámara encendida: el motor junto a la cámara y ZXing es el
+ *     pico de memoria que tumba la pestaña. Las franjas se recortan al
+ *     disparar (unos cientos de KB) y se leen cuando el escáner se cerró; el
+ *     motor se termina al acabar y al salir del registro (otraGeneracion).
+ *   · Una lectura es del registro y de la foto que la pidió: si cambió la
+ *     generación (G1) o la foto ya no es esa, no escribe nada.
+ *   · Lo que la lectura escribió se va con sus fotos, como lo que escribió el
+ *     código (ocrQuitarLoLlenado): un respaldo nuevo, un «No es mía», las
+ *     fotos que vencen, salir del registro. Lo que la persona corrigió no: ya
+ *     es suyo.
+ *   · Solo con el escáner en vivo: la foto de la cámara del celular es la
+ *     escena entera, sin marco, y las franjas no saben dónde está la tarjeta.
+ * ========================================================================= */
+var URL_OCR_CEDULA = '../app/ocr-cedula.js';
+var BASE_OCR = '../app/';
+/* Si en este rato no terminó (sin señal para bajar el motor, un teléfono que
+   no puede con él), se deja: la persona escribe lo que falte. */
+var MS_TOPE_OCR = 60000;
+/* 21-oct-2026 (verificación del lote 1, R1) — sin `digital`: qué cédula es el
+   respaldo vive con la foto (FOTOS.cedula_reverso_tipo, tipoDelRespaldo), no
+   en la memoria, que se pierde al relanzar la pestaña. */
+var OCR_CEDULA = { pendientes: {}, estado: '', turno: 0, lector: null, tocados: {}, tope: null, precalentado: false };
+var CAMPOS_DE_LA_VISTA = ['documento', 'apellidos', 'nombres', 'expedicion'];
+var TEXTO_LEIDO_DE_LA_CEDULA = '· leído de tu cédula · revísalo';
+
+/* Dónde quedó el marco dentro de un recorte del escáner, CALCULADO: el marco
+   de ahora (ESCDOC.guiaVideo) con el aire que le pone recortarGuia
+   (EC.margenDeLectura). Las franjas son fracciones de la TARJETA, no del
+   recorte. null si no se sabe (entonces el recorte entero hace de tarjeta).
+   21-oct-2026 (integración del lote 1) — ES SOLO EL RESPALDO de d.guia: el
+   marco bueno es el que recortarGuia anotó al dibujar el cuadro que se guardó
+   (ESCDOC.marcoEnRecorte), y llega con el enganche. Y ya no hay marco de pie:
+   desde el escáner del 21-oct las dos caras van acostadas y el recorte no se
+   gira, así que la cuenta de «de pie, girado 90°» que vivía aquí se fue. */
+function guiaEnElRecorte(lienzo) {
+  var g = ESCDOC.guiaVideo, v = $('docVideo');
+  if (!g || !lienzo || !lienzo.width || !lienzo.height) return null;
+  var m = (EC && EC.margenDeLectura && v && v.videoWidth) ? EC.margenDeLectura(g, v.videoWidth, v.videoHeight, 0.06) : g;
+  return marcoQueCabe({ x: g.x - m.x, y: g.y - m.y, w: g.w, h: g.h }, lienzo);
+}
+/* Un marco que no cabe en el lienzo es de otro cuadro: mejor ninguno que uno
+   que mande las franjas fuera de la tarjeta. */
+function marcoQueCabe(r, lienzo) {
+  if (!r || !(r.w > 0 && r.h > 0) || r.x < 0 || r.y < 0 || r.x + r.w > lienzo.width + 1 || r.y + r.h > lienzo.height + 1) return null;
+  return r;
+}
+/* ===========================================================================
+ * LAS LETRAS SE ENGANCHAN AL ESCÁNER — 21 de octubre de 2026 (integración
+ * del lote 1: l1-escaner + l1-ocr)
+ *
+ * Las dos ramas se escribieron a la vez. l1-ocr llamaba a ocrAnotarRecorte
+ * desde leidaDoc y capturarDoc con el recorte de antes (el respaldo DE PIE y
+ * girado 90°) y recalculaba el marco después; l1-escaner dejó el enganche
+ * alTomarLaCedula con el recorte final de cada lado, ACOSTADO y con el MEJOR
+ * cuadro de la ventana. Ahora las letras escuchan el enganche y nada más: lo
+ * que se lee es EXACTAMENTE el lienzo de la foto que se guardó, con el giro
+ * con el que se guardó (d.giro) y el marco del mismo cuadro (d.guia).
+ *
+ * Lo que este oyente NO lee, y por qué:
+ *   · un frente guardado a la fuerza (d.forzada): con un código a la vista,
+ *     puede ser el respaldo, y sus letras no son las del frente;
+ *   · la cédula DIGITAL (su respaldo se tomó por el QR, d.qr): las franjas
+ *     (ZONAS) son de la amarilla, y en la digital el RH y el sexo van en el
+ *     FRENTE, justo donde cae el bloque del frente. Se marca el respaldo como
+ *     digital y su frente tampoco se lee: «tus datos los escribes tú», como le
+ *     dice la pantalla;
+ *   · un giro de 90° o 270°: la tarjeta no está acostada en el recorte y las
+ *     franjas, que son de la tarjeta acostada, caerían de través.
+ * La regla del enganche sobre las respuestas tardías (d.turno) no aplica tal
+ * cual: estas letras se leen A PROPÓSITO después, con la cámara apagada y el
+ * turno ya cambiado. Lo que las ata es la generación y la FOTO (ver
+ * ocrLeerLoPendiente: si FOTOS['cedula_' + lado] ya no es esa, no escribe).
+ *
+ * 21-oct-2026 (verificación del lote 1, R1) — LA DIGITAL YA NO SE RECONOCE
+ * POR SU QR, SE LEE SOLO LA AMARILLA PROBADA. La marca de la digital
+ * (OCR_CEDULA.digital) vivía en la memoria y solo existía con un QR leído en
+ * vivo: relanzar la pestaña, o un teléfono que no lee el QR y «Tomar la foto
+ * ahora», y el frente de la digital (con el RH, el sexo y la estatura) pasaba
+ * por el bloque de la amarilla. Ahora ninguno de los dos lados se lee si el
+ * respaldo guardado no es la amarilla PROBADA (respaldoEsAmarilla: QUÉ CÉDULA
+ * ES EL RESPALDO GUARDADO), que se anota con la foto antes de este aviso.
+ * ========================================================================= */
+function ocrAlTomarLaCedula(d) {
+  if (!d || (d.lado !== 'reverso' && d.lado !== 'frente')) return;
+  var lado = d.lado;
+  if (d.forzada) { ocrSoltarLado(lado); return; }
+  if (d.qr || !respaldoEsAmarilla()) { ocrSoltarLado(lado); return; }
+  var giro = d.giro == null ? 0 : (((+d.giro || 0) % 360) + 360) % 360;
+  if (giro === 90 || giro === 270) { ocrSoltarLado(lado); return; }
+  ocrAnotarRecorte(lado, d.lienzo, giro, d.guia);
+}
+alTomarLaCedula(ocrAlTomarLaCedula);
+/* Al disparar un lado: se recortan SOLO sus franjas (el resto de la tarjeta,
+   con el RH y el sexo del respaldo, ni se copia) y quedan esperando a que la
+   cámara se apague. Sin el módulo (no alcanzó a bajar), esta vez se escribe
+   a mano, como antes.
+   21-oct-2026 — `guia`: el marco del cuadro que se guardó (d.guia del
+   enganche); sin él, se calcula (guiaEnElRecorte). */
+function ocrAnotarRecorte(lado, lienzo, giro, guia) {
+  ocrSoltarLado(lado);   // una foto nueva de este lado: lo de la anterior se va
+  var O = window.OcrCedula;
+  if (!O || typeof O.recortarDeLienzo !== 'function' || !lienzo || !lienzo.getContext) return;
+  var r = null, marco = marcoQueCabe(guia, lienzo) || guiaEnElRecorte(lienzo);
+  try { r = O.recortarDeLienzo(lado, lienzo, { giro: giro === 180 ? 180 : 0, guia: marco }); } catch (e) { r = null; }
+  if (!r || !r.zonas || !r.zonas.length) return;
+  OCR_CEDULA.pendientes[lado] = { recorte: r, gen: GENERACION_DEL_REGISTRO, foto: FOTOS['cedula_' + lado] };
+  if (lado === 'reverso') ocrPrecalentarMotor();
+}
+/* EL MOTOR SE BAJA MIENTRAS LA PERSONA VOLTEA LA CÉDULA. Son unos 6 MB la
+   primera vez (el núcleo y el español; ORIGEN.md), y bajarlos después del
+   frente era dejarla mirando «Leyendo…». rel=prefetch: la prioridad más baja
+   del navegador, a la caché, sin ejecutar nada (como el detector de rostro).
+   Solo después del primer disparo: quien no escanea no paga esos datos. */
+function ocrPrecalentarMotor() {
+  var O = window.OcrCedula;
+  if (OCR_CEDULA.precalentado || !O || typeof O.rutas !== 'function') return;
+  OCR_CEDULA.precalentado = true;
+  try {
+    var r = O.rutas(BASE_OCR);
+    [r.libreria, r.workerPath, r.corePath, r.langPath + '/spa.traineddata.gz'].forEach(function (u) {
+      var l = document.createElement('link');
+      l.rel = 'prefetch'; l.href = u;
+      document.head.appendChild(l);
+    });
+  } catch (e) {}
+}
+/* Lo que la lectura escribió y sigue igual se va; lo que la persona corrigió
+   se queda (ya es suyo). También de la casilla en pantalla, que es lo que lee
+   «Continuar» (recogerPaso). `campos`: solo esos (opcional). */
+function ocrQuitarLoLlenado(v, campos) {
+  if (!v || !v.llenados) return;
+  var quito = false;
+  Object.keys(v.llenados).forEach(function (c) {
+    if (campos && campos.indexOf(c) < 0) return;
+    var val = String(v.llenados[c]);
+    if (REGISTRO[c] !== undefined && String(REGISTRO[c]) === val) {
+      delete REGISTRO[c]; quito = true;
+      var i = $('f_' + c); if (i && String(i.value) === val) i.value = '';
+    }
+    delete v.llenados[c];
+  });
+  if (quito) sinTocarElToque(function () { guardarBorrador(REGISTRO); });
+}
+/* Una foto nueva de UN lado: lo que la anterior de ese lado escribió se va,
+   y su lectura pendiente también. */
+function ocrSoltarLado(lado) {
+  if (typeof OCR_CEDULA === 'object' && OCR_CEDULA) delete OCR_CEDULA.pendientes[lado];
+  var v = FOTOS.cedula_vista;
+  if (!v) return;
+  ocrQuitarLoLlenado(v, lado === 'frente' ? ['documento', 'apellidos', 'nombres', 'tipo_doc'] : ['expedicion']);
+  if (v.lados) delete v.lados[lado];
+  if (v.leidos) (lado === 'frente' ? ['documento', 'apellidos', 'nombres'] : ['expedicion']).forEach(function (c) { delete v.leidos[c]; });
+  if (lado === 'frente') delete v.numero_distinto;
+  if (!v.lados || !Object.keys(v.lados).length) delete FOTOS.cedula_vista;
+  guardarFotos();
+}
+/* Un respaldo NUEVO (prepararRespaldoNuevo): el frente se va con el viejo, y
+   todo lo que las letras de esa cédula escribieron, también. */
+function ocrSoltarVista() {
+  /* 21-oct-2026 — el respaldo nuevo decide otra vez qué cédula es
+     (prepararRespaldoNuevo suelta la marca que va con la foto). */
+  if (typeof OCR_CEDULA === 'object' && OCR_CEDULA) OCR_CEDULA.pendientes = {};
+  var v = FOTOS.cedula_vista;
+  if (v) { ocrQuitarLoLlenado(v); delete FOTOS.cedula_vista; }
+}
+/* Las fotos se sueltan (soltarLasFotos, soltarLoSensibleDelRegistro): lo que
+   su lectura escribió en ESTE registro se va con ellas. Lo de otro intento no
+   se toca: ese formulario ya es de quien está aquí. */
+function ocrSoltarConLasFotos() {
+  var v = FOTOS && FOTOS.cedula_vista;
+  if (v && (esteIntento(FOTOS.de) || !(FOTOS.de && FOTOS.de.intento))) ocrQuitarLoLlenado(v);
+}
+/* Otra generación (G1): salir del registro, otra persona, la cuenta creada.
+   Nada en camino escribe, nada pendiente se lee, y el motor se termina. */
+function ocrOlvidar() {
+  if (typeof OCR_CEDULA !== 'object' || !OCR_CEDULA) return;
+  OCR_CEDULA.pendientes = {}; OCR_CEDULA.tocados = {};
+  ocrParar('');
+}
+function ocrParar(estado) {
+  var P = OCR_CEDULA;
+  P.turno++;
+  if (P.tope) { clearTimeout(P.tope); P.tope = null; }
+  if (P.lector) { var l = P.lector; P.lector = null; try { l.terminar(); } catch (e) {} }
+  P.estado = estado;
+}
+/* La cámara se vuelve a encender (repetir un lado): la lectura en curso se
+   deja —el motor se termina— y lo pendiente espera a que se apague otra vez. */
+function ocrPausar() {
+  if (typeof OCR_CEDULA === 'object' && OCR_CEDULA && OCR_CEDULA.estado === 'leyendo') ocrParar('');
+}
+function ocrHayPendiente() {
+  var P = OCR_CEDULA;
+  return ['reverso', 'frente'].some(function (l) { var p = P.pendientes[l]; return !!p && p.gen === GENERACION_DEL_REGISTRO; });
+}
+/* Lee lo pendiente, el respaldo primero (trae la expedición, la casilla que
+   siempre quedaba vacía). Cada lado escribe en cuanto termina. */
+function ocrLeerLoPendiente() {
+  if (typeof OCR_CEDULA !== 'object' || !OCR_CEDULA) return;
+  var P = OCR_CEDULA;
+  if (P.estado === 'leyendo' || !ocrHayPendiente()) return;
+  if (ESCDOC.activo || ESCDOC.stream) return;   // nunca con la cámara encendida
+  /* 21-oct-2026 (verificación del lote 1, R1) — y nunca sin la amarilla
+     probada: lo pendiente de un respaldo que dejó de serlo no se lee. */
+  if (!respaldoEsAmarilla()) { P.pendientes = {}; return; }
+  ocrParar('leyendo');
+  var turno = P.turno, gen = GENERACION_DEL_REGISTRO, O = null;
+  var vale = function () { return turno === P.turno && gen === GENERACION_DEL_REGISTRO; };
+  P.tope = setTimeout(function () { if (vale()) { ocrParar('fallo'); P.pendientes = {}; ocrRefrescarIdentidad(); } }, MS_TOPE_OCR);
+  ocrRefrescarIdentidad();
+  cargarScript(URL_OCR_CEDULA).then(function () {
+    O = window.OcrCedula;
+    if (!O || typeof O.crearLector !== 'function') throw new Error('no cargó ' + URL_OCR_CEDULA);
+    var r = O.rutas(BASE_OCR);
+    return cargarScript(r.libreria).then(function () {
+      if (!vale()) throw new Error('ya no es de este registro');
+      return O.crearLector(window.Tesseract, r);
+    });
+  }).then(function (lector) {
+    if (!vale()) { try { lector.terminar(); } catch (e) {} return; }
+    P.lector = lector;
+    return ['reverso', 'frente'].reduce(function (cadena, lado) {
+      return cadena.then(function () {
+        var p = P.pendientes[lado];
+        if (!vale() || !p || p.gen !== gen) return;
+        return O.leerRecorte(lector, p.recorte, { hoy: hoyISO(), nacimientoLeido: nacimientoLeido() }).then(function (res) {
+          if (!vale() || P.pendientes[lado] !== p) return;
+          delete P.pendientes[lado];
+          /* La foto de la que salió tiene que seguir siendo la de este lado. */
+          if (FOTOS['cedula_' + lado] !== p.foto || !hayFotoLista('cedula_' + lado)) return;
+          ocrAplicar(lado, (res && res.campos) || {});
+          ocrRefrescarIdentidad();
+        });
+      });
+    }, Promise.resolve());
+  }).then(function () {
+    if (!vale()) return;
+    ocrParar('listo'); ocrRefrescarIdentidad();
+    if (ocrHayPendiente()) ocrLeerLoPendiente();   // un lado repetido mientras se leía
+  }, function () {
+    if (!vale()) return;
+    ocrParar('fallo'); P.pendientes = {}; ocrRefrescarIdentidad();
+  });
+}
+/* Lo que leyó un lado, a FOTOS.cedula_vista y a las casillas que se pueden
+   llenar (OcrCedula.planDeLlenado). La fecha de nacimiento leída de las letras
+   solo sirvió para comprobar la de expedición: no se guarda ni se pide. */
+function ocrAplicar(lado, campos) {
+  var O = window.OcrCedula; if (!O) return;
+  var v = FOTOS.cedula_vista || { fuente: 'ocr', version: O.VERSION };
+  v.lados = v.lados || {}; v.llenados = v.llenados || {}; v.leidos = v.leidos || {};
+  v.lados[lado] = true;
+  var vista = {};
+  CAMPOS_DE_LA_VISTA.forEach(function (c) { if (campos[c]) { vista[c] = String(campos[c]); v.leidos[c] = true; } });
+  var plan = O.planDeLlenado({ vista: vista, leida: cedulaLeidaDeEsteRegistro() ? FOTOS.cedula_leida : null,
+                               registro: REGISTRO, tocados: OCR_CEDULA.tocados });
+  if (lado === 'frente' && typeof plan.numero_distinto === 'boolean') v.numero_distinto = plan.numero_distinto;
+  /* Solo antes de pasar «Revisa tus datos»: lo que se llenara después nadie
+     lo vería antes de mandarlo. */
+  if (VISTA === 'registro' && PASO <= indiceDe('identidad')) {
+    var llenar = plan.llenar || {};
+    Object.keys(llenar).forEach(function (c) { REGISTRO[c] = llenar[c]; v.llenados[c] = llenar[c]; });
+    if (Object.keys(llenar).length) sinTocarElToque(function () { guardarBorrador(REGISTRO); });
+  }
+  FOTOS.cedula_vista = v;
+  guardarFotos();
+}
+/* ¿Este valor de la casilla salió de la cédula —del código o de las letras— y
+   sigue igual? Es lo que pinta «leído de tu cédula · revísalo». */
+function deLaCedula(c) {
+  if (REGISTRO[c] === undefined || REGISTRO[c] === null || String(REGISTRO[c]) === '') return false;
+  var val = String(REGISTRO[c]);
+  if (cedulaLeidaDeEsteRegistro() && CAMPOS_DE_LA_CEDULA.indexOf(c) >= 0 && val === String(FOTOS.cedula_leida[c] || '')) return true;
+  var v = FOTOS.cedula_vista;
+  return !!(v && v.llenados && v.llenados[c] !== undefined && val === String(v.llenados[c]) &&
+            (esteIntento(FOTOS.de) || fotosSonDeEsteRegistro()));
+}
+function llenadosDeLaFoto() {
+  var v = FOTOS.cedula_vista;
+  if (!v || !v.llenados) return [];
+  return CAMPOS_DE_LA_VISTA.filter(function (c) { return v.llenados[c] !== undefined && deLaCedula(c); });
+}
+/* ¿Hay (o está por haber) algo leído de las letras en «Revisa tus datos»? */
+function hayLecturaVisible() {
+  return ocrEstado().estado === 'leyendo' || llenadosDeLaFoto().length > 0;
+}
+var NOMBRE_DE_CAMPO_LEIDO = { documento: 'tu número de documento', apellidos: 'tus apellidos', nombres: 'tus nombres', expedicion: 'la fecha de expedición' };
+/* El estado de la lectura, también si se pregunta antes de que este bloque
+   haya corrido al cargar la página (el arranque pinta el registro). */
+function ocrEstado() {
+  return (typeof OCR_CEDULA === 'object' && OCR_CEDULA) ? OCR_CEDULA : { pendientes: {}, estado: '', lector: null };
+}
+function notaDeLaFotoTexto() {
+  if (ocrEstado().estado === 'leyendo') {
+    return 'Estamos leyendo las letras de tu cédula para llenarte lo que falta. La primera vez tarda unos segundos; ' +
+      'si prefieres, escribe tú: lo que escribas no lo cambiamos.';
+  }
+  var ll = llenadosDeLaFoto();
+  if (!ll.length) return '';
+  return '<b>Leímos de las fotos de tu cédula ' + enLista(ll.map(function (c) { return NOMBRE_DE_CAMPO_LEIDO[c]; })) + '.</b> ' +
+    'Revísalo con tu cédula en la mano: leer letras de una foto se puede equivocar, y lo que no sea igual, corrígelo.';
+}
+function notaDeLaFoto() {
+  var t = notaDeLaFotoTexto();
+  return '<div class="aviso info' + (t ? '' : ' oculto') + '" id="notaFoto">' + t + '</div>';
+}
+/* 23-oct-2026 — «CONTINUAR» CON LAS LETRAS LEYENDO (ver siguientePaso).
+   Qué lado trae cada casilla (las franjas de app/ocr-cedula.js: el respaldo
+   la expedición; el frente el número, los nombres y los apellidos, y con el
+   número el tipo), para no decir «todavía la estamos leyendo» de algo cuyo
+   lado ya se leyó sin sacarla. */
+var LADO_DE_LAS_LETRAS = { expedicion: 'reverso', documento: 'frente', apellidos: 'frente', nombres: 'frente', tipo_doc: 'frente' };
+var NOMBRE_DE_CAMPO_POR_LEER = { documento: 'tu número de documento', apellidos: 'tus apellidos', nombres: 'tus nombres',
+  expedicion: 'la fecha de expedición', tipo_doc: 'el tipo de documento' };
+/* El texto que dijo «todavía la estamos leyendo», para que la lectura, al
+   terminar, sepa que es suyo y lo cambie (ocrRefrescarIdentidad). */
+var AVISO_LETRAS_EN_CURSO = '';
+/* De lo que falta en «Revisa tus datos», lo que la lectura en curso todavía
+   puede llenar: con las mismas reglas que OcrCedula.planDeLlenado (con el
+   código leído, solo la expedición; solo con cédula de ciudadanía; nunca lo
+   que la persona tocó) y solo si el lado que lo trae sigue sin leerse. */
+function camposPorLeerDeLasLetras(faltan) {
+  var P = ocrEstado();
+  if (P.estado !== 'leyendo') return [];
+  var tipo = String(REGISTRO.tipo_doc || '');
+  if (tipo && tipo !== 'Cédula de ciudadanía') return [];
+  var pueden = cedulaLeidaDeEsteRegistro() ? ['expedicion'] : CAMPOS_DE_LA_VISTA.concat(['tipo_doc']);
+  return (faltan || []).filter(function (f) {
+    var lado = LADO_DE_LAS_LETRAS[f.id], pend = lado && P.pendientes ? P.pendientes[lado] : null;
+    return pueden.indexOf(f.id) >= 0 && !(P.tocados && P.tocados[f.id]) &&
+      !!pend && pend.gen === GENERACION_DEL_REGISTRO;
+  });
+}
+function textoNosFalta(faltan) {
+  return 'Nos falta ' + faltan.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') + '. Con eso seguimos.';
+}
+function textoEsperandoLasLetras(faltan, porLeer) {
+  var otros = faltan.filter(function (f) { return porLeer.indexOf(f) < 0; });
+  var leyendo = enLista(porLeer.map(function (f) { return NOMBRE_DE_CAMPO_POR_LEER[f.id] || f.etiqueta.toLowerCase(); }));
+  var t = (otros.length ? 'Nos falta ' + otros.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') +
+      '. Y todavía estamos leyendo de tu cédula ' : 'Todavía estamos leyendo de tu cédula ') +
+    leyendo + '. Espera unos segundos y revisa lo que aparezca aquí, o escríbelo tú.';
+  AVISO_LETRAS_EN_CURSO = t;
+  return t;
+}
+function faltanEnIdentidad() {
+  var r = U.revisarVinculacion(REGISTRO);
+  var ids = U.camposDelGrupo('identidad').map(function (c) { return c.id; });
+  return r.faltan.filter(function (f) { return ids.indexOf(f.id) !== -1; });
+}
+/* La lectura avanzó: si el aviso de «Continuar» es el de «todavía estamos
+   leyendo», se pone al día. Mientras siga leyendo algo de lo que falta, lo
+   dice; al terminar, se va si ya no falta nada, y si falta, dice lo que de
+   verdad falta (las letras no lo sacaron). */
+function refrescarAvisoDeLasLetras() {
+  var e = $('errReg');
+  if (!AVISO_LETRAS_EN_CURSO || !e || e.textContent !== AVISO_LETRAS_EN_CURSO ||
+      (e.classList && e.classList.contains('oculto'))) return;
+  var faltan = faltanEnIdentidad(), aun = camposPorLeerDeLasLetras(faltan);
+  if (aun.length) { e.textContent = textoEsperandoLasLetras(faltan, aun); return; }
+  AVISO_LETRAS_EN_CURSO = '';
+  if (faltan.length) fallo(e, textoNosFalta(faltan));
+  else { e.textContent = ''; e.classList.add('oculto'); }
+}
+/* La ayuda de la expedición dice de dónde salió (o por qué no), sin etiquetas
+   adentro: pedir-a-la-medida.test.js la busca entera. */
+function textoAyudaExpedicion() {
+  var donde = 'donde dice «FECHA Y LUGAR DE EXPEDICIÓN»';
+  if (deLaCedula('expedicion') && FOTOS.cedula_vista && FOTOS.cedula_vista.llenados &&
+      FOTOS.cedula_vista.llenados.expedicion !== undefined) {
+    return 'La leímos del respaldo de tu cédula, ' + donde + '. Revísala: si no es la misma, corrígela.';
+  }
+  var P = ocrEstado();
+  /* 23-oct-2026 — solo mientras el RESPALDO sigue por leer. Decía «o el
+     motor vivo» (P.lector), y con el respaldo ya leído sin la fecha y el
+     frente leyéndose seguía «Estamos leyéndola» al lado del «Nos falta fecha
+     de expedición» que ya era cierto (ver camposPorLeerDeLasLetras). */
+  if (P.estado === 'leyendo' && P.pendientes.reverso) {
+    return 'Estamos leyéndola del respaldo de tu cédula, ' + donde + '. Si prefieres, escríbela tú.';
+  }
+  var v = FOTOS.cedula_vista;
+  if ((v && v.lados && v.lados.reverso && !(v.leidos && v.leidos.expedicion)) || P.estado === 'fallo') {
+    return 'No la pudimos leer de la foto: escríbela tú. En la cédula de ciudadanía está en el respaldo, ' + donde +
+      ', cerca de la firma del Registrador.';
+  }
+  return 'No viene en el código de barras: escríbela tú. En la cédula de ciudadanía está en el respaldo, ' + donde +
+    ', cerca de la firma del Registrador.';
+}
+/* UN TOQUE: con todo lo de «Revisa tus datos» lleno y algo salido de la
+   cédula, el botón dice lo que la persona hace al tocarlo. Revisa igual que
+   «Continuar» (siguientePaso): solo cambia la palabra. */
+function textoBotonIdentidad() {
+  if (!PASOS[PASO] || PASOS[PASO].id !== 'identidad') return 'Continuar';
+  var r = U.revisarVinculacion(REGISTRO);
+  var ids = U.camposDelGrupo('identidad').map(function (c) { return c.id; });
+  var falta = r.faltan.concat(r.errores).some(function (f) { return ids.indexOf(f.id) >= 0; });
+  return !falta && CAMPOS_DE_LA_VISTA.some(deLaCedula) ? 'Están bien' : 'Continuar';
+}
+/* «Revisa tus datos» sin repintarlo (repintar le cerraría el teclado a quien
+   está escribiendo): las casillas que se llenaron, sus marcas, la nota, la
+   ayuda de la expedición y el botón. Nada más: no se mueve de paso. */
+function ocrRefrescarIdentidad() {
+  if (VISTA !== 'registro' || !PASOS[PASO] || PASOS[PASO].id !== 'identidad') return;
+  var v = FOTOS.cedula_vista, ll = (v && v.llenados) || {};
+  CAMPOS_DE_LA_VISTA.concat(['tipo_doc']).forEach(function (c) {
+    var i = $('f_' + c);
+    if (i && ll[c] !== undefined && String(REGISTRO[c]) === String(ll[c]) && !i.value) i.value = ll[c];
+  });
+  CAMPOS_DE_LA_VISTA.forEach(refrescarMarcaDeLaCedula);
+  var n = $('notaFoto');
+  if (n) { var t = notaDeLaFotoTexto(); n.innerHTML = t; n.classList.toggle('oculto', !t); }
+  var s = $('notaSinLeer'); if (s) s.classList.toggle('oculto', hayLecturaVisible());
+  var a = $('ayudaExpedicion'); if (a) a.textContent = textoAyudaExpedicion();
+  var b = $('btnSeguir'); if (b) b.textContent = textoBotonIdentidad();
+  refrescarAvisoDeLasLetras();   // 23-oct-2026 — el «todavía estamos leyendo» de «Continuar»
+}
+function refrescarMarcaDeLaCedula(c) {
+  var s = $('leido_' + c); if (s) s.textContent = deLaCedula(c) ? TEXTO_LEIDO_DE_LA_CEDULA : '';
+}
+/* Lo que viaja con las fotos para Joan (huella.cedula_vista): QUÉ casillas
+   llenaron las letras, cuáles corrigió la persona y si el número impreso no
+   es el del código. Nombres de campos y un sí/no: ningún valor, que los que
+   valen ya van en el registro, escritos o confirmados por la persona. */
+function resumenDeLaVista(lote) {
+  var v = lote && lote.cedula_vista;
+  if (!v || v.fuente !== 'ocr') return null;
+  var r = { fuente: 'ocr', version: String(v.version || '') };
+  var ll = Object.keys(v.llenados || {}).filter(function (c) { return CAMPOS_DE_LA_VISTA.indexOf(c) >= 0; });
+  var co = Object.keys(v.corregidos || {}).filter(function (c) { return CAMPOS_DE_LA_VISTA.indexOf(c) >= 0; });
+  if (ll.length) r.llenados = ll;
+  if (co.length) r.corregidos = co;
+  if (typeof v.numero_distinto === 'boolean') r.numero_distinto = v.numero_distinto;
+  return (r.llenados || r.corregidos || r.numero_distinto !== undefined) ? r : null;
+}
 
 /* ---------------------------------------------------------- paso: el rostro */
 var ESCANER = { stream: null, activo: false, estables: 0, temporizador: null,
@@ -7100,6 +8470,13 @@ function subirArchivosRegistro() {
      servidor no la usa para decidir: compara los textos él mismo. Sirve para
      que Joan distinga «no lo tocó» de «lo corrigió y quedó igual». */
   if (lote.cedula_editado) huella.cedula_editado = lote.cedula_editado;
+  /* 21-oct-2026 — y lo de las LETRAS de la cédula, en su propia llave y sin
+     ningún valor: qué casillas llenaron, cuáles corrigió la persona y si el
+     número impreso no es el del código (resumenDeLaVista). Nunca dentro de
+     cedula_leida: no decide de quién es la cédula. Hasta que la base tenga la
+     migración de RECETA-OCR-CEDULA.md, registro_archivos_guardar lo ignora. */
+  var vistaResumen = resumenDeLaVista(lote);
+  if (vistaResumen) huella.cedula_vista = vistaResumen;
   if (!pedidas.length && !Object.keys(huella).length) { guardarCola(cel, null); return Promise.resolve(); }
   var ses = SESION;
   /* 21-oct-2026 — I3: suelta (el `true` del final): la respuesta llega
@@ -7430,12 +8807,13 @@ var TEXTOS = {
     'Y funciona para los dos lados: tú consigues crédito donde no te lo daban, y nosotros conseguimos a quién prestarle sabiendo que vuelve. Eso es lo que hay: confianza, construida de a poco y por escrito.'
   ],
 
-  /* Los cuatro empujones. Cortos a propósito: un párrafo largo en un celular no
-     se lee. Cambian según dónde está la persona, para que ninguno mienta. */
+  /* Los empujones. Cortos a propósito: un párrafo largo en un celular no
+     se lee. Cambian según dónde está la persona, para que ninguno mienta.
+     21-oct-2026 — eran cuatro: el de instalar se fue con la tarjeta (ver
+     «DEJARLA EN EL CELULAR»). */
   empujon_visitante: 'Abre tu cuenta y empieza a construir tu historia. Es gratis y no te compromete a pedir nada.',
   empujon_registrado: 'Ya diste el primer paso. Cuando pidas tu primer crédito y lo pagues en fecha, empiezas a subir.',
   empujon_espera: 'Tu solicitud está con nosotros. Lo que decidas hacer con este crédito es lo que te abre el siguiente.',
-  empujon_instalar: 'Déjala en tu pantalla de inicio y la abres como cualquier app, sin buscar el enlace.',
 
   /* LAS TRES RAZONES, CON SU GENTE — 16-sep-2026.
      Joan las pidió con estas palabras: «te desvara súper rápido y cuando
@@ -8447,9 +9825,22 @@ function plegable(id, titulo, parrafos) {
 /* -------------------------------------------------------------------------
  * DEJARLA EN EL CELULAR
  *
- * Solo aparece cuando el navegador de verdad puede instalarla: Chrome avisa con
- * `beforeinstallprompt` y si no avisó, el botón mentiría. Es la misma regla que
- * ya sigue app/socio.html.
+ * 21-oct-2026 — ESTA PÁGINA YA NO SE OFRECE PARA INSTALAR. Joan decidió el
+ * camino («Chrome Instalar, sin APK») y una sola app instalable:
+ * app/socio.html, que explica los pasos en su propia tarjeta (app/instalar.js).
+ * Hasta hoy esta puerta también ofrecía «Agregar a mi pantalla de inicio», y
+ * eso dejaba dos problemas en el celular del cliente:
+ *   · DOS ÍCONOS IGUALES. play/app.webmanifest también se llama «Tu Garantía»
+ *     y usa los mismos íconos: quien instalara las dos tenía dos íconos
+ *     idénticos que no hacen lo mismo.
+ *   · UNA APP QUE PIDE LA CONTRASEÑA CADA VEZ. Esta página guarda la sesión en
+ *     sessionStorage a propósito (se abre en teléfonos prestados, ver
+ *     LLAVE_SESION), y Android no la devuelve al reabrir: instalada, cada
+ *     apertura era volver a escribir la contraseña. No es «una app normal».
+ * El oyente se queda y SOLO calla a Chrome (preventDefault): sin él, Chrome
+ * podría ofrecer instalar esta página con su propia franja, y volveríamos a
+ * los dos íconos. El manifiesto NO se quita ni se toca su `id`: quien ya la
+ * instaló la sigue abriendo igual (README, «Los id de los .webmanifest»).
  *
  * LO QUE NO SE PIDE: el permiso de notificaciones. Joan lo pidió y no se hace
  * todavía, con motivo: hoy no hay quién mande una — el service worker no
@@ -8458,25 +9849,9 @@ function plegable(id, titulo, parrafos) {
  * preguntar el día que sí haga falta. Es la misma decisión que ya está escrita
  * en android/twa-manifest.json y que vigila una prueba.
  * ----------------------------------------------------------------------- */
-var INSTALADOR = null;
 window.addEventListener('beforeinstallprompt', function (e) {
-  e.preventDefault(); INSTALADOR = e;
-  var c = $('cajaInstalar'); if (c) c.innerHTML = tarjetaInstalarPlay();
+  try { e.preventDefault(); } catch (x) {}
 });
-function tarjetaInstalarPlay() {
-  if (!INSTALADOR) return '';
-  return '<div class="card"><h3 class="tit">Déjala en tu celular</h3>' +
-    '<p class="sub">' + esc(TEXTOS.empujon_instalar) + ' Ocupa menos que una foto y abre sin señal.</p>' +
-    '<button class="btn sec arriba" onclick="instalarPlay()">Agregar a mi pantalla de inicio</button></div>';
-}
-function instalarPlay() {
-  if (!INSTALADOR) return;
-  INSTALADOR.prompt();
-  INSTALADOR.userChoice.then(function () {
-    INSTALADOR = null;
-    var c = $('cajaInstalar'); if (c) c.innerHTML = '';
-  }).catch(function () {});
-}
 
 /* -------------------------------------------------------------------------
  * EL RAYO — rehecho el 16-sep-2026, y otra vez el 13-oct-2026
@@ -9178,6 +10553,7 @@ function irA(tab) {
   $('titulo').textContent = TITULOS[tab] || 'Mi cuenta';
   pintarLamina();
   window.scrollTo(0, 0);
+  avisarQueEsMomento();   // 21-oct-2026 — SE ACTUALIZA SOLA: Crédito e Historial son de la lista
 }
 
 /* Las casillas de la calculadora que se escriben a mano (ver pintarLamina). */
@@ -9987,7 +11363,10 @@ function cambiarClave() {
      misma cuenta). Antes se pintaba r.j.msg tal cual, en inglés. El cuerpo
      puede no ser JSON (un 502 de una puerta intermedia): eso no es «sin
      internet», y por eso se lee aparte en vez de caer al catch. */
-  deEstaSesion(ses, fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
+  /* 21-oct-2026 (R3) — una escritura en camino: la recarga sola no la corta
+     (sin esto, tocar «Historial» mientras guardaba dejaba sin «Listo» y sin
+     saber cuál contraseña servía). */
+  deEstaSesion(ses, escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/user', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', apikey: CFG.anon,
                Authorization: 'Bearer ' + ses.access_token },
@@ -9995,7 +11374,7 @@ function cambiarClave() {
   }).then(function (r) {
     return r.json().catch(function () { return null; })
       .then(function (j) { return { ok: r.ok, estado: r.status, j: j }; });
-  }))
+  })))
     .then(function (r) {
       if (!r.ok) {
         return fallo(err, (U && U.traducirErrorAuth) ? U.traducirErrorAuth(r.j, r.estado)
@@ -10053,11 +11432,13 @@ function salirDeCuenta() {
      es una cuenta abierta con el candado puesto por fuera. El aviso se manda y
      no se espera: si no llega, igual salimos — quedarse adentro porque falló la
      red sería lo peor de los dos mundos. */
+  /* 21-oct-2026 (R3) — y cuenta como escritura en camino: la portada es de
+     la lista de SE ACTUALIZA SOLA, y recargar ahí mismo cortaba este aviso. */
   if (SESION && SESION.access_token) {
-    fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/logout', {
+    escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/auth/v1/logout', {
       method: 'POST',
       headers: { apikey: CFG.anon, Authorization: 'Bearer ' + SESION.access_token }
-    }).catch(function () {});
+    })).catch(function () {});
   }
   /* Y la copia guardada se borra ANTES que nada: si el aviso al servidor falla
      o la pestaña se cierra en medio, lo que no puede quedar es una sesión que
@@ -10079,7 +11460,13 @@ function salirDeCuenta() {
      cerró y lo que leyó en cada canal.
      21-oct-2026 — I3: la subida de la cola SÍ sigue y anota lo que pasó con
      el celular de su dueña (ver SUBIDA_EN_CURSO); se suelta aquí solo para
-     que la cuenta del siguiente no la tome por «la que ya va». */
+     que la cuenta del siguiente no la tome por «la que ya va».
+     21-oct-2026 (verificación del lote 1, R2) — SUELTA, PERO A LA VISTA:
+     queda en SUBIDA_SUELTA hasta que conteste. Sin eso, la portada (que es
+     de la lista de SE ACTUALIZA SOLA) recargaba en este mismo instante y
+     mataba la subida que I3 dejó viva: la copia de María se quedaba en el
+     teléfono prestado. */
+  if (SUBIDA_EN_CURSO && SUBIDA_EN_CURSO.p) soltarLaSubida(SUBIDA_EN_CURSO.p);
   PIDIENDO = false; SUBIDA_EN_CURSO = null;
   SOL_EN_PANTALLA = null; CONDICIONES_LEIDAS = {}; PEDIDO_PUESTO = '';
   MI_REGISTRO = ''; AVISO_RESPONSABLE_PLAY_CERRADO = false;
@@ -10414,7 +11801,8 @@ function pedir() {
   /* 21-oct-2026 — H2: la sesión que pide (o ninguna); la respuesta se calla si
      al volver la pestaña ya es de otra (deEstaSesion). */
   var ses = SESION;
-  deEstaSesion(ses, fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/play_solicitar', {
+  /* 21-oct-2026 (R3) — escritura en camino: ver LO QUE VA EN CAMINO NO SE CORTA. */
+  deEstaSesion(ses, escrituraEnCamino(fetch(CFG.url.replace(/\/+$/, '') + '/rest/v1/rpc/play_solicitar', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json', apikey: CFG.anon,
@@ -10430,7 +11818,7 @@ function pedir() {
        pide de más es información para Joan, no una instrucción para la base. */
     body: JSON.stringify({ p_capital: MONTO, p_meses: PLAZO,
                            p_nota: notaConPlazo() })
-  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); }))
+  }).then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('http ' + r.status)); })))
     .then(function (j) {
       /* La función contesta {ok:false} con HTTP 200 cuando algo no cuadra o el
          freno de solicitudes está lleno: decir «recibimos» ahí sería mentir.
@@ -10478,6 +11866,7 @@ function anotarPlazoLibre(el) {
 }
 
 function pintarPedido() {
+  VISTA = 'pedido';   // 21-oct-2026 — era 'cuenta' por herencia: SE ACTUALIZA SOLA la habría creído la cuenta
   $('titulo').textContent = 'Solicitud enviada';
   $('cuerpo').innerHTML =
     '<div class="card"><div class="aviso verde"><b>Recibimos tu solicitud.</b></div>' +
@@ -10565,6 +11954,7 @@ function imprimirCertificado() {
 }
 
 function pintarBorrar() {
+  VISTA = 'borrar';   // 21-oct-2026 — ver pintarPedido: cada pantalla dice cuál es
   $('titulo').textContent = 'Borrar mi cuenta';
   var K = window.Cumplimiento;
   var B = K.BORRADO;
@@ -10592,8 +11982,82 @@ function pie() {
   return '<div class="pie">' +
     '<a href="../legal/terminos.html" style="color:inherit">Términos</a> · ' +
     '<a href="../legal/privacidad.html" style="color:inherit">Tus datos</a><br>' +
-    '<span class="muted" style="font-size:11px">Versión ' + esc(VERSION_PLAY) +
+    '<span class="muted" style="font-size:11px">Versión ' + esc(VERSION_PLAY) + ' · ' + esc(VERSION_SITIO) +
     ' · reglas del ' + esc(C.TOPES[C.TOPES.length - 1].desde) + '</span></div>';
+}
+
+/* ======================= SE ACTUALIZA SOLA — 21-oct-2026 =======================
+   Joan: «que cuando tengamos actualizaciones el cliente pueda actualizar de una
+   forma automática». app/actualizar.js busca la versión nueva y recarga, pero
+   CUÁNDO es seguro lo dice esta página, y lo dice con una LISTA BLANCA: lo que
+   no está aquí no recarga nunca. Fuera quedan, a propósito:
+     · el registro en CUALQUIER paso (recargar ahí dispara «La página se volvió
+       a abrir» o suelta las fotos de la cédula: la vuelta de la cámara), «¿Es
+       tuyo?», el «Listo» mientras suben las fotos y PlataChat esperando;
+     · cualquier viaje en camino (viajando: un «Entrar» o un «Abrir mi
+       cuenta»), un pedido saliendo (PIDIENDO) y una subida de fotos
+       (SUBIDA_EN_CURSO); y desde la verificación del 21-oct-2026 (R2, R3),
+       CUALQUIER escritura en camino y la subida que «Salir» dejó suelta
+       (hayEscriturasEnCamino: ver LO QUE VA EN CAMINO NO SE CORTA);
+     · la propuesta con la casilla «Leí y acepto» marcada (se perdería la
+       marca), la pantalla de la solicitud, el chat, el perfil (la contraseña
+       nueva), «Recuperar tu contraseña» y borrar la cuenta.
+   Lo que SÍ: la portada sin nada tecleado, y la cuenta en Crédito o en
+   Historial. app/actualizar.js agrega dos guardas más para todas las páginas:
+   texto tecleado a la vista y una cámara encendida. Y aun aquí, recarga al
+   salir de la app, al volver antes de tocar nada o al llegar a una de estas
+   pantallas; nunca debajo del dedo. */
+var ACT = null;   // el controlador de app/actualizar.js; null si ese <script src> no llegó
+var PESTANAS_QUE_VUELVEN = ['credito', 'historial'];
+function casillaDeLaPropuestaMarcada() {
+  if (!SOL_EN_PANTALLA) return false;
+  /* Sin el módulo de la calculadora no hay casilla: se acepta con un toque, y
+     una propuesta en pantalla ya es una decisión a medias. */
+  if (!CS) return true;
+  try { return !!CONDICIONES_LEIDAS[CS.llaveDeCasilla(SOL_EN_PANTALLA)]; } catch (e) { return true; }
+}
+function sinTeclear(id) {
+  var el = $(id);
+  return !el || !String(el.value || '').trim();
+}
+/* 21-oct-2026 (verificación del lote 1, R2 y R3) — y ninguna escritura en
+   camino, en NINGUNA pantalla: la subida que «Salir» dejó suelta, la foto o
+   el mensaje del chat, la contraseña nueva, el aviso de salida (ver LO QUE
+   VA EN CAMINO NO SE CORTA). */
+/* 22-oct-2026 (verificación de 35f0687) — LO QUE VA EN CAMINO, EN UNA
+   PREGUNTA que también le llega a app/actualizar.js (opción `ocupado`):
+   además de frenar la recarga sola, hace que «Actualizar ahora» espere a que
+   termine en vez de cortarlo. */
+function ocupadoPlay() {
+  return viajando() || !!PIDIENDO || !!SUBIDA_EN_CURSO || hayEscriturasEnCamino();
+}
+function momentoSeguroPlay() {
+  if (ocupadoPlay()) return false;
+  if (VISTA === 'entrar') return sinTeclear('inTel') && sinTeclear('inClave') && sinTeclear('csMontoLibre');
+  if (VISTA !== 'cuenta') return false;
+  if (TAB === 'historial') return true;
+  if (TAB === 'credito') return !casillaDeLaPropuestaMarcada() && sinTeclear('csNota') && sinTeclear('csMontoLibre');
+  return false;
+}
+/* Lo único que cruza la recarga: el nombre de la pestaña. La sesión ya la
+   guarda guardarSesionEnCurso; nada del registro sale de aquí. */
+function lugarPlay() {
+  return (VISTA === 'cuenta' && PESTANAS_QUE_VUELVEN.indexOf(TAB) >= 0) ? { tab: TAB } : null;
+}
+function arrancarActualizar() {
+  var A = window.Actualizar;
+  if (!A || typeof A.iniciar !== 'function') return;
+  try {
+    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroPlay, ocupado: ocupadoPlay, lugar: lugarPlay });
+  } catch (e) { ACT = null; return; }
+  var l = ACT && ACT.vuelta && ACT.vuelta.lugar;
+  if (l && PESTANAS_QUE_VUELVEN.indexOf(l.tab) >= 0) TAB = l.tab;
+}
+/* La página llegó a una pantalla de la lista: si hay versión esperando, es el
+   momento (es un cambio de pantalla que la persona pidió, no una recarga bajo
+   el dedo). */
+function avisarQueEsMomento() {
+  if (ACT) { try { ACT.yaEsSeguro(); } catch (e) {} }
 }
 
 /* ============================== ARRANQUE ============================== */
@@ -10605,6 +12069,10 @@ function pie() {
       navigator.serviceWorker.register('../sw.js', { updateViaCache: 'none' }).catch(function () {});
     });
   }
+  /* 21-oct-2026 — SE ACTUALIZA SOLA, antes de decidir dónde cae la persona: si
+     esta carga la hizo app/actualizar.js, la pestaña de la cuenta donde
+     estaba (Crédito o Historial) vuelve puesta. */
+  arrancarActualizar();
   /* 8-sep-2026 — #registro abre el formulario de una: es adonde manda el botón
      «Registrarme» de app/socio.html, que es el único enlace que Joan reparte.
      Quien llega así es un socio nuevo del quincenal: no tiene por qué ver la

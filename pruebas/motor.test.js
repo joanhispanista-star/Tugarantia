@@ -9869,11 +9869,18 @@ describe('ninguna pantalla llama a una función que la migración tiró (11-ago-
        «Versión 2026-09-09».
 
        El respaldo a `c.add(f)` a secas es deliberado: si un navegador viejo no
-       entiende cache:'reload', vale más una caché con algo que ninguna. */
+       entiende cache:'reload', vale más una caché con algo que ninguna.
+
+       21-oct-2026 — 'no-cache' en vez de 'reload'. Los dos van al servidor y
+       ninguno acepta la copia de la caché HTTP sin preguntar (el defecto de
+       arriba); 'no-cache' pregunta con la ETag y lo que no cambió baja como un
+       304, en vez de los ~1,9 MB que 'reload' le costaba a cada teléfono en cada
+       publicación. Lo que esta prueba no deja volver es 'default' o
+       'force-cache': ver pruebas/se-actualiza-sola.test.js. */
     const SW = leer('sw.js');
     const inst = SW.slice(SW.indexOf("addEventListener('install'"),
                           SW.indexOf("addEventListener('activate'"));
-    assert.match(inst, /new Request\([^)]*cache:\s*['\"]reload['\"]/,
+    assert.match(inst, /new Request\([^)]*cache:\s*['\"]no-cache['\"]/,
       'el precache del service worker vuelve a pasar por la caché del navegador: ' +
       'la instalación nueva se llena con los archivos viejos y se queda así hasta ' +
       'la próxima publicación');

@@ -8749,7 +8749,11 @@ const URL_PUERTA_DEF = 'https://tugarantia.net/play/';
 
    Se manda el ENLACE y no el archivo porque WhatsApp bloquea los .apk. La
    página del otro lado explica el aviso de «app desconocida» antes de que le
-   salga, que es lo que decide si el cliente instala o se echa para atrás. */
+   salga, que es lo que decide si el cliente instala o se echa para atrás.
+   21-oct-2026 — el enlace es el mismo, lo que hay del otro lado cambió: ya no
+   ofrece el APK (decisión de Joan: Chrome «Instalar», sin APK) sino los pasos
+   para instalar app/socio.html desde Chrome o Safari, sin avisos de «app
+   desconocida». Ver descargas/index.html y app/instalar.js. */
 const URL_DESCARGA_APP = 'https://tugarantia.net/descargas/';
 function sbCfg(){ try{ return JSON.parse(localStorage.getItem(SB_KEY)||'{}'); }catch(e){ return {}; } }
 /* ===== HABLAR CON LA NUBE, UNA SOLA PUERTA =====
@@ -17229,9 +17233,26 @@ setTimeout(function(){ if(!window.NubeCRM){ var b=document.getElementById('nubeB
    «todo bien». El botón manual sigue sirviendo, y se dice. */
 setTimeout(function(){ if(!window.HistorialesAuto){ var b=document.getElementById('historialesBarra'); if(b) b.innerHTML='<div class="alerta warn">Este computador está sirviendo una versión vieja del CRM: los historiales de tus clientes NO suben solos. Recárgalo con Ctrl+Shift+R; mientras, usa ☁ Subir historiales.</div>'; } },1500);
 </script>
+<!-- 21-oct-2026 — se actualiza sola, pero EL CRM SOLO AVISA: nunca se recarga
+     solo (ver abajo). -->
+<script src="../app/actualizar.js"></script>
 <script>
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
   window.addEventListener('load',()=>{ navigator.serviceWorker.register("../sw.js", { updateViaCache: "none" }).catch(()=>{}); });
+}
+/* 21-oct-2026 — SE ACTUALIZA SOLA, PERO EL CRM NUNCA SE RECARGA SOLO.
+   app/actualizar.js busca la versión nueva igual que en la app del cliente,
+   pero aquí solo AVISA con una franja y su botón «Recargar»: el CRM (y el
+   gerente y el asesor, que entran por esta misma página) guarda la cola de
+   cobros sin señal y un estado enorme a medio llenar, y ninguna lista blanca
+   dice con certeza cuándo eso está en paz. Lo decide quien lo usa. Hasta hoy
+   la única salida era «Soltar la copia guardada» o Ctrl+Shift+R, y solo
+   cuando alguien sospechaba.
+   VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' → 'v138') y sube con
+   él: pruebas/se-actualiza-sola.test.js no deja pasar uno sin el otro. */
+var VERSION_SITIO = 'v139';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
+  try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }
 </script>
 </body>

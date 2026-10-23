@@ -460,6 +460,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
      computador (panel/crm.html). Si no llega, la tarjeta no ofrece juntar: un
      toque sin sus señales al lado es justo el que Joan decidió no dar. -->
 <script src="una-puerta.js"></script>
+<!-- 21-oct-2026 — se actualiza sola, pero AQUÍ SOLO AVISA: el espejo nunca se
+     recarga solo (ver el final de esta página). -->
+<script src="../app/actualizar.js"></script>
 <script>
 'use strict';
 /* =========================================================================
@@ -5988,6 +5991,19 @@ if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('../sw.js', { updateViaCache: 'none' }).catch(function () {});
   });
+}
+
+/* 21-oct-2026 — SE ACTUALIZA SOLA, PERO EL ESPEJO NUNCA SE RECARGA SOLO.
+   app/actualizar.js busca la versión nueva igual que en la app del cliente,
+   pero aquí solo AVISA con una franja y su botón «Recargar»: el espejo guarda
+   la cola de lo que se hizo sin señal y un estado grande a medio llenar, y
+   ninguna lista blanca dice con certeza cuándo eso está en paz. Lo decide
+   quien lo usa. VERSION_SITIO es el CACHE de sw.js ('tugarantia-v138' →
+   'v138') y sube con él: pruebas/se-actualiza-sola.test.js no deja pasar uno
+   sin el otro. */
+var VERSION_SITIO = 'v139';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
+if (window.Actualizar && typeof window.Actualizar.iniciar === 'function') {
+  try { window.Actualizar.iniciar({ version: VERSION_SITIO, soloAvisar: true }); } catch (e) {}
 }
 </script>
 </body>

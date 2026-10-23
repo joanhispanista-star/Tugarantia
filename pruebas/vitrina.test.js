@@ -303,11 +303,20 @@ describe('instalar sí; pedir permisos que no se usan, no', () => {
       'las páginas dejaron de pedirse a la red primero');
   });
 
-  test('el botón de instalar solo aparece si el navegador dijo que puede', () => {
-    assert.match(VIVO, /beforeinstallprompt/,
-      'el botón se pinta siempre: en un iPhone o en un navegador que no instala, promete algo imposible');
-    assert.match(VIVO, /if \(!INSTALADOR\) return ''/,
-      'la tarjeta de instalar no comprueba que haya con qué instalar');
+  test('play/ ya NO se ofrece para instalar: la que se instala es app/socio.html (21-oct-2026)', () => {
+    /* Hasta el 21-oct esta prueba vigilaba que el botón de instalar de play/
+       saliera solo con el aviso de Chrome. Joan decidió UNA sola app
+       instalable: play/ también se llama «Tu Garantía» con los mismos íconos
+       (dos íconos iguales en el celular) y guarda la sesión en
+       sessionStorage, así que instalada pedía la contraseña cada vez. Lo que
+       se vigila ahora es lo contrario: que no se ofrezca, y que calle la
+       franja propia de Chrome. La guía vive en app/instalar.js y la prueba
+       que la ejecuta, en pruebas/instalar.test.js. */
+    assert.ok(!/cajaInstalar|tarjetaInstalarPlay|Agregar a mi pantalla de inicio/.test(VIVO),
+      'play/ volvió a ofrecer instalarse');
+    const oyente = (VIVO.match(/addEventListener\('beforeinstallprompt'[\s\S]{0,120}?\}\);/) || [''])[0];
+    assert.match(oyente, /preventDefault\(\)/, 'sin el preventDefault, Chrome ofrece instalar play/ con su propia franja');
+    assert.ok(!/\.prompt\(\)/.test(oyente), 'el oyente volvió a abrir el diálogo de instalar');
   });
 
   test('NO se pide el permiso de notificaciones mientras no haya quién mande una', () => {
@@ -439,6 +448,7 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
     delete require.cache[require.resolve(path.join(RAIZ, 'app', 'calculadora-solicitud.js'))];
     ctx.CalculadoraSolicitud = require(path.join(RAIZ, 'app', 'calculadora-solicitud.js'));
     ctx.EscanerCedula = require(path.join(RAIZ, 'app', 'escaner-cedula.js'));   // 21-sep-2026, el escáner de la cédula
+    ctx.EscanerCaptura = require(path.join(RAIZ, 'app', 'escaner-captura.js'));   // 21-oct-2026, la foto más nítida, acostada
     ctx.Cumplimiento = require(path.join(RAIZ, 'app', 'cumplimiento.js'));
     /* 14-sep-2026 — el motor y el lector de la ficha entraron a play/ con la
        calculadora de la garantía. Si se olvidan acá, la página revienta en el
@@ -453,6 +463,10 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
        calladas y ninguna prueba se queja. Lo encontro el centinela de arriba el
        dia que se escribio, no una persona mirando. */
     ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
+    /* 21-oct-2026 — se actualiza sola. Con require (Node no tiene service
+       worker) es el controlador que no hace nada: lo que esta vitrina prueba no
+       cuelga de él, pero la página lo carga y el centinela de abajo lo pide. */
+    ctx.Actualizar = require(path.join(RAIZ, 'app', 'actualizar.js'));
     vm.createContext(ctx);
     const fallos = [];
     [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]

@@ -290,8 +290,12 @@ describe('3. respaldo, frente, y el registro pasa solo a revisar los datos', () 
     await P.ev("tomarFoto({ target: { files: [{ name: 'f.jpg' }] } }, 'cedula_frente')");
     assert.equal(pasoActual(P), 'identidad', 'con las dos fotos de la cámara del celular no pasó solo al paso 2');
     assert.match(cuerpo(P), /<h3 class="tit"[^>]*>Escribe tus datos<\/h3>/);
-    assert.match(cuerpo(P), /No alcanzamos a leer el código de barras de tu cédula/,
-      'el formulario vacío no explica que el código no se leyó: parece un error de la app');
+    /* 23-oct-2026 — sin lector no se sabe si es la amarilla o la digital (que
+       no trae código de barras): la nota dice lo que es cierto en las dos
+       (textoSinLeer en play/). Antes decía «el código de barras». */
+    assert.match(cuerpo(P), /No alcanzamos a leer tu cédula, así que esta vez los datos los escribes tú/,
+      'el formulario vacío no explica que la cédula no se leyó: parece un error de la app');
+    assert.equal(/código de barras de tu cédula/.test(cuerpo(P)), false, 'le habló del código de barras sin saber si su cédula lo trae');
   });
 
   test('el sexo y el RH ni se guardan ni se muestran', () => {

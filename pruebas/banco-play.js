@@ -118,12 +118,24 @@ function abrirPlay(opciones) {
      quién son las fotos). Sin cámara en el banco, la página cae a las cajas de
      foto de siempre; lo puro se prueba con cuadros y códigos fabricados. */
   ctx.EscanerCedula = require(path.join(RAIZ, 'app', 'escaner-cedula.js'));
+  /* 21-oct-2026 — la captura (la ventana del mejor cuadro, la linterna, el QR).
+     No guarda estado, así que la copia compartida no envenena a nadie. Sin
+     lienzo de verdad en el banco, la medida de nitidez da null y el bucle sigue
+     con la cuenta de antes; las pruebas de la ventana le dan su propia medida
+     (pruebas/escaner-captura.test.js). */
+  ctx.EscanerCaptura = require(path.join(RAIZ, 'app', 'escaner-captura.js'));
   ctx.Cumplimiento = require(path.join(RAIZ, 'app', 'cumplimiento.js'));
   ctx.MotorReglas = require(path.join(RAIZ, 'app', 'motor.js'));
   ctx.FichaSocio = require(path.join(RAIZ, 'app', 'ficha.js'));
   ctx.RuletaCupo = require(path.join(RAIZ, 'app', 'ruleta.js'));
   ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
   vm.createContext(ctx);
+  /* 21-oct-2026 — se actualiza sola. Este corre DENTRO del contexto y no con
+     require: lee la ventana de la página (su sessionStorage, su navigator), y
+     con require vería los de Node. En el banco no hay service worker, así que
+     es el controlador que no hace nada —como en un navegador sin él—, pero la
+     vuelta de una recarga suya (la pestaña donde estaba) sí se lee. */
+  vm.runInContext(fs.readFileSync(path.join(RAIZ, 'app', 'actualizar.js'), 'utf8'), ctx, { filename: 'actualizar.js' });
   const fallos = [];
   [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
     .forEach((m, i) => {
@@ -131,9 +143,12 @@ function abrirPlay(opciones) {
       catch (e) { fallos.push(e); }
     });
   /* `almacen` y `sesion` salen a la vista para que una prueba pueda volver a
-     abrir el banco con ellos: eso es una recarga. */
+     abrir el banco con ellos: eso es una recarga.
+     21-oct-2026 — y la ventana, para darle a la página un objeto de Node que
+     una cadena de P.ev no puede escribir: el Tesseract.js de verdad
+     (pruebas/banco-ocr.js) en la prueba de punta a punta del OCR. */
   return { ev: e => vm.runInContext(e, ctx, { filename: 'banco' }), elems, fallos,
-           almacen, sesion, hash: () => ctx.location.hash };
+           almacen, sesion, hash: () => ctx.location.hash, ventana: ctx };
 }
 
 

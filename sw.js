@@ -1724,7 +1724,119 @@
    platachat/index.html y platachat/sesion.js tienen que llegar JUNTOS: una
    pagina de PlataChat nueva con el sesion.js viejo seguiria guardando la
    sesion por su cuenta (SP.entrar) y un refresco tardio la resucitaria.*/
-const CACHE = 'tugarantia-v138';
+/* 21-oct-2026 — PARA LA QUE SIGA A v138 (esta rama NO sube el numero: lo sube
+   quien integra). SE ACTUALIZA SOLA, SIN QUE NADIE PIERDA NADA.
+   · app/actualizar.js, NUEVO: play/, app/socio.html y platachat/ buscan
+     version nueva al abrir, al volver a la app y cada 30 min, y recargan SOLAS
+     solo en un momento seguro (cada pagina tiene su lista blanca); el CRM y el
+     espejo solo avisan. Entra a la precarga: las cinco paginas lo cargan con
+     un <script src>.
+   · CADA PAGINA DECLARA VERSION_SITIO = el numero de CACHE de abajo ('v139').
+     AL SUBIR CACHE HAY QUE SUBIR VERSION_SITIO EN play/index.html,
+     app/socio.html, platachat/index.html, panel/crm.html y panel/espejo.html:
+     pruebas/se-actualiza-sola.test.js no deja pasar uno sin los otros. Es lo
+     que le dice a una pagina abierta que ella es la vieja; sin eso, la
+     primera apertura despues de publicar recargaria de gana.
+   · La rama red-primero y la precarga piden con cache 'no-cache' (ver
+     pedidoFresco y el install): siempre se pregunta al servidor con la ETag,
+     asi que la ventana de 10 min de max-age ya no mezcla una pagina nueva con
+     un .js viejo (lo que las notas de v138 piden: «tienen que llegar
+     JUNTOS»), y lo que no cambio baja como un 304 de pocos bytes en vez de
+     los ~1,9 MB que bajaba cada telefono en cada publicacion con 'reload'.
+   · CORRECCION a la nota del 14-sep (SUBIR EL NUMERO NO BASTA): desde Chrome
+     68 la busqueda de sw.js ya no pasa por la cache HTTP aunque falte
+     updateViaCache (developer.chrome.com/blog/fresher-sw). Lo que de verdad
+     llenaba la cache nueva con archivos viejos era la precarga; se deja
+     updateViaCache:'none' porque en Safari no se verifico. */
+/* 21/22-oct-2026, v139: EL LOTE 1, INTEGRADO (rama l1-integrado: l1-garantia,
+   l1-instalar, l1-actualizar, l1-escaner y l1-ocr, en ese orden). Lo que trae:
+   · LA GARANTIA EN UNA LINEA: app/socio.html (Inicio la dice una vez; Mi
+     garantia pliega el detalle) e index.html («el primero ya te da cupo»).
+   · INSTALARLA PASO A PASO: app/instalar.js (NUEVO, en la precarga) y
+     app/socio.html; play/ deja de ofrecerse para instalar y salta a https;
+     index.html y descargas/ ya no mandan al APK.
+   · SE ACTUALIZA SOLA: app/actualizar.js (NUEVO, en la precarga), las cinco
+     paginas con VERSION_SITIO = 'v139', y la red-primero y la precarga con
+     'no-cache' (ver la nota de arriba).
+   · EL ESCANER: las dos caras de la cedula ACOSTADAS y la foto del MEJOR
+     cuadro (app/escaner-captura.js, NUEVO, en la precarga; app/escaner-
+     cedula.js cambia: franjaDeBarras, saturados, el marco sin modo de pie).
+   · LO QUE SE VE EN LA CEDULA LLENA «REVISA TUS DATOS»: app/ocr-cedula.js
+     (NUEVO, en la precarga) y el motor en app/lib/ocr/ (Tesseract.js 7 y el
+     espanol, ~6 MB, FUERA de la precarga: play/ lo pide con rel=prefetch al
+     disparar el respaldo, y solo quien escanea lo paga). Las letras leen el
+     recorte de la foto que se guarda por el enganche del escaner
+     (alTomarLaCedula), con su giro y su marco.
+   TIENEN QUE LLEGAR JUNTOS play/index.html, app/escaner-cedula.js,
+   app/escaner-captura.js, app/ocr-cedula.js, app/lib/ocr/*, app/actualizar.js
+   y app/instalar.js, y por eso sube el numero:
+   · play/ nueva con el escaner-cedula.js viejo: sin franjaDeBarras el lector
+     se come el recorte 4K entero en cada lectura (la memoria que tumba la
+     pestana) y sin `saturados` la linterna no se apaga con el reflejo;
+   · play/ nueva sin escaner-captura.js: cae a la cuenta de antes, sin mejor
+     cuadro ni linterna, y las letras leen el sexto cuadro quieto (el que
+     pidio Joan que no se tomara);
+   · ocr-cedula.js sin SU app/lib/ocr/ (las rutas y la version del nucleo
+     van atadas, ORIGEN.md): el motor no arranca y la persona teclea todo,
+     con la pantalla habiendole dicho que se lo llenabamos;
+   · las cinco paginas sin actualizar.js no se enteran de la version nueva
+     sino por el camino viejo, y socio.html sin instalar.js no explica como
+     instalarla.
+   Sin subir la cache, un telefono con v138 seguiria con el escaner de pie y
+   ningun archivo de este lote.
+   21-oct-2026, la verificacion del lote (MISMA v139: el lote sigue sin
+   publicar, y lo que cambia viaja con el): las letras solo con la amarilla
+   PROBADA y la marca con la foto (play/index.html, app/ocr-cedula.js); la
+   recarga sola nunca con una escritura en camino ni con una caja de solo
+   lectura, y un modo sin momento seguro no promete «se pone sola»
+   (app/actualizar.js y las tres paginas del cliente). app/sesion-socio.js y
+   platachat/sesion.js devuelven la promesa del aviso de salida para que la
+   pagina la cuente; con uno viejo la pagina no la cuenta y sale igual:
+   mezclarlos no rompe nada.
+   22-oct-2026, la segunda verificacion (MISMA v139): la franja de «version
+   nueva» se vuelve a decidir sola cuando cambia la pantalla o sale/termina
+   una escritura, y «Actualizar ahora» espera lo que va en camino y pregunta
+   si hay algo escrito (app/actualizar.js y las tres paginas del cliente:
+   ocupado y volverAMirar). Mezclarlos tampoco rompe: una pagina nueva con el
+   actualizar.js viejo no llama volverAMirar (lo pregunta antes), y una vieja
+   con el nuevo frena el boton con su lista blanca (salvo en el modo «nunca»,
+   que queda como estaba).
+   22-oct-2026, la tercera verificacion (MISMA v139): al terminar lo que
+   esperaba, «Actualizar ahora» ya no recarga solo encima de la respuesta (un
+   «no» de la base se perdia); dice «ya termino» con el boton. Solo cambia
+   app/actualizar.js: con paginas de cualquiera de las dos vueltas funciona
+   igual.
+   23-oct-2026, la cuarta verificacion (MISMA v139): y sin tocar el boton,
+   igual: si lo que la persona mando termina con la app oculta o recien
+   vuelta, la recarga sola espera a que lo vea (el mismo «ya termino»). Solo
+   cambia app/actualizar.js; las paginas ya llaman volverAMirar al empezar.
+   23-oct-2026, la quinta verificacion (MISMA v139): «la vio» se prueba
+   despues de la respuesta (un toque o 5 min a la vista), en
+   app/actualizar.js; y el escaner con la cedula dificil (PDF417 gastado,
+   frente liso, poca luz sin linterna) en app/escaner-captura.js,
+   app/escaner-cedula.js y play/index.html. Mezclarlos no rompe: la pagina
+   pregunta por calidadDeGris, franjaComoLaDelCodigo y NITIDEZ_MIN_FRENTE
+   antes de usarlos (sin ellos, la mediana y la puerta de siempre), y una
+   pagina vieja no manda las opciones nuevas.
+   22-oct-2026, la sexta verificacion (MISMA v139): la franja de barras es DE
+   LA TARJETA (el frente sobre una mesa de rayas pasaba por respaldo), en
+   app/escaner-cedula.js y play/index.html. Mezclarlos no rompe: la pagina
+   nueva le pasa a franjaDeBarras y franjaComoLaDelCodigo las filas del marco
+   como dato de mas (un escaner-cedula.js viejo no lo mira y queda como
+   estaba), y con una pagina vieja el escaner-cedula.js nuevo ya descarta la
+   franja que toca el borde y supone el 6 % de aire. La cura viaja en
+   escaner-cedula.js.
+   23-oct-2026, la septima verificacion (MISMA v139): las columnas del aire
+   tambien son mesa (el frente sobre rayas finas de contraste alto pasaba por
+   respaldo por la franja o por el patron), en app/escaner-cedula.js y
+   play/index.html. Mezclarlos no rompe: la pagina nueva le pasa las columnas
+   del marco como dato de mas (un escaner-cedula.js viejo no lo mira y queda
+   como estaba) y pregunta por franjaComoLaDelCodigo antes de usarla para la
+   banda; con una pagina vieja, el escaner-cedula.js nuevo ya cuenta la franja
+   desde el piso de la tarjeta (pruebas/el-frente-sobre-rayas-finas.test.js,
+   «sin las columnas») y su patron ya no vota con rayas que siguen arriba y
+   abajo. La cura viaja en escaner-cedula.js. */
+const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
@@ -1788,7 +1900,11 @@ const ARCHIVOS = [
      app/cuenta.js, app/creditos.js y app/cumplimiento.js son los tres <script>
      que play/ carga, y app/lib/zxing.min.js lo pide el paso de la cedula —ese
      ultimo NO entra: son 330 KB que la mayoria no va a usar, y se baja solo
-     cuando la persona llega a ese paso. */
+     cuando la persona llega a ese paso.
+     21-oct-2026 — play/ ya NO se ofrece para instalar: la que se instala es
+     app/socio.html (dos iconos «Tu Garantia» iguales, y play/ pide la
+     contrasena en cada apertura). Sigue en la precarga porque quien ya la
+     instalo, y quien se registra con mala senal, la abren igual. */
   'play/',
   'play/index.html',
   'play/estilo.css',
@@ -1798,6 +1914,11 @@ const ARCHIVOS = [
      cargan con un <script src>. Sin el, la app instalada no anota el aparato
      (la pagina se protege sola) y el CRM no lo pone en palabras. Ver v138. */
   'app/aparato.js',
+  /* 21-oct-2026 — instalarla paso a paso: app/socio.html lo carga con un
+     <script src>. Sin el, la app instalada que abre sin senal no pinta la
+     tarjeta (la pagina se protege sola con `if (!IA)`). El numero de CACHE lo
+     sube quien cierre la entrega, con su nota. */
+  'app/instalar.js',
   /* 19-oct-2026 — la gente de «Para que te sirve», de Open Peeps (CC0). Los
      .svg van cache-primero: precargados, se ven sin senal. Ver v138. */
   'play/gente/varas.svg',
@@ -1809,6 +1930,12 @@ const ARCHIVOS = [
      justo lo que evita la vuelta de la camara. zxing.min.js sigue fuera: son
      330 KB que se bajan solo al llegar a ese paso. */
   'app/escaner-cedula.js',
+  /* 21-oct-2026 — el escaner que escoge la foto mas nitida (la cedula
+     acostada, la linterna sola, el QR de la digital): play/ lo carga con un
+     <script src>. Sin el, el escaner sigue con la cuenta de antes (ECAP), y la
+     cedula amarilla de Joan volveria a no leerse. Tiene que llegar JUNTO con
+     play/index.html y app/escaner-cedula.js: quien integra sube el CACHE. */
+  'app/escaner-captura.js',
   'app/creditos.js',
   'app/cumplimiento.js',
   /* 14-sep-2026 — lo que play/ carga desde que es la puerta unica. ficha.js lee
@@ -1864,7 +1991,19 @@ const ARCHIVOS = [
      (play/, platachat/ e index.html), y la selfie que se toma sola (play/, al
      llegar al paso). Ver la nota de v136. */
   'app/calculadora-solicitud.js',
-  'app/rostro-en-vivo.js'
+  'app/rostro-en-vivo.js',
+  /* 21-oct-2026 — se actualiza sola: play/, app/socio.html, platachat/, el
+     CRM y el espejo lo cargan con un <script src>. Sin el en la cache, la app
+     instalada sin senal abre igual (cada pagina se protege con
+     `window.Actualizar`), pero no sabria avisar de la version nueva. */
+  'app/actualizar.js',
+  /* 21-oct-2026 — las letras de la cédula (play/, al escanear): el módulo
+     chico, que recorta las franjas en el disparo y tiene que estar ahí sin
+     esperar la red. El motor de app/lib/ocr/ (unos 6 MB) NO entra: precargarlo
+     sería pagarle esos datos a cada socio que abre la app, y solo los usa
+     quien se registra, una vez (play/ los pide con rel=prefetch al disparar el
+     respaldo). El número de CACHE lo sube quien publica. */
+  'app/ocr-cedula.js'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {
@@ -1881,8 +2020,15 @@ self.addEventListener('install', e => {
       // siguiente cambio de numero — no diez minutos: hasta la proxima publicacion.
       // Comprobado en vivo: la cache paso a v41 y la pagina seguia diciendo
       // «Version 2026-09-09».
+      //
+      // 21-oct-2026 — 'no-cache' Y NO 'reload'. Los dos van al servidor (ninguno
+      // acepta la copia de la cache HTTP sin preguntar, que era el defecto de
+      // arriba); 'reload' baja SIEMPRE el archivo entero, y 'no-cache' pregunta
+      // con la ETag: lo que no cambio vuelve como un 304 de pocos bytes. Con
+      // 'reload' cada publicacion le costaba ~1,9 MB a cada telefono, aunque
+      // solo hubiera cambiado una pagina; en prepago eso se nota.
       .then(c => Promise.all(ARCHIVOS.map(f =>
-        c.add(new Request(f, { cache: 'reload' })).catch(() => c.add(f).catch(() => null)))))
+        c.add(new Request(f, { cache: 'no-cache' })).catch(() => c.add(f).catch(() => null)))))
       .then(() => self.skipWaiting())
   );
 });
@@ -1899,6 +2045,24 @@ self.addEventListener('activate', e => {
       .then(() => self.clients.claim())
   );
 });
+
+/* 21-oct-2026 — RED PRIMERO DE VERDAD: cache 'no-cache'. Un fetch(req) a secas
+   pasa por la cache HTTP del navegador, y con el max-age=600 de GitHub Pages
+   cada archivo pedido en los ultimos diez minutos salia VIEJO de ahi aunque el
+   servidor ya tuviera el nuevo (MDN, Request.cache 'default': lo «fresco» se
+   devuelve sin preguntar). Asi se mezclaban una pagina nueva y un .js viejo
+   —play/index.html con el escaner de antes—, justo lo que las notas de v138
+   prohiben. 'no-cache' pregunta SIEMPRE con la ETag: si no cambio, un 304 de
+   pocos bytes; si cambio, lo nuevo.
+   POR QUE new Request EN UN try Y NO fetch(req, {...}): con una navegacion
+   (mode 'navigate') hay navegadores viejos que se niegan a copiar el pedido
+   con opciones («Cannot construct a Request with a Request whose mode is
+   'navigate' and a non-empty RequestInit»). Dentro de fetch() eso seria un
+   rechazo, y el .catch de abajo serviria la copia guardada CON SENAL, para
+   siempre. Asi, si no se puede, se pide como antes. */
+function pedidoFresco(req) {
+  try { return new Request(req, { cache: 'no-cache' }); } catch (_) { return req; }
+}
 
 self.addEventListener('fetch', e => {
   const req = e.request;
@@ -1931,7 +2095,7 @@ self.addEventListener('fetch', e => {
 
   if (frescoPrimero) {
     e.respondWith(
-      fetch(req)
+      fetch(pedidoFresco(req))
         .then(r => {
           const copia = r.clone();
           caches.open(CACHE).then(c => c.put(req, copia)).catch(() => {});

@@ -48,6 +48,17 @@ function almacen(inicial) {
  *   hash            location.hash al abrir
  *   red             (url, opciones) => {status, cuerpo} | Promise de eso
  *   ahora           milisegundos para Date.now() (las sesiones vencen)
+ *   navegador       21-oct-2026 — lo que se le suma a navigator: userAgent,
+ *                   maxTouchPoints, standalone, clipboard… La tarjeta de
+ *                   instalar (app/instalar.js) decide por el teléfono y el
+ *                   navegador, y con 'node' de user-agent no hay teléfono.
+ *   matchMedia      21-oct-2026 — (consulta) => {matches}. Con él una prueba
+ *                   dice «la abrieron instalada» (display-mode: standalone).
+ *   performanceNow  cuánto lleva abierta la página (3000 si no se dice)
+ *
+ * 21-oct-2026 — la ventana GUARDA sus oyentes (como en banco-play.js) y
+ * `disparar(tipo, evento)` los llama: beforeinstallprompt y appinstalled los
+ * manda Chrome, no la página, y sin esto la prueba no podía hacer de Chrome.
  */
 function abrirSocio(o) {
   o = o || {};
@@ -74,19 +85,23 @@ function abrirSocio(o) {
   };
   const local = almacen(o.local), sesion = almacen(o.sesion);
   const ahora = () => (o.ahora != null ? o.ahora : Date.now());
+  const oyentes = {};
   const D = function (...a) { return a.length ? new Date(...a) : new Date(ahora()); };
   D.now = ahora; D.parse = Date.parse; D.UTC = Date.UTC; D.prototype = Date.prototype;
   const ctx = {
     console, document: doc, location: loc,
     history: { replaceState: (a, b, url) => { const i = String(url).indexOf('#'); loc.hash = i >= 0 ? String(url).slice(i) : ''; } },
     localStorage: local, sessionStorage: sesion,
-    navigator: { userAgent: 'node', platform: 'node', maxTouchPoints: 0 },
+    navigator: Object.assign({ userAgent: 'node', platform: 'node', maxTouchPoints: 0 }, o.navegador || {}),
     alert: m => { avisos.push(String(m)); },
-    matchMedia: () => ({ matches: false }),
+    matchMedia: o.matchMedia || (() => ({ matches: false })),
     scrollTo() {},
-    addEventListener() {},
+    addEventListener(t, fn) { (oyentes[t] = oyentes[t] || []).push(fn); },
     open: (u) => { (ctx._abiertos = ctx._abiertos || []).push(String(u)); },
-    performance: { now: () => 3000 },
+    /* 21-oct-2026 — `o.performanceNow`: cuánto lleva abierta la página. Con
+       3000 la bienvenida de 2 s ya se cumplió sola; para ver si se la salta
+       (la recarga de SE ACTUALIZA SOLA) hace falta una página recién abierta. */
+    performance: { now: () => (o.performanceNow != null ? o.performanceNow : 3000) },
     setTimeout: (fn, ms) => { temporizadores.push({ fn, ms }); return temporizadores.length; },
     clearTimeout() {},
     fetch: (url, opciones) => {
@@ -117,7 +132,8 @@ function abrirSocio(o) {
   }
   const ev = e => vm.runInContext(e, ctx, { filename: 'banco-socio' });
   const visible = id => !elem(id).classList.contains('oculto');
-  return { ev, elem, elems, llamadas, avisos, local, sesion, ctx, loc, visible, temporizadores };
+  const disparar = (tipo, evento) => (oyentes[tipo] || []).forEach(fn => fn(evento || {}));
+  return { ev, elem, elems, llamadas, avisos, local, sesion, ctx, loc, visible, temporizadores, oyentes, disparar };
 }
 
 module.exports = { abrirSocio, RAIZ };

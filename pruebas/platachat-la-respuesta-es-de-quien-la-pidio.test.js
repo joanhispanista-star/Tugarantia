@@ -298,7 +298,11 @@ describe('I2 — lo que pide la cuenta de PlataChat es de la sesión que lo pidi
     const pagina = fs.readFileSync(path.join(RAIZ, 'platachat', 'index.html'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     const usos = pagina.match(/\bSP\.rpc\(/g) || [];
     assert.equal(usos.length, 1, 'hay llamadas a la base que no pasan por rpcSesion: ' + usos.length);
-    assert.match(pagina, /function rpcSesion\(fn, cuerpo, ses\)[\s\S]{0,300}deEstaSesion\(ses, SP\.rpc\(CFG, ses, fn, cuerpo\)\)/);
+    /* 21-oct-2026 (verificación del lote 1, R3) — la llamada de la red se
+       guarda en `p` para contarla como escritura en camino (la atada a la
+       sesión se calla para siempre si la sesión cambia, y no se puede contar
+       esa); lo que sale de rpcSesion sigue siendo la atada, deEstaSesion. */
+    assert.match(pagina, /function rpcSesion\(fn, cuerpo, ses\)[\s\S]{0,300}var p = SP\.rpc\(CFG, ses, fn, cuerpo\);[\s\S]{0,200}return deEstaSesion\(ses, p\);/);
   });
 });
 

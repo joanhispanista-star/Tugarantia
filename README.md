@@ -41,11 +41,71 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         sabe del aparato —modelo, versión, si va dentro de
                         nuestra app— y sus palabras para el CRM. Se anota al
                         registrarse, pedir y aceptar. En iPhone no hay modelo.
+  actualizar.js         Se actualiza sola (21-oct-2026): busca la versión nueva
+                        al abrir, al volver a la app y cada 30 min; play/,
+                        socio.html y platachat/ recargan solas SOLO en un
+                        momento seguro (lista blanca de cada página); el CRM y
+                        el espejo solo avisan. Probada en node.
+                        (21-oct-2026, verificación del lote 1) Nunca con una
+                        escritura en camino (cada página las cuenta:
+                        ESCRITURAS_EN_CAMINO, y play/ la subida que «Salir»
+                        deja suelta); los campos de solo lectura no cuentan
+                        como texto tecleado; y un modo sin momento seguro (el
+                        «Ver como», PlataChat con la calculadora movida) no
+                        promete «se pone sola»: ofrece «Actualizar ahora».
+                        La cuenta del enlace del CRM (#d=) sí se recarga.
+                        Pruebas: pruebas/la-recarga-no-corta-nada.test.js.
+                        (22-oct-2026) La franja se vuelve a decidir SOLA
+                        mientras hay versión esperando: cuando la página
+                        cambia lo que muestra (MutationObserver), cuando la
+                        persona teclea o marca, y cuando empieza o termina
+                        una escritura; ninguna pantalla tiene que avisar.
+                        «Actualizar ahora» vuelve a preguntar al tocarlo:
+                        espera lo que va en camino, no recarga fuera de la
+                        lista y pregunta si hay algo escrito o la cámara
+                        abierta. Pruebas:
+                        pruebas/la-franja-no-se-queda-vieja.test.js.
+                        (22-oct-2026, verificación de e8f34eb) Al terminar
+                        lo que esperaba, «Actualizar ahora» NO recarga solo:
+                        si la base dijo que no, la recarga se llevaba el
+                        aviso. La franja dice «Ya terminó lo que iba en
+                        camino: mira cómo quedó» con el botón, y nada recarga
+                        solo (ni saliendo y volviendo a la app) hasta que la
+                        persona toca la página, el botón o la ✕. Pruebas: la
+                        sección 4 del mismo archivo, con el «no» de la base
+                        en play/, socio y PlataChat.
+                        (23-oct-2026, verificación de c213faf) Y sin tocar el
+                        botón, igual: lo que la persona mandó y terminó con
+                        la app oculta o recién vuelta (antes de tocar nada)
+                        deja el mismo «ya terminó», y ninguna recarga sola
+                        hasta que la persona lo vea. Lo que la página manda
+                        sola sin un toque (marcar_acceso al abrir) no frena.
+                        Pruebas: la sección 5 del mismo archivo, con el
+                        «Pedir» de play/ y de PlataChat.
+                        (23-oct-2026, verificación de ab6b595) «La vio» se
+                        prueba DESPUÉS de que llega: el toque de «Pedir» ya
+                        no cuenta como haber mirado la respuesta. «Ya
+                        terminó» nace siempre (también con la app a la
+                        vista), y solo lo sueltan un toque en la página
+                        después de la respuesta, el botón, la ✕ o 5 minutos
+                        a la vista sin interrupción (MS_A_LA_VISTA: más que
+                        cualquier apagado automático de pantalla de 5 min o
+                        menos). Así la pantalla que se apaga sola con el
+                        teléfono en la mesa no se lleva el «no». Pruebas: la
+                        sección 6 del mismo archivo.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
                         divulgación del crédito y el borrado de cuenta.
   puente.js             Traduce los datos del Panel a lo que consume la app.
-  app.webmanifest       Para instalarla en el celular.
+  instalar.js           Instalarla paso a paso (21-oct-2026): en qué teléfono y
+                        navegador está, si ya está instalada, los pasos con los
+                        menús de hoy (Chrome 150, iPhone «Agregar a Inicio»),
+                        «Copiar enlace» dentro de Instagram y compañía, y «Ahora
+                        no» por 7 días. La tarjeta sale en Entrar, en la espera
+                        del registro y al final de Inicio. No promete avisos.
+  app.webmanifest       Para instalarla en el celular. ES LA ÚNICA APP QUE SE
+                        OFRECE PARA INSTALAR (decisión de Joan, 21-oct-2026:
+                        Chrome «Instalar», sin APK).
   icono-*.png           La G amarilla sobre laca negra.
 
 panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna parte.
@@ -95,11 +155,83 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         celular: su dueño es el intento hasta que lo hay (ver
                         pruebas/la-cedula-primero.test.js). PlataChat usa este
                         mismo registro con ?marca=platachat.
+                        (21-oct-2026) Lo IMPRESO en la cédula también llena
+                        «Revisa tus datos»: la fecha de expedición, y el número
+                        y los nombres si el código de barras no se lee
+                        (app/ocr-cedula.js + app/lib/ocr/, Tesseract.js del
+                        propio sitio). Vive aparte de la lectura del código y
+                        nunca decide de quién es la cédula. Las franjas faltan
+                        calibrarlas con una cédula real
+                        (herramientas/calibrar-ocr.js; la receta local
+                        RECETA-OCR-CEDULA.md, que no va al repo).
+                        (21-oct-2026) Las letras escuchan al escáner por su
+                        enganche (alTomarLaCedula): leen EXACTAMENTE el
+                        recorte de la foto que se guardó —las dos caras
+                        acostadas, el mejor cuadro de la ventana—, con su giro
+                        y el marco anotado al dibujarlo. La cédula digital (la
+                        del QR) no se lee con las franjas de la amarilla:
+                        (21-oct-2026, verificación) ningún lado se lee sin
+                        prueba POSITIVA de la amarilla (su PDF417 leído, visto
+                        o su patrón en el recorte guardado), anotada CON LA
+                        FOTO (FOTOS.cedula_reverso_tipo): sobrevive a relanzar
+                        y se va con ella (pruebas/la-digital-no-se-lee.test.js,
+                        con la cámara de pruebas/banco-camara.js). De
+                        la cámara a «Están bien», con ZXing y Tesseract de
+                        verdad: pruebas/escaner-ocr-de-punta-a-punta.test.js.
+                        (23-oct-2026, verificación del autollenado y la demo)
+                        La cédula difícil: la ventana juzga con la mediana O
+                        el cuarto más nítido de los mosaicos
+                        (EscanerCaptura.calidadDeGris), así un PDF417 muy
+                        gastado o un frente liso ya no piden «Aléjala…» para
+                        siempre, y una cámara desenfocada sigue sin pasar; la
+                        franja de barras en su sitio es prueba de respaldo
+                        (sin «voltéala» ni la sugerencia de la digital); la
+                        puerta del frente solo pide bordes
+                        (NITIDEZ_MIN_FRENTE) cuando la ventana mide; con poca
+                        luz y sin linterna pide luz; «Continuar» con las
+                        letras leyendo dice que las está leyendo, no «Nos
+                        falta»; y a la digital no se le habla del código de
+                        barras. Pruebas: la sección 4 de
+                        pruebas/escaner-captura.test.js, la 6 de
+                        pruebas/ocr-cedula.test.js, la (d) de
+                        pruebas/la-digital-no-se-lee.test.js y «la cédula
+                        difícil» de escaner-ocr-de-punta-a-punta. Calibrado
+                        con cédulas fabricadas: falta una de verdad.
+                        (22-oct-2026, verificación de 522cf1f) La franja es
+                        DE LA TARJETA: el frente sobre un mantel o tapete de
+                        rayas finas se guardaba como respaldo, porque las
+                        rayas del aire del marco salían como «la franja del
+                        PDF417 gastado» (y el patrón votaba en ellas); el
+                        respaldo nunca se guardaba. Ahora una franja que toca
+                        el borde del gris o se sale de las filas del marco no
+                        prueba nada, franjaDeBarras la descarta y busca la
+                        del código, y el patrón no la mira. El frente sobre
+                        rayas oye «voltéala» en el paso del respaldo y se
+                        toma en el suyo. Pruebas:
+                        pruebas/el-frente-sobre-rayas.test.js.
+                        (23-oct-2026, verificación de a21746b) Y las COLUMNAS
+                        también son de la mesa: sobre una tela de rayas finas
+                        de contraste alto (±58 o más) el aire rayado de los
+                        lados subía todas las filas de la tarjeta, un renglón
+                        del frente pasaba por la franja del código, y otra vez
+                        el frente quedaba como respaldo (o el patrón tomaba
+                        las dos rayas de más afuera por las barras de inicio y
+                        de fin). Ahora la franja se mide entre las columnas del
+                        marco y desde el piso de la tarjeta, al lector solo se
+                        le da la banda de una franja del código, y el patrón no
+                        cuenta una barra que sigue negra arriba y abajo de la
+                        franja. Pruebas:
+                        pruebas/el-frente-sobre-rayas-finas.test.js, con el
+                        frente nítido de pruebas/fabricar-cedula-nitida.py.
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).
   app.webmanifest       El alcance es /play/: eso deja app/socio.html FUERA de la
                         app instalada, y la frontera la impone el sistema.
+                        Desde el 21-oct-2026 play/ ya NO se ofrece para instalar
+                        (dos íconos «Tu Garantía» iguales, y pide la contraseña
+                        en cada apertura); el manifiesto se queda para quien ya
+                        la instaló.
 
 android/
   LEEME.md              Cómo sacar el APK, cómo se reparte por enlace, y por qué
@@ -110,9 +242,11 @@ android/
                         corre FUERA de OneDrive, en android-kit (ver LEEME.md).
 
 descargas/
-  index.html            La página cuyo enlace se manda al cliente por WhatsApp:
-                        explica el aviso de «app desconocida» ANTES de que salga.
-  TuGarantia.apk        El APK firmado que reparte Pages. La única excepción
+  index.html            La página cuyo enlace se mandaba al cliente por WhatsApp.
+                        Desde el 21-oct-2026 ya no ofrece el APK: manda a instalar
+                        app/socio.html desde Chrome o Safari, con los pasos.
+  TuGarantia.apk        El APK firmado. Queda para quien ya lo tiene: ninguna
+                        página lo enlaza desde el 21-oct-2026. La única excepción
                         binaria del .gitignore, con su porqué escrito ahí.
 
 herramientas/
@@ -266,10 +400,16 @@ Pages sobre la rama principal, y queda en
 
 Tres cuidados:
 
-- **Al cambiar cualquier archivo, subir el número de `CACHE` en `sw.js`.** Si no, los
-  teléfonos que ya tienen la app siguen mostrando la versión vieja. Y al cambiar la app,
-  subir también `VERSION_APP` en `app/socio.html`; si lo que cambió es una regla de
-  plata, `REGLAS_VIGENTES_DESDE` en `app/motor.js`.
+- **Al cambiar cualquier archivo, subir el número de `CACHE` en `sw.js`, y con él
+  `VERSION_SITIO` en las cinco páginas que se actualizan solas** (`play/index.html`,
+  `app/socio.html`, `platachat/index.html`, `panel/crm.html`, `panel/espejo.html`;
+  `pruebas/se-actualiza-sola.test.js` no deja pasar uno sin el otro). Las páginas y los
+  `.js` llegan nuevos igual, porque van red primero; sin subir `CACHE` lo que queda
+  viejo son los iconos y la copia sin señal, y una página abierta no se entera de que
+  hay versión nueva (21-oct-2026: `app/actualizar.js` la busca al abrir, al volver a la
+  app y cada 30 min, y recarga sola solo en un momento seguro; el CRM y el espejo solo
+  avisan). Y al cambiar la app, subir también `VERSION_APP` en `app/socio.html`; si lo
+  que cambió es una regla de plata, `REGLAS_VIGENTES_DESDE` en `app/motor.js`.
 - **Una sola copia publicada.** El 6 de agosto de 2026 había dos —esta y una de prueba
   del 4 en otro repositorio— y Joan abrió la vieja: le decía que podía pedir 308.000
   cuando el número correcto era 145.000. Dos copias no son un respaldo, son dos apps

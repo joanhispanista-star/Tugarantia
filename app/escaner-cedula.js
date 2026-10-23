@@ -32,8 +32,9 @@
  *   · el lector PDF417 lee desde ~2 px por módulo nítido, 2,5 con el desenfoque
  *     normal de un celular, 3 para tener margen; y solo tolera 1-4° de
  *     inclinación, así que el marco tiene que ayudar a poner la cédula recta;
- *   · lee a 0° y 180°, NUNCA a 90°: si la cédula va de pie (teléfono vertical),
- *     el recorte se gira antes de decodificar;
+ *   · lee a 0° y 180°, NUNCA a 90°: una foto de pie (la de la galería) se
+ *     prueba girada antes de decodificar. 21-oct-2026 — el recorte del video
+ *     ya no: las dos caras se escanean acostadas (ver rectanguloGuia);
  *   · `decodeFromImageUrl` de ZXing reintenta a 0 ms PARA SIEMPRE cuando el
  *     código se ve pero no se corrige (ChecksumException): 21 mapas de bits de
  *     10 MB en 300 ms, y la promesa nunca vuelve. Era el camino vivo hasta hoy.
@@ -98,6 +99,16 @@
     TEXTURA_MIN: 90,      // varianza del interior: una mesa lisa da casi cero
     VENTAJA_INTERIOR: 1.15, // la cédula tiene que tener MÁS detalle que lo de alrededor
     NITIDEZ_MIN: 9,       // gradiente medio del interior: borroso da poco
+    /* 23-oct-2026 — EL FRENTE, CUANDO LA VENTANA LO JUZGA. Un frente liso
+       (colores planos, la foto y letras grandes: la demo del 23-oct) daba 8,5
+       aquí, bajo 9, y nunca se ponía en verde, enfocado o no: este gradiente
+       medio a 96 px casi no ve el desenfoque (medido: de 8,9 enfocado a 7,8
+       con una caja de 13 px a 4K) y sí ve cuánta tinta tiene la tarjeta. Con
+       la ventana del mejor cuadro (EscanerCaptura, a 480 px) el que juzga si
+       la foto está nítida es ella, y la puerta del frente solo pregunta si
+       hay una tarjeta con bordes. Sin ventana (un navegador que no deja
+       medir) la puerta sigue siendo el único juez, y vale NITIDEZ_MIN. */
+    NITIDEZ_MIN_FRENTE: 5,
     MOVIMIENTO_MAX: 6,    // diferencia media entre dos cuadros seguidos
     CUADROS_FRENTE: 6,    // seguidos en verde antes de disparar el frente (~0,6 s)
     MS_ENTRE_LECTURAS: 250 // como mucho cuatro decodificaciones por segundo
@@ -136,14 +147,19 @@
    *
    * @param gris   luminancias 0..255 de un cuadro de w×h
    * @param previa el mismo arreglo del cuadro anterior, o null
-   * @returns {luz, textura, anillo, nitidez, movimiento, ok, falla}
+   * @returns {luz, textura, anillo, nitidez, movimiento, saturados, ok, falla}
    *          `falla` dice QUÉ falta: 'poca_luz' | 'mucha_luz' | 'sin_tarjeta' |
    *          'borrosa' | 'movimiento' | ''
+   *          `saturados` (21-oct-2026): la fracción del interior quemada (≥ 250).
+   *          No decide el verde: la lee la linterna (EscanerCaptura.decidirLinterna).
+   * @param op     23-oct-2026 — opcional: {nitidezMin} en vez de
+   *               TARJETA.NITIDEZ_MIN (el frente juzgado por la ventana:
+   *               TARJETA.NITIDEZ_MIN_FRENTE). Sin él, todo como siempre.
    */
-  function medirTarjeta(gris, previa, w, h, interior) {
+  function medirTarjeta(gris, previa, w, h, interior, op) {
     var g = gris || [], n = g.length;
     if (!n || !w || !h || w * h !== n || w < 16 || h < 8) {
-      return { luz: 0, textura: 0, anillo: 0, nitidez: 0, movimiento: 999, ok: false, falla: 'sin_tarjeta' };
+      return { luz: 0, textura: 0, anillo: 0, nitidez: 0, movimiento: 999, saturados: 0, ok: false, falla: 'sin_tarjeta' };
     }
     var x0 = Math.floor(w * 0.15), x1 = Math.ceil(w * 0.85);
     var y0 = Math.floor(h * 0.15), y1 = Math.ceil(h * 0.85);
@@ -162,12 +178,17 @@
       y0 = Math.max(0, Math.floor(interior.y0)); y1 = Math.min(h, Math.ceil(interior.y1));
     }
 
-    var si = 0, si2 = 0, ni = 0, sa = 0, sa2 = 0, na = 0, grad = 0, ng = 0;
+    var si = 0, si2 = 0, ni = 0, sa = 0, sa2 = 0, na = 0, grad = 0, ng = 0, quemados = 0;
     for (var y = 0; y < h; y++) {
       for (var x = 0; x < w; x++) {
         var v = g[y * w + x];
         if (y >= y0 && y < y1 && x >= x0 && x < x1) {
           si += v; si2 += v * v; ni++;
+          /* 21-oct-2026 — EL REFLEJO SE CUENTA, NO SE PROMEDIA. La linterna sobre
+             el plástico de la cédula hace un brillo en un punto que la media
+             (LUZ_MAX) no ve: un 5 % del interior quemado apenas la mueve, y ese
+             5 % puede ser justo el código de barras o la fecha. */
+          if (v >= 250) quemados++;
           if (x + 1 < x1) { grad += Math.abs(g[y * w + x + 1] - v); ng++; }
         } else { sa += v; sa2 += v * v; na++; }
       }
@@ -176,7 +197,8 @@
     var textura = ni ? (si2 / ni) - luz * luz : 0;
     var anillo = na ? (sa2 / na) - (sa / na) * (sa / na) : 0;
     var nitidez = ng ? grad / ng : 0;
-    var base = { luz: luz, textura: textura, anillo: anillo, nitidez: nitidez, movimiento: 999, ok: false };
+    var base = { luz: luz, textura: textura, anillo: anillo, nitidez: nitidez, movimiento: 999,
+                 saturados: ni ? quemados / ni : 0, ok: false };
 
     if (luz < TARJETA.LUZ_MIN) { base.falla = 'poca_luz'; return base; }
     if (luz > TARJETA.LUZ_MAX) { base.falla = 'mucha_luz'; return base; }
@@ -186,7 +208,8 @@
       base.falla = 'sin_tarjeta'; return base;
     }
     /* Hay algo, pero sin bordes: está desenfocada o muy lejos. */
-    if (nitidez < TARJETA.NITIDEZ_MIN) { base.falla = 'borrosa'; return base; }
+    var nitidezMin = (op && isFinite(op.nitidezMin) && op.nitidezMin >= 0) ? +op.nitidezMin : TARJETA.NITIDEZ_MIN;
+    if (nitidez < nitidezMin) { base.falla = 'borrosa'; return base; }
     /* Sin cuadro anterior no se puede decir si está quieta: todavía no se sabe. */
     if (!previa || previa.length !== n) { base.falla = 'movimiento'; return base; }
     var dif = 0;
@@ -197,12 +220,16 @@
     return base;
   }
 
-  /* Lo que la persona lee. Cada frase dice qué hacer, no qué pasó. */
+  /* Lo que la persona lee. Cada frase dice qué hacer, no qué pasó.
+     21-oct-2026 — `borrosa` decía «Acércala un poco»: con el marco de pie lo
+     probable era tenerla lejos. Acostada, lo probable es lo contrario —quien
+     llena el marco la pega al lente y la cámara no enfoca, que fue lo de
+     Joan—, y desde 96 px no se sabe cuál de las dos es. Se dicen las dos. */
   var TEXTO_TARJETA = {
     poca_luz: 'Busca un sitio con más luz',
     mucha_luz: 'Hay un reflejo: inclínala un poco',
     sin_tarjeta: 'Pon la cédula dentro del marco',
-    borrosa: 'Acércala un poco y espera el enfoque',
+    borrosa: 'Aléjala o acércala un poco y espera el enfoque',
     movimiento: 'Quieta…',
     '': 'Leyendo…'
   };
@@ -214,6 +241,7 @@
   /**
    * Dónde va el marco de la cédula dentro de un cuadro de w×h.
    *
+   * (Hasta el 21-oct-2026; ver el final de este comentario.)
    * EL RESPALDO VA DE PIE en un teléfono vertical (su lado largo sobre el lado
    * largo del cuadro): así el código de barras ocupa ~85 % de 1920 px y sale a
    * 3-4 px por módulo; acostado apenas llegaría a 2 y el lector fallaría.
@@ -232,17 +260,30 @@
    * CRM: al LECTOR le da igual, a la FOTO no. La mitad de las veces el
    * respaldo se guardaba cabeza abajo. Ahora se endereza antes de guardarlo
    * (orientacionDelRespaldo, más abajo).
+   *
+   * 21-oct-2026 — LAS DOS CARAS VAN ACOSTADAS, Y YA NO HAY MARCO DE PIE.
+   * Joan: «no me toque tomarla de forma vertical, quiero que las dos fotos de
+   * la cédula se tomen horizontal». Y no era solo comodidad: el marco de pie
+   * llenaba el 82 % del lado largo del video, lo que obliga a poner la cédula
+   * a ~7,8 cm del lente (lente típico de 26 mm equivalentes; cuenta en
+   * scratchpad inv-escaner/geometria.js), cerca o por debajo de la distancia
+   * mínima de enfoque de muchas cámaras. Acostada, a lo ancho del mismo video,
+   * va a ~13,6 cm y la cámara enfoca. Lo que se pierde de píxeles por módulo
+   * del código lo recupera la resolución que ahora se pide (EscanerCaptura,
+   * CAMARA: 4K ideal). De paso desaparecen el giro de 90° del recorte y el
+   * riesgo de guardar la foto de lado.
+   * `acostada` queda en la firma por compatibilidad (una página vieja la
+   * manda) y ya no cambia nada; `vertical` sale siempre en false para quien
+   * todavía la lea.
    */
-  function rectanguloGuia(w, h, acostada) {
-    var vertical = !acostada && h > w;
-    var largo = (vertical ? h : w) * 0.84;
+  function rectanguloGuia(w, h) {
+    var largo = w * 0.84;
     var corto = largo / PROPORCION;
-    var tope = (vertical ? w : h) * 0.92;
+    var tope = h * 0.92;
     if (corto > tope) { corto = tope; largo = corto * PROPORCION; }
-    var rw = vertical ? corto : largo, rh = vertical ? largo : corto;
     return {
-      x: Math.round((w - rw) / 2), y: Math.round((h - rh) / 2),
-      w: Math.round(rw), h: Math.round(rh), vertical: vertical
+      x: Math.round((w - largo) / 2), y: Math.round((h - corto) / 2),
+      w: Math.round(largo), h: Math.round(corto), vertical: false
     };
   }
 
@@ -344,17 +385,23 @@
 
   /* Por fila: cuánto más cambia a lo ancho que a lo alto. Las barras del
      código son verticales, así que en su franja esto es muy grande; el texto
-     y la huella cambian parecido en las dos direcciones. */
-  function puntajeDeFilas(g, w, h) {
-    var s = new Float64Array(h);
+     y la huella cambian parecido en las dos direcciones.
+     23-oct-2026 — `xa`, `xb` (opcionales): solo esas columnas. Ver LAS
+     COLUMNAS Y EL PISO DE LA TARJETA, abajo. Sin ellas, todo el ancho, como
+     siempre. */
+  function puntajeDeFilas(g, w, h, xa, xb) {
+    var a = (isFinite(xa) && xa > 0) ? Math.floor(xa) : 0;
+    var z = (isFinite(xb) && xb < w) ? Math.ceil(xb) : w;
+    if (z - a < 8) { a = 0; z = w; }
+    var s = new Float64Array(h), n = z - a;
     for (var y = 0; y < h - 1; y++) {
       var dx = 0, dy = 0, b = y * w;
-      for (var x = 0; x < w - 1; x++) {
+      for (var x = a; x < z - 1; x++) {
         var v = g[b + x];
         dx += Math.abs(g[b + x + 1] - v);
         dy += Math.abs(g[b + w + x] - v);
       }
-      s[y] = (dx - dy) / w;
+      s[y] = (dx - dy) / n;
     }
     if (h > 1) s[h - 1] = s[h - 2];
     return s;
@@ -374,17 +421,214 @@
     }
     return o;
   }
-  /* La franja del código: la racha de filas más «de barras» de la imagen. */
-  function franjaDelCodigo(s, h) {
+  /* La franja del código: la racha de filas más «de barras» de la imagen.
+     22-oct-2026 — con `enLaTarjeta` ({dentro}: las filas del marco, o null)
+     la racha más fuerte que no es DE LA TARJETA se descarta y se busca la
+     siguiente. Ver LA FRANJA ES DE LA TARJETA, abajo. Lo usan las dos que
+     miran una imagen con aire alrededor de la cédula: franjaDeBarras (el gris
+     de la medida) y orientacionDelRespaldo (el recorte, o la banda que se
+     lee). */
+  function franjaDelCodigo(s, h, enLaTarjeta) {
     var ss = suavizar(s, Math.max(3, Math.round(h * 0.03)));
-    var m = -1e9, ym = 0;
-    for (var y = 0; y < h; y++) if (ss[y] > m) { m = ss[y]; ym = y; }
-    if (m < ORIENTACION.FUERZA_MIN) return null;
-    var u = m * 0.5, a = ym, b = ym;
-    while (a > 0 && ss[a - 1] >= u) a--;
-    while (b < h - 1 && ss[b + 1] >= u) b++;
-    if (b - a + 1 < Math.max(6, h * 0.04)) return null;
-    return { y0: a, y1: b + 1 };
+    var vetada = enLaTarjeta ? new Uint8Array(h) : null;
+    /* 23-oct-2026 — la mitad del pico se cuenta desde el PISO de la tarjeta,
+       no desde cero. Ver LAS COLUMNAS Y EL PISO DE LA TARJETA, abajo. Sin las
+       filas del marco no hay piso que medir: 0, como siempre. */
+    var piso = (enLaTarjeta && enLaTarjeta.dentro) ? pisoDeLaTarjeta(ss, h, enLaTarjeta.dentro) : 0;
+    for (var intento = 0; intento < FRANJA.INTENTOS; intento++) {
+      var m = -1e9, ym = -1;
+      for (var y = 0; y < h; y++) if ((!vetada || !vetada[y]) && ss[y] > m) { m = ss[y]; ym = y; }
+      if (ym < 0 || m - piso < ORIENTACION.FUERZA_MIN) return null;
+      var u = piso + (m - piso) * 0.5, a = ym, b = ym;
+      /* La racha se extiende también por lo ya descartado: una que se pega a
+         la mesa de rayas llega con ella hasta el borde, y se descarta igual.
+         Así no sobrevive el «hombro» de la mesa (las filas de la tarjeta
+         pegadas a ella, que el suavizado tiñe de rayas). */
+      while (a > 0 && ss[a - 1] >= u) a--;
+      while (b < h - 1 && ss[b + 1] >= u) b++;
+      var f = { y0: a, y1: b + 1 };
+      if (!vetada || franjaEnLaTarjeta(f, h, enLaTarjeta.dentro)) {
+        if (b - a + 1 < Math.max(6, h * 0.04)) return null;
+        return f;
+      }
+      for (var k = a; k <= b; k++) vetada[k] = 1;
+    }
+    return null;
+  }
+  /* ==========================================================================
+   * LA FRANJA ES DE LA TARJETA — 22 de octubre de 2026
+   *
+   * La verificación de 522cf1f (lente «lote», confirmada por dos
+   * refutadores) encontró al FRENTE guardado como respaldo. La persona
+   * muestra primero el frente (el escáner pide primero el respaldo: el error
+   * del 19-oct), con la cédula sobre un mantel, un individual o un tapete de
+   * rayas finas. El gris de la medida trae un 6 % de aire alrededor del marco
+   * (margenDeLectura), y con la cédula al 85-95 % del marco se ve todavía más
+   * mesa. Esas rayas, más o menos perpendiculares al lado largo, son filas
+   * «de barras» de verdad: la franja más fuerte salía EN LA MESA, en el
+   * tercio de arriba o de abajo, y franjaComoLaDelCodigo la tomaba por el
+   * PDF417 gastado. A los 2,5 s el frente se guardaba como respaldo, el
+   * registro pasaba solo a «Revisa tus datos», y el respaldo (el PDF417, la
+   * expedición, la huella) no se guardaba nunca. Alcance medido: contraste
+   * de ±20 a ±60 grises, rayas de 1,2 a 3,1 mm, de 0° a 8° (15° con la
+   * tarjeta al 95 %), con ruido, de onda seno o cuadrada. En TODAS esas
+   * franjas la racha tocaba el borde del gris (filas 0-44 o 276-303 de 303).
+   *
+   * Los mismos refutadores hallaron dos caminos más con las mismas rayas: el
+   * patrón del PDF417 (orientacionDelRespaldo) «votaba» en las rayas del
+   * aire, eso es «vio el código», y el frente se tomaba como respaldo al
+   * segundo (y «Tomar la foto ahora» lo marcaba como la amarilla); y en el
+   * paso del FRENTE, el frente sobre rayas oía «Ese es el lado del código de
+   * barras» y no había cómo tomarlo solo.
+   *
+   * LA CURA, en tres lugares:
+   *   · franjaComoLaDelCodigo exige que la franja esté DENTRO de la tarjeta:
+   *     sin tocar el borde del gris y dentro de las filas del marco
+   *     (`dentro`; la página las da, y sin ellas se suponen las del 6 % de
+   *     aire). Las franjas de los respaldos de verdad caen entre el 10 y el
+   *     35 % o entre el 63 y el 90 % del alto; el marco va del 5,4 al 94,6 %.
+   *   · franjaDeBarras ya no devuelve la mesa: la descarta y busca la
+   *     siguiente racha. Con un respaldo de verdad sobre las rayas, la
+   *     siguiente es la del código, y el lector lee donde está el código (con
+   *     la mesa, al código borroso le daba las filas de la mesa y nunca lo
+   *     veía). Con un frente, no queda ninguna: null, como en mesa lisa.
+   *   · orientacionDelRespaldo mide el patrón solo en una franja que no toca
+   *     el borde de lo que mira (el recorte, o la banda que se lee).
+   * Lo que cuesta: un código cuya franja sí toca el borde (la cédula más
+   * grande que el marco y corrida) no da franja. Entonces se lee el recorte
+   * entero, como sin franja, y sin código visto se dice «voltéala»: la salida
+   * de antes de que la franja fuera prueba (522cf1f), con «Tomar la foto
+   * ahora». Nada se guarda mal. Y el respaldo MUY gastado (σ 1,5 módulos)
+   * sobre rayas, que a veces se tomaba por la franja de la MESA —acertando
+   * por la razón equivocada—, ahora se toma como en mesa lisa: cuando la
+   * franja de su código gana (con el fabricado, a veces la empata un renglón
+   * de arriba de la tarjeta también en mesa lisa; eso no es de las rayas).
+   * ======================================================================== */
+  var FRANJA = {
+    /* Cuántas rachas se descartan antes de rendirse: la mesa de arriba, la de
+       abajo, los «hombros» de cada una, y la del código. Medido con 600
+       escenas al azar (frentes y respaldos sobre rayas de ±20 a ±80, 1,2 a
+       3 mm, 0 a 15°): nunca hicieron falta más de 5. Con 12 sobra, y cada
+       vuelta solo descarta lo que no es de la tarjeta: más vueltas no le dan
+       a un frente nada que no tuviera en mesa lisa. */
+    INTENTOS: 12,
+    AIRE_MEDIDA: 0.06   // el aire de margenDeLectura en el gris de la medida (medirNitidezDoc)
+  };
+  /* Las filas del marco dentro del gris de la medida si la página no las da:
+     el 6 % de aire de cada lado sobre el 112 % del marco. */
+  function dentroPorDefecto(h) {
+    var m = FRANJA.AIRE_MEDIDA / (1 + 2 * FRANJA.AIRE_MEDIDA);
+    return { y0: h * m, y1: h * (1 - m) };
+  }
+  /* ¿La racha {y0, y1} está en la tarjeta? No toca el borde del gris (lo que
+     llega al borde es lo que rodea la tarjeta: la mesa sigue más allá) y, si
+     se sabe dónde está el marco, no se sale de sus filas. */
+  function franjaEnLaTarjeta(f, h, dentro) {
+    if (!f || !(f.y0 > 0) || !(f.y1 < h)) return false;
+    if (dentro && isFinite(dentro.y0) && isFinite(dentro.y1) && dentro.y1 > dentro.y0) {
+      if (f.y0 < Math.floor(dentro.y0) || f.y1 > Math.ceil(dentro.y1)) return false;
+    }
+    return true;
+  }
+  /* 21-oct-2026 — LA MISMA FRANJA, PARA QUIEN LEE. Con video 4K el recorte
+     entero de la cédula son ~8 MB de píxeles; la página la busca en el gris
+     chico con que mide la nitidez (480 px) y le da al lector solo esas filas
+     (EscanerCaptura.bandaDeLectura). null: no se ve una franja de barras.
+     22-oct-2026 — solo una franja DE LA TARJETA (ver LA FRANJA ES DE LA
+     TARJETA): `dentro`, opcional, son las filas del marco en este gris. Sin
+     él no se supone ninguna: quien llama con una tarjeta sin aire (las
+     pruebas) no tiene marco.
+     23-oct-2026 — con `dentro.x0`/`dentro.x1` (las columnas del marco), cada
+     fila se mide solo entre ellas. Ver LAS COLUMNAS Y EL PISO DE LA
+     TARJETA. */
+  function franjaDeBarras(gris, w, h, dentro) {
+    if (!gris || !w || !h || gris.length !== w * h || w < 32 || h < 16) return null;
+    var c = columnasDeLaTarjeta(dentro, w);
+    return franjaDelCodigo(puntajeDeFilas(gris, w, h, c.xa, c.xb), h, { dentro: dentro || null });
+  }
+  /* ==========================================================================
+   * LAS COLUMNAS Y EL PISO DE LA TARJETA — 23 de octubre de 2026
+   *
+   * La verificación de a21746b (dos refutadores no la pudieron tumbar) volvió
+   * a encontrar el FRENTE guardado como respaldo, sobre una tela de rayas
+   * finas de contraste alto (±58 grises o más, 1,2 a 1,54 mm, la tarjeta al
+   * 85-90 % del marco). a21746b ya descartaba las FILAS de la mesa, arriba y
+   * abajo. Pero cada fila de la TARJETA lleva también, a izquierda y derecha,
+   * el aire rayado: el 6 % de margenDeLectura más lo que la tarjeta no llena.
+   * Esas columnas suben todas las filas de la tarjeta a un piso (medido: 7,8
+   * a ±60; las filas de la mesa dan 42), y encima de ese piso un renglón del
+   * frente («NUMERO 52.123.456», en el tercio de arriba) pasaba de la mitad
+   * del pico en 16 filas seguidas: una racha del 5,3 % del alto, en su sitio.
+   * franjaComoLaDelCodigo la aceptaba, eso es «vioFranja», y a los 2,6 s el
+   * frente quedaba en cedula_reverso; en su paso se guardaba otra vez el MISMO
+   * cuadro y el registro pasaba solo a «Revisa tus datos» sin el respaldo
+   * (el PDF417, la expedición, la huella).
+   *
+   * LA CURA, en dos capas, cada una suficiente sola en lo medido:
+   *   · LAS COLUMNAS: con las del marco (la página las da en medida.dentro),
+   *     cada fila se mide solo entre ellas, sin el 6 % de aire. Queda lo que
+   *     la tarjeta no llena del marco, y por eso la segunda capa.
+   *   · EL PISO: la mitad del pico se cuenta desde el piso de las filas del
+   *     marco (su 30 %: las de fondo de la tarjeta, debajo del código y de los
+   *     renglones), no desde cero. Un piso que las rayas suben por igual en
+   *     todas las filas ya no ensancha un renglón. Nunca baja de 0: sobre una
+   *     mesa lisa el fondo de la tarjeta da negativo (las rayas de seguridad
+   *     son horizontales; medido de -0,4 a -2 con seis tarjetas, cuatro frentes y
+   *     dos respaldos), y ahí
+   *     todo queda como estaba.
+   * Se probó también medir solo el centro del marco (el 70 % de en medio): el
+   * PDF417 gastado perdía su franja hasta en mesa lisa, porque lo que más se
+   * le ve son sus barras de inicio y de fin, en las orillas. Se descartó.
+   *
+   * Medido con la cédula nítida de pruebas/fabricar-cedula-nitida.py y la de
+   * fabricar-cedula-ocr.py: las 23 escenas de la verificación que iban por la
+   * franja, ninguna (cada capa sola, tampoco); 450 frentes al azar sobre rayas
+   * de ±50 a ±105, 1 a 2,2 mm, 0 a 15°, la tarjeta al 80-94 %: 26 con
+   * a21746b, 0 con esto. Los respaldos sobre esas rayas siguen dando la
+   * franja de su código (60 de 60).
+   * ======================================================================== */
+  var PISO = { PERCENTIL: 0.3 };
+  function pisoDeLaTarjeta(ss, h, dentro) {
+    var a = Math.max(0, Math.ceil(dentro.y0)), b = Math.min(h, Math.floor(dentro.y1));
+    if (!(b - a >= 8)) return 0;
+    var v = Array.prototype.slice.call(ss, a, b).sort(function (p, q) { return p - q; });
+    return Math.max(0, v[Math.floor((v.length - 1) * PISO.PERCENTIL)]);
+  }
+  /* Las columnas del marco en el gris, o todo el ancho si no se saben. */
+  function columnasDeLaTarjeta(dentro, w) {
+    if (!dentro || !isFinite(dentro.x0) || !isFinite(dentro.x1) || !(dentro.x1 > dentro.x0)) return { xa: 0, xb: w };
+    var x0 = Math.max(0, dentro.x0), x1 = Math.min(w, dentro.x1);
+    if (!(x1 - x0 > 16)) return { xa: 0, xb: w };
+    return { xa: x0, xb: x1 };
+  }
+  /* 23-oct-2026 — ¿ESA FRANJA ES LA DEL PDF417 DE LA AMARILLA? La página la
+     usaba solo como atajo (dónde leer); desde hoy también es lo único que
+     queda de un código MUY gastado, que el lector no encuentra y cuyo patrón
+     no se ve (EscanerCaptura.decidirVentana, vioFranja). Para que el frente
+     no pase por respaldo, se le pide lo que tiene el código de la amarilla y
+     no tiene un renglón de letra: estar en el TERCIO de abajo de la tarjeta
+     (o en el de arriba, con la cédula al revés) y ocupar al menos el 5 % de
+     su alto. Medido el 23-oct con las cédulas fabricadas y las de la demo: la
+     franja de un respaldo (legible, borroso o gastado) cae entre el 69 y el
+     90 % del alto; en ningún frente, ni en el respaldo de la digital (QR y
+     zona de lectura mecánica), apareció una franja. Un código más gastado
+     todavía (σ 2 módulos) tampoco deja franja con la cámara enfocada: ahí
+     sigue la salida de siempre, «Tomar la foto ahora».
+     22-oct-2026 — y DENTRO de la tarjeta: una franja en la mesa de rayas que
+     rodea la cédula hacía pasar el frente por respaldo (ver LA FRANJA ES DE
+     LA TARJETA). Este es el guardián final: aunque una franja de la mesa
+     llegue hasta aquí por otro camino, no prueba nada.
+     @param f      {y0, y1} de franjaDeBarras, en filas del gris de la medida
+     @param alto   el alto de ese gris
+     @param dentro {y0, y1}: las filas del marco en ese gris (opcional: sin
+                   él, las del 6 % de aire de medirNitidezDoc) */
+  function franjaComoLaDelCodigo(f, alto, dentro) {
+    var h = +alto || 0;
+    if (!f || !(h > 0) || !(f.y1 > f.y0)) return false;
+    if (!franjaEnLaTarjeta(f, h, dentro || dentroPorDefecto(h))) return false;
+    if ((f.y1 - f.y0) < h * 0.05) return false;
+    var centro = (f.y0 + f.y1) / 2 / h;
+    return centro >= 2 / 3 || centro <= 1 / 3;
   }
   function percentil(g, w, y0, y1, p) {
     var hist = new Uint32Array(256), n = 0;
@@ -393,8 +637,12 @@
     for (var v = 0; v < 256; v++) { acc += hist[v]; if (acc >= meta) return v; }
     return 255;
   }
-  /* Lo que opina UNA tajada horizontal de la franja: 0, 180 o null. */
-  function votoDeTajada(g, w, y0, y1, blanco, negro) {
+  /* Lo que opina UNA tajada horizontal de la franja: 0, 180 o null.
+     23-oct-2026 — `afuera` (opcional): los perfiles de las filas de arriba y
+     de abajo de la franja (perfilesDeAfuera). Una columna negra que sigue
+     negra en ellos es una raya de la mesa, no una barra del código: no entra
+     en la cuenta. Ver LA BARRA ES DEL CÓDIGO. */
+  function votoDeTajada(g, w, y0, y1, blanco, negro, afuera) {
     var D = new Float64Array(w), rango = Math.max(1, blanco - negro), n = y1 - y0;
     for (var x = 0; x < w; x++) {
       var t = 0;
@@ -407,7 +655,10 @@
     for (var c = 0; c <= w; c++) {
       var on = c < w && D[c] >= 0.7;
       if (on && ini < 0) ini = c;
-      if (!on && ini >= 0) { if (c - ini >= ORIENTACION.BARRA_MIN) corridas.push({ a: ini, b: c }); ini = -1; }
+      if (!on && ini >= 0) {
+        if (c - ini >= ORIENTACION.BARRA_MIN && !sigueAfuera(afuera, ini, c, w)) corridas.push({ a: ini, b: c });
+        ini = -1;
+      }
     }
     var mejor = null;
     for (var i = 0; i < corridas.length; i++) {
@@ -432,6 +683,87 @@
     if (afueraA <= Q.BLANCO_MAX && afueraB >= Q.PEINE_MIN && afueraB <= Q.PEINE_MAX && la >= lb) return 0;
     if (afueraB <= Q.BLANCO_MAX && afueraA >= Q.PEINE_MIN && afueraA <= Q.PEINE_MAX && lb >= la) return 180;
     return null;
+  }
+
+  /* ==========================================================================
+   * LA BARRA ES DEL CÓDIGO — 23 de octubre de 2026
+   *
+   * La verificación de a21746b (dos refutadores) encontró otra vez el FRENTE
+   * guardado como respaldo sobre rayas finas de contraste alto (±64 a ±80,
+   * 1,3 a 1,54 mm, la tarjeta al 86-90 %), ahora por el patrón. a21746b ya
+   * le quitaba al patrón las FILAS de la mesa; las COLUMNAS no. Cada tajada
+   * va de lado a lado de lo que se mira, y a izquierda y derecha de la
+   * tarjeta queda el aire rayado. Medido con el frente fabricado (±70,
+   * 1,54 mm, la tarjeta al 90 %) en la banda de un renglón del centro, que
+   * la página le daba al lector: en tres tajadas de cuatro, la barra «de
+   * inicio» y la «de fin» eran las dos rayas de más afuera (columnas 10-17 y
+   * 994-1001 de 1016), el claro de cada raya pasaba por la zona blanca o por
+   * el peine, y entre las dos el frente ponía los veinte cruces. Tres votos:
+   * «vio el código», y el frente quedaba en cedula_reverso al segundo; en el
+   * paso del frente, el mismo frente oía «Ese es el lado del código de
+   * barras» y no se tomaba solo.
+   *
+   * LA CURA: una barra del código empieza y acaba con el código; una raya de
+   * la mesa sigue arriba y abajo. Así que, antes de contar una columna negra
+   * como barra, se mira si sigue negra en unas filas por ENCIMA y por DEBAJO
+   * de la franja (dejando un cuarto de su alto de por medio, que el borde de
+   * la franja es borroso). Si sigue en las dos, es mesa y no entra. Con un
+   * código de verdad, encima está la tarjeta (letras, nada tan negro y tan
+   * ancho como la barra de inicio), y debajo, el margen de la tarjeta o la
+   * mesa: nunca las dos negras. La ventana donde se busca es dos veces y
+   * media el ancho de la barra: una raya inclinada 15° se corre menos que
+   * eso entre la tajada y las filas de afuera.
+   *
+   * De paso el código de verdad sobre rayas se orienta MEJOR: antes una raya
+   * más gruesa que su barra de inicio le ganaba el puesto («las más
+   * gruesas»), y el patrón no decidía. Medido con 60 respaldos al azar
+   * (rayas de 0 a ±100, de 1 a 3,2 mm, desenfocados hasta σ 3): con a21746b
+   * el patrón se orientaba en 30, con esto en 53, y nunca al revés. En los
+   * frentes: las 14 escenas de la verificación y sus vecinas que votaban
+   * (en la banda o en el recorte entero), ninguna, también con la franja de
+   * antes; y en 80 frentes al azar sobre rayas de ±50 a ±105, uno votaba con
+   * a21746b y ninguno con esto.
+   * ======================================================================== */
+  var AFUERA = {
+    SEPARACION: 0.25,  // del alto de la franja: lo que se deja entre ella y lo que se mira afuera
+    ALTO: 0.25,        // del alto de la franja: cuántas filas se miran afuera (mínimo 3)
+    NEGRO: 0.6         // un tramo de 0,6 barras con esto de negro es «la barra sigue»
+  };
+  /* El perfil (cuánto negro por columna, 0..1) de unas filas encima y debajo
+     de la franja. Las que no caben en la imagen no se miran. */
+  function perfilesDeAfuera(g, w, h, f, blanco, negro) {
+    var fh = f.y1 - f.y0, sep = Math.max(2, Math.round(fh * AFUERA.SEPARACION)), alto = Math.max(3, Math.round(fh * AFUERA.ALTO));
+    var rango = Math.max(1, blanco - negro), out = [];
+    var tramos = [[f.y0 - sep - alto, f.y0 - sep], [f.y1 + sep, f.y1 + sep + alto]];
+    for (var i = 0; i < tramos.length; i++) {
+      var y0 = Math.max(0, tramos[i][0]), y1 = Math.min(h, tramos[i][1]);
+      if (y1 - y0 < 2) continue;
+      var P = new Float64Array(w);
+      for (var x = 0; x < w; x++) {
+        var t = 0;
+        for (var y = y0; y < y1; y++) { var d = (blanco - g[y * w + x]) / rango; t += d < 0 ? 0 : (d > 1 ? 1 : d); }
+        P[x] = t / (y1 - y0);
+      }
+      out.push(P);
+    }
+    return out;
+  }
+  /* ¿La columna negra [a, b) sigue negra afuera de la franja? En TODOS los
+     perfiles que hay (arriba y abajo; si solo cupo uno, en ese). */
+  function sigueAfuera(afuera, a, b, w) {
+    if (!afuera || !afuera.length) return false;
+    var L = b - a, k = Math.max(2, Math.round(L * 0.6));
+    var x0 = Math.max(0, a - Math.round(L * 0.75)), x1 = Math.min(w, b + Math.round(L * 0.75));
+    for (var i = 0; i < afuera.length; i++) {
+      var P = afuera[i], hay = false, t = 0;
+      for (var x = x0; x < x1 && !hay; x++) {
+        t += P[x];
+        if (x - x0 >= k) t -= P[x - k];
+        if (x - x0 >= k - 1 && t / k >= AFUERA.NEGRO) hay = true;
+      }
+      if (!hay) return false;
+    }
+    return true;
   }
 
   /* Promedio de cajas k×k: achica sin inventar bordes. */
@@ -493,10 +825,18 @@
         if (espejo >= V * real && espejo > F) return { giro: 180, seguro: true, por: 'lectura' };
       }
     }
-    var f = franjaDelCodigo(s, h);
+    /* 22-oct-2026 — el patrón se busca en una franja DE LA TARJETA (ver LA
+       FRANJA ES DE LA TARJETA). Sin esto, el lector que lee el recorte entero
+       medía el patrón en la mesa de rayas del aire: rayas de 3 mm a ±60, con
+       la cédula corrida, «votaban» por un PDF417 derecho, eso es «vio el
+       código», y el FRENTE se tomaba como respaldo al segundo. Aquí no hay
+       marco que dar (es el recorte, o la banda que se lee): solo el borde. */
+    var f = franjaDelCodigo(s, h, { dentro: null });
     if (!f) return nada;
     var blanco = percentil(gris, w, f.y0, f.y1, 0.9), negro = percentil(gris, w, f.y0, f.y1, 0.1);
     if (blanco - negro < 40) return nada;
+    /* 23-oct-2026 — y las barras, del código: ver LA BARRA ES DEL CÓDIGO. */
+    var afuera = perfilesDeAfuera(gris, w, h, f, blanco, negro);
     /* Tajadas finas: con la cédula inclinada 3°, promediar la franja entera
        corre las columnas varios módulos; en una tajada, menos de uno. */
     var m = Math.round((f.y1 - f.y0) * 0.1), a = f.y0 + m, b = f.y1 - m;
@@ -504,7 +844,7 @@
     for (var k = 0; k < N; k++) {
       var t0 = Math.round(a + k * alto), t1 = Math.round(a + (k + 1) * alto);
       if (t1 - t0 < 2) continue;
-      var v = votoDeTajada(gris, w, t0, t1, blanco, negro);
+      var v = votoDeTajada(gris, w, t0, t1, blanco, negro, afuera);
       if (v === 0) v0++; else if (v === 180) v180++;
     }
     if (v0 >= ORIENTACION.VOTOS_MIN && !v180) return { giro: 0, seguro: true, por: 'patron' };
@@ -518,7 +858,9 @@
    * contra el borde del video, y DÓNDE QUEDA EL MARCO dentro de ella una vez
    * recortada. 8-oct-2026 — antes la página daba por hecho el 15-85 %, y con
    * el respaldo (marco de pie: 84 % del alto, 92 % del ancho) el anillo nunca
-   * cabe: ver medirTarjeta.
+   * cabe: ver medirTarjeta. 21-oct-2026 — con las dos caras acostadas pasa lo
+   * mismo a los lados (el marco llena el 84 % del ancho del video), así que el
+   * interior sigue viniendo de aquí y no del 15-85 %.
    * @returns {sx, sy, sw, sh, gw, gh, interior: {x0, x1, y0, y1}} o null
    */
   function ventanaDeGuia(g, vw, vh, alto) {
@@ -856,7 +1198,7 @@
   }
 
   return {
-    VERSION: '2026-10-20',
+    VERSION: '2026-10-21',
     PROPORCION: PROPORCION,
     HORAS_REGISTRO_VIVO: HORAS_REGISTRO_VIVO,
     /* 19-oct-2026 — la cédula va primero: fotos sin dueño y la expedición */
@@ -880,6 +1222,9 @@
     /* 8-oct-2026 — el respaldo derecho y el respaldo que dispara solo */
     ORIENTACION: ORIENTACION,
     orientacionDelRespaldo: orientacionDelRespaldo,
+    /* 21-oct-2026 — leer el PDF417 solo de su franja (video 4K) */
+    franjaDeBarras: franjaDeBarras,
+    franjaComoLaDelCodigo: franjaComoLaDelCodigo,
     margenDeLectura: margenDeLectura,
     ventanaDeGuia: ventanaDeGuia,
     RESPALDO: RESPALDO,

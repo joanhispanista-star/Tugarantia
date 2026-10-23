@@ -134,11 +134,20 @@
    21-oct-2026 — sube con el «Salir» que sale de verdad (H3: avisa al
    servidor y borra la copia de la sesión que dejó el registro en la
    pestaña) y con sesion.js, que trae cerrar(). CACHE de sw.js también tiene
-   que subir al publicar: esta tanda no toca sw.js. */
-var VERSION_APP = '2026-10-21';
+   que subir al publicar: esta tanda no toca sw.js.
+
+   22-oct-2026 — sube con la franja de «versión nueva» que se vuelve a
+   decidir al cambiar de pantalla y con «Actualizar ahora» que espera lo que
+   va en camino (el pedido de Plata, la foto del chat) en vez de cortarlo. */
+var VERSION_APP = '2026-10-22';
+/* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
+   ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
+   es la vieja. Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no
+   deja pasar uno sin el otro. */
+var VERSION_SITIO = 'v139';   // 21-oct-2026 — sube con el CACHE de sw.js: el lote 1 integrado
 (function () {
   var v = document.getElementById('holaVersion');
-  if (v) v.textContent = 'Versión ' + VERSION_APP;
+  if (v) v.textContent = 'Versión ' + VERSION_APP + ' · ' + VERSION_SITIO;
 })();
 /* El plazo de seguridad se arma ACÁ, pegado a la bienvenida: si el script
    grande de abajo revienta, la bienvenida se va igual y no deja al cliente
@@ -293,6 +302,9 @@ setTimeout(function () {
 <script src="../app/platachat-reglas.js"></script>
 <script src="../app/pagos-proveedor.js"></script>
 <script src="sesion.js"></script>
+<!-- 21-oct-2026 — se actualiza sola: busca versión nueva y recarga SOLO en un
+     momento seguro (momentoSeguroPC). Si no llega, la app sigue igual. -->
+<script src="../app/actualizar.js"></script>
 <script>
 'use strict';
 
@@ -396,6 +408,7 @@ function fmtFecha(iso) {
 function fila(k, v) { return '<div class="fila"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>'; }
 function fallo(el, msg) { if (!el) return; el.textContent = msg; el.classList.remove('oculto'); }
 function mostrar(cual) {
+  if (cual === 'pCargando') PANTALLA = 'cargando';   // 21-oct-2026 — una cuenta pidiéndose a la nube no es momento de recargar
   ['pEntrar', 'pCargando', 'pCuenta'].forEach(function (p) { var e = $(p); if (e) e.classList.toggle('oculto', p !== cual); });
   window.scrollTo(0, 0);
 }
@@ -404,6 +417,19 @@ function mostrar(cual) {
 var S = null;            /* el socio abierto: se arma en abrir() o en cuentaVacia() */
 var SES = null;          /* la sesión de Auth: la guarda y refresca sesion.js */
 var TAB = 'plata';
+/* 21-oct-2026 — QUÉ PANTALLA SE ESTÁ VIENDO (la entrada, el recado, cargando
+   o la pestaña): la lee momentoSeguroPC. Cada función que pinta la entrada o
+   el cuerpo la pone; lo vigila pruebas/se-actualiza-sola.test.js. */
+var PANTALLA = '';
+/* 21-oct-2026 — un pedido en camino (pedirPorChat / pedirComoMensaje): no se
+   recarga con él volando. Guarda la FOTO de ese pedido y no un true: la
+   respuesta de un pedido viejo (de antes de «Salir», o el que cayó a mensaje)
+   solo suelta la marca si sigue siendo la suya, no la del pedido que salió
+   después. Y cómo quedó la calculadora al abrir la cuenta: si la persona la
+   movió, recargar se la devolvería al principio. */
+var PIDIENDO_PC = false;
+var CALC_AL_ABRIR = '';
+function firmaCalc() { return [MONTO, MODO, PLAZO, CORTES].join('|'); }
 var CANAL = 'creditos';  /* el canal del chat que se está mirando */
 var MONTO = 100000, MODO = 'quincenal', PLAZO = 3;
 var CORTES = 1;          /* para cuándo paga el quincenal: cuántos cortes (1 = el primero que viene) */
@@ -558,6 +584,7 @@ function esNuevo() { return !S || !S.vinculada || Number(S.garantia || 0) <= 0; 
    número, y la respuesta llegaba, se adoptaba y se guardaba en la pantalla
    de quien tuviera el teléfono. */
 function pintarRecado() {
+  PANTALLA = 'recado';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var caja = $('entrarCuerpo'); if (!caja) return;
   soltarElEntrar();
   var tel = ($('inCelular') || {}).value || '';
@@ -580,12 +607,15 @@ function pintarRecado() {
 }
 
 function mandarRecado() {
+  PANTALLA = 'recado';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var err = $('errRecado'); if (!err) return;
   if (!SP || !SP.recado) return fallo(err, 'No cargó una parte de la app (sesion.js). Cierra y vuelve a abrir con internet.');
   var crudo = String(($('rcCelular') || {}).value || '');
   var nota = String(($('rcNota') || {}).value || '').slice(0, 300);
   fallo(err, 'Enviando…');
-  return SP.recado(CFG, crudo, nota).then(function (j) {
+  /* 21-oct-2026 (R3) — escritura en camino: «Volver» lleva a la entrada, que
+     es de la lista de SE ACTUALIZA SOLA, y la recarga cortaba el recado. */
+  return escrituraEnCamino(SP.recado(CFG, crudo, nota)).then(function (j) {
     if (!j || j.ok !== true) {
       var m = j && j.motivo;
       /* Cada motivo dice algo distinto. Un 404 (la función sin pegar) no es
@@ -613,6 +643,7 @@ function mandarRecado() {
    sigue siendo ese» ya no se puede comprobar, y el botón nuevo nace
    encendido. Cualquier camino que vuelva aquí es otro flujo. */
 function pintarEntrar() {
+  PANTALLA = 'entrar';   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var caja = $('entrarCuerpo'); if (!caja) return;
   soltarElEntrar();
   caja.innerHTML =
@@ -654,6 +685,7 @@ function pintarEntrar() {
     '<div class="pie">Tus datos solo los ves tú, con tu celular y tu contraseña.' + enlacesLegales() + selloDeVersion() + '</div>';
   var b = $('btnEntrar'); if (b) b.addEventListener('click', entrar);
   var c = $('inClave'); if (c) c.addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+  avisarQueEsMomento();   // 21-oct-2026 — la entrada vacía es de la lista
 }
 
 function tecleaTel(el) {
@@ -775,11 +807,63 @@ function deEstaSesion(ses, promesa) {
   return promesa.then(function (v) { return SES === ses ? v : enSilencio(); },
                       function (e) { if (SES === ses) throw e; return enSilencio(); });
 }
-/* `ses` (opcional) es la sesión que pidió; sin ella, la de este momento. */
+/* `ses` (opcional) es la sesión que pidió; sin ella, la de este momento.
+   21-oct-2026 (verificación del lote 1, R3) — si ESCRIBE, cuenta como
+   escritura en camino, y se cuenta la llamada de la red (SP.rpc), que siempre
+   termina: la atada a la sesión se calla para siempre si la sesión cambia. */
 function rpcSesion(fn, cuerpo, ses) {
   if (ses === undefined) ses = SES;
   if (!SP) return Promise.reject({ humano: 'No cargó una parte de la app (sesion.js). Cierra y vuelve a abrir con internet.' });
-  return deEstaSesion(ses, SP.rpc(CFG, ses, fn, cuerpo));
+  var p = SP.rpc(CFG, ses, fn, cuerpo);
+  if ((LECTURAS_QUE_NO_FRENAN || []).indexOf(fn) < 0) escrituraEnCamino(p);
+  return deEstaSesion(ses, p);
+}
+
+/* ===========================================================================
+ * LO QUE VA EN CAMINO NO SE CORTA — 21 de octubre de 2026 (verificación del
+ * lote 1, R3)
+ *
+ * SE ACTUALIZA SOLA recarga al llegar a Plata o a Yo, y una recarga CORTA lo
+ * que esté en camino. La lista no miraba el chat: la persona mandaba la foto
+ * del comprobante («Mandando la foto…», CH.enviando), tocaba «Plata» y la
+ * recarga la cortaba a mitad de subida, sin un error; creía que la había
+ * mandado. Toda escritura (rpcSesion de las que escriben, la foto del chat,
+ * el recado, el aviso de «Salir») sale por escrituraEnCamino, que la cuenta
+ * (sube al salir, baja al contestar o fallar), y mientras haya una no es
+ * momento seguro en NINGUNA pantalla. Las lecturas (el latido del chat, la
+ * cuenta, la solicitud) no frenan: cortarlas no pierde nada. Al terminar la
+ * última se vuelve a preguntar (revisar, no yaEsSeguro: la persona puede
+ * estar mirando).
+ * ======================================================================== */
+var ESCRITURAS_EN_CAMINO = 0;
+/* Las RPC que solo leen. Lo que no está aquí cuenta como escritura: una
+   función nueva frena la recarga hasta que alguien diga que solo lee. */
+var LECTURAS_QUE_NO_FRENAN = ['mi_cuenta', 'politica_platachat', 'mi_registro', 'mi_solicitud_platachat',
+                              'chat_leer_sesion', 'chat_foto_sesion_ver'];
+/* Devuelve la MISMA promesa; el conteo va en una rama aparte que se traga el
+   error (no deja una promesa rechazada sin atender). */
+function escrituraEnCamino(p) {
+  if (!p || typeof p.then !== 'function') return p;
+  ESCRITURAS_EN_CAMINO = (ESCRITURAS_EN_CAMINO || 0) + 1;
+  avisarQueEmpieza();
+  var fin = function () {
+    ESCRITURAS_EN_CAMINO = Math.max(0, (ESCRITURAS_EN_CAMINO || 0) - 1);
+    avisarQueTermino();
+  };
+  p.then(fin, fin);
+  return p;
+}
+function hayEscriturasEnCamino() { return (ESCRITURAS_EN_CAMINO || 0) > 0; }
+/* 22-oct-2026 (verificación de 35f0687) — EMPEZÓ UNA: la franja se vuelve a
+   mirar YA, no solo al terminar. Con la calculadora movida el botón está
+   siempre, y tocarlo con «Pedir» en el aire cortaba el pedido. */
+function avisarQueEmpieza() {
+  if (typeof ACT === 'undefined' || !ACT || typeof ACT.volverAMirar !== 'function') return;
+  try { ACT.volverAMirar(); } catch (e) {}
+}
+function avisarQueTermino() {
+  if (hayEscriturasEnCamino() || typeof ACT === 'undefined' || !ACT) return;
+  try { ACT.revisar(); } catch (e) {}
 }
 
 /* ==================== TRAER LA CUENTA ====================
@@ -1008,6 +1092,7 @@ function pintarCuenta() {
      el nuevo, el tope de la política de nuevos. Ver el comentario en socio.html. */
   var techoIni = esNuevo() ? topeNuevo() : Math.min(S.cupo || 300000, 500000);
   MONTO = Math.max(l.min, Math.floor(techoIni / l.paso) * l.paso);
+  CALC_AL_ABRIR = firmaCalc();   // 21-oct-2026 — ver PIDIENDO_PC
   var u = $('uResumen');
   if (u) u.textContent = S.vinculada
     ? COP(S.gd.ganada) + ' ganados · cupo ' + COP(S.cupo)
@@ -1025,6 +1110,7 @@ function entradaMotor() {
 function irA(tab) {
   if (!S) return;
   TAB = tab;
+  PANTALLA = tab;   // 21-oct-2026 — ver SE ACTUALIZA SOLA
   var nav = $('nav');
   var b = nav ? nav.querySelectorAll('button') : [];
   for (var i = 0; i < b.length; i++) b[i].classList.toggle('on', b[i].dataset.t === tab);
@@ -1043,6 +1129,7 @@ function irA(tab) {
      nadie mira. */
   if (tab === 'chats') arrancarChat(); else apagarLatido();
   window.scrollTo(0, 0);
+  avisarQueEsMomento();   // 21-oct-2026 — Plata y Yo son de la lista
 }
 
 /* Lo que hay que decir antes que nada, en todas las pestañas. */
@@ -1723,6 +1810,7 @@ function pedirPorChat(capital, fechaISO, dias, cortes) {
   if (MODO === 'respaldado') { pedirComoMensaje(texto, ''); return; }
   var err = $('errPedir');
   fallo(err, 'Mandando…');
+  var yo = PIDIENDO_PC = { pedido: 'solicitud' };   // 21-oct-2026 — SE ACTUALIZA SOLA no recarga con esto volando
   var fecha = String(fechaISO).slice(0, 10);
   var abierta = solicitudAbierta();
   /* 21-oct-2026 — I2: con la sesión que pidió (rpcSesion): la solicitud de
@@ -1733,6 +1821,7 @@ function pedirPorChat(capital, fechaISO, dias, cortes) {
     ? rpcSesion('reproponer_platachat', { p_id: Number(SOL.id), p_capital: Math.round(capital), p_fecha_pago: fecha, p_cortes: n, p_texto: '' }, ses)
     : rpcSesion('solicitar_platachat', { p_capital: Math.round(capital), p_fecha_pago: fecha, p_cortes: n }, ses);
   pedido.then(function (j) {
+    if (PIDIENDO_PC === yo) PIDIENDO_PC = false;
     RELOJ_OK = true;
     if (!j || j.ok !== true) {
       var msg = motivoPedir(j && j.motivo);
@@ -1760,6 +1849,7 @@ function pedirPorChat(capital, fechaISO, dias, cortes) {
        devolvió esa: se le dice, nombrando el botón que SU tarjeta pinta. */
     if (j.ya_habia) fallo($('chError'), avisoYaHabia(SOL));
   }).catch(function (e) {
+    if (PIDIENDO_PC === yo) PIDIENDO_PC = false;
     if (e && e.sinSesion) { salir('Tu sesión venció. Entra de nuevo para pedir.'); return; }
     if (e && e.estado === 404) { pedirComoMensaje(texto, AVISO_SIN_RELOJ); return; }
     fallo(err, (e && e.humano) || 'No pude mandar tu solicitud. Revisa tu internet y vuelve a intentar.');
@@ -1772,11 +1862,14 @@ function pedirPorChat(capital, fechaISO, dias, cortes) {
    cuando pueda — no se pierde. */
 function pedirComoMensaje(texto, aviso) {
   fallo($('errPedir'), 'Mandando…');
+  var yo = PIDIENDO_PC = { pedido: 'mensaje' };   // 21-oct-2026 — ver pedirPorChat
   return enviarTexto('creditos', texto).then(function () {
+    if (PIDIENDO_PC === yo) PIDIENDO_PC = false;
     CANAL = 'creditos'; BORRADOR = '';
     irA('chats');
     if (aviso) fallo($('chError'), aviso);
   }).catch(function (e) {
+    if (PIDIENDO_PC === yo) PIDIENDO_PC = false;
     if (e && e.sinSesion) { salir('Tu sesión venció. Entra de nuevo para pedir.'); return; }
     CANAL = 'creditos'; BORRADOR = texto;
     irA('chats');
@@ -2843,7 +2936,7 @@ function enlacesLegales() {
    pantallas: si un día hay dos copias publicadas, se sabe cuál se mira. */
 function selloDeVersion() {
   var reglas = (M && M.REGLAS_VIGENTES_DESDE) ? M.REGLAS_VIGENTES_DESDE : null;
-  return '<br><span class="muted" style="font-size:11px">Versión ' + esc(VERSION_APP) +
+  return '<br><span class="muted" style="font-size:11px">Versión ' + esc(VERSION_APP) + ' · ' + esc(VERSION_SITIO) +
     (reglas ? ' · reglas del ' + fmtFecha(reglas) : '') + '</span>';
 }
 /* El letrero de las reglas sale de reglasResumen(), nunca escrito a mano:
@@ -2889,10 +2982,14 @@ function salir(msg) {
   var dePlay = null;
   try { dePlay = JSON.parse(sessionStorage.getItem(LLAVE_PLAY) || 'null'); } catch (e) { dePlay = null; }
   soltarElEntrar();
-  if (SP && SP.soltar) SP.soltar(CFG, ses, !!msg);
-  else if (SP && SP.cerrar && !msg) SP.cerrar(CFG, tokenPC);   // un sesion.js de antes en la caché
+  /* 21-oct-2026 (verificación del lote 1, R3) — los avisos al servidor son
+     escrituras en camino: la entrada es de la lista de SE ACTUALIZA SOLA, y
+     recargar ahí mismo los cortaba (la sesión seguía viva allá). Un
+     sesion.js de antes en la caché no devuelve promesa: no se cuenta. */
+  if (SP && SP.soltar) escrituraEnCamino(SP.soltar(CFG, ses, !!msg));
+  else if (SP && SP.cerrar && !msg) escrituraEnCamino(SP.cerrar(CFG, tokenPC));   // un sesion.js de antes en la caché
   if (SP && SP.cerrar) {
-    if (dePlay && dePlay.access_token && dePlay.access_token !== tokenPC) SP.cerrar(CFG, dePlay.access_token);
+    if (dePlay && dePlay.access_token && dePlay.access_token !== tokenPC) escrituraEnCamino(SP.cerrar(CFG, dePlay.access_token));
   }
   try { sessionStorage.removeItem(LLAVE_PLAY); } catch (e) {}
   /* Y la marca de «la cuenta que acaba de nacer» del registro de play/ (desde
@@ -2902,7 +2999,7 @@ function salir(msg) {
   try { localStorage.removeItem('play_cuenta_creada'); } catch (e) {}
   AVISO_RESPONSABLE_PC_CERRADO = false;   /* el aviso es por persona: el que entre después lo ve si no lo cerró */
   S = null; SES = null; SIN_NUBE = false; AVISO_NUBE = ''; BORRADOR = ''; MI_REGISTRO = '';   /* el registro es de esa cuenta: el que entre después no hereda un «descartado» */
-  SOL = null; RELOJ_OK = false; ACEPTANDO = false;
+  SOL = null; RELOJ_OK = false; ACEPTANDO = false; PIDIENDO_PC = false;
   SOL_GEN++; DESFASE_RELOJ = 0; POL = null; fijarFraseReloj();   /* lo de la base es de esa sesión: una traída en vuelo se bota y el que entre después arranca en cero, también la frase con la espera */
   apagarLatido(); GEN++;
   CH = { canal: '', gen: GEN, mensajes: [], ultimo: 0, cargando: false, enviando: false, error: '' };
@@ -2911,6 +3008,73 @@ function salir(msg) {
   pintarEntrar();
   mostrar('pEntrar');
   if (msg) fallo($('errEntrar'), msg);
+}
+
+/* ======================= SE ACTUALIZA SOLA — 21-oct-2026 =======================
+   La misma pieza que play/ y la app del socio (app/actualizar.js); CUÁNDO es
+   seguro lo dice esta página con una LISTA BLANCA, y lo que no está aquí no
+   recarga nunca. Fuera quedan, a propósito: Chats (lo escrito en la caja, una
+   foto subiendo, la propuesta con su casilla y el aceptar en camino viven
+   ahí), el recado, la cuenta cargándose, un «Entrar» en camino
+   (ENTRAR_EN_CAMINO), un pedido saliendo (PIDIENDO_PC) y una aceptación
+   (ACEPTANDO).
+   Lo que SÍ: la entrada sin nada tecleado, Plata con la calculadora como se
+   abrió (el monto movido vive en MONTO, en memoria) y Yo. Y aun aquí, recarga
+   al salir de la app, al volver antes de tocar nada o al llegar a una de
+   estas pantallas; nunca debajo del dedo.
+   21-oct-2026 (verificación del lote 1, R3) — y nada escribiéndose en camino,
+   en NINGUNA pantalla: la foto del comprobante, un mensaje, el recado, el
+   aviso de «Salir» (ver LO QUE VA EN CAMINO NO SE CORTA), ni el chat
+   mandando (CH.enviando).
+   21-oct-2026 (R5) — CON LA CALCULADORA MOVIDA NINGUNA PANTALLA ES SEGURA
+   (nuncaSeguroPC). La cifra movida vive en MONTO, en memoria, y se pierde
+   con una recarga desde Plata o desde Yo. Antes Yo seguía siendo segura (se
+   perdía igual) y la franja, en Plata, prometía «se pone sola cuando
+   termines y vuelvas al inicio»: Plata ES el inicio, y ya no lo iba a ser
+   hasta la próxima apertura. Ahora ofrece «Actualizar ahora» y no promete. */
+var ACT = null;   // el controlador de app/actualizar.js; null si ese <script src> no llegó
+var PESTANAS_QUE_VUELVEN = ['plata', 'yo'];
+function sinTeclear(id) {
+  var el = $(id);
+  return !el || !String(el.value || '').trim();
+}
+/* 22-oct-2026 (verificación de 35f0687) — LO QUE VA EN CAMINO, EN UNA
+   PREGUNTA que también le llega a app/actualizar.js (opción `ocupado`): con
+   ella «Actualizar ahora» espera a que termine en vez de cortarlo. */
+function ocupadoPC() {
+  return !!(ENTRAR_EN_CAMINO || PIDIENDO_PC || ACEPTANDO) || hayEscriturasEnCamino() || !!(CH && CH.enviando);
+}
+function momentoSeguroPC() {
+  if (ocupadoPC()) return false;
+  if (nuncaSeguroPC()) return false;
+  if (PANTALLA === 'entrar') return sinTeclear('inCelular') && sinTeclear('inClave');
+  if (!S) return false;
+  if (PANTALLA === 'plata') return true;
+  return PANTALLA === 'yo';
+}
+/* 21-oct-2026 (R5) — el modo sin momento seguro: la cuenta abierta con la
+   calculadora movida (hasta que vuelva a como se abrió). */
+function nuncaSeguroPC() {
+  return !!S && CALC_AL_ABRIR !== '' && firmaCalc() !== CALC_AL_ABRIR;
+}
+/* Lo único que cruza la recarga: el nombre de la pestaña. La sesión ya la
+   guarda sesion.js; nada más sale de aquí. */
+function lugarPC() {
+  return (S && PESTANAS_QUE_VUELVEN.indexOf(PANTALLA) >= 0) ? { tab: PANTALLA } : null;
+}
+function arrancarActualizar() {
+  var A = window.Actualizar;
+  if (!A || typeof A.iniciar !== 'function') return;
+  try {
+    ACT = A.iniciar({ version: VERSION_SITIO, momentoSeguro: momentoSeguroPC, ocupado: ocupadoPC, nuncaEsSeguro: nuncaSeguroPC, lugar: lugarPC });
+  } catch (e) { ACT = null; return; }
+  var l = ACT && ACT.vuelta && ACT.vuelta.lugar;
+  if (l && PESTANAS_QUE_VUELVEN.indexOf(l.tab) >= 0) TAB = l.tab;
+}
+/* La página llegó a una pantalla de la lista: si hay versión esperando, es el
+   momento (un cambio de pantalla que la persona pidió). */
+function avisarQueEsMomento() {
+  if (ACT) { try { ACT.yaEsSeguro(); } catch (e) {} }
 }
 
 /* ========================== ARRANQUE ========================== */
@@ -2938,6 +3102,9 @@ function salir(msg) {
       navigator.serviceWorker.register('../sw.js').catch(function () {});
     });
   }
+  /* 21-oct-2026 — SE ACTUALIZA SOLA, antes de pintar nada: decide la
+     bienvenida (abajo) y la pestaña a la que se vuelve. */
+  arrancarActualizar();
 
   pintarEntrar();
 
@@ -2945,10 +3112,13 @@ function salir(msg) {
      animación del sello a la mitad; en un celular lento el tiempo ya se
      cumplió solo y esto no le suma nada. */
   (function () {
+    /* 21-oct-2026 — sin bienvenida si la recarga fue nuestra (SE ACTUALIZA
+       SOLA): la persona no pidió abrir la app. */
     var MINIMO_BIENVENIDA = 2000;
+    var minimo = (ACT && ACT.vuelta) ? 0 : MINIMO_BIENVENIDA;
     var h = $('hola'); if (!h) return;
-    var lleva = (window.performance && performance.now) ? performance.now() : MINIMO_BIENVENIDA;
-    setTimeout(function () { h.classList.add('fuera'); }, Math.max(0, MINIMO_BIENVENIDA - lleva));
+    var lleva = (window.performance && performance.now) ? performance.now() : minimo;
+    setTimeout(function () { h.classList.add('fuera'); }, Math.max(0, minimo - lleva));
   })();
 
   /* La sesión recordada: se le pregunta a la nube con lo guardado. Si contesta

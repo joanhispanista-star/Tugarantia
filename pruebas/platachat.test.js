@@ -86,9 +86,12 @@ const RPC_OBLIGATORIAS = ['mi_cuenta', 'chat_leer_sesion', 'chat_escribir_sesion
    atraso en pesos por día con el techo legal (la tasa de usura del mes), y la
    tabla de usura vive en creditos.js. Sin él, PlataChat decía el techo en
    palabras y play/ en pesos: dos clientes, dos condiciones distintas. */
+/* 21-oct-2026 — y app/actualizar.js al final (se actualiza sola): no lo usa
+   ninguno de los otros, y la página lo toma al arrancar. */
 const SCRIPTS_EN_ORDEN = ['../app/motor.js', '../app/ficha.js', '../app/puente.js', '../app/cuenta.js',
                           '../app/creditos.js', '../app/calculadora-solicitud.js', '../app/chat.js',
-                          '../app/platachat-reglas.js', '../app/pagos-proveedor.js', 'sesion.js'];
+                          '../app/platachat-reglas.js', '../app/pagos-proveedor.js', 'sesion.js',
+                          '../app/actualizar.js'];
 
 
 /* ==========================================================================
@@ -241,8 +244,10 @@ describe('PlataChat: lo que carga y en qué orden', () => {
     assert.match(PAGINA, /navigator\.serviceWorker\.register\('\.\.\/sw\.js'\)/);
     /* 7-oct-2026 — sube con la puerta única (sin la caja del código en Yo).
        8-oct-2026 — y con las condiciones de cada propuesta.
-       21-oct-2026 — y con el «Salir» que sale de verdad (H3). */
-    assert.match(PAGINA, /var VERSION_APP = '2026-10-21'/);
+       21-oct-2026 — y con el «Salir» que sale de verdad (H3).
+       22-oct-2026 — y con la franja de «versión nueva» que se vuelve a decidir
+       sola y el «Actualizar ahora» que espera lo que va en camino. */
+    assert.match(PAGINA, /var VERSION_APP = '2026-10-22'/);
   });
 
   test('la guarda de HTTPS es lo PRIMERO que corre, antes que cualquier lectura del almacén', () => {
@@ -1479,7 +1484,13 @@ describe('PlataChat: el manifiesto y el envoltorio de Android', () => {
        la voz del negocio. */
     assert.match(t, /<button class="btn btn-quieto" type="button" disabled aria-disabled="true">[\s\S]*?El instalador para Android llega cuando lo publiquemos/);
     assert.match(t, /href="\.\.\/platachat\/"/, 'no lleva a la app publicada');
-    assert.match(t, /Añadir a pantalla de inicio/, 'no explica cómo instalarla hoy desde Chrome');
+    /* 21-oct-2026 — con los nombres de los menús de HOY. Esta prueba exigía
+       «Añadir a pantalla de inicio», que el Chrome de 2026 ya no dice (Chrome
+       150, julio: «Instalar y crear acceso directo» → «Instalar») ni el iPhone
+       en español («Agregar a Inicio»). Ver app/instalar.js. */
+    assert.match(t, /Instalar y crear acceso directo/, 'no explica cómo instalarla hoy desde Chrome');
+    assert.match(t, /Agregar a Inicio/, 'no explica cómo instalarla hoy desde el iPhone');
+    assert.ok(!/Añadir a pantalla de inicio|solo Safari puede/.test(t), 'volvió a usar los nombres de menú viejos');
     /* Los enlaces relativos que sí promete, existen. */
     ['../legal/terminos.html', '../legal/privacidad.html', 'index.html', '../index.html', '../platachat/icono-192.png']
       .forEach(h => assert.ok(existe(path.join('descargas', h)), 'descargas/platachat.html enlaza ' + h + ' y no existe'));

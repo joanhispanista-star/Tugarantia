@@ -215,7 +215,10 @@
     }).then(leerCuerpo, function () { throw { humano: SIN_RED, red: true }; })
       .then(function (r) {
         if (!r.ok || !r.j || !r.j.access_token) return null;
-        if (sesion.cerrada) { cerrar(cfg, r.j.access_token); return null; }
+        /* 21-oct-2026 (verificación del lote 1, R3) — el cierre va DENTRO de
+           la promesa: quien la cuente como escritura en camino (el «Salir» de
+           la página) la cuenta hasta que el servidor la cerró. */
+        if (sesion.cerrada) return cerrar(cfg, r.j.access_token).then(function () { return null; });
         var nueva = sesionDe(r.j, sesion.celular, { nombre: sesion.nombre });
         Object.keys(nueva).forEach(function (k) { sesion[k] = nueva[k]; });
         guardar(sesion);
@@ -309,15 +312,19 @@
      mirar la respuesta: si no llega, igual se sale; quedarse adentro porque
      falló la red sería lo peor de los dos mundos.
      ---------------------------------------------------------------------- */
+  /* 21-oct-2026 (verificación del lote 1, R3) — devuelve una promesa que nunca
+     falla: nadie la espera para salir, pero la página la cuenta como
+     escritura en camino y SE ACTUALIZA SOLA no recarga encima de ella. */
   function cerrar(cfg, token) {
-    if (!token || !conectada(cfg)) return;
+    if (!token || !conectada(cfg)) return Promise.resolve();
     try {
       var p = pedidor(cfg)(base(cfg) + '/auth/v1/logout?scope=local', {
         method: 'POST',
         headers: { apikey: cfg.anon, Authorization: 'Bearer ' + token }
       });
-      if (p && p['catch']) p['catch'](function () {});
+      if (p && p['catch']) return p['catch'](function () {});
     } catch (e) { /* salir no depende de la red */ }
+    return Promise.resolve();
   }
 
   /* ------------------------------------------------------------------------
@@ -331,17 +338,20 @@
      `sinAvisar`: la nube ya dijo que esa sesión no vale; solo se marca.
      Sin esperar y sin mirar la respuesta, como cerrar.
      ---------------------------------------------------------------------- */
+  /* 21-oct-2026 (verificación del lote 1, R3) — y devuelve una promesa que
+     nunca falla y termina cuando terminó todo lo que salió (ver cerrar). */
   function soltar(cfg, sesion, sinAvisar) {
-    if (!sesion) return;
+    if (!sesion) return Promise.resolve();
     sesion.cerrada = true;
-    if (sinAvisar) return;
-    cerrar(cfg, sesion.access_token);
+    if (sinAvisar) return Promise.resolve();
+    var todo = [cerrar(cfg, sesion.access_token)];
     if (vencida(sesion) && sesion.refresh_token && conectada(cfg)) {
       try {
         var p = refrescar(cfg, sesion);
-        if (p && p['catch']) p['catch'](function () {});
+        if (p && p['catch']) todo.push(p['catch'](function () {}));
       } catch (e) { /* salir no depende de la red */ }
     }
+    return Promise.all(todo).then(function () {});
   }
 
   return {
