@@ -191,7 +191,12 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         «Seguir sin la foto», el aviso al primer «Continuar»,
                         «Repetir» que no borra a ciegas, y la pantalla final que
                         nombra lo que no llegó (pruebas/la-selfie-que-no-se-tomo,
-                        pruebas/la-selfie-se-toma-sola).
+                        pruebas/la-selfie-se-toma-sola). Para calibrarla en
+                        un teléfono de verdad: play/?medir=1 pone debajo del
+                        escáner el motor, el video, lo que tarda cada
+                        detección, la falla y qué rompió cada racha (para un
+                        pantallazo; no se guarda ni sale del teléfono:
+                        pruebas/la-selfie-se-mide).
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).
