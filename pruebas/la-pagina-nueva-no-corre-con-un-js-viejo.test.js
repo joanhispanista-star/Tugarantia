@@ -21,7 +21,8 @@
  *      v139 toma el control.
  *
  * LA REGLA QUE VIGILAN, para CADA página y CADA .js propio que cambió entre
- * lo publicado (origin/main, o main) y lo de hoy:
+ * lo publicado (origin/main, o main) y lo de hoy (las filas nuevas de la
+ * tabla de usura no cuentan: ver DATOS_SIN_VERSION y la sección 5):
  *
  *   · la página lo pide con la versión en la dirección (…?v=139, el número de
  *     CACHE de sw.js), todas con la MISMA dirección, y sw.js la precarga así;
@@ -100,10 +101,65 @@ const leer = ruta => fs.readFileSync(path.join(RAIZ, ruta), 'utf8');
    antes con la que mezclarse. */
 const PROPIOS = ['app', 'panel', 'platachat', 'play'].flatMap(d =>
   fs.readdirSync(path.join(RAIZ, d)).filter(f => /\.js$/.test(f)).map(f => d + '/' + f));
-const CAMBIADOS = PUBLICADO ? PROPIOS.filter(f => {
-  const antes = deMain(f);
-  return antes && sinCR(antes) !== sinCR(deHoy(f));
-}) : [];
+
+/* 23-oct-2026 — DATOS SIN VERSIÓN: LAS FILAS NUEVAS DE TOPES NO SON UN .JS
+   CAMBIADO. El robot «Traer usura» corre sobre lo publicado (origin/main es su
+   mismo commit), mete la fila del mes que entra en app/creditos.js SIN commit y
+   corre estas pruebas antes de abrir el PR. Contada como cambio, esa fila pedía
+   ?v=139 en las seis páginas que piden app/creditos.js, tumbaba 8 pruebas y el
+   PR de noviembre no se abría. Desde el 1-nov el CRM no habría dejado mandar
+   propuestas en cuotas y la calculadora pública no habría dado precio, como
+   pasó el 1-oct (03a9b7f). La sección 5 lo prueba con el código del robot.
+
+   Por qué esa fila no mezcla una página nueva con un .js viejo: ninguna
+   página depende de qué meses trae la tabla. La leen con topeVigente y
+   topeDeReferencia, que están en las dos copias. A la copia de antes le falta
+   el mes nuevo, y ese mes topeVigente da null: el CRM no manda propuestas en
+   cuotas y la calculadora se calla. Es lo mismo que le pasa a un teléfono con
+   la página de antes. No es una mezcla: es una tabla vieja, y eso tiene su
+   manejo desde el 15-sep (topeDeReferencia). Además, la fila no se usa antes
+   del día 1 (la certificación sale el 30 o el 31), y el sw.js v139 pide los
+   .js con 'no-cache': con señal, la fila llega en la primera visita.
+
+   La puerta es estrecha a propósito. Solo pasan filas completas al final de
+   TOPES, con la forma exacta de lineaNueva() (y sus comentarios). La única
+   línea de antes que puede cambiar es la de la coma que el robot le pone a la
+   que era la última. Un techo ya publicado que cambia, código, una fila en
+   medio o un mes que desaparece siguen contando como cambio: ahí sí hace falta
+   la versión en la dirección. */
+const FILA_DE_TOPES = /^\s*\{ desde: '\d{4}-\d{2}-\d{2}', hasta: '\d{4}-\d{2}-\d{2}', consumo_ordinario: 0\.\d{4}, ibc: 0\.\d{4}, fuente: '[^'\\\n]*' \},?\s*$/;
+/* Con las mismas anclas que escribir() de herramientas/traer-usura.js. */
+function partesDeTopes(texto) {
+  const l = texto.split('\n');
+  const abre = l.findIndex(x => /var TOPES = \[/.test(x));
+  const cierra = abre < 0 ? -1 : l.findIndex((x, i) => i > abre && /^\s*\];\s*$/.test(x));
+  if (cierra < 0) return null;
+  return { antes: l.slice(0, abre + 1).join('\n'), filas: l.slice(abre + 1, cierra), despues: l.slice(cierra).join('\n') };
+}
+function soloSumaFilasATopes(antes, hoy) {
+  const a = partesDeTopes(antes), h = partesDeTopes(hoy);
+  if (!a || !h || a.antes !== h.antes || a.despues !== h.despues) return false;
+  if (h.filas.length <= a.filas.length) return false;
+  const sinComa = x => x.replace(/,?\s*$/, '');
+  if (!a.filas.every((x, i) => sinComa(x) === sinComa(h.filas[i]))) return false;
+  const nuevas = h.filas.slice(a.filas.length).join('\n').replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n').filter(x => x.trim() && !/^\s*\/\//.test(x));
+  return nuevas.length > 0 && nuevas.every(x => FILA_DE_TOPES.test(x));
+}
+const DATOS_SIN_VERSION = { 'app/creditos.js': soloSumaFilasATopes };
+
+function cuentaComoCambiado(ruta, antes, hoy) {
+  if (!antes) return false;
+  const a = sinCR(antes), h = sinCR(hoy);
+  if (a === h) return false;
+  const soloDatos = DATOS_SIN_VERSION[ruta];
+  return !(soloDatos && soloDatos(a, h));
+}
+/* `leerHoy` es deHoy, salvo en la sección 5, que le pone encima la fila del
+   robot de la usura para ver qué haría esta misma cuenta en su corrida. */
+const cambiadosCon = leerHoy => PUBLICADO
+  ? PROPIOS.filter(f => cuentaComoCambiado(f, deMain(f), leerHoy(f))) : [];
+const CAMBIADOS = cambiadosCon(deHoy);
 
 const SW_HOY = leer('sw.js');
 const NUMERO = (/const CACHE = 'tugarantia-v(\d+)';/.exec(SW_HOY) || [])[1];
@@ -615,4 +671,106 @@ describe('4 · Si un .js versionado no llega, o llega otro, la página dice que 
       });
     });
   }
+});
+
+/* ==========================================================================
+ * 5 · LA FILA DE USURA DEL ROBOT NO ES UN .JS CAMBIADO — 23-oct-2026
+ *
+ * «Traer usura» (.github/workflows/traer-usura.yml) corre del 24 al 3 de cada
+ * mes sobre lo publicado: actions/checkout deja origin/main en el mismo commit,
+ * `traer-usura.js --escribir` mete la fila del mes que entra en app/creditos.js
+ * SIN commit, y después corre `node --test`. Si algo cae, no hay PR.
+ *
+ * Esta prueba veía esa fila como un .js cambiado frente a origin/main, exigía
+ * ?v=139 en las seis páginas que piden app/creditos.js y en sw.js, y tumbaba 8
+ * pruebas. Sin PR de noviembre, el 1-nov topeVigente da null: el CRM no deja
+ * mandar propuestas en cuotas y la calculadora pública no da precio. Ya pasó
+ * igual el 1-oct (03a9b7f; arreglado en 880a925 y 2f0d1e8).
+ *
+ * La fila se fabrica con el código del robot (validar y conLaFila), sin tocar
+ * el disco: si algún día el robot escribe distinto, esto lo ve.
+ * ======================================================================== */
+const USURA = require(path.join(RAIZ, 'herramientas', 'traer-usura.js'));
+const CREDITOS = 'app/creditos.js';
+const BASE_CREDITOS = String(deHoy(CREDITOS));            // con el fin de línea de este disco
+const BASE_LF = sinCR(BASE_CREDITOS);                      // como lo deja el checkout de Actions (Ubuntu)
+const BASE_CRLF = BASE_LF.replace(/\n/g, '\r\n');          // como lo tiene Joan en Windows
+
+const UN_DIA = 86400000;
+function mesDespuesDe(hasta) {
+  const d = new Date(Date.parse(hasta + 'T00:00:00Z') + UN_DIA);
+  const ultimo = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+  return { desde: d.toISOString().slice(0, 10), hasta: ultimo.toISOString().slice(0, 10) };
+}
+/* Una certificación como la que devuelve datos.gov.co, firmada la víspera y
+   con el mismo interés del último mes (así pasa los seis controles). */
+function filaDelRobot(mes, resolucion) {
+  const topes = require(path.join(RAIZ, CREDITOS)).TOPES;
+  const ibc = (topes[topes.length - 1].ibc * 100).toFixed(2) + '%';
+  const firma = new Date(Date.parse(mes.desde + 'T00:00:00Z') - UN_DIA).toISOString().slice(0, 10);
+  return USURA.validar({
+    resolucion, fecha_resolucion: firma + 'T00:00:00.000',
+    vigencia_desde: mes.desde + 'T00:00:00.000', vigencia_hasta: mes.hasta + 'T00:00:00.000',
+    interes_bancario_corriente: ibc, modalidad: 'CONSUMO Y ORDINARIO'
+  }, mes);
+}
+const FILA_NUEVA = filaDelRobot(USURA.mesQueFalta(), '9999');
+
+describe('5 · La fila de usura que escribe el robot no es un .js cambiado (si lo fuera, no abre el PR del mes)', () => {
+
+  test('la fila del mes que entra, con LF (Actions) y con CRLF (Windows), no hace de app/creditos.js un .js cambiado', () => {
+    for (const [nombre, base] of [['LF', BASE_LF], ['CRLF', BASE_CRLF]]) {
+      const conFila = USURA.conLaFila(base, FILA_NUEVA);
+      assert.ok(conFila.includes(USURA.lineaNueva(FILA_NUEVA)), nombre + ': el robot no escribió la fila; la prueba no miraría nada');
+      assert.equal(cuentaComoCambiado(CREDITOS, base, conFila), false,
+        nombre + ': la fila del robot cuenta como .js cambiado; su paso «Las pruebas, con la fila nueva puesta» cae y no abre el PR');
+    }
+  });
+
+  test('con la fila puesta, la lista de .js cambiados frente a lo publicado es la misma (las secciones 1 y 3 no piden nada más)', { skip: SIN_PUBLICADO }, () => {
+    const conFila = Buffer.from(USURA.conLaFila(BASE_CREDITOS, FILA_NUEVA));
+    const comoElRobot = ruta => (ruta === CREDITOS ? conFila : deHoy(ruta));
+    assert.deepEqual(cambiadosCon(comoElRobot), CAMBIADOS,
+      'la fila del robot metió app/creditos.js entre los cambiados: en su corrida, esta prueba exige ?v= y tumba el PR');
+  });
+
+  test('dos filas de una vez, o la fila tecleada a mano con su comentario encima (como la de octubre), tampoco', () => {
+    const dic = filaDelRobot(mesDespuesDe(FILA_NUEVA.hasta), '9998');
+    const dos = USURA.conLaFila(USURA.conLaFila(BASE_LF, FILA_NUEVA), dic);
+    assert.equal(cuentaComoCambiado(CREDITOS, BASE_LF, dos), false, 'dos filas nuevas al final');
+
+    const linea = USURA.lineaNueva(FILA_NUEVA);
+    const conFila = USURA.conLaFila(BASE_LF, FILA_NUEVA);
+    const aMano = conFila.replace(linea, '    /* 1-nov-2026: comentario de prueba, encima de la fila\n'
+      + '       que describe, como el de octubre. */\n' + linea);
+    assert.notEqual(aMano, conFila);
+    assert.equal(cuentaComoCambiado(CREDITOS, BASE_LF, aMano), false, 'una fila con su comentario');
+  });
+
+  test('lo que NO es solo filas nuevas al final de TOPES sigue contando como .js cambiado', () => {
+    /* Que la puerta no quede más ancha de lo que el robot necesita: código,
+       un techo ya publicado que cambia, o una tabla que pierde un mes son
+       cambios de verdad, y van con la versión en la dirección. */
+    const linea = USURA.lineaNueva(FILA_NUEVA);
+    const conFila = USURA.conLaFila(BASE_LF, FILA_NUEVA);
+    const filas = [...BASE_LF.matchAll(/^ *\{ desde: '[^\n]*$/gm)].map(m => m[0]);
+    const primera = filas[0], ultima = filas[filas.length - 1];
+    const casos = [
+      ['la fila y además código fuera de TOPES', BASE_LF,
+        conFila.replace('function topeVigente(iso) {', 'function topeVigente(iso) { iso = String(iso);')],
+      ['un techo ya publicado cambia de valor', BASE_LF,
+        BASE_LF.replace(ultima, ultima.replace(/consumo_ordinario: 0\.\d{4}/, 'consumo_ordinario: 0.2999'))],
+      ['una «fila» que trae código', BASE_LF,
+        conFila.replace(linea, linea.replace("fuente: '", "fuente: (globalThis.x = 1) && '"))],
+      ['una fila metida en medio, no al final', BASE_LF,
+        BASE_LF.replace(primera, linea + ',\n' + primera)],
+      ['la tabla pierde el mes que lo publicado ya tenía', conFila, BASE_LF]
+    ];
+    for (const [nombre, antes, hoy] of casos) {
+      assert.notEqual(hoy, antes, nombre + ': el caso no cambió nada');
+      assert.equal(cuentaComoCambiado(CREDITOS, antes, hoy), true, nombre + ': no contó como cambiado');
+    }
+    assert.equal(cuentaComoCambiado('app/puente.js', BASE_LF, conFila), true,
+      'la excepción es de app/creditos.js y de nadie más');
+  });
 });

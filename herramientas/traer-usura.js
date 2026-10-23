@@ -203,9 +203,21 @@ function lineaNueva(f) {
  *
  * No se escribe con una expresión regular sobre todo el archivo a propósito:
  * `consumo_ordinario` aparece también en comentarios y en otras funciones.
+ *
+ * 23-oct-2026 — LA CUENTA VA APARTE DEL DISCO (conLaFila). Así una prueba
+ * fabrica exactamente la fila que este robot deja sin commit, con las mismas
+ * anclas y el mismo fin de línea, en vez de una copia que se aparta el día que
+ * alguien cambie esto. Hizo falta: la prueba de la página nueva
+ * (pruebas/la-pagina-nueva-no-corre-con-un-js-viejo.test.js) tomaba la fila de
+ * noviembre por un .js cambiado, el paso «Las pruebas, con la fila nueva
+ * puesta» caía y el PR no se abría, como el 1-oct.
  */
 function escribir(f) {
-  const texto = fs.readFileSync(ARCHIVO, 'utf8');
+  fs.writeFileSync(ARCHIVO, conLaFila(fs.readFileSync(ARCHIVO, 'utf8'), f));
+}
+
+/** El texto de app/creditos.js con la fila `f` metida al final de TOPES. */
+function conLaFila(texto, f) {
   const fin = texto.includes('\r\n') ? '\r\n' : '\n';   // el repo vive en Windows
   const lineas = texto.split(/\r?\n/);
 
@@ -221,7 +233,7 @@ function escribir(f) {
   if (!/,\s*$/.test(lineas[ultima])) lineas[ultima] = lineas[ultima].replace(/\s*$/, ',');
   lineas.splice(cierra, 0, lineaNueva(f));
 
-  fs.writeFileSync(ARCHIVO, lineas.join(fin));
+  return lineas.join(fin);
 }
 
 /* -------------------------------------------------------------------- cara */
@@ -289,4 +301,4 @@ if (require.main === module) {
   principal().catch(e => { console.error('\n' + e.message); process.exit(1); });
 }
 
-module.exports = { mesQueFalta, validar, lineaNueva, LIMITES };
+module.exports = { mesQueFalta, validar, lineaNueva, conLaFila, LIMITES };
