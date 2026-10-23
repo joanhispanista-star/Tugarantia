@@ -539,20 +539,8 @@ describe('4 · Si un .js versionado no llega, o llega otro, la página dice que 
     for (const src of versionados) {
       const archivo = resolver(pagina, src);
 
-      test(pagina + ' → ' + src + ' no llegó (el v138 contestó index.html): no arranca, y dice que recargue', async () => {
-        /* Lo que de verdad contesta el v138 publicado con ese archivo
-           fallando: lo saca la simulación, no se supone. */
-        let cuerpo = null;
-        if (!SIN_PUBLICADO) {
-          const { tel, v138 } = await telefonoConV138();
-          tel.http.clear();
-          tel.red = url => rutaDeUrl(url) !== archivo;
-          const r = await v138.pedir(new URL(src, ORIGEN + pagina).href);
-          cuerpo = r.cuerpo || null;
-        } else {
-          cuerpo = deHoy('index.html');
-        }
-        const r = abrirPagina(pagina, f => (f === archivo ? (cuerpo ? { cuerpo } : { error: 'sin respuesta' }) : todoDeHoy(f)));
+      test(pagina + ' → ' + src + ' no llegó y el service worker contestó index.html: no arranca, y dice que recargue', () => {
+        const r = abrirPagina(pagina, f => (f === archivo ? { cuerpo: deHoy('index.html') } : todoDeHoy(f)));
         assert.equal(r.arranca, false, 'la página arrancó sin ' + archivo);
         assert.deepEqual(r.aMedias, [src.split('?')[0]]);
         assert.equal(r.puestos.length, 1, 'no pintó el aviso');
@@ -560,6 +548,25 @@ describe('4 · Si un .js versionado no llega, o llega otro, la página dice que 
         assert.match(r.puestos[0].innerHTML, /no sigue/);
         r.puestos[0].boton.onclick();
         assert.equal(r.recargas(), 1, 'el botón no recarga');
+      });
+
+      test(pagina + ' → ' + src + ' no bajó: con lo que de verdad conteste el sw.js publicado, no corre a medias', { skip: SIN_PUBLICADO }, async () => {
+        /* Lo que contesta el sw.js publicado con ese archivo fallando lo saca
+           la simulación, no se supone. Hoy (v138) es index.html: la página no
+           arranca. Cuando lo publicado ya precargue ESTA versión con esta
+           dirección, contesta el archivo de hoy: no hay mezcla y la página
+           sigue. Las dos cosas valen; lo que no vale es arrancar con otra. */
+        const { tel, v138 } = await telefonoConV138();
+        tel.http.clear();
+        tel.red = url => rutaDeUrl(url) !== archivo;
+        const s = await v138.pedir(new URL(src, ORIGEN + pagina).href);
+        const r = abrirPagina(pagina, f => (f === archivo ? (s.cuerpo ? { cuerpo: s.cuerpo } : { error: s.error }) : todoDeHoy(f)));
+        if (s.cuerpo && igual(s.cuerpo, deHoy(archivo))) {
+          assert.equal(r.arranca, true, 'con el archivo de hoy, la página tenía que arrancar');
+        } else {
+          assert.equal(r.arranca, false, 'la página arrancó con lo que el sw.js publicado contestó por ' + archivo);
+          assert.deepEqual(r.aMedias, [src.split('?')[0]]);
+        }
       });
 
       /* Solo mientras lo publicado no firma (hoy: main no tiene firmas). Después
