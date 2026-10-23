@@ -180,6 +180,15 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
 
 panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna parte.
   crm.html              Socios, créditos, cobros, invitaciones, plantillas.
+                        Desde el 23-oct-2026 la entrada dura 24 h DESDE QUE SE
+                        ENTRA, no una recarga: el PIN de Joan y la contraseña del
+                        equipo se piden una vez y el F5 ya no los pide. Se guarda
+                        la sesión (la marca de Joan; los tokens del equipo),
+                        nunca la clave. A las 24 h la puerta sale ENCIMA al
+                        siguiente toque, sin borrar lo que había en pantalla.
+                        «🔓 Sesión abierta hasta …» en la barra, con «Salir
+                        ahora». Entrar como equipo cierra la de Joan y al revés.
+                        Pruebas: pruebas/la-sesion-dura-24-horas.test.js.
   una-puerta.js         Las palabras del toque «¿Es la misma persona?» (juntar la
                         cuenta de un cliente antiguo), compartidas con espejo.html.
   nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el

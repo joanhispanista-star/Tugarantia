@@ -27,7 +27,12 @@ function abrirPanel(opciones) {
   const o = opciones || {};
   const RAIZ = path.join(__dirname, '..');
   const html = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
-  const almacen = {};
+  /* 23-oct-2026 — `almacen: A` RECARGA en el mismo navegador: el segundo
+     abrirPanel con el mismo objeto arranca con lo que el primero dejó escrito
+     (la cartera, la sesión de 24 h), igual que un F5. Sin esto no había forma
+     de probar lo que la página hace AL ARRANCAR con algo ya guardado: el
+     almacén nacía vacío en cada apertura. */
+  const almacen = o.almacen || {};
   const elems = {};
   const elem = id => (elems[id] = elems[id] || {
     id, value: '', checked: false, textContent: '', innerHTML: '',
