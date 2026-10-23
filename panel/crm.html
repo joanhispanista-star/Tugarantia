@@ -5555,14 +5555,26 @@ function verCliente(id){
  * que se sabe del porqué.
  * ======================================================================== */
 let _fichaVista=null, _tardias=0;
-function vieneDeRegistro(s){
-  return !!(s&&(s.huellaRegistro||s.cuentaPorJuntar||s.origen==='registro_abierto'||
-    (Array.isArray(s.cruces)&&s.cruces.some(x=>x&&x.origen==='registro_abierto'))));
+/* 22-oct-2026 — SOLO LOS CRUCES VIVOS. Un cruce deshecho se queda en s.cruces
+   (es un hecho fechado y no se borra), pero ya no dice nada de la ficha:
+   deshacerCruce soltó las fotos de ese registro porque eran de OTRA persona.
+   Contándolo, la ficha volvía a preguntarle a la nube por el celular del
+   cruce deshecho y se volvía a anotar sola, con guardar() y sin preguntar, la
+   cédula y la selfie del otro: 38.000 de cupo (motor.js da 10.000 por cada
+   lado de la cédula y 18.000 por la selfie) y la próxima selfie de la clienta
+   comparada contra una cara ajena. Es el mismo filtro que ultimoCruceDe y la
+   lista de cruzados de «🔗 Cruzar». */
+function crucesVivosConRegistro(s){
+  return (Array.isArray(s&&s.cruces)?s.cruces:[]).filter(x=>x&&!x.deshecho&&x.origen==='registro_abierto');
 }
-/* El celular con que se anotan sus fotos: el del cruce si lo hubo (es el del
-   registro), y si no el de la ficha. */
+function vieneDeRegistro(s){
+  return !!(s&&(s.huellaRegistro||s.cuentaPorJuntar||s.origen==='registro_abierto'||crucesVivosConRegistro(s).length));
+}
+/* El celular con que se anotan sus fotos: el del último cruce VIVO si lo hay
+   (es el del registro), y si no el de la ficha. Con el cruce deshecho, la
+   ficha nacida de su propio registro vuelve a buscar las suyas. */
 function celularDeFotosDe(s){
-  const c=(Array.isArray(s.cruces)?s.cruces:[]).filter(x=>x&&x.origen==='registro_abierto'&&x.celular).map(x=>x.celular).pop();
+  const c=crucesVivosConRegistro(s).filter(x=>x.celular).map(x=>x.celular).pop();
   return diez(c||s.telefono||'');
 }
 function traerFotosTardias(s){
