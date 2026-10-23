@@ -302,3 +302,66 @@ describe('3 · La política del 27-oct: una fecha y un «Lo que cambió» para l
     assert.match(listaDel(POLITICA(), '27 de octubre de 2026'), /Para qué usamos tus datos no cambió/);
   });
 });
+
+/* ======================================================================== */
+/* 4 · LO QUE SE GUARDA PARA USAR SIN RED (ARCHIVOS de sw.js).
+   Seis ramas tocaron páginas precargadas y dos trajeron módulos nuevos
+   (app/bancos-colombia.js y app/cuentas-pago.js), además de los cuatro del
+   lote 1. Un <script src> que no está en la precarga deja a la app instalada
+   sin esa pieza la primera vez que abre sin señal; una entrada que no existe
+   es basura que nadie nota. CACHE sigue en v139: nunca se publicó. */
+const precarga = () => {
+  const sw = fs.readFileSync(path.join(RAIZ, 'sw.js'), 'utf8');
+  const i = sw.indexOf('const ARCHIVOS = ['), j = sw.indexOf('].map(f => BASE + f)', i);
+  assert.ok(i > 0 && j > i, 'sw.js perdió su lista ARCHIVOS');
+  /* Sin comentarios de bloque; los de línea solo donde empieza uno de verdad
+     (después de una coma o de un espacio), no el // de una dirección. */
+  const cuerpo = sw.slice(i + 'const ARCHIVOS = ['.length, j).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[\s,])\/\/[^\n]*/g, '$1');
+  return { sw, lista: [...cuerpo.matchAll(/'([^']*)'/g)].map(m => m[1]) };
+};
+/* La entrada como archivo: '' es la portada; 'play/' es su index.html. */
+const comoArchivo = f => f === '' ? 'index.html' : f.replace(/\/$/, '/index.html');
+
+describe('4 · La precarga de sw.js tiene todo lo nuevo del lote, y nada que no exista', () => {
+
+  test('CACHE es tugarantia-v139 y cada entrada de ARCHIVOS existe', () => {
+    const { sw, lista } = precarga();
+    assert.match(sw, /const CACHE = 'tugarantia-v139';/);
+    assert.ok(lista.length > 50, 'no leí la lista entera');
+    const faltan = lista.map(comoArchivo).filter(f => !fs.existsSync(path.join(RAIZ, f)));
+    assert.deepEqual(faltan, [], 'la precarga pide archivos que no existen');
+  });
+
+  test('lo nuevo de las seis ramas que las páginas cargan está en la precarga', () => {
+    const lista = new Set(precarga().lista);
+    ['app/actualizar.js', 'app/instalar.js', 'app/escaner-captura.js', 'app/ocr-cedula.js',
+     'app/bancos-colombia.js', 'app/cuentas-pago.js', 'app/rostro-en-vivo.js', 'platachat/sesion.js']
+      .forEach(f => assert.ok(lista.has(f), f + ' no está en la precarga de sw.js'));
+  });
+
+  test('cada <script src> y cada hoja o manifiesto de las páginas precargadas está en la precarga', () => {
+    const lista = precarga().lista.map(comoArchivo);
+    const en = new Set(lista);
+    const faltan = [];
+    lista.filter(f => /\.html$/.test(f)).forEach(pagina => {
+      const t = fs.readFileSync(path.join(RAIZ, pagina), 'utf8');
+      const refs = [...t.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)].map(m => m[1])
+        .concat([...t.matchAll(/<link[^>]*>/g)].map(m => m[0])
+          .filter(l => /rel="(stylesheet|manifest)"/.test(l)).map(l => (l.match(/href="([^"]+)"/) || [])[1]).filter(Boolean));
+      refs.filter(r => !/^(https?:|data:|\/\/)/.test(r)).forEach(r => {
+        const f = path.posix.normalize(path.posix.join(path.posix.dirname(pagina), r.split(/[?#]/)[0]));
+        if (!en.has(f)) faltan.push(pagina + ' → ' + f);
+      });
+    });
+    assert.deepEqual(faltan, [], 'una página precargada carga algo que no se guarda para usar sin red');
+  });
+
+  test('las librerías pesadas que solo usa quien se registra siguen FUERA (se bajan al llegar al paso)', () => {
+    /* app/lib/ocr (~10 MB), app/lib/rostro (face-api y sus modelos) y ZXing:
+       precargarlas le cobraría esos datos a cada socio que abre la app. La
+       página las pide al llegar al paso (rel=prefetch) y la caché las guarda
+       al pasar (la rama de abajo del fetch). Ver las notas de v139. */
+    const fuera = precarga().lista.filter(f => /^app\/lib\//.test(f));
+    assert.deepEqual(fuera, [], 'una librería pesada entró a la precarga: cada socio la pagaría');
+  });
+});

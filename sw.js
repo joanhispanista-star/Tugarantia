@@ -1835,7 +1835,27 @@
    banda; con una pagina vieja, el escaner-cedula.js nuevo ya cuenta la franja
    desde el piso de la tarjeta (pruebas/el-frente-sobre-rayas-finas.test.js,
    «sin las columnas») y su patron ya no vota con rayas que siguen arriba y
-   abajo. La cura viaja en escaner-cedula.js. */
+   abajo. La cura viaja en escaner-cedula.js.
+   23-oct-2026, EL LOTE DEL 27-OCT (rama publicar-27, MISMA v139: nada de esto
+   se publico nunca, y v139 tampoco). Al lote 1 se le juntan abono-pactado
+   (el CRM, el espejo, panel/nube.js, panel/nube-crm.js, app/puente.js y
+   app/socio.html), nube-sola (el CRM, el espejo y sus .js de panel/),
+   rostro-selfie (play/, app/rostro-en-vivo.js, app/cuenta.js, la politica y
+   el CRM: la selfie con los ojos usa el modelo chico de app/lib/rostro/, que
+   ya estaba en el sitio y, como face-api y el detector, NO entra: play/ los
+   pide al llegar al paso y la cache los guarda al pasar), cuentas-pago
+   (app/bancos-colombia.js y app/cuentas-pago.js NUEVOS, en la precarga;
+   play/, platachat/, app/socio.html, app/puente.js,
+   app/calculadora-solicitud.js, app/cumplimiento.js, la politica y el CRM) y
+   claves-clientes (platachat/index.html y platachat/sesion.js: «Cambiar mi
+   contrasena»; play/ y el CRM). Ningun archivo nuevo fuera de esos dos: todo
+   lo demas ya estaba en la precarga y viaja con este mismo numero. Mezclarlos
+   no rompe: cada pagina pregunta por CP, por SP.cambiarClave y por el
+   detector de ojos antes de usarlos (sin ellos, el paso de las cuentas se
+   salta, la contrasena dice que falta sesion.js y la selfie sale sin ojos).
+   Lo que una pagina precargada carga con <script src> o <link> esta en la
+   lista de abajo, y todo lo de la lista existe:
+   pruebas/el-lote-del-27-junto.test.js, seccion 4. */
 const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 
