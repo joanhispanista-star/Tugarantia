@@ -30,6 +30,7 @@ const path = require('node:path');
 const U = require('../app/cuenta.js');
 const IM = require('./imagenes-de-mentira.js');
 const { abrirPlay, RAIZ } = require('./banco-play.js');
+const RV = require('../app/rostro-en-vivo.js');
 
 const FUENTE_RV = fs.readFileSync(path.join(RAIZ, 'app', 'rostro-en-vivo.js'), 'utf8');
 const esperar = () => new Promise(r => setImmediate(() => setImmediate(() => setImmediate(r))));
@@ -188,5 +189,130 @@ describe('3. sin detector desde el arranque, el encuadre dispara y lo dice junto
     assert.match(PLAY, /anotarDisparo\('sola, con el encuadre'\)/, 'play/ ya no dispara con el encuadre: esta prueba sobra');
     assert.match(seccion, /no busca tu cara/, 'la política no dice que sin el programa el celular dispara sin buscar la cara');
     assert.match(seccion, /mirar la foto y repetirla si no se ve tu cara/);
+  });
+});
+
+/* ==========================================================================
+ * 4. EL RATO SIN CARA EMPIEZA CUANDO EL DETECTOR MIRA — 23-oct-2026
+ *
+ * T3 contaba sus 12 s desde que el detector quedó listo, y el detector baja
+ * mientras el teléfono pregunta por el permiso de la cámara. Quien tardaba
+ * 14 s en tocar «Permitir» (a los 9 s la página misma dice «Esperando el
+ * permiso de la cámara…»; Safari vuelve a preguntar, y quien retoma el
+ * registro en «Tu rostro» lo ve ahí por primera vez) llegaba con el plazo
+ * vencido: en el primer fotograma, sin una sola detección, el escáner pasaba a
+ * «solo a mano», la nota decía «El escáner no logra ver tu cara» y la foto ya
+ * no se tomaba sola con la cara quieta en el óvalo. Las tres FALLAN con
+ * e52b871.
+ * ======================================================================== */
+
+/* El escáner con el permiso de la cámara en manos de la prueba: getUserMedia
+   no contesta hasta P.permitir(); los setTimeout se guardan con su hora y
+   corren cuando el reloj llega; el detector de mentira ve una cara centrada
+   del tamaño justo (`cara: true`) o ninguna, y cuenta cada vez que mira. */
+function escanerConPermiso(o) {
+  const T0 = Date.UTC(2026, 9, 26, 15, 0, 0);
+  let ahora = T0;
+  const Real = Date;
+  class Reloj extends Real { constructor(...a) { if (a.length) super(...a); else super(ahora); } static now() { return ahora; } }
+  const P = abrirPlay({ Date: Reloj });
+  P.ev(FUENTE_RV);
+  const caras = o.cara ? '[{ box: { x: 0.33 * w, y: 0.27 * h, width: 0.34 * w, height: 0.46 * h }, score: 0.95 }]' : '[]';
+  P.ev('window.__miradas = 0; window.faceapi = { nets: { tinyFaceDetector: { isLoaded: true, dispose: function () {} } },' +
+    '  TinyFaceDetectorOptions: function () {}, tf: { ready: function () { return Promise.resolve(); }, getBackend: function () { return "webgl"; } },' +
+    '  detectAllFaces: function (lienzo) { window.__miradas++; var w = lienzo.width || 320, h = lienzo.height || 427;' +
+    '    return { run: function () { return Promise.resolve(' + caras + '); } }; } };');
+  P.ev('window.cargarScript = function () { return Promise.resolve(); };');
+  P.ev('window.__disparos = []; capturarRostro = function () { window.__disparos.push(ESCANER.modo); detenerEscaner(); return true; };');
+  P.ev('lienzoParaDetectar = function () { return { width: 320, height: 427 }; }; nitidezDeCara = function () { return 40; };');
+  P.ev("REGISTRO.celular = '3001112233'; FOTOS = { sensibles: true }; guardarFotos();");
+  P.ev('window.__permitir = null; navigator.mediaDevices = { getUserMedia: function () { return new Promise(function (res) {' +
+    ' window.__permitir = function () { res({ getTracks: function () { return []; }, getVideoTracks: function () { return []; } }); }; }); } };');
+  P.ev('window.__t = []; setTimeout = function (f, ms) { window.__t.push({ f: f, en: Date.now() + (ms || 0) }); return window.__t.length; }; clearTimeout = function () {};');
+  P.ev("$('camVideo').videoWidth = 720; $('camVideo').videoHeight = 960;" +
+    "$('camLienzo').getContext = function () { return new Proxy({}, { get: function (t, k) { return k in t ? t[k] : function () { return { addColorStop: function () {} }; }; }, set: function (t, k, v) { t[k] = v; return true; } }); };");
+  P.ev('ESCANER.lienzoMedir = { width: 32, height: 32, getContext: function () { return { drawImage: function () {},' +
+    ' getImageData: function () { var d = new Uint8ClampedArray(32 * 32 * 4); for (var i = 0; i < 32 * 32; i++) { d[4*i] = d[4*i+1] = d[4*i+2] = 120; d[4*i+3] = 255; } return { data: d }; } }; } };');
+  P.segundos = () => (ahora - T0) / 1000;
+  P.saltar = ms => { ahora += ms; };
+  /* Corre el reloj de 80 en 80 ms (los temporizadores que venzan, corren)
+     hasta `ms` o hasta el primer disparo. */
+  P.correr = async ms => {
+    const fin = ahora + ms;
+    while (ahora < fin) {
+      ahora += 80;
+      P.ev('(function () { var l = window.__t.filter(function (x) { return x.en <= Date.now(); });' +
+        ' window.__t = window.__t.filter(function (x) { return x.en > Date.now(); }); l.forEach(function (x) { x.f(); }); })()');
+      await esperar();
+      if (P.ev('window.__disparos.length')) break;
+    }
+  };
+  P.permitir = async () => { P.ev('window.__permitir()'); for (let i = 0; i < 5; i++) await esperar(); };
+  P.arrancar = async () => {
+    P.ev('iniciarEscaner()');
+    for (let i = 0; i < 5; i++) await esperar();
+    assert.equal(P.ev('ESCANER.modo'), 'rostro', 'el detector de mentira no se encendió: la prueba no mediría nada');
+  };
+  return P;
+}
+
+describe('4. el rato sin cara empieza cuando el detector mira, no cuando cargó', () => {
+
+  test('el permiso que tarda 14 s no apaga el disparo: con la cara quieta en el óvalo, la foto se toma sola', async () => {
+    const P = escanerConPermiso({ cara: true });
+    await P.arrancar();
+    await P.correr(14000);
+    assert.match(P.ev("$('camEstado').textContent"), /Esperando el permiso de la cámara/, 'la prueba no pasó por el diálogo del permiso');
+    const antes = P.ev('window.__miradas');
+    await P.permitir();
+    assert.equal(P.ev('ESCANER.soloAMano'), false,
+      'con el permiso a los 14 s, en el primer fotograma y con ' + (P.ev('window.__miradas') - antes) + ' detecciones, el escáner ya quedó «solo a mano»');
+    assert.doesNotMatch(P.ev("$('selfieNota').textContent"), /no logra ver tu cara/,
+      'dice «El escáner no logra ver tu cara» sin haber mirado la cámara');
+    await P.correr(10000);
+    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__disparos)')), ['rostro'],
+      'con la cara quieta en el óvalo la foto no se tomó sola: el encabezado del paso promete que sí');
+    assert.ok(P.ev('window.__miradas') - antes >= 3, 'disparó sin mirar la cámara');
+  });
+
+  test('sin cara y con el permiso a los 14 s: se suelta 12 s después de la PRIMERA mirada, habiendo mirado', async () => {
+    const P = escanerConPermiso({ cara: false });
+    await P.arrancar();
+    await P.correr(14000);
+    const antes = P.ev('window.__miradas');
+    await P.permitir();
+    const permiso = P.segundos();
+    let suelto = null;
+    for (let n = 0; n < 200 && suelto === null; n++) {
+      await P.correr(80);
+      if (P.ev('ESCANER.soloAMano')) suelto = P.segundos();
+    }
+    assert.ok(suelto !== null, 'un detector que nunca ve una cara dejó a la persona esperando (T3 ya no se suelta)');
+    assert.ok(suelto - permiso > 12 && suelto - permiso < 13.5,
+      'se soltó ' + (suelto - permiso).toFixed(2) + ' s después del permiso: el rato sin cara no se cuenta desde la primera mirada');
+    const miradas = P.ev('window.__miradas') - antes;
+    assert.ok(miradas >= RV.ROSTRO.MIRADAS_SIN_CARA, 'dijo que no ve la cara habiendo mirado ' + miradas + ' veces');
+    assert.match(P.ev("$('selfieNota').textContent"), /no logra ver tu cara/);
+    assert.equal(P.ev('window.__disparos.length'), 0);
+  });
+
+  test('el reloj que corre sin que el detector mire (pantalla apagada, otra app) no lo suelta: hacen falta las miradas', async () => {
+    const P = escanerConPermiso({ cara: false });
+    await P.arrancar();
+    const antes = P.ev('window.__miradas');
+    await P.permitir();
+    await P.correr(240);
+    const pocas = P.ev('window.__miradas') - antes;
+    /* Menos de las que pide MIRADAS_SIN_CARA (8 al 23-oct; el «|| 8» deja que
+       la prueba corra también contra e52b871, que no la tenía). */
+    assert.ok(pocas >= 1 && pocas < (RV.ROSTRO.MIRADAS_SIN_CARA || 8), 'la prueba necesita pocas miradas antes del salto: ' + pocas);
+    P.saltar(20000);   // la persona vuelve a la página 20 s después
+    await P.correr(80);
+    assert.equal(P.ev('ESCANER.soloAMano'), false,
+      'con ' + pocas + ' miradas y 20 s de reloj sin mirar, la nota ya dice «el escáner no logra ver tu cara»');
+    assert.equal(P.ev('ESCANER.modo'), 'rostro');
+    /* Y en cuanto mira las veces que hacen falta, sí se suelta (T3 sigue vivo). */
+    await P.correr(2000);
+    assert.equal(P.ev('ESCANER.soloAMano'), true, 'con las miradas completas y sin ninguna cara, T3 no se soltó');
   });
 });

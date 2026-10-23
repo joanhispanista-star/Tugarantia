@@ -91,8 +91,19 @@
        página lo suelta y vuelve al encuadre (con la caja de la cámara del
        sistema a la vista). Pasó con un detector que contestaba siempre «no hay
        cara» y la persona se quedaba en «Pon tu cara dentro del óvalo» hasta
-       tocar «Continuar» sin foto. */
+       tocar «Continuar» sin foto.
+       23-oct-2026 — el rato se cuenta desde la PRIMERA vez que el detector mira
+       la cámara (play/, detectarCara), no desde que cargó: el detector baja
+       mientras el teléfono pregunta por el permiso, y quien tardaba 14 s en
+       tocar «Permitir» llegaba con los 12 s ya vencidos, sin una sola mirada. */
     MS_SIN_CARA: 12000,
+    /* 23-oct-2026 — y además, cuántas veces tiene que haber mirado sin ver
+       ninguna. El reloj solo no basta: con la pantalla apagada o la página en
+       segundo plano el reloj corre y el detector no mira, y al volver la
+       página decía «el escáner no logra ver tu cara» habiéndola mirado una o
+       dos veces. Con un teléfono normal (100-300 ms por mirada) son 1-3 s: el
+       que manda sigue siendo MS_SIN_CARA. */
+    MIRADAS_SIN_CARA: 8,
     ENTRADA: 224,            // lado con que el detector mira (más grande = más lento)
     ENTRADA_LENTA: 160,      // si el teléfono no da, se mira más chico
     PUNTAJE_OJOS: 0.7,       // con menos confianza en la cara, los ojos no se dibujan

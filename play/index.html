@@ -462,8 +462,12 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    22-oct-2026 (tampoco publicada) — y porque la franja de «versión nueva» se
    vuelve a decidir al cambiar de pantalla y «Actualizar ahora» espera lo que
    va en camino. Si alguien dice que el botón le cortó un pedido, esta fecha
-   dice si tenía la versión que lo impide. */
-var VERSION_PLAY = '2026-10-22';
+   dice si tenía la versión que lo impide.
+   23-oct-2026 (tampoco publicada) — y porque la selfie ya no se rinde por el
+   rato del permiso de la cámara (T3 cuenta desde la primera mirada). Si
+   alguien dice que tardó en tocar «Permitir» y la foto no se tomó sola, esta
+   fecha dice si tenía la versión que lo arregla. */
+var VERSION_PLAY = '2026-10-23';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
@@ -7733,8 +7737,11 @@ var ESCANER = { stream: null, activo: false, estables: 0, temporizador: null,
                    (RostroEnVivo.contarRacha); desdeRostro y vioCara: el
                    detector que nunca ve una cara se suelta (ver bucleEscaner);
                    ojos y ojosT: los últimos ojos que vio, solo para dibujarlos
-                   un rato corto. Mueren con el escáner. */
-                desdeCara: 0, desdeRostro: 0, vioCara: false, ojos: null, ojosT: 0,
+                   un rato corto. Mueren con el escáner.
+                   23-oct-2026 — desdeRostro es la hora de la PRIMERA mirada
+                   del detector a la cámara (detectarCara), y miradas cuántas
+                   lleva en este intento: T3 necesita las dos (ver bucleEscaner). */
+                desdeCara: 0, desdeRostro: 0, miradas: 0, vioCara: false, ojos: null, ojosT: 0,
                 /* 22-oct-2026 — soloAMano: el detector se soltó porque en
                    MS_SIN_CARA no vio NINGUNA cara (T3); el encuadre que queda
                    guía, pero no dispara solo (ver bucleEscaner). fotoNoSalio:
@@ -7999,7 +8006,7 @@ function iniciarEscaner() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return escanerSinCamara('Tu navegador no deja usar la cámara en vivo.');
   ESCANER.activo = true; ESCANER.estables = 0; ESCANER.desde = 0; ESCANER.previa = null; ESCANER.ultima = null;
   ESCANER.turno++; ESCANER.medida = null; ESCANER.previaCara = null; ESCANER.mejorNitidez = 0; ESCANER.fallos = 0;
-  ESCANER.desdeCara = 0; ESCANER.desdeRostro = 0; ESCANER.vioCara = false; ESCANER.ojos = null; ESCANER.ojosT = 0;
+  ESCANER.desdeCara = 0; ESCANER.desdeRostro = 0; ESCANER.miradas = 0; ESCANER.vioCara = false; ESCANER.ojos = null; ESCANER.ojosT = 0;
   ESCANER.soloAMano = false; ESCANER.fotoNoSalio = false;   // 22-oct-2026: un intento nuevo empieza limpio (T3, T4)
   if (MEDIR_ROSTRO) MEDIDAS = medidasNuevas();   // 22-oct-2026: ver MEDIR LA SELFIE
   /* 8-oct-2026 (segunda vuelta) — EL ÓVALO, CENTRADO EN LA PANTALLA. El paso
@@ -8063,7 +8070,11 @@ function afinarCamaraRostro(pista) {
    encuadre de siempre (U.medirEncuadre): la persona no se queda atascada por
    1,5 MB que su señal no alcanzó a bajar. Si llega tarde, se usa igual. */
 function prepararDetectorRostro() {
-  if (ESCANER.detector) { ESCANER.modo = 'rostro'; ESCANER.desdeRostro = Date.now(); return; }
+  /* 23-oct-2026 — desdeRostro y miradas NO se ponen aquí: el detector queda
+     listo mientras el teléfono todavía pregunta por el permiso de la cámara,
+     y contar desde aquí era contar como «sin cara» el rato del diálogo (T3,
+     en bucleEscaner). Los pone la primera mirada, en detectarCara. */
+  if (ESCANER.detector) { ESCANER.modo = 'rostro'; ESCANER.desdeRostro = 0; ESCANER.miradas = 0; return; }
   ESCANER.modo = 'cargando'; ESCANER.desdeCarga = Date.now();
   if (ESCANER.cargando) return;
   var p = cargarScript(URL_ROSTRO_VIVO).then(function () {
@@ -8080,7 +8091,7 @@ function prepararDetectorRostro() {
     /* La persona ya tomó su foto, o se fue del paso: no hay a quién servirle. */
     if (!ESCANER.activo) { try { d.liberar(); } catch (e) {} if (ESCANER.modo === 'cargando') ESCANER.modo = 'encuadre'; return; }
     ESCANER.detector = d; ESCANER.modo = 'rostro'; ESCANER.estables = 0; ESCANER.fallos = 0;
-    ESCANER.desdeRostro = Date.now(); ESCANER.vioCara = false; ESCANER.desdeCara = 0;
+    ESCANER.desdeRostro = 0; ESCANER.miradas = 0; ESCANER.vioCara = false; ESCANER.desdeCara = 0;
   }, function () {
     ESCANER.cargando = null;
     if (ESCANER.modo === 'cargando') ESCANER.modo = 'encuadre';
@@ -8234,6 +8245,11 @@ function detectarCara(v, luz) {
     ESCANER.detectando = false;
     if (!ESCANER.activo || turno !== ESCANER.turno || gen !== GENERACION_DEL_REGISTRO) return;
     ESCANER.fallos = 0;
+    /* 23-oct-2026 — una mirada de verdad a la cámara: desde la primera se
+       cuenta el rato sin cara de T3 (en bucleEscaner), y no desde que cargó el
+       detector, que pudo ser con el diálogo del permiso todavía en pantalla. */
+    ESCANER.miradas++;
+    if (!ESCANER.desdeRostro) ESCANER.desdeRostro = t0;
     var cara = RV.caraPrincipal(caras);
     if (cara) ESCANER.vioCara = true;   // 22-oct-2026: ver el detector que nunca ve una cara, en bucleEscaner
     var nit = cara ? nitidezDeCara(v, cara) : 0;
@@ -8308,9 +8324,18 @@ function bucleEscaner() {
      detector acababa de concluir que ahí no había ninguna cara. La política
      dice que dispara con una cara: aquí la persona la toma con el botón o con
      la cámara del celular. Se suelta igual (memoria y batería: lo que viene
-     es la subida) y el óvalo se queda como guía. */
+     es la subida) y el óvalo se queda como guía.
+     23-oct-2026 — EL RATO SIN CARA EMPIEZA CUANDO EL DETECTOR MIRA. Se contaba
+     desde que el detector quedó listo, y baja mientras el teléfono pregunta
+     por la cámara: quien tardaba 14 s en tocar «Permitir» (a los 9 s esta
+     misma página le dice «Esperando el permiso de la cámara…») llegaba con
+     el plazo vencido, y en el primer fotograma —sin una sola detección— la
+     nota decía «El escáner no logra ver tu cara» y la foto ya no se tomaba
+     sola. Ahora desdeRostro es la primera mirada (detectarCara) y además
+     tiene que haber mirado RostroEnVivo.ROSTRO.MIRADAS_SIN_CARA veces. */
   if (ESCANER.modo === 'rostro' && ESCANER.detector && RV && RV.ROSTRO && !ESCANER.vioCara &&
-      ESCANER.desdeRostro && (Date.now() - ESCANER.desdeRostro) > RV.ROSTRO.MS_SIN_CARA) {
+      ESCANER.desdeRostro && (Date.now() - ESCANER.desdeRostro) > RV.ROSTRO.MS_SIN_CARA &&
+      ESCANER.miradas >= (RV.ROSTRO.MIRADAS_SIN_CARA || 0)) {
     liberarDetectorRostro(); ESCANER.modo = 'encuadre'; ESCANER.estables = 0; ESCANER.soloAMano = true;
     var fs0 = $('fot_selfie'); if (fs0) fs0.style.display = '';
     var ns0 = $('selfieNota');

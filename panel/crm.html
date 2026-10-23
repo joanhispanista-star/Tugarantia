@@ -10831,8 +10831,8 @@ function pantallaCuentaExiste(p, clave, que) {
           como cliente con su celular entra a su puesto.</p>
          <div class="sub-h">Ponle la clave desde Supabase</div>`
       : `<p class="sub">Con el celular <b>${escHTML(cel)}</b> ya hay una cuenta: se la creaste antes,
-          o esta persona se registró como cliente con ese número. Por eso la contraseña nueva
-          <b>no se aplicó</b>.</p>
+          la creó su gerente al darle el puesto, o esta persona se registró como cliente con ese
+          número. Por eso la contraseña nueva <b>no se aplicó</b>.</p>
          <div class="sub-h">Si no sabes la contraseña que tiene ahora</div>`}
     <p class="sub">Ponle una nueva desde Supabase, entrando con tu cuenta de Supabase. Desde aquí no se
       puede, a propósito: así la clave de este CRM no sirve para cambiarle la contraseña a nadie del equipo.
@@ -13418,29 +13418,52 @@ function verBaseDe(asesor, filtro) {
  *
  * Al revés se crearía una cuenta que después no puede tener puesto, y quedaría
  * una cuenta huérfana en la nube por cada intento fallido.
+ *
+ * 23-oct-2026 — Y CON ESO TODAVÍA NO ENTRA. Desde
+ * base/20261022b_el_equipo_con_la_clave_de_joan.sql lo del equipo solo se abre
+ * con la clave que Joan pone desde Supabase (equipo_poner_clave) DESPUÉS de
+ * que nació la cuenta, y una cuenta recién creada aquí no la tiene. Esta
+ * pantalla seguía diciendo «ya puede entrar» y armaba el WhatsApp con la
+ * contraseña que eligió el gerente: el asesor entraba y su Panel le decía «le
+ * falta la clave del equipo que pone Joan», y cuando Joan se la ponía,
+ * equipo_poner_clave le cambiaba la contraseña y la del WhatsApp dejaba de
+ * servir. Así que el gerente ya no elige contraseña (la que vale es la de
+ * Joan): la cuenta nace con una de relleno que nadie ve (claveDeRelleno) —hace
+ * falta que exista para que la línea de Joan corra— y la pantalla dice lo que
+ * falta y le arma el aviso a Joan (pantallaFaltaClaveEq).
  * ------------------------------------------------------------------------ */
 function crearAsesorEq() {
   openModal('Crear un asesor', `
-    <p class="sub">Va a reportarte a ti. La contraseña la pones tú y se la mandas por WhatsApp;
-      su usuario es su celular.</p>
+    <p class="sub">Va a reportarte a ti. Su usuario es su celular, y <b>su contraseña se la pone Joan</b>:
+      lo del equipo solo se abre con la clave que él pone desde Supabase.</p>
     <div class="field"><label>Nombre completo</label><input id="naNombre" autocapitalize="words"></div>
     <div class="field"><label>Celular</label>
       <input id="naTel" inputmode="numeric" placeholder="3001234567">
       <div class="help">Diez dígitos, empieza por 3. Ese número <b>es</b> su usuario.</div></div>
-    <div class="field"><label>Contraseña</label>${campoConOjo('naClave', 'value="' + escHTML(claveSugerida()) + '"')}
-      <div class="help">Fácil de dictar por teléfono. Puedes cambiarla (mínimo 8).</div></div>
     <div class="aviso" style="margin-top:12px">Va a ver <b>solo lo que le repartas</b>, y nada de lo tuyo
       hasta que se lo des. Eso lo decide el servidor, no esta pantalla.</div>
     <button class="btn btn-rojo" id="naBtn" style="margin-top:14px" onclick="confirmarCrearAsesorEq()">Crear</button>`);
 }
 
+/* 23-oct-2026 — la contraseña con la que nace la cuenta del asesor que crea el
+   gerente. No la ve nadie y no hace falta: con ella no se abre nada del
+   equipo, y equipo_poner_clave la reemplaza por la de Joan. Larga y del azar
+   del navegador (no Math.random) porque no tiene por qué adivinarse. */
+function claveDeRelleno() {
+  try {
+    const b = new Uint8Array(18);
+    crypto.getRandomValues(b);
+    return Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    return claveSugerida() + claveSugerida() + claveSugerida();
+  }
+}
+
 function confirmarCrearAsesorEq() {
   const U = window.CuentaSocio;
   const nombre = gv('naNombre'), tel = U ? U.normalizarTelefono(gv('naTel')) : '';
-  const clave = (document.getElementById('naClave') || {}).value || '';
   if (!nombre) return alert('Falta el nombre.');
   if (!tel) return alert('Ese celular no me cuadra: son diez dígitos y empieza por 3.');
-  if (clave.trim().length < 8) return alert('La contraseña necesita al menos 8 caracteres.');
   const btn = document.getElementById('naBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Creando…'; }
 
@@ -13450,21 +13473,21 @@ function confirmarCrearAsesorEq() {
         if (esFinDeSesion(null, res)) throw { sesion: true };
         throw new Error((res.j && res.j.motivo) || 'la nube no lo aceptó');
       }
-      /* El puesto ya existe. Ahora la cuenta con la que entra. */
-      return authEquipo('/signup', { email: U.correoDeTelefono(tel), password: clave.trim() });
+      /* El puesto ya existe. Ahora la cuenta con la que va a entrar, con una
+         contraseña de relleno: la que vale la pone Joan (ver arriba). */
+      return authEquipo('/signup', { email: U.correoDeTelefono(tel), password: claveDeRelleno() })
+        .catch(() => ({ ok: false, j: { msg: 'sin señal' } }));
     })
     .then(res => {
-      if (!res.ok) {
-        const ya = /registered|already/i.test(JSON.stringify(res.j || {}));
-        /* El puesto quedó creado; lo que falló es la contraseña. Se dice tal
-           cual, porque lo que hay que hacer es distinto en cada caso. */
-        throw new Error(ya
-          ? 'Ya existía una cuenta con ese celular. El puesto quedó creado, pero la contraseña ' +
-            'no la pude poner yo: pídele a Joan que se la cambie.'
-          : ((res.j && (res.j.msg || res.j.message)) || 'no pude crear la cuenta'));
-      }
+      /* 23-oct-2026 — el puesto quedó creado pase lo que pase con la cuenta:
+         si ya existía (se registró como cliente con ese celular, por ejemplo),
+         la clave de Joan va sobre esa misma; y si no se alcanzó a crear, la
+         crea Joan con el mismo paso («🔑 Crear cuenta» de su CRM). En los
+         tres casos lo que falta es lo mismo, y se dice. */
+      const ya = !res.ok && /registered|already/i.test(JSON.stringify(res.j || {}));
+      const sinCuenta = res.ok || ya ? '' : ((res.j && (res.j.msg || res.j.message)) || 'no pude crear la cuenta');
       cerrarModal();
-      return refrescarCarteraEq().then(() => entregarCuentaEq(nombre, tel, clave.trim()));
+      return refrescarCarteraEq().catch(() => {}).then(() => pantallaFaltaClaveEq(nombre, tel, sinCuenta));
     })
     .catch(e => {
       if (btn) { btn.disabled = false; btn.textContent = 'Crear'; }
@@ -13473,25 +13496,32 @@ function confirmarCrearAsesorEq() {
     });
 }
 
-function entregarCuentaEq(nombre, celular, clave) {
-  const msg = 'Hola ' + String(nombre).split(/\s+/)[0] + ', ya tienes tu acceso.\n\n' +
-    'Entra aquí: ' + ENLACE_PANEL + '\n' +
-    'Usuario: ' + celular + '\n' +
-    'Contraseña: ' + clave + '\n\n' +
-    'Guárdala. Si la pierdes, avísame y te pongo otra.';
-  openModal('Asesor creado', `
-    <div class="alerta ok"><b>${escHTML(nombre)}</b> ya puede entrar.</div>
-    <div class="sub-h">Lo que le tienes que mandar</div>
-    ${filaInfo('Entra en', ENLACE_PANEL)}
-    ${filaInfo('Usuario', celular)}
-    ${filaInfo('Contraseña', clave)}
-    <div class="aviso ambar" style="margin-top:14px"><b>Esta contraseña no se guarda en ningún lado.</b>
-      Mándasela ahora; si se pierde, hay que ponerle otra.</div>
+/* 23-oct-2026 — LO QUE VE EL GERENTE DESPUÉS DE CREAR UN ASESOR. Antes era
+   «X ya puede entrar» con su contraseña y un WhatsApp para mandársela, y con
+   la clave de Joan (base/20261022b) las dos cosas eran falsas (ver EL GERENTE
+   CREA UN ASESOR). Ahora: el puesto quedó, todavía no entra, y el aviso para
+   Joan con lo que tiene que tocar en su CRM. Sin contraseña y sin SQL en el
+   mensaje, a propósito: la línea de equipo_poner_clave la arma el CRM de Joan
+   (pantallaCuentaExiste) y Joan no tiene por qué pegar en Supabase algo que
+   le llegó por WhatsApp. Va sin número: el gerente elige a Joan en WhatsApp
+   (este Panel no guarda el celular de Joan). */
+function pantallaFaltaClaveEq(nombre, celular, sinCuenta) {
+  const primer = String(nombre || '').split(/\s+/)[0] || 'el asesor';
+  const msg = 'Joan, creé a ' + nombre + ' (celular ' + celular + ') como asesor de mi equipo. ' +
+    'Ponle la clave del equipo para que pueda entrar: en tu CRM, Equipo → «↻ Traer del equipo» ' +
+    'y después «🔑 Crear cuenta» de ' + primer + '. La contraseña que le pongas me la pasas a mí o se la mandas tú.';
+  openModal('Falta un paso: la clave de Joan', `
+    <div class="alerta ok">El puesto de <b>${escHTML(nombre)}</b> quedó creado en tu equipo.</div>
+    <div class="aviso ambar" style="margin-top:12px"><b>Todavía no puede entrar.</b> Lo del equipo solo se abre
+      con la clave que Joan le pone desde Supabase: así nadie que se registre como cliente con su celular
+      entra a su puesto. Esa clave es también su contraseña, y se la da Joan.</div>
+    ${sinCuenta ? `<div class="muted" style="margin-top:10px">Su cuenta de entrada no se alcanzó a crear desde aquí
+      (${escHTML(sinCuenta)}). Joan la crea con el mismo paso.</div>` : ''}
     <a class="btn btn-wa" style="margin-top:14px" target="_blank" rel="noopener"
-       href="${escHTML(waLink(celular, msg))}">📲 Mandársela por WhatsApp</a>
+       href="${escHTML('https://wa.me/?text=' + encodeURIComponent(msg))}">📲 Avisarle a Joan por WhatsApp</a>
     <button class="btn btn-ghost" style="margin-top:var(--e2)" onclick="cerrarModal()">Listo</button>
-    <div class="muted" style="font-size:12.5px;margin-top:12px">Todavía no ve nada:
-      repártele gente con «🔀 Repartir».</div>`);
+    <div class="muted" style="font-size:12.5px;margin-top:12px">Cuando entre, va a ver solo lo que le repartas:
+      «🔀 Repartir».</div>`);
 }
 
 /* --------------------------------------------------------------------------

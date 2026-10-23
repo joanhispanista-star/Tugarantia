@@ -145,6 +145,12 @@ base/
                                   NADIE del equipo entra hasta que Joan le pone la
                                   clave: la tabla del final dice a quién. Va
                                   después de 20261015c_clave_del_equipo.sql.
+                                  El asesor que crea un gerente tampoco entra
+                                  hasta esa clave: el Panel del gerente ya no le
+                                  pide contraseña ni dice «ya puede entrar»; le
+                                  arma el aviso a Joan, que se la pone con
+                                  «↻ Traer del equipo» y «🔑 Crear cuenta»
+                                  (pruebas/el-asesor-del-gerente-espera-la-clave).
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.
@@ -198,7 +204,9 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         pantallazo; no se guarda ni sale del teléfono:
                         pruebas/la-selfie-se-mide). Sin cara no se toma sola:
                         si el detector no vio ninguna cara en 12 s, queda solo
-                        a mano; sin detector, el encuadre no dispara con una
+                        a mano (los 12 s y 8 miradas se cuentan desde su
+                        primera mirada a la cámara, no desde que cargó: el
+                        rato del permiso de la cámara no cuenta); sin detector, el encuadre no dispara con una
                         textura pareja (baldosas, una camisa a rayas) y, cuando
                         dispara, pide mirar la foto, como dice la política
                         (pruebas/sin-cara-no-se-toma-sola). Al apagar la cámara
