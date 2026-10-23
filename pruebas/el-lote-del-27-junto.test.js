@@ -428,6 +428,70 @@ describe('5 · La cuenta a medio elegir frena la recarga sola, como la casilla m
     assert.equal(P.ev('momentoSeguroPlay()'), true, 'después de aceptar, Crédito no volvía a recargar nunca');
   });
 
+  /* 23-oct-2026 (verificación de af05ad2) — POR HISTORIAL. El arreglo frenaba
+     la recarga solo en Crédito: Historial contestaba «seguro» antes de mirar
+     lo que estaba a medias. María elegía la cuenta (o escribía el número
+     entero), tocaba «Historial» para mirar su crédito anterior, irA() avisaba
+     que era momento y la página se recargaba en el acto: al volver a Crédito
+     la pregunta salía vacía. SOL_EN_PANTALLA sigue puesta en Historial (solo
+     «Salir» la suelta), así que las mismas dos preguntas sirven allí. */
+  test('control: en Historial, con la propuesta sin nada elegido ni marcado, sigue siendo momento seguro', () => {
+    const P = playConPropuesta();
+    P.ev("irA('historial')");
+    assert.equal(P.ev('TAB'), 'historial');
+    assert.ok(P.ev('!!SOL_EN_PANTALLA'), 'la prueba no prueba el caso: la propuesta se soltó al cambiar de pestaña');
+    assert.equal(P.ev('momentoSeguroPlay()'), true, 'Historial dejó de recargar aunque no haya nada que perder');
+  });
+
+  test('play/: elige su Nequi del registro y pasa a Historial: no se recarga encima', () => {
+    const P = playConPropuesta();
+    P.ev("elegirDestino('0'); irA('historial')");
+    assert.equal(P.ev('TAB'), 'historial');
+    assert.equal(P.ev('casillaDeLaPropuestaMarcada()'), false, 'la prueba no prueba el caso: la casilla está marcada');
+    assert.equal(P.ev('momentoSeguroPlay()'), false, 'desde Historial la recarga sola se llevaría la cuenta elegida');
+  });
+
+  test('play/: «Otra cuenta» con el número entero escrito, y pasa a Historial: tampoco', () => {
+    const P = playConPropuesta();
+    P.ev("elegirDestino('otra'); medioDestino('banco'); escribirDestino('banco_codigo', '1-7');" +
+         " escribirDestino('banco_tipo', 'Ahorros'); escribirDestino('es_mia', true);" +
+         " escribirDestino('numero', '123456789012'); irA('historial')");
+    assert.equal(P.ev('momentoSeguroPlay()'), false, 'la recarga sola se llevaría banco, tipo, «Es mía» y el número');
+  });
+
+  test('play/: solo la casilla «Leí y acepto» marcada, y pasa a Historial: tampoco', () => {
+    const P = playConPropuesta();
+    P.ev("marcarCondiciones(true); irA('historial')");
+    assert.equal(P.ev('destinoAMedias()'), false, 'la prueba no prueba el caso: hay cuenta elegida');
+    assert.equal(P.ev('momentoSeguroPlay()'), false, 'la lista blanca dice proteger la marca y Historial se la llevaba');
+  });
+
+  /* Lo de arriba hace que lo elegido frene en Crédito Y en Historial: si la
+     propuesta desaparece sin que nadie la vuelva a pintar (Joan la retira, o
+     la base ya dice otra cosa), SOL_EN_PANTALLA quedaba puesta y la cuenta no
+     volvía a recargarse sola en ninguna pestaña. */
+  test('play/: si la base ya no tiene la propuesta, lo elegido para ella deja de frenar (Crédito e Historial)', async () => {
+    for (const respuesta of [{ ok: true, solicitud: null },
+                             { ok: true, solicitud: Object.assign({}, PROPUESTA_PLAY, { estado: 'rechazada' }) }]) {
+      const P = playConPropuesta();
+      P.ev("elegirDestino('0')");
+      assert.equal(P.ev('momentoSeguroPlay()'), false);
+      P.ev('rpcSesion = function () { return Promise.resolve(' + JSON.stringify(respuesta) + '); }');
+      P.ev('cargarMiSolicitud()');
+      await new Promise(r => setImmediate(r));
+      assert.equal(P.ev('momentoSeguroPlay()'), true, 'Crédito no volvía a recargar nunca: ' + JSON.stringify(respuesta));
+      P.ev("irA('historial')");
+      assert.equal(P.ev('momentoSeguroPlay()'), true, 'Historial tampoco: ' + JSON.stringify(respuesta));
+    }
+    /* Y si la pregunta falla (sin red), no se sabe: lo elegido sigue frenando. */
+    const Q = playConPropuesta();
+    Q.ev("elegirDestino('0')");
+    Q.ev('rpcSesion = function () { return Promise.reject(new Error("sin red")); }');
+    Q.ev('cargarMiSolicitud()');
+    await new Promise(r => setImmediate(r));
+    assert.equal(Q.ev('momentoSeguroPlay()'), false, 'un corte de red soltaba la cuenta elegida');
+  });
+
   /* PlataChat, con la solicitud como la manda la base. */
   async function mariaConPropuesta() {
     const ahora = () => new Date().toISOString();

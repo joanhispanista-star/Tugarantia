@@ -5483,13 +5483,21 @@ function cargarMiSolicitud() {
   var caja = $('solicitudBox'); if (!caja || !SESION || !SESION.access_token) return;
   rpcSesion('mi_solicitud', undefined, SESION).then(function (j) {
     var sol = j && j.ok === true ? j.solicitud : null;
+    /* 23-oct-2026 — LA PROPUESTA QUE YA NO ESTÁ SE SUELTA. Lo elegido en «¿A
+       dónde te consignamos?» y la casilla frenan la recarga sola en Crédito Y
+       en Historial (momentoSeguroPlay), y SOL_EN_PANTALLA solo la cambiaba
+       tarjetaContrapropuesta: si la base contesta que ya no hay propuesta
+       esperando (Joan la retiró, o es otra solicitud), se quedaba puesta y la
+       cuenta no volvía a recargarse sola en ninguna pestaña. Solo con una
+       respuesta de la base: sin red no se sabe, y lo elegido sigue frenando. */
+    var sinPropuesta = !sol || !sol.contrapropuesta || (sol.estado !== 'contrapropuesta' && sol.estado !== 'aceptada');
+    if (j && j.ok === true && sinPropuesta) SOL_EN_PANTALLA = null;
     if (sol && esperaPropuesta(sol) && sol.pedido && sol.pedido.origen === 'play') {
       caja.innerHTML = tarjetaSolicitudEnEspera(sol);
       ponerCalculadoraEnLoPedido(sol);
       return;
     }
-    if (!sol || !sol.contrapropuesta) { caja.innerHTML = ''; return; }
-    if (sol.estado !== 'contrapropuesta' && sol.estado !== 'aceptada') { caja.innerHTML = ''; return; }
+    if (sinPropuesta) { caja.innerHTML = ''; return; }
     caja.innerHTML = tarjetaContrapropuesta(sol);
   }).catch(function () { caja.innerHTML = ''; });
 }
@@ -13056,7 +13064,8 @@ function pie() {
        CUALQUIER escritura en camino y la subida que «Salir» dejó suelta
        (hayEscriturasEnCamino: ver LO QUE VA EN CAMINO NO SE CORTA);
      · la propuesta con la casilla «Leí y acepto» marcada (se perdería la
-       marca), la pantalla de la solicitud, el chat, el perfil (la contraseña
+       marca) o con la cuenta a medio elegir, en Crédito Y en Historial (ver
+       momentoSeguroPlay), la pantalla de la solicitud, el chat, el perfil (la contraseña
        nueva), «Recuperar tu contraseña» y borrar la cuenta.
    Lo que SÍ: la portada sin nada tecleado, y la cuenta en Crédito o en
    Historial. app/actualizar.js agrega dos guardas más para todas las páginas:
@@ -13108,8 +13117,19 @@ function momentoSeguroPlay() {
   if (ocupadoPlay()) return false;
   if (VISTA === 'entrar') return sinTeclear('inTel') && sinTeclear('inClave') && sinTeclear('csMontoLibre');
   if (VISTA !== 'cuenta') return false;
+  /* 23-oct-2026 (verificación de af05ad2) — LO QUE ESTÁ A MEDIAS EN LA
+     PROPUESTA FRENA EN CUALQUIER PESTAÑA, no solo en Crédito. Historial
+     contestaba «seguro» antes de preguntar: María elegía su Nequi (o escribía
+     el número entero de «Otra cuenta»), tocaba «Historial» para mirar su
+     crédito anterior, irA() avisaba que era momento y la recarga se llevaba
+     la cuenta elegida, el número y la casilla marcada. hayTextoALaVista no
+     salvaba el número porque en Historial esa casilla ya no está en pantalla.
+     SOL_EN_PANTALLA sigue puesta al cambiar de pestaña (solo «Salir» la
+     suelta), así que las dos preguntas valen igual aquí. Es lo que PlataChat
+     ya hacía con destinoAMediasPC antes de Plata y Yo. */
+  if (casillaDeLaPropuestaMarcada() || destinoAMedias()) return false;
   if (TAB === 'historial') return true;
-  if (TAB === 'credito') return !casillaDeLaPropuestaMarcada() && !destinoAMedias() && sinTeclear('csNota') && sinTeclear('csMontoLibre');
+  if (TAB === 'credito') return sinTeclear('csNota') && sinTeclear('csMontoLibre');
   return false;
 }
 /* Lo único que cruza la recarga: el nombre de la pestaña. La sesión ya la
