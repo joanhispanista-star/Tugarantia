@@ -110,6 +110,12 @@ del dispositivo.
 |---|---|---|
 | Tus créditos y tus pagos | Sí | Es tu historial: lo que pediste, lo que pagaste y cuándo. *Lo genera el uso del servicio, no lo escribe el socio.* |
 
+### Información financiera · Información de pago del usuario
+
+| Dato | ¿Obligatorio? | Para qué |
+|---|---|---|
+| Dónde recibes la plata: Nequi, Daviplata, llave Bre-B o cuenta de banco (banco, tipo y número) | Sí | Enviarte el dinero de cada crédito, solo a cuentas a tu nombre. *Al menos una al registrarte; al aceptar cada crédito te preguntamos a qué cuenta se consigna. No se publica en el acompañamiento del registro ni viaja dentro de la sesión guardada en el teléfono.* |
+
 ### Información financiera · Otra información financiera
 
 | Dato | ¿Obligatorio? | Para qué |

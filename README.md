@@ -93,6 +93,18 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         menos). Así la pantalla que se apaga sola con el
                         teléfono en la mesa no se lleva el «no». Pruebas: la
                         sección 6 del mismo archivo.
+  cuentas-pago.js       Dónde recibe la plata el cliente (22-oct-2026): Nequi,
+                        Daviplata, llave Bre-B (las formas del Banco de la
+                        República, ni una más) y cuenta de banco. Las reglas
+                        del paso «¿Dónde te enviamos la plata?» del registro,
+                        de «¿A dónde te consignamos?» al aceptar (play/ y
+                        PlataChat) y del «💸 Consignar a» del CRM. La base
+                        repite las mismas (destino_desembolso_limpio).
+                        Pruebas: pruebas/cuentas-pago.test.js.
+  bancos-colombia.js    La lista de bancos y billeteras con su código de la
+                        Superfinanciera, su fuente y su fecha arriba
+                        (consultada el 22-oct-2026). Para ponerla al día se
+                        cambia solo este archivo.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
                         divulgación del crédito y el borrado de cuenta.
@@ -214,6 +226,26 @@ base/
                                   arma el aviso a Joan, que se la pone con
                                   «↻ Traer del equipo» y «🔑 Crear cuenta»
                                   (pruebas/el-asesor-del-gerente-espera-la-clave).
+  20261022_destino_del_desembolso.sql  A dónde se consigna: la columna
+                                  solicitudes.destino_desembolso y
+                                  aceptar_con_destino (acepta con
+                                  aceptar_condiciones, sin tocarla, y guarda la
+                                  cuenta en la MISMA transacción). Va después de
+                                  20261008_condiciones_aceptadas.sql y ANTES de
+                                  publicar la web. Termina con su tabla true/false.
+                                  Pruebas: pruebas/destino-del-desembolso-postgres.test.js.
+  20261022b_las_cuentas_del_registro.sql  mis_cuentas_de_pago(p_id): las
+                                  cuentas que la clienta dio al registrarse,
+                                  para ofrecérselas al aceptar. mi_solicitud
+                                  sigue SIN `datos` (el corte del 7-oct): esta
+                                  devuelve solo las ocho llaves de pago, solo a
+                                  la dueña, en 'contrapropuesta', y solo si el
+                                  sello del registro (datos.cuentas_sello) es el
+                                  de su cuenta (vinculacion.cuentas_sello del
+                                  signup); si no, nada, y la app pide «Escribe
+                                  tu cuenta». ANTES de publicar la web. Termina
+                                  con su tabla true/false. Pruebas:
+                                  pruebas/cuentas-del-registro-al-aceptar-postgres.test.js.
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.
@@ -322,6 +354,23 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         (pruebas/la-cara-muere-con-la-camara), y si la cámara
                         prendió pero la foto no salió, no se anota «la cámara
                         no prendió» (pruebas/la-camara-que-si-prendio).
+                        (22-oct-2026) Diez pasos: después de «De qué vives»,
+                        «¿Dónde te enviamos la plata?» (Nequi y Daviplata con
+                        un toque, llave Bre-B, cuenta de banco; varias a la
+                        vez, al menos una, «Son mías, a mi nombre»). Van a la
+                        bandeja de Joan y NO al signup (la sesión se guarda en
+                        el teléfono). Al aceptar una propuesta, «¿A dónde te
+                        consignamos?», que viaja con la aceptación
+                        (aceptar_con_destino). Pruebas:
+                        pruebas/cuentas-en-el-registro.test.js y
+                        pruebas/destino-al-aceptar.test.js.
+                        Las cuentas del registro se ofrecen al aceptar por
+                        mis_cuentas_de_pago, con el sello del registro (la
+                        solicitud que lee el teléfono no trae `datos`); sin
+                        él, «Escribe tu cuenta». En «Banco», «Sin cuenta de
+                        banco» suelta un banco tocado sin querer. Pruebas:
+                        pruebas/cuentas-del-registro-al-aceptar.test.js y
+                        pruebas/el-banco-se-puede-soltar.test.js.
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).

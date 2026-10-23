@@ -130,7 +130,7 @@ function abrirLaCuenta(P, conFotos) {
   P.ev("Object.assign(REGISTRO, { correo: 'maria@correo.com', ciudad: 'Bogotá', barrio: 'Centro', tipo_vivienda: 'Arriendo'," +
        " anos_direccion: 'Más de 5 años', ocupacion: 'Empleado', ingreso_mes: '2000000', gastos_mes: '800000'," +
        " dia_pago: 'Quincenal (15 y 30)', ref1_nombre: 'Luz', ref1_parentesco: 'Hermana', ref1_celular: '3002223344'," +
-       " ref2_nombre: 'Juan', ref2_parentesco: 'Amigo', ref2_celular: '3004445566' }); guardarBorrador(REGISTRO);");
+       " ref2_nombre: 'Juan', ref2_parentesco: 'Amigo', ref2_celular: '3004445566', nequi: '3001112233', cuentas_mias: 'si' }); guardarBorrador(REGISTRO);");
   P.ev("pintarRegistro(indiceDe('permiso'))");
   /* Lo que la persona ve antes de tocar nada: la casilla de las fotos marcada,
      porque tocó «Autorizo y escaneo». Es la que la política dice que puede quitar. */

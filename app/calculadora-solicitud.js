@@ -131,7 +131,9 @@
   var DIAS_MAX = 180;
   var LLAVE = 'tg_pedido_calc';
   var DIAS_GUARDADO = 7;   // un pedido de hace una semana ya no es lo que la persona quiere hoy
-  var VERSION_CONDICIONES = '2026-10-08';
+  /* 22-oct-2026 — sube porque cambió el renglón «Cuándo recibes la plata»: la
+     cuenta se elige al aceptar. La constancia guarda qué versión leyó cada uno. */
+  var VERSION_CONDICIONES = '2026-10-22';
 
   /* Los montos del deslizador NO son un rango parejo, y es por el pulgar: de
      50.000 a 5.000.000 en pasos de 50.000 son cien posiciones, y la gente que
@@ -938,9 +940,16 @@
     agregar('como', 'Cómo pagas', o.comoPagas ||
       'Por Nequi o transferencia, a la cuenta que te indiquemos por el chat de la app. Paga solo a cuentas ' +
       'que te demos por ese chat.');
+    /* 22-oct-2026 — «por dónde» ya no se avisa después: se elige al aceptar
+       («¿A dónde te consignamos?», play/), y si esa pregunta no se pudo pintar
+       (un archivo que no llegó) se pregunta por el chat. Por eso el renglón
+       dice la regla —solo a una cuenta a su nombre— y no «la que elijas
+       aquí», que no sería verdad en el segundo caso. El número de la cuenta
+       NO va en este renglón: estas líneas viajan a la constancia, y la
+       constancia sale por correo (ver verCondicionesAceptadas en el CRM). */
     agregar('entrega', 'Cuándo recibes la plata', o.entrega ||
-      'Aceptar no te entrega la plata: es tu visto bueno a estas condiciones. Te avisamos por el chat cuándo ' +
-      'y por dónde la recibes, y ahí nace el crédito.');
+      'Aceptar no te entrega la plata: es tu visto bueno a estas condiciones. Te la consignamos solo a una ' +
+      'cuenta a tu nombre, te avisamos por el chat cuando la enviemos, y ahí nace el crédito.');
 
     return {
       version: VERSION_CONDICIONES,

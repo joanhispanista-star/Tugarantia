@@ -4068,6 +4068,16 @@ function abrirPerfil() {
     '<p class="sub">Escribe lo que puedas. Al final lo mandas por WhatsApp y lo cargamos; ' +
     'ahí tu cupo sube de verdad.</p>' +
     faltan.map(function (d) {
+      /* 22-oct-2026 — TU NEQUI O LLAVE NO VIAJA EN EL ENLACE DE WHATSAPP. Lo
+         de aquí se manda con wa.me, o sea DENTRO de una dirección: queda en el
+         historial del navegador y en el de WhatsApp. Un dato de pago no va
+         ahí. Se le dice dónde sí: el chat de la app, que va por la base. */
+      if (d.id === 'pago') {
+        return '<div class="dato"><span class="tick">·</span><span class="txt">' +
+          '<span class="nm" style="font-size:14px;font-weight:600">' + esc(d.etiqueta) + '</span>' +
+          '<span class="ay">Escríbelo en el chat de la app: los datos de pago no van en este mensaje</span></span>' +
+          '<span class="vl">+' + COPc(d.valor) + '</span></div>';
+      }
       if (d.tipo === 'foto' || d.tipo === 'mapa') {
         return '<div class="dato"><span class="tick">·</span><span class="txt">' +
           '<span class="nm" style="font-size:14px;font-weight:600">' + esc(d.etiqueta) + '</span>' +
@@ -4102,7 +4112,9 @@ function tocarDato(el) {
 }
 
 function mandarPerfil() {
-  var ids = Object.keys(NUEVOS);
+  /* 22-oct-2026 — sin el dato de pago, aunque alguna versión vieja de la
+     pantalla lo haya dejado escrito (ver abrirPerfil). */
+  var ids = Object.keys(NUEVOS).filter(function (id) { return id !== 'pago'; });
   if (!ids.length) return alert('Escribe al menos un dato para poder mandárselo.');
   var etq = {};
   M.DATOS_KYC.forEach(function (d) { etq[d.id] = d.etiqueta; });

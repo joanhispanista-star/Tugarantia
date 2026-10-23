@@ -82,6 +82,27 @@
 .pc-credito .estado{font-size:12px;font-weight:600;color:var(--plata-tinta);white-space:nowrap}
 .pc-credito .estado.ambar{color:var(--ambar)}
 .pc-enlaces a{color:inherit}
+/* 22-oct-2026 — «¿A dónde te consignamos?» dentro de la tarjeta de la
+   propuesta. El marcado sale de app/cuentas-pago.js (clases cp-), el mismo de
+   play/; acá solo la piel, con los tokens de esta página. */
+.cp-elegir{margin-top:var(--e2)}
+.cp-tit{font-size:14.5px;font-weight:700;color:var(--tinta)}
+.cp-sub{font-size:12.5px;color:var(--gris);margin-top:var(--e1);line-height:1.45}
+.cp-opcion{display:flex;gap:10px;align-items:flex-start;margin-top:var(--e2);padding:10px var(--e3);
+  border:1px solid var(--linea);border-radius:12px;cursor:pointer;font-size:14px}
+.cp-opcion.cp-sel{border-color:var(--marca-texto);background:var(--marca-tinte)}
+.cp-opcion input{width:20px;height:20px;flex:none;margin:1px 0 0;accent-color:var(--marca)}
+.cp-opcion .cp-txt b{display:block;font-weight:600}
+.cp-etq{display:inline-block;margin-top:var(--e1);padding:2px var(--e2);border-radius:999px;font-size:11px;
+  font-weight:600;background:var(--fondo);color:var(--gris)}
+.cp-etq.cp-rapido{background:var(--marca-tinte);color:var(--marca-texto)}
+.cp-otra label{display:block;font-size:12.5px;font-weight:600;margin:var(--e3) 0 var(--e1)}
+.cp-otra input[type=text],.cp-otra input[type=tel],.cp-otra select{width:100%;padding:10px var(--e3);
+  border:1px solid var(--linea);border-radius:12px;font-size:16px;font-family:inherit;background:var(--papel);color:var(--tinta)}
+.cp-ayuda{font-size:12px;color:var(--gris);margin-top:var(--e1)}
+.cp-otra .cp-mia{display:flex;gap:10px;align-items:center}
+.cp-mia input{width:20px;height:20px;flex:none;margin:0;accent-color:var(--marca)}
+.cp-error{margin-top:var(--e2);font-size:13px;color:var(--ambar-tinta)}
 </style>
 </head>
 <body>
@@ -291,6 +312,11 @@ setTimeout(function () {
 <script src="../app/ficha.js"></script>
 <script src="../app/puente.js"></script>
 <script src="../app/cuenta.js"></script>
+<!-- 22-oct-2026 — «¿A dónde te consignamos?» al aceptar: la lista de bancos y
+     las reglas de la cuenta, las mismas de play/. Sin ellas se acepta como
+     antes y la cuenta se pregunta por el chat de Créditos. -->
+<script src="../app/bancos-colombia.js"></script>
+<script src="../app/cuentas-pago.js"></script>
 <!-- 8-oct-2026 — las condiciones de cada propuesta (y la casilla «Leí y
      acepto»), las mismas de play/. Va después de cuenta.js y del motor.
      Segunda vuelta: y después de creditos.js, la tabla de usura, de donde las
@@ -364,6 +390,9 @@ var CS = window.CalculadoraSolicitud;
 if (CS && CS.conectar) CS.conectar(window);   // su almacén y su DOM son los de ESTA página
 var R = window.PlataChatReglas;
 var PP = window.PagosProveedor;
+/* 22-oct-2026 — a dónde se consigna (app/cuentas-pago.js). Ver
+   «¿A DÓNDE TE CONSIGNAMOS?», junto a aceptarPropuesta. */
+var CP = window.CuentasPago || null;
 var SP = window.SesionPlataChat;
 /* 21-oct-2026 — H3: la copia de la sesión que deja el registro de play/ en
    esta pestaña (la misma llave que lee app/sesion-socio.js). «Salir» la
@@ -839,7 +868,9 @@ var ESCRITURAS_EN_CAMINO = 0;
 /* Las RPC que solo leen. Lo que no está aquí cuenta como escritura: una
    función nueva frena la recarga hasta que alguien diga que solo lee. */
 var LECTURAS_QUE_NO_FRENAN = ['mi_cuenta', 'politica_platachat', 'mi_registro', 'mi_solicitud_platachat',
-                              'chat_leer_sesion', 'chat_foto_sesion_ver'];
+                              'chat_leer_sesion', 'chat_foto_sesion_ver',
+                              /* 22-oct-2026 — las cuentas del registro, al aceptar: solo lee. */
+                              'mis_cuentas_de_pago'];
 /* Devuelve la MISMA promesa; el conteo va en una rama aparte que se traga el
    error (no deja una promesa rechazada sin atender). */
 function escrituraEnCamino(p) {
@@ -2178,8 +2209,11 @@ function tarjetaPropuesta(sol) {
        el latido repinta la tarjeta cuando cambia, y una casilla que se
        desmarca sola bajo el dedo es peor que no tenerla. */
     var leidas = !!(cond && CONDICIONES_LEIDAS[CS.llaveDeCasilla(sol)]);
+    /* 22-oct-2026 — y «¿A dónde te consignamos?» entre las condiciones y la
+       casilla (ver «¿A DÓNDE TE CONSIGNAMOS?», junto a aceptarPropuesta). */
     if (cond) {
       h += CS.condicionesHTML(cond) +
+        (CP ? eleccionDestinoPC(sol) : '') +
         CS.casillaHTML('pcCondLeidas', 'marcarCondicionesPlataChat(this.checked, ' + Number(sol.id) + ')', leidas);
     }
     /* 8-oct-2026 (segunda vuelta) — SIN LA CASILLA, EL BOTÓN AVISA EN VEZ DE
@@ -2201,9 +2235,18 @@ function tarjetaPropuesta(sol) {
           ' y ahí nace el crédito. Si no te sirve, no aceptes.</div></div>');
 
   } else if (estado === 'aceptada') {
+    /* 22-oct-2026 — con la cuenta que eligió para ESTA propuesta, si la base
+       la guardó (solo el final del número); sin ella, lo de siempre. */
+    var dst = CP ? CP.destinoVigente(sol) : null;
     h = cabeza('Aceptaste ' + COP(capitalDe(sol))) + '<div class="cuerpo">' +
       (cp ? lin('Devuelves', COP(cp.total != null ? cp.total : Number(cp.capital || 0) + Number(cp.costo || 0))) + lin('Cuándo', cuandoDe(cp)) : '') +
-      '<div class="dice">Te la entregamos por ' + esc(nombreProveedor()) + ' y te avisamos por aquí. No tienes que hacer nada más.</div></div>';
+      (dst
+        ? '<div class="dice">Te la consignamos a ' + esc(CP.describirDestino(dst)) + ', a tu nombre, y te avisamos por aquí. No tienes que hacer nada más.</div>'
+        : '<div class="dice">Te la entregamos por ' + esc(nombreProveedor()) + ' y te avisamos por aquí. No tienes que hacer nada más.</div>' +
+          (SIN_DESTINO[String(sol.id)]
+            ? '<div class="nota">Tu aceptación quedó, pero no alcanzamos a guardar a qué cuenta te consignamos: te lo preguntamos por aquí antes de enviarte la plata.</div>'
+            : '')) +
+      '</div>';
 
   } else if (estado === 'atendida') {
     h = cabeza('Crédito creado') + '<div class="cuerpo"><div class="dice">Lo ves en Yo → tu historial cuando lo publiquen.</div></div>';
@@ -2261,6 +2304,103 @@ function marcarCondicionesPlataChat(si, id) {
   pintarPropuesta();
 }
 
+/* ===========================================================================
+ * ¿A DÓNDE TE CONSIGNAMOS? — 22 de octubre de 2026
+ *
+ * Joan: «al momento de que el cliente acepte la contrapropuesta, que se le
+ * pregunte nuevamente a qué cuenta desea que le consignen; recomendemos que
+ * sea por billeteras digitales ya que es más rápido». Las mismas reglas y el
+ * mismo marcado que play/ (app/cuentas-pago.js): las que dio al registrarse
+ * (mis_cuentas_de_pago: ver cuentasPC), billeteras y llave primero, y «Otra
+ * cuenta a tu nombre».
+ *
+ * Lo elegido vive aquí, por solicitud Y por propuesta, en memoria (es un dato
+ * de pago: no se guarda en el teléfono). La tarjeta la repinta el latido
+ * cuando su HTML cambia (pintarPropuesta), y mientras la persona escribe el
+ * HTML cambia con cada letra: por eso escribirDestinoPC le dice a la caja
+ * «esto ya está pintado» sin tocarla, y el latido no le roba el teclado.
+ * Viaja JUNTO con la aceptación (aceptar_con_destino).
+ * ======================================================================== */
+var DESTINOS_PC = {};
+var SIN_DESTINO = {};   /* solicitudes aceptadas sin poder guardar la cuenta (404): la tarjeta lo dice */
+function destinoPC(sol) {
+  var cp = (sol && sol.contrapropuesta) || {};
+  var k = String(sol && sol.id) + '|' + String(cp.creada_en || '');
+  if (!DESTINOS_PC[k]) DESTINOS_PC[k] = { eleccion: null, otra: {}, error: '' };
+  return DESTINOS_PC[k];
+}
+/* 22-oct-2026 — LAS CUENTAS DEL REGISTRO, DE DONDE SÍ LLEGAN. Se leían de
+   SOL.datos, y mi_solicitud_platachat no lo manda desde el 7-oct (puede ser
+   el registro de otra persona): la lista salía siempre vacía. Las pide
+   mis_cuentas_de_pago, que solo las da si el sello del registro casa con esta
+   cuenta (ver LLAVE_SELLO en app/cuentas-pago.js). Una vez por solicitud y
+   por sesión: el latido repinta la tarjeta muchas veces y no puede pedirlas
+   en cada vuelta. Si falla, «Escribe tu cuenta». «Salir» las suelta. */
+var CUENTAS_PC = {};
+/* Por el celular de la sesión y no por el token: sesion.js renueva el token
+   EN SU SITIO cada hora, y con el token en la llave la tarjeta volvía a
+   «Buscando las cuentas…» a media escritura (el latido la repinta) y se le
+   iba el teclado. Otra persona en este teléfono pasa por salir(), que vacía
+   CUENTAS_PC. */
+function llaveCuentasPC(sol) {
+  return String((SES && (SES.celular || SES.access_token)) || '') + '|' + String(sol && sol.id);
+}
+function cuentasPC(sol) {
+  var k = llaveCuentasPC(sol);
+  if (CUENTAS_PC[k]) return CUENTAS_PC[k];
+  var c = CUENTAS_PC[k] = { estado: 'cargando', opciones: [] };
+  var listo = function (cuentas) {
+    c.estado = 'ok';
+    c.opciones = CP ? CP.opcionesDeDestino(cuentas || {}) : [];
+    pintarPropuesta();
+  };
+  var p;
+  /* Se llama mientras se arma la tarjeta: un error aquí no la puede tumbar. */
+  try { p = rpcSesion('mis_cuentas_de_pago', { p_id: Number(sol.id) }); }
+  catch (e) { c.estado = 'ok'; return c; }
+  p.then(function (j) {
+    listo(j && j.ok === true && j.cuentas && typeof j.cuentas === 'object' ? j.cuentas : {});
+  }, function () { listo({}); });
+  return c;
+}
+function opcionesDestinoPC(sol) {
+  var c = (CP && sol) ? CUENTAS_PC[llaveCuentasPC(sol)] : null;
+  return (c && c.estado === 'ok') ? c.opciones : [];
+}
+function eleccionDestinoPC(sol) {
+  var d = destinoPC(sol);
+  var c = cuentasPC(sol);
+  return CP.eleccionHTML({ opciones: opcionesDestinoPC(sol), cargando: c.estado === 'cargando', estado: d, prefijo: 'pcdst',
+    alElegir: 'elegirDestinoPC', alMedio: 'medioDestinoPC', alEscribir: 'escribirDestinoPC', error: d.error });
+}
+function elegirDestinoPC(v) {
+  if (!SOL) return;
+  var d = destinoPC(SOL); d.eleccion = String(v); d.error = '';
+  pintarPropuesta();
+}
+function medioDestinoPC(m) {
+  if (!SOL) return;
+  var d = destinoPC(SOL);
+  d.otra = { medio: String(m || ''), es_mia: !!(d.otra && d.otra.es_mia === true) };
+  d.error = '';
+  pintarPropuesta();
+}
+function escribirDestinoPC(campo, valor) {
+  if (!SOL) return;
+  var d = destinoPC(SOL);
+  d.otra = d.otra || {};
+  if (campo === 'es_mia') d.otra.es_mia = valor === true;
+  else d.otra[campo] = String(valor == null ? '' : valor);
+  if (campo === 'banco_codigo') {
+    var b = CP && CP.bancoPorCodigo(valor);
+    d.otra.banco = (b && b.codigo !== 'otro') ? b.nombre : '';
+    return pintarPropuesta();   // «Otro» abre la casilla del nombre
+  }
+  /* Lo que se ve ya es lo que se escribió: se anota como pintado. */
+  var caja = $('chPropuesta');
+  if (caja && CANAL === 'creditos') caja.__tarjeta = tarjetaPropuesta(SOL);
+}
+
 function aceptarPropuesta(id) {
   if (!SES || !SP || ACEPTANDO) return;
   var ce = $('chError'); if (ce) ce.classList.add('oculto');
@@ -2269,6 +2409,20 @@ function aceptarPropuesta(id) {
   if (cond && !CONDICIONES_LEIDAS[CS.llaveDeCasilla(sol)]) {
     fallo(ce, 'Marca la casilla «' + CS.TEXTO_CASILLA + '» para seguir.');
     return;
+  }
+  /* 22-oct-2026 — y a dónde se consigna. Sin las condiciones no se pregunta
+     (la aceptación sin ellas no puede llevar la cuenta). */
+  var destino = null;
+  if (cond && CP) {
+    var de = CP.destinoElegido(opcionesDestinoPC(sol), destinoPC(sol));
+    if (!de.ok) {
+      destinoPC(sol).error = de.motivo;
+      pintarPropuesta();
+      fallo(ce, de.motivo);
+      return;
+    }
+    destinoPC(sol).error = '';
+    destino = de.destino;
   }
   ACEPTANDO = true; pintarPropuesta();
   /* 8-oct-2026 (segunda vuelta) — SIN EL PLAN B. Con 404 (la migración del
@@ -2280,13 +2434,36 @@ function aceptarPropuesta(id) {
      María que contesta después de «Salir» ya no pinta en la cuenta de Pedro
      «Aceptaste $450.000 · Devuelves $495.000», ni le apaga el botón de pedir. */
   var ses = SES;
+  /* 22-oct-2026 — con la cuenta, por aceptar_con_destino (la aceptación y la
+     cuenta en una sola transacción). Con 404 —el archivo del 22-oct sin
+     correr— se acepta como siempre y la tarjeta dice que la cuenta se
+     pregunta por aquí. */
+  var p_vio = cond ? CS.paraAceptar(cond) : null;
+  var sinDestino = false;
+  var conConstancia = function () {
+    return rpcSesion('aceptar_condiciones', { p_id: Number(id), p_vio: p_vio }, ses)
+      .catch(function (e) {
+        if (e && e.estado === 404) return { ok: false, motivo: 'sin_constancia' };
+        throw e;
+      });
+  };
   (cond
-    ? rpcSesion('aceptar_condiciones', { p_id: Number(id), p_vio: CS.paraAceptar(cond) }, ses)
-        .catch(function (e) {
-          if (e && e.estado === 404) return { ok: false, motivo: 'sin_constancia' };
-          throw e;
-        })
+    ? (destino
+        ? rpcSesion('aceptar_con_destino', { p_id: Number(id), p_vio: p_vio, p_destino: destino }, ses)
+            .catch(function (e) {
+              if (!(e && e.estado === 404)) throw e;
+              sinDestino = true;
+              return conConstancia();
+            })
+        : conConstancia())
     : rpcSesion('aceptar_propuesta_platachat', { p_id: Number(id) }, ses)).then(function (j) {
+    if (j && j.motivo === 'destino') {
+      ACEPTANDO = false;
+      fallo(ce, 'No pudimos guardar esa cuenta. Revísala, o elige otra, y vuelve a tocar «Acepto».');
+      pintarPropuesta();
+      return;
+    }
+    if (j && j.ok === true && sinDestino) SIN_DESTINO[String(id)] = true;
     if (j && j.motivo === 'sin_constancia') {
       ACEPTANDO = false;
       fallo(ce, 'No pudimos registrar tu aceptación todavía (no es tu teléfono ni tu internet). ' +
@@ -3000,6 +3177,7 @@ function salir(msg) {
   AVISO_RESPONSABLE_PC_CERRADO = false;   /* el aviso es por persona: el que entre después lo ve si no lo cerró */
   S = null; SES = null; SIN_NUBE = false; AVISO_NUBE = ''; BORRADOR = ''; MI_REGISTRO = '';   /* el registro es de esa cuenta: el que entre después no hereda un «descartado» */
   SOL = null; RELOJ_OK = false; ACEPTANDO = false; PIDIENDO_PC = false;
+  CUENTAS_PC = {}; DESTINOS_PC = {};   /* 22-oct-2026 — sus cuentas de pago (las del registro y la que escribía) no se quedan para el siguiente */
   SOL_GEN++; DESFASE_RELOJ = 0; POL = null; fijarFraseReloj();   /* lo de la base es de esa sesión: una traída en vuelo se bota y el que entre después arranca en cero, también la frase con la espera */
   apagarLatido(); GEN++;
   CH = { canal: '', gen: GEN, mensajes: [], ultimo: 0, cargando: false, enviando: false, error: '' };

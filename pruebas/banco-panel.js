@@ -167,6 +167,13 @@ function abrirPanel(opciones) {
     ctx.CalculadoraSolicitud = require(path.join(RAIZ, 'app', 'calculadora-solicitud.js'));
   }
   if (!o.sinBases) ctx.BasesTuGarantia = require(path.join(RAIZ, 'app', 'bases.js'));
+  /* 22-oct-2026 — la lista de bancos y las reglas de la cuenta, los <script
+     src> nuevos de crm.html («💸 Consignar a: …»). `sinCuentas: true` simula
+     que no llegaron. */
+  if (!o.sinCuentas) {
+    ctx.BancosColombia = require(path.join(RAIZ, 'app', 'bancos-colombia.js'));
+    ctx.CuentasPago = require(path.join(RAIZ, 'app', 'cuentas-pago.js'));
+  }
   /* 7-oct-2026 — la puerta única: las palabras del toque «¿Es la misma
      persona?» y el pase de un uso de «Ver la app como la ve él», los dos
      <script src> nuevos de crm.html. `sinUnaPuerta: true` simula que no llegaron.

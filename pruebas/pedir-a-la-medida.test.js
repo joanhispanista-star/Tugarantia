@@ -328,6 +328,8 @@ describe('la calculadora del pedido, en play/ y en index.html', () => {
 const PROPUESTA = { id: 9, estado: 'contrapropuesta',
   contrapropuesta: { capital: 1500000, costo: 300000, total: 1800000, fecha_pago: '2026-11-14', dias: 37,
                      costo_pct: 20, texto: 'Te propongo esto', por: 'joan', creada_en: '2026-10-08T15:00:00Z' } };
+/* 22-oct-2026 — elegir a dónde se consigna (otra cuenta: un Nequi a su nombre). */
+const ELEGIR = "elegirDestino('otra'); medioDestino('nequi'); escribirDestino('numero', '300 111 2233'); escribirDestino('es_mia', true);";
 const A_CUOTAS = { id: 10, estado: 'contrapropuesta',
   contrapropuesta: { capital: 1000000, costo: 71154, total: 1071154, producto: 'respaldado', meses: 3,
                      fecha_pago: '2027-01-15', por: 'joan', creada_en: '2026-10-08T15:00:00Z',
@@ -414,7 +416,9 @@ describe('las condiciones de este crédito', () => {
        (creada_en: la base no acepta otra con la misma plata y otra fecha) y el
        techo del recargo que se le mostró. */
     assert.deepEqual(Object.keys(p).sort(), ['capital', 'creada_en', 'fecha_pago', 'lineas', 'texto', 'tope_mora', 'total', 'version']);
-    assert.equal(p.version, '2026-10-08');
+    /* 22-oct-2026 — la versión sube con el renglón «Cuándo recibes la plata»
+       (la cuenta se elige al aceptar). */
+    assert.equal(p.version, '2026-10-22');
     assert.equal(p.creada_en, '2026-10-08T15:00:00Z');
   });
 
@@ -435,21 +439,33 @@ describe('las condiciones de este crédito', () => {
       'marcada la casilla, el botón tiene que nacer prendido al repintar');
   });
 
-  test('play/: aceptar sin la casilla no llama a nadie; con ella, aceptar_condiciones con lo que vio', async () => {
+  /* 22-oct-2026 — y con la cuenta a dónde consignar: sin elegirla tampoco se
+     llama a nadie, y la aceptación va por aceptar_con_destino (la de siempre
+     más la cuenta, en una sola transacción). */
+  test('play/: aceptar sin la casilla ni la cuenta no llama a nadie; con ellas, aceptar_con_destino con lo que vio', async () => {
     const P = abrirPlay({});
     P.ev('window.__l = []; fetch = function (u, o) { window.__l.push({ u: String(u), c: JSON.parse(o.body) });' +
          ' return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ ok: true, solicitud: ' +
          JSON.stringify(Object.assign({}, PROPUESTA, { estado: 'aceptada' })) + ' }); } }); };');
     P.ev('SESION = { access_token: "t", user: { user_metadata: {} } }; pintarSolicitud(' + JSON.stringify(PROPUESTA) + ');');
+    /* 22-oct-2026 — al pintar la propuesta la pantalla LEE las cuentas del
+       registro (mis_cuentas_de_pago): esa lectura no es aceptar. Se cuentan
+       solo las aceptaciones. */
+    const aceptaciones = () => JSON.parse(P.ev('JSON.stringify(window.__l)')).filter(x => /rpc\/aceptar/.test(x.u));
     P.ev('aceptarContrapropuesta(9)');
     await ticks();
-    assert.equal(JSON.parse(P.ev('JSON.stringify(window.__l)')).length, 0, 'aceptó sin la casilla');
+    assert.equal(aceptaciones().length, 0, 'aceptó sin la casilla');
     assert.match(P.elems.errAceptar.textContent, /Marca la casilla/);
     P.ev('marcarCondiciones(true); aceptarContrapropuesta(9);');
     await ticks();
+    assert.equal(aceptaciones().length, 0, 'aceptó sin decir a dónde se le consigna');
+    assert.match(P.elems.errAceptar.textContent, /Elige a dónde te consignamos/);
+    P.ev(ELEGIR + ' aceptarContrapropuesta(9);');
+    await ticks();
     const l = JSON.parse(P.ev('JSON.stringify(window.__l)'));
-    const a = l.find(x => /rpc\/aceptar_condiciones$/.test(x.u));
-    assert.ok(a, 'no aceptó con aceptar_condiciones');
+    const a = l.find(x => /rpc\/aceptar_con_destino$/.test(x.u));
+    assert.ok(a, 'no aceptó con aceptar_con_destino');
+    assert.deepEqual(a.c.p_destino, { medio: 'nequi', numero: '3001112233', es_mia: true });
     assert.equal(a.c.p_id, 9);
     assert.equal(a.c.p_vio.capital, 1500000);
     assert.equal(a.c.p_vio.total, 1800000);
@@ -468,11 +484,12 @@ describe('las condiciones de este crédito', () => {
   test('play/: con la migración del 8-oct sin correr, NO se acepta sin constancia, y se dice', async () => {
     const P = abrirPlay({});
     P.ev('window.__l = []; fetch = function (u, o) { var s = String(u); window.__l.push(s);' +
-         ' if (/aceptar_condiciones/.test(s)) return Promise.resolve({ ok: false, status: 404, json: function () { return Promise.resolve({}); } });' +
+         /* 22-oct-2026 — sin la del 8-oct tampoco hay la del 22: las dos contestan 404. */
+         ' if (/aceptar_condiciones|aceptar_con_destino/.test(s)) return Promise.resolve({ ok: false, status: 404, json: function () { return Promise.resolve({}); } });' +
          ' return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ ok: true, solicitud: ' +
          JSON.stringify(Object.assign({}, PROPUESTA, { estado: 'aceptada' })) + ' }); } }); };');
     P.ev('SESION = { access_token: "t", user: { user_metadata: {} } }; pintarSolicitud(' + JSON.stringify(PROPUESTA) + ');');
-    P.ev('marcarCondiciones(true); aceptarContrapropuesta(9);');
+    P.ev('marcarCondiciones(true); ' + ELEGIR + ' aceptarContrapropuesta(9);');
     await ticks();
     const l = JSON.parse(P.ev('JSON.stringify(window.__l)'));
     assert.ok(!l.some(u => /aceptar_contrapropuesta$/.test(u)), 'con 404 aceptó por la puerta que no guarda nada: ' + JSON.stringify(l));
@@ -485,10 +502,10 @@ describe('las condiciones de este crédito', () => {
     nueva.contrapropuesta.total = 1750000; nueva.contrapropuesta.creada_en = '2026-10-08T16:00:00Z';
     const P = abrirPlay({});
     P.ev('fetch = function (u) { var s = String(u);' +
-         ' var r = /aceptar_condiciones/.test(s) ? { ok: false, motivo: "cambio" } : { ok: true, solicitud: ' + JSON.stringify(nueva) + ' };' +
+         ' var r = /aceptar_condiciones|aceptar_con_destino/.test(s) ? { ok: false, motivo: "cambio" } : { ok: true, solicitud: ' + JSON.stringify(nueva) + ' };' +
          ' return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve(r); } }); };');
     P.ev('SESION = { access_token: "t", user: { user_metadata: {} } }; pintarSolicitud(' + JSON.stringify(PROPUESTA) + ');');
-    P.ev('marcarCondiciones(true); aceptarContrapropuesta(9);');
+    P.ev('marcarCondiciones(true); ' + ELEGIR + ' aceptarContrapropuesta(9);');
     await ticks();
     const h = P.elems.cuerpo.innerHTML;
     assert.match(h, /La propuesta cambió mientras la leías/);

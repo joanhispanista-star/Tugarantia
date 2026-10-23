@@ -225,8 +225,14 @@ function nubeViva(inicial, extra) {
     }
     /* 8-oct-2026 — aceptar_condiciones (base/20261008) acepta igual que
        aceptar_propuesta_platachat, y además guarda lo que se leyó. */
-    if (fn === 'aceptar_propuesta_platachat' || fn === 'aceptar_condiciones') {
+    /* 22-oct-2026 — aceptar_con_destino (base/20261022) es la misma
+       aceptación más la cuenta a dónde consignar, sellada con la propuesta. */
+    if (fn === 'aceptar_propuesta_platachat' || fn === 'aceptar_condiciones' || fn === 'aceptar_con_destino') {
       estado.viva = solAceptada();
+      if (fn === 'aceptar_con_destino') {
+        estado.viva.destino_desembolso = Object.assign({}, cuerpo.p_destino,
+          { propuesta: (estado.viva.contrapropuesta || {}).creada_en || '' });
+      }
       return { ok: true, solicitud: estado.viva };
     }
     return { ok: true };
@@ -633,12 +639,17 @@ describe('PlataChat con reloj: la tarjeta de la solicitud', () => {
  * ======================================================================== */
 describe('PlataChat con reloj: aceptar', () => {
 
+  /* 22-oct-2026 — a dónde se consigna (otra cuenta: un Nequi a su nombre).
+     Sin elegirla no se acepta; con ella, la aceptación va por
+     aceptar_con_destino. */
+  const ELEGIR_PC = "elegirDestinoPC('otra'); medioDestinoPC('nequi'); escribirDestinoPC('numero', '300 111 2233'); escribirDestinoPC('es_mia', true);";
+
   /* 8-oct-2026 — ACEPTAR PIDE LA CASILLA, Y VA POR aceptar_condiciones con lo
      que se leyó (p_vio: el monto, el total y el texto de las condiciones). La
      base compara esas dos cifras con su propuesta y, si casan, acepta con
      aceptar_propuesta_platachat por dentro (el «Acepto» del hilo lo sigue
      escribiendo ella). Con 404 se cae a la de siempre: ver la cuarta prueba. */
-  test('aceptarPropuesta, con la casilla, llama a aceptar_condiciones con {p_id, p_vio}, repinta con lo que la base devolvió y vuelve a traer el hilo', async () => {
+  test('aceptarPropuesta, con la casilla y la cuenta, llama a aceptar_con_destino con {p_id, p_vio, p_destino}, repinta con lo que la base devolvió y vuelve a traer el hilo', async () => {
     const n = nubeViva(solContra('automatica_1h'));
     const P = await abrirConCuenta(n);
     P.ev('irA("chats")');
@@ -652,11 +663,19 @@ describe('PlataChat con reloj: aceptar', () => {
     assert.ok(!n.llamadas.some(l => /^aceptar_/.test(l.fn)), 'aceptó sin la casilla marcada');
     assert.match(P.elems.chError.textContent, /Marca la casilla «Leí y acepto las condiciones de este crédito»/);
     P.ev('marcarCondicionesPlataChat(true, 41)');
-    const hilosAntes = cuantas(n, 'chat_leer_sesion');
+    /* Sin la cuenta tampoco, y se dice. */
     P.ev('aceptarPropuesta(41)');
     await ticks();
-    const ac = n.llamadas.find(l => l.fn === 'aceptar_condiciones');
-    assert.ok(ac, 'no llamó a aceptar_condiciones');
+    assert.ok(!n.llamadas.some(l => /^aceptar_/.test(l.fn)), 'aceptó sin decir a dónde se le consigna');
+    assert.match(P.elems.chError.textContent, /Elige a dónde te consignamos/);
+    assert.match(P.elems.chPropuesta.innerHTML, /¿A dónde te consignamos\?/);
+    const hilosAntes = cuantas(n, 'chat_leer_sesion');
+    P.ev(ELEGIR_PC + ' aceptarPropuesta(41)');
+    await ticks();
+    const ac = n.llamadas.find(l => l.fn === 'aceptar_con_destino');
+    assert.ok(ac, 'no llamó a aceptar_con_destino');
+    assert.deepEqual(ac.cuerpo.p_destino, { medio: 'nequi', numero: '3001112233', es_mia: true });
+    assert.ok(!n.llamadas.some(l => l.fn === 'aceptar_condiciones'), 'aceptó dos veces');
     assert.equal(ac.cuerpo.p_id, 41);
     assert.equal(ac.cuerpo.p_vio.capital, 100000);
     assert.equal(ac.cuerpo.p_vio.total, 120000);
@@ -666,24 +685,28 @@ describe('PlataChat con reloj: aceptar', () => {
     assert.equal(P.ev('SOL.estado'), 'aceptada', 'SOL no es lo que devolvió la base');
     assert.equal(P.ev('ACEPTANDO'), false);
     assert.match(P.elems.chPropuesta.innerHTML, /Aceptaste \$100\.000/);
+    assert.match(P.elems.chPropuesta.innerHTML, /Te la consignamos a Nequi ···2233, a tu nombre/);
     assert.equal(cuantas(n, 'chat_leer_sesion'), hilosAntes + 1, 'no volvió a traer el hilo (el «Acepto» que escribió la base)');
-    /* Aceptar no desembolsa: ninguna función de crédito ni de pago se llama. */
-    assert.ok(!n.llamadas.some(l => /credito|pago|desembols/.test(l.fn)), 'aceptar llamó a algo que parece un desembolso');
+    /* Aceptar no desembolsa: ninguna función de crédito ni de pago se llama.
+       22-oct-2026 — salvo la LECTURA de las cuentas del registro
+       (mis_cuentas_de_pago), que la tarjeta pide al pintarse y no mueve nada. */
+    assert.ok(!n.llamadas.some(l => l.fn !== 'mis_cuentas_de_pago' && /credito|pago|desembols/.test(l.fn)),
+      'aceptar llamó a algo que parece un desembolso');
   });
 
   test('mientras el aceptar va en vuelo el botón queda apagado y un segundo toque no manda nada', async () => {
-    const n = nubeViva(solContra('joan'), fn => (fn === 'aceptar_condiciones' ? { __colgar: true, ok: true, solicitud: solAceptada() } : null));
+    const n = nubeViva(solContra('joan'), fn => (fn === 'aceptar_con_destino' ? { __colgar: true, ok: true, solicitud: solAceptada() } : null));
     const P = await abrirConCuenta(n);
     P.ev('irA("chats")');
     await ticks();
     P.ev('marcarCondicionesPlataChat(true, 41)');   /* 8-oct-2026: sin la casilla no se acepta */
-    P.ev('aceptarPropuesta(41)');
+    P.ev(ELEGIR_PC + ' aceptarPropuesta(41)');
     await ticks();
     assert.equal(P.ev('ACEPTANDO'), true);
     assert.match(P.elems.chPropuesta.innerHTML, /onclick="aceptarPropuesta\(41\)" disabled>/, 'el botón sigue vivo con el aceptar en vuelo');
     P.ev('aceptarPropuesta(41)');
     await ticks();
-    assert.equal(cuantas(n, 'aceptar_condiciones'), 1, 'el segundo toque mandó otro aceptar');
+    assert.equal(cuantas(n, 'aceptar_con_destino'), 1, 'el segundo toque mandó otro aceptar');
     n.colgadas[0]();
     await ticks();
     assert.equal(P.ev('ACEPTANDO'), false);
@@ -692,7 +715,7 @@ describe('PlataChat con reloj: aceptar', () => {
 
   test('si la base dice que no (la propuesta cambió), lo dice y vuelve a traer la solicitud que sí vale', async () => {
     const n = nubeViva(solContra('automatica_1h'), (fn, c, ll, estado) => {
-      if (fn !== 'aceptar_condiciones') return null;
+      if (!/^aceptar_con/.test(fn)) return null;
       estado.viva = solContra('gerente:3001234567', { capital: 80000, costo: 16000, total: 96000 });
       return { ok: false };
     });
@@ -701,7 +724,7 @@ describe('PlataChat con reloj: aceptar', () => {
     await ticks();
     P.ev('marcarCondicionesPlataChat(true, 41)');   /* 8-oct-2026: sin la casilla no se acepta */
     const traidasAntes = cuantas(n, 'mi_solicitud_platachat');
-    P.ev('aceptarPropuesta(41)');
+    P.ev(ELEGIR_PC + ' aceptarPropuesta(41)');
     await ticks();
     assert.equal(P.elems.chError.textContent, 'No pudimos registrar tu aceptación. Si la propuesta cambió, acá ves la nueva.');
     assert.equal(cuantas(n, 'mi_solicitud_platachat'), traidasAntes + 1, 'no volvió a traer la solicitud');
@@ -719,22 +742,23 @@ describe('PlataChat con reloj: aceptar', () => {
     const P = await abrirConCuenta(n);
     P.ev('irA("chats")'); await ticks();
     P.ev('marcarCondicionesPlataChat(true, 41)');
-    P.ev('aceptarPropuesta(41)'); await ticks();
+    P.ev(ELEGIR_PC + ' aceptarPropuesta(41)'); await ticks();
     assert.match(P.elems.chError.textContent, /No pudimos registrar tu aceptación todavía/);
     assert.match(P.elems.chPropuesta.innerHTML, /Acepto: recibo/);
-    const v = nubeViva(solContra('joan'), fn => (fn === 'aceptar_condiciones' ? { __estado: 404 } : null));
+    /* 22-oct-2026 — sin la del 8-oct tampoco hay la del 22: las dos 404. */
+    const v = nubeViva(solContra('joan'), fn => (/^aceptar_con/.test(fn) ? { __estado: 404 } : null));
     const V = await abrirConCuenta(v);
     V.ev('irA("chats")'); await ticks();
     V.ev('marcarCondicionesPlataChat(true, 41)');
-    V.ev('aceptarPropuesta(41)'); await ticks();
+    V.ev(ELEGIR_PC + ' aceptarPropuesta(41)'); await ticks();
     assert.ok(!v.llamadas.some(l => l.fn === 'aceptar_propuesta_platachat'),
       'con aceptar_condiciones sin correr aceptó por la puerta que no deja constancia');
     assert.equal(V.ev('SOL.estado'), 'contrapropuesta');
-    const m = nubeViva(solContra('joan'), fn => (fn === 'aceptar_condiciones' ? { __estado: 503 } : null));
+    const m = nubeViva(solContra('joan'), fn => (/^aceptar_con/.test(fn) ? { __estado: 503 } : null));
     const Q = await abrirConCuenta(m);
     Q.ev('irA("chats")'); await ticks();
     Q.ev('marcarCondicionesPlataChat(true, 41)');
-    Q.ev('aceptarPropuesta(41)'); await ticks();
+    Q.ev(ELEGIR_PC + ' aceptarPropuesta(41)'); await ticks();
     assert.equal(Q.elems.chError.textContent, Q.ev('SP.NUBE_CAIDA'));
     assert.ok(!/internet/.test(Q.elems.chError.textContent));
     assert.equal(Q.ev('SOL.estado'), 'contrapropuesta');

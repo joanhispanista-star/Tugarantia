@@ -62,7 +62,8 @@ const PEDRO = { nombres: 'PEDRO LUIS', apellidos: 'GOMEZ RUIZ', tipo_doc: 'Cédu
 const RESTO = { ciudad: 'Bogotá', barrio: 'Centro', tipo_vivienda: 'Arriendo', anos_direccion: 'Más de 5 años',
   ocupacion: 'Empleado', ingreso_mes: '2000000', gastos_mes: '800000', dia_pago: 'Quincenal (15 y 30)',
   ref1_nombre: 'Luz', ref1_parentesco: 'Hermana', ref1_celular: '3002223344',
-  ref2_nombre: 'Juan', ref2_parentesco: 'Amigo', ref2_celular: '3004445566' };
+  ref2_nombre: 'Juan', ref2_parentesco: 'Amigo', ref2_celular: '3004445566',
+  nequi: '3001112233', cuentas_mias: 'si' };   // 22-oct-2026 — dónde recibe la plata
 const TOKEN_MARIA = { access_token: 'tok-MARIA', refresh_token: 'r', expires_in: 3600, user: { email: CORREO_MARIA } };
 const deMaria = /MARIA|RODRIGUEZ|52\.?123\.?456|maria\.rodriguez|3205556677|3001112233|Maria\.Secreta9|4\.711111|tok-MARIA/;
 
@@ -374,8 +375,11 @@ describe('G1 — la respuesta tardía de María no le abre su sesión a Pedro', 
     assert.equal(s[0].cuerpo.data.vinculacion.nombres, 'MARIA JOSE', 'el signup salió con los datos que había en vivo');
     /* La bandeja y el signup salen de la MISMA foto: los mismos datos (la
        bandeja suma solo la versión de la política aceptada). */
-    const { autorizacion_version: version, ...enLaBandeja } = bandeja.p_datos;
+    /* 22-oct-2026 — menos los datos de pago: esos van solo a la bandeja,
+       porque lo del signup termina en la sesión guardada en el teléfono. */
+    const { autorizacion_version: version, nequi, cuentas_mias: mias, ...enLaBandeja } = bandeja.p_datos;
     assert.ok(version, 'la bandeja no lleva la versión de la política');
+    assert.ok(nequi && mias, 'la bandeja no lleva la cuenta de pago');
     assert.deepEqual(s[0].cuerpo.data.vinculacion, enLaBandeja, 'la bandeja y el signup no llevan los mismos datos');
   });
 
