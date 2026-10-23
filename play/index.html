@@ -13071,6 +13071,23 @@ function sinTeclear(id) {
   var el = $(id);
   return !el || !String(el.value || '').trim();
 }
+/* 23-oct-2026 — LA CUENTA A MEDIO ELEGIR ES COMO LA CASILLA MARCADA. La
+   tarjeta va en este orden: condiciones, «¿A dónde te consignamos?», la
+   casilla y el botón. María elegía su Nequi, o «Otra cuenta → banco →
+   Bancolombia → Ahorros → Es mía», y salía a la app del banco a copiar el
+   número: con la casilla todavía sin marcar, Crédito seguía siendo momento
+   seguro, la página se recargaba al quedar oculta y lo elegido (DESTINOS,
+   solo en memoria a propósito: es un dato de pago) se perdía sin aviso.
+   hayTextoALaVista no la salvaba: el radio, los select y «Es mía» no son
+   texto. Cuenta lo elegido para la propuesta que está en pantalla. */
+function destinoAMedias() {
+  if (!SOL_EN_PANTALLA) return false;
+  var d = DESTINOS[llaveDeDestino(SOL_EN_PANTALLA)];
+  if (!d) return false;
+  if (d.eleccion != null && String(d.eleccion) !== '') return true;
+  var o = d.otra || {};
+  return Object.keys(o).some(function (k) { return o[k] === true || (typeof o[k] === 'string' && o[k].trim() !== ''); });
+}
 /* 21-oct-2026 (verificación del lote 1, R2 y R3) — y ninguna escritura en
    camino, en NINGUNA pantalla: la subida que «Salir» dejó suelta, la foto o
    el mensaje del chat, la contraseña nueva, el aviso de salida (ver LO QUE
@@ -13087,7 +13104,7 @@ function momentoSeguroPlay() {
   if (VISTA === 'entrar') return sinTeclear('inTel') && sinTeclear('inClave') && sinTeclear('csMontoLibre');
   if (VISTA !== 'cuenta') return false;
   if (TAB === 'historial') return true;
-  if (TAB === 'credito') return !casillaDeLaPropuestaMarcada() && sinTeclear('csNota') && sinTeclear('csMontoLibre');
+  if (TAB === 'credito') return !casillaDeLaPropuestaMarcada() && !destinoAMedias() && sinTeclear('csNota') && sinTeclear('csMontoLibre');
   return false;
 }
 /* Lo único que cruza la recarga: el nombre de la pestaña. La sesión ya la

@@ -3314,11 +3314,28 @@ function sinTeclear(id) {
 function ocupadoPC() {
   return !!(ENTRAR_EN_CAMINO || PIDIENDO_PC || ACEPTANDO) || hayEscriturasEnCamino() || !!(CH && CH.enviando);
 }
+/* 23-oct-2026 — LA CUENTA A MEDIO ELEGIR EN LA PROPUESTA. La tarjeta vive en
+   Chats (no es momento seguro), pero lo elegido en «¿A dónde te consignamos?»
+   vive solo en memoria (DESTINOS_PC, a propósito: es un dato de pago). Quien
+   elegía su Nequi, o la mitad de «Otra cuenta», pasaba a Plata y salía a la
+   app del banco a copiar el número: Plata es momento seguro, la página se
+   recargaba y lo elegido se perdía sin aviso. Cuenta solo lo de la propuesta
+   vigente (la de SOL, mientras está en 'contrapropuesta'). */
+function destinoAMediasPC() {
+  if (!SOL || SOL.estado !== 'contrapropuesta') return false;
+  var cp = SOL.contrapropuesta || {};
+  var d = DESTINOS_PC[String(SOL.id) + '|' + String(cp.creada_en || '')];
+  if (!d) return false;
+  if (d.eleccion != null && String(d.eleccion) !== '') return true;
+  var o = d.otra || {};
+  return Object.keys(o).some(function (k) { return o[k] === true || (typeof o[k] === 'string' && o[k].trim() !== ''); });
+}
 function momentoSeguroPC() {
   if (ocupadoPC()) return false;
   if (nuncaSeguroPC()) return false;
   if (PANTALLA === 'entrar') return sinTeclear('inCelular') && sinTeclear('inClave');
   if (!S) return false;
+  if (destinoAMediasPC()) return false;   // 23-oct-2026 — ver arriba
   if (PANTALLA === 'plata') return true;
   return PANTALLA === 'yo';
 }

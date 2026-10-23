@@ -367,3 +367,100 @@ describe('4 · La precarga de sw.js tiene todo lo nuevo del lote, y nada que no 
     assert.deepEqual(fuera, [], 'una librería pesada entró a la precarga: cada socio la pagaría');
   });
 });
+
+/* ======================================================================== */
+/* 5 · LA CUENTA A MEDIO ELEGIR Y LA RECARGA SOLA — 23-oct-2026.
+   cuentas-pago puso estado nuevo («¿A dónde te consignamos?», en memoria a
+   propósito: es un dato de pago) en una pantalla que la lista blanca del lote
+   1 ya daba por segura. En play/ la tarjeta va: condiciones, la cuenta, la
+   casilla y el botón; María elegía la cuenta, todavía sin marcar la casilla,
+   y salía a la app del banco a copiar el número: Crédito seguía siendo
+   momento seguro, la página se recargaba al quedar oculta y lo elegido se
+   perdía sin aviso. En PlataChat igual desde Plata o Yo (la tarjeta vive en
+   Chats). La casilla marcada ya frenaba; la cuenta a medio elegir es lo mismo. */
+const SESION_PLAY = JSON.stringify({ access_token: 'tok-prueba', refresh_token: 'ref', user: { email: '573001112233@tugarantia.net', created_at: '2026-10-20T10:00:00Z' } });
+const PROPUESTA_PLAY = { id: 7, estado: 'contrapropuesta',
+  contrapropuesta: { capital: 300000, costo: 30000, total: 330000, fecha_pago: '2026-11-20', texto: 'Te proponemos', creada_en: '2026-10-23T15:00:00Z' } };
+
+describe('5 · La cuenta a medio elegir frena la recarga sola, como la casilla marcada', () => {
+  const { abrirPlay } = require('./banco-play.js');
+  function playConPropuesta(sol) {
+    const P = abrirPlay({ sesion: { play_sesion: SESION_PLAY } });
+    assert.equal(P.ev('VISTA'), 'cuenta');
+    assert.equal(P.ev('TAB'), 'credito');
+    P.ev('tarjetaContrapropuesta(' + JSON.stringify(sol || PROPUESTA_PLAY) + ')');
+    return P;
+  }
+
+  test('control: la propuesta en pantalla, sin nada elegido, sigue siendo momento seguro', () => {
+    const P = playConPropuesta();
+    assert.ok(P.ev('!!SOL_EN_PANTALLA'));
+    assert.equal(P.ev('momentoSeguroPlay()'), true);
+  });
+
+  test('play/: con su Nequi del registro elegido (la casilla sin marcar) Crédito ya no es momento seguro', () => {
+    const P = playConPropuesta();
+    P.ev("elegirDestino('0')");
+    assert.equal(P.ev('casillaDeLaPropuestaMarcada()'), false, 'la prueba no prueba el caso: la casilla está marcada');
+    assert.equal(P.ev('momentoSeguroPlay()'), false, 'la recarga sola se llevaría la cuenta elegida');
+  });
+
+  test('play/: con «Otra cuenta → banco → Bancolombia → Ahorros → Es mía» a medias (sin el número), tampoco', () => {
+    const P = playConPropuesta();
+    P.ev("elegirDestino('otra'); medioDestino('banco'); escribirDestino('banco_codigo', '1-7');" +
+         " escribirDestino('banco_tipo', 'Ahorros'); escribirDestino('es_mia', true);");
+    assert.equal(P.ev("$('dst_numero') ? $('dst_numero').value : ''"), '', 'la prueba no prueba el caso: hay texto escrito');
+    assert.equal(P.ev('momentoSeguroPlay()'), false, 'la recarga sola se llevaría medio, banco, tipo y «Es mía»');
+  });
+
+  test('play/: aceptada la propuesta, o si Joan la cambia, lo elegido para la vieja ya no frena nada', () => {
+    const P = playConPropuesta();
+    P.ev("elegirDestino('0')");
+    assert.equal(P.ev('momentoSeguroPlay()'), false);
+    /* Joan cambia la propuesta: otra llave, se vuelve a preguntar. */
+    const nueva = JSON.parse(JSON.stringify(PROPUESTA_PLAY));
+    nueva.contrapropuesta.creada_en = '2026-10-23T18:00:00Z';
+    P.ev('tarjetaContrapropuesta(' + JSON.stringify(nueva) + ')');
+    assert.equal(P.ev('momentoSeguroPlay()'), true, 'la cuenta elegida para una propuesta vieja frenaba la recarga para siempre');
+    P.ev("elegirDestino('0')");
+    const aceptada = Object.assign({}, nueva, { estado: 'aceptada' });
+    P.ev('tarjetaContrapropuesta(' + JSON.stringify(aceptada) + ')');
+    assert.equal(P.ev('momentoSeguroPlay()'), true, 'después de aceptar, Crédito no volvía a recargar nunca');
+  });
+
+  /* PlataChat, con la solicitud como la manda la base. */
+  async function mariaConPropuesta() {
+    const ahora = () => new Date().toISOString();
+    const sol = { id: 41, app: 'platachat', estado: 'contrapropuesta', capital: 450000, cortes: 1,
+      contrapropuesta: { capital: 450000, costo: 45000, total: 495000, fecha_pago: '2026-11-15', creada_en: '2026-10-23T15:00:00Z', por: 'auto' } };
+    const PC = abrirPlataChat({ resp: {
+      mi_solicitud_platachat: () => ({ ok: true, solicitud: sol, ahora: ahora() }),
+      mis_cuentas_de_pago: () => ({ ok: true, cuentas: { nequi: CEL_MARIA, cuentas_mias: 'si' } }) } });
+    await asentar(10);
+    await PC.entrarComo(CEL_MARIA, CLAVE_MARIA);
+    PC.ev("CANAL = 'creditos'; irA('chats')");
+    await asentar(20);
+    assert.equal(PC.ev('SOL && SOL.id'), 41);
+    return PC;
+  }
+
+  test('PlataChat: control: la propuesta sin nada elegido deja Plata y Yo como momento seguro', async () => {
+    const PC = await mariaConPropuesta();
+    PC.ev("irA('plata')");
+    assert.equal(PC.ev('momentoSeguroPC()'), true);
+    PC.ev("irA('yo')");
+    assert.equal(PC.ev('momentoSeguroPC()'), true);
+  });
+
+  test('PlataChat: elige su Nequi (o la mitad de «Otra cuenta») y pasa a Plata o a Yo: no se recarga encima', async () => {
+    const PC = await mariaConPropuesta();
+    PC.ev("elegirDestinoPC('0'); irA('plata')");
+    assert.equal(PC.ev('PANTALLA'), 'plata');
+    assert.equal(PC.ev('momentoSeguroPC()'), false, 'desde Plata la recarga sola se llevaría la cuenta elegida');
+    PC.ev("irA('yo')");
+    assert.equal(PC.ev('momentoSeguroPC()'), false, 'desde Yo, igual');
+    const Q = await mariaConPropuesta();
+    Q.ev("elegirDestinoPC('otra'); medioDestinoPC('banco'); escribirDestinoPC('banco_codigo', '1-7'); irA('plata')");
+    assert.equal(Q.ev('momentoSeguroPC()'), false, 'la otra cuenta a medias se perdería');
+  });
+});
