@@ -1937,7 +1937,7 @@ const ARCHIVOS = [
      ?v= aquí, sin señal la página no lo encontraría. */
   '',                                   // la raíz, o sea la web pública
   'index.html',
-  'portada.png',
+  'portada-2.png',   // 23-oct-2026 — la tarjeta nueva (index.html, og:image); el nombre cambia en los dos lados a la vez
   'legal/privacidad.html',
   'legal/terminos.html',
   'app/socio.html',

@@ -12,7 +12,10 @@ Tres piezas, sin compilar, sin dependencias, sin `npm install`. Se abren y funci
 
 ```
 index.html              La web pública. Es lo que ve un desconocido.
-portada.png             La tarjeta que sale al compartir el enlace por WhatsApp.
+portada-2.png           La tarjeta que sale al compartir el enlace por WhatsApp
+                        (23-oct-2026, la marca de oro). Su fuente es
+                        herramientas/portada-og.svg, renderizada con resvg. La de
+                        antes (portada.png) decía «Solo con invitación» y se borró.
 sw.js                   Un solo service worker para todo el sitio.
 
 legal/
@@ -512,6 +515,10 @@ herramientas/
                         Los PNG de app/ salieron de icono.svg con Chrome sin ventana
                         y una paleta de 256 colores; la palabra está pasada a curvas
                         desde Noto Serif SC (licencia SIL OFL 1.1).
+  portada-og.svg        La fuente de portada-2.png, la tarjeta de WhatsApp (23-oct-2026):
+                        1200×630, la marca de oro y la frase de og:description. Se
+                        renderiza con resvg (el titular en Georgia y la frase en Segoe
+                        UI). Si cambia, el PNG cambia de NOMBRE en index.html y sw.js.
 
 pruebas/
   motor.test.js         546 pruebas del motor de reglas.
