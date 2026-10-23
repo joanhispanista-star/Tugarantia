@@ -47,7 +47,11 @@ const LLAVE = 'tg_app_instalada_v1';
 const UA = {
   chromeAndroid: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36',
   safari: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1',
-  instagram: 'Mozilla/5.0 (Linux; Android 13; SM-A135M Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.6668.81 Mobile Safari/537.36 Instagram 350.0.0.0.0 Android (33/13; 450dpi; 1080x2208; samsung; SM-A135M; a13; exynos850; es_US; 640000000)'
+  instagram: 'Mozilla/5.0 (Linux; Android 13; SM-A135M Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.6668.81 Mobile Safari/537.36 Instagram 350.0.0.0.0 Android (33/13; 450dpi; 1080x2208; samsung; SM-A135M; a13; exynos850; es_US; 640000000)',
+  /* 23-oct-2026 — los computadores: Chrome y Edge ofrecen instalar socio.html
+     desde la barra de direcciones, y su ventana de app también es standalone. */
+  windows: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+  mac: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36'
 };
 function almacen(inicial) {
   const d = Object.assign({}, inicial || {});
@@ -227,31 +231,36 @@ describe('app/socio.html: con la marca, la guía se va', () => {
 /* ==========================================================================
  * 3. LA PORTADA RAÍZ (index.html): ERA FIJA
  * ======================================================================== */
-describe('index.html: la sección de instalar se va con la marca', () => {
-
-  /* Corre los guiones de la portada desde app/instalar.js hasta el final con
-     un DOM mínimo: lo que importa es qué clase le queda a #instalar. */
-  function abrirPortada(local) {
-    const html = leer('index.html');
-    const desde = html.indexOf('<script src="app/instalar.js"></script>');
-    assert.ok(desde > 0, 'index.html no carga app/instalar.js');
-    const elems = {};
-    const clases = () => { const s = new Set(); return { s, add: c => s.add(c), remove: c => s.delete(c), contains: c => s.has(c) }; };
-    const elem = id => (elems[id] = elems[id] || { id, textContent: '', classList: clases() });
-    const D = function (...a) { return a.length ? new Date(...a) : new Date(AHORA); };
-    D.now = () => AHORA; D.parse = Date.parse;
-    const ctx = { document: { getElementById: elem }, localStorage: almacen(local), Date: D, JSON, Math, console };
-    ctx.window = ctx; ctx.globalThis = ctx;
-    vm.createContext(ctx);
-    /* cuenta.js: el lector del user-agent que instalar.js busca al usarlo. */
-    vm.runInContext(leer('app/cuenta.js'), ctx, { filename: 'cuenta.js' });
-    for (const m of html.slice(desde).matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)) {
-      const src = (/\bsrc="([^"]+)"/.exec(m[1]) || [])[1];
-      if (src) vm.runInContext(leer(src.split('?')[0]), ctx, { filename: src });
-      else vm.runInContext(m[2], ctx, { filename: 'index.html' });
-    }
-    return { elem, ctx };
+/* Corre los guiones de la portada desde app/instalar.js hasta el final con
+   un DOM mínimo: lo que importa es qué clase le queda a #instalar. */
+/* 23-oct-2026 — `navegador`: el de un Android con Chrome si no se dice
+   otro. La portada ya no le cree a la marca en un computador (ver la
+   sección 4), así que las pruebas de arriba tienen que decir que son un
+   teléfono. Va fuera del describe porque la sección 4 también la usa. */
+function abrirPortada(local, navegador) {
+  const html = leer('index.html');
+  const desde = html.indexOf('<script src="app/instalar.js"></script>');
+  assert.ok(desde > 0, 'index.html no carga app/instalar.js');
+  const elems = {};
+  const clases = () => { const s = new Set(); return { s, add: c => s.add(c), remove: c => s.delete(c), contains: c => s.has(c) }; };
+  const elem = id => (elems[id] = elems[id] || { id, textContent: '', classList: clases() });
+  const D = function (...a) { return a.length ? new Date(...a) : new Date(AHORA); };
+  D.now = () => AHORA; D.parse = Date.parse;
+  const ctx = { document: { getElementById: elem }, localStorage: almacen(local), Date: D, JSON, Math, console,
+                navigator: Object.assign({ userAgent: UA.chromeAndroid, maxTouchPoints: 5 }, navegador || {}) };
+  ctx.window = ctx; ctx.globalThis = ctx;
+  vm.createContext(ctx);
+  /* cuenta.js: el lector del user-agent que instalar.js busca al usarlo. */
+  vm.runInContext(leer('app/cuenta.js'), ctx, { filename: 'cuenta.js' });
+  for (const m of html.slice(desde).matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)) {
+    const src = (/\bsrc="([^"]+)"/.exec(m[1]) || [])[1];
+    if (src) vm.runInContext(leer(src.split('?')[0]), ctx, { filename: src });
+    else vm.runInContext(m[2], ctx, { filename: 'index.html' });
   }
+  return { elem, ctx };
+}
+
+describe('index.html: la sección de instalar se va con la marca', () => {
 
   test('sin marca, la guía se queda (también en el computador)', () => {
     const P = abrirPortada({});
@@ -290,5 +299,94 @@ describe('index.html: la sección de instalar se va con la marca', () => {
       assert.match(atrs, /guia-instalar/, 'una parte de la guía no va marcada .guia-instalar: con la marca seguiría saliendo (' + atrs + ')');
     }
     assert.ok(!NUNCA.test(plano(s)));
+  });
+});
+
+/* ==========================================================================
+ * 4. EN UN COMPUTADOR NO HAY «ESTE TELÉFONO» — 23-oct-2026
+ *
+ * Hallazgo de la auditoría del 23-oct (lente «instalar»): Chrome y Edge en
+ * Windows o Mac ofrecen instalar app/socio.html desde la barra de
+ * direcciones, y su ventana de app también es display-mode: standalone. La
+ * marca se anotaba igual (anotarSiEsApp y appinstalled no miraban la
+ * plataforma), y la portada —que a propósito no usa decidir(), para que la
+ * guía salga en el computador— pintaba «Ya la abriste desde su ícono en este
+ * teléfono» y escondía la guía del celular en un computador. Falso, y en la
+ * pantalla desde donde muchos la leen.
+ *
+ * Lo que se cuida: la marca solo se escribe en un teléfono (Android, o
+ * iPhone/iPad), y la portada solo le cree en un teléfono.
+ * ======================================================================== */
+describe('en un computador no se anota ni se cree la marca de «este teléfono»', () => {
+
+  const pc = ua => ({ userAgent: ua, maxTouchPoints: 0 });
+
+  test('app/instalar.js: la ventana de app de un computador NO deja la marca', () => {
+    const I = IA();
+    for (const ua of [UA.windows, UA.mac]) {
+      const a = almacen();
+      assert.equal(I.anotarSiEsApp(entorno(ua, { almacen: a, navegador: pc(ua), matchMedia: modo('standalone') })), false,
+        'la ventana de app de un computador se anotó como «este teléfono»');
+      assert.ok(!(LLAVE in a.d), 'quedó la marca en un computador');
+    }
+    /* Un «Macintosh» con pantalla táctil es un iPad pidiendo la de escritorio:
+       ese sí es «este teléfono» para la guía (es la que le sirve). */
+    const ipad = almacen();
+    assert.equal(I.anotarSiEsApp(entorno(UA.mac, { almacen: ipad, navegador: { userAgent: UA.mac, maxTouchPoints: 5, standalone: true } })), true);
+    assert.ok(LLAVE in ipad.d);
+  });
+
+  test('app/instalar.js: anotarInstalada (appinstalled, «Ya la tengo») solo en un teléfono', () => {
+    const I = IA();
+    assert.equal(typeof I.anotarInstalada, 'function', 'falta anotarInstalada: appinstalled no tiene cómo mirar la plataforma');
+    for (const ua of [UA.windows, UA.mac]) {
+      const a = almacen();
+      assert.equal(I.anotarInstalada(entorno(ua, { almacen: a, navegador: pc(ua) }), 'appinstalled'), false);
+      assert.ok(!(LLAVE in a.d), 'appinstalled en un computador dejó la marca');
+    }
+    const b = almacen();
+    assert.equal(I.anotarInstalada(entorno(UA.chromeAndroid, { almacen: b }), 'appinstalled'), true);
+    assert.equal(JSON.parse(b.d[LLAVE]).via, 'appinstalled');
+    const c = almacen();
+    assert.equal(I.anotarInstalada(entorno(UA.safari, { almacen: c }), 'boton'), true);
+    assert.equal(JSON.parse(c.d[LLAVE]).via, 'boton');
+  });
+
+  test('app/instalar.js: recordadaEnTelefono no le cree a una marca en un computador', () => {
+    const I = IA();
+    assert.equal(typeof I.recordadaEnTelefono, 'function', 'falta recordadaEnTelefono: la portada no tiene cómo mirar la plataforma');
+    for (const ua of [UA.windows, UA.mac]) {
+      assert.equal(I.recordadaEnTelefono(entorno(ua, { almacen: almacen({ [LLAVE]: marca(2) }), navegador: pc(ua) })), null,
+        ua + ': la marca valió en un computador');
+    }
+    const r = I.recordadaEnTelefono(entorno(UA.chromeAndroid, { almacen: almacen({ [LLAVE]: marca(2, 'appinstalled') }) }));
+    assert.ok(r && r.via === 'appinstalled', 'en Android la marca fresca tiene que valer');
+    assert.ok(I.recordadaEnTelefono(entorno(UA.safari, { almacen: almacen({ [LLAVE]: marca(2, 'boton') }) })));
+    /* Vencida sigue vencida, también en un teléfono. */
+    assert.equal(I.recordadaEnTelefono(entorno(UA.chromeAndroid, { almacen: almacen({ [LLAVE]: marca(31) }) })), null);
+  });
+
+  test('app/socio.html en la ventana de app de un computador: no deja la marca', async () => {
+    const A = await entrar({ navegador: pc(UA.windows), matchMedia: modo('standalone') });
+    assert.ok(!(LLAVE in A.local.d), 'la ventana de app de Windows dejó la marca de «este teléfono»');
+  });
+
+  test('app/socio.html en la pestaña de un computador: appinstalled no deja la marca', async () => {
+    const A = await entrar({ navegador: pc(UA.windows) });
+    A.disparar('appinstalled', {});
+    assert.ok(!(LLAVE in A.local.d), 'instalarla desde la barra de Chrome en Windows dejó la marca de «este teléfono»');
+  });
+
+  test('index.html en un computador con una marca: la guía se queda y no dice «en este teléfono»', () => {
+    for (const ua of [UA.windows, UA.mac]) {
+      for (const via of ['app', 'appinstalled', 'boton']) {
+        const P = abrirPortada({ [LLAVE]: marca(1, via) }, pc(ua));
+        assert.ok(!P.elem('instalar').classList.contains('recordada'),
+          'en un computador (' + via + ') la portada escondió la guía y dijo «en este teléfono»');
+      }
+    }
+    /* En el iPhone y en el Android, la misma marca sí la cambia por la línea. */
+    assert.ok(abrirPortada({ [LLAVE]: marca(1, 'boton') }, { userAgent: UA.safari, maxTouchPoints: 5 }).elem('instalar').classList.contains('recordada'));
+    assert.ok(abrirPortada({ [LLAVE]: marca(1) }, { userAgent: UA.chromeAndroid }).elem('instalar').classList.contains('recordada'));
   });
 });

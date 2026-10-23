@@ -1619,7 +1619,9 @@ var SS_FALTA = 'No cargó una parte de la app. Cierra y vuelve a abrirla con int
    app, con appinstalled y con «Ya la tengo instalada»; se borra con
    beforeinstallprompt (Chrome solo lo manda si NO está instalada) y caduca a
    los 30 días. Con la marca, la guía se va y queda una línea con «¿La
-   borraste? Ver cómo instalarla». Dentro de la app instalada no sale nunca. */
+   borraste? Ver cómo instalarla». Dentro de la app instalada no sale nunca.
+   Solo se anota en un teléfono: la ventana de app de Chrome en un computador
+   también es standalone, y la línea diría «en este teléfono» (23-oct-2026). */
 var IA = window.InstalarApp || null;
 var INSTALAR = { aviso: null, estado: '', copia: '', ahoraNo: false, verGuia: false };
 var DONDE_INSTALAR = ['entrar', 'espera', 'inicio'];
@@ -1638,10 +1640,14 @@ window.addEventListener('beforeinstallprompt', function (e) {
   try { if (IA && IA.olvidarInstalada) IA.olvidarInstalada(almacenInstalar()); } catch (x) { /* nada */ }
   repintarInstalar();
 });
+/* 23-oct-2026 — appinstalled y «Ya la tengo» anotan con anotarInstalada, que
+   mira la plataforma: instalada desde la barra de Chrome en un computador, la
+   marca diría «en este teléfono» en la portada de ese computador (auditoría
+   del 23-oct, lente «instalar»). */
 window.addEventListener('appinstalled', function () {
   INSTALAR.aviso = null;
   INSTALAR.estado = 'instalada';
-  try { if (IA && IA.recordarInstalada) IA.recordarInstalada(almacenInstalar(), Date.now(), 'appinstalled'); } catch (x) { /* nada */ }
+  try { if (IA && IA.anotarInstalada) IA.anotarInstalada(entornoInstalar(), 'appinstalled'); } catch (x) { /* nada */ }
   repintarInstalar();
 });
 
@@ -1649,7 +1655,7 @@ window.addEventListener('appinstalled', function () {
    iPhone, donde Safari no se entera de la app de Inicio. */
 function yaLaTengo() {
   if (!IA) return;
-  try { IA.recordarInstalada(almacenInstalar(), Date.now(), 'boton'); } catch (x) { /* nada */ }
+  try { IA.anotarInstalada(entornoInstalar(), 'boton'); } catch (x) { /* nada */ }
   INSTALAR.verGuia = false;
   repintarInstalar();
 }

@@ -565,9 +565,10 @@ tbody tr:last-child td{font-weight:700}
        el guion del final lee la marca que deja la app al abrirse como app
        (app/instalar.js, tg_app_instalada_v1, 30 días) y, si está fresca, le pone
        .recordada a la sección: se esconde todo lo marcado .guia-instalar y queda
-       la línea, con «¿La borraste? Ver cómo instalarla». Sin JavaScript, o en el
-       computador sin marca, se ve la guía como siempre: el HTML de aquí es el
-       que vale. Nunca dice «está instalada»: borrarla no avisa a nadie. -->
+       la línea, con «¿La borraste? Ver cómo instalarla». Sin JavaScript, o en un
+       computador (con o sin marca: la línea dice «en este teléfono»), se ve la
+       guía como siempre: el HTML de aquí es el que vale. Nunca dice «está
+       instalada»: borrarla no avisa a nadie. -->
   <section class="banda" id="instalar">
     <div class="wrap pila">
       <div class="angosto pila-s">
@@ -687,17 +688,21 @@ tbody tr:last-child td{font-weight:700}
      app/instalar.js ya está en la precarga de sw.js; si no llega, la guía se
      queda como siempre. No se usa su decidir(): aquí la guía sí sale en el
      computador (es desde donde muchos la leen), y lo único que la quita es la
-     marca. -->
+     marca.
+     23-oct-2026 — la marca solo vale EN UN TELÉFONO (recordadaEnTelefono):
+     en un computador la línea diría «Ya la abriste desde su ícono en este
+     teléfono» y escondería la guía del celular, justo aquí. -->
 <script src="app/instalar.js"></script>
 <script>
 (function () {
   'use strict';
   var IA = window.InstalarApp;
   var seccion = document.getElementById('instalar');
-  if (!IA || !seccion || typeof IA.recordada !== 'function') return;
+  if (!IA || !seccion || typeof IA.recordadaEnTelefono !== 'function') return;
   var alm = null;
   try { alm = window.localStorage; } catch (e) { alm = null; }
-  var marca = IA.recordada(alm, Date.now());
+  var nav = typeof navigator !== 'undefined' ? navigator : {};
+  var marca = IA.recordadaEnTelefono({ navegador: nav, almacen: alm, ahora: Date.now() });
   window.verGuiaInstalar = function () { seccion.classList.remove('recordada'); };
   if (!marca) return;
   var t = document.getElementById('instalarRecordadaTexto');

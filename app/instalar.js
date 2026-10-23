@@ -68,7 +68,10 @@
  * su ícono… ¿La borraste? Ver cómo instalarla». NUNCA dice «está instalada»:
  * la desinstalación no avisa a nadie, y una marca vieja mentiría. Por eso:
  *   · caduca a los 30 días de la última apertura como app;
- *   · beforeinstallprompt la borra: Chrome solo lo manda si NO está instalada.
+ *   · beforeinstallprompt la borra: Chrome solo lo manda si NO está instalada;
+ *   · solo vale EN UN TELÉFONO: en Windows o Mac, Chrome también instala la
+ *     página y abre su ventana como app, y la línea diría «en este teléfono»
+ *     en un computador (ver enTelefono).
  * Que la pestaña de Chrome vea la marca escrita por la app instalada depende de
  * que compartan almacenamiento en el mismo dominio (así lo documenta Chrome
  * para el WebAPK; no está verificado en el teléfono de Joan). Si no lo
@@ -264,12 +267,43 @@
       return true;
     } catch (x) { return false; }
   }
-  /** Al abrir: si la página corre como app, se anota (o se refresca) la marca.
-   *  Es lo que hace que la pestaña de Chrome, después, no la vuelva a ofrecer. */
+  /* 23-oct-2026 — SOLO EN UN TELÉFONO. La marca dice «en este teléfono», y la
+     línea que la pinta también. Pero Chrome y Edge en Windows o Mac ofrecen
+     instalar socio.html desde la barra de direcciones, y su ventana de app
+     también es display-mode: standalone (y también manda appinstalled): la
+     marca se anotaba en el computador, y la portada —que a propósito no usa
+     decidir(), para mostrar la guía en el computador— decía «Ya la abriste
+     desde su ícono en este teléfono» y escondía la guía del celular
+     (auditoría del 23-oct, lente «instalar»). Por eso ni se escribe ni se le
+     cree fuera de un teléfono. Un iPad que pide la de escritorio cuenta como
+     teléfono (leerPlataforma lo lee como iOS): la guía que le sirve es la del
+     iPhone. Sin el lector del user-agent (cuenta.js no llegó) no se sabe, y no
+     se anota: la guía sigue saliendo, que es lo seguro. */
+  function enTelefono(entorno) {
+    var nav = (entorno || {}).navegador || {};
+    var so = leerPlataforma(nav.userAgent, { toques: nav.maxTouchPoints }).so;
+    return so === 'android' || so === 'ios';
+  }
+  /** Al abrir: si la página corre como app EN UN TELÉFONO, se anota (o se
+   *  refresca) la marca. Es lo que hace que la pestaña de Chrome, después, no
+   *  la vuelva a ofrecer. */
   function anotarSiEsApp(entorno) {
     var e = entorno || {};
-    if (!yaInstalada(e)) return false;
+    if (!enTelefono(e) || !yaInstalada(e)) return false;
     return recordarInstalada(e.almacen, e.ahora != null ? Number(e.ahora) : Date.now(), 'app');
+  }
+  /** appinstalled y «Ya la tengo instalada»: la misma marca, solo en un teléfono. */
+  function anotarInstalada(entorno, via) {
+    var e = entorno || {};
+    if (!enTelefono(e)) return false;
+    return recordarInstalada(e.almacen, e.ahora != null ? Number(e.ahora) : Date.now(), via);
+  }
+  /** La marca fresca, si esto es un teléfono; null en un computador. Es la que
+   *  lee la portada (index.html), que no pasa por decidir(). */
+  function recordadaEnTelefono(entorno) {
+    var e = entorno || {};
+    if (!enTelefono(e)) return null;
+    return recordada(e.almacen, e.ahora != null ? Number(e.ahora) : Date.now());
   }
 
   /* ==========================================================================
@@ -493,6 +527,8 @@
     recordarInstalada: recordarInstalada,
     olvidarInstalada: olvidarInstalada,
     anotarSiEsApp: anotarSiEsApp,
+    anotarInstalada: anotarInstalada,
+    recordadaEnTelefono: recordadaEnTelefono,
     textoRecordada: textoRecordada,
     RECORDADA_VER: RECORDADA_VER,
     decidir: decidir,
