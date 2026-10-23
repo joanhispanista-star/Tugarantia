@@ -75,7 +75,17 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         15 min, desde el 23-oct, solo con la cartera AL DÍA con
                         la nube (la misma prueba de los historiales, esperando
                         la comparación): un respaldo viejo no le publica al
-                        gerente un crédito ya pagado. Editar solo impone lo que
+                        gerente un crédito ya pagado. Desde el 22-oct, cliente
+                        por cliente (NubeCRM.libroPorCliente): los clientes con
+                        fichas atrás de la nube (lo que cobró el celular sin
+                        juntar, o en discusión) no viajan y se quedan con lo
+                        último publicado y su fecha, que la fila del asesor dice
+                        si es más vieja que las demás; los demás sí viajan, así
+                        que un pago marcado en el computador llega aunque el
+                        celular haya cobrado a otro. Su SALIR sí viaja (con la
+                        plata vacía, que el servidor conserva), y las cuentas de
+                        quien los lleva no. La línea de Equipo dice quiénes
+                        quedaron fuera y qué hacer. Editar solo impone lo que
                         Joan cambió EN EL CUADRO respecto de lo que el cuadro le
                         mostró (estado, jefe): en lo demás manda la nube, donde
                         el gerente retira y reactiva desde su celular; si la
@@ -90,8 +100,9 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         celular, decidir choques y subir plantillas y configuración
                         (no suben solas). Pruebas: pruebas/todo-sube-solo.test.js,
                         pruebas/todo-sube-solo-revision.test.js,
-                        pruebas/todo-sube-solo-23-oct.test.js y
-                        pruebas/todo-sube-solo-cierre.test.js.
+                        pruebas/todo-sube-solo-23-oct.test.js,
+                        pruebas/todo-sube-solo-cierre.test.js y
+                        pruebas/la-de-15-min-por-cliente.test.js.
   panel.webmanifest
   panel-*.png           La G blanca sobre rojo, para no confundir las dos apps.
 

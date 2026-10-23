@@ -11141,7 +11141,31 @@ function lineaPlataEq(p) {
         ? ' <span style="opacity:.75">en ' + Number(p.creditos) + ' cr\u00e9ditos</span>' : '') : '') +
     (p.fecha_pago ? (total != null ? ' · ' : '') + 'paga el <b>' +
         escHTML(fmtCorto(String(p.fecha_pago).slice(0, 10))) + '</b>' : '') +
+    diaDeLaCifraEq(p) +
     '</div>';
+}
+/* 22-oct-2026 — LA FECHA DE UNA FILA QUE NO ES LA DEL RESTO. Desde hoy la
+   publicación sola de Joan sale cliente por cliente: el que tiene fichas que
+   el computador de Joan no ha juntado (un abono que cobró desde el celular)
+   no se publica, y su fila se queda con lo último que se publicó. El aviso de
+   arriba (avisoAlDiaDeEq) dice el día de la cifra MÁS NUEVA, así que diría
+   «de hoy» encima de una fila de hace tres días. Aquí la fila lo dice ella
+   misma, con qué hacer, cuando su día es anterior al del aviso. Mismo día no:
+   el aviso solo afirma el día. */
+var _diaMasNuevoEq = { de: null, dia: '' };   // por lista: la del gerente pasa de 600 filas
+function diaDeLaCifraEq(p) {
+  const dia = t => { const d = new Date(t); return isNaN(d.getTime()) ? '' : isoLocal(d); };
+  const suyo = p && p.al_dia_de ? dia(p.al_dia_de) : '';
+  if (!suyo) return '';
+  const g = genteEquipo() || [];
+  if (_diaMasNuevoEq.de !== g) {
+    let m = '';
+    g.forEach(x => { if (x.tipo === 'cliente' && x.al_dia_de) { const d = dia(x.al_dia_de); if (d > m) m = d; } });
+    _diaMasNuevoEq = { de: g, dia: m };
+  }
+  const mas = _diaMasNuevoEq.dia;
+  if (!mas || suyo >= mas) return '';
+  return ' · <span style="color:var(--ambar)">⚠ cifra del <b>' + escHTML(fmtCorto(suyo)) + '</b>, más vieja que las demás: confirma antes de cobrar</span>';
 }
 
 /* ¿DE CUÁNDO ES ESA CIFRA? No es un adorno: el monto NO está guardado en
@@ -14485,8 +14509,31 @@ function publicarEquipoAhora(gente, asig, ps, op) {
      cuenta, la suma de la pantalla y la que Joan paga podrían separarse — y
      eso ya pasó doce veces en este proyecto. */
   const movsCom = hayComisiones() ? movimientosDeComision() : null;
+  /* 22-oct-2026 — CON CLIENTES ATRÁS DE LA NUBE (op.atras, la publicación sola
+     que sale sin algunos: ver LA DE 15 MIN, CLIENTE POR CLIENTE), las cuentas
+     de quien los lleva tampoco viajan. Se calculan con los pagos de ESTE
+     computador, y a esos clientes les falta lo que cobró el celular (o, con
+     un respaldo viejo importado, semanas de pagos): saldrían de menos y con
+     la fecha de hoy. «Quien los lleva»: una asignación (la lista solo suma,
+     así que cuenta la de antes) o un movimiento de comisión con ese cliente.
+     Esas personas no viajan, salvo que Joan les haya cambiado algo que aún
+     no sube (una marca: un retiro tiene que llegar ya), y entonces viajan sin
+     cuentas. No viajar es a propósito: el servidor le pone la fecha de hoy a
+     toda fila que llega, y «Cuentas al <hoy>» con las cifras de ayer sería
+     otra mentira; sin la fila, el asesor ve las de la última publicación
+     entera con SU fecha. Su nombre, rol y jefe ya están arriba: los publica
+     el acto de Joan que los cambió. */
+  const atras = (op && op.atras) || {};
+  const sinCuentas = {};
+  if (Object.keys(atras).length) {
+    asignaciones().forEach(x => { if (atras[String(x.socio_id)]) sinCuentas[String(x.asesor_id)] = true; });
+    (movsCom || []).forEach(m => { if (m && atras[String(m.socio_id)]) sinCuentas[String(m.asesor_id)] = true; });
+  }
+  const marcasAhora = leerEquipoPorPublicar();
+  const sinSusCuentas = p => !!(sinCuentas[String(p.id)] || sinCuentas[String(p.celular)]);
+  const genteQueViaja = gente.filter(p => !sinSusCuentas(p) || marcasAhora[String(p.id)]);
   const plataDeAsesor = p => {
-    if (!movsCom) return {};
+    if (!movsCom || sinSusCuentas(p)) return {};
     const c = COMIS.saldoDeAsesor(movsCom, p.id, hoyISO());
     return { com_libre: String(c.libre), com_bloqueado: String(c.bloqueado),
              com_castigos: String(c.castigos), com_deuda: String(c.deuda),
@@ -14498,7 +14545,7 @@ function publicarEquipoAhora(gente, asig, ps, op) {
      cambio que entre mientras esto va en el aire conserva la suya. */
   const marcas = leerEquipoPorPublicar();
   return rpc('equipo_publicar', { p_clave: sbCfg().clave,
-      p_equipo: gente.map(p => Object.assign(filaDeEquipo(p), plataDeAsesor(p))),
+      p_equipo: genteQueViaja.map(p => Object.assign(filaDeEquipo(p), plataDeAsesor(p))),
       p_asignaciones: asig, p_gente: ps })
     .then(r => {
       soltarEquipoPublicado(marcas);
@@ -14585,6 +14632,32 @@ function anotarPublicadoSolo(x) {
  * común dicen por qué y qué hacer. Lo que publica un acto de Joan
  * (op.porCambio: repartir, crear, editar, retirar) NO espera: un retiro
  * tiene que llegar ya, aunque la cartera esté atrás.
+ *
+ * 22-oct-2026 — LA DE 15 MIN, CLIENTE POR CLIENTE. La puerta de arriba era
+ * de todo o nada, y eso rompió el uso de todos los días: Joan cobra un abono
+ * de C1 desde el celular (queda en la nube; este computador no baja nada
+ * hasta que junte en ☁ Subir) y en la tarde marca ACÁ que C0 pagó todo. La
+ * nube ya tenía a C0 pagado, pero la vuelta de 15 min veía «la nube tiene 1
+ * ficha más nueva» (la de C1) y no publicaba NADA: el asesor le seguía
+ * cobrando a C0 un crédito pagado, con «los montos son de hoy» encima. Igual
+ * con UNA ficha en discusión, y con un SALIR que Joan marcaba acá. En main
+ * ese pago llegaba en la vuelta siguiente.
+ * Ahora la pregunta es NubeCRM.libroPorCliente (libroAlDiaEsperando con
+ * {porCliente}): cuando lo que falta son fichas concretas, dice de qué
+ * clientes son, y se publica a todos los demás. Los de esas fichas NO viajan:
+ * equipo_publicar solo hace upsert, así que su fila se queda con lo último
+ * que se publicó y con su fecha (al_dia_de), que la pantalla del asesor ahora
+ * dice en la fila cuando no es la del resto (lineaPlataEq). Lo único suyo que
+ * sí viaja es un SALIR que Joan marcó acá, con la plata vacía (el servidor
+ * conserva la última). Las cuentas de
+ * quien los lleva tampoco viajan (publicarEquipoAhora, op.atras). Con alguno
+ * fuera la huella no se anota, para que la vuelta siguiente los vuelva a
+ * mirar (Joan pudo juntar sin que cambiara nada de lo que viaja), y la línea
+ * de Equipo y la ☁ común dicen quiénes quedaron sin refrescar y qué hacer.
+ * Sigue sin publicar NADA cuando no se sabe de quién es lo que falta (un
+ * ajuste en discusión le cambia la cuenta a todos; o un nube-crm.js viejo que
+ * no lo dice) o cuando lo que falta es de todos los clientes que viajan y
+ * ninguno pidió SALIR: publicar sin ninguno no refresca nada de la cartera.
  * ------------------------------------------------------------------------ */
 var _libroEquipo = null;      // la última respuesta que frenó la de 15 min
 /* Con tope: mientras se espera, _publicandoSolo deja en cola lo que publica un
@@ -14599,7 +14672,10 @@ function esperarCarteraAlDia() {
       let ya = false, reloj = null;
       const fin = r => { if (ya) return; ya = true; try { clearTimeout(reloj); } catch (e) { /* nada */ } listo(r); };
       reloj = setTimeout(() => fin({ ok: false, motivo: 'sin-comparar', detalle: 'la nube no contestó en ' + Math.round(TOPE_CARTERA_AL_DIA_MS / 1000) + ' s' }), TOPE_CARTERA_AL_DIA_MS);
-      let pr; try { pr = NubeCRM.libroAlDiaEsperando(); } catch (e) { pr = Promise.reject(e); }
+      /* 22-oct-2026 — {porCliente}: ver LA DE 15 MIN, CLIENTE POR CLIENTE. Un
+         nube-crm.js viejo no lo entiende y contesta de todo o nada, sin
+         `clientes`: entonces no se publica nada, como antes. */
+      let pr; try { pr = NubeCRM.libroAlDiaEsperando({ porCliente: true }); } catch (e) { pr = Promise.reject(e); }
       Promise.resolve(pr)
         .then(r => fin((r && typeof r === 'object') ? r : { ok: false, motivo: 'error' }), () => fin({ ok: false, motivo: 'error' }));
     });
@@ -14610,8 +14686,14 @@ function fraseLibroEquipo(lib) {
   const l = lib || {}, n = Number(l.fichas) || 1, k = Number(l.congeladas) || 1;
   const subir = '<a href="subir.html" target="_blank" rel="noopener">☁ Subir</a>';
   switch (l.motivo) {
+    /* 22-oct-2026 — decía «publicarla así le daría a tu gerente montos viejos
+       con la fecha de hoy», y lo que el gerente tiene sin publicar es más viejo
+       todavía. Lo cierto es otra cosa: la cuenta de ESTE computador para esos
+       clientes no tiene lo de la nube, y publicarla le pone fecha de hoy a una
+       cifra equivocada. Desde hoy esto sale solo cuando son todos los clientes
+       que viajan (los demás se publican: LA DE 15 MIN, CLIENTE POR CLIENTE). */
     case 'nube-mas-nueva': return 'la nube tiene ' + (n === 1 ? '1 ficha más nueva' : n + ' fichas más nuevas') +
-      ' que esta cartera (lo que cobraste desde el celular, o lo que un respaldo viejo no alcanzó a tener), y publicarla así le daría a tu gerente montos viejos con la fecha de hoy. ' +
+      ' que esta cartera (lo que cobraste desde el celular, o lo que un respaldo viejo no alcanzó a tener). La cuenta que este computador tiene de esos clientes no lo incluye, y publicarla le pondría la fecha de hoy a una cifra equivocada. ' +
       'Júntalas con lo tuyo en ' + subir + ' (paso 6, «Aplicar») y se publica sola';
     case 'en-discusion': return (k === 1 ? 'hay 1 ficha' : 'hay ' + k + ' fichas') + ' de tu cartera en discusión con la nube (pasa, por ejemplo, al importar un respaldo viejo), y publicar ahora podría ponerle a tu gerente a cobrar un crédito que ya está pagado. ' +
       'Decide en ' + subir + ' (paso 7) y se publica sola';
@@ -14620,6 +14702,57 @@ function fraseLibroEquipo(lib) {
     case 'sin-modulo': return 'no cargó la subida de la cartera (nube-crm.js), que es la que comprueba que esta es tu cartera de hoy: recarga esta pestaña con señal (Ctrl+Shift+R)';
     default: return 'todavía no pude comprobar que esta es tu cartera de hoy (' + escHTML(l.motivo || 'sin respuesta') + '); la línea ☁ de tu cartera, en Ajustes → Avanzado, dice qué falta';
   }
+}
+/* 22-oct-2026 — QUIÉNES SE QUEDAN FUERA (ver LA DE 15 MIN, CLIENTE POR
+   CLIENTE). Con la respuesta de libroPorCliente y lo que viajaría (ps):
+   {fuera: {C1: 'nube-mas-nueva'}, atras: {C1: true, C7: true}}, o null si
+   no se publica a nadie. `fuera` son los clientes que NO viajan; `atras`,
+   todos los que tienen fichas atrás, repartidos o no: sus movimientos de
+   comisión cuentan igual para quien se los vendió. null cuando no se sabe de
+   quién es lo que falta (sinCliente, o un nube-crm.js viejo sin `clientes`)
+   y cuando son todos los clientes que viajan (y ninguno pidió SALIR):
+   entonces no se refresca nada de la cartera, y decir «publicado» sería
+   mentir. */
+function clientesQueEsperan(lib, ps) {
+  const l = lib || {};
+  if (l.ok) return { fuera: {}, atras: {} };
+  if (l.motivo !== 'nube-mas-nueva' && l.motivo !== 'en-discusion') return null;
+  if (!l.clientes || typeof l.clientes !== 'object' || Number(l.sinCliente) > 0) return null;
+  const atras = {}, fuera = {};
+  Object.keys(l.clientes).forEach(id => { atras[String(id)] = true; });
+  if (!Object.keys(atras).length) return null;
+  let quedan = 0, salir = 0;
+  (ps || []).forEach(x => {
+    if (x.tipo !== 'cliente') return;
+    const c = l.clientes[String(x.id)];
+    if (!c) { quedan++; return; }
+    fuera[String(x.id)] = c.enDiscusion ? 'en-discusion' : 'nube-mas-nueva';
+    if (x.no_sms === 'true') salir++;
+  });
+  /* Todos atrás: no se refresca nada de la cartera. Salvo un SALIR, que sí
+     viaja (ver publicarEquipoSolo): por él sí vale la pena publicar. */
+  if (Object.keys(fuera).length && !quedan && !salir) return null;
+  return { fuera: fuera, atras: atras };
+}
+/* 22-oct-2026 — los que la última publicación dejó fuera ([{id, por}], de
+   tg_equipo_publicado_solo), en palabras de Joan: quiénes y qué hacer con
+   cada grupo. Los nombres se buscan al pintar (no se guardan): si Joan le
+   corrige el nombre a alguien, la línea dice el de ahora. */
+function fraseClientesFuera(fuera) {
+  const fl = Array.isArray(fuera) ? fuera : [];
+  const subir = '<a href="subir.html" target="_blank" rel="noopener">☁ Subir</a>';
+  const nombre = id => { const s = (DB.socios || []).find(x => String(x.id) === String(id)); return escHTML(s && s.nombre ? s.nombre : String(id)); };
+  const nombres = ids => ids.slice(0, 5).map(nombre).join(', ') + (ids.length > 5 ? ' y ' + (ids.length - 5) + ' más' : '');
+  const mas = fl.filter(f => f && f.por !== 'en-discusion').map(f => f.id);
+  const dis = fl.filter(f => f && f.por === 'en-discusion').map(f => f.id);
+  const grupos = [];
+  if (mas.length) grupos.push('<b>' + nombres(mas) + '</b>: la nube tiene ' + (mas.length === 1 ? 'de ese cliente' : 'de ellos') +
+    ' algo más nuevo que esta cartera (lo que cobraste desde el celular, o lo que un respaldo viejo no alcanzó a tener). Júntalo con lo tuyo en ' + subir + ' (paso 6, «Aplicar»)');
+  if (dis.length) grupos.push('<b>' + nombres(dis) + '</b>: ' + (dis.length === 1 ? 'tiene una ficha' : 'tienen fichas') +
+    ' en discusión con la nube (pasa, por ejemplo, al importar un respaldo viejo). Decide en ' + subir + ' (paso 7)');
+  const sal = fl.filter(f => f && f.salir).map(f => f.id);
+  if (sal.length) grupos.push('A <b>' + nombres(sal) + '</b> sí le publiqué el SALIR (tu equipo ya no le puede mandar mensajes); su cifra no');
+  return grupos.join('. ');
 }
 /* --------------------------------------------------------------------------
  * 22-oct-2026 — LO QUE JOAN CAMBIÓ Y TODAVÍA NO SUBIÓ, GANA AL TRAER.
@@ -14746,7 +14879,24 @@ function publicarEquipoSolo(op) {
      al día con la nube; un cambio de Joan no (LA DE 15 MIN ESPERA, arriba). */
   return (o.porCambio ? Promise.resolve({ ok: true }) : esperarCarteraAlDia())
     .then(lib => {
-      if (!lib.ok) { _libroEquipo = Object.assign({}, lib, { cuando: new Date().toISOString() }); return 'cartera_no_al_dia'; }
+      /* 22-oct-2026 — cliente por cliente: si lo que falta son fichas de
+         unos clientes, esos no viajan y los demás sí (LA DE 15 MIN, CLIENTE
+         POR CLIENTE). null: no se publica a nadie, como antes. */
+      const deFuera = clientesQueEsperan(lib, a.ps);
+      if (!deFuera) { _libroEquipo = Object.assign({}, lib, { cuando: new Date().toISOString() }); return 'cartera_no_al_dia'; }
+      const fuera = deFuera.fuera, nFuera = Object.keys(fuera).length, nAtras = Object.keys(deFuera.atras).length;
+      /* El SALIR es lo único de un cliente de fuera que sí viaja: es
+         obligatorio (quien respondió SALIR no puede volver a recibir) y nunca
+         es peligroso mandarlo de más. Va con la plata vacía, que el servidor
+         lee como «no lo sé» y conserva la última (coalesce): la cifra de este
+         computador para ese cliente es justo la que está atrás. */
+      const salir = {};
+      const ps = nFuera ? a.ps.map(x => {
+        if (x.tipo !== 'cliente' || !fuera[String(x.id)]) return x;
+        if (x.no_sms !== 'true') return null;
+        salir[String(x.id)] = true;
+        return Object.assign({}, x, { saldo: '', saldo_total: '', fecha_pago: '', creditos: '' });
+      }).filter(Boolean) : a.ps;
       /* Mientras se comparaba pudo cambiar lo que miran las puertas (otra
          pestaña escribió la cartera, Joan abrió un cuadro): se miran otra vez. */
       let otraPuerta = '';
@@ -14754,11 +14904,18 @@ function publicarEquipoSolo(op) {
       if (otraPuerta) return otraPuerta;
       return traerEquipo('auto')
         .then(() => traerGestiones('auto'))
-        .then(() => publicarEquipoAhora(equipo().filter(p => p.celular), a.asig, a.ps, { auto: true }))
+        .then(() => publicarEquipoAhora(equipo().filter(p => p.celular), a.asig, ps, { auto: true, atras: deFuera.atras }))
         .then(() => {
           _fallosEquipo = 0; _opEquipoFallo = null; cancelarReintentoEquipo();
-          anotarPublicadoSolo({ ok: true, huella: huella, dia: hoyISO(), cuando: new Date().toISOString() });
-          return 'publicado';
+          /* 22-oct-2026 — con algo atrás la huella NO se anota: si Joan junta
+             y lo que viaja no cambia (decidió «lo mío» en una discusión), con
+             la huella anotada la vuelta diría «sin cambios» y esos clientes
+             no se refrescarían hasta mañana. */
+          anotarPublicadoSolo(nAtras
+            ? { ok: true, huella: '', dia: hoyISO(), cuando: new Date().toISOString(),
+                fuera: Object.keys(fuera).map(id => salir[id] ? { id: id, por: fuera[id], salir: true } : { id: id, por: fuera[id] }) }
+            : { ok: true, huella: huella, dia: hoyISO(), cuando: new Date().toISOString() });
+          return nFuera ? 'publicado_en_parte' : 'publicado';
         })
         .catch(e => {
           /* LA REGLA QUE SE QUEDA (15-oct): si no se pudo traer lo del equipo, no
@@ -14816,6 +14973,10 @@ function fraseTrasPublicar(r) {
     case 'cartera_ajena': return 'Tu equipo todavía no lo ve: otra pestaña cambió tu cartera. Recarga esta (Ctrl+Shift+R) y se publica sola.';
     /* 23-oct-2026 — solo la de 15 min (o su reintento) llega aquí: un cambio de Joan no espera. */
     case 'cartera_no_al_dia': return 'Tu equipo todavía no lo ve: ' + fraseLibroEquipo(_libroEquipo).replace(/<[^>]+>/g, '') + '.';
+    /* 22-oct-2026 — hoy solo la vuelta de 15 min sale sin algunos; si algún
+       día la llama un cambio de Joan, la frase no dice «ya lo ven» de todos. */
+    case 'publicado_en_parte': return 'Se lo publiqué a tu equipo, menos ' + ((x.fuera || []).length === 1 ? '1 cliente' : (x.fuera || []).length + ' clientes') + ': ' +
+      fraseClientesFuera(x.fuera).replace(/<[^>]+>/g, '') + '.';
     case 'no_se_pudo_armar': return 'Tu equipo todavía no lo ve: ' + (armarPublicacionEquipo().error || 'no pude armar lo que viaja.');
     default: return '';
   }
@@ -14861,6 +15022,15 @@ function pintarPublicadoSolo(puerta) {
         '. No publiqué encima, para no borrar lo que hizo tu gerente. ' +
         (x.espera ? 'Pruebo otra vez sola en ' + Math.max(1, Math.round(Number(x.espera) / 60000)) + ' min' : 'Pruebo otra vez sola') +
         '; si sigue, revisa el internet y la conexión de Ajustes. <a href="#" onclick="reintentarEquipoYa();return false">Reintentar ya</a></div>';
+    } else if (x && x.ok && Array.isArray(x.fuera) && x.fuera.length) {
+      /* 22-oct-2026 — salió sin algunos clientes (LA DE 15 MIN, CLIENTE POR
+         CLIENTE). Ámbar y con nombres: «Última: …» en calma afirmaría que el
+         gerente ve a todos al día. */
+      const n = x.fuera.length;
+      b.innerHTML = '<div class="alerta warn"><b>Tu equipo ve la cartera publicada el ' + escHTML(cuando) + ', menos ' +
+        (n === 1 ? '1 cliente' : n + ' clientes') + '</b>. ' + fraseClientesFuera(x.fuera) + '. ' +
+        'De ' + (n === 1 ? 'ese cliente' : 'ellos') + ' tu equipo sigue viendo lo último que se publicó, con su fecha; en cuanto lo resuelvas, se publica solo. ' +
+        '<a href="#" onclick="reintentarEquipoYa();return false">Comprobar ya</a></div>';
     } else if (x && x.ok) {
       b.innerHTML = '<div class="muted" style="font-size:12.5px">☁ La cartera de tu equipo se publica sola: al repartir, al crear o editar a alguien, y cada 15 min mientras este CRM está abierto. Última: <b>' + escHTML(cuando) + '</b>.</div>';
     } else {
@@ -17854,6 +18024,15 @@ function piezaNubeEquipo(ahoraMs){
     l2:'Este computador todavía no está emparejado con la nube (mira la línea de tu cartera en Ajustes → Avanzado). Lo que repartes sí se publica en el momento.'};
   if(puerta==='cartera_ajena') return {quien:'equipo',nombre:'👥 Tu equipo',normal:false,clase:'ojo',
     l1:'otra pestaña cambió tu cartera',l2:'Recarga esta (Ctrl+Shift+R) y la cartera de tu equipo se publica sola.'};
+  /* 22-oct-2026 — la última salió sin algunos clientes (LA DE 15 MIN, CLIENTE
+     POR CLIENTE): no es «Todo sube solo» mientras el gerente vea a alguien
+     sin refrescar. El clic comprueba otra vez. */
+  if(x&&x.ok&&Array.isArray(x.fuera)&&x.fuera.length){
+    const n=x.fuera.length;
+    return {quien:'equipo',nombre:'👥 Tu equipo',normal:false,clase:'ojo',
+      l1:(n===1?'1 cliente de tu equipo no se refresca':n+' clientes de tu equipo no se refrescan'),
+      l2:fraseClientesFuera(x.fuera)+' · de '+(n===1?'ese cliente':'ellos')+' tu equipo ve lo publicado antes, con su fecha; el resto se publicó '+escHTML(haceRatoNube(x.cuando,ahoraMs))+' · clic para comprobar ya'};
+  }
   return {quien:'equipo',nombre:'👥 Tu equipo',normal:true,clase:'calma',cuando:x&&x.ok?x.cuando:null,
     corto:x&&x.ok?'equipo publicado '+haceRatoNube(x.cuando,ahoraMs):'equipo: se publica al repartir y cada 15 min'};
 }

@@ -604,7 +604,21 @@
    * cartera». Vivas allá y no acá, NO son «más nuevas que esta cartera»: son
    * de otro libro. Contarlas dejaba los historiales esperando para siempre y
    * mandando a juntar con la cartera de verdad los clientes de la de prueba.
+   *
+   * 22-oct-2026 — y cada una dice de QUÉ CLIENTES es (`socios`): el de acá y
+   * el de allá, que en un crédito pueden no coincidir. La publicación sola
+   * del equipo (libroPorCliente, abajo) deja fuera solo a esos; sin esto, una
+   * ficha atrás frenaba la cartera entera. Se anota AQUÍ porque es el único
+   * sitio que tiene a la vez la ficha de la nube: la de un crédito que solo
+   * está allá no dice de quién es en ninguna otra parte.
    */
+  function sociosDeFicha(t, id, loc, datos) {
+    var out = [];
+    function sumar(v) { var s = texto(v); if (s && out.indexOf(s) < 0) out.push(s); }
+    if (t === 'socios') sumar(id);
+    else { sumar(loc && loc.socioId); sumar(objeto(datos).socioId); }
+    return out;
+  }
   function loQueLaNubeTieneDeMas(db, esp, paquete, otra) {
     var d = objeto(db), p = objeto(paquete), deOtra = objeto(otra), out = [];
     TABLAS.forEach(function (t) {
@@ -613,12 +627,13 @@
       lista(p[t]).forEach(function (f) {
         if (!f || f.id == null) return;
         var id = String(f.id), loc = locales[id], e = entrada(esp, t, id);
+        var ficha = function (por) { return { tabla: t, id: id, por: por, socios: sociosDeFicha(t, id, loc, f.datos) }; };
         /* El espejo ya conoce esta revisión (o una posterior): lo que haya acá
            es eso más lo que Joan hizo después. Nada nuevo allá. */
         if (e && num(f.revision) <= num(e.revision)) return;
-        if (f.borrado === true) { if (loc) out.push({ tabla: t, id: id, por: 'borrada-alla' }); return; }
-        if (!loc) { if (!deOtra[t + '|' + id]) out.push({ tabla: t, id: id, por: 'solo-alla' }); return; }
-        if (!nadaQueSumar(N.sinFotos(loc), f.datos)) out.push({ tabla: t, id: id, por: 'mas-nueva-alla' });
+        if (f.borrado === true) { if (loc) out.push(ficha('borrada-alla')); return; }
+        if (!loc) { if (!deOtra[t + '|' + id]) out.push(ficha('solo-alla')); return; }
+        if (!nadaQueSumar(N.sinFotos(loc), f.datos)) out.push(ficha('mas-nueva-alla'));
       });
     });
     return out;
@@ -1681,6 +1696,8 @@
    * Se calcula en el acto, del disco: lo pintado puede ser de hace 30 s.
    * 23-oct-2026 — la publicación sola del equipo hace la misma pregunta, pero
    * esperando la respuesta (libroAlDiaEsperando, abajo).
+   * 22-oct-2026 — y cliente por cliente (libroPorCliente, abajo): con esta,
+   * de todo o nada, una ficha que tocó el celular frenaba la cartera entera.
    */
   function libroAlDia() {
     if (_apagado) return { ok: false, motivo: 'apagado' };
@@ -1712,8 +1729,11 @@
   }
   /* 23-oct-2026 — lo que salió de comparar, con la firma del espejo contra el
      que se comparó. */
+  /* 22-oct-2026 — con la lista misma (`lista`), no solo cuántas: la
+     publicación del equipo necesita saber de qué clientes son. */
   function anotarAlDia(masAlla) {
-    _alDia = { cuando: ahora(), fichas: lista(masAlla).length, firmaEsp: firmaDe(leerTexto(LLAVE_ESPEJO)) };
+    _alDia = { cuando: ahora(), fichas: lista(masAlla).length, lista: lista(masAlla).slice(),
+               firmaEsp: firmaDe(leerTexto(LLAVE_ESPEJO)) };
     _fallosAlDia = 0; _alDiaEsperaHasta = 0; _alDiaFallo = null;
   }
   /* 23-oct-2026 — LA TRAÍDA APARTE de libroAlDia, para el computador que ya
@@ -1760,17 +1780,86 @@
    * comparación, o la subida que no la deja salir— y se pregunta otra vez.
    * Con tope: si a la cuarta sigue sin respuesta, se devuelve lo que hay
    * ('comparando'), que para quien pregunta es NO.
+   *
+   * 22-oct-2026 — `op.porCliente`: la pregunta de libroPorCliente (abajo),
+   * que es la que hace la publicación del equipo. Sin `op`, la de siempre.
    */
-  function libroAlDiaEsperando() {
-    var vez = 0;
+  function libroAlDiaEsperando(op) {
+    var vez = 0, preguntar = (op && op.porCliente) ? libroPorCliente : libroAlDia;
     function mirar() {
-      var r = libroAlDia();
+      var r = preguntar();
       if (r.motivo !== 'comparando' || vez++ >= 4) return Promise.resolve(r);
       var enCamino = _promComparar || (_enVuelta ? _promVuelta : null);
       if (!enCamino) return Promise.resolve(r);
       return Promise.resolve(enCamino).then(mirar, mirar);
     }
     try { return mirar(); } catch (e) { return Promise.resolve({ ok: false, motivo: 'error' }); }
+  }
+
+  /**
+   * 22-oct-2026 — LA MISMA PREGUNTA, CLIENTE POR CLIENTE. La de la
+   * publicación sola del equipo (crm.html, cada 15 min).
+   *
+   * Con libroAlDia esa publicación era de todo o nada, y así no servía: UNA
+   * ficha que el celular tocó (un abono de C1 que este computador no ha
+   * juntado) la frenaba entera, y el pago de C0 que Joan acababa de marcar
+   * ACÁ no le llegaba al asesor, que le seguía cobrando a C0 un crédito
+   * pagado con «los montos son de hoy» encima. Lo mismo con una sola ficha en
+   * discusión, y con el SALIR que Joan marcaba acá. Pasaba cada vez que Joan
+   * cobraba desde el celular, sin ningún respaldo de por medio.
+   *
+   * Contesta lo mismo que libroAlDia, salvo cuando lo que falta son fichas
+   * concretas (más nuevas allá, o en discusión): entonces dice además de QUÉ
+   * clientes son ({C1: {masNueva: true}}, {C2: {enDiscusion: true}}), para que
+   * crm.html publique a los demás y deje a esos con lo último que se publicó.
+   * Dos diferencias con libroAlDia, las dos hacia el lado seguro:
+   *   · la comparación vale 5 min TAMBIÉN cuando encontró algo. Para
+   *     libroAlDia un «la nube tiene más» de hace 14 min era un NO y daba igual
+   *     que fuera viejo; aquí es el permiso para publicar a los demás, y un
+   *     abono que el celular cobró después de esa comparación tiene que verse.
+   *     Si el espejo se movió desde entonces, también se compara otra vez.
+   *   · las congeladas no cortan la pregunta: se compara igual, para saber de
+   *     quién es lo demás.
+   * Una ficha que no se puede atar a un cliente (un ajuste en discusión, que
+   * le cambia la cuenta a todos) no se adivina: va en `sinCliente`, y
+   * crm.html no publica nada, como antes.
+   */
+  function libroPorCliente() {
+    if (_apagado || !_configurado || _emparejando) return libroAlDia();
+    var d;
+    try { d = diagnostico(); } catch (e) { return { ok: false, motivo: 'error' }; }
+    if (d.fase !== 'lista') return libroAlDia();
+    var a = _alDia, edad = a ? ahora() - a.cuando : Infinity;
+    var vale = !!a && edad < VIGENCIA_AL_DIA_MS && (!a.fichas || a.firmaEsp === firmaDe(leerTexto(LLAVE_ESPEJO)));
+    if (!vale) {
+      if (_alDiaFallo && _alDiaEsperaHasta && ahora() < _alDiaEsperaHasta) {
+        return { ok: false, motivo: 'sin-comparar', espera: num(_alDiaFallo.espera), detalle: texto(_alDiaFallo.motivo) };
+      }
+      compararConNube();
+      return { ok: false, motivo: 'comparando' };
+    }
+    var cong = congeladasDe(d.est), nCong = Object.keys(cong).length, masAlla = lista(a.lista);
+    if (!masAlla.length && !nCong) return { ok: true, motivo: 'al-dia' };
+    var db = objeto(d.cartera.db), clientes = {}, sinCliente = 0, comparadas = {};
+    masAlla.forEach(function (x) { comparadas[texto(x.tabla) + '|' + texto(x.id)] = x; });
+    function atar(t, id, que) {
+      var loc = null;
+      if (CAMPO_DB[t] && t !== 'socios') {
+        lista(db[CAMPO_DB[t]]).some(function (f) { if (f && texto(f.id) === id) { loc = f; return true; } return false; });
+      }
+      /* Lo de acá y lo que la comparación vio allá: en la duda, los dos. */
+      var ids = CAMPO_DB[t] ? sociosDeFicha(t, id, loc, null) : [];
+      lista(objeto(comparadas[t + '|' + id]).socios).forEach(function (s) { if (ids.indexOf(texto(s)) < 0) ids.push(texto(s)); });
+      if (!ids.length) { sinCliente++; return; }
+      ids.forEach(function (s) { (clientes[s] = clientes[s] || {})[que] = true; });
+    }
+    masAlla.forEach(function (x) { atar(texto(x.tabla), texto(x.id), 'masNueva'); });
+    Object.keys(cong).forEach(function (k) { var c = objeto(cong[k]); atar(texto(c.tabla), texto(c.id), 'enDiscusion'); });
+    var r = { ok: false, motivo: nCong ? 'en-discusion' : 'nube-mas-nueva', clientes: clientes };
+    if (masAlla.length) r.fichas = masAlla.length;
+    if (nCong) r.congeladas = nCong;
+    if (sinCliente) r.sinCliente = sinCliente;
+    return r;
   }
 
   /* =========================================================================
@@ -1872,6 +1961,7 @@
     apagar: apagar,
     libroAlDia: libroAlDia,
     libroAlDiaEsperando: libroAlDiaEsperando,
+    libroPorCliente: libroPorCliente,
     /* Las piezas puras, para pruebas/nube-crm.test.js. No las llama crm.html. */
     _puro: {
       CLAVES_QUE_SUBEN: CLAVES_QUE_SUBEN, LLAVE_ESPEJO: LLAVE_ESPEJO, LLAVE_SELLO: LLAVE_SELLO,
