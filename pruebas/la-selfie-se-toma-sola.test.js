@@ -20,7 +20,9 @@
  *   salía del lienzo no decía nada (T4).
  * Lo de los ojos (dibujarlos donde el detector los vio) y la frontera nueva
  * se vigilan en pruebas/selfie-automatica.test.js.
- * Todas FALLAN con ab6b595.
+ * Las que prueban lo nuevo FALLAN con ab6b595; las de control (las que dicen
+ * «sigue», «como siempre», «como antes» o «no … nada») pasan con las dos, y
+ * están para que el arreglo no rompa lo que ya andaba.
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');

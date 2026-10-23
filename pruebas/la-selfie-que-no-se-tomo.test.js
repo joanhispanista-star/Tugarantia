@@ -24,7 +24,9 @@
  *   T5. la pantalla final nombra lo que NO llegó, y la cuenta lo recuerda;
  *   B1. lo que la base dice que no guardó (`rechazadas`) no se reintenta a
  *       ciegas y se dice.
- * Todas FALLAN con la página de ab6b595 (y con la publicada, 8323fc0).
+ * Las que prueban lo nuevo FALLAN con ab6b595; las de control (las que dicen
+ * «sigue», «como siempre», «como antes» o «no … nada») pasan con las dos, y
+ * están para que el arreglo no rompa lo que ya andaba.
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');

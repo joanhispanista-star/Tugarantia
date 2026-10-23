@@ -16,7 +16,9 @@
  *   C2. La ficha nacida de un registro le pregunta a la nube, al abrirse, por
  *       las fotos que le faltan, y anota las que ya llegaron.
  *   C3. «Su cara», no «Selfie con cédula»: la del registro no lleva cédula.
- * Todas FALLAN con el CRM de ab6b595.
+ * Las que prueban lo nuevo FALLAN con ab6b595; las de control (las que dicen
+ * «sigue», «como siempre», «como antes» o «no … nada») pasan con las dos, y
+ * están para que el arreglo no rompa lo que ya andaba.
  * ==========================================================================*/
 'use strict';
 

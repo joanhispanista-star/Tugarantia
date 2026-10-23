@@ -123,7 +123,8 @@ describe('la decisión (RostroEnVivo.medirRostro)', () => {
 });
 
 describe('la racha y la nitidez', () => {
-  test('cuatro detecciones buenas seguidas disparan; una mala vuelve a cero', () => {
+  /* 22-oct-2026 — eran cuatro; desde hoy son ROSTRO.CUADROS (tres). */
+  test('ROSTRO.CUADROS detecciones buenas seguidas disparan; una mala vuelve a cero', () => {
     let e = 0, r;
     for (let i = 0; i < RV.ROSTRO.CUADROS - 1; i++) { r = RV.contarRacha(e, { ok: true }); e = r.estables; assert.equal(r.disparar, false); }
     assert.equal(RV.contarRacha(e, { ok: false }).estables, 0, 'una detección mala no tumbó la racha');
@@ -264,6 +265,25 @@ describe('el detector: SOLO el detector', () => {
       .forEach(p => assert.equal(PLAY.indexOf(p), -1, 'apareció «' + p + '» en play/'));
     assert.match(PLAY, /var URL_ROSTRO_VIVO = '\.\.\/app\/rostro-en-vivo\.js';/);
     assert.match(PLAY, /var BASE_ROSTRO = '\.\.\/app\/lib\/rostro';/, 'el detector tiene que bajar del propio sitio');
+  });
+
+  test('LA POLÍTICA DICE LO QUE EL CÓDIGO HACE: si el teléfono ubica los ojos, su sección los nombra', () => {
+    /* 22-oct-2026 — la frontera se movió (los ojos), y la política se movió
+       con ella en su sección «La foto de tu cara, que se toma sola». Si un día
+       el módulo vuelve a pedir solo el detector, esta prueba no estorba; si
+       pide los puntos y la política no nombra los ojos, se cae: la interfaz
+       (y la política) no prometen menos de lo que el código hace. */
+    const PRIV = fs.readFileSync(path.join(RAIZ, 'legal', 'privacidad.html'), 'utf8');
+    const i = PRIV.indexOf('<h3>La foto de tu cara, que se toma sola</h3>');
+    assert.ok(i > 0, 'la política perdió su sección de la foto de la cara');
+    const seccion = PRIV.slice(i, PRIV.indexOf('<h3>', i + 10)).replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const pideOjos = /nets\.faceLandmark68TinyNet/.test(sinComentarios(FUENTE_RV));
+    if (pideOjos) assert.match(seccion, /tu cara y tus ojos/, 'el teléfono ubica los ojos y la política no lo dice');
+    assert.match(seccion, /no se guarda ni sale de tu celular/);
+    assert.match(seccion, /lo único que nos llega es la foto/);
+    assert.match(seccion, /no nos llega ninguna imagen/, 'la política no dice qué se anota cuando la persona sigue sin la foto');
+    assert.equal(/reconoc|verific|biometr/i.test(seccion.split('Después, en el computador')[0]), false,
+      'la parte del teléfono promete reconocer o verificar algo');
   });
 });
 
