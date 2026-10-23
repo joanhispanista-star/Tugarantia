@@ -485,7 +485,11 @@ describe('3 y 5 · repartir publica al equipo en ese momento, trayendo primero',
       'publicó sin traer antes lo que hizo el gerente: ' + orden.join(','));
     const cuadros = P.ev('_cuadros');
     assert.match(cuadros[0], /se publica a tu equipo en ese momento/, 'la pregunta no dice que va a viajar');
-    assert.match(cuadros[0], /Nunca la cédula, la dirección ni las fotos/);
+    /* 23-oct-2026 — decía «Nunca la cédula, la dirección ni las fotos», y no es
+       verdad para quien lo recibe: su «🪪 Ver su ficha» las muestra (ver
+       asignar-desde-la-ficha-cierres). Ahora lo dice. */
+    assert.doesNotMatch(cuadros[0], /Nunca la cédula/);
+    assert.match(cuadros[0], /en «🪪 Ver su ficha» ve también lo que dejó al registrarse: su cédula, su dirección, sus cuentas y sus fotos/);
     const fin = cuadros[cuadros.length - 1];
     assert.match(fin, /Listo: 1 repartidos/);
     assert.match(fin, /Ya se lo publiqué a tu equipo/);

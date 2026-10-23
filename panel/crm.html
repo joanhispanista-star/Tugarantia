@@ -730,11 +730,20 @@
 
     <section class="view" id="v-bases">
       <div class="ph"><div><h1>Bases<span class="dot">.</span></h1><div class="sub">Gente que todavía no es cliente: nombre y celular, y quién la está trabajando</div></div>
+        <!-- 23-oct-2026 — «＋ Agregar prospecto»: Joan buscó cómo meter UNO y solo
+             había «⤒ Cargar base», que pide un archivo entero (ver agregarProspecto). -->
         <div><button class="btn btn-ghost" onclick="pantallaAsignar('potenciales')">🔀 Repartir</button>
+        <button class="btn btn-ghost" onclick="agregarProspecto()">＋ Agregar prospecto</button>
         <button class="btn btn-rojo" onclick="cargarBase()">⤒ Cargar base</button></div></div>
       <div class="kpis" id="kpiBases"></div>
       <div class="card"><div class="card-h"><h3>📇 Prospectos</h3>
         <span class="tag">Se vuelven clientes cuando se registran y les desembolsas</span></div>
+        <!-- 23-oct-2026 — el buscador: la tabla pinta 200 y una base trae miles.
+             Sin él, del prospecto 201 en adelante no había fila, ni «👤 Asignar
+             a…», ni forma de encontrarlo (ver renderBases y coincideProspecto). -->
+        <div style="padding:10px 16px 0"><input id="buscaBases" type="search" placeholder="🔍 Buscar por nombre o celular…"
+          style="width:100%;border:0;background:transparent;font:inherit;font-size:15px;outline:none;color:inherit"
+          oninput="renderBases()" autocomplete="off"></div>
         <div id="tblProspectos"></div></div>
       <div class="card"><div class="card-h"><h3>⤒ Bases que has cargado</h3>
         <span class="tag">De dónde salió cada una — la respuesta tiene que existir antes de que la pregunten</span></div>
@@ -750,6 +759,11 @@
              botón a mano quedó en Ajustes → Avanzado, con su porqué. -->
         <button class="btn btn-ghost" onclick="pantallaAsignar('clientes')">🔀 Repartir</button>
         <button class="btn btn-rojo" onclick="editarPersona()">＋ Crear persona</button></div></div>
+      <!-- 23-oct-2026 — Joan buscó cómo asignarle UN cliente a Willian en la ficha
+           de ese cliente, y solo existía «🔀 Repartir»: se dice aquí dónde está. -->
+      <!-- 23-oct-2026 — «cada prospecto en su fila de Bases» solo era verdad para
+           los 200 que pinta la tabla: ahora Bases tiene buscador, y se dice. -->
+      <div class="muted" id="equipoAsignarUno" style="font-size:12.5px;margin:-6px 0 12px">Para uno solo no hace falta «🔀 Repartir»: cada cliente tiene «👤 Asignar a…» en su ficha y en su fila de Clientes, y cada prospecto en su fila de Bases (si no sale entre los primeros, búscalo ahí por su nombre o su celular).</div>
       <!-- 15-oct-2026 — lo que hizo la publicación que corre sola (LA CARTERA DEL
            EQUIPO SE PUBLICA SOLA): en una línea, nunca en un cuadro. -->
       <div id="equipoPublicadoSolo" style="margin-bottom:12px"></div>
@@ -5014,16 +5028,20 @@ function renderClientes(){
       ? `<div class=”empty”><div class=”ic”>🔍</div><p>Nadie coincide con «${escHTML(filtro)}».<br><span class=”muted”>Prueba con menos letras, o solo unos dígitos del celular.</span></p></div>`
       : `<div class=”empty”><div class=”ic”>🧑‍🤝‍🧑</div><p>Sin clientes aún.<br><span class=”muted”>Crea uno con “＋ Nuevo crédito” o “＋ Agregar cliente”.</span></p></div>`+papeleraClientesHTML();
     return; }
+  /* 23-oct-2026 — quién lo atiende, en la fila, y «👤 Asignar a…» al lado de
+     «Ver»: Joan lo buscó aquí (ver «👤 ASIGNAR A…» DESDE CADA FICHA). Sin
+     comisiones.js no se sabe, y la fila no dice nada en vez de decir «nadie». */
+  const duenos=hayComisiones()?duenosDeHoy():null;
   c.innerHTML=avisoEntradaHTML()+`<table><thead><tr><th>N°</th><th>Cliente</th><th>Contacto</th><th>Ciudad</th><th>Créditos</th><th>Prórrogas</th><th>Ganancia generada</th><th>Riesgo</th><th></th></tr></thead><tbody>${
     arr.map(s=>{ const ps=DB.prestamos.filter(p=>p.socioId===s.id),gan=ps.reduce((t,p)=>t+gananciaCobrada(p),0),activos=ps.filter(p=>!p.pagado).length,npr=totalProrrogasCliente(s),r=riesgoCliente(s);
-      return `<tr><td class="mono muted">${codCliente(s)}</td><td><b>${escHTML(s.nombre)}</b><div class="muted">${s.cedula?'CC '+escHTML(s.cedula):''}</div></td>
+      return `<tr><td class="mono muted">${codCliente(s)}</td><td><b>${escHTML(s.nombre)}</b><div class="muted">${s.cedula?'CC '+escHTML(s.cedula):''}</div>${duenos?lineaAtiende(duenos[String(s.id)]):''}</td>
       <td>${escHTML(waNum(s))}<div class="muted">${s.whatsappIgual?'es WhatsApp':(s.whatsappNumero?'WA aparte':'cel')}</div></td>
       <td>${escHTML(s.ciudad||'—')}<div class="muted">${escHTML(s.barrio||'')}${s.ubicacion?` ${s.barrio?'· ':''}<a target="_blank" rel="noopener" href="${mapsUrl(s.ubicacion)}" title="Ver ubicación en el mapa">📍 mapa</a>`:''}</div></td>
       <td class="num">${ps.length}<div class="muted">${activos} activo${activos!==1?'s':''}</div></td>
       <td class="num">${npr}</td>
       <td class="gano">${COP(gan)}</td>
       <td><span class="chip ${r.cls}">${r.txt}</span></td>
-      <td style="text-align:right"><a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${waLink(waNum(s),'')}">WA</a> <button class="btn btn-ghost btn-sm" onclick="mandarHistorial('${s.id}')" title="Mandarle su historial de socio al celular">📲</button> <button class="btn btn-ghost btn-sm" onclick="verCliente('${s.id}')">Ver</button></td></tr>`;}).join('')}</tbody></table>`+papeleraClientesHTML();
+      <td style="text-align:right"><a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${waLink(waNum(s),'')}">WA</a> <button class="btn btn-ghost btn-sm" onclick="mandarHistorial('${s.id}')" title="Mandarle su historial de socio al celular">📲</button> <button class="btn btn-ghost btn-sm" onclick="asignarUno('cliente','${s.id}')" title="Que alguien de tu equipo lo atienda: le sale en su «Mi base»">👤 Asignar a…</button> <button class="btn btn-ghost btn-sm" onclick="verCliente('${s.id}')">Ver</button></td></tr>`;}).join('')}</tbody></table>`+papeleraClientesHTML();
 }
 
 /* ===== CICLOS ===== */
@@ -5669,9 +5687,16 @@ function verCliente(id){
          No entra en las bases de SMS ni de voz. Sigue en la cola de WhatsApp, que es otro canal.
          <div style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="cambiarSalidaSMS('${s.id}',false)">Volvió a aceptarlos</button></div></div>`
     : `<div style="margin:8px 0"><button class="btn btn-ghost btn-sm" onclick="cambiarSalidaSMS('${s.id}',true)" title="Marca que respondió SALIR: deja de entrar en las bases de SMS y de voz">🔕 Respondió SALIR</button></div>`;
+  /* 23-oct-2026 — QUIÉN DE TU EQUIPO LO ATIENDE, arriba, con «👤 Asignar a…»:
+     Joan se agregó como cliente para que Willian lo gestionara y aquí no había
+     cómo (ver «👤 ASIGNAR A…» DESDE CADA FICHA). */
+  const bloqueAtiende=`<div class="info-row"><span class="k">Quién de tu equipo lo atiende
+       <div class="muted">${quienAtiendeHTML(s.id)}</div></span>
+       <span class="vv"><button class="btn btn-ghost btn-sm" onclick="asignarUno('cliente','${s.id}','ficha')" title="Le sale en la «Mi base» de quien elijas, con su nombre, su celular, la etapa, cuánto debe y cuándo paga">👤 Asignar a…</button></span></div>`;
   openModal(codCliente(s)+' · '+s.nombre,`
     ${bloqueCuenta}
     ${bloqueSalida}
+    ${bloqueAtiende}
     <div class="info-row"><span class="k">Ganancia generada</span><span class="vv gano">${COP(gan)}</span></div>
     ${huellaHTML}
     <div class="alerta info solo-tuyo"><b class="tit-solo">Solo para ti · el fondo del cupón (reparto ${REPARTO_TXT})</b>
@@ -5879,6 +5904,7 @@ function editarCliente(id,pre){
   _huellaPendiente=null;
   _pedidoFotos++;
   olvidarFotosReg();
+  _asignarFicha=null;   // 23-oct-2026: lo que mostró el cuadro anterior no es de este (campoAsignarFicha)
   const s=id?DB.socios.find(x=>x.id===id):(pre||{});
   _girosFicha=(s.girosFotos&&typeof s.girosFotos==='object')?s.girosFotos:null;   // 8-oct-2026: las miniaturas, como se dejaron giradas
   _fotosTmp={frente:s.cedulaFrenteFoto||null,reverso:s.cedulaReversoFoto||null,selfie:s.selfieFoto||null};
@@ -5901,6 +5927,7 @@ function editarCliente(id,pre){
         <option value="no" ${v('whatsappIgual',true)===false?'selected':''}>No, tiene otro</option></select></div>
     <div class="field" id="fWaNumWrap" style="display:${v('whatsappIgual',true)===false?'flex':'none'}"><label>Número de WhatsApp</label><input id="fWaNum" inputmode="numeric" value="${v('whatsappNumero')}"></div>
     <div class="field"><label>Correo electrónico</label><input id="fEmail" value="${va('email')}"></div>
+    ${campoAsignarFicha(id)}
     <div class="sub-h">Pagos</div>
     <div class="two"><div class="field"><label>Llave (transferencia)</label><input id="fLlave" value="${va('llave')}" placeholder="Celular, correo o # de llave"></div>
       <div class="field"><label>Nequi</label><input id="fNequi" inputmode="numeric" value="${v('nequi')}"></div></div>
@@ -5986,7 +6013,20 @@ function guardarCliente(id){
      no la junta y la ficha pide el toque. */
   if(!id&&_registroPendiente){ creado.cuentaPorJuntar={registro_id:Number(_registroPendiente),desde:hoyISO()};
     marcarRegistro(_registroPendiente,'atendido'); _registroPendiente=null; }
+  /* 23-oct-2026 — «¿Quién de tu equipo lo atiende?» (campoAsignarFicha): solo
+     si Joan lo cambió en ESTE cuadro. Lo que el cuadro no pintó llega como ''
+     y no toca nada; «Nadie» llega como 'nadie' y se la quita. */
+  const elegido=gv('fAsignarA'), cuadroA=_asignarFicha;
+  _asignarFicha=null;
+  let asignadoA=null;
+  if(cuadroA&&cuadroA.id===String(id||'')&&elegido&&elegido!==cuadroA.mostrado&&hayComisiones()){
+    const destino=elegido==='nadie'?'':elegido;
+    if((!destino||personaDeEquipo(destino))&&anotarAsignacion(creado.id,destino,hoyISO(),'A'+Date.now()+'-0')) asignadoA=destino;
+  }
   _fotosTmp={frente:null,reverso:null,selfie:null}; _ubicTmp=null; guardar(); cerrarModal(); render(); irA('clientes');
+  /* 23-oct-2026 — y si cuenta desde mañana, por qué (fraseDesdeManana). */
+  if(asignadoA!==null){ const manana=fraseDesdeManana(creado.id);
+    return publicarTrasAsignar(fraseAsignado(creado.nombre,asignadoA)+(manana?'\n\n'+manana:'')); }
 }
 /* Marca el código como usado. Nunca bloquea el guardado: el dato del cliente
    vale más que el estado de un código. */
@@ -14725,6 +14765,9 @@ function haceCuanto(iso) {
 
 function prospectos() { DB.prospectos = Array.isArray(DB.prospectos) ? DB.prospectos : []; return DB.prospectos; }
 function basesCargadas() { DB.bases = Array.isArray(DB.bases) ? DB.bases : []; return DB.bases; }
+/* 23-oct-2026 — la «base» de un prospecto agregado de a uno (agregarProspecto).
+   Su origen va en p.origen, uno por persona: no hay archivo del que salga. */
+var BASE_A_MANO = 'A mano';
 
 function renderBases() {
   const caja = document.getElementById('tblProspectos'); if (!caja) return;
@@ -14758,29 +14801,56 @@ function renderBases() {
 
   if (!ps.length) {
     caja.innerHTML = `<div class="empty"><div class="ic">📇</div><p>Sin prospectos todavía.<br>
-      <span class="muted">Carga un archivo de Excel o CSV con nombres y celulares.</span></p></div>`;
+      <span class="muted">Carga un archivo de Excel o CSV con nombres y celulares, o agrega uno suelto con «＋ Agregar prospecto».</span></p></div>`;
     return;
   }
   /* Se muestran los 200 primeros: una tabla de mil filas en el navegador de
-     Joan lo deja pensando cada vez que toca algo. */
-  const muestra = ps.slice(0, 200);
+     Joan lo deja pensando cada vez que toca algo.
+     23-oct-2026 — los que Joan agregó a mano van PRIMERO, el más nuevo arriba:
+     con miles cargados de una base, el que acaba de agregar quedaba en la fila
+     5.000 y no lo veía nunca (ni su «👤 Asignar a…»). */
+  /* 23-oct-2026 — EL BUSCADOR FILTRA ANTES DE CORTAR EN 200. La tabla nunca
+     pintó más de 200, y Bases no tenía buscador (el de arriba a la izquierda
+     solo mira clientes): del prospecto 201 en adelante no había fila, ni su
+     «👤 Asignar a…», aunque la pestaña Equipo dijera que cada prospecto lo
+     tiene en la suya. Con miles cargados de una base es lo normal. */
+  const filtro = (gv('buscaBases') || '').trim();
+  const vistos = filtro ? ps.filter(p => coincideProspecto(p, filtro)) : ps;
+  if (!vistos.length) {
+    caja.innerHTML = `<div class="empty"><div class="ic">🔍</div><p>Nadie coincide con «${escHTML(filtro)}».<br>
+      <span class="muted">Prueba con menos letras, o solo unos dígitos del celular.</span></p></div>`;
+    return;
+  }
+  const aMano = vistos.filter(p => p.base === BASE_A_MANO).reverse();
+  const muestra = (aMano.length ? aMano.concat(vistos.filter(p => p.base !== BASE_A_MANO)) : vistos).slice(0, 200);
   caja.innerHTML = `<table><thead><tr><th>Quién</th><th>Celular</th><th>Estado</th><th>Asesor</th><th>Última gestión</th><th></th></tr></thead><tbody>${
     muestra.map(p => {
       const e = ESTADOS_PROSPECTO[p.estado || 'nuevo'] || ESTADOS_PROSPECTO.nuevo;
       const a = COMIS.asesorDe(asignaciones(), p.id, hoyISO());
       const per = a ? personaDeEquipo(a) : null;
       const g = gestionesDe(p.id)[0];
-      return `<tr><td><b>${escHTML(p.nombre || 'Sin nombre')}</b></td>
+      return `<tr><td><b>${escHTML(p.nombre || 'Sin nombre')}</b>${p.base === BASE_A_MANO && p.origen
+          ? `<div class="muted">a mano · ${escHTML(p.origen)}</div>` : ''}</td>
         <td class="mono">${escHTML(p.celular)}</td>
         <td><span class="chip ${e.chip}">${escHTML(e.et)}</span></td>
         <td>${per ? escHTML(per.nombre) : '<span class="muted">sin asignar</span>'}</td>
         <td>${g ? etiquetaGestion(g) + '<div class="muted">' + escHTML(haceCuanto(g.cuando)) +
               (g.nota ? ' · «' + escHTML(g.nota) + '»' : '') + '</div>'
              : '<span class="muted">—</span>'}</td>
-        <td style="text-align:right"><a class="btn btn-wa btn-sm" target="_blank" rel="noopener"
+        <td style="text-align:right;white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="asignarUno('prospecto','${escHTML(String(p.id))}')"
+          title="Que alguien de tu equipo lo trabaje: le sale en su «Mi base»">👤 Asignar a…</button>
+          <a class="btn btn-wa btn-sm" target="_blank" rel="noopener"
           href="${escHTML(waLink(p.celular, 'Hola ' + (p.nombre || '').split(' ')[0] + ', te escribo de ' + (DB.config.negocio || 'Tu Garantía') + '.'))}">📲</a></td></tr>`;
     }).join('')}</tbody></table>${
-    ps.length > muestra.length ? `<div class="muted" style="padding:10px 14px">Se muestran ${muestra.length} de ${ps.length}.</div>` : ''}`;
+    vistos.length > muestra.length ? `<div class="muted" style="padding:10px 14px">Se muestran ${muestra.length} de ${vistos.length}${filtro ? ' que coinciden' : ''}. Para encontrar a los demás, escribe su nombre o unos dígitos de su celular en el buscador de arriba.</div>` : ''}`;
+}
+/* 23-oct-2026 — la misma regla que coincideCliente: el nombre sin tildes ni
+   mayúsculas, o tres dígitos o más en cualquier parte del celular. */
+function coincideProspecto(p, filtro) {
+  const f = normaTexto(filtro).trim(); if (!f) return true;
+  if (normaTexto(p.nombre).indexOf(f) >= 0) return true;
+  const dig = f.replace(/\D/g, '');
+  return dig.length >= 3 && String(p.celular || '').replace(/\D/g, '').indexOf(dig) >= 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -15052,12 +15122,18 @@ function renderEquipo() {
      calculara por su cuenta, la suma de la pantalla y la que Joan paga podrían
      separarse — y eso ya pasó doce veces en este proyecto. */
   const movs = movimientosDeComision();
+  /* 23-oct-2026 — los que lleva HOY, no los que tuvo alguna vez. Contaba toda
+     fila de asignación con su nombre: a quien le quitaban un cliente (otro
+     dueño, o «Quitarle la asignación» desde la ficha) le seguía sumando, y la
+     pestaña decía «WILLIAN: 1» de alguien que Willian ya no ve. Es la regla
+     de «👁 Ver» (verPersona: el dueño de hoy), contada en una pasada. */
+  const cuantos = {}, duenos = duenosDeHoy();
+  Object.keys(duenos).forEach(k => { const a = duenos[k]; if (a) cuantos[a] = (cuantos[a] || 0) + 1; });
   caja.innerHTML = `<table><thead><tr><th>Quién</th><th>Rol</th><th>Clientes</th>
       <th class="num">Libre</th><th class="num">Bloqueado</th><th></th></tr></thead><tbody>${
     gente.map(p => {
       const s = COMIS.saldoDeAsesor(movs, p.id, hoyISO());
-      const mios = asignaciones().filter(a => String(a.asesor_id) === String(p.id))
-        .map(a => a.socio_id).filter((v, i, arr) => arr.indexOf(v) === i).length;
+      const mios = cuantos[String(p.id)] || 0;
       const r = ROLES[p.rol] || { ic: '👤', nombre: p.rol };
       return `<tr${p.estado === 'retirado' ? ' style="opacity:.5"' : ''}>
         <td><b>${escHTML(p.nombre)}</b>${p.celular ? `<div class="muted">${escHTML(p.celular)}</div>` : ''}
@@ -15237,14 +15313,78 @@ function armarPublicacionEquipo() {
     no_sms: s.noSMS ? 'true' : 'false'
   }; }));
 
-  const asig = asignaciones().map(a => {
-    const per = personaDeEquipo(a.asesor_id);
+  /* 23-oct-2026 — UNA POR PERSONA Y POR DÍA, Y «NADIE» TAMBIÉN VIAJA.
+     · La nube guarda UNA asignación por persona y por día (el índice
+       asignaciones_una_por_dia, 20260922k) y equipo_publicar resuelve por id,
+       no por día: reasignar a alguien el mismo día —Repartir lo hacía, y desde
+       la ficha es lo normal: asignar, arrepentirse, cambiar— mandaba dos filas
+       de ese día, la segunda chocaba con 23505, la publicación se caía ENTERA
+       y el reintento volvía a chocar para siempre. Acá la lista sigue sumando
+       (así viaja entre aparatos: nube.js la junta por identidad y no conoce
+       «cambiar una fila»), y lo de un mismo día viaja como UNA: con el id de
+       la PRIMERA de ese día (la lista solo crece, así que es siempre la
+       misma), y el dueño de la ÚLTIMA, que es el que gana en COMIS.asesorDe.
+       Igual que asignar_a, la del gerente: «la última decisión del día es la
+       que vale».
+       23-oct-2026, revisión — «la primera es la que la nube ya pudo recibir»
+       no siempre es verdad: si la primera del día apuntaba a alguien SIN
+       celular, no viajó, y la que sí viajó fue una posterior con SU id (así
+       lo dejaba f05f485). Mandar el id de la primera chocaba con 23505 para
+       siempre. Por eso, justo antes de mandar, publicarEquipoAhora cambia el
+       id por el que la nube YA tiene para esa persona y ese día
+       (conIdsDeLaNube, con lo que trajo equipo_traer un instante antes).
+     · La fila sin asesor («Quitarle la asignación», asesor_id '') viaja con el
+       asesor vacío: en la nube la vigente pasa a ser de nadie y deja de salir
+       en la «Mi base» de quien la tenía. Sin viajar, la ficha diría «nadie» y
+       el gerente lo seguiría viendo. La que apunta a alguien que ya no está en
+       el equipo, o sin celular, sigue sin viajar, como antes. */
+  const delDia = {}, unaPorDia = [];
+  asignaciones().forEach(a => {
+    const k = String(a.socio_id) + '|' + String(a.desde || hoy).slice(0, 10);
+    if (delDia[k]) { delDia[k].asesor_id = a.asesor_id; return; }
+    delDia[k] = { id: a.id, socio_id: a.socio_id, asesor_id: a.asesor_id, desde: a.desde };
+    unaPorDia.push(delDia[k]);
+  });
+  const asig = unaPorDia.filter(a => {
+    const per = a.asesor_id === '' ? null : personaDeEquipo(a.asesor_id);
+    return a.asesor_id === '' || (per && per.celular);
+  }).map(a => {
+    const per = a.asesor_id === '' ? null : personaDeEquipo(a.asesor_id);
     return { id: String(a.id), persona_id: String(a.socio_id),
              asesor: per ? String(per.celular || '') : '', desde: String(a.desde || hoy) };
-  }).filter(a => a.asesor);
+  });
   /* 22-oct-2026 — `eq`, la gente como viaja: la huella de la publicación sola
      la necesita (retirar a alguien no cambia ni asig ni ps). */
   return { asig: asig, ps: ps, eq: gente.map(filaDeEquipo) };
+}
+
+/* 23-oct-2026 — EL ID QUE LA NUBE YA TIENE PARA CADA PERSONA Y CADA DÍA.
+   La nube guarda una asignación por persona y por día (asignaciones_una_por_dia)
+   y equipo_publicar escribe por id: si llega otro id para un (persona, día)
+   que ya tiene fila, salta el 23505 y la publicación ENTERA se cae —y con ella
+   todo lo que Joan le reparte a su equipo— en cada reintento, para siempre.
+   Pasa con datos que dejó la versión de antes (la primera del día apuntaba a
+   alguien sin celular y la que viajó fue otra) y cuando la fila del día la
+   escribió el gerente (asignar_a, asesor_retirar). Lo sabe equipo_traer, que
+   corre justo antes de cada publicación: traerEquipo anota aquí, por
+   «persona|día», el id que la nube tiene; null si esa vuelta no trajo nada. */
+var _asigDeLaNube = null;
+function idsDelDiaEnLaNube(filas) {
+  const m = {};
+  (Array.isArray(filas) ? filas : []).forEach(x => {
+    if (!x || x.id == null || x.persona_id == null) return;
+    m[String(x.persona_id) + '|' + String(x.desde || '').slice(0, 10)] = String(x.id);
+  });
+  return m;
+}
+/* Viaja con el id de la nube cuando ya hay fila para esa persona y ese día:
+   equipo_publicar la actualiza (on conflict (id)) en vez de chocar. */
+function conIdsDeLaNube(asig, enLaNube) {
+  if (!enLaNube) return asig;
+  return (asig || []).map(a => {
+    const suyo = enLaNube[String(a.persona_id) + '|' + String(a.desde || '').slice(0, 10)];
+    return suyo && suyo !== String(a.id) ? Object.assign({}, a, { id: suyo }) : a;
+  });
 }
 
 /* `op.auto` (15-oct-2026): la publicación que corre sola. Sin la pregunta y
@@ -15254,6 +15394,9 @@ function armarPublicacionEquipo() {
    lo pinta en la línea de la pestaña Equipo. */
 function publicarEquipoAhora(gente, asig, ps, op) {
   const auto = !!(op && op.auto);
+  /* 23-oct-2026 — con el id que la nube ya tiene para ese día (ver EL ID QUE
+     LA NUBE YA TIENE). Aquí y no al armar: lo trajo equipo_traer recién. */
+  asig = conIdsDeLaNube(asig, _asigDeLaNube);
   /* Con las gestiones ya traídas, el estado de cada potencial es el de verdad.
      Los clientes no se tocan: su etapa la calcula el motor con sus créditos. */
   ps.forEach(x => {
@@ -15874,10 +16017,14 @@ function traerEquipoSolo() {
 
 function traerEquipo(callado) {
   if (!sbListo()) { if (!callado) alert('Primero conecta la nube en Ajustes.'); return Promise.resolve(0); }
+  /* 23-oct-2026 — lo que se supo de la nube en una vuelta vieja no vale para
+     esta: si esta falla, publicarEquipoAhora no traduce con datos de antes. */
+  _asigDeLaNube = null;
   return rpc('equipo_traer', { p_clave: sbCfg().clave })
     .then(r => {
       const d = (r && typeof r === 'object') ? r : {};
       let nuevos = 0, cambios = 0;
+      _asigDeLaNube = idsDelDiaEnLaNube(d.asignaciones);
       const porPublicar = leerEquipoPorPublicar();
       const porCel = {};
       equipo().forEach(p => { if (p.celular) porCel[String(p.celular).replace(/\D/g, '').slice(-10)] = p; });
@@ -15929,11 +16076,15 @@ function traerEquipo(callado) {
       asignaciones().forEach(a => { hay[String(a.id)] = true; });
       (d.asignaciones || []).forEach(x => {
         if (hay[String(x.id)]) return;
-        const per = equipo().find(p => String(p.celular).replace(/\D/g, '').slice(-10) ===
-                                       String(x.asesor || '').replace(/\D/g, '').slice(-10));
-        if (!per) return;
+        /* 23-oct-2026 — una fila SIN asesor es un «Quitarle la asignación»
+           (armarPublicacionEquipo la publica así): llega como de nadie. Sin
+           esto, buscar el celular vacío encontraba a cualquiera del equipo SIN
+           celular y le daba el cliente que Joan acababa de quitarle a otro. */
+        const celA = String(x.asesor || '').replace(/\D/g, '').slice(-10);
+        const per = celA ? equipo().find(p => String(p.celular).replace(/\D/g, '').slice(-10) === celA) : null;
+        if (!per && celA) return;
         asignaciones().push({ id: String(x.id), socio_id: String(x.persona_id),
-                              asesor_id: String(per.id), desde: String(x.desde || hoyISO()) });
+                              asesor_id: per ? String(per.id) : '', desde: String(x.desde || hoyISO()) });
         nuevos++;
       });
       /* Y los contactos, que son el registro de WhatsApp que Joan revisa. */
@@ -16370,10 +16521,10 @@ function pintarDestinos(){
           ${p.rol==='asesor'?'checked':''}><span>${p.rol==='gerente'?'🧭':'🚶'}
           ${escHTML(p.nombre)} <span class="muted">${escHTML(p.rol||'')}</span></span></label>`).join('')}`;
   }else{
-    const grupo=(t,l)=>l.length?`<optgroup label="${t}">${l.map(p=>
-      `<option value="${escHTML(p.id)}">${escHTML(p.nombre)}</option>`).join('')}</optgroup>`:'';
+    /* 23-oct-2026 — las opciones viven en opcionesDestino: «👤 Asignar a…» de
+       cada ficha ofrece la MISMA lista, y dos listas son dos reglas. */
     caja.innerHTML=`<div class="field" style="margin-top:14px"><label>Se los asigno a</label>
-      <select id="asDestino">${grupo('🧭 Gerentes',ger)}${grupo('🚶 Asesores',ase)}${grupo('Otros',otros)}</select>
+      <select id="asDestino">${opcionesDestino('')}</select>
       <div class="help">Puedes asignárselos a un <b>gerente</b> para que él los reparta entre sus asesores.</div></div>`;
   }
 }
@@ -16457,29 +16608,509 @@ function asignarMarcados(){
   /* 22-oct-2026 — y se publica al terminar: lo que antes decía la pregunta de
      «☁ Publicar a la nube» (qué viaja y qué no) se dice aquí, que es el único
      cuadro que Joan lee antes de que viaje. */
-  aviso+='\n\nLas comisiones ya ganadas NO se mueven.'+
-    '\n\nAl confirmar se publica a tu equipo en ese momento: de cada uno viaja el nombre, el celular, '+
-    'la etapa, cuánto debe y cuándo paga. Nunca la cédula, la dirección ni las fotos. Antes traigo lo que hizo tu gerente, '+
-    'y si no puedo, no publico encima.\n\n¿Sigo?';
+  /* 23-oct-2026 — «Nunca la cédula, la dirección ni las fotos» no era verdad
+     para quien lo recibe (ver LO QUE VE QUIEN LO RECIBE), y «NO se mueven»
+     tampoco lo era para lo ganado HOY (ver LO QUE YA SE GANÓ HOY). */
+  /* Y sin la nube no promete publicar: lo dice antes, como los cuadros de
+     cada ficha (textoPublicarAsignar). */
+  const puertaR=puertaAlAsignar(), sinPublicar=puertaR?fraseTrasPublicar(puertaR):'';
+  aviso+='\n\nLas comisiones ya ganadas NO se mueven, tampoco las de hoy: si quien lo tenía ya ganó algo hoy con él, en tus cuentas el cambio cuenta desde mañana.'+
+    (puertaR
+      ?'\n\nCuando se le publique a tu equipo, a quien se lo asignes le sale en su «Mi base»: '+
+        loQueVeElEquipo(_grupoAsignar==='clientes'?'cliente':'prospecto')+'.'+(sinPublicar?'\n\n'+sinPublicar:'')
+      :'\n\nAl confirmar se publica a tu equipo en ese momento, y a quien se lo asignes le sale en su «Mi base»: '+
+        loQueVeElEquipo(_grupoAsignar==='clientes'?'cliente':'prospecto')+'. Antes traigo lo que hizo tu gerente, '+
+        'y si no puedo, no publico encima.')+
+    '\n\n¿Sigo?';
   if(!confirm(aviso)) return;
 
-  let n=0;
+  let n=0, manana=0;
+  /* 23-oct-2026 — la fila la escribe anotarAsignacion, la misma de «👤
+     Asignar a…» de cada ficha: un solo sitio para la regla. Lo ganado hoy se
+     calcula UNA vez para todos: el libro entero por persona, con miles de
+     prospectos, deja el Panel pensando. */
+  const ganado=ganadoHoyPorPersona(hoy);
   ids.forEach((id,i)=>{
-    const destino=destinos[i%destinos.length];
-    if(COMIS.asesorDe(asignaciones(),id,hoy)===destino) return;
-    asignaciones().push({id:'A'+sello+'-'+i,socio_id:String(id),
-                         asesor_id:String(destino),desde:hoy});
-    n++;
+    const desde=anotarAsignacion(id,destinos[i%destinos.length],hoy,'A'+sello+'-'+i,ganado);
+    if(desde){ n++; if(desde>hoy) manana++; }
   });
   _todosMarcados=false;
   guardar(); cerrarModal(); render();
   /* 22-oct-2026 — antes: «Acuérdate de ☁ Publicar a la nube para que los
      vean». Ahora se publica aquí mismo, y el aviso dice lo que de verdad pasó
      (nunca «ya lo ven» si no se pudo). Si ni siquiera se puede intentar
-     (sin nube, sin nadie con celular), se dice de una, sin esperar a nadie. */
-  const puerta=puertaPublicarSolo({porCambio:true});
-  if(puerta){ const f=fraseTrasPublicar(puerta); alert('Listo: '+n+' repartidos.'+(f?'\n\n'+f:'')); return Promise.resolve(puerta); }
-  return publicarEquipoPorCambio().then(x=>{ alert('Listo: '+n+' repartidos.'+(x.frase?'\n\n'+x.frase:'')); return x.r; });
+     (sin nube, sin nadie con celular), se dice de una, sin esperar a nadie.
+     23-oct-2026 — eso vive en publicarTrasAsignar, que usa también la ficha. */
+  return publicarTrasAsignar('Listo: '+n+' repartidos.'+(manana
+    ?'\n\n'+manana+(manana===1?' de ellos cuenta':' de ellos cuentan')+' desde mañana en tus cuentas: quien lo tenía ya ganó comisión con él hoy, y eso sigue siendo suyo. En la «Mi base» de tu equipo cambia en cuanto se publique.'
+    :''));
+}
+
+/* --------------------------------------------------------------------------
+ * «👤 ASIGNAR A…» DESDE CADA FICHA — 23 de octubre de 2026
+ *
+ * Joan: «William tiene asignada una base, quiero que yo esté en esa base como
+ * cliente y que me gestione a mí como si yo fuera un cliente». Y después: «no
+ * aparece ninguna opción para agregar prospectos nuevos y me agregué como
+ * cliente pero no hay forma de asignarle esta cuenta a alguien de mi equipo,
+ * por ejemplo William».
+ *
+ * La forma SÍ existía: Equipo → «🔀 Repartir» → «Los que yo marque» → «Se los
+ * asigno a». Joan la buscó donde estaba mirando —la ficha de ese cliente— y
+ * ahí no había nada. Una función que no se encuentra donde se busca no existe
+ * para quien la busca. Ahora está en la ficha, en cada fila de Clientes y de
+ * Bases y en el cuadro de editar (y al agregar un cliente o un prospecto);
+ * «🔀 Repartir» sigue igual, para los lotes.
+ *
+ * EL MISMO MECANISMO QUE REPARTIR (anotarAsignacion, que ahora usan los dos):
+ *   · Reasignar escribe FILA NUEVA con la fecha de hoy; la vieja se queda y
+ *     las comisiones ya ganadas siguen siendo de quien las ganó. La lista
+ *     solo suma también porque así viaja entre aparatos (nube.js la junta
+ *     por identidad: cambiar una fila en su sitio la duplicaría).
+ *     23-oct-2026, revisión — con la fecha de MAÑANA si el de hoy ya ganó
+ *     algo hoy con esa persona (LO QUE YA SE GANÓ HOY TAMPOCO SE MUEVE), y la
+ *     identidad de nube.js incluye el id (volver al mismo dueño el mismo día
+ *     es otra fila, no una repetida).
+ *   · «Quitarle la asignación» es una fila más, SIN asesor (asesor_id ''):
+ *     desde hoy no es de nadie, y armarPublicacionEquipo la publica con el
+ *     asesor vacío para que deje de salir en la «Mi base» de quien la tenía.
+ *   · Reasignar el mismo día manda UNA fila de ese día a la nube (ver UNA POR
+ *     PERSONA Y POR DÍA en armarPublicacionEquipo): antes la publicación se
+ *     caía entera, y desde la ficha arrepentirse en la misma tarde es lo normal.
+ *   · Se publica al terminar, como Repartir, y el aviso dice lo que pasó de
+ *     verdad (publicarTrasAsignar): si la nube no está lista, lo dice.
+ * ------------------------------------------------------------------------ */
+var _asignarFicha = null;   // lo que mostró «¿Quién de tu equipo lo atiende?» en el cuadro de editar
+
+/* La fila de una asignación. Devuelve la fecha desde la que cuenta (un texto,
+   así que «cambió algo» sigue siendo verdadero) o false si no cambió nada:
+   asignarle a alguien lo que ya es suyo no escribe nada (ni una fila repetida
+   que lo diga dos veces). `ganado` es ganadoHoyPorPersona(hoy), para que
+   Repartir no recalcule el libro entero persona por persona. */
+function anotarAsignacion(personaId, destino, hoy, idNuevo, ganado) {
+  const pid = String(personaId), d = String(destino == null ? '' : destino);
+  const desde = desdeCuandoCambia(pid, hoy, ganado);
+  if (COMIS.asesorDe(asignaciones(), pid, desde) === d) return false;
+  asignaciones().push({ id: String(idNuevo), socio_id: pid, asesor_id: d, desde: desde });
+  return desde;
+}
+
+/* 23-oct-2026 — LO QUE YA SE GANÓ HOY TAMPOCO SE MUEVE.
+   El cuadro decía «Lo que ya se ganó no se mueve», y no era verdad para lo de
+   HOY: las comisiones salen de COMIS.asesorDe en la FECHA de cada hecho, por
+   día y no por hora, así que una fila con fecha de hoy le daba el pago de hoy
+   al dueño nuevo. Con «Quitarle la asignación» era peor: la fila sin asesor
+   dejaba ese movimiento sin dueño, derivarMovimientos lo descartaba, y los
+   10.000 que WILLIAN ganó esta mañana desaparecían de su libro sin pasar a
+   nadie (si Joan ya se los había liquidado, le quedaba deuda).
+   Por eso, si quien lo atiende hoy ya ganó algo HOY con esa persona, el
+   cambio cuenta desde MAÑANA en el libro de comisiones. En la «Mi base» sí
+   cambia en cuanto se publique: la nube toma como vigente la de fecha más
+   reciente sin mirar si ya llegó (mi_cartera y ficha_de_mi_base, max(desde)),
+   y eso es lo que Joan quiere al quitárselo. Solo cuentan los hechos que
+   salen de quién lo atiende ese día (TIPOS_DEL_DIA): un castigo de hoy es del
+   que hizo la venta, y un acto escrito a mano no depende de nadie. Un
+   registro con su asesor anotado cuenta igual: es plata que ganó hoy con él,
+   y correr el cambio un día no le quita nada a nadie. */
+var TIPOS_DEL_DIA = ['registro', 'desembolso', 'pago', 'recurrencia'];
+/* {persona: {asesor: {n, monto}}} con lo que cada uno ganó HOY con cada quien. */
+function ganadoHoyPorPersona(hoy) {
+  const m = {};
+  if (!hayComisiones()) return m;
+  movimientosDeComision(hoy).forEach(x => {
+    if (String(x.fecha || '').slice(0, 10) !== hoy || TIPOS_DEL_DIA.indexOf(String(x.tipo)) < 0) return;
+    const s = String(x.socio_id || ''), a = String(x.asesor_id || '');
+    if (!s || !a) return;
+    const p = m[s] = m[s] || {};
+    const g = p[a] = p[a] || { n: 0, monto: 0 };
+    g.n++; g.monto += Number(x.monto) || 0;
+  });
+  return m;
+}
+/* Desde qué fecha contaría un cambio de dueño hecho hoy: hoy, o mañana si el
+   de hoy ya ganó algo hoy con esa persona. Y nunca antes de una fila que ya
+   cuenta más adelante (un cambio de hoy que cuenta desde mañana): quedaría
+   debajo de ella aquí y en la nube, que toma la de fecha más reciente. */
+function desdeCuandoCambia(pid, hoy, ganado) {
+  let desde = hoy;
+  asignaciones().forEach(a => {
+    const f = String(a.desde || '').slice(0, 10);
+    if (String(a.socio_id) === pid && f > desde) desde = f;
+  });
+  if (desde > hoy) return desde;
+  const actual = COMIS.asesorDe(asignaciones(), pid, hoy);
+  const g = actual ? ((ganado || ganadoHoyPorPersona(hoy))[pid] || {})[actual] : null;
+  return g && g.n ? masDias(hoy, 1) : hoy;
+}
+/* Quién queda con él en la fecha en que contaría un cambio hecho ahora: el
+   que el cuadro marca y el que «Quitarle la asignación» quitaría. */
+function duenoQueQueda(id) {
+  if (!hayComisiones()) return null;
+  const pid = String(id);
+  return COMIS.asesorDe(asignaciones(), pid, desdeCuandoCambia(pid, hoyISO()));
+}
+/* En palabras: por qué un cambio cuenta desde mañana. '' si cuenta desde hoy. */
+function fraseDesdeManana(id) {
+  if (!hayComisiones()) return '';
+  const pid = String(id), hoy = hoyISO(), desde = desdeCuandoCambia(pid, hoy);
+  if (desde <= hoy) return '';
+  const a = COMIS.asesorDe(asignaciones(), pid, hoy);
+  const g = a ? (ganadoHoyPorPersona(hoy)[pid] || {})[a] : null;
+  const p = a ? personaDeEquipo(a) : null;
+  const cuando = desde === masDias(hoy, 1) ? 'desde mañana' : 'desde el ' + fmtFecha(desde);
+  return (g && g.n
+    ? 'Hoy ' + (p ? p.nombre : 'quien lo atiende') + ' ya ganó ' + COP(g.monto) + ' de comisión con él, y eso sigue siendo suyo: en tus cuentas el cambio cuenta ' + cuando + '.'
+    : 'Ya hay un cambio de dueño que cuenta ' + cuando + ': este también cuenta ' + cuando + ' en tus cuentas.') +
+    ' En la «Mi base» de tu equipo cambia en cuanto se publique.';
+}
+
+/* Quién atiende HOY a cada persona, en una sola pasada. Es la regla de
+   COMIS.asesorDe —la de fecha más reciente que no pase de hoy y, si empatan,
+   la última de la lista— para toda la lista a la vez: la pestaña Equipo cuenta
+   los de cada uno y la tabla de Clientes pinta el suyo en cada fila, y
+   preguntarle a asesorDe persona por persona con miles de prospectos repartidos
+   deja el Panel pensando. La prueba la compara con asesorDe, caso por caso. */
+function duenosDeHoy() {
+  const t = v => String(v == null ? '' : v).trim();
+  const hoy = hoyISO(), gana = {};
+  asignaciones().forEach(a => {
+    const d = t(a.desde).slice(0, 10), s = t(a.socio_id);
+    if (d > hoy) return;
+    if (!gana[s] || d >= gana[s].d) gana[s] = { d: d, a: t(a.asesor_id) };
+  });
+  const out = {};
+  Object.keys(gana).forEach(s => { out[s] = gana[s].a; });
+  return out;
+}
+
+/* Quién lo atiende hoy: el id de la persona del equipo, '' si nadie. Sin
+   app/comisiones.js no se sabe, y es null: «nadie» sería afirmar algo. */
+function atiendeHoy(id) {
+  if (!hayComisiones()) return null;
+  return COMIS.asesorDe(asignaciones(), String(id), hoyISO());
+}
+
+/* En palabras, para la ficha y para el cuadro de asignar.
+   23-oct-2026 — con el cambio que ya cuenta desde mañana, si lo hay (LO QUE
+   YA SE GANÓ HOY TAMPOCO SE MUEVE): sin decirlo, la ficha diría «WILLIAN»
+   mientras Willian ya no lo ve en su «Mi base», y Joan creería que no tomó. */
+function quienAtiendeHTML(id) {
+  const a = atiendeHoy(id);
+  if (a === null) return 'No cargó app/comisiones.js: no puedo decir quién lo atiende. Recarga con señal (Ctrl+Shift+R).';
+  const hoy = hoyISO(), desde = desdeCuandoCambia(String(id), hoy);
+  const queda = COMIS.asesorDe(asignaciones(), String(id), desde);
+  const luego = queda !== a
+    ? ' <div class="muted">' + (desde === masDias(hoy, 1) ? 'Desde mañana' : 'Desde el ' + fmtFecha(desde)) + ': ' +
+      (queda ? escHTML((personaDeEquipo(queda) || { nombre: 'alguien que ya no está' }).nombre) : 'nadie de tu equipo') +
+      (a && ((ganadoHoyPorPersona(hoy)[String(id)] || {})[a] || {}).n ? ' (hoy ya ganó comisión con él, y eso sigue siendo suyo)' : '') +
+      '. En la «Mi base» de tu equipo cambia en cuanto se publique.</div>'
+    : '';
+  if (!a) return 'Nadie de tu equipo: hoy solo lo ves tú.' + luego;
+  const p = personaDeEquipo(a);
+  if (!p) return 'Alguien que ya no está en tu equipo: asígnaselo a otra persona.' + luego;
+  const r = ROLES[p.rol] || { ic: '👤', nombre: p.rol || '' };
+  return r.ic + ' <b>' + escHTML(p.nombre) + '</b> (' + escHTML(r.nombre) + ')' +
+    (p.estado === 'retirado' ? ' <span class="chip mora">retirado — asígnaselo a otro</span>' : '') +
+    (p.celular ? '' : ' <span class="chip mora">sin celular: no puede entrar a verlo</span>') + luego;
+}
+
+/* La línea corta de la tabla de Clientes. Sin dueño no se pinta nada: la fila
+   ya lleva su «👤 Asignar a…». */
+function lineaAtiende(a) {
+  if (!a) return '';
+  const p = personaDeEquipo(a);
+  return '<div class="muted">👤 Lo atiende ' + escHTML(p ? p.nombre : 'alguien que ya no está') +
+    (p && p.estado === 'retirado' ? ' (retirado)' : '') + '</div>';
+}
+
+/* Las opciones de «Se lo asigno a»: gerentes y asesores activos, separados
+   por su papel, igual que Repartir (pintarDestinos las pide aquí). `actual` se
+   marca. Con `conFuera`, si el de hoy ya no está entre los activos (lo
+   retiraron), sale igual, marcado y dicho: sin esa opción el cuadro de editar
+   mostraría «Nadie» y guardar sin tocarlo le quitaría el cliente sin que Joan
+   lo decidiera — lo que pasó con el jefe en editarPersona el 23-oct. */
+function opcionesDestino(actual, conFuera) {
+  const gente = personasDestino();
+  const ger = gente.filter(p => p.rol === 'gerente'), ase = gente.filter(p => p.rol === 'asesor');
+  const otros = gente.filter(p => p.rol !== 'gerente' && p.rol !== 'asesor');
+  const a = String(actual || '');
+  const grupo = (t, l) => l.length ? `<optgroup label="${t}">${l.map(p =>
+    `<option value="${escHTML(p.id)}"${a && String(p.id) === a ? ' selected' : ''}>${escHTML(p.nombre)}</option>`).join('')}</optgroup>` : '';
+  let fuera = '';
+  if (conFuera && a && !gente.some(p => String(p.id) === a)) {
+    const p = personaDeEquipo(a);
+    fuera = `<option value="${escHTML(a)}" selected>${escHTML(p ? p.nombre : 'Alguien que ya no está')} (${p && p.estado === 'retirado' ? 'retirado' : 'ya no está en el equipo'})</option>`;
+  }
+  return grupo('🧭 Gerentes', ger) + grupo('🚶 Asesores', ase) + grupo('Otros', otros) + fuera;
+}
+
+/* Lo que se dice al terminar, con el aviso de quien no puede entrar. */
+function fraseAsignado(nombre, destino) {
+  const n = nombre || 'Esa persona';
+  if (!destino) return 'Listo: ' + n + ' ya no está asignado a nadie de tu equipo.';
+  const p = personaDeEquipo(destino);
+  if (!p) return 'Listo.';
+  return 'Listo: ' + n + ' queda con ' + p.nombre + '.' + (p.celular ? '' :
+    '\n\nOJO: ' + p.nombre + ' no tiene celular, y el celular es su usuario: no puede entrar a verlo hasta que se lo pongas en la pestaña Equipo.');
+}
+
+/* Publicar al terminar una asignación (Repartir, la ficha, el cuadro de
+   editar, agregar un prospecto), y decir lo que de verdad pasó: nunca «ya lo
+   ven» si no se pudo. Si ni siquiera se puede intentar (sin nube, sin nadie
+   con celular), se dice de una, sin esperar a nadie. */
+function publicarTrasAsignar(listo) {
+  const puerta = puertaPublicarSolo({ porCambio: true });
+  if (puerta) { const f = fraseTrasPublicar(puerta); alert(listo + (f ? '\n\n' + f : '')); return Promise.resolve(puerta); }
+  return publicarEquipoPorCambio().then(x => { alert(listo + (x.frase ? '\n\n' + x.frase : '')); return x.r; });
+}
+
+/* El cliente o el prospecto, por su id. */
+function asignableDe(tipo, id) {
+  const l = tipo === 'prospecto' ? prospectos() : DB.socios;
+  return l.find(x => String(x.id) === String(id)) || null;
+}
+
+/* 23-oct-2026 — LO QUE VE QUIEN LO RECIBE, DICHO COMPLETO.
+   Los cuadros decían «Nunca la cédula, la dirección ni las fotos», y no es
+   verdad: cada fila de «Mi base» tiene «🪪 Ver su ficha y sus fotos»
+   (ficha_de_mi_base), que a quien lo tiene asignado HOY le muestra lo que esa
+   persona dejó al registrarse en la app con ese celular —cédula, dirección,
+   cuentas, fotos de la cédula y la selfie—. Joan lo autorizó (15-sep y
+   23-oct); lo que no puede es prometer lo contrario en el cuadro donde decide.
+   Lo que VIAJA al publicar sí es solo lo de la primera parte: lo demás lo lee
+   la nube del registro, y solo mientras esté asignado. */
+function loQueVeElEquipo(tipo) {
+  return (tipo === 'prospecto' ? 'su nombre, su celular y en qué va' : 'su nombre, su celular, la etapa, cuánto debe y cuándo paga') +
+    '. Y si se registró en la app con ese mismo celular, en «🪪 Ver su ficha» ve también lo que dejó al registrarse: su cédula, su dirección, sus cuentas y sus fotos';
+}
+/* 23-oct-2026 — «se le publica» solo si de verdad se puede publicar. Los tres
+   cuadros que asignan (este, el de editar o agregar cliente y «＋ Agregar
+   prospecto») lo dicen igual: sin la nube, la frase cambia y el aviso
+   amarillo sale ANTES de que Joan decida, no solo después. */
+function textoPublicarAsignar(verbo, tipo) {
+  return (puertaAlAsignar()
+    ? 'Cuando se le publique a tu equipo, le sale en su «Mi base»: '
+    : verbo + ' se le publica a tu equipo en ese momento y le sale en su «Mi base»: ') + loQueVeElEquipo(tipo) + '.';
+}
+function avisoSinPublicar() {
+  const puerta = puertaAlAsignar();
+  const f = puerta ? fraseTrasPublicar(puerta) : '';
+  return f ? `<div class="alerta warn" style="margin-top:10px">${escHTML(f)}</div>` : '';
+}
+/* La puerta que seguirá cerrada DESPUÉS de anotar la asignación. Asignar
+   guarda antes de publicar, y guardar() sella la cartera de esta pestaña: el
+   «otra pestaña cambió tu cartera» de antes de guardar ya no frena esa
+   publicación. Avisarlo en el cuadro sería anunciar algo que no va a pasar. */
+function puertaAlAsignar() {
+  const p = puertaPublicarSolo({ porCambio: true });
+  return p === 'cartera_ajena' ? '' : p;
+}
+
+/* El cuadro «¿Quién atiende a …?». `volver` = 'ficha' reabre la ficha del
+   cliente al terminar: es de donde vino Joan, y ahí ve el cambio.
+   23-oct-2026 — `op` (opcional): {elegido, nota}. «＋ Agregar prospecto» lo
+   abre así cuando el celular ya estaba: con lo que Joan eligió en «Se lo
+   asigno a» ya marcado y la razón arriba, en vez de mandarlo a buscarlo a una
+   tabla que solo pinta 200. */
+function asignarUno(tipo, id, volver, op) {
+  const o = op || {};
+  const x = asignableDe(tipo, id);
+  if (!x) return alert('No encontré a esa persona.');
+  if (!hayComisiones()) return alert('No cargó app/comisiones.js, que es donde vive quién atiende a quién. Recarga la página con señal (Ctrl+Shift+R).');
+  const actual = atiendeHoy(id);
+  /* El que queda en la fecha en que contaría el cambio: el que se marca y el
+     que «Quitarle la asignación» quitaría (LO QUE YA SE GANÓ HOY…). */
+  const queda = duenoQueQueda(id);
+  const destinos = personasDestino();
+  if (!destinos.length && !actual && !queda) return alert('Primero crea al menos una persona en la pestaña Equipo.');
+  const elegido = o.elegido && destinos.some(p => String(p.id) === String(o.elegido)) ? String(o.elegido) : '';
+  const enLista = destinos.some(p => String(p.id) === String(queda));
+  const manana = fraseDesdeManana(id);
+  const ids = "'" + (tipo === 'prospecto' ? 'prospecto' : 'cliente') + "','" + escHTML(String(id)) + "','" + (volver === 'ficha' ? 'ficha' : '') + "'";
+  openModal('👤 ¿Quién atiende a ' + (x.nombre || 'esta persona') + '?', `
+    ${o.nota ? `<div class="alerta info" style="margin-bottom:12px">${o.nota}</div>` : ''}
+    <div class="info-row"><span class="k">Hoy lo atiende</span><span class="vv">${quienAtiendeHTML(id)}</span></div>
+    ${destinos.length ? `<div class="field" style="margin-top:12px"><label>Se lo asigno a</label>
+      <select id="auDestino">${opcionesDestino(elegido || (enLista ? queda : ''))}</select>
+      <div class="help">Puedes asignárselo a un <b>gerente</b> para que él lo reparta entre sus asesores.</div></div>` : ''}
+    <div class="aviso ambar" style="margin-top:12px">${manana
+      ? escHTML(manana) + ' '
+      : (actual ? 'Si se lo asignas a otro, <b>cambia de dueño de hoy en adelante</b>. ' : '')}Lo que ya se ganó no se mueve, tampoco lo de hoy: las comisiones siguen siendo de quien las ganó.</div>
+    <div class="muted" style="font-size:12.5px;margin-top:10px">${textoPublicarAsignar('Al asignarlo', tipo)}</div>
+    ${avisoSinPublicar()}
+    ${destinos.length ? `<button class="btn btn-rojo" style="margin-top:14px;width:100%" onclick="confirmarAsignarUno(${ids})">Asignar</button>` : ''}
+    ${queda ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%" onclick="confirmarAsignarUno(${ids},true)">Quitarle la asignación</button>
+      <div class="muted" style="font-size:12px;margin-top:4px;text-align:center">Deja de salir en la «Mi base» de quien lo tenía, y vuelve a ser solo tuyo.</div>` : ''}`);
+}
+
+function confirmarAsignarUno(tipo, id, volver, quitar) {
+  const x = asignableDe(tipo, id);
+  if (!x) return alert('No encontré a esa persona.');
+  if (!hayComisiones()) return alert('No cargó app/comisiones.js. Recarga la página con señal (Ctrl+Shift+R).');
+  const destino = quitar ? '' : gv('auDestino');
+  const per = destino ? personaDeEquipo(destino) : null;
+  if (!quitar && !per) return alert('Elige a quién se lo asignas.');
+  const nombre = x.nombre || 'Esa persona';
+  const desde = anotarAsignacion(id, destino, hoyISO(), 'A' + Date.now() + '-0');
+  if (!desde) {
+    cerrarModal();
+    alert(quitar ? nombre + ' no estaba asignado a nadie: no cambió nada.' : nombre + ' ya estaba con ' + per.nombre + ': no cambió nada.');
+    return Promise.resolve('sin_cambio');
+  }
+  /* La razón del «desde mañana» se puede contar después de anotar: si el
+     cambio cuenta desde mañana, el de hoy sigue siendo el mismo y lo que ganó
+     hoy también; si cuenta desde hoy, no hay fila más adelante y da ''. */
+  const manana = fraseDesdeManana(id);
+  guardar(); cerrarModal(); render();
+  if (volver === 'ficha' && tipo === 'cliente') verCliente(x.id);
+  return publicarTrasAsignar(fraseAsignado(nombre, destino) + (manana ? '\n\n' + manana : ''));
+}
+
+/* «¿Quién de tu equipo lo atiende?» dentro del cuadro de editar la ficha y del
+   de agregar cliente (guardarCliente lo aplica). NO hay opción con valor
+   vacío, a propósito: '' es lo que da gv() cuando el cuadro no pintó el campo
+   (sin equipo, sin comisiones.js), y eso tiene que ser «no tocar», nunca
+   «quitársela». «Nadie» viaja como 'nadie'. Y se anota lo que el cuadro
+   MOSTRÓ (_asignarFicha): guardar solo cambia la asignación si Joan movió el
+   desplegable, no porque mientras tanto la cambiara otro. */
+function campoAsignarFicha(id) {
+  if (!hayComisiones()) return '';
+  /* 23-oct-2026 — el que queda (duenoQueQueda), no el de hoy: si ya hay un
+     cambio que cuenta desde mañana, guardar sin tocar el desplegable no puede
+     deshacerlo. */
+  const actual = id ? (duenoQueQueda(id) || '') : '';
+  if (!personasDestino().length && !actual) {
+    return '<div class="sub-h">¿Quién de tu equipo lo atiende?</div><div class="muted" style="font-size:12.5px;margin-bottom:10px">' +
+      'Todavía no tienes equipo. Cuando crees a alguien en la pestaña Equipo, se lo asignas desde aquí o con «👤 Asignar a…» en su ficha.</div>';
+  }
+  _asignarFicha = { id: String(id || ''), mostrado: actual || 'nadie' };
+  const manana = id ? fraseDesdeManana(id) : '';
+  return `<div class="sub-h">¿Quién de tu equipo lo atiende?</div>
+    <div class="field"><select id="fAsignarA"><option value="nadie"${actual ? '' : ' selected'}>— Nadie: lo atiendes tú —</option>${opcionesDestino(actual, true)}</select>
+      <div class="help">${textoPublicarAsignar('Al guardar', 'cliente')} ${manana
+        ? escHTML(manana)
+        : 'Si lo atendía otro, cambia de dueño de hoy en adelante.'} Las comisiones ya ganadas no se mueven, tampoco las de hoy.</div>
+      ${avisoSinPublicar()}</div>`;
+}
+
+/* --------------------------------------------------------------------------
+ * «＋ AGREGAR PROSPECTO», UNO SUELTO — 23 de octubre de 2026
+ *
+ * Joan: «no aparece ninguna opción para agregar prospectos nuevos». Solo
+ * existía «⤒ Cargar base», que pide un archivo entero. Uno suelto —el que te
+ * recomendaron, el que te escribió— no tenía por dónde entrar.
+ *
+ * LAS MISMAS REGLAS QUE UNA BASE, porque es lo mismo con una sola fila:
+ *   · el celular y el nombre pasan por la MISMA revisión
+ *     (BasesTuGarantia.revisarBase): diez dígitos que empiezan por 3, los
+ *     últimos diez si viene con el 57, y el nombre en Mayúscula Inicial;
+ *   · no entra quien ya es cliente o ya es prospecto, y se dice QUIÉN es;
+ *   · «¿De dónde sale?» es obligatorio, como el origen de una base: es lo
+ *     único que permite contestar el día que pregunte de dónde sacaste su
+ *     teléfono;
+ *   · «¿Autorizó que lo contactemos?» se contesta sí o no, SIN respuesta por
+ *     defecto. Es el mismo dato que marca «Autorizó» en «🚫 Quién no, y por
+ *     qué» de Comercial (autorizaInvitacion, con su fecha): invitar sin
+ *     permiso es lo que sanciona la SIC, y la Ley 2300 le aplica a Joan en
+ *     persona. Con «no», entra igual y queda fuera de las invitaciones;
+ *   · no se carga si no cabe en el navegador sin arriesgar las fotos de la
+ *     cartera (la misma cuenta de cuantosCaben que usa una base);
+ *   · y «Se lo asigno a», en el mismo paso, con el mismo anotarAsignacion.
+ * ------------------------------------------------------------------------ */
+function agregarProspecto() {
+  if (!window.BasesTuGarantia) return alert('No cargó app/bases.js, que es el que revisa los celulares. Recarga la página con señal (Ctrl+Shift+R).');
+  const gente = hayComisiones() ? personasDestino() : [];
+  openModal('＋ Agregar prospecto', `
+    <p class="sub" style="margin-bottom:12px">Alguien que todavía no es cliente: el que te recomendaron, el que te escribió. Para muchos a la vez, «⤒ Cargar base».</p>
+    <div class="field"><label>Nombre</label><input id="apNombre" autocomplete="off"></div>
+    <div class="field"><label>Celular</label><input id="apCel" inputmode="numeric" placeholder="3001234567" autocomplete="off"></div>
+    <div class="field"><label>¿De dónde sale?</label><input id="apOrigen" placeholder="Ej: me lo recomendó Nancy — o: me escribió por Facebook">
+      <div class="help">Queda guardado con él. Si algún día pregunta de dónde sacaste su teléfono, esta es la respuesta — y tiene que existir antes, no después.</div></div>
+    <div class="field"><label>¿Autorizó que lo contactemos?</label>
+      <select id="apAutoriza"><option value="">— Elige una —</option>
+        <option value="si">Sí, me autorizó que le escribamos</option>
+        <option value="no">No, o no lo sé</option></select>
+      <div class="help">Marca «Sí» solo si es verdad: queda escrito con la fecha de hoy y es lo que te defiende si reclama. Con «No» entra igual, pero no le llegan las invitaciones de Comercial (sale en «🚫 Quién no, y por qué»): invitar sin permiso es lo que sanciona la SIC.</div></div>
+    ${gente.length ? `<div class="field"><label>Se lo asigno a <span class="opc">(opcional)</span></label>
+      <select id="apAsignarA"><option value="">— Nadie por ahora —</option>${opcionesDestino('')}</select>
+      <div class="help">${textoPublicarAsignar('Si se lo asignas, al agregarlo', 'prospecto')}</div>
+      ${avisoSinPublicar()}</div>` : ''}
+    <button class="btn btn-rojo arriba" onclick="guardarProspectoSuelto()">Agregar</button>`);
+}
+
+function guardarProspectoSuelto() {
+  const B = window.BasesTuGarantia;
+  if (!B) return alert('No cargó app/bases.js. Recarga la página con señal (Ctrl+Shift+R).');
+  const escrito = gv('apCel'), origen = gv('apOrigen'), autoriza = gv('apAutoriza'), destino = gv('apAsignarA');
+  if (!gv('apNombre')) return alert('Falta el nombre.');
+  /* La revisión de una base, con una sola fila: el mismo celular válido, el
+     mismo nombre arreglado y los mismos «ya está». */
+  const r = B.revisarBase([[gv('apNombre'), escrito]], { celular: 1, nombre: 0, encabezado: 0 },
+    { socios: DB.socios, prospectos: prospectos() });
+  const cel = B.celularDe(escrito);
+  if (!cel) return alert('Ese celular no me cuadra: son 10 dígitos y empieza por 3 (el 57 de adelante puede ir o no). Es la misma regla de las bases que cargas.');
+  /* 23-oct-2026 — EL QUE YA ESTABA, A LA VISTA. Antes: «búscalo en la tabla de
+     Bases», que pinta 200 y no tenía buscador —con una base de miles, ese
+     prospecto no salía en ninguna parte— y el «Se lo asigno a» que Joan ya
+     había elegido se perdía. Ahora, si eligió a alguien, se abre el «👤
+     Asignar a…» de ESE cliente o prospecto con esa persona marcada (Joan
+     confirma: puede que ya lo atienda otro, y el cuadro lo dice); si no
+     eligió a nadie, el prospecto queda filtrado en Bases con su fila. */
+  const elegido = destino && personaDeEquipo(destino) ? destino : '';
+  if (r.yaClientes) {
+    const s = DB.socios.find(x => [x.telefono, x.telefono2, x.whatsappNumero].some(t => B.celularDe(t) === cel));
+    const quien = s ? ': ' + s.nombre + ' (' + codCliente(s) + ')' : '';
+    if (s && elegido && hayComisiones()) {
+      alert('Ese celular ya es de un cliente tuyo' + quien + '.\n\nNo lo agrego como prospecto. Te abro su «👤 Asignar a…» con ' +
+        personaDeEquipo(elegido).nombre + ' ya marcado: confírmalo ahí.');
+      return asignarUno('cliente', s.id, 'ficha', { elegido: elegido,
+        nota: 'Este celular ya es de un cliente tuyo: no lo agregué como prospecto. Si quieres que ' + escHTML(personaDeEquipo(elegido).nombre) + ' lo atienda, toca «Asignar».' });
+    }
+    return alert('Ese celular ya es de un cliente tuyo' + quien + '.\n\n' +
+      'No lo agrego como prospecto. Si quieres que alguien de tu equipo lo atienda, ábrelo en Clientes (búscalo por su celular) y toca «👤 Asignar a…».');
+  }
+  if (r.repetidos || !r.nuevos.length) {
+    const p = prospectos().find(x => B.celularDe(x.celular) === cel);
+    const quien = p ? ': ' + (p.nombre || 'sin nombre') + (p.base ? ' (' + p.base + ')' : '') : '';
+    if (!p) return alert('Ese celular ya está en tus prospectos.\n\nNo lo agrego dos veces.');
+    /* Bases filtrada por su celular: su fila, con su «👤 Asignar a…», queda
+       arriba aunque la base tenga miles. */
+    const busca = document.getElementById('buscaBases');
+    if (busca) busca.value = cel;
+    if (elegido && hayComisiones()) {
+      alert('Ese celular ya está en tus prospectos' + quien + '.\n\nNo lo agrego dos veces. Te abro su «👤 Asignar a…» con ' +
+        personaDeEquipo(elegido).nombre + ' ya marcado: confírmalo ahí.');
+      irA('bases');
+      return asignarUno('prospecto', p.id, '', { elegido: elegido,
+        nota: 'Este celular ya estaba en tus prospectos: no lo agregué otra vez. Si quieres que ' + escHTML(personaDeEquipo(elegido).nombre) + ' lo trabaje, toca «Asignar».' });
+    }
+    cerrarModal(); irA('bases');
+    return alert('Ese celular ya está en tus prospectos' + quien + '.\n\n' +
+      'No lo agrego dos veces. Te lo dejé a la vista en Bases (filtré la tabla por su celular), con su «👤 Asignar a…».');
+  }
+  const nuevo = r.nuevos[0];
+  if (!nuevo.nombre) return alert('Ese nombre no tiene letras. Escríbelo como se llama.');
+  if (!origen) return alert('Escribe de dónde sale.\n\nNo es un trámite: es lo único que te permite contestar el día que pregunte de dónde sacaste su teléfono.');
+  if (autoriza !== 'si' && autoriza !== 'no') return alert('Contesta si autorizó que lo contactemos: sí o no.\n\nCon «No» entra igual, pero no le llegan las invitaciones de Comercial.');
+  if (destino && !personaDeEquipo(destino)) return alert('Elige a quién se lo asignas.');
+  const hoy = hoyISO(), sello = Date.now();
+  const p = { id: 'P' + sello + '-0', nombre: nuevo.nombre, celular: nuevo.celular, estado: 'nuevo',
+              base: BASE_A_MANO, origen: origen, cargadoEn: hoy,
+              autorizaInvitacion: autoriza === 'si', autorizaDesde: autoriza === 'si' ? hoy : null };
+  /* Uno solo pesa nada, pero si el navegador ya está al borde, guardar()
+     salvaría el libro tirando las fotos de los comprobantes: un prospecto
+     nunca puede costar un comprobante (la misma cuenta que una base). */
+  if (!B.cuantosCaben({ usado: usoDelNavegador(), pesos: [B.pesoDeProspecto(p)] }).caben) {
+    return alert('No cabe en este navegador sin arriesgar las fotos de tu cartera. No lo agregué.');
+  }
+  prospectos().push(p);
+  let asignadoA = null;
+  if (destino && hayComisiones() && anotarAsignacion(p.id, destino, hoy, 'A' + sello + '-0')) asignadoA = destino;
+  guardar(); cerrarModal(); render(); irA('bases');
+  const listo = 'Listo: ' + p.nombre + ' entró a tus prospectos (lo ves arriba en la tabla de Bases).' +
+    (p.autorizaInvitacion ? '' : '\n\nComo no autorizó (o no lo sabes), no le llegan las invitaciones de Comercial.');
+  if (asignadoA === null) { alert(listo); return Promise.resolve('agregado'); }
+  return publicarTrasAsignar(listo + '\n\n' + fraseAsignado(p.nombre, asignadoA).replace(/^Listo: /, ''));
 }
 
 /* --------------------------------------------------------------------------

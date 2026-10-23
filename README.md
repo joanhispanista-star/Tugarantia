@@ -180,6 +180,34 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
 
 panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna parte.
   crm.html              Socios, créditos, cobros, invitaciones, plantillas.
+                        Desde el 23-oct-2026, «👤 Asignar a…» en la ficha de
+                        cada cliente, en cada fila de Clientes y de Bases y en
+                        el cuadro de editar o agregar un cliente (con quién lo
+                        atiende hoy y «Quitarle la asignación»), y «＋ Agregar
+                        prospecto» en Bases: uno suelto, con las reglas de una
+                        base (celular válido, sin duplicar, de dónde sale, si
+                        autorizó) y a quién se lo asigna en el mismo paso.
+                        Asignar escribe fila nueva (la lista solo suma); a la
+                        nube viaja UNA por persona y por día —reasignar el
+                        mismo día, también con Repartir, tumbaba la publicación
+                        entera— y «nadie» viaja sin asesor. Pruebas:
+                        pruebas/asignar-desde-la-ficha.test.js y
+                        pruebas/asignar-desde-la-ficha-postgres.test.js.
+                        Revisión del mismo 23-oct (pruebas/asignar-desde-la-
+                        ficha-cierres*.test.js): la fila viaja con el id que la
+                        nube YA tiene para esa persona y ese día (lo trae
+                        equipo_traer justo antes; un dato viejo tumbaba la
+                        publicación con 23505 para siempre); nube.js junta las
+                        asignaciones también por id (volver al mismo dueño el
+                        mismo día ya no se pierde en otro aparato); si quien lo
+                        atiende ya ganó comisión HOY con él, el cambio cuenta
+                        desde mañana en el libro (en la «Mi base» cambia ya:
+                        la nube toma la de fecha más reciente); los cuadros
+                        dicen que quien lo recibe ve en «🪪 Ver su ficha» la
+                        cédula, la dirección, las cuentas y las fotos del
+                        registro, y avisan antes si no hay nube; y Bases tiene
+                        buscador (pinta 200), y un prospecto repetido abre su
+                        «👤 Asignar a…» con lo que Joan eligió.
   una-puerta.js         Las palabras del toque «¿Es la misma persona?» (juntar la
                         cuenta de un cliente antiguo), compartidas con espejo.html.
   nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el
@@ -200,7 +228,8 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         cartera sobre la que Joan emparejó con su sí («la nube
                         tiene otra cartera») no cuentan como más nuevas.
                         La cartera del EQUIPO se publica sola desde crm.html: al
-                        repartir, al crear, editar o retirar a alguien (en ese
+                        repartir o asignar desde una ficha, al crear, editar o
+                        retirar a alguien (en ese
                         momento, aunque no tenga clientes) y cada 15 min. La de
                         15 min, desde el 23-oct, solo con la cartera AL DÍA con
                         la nube (la misma prueba de los historiales, esperando
