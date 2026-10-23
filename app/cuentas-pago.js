@@ -73,9 +73,37 @@
   /* Lo que viaja en los datos del registro (p_datos de registrar_abierto),
      planos porque la base solo guarda pares de texto. Ocho llaves: con los 26
      campos del formulario, la verificación y la versión de la política son
-     36 de las 40 que la base acepta (pruebas/cuentas-pago.test.js lo cuenta). */
+     36 de las 40 que la base acepta (pruebas/cuentas-pago.test.js lo cuenta);
+     37 con el sello de abajo (LLAVE_SELLO, que no es un dato de pago). */
   var LLAVES_DEL_REGISTRO = ['nequi', 'daviplata', 'llave_breb', 'banco', 'banco_codigo',
                              'banco_tipo', 'banco_numero', 'cuentas_mias'];
+
+  /* 22-oct-2026 — EL SELLO DEL REGISTRO. Al aceptar, la pantalla no puede leer
+     las cuentas de la solicitud: mi_solicitud le quita `datos` desde el 7-oct
+     (base/20261007c_una_puerta_cierres.sql), y a propósito, porque esos datos
+     los escribió una puerta SIN sesión (registrar_abierto) y pueden ser de otra
+     persona (el riesgo D2 de base/20261020_la_cedula_de_la_cuenta.sql: quien
+     sabe el celular de María escribe primero su fila, con SU Nequi). Ofrecerle
+     a María «Nequi ···1234 · Recomendado» con el Nequi de otro sería mandar la
+     plata adonde ella no la pidió.
+     Por eso un sello: 32 letras al azar que nacen en ESTE teléfono al pasar el
+     paso, viajan en los datos del registro (a la bandeja) Y en la cuenta (el
+     signup, dentro de `vinculacion`; no es un dato de pago, sinDatosDePago lo
+     deja pasar). base/20261022b_las_cuentas_del_registro.sql
+     (mis_cuentas_de_pago) devuelve las cuentas solo si el sello de la
+     solicitud es el de la cuenta que pregunta: es decir, si la fila la
+     escribió el mismo registro que abrió esa cuenta. El de un tercero no lo
+     trae, y entonces se pregunta «Escribe tu cuenta», como si no hubiera
+     ninguna. Sin crypto (un navegador muy viejo) no hay sello, y pasa lo
+     mismo: nunca se inventa uno adivinable. */
+  var LLAVE_SELLO = 'cuentas_sello';
+  function selloNuevo() {
+    var c = (typeof crypto !== 'undefined' && crypto && typeof crypto.getRandomValues === 'function') ? crypto : null;
+    if (!c) return '';
+    var b = new Uint8Array(16);
+    c.getRandomValues(b);
+    return Array.prototype.map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+  }
 
   var TEXTO_RAPIDO = 'Recomendado · llega más rápido';
   var TEXTO_LENTO = 'Puede tardar más';
@@ -270,9 +298,12 @@
   /* ========================================================= LA ACEPTACIÓN */
 
   /**
-   * Las formas que dio al registrarse (solicitud.datos), en el orden en que se
-   * recomiendan: billeteras y llave primero, la cuenta de banco después. Solo
-   * si dijo que son suyas: sin esa casilla no se le ofrecen.
+   * Las formas que dio al registrarse, en el orden en que se recomiendan:
+   * billeteras y llave primero, la cuenta de banco después. Solo si dijo que
+   * son suyas: sin esa casilla no se le ofrecen.
+   * 22-oct-2026 — `datos` son las `cuentas` que contesta mis_cuentas_de_pago
+   * (ver LLAVE_SELLO), NO solicitud.datos: ese campo la base no se lo manda al
+   * teléfono desde el 7-oct, y leerlo dejaba esta lista siempre vacía.
    */
   function opcionesDeDestino(datos) {
     var d = datos || {}, out = [];
@@ -400,6 +431,16 @@
     var h = '<div class="cp-elegir" id="' + esc(px) + '_caja">' +
       '<div class="cp-tit">¿A dónde te consignamos?</div>' +
       '<div class="cp-sub">' + esc(TEXTO_A_TU_NOMBRE) + ' Te recomendamos Nequi, Daviplata o tu llave Bre-B: llegan más rápido.</div>';
+    /* 22-oct-2026 — `cargando`: mientras llegan las cuentas del registro
+       (mis_cuentas_de_pago) no se pinta ninguna opción. Si se pintara
+       «Escribe tu cuenta» y a los dos segundos la lista, la persona que ya
+       había tocado y empezado a escribir vería cambiar las opciones bajo el
+       dedo. */
+    if (c.cargando) {
+      h += '<div class="cp-sub cp-cargando">Buscando las cuentas que nos diste…</div>';
+      if (c.error) h += '<div class="cp-error">' + esc(c.error) + '</div>';
+      return h + '</div>';
+    }
     op.forEach(function (o, i) {
       h += fila(String(i), '<b>' + esc(describirDestino(o, false)) + '</b>' + etiquetaDeRapidez(o));
     });
@@ -481,6 +522,8 @@
     MEDIOS: MEDIOS.map(function (m) { return Object.assign({}, m); }),
     TIPOS_DE_CUENTA: TIPOS_DE_CUENTA.slice(),
     LLAVES_DEL_REGISTRO: LLAVES_DEL_REGISTRO.slice(),
+    LLAVE_SELLO: LLAVE_SELLO,
+    selloNuevo: selloNuevo,
     TEXTO_SIN_BANCO: TEXTO_SIN_BANCO,
     TEXTO_RAPIDO: TEXTO_RAPIDO,
     TEXTO_LENTO: TEXTO_LENTO,

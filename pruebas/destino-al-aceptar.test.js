@@ -7,9 +7,14 @@
  * pregunte nuevamente a qué cuenta desea que le consignen; recomendemos que
  * sea por billeteras digitales ya que es más rápido». Con las páginas de
  * verdad en el banco:
- *   · se ofrecen las que dio al registrarse (solicitud.datos), billeteras y
- *     llave primero con «Recomendado · llega más rápido», la de banco después,
- *     y «Otra cuenta a tu nombre»; en pantalla solo el final del número;
+ *   · se ofrecen las que dio al registrarse, billeteras y llave primero con
+ *     «Recomendado · llega más rápido», la de banco después, y «Otra cuenta a
+ *     tu nombre»; en pantalla solo el final del número. 22-oct-2026 — LA
+ *     SOLICITUD VA COMO LA MANDA LA BASE, SIN `datos` (mi_solicitud se lo
+ *     quita desde el 7-oct), y las cuentas llegan por mis_cuentas_de_pago.
+ *     Antes esta prueba le ponía `datos` a mano a la solicitud, una forma que
+ *     la base nunca devuelve, y por eso no vio que en la vida real la lista
+ *     salía siempre vacía (pruebas/cuentas-del-registro-al-aceptar.test.js);
  *   · la elección viaja CON la aceptación (aceptar_con_destino), en el cuerpo
  *     de la petición y nunca en una dirección;
  *   · sin la función en la base (404) se acepta como siempre y se dice que la
@@ -27,18 +32,22 @@ const { abrirPlay } = require('./banco-play.js');
 const { abrirPlataChat, asentar } = require('./banco-platachat.js');
 
 const ticks = () => new Promise(r => setImmediate(r));
-const DATOS = { nombres: 'MARIA JOSE', celular: '3001112233', nequi: '3001112233', llave_breb: '@MARIA123',
+/* Lo que contesta mis_cuentas_de_pago: solo las ocho llaves de pago. */
+const CUENTAS = { nequi: '3001112233', llave_breb: '@MARIA123',
   banco: 'Bancolombia', banco_codigo: '1-7', banco_tipo: 'Ahorros', banco_numero: '123456789', cuentas_mias: 'si' };
-const PROPUESTA = { id: 9, estado: 'contrapropuesta', datos: DATOS,
+/* Como la devuelve mi_solicitud: sin `datos`. */
+const PROPUESTA = { id: 9, estado: 'contrapropuesta',
   contrapropuesta: { capital: 1500000, costo: 300000, total: 1800000, fecha_pago: '2026-11-14', dias: 37,
                      costo_pct: 20, texto: 'Te propongo esto', por: 'joan', creada_en: '2026-10-08T15:00:00Z' } };
 const aceptadaCon = (destino, propuesta) => Object.assign({}, PROPUESTA, { estado: 'aceptada',
   destino_desembolso: destino ? Object.assign({}, destino, { propuesta: propuesta || PROPUESTA.contrapropuesta.creada_en }) : null });
 
-/* play/ con una nube que anota y contesta lo que se le pida por función. */
+/* play/ con una nube que anota y contesta lo que se le pida por función; las
+   cuentas del registro, por mis_cuentas_de_pago (como la base de verdad). */
 function play(resp, opc) {
   const P = abrirPlay(opc || {});
-  P.ev('window.__l = []; window.__resp = ' + JSON.stringify(resp || {}) + ';' +
+  resp = Object.assign({ mis_cuentas_de_pago: { ok: true, cuentas: CUENTAS } }, resp || {});
+  P.ev('window.__l = []; window.__resp = ' + JSON.stringify(resp) + ';' +
        ' fetch = function (u, o) { var s = String(u); var fn = (/rpc\\/([a-z_]+)/.exec(s) || [, ""])[1];' +
        ' window.__l.push({ u: s, fn: fn, c: o && o.body ? JSON.parse(o.body) : null });' +
        ' var r = window.__resp[fn]; if (r && r.__estado) return Promise.resolve({ ok: false, status: r.__estado, json: function () { return Promise.resolve({}); } });' +
@@ -47,12 +56,23 @@ function play(resp, opc) {
   return P;
 }
 const llamadas = P => JSON.parse(P.ev('JSON.stringify(window.__l)'));
+/* Las que no son la lectura de las cuentas del registro. */
+const otras = P => llamadas(P).filter(x => x.fn !== 'mis_cuentas_de_pago');
+/* play/ con la propuesta en pantalla y las cuentas ya llegadas. */
+async function playListo(resp, opc) {
+  const P = play(resp, opc);
+  await ticks(); await ticks();
+  return P;
+}
 
 describe('play/: la pregunta', () => {
-  test('las que dio al registrarse, en el orden que se recomienda, sin el número entero', () => {
-    const P = play();
-    const h = P.elems.cuerpo.innerHTML;
-    assert.match(h, /id="cajaDestino"/);
+  test('las que dio al registrarse, en el orden que se recomienda, sin el número entero', async () => {
+    const P = await playListo();
+    const c = P.elems.cuerpo.innerHTML;
+    assert.match(c, /id="cajaDestino"/);
+    /* Las cuentas llegan DESPUÉS de pintar la tarjeta (mis_cuentas_de_pago),
+       y se pintan en su caja. */
+    const h = P.elems.cajaDestino.innerHTML;
     assert.match(h, /¿A dónde te consignamos\?/);
     const i = h.indexOf('Nequi ···2233'), j = h.indexOf('Llave Bre-B ···A123'), k = h.indexOf('Bancolombia · ahorros ···6789');
     assert.ok(i > 0 && j > i && k > j, 'el orden no es billeteras, llave y banco');
@@ -60,30 +80,30 @@ describe('play/: la pregunta', () => {
     assert.match(h, /Otra cuenta a tu nombre/);
     assert.equal(/123456789|MARIA123/.test(h), false, 'el número entero quedó en pantalla');
     /* Va antes del «Acepto». */
-    assert.ok(h.indexOf('¿A dónde te consignamos?') < h.indexOf('id="btnAceptar"'));
+    assert.ok(c.indexOf('id="cajaDestino"') < c.indexOf('id="btnAceptar"'));
   });
 
   test('sin elegir no se acepta, y lo dice ahí mismo', async () => {
-    const P = play();
+    const P = await playListo();
     P.ev('marcarCondiciones(true); aceptarContrapropuesta(9);');
     await ticks();
-    assert.deepEqual(llamadas(P), []);
+    assert.deepEqual(otras(P), []);
     assert.match(P.elems.errAceptar.textContent, /Elige a dónde te consignamos/);
     assert.match(P.elems.cajaDestino.innerHTML, /cp-error[^>]*>Elige a dónde te consignamos/);
   });
 
   test('«Otra cuenta» sin «Es mía, a mi nombre» no se acepta', async () => {
-    const P = play();
+    const P = await playListo();
     P.ev("marcarCondiciones(true); elegirDestino('otra'); medioDestino('daviplata'); escribirDestino('numero', '320 555 6677'); aceptarContrapropuesta(9);");
     await ticks();
-    assert.deepEqual(llamadas(P), []);
+    assert.deepEqual(otras(P), []);
     assert.match(P.elems.errAceptar.textContent, /Es mía, a mi nombre/);
   });
 });
 
 describe('play/: la elección viaja con la aceptación', () => {
   test('elige su Nequi: aceptar_con_destino lo lleva en el cuerpo, y la pantalla dice a dónde', async () => {
-    const P = play({ aceptar_con_destino: { ok: true, solicitud: aceptadaCon({ medio: 'nequi', numero: '3001112233', es_mia: true }) } });
+    const P = await playListo({ aceptar_con_destino: { ok: true, solicitud: aceptadaCon({ medio: 'nequi', numero: '3001112233', es_mia: true }) } });
     P.ev("marcarCondiciones(true); elegirDestino('0'); aceptarContrapropuesta(9);");
     await ticks(); await ticks();
     const l = llamadas(P);
@@ -99,7 +119,7 @@ describe('play/: la elección viaja con la aceptación', () => {
   });
 
   test('elige la cuenta de banco: viaja entera para Joan', async () => {
-    const P = play({ aceptar_con_destino: { ok: true, solicitud: aceptadaCon(null) } });
+    const P = await playListo({ aceptar_con_destino: { ok: true, solicitud: aceptadaCon(null) } });
     P.ev("marcarCondiciones(true); elegirDestino('2'); aceptarContrapropuesta(9);");
     await ticks(); await ticks();
     const a = llamadas(P).find(x => x.fn === 'aceptar_con_destino');
@@ -108,7 +128,7 @@ describe('play/: la elección viaja con la aceptación', () => {
   });
 
   test('sin la función en la base (404): acepta como siempre y dice que la cuenta se pregunta por el chat', async () => {
-    const P = play({ aceptar_con_destino: { __estado: 404 },
+    const P = await playListo({ aceptar_con_destino: { __estado: 404 },
                      aceptar_condiciones: { ok: true, solicitud: aceptadaCon(null) } });
     P.ev("marcarCondiciones(true); elegirDestino('1'); aceptarContrapropuesta(9);");
     await ticks(); await ticks(); await ticks();
@@ -120,7 +140,7 @@ describe('play/: la elección viaja con la aceptación', () => {
   });
 
   test('la base dice que esa cuenta no sirve: no se aceptó nada, y se dice', async () => {
-    const P = play({ aceptar_con_destino: { ok: false, motivo: 'destino' } });
+    const P = await playListo({ aceptar_con_destino: { ok: false, motivo: 'destino' } });
     P.ev("marcarCondiciones(true); elegirDestino('0'); aceptarContrapropuesta(9);");
     await ticks(); await ticks();
     assert.match(P.elems.errAceptar.textContent, /No pudimos guardar esa cuenta/);
@@ -138,8 +158,8 @@ describe('play/: lo que se muestra después, y cuando la propuesta cambia', () =
     assert.match(h, /cuándo y por dónde recibes la plata/);
   });
 
-  test('si Joan cambia la propuesta, se vuelve a preguntar', () => {
-    const P = play();
+  test('si Joan cambia la propuesta, se vuelve a preguntar', async () => {
+    const P = await playListo();
     P.ev("elegirDestino('0')");
     assert.match(P.elems.cajaDestino.innerHTML, /value="0" checked/);
     const nueva = JSON.parse(JSON.stringify(PROPUESTA));
@@ -159,13 +179,15 @@ describe('play/: lo que se muestra después, y cuando la propuesta cambia', () =
 
 describe('PlataChat: la misma pregunta en la tarjeta de Créditos', () => {
   const ahora = () => new Date().toISOString();
-  const solM = () => ({ id: 41, app: 'platachat', estado: 'contrapropuesta', capital: 450000, cortes: 1, datos: DATOS,
+  /* Como la manda mi_solicitud_platachat: sin `datos`. */
+  const solM = () => ({ id: 41, app: 'platachat', estado: 'contrapropuesta', capital: 450000, cortes: 1,
     contrapropuesta: { capital: 450000, costo: 45000, total: 495000, fecha_pago: '2026-11-15', creada_en: ahora(), por: 'auto' } });
 
   async function maria(resp) {
     const sol = solM();
     const PC = abrirPlataChat({ resp: Object.assign({
-      mi_solicitud_platachat: () => ({ ok: true, solicitud: sol, ahora: ahora() }) }, resp ? resp(sol) : {}) });
+      mi_solicitud_platachat: () => ({ ok: true, solicitud: sol, ahora: ahora() }),
+      mis_cuentas_de_pago: () => ({ ok: true, cuentas: CUENTAS }) }, resp ? resp(sol) : {}) });
     await asentar(10);
     await PC.entrarComo('3001112233', 'Maria.Secreta9');
     PC.ev("CANAL = 'creditos'; irA('chats')");

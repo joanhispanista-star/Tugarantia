@@ -448,13 +448,17 @@ describe('las condiciones de este crédito', () => {
          ' return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ ok: true, solicitud: ' +
          JSON.stringify(Object.assign({}, PROPUESTA, { estado: 'aceptada' })) + ' }); } }); };');
     P.ev('SESION = { access_token: "t", user: { user_metadata: {} } }; pintarSolicitud(' + JSON.stringify(PROPUESTA) + ');');
+    /* 22-oct-2026 — al pintar la propuesta la pantalla LEE las cuentas del
+       registro (mis_cuentas_de_pago): esa lectura no es aceptar. Se cuentan
+       solo las aceptaciones. */
+    const aceptaciones = () => JSON.parse(P.ev('JSON.stringify(window.__l)')).filter(x => /rpc\/aceptar/.test(x.u));
     P.ev('aceptarContrapropuesta(9)');
     await ticks();
-    assert.equal(JSON.parse(P.ev('JSON.stringify(window.__l)')).length, 0, 'aceptó sin la casilla');
+    assert.equal(aceptaciones().length, 0, 'aceptó sin la casilla');
     assert.match(P.elems.errAceptar.textContent, /Marca la casilla/);
     P.ev('marcarCondiciones(true); aceptarContrapropuesta(9);');
     await ticks();
-    assert.equal(JSON.parse(P.ev('JSON.stringify(window.__l)')).length, 0, 'aceptó sin decir a dónde se le consigna');
+    assert.equal(aceptaciones().length, 0, 'aceptó sin decir a dónde se le consigna');
     assert.match(P.elems.errAceptar.textContent, /Elige a dónde te consignamos/);
     P.ev(ELEGIR + ' aceptarContrapropuesta(9);');
     await ticks();

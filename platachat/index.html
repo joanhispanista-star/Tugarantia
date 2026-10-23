@@ -868,7 +868,9 @@ var ESCRITURAS_EN_CAMINO = 0;
 /* Las RPC que solo leen. Lo que no está aquí cuenta como escritura: una
    función nueva frena la recarga hasta que alguien diga que solo lee. */
 var LECTURAS_QUE_NO_FRENAN = ['mi_cuenta', 'politica_platachat', 'mi_registro', 'mi_solicitud_platachat',
-                              'chat_leer_sesion', 'chat_foto_sesion_ver'];
+                              'chat_leer_sesion', 'chat_foto_sesion_ver',
+                              /* 22-oct-2026 — las cuentas del registro, al aceptar: solo lee. */
+                              'mis_cuentas_de_pago'];
 /* Devuelve la MISMA promesa; el conteo va en una rama aparte que se traga el
    error (no deja una promesa rechazada sin atender). */
 function escrituraEnCamino(p) {
@@ -2309,7 +2311,8 @@ function marcarCondicionesPlataChat(si, id) {
  * pregunte nuevamente a qué cuenta desea que le consignen; recomendemos que
  * sea por billeteras digitales ya que es más rápido». Las mismas reglas y el
  * mismo marcado que play/ (app/cuentas-pago.js): las que dio al registrarse
- * (SOL.datos), billeteras y llave primero, y «Otra cuenta a tu nombre».
+ * (mis_cuentas_de_pago: ver cuentasPC), billeteras y llave primero, y «Otra
+ * cuenta a tu nombre».
  *
  * Lo elegido vive aquí, por solicitud Y por propuesta, en memoria (es un dato
  * de pago: no se guarda en el teléfono). La tarjeta la repinta el latido
@@ -2326,12 +2329,48 @@ function destinoPC(sol) {
   if (!DESTINOS_PC[k]) DESTINOS_PC[k] = { eleccion: null, otra: {}, error: '' };
   return DESTINOS_PC[k];
 }
+/* 22-oct-2026 — LAS CUENTAS DEL REGISTRO, DE DONDE SÍ LLEGAN. Se leían de
+   SOL.datos, y mi_solicitud_platachat no lo manda desde el 7-oct (puede ser
+   el registro de otra persona): la lista salía siempre vacía. Las pide
+   mis_cuentas_de_pago, que solo las da si el sello del registro casa con esta
+   cuenta (ver LLAVE_SELLO en app/cuentas-pago.js). Una vez por solicitud y
+   por sesión: el latido repinta la tarjeta muchas veces y no puede pedirlas
+   en cada vuelta. Si falla, «Escribe tu cuenta». «Salir» las suelta. */
+var CUENTAS_PC = {};
+/* Por el celular de la sesión y no por el token: sesion.js renueva el token
+   EN SU SITIO cada hora, y con el token en la llave la tarjeta volvía a
+   «Buscando las cuentas…» a media escritura (el latido la repinta) y se le
+   iba el teclado. Otra persona en este teléfono pasa por salir(), que vacía
+   CUENTAS_PC. */
+function llaveCuentasPC(sol) {
+  return String((SES && (SES.celular || SES.access_token)) || '') + '|' + String(sol && sol.id);
+}
+function cuentasPC(sol) {
+  var k = llaveCuentasPC(sol);
+  if (CUENTAS_PC[k]) return CUENTAS_PC[k];
+  var c = CUENTAS_PC[k] = { estado: 'cargando', opciones: [] };
+  var listo = function (cuentas) {
+    c.estado = 'ok';
+    c.opciones = CP ? CP.opcionesDeDestino(cuentas || {}) : [];
+    pintarPropuesta();
+  };
+  var p;
+  /* Se llama mientras se arma la tarjeta: un error aquí no la puede tumbar. */
+  try { p = rpcSesion('mis_cuentas_de_pago', { p_id: Number(sol.id) }); }
+  catch (e) { c.estado = 'ok'; return c; }
+  p.then(function (j) {
+    listo(j && j.ok === true && j.cuentas && typeof j.cuentas === 'object' ? j.cuentas : {});
+  }, function () { listo({}); });
+  return c;
+}
 function opcionesDestinoPC(sol) {
-  return CP ? CP.opcionesDeDestino((sol && sol.datos && typeof sol.datos === 'object') ? sol.datos : {}) : [];
+  var c = (CP && sol) ? CUENTAS_PC[llaveCuentasPC(sol)] : null;
+  return (c && c.estado === 'ok') ? c.opciones : [];
 }
 function eleccionDestinoPC(sol) {
   var d = destinoPC(sol);
-  return CP.eleccionHTML({ opciones: opcionesDestinoPC(sol), estado: d, prefijo: 'pcdst',
+  var c = cuentasPC(sol);
+  return CP.eleccionHTML({ opciones: opcionesDestinoPC(sol), cargando: c.estado === 'cargando', estado: d, prefijo: 'pcdst',
     alElegir: 'elegirDestinoPC', alMedio: 'medioDestinoPC', alEscribir: 'escribirDestinoPC', error: d.error });
 }
 function elegirDestinoPC(v) {
@@ -3138,6 +3177,7 @@ function salir(msg) {
   AVISO_RESPONSABLE_PC_CERRADO = false;   /* el aviso es por persona: el que entre después lo ve si no lo cerró */
   S = null; SES = null; SIN_NUBE = false; AVISO_NUBE = ''; BORRADOR = ''; MI_REGISTRO = '';   /* el registro es de esa cuenta: el que entre después no hereda un «descartado» */
   SOL = null; RELOJ_OK = false; ACEPTANDO = false; PIDIENDO_PC = false;
+  CUENTAS_PC = {}; DESTINOS_PC = {};   /* 22-oct-2026 — sus cuentas de pago (las del registro y la que escribía) no se quedan para el siguiente */
   SOL_GEN++; DESFASE_RELOJ = 0; POL = null; fijarFraseReloj();   /* lo de la base es de esa sesión: una traída en vuelo se bota y el que entre después arranca en cero, también la frase con la espera */
   apagarLatido(); GEN++;
   CH = { canal: '', gen: GEN, mensajes: [], ultimo: 0, cargando: false, enviando: false, error: '' };

@@ -2814,7 +2814,11 @@ function anotarPesos(el, ev) {
  * llave y también, si se puede, la cuenta bancaria».
  *
  * Por eso no es «elige una»: se pueden dejar las cuatro, y al aceptar cada
- * crédito se escoge a cuál (tarjetaContrapropuesta). Al menos UNA es
+ * crédito se pregunta a cuál (tarjetaContrapropuesta). 22-oct-2026 — y la
+ * pantalla dice «te preguntamos a qué cuenta», no «eliges entre estas»: las
+ * de aquí salen al aceptar solo si el sello del registro casa con la cuenta
+ * (mis_cuentas_de_pago; ver LLAVE_SELLO en app/cuentas-pago.js), y quien ya
+ * tenía cuenta, o abrió la suya antes de esto, escribe la suya. Al menos UNA es
  * obligatoria para terminar, y todas a su nombre: la casilla «Son mías, a mi
  * nombre» es la palabra del cliente, y lo que protege a Joan de girarle a la
  * cuenta de otro (al consignar, su banco le muestra el titular enmascarado y
@@ -2851,7 +2855,7 @@ function pasoCobro() {
         'Es este mismo celular (' + esc(cel) + ')</button>' : '');
   };
   var otro = REGISTRO.banco_codigo === 'otro';
-  return '<p class="sub">Llena al menos una. Puedes dejar varias: cuando aceptes cada crédito eliges a cuál te lo consignamos.</p>' +
+  return '<p class="sub">Llena al menos una. Puedes dejar varias: cada vez que aceptes un crédito te preguntamos a qué cuenta te lo consignamos.</p>' +
     '<div class="aviso"><b>' + esc(CP.TEXTO_A_TU_NOMBRE) + '</b> Nequi, Daviplata y la llave Bre-B llegan más rápido.</div>' +
     '<div class="grupo-tit">Billeteras y llave Bre-B <span class="cp-etq cp-rapido">' + esc(CP.TEXTO_RAPIDO) + '</span></div>' +
     billetera('nequi', 'Tu Nequi') +
@@ -2921,6 +2925,16 @@ function ponerCuentasLimpias() {
   var limpias = CP.cuentasLimpias(REGISTRO);
   CP.LLAVES_DEL_REGISTRO.forEach(function (k) { delete REGISTRO[k]; });
   Object.assign(REGISTRO, limpias);
+  /* 22-oct-2026 — EL SELLO, UNA VEZ POR REGISTRO (ver LLAVE_SELLO en
+     app/cuentas-pago.js). Nace aquí y no al tocar «Abrir mi cuenta»: si
+     naciera en cada toque, el reintento mandaría otro a la cuenta mientras la
+     bandeja (idempotente por celular) se queda con el del primero, y no
+     casarían nunca. «Empezar de cero» y el cambio de celular lo borran con el
+     resto del registro. */
+  if (CP.selloNuevo && !REGISTRO[CP.LLAVE_SELLO]) {
+    var sello = CP.selloNuevo();
+    if (sello) REGISTRO[CP.LLAVE_SELLO] = sello;
+  }
   guardarBorrador(REGISTRO);
 }
 /* La cuenta (el signup) va sin los datos de pago. Sin CP, la lista a mano: un
@@ -4696,7 +4710,9 @@ var SUBIDA_SUELTA = null;
    escritura: una función nueva frena la recarga hasta que alguien diga que
    solo lee, y no al revés. */
 var LECTURAS_QUE_NO_FRENAN = ['chat_leer_sesion', 'chat_sin_leer_sesion', 'chat_foto_sesion_ver',
-                              'mi_cuenta', 'mi_registro', 'mi_solicitud'];
+                              'mi_cuenta', 'mi_registro', 'mi_solicitud',
+                              /* 22-oct-2026 — las cuentas del registro, al aceptar: solo lee. */
+                              'mis_cuentas_de_pago'];
 /* Devuelve la MISMA promesa: quien llama sigue con su .then y su .catch como
    siempre. El conteo va en una rama aparte que se traga el error (no deja
    una promesa rechazada sin atender). */
@@ -4993,7 +5009,8 @@ function tarjetaContrapropuesta(sol) {
        momento de que el cliente acepte la contrapropuesta, que se le pregunte
        nuevamente a qué cuenta desea que le consignen; recomendemos que sea por
        billeteras digitales ya que es más rápido». Las que dio al registrarse
-       (sol.datos), billeteras y llave primero, y «Otra cuenta a tu nombre».
+       (mis_cuentas_de_pago: ver cuentasDelRegistro), billeteras y llave
+       primero, y «Otra cuenta a tu nombre».
        Solo si están las condiciones (CS): sin ellas la aceptación no puede
        llevar la cuenta (aceptar_con_destino pide lo que vio), y una pregunta
        cuya respuesta no viaja sería mentirle. */
@@ -5054,12 +5071,46 @@ function destinoDe(sol) {
   if (!DESTINOS[k]) DESTINOS[k] = { eleccion: null, otra: {}, error: '' };
   return DESTINOS[k];
 }
+/* 22-oct-2026 — LAS CUENTAS DEL REGISTRO, DE DONDE SÍ LLEGAN. Se leían de
+   sol.datos, y ese campo la base no se lo manda al teléfono desde el 7-oct
+   (mi_solicitud le quita `datos`, a propósito: puede ser el registro de otra
+   persona). La lista salía siempre vacía y el registro prometía lo contrario.
+   Ahora las pide mis_cuentas_de_pago (base/20261022b_las_cuentas_del_registro.sql),
+   que solo las da si el sello del registro casa con esta cuenta (ver
+   LLAVE_SELLO en app/cuentas-pago.js). Una vez por solicitud y por sesión: si
+   falla (404 sin el archivo, la red, la sesión vencida) queda «Escribe tu
+   cuenta», que es lo honesto, y no se reintenta en cada repintada. En memoria
+   y nunca en el teléfono, como lo elegido (DESTINOS); «Salir» las suelta. */
+var CUENTAS_DEL_REGISTRO = {};
+function llaveDeCuentas(sol) {
+  return String((SESION && SESION.access_token) || '') + '|' + String(sol && sol.id);
+}
+function cuentasDelRegistro(sol) {
+  var k = llaveDeCuentas(sol);
+  if (CUENTAS_DEL_REGISTRO[k]) return CUENTAS_DEL_REGISTRO[k];
+  var c = CUENTAS_DEL_REGISTRO[k] = { estado: 'cargando', opciones: [] };
+  var listo = function (cuentas) {
+    c.estado = 'ok';
+    c.opciones = CP ? CP.opcionesDeDestino(cuentas || {}) : [];
+    if (SOL_EN_PANTALLA && Number(SOL_EN_PANTALLA.id) === Number(sol.id)) repintarDestino();
+  };
+  var p;
+  /* Se llama mientras se arma la tarjeta: un error aquí no la puede tumbar. */
+  try { p = rpcSesion('mis_cuentas_de_pago', { p_id: Number(sol.id) }); }
+  catch (e) { c.estado = 'ok'; return c; }
+  p.then(function (j) {
+    listo(j && j.ok === true && j.cuentas && typeof j.cuentas === 'object' ? j.cuentas : {});
+  }, function () { listo({}); });
+  return c;
+}
 function opcionesDeDestinoDe(sol) {
-  return CP ? CP.opcionesDeDestino((sol && sol.datos && typeof sol.datos === 'object') ? sol.datos : {}) : [];
+  var c = (CP && sol) ? CUENTAS_DEL_REGISTRO[llaveDeCuentas(sol)] : null;
+  return (c && c.estado === 'ok') ? c.opciones : [];
 }
 function eleccionDestinoHTML(sol) {
   var d = destinoDe(sol);
-  return CP.eleccionHTML({ opciones: opcionesDeDestinoDe(sol), estado: d, prefijo: 'dst',
+  var c = cuentasDelRegistro(sol);
+  return CP.eleccionHTML({ opciones: opcionesDeDestinoDe(sol), cargando: c.estado === 'cargando', estado: d, prefijo: 'dst',
     alElegir: 'elegirDestino', alMedio: 'medioDestino', alEscribir: 'escribirDestino', error: d.error });
 }
 function repintarDestino() {
@@ -11612,6 +11663,9 @@ function salirDeCuenta() {
   if (SUBIDA_EN_CURSO && SUBIDA_EN_CURSO.p) soltarLaSubida(SUBIDA_EN_CURSO.p);
   PIDIENDO = false; SUBIDA_EN_CURSO = null;
   SOL_EN_PANTALLA = null; CONDICIONES_LEIDAS = {}; PEDIDO_PUESTO = '';
+  /* 22-oct-2026 — y sus cuentas de pago: las del registro que trajo
+     mis_cuentas_de_pago y la que estaba escribiendo al aceptar. */
+  CUENTAS_DEL_REGISTRO = {}; DESTINOS = {};
   MI_REGISTRO = ''; AVISO_RESPONSABLE_PLAY_CERRADO = false;
   LEIDAS = { servicio: 0, cobranza: 0, creditos: 0 };
   /* 20-oct-2026, revisión (F7; regla 3) — y nada del registro de esta cuenta

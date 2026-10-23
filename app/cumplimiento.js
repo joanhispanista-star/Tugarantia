@@ -138,7 +138,7 @@
     { id: 'datos_de_pago', etiqueta: 'Dónde recibes la plata: Nequi, Daviplata, llave Bre-B o cuenta de banco (banco, tipo y número)',
       categoria: 'Información financiera · Información de pago del usuario',
       obligatorio: true, proposito: 'Enviarte el dinero de cada crédito, solo a cuentas a tu nombre.',
-      nota: 'Al menos una al registrarte; al aceptar cada crédito eliges a cuál se consigna. No se publica en el acompañamiento del registro ni viaja dentro de la sesión guardada en el teléfono.' },
+      nota: 'Al menos una al registrarte; al aceptar cada crédito te preguntamos a qué cuenta se consigna. No se publica en el acompañamiento del registro ni viaja dentro de la sesión guardada en el teléfono.' },
     { id: 'historial_credito', etiqueta: 'Tus créditos y tus pagos',
       categoria: 'Información financiera · Historial de compras',
       obligatorio: true, proposito: 'Es tu historial: lo que pediste, lo que pagaste y cuándo.',

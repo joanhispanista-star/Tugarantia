@@ -9664,7 +9664,10 @@ const ETIQUETAS_VINCULACION={nombres:'Nombres',apellidos:'Apellidos',tipo_doc:'T
   cuentas_mias:'Dijo que son a su nombre'};
 function verDatosRegistro(id){
   const r=_registros.find(x=>String(x.id)===String(id)); if(!r||!r.datos)return;
-  const filas=Object.entries(r.datos).filter(([k,v])=>v!==''&&v!=null)
+  /* 22-oct-2026 — sin el sello del registro (cuentas_sello): son 32 letras al
+     azar que solo sirven para que la app sepa que la fila es de esa cuenta
+     (base/20261022b_las_cuentas_del_registro.sql). A Joan no le dice nada. */
+  const filas=Object.entries(r.datos).filter(([k,v])=>v!==''&&v!=null&&k!=='cuentas_sello')
     .map(([k,v])=>`<div class="info-row"><span class="k">${escHTML(ETIQUETAS_VINCULACION[k]||k.replace(/_/g,' '))}</span><span class="vv">${escHTML(String(v))}</span></div>`).join('');
   openModal('Lo que declaró '+(r.nombre||'esta persona'),
     /* 22-sep-2026 — decía «nadie los ha verificado todavía», y dos renglones
@@ -11481,7 +11484,9 @@ function fichaHTML(j) {
      es Joan, desde su bandeja. Se marcan como «usados» para que tampoco
      salgan como extras con el nombre crudo. (La base todavía las manda en
      ficha_de_mi_base: está en el resumen de la entrega, para que Joan decida.) */
-  const usados = {};
+  /* 22-oct-2026 — ni el sello del registro (cuentas_sello), que no es un dato
+     de la persona: ver verDatosRegistro. */
+  const usados = { cuentas_sello: true };
   (CPAGO ? CPAGO.LLAVES_DEL_REGISTRO : ['nequi', 'daviplata', 'llave_breb', 'banco', 'banco_codigo', 'banco_tipo', 'banco_numero', 'cuentas_mias'])
     .forEach(k => { usados[k] = true; });
   const filas = Object.keys(CONOCIDOS)

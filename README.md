@@ -150,6 +150,18 @@ base/
                                   20261008_condiciones_aceptadas.sql y ANTES de
                                   publicar la web. Termina con su tabla true/false.
                                   Pruebas: pruebas/destino-del-desembolso-postgres.test.js.
+  20261022b_las_cuentas_del_registro.sql  mis_cuentas_de_pago(p_id): las
+                                  cuentas que la clienta dio al registrarse,
+                                  para ofrecérselas al aceptar. mi_solicitud
+                                  sigue SIN `datos` (el corte del 7-oct): esta
+                                  devuelve solo las ocho llaves de pago, solo a
+                                  la dueña, en 'contrapropuesta', y solo si el
+                                  sello del registro (datos.cuentas_sello) es el
+                                  de su cuenta (vinculacion.cuentas_sello del
+                                  signup); si no, nada, y la app pide «Escribe
+                                  tu cuenta». ANTES de publicar la web. Termina
+                                  con su tabla true/false. Pruebas:
+                                  pruebas/cuentas-del-registro-al-aceptar-postgres.test.js.
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.
@@ -197,6 +209,13 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         (aceptar_con_destino). Pruebas:
                         pruebas/cuentas-en-el-registro.test.js y
                         pruebas/destino-al-aceptar.test.js.
+                        Las cuentas del registro se ofrecen al aceptar por
+                        mis_cuentas_de_pago, con el sello del registro (la
+                        solicitud que lee el teléfono no trae `datos`); sin
+                        él, «Escribe tu cuenta». En «Banco», «Sin cuenta de
+                        banco» suelta un banco tocado sin querer. Pruebas:
+                        pruebas/cuentas-del-registro-al-aceptar.test.js y
+                        pruebas/el-banco-se-puede-soltar.test.js.
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).

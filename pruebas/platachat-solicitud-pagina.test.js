@@ -687,8 +687,11 @@ describe('PlataChat con reloj: aceptar', () => {
     assert.match(P.elems.chPropuesta.innerHTML, /Aceptaste \$100\.000/);
     assert.match(P.elems.chPropuesta.innerHTML, /Te la consignamos a Nequi ···2233, a tu nombre/);
     assert.equal(cuantas(n, 'chat_leer_sesion'), hilosAntes + 1, 'no volvió a traer el hilo (el «Acepto» que escribió la base)');
-    /* Aceptar no desembolsa: ninguna función de crédito ni de pago se llama. */
-    assert.ok(!n.llamadas.some(l => /credito|pago|desembols/.test(l.fn)), 'aceptar llamó a algo que parece un desembolso');
+    /* Aceptar no desembolsa: ninguna función de crédito ni de pago se llama.
+       22-oct-2026 — salvo la LECTURA de las cuentas del registro
+       (mis_cuentas_de_pago), que la tarjeta pide al pintarse y no mueve nada. */
+    assert.ok(!n.llamadas.some(l => l.fn !== 'mis_cuentas_de_pago' && /credito|pago|desembols/.test(l.fn)),
+      'aceptar llamó a algo que parece un desembolso');
   });
 
   test('mientras el aceptar va en vuelo el botón queda apagado y un segundo toque no manda nada', async () => {
