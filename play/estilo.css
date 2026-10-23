@@ -529,6 +529,21 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
    (--laca y --blanco-laca): en modo claro casi es el --fondo de antes, y en el
    oscuro queda como una foto clara sobre la mesa.
 
+   23-oct-2026 — «CLARA Y FIJA» NO LO ERA CON EL OSCURO FORZADO, y por eso
+   color-scheme:only light. Un navegador que oscurece la página por su cuenta
+   (Samsung Internet en modo oscuro lo hace de fábrica; Chrome solo con la
+   bandera de «contenido web oscuro») no mira los tokens: repinta el fondo.
+   Medido en Chrome sin ventana con el motor viejo y el nuevo (scratchpad
+   auditoria-23/refuta-oscuro/sin-umbral): con el motor anterior al 152 los
+   muñecos salían como siluetas blancas sin cara (C-oscuro-con-darken.png), y
+   con el nuevo la placa se volvía oscura y la ropa negra se hundía en ella.
+   Con only light en la placa, los dos motores la dejan clara y los muñecos
+   intactos (F-C+only-light-en-placa.png). Tiene que ser «only light»: con
+   «light» a secas el navegador vuelve a forzar el oscuro. EN SAMSUNG NO ESTÁ
+   VERIFICADO: lo de arriba es Chrome; que el oscuro de Samsung también
+   respete color-scheme nadie lo ha visto en un teléfono.
+   Lo vigila pruebas/oscuro-forzado.test.js.
+
    border-radius recorta la imagen, como hacía el clip-path de antes: el torso
    llega hasta el borde de abajo para que la persona no parezca flotando.
 
@@ -536,7 +551,8 @@ textarea:focus{outline:2px solid var(--azul-texto);outline-offset:1px}
    no hay nada que pintar, y una regla tipo «.gente img» se colaría en cualquier
    otra tarjeta que algún día ponga una imagen (el noveno patrón de la casa). */
 .gente-esc{flex:0 0 auto;width:112px;height:112px;display:block;
-  border-radius:25%;background:color-mix(in srgb, var(--laca) 3%, var(--blanco-laca))}
+  border-radius:25%;background:color-mix(in srgb, var(--laca) 3%, var(--blanco-laca));
+  color-scheme:only light}
 
 
 /* ---------------------------------------------------------------------------

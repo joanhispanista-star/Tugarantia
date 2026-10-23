@@ -580,8 +580,13 @@
     '.cs .cs-chip{min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--cs-linea);' +
       'background:rgba(251,247,244,.06);color:var(--cs-luz);font:inherit;font-size:14px;font-weight:600;cursor:pointer}' +
     '.cs .cs-chip.sel{border-color:var(--cs-oro);background:rgba(245,197,66,.16);color:var(--cs-oro)}' +
+    /* 23-oct-2026 — color-scheme:only light: un navegador que oscurece la
+       página por su cuenta (Samsung Internet en modo oscuro) repintaba este
+       blanco a #121212 y el monto se escribía negro sobre negro, la regla del
+       22-sep rota. «light» a secas no basta. Ver pruebas/oscuro-forzado.test.js. */
     '.cs .cs-libre{display:block;width:100%;margin-top:10px;min-height:48px;padding:10px 14px;border-radius:12px;' +
-      'border:1px solid #D8D2CC;background:#FFFFFF;color:#0C0A0B;font:inherit;font-size:17px;box-sizing:border-box}' +
+      'border:1px solid #D8D2CC;background:#FFFFFF;color:#0C0A0B;font:inherit;font-size:17px;box-sizing:border-box;' +
+      'color-scheme:only light}' +
     '.cs .cs-libre-etq{display:block;font-size:13px;color:var(--cs-tenue);margin-top:12px}' +
     '.cs .cs-cuando{font-size:20px;font-weight:700;line-height:1.3;margin-top:4px}' +
     '.cs .cs-cuando small{display:block;font-size:14px;font-weight:500;color:var(--cs-tenue)}' +

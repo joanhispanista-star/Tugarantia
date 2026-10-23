@@ -112,10 +112,20 @@
 
    Se fija solo en las casillas donde se TECLEA. El resto de la pantalla
    sigue respetando el modo del telefono: lo que se pidio es poder leer lo
-   que uno escribe, no apagar el tema oscuro. */
+   que uno escribe, no apagar el tema oscuro.
+
+   23-oct-2026 — color-scheme:only light, por el OSCURO FORZADO. Un navegador
+   que oscurece la página por su cuenta (Samsung Internet en modo oscuro)
+   repinta este #FFFFFF a #121212 sin mirar la regla: #inTel, #inClave,
+   #csMontoLibre y #csFecha volvían a ser negro sobre negro (auditoría del
+   23-oct, medido en Chrome sin ventana con la bandera que lo imita). «only
+   light» le dice que estas casillas no se tocan; con «light» a secas las
+   vuelve a oscurecer. De paso, el ícono de calendario de #csFecha queda
+   oscuro sobre el blanco. En Samsung de verdad no está verificado.
+   Lo vigila pruebas/oscuro-forzado.test.js. */
 input[type=text],input[type=tel],input[type=password],input[type=number],
 input[type=email],input[type=date],textarea{
-  background:#FFFFFF;color:#0C0A0B;border-color:#D8D2CC}
+  background:#FFFFFF;color:#0C0A0B;border-color:#D8D2CC;color-scheme:only light}
 input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 
 /* EL OJO, DISCRETO Y DENTRO DE LA BARRA. Joan: «se ve muy feo, quisa un poco
