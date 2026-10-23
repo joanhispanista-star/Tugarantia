@@ -4597,8 +4597,17 @@ function renderCred(){
   if(!arr.length){ c.innerHTML=`<div class="empty"><div class="ic">💵</div><p>Sin créditos todavía.<br><span class="muted">Toca “＋ Nuevo crédito” para registrar el primero.</span></p></div>`+papeleraHTML(); return; }
   const sumCap=arr.reduce((s,p)=>s+capitalActual(p),0),sumAPagar=arr.reduce((s,p)=>s+(p.pagado?0:montoEnSuFecha(p)),0),sumGan=arr.reduce((s,p)=>s+gananciaCobrada(p),0);
   /* 22-oct-2026 — lo que te deja TODA la cartera, con el % sobre todo lo prestado: la misma cuenta del puente, crédito por crédito. */
-  const gTot=arr.reduce((t,p)=>{ const g=gananciaDe(p); if(g){ t.ganancia+=g.ganancia; t.capital+=g.capital; } return t; },{ganancia:0,capital:0});
+  /* 23-oct-2026 (verificación de e0ae61a) — y el pie, con la misma reja que la
+     fila: sin una sola cifra (el app/puente.js viejo de la caché, sin
+     gananciaDelCredito, en el primer F5 después de publicar) gTot se quedaba
+     en cero y el pie decía que TODA la cartera «te deja $0 · 0%». Cada fila
+     escondía lo suyo; el pie no preguntaba. Sin cifras, dice que recargue. */
+  let conCifra=0;
+  const gTot=arr.reduce((t,p)=>{ const g=gananciaDe(p); if(g){ conCifra++; t.ganancia+=g.ganancia; t.capital+=g.capital; } return t; },{ganancia:0,capital:0});
   gTot.pct=gTot.capital>0?Math.round(gTot.ganancia/gTot.capital*1000)/10:0;
+  const pieTeDeja=conCifra
+    ?`<div style="font-size:12px">te deja ${cifraGanancia(gTot)}</div>`
+    :`<div class="muted" style="font-size:12px;font-weight:400">Para ver lo que te deja, recarga la página (Ctrl+F5): este computador tiene una versión vieja de las reglas.</div>`;
   c.innerHTML=`<div style="margin-bottom:12px"><button class="btn btn-ghost btn-sm" onclick="revisarCartera()" title="Busca montos raros, dobles registros y fechas que no cuadran">🔍 Revisar la cartera</button><span class="muted" style="margin-left:8px;font-size:12px">Montos raros, dobles registros, fechas que no cuadran.</span></div><table><thead><tr><th>N°</th><th>Cliente</th><th>Capital</th><th>A pagar</th><th>Ganancia</th><th>Desemb. → Quincena</th><th>E.A.</th><th>Estado</th><th></th></tr></thead><tbody>${
     arr.map(p=>{ const est=estadoPrestamo(p),dias=diasEntre(p.fechaDesembolso,PUENTE.corteDelCredito(p)),npr=(p.prorrogas||[]).length,s=DB.socios.find(x=>x.id===p.socioId);
       /* 17-oct-2026, revisión — el crédito a cuotas no es «el % a N días»: la
@@ -4619,7 +4628,7 @@ function renderCred(){
       <td class="${sobre?'ea-bad':'ea-ok'}">${fmtEA(ea)}${sobre?' <span class="warn-ico" title="Supera la usura de referencia">⚠️</span>':''}</td>
       <td><span class="chip ${est}">${ESTADO_TXT[est]}</span></td>
       <td style="text-align:right"><button class="btn btn-ghost btn-sm" onclick="verCredito('${p.id}')">Ver</button>${p.pagado?'':` <button class="btn btn-negro btn-sm" onclick="abrirPago('${p.id}')">Pago</button>`} <button class="btn btn-ghost btn-sm" onclick="borrarCredito('${p.id}')" title="Borrar este crédito (va a la papelera)">🗑</button></td></tr>`;}).join('')}</tbody>
-      <tfoot><tr><td colspan="2">Total (${arr.length} créditos)</td><td class="num">${COP(sumCap)}</td><td class="num">${COP(sumAPagar)}</td><td class="num">${COP(sumGan)}<div style="font-size:12px">te deja ${cifraGanancia(gTot)}</div></td><td colspan="4"></td></tr></tfoot></table>`+papeleraHTML();
+      <tfoot><tr><td colspan="2">Total (${arr.length} créditos)</td><td class="num">${COP(sumCap)}</td><td class="num">${COP(sumAPagar)}</td><td class="num">${COP(sumGan)}${pieTeDeja}</td><td colspan="4"></td></tr></tfoot></table>`+papeleraHTML();
 }
 
 /* ===== PAPELERA DE CRÉDITOS =====
@@ -7514,9 +7523,19 @@ function calcAbonoProrroga(id,p){
   const lbl=document.getElementById('pgMontoLbl'); if(lbl)lbl.textContent=md?'¿Cuánto MÁS trajo hoy?':'¿Cuánto pagó?';
   const at=document.getElementById('pgAtajos'); if(at) at.innerHTML='';
   const pista=document.getElementById('pgPista');
+  /* 23-oct-2026 (verificación de e0ae61a) — «O A LA QUE TÚ DECIDAS ABAJO» SOLO
+     SI ABAJO VA A HABER CASILLAS. Con el app/puente.js viejo de la caché (el
+     primer F5 después de publicar) abonoConProrroga existe —la reja
+     'sin_funcion' no salta— pero no conoce el pacto ni devuelve `sugerido`:
+     pgPactoBox se queda escondida y la pista le prometía a Joan, con el
+     cliente al frente, una fecha que no podía elegir. Es la misma pregunta de
+     ajustarProximoPago, con su mismo texto. */
+  const conCasillas=typeof PUENTE.pactarProximoPago==='function';
   if(pista) pista.innerHTML=md
     ?'<b>La prórroga de hoy ya está registrada.</b> Escribe solo la plata que trajo DE MÁS, aparte de lo que ya quedó anotado: se suma a capital como parte de la misma entrega.'
-    :'<b>Escribe lo que entregó de verdad.</b> Primero se paga la mora y el costo del ciclo —eso es la prórroga— y lo que sobre baja el capital; la fecha pasa a la próxima quincena, o a la que tú decidas abajo.'
+    :'<b>Escribe lo que entregó de verdad.</b> Primero se paga la mora y el costo del ciclo —eso es la prórroga— y lo que sobre baja el capital; '
+    +(conCasillas?'la fecha pasa a la próxima quincena, o a la que tú decidas abajo.'
+      :'la fecha pasa a la próxima quincena. Para elegir otra fecha, recarga la página (Ctrl+F5): este computador tiene una versión vieja de las reglas.')
     +(r.mora?' Para perdonarle mora, usa el % de arriba, con su motivo.':'');
   const acc=document.getElementById('pgAccion');
   if(acc) acc.innerHTML=`<div class="two"><button class="btn btn-rojo" id="pgBtn" onclick="registrarCobro('${p.id}')">💵 Registrar</button><button class="btn btn-ghost" onclick="volverAlCobro('${p.id}')">← Volver al cobro</button></div>`;

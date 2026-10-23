@@ -1858,7 +1858,10 @@
    todavia por este service worker viejo (v138, fetch con la cache HTTP de
    10 min) y puede traer el crm.html nuevo con el app/puente.js de antes; el
    boton revento con un TypeError mudo, y ahora dice que se recargue
-   (pruebas/abono-pactado.test.js).
+   (pruebas/abono-pactado.test.js). Con ese mismo puente viejo, el pie de la
+   lista de Creditos ya no dice que toda la cartera «te deja $0 · 0%» y la
+   hoja del abono ya no promete una fecha «abajo» sin casillas: las dos dicen
+   que se recargue (23-oct-2026, misma prueba).
    Lo que una pagina precargada carga con <script src> o <link> esta en la
    lista de abajo, y todo lo de la lista existe:
    pruebas/el-lote-del-27-junto.test.js, seccion 4. */

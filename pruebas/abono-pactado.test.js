@@ -624,6 +624,58 @@ describe('B. el CRM: las dos casillas, lo que te deja y «✏️ Ajustar el pró
     assert.equal(leer(B).prestamos[0].planPagos, undefined, 'guardó algo con el puente viejo');
   });
 
+  /* 23-oct-2026 (verificación de e0ae61a) — LAS OTRAS DOS PANTALLAS DEL MISMO
+     F5. Con el app/puente.js de main no hay gananciaDelCredito, y su
+     abonoConProrroga no conoce `pacto` ni devuelve `sugerido`. La reja de
+     «Ajustar» quedó puesta, pero: el pie de la lista de Créditos decía que
+     TODA la cartera «te deja $0 · 0%» (gTot arrancaba en cero y nadie miraba
+     si se sumó algo), y la pista de la hoja del abono prometía «la fecha que
+     tú decidas abajo» con las casillas escondidas. Ninguna decía recargar. */
+  function puenteDeMain(N) {
+    const viejo = Object.assign({}, N);
+    delete viejo.pactarProximoPago; delete viejo.gananciaDelCredito; delete viejo.gananciaDelCliente;
+    viejo.abonoConProrroga = (db, p, f, m, o) => {
+      const r = N.abonoConProrroga(db, p, f, m, Object.assign({}, o || {}, { pacto: null }));
+      delete r.sugerido; delete r.pacto;
+      return r;
+    };
+    return viejo;
+  }
+  const DOS = () => [credito(), credito({ id: 'c2', numero: 8, capital: 500000 })];
+
+  test('con el puente viejo de la caché, el pie de la lista de Créditos no dice que toda la cartera te deja $0 · 0%', () => {
+    const B = abrirPanel({ ahora: DIA + 'T10:00:00', puente: puenteDeMain });
+    B.cargarCartera(cartera(DOS()));
+    assert.equal(B.ev('typeof PUENTE.gananciaDelCredito'), 'undefined', 'la prueba no prueba el caso');
+    assert.equal(typeof P.gananciaDelCredito, 'function', 'la prueba le quitó la función al puente de todo el proceso');
+    B.ev('renderCred()');
+    const l = plano(html(B, 'tblCred'));
+    assert.match(l, /Total \(2 créditos\)/, 'la prueba no prueba el caso: no pintó el pie');
+    assert.equal(/te deja \$|te deja -\$|\$0 · 0%/.test(l), false, 'dice cuánto te deja la cartera sin poder calcularlo');
+    assert.match(l, /recarga la página \(Ctrl\+F5\)/, 'nada le dice que recargue');
+    /* Control: con el puente nuevo, el pie sí dice la cifra de toda la cartera. */
+    const C = crm(DOS());
+    C.ev('renderCred()');
+    assert.match(html(C, 'tblCred'), /Total \(2 créditos\).*te deja <b class="gano">\$225\.000 · 20%<\/b>/);
+  });
+
+  test('con el puente viejo de la caché, la hoja «Abonó y el resto pasa…» no promete una fecha «abajo» que no aparece', () => {
+    const B = abrirPanel({ ahora: DIA + 'T10:00:00', puente: puenteDeMain });
+    B.cargarCartera(cartera([credito()]));
+    hojaDelAbono(B, 500000);
+    assert.equal(B.elems.pgPactoBox.style.display, 'none', 'la prueba no prueba el caso: las casillas se ven');
+    assert.match(plano(html(B, 'pgDif')), /pasa/, 'la prueba no prueba el caso: el abono no cuadra');
+    const t = plano(html(B, 'pgPista'));
+    assert.equal(/decidas abajo/.test(t), false, 'promete elegir la fecha abajo, y abajo no hay nada');
+    assert.match(t, /la fecha pasa a la próxima quincena/, 'se perdió lo que sí pasa');
+    assert.match(t, /recarga la página \(Ctrl\+F5\)/, 'nada le dice que recargue');
+    /* Control: con el puente nuevo la pista ofrece la fecha de abajo, y abajo están las casillas. */
+    const C = crm();
+    hojaDelAbono(C, 500000);
+    assert.equal(C.elems.pgPactoBox.style.display, '');
+    assert.match(plano(html(C, 'pgPista')), /o a la que tú decidas abajo/);
+  });
+
   test('la lista de créditos y la ficha del cliente dicen lo que te deja, en rojo si pierde', () => {
     const B = crm([pactado(100000, 'se quedó sin trabajo')], '2026-11-01');
     B.ev('renderCred()');
