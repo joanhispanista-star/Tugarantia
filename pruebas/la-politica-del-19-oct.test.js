@@ -107,7 +107,8 @@ function hastaDespuesDelRostro(P) {
   P.ev("$('rTel').value = '" + CEL + "'; anotarCelular($('rTel'));" +
        "$('rClave').value = 'Perro.2026x'; $('rClave2').value = 'Perro.2026x'; siguientePaso();");
   assert.equal(pasoActual(P), 'rostro');
-  P.ev('siguientePaso()');
+  /* 22-oct-2026 — sin la selfie: el primer «Continuar» avisa, «Seguir sin ella» pasa. */
+  P.ev('siguientePaso(); seguirSinSelfie()');
   assert.equal(pasoActual(P), 'contacto');
 }
 /* La nube de mentira: anota cada llamada y contesta bien. */
@@ -229,7 +230,8 @@ describe('2. el avance, la ubicación y la cédula leída, en el orden nuevo', (
     const P = abrir();
     P.ev('autorizarYEscanear()');
     assert.equal(P.ev('window.__gps'), 0, 'la cédula pidió la ubicación y la política dice que se pide en el rostro');
-    P.ev("pintarRegistro(indiceDe('rostro')); siguientePaso();");
+    /* 22-oct-2026 — al seguir sin la selfie (el primer «Continuar» solo avisa). */
+    P.ev("pintarRegistro(indiceDe('rostro')); siguientePaso(); seguirSinSelfie();");
     assert.equal(P.ev('window.__gps'), 1, 'el paso del rostro no pidió la ubicación');
   });
 

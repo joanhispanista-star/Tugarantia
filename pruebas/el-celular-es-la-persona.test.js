@@ -606,7 +606,9 @@ describe('C5. el aviso dice exactamente lo que se borró', () => {
     P.ev('siguientePaso()');
     celularYClave(P, CEL_MARIA);
     P.ev('window.__gpsDe = { latitude: 4.711111, longitude: -74.072222, accuracy: 12 };');
-    P.ev('siguientePaso()');                        // sin selfie: se pide la ubicación al salir
+    /* 22-oct-2026 — sin selfie el primer «Continuar» avisa y no pasa (LA SELFIE
+       QUE NO SE TOMÓ SE DICE): sigue con «Seguir sin ella». */
+    P.ev('siguientePaso(); seguirSinSelfie()');     // sin selfie: se pide la ubicación al salir
     assert.ok(P.ev('!!FOTOS.gps'), 'la ubicación no quedó: la prueba no cuenta el caso');
     elResto(P);
     P.ev("pintarRegistro(indiceDe('permiso'))");

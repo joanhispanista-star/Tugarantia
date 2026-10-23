@@ -174,6 +174,16 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         con la cámara de pruebas/banco-camara.js). De
                         la cámara a «Están bien», con ZXing y Tesseract de
                         verdad: pruebas/escaner-ocr-de-punta-a-punta.test.js.
+                        (22-oct-2026) La selfie se toma sola de verdad: la racha
+                        aguanta la caja de una frontal barata, el óvalo y lo
+                        que mira el detector son la zona que SE VE (un iPhone
+                        da 9:16), sin WebGL vuelve al encuadre, y se dibujan
+                        los OJOS donde el detector los vio (app/rostro-en-vivo.js;
+                        nunca el modelo del vector). Y la que no se tomó se dice:
+                        «Seguir sin la foto», el aviso al primer «Continuar»,
+                        «Repetir» que no borra a ciegas, y la pantalla final que
+                        nombra lo que no llegó (pruebas/la-selfie-que-no-se-tomo,
+                        pruebas/la-selfie-se-toma-sola).
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).

@@ -215,7 +215,12 @@ describe('1. el registro abre en la cédula, y el botón autoriza solo si lo toc
     P.ev("pintarRegistro(indiceDe('rostro'))");
     assert.equal(P.ev('window.__gps'), 0, 'se pidió la ubicación al mismo tiempo que la cámara de la selfie');
     assert.match(cuerpo(P), /Después de la foto te pedimos tu ubicación/);
+    /* 22-oct-2026 — sin la selfie, el primer «Continuar» solo avisa (y no pide
+       la ubicación: pedirla le hizo creer a William que la foto ya estaba);
+       al seguir sin ella, sí. */
     P.ev('siguientePaso()');
+    assert.equal(P.ev('window.__gps'), 0, 'el «Continuar» que avisa de la selfie pidió la ubicación');
+    P.ev('seguirSinSelfie()');
     assert.equal(P.ev('window.__gps'), 1, 'la ubicación autorizada no se pidió nunca');
   });
 });

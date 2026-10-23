@@ -293,6 +293,19 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
   0%{transform:translateY(0)}
   100%{transform:translateY(var(--alto,340px))}
 }
+/* 22-oct-2026 — la cuenta «3·2·1» del escaneo (es la racha: ver bucleEscaner)
+   y el destello del disparo sobre la miniatura. Sin sonido, nunca. */
+.cara-cuenta{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;
+  font-size:64px;font-weight:800;line-height:1;color:#fff;pointer-events:none;
+  text-shadow:0 0 18px rgba(var(--tono),.9),0 2px 8px #000}
+.cara-cuenta:empty{display:none}
+#selfieListo{position:relative}
+#selfieListo.destello::after{content:"";position:absolute;inset:0;border-radius:18px;background:#fff;
+  pointer-events:none;animation:cara-destello .45s ease-out forwards}
+@keyframes cara-destello{
+  0%{opacity:.9}
+  100%{opacity:0}
+}
 @keyframes doc-check{
   0%{transform:scale(.4);opacity:0}
   100%{transform:scale(1);opacity:1}
@@ -311,6 +324,7 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
   /* 21-oct-2026 — el destello es un relámpago blanco: a quien pidió menos
      movimiento no se le dispara. Le queda la vibración y el ✓. */
   .escaner-doc.destello .doc-destello{animation:none}
+  #selfieListo.destello::after{animation:none;opacity:0}
 }
 </style>
 </head>
@@ -627,6 +641,9 @@ function terminarEnPlataChat() {
       if (queda && deAhora && nota.estado === 'sesion') return pintarFotosPendientesPlataChat(cel, 'sesion');
       var borradas = queda ? null : avisoDeFotosDe(cel);
       if (borradas && !(Number(borradas.t) >= delRegistro)) borradas = null;
+      /* 22-oct-2026 — «le falta algo» no es «se borraron»: lo que se tomó llegó
+         y PlataChat sigue como siempre (su cuenta de play/ lo dice). */
+      if (borradas && borradas.estado === 'incompleta') borradas = null;
       if (borradas) {
         if (s) s.textContent = 'Tu cuenta quedó abierta. ' + porqueSeBorraron(borradas) + ' ' + queHacerSinLasFotos(borradas);
         if (a) a.innerHTML = '<button class="btn arriba" onclick="entrarAPlataChat(' + irse + ')">Entrar a PlataChat</button>';
@@ -2077,7 +2094,10 @@ function pintarRegistro(paso) {
         ? '<button class="btn arriba" id="btnSeguir" onclick="siguientePaso()">' +
             /* 21-oct-2026 — «Están bien» en «Revisa tus datos» cuando todo
                está lleno y algo salió de la cédula: el toque que confirma. */
-            (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : (p.id === 'identidad' ? textoBotonIdentidad() : 'Continuar')) + '</button>'
+            (PASO === PASOS.length - 1 ? 'Abrir mi cuenta' : (p.id === 'identidad' ? textoBotonIdentidad() :
+              /* 22-oct-2026 — en «Tu rostro», sin la foto, el botón grande dice lo
+                 que hace (ver LA SELFIE QUE NO SE TOMÓ SE DICE). */
+              (p.id === 'rostro' && faltaLaSelfie() ? 'Seguir sin la foto' : 'Continuar'))) + '</button>'
         : '') +
       '<button class="btn sec sm" id="btnVolver" style="margin-top:var(--e3)" onclick="' +
         (PASO === 0 ? (MARCA === 'platachat' ? 'volverAPlataChat()' : 'pintarEntrar()') : 'pintarRegistro(' + (PASO - 1) + ')') + '">Volver</button>' +
@@ -2257,7 +2277,7 @@ function empezarDeNuevo() {
 function borrarTodoElRegistro() {
   otraGeneracion();   // 21-oct-2026 — G1: es otra persona; lo que esté en camino ya no es suyo
   olvidarToque();
-  GPS_PEDIDO = false; AVISO_UN_LADO = ''; PERMISO_SOLTADO = false; FOTOS_SOLTADAS_AL_ABRIR = false;
+  GPS_PEDIDO = false; AVISO_UN_LADO = ''; AVISO_SIN_SELFIE = false; SELFIE_ANTERIOR = null; PERMISO_SOLTADO = false; FOTOS_SOLTADAS_AL_ABRIR = false;
   try { localStorage.removeItem(LLAVE_BORRADOR); } catch (e) {}
   try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
   olvidarPaso(); olvidarClaveEnCurso(); olvidarDuenoDeLasFotos(); olvidarCuentaCreada();
@@ -2469,7 +2489,7 @@ function cerrarElRegistroEnMemoria() {
      cuenta están en su cola desde el «Abrir mi cuenta». */
   if (hayContenidoEnFotos()) { try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {} }
   REGISTRO = {}; FOTOS = {};
-  GPS_PEDIDO = false; AVISO_UN_LADO = ''; PERMISO_SOLTADO = false;
+  GPS_PEDIDO = false; AVISO_UN_LADO = ''; AVISO_SIN_SELFIE = false; SELFIE_ANTERIOR = null; PERMISO_SOLTADO = false;
   olvidarToque();
   olvidarCelularDelRegistro();   // 20-oct-2026, otro celular: el registro ya se cerró
 }
@@ -2522,7 +2542,7 @@ function soltarLoSensibleDelRegistro() {
   ocrSoltarConLasFotos();
   FOTOS = {};
   try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
-  GPS_PEDIDO = false; AVISO_UN_LADO = ''; PERMISO_SOLTADO = false;
+  GPS_PEDIDO = false; AVISO_UN_LADO = ''; AVISO_SIN_SELFIE = false; SELFIE_ANTERIOR = null; PERMISO_SOLTADO = false;
 }
 
 /* Anota un campo del registro en cuanto se escribe. El id del elemento lleva el
@@ -3002,6 +3022,13 @@ function siguientePaso() {
     return pintarRegistro(PASO + 1);
   }
   if (p.id === 'rostro') {
+    /* 22-oct-2026 — SIN LA SELFIE, EL PRIMER TOQUE AVISA Y NO PASA (ver LA
+       SELFIE QUE NO SE TOMÓ SE DICE): fue el «Continuar» que se llevó la de
+       William. Y en ese toque no se pide la ubicación: pedirla le hizo creer
+       que la foto ya estaba. El segundo (o «Seguir sin ella») pasa, y queda
+       anotado que siguió sin ella. */
+    if (faltaLaSelfie() && !AVISO_SIN_SELFIE) { AVISO_SIN_SELFIE = true; return avisarSinSelfie(err); }
+    anotarSinSelfie();
     /* 19-oct-2026 — si siguió sin la selfie, la ubicación se pide al salir: la
        autorizó con las fotos, y aquí ya no compite con la cámara. */
     pedirGpsSiFalta();
@@ -3272,7 +3299,7 @@ function loQueSeLlenoEnEsteRegistro() {
 function empezarDeCeroConEsteCelular(cel) {
   otraGeneracion();
   var intento = REGISTRO.intento;
-  GPS_PEDIDO = false; AVISO_UN_LADO = ''; PERMISO_SOLTADO = false;
+  GPS_PEDIDO = false; AVISO_UN_LADO = ''; AVISO_SIN_SELFIE = false; SELFIE_ANTERIOR = null; PERMISO_SOLTADO = false;
   FOTOS_SOLTADAS_AL_ABRIR = false; LO_SOLTADO_AL_ABRIR = {};
   FOTOS = {};
   try { localStorage.removeItem(LLAVE_FOTOS); } catch (e) {}
@@ -3754,6 +3781,98 @@ function tomarLadoQueFalta(lado) {
   var f = $('docFijo'); if (f) f.classList.remove('oculto');
   var caja = $('fot_cedula_' + lado);
   if (caja && caja.scrollIntoView) { try { caja.scrollIntoView({ block: 'center' }); } catch (e) { caja.scrollIntoView(); } }
+}
+
+/* ===========================================================================
+ * LA SELFIE QUE NO SE TOMÓ SE DICE — 22 de octubre de 2026
+ *
+ * Joan: «William se registró y se tomó la selfie pero no me aparece en mi
+ * CRM». La base guardó todo lo que recibió y el CRM mostraba todo lo que
+ * había: la selfie de William NUNCA SALIÓ DEL TELÉFONO. «Tu rostro» lo dejó
+ * seguir sin foto y sin avisarle —el botón grande decía «Continuar», y el
+ * que dispara a mano es el chico—, Safari le pidió la ubicación (que la
+ * pantalla prometía «después de la foto», así que creyó que ya estaba) y al
+ * final la cuenta le dijo «Listo: tus fotos llegaron». Cuadra uno a uno con la
+ * base: una sola subida con las dos caras de la cédula y el GPS, sin rechazo.
+ *
+ * LO QUE CAMBIA, como con el lado de la cédula que falta (avisarUnLado):
+ *   · el botón grande dice «Seguir sin la foto» mientras no la haya
+ *     (ponerTextoBotonRostro): nadie se la salta creyendo que ya está;
+ *   · el primer toque sin selfie no pasa: avisa, con «Tomar la foto ahora»,
+ *     «Usar mi foto anterior» (si tocó «Repetir» y no hay nueva) y «Seguir
+ *     sin ella». Y en ese toque no se pide la ubicación;
+ *   · quien sigue sin ella queda ANOTADO, sin ninguna foto ni medida: solo
+ *     qué hizo (FOTOS.selfie_omitida, que viaja en la huella de la subida y
+ *     la base guarda desde base/20261022_la_foto_que_no_entra_se_dice.sql).
+ *     Así el CRM dice «siguió sin tomarla» en vez de callar.
+ * No bloquea: el paso es opcional y la cuenta se abre igual. Solo con la
+ * autorización de las fotos de ESTE intento: sin ella no se pide nada.
+ * ======================================================================== */
+var AVISO_SIN_SELFIE = false;   // ya se avisó: el segundo «Continuar» pasa
+/* Los únicos motivos que viajan (y los únicos que la base guarda). */
+var MOTIVOS_SIN_SELFIE = ['siguio_sin_ella', 'repitio_y_siguio', 'sin_camara', 'camara_del_sistema_sin_volver'];
+function faltaLaSelfie() { return autorizoEsteIntento() && !hayFotoLista('selfie'); }
+function ponerTextoBotonRostro() {
+  var b = $('btnSeguir');
+  if (!b || VISTA !== 'registro' || !PASOS[PASO] || PASOS[PASO].id !== 'rostro') return;
+  b.textContent = faltaLaSelfie() ? 'Seguir sin la foto' : 'Continuar';
+}
+function avisarSinSelfie(err) {
+  var anterior = !!selfieAnterior();
+  err.innerHTML = '<b>Todavía no tenemos la foto de tu cara.</b> ' +
+    (anterior ? 'Tocaste «Repetir la foto» y la nueva no se ha tomado. ' : '') +
+    'Con ella revisamos que la cédula sea tuya. Puedes seguir sin ella: tu cuenta se abre igual, ' +
+    'y nos la mandas después por el chat de Servicio.' +
+    '<div style="display:flex;gap:var(--e2);flex-wrap:wrap;margin-top:var(--e2)">' +
+      '<button class="btn sec sm" type="button" onclick="tomarSelfieDesdeElAviso()">Tomar la foto ahora</button>' +
+      (anterior ? '<button class="btn sec sm" type="button" onclick="usarSelfieAnterior()">Usar mi foto anterior</button>' : '') +
+      '<button class="btn sec sm" type="button" onclick="seguirSinSelfie()">Seguir sin ella</button>' +
+    '</div>';
+  err.classList.add('ambar');
+  err.classList.remove('oculto');
+}
+/* «Tomar la foto ahora» del aviso: con el escáner prendido dispara a mano; sin
+   él (la cámara en vivo no prendió), lleva a la caja de la cámara del celular. */
+function tomarSelfieDesdeElAviso() {
+  AVISO_SIN_SELFIE = false;   // si esta vez tampoco sale, se vuelve a avisar
+  var err = $('errReg'); if (err) err.classList.add('oculto');
+  if (ESCANER.activo && ESCANER.stream) { capturarRostro(); return; }
+  var esc = $('escaner');
+  if (esc && !esc.classList.contains('oculto') && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) { iniciarEscaner(); return; }
+  var caja = $('fot_selfie');
+  if (caja) {
+    caja.style.display = '';
+    if (caja.scrollIntoView) { try { caja.scrollIntoView({ block: 'center' }); } catch (e) { caja.scrollIntoView(); } }
+  }
+}
+/* «Seguir sin ella» (o el segundo «Continuar»): queda anotado QUÉ hizo, para
+   que el CRM no tenga que adivinar. Los motivos son los cuatro que la base
+   acepta (registro_archivos_guardar, selfie_omitida). */
+function motivoSinSelfie() {
+  if (selfieAnterior()) return 'repitio_y_siguio';
+  if (FOTOS.selfie_camara_sistema) return 'camara_del_sistema_sin_volver';
+  var esc = $('escaner');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || (esc && esc.classList.contains('oculto'))) return 'sin_camara';
+  return 'siguio_sin_ella';
+}
+function anotarSinSelfie() {
+  if (!faltaLaSelfie()) return;
+  FOTOS.selfie_omitida = { motivo: motivoSinSelfie(), t: Date.now() };
+  guardarFotos();
+}
+function seguirSinSelfie() {
+  AVISO_SIN_SELFIE = true;
+  return siguientePaso();
+}
+/* La caja de la cámara del celular, al tocarla: además del toque de siempre
+   (anotarToque), una marca de que se fue a esa cámara por la selfie. Si la
+   página se recarga al volver y la foto no entra (lo típico de un iPhone con
+   poca memoria), el motivo lo dice. Sin ninguna foto. */
+function anotarCamaraSelfie() {
+  anotarToque();
+  if (!autorizoEsteIntento()) return;
+  FOTOS.selfie_camara_sistema = Date.now();
+  guardarFotos();
 }
 
 function enviarRegistro(sensibles) {
@@ -5616,8 +5735,12 @@ function tomarFoto(ev, key) {
        mismo, pero no sobrevive una recarga — y la recarga es justo lo que hace
        la cámara en estos teléfonos. Decirle «Listo» sería la interfaz
        prometiendo lo que el código no cumple. */
+    /* 22-oct-2026 — la selfie de la cámara del celular: ya no falta, ni hay
+       «anterior» que ofrecer (ver LA SELFIE QUE NO SE TOMÓ SE DICE). */
+    if (key === 'selfie') { delete FOTOS.selfie_omitida; delete FOTOS.selfie_camara_sistema; SELFIE_ANTERIOR = null; }
     marcarDuenoDeLasFotos(key);
     var aSalvo = guardarFotos();
+    if (key === 'selfie') { ponerTextoBotonRostro(); var erS = $('errReg'); if (erS && AVISO_SIN_SELFIE) erS.classList.add('oculto'); }
     /* 20-oct-2026, rediseño (B, V7) — SI EL FRENTE SE SOLTÓ, SU CAJA LO DICE. Se
        borraba la foto y la caja seguía con la miniatura y «Listo · tocar para
        cambiar»; al tocar «Continuar» salía «Te falta la foto del frente»: la
@@ -7593,7 +7716,31 @@ var ESCANER = { stream: null, activo: false, estables: 0, temporizador: null,
                    ya busca la cara, 'encuadre' si no llegó (el de siempre). */
                 modo: 'encuadre', detector: null, cargando: null, desdeCarga: 0,
                 detectando: false, medida: null, previaCara: null, mejorNitidez: 0,
-                lienzoDetectar: null, lienzoCara: null, turno: 0, fallos: 0 };
+                lienzoDetectar: null, lienzoCara: null, turno: 0, fallos: 0,
+                /* 22-oct-2026 — desdeCara: desde cuándo se ve esta cara
+                   (RostroEnVivo.contarRacha); desdeRostro y vioCara: el
+                   detector que nunca ve una cara se suelta (ver bucleEscaner);
+                   ojos y ojosT: los últimos ojos que vio, solo para dibujarlos
+                   un rato corto. Mueren con el escáner. */
+                desdeCara: 0, desdeRostro: 0, vioCara: false, ojos: null, ojosT: 0 };
+/* 22-oct-2026 — LO QUE SE VE NO ES EL CUADRO ENTERO. La caja del escáner es
+   3:4 y el video la llena recortado (object-fit: cover). Un Android entrega
+   720×960 y se ve entero, pero un iPhone suele entregar 720×1280 (9:16): se
+   ve solo la franja del medio, y el óvalo y la decisión, que se calculaban
+   sobre el cuadro ENTERO, quedaban más altos que la caja —la cara tenía que
+   llenar el 38 % de lo visible en vez del 29 %, y el letrero se quedaba en
+   «Acércate un poco»—. Desde hoy todo (el óvalo, lo que mira el detector, lo
+   que mide el encuadre y la foto) se hace sobre la ZONA QUE SE VE. Con un
+   video 3:4 la zona es el cuadro entero y nada cambia. */
+var ASPECTO_CAJA = 3 / 4;   // .escaner{aspect-ratio:3/4}
+function zonaVisible(w, h) {
+  if (!(w > 0) || !(h > 0)) return { x: 0, y: 0, w: w || 0, h: h || 0 };
+  if (w / h > ASPECTO_CAJA) { var vw = h * ASPECTO_CAJA; return { x: (w - vw) / 2, y: 0, w: vw, h: h }; }
+  var vh = w / ASPECTO_CAJA; return { x: 0, y: (h - vh) / 2, w: w, h: vh };
+}
+/* Los ojos se dibujan solo un rato después de verlos: un ojo que se queda
+   pintado sobre una cara que ya se movió es un ojo inventado. */
+var MS_OJOS_VIVOS = 300;
 /* Cuántos píxeles de lado se miran. 32×32 son 1.024 números por fotograma: en
    un celular de gama baja eso es nada, y alcanza de sobra para saber si hay una
    cara o una pared. Subirlo no mejora la decisión y sí calienta el teléfono. */
@@ -7602,7 +7749,10 @@ var LADO_MEDIR = 32;
    app no llama a ningún servidor ajeno (pruebas/cumplimiento.test.js). El
    módulo es chico; face-api y el modelo del detector (1,5 MB) los baja él,
    y SOLO al llegar a este paso, que a su vez solo existe con la autorización
-   de datos sensibles marcada. */
+   de datos sensibles marcada.
+   22-oct-2026 — y después del detector, sin frenarlo, el modelo chico que
+   ubica los ojos (77 KB) para dibujarlos. Ese no se precalienta: es chico, y
+   si no llega la selfie se toma igual, sin ojos dibujados. */
 var URL_ROSTRO_VIVO = '../app/rostro-en-vivo.js';
 var BASE_ROSTRO = '../app/lib/rostro';
 /* BAJARLO ANTES, SIN ENCENDERLO. Con señal floja, 1,5 MB son varios segundos
@@ -7682,6 +7832,10 @@ function pasoRostro() {
       '<div class="cara-red"></div>' +
       '<div class="cara-barrido"><div class="cara-linea"></div></div>' +
       '<div class="cara-esq"></div>' +
+      /* 22-oct-2026 — la cuenta «3·2·1» ES la racha de detecciones buenas
+         (bucleEscaner): si la persona se mueve, se cae. Va en el HTML y no en
+         el lienzo porque el lienzo está espejado y el número saldría al revés. */
+      '<div class="cara-cuenta" id="camCuenta" aria-hidden="true"></div>' +
       '<div class="escaner-estado" id="camEstado">Encendiendo la cámara…</div>' +
     '</div>' +
     '<div id="selfieListo"' + (tiene ? '' : ' class="oculto"') + '>' +
@@ -7692,22 +7846,52 @@ function pasoRostro() {
     '<button class="btn sec sm' + (tiene ? ' oculto' : '') + '" id="btnCapturar" type="button" style="margin-top:var(--e3)" onclick="capturarRostro()">Tomar la foto ahora</button>' +
     '<label class="foto-caja' + (tiene ? ' oculto' : '') + '" id="fot_selfie" style="display:' + (tiene ? '' : 'none') + '"><span class="ic">🤳</span>' +
       '<span class="lbl">' + (tiene ? 'Listo · tocar para cambiar' : 'Tomar una selfie') + '</span>' +
-      '<input type="file" accept="image/*" capture="user" onclick="anotarToque()" onchange="tomarFoto(event,\'selfie\')"></label>' +
+      '<input type="file" accept="image/*" capture="user" onclick="anotarCamaraSelfie()" onchange="tomarFoto(event,\'selfie\')"></label>' +
     '<div id="selfieNota" class="doc-nota"></div>' +
     /* 19-oct-2026 — la ubicación vive en este paso desde que la cédula va
        primero (ver pintarRegistro y pedirGpsSiFalta). */
     '<div id="docGps" class="ayuda">' + textoGps() + '</div>';
 }
+/* 22-oct-2026 — «REPETIR» YA NO BORRA A CIEGAS (C2 de la selfie de William).
+   Borraba la foto antes de tener la nueva: quien tocaba «Repetir la foto» y
+   después «Continuar» sin esperar la segunda se iba sin ninguna, habiendo
+   visto «¡Listo! Tu foto quedó tomada». La anterior queda SOLO en la memoria
+   de esta página, atada a este registro (GENERACION_DEL_REGISTRO), para
+   ofrecerle «Usar mi foto anterior» si sigue sin la nueva. No se sube sola:
+   «Repetir» puede querer decir «esa no la quiero» (Ley 1581), así que vuelve
+   solo si la persona la elige. Nunca toca el teléfono: muere con la página. */
+var SELFIE_ANTERIOR = null;
+function selfieAnterior() {
+  return (SELFIE_ANTERIOR && SELFIE_ANTERIOR.gen === GENERACION_DEL_REGISTRO && autorizoEsteIntento()) ? SELFIE_ANTERIOR.foto : '';
+}
 function repetirRostro() {
+  if (FOTOS.selfie && hayFotoLista('selfie')) SELFIE_ANTERIOR = { foto: FOTOS.selfie, gen: GENERACION_DEL_REGISTRO };
   delete FOTOS.selfie; guardarFotos();
+  AVISO_SIN_SELFIE = false;   // si sigue sin la nueva, se le vuelve a avisar
   $('selfieListo').classList.add('oculto'); $('escaner').classList.remove('oculto'); $('btnCapturar').classList.remove('oculto');
+  ponerTextoBotonRostro();
   iniciarEscaner();
+}
+/* 22-oct-2026 — «Usar mi foto anterior»: la que tenía antes de «Repetir». */
+function usarSelfieAnterior() {
+  var foto = selfieAnterior();
+  var err = $('errReg'); if (err) { err.classList.add('oculto'); err.classList.remove('ambar'); }
+  if (!foto) return;
+  detenerEscaner();
+  prepararFotoNueva();
+  FOTOS.selfie = foto;
+  delete FOTOS.selfie_omitida; delete FOTOS.selfie_camara_sistema;
+  marcarDuenoDeLasFotos('selfie');
+  var aSalvo = guardarFotos();
+  SELFIE_ANTERIOR = null;
+  mostrarSelfieTomada(aSalvo);
 }
 function iniciarEscaner() {
   var v = $('camVideo'), estado = $('camEstado'); if (!v) return;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return escanerSinCamara('Tu navegador no deja usar la cámara en vivo.');
   ESCANER.activo = true; ESCANER.estables = 0; ESCANER.desde = 0; ESCANER.previa = null; ESCANER.ultima = null;
   ESCANER.turno++; ESCANER.medida = null; ESCANER.previaCara = null; ESCANER.mejorNitidez = 0; ESCANER.fallos = 0;
+  ESCANER.desdeCara = 0; ESCANER.desdeRostro = 0; ESCANER.vioCara = false; ESCANER.ojos = null; ESCANER.ojosT = 0;
   /* 8-oct-2026 (segunda vuelta) — EL ÓVALO, CENTRADO EN LA PANTALLA. El paso
      arranca arriba de todo, y en un teléfono real (375×660 con las barras del
      navegador) la línea que guía —«Centra tu cara», «Acércate»— y el botón de
@@ -7732,6 +7916,10 @@ function iniciarEscaner() {
     if (n2) n2.textContent = 'Si tu teléfono te está preguntando por la cámara, toca «Permitir». ' +
       'Si prefieres, toma la selfie con la cámara del celular, aquí abajo.';
   }, MS_ESPERA_CAMARA);
+  /* 22-oct-2026 — lo que se pide no cambia (en el Android de Joan da 720×960):
+     si el teléfono entrega otra proporción, zonaVisible se encarga. Pedir
+     además `aspectRatio` se descartó: Chrome en Android elige entre modos
+     apaisados y una restricción más podía empujarlo a otro peor. */
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 } }, audio: false })
     .then(function (stream) {
       if (ESCANER.espera) { clearTimeout(ESCANER.espera); ESCANER.espera = null; }
@@ -7765,13 +7953,16 @@ function afinarCamaraRostro(pista) {
    encuadre de siempre (U.medirEncuadre): la persona no se queda atascada por
    1,5 MB que su señal no alcanzó a bajar. Si llega tarde, se usa igual. */
 function prepararDetectorRostro() {
-  if (ESCANER.detector) { ESCANER.modo = 'rostro'; return; }
+  if (ESCANER.detector) { ESCANER.modo = 'rostro'; ESCANER.desdeRostro = Date.now(); return; }
   ESCANER.modo = 'cargando'; ESCANER.desdeCarga = Date.now();
   if (ESCANER.cargando) return;
   var p = cargarScript(URL_ROSTRO_VIVO).then(function () {
     var RV = window.RostroEnVivo;
     if (!RV || typeof RV.crearDetector !== 'function') throw new Error('no cargó ' + URL_ROSTRO_VIVO);
-    return RV.crearDetector({ cargarScript: cargarScript, base: BASE_ROSTRO });
+    /* 22-oct-2026 — `calentar`: la primera detección (la que compila los
+       programas de la tarjeta gráfica) se hace sobre un lienzo vacío mientras
+       dice «Preparando el escáner…», y no con la cara ya en el óvalo. */
+    return RV.crearDetector({ cargarScript: cargarScript, base: BASE_ROSTRO, calentar: lienzoParaCalentar() });
   });
   ESCANER.cargando = p;
   p.then(function (d) {
@@ -7779,6 +7970,7 @@ function prepararDetectorRostro() {
     /* La persona ya tomó su foto, o se fue del paso: no hay a quién servirle. */
     if (!ESCANER.activo) { try { d.liberar(); } catch (e) {} if (ESCANER.modo === 'cargando') ESCANER.modo = 'encuadre'; return; }
     ESCANER.detector = d; ESCANER.modo = 'rostro'; ESCANER.estables = 0; ESCANER.fallos = 0;
+    ESCANER.desdeRostro = Date.now(); ESCANER.vioCara = false; ESCANER.desdeCara = 0;
   }, function () {
     ESCANER.cargando = null;
     if (ESCANER.modo === 'cargando') ESCANER.modo = 'encuadre';
@@ -7787,7 +7979,17 @@ function prepararDetectorRostro() {
 function liberarDetectorRostro() {
   if (ESCANER.detector) { try { ESCANER.detector.liberar(); } catch (e) {} }
   ESCANER.detector = null; ESCANER.detectando = false;
+  ESCANER.ojos = null; ESCANER.ojosT = 0;
   soltarLienzo(ESCANER.lienzoDetectar); ESCANER.lienzoDetectar = null;
+}
+/* 22-oct-2026 — un lienzo vacío para la primera detección (ver
+   prepararDetectorRostro). Nada de la cámara pasa por él. */
+function lienzoParaCalentar() {
+  try {
+    var c = document.createElement('canvas');
+    c.width = ANCHO_DETECTAR; c.height = Math.round(ANCHO_DETECTAR / ASPECTO_CAJA);
+    return c;
+  } catch (e) { return null; }
 }
 function escanerSinCamara(motivo) {
   detenerEscaner();
@@ -7818,7 +8020,11 @@ function detenerEscaner() {
    comentario de LA CÉDULA, EL ROSTRO Y LA HUELLA), sin medirla ni compararla.
    Los anillos de los ojos se quitaron: se dibujaban «donde suelen estar los
    ojos», y al lado de una detección de verdad habrían parecido otra medida
-   que no se hace. */
+   que no se hace.
+   22-oct-2026 — LOS OJOS VUELVEN, PERO DE VERDAD: los ubica el modelo chico
+   de los puntos de la cara (app/rostro-en-vivo.js) y se dibujan donde él los
+   vio, solo mientras los está viendo (MS_OJOS_VIVOS). Si no los encontró, no
+   hay ojos en pantalla. Nada se decide con ellos, y no salen del teléfono. */
 /* Recorta el interior del óvalo del VÍDEO —no del lienzo pintado, que solo
    tiene el dibujo— y lo devuelve en gris, de LADO_MEDIR×LADO_MEDIR. El lienzo
    de medir no está en la pantalla: nadie lo ve y nunca sale del teléfono. */
@@ -7828,11 +8034,12 @@ function fotogramaGris(v) {
     ESCANER.lienzoMedir.width = LADO_MEDIR; ESCANER.lienzoMedir.height = LADO_MEDIR;
   }
   var c = ESCANER.lienzoMedir, x = c.getContext('2d', { willReadFrequently: true });
-  var w = v.videoWidth, h = v.videoHeight;
   /* El mismo recorte que dibuja el óvalo (0,32 y 0,36 del ancho y del alto),
-     para que lo que se mide sea exactamente lo que la persona ve enmarcado. */
-  var rx = w * 0.32, ry = h * 0.36;
-  try { x.drawImage(v, w / 2 - rx, h / 2 - ry, rx * 2, ry * 2, 0, 0, LADO_MEDIR, LADO_MEDIR); }
+     para que lo que se mide sea exactamente lo que la persona ve enmarcado.
+     22-oct-2026 — de la ZONA QUE SE VE, no del cuadro entero (zonaVisible). */
+  var z = zonaVisible(v.videoWidth, v.videoHeight);
+  var rx = z.w * 0.32, ry = z.h * 0.36, cx = z.x + z.w / 2, cy = z.y + z.h / 2;
+  try { x.drawImage(v, cx - rx, cy - ry, rx * 2, ry * 2, 0, 0, LADO_MEDIR, LADO_MEDIR); }
   catch (e) { return null; }
   var d;
   try { d = x.getImageData(0, 0, LADO_MEDIR, LADO_MEDIR).data; } catch (e) { return null; }
@@ -7844,26 +8051,32 @@ function fotogramaGris(v) {
 }
 /* 8-oct-2026 — el cuadro que mira el detector: el video achicado a
    ANCHO_DETECTAR, en un lienzo que se reutiliza. Sus fracciones son las del
-   video, así que la caja que vuelve se dibuja sobre el video tal cual. */
+   video, así que la caja que vuelve se dibuja sobre el video tal cual.
+   22-oct-2026 — solo la ZONA QUE SE VE (zonaVisible): el detector mira lo
+   mismo que la persona, y las cajas que vuelven son fracciones de esa zona,
+   que es donde está el óvalo. Con un video 3:4 es el cuadro entero. */
 function lienzoParaDetectar(v) {
   var w = v.videoWidth, h = v.videoHeight; if (!w || !h) return null;
-  var dw = Math.min(ANCHO_DETECTAR, w), dh = Math.round(h * dw / w);
+  var z = zonaVisible(w, h);
+  var dw = Math.round(Math.min(ANCHO_DETECTAR, z.w)), dh = Math.round(z.h * dw / z.w);
   if (!ESCANER.lienzoDetectar) ESCANER.lienzoDetectar = document.createElement('canvas');
   var c = ESCANER.lienzoDetectar;
   if (c.width !== dw || c.height !== dh) { c.width = dw; c.height = dh; }
   var x = c.getContext('2d'); if (!x) return null;
-  try { x.drawImage(v, 0, 0, dw, dh); } catch (e) { return null; }
+  try { x.drawImage(v, z.x, z.y, z.w, z.h, 0, 0, dw, dh); } catch (e) { return null; }
   return c;
 }
 /* La nitidez de la CARA, no del cuadro: el fondo puede estar nítido con la
    cara movida. Se mira el interior de la caja (el 80 % del medio, para que el
-   borde de la caja —pelo, fondo— no decida). Solo un número sale de acá. */
+   borde de la caja —pelo, fondo— no decida). Solo un número sale de acá.
+   22-oct-2026 — la caja viene en fracciones de la zona que se ve. */
 function nitidezDeCara(v, cara) {
   var RV = window.RostroEnVivo; if (!RV || !cara) return 0;
   var w = v.videoWidth, h = v.videoHeight; if (!w || !h) return 0;
+  var z = zonaVisible(w, h);
   if (!ESCANER.lienzoCara) { ESCANER.lienzoCara = document.createElement('canvas'); ESCANER.lienzoCara.width = LADO_CARA; ESCANER.lienzoCara.height = LADO_CARA; }
   var c = ESCANER.lienzoCara, x = c.getContext('2d', { willReadFrequently: true }); if (!x) return 0;
-  var sx = (cara.x + cara.w * 0.1) * w, sy = (cara.y + cara.h * 0.1) * h, sw = cara.w * 0.8 * w, sh = cara.h * 0.8 * h;
+  var sx = z.x + (cara.x + cara.w * 0.1) * z.w, sy = z.y + (cara.y + cara.h * 0.1) * z.h, sw = cara.w * 0.8 * z.w, sh = cara.h * 0.8 * z.h;
   sx = Math.max(0, sx); sy = Math.max(0, sy); sw = Math.min(w - sx, sw); sh = Math.min(h - sy, sh);
   if (sw < 4 || sh < 4) return 0;
   var d;
@@ -7872,6 +8085,18 @@ function nitidezDeCara(v, cara) {
   var g = new Array(LADO_CARA * LADO_CARA);
   for (var i = 0, j = 0; i < d.length; i += 4, j++) g[j] = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
   return RV.nitidezDe(g, LADO_CARA, LADO_CARA);
+}
+/* 22-oct-2026 — el dibujo de los ojos se mueve 60/40 hacia la detección
+   nueva, solo si la anterior es reciente: sin eso los ojos tiemblan más que la
+   cara y parecen otra cosa. */
+function suavizarOjos(antes, ahora, reciente) {
+  if (!antes || !reciente) return ahora;
+  return ahora.map(function (ojo, i) {
+    return ojo.map(function (p, j) {
+      var a = antes[i] && antes[i][j];
+      return a ? [a[0] * 0.4 + p[0] * 0.6, a[1] * 0.4 + p[1] * 0.6] : p;
+    });
+  });
 }
 /* Una detección: asíncrona, una a la vez, y la que llega tarde (después de
    «Repetir», de la foto o de cambiar de paso) no hace nada. */
@@ -7887,12 +8112,20 @@ function detectarCara(v, luz) {
     if (!ESCANER.activo || turno !== ESCANER.turno || gen !== GENERACION_DEL_REGISTRO) return;
     ESCANER.fallos = 0;
     var cara = RV.caraPrincipal(caras);
+    if (cara) ESCANER.vioCara = true;   // 22-oct-2026: ver el detector que nunca ve una cara, en bucleEscaner
     var nit = cara ? nitidezDeCara(v, cara) : 0;
     if (nit) ESCANER.mejorNitidez = RV.mejorNitidez(ESCANER.mejorNitidez, nit);
     var m = RV.medirRostro(caras, { luz: luz, nitidez: nit, mejorNitidez: ESCANER.mejorNitidez, previa: ESCANER.previaCara });
     ESCANER.medida = m; ESCANER.previaCara = m.cara;
-    var r = RV.contarRacha(ESCANER.estables, m);
-    ESCANER.estables = r.estables;
+    /* 22-oct-2026 — los ojos de esta detección, si vinieron, con su hora: el
+       dibujo los muestra solo un rato (MS_OJOS_VIVOS). Se pasan a la pantalla
+       un poco suavizados, para que no tiemblen más que la cara; el
+       suavizado es del dibujo, no de nada que se decida. */
+    if (m.ojos) { ESCANER.ojos = suavizarOjos(ESCANER.ojos, m.ojos, Date.now() - ESCANER.ojosT < MS_OJOS_VIVOS); ESCANER.ojosT = Date.now(); }
+    /* 22-oct-2026 — la racha cuenta detecciones Y el tiempo con la cara a la
+       vista (RostroEnVivo.ROSTRO.MS_ESCANEO_MIN): que se VEA que escanea. */
+    var r = RV.contarRacha(ESCANER.estables, m, { ahora: Date.now(), desde: ESCANER.desdeCara });
+    ESCANER.estables = r.estables; ESCANER.desdeCara = r.desde || 0;
     if (r.disparar) capturarRostro();
   }, function () {
     if (ESCANER.detector !== d) return;
@@ -7938,13 +8171,32 @@ function bucleEscaner() {
   if (ESCANER.modo === 'rostro' && ESCANER.detectando && (Date.now() - (ESCANER.detectandoDesde || 0)) > 6000) {
     liberarDetectorRostro(); ESCANER.modo = 'encuadre'; ESCANER.estables = 0;
   }
+  /* 22-oct-2026 — EL DETECTOR QUE NUNCA VE UNA CARA (T3). Si contesta, pero
+     «no hay cara» una y otra vez durante RostroEnVivo.ROSTRO.MS_SIN_CARA, el
+     vigilante de arriba no lo ve (contesta a tiempo) y la persona se quedaba
+     en «Pon tu cara dentro del óvalo» hasta rendirse y tocar «Continuar» sin
+     foto. Se suelta, se vuelve al encuadre (que no necesita ver una cara para
+     disparar) y se pone a la vista la cámara del celular. */
+  if (ESCANER.modo === 'rostro' && ESCANER.detector && RV && RV.ROSTRO && !ESCANER.vioCara &&
+      ESCANER.desdeRostro && (Date.now() - ESCANER.desdeRostro) > RV.ROSTRO.MS_SIN_CARA) {
+    liberarDetectorRostro(); ESCANER.modo = 'encuadre'; ESCANER.estables = 0;
+    var fs0 = $('fot_selfie'); if (fs0) fs0.style.display = '';
+    var ns0 = $('selfieNota');
+    if (ns0) ns0.textContent = 'El escáner no logra ver tu cara: sigue con el óvalo, toca «Tomar la foto ahora», ' +
+      'o toma la selfie con la cámara del celular, aquí abajo.';
+  }
   var conCara = ESCANER.modo === 'rostro' && !!ESCANER.detector && !!RV;
-  var enganchado, avance, mr = null;
+  var enganchado, avance, mr = null, ojos = null;
   if (conCara) {
     if (!ESCANER.detectando) detectarCara(v, m ? m.luz : 128);
     mr = ESCANER.medida;
     enganchado = !!(mr && mr.ok);
-    avance = Math.min(1, ESCANER.estables / RV.ROSTRO.CUADROS);
+    /* 22-oct-2026 — el avance es el de la racha Y el del tiempo con la cara
+       a la vista (contarRacha): el óvalo se llena mientras de verdad escanea. */
+    var msMin = RV.ROSTRO.MS_ESCANEO_MIN || 0;
+    avance = !enganchado ? 0 : Math.min(1, ESCANER.estables / RV.ROSTRO.CUADROS,
+      msMin > 0 ? (ESCANER.desdeCara ? (Date.now() - ESCANER.desdeCara) / msMin : 0) : 1);
+    if (ESCANER.ojos && (Date.now() - ESCANER.ojosT) < MS_OJOS_VIVOS && mr && mr.ojos) ojos = ESCANER.ojos;
   } else if (ESCANER.modo === 'encuadre') {
     if (m && m.ok) ESCANER.estables++; else ESCANER.estables = 0;
     enganchado = !!(m && m.ok);
@@ -7979,8 +8231,24 @@ function bucleEscaner() {
   }
   var ctx = c.getContext('2d');
   ctx.clearRect(0, 0, c.width, c.height);
+  /* 22-oct-2026 — `zona`: lo que se ve de este lienzo (zonaVisible); `ojos`:
+     los que el detector acaba de ver, o nada. */
   dibujarMarco(ctx, c.width, c.height, t, enganchado, avance,
-    { cara: conCara && mr ? mr.cara : null, cargando: ESCANER.modo === 'cargando', conCara: conCara });
+    { cara: conCara && mr ? mr.cara : null, ojos: ojos, cargando: ESCANER.modo === 'cargando', conCara: conCara,
+      zona: zonaVisible(c.width, c.height) });
+
+  /* 22-oct-2026 — LA CUENTA «3·2·1» ES LA RACHA, no un reloj: con el detector,
+     una detección buena por número (y el último espera el tiempo mínimo en
+     verde); con el encuadre, la racha de fotogramas en tercios. Si la persona
+     se mueve, desaparece y vuelve a empezar. */
+  var cuenta = 0;
+  if (enganchado) {
+    cuenta = conCara
+      ? Math.max(1, RV.ROSTRO.CUADROS + 1 - ESCANER.estables)
+      : Math.max(1, Math.ceil(3 * (U.ENCUADRE.CUADROS - ESCANER.estables) / U.ENCUADRE.CUADROS));
+  }
+  var cc = $('camCuenta');
+  if (cc) cc.textContent = cuenta ? String(cuenta) : '';
 
   if (estado) {
     /* Ni un fotograma mudo: si algo falta, se dice QUÉ hacer. Y si lleva mucho
@@ -7990,13 +8258,13 @@ function bucleEscaner() {
     var txt;
     if (conCara) {
       txt = enganchado
-        ? 'Quieto… ' + Math.max(1, RV.ROSTRO.CUADROS - ESCANER.estables)
+        ? 'Quieto… ' + cuenta
         : (mr ? RV.textoDeRostro(mr) : 'Buscando tu cara…');
     } else if (ESCANER.modo === 'cargando') {
       txt = 'Preparando el escáner…';
     } else {
       txt = m && m.ok
-        ? 'Quieto… ' + Math.max(1, Math.ceil((U.ENCUADRE.CUADROS - ESCANER.estables) / 6))
+        ? 'Quieto… ' + cuenta
         : U.textoDeEncuadre(m);
     }
     if (!g) txt = 'Encendiendo la cámara…';
@@ -8013,20 +8281,33 @@ function bucleEscaner() {
    8-oct-2026 — con el detector, además, unas esquinas SIGUEN la cara que se
    detectó (es la caja de verdad, no un adorno), con una retícula y una línea
    que la recorre: eso es lo que hace que se sienta como un escaneo de cara.
-   `extra`: {cara (fracciones del cuadro), cargando, conCara}. */
+   22-oct-2026 — y los OJOS que el detector vio (su contorno y una mira en el
+   medio), y el óvalo que se LLENA con la racha. `extra`: {cara y ojos (en
+   fracciones de la zona que se ve), zona (en píxeles del lienzo: zonaVisible;
+   sin ella, el lienzo entero), cargando, conCara}. */
 function dibujarMarco(ctx, w, h, t, enganchado, avance, extra) {
   var x2 = extra || {};
+  var z = x2.zona || { x: 0, y: 0, w: w, h: h };
   ctx.save();
-  var cx = w / 2, cy = h / 2, rx = w * 0.32, ry = h * 0.36;
+  var cx = z.x + z.w / 2, cy = z.y + z.h / 2, rx = z.w * 0.32, ry = z.h * 0.36;
   var col = enganchado ? '124,255,196' : (x2.cargando ? '255,255,255' : '245,197,66');
+  /* 22-oct-2026 — EL ÓVALO SE LLENA desde abajo con el avance de la racha (la
+     de detecciones Y el tiempo en verde): si la persona se mueve, se vacía. */
+  if (enganchado && avance > 0) {
+    ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = 'rgba(124,255,196,.16)';
+    var lleno = 2 * ry * Math.min(1, avance);
+    ctx.fillRect(cx - rx, cy + ry - lleno, 2 * rx, lleno);
+    ctx.restore();
+  }
   /* el óvalo y las esquinas */
   ctx.strokeStyle = 'rgba(' + col + ',.95)'; ctx.lineWidth = 3;
   if (!enganchado) ctx.setLineDash([9, 9]);
   if (!enganchado && !MOVIMIENTO_REDUCIDO) ctx.lineDashOffset = -t * 18;   // el punteado gira: está buscando
   ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
   ctx.setLineDash([]); ctx.lineDashOffset = 0;
-  var L = Math.min(w, h) * 0.08, m = Math.min(w, h) * 0.06;
-  [[m, m, 1, 1], [w - m, m, -1, 1], [m, h - m, 1, -1], [w - m, h - m, -1, -1]].forEach(function (k) {
+  var L = Math.min(z.w, z.h) * 0.08, m = Math.min(z.w, z.h) * 0.06;
+  [[z.x + m, z.y + m, 1, 1], [z.x + z.w - m, z.y + m, -1, 1], [z.x + m, z.y + z.h - m, 1, -1], [z.x + z.w - m, z.y + z.h - m, -1, -1]].forEach(function (k) {
     ctx.beginPath(); ctx.moveTo(k[0], k[1] + L * k[3]); ctx.lineTo(k[0], k[1]); ctx.lineTo(k[0] + L * k[2], k[1]); ctx.stroke();
   });
 
@@ -8034,7 +8315,7 @@ function dibujarMarco(ctx, w, h, t, enganchado, avance, extra) {
      la recorre. Solo con una detección de verdad: sobre una pared vacía no se
      pinta ninguna cara. */
   if (x2.cara) {
-    var fx = x2.cara.x * w, fy = x2.cara.y * h, fw = x2.cara.w * w, fh = x2.cara.h * h;
+    var fx = z.x + x2.cara.x * z.w, fy = z.y + x2.cara.y * z.h, fw = x2.cara.w * z.w, fh = x2.cara.h * z.h;
     var colCara = enganchado ? '124,255,196' : '245,197,66';
     ctx.save();
     ctx.beginPath(); ctx.rect(fx, fy, fw, fh); ctx.clip();
@@ -8058,6 +8339,30 @@ function dibujarMarco(ctx, w, h, t, enganchado, avance, extra) {
       ctx.beginPath(); ctx.moveTo(k[0], k[1] + e * k[3]); ctx.lineTo(k[0], k[1]); ctx.lineTo(k[0] + e * k[2], k[1]); ctx.stroke();
     });
     ctx.lineCap = 'butt';
+    /* 22-oct-2026 — LOS OJOS, donde el detector los vio: el contorno de cada
+       uno (sus seis puntos) y una mira en su centro. Solo con cara y con
+       ojos de esta detección; nunca «donde suelen estar». */
+    if (x2.ojos && x2.ojos.length === 2) {
+      ctx.strokeStyle = 'rgba(' + colCara + ',.95)'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+      x2.ojos.forEach(function (ojo) {
+        if (!ojo || ojo.length !== 6) return;
+        var pts = ojo.map(function (p) { return [z.x + p[0] * z.w, z.y + p[1] * z.h]; });
+        ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+        for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+        ctx.closePath(); ctx.stroke();
+        var mx = 0, my = 0, minx = Infinity, maxx = -Infinity;
+        pts.forEach(function (p) { mx += p[0] / pts.length; my += p[1] / pts.length; minx = Math.min(minx, p[0]); maxx = Math.max(maxx, p[0]); });
+        var rr = Math.max(4, (maxx - minx) * 0.32);
+        ctx.beginPath(); ctx.arc(mx, my, rr, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(mx - rr * 1.8, my); ctx.lineTo(mx - rr * 0.6, my);
+        ctx.moveTo(mx + rr * 0.6, my); ctx.lineTo(mx + rr * 1.8, my);
+        ctx.moveTo(mx, my - rr * 1.8); ctx.lineTo(mx, my - rr * 0.6);
+        ctx.moveTo(mx, my + rr * 0.6); ctx.lineTo(mx, my + rr * 1.8);
+        ctx.stroke();
+      });
+      ctx.lineJoin = 'miter';
+    }
   } else if (enganchado && !x2.conCara) {
     /* Sin detector (el encuadre de siempre): la malla en el óvalo, como antes,
        solo cuando hay algo enganchado. */
@@ -8078,32 +8383,76 @@ function dibujarMarco(ctx, w, h, t, enganchado, avance, extra) {
   ctx.beginPath(); ctx.ellipse(cx, cy, rx + 6, ry + 6, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, avance || 0)); ctx.stroke();
   ctx.restore();
 }
+/* 22-oct-2026 — LA FOTO CON RED DE SEGURIDAD (T4). Llamaba a
+   getContext('2d').drawImage sin mirar nada: si Safari se quedaba sin memoria
+   para un lienzo más, getContext devolvía null, la excepción se perdía dentro
+   del bucle y ni la foto automática ni el botón hacían nada, sin un mensaje.
+   Terminaba en el mismo «Continuar» mudo. Ahora, si no sale una foto que la
+   base vaya a aceptar (una imagen JPEG de menos de 600.000 caracteres, lo que
+   mira registro_archivos_guardar), se dice y se ofrece la cámara del celular.
+   Y la foto es la ZONA QUE SE VE (zonaVisible), lo mismo que la persona tuvo
+   enmarcado, y no el cuadro entero. Devuelve true si la tomó. */
 function capturarRostro() {
   var v = $('camVideo');
   if (!v || !v.videoWidth) {
     /* Callarse acá era dejar un botón que no hace nada: pasa cuando el permiso
        todavía no llegó. */
     var e0 = $('camEstado'); if (e0) e0.textContent = 'La cámara todavía no está lista…';
-    return;
+    return false;
   }
-  var max = 720, w = v.videoWidth, h = v.videoHeight;
+  var z = zonaVisible(v.videoWidth, v.videoHeight);
+  var max = 720, w = z.w, h = z.h;
   if (w > h && w > max) { h = h * max / w; w = max; } else if (h >= w && h > max) { w = w * max / h; h = max; }
-  var c = document.createElement('canvas'); c.width = w; c.height = h;
-  c.getContext('2d').drawImage(v, 0, 0, w, h);
-  var selfie = c.toDataURL('image/jpeg', 0.7);
-  c.width = c.height = 1;
+  w = Math.round(w); h = Math.round(h);
+  var selfie = '';
+  var c = null;
+  try {
+    c = document.createElement('canvas'); c.width = w; c.height = h;
+    var x = c.getContext('2d');
+    if (!x) throw new Error('sin lienzo');
+    x.drawImage(v, z.x, z.y, z.w, z.h, 0, 0, w, h);
+    selfie = c.toDataURL('image/jpeg', 0.7);
+  } catch (e) { selfie = ''; }
+  if (c) { try { c.width = c.height = 1; } catch (e) {} }
+  if (typeof selfie !== 'string' || selfie.indexOf('data:image/jpeg') !== 0 || selfie.length > 600000) {
+    escanerSinCamara('No pude tomar la foto con el escáner.');
+    return false;
+  }
   prepararFotoNueva();   // 19-oct-2026: sin mezclarla con fotos de otro registro
   FOTOS.selfie = selfie;
+  SELFIE_ANTERIOR = null;   // 22-oct-2026: ya hay una nueva; la de antes de «Repetir» se va
+  delete FOTOS.selfie_omitida; delete FOTOS.selfie_camara_sistema;   // 22-oct-2026: ya no falta
   marcarDuenoDeLasFotos('selfie');   // sin dueño no sube, y la pantalla diría «registrado» igual
   var aSalvo = guardarFotos();
   /* 8-oct-2026 — detenerEscaner también suelta el detector y su memoria: lo
      que viene es la subida, y ahí hace falta. La caja de la cara se va con él. */
   detenerEscaner();
   ESCANER.medida = null; ESCANER.previaCara = null;
-  $('escaner').classList.add('oculto'); $('btnCapturar').classList.add('oculto');
-  $('selfiePrev').src = FOTOS.selfie; $('selfieListo').classList.remove('oculto');
+  mostrarSelfieTomada(aSalvo, true);
+  return true;
+}
+/* Lo que se ve cuando la selfie quedó: la miniatura, «¡Listo!», el botón
+   principal que vuelve a decir «Continuar» y, al fin, la ubicación.
+   22-oct-2026 — `destello`: el disparo se nota (un relámpago corto sobre la
+   miniatura y una vibración de 40 ms donde la haya; nada suena). Sin él
+   —«Usar mi foto anterior»— no hay disparo que anunciar. */
+function mostrarSelfieTomada(aSalvo, destello) {
+  var esc = $('escaner'); if (esc) esc.classList.add('oculto');
+  var bc = $('btnCapturar'); if (bc) bc.classList.add('oculto');
+  var prev = $('selfiePrev'); if (prev) prev.src = FOTOS.selfie;
+  var listo = $('selfieListo');
+  if (listo) {
+    listo.classList.remove('oculto');
+    if (destello && !MOVIMIENTO_REDUCIDO) { listo.classList.remove('destello'); void listo.offsetWidth; listo.classList.add('destello'); }
+  }
+  if (destello) { try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) {} }
   var nota = $('selfieNota');
   if (nota) nota.textContent = aSalvo ? '' : 'La tenemos, pero tu teléfono no dejó guardarla: termina sin cerrar esta página.';
+  /* 22-oct-2026 — el aviso de «todavía no tenemos la foto de tu cara», si
+     estaba a la vista, ya no es verdad. */
+  var err = $('errReg');
+  if (err && AVISO_SIN_SELFIE) { err.classList.add('oculto'); }
+  ponerTextoBotonRostro();
   /* 19-oct-2026 — y ahora sí la ubicación: la cámara ya se apagó, así que no
      son dos permisos a la vez. */
   pedirGpsSiFalta();
@@ -8289,6 +8638,14 @@ function subirArchivosRegistro() {
      migración de RECETA-OCR-CEDULA.md, registro_archivos_guardar lo ignora. */
   var vistaResumen = resumenDeLaVista(lote);
   if (vistaResumen) huella.cedula_vista = vistaResumen;
+  /* 22-oct-2026 — y si siguió sin la foto de su cara, QUÉ hizo (ver LA SELFIE
+     QUE NO SE TOMÓ SE DICE): un motivo de cuatro, sin ninguna foto ni medida.
+     La base lo guarda en la huella desde
+     base/20261022_la_foto_que_no_entra_se_dice.sql (antes lo ignora), y el
+     CRM lo dice en vez de callar. */
+  if (lote.selfie_omitida && !lote.selfie && MOTIVOS_SIN_SELFIE.indexOf(lote.selfie_omitida.motivo) >= 0) {
+    huella.selfie_omitida = { motivo: lote.selfie_omitida.motivo };
+  }
   if (!pedidas.length && !Object.keys(huella).length) { guardarCola(cel, null); return Promise.resolve(); }
   var ses = SESION;
   /* 21-oct-2026 — I3: suelta (el `true` del final): la respuesta llega
@@ -8335,11 +8692,43 @@ function subirArchivosRegistro() {
     var ok = (j.guardados && j.guardados.length !== undefined) ? j.guardados
            : (typeof j.fotos === 'number' && j.fotos < pedidas.length ? [] : pedidas);
     var descartados = (j.descartados && j.descartados.length !== undefined) ? j.descartados : [];
-    ok.concat(descartados).forEach(function (k) { delete lote[k]; });
-    var faltan = pedidas.filter(function (k) { return ok.indexOf(k) < 0 && descartados.indexOf(k) < 0; });
+    /* 22-oct-2026 (B1) — LO QUE LA BASE NO GUARDÓ, CON SU MOTIVO. Hasta hoy
+       registro_archivos_guardar se saltaba EN SILENCIO una foto que no
+       empezara por data:image/ o pasara de 600.000 caracteres, y el teléfono
+       la reintentaba cada vez que se entraba, sin decir nada, hasta que la
+       cola caducaba. Desde base/20261022_la_foto_que_no_entra_se_dice.sql la
+       base dice cuáles y por qué (`rechazadas`): no van a entrar nunca, así
+       que no se reintentan y la pantalla lo dice. Con la base de antes la
+       llave no viene y todo sigue como estaba. */
+    var rechazadas = [];
+    (Array.isArray(j.rechazadas) ? j.rechazadas : []).forEach(function (x) {
+      var tipo = x && String(x.tipo || '');
+      if (pedidas.indexOf(tipo) >= 0 && ok.indexOf(tipo) < 0 && rechazadas.indexOf(tipo) < 0) rechazadas.push(tipo);
+    });
+    /* Y lo que se subió en una vuelta anterior de esta misma cola, para que
+       la nota sepa al final qué llegó de verdad y qué no se tomó nunca. */
+    lote.subidas = (Array.isArray(lote.subidas) ? lote.subidas : []).concat(ok.filter(function (k) { return (lote.subidas || []).indexOf(k) < 0; }));
+    ok.concat(descartados).concat(rechazadas).forEach(function (k) { delete lote[k]; });
+    var faltan = pedidas.filter(function (k) { return ok.indexOf(k) < 0 && descartados.indexOf(k) < 0 && rechazadas.indexOf(k) < 0; });
     /* 20-oct-2026, buena fe (A8) — lo descartado queda en la nota: la pantalla
-       decía «Listo: tus fotos llegaron» de unas fotos que no entraron. */
-    anotarSubida(faltan.length ? 'parcial' : 'ok', pedidas, ok, cel, descartados.length ? { descartadas: descartados } : null);
+       decía «Listo: tus fotos llegaron» de unas fotos que no entraron.
+       22-oct-2026 — y también lo rechazado, y lo que nunca se tomó
+       (`no_tomadas`): «tus fotos llegaron» de una cuenta sin la foto de su
+       cara fue lo último que vio William. */
+    var extra = {};
+    if (descartados.length) extra.descartadas = descartados;
+    if (rechazadas.length) extra.rechazadas = rechazadas;
+    var noTomadas = ['cedula_frente', 'cedula_reverso', 'selfie'].filter(function (k) {
+      return lote.subidas.indexOf(k) < 0 && pedidas.indexOf(k) < 0 && descartados.indexOf(k) < 0;
+    });
+    if (noTomadas.length) extra.no_tomadas = noTomadas;
+    anotarSubida(faltan.length ? 'parcial' : 'ok', pedidas, ok, cel, Object.keys(extra).length ? extra : null);
+    /* Y si terminó sin alguna, su cuenta lo recuerda hasta que lo lea
+       («Entendido»): no basta con decirlo una vez en una pantalla que se
+       cierra. Sin ninguna foto: solo cuáles faltan. */
+    if (!faltan.length && (rechazadas.length || noTomadas.length) && lote.sensibles === true) {
+      guardarAvisoDeFotos(cel, { estado: 'incompleta', t: Date.now(), rechazadas: rechazadas, no_tomadas: noTomadas });
+    }
     if (faltan.length) { guardarCola(cel, lote); return; }
     /* Todas entraron: recién ahí se suelta la copia del teléfono. */
     guardarCola(cel, null);
@@ -8474,9 +8863,15 @@ function avisoDeFotos(donde, momento) {
   var caja = function (clase, html) { return '<div class="card"><div class="aviso ' + clase + '" role="status">' + html + '</div></div>'; };
   if (momento === 'llegaron') {
     /* 20-oct-2026, buena fe (A8) — si la base dejó las fotos de cédula que ya
-       tenía (leídas con su código) en vez de estas, se dice eso y no «llegaron». */
+       tenía (leídas con su código) en vez de estas, se dice eso y no «llegaron».
+       22-oct-2026 (T5) — Y SE NOMBRA LO QUE NO LLEGÓ. Decía «Listo: tus fotos
+       llegaron» mirando solo que la cola se vació: a William, sin la foto de
+       su cara. Ahora, si falta alguna (no se tomó, o la base no la aceptó),
+       se dice cuál y qué hacer. */
     var dejamos = queDejamosDeAntes(cel);
-    if (dejamos) return caja('verde', dejamos);
+    var falto = loQueNoLlego(leerSubida(), cel);
+    if (dejamos) return caja(falto ? 'ambar' : 'verde', dejamos + (falto ? ' ' + falto : ''));
+    if (falto) return caja('ambar', falto);
     return caja('verde', '<b>Listo: tus fotos llegaron.</b> Ya las tenemos para revisar tu registro.');
   }
   var cola = colaDe(cel);
@@ -8511,7 +8906,11 @@ function avisoDeFotos(donde, momento) {
   }
   var aviso = avisoDeFotosDe(cel);
   if (!aviso) return '';
-  return caja('ambar', '<b>' + porqueSeBorraron(aviso) + '</b> ' + queHacerSinLasFotos(aviso) +
+  /* 22-oct-2026 — lo que le falta al registro (no se borró nada): el texto ya
+     trae su parte en negrilla y lo que hay que hacer. */
+  var dicho = aviso.estado === 'incompleta' ? porqueSeBorraron(aviso)
+    : '<b>' + porqueSeBorraron(aviso) + '</b> ' + queHacerSinLasFotos(aviso);
+  return caja('ambar', dicho +
     '<button class="btn sec sm" type="button" style="margin-top:var(--e3)" onclick="entendidoAvisoDeFotos()">Entendido</button>');
 }
 /* Por qué se borraron sin subir. Lo usan la cuenta (avisoDeFotos) y el final
@@ -8522,6 +8921,8 @@ function avisoDeFotos(donde, momento) {
    sabe; lo que la base no pudo confirmar se dice así. */
 function porqueSeBorraron(aviso) {
   var e = aviso && aviso.estado;
+  /* 22-oct-2026 — no se borró nada: llegó todo lo que se tomó, y faltó algo. */
+  if (e === 'incompleta') return textoDeLoQueFalto(aviso.no_tomadas, aviso.rechazadas, true) || 'A tu registro le falta una foto: mándanosla por el chat de Servicio.';
   if (e === 'caducada') return 'Las fotos de tu registro no alcanzaron a subir y, como pasó un día, las borramos de este teléfono.';
   if (e === 'otro_documento') return 'La cédula de las fotos de tu registro no es la del documento que escribiste en él, así que no las subimos y las borramos de este teléfono.';
   if (e === 'no_confirmada') return 'No pudimos confirmar de quién es la cédula de las fotos de tu registro, así que no las subimos y las borramos de este teléfono.';
@@ -8534,10 +8935,37 @@ function porqueSeBorraron(aviso) {
   return 'Las fotos de tu registro no se pudieron subir y las borramos de este teléfono.';
 }
 function queHacerSinLasFotos(aviso) {
+  if (aviso && aviso.estado === 'incompleta') return '';   // 22-oct-2026: ya lo dice textoDeLoQueFalto
   /* Las de antes de la actualización pueden ser de una cuenta que ya mandó las
      suyas: no se le dice que sin ellas no se puede revisar nada. */
   if (aviso && aviso.estado === 'version_anterior') return 'Si todavía no nos has mandado la foto de tu cédula, mándanosla por el chat de Servicio.';
   return 'Sin la foto de tu cédula no podemos revisar tu registro: mándanosla por el chat de Servicio.';
+}
+/* 22-oct-2026 (T5) — lo que NO llegó en la última subida de esta cuenta, en
+   palabras: '' si llegó todo lo que se pidió en el registro. Mira la nota de
+   la subida (no_tomadas: nunca se tomaron; rechazadas: la base no las
+   aceptó), que es de esta cuenta y de esta vez. */
+function loQueNoLlego(nota, cel) {
+  if (!nota || String(nota.celular || '') !== String(cel || '') || nota.estado !== 'ok') return '';
+  return textoDeLoQueFalto(nota.no_tomadas, nota.rechazadas, false);
+}
+function textoDeLoQueFalto(noTomadas, rechazadas, conCuenta) {
+  var nt = Array.isArray(noTomadas) ? noTomadas : [], re = Array.isArray(rechazadas) ? rechazadas : [];
+  var nombre = { cedula_frente: 'la foto del frente de tu cédula', cedula_reverso: 'la del respaldo de tu cédula', selfie: 'la foto de tu cara' };
+  var cedulaEntera = nt.indexOf('cedula_frente') >= 0 && nt.indexOf('cedula_reverso') >= 0;
+  var partes = [];
+  if (cedulaEntera) partes.push('no tomaste la foto de tu cédula');
+  else ['cedula_frente', 'cedula_reverso'].forEach(function (k) { if (nt.indexOf(k) >= 0) partes.push('no se tomó ' + nombre[k]); });
+  if (nt.indexOf('selfie') >= 0) partes.push('no se tomó la foto de tu cara');
+  re.forEach(function (k) { if (nombre[k]) partes.push(nombre[k] + ' no la pudimos guardar'); });
+  if (!partes.length) return '';
+  var llego = (nt.indexOf('selfie') >= 0 || re.indexOf('selfie') >= 0) && !cedulaEntera && re.indexOf('cedula_frente') < 0 && re.indexOf('cedula_reverso') < 0
+    ? '<b>Tu cédula llegó, pero ' : '<b>' + (conCuenta ? 'A tu registro le falta algo: ' : 'Tu cuenta quedó abierta, pero ');
+  var lista = partes.length > 1 ? partes.slice(0, -1).join(', ') + ' y ' + partes[partes.length - 1] : partes[0];
+  var sinCedula = cedulaEntera || re.indexOf('cedula_frente') >= 0 || re.indexOf('cedula_reverso') >= 0;
+  return llego + lista + '.</b> ' +
+    (sinCedula ? 'Sin la foto de tu cédula no podemos revisar tu registro: ' : 'Con ella revisamos que la cédula sea tuya: ') +
+    'mándanosla por el chat de Servicio.';
 }
 /* 20-oct-2026, buena fe (A8) — la última subida de esta cuenta entró, pero la
    base dejó las fotos de cédula que ya tenía, leídas con su código (no las
@@ -11308,7 +11736,7 @@ function salirDeCuenta() {
   otraGeneracion();
   olvidarClaveEnCurso();
   REGISTRO = leerBorrador(); FOTOS = {}; REGISTRADO = null;
-  GPS_PEDIDO = false; AVISO_UN_LADO = ''; PERMISO_SOLTADO = false;
+  GPS_PEDIDO = false; AVISO_UN_LADO = ''; AVISO_SIN_SELFIE = false; SELFIE_ANTERIOR = null; PERMISO_SOLTADO = false;
   pintarEntrar();
 }
 
@@ -12045,9 +12473,15 @@ function avisarQueEsMomento() {
            causa sigue sin saberse, y no se afirma.
            Y va el botón de salida: en un teléfono prestado, quien abre la
            página se encuentra el registro de otro y tiene que poder soltarlo. */
+        /* 22-oct-2026 (T5) — y nombra QUÉ fotos siguen: decía «las fotos que
+           ya habías tomado» mirando solo la cédula, también en «Tu rostro» con
+           la selfie perdida en la vuelta de la cámara (C3, típico de iPhone). */
+        var hayCed = hayFotoLista('cedula_reverso') || hayFotoLista('cedula_frente'), hayCara = hayFotoLista('selfie');
+        var enRostro = PASOS[PASO] && PASOS[PASO].id === 'rostro' && autorizoEsteIntento();
         aviso.innerHTML = 'La página se volvió a abrir. Seguimos en el paso donde ibas, ' +
           'con lo que ya habías escrito' +
-          ((hayFotoLista('cedula_reverso') || hayFotoLista('cedula_frente')) ? ' y las fotos que ya habías tomado' : '') + '.' +
+          ((hayCed || hayCara) ? ' y las fotos que ya habías tomado (' + (hayCed && hayCara ? 'tu cédula y tu cara' : (hayCed ? 'tu cédula' : 'tu cara')) + ')' : '') + '.' +
+          (enRostro && !hayCara ? ' <b>La foto de tu cara no alcanzó a quedar:</b> tómala otra vez aquí.' : '') +
           '<button class="btn sec sm" style="margin-top:var(--e3)" ' +
           'onclick="empezarDeNuevo()">No soy yo · empezar de cero</button>';
       }

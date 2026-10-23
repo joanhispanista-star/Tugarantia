@@ -309,10 +309,21 @@ td.ob{white-space:nowrap;color:var(--gris)}
          impresos en la foto de la cédula que sí se sube con la casilla marcada. -->
 
     <h3>La foto de tu cara, que se toma sola</h3>
-    <p>Para tomarla sola, <b>un programa que corre dentro de tu celular</b> busca tu cara en la
-      cámara y dispara cuando hay una sola cara, centrada, cerca y quieta. Lo que ese programa
-      mira —dónde está tu cara en la imagen— <b>no se guarda ni sale de tu celular</b>: lo único
-      que nos llega es la foto. Si no la toma sola, la tomas tú con el botón.</p>
+    <!-- 22-oct-2026 — el programa ahora ubica también los OJOS (el modelo chico de los
+         puntos de la cara, app/rostro-en-vivo.js) para dibujarlos mientras escanea. No
+         decide nada con ellos, no saca ningún vector y lo que ve no sale del teléfono;
+         pruebas/selfie-automatica.test.js vigila esa frontera. Y si la persona sigue sin la
+         foto, el teléfono manda solo eso, sin ninguna imagen (huella.selfie_omitida,
+         base/20261022_la_foto_que_no_entra_se_dice.sql). PENDIENTE DE JOAN: aprobar este
+         texto, y la fecha de «Última actualización» y VERSION_AUTORIZACION, que se suben
+         una sola vez con la rama cuentas-pago. -->
+    <p>Para tomarla sola, <b>un programa que corre dentro de tu celular</b> busca tu cara y tus
+      ojos en la cámara, te los muestra en la pantalla mientras te escanea, y dispara cuando hay
+      una sola cara, centrada, cerca y quieta. Lo que ese programa encuentra —dónde están tu
+      cara y tus ojos en la imagen— vive solo mientras la cámara está prendida: <b>no se guarda
+      ni sale de tu celular</b>, y lo único que nos llega es la foto. Si no la toma sola, la
+      tomas tú con el botón. Si sigues sin tomarla, lo único que anotamos es eso, que seguiste
+      sin ella, para pedírtela después.</p>
     <p>Después, en el computador de quien revisa tu registro, otro programa compara la cara de
       esa foto con la de tu cédula y da un número de parecido. No guardamos ninguna huella de tu
       cara: lo que el programa saca de ella se descarta al terminar la comparación, y el

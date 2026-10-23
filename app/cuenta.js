@@ -872,6 +872,12 @@
    * del teléfono y no sale de él no es un dato «recogido».
    * Este encuadre se queda como respaldo: si el detector no baja (señal
    * floja, un teléfono sin WebGL), la selfie se dispara como hasta hoy.
+   *
+   * 22-oct-2026 — el detector ahora también ubica los OJOS (el modelo chico de
+   * los puntos de la cara, del que se copian solo los doce de los ojos) para
+   * DIBUJARLOS mientras escanea. Sigue sin decidir nada con ellos, sin vector
+   * y sin comparar, y lo que ve sigue sin salir del teléfono: la política lo
+   * dice en «La foto de tu cara, que se toma sola».
    * ======================================================================== */
 
   /* Los umbrales, juntos y con nombre, porque son lo único de esto que hay que
@@ -882,7 +888,16 @@
     LUZ_MIN: 32,        // más oscuro que esto es un bolsillo
     LUZ_MAX: 238,       // más claro es una ventana a contraluz
     TEXTURA_MIN: 240,   // varianza del centro: una pared lisa da casi cero
-    VENTAJA_CENTRO: 1.25, // el centro tiene que tener MÁS detalle que el borde
+    /* 22-oct-2026 — era 1,25 («el centro con MÁS detalle que el borde») y con
+       una cabeza de verdad no se cumplía nunca: el pelo y la ropa caen en el
+       borde del óvalo y tienen más contraste que la cara. Medido con la
+       selfie de mentira (pruebas/imagenes-de-mentira.js, que trae pelo), el
+       centro da entre el 36 % y el 50 % del borde: el respaldo de la selfie
+       —el que corre cuando el detector no llega, que en un iPhone con señal
+       floja es lo normal— no disparaba con nadie. Con 0,3 dispara con la
+       cabeza y sigue diciendo «Céntrate» cuando casi todo el detalle está
+       afuera (la prueba «ladeado» de cuenta.test.js da 0,065). */
+    VENTAJA_CENTRO: 0.3, // el centro no puede tener mucho MENOS detalle que el borde
     MOVIMIENTO_MAX: 7,  // diferencia media entre dos fotogramas seguidos
     CUADROS: 10         // seguidos en verde antes de disparar (~0,8 s)
   };
@@ -933,8 +948,9 @@
     if (centro < ENCUADRE.TEXTURA_MIN) {
       return { luz: luz, textura: centro, centro: centro, borde: borde, movimiento: 999, ok: false, falla: 'lejos' };
     }
-    /* Hay detalle, pero el borde tiene tanto o más: la persona está a un lado,
-       o lo que se ve es el cuarto entero y no una cara. */
+    /* Hay detalle, pero el borde tiene mucho más (22-oct-2026: antes, «tanto
+       o más», y ahí caía cualquier cabeza con pelo; ver VENTAJA_CENTRO): la
+       persona está a un lado, o lo que se ve es el cuarto entero y no una cara. */
     if (centro < borde * ENCUADRE.VENTAJA_CENTRO) {
       return { luz: luz, textura: centro, centro: centro, borde: borde, movimiento: 999, ok: false, falla: 'ladeado' };
     }

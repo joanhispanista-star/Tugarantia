@@ -13,26 +13,41 @@
  * (app/lib/rostro, el mismo archivo que usa el CRM), y dispara cuando hay UNA
  * sola cara, centrada, cerca, nítida y quieta unos cuadros seguidos.
  *
+ * 22-oct-2026 — Y AHORA TAMBIÉN LOS OJOS, DE VERDAD. Joan: «que la foto de la
+ * cara se tome automáticamente, y que parezca aún más que se escanea la cara y
+ * los ojos». Con el modelo chico de los puntos de la cara (68 puntos, 77 KB)
+ * se ubican los dos ojos y la página los DIBUJA mientras escanea. Nada de
+ * ojos pintados «donde suelen estar» (se quitaron el 8-oct por eso): si el
+ * modelo no los encontró, no se dibujan.
+ *
  * LA FRONTERA, Y POR QUÉ ESTÁ AQUÍ Y NO EN LA PÁGINA:
- *   · Solo se carga el DETECTOR (dónde hay una cara: una caja y un puntaje).
- *     Nada de los otros dos modelos de la carpeta —el de los puntos de la cara
- *     y el que saca el vector para comparar—: esos son del CRM, que compara la
- *     selfie con la cédula en el computador de quien revisa.
- *   · La caja vive en la memoria del bucle y muere con él. Este archivo no
- *     guarda, no manda y no le devuelve a nadie más que cajas y números de
- *     encuadre. Lo único que sale del teléfono es la FOTO, como antes.
+ *   · Se cargan DOS modelos y nada más: el DETECTOR (dónde hay una cara: una
+ *     caja y un puntaje) y, desde el 22-oct, el de los PUNTOS de la cara en su
+ *     versión chica, del que se copian SOLO los doce puntos de los dos ojos.
+ *     Los otros 56 (nariz, boca, mandíbula) mueren dentro de este archivo.
+ *     El modelo que saca el VECTOR para comparar caras no se carga nunca en el
+ *     teléfono: es del CRM, que compara la selfie con la cédula en el
+ *     computador de quien revisa.
+ *   · La caja y los ojos viven en la memoria del bucle y mueren con él. Este
+ *     archivo no guarda, no manda y no le devuelve a nadie más que cajas, los
+ *     ojos de la cara principal y números de encuadre. Nada se DECIDE con los
+ *     ojos (ni «ojos abiertos» ni parpadeo: el modelo chico es impreciso en
+ *     los párpados y trabaría a alguien): solo se dibujan. Lo único que sale
+ *     del teléfono es la FOTO, como antes.
  *   · La página no carga esto hasta el paso del rostro, y ese paso solo existe
  *     con la autorización de datos sensibles marcada.
  *   La política (legal/privacidad.html, «La foto de tu cara, que se toma sola»)
  *   dice exactamente esto, y pruebas/selfie-automatica.test.js vigila que siga
- *   siendo cierto: si un día aquí se pide otro modelo, la prueba se cae.
+ *   siendo cierto: si un día aquí se pide el modelo del vector, la prueba se
+ *   cae.
  *
  * LO QUE SE PUEDE PROBAR SIN TELÉFONO está separado de lo que no: la decisión
  * (medirRostro, contarRacha, nitidezDe) son números que entran y salen; la
  * carga del detector necesita un navegador con WebGL y se prueba con un
  * face-api de mentira. Si el detector no llega (sin señal para bajar 1,3 MB,
  * un teléfono sin WebGL), la página vuelve al encuadre de siempre: la
- * persona no se queda atascada por un adorno.
+ * persona no se queda atascada por un adorno. Si llegan el detector y no los
+ * puntos, sigue con la caja, sin ojos dibujados.
  * ==========================================================================*/
 (function (raiz, fabrica) {
   'use strict';
@@ -44,7 +59,15 @@
   /* Los umbrales, juntos y con nombre: son lo único que hay que calibrar
      mirando teléfonos de verdad. Estrictos, la persona se atasca con el
      celular en la cara; flojos, sale una foto lejana o movida. Por eso el
-     botón manual nunca desaparece. */
+     botón manual nunca desaparece.
+     22-oct-2026 — SE AFLOJAN TRES, porque Joan la tomaba siempre a mano. Se
+     midió en Node con las funciones de verdad y una caja que tiembla como la
+     del detector chico en una frontal barata (pruebas/
+     la-selfie-se-toma-sola.test.js): con 4 cuadros, 12 % de cambio de tamaño y
+     el 80 % de la mejor nitidez, a los 5 segundos se había disparado el 41 % de
+     las veces; con estos, casi siempre antes de 2. La nitidez «relativa» era la
+     que más tumbaba la racha, y medía el RUIDO del sensor más que el enfoque
+     (el ruido la sube un 80 %; un desenfoque de radio 3 la baja un 16 %). */
   var ROSTRO = {
     PUNTAJE_MIN: 0.5,        // confianza del detector para contar una cara
     OTRA_CARA: 0.5,          // una segunda cara cuenta si mide la mitad de la principal o más
@@ -52,49 +75,95 @@
     TAMANO_MIN: 0.4,         // alto de la cara / alto del óvalo: menos es «acércate»
     TAMANO_MAX: 1.0,         // más es «aléjate»
     MOVIMIENTO_MAX: 0.06,    // corrimiento entre dos detecciones, en fracción del óvalo
-    CAMBIO_TAMANO_MAX: 0.12, // y cambio de tamaño (acercándose o alejándose)
+    CAMBIO_TAMANO_MAX: 0.20, // y cambio de tamaño (22-oct: era 0,12, menos que el temblor de la caja)
     NITIDEZ_MIN: 6,          // ver nitidezDe: una pared lisa da casi cero
-    NITIDEZ_RELATIVA: 0.8,   // y casi tan nítida como la mejor que se ha visto
+    NITIDEZ_RELATIVA: 0.6,   // y no mucho peor que la mejor vista (22-oct: era 0,8)
     LUZ_MIN: 40,
     LUZ_MAX: 225,
-    CUADROS: 4,              // detecciones buenas seguidas antes de disparar
+    CUADROS: 3,              // detecciones buenas seguidas antes de disparar (22-oct: eran 4)
+    /* 22-oct-2026 — y un mínimo de tiempo con la cara a la vista: con un
+       teléfono rápido, tres detecciones son medio segundo y la persona no
+       alcanza a VER que la está escaneando. La cuenta en pantalla sigue siendo
+       la racha; esto solo evita que dispare antes de que se vea. */
+    MS_ESCANEO_MIN: 900,
     MS_ESPERA_DETECTOR: 8000,// si no llega en este rato, la página vuelve al encuadre
-    ENTRADA: 224             // lado con que el detector mira (más grande = más lento)
+    /* 22-oct-2026 — si en este rato el detector no ha visto NI UNA cara, la
+       página lo suelta y vuelve al encuadre (con la caja de la cámara del
+       sistema a la vista). Pasó con un detector que contestaba siempre «no hay
+       cara» y la persona se quedaba en «Pon tu cara dentro del óvalo» hasta
+       tocar «Continuar» sin foto. */
+    MS_SIN_CARA: 12000,
+    ENTRADA: 224,            // lado con que el detector mira (más grande = más lento)
+    ENTRADA_LENTA: 160,      // si el teléfono no da, se mira más chico
+    PUNTAJE_OJOS: 0.7,       // con menos confianza en la cara, los ojos no se dibujan
+    MS_OJOS_MAX: 400,        // mediana por detección con los ojos: más que esto, se apagan
+    MS_LENTO: 700,           // y si sin ojos sigue más lenta que esto, se mira a ENTRADA_LENTA
+    MUESTRAS_TIEMPO: 5       // detecciones que se miden antes de decidir lo de arriba
   };
 
   /* El óvalo que dibuja la página (play/index.html, dibujarMarco), en
-     fracciones del cuadro. Si allá cambia, acá también. */
+     fracciones de la ZONA QUE SE VE (22-oct-2026: antes, del cuadro entero;
+     ver zonaVisible en play/). Si allá cambia, acá también. */
   var OVALO = { cx: 0.5, cy: 0.5, rx: 0.32, ry: 0.36 };
 
   function num(v, d) { v = +v; return isFinite(v) ? v : d; }
 
-  /** La cara más grande con puntaje suficiente, o null. */
-  function caraPrincipal(caras) {
+  /* La cara más grande con puntaje suficiente, tal como vino, o null. */
+  function principal(caras) {
     var mejor = null;
     (caras || []).forEach(function (k) {
       if (!k || num(k.score, 0) < ROSTRO.PUNTAJE_MIN || !(k.w > 0) || !(k.h > 0)) return;
       if (!mejor || k.h > mejor.h) mejor = k;
     });
+    return mejor;
+  }
+  /** La caja de la cara más grande con puntaje suficiente, o null. Solo la caja. */
+  function caraPrincipal(caras) {
+    var mejor = principal(caras);
     return mejor ? { x: +mejor.x, y: +mejor.y, w: +mejor.w, h: +mejor.h } : null;
+  }
+
+  /* 22-oct-2026 — los ojos, limpios: dos ojos de seis puntos [x, y], números
+     entre 0 y 1, o null. Lo que no tenga esa forma exacta no se dibuja: un ojo
+     a medias pintado sería otra medida que no se hizo. */
+  function ojosLimpios(o) {
+    if (!o || o.length !== 2) return null;
+    var out = [];
+    for (var i = 0; i < 2; i++) {
+      var ojo = o[i];
+      if (!ojo || ojo.length !== 6) return null;
+      var pts = [];
+      for (var j = 0; j < 6; j++) {
+        var p = ojo[j], x = p && (p.x !== undefined ? p.x : p[0]), y = p && (p.y !== undefined ? p.y : p[1]);
+        x = +x; y = +y;
+        if (!isFinite(x) || !isFinite(y)) return null;
+        pts.push([Math.max(0, Math.min(1, x)), Math.max(0, Math.min(1, y))]);
+      }
+      out.push(pts);
+    }
+    return out;
   }
 
   /**
    * ¿Se puede disparar con lo que vio el detector?
    *
-   * @param caras  [{x, y, w, h, score}] en fracciones del cuadro (0..1)
+   * @param caras  [{x, y, w, h, score, ojos?}] en fracciones de la zona que se ve (0..1)
    * @param ctx    {luz, nitidez, mejorNitidez, previa}
    *               luz: promedio del óvalo (0..255); nitidez: nitidezDe() de la
    *               cara; mejorNitidez: la mejor vista; previa: la `cara` de la
    *               medida anterior (para saber si se mueve)
-   * @returns {ok, falla, cara, caras, tamano, desvio, movimiento}
+   * @returns {ok, falla, cara, ojos, caras, tamano, desvio, movimiento}
    *          falla: 'sin_cara' | 'varias' | 'poca_luz' | 'mucha_luz' | 'lejos' |
    *                 'cerca' | 'descentrada' | 'borrosa' | 'movimiento' | ''
-   *          Solo números y una caja: aquí no hay nada más que la cara pueda dar.
+   *          ojos: los de la cara principal, SOLO para dibujarlos (null si no
+   *          vinieron, si la cara está lejos o si el detector no está seguro).
+   *          No deciden nada.
    */
   function medirRostro(caras, ctx) {
     var c = ctx || {};
     var luz = num(c.luz, 128);
-    var r = { ok: false, falla: '', cara: null, caras: 0, tamano: 0, desvio: 0, movimiento: 0 };
+    var r = { ok: false, falla: '', cara: null, ojos: null, caras: 0, tamano: 0, desvio: 0, movimiento: 0 };
+    var prin = principal(caras);
     var cara = caraPrincipal(caras);
     if (!cara) {
       r.falla = luz < ROSTRO.LUZ_MIN ? 'poca_luz' : (luz > ROSTRO.LUZ_MAX ? 'mucha_luz' : 'sin_cara');
@@ -118,6 +187,9 @@
     /* Primero la distancia y después el centro: a quien está lejos, «céntrate»
        no le sirve todavía; al acercarse se centra casi solo. */
     if (r.tamano < ROSTRO.TAMANO_MIN) { r.falla = 'lejos'; return r; }
+    /* 22-oct-2026 — de aquí en adelante la cara está cerca: sus ojos se pueden
+       dibujar, si el detector está seguro de que es una cara. */
+    if (num(prin.score, 0) >= ROSTRO.PUNTAJE_OJOS) r.ojos = ojosLimpios(prin.ojos);
     if (r.tamano > ROSTRO.TAMANO_MAX) { r.falla = 'cerca'; return r; }
     if (r.desvio > ROSTRO.CENTRO_TOL) { r.falla = 'descentrada'; return r; }
 
@@ -143,10 +215,33 @@
    * La racha: cuántas detecciones buenas seguidas, y si ya se dispara. Se cae
    * a cero con una sola mala — que es lo que la persona tiene que ver para
    * entender qué se le pide.
+   *
+   * 22-oct-2026 — con `o.ahora` (la hora de esta detección) y `o.desde` (desde
+   * cuándo se ve ESTA cara, que esta misma función devuelve), además hace
+   * falta que la cara lleve ROSTRO.MS_ESCANEO_MIN a la vista: que se vea que
+   * la escanea. Es el tiempo con la cara en el óvalo, no en verde: medido con
+   * una frontal barata, exigir 900 ms SEGUIDOS en verde tumbaba la racha casi
+   * tanto como los umbrales de antes. Sin cara, se vuelve a contar desde
+   * cero. Sin `o`, solo cuenta detecciones, como antes. `avance` es lo que
+   * falta de las dos cosas.
    */
-  function contarRacha(estables, medida) {
-    var e = medida && medida.ok ? (Math.max(0, +estables || 0) + 1) : 0;
-    return { estables: e, disparar: e >= ROSTRO.CUADROS, avance: Math.min(1, e / ROSTRO.CUADROS) };
+  function contarRacha(estables, medida, o) {
+    var ok = !!(medida && medida.ok);
+    var e = ok ? (Math.max(0, +estables || 0) + 1) : 0;
+    var r = { estables: e, disparar: e >= ROSTRO.CUADROS, avance: Math.min(1, e / ROSTRO.CUADROS) };
+    if (o && isFinite(+o.ahora)) {
+      var ahora = +o.ahora;
+      var hayCara = !!(medida && medida.cara);
+      var desde = !hayCara ? 0 : ((isFinite(+o.desde) && +o.desde > 0) ? +o.desde : ahora);
+      var ms = hayCara ? Math.max(0, ahora - desde) : 0;
+      r.desde = desde;
+      r.ms = ms;
+      if (ROSTRO.MS_ESCANEO_MIN > 0) {
+        r.disparar = r.disparar && ms >= ROSTRO.MS_ESCANEO_MIN;
+        r.avance = Math.min(r.avance, ms / ROSTRO.MS_ESCANEO_MIN);
+      }
+    }
+    return r;
   }
 
   /**
@@ -211,7 +306,9 @@
   }
 
   /* De lo que devuelve face-api a cajas en fracciones del cuadro. Se copia
-     SOLO la caja y el puntaje: lo demás que traiga el objeto no sale de aquí. */
+     SOLO la caja, el puntaje y —22-oct-2026— los doce puntos de los dos ojos,
+     si vinieron: lo demás que traiga el objeto (los otros 56 puntos, y lo que
+     sea) no sale de aquí. */
   function cajasDe(resultados, w, h) {
     var out = [];
     if (!w || !h) return out;
@@ -219,23 +316,50 @@
       var b = d && (d.box || (d.detection && d.detection.box));
       if (!b) return;
       var s = d.score != null ? d.score : (d.detection ? d.detection.score : 0);
-      out.push({ x: b.x / w, y: b.y / h, w: b.width / w, h: b.height / h, score: num(s, 0) });
+      var k = { x: b.x / w, y: b.y / h, w: b.width / w, h: b.height / h, score: num(s, 0) };
+      var o = ojosDe(d.landmarks, w, h);
+      if (o) k.ojos = o;
+      out.push(k);
     });
     return out;
   }
+  /* Los dos ojos de los 68 puntos (36-41 y 42-47), en fracciones del cuadro.
+     Solo eso se copia; si algo no cuadra, null y la cara sigue sin ojos. */
+  function ojosDe(puntos, w, h) {
+    if (!puntos || typeof puntos.getLeftEye !== 'function' || typeof puntos.getRightEye !== 'function') return null;
+    try {
+      var aFraccion = function (p) { return p ? [+p.x / w, +p.y / h] : [NaN, NaN]; };
+      return ojosLimpios([(puntos.getLeftEye() || []).map(aFraccion), (puntos.getRightEye() || []).map(aFraccion)]);
+    } catch (e) { return null; }
+  }
+
+  function mediana(a) {
+    var s = a.slice().sort(function (x, y) { return x - y; });
+    return s.length ? s[s.length >> 1] : 0;
+  }
 
   /**
-   * Baja face-api y SOLO el modelo del detector, desde el propio sitio.
+   * Baja face-api, el modelo del detector y —22-oct-2026— el chico de los
+   * puntos de la cara (solo para ubicar los ojos), desde el propio sitio.
    *
-   * @param o {cargarScript(url) → Promise, base: carpeta de app/lib/rostro}
+   * @param o {cargarScript(url) → Promise, base: carpeta de app/lib/rostro,
+   *           calentar: un lienzo vacío (opcional), ahora(): ms (opcional)}
    *          cargarScript es el de la página: así un fallo se puede
    *          reintentar y una carga en vuelo no se duplica.
-   * @returns Promise<{detectar(lienzo) → Promise<cajas>, liberar()}>
+   *          `calentar`: una detección sobre él ANTES de devolver el detector.
+   *          La primera detección compila los programas de la tarjeta gráfica
+   *          (2 o 3 segundos); hecha aquí, cae en «Preparando el escáner…» y
+   *          no en el vigilante de la página, que la tomaba por un teléfono
+   *          que no puede.
+   * @returns Promise<{detectar(lienzo) → Promise<cajas>, liberar(), info()}>
+   *          Se rechaza si face-api no llega, si el detector no carga, o si no
+   *          hay aceleración gráfica (ver abajo): la página vuelve al encuadre.
    */
   function crearDetector(o) {
     var op = o || {};
     var cargar = op.cargarScript;
     var base = String(op.base || '../app/lib/rostro').replace(/\/+$/, '');
+    var reloj = typeof op.ahora === 'function' ? op.ahora : function () { return Date.now(); };
     if (typeof cargar !== 'function') return Promise.reject(new Error('falta cargarScript'));
     return Promise.resolve(cargar(base + '/face-api.js')).then(function () {
       var fa = raiz.faceapi;
@@ -246,34 +370,85 @@
         throw new Error('no cargó el detector de caras');
       }
       var red = fa.nets.tinyFaceDetector;
+      var redOjos = fa.nets.faceLandmark68TinyNet || null;
+      var motor = '';
       var listo = fa.tf && typeof fa.tf.ready === 'function' ? fa.tf.ready() : null;
       return Promise.resolve(listo).then(function () {
+        /* 22-oct-2026 — SIN ACELERACIÓN GRÁFICA, NO. Cuando WebGL falla, la
+           librería cae EN SILENCIO al procesador: medido en un i9, una pasada
+           del detector son 1,4 s; en un Android barato, de 5 a 10, y con el
+           hilo de la página tomado: la pantalla se congela y el vigilante ni
+           siquiera alcanza a correr. Mejor el encuadre de siempre. */
+        motor = fa.tf && typeof fa.tf.getBackend === 'function' ? String(fa.tf.getBackend() || '') : '';
+        if (motor && !/^(webgl|webgpu)$/i.test(motor)) throw new Error('sin aceleración gráfica (' + motor + ')');
         return red.isLoaded ? null : red.loadFromUri(base);
       }).then(function () {
-        var opciones = new fa.TinyFaceDetectorOptions({ inputSize: ROSTRO.ENTRADA, scoreThreshold: ROSTRO.PUNTAJE_MIN * 0.8 });
-        var vivo = true;
-        return {
+        var estado = { vivo: true, ojos: false, ojosApagados: false, entrada: ROSTRO.ENTRADA, tiempos: [] };
+        var opciones = function () {
+          return new fa.TinyFaceDetectorOptions({ inputSize: estado.entrada, scoreThreshold: ROSTRO.PUNTAJE_MIN * 0.8 });
+        };
+        var soltarOjos = function () {
+          estado.ojos = false;
+          if (redOjos && redOjos.isLoaded) { try { if (typeof redOjos.dispose === 'function') redOjos.dispose(); } catch (e) {} }
+        };
+        /* Lo que tarda cada detección decide si se pueden pagar los ojos: el
+           teléfono que no da primero pierde el dibujo, y después mira más
+           chico. Nunca al revés: la foto es lo que importa. */
+        var anotar = function (ms, conOjos) {
+          if (!isFinite(ms)) return;
+          estado.tiempos.push(ms);
+          if (estado.tiempos.length > 9) estado.tiempos.shift();
+          if (estado.tiempos.length < ROSTRO.MUESTRAS_TIEMPO) return;
+          var med = mediana(estado.tiempos);
+          if (conOjos && med > ROSTRO.MS_OJOS_MAX) {
+            estado.ojosApagados = true; soltarOjos(); estado.tiempos = [];
+          } else if (!conOjos && med > ROSTRO.MS_LENTO && estado.entrada > ROSTRO.ENTRADA_LENTA) {
+            estado.entrada = ROSTRO.ENTRADA_LENTA; estado.tiempos = [];
+          }
+        };
+        var det = {
           detectar: function (lienzo) {
-            if (!vivo || !lienzo) return Promise.resolve([]);
+            if (!estado.vivo || !lienzo) return Promise.resolve([]);
             var w = lienzo.width || lienzo.videoWidth, h = lienzo.height || lienzo.videoHeight;
-            var tarea = fa.detectAllFaces(lienzo, opciones);
+            var conOjos = estado.ojos;
+            var t0 = reloj();
+            var tarea = fa.detectAllFaces(lienzo, opciones());
+            if (conOjos && tarea && typeof tarea.withFaceLandmarks === 'function') tarea = tarea.withFaceLandmarks(true);
             return Promise.resolve(tarea && typeof tarea.run === 'function' ? tarea.run() : tarea)
-              .then(function (rs) { return vivo ? cajasDe(rs, w, h) : []; });
+              .then(function (rs) {
+                anotar(reloj() - t0, conOjos);
+                return estado.vivo ? cajasDe(rs, w, h) : [];
+              });
           },
-          /* Suelta la memoria del modelo (en el teléfono, memoria de la
+          /* Suelta la memoria de los modelos (en el teléfono, memoria de la
              tarjeta gráfica) apenas se toma la foto: lo que viene después es
              la subida, y ahí hace falta. */
           liberar: function () {
-            vivo = false;
+            estado.vivo = false;
             try { if (typeof red.dispose === 'function') red.dispose(); } catch (e) {}
-          }
+            soltarOjos();
+          },
+          /* Para quien mira de qué es capaz el teléfono: solo esto, sin nada
+             de la cara. */
+          info: function () { return { motor: motor, ojos: estado.ojos, entrada: estado.entrada }; }
         };
+        /* Los puntos de los ojos se bajan DESPUÉS y sin frenar al detector: si
+           no llegan (77 KB más con señal floja), la selfie se toma igual, solo
+           que sin ojos dibujados. */
+        if (redOjos && typeof redOjos.loadFromUri === 'function' && op.ojos !== false) {
+          Promise.resolve(redOjos.isLoaded ? null : redOjos.loadFromUri(base)).then(function () {
+            if (estado.vivo && !estado.ojosApagados) estado.ojos = true;
+            else soltarOjos();
+          }, function () { estado.ojos = false; });
+        }
+        if (!op.calentar) return det;
+        return det.detectar(op.calentar).then(function () { estado.tiempos = []; return det; });
       });
     });
   }
 
   return {
-    VERSION: '2026-10-08',
+    VERSION: '2026-10-22',
     ROSTRO: ROSTRO,
     OVALO: OVALO,
     caraPrincipal: caraPrincipal,
@@ -283,6 +458,7 @@
     mejorNitidez: mejorNitidez,
     textoDeRostro: textoDeRostro,
     cajasDe: cajasDe,
+    ojosLimpios: ojosLimpios,
     crearDetector: crearDetector
   };
 });
