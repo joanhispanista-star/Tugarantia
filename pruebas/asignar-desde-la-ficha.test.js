@@ -140,7 +140,10 @@ describe('1 · «👤 Asignar a…» donde Joan lo busca, diciendo a quién est�
     assert.doesNotMatch(sel, /IDO/, 'ofrece a un retirado');
     assert.doesNotMatch(h, /Quitarle la asignación/, 'ofrece quitar una asignación que no hay');
     assert.match(h, /Hoy lo atiende[\s\S]*Nadie de tu equipo/);
-    assert.match(h, /Nunca la cédula, la dirección ni las fotos/, 'no dice qué viaja y qué no antes de mandarlo');
+    /* 23-oct-2026 — decía «Nunca la cédula, la dirección ni las fotos», y no es
+       verdad: su «🪪 Ver su ficha» las muestra (asignar-desde-la-ficha-cierres). */
+    assert.match(h, /en «🪪 Ver su ficha» ve también lo que dejó al registrarse: su cédula, su dirección, sus cuentas y sus fotos/,
+      'no dice lo que ve quien lo recibe antes de mandarlo');
     /* Las mismas opciones que «Se los asigno a» de Repartir. */
     P.ev("pantallaAsignar('clientes')");
     const rep = (P.elems.asDestinoCaja.innerHTML.match(/<select id="asDestino">([\s\S]*?)<\/select>/) || [])[1];

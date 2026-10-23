@@ -219,7 +219,22 @@
      borraba lo del primero. Por eso existe fusionarAjuste, más abajo. */
   var LISTAS_DE_AJUSTES = {
     equipo: ['id'],
-    asignaciones: ['socio_id', 'asesor_id', 'desde'],
+    /* 23-oct-2026 — CON SU ID: VOLVER AL MISMO DUEÑO EL MISMO DÍA ES OTRO HECHO.
+       Con «👤 Asignar a…» en cada ficha, asignar a WILLIAN, quitárselo y
+       devolvérselo en la misma tarde deja tres filas [WILLIAN, nadie, WILLIAN]
+       del mismo día, y la de la ÚLTIMA es la que manda (COMIS.asesorDe: si
+       empatan en fecha, gana la última de la lista). Sin el id, la tercera
+       tenía la identidad de la primera y fusionarListas la tiraba por repetida
+       —también dentro de una sola lista—: el aparato armado con «⬇ Traer» (o
+       el que juntaba un choque de este ajuste en subir.html) quedaba con
+       [WILLIAN, nadie], decía «Nadie de tu equipo», le daba las comisiones a
+       nadie y al publicar le quitaba el cliente a Willian. Cada fila nace con
+       un id propio ('A'+Date.now(), o el de la nube para las del gerente), así
+       que dos aparatos con la misma fila traen el mismo id y siguen siendo una.
+       Los tres campos de antes se quedan: una fila vieja sin id (no las
+       escribe nadie hoy) se sigue juntando como antes, en vez de juntar todas
+       las que no tienen id en una sola. */
+    asignaciones: ['socio_id', 'asesor_id', 'desde', 'id'],
     actosComision: ['tipo', 'asesor_id', 'socio_id', 'credito_id', 'fecha'],
     /* 9-sep-2026 — los prospectos y las bases cargadas. La identidad de un
        prospecto es su CELULAR y no su id: el mismo archivo cargado en el

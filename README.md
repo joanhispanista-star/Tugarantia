@@ -180,6 +180,21 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         entera— y «nadie» viaja sin asesor. Pruebas:
                         pruebas/asignar-desde-la-ficha.test.js y
                         pruebas/asignar-desde-la-ficha-postgres.test.js.
+                        Revisión del mismo 23-oct (pruebas/asignar-desde-la-
+                        ficha-cierres*.test.js): la fila viaja con el id que la
+                        nube YA tiene para esa persona y ese día (lo trae
+                        equipo_traer justo antes; un dato viejo tumbaba la
+                        publicación con 23505 para siempre); nube.js junta las
+                        asignaciones también por id (volver al mismo dueño el
+                        mismo día ya no se pierde en otro aparato); si quien lo
+                        atiende ya ganó comisión HOY con él, el cambio cuenta
+                        desde mañana en el libro (en la «Mi base» cambia ya:
+                        la nube toma la de fecha más reciente); los cuadros
+                        dicen que quien lo recibe ve en «🪪 Ver su ficha» la
+                        cédula, la dirección, las cuentas y las fotos del
+                        registro, y avisan antes si no hay nube; y Bases tiene
+                        buscador (pinta 200), y un prospecto repetido abre su
+                        «👤 Asignar a…» con lo que Joan eligió.
   una-puerta.js         Las palabras del toque «¿Es la misma persona?» (juntar la
                         cuenta de un cliente antiguo), compartidas con espejo.html.
   nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el
