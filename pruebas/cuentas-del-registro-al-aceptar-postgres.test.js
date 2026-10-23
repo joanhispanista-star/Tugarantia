@@ -155,9 +155,9 @@ describe('las cuentas del registro, en un PostgreSQL de verdad', { skip: !BIN &&
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* nada */ }
   });
 
-  test('la tabla del final sale toda en true (la que ve Joan en el editor)', () => {
+  test('la tabla del final sale toda en true (la que ve Joan en el editor; la 7 y la 8 desde el 23-oct)', () => {
     const filas = sql(SQL).split(/\r?\n/).filter(l => /^\d+\|/.test(l));
-    assert.equal(filas.length, 6, filas.join('\n'));
+    assert.equal(filas.length, 8, filas.join('\n'));
     assert.deepEqual(filas.filter(l => !/\|t$/.test(l)), [], filas.join('\n'));
   });
 
@@ -268,5 +268,92 @@ describe('las cuentas del registro, en un PostgreSQL de verdad', { skip: !BIN &&
     const r = como(c, 'public.mis_cuentas_de_pago(' + p.solicitud.id + ')');
     assert.deepEqual(r.cuentas, { daviplata: cel, llave_breb: 'sofia@gmail.com', cuentas_mias: 'si' });
     assert.deepEqual(CP.opcionesDeDestino(r.cuentas).map(o => o.medio), ['daviplata', 'breb']);
+  });
+
+  /* 23-oct-2026 — EL NEQUI CORREGIDO DESPUÉS DE UN «ABRIR MI CUENTA» A MEDIAS.
+     María escribe 301 299 2233 (un dígito del medio cambiado), la bandeja lo
+     guarda con el sello S, el signup se cae; ella vuelve al paso, lo corrige a
+     300 111 2233 y vuelve a tocar. Antes la bandeja contestaba ok sin guardar
+     nada (el atajo del 9-sep), la cuenta nacía con S, y al aceptar se le
+     ofrecía «Nequi ···2233» con el número viejo: los cuatro últimos iguales,
+     ella no podía ver el error, y a Joan le salía «Consignar a: 301 299 2233». */
+  const NEQUI_MAL = '3012992233', NEQUI_BIEN = '3001112233';
+  const bandeja = cel => JSON.parse(sql("select coalesce(jsonb_agg(datos order by id), '[]'::jsonb)::text from public.registros where telefono = '" + cel + "'"));
+
+  test('la corrección del MISMO registro (mismo sello) llega a la bandeja, a la solicitud y a lo que se le ofrece', () => {
+    const cel = '3101239007', S = sello();
+    const datos = Object.assign({}, IDENTIDAD, { nombres: 'MARIA', cuentas_mias: 'si', cuentas_sello: S });
+    assert.equal(registrar(cel, 'MARIA PRUEBA', '52123007', Object.assign({}, datos, { nequi: NEQUI_MAL, daviplata: cel })).ok, true);
+    /* La segunda vuelta: el Nequi corregido, y quitó el Daviplata. */
+    const otra = registrar(cel, 'MARIA PRUEBA', '52123007', Object.assign({}, datos, { nequi: NEQUI_BIEN }));
+    assert.equal(otra.ok, true, JSON.stringify(otra));
+    const filas = bandeja(cel);
+    assert.equal(filas.length, 1, 'la corrección hizo otra fila en la bandeja: ' + JSON.stringify(filas));
+    assert.equal(filas[0].nequi, NEQUI_BIEN, 'el Nequi corregido no llegó a la bandeja (Joan ve el viejo)');
+    assert.equal('daviplata' in filas[0], false, 'quedó el Daviplata que ella quitó');
+    assert.equal(filas[0].cuentas_sello, S);
+    const c = cuenta(cel, Object.assign({}, IDENTIDAD, { nombres: 'MARIA', cuentas_sello: S }));
+    const sol = como(c, "public.solicitar_a_la_medida(500000, '" + fechaEn(20) + "'::date, null)").solicitud;
+    proponer(sol.id);
+    const r = como(c, 'public.mis_cuentas_de_pago(' + sol.id + ')');
+    assert.deepEqual(r.cuentas, { nequi: NEQUI_BIEN, cuentas_mias: 'si' }, 'se le ofreció el Nequi viejo: ' + JSON.stringify(r));
+    assert.equal(CP.opcionesDeDestino(r.cuentas)[0].numero, NEQUI_BIEN);
+  });
+
+  test('la corrección cambia SOLO las ocho de pago: el documento, el nombre y la dirección se quedan como los dejó la primera', () => {
+    const cel = '3101239008', S = sello();
+    registrar(cel, 'ROSA PRIMERA', '52123008', Object.assign({}, IDENTIDAD, { documento: '52123008', nequi: NEQUI_MAL, cuentas_sello: S }));
+    registrar(cel, 'OTRO NOMBRE', '99999999', Object.assign({}, IDENTIDAD, { documento: '99999999', direccion: 'Otra calle',
+      nequi: NEQUI_BIEN, cuentas_sello: S }));
+    const fila = JSON.parse(sql("select row_to_json(r)::text from (select nombre, cedula, datos from public.registros where telefono = '" + cel + "') r"));
+    assert.equal(fila.datos.nequi, NEQUI_BIEN);
+    assert.equal(fila.nombre, 'ROSA PRIMERA', 'la segunda le cambió el nombre a la fila');
+    assert.equal(fila.cedula, '52123008', 'la segunda le cambió la cédula a la fila');
+    assert.equal(fila.datos.documento, '52123008');
+    assert.equal(fila.datos.direccion, IDENTIDAD.direccion, 'la segunda le cambió la dirección');
+  });
+
+  test('CENTINELA (el atajo del 9-sep sigue): sin el sello de la fila, o con otro, nadie le cambia las cuentas a María', () => {
+    const cel = '3101239009', S = sello();
+    registrar(cel, 'MARIA PRUEBA', '52123009', Object.assign({ nombres: 'MARIA' }, { nequi: NEQUI_BIEN, cuentas_mias: 'si', cuentas_sello: S }));
+    /* Quien sabe su celular, con su propio sello, sin sello, o con uno corto. */
+    [sello(), '', S.slice(0, 31)].forEach(otro => {
+      const d = { nombres: 'PEDRO', nequi: '3209990000', cuentas_mias: 'si' };
+      if (otro) d.cuentas_sello = otro;
+      assert.equal(registrar(cel, 'PEDRO OTRO', '80111222', d).ok, true);
+    });
+    const filas = bandeja(cel);
+    assert.equal(filas.length, 1);
+    assert.equal(filas[0].nequi, NEQUI_BIEN, 'alguien sin el sello le cambió el Nequi a María');
+    assert.equal(filas[0].cuentas_sello, S);
+  });
+
+  test('PlataChat: la corrección del mismo registro también llega (registrar_abierto_app)', () => {
+    const cel = '3101239010', S = sello();
+    registrar(cel, 'SOFIA PRUEBA', '52111610', { nombres: 'SOFIA', nequi: NEQUI_MAL, cuentas_mias: 'si', cuentas_sello: S }, 'platachat');
+    registrar(cel, 'SOFIA PRUEBA', '52111610', { nombres: 'SOFIA', nequi: NEQUI_BIEN, cuentas_mias: 'si', cuentas_sello: S }, 'platachat');
+    const filas = bandeja(cel);
+    assert.equal(filas.length, 1);
+    assert.equal(filas[0].nequi, NEQUI_BIEN, 'en PlataChat el Nequi corregido no llegó a la bandeja');
+    const c = cuenta(cel, { nombres: 'SOFIA', cuentas_sello: S });
+    const p = como(c, "public.solicitar_platachat(300000, '" + fechaEn(15) + "'::date, 1)");
+    proponer(p.solicitud.id);
+    assert.deepEqual(como(c, 'public.mis_cuentas_de_pago(' + p.solicitud.id + ')').cuentas, { nequi: NEQUI_BIEN, cuentas_mias: 'si' });
+  });
+});
+
+describe('23-oct-2026 · la rama que corrige las cuentas, en el archivo', () => {
+  test('cambia las MISMAS ocho llaves de app/cuentas-pago.js, y nada más', () => {
+    const i = SQL.indexOf('1b. LA BANDEJA RECIBE LA CORRECCIÓN');
+    assert.ok(i > 0, 'falta la sección 1b');
+    const bloque = SQL.slice(i, SQL.indexOf('2. LOS PERMISOS'));
+    const listas = [...bloque.matchAll(/array\[('nequi'[^\]]+)\]/g)].map(m => m[1].replace(/\s+/g, '').split(',').map(x => x.replace(/'/g, '')));
+    assert.equal(listas.length, 2, 'la rama no quita y pone las mismas llaves');
+    listas.forEach(l => assert.deepEqual(l, CP.LLAVES_DEL_REGISTRO));
+    assert.match(bloque, /r\.datos ->> 'cuentas_sello' = limpio ->> 'cuentas_sello'/, 'la corrección no pide el sello de la fila');
+    assert.match(bloque, /length\(coalesce\(limpio ->> 'cuentas_sello', ''\)\) >= 32/, 'un sello corto o vacío casaría con otro vacío');
+    /* No se copia el cuerpo: se parcha la definición viva. */
+    assert.equal(/create\s+or\s+replace\s+function\s+public\.registrar_abierto/i.test(sinComentarios(SQL)), false);
+    assert.match(bloque, /pg_get_functiondef/);
   });
 });

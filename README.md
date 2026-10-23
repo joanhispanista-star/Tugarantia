@@ -254,8 +254,16 @@ base/
                                   sello del registro (datos.cuentas_sello) es el
                                   de su cuenta (vinculacion.cuentas_sello del
                                   signup); si no, nada, y la app pide «Escribe
-                                  tu cuenta». ANTES de publicar la web. Termina
-                                  con su tabla true/false. Pruebas:
+                                  tu cuenta». 23-oct-2026: y la bandeja recibe
+                                  la corrección de las cuentas del MISMO
+                                  registro (registrar_abierto y su copia de
+                                  PlataChat cambian solo las ocho de pago de la
+                                  fila 'nuevo' si el sello es el de esa fila):
+                                  quien corregía su Nequi después de un «Abrir
+                                  mi cuenta» a medias recibía al aceptar la
+                                  oferta del viejo. ANTES de publicar la web.
+                                  Termina con su tabla true/false (8 renglones).
+                                  Pruebas:
                                   pruebas/cuentas-del-registro-al-aceptar-postgres.test.js.
                                   (Se llamaba 20261022b_las_cuentas_del_registro.sql.)
   20261022d_el_equipo_con_la_clave_de_joan.sql  Lo del equipo solo se abre con la

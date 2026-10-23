@@ -255,6 +255,81 @@ describe('el registro: lo que promete y el sello', () => {
     assert.equal(new RegExp(s1).test(P.almacen.play_registro_borrador || ''), false);
   });
 
+  /* 23-oct-2026 — EL NEQUI CORREGIDO DESPUÉS DE UN «ABRIR MI CUENTA» A MEDIAS.
+     La base ya recibe la corrección del mismo registro (mismo sello: ver la
+     sección 1b de base/20261022c_las_cuentas_del_registro.sql y su prueba en
+     PostgreSQL). Lo que el teléfono tiene que hacer es MANDARLA: la bandeja
+     otra vez, con el Nequi corregido y el MISMO sello. */
+  const NEQUI_MAL = '3012992233', NEQUI_BIEN = '3001112233';
+  async function nequiCorregido(cuentaQuedo) {
+    const P = B.abrir();
+    const ll = B.nube(P);
+    B.mariaHastaElPermiso(P, false);
+    P.ev("pintarRegistro(indiceDe('cobro')); $('f_nequi').value = '301 299 2233'; anotarCuenta($('f_nequi'));" +
+         " $('f_cuentas_mias').checked = true; anotarCuenta($('f_cuentas_mias')); siguientePaso();");
+    const sello = P.ev('REGISTRO.' + CP.LLAVE_SELLO);
+    P.ev("pintarRegistro(indiceDe('permiso')); $('autGeneral').checked = true; $('autSensible').checked = false;");
+    P.ev('window.__colgar = /auth\\/v1\\/signup/;');
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    assert.deepEqual(B.colgadas(P).map(u => /signup/.test(u)), [true], 'el signup no salió');
+    /* `cuentaQuedo`: el signup llegó y la cuenta se creó, pero la respuesta se
+       perdió con la señal (el caso H1). Si no, ni llegó. */
+    if (cuentaQuedo) {
+      P.ev('var __c = window.__colgadas[0].c; window.__cuentas[__c.email] = { clave: __c.password, meta: JSON.parse(JSON.stringify(__c.data || {})) };');
+    }
+    P.ev('window.__colgadas[0].cortar(); window.__colgar = null;');
+    await B.asentar(30);
+    /* Vuelve al paso de la plata, corrige y vuelve a tocar. */
+    P.ev("pintarRegistro(indiceDe('cobro')); $('f_nequi').value = '300 111 2233'; anotarCuenta($('f_nequi')); siguientePaso();");
+    assert.equal(P.ev('REGISTRO.' + CP.LLAVE_SELLO), sello, 'la corrección cambió el sello: la base no la reconocería como del mismo registro');
+    P.ev("pintarRegistro(indiceDe('permiso')); $('autGeneral').checked = true; $('autSensible').checked = false;");
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(40);
+    const bandejas = ll().filter(x => /rpc\/registrar_abierto$/.test(x.url)).map(x => x.cuerpo.p_datos);
+    return { P, ll, sello, bandejas };
+  }
+
+  test('corrige su Nequi después de un signup que no llegó: la bandeja sale otra vez con el corregido y el MISMO sello', async () => {
+    const r = await nequiCorregido(false);
+    assert.deepEqual(r.bandejas.map(d => d.nequi), [NEQUI_MAL, NEQUI_BIEN]);
+    assert.deepEqual(r.bandejas.map(d => d.cuentas_sello), [r.sello, r.sello]);
+    const signups = r.ll().filter(x => /auth\/v1\/signup/.test(x.url));
+    assert.equal(signups[signups.length - 1].cuerpo.data.vinculacion.cuentas_sello, r.sello);
+  });
+
+  test('corrige su Nequi después de un signup que SÍ llegó (se perdió la respuesta): la corrección también sale a la bandeja', async () => {
+    /* Antes: el reintento entraba primero con la contraseña (H1) y, como la
+       cuenta sí existía, entraba: la bandeja no volvía a salir y el Nequi
+       corregido no quedaba en ninguna parte. Al aceptar, mis_cuentas_de_pago
+       (el sello casa) le ofrecía el viejo. */
+    const r = await nequiCorregido(true);
+    assert.deepEqual(r.bandejas.map(d => d.nequi), [NEQUI_MAL, NEQUI_BIEN], 'el Nequi corregido no volvió a salir a la bandeja');
+    assert.equal(r.bandejas[1].cuentas_sello, r.sello);
+    assert.equal(r.P.ev('VISTA'), 'listo', 'no terminó de entrar a la cuenta que ya existía: ' + B.texto(B.caja(r.P)));
+  });
+
+  test('CENTINELA (H1 sigue): sin corregir nada, el reintento después de un signup que llegó entra primero, sin otra bandeja', async () => {
+    const P = B.abrir();
+    const ll = B.nube(P);
+    B.mariaHastaElPermiso(P, false);
+    P.ev("pintarRegistro(indiceDe('cobro')); mismoCelular('nequi'); $('f_cuentas_mias').checked = true; anotarCuenta($('f_cuentas_mias')); siguientePaso();");
+    P.ev("pintarRegistro(indiceDe('permiso')); $('autGeneral').checked = true; $('autSensible').checked = false;");
+    P.ev('window.__colgar = /auth\\/v1\\/signup/;');
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(30);
+    P.ev('var __c = window.__colgadas[0].c; window.__cuentas[__c.email] = { clave: __c.password, meta: JSON.parse(JSON.stringify(__c.data || {})) };');
+    P.ev('window.__colgadas[0].cortar(); window.__colgar = null;');
+    await B.asentar(30);
+    const antes = ll().length;
+    B.tocar(P, 'Abrir mi cuenta');
+    await B.asentar(40);
+    const despues = ll().slice(antes).map(x => x.url.replace(/^https?:\/\/[^/]+/, ''));
+    assert.match(despues[0] || '', /auth\/v1\/token/, 'no entró primero: ' + despues.join(' | '));
+    assert.equal(despues.some(u => /registrar_abierto/.test(u)), false, 'volvió a mandar la bandeja sin que nada cambiara');
+    assert.equal(P.ev('VISTA'), 'listo');
+  });
+
   test('el CRM no le pinta el sello a Joan ni al equipo como si fuera un dato de la persona', () => {
     const crm = leer('panel/crm.html');
     assert.match(crm, /k!=='cuentas_sello'/, 'verDatosRegistro pinta «cuentas sello»');

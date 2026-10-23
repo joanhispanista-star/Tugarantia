@@ -13,12 +13,24 @@
 -- los cuatro del 22-oct para que el orden alfabético de base/ sea el orden en
 -- que se corren: 20261022_la_foto…, 20261022b_destino…, ESTE (c) y, el
 -- último, 20261022d_el_equipo_con_la_clave_de_joan.sql. No se necesita con
--- el de destino (cada uno sirve solo), pero así no hay que pensarlo. Nada de
--- adentro cambió.
+-- el de destino (cada uno sirve solo), pero así no hay que pensarlo. Al
+-- renombrarlo no cambió nada de adentro; lo del 23-oct (sección 1b) es aparte.
 --
 -- Si la web sale antes que este archivo, no se rompe nada: al aceptar, la
 -- pregunta «¿A dónde te consignamos?» sale con «Escribe tu cuenta» (sin las
 -- del registro), como si no hubiera dado ninguna.
+--
+-- 23-oct-2026 — Y LA BANDEJA RECIBE LA CORRECCIÓN DEL MISMO REGISTRO (sección
+-- 1b). María escribía su Nequi con un dígito cambiado, la bandeja lo guardaba,
+-- el signup se caía, ella volvía al paso, lo corregía y volvía a tocar «Abrir
+-- mi cuenta»: la bandeja contestaba ok SIN guardar nada (el atajo del 9-sep) y
+-- la cuenta nacía con el mismo sello. Al aceptar se le ofrecía el Nequi viejo
+-- («Nequi ···2233»: los cuatro últimos iguales, el error no se ve) y a Joan le
+-- salía «Consignar a» con ese número. Ahora registrar_abierto y
+-- registrar_abierto_app, cuando ya hay una fila 'nuevo' con ese celular Y EL
+-- MISMO SELLO, le cambian SOLO las ocho llaves de pago. Por eso va en este
+-- archivo y no en otro: la oferta (mis_cuentas_de_pago) y la corrección
+-- llegan juntas o no llega ninguna.
 --
 -- ---------------------------------------------------------------------------
 -- EL DEFECTO QUE ESTO CIERRA
@@ -134,6 +146,95 @@ comment on function public.mis_cuentas_de_pago(bigint) is
 
 
 -- ---------------------------------------------------------------------------
+-- 1b. LA BANDEJA RECIBE LA CORRECCIÓN DE LAS CUENTAS, SOLO CON EL SELLO
+--     23-oct-2026
+--
+-- El atajo del 9-sep («si ya hay una fila 'nuevo' con ese celular, no se
+-- toca») se queda: sin sesión, cualquiera que sepa tu celular podría cambiar
+-- lo que Joan está a punto de mirar. Lo que se agrega es una rama `else` que
+-- cambia SOLO las ocho llaves de pago de esa fila, y SOLO si el registro que
+-- llega trae el MISMO sello que la fila (32 letras al azar que nacen en el
+-- teléfono de quien se registró; nadie más las tiene). El resto de la fila
+-- (documento, nombre, dirección, referencias) sigue sin tocarse, como antes.
+--
+-- Cómo se cambia: no se copia el cuerpo de la función (así se pierden frenos
+-- en silencio). Se lee la definición viva, se le agrega la rama después del
+-- insert del atajo de base/20261020_la_cedula_de_la_cuenta.sql, y si eso no
+-- se encuentra, se para y se dice. Si ya tiene la rama, no se toca.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  f      regprocedure;
+  nombre text;
+  cola   text;
+  cuerpo text;
+  src    text;
+  nueva  text;
+  -- La rama que se agrega: la misma en las dos puertas.
+  rama   constant text := $r$
+  else
+    -- 23-oct-2026 (base/20261022c_las_cuentas_del_registro.sql, 1b) — LA
+    -- CORRECCIÓN DE LAS CUENTAS DEL MISMO REGISTRO. Quien corrige su Nequi
+    -- después de un primer «Abrir mi cuenta» a medias llega aquí con su fila
+    -- ya puesta: sin esto el Nequi corregido no quedaba en ninguna parte y al
+    -- aceptar se le ofrecía el viejo. Solo las ocho llaves de pago, y solo con
+    -- el sello de la fila: lo demás sigue como lo dejó el primero.
+    update public.registros r
+       set datos = (coalesce(r.datos, '{}'::jsonb)
+                     - array['nequi', 'daviplata', 'llave_breb', 'banco', 'banco_codigo',
+                             'banco_tipo', 'banco_numero', 'cuentas_mias'])
+                   || coalesce((select jsonb_object_agg(e.key, e.value) from jsonb_each(limpio) e
+                                 where e.key = any (array['nequi', 'daviplata', 'llave_breb', 'banco', 'banco_codigo',
+                                                          'banco_tipo', 'banco_numero', 'cuentas_mias'])), '{}'::jsonb)
+     where r.estado = 'nuevo'
+       and r.telefono = cel
+       and length(coalesce(limpio ->> 'cuentas_sello', '')) >= 32
+       and r.datos ->> 'cuentas_sello' = limpio ->> 'cuentas_sello';
+  end if;$r$;
+begin
+  foreach nombre in array array['registrar_abierto', 'registrar_abierto_app'] loop
+    -- `cola`: el final del insert del atajo (el `end if` va aparte, abajo).
+    if nombre = 'registrar_abierto' then
+      f := to_regprocedure('public.registrar_abierto(text, text, text, jsonb)');
+      cola := $p$'abierto'\);$p$;
+    else
+      f := to_regprocedure('public.registrar_abierto_app(text, text, text, jsonb, text)');
+      cola := $p$'abierto',\s*v_app\);$p$;
+    end if;
+    if f is null then
+      if nombre = 'registrar_abierto' then
+        raise exception 'Falta registrar_abierto (base/20260909_una_sola_puerta.sql). No se tocó nada.';
+      end if;
+      raise notice 'registrar_abierto_app no existe (PlataChat sin aplicar): no hay puerta que cambiar ahí.';
+      continue;
+    end if;
+    select p.prosrc into cuerpo from pg_proc p where p.oid = f;
+    if position('cuentas_sello' in cuerpo) > 0 then
+      raise notice '% ya recibe la corrección de las cuentas con el sello: no se cambió nada.', nombre;
+      continue;
+    end if;
+    -- La rama va después del atajo de 20261020 (solo por teléfono). Sin él,
+    -- no se sabe qué tiene la función: se para.
+    if position('cedula_repetida_al_registrarse' in cuerpo) = 0 then
+      raise exception '% no tiene el atajo de base/20261020_la_cedula_de_la_cuenta.sql. Córrelo primero. No se tocó nada.', nombre;
+    end if;
+    if (select count(*) from regexp_matches(cuerpo, cola || $p$\s+end\s+if;$p$, 'g')) <> 1 then
+      raise exception 'No encontré UNA sola vez en % el final del atajo («''abierto''…); end if;»). Alguien la cambió: no se tocó nada. Compárala con pg_get_functiondef y avísale a Claude.', nombre;
+    end if;
+    -- La rama va entre el insert y su `end if` (que la rama trae consigo).
+    src := pg_get_functiondef(f);
+    nueva := regexp_replace(src, '(' || cola || $p$)\s+end\s+if;$p$, '\1' || rama, '');
+    if nueva = src then
+      raise exception 'No pude agregarle la rama a %: no se tocó nada. Avísale a Claude.', nombre;
+    end if;
+    execute nueva;
+    raise notice '% ya recibe la corrección de las cuentas de pago con el sello del mismo registro.', nombre;
+  end loop;
+end
+$$;
+
+
+-- ---------------------------------------------------------------------------
 -- 2. LOS PERMISOS
 --
 -- Supabase le da EXECUTE a anon y authenticated a cada función nueva: primero
@@ -170,4 +271,19 @@ select 5, 'mi_solicitud sigue SIN devolver los datos del registro (el corte del 
 union all
 select 6, 'solicitudes sigue con RLS (todo entra y sale por funciones)',
        coalesce((select relrowsecurity from pg_class where oid = 'public.solicitudes'::regclass), false)
+union all
+-- 23-oct-2026 (1b) — la corrección entra solo con el sello, y el atajo del
+-- 20-oct (solo por teléfono, sin pisar la fila) sigue en su sitio.
+select 7, 'La bandeja recibe la corrección de las cuentas de pago, solo con el sello del mismo registro',
+       coalesce((select p.prosrc ~ $p$r\.datos ->> 'cuentas_sello' = limpio ->> 'cuentas_sello'$p$
+                    and position('cedula_repetida_al_registrarse' in p.prosrc) > 0
+                    and p.prosrc ~ $p$estado\s*=\s*'nuevo'\s+and\s+telefono\s*=\s*cel\s*\)\s*then$p$
+                  from pg_proc p where p.oid = to_regprocedure('public.registrar_abierto(text, text, text, jsonb)')), false)
+union all
+select 8, 'La de PlataChat, igual (o PlataChat sin aplicar)',
+       case when to_regprocedure('public.registrar_abierto_app(text, text, text, jsonb, text)') is null then true
+            else coalesce((select p.prosrc ~ $p$r\.datos ->> 'cuentas_sello' = limpio ->> 'cuentas_sello'$p$
+                             and position('cedula_repetida_al_registrarse' in p.prosrc) > 0
+                             and p.prosrc ~ $p$estado\s*=\s*'nuevo'\s+and\s+telefono\s*=\s*cel\s*\)\s*then$p$
+                           from pg_proc p where p.oid = to_regprocedure('public.registrar_abierto_app(text, text, text, jsonb, text)')), false) end
 order by 1;

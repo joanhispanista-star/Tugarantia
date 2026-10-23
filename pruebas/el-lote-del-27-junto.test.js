@@ -145,7 +145,9 @@ describe('2 · Los cuatro SQL del 22-oct, en el orden en que Joan los corre', ()
 const TABLA_FINAL = {
   '20261022_la_foto_que_no_entra_se_dice.sql': { es: l => /\|[tf]$/.test(l), n: 6, bien: l => /\|t$/.test(l) },
   '20261022b_destino_del_desembolso.sql': { es: l => /^\d+\|/.test(l), n: 10, bien: l => /\|t$/.test(l) },
-  '20261022c_las_cuentas_del_registro.sql': { es: l => /^\d+\|/.test(l), n: 6, bien: l => /\|t$/.test(l) },
+  /* 23-oct-2026 — 8: la 7 y la 8 dicen que la bandeja recibe la corrección
+     de las cuentas del mismo registro (sección 1b). */
+  '20261022c_las_cuentas_del_registro.sql': { es: l => /^\d+\|/.test(l), n: 8, bien: l => /\|t$/.test(l) },
   /* El del equipo: 1-4 son comprobaciones; de 11 en adelante, una fila por
      persona activa del equipo (en esta base no hay nadie). */
   '20261022d_el_equipo_con_la_clave_de_joan.sql': { es: l => /^[1-4]\|/.test(l), n: 4, bien: l => /^\d+\|[^|]*\|t\|/.test(l) }

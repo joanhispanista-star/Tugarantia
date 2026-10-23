@@ -4204,7 +4204,9 @@ function enviarRegistro(sensibles) {
   });
   /* 21-oct-2026 — H1: ¿YA SALIÓ UN SIGNUP EN ESTE REGISTRO? Se mira ANTES de
      empezar el viaje nuevo (que deja atrás al anterior). */
-  var entrarPrimero = yaSalioUnSignup(foto);
+  /* 23-oct-2026 — salvo si corrigió sus cuentas de pago desde entonces: esa
+     corrección solo llega por la bandeja (ver pagoCambioDesdeLaBandeja). */
+  var entrarPrimero = yaSalioUnSignup(foto) && !pagoCambioDesdeLaBandeja(foto);
   fallo(err, entrarPrimero ? 'Revisando si tu cuenta ya quedó creada…' : 'Creando tu cuenta…');
   /* Mientras dice «Creando tu cuenta…» no se sale de aquí; a los 30 s se
      dice lo único que se sabe —que no se sabe si alcanzó a crearse— y lo que
@@ -4403,17 +4405,42 @@ function enviarRegistro(sensibles) {
    ese signup (guardarLaConstancia). Solo de esta generación y este celular:
    el de otro registro no le dice nada a este. Sin datos: el momento de cada
    autorización que salió. */
-var SIGNUP_DEL_REGISTRO = null;   // { generacion, celular, momentos: [] }
+var SIGNUP_DEL_REGISTRO = null;   // { generacion, celular, momentos: [], pago }
 function anotarSignup(foto) {
   var s = SIGNUP_DEL_REGISTRO, cel = String(foto.celular || '');
   if (!s || s.generacion !== foto.generacion || s.celular !== cel) {
     s = SIGNUP_DEL_REGISTRO = { generacion: foto.generacion, celular: cel, momentos: [] };
   }
   if (foto.autorizacion && foto.autorizacion.momento) s.momentos.push(String(foto.autorizacion.momento));
+  /* 23-oct-2026 — las cuentas de pago que la bandeja acaba de recibir (el
+     signup solo sale después de su «ok»). Ver pagoCambioDesdeLaBandeja. */
+  s.pago = huellaDePago(foto.datos);
 }
 function yaSalioUnSignup(foto) {
   var s = SIGNUP_DEL_REGISTRO;
   return !!s && s.generacion === foto.generacion && s.celular === String(foto.celular || '') && s.momentos.length > 0;
+}
+/* 23-oct-2026 — EL NEQUI CORREGIDO DESPUÉS DE UN SIGNUP QUE SÍ LLEGÓ. María
+   escribía 301 299 2233 en vez de 300 111 2233, la bandeja lo recibía, el
+   signup llegaba pero la respuesta se perdía con la señal; ella volvía al
+   paso, lo corregía y tocaba otra vez. El reintento entraba primero con la
+   contraseña (H1), la cuenta sí existía, y la bandeja no volvía a salir: el
+   Nequi corregido no quedaba en ninguna parte y al aceptar se le ofrecía el
+   viejo («Nequi ···2233»: los cuatro últimos iguales, no lo podía ver), con
+   el sello de su propio registro. Si las cuentas cambiaron desde la última
+   bandeja, el reintento va por la cadena de siempre: la bandeja (que con el
+   MISMO sello ahora sí cambia las ocho de pago de la fila: sección 1b de
+   base/20261022c_las_cuentas_del_registro.sql), el signup «ya existe» y la
+   entrada con la contraseña. Sin cambios, H1 entra primero como siempre. */
+function huellaDePago(d) {
+  var llaves = (CP && CP.LLAVES_DEL_REGISTRO) ||
+    ['nequi', 'daviplata', 'llave_breb', 'banco', 'banco_codigo', 'banco_tipo', 'banco_numero', 'cuentas_mias'];
+  var x = d || {};
+  return JSON.stringify(llaves.map(function (k) { return x[k] == null ? '' : String(x[k]); }));
+}
+function pagoCambioDesdeLaBandeja(foto) {
+  var s = SIGNUP_DEL_REGISTRO;
+  return yaSalioUnSignup(foto) && typeof s.pago === 'string' && s.pago !== huellaDePago(foto.datos);
 }
 
 /* ===========================================================================
