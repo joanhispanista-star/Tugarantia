@@ -7468,6 +7468,11 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
   if (d.estado === 'disparar') txt = T.TOMANDO;
   else if (d.estado === 'alejala') { avisoDoc(ESCDOC.pedirLuz ? T.BUSCA_LUZ : T.ALEJALA); ESCDOC.ventana = null; }
   else if (d.estado === 'sin_codigo') { avisoDoc(T.SIN_CODIGO); ESCDOC.ventana = null; }
+  /* 23-oct-2026 (tarde) — la franja de las barras sin código leído ya no
+     toma la foto: un frente sobre cuadros escoceses también la deja (ver
+     ECAP.decidirVentana). Se invita al botón, sin «voltéala», y el lector
+     sigue con cada mejor cuadro de las ventanas que vienen. */
+  else if (d.estado === 'solo_franja') { avisoDoc(T.SOLO_FRANJA); ESCDOC.ventana = null; }
   else if (d.estado === 'con_codigo') { avisoDoc(TEXTO_FRENTE_ES_RESPALDO); ESCDOC.ventana = null; }
   else txt = (!esFrente && (window.ZXing || ESCDOC.nativo)) ? T.LEYENDO : T.MIDIENDO;
   if (d.estado === 'disparar') ESCDOC.aviso = null;

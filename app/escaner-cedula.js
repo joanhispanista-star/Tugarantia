@@ -614,6 +614,13 @@
      zona de lectura mecánica), apareció una franja. Un código más gastado
      todavía (σ 2 módulos) tampoco deja franja con la cámara enfocada: ahí
      sigue la salida de siempre, «Tomar la foto ahora».
+     23-oct-2026 (tarde) — LA FRANJA YA NO TOMA LA FOTO: solo calla el
+     «voltéala» e invita a tocar «Tomar la foto ahora» (decidirVentana,
+     'solo_franja'). Un frente sobre una tela de cuadros escoceses (rayas
+     finas cuyo contraste cambia por bandas) dejaba una racha aceptada AQUÍ,
+     en la tela entre el borde de la tarjeta y el del marco: a los 2,6 s el
+     frente quedaba como respaldo y el respaldo no se guardaba nunca. Lo que
+     esta función dice sigue sirviendo, pero ya no basta para disparar.
      22-oct-2026 — y DENTRO de la tarjeta: una franja en la mesa de rayas que
      rodea la cédula hacía pasar el frente por respaldo (ver LA FRANJA ES DE
      LA TARJETA). Este es el guardián final: aunque una franja de la mesa

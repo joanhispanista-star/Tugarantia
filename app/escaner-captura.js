@@ -87,8 +87,10 @@
     PISO_CUARTIL: 75,
     /* 23-oct-2026 — el respaldo que solo muestra la FRANJA de sus barras (un
        PDF417 tan gastado que el lector ni lo encuentra ni ve su patrón): el
-       lector tiene este rato en verde para intentarlo antes de tomar la foto
-       sin datos. El mismo que EscanerCedula.RESPALDO.MS_LEYENDO. */
+       lector tiene este rato en verde para intentarlo antes de pedirle a la
+       persona que toque «Tomar la foto ahora» (desde la tarde del 23-oct ya
+       no se toma sola: ver 'solo_franja' en decidirVentana). El mismo que
+       EscanerCedula.RESPALDO.MS_LEYENDO. */
     MS_SOLO_FRANJA: 2500,
     /* El mismo rato que EscanerCedula.RESPALDO.MS_SIN_LECTOR (la prueba los
        compara): si el lector todavía baja (señal floja), el respaldo no se
@@ -150,6 +152,11 @@
     ALEJALA: 'Aléjala un poco y espera el enfoque',
     BUSCA_LUZ: 'Busca más luz y espera el enfoque',
     SIN_CODIGO: 'No vemos código en ese lado: si es el frente, voltéala',
+    /* 23-oct-2026 — la franja de barras sin código leído ('solo_franja'):
+       sin «voltéala» (al del código gastado lo dejaba dando vueltas) y sin
+       tomarla sola (un frente sobre cuadros escoceses también deja franja):
+       la persona, que sí ve qué lado tiene, decide con el botón. */
+    SOLO_FRANJA: 'No alcanzamos a leer el código de barras: si lo tienes en el marco, toca «Tomar la foto ahora»',
     REFLEJO: 'Hay un reflejo: inclínala un poco',
     LUZ_PRENDIDA: 'Prendimos la luz del celular: hay poca'
   };
@@ -365,8 +372,12 @@
    *                (con la cédula acostada lo que desenfoca es tenerla cerca);
    *   'sin_codigo' respaldo nítido sin ningún código ni franja de barras: casi
    *                seguro es el frente;
+   *   'solo_franja' 23-oct-2026 — respaldo nítido con la franja de las barras
+   *                y ningún código visto, pasado el rato del lector: NO se
+   *                toma; se invita a tocar «Tomar la foto ahora» (TEXTO.
+   *                SOLO_FRANJA), y el lector sigue intentando;
    *   'con_codigo' frente nítido CON código: es el respaldo sin voltear.
-   *   Los tres últimos cierran la ventana: la página empieza otra.
+   *   Los cuatro últimos cierran la ventana: la página empieza otra.
    */
   function decidirVentana(v, e) {
     var x = e || {}, ahora = num(x.ahora);
@@ -391,10 +402,20 @@
          abajo (o de arriba, al revés) de la tarjeta (EscanerCedula.
          franjaComoLaDelCodigo). Decirle «si es el frente, voltéala» a quien
          ya muestra el respaldo lo dejaba dando vueltas para siempre. Con la
-         franja se le da al lector su rato y, si no lee, se toma la foto sin
-         datos, como con un código visto sin leer. La franja NO prueba la
-         amarilla para las letras (capturarDoc mira el recorte otra vez). */
-      if (x.vioFranja === true) return r(num(x.msVerde) >= CAPTURA.MS_SOLO_FRANJA ? 'disparar' : 'esperando');
+         franja se le da al lector su rato. La franja NO prueba la amarilla
+         para las letras (capturarDoc mira el recorte otra vez).
+         23-oct-2026 (tarde) — Y SI NO LEE, YA NO SE TOMA SOLA. Se tomaba
+         sin datos, como con un código visto sin leer, y un FRENTE sobre una
+         tela de cuadros escoceses (rayas finas cuyo contraste cambia por
+         bandas, en la tela entre la tarjeta y el borde del marco) también
+         deja una franja que franjaComoLaDelCodigo acepta: a los 2,6 s el
+         frente quedaba guardado como respaldo («Foto tomada… Ahora el
+         frente»), el paso del frente guardaba el mismo cuadro y el respaldo
+         (PDF417, expedición, huella) no se guardaba nunca. Ahora se calla
+         el «voltéala» y se invita a tocar «Tomar la foto ahora»: decide la
+         persona, que ve qué lado tiene. El costo, aceptado: el respaldo muy
+         gastado que antes se tomaba solo por la franja pide ese toque. */
+      if (x.vioFranja === true) return r(num(x.msVerde) >= CAPTURA.MS_SOLO_FRANJA ? 'solo_franja' : 'esperando');
       return r('sin_codigo');
     }
     if (!x.lectorListo && num(x.msVerde) < CAPTURA.MS_SIN_LECTOR) return r('esperando');

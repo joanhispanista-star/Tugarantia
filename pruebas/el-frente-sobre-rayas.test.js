@@ -284,14 +284,27 @@ describe('2. la página de verdad: el frente sobre rayas no pasa por respaldo', 
     assert.equal(r.P.ev('tipoDelRespaldo()'), 'amarilla');
   });
 
-  test('el respaldo GASTADO sobre las rayas se sigue tomando solo, y por la franja de SU código', async () => {
+  /* 23-oct-2026 (tarde) — decía «se sigue tomando solo». La franja sola ya
+     no toma la foto (un frente sobre cuadros escoceses también la deja:
+     pruebas/el-frente-sobre-cuadros-escoceses.test.js). Lo que se cuida: la
+     franja es la de SU código, nunca oye «voltéala», y la foto sale sola
+     solo si el lector VIO el código (encontrado sin leer: lo de siempre);
+     si solo vio la franja, se le invita a tocar «Tomar la foto ahora» y el
+     toque la guarda. */
+  test('el respaldo GASTADO sobre las rayas: por la franja de SU código, sin «voltéala»; sola solo con el código visto, si no, el botón', async () => {
     for (const m of [{ amp: 35, mm: 1.57 }, { amp: 50, mm: 2.1, ang: 4, ruido: 3 }]) {
       const r = await mirar('reverso', Object.assign({ cara: 'gastado', esc: 0.95, sigma: 5 }, m), 50);
       const que = nombre(m) + ': ' + r.letreros.join(' | ') + ' · franja ' + JSON.stringify(r.franja);
-      assert.ok(r.tomada, 'el respaldo gastado sobre rayas no se tomó. ' + que);
       assert.equal(r.vioFranja, true, que);
       assert.ok(r.franja && r.franja.y0 > 0 && r.franja.y1 < r.alto, 'la franja del mejor cuadro es la de la mesa. ' + que);
       assert.equal(r.letreros.some(l => /volt[ée]ala/i.test(l)), false, 'le pidió voltear el respaldo. ' + que);
+      if (r.tomada) {
+        assert.equal(r.vioCodigo, true, 'la franja sola tomó la foto. ' + que);
+      } else {
+        assert.ok(r.letreros.includes(ECAP.TEXTO.SOLO_FRANJA), 'no invitó a tocar «Tomar la foto ahora». ' + que);
+        r.P.ev('capturarDoc()');
+        assert.ok(r.P.ev('FOTOS.cedula_reverso'), 'con el toque no se guardó. ' + que);
+      }
     }
   });
 

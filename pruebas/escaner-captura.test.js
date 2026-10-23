@@ -905,12 +905,26 @@ describe('4b. la franja de las barras gastadas es del respaldo', () => {
     assert.equal(EC.franjaComoLaDelCodigo(null, 303), false);
   });
 
-  test('la ventana: con solo la franja, espera el rato del lector y dispara; sin ella, «sin código» como siempre', () => {
+  /* 23-oct-2026 (tarde) — decía «espera el rato del lector y dispara». Un
+     frente sobre cuadros escoceses también deja franja
+     (pruebas/el-frente-sobre-cuadros-escoceses.test.js): la franja sola ya
+     no toma la foto, invita a tocar «Tomar la foto ahora». */
+  test('la ventana: con solo la franja, espera el rato del lector y NUNCA dispara: invita al botón; sin ella, «sin código» como siempre', () => {
     let v = ECAP.ventanaNueva(1000);
     [60, 80, 70, 90, 65, 75, 85, 70, 60, 80].forEach(n => { v = ECAP.anotarMedida(v, n, ECAP.esMejor(v, n)); });
     const base = { lado: 'reverso', ahora: 1000, lectorListo: true, vioCodigo: false, vioFranja: true };
     assert.equal(ECAP.decidirVentana(v, Object.assign({}, base, { msVerde: C.MS_SOLO_FRANJA - 100 })).estado, 'esperando');
-    assert.equal(ECAP.decidirVentana(v, Object.assign({}, base, { msVerde: C.MS_SOLO_FRANJA })).estado, 'disparar');
+    for (const ms of [C.MS_SOLO_FRANJA, C.MS_SIN_LECTOR, 60000]) {
+      const d = ECAP.decidirVentana(v, Object.assign({}, base, { msVerde: ms }));
+      assert.equal(d.estado, 'solo_franja', 'con la franja sola, a los ' + ms + ' ms');
+      assert.equal(d.disparar, false, 'la franja sola tomó la foto a los ' + ms + ' ms');
+    }
+    /* Sin lector todavía, igual: la franja no toma la foto. */
+    assert.equal(ECAP.decidirVentana(v, Object.assign({}, base, { lectorListo: false, msVerde: 60000 })).disparar, false);
+    assert.match(ECAP.TEXTO.SOLO_FRANJA, /Tomar la foto ahora/);
+    assert.equal(/volt[ée]ala/i.test(ECAP.TEXTO.SOLO_FRANJA), false, 'al del código gastado lo dejaba dando vueltas');
+    /* Con el código visto, sí (lo de siempre). */
+    assert.equal(ECAP.decidirVentana(v, Object.assign({}, base, { vioCodigo: true, msVerde: 0 })).estado, 'disparar');
     assert.equal(ECAP.decidirVentana(v, Object.assign({}, base, { vioFranja: false, msVerde: 9000 })).estado, 'sin_codigo');
     /* La franja no le da nada al frente: ahí manda la mirada al código. */
     assert.equal(ECAP.decidirVentana(v, { lado: 'frente', ahora: 1000, vioCodigo: false, vioFranja: true, limpias: 1, msVerde: 9000 }).estado, 'disparar');
@@ -947,15 +961,22 @@ describe('4c. la puerta del frente pregunta si hay tarjeta; la nitidez la juzga 
 
 describe('4d. lo que la pantalla dice con la cédula difícil', () => {
 
-  test('el respaldo que solo muestra la franja de sus barras se toma solo, y nunca oye «voltéala» ni lo de la cédula digital', () => {
+  /* 23-oct-2026 (tarde) — decía «se toma solo». Ya no: un frente sobre
+     cuadros escoceses también deja franja. Invita al botón, nunca oye
+     «voltéala», y con el toque se guarda sin datos, como antes. */
+  test('el respaldo que solo muestra la franja de sus barras NO se toma solo: invita a «Tomar la foto ahora», nunca oye «voltéala» ni lo de la cédula digital', () => {
     const P = escanerConVentana();
     P.ev('window.__franja = { y0: 211, y1: 230 }; leerCuadroDoc = function () { ESCDOC.lecturas++; };');
     for (let i = 0; i < 60 && !P.ev('FOTOS.cedula_reverso'); i++) cuadro(P, i, 50);
-    assert.ok(P.ev('FOTOS.cedula_reverso'), 'el respaldo con el código gastado no se tomó nunca: ' + estados(P).slice(-2).join(' | '));
+    assert.equal(P.ev('FOTOS.cedula_reverso'), undefined, 'la franja sola tomó la foto: ' + estados(P).slice(-2).join(' | '));
+    assert.ok(estados(P).includes(ECAP.TEXTO.SOLO_FRANJA), 'no invitó a tocar «Tomar la foto ahora»: ' + estados(P).join(' | '));
+    assert.ok(P.ev('ESCDOC.msVerde') >= C.MS_SOLO_FRANJA, 'invitó sin darle al lector su rato');
     assert.equal(estados(P).some(t => /volt[ée]ala/i.test(t)), false, 'le pidió voltear la cédula con el respaldo en el marco');
     assert.equal(P.ev("$('docNota').textContent"), '', 'le sugirió la cédula digital a una amarilla');
+    assert.ok(P.ev('ESCDOC.lecturas') > 2, 'el lector dejó de intentarlo');
+    P.ev('capturarDoc()');
+    assert.ok(P.ev('FOTOS.cedula_reverso'), 'con el toque no se guardó');
     assert.match(P.ev("$('docListoTxt').textContent"), /El código no se pudo leer/);
-    assert.ok(P.ev('ESCDOC.msVerde') >= C.MS_SOLO_FRANJA, 'disparó sin darle al lector su rato');
   });
 
   test('CENTINELA: una franja en el medio (un renglón de letra) no es el código: sigue «si es el frente, voltéala» y no se toma', () => {

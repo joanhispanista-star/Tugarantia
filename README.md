@@ -341,8 +341,9 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         (EscanerCaptura.calidadDeGris), así un PDF417 muy
                         gastado o un frente liso ya no piden «Aléjala…» para
                         siempre, y una cámara desenfocada sigue sin pasar; la
-                        franja de barras en su sitio es prueba de respaldo
-                        (sin «voltéala» ni la sugerencia de la digital); la
+                        franja de barras en su sitio calla el «voltéala» y la
+                        sugerencia de la digital (desde la tarde del 23-oct
+                        ya no toma la foto sola: ver abajo); la
                         puerta del frente solo pide bordes
                         (NITIDEZ_MIN_FRENTE) cuando la ventana mide; con poca
                         luz y sin linterna pide luz; «Continuar» con las
@@ -380,6 +381,18 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         franja. Pruebas:
                         pruebas/el-frente-sobre-rayas-finas.test.js, con el
                         frente nítido de pruebas/fabricar-cedula-nitida.py.
+                        (23-oct-2026, verificación del lote del 27-oct) Y LA
+                        FRANJA SOLA YA NO TOMA LA FOTO: un frente sobre una
+                        tela de cuadros escoceses (rayas finas cuyo contraste
+                        cambia por bandas) deja en la tela, entre la tarjeta
+                        y el borde del marco, una franja que pasa todas las
+                        pruebas, y a los 2,6 s quedaba como respaldo. Ahora,
+                        con la franja y sin código visto, pasado el rato del
+                        lector, se calla el «voltéala» y se invita a tocar
+                        «Tomar la foto ahora» ('solo_franja'); el lector
+                        sigue intentando. El costo, aceptado: el respaldo muy
+                        gastado que solo deja su franja pide ese toque.
+                        Pruebas: pruebas/el-frente-sobre-cuadros-escoceses.test.js.
                         (22-oct-2026) La selfie se toma sola de verdad: la racha
                         aguanta la caja de una frontal barata, el óvalo y lo
                         que mira el detector son la zona que SE VE (un iPhone
