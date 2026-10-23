@@ -83,8 +83,9 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         si es más vieja que las demás; los demás sí viajan, así
                         que un pago marcado en el computador llega aunque el
                         celular haya cobrado a otro. Su SALIR sí viaja (con la
-                        plata vacía, que el servidor conserva), y las cuentas de
-                        quien los lleva no. La línea de Equipo dice quiénes
+                        plata vacía, que el servidor conserva, aunque la fila
+                        toma la fecha de hoy: la línea de Equipo lo dice), y
+                        las cuentas de quien los lleva no. La línea dice quiénes
                         quedaron fuera y qué hacer. Editar solo impone lo que
                         Joan cambió EN EL CUADRO respecto de lo que el cuadro le
                         mostró (estado, jefe): en lo demás manda la nube, donde

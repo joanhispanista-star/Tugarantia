@@ -388,3 +388,63 @@ describe('6 · la pantalla del asesor dice la fecha de la fila que no se refresc
     assert.match(P.ev('avisoAlDiaDeEq()'), /de hoy/);
   });
 });
+
+describe('7 · el SALIR de un cliente atrás le mueve la fecha a su fila, y la línea de Equipo no lo esconde', () => {
+
+  /* 22-oct-2026 — el SALIR de un cliente atrás viaja con la plata vacía y el
+     servidor conserva la última (coalesce), pero equipo_publicar le pone
+     `actualizado = now()` a la fila ENTERA (base/20260919_asesor.sql), y ese
+     es el al_dia_de que ve el asesor: la cifra vieja le sale «de hoy» y sin
+     ⚠. La línea de Equipo decía de todos los de fuera «tu equipo sigue
+     viendo lo último que se publicó, con su fecha»: del SALIR no es cierto. */
+  test('solo el del SALIR fuera: se dice que su cifra sale con la fecha de hoy, y no se promete «con su fecha»', async () => {
+    const { m, P } = await laTarde(d => {
+      d.prestamos.find(p => p.id === 'P0').pagado = true;
+      d.socios.find(s => s.id === 'C1').noSMS = true;
+    });
+    const v = sesionNueva(m);
+    const P2 = panelCon(v.C, B.leerDisco(m.alm), P.almacen);
+    assert.equal(await P2.ev('publicarEquipoSolo()'), 'publicado_en_parte');
+    assert.deepEqual(sinProto(P2.ev('leerPublicadoSolo()')).fuera, [{ id: 'C1', por: 'nube-mas-nueva', salir: true }]);
+    const linea = plano(P2.elems.equipoPublicadoSolo.innerHTML);
+    assert.match(linea, /sí le publiqué el SALIR/);
+    assert.match(linea, /su cifra no: tu equipo sigue viendo la última que se publicó, pero ahora con la fecha de hoy/,
+      'no le dice a Joan que la cifra vieja de C1 le sale al asesor con la fecha de hoy');
+    assert.doesNotMatch(linea, /con su fecha/, 'le promete «con su fecha» de un cliente cuya fila tomó la de hoy');
+    assert.match(linea, /En cuanto lo resuelvas, se publica solo/);
+    const pieza = sinProto(P2.ev('piezaNubeEquipo(Date.now())'));
+    assert.doesNotMatch(pieza.l2, /con su fecha/, 'la ☁ común promete «con su fecha» del SALIR');
+    assert.match(pieza.l2, /el resto se publicó/);
+  });
+
+  test('uno con SALIR y otro sin él: «con su fecha» se dice solo del otro', async () => {
+    const { m, P } = await laTarde(d => {
+      d.prestamos.find(p => p.id === 'P0').pagado = true;
+      d.socios.find(s => s.id === 'C1').noSMS = true;
+    });
+    m.srv.celular('creditos', 'P2', d => { d.abonosCapital = [{ fecha: '2026-10-21', monto: 100000 }]; });
+    const v = sesionNueva(m);
+    const P2 = panelCon(v.C, B.leerDisco(m.alm), P.almacen);
+    assert.equal(await P2.ev('publicarEquipoSolo()'), 'publicado_en_parte');
+    const fuera = sinProto(P2.ev('leerPublicadoSolo()')).fuera;
+    assert.deepEqual(fuera.map(f => f.id + (f.salir ? '+SALIR' : '')).sort(), ['C1+SALIR', 'C2']);
+    const linea = plano(P2.elems.equipoPublicadoSolo.innerHTML);
+    assert.match(linea, /menos 2 clientes/);
+    assert.match(linea, /pero ahora con la fecha de hoy/);
+    assert.match(linea, /Del otro tu equipo sigue viendo lo último que se publicó, con su fecha/,
+      'de C2, que no viajó, sí es cierto «con su fecha»: tiene que decirse, y solo de él');
+    assert.doesNotMatch(linea, /De ellos tu equipo sigue viendo/, 'lo promete también del SALIR');
+    assert.match(sinProto(P2.ev('piezaNubeEquipo(Date.now())')).l2, /del otro tu equipo ve lo publicado antes, con su fecha/);
+  });
+
+  test('deQuienesConSuFecha: de quiénes es cierto «con su fecha»', () => {
+    const P = abrirPanel();
+    const q = f => P.ev('deQuienesConSuFecha(' + JSON.stringify(f) + ')');
+    assert.equal(q([{ id: 'C1', por: 'nube-mas-nueva' }]), 'de ese cliente');
+    assert.equal(q([{ id: 'C1' }, { id: 'C2' }]), 'de ellos');
+    assert.equal(q([{ id: 'C1', salir: true }]), '');
+    assert.equal(q([{ id: 'C1', salir: true }, { id: 'C2' }]), 'del otro');
+    assert.equal(q([{ id: 'C1', salir: true }, { id: 'C2' }, { id: 'C3' }]), 'de los otros');
+    assert.equal(q(null), '');
+  });
+});

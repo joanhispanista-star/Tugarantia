@@ -14751,8 +14751,28 @@ function fraseClientesFuera(fuera) {
   if (dis.length) grupos.push('<b>' + nombres(dis) + '</b>: ' + (dis.length === 1 ? 'tiene una ficha' : 'tienen fichas') +
     ' en discusión con la nube (pasa, por ejemplo, al importar un respaldo viejo). Decide en ' + subir + ' (paso 7)');
   const sal = fl.filter(f => f && f.salir).map(f => f.id);
-  if (sal.length) grupos.push('A <b>' + nombres(sal) + '</b> sí le publiqué el SALIR (tu equipo ya no le puede mandar mensajes); su cifra no');
+  /* 22-oct-2026 — Y LA FECHA DE ESA FILA. La plata viaja vacía y el servidor
+     conserva la última (coalesce), pero equipo_publicar le pone la hora de
+     ahora a la fila ENTERA (cartera.actualizado = now(), que es el al_dia_de
+     que ve el asesor): esa cifra vieja le sale «de hoy», sin ⚠ y sin el aviso
+     de su fila (diaDeLaCifraEq). No hay cómo mandar el SALIR sin mover la
+     fecha —equipo_publicar es lo único que escribe no_sms— y el SALIR no
+     puede esperar, así que se le dice a Joan tal cual, y la línea de Equipo
+     ya no le promete «con su fecha» de esos clientes (deQuienesConSuFecha). */
+  const le = sal.length === 1 ? 'le' : 'les';
+  if (sal.length) grupos.push('A <b>' + nombres(sal) + '</b> sí ' + le + ' publiqué el SALIR (tu equipo ya no ' + le + ' puede mandar mensajes); ' +
+    (sal.length === 1 ? 'su cifra no: tu equipo sigue viendo la última que se publicó' : 'sus cifras no: tu equipo sigue viendo las últimas que se publicaron') +
+    ', pero ahora con la fecha de hoy, así que resuélvelo pronto');
   return grupos.join('. ');
+}
+/* 22-oct-2026 — de quiénes de `fuera` es cierto decir que el equipo ve lo
+   último publicado «con su fecha»: de todos menos los del SALIR, que viajaron
+   y por eso su fila tomó la fecha de hoy (ver arriba). '' si no queda nadie. */
+function deQuienesConSuFecha(fuera) {
+  const fl = Array.isArray(fuera) ? fuera.filter(Boolean) : [];
+  const n = fl.length, k = fl.filter(f => !f.salir).length;
+  if (!k) return '';
+  return k === n ? (n === 1 ? 'de ese cliente' : 'de ellos') : (k === 1 ? 'del otro' : 'de los otros');
 }
 /* --------------------------------------------------------------------------
  * 22-oct-2026 — LO QUE JOAN CAMBIÓ Y TODAVÍA NO SUBIÓ, GANA AL TRAER.
@@ -14889,7 +14909,10 @@ function publicarEquipoSolo(op) {
          obligatorio (quien respondió SALIR no puede volver a recibir) y nunca
          es peligroso mandarlo de más. Va con la plata vacía, que el servidor
          lee como «no lo sé» y conserva la última (coalesce): la cifra de este
-         computador para ese cliente es justo la que está atrás. */
+         computador para ese cliente es justo la que está atrás.
+         22-oct-2026 — lo que NO conserva es la fecha: la fila entera toma la
+         de ahora (cartera.actualizado = now()). Se acepta —el SALIR no espera—
+         y se le dice a Joan (fraseClientesFuera). */
       const salir = {};
       const ps = nFuera ? a.ps.map(x => {
         if (x.tipo !== 'cliente' || !fuera[String(x.id)]) return x;
@@ -15027,9 +15050,13 @@ function pintarPublicadoSolo(puerta) {
          CLIENTE). Ámbar y con nombres: «Última: …» en calma afirmaría que el
          gerente ve a todos al día. */
       const n = x.fuera.length;
+      /* 22-oct-2026 — «con su fecha» solo de los que no viajaron: el SALIR
+         viajó y su fila tomó la de hoy (deQuienesConSuFecha). */
+      const dq = deQuienesConSuFecha(x.fuera);
       b.innerHTML = '<div class="alerta warn"><b>Tu equipo ve la cartera publicada el ' + escHTML(cuando) + ', menos ' +
         (n === 1 ? '1 cliente' : n + ' clientes') + '</b>. ' + fraseClientesFuera(x.fuera) + '. ' +
-        'De ' + (n === 1 ? 'ese cliente' : 'ellos') + ' tu equipo sigue viendo lo último que se publicó, con su fecha; en cuanto lo resuelvas, se publica solo. ' +
+        (dq ? dq.charAt(0).toUpperCase() + dq.slice(1) + ' tu equipo sigue viendo lo último que se publicó, con su fecha; en' : 'En') +
+        ' cuanto lo resuelvas, se publica solo. ' +
         '<a href="#" onclick="reintentarEquipoYa();return false">Comprobar ya</a></div>';
     } else if (x && x.ok) {
       b.innerHTML = '<div class="muted" style="font-size:12.5px">☁ La cartera de tu equipo se publica sola: al repartir, al crear o editar a alguien, y cada 15 min mientras este CRM está abierto. Última: <b>' + escHTML(cuando) + '</b>.</div>';
@@ -18028,10 +18055,10 @@ function piezaNubeEquipo(ahoraMs){
      POR CLIENTE): no es «Todo sube solo» mientras el gerente vea a alguien
      sin refrescar. El clic comprueba otra vez. */
   if(x&&x.ok&&Array.isArray(x.fuera)&&x.fuera.length){
-    const n=x.fuera.length;
+    const n=x.fuera.length, dq=deQuienesConSuFecha(x.fuera);   // 22-oct-2026 — «con su fecha», no del SALIR
     return {quien:'equipo',nombre:'👥 Tu equipo',normal:false,clase:'ojo',
       l1:(n===1?'1 cliente de tu equipo no se refresca':n+' clientes de tu equipo no se refrescan'),
-      l2:fraseClientesFuera(x.fuera)+' · de '+(n===1?'ese cliente':'ellos')+' tu equipo ve lo publicado antes, con su fecha; el resto se publicó '+escHTML(haceRatoNube(x.cuando,ahoraMs))+' · clic para comprobar ya'};
+      l2:fraseClientesFuera(x.fuera)+(dq?' · '+dq+' tu equipo ve lo publicado antes, con su fecha; el resto':' · el resto')+' se publicó '+escHTML(haceRatoNube(x.cuando,ahoraMs))+' · clic para comprobar ya'};
   }
   return {quien:'equipo',nombre:'👥 Tu equipo',normal:true,clase:'calma',cuando:x&&x.ok?x.cuando:null,
     corto:x&&x.ok?'equipo publicado '+haceRatoNube(x.cuando,ahoraMs):'equipo: se publica al repartir y cada 15 min'};
