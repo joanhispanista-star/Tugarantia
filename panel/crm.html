@@ -11240,6 +11240,9 @@ function claveSugerida() {
 function crearCuenta(id) {
   const p = personaDeEquipo(id); if (!p) return;
   if (!p.celular) return alert('Primero ponle su celular: el celular ES su usuario.');
+  /* 23-oct-2026 — el aviso decía «Al crearla, esta persona podrá entrar…», y
+     desde base/20261022d_el_equipo_con_la_clave_de_joan.sql crearla no basta:
+     falta la clave del equipo que Joan pone desde Supabase. */
   openModal('Crear la cuenta de ' + p.nombre, `
     <p class="sub">La contraseña la pones tú y se la mandas por WhatsApp. Su usuario es su celular.</p>
     <div class="field"><label>Contraseña</label>
@@ -11248,9 +11251,9 @@ function crearCuenta(id) {
         (mínimo 8 caracteres).</div></div>
     <div class="fila"><span class="k">Usuario</span><span class="v mono">${escHTML(p.celular)}</span></div>
     <div class="fila"><span class="k">Entra en</span><span class="v mono">${escHTML(ENLACE_PANEL)}</span></div>
-    <div class="aviso" style="margin-top:14px">Al crearla, esta persona podrá entrar por el mismo enlace
-      de tu Panel — pero <b>no ve tu cartera</b>: su aparato no la tiene, y la nube solo le entrega lo
-      que le asignaste.</div>
+    <div class="aviso" style="margin-top:14px">Después de crearla falta un paso: tu clave del equipo, una
+      línea que pegas en Supabase (te la damos). Con eso entra por el mismo enlace de tu Panel — pero
+      <b>no ve tu cartera</b>: su aparato no la tiene, y la nube solo le entrega lo que le asignaste.</div>
     <button class="btn btn-rojo arriba" onclick="confirmarCrearCuenta('${escHTML(p.id)}')">Crear la cuenta</button>`);
 }
 
@@ -11413,6 +11416,11 @@ function claveListaEnSupabase(id) {
         }
         _claveEnCurso = null;
         p.cuentaCreada = p.cuentaCreada || hoyISO();
+        /* 23-oct-2026 — lo que la ficha necesita para decir «Entra con su
+           celular por…» sin mentir: que ESTE computador comprobó que la
+           contraseña sirve Y que a la cuenta no le falta la clave del equipo.
+           `cuentaCreada` solo dice que el signup existió. */
+        p.claveEquipoLista = hoyISO();
         guardar(); render();
         pantallaEntregarCuenta(p, enCurso.clave, enCurso.que === 'creada' ? 'creada' : 'cambiada');
       });
@@ -11449,6 +11457,8 @@ function cambiarClave(id) {
       return faltaLaClaveDeJoan(res.token).then(falta => {
         if (falta) return alert('La contraseña cambió, pero a esta cuenta le falta tu clave del equipo: usa la línea del editor ' +
           'SQL de Supabase (arriba) y dale Run. Sin eso ' + p.nombre + ' no ve nada del equipo.');
+        p.claveEquipoLista = hoyISO();   // 23-oct-2026 — ver claveListaEnSupabase
+        guardar();
         pantallaEntregarCuenta(p, nueva, 'cambiada');
       });
     })
@@ -15906,6 +15916,13 @@ function editarPersona(id) {
   /* 23-oct-2026 — lo que este cuadro le muestra a Joan, para que guardar
      compare contra ESO (ver LO QUE EL CUADRO MOSTRÓ, en guardarPersona). */
   _cuadroEquipo = p ? { id: String(p.id), mostrado: loQueDiceElCuadro(p.rol, celJefe, p.estado) } : null;
+  /* 23-oct-2026 — «SU CUENTA»: «YA TIENE CUENTA… ENTRA» SOLO SI SE COMPROBÓ.
+     Desde base/20261022d_el_equipo_con_la_clave_de_joan.sql el signup no
+     basta: falta la clave que Joan pone desde Supabase. Decía en verde que
+     entraba a quien la base dejaba afuera: la cuenta creada antes del 22-oct
+     sin esa línea, o la que Joan acaba de crear cerrando «Falta un paso» antes
+     de pegarla. Verde solo con claveEquipoLista (la anotan claveListaEnSupabase
+     y cambiarClave al comprobarlo); si no, lo que se sabe y la salida. */
   openModal(p ? 'Editar a ' + p.nombre : 'Crear una persona del equipo', `
     <div class="field"><label>Nombre completo</label><input id="eqNombre" value="${p ? escHTML(p.nombre) : ''}"></div>
     <div class="field"><label>Celular</label><input id="eqTel" inputmode="numeric" value="${p ? escHTML(p.celular || '') : ''}"></div>
@@ -15923,9 +15940,15 @@ function editarPersona(id) {
         <option value="retirado"${p.estado === 'retirado' ? ' selected' : ''}>Retirado</option></select>
       <div class="help">Retirarlo le corta lo nuevo. Sus movimientos de comisión NO se reasignan nunca: reasignarlos cambiaría la historia hacia atrás.</div></div>` : ''}
     ${p && p.celular ? `<div class="sub-h">Su cuenta</div>
-      ${p.cuentaCreada
+      ${p.cuentaCreada && p.claveEquipoLista
         ? `<div class="alerta ok">Ya tiene cuenta, creada el ${fmtFecha(p.cuentaCreada)}.
             Entra con su celular por ${escHTML(ENLACE_PANEL)}</div>
+           <button class="btn btn-ghost" onclick="crearCuenta('${escHTML(p.id)}')">Ponerle otra contraseña</button>`
+        : p.cuentaCreada
+        ? `<div class="alerta warn">Tiene cuenta, creada el ${fmtFecha(p.cuentaCreada)}, pero este computador no ha
+            comprobado que ya entre. Con el SQL del equipo del 22-oct puesto, solo entra con la clave del equipo
+            que tú le pones desde Supabase. Si no sabes si se la pusiste, toca «Ponerle otra contraseña»: te da
+            la línea y comprueba que entra antes de que se la mandes.</div>
            <button class="btn btn-ghost" onclick="crearCuenta('${escHTML(p.id)}')">Ponerle otra contraseña</button>`
         : `<p class="ayuda">La creas desde acá, sin salir del Panel. Tú eliges la contraseña y se la
              mandas por WhatsApp.</p>

@@ -114,3 +114,67 @@ describe('la puerta del equipo', () => {
     assert.match(h, /todavía no tienes puesto/);
   });
 });
+
+/* 23-oct-2026 — LA FICHA Y EL CUADRO DE «CREAR» TAMPOCO PROMETEN QUE ENTRA.
+   La rama arregló pantallaCuentaExiste y el Panel del gerente, pero dejó dos
+   textos de main que el SQL del equipo volvió falsos: la ficha (✏️) decía en
+   verde «Ya tiene cuenta… Entra con su celular por <enlace>» con solo
+   `cuentaCreada` —la cuenta creada antes del 22-oct sin la línea, o la que
+   Joan acaba de crear cerrando «Falta un paso» antes de pegarla—, y el
+   cuadro de crear prometía «podrá entrar por el mismo enlace». */
+describe('la ficha y el cuadro de «Crear cuenta» no prometen que entra sin la clave del equipo', () => {
+  const ficha = P => { P.ev("editarPersona('e1')"); return String(P.elems.mBody.innerHTML); };
+  const sinEtiquetas = h => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+
+  test('el cuadro de «Crear cuenta» no dice «podrá entrar»: dice que falta la clave del equipo', () => {
+    const P = abrir({ clave: 'abcd-efgh' });
+    P.ev("crearCuenta('e1')");
+    const h = sinEtiquetas(String(P.elems.mBody.innerHTML));
+    assert.equal(/podrá entrar/.test(h), false, 'promete que entra con solo crearla');
+    assert.match(h, /falta un paso: tu clave del equipo/i);
+    assert.match(h, /no ve tu cartera/, 'se perdió lo de la cartera');
+  });
+
+  test('creada y cerrada «Falta un paso» sin pegar la línea: la ficha NO dice en verde que entra', async () => {
+    const P = abrir({ clave: 'abcd-efgh', faltaClave: true });
+    P.ev("crearCuenta('e1')");
+    P.ev("document.getElementById('ceClave').value = 'abcd-efgh'");
+    P.ev("confirmarCrearCuenta('e1')");
+    await asentar();
+    assert.equal(P.elems.mTitle.textContent, 'Falta un paso: tu clave del equipo', 'la prueba no prueba el caso');
+    const h = ficha(P);
+    assert.equal(/alerta ok">Ya tiene cuenta/.test(h), false, 'le dice en verde que tiene cuenta lista');
+    assert.equal(/Entra con su celular por/.test(h), false, 'le dice a Joan que entra, y la base la deja afuera');
+    assert.match(sinEtiquetas(h), /no ha comprobado que ya entre/);
+    assert.match(h, /crearCuenta\('e1'\)">Ponerle otra contraseña/, 'no le deja la salida');
+  });
+
+  test('una cuenta de antes del 22-oct (sin comprobar la clave): tampoco', () => {
+    const P = abrir({ clave: 'abcd-efgh' });
+    P.ev("personaDeEquipo('e1').cuentaCreada = '2026-10-10'");
+    const h = ficha(P);
+    assert.equal(/Entra con su celular por/.test(h), false);
+    assert.match(sinEtiquetas(h), /Tiene cuenta, creada el 10 de oct de 2026, pero este computador no ha comprobado que ya entre/);
+  });
+
+  test('CENTINELA: comprobada con «Ya dijo Listo» (la clave sirve y no le falta la del equipo), la ficha sí dice que entra', async () => {
+    const P = abrir({ clave: 'abcd-efgh', faltaClave: false });
+    P.ev("personaDeEquipo('e1').cuentaCreada = '2026-10-10'");
+    P.ev("pantallaCuentaExiste(personaDeEquipo('e1'), 'abcd-efgh', 'creada')");
+    P.ev("claveListaEnSupabase('e1')");
+    await asentar();
+    assert.equal(P.elems.mTitle.textContent, 'Cuenta creada');
+    const h = ficha(P);
+    assert.match(h, /alerta ok">Ya tiene cuenta, creada el/);
+    assert.match(h, /Entra con su celular por/);
+  });
+
+  test('CENTINELA: si a la cuenta le falta la clave, «comprobarla» no la da por lista en la ficha', async () => {
+    const P = abrir({ clave: 'abcd-efgh', faltaClave: true });
+    P.ev("personaDeEquipo('e1').cuentaCreada = '2026-10-10'");
+    P.ev("pantallaCuentaExiste(personaDeEquipo('e1'), 'abcd-efgh', 'creada')");
+    P.ev("claveListaEnSupabase('e1')");
+    await asentar();
+    assert.equal(/Entra con su celular por/.test(ficha(P)), false);
+  });
+});

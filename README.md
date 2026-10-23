@@ -289,6 +289,14 @@ base/
                                   arma el aviso a Joan, que se la pone con
                                   «↻ Traer del equipo» y «🔑 Crear cuenta»
                                   (pruebas/el-asesor-del-gerente-espera-la-clave).
+                                  (23-oct-2026) Y el CRM tampoco promete que
+                                  entra: la ficha (✏️) solo dice en verde
+                                  «Entra con su celular por…» cuando este
+                                  computador lo comprobó (claveEquipoLista, al
+                                  «Ya dijo Listo»); si no, dice que no está
+                                  comprobado y ofrece «Ponerle otra contraseña».
+                                  El cuadro de «Crear cuenta» dice que falta
+                                  ese paso (pruebas/el-equipo-con-la-clave-de-joan).
                                   (Se llamaba 20261022b_el_equipo_con_la_clave_de_joan.sql.)
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
