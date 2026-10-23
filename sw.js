@@ -1853,6 +1853,12 @@
    no rompe: cada pagina pregunta por CP, por SP.cambiarClave y por el
    detector de ojos antes de usarlos (sin ellos, el paso de las cuentas se
    salta, la contrasena dice que falta sesion.js y la selfie sale sin ojos).
+   23-oct-2026 — y el CRM pregunta por PUENTE.pactarProximoPago antes de
+   abrir «Ajustar el proximo pago»: el primer F5 despues de publicar pasa
+   todavia por este service worker viejo (v138, fetch con la cache HTTP de
+   10 min) y puede traer el crm.html nuevo con el app/puente.js de antes; el
+   boton revento con un TypeError mudo, y ahora dice que se recargue
+   (pruebas/abono-pactado.test.js).
    Lo que una pagina precargada carga con <script src> o <link> esta en la
    lista de abajo, y todo lo de la lista existe:
    pruebas/el-lote-del-27-junto.test.js, seccion 4. */

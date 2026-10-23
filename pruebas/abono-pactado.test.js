@@ -603,6 +603,27 @@ describe('B. el CRM: las dos casillas, lo que te deja y «✏️ Ajustar el pró
     assert.equal(leer(B).prestamos[0].planPagos, undefined);
   });
 
+  /* 23-oct-2026 — EL CRM NUEVO CON EL PUENTE VIEJO DE LA CACHÉ. El primer F5
+     después de publicar todavía pasa por el service worker v138, que pide
+     los .js por la caché HTTP (max-age=600): llega este crm.html con el
+     app/puente.js de antes, sin pactarProximoPago. El botón sale igual, y al
+     tocarlo reventaba con un TypeError: no se abría nada y nada decía que
+     había que recargar. La hoja del abono ya lo decía ('sin_funcion'). */
+  test('con el puente viejo de la caché (sin pactarProximoPago), «✏️ Ajustar el próximo pago» dice que recargues, no revienta', () => {
+    const B = abrirPanel({ ahora: DIA + 'T10:00:00', puente: P => {
+      const viejo = Object.assign({}, P); delete viejo.pactarProximoPago; return viejo; } });
+    B.cargarCartera(cartera([credito()]));
+    assert.equal(B.ev('typeof PUENTE.pactarProximoPago'), 'undefined', 'la prueba no prueba el caso');
+    assert.equal(typeof P.pactarProximoPago, 'function', 'la prueba le quitó la función al puente de todo el proceso');
+    B.ev("verCredito('c1')");
+    assert.match(html(B, 'mBody'), /ajustarProximoPago\('c1'\)/, 'el botón ya no sale: la prueba no prueba el toque');
+    assert.doesNotThrow(() => B.ev("ajustarProximoPago('c1')"), 'el botón revienta con el puente viejo');
+    const m = plano(html(B, 'mBody'));
+    assert.match(m, /versión vieja de las reglas\. Recarga la página \(Ctrl\+F5\)/);
+    assert.match(html(B, 'mBody'), /verCredito\('c1'\)/, 'no le deja volver al crédito');
+    assert.equal(leer(B).prestamos[0].planPagos, undefined, 'guardó algo con el puente viejo');
+  });
+
   test('la lista de créditos y la ficha del cliente dicen lo que te deja, en rojo si pierde', () => {
     const B = crm([pactado(100000, 'se quedó sin trabajo')], '2026-11-01');
     B.ev('renderCred()');

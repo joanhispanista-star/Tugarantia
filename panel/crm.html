@@ -7625,6 +7625,18 @@ function registrarAbonoProrroga(id){
 function pedidoDeAjuste(){ return { fecha:gv('ajFecha'), monto:gv('ajMonto'), motivo:gv('ajMotivo'), quien:'computador' }; }
 function ajustarProximoPago(id){
   const p=DB.prestamos.find(x=>x.id===id); if(!p) return;
+  /* 23-oct-2026 — LA MISMA REJA DE LA HOJA DEL ABONO (abonoDeLaHoja,
+     'sin_funcion'). El primer F5 después de publicar todavía pasa por el
+     service worker viejo, que pide los .js por la caché HTTP (max-age=600 en
+     GitHub Pages): llega este crm.html con el app/puente.js de antes, sin
+     pactarProximoPago. El botón se pinta igual (su condición no pregunta por
+     el puente) y al tocarlo reventaba con un TypeError: no se abría nada y
+     nada decía que había que recargar. Se dice, con la salida. */
+  if(typeof PUENTE.pactarProximoPago!=='function'){
+    return openModal('Ajustar el próximo pago · '+p.socioNombre,
+      `<div class="alerta warn">Este computador tiene una versión vieja de las reglas. Recarga la página (Ctrl+F5) y vuelve a abrir el crédito.</div>`
+      +`<button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%" onclick="verCredito('${id}')">Volver al crédito</button>`);
+  }
   const hoy=hoyISO(), r0=PUENTE.pactarProximoPago(DB,p,{},hoy);
   if(r0.motivo!=='sin_cambios'){
     /* No se puede: el porqué del puente y los caminos que ya existen, cada uno

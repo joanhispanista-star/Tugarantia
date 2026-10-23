@@ -138,6 +138,12 @@ function abrirPanel(opciones) {
      window.PuenteTuGarantia, que es de donde lo toma la página. */
   ctx.MotorReglas = require(path.join(RAIZ, 'app', 'motor.js'));
   ctx.PuenteTuGarantia = require(path.join(RAIZ, 'app', 'puente.js'));
+  /* 23-oct-2026 — `puente: P => otro` cambia el puente que recibe la página:
+     sirve para simular el app/puente.js viejo de la caché (el primer F5
+     después de publicar) quitándole una función. Recibe el de verdad y debe
+     devolver una COPIA: `require` lo comparte con todo el proceso, y tocarlo
+     le quitaría la función a las demás pruebas. */
+  if (typeof o.puente === 'function') ctx.PuenteTuGarantia = o.puente(ctx.PuenteTuGarantia);
   /* 15-sep-2026 — nube.js. El CRM lo carga desde hoy y guardar() lo usa para
      salvar la cartera sin fotos cuando el navegador se llena. Sin esto aca, esa
      rama se probaba MUERTA: el banco no le daba el modulo, dbSinFotos no
