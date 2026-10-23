@@ -255,6 +255,15 @@
   .nube-todo.ojo{background:rgba(var(--amarillo-rgb),.13);color:var(--amarillo);border-left-color:var(--amarillo)}
   .nube-todo.ojo b{color:var(--amarillo)}
   .nube-todo.mal{background:color-mix(in srgb,var(--rojo-laca) 22%,transparent);border-left-color:var(--rojo-laca)}
+  /* 23-oct-2026 — «🔓 SESIÓN ABIERTA HASTA …» con «Salir ahora». La misma
+     cajita de la barra que la de la nube, en calma; vacía no se ve. */
+  .sesion-cinta{margin-top:6px;width:100%;box-sizing:border-box;font-size:11px;border-radius:10px;padding:9px 10px;line-height:1.4;position:relative;z-index:2;
+    background:rgba(var(--papel-rgb),.08);color:rgba(var(--blanco-laca-rgb),.74);border-left:3px solid rgba(var(--blanco-laca-rgb),.35)}
+  .sesion-cinta:empty{display:none}
+  .sesion-cinta b{display:block;font-size:11.5px;margin-bottom:2px;color:var(--blanco-laca)}
+  .sesion-cinta .sesion-salir{display:block;width:100%;margin-top:8px;min-height:38px;border-radius:9px;cursor:pointer;
+    background:none;border:1px solid rgba(var(--blanco-laca-rgb),.35);color:var(--blanco-laca);font:inherit;font-size:12px;font-weight:700}
+  .sesion-cinta .sesion-salir:hover{background:rgba(var(--papel-rgb),.08)}
   .nube-todo-barra{cursor:pointer}.nube-todo-barra.mal{border-left:4px solid var(--rojo)}
   .nube-todo-barra .l2{margin-top:2px}
   .nube-avanzado{margin-top:14px;border:1px solid var(--linea);border-radius:12px;padding:10px 14px}
@@ -536,7 +545,10 @@
            borde. Joan: «que cambie el diseño ya que se ve muy feo». -->
       <button type="button" class="ojo" title="Ver lo que escribiste" aria-label="Ver el PIN" onclick="alternarOjo('pinInput',this)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path class="ojo-abierto" d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle class="ojo-abierto" cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path class="ojo-raya" d="M4 4l16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0"/></svg></button></div>
     <button id="pinBtn">Entrar</button><div class="gate-err" id="pinErr"></div>
-    <button class="gate-link" onclick="pintarPuertaEquipo()">Soy del equipo (gerente o asesor)</button></div>
+    <!-- 23-oct-2026 — soyDelEquipo y no pintarPuertaEquipo: si en este
+         navegador hay una sesión del equipo guardada (un gerente que entró en
+         el computador de Joan), la retoma sin pedir la contraseña. -->
+    <button class="gate-link" onclick="soyDelEquipo()">Soy del equipo (gerente o asesor)</button></div>
 </div>
 
 <div class="app" id="app" style="display:none">
@@ -580,6 +592,10 @@
          rojo y con qué hacer; el clic hace lo que la línea dice. -->
     <div class="nube-todo" id="nubeTodoCinta" role="button" tabindex="0" aria-live="polite"
          onclick="if(event.target.tagName!=='A')accionNubeTodo()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();accionNubeTodo();}"></div>
+    <!-- 23-oct-2026 — «🔓 Sesión abierta hasta mañana, 10:30 a. m.» y «Salir
+         ahora» (pintarSesionCinta). Joan pidió que el CRM no le pida el PIN en
+         cada recarga y que se cierre a las 24 h: esta línea le dice cuándo. -->
+    <div class="sesion-cinta" id="sesionCinta"></div>
   </aside>
 
   <main class="main">
@@ -11276,18 +11292,33 @@ function authEquipo(ruta, cuerpo, token) {
     headers: Object.assign({ 'Content-Type': 'application/json', apikey: NUBE_EQUIPO.anon },
       token ? { Authorization: 'Bearer ' + token } : {}),
     body: JSON.stringify(cuerpo)
-  }).then(r => r.json().then(j => ({ ok: r.ok, j })));
+  /* 23-oct-2026 — el código HTTP viaja con la respuesta, como en rpcEquipo:
+     sin él, un 503 de Supabase al renovar se leía igual que «esa sesión ya no
+     existe» y borraba la sesión guardada (ver tokenDeEquipo). */
+  }).then(r => r.json().then(j => ({ ok: r.ok, status: r.status, j })));
 }
 /* Se guarda el INSTANTE en que vence, no los segundos que faltaban: un
    `expires_in` guardado tal cual envejece y a la hora siguiente miente. Es la
    misma frase que hay en panel/nube.js, y la misma razón. */
 function guardarSesionEquipo(j) {
   if (!j || !j.access_token) return null;
+  const antes = SESION_EQUIPO || {};
   SESION_EQUIPO = {
     access_token: j.access_token,
-    refresh_token: j.refresh_token || (SESION_EQUIPO && SESION_EQUIPO.refresh_token) || '',
-    expira_en: Date.now() + ((Number(j.expires_in) || 3600) * 1000)
+    refresh_token: j.refresh_token || antes.refresh_token || '',
+    expira_en: Date.now() + ((Number(j.expires_in) || 3600) * 1000),
+    /* 23-oct-2026 — RENOVAR NO MUEVE LAS 24 H (ver «LA SESIÓN DURA 24 HORAS»,
+       abajo): quién entró y cuándo siguen siendo los de la contraseña. */
+    id: antes.id, tel: antes.tel, desde: antes.desde, hasta: antes.hasta
   };
+  /* 23-oct-2026 — y si esta sesión ya está guardada (la MISMA, por su id), se
+     guarda con el par nuevo: Supabase rota el refresh_token, así que el viejo
+     ya no sirve, y un F5 que lo leyera quedaría afuera. Si lo guardado es de
+     otra entrada (otra pestaña entró de nuevo), no se pisa. */
+  if (SESION_EQUIPO.id) {
+    const g = leerSesionGuardada('equipo');
+    if (g && g.id === SESION_EQUIPO.id) escribirSesionGuardada('equipo', datosSesionEquipo(SESION_EQUIPO));
+  }
   return SESION_EQUIPO;
 }
 
@@ -11295,18 +11326,732 @@ function guardarSesionEquipo(j) {
    repetir la llamada, y una gestión repetida se anota dos veces: el gerente
    vería dos llamadas donde hubo una. El minuto de margen es para que no venza
    entre que se pide el token y llega la petición. */
-function tokenDeEquipo() {
+function tokenDeEquipo(reintento) {
   const s = SESION_EQUIPO;
   if (!s || !s.access_token) return Promise.reject({ sesion: true });
+  /* 23-oct-2026 — pasadas las 24 h desde que entró no hay token que valga,
+     aunque Supabase lo renovara: la puerta sale encima (pedirEntrarOtraVez) y
+     lo que estaba en pantalla se queda debajo. */
+  if (s.hasta && Date.now() >= s.hasta) { if (CARTERA_EQUIPO) pedirEntrarOtraVez('vencida'); return Promise.reject({ sesion: true }); }
   if (Date.now() < (s.expira_en || 0) - 60000) return Promise.resolve(s.access_token);
+  /* 23-oct-2026 — ANTES DE RENOVAR, MIRAR SI OTRA PESTAÑA YA RENOVÓ. Supabase
+     rota el refresh_token: cada uno sirve UNA vez. Con la sesión guardada,
+     dos pestañas del CRM (o ésta y la de antes de un F5) tienen el mismo par;
+     la primera que renueva deja el nuevo escrito, y la segunda tiene que
+     tomar ése en vez de gastar otra vez el viejo, que la nube rechaza y que
+     puede cerrarle la sesión a las dos.
+     23-oct-2026 (segunda vuelta) — Y SE TOMA AUNQUE SU ACCESS_TOKEN YA HAYA
+     VENCIDO. Antes solo se tomaba si seguía vigente; si no, esta pestaña
+     renovaba con SU refresh_token, que la otra ya había rotado. Si la otra
+     lo rotó dos veces mientras ésta estaba quieta en el tablero, ese token
+     ya no es ni el padre del activo: Supabase lo toma por robado, revoca la
+     sesión entera, y las dos pestañas y el F5 quedaban pidiendo la
+     contraseña antes de las 24 h. El guardado es siempre el último (cada
+     renovación lo escribe): se toma y, si hace falta, se renueva con ése. */
+  const g = s.id ? leerSesionGuardada('equipo') : null;
+  if (g && g.id === s.id && g.refresh_token && g.refresh_token !== s.refresh_token) {
+    s.access_token = g.access_token; s.refresh_token = g.refresh_token; s.expira_en = g.expira_en;
+    if (Date.now() < (s.expira_en || 0) - 60000) return Promise.resolve(s.access_token);
+  }
   if (!s.refresh_token) { SESION_EQUIPO = null; return Promise.reject({ sesion: true }); }
-  return authEquipo('/token?grant_type=refresh_token', { refresh_token: s.refresh_token })
+  const usado = s.refresh_token;
+  return authEquipo('/token?grant_type=refresh_token', { refresh_token: usado })
     .then(res => {
+      /* 23-oct-2026 (segunda vuelta) — SOLTADA MIENTRAS LA NUBE CONTESTABA:
+         «← Soy Joan», la puerta o «Salir ahora» la dejaron en null. No se
+         revive: guardarSesionEquipo armaría una sesión sin dueño ni 24 h, y
+         «Salir ahora» de Joan la tomaría por una del equipo. Si en la puerta
+         ya entró OTRA persona, tampoco: sus tokens se mezclarían con los de
+         ésta. */
+      if (!SESION_EQUIPO || (s.id && SESION_EQUIPO.id !== s.id)) { const e = new Error('la sesión se soltó mientras se renovaba'); e.soltada = true; throw e; }
+      /* 23-oct-2026 (segunda vuelta) — UN 5xx O UN 429 NO ES UNA SESIÓN
+         REVOCADA: es la nube que no contestó. Antes los dos borraban la
+         sesión guardada, y al volver la nube el F5 pedía la contraseña antes
+         de las 24 h. Se trata como la falta de señal de abajo. */
+      if (!res.ok && (res.status >= 500 || res.status === 429 || res.status === 408)) {
+        const e = new Error('no pude renovar tu sesión: la nube no contestó (' + res.status + ')');
+        e.red = true;
+        throw e;
+      }
       /* Si el refresh no sirve, la sesión local ya no vale para nada: dejarla
-         puesta solo consigue que cada acción falle con un error distinto. */
-      if (!res.ok || !guardarSesionEquipo(res.j)) { SESION_EQUIPO = null; throw { sesion: true }; }
+         puesta solo consigue que cada acción falle con un error distinto.
+         23-oct-2026 — y la guardada tampoco: un F5 la volvería a probar. */
+      if (!res.ok || !guardarSesionEquipo(res.j)) {
+        const h = s.id ? leerSesionGuardada('equipo') : null;
+        /* 23-oct-2026 (segunda vuelta) — antes de borrarla, mirar otra vez:
+           si mientras ésta pedía, otra pestaña renovó, lo guardado ya trae
+           otro refresh_token, que sí sirve. Se toma ése (una vez) en vez de
+           borrar una sesión viva. */
+        if (!reintento && h && h.id === s.id && h.refresh_token && h.refresh_token !== usado) {
+          s.access_token = h.access_token; s.refresh_token = h.refresh_token; s.expira_en = h.expira_en;
+          return tokenDeEquipo(true);
+        }
+        if (h && h.id === s.id) borrarSesionGuardada('equipo');
+        SESION_EQUIPO = null;
+        /* 23-oct-2026 (segunda vuelta) — Y LA PUERTA SALE AHORA, con la razón
+           verdadera. Antes se borraba en silencio: la línea de la barra seguía
+           diciendo «Al recargar no te pido tu contraseña» (ya falso), y el
+           siguiente toque ponía la puerta culpando a «otra pestaña o Salir
+           ahora», que no pasó. Lo que la pantalla que falló quería decir
+           («Lo que marcaste no se guardó.») llega después por
+           avisarFinDeSesion y se suma a la puerta. */
+        if (CARTERA_EQUIPO) pedirEntrarOtraVez('nube');
+        throw { sesion: true };
+      }
       return SESION_EQUIPO.access_token;
-    }, () => { SESION_EQUIPO = null; throw { sesion: true }; });
+    }, () => {
+      /* 23-oct-2026 — SIN SEÑAL NO ES FIN DE SESIÓN. Antes un fetch que no
+         salía ponía SESION_EQUIPO = null: una señal floja al renovar dejaba al
+         gerente afuera, y con la sesión guardada lo obligaría a escribir la
+         contraseña al volver la señal. La sesión se queda; el error dice que
+         fue la señal (cada pantalla lo pinta con su «Revisa la señal»). */
+      const e = new Error('no pude renovar tu sesión: sin señal');
+      e.red = true;
+      throw e;
+    });
+}
+
+/* ==========================================================================
+ * LA SESIÓN DURA 24 HORAS, NO UNA RECARGA — 23 de octubre de 2026
+ *
+ * Joan: «quiero que si yo actualizo mi CRM no me lleve a nuevamente ingresar
+ * mi usuario y contraseña, quiero que quede guardado, y que se cierre cada 24
+ * horas, no cada vez que actualice».
+ *
+ * POR QUÉ PEDÍA TODO EN CADA RECARGA. Las dos entradas vivían solo en memoria:
+ *   · Joan: entrar() comparaba el PIN y escondía #gate con style.display. No
+ *     quedaba nada escrito, así que un F5 —y este CRM le pide F5 a Joan en una
+ *     docena de avisos— volvía a pintar la puerta.
+ *   · el equipo: SESION_EQUIPO era un `let`. Al recargar volvía a null y la
+ *     puerta pedía celular y contraseña, con el token todavía sirviendo.
+ * (panel/espejo.html, el del celular, ya guardaba su sesión con nube.js y no
+ * pide nada al recargar: no se toca.)
+ *
+ * LO QUE SE GUARDA ES LA SESIÓN, NUNCA LA CLAVE:
+ *   · Joan: {tipo:'dueno', id, desde, hasta}. Ni el PIN ni nada sacado de él:
+ *     un PIN de cuatro cifras con hash se adivina en un segundo, así que
+ *     guardar su hash sería guardarlo.
+ *   · el equipo: {tipo:'equipo', id, tel, desde, hasta} y los tokens que
+ *     devolvió Supabase (lo mismo que nube.js guarda en el celular de Joan).
+ *     La contraseña solo viaja para pedirlos, y el campo se vacía al entrar.
+ * Va en localStorage y no en sessionStorage (que es lo que usa play/): Joan
+ * pidió que «quede guardado» y se cierre a las 24 h, y sessionStorage se
+ * muere al cerrar la pestaña o la app instalada, que es otra forma de pedir
+ * la clave a cada rato. El tope de 24 h es lo que impide la «cuenta abierta
+ * para siempre» que play/ evita.
+ *
+ * LAS 24 H CUENTAN DESDE QUE ENTRÓ, no desde el último toque: Joan dijo «que
+ * se cierre cada 24 horas». `hasta` se fija con la clave y ni renovar el token
+ * ni recargar lo mueven. Vencida:
+ *   · al abrir o recargar, se borra y se pide entrar;
+ *   · con el CRM abierto, la puerta sale ENCIMA al siguiente toque (o con el
+ *     reloj de 30 s) sin repintar nada: lo escrito sigue debajo, y al volver a
+ *     entrar la misma persona solo se quita la puerta.
+ *
+ * UNA SESIÓN NO SIRVE PARA OTRA. La de Joan solo abre el CRM de Joan y la del
+ * equipo solo el modo equipo; entrar con una borra la otra (un gerente que
+ * entra en el computador de Joan no deja la cartera abierta detrás). Si en la
+ * puerta del candado entra OTRO celular, la página se recarga entera: lo que
+ * hay en pantalla es del anterior.
+ *
+ * «SALIR AHORA» lo borra todo en el acto: lo guardado y esta pestaña. Las
+ * otras pestañas ponen la puerta en su siguiente toque (que no pasa) o con
+ * el reloj de 30 s.
+ *
+ * LO QUE ESTO NO ES. La puerta del PIN es una cortina y lo era antes: el PIN
+ * vive en la misma cartera de este navegador (DB.config.pin), así que quien
+ * puede escribir la marca a mano ya podía leer el PIN. La seguridad de verdad
+ * del equipo sigue en el servidor: mi_cartera decide con el token, y a quien
+ * Joan le quite el puesto la nube ya no le entrega nada nuevo, con sesión
+ * guardada o sin ella; al recargar, retomarSesionEquipo la cierra.
+ *
+ * SEGUNDA VUELTA (23-oct-2026, la auditoría de la primera). Cinco huecos,
+ * cada uno con su prueba en pruebas/la-sesion-de-24-horas-sin-huecos.test.js:
+ *   · LA PUERTA CIERRA, NO SOLO TAPA. Encima del CRM abierto, lo de debajo
+ *     (#app, el modal y lo que cuelgue del body) queda `inert` y aria-hidden:
+ *     con Tab y Enter se llegaba a Ajustes —el PIN se ve en claro— y al
+ *     respaldo de la cartera, mientras la puerta decía «Cerraste la sesión».
+ *     Donde no hay `inert`, la tecla o el foco que salen de debajo se frenan
+ *     y vuelven a la puerta (frenarDebajoDeLaPuerta).
+ *   · EN EL COMPUTADOR DE JOAN, SIN #equipo, LA PUERTA ES LA DEL PIN aunque
+ *     haya una sesión del equipo guardada (un gerente que entró ahí): antes
+ *     la recarga entraba sola como el gerente y, sin señal, Joan no llegaba a
+ *     su PIN hasta que vencieran las 24 h del otro. «Soy del equipo» la
+ *     retoma sin contraseña; «← Soy Joan» ya no recarga: vuelve al PIN.
+ *   · SI LA NUBE YA NO RECONOCE LA SESIÓN, la puerta sale en el acto con esa
+ *     razón (antes: la línea de la barra seguía prometiendo, y la puerta
+ *     culpaba a «otra pestaña»); un 5xx o un 429 ya no es fin de sesión.
+ *   · AL CERRARSE —«Salir ahora», las 24 h con el CRM abierto o al reabrir—,
+ *     la sesión del equipo se cierra también en Supabase (cerrarEnLaNube),
+ *     renovando antes si el token ya venció: el logout con un token vencido
+ *     contesta 401 y la sesión seguía viva en el servidor.
+ *   · DOS PESTAÑAS: la quieta toma siempre el último refresh_token guardado
+ *     (ver tokenDeEquipo), y el reloj de 30 s lo trae aunque nadie toque.
+ * LO QUE SIGUE SIN CERRAR (no se arregla desde esta página): un aparato donde
+ * el CRM NO se vuelve a abrir guarda el refresh_token del equipo, y Supabase
+ * no lo hace vencer solo. Cerrarlo es del servidor: que las funciones del
+ * equipo (celular_del_equipo_de_sesion) rechacen una sesión de más de 24 h.
+ * Es un SQL nuevo y no cabe en el lote del 27-oct (20261022d tiene que ser
+ * el último: pruebas/el-lote-del-27-junto.test.js); va en el siguiente.
+ * ======================================================================== */
+var SESION_DURA_MS = 24 * 60 * 60 * 1000;
+var LLAVE_SESION_DUENO = 'tg_crm_sesion_dueno';
+var LLAVE_SESION_EQUIPO = 'tg_crm_sesion_equipo';
+/* La sesión de ESTA pestaña: {tipo, id, desde, hasta, tel?, guardada}.
+   `guardada` dice si el navegador dejó escribirla; si no, vive solo aquí, las
+   24 h se cuentan igual y la línea de la barra lo dice. */
+var _sesion = null;
+var _crmAbierto = false;        // el CRM de Joan ya arrancó en esta pestaña
+var _candado = false;           // la puerta está encima de un CRM abierto
+var _retomandoDueno = false;    // entrar() sin PIN: la sesión guardada lo abre
+var _relojSesion = null, _oyendoSesion = false;
+var _telCandado = '';           // de quién era el modo equipo que la puerta tapa
+/* 23-oct-2026 (segunda vuelta) — lo que la puerta del candado recuerda: por
+   qué salió y qué dice (para repetirlo si se va a la del equipo y vuelve), y
+   qué tapó (para destaparlo tal como estaba). */
+var _motivoCandado = '', _tipoCandado = '', _textoCandado = '';
+var _tapados = [];
+var _puertaN = 0;               // sube cuando «← Soy Joan» suelta lo que estaba en curso
+var _cerradasEnLaNube = {};     // refresh_token → promesa: cada sesión se cierra UNA vez
+/* LA TARJETA DEL PIN, tal como llega en el HTML. pintarPuertaEquipo la
+   reemplaza entera (el campo del PIN deja de existir), y «← Soy Joan» la
+   devolvía recargando la página, que retomaba la sesión del equipo y volvía
+   a reemplazarla. Se guarda aquí, antes de que nada la toque, para volver a
+   ella sin recargar (volverAPuertaDeJoan). */
+var _tarjetaPin = (function () {
+  try { const c = document.querySelector('#gate .gate-card'); return c ? c.innerHTML : null; } catch (e) { return null; }
+})();
+
+function llaveSesion(tipo) { return tipo === 'equipo' ? LLAVE_SESION_EQUIPO : LLAVE_SESION_DUENO; }
+function nuevoIdSesion() {
+  try {
+    if (window.crypto && typeof crypto.getRandomValues === 'function') {
+      const a = new Uint32Array(2); crypto.getRandomValues(a);
+      return a[0].toString(36) + a[1].toString(36);
+    }
+  } catch (e) {}
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+/* PURA. ¿Esta sesión guardada abre `tipo` a esta hora? */
+function sesionVigente(m, tipo, ahoraMs) {
+  if (!m || typeof m !== 'object' || m.v !== 1 || m.tipo !== tipo || !m.id) return false;
+  const desde = Number(m.desde), hasta = Number(m.hasta);
+  if (!isFinite(desde) || !isFinite(hasta) || hasta <= desde) return false;
+  /* Nunca más de 24 h de punta a punta, y un `desde` en el futuro (el reloj
+     del aparato atrasado y vuelto a poner) no compra horas: se pide otra vez. */
+  if (hasta - desde > SESION_DURA_MS || ahoraMs < desde - 5 * 60000) return false;
+  if (ahoraMs >= hasta) return false;
+  if (tipo === 'equipo' && !(m.access_token && m.refresh_token && /^3\d{9}$/.test(String(m.tel || '')))) return false;
+  return true;
+}
+/* Lee la sesión guardada de `tipo`; si está vencida o dañada, la borra.
+   Un navegador que no deja leer devuelve null y no borra nada. */
+function leerSesionGuardada(tipo) {
+  let crudo = null;
+  try { crudo = localStorage.getItem(llaveSesion(tipo)); } catch (e) { return null; }
+  if (!crudo) return null;
+  let m = null;
+  try { m = JSON.parse(crudo); } catch (e) { m = null; }
+  if (!sesionVigente(m, tipo, Date.now())) {
+    /* 23-oct-2026 (segunda vuelta) — la del equipo que VENCIÓ se cierra
+       TAMBIÉN en Supabase. Antes solo se borraba la copia de este navegador,
+       y la sesión seguía viva en el servidor: quien la hubiera copiado podía
+       seguir sacando tokens con su refresh_token. Solo la vencida: una que no
+       se entiende (otra versión de esta página, por ejemplo) se suelta aquí
+       sin cerrársela a nadie. */
+    if (tipo === 'equipo' && m && typeof m === 'object' && m.v === 1 && m.tipo === 'equipo' &&
+        isFinite(Number(m.hasta)) && Date.now() >= Number(m.hasta)) {
+      try { cerrarEnLaNube(m); } catch (e) {}
+    }
+    borrarSesionGuardada(tipo); return null;
+  }
+  return m;
+}
+function borrarSesionGuardada(tipo) {
+  try { localStorage.removeItem(llaveSesion(tipo)); } catch (e) {}
+}
+/* true solo si quedó escrita y se puede leer igual: un navegador lleno o en
+   privado no puede hacer que la línea prometa que sobrevive a un F5. */
+function escribirSesionGuardada(tipo, m) {
+  const t = JSON.stringify(m);
+  try { localStorage.setItem(llaveSesion(tipo), t); return localStorage.getItem(llaveSesion(tipo)) === t; }
+  catch (e) { return false; }
+}
+function datosSesionEquipo(s) {
+  return { v: 1, tipo: 'equipo', id: s.id, tel: s.tel, desde: s.desde, hasta: s.hasta,
+           access_token: s.access_token, refresh_token: s.refresh_token, expira_en: s.expira_en };
+}
+
+/* Joan entró con el PIN: sesión nueva de 24 h, y la del equipo se cierra. */
+function abrirSesionDueno() {
+  const ya = Date.now();
+  const m = { v: 1, tipo: 'dueno', id: nuevoIdSesion(), desde: ya, hasta: ya + SESION_DURA_MS };
+  /* 23-oct-2026 (segunda vuelta) — la del equipo que había en este navegador
+     (un gerente que entró en el computador de Joan) se cierra también en
+     Supabase, no solo aquí: borrarla sin más la dejaba viva en el servidor. */
+  const eq = leerSesionGuardada('equipo');
+  if (eq) { try { cerrarEnLaNube(eq); } catch (e) {} }
+  borrarSesionGuardada('equipo');
+  _sesion = Object.assign({}, m, { guardada: escribirSesionGuardada('dueno', m) });
+  return _sesion;
+}
+/* El equipo escribió su contraseña y Supabase dio el par: en MEMORIA todavía.
+   Se guarda cuando mi_cartera diga que entra (confirmarSesionEquipo): una
+   cuenta sin puesto no puede dejar una sesión que el F5 vuelva a probar. */
+function empezarSesionEquipo(j, tel) {
+  const ya = Date.now();
+  SESION_EQUIPO = null;
+  if (!guardarSesionEquipo(j)) return null;
+  Object.assign(SESION_EQUIPO, { id: nuevoIdSesion(), tel: tel, desde: ya, hasta: ya + SESION_DURA_MS });
+  return SESION_EQUIPO;
+}
+function confirmarSesionEquipo() {
+  const s = SESION_EQUIPO;
+  if (!s || !s.id) return false;
+  borrarSesionGuardada('dueno');
+  const guardada = escribirSesionGuardada('equipo', datosSesionEquipo(s));
+  _sesion = { v: 1, tipo: 'equipo', id: s.id, tel: s.tel, desde: s.desde, hasta: s.hasta, guardada: guardada };
+  return guardada;
+}
+function cerrarSesionEquipoLocal() {
+  SESION_EQUIPO = null;
+  borrarSesionGuardada('equipo');
+  if (_sesion && _sesion.tipo === 'equipo') _sesion = null;
+}
+
+/* AL ABRIR O RECARGAR. Corre DESPUÉS de nube-crm.js e historiales-auto.js
+   (ver su <script> al final): entrar() configura esas dos piezas, y antes de
+   que lleguen no existen. Con #equipo en la dirección solo vale la del
+   equipo; sin él, la de Joan primero (las dos a la vez no deberían existir:
+   entrar con una borra la otra). */
+function retomarSesionAlAbrir() {
+  /* «#equipo» o «#equipo&…», lo mismo que mira la línea que abre la puerta
+     del equipo al final del bloque grande (y no `#clave-nube=`). */
+  const porEquipo = String(location.hash || '').split('&')[0] === '#equipo';
+  const eq = leerSesionGuardada('equipo');
+  const du = leerSesionGuardada('dueno');
+  if (!porEquipo && du) {
+    _sesion = Object.assign({}, du, { guardada: true });
+    _retomandoDueno = true;
+    try { entrar(); } finally { _retomandoDueno = false; }
+    return 'dueno';
+  }
+  /* 23-oct-2026 (segunda vuelta) — SIN #equipo, EN EL COMPUTADOR DE JOAN, LA
+     PUERTA ES LA DEL PIN. Un gerente que entra en el navegador de Joan borra
+     la marca de Joan y deja la suya; antes, la recarga siguiente la retomaba
+     sola: con señal, Joan abría su CRM y caía en el modo gerente de Willian;
+     sin señal, la puerta era la del equipo («No pude conectarme…»), sin campo
+     del PIN, y «← Soy Joan» recargaba a lo mismo durante hasta 24 h. Este es
+     el CRM que tiene que andar sin nube. Dónde está la cartera de Joan lo
+     dice la cartera (hayCarteraDeJoan); en el celular de un gerente no hay, y
+     ahí la sesión se retoma sola como antes. Aquí se queda guardada: «Soy del
+     equipo» la retoma sin contraseña (soyDelEquipo), y si Joan entra con su
+     PIN, abrirSesionDueno la cierra. */
+  if (eq && !porEquipo && hayCarteraDeJoan()) return null;
+  if (eq) { retomarSesionEquipo(eq); return 'equipo'; }
+  return null;
+}
+/* ¿Este navegador tiene la cartera de Joan? Con gente o créditos: el celular
+   de un gerente no la tiene (el modo equipo vacía DB y no la guarda), y un CRM
+   recién estrenado tampoco tiene nada que proteger detrás del PIN. Se mira DB,
+   que a esta hora es lo que cargar() leyó de este navegador. */
+function hayCarteraDeJoan() {
+  try {
+    if (CARTERA_EQUIPO || typeof DB === 'undefined' || !DB) return false;
+    return (DB.socios || []).length > 0 || (DB.prestamos || []).length > 0;
+  } catch (e) { return false; }
+}
+/* «Soy del equipo» en la puerta del PIN. Si hay una sesión del equipo
+   guardada en este navegador, se retoma (no se pide la contraseña que Joan
+   prometió no volver a pedir en 24 h); si no, la puerta de celular y
+   contraseña. Con la puerta encima del CRM de Joan no se retoma nada: entrar
+   como equipo ahí recarga la página entera (entrarEquipo), y eso lo decide
+   la contraseña, no una sesión que estaba guardada. */
+function soyDelEquipo() {
+  if (!_crmAbierto && !_candado && !CARTERA_EQUIPO) {
+    const g = leerSesionGuardada('equipo');
+    if (g) return retomarSesionEquipo(g);
+  }
+  pintarPuertaEquipo();
+}
+/* «← SOY JOAN» — 23-oct-2026 (segunda vuelta). Era location.reload(), y la
+   recarga volvía a retomar la sesión del equipo guardada: el botón prometía
+   algo que no hacía. Ahora vuelve a la tarjeta del PIN tal como llegó, sin
+   recargar y SIN borrar lo guardado (si Joan entra con su PIN,
+   abrirSesionDueno cierra la del equipo; si era el gerente que se equivocó
+   de botón, «Soy del equipo» la retoma). Lo que se estaba retomando se
+   suelta: una respuesta tardía de la nube ya no mete el modo equipo encima.
+   Con el candado encima del CRM de Joan, la puerta vuelve a decir por qué
+   está ahí, y lo de debajo sigue intacto. Solo recarga cuando debajo está el
+   modo equipo (lo que hay en pantalla no es de Joan) o si la tarjeta no se
+   pudo guardar al arrancar. */
+function volverAPuertaDeJoan() {
+  const c = document.querySelector('#gate .gate-card');
+  if (CARTERA_EQUIPO || !c || _tarjetaPin == null) { try { location.reload(); } catch (e) {} return; }
+  _puertaN++;
+  SESION_EQUIPO = null;
+  if (_sesion && _sesion.tipo === 'equipo') _sesion = null;
+  c.innerHTML = _tarjetaPin;
+  conectarPuertaDeJoan();
+  if (_candado && _tipoCandado === 'dueno') {
+    const err = document.getElementById('pinErr');
+    if (err) { err.className = 'gate-err aviso'; err.textContent = _textoCandado; }
+  }
+  const pin = document.getElementById('pinInput'); if (pin) { try { pin.focus(); } catch (e) {} }
+}
+/* El botón «Entrar» y el Enter del PIN. Al arrancar y cada vez que
+   volverAPuertaDeJoan repone la tarjeta: innerHTML trae los elementos nuevos,
+   pero no los oyentes que tenían los de antes. */
+function conectarPuertaDeJoan() {
+  const b = document.getElementById('pinBtn'), p = document.getElementById('pinInput');
+  if (b) b.addEventListener('click', entrar);
+  if (p) p.addEventListener('keydown', e => { if (e.key === 'Enter') entrar(); });
+}
+function celularBonito(t) { const s = String(t || ''); return s.length === 10 ? s.slice(0, 3) + ' ' + s.slice(3, 6) + ' ' + s.slice(6) : s; }
+function decirEnPuertaEquipo(html, tono) {
+  const err = document.getElementById('eqErr');
+  if (!err) return;
+  err.className = 'gate-err' + (tono ? ' ' + tono : '');
+  err.innerHTML = html;
+}
+function retomarSesionEquipo(g) {
+  SESION_EQUIPO = { access_token: g.access_token, refresh_token: g.refresh_token, expira_en: g.expira_en,
+                    id: g.id, tel: g.tel, desde: g.desde, hasta: g.hasta };
+  _sesion = { v: 1, tipo: 'equipo', id: g.id, tel: g.tel, desde: g.desde, hasta: g.hasta, guardada: true };
+  pintarPuertaEquipo();
+  const tel = document.getElementById('eqTelIn'); if (tel) tel.value = g.tel;
+  decirEnPuertaEquipo('Entrando como <b>' + escHTML(celularBonito(g.tel)) + '</b>…', 'aviso');
+  const reintentar = ' <button type="button" class="gate-link" onclick="reintentarSesionEquipo()">Reintentar</button>';
+  /* 23-oct-2026 (segunda vuelta) — si mientras la nube contesta alguien toca
+     «← Soy Joan», esta retomada ya no manda: ni abre el modo equipo encima de
+     la puerta del PIN ni escribe en una tarjeta que ya no está. */
+  const n = _puertaN;
+  const sigue = () => n === _puertaN;
+  /* 23-oct-2026 (segunda vuelta) — `alla`: la sesión sigue viva en Supabase
+     (sin puesto, la nube la reconoce pero no abre nada) y se cierra también
+     allá; borrarla solo aquí la dejaba sirviendo en el servidor. */
+  const seCerro = (que, alla) => {
+    if (alla && SESION_EQUIPO) { try { cerrarEnLaNube(SESION_EQUIPO); } catch (e) {} }
+    cerrarSesionEquipoLocal();
+    decirEnPuertaEquipo('<b>Tu sesión se cerró' + que + '.</b> Vuelve a entrar con tu celular y tu contraseña.', 'aviso');
+  };
+  return rpcEquipo('mi_cartera', {}).then(res => {
+    if (!sigue()) return false;
+    const j = res.j || {};
+    if (res.ok && j.ok === true) { CARTERA_EQUIPO = j; modoEquipo(); return true; }
+    if (esFinDeSesion(null, res)) return seCerro(' antes de las 24 horas: la nube ya no la reconoce');
+    /* Sin puesto (o sin la clave de Joan): la sesión sirve, pero no abre nada.
+       Al escribir la contraseña, entrarEquipo dice exactamente qué falta. */
+    if (res.ok) return seCerro(': ya no tienes acceso con ella', true);
+    decirEnPuertaEquipo('<b>Tu sesión sigue abierta</b>, pero la nube no me contestó. Vuelve a intentar en un minuto.' + reintentar, 'aviso');
+  }).catch(e => {
+    if (!sigue()) return false;
+    if (e && e.sesion) return seCerro(' antes de las 24 horas: la nube ya no la reconoce');
+    decirEnPuertaEquipo('<b>No pude conectarme</b> para retomar tu sesión. Tu sesión sigue guardada: revisa la señal y toca Reintentar.' + reintentar, 'aviso');
+  });
+}
+function reintentarSesionEquipo() {
+  const g = leerSesionGuardada('equipo');
+  if (g) return retomarSesionEquipo(g);
+  pintarPuertaEquipo();
+}
+
+/* ¿Sigue la sesión de esta pestaña? Mira la hora y, si estaba guardada, que
+   siga guardada: «Salir ahora» en otra pestaña la borra y ésta se entera. Si
+   otra pestaña entró de nuevo con la MISMA cuenta, se toma esa (y sus 24 h). */
+function sesionSigue() {
+  const s = _sesion;
+  if (!s) return false;
+  const ya = Date.now();
+  if (ya >= s.hasta) return false;
+  if (!s.guardada) return true;
+  let crudo = null;
+  try { crudo = localStorage.getItem(llaveSesion(s.tipo)); } catch (e) { return true; }   // no se pudo mirar: manda la hora
+  let g = null;
+  try { g = JSON.parse(crudo || 'null'); } catch (e) { g = null; }
+  if (!sesionVigente(g, s.tipo, ya)) return false;
+  if (s.tipo === 'equipo' && g.tel !== s.tel) return false;
+  if (g.id !== s.id) {
+    _sesion = Object.assign({}, g, { guardada: true });
+    if (s.tipo === 'equipo' && SESION_EQUIPO) Object.assign(SESION_EQUIPO, { id: g.id, desde: g.desde, hasta: g.hasta,
+      access_token: g.access_token, refresh_token: g.refresh_token, expira_en: g.expira_en });
+  } else if (s.tipo === 'equipo' && SESION_EQUIPO && SESION_EQUIPO.id === g.id &&
+             g.refresh_token && g.refresh_token !== SESION_EQUIPO.refresh_token) {
+    /* 23-oct-2026 (segunda vuelta) — la MISMA sesión, renovada por otra
+       pestaña: se trae su par también aquí, con el reloj de 30 s, aunque
+       nadie toque. Una pestaña quieta en el tablero no pide nada a la nube y
+       se quedaba con el refresh_token de cuando abrió, que la otra ya rotó. */
+    Object.assign(SESION_EQUIPO, { access_token: g.access_token, refresh_token: g.refresh_token, expira_en: g.expira_en });
+  }
+  return true;
+}
+/* LA PUERTA, ENCIMA DEL CRM ABIERTO. No se esconde #app ni se repinta nada:
+   #gate tapa todo (z-index 100, sobre el modal) y lo que había debajo sigue
+   igual. Devuelve true si la puerta quedó puesta. */
+function pedirEntrarOtraVez(motivo, que) {
+  if (_candado) {
+    /* 23-oct-2026 (segunda vuelta) — la puerta ya está: tokenDeEquipo la pone
+       en cuanto la nube rechaza la sesión, y DESPUÉS llega el aviso de la
+       pantalla que falló («Lo que marcaste no se guardó.»). Se suma a lo que
+       la puerta ya dice: es lo único que le cuenta qué se perdió. */
+    if (motivo === 'nube' && que && _motivoCandado === 'nube') decirEnLaPuerta(textoDeLaPuerta('nube', que, _tipoCandado));
+    return true;
+  }
+  const tipo = CARTERA_EQUIPO ? 'equipo' : (_crmAbierto ? 'dueno' : null);
+  if (!tipo) return false;
+  const tel = (_sesion && _sesion.tel) || (SESION_EQUIPO && SESION_EQUIPO.tel) || (CARTERA_EQUIPO && CARTERA_EQUIPO.yo && CARTERA_EQUIPO.yo.celular) || '';
+  /* 23-oct-2026 (segunda vuelta) — el par de la sesión del equipo, para
+     cerrarla en Supabase si lo que la cierra son las 24 h (abajo). */
+  const par = tipo === 'equipo' ? SESION_EQUIPO : null;
+  _candado = true;
+  _motivoCandado = motivo; _tipoCandado = tipo;
+  _telCandado = tipo === 'equipo' ? String(tel) : '';
+  /* La vencida o la que la nube ya no reconoce se borran; la que se cerró en
+     otra pestaña ya no está. */
+  if (motivo !== 'otra-pestana' && _sesion && _sesion.guardada) {
+    const g = leerSesionGuardada(tipo);
+    if (g && g.id === _sesion.id) borrarSesionGuardada(tipo);
+  }
+  _sesion = null;
+  const texto = textoDeLaPuerta(motivo, que, tipo);
+  _textoCandado = texto;
+  const gate = document.getElementById('gate');
+  if (tipo === 'equipo') {
+    SESION_EQUIPO = null;
+    pintarPuertaEquipo();
+    const t = document.getElementById('eqTelIn'); if (t) t.value = tel;
+    decirEnPuertaEquipo(escHTML(texto), 'aviso');
+    const c = document.getElementById('eqClaveIn'); if (c) { c.value = ''; try { c.focus(); } catch (e) {} }
+  } else {
+    const pin = document.getElementById('pinInput'); if (pin) pin.value = '';
+    const err = document.getElementById('pinErr');
+    if (err) { err.className = 'gate-err aviso'; err.textContent = texto; }
+    if (pin) { try { pin.focus(); } catch (e) {} }
+  }
+  /* 23-oct-2026 (segunda vuelta) — LAS 24 H CIERRAN TAMBIÉN EN SUPABASE. Antes
+     solo se borraba la copia de este navegador y la sesión seguía viva en el
+     servidor. (La de «otra pestaña» la cerró esa pestaña; la de «nube», la
+     nube ya no la reconoce.) */
+  if (motivo === 'vencida' && par) { try { cerrarEnLaNube(par); } catch (e) {} }
+  /* Por encima también del visor de fotos y de los avisos (z-index 9999): una
+     cédula abierta no puede quedar a la vista encima de la puerta. Por debajo
+     del «llegó a medias» (999999), que manda sobre todo. */
+  if (gate) { gate.style.zIndex = '99990'; gate.style.display = ''; }
+  taparLoDeDebajo();
+  pintarSesionCinta();
+  return true;
+}
+/* Lo que dice la puerta: por qué volvió, qué escribir, y —salvo cuando fue
+   «Salir ahora»— que lo de debajo no se perdió, que es cierto: no se tocó.
+   23-oct-2026 (segunda vuelta) — «otra pestaña» ya no dice «o con Salir
+   ahora»: la sesión que la nube rechaza EN ESTA pestaña pone la puerta con su
+   razón (tokenDeEquipo), así que ésta solo sale cuando lo guardado cambió
+   desde fuera de esta pestaña. */
+function textoDeLaPuerta(motivo, que, tipo) {
+  const loQuePide = tipo === 'equipo' ? 'tu contraseña' : 'tu PIN';
+  const frase = motivo === 'vencida' ? 'Pasaron 24 horas desde que entraste: escribe ' + loQuePide + ' otra vez.'
+    : motivo === 'otra-pestana' ? 'Tu sesión se cerró desde otra pestaña de este navegador: escribe ' + loQuePide + ' para seguir.'
+    : motivo === 'salir' ? 'Cerraste la sesión: escribe ' + loQuePide + ' para volver a entrar.'
+    : 'Tu sesión se venció por seguridad. ' + (que || '') + 'Escribe ' + loQuePide + ' otra vez.';
+  return frase + (motivo === 'salir' ? '' : ' Lo que tenías en pantalla sigue ahí.');
+}
+function decirEnLaPuerta(texto) {
+  _textoCandado = texto;
+  if (_tipoCandado === 'equipo') { decirEnPuertaEquipo(escHTML(texto), 'aviso'); return; }
+  const err = document.getElementById('pinErr');
+  if (err) { err.className = 'gate-err aviso'; err.textContent = texto; }
+}
+function quitarCandado() {
+  _candado = false;
+  _motivoCandado = ''; _tipoCandado = ''; _textoCandado = '';
+  const gate = document.getElementById('gate'); if (gate) { gate.style.display = 'none'; gate.style.zIndex = ''; }
+  destaparLoDeDebajo();
+  pintarSesionCinta();
+}
+/* 23-oct-2026 (segunda vuelta) — LA PUERTA CIERRA, NO SOLO TAPA. Era opaca,
+   pero el CRM de debajo seguía en el orden del teclado: desde el PIN, con Tab
+   se llegaba a los botones de #app y con Enter a Ajustes (el PIN se ve ahí en
+   claro) y a «Respaldo (JSON)», que baja la cartera entera, mientras la
+   puerta decía «Cerraste la sesión». `inert` saca a #app, al modal y a todo
+   lo que cuelgue del body (el visor de fotos, los avisos) del foco, del
+   teclado y del lector de pantalla, sin tocar lo que tienen escrito: al
+   volver a entrar se destapa tal como estaba. */
+function taparLoDeDebajo() {
+  destaparLoDeDebajo();
+  const gate = document.getElementById('gate');
+  const nodos = [];
+  const sumar = n => { if (n && n !== gate && nodos.indexOf(n) < 0) nodos.push(n); };
+  sumar(document.getElementById('app'));
+  sumar(document.getElementById('modal'));
+  try {
+    const hijos = document.body && document.body.children;
+    if (hijos) for (let i = 0; i < hijos.length; i++) {
+      const t = String(hijos[i].tagName || '').toUpperCase();
+      if (t !== 'SCRIPT' && t !== 'STYLE' && t !== 'LINK') sumar(hijos[i]);
+    }
+  } catch (e) {}
+  nodos.forEach(n => {
+    let oculto = null;
+    try { oculto = typeof n.getAttribute === 'function' ? n.getAttribute('aria-hidden') : null; } catch (e) {}
+    _tapados.push({ n: n, inert: n.inert === true, oculto: oculto });
+    try { n.inert = true; } catch (e) {}
+    try { n.setAttribute('aria-hidden', 'true'); } catch (e) {}
+  });
+}
+function destaparLoDeDebajo() {
+  _tapados.forEach(a => {
+    try { a.n.inert = a.inert; } catch (e) {}
+    try { if (a.oculto == null) a.n.removeAttribute('aria-hidden'); else a.n.setAttribute('aria-hidden', a.oculto); } catch (e) {}
+  });
+  _tapados = [];
+}
+/* Para el navegador que no conoce `inert` (o lo que se abrió encima después
+   de poner la puerta): la tecla, el clic o el foco que salen de algo que NO
+   es la puerta se frenan y el foco vuelve a ella. El body no cuenta: es de
+   donde sale el primer Tab, y frenarlo dejaría la puerta sin teclado. */
+function frenarDebajoDeLaPuerta(ev) {
+  const t = ev && ev.target;
+  if (!t || t === document || t === document.body || t === document.documentElement) return;
+  const gate = document.getElementById('gate');
+  if (!gate || typeof gate.contains !== 'function' || gate.contains(t)) return;
+  try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {}
+  enfocarLaPuerta();
+}
+function enfocarLaPuerta() {
+  /* El campo que la puerta muestra ahora: la del PIN puede estar enseñando la
+     tarjeta del equipo («Soy del equipo»), y al revés no existe el del PIN. */
+  const c = document.getElementById('pinInput') || document.getElementById('eqClaveIn');
+  if (c) { try { c.focus(); } catch (e) {} }
+}
+function alActuarBajoLaPuerta(ev) { if (_candado) frenarDebajoDeLaPuerta(ev); }
+/* El toque que llega con la sesión ya vencida NO pasa: lo frena y pone la
+   puerta. Va en captura, antes que cualquier botón del CRM. */
+function alTocarConSesion(ev) {
+  if (_candado) { frenarDebajoDeLaPuerta(ev); return; }
+  if (!_crmAbierto && !CARTERA_EQUIPO) return;
+  if (sesionSigue()) return;
+  try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {}
+  pedirEntrarOtraVez(_sesion && Date.now() < _sesion.hasta ? 'otra-pestana' : 'vencida');
+}
+/* El reloj de 30 s: cierra a la hora aunque nadie toque, y mueve la línea
+   («mañana» pasa a «hoy» después de medianoche). */
+function vigilarSesion() {
+  if (_candado || (!_crmAbierto && !CARTERA_EQUIPO)) return;
+  if (!sesionSigue()) { pedirEntrarOtraVez(_sesion && Date.now() < _sesion.hasta ? 'otra-pestana' : 'vencida'); return; }
+  pintarSesionCinta();
+}
+function arrancarVigiliaSesion() {
+  if (!_oyendoSesion) {
+    _oyendoSesion = true;
+    /* Sin oyente de `storage`: las otras pestañas se enteran de un «Salir
+       ahora» en su siguiente toque —que es antes de que puedan hacer nada— o
+       con el reloj de 30 s. Un segundo oyente de `storage` competiría con
+       alEscribirOtraPagina, que es el que recarga la cartera. */
+    try {
+      document.addEventListener('pointerdown', alTocarConSesion, true);
+      document.addEventListener('keydown', alTocarConSesion, true);
+      /* 23-oct-2026 (segunda vuelta) — con la puerta encima, el clic (el que
+         dispara Enter o Espacio en un botón) y el foco que salen de debajo
+         tampoco pasan: la red para cuando `inert` no está. */
+      document.addEventListener('click', alActuarBajoLaPuerta, true);
+      document.addEventListener('focusin', alActuarBajoLaPuerta, true);
+    } catch (e) {}
+  }
+  if (_relojSesion == null) _relojSesion = setInterval(function () { try { vigilarSesion(); } catch (e) {} }, 30000);
+  pintarSesionCinta();
+}
+
+/* PURA. «hoy, 3:45 p. m.», «mañana, 10:30 a. m.» o «el 25-oct, 10:30 a. m.». */
+function cuandoCierraSesion(hastaMs, ahoraMs) {
+  const h = new Date(hastaMs), a = new Date(ahoraMs);
+  const dia = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dias = Math.round((dia(h) - dia(a)) / 86400000);
+  const hh = h.getHours(), mm = String(h.getMinutes()).padStart(2, '0');
+  const hora = ((hh % 12) || 12) + ':' + mm + (hh < 12 ? ' a. m.' : ' p. m.');
+  const cuando = dias === 0 ? 'hoy' : dias === 1 ? 'mañana'
+    : 'el ' + h.getDate() + '-' + ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][h.getMonth()];
+  return cuando + ', ' + hora;
+}
+/* LA LÍNEA DE LA BARRA: hasta cuándo, y la salida. Dice lo que el código
+   hace: si el navegador no dejó guardar, NO promete que sobrevive a un F5. */
+function pintarSesionCinta() {
+  const c = document.getElementById('sesionCinta');
+  if (!c) return;
+  const s = _sesion;
+  const salir = '<button type="button" class="sesion-salir" onclick="salirAhora()">Salir ahora</button>';
+  if (_candado) { c.innerHTML = ''; return; }
+  /* En el modo equipo esta línea ES la salida (el «🚪 Salir» de antes se
+     quitó): sin sesión que contar, al menos el botón. */
+  if (!s) { c.innerHTML = CARTERA_EQUIPO ? salir : ''; return; }
+  const otraVez = s.tipo === 'equipo' ? 'tu contraseña' : 'el PIN';
+  c.innerHTML = '<b>🔓 Sesión abierta hasta ' + escHTML(cuandoCierraSesion(s.hasta, Date.now())) + '</b>' +
+    (s.guardada ? 'Al recargar no te pido ' + otraVez + '.'
+                : 'Este navegador no me deja guardar la sesión: si recargas, te pido ' + otraVez + ' otra vez.') +
+    salir;
+}
+/* «SALIR AHORA»: lo borra todo en el acto. Joan: la puerta sale encima (lo de
+   la cartera ya está guardado y lo que sube a la nube sigue subiendo). El
+   equipo: se le avisa a la nube que cierre ESTA sesión (scope=local: no la de
+   sus otros aparatos) y la página se recarga, sin nada suyo en memoria. */
+function salirAhora() {
+  const s = SESION_EQUIPO;
+  /* 23-oct-2026 (segunda vuelta) — el par que se cierra en la nube es el más
+     nuevo: si otra pestaña renovó, el guardado trae el refresh_token vigente
+     y el de esta memoria ya está gastado. Se lee ANTES de borrar. */
+  const g = leerSesionGuardada('equipo');
+  const par = (g && s && g.id === s.id && g.refresh_token !== s.refresh_token) ? g : (s || g);
+  borrarSesionGuardada('dueno');
+  borrarSesionGuardada('equipo');
+  if (CARTERA_EQUIPO || s) {
+    SESION_EQUIPO = null; _sesion = null;
+    /* La copia de este navegador ya no está; la recarga espera a que la nube
+       confirme el cierre (o 4 s, para no colgarse sin señal). Antes el
+       logout salía con el token que hubiera en memoria y la página se
+       recargaba en el acto: después de una hora quieta ese token ya había
+       vencido, Supabase contestaba 401 y la sesión quedaba viva allá.
+       Mientras tanto la puerta sale encima y dice lo que pasa: una pantalla
+       del equipo tocada en ese segundo, sin sesión, pondría la puerta con
+       «se venció por seguridad», que no es lo que pasó. */
+    try { if (pedirEntrarOtraVez('salir')) decirEnLaPuerta('Cerrando tu sesión…'); } catch (e) {}
+    let hecho = false;
+    const recargar = () => { if (hecho) return; hecho = true; try { location.reload(); } catch (e) {} };
+    try { setTimeout(recargar, 4000); } catch (e) {}
+    cerrarEnLaNube(par).then(recargar, recargar);
+    return;
+  }
+  /* Joan, con una sesión del equipo guardada en este navegador (otra
+     pestaña): también se cierra allá, sin esperar. */
+  if (par) { try { cerrarEnLaNube(par); } catch (e) {} }
+  if (_crmAbierto) pedirEntrarOtraVez('salir');
+  _sesion = null;
+  pintarSesionCinta();
+}
+/* CERRAR LA SESIÓN DEL EQUIPO EN SUPABASE — 23-oct-2026 (segunda vuelta).
+   /logout exige un access_token VIGENTE: con uno vencido contesta 401 y la
+   sesión sigue viva en el servidor, con su refresh_token sirviendo para
+   siempre (Supabase no lo hace vencer solo). Por eso, si el token ya venció
+   (una hora quieta, o las 24 h), primero se renueva con el refresh_token y se
+   cierra con el nuevo. scope=local: solo esta sesión, no las de sus otros
+   aparatos. Cada sesión se cierra UNA vez por página (la copia guardada y la
+   de memoria suelen ser la misma). Nunca falla hacia afuera: sin señal no hay
+   nada que hacer desde aquí, y la copia local ya se borró. */
+function cerrarEnLaNube(par) {
+  if (!par || typeof par !== 'object' || !(par.refresh_token || par.access_token)) return Promise.resolve(false);
+  const llave = String(par.refresh_token || par.access_token);
+  if (_cerradasEnLaNube[llave]) return _cerradasEnLaNube[llave];
+  const salir = token => fetch(NUBE_EQUIPO.url + '/auth/v1/logout?scope=local', { method: 'POST', keepalive: true,
+      headers: { 'Content-Type': 'application/json', apikey: NUBE_EQUIPO.anon, Authorization: 'Bearer ' + token },
+      body: '{}' }).then(r => !!(r && r.ok), () => false);
+  let p;
+  try {
+    if (par.access_token && Date.now() < (Number(par.expira_en) || 0) - 60000) p = salir(par.access_token);
+    else if (par.refresh_token) {
+      p = authEquipo('/token?grant_type=refresh_token', { refresh_token: par.refresh_token })
+        .then(res => (res && res.ok && res.j && res.j.access_token) ? salir(res.j.access_token) : false, () => false);
+    } else p = Promise.resolve(false);
+  } catch (e) { p = Promise.resolve(false); }
+  _cerradasEnLaNube[llave] = p;
+  return p;
 }
 
 /* Todas las llamadas del equipo pasan por acá, y por eso la renovación vive
@@ -11334,6 +12079,11 @@ function esFinDeSesion(e, res) {
          /jwt|expired/i.test(String(j.message || ''));
 }
 function avisarFinDeSesion(que) {
+  /* 23-oct-2026 — con el modo equipo abierto, la puerta sale ENCIMA con este
+     mismo aviso (pedirEntrarOtraVez): vuelve a entrar ahí y lo que tenía en
+     pantalla sigue. Antes era un alert que lo mandaba a «Salir» y empezar de
+     cero. El alert queda para cuando no hay modo equipo que tapar. */
+  if (CARTERA_EQUIPO && pedirEntrarOtraVez('nube', que)) return;
   alert('Tu sesión se venció por seguridad.\n\n' + (que || '') +
     'Toca «Salir» abajo a la izquierda y vuelve a entrar con tu celular y tu contraseña.');
 }
@@ -11659,7 +12409,10 @@ function pintarPuertaEquipo() {
     <div class="gate-olvido" style="font-size:12.5px;color:var(--gris);margin-top:12px;line-height:1.45;text-align:left">
       ¿Olvidaste tu contraseña? Escríbele a Joan y pídele una nueva. Él te la pone desde su CRM:
       Equipo → tu nombre → «Ponerle otra contraseña».</div>
-    <button class="gate-link" onclick="location.reload()">← Soy Joan</button>`;
+    <button class="gate-link" onclick="volverAPuertaDeJoan()">← Soy Joan</button>`;
+  /* 23-oct-2026 — «← Soy Joan» era location.reload(): con una sesión del
+     equipo guardada, la recarga volvía a esta misma tarjeta. Ver
+     volverAPuertaDeJoan. */
   document.getElementById('eqBtn').addEventListener('click', entrarEquipo);
   document.getElementById('eqClaveIn').addEventListener('keydown', e => { if (e.key === 'Enter') entrarEquipo(); });
   document.getElementById('eqTelIn').focus();
@@ -11700,16 +12453,32 @@ function entrarEquipo() {
 
   btn.disabled = true; btn.textContent = 'Entrando…';
   decir('');
+  /* 23-oct-2026 (segunda vuelta) — si con «Entrando…» tocan «← Soy Joan», la
+     tarjeta del equipo ya no está y esta entrada ya no manda: no se guarda
+     nada ni se abre el modo equipo encima de la puerta del PIN. */
+  const n = _puertaN;
+  let parNuevo = null;     // la sesión que abrió esta contraseña, por si hay que cerrarla
+  const soltada = () => { if (n !== _puertaN) throw { soltada: true }; };
   authEquipo('/token?grant_type=password', { email: U.correoDeTelefono(tel), password: clave })
     .then(res => {
+      if (res && res.ok && res.j && res.j.access_token) {
+        parNuevo = { access_token: res.j.access_token, refresh_token: res.j.refresh_token,
+                     expira_en: Date.now() + ((Number(res.j.expires_in) || 3600) * 1000) };
+      }
+      soltada();
       if (!res.ok || !res.j || !res.j.access_token) {
         const t = JSON.stringify(res.j || {});
         throw { antes: true, sinConfirmar: /confirm/i.test(t) };
       }
-      guardarSesionEquipo(res.j);
+      /* 23-oct-2026 — una sesión NUEVA de 24 h (ver «LA SESIÓN DURA 24
+         HORAS»), en memoria hasta que mi_cartera diga que entra. La
+         contraseña ya hizo su trabajo: el campo se vacía. */
+      empezarSesionEquipo(res.j, tel);
+      try { document.getElementById('eqClaveIn').value = ''; } catch (e) {}
       return rpcEquipo('mi_cartera', {});
     })
     .then(res => {
+      soltada();
       const j = res.j || {};
       /* PGRST202 = PostgREST no encuentra la función. No es un permiso: es que
          la migración del equipo no se ha corrido en la nube. */
@@ -11719,10 +12488,28 @@ function entrarEquipo() {
          de Joan (base/20261022d_el_equipo_con_la_clave_de_joan.sql): se
          pregunta, para no mandarlo a esperar un rol que ya tiene. */
       if (j.ok !== true) return tokenDeEquipo().then(t => faltaLaClaveDeJoan(t), () => false).then(falta => { throw { falta: falta ? 'clave' : 'puesto' }; });
+      /* 23-oct-2026 — entra: ahora sí se guarda la sesión (y la de Joan, si la
+         había en este navegador, se cierra). Tres casos:
+           · la puerta estaba ENCIMA del modo equipo y entra la MISMA persona:
+             solo se quita la puerta; nada se repinta, lo escrito sigue;
+           · entra OTRA persona, o la puerta estaba encima del CRM de Joan: se
+             recarga entera, que lo de pantalla no es suyo (y la sesión recién
+             guardada la abre al arrancar);
+           · si no, como siempre. */
+      const telAntes = String((CARTERA_EQUIPO && CARTERA_EQUIPO.yo && CARTERA_EQUIPO.yo.celular) || _telCandado || '').replace(/\D/g, '').slice(-10);
+      const mismo = !!CARTERA_EQUIPO && !!telAntes && telAntes === tel;
+      const habiaOtraCosa = _crmAbierto || (!!CARTERA_EQUIPO && !mismo);
+      confirmarSesionEquipo();
+      if (_candado && mismo) { quitarCandado(); return; }
+      if (habiaOtraCosa) { try { location.reload(); } catch (e) {} return; }
       CARTERA_EQUIPO = res.j;
       modoEquipo();
     })
     .catch(e => {
+      /* Soltada: la sesión que alcanzó a abrir se cierra en la nube (nadie la
+         va a usar ni quedó guardada) y no se escribe en una tarjeta que ya no
+         está. */
+      if (e && e.soltada) { if (parNuevo) { try { cerrarEnLaNube(parNuevo); } catch (x) {} } return; }
       soltar();
       const t = (e && (e.falta || (e.antes ? (e.sinConfirmar ? 'sinConfirmar' : 'antes') : ''))) || 'red';
       if (t === 'migracion') {
@@ -11797,8 +12584,14 @@ function modoEquipo() {
         Solo ves lo que te asignaron. Lo decide el servidor, no esta pantalla.</div>
       <button class="navbtn" onclick="miWhatsappEq()"><span class="ic">📲</span> Mi WhatsApp</button>
       <button class="navbtn" onclick="irEquipo('clave')"><span class="ic">🔑</span> Mi contraseña</button>
-      <button class="navbtn" style="margin-top:auto" onclick="location.reload()"><span class="ic">🚪</span> Salir</button>`;
+      <!-- 23-oct-2026 — «🚪 Salir» era un location.reload(): no borraba nada
+           porque no había nada guardado. Ahora la sesión dura 24 h y se
+           guarda, así que la salida está en la línea que dice hasta cuándo, y
+           de verdad la borra (salirAhora). -->
+      <div class="sesion-cinta" id="sesionCinta" style="margin-top:auto"></div>`;
   }
+  /* 23-oct-2026 — el reloj de las 24 h y la línea «Sesión abierta hasta …». */
+  try { arrancarVigiliaSesion(); } catch (e) {}
   /* La agenda se pide al entrar y no al abrir su pestaña: lo de hoy se cuenta
      en la pantalla de «Hoy», que es la primera que se ve. */
   traerAgendaEq();
@@ -19424,7 +20217,18 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
   if(v==='mensajes'){ renderMensajes(); traerConversaciones(); }
   if(v==='resp')renderRespaldados(); }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>irA(b.dataset.v)));
-function entrar(){ if(document.getElementById('pinInput').value===DB.config.pin){ document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='grid'; render();
+function entrar(){ const retomada=_retomandoDueno===true, campoPin=document.getElementById('pinInput');
+  if(!retomada) document.getElementById('pinErr').className='gate-err';
+  if(retomada||campoPin.value===DB.config.pin){
+    /* 23-oct-2026 — LA SESIÓN DE 24 H (ver «LA SESIÓN DURA 24 HORAS»). Con el
+       PIN se abre una nueva y el PIN no se queda escrito en el campo; al
+       recargar dentro de las 24 h, retomarSesionAlAbrir entra por aquí sin
+       PIN. Y si el CRM ya estaba abierto DEBAJO de la puerta (pasaron las 24 h
+       o «Salir ahora»), solo se quita la puerta: nada se repinta ni se vuelve
+       a arrancar, y lo que Joan tenía a medio escribir sigue ahí. */
+    if(!retomada){ campoPin.value=''; abrirSesionDueno(); if(_crmAbierto){ quitarCandado(); return; } }
+    _crmAbierto=true;
+    document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='grid'; render();
     /* 1-oct-2026 — EL ARRANQUE DE LA SUBIDA (RECETA-NUBE-CRM.md, Etapa 1, paso 15).
        Acá y no arriba junto a la definición de render(): este es el único sitio
        donde de verdad arranca la vista de Joan, y donde CARTERA_EQUIPO ya existe
@@ -19465,6 +20269,8 @@ function entrar(){ if(document.getElementById('pinInput').value===DB.config.pin)
        «Ninguna». Así el «(n)» de Socios sale desde el primer momento. Con red:
        si algo falla aquí, el CRM sigue entrando. */
     try{ if(!CARTERA_EQUIPO) traerSolicitudesSiToca(); }catch(e){}
+    /* 23-oct-2026 — el reloj de las 24 h y la línea «Sesión abierta hasta …». */
+    try{ arrancarVigiliaSesion(); }catch(e){}
   } else document.getElementById('pinErr').textContent='PIN incorrecto.'; }
 /* 1-oct-2026 (segunda vuelta) — CUANDO OTRA PÁGINA ESCRIBE LA CARTERA, ESTA
    PESTAÑA SE ENTERA. subir.html aplica lo del celular (o resuelve un choque) y
@@ -19703,8 +20509,9 @@ function alPintarNube(){
   try{ pintarNubeTodo(); }catch(e){}
   try{ if(window.HistorialesAuto&&typeof HistorialesAuto.libroCambio==='function') HistorialesAuto.libroCambio(); }catch(e){}
 }
-document.getElementById('pinBtn').addEventListener('click',entrar);
-document.getElementById('pinInput').addEventListener('keydown',e=>{ if(e.key==='Enter')entrar(); });
+/* 23-oct-2026 — en una función porque «← Soy Joan» repone la tarjeta del PIN
+   sin recargar (volverAPuertaDeJoan) y tiene que volver a conectarla. */
+conectarPuertaDeJoan();
 document.getElementById('pinInput').focus();
 /* 26-sep-2026 — `#equipo` ABRE DIRECTO LA PUERTA DEL EQUIPO. Es adonde manda la
    puerta única del panel (panel/index.html) cuando alguien toca «Soy del
@@ -19737,6 +20544,19 @@ setTimeout(function(){ if(!window.NubeCRM){ var b=document.getElementById('nubeB
    no llegó, la línea de Ajustes quedaría vacía, y vacía no se distingue de
    «todo bien». El botón manual sigue sirviendo, y se dice. */
 setTimeout(function(){ if(!window.HistorialesAuto){ var b=document.getElementById('historialesBarra'); if(b) b.innerHTML='<div class="alerta warn">Este computador está sirviendo una versión vieja del CRM: los historiales de tus clientes NO suben solos. Recárgalo con Ctrl+Shift+R; mientras, Ajustes → Avanzado → ☁ Subir historiales.</div>'; try{ pintarNubeTodo(); }catch(e){} } },1500);
+</script>
+<script>
+/* 23-oct-2026 — LA SESIÓN DE 24 H SE RETOMA AL ABRIR (ver «LA SESIÓN DURA 24
+   HORAS» en el bloque grande). Va AQUÍ, después de nube-crm.js y de
+   historiales-auto.js, y no al final del bloque grande: retomar la de Joan es
+   entrar(), y entrar() configura esas dos piezas; antes de su <script> no
+   existen y el CRM quedaría abierto sin subir nada a la nube. Si el bloque
+   grande no corrió (llegó a medias), no hay nada que retomar: sus funciones
+   existen igual —se declaran antes de correr—, pero sus variables no, y por
+   eso se mira TG_A_MEDIAS y que SESION_DURA_MS ya tenga valor. */
+try {
+  if (!window.TG_A_MEDIAS && typeof SESION_DURA_MS === 'number' && typeof retomarSesionAlAbrir === 'function') retomarSesionAlAbrir();
+} catch (e) {}
 </script>
 <!-- 21-oct-2026 — se actualiza sola, pero EL CRM SOLO AVISA: nunca se recarga
      solo (ver abajo). -->

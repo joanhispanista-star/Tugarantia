@@ -208,6 +208,28 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         registro, y avisan antes si no hay nube; y Bases tiene
                         buscador (pinta 200), y un prospecto repetido abre su
                         «👤 Asignar a…» con lo que Joan eligió.
+                        Y desde el mismo 23-oct, la entrada dura 24 h DESDE QUE SE
+                        ENTRA, no una recarga: el PIN de Joan y la contraseña del
+                        equipo se piden una vez y el F5 ya no los pide. Se guarda
+                        la sesión (la marca de Joan; los tokens del equipo),
+                        nunca la clave. A las 24 h la puerta sale ENCIMA al
+                        siguiente toque, sin borrar lo que había en pantalla.
+                        «🔓 Sesión abierta hasta …» en la barra, con «Salir
+                        ahora». Entrar como equipo cierra la de Joan y al revés.
+                        Segunda vuelta (23-oct): la puerta encima deja lo de debajo
+                        fuera del teclado (inert); en el computador de Joan, sin
+                        #equipo, la puerta es la del PIN aunque haya una sesión
+                        del equipo guardada («Soy del equipo» la retoma, «← Soy
+                        Joan» ya no recarga); al cerrarse, la del equipo se cierra
+                        también en Supabase. Falta del servidor: que las funciones
+                        del equipo rechacen sesiones de más de 24 h (otro lote).
+                        Pruebas: pruebas/la-sesion-dura-24-horas.test.js y
+                        pruebas/la-sesion-de-24-horas-sin-huecos.test.js.
+                        Las dos juntas (pruebas/asignar-bajo-la-puerta-de-24-
+                        horas.test.js): con «👤 Asignar a…» o «＋ Agregar
+                        prospecto» a medio llenar, la puerta de las 24 h o de
+                        «Salir ahora» los tapa sin borrarlos, nada se anota ni
+                        se publica debajo, y con el PIN siguen como estaban.
   una-puerta.js         Las palabras del toque «¿Es la misma persona?» (juntar la
                         cuenta de un cliente antiguo), compartidas con espejo.html.
   nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el

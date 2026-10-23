@@ -27,7 +27,12 @@ function abrirPanel(opciones) {
   const o = opciones || {};
   const RAIZ = path.join(__dirname, '..');
   const html = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
-  const almacen = {};
+  /* 23-oct-2026 — `almacen: A` RECARGA en el mismo navegador: el segundo
+     abrirPanel con el mismo objeto arranca con lo que el primero dejó escrito
+     (la cartera, la sesión de 24 h), igual que un F5. Sin esto no había forma
+     de probar lo que la página hace AL ARRANCAR con algo ya guardado: el
+     almacén nacía vacío en cada apertura. */
+  const almacen = o.almacen || {};
   const elems = {};
   const elem = id => (elems[id] = elems[id] || {
     id, value: '', checked: false, textContent: '', innerHTML: '',
@@ -37,15 +42,33 @@ function abrirPanel(opciones) {
        descarga: el patron <a> + click() es como este CRM baja el respaldo y el
        CSV de cobranzas. Se anota para poder comprobar QUE se bajo. */
     click() { (ctx._clics = ctx._clics || []).push({ href: this.href, nombre: this.download }); },
-    querySelectorAll: () => [], appendChild() {}, setAttribute() {}, focus() {},
+    querySelectorAll: () => [], appendChild() {}, focus() {},
+    /* 23-oct-2026 — los atributos se ANOTAN en `_attrs`. setAttribute no hacía
+       nada, y por eso ninguna prueba podía comprobar que la puerta del CRM
+       saca de verdad lo de debajo del lector de pantalla (aria-hidden), ni
+       que se lo devuelve al quitarse. removeAttribute faltaba: es de
+       cualquier elemento, y sin él el banco reventaba donde el navegador no. */
+    setAttribute(k, v) { (this._attrs = this._attrs || {})[k] = String(v); },
+    removeAttribute(k) { if (this._attrs) delete this._attrs[k]; },
     /* `remove()` es un metodo de verdad de cualquier elemento y al banco le
        faltaba. Sin el, un `caja.remove()` que en un navegador funciona reventaba
        aca, y la prueba acusaba al CRM de un fallo que era del banco. Un banco
        mas pobre que el navegador no prueba el navegador: prueba otra cosa. */
     remove() { if (this.id) delete elems[this.id]; this._quitado = true; }
   });
+  /* 23-oct-2026 — `tarjeta: true` le da a la página LA TARJETA DE LA PUERTA
+     (`#gate .gate-card`) con el HTML de verdad de crm.html. Sin ella
+     querySelector devuelve null, pintarPuertaEquipo no pinta nada y el
+     cambio de tarjeta —PIN de Joan ↔ celular y contraseña del equipo— no se
+     ve: justo donde Joan se quedaba sin campo del PIN. Opcional para no
+     cambiarles nada a las pruebas que ya existen. */
+  if (o.tarjeta) {
+    const m = html.match(/<div class="gate-card">([\s\S]*?)<\/div>\s*<\/div>\s*<div class="app" id="app"/);
+    elem('gate-card').innerHTML = m ? m[1] : '';
+  }
   const doc = {
-    getElementById: elem, querySelector: () => null, querySelectorAll: () => [],
+    getElementById: elem, querySelectorAll: () => [],
+    querySelector: sel => (o.tarjeta && sel === '#gate .gate-card' ? elem('gate-card') : null),
     createElement: () => elem('nuevo'), addEventListener() {},
     body: elem('body'), documentElement: elem('html'), title: ''
   };
