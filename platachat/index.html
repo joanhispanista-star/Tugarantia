@@ -164,8 +164,14 @@
    (sesion.js trae cambiarClave) y el recado que ya no promete escribir «al
    <número del recado>». Las dos tandas llegan juntas en el lote que se
    publica con el CACHE v139 de sw.js, con un solo sello: es lo que Joan le
-   pregunta al cliente, y dos fechas para un mismo pie no le dirían nada. */
-var VERSION_APP = '2026-10-22';
+   pregunta al cliente, y dos fechas para un mismo pie no le dirían nada.
+
+   23-oct-2026 (tampoco publicada) — sube porque «Cambiar mi contraseña» dice
+   qué pantalla es y cuenta el cambio como escritura en camino: la recarga
+   sola ya no se lleva la contraseña a medio escribir ni corta el cambio. Si
+   alguien dice que la app se recargó mientras cambiaba su contraseña, esta
+   fecha dice si tenía la versión que lo impide. */
+var VERSION_APP = '2026-10-23';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja. Sube con CACHE, siempre: pruebas/se-actualiza-sola.test.js no
@@ -3078,6 +3084,12 @@ function vistaYo() {
    ella no se le pinta a él ni le borra lo que esté escribiendo. */
 function pintarCambiarClave() {
   if (!S || !SES) return;
+  /* 23-oct-2026 — dice cuál es, como 'clave' de app/socio.html: no está en la
+     lista blanca de momentoSeguroPC, así que la recarga sola no se lleva la
+     contraseña a medio escribir. Sin esto PANTALLA seguía diciendo 'yo' (de
+     donde vino), y Yo es momento seguro. Llegó así de claves-clientes, que
+     nació antes del lote 1 (pruebas/el-lote-del-27-junto.test.js). */
+  PANTALLA = 'clave';
   $('cuerpo').innerHTML = '<div class="panel">' + avisosArriba() +
     '<div class="card">' +
       '<h3 class="tit">Cambiar mi contraseña</h3>' +
@@ -3108,10 +3120,19 @@ function cambiarClave() {
   if (b) b.disabled = true;
   fallo(msg, 'Guardando…');
   var ses = SES;
-  deEstaSesion(ses, SP.cambiarClave(CFG, ses, nueva)).then(function (r) {
+  /* 23-oct-2026 — el cambio cuenta como escritura en camino (la regla del lote
+     1: toda escritura sale por escrituraEnCamino). Sin esto, tocar «Plata»
+     con el cambio en el aire dejaba recargar: la contraseña quedaba cambiada
+     o no, y ella no veía cuál. Se cuenta la llamada de la red, que siempre
+     termina, y no la atada a la sesión, que se calla si la sesión cambia. */
+  deEstaSesion(ses, escrituraEnCamino(SP.cambiarClave(CFG, ses, nueva))).then(function (r) {
     if (b) b.disabled = false;
     if (r && r.sinSesion) { salir(r.motivo); return; }
     if (!r || !r.ok) { fallo($('ccMsg'), (r && r.motivo) || 'No pude cambiar tu contraseña. Vuelve a intentar en un momento.'); return; }
+    /* 23-oct-2026 — «Listo» se pinta aunque ella haya tocado otra pestaña
+       mientras viajaba (es la respuesta a lo que pidió), y entonces la página
+       tiene que decir que está en «Listo», no en la pestaña de antes. */
+    PANTALLA = 'clave';
     $('cuerpo').innerHTML = '<div class="panel">' +
       '<div class="card"><div class="aviso verde"><b>Listo: tu contraseña quedó cambiada.</b></div>' +
         '<p class="sub" style="margin-top:var(--e4)">La próxima vez entra con tu celular y la nueva. Es tuya: nosotros no la vemos.</p>' +
