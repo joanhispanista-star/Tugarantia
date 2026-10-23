@@ -3627,7 +3627,21 @@
       /* El formulario pregunta al MES; la ficha guarda por quincena. La cuenta
          vive acá y no en la pantalla para que las dos puertas la hagan igual. */
       ingresoQuincenal: plata(d.ingreso_mes) ? Math.round(plata(d.ingreso_mes) / 2) : 0,
-      referencia: { nombre: String(d.ref1_nombre || '').trim(), telefono: digitos(d.ref1_celular || '').slice(-10) }
+      referencia: { nombre: String(d.ref1_nombre || '').trim(), telefono: digitos(d.ref1_celular || '').slice(-10) },
+      /* 22-oct-2026 — dónde recibe la plata (el paso «¿Dónde te enviamos la
+         plata?» del registro). El Nequi va al campo de siempre de la ficha, y
+         por eso vale lo que ya valía en la garantía («Tu Nequi o llave»,
+         datosKycDe): es el mismo dato que Joan escribía a mano al
+         desembolsar. Los demás van a campos nuevos y NO tocan la garantía:
+         si Daviplata o la cuenta de banco deben sumar es decisión de Joan.
+         Lo que no vino, vacío, como todo lo de aquí. */
+      nequi: digitos(d.nequi || '').slice(-10),
+      daviplata: digitos(d.daviplata || '').slice(-10),
+      llaveBreb: String(d.llave_breb || '').trim(),
+      banco: String(d.banco || '').trim(),
+      bancoCodigo: String(d.banco_codigo || '').trim(),
+      bancoTipo: String(d.banco_tipo || '').trim(),
+      bancoNumero: digitos(d.banco_numero || '')
     };
   }
 
@@ -3665,7 +3679,17 @@
     { campo: 'ciudad', etiqueta: 'Ciudad', pesado: false },
     { campo: 'barrio', etiqueta: 'Barrio', pesado: false },
     { campo: 'tipoVivienda', etiqueta: 'Su vivienda es', pesado: false },
-    { campo: 'ingresoQuincenal', etiqueta: 'Gana por quincena', pesado: true }
+    { campo: 'ingresoQuincenal', etiqueta: 'Gana por quincena', pesado: true },
+    /* 22-oct-2026 — las formas de pago del registro. No son «pesadas» en el
+       sentido de arriba (no deciden la identidad ni la llave en la nube); el
+       Nequi sí mueve el cupo, y eso lo frena la mesa sola, porque le pregunta
+       al motor (aplicarCruce, subeCupo). */
+    { campo: 'nequi', etiqueta: 'Nequi', pesado: false },
+    { campo: 'daviplata', etiqueta: 'Daviplata', pesado: false },
+    { campo: 'llaveBreb', etiqueta: 'Llave Bre-B', pesado: false },
+    { campo: 'banco', etiqueta: 'Banco', pesado: false },
+    { campo: 'bancoTipo', etiqueta: 'Tipo de cuenta', pesado: false },
+    { campo: 'bancoNumero', etiqueta: 'Número de cuenta', pesado: false }
   ];
 
   function camposDelCruce(socio, reg) {

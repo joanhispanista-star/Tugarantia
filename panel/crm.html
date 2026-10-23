@@ -1056,6 +1056,12 @@
      armar el aviso cuando la propuesta se aleja de él. Va después de
      creditos.js. Si no llega, la bandeja no habla del estimado. -->
 <script src="../app/calculadora-solicitud.js"></script>
+<!-- 22-oct-2026 — dónde recibe la plata el cliente: la lista de bancos y las
+     reglas de la cuenta, las mismas del registro y de la aceptación. Con ellas
+     la bandeja dice «💸 Consignar a: …» y la ficha sabe los bancos. Si no
+     llegan, la bandeja lo dice con lo que trae la fila, sin la lista. -->
+<script src="../app/bancos-colombia.js"></script>
+<script src="../app/cuentas-pago.js"></script>
 <script>
 const PUENTE=window.PuenteTuGarantia;
 /* 9-sep-2026 — las reglas de comision de los asesores. Va JUNTO a las otras
@@ -1075,6 +1081,9 @@ const CHAT=window.ChatTuGarantia;
    <script src> no llega, la bandeja no dice nada del estimado: nunca afirma
    que el cliente vio algo sin poder leerlo. */
 const CSOL=window.CalculadoraSolicitud||null;
+/* 22-oct-2026 — a dónde se consigna (app/cuentas-pago.js). Ver «CONSIGNAR A»,
+   junto a la bandeja. */
+const CPAGO=window.CuentasPago||null;
 const KEY=PUENTE.LLAVE_PANEL;
 /* El costo es fijo desde el 29-jul-2026. Se lee del motor para que no haya dos
    verdades; si algún día cambia, cambia en un solo lugar. */
@@ -5497,6 +5506,7 @@ function verCliente(id){
     ${fila('Celular 2 (opcional)',s.telefono2)}
     ${fila('Correo',s.email)} ${fila('Cédula',s.cedula)}
     ${fila('Llave / transferencia',s.llave)} ${fila('Nequi',s.nequi)}
+    ${fila('Daviplata',s.daviplata)} ${fila('Llave Bre-B',s.llaveBreb)} ${fila('Cuenta de banco',cuentaDeBancoEnPalabras(s))}
     ${fila('Dirección',[s.direccion,vivienda].filter(Boolean).join(', '))}
     ${fila('Ciudad / barrio',[s.ciudad,s.barrio].filter(Boolean).join(' · '))}
     ${s.ubicacion?`<div class="info-row"><span class="k">📍 Ubicación GPS</span><span class="vv"><a target="_blank" rel="noopener" href="${mapsUrl(s.ubicacion)}">Ver en Google Maps</a> <span class="muted">±${Math.round(s.ubicacion.acc||0)} m · ${fmtFecha(s.ubicacion.fecha)}</span></span></div>`:''}
@@ -5629,6 +5639,11 @@ function editarCliente(id,pre){
     <div class="sub-h">Pagos</div>
     <div class="two"><div class="field"><label>Llave (transferencia)</label><input id="fLlave" value="${va('llave')}" placeholder="Celular, correo o # de llave"></div>
       <div class="field"><label>Nequi</label><input id="fNequi" inputmode="numeric" value="${v('nequi')}"></div></div>
+    <div class="two"><div class="field"><label>Daviplata</label><input id="fDaviplata" inputmode="numeric" value="${va('daviplata')}"></div>
+      <div class="field"><label>Llave Bre-B</label><input id="fLlaveBreb" value="${va('llaveBreb')}" placeholder="Celular, documento, correo o @llave"></div></div>
+    <div class="field"><label>Banco</label><input id="fBanco" list="listaBancosFicha" value="${va('banco')}" placeholder="Escribe o elige el banco">${datalistDeBancos('listaBancosFicha')}</div>
+    <div class="two"><div class="field"><label>Tipo de cuenta</label><select id="fBancoTipo"><option value="">—</option>${['Ahorros','Corriente'].map(t=>`<option value="${t}" ${v('bancoTipo')===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="field"><label>Número de cuenta</label><input id="fBancoNumero" inputmode="numeric" value="${va('bancoNumero')}"></div></div>
     <div class="sub-h">Ubicación</div>
     <div class="field"><label>Dirección</label><input id="fDir" value="${va('direccion')}" placeholder="Calle / carrera #"></div>
     <div class="two"><div class="field"><label>Ciudad</label><input id="fCiudad" value="${va('ciudad')}"></div>
@@ -5679,6 +5694,8 @@ function guardarCliente(id){
        Negativo o basura se lee como cero, nunca se guarda un ingreso inventado. */
     ingresoQuincenal:Math.max(0,Number(gv('fIngreso'))||0),
     cedulaFrenteFoto:_fotosTmp.frente, cedulaReversoFoto:_fotosTmp.reverso, selfieFoto:_fotosTmp.selfie, ubicacion:_ubicTmp };
+  /* 22-oct-2026 — y las otras formas de pago (ver cuentasDeLaFicha). */
+  Object.assign(datos,cuentasDeLaFicha());
   /* 8-oct-2026 — ↻ Girar: lo que Joan dejó girado mirando el registro se
      guarda con la ficha, para que se vea derecho también en los otros aparatos. */
   const girosF=girosDeFotos([_fotosTmp.frente,_fotosTmp.reverso,_fotosTmp.selfie],
@@ -9639,7 +9656,12 @@ const ETIQUETAS_VINCULACION={nombres:'Nombres',apellidos:'Apellidos',tipo_doc:'T
   cargo:'Su cargo',antiguedad:'Cuánto lleva ahí',ingreso_mes:'Gana al mes',
   gastos_mes:'Se le va fijo al mes',dia_pago:'Qué día le pagan',
   ref1_nombre:'Referencia 1',ref1_parentesco:'Qué es suyo',ref1_celular:'Su celular',
-  ref2_nombre:'Referencia 2',ref2_parentesco:'Qué es suyo',ref2_celular:'Su celular'};
+  ref2_nombre:'Referencia 2',ref2_parentesco:'Qué es suyo',ref2_celular:'Su celular',
+  /* 22-oct-2026 — dónde recibe la plata (el paso «¿Dónde te enviamos la
+     plata?» del registro; app/cuentas-pago.js). */
+  nequi:'Su Nequi',daviplata:'Su Daviplata',llave_breb:'Su llave Bre-B',banco:'Banco',
+  banco_codigo:'Código del banco (Superfinanciera)',banco_tipo:'Tipo de cuenta',banco_numero:'Número de cuenta',
+  cuentas_mias:'Dijo que son a su nombre'};
 function verDatosRegistro(id){
   const r=_registros.find(x=>String(x.id)===String(id)); if(!r||!r.datos)return;
   const filas=Object.entries(r.datos).filter(([k,v])=>v!==''&&v!=null)
@@ -11453,7 +11475,15 @@ function fichaHTML(j) {
     ingresos: 'Ingresos', dia_pago: 'Día de pago',
     correo: 'Correo', referencia1: 'Referencia 1', referencia2: 'Referencia 2'
   };
+  /* 22-oct-2026 — LAS CUENTAS DE PAGO NO SE PINTAN AL EQUIPO. Desde el
+     registro con «¿Dónde te enviamos la plata?» los datos traen su Nequi, su
+     llave y su cuenta de banco, y para cobrar no hacen falta: quien consigna
+     es Joan, desde su bandeja. Se marcan como «usados» para que tampoco
+     salgan como extras con el nombre crudo. (La base todavía las manda en
+     ficha_de_mi_base: está en el resumen de la entrega, para que Joan decida.) */
   const usados = {};
+  (CPAGO ? CPAGO.LLAVES_DEL_REGISTRO : ['nequi', 'daviplata', 'llave_breb', 'banco', 'banco_codigo', 'banco_tipo', 'banco_numero', 'cuentas_mias'])
+    .forEach(k => { usados[k] = true; });
   const filas = Object.keys(CONOCIDOS)
     .filter(k => { usados[k] = true; return d[k] !== undefined && d[k] !== null && String(d[k]) !== ''; })
     .map(k => filaInfo(CONOCIDOS[k], String(d[k])));
@@ -15891,7 +15921,7 @@ function renderBandeja(){
          Y si ese celular es de alguien de su equipo, se dice: le estaría
          prestando a su propio gerente. Las dos cosas, solo en la vista de Joan. */
       const telSol=CARTERA_EQUIPO?'':telDeSolicitud(s);
-      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${telSol?'<div class="muted mono">📱 '+escHTML(telSol)+'</div>':''}${chipDelEquipo(telSol)}${sinJuntar?'<div class="muted" style="color:var(--ambar)">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. Júntale la cuenta antes de prestarle.</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}${condicionesAceptadasDe(s)}</td>
+      return `<tr><td><b>${escHTML(s.nombre)}</b><div class="muted">${escHTML(s.codigo||(cli?codCliente(cli):sinJuntar?'cuenta sin juntar':(sinFicha?'nuevo · la ficha se crea al desembolsar':'sin ficha')))}${s.origen==='pegada'?' · pegada':''}${pc?' · PlataChat':''}</div>${telSol?'<div class="muted mono">📱 '+escHTML(telSol)+'</div>':''}${chipDelEquipo(telSol)}${sinJuntar?'<div class="muted" style="color:var(--ambar)">Sin juntar: su celular es el de una de tus fichas, pero no sabemos si es esa persona. Júntale la cuenta antes de prestarle.</div>':''}${chip?`<div style="margin-top:4px">${chip}${porQuien}</div>`:''}${condicionesAceptadasDe(s)}${destinoEnLaFila(s)}</td>
       <td class="num"><b>${COP(resp?s.capital:q.capital)}</b>${aviso}${notaDelCliente(s)}${estimadoEnLaFila(s)}${sinCupo}</td>
       <td>${resp?`<b>Con garantía</b><div class="muted">${(Number(s.tasa)*100).toFixed(0)}% mensual · ${pz} mes${pz!==1?'es':''}</div>`
                 :pcNueva?`<b>Pidió por el chat</b><div class="muted">${pidePct||q.pct}% · ${pideCortes} corte${pideCortes!==1?'s':''} · todavía sin propuesta</div>`
@@ -16222,6 +16252,72 @@ function descartarSolicitud(id){
   if(!confirm('Descartar la solicitud de '+s.nombre+' por '+COP(s.capital)+'?'))return;
   marcarEnNube(s,'descartada'); quitarSolicitud(id);
 }
+/* ===========================================================================
+ * CONSIGNAR A — 22 de octubre de 2026
+ *
+ * Joan: «al momento de que el cliente acepte la contrapropuesta, que se le
+ * pregunte nuevamente a qué cuenta desea que le consignen». Desde hoy la
+ * cuenta viaja con la aceptación (aceptar_con_destino, base/20261022) en
+ * solicitudes.destino_desembolso, y llega a la bandeja de siempre
+ * (listar_solicitudes_abiertas devuelve la fila entera).
+ *
+ * Se muestra SOLO si es de la propuesta vigente (la base la sella con la que
+ * aceptó: si le cambiaste la propuesta, la cuenta de la vieja no es la de la
+ * nueva). Sin cuenta (aceptó con la app vieja, o la base sin el archivo del
+ * 22-oct) se dice: «No eligió cuenta: pregúntale». Y nunca en un enlace: ni
+ * en el WhatsApp, ni en el correo de la constancia, ni en una dirección. El
+ * botón copia al portapapeles.
+ *
+ * Solo en el CRM de Joan: el gerente propone pero no desembolsa
+ * (CARTERA_EQUIPO). La base le sigue mandando la columna: ver el resumen de
+ * esta entrega.
+ * ======================================================================== */
+function destinoDeSolicitud(s){
+  if(CPAGO) return CPAGO.destinoVigente(s);
+  const d=s&&s.destino_desembolso; if(!d||typeof d!=='object') return null;
+  const cp=(s.contrapropuesta&&typeof s.contrapropuesta==='object')?s.contrapropuesta:{};
+  return (d.propuesta!=null&&String(d.propuesta)!==String(cp.creada_en||''))?null:d;
+}
+/* Completo: es para consignar. Sin app/cuentas-pago.js, con lo que trae la fila. */
+function destinoEnPalabras(d){
+  if(!d) return '';
+  if(CPAGO) return CPAGO.describirDestino(d,true);
+  const medio=d.medio==='breb'?'Llave Bre-B':d.medio==='banco'?(d.banco||'Banco')+' · '+String(d.banco_tipo||'').toLowerCase()
+    :d.medio==='daviplata'?'Daviplata':'Nequi';
+  return medio+' '+(d.medio==='breb'?(d.llave||''):(d.numero||''));
+}
+function numeroDeDestino(d){ return d?String(d.medio==='breb'?(d.llave||''):(d.numero||'')):''; }
+function destinoEnLaFila(s){
+  if(CARTERA_EQUIPO||s.estado!=='aceptada'||s.origen==='pegada') return '';
+  const d=destinoDeSolicitud(s);
+  if(!d) return '<div class="muted" style="margin-top:6px;color:var(--ambar)">⚠️ No eligió cuenta: pregúntale por el chat a qué cuenta <b>a su nombre</b> le consignas.</div>';
+  return `<div style="margin-top:6px"><b>💸 Consignar a:</b> <span class="mono">${escHTML(destinoEnPalabras(d))}</span>
+    <button class="btn btn-ghost btn-sm" onclick="copiarDestino('${escHTML(String(s.id))}')">📋 Copiar ${d.medio==='breb'?'la llave':'el número'}</button>
+    <div class="muted">Solo a nombre de ${escHTML(s.nombre||'el cliente')}: al girar, tu banco te muestra el titular enmascarado; compáralo con su cédula.</div></div>`;
+}
+function copiarDestino(id){
+  const s=_solicitudes.find(x=>String(x.id)===String(id)); if(!s) return;
+  const t=numeroDeDestino(destinoDeSolicitud(s)); if(!t) return;
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(()=>{},()=>prompt('Cópialo de aquí:',t));
+  else prompt('Cópialo de aquí:',t);
+}
+/* La ficha: las formas de pago que no son el Nequi ni la llave de siempre.
+   El código del banco sale del nombre (la lista de la Superfinanciera); uno
+   que no está en la lista queda como «otro». */
+function cuentaDeBancoEnPalabras(s){
+  return [s.banco,s.bancoTipo?String(s.bancoTipo).toLowerCase():'',s.bancoNumero].filter(Boolean).join(' · ');
+}
+function datalistDeBancos(id){
+  const l=CPAGO?CPAGO.bancos().filter(b=>b.codigo!=='otro'):[];
+  return `<datalist id="${id}">${l.map(b=>`<option value="${escHTML(b.nombre)}">`).join('')}</datalist>`;
+}
+function cuentasDeLaFicha(){
+  const banco=gv('fBanco');
+  const b=banco&&CPAGO?CPAGO.bancos().find(x=>x.codigo!=='otro'&&x.nombre.toLowerCase()===banco.toLowerCase()):null;
+  return { daviplata:gv('fDaviplata'), llaveBreb:gv('fLlaveBreb'), banco, bancoCodigo:banco?(b?b.codigo:'otro'):'',
+           bancoTipo:gv('fBancoTipo'), bancoNumero:gv('fBancoNumero').replace(/[\s.\-]/g,'') };
+}
+
 function crearDesdeSolicitud(id){
   const s=_solicitudes.find(x=>String(x.id)===String(id)); if(!s)return;
   const dig=v=>String(v||'').replace(/\D/g,'');
@@ -16302,9 +16398,15 @@ function crearDesdeSolicitud(id){
      ley»; el crédito lo lleva (topeMoraEA) y app/puente.js lo cumple al cobrar.
      Sin condiciones aceptadas (una pegada) no lleva techo: la regla de siempre. */
   const tm=topeMoraDeAceptacion(s);
+  /* 22-oct-2026 — a dónde consignar, en la misma pantalla en que desembolsas
+     (ver CONSIGNAR A). Las pegadas llegaron por WhatsApp: no tienen dónde
+     elegir, y no se les pide. */
+  const dst=destinoDeSolicitud(s);
   if(!confirm('Crear el crédito de '+cli.nombre+':\n\n'
     +'• Capital: '+COP(q.capital)+(q.capital%1000!==0?'   ⚠️ OJO: NO ES UNA CIFRA REDONDA':'')+'\n• Costo: '+q.pct+'% ('+COP(q.costo)+')\n'
     +'• Total a devolver: '+COP(q.total)+'\n• Paga el: '+fmtFecha(q.corte)+'\n'
+    +(dst?'• Consignar a: '+destinoEnPalabras(dst)+' (a nombre de '+cli.nombre+': compara el titular con su cédula)\n'
+      :s.origen==='pegada'?'':'• ⚠️ No eligió a qué cuenta: pregúntale por el chat (a su nombre) antes de girar\n')
     +(tm?'• Recargo por atraso: con el techo legal que aceptó ('+(tm.ea*100).toLocaleString('es-CO',{maximumFractionDigits:2})+'% efectivo anual)\n':'')
     +((r&&(r.pasa||r.pasaSumando))?'\n'+textoCupo(r):'')
     +'\n¿Lo registro?'))return;
@@ -16314,6 +16416,10 @@ function crearDesdeSolicitud(id){
     prorrogas:[], abonosCapital:[], comprobantes:[], pagado:false,
     fechaCreacion:new Date().toISOString(), origen:'solicitud' };
   if(tm){ p.topeMoraEA=tm.ea; p.condicionesDe=String(s.id); }
+  /* 22-oct-2026 — y a dónde pidió que se le consignara: queda con el crédito
+     (no viaja a la app del socio: migrarSocio arma sus créditos campo por
+     campo). */
+  if(dst) p.consignarA=JSON.parse(JSON.stringify(dst));
   DB.prestamos.push(p);
   marcarEnNube(s,'atendida'); quitarSolicitud(id);
   guardar(); render();
