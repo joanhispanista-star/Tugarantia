@@ -130,6 +130,13 @@ base/
                                   por gerente_proponer ni por la de PlataChat
                                   (contrapropuesta_gerente, que además respeta
                                   topes_equipo). Va después de 20261015_el_gerente_vende.sql.
+  20261022_la_foto_que_no_entra_se_dice.sql  La foto que la base no guarda
+                                  (no es imagen, o pasa de 600.000) vuelve en
+                                  `rechazadas` y queda en la huella; y la huella
+                                  anota «siguió sin la foto de su cara» con su
+                                  motivo (selfie_omitida). Va después de
+                                  20261020_la_cedula_de_la_cuenta.sql; en cualquier
+                                  orden con la app.
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.
