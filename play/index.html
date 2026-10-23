@@ -6601,15 +6601,22 @@ function grisAEscala(fuente, sx, sy, sw, sh, w, h, campo) {
    liso la mediana sola la deciden mosaicos que no ven el enfoque, y pedía
    «Aléjala…» para siempre con la cédula enfocada (ver LA CALIDAD QUE JUZGA
    LA VENTANA en app/escaner-captura.js). Un escaner-captura.js viejo en la
-   caché no la trae: la mediana, como antes. */
+   caché no la trae: la mediana, como antes.
+   22-oct-2026 — y `dentro`: las filas del MARCO en este gris. Alrededor queda
+   el aire, que es mesa, y una mesa de rayas finas daba una «franja de
+   barras» que hacía pasar el frente por respaldo (ver LA FRANJA ES DE LA
+   TARJETA en app/escaner-cedula.js). Se calcula del recorte de verdad: junto
+   al borde del video el aire se recorta y el 6 % no vale. */
 function medirNitidezDoc(v) {
   if (!ECAP || !ECAP.nitidezDeGris || !v || !v.videoWidth) return null;
   var g = ESCDOC.guiaVideo; if (!g) return null;
+  var marco = g;
   if (EC.margenDeLectura) g = EC.margenDeLectura(g, v.videoWidth, v.videoHeight, 0.06);
   var t = ECAP.tamanoDeMedida(g.w, g.h); if (!t) return null;
   var r = grisAEscala(v, g.x, g.y, g.w, g.h, t.w, t.h, 'medida');
   if (!r) return null;
   r.nitidez = ECAP.calidadDeGris ? ECAP.calidadDeGris(r.gris, r.w, r.h) : ECAP.nitidezDeGris(r.gris, r.w, r.h);
+  r.dentro = { y0: (marco.y - g.y) * r.h / g.h, y1: (marco.y + marco.h - g.y) * r.h / g.h };
   return r;
 }
 /* ¿Hay un QR LEÍDO en este lienzo? A 960 px como mucho: el de la cédula digital
@@ -6817,13 +6824,18 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
   ESCDOC.ventana = ECAP.anotarMedida(ESCDOC.ventana, medida.nitidez, guardado);
   if (guardado) {
     ESCDOC.mejorPendiente = true;
-    ESCDOC.franjaMejor = EC.franjaDeBarras ? EC.franjaDeBarras(medida.gris, medida.w, medida.h) : null;
+    /* 22-oct-2026 — con las filas del marco (medida.dentro): solo una franja
+       DE LA TARJETA, nunca la de una mesa de rayas alrededor. Un escaner-
+       cedula.js viejo en la caché no mira el cuarto dato: la franja de antes. */
+    ESCDOC.franjaMejor = EC.franjaDeBarras ? EC.franjaDeBarras(medida.gris, medida.w, medida.h, medida.dentro) : null;
     ESCDOC.altoMedida = medida.h;
     /* 23-oct-2026 — EL PDF417 GASTADO: su franja de barras, en su sitio, es
        lo único que queda de él cuando el lector no lo encuentra (ver
        EC.franjaComoLaDelCodigo y ECAP.decidirVentana). Solo en el respaldo: en
-       el frente, una franja es motivo para MIRAR si hay código, no prueba. */
-    if (!esFrente && EC.franjaComoLaDelCodigo && EC.franjaComoLaDelCodigo(ESCDOC.franjaMejor, medida.h)) {
+       el frente, una franja es motivo para MIRAR si hay código, no prueba.
+       22-oct-2026 — en su sitio quiere decir también DENTRO del marco: la
+       franja de una mesa de rayas hacía guardar el frente como respaldo. */
+    if (!esFrente && EC.franjaComoLaDelCodigo && EC.franjaComoLaDelCodigo(ESCDOC.franjaMejor, medida.h, medida.dentro)) {
       ESCDOC.vioFranja = true; ESCDOC.vioBarras = true;
     }
   }

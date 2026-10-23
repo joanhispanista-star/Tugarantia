@@ -415,25 +415,122 @@
     }
     return o;
   }
-  /* La franja del código: la racha de filas más «de barras» de la imagen. */
-  function franjaDelCodigo(s, h) {
+  /* La franja del código: la racha de filas más «de barras» de la imagen.
+     22-oct-2026 — con `enLaTarjeta` ({dentro}: las filas del marco, o null)
+     la racha más fuerte que no es DE LA TARJETA se descarta y se busca la
+     siguiente. Ver LA FRANJA ES DE LA TARJETA, abajo. Lo usan las dos que
+     miran una imagen con aire alrededor de la cédula: franjaDeBarras (el gris
+     de la medida) y orientacionDelRespaldo (el recorte, o la banda que se
+     lee). */
+  function franjaDelCodigo(s, h, enLaTarjeta) {
     var ss = suavizar(s, Math.max(3, Math.round(h * 0.03)));
-    var m = -1e9, ym = 0;
-    for (var y = 0; y < h; y++) if (ss[y] > m) { m = ss[y]; ym = y; }
-    if (m < ORIENTACION.FUERZA_MIN) return null;
-    var u = m * 0.5, a = ym, b = ym;
-    while (a > 0 && ss[a - 1] >= u) a--;
-    while (b < h - 1 && ss[b + 1] >= u) b++;
-    if (b - a + 1 < Math.max(6, h * 0.04)) return null;
-    return { y0: a, y1: b + 1 };
+    var vetada = enLaTarjeta ? new Uint8Array(h) : null;
+    for (var intento = 0; intento < FRANJA.INTENTOS; intento++) {
+      var m = -1e9, ym = -1;
+      for (var y = 0; y < h; y++) if ((!vetada || !vetada[y]) && ss[y] > m) { m = ss[y]; ym = y; }
+      if (ym < 0 || m < ORIENTACION.FUERZA_MIN) return null;
+      var u = m * 0.5, a = ym, b = ym;
+      /* La racha se extiende también por lo ya descartado: una que se pega a
+         la mesa de rayas llega con ella hasta el borde, y se descarta igual.
+         Así no sobrevive el «hombro» de la mesa (las filas de la tarjeta
+         pegadas a ella, que el suavizado tiñe de rayas). */
+      while (a > 0 && ss[a - 1] >= u) a--;
+      while (b < h - 1 && ss[b + 1] >= u) b++;
+      var f = { y0: a, y1: b + 1 };
+      if (!vetada || franjaEnLaTarjeta(f, h, enLaTarjeta.dentro)) {
+        if (b - a + 1 < Math.max(6, h * 0.04)) return null;
+        return f;
+      }
+      for (var k = a; k <= b; k++) vetada[k] = 1;
+    }
+    return null;
+  }
+  /* ==========================================================================
+   * LA FRANJA ES DE LA TARJETA — 22 de octubre de 2026
+   *
+   * La verificación de 522cf1f (lente «lote», confirmada por dos
+   * refutadores) encontró al FRENTE guardado como respaldo. La persona
+   * muestra primero el frente (el escáner pide primero el respaldo: el error
+   * del 19-oct), con la cédula sobre un mantel, un individual o un tapete de
+   * rayas finas. El gris de la medida trae un 6 % de aire alrededor del marco
+   * (margenDeLectura), y con la cédula al 85-95 % del marco se ve todavía más
+   * mesa. Esas rayas, más o menos perpendiculares al lado largo, son filas
+   * «de barras» de verdad: la franja más fuerte salía EN LA MESA, en el
+   * tercio de arriba o de abajo, y franjaComoLaDelCodigo la tomaba por el
+   * PDF417 gastado. A los 2,5 s el frente se guardaba como respaldo, el
+   * registro pasaba solo a «Revisa tus datos», y el respaldo (el PDF417, la
+   * expedición, la huella) no se guardaba nunca. Alcance medido: contraste
+   * de ±20 a ±60 grises, rayas de 1,2 a 3,1 mm, de 0° a 8° (15° con la
+   * tarjeta al 95 %), con ruido, de onda seno o cuadrada. En TODAS esas
+   * franjas la racha tocaba el borde del gris (filas 0-44 o 276-303 de 303).
+   *
+   * Los mismos refutadores hallaron dos caminos más con las mismas rayas: el
+   * patrón del PDF417 (orientacionDelRespaldo) «votaba» en las rayas del
+   * aire, eso es «vio el código», y el frente se tomaba como respaldo al
+   * segundo (y «Tomar la foto ahora» lo marcaba como la amarilla); y en el
+   * paso del FRENTE, el frente sobre rayas oía «Ese es el lado del código de
+   * barras» y no había cómo tomarlo solo.
+   *
+   * LA CURA, en tres lugares:
+   *   · franjaComoLaDelCodigo exige que la franja esté DENTRO de la tarjeta:
+   *     sin tocar el borde del gris y dentro de las filas del marco
+   *     (`dentro`; la página las da, y sin ellas se suponen las del 6 % de
+   *     aire). Las franjas de los respaldos de verdad caen entre el 10 y el
+   *     35 % o entre el 63 y el 90 % del alto; el marco va del 5,4 al 94,6 %.
+   *   · franjaDeBarras ya no devuelve la mesa: la descarta y busca la
+   *     siguiente racha. Con un respaldo de verdad sobre las rayas, la
+   *     siguiente es la del código, y el lector lee donde está el código (con
+   *     la mesa, al código borroso le daba las filas de la mesa y nunca lo
+   *     veía). Con un frente, no queda ninguna: null, como en mesa lisa.
+   *   · orientacionDelRespaldo mide el patrón solo en una franja que no toca
+   *     el borde de lo que mira (el recorte, o la banda que se lee).
+   * Lo que cuesta: un código cuya franja sí toca el borde (la cédula más
+   * grande que el marco y corrida) no da franja. Entonces se lee el recorte
+   * entero, como sin franja, y sin código visto se dice «voltéala»: la salida
+   * de antes de que la franja fuera prueba (522cf1f), con «Tomar la foto
+   * ahora». Nada se guarda mal. Y el respaldo MUY gastado (σ 1,5 módulos)
+   * sobre rayas, que a veces se tomaba por la franja de la MESA —acertando
+   * por la razón equivocada—, ahora se toma como en mesa lisa: cuando la
+   * franja de su código gana (con el fabricado, a veces la empata un renglón
+   * de arriba de la tarjeta también en mesa lisa; eso no es de las rayas).
+   * ======================================================================== */
+  var FRANJA = {
+    /* Cuántas rachas se descartan antes de rendirse: la mesa de arriba, la de
+       abajo, los «hombros» de cada una, y la del código. Medido con 600
+       escenas al azar (frentes y respaldos sobre rayas de ±20 a ±80, 1,2 a
+       3 mm, 0 a 15°): nunca hicieron falta más de 5. Con 12 sobra, y cada
+       vuelta solo descarta lo que no es de la tarjeta: más vueltas no le dan
+       a un frente nada que no tuviera en mesa lisa. */
+    INTENTOS: 12,
+    AIRE_MEDIDA: 0.06   // el aire de margenDeLectura en el gris de la medida (medirNitidezDoc)
+  };
+  /* Las filas del marco dentro del gris de la medida si la página no las da:
+     el 6 % de aire de cada lado sobre el 112 % del marco. */
+  function dentroPorDefecto(h) {
+    var m = FRANJA.AIRE_MEDIDA / (1 + 2 * FRANJA.AIRE_MEDIDA);
+    return { y0: h * m, y1: h * (1 - m) };
+  }
+  /* ¿La racha {y0, y1} está en la tarjeta? No toca el borde del gris (lo que
+     llega al borde es lo que rodea la tarjeta: la mesa sigue más allá) y, si
+     se sabe dónde está el marco, no se sale de sus filas. */
+  function franjaEnLaTarjeta(f, h, dentro) {
+    if (!f || !(f.y0 > 0) || !(f.y1 < h)) return false;
+    if (dentro && isFinite(dentro.y0) && isFinite(dentro.y1) && dentro.y1 > dentro.y0) {
+      if (f.y0 < Math.floor(dentro.y0) || f.y1 > Math.ceil(dentro.y1)) return false;
+    }
+    return true;
   }
   /* 21-oct-2026 — LA MISMA FRANJA, PARA QUIEN LEE. Con video 4K el recorte
      entero de la cédula son ~8 MB de píxeles; la página la busca en el gris
      chico con que mide la nitidez (480 px) y le da al lector solo esas filas
-     (EscanerCaptura.bandaDeLectura). null: no se ve una franja de barras. */
-  function franjaDeBarras(gris, w, h) {
+     (EscanerCaptura.bandaDeLectura). null: no se ve una franja de barras.
+     22-oct-2026 — solo una franja DE LA TARJETA (ver LA FRANJA ES DE LA
+     TARJETA): `dentro`, opcional, son las filas del marco en este gris. Sin
+     él no se supone ninguna: quien llama con una tarjeta sin aire (las
+     pruebas) no tiene marco. */
+  function franjaDeBarras(gris, w, h, dentro) {
     if (!gris || !w || !h || gris.length !== w * h || w < 32 || h < 16) return null;
-    return franjaDelCodigo(puntajeDeFilas(gris, w, h), h);
+    return franjaDelCodigo(puntajeDeFilas(gris, w, h), h, { dentro: dentro || null });
   }
   /* 23-oct-2026 — ¿ESA FRANJA ES LA DEL PDF417 DE LA AMARILLA? La página la
      usaba solo como atajo (dónde leer); desde hoy también es lo único que
@@ -448,11 +545,18 @@
      zona de lectura mecánica), apareció una franja. Un código más gastado
      todavía (σ 2 módulos) tampoco deja franja con la cámara enfocada: ahí
      sigue la salida de siempre, «Tomar la foto ahora».
+     22-oct-2026 — y DENTRO de la tarjeta: una franja en la mesa de rayas que
+     rodea la cédula hacía pasar el frente por respaldo (ver LA FRANJA ES DE
+     LA TARJETA). Este es el guardián final: aunque una franja de la mesa
+     llegue hasta aquí por otro camino, no prueba nada.
      @param f      {y0, y1} de franjaDeBarras, en filas del gris de la medida
-     @param alto   el alto de ese gris */
-  function franjaComoLaDelCodigo(f, alto) {
+     @param alto   el alto de ese gris
+     @param dentro {y0, y1}: las filas del marco en ese gris (opcional: sin
+                   él, las del 6 % de aire de medirNitidezDoc) */
+  function franjaComoLaDelCodigo(f, alto, dentro) {
     var h = +alto || 0;
     if (!f || !(h > 0) || !(f.y1 > f.y0)) return false;
+    if (!franjaEnLaTarjeta(f, h, dentro || dentroPorDefecto(h))) return false;
     if ((f.y1 - f.y0) < h * 0.05) return false;
     var centro = (f.y0 + f.y1) / 2 / h;
     return centro >= 2 / 3 || centro <= 1 / 3;
@@ -564,7 +668,13 @@
         if (espejo >= V * real && espejo > F) return { giro: 180, seguro: true, por: 'lectura' };
       }
     }
-    var f = franjaDelCodigo(s, h);
+    /* 22-oct-2026 — el patrón se busca en una franja DE LA TARJETA (ver LA
+       FRANJA ES DE LA TARJETA). Sin esto, el lector que lee el recorte entero
+       medía el patrón en la mesa de rayas del aire: rayas de 3 mm a ±60, con
+       la cédula corrida, «votaban» por un PDF417 derecho, eso es «vio el
+       código», y el FRENTE se tomaba como respaldo al segundo. Aquí no hay
+       marco que dar (es el recorte, o la banda que se lee): solo el borde. */
+    var f = franjaDelCodigo(s, h, { dentro: null });
     if (!f) return nada;
     var blanco = percentil(gris, w, f.y0, f.y1, 0.9), negro = percentil(gris, w, f.y0, f.y1, 0.1);
     if (blanco - negro < 40) return nada;

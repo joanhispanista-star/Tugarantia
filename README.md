@@ -197,6 +197,18 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         pruebas/la-digital-no-se-lee.test.js y «la cédula
                         difícil» de escaner-ocr-de-punta-a-punta. Calibrado
                         con cédulas fabricadas: falta una de verdad.
+                        (22-oct-2026, verificación de 522cf1f) La franja es
+                        DE LA TARJETA: el frente sobre un mantel o tapete de
+                        rayas finas se guardaba como respaldo, porque las
+                        rayas del aire del marco salían como «la franja del
+                        PDF417 gastado» (y el patrón votaba en ellas); el
+                        respaldo nunca se guardaba. Ahora una franja que toca
+                        el borde del gris o se sale de las filas del marco no
+                        prueba nada, franjaDeBarras la descarta y busca la
+                        del código, y el patrón no la mira. El frente sobre
+                        rayas oye «voltéala» en el paso del respaldo y se
+                        toma en el suyo. Pruebas:
+                        pruebas/el-frente-sobre-rayas.test.js.
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).

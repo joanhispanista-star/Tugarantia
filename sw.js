@@ -1817,7 +1817,15 @@
    app/escaner-cedula.js y play/index.html. Mezclarlos no rompe: la pagina
    pregunta por calidadDeGris, franjaComoLaDelCodigo y NITIDEZ_MIN_FRENTE
    antes de usarlos (sin ellos, la mediana y la puerta de siempre), y una
-   pagina vieja no manda las opciones nuevas. */
+   pagina vieja no manda las opciones nuevas.
+   22-oct-2026, la sexta verificacion (MISMA v139): la franja de barras es DE
+   LA TARJETA (el frente sobre una mesa de rayas pasaba por respaldo), en
+   app/escaner-cedula.js y play/index.html. Mezclarlos no rompe: la pagina
+   nueva le pasa a franjaDeBarras y franjaComoLaDelCodigo las filas del marco
+   como dato de mas (un escaner-cedula.js viejo no lo mira y queda como
+   estaba), y con una pagina vieja el escaner-cedula.js nuevo ya descarta la
+   franja que toca el borde y supone el 6 % de aire. La cura viaja en
+   escaner-cedula.js. */
 const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 
