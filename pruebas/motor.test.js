@@ -8399,7 +8399,10 @@ describe('la bienvenida dura lo que se pidió, y la animación le cabe adentro',
     const i = bloque.lastIndexOf('@media (prefers-reduced-motion:reduce)');
     assert.ok(i >= 0, 'la bienvenida se quedó sin su regla de movimiento reducido');
     const regla = bloque.slice(i);
-    ['#hola .sello', '#hola .aura', '#hola .halo', '#hola .filete i'].forEach(sel => {
+    /* 23-oct-2026 — la bienvenida nueva (la G de oro, propuesta A) cambió el
+       filete por el anillo que gira (.giro) y suma el destello y la chispa:
+       todo lo que se mueve tiene que estar en la regla. */
+    ['#hola .sello', '#hola .aura', '#hola .halo', '#hola .giro', '#hola .destello', '#hola .chispa'].forEach(sel => {
       assert.ok(regla.indexOf(sel) >= 0,
         sel + ' se anima y nadie lo apaga con el movimiento reducido');
     });
@@ -8520,8 +8523,9 @@ describe('la hoja de estilos de la app no tiene comentarios rotos', () => {
     /* Si una capa desaparece del HTML, la pantalla sigue abriendo y se ve
        "bien": simplemente pierde el material y vuelve a ser un rectángulo negro
        con un logo. Eso es justo lo que se acaba de cambiar. */
+    /* 23-oct-2026 — el filete se volvió el anillo (.orbita) y entró la G de oro. */
     ['class="placa"', 'class="aura"', 'class="grano"', 'class="vineta"',
-     'class="halo"', 'class="sello"', 'class="lema"', 'class="filete"']
+     'class="halo"', 'class="sello"', 'class="lema"', 'class="orbita"', 'class="g-grande"']
       .forEach(m => assert.ok(SOCIO.indexOf(m) >= 0, 'la bienvenida perdió ' + m));
   });
 });

@@ -32,9 +32,11 @@ a:focus-visible{outline:3px solid var(--amarillo);outline-offset:2px}
 .tope{background:var(--laca);border-bottom:1px solid var(--linea-laca)}
 .tope .wrap{display:flex;align-items:center;gap:var(--e3);min-height:60px}
 .marca{display:flex;align-items:center;gap:10px;text-decoration:none;min-height:44px}
-.sello{width:32px;height:32px;border-radius:9px;background:var(--rojo);color:#fff;
-  display:grid;place-items:center;font-family:var(--serif);font-size:20px;font-weight:700;flex:none;line-height:1}
-.marca b{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--blanco-laca)}
+/* 23-oct-2026 — la marca es la G de oro y la palabra, dibujadas en app/marca.svg
+   (la misma de la app, en la precarga de sw.js). Antes era el sello rojo con la
+   G en Georgia, que en Android cambiaba de letra según el teléfono. Va en
+   imagen y no en línea porque esta página no lleva los moldes de la app. */
+.marca-img{display:block;width:156px;height:26px}
 
 .cab{background:var(--laca);color:var(--blanco-laca);padding:var(--e6) 0}
 .cab h1{font-size:clamp(28px,5.6vw,42px);line-height:1.1}
@@ -90,7 +92,7 @@ section li{margin-bottom:var(--e2)}
 <body>
 
 <header class="tope"><div class="wrap">
-  <a class="marca" href="../index.html"><span class="sello">G</span><b>Tu Garantía</b></a>
+  <a class="marca" href="../index.html"><img class="marca-img" src="../app/marca.svg" alt="Tu Garantía" width="156" height="26"></a>
 </div></header>
 
 <div class="cab"><div class="wrap">

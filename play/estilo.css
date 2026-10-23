@@ -32,6 +32,10 @@
   --amarillo:#F5C542; --amarillo-tinta:#7A5A10;
   --azul:#1B4FD8; --azul-laca:#7FA8FF; --azul-tinte:#EDF2FE; --azul-texto:var(--azul);
   --rojo:#D81F26; --rojo-laca:#FF6B6F; --rojo-tinte:#FCF4F2; --rojo-texto:var(--rojo);
+  /* 23-oct-2026 — el oro de la marca (los mismos de app/socio.html): solo sobre la
+     laca, y solo para la G. --oro es el --amarillo de siempre. */
+  --oro-luz:#FFF4CC; --oro-claro:#FCDD7C; --oro:#F5C542; --oro-dorado:#E3A72F;
+  --oro-sombra:#A9690F; --oro-hondo:#6B4106; --oro-reflejo:#FFE08A; --marfil:#F3ECE2;
   --ambar:#9A5B12; --ambar-papel:color-mix(in srgb, var(--ambar) 10%, var(--luz));
   --ambar-filete:color-mix(in srgb, var(--ambar) 40%, transparent);
   --ambar-tinta:var(--ambar);
@@ -87,7 +91,11 @@ h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Tim
 /* 17-sep-2026 — «powered by NEXECO». Va en la misma fila y se cae a la
    siguiente en un telefono angosto (por eso el flex-wrap de arriba): la marca
    que vende no puede partirse para que quepa el respaldo. Mas chico y mas
-   apagado a proposito — es quien responde detras, no lo que se vende. */
+   apagado a proposito — es quien responde detras, no lo que se vende.
+   23-oct-2026 — Tu Garantía ya no lo lleva (el logo dice solo «Tu Garantía»;
+   la G de oro y la palabra tienen su regla EN LÍNEA en play/index.html). La
+   regla y la de .pin se quedan: el modo PlataChat pinta con ellas su «P
+   PlataChat de Tu Garantía». */
 .marca .porNexeco{font-size:10.5px;font-weight:600;letter-spacing:.1em;
   color:color-mix(in srgb, var(--blanco-laca) 45%, transparent)}
 .pin{width:24px;height:24px;border-radius:7px;background:var(--rojo);color:var(--luz);

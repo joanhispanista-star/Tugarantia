@@ -163,7 +163,17 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
   app.webmanifest       Para instalarla en el celular. ES LA ÚNICA APP QUE SE
                         OFRECE PARA INSTALAR (decisión de Joan, 21-oct-2026:
                         Chrome «Instalar», sin APK).
-  icono-*.png           La G amarilla sobre laca negra.
+  icono-*.png           La G de oro sobre laca negra (23-oct-2026, propuesta A
+                        «Oro clásico»): degradado de ocho paradas, bisel y brillo.
+                        El maskable va a sangre, con la G dentro de la zona segura.
+                        Mismos nombres de siempre (los nombran el manifiesto y el APK).
+  marca.svg             La G de oro y la palabra «Tu Garantía» en curvas, para fondo
+                        oscuro: la usan en imagen legal/, descargas/, el borrado de
+                        cuenta y la configuración. Las cabeceras de la app, de play/
+                        y de la portada la llevan EN LÍNEA (moldes al principio del
+                        <body>) para que la G brille una vez al cargar. Desde el
+                        23-oct-2026 el logo dice solo «Tu Garantía»: NEXECO va en el
+                        pie, en la casilla de autorización y en legal/.
 
 panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna parte.
   crm.html              Socios, créditos, cobros, invitaciones, plantillas.
@@ -497,6 +507,11 @@ descargas/
 herramientas/
   ficha-play.js         Genera PLAY-FICHA.md desde el código. No editar la ficha
                         a mano: se regenera.
+  marca/                Las fuentes de la marca de oro (23-oct-2026): icono.svg (el
+                        ícono maestro, a sangre), logo.svg (la G sola) y marca.svg.
+                        Los PNG de app/ salieron de icono.svg con Chrome sin ventana
+                        y una paleta de 256 colores; la palabra está pasada a curvas
+                        desde Noto Serif SC (licencia SIL OFL 1.1).
 
 pruebas/
   motor.test.js         546 pruebas del motor de reglas.

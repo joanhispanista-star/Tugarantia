@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs>
+<linearGradient id="ioro" gradientUnits="userSpaceOnUse" x1="-70" y1="-150" x2="70" y2="150">
+  <stop offset="0" stop-color="#FFF4CC"/>
+  <stop offset=".2" stop-color="#FCDD7C"/>
+  <stop offset=".4" stop-color="#F5C542"/>
+  <stop offset=".58" stop-color="#E3A72F"/>
+  <stop offset=".68" stop-color="#A9690F"/>
+  <stop offset=".82" stop-color="#E3A72F"/>
+  <stop offset=".92" stop-color="#FFE08A"/>
+  <stop offset="1" stop-color="#C98A1E"/>
+</linearGradient>
+<radialGradient id="iesp" gradientUnits="userSpaceOnUse" cx="-78" cy="-96" r="120">
+  <stop offset="0" stop-color="#FFFFFF" stop-opacity=".62"/>
+  <stop offset=".45" stop-color="#FFFFFF" stop-opacity=".16"/>
+  <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+</radialGradient>
+<clipPath id="iclip"><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z"/></clipPath>
+<mask id="imluz" maskUnits="userSpaceOnUse" x="-170" y="-170" width="340" height="340"><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="#fff"/><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="#000" transform="translate(2.4 3.1)"/></mask>
+<mask id="imsom" maskUnits="userSpaceOnUse" x="-170" y="-170" width="340" height="340"><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="#fff"/><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="#000" transform="translate(-2.4 -3.1)"/></mask>
+<radialGradient id="iplaca" cx=".3" cy=".16" r="1"><stop offset="0" stop-color="#262123"/><stop offset=".5" stop-color="#131011"/><stop offset="1" stop-color="#0C0A0B"/></radialGradient>
+<radialGradient id="ihalo" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#F5C542" stop-opacity=".30"/><stop offset=".5" stop-color="#F5C542" stop-opacity=".09"/><stop offset="1" stop-color="#F5C542" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="512" height="512" fill="url(#iplaca)"/>
+<circle cx="256" cy="256" r="236" fill="url(#ihalo)"/>
+<g transform="translate(256 256) scale(1.06)">
+<path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="url(#ioro)"/>
+<g clip-path="url(#iclip)"><rect x="-160" y="-160" width="320" height="320" fill="url(#iesp)"/></g>
+<path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="#FFF4CC" fill-opacity=".9" mask="url(#imluz)"/>
+<path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="#6B4106" fill-opacity=".72" mask="url(#imsom)"/>
+</g>
+</svg>

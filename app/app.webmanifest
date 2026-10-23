@@ -1,5 +1,6 @@
 {
-  "name": "Tu Garantía · Mi cuenta de socio",
+  "name": "Tu Garantía",
+  "_nota_nombre": "23-oct-2026 — era «Tu Garantía · Mi cuenta de socio». Joan pidió que la marca diga solo «Tu Garantía», y el name es lo que muestran el diálogo de instalar y la pantalla de arranque de Android 11 o anterior. El fondo de esa pantalla (background_color) es la laca #0C0A0B, la misma de la bienvenida de socio.html, y el ícono es la misma G de oro que la bienvenida pone en el centro: el paso de una a otra no salta.",
   "short_name": "Tu Garantía",
   "description": "Dinos cuánto necesitas y para cuándo, y con tu cuenta mira tu cupo, tu garantía y tu historial.",
   "_nota_descripcion": "23-oct-2026 — decía «calcula un crédito antes de pedirlo» y sin cuenta la app no tenía calculadora. Ahora la del pedido es la primera tarjeta de Entrar y el atajo socio.html#calc lleva a la pestaña Calculadora (atajoDelManifiesto en socio.html).",

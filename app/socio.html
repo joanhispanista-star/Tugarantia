@@ -74,12 +74,27 @@
  *   azul es también el color de lo que informa y acompaña: avisos que no son
  *   alarma, explicaciones, ayudas.
  *
- * ROJO — la marca, el gesto de avanzar, y el crédito quincenal
- *   El rojo es SUSTANTIVO. Es la marca (el pin de la Q, la barrita de la
- *   pestaña activa) y es el botón que hace avanzar. Y ahora además es el
- *   color del crédito quincenal: lo rápido, lo de quince días, lo que cuesta
- *   20% y hace crecer. El rojo NUNCA es un estado y NUNCA es una cifra de
- *   plata.
+ * ROJO — el gesto de avanzar, y el crédito quincenal
+ *   El rojo es SUSTANTIVO. Es la barrita de la pestaña activa y el botón que
+ *   hace avanzar. Y es el color del crédito quincenal: lo rápido, lo de quince
+ *   días, lo que cuesta 20% y hace crecer. El rojo NUNCA es un estado y NUNCA
+ *   es una cifra de plata.
+ *   23-oct-2026 — EL ROJO DEJÓ DE SER LA MARCA. Hasta hoy la marca era el pin
+ *   rojo con la G; Joan pidió «que el logo dorado de la G tenga un color más
+ *   oro y que parezca que brilla», y que el logo diga solo «Tu Garantía». Había
+ *   tres G distintas (la dorada del ícono, la roja del pin y la roja en Georgia
+ *   de la bienvenida) y al abrir la app instalada se veía el salto de una a
+ *   otra. Ahora hay UNA: la de oro (abajo).
+ *
+ * ORO — la marca (23-oct-2026, propuesta A «Oro clásico»)
+ *   La G de oro: un degradado de ocho paradas (--oro-luz … --oro-hondo), un
+ *   bisel y un brillo, dibujada en SVG (los moldes van al principio del
+ *   <body>), y la palabra «Tu Garantía» en curvas, en --marfil. Es metal, no
+ *   un color plano: por eso tiene tokens propios y no se usa para nada más.
+ *   El --amarillo plano se queda para lo que el socio construyó. Y la ley de
+ *   arriba no cambia: el oro, como el amarillo, SOLO va sobre la laca (la G
+ *   siempre vive en una cabecera de laca o en la bienvenida); sobre papel
+ *   claro la luz de arriba se pierde y la G se ve rota.
  *
  * LOS ESTADOS SIGUEN EN ÁMBAR
  *   Mora, atraso, vencimiento, "no te alcanza": ámbar quemado, siempre. Lo
@@ -138,9 +153,15 @@
   /* azul — el préstamo con garantía, y lo que explica */
   --azul:#1B4FD8; --azul-laca:#7FA8FF; --azul-tinte:#EDF2FE;
   --azul-texto:var(--azul);
-  /* rojo — la marca, el gesto de avanzar, y el crédito quincenal */
+  /* rojo — el gesto de avanzar, y el crédito quincenal */
   --rojo:#D81F26; --rojo-laca:#FF6B6F; --rojo-tinte:#FCF4F2;
   --rojo-texto:var(--rojo);
+  /* oro — la marca (23-oct-2026). Metal, solo sobre la laca; --oro es el
+     --amarillo de siempre, intacto. Iguales en los dos modos: la marca no
+     cambia con el tema. */
+  --oro-luz:#FFF4CC; --oro-claro:#FCDD7C; --oro:#F5C542; --oro-dorado:#E3A72F;
+  --oro-sombra:#A9690F; --oro-hondo:#6B4106; --oro-reflejo:#FFE08A;
+  --marfil:#F3ECE2;   /* la palabra «Tu Garantía» sobre la laca */
   /* estados: ámbar, y SOLO sobre papel — el suyo. En claro el papel es claro y
      el ámbar escribe encima; en oscuro el papel se oscurece y el ámbar se corre
      al filete (ver la ley de arriba). */
@@ -258,19 +279,25 @@ h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Tim
    "garantía" sola es lo que el prestamista EXIGE (fiador, prenda); el posesivo es lo
    que da vuelta el sentido: acá la garantía es del socio. Nunca partir la marca ni
    dejar el "Garantía" suelto. Con el tracking abierto el bloque respira y se lee como
-   sello, no como texto. */
-.marca{display:flex;align-items:center;gap:var(--e2);font-size:13px;letter-spacing:.14em;
-  text-transform:uppercase;font-weight:700;color:color-mix(in srgb, var(--blanco-laca) 72%, transparent);
-  flex-wrap:wrap}
-/* 17-sep-2026 — «powered by NEXECO», pedido de Joan. Mas chico y mas apagado:
-   la marca que vende es Tu Garantia, NEXECO es quien responde detras. El
-   flex-wrap es para que en un telefono angosto se caiga el respaldo a la
-   segunda linea y NO se parta la marca. Esto es marca, no identificacion
-   legal: quien presta se identifica en legal/terminos.html. */
-.marca .porNexeco{font-size:10.5px;font-weight:600;letter-spacing:.1em;
-  color:color-mix(in srgb, var(--blanco-laca) 45%, transparent)}
-.pin{width:24px;height:24px;border-radius:7px;background:var(--rojo);color:var(--luz);
-  display:grid;place-items:center;font-weight:800;font-size:13px;letter-spacing:0}
+   sello, no como texto.
+   23-oct-2026 — LA MARCA ES LA G DE ORO Y LA PALABRA, Y NADA MÁS. Joan: «quiero
+   que el diseño del logo solo aparezca el nombre Tu Garantía». Se fue el
+   «powered by NEXECO» del 17-sep (era marca, no identificación legal): quien
+   responde se dice en el pie (quienResponde(), en enlacesLegales y en Entrar),
+   en la casilla de autorización del registro y en legal/. La G y la palabra
+   van dibujadas en SVG con los moldes del principio del <body>: la palabra
+   está pasada a curvas, así que se ve igual en todos los teléfonos sin bajar
+   ninguna fuente. Las medidas van fijas (no width:auto) porque un <svg> en
+   línea sin ancho no sabe su proporción en todos los navegadores. */
+.marca{display:flex;align-items:center;gap:10px;min-height:30px}
+.marca .g{width:30px;height:30px;flex:none;overflow:visible;
+  filter:drop-shadow(0 0 8px color-mix(in srgb, var(--oro) 30%, transparent))}
+.marca .palabra{width:120px;height:18px;flex:none;fill:var(--marfil)}
+/* El destello pasa UNA vez por la G: al cargar, y otra vez al irse la
+   bienvenida (despuesDeLaBienvenida), que es cuando de verdad se ve. */
+.marca .destello{animation:marca-destello 1.3s cubic-bezier(.45,.05,.3,1) .35s both}
+@keyframes marca-destello{from{transform:translateX(-300px)}to{transform:translateX(300px)}}
+@media (prefers-reduced-motion:reduce){.marca .destello{animation:none;transform:translateX(300px)}}
 .cab h1{font-size:21px;margin-top:var(--e3);color:var(--blanco-laca)}
 .chip-nivel{display:inline-flex;align-items:center;gap:var(--e2);margin-top:var(--e2);
   padding:var(--e1) var(--e3);border-radius:999px;
@@ -545,31 +572,42 @@ details.plegado>summary{padding:0 var(--e4)}
 /* ---------------- la bienvenida ------------------------------------------
    Antes, al abrir la app instalada, se veía la pantalla negra del sistema y
    nada más: unos segundos en los que no pasaba nada y no se sabía si había
-   abierto. Esto lo llena con el sello.
+   abierto. Esto lo llena con la marca.
 
-   Está escrito en el HTML, no lo dibuja JavaScript, y por eso se ve desde el
+   Está escrita en el HTML, no la dibuja JavaScript, y por eso se ve desde el
    primer fotograma: si esperara al script, la pantalla negra volvería.
 
-   Se va sola en cuanto la app está lista, y hay un plazo de seguridad por si
-   el script no llega nunca — un splash que no se quita es una app que no abre.
+   Se va sola cuando la app está lista, y hay un plazo de seguridad por si el
+   script no llega nunca — un splash que no se quita es una app que no abre.
    Se va con transición para que no dé el brinco de un corte seco.
 
-   6-ago-2026 — POR QUÉ DURA MÁS Y POR QUÉ TIENE MATERIAL.
-   Duraba 700 ms, que en un teléfono rápido es un parpadeo: se alcanzaba a ver
-   que algo pasó, no QUÉ pasó. Ahora se queda 2 segundos (ARRANQUE, más abajo)
-   y la animación está repartida a lo largo de ese tiempo para que los dos
-   segundos tengan algo que mirar en cada momento y no sean una espera.
+   6-ago-2026 — usa los MISMOS materiales de las tarjetas del socio (la placa,
+   el grano, la viñeta), no unos inventados: la bienvenida no es un cartel
+   antes de la app, es la app empezando.
 
-   Y usa los MISMOS materiales de las tarjetas del socio, no unos inventados
-   para esta pantalla: la placa (--placa), el grano contra el banding y el
-   barrido de lustre son los de .laca y .lustre. Así la bienvenida no es un
-   cartel antes de la app: es la app empezando. Lo único propio es el aura —dos
-   luces muy tenues que respiran— y el halo del sello, que acá caben porque la
-   pantalla está vacía y en una tarjeta serían ruido.
-
-   La ley de la paleta manda igual: el fondo es laca, así que el amarillo SÍ
-   puede pisar (el lema, el halo, el filete) y el rojo se queda donde siempre,
-   en el sello de la marca.                                                   */
+   23-oct-2026 — LA G DE ORO QUE BRILLA (propuesta A, «Oro clásico»). Joan:
+   «cuando se inicia en la app quiero que el inicio se vea el logo de Tu
+   Garantía cargando así como lo hicimos antes, quiero que el inicio de la app
+   sea mucho más genial». Cambió lo de adentro:
+     · la G es la del ícono, en oro de verdad (ocho paradas, bisel y brillo),
+       y va EN EL CENTRO EXACTO de la pantalla, del tamaño en que Android
+       dibuja el ícono en su propia pantalla de arranque: el paso de la del
+       sistema a la nuestra ya no salta (antes el sistema mostraba la G dorada
+       y en seguida la página una roja, más arriba). Por eso el nombre y el
+       lema van DEBAJO con posición absoluta: no empujan la G;
+     · un destello cruza la G y una chispa se prende en la punta;
+     · un anillo gira alrededor mientras la app abre: carga INDETERMINADA. No
+       hay barra ni porcentaje porque la app no sabe cuánto le falta, y una
+       cifra inventada sería mentirle (la regla de la casa);
+     · la palabra «Tu Garantía» en curvas (sin fuentes de internet), en marfil;
+     · y dura LO QUE TARDE LA APP: se va cuando hay una pantalla con algo que
+       mostrar, nunca antes del mínimo (que se vea el brillo) y nunca después
+       del tope; el plazo de seguridad de arriba sigue por si el script grande
+       revienta. Ver ARRANQUE.
+   Todo lo que se mueve es transform u opacity, salvo la palabra, que entra
+   con un clip-path una sola vez: lo compone la GPU sin repintar, en un
+   teléfono de 300.000 pesos también. El oro va sobre la laca, como manda la
+   ley de la paleta.                                                          */
 #hola{position:fixed;inset:0;z-index:99;background:var(--laca);
   display:grid;place-items:center;overflow:hidden;
   transition:opacity .55s ease, visibility .55s ease}
@@ -578,14 +616,12 @@ details.plegado>summary{padding:0 var(--e4)}
 /* Capa 1 — la placa. El mismo material de las tarjetas donde vive lo del socio. */
 #hola .placa{position:absolute;inset:0;background:var(--placa)}
 
-/* Capa 2 — el aura. Dos luces que respiran, muy por debajo del umbral en que
-   un fondo empieza a competir con lo que hay encima. Se mueve SOLO con
-   transform: una escala y un giro los compone la GPU sin repintar, que es lo
-   que la deja correr sin tirones en un teléfono de 300.000 pesos. */
+/* Capa 2 — el aura. Dos luces de oro que respiran, muy por debajo del umbral
+   en que un fondo compite con lo de encima. Solo transform. */
 #hola .aura{position:absolute;inset:-25%;pointer-events:none;
   background:
-    radial-gradient(36% 30% at 24% 20%, color-mix(in srgb, var(--rojo) 40%, transparent), transparent 68%),
-    radial-gradient(40% 34% at 78% 84%, color-mix(in srgb, var(--amarillo) 22%, transparent), transparent 70%);
+    radial-gradient(34% 28% at 22% 18%, color-mix(in srgb, var(--oro-sombra) 34%, transparent), transparent 70%),
+    radial-gradient(40% 34% at 80% 86%, color-mix(in srgb, var(--oro) 15%, transparent), transparent 70%);
   animation:hola-aura 7.5s ease-in-out infinite alternate}
 
 /* Capa 3 — el grano, contra el banding del degradado. Es el mismo de .laca. */
@@ -593,72 +629,65 @@ details.plegado>summary{padding:0 var(--e4)}
   opacity:.055;mix-blend-mode:overlay;background-size:140px 140px;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>")}
 
-/* Capa 4 — la viñeta. Cierra los bordes para que el ojo caiga en el sello. */
+/* Capa 4 — la viñeta. Cierra los bordes para que el ojo caiga en la G. */
 #hola .vineta{position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(115% 85% at 50% 42%, transparent 38%,
-    color-mix(in srgb, var(--sombra) 60%, transparent) 100%)}
+  background:radial-gradient(115% 85% at 50% 50%, transparent 38%,
+    color-mix(in srgb, var(--sombra) 62%, transparent) 100%)}
 
-#hola .marco{position:relative;z-index:2;display:flex;flex-direction:column;
-  align-items:center;gap:var(--e4);padding:0 24px;text-align:center;
+/* El marco mide lo mismo que el sello: así el centro del sello es el centro
+   de la pantalla, como el ícono de la pantalla de arranque de Android. */
+#hola .marco{position:relative;z-index:2;display:grid;place-items:center;
   transition:transform .55s ease}
-/* Al irse, el bloque se despega un pelo mientras se desvanece. Sin esto la
-   salida es un apagón; con esto parece que la bienvenida se aparta. */
+/* Al irse, el bloque se despega un pelo mientras se desvanece. */
 #hola.fuera .marco{transform:translateY(-10px) scale(.985)}
 
-#hola .sello-caja{position:relative;display:grid;place-items:center}
-/* El halo: una onda de oro que sale del sello. Va FUERA del sello y no adentro
-   porque el sello recorta (overflow:hidden) para poder llevar el lustre. */
-#hola .halo{position:absolute;width:96px;height:96px;border-radius:28px;
-  border:1px solid color-mix(in srgb, var(--amarillo) 60%, transparent);
-  animation:hola-halo 2.6s cubic-bezier(.2,.7,.2,1) .45s infinite}
+/* El sello: halo + anillo + G, apilados en el mismo centro. */
+#hola .sello{position:relative;width:200px;height:200px;display:grid;place-items:center}
+#hola .halo{position:absolute;left:50%;top:50%;width:300px;height:300px;margin:-150px 0 0 -150px;
+  border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,
+    color-mix(in srgb, var(--oro) 30%, transparent),
+    color-mix(in srgb, var(--oro) 9%, transparent) 55%, transparent);
+  animation:hola-entra .8s ease .2s both, hola-respira 3.2s ease-in-out 1s infinite alternate}
+#hola .orbita{position:absolute;left:50%;top:50%;width:184px;height:184px;margin:-92px 0 0 -92px;
+  animation:hola-sello .8s cubic-bezier(.2,.9,.25,1) .3s both}
+#hola .riel{position:absolute;inset:0;border-radius:50%;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--oro) 15%, transparent)}
+#hola .giro{position:absolute;inset:0;animation:hola-girar 1.7s cubic-bezier(.5,.15,.45,.85) infinite}
+#hola .cola{position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 0deg, transparent 0 56%,
+    color-mix(in srgb, var(--oro) 70%, transparent) 93%, var(--oro-luz) 100%);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+          mask:radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px))}
+#hola .punta{position:absolute;left:50%;top:0;width:6px;height:6px;margin:-2px 0 0 -3px;border-radius:50%;
+  background:var(--oro-luz);
+  box-shadow:0 0 6px 2px color-mix(in srgb, var(--oro) 85%, transparent),
+    0 0 18px 5px color-mix(in srgb, var(--oro) 35%, transparent)}
+#hola .g-grande{position:relative;width:136px;height:136px;overflow:visible;
+  filter:drop-shadow(0 14px 22px color-mix(in srgb, var(--sombra) 55%, transparent));
+  animation:hola-sello .9s cubic-bezier(.2,.9,.25,1) both}
+/* El destello: una franja de luz que cruza la G, recortada a su forma. */
+#hola .destello{transform:translateX(-300px);
+  animation:hola-destello 2.6s cubic-bezier(.45,.05,.3,1) .6s infinite}
+/* La chispa: se prende en la punta del terminal cuando pasa el destello. */
+#hola .chispa{transform-box:fill-box;transform-origin:center;transform:scale(0);opacity:0;
+  animation:hola-chispa 2.6s ease .6s infinite}
 
-/* El mismo sello rojo con la G blanca de la cabecera, en grande. Es la marca:
-   el rojo la identifica y el amarillo se reserva para lo que el socio construyó.
-   El relleno pasó de plano a un degradado con luz arriba y sombra abajo, y las
-   sombras interiores le dan el canto: es una pieza, no un cuadrado de color. */
-#hola .sello{position:relative;width:96px;height:96px;border-radius:28px;
-  overflow:hidden;color:var(--luz);display:grid;place-items:center;
-  background:linear-gradient(158deg,
-    color-mix(in srgb, var(--rojo) 76%, var(--luz)) 0%,
-    var(--rojo) 44%,
-    color-mix(in srgb, var(--rojo) 74%, var(--sombra)) 100%);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--luz) 42%, transparent),
-    inset 0 -2px 7px color-mix(in srgb, var(--sombra) 38%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--luz) 9%, transparent),
-    0 30px 64px -22px color-mix(in srgb, var(--rojo) 90%, transparent);
-  animation:hola-sello .85s cubic-bezier(.2,.9,.25,1) both}
-#hola .sello span{position:relative;z-index:2;
-  font-family:Georgia,'Times New Roman',serif;font-size:56px;font-weight:700;
-  line-height:1;text-shadow:0 2px 6px color-mix(in srgb, var(--sombra) 35%, transparent)}
-/* El lustre que cruza el sello: el mismo gesto de .lustre en la cabecera. Se
-   repite cada 2,4 s, así que en los 2 segundos de bienvenida pasa una vez y
-   media y no llega a volverse un latido. */
-#hola .sello::after{content:'';position:absolute;top:-40%;bottom:-40%;left:0;width:44%;
-  transform:translateX(-170%) skewX(-16deg);
-  background:linear-gradient(90deg,transparent,
-    color-mix(in srgb, var(--luz) 52%, transparent),transparent);
-  animation:hola-lustre 2.4s cubic-bezier(.3,.75,.35,1) .5s infinite}
-
-#hola .nombre{font-size:13px;font-weight:700;letter-spacing:.3em;
-  text-transform:uppercase;color:color-mix(in srgb, var(--blanco-laca) 76%, transparent);
-  animation:hola-sube .6s ease .3s both}
+/* Debajo del sello, sin moverlo del centro. */
+#hola .debajo{position:absolute;left:50%;top:100%;transform:translateX(-50%);
+  width:max-content;max-width:calc(100vw - 48px);padding-top:var(--e3);
+  display:flex;flex-direction:column;align-items:center;text-align:center}
+#hola .nombre{display:block;width:204px;height:31px;fill:var(--marfil);
+  animation:hola-revela 1s cubic-bezier(.6,0,.2,1) .4s both}
 /* La frase de la marca. Es el producto entero en cinco palabras y acá cabe:
-   la bienvenida es el único momento en que la pantalla está vacía. Va en oro
-   porque habla de lo que el socio construye, que es de quien es el amarillo. */
-#hola .lema{margin-top:calc(var(--e3) * -1);
+   la bienvenida es el único momento en que la pantalla está vacía. No es parte
+   del logo (Joan pidió que el logo diga solo «Tu Garantía»): si tampoco la
+   quiere aquí, es borrar una línea. */
+#hola .lema{margin-top:var(--e3);
   font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;
   font-size:15.5px;font-style:italic;letter-spacing:.01em;
-  color:color-mix(in srgb, var(--amarillo) 82%, transparent);
-  animation:hola-sube .7s ease .62s both}
-/* El filete de oro que cruza por debajo: es el mismo del borde de la laca, y
-   sirve de reloj — mientras se dibuja, la app está cargando. */
-#hola .filete{width:150px;height:2px;border-radius:2px;overflow:hidden;position:relative;
-  background:color-mix(in srgb, var(--luz) 13%, transparent);
-  animation:hola-sube .6s ease .82s both}
-#hola .filete i{position:absolute;top:0;bottom:0;width:42%;border-radius:2px;
-  background:linear-gradient(90deg,transparent,var(--amarillo),transparent);
-  animation:hola-filete 1.25s ease-in-out .3s infinite}
+  color:color-mix(in srgb, var(--oro) 80%, transparent);
+  animation:hola-sube .7s ease .8s both}
 
 /* LA VERSIÓN, EN CHIQUITO Y ABAJO — 6-ago-2026.
    No es decoración: el 6 de agosto Joan abrió una copia publicada el 4 y vio un
@@ -666,57 +695,106 @@ details.plegado>summary{padding:0 var(--e4)}
    idénticas y no había forma de saber cuál se estaba mirando. Desde acá se sabe
    en dos segundos, sin abrir nada. La rellena el script de abajo desde una sola
    constante: escrita a mano acá serían dos verdades sobre la misma versión.
-
-   Va al 55% de blanco, no al 32% con el que nació: al 32% daba 2,5:1 contra la
-   laca, o sea que la única línea de esta pantalla que existe PARA SER LEÍDA era
-   la única que no se leía. Al 55% pasa de 6:1 —AA de sobra— y sigue muy por
-   debajo del nombre de la marca (10,7:1), que es lo que tiene que mandar acá. */
+   Va al 55% de blanco: al 32% daba 2,5:1 contra la laca; al 55% pasa de 6:1. */
 #hola .version{position:absolute;left:0;right:0;z-index:2;
   bottom:calc(env(safe-area-inset-bottom) + 24px);text-align:center;
   font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;
   color:color-mix(in srgb, var(--blanco-laca) 55%, transparent);
-  animation:hola-sube .6s ease 1.05s both}
+  animation:hola-sube .6s ease 1s both}
 
+/* Todas con el prefijo hola-: el sube sin prefijo ya existe arriba, para las
+   pestañas, y dos reglas de animación con el mismo nombre no conviven (gana
+   la última). */
 @keyframes hola-sello{
-  from{opacity:0;transform:scale(.72) translateY(12px)}
+  from{opacity:0;transform:scale(.8) translateY(8px)}
   to  {opacity:1;transform:none}
 }
-/* Se llama hola-sube y no sube a secas porque `sube` ya existe arriba, para las
-   pestañas: dos @keyframes con el mismo nombre no conviven, gana el último y el
-   de las pestañas quedaba pisado por el de esta pantalla. */
 @keyframes hola-sube{ from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
-@keyframes hola-filete{
-  0%  {transform:translateX(-115%)}
-  100%{transform:translateX(265%)}
+@keyframes hola-entra{ from{opacity:0;transform:scale(.94)} to{opacity:1;transform:none} }
+@keyframes hola-respira{ from{transform:scale(.92);opacity:.75} to{transform:scale(1.06);opacity:1} }
+@keyframes hola-girar{ to{transform:rotate(360deg)} }
+@keyframes hola-destello{
+  0%       {transform:translateX(-300px)}
+  48%,100% {transform:translateX(300px)}
 }
-@keyframes hola-lustre{
-  0%  {transform:translateX(-170%) skewX(-16deg)}
-  55% {transform:translateX(320%)  skewX(-16deg)}
-  100%{transform:translateX(320%)  skewX(-16deg)}
+@keyframes hola-chispa{
+  0%,27%   {transform:scale(0) rotate(0deg);opacity:0}
+  37%      {transform:scale(1) rotate(45deg);opacity:1}
+  52%,100% {transform:scale(0) rotate(90deg);opacity:0}
 }
-@keyframes hola-halo{
-  0%  {opacity:0;transform:scale(1)}
-  16% {opacity:.6}
-  100%{opacity:0;transform:scale(2)}
-}
+@keyframes hola-revela{ from{clip-path:inset(0 100% 0 0);opacity:.3} to{clip-path:inset(0 0 0 0);opacity:1} }
 @keyframes hola-aura{
   from{transform:scale(1) rotate(0deg);opacity:.75}
   to  {transform:scale(1.14) rotate(7deg);opacity:1}
 }
-/* Con el movimiento reducido, el sello aparece y ya: sin escala, sin barrido,
-   sin aura que respire. Alguien que pidió menos animación no quiere una
-   animación más suave, quiere ninguna. El filete se queda lleno y apagado:
-   sigue diciendo "esto está cargando" sin moverse. */
+/* SIN MOVIMIENTO: BRILLO QUIETO. Quien pidió menos animación no quiere una
+   más suave: quiere ninguna. La G se queda con el destello QUIETO a media cara
+   y la chispa prendida (sigue brillando, sin moverse); el anillo se queda
+   entero y apagado, sin la cola: una cola quieta parecería un porcentaje, y no
+   hay porcentaje que contar. Cada capa que se anime tiene que entrar aquí. */
 @media (prefers-reduced-motion:reduce){
-  #hola .sello,#hola .nombre,#hola .lema,#hola .filete,#hola .version,
-  #hola .aura,#hola .sello::after{animation:none}
-  #hola .halo{display:none}
-  #hola .filete i{animation:none;width:100%;opacity:.5}
+  #hola .sello,#hola .orbita,#hola .g-grande,#hola .nombre,#hola .lema,#hola .version,
+  #hola .aura,#hola .halo,#hola .giro,#hola .destello,#hola .chispa{animation:none}
+  #hola .destello{transform:translateX(34px);opacity:.6}
+  #hola .chispa{transform:scale(.8);opacity:1}
+  #hola .giro{display:none}
+  #hola .riel{box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--oro) 34%, transparent)}
   #hola,#hola .marco{transition:none}
 }
 </style>
 </head>
 <body>
+<!-- 23-oct-2026 — LOS MOLDES DE LA MARCA: el oro, el recorte de la G, el
+     destello, la chispa y la palabra «Tu Garantía» en curvas (Noto Serif SC,
+     licencia SIL OFL 1.1, pasada a curvas: no se baja ninguna fuente). Una sola
+     vez por página; la bienvenida y las cabeceras los usan por id. Salen de la
+     propuesta A «Oro clásico» (herramientas/marca/). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<linearGradient id="aoro" gradientUnits="userSpaceOnUse" x1="-70" y1="-150" x2="70" y2="150">
+  <stop offset="0" stop-color="#FFF4CC"/>
+  <stop offset=".2" stop-color="#FCDD7C"/>
+  <stop offset=".4" stop-color="#F5C542"/>
+  <stop offset=".58" stop-color="#E3A72F"/>
+  <stop offset=".68" stop-color="#A9690F"/>
+  <stop offset=".82" stop-color="#E3A72F"/>
+  <stop offset=".92" stop-color="#FFE08A"/>
+  <stop offset="1" stop-color="#C98A1E"/>
+</linearGradient>
+<radialGradient id="aesp" gradientUnits="userSpaceOnUse" cx="-78" cy="-96" r="120">
+  <stop offset="0" stop-color="#FFFFFF" stop-opacity=".62"/>
+  <stop offset=".45" stop-color="#FFFFFF" stop-opacity=".16"/>
+  <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+</radialGradient>
+<clipPath id="aclip"><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z"/></clipPath>
+<mask id="amluz" maskUnits="userSpaceOnUse" x="-170" y="-170" width="340" height="340"><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="#fff"/><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="#000" transform="translate(2.4 3.1)"/></mask>
+<mask id="amsom" maskUnits="userSpaceOnUse" x="-170" y="-170" width="340" height="340"><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="#fff"/><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="#000" transform="translate(-2.4 -3.1)"/></mask>
+<linearGradient id="boro" gradientUnits="userSpaceOnUse" x1="-70" y1="-150" x2="70" y2="150">
+  <stop offset="0" stop-color="#FFF4CC"/>
+  <stop offset=".2" stop-color="#FCDD7C"/>
+  <stop offset=".4" stop-color="#F5C542"/>
+  <stop offset=".58" stop-color="#E3A72F"/>
+  <stop offset=".68" stop-color="#A9690F"/>
+  <stop offset=".82" stop-color="#E3A72F"/>
+  <stop offset=".92" stop-color="#FFE08A"/>
+  <stop offset="1" stop-color="#C98A1E"/>
+</linearGradient>
+<radialGradient id="besp" gradientUnits="userSpaceOnUse" cx="-78" cy="-96" r="120">
+  <stop offset="0" stop-color="#FFFFFF" stop-opacity=".62"/>
+  <stop offset=".45" stop-color="#FFFFFF" stop-opacity=".16"/>
+  <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+</radialGradient>
+<clipPath id="bclip"><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z"/></clipPath>
+<linearGradient id="dest" x1="0" y1="0" x2="1" y2="0">
+  <stop offset="0" stop-color="#FFFBEA" stop-opacity="0"/>
+  <stop offset=".28" stop-color="#FFFBEA" stop-opacity=".08"/>
+  <stop offset=".45" stop-color="#FFF6D8" stop-opacity=".5"/>
+  <stop offset=".5" stop-color="#FFFFFF" stop-opacity=".9"/>
+  <stop offset=".55" stop-color="#FFF6D8" stop-opacity=".5"/>
+  <stop offset=".72" stop-color="#FFFBEA" stop-opacity=".08"/>
+  <stop offset="1" stop-color="#FFFBEA" stop-opacity="0"/>
+</linearGradient>
+<radialGradient id="chispaLuz"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"/><stop offset=".35" stop-color="#FFF4CC" stop-opacity=".45"/><stop offset="1" stop-color="#F5C542" stop-opacity="0"/></radialGradient>
+<path id="palabra" d="M16.9 0L16.9 -3.1L32.2 -4.5L35.3 -4.5L50.7 -3.1L50.7 0L16.9 0ZM27.9 0Q28.1 -8.4 28.1 -17Q28.2 -25.5 28.2 -34.1L28.2 -39.2Q28.2 -47.9 28.1 -56.4Q28.1 -64.9 27.9 -73.4L39.7 -73.4Q39.6 -65 39.5 -56.4Q39.5 -47.9 39.5 -39.2L39.5 -34.2Q39.5 -25.6 39.5 -17.1Q39.6 -8.5 39.7 0L27.9 0ZM2.3 -53.6L2.9 -73.4L64.7 -73.4L65.4 -53.6L60.7 -53.6L56.3 -73.4L61.6 -69.8L6 -69.8L11.4 -73.4L7 -53.6L2.3 -53.6ZM91.5 1.5Q84.2 1.5 80.2 -3Q76.2 -7.5 76.3 -18.7L76.5 -49L79.1 -47.1L68.7 -48.7L68.7 -51.3L86.3 -53.3L87.5 -52.2L87 -38.4L87 -18.2Q87 -10.8 89.4 -7.9Q91.9 -5 96.4 -5Q100.9 -5 105 -7.6Q109 -10.3 112.3 -14.7L115.1 -10.3L111.5 -10.3Q107.7 -5.1 102.7 -1.8Q97.8 1.5 91.5 1.5ZM110.8 1.1L110.4 -11.2L110.4 -11.4L110.6 -47.6L103 -48.6L103 -51.1L120.4 -53.3L121.4 -52.2L121 -38.4L121 -3.5L128.3 -2.8L128.3 0.1L110.8 1.1ZM201.4 1.7Q190.2 1.7 181.7 -3Q173.3 -7.8 168.6 -16.5Q163.9 -25.1 163.9 -36.8Q163.9 -48.4 168.7 -57Q173.5 -65.6 182.1 -70.4Q190.7 -75.2 201.9 -75.2Q208.6 -75.2 213.7 -73.7Q218.9 -72.3 223.5 -69.5L223.5 -52.8L218.5 -52.8L214.3 -71.3L220.4 -69L220.4 -65.1Q216.1 -68.5 212.2 -70Q208.3 -71.5 203.3 -71.5Q195.3 -71.5 189.2 -67.5Q183 -63.5 179.4 -55.7Q175.9 -48 175.9 -36.7Q175.9 -25.9 179.3 -18.1Q182.7 -10.3 188.8 -6.1Q194.8 -1.9 202.7 -1.9Q206.9 -1.9 210.7 -2.8Q214.5 -3.8 218.3 -5.7L214.3 -2.8L214.3 -10.1Q214.3 -16.5 214.2 -22.8Q214.1 -29 213.9 -35.4L225.3 -35.4Q225.2 -29.5 225.1 -23.3Q225 -17.1 225 -9.8L225 -4.8Q219.2 -1.4 213.7 0.2Q208.2 1.7 201.4 1.7ZM202.5 -32.3L202.5 -35.4L232.1 -35.4L232.1 -32.3L220.8 -31L216.5 -31L202.5 -32.3ZM252.3 1.5Q246.2 1.5 242.2 -1.9Q238.3 -5.4 238.3 -11.6Q238.3 -15.7 240 -18.9Q241.8 -22 246 -24.5Q250.2 -27 257.2 -28.9Q261.3 -30.2 266.1 -31.4Q270.8 -32.6 274.8 -33.5L274.8 -31.1Q270.8 -30.1 266.8 -28.9Q262.7 -27.7 259.6 -26.6Q253.8 -24.4 251.1 -21Q248.4 -17.7 248.4 -13.2Q248.4 -8.6 250.8 -6.3Q253.2 -4 257.1 -4Q259.1 -4 261.1 -4.8Q263.2 -5.6 265.8 -7.7Q268.4 -9.8 272 -13.5L273.2 -8.5L270.3 -8.5Q267.3 -5.2 264.6 -3Q262 -0.8 259.1 0.4Q256.2 1.5 252.3 1.5ZM279.6 1.4Q274.8 1.4 272.4 -1.6Q269.9 -4.5 269.5 -9.7L269.5 -10L269.5 -36.9Q269.5 -42.4 268.3 -45.4Q267.2 -48.4 264.8 -49.6Q262.4 -50.8 258.5 -50.8Q255.7 -50.8 252.9 -50.1Q250.1 -49.4 246.6 -47.7L251.8 -50.3L250.5 -42.5Q250.2 -39.1 248.6 -37.6Q247.1 -36.2 244.9 -36.2Q240.7 -36.2 239.7 -40.3Q241 -46.7 246.7 -50.4Q252.3 -54 261.8 -54Q271.1 -54 275.4 -49.7Q279.8 -45.3 279.8 -35.5L279.8 -10.2Q279.8 -6 280.8 -4.5Q281.8 -3 283.6 -3Q284.9 -3 285.9 -3.7Q286.9 -4.3 288.1 -5.9L289.8 -4.4Q288.1 -1.4 285.6 0Q283.1 1.4 279.6 1.4ZM294.9 0L294.9 -2.9L305.8 -4L312.1 -4L323.2 -2.9L323.2 0L294.9 0ZM302.6 0Q302.8 -2.5 302.8 -6.6Q302.9 -10.8 302.9 -15.3Q303 -19.8 303 -23.1L303 -29.9Q303 -35 302.9 -38.7Q302.8 -42.4 302.6 -46L294.3 -46.6L294.3 -49.1L311.6 -53.8L312.9 -53L313.6 -38.8L313.6 -38.7L313.6 -23.1Q313.6 -19.8 313.7 -15.3Q313.7 -10.8 313.8 -6.6Q313.8 -2.5 313.9 0L302.6 0ZM313.6 -31.9L310.9 -37.6L313.1 -37.6Q314.6 -42.7 317.3 -46.4Q319.9 -50.1 323.3 -52.1Q326.6 -54 330 -54Q333.1 -54 335.5 -52.7Q337.8 -51.4 338.5 -48.5Q338.5 -45.7 337.1 -43.9Q335.7 -42.1 332.6 -42.1Q330.5 -42.1 328.9 -43.3Q327.2 -44.4 325.4 -46.6L323.1 -49L327.2 -48.6Q322.4 -46.8 319.1 -42.9Q315.9 -39 313.6 -31.9ZM358.4 1.5Q352.3 1.5 348.4 -1.9Q344.4 -5.4 344.4 -11.6Q344.4 -15.7 346.1 -18.9Q347.9 -22 352.1 -24.5Q356.3 -27 363.3 -28.9Q367.4 -30.2 372.2 -31.4Q376.9 -32.6 380.9 -33.5L380.9 -31.1Q376.9 -30.1 372.9 -28.9Q368.8 -27.7 365.8 -26.6Q359.9 -24.4 357.2 -21Q354.5 -17.7 354.5 -13.2Q354.5 -8.6 356.9 -6.3Q359.3 -4 363.2 -4Q365.2 -4 367.2 -4.8Q369.3 -5.6 371.9 -7.7Q374.5 -9.8 378.1 -13.5L379.3 -8.5L376.4 -8.5Q373.4 -5.2 370.8 -3Q368.1 -0.8 365.2 0.4Q362.3 1.5 358.4 1.5ZM385.7 1.4Q380.9 1.4 378.5 -1.6Q376 -4.5 375.6 -9.7L375.6 -10L375.6 -36.9Q375.6 -42.4 374.4 -45.4Q373.3 -48.4 370.9 -49.6Q368.5 -50.8 364.6 -50.8Q361.9 -50.8 359 -50.1Q356.2 -49.4 352.7 -47.7L358 -50.3L356.6 -42.5Q356.3 -39.1 354.8 -37.6Q353.2 -36.2 351 -36.2Q346.8 -36.2 345.8 -40.3Q347.1 -46.7 352.8 -50.4Q358.5 -54 367.9 -54Q377.2 -54 381.6 -49.7Q385.9 -45.3 385.9 -35.5L385.9 -10.2Q385.9 -6 386.9 -4.5Q387.9 -3 389.8 -3Q391 -3 392 -3.7Q393 -4.3 394.3 -5.9L395.9 -4.4Q394.2 -1.4 391.7 0Q389.2 1.4 385.7 1.4ZM401.1 0L401.1 -2.9L411.8 -3.9L416.5 -3.9L426.9 -2.9L426.9 0L401.1 0ZM408.7 0Q408.9 -2.5 408.9 -6.6Q409 -10.8 409 -15.3Q409.1 -19.8 409.1 -23.1L409.1 -29.9Q409.1 -35 409 -38.7Q408.9 -42.4 408.7 -46L400.4 -46.6L400.4 -49.1L417.7 -53.8L419 -53L419.7 -41.5L419.7 -41.3L419.7 -23.1Q419.7 -19.8 419.8 -15.3Q419.8 -10.8 419.9 -6.6Q419.9 -2.5 420 0L408.7 0ZM435.3 0L435.3 -2.9L445.9 -3.9L450.6 -3.9L461.2 -2.9L461.2 0L435.3 0ZM442.9 0Q443 -2.5 443.1 -6.6Q443.1 -10.7 443.1 -15.2Q443.2 -19.6 443.2 -23.1L443.2 -35.6Q443.2 -42.5 441 -45.3Q438.8 -48 434.7 -48Q431.5 -48 426.9 -45.8Q422.4 -43.5 417.3 -37.8L416.6 -41.5L417.9 -41.5Q423.4 -48.4 428.6 -51.2Q433.9 -54 439.2 -54Q445.9 -54 449.9 -49.6Q453.8 -45.1 453.8 -35.1L453.8 -23.1Q453.8 -19.6 453.8 -15.2Q453.9 -10.7 454 -6.6Q454 -2.5 454.1 0L442.9 0ZM481.1 -48.7L481.1 -52.5L500.1 -52.5L500.1 -48.7L481.1 -48.7ZM488.9 1.5Q482.3 1.5 479 -1.9Q475.7 -5.3 475.7 -12.4Q475.7 -15 475.7 -17.1Q475.8 -19.2 475.8 -22L475.8 -48.7L466.3 -48.7L466.3 -51.8L477.9 -52.8L476 -51.4L479.7 -68.3L486.7 -68.3L486.4 -50.9L486.4 -49.8L486.4 -12Q486.4 -7.6 488.1 -5.6Q489.9 -3.6 493.1 -3.6Q495.2 -3.6 496.9 -4.3Q498.5 -5 500.5 -6.3L502 -4.6Q499.9 -1.6 496.7 0Q493.5 1.5 488.9 1.5ZM507.6 0L507.6 -2.9L518.4 -3.9L523 -3.9L533.6 -2.9L533.6 0L507.6 0ZM515.3 0Q515.4 -2.5 515.5 -6.6Q515.6 -10.8 515.6 -15.3Q515.7 -19.8 515.7 -23.1L515.7 -29.8Q515.7 -34.8 515.6 -38.7Q515.5 -42.6 515.3 -46.2L506.9 -46.8L506.9 -49.3L525.3 -53.8L526.5 -53L526.3 -38.4L526.3 -23.1Q526.3 -19.8 526.3 -15.3Q526.4 -10.8 526.4 -6.6Q526.5 -2.5 526.6 0L515.3 0ZM514.4 -63.3Q516.6 -66.8 518.8 -70.3Q521.1 -73.9 523.8 -78.3Q525.5 -81.1 526.9 -82.3Q528.4 -83.5 530.1 -83.5Q531.6 -83.5 532.9 -82.4Q534.1 -81.3 534.1 -79.4Q534.1 -77.8 533 -76.1Q531.8 -74.5 529.1 -72.4Q525.2 -69.5 522.2 -67Q519.1 -64.4 516.3 -61.8L514.4 -63.3ZM556.9 1.5Q550.8 1.5 546.8 -1.9Q542.8 -5.4 542.8 -11.6Q542.8 -15.7 544.6 -18.9Q546.4 -22 550.5 -24.5Q554.7 -27 561.8 -28.9Q565.9 -30.2 570.6 -31.4Q575.4 -32.6 579.4 -33.5L579.4 -31.1Q575.4 -30.1 571.3 -28.9Q567.3 -27.7 564.2 -26.6Q558.3 -24.4 555.6 -21Q552.9 -17.7 552.9 -13.2Q552.9 -8.6 555.3 -6.3Q557.7 -4 561.7 -4Q563.6 -4 565.7 -4.8Q567.7 -5.6 570.4 -7.7Q573 -9.8 576.6 -13.5L577.8 -8.5L574.9 -8.5Q571.9 -5.2 569.2 -3Q566.6 -0.8 563.6 0.4Q560.7 1.5 556.9 1.5ZM584.1 1.4Q579.4 1.4 576.9 -1.6Q574.5 -4.5 574 -9.7L574 -10L574 -36.9Q574 -42.4 572.9 -45.4Q571.8 -48.4 569.4 -49.6Q566.9 -50.8 563 -50.8Q560.3 -50.8 557.5 -50.1Q554.7 -49.4 551.2 -47.7L556.4 -50.3L555 -42.5Q554.7 -39.1 553.2 -37.6Q551.7 -36.2 549.5 -36.2Q545.3 -36.2 544.3 -40.3Q545.5 -46.7 551.2 -50.4Q556.9 -54 566.3 -54Q575.6 -54 580 -49.7Q584.4 -45.3 584.4 -35.5L584.4 -10.2Q584.4 -6 585.4 -4.5Q586.4 -3 588.2 -3Q589.4 -3 590.4 -3.7Q591.4 -4.3 592.7 -5.9L594.3 -4.4Q592.7 -1.4 590.2 0Q587.7 1.4 584.1 1.4Z"/></defs></svg>
 
 <!-- ======================= BIENVENIDA ======================= -->
 <div id="hola" role="status" aria-label="Abriendo Tu Garantía">
@@ -725,13 +803,22 @@ details.plegado>summary{padding:0 var(--e4)}
   <div class="grano" aria-hidden="true"></div>
   <div class="vineta" aria-hidden="true"></div>
   <div class="marco">
-    <div class="sello-caja">
-      <i class="halo" aria-hidden="true"></i>
-      <div class="sello" aria-hidden="true"><span>G</span></div>
+    <div class="sello" aria-hidden="true">
+      <i class="halo"></i>
+      <div class="orbita"><i class="riel"></i><div class="giro"><i class="cola"></i><i class="punta"></i></div></div>
+      <svg class="g-grande" width="136" height="136" aria-hidden="true" focusable="false" viewBox="-170 -170 340 340">
+        <path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="url(#aoro)"/>
+        <g clip-path="url(#aclip)"><rect x="-160" y="-160" width="320" height="320" fill="url(#aesp)"/></g>
+        <path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="#FFF4CC" fill-opacity=".9" mask="url(#amluz)"/>
+        <path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="#6B4106" fill-opacity=".72" mask="url(#amsom)"/>
+        <g clip-path="url(#aclip)"><g class="destello"><rect x="-75" y="-240" width="150" height="480" fill="url(#dest)" transform="skewX(-18)"/></g></g>
+        <g transform="translate(128.2 -98.3)"><g class="chispa"><circle r="28" fill="url(#chispaLuz)"/><path d="M0 -30C2 -6 6 -2 30 0C6 2 2 6 0 30C-2 6 -6 2 -30 0C-6 -2 -2 -6 0 -30Z" fill="#FFFBEA"/></g></g>
+        </svg>
     </div>
-    <div class="nombre">Tu Garantía</div>
-    <div class="lema">Tu historial es tu garantía</div>
-    <div class="filete" aria-hidden="true"><i></i></div>
+    <div class="debajo">
+      <svg class="nombre" width="204" height="31" viewBox="0.3 -85.5 596.0 89.2" role="img" aria-label="Tu Garantía"><use href="#palabra"/></svg>
+      <div class="lema">Tu historial es tu garantía</div>
+    </div>
   </div>
   <div class="version" id="holaVersion" aria-hidden="true"></div>
 </div>
@@ -790,7 +877,7 @@ setTimeout(function () {
 <!-- ======================= ENTRAR ======================= -->
 <div id="pEntrar">
   <div class="cab laca"><div class="lustre"><i></i></div><div class="wrap">
-    <div class="marca"><span class="pin">G</span> Tu Garantía<span class="porNexeco">powered by NEXECO</span></div>
+    <div class="marca"><svg class="g" width="30" height="30" viewBox="-160 -160 320 320" aria-hidden="true"><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="url(#boro)"/><g clip-path="url(#bclip)"><rect x="-160" y="-160" width="320" height="320" fill="url(#besp)"/></g><g clip-path="url(#bclip)"><g class="destello"><rect x="-75" y="-240" width="150" height="480" fill="url(#dest)" transform="skewX(-18)"/></g></g></svg><svg class="palabra" width="120" height="18" viewBox="0.3 -85.5 596.0 89.2" role="img" aria-label="Tu Garantía"><use href="#palabra"/></svg></div>
     <h1>Mi cuenta de socio</h1>
   </div></div>
   <div class="wrap" id="entrarCuerpo"></div>
@@ -801,7 +888,7 @@ setTimeout(function () {
 <!-- ======================= CUENTA ======================= -->
 <div id="pCuenta" class="oculto">
   <div class="cab laca"><div class="lustre"><i></i></div><div class="wrap">
-    <div class="marca"><span class="pin">G</span> Tu Garantía<span class="porNexeco">powered by NEXECO</span></div>
+    <div class="marca"><svg class="g" width="30" height="30" viewBox="-160 -160 320 320" aria-hidden="true"><path d="M 118.2 -92.3 A 150 150 0 1 0 149.9 6 L 40 6 L 16.3 44 L 82.3 44 A 86 104 0 1 1 86.3 -41.3 Z" fill="url(#boro)"/><g clip-path="url(#bclip)"><rect x="-160" y="-160" width="320" height="320" fill="url(#besp)"/></g><g clip-path="url(#bclip)"><g class="destello"><rect x="-75" y="-240" width="150" height="480" fill="url(#dest)" transform="skewX(-18)"/></g></g></svg><svg class="palabra" width="120" height="18" viewBox="0.3 -85.5 596.0 89.2" role="img" aria-label="Tu Garantía"><use href="#palabra"/></svg></div>
     <h1 id="uNombre">—</h1>
     <div class="chip-nivel" id="uNivel">—</div>
   </div></div>
@@ -1093,7 +1180,35 @@ function mostrar(cual) {
   if (cual === 'pCargando') PANTALLA = 'cargando';   // 21-oct-2026 — una cuenta pidiéndose a la nube no es momento de recargar
   ['pEntrar', 'pCargando', 'pCuenta'].forEach(function (p) { $(p).classList.toggle('oculto', p !== cual); });
   window.scrollTo(0, 0);
+  if (cual !== 'pCargando' && BIENVENIDA) BIENVENIDA.siEstaLista();   // 23-oct-2026 — ya hay algo que mostrar
 }
+
+/* ============ LA BIENVENIDA SE VA CUANDO LA APP ESTÁ LISTA ============
+   23-oct-2026 — ver ARRANQUE. «Lista» es: pasó el mínimo y la pantalla no es
+   «Buscando tu historial…». Lo llaman el reloj del mínimo, mostrar() y
+   pintarEntrar(); el tope y el plazo de seguridad la quitan aunque no lo esté.
+   Al irse, el lustre de la cabecera y el destello de la G vuelven a pasar:
+   los dos corren al cargar, DEBAJO de la bienvenida, y nadie los veía. */
+var BIENVENIDA = {
+  minimoCumplido: false,
+  fuera: false,
+  siEstaLista: function () {
+    if (this.minimoCumplido && PANTALLA !== 'cargando') this.quitar();
+  },
+  quitar: function () {
+    if (this.fuera) return;
+    this.fuera = true;
+    var h = document.getElementById('hola');
+    if (h) h.classList.add('fuera');
+    try {
+      var cuales = document.querySelectorAll('.cab .lustre, .cab .marca .g');
+      for (var i = 0; i < cuales.length; i++) {
+        var viejo = cuales[i];
+        if (viejo && viejo.parentNode && viejo.cloneNode) viejo.parentNode.replaceChild(viejo.cloneNode(true), viejo);
+      }
+    } catch (e) { /* sin el segundo destello, la app sigue igual */ }
+  }
+};
 
 /* ================= EL PANEL DE ESTE MISMO EQUIPO =================
    El Panel de Joan y esta app se sirven del mismo origen, así que comparten
@@ -1339,7 +1454,7 @@ function pintarEntrar(aviso) {
        esperando una clave que no existe. */
     '<div class="pie">Tus datos solo los ves tú, entrando con tu celular y tu contraseña.<br>' +
       '¿Nunca te registraste? Toca «Registrarme». ¿Olvidaste tu contraseña? Toca «Olvidé mi contraseña».' +
-      selloDeVersion() + '</div>';
+      enlacesLegales() + selloDeVersion() + '</div>';
   $('btnEntrar').addEventListener('click', entrar);
   $('inCel').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('inClave').focus(); });
   $('inClave').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
@@ -1348,6 +1463,7 @@ function pintarEntrar(aviso) {
     err.textContent = aviso; err.classList.remove('oculto');
   }
   avisarQueEsMomento();   // 21-oct-2026 — la entrada vacía es de la lista
+  if (BIENVENIDA) BIENVENIDA.siEstaLista();   // 23-oct-2026 — Entrar ya tiene algo que mostrar
 }
 
 /* ============ LA CALCULADORA DEL PEDIDO, PRIMERA EN ENTRAR ============
@@ -4301,8 +4417,17 @@ function invitar() {
 /* Los dos enlaces legales van en TODAS las pantallas, no escondidos en un rincón:
    quien firmó una autorización tiene derecho a volver a leer qué firmó cuando quiera,
    sin tener que pedírselo a nadie. */
+/* 23-oct-2026 — QUIÉN RESPONDE, EN EL PIE. Hasta hoy lo decía la cabecera
+   («powered by NEXECO»), que era marca y no identificación; Joan pidió que el
+   logo diga solo «Tu Garantía». La Ley 1480 (art. 50) pide la identidad del
+   proveedor a la vista, y el pie lo cumple mejor que un «powered by». El NIT
+   es el del recuadro «Quién responde» de legal/: pruebas/marca-oro.test.js
+   no deja que se separen. Los datos completos siguen en legal/. */
+/* Es una función y no una variable: las funciones existen desde que arranca el
+   guion, y el pie se puede pintar antes de que la ejecución llegue a esta línea. */
+function quienResponde() { return 'Tu Garantía es una marca de NEXECO S.A.S. · NIT 901.908.512-6'; }
 function enlacesLegales() {
-  return '<br><a href="../legal/terminos.html" target="_blank" rel="noopener" ' +
+  return '<br>' + esc(quienResponde()) + '<br><a href="../legal/terminos.html" target="_blank" rel="noopener" ' +
     'style="color:inherit">Términos</a> · ' +
     '<a href="../legal/privacidad.html" target="_blank" rel="noopener" ' +
     'style="color:inherit">Tus datos</a>';
@@ -4654,7 +4779,7 @@ function salir() {
 /* ======================= CONFIGURACIÓN ======================= */
 function pantallaConfig() {
   document.body.innerHTML =
-    '<div class="cab laca"><div class="wrap"><div class="marca"><span class="pin">G</span> Tu Garantía<span class="porNexeco">powered by NEXECO</span></div>' +
+    '<div class="cab laca"><div class="wrap"><div class="marca"><img src="marca.svg" alt="Tu Garantía" width="156" height="26"></div>' +
     '<h1>Conectar la base</h1></div></div>' +
     '<div class="wrap"><div class="card">' +
     '<p class="sub" style="margin:0">Pega los dos datos de Supabase (Settings → API). ' +
@@ -4852,17 +4977,33 @@ function avisarQueEsMomento() {
      mucho después la app se siente lenta, que es el precio de una bienvenida y
      hay que pagarlo barato. En un celular lento el tiempo ya se cumplió solo y
      esto no le suma ni un milisegundo. */
+  /* 23-oct-2026 — Y DURA LO QUE TARDE LA APP. Hasta hoy se iba a los 2 s
+     fijos aunque los datos no hubieran llegado, y detrás quedaba «Buscando tu
+     historial…»: dos pantallas de carga seguidas. Ahora el mínimo es el mismo
+     (que se vea entrar la G y pasar el destello), pero si a esa hora la app
+     todavía está pidiendo la cuenta, espera a que haya una pantalla con algo
+     (BIENVENIDA.siEstaLista, desde mostrar y pintarEntrar), con un TOPE: a los
+     4 s se va igual y queda «Buscando tu historial…». Y el plazo de seguridad
+     de 5 s de arriba sigue, por si este script revienta antes de llegar aquí:
+     nadie se queda atrapado mirando el logo. Sin barra ni porcentaje: no hay
+     cómo saber cuánto falta. */
   (function () {
     var MINIMO_BIENVENIDA = 2000;
+    var TOPE_BIENVENIDA = 4000;
     /* 21-oct-2026 — SIN BIENVENIDA SI LA RECARGA FUE NUESTRA: la persona no
        pidió abrir la app, y dos segundos de logo en medio de lo que estaba
-       haciendo parecerían que se cayó. */
-    var minimo = (ACT && ACT.vuelta) ? 0 : MINIMO_BIENVENIDA;
+       haciendo parecerían que se cayó. Tampoco espera los datos. */
+    var vuelta = !!(ACT && ACT.vuelta);
+    var minimo = vuelta ? 0 : MINIMO_BIENVENIDA;
     var h = document.getElementById('hola');
     if (!h) return;
     var llevaAbierta = performance.now ? performance.now() : minimo;
     var falta = Math.max(0, minimo - llevaAbierta);
-    setTimeout(function () { h.classList.add('fuera'); }, falta);
+    setTimeout(function () {
+      BIENVENIDA.minimoCumplido = true;
+      if (vuelta) BIENVENIDA.quitar(); else BIENVENIDA.siEstaLista();
+    }, falta);
+    if (!vuelta) setTimeout(function () { BIENVENIDA.quitar(); }, Math.max(0, TOPE_BIENVENIDA - llevaAbierta));
   })();
 
   /* 7-oct-2026 — LA SESIÓN DE CÓDIGO DE ANTES SE BORRA, antes que nada. Si se

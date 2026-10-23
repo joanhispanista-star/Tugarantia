@@ -1919,6 +1919,14 @@
    el teléfono con v138 (el sw.js de main de verdad, la caché HTTP de 10 min y
    la señal floja) para cada página y cada .js que cambió. Las rejas de las
    tres rondas se quedan como segunda capa. */
+/* 23-oct-2026, MISMA v139 (el lote sigue sin publicar): LA MARCA DE ORO. Los
+   cuatro app/icono-*.png CAMBIAN CON EL MISMO NOMBRE (el manifiesto y el APK los
+   nombran así) y van caché-primero: llegan porque la v139 se instala de cero
+   frente a la v138 publicada, con la precarga en 'no-cache'. Un teléfono que ya
+   instaló esta v139 desde la copia de prueba se queda con los íconos de antes
+   hasta la próxima versión. Entra app/marca.svg (NUEVO, en la precarga): la G
+   y la palabra en imagen, para las páginas que no llevan los moldes en línea
+   (legal/, descargas/, play/borrar-cuenta.html y la configuración de socio). */
 const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 
@@ -1947,6 +1955,7 @@ const ARCHIVOS = [
   'app/icono-192.png',
   'app/icono-512.png',
   'app/icono-maskable-512.png',
+  'app/marca.svg',
   'panel/crm.html',
   'panel/index.html',
   'panel/panel.webmanifest',
