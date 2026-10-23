@@ -1977,7 +1977,15 @@ const ARCHIVOS = [
      sería pagarle esos datos a cada socio que abre la app, y solo los usa
      quien se registra, una vez (play/ los pide con rel=prefetch al disparar el
      respaldo). El número de CACHE lo sube quien publica. */
-  'app/ocr-cedula.js'
+  'app/ocr-cedula.js',
+  /* 22-oct-2026 — dónde recibe la plata el cliente: la lista de bancos y sus
+     reglas. Los cargan play/ (el paso «¿Dónde te enviamos la plata?» y
+     «¿A dónde te consignamos?» al aceptar), platachat/ (al aceptar) y el CRM
+     («Consignar a: …»). Sin ellos cada página se protege sola (`if (CP)`):
+     el paso se salta y se acepta como antes. Tienen que llegar JUNTO con las
+     páginas que los llaman: el número de CACHE lo sube quien publica. */
+  'app/bancos-colombia.js',
+  'app/cuentas-pago.js'
 ].map(f => BASE + f);
 
 self.addEventListener('install', e => {

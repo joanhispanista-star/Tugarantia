@@ -312,6 +312,31 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
      movimiento no se le dispara. Le queda la vibración y el ✓. */
   .escaner-doc.destello .doc-destello{animation:none}
 }
+/* 22-oct-2026 — DÓNDE RECIBE LA PLATA: el paso del registro y «¿A dónde te
+   consignamos?» al aceptar (el marcado sale de app/cuentas-pago.js, con
+   clases cp-). En línea y no en estilo.css por la regla del escáner de
+   arriba: lo que viaja dentro del HTML llega fresco con él. Solo tokens. */
+.cp-etq{display:inline-block;margin-left:var(--e2);padding:2px var(--e2);border-radius:999px;
+  font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;vertical-align:middle;
+  background:var(--linea);color:var(--gris)}
+/* La letra va en --tinta y el verde en el filete: verde sobre su propio tinte
+   oscuro no se lee en el modo oscuro (es lo que hace .aviso.verde). */
+.cp-etq.cp-rapido{background:var(--verde-tinte);color:var(--tinta);box-shadow:inset 0 0 0 1px var(--verde)}
+.btn.cp-mismo{margin-top:var(--e2);width:auto}
+.cp-elegir{margin-top:var(--e4)}
+.cp-tit{font-size:15px;font-weight:700}
+.cp-sub{font-size:13px;color:var(--gris);margin-top:var(--e1);line-height:1.45}
+.cp-opcion{display:flex;gap:var(--e3);align-items:flex-start;margin:var(--e3) 0 0;padding:var(--e3);
+  border:1px solid var(--linea);border-radius:14px;cursor:pointer;font-size:14px;font-weight:400}
+.cp-opcion.cp-sel{border-color:var(--azul-texto);background:var(--azul-tinte)}
+.cp-opcion input{width:22px;height:22px;flex:none;margin:1px 0 0;accent-color:var(--rojo)}
+.cp-opcion .cp-txt b{display:block;font-weight:600}
+.cp-opcion .cp-etq{margin:var(--e1) 0 0}
+.cp-otra{padding:0 var(--e1)}
+.cp-ayuda{font-size:12.5px;color:var(--gris);margin-top:5px;line-height:1.45}
+.cp-mia{display:flex;gap:var(--e3);align-items:center;font-weight:600}
+.cp-mia input{width:22px;height:22px;flex:none;margin:0;accent-color:var(--rojo)}
+.cp-error{margin-top:var(--e3);font-size:13.5px;color:var(--ambar-tinta)}
 </style>
 </head>
 <body>
@@ -365,6 +390,13 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 
 <script src="../app/creditos.js"></script>
 <script src="../app/cuenta.js"></script>
+<!-- 22-oct-2026 — dónde recibe la plata el cliente: la lista de bancos (con su
+     fuente y su fecha) y las reglas del paso «¿Dónde te enviamos la plata?» y
+     de «¿A dónde te consignamos?» al aceptar. NO entran al guardián de abajo:
+     si no llegan, el paso se salta y al aceptar se acepta como antes (Joan le
+     pregunta por el chat). Registrarse no puede depender de esto. -->
+<script src="../app/bancos-colombia.js"></script>
+<script src="../app/cuentas-pago.js"></script>
 <!-- 19-oct-2026 — el teléfono de verdad: lo que el navegador sabe del aparato
      (modelo, versión) y si la página va dentro de nuestra app. Se manda al
      registrarse, al pedir y al aceptar, sin esperar respuesta (anotarAparato).
@@ -469,6 +501,10 @@ try {
 
 var C = window.CreditosPublicables;
 var U = window.CuentaSocio;
+/* 22-oct-2026 — dónde recibe la plata (app/cuentas-pago.js). Fuera del
+   guardián a propósito: sin él, el paso de la cuenta se salta y aceptar va
+   por la puerta de siempre. Todo lo que lo usa pregunta `if (CP)`. */
+var CP = window.CuentasPago || null;
 /* 21-sep-2026 — el escáner de la cédula: encuadre, marco, decodificación y
    de quién son las fotos. Puro, probado sin cámara. Si no llegó, todo lo
    que lo usa cae al camino de la foto fija (se pregunta `if (!EC)`). */
@@ -1002,6 +1038,8 @@ function primerPasoQueFalta() {
     if (id === 'documento') { if (!hayCedula) return i; continue; }
     if (id === 'entrada') { if (!REGISTRO.celular) return i; continue; }
     if (id === 'rostro' || id === 'permiso') continue;
+    /* 22-oct-2026 — la cuenta no es un grupo de CAMPOS: la mira su regla. */
+    if (id === 'cobro') { if (faltaLaCuenta()) return i; continue; }
     var ids = U.camposDelGrupo(id).map(function (c) { return c.id; });
     var falta = r.faltan.concat(r.errores).some(function (f) { return ids.indexOf(f.id) !== -1; });
     if (id === 'identidad' && !falta && EC && EC.revisarExpedicion) {
@@ -1812,6 +1850,13 @@ var PASOS = [
   { id: 'contacto',  titulo: 'Cómo te contactamos' },
   { id: 'domicilio', titulo: 'Dónde vives' },
   { id: 'ingresos',  titulo: 'De qué vives' },
+  /* 22-oct-2026 — ¿DÓNDE TE ENVIAMOS LA PLATA? Joan: «al momento de que el
+     cliente se registra no se le pregunta sobre la información bancaria».
+     Va DESPUÉS del celular, y no junto a la identidad, porque Nequi y
+     Daviplata se llenan con un toque con ese mismo celular («Es este mismo
+     celular»), y antes del paso del celular todavía no hay ninguno. Y después
+     de «De qué vives»: es la conversación de la plata. Ver pasoCobro. */
+  { id: 'cobro',     titulo: '¿Dónde te enviamos la plata?' },
   { id: 'referencias', titulo: 'Quién puede responder por ti' },
   { id: 'permiso',  titulo: 'Tu autorización' }
 ];
@@ -2045,6 +2090,7 @@ function pintarRegistro(paso) {
   else if (p.id === 'documento') cuerpo = pasoDocumento();
   else if (p.id === 'rostro')  cuerpo = pasoRostro();
   else if (p.id === 'permiso') cuerpo = pasoPermiso();
+  else if (p.id === 'cobro')   cuerpo = pasoCobro();
   else                         cuerpo = (p.id === 'identidad' ? notaCedulaLeida() + notaDeLaFoto() : '') + pasoCampos(p.id);
 
   /* 19-oct-2026 — «Revisa tus datos» solo si hay algo que revisar: quien tocó
@@ -2759,6 +2805,124 @@ function anotarPesos(el, ev) {
   guardarBorrador(REGISTRO);
 }
 
+/* ===========================================================================
+ * ¿DÓNDE TE ENVIAMOS LA PLATA? — 22 de octubre de 2026
+ *
+ * Joan: «quiero que esté la opción de cuenta bancaria y que estén plataformas
+ * digitales y que deje las opciones de Nequi, Daviplata, y un espacio para la
+ * llave de Bre-B […] Lo ideal es que podamos tener tanto el Nequi como la
+ * llave y también, si se puede, la cuenta bancaria».
+ *
+ * Por eso no es «elige una»: se pueden dejar las cuatro, y al aceptar cada
+ * crédito se escoge a cuál (tarjetaContrapropuesta). Al menos UNA es
+ * obligatoria para terminar, y todas a su nombre: la casilla «Son mías, a mi
+ * nombre» es la palabra del cliente, y lo que protege a Joan de girarle a la
+ * cuenta de otro (al consignar, su banco le muestra el titular enmascarado y
+ * lo compara con la cédula). Las reglas son las de app/cuentas-pago.js.
+ *
+ * DÓNDE VIVE LO ESCRITO: en REGISTRO, como los demás datos, y por eso con las
+ * mismas reglas que el resto del borrador: «empezar de cero» y el cambio de
+ * celular lo borran entero (soltarLoDeOtroCelular), la cuenta creada también,
+ * y nunca se publica en el acompañamiento (CAMPOS_QUE_SE_PUBLICAN no lo
+ * nombra). Viaja a la bandeja de Joan y NO a la cuenta: el signup lo deja
+ * fuera (sinDatosDePago), porque lo del signup termina en la sesión guardada
+ * en el teléfono.
+ * ======================================================================== */
+function faltaLaCuenta() {
+  return !!(CP && !CP.revisarCuentasDelRegistro(REGISTRO).ok);
+}
+function pasoCobro() {
+  /* Sin las reglas (un archivo que no llegó) no se pregunta a medias: se
+     dice, y se sigue. */
+  if (!CP) {
+    return '<div class="aviso ambar">No pudimos cargar esta parte. Sigue con tu registro: ' +
+      'cuando te propongamos tu crédito te preguntamos por el chat a dónde enviarte la plata.</div>';
+  }
+  var cel = REGISTRO.celular ? U.telefonoBonito(REGISTRO.celular) : '';
+  var valor = function (k) { return esc(REGISTRO[k] == null ? '' : String(REGISTRO[k])); };
+  /* Nequi y Daviplata son un celular, y casi siempre el mismo con el que se
+     registra: un toque lo pone, y se puede cambiar. */
+  var billetera = function (id, nombre) {
+    var v = REGISTRO[id] ? (U.telefonoBonito(REGISTRO[id]) || String(REGISTRO[id])) : '';
+    return '<label for="f_' + id + '">' + esc(nombre) + '</label>' +
+      '<input id="f_' + id + '" type="tel" inputmode="numeric" autocomplete="off" placeholder="300 111 2233"' +
+        ' oninput="anotarCuenta(this)" onchange="anotarCuenta(this)" value="' + esc(v) + '">' +
+      (cel ? '<button type="button" class="btn sec sm cp-mismo" onclick="mismoCelular(\'' + id + '\')">' +
+        'Es este mismo celular (' + esc(cel) + ')</button>' : '');
+  };
+  var otro = REGISTRO.banco_codigo === 'otro';
+  return '<p class="sub">Llena al menos una. Puedes dejar varias: cuando aceptes cada crédito eliges a cuál te lo consignamos.</p>' +
+    '<div class="aviso"><b>' + esc(CP.TEXTO_A_TU_NOMBRE) + '</b> Nequi, Daviplata y la llave Bre-B llegan más rápido.</div>' +
+    '<div class="grupo-tit">Billeteras y llave Bre-B <span class="cp-etq cp-rapido">' + esc(CP.TEXTO_RAPIDO) + '</span></div>' +
+    billetera('nequi', 'Tu Nequi') +
+    billetera('daviplata', 'Tu Daviplata') +
+    '<label for="f_llave_breb">Tu llave Bre-B</label>' +
+    '<input id="f_llave_breb" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"' +
+      ' placeholder="Tu celular, documento, correo o @llave" oninput="anotarCuenta(this)" value="' + valor('llave_breb') + '">' +
+    '<div class="ayuda">Escríbela tal como te la muestra la app de tu banco o billetera.</div>' +
+    '<div class="grupo-tit">Cuenta de banco <span class="cp-etq">' + esc(CP.TEXTO_LENTO) + '</span></div>' +
+    '<label for="f_banco_codigo">Banco</label>' +
+    '<select id="f_banco_codigo" onchange="anotarBanco(this)">' + CP.opcionesDeBancoHTML(REGISTRO.banco_codigo) + '</select>' +
+    /* «Otro» abre la casilla del nombre sin repintar el paso: repintar
+       publicaría el avance otra vez y subiría la página al principio. */
+    '<div id="cajaBancoOtro"' + (otro ? '' : ' class="oculto"') + '>' +
+      '<label for="f_banco">Nombre de tu banco o cooperativa</label>' +
+      '<input id="f_banco" type="text" maxlength="60" autocomplete="off" oninput="anotarCuenta(this)" value="' +
+        (otro ? valor('banco') : '') + '"></div>' +
+    '<label for="f_banco_tipo">Tipo de cuenta</label>' +
+    '<select id="f_banco_tipo" onchange="anotarCuenta(this)">' + CP.opcionesDeTipoHTML(REGISTRO.banco_tipo) + '</select>' +
+    '<label for="f_banco_numero">Número de cuenta</label>' +
+    '<input id="f_banco_numero" type="text" inputmode="numeric" autocomplete="off" oninput="anotarCuenta(this)" value="' +
+      valor('banco_numero') + '">' +
+    '<label class="permiso"><input type="checkbox" id="f_cuentas_mias" onchange="anotarCuenta(this)"' +
+      (REGISTRO.cuentas_mias === 'si' ? ' checked' : '') + '><span><b>' + esc(CP.TEXTO_SON_MIAS) + '.</b>' +
+      '<span class="muted">Tienen que estar a tu nombre: a cuentas de otra persona no consignamos.</span></span></label>';
+}
+/* Se guarda mientras escribe, como el resto del registro (ver pasoCampos): la
+   cámara o una llamada tumban la pestaña en cualquier paso. */
+function anotarCuenta(el) {
+  if (!el || !el.id || el.id.indexOf('f_') !== 0) return;
+  var k = el.id.slice(2);
+  REGISTRO[k] = k === 'cuentas_mias' ? (el.checked ? 'si' : '') : String(el.value == null ? '' : el.value);
+  guardarBorrador(REGISTRO);
+}
+function anotarBanco(el) {
+  if (!el || !CP) return;
+  var b = CP.bancoPorCodigo(el.value);
+  REGISTRO.banco_codigo = b ? b.codigo : '';
+  /* El de la lista se guarda con su nombre (el CRM lo lee sin la lista); el
+     de «Otro» lo escribe la persona en la casilla que se abre. */
+  REGISTRO.banco = (b && b.codigo !== 'otro') ? b.nombre : '';
+  var caja = $('cajaBancoOtro');
+  if (caja && caja.classList) caja.classList.toggle('oculto', !(b && b.codigo === 'otro'));
+  var n = $('f_banco'); if (n) n.value = '';
+  guardarBorrador(REGISTRO);
+}
+function mismoCelular(id) {
+  if (!REGISTRO.celular) return;
+  REGISTRO[id] = String(REGISTRO.celular);
+  var i = $('f_' + id); if (i) i.value = U.telefonoBonito(REGISTRO.celular);
+  guardarBorrador(REGISTRO);
+}
+/* Lo que pasa el paso queda limpio en el borrador (diez números, la llave sin
+   puntos, el nombre del banco de la lista): es lo que ve Joan. */
+function ponerCuentasLimpias() {
+  if (!CP) return;
+  var limpias = CP.cuentasLimpias(REGISTRO);
+  CP.LLAVES_DEL_REGISTRO.forEach(function (k) { delete REGISTRO[k]; });
+  Object.assign(REGISTRO, limpias);
+  guardarBorrador(REGISTRO);
+}
+/* La cuenta (el signup) va sin los datos de pago. Sin CP, la lista a mano: un
+   borrador de antes puede traerlos aunque las reglas no hayan llegado hoy. */
+function sinDatosDePago(d) {
+  if (CP) return CP.sinDatosDePago(d);
+  var out = Object.assign({}, d);
+  ['nequi', 'daviplata', 'llave_breb', 'banco', 'banco_codigo', 'banco_tipo', 'banco_numero', 'cuentas_mias']
+    .forEach(function (k) { delete out[k]; });
+  return out;
+}
+
 function pasoPermiso() {
   return (MARCA === 'platachat'
       /* 8-oct-2026 (segunda vuelta) — decía «quien recibe y cuida tus datos es
@@ -2836,6 +3000,23 @@ function recogerPaso() {
              claveFin: cf ? (cf.value || '') : '', claveFin2: cf2 ? (cf2.value || '') : '' };
   }
   if (p.id === 'documento' || p.id === 'rostro') return {};
+  /* 22-oct-2026 — la cuenta: lo que muestran las casillas, como en los demás
+     pasos (anotarCuenta ya lo fue guardando; esto es por si el teclado no
+     disparó el último evento). */
+  if (p.id === 'cobro') {
+    ['nequi', 'daviplata', 'llave_breb', 'banco_tipo', 'banco_numero'].forEach(function (k) {
+      var el = $('f_' + k); if (el) REGISTRO[k] = String(el.value == null ? '' : el.value);
+    });
+    var bo = $('f_banco_codigo');
+    if (bo && CP) {
+      var b = CP.bancoPorCodigo(bo.value), bn = $('f_banco');
+      REGISTRO.banco_codigo = b ? b.codigo : '';
+      REGISTRO.banco = !b ? '' : b.codigo !== 'otro' ? b.nombre : String((bn && bn.value) || '');
+    }
+    var mi = $('f_cuentas_mias'); if (mi) REGISTRO.cuentas_mias = mi.checked ? 'si' : '';
+    guardarBorrador(REGISTRO);
+    return {};
+  }
   U.camposDelGrupo(p.id).forEach(function (c) {
     var el = $('f_' + c.id);
     /* 8-oct-2026 — el celular de este paso es de solo lectura (es el del paso
@@ -3005,6 +3186,16 @@ function siguientePaso() {
     /* 19-oct-2026 — si siguió sin la selfie, la ubicación se pide al salir: la
        autorizó con las fotos, y aquí ya no compite con la cámara. */
     pedirGpsSiFalta();
+    return pintarRegistro(PASO + 1);
+  }
+  /* 22-oct-2026 — ¿DÓNDE TE ENVIAMOS LA PLATA? Al menos una, bien escrita y
+     a su nombre (CP.revisarCuentasDelRegistro). Sin las reglas, se sigue: el
+     paso ya dijo que se le pregunta por el chat. */
+  if (p.id === 'cobro') {
+    if (!CP) return pintarRegistro(PASO + 1);
+    var rcu = CP.revisarCuentasDelRegistro(REGISTRO);
+    if (!rcu.ok) return fallo(err, rcu.errores[0].motivo);
+    ponerCuentasLimpias();
     return pintarRegistro(PASO + 1);
   }
 
@@ -3798,6 +3989,15 @@ function enviarRegistro(sensibles) {
     pintarRegistro(indiceDe('permiso'));
     return fallo($('errReg'), 'Nos falta la contraseña de este celular: créala en la casilla de abajo, escríbela dos veces y vuelve a tocar «Abrir mi cuenta».');
   }
+  /* 22-oct-2026 — Y DÓNDE TE ENVIAMOS LA PLATA. Quien venía a mitad de
+     registro el día que esto se publique retoma en su paso por el nombre y
+     puede no haber pasado por el de la cuenta: se le lleva allá, con lo
+     demás intacto (la contraseña sigue en la pestaña), en vez de abrirle una
+     cuenta sin ninguna. */
+  if (faltaLaCuenta()) {
+    pintarRegistro(indiceDe('cobro'));
+    return fallo($('errReg'), 'Antes de abrir tu cuenta, dinos dónde te enviamos la plata: llena al menos una y toca «Continuar».');
+  }
 
   /* 21-oct-2026 — G1: LA FOTO DEL TOQUE. Lo que sale a la bandeja y al
      signup se toma AQUÍ, al tocar «Abrir mi cuenta», y ninguna llamada de la
@@ -3923,7 +4123,11 @@ function enviarRegistro(sensibles) {
         body: JSON.stringify({
           email: U.correoDeTelefono(foto.celular),
           password: foto.clave,
-          data: { telefono: foto.celular, vinculacion: foto.datos, autorizacion: foto.autorizacion }
+          /* 22-oct-2026 — SIN LOS DATOS DE PAGO: lo de `data` viaja dentro de
+             la sesión, y la sesión se guarda en el teléfono (socio.html y
+             platachat/sesion.js). La cuenta de pago va solo a la bandeja de
+             Joan, en cuerpoRegistro. */
+          data: { telefono: foto.celular, vinculacion: sinDatosDePago(foto.datos), autorizacion: foto.autorizacion }
         })
       }));
     })

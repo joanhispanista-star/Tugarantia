@@ -112,8 +112,11 @@ describe('I1 — en el registro: pasado el tope, Pedro escribe su celular y la r
     /* María sigue: «Continuar» hasta el final y «Abrir mi cuenta» otra vez. */
     P.ev("$('rClave').value = ''; $('rClave2').value = ''; siguientePaso();");
     for (let n = 0; B.pasoActual(P) !== 'permiso' && n < 12; n++) {
-      /* Las casillas de cada paso, con lo que ya había escrito (el borrador). */
-      P.ev("Object.keys(REGISTRO).forEach(function (k) { if (k !== 'celular') document.getElementById('f_' + k).value = String(REGISTRO[k]); }); siguientePaso();");
+      /* Las casillas de cada paso, con lo que ya había escrito (el borrador).
+         22-oct-2026 — y la de «Son mías, a mi nombre» marcada, como la pinta
+         la página (el banco no lee el `checked` del HTML). */
+      P.ev("Object.keys(REGISTRO).forEach(function (k) { if (k !== 'celular') document.getElementById('f_' + k).value = String(REGISTRO[k]); });" +
+           " document.getElementById('f_cuentas_mias').checked = REGISTRO.cuentas_mias === 'si'; siguientePaso();");
     }
     assert.equal(B.pasoActual(P), 'permiso', 'María no pudo volver al último paso: ' + B.texto(B.caja(P)));
     P.ev("$('autGeneral').checked = true; $('autSensible').checked = true;");

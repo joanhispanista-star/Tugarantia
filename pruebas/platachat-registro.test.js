@@ -45,6 +45,9 @@ function llenarRegistro(P) {
       : 'Prueba';
   });
   REGISTRO.nombres = 'Ana'; REGISTRO.apellidos = 'Pérez';
+  /* 22-oct-2026 — y dónde recibe la plata: sin una, «Abrir mi cuenta» la
+     manda al paso «¿Dónde te enviamos la plata?». */
+  REGISTRO.nequi = REGISTRO.celular; REGISTRO.cuentas_mias = 'si';
   ponerClaveEnCurso('Perro.2026x', REGISTRO.celular);
   anotarCelularDelRegistro(REGISTRO.celular);`);
   /* 20-oct-2026, otro celular — la contraseña en curso va con el celular con

@@ -100,7 +100,7 @@ function elResto(P) {
   P.ev("Object.assign(REGISTRO, { correo: 'x@correo.com', ciudad: 'Bogotá', barrio: 'Centro', tipo_vivienda: 'Arriendo'," +
        " anos_direccion: 'Más de 5 años', ocupacion: 'Empleado', ingreso_mes: '2000000', gastos_mes: '800000'," +
        " dia_pago: 'Quincenal (15 y 30)', ref1_nombre: 'Luz', ref1_parentesco: 'Hermana', ref1_celular: '3002223344'," +
-       " ref2_nombre: 'Juan', ref2_parentesco: 'Amigo', ref2_celular: '3004445566' }); guardarBorrador(REGISTRO);");
+       " ref2_nombre: 'Juan', ref2_parentesco: 'Amigo', ref2_celular: '3004445566', nequi: '3001112233', cuentas_mias: 'si' }); guardarBorrador(REGISTRO);");
 }
 /* La nube de mentira: anota cada llamada. `subida` decide qué contesta la
    base a las fotos (por defecto, que entraron todas). */

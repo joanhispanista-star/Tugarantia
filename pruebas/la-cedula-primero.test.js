@@ -108,7 +108,7 @@ function elResto(P) {
   P.ev("Object.assign(REGISTRO, { correo: 'maria@correo.com', ciudad: 'Bogotá', barrio: 'Centro', tipo_vivienda: 'Arriendo'," +
        " anos_direccion: 'Más de 5 años', ocupacion: 'Empleado', ingreso_mes: '2000000', gastos_mes: '800000'," +
        " dia_pago: 'Quincenal (15 y 30)', ref1_nombre: 'Luz', ref1_parentesco: 'Hermana', ref1_celular: '3002223344'," +
-       " ref2_nombre: 'Juan', ref2_parentesco: 'Amigo', ref2_celular: '3004445566' }); guardarBorrador(REGISTRO);");
+       " ref2_nombre: 'Juan', ref2_parentesco: 'Amigo', ref2_celular: '3004445566', nequi: '3001112233', cuentas_mias: 'si' }); guardarBorrador(REGISTRO);");
 }
 /* La nube de mentira: anota cada llamada y contesta bien. La cuenta nace con
    el correo que se le pidió (el del celular del registro), como la de verdad. */
@@ -145,12 +145,14 @@ describe('1. el registro abre en la cédula, y el botón autoriza solo si lo toc
 
   test('EL ORDEN: la cédula, revisar los datos, el celular y la contraseña, el rostro, y lo demás igual', () => {
     const P = abrir();
+    /* 22-oct-2026 — con «¿Dónde te enviamos la plata?» (cobro) después de
+       «De qué vives»: son diez. */
     assert.equal(P.ev('PASOS.map(function (p) { return p.id; }).join()'),
-      'documento,identidad,entrada,rostro,contacto,domicilio,ingresos,referencias,permiso');
+      'documento,identidad,entrada,rostro,contacto,domicilio,ingresos,cobro,referencias,permiso');
     assert.equal(P.ev('VISTA'), 'registro');
     assert.equal(pasoActual(P), 'documento', 'el registro no abre en la cédula');
     const h = cuerpo(P);
-    assert.match(h, /Paso 1 de 9[\s\S]*Tu cédula/);
+    assert.match(h, /Paso 1 de 10[\s\S]*Tu cédula/);
     assert.match(h, /Escanea tu cédula y llenamos tus datos por ti/);
     assert.equal(/id="rTel"|id="rClave"/.test(h), false, 'el primer paso volvió a pedir el celular o la contraseña');
   });

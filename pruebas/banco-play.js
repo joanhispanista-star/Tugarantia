@@ -106,6 +106,12 @@ function abrirPlay(opciones) {
      el mismo proceso: ya pasó, y envenenó tres pruebas de otro archivo. */
   ctx.CreditosPublicables = Object.assign({}, require(path.join(RAIZ, 'app', 'creditos.js')));
   ctx.CuentaSocio = require(path.join(RAIZ, 'app', 'cuenta.js'));
+  /* 22-oct-2026 — dónde recibe la plata: la lista de bancos y sus reglas.
+     `sinCuentas: true` simula que esos <script src> no llegaron. */
+  if (!o.sinCuentas) {
+    ctx.BancosColombia = require(path.join(RAIZ, 'app', 'bancos-colombia.js'));
+    ctx.CuentasPago = require(path.join(RAIZ, 'app', 'cuentas-pago.js'));
+  }
   /* 19-oct-2026 — el teléfono de verdad (modelo, versión, nuestra app).
      `sinAparato: true` simula que ese <script src> no llegó. */
   if (!o.sinAparato) ctx.Aparato = require(path.join(RAIZ, 'app', 'aparato.js'));
