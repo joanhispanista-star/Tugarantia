@@ -82,6 +82,9 @@
   var TEXTO_A_TU_NOMBRE = 'Solo consignamos a cuentas a tu nombre.';
   var TEXTO_SON_MIAS = 'Son mías, a mi nombre';
   var TEXTO_ES_MIA = 'Es mía, a mi nombre';
+  /* 22-oct-2026 — la salida del desplegable «Banco» en el registro (ver
+     opcionesDeBancoHTML). */
+  var TEXTO_SIN_BANCO = 'Sin cuenta de banco';
 
   function texto(v) { return String(v == null ? '' : v).trim(); }
   function esc(s) {
@@ -207,7 +210,23 @@
     if (tocoElBanco(d)) {
       var b = revisarCuentaDeBanco(d);
       if (b.ok) cuantas++;
-      else Object.keys(b.errores).forEach(function (k) { errores.push({ id: k, motivo: b.errores[k] }); });
+      else {
+        /* 22-oct-2026 — Y SE DICE POR DÓNDE SE SALE. Quien solo tiene Nequi
+           abre «Banco» a buscarlo (no está: va arriba, aparte) y toca uno; sin
+           esta frase leía «Elige si tu cuenta es de ahorros o corriente» de
+           una cuenta que no tiene, y no sabía que podía soltarla. Si el
+           banco ya está en «Sin cuenta de banco» y lo que quedó es un número,
+           volver a elegirlo no hace nada (el desplegable no cambia): ahí la
+           salida es borrar el número, y eso es lo que se dice. */
+        var salida = texto(d.banco_codigo)
+          ? ' Si no vas a dar cuenta de banco, en «Banco» elige «' + TEXTO_SIN_BANCO + '».'
+          : ' Si no vas a dar cuenta de banco, borra el número de cuenta.';
+        var primero = true;
+        Object.keys(b.errores).forEach(function (k) {
+          errores.push({ id: k, motivo: b.errores[k] + (primero ? salida : '') });
+          primero = false;
+        });
+      }
     }
     if (!errores.length && !cuantas) {
       errores.push({ id: 'cuentas', motivo: 'Danos al menos una: tu Nequi, tu Daviplata, tu llave Bre-B o una cuenta de banco.' });
@@ -336,9 +355,20 @@
      fuera del DOM, porque PlataChat repinta la tarjeta con su latido.
      `cfg`: { opciones, estado: {eleccion, otra:{…}}, prefijo, alElegir,
      alMedio, alEscribir, error } */
-  function opcionesDeBancoHTML(seleccionado) {
+  /* 22-oct-2026 — `sinCuenta`: EL REGISTRO TIENE POR DÓNDE SALIR. Con la
+     primera opción «disabled hidden», quien tocaba un banco no podía volver a
+     «ninguno» (el navegador no deja elegir una opción apagada), y tocoElBanco
+     le exigía una cuenta entera: con su Nequi bueno, se quedaba trabado en el
+     paso, o inventaba una cuenta (basura que le llega a Joan) o borraba todo
+     el registro, cédula incluida. En el registro la cuenta de banco es
+     opcional, así que la primera opción se puede elegir y lo dice: «Sin cuenta
+     de banco». Al aceptar («Otra cuenta» → «Cuenta de banco») sí hace falta un
+     banco, y queda «Toca para elegir». */
+  function opcionesDeBancoHTML(seleccionado, sinCuenta) {
     var sel = texto(seleccionado);
-    return '<option value="" disabled hidden' + (sel ? '' : ' selected') + '>Toca para elegir</option>' +
+    return (sinCuenta
+        ? '<option value=""' + (sel ? '' : ' selected') + '>' + esc(TEXTO_SIN_BANCO) + '</option>'
+        : '<option value="" disabled hidden' + (sel ? '' : ' selected') + '>Toca para elegir</option>') +
       bancos().map(function (b) {
         return '<option value="' + esc(b.codigo) + '"' + (sel === b.codigo ? ' selected' : '') + '>' + esc(b.nombre) + '</option>';
       }).join('');
@@ -451,6 +481,7 @@
     MEDIOS: MEDIOS.map(function (m) { return Object.assign({}, m); }),
     TIPOS_DE_CUENTA: TIPOS_DE_CUENTA.slice(),
     LLAVES_DEL_REGISTRO: LLAVES_DEL_REGISTRO.slice(),
+    TEXTO_SIN_BANCO: TEXTO_SIN_BANCO,
     TEXTO_RAPIDO: TEXTO_RAPIDO,
     TEXTO_LENTO: TEXTO_LENTO,
     TEXTO_A_TU_NOMBRE: TEXTO_A_TU_NOMBRE,

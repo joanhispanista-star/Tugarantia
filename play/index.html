@@ -2862,7 +2862,9 @@ function pasoCobro() {
     '<div class="ayuda">Escríbela tal como te la muestra la app de tu banco o billetera.</div>' +
     '<div class="grupo-tit">Cuenta de banco <span class="cp-etq">' + esc(CP.TEXTO_LENTO) + '</span></div>' +
     '<label for="f_banco_codigo">Banco</label>' +
-    '<select id="f_banco_codigo" onchange="anotarBanco(this)">' + CP.opcionesDeBancoHTML(REGISTRO.banco_codigo) + '</select>' +
+    /* 22-oct-2026 — con «Sin cuenta de banco» elegible: quien toca un banco
+       sin querer (buscando Nequi) puede soltarlo (ver opcionesDeBancoHTML). */
+    '<select id="f_banco_codigo" onchange="anotarBanco(this)">' + CP.opcionesDeBancoHTML(REGISTRO.banco_codigo, true) + '</select>' +
     /* «Otro» abre la casilla del nombre sin repintar el paso: repintar
        publicaría el avance otra vez y subiría la página al principio. */
     '<div id="cajaBancoOtro"' + (otro ? '' : ' class="oculto"') + '>' +
@@ -2896,6 +2898,14 @@ function anotarBanco(el) {
   var caja = $('cajaBancoOtro');
   if (caja && caja.classList) caja.classList.toggle('oculto', !(b && b.codigo === 'otro'));
   var n = $('f_banco'); if (n) n.value = '';
+  /* 22-oct-2026 — «Sin cuenta de banco» suelta la cuenta ENTERA. Si quedaran
+     el tipo o el número, tocoElBanco seguiría pidiéndole un banco a quien
+     acaba de decir que no tiene. */
+  if (!b) {
+    REGISTRO.banco_tipo = ''; REGISTRO.banco_numero = '';
+    var t = $('f_banco_tipo'); if (t) t.value = '';
+    var nu = $('f_banco_numero'); if (nu) nu.value = '';
+  }
   guardarBorrador(REGISTRO);
 }
 function mismoCelular(id) {
