@@ -178,3 +178,72 @@ describe('la ficha y el cuadro de «Crear cuenta» no prometen que entra sin la 
     assert.equal(/Entra con su celular por/.test(ficha(P)), false);
   });
 });
+
+/* 23-oct-2026 (verificación de 129e85e) — LA CUENTA NUEVA NO HEREDA LA
+   COMPROBACIÓN DE LA VIEJA. La marca claveEquipoLista protegía solo a quien
+   nunca la tuvo: a Leidy, ya comprobada, le cambiaban el celular en ✏️ (o le
+   borraban la cuenta con «🧪 Borrar y repetir»), Joan tocaba «Ponerle otra
+   contraseña», el signup creaba una cuenta NUEVA, salía «Falta un paso» y,
+   cerrado sin pegar la línea, la ficha volvía a decir en verde «Entra con su
+   celular por…». La base la deja afuera: en celular_del_equipo_de_sesion una
+   clave anterior a la cuenta no vale (clave < creada → null), y con el
+   celular nuevo ni siquiera hay clave. */
+describe('la cuenta nueva de alguien ya comprobado no hereda el verde', () => {
+  const ficha = P => { P.ev("editarPersona('e1')"); return String(P.elems.mBody.innerHTML); };
+  const sinEtiquetas = h => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  function comprobada(o) {
+    const P = abrir(o);
+    P.ctx.confirm = () => true;
+    P.ev("Object.assign(personaDeEquipo('e1'), { cuentaCreada: '2026-09-15', claveEquipoLista: '2026-10-20', estado: 'activo', jefe: '' })");
+    assert.match(ficha(P), /Entra con su celular por/, 'la prueba no prueba el caso: no arranca comprobada');
+    return P;
+  }
+  async function crearYCerrar(P) {
+    P.ev("crearCuenta('e1')");
+    P.ev("document.getElementById('ceClave').value = 'abcd-efgh'");
+    P.ev("confirmarCrearCuenta('e1')");
+    await asentar();
+    assert.equal(P.elems.mTitle.textContent, 'Falta un paso: tu clave del equipo', 'la prueba no prueba el caso: el signup no creó');
+    P.ev('cerrarModal()');
+  }
+
+  test('le borraron la cuenta y el signup crea otra: cerrada «Falta un paso», la ficha NO dice en verde que entra', async () => {
+    const P = comprobada({ clave: 'abcd-efgh', faltaClave: true });
+    await crearYCerrar(P);
+    const h = ficha(P);
+    assert.equal(/Entra con su celular por/.test(h), false, 'la cuenta nueva heredó la comprobación de la vieja');
+    assert.match(sinEtiquetas(h), /no ha comprobado que ya entre/);
+    assert.match(h, /crearCuenta\('e1'\)">Ponerle otra contraseña/, 'no le deja la salida');
+  });
+
+  test('le cambian el celular en ✏️: la ficha ya no dice que entra, y ofrece crear la cuenta del número nuevo', async () => {
+    const P = comprobada({ clave: 'abcd-efgh', faltaClave: true });
+    P.ev("editarPersona('e1')");
+    P.ev("document.getElementById('eqNombre').value = 'Willian Prueba'; document.getElementById('eqTel').value = '3005556677';" +
+         " document.getElementById('eqRol').value = 'gerente'; document.getElementById('eqJefe').value = '';" +
+         " document.getElementById('eqEstado').value = 'activo';");
+    P.ev("guardarPersona('e1')");
+    await asentar();
+    assert.equal(P.ev("personaDeEquipo('e1').celular"), '3005556677', 'la prueba no prueba el caso: el celular no cambió');
+    const h = ficha(P);
+    assert.equal(/Entra con su celular por/.test(h), false, 'la comprobación era de la cuenta del número viejo');
+    assert.equal(/Ya tiene cuenta|Tiene cuenta, creada/.test(sinEtiquetas(h)), false, 'la cuenta anotada era la del número viejo');
+    assert.match(h, /crearCuenta\('e1'\)">Crear su cuenta/, 'no le deja la salida');
+    /* Y la cuenta que crea para el número nuevo tampoco sale en verde. */
+    await crearYCerrar(P);
+    assert.ok(P.pedidos.some(x => /\/auth\/v1\/signup/.test(x.url) && /573005556677@/.test(x.cuerpo)), 'no creó la del número nuevo');
+    assert.equal(/Entra con su celular por/.test(ficha(P)), false);
+  });
+
+  test('CENTINELA: guardar la ficha sin tocar el celular no le quita el verde a quien ya se comprobó', async () => {
+    const P = comprobada({ clave: 'abcd-efgh', faltaClave: false });
+    P.ev("editarPersona('e1')");
+    P.ev("document.getElementById('eqNombre').value = 'Willian Prueba Dos'; document.getElementById('eqTel').value = '300 000 0000';" +
+         " document.getElementById('eqRol').value = 'gerente'; document.getElementById('eqJefe').value = '';" +
+         " document.getElementById('eqEstado').value = 'activo';");
+    P.ev("guardarPersona('e1')");
+    await asentar();
+    assert.equal(P.ev("personaDeEquipo('e1').nombre"), 'Willian Prueba Dos', 'la prueba no prueba el caso: no guardó');
+    assert.match(ficha(P), /Entra con su celular por/, 'cambiar el nombre (o escribir el mismo celular con espacios) le quitó la comprobación');
+  });
+});

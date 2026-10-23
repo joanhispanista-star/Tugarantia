@@ -11287,6 +11287,15 @@ function confirmarCrearCuenta(id) {
          ajustes y saldría en cualquier respaldo. Se muestra una vez, se manda,
          y si se pierde se cambia. */
       p.cuentaCreada = hoyISO();
+      /* 23-oct-2026 (verificación de 129e85e) — UNA CUENTA NUEVA ESTÁ SIN
+         COMPROBAR, aunque la persona ya se hubiera comprobado antes. Si el
+         signup CREÓ es porque la de antes no existe (le cambiaron el celular,
+         o se borró con «🧪 Borrar y repetir»), y la base no le pasa a la nueva
+         la clave de la vieja: en celular_del_equipo_de_sesion una clave
+         anterior a la cuenta no vale. Con la marca vieja, cerrar «Falta un
+         paso» sin pegar la línea dejaba la ficha en verde («Entra con su
+         celular por…») con la persona afuera. */
+      delete p.claveEquipoLista;
       guardar(); render();
       /* 22-oct-2026 — creada no es lista: falta la clave de Joan (ver
          pantallaCuentaExiste). */
@@ -16063,6 +16072,19 @@ function guardarPersona(id) {
       if (n) n.value = nombre;
       if (t) t.value = telEscrito;
       return Promise.resolve('cancelado');
+    }
+    /* 23-oct-2026 (verificación de 129e85e) — LA CUENTA ANOTADA ERA LA DEL
+       NÚMERO VIEJO. El celular ES el usuario: con otro número, la cuenta que
+       se creó y la clave del equipo que se comprobó son de otra cuenta. Con
+       las marcas puestas la ficha seguía en verde («Entra con su celular
+       por…») y, al crear la del número nuevo y cerrar «Falta un paso», no se
+       caía nunca. Sin ellas dice «no lo sé», que es la verdad, y ofrece
+       «Crear su cuenta»: si el número nuevo ya tenía cuenta (por ejemplo, la
+       de cliente), el signup lo dice y sale «Ya existe» con la línea. Se
+       compara normalizado: escribir el mismo número con espacios no cuenta. */
+    if (String(p.celular || '').replace(/\D/g, '').slice(-10) !== tel) {
+      delete p.cuentaCreada;
+      delete p.claveEquipoLista;
     }
     p.nombre = nombre; p.celular = tel;
     if (toco('jefe')) p.jefe = rol === 'asesor' ? (gv('eqJefe') || '') : '';
