@@ -188,7 +188,15 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         siguiente toque, sin borrar lo que había en pantalla.
                         «🔓 Sesión abierta hasta …» en la barra, con «Salir
                         ahora». Entrar como equipo cierra la de Joan y al revés.
-                        Pruebas: pruebas/la-sesion-dura-24-horas.test.js.
+                        Segunda vuelta (23-oct): la puerta encima deja lo de debajo
+                        fuera del teclado (inert); en el computador de Joan, sin
+                        #equipo, la puerta es la del PIN aunque haya una sesión
+                        del equipo guardada («Soy del equipo» la retoma, «← Soy
+                        Joan» ya no recarga); al cerrarse, la del equipo se cierra
+                        también en Supabase. Falta del servidor: que las funciones
+                        del equipo rechacen sesiones de más de 24 h (otro lote).
+                        Pruebas: pruebas/la-sesion-dura-24-horas.test.js y
+                        pruebas/la-sesion-de-24-horas-sin-huecos.test.js.
   una-puerta.js         Las palabras del toque «¿Es la misma persona?» (juntar la
                         cuenta de un cliente antiguo), compartidas con espejo.html.
   nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el
