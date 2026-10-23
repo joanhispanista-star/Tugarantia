@@ -82,6 +82,18 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         sola sin un toque (marcar_acceso al abrir) no frena.
                         Pruebas: la sección 5 del mismo archivo, con el
                         «Pedir» de play/ y de PlataChat.
+  cuentas-pago.js       Dónde recibe la plata el cliente (22-oct-2026): Nequi,
+                        Daviplata, llave Bre-B (las formas del Banco de la
+                        República, ni una más) y cuenta de banco. Las reglas
+                        del paso «¿Dónde te enviamos la plata?» del registro,
+                        de «¿A dónde te consignamos?» al aceptar (play/ y
+                        PlataChat) y del «💸 Consignar a» del CRM. La base
+                        repite las mismas (destino_desembolso_limpio).
+                        Pruebas: pruebas/cuentas-pago.test.js.
+  bancos-colombia.js    La lista de bancos y billeteras con su código de la
+                        Superfinanciera, su fuente y su fecha arriba
+                        (consultada el 22-oct-2026). Para ponerla al día se
+                        cambia solo este archivo.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
                         divulgación del crédito y el borrado de cuenta.
@@ -130,6 +142,14 @@ base/
                                   por gerente_proponer ni por la de PlataChat
                                   (contrapropuesta_gerente, que además respeta
                                   topes_equipo). Va después de 20261015_el_gerente_vende.sql.
+  20261022_destino_del_desembolso.sql  A dónde se consigna: la columna
+                                  solicitudes.destino_desembolso y
+                                  aceptar_con_destino (acepta con
+                                  aceptar_condiciones, sin tocarla, y guarda la
+                                  cuenta en la MISMA transacción). Va después de
+                                  20261008_condiciones_aceptadas.sql y ANTES de
+                                  publicar la web. Termina con su tabla true/false.
+                                  Pruebas: pruebas/destino-del-desembolso-postgres.test.js.
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.
@@ -167,6 +187,16 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         con la cámara de pruebas/banco-camara.js). De
                         la cámara a «Están bien», con ZXing y Tesseract de
                         verdad: pruebas/escaner-ocr-de-punta-a-punta.test.js.
+                        (22-oct-2026) Diez pasos: después de «De qué vives»,
+                        «¿Dónde te enviamos la plata?» (Nequi y Daviplata con
+                        un toque, llave Bre-B, cuenta de banco; varias a la
+                        vez, al menos una, «Son mías, a mi nombre»). Van a la
+                        bandeja de Joan y NO al signup (la sesión se guarda en
+                        el teléfono). Al aceptar una propuesta, «¿A dónde te
+                        consignamos?», que viaja con la aceptación
+                        (aceptar_con_destino). Pruebas:
+                        pruebas/cuentas-en-el-registro.test.js y
+                        pruebas/destino-al-aceptar.test.js.
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).
