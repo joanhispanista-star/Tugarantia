@@ -61,6 +61,29 @@
  *   (carteraReemplazada): un respaldo es, casi siempre, una cartera vieja.
  *   La línea lo dice con UNA acción: «toca ☁ Subir historiales una vez».
  *
+ *   22-oct-2026 — YA NO ES DEL BOTÓN. Joan: «quiero que se pueda automatizar
+ *   todo lo que se sube a la nube». Lo que el botón protegía de verdad era una
+ *   cosa: no subir una cartera VIEJA. Eso ya se puede comprobar sin preguntar,
+ *   porque desde el 1-oct la cartera de Joan sube sola (nube-crm.js) y se
+ *   empareja contra la nube: si este computador quedó emparejado y no hay
+ *   ninguna ficha en discusión, lo que dice la cartera coincide con lo que la
+ *   nube ya tenía o lo agrega, y entonces es la de hoy. La subida sola se
+ *   enciende ahí misma, sola (cfg.libroAlDia → NubeCRM.libroAlDia). Mientras
+ *   espera, la línea dice QUÉ espera y qué va a pasar, sin botón. Importar un
+ *   respaldo sigue pausando. El botón queda en Ajustes → Avanzado para el
+ *   caso raro (un computador sin sesión de la nube que igual quiere subir ya).
+ *
+ *   23-oct-2026 — «EMPAREJADA Y SIN DISCUSIÓN» NO ERA «LA DE HOY». Aquí decía
+ *   que una cartera vieja no pasaba porque «la nube tiene algo que ella no y
+ *   eso queda en discusión». No: lo que SOLO está en la nube (el crédito
+ *   nuevo que un respaldo viejo no tiene) nunca entra en discusión, y un
+ *   origen viejo emparejado hace semanas no choca con nada porque no tiene
+ *   nada que subir. Los dos encendían esto solo y le subían al cliente su
+ *   deuda sin ese crédito o sin ese abono. Ahora NubeCRM.libroAlDia dice «sí»
+ *   solo si, además, una comparación con la nube hecha en ESTA sesión no
+ *   encontró nada más nuevo allá que acá. Si lo encontró, la línea lo dice
+ *   («la nube tiene N fichas más nuevas») y manda a juntarlas en ☁ Subir.
+ *
  * DOS FICHAS, UNA FILA: NO SUBEN
  *   sincronizar_socios identifica a cada cliente por su cédula o, si no tiene,
  *   por su celular. Cuando un cliente CON cédula sube, la nube borra la fila
@@ -157,7 +180,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (entorno) {
   'use strict';
 
-  var VERSION = '2026-10-07c';
+  var VERSION = '2026-10-23';
   var E = entorno || {};
   var G = (typeof globalThis !== 'undefined') ? globalThis : {};
 
@@ -180,6 +203,10 @@
      con el navegador creyéndose en línea no dispara `online` (lección de
      nube-crm.js del 1-oct), así que no basta con esperar ese aviso. */
   var REINTENTO_MS = 3 * 60000;
+  /* 22-oct-2026 — cuando la nube contesta mal o no se alcanza CON internet,
+     la espera crece: 3, 6, 12, 24 y después cada 30 min. Sin señal se queda en
+     3 (lo que falla ahí es el wifi, no la nube, y el aviso `online` ayuda). */
+  var REINTENTO_TOPE_MS = 30 * 60000;
   /* Un casillero del freno de clave_ok. Ver LA CLAVE EQUIVOCADA, arriba. */
   var REINTENTO_CLAVE_MS = 15 * 60000;
   var GRUPO_MS = 6 * 3600000;
@@ -276,9 +303,13 @@
       ultimaSubida: e.ultimaSubida || null,
       ultimaRevision: e.ultimaRevision || null,
       grupoEn: e.grupoEn || null,
-      /* Cuándo Joan tocó el botón por primera vez en este computador. Sin
-         esto, la subida sola no arranca (LA PRIMERA VEZ ES DEL BOTÓN). */
+      /* Cuándo se encendió la subida sola en este computador. Sin esto no
+         arranca. 22-oct-2026: la enciende la propia vuelta en cuanto la
+         cartera está comprobada (YA NO ES DEL BOTÓN), o el botón de Avanzado. */
       habilitado: e.habilitado || null,
+      /* 22-oct-2026 — quién la encendió: 'solo' (la cartera quedó emparejada
+         sin discusión) o 'boton' (Ajustes → Avanzado). La barra lo dice. */
+      habilitadoPor: e.habilitadoPor || null,
       /* Por qué se pausó, si se pausó: {motivo:'respaldo', en}. */
       pausa: e.pausa || null
     };
@@ -548,13 +579,36 @@
         (u.motivo === 'corta' ? 'Tu clave de sincronización es muy corta: la nube pide 12 caracteres o más · ' : '') +
         (x.ultimaSubida ? venLo + '; lo nuevo espera' : 'Lo que cambies acá no les llega a tus clientes') + cola);
     }
-    if (u.fase === 'primera-vez') {
-      var resp = u.motivo === 'respaldo';
-      return c('primera-vez', 'ojo',
-        resp ? 'Importaste un respaldo: los historiales no suben solos hasta que lo confirmes'
-             : 'Los historiales todavía no suben solos en este computador',
-        (resp ? 'Cuando estés seguro de que esta es tu cartera de hoy, toca ☁ Subir historiales (Ajustes → Compartir con mis clientes); desde ahí vuelven a subir solos'
-              : 'Toca ☁ Subir historiales una vez (Ajustes → Compartir con mis clientes) y desde ahí suben solos con cada cambio') +
+    if (u.fase === 'esperando-libro') {
+      /* 22-oct-2026 — antes «toca ☁ Subir historiales una vez». Ya no se toca
+         nada: se dice qué falta comprobar y qué va a pasar (YA NO ES DEL
+         BOTÓN, arriba). */
+      var resp = u.pausa === 'respaldo';
+      var falta = {
+        'sin-conectar': 'Para comprobarlo, este computador tiene que estar conectado a la nube con tu correo (<a href="subir.html" target="_blank" rel="noopener">☁ Subir</a>, paso 1)',
+        'en-discusion': 'Hay ' + plural(num(u.congeladas) || 1, 'ficha', 'fichas') + ' de tu cartera en discusión con la nube: en cuanto decidas en <a href="subir.html" target="_blank" rel="noopener">☁ Subir</a> (paso 7), suben solos',
+        'libro-distinto': 'La nube tiene otra cartera: decide en la línea ☁ de tu cartera y después suben solos',
+        'sello-roto': 'Otra página cambió tu cartera: recarga esta pestaña y suben solos',
+        'otra-pestana': 'Los sube la otra pestaña del CRM, que es la que está emparejada',
+        'sin-modulo': 'No cargó la subida de la cartera (nube-crm.js), que es la que lo comprueba: recarga con Ctrl+Shift+R',
+        'cartera-ilegible': 'No pude leer tu cartera guardada: exporta un respaldo desde Ajustes antes de tocar nada',
+        /* 23-oct-2026 — ver «EMPAREJADA Y SIN DISCUSIÓN» NO ERA «LA DE HOY», arriba.
+           Y solo cuenta lo de ESTA cartera: las fichas de otra cartera sobre
+           la que Joan emparejó con su sí no llegan aquí (nube-crm.js, LO QUE
+           ERA DE LA OTRA CARTERA). Si llegaran, «más nuevas» sería falso y
+           «júntalas» mezclaría los clientes de la otra con los de esta. */
+        'nube-mas-nueva': 'La nube tiene ' + plural(num(u.fichas) || 1, 'ficha más nueva', 'fichas más nuevas') +
+          ' que esta cartera (lo que cobraste desde el celular, o lo que un respaldo viejo no alcanzó a tener). ' +
+          'No subo hasta que las juntes con lo tuyo en <a href="subir.html" target="_blank" rel="noopener">☁ Subir</a> (paso 6, «Aplicar»): después suben solos',
+        'comparando': 'Estoy comparando tu cartera con lo que hay en la nube; si allá no hay nada más nuevo, suben solos',
+        'sin-comparar': 'No pude comparar tu cartera con la nube (' + esc(u.detalle || 'la nube no contestó') + ')' +
+          (num(u.espera) ? ': pruebo otra vez sola en ' + Math.max(1, Math.round(num(u.espera) / 60000)) + ' min' : ''),
+        'navegador-lleno': 'El navegador está lleno y no pude terminar de emparejar tu cartera con la nube: exporta un respaldo desde Ajustes y libera espacio'
+      }[u.motivo] || 'Estoy emparejando tu cartera con la nube; en cuanto termine, suben solos';
+      return c('esperando-libro', u.motivo === 'sin-modulo' || u.motivo === 'cartera-ilegible' || u.motivo === 'navegador-lleno' ? 'mal' : 'ojo',
+        resp ? 'Importaste un respaldo: los historiales vuelven a subir solos en cuanto compruebe que es tu cartera de hoy'
+             : 'Los historiales empiezan a subir solos en cuanto compruebe que esta es tu cartera de hoy',
+        falta + ' · así una cartera vieja abierta en otro navegador no le cambia a tus clientes lo que ya ven' +
         (x.ultimaSubida ? ' · ' + venLo : '') + extra);
     }
     if (u.fase === 'sin-guardar') {
@@ -579,13 +633,16 @@
         'Corre base/supabase.sql en el SQL Editor de Supabase; mientras, ' + (n ? esperan : 'lo nuevo espera') +
         ' · clic para reintentar' + extra);
     }
+    /* 22-oct-2026 — los dos fallos de la nube, en ROJO y con la espera de
+       verdad (crece con cada fallo seguido: programarReintento). */
+    var enMin = 'pruebo otra vez en ' + Math.max(1, Math.round((num(u.espera) || REINTENTO_MS) / 60000)) + ' min';
     if (u.fase === 'error') {
-      return c('error', 'ojo', 'No pude subir: ' + esperan,
-        esc(u.motivo || 'La nube no contestó bien.') + ' · pruebo otra vez en 3 min · clic para reintentar ya' + extra);
+      return c('error', 'mal', 'No pude subir: ' + esperan,
+        esc(u.motivo || 'La nube no contestó bien.') + ' · ' + enMin + ' · si sigue, revisa el internet o toca 🔌 Probar conexión en Ajustes · clic para reintentar ya' + extra);
     }
     if (u.fase === 'sin-llegar' && x.enLinea !== false) {
-      return c('sin-llegar', 'ojo', 'No pude llegar a la nube' + (n ? ': ' + esperan : ''),
-        '¿Hay internet? Si hay, revisa la URL en Ajustes y toca 🔌 Probar conexión · pruebo otra vez en 3 min · clic para reintentar ya' + extra);
+      return c('sin-llegar', 'mal', 'No pude llegar a la nube' + (n ? ': ' + esperan : ''),
+        '¿Hay internet? Si hay, revisa la URL en Ajustes y toca 🔌 Probar conexión · ' + enMin + ' · clic para reintentar ya' + extra);
     }
     if (u.fase === 'sin-senal' || u.fase === 'sin-llegar' || x.enLinea === false) {
       if (!n && !x.esperando) return c('sin-senal', 'neutro', 'Sin internet', 'nada esperando subir · ' + venAlDia + extra);
@@ -754,6 +811,15 @@
   /* ¿El último guardar() no entró? Si no sabe, dice que no: crm.html es quien
      lo sabe, y una pestaña sin ese enganche se comporta como antes. */
   function sinGuardar() { try { return !!(cfg.sinGuardar && cfg.sinGuardar()); } catch (e) { return false; } }
+  /* 22-oct-2026 — ¿la cartera es la de hoy? La contesta nube-crm.js (crm.html
+     la pasa como cfg.libroAlDia). Si no hay quién conteste, dice que NO: sin
+     esa comprobación esto vuelve a ser subir a ciegas. */
+  function libroAlDia() {
+    try {
+      if (typeof cfg.libroAlDia !== 'function') return { ok: false, motivo: 'sin-modulo' };
+      return objeto(cfg.libroAlDia());
+    } catch (e) { return { ok: false, motivo: 'sin-modulo' }; }
+  }
   function frenoPuesto(con) {
     var c = con || conexion();
     return !!(_freno && c.ok && _freno.claveDe === c.huellaClave &&
@@ -800,7 +866,7 @@
       fase: _apagado ? 'apagado' : null, ultimo: _ultimo, enVuelta: _enVuelta, subiendo: _subiendo,
       plan: _plan, esperando: _quietud != null, ocupado: _ocupado, cambio: _cambio, enLinea: enLinea(),
       ultimaSubida: est.ultimaSubida, ultimaRevision: est.ultimaRevision, grupoEn: est.grupoEn,
-      habilitado: !!est.habilitado, version: VERSION, ahora: ahora()
+      habilitado: !!est.habilitado, habilitadoPor: est.habilitadoPor, version: VERSION, ahora: ahora()
     };
   }
   function estado() {
@@ -818,7 +884,10 @@
     var est = leerEstado();
     pedazo.forEach(function (e) { est.socios[e.id] = e.rec; });
     est.ultimaSubida = iso();
-    if (manual) { est.habilitado = est.habilitado || iso(); est.pausa = null; }
+    if (manual) {
+      if (!est.habilitado) est.habilitadoPor = 'boton';
+      est.habilitado = est.habilitado || iso(); est.pausa = null;
+    }
     guardarEstado(est);
   }
   /* Las huellas de quien ya no está en la cartera NO se tiran: su fila sigue
@@ -835,12 +904,24 @@
     });
   }
 
+  /* 22-oct-2026 — los fallos de la nube seguidos (error, sin-llegar): con
+     cada uno la espera se dobla hasta REINTENTO_TOPE_MS. Se ponen en cero en
+     cuanto una vuelta sale bien. */
+  var _fallosNube = 0;
   function programarReintento() {
     desprogramar(_reintento); _reintento = null;
     if (_apagado || !_ultimo) return;
-    var f = _ultimo.fase;
-    var ms = f === 'clave' ? REINTENTO_CLAVE_MS : (f === 'sin-senal' || f === 'sin-llegar' || f === 'error') ? REINTENTO_MS : 0;
-    if (ms) _reintento = programar(function () { _reintento = null; vuelta(false); }, ms);
+    var f = _ultimo.fase, ms = 0;
+    if (f === 'clave') ms = REINTENTO_CLAVE_MS;
+    else if (f === 'sin-senal') ms = REINTENTO_MS;
+    else if (f === 'sin-llegar' || f === 'error') {
+      _fallosNube++;
+      ms = Math.min(REINTENTO_TOPE_MS, REINTENTO_MS * Math.pow(2, _fallosNube - 1));
+    }
+    if (ms) {
+      _ultimo.espera = ms;
+      _reintento = programar(function () { _reintento = null; vuelta(false); }, ms);
+    }
   }
 
   function subir(plan, con, op) {
@@ -899,6 +980,7 @@
         podar(est, plan);
         guardarEstado(est);
         _ultimo = null;
+        _fallosNube = 0;
       }
       return res;
     }, function (e) {
@@ -970,12 +1052,25 @@
 
     var con = conexion();
     if (!con.ok) { _ultimo = { fase: 'sin-config', motivo: con.motivo }; pintar(); return Promise.resolve(estado()); }
-    /* LA PRIMERA VEZ ES DEL BOTÓN (ver arriba): ni el clic en la línea la salta. */
+    /* 22-oct-2026 — LA PRIMERA VEZ YA NO ES DEL BOTÓN (YA NO ES DEL BOTÓN,
+       arriba): se enciende sola en cuanto la cartera está emparejada con la
+       nube y sin fichas en discusión. Mientras no, espera y lo dice. Ni el
+       clic en la línea se salta esa comprobación: es lo que protege a los
+       clientes de una cartera vieja. */
     var est0 = leerEstado();
     if (!est0.habilitado) {
-      _ultimo = { fase: 'primera-vez', motivo: texto(objeto(est0.pausa).motivo) };
-      pintar();
-      return Promise.resolve(estado());
+      var lib = libroAlDia();
+      if (!lib.ok) {
+        _ultimo = { fase: 'esperando-libro', motivo: texto(lib.motivo), congeladas: num(lib.congeladas),
+                    fichas: num(lib.fichas), espera: num(lib.espera), detalle: texto(lib.detalle),
+                    pausa: texto(objeto(est0.pausa).motivo) };
+        pintar();
+        return Promise.resolve(estado());
+      }
+      est0.habilitado = iso();
+      est0.habilitadoPor = 'solo';
+      est0.pausa = null;
+      guardarEstado(est0);
     }
     if (sinGuardar()) { _ultimo = { fase: 'sin-guardar', cuando: iso() }; pintar(); return Promise.resolve(estado()); }
     if (!enLinea()) { _ultimo = { fase: 'sin-senal', cuando: iso() }; programarReintento(); pintar(); return Promise.resolve(estado()); }
@@ -1008,7 +1103,9 @@
    * EL BOTÓN DE SIEMPRE («☁ Subir historiales»): sube a TODOS los que no
    * chocan, con su código y su codigo_forzar tal cual, en pedazos, y anota las
    * huellas de lo que la nube confirmó. Es el único camino que cambia un
-   * código regenerado, y el que enciende la subida sola en este computador.
+   * código regenerado, y enciende la subida sola en este computador aunque la
+   * cartera no esté comprobada (22-oct-2026: vive en Ajustes → Avanzado, para
+   * el computador sin sesión de la nube).
    * Lo llama sincronizarSocios() de crm.html DESPUÉS de su confirm(): las
    * preguntas son de esa pantalla, no de esta pieza.
    * Devuelve {ok, total, subidos, aceptados, confirmados:[ids], chocan:[nombres], fase, motivo}.
@@ -1042,20 +1139,47 @@
 
   /* importar() de crm.html: entró una cartera entera de un archivo. Las huellas
      describen la de antes y la del respaldo suele ser VIEJA: la subida sola se
-     pausa hasta que Joan toque el botón (LA PRIMERA VEZ ES DEL BOTÓN). Lo que
-     ya se subió sigue arriba; solo se olvida qué era. */
+     pausa hasta que el respaldo quede emparejado con la nube sin discusión
+     (22-oct-2026: antes, hasta el botón). Lo que ya se subió sigue arriba;
+     solo se olvida qué era. */
   function carteraReemplazada(motivo) {
     var est = leerEstado();
     _mem = null;
     guardarEstado({ v: 1, socios: {}, ultimaSubida: est.ultimaSubida, ultimaRevision: null, grupoEn: null,
-                    habilitado: null, pausa: { motivo: texto(motivo) || 'otra', en: iso() } });
+                    habilitado: null, habilitadoPor: null, pausa: { motivo: texto(motivo) || 'otra', en: iso() } });
     desprogramar(_quietud); _quietud = null;
     _cambio = false;
     _plan = null;
     if (_configurado && !_apagado) {
-      _ultimo = { fase: 'primera-vez', motivo: texto(motivo) };
+      /* 22-oct-2026 — ya no espera al botón: espera a que el respaldo quede
+         emparejado con la nube sin discusión (lo mira libroCambio y el reloj). */
+      _ultimo = { fase: 'esperando-libro', motivo: 'falta-emparejar', pausa: texto(motivo) };
       pintarPronto();
     }
+  }
+
+  /* 22-oct-2026 — nube-crm.js avisa (por crm.html) cada vez que se repinta:
+     si esta pieza está esperando a que la cartera quede comprobada y ya lo
+     está, arranca. Si no espera nada, no hace nada: se llama seguido. */
+  function libroCambio() {
+    if (_apagado || !_configurado || _enVuelta) return;
+    if (!_ultimo || _ultimo.fase !== 'esperando-libro') return;
+    var lib = libroAlDia();
+    if (!lib.ok) {
+      /* 23-oct-2026 — lo que se espera puede cambiar sin que esto suba nada:
+         «comparando» pasa a «la nube tiene N fichas más nuevas» cuando vuelve
+         la traída. Si la línea se quedara con lo de antes, diría que sigue
+         comparando algo que ya se sabe. */
+      var cambio = texto(lib.motivo) !== texto(_ultimo.motivo) || num(lib.fichas) !== num(_ultimo.fichas) ||
+                   num(lib.congeladas) !== num(_ultimo.congeladas) || texto(lib.detalle) !== texto(_ultimo.detalle);
+      if (cambio) {
+        _ultimo = { fase: 'esperando-libro', motivo: texto(lib.motivo), congeladas: num(lib.congeladas),
+                    fichas: num(lib.fichas), espera: num(lib.espera), detalle: texto(lib.detalle), pausa: _ultimo.pausa };
+        pintar();
+      }
+      return;
+    }
+    vuelta(false);
   }
 
   /* =========================================================================
@@ -1095,6 +1219,9 @@
     try {
       if (!doc || !doc.getElementById) return null;
       var c = doc.getElementById('histCinta');
+      /* 22-oct-2026 — con la línea común de crm.html, la barra lateral lleva
+         UNA línea («☁ Todo sube solo») y esta no se inyecta. */
+      if (cfg.sinCinta) { if (c && c.parentNode) c.parentNode.removeChild(c); return null; }
       if (c && c.parentNode) return c;
       var ref = doc.getElementById('nubeCinta');
       if (!ref || !ref.parentNode) ref = doc.getElementById('horarioBox');
@@ -1132,16 +1259,23 @@
     try {
       if (barra) {
         if (t.fase === 'apagado') { barra.innerHTML = ''; return; }
-        var tono = t.clase === 'mal' ? 'warn hist-barra mal' : t.clase === 'ojo' ? 'warn hist-barra' : t.clase === 'calma' ? 'ok hist-barra' : 'info hist-barra';
+        /* 22-oct-2026 — lo que falló, en rojo (.alerta.mal de crm.html). */
+        var tono = t.clase === 'mal' ? 'mal hist-barra' : t.clase === 'ojo' ? 'warn hist-barra' : t.clase === 'calma' ? 'ok hist-barra' : 'info hist-barra';
         barra.innerHTML = '<div class="alerta ' + tono + '" role="button" tabindex="0" onclick="HistorialesAuto.accion()">' +
           '<b>📲 ' + t.l1 + '</b><div class="l2">' + t.l2 + '</div>' +
-          '<div class="l3">Los historiales de tus clientes suben solos desde la primera vez que tocas «☁ Subir historiales» ' +
-          'en este computador: al entrar, tras 90 s sin cambios, al volver la señal y cada 30 min. Sube solo el cliente ' +
-          'que cambió; las cifras del grupo se refrescan para todos cada 6 h. El botón sube a todos ya. ' +
+          /* 22-oct-2026 — decía «desde la primera vez que tocas ☁ Subir
+             historiales». Ya no hay que tocar nada (YA NO ES DEL BOTÓN). */
+          '<div class="l3">Los historiales de tus clientes suben solos en cuanto este computador está emparejado con la nube ' +
+          'y sin fichas en discusión (así compruebo que es tu cartera de hoy): al entrar, tras 90 s sin cambios, al volver la señal y cada 30 min. ' +
+          (r.habilitadoPor === 'solo' ? 'Aquí se encendió sola. ' : '') +
+          'Sube solo el cliente que cambió; las cifras del grupo se refrescan para todos cada 6 h. ' +
+          'En Avanzado, «☁ Subir historiales» sube a todos ya. ' +
           'Ningún código de acceso viaja: tus clientes entran con su celular y su contraseña. Dos fichas con el mismo celular o la misma cédula no suben hasta que ' +
           'las corrijas: la nube las tomaría por la misma persona. · versión ' + esc(VERSION) + '</div></div>';
       }
     } catch (e) { /* nada más que hacer */ }
+    /* 22-oct-2026 — la línea común de crm.html se repinta con esta. */
+    try { if (typeof cfg.alPintar === 'function') cfg.alPintar(); } catch (e) { /* la barra ya dijo lo suyo */ }
   }
   function pintarPronto() {
     if (_pintarT != null) return;
@@ -1153,8 +1287,10 @@
   function accion() {
     if (_apagado || !_configurado) return Promise.resolve(estado());
     var f = textoCinta(resumen()).fase;
-    /* El botón está en Ajustes; la línea no se lo salta. */
-    if (f === 'primera-vez') { irAjustes(); pintar(); return Promise.resolve(estado()); }
+    /* 22-oct-2026 — esperando a que la cartera quede comprobada: el clic mira
+       otra vez (si ya lo está, sube) y lleva a Ajustes, donde está el detalle.
+       No se salta la comprobación. */
+    if (f === 'esperando-libro') { irAjustes(); return vuelta(true); }
     /* Con el freno puesto, el clic NO prueba: cada intento con la clave mala
        es uno de los 10 que la nube le da a todos cada 15 min. Lleva a Ajustes,
        donde «Guardar conexión» y «🔌 Probar conexión» sí prueban ya. */
@@ -1248,6 +1384,10 @@
     _reloj = cadaRato(function () {
       if (_apagado || _enVuelta) return;
       try { if (puerta() === 'ok') latir(); } catch (e) { /* la vuelta lo vuelve a mirar */ }
+      /* 22-oct-2026 — si espera a que la cartera quede comprobada, lo mira
+         acá también: el aviso de nube-crm.js puede no llegar (un crm.html
+         viejo sin el enganche). */
+      try { libroCambio(); } catch (e) { /* la vuelta lo vuelve a mirar */ }
       pintar();
     }, RELOJ_MS);
     _periodico = cadaRato(function () { if (!_apagado && !_enVuelta) vuelta(false); }, REVISION_MS);
@@ -1289,6 +1429,7 @@
     algoCambio: algoCambio,
     conexionCambio: conexionCambio,
     carteraReemplazada: carteraReemplazada,
+    libroCambio: libroCambio,
     vuelta: vuelta,
     subirTodo: subirTodo,
     estado: estado,

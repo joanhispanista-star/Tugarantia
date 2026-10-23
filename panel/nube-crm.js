@@ -88,6 +88,25 @@
  *  12. El borrado viaja SIN datos (Ley 1581); el nombre del freno va aparte.
  *  13. El choque contra lo que este mismo computador ya escribió (respuesta
  *      perdida, espejo que no cupo) se anota y no se congela.
+ *
+ * 22-oct-2026 — SE EMPAREJA SOLA. Joan: «aparte está el botón de subir a la
+ * nube en mi crm, siento que es innecesario, quiero que se pueda automatizar
+ * todo lo que se sube a la nube». El «sí, emparejar y subir» de cada computador
+ * (y de cada respaldo importado) era ese botón con otro nombre. Se miró qué
+ * protegía de verdad, y emparejar NUNCA pisa: lo igual se adopta, lo que solo
+ * agrega sube, lo distinto se congela y lo borrado allá queda en discusión.
+ * Lo único que el modal cuidaba era que Joan viera los nombres antes de que una
+ * cartera AJENA (una de prueba, la de otro negocio) subiera fichas nuevas a la
+ * suya. Eso se reconoce sin preguntar: si la nube tiene fichas y ninguna está
+ * en esta cartera, no es el mismo libro (mismoLibro). Entonces, y solo
+ * entonces, se pregunta. En los demás casos —la nube vacía, la cartera vacía o
+ * al menos una ficha en común— se empareja sola, la cinta dice qué va a pasar
+ * mientras compara, y la barra dice qué pasó. Las fichas en discusión siguen
+ * esperando a Joan en ☁ Subir (paso 7): son plata y eso no se adivina.
+ * Y lo que falla se pinta en ROJO con qué hacer, y se reintenta solo con una
+ * espera que crece (1, 2, 4, 8 y 15 min): un reintento fijo cada 90 s contra
+ * una nube caída es un martillo, y uno que no existe es un aviso que miente.
+ * Pruebas: pruebas/todo-sube-solo.test.js.
  * ===========================================================================*/
 (function (raiz, fabrica) {
   'use strict';
@@ -100,7 +119,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (entorno) {
   'use strict';
 
-  var VERSION = '2026-10-01';
+  var VERSION = '2026-10-23';
   var E = entorno || {};
   var G = (typeof globalThis !== 'undefined') ? globalThis : {};
   var N = E.nube || G.NubeTuGarantia;
@@ -137,6 +156,10 @@
      30 s, la pestaña que trabaja parecería muerta cada vez que Joan mira otra. */
   var VIVA_MS = 150000;
   var TOPE_FICHAS = 3, TOPE_PCT = 5;
+  /* 22-oct-2026 — la espera tras un fallo, que crece: la primera es corta
+     (un corte de un minuto no puede dejar la cartera una hora sin subir) y el
+     tope es el mismo cuarto de hora de la publicación del equipo. */
+  var ESPERAS_MS = [60000, 120000, 240000, 480000, 900000];
 
   /* =========================================================================
    * UTILIDADES (sin dependencias, mismo estilo que nube.js)
@@ -250,7 +273,14 @@
       contadoresConocidos: objeto(e.contadoresConocidos),
       ultimaSubida: e.ultimaSubida || null,
       ultimaVuelta: e.ultimaVuelta || null,
-      emparejadoEn: e.emparejadoEn || null
+      emparejadoEn: e.emparejadoEn || null,
+      /* 22-oct-2026 — cómo y con qué cuentas se emparejó la última vez, para
+         que la barra diga qué pasó cuando lo hizo sola. */
+      ultimoEmparejo: e.ultimoEmparejo || null,
+      /* 23-oct-2026 — las fichas de la nube que son de OTRA cartera, según el
+         «sí» de Joan sobre «la nube tiene otra cartera» ({'socios|CT1': 1}).
+         Ver LO QUE ERA DE LA OTRA CARTERA, en aplicarEmparejo. */
+      deOtraCartera: objeto(e.deOtraCartera)
     };
   }
   /* Las congeladas también viven en memoria: si el disco dijera «no cupo» al
@@ -562,6 +592,111 @@
     });
   }
 
+  /**
+   * 23-oct-2026 — ¿LA NUBE TIENE ALGO MÁS NUEVO QUE ESTA CARTERA?
+   * La pregunta que libroAlDia no se hacía. «Emparejada y sin discusión» no
+   * basta para decir «es la de hoy»: lo que SOLO está en la nube (un crédito
+   * nuevo que el respaldo viejo no alcanzó a tener) nunca entra en discusión,
+   * se cuenta y ya; y un origen viejo emparejado hace semanas no tiene nada
+   * que subir, así que nada choca, aunque el celular haya cobrado mil cosas
+   * desde entonces. En los dos casos los historiales se encendían solos y le
+   * subían al cliente una deuda sin su crédito o sin su abono.
+   * Devuelve las fichas en las que la nube va por delante de esta cartera:
+   *   · viva allá y no acá, salvo que acá se haya borrado DESPUÉS de lo último
+   *     que el espejo conoce de ella (el borrado de Joan es lo más nuevo);
+   *   · borrada allá y viva acá, si el espejo no conocía ese borrado;
+   *   · en los dos lados, con una revisión que el espejo no conoce y algo que
+   *     la ficha de acá no tiene (nadaQueSumar: un abono, un campo, un valor).
+   * Solo las tres tablas: son las que arman el historial que ve el cliente.
+   *
+   * 23-oct-2026 — `otra` ({'socios|CT1': 1}, del estado): las fichas que Joan
+   * ya dijo que son de OTRA cartera al emparejar sobre «la nube tiene otra
+   * cartera». Vivas allá y no acá, NO son «más nuevas que esta cartera»: son
+   * de otro libro. Contarlas dejaba los historiales esperando para siempre y
+   * mandando a juntar con la cartera de verdad los clientes de la de prueba.
+   *
+   * 22-oct-2026 — y cada una dice de QUÉ CLIENTES es (`socios`): el de acá y
+   * el de allá, que en un crédito pueden no coincidir. La publicación sola
+   * del equipo (libroPorCliente, abajo) deja fuera solo a esos; sin esto, una
+   * ficha atrás frenaba la cartera entera. Se anota AQUÍ porque es el único
+   * sitio que tiene a la vez la ficha de la nube: la de un crédito que solo
+   * está allá no dice de quién es en ninguna otra parte.
+   */
+  function sociosDeFicha(t, id, loc, datos) {
+    var out = [];
+    function sumar(v) { var s = texto(v); if (s && out.indexOf(s) < 0) out.push(s); }
+    if (t === 'socios') sumar(id);
+    else { sumar(loc && loc.socioId); sumar(objeto(datos).socioId); }
+    return out;
+  }
+  function loQueLaNubeTieneDeMas(db, esp, paquete, otra) {
+    var d = objeto(db), p = objeto(paquete), deOtra = objeto(otra), out = [];
+    TABLAS.forEach(function (t) {
+      var locales = {};
+      lista(d[CAMPO_DB[t]]).forEach(function (f) { if (f && f.id != null) locales[String(f.id)] = f; });
+      lista(p[t]).forEach(function (f) {
+        if (!f || f.id == null) return;
+        var id = String(f.id), loc = locales[id], e = entrada(esp, t, id);
+        var ficha = function (por) { return { tabla: t, id: id, por: por, socios: sociosDeFicha(t, id, loc, f.datos) }; };
+        /* El espejo ya conoce esta revisión (o una posterior): lo que haya acá
+           es eso más lo que Joan hizo después. Nada nuevo allá. */
+        if (e && num(f.revision) <= num(e.revision)) return;
+        if (f.borrado === true) { if (loc) out.push(ficha('borrada-alla')); return; }
+        if (!loc) { if (!deOtra[t + '|' + id]) out.push(ficha('solo-alla')); return; }
+        if (!nadaQueSumar(N.sinFotos(loc), f.datos)) out.push(ficha('mas-nueva-alla'));
+      });
+    });
+    return out;
+  }
+
+  /**
+   * 22-oct-2026 — ¿ESTA CARTERA Y LA DE LA NUBE SON EL MISMO LIBRO?
+   * Lo único que emparejar no podía decidir solo. Los ids de las fichas los
+   * pone el CRM al crearlas (C + reloj, P + reloj), así que dos carteras que
+   * comparten aunque sea UNA ficha vienen de la misma: la de Joan en otro
+   * navegador, un respaldo suyo, lo que bajó traer.html. Dos que no comparten
+   * ninguna son dos negocios, y emparejarlas subiría fichas de uno al otro.
+   *   nube-vacia      no hay nada allá que pisar ni que mezclar: se empareja
+   *   cartera-vacia   no hay nada acá que subir: emparejar no manda nada
+   *   mismo-libro     al menos una ficha en común: se empareja (lo distinto
+   *                   se congela como siempre, nada se pisa)
+   *   libro-distinto  fichas en los dos lados y ninguna en común: se pregunta
+   * Las borradas allá cuentan como comunes (son de la misma historia) pero no
+   * como «la nube tiene algo»: una nube con solo borrados está vacía.
+   */
+  function mismoLibro(db, paquete) {
+    var d = objeto(db), p = objeto(paquete);
+    var aca = 0, alla = 0, comunes = 0, locales = {};
+    TABLAS.forEach(function (t) {
+      lista(d[CAMPO_DB[t]]).forEach(function (f) {
+        if (f && f.id != null) { locales[t + '|' + String(f.id)] = true; aca++; }
+      });
+    });
+    TABLAS.forEach(function (t) {
+      lista(p[t]).forEach(function (f) {
+        if (!f || f.id == null) return;
+        if (!f.borrado) alla++;
+        if (locales[t + '|' + String(f.id)]) comunes++;
+      });
+    });
+    var motivo = alla === 0 ? 'nube-vacia' : aca === 0 ? 'cartera-vacia' : comunes > 0 ? 'mismo-libro' : 'libro-distinto';
+    return { seguro: motivo !== 'libro-distinto', motivo: motivo, aca: aca, alla: alla, comunes: comunes };
+  }
+  /* 23-oct-2026 — las fichas VIVAS de la nube que esta cartera no tiene, como
+     las anota el estado ({'socios|CT1': 1}). Con un libro distinto son todas
+     las de allá: es lo que Joan vio en el montón «Solo en la nube». */
+  function vivasSoloAlla(db, paquete) {
+    var d = objeto(db), p = objeto(paquete), out = {};
+    TABLAS.forEach(function (t) {
+      var locales = {};
+      lista(d[CAMPO_DB[t]]).forEach(function (f) { if (f && f.id != null) locales[String(f.id)] = true; });
+      lista(p[t]).forEach(function (f) {
+        if (f && f.id != null && f.borrado !== true && !locales[String(f.id)]) out[t + '|' + String(f.id)] = 1;
+      });
+    });
+    return out;
+  }
+
   /* Una congelada se suelta cuando su entrada del espejo cambió: alguien (hoy,
      subir.html) decidió el choque y movió el espejo. Si no se movió, sigue en
      discusión. */
@@ -589,6 +724,7 @@
     return 'el ' + d.getDate() + '-' + MESES[d.getMonth()];
   }
   function plural(n, uno, varios) { return n + ' ' + (n === 1 ? uno : varios); }
+  function minutos(ms) { var m = Math.max(1, Math.round(num(ms) / 60000)); return m + ' min'; }
   function peso(c) {
     return c >= 1048576 ? (c / 1048576).toFixed(1).replace('.', ',') + ' MB'
          : Math.round(c / 1024).toLocaleString('es-CO') + ' KB';
@@ -635,6 +771,13 @@
         'Tu cartera pesa ' + peso(num(u.cartera)) + ' y el espejo ' + peso(num(u.espejo)) +
         '. Exporta un respaldo y libera espacio · lo ya subido está bien');
     }
+    /* 23-oct-2026 — ver «SI EL NAVEGADOR NO DEJA ANOTARLO» en aplicarEmparejo.
+       Se dice que paré, no «Emparejando…»: eso sería afirmar que algo avanza. */
+    if (u.fase === 'estado-no-cabe') {
+      return c('estado-no-cabe', 'mal', 'Paré de emparejar: el navegador está lleno',
+        'Comparé tu cartera con la nube, pero no pude anotar que este computador ya quedó emparejado, así que no subo nada ' +
+        'ni vuelvo a traer la nube sola. Exporta un respaldo desde Ajustes y libera espacio · clic para reintentar');
+    }
     if (x.fase === 'otra-pestana') {
       return c('otra-pestana', 'neutro', 'Sube la otra pestaña del CRM',
         'Esta no sube, para no mezclar versiones · clic para subir desde esta');
@@ -648,9 +791,23 @@
     }
     if (x.fase === 'falta-emparejar') {
       /* «Es una vez» dejó de ser cierto: importar un respaldo o traer.html
-         sueltan el espejo, y entonces hay que volver a comparar. */
-      return c('falta-emparejar', 'ojo', 'Falta emparejar con la nube',
-        'Antes de subir nada comparo tu cartera con lo que hay en la nube · clic para revisar');
+         sueltan el espejo, y entonces hay que volver a comparar.
+         22-oct-2026 — y ya no lo pide: lo hace solo (ver SE EMPAREJA SOLA,
+         arriba). La cinta dice QUÉ va a pasar mientras compara; solo pide a
+         Joan cuando la nube tiene otra cartera. */
+      if (x.libroDistinto) {
+        var ld = objeto(x.libroDistinto);
+        return c('libro-distinto', 'mal', 'La nube tiene otra cartera: no subo nada hasta que decidas',
+          'Ninguna de las ' + plural(num(ld.alla), 'ficha', 'fichas') + ' de la nube está en este computador (aquí hay ' +
+          num(ld.aca) + '). Si esta es tu cartera de hoy, revisa las dos y empareja · clic para verlas');
+      }
+      if (u.fase === 'error') return cintaDeError(u, c);
+      if (x.enLinea === false) {
+        return c('falta-emparejar', 'ojo', 'Sin señal: falta emparejar con la nube',
+          'Lo hago solo cuando vuelva la señal; mientras, todo queda guardado acá');
+      }
+      return c('falta-emparejar', 'calma', 'Emparejando este computador con la nube…',
+        'Lo hago solo: comparo tu cartera con lo que hay allá; lo igual queda emparejado y lo distinto aparte, sin pisar nada · clic para hacerlo ya');
     }
     if (u.fase === 'trayendo') return c('trayendo', 'calma', 'Comparando con la nube…', 'un momento');
     if (x.enVuelta || u.fase === 'subiendo') {
@@ -668,12 +825,14 @@
       return c('sin-senal', cong ? 'mal' : (pend || ret) ? 'ojo' : 'neutro', 'Sin señal — todo queda guardado acá',
         (pend ? plural(pend, 'cambio espera', 'cambios esperan') + ' subir · suben solos cuando vuelva' : 'nada esperando subir') + aparte);
     }
-    if (u.fase === 'error') {
-      return c('error', 'ojo', 'No pude subir', esc(u.motivo || 'La nube no contestó.') + ' · clic para reintentar');
-    }
+    if (u.fase === 'error') return cintaDeError(u, c);
     if (cong) {
+      /* 22-oct-2026 — con el enlace: ☁ Subir ya no está a la vista en Ajustes
+         (va en «Avanzado»), y una frase que manda a un sitio que no se ve
+         tiene que llevar hasta él. */
       return c('congeladas', 'mal', plural(cong, 'ficha en discusión', 'fichas en discusión'),
-        'No la' + (cong === 1 ? '' : 's') + ' subo hasta que decidas en ☁ Subir · ' +
+        'No la' + (cong === 1 ? '' : 's') + ' subo hasta que decidas en ' +
+        '<a href="subir.html" target="_blank" rel="noopener">☁ Subir</a> (paso 7: ves las dos versiones y eliges) · ' +
         (pend ? plural(pend, 'cambio más espera', 'cambios más esperan') + ' subir' : 'lo demás sí sube'));
     }
     if (ret) {
@@ -695,6 +854,18 @@
                : (x.ultimaVuelta ? 'revisada ' + hace(x.ultimaVuelta, ya) : '');
     return c('al-dia', 'calma', 'Tu cartera GUARDADA está en la nube',
       (cuando ? cuando + ' · ' : '') + 'clic para sincronizar ahora · v' + esc(x.version || VERSION));
+  }
+
+  /* 22-oct-2026 — EL FALLO, EN ROJO Y CON QUÉ HACER. Antes era ámbar y decía
+     solo «clic para reintentar»: un aviso que no dice cuándo vuelve a probar
+     ni qué revisar se aprende a ignorar, y en ámbar se confunde con «hay
+     cambios esperando», que es lo normal. */
+  function cintaDeError(u, c) {
+    return c('error', 'mal', u.donde === 'emparejar' ? 'No pude emparejar con la nube' : 'No pude subir',
+      esc(u.motivo || 'La nube no contestó.') +
+      (u.espera ? ' · pruebo otra vez en ' + minutos(u.espera) : '') +
+      ' · si sigue, revisa el internet o entra otra vez con tu correo en <a href="subir.html" target="_blank" rel="noopener">☁ Subir</a> (paso 1)' +
+      ' · clic para reintentar ya');
   }
 
   /* =========================================================================
@@ -781,6 +952,28 @@
   var _apagado = false, _configurado = false;
   var _ultimo = null;    // lo que pasó en la última vuelta: {fase, motivo, ...}
   var _diag = null;
+  /* 22-oct-2026 — la nube tiene OTRA cartera (mismoLibro): {alla, aca, firma}.
+     Vive en memoria: es lo único que hace falta preguntar, y se vuelve a
+     mirar si la cartera de acá cambia o si Joan toca la cinta. */
+  var _libroDistinto = null, _emparejando = false;
+  /* 22-oct-2026 — los fallos seguidos y la espera que toca (ESPERAS_MS). */
+  var _fallos = 0, _esperaHasta = 0, _reintentoFallo = null;
+  /* 23-oct-2026 — LA ÚLTIMA COMPARACIÓN CON LA NUBE HECHA EN ESTA SESIÓN (ver
+     libroAlDia): {cuando, fichas, firmaEsp}. Vive en memoria a propósito: una
+     comparación de ayer, o de otra pestaña, no dice nada de la nube de hoy.
+     _vueltasN cuenta las subidas y los emparejos: uno que se cruza con la
+     comparación la deja sin valor (el espejo se movió mientras la nube
+     viajaba). */
+  var _alDia = null, _comparando = false, _fallosAlDia = 0, _alDiaEsperaHasta = 0, _alDiaFallo = null, _vueltasN = 0;
+  /* 23-oct-2026 — lo que está en camino, para quien tiene que ESPERAR la
+     respuesta en vez de leer 'comparando' (libroAlDiaEsperando). */
+  var _promComparar = null, _promVuelta = null;
+  /* Un «sí, está al día» vale poco tiempo: los historiales se encienden en el
+     acto con él, y si algo los demora, se compara otra vez. Un «la nube tiene
+     más» vale mientras el espejo no se mueva (hasta un cuarto de hora): lo
+     único que lo arregla es juntar lo de allá con lo de acá, y eso mueve el
+     espejo. Así, esperando, no se trae la nube entera cada 30 s. */
+  var VIGENCIA_AL_DIA_MS = 5 * 60000, VIGENCIA_ATRASADA_MS = 15 * 60000;
 
   function diagnostico() {
     if (_apagado) return { fase: 'apagado' };
@@ -816,6 +1009,7 @@
          solo en este computador» sería mentir hacia el lado del susto. */
       subioAntes: d.fase === 'sin-conectar' ? (!!est.ultimaSubida || espejoSembrado(leerEspejo())) : false,
       ultimaSubida: est.ultimaSubida, ultimaVuelta: est.ultimaVuelta,
+      libroDistinto: _libroDistinto, emparejo: est.ultimoEmparejo || null,
       version: VERSION, ahora: ahora()
     };
   }
@@ -829,9 +1023,30 @@
    * LA VUELTA — la subida, en el orden exacto del paso 8 de la receta
    * =======================================================================*/
   var _reintento = null;
+
+  /* 22-oct-2026 — LA ESPERA QUE CRECE. Un fallo (la nube contestó mal, no se
+     pudo traer para emparejar) deja programado UN reintento a 1 min; si vuelve
+     a fallar, a 2, 4, 8 y después cada 15. Mientras corre la espera, las
+     vueltas que se disparan solas (los 90 s de calma, el arranque) no golpean
+     a la nube: el reintento ya está puesto. El clic de Joan sí prueba ya. Sin
+     red no cuenta: eso lo cubre el reloj de 90 s y el aviso `online`. */
+  function anotarFallo() {
+    _fallos++;
+    var ms = ESPERAS_MS[Math.min(_fallos, ESPERAS_MS.length) - 1];
+    _esperaHasta = ahora() + ms;
+    desprogramar(_reintentoFallo);
+    _reintentoFallo = programar(function () { _reintentoFallo = null; _esperaHasta = 0; vuelta(false); }, ms);
+    return ms;
+  }
+  function anotarExito() {
+    _fallos = 0; _esperaHasta = 0;
+    desprogramar(_reintentoFallo); _reintentoFallo = null;
+  }
+
   function vuelta(porOrdenDeJoan) {
-    if (_apagado || !_configurado || _enVuelta) return Promise.resolve(estado());
+    if (_apagado || !_configurado || _enVuelta || _emparejando) return Promise.resolve(estado());
     if (!enLinea()) { _ultimo = null; _diag = diagnostico(); pintar(true); return Promise.resolve(estado()); }
+    if (!porOrdenDeJoan && _esperaHasta && ahora() < _esperaHasta) { pintar(false); return Promise.resolve(estado()); }
 
     /* (a) las puertas: sesión, cartera legible, sello, espejo sembrado */
     var d = diagnostico();
@@ -839,7 +1054,12 @@
     /* El motivo de «sin conectar» (la sesión venció) se conserva: es lo único
        que le dice a Joan por qué, y la vuelta siguiente no lo sabría. */
     if (d.fase !== 'lista') {
-      if (_ultimo && _ultimo.fase !== 'espejo-no-cabe' && !(_ultimo.fase === 'sin-conectar' && d.fase === 'sin-conectar')) _ultimo = null;
+      /* 23-oct-2026 — 'estado-no-cabe' se conserva como 'espejo-no-cabe': es
+         lo que le dice a emparejarSolo que no vuelva a traer la nube entera. */
+      if (_ultimo && _ultimo.fase !== 'espejo-no-cabe' && _ultimo.fase !== 'estado-no-cabe' &&
+          !(_ultimo.fase === 'sin-conectar' && d.fase === 'sin-conectar')) _ultimo = null;
+      /* 22-oct-2026 — sin espejo, se empareja sola (SE EMPAREJA SOLA, arriba). */
+      if (d.fase === 'falta-emparejar') return emparejarSolo(porOrdenDeJoan);
       pintar(true); return Promise.resolve(estado());
     }
     /* ...y el turno: si la otra pestaña tiene un pedazo en el aire, se espera
@@ -852,6 +1072,7 @@
     }
 
     _enVuelta = true;
+    _vueltasN++;
     latir(true);
     /* (b), (c), (d), (e) y (f) ya están en d.plan, sacados del disco hace un
        instante; (g) los pedazos de 50. */
@@ -946,7 +1167,9 @@
       });
     });
 
-    return cadena.then(function (todoBien) {
+    /* 23-oct-2026 — guardada mientras corre: quien espera una comparación
+       con la nube (libroAlDiaEsperando) la espera a ella, que no la deja salir. */
+    _promVuelta = cadena.then(function (todoBien) {
       resultado.completa = !!todoBien;
       if (!todoBien) return;
       /* (9) los contadores, tras una subida sin fallos: el celular no puede
@@ -973,6 +1196,7 @@
         });
         guardarEstado(e);
         if (_ultimo && _ultimo.fase === 'subiendo') _ultimo = null;
+        anotarExito();
       });
     }).then(null, function (e) {
       var m = (e && e.motivo) || (e && e.message) || 'No pude hablar con la nube.';
@@ -984,7 +1208,7 @@
         if (_quietud == null && !_apagado) _quietud = programar(function () { _quietud = null; vuelta(false); }, QUIETUD_MS);
       }
       else if (!conectado()) _ultimo = { fase: 'sin-conectar', motivo: m };
-      else _ultimo = { fase: 'error', motivo: m, cuando: iso() };
+      else _ultimo = { fase: 'error', motivo: m, cuando: iso(), espera: anotarFallo() };
       if (porOrdenDeJoan && !(e && e.sin_red)) { /* lo dice la cinta, no un alert */ }
     }).then(function () {
       _enVuelta = false;
@@ -994,16 +1218,22 @@
       pintar(false);
       var r = estado();
       r.resultado = resultado;
+      _promVuelta = null;
       return r;
     });
+    return _promVuelta;
   }
 
   /* =========================================================================
-   * EMPAREJAR — la siembra, con el «sí» de Joan
+   * EMPAREJAR — la siembra. Desde el 22-oct-2026 la hace sola (emparejarSolo)
+   * salvo cuando la nube tiene otra cartera; entonces, con el «sí» de Joan
+   * después de ver los montones (emparejar → confirmarEmparejar).
    * =======================================================================*/
   var _paquete = null;
+  /* La de mirar antes: trae, pinta los montones con nombres y espera el «sí».
+     Es la que abre el clic cuando la nube tiene otra cartera. */
   function emparejar() {
-    if (_apagado || !_configurado || _enVuelta) return Promise.resolve(estado());
+    if (_apagado || !_configurado || _enVuelta || _emparejando) return Promise.resolve(estado());
     var d = diagnostico();
     _diag = d;
     if (d.fase !== 'falta-emparejar') { pintar(true); return Promise.resolve(estado()); }
@@ -1017,22 +1247,133 @@
       pintar(true);
       return r;
     }, function (e) {
-      _ultimo = { fase: 'error', motivo: (e && e.motivo) || 'No pude traer lo que hay en la nube.' };
+      _ultimo = { fase: 'error', donde: 'emparejar', motivo: (e && e.motivo) || 'No pude traer lo que hay en la nube.' };
       pintar(true);
+      return estado();
+    });
+  }
+
+  /**
+   * 22-oct-2026 — LA DE SIEMPRE, SOLA. Trae lo que hay en la nube y, si es el
+   * mismo libro (mismoLibro), empareja con las MISMAS reglas que el «sí» de
+   * Joan (aplicarEmparejo): nada se pisa, lo distinto queda en discusión.
+   * (22-oct-2026, revisión) Con una diferencia: sola no borra nada allá; lo
+   * borrado acá y vivo en la nube queda en discusión (ver aplicarEmparejo). Si
+   * la nube tiene otra cartera no sube nada, no abre ningún cuadro (uno que
+   * salta solo se cierra sin leer) y la cinta en rojo pide el clic.
+   */
+  /* La cartera de este instante, en corto: el largo y la huella de crm.html. */
+  function firmaDe(t) { var x = texto(t); var h = ''; try { h = cfg.huella ? cfg.huella(x) : ''; } catch (e) { h = ''; } return x.length + '.' + h; }
+  function emparejarSolo(porOrdenDeJoan) {
+    if (_apagado || !_configurado || _enVuelta || _emparejando) return Promise.resolve(estado());
+    var d = diagnostico();
+    _diag = d;
+    if (d.fase !== 'falta-emparejar') { pintar(true); return Promise.resolve(estado()); }
+    /* Lo que necesita a Joan no se reintenta solo: un espejo que no cupo
+       vuelve a no caber, y una nube con otra cartera sigue siendo otra
+       mientras la cartera de acá no cambie. El clic sí prueba otra vez. */
+    if (!porOrdenDeJoan) {
+      /* 23-oct-2026 — ni un estado que no cupo: vuelve a no caber, y cada
+         intento es la nube entera bajando (ver aplicarEmparejo). */
+      if (_ultimo && (_ultimo.fase === 'espejo-no-cabe' || _ultimo.fase === 'estado-no-cabe')) { pintar(false); return Promise.resolve(estado()); }
+      if (_libroDistinto && d.cartera && _libroDistinto.firma === firmaDe(d.cartera.txt)) { pintar(false); return Promise.resolve(estado()); }
+    }
+    _emparejando = true;
+    _ultimo = { fase: 'trayendo' };
+    pintar(false);
+    return red.traer(null).then(function (paquete) {
+      _emparejando = false;
+      var c = leerCarteraDelDisco();
+      if (!c.db) { _ultimo = null; _diag = diagnostico(); pintar(false); return estado(); }
+      var m = mismoLibro(c.db, paquete);
+      if (!m.seguro) {
+        _paquete = paquete;
+        _libroDistinto = { alla: m.alla, aca: m.aca, firma: firmaDe(c.txt), cuando: iso() };
+        _ultimo = null;
+        /* El clic de Joan SÍ abre los montones: es lo que la cinta promete. */
+        if (porOrdenDeJoan) mostrarEmparejo(calcularEmparejo(c.db, paquete, leerEspejo()));
+        anotarExito();
+        pintar(true);
+        return estado();
+      }
+      _libroDistinto = null;
+      _paquete = paquete;
+      _ultimo = null;
+      return aplicarEmparejo('solo', m.motivo, porOrdenDeJoan);
+    }, function (e) {
+      _emparejando = false;
+      if (e && e.sin_red) {
+        _ultimo = null;
+        if (_quietud == null && !_apagado) _quietud = programar(function () { _quietud = null; vuelta(false); }, QUIETUD_MS);
+      } else if (!conectado()) {
+        _ultimo = { fase: 'sin-conectar', motivo: (e && e.motivo) || '' };
+        _diag = { fase: 'sin-conectar' };
+      } else {
+        _ultimo = { fase: 'error', donde: 'emparejar', motivo: (e && e.motivo) || 'No pude traer lo que hay en la nube.',
+                    cuando: iso(), espera: anotarFallo() };
+      }
+      pintar(false);
       return estado();
     });
   }
 
   function confirmarEmparejar() {
     if (!_paquete || _enVuelta) return Promise.resolve(estado());
+    cerrarModal();
+    return aplicarEmparejo('joan', 'confirmado', true);
+  }
+
+  /* La siembra de verdad, con el paquete ya traído: la del «sí» de Joan y la
+     sola son ESTA función, para que no puedan separarse. `como` queda anotado
+     ('solo' | 'joan') y la barra lo dice. */
+  function aplicarEmparejo(como, porque, porOrdenDeJoan) {
     var c = leerCarteraDelDisco();
     var p = c.db ? pasarPuerta(c.txt) : { ok: false };
-    cerrarModal();
     if (!p.ok) { _paquete = null; _diag = diagnostico(); pintar(true); return Promise.resolve(estado()); }
     /* Se recalcula contra la cartera de ESTE instante: la adopción solo puede
        afirmar lo que es cierto ahora, no lo que lo era cuando se pintó. */
-    var r = calcularEmparejo(c.db, _paquete, leerEspejo());
+    var paq = _paquete;
+    var r = calcularEmparejo(c.db, paq, leerEspejo());
+    /* 23-oct-2026 — LO QUE ERA DE LA OTRA CARTERA. El cuadro de «la nube tiene
+       otra cartera» le dice a Joan: «Si esta ES tu cartera de hoy (por
+       ejemplo, la nube tiene una de prueba), empareja». Con su sí, las fichas
+       de allá siguen vivas allá y no acá, y loQueLaNubeTieneDeMas las contaba
+       como «solo allá»: los historiales decían «la nube tiene 6 fichas más
+       nuevas que esta cartera» y mandaban a juntarlas en ☁ Subir, paso 6, que
+       baja los clientes de prueba a la cartera de verdad (y de ahí a la tabla
+       que ven los clientes). Si no obedecía, no arrancaban nunca. Su sí dice
+       qué son: de otro libro. Se anotan en el estado (no en memoria: la
+       comparación de mañana las vuelve a ver) y dejan de contar como «más
+       nuevas». Se recalcula con la cartera de ESTE instante, como la
+       adopción: solo se anota si sigue sin haber ni una ficha en común. Solo
+       con el sí de Joan: la sola nunca empareja dos libros distintos. */
+    var deOtra = (como === 'joan' && mismoLibro(c.db, paq).motivo === 'libro-distinto') ? vivasSoloAlla(c.db, paq) : {};
     _paquete = null;
+    _libroDistinto = null;
+    /* 22-oct-2026, revisión — LO QUE NADIE CONFIRMÓ NO BORRA NADA EN LA NUBE.
+       calcularEmparejo pone en borrarAlla las fichas que tienen renglón en
+       db.nubeBorrados y siguen vivas allá. Con el «sí» de Joan eso está bien:
+       las vio con nombre en el cuadro («Borradas acá y vivas en la nube»).
+       Sola, no: el renglón puede ser viejo. Joan borra P0 el 1-oct, exporta un
+       respaldo el 2, restaura P0 el 5 y le registra abonos hasta el 22; ese día
+       importa el respaldo del 2. El respaldo trae el renglón, la nube tiene P0
+       vivo con los abonos (y escrito por un computador), y la siembra sola lo
+       borraba allá sin un cuadro, con la cinta diciendo «nada se pisa». Los
+       abonos se perdían, porque la nube era la única copia que los tenía.
+       Así que, sola, esas fichas quedan EN DISCUSIÓN ('borrada-aca', la misma
+       que ya se usaba cuando lo último lo escribió el celular): sin entrada en
+       el espejo no se manda ningún borrado, la cinta lo dice en rojo, y en
+       ☁ Subir la ficha aparece para bajar: Joan la trae y, si de verdad
+       sobra, la borra otra vez (con su sí). Lo demás se empareja igual. */
+    var sinSi = [];
+    if (como !== 'joan') {
+      lista(r.borrarAlla).forEach(function (x) {
+        if (r.espejo[x.tabla]) delete r.espejo[x.tabla][x.id];
+        r.congelar.push({ tabla: x.tabla, id: x.id, motivo: 'borrada-aca' });
+        sinSi.push(x);
+      });
+      r.borrarAlla = [];
+    }
     var est = leerEstado();
     r.congelar.forEach(function (x) {
       var e = entrada(r.espejo, x.tabla, x.id);
@@ -1043,6 +1384,7 @@
        unas congeladas (cuesta nada); al revés, sobraría un espejo que afirma
        filas en discusión (cuesta un cobro). */
     guardarEstado(est);
+    _vueltasN++;
     if (!escribirEspejo(r.espejo)) {
       var largoEsp = 0; try { largoEsp = JSON.stringify(r.espejo).length; } catch (e2) { largoEsp = 0; }
       _ultimo = { fase: 'espejo-no-cabe', cartera: c.txt.length, espejo: largoEsp, cuando: iso() };
@@ -1054,9 +1396,44 @@
        que diagnostico() pide además de las filas (ver la entrada heredada). */
     var est2 = leerEstado();
     est2.emparejadoEn = iso();
-    guardarEstado(est2);
+    /* 22-oct-2026 — lo que pasó, con cifras, para la barra: «emparejé sola»
+       sin decir qué hizo sería pedirle a Joan que confíe a ciegas. */
+    est2.ultimoEmparejo = { cuando: est2.emparejadoEn, como: como, porque: texto(porque),
+      iguales: lista(r.adoptadas).length + lista(r.ajustesAdoptados).length,
+      conAlgoNuevo: lista(r.heredadas).length, nuevas: lista(r.soloAca).length,
+      soloEnLaNube: lista(r.soloAlla).length, seBorranAlla: lista(r.borrarAlla).length,
+      /* 22-oct-2026, revisión — las borradas acá que, sola, no borré: se
+         cuentan aparte para que la barra diga POR QUÉ están en discusión. */
+      borradasSinSi: sinSi.length,
+      enDiscusion: lista(r.congelar).length - sinSi.length,
+      /* 23-oct-2026 — de las que solo están en la nube, cuántas son de la otra
+         cartera (LO QUE ERA DE LA OTRA CARTERA, arriba). */
+      deOtraCartera: Object.keys(deOtra).length };
+    est2.deOtraCartera = Object.assign({}, objeto(est2.deOtraCartera), deOtra);
+    /* 23-oct-2026 — SI EL NAVEGADOR NO DEJA ANOTARLO, SE PARA AQUÍ. Antes se
+       ignoraba lo que devolvía guardarEstado y se seguía con vuelta(): sin
+       emparejadoEn en el disco, diagnostico decía otra vez «falta emparejar»,
+       vuelta llamaba a emparejarSolo y este volvía a traer la nube entera.
+       Sin espera ni tope, mientras la pestaña estuviera abierta, con la cinta
+       en calma diciendo «Emparejando…» y nada subiendo. Pasa con el
+       localStorage casi lleno (ya pasó con los prospectos): el espejo cupo en
+       lo que soltó el viejo, y el estado, que creció con ultimoEmparejo, no.
+       Ahora queda 'estado-no-cabe': rojo con qué hacer, y ni la vuelta sola
+       ni emparejarSolo vuelven a traer hasta que Joan toque la cinta. */
+    if (!guardarEstado(est2)) {
+      _ultimo = { fase: 'estado-no-cabe', cuando: iso() };
+      _diag = diagnostico();
+      pintar(false);
+      return Promise.resolve(estado());
+    }
+    /* 23-oct-2026 — y lo que se acaba de traer sirve para la pregunta de los
+       historiales (libroAlDia): ¿la nube tiene algo más nuevo que esta
+       cartera? Se mira contra el espejo recién escrito (y sin las fichas
+       de la otra cartera, si Joan acaba de decir que lo son). */
+    anotarAlDia(loQueLaNubeTieneDeMas(c.db, r.espejo, paq, est2.deOtraCartera));
     _ultimo = null;
-    return vuelta(true);
+    anotarExito();
+    return vuelta(!!porOrdenDeJoan);
   }
 
   /* =========================================================================
@@ -1099,6 +1476,9 @@
     try {
       if (!doc || !doc.getElementById) return null;
       var c = doc.getElementById('nubeCinta');
+      /* 22-oct-2026 — con la línea común de crm.html («☁ Todo sube solo»), la
+         barra lateral lleva UNA línea y no tres: esta no se inyecta. */
+      if (cfg.sinCinta) { if (c && c.parentNode) c.parentNode.removeChild(c); return null; }
       if (c && c.parentNode) return c;
       var h = doc.getElementById('horarioBox');
       if (!h || !h.parentNode || !doc.createElement) return null;
@@ -1141,12 +1521,17 @@
     try {
       if (barra) {
         if (t.fase === 'apagado') { barra.innerHTML = ''; return; }
-        var tono = t.clase === 'mal' ? 'warn nube-barra mal' : t.clase === 'ojo' ? 'warn nube-barra' : t.clase === 'calma' ? 'ok nube-barra' : 'info nube-barra';
+        /* 22-oct-2026 — lo que falló, en rojo (.alerta.mal de crm.html), no en el
+           mismo ámbar de «hay cambios esperando». */
+        var tono = t.clase === 'mal' ? 'mal nube-barra' : t.clase === 'ojo' ? 'warn nube-barra' : t.clase === 'calma' ? 'ok nube-barra' : 'info nube-barra';
         barra.innerHTML = '<div class="alerta ' + tono + '" role="button" tabindex="0" onclick="if(event.target.tagName!==\'A\')NubeCRM.accion()">' +
           '<b>☁ ' + t.l1 + '</b><div class="l2">' + t.l2 + '</div>' +
           (rep ? '<div class="l2">' + rep + '</div>' : '') +
           (r.omitidas ? '<div class="l2">' + plural(r.omitidas, 'fila sin id no sube', 'filas sin id no suben') + ': hay que revisarlas.</div>' : '') +
           '<div class="l3">Sube sola: al entrar, tras 90 s sin cambios, al volver la señal y cuando tocas acá. ' +
+          /* 22-oct-2026 — y se empareja sola: se dice cómo quedó la última vez. */
+          'Se empareja sola con la nube en cada computador (y tras importar un respaldo): lo igual se adopta, lo distinto queda en discusión, nada se pisa y nada se borra allá sin tu sí; ' +
+          'solo te pregunto si la nube tiene otra cartera. ' + fraseEmparejo(r.emparejo, r.ahora) +
           /* 1-oct-2026 (segunda vuelta) — decía «con ⬇ Traer o ☁ Subir». Traer
              NO junta: arma la cartera desde cero con lo de la nube, y en ESTE
              computador se llevaría las fotos, la papelera, la configuración y
@@ -1159,6 +1544,31 @@
           'las que cuenta la Ley 2300, sí suben. · versión ' + esc(VERSION) + '</div></div>';
       }
     } catch (e) { /* nada más que hacer */ }
+    /* 22-oct-2026 — la línea común de crm.html se repinta con esta. */
+    try { if (typeof cfg.alPintar === 'function') cfg.alPintar(); } catch (e) { /* la barra ya dijo lo suyo */ }
+  }
+  /* «Emparejada sola el 22-oct: 25 iguales, 3 nuevas, 2 en discusión.» */
+  function fraseEmparejo(x, ya) {
+    var e = objeto(x);
+    if (!e.cuando) return '';
+    var partes = [];
+    if (num(e.iguales)) partes.push(plural(num(e.iguales), 'igual', 'iguales'));
+    if (num(e.conAlgoNuevo)) partes.push(plural(num(e.conAlgoNuevo), 'con algo nuevo de acá', 'con algo nuevo de acá'));
+    if (num(e.nuevas)) partes.push(plural(num(e.nuevas), 'nueva que subió', 'nuevas que subieron'));
+    if (num(e.seBorranAlla)) partes.push(plural(num(e.seBorranAlla), 'borrada acá que se borra allá', 'borradas acá que se borran allá'));
+    /* 22-oct-2026, revisión — ver LO QUE NADIE CONFIRMÓ, en aplicarEmparejo. */
+    if (num(e.borradasSinSi)) partes.push(plural(num(e.borradasSinSi),
+      'borrada acá y viva en la nube que NO borré allá sin tu sí (en discusión: en ☁ Subir aparece para bajar; tráela y, si de verdad sobra, bórrala otra vez)',
+      'borradas acá y vivas en la nube que NO borré allá sin tu sí (en discusión: en ☁ Subir aparecen para bajar; tráelas y, si de verdad sobran, bórralas otra vez)'));
+    /* 23-oct-2026 — las de la otra cartera se dicen aparte: no se juntan con
+       esta ni cuentan como «más nuevas» (LO QUE ERA DE LA OTRA CARTERA). */
+    var otra = Math.min(num(e.deOtraCartera), num(e.soloEnLaNube)), solas = num(e.soloEnLaNube) - otra;
+    if (solas) partes.push(plural(solas, 'que solo está en la nube (no se toca)', 'que solo están en la nube (no se tocan)'));
+    if (otra) partes.push(plural(otra, 'de la otra cartera, que sigue en la nube (no se toca ni se junta con la tuya)',
+      'de la otra cartera, que siguen en la nube (no se tocan ni se juntan con la tuya)'));
+    if (num(e.enDiscusion)) partes.push(plural(num(e.enDiscusion), 'en discusión', 'en discusión'));
+    return (e.como === 'solo' ? 'Emparejada sola ' : 'Emparejada con tu sí ') + hace(e.cuando, num(ya) || ahora()) +
+      (partes.length ? ': ' + partes.join(', ') : '') + '. ';
   }
   var _pintarPronto = null;
   function pintarPronto() {
@@ -1189,12 +1599,23 @@
     var borradas = r.congelar.filter(function (x) { return x.motivo === 'borrada-en-la-nube'; });
     var borradasAca = r.congelar.filter(function (x) { return x.motivo === 'borrada-aca'; });
     var adopt = r.adoptadas.concat(r.ajustesAdoptados.map(function (k) { return { tabla: 'ajustes', id: k }; }));
-    var h = '<div class="help" style="margin-bottom:8px">Antes de subir nada, comparo tu cartera con lo que ya hay en la nube. ' +
+    /* 22-oct-2026 — este cuadro ya solo sale cuando la nube tiene OTRA cartera
+       (o Joan lo pide): se dice primero por qué se le pregunta. */
+    var ld = _libroDistinto;
+    var h = (ld ? '<div class="alerta warn" style="margin-bottom:10px"><b>La nube tiene otra cartera.</b> Ninguna de sus ' +
+        plural(num(ld.alla), 'ficha', 'fichas') + ' está en este computador, así que no la emparejé sola: si subo, ' +
+        'las fichas de acá se mezclan con las de allá. Si esta ES tu cartera de hoy (por ejemplo, la nube tiene una de prueba), ' +
+        'empareja; si no, toca «Ahora no» y abre tu cartera de verdad.</div>' : '') +
+      '<div class="help" style="margin-bottom:8px">Antes de subir nada, comparo tu cartera con lo que ya hay en la nube. ' +
       'Esto no cambia ni una ficha de este computador: solo decide desde dónde sube cada una.</div>' +
       pila('Iguales en los dos lados', 'Quedan emparejadas y suben con lo que cambies de aquí en adelante.', adopt, db, paq, 8) +
       pila('Con algo nuevo acá', 'Lo de la nube ya está entero en tu ficha; suben con lo que agregaste.', lista(r.heredadas), db, paq) +
       pila('Solo acá', 'Suben como nuevas.', r.soloAca, db, paq) +
-      pila('Solo en la nube', 'No se tocan: bajarán a este computador cuando el CRM baje (todavía no baja). Mientras, se juntan con lo tuyo en ☁ Subir, paso 6.', r.soloAlla, db, paq) +
+      /* 23-oct-2026 — con OTRA cartera allá, «se juntan con lo tuyo» mandaba
+         a mezclar los clientes de la otra con los de esta. */
+      pila('Solo en la nube', ld
+        ? 'Son de la otra cartera: no se tocan, no bajan y no las juntes con la tuya. Si emparejas, quedan allá y no cuentan como más nuevas que tu cartera.'
+        : 'No se tocan: bajarán a este computador cuando el CRM baje (todavía no baja). Mientras, se juntan con lo tuyo en ☁ Subir, paso 6.', r.soloAlla, db, paq) +
       pila('Borradas acá y vivas en la nube', 'Las borraste en este computador: se borran también en la nube (si son más de 3 fichas, antes te pido el sí con los nombres).', lista(r.borrarAlla), db, paq) +
       pila('Distintas', 'No las subo: se quedan en discusión hasta que decidas en ☁ Subir. Nada se pisa.', difieren, db, paq) +
       pila('Borradas en la nube y vivas acá', 'No las subo ni las borro: se quedan en discusión hasta que decidas.', borradas, db, paq) +
@@ -1242,7 +1663,7 @@
     if (!_enVuelta) _diag = diagnostico();
     /* El clic ES el reintento: lo que falló la vez pasada deja de taparle a la
        cinta lo que hay que hacer ahora (por ejemplo, volver a emparejar). */
-    if (_ultimo && (_ultimo.fase === 'error' || _ultimo.fase === 'espejo-no-cabe')) _ultimo = null;
+    if (_ultimo && (_ultimo.fase === 'error' || _ultimo.fase === 'espejo-no-cabe' || _ultimo.fase === 'estado-no-cabe')) _ultimo = null;
     var f = textoCinta(resumen()).fase;
     if (f === 'sin-conectar') { pintar(true); return Promise.resolve(estado()); }
     if (f === 'sello-roto') {
@@ -1255,9 +1676,200 @@
       try { if (cfg.retomarSello) cfg.retomarSello(); } catch (e) { /* idem */ }
       return vuelta(true);
     }
-    if (f === 'falta-emparejar') return emparejar();
+    /* 22-oct-2026 — el clic en «Emparejando…» lo hace ya; en «la nube tiene
+       otra cartera» abre los montones para que Joan decida. */
+    if (f === 'falta-emparejar') return emparejarSolo(true);
+    if (f === 'libro-distinto') return emparejar();
     if (f === 'borrados-esperan') return confirmarBorrados();
     return vuelta(true);
+  }
+
+  /**
+   * 22-oct-2026 — ¿ESTA CARTERA ES LA DE HOY? La pregunta de los historiales
+   * (historiales-auto.js) antes de encenderse solos en un computador.
+   *
+   * 23-oct-2026 — «emparejada y sin discusión» NO contestaba eso. Lo que solo
+   * está en la nube no entra nunca en discusión: con un respaldo viejo al que
+   * le faltaba un crédito nuevo, o en un origen viejo emparejado hace semanas
+   * sin nada que subir, decía «sí» y los historiales le subían al cliente su
+   * deuda sin ese crédito o sin ese abono (sincronizar_socios pisa sus datos).
+   * Ahora es «sí» solo con las tres cosas:
+   *   1. emparejada (espejo sembrado, sello de esta pestaña, sesión);
+   *   2. ninguna ficha en discusión;
+   *   3. una comparación con la nube HECHA EN ESTA SESIÓN, hace poco, que no
+   *      encontró nada más nuevo allá que acá (loQueLaNubeTieneDeMas). La da
+   *      el emparejo (aplicarEmparejo, con lo que acaba de traer) o, si este
+   *      computador ya estaba emparejado, una traída aparte (compararConNube)
+   *      que esta misma función pide y que se vuelve a mirar al repintar.
+   *      (23-oct-2026: sin contar las fichas que Joan dijo que son de OTRA
+   *      cartera al emparejar sobre un libro distinto: no son «más nuevas».)
+   * Se calcula en el acto, del disco: lo pintado puede ser de hace 30 s.
+   * 23-oct-2026 — la publicación sola del equipo hace la misma pregunta, pero
+   * esperando la respuesta (libroAlDiaEsperando, abajo).
+   * 22-oct-2026 — y cliente por cliente (libroPorCliente, abajo): con esta,
+   * de todo o nada, una ficha que tocó el celular frenaba la cartera entera.
+   */
+  function libroAlDia() {
+    if (_apagado) return { ok: false, motivo: 'apagado' };
+    if (!_configurado) return { ok: false, motivo: 'sin-arrancar' };
+    if (_emparejando) return { ok: false, motivo: 'emparejando' };
+    var d;
+    try { d = diagnostico(); } catch (e) { return { ok: false, motivo: 'error' }; }
+    if (d.fase === 'lista') {
+      var n = Object.keys(congeladasDe(d.est)).length;
+      if (n) return { ok: false, motivo: 'en-discusion', congeladas: n };
+      var a = _alDia, edad = a ? ahora() - a.cuando : Infinity;
+      if (a && !a.fichas && edad < VIGENCIA_AL_DIA_MS) return { ok: true, motivo: 'al-dia' };
+      if (a && a.fichas && edad < VIGENCIA_ATRASADA_MS && a.firmaEsp === firmaDe(leerTexto(LLAVE_ESPEJO))) {
+        return { ok: false, motivo: 'nube-mas-nueva', fichas: a.fichas };
+      }
+      if (_alDiaFallo && _alDiaEsperaHasta && ahora() < _alDiaEsperaHasta) {
+        return { ok: false, motivo: 'sin-comparar', espera: num(_alDiaFallo.espera), detalle: texto(_alDiaFallo.motivo) };
+      }
+      compararConNube();
+      return { ok: false, motivo: 'comparando' };
+    }
+    if (d.fase === 'falta-emparejar') {
+      /* 23-oct-2026 — un emparejo que se paró por falta de espacio no está
+         «emparejando»: se dice por qué espera. */
+      if (_ultimo && (_ultimo.fase === 'estado-no-cabe' || _ultimo.fase === 'espejo-no-cabe')) return { ok: false, motivo: 'navegador-lleno' };
+      return { ok: false, motivo: _libroDistinto ? 'libro-distinto' : 'falta-emparejar' };
+    }
+    return { ok: false, motivo: d.fase };
+  }
+  /* 23-oct-2026 — lo que salió de comparar, con la firma del espejo contra el
+     que se comparó. */
+  /* 22-oct-2026 — con la lista misma (`lista`), no solo cuántas: la
+     publicación del equipo necesita saber de qué clientes son. */
+  function anotarAlDia(masAlla) {
+    _alDia = { cuando: ahora(), fichas: lista(masAlla).length, lista: lista(masAlla).slice(),
+               firmaEsp: firmaDe(leerTexto(LLAVE_ESPEJO)) };
+    _fallosAlDia = 0; _alDiaEsperaHasta = 0; _alDiaFallo = null;
+  }
+  /* 23-oct-2026 — LA TRAÍDA APARTE de libroAlDia, para el computador que ya
+     estaba emparejado (un origen viejo, el CRM de ayer). Una a la vez, nunca
+     encima de una subida o de un emparejo (el espejo se mueve), y con la misma
+     espera que crece si la nube no contesta. Solo LEE: no escribe espejo ni
+     estado. Al terminar repinta, y el repinte le avisa a los historiales
+     (crm.html → HistorialesAuto.libroCambio). */
+  function compararConNube() {
+    if (_apagado || !_configurado || _comparando || _enVuelta || _emparejando) return;
+    if (_alDiaEsperaHasta && ahora() < _alDiaEsperaHasta) return;
+    _comparando = true;
+    var n0 = _vueltasN;
+    var pr;
+    try { pr = red.traer(null); } catch (e) { pr = Promise.reject(e); }
+    _promComparar = Promise.resolve(pr).then(function (paquete) {
+      _comparando = false; _promComparar = null;
+      if (_apagado) return;
+      /* Una subida se cruzó: el espejo de ahora ya no es el de cuando salió
+         la traída. No vale; se pide otra al repintar. */
+      if (_enVuelta || _emparejando || _vueltasN !== n0) { pintarPronto(); return; }
+      var d = diagnostico();
+      if (d.fase === 'lista') anotarAlDia(loQueLaNubeTieneDeMas(d.cartera.db, d.espejo, paquete, d.est.deOtraCartera));
+      pintar(false);
+    }, function (e) {
+      _comparando = false; _promComparar = null;
+      if (_apagado) return;
+      _fallosAlDia++;
+      var ms = ESPERAS_MS[Math.min(_fallosAlDia, ESPERAS_MS.length) - 1];
+      _alDiaEsperaHasta = ahora() + ms;
+      _alDiaFallo = { motivo: (e && e.motivo) || 'No pude traer lo que hay en la nube.', espera: ms };
+      pintar(false);
+    });
+    return _promComparar;
+  }
+
+  /**
+   * 23-oct-2026 — LA MISMA PREGUNTA, ESPERANDO LA RESPUESTA. Para la
+   * publicación sola del equipo (crm.html, cada 15 min). libroAlDia contesta
+   * en el acto, y la primera vez de una sesión (o pasados los 5 min de un
+   * «sí») contesta 'comparando' y pide la traída: leer ese 'comparando' y
+   * seguir era no publicar NUNCA (la vuelta es cada 15 min y el «sí» vale 5),
+   * o, peor, tomarlo como permiso. Aquí se espera lo que esté en camino —la
+   * comparación, o la subida que no la deja salir— y se pregunta otra vez.
+   * Con tope: si a la cuarta sigue sin respuesta, se devuelve lo que hay
+   * ('comparando'), que para quien pregunta es NO.
+   *
+   * 22-oct-2026 — `op.porCliente`: la pregunta de libroPorCliente (abajo),
+   * que es la que hace la publicación del equipo. Sin `op`, la de siempre.
+   */
+  function libroAlDiaEsperando(op) {
+    var vez = 0, preguntar = (op && op.porCliente) ? libroPorCliente : libroAlDia;
+    function mirar() {
+      var r = preguntar();
+      if (r.motivo !== 'comparando' || vez++ >= 4) return Promise.resolve(r);
+      var enCamino = _promComparar || (_enVuelta ? _promVuelta : null);
+      if (!enCamino) return Promise.resolve(r);
+      return Promise.resolve(enCamino).then(mirar, mirar);
+    }
+    try { return mirar(); } catch (e) { return Promise.resolve({ ok: false, motivo: 'error' }); }
+  }
+
+  /**
+   * 22-oct-2026 — LA MISMA PREGUNTA, CLIENTE POR CLIENTE. La de la
+   * publicación sola del equipo (crm.html, cada 15 min).
+   *
+   * Con libroAlDia esa publicación era de todo o nada, y así no servía: UNA
+   * ficha que el celular tocó (un abono de C1 que este computador no ha
+   * juntado) la frenaba entera, y el pago de C0 que Joan acababa de marcar
+   * ACÁ no le llegaba al asesor, que le seguía cobrando a C0 un crédito
+   * pagado con «los montos son de hoy» encima. Lo mismo con una sola ficha en
+   * discusión, y con el SALIR que Joan marcaba acá. Pasaba cada vez que Joan
+   * cobraba desde el celular, sin ningún respaldo de por medio.
+   *
+   * Contesta lo mismo que libroAlDia, salvo cuando lo que falta son fichas
+   * concretas (más nuevas allá, o en discusión): entonces dice además de QUÉ
+   * clientes son ({C1: {masNueva: true}}, {C2: {enDiscusion: true}}), para que
+   * crm.html publique a los demás y deje a esos con lo último que se publicó.
+   * Dos diferencias con libroAlDia, las dos hacia el lado seguro:
+   *   · la comparación vale 5 min TAMBIÉN cuando encontró algo. Para
+   *     libroAlDia un «la nube tiene más» de hace 14 min era un NO y daba igual
+   *     que fuera viejo; aquí es el permiso para publicar a los demás, y un
+   *     abono que el celular cobró después de esa comparación tiene que verse.
+   *     Si el espejo se movió desde entonces, también se compara otra vez.
+   *   · las congeladas no cortan la pregunta: se compara igual, para saber de
+   *     quién es lo demás.
+   * Una ficha que no se puede atar a un cliente (un ajuste en discusión, que
+   * le cambia la cuenta a todos) no se adivina: va en `sinCliente`, y
+   * crm.html no publica nada, como antes.
+   */
+  function libroPorCliente() {
+    if (_apagado || !_configurado || _emparejando) return libroAlDia();
+    var d;
+    try { d = diagnostico(); } catch (e) { return { ok: false, motivo: 'error' }; }
+    if (d.fase !== 'lista') return libroAlDia();
+    var a = _alDia, edad = a ? ahora() - a.cuando : Infinity;
+    var vale = !!a && edad < VIGENCIA_AL_DIA_MS && (!a.fichas || a.firmaEsp === firmaDe(leerTexto(LLAVE_ESPEJO)));
+    if (!vale) {
+      if (_alDiaFallo && _alDiaEsperaHasta && ahora() < _alDiaEsperaHasta) {
+        return { ok: false, motivo: 'sin-comparar', espera: num(_alDiaFallo.espera), detalle: texto(_alDiaFallo.motivo) };
+      }
+      compararConNube();
+      return { ok: false, motivo: 'comparando' };
+    }
+    var cong = congeladasDe(d.est), nCong = Object.keys(cong).length, masAlla = lista(a.lista);
+    if (!masAlla.length && !nCong) return { ok: true, motivo: 'al-dia' };
+    var db = objeto(d.cartera.db), clientes = {}, sinCliente = 0, comparadas = {};
+    masAlla.forEach(function (x) { comparadas[texto(x.tabla) + '|' + texto(x.id)] = x; });
+    function atar(t, id, que) {
+      var loc = null;
+      if (CAMPO_DB[t] && t !== 'socios') {
+        lista(db[CAMPO_DB[t]]).some(function (f) { if (f && texto(f.id) === id) { loc = f; return true; } return false; });
+      }
+      /* Lo de acá y lo que la comparación vio allá: en la duda, los dos. */
+      var ids = CAMPO_DB[t] ? sociosDeFicha(t, id, loc, null) : [];
+      lista(objeto(comparadas[t + '|' + id]).socios).forEach(function (s) { if (ids.indexOf(texto(s)) < 0) ids.push(texto(s)); });
+      if (!ids.length) { sinCliente++; return; }
+      ids.forEach(function (s) { (clientes[s] = clientes[s] || {})[que] = true; });
+    }
+    masAlla.forEach(function (x) { atar(texto(x.tabla), texto(x.id), 'masNueva'); });
+    Object.keys(cong).forEach(function (k) { var c = objeto(cong[k]); atar(texto(c.tabla), texto(c.id), 'enDiscusion'); });
+    var r = { ok: false, motivo: nCong ? 'en-discusion' : 'nube-mas-nueva', clientes: clientes };
+    if (masAlla.length) r.fichas = masAlla.length;
+    if (nCong) r.congeladas = nCong;
+    if (sinCliente) r.sinCliente = sinCliente;
+    return r;
   }
 
   /* =========================================================================
@@ -1338,8 +1950,8 @@
      instante—: es un interruptor que se queda apagado. */
   function apagar() {
     _apagado = true;
-    [_quietud, _primera, _reintento, _pintarPronto].forEach(desprogramar);
-    _quietud = _primera = _reintento = _pintarPronto = null;
+    [_quietud, _primera, _reintento, _pintarPronto, _reintentoFallo].forEach(desprogramar);
+    _quietud = _primera = _reintento = _pintarPronto = _reintentoFallo = null;
     try { if (_latido != null) clearInterval(_latido); if (_reloj != null) clearInterval(_reloj); } catch (e) { /* nada */ }
     try { var c = documento() && documento().getElementById('nubeCinta'); if (c && c.parentNode) c.parentNode.removeChild(c); } catch (e) { /* nada */ }
     try { if (cfg.barra) cfg.barra.innerHTML = ''; } catch (e) { /* nada */ }
@@ -1350,16 +1962,21 @@
     configurar: configurar,
     algoCambio: algoCambio,
     emparejar: emparejar,
+    emparejarSolo: emparejarSolo,
     confirmarEmparejar: confirmarEmparejar,
     cancelarEmparejar: cancelarEmparejar,
     vuelta: vuelta,
     estado: estado,
     accion: accion,
     apagar: apagar,
+    libroAlDia: libroAlDia,
+    libroAlDiaEsperando: libroAlDiaEsperando,
+    libroPorCliente: libroPorCliente,
     /* Las piezas puras, para pruebas/nube-crm.test.js. No las llama crm.html. */
     _puro: {
       CLAVES_QUE_SUBEN: CLAVES_QUE_SUBEN, LLAVE_ESPEJO: LLAVE_ESPEJO, LLAVE_SELLO: LLAVE_SELLO,
-      LLAVE_ESTADO: LLAVE_ESTADO, LLAVE_DUENO: LLAVE_DUENO,
+      LLAVE_ESTADO: LLAVE_ESTADO, LLAVE_DUENO: LLAVE_DUENO, ESPERAS_MS: ESPERAS_MS, mismoLibro: mismoLibro,
+      loQueLaNubeTieneDeMas: loQueLaNubeTieneDeMas,
       planDeSubida: planDeSubida, borradosExplicitos: borradosExplicitos, frenoPorFichas: frenoPorFichas,
       frasesDeBorrado: frasesDeBorrado, numerosRepetidos: numerosRepetidos, calcularEmparejo: calcularEmparejo,
       textoCinta: textoCinta, hace: hace, leerCarteraDelDisco: leerCarteraDelDisco, escribirTexto: escribirTexto

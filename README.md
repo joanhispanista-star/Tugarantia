@@ -112,6 +112,58 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
   crm.html              Socios, créditos, cobros, invitaciones, plantillas.
   una-puerta.js         Las palabras del toque «¿Es la misma persona?» (juntar la
                         cuenta de un cliente antiguo), compartidas con espejo.html.
+  nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el
+                        22-oct-2026, se empareja sola en cada computador: solo
+                        pregunta si la nube tiene OTRA cartera. Lo distinto queda
+                        en discusión y se decide en subir.html (paso 7). Sola no
+                        borra nada allá: lo borrado acá y vivo en la nube también
+                        queda en discusión (solo lo borra el «sí» de Joan). Si el
+                        navegador está lleno y no deja anotar el emparejo, se para
+                        y lo dice en rojo (no vuelve a traer la nube sola).
+  historiales-auto.js   Lo que ve cada cliente en su app sube solo. Desde el
+                        22-oct-2026 arranca sola cuando la cartera está emparejada,
+                        sin fichas en discusión y —desde el 23-oct— AL DÍA con la
+                        nube: una comparación hecha en esa sesión no encontró nada
+                        más nuevo allá (un crédito que un respaldo viejo no tiene,
+                        un abono cobrado desde el celular). Si lo hay, espera y
+                        manda a juntarlo en ☁ Subir, paso 6. Las fichas de OTRA
+                        cartera sobre la que Joan emparejó con su sí («la nube
+                        tiene otra cartera») no cuentan como más nuevas.
+                        La cartera del EQUIPO se publica sola desde crm.html: al
+                        repartir, al crear, editar o retirar a alguien (en ese
+                        momento, aunque no tenga clientes) y cada 15 min. La de
+                        15 min, desde el 23-oct, solo con la cartera AL DÍA con
+                        la nube (la misma prueba de los historiales, esperando
+                        la comparación): un respaldo viejo no le publica al
+                        gerente un crédito ya pagado. Desde el 22-oct, cliente
+                        por cliente (NubeCRM.libroPorCliente): los clientes con
+                        fichas atrás de la nube (lo que cobró el celular sin
+                        juntar, o en discusión) no viajan y se quedan con lo
+                        último publicado y su fecha, que la fila del asesor dice
+                        si es más vieja que las demás; los demás sí viajan, así
+                        que un pago marcado en el computador llega aunque el
+                        celular haya cobrado a otro. Su SALIR sí viaja (con la
+                        plata vacía, que el servidor conserva, aunque la fila
+                        toma la fecha de hoy: la línea de Equipo lo dice), y
+                        las cuentas de quien los lleva no. La línea dice quiénes
+                        quedaron fuera y qué hacer. Editar solo impone lo que
+                        Joan cambió EN EL CUADRO respecto de lo que el cuadro le
+                        mostró (estado, jefe): en lo demás manda la nube, donde
+                        el gerente retira y reactiva desde su celular; si la
+                        nube cambió lo mismo con el cuadro abierto, pregunta
+                        antes de guardar. Las
+                        tres van en UNA línea, «☁ Todo sube solo», en la barra
+                        lateral y en Ajustes; lo que falla sale en rojo y se
+                        reintenta solo con espera creciente. Si falta
+                        app/etapas.js no se puede publicar y la línea lo dice.
+  subir.html            Ajustes → Avanzado (plegado). Lo que todavía es a mano:
+                        entrar con el correo la primera vez, traer lo hecho en el
+                        celular, decidir choques y subir plantillas y configuración
+                        (no suben solas). Pruebas: pruebas/todo-sube-solo.test.js,
+                        pruebas/todo-sube-solo-revision.test.js,
+                        pruebas/todo-sube-solo-23-oct.test.js,
+                        pruebas/todo-sube-solo-cierre.test.js y
+                        pruebas/la-de-15-min-por-cliente.test.js.
   panel.webmanifest
   panel-*.png           La G blanca sobre rojo, para no confundir las dos apps.
 
