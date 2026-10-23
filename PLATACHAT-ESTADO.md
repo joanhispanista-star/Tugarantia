@@ -6,6 +6,33 @@
 > que no trae nada que no pueda ser público. Lo primero que tienes que hacer
 > está en «Lo que te toca a ti».
 
+## 22-oct — «Cambiar mi contraseña» y el recado que no promete de más
+
+No tienes que pegar nada en la base: son cambios de la app
+(`platachat/index.html`, `platachat/sesion.js`), del Perfil y el recado de
+`play/index.html`, y de los recados del CRM (`panel/crm.html`). Entran en el
+lote del 27-oct; `CACHE` de `sw.js` sube ese día, no antes.
+
+- **Yo → «Cambiar mi contraseña».** El WhatsApp de la clave nueva le decía al
+  cliente que la cambiara «en "Cambiar mi contraseña"», y PlataChat no tenía esa
+  pantalla. Ahora la tiene, dentro de PlataChat, con el mismo camino de la app
+  del socio: `PUT /auth/v1/user` con su sesión y solo la contraseña, las reglas
+  del registro (8 caracteres, ni las obvias ni el celular) y el «no» de Supabase
+  en español. Si el servidor ya cerró esa sesión (la clave temporal cierra las
+  sesiones), lleva a la puerta con el porqué. Atada a la sesión que la pidió.
+- **El recado.** Ya no dice «Te escribimos al <número del recado>»: la clave va
+  al número de la ficha. Dice «si ya eres cliente, te puede llegar al número que
+  tenemos en tu ficha», sin nombrar el canal (la regla de `play/`).
+- **En el CRM** (lo mismo para los recados de `play/` y de la app): los recados
+  cuentan en el número de Socios; el globo de un recado o de una solicitud lleva
+  a Socios; el globo y el pie ya no prometen avisar con el CRM escondido; cada
+  recado dice cuánto lleva («hace 3 h») y se resalta pasado un día; se marca
+  atendido solo cuando la nube confirma la clave nueva; y la lista reconoce al
+  cliente igual que el botón (cuenta junta y números de la ficha).
+
+Pruebas: `pruebas/claves-de-los-clientes.test.js` (23; todas fallan con main
+8323fc0 menos dos de control).
+
 ## 21-oct — lo que llega tarde es de quien lo pidió
 
 No tienes que pegar nada: son cambios de la app (`platachat/index.html`,
@@ -382,7 +409,7 @@ se tocó desde acá).
    15-oct → 2, el 31-oct → 3, una fecha entre cortes salta al que la cubre. El
    mensaje de «Pedir por el chat» lleva la fecha y los días («Quiero pedir
    $100.000 para el 15 oct 2026 (en 30 días, dos quincenas). ¿Me alcanza?»).
-   `VERSION_APP = '2026-10-21'`. Sigue sin verse en un teléfono de verdad.
+   `VERSION_APP = '2026-10-22'`. Sigue sin verse en un teléfono de verdad.
 2. **La ficha:** `index.html` carga `../app/ficha.js` (ocho scripts ahora,
    justo después del motor porque lo toma de `window.MotorReglas` al cargar) y
    `abrir()` arma `S` con `FichaSocio.leer(resp.datos)` en vez de copiar la
@@ -512,8 +539,8 @@ Todo en archivos nuevos. Ninguno existente se tocó.
 
 | Archivo | Qué es |
 |---|---|
-| `platachat/index.html` | La app: un solo archivo con HTML y script, como `socio.html`. Pantallas `#hola` (bienvenida 2 s), `#pEntrar` (Entrar · Soy nuevo), `#pCargando`, `#pCuenta` con nav de tres pestañas. `VERSION_APP = '2026-10-21'`. Carga, en este orden, `estilo.css`, `../app/chat.css`, y ocho scripts: motor, ficha, puente, cuenta, chat, platachat-reglas, pagos-proveedor, `sesion.js`. Guarda HTTPS al principio; registra `../sw.js`. La calculadora (15-sep): barra de 50.000 a 2.000.000 (`TOPE_CALCULADORA_PLATACHAT`), «para cuándo lo pagas» por cortes dentro del cupo, `abrir()` por `FichaSocio.leer`. **La negociación (15-sep, fase 1b):** la tarjeta de propuesta en el hilo de Créditos con sus cuatro caras, la hora límite en hora de Bogotá, «Acepto» / «Proponer otra cifra», el estado en una línea en Plata, y `RELOJ_OK` — con una base sin la migración (404) la app vuelve a hablar como antes y **no promete hora** |
-| `platachat/sesion.js` | `window.SesionPlataChat`: `entrar` (desde el 21-oct no guarda: guarda la página después de comprobar que el toque sigue vigente), `rpc` (Bearer = access_token, apikey = anon; 401 → refresca UNA vez y repite), `refrescar` (no guarda ni devuelve una sesión soltada: la cierra con el token nuevo), `soltar` y `cerrar` (el «Salir», con `/auth/v1/logout?scope=local`), `recado`, `guardar`/`leer`/`borrar` en `localStorage['platachat_sesion']` sin contraseña, `correoDe`, `NUBE_CAIDA`. El alta (`registrar`) se quitó el 1-oct: es el registro de `play/` con la marca. Se prueba en Node con un fetch de mentira |
+| `platachat/index.html` | La app: un solo archivo con HTML y script, como `socio.html`. Pantallas `#hola` (bienvenida 2 s), `#pEntrar` (Entrar · Soy nuevo), `#pCargando`, `#pCuenta` con nav de tres pestañas. `VERSION_APP = '2026-10-22'`. Carga, en este orden, `estilo.css`, `../app/chat.css`, y ocho scripts: motor, ficha, puente, cuenta, chat, platachat-reglas, pagos-proveedor, `sesion.js`. Guarda HTTPS al principio; registra `../sw.js`. La calculadora (15-sep): barra de 50.000 a 2.000.000 (`TOPE_CALCULADORA_PLATACHAT`), «para cuándo lo pagas» por cortes dentro del cupo, `abrir()` por `FichaSocio.leer`. **La negociación (15-sep, fase 1b):** la tarjeta de propuesta en el hilo de Créditos con sus cuatro caras, la hora límite en hora de Bogotá, «Acepto» / «Proponer otra cifra», el estado en una línea en Plata, y `RELOJ_OK` — con una base sin la migración (404) la app vuelve a hablar como antes y **no promete hora** |
+| `platachat/sesion.js` | `window.SesionPlataChat`: `entrar` (desde el 21-oct no guarda: guarda la página después de comprobar que el toque sigue vigente), `rpc` (Bearer = access_token, apikey = anon; 401 → refresca UNA vez y repite), `refrescar` (no guarda ni devuelve una sesión soltada: la cierra con el token nuevo), `soltar` y `cerrar` (el «Salir», con `/auth/v1/logout?scope=local`), `recado`, `cambiarClave` (22-oct: `PUT /auth/v1/user` solo con la contraseña, reglas de `app/cuenta.js`; vencida refresca antes, 401 refresca una vez, sesión cerrada en el servidor → `sinSesion`), `guardar`/`leer`/`borrar` en `localStorage['platachat_sesion']` sin contraseña, `correoDe`, `NUBE_CAIDA`. El alta (`registrar`) se quitó el 1-oct: es el registro de `play/` con la marca. Se prueba en Node con un fetch de mentira |
 | `platachat/estilo.css` | La piel: tokens `--marca` (verde), `--plata*`, `--laca`, `--papel`…; los alias `--rojo`/`--rojo-tinte` → verde para que `app/chat.css` pinte sin tocarlo; modo oscuro con los tres bloques; `#hola`, `.cab`, `.entrada-chat`, avatares, monedas y lingotes (un solo dueño: la página no redefine nada de esto) |
 | `platachat/app.webmanifest` | `id "/platachat/"`, `start_url index.html`, `scope ./`, standalone, portrait, `#0C0A0B`, `es-CO`, `finance`, tres iconos |
 | `platachat/haz-iconos.js` + `icono-192/512/maskable-512/180.png` | Los iconos, dibujados por código (moneda de plata + burbuja verde; sin el «$» del diseño porque Node no trae fuentes). `node platachat/haz-iconos.js` los regenera |

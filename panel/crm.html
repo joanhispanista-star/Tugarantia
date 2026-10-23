@@ -2470,11 +2470,15 @@ function claveNuevaYJuntar(idReg,idSocio,soloJuntar){
     ?'Tu base todavía no tiene esto. Corre base/20261007_una_puerta.sql en el SQL Editor de Supabase.'
     :'No pude cambiar la contraseña. '+errNube(e)));
 }
-function mostrarClaveNueva(cel,destino,clave,msg,despues){
+/* 22-oct-2026 — `debajo` (HTML ya armado, opcional): lo que va bajo el botón
+   de WhatsApp. Lo usa darClaveNueva para decir, en la misma ventana, si el
+   recado ya salió de la lista. */
+function mostrarClaveNueva(cel,destino,clave,msg,despues,debajo){
   openModal('Contraseña nueva · '+UP.bonito(cel),
     '<div class="alerta warn">Se muestra <b>una sola vez</b>: <b class="mono" style="font-size:18px">'+escHTML(clave)+'</b></div>'
     +'<div class="help" style="margin:10px 0">Mándasela ahora. '+escHTML(despues||'')+'</div>'
-    +'<a class="btn btn-wa" target="_blank" rel="noopener" href="'+escHTML(waLink(destino,msg))+'">📲 Mandársela por WhatsApp al '+escHTML(UP.bonito(destino))+'</a>');
+    +'<a class="btn btn-wa" target="_blank" rel="noopener" href="'+escHTML(waLink(destino,msg))+'">📲 Mandársela por WhatsApp al '+escHTML(UP.bonito(destino))+'</a>'
+    +(debajo||''));
 }
 
 /* ------------------------------------- el cliente NUEVO, al aprobarlo ---
@@ -2695,8 +2699,8 @@ function darClaveNueva(idAyuda){
   const a=_ayudas.find(x=>Number(x.id)===Number(idAyuda)); if(!a) return;
   const dig=v=>String(v||'').replace(/\D/g,'').slice(-10);
   const cel=dig(a.celular);
-  const cli=DB.socios.find(x=>x.cuentaJunta&&dig(x.cuentaJunta.celular)===cel)
-          ||DB.socios.find(x=>celularesDeFicha(x).indexOf(cel)>=0);
+  /* 22-oct-2026 — el mismo reconocimiento que la lista (clienteDelRecado). */
+  const cli=clienteDelRecado(cel);
   const destino=cli?(dig(waNum(cli))||cel):cel;
   if(!confirm('Darle una contraseña nueva a la cuenta del '+UP.bonito(cel)+'.\n\n'
     +'La de ahora deja de servir y se cierran sus sesiones abiertas. La nueva te la muestro UNA vez y te abro WhatsApp para mandarla '
@@ -2728,8 +2732,22 @@ function darClaveNueva(idAyuda){
         delete cp.motivo; delete cp.pideClave;
         cp.noAntesDe=new Date(Date.now()+UP.ESPERA_CLAVE_MS+60000).toISOString(); guardar();
       }
+      /* 22-oct-2026 — EL RECADO SE MARCA SOLO, y solo aquí: cuando la nube
+         confirmó la clave nueva (j.ok). Antes Joan tenía que volver a la
+         lista y tocar «✓ Ya le escribí», y si se le olvidaba el recado
+         seguía ahí, contando como pendiente, de alguien que ya tenía clave.
+         Con cualquier «no» de la nube (sin cuenta, equipo, error) no se
+         toca: el recado sigue esperando. Si marcarlo falla, se dice en la
+         misma ventana y el botón de siempre sigue en la lista. */
       mostrarClaveNueva(cel,destino,j.clave,UP.mensajeClaveNueva(cli?cli.nombre:'',j.clave,cel),
-        'Después marca el recado con «✓ Ya le escribí».');
+        'Esta clave no se vuelve a mostrar: si cierras sin mandarla, sigue sin poder entrar y tendría que dejar otro recado.',
+        '<div class="help" id="claveNuevaRecado" style="margin-top:10px">Sacando el recado de la lista…</div>');
+      marcarAyuda(Number(a.id),'atendida',bien=>{
+        const e=document.getElementById('claveNuevaRecado'); if(!e) return;
+        e.textContent=bien
+          ?'El recado ya salió de la lista: quedó atendido con esta clave.'
+          :'No pude sacar el recado de la lista. Cuando le escribas, márcalo con «✓ Ya le escribí».';
+      });
     })
     .catch(e=>alert(/clave_temporal_joan/.test(errNube(e))
       ?'Tu base todavía no tiene esto. Corre base/20261007_una_puerta.sql en el SQL Editor de Supabase.'
@@ -8617,13 +8635,27 @@ function pintarAvisos(){
      la pregunta por las solicitudes, no solo la del chat. Con red, como
      contarPendientes: `_solEstado` se declara más abajo en el archivo. */
   let fallaSol=false; try{ fallaSol=(_solEstado==='error'); }catch(e){}
+  /* 22-oct-2026 — y la de los recados: un recado que no se pudo leer no es
+     «no hay recados». Con red por la misma razón que _solEstado. */
+  let fallaAyu=false; try{ fallaAyu=(_ayudasEstado==='error'); }catch(e){}
   poner('navSinLeer', c.mensajes, falla);
-  poner('navSolicitudes', c.solicitudes, falla||fallaSol);
+  /* 22-oct-2026 — LOS RECADOS CUENTAN EN SOCIOS. El número de Socios contaba
+     solo las solicitudes: un «Olvidé mi contraseña» no subía nada, y el
+     cliente que no puede entrar no tiene otro camino que ese recado (el chat
+     exige sesión). Viven en la misma vista (la tarjeta 🔑 de Socios), así
+     que suman ahí; el title dice qué es cada cosa. */
+  poner('navSolicitudes', c.solicitudes+c.ayudas, falla||fallaSol||fallaAyu);
+  const ns=document.getElementById('navSolicitudes');
+  if(ns&&!(falla||fallaSol||fallaAyu)&&c.ayudas)
+    ns.title=c.solicitudes+' solicitud(es) de crédito y '+c.ayudas+' recado(s) de «Olvidé mi contraseña»';
   const pie=document.getElementById('avisoPie');
   if(pie){
+    /* 22-oct-2026 — «a la vista», no «abierta»: el reloj se para con la
+       pestaña escondida o la ventana minimizada (vigilarPendientes), así que
+       «abierta» prometía avisos que no llegan. */
     pie.innerHTML = falla
       ? '<span class="muted">No pude preguntarle a la nube'+(_falloDesde?' desde las '+escHTML(_falloDesde):'')+'. Lo que ves puede estar viejo.</span>'
-      : '<span class="muted">Te aviso mientras esta pestaña esté abierta.'
+      : '<span class="muted">Pregunto cada 45 segundos mientras esta pestaña esté a la vista; escondida, minimizada o cerrada, no.'
         +(_ultimoVistazo?' Última vez que pude preguntar: '+escHTML(_ultimoVistazo)+'.':'')+'</span>';
   }
   avisarSiHayNuevo(c);
@@ -8631,11 +8663,18 @@ function pintarAvisos(){
 
 /* EL GLOBO DEL NAVEGADOR. Es lo que Joan llama «notificación» y no necesita
    VAPID, ni service worker, ni servidor: la API Notification la llama la propia
-   página. Sale con el CRM en otra pestaña o la ventana minimizada.
+   página.
 
    SU LÍMITE SE DICE EN LA PANTALLA y no se esconde: si Joan CIERRA el CRM, no
    hay aviso. Prometer «te aviso» sin esa letra sería la interfaz prometiendo lo
-   que el código no hace. */
+   que el código no hace.
+   22-oct-2026 — Y TAMPOCO CON EL CRM ESCONDIDO. Aquí decía que el globo
+   salía «con el CRM en otra pestaña o la ventana minimizada», y la pantalla
+   lo prometía («aunque tengas el CRM en otra pestaña»). Es falso: el reloj
+   que pregunta (vigilarPendientes) no hace nada con document.hidden, y eso
+   es justo lo que es una pestaña de atrás o una ventana minimizada. El reloj
+   se queda como está (preguntar sin que nadie mire gasta intentos del freno
+   de clave_ok); lo que cambia es la promesa. */
 function puedeAvisar(){ return typeof Notification!=='undefined' && Notification.permission==='granted'; }
 function pedirPermisoAviso(){
   if(typeof Notification==='undefined') return alert('Este navegador no sabe mostrar avisos de escritorio.');
@@ -8645,7 +8684,7 @@ function renderAvisoBoton(){
   const e=document.getElementById('avisoBoton'); if(!e) return;
   if(typeof Notification==='undefined'){ e.innerHTML='<span class="muted">Este navegador no muestra avisos.</span>'; return; }
   e.innerHTML = Notification.permission==='granted'
-    ? '<span class="muted">✅ Te aviso con un globo cuando llegue algo, aunque tengas el CRM en otra pestaña. Si lo cierras, no.</span>'
+    ? '<span class="muted">✅ Te aviso con un globo cuando llegue algo, mientras el CRM esté a la vista. En otra pestaña, minimizado o cerrado, no pregunto: al volver, lo ves en menos de un minuto.</span>'
     : Notification.permission==='denied'
     ? '<span class="muted">Los avisos están bloqueados en este navegador. Se activan en el candado de la barra de direcciones.</span>'
     : '<button class="btn btn-ghost btn-sm" onclick="pedirPermisoAviso()">🔔 Avisarme cuando llegue algo</button>';
@@ -8661,9 +8700,15 @@ function avisarSiHayNuevo(c){
     if(sube(_vistos.mensajes,c.mensajes)) partes.push((c.mensajes-_vistos.mensajes)+' mensaje(s) en el chat');
     if(sube(_vistos.ayudas,c.ayudas)) partes.push((c.ayudas-_vistos.ayudas)+' recado(s) de acceso');
     if(partes.length){
+      /* 22-oct-2026 — A DÓNDE LLEVA SE DECIDE AQUÍ, no al tocarlo. El onclick
+         comparaba con _vistos, y para cuando Joan toca el globo _vistos ya es
+         `c` (la última línea de esta función): la comparación daba siempre
+         falso y el globo llevaba SIEMPRE a Mensajes, también el de una
+         solicitud o un recado de «Olvidé mi contraseña», que viven en Socios. */
+      const aSocios=sube(_vistos.solicitudes,c.solicitudes)||sube(_vistos.ayudas,c.ayudas);
       try{
         const g=new Notification('Tu Garantía', { body:'Te llegaron '+partes.join(' y ')+'.', tag:'tg-pendientes', renotify:true });
-        g.onclick=()=>{ try{ window.focus(); }catch(e){} irA(c.solicitudes>_vistos.solicitudes?'socios':'mensajes'); g.close(); };
+        g.onclick=()=>{ try{ window.focus(); }catch(e){} irA(aSocios?'socios':'mensajes'); g.close(); };
       }catch(e){}
     }
   }
@@ -17446,6 +17491,10 @@ function verCondicionesAceptadas(id){
 
 /* ---------------------- LOS RECADOS DE ACCESO ---------------------- */
 let _ayudas=[];
+/* 22-oct-2026 — '' (sin preguntar), 'ok' o 'error'. Lo lee pintarAvisos para
+   poner Socios en (?) cuando los recados no se pudieron leer: con un fallo,
+   _ayudas se queda con lo de la última vez y el número mentiría. */
+let _ayudasEstado='';
 function traerAyudas(callado){
   const c=sbCfg(), b=document.getElementById('ayudas');
   if(!b) return;
@@ -17459,12 +17508,50 @@ function traerAyudas(callado){
     /* El 404 se distingue del resto a propósito: quiere decir que falta correr
        una migración, y eso tiene arreglo aquí mismo. Taparlo con «no hay
        recados» dejaría a Joan creyendo que nadie ha pedido ayuda. */
-    if(r.status===404){ b.innerHTML='<div class="alerta warn">Tu base todavía no tiene los recados de acceso. Corre <b>base/20260922_a_la_medida_y_ayuda.sql</b> en el SQL Editor de Supabase.</div>'; return; }
-    if(!r.ok){ b.innerHTML='<div class="alerta warn">No pude leer los recados ('+r.status+'). '+escHTML(r.t.slice(0,140))+'</div>'; return; }
+    if(r.status===404){ _ayudasEstado='error'; pintarAvisos(); b.innerHTML='<div class="alerta warn">Tu base todavía no tiene los recados de acceso. Corre <b>base/20260922_a_la_medida_y_ayuda.sql</b> en el SQL Editor de Supabase.</div>'; return; }
+    if(!r.ok){ _ayudasEstado='error'; pintarAvisos(); b.innerHTML='<div class="alerta warn">No pude leer los recados ('+r.status+'). '+escHTML(r.t.slice(0,140))+'</div>'; return; }
     _ayudas=JSON.parse(r.t)||[];
+    _ayudasEstado='ok';
     renderAyudas(); pintarAvisos();
   })
-  .catch(()=>{ b.innerHTML='<div class="alerta warn">Sin conexión. Revisa el internet.</div>'; });
+  .catch(()=>{ _ayudasEstado='error'; pintarAvisos(); b.innerHTML='<div class="alerta warn">Sin conexión. Revisa el internet.</div>'; });
+}
+
+/* 22-oct-2026 — QUIÉN ES EL DEL RECADO, en UN solo sitio. La lista lo buscaba
+   solo por x.telefono y el botón «🔑 Darle una clave nueva» también por la
+   cuenta junta y por los números de la ficha (WhatsApp incluido): la lista
+   decía «no está en tus clientes» de alguien a quien el botón sí le mandaba
+   la clave al número de su ficha, y Joan confirmaba a ciegas. Ahora los dos
+   preguntan aquí. */
+function clienteDelRecado(celular){
+  const dig=v=>String(v||'').replace(/\D/g,'').slice(-10);
+  const cel=dig(celular); if(cel.length!==10) return null;
+  return DB.socios.find(x=>x.cuentaJunta&&dig(x.cuentaJunta.celular)===cel)
+      ||DB.socios.find(x=>celularesDeFicha(x).indexOf(cel)>=0)||null;
+}
+
+/* 22-oct-2026 — CUÁNTO LLEVA ESPERANDO. La lista decía solo la fecha, y un
+   recado de hace tres días se veía igual que uno de hace diez minutos. Quien
+   lo dejó no tiene otra puerta (el chat exige sesión), y para quien no tiene
+   cuenta este recado es también el canal de sus datos personales
+   (legal/privacidad.html), con plazos de ley. Pasado un día se resalta. */
+const RECADO_VIEJO_MS=24*3600*1000;
+function antiguedadRecado(creada){
+  const t=new Date(creada).getTime();
+  if(!isFinite(t)) return {texto:'',viejo:false};
+  const ms=Math.max(0,Date.now()-t), min=Math.floor(ms/60000), h=Math.floor(min/60), d=Math.floor(h/24);
+  return {
+    texto: min<1?'hace un momento':min<60?'hace '+min+' min':h<24?'hace '+h+' h':'hace '+d+' día'+(d===1?'':'s'),
+    viejo: ms>RECADO_VIEJO_MS
+  };
+}
+/* El día y la hora EN COLOMBIA. creada_en llega en UTC («…T02:10:00+00:00»):
+   cortarle los 10 primeros caracteres, como se hacía, le ponía la fecha de
+   mañana a todo recado dejado después de las 7 de la noche. */
+function cuandoRecado(v){
+  const s=String(v||''); if(s.length<=10) return fmtFecha(s);
+  const d=new Date(s); if(isNaN(d)) return s;
+  return fmtFecha(isoLocal(d))+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
 }
 
 function renderAyudas(){
@@ -17473,17 +17560,20 @@ function renderAyudas(){
     b.innerHTML='<div class="empty"><div class="ic">🔑</div><p>Nadie ha pedido ayuda para entrar.<br><span class="muted">Aquí caen los que tocan «Olvidé mi contraseña» en la app.</span></p></div>';
     return;
   }
-  b.innerHTML='<table><thead><tr><th>Celular</th><th>Dice</th><th>Cuándo</th><th></th></tr></thead><tbody>'+
+  const viejos=_ayudas.filter(a=>antiguedadRecado(a.creada_en).viejo).length;
+  b.innerHTML=(viejos?'<div class="alerta warn">'+viejos+' recado(s) llevan más de un día esperando. Quien lo dejó no tiene otra forma de escribirte: el chat exige entrar.</div>':'')+
+    '<table><thead><tr><th>Celular</th><th>Dice</th><th>Cuándo</th><th></th></tr></thead><tbody>'+
     _ayudas.map(a=>{
       /* Si ya es cliente, el nombre: así Joan sabe a quién le está devolviendo
          el acceso antes de escribirle, y no tiene que ir a buscarlo. */
-      const dig=v=>String(v||'').replace(/\D/g,'');
-      const cli=DB.socios.find(x=>dig(x.telefono).slice(-10)===dig(a.celular).slice(-10));
-      return '<tr><td><b>'+escHTML(a.celular)+'</b>'+
+      const cli=clienteDelRecado(a.celular);
+      const edad=antiguedadRecado(a.creada_en);
+      return '<tr'+(edad.viejo?' class="recado-viejo" style="background:var(--ambar-tinte)"':'')+'><td><b>'+escHTML(a.celular)+'</b>'+
         (cli?'<div class="muted">'+escHTML(cli.nombre)+' · '+escHTML(codCliente(cli))+'</div>'
             :'<div class="muted">no está en tus clientes</div>')+'</td>'+
         '<td style="white-space:normal;max-width:34ch">'+(a.nota?escHTML(a.nota):'<span class="muted">—</span>')+'</td>'+
-        '<td>'+escHTML(fmtFecha(String(a.creada_en).slice(0,10)))+'</td>'+
+        '<td>'+escHTML(cuandoRecado(a.creada_en))+
+          (edad.texto?'<div><span class="chip '+(edad.viejo?'mora':'al-dia')+'">'+escHTML(edad.texto)+'</span></div>':'')+'</td>'+
         '<td style="text-align:right">'+
           /* 7-oct-2026 — la salida de verdad: una contraseña nueva, al WhatsApp de la ficha. */
           '<button class="btn btn-rojo btn-sm" onclick="darClaveNueva('+Number(a.id)+')" title="Le pone una contraseña nueva a esa cuenta y te abre WhatsApp para mandársela">🔑 Darle una clave nueva</button> '+
@@ -17493,9 +17583,15 @@ function renderAyudas(){
     }).join('')+'</tbody></table>';
 }
 
-function marcarAyuda(id,estado){
+/* 22-oct-2026 — `alTerminar(bien)`, opcional: quien marca sin que Joan haya
+   tocado este botón (darClaveNueva, al dar la clave) quiere saber cómo salió
+   para decirlo en su propia ventana, no con un alert encima de la clave que
+   se muestra una sola vez. */
+function marcarAyuda(id,estado,alTerminar){
   const c=sbCfg();
-  if(!c.url||!c.anon||!c.clave) return;
+  const fin=bien=>{ try{ alTerminar(bien); }catch(e){} };
+  const callado=typeof alTerminar==='function';
+  if(!c.url||!c.anon||!c.clave){ if(callado) fin(false); return; }
   /* Se quita de la lista SOLO cuando el servidor confirma. Quitarlo antes y
      fallar la llamada deja el recado vivo en la base y desaparecido de la
      pantalla: el peor de los dos mundos. */
@@ -17504,11 +17600,15 @@ function marcarAyuda(id,estado){
     body:JSON.stringify({p_clave:c.clave,p_id:id,p_estado:estado})})
   .then(r=>r.ok?r.json():Promise.reject(new Error('http '+r.status)))
   .then(j=>{
-    if(!j||j.ok!==true) return alert('No pude marcar el recado. Vuelve a intentar.');
+    if(!j||j.ok!==true){ if(callado) return fin(false); return alert('No pude marcar el recado. Vuelve a intentar.'); }
     _ayudas=_ayudas.filter(x=>Number(x.id)!==Number(id));
     renderAyudas();
+    /* 22-oct-2026 — el número de Socios cuenta los recados: baja ya, no en
+       la siguiente vuelta del reloj. */
+    pintarAvisos();
+    if(callado) fin(true);
   })
-  .catch(()=>alert('No pude marcar el recado. Revisa el internet y vuelve a intentar.'));
+  .catch(()=>{ if(callado) return fin(false); alert('No pude marcar el recado. Revisa el internet y vuelve a intentar.'); });
 }
 
 function marcarEnNube(s,estado){

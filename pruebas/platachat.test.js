@@ -250,7 +250,8 @@ describe('PlataChat: lo que carga y en qué orden', () => {
        8-oct-2026 — y con las condiciones de cada propuesta.
        21-oct-2026 — y con el «Salir» que sale de verdad (H3).
        22-oct-2026 — y con la franja de «versión nueva» que se vuelve a decidir
-       sola y el «Actualizar ahora» que espera lo que va en camino. */
+       sola y el «Actualizar ahora» que espera lo que va en camino; y, la misma
+       fecha, con «Cambiar mi contraseña» en Yo. */
     assert.match(PAGINA, /var VERSION_APP = '2026-10-22'/);
   });
 

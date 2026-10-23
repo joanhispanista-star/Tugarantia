@@ -282,6 +282,74 @@
   }
 
   /* ------------------------------------------------------------------------
+     22-oct-2026 — CAMBIAR LA CONTRASEÑA. Joan: «los clientes deben de tener la
+     opcion de cambiar contraseña y olvide contraseña». El WhatsApp de la clave
+     nueva (panel/una-puerta.js, mensajeClaveNueva) le dice al cliente que la
+     cambie «en "Cambiar mi contraseña"», y en PlataChat esa pantalla no
+     existía: quien solo usa PlataChat se quedaba con la clave que Joan vio
+     (y que viajó por un chat) para siempre.
+     Es el mismo camino de la app del socio (app/sesion-socio.js, cambiarClave)
+     y del Perfil de play/: PUT /auth/v1/user con el token de la sesión y SOLO
+     la contraseña —el correo es la identidad de la cuenta y la base niega
+     cambiarlo (20260914_el_correo_no_se_cambia.sql)—, con las reglas del
+     registro (U.revisarContrasena: 8 caracteres, ni el celular) y el «no» de
+     Supabase en español (U.traducirErrorAuth). Vive acá y no en la página
+     por la misma razón que entrar(): sin DOM se prueba en Node.
+     La sesión se trata como en rpc(): vencida según el reloj, se refresca
+     antes; un 401 refresca UNA vez y repite; si el refresh ya no vale, sale
+     {sinSesion:true} y la página vuelve a la puerta. Resuelve SIEMPRE.
+     ---------------------------------------------------------------------- */
+  function cambiarClave(cfg, sesion, nueva) {
+    if (!sesion || !sesion.access_token || sesion.cerrada) {
+      return Promise.resolve({ ok: false, sinSesion: true, motivo: 'Entra de nuevo para seguir.' });
+    }
+    var revisa = (Cuenta && Cuenta.revisarContrasena)
+      ? Cuenta.revisarContrasena(nueva, { telefono: sesion.celular })
+      : (String(nueva || '').length >= 8 ? { ok: true }
+        : { ok: false, motivo: 'Tu contraseña necesita al menos 8 caracteres.' });
+    if (!revisa.ok) return Promise.resolve({ ok: false, motivo: revisa.motivo });
+    if (!conectada(cfg)) return Promise.resolve({ ok: false, motivo: 'Todavía no hay conexión con la nube.', red: true });
+    var pedir = pedidor(cfg);
+    var vencio = { ok: false, sinSesion: true,
+      motivo: 'Tu sesión venció. Entra de nuevo con tu celular y tu contraseña, y vuelve a cambiarla.' };
+
+    function poner() {
+      return pedir(base(cfg) + '/auth/v1/user', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', apikey: cfg.anon,
+                   Authorization: 'Bearer ' + sesion.access_token },
+        body: JSON.stringify({ password: String(nueva) })
+      }).then(leerCuerpo, function () { throw { humano: SIN_RED, red: true }; });
+    }
+    function traducir(r) {
+      if (r.ok) return { ok: true };
+      /* Una sesión que el servidor ya cerró (la clave temporal de Joan cierra
+         las sesiones de esa cuenta: clave_temporal_interna) contesta 403
+         «session_not_found» aunque el token siga firmado. Eso no se arregla
+         escribiendo otra contraseña: se arregla entrando, y la página lleva a
+         la puerta solo con sinSesion. */
+      if (Cuenta && Cuenta.causaErrorAuth && Cuenta.causaErrorAuth(r.j, r.estado) === 'sesion') return vencio;
+      return { ok: false, estado: r.estado, motivo: (Cuenta && Cuenta.traducirErrorAuth)
+        ? Cuenta.traducirErrorAuth(r.j, r.estado)
+        : (nubeCaida(r.estado) ? NUBE_CAIDA : 'No pude cambiar tu contraseña. Vuelve a intentar en un momento.') };
+    }
+
+    var antes = vencida(sesion) ? refrescar(cfg, sesion) : Promise.resolve(sesion);
+    return antes.then(function (s) {
+      if (s === null) return vencio;
+      return poner().then(function (r) {
+        if (r.estado !== 401) return traducir(r);
+        return refrescar(cfg, sesion).then(function (s2) {
+          if (s2 === null) return vencio;
+          return poner().then(function (r2) { return r2.estado === 401 ? vencio : traducir(r2); });
+        });
+      });
+    }).catch(function (e) {
+      return { ok: false, motivo: (e && e.humano) || SIN_RED, red: true };
+    });
+  }
+
+  /* ------------------------------------------------------------------------
      LO QUE SE RECUERDA. Sin almacén (Node, modo privado, cuota llena) no
      revienta: guardar no hace nada y leer devuelve null.
      ---------------------------------------------------------------------- */
@@ -366,6 +434,7 @@
     MARGEN_VENCIMIENTO_S: MARGEN_VENCIMIENTO_S,
     entrar: entrar,
     recado: recado,
+    cambiarClave: cambiarClave,
     refrescar: refrescar,
     rpc: rpc,
     guardar: guardar,
