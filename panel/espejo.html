@@ -1355,9 +1355,45 @@ function marcarChoqueResuelto(c, como) {
   });
   NUBE.guardarChoques(todos);
 }
+/* 23-oct-2026 — UN CHOQUE CON PAGO ACORDADO NO SE DECIDE CON LAS REGLAS DE
+   ANTES. La regla «el pago acordado viaja entero con su lado» vive en
+   panel/nube.js y este archivo la usa, no la repite. Pero lo que llega al
+   teléfono no siempre viaja junto: con señal floja el sw.js v138 contesta de
+   su caché el nube.js de main, que no conoce los pactos, y esta página corre
+   con él hasta que se recargue (actualizar.js no avisa: las dos son v139).
+   Ese fusionarFila copia a «lo mío» el pago acordado de la nube y le suma el
+   abono que el pacto no conocía: con «Mandar lo mío encima» quedaban 675.000
+   de capital por 625.000 prestados, y la cola lo subía a la nube. La tarjeta
+   tampoco podía avisarlo, porque el aviso del pago acordado sale de ese
+   mismo nube.js. Así que, con un pago acordado en cualquiera de los dos
+   lados y un nube.js que no dice PACTOS, el choque no se decide aquí: se dice
+   por qué y se ofrece recargar. Nada se pierde: las dos versiones siguen en
+   disco y el choque vuelve tal cual al recargar.
+   Se mira planPagos.pacto a mano y no con P.esPacto: el puente que llegó
+   también puede ser el de antes. Sin pago acordado no se frena: ahí el
+   nube.js de antes fusiona como siempre (lo nuevo de nube.js es solo eso). */
+var PACTOS_QUE_PIDO = 1;
+var TEXTO_REGLAS_VIEJAS = 'Este celular tiene una versión vieja de las reglas de la nube: '
+  + 'recarga la app con señal y vuelve a decidir este choque.';
+function filaConPacto(f) {
+  var pp = f && f.planPagos;
+  return !!pp && typeof pp === 'object' && !!pp.pacto && typeof pp.pacto === 'object';
+}
+function choqueConReglasViejas(c) {
+  if (!c || c.tabla !== 'creditos') return false;
+  if (NUBE && Number(NUBE.PACTOS) >= PACTOS_QUE_PIDO) return false;
+  return filaConPacto(c.mio || filaLocal(c.tabla, c.id)) || filaConPacto(c.suyo);
+}
 function resolverChoque(indice, como) {
   var c = CHOQUES[indice];
   if (!c || !NUBE) return;
+  /* El botón ya no se pinta (bloqueChoques), pero un toque puede llegar de
+     una tarjeta pintada antes: tampoco se resuelve, y se dice por qué. */
+  if (choqueConReglasViejas(c)) {
+    alert(TEXTO_REGLAS_VIEJAS + '\n\nNo cambié nada: las dos versiones siguen guardadas en este teléfono.');
+    pintar();
+    return;
+  }
 
   if (como === 'nube') {
     if (c.suyo) reemplazarFilaLocal(c.tabla, c.id, JSON.parse(JSON.stringify(c.suyo)));
@@ -4544,13 +4580,26 @@ function bloqueChoques() {
   var h = '';
   CHOQUES.forEach(function (c, i) {
     var nombre = nombreDeFila(c.tabla, c.mio) || nombreDeFila(c.tabla, c.suyo) || String(c.id);
+    /* 23-oct-2026 — con el nube.js de antes de los pactos (choqueConReglasViejas)
+       no hay botones para decidir ni «Ver las dos»: los lados y los avisos
+       salen de ese nube.js, que no ve el pago acordado, y le dirían a Joan que
+       las dos versiones caben. Solo el porqué y el botón para recargar. */
+    var viejas = choqueConReglasViejas(c);
     h += '<div class="choque">'
       + '<h3>Choque: ' + esc(nombre) + '</h3>'
       + '<div class="mini" style="color:inherit">Tú cambiaste esta ficha en el celular y '
       + esc(c.actualizado_por || 'el otro aparato') + ' la cambió también'
       + (c.actualizado_en ? ' (' + esc(fmtFechaHora(c.actualizado_en)) + ')' : '')
-      + '. <b>Nada se ha perdido</b>: las dos versiones están guardadas en este teléfono. '
-      + 'Decide cuál queda.</div>';
+      + '. <b>Nada se ha perdido</b>: las dos versiones están guardadas en este teléfono.'
+      + (viejas ? '' : ' Decide cuál queda.') + '</div>';
+    if (viejas) {
+      h += '<div class="aviso ambar"><b>' + esc(TEXTO_REGLAS_VIEJAS) + '</b> '
+        + 'Esta ficha trae un pago acordado, y con esas reglas «Mandar lo mío encima» puede juntarlo con plata '
+        + 'que ese acuerdo no conocía y cobrarla dos veces, sin que esta tarjeta alcance a decírtelo.</div>'
+        + '<div class="tres"><button class="btn sm sec" type="button" data-acc="choque-recargar">'
+        + 'Recargar la app</button></div></div>';
+      return;
+    }
     if (_choqueAbierto === i) h += ladosHTML(c);
     h += avisoPagosDeCuotas(c);
     h += '<div class="tres">'
@@ -5981,6 +6030,13 @@ document.addEventListener('click', function (ev) {
   else if (acc === 'sinc') { cerrarHoja(); sincronizar(true); }
   else if (acc === 'choque-nube') { resolverChoque(Number(el.dataset.i), 'nube'); }
   else if (acc === 'choque-mio') { resolverChoque(Number(el.dataset.i), 'mio'); }
+  /* 23-oct-2026 — el Panel del bolsillo vive instalado en la pantalla de
+     inicio, donde no hay botón de recargar del navegador. La cola y los
+     choques ya están en disco; se guarda la cartera por si acaso. */
+  else if (acc === 'choque-recargar') {
+    guardarEstado();
+    try { location.reload(); } catch (e) {}
+  }
   else if (acc === 'choque-ver') {
     var i = Number(el.dataset.i);
     _choqueAbierto = (_choqueAbierto === i) ? -1 : i;

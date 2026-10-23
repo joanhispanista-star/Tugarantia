@@ -1467,6 +1467,30 @@ function loMioEscribeAca(it){
   return !!it.local;
 }
 
+/* 23-oct-2026 — UN CHOQUE CON PAGO ACORDADO NO SE JUNTA CON LAS REGLAS DE
+   ANTES. La regla «el pago acordado viaja entero con su lado» vive en
+   panel/nube.js, y el nube.js de main (el que la caché HTTP de 10 min o el
+   sw.js v138 pueden servirle a esta página nueva) no la conoce: su
+   fusionarFila copia el pago acordado del otro lado y le suma los abonos y
+   las prórrogas que el pacto no conocía. Con «Mandar lo mío encima» el pacto
+   de 280.000 quedaba junto con el abono de 50.000 del celular: 675.000 de
+   capital por 625.000 prestados. Y la tarjeta no lo podía decir, porque el
+   aviso del pago acordado sale de ese mismo nube.js. Así que, con un pago
+   acordado en cualquiera de los dos lados y un nube.js sin PACTOS, la
+   tarjeta no deja decidir y las dos fusiones LANZAN (aplicar dice «No apliqué
+   nada»). Se mira planPagos.pacto a mano: el puente también puede ser viejo. */
+var PACTOS_QUE_PIDO=1;
+var TEXTO_REGLAS_VIEJAS='Esta página tiene una versión vieja de las reglas de la nube (panel/nube.js, de antes del '+
+  'pago acordado): recárgala con señal (Ctrl+Shift+R) y vuelve a decidir este choque';
+function conPactoEnLaFila(f){
+  var pp=f&&f.planPagos;
+  return !!pp && typeof pp==='object' && !!pp.pacto && typeof pp.pacto==='object';
+}
+function reglasViejasDelPacto(tabla, a, b){
+  if(tabla!=='creditos' || Number(NUBE.PACTOS)>=PACTOS_QUE_PIDO) return false;
+  return conPactoEnLaFila(a) || conPactoEnLaFila(b);
+}
+
 /* «Mandar lo mío encima», escrito en la cartera: lo de Joan PRIMERO —fusionarFila
    se queda con la primera en todo campo pisable—, y las listas que solo suman de
    los dos lados. Es el espejo exacto de fusionarConLoMio, con los argumentos al
@@ -1474,6 +1498,7 @@ function loMioEscribeAca(it){
    acá a secas» dejaría la cartera sin los abonos de la nube con el espejo ya
    avanzado, que es el defecto que esta función existe para cerrar. */
 function loMioEncima(tabla, deLaNube, mio){
+  if(reglasViejasDelPacto(tabla, mio, deLaNube)) throw new Error(TEXTO_REGLAS_VIEJAS);
   var r = NUBE.fusionarFila(mio, deLaNube, NUBE.LISTAS_QUE_SUMAN);
   if(!r || !r.fila || typeof r.fila!=='object' || Array.isArray(r.fila)){
     throw new Error('juntar lo tuyo con lo de la nube no devolvió una ficha ('+tabla+')');
@@ -1527,6 +1552,9 @@ function paqueteCrudoDe(items){
 }
 
 function fusionarConLoMio(tabla, deLaNube, mio){
+  /* 23-oct-2026 — antes del try: si cayera en el catch, se quedaría la nube a
+     secas sin las gestiones de acá y sin decirlo. Que aplicar no aplique. */
+  if(reglasViejasDelPacto(tabla, deLaNube, mio)) throw new Error(TEXTO_REGLAS_VIEJAS);
   if(typeof NUBE.fusionarFila !== 'function') return deLaNube;
   try{
     /* 4-sep-2026 — TRES DEFECTOS EN DOS LÍNEAS, los tres de plata.
@@ -1606,6 +1634,11 @@ function tarjetaChoque(it, ref){
   var suyo= it.fila.datos;
   var eleccion = E.decisiones[k];
   var titulo = nombreDeFila(it.tabla, suyo) || nombreDeFila(it.tabla, mio) || String(it.id);
+  /* 23-oct-2026 — con el nube.js de antes de los pactos, sin botones para
+     decidir: lo que dirían de cada elección sale de ese nube.js, que no ve el
+     pago acordado. Las dos caras y «Ver las dos» se quedan: son los datos.
+     Sin la ficha acá (it.local vacío) ninguna elección junta nada. */
+  var viejas = !!it.local && reglasViejasDelPacto(it.tabla, mio, suyo);
 
   return '<div class="choque">'+
     '<div class="q">'+esc(titulo)+'</div>'+
@@ -1620,11 +1653,16 @@ function tarjetaChoque(it, ref){
       esc('— ESTE COMPUTADOR —\n'+JSON.stringify(mio,null,1)+'\n\n— LA NUBE —\n'+JSON.stringify(suyo,null,1))+
     '</pre></div>'+
     '<div class="fila-btn">'+
+      (viejas ? '' :
       '<button class="btn btn-negro btn-sm" onclick="decidir(\''+esc(k)+'\',\'nube\')">Dejar lo de la nube</button>'+
-      '<button class="btn btn-ghost btn-sm" onclick="decidir(\''+esc(k)+'\',\'mio\')">Mandar lo mío encima</button>'+
+      '<button class="btn btn-ghost btn-sm" onclick="decidir(\''+esc(k)+'\',\'mio\')">Mandar lo mío encima</button>')+
       '<button class="btn btn-ghost btn-sm" onclick="verLasDos(\''+ref+'\')">Ver las dos</button>'+
     '</div>'+
-    '<div class="elegido">'+(eleccion==='nube'
+    '<div class="elegido">'+(viejas
+        ? '<b>'+esc(TEXTO_REGLAS_VIEJAS)+'.</b> Esta ficha trae un pago acordado, y con esas reglas cualquiera de '+
+          'las dos elecciones puede juntarlo con plata que ese acuerdo no conocía. Mientras tanto no se toca en '+
+          'ninguno de los dos lados: nada se pierde.'
+        : eleccion==='nube'
         ? queHaceLoDeLaNube(it)
         : eleccion==='mio'
         ? queHaceLoMio(it)

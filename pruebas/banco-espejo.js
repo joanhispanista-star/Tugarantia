@@ -60,6 +60,9 @@ function clases(iniciales) {
  *   ahora     'AAAA-MM-DDTHH:MM:SS' para congelar el reloj (por defecto, el de reloj.js)
  *   sin       ['../app/gente.js', …] <script src> que «no llegaron»
  *   almacen   un localStorage ya lleno (para arrancar dos veces el mismo teléfono)
+ *   archivos  {'nube.js': código} <script src> que llegaron en OTRA versión: la
+ *             que sirve la caché (23-oct-2026: el nube.js de main con el
+ *             espejo nuevo; pruebas/pacto-en-la-nube.test.js, N8)
  */
 function abrirEspejo(opciones) {
   const o = opciones || {};
@@ -167,7 +170,8 @@ function abrirEspejo(opciones) {
     if (src) {
       if (sin.has(src)) continue;
       const ruta = path.join(RAIZ, 'panel', src);
-      vm.runInContext(fs.readFileSync(ruta, 'utf8'), ctx, { filename: src });
+      const otro = o.archivos && Object.prototype.hasOwnProperty.call(o.archivos, src);
+      vm.runInContext(otro ? o.archivos[src] : fs.readFileSync(ruta, 'utf8'), ctx, { filename: src });
     } else {
       vm.runInContext(m[2], ctx, { filename: 'espejo.html' });
     }

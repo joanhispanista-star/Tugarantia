@@ -2302,6 +2302,20 @@
    * =======================================================================*/
   return {
     VERSION: '2026-08-11',
+    /* 23-oct-2026 — QUÉ REGLA DEL PAGO ACORDADO CONOCE ESTE ARCHIVO.
+       VERSION se quedó en '2026-08-11' en main y en esta rama, así que una
+       página no tenía cómo notar que le llegó el nube.js de antes de los
+       pactos (el de main, 8323fc0): con señal floja el sw.js v138 contesta de
+       su caché, y una página nueva corre con ese archivo hasta que se
+       recargue. Su fusionarFila copia a «lo mío» el pago acordado del otro
+       lado y le suma los abonos y las prórrogas que el pacto no conocía:
+       675.000 de capital por 625.000 prestados con «Mandar lo mío encima».
+       espejo.html y subir.html preguntan por esto antes de resolver un choque
+       con un pago acordado y, sin él, no lo resuelven: piden recargar.
+       Es un número y no un sí/no: si la regla del pacto vuelve a cambiar de
+       una forma que un nube.js con PACTOS 1 fusione mal, se sube a 2, y con
+       él el PACTOS_QUE_PIDO de las dos páginas. */
+    PACTOS: 1,
 
     /* constantes, para que las pantallas no las escriban a mano */
     LLAVE_CONFIG: LLAVE_CONFIG,

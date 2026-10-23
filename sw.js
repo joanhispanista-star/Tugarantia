@@ -1862,6 +1862,15 @@
    lista de Creditos ya no dice que toda la cartera «te deja $0 · 0%» y la
    hoja del abono ya no promete una fecha «abajo» sin casillas: las dos dicen
    que se recargue (23-oct-2026, misma prueba).
+   23-oct-2026 — y el espejo y subir.html preguntan por NUBE.PACTOS antes de
+   decidir un choque con un pago acordado: con el panel/nube.js de main (sin
+   la regla «el pago acordado viaja entero con su lado»), «Mandar lo mio
+   encima» copiaba el pacto de la nube a lo del celular y le sumaba el abono
+   que el pacto no conocia (675.000 de capital por 625.000 prestados), y la
+   cola lo subia. Sin PACTOS la tarjeta no deja decidir y pide recargar
+   (pruebas/pacto-en-la-nube.test.js, N8). Lo que el codigo no alcanza es un
+   espejo de main ENTERO (abierto sin senal, o suspendido desde antes): para
+   eso la receta pide recargar el Panel del bolsillo con senal.
    Lo que una pagina precargada carga con <script src> o <link> esta en la
    lista de abajo, y todo lo de la lista existe:
    pruebas/el-lote-del-27-junto.test.js, seccion 4. */

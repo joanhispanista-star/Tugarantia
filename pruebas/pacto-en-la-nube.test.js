@@ -94,8 +94,9 @@ function choqueEnElCelular(e, mio, suyo) {
     actualizado_por: 'computador', actualizado_en: '2026-11-05T15:00:00Z' }) + ']');
 }
 
-/* subir.html arrancada en una caja, como en credito-a-cuotas-socio.test.js. */
-function abrirSubir() {
+/* subir.html arrancada en una caja, como en credito-a-cuotas-socio.test.js.
+   `nube` (23-oct-2026, N8): el nube.js que le llegó, si no es el de hoy. */
+function abrirSubir(nube) {
   const html = fs.readFileSync(path.join(__dirname, '..', 'panel', 'subir.html'), 'utf8');
   const elems = {};
   const elem = id => (elems[id] = elems[id] || { id, value: '', checked: false, textContent: '',
@@ -117,7 +118,7 @@ function abrirSubir() {
     btoa: s => Buffer.from(s, 'binary').toString('base64'),
     atob: s => Buffer.from(s, 'base64').toString('binary'), Blob: class {}, FileReader: class {} };
   ctx.window = ctx; ctx.self = ctx;
-  ctx.NubeTuGarantia = NUBE; ctx.MotorReglas = M; ctx.PuenteTuGarantia = P;
+  ctx.NubeTuGarantia = nube || NUBE; ctx.MotorReglas = M; ctx.PuenteTuGarantia = P;
   vm.createContext(ctx);
   [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
     .forEach((m, i) => vm.runInContext(m[1], ctx, { filename: 'subir#' + i }));
@@ -680,5 +681,153 @@ describe('N7 · un abono que los dos lados ya tienen no se cuenta como «ya abon
     const a = avisoDelCelular(otro, comp);
     assert.match(a, /ya abonó \$\s?50\.000 y faltan \$\s?130\.000 \(los otros \$\s?100\.000 abonados/);
     assert.ok(!/ya abonó \$\s?150\.000/.test(a));
+  });
+});
+
+/* ==========================================================================
+ * N8 — EL ESPEJO NUEVO CON EL nube.js DE ANTES DE LOS PACTOS (23-oct-2026)
+ *
+ * La regla de arriba vive en panel/nube.js, y lo que llega a un teléfono no
+ * siempre viaja junto: con señal floja el sw.js v138 contesta de su caché el
+ * nube.js de main (8323fc0), y espejo.html nuevo corre con él hasta que se
+ * recargue (actualizar.js no avisa: las dos son v139). Ese fusionarFila copia
+ * a «lo mío» el pago acordado del otro lado y le suma lo que el pacto no
+ * conocía: con «Mandar lo mío encima», N1 quedaba en 675.000 de capital por
+ * 625.000 prestados y N2 cobraba la prórroga y el pacto juntos, y la cola lo
+ * subía a la nube. Ahora la página pregunta NUBE.PACTOS y, sin él, no decide
+ * un choque con pago acordado: dice que se recargue. Fallan contra 9d49c18.
+ * ======================================================================== */
+const { execFileSync } = require('node:child_process');
+const RAIZ = path.join(__dirname, '..');
+
+/* El nube.js que está hoy en el sitio, sacado de la historia. Sin ella (un
+   checkout de profundidad 1, como el de vigilar.yml) se arma con el de hoy
+   sin su PACTOS: no repite la fusión de antes —la cuenta de plata se mira
+   solo con el archivo de verdad—, pero sí la pregunta que hacen las páginas. */
+function nubeDeAntes() {
+  try {
+    const codigo = execFileSync('git', ['show', '8323fc0:panel/nube.js'],
+      { cwd: RAIZ, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 16 << 20 });
+    if (/function fusionarFila\(/.test(codigo)) return { codigo, deVerdad: true };
+  } catch (e) { /* sin historia de git: abajo */ }
+  const hoy = fs.readFileSync(path.join(RAIZ, 'panel', 'nube.js'), 'utf8');
+  const codigo = hoy.replace(/\r?\n[ \t]*PACTOS:[ \t]*\d+,/, '');
+  assert.notEqual(codigo, hoy, 'el nube.js de hoy no dice PACTOS: las páginas no tienen qué preguntarle');
+  return { codigo, deVerdad: false };
+}
+function cargarNube(codigo) {
+  const m = { exports: {} };
+  new Function('module', 'exports', codigo)(m, m.exports);
+  return m.exports;
+}
+
+describe('N8 · con el nube.js de antes de los pactos, un choque con pago acordado no se decide: se pide recargar', () => {
+  /* Se pide dentro de cada prueba: si falta, falla la prueba y no la suite. */
+  let _viejo = null;
+  const viejo = () => (_viejo = _viejo || nubeDeAntes());
+  const REGLAS_VIEJAS = /versión vieja de las reglas de la nube/;
+
+  /* N1 en el celular con el nube.js de antes. El choque se guarda en disco,
+     como lo deja nube.js al subir, para que vuelva después de recargar. */
+  function ladosN1() {
+    const base = conAbonoYProrroga(credito());
+    const computador = pactar(copia(base), { fecha: SUYA, monto: 280000 }, '2026-11-02');
+    const e = abrirEspejo({ cartera: cartera([copia(base)]), ahora: '2026-11-05T10:30:00',
+                            archivos: { 'nube.js': viejo().codigo } });
+    e.ev("abonarEnCalle('c1', 50000, '2026-11-05')");
+    const celular = e.json('DB.prestamos[0]');
+    assert.equal(celular.abonosCapital.length, 2, 'el celular anotó su abono');
+    e.ev('NUBE.guardarChoques([' + JSON.stringify({ tabla: 'creditos', id: 'c1', mio: celular, suyo: computador,
+      revision_servidor: 7, actualizado_por: 'computador', actualizado_en: '2026-11-05T15:00:00Z' }) + ']); recargarDeDisco()');
+    return { e, computador, celular };
+  }
+  const subeConPacto = e => e.json('COLA').some(c => c.id === 'c1' && c.datos && c.datos.planPagos);
+
+  test('el celular (N1): la tarjeta no ofrece decidir y dice que recargues; un toque igual no cambia nada', () => {
+    const { e, computador, celular } = ladosN1();
+    assert.equal(e.ev('NUBE.PACTOS'), undefined, 'el banco no cargó el nube.js de antes');
+    if (viejo().deVerdad) {
+      /* Lo que se frena, con el archivo de verdad: su fusión deja el pacto y
+         el abono que el pacto no conocía, y cobra 50.000 dos veces. */
+      const f = cargarNube(viejo().codigo).fusionarFila(copia(celular), copia(computador)).fila;
+      assert.ok(P.esPacto(f));
+      assert.equal(capitalQueCobra(f), PRESTADO + 50000);
+    }
+    const html = e.ev('bloqueChoques()');
+    const t = plano(html);
+    assert.match(t, REGLAS_VIEJAS);
+    assert.match(t, /recarga la app con señal y vuelve a decidir este choque/);
+    assert.match(t, /Nada se ha perdido/);
+    assert.ok(!/Decide cuál queda/.test(t), 'pide decidir lo que no se puede decidir');
+    assert.ok(!/data-acc="choque-(mio|nube|ver)"/.test(html), 'ofreció decidir con las reglas de antes');
+    assert.match(html, /data-acc="choque-recargar"/);
+
+    /* Un toque que llega de una tarjeta pintada antes, con los dos botones. */
+    const antes = e.json('DB.prestamos[0]');
+    e.tocar('choque-mio', { i: '0' });
+    e.tocar('choque-nube', { i: '0' });
+    const q = e.json('DB.prestamos[0]');
+    assert.deepEqual(q, antes, 'cambió la ficha con las reglas de antes');
+    assert.ok(!q.planPagos);
+    assert.equal(capitalQueCobra(q), PRESTADO);
+    assert.ok(!subeConPacto(e), 'la cola sube a la nube el pacto junto con el abono del celular');
+    assert.equal(e.json('CHOQUES').length, 1, 'el choque se dio por resuelto');
+    assert.equal(e.json('NUBE.leerChoques().filter(function (c) { return !c.resuelto_como; })').length, 1);
+    assert.ok(e.avisos.some(a => REGLAS_VIEJAS.test(a)), 'el toque no dijo por qué no hizo nada');
+  });
+
+  test('…y al recargar con el nube.js de hoy el mismo choque vuelve y se decide bien: ni un peso dos veces', () => {
+    const { e } = ladosN1();
+    e.tocar('choque-mio', { i: '0' });
+    const r = abrirEspejo({ almacen: e.almacen, ahora: '2026-11-05T16:00:00' });
+    assert.equal(r.ev('NUBE.PACTOS'), 1);
+    assert.equal(r.json('CHOQUES').length, 1, 'el choque no volvió después de recargar');
+    const html = r.ev('bloqueChoques()');
+    assert.ok(!REGLAS_VIEJAS.test(plano(html)));
+    assert.match(plano(html), /El pago acordado no se junta con lo que no conocía/);
+    r.tocar('choque-mio', { i: '0' });
+    const q = r.json('DB.prestamos[0]');
+    assert.ok(!q.planPagos, 'con «lo mío» entró el pacto de la nube');
+    assert.deepEqual(q.abonosCapital.map(a => a.monto), [375000, 50000]);
+    assert.equal(capitalQueCobra(q), PRESTADO);
+  });
+
+  test('el celular (N2): la prórroga que el pacto no conocía tampoco se junta con las reglas de antes', () => {
+    const base = credito();
+    const computador = pactar(copia(base), { fecha: SUYA, monto: 780000 }, '2026-10-28');
+    const e = abrirEspejo({ cartera: cartera([copia(base)]), ahora: '2026-10-31T10:30:00',
+                            archivos: { 'nube.js': viejo().codigo } });
+    e.ev("prorrogar('c1', '2026-10-31')");
+    const celular = e.json('DB.prestamos[0]');
+    assert.equal(celular.prorrogas.length, 1, 'el celular cobró la prórroga');
+    choqueEnElCelular(e, celular, computador);
+    assert.ok(!/data-acc="choque-mio"/.test(e.ev('bloqueChoques()')), 'ofreció «lo mío» con las reglas de antes');
+    e.tocar('choque-mio', { i: '0' });
+    const q = e.json('DB.prestamos[0]');
+    assert.ok(!q.planPagos, 'entró el pacto de 780.000 junto con la prórroga de 125.000');
+    const g = P.gananciaDelCredito(q);
+    assert.equal(g.cobrado + g.pendiente, 250000, 'el costo del tramo se cobra dos veces');
+    assert.ok(!subeConPacto(e));
+  });
+
+  test('subir.html (el computador): con las reglas de antes no junta nada y la tarjeta dice que recargues', () => {
+    const base = conAbonoYProrroga(credito());
+    const computador = pactar(copia(base), { fecha: SUYA, monto: 280000 }, '2026-11-02');
+    const e = abrirEspejo({ cartera: cartera([copia(base)]), ahora: '2026-11-05T10:30:00' });
+    e.ev("abonarEnCalle('c1', 50000, '2026-11-05')");
+    const celular = e.json('DB.prestamos[0]');
+    const S = abrirSubir(cargarNube(viejo().codigo));
+    S.choque(computador, celular);
+    assert.match(S.tarjeta(), REGLAS_VIEJAS);
+    assert.ok(!/decidir\(/.test(S.ev("tarjetaChoque(__it, 'b0')")), 'ofreció decidir con las reglas de antes');
+    /* Si una decisión llega igual, aplicar no junta: «No apliqué nada». */
+    assert.throws(() => S.conLoMio(), REGLAS_VIEJAS);
+    assert.throws(() => S.conLaNube(), REGLAS_VIEJAS);
+    /* Con el nube.js de hoy, la misma tarjeta sí deja decidir. */
+    const H = abrirSubir();
+    H.choque(computador, celular);
+    assert.ok(!REGLAS_VIEJAS.test(H.tarjeta()));
+    assert.match(H.ev("tarjetaChoque(__it, 'b0')"), /decidir\(/);
+    assert.equal(capitalQueCobra(H.conLoMio()), PRESTADO);
   });
 });
