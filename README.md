@@ -18,11 +18,18 @@ sw.js                   Un solo service worker para todo el sitio.
 legal/
   terminos.html         Términos y condiciones del servicio.
   privacidad.html       Política de datos personales (Ley 1581 de 2012). Versión
-                        del 19-oct-2026 (la cédula primero, el modelo del
-                        teléfono). Si cambia, sube VERSION_AUTORIZACION en
-                        app/cuenta.js y app/socio.html a la fecha en que SALE
-                        al sitio; pruebas/la-politica-del-19-oct.test.js amarra
-                        cada frase al código.
+                        del 27-oct-2026, la fecha en que SALE con el lote
+                        (los ojos en la foto de la cara, lo que se anota sin
+                        ella, y dónde recibes la plata: Nequi, Daviplata,
+                        llave Bre-B o cuenta de banco). Si cambia, sube
+                        VERSION_AUTORIZACION en app/cuenta.js y app/socio.html
+                        a esa fecha. (23-oct-2026: esta vez NO subió, sigue
+                        2026-10-19, porque para qué se usan los datos no
+                        cambió y la lista del 27 lo dice; subirla o no queda
+                        PENDIENTE de Joan: ver el comentario de arriba de la
+                        página y pruebas/el-lote-del-27-junto.test.js.)
+                        pruebas/la-politica-del-19-oct.test.js amarra cada
+                        frase al código.
 
 app/                    LA APP DEL SOCIO — la que ve el cliente.
   socio.html            Una sola página. Voz: tuteo colombiano. Desde el 7-oct-2026
@@ -93,6 +100,12 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         menos). Así la pantalla que se apaga sola con el
                         teléfono en la mesa no se lleva el «no». Pruebas: la
                         sección 6 del mismo archivo.
+                        (23-oct-2026, al juntar el lote del 27-oct) «Cambiar
+                        mi contraseña» de PlataChat, que nació antes de esto,
+                        ya dice su pantalla (PANTALLA = 'clave', fuera de la
+                        lista blanca) y cuenta el cambio como escritura en
+                        camino. Pruebas: pruebas/el-lote-del-27-junto.test.js,
+                        sección 1.
   cuentas-pago.js       Dónde recibe la plata el cliente (22-oct-2026): Nequi,
                         Daviplata, llave Bre-B (las formas del Banco de la
                         República, ni una más) y cuenta de banco. Las reglas
