@@ -461,7 +461,9 @@ var LISTAS_QUE_SUMAN = {
                  abonosCapital:['fecha','monto','cuotaPlan','id'],
                  prorrogas:['fecha','ciclo'],
                  comprobantes:['fecha','tipo','monto','id'],
-                 condonaciones:['fecha','costo','mora'] },
+                 /* 22-oct-2026: + capital y + id, el perdón de capital de un pago
+                    acordado; el id separa dos perdones iguales del mismo día (ver nube.js). */
+                 condonaciones:['fecha','costo','mora','capital','id'] },
   respaldados: { comprobantes:['fecha','tipo','monto'] }
 };
 
@@ -1652,11 +1654,20 @@ function queHaceLoMio(it){
         'nube cuando aprietes «Subir a la nube» en esta página.';
   }
   var pc = pagosDeCuotasEnChoque(it.tabla, NUBE.sinFotos(it.local||{}), it.fila && it.fila.datos);
+  var pa = pagoAcordadoEnChoque(it.tabla, NUBE.sinFotos(it.local||{}), it.fila && it.fila.datos);
   if(pc){
     return 'Elegiste lo tuyo. Al aplicar, en lo que no coincide queda lo tuyo, y las gestiones, comprobantes '+
-      'y prórrogas de los dos lados se juntan. Los pagos de las cuotas NO se juntan: quedan solo los de este '+
+      (pa ? 'de los dos lados se juntan. ' : 'y prórrogas de los dos lados se juntan. ')+
+      'Los pagos de las cuotas NO se juntan: quedan solo los de este '+
       'computador ('+pc.mio+') y lo que trae la nube para esas cuotas ('+pc.suyo+') no entra. Si esa plata '+
-      'entró de verdad, vuelve a anotarla como abono a la cuota después. Lo tuyo se manda en la próxima subida.'+
+      'entró de verdad, vuelve a anotarla como abono a la cuota después. '+(pa ? frasePagoAcordado(pa,'mio')+' ' : '')+
+      'Lo tuyo se manda en la próxima subida.'+
+      (it.borrado ? ' Allá está borrada: con lo tuyo vuelve a quedar viva en la nube.' : '');
+  }
+  if(pa){
+    return 'Elegiste lo tuyo. Al aplicar, en lo que no coincide queda lo tuyo, y las gestiones, comprobantes, '+
+      'prórrogas y abonos de los dos lados se juntan, menos lo del pago acordado. '+frasePagoAcordado(pa,'mio')+
+      ' Lo tuyo se manda en la próxima subida.'+
       (it.borrado ? ' Allá está borrada: con lo tuyo vuelve a quedar viva en la nube.' : '');
   }
   return 'Elegiste lo tuyo. Al aplicar, en lo que no coincide queda lo tuyo, y las gestiones, comprobantes, '+
@@ -1669,13 +1680,50 @@ function queHaceLoMio(it){
    su planPagos: NUBE.fusionarFila). Decía «los abonos de los dos lados se
    juntan» justo en el caso en que los de este computador se quedan afuera. */
 function queHaceLoDeLaNube(it){
-  var pc = (it.tabla!=='ajustes' && it.local)
-    ? pagosDeCuotasEnChoque(it.tabla, NUBE.sinFotos(it.local||{}), it.fila && it.fila.datos) : null;
-  if(!pc) return 'Elegiste lo de la nube. Al aplicar, las gestiones, comprobantes, prórrogas y abonos de los dos lados se juntan.';
-  return 'Elegiste lo de la nube. Al aplicar, las gestiones, comprobantes y prórrogas de los dos lados se juntan. '+
+  var conLocal = it.tabla!=='ajustes' && it.local;
+  var pc = conLocal ? pagosDeCuotasEnChoque(it.tabla, NUBE.sinFotos(it.local||{}), it.fila && it.fila.datos) : null;
+  var pa = conLocal ? pagoAcordadoEnChoque(it.tabla, NUBE.sinFotos(it.local||{}), it.fila && it.fila.datos) : null;
+  if(!pc && !pa) return 'Elegiste lo de la nube. Al aplicar, las gestiones, comprobantes, prórrogas y abonos de los dos lados se juntan.';
+  if(!pc){
+    return 'Elegiste lo de la nube. Al aplicar, las gestiones, comprobantes, prórrogas y abonos de los dos lados '+
+      'se juntan, menos lo del pago acordado. '+frasePagoAcordado(pa,'nube');
+  }
+  return 'Elegiste lo de la nube. Al aplicar, las gestiones, comprobantes '+(pa ? '' : 'y prórrogas ')+'de los dos lados se juntan. '+
     'Los pagos de las cuotas NO se juntan: quedan los de la nube ('+pc.suyo+') y lo que trae este computador '+
     'para esas cuotas ('+pc.mio+') no entra. Si esa plata entró de verdad, vuelve a anotarla como abono a la '+
-    'cuota después.';
+    'cuota después.'+(pa ? ' '+frasePagoAcordado(pa,'nube') : '');
+}
+/* 22-oct-2026 (revisión) — EL PAGO ACORDADO EN LA TARJETA DEL CHOQUE.
+   NUBE.fusionarFila manda el pisable `pagoAcordado` cuando un pago que pactó
+   Joan está en juego: cada lado con lo que trae —el pago acordado con su
+   fecha y su monto, o «sin pago acordado», y la plata que el pacto del otro
+   lado no conocía—. Antes esta pantalla no lo leía: «Dejar lo de la nube»
+   decía que el pago acordado no entraba y fusionarConLoMio lo dejaba entrar
+   junto con el abono del celular (50.000 cobrados dos veces). Las dos
+   elecciones hacen exactamente lo que dice esta frase: con la tuya queda lo
+   de este computador entero; con la de la nube, lo de la nube. `lado` es
+   'mio' o 'nube'. */
+function pagoAcordadoEnChoque(tabla, mio, suyo){
+  if(tabla!=='creditos' || !mio || !suyo || typeof NUBE.fusionarFila!=='function') return null;
+  var r=null;
+  try{ r=NUBE.fusionarFila(mio, suyo, NUBE.LISTAS_QUE_SUMAN); }catch(e){ r=null; }
+  var x=((r&&r.pisables)||[]).filter(function(p){ return p && p.campo==='pagoAcordado'; })[0];
+  return x ? { mio:textoLegible(x.mio), suyo:textoLegible(x.suyo) } : null;
+}
+/* 23-oct-2026 — «Si esa plata entró de verdad, vuelve a anotarla» iba suelto
+   detrás de todo lo del otro lado, y ese lado puede nombrar un abono que los
+   DOS tienen: se queda con cualquiera de las dos elecciones, y anotarlo otra
+   vez le regalaba esa plata al cliente (100.000 de menos el 26-nov, en el
+   caso de la revisión). NUBE.fusionarFila ya no lo cuenta como «ya abonó» y
+   lo dice aparte; esta frase dice qué pasa con él y a qué plata se refiere
+   la instrucción: a la que trae SOLO el lado que no queda. */
+function frasePagoAcordado(pa, lado){
+  return 'El pago acordado no se junta con lo que no conocía: queda lo de '+
+    (lado==='mio' ? 'este computador ('+pa.mio+') y lo de la nube ('+pa.suyo+')'
+                  : 'la nube ('+pa.suyo+') y lo de este computador ('+pa.mio+')')+
+    ' no entra. Lo abonado que tienen los dos lados se queda con cualquiera de las dos. Si la plata que solo trae '+
+    (lado==='mio' ? 'la nube' : 'este computador')+
+    ' entró de verdad, vuelve a anotarla después y vuelve a acordar el pago sobre lo que quede.';
 }
 
 /* Lo que mandamos no viene de vuelta en la respuesta de panel_empujar (solo
@@ -1752,8 +1800,11 @@ function cuotasEnDiscusion(tabla, mio, suyo, lado){
   if(tabla!=='creditos' || !mio || !suyo || typeof NUBE.fusionarFila!=='function') return [];
   var r=null;
   try{ r=NUBE.fusionarFila(mio, suyo, NUBE.LISTAS_QUE_SUMAN); }catch(e){ r=null; }
-  return ((r&&r.pisables)||[]).filter(function(p){ return p && p.campo==='abonosCapital'; }).map(function(p){
+  /* 22-oct-2026 (revisión) — y el pago acordado de cada lado, con la plata
+     que el pacto del otro no conocía (pagoAcordadoEnChoque). */
+  return ((r&&r.pisables)||[]).filter(function(p){ return p && (p.campo==='abonosCapital' || p.campo==='pagoAcordado'); }).map(function(p){
     var v=p[lado];
+    if(p.campo==='pagoAcordado') return { k:'pago acordado', v:textoLegible(v) };
     return typeof v==='string'
       ? { k:'lo que entró por las cuotas', v:textoLegible(v) }
       : { k:'a capital ese día', v:pesosCO(v) };

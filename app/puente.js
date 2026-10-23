@@ -281,7 +281,67 @@
      pasado se contesta con ellos: para eso están las funciones de la sección
      "LA LÍNEA DE TIEMPO", más abajo. Ver el comentario grande del 5-ago-2026. */
   function capitalActual(p) {
-    return Math.max(0, num(p.capital) - lista(p.abonosCapital).reduce(function (s, a) { return s + num(a.monto); }, 0));
+    return Math.max(0, num(p.capital) - lista(p.abonosCapital).reduce(function (s, a) { return s + num(a.monto); }, 0) -
+                       capitalPerdonadoDe(p));
+  }
+  /* 22-oct-2026 — EL CAPITAL QUE JOAN PERDONÓ. Hasta hoy solo se perdonaban
+     mora y costo; desde que Joan pacta el próximo pago (pactarProximoPago,
+     más abajo) puede cobrar MENOS que el capital que queda, y esa diferencia
+     es capital perdonado. Vive en `p.condonaciones` con `capital` —la lista
+     que solo suma, como cualquier descuento— y desde ese día ya no se debe:
+     si siguiera contando en capitalActual, el cliente debería 250.000 y su
+     próximo pago diría 240.000, y la mora, la «capital en la calle» y el
+     recibo dirían cada uno una cosa. Con `hasta`, solo lo perdonado hasta ese
+     día (la línea de tiempo no le borra capital a un día que ya pasó).
+
+     22-oct-2026 — EL PERDÓN VIAJA ATADO A SU PACTO, y por eso se lee del PLAN,
+     no de la lista. La primera versión sumaba toda condonación con `capital`
+     de `p.condonaciones`, y esa lista solo suma en la nube: si en un choque
+     ganaba la versión SIN ese pacto (el celular cobró «Pagó todo» con la copia
+     vieja y Joan eligió el cobro), el perdón se quedaba igual, huérfano, y le
+     restaba 25.000 a una plata que sí entró: capitalRecuperadoDe 600.000 de
+     625.000, «te dejó 16%» en vez de 20% y «1 descuento por $25.000» de un
+     perdón que no existió. Con dos pactos distintos gana un plan y quedaban
+     los dos perdones (cuota de 230.000 con capital 220.000). El plan
+     (`planPagos`) es un campo que viaja ENTERO con el lado que Joan elige, y
+     cada pacto anota su perdón en `planPagos.cambios[].perdona`: ahí está el
+     perdón del plan VIGENTE y de ningún otro. Si gana la versión sin ese
+     pacto, el perdón no existe. La condonación de la lista se queda como el
+     registro con su motivo, atada al cambio por el mismo `id`. */
+  function capitalPerdonadoDe(p, hasta) {
+    return perdonesDeCapital(p, hasta).reduce(function (t, x) { return t + x.capital; }, 0);
+  }
+  /* Los perdones de capital del plan vigente, uno por pacto que perdonó:
+     {fecha, capital, para, id, motivo}. El monto sale del cambio del plan; el
+     motivo, de su condonación (mismo `id`; un cambio sin id —no los hubo fuera
+     de las pruebas— se aparea por fecha y monto). Solo un plan con `pacto`
+     perdona capital: el crédito a cuotas y el plan del §8 no tienen esta
+     puerta. */
+  function perdonesDeCapital(p, hasta) {
+    var pp = p && p.planPagos;
+    if (!pp || typeof pp !== 'object' || !pp.pacto || typeof pp.pacto !== 'object') return [];
+    var h = fechaFin(hasta);
+    var conds = lista(p.condonaciones).filter(function (c) { return !!c && num(c.capital) > 0; });
+    var usadas = {};
+    var salida = [];
+    lista(pp.cambios).forEach(function (cb) {
+      var v = Math.max(0, Math.round(num(cb && cb.perdona)));
+      if (!cb || !cb.pacto || !v) return;
+      var f = fechaFin(cb.fecha);
+      if (h && f && f > h) return;
+      var cond = null;
+      for (var i = 0; i < conds.length && !cond; i++) {
+        if (usadas[i]) continue;
+        var c = conds[i];
+        var mismo = cb.id != null && cb.id !== ''
+          ? c.id === cb.id
+          : (c.id == null || c.id === '') && fechaFin(c.fecha) === f && Math.round(num(c.capital)) === v;
+        if (mismo) { usadas[i] = true; cond = c; }
+      }
+      salida.push({ fecha: f, capital: v, para: fechaFin(cb.a && cb.a.fecha) || fechaFin(cond && cond.para),
+                    id: cb.id == null ? null : cb.id, motivo: cond ? String(cond.motivo || '') : '' });
+    });
+    return salida;
   }
 
   /* Los días calendario del MOTOR, no los de acá arriba: `diasEntre` de este
@@ -348,6 +408,22 @@
   function tasaDelCiclo(p) {
     var c = cuotaPlanActual(p);
     if (c) {
+      /* 22-oct-2026 — el pago que pactó Joan lleva el % que de verdad sale de
+         sus pesos, aunque sea cero (cobrar solo el capital, o perdonar parte):
+         sin esto la etiqueta caía al 5% del plan del §8 al lado de un costo $0.
+         23-oct-2026 — Y ES EL % DEL ACUERDO VIGENTE, no el de la cuota. Al
+         volver a acordar después de un abono, la cuota guarda su costo como
+         «lo ya pagado en abonos + lo que se cobra ese día» y su capital sin
+         restar lo abonado, y `c.pct` sale de esos acumulados: Joan acordaba
+         200.000 sobre los 180.000 que quedaban (11,1%, y así se lo confirmaba
+         el CRM al guardar) y la lista decía «costo 20%»; con perdón, un pago
+         sin costo salía al 15,8%. El % es el que el puente calculó con lo que
+         Joan escribió (pactoVigente). `c.pct` se queda como está: va al lado
+         del total ACUMULADO de la cuota, y con ese cuadra. */
+      if (esPacto(p)) {
+        var v = pactoVigente(p);
+        return Math.max(0, num(v && v.pct != null ? v.pct : c.pct)) / 100;
+      }
       /* 16-oct-2026 — en el crédito a cuotas cada cuota trae su propio %: si la
          segunda va al 10%, la etiqueta no puede seguir diciendo el 20% de la
          primera al lado de un costo del 10%. */
@@ -1016,6 +1092,13 @@
     function no(motivo, detalle) { r.ok = false; r.motivo = motivo; r.detalle = detalle; r.planPagos = null; return r; }
     if (!p || p.pagado) return no('pagado', 'Este crédito ya está pagado.');
     if (!esPlanDeAlta(p)) return no('no_es_a_cuotas', 'Solo las cuotas de un crédito a cuotas se reprograman.');
+    /* 22-oct-2026 — el pago que pactó Joan no se rehace con %: su costo va en
+       pesos y el motor lo reconstruiría con un % entero (y exige dos cuotas).
+       Tiene su propia puerta, con su tope y su anotación. */
+    if (esPacto(p)) {
+      return no('es_pacto', 'Este crédito tiene un próximo pago acordado: la fecha y el monto se cambian con ' +
+        '«✏️ Ajustar el próximo pago».');
+    }
     var cs = cuotasPlan(p), pedidos = {};
     lista(cambios).forEach(function (x) { if (x && x.n != null) pedidos[num(x.n)] = x; });
     var entrada = [], log = [];
@@ -1088,6 +1171,373 @@
   function clonarCuota(c) { return JSON.parse(JSON.stringify(c)); }
 
   /* ==========================================================================
+   * EL PRÓXIMO PAGO LO DECIDE JOAN — 22-oct-2026
+   *
+   * Pedido de Joan, con el caso delante: «un cliente debe 750.000 y abona
+   * únicamente 500.000 y el resto lo deja para la siguiente quincena, ese
+   * restante es de 250.000 más el adicional que se pague; el CRM puede tener
+   * un cálculo propio pero la decisión final sea mía, quiero poder decidir
+   * cuánto cobro si más o menos… incluso los días yo los pueda seleccionar».
+   *
+   * La cuenta del CRM sigue siendo la de siempre (la fecha que tiene el
+   * crédito y su costo del ciclo) y se le muestra a Joan YA ESCRITA. Si él
+   * pone otra fecha u otro monto, eso es un PACTO, y el pacto se guarda con
+   * la forma que ya existe para «una fecha y un costo que puso Joan»: el plan
+   * del crédito a cuotas del 16-oct, con UNA cuota y `planPagos.pacto`.
+   * Por qué esa forma y no un campo nuevo en el crédito quincenal:
+   *   · la fecha de una cuota NO se corre por domingo ni festivo, y la mora
+   *     corre solo desde el día siguiente, sobre el capital que falte
+   *     (moraCausadaDeCuota): es justo lo que Joan pidió;
+   *   · el costo de la cuota va en PESOS (`costo`): 30.000 sobre 250.000 no
+   *     tiene que caber en un % entero, y 33.333 tampoco;
+   *   · el abono a la cuota, su cierre, la garantía por pedazos (el 80% de lo
+   *     que de verdad entra), la cola de cobranza, «vencido hoy», el KPI de
+   *     mora, el paquete de la app, el celular y la fusión de la nube por
+   *     `planPagos` ya la entienden y ya tienen sus pruebas.
+   * Un campo nuevo en el quincenal habría que enseñárselo a K, a la línea de
+   * tiempo y a cada pantalla, una por una: la forma exacta de los defectos que
+   * este archivo ya pagó (dos copias de una regla terminan diciendo dos cosas).
+   *
+   * LO QUE CAMBIA CON EL PACTO, dicho de frente: el crédito deja de
+   * prorrogarse, como todo crédito a cuotas. Si el cliente vuelve a traer una
+   * parte, se anota como abono a la cuota y, mientras no venza, Joan vuelve a
+   * pactar el resto con esta misma función.
+   *
+   * LAS REJAS, decisiones de Joan:
+   *   · TOPE: lo que se cobra por encima del capital que queda no pasa del
+   *     TASA_CREDITO_MAXIMA (el 50% del 8-sep) de ESE capital. Vive acá y no
+   *     en la pantalla: el computador y el celular preguntan lo mismo.
+   *   · SIN PISO: cobrar MENOS que el capital que queda es PERDONAR capital.
+   *     Pide motivo y queda en `p.condonaciones` con `capital`, como los
+   *     descuentos de mora y costo. Desde ese día ya no se debe
+   *     (capitalPerdonadoDe).
+   *   · Un pago que YA VENCIÓ no se mueve: correr una fecha vencida le borra la
+   *     mora hacia atrás (la razón de reprogramarPlan y de la prórroga del
+   *     5-ago). Se dice y se ofrecen los caminos que ya existen.
+   *   · La fecha, después de hoy y a no más de DIAS_ALTA_MAX días (lo mismo que
+   *     el crédito a cuotas: más allá es otro producto, y un año mal tecleado
+   *     no puede volverse un pacto). Domingo o festivo NO se corre: se avisa,
+   *     con los días y la mora que le correrían si paga el primer día hábil.
+   *
+   * Cada pacto queda anotado en `planPagos.cambios` (quién, cuándo, cuánto y
+   * lo que decía el CRM), igual que los cambios de reprogramarPlan.
+   * ========================================================================*/
+  function esPacto(p) {
+    return esPlanDeAlta(p) && !!p.planPagos.pacto && typeof p.planPagos.pacto === 'object';
+  }
+  /* 23-oct-2026 — EL ACUERDO VIGENTE: el último cambio del plan con `pacto`.
+     `planPagos.pacto.creado` es el día del PRIMER acuerdo y volver a acordar
+     no lo toca (es historia, como `de`). La app del cliente lo mandaba como
+     «Lo acordamos el»: Joan acordaba el 2-nov 280.000 para el 20-nov, el 12-nov
+     lo volvía a acordar en 300.000 para el 4-dic, y la cliente leía «Lo
+     acordamos el 2 nov 2026 · Pagas $300.000 el 4 dic 2026». El día y el monto
+     que valen son los del último cambio con pacto (`fecha` y `a.total`: lo que
+     Joan escribió y el puente confirmó al guardarlo), como ya los lee el CRM
+     para la E.A. (eaDelCreditoACuotas). Un plan sin ese cambio (no lo hubo
+     fuera de datos rotos) se queda con `pacto.creado` y sin monto.
+     null si el crédito no tiene pago acordado.
+     23-oct-2026 — también dice el resto de ESE acuerdo, para que el % y la
+     E.A. del CRM salgan de él y no de la cuota (que, después de un abono y de
+     volver a acordar, guarda costo y capital ACUMULADOS: tasaDelCiclo y
+     eaDelCreditoACuotas): `fecha` (el día en que paga), `capital` (el que
+     quedaba ese día, antes del perdón), `costo` y `perdona` en pesos, y `pct`,
+     la misma cuenta que pactarProximoPago le confirmó a Joan (pctDe del costo
+     sobre ese capital). Todos null sin el cambio del pacto. */
+  function pactoVigente(p) {
+    if (!esPacto(p)) return null;
+    var cb = lista(p.planPagos.cambios).filter(function (x) { return !!x && typeof x === 'object' && !!x.pacto; });
+    var u = cb.length ? cb[cb.length - 1] : null;
+    var a = (u && u.a && typeof u.a === 'object') ? u.a : null;
+    var pesosDe = function (v) { return (v != null && v !== '' && isFinite(Number(v))) ? Math.round(Number(v)) : null; };
+    var monto = a ? pesosDe(a.total) : null;
+    var costo = a ? pesosDe(a.costo) : null;
+    var perdona = u ? Math.max(0, pesosDe(u.perdona) || 0) : null;
+    /* `a.capital` es lo que queda DESPUÉS del perdón; el % y la E.A. van sobre
+       lo que quedaba ese día, como en pactarProximoPago. */
+    var capital = (a && pesosDe(a.capital) != null) ? pesosDe(a.capital) + perdona : null;
+    return {
+      acordado: fechaFin(u && u.fecha) || fechaFin(p.planPagos.pacto.creado) || null,
+      monto: monto,
+      fecha: (a && fechaFin(a.fecha)) || null,
+      capital: capital,
+      costo: costo,
+      perdona: perdona,
+      pct: (capital != null && costo != null) ? pctDe(costo, capital) : null
+    };
+  }
+  /* El % con dos decimales, SOLO para mostrarlo: la verdad es el costo en pesos. */
+  function pctDe(costo, capital) {
+    return capital > 0 ? Math.round(num(costo) / capital * 10000) / 100 : 0;
+  }
+
+  /**
+   * Pactar (o volver a pactar) el próximo pago de un crédito abierto.
+   *
+   * @param {object} db      la cartera (para lo que te deja el cliente)
+   * @param {object} p       el crédito, quincenal o con un pacto anterior
+   * @param {object} pedido  {fecha, monto, motivo, quien}; lo que no venga es
+   *                         lo que el crédito ya tiene (la cuenta del CRM)
+   * @param {string} [hoy]   el día en que Joan decide
+   * @returns {object} `sugerido` (la cuenta del CRM), lo pactado (fecha,
+   *   monto, capital, costo, perdona, pct, tope), `inhabiles`, `ganancia` y
+   *   `ganancia_cliente` con la decisión, y si `ok`, `registros` {planPagos,
+   *   condonacion|null, cicloActual} y `credito` (cómo quedaría, para
+   *   preguntarle cosas: nunca se guarda tal cual). No escribe ni lanza.
+   */
+  function pactarProximoPago(db, p, pedido, hoy) {
+    var h = fechaFin(hoy) || hoyISO();
+    var q = (pedido && typeof pedido === 'object') ? pedido : {};
+    var r = {
+      ok: false, motivo: null, detalle: '', caminos: [], hoy: h, base: null,
+      sugerido: null, fecha: null, monto: 0, capital: 0, costo: 0, perdona: 0, pct: 0,
+      tope: 0, monto_maximo: 0, inhabiles: [], cambia: false,
+      ganancia: null, ganancia_cliente: null, credito: null, registros: null
+    };
+    function no(motivo, detalle, caminos) {
+      r.ok = false; r.motivo = motivo; r.detalle = detalle; r.caminos = caminos || []; r.registros = null;
+      return r;
+    }
+    try { return cuenta(); }
+    catch (e) {
+      return no('error', 'No pude hacer la cuenta de este crédito (' +
+        String((e && e.message) || e).slice(0, 120) + '). No guardé nada.');
+    }
+    function cuenta() {
+      if (!p || typeof p !== 'object') return no('sin_credito', 'No encontré el crédito.');
+      if (p.pagado) return no('pagado', 'Este crédito ya está pagado: no tiene próximo pago.');
+      var pacto = esPacto(p);
+      if (tienePlan(p) && !pacto) {
+        if (esPlanDeAlta(p)) {
+          return no('a_cuotas', 'Este crédito es a cuotas: sus fechas y su % se cambian con «✏️ Cambiar fechas ' +
+            'o %», cuota por cuota.', ['reprogramar']);
+        }
+        return no('plan_de_pagos', 'Este crédito está en plan de pagos (§8): sus cuotas no se mueven. ' +
+          'Cóbrale la cuota que sigue.', ['cobro']);
+      }
+      var c = pacto ? cuotaPlanActual(p) : null;
+      if (pacto && !c) return no('sin_cuotas', 'Este crédito no tiene un pago pendiente.');
+      r.base = pacto ? 'pacto' : 'quincenal';
+      var pag = c ? pagadoDeCuota(p, c) : null;
+      /* El capital de ESE pago: con pacto, lo que falta de la cuota (que es
+         todo lo que se debe: el pacto tiene una sola); sin pacto, el capital. */
+      var capital = c ? Math.max(0, num(c.capital) - pag.capital) : capitalActual(p);
+      r.capital = capital;
+      if (capital <= 0) return no('capital_cero', 'Este crédito ya no debe capital: no hay próximo pago que mover.');
+      var corte = corteDelCredito(p);
+      if (!corte) return no('sin_fecha', 'Este crédito no tiene fecha de pago: no sé qué mover.');
+      /* LA CUENTA DEL CRM: lo que el crédito cobra en su fecha si paga a
+         tiempo —el capital y el costo de su ciclo, o lo ya pactado—. Es lo que
+         se le muestra a Joan ya escrito, y lo que queda anotado como «lo que
+         decía el CRM» si él decide otra cosa. */
+      var enSu = liquidarCiclo(p, corte);
+      r.sugerido = { fecha: corte, monto: Math.round(enSu.total_a_pagar), capital: Math.round(enSu.capital),
+                     costo: Math.round(enSu.costo) };
+      if (corte < h) {
+        var atraso = diasCal(corte, h);
+        return no('vencido', 'El pago del ' + fechaTexto(corte) + ' ya venció (' + atraso + ' día' +
+          (atraso === 1 ? '' : 's') + ' de atraso): moverlo le borraría la mora hacia atrás, así que por acá no se ' +
+          'mueve. ' + (pacto
+            ? 'Cóbralo o anótale un abono (va primero a la mora, después al costo y después al capital).'
+            : 'Cóbralo, regístrale una prórroga (o «Abonó y el resto pasa a la próxima quincena») o pacta un ' +
+              'acuerdo.'), pacto ? ['cobro'] : ['cobro', 'prorroga', 'acuerdo']);
+      }
+      if (p.acuerdo) {
+        return no('acuerdo', 'Este crédito tiene un acuerdo pactado para el ' + fechaTexto(p.acuerdo.pactadaPara) +
+          ': cúmplelo o deshazlo antes de mover el pago.', ['acuerdo']);
+      }
+
+      var fecha = (q.fecha == null || q.fecha === '') ? r.sugerido.fecha : fechaFin(q.fecha);
+      var valida = false;
+      try { valida = !!fecha && M.iso(M.aFechaLocal(fecha)) === fecha; } catch (e) { valida = false; }
+      if (!valida) return no('fecha_invalida', 'Escribe la fecha en que paga.');
+      var monto = (q.monto == null || q.monto === '') ? r.sugerido.monto : Math.round(Number(q.monto));
+      r.fecha = fecha;
+      r.monto = isFinite(monto) ? monto : 0;
+      r.tope = Math.floor(capital * M.TASA_CREDITO_MAXIMA);
+      r.monto_maximo = capital + r.tope;
+      if (!isFinite(monto) || monto <= 0) return no('monto_invalido', 'Escribe cuánto le cobras ese día, en pesos.');
+      r.costo = Math.max(0, monto - capital);
+      r.perdona = Math.max(0, capital - monto);
+      r.pct = pctDe(r.costo, capital);
+      r.cambia = fecha !== r.sugerido.fecha || monto !== r.sugerido.monto;
+      /* Primero «no cambiaste nada»: es lo que la hoja muestra al abrirse, con
+         las dos casillas en la cuenta del CRM, y no es un error. */
+      if (!r.cambia) {
+        return no('sin_cambios', 'Es lo mismo que ya tiene: ' + pesos(monto) + ' el ' + fechaTexto(fecha) + '.');
+      }
+      if (fecha <= h) {
+        return no('al_pasado', 'El próximo pago tiene que ser después de hoy (' + fechaTexto(h) + ').');
+      }
+      if (diasCal(h, fecha) > M.DIAS_ALTA_MAX) {
+        return no('muy_lejos', 'El ' + fechaTexto(fecha) + ' queda a ' + diasCal(h, fecha) + ' días: el pago se ' +
+          'pacta a no más de ' + M.DIAS_ALTA_MAX + ' días (unos seis meses). ¿Está bien escrito el año?');
+      }
+      if (r.costo > r.tope) {
+        /* Sin el % redondeado en la frase: 125.001 sobre 250.000 es «el 50%»
+           redondeado, y decir «cobras el 50% y el techo es el 50%» no explica
+           por qué no deja. Van los pesos, que son los que mandan. */
+        return no('sobre_tope', 'Con ' + pesos(monto) + ' le cobras ' + pesos(r.costo) + ' por encima de los ' +
+          pesos(capital) + ' de capital, y el techo es el ' + Math.round(M.TASA_CREDITO_MAXIMA * 100) +
+          '% de ese capital: ' + pesos(r.tope) + '. Ese día le puedes cobrar hasta ' + pesos(r.monto_maximo) + '.');
+      }
+      var motivo = String(q.motivo == null ? '' : q.motivo).trim().slice(0, 120);
+
+      var quien = String(q.quien || 'computador');
+      var capCuota, costoCuota, pp, cuota;
+      if (pacto) {
+        /* Volver a pactar: la misma cuota, con lo que ya entró en abonos
+           intacto. Su capital baja solo en lo que se perdona; su costo es lo
+           que ya pagó en abonos más lo que se cobra ese día. */
+        pp = JSON.parse(JSON.stringify(p.planPagos));
+        cuota = pp.cuotas.filter(function (x) { return x && num(x.n) === num(c.n); })[0];
+        capCuota = num(c.capital) - r.perdona;
+        costoCuota = pag.costo + r.costo;
+      } else {
+        capCuota = capital - r.perdona;
+        costoCuota = r.costo;
+        cuota = { n: 1, pagado: false, fechaPagado: null, recargo: 0, garantiaGenerada: 0 };
+        pp = { creado: h, origen: 'alta', entrada: null,
+               /* `de`: la fecha que regía antes del pacto. Es la que la línea
+                  de tiempo necesita para no confundir el corte original
+                  (cambiosDeCorte). */
+               pacto: { creado: h, de: corte, quien: quien },
+               cambios: [], cuotas: [cuota] };
+      }
+      cuota.fecha = fecha;
+      cuota.capital = capCuota;
+      cuota.costo = costoCuota;
+      cuota.total = capCuota + costoCuota;
+      cuota.pct = pctDe(costoCuota, capCuota);
+      pp.tasa_por_corte = cuota.pct / 100;
+      pp.total_capital = capCuota;
+      pp.total_costo = costoCuota;
+      pp.total_a_pagar = capCuota + costoCuota;
+      /* 22-oct-2026 — CADA PACTO LLEVA SU `id` (reloj + azar, como el abono a
+         una cuota), en su cambio del plan y en su condonación. Dos razones de
+         plata: (1) el perdón vive en el plan y la condonación es su registro
+         con motivo, y el `id` es lo que los ata (capitalPerdonadoDe); (2) en la
+         nube, dos perdones del MISMO día y el MISMO monto —pactó 240.000 con
+         motivo «uno» y en la tarde 230.000 con motivo «dos», 10.000 cada uno—
+         tenían la misma identidad [fecha, 0, 0, 10000] y fusionarListas los
+         fundía en uno: el capital volvía a 240.000 con la cuota en 230.000. */
+      var idPacto = 'pacto-' + h + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      pp.cambios = lista(pp.cambios).concat([{
+        id: idPacto, n: num(cuota.n), fecha: h, pacto: true, quien: quien,
+        de: { fecha: r.sugerido.fecha, total: r.sugerido.monto, capital: r.sugerido.capital, costo: r.sugerido.costo },
+        a: { fecha: fecha, total: monto, capital: capital - r.perdona, costo: r.costo },
+        perdona: r.perdona
+      }]);
+      var condonacion = r.perdona > 0
+        ? { id: idPacto, fecha: h, costo: 0, mora: 0, capital: r.perdona, motivo: motivo, quien: quien, sobre: 'pacto', para: fecha }
+        : null;
+
+      /* Cómo queda, para PREGUNTARLE —no para deducir— lo que va a cobrar.
+         Si el puente no contesta exactamente lo que Joan escribió, no se
+         guarda: la pantalla y el crédito estarían leyendo cosas distintas. */
+      var despues = JSON.parse(JSON.stringify(p));
+      despues.planPagos = pp;
+      despues.cicloActual = fecha;
+      if (condonacion) despues.condonaciones = lista(despues.condonaciones).concat([condonacion]);
+      var enLaFecha = liquidarCiclo(despues, fecha);
+      if (Math.round(enLaFecha.total_a_pagar) !== monto || capitalActual(despues) !== capital - r.perdona ||
+          corteDelCredito(despues) !== fecha) {
+        return no('no_cuadra', 'No cuadra: pactaste ' + pesos(monto) + ' y la cuenta de ese día da ' +
+          pesos(enLaFecha.total_a_pagar) + '. No guardé nada.');
+      }
+      /* El domingo o el festivo se avisan con lo que costaría: la fecha se
+         queda como la puso Joan (decisión del 16-oct para las cuotas). */
+      try {
+        if (!M.esDiaHabilDeCorte(fecha)) {
+          var sig = M.iso(M.siguienteDiaHabilDeCorte(fecha));
+          var v = cuotasVencidas(despues, sig).filter(function (x) { return num(x.n) === num(cuota.n); })[0];
+          r.inhabiles = [{ numero: num(cuota.n), fecha: fecha, motivo: M.esFestivo(fecha) ? 'festivo' : 'domingo',
+                           siguiente_habil: sig, dias: v ? v.dias : diasCal(fecha, sig), mora: v ? v.mora : 0 }];
+        }
+      } catch (e) { r.inhabiles = []; }
+
+      var socio = lista(db && db.socios).filter(function (x) { return x && x.id === p.socioId; })[0];
+      r.ganancia = gananciaDelCredito(despues);
+      r.ganancia_cliente = gananciaDelCliente(db, socio, despues);
+      r.credito = despues;
+      /* El motivo se pide DESPUÉS de hacer la cuenta, a propósito: la hoja le
+         muestra a Joan lo que le cuesta el perdón (en rojo si lo deja en
+         pérdida) mientras le pide el porqué. Sin motivo no hay registros. */
+      if (r.perdona > 0 && !motivo) {
+        return no('falta_motivo', 'Con ' + pesos(monto) + ' le perdonas ' + pesos(r.perdona) + ' de capital: es ' +
+          'plata que prestaste y no vuelve. Escribe el motivo; dentro de tres meses, un perdón sin motivo es un ' +
+          'cuadre que no cuadra.');
+      }
+      r.ok = true;
+      r.registros = { planPagos: pp, condonacion: condonacion, cicloActual: fecha };
+      r.detalle = 'El próximo pago queda en ' + pesos(monto) + ' el ' + fechaTexto(fecha) + ' (' +
+        pesos(capital - r.perdona) + ' de capital' + (r.costo ? ' + ' + pesos(r.costo) + ' de costo' : '') + ')' +
+        (r.perdona ? ', y le perdonas ' + pesos(r.perdona) + ' de capital' : '') + '. ' +
+        (pacto ? 'Antes era ' : 'El CRM decía ') + pesos(r.sugerido.monto) + ' el ' + fechaTexto(r.sugerido.fecha) + '.';
+      return r;
+    }
+  }
+
+  /* ==========================================================================
+   * LO QUE TE DEJA UN CRÉDITO — 22-oct-2026
+   *
+   * Joan: «que el CRM únicamente me muestre cuánto gané y qué porcentaje de
+   * ganancias da ese crédito, y que muestre los números en rojo cuando las
+   * ganancias sean negativas; al final siempre mostrar cuánto le gano al
+   * cliente con cada crédito o decisión».
+   *
+   * LA GANANCIA ES TODA LA PLATA QUE ENTRA POR ENCIMA DEL CAPITAL PRESTADO:
+   * costos y mora ya cobrados (gananciaCobrada, la misma de la lista y del
+   * tablero) + lo pactado que falta cobrar − el capital que se perdonó. El
+   * 80% que se le vuelve garantía al cliente NO se resta: es CUPO —lo que le
+   * puedes volver a prestar—, no plata que te sale del bolsillo ni una deuda.
+   * Por eso el % es sobre el capital PRESTADO.
+   *
+   * «Pendiente» es solo lo PACTADO que todavía no entra: el costo del ciclo
+   * que corre, el del pago que pactó Joan o el de las cuotas que faltan. La
+   * mora que no se ha pagado no cuenta: no está pactada, y sumar como
+   * ganancia una sanción que no ha entrado inflaría justo la cifra con la que
+   * Joan decide. Es UNA cuenta para el computador, el celular y donde haga
+   * falta: si cada pantalla sumara la suya, dirían dos ganancias del mismo
+   * crédito.
+   * ========================================================================*/
+  function gananciaDelCredito(p) {
+    var r = { capital: 0, cobrado: 0, pendiente: 0, perdonado: 0, ganancia: 0, pct: 0, pagado: false };
+    if (!p || typeof p !== 'object') return r;
+    r.capital = Math.round(num(p.capital));
+    r.pagado = !!p.pagado;
+    r.cobrado = Math.round(gananciaCobrada(p));
+    r.perdonado = capitalPerdonadoDe(p);
+    if (!p.pagado) {
+      r.pendiente = tienePlan(p) ? Math.round(costoPendienteDelPlan(p))
+        : (capitalActual(p) > 0 ? Math.round(K(p)) : 0);
+    }
+    r.ganancia = r.cobrado + r.pendiente - r.perdonado;
+    r.pct = r.capital > 0 ? Math.round(r.ganancia / r.capital * 1000) / 10 : 0;
+    return r;
+  }
+  /* Lo que te deja un cliente con TODOS sus créditos. `cambio` es un crédito
+     como quedaría con la decisión que Joan tiene en pantalla: reemplaza al
+     guardado con el mismo id (o entra como uno más si es nuevo), para que
+     «con este cliente llevas» se lea con esa decisión y no con la de ayer. */
+  function gananciaDelCliente(db, s, cambio) {
+    var t = { creditos: 0, capital: 0, cobrado: 0, pendiente: 0, perdonado: 0, ganancia: 0, pct: 0 };
+    if (!s) return t;
+    var visto = false;
+    function sumar(g) {
+      t.creditos++; t.capital += g.capital; t.cobrado += g.cobrado; t.pendiente += g.pendiente;
+      t.perdonado += g.perdonado; t.ganancia += g.ganancia;
+    }
+    lista(db && db.prestamos).forEach(function (p) {
+      if (!p || p.socioId !== s.id) return;
+      if (cambio && cambio.id === p.id) { visto = true; sumar(gananciaDelCredito(cambio)); return; }
+      sumar(gananciaDelCredito(p));
+    });
+    if (cambio && !visto && cambio.socioId === s.id) sumar(gananciaDelCredito(cambio));
+    t.pct = t.capital > 0 ? Math.round(t.ganancia / t.capital * 1000) / 10 : 0;
+    return t;
+  }
+
+  /* ==========================================================================
    * LA LÍNEA DE TIEMPO DE UN CRÉDITO — 5-ago-2026.
    *
    * LA CAUSA DE SEIS RONDAS DE PARCHES, DICHA DE UNA VEZ:
@@ -1139,8 +1589,13 @@
     });
     var e = entradaPlan(p), cuotas = cuotasPlan(p);
     if (cuotas.length) {
+      /* 22-oct-2026 — el pacto de Joan guarda de qué fecha salió (`pacto.de`).
+         Sin eso, un crédito sin prórrogas que se pactó no tenía `de` en
+         ningún cambio, y corteOriginal tomaba la fecha pactada como si
+         hubiera regido desde siempre. */
+      var pac = (p.planPagos && p.planPagos.pacto && typeof p.planPagos.pacto === 'object') ? p.planPagos.pacto : null;
       cambios.push({ desde: fechaFin((e && e.fecha) || (p.planPagos && p.planPagos.creado)),
-                     de: fechaFin(e && e.ciclo),
+                     de: fechaFin(e && e.ciclo) || fechaFin(pac && pac.de),
                      a: fechaFin(cuotas[0] && cuotas[0].fecha) });
       for (var i = 0; i < cuotas.length - 1; i++) {
         if (!cuotas[i].pagado) continue;
@@ -1220,7 +1675,9 @@
       var f = fechaFin(a && a.fecha);
       return (!f || !hasta || f <= hasta) ? s + num(a && a.monto) : s;
     }, 0);
-    return Math.max(0, num(p && p.capital) - usado);
+    /* 22-oct-2026 — y el capital que Joan perdonó hasta ese día, por la misma
+       razón que capitalActual: perdonado, ya no se debe. */
+    return Math.max(0, num(p && p.capital) - usado - capitalPerdonadoDe(p, hasta));
   }
 
   /** El capital sobre el que se causó el costo del ciclo abierto. */
@@ -1506,7 +1963,12 @@
            costoCobradoPlan(p) +
            (p.pagado ? num(p.gananciaPago) : 0);
   }
-  function capitalRecuperadoDe(p) { return p.pagado ? num(p.capital) : (num(p.capital) - capitalActual(p)); }
+  /* 22-oct-2026 — lo perdonado NO es capital recuperado: no volvió. Sin la
+     resta, «Ingresos totales» del tablero y lo que la app le dice al cliente
+     que ya pagó (`abonado`) contaban plata que nunca entró. */
+  function capitalRecuperadoDe(p) {
+    return Math.max(0, (p.pagado ? num(p.capital) : (num(p.capital) - capitalActual(p))) - capitalPerdonadoDe(p));
+  }
   function esPuntual(p) { return !!(p.pagado && p.fechaPagado && p.cicloPago && p.fechaPagado <= p.cicloPago); }
 
   /* ------------------------------------- puntual PARA SUBIR DE NIVEL -------
@@ -2516,6 +2978,29 @@
              `plan_origen` separa el crédito pactado a cuotas ('alta') del plan
              de rescate del §8 ('rescate'): son textos distintos en la app. */
           plan_origen: tienePlan(p) ? (esPlanDeAlta(p) ? 'alta' : 'rescate') : null,
+          /* 22-oct-2026 — EL PRÓXIMO PAGO QUE ACORDÓ JOAN. Por dentro es un
+             crédito a cuotas de una cuota, y por eso `plan_origen` sigue
+             diciendo 'alta': una app vieja lo muestra como cuota 1 de 1 con su
+             fecha y su valor, que es verdad, y le dice que no se prorroga y
+             que puede abonar, que también lo es. La app nueva lee esto y lo
+             llama por su nombre: la fecha y el valor que acordaron, sin hablar
+             de un crédito a cuotas que nunca pidió. El valor es el del día
+             acordado (sin la mora que corra después). */
+          /* Y si lo fue alguna vez, también pagado: el historial no puede
+             llamarlo «a cuotas, 1 de 1 cuotas pagadas». */
+          pago_acordado: esPacto(p),
+          /* 23-oct-2026 — `acordado` es el día del acuerdo VIGENTE (el último:
+             pactoVigente), y `monto_acordado` lo que se acordó ese día. Si
+             después entraron abonos, `monto` (lo que paga en la fecha) es
+             menor, y la app dice las dos cosas: con solo `monto` al lado de
+             «Lo acordamos el», la cliente leía que acordó 180.000 un día en
+             que acordó 280.000. */
+          pacto: (esPacto(p) && !p.pagado && cuotaPlanActual(p)) ? {
+            fecha: fechaFin(cuotaPlanActual(p).fecha) || null,
+            monto: Math.round(liquidarCiclo(p, fechaFin(cuotaPlanActual(p).fecha)).total_a_pagar),
+            acordado: pactoVigente(p).acordado,
+            monto_acordado: pactoVigente(p).monto
+          } : null,
           plan: tienePlan(p) ? cuotasPlan(p).map(function (c) {
             var pag = pagadoDeCuota(p, c);
             return { n: num(c.n), fecha: fechaFin(c.fecha) || null, total: num(c.total), pagado: !!c.pagado,
@@ -2718,6 +3203,10 @@
       })[0];
       if (pr && pr.ciclo) return fechaFin(pr.ciclo);
     }
+    /* 22-oct-2026 — el perdón de capital de un pacto va con el pago que pactó
+       (`para`), en la quincena que lo contiene: una fecha libre como el 6-nov
+       no es fila de ningún tablero. */
+    if (c.sobre === 'pacto' && fechaFin(c.para)) return quincenaDe(c.para) || '';
     if (p && p.pagado && fechaFin(p.fechaPagado) === f && p.cicloPago) {
       return fechaFin(p.cicloPago);
     }
@@ -2744,6 +3233,13 @@
     var mora = 0, costo = 0, veces = 0, quienes = {};
     lista(db && db.prestamos).forEach(function (p) {
       lista(p && p.condonaciones).forEach(function (c) {
+        /* 22-oct-2026 — el capital que Joan perdona al pactar el próximo pago
+           (pactarProximoPago) no es un descuento de la GANANCIA de la quincena
+           —el tablero dice «ya restados de la ganancia», y este no lo está—:
+           es capital que no vuelve, y se ve en lo que te deja el crédito y el
+           cliente (gananciaDelCredito). Contarlo acá sumaba un cliente y una
+           vez a una quincena con descuento $0. */
+        if (!num(c && c.mora) && !num(c && c.costo) && num(c && c.capital) > 0) return;
         if (quincenaDeCondonacion(p, c) !== corte) return;
         mora += num(c.mora);
         costo += num(c.costo);
@@ -3085,7 +3581,10 @@
    * @param {number} monto  lo que entregó, en pesos (lo teclea Joan)
    * @param {object} [o]    {condonaMora: pesos perdonados de la mora (el % lo
    *                        convierte la pantalla, como en el cobro), motivo
-   *                        (obligatorio si hay perdón), quien ('computador')}
+   *                        (obligatorio si hay perdón), quien ('computador'),
+   *                        pacto: {fecha, monto, motivo} — el próximo pago que
+   *                        decide Joan (22-oct-2026); lo que no venga es la
+   *                        cuenta del CRM}
    * @returns {object} ver `r` abajo. Si `ok`, `registros` trae {abono|null,
    *          prorroga, condonacion|null, comprobante, cicloActual}; la pantalla
    *          los empuja tal cual, el comprobante solo si hay foto (con su
@@ -3110,7 +3609,11 @@
          día de la prórroga, y lo que va a capital cuando se ofrece «Queda
          debiendo» (en el plan de pagos es lo que sobra de la entrada). */
       acuerdo: null, mora_condonada_acuerdo: 0, mismo_dia: null,
-      a_capital_sugerido: null, entrada_plan: 0
+      a_capital_sugerido: null, entrada_plan: 0,
+      /* 22-oct-2026: la cuenta del CRM para el próximo pago, lo que pactó Joan
+         (si lo cambió) y lo que te deja el crédito y el cliente con esta
+         decisión. */
+      sugerido: null, pacto: null, proximo: null, ganancia: null, ganancia_cliente: null
     };
     function no(motivo, detalle, caminos) {
       r.ok = false; r.motivo = motivo; r.detalle = detalle; r.caminos = caminos || [];
@@ -3132,6 +3635,21 @@
 
       if (p.pagado) return no('pagado', 'Este crédito ya está pagado: no hay nada que prorrogar.');
       if (tienePlan(p)) {
+        /* 22-oct-2026 — el próximo pago que pactó Joan (pactarProximoPago) es
+           una cuota con su fecha y su monto: no se prorroga, pero mientras no
+           venza él lo puede volver a pactar. Se dice con sus cifras. */
+        if (esPacto(p)) {
+          /* «Vivo» con la fecha de la hoja, no con el reloj de este archivo: el
+             reloj del puente no es el de la página que cobra. */
+          var cuotaP = cuotaPlanActual(p), fp = corteDelCredito(p);
+          var vivo = !!fp && fp >= f;
+          return no('pacto', 'Este crédito tiene un próximo pago acordado: ' +
+            pesos(cuotaP ? liquidarCiclo(p, fp).total_a_pagar : 0) + ' el ' + fechaTexto(fp) + '. No se prorroga: ' +
+            'cóbralo o, si trajo una parte, anótala como abono (va primero a la mora, después al costo y después ' +
+            'al capital)' + (vivo ? '; y si el resto pasa a otra fecha, cámbiala con «✏️ Ajustar el próximo pago».'
+                                  : '. Ese pago ya venció: su fecha ya no se mueve.'),
+            vivo ? ['cuota_del_plan', 'ajustar'] : ['cuota_del_plan']);
+        }
         if (esPlanDeAlta(p)) {
           return no('plan_de_pagos', 'Este crédito es a cuotas: no se prorroga. Cóbrale la cuota que sigue ' +
             'o, si trajo solo una parte, anótala como abono a la cuota.', ['cuota_del_plan']);
@@ -3329,6 +3847,36 @@
       r.de_tu_ganancia = cp.de_tu_ganancia;
       r.de_su_cupo = cp.de_su_cupo;
 
+      /* 22-oct-2026 — EL PRÓXIMO PAGO LO PUEDE DECIDIR JOAN. La cuenta de arriba
+         (la quincena del motor y el costo del ciclo sobre lo que quedó) es la
+         propuesta del CRM y va en `sugerido`; la pantalla la muestra ya escrita
+         en las dos casillas. Si Joan escribe otra fecha u otro monto, ese pago
+         se pacta sobre el crédito COMO QUEDA después del abono y la prórroga,
+         con la misma función de «✏️ Ajustar el próximo pago»
+         (pactarProximoPago): una sola regla, un solo tope. El acuerdo, si lo
+         había, queda cumplido con esta misma operación, así que el pacto se
+         pregunta sin él. Si el pacto no se puede, no se registra NADA: ni la
+         prórroga ni el abono, porque Joan los confirmó junto con esa fecha. */
+      r.sugerido = { fecha: r.corte_nuevo, monto: r.total_siguiente };
+      var finalC = despues, pa = null;
+      var pq = (o.pacto && typeof o.pacto === 'object') ? o.pacto : null;
+      if (pq) {
+        var pf = (pq.fecha == null || pq.fecha === '') ? r.corte_nuevo : fechaFin(pq.fecha);
+        var pm = (pq.monto == null || pq.monto === '') ? r.total_siguiente : Math.round(Number(pq.monto));
+        if (pf !== r.corte_nuevo || pm !== r.total_siguiente) {
+          pa = pactarProximoPago(db, creditoCon(despues, { acuerdo: null }),
+            { fecha: pf, monto: pm, motivo: pq.motivo, quien: o.quien || 'computador' }, f);
+          r.pacto = pa;
+          if (!pa.ok) return no('pacto_' + pa.motivo, pa.detalle);
+          finalC = pa.credito;
+          r.proximo = { fecha: pa.fecha, monto: pa.monto, capital: pa.capital - pa.perdona, costo: pa.costo,
+                        perdona: pa.perdona, pct: pa.pct, inhabiles: pa.inhabiles };
+        }
+      }
+      var socioR = lista(db && db.socios).filter(function (sx) { return sx && sx.id === p.socioId; })[0];
+      r.ganancia = gananciaDelCredito(finalC);
+      r.ganancia_cliente = gananciaDelCliente(db, socioR, finalC);
+
       r.ok = true;
       r.motivo = null;
       r.caminos = [];
@@ -3344,6 +3892,14 @@
         comprobante: { tipo: abono ? 'abonoProrroga' : 'prorroga', monto: x },
         cicloActual: r1.fecha_corte_nueva
       };
+      /* Con pacto, dos registros más que la pantalla guarda en el MISMO
+         guardar(): el plan de una cuota y, si perdona capital, su condonación.
+         El corte que queda es el que pactó Joan. */
+      if (pa) {
+        r.registros.planPagos = pa.registros.planPagos;
+        r.registros.condonacionPacto = pa.registros.condonacion;
+        r.registros.cicloActual = pa.registros.cicloActual;
+      }
       r.detalle = 'Entran ' + pesos(x) + ': ' +
         (r.mora ? pesos(r.mora_cobrada) + ' de mora' +
           (r.mora_condonada ? ' (' + pesos(r.mora_condonada) + ' perdonados' +
@@ -3354,7 +3910,10 @@
         (r.a_capital ? 'baja de ' + pesos(r.capital_antes) + ' a ' + pesos(r.capital_despues) + ' y ' : '') +
         'pasa a la quincena del ' + fechaTexto(r.corte_nuevo) + ': ese día, si paga en fecha, son ' +
         pesos(r.total_siguiente) + ' (' + pesos(r.capital_despues) + ' de capital + ' +
-        pesos(r.costo_siguiente) + ' de costo).';
+        pesos(r.costo_siguiente) + ' de costo).' +
+        (r.proximo ? ' Pero el próximo pago lo decidiste tú: ' + pesos(r.proximo.monto) + ' el ' +
+          fechaTexto(r.proximo.fecha) + (r.proximo.perdona ? ', perdonándole ' + pesos(r.proximo.perdona) +
+          ' de capital' : '') + '.' : '');
       return r;
     }
 
@@ -3466,15 +4025,26 @@
   function descuentosDelSocio(db, s) {
     var t = { veces: 0, monto: 0, costo: 0, mora: 0 };
     if (!s) return t;
+    /* 22-oct-2026 — el capital perdonado al pactar el próximo pago también es
+       un descuento a este cliente, y entra en el monto: «ya lleva un descuento
+       por $0» de un perdón de 10.000 es la ficha mintiendo. Va sin llave
+       propia para no cambiarle la forma a quien ya la lee. */
+    var capital = 0;
     lista(db && db.prestamos).forEach(function (p) {
       if (!p || p.socioId !== s.id) return;
       lista(p.condonaciones).forEach(function (c) {
+        /* 22-oct-2026 — el perdón de capital se cuenta desde su PACTO VIGENTE
+           (perdonesDeCapital, abajo), no desde la lista: una condonación cuyo
+           pacto perdió en un choque de la nube es un perdón que no ocurrió, y
+           contarla le decía a Joan «1 descuento por $25.000» de nada. */
+        if (c && num(c.capital) > 0 && !num(c.costo) && !num(c.mora)) return;
         t.veces++;
         t.costo += num(c && c.costo);
         t.mora += num(c && c.mora);
       });
+      perdonesDeCapital(p).forEach(function (x) { t.veces++; capital += x.capital; });
     });
-    t.monto = t.costo + t.mora;
+    t.monto = t.costo + t.mora + capital;
     return t;
   }
 
@@ -3732,6 +4302,17 @@
     /* Y su recibo, leído de lo guardado (3-oct-2026): el WhatsApp del
        computador y el del celular dicen las mismas cifras. */
     reciboAbonoConProrroga: reciboAbonoConProrroga,
+    /* El próximo pago que decide Joan y lo que le deja cada crédito y cada
+       cliente (22-oct-2026): una sola cuenta para el computador, el celular y
+       la app. */
+    pactarProximoPago: pactarProximoPago,
+    esPacto: esPacto,
+    pactoVigente: pactoVigente,
+    gananciaDelCredito: gananciaDelCredito,
+    gananciaDelCliente: gananciaDelCliente,
+    capitalPerdonadoDe: capitalPerdonadoDe,
+    /* 22-oct-2026 — los perdones de capital del plan vigente, uno por pacto. */
+    perdonesDeCapital: perdonesDeCapital,
     repartoDelDescuento: repartoDelDescuento,
     descuentosDelSocio: descuentosDelSocio,
     buscarSocio: buscarSocio,

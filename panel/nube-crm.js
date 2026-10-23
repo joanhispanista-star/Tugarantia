@@ -544,7 +544,17 @@
   function nadaQueSumar(mio, suyo) {
     var m = objeto(mio), s = objeto(suyo);
     var fu = N.fusionarFila(m, s, N.LISTAS_QUE_SUMAN);
-    var pisa = fu.pisables.some(function (pz) { return Object.prototype.hasOwnProperty.call(s, pz.campo); });
+    /* 22-oct-2026 — `pagoAcordado` no es un campo de la ficha: es el aviso de
+       nube.js de que el pago acordado de un lado no se junta con lo que no
+       conocía del otro (un abono, una prórroga, o el pacto mismo). Casi
+       siempre es algo de la nube que en `fila` no entra —por eso las listas
+       «cuadran» aunque falte—, así que pisa: sin esto, la entrada heredaba la
+       revisión de la nube y la subida se comía el abono del celular sin
+       choque. Cuando no lo es, enseñar la tarjeta cuesta menos que perder un
+       pacto. */
+    var pisa = fu.pisables.some(function (pz) {
+      return pz.campo === 'pagoAcordado' || Object.prototype.hasOwnProperty.call(s, pz.campo);
+    });
     if (pisa) return false;
     return Object.keys(fu.fila).every(function (k) {
       if (Array.isArray(fu.fila[k])) return fu.fila[k].length === lista(m[k]).length;

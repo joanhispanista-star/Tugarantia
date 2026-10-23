@@ -178,6 +178,9 @@ h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Tim
 .cifra.sm{font-size:22px;font-weight:700}
 .cifra.oro{color:var(--amarillo)}
 .oro-tinta{color:var(--amarillo-tinta)}
+/* 22-oct-2026 — la ganancia NEGATIVA de un crédito, en el rojo de la casa: es la
+   única cifra en rojo, por decisión de Joan (igual que .pierde en crm.html). */
+.pierde{color:var(--rojo-texto);font-weight:700}
 .sub{font-size:14px;color:var(--gris);margin:var(--e2) 0 0}
 .fila{display:flex;justify-content:space-between;align-items:baseline;gap:var(--e3);
   padding:var(--e3) 0;border-bottom:1px solid var(--linea)}
@@ -717,6 +720,20 @@ function creditoPorId(id) {
   return null;
 }
 function capitalActual(p) { return P.capitalActual(p); }
+/* 22-oct-2026 — EL PRÓXIMO PAGO QUE ACORDÓ JOAN en el computador
+   (P.pactarProximoPago) es, por dentro, un crédito a cuotas de una cuota: este
+   celular lo cobra con las mismas cuentas del puente que cualquier cuota, y acá
+   solo se le llama por su nombre. Un puente viejo en la caché no sabe de pactos. */
+function esPactoE(p) { return !!(P && typeof P.esPacto === 'function' && P.esPacto(p)); }
+/* Lo que le deja un crédito a Joan: la MISMA cuenta del computador
+   (P.gananciaDelCredito), con su % sobre lo prestado y en rojo si es negativa. */
+function filaGananciaE(p) {
+  if (!P || typeof P.gananciaDelCredito !== 'function') return '';
+  var g = P.gananciaDelCredito(p), v = Math.round(g.ganancia);
+  return '<div class="fila"><span class="k">' + (p.pagado ? 'Este crédito te dejó' : 'Este crédito te deja') + '</span>'
+    + '<span class="v ' + (v < 0 ? 'pierde' : 'oro-tinta') + '">' + (v < 0 ? '-' + COP(-v) : COP(v)) + ' · '
+    + String(g.pct).replace('.', ',') + '%</span></div>';
+}
 function liq(p, fecha) { return P.liquidarCiclo(p, fecha); }
 function totalCiclo(p) { return liq(p).total_a_pagar; }
 function diasMora(p) { return liq(p).dias_mora; }
@@ -736,6 +753,12 @@ function rotuloCuota(p, l, que) {
   var conAbonos = !!c && P.pagadoDeCuota(p, c).abonos > 0;
   var falta = conAbonos ? 'Lo que falta ' : '';
   var pct = Math.round(((l && l.tasa) || 0) * 100);
+  /* 22-oct-2026 — el pago que acordó Joan no es «la cuota 1 de 1». */
+  if (esPactoE(p)) {
+    if (que === 'capital') return conAbonos ? 'Lo que falta del capital' : 'Capital';
+    if (que === 'costo') return conAbonos ? 'Lo que falta del costo acordado' : 'Costo acordado (' + pct + '%)';
+    return conAbonos ? 'Lo que falta del pago acordado' : 'Total del pago acordado';
+  }
   if (que === 'capital') {
     return (conAbonos ? 'Lo que falta del capital de la cuota ' : 'Capital de la cuota ')
       + (c ? c.n : '') + ' de ' + cs.length;
@@ -905,18 +928,16 @@ function cuentasDelCobro(p, l, o) {
    contador guardado: un contador se desincroniza el día que Joan edita un pago
    y desde ahí miente para siempre (la misma razón escrita en puente.js:1213).
    Sirve para pintarlo en la pantalla de cobro con el cliente delante, que es lo
-   único que convierte un favor suelto en una política. */
+   único que convierte un favor suelto en una política.
+   22-oct-2026 — SE LO PREGUNTA AL PUENTE, como cuentasDelCobro. Esta copia
+   sumaba solo costo + mora, y desde que Joan pacta el próximo pago también
+   perdona capital: con un pago acordado de 10.000 perdonados, la hoja del
+   cobro decía «Ya lleva 1 descuento(s) por $0» mientras el CRM decía
+   $10.000. Era la copia número trece de una cuenta, separándose el primer día
+   que cambió la regla. El puente además cuenta solo los perdones de capital
+   del pacto que sigue vigente (P.perdonesDeCapital). */
 function descuentosDelSocio(s) {
-  var t = { veces: 0, monto: 0 };
-  if (!s) return t;
-  DB.prestamos.forEach(function (p) {
-    if (p.socioId !== s.id) return;
-    (p.condonaciones || []).forEach(function (c) {
-      t.veces++;
-      t.monto += (Number(c.costo) || 0) + (Number(c.mora) || 0);
-    });
-  });
-  return t;
+  return P.descuentosDelSocio(DB, s);
 }
 
 /* La Ley 2300 no cambia porque Joan esté en la calle: fuera de horario no se
@@ -1357,7 +1378,11 @@ function resolverChoque(indice, como) {
        17-oct-2026, segunda revisión — con UNA excepción, que dice nube.js: si
        los dos lados traen un plan de cuotas distinto, los pagos de las cuotas
        viajan con su plan y quedan solo los míos. La tarjeta del choque lo
-       avisa antes (avisoPagosDeCuotas). */
+       avisa antes (avisoPagosDeCuotas).
+       22-oct-2026 (revisión) — y otra: un pago acordado viaja entero con su
+       lado. Si es de la nube, «lo mío» se queda sin él; si es mío, lo que el
+       pacto no conocía de la nube (abonos sueltos, prórrogas) no entra. La
+       misma tarjeta lo dice con fechas y pesos. */
     var mio = c.mio || filaLocal(c.tabla, c.id);
     var fila = mio;
     try {
@@ -1555,7 +1580,10 @@ function abonarEnCalle(id, monto, fecha) {
     /* 16-oct-2026: al crédito a cuotas sí se le abona, pero a la CUOTA, con su
        propia cascada (recargo, costo, capital) —P.abonoACuota—, y esa hoja vive
        en el computador. Un abono suelto a capital acá se saltaría la cascada. */
-    alert(P.esPlanDeAlta(p)
+    alert(esPactoE(p)
+      ? 'Tiene un próximo pago acordado: el abono se anota desde el computador, que lo reparte entre '
+        + 'recargo, costo y capital y, si hace falta, lo vuelve a acordar. Desde el celular, cóbrale el pago completo.'
+      : P.esPlanDeAlta(p)
       ? 'Es un crédito a cuotas: el abono a una cuota se anota desde el computador, que lo reparte '
         + 'entre recargo, costo y capital. Desde el celular, cóbrale la cuota completa.'
       : 'Este crédito está en plan de pagos: el capital baja con cada cuota. '
@@ -1682,7 +1710,10 @@ function prorrogar(id, fecha) {
   var f = fecha || hoyISO();
   var r = liqProrroga(p, f);
   if (!r) {
-    alert(P.esPlanDeAlta(p)
+    alert(esPactoE(p)
+      ? 'Tiene un próximo pago acordado: no se prorroga. Cóbraselo completo; si trae solo una parte, el '
+        + 'abono y un nuevo acuerdo se anotan desde el computador.'
+      : P.esPlanDeAlta(p)
       ? 'Es un crédito a cuotas: no se prorroga. Cóbrale la cuota que sigue; si trae solo una parte, '
         + 'el abono a la cuota se anota desde el computador.'
       : P.tienePlan(p)
@@ -2663,7 +2694,7 @@ function vistaHoy() {
       +   '<span class="v">' + fmtFecha(P.corteDelCredito(p)) + ' <span class="muted">· ' + cuando + '</span></span></div>'
       + '<div class="fila"><span class="k">Prórroga</span><span class="v">'
       +   (ofrecida != null ? COP(ofrecida)
-          : (P.tienePlan(p) ? '<span class="muted">' + (P.esPlanDeAlta(p) ? 'a cuotas: no se prorroga' : 'en plan de pagos') + '</span>'
+          : (P.tienePlan(p) ? '<span class="muted">' + (esPactoE(p) ? 'pago acordado: no se prorroga' : P.esPlanDeAlta(p) ? 'a cuotas: no se prorroga' : 'en plan de pagos') + '</span>'
              : '<span class="muted">ya no le quedan</span>')) + '</span></div>'
       + (avisoDeTope(s, true) ? '<div class="mini">' + esc(avisoDeTope(s, true)) + '</div>' : '')
       + '<div class="tres">'
@@ -3134,7 +3165,7 @@ function tarjetaDeTanda(c, t, r) {
       + 'Se le escribe una sola vez: la Ley 2300 cuenta contactos por persona, no por crédito.</div>';
   }
   if (P.tienePlan(p)) {
-    h += '<div class="mini">' + (P.esPlanDeAlta(p) ? 'Es un crédito a cuotas' : 'Tiene plan de pagos')
+    h += '<div class="mini">' + (esPactoE(p) ? 'Tiene un pago acordado' : P.esPlanDeAlta(p) ? 'Es un crédito a cuotas' : 'Tiene plan de pagos')
       + ': el mensaje no le ofrece prórroga, porque no se le puede dar.</div>';
   }
   if (huecos.length) {
@@ -4164,6 +4195,8 @@ function vistaCredito() {
     + '</span></div>'
     + '<div class="fila"><span class="k">Vence</span><span class="v">' + fmtFecha(P.corteDelCredito(p)) + '</span></div>'
     + '<div class="fila"><span class="k">Saldo de capital del crédito</span><span class="v">' + COP(capitalActual(p)) + '</span></div>'
+    /* 22-oct-2026 — lo que te deja, la misma cuenta que en el computador. */
+    + filaGananciaE(p)
     + '</div>';
 
   /* EL SOBREPAGO, A LA VISTA DESPUÉS DE CERRAR LA HOJA DE COBRO.
@@ -4184,7 +4217,12 @@ function vistaCredito() {
     h += '<div class="aviso info">Este crédito ya está pagado (' + fmtFecha(p.fechaPagado) + '). '
       + 'No hay nada que cobrar ni que prorrogar.</div>';
   } else {
-    if (cuota && P.esPlanDeAlta(p)) {
+    if (cuota && esPactoE(p)) {
+      /* 22-oct-2026: el pago que acordó Joan, con su fecha y su valor. */
+      h += '<div class="aviso info">Tiene un <b>próximo pago acordado</b>: <b>' + COP(P.liquidarCiclo(p, cuota.fecha).total_a_pagar)
+        + '</b> el <b>' + fmtFecha(cuota.fecha) + '</b>. No se prorroga. El abono y volver a acordarlo '
+        + '(«✏️ Ajustar el próximo pago») se anotan desde el computador.</div>';
+    } else if (cuota && P.esPlanDeAlta(p)) {
       /* 16-oct-2026: lo que el celular no hace, dicho donde Joan lo buscaría. */
       h += '<div class="aviso info">Es un <b>crédito a cuotas</b>: va por la cuota <b>' + cuota.n
         + ' de ' + cuotas.length + '</b>. No se prorroga; se cobran las cuotas una por una. '
@@ -4222,7 +4260,7 @@ function vistaCredito() {
        cuota con abonos dice cuánto entró y cuánto falta: sin eso, la lista
        decía «$455.000» de una cuota a la que ya le faltaban 374.500. */
     var alta = P.esPlanDeAlta(p);
-    h += '<div class="tit-bloque"><h3 class="tit">' + (alta ? 'Cuotas' : 'Plan de pagos') + '</h3></div><div class="card ap">';
+    h += '<div class="tit-bloque"><h3 class="tit">' + (esPactoE(p) ? 'Pago acordado' : alta ? 'Cuotas' : 'Plan de pagos') + '</h3></div><div class="card ap">';
     cuotas.forEach(function (c) {
       var ya = c.pagado ? null : P.pagadoDeCuota(p, c);
       h += '<div class="linea-item"><span>Cuota ' + c.n + ' · ' + fmtFecha(c.fecha)
@@ -4535,16 +4573,45 @@ function avisoPagosDeCuotas(c) {
   var mio = c.mio || filaLocal(c.tabla, c.id);
   var r = null;
   try { r = (mio && c.suyo) ? NUBE.fusionarFila(mio, c.suyo) : null; } catch (e) { r = null; }
-  var x = ((r && r.pisables) || []).filter(function (p) {
+  var pis = (r && r.pisables) || [];
+  var x = pis.filter(function (p) {
     return p && p.campo === 'abonosCapital' && typeof p.mio === 'string';
   })[0];
-  if (!x) return '';
-  return '<div class="aviso ambar"><b>Los pagos de las cuotas no se juntan.</b> '
-    + 'Con <b>Mandar lo mío encima</b> quedan solo los de este celular (' + esc(valorCorto('abonosCapital', x.mio))
-    + ') y lo que trae la nube para esas cuotas (' + esc(valorCorto('abonosCapital', x.suyo)) + ') no entra. '
-    + 'Con <b>Dejar lo de la nube</b> es al revés: queda lo de la nube y lo de este celular no entra. '
-    + 'Si la plata del lado que no queda entró de verdad, se vuelve a anotar después como abono a la cuota, '
-    + 'desde el computador.</div>';
+  var h = '';
+  if (x) {
+    h += '<div class="aviso ambar"><b>Los pagos de las cuotas no se juntan.</b> '
+      + 'Con <b>Mandar lo mío encima</b> quedan solo los de este celular (' + esc(valorCorto('abonosCapital', x.mio))
+      + ') y lo que trae la nube para esas cuotas (' + esc(valorCorto('abonosCapital', x.suyo)) + ') no entra. '
+      + 'Con <b>Dejar lo de la nube</b> es al revés: queda lo de la nube y lo de este celular no entra. '
+      + 'Si la plata del lado que no queda entró de verdad, se vuelve a anotar después como abono a la cuota, '
+      + 'desde el computador.</div>';
+  }
+  /* 22-oct-2026 (revisión) — EL PAGO ACORDADO NO SE JUNTA CON LO QUE NO
+     CONOCÍA (NUBE.fusionarFila, pisable `pagoAcordado`). Antes esta tarjeta
+     reusaba el texto de las cuotas, y en el caso del celular sin el pacto
+     decía que «el pago acordado no entra» mientras el botón lo dejaba entrar
+     JUNTO con el abono del celular: 50.000 cobrados dos veces. Ahora cada
+     lado dice lo que trae —el pago acordado con su fecha y su monto, o «sin
+     pago acordado», y la plata que el pacto del otro no conocía— y los dos
+     botones hacen exactamente eso: «lo mío» deja lo de este celular entero y
+     «lo de la nube» deja la versión de la nube entera.
+     23-oct-2026 — un abono que los DOS lados tienen se queda con cualquiera
+     de los dos botones: NUBE.fusionarFila ya no lo cuenta como «ya abonó» (lo
+     dice aparte, «también los tiene el otro lado y se quedan con los dos»), y
+     la instrucción de volver a anotar habla solo de la plata que trae SOLO el
+     lado que no queda. Antes pedía anotar otra vez un abono que seguía ahí, y
+     el cliente quedaba debiendo esa plata de menos. */
+  var pa = pis.filter(function (p) { return p && p.campo === 'pagoAcordado'; })[0];
+  if (pa) {
+    h += '<div class="aviso ambar"><b>El pago acordado no se junta con lo que no conocía.</b> '
+      + 'Con <b>Mandar lo mío encima</b> queda lo de este celular (' + esc(valorCorto('pagoAcordado', pa.mio))
+      + ') y lo de la nube (' + esc(valorCorto('pagoAcordado', pa.suyo)) + ') no entra. '
+      + 'Con <b>Dejar lo de la nube</b> es al revés: queda lo de la nube y lo de este celular no entra. '
+      + 'Lo abonado que tienen los dos lados se queda con cualquiera de los dos botones. '
+      + 'Si la plata que solo trae el lado que no queda entró de verdad, se vuelve a anotar desde el computador, y el '
+      + 'pago se vuelve a acordar sobre lo que quede.</div>';
+  }
+  return h;
 }
 function nombreDeFila(tabla, f) {
   if (!f) return '';
@@ -4599,7 +4666,10 @@ var ETIQUETAS = {
   /* 3-oct-2026 (revisión) — la MISMA entrega anotada distinto en los dos
      aparatos (NUBE.fusionarFila): lo que entró por la prórroga y lo que fue a
      capital ese día, en pesos, para que Joan vea cuál de las dos es la buena. */
-  prorrogas: 'Prórroga de ese día (lo que entró)', abonosCapital: 'A capital ese día'
+  prorrogas: 'Prórroga de ese día (lo que entró)', abonosCapital: 'A capital ese día',
+  /* 22-oct-2026 (revisión) — el pago acordado de cada lado y la plata que el
+     pacto del otro no conocía (NUBE.fusionarFila). */
+  pagoAcordado: 'Pago acordado'
 };
 /* 17-oct-2026, revisión — `abonosCapital` llega como pisable de DOS formas: en
    pesos (lo que fue a capital el día de una prórroga, 3-oct) o en texto, cuando
@@ -4619,6 +4689,12 @@ function valorCorto(campo, v) {
      cuándo se pagó cada una. «objeto» no le dejaba saber cuál de los dos
      aparatos tenía el cobro bueno. */
   if (campo === 'planPagos') return resumenDelPlan(v);
+  /* 22-oct-2026 — «pago acordado $280000 el 2026-11-20: abono 2026-11-05
+     $50000», dicho como el resto del celular. */
+  if (campo === 'pagoAcordado' && typeof v === 'string') {
+    return v.replace(/\d{4}-\d{2}-\d{2}/g, function (f) { return fmtFecha(f); })
+            .replace(/\$(\d+)/g, function (x, n) { return COP(Number(n)); });
+  }
   /* El texto del choque de una cuota trae fechas ISO y pesos sin puntos
      («cierre 2026-10-30 $325000»): se dicen como en el resto del celular. */
   if (campo === 'abonosCapital' && typeof v === 'string') {
@@ -4759,7 +4835,11 @@ function calcCobro(id) {
      porque cobrarla hoy es pagar todo antes. */
   var cierre = (c && P.esPlanDeAlta(p)) ? P.cierreDeCuota(p, f) : null;
   h += avisoDelCierre(p, cierre);
-  if (c && P.esPlanDeAlta(p)) {
+  if (c && esPactoE(p)) {
+    /* 22-oct-2026 — el pago acordado, igual que una cuota: completo desde acá. */
+    h += '<div class="aviso info">Tiene un <b>próximo pago acordado</b>: desde el celular se cobra '
+      + 'completo. <b>El abono y volver a acordarlo se anotan desde el computador.</b></div>';
+  } else if (c && P.esPlanDeAlta(p)) {
     /* 16-oct-2026 — el crédito a cuotas sí admite abonos a la cuota y pagar
        todo antes (decisiones de Joan de ese día), pero esas dos hojas viven en
        el computador en esta entrega. Se dice dónde, en vez de dejar que Joan
@@ -5046,7 +5126,10 @@ function calcProrroga(id) {
   var r = liqProrroga(p, f);
   var caja = document.getElementById('prCalc');
   if (!r) {
-    caja.innerHTML = '<div class="aviso ambar">' + (P.esPlanDeAlta(p)
+    caja.innerHTML = '<div class="aviso ambar">' + (esPactoE(p)
+      ? 'Tiene un <b>próximo pago acordado</b>: no se prorroga. Si trae solo una parte, el abono y un nuevo '
+        + 'acuerdo se anotan desde el computador.'
+      : P.esPlanDeAlta(p)
       ? 'Es un <b>crédito a cuotas</b>: no se prorroga. Si trae solo una parte, el abono a la cuota se '
         + 'anota desde el computador.'
       : P.tienePlan(p)
@@ -5154,8 +5237,17 @@ function calcAbonoProrroga(id) {
         + '<div class="fila"><span class="k">Garantía que le deja</span><span class="v oro-tinta">' + COP(r.garantia) + '</span></div>'
         + '<div class="fila"><span class="k">Prórroga</span><span class="v">' + (r.prorrogas_usadas + 1) + ' de '
         +   r.prorrogas_permitidas + (quedan > 0 ? '' : ' · la última') + '</span></div>'
+        /* 22-oct-2026 — lo que te deja el crédito con este abono: la misma cuenta
+           del computador (r.ganancia, del puente), en rojo si es negativa. */
+        + (r.ganancia ? '<div class="fila"><span class="k">Este crédito te deja</span><span class="v '
+            + (r.ganancia.ganancia < 0 ? 'pierde' : 'oro-tinta') + '">' + (r.ganancia.ganancia < 0 ? '-' + COP(-r.ganancia.ganancia) : COP(r.ganancia.ganancia))
+            + ' · ' + String(r.ganancia.pct).replace('.', ',') + '%</span></div>' : '')
         + '</div>'
-        + '<div class="aviso info">' + esc(r.detalle) + ' El abono es capital: no deja garantía.</div>';
+        + '<div class="aviso info">' + esc(r.detalle) + ' El abono es capital: no deja garantía.</div>'
+        /* Otra fecha u otro monto para el próximo pago los decide Joan en el
+           computador («✏️ Ajustar el próximo pago»): se dice, en vez de que crea
+           que no existe. */
+        + '<div class="mini">¿Otra fecha u otro valor para el próximo pago? Regístralo así y después, en el computador, «✏️ Ajustar el próximo pago».</div>';
     } else {
       h += '<div class="card ap" style="margin-top:14px">'
         + '<div class="fila"><span class="k">Capital</span><span class="v">' + COP(r.capital_antes) + '</span></div>'

@@ -1692,7 +1692,7 @@ function vistaInicio() {
       '<div class="etq">Este corte tienes que pagar</div>' +
       '<div class="cifra">' + COP(aPagar) + '</div>' +
       (deCredito && deCuota
-        ? fila((cicloAct.en_plan ? 'Tu cuota ' + cicloAct.numero + ' de ' + cicloAct.cuotas +
+        ? fila((cicloAct.pacto ? 'Tu próximo pago acordado' : cicloAct.en_plan ? 'Tu cuota ' + cicloAct.numero + ' de ' + cicloAct.cuotas +
                                    (cicloAct.a_cuotas ? ' del crédito a cuotas' : ' del plan de pagos')
                                  : 'Tu crédito quincenal') +
                (atrasado && Number(qAct.recargo_mora) > 0 ? ', con el recargo' : ''), COP(deCredito)) +
@@ -1930,7 +1930,7 @@ function bloquePlanDePagos() {
    y la cuota que no se prorroga. */
 function bloqueCreditoACuotas() {
   var suyo = null;
-  ((S && S.creditos) || []).forEach(function (c) { if (!suyo && c && c.plan_origen === 'alta') suyo = c; });
+  ((S && S.creditos) || []).forEach(function (c) { if (!suyo && c && c.plan_origen === 'alta' && !c.pago_acordado) suyo = c; });
   if (!suyo) return '';
   return '<div class="card"><div class="etq">Crédito a cuotas</div>' +
     '<p style="margin:var(--e2) 0 0;font-size:14.5px">Se paga por partes: cada cuota tiene su fecha y su ' +
@@ -2111,9 +2111,26 @@ function cicloDelCredito(c) {
      hoy (`saldar_hoy`): la app no rehace ninguna de las tres cuentas. */
   var origen = (c && (c.plan_origen === 'alta' || c.plan_origen === 'rescate')) ? c.plan_origen : null;
   var aCuotas = enPlan && origen === 'alta';
+  /* 22-oct-2026 — EL PRÓXIMO PAGO QUE ACORDASTE CON TU GARANTÍA. Por dentro es
+     un crédito a cuotas de una sola cuota (así el puente le cobra la fecha y el
+     valor que puso Joan, sin correrlos por domingo ni festivo), pero la
+     cliente no pidió un crédito a cuotas: abonó y acordó cuándo y cuánto paga
+     lo demás. El puente lo marca (`pacto`, `pago_acordado`) y acá se le llama
+     por su nombre. La fecha y el valor vienen hechos; esta app no los
+     calcula. */
+  var pacto = (aCuotas && c && c.pacto && /^\d{4}-\d{2}-\d{2}/.test(String(c.pacto.fecha || '')) &&
+               isFinite(Number(c.pacto.monto)))
+    ? { fecha: String(c.pacto.fecha).slice(0, 10), monto: Math.max(0, Math.round(Number(c.pacto.monto))),
+        acordado: /^\d{4}-\d{2}-\d{2}/.test(String(c.pacto.acordado || '')) ? String(c.pacto.acordado).slice(0, 10) : null,
+        /* 23-oct-2026 — lo que se acordó ese día (un paquete de antes no lo
+           trae, y entonces se dice solo lo que paga). */
+        monto_acordado: (c.pacto.monto_acordado != null && isFinite(Number(c.pacto.monto_acordado)))
+          ? Math.max(0, Math.round(Number(c.pacto.monto_acordado))) : null }
+    : null;
   return {
     en_plan: enPlan,
     a_cuotas: aCuotas,
+    pacto: pacto,
     plan_origen: origen,
     plan: (c && Array.isArray(c.plan)) ? c.plan : [],
     saldo_plan: Math.max(0, Math.round(Number(c && c.saldo_plan) || 0)),
@@ -2146,8 +2163,9 @@ function cicloDelCredito(c) {
        y 5 no hay ambigüedad posible. */
     tasa: tasaDecimal((c && c.tasa != null) ? c.tasa
         : (enPlan ? M.TASA_PLAN_DE_PAGOS : M.TASA_CREDITO)),
-    etiqueta_capital: enPlan ? 'Capital de la cuota ' + n + ' de ' + total : 'Capital',
-    nombre: enPlan ? 'la cuota ' + n + ' de ' + total + (aCuotas ? ' de tu crédito a cuotas' : ' de tu plan de pagos')
+    etiqueta_capital: pacto ? 'Capital' : enPlan ? 'Capital de la cuota ' + n + ' de ' + total : 'Capital',
+    nombre: pacto ? 'tu próximo pago acordado'
+          : enPlan ? 'la cuota ' + n + ' de ' + total + (aCuotas ? ' de tu crédito a cuotas' : ' de tu plan de pagos')
                    : 'tu crédito quincenal'
   };
 }
@@ -2437,7 +2455,8 @@ function tarjetaActivo(c) {
   var rotCosto = abonado ? 'Lo que falta del costo' : 'Costo';
   var filaAbonado = abonado ? fila('Ya abonaste a esta cuota', COP(abonado)) : '';
   var h = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center">' +
-    '<div class="etq">' + (ciclo.a_cuotas ? 'Tu crédito a cuotas · cuota ' + ciclo.numero + ' de ' + ciclo.cuotas
+    '<div class="etq">' + (ciclo.pacto ? 'Tu próximo pago, acordado con nosotros'
+                         : ciclo.a_cuotas ? 'Tu crédito a cuotas · cuota ' + ciclo.numero + ' de ' + ciclo.cuotas
                          : ciclo.en_plan ? 'Tu plan de pagos · cuota ' + ciclo.numero + ' de ' + ciclo.cuotas
                                          : 'Tu crédito de ahora') + '</div>' +
     '<span class="pill ' + (enMora ? 'ambar' : '') + '">' +
@@ -2461,7 +2480,7 @@ function tarjetaActivo(c) {
          «Total para saldar» la cliente de 650.000 a dos cuotas leía 455.000 y
          creía que con eso terminaba. Vale para el rescate y para el crédito a
          cuotas por igual. */
-      '<div class="fila"><span class="k">' + (abonado ? 'Lo que falta de esta cuota hoy' : ciclo.en_plan ? 'Total de esta cuota hoy' : 'Total para saldar hoy') + '</span>' +
+      '<div class="fila"><span class="k">' + (ciclo.pacto ? (abonado ? 'Lo que falta del pago acordado, hoy' : 'Lo que pagas hoy, con el recargo') : abonado ? 'Lo que falta de esta cuota hoy' : ciclo.en_plan ? 'Total de esta cuota hoy' : 'Total para saldar hoy') + '</span>' +
         '<span class="v"><b>' + esc(COP(q.total_a_pagar)) + '</b></span></div>' +
       '<div class="aviso ambar"><b>Aunque te atrases, sigues siendo socio.</b><br>' +
       'No pierdes garantía y puedes volver a pedir. Paga lo que puedas ' +
@@ -2496,7 +2515,7 @@ function tarjetaActivo(c) {
         'que te falte' + (recargoSumaEn(c) ? '.' : ', y ese recargo no te suma garantía.') + '</div>';
   } else {
     h += '<div class="cifra sm">' + COP(q.total_a_pagar) + '</div>' +
-      '<div class="muted" style="font-size:13px">' + (abonado ? 'Lo que falta de esta cuota' : ciclo.en_plan ? 'Total de esta cuota' : 'Total para saldar') + '</div>' +
+      '<div class="muted" style="font-size:13px">' + (ciclo.pacto ? (abonado ? 'Lo que falta del pago acordado' : 'Lo que acordamos que pagas') : abonado ? 'Lo que falta de esta cuota' : ciclo.en_plan ? 'Total de esta cuota' : 'Total para saldar') + '</div>' +
       filaAbonado +
       fila(rotCapital, COP(q.capital)) +
       fila(rotCosto, COP(q.costo)) +
@@ -2539,7 +2558,9 @@ function tarjetaActivo(c) {
           : '. Si te atrasas sube ' + COP(q.garantia_si_tarde) + ', pero pagas además un recargo por ' +
             'cada día, y ese recargo no te suma garantía.</div>'));
   }
-  if (ciclo.a_cuotas) {
+  if (ciclo.pacto) {
+    h += bloquePagoAcordado(c, ciclo);
+  } else if (ciclo.a_cuotas) {
     h += bloqueACuotas(c, ciclo, q);
   } else if (ciclo.en_plan) {
     /* La cuota NO es la deuda: el saldo del crédito entero viene aparte en el
@@ -2558,6 +2579,35 @@ function tarjetaActivo(c) {
                : (ciclo.en_plan ? 'Es para esta cuota: te avisa' : 'Te avisa') +
                  ' dos días antes y el mismo día, aunque no tengas la app abierta.') + '</div>';
   return h + '</div>';
+}
+
+/* ============ EL PRÓXIMO PAGO QUE ACORDASTE ============
+   22-oct-2026. Joan puede decidir, con la cliente delante, qué día paga lo que
+   queda y cuánto le cobra ese día (por ejemplo: debía 750.000, abonó 500.000 y
+   acordaron 280.000 el 20-nov). La tarjeta de arriba ya dice el valor, el
+   capital, el costo y la fecha; esto dice de dónde salen —se acordaron— y qué
+   pasa si no llega a la fecha, sin hablar de un crédito a cuotas que ella no
+   pidió. Todo viene hecho del puente: acá no se calcula plata.
+   23-oct-2026 — dice el acuerdo VIGENTE. «Lo acordamos el» es el día del
+   último acuerdo (el puente lo manda así), y si después de ese día abonó,
+   primero va lo que se acordó y después lo que paga con lo abonado: con solo
+   «Pagas $180.000» debajo de «Lo acordamos el 2 nov», la cliente leía que ese
+   día acordó 180.000, y acordó 280.000. Comparar los dos números que manda el
+   puente no es una cuenta de plata: es elegir qué frase va. */
+function bloquePagoAcordado(c, ciclo) {
+  var pa = ciclo.pacto;
+  var dia = diaNoHabil(pa.fecha);
+  var conAbonos = pa.monto_acordado != null && pa.monto < pa.monto_acordado;
+  return '<div class="sep"></div>' +
+    (pa.acordado ? fila('Lo acordamos el', fmtFecha(pa.acordado)) : '') +
+    (conAbonos
+      ? fila('Lo que acordamos', COP(pa.monto_acordado) + ' el ' + fmtFecha(pa.fecha)) +
+        fila('Con lo que abonaste, pagas', COP(pa.monto) + ' el ' + fmtFecha(pa.fecha))
+      : fila('Pagas', COP(pa.monto) + ' el ' + fmtFecha(pa.fecha))) +
+    '<div class="muted" style="font-size:12.5px">Pagando el ' + esc(fmtFecha(pa.fecha)) + ' o antes no pagas ' +
+    'recargo; desde el día siguiente corre uno por cada día, solo sobre el capital que te falte.' +
+    (dia ? ' Esa fecha es ' + dia + ' y no se corre: si ese día no puedes, paga antes.' : '') + '</div>' +
+    '<div class="aviso info">' + fraseSalidas(c) + '</div>';
 }
 
 /* ============ EL CRÉDITO A CUOTAS, ENTERO Y EN PESOS ============
@@ -3244,6 +3294,7 @@ function salidasDelCredito(c) {
   return {
     en_plan: enPlan,
     a_cuotas: ciclo.a_cuotas,
+    pacto: !!ciclo.pacto,
     /* De un plan de pagos no se sale prorrogando (§8), y sin prórrogas libres
        tampoco: es el mismo ok:false que le contesta el motor al Panel. */
     prorroga: !enPlan && usadas < permitidas,
@@ -3257,6 +3308,14 @@ function salidasDelCredito(c) {
    costo nombrado, que es lo que el socio va a encontrarse el día del cobro. */
 function fraseSalidas(c) {
   var s = salidasDelCredito(c);
+  /* 22-oct-2026 — el pago acordado no se prorroga (por dentro es una cuota),
+     y lo que sí existe es el abono, que anota Joan cuando le entregas la
+     plata. No se le promete que se vuelve a mover: eso lo decide él. */
+  if (s.pacto) {
+    return 'Este pago lo acordamos contigo, con su fecha y su valor: no se prorroga. Si ese día no te ' +
+      'alcanza, escríbenos antes: puedes abonar lo que tengas (va primero al recargo, si lo hay, después al ' +
+      'costo y después al capital) y lo demás lo hablamos. ';
+  }
   /* 16-oct-2026 — el crédito a cuotas tampoco se prorroga, pero su salida no
      es «lo vemos»: Joan decidió que una cuota admite ABONOS (primero al
      recargo, después al costo, después al capital) y que lo que falta se queda
@@ -3795,9 +3854,10 @@ function vistaHistorial() {
         /* Un crédito en plan de pagos se veía igualito a uno normal, y no lo es:
            lo que se cobra es la cuota, no el capital. Se dice. */
         (Number(c.plan_cuotas || 0) > 0
-          ? (c.plan_origen === 'alta' ? ' · a cuotas, ' : ' · plan de pagos, ') +
+          ? (c.pago_acordado ? ' · con un pago acordado' + (Number(c.plan_cuotas_pagadas || 0) >= Number(c.plan_cuotas) ? ', pagado' : '')
+             : (c.plan_origen === 'alta' ? ' · a cuotas, ' : ' · plan de pagos, ') +
             Number(c.plan_cuotas_pagadas || 0) + ' de ' +
-            Number(c.plan_cuotas) + ' cuotas pagadas' : '') + '</div>' +
+            Number(c.plan_cuotas) + ' cuotas pagadas') : '') + '</div>' +
       '<div class="gan"><span class="muted">Garantía que te dejó</span>' +
         (c.garantia ? '<b>+' + COP(c.garantia) + '</b>' : '<span class="muted">al pagarlo</span>') + '</div>' +
       '</div>';

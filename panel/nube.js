@@ -127,7 +127,12 @@
                      desde el 2-sep-2026 también crm.html —pagarTotal,
                      registrarProrroga y cumplirAcuerdo— con `sobre:'prorroga'`
                      cuando el perdón fue al prorrogar; `sobre` queda FUERA de
-                     la identidad, como `motivo` y `quien`)
+                     la identidad, como `motivo` y `quien`; desde el 22-oct-2026
+                     también {id, capital, sobre:'pacto', para} cuando Joan
+                     perdona capital al pactar el próximo pago: ese perdón es
+                     del PACTO y no de la lista —se cuenta desde su plan, y no
+                     entra a una fila que no conserva su pacto, ver «EL PAGO
+                     ACORDADO VIAJA ENTERO CON SU LADO» en fusionarFila)
 
      14-ago-2026 — POR QUÉ LOS DESCUENTOS SON UNA LISTA Y NO UN CAMPO.
      Un descuento perdonado es un HECHO fechado, igual que una prórroga: pasó, y
@@ -257,7 +262,22 @@
        sus dos fotos tienen que sobrevivir; los comprobantes de antes no traen
        id y su identidad no cambia. */
     comprobantes: ['fecha', 'tipo', 'monto', 'id'],
-    condonaciones: ['fecha', 'costo', 'mora']
+    /* 22-oct-2026 — `capital` entra en la identidad. Desde que Joan pacta el
+       próximo pago puede perdonar CAPITAL (costo 0, mora 0, capital X), y dos
+       perdones de capital distintos del mismo día —pactó 240.000 en la mañana
+       y volvió a pactar más abajo en la tarde— tenían la misma identidad
+       [fecha, 0, 0]: la nube fundía los dos en uno y un aparato quedaba
+       debiendo capital que el otro ya había perdonado. Los perdones de antes
+       no traen `capital`, valen null, y su identidad no cambia de un lado al
+       otro.
+       22-oct-2026 (revisión) — y `id`. Con `capital` solo se separaban dos
+       perdones de montos DISTINTOS: 240.000 con motivo «uno» y en la tarde
+       230.000 con motivo «dos» son 10.000 y 10.000, la misma identidad, y
+       cualquier fusión dejaba uno (capital 240.000 con la cuota en 230.000, y
+       volver a pactar daba «no cuadra»). Cada pacto le pone su `id` a su
+       condonación (puente.pactarProximoPago). Los perdones de mora y costo no
+       traen id, valen null, y su identidad no cambia. */
+    condonaciones: ['fecha', 'costo', 'mora', 'capital', 'id']
   };
   var LISTAS_RESPALDADO = {
     comprobantes: ['fecha', 'tipo', 'monto']
@@ -1018,7 +1038,10 @@
    * entera hasta que el cliente reclama.
    *
    * Un campo que solo existe en la de la nube sí se copia: no hay nada mío que
-   * pisar, y no copiarlo sería perderlo.
+   * pisar, y no copiarlo sería perderlo. Con UNA excepción desde el
+   * 22-oct-2026: un `planPagos` con pago acordado viaja con su lado y no se
+   * copia a una fila que no lo trae (ver «EL PAGO ACORDADO VIAJA ENTERO CON
+   * SU LADO», dentro).
    *
    * @returns {{fila:object, pisables:Array<{campo,mio,suyo}>, hayChoque:boolean}}
    *   `fila` es "lo mío, con las listas completas": es lo que se manda si Joan
@@ -1068,7 +1091,9 @@
        del otro lado sería cobrar la plata dos veces. Dos abonos distintos de
        días o ciclos distintos siguen sumándose como siempre. Las condonaciones
        no se tocan: un perdón de un lado sobrevive a la fusión, como desde el
-       14-ago, y no mueve capital. */
+       14-ago, y no mueve capital. (22-oct-2026: con una excepción, la del pago
+       acordado, más abajo: el perdón de CAPITAL de un pacto sí mueve capital,
+       y viaja con su pacto.) */
     var idPr = mapa.prorrogas, idAb = mapa.abonosCapital;
     if (idPr && idAb) {
       lista(m.prorrogas).forEach(function (a) {
@@ -1186,17 +1211,237 @@
       }
     }
 
+    /* 22-oct-2026 (revisión) — EL PAGO ACORDADO VIAJA ENTERO CON SU LADO.
+       El pacto (puente.pactarProximoPago) es un plan de una cuota hecho sobre
+       lo que el crédito debía ESE día, con lo que ese aparato sabía: sus
+       abonos, sus prórrogas y su perdón de capital. La primera versión de esta
+       regla (ef3e74c, el mismo día) solo miraba los abonos sueltos y solo
+       cuando el pacto venía en el primer argumento, y la revisión de plata
+       encontró tres maneras de cobrar dos veces:
+         · el lado SIN pacto ganaba el choque y el pacto entraba igual, porque
+           el bucle de abajo copia sin preguntar un campo que solo está allá:
+           pacto + el abono del celular → 675.000 de capital por 625.000
+           prestados, con la tarjeta diciendo «el pago acordado no entra»;
+         · una prórroga del celular que el pacto no conocía se sumaba callada
+           al pacto: 125.000 + 780.000 por un período que Joan acordó en
+           155.000, y la tarjeta prometía el corte del 17-nov;
+         · el perdón de capital de un pacto que perdió seguía restando (eso
+           lo cierra el puente: capitalPerdonadoDe lee el plan vigente).
+       LA REGLA, ahora:
+         · lo que el lado del pacto NO conocía del otro —abonos sueltos,
+           prórrogas (con su perdón de mora) y perdones de capital— no se suma
+           nunca a una fila que conserva ese pacto: si el pacto es mío, en
+           `fila` quedan solo los que el pacto conocía;
+         · un planPagos con pacto NO se copia a una fila que no lo trae: si el
+           pacto es del otro lado, `fila` («lo mío») se queda sin él, sin su
+           perdón y sin los abonos de su cuota (viajan con su plan, regla del
+           16/17-oct);
+         · y en los dos casos sale UN pisable, `pagoAcordado`, que dice en
+           pesos y fechas lo que trae cada lado: el pago acordado, o «sin pago
+           acordado», y lo que el pacto del otro no conocía. Es lo que las
+           tarjetas de los dos aparatos le leen a Joan antes de elegir.
+       La única excepción es la de no tener NADA que decidir: un lado no tiene
+       plan, no anotó plata que el pacto no conociera y no hay ningún otro
+       campo en discusión. Ese lado simplemente va atrás: la fila con el pacto
+       es la del otro lado entera (sus campos son iguales y sus listas de plata
+       ya estaban allá), y hacer de eso un choque enseñaría a Joan a tocar
+       «lo mío» sin leer — que es justo cuando se pierde un pacto. */
+    var ppM = tiene(m, 'planPagos') ? m.planPagos : undefined;
+    var ppS = tiene(s, 'planPagos') ? s.planPagos : undefined;
+    var pactoM = conPacto(ppM), pactoS = conPacto(ppS);
+    /* Lo que el pacto de un lado no conocía del otro. */
+    var fueraDeS = pactoM ? fueraDelPacto(m, s, mapa) : fueraDelPacto(null);
+    var fueraDeM = pactoS ? fueraDelPacto(s, m, mapa) : fueraDelPacto(null);
+    var pactoDistinto = (pactoM || pactoS) && !igual(ppM, ppS);
+    /* El pacto de s no se copia en el bucle de abajo: se decide después,
+       cuando ya se sabe si hay algo más en discusión. */
+    var pactoSPendiente = pactoS && !tiene(m, 'planPagos');
+
     var claves = {};
     Object.keys(m).forEach(function (k) { claves[k] = true; });
     Object.keys(s).forEach(function (k) { claves[k] = true; });
     Object.keys(claves).forEach(function (k) {
       if (tiene(mapa, k)) return;                 // ya se fusionó arriba
       if (igual(m[k], s[k])) return;              // dicen lo mismo: no hay nada que decidir
+      if (k === 'planPagos' && pactoSPendiente) return;  // el pago acordado de allá: ver abajo
       if (!tiene(m, k)) { fila[k] = clonar(s[k]); return; }  // solo está allá: no pisa nada
       pisables.push({ campo: k, mio: clonar(m[k]), suyo: clonar(s[k]) });
     });
 
+    if (pactoDistinto || fueraDeS.total || fueraDeM.total) {
+      var soloUnPlan = !tiene(m, 'planPagos') || !tiene(s, 'planPagos');
+      /* «Nada en discusión» se mide con los campos que traen LOS DOS lados: un
+         campo que solo tiene el primero sale en `pisables` y uno que solo tiene
+         el segundo se copia, así que contarlos haría que «lo mío» y «lo de la
+         nube» decidieran distinto lo mismo —y la tarjeta, que se arma desde un
+         solo lado, mentiría sobre el otro botón—. */
+      var enDiscusion = pisables.some(function (x) { return x.mio !== undefined && x.suyo !== undefined; });
+      var nadaQueDecidir = soloUnPlan && !enDiscusion && !fueraDeS.total && !fueraDeM.total;
+      if (nadaQueDecidir) {
+        if (pactoSPendiente) fila.planPagos = clonar(ppS);
+      } else {
+        pisables.push({ campo: 'pagoAcordado', mio: ladoDelPacto(ppM, fueraDeM, m, s), suyo: ladoDelPacto(ppS, fueraDeS, s, m) });
+        if (pactoM) {
+          /* Mi pacto se queda: lo que no conocía del otro lado no entra. */
+          quitarDeFila(fila, 'abonosCapital', fueraDeS.abonos, mapa);
+          quitarDeFila(fila, 'prorrogas', fueraDeS.prorrogas, mapa);
+          quitarDeFila(fila, 'condonaciones', fueraDeS.perdones.concat(fueraDeS.acompanan), mapa);
+        } else if (pactoS) {
+          /* El pacto de allá no entra a «lo mío»: ni su plan (el bucle no lo
+             copió), ni su perdón de capital, ni los abonos de su cuota. */
+          var deAlla = fueraDelPacto(m, s, mapa);
+          quitarDeFila(fila, 'condonaciones', deAlla.perdones, mapa);
+          if (!pactoM && !tiene(m, 'planPagos')) quitarDeFila(fila, 'abonosCapital', deAlla.deCuota, mapa);
+        }
+      }
+    }
+
     return { fila: fila, pisables: pisables, hayChoque: pisables.length > 0 };
+  }
+
+  /* 22-oct-2026 (revisión) — LAS PIEZAS DE LA REGLA DEL PAGO ACORDADO, de
+     arriba. Un plan «con pacto» es el que armó puente.pactarProximoPago. */
+  function conPacto(pp) {
+    return !!pp && typeof pp === 'object' && !!pp.pacto && typeof pp.pacto === 'object';
+  }
+  /* Lo que `trae` tiene y `conoce` no, en las listas que mueven la plata de
+     un pacto: abonos sueltos a capital (sin cuota), abonos de cuota, prórrogas
+     (y los perdones de mora o costo de esas prórrogas: `sobre:'prorroga'` del
+     mismo día) y perdones de capital. `total` cuenta solo lo que es plata que
+     entró —abonos sueltos y prórrogas—: es lo que la tarjeta nombra.
+     Sin `conoce`, la respuesta vacía. */
+  function fueraDelPacto(conoce, trae, mapa) {
+    var r = { abonos: [], deCuota: [], prorrogas: [], perdones: [], acompanan: [], total: 0 };
+    if (!conoce) return r;
+    var mp = objeto(mapa);
+    var ya = function (l, campos) {
+      var k = {};
+      lista(l).forEach(function (x) { k[identidad(x, campos)] = true; });
+      return function (x) { return !!k[identidad(x, campos)]; };
+    };
+    var conoceAb = ya(conoce.abonosCapital, mp.abonosCapital);
+    var conocePr = ya(conoce.prorrogas, mp.prorrogas);
+    var conoceCo = ya(conoce.condonaciones, mp.condonaciones);
+    var esObj = function (x) { return !!x && typeof x === 'object' && !Array.isArray(x); };
+    lista(trae.abonosCapital).forEach(function (x) {
+      if (!esObj(x) || conoceAb(x)) return;
+      if (x.cuotaPlan == null || x.cuotaPlan === '') r.abonos.push(x); else r.deCuota.push(x);
+    });
+    r.prorrogas = lista(trae.prorrogas).filter(function (x) { return esObj(x) && !conocePr(x); });
+    var dias = {};
+    r.prorrogas.forEach(function (x) { dias[texto(x.fecha).slice(0, 10)] = true; });
+    lista(trae.condonaciones).forEach(function (x) {
+      if (!esObj(x) || conoceCo(x)) return;
+      if (num(x.capital) > 0) r.perdones.push(x);
+      else if (x.sobre === 'prorroga' && dias[texto(x.fecha).slice(0, 10)]) r.acompanan.push(x);
+    });
+    r.total = r.abonos.length + r.prorrogas.length;
+    return r;
+  }
+  /* Saca de una lista de `fila` los elementos de `quitar`, por su identidad. */
+  function quitarDeFila(fila, nombre, quitar, mapa) {
+    if (!Array.isArray(fila[nombre]) || !lista(quitar).length) return;
+    var campos = objeto(mapa)[nombre], fuera = {};
+    quitar.forEach(function (x) { fuera[identidad(x, campos)] = true; });
+    fila[nombre] = fila[nombre].filter(function (x) { return !fuera[identidad(x, campos)]; });
+  }
+  /* Un lado del choque del pago acordado, en una línea con fechas ISO y pesos
+     sin puntos (las pantallas los ponen como los lee Joan):
+       «pago acordado $280000 el 2026-11-20, perdonando $10000 de capital»
+       «sin pago acordado: abono 2026-11-05 $50000 · prórroga 2026-10-31 $125000»
+     Lo que va después de los dos puntos es lo que el pacto del otro lado no
+     conocía: con ese lado, entra; con el otro, no.
+
+     23-oct-2026 — EL MONTO ES EL DEL ACUERDO VIGENTE, NO EL TOTAL DE LA CUOTA.
+     Decía `cuota.total`, y al volver a acordar después de un abono la cuota
+     guarda su costo como «lo que ya pagó en abonos + lo que se cobra ese día»
+     y su capital sin restar lo abonado (puente.pactarProximoPago): Joan
+     acordaba 200.000 el 26-nov sobre una cuota a la que ya le habían entrado
+     100.000, y la tarjeta del choque —el texto que lee para elegir lado— decía
+     «pago acordado $300.000». El monto es el `a.total` del ÚLTIMO cambio con
+     pacto: el número que Joan escribió y que el puente confirmó al guardarlo.
+     Si después del acuerdo entraron abonos a esa cuota, se dice también lo
+     que ya entró y lo que falta («; ya abonó $100000 y faltan $180000»), que
+     es lo que el cliente paga ese día. `deLado` es la fila de ese mismo lado:
+     los abonos de la cuota viajan con su plan.
+     Cuánto entró ANTES del último acuerdo sale de la misma cuota: el puente la
+     guarda con total = lo pagado antes + lo acordado, así que
+     antes = cuota.total − a.total (exacto: el pacto no se guarda si la cuenta
+     de su fecha no da lo que Joan escribió). Y antes del acuerdo no pudo haber
+     recargo pagado: un pago vencido no se vuelve a acordar. La app del
+     cliente dice lo mismo con el puente (pactoVigente y liquidarCiclo); esta
+     cuenta vive acá porque nube.js no carga el puente, y
+     pacto-en-la-nube.test.js compara lo que falta con liquidarCiclo.
+
+     23-oct-2026 — «YA ABONÓ» ES SOLO LO DE ESTE LADO. Las pantallas meten
+     esta línea dentro de lo que «no entra» con el otro botón y piden volver a
+     anotar «esa plata». Pero un abono de la cuota que el OTRO lado también
+     tiene (el mismo, entero: jsonCanonico, la vara de la regla de los abonos
+     de cuotas de arriba) no se pierde con ninguno de los dos botones. El caso
+     de la revisión: abono A de 100.000 en los dos aparatos, el computador
+     vuelve a acordar 200.000 y el otro CRM anota B de 50.000; este lado decía
+     «ya abonó $150000 … no entra», Joan volvía a anotar los 150.000 y el
+     26-nov la cuenta pedía 50.000 en vez de 150.000. Ahora «ya abonó» dice lo
+     que entró después del acuerdo y SOLO tiene este lado, y lo compartido va
+     aparte, con lo que hace: «; ya abonó $50000 y faltan $130000 (los otros
+     $100000 abonados también los tiene el otro lado y se quedan con los
+     dos)», o sin nada propio, «; faltan $180000 (los $100000 abonados…)».
+     `faltan` no cambia: es lo que el cliente paga ese día con este lado.
+     Cuánto de lo que entró después del acuerdo es SOLO de este lado:
+     min(lo de después, lo que solo tiene este lado). Lo que tienen los dos es
+     de antes de que los aparatos dejaran de verse; si el acuerdo vigente de
+     este lado es anterior a eso, todo lo propio entró después del acuerdo, y
+     si es posterior, todo lo de después del acuerdo es propio. En los dos
+     casos el mínimo da justo. `otroLado` es la fila del otro aparato. */
+  function ladoDelPacto(pp, fuera, deLado, otroLado) {
+    var t;
+    if (conPacto(pp)) {
+      var cs = lista(pp.cuotas).filter(function (c) { return !!c && typeof c === 'object'; });
+      var c = cs.filter(function (x) { return !x.pagado; })[0] || cs[cs.length - 1];
+      var perdona = lista(pp.cambios).reduce(function (a, x) {
+        return a + (x && x.pacto ? Math.max(0, Math.round(num(x.perdona))) : 0);
+      }, 0);
+      var pactos = lista(pp.cambios).filter(function (x) { return !!x && typeof x === 'object' && !!x.pacto; });
+      var ult = pactos[pactos.length - 1];
+      var total = c ? Math.round(num(c.total)) : 0;
+      /* Sin el cambio del pacto (no lo hubo fuera de datos rotos), lo único
+         que hay es la cuota. */
+      var acordado = (ult && ult.a && ult.a.total != null && isFinite(Number(ult.a.total)))
+        ? Math.round(Number(ult.a.total)) : total;
+      var abonos = '';
+      if (c && !c.pagado) {
+        var enElOtro = {};
+        lista(otroLado && otroLado.abonosCapital).forEach(function (x) {
+          if (x && typeof x === 'object') enElOtro[jsonCanonico(x)] = true;
+        });
+        var aLaCuota = 0, entro = 0, soloAca = 0;
+        lista(deLado && deLado.abonosCapital).forEach(function (x) {
+          if (!x || typeof x !== 'object' || x.cuotaPlan == null || x.cuotaPlan === '' ||
+              texto(x.cuotaPlan) !== texto(c.n)) return;
+          var r = x.recibido != null ? num(x.recibido) : num(x.monto) + num(x.costoPagado) + num(x.moraPagada);
+          aLaCuota += num(x.monto) + num(x.costoPagado);
+          entro += r;
+          if (!enElOtro[jsonCanonico(x)]) soloAca += r;
+        });
+        var desde = Math.round(entro) - Math.max(0, total - acordado);
+        if (desde > 0) {
+          var propio = Math.min(desde, Math.round(soloAca)), compartido = desde - propio;
+          var falta = Math.max(0, total - Math.round(aLaCuota));
+          abonos = (propio > 0 ? '; ya abonó $' + propio + ' y faltan $' + falta : '; faltan $' + falta) +
+            (compartido > 0 ? ' (los ' + (propio > 0 ? 'otros ' : '') + '$' + compartido +
+              ' abonados también los tiene el otro lado y se quedan con los dos)' : '');
+        }
+      }
+      t = 'pago acordado' + (c ? ' $' + acordado + ' el ' + texto(c.fecha).slice(0, 10) +
+          (c.pagado ? ' (ya pagado)' : '') : '') +
+        (perdona ? ', perdonando $' + perdona + ' de capital' : '') + abonos;
+    } else {
+      t = 'sin pago acordado';
+    }
+    var f = fuera || { abonos: [], prorrogas: [] };
+    var cosas = f.abonos.map(function (x) { return 'abono ' + texto(x.fecha).slice(0, 10) + ' $' + Math.round(num(x.monto)); })
+      .concat(f.prorrogas.map(function (x) { return 'prórroga ' + texto(x.fecha).slice(0, 10) + ' $' + Math.round(num(x.monto)); }));
+    return cosas.length ? t + ': ' + cosas.join(' · ') : t;
   }
 
   /* =========================================================================
