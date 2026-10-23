@@ -715,6 +715,37 @@ details.plegado>summary{padding:0 var(--e4)}
   color:color-mix(in srgb, var(--blanco-laca) 55%, transparent);
   animation:hola-sube .6s ease 1s both}
 
+/* 23-oct-2026 — PANTALLAS BAJAS: QUE NO SE MONTE SOBRE SÍ MISMA. Con la G de
+   200 px en el centro exacto y lo de debajo colgando, por debajo de ~450 px de
+   alto (el teléfono acostado en la pestaña de Chrome, la pantalla dividida,
+   una ventana chica) la versión caía encima de «Tu Garantía» y el lema se
+   salía por abajo (auditoría del 23-oct, lente «marca»: a 568x320 la versión
+   tapaba la palabra). Aquí no hay arranque de Android con el que empatar —la
+   app instalada va fija en vertical—, así que el sello se achica a 120 px con
+   su anillo y su halo en la misma proporción, y el nombre y el lema dejan de
+   colgar: van en la columna, y el bloque entero queda centrado. La versión
+   NO se esconde (no es decoración, ver arriba): baja a 12 px del borde. Por
+   debajo de 300 px el lema se va (no es parte del logo) y el sello baja a
+   96 px. En vertical nada de esto aplica. Lo vigila
+   pruebas/bienvenida-pantalla-baja.test.js, con los números de esta hoja. */
+@media (max-height:500px){
+  #hola .sello{width:120px;height:120px}
+  #hola .halo{width:180px;height:180px;margin:-90px 0 0 -90px}
+  #hola .orbita{width:112px;height:112px;margin:-56px 0 0 -56px}
+  #hola .g-grande{width:82px;height:82px}
+  #hola .debajo{position:static;transform:none;padding-top:var(--e2)}
+  #hola .nombre{width:170px;height:26px}
+  #hola .lema{margin-top:var(--e2)}
+  #hola .version{bottom:calc(env(safe-area-inset-bottom) + 12px)}
+}
+@media (max-height:300px){
+  #hola .sello{width:96px;height:96px}
+  #hola .halo{width:150px;height:150px;margin:-75px 0 0 -75px}
+  #hola .orbita{width:90px;height:90px;margin:-45px 0 0 -45px}
+  #hola .g-grande{width:64px;height:64px}
+  #hola .lema{display:none}
+}
+
 /* Todas con el prefijo hola-: el sube sin prefijo ya existe arriba, para las
    pestañas, y dos reglas de animación con el mismo nombre no conviven (gana
    la última). */
