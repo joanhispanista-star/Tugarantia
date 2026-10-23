@@ -161,6 +161,28 @@ describe('en el registro: varias a la vez, al menos una, y a su nombre', () => {
   });
 });
 
+describe('lo que dicen la política y la ficha de Google', () => {
+  test('la política nombra las cuatro, con la misma finalidad, y dice que al menos una es obligatoria', () => {
+    const pol = fs.readFileSync(path.join(RAIZ, 'legal', 'privacidad.html'), 'utf8');
+    const fila = (pol.match(/<tr><td><b>Dónde recibes la plata[^\n]*<\/tr>/) || [''])[0];
+    assert.ok(fila, 'la política no tiene la fila de dónde recibes la plata');
+    ['Nequi', 'Daviplata', 'llave Bre-B', 'cuenta de banco (banco, tipo y número)'].forEach(x => assert.ok(fila.indexOf(x) >= 0, 'la política no nombra ' + x));
+    assert.match(fila, /<td>Enviarte el dinero y recibir tus pagos\.<\/td>/);
+    assert.match(fila, /<td class="ob">Sí, al menos una<\/td>/);
+    assert.equal(/Tu Nequi o llave de pago/.test(pol), false, 'quedó la fila vieja');
+  });
+
+  test('la ficha de Google declara el dato de pago (Información de pago del usuario)', () => {
+    const K = require('../app/cumplimiento.js');
+    const d = K.datosQueRecoge().find(x => x.id === 'datos_de_pago');
+    assert.ok(d, 'la ficha no declara los datos de pago que pide el registro');
+    assert.equal(d.categoria, 'Información financiera · Información de pago del usuario');
+    assert.equal(d.obligatorio, true);
+    assert.equal(d.compartido, false);
+    assert.match(fs.readFileSync(path.join(RAIZ, 'PLAY-FICHA.md'), 'utf8'), /### Información financiera · Información de pago del usuario/);
+  });
+});
+
 describe('al aceptar: lo que dio, en el orden en que se recomienda', () => {
   const DATOS = { nequi: '3001112233', llave_breb: '@MARIA123', banco: 'Bancolombia', banco_codigo: '1-7',
     banco_tipo: 'Ahorros', banco_numero: '123456789', cuentas_mias: 'si' };

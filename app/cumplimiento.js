@@ -129,6 +129,16 @@
          Android es la misma cadena para todos y no trae el modelo. Se dice qué
          sale de dónde, en qué tres momentos, y que nada de eso decide solo. */
       nota: 'La IP y lo que anuncia el navegador los lee el servidor de la propia conexión. El modelo del celular, la versión del sistema y si entraste por la app los informa el navegador de tu teléfono al registrarte, al pedir y al aceptar (en iPhone el modelo no se puede saber). Todo esto se puede falsificar, así que no se usa solo para decidir nada. La IP dice la ciudad aproximada de la red, no tu casa. Para saber esa ciudad, la herramienta del equipo (no el teléfono) consulta la IP en ipwho.is, un proveedor de servicio de geolocalización fuera de Colombia que solo recibe la IP; solo con quien aceptó la política del 8-oct-2026 o posterior.' },
+    /* 22-oct-2026 — dónde recibe la plata: el paso «¿Dónde te enviamos la
+       plata?» del registro y «¿A dónde te consignamos?» al aceptar
+       (app/cuentas-pago.js). Va aquí y no en CAMPOS porque no es una casilla
+       de un grupo: son cuatro formas y al menos una es obligatoria. La
+       política ya nombraba «Tu Nequi o llave de pago»; la ficha de Google no
+       declaraba ningún dato de pago, y desde hoy los pide el registro. */
+    { id: 'datos_de_pago', etiqueta: 'Dónde recibes la plata: Nequi, Daviplata, llave Bre-B o cuenta de banco (banco, tipo y número)',
+      categoria: 'Información financiera · Información de pago del usuario',
+      obligatorio: true, proposito: 'Enviarte el dinero de cada crédito, solo a cuentas a tu nombre.',
+      nota: 'Al menos una al registrarte; al aceptar cada crédito eliges a cuál se consigna. No se publica en el acompañamiento del registro ni viaja dentro de la sesión guardada en el teléfono.' },
     { id: 'historial_credito', etiqueta: 'Tus créditos y tus pagos',
       categoria: 'Información financiera · Historial de compras',
       obligatorio: true, proposito: 'Es tu historial: lo que pediste, lo que pagaste y cuándo.',
