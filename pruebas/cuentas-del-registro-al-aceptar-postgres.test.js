@@ -10,7 +10,7 @@
  * llegaba SIN `datos` (el corte del 7-oct, a propósito), y la pantalla, que
  * leía las cuentas de ahí, ofrecía solo «Escribe tu cuenta».
  *
- * Esta prueba recorre ese MISMO camino con base/20261022b_las_cuentas_del_registro.sql
+ * Esta prueba recorre ese MISMO camino con base/20261022c_las_cuentas_del_registro.sql
  * (corrido dos veces: idempotente) y mira lo que importa:
  *   · mi_solicitud SIGUE sin `datos` (el corte no se deshace);
  *   · mis_cuentas_de_pago le da a la dueña sus ocho llaves de pago, y nada más
@@ -37,7 +37,7 @@ const CP = require('../app/cuentas-pago.js');
 
 const BIN = process.env.TG_PG_BIN || '';
 const RAIZ = path.join(__dirname, '..');
-const NOMBRE = '20261022b_las_cuentas_del_registro.sql';
+const NOMBRE = '20261022c_las_cuentas_del_registro.sql';
 const SQL = fs.readFileSync(path.join(RAIZ, 'base', NOMBRE), 'utf8');
 const exe = n => path.join(BIN, process.platform === 'win32' ? n + '.exe' : n);
 const STUB = fs.readFileSync(path.join(__dirname, 'una-puerta-postgres.test.js'), 'utf8')
@@ -144,7 +144,7 @@ describe('las cuentas del registro, en un PostgreSQL de verdad', { skip: !BIN &&
     archivo(path.join(RAIZ, 'base', '20261007_una_puerta.sql'), true);
     archivo(path.join(RAIZ, 'base', '20261007c_una_puerta_cierres.sql'), true);
     archivo(path.join(RAIZ, 'base', '20261008_condiciones_aceptadas.sql'), true);
-    archivo(path.join(RAIZ, 'base', '20261022_destino_del_desembolso.sql'), true);
+    archivo(path.join(RAIZ, 'base', '20261022b_destino_del_desembolso.sql'), true);
     /* Dos veces: idempotente. */
     archivo(path.join(RAIZ, 'base', NOMBRE), true);
     archivo(path.join(RAIZ, 'base', NOMBRE), true);

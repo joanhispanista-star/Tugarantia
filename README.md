@@ -205,6 +205,17 @@ base/
                                   por gerente_proponer ni por la de PlataChat
                                   (contrapropuesta_gerente, que además respeta
                                   topes_equipo). Va después de 20261015_el_gerente_vende.sql.
+  LOS CUATRO DEL 22-OCT, EN ESTE ORDEN (23-oct-2026: el orden alfabético de
+                                  base/ ES el orden en que se corren; tres se
+                                  renombraron al juntar el lote del 27-oct
+                                  porque chocaban de nombre). Cada uno se puede
+                                  correr dos veces y termina en una tabla toda
+                                  en true. b y c, ANTES de publicar la web; d,
+                                  el último, cuando tengas a mano las claves
+                                  del equipo (deja a todos afuera hasta que se
+                                  las pongas). Probados juntos, en ese orden y
+                                  dos veces cada uno, en
+                                  pruebas/el-lote-del-27-junto.test.js.
   20261022_la_foto_que_no_entra_se_dice.sql  La foto que la base no guarda
                                   (no es imagen, o pasa de 600.000) vuelve en
                                   `rechazadas` y queda en la huella; y la huella
@@ -212,21 +223,7 @@ base/
                                   motivo (selfie_omitida). Va después de
                                   20261020_la_cedula_de_la_cuenta.sql; en cualquier
                                   orden con la app.
-  20261022b_el_equipo_con_la_clave_de_joan.sql  Lo del equipo solo se abre con la
-                                  clave que Joan pone (equipo_poner_clave), puesta
-                                  después de crear la cuenta: una cuenta nacida de
-                                  un registro de cliente con el celular de alguien
-                                  del equipo ya no entra a su puesto. Al correrla,
-                                  NADIE del equipo entra hasta que Joan le pone la
-                                  clave: la tabla del final dice a quién. Va
-                                  después de 20261015c_clave_del_equipo.sql.
-                                  El asesor que crea un gerente tampoco entra
-                                  hasta esa clave: el Panel del gerente ya no le
-                                  pide contraseña ni dice «ya puede entrar»; le
-                                  arma el aviso a Joan, que se la pone con
-                                  «↻ Traer del equipo» y «🔑 Crear cuenta»
-                                  (pruebas/el-asesor-del-gerente-espera-la-clave).
-  20261022_destino_del_desembolso.sql  A dónde se consigna: la columna
+  20261022b_destino_del_desembolso.sql  A dónde se consigna: la columna
                                   solicitudes.destino_desembolso y
                                   aceptar_con_destino (acepta con
                                   aceptar_condiciones, sin tocarla, y guarda la
@@ -234,7 +231,8 @@ base/
                                   20261008_condiciones_aceptadas.sql y ANTES de
                                   publicar la web. Termina con su tabla true/false.
                                   Pruebas: pruebas/destino-del-desembolso-postgres.test.js.
-  20261022b_las_cuentas_del_registro.sql  mis_cuentas_de_pago(p_id): las
+                                  (Se llamaba 20261022_destino_del_desembolso.sql.)
+  20261022c_las_cuentas_del_registro.sql  mis_cuentas_de_pago(p_id): las
                                   cuentas que la clienta dio al registrarse,
                                   para ofrecérselas al aceptar. mi_solicitud
                                   sigue SIN `datos` (el corte del 7-oct): esta
@@ -246,6 +244,23 @@ base/
                                   tu cuenta». ANTES de publicar la web. Termina
                                   con su tabla true/false. Pruebas:
                                   pruebas/cuentas-del-registro-al-aceptar-postgres.test.js.
+                                  (Se llamaba 20261022b_las_cuentas_del_registro.sql.)
+  20261022d_el_equipo_con_la_clave_de_joan.sql  Lo del equipo solo se abre con la
+                                  clave que Joan pone (equipo_poner_clave), puesta
+                                  después de crear la cuenta: una cuenta nacida de
+                                  un registro de cliente con el celular de alguien
+                                  del equipo ya no entra a su puesto. Al correrla,
+                                  NADIE del equipo entra hasta que Joan le pone la
+                                  clave: la tabla del final dice a quién. Va
+                                  después de 20261015c_clave_del_equipo.sql, y el
+                                  ÚLTIMO de los del 22-oct.
+                                  El asesor que crea un gerente tampoco entra
+                                  hasta esa clave: el Panel del gerente ya no le
+                                  pide contraseña ni dice «ya puede entrar»; le
+                                  arma el aviso a Joan, que se la pone con
+                                  «↻ Traer del equipo» y «🔑 Crear cuenta»
+                                  (pruebas/el-asesor-del-gerente-espera-la-clave).
+                                  (Se llamaba 20261022b_el_equipo_con_la_clave_de_joan.sql.)
 
 play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         cuotas, bajo el techo de usura. El quincenal NO está acá.

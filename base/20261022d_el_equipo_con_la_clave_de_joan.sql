@@ -11,6 +11,16 @@
 -- línea exacta que tienes que correr (con una contraseña que tú eliges).
 -- Después: Settings → API → «Reload schema».
 --
+-- 23-oct-2026 — SE LLAMABA 20261022b_el_equipo_con_la_clave_de_joan.sql y
+-- chocaba de nombre con el de las cuentas del registro. Ahora es la «d»: el
+-- ÚLTIMO de los cuatro del 22-oct (20261022_la_foto…, 20261022b_destino…,
+-- 20261022c_las_cuentas… y este). Va al final a propósito: es el único que
+-- deja a alguien afuera, y conviene correrlo cuando ya tengas a mano las
+-- claves que vas a poner. Ningún archivo posterior puede decidir el puesto
+-- con celular_de_sesion() (lo vigila
+-- pruebas/el-equipo-con-la-clave-de-joan-postgres.test.js). Nada de adentro
+-- cambió.
+--
 -- OJO, ESTO CAMBIA ALGO QUE HOY FUNCIONA: desde que corras este archivo,
 -- nadie del equipo entra al Panel hasta que le pongas la clave con
 -- equipo_poner_clave (la tabla del final dice a quién). Es a propósito: es la

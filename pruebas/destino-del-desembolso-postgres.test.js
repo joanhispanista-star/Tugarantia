@@ -3,7 +3,7 @@
  *
  *   TG_PG_BIN="C:\Program Files\PostgreSQL\17\bin" node --test pruebas/destino-del-desembolso-postgres.test.js
  *
- * base/20261022_destino_del_desembolso.sql trae aceptar_con_destino: la
+ * base/20261022b_destino_del_desembolso.sql trae aceptar_con_destino: la
  * aceptación de siempre y la cuenta elegida, en una sola transacción. Esta
  * prueba monta un PostgreSQL con las migraciones de base/ (el andamio de
  * pruebas/condiciones-aceptadas-postgres.test.js), corre el archivo nuevo DOS
@@ -32,7 +32,7 @@ const CP = require('../app/cuentas-pago.js');
 
 const BIN = process.env.TG_PG_BIN || '';
 const RAIZ = path.join(__dirname, '..');
-const NOMBRE = '20261022_destino_del_desembolso.sql';
+const NOMBRE = '20261022b_destino_del_desembolso.sql';
 const SQL = fs.readFileSync(path.join(RAIZ, 'base', NOMBRE), 'utf8');
 const exe = n => path.join(BIN, process.platform === 'win32' ? n + '.exe' : n);
 const STUB = fs.readFileSync(path.join(__dirname, 'una-puerta-postgres.test.js'), 'utf8')

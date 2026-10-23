@@ -11,6 +11,14 @@
 -- Al final sale UNA TABLA con una fila por comprobación y una columna «ok»:
 -- todas tienen que decir true. Después: Settings → API → «Reload schema».
 --
+-- 23-oct-2026 — de los cuatro archivos del 22-oct, este va PRIMERO, y su
+-- nombre no cambió (lo nombran los comentarios que este archivo le mete a la
+-- función). Los otros tres se renombraron al juntar las ramas del lote del
+-- 27-oct para que el orden alfabético de base/ sea el orden en que se
+-- corren: 20261022b_destino_del_desembolso.sql,
+-- 20261022c_las_cuentas_del_registro.sql y, el último,
+-- 20261022d_el_equipo_con_la_clave_de_joan.sql.
+--
 -- ---------------------------------------------------------------------------
 -- POR QUÉ
 --

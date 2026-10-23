@@ -3,7 +3,7 @@
  *
  *   node --test pruebas/el-asesor-del-gerente-espera-la-clave.test.js
  *
- * Desde base/20261022b_el_equipo_con_la_clave_de_joan.sql lo del equipo solo
+ * Desde base/20261022d_el_equipo_con_la_clave_de_joan.sql lo del equipo solo
  * se abre con la clave que Joan pone desde Supabase (equipo_poner_clave)
  * DESPUÉS de que nació la cuenta. El «Crear cuenta» de Joan ya lo decía; el
  * «＋ Crear asesor» del gerente no: le mostraba «X ya puede entrar» y le armaba

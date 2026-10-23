@@ -10222,7 +10222,7 @@ function verDatosRegistro(id){
   const r=_registros.find(x=>String(x.id)===String(id)); if(!r||!r.datos)return;
   /* 22-oct-2026 — sin el sello del registro (cuentas_sello): son 32 letras al
      azar que solo sirven para que la app sepa que la fila es de esa cuenta
-     (base/20261022b_las_cuentas_del_registro.sql). A Joan no le dice nada. */
+     (base/20261022c_las_cuentas_del_registro.sql). A Joan no le dice nada. */
   const filas=Object.entries(r.datos).filter(([k,v])=>v!==''&&v!=null&&k!=='cuentas_sello')
     .map(([k,v])=>`<div class="info-row"><span class="k">${escHTML(ETIQUETAS_VINCULACION[k]||k.replace(/_/g,' '))}</span><span class="vv">${escHTML(String(v))}</span></div>`).join('');
   openModal('Lo que declaró '+(r.nombre||'esta persona'),
@@ -11314,7 +11314,7 @@ function lineaClaveEquipo(celular, clave) {
   return 'select public.equipo_poner_clave(' + lit(celular) + ', ' + lit(clave) + ');';
 }
 /* 22-oct-2026 — `que`: 'creada' cuando la cuenta se acaba de crear desde aquí
-   («Crear cuenta»). Desde base/20261022b_el_equipo_con_la_clave_de_joan.sql
+   («Crear cuenta»). Desde base/20261022d_el_equipo_con_la_clave_de_joan.sql
    lo del equipo solo se abre con la clave que Joan pone desde Supabase
    (equipo_poner_clave): una cuenta recién creada todavía no ve nada, y decir
    «quedó lista» sería mentir. El paso es el mismo de «ya existe»: la línea. */
@@ -11357,7 +11357,7 @@ function pantallaCuentaExiste(p, clave, que) {
     <button class="btn btn-ghost" onclick="cambiarClave('${escHTML(String(p.id))}')">Cambiar la contraseña aquí</button>`}`);
 }
 /* 22-oct-2026 — ¿A LA CUENTA DE ESTA SESIÓN LE FALTA LA CLAVE DE JOAN?
-   (base/20261022b_el_equipo_con_la_clave_de_joan.sql, equipo_cuenta_sin_clave).
+   (base/20261022d_el_equipo_con_la_clave_de_joan.sql, equipo_cuenta_sin_clave).
    Que Supabase acepte la contraseña ya no prueba que la persona entre al
    equipo: la cuenta recién creada desde aquí tiene esa misma contraseña sin
    que nadie haya pegado la línea. true solo si la base lo dice; si no se pudo
@@ -11580,7 +11580,7 @@ function entrarEquipo() {
       if (j.code === 'PGRST202') throw { falta: 'migracion' };
       if (!res.ok) throw { falta: 'nube', detalle: j.message || j.msg || j.error || '' };
       /* 22-oct-2026 — sin puesto puede ser que a ESTA cuenta le falte la clave
-         de Joan (base/20261022b_el_equipo_con_la_clave_de_joan.sql): se
+         de Joan (base/20261022d_el_equipo_con_la_clave_de_joan.sql): se
          pregunta, para no mandarlo a esperar un rol que ya tiene. */
       if (j.ok !== true) return tokenDeEquipo().then(t => faltaLaClaveDeJoan(t), () => false).then(falta => { throw { falta: falta ? 'clave' : 'puesto' }; });
       CARTERA_EQUIPO = res.j;
@@ -13965,7 +13965,7 @@ function verBaseDe(asesor, filtro) {
  * una cuenta huérfana en la nube por cada intento fallido.
  *
  * 23-oct-2026 — Y CON ESO TODAVÍA NO ENTRA. Desde
- * base/20261022b_el_equipo_con_la_clave_de_joan.sql lo del equipo solo se abre
+ * base/20261022d_el_equipo_con_la_clave_de_joan.sql lo del equipo solo se abre
  * con la clave que Joan pone desde Supabase (equipo_poner_clave) DESPUÉS de
  * que nació la cuenta, y una cuenta recién creada aquí no la tiene. Esta
  * pantalla seguía diciendo «ya puede entrar» y armaba el WhatsApp con la
@@ -14043,7 +14043,7 @@ function confirmarCrearAsesorEq() {
 
 /* 23-oct-2026 — LO QUE VE EL GERENTE DESPUÉS DE CREAR UN ASESOR. Antes era
    «X ya puede entrar» con su contraseña y un WhatsApp para mandársela, y con
-   la clave de Joan (base/20261022b) las dos cosas eran falsas (ver EL GERENTE
+   la clave de Joan (base/20261022d) las dos cosas eran falsas (ver EL GERENTE
    CREA UN ASESOR). Ahora: el puesto quedó, todavía no entra, y el aviso para
    Joan con lo que tiene que tocar en su CRM. Sin contraseña y sin SQL en el
    mensaje, a propósito: la línea de equipo_poner_clave la arma el CRM de Joan
@@ -17629,7 +17629,7 @@ function descartarSolicitud(id){
  *
  * Joan: «al momento de que el cliente acepte la contrapropuesta, que se le
  * pregunte nuevamente a qué cuenta desea que le consignen». Desde hoy la
- * cuenta viaja con la aceptación (aceptar_con_destino, base/20261022) en
+ * cuenta viaja con la aceptación (aceptar_con_destino, base/20261022b) en
  * solicitudes.destino_desembolso, y llega a la bandeja de siempre
  * (listar_solicitudes_abiertas devuelve la fila entera).
  *

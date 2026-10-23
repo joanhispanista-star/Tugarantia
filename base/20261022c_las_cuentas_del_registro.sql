@@ -2,11 +2,19 @@
 -- LAS CUENTAS DEL REGISTRO, AL ACEPTAR — 22 de octubre de 2026
 --
 -- PARA JOAN: Supabase → SQL Editor → New query → pegar TODO este archivo →
--- Run. Se puede correr dos veces. Puede ir antes o después de
--- base/20261022_destino_del_desembolso.sql (no se necesitan entre sí), pero
--- los dos van ANTES de publicar la web. Al final sale una tabla: todos los
+-- Run. Se puede correr dos veces. Va después de
+-- base/20261022b_destino_del_desembolso.sql y ANTES de publicar la web (los
+-- dos). Al final sale una tabla: todos los
 -- renglones tienen que decir ok = true. Después: Settings → API → «Reload
 -- schema». Mándale a Claude la tabla.
+--
+-- 23-oct-2026 — SE LLAMABA 20261022b_las_cuentas_del_registro.sql, igual
+-- que el del equipo. Al juntar las ramas del lote del 27-oct se renombraron
+-- los cuatro del 22-oct para que el orden alfabético de base/ sea el orden en
+-- que se corren: 20261022_la_foto…, 20261022b_destino…, ESTE (c) y, el
+-- último, 20261022d_el_equipo_con_la_clave_de_joan.sql. No se necesita con
+-- el de destino (cada uno sirve solo), pero así no hay que pensarlo. Nada de
+-- adentro cambió.
 --
 -- Si la web sale antes que este archivo, no se rompe nada: al aceptar, la
 -- pregunta «¿A dónde te consignamos?» sale con «Escribe tu cuenta» (sin las

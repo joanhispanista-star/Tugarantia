@@ -13,7 +13,7 @@
  * lo veía porque le ponía `datos` a mano a la solicitud, una forma que la base
  * nunca devuelve. AQUÍ LA SOLICITUD VA COMO LA MANDA LA BASE, SIN `datos`, y
  * las cuentas llegan por mis_cuentas_de_pago (con el sello del registro:
- * base/20261022b_las_cuentas_del_registro.sql, y su prueba en PostgreSQL,
+ * base/20261022c_las_cuentas_del_registro.sql, y su prueba en PostgreSQL,
  * pruebas/cuentas-del-registro-al-aceptar-postgres.test.js).
  *
  * El banco tocado sin querer en el registro tiene su prueba aparte:

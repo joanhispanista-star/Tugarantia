@@ -8,7 +8,7 @@
  * crea cualquiera que se registre en play/ con el celular de alguien del
  * equipo que todavía no tiene cuenta (o a quien se la borraron). Con eso veía
  * la cartera, los registros y las fotos de cédula de terceros, y creaba
- * asesores. base/20261022b_el_equipo_con_la_clave_de_joan.sql lo cierra: lo
+ * asesores. base/20261022d_el_equipo_con_la_clave_de_joan.sql lo cierra: lo
  * del equipo se abre solo con la clave que Joan pone desde el editor SQL
  * (equipo_poner_clave, que deja su rastro en claves_equipo), puesta DESPUÉS de
  * crear la cuenta, y con una sesión de después de esa clave.
@@ -31,7 +31,7 @@ const RAIZ = path.join(__dirname, '..');
 const exe = n => path.join(BIN, process.platform === 'win32' ? n + '.exe' : n);
 const STUB = fs.readFileSync(path.join(__dirname, 'una-puerta-postgres.test.js'), 'utf8')
   .match(/const STUB = `([\s\S]*?)`;/)[1];
-const NOMBRE = '20261022b_el_equipo_con_la_clave_de_joan.sql';
+const NOMBRE = '20261022d_el_equipo_con_la_clave_de_joan.sql';
 const SQL = fs.readFileSync(path.join(RAIZ, 'base', NOMBRE), 'utf8');
 const GER = '3172862539', ASE = '3001230001', TERCERA = '3159990001', CLIENTE = '3009991111';
 const CLAVE = 'clave-de-prueba-larga-123';

@@ -7,6 +7,13 @@
 -- sale una tabla: todos los renglones tienen que decir ok = true. Después:
 -- Settings → API → «Reload schema». Mándale a Claude la tabla.
 --
+-- 23-oct-2026 — SE LLAMABA 20261022_destino_del_desembolso.sql. Cambió de
+-- nombre al juntar las ramas del lote del 27-oct: cuatro archivos del 22-oct
+-- chocaban de dos en dos (20261022_ y 20261022b_), y el orden alfabético de
+-- base/ tiene que ser el orden en que se corren. Son: 20261022_la_foto…,
+-- ESTE (b), 20261022c_las_cuentas_del_registro.sql y, el último,
+-- 20261022d_el_equipo_con_la_clave_de_joan.sql. Nada de adentro cambió.
+--
 -- ORDEN DE PUBLICACIÓN: PRIMERO ESTE ARCHIVO, DESPUÉS LA WEB. Si la web nueva
 -- sale antes, la app no encuentra aceptar_con_destino (404), acepta como
 -- siempre con aceptar_condiciones y le dice al cliente que le preguntamos por

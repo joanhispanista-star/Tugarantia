@@ -5238,7 +5238,7 @@ function destinoDe(sol) {
    sol.datos, y ese campo la base no se lo manda al teléfono desde el 7-oct
    (mi_solicitud le quita `datos`, a propósito: puede ser el registro de otra
    persona). La lista salía siempre vacía y el registro prometía lo contrario.
-   Ahora las pide mis_cuentas_de_pago (base/20261022b_las_cuentas_del_registro.sql),
+   Ahora las pide mis_cuentas_de_pago (base/20261022c_las_cuentas_del_registro.sql),
    que solo las da si el sello del registro casa con esta cuenta (ver
    LLAVE_SELLO en app/cuentas-pago.js). Una vez por solicitud y por sesión: si
    falla (404 sin el archivo, la red, la sesión vencida) queda «Escribe tu
@@ -5389,7 +5389,7 @@ function aceptarContrapropuesta(id) {
   var ses = SESION;
   /* 22-oct-2026 — CON LA CUENTA, por aceptar_con_destino: la aceptación y la
      cuenta en una sola transacción. Si la base todavía no la tiene (404: el
-     archivo base/20261022_destino_del_desembolso.sql sin correr), se acepta
+     archivo base/20261022b_destino_del_desembolso.sql sin correr), se acepta
      como siempre y se dice que la cuenta se pregunta por el chat: mejor eso
      que trabar una aceptación que la base sí sabe guardar. */
   var sinDestinoGuardado = false;

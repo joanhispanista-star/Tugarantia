@@ -225,7 +225,7 @@ function nubeViva(inicial, extra) {
     }
     /* 8-oct-2026 — aceptar_condiciones (base/20261008) acepta igual que
        aceptar_propuesta_platachat, y además guarda lo que se leyó. */
-    /* 22-oct-2026 — aceptar_con_destino (base/20261022) es la misma
+    /* 22-oct-2026 — aceptar_con_destino (base/20261022b) es la misma
        aceptación más la cuenta a dónde consignar, sellada con la propuesta. */
     if (fn === 'aceptar_propuesta_platachat' || fn === 'aceptar_condiciones' || fn === 'aceptar_con_destino') {
       estado.viva = solAceptada();

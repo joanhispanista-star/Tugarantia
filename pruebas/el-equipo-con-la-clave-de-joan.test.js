@@ -3,7 +3,7 @@
  *
  *   node --test pruebas/el-equipo-con-la-clave-de-joan.test.js
  *
- * Desde base/20261022b_el_equipo_con_la_clave_de_joan.sql lo del equipo solo
+ * Desde base/20261022d_el_equipo_con_la_clave_de_joan.sql lo del equipo solo
  * se abre con la clave que Joan pone desde Supabase (equipo_poner_clave): una
  * cuenta creada con «Crear cuenta», o por alguien que se registró como cliente
  * con ese celular, no ve nada hasta entonces. El CRM tiene que decirlo en sus

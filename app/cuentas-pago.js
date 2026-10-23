@@ -14,7 +14,7 @@
  * la propuesta (play/ y platachat/) y el CRM de Joan («Consignar a: …»). Si
  * cada una validara por su lado, el teléfono aceptaría una llave que el CRM no
  * sabe leer. Y la base repite las mismas reglas
- * (base/20261022_destino_del_desembolso.sql, destino_desembolso_limpio): el
+ * (base/20261022b_destino_del_desembolso.sql, destino_desembolso_limpio): el
  * teléfono lo controla quien lo tiene en la mano.
  *
  * LO QUE ESTE ARCHIVO NO HACE, Y POR ESO NADIE PUEDE DECIRLO EN PANTALLA:
@@ -89,7 +89,7 @@
      Por eso un sello: 32 letras al azar que nacen en ESTE teléfono al pasar el
      paso, viajan en los datos del registro (a la bandeja) Y en la cuenta (el
      signup, dentro de `vinculacion`; no es un dato de pago, sinDatosDePago lo
-     deja pasar). base/20261022b_las_cuentas_del_registro.sql
+     deja pasar). base/20261022c_las_cuentas_del_registro.sql
      (mis_cuentas_de_pago) devuelve las cuentas solo si el sello de la
      solicitud es el de la cuenta que pregunta: es decir, si la fila la
      escribió el mismo registro que abrió esa cuenta. El de un tercero no lo
