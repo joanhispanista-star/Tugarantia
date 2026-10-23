@@ -53,6 +53,26 @@
  *     la ubicación son permisos del navegador por sitio, iguales instalada o
  *     no, y se piden en el momento de usarlos. Eso es lo que dice la frase de
  *     permisos, y nada más.
+ *
+ * 23-oct-2026 — «YA LA ABRISTE DESDE SU ÍCONO». Joan: «instalé Tu Garantía en
+ * el teléfono y aún así sigue apareciendo la información de instálala en el
+ * teléfono». Dentro de la app instalada la guía nunca salió (display-mode);
+ * salía en la PESTAÑA de Chrome —la portada raíz, o socio.html abierta desde un
+ * enlace—, porque una pestaña no tiene cómo saber que la app está instalada.
+ * Lo que sí se puede saber, y se anota en este teléfono (LLAVE_INSTALADA):
+ *   · que la página se abrió COMO APP (yaInstalada): se anota en cada apertura;
+ *   · que Chrome dijo «appinstalled»;
+ *   · que la persona tocó «Ya la tengo instalada» (en iPhone es lo único: el
+ *     Safari no se entera de nada de lo que pasa en la app de Inicio).
+ * Con la marca fresca, la guía se va y queda UNA línea: «ya la abriste desde
+ * su ícono… ¿La borraste? Ver cómo instalarla». NUNCA dice «está instalada»:
+ * la desinstalación no avisa a nadie, y una marca vieja mentiría. Por eso:
+ *   · caduca a los 30 días de la última apertura como app;
+ *   · beforeinstallprompt la borra: Chrome solo lo manda si NO está instalada.
+ * Que la pestaña de Chrome vea la marca escrita por la app instalada depende de
+ * que compartan almacenamiento en el mismo dominio (así lo documenta Chrome
+ * para el WebAPK; no está verificado en el teléfono de Joan). Si no lo
+ * comparten, la pestaña sigue mostrando la guía y el botón la quita.
  * ==========================================================================*/
 
 (function (raiz, fabrica) {
@@ -65,6 +85,11 @@
   var LLAVE_AHORA_NO = 'tg_instalar_ahora_no_v1';
   var DIAS_AHORA_NO = 7;
   var DIA = 86400000;
+  /* 23-oct-2026 — la marca de «ya la abriste desde su ícono» (ver arriba).
+     {visto: milisegundos, via: 'app' | 'appinstalled' | 'boton'}. */
+  var LLAVE_INSTALADA = 'tg_app_instalada_v1';
+  var DIAS_RECORDADA = 30;
+  var VIAS = ['app', 'appinstalled', 'boton'];
   /* La app que se instala. Si la página corre fuera de http(s) —un archivo
      abierto con doble clic—, el enlace que se copia es este, el de verdad. */
   var DIRECCION = 'https://tugarantia.net/app/socio.html';
@@ -189,12 +214,58 @@
   }
 
   /* ==========================================================================
+   * «YA LA ABRISTE DESDE SU ÍCONO», 30 DÍAS (23-oct-2026; ver la cabecera)
+   * Igual que «Ahora no»: un dato de este teléfono, que no viaja, y que con el
+   * almacenamiento bloqueado no lanza (la guía sale como antes).
+   * ======================================================================== */
+
+  /** {visto, via} si la marca está fresca; null si no hay, venció o no es nuestra. */
+  function recordada(almacen, ahora) {
+    try {
+      var j = JSON.parse((almacen && almacen.getItem && almacen.getItem(LLAVE_INSTALADA)) || 'null');
+      if (!j || typeof j !== 'object') return null;
+      var visto = Number(j.visto), t = Number(ahora);
+      if (!isFinite(visto) || !isFinite(t)) return null;
+      /* Vencida: hace más de 30 días que nadie la abre como app, y pudo
+         haberla borrado. Del futuro (más de un día por delante): no la
+         escribimos nosotros, o el reloj saltó; no esconde la guía. */
+      if (t - visto > DIAS_RECORDADA * DIA || visto - t > DIA) return null;
+      return { visto: visto, via: VIAS.indexOf(j.via) >= 0 ? j.via : 'app' };
+    } catch (x) { return null; }
+  }
+  function recordarInstalada(almacen, ahora, via) {
+    try {
+      if (!almacen || !almacen.setItem) return false;
+      almacen.setItem(LLAVE_INSTALADA, JSON.stringify({ visto: Number(ahora), via: VIAS.indexOf(via) >= 0 ? via : 'app' }));
+      return true;
+    } catch (x) { return false; }
+  }
+  /** Chrome mandó beforeinstallprompt: NO está instalada (o la borraron). */
+  function olvidarInstalada(almacen) {
+    try {
+      if (!almacen || !almacen.removeItem) return false;
+      almacen.removeItem(LLAVE_INSTALADA);
+      return true;
+    } catch (x) { return false; }
+  }
+  /** Al abrir: si la página corre como app, se anota (o se refresca) la marca.
+   *  Es lo que hace que la pestaña de Chrome, después, no la vuelva a ofrecer. */
+  function anotarSiEsApp(entorno) {
+    var e = entorno || {};
+    if (!yaInstalada(e)) return false;
+    return recordarInstalada(e.almacen, e.ahora != null ? Number(e.ahora) : Date.now(), 'app');
+  }
+
+  /* ==========================================================================
    * QUÉ LE TOCA
    * ======================================================================== */
 
   /**
-   * {mostrar, motivo, variante, dentroDe, nombreApp, arriba}.
+   * {mostrar, motivo, variante, dentroDe, nombreApp, arriba, via}.
    * motivo, cuando no se muestra: 'instalada' | 'pospuesta' | 'computador' | 'otro'.
+   * 23-oct-2026 — 'recordada': la marca de «ya la abriste desde su ícono» está
+   * fresca. No se muestra la guía; quien la pinta pone UNA línea (tarjetaHTML)
+   * con `via` y el enlace para ver la guía igual, por si la borró.
    * `arriba`: dentro de otra app el aviso va primero en Entrar y en la espera
    * (allí no se puede instalar y conviene saberlo antes de escribir nada); en
    * Inicio la página lo deja al final igual, nunca encima de la cuota.
@@ -213,6 +284,11 @@
     if (!variante) return { mostrar: false, motivo: p.so };
     var ahora = e.ahora != null ? Number(e.ahora) : Date.now();
     if (pospuesta(e.almacen, ahora)) return { mostrar: false, motivo: 'pospuesta', variante: variante };
+    var marca = recordada(e.almacen, ahora);
+    if (marca) {
+      return { mostrar: false, motivo: 'recordada', via: marca.via, variante: variante, dentroDe: p.dentroDe,
+               nombreApp: p.dentroDe ? NOMBRE_DE_APP[p.dentroDe] || '' : '', arriba: false };
+    }
     return { mostrar: true, motivo: '', variante: variante, dentroDe: p.dentroDe,
              nombreApp: p.dentroDe ? NOMBRE_DE_APP[p.dentroDe] || '' : '', arriba: variante === 'dentro_de_app' };
   }
@@ -307,13 +383,36 @@
    * página, constantes suyas; lo demás se escapa.
    * ======================================================================== */
 
+  /* 23-oct-2026 — la línea que queda cuando la marca está fresca. Dice lo que
+     se sabe (cómo se anotó) y nunca «está instalada»: borrarla no avisa. */
+  var RECORDADA = {
+    app: 'Ya la abriste desde su ícono en este teléfono.',
+    appinstalled: 'La instalaste desde aquí en este teléfono.',
+    boton: 'Nos dijiste que ya la tienes en este teléfono.'
+  };
+  var RECORDADA_ABRELA = 'Ábrela desde su ícono: búscala en tus apps como «Tu Garantía».';
+  var RECORDADA_VER = '¿La borraste? Ver cómo instalarla';
+  function textoRecordada(via) {
+    return (RECORDADA[via] || RECORDADA.app) + ' ' + RECORDADA_ABRELA;
+  }
+
   /**
    * `o`: {conAviso, estado: ''|'aceptada'|'instalada', copia: ''|'ok'|'fallo',
-   *       enlace, acciones: {instalar, ahoraNo, copiar}}
+   *       enlace, verGuia, acciones: {instalar, ahoraNo, copiar, yaLaTengo, verGuia}}
+   * 23-oct-2026 — con la decisión 'recordada' pinta UNA línea, salvo que la
+   * persona haya pedido ver la guía (`verGuia`). «Ya la tengo instalada»
+   * (acciones.yaLaTengo) va en la guía de los teléfonos, no dentro de otra app:
+   * desde ahí no se pudo instalar.
    */
   function tarjetaHTML(decision, o) {
     o = o || {};
     var a = o.acciones || {};
+    var dd = decision || {};
+    if (dd.motivo === 'recordada' && !o.verGuia && !o.estado) {
+      var r = '<div class="instalar-recordada"><p class="muted nota-instalar">' + esc(textoRecordada(dd.via));
+      if (a.verGuia) r += ' <button class="enlace-boton" onclick="' + esc(a.verGuia) + '">' + esc(RECORDADA_VER) + '</button>';
+      return r + '</p></div>';
+    }
     if (o.estado === 'instalada') {
       return '<div class="card instalar"><h3 class="tit">Listo: ya quedó instalada</h3>' +
         '<p class="sub">Búscala en tu pantalla de inicio o entre tus apps como «Tu Garantía» y ábrela desde ahí. ' +
@@ -347,6 +446,11 @@
       }
     }
     if (g.permisos) h += '<p class="muted nota-instalar">' + esc(g.permisos) + '</p>';
+    /* 23-oct-2026 — «Ya la tengo instalada»: la única manera de que Safari se
+       entere, y la salida para quien la instaló antes de esta versión. */
+    if (a.yaLaTengo && dd.variante !== 'dentro_de_app') {
+      h += '<button class="btn sec sm arriba" onclick="' + esc(a.yaLaTengo) + '">Ya la tengo instalada</button>';
+    }
     if (a.ahoraNo) h += '<button class="btn sec sm arriba" onclick="' + esc(a.ahoraNo) + '">Ahora no</button>';
     return h + '</div>';
   }
@@ -358,10 +462,18 @@
     VARIANTES: VARIANTES.slice(),
     INTRO: INTRO,
     PERMISOS: PERMISOS,
+    LLAVE_INSTALADA: LLAVE_INSTALADA,
+    DIAS_RECORDADA: DIAS_RECORDADA,
     leerPlataforma: leerPlataforma,
     yaInstalada: yaInstalada,
     pospuesta: pospuesta,
     posponer: posponer,
+    recordada: recordada,
+    recordarInstalada: recordarInstalada,
+    olvidarInstalada: olvidarInstalada,
+    anotarSiEsApp: anotarSiEsApp,
+    textoRecordada: textoRecordada,
+    RECORDADA_VER: RECORDADA_VER,
     decidir: decidir,
     guia: guia,
     enlace: enlace,

@@ -149,6 +149,12 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         «Copiar enlace» dentro de Instagram y compañía, y «Ahora
                         no» por 7 días. La tarjeta sale en Entrar, en la espera
                         del registro y al final de Inicio. No promete avisos.
+                        Desde el 23-oct-2026 deja la marca «ya la abriste desde
+                        su ícono» (tg_app_instalada_v1: al abrirla como app, con
+                        appinstalled y con «Ya la tengo instalada»; la borra
+                        beforeinstallprompt; caduca a 30 días). Con la marca, la
+                        guía se va —también la de la portada raíz— y queda una
+                        línea que nunca dice «está instalada».
   app.webmanifest       Para instalarla en el celular. ES LA ÚNICA APP QUE SE
                         OFRECE PARA INSTALAR (decisión de Joan, 21-oct-2026:
                         Chrome «Instalar», sin APK).

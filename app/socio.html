@@ -371,6 +371,13 @@ input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:99px;b
 .pasos-instalar li::marker{font-weight:700;color:var(--gris)}
 .nota-instalar{font-size:13px;line-height:1.5;margin:var(--e3) 0 0}
 input.enlace-instalar{margin-top:var(--e3);font-size:14px}
+/* 23-oct-2026 — con la marca de «ya la abriste desde su ícono» la guía se va y
+   queda una línea, sin tarjeta: lo que pidió Joan es que desaparezca. El
+   «Ver cómo instalarla» es un botón con cara de enlace; el relleno de arriba y
+   abajo le da al dedo los 44 px sin agrandar la línea. */
+.instalar-recordada{margin:var(--e3) 0;padding:0 var(--e2);text-align:center}
+.enlace-boton{background:none;border:0;margin:0;padding:12px 0;font:inherit;color:inherit;
+  text-decoration:underline;cursor:pointer}
 
 /* ---------------- avisos: neutro, azul que explica, ámbar que avisa ------- */
 .aviso{border-radius:14px;padding:14px;font-size:14px;margin-top:14px;line-height:1.5;
@@ -1426,21 +1433,53 @@ var SS_FALTA = 'No cargó una parte de la app. Cierra y vuelve a abrirla con int
        «Copiar enlace»: desde ahí no se puede instalar;
      · «Ahora no» la esconde siete días; y si ya está instalada, no sale.
    Si app/instalar.js no llegó (un service worker viejo), no se pinta nada y
-   la app sigue igual: una tarjeta a medias diría pasos que no son. */
+   la app sigue igual: una tarjeta a medias diría pasos que no son.
+
+   23-oct-2026 — «YA LA ABRISTE DESDE SU ÍCONO». Joan la instaló y la guía le
+   seguía saliendo: en la pestaña de Chrome, que no sabe que la app existe. Se
+   anota en este teléfono (app/instalar.js, LLAVE_INSTALADA) al abrirla como
+   app, con appinstalled y con «Ya la tengo instalada»; se borra con
+   beforeinstallprompt (Chrome solo lo manda si NO está instalada) y caduca a
+   los 30 días. Con la marca, la guía se va y queda una línea con «¿La
+   borraste? Ver cómo instalarla». Dentro de la app instalada no sale nunca. */
 var IA = window.InstalarApp || null;
-var INSTALAR = { aviso: null, estado: '', copia: '', ahoraNo: false };
+var INSTALAR = { aviso: null, estado: '', copia: '', ahoraNo: false, verGuia: false };
 var DONDE_INSTALAR = ['entrar', 'espera', 'inicio'];
+
+function almacenInstalar() {
+  try { return window.localStorage; } catch (e) { return null; }
+}
+/* Abierta como app: se anota (o se refresca) la marca. Una vez, al cargar. */
+try { if (IA && IA.anotarSiEsApp) IA.anotarSiEsApp(entornoInstalar()); } catch (e) { /* sin almacenamiento, nada */ }
 
 window.addEventListener('beforeinstallprompt', function (e) {
   e.preventDefault();
   INSTALAR.aviso = e;
+  /* Chrome no lo manda si la app está instalada: la marca, si había, ya no
+     dice la verdad (la borró, o era un acceso directo). */
+  try { if (IA && IA.olvidarInstalada) IA.olvidarInstalada(almacenInstalar()); } catch (x) { /* nada */ }
   repintarInstalar();
 });
 window.addEventListener('appinstalled', function () {
   INSTALAR.aviso = null;
   INSTALAR.estado = 'instalada';
+  try { if (IA && IA.recordarInstalada) IA.recordarInstalada(almacenInstalar(), Date.now(), 'appinstalled'); } catch (x) { /* nada */ }
   repintarInstalar();
 });
+
+/* «Ya la tengo instalada»: la palabra de la persona. Es lo único que sirve en
+   iPhone, donde Safari no se entera de la app de Inicio. */
+function yaLaTengo() {
+  if (!IA) return;
+  try { IA.recordarInstalada(almacenInstalar(), Date.now(), 'boton'); } catch (x) { /* nada */ }
+  INSTALAR.verGuia = false;
+  repintarInstalar();
+}
+/* «¿La borraste? Ver cómo instalarla»: la guía entera, por esta vez. */
+function verGuiaInstalar() {
+  INSTALAR.verGuia = true;
+  repintarInstalar();
+}
 
 function instalarApp() {
   var ev = INSTALAR.aviso;
@@ -1472,12 +1511,18 @@ function decisionInstalar() {
   if (!IA || INSTALAR.ahoraNo) return { mostrar: false };
   try { return IA.decidir(entornoInstalar()); } catch (e) { return { mostrar: false }; }
 }
+/* 23-oct-2026 — 'recordada' también se pinta: es la línea de «ya la abriste
+   desde su ícono» (o la guía entera, si pidió verla). */
+function sePinta(d) {
+  return !!(d && (d.mostrar || d.motivo === 'recordada'));
+}
 function contenidoInstalar(d) {
   if (INSTALAR.estado) return IA.tarjetaHTML(d, { estado: INSTALAR.estado });
-  if (!d.mostrar) return '';
+  if (!sePinta(d)) return '';
   return IA.tarjetaHTML(d, {
-    conAviso: !!INSTALAR.aviso, copia: INSTALAR.copia, enlace: IA.enlace(location),
-    acciones: { instalar: 'instalarApp()', ahoraNo: 'instalarAhoraNo()', copiar: 'copiarEnlaceInstalar()' }
+    conAviso: !!INSTALAR.aviso, copia: INSTALAR.copia, enlace: IA.enlace(location), verGuia: INSTALAR.verGuia,
+    acciones: { instalar: 'instalarApp()', ahoraNo: 'instalarAhoraNo()', copiar: 'copiarEnlaceInstalar()',
+                yaLaTengo: 'yaLaTengo()', verGuia: 'verGuiaInstalar()' }
   });
 }
 /* La tarjeta de una pantalla, en su caja. `donde`: 'entrar' | 'espera' |
@@ -1486,7 +1531,7 @@ function contenidoInstalar(d) {
    que el aviso de Chrome repintara la que no se ve. */
 function tarjetaInstalar(donde) {
   var d = decisionInstalar();
-  if (!d.mostrar && !INSTALAR.estado) return '';
+  if (!sePinta(d) && !INSTALAR.estado) return '';
   return '<div id="cajaInstalar-' + donde + '">' + contenidoInstalar(d) + '</div>';
 }
 /* Dentro de otra app el aviso va primero (en Entrar y en la espera). */
