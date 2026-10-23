@@ -930,11 +930,13 @@ describe('los enganches de crm.html y sw.js', () => {
   const SW = fs.readFileSync(path.join(RAIZ, 'sw.js'), 'utf8');
 
   test('el <script src> va después del bloque grande y de nube-crm.js, antes del service worker', () => {
-    const i = CRM.indexOf('<script src="historiales-auto.js"></script>');
-    assert.ok(i > CRM.indexOf('<script src="nube-crm.js"></script>'));
+    /* 23-oct-2026 — los dos se piden con la versión en la dirección (ver sw.js, v139). */
+    const i = CRM.indexOf('<script src="historiales-auto.js?v=139"></script>');
+    assert.ok(i > 0, 'crm.html no carga historiales-auto.js con su versión');
+    assert.ok(i > CRM.indexOf('<script src="nube-crm.js?v=139"></script>'));
     assert.ok(i > CRM.indexOf('function entrar(){'));
     assert.ok(i < CRM.indexOf('navigator.serviceWorker.register'));
-    assert.equal(CRM.split('<script src="historiales-auto.js"></script>').length - 1, 1);
+    assert.equal(CRM.split('<script src="historiales-auto.js').length - 1, 1);
     assert.match(CRM.slice(i, i + 900), /if\(!window\.HistorialesAuto\)\{ var b=document\.getElementById\('historialesBarra'\)/,
       'si el archivo no llega, Ajustes no lo dice');
     assert.match(CRM, /<div id="historialesBarra"><\/div>/);
@@ -953,7 +955,7 @@ describe('los enganches de crm.html y sw.js', () => {
   });
 
   test('sw.js precarga la pieza nueva y subió de número con nota', () => {
-    assert.match(SW, /'panel\/historiales-auto\.js',/);
+    assert.match(SW, /'panel\/historiales-auto\.js(\?v=\d+)?',/);   // 23-oct-2026 — con su versión (ver sw.js, v139)
     const v = Number((/const CACHE = 'tugarantia-v(\d+)';/.exec(SW) || [])[1]);
     assert.ok(v >= 131, 'la caché sigue en v' + v + ': los computadores seguirían sin la subida sola');
     assert.match(SW, /\/\* v131 - 7-oct-2026\. LOS HISTORIALES DE LOS CLIENTES SUBEN SOLOS/);

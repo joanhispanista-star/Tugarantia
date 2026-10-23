@@ -57,7 +57,7 @@ function abrir(opc) {
   P.ev('window.__gpsPend = []; navigator.geolocation = { getCurrentPosition: function (ok) {' +
        ' if (window.__gpsColgar) { window.__gpsPend.push(ok); return; } if (window.__gpsDe) ok({ coords: window.__gpsDe }); } };');
   P.ev('window.__relojes = []; setTimeout = function (f, ms) { window.__relojes.push({ f: f, ms: ms }); return window.__relojes.length; }; clearTimeout = function () {};');
-  if (o.search) { P.ev(SESION_JS); P.ev("SCRIPTS['../platachat/sesion.js'] = Promise.resolve();"); }
+  if (o.search) { P.ev(SESION_JS); P.ev("SCRIPTS[URL_SESION_PLATACHAT] = Promise.resolve();"); }
   return P;
 }
 function pasa(P, ms) {

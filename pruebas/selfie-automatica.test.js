@@ -39,6 +39,9 @@ const { abrirPlay, RAIZ } = require('./banco-play.js');
 
 const FUENTE_RV = fs.readFileSync(path.join(RAIZ, 'app', 'rostro-en-vivo.js'), 'utf8');
 const PLAY = fs.readFileSync(path.join(RAIZ, 'play', 'index.html'), 'utf8');
+/* 23-oct-2026 — el módulo se pide con la versión en la dirección (…?v=139,
+   ver la nota de v139 en sw.js): la que diga la página. */
+const URL_ROSTRO = (/var URL_ROSTRO_VIVO = '([^']+)';/.exec(PLAY) || [])[1];
 /* Sin comentarios. El «/*» tiene que venir después de un espacio o de un
    signo: `accept="image/*"` (en el HTML de la selfie) NO abre un comentario,
    y tomarlo como tal se tragaba media página. */
@@ -263,7 +266,7 @@ describe('el detector: SOLO el detector', () => {
        entra por app/rostro-en-vivo.js, que esta misma prueba vigila arriba. */
     ['faceapi', 'FaceMesh', 'descriptor', 'embedding', 'faceDescriptor', 'landmark']
       .forEach(p => assert.equal(PLAY.indexOf(p), -1, 'apareció «' + p + '» en play/'));
-    assert.match(PLAY, /var URL_ROSTRO_VIVO = '\.\.\/app\/rostro-en-vivo\.js';/);
+    assert.match(PLAY, /var URL_ROSTRO_VIVO = '\.\.\/app\/rostro-en-vivo\.js(\?v=\d+)?';/);
     assert.match(PLAY, /var BASE_ROSTRO = '\.\.\/app\/lib\/rostro';/, 'el detector tiene que bajar del propio sitio');
   });
 
@@ -360,7 +363,7 @@ describe('la selfie dentro de la página', () => {
     anota(con);
     con.ev("cambiarConsentimiento(true); pintarRegistro(indiceDe('entrada')); pintarRegistro(indiceDe('entrada'));");
     const links = JSON.parse(con.ev('JSON.stringify(window.__links)'));
-    assert.deepEqual(links, ['prefetch ../app/rostro-en-vivo.js', 'prefetch ../app/lib/rostro/face-api.js',
+    assert.deepEqual(links, ['prefetch ' + URL_ROSTRO, 'prefetch ../app/lib/rostro/face-api.js',
       'prefetch ../app/lib/rostro/tiny_face_detector_model-weights_manifest.json', 'prefetch ../app/lib/rostro/tiny_face_detector_model.bin'],
       'no se bajó (una sola vez) lo que el detector necesita, o se bajó algo más');
     assert.equal(con.ev('typeof window.faceapi'), 'undefined', 'bajarlo no es encenderlo');
@@ -372,7 +375,7 @@ describe('la selfie dentro de la página', () => {
     P.ev('iniciarEscaner()');
     assert.equal(P.ev('ESCANER.modo'), 'cargando');
     await esperar(); await esperar();
-    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__cargas)')), ['../app/rostro-en-vivo.js', '../app/lib/rostro/face-api.js']);
+    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__cargas)')), [URL_ROSTRO, '../app/lib/rostro/face-api.js']);
     assert.equal(P.ev('ESCANER.modo'), 'rostro', 'el detector llegó y no se usa');
   });
 

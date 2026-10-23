@@ -251,7 +251,8 @@ describe('lo que el teléfono carga, está en la caché', () => {
   });
 
   test('gente.js se carga después del motor y del puente, que es a quienes pregunta', () => {
-    const i = s => ESPEJO.indexOf('<script src="' + s + '"');
+    /* 23-oct-2026 — con o sin la versión de la dirección (puente.js?v=139). */
+    const i = s => ESPEJO.search(new RegExp('<script src="' + s.replace(/[.]/g, '\\.') + '(\\?v=\\d+)?"'));
     assert.ok(i('../app/motor.js') < i('../app/gente.js') && i('../app/puente.js') < i('../app/gente.js'));
   });
 });

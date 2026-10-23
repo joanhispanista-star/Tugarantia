@@ -321,8 +321,12 @@ const precarga = () => {
   const cuerpo = sw.slice(i + 'const ARCHIVOS = ['.length, j).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[\s,])\/\/[^\n]*/g, '$1');
   return { sw, lista: [...cuerpo.matchAll(/'([^']*)'/g)].map(m => m[1]) };
 };
-/* La entrada como archivo: '' es la portada; 'play/' es su index.html. */
-const comoArchivo = f => f === '' ? 'index.html' : f.replace(/\/$/, '/index.html');
+/* La entrada como archivo: '' es la portada; 'play/' es su index.html.
+   23-oct-2026 — y sin la versión de la dirección: 'app/puente.js?v=139' es
+   app/puente.js en el disco (ver la nota de v139 en sw.js). */
+const comoArchivo = f => (f === '' ? 'index.html' : f.replace(/\/$/, '/index.html')).split('?')[0];
+/* La entrada como la pide una página: el archivo y, si la lleva, su versión. */
+const conVersion = f => comoArchivo(f) + (f.indexOf('?') >= 0 ? f.slice(f.indexOf('?')) : '');
 
 describe('4 · La precarga de sw.js tiene todo lo nuevo del lote, y nada que no exista', () => {
 
@@ -335,7 +339,7 @@ describe('4 · La precarga de sw.js tiene todo lo nuevo del lote, y nada que no 
   });
 
   test('lo nuevo de las seis ramas que las páginas cargan está en la precarga', () => {
-    const lista = new Set(precarga().lista);
+    const lista = new Set(precarga().lista.map(comoArchivo));
     ['app/actualizar.js', 'app/instalar.js', 'app/escaner-captura.js', 'app/ocr-cedula.js',
      'app/bancos-colombia.js', 'app/cuentas-pago.js', 'app/rostro-en-vivo.js', 'platachat/sesion.js']
       .forEach(f => assert.ok(lista.has(f), f + ' no está en la precarga de sw.js'));
@@ -343,7 +347,9 @@ describe('4 · La precarga de sw.js tiene todo lo nuevo del lote, y nada que no 
 
   test('cada <script src> y cada hoja o manifiesto de las páginas precargadas está en la precarga', () => {
     const lista = precarga().lista.map(comoArchivo);
-    const en = new Set(lista);
+    /* 23-oct-2026 — con la versión: sin señal, caches.match busca la
+       dirección EXACTA, y un ?v= que la precarga no tiene no se encuentra. */
+    const en = new Set(precarga().lista.map(conVersion));
     const faltan = [];
     lista.filter(f => /\.html$/.test(f)).forEach(pagina => {
       const t = fs.readFileSync(path.join(RAIZ, pagina), 'utf8');
@@ -351,7 +357,9 @@ describe('4 · La precarga de sw.js tiene todo lo nuevo del lote, y nada que no 
         .concat([...t.matchAll(/<link[^>]*>/g)].map(m => m[0])
           .filter(l => /rel="(stylesheet|manifest)"/.test(l)).map(l => (l.match(/href="([^"]+)"/) || [])[1]).filter(Boolean));
       refs.filter(r => !/^(https?:|data:|\/\/)/.test(r)).forEach(r => {
-        const f = path.posix.normalize(path.posix.join(path.posix.dirname(pagina), r.split(/[?#]/)[0]));
+        const sinAncla = r.split('#')[0], q = sinAncla.indexOf('?');
+        const f = path.posix.normalize(path.posix.join(path.posix.dirname(pagina), q >= 0 ? sinAncla.slice(0, q) : sinAncla))
+          + (q >= 0 ? sinAncla.slice(q) : '');
         if (!en.has(f)) faltan.push(pagina + ' → ' + f);
       });
     });

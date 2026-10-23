@@ -276,7 +276,8 @@ describe('instalar sí; pedir permisos que no se usan, no', () => {
     const SW = leer('sw.js');
     ['play/index.html', 'play/estilo.css', 'play/app.webmanifest',
      'app/creditos.js', 'app/cuenta.js', 'app/cumplimiento.js']
-      .forEach(f => assert.ok(SW.indexOf("'" + f + "'") >= 0,
+      /* 23-oct-2026 — con o sin la versión de la dirección (app/cuenta.js?v=139, ver sw.js). */
+      .forEach(f => assert.ok(new RegExp("'" + f.replace(/[.]/g, '\\.') + "(\\?v=\\d+)?'").test(SW),
         f + ' no está en la lista del service worker'));
   });
 
@@ -553,7 +554,7 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
        olvida el banco, esta prueba lo dice con el nombre del archivo. */
     const html = fs.readFileSync(path.join(__dirname, '..', 'play', 'index.html'), 'utf8');
     const srcs = [...html.matchAll(/<script\s[^>]*src="([^"]+)"/g)]
-      .map(m => m[1])
+      .map(m => m[1].split('?')[0])   // 23-oct-2026 — sin el ?v=139 de la dirección
       .filter(u => !/^https?:/.test(u));
 
     /* Qué global publica cada archivo. Se lee del propio archivo, no de una
@@ -730,7 +731,8 @@ describe('play/ pintando de verdad (9-sep-2026)', () => {
        armar la letra del préstamo con garantía. Puesto detrás, la letra saldría
        vacía y la calculadora se callaría el precio sin que nadie entendiera por
        qué —un fallo mudo, que son los que este proyecto paga más caros. */
-    const orden = [...PLAY.matchAll(/<script src="\.\.\/app\/([a-z.]+)"/g)].map(m => m[1]);
+    /* 23-oct-2026 — con o sin la versión de la dirección (cumplimiento.js?v=139). */
+    const orden = [...PLAY.matchAll(/<script src="\.\.\/app\/([a-z.]+)(?:\?v=\d+)?"/g)].map(m => m[1]);
     const iM = orden.indexOf('motor.js'), iK = orden.indexOf('cumplimiento.js');
     assert.ok(iM >= 0, 'play/ dejó de cargar el motor');
     assert.ok(iK >= 0, 'play/ dejó de cargar cumplimiento.js');

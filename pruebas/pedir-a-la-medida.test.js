@@ -308,7 +308,8 @@ describe('la calculadora del pedido, en play/ y en index.html', () => {
 
   test('index.html carga la calculadora, guarda lo movido y lleva al registro', () => {
     const I = leer('index.html');
-    const srcs = [...I.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+    /* 23-oct-2026 — sin la versión de la dirección (…?v=139, ver sw.js). */
+    const srcs = [...I.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1].split('?')[0]);
     /* 19-oct-2026 — entra app/creditos.js: sin la tabla de usura la calculadora
        no puede estimar el costo (y se calla, que es lo correcto sin ella). */
     assert.deepEqual(srcs, ['app/cuenta.js', 'app/creditos.js', 'app/calculadora-solicitud.js'], 'cuenta.js va antes: es quien escribe los pesos');

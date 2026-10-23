@@ -197,7 +197,7 @@ function abrirLaCuenta(P) {
 }
 function conSesionJs(P) {
   P.ev(SESION_JS);
-  P.ev("SCRIPTS['../platachat/sesion.js'] = Promise.resolve();");
+  P.ev("SCRIPTS[URL_SESION_PLATACHAT] = Promise.resolve();");
 }
 /* El teléfono que no deja escribir NADA en localStorage (datos del sitio
    bloqueados, o la cuota llena hasta el borde): leer sí. */

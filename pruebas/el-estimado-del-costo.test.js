@@ -401,7 +401,8 @@ describe('index.html: la portada del sitio también estima', () => {
   const I = leer('index.html');
 
   test('carga la tabla de usura antes de la calculadora', () => {
-    const srcs = [...I.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+    /* 23-oct-2026 — sin la versión de la dirección (…?v=139, ver sw.js). */
+    const srcs = [...I.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1].split('?')[0]);
     const iC = srcs.indexOf('app/creditos.js'), iS = srcs.indexOf('app/calculadora-solicitud.js');
     assert.ok(iC >= 0, 'index.html no carga app/creditos.js: la calculadora no tiene contra qué techo medir y se calla');
     assert.ok(iC < iS, 'la tabla de usura va antes de la calculadora');

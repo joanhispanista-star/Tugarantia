@@ -60,7 +60,8 @@ function abrirPlataChat(almacen, sesion, llamadas) {
     addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; } };
   ctx.window = ctx; ctx.self = ctx;
   vm.createContext(ctx);
-  [...PAGINA.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1])
+  /* 23-oct-2026 — sin la versión de la dirección (…?v=139, ver sw.js). */
+  [...PAGINA.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1].split('?')[0])
     .forEach(s => vm.runInContext(leer(path.join('platachat', s)), ctx, { filename: s }));
   [...PAGINA.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].forEach((m, i) => vm.runInContext(m[1], ctx, { filename: 'pc#' + i }));
   return { ev: e => vm.runInContext(e, ctx), elems };

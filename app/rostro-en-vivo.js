@@ -49,6 +49,21 @@
  * persona no se queda atascada por un adorno. Si llegan el detector y no los
  * puntos, sigue con la caja, sin ojos dibujados.
  * ==========================================================================*/
+/* 23-oct-2026 — LA FIRMA DE LLEGADA. Las páginas piden este archivo con la
+   versión en la dirección (…?v=139) y, antes de arrancar su bloque grande,
+   miran que haya firmado aquí. Sin la firma, lo que corrió no es este archivo:
+   no llegó, o el service worker contestó otra cosa (el v138, sin señal,
+   contesta index.html a lo que no guardó), o una caché dio el de antes, que
+   no tiene esta línea. Entonces la página dice que se recargue en vez de
+   escribir con piezas de dos versiones.
+   Va PRIMERO a propósito: firma que llegó ESTE archivo. Si más abajo algo
+   revienta en algún teléfono, eso no es mezclar versiones, y la página sigue
+   como siempre (cada una se protege sola sin el módulo); con la firma al
+   final, ese teléfono quedaría frenado en «recarga» para siempre. En Node no
+   hay document y no hace nada. Ver «¿LLEGÓ LO QUE PEDÍ?» en las páginas y la
+   nota de v139 en sw.js. */
+(function () { try { var s = document.currentScript; if (s && s.src) (window.TG_LLEGARON = window.TG_LLEGARON || {})[s.src] = 1; } catch (e) {} })();
+
 (function (raiz, fabrica) {
   'use strict';
   if (typeof module === 'object' && module.exports) module.exports = fabrica(raiz);

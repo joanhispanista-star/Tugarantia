@@ -151,7 +151,7 @@ function abrirLaCuenta(P) {
 /* platachat/sesion.js dentro de la página, como lo dejaría cargarScript. */
 function conSesionJs(P) {
   P.ev(SESION_JS);
-  P.ev("SCRIPTS['../platachat/sesion.js'] = Promise.resolve();");
+  P.ev("SCRIPTS[URL_SESION_PLATACHAT] = Promise.resolve();");
 }
 function boton(html, texto) {
   const re = new RegExp('onclick="([^"]+)"[^>]*>' + texto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '<');

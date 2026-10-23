@@ -407,7 +407,7 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 <div class="wrap"><div id="cuerpo"></div></div>
 
 <script src="../app/creditos.js"></script>
-<script src="../app/cuenta.js"></script>
+<script src="../app/cuenta.js?v=139"></script>
 <!-- 22-oct-2026 — dónde recibe la plata el cliente: la lista de bancos (con su
      fuente y su fecha) y las reglas del paso «¿Dónde te enviamos la plata?» y
      de «¿A dónde te consignamos?» al aceptar. NO entran al guardián de abajo:
@@ -423,8 +423,8 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 <!-- 8-oct-2026 — la calculadora del pedido (cuánto y para cuándo, sin precio)
      y las condiciones de cada propuesta. Va DESPUÉS de cuenta.js, que es quien
      sabe escribir los pesos como los pidió Joan (1,500.000). -->
-<script src="../app/calculadora-solicitud.js"></script>
-<script src="../app/escaner-cedula.js"></script>
+<script src="../app/calculadora-solicitud.js?v=139"></script>
+<script src="../app/escaner-cedula.js?v=139"></script>
 <!-- 21-oct-2026 — el escáner que escoge la foto más nítida, con la cédula
      acostada, la linterna sola y el QR de la cédula digital. Puro, como el de
      arriba; si no llega, el escáner sigue con la cuenta de antes (ECAP). -->
@@ -438,7 +438,7 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
      calculadora se callaría el precio sin que nadie entendiera por qué. -->
 <script src="../app/motor.js"></script>
 <script src="../app/ficha.js"></script>
-<script src="../app/cumplimiento.js"></script>
+<script src="../app/cumplimiento.js?v=139"></script>
 <!-- El hilo del chat se pinta con el mismo código que en la app quincenal: la
      marca de «esto te lo contestó una máquina» y el «leído» son reglas, no
      adorno, y no se escriben dos veces. -->
@@ -449,6 +449,52 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 <script src="../app/actualizar.js"></script>
 <script>
 'use strict';
+/* 23-oct-2026 — ¿LLEGÓ LO QUE PEDÍ? Cada .js propio que cambió desde lo
+   publicado se pide con la versión en la dirección (…?v=139): ni la caché
+   HTTP de 10 min de GitHub Pages ni la del service worker anterior tienen
+   nada guardado con ese nombre, así que una página nueva ya no puede correr
+   con el .js de antes (pasó tres veces: «Ajustar el próximo pago» y el pie de
+   Créditos en el CRM, y el choque del espejo que cobraba dos veces un pago
+   acordado). Lo que queda es que NO llegue: el sw.js v138, sin señal,
+   contesta index.html a lo que no guardó, y la página correría sin esa
+   pieza. Cada uno de esos .js firma al empezar (TG_LLEGARON); si uno de los de
+   arriba no firmó, esta pantalla no arranca: lo dice, ofrece recargar y corta
+   aquí, antes de que nada de este bloque pueda escribir plata ni datos. Por
+   eso va primero, y por eso frena los toques y las teclas fuera del aviso. Es
+   la misma copia en todas las páginas: si cambias una, cámbialas todas
+   (pruebas/la-pagina-nueva-no-corre-con-un-js-viejo.test.js). */
+(function () {
+  var d = typeof document !== 'undefined' ? document : null;
+  if (!d || typeof d.getElementsByTagName !== 'function') return;
+  var firmas = window.TG_LLEGARON || {}, faltan = [], ss = d.getElementsByTagName('script');
+  for (var i = 0; i < ss.length; i++) {
+    var pedido = ss[i].getAttribute('src') || '';
+    if (!/[?&]v=\d/.test(pedido) || /^([a-z][\w+.-]*:|\/\/)/i.test(pedido)) continue;   // solo los del sitio
+    if (!firmas[ss[i].src]) faltan.push(pedido.split('?')[0]);
+  }
+  if (!faltan.length) return;
+  window.TG_A_MEDIAS = faltan;
+  var caja = d.createElement('div');
+  caja.setAttribute('role', 'alertdialog');
+  caja.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:999999;display:flex;'
+    + 'align-items:center;justify-content:center;padding:24px;background:#fff;color:#1b1b1b;'
+    + 'font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-align:center';
+  caja.innerHTML = '<div style="max-width:420px">'
+    + '<p style="margin:0 0 10px;font-size:19px;font-weight:700">Falta bajar parte de la versión nueva</p>'
+    + '<p style="margin:0 0 18px">Para no guardar ni mandar nada a medias, esta pantalla no sigue. '
+    + 'Con señal, toca Recargar: no se pierde nada de lo que ya estaba guardado.</p>'
+    + '<button type="button" style="font:inherit;font-weight:700;padding:12px 24px;border:0;'
+    + 'border-radius:10px;background:#1b1b1b;color:#fff">Recargar</button></div>';
+  caja.querySelector('button').onclick = function () { location.reload(); };
+  (d.body || d.documentElement).appendChild(caja);
+  ['click', 'keydown', 'submit', 'input', 'change'].forEach(function (t) {
+    window.addEventListener(t, function (e) {
+      if (!caja.contains(e.target)) { e.stopImmediatePropagation(); e.preventDefault(); }
+    }, true);
+  });
+  throw new Error('Llegó a medias (' + faltan.join(', ') + '): esta pantalla no arranca.');
+})();
+
 
 /* 7-oct-2026 — sube por la puerta única: sin códigos en la fachada, en la
    solicitud aceptada ni en Perfil. Es la fecha que Joan le pide leer al
@@ -620,9 +666,13 @@ if (MARCA === 'platachat') {
 
 /* La sesión de esta página, en el formato de PlataChat. sesion.js se carga
    solo aquí y solo con esta marca: es el dueño del formato, y copiarlo acá
-   serían dos verdades sobre la llave con la que PlataChat abre la cuenta. */
+   serían dos verdades sobre la llave con la que PlataChat abre la cuenta.
+   23-oct-2026 — con la versión en la dirección, la misma de platachat/: así
+   ni la caché HTTP ni el sw.js anterior le dan a esta página el sesion.js de
+   antes (ver «¿LLEGÓ LO QUE PEDÍ?» arriba y la nota de v139 en sw.js). */
+var URL_SESION_PLATACHAT = '../platachat/sesion.js?v=139';
 function pasarSesionAPlataChat(sesion, celular, nombre) {
-  return cargarScript('../platachat/sesion.js').then(function () {
+  return cargarScript(URL_SESION_PLATACHAT).then(function () {
     var SPC = window.SesionPlataChat;
     if (!SPC || !SPC.sesionDe || !SPC.guardar) throw new Error('no cargó platachat/sesion.js');
     if (!SPC.guardar(SPC.sesionDe(sesion, celular, { nombre: nombre }))) throw new Error('no se pudo guardar la sesión');
@@ -8486,7 +8536,7 @@ var LADO_MEDIR = 32;
    22-oct-2026 — y después del detector, sin frenarlo, el modelo chico que
    ubica los ojos (77 KB) para dibujarlos. Ese no se precalienta: es chico, y
    si no llega la selfie se toma igual, sin ojos dibujados. */
-var URL_ROSTRO_VIVO = '../app/rostro-en-vivo.js';
+var URL_ROSTRO_VIVO = '../app/rostro-en-vivo.js?v=139';
 var BASE_ROSTRO = '../app/lib/rostro';
 /* BAJARLO ANTES, SIN ENCENDERLO. Con señal floja, 1,5 MB son varios segundos
    de «Preparando el escáner…» con la cara ya en el óvalo. Mientras la persona

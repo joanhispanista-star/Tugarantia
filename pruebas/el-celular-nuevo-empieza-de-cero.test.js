@@ -160,7 +160,7 @@ const vivos = ll => ll().filter(x => /registro_vivo_publicar/.test(x.url));
 const borrados = ll => ll().filter(x => /registro_vivo_borrar/.test(x.url));
 function conSesionJs(P) {
   P.ev(SESION_JS);
-  P.ev("SCRIPTS['../platachat/sesion.js'] = Promise.resolve();");
+  P.ev("SCRIPTS[URL_SESION_PLATACHAT] = Promise.resolve();");
 }
 
 /* María, en el teléfono de Pedro: escribe su identidad A MANO (o autoriza las

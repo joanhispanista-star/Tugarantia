@@ -166,7 +166,10 @@ function abrirEspejo(opciones) {
   /* Los scripts en el orden de la página: los de archivo y los escritos dentro. */
   const sin = new Set(o.sin || []);
   for (const m of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)) {
-    const src = (/\bsrc="([^"]+)"/.exec(m[1]) || [])[1];
+    /* 23-oct-2026 — la página pide con la versión en la dirección
+       (nube.js?v=139, ver sw.js): el archivo, `sin` y `archivos` van por el
+       nombre. */
+    const src = ((/\bsrc="([^"]+)"/.exec(m[1]) || [])[1] || '').split('?')[0];
     if (src) {
       if (sin.has(src)) continue;
       const ruta = path.join(RAIZ, 'panel', src);

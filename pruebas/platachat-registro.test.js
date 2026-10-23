@@ -86,7 +86,7 @@ const BIEN = function (u) {
    banco no tiene un <script> que dispare onload. */
 function conSesionJs(P) {
   P.ev(SESION_JS);
-  P.ev("SCRIPTS['../platachat/sesion.js'] = Promise.resolve();");
+  P.ev("SCRIPTS[URL_SESION_PLATACHAT] = Promise.resolve();");
 }
 const respiro = async () => { for (let i = 0; i < 12; i++) await new Promise(r => setImmediate(r)); };
 

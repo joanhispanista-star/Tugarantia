@@ -375,7 +375,8 @@ describe('el paso de la cédula dentro de la página', () => {
        <style> en línea de play/index.html, que llega siempre fresco porque el
        HTML va red-primero desde el día uno — igual que el del rostro. */
     const SW = fs.readFileSync(path.join(RAIZ, 'sw.js'), 'utf8');
-    assert.match(SW, /'app\/escaner-cedula\.js'/,
+    /* 23-oct-2026 — con la versión de la dirección (ver la nota de v139 en sw.js). */
+    assert.match(SW, /'app\/escaner-cedula\.js(\?v=\d+)?'/,
       'el módulo del escáner no está en el precache: sin señal el paso de la cédula queda sin escáner');
     const HTML = fs.readFileSync(path.join(RAIZ, 'play', 'index.html'), 'utf8');
     const enLinea = HTML.slice(HTML.indexOf('<style>'), HTML.indexOf('</style>'));

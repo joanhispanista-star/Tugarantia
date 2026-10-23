@@ -828,16 +828,18 @@ describe('el CRM de verdad (crm.html en el banco de pruebas)', () => {
 
   test('el <script src="nube-crm.js"> va DESPUÉS del bloque grande, y el aviso de versión vieja existe', () => {
     const CRM = fs.readFileSync(path.join(RAIZ, 'panel', 'crm.html'), 'utf8');
-    const iSrc = CRM.indexOf('<script src="nube-crm.js"></script>');
+    /* 23-oct-2026 — nube-crm.js y nube.js se piden con la versión en la dirección (ver sw.js, v139). */
+    const iSrc = CRM.indexOf('<script src="nube-crm.js?v=139"></script>');
+    assert.ok(iSrc > 0, 'crm.html no carga nube-crm.js con su versión');
     assert.ok(iSrc > CRM.indexOf('function entrar(){'), 'nube-crm.js se carga antes de que exista entrar()');
     assert.ok(iSrc < CRM.indexOf("navigator.serviceWorker.register"), 'quedó después del service worker');
-    assert.equal(CRM.split('<script src="nube.js"></script>').length - 1, 1, 'nube.js se carga dos veces');
+    assert.equal(CRM.split('<script src="nube.js').length - 1, 1, 'nube.js se carga dos veces');
     assert.match(CRM.slice(iSrc, iSrc + 900), /if\(!window\.NubeCRM\)\{ var b=document\.getElementById\('nubeBarra'\)/);
   });
 
   test('sw.js precarga nube-crm.js', () => {
     const SW = fs.readFileSync(path.join(RAIZ, 'sw.js'), 'utf8');
-    assert.match(SW, /'panel\/nube-crm\.js',/);
+    assert.match(SW, /'panel\/nube-crm\.js(\?v=\d+)?',/);
   });
 });
 

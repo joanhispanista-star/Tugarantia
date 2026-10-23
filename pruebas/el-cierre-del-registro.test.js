@@ -131,7 +131,7 @@ function abrirLaCuenta(P) {
 }
 function conSesionJs(P) {
   P.ev(SESION_JS);
-  P.ev("SCRIPTS['../platachat/sesion.js'] = Promise.resolve();");
+  P.ev("SCRIPTS[URL_SESION_PLATACHAT] = Promise.resolve();");
 }
 function boton(html, texto) {
   const re = new RegExp('onclick="([^"]+)"[^>]*>' + texto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '<');

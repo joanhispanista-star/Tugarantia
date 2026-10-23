@@ -3131,7 +3131,8 @@ describe('el Panel usa el puente, no una copia suya', () => {
   const CRM = fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8');
 
   test('crm.html carga ../app/puente.js', () => {
-    assert.match(CRM, /<script src="\.\.\/app\/puente\.js"><\/script>/,
+    /* 23-oct-2026 — con la versión en la dirección (ver sw.js, v139). */
+    assert.match(CRM, /<script src="\.\.\/app\/puente\.js\?v=\d+"><\/script>/,
       'sin esa línea el Panel se queda con su propia copia de las cuentas');
   });
 

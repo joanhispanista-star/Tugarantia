@@ -620,18 +620,32 @@ Cualquier hosting de archivos estáticos sirve. Con GitHub Pages: subir todo, ac
 Pages sobre la rama principal, y queda en
 `https://<usuario>.github.io/TuGarantia/`.
 
-Tres cuidados:
+Cuatro cuidados:
 
 - **Al cambiar cualquier archivo, subir el número de `CACHE` en `sw.js`, y con él
   `VERSION_SITIO` en las cinco páginas que se actualizan solas** (`play/index.html`,
   `app/socio.html`, `platachat/index.html`, `panel/crm.html`, `panel/espejo.html`;
-  `pruebas/se-actualiza-sola.test.js` no deja pasar uno sin el otro). Las páginas y los
-  `.js` llegan nuevos igual, porque van red primero; sin subir `CACHE` lo que queda
-  viejo son los iconos y la copia sin señal, y una página abierta no se entera de que
-  hay versión nueva (21-oct-2026: `app/actualizar.js` la busca al abrir, al volver a la
-  app y cada 30 min, y recarga sola solo en un momento seguro; el CRM y el espejo solo
-  avisan). Y al cambiar la app, subir también `VERSION_APP` en `app/socio.html`; si lo
-  que cambió es una regla de plata, `REGLAS_VIGENTES_DESDE` en `app/motor.js`.
+  `pruebas/se-actualiza-sola.test.js` no deja pasar uno sin el otro). Sin subir `CACHE`
+  lo que queda viejo son los iconos y la copia sin señal, y una página abierta no se
+  entera de que hay versión nueva (21-oct-2026: `app/actualizar.js` la busca al abrir,
+  al volver a la app y cada 30 min, y recarga sola solo en un momento seguro; el CRM y
+  el espejo solo avisan). Y al cambiar la app, subir también `VERSION_APP` en
+  `app/socio.html`; si lo que cambió es una regla de plata, `REGLAS_VIGENTES_DESDE` en
+  `app/motor.js`.
+- **Al cambiar un `.js` propio que ya estaba publicado, su `?v=` sube al número de
+  `CACHE`** en todas las páginas que lo piden (`<script src="../app/puente.js?v=139">`,
+  y también donde el código lo pide a mano: `URL_SESION_PLATACHAT`, `URL_ROSTRO_VIVO`,
+  `URL_ESCANER_CRM`) y en `ARCHIVOS` de `sw.js`, y el archivo conserva su firma de
+  llegada (`TG_LLEGARON`) antes de su código. «Van red primero» no bastaba (23-oct-2026):
+  el primer F5 después de publicar todavía lo sirve el service worker anterior, que
+  saca el `.js` de la caché HTTP de 10 min de GitHub Pages o, con señal floja, de la
+  suya, y la página nueva corría con el `.js` viejo — tres veces en una semana, la
+  última cobrando dos veces un pago acordado. Con la versión en la dirección ninguna
+  caché tiene nada viejo con ese nombre; si el archivo no llega, la guardia «¿LLEGÓ LO
+  QUE PEDÍ?» del principio de cada página dice que se recargue y no deja escribir.
+  `pruebas/la-pagina-nueva-no-corre-con-un-js-viejo.test.js` compara contra
+  `origin/main` y no deja pasar un `.js` cambiado sin su `?v=`. Lo que no cambió se
+  queda con su dirección: así no se vuelve a bajar entero en cada publicación.
 - **Una sola copia publicada.** El 6 de agosto de 2026 había dos —esta y una de prueba
   del 4 en otro repositorio— y Joan abrió la vieja: le decía que podía pedir 308.000
   cuando el número correcto era 145.000. Dos copias no son un respaldo, son dos apps

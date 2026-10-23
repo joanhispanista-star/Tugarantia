@@ -383,13 +383,14 @@ describe('I2 — «Salir» con un refresco en camino: la sesión de María no vu
 
 describe('I2 — play/: si el pase a PlataChat falla, la copia de la pestaña y la marca se olvidan', () => {
 
-  const scripts = P => Object.values(P.elems).filter(e => e && e.src === '../platachat/sesion.js');
+  /* 23-oct-2026 — con o sin la versión de la dirección (sesion.js?v=139, ver sw.js). */
+  const scripts = P => Object.values(P.elems).filter(e => e && String(e.src || '').split('?')[0] === '../platachat/sesion.js');
 
   async function mariaConElPaseFallido(almacen, sesion) {
     const A = B.abrir({ search: '?marca=platachat', almacen, sesion });
     const ll = B.nube(A);
     /* La primera visita: sesion.js no está todavía (se quita lo que el banco precarga). */
-    A.ev("delete window.SesionPlataChat; delete SCRIPTS['../platachat/sesion.js'];");
+    A.ev("delete window.SesionPlataChat; delete SCRIPTS[URL_SESION_PLATACHAT];");
     B.mariaHastaElPermiso(A, false);
     B.tocar(A, 'Abrir mi cuenta');
     await B.asentar(30);

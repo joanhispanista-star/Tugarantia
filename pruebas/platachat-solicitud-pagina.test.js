@@ -120,7 +120,8 @@ function abrirPlataChat(opciones) {
   ctx.window = ctx; ctx.self = ctx;
   Object.assign(almacen, o.almacen || {});
   vm.createContext(ctx);
-  const srcs = [...PAGINA.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+  /* 23-oct-2026 — sin la versión de la dirección (…?v=139, ver sw.js). */
+  const srcs = [...PAGINA.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1].split('?')[0]);
   srcs.forEach(s => vm.runInContext(leer(path.join('platachat', s)), ctx, { filename: s }));
   [...PAGINA.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
     .forEach((m, i) => vm.runInContext(m[1], ctx, { filename: 'platachat#' + i }));

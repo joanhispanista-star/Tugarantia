@@ -1873,11 +1873,60 @@
    eso la receta pide recargar el Panel del bolsillo con senal.
    Lo que una pagina precargada carga con <script src> o <link> esta en la
    lista de abajo, y todo lo de la lista existe:
-   pruebas/el-lote-del-27-junto.test.js, seccion 4. */
+   pruebas/el-lote-del-27-junto.test.js, seccion 4.
+   23-oct-2026 — LA PÁGINA NUEVA YA NO CORRE CON UN .JS VIEJO, DE RAÍZ (misma
+   v139). Las tres rejas de arriba (e0ae61a, a12dae4, 1d0267f) tapaban UNA
+   función cada una; la clase entera sale de dos ventanas: (1) la caché HTTP
+   de GitHub Pages (max-age=600) le da a la página recién bajada un .js de
+   hasta 10 min antes, porque el v138 pide con fetch(req) a secas y un F5 solo
+   revalida la página, no sus .js; (2) con señal floja el v138 contesta el .js
+   que no bajó con el de SU caché. La nota del 21-oct («'no-cache' ... ya no
+   mezcla») vale con ESTE service worker mandando; mientras manda el v138, que
+   es el que sirve el primer F5 después de publicar, las dos siguen abiertas.
+   LA SOLUCIÓN: la versión en la dirección. Cada .js propio que cambió desde
+   lo publicado se pide como …/archivo.js?v=139, con la MISMA dirección en
+   todas las páginas (y en los cargarScript y URL_… que lo piden a mano), y
+   aquí se precarga con esa misma dirección. Ninguna caché tiene nada viejo
+   con ese nombre: la HTTP nunca lo vio, el v138 tampoco (y no usa
+   ignoreSearch), y si este ya se instaló, el caches.match del v138 lo
+   encuentra en la caché nueva (mira todas). Lo que no cambió sigue con su
+   dirección de siempre: se revalida con un 304 de pocos bytes en vez de
+   bajarse entero en cada publicación.
+   Lo que queda es que NO llegue (el v138 contesta index.html a lo que no
+   guardó): para eso cada uno de esos .js firma al empezar (TG_LLEGARON) y cada
+   página que escribe empieza su bloque grande con «¿LLEGÓ LO QUE PEDÍ?»: si
+   uno no firmó, la pantalla dice que se recargue y no arranca. index.html no
+   la lleva: no escribe nada que importe y su bloque ya se corta solo.
+   POR QUÉ ESTA Y NO SOLO EL APRETÓN DE MANOS: una firma sola DETECTA la
+   mezcla pero no la evita. Con el v138 mandando, el F5 volvería a sacar el .js
+   viejo de la caché HTTP durante 10 min, y la pantalla de «recarga» volvería
+   después de cada recarga; sin señal, la app quedaría muda hasta tenerla. Con
+   la dirección nueva el primer F5 ya trae todo nuevo, y la firma solo salta
+   cuando de verdad falta un archivo.
+   POR QUÉ NO ignoreSearch: con él, una página de la próxima versión (?v=140)
+   abierta sin señal bajo ESTE service worker encontraría el ?v=139 guardado
+   aquí: la misma mezcla, una publicación más tarde. La coincidencia exacta es
+   la reja.
+   LA REGLA PARA LO QUE SIGUE: al cambiar un .js propio que ya estaba
+   publicado, su ?v= sube al número de CACHE de esa publicación en TODAS las
+   páginas que lo piden y en ARCHIVOS, y el archivo conserva su firma antes
+   de su código (primero y no al final: si más abajo revienta en algún
+   teléfono, eso no es mezcla, y frenar la página por eso la dejaría en
+   «recarga» para siempre). La guardia de las páginas es UNA copia: si
+   cambias una, cámbialas todas.
+   pruebas/la-pagina-nueva-no-corre-con-un-js-viejo.test.js compara
+   contra origin/main (lo publicado), no deja pasar uno sin lo otro, y simula
+   el teléfono con v138 (el sw.js de main de verdad, la caché HTTP de 10 min y
+   la señal floja) para cada página y cada .js que cambió. Las rejas de las
+   tres rondas se quedan como segunda capa. */
 const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 
 const ARCHIVOS = [
+  /* 23-oct-2026 — lo que lleva ?v=139 se guarda con ESA dirección, la misma
+     que piden las páginas (ver la nota de arriba, «LA PÁGINA NUEVA YA NO CORRE
+     CON UN .JS VIEJO»): caches.match busca la dirección exacta, así que sin el
+     ?v= aquí, sin señal la página no lo encontraría. */
   '',                                   // la raíz, o sea la web pública
   'index.html',
   'portada.png',
@@ -1885,12 +1934,12 @@ const ARCHIVOS = [
   'legal/terminos.html',
   'app/socio.html',
   'app/motor.js',
-  'app/puente.js',
+  'app/puente.js?v=139',
   /* El chat: lo comparten la app del socio, el CRM y el espejo, igual que el
      motor y el puente. Es la razón de que este service worker viva en la raíz. */
   'app/chat.js',
   /* 7-oct-2026 — la puerta unica de la app del socio. Ver la nota de v132. */
-  'app/sesion-socio.js',
+  'app/sesion-socio.js?v=139',
   'app/ver-como.js',
   'app/chat.css',
   'app/app.webmanifest',
@@ -1912,11 +1961,11 @@ const ARCHIVOS = [
   'app/comisiones.js',
   'app/bases.js',
   'panel/espejo.webmanifest',
-  'panel/nube.js',
+  'panel/nube.js?v=139',
   /* 1-oct-2026 — la subida automatica del CRM. Ver la nota de v123. */
-  'panel/nube-crm.js',
+  'panel/nube-crm.js?v=139',
   /* 7-oct-2026 — los historiales que suben solos. Ver la nota de v131. */
-  'panel/historiales-auto.js',
+  'panel/historiales-auto.js?v=139',
   /* 7-oct-2026 — las palabras del toque «¿Es la misma persona?». Ver la nota de v132. */
   'panel/una-puerta.js',
   /* 15-oct-2026 — las reglas de la venta del gerente. Ver la nota de v136. */
@@ -1947,7 +1996,7 @@ const ARCHIVOS = [
   'play/index.html',
   'play/estilo.css',
   'play/app.webmanifest',
-  'app/cuenta.js',
+  'app/cuenta.js?v=139',
   /* 19-oct-2026 — el telefono de verdad: play/, app/socio.html y el CRM lo
      cargan con un <script src>. Sin el, la app instalada no anota el aparato
      (la pagina se protege sola) y el CRM no lo pone en palabras. Ver v138. */
@@ -1967,7 +2016,7 @@ const ARCHIVOS = [
      se protege con `if (!EC)`), pero el cliente perderia el escaner que es
      justo lo que evita la vuelta de la camara. zxing.min.js sigue fuera: son
      330 KB que se bajan solo al llegar a ese paso. */
-  'app/escaner-cedula.js',
+  'app/escaner-cedula.js?v=139',
   /* 21-oct-2026 — el escaner que escoge la foto mas nitida (la cedula
      acostada, la linterna sola, el QR de la digital): play/ lo carga con un
      <script src>. Sin el, el escaner sigue con la cuenta de antes (ECAP), y la
@@ -1975,7 +2024,7 @@ const ARCHIVOS = [
      play/index.html y app/escaner-cedula.js: quien integra sube el CACHE. */
   'app/escaner-captura.js',
   'app/creditos.js',
-  'app/cumplimiento.js',
+  'app/cumplimiento.js?v=139',
   /* 14-sep-2026 — lo que play/ carga desde que es la puerta unica. ficha.js lee
      el paquete del socio y motor.js cotiza el credito con garantia; los dos ya
      estaban arriba o entran aqui, y ninguno se duplica en la lista porque el
@@ -2016,7 +2065,7 @@ const ARCHIVOS = [
   'platachat/estilo.css',
   /* 1-oct-2026 — la piel de PlataChat para el registro de play/ con la marca. */
   'platachat/piel-registro.css',
-  'platachat/sesion.js',
+  'platachat/sesion.js?v=139',
   'platachat/app.webmanifest',
   'platachat/borrar-cuenta.html',
   'platachat/icono-180.png',
@@ -2028,8 +2077,8 @@ const ARCHIVOS = [
   /* 8-oct-2026 — la calculadora del pedido y las condiciones de cada propuesta
      (play/, platachat/ e index.html), y la selfie que se toma sola (play/, al
      llegar al paso). Ver la nota de v136. */
-  'app/calculadora-solicitud.js',
-  'app/rostro-en-vivo.js',
+  'app/calculadora-solicitud.js?v=139',
+  'app/rostro-en-vivo.js?v=139',
   /* 21-oct-2026 — se actualiza sola: play/, app/socio.html, platachat/, el
      CRM y el espejo lo cargan con un <script src>. Sin el en la cache, la app
      instalada sin senal abre igual (cada pagina se protege con

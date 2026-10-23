@@ -126,7 +126,9 @@ function abrirSocio(o) {
   vm.createContext(ctx);
 
   for (const m of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)) {
-    const src = (/\bsrc="([^"]+)"/.exec(m[1]) || [])[1];
+    /* 23-oct-2026 — sin la versión de la dirección (puente.js?v=139, ver
+       sw.js): el archivo es el mismo. */
+    const src = ((/\bsrc="([^"]+)"/.exec(m[1]) || [])[1] || '').split('?')[0];
     if (src) vm.runInContext(fs.readFileSync(path.join(RAIZ, 'app', src), 'utf8'), ctx, { filename: src });
     else vm.runInContext(m[2], ctx, { filename: 'socio.html' });
   }

@@ -291,6 +291,7 @@ describe('app/socio.html: anota al pedir', () => {
     const i = SOCIO.indexOf("'solicitar_por_sesion'");
     const tramo = SOCIO.slice(i, SOCIO.indexOf('var texto =', i));
     assert.match(tramo, /\.then\(function \(j\) \{[\s\S]*if \(j && j\.ok === true\) anotarAparatoSocio\('solicitud'\);[\s\S]*\}\)\.catch\(function \(\) \{\}\);/);
-    assert.match(SOCIO, /<script src="cuenta\.js"><\/script>[\s\S]*<script src="aparato\.js"><\/script>/);
+    /* 23-oct-2026 — cuenta.js se pide con la versión en la dirección (ver sw.js, v139). */
+    assert.match(SOCIO, /<script src="cuenta\.js\?v=\d+"><\/script>[\s\S]*<script src="aparato\.js"><\/script>/);
   });
 });

@@ -551,7 +551,7 @@ describe('6. PlataChat usa el mismo registro', () => {
   test('de punta a punta: escanea, el celular, y las fotos suben ANTES de irse a PlataChat', async () => {
     const P = abrir({ search: '?marca=platachat', hash: '' });
     P.ev(SESION_JS);
-    P.ev("SCRIPTS['../platachat/sesion.js'] = Promise.resolve();");
+    P.ev("SCRIPTS[URL_SESION_PLATACHAT] = Promise.resolve();");
     hastaElRostro(P);
     assert.equal(P.ev('avisoAcompana()'), '', 'PlataChat no tiene acompañamiento');
     assert.equal(P.almacen.tg_vivo_aviso_8oct2026, undefined, 'anotó un permiso que PlataChat no pide');

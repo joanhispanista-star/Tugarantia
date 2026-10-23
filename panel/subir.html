@@ -380,10 +380,56 @@
 </div>
 
 <script src="../app/motor.js"></script>
-<script src="../app/puente.js"></script>
-<script src="nube.js"></script>
+<script src="../app/puente.js?v=139"></script>
+<script src="nube.js?v=139"></script>
 <script>
 'use strict';
+/* 23-oct-2026 — ¿LLEGÓ LO QUE PEDÍ? Cada .js propio que cambió desde lo
+   publicado se pide con la versión en la dirección (…?v=139): ni la caché
+   HTTP de 10 min de GitHub Pages ni la del service worker anterior tienen
+   nada guardado con ese nombre, así que una página nueva ya no puede correr
+   con el .js de antes (pasó tres veces: «Ajustar el próximo pago» y el pie de
+   Créditos en el CRM, y el choque del espejo que cobraba dos veces un pago
+   acordado). Lo que queda es que NO llegue: el sw.js v138, sin señal,
+   contesta index.html a lo que no guardó, y la página correría sin esa
+   pieza. Cada uno de esos .js firma al empezar (TG_LLEGARON); si uno de los de
+   arriba no firmó, esta pantalla no arranca: lo dice, ofrece recargar y corta
+   aquí, antes de que nada de este bloque pueda escribir plata ni datos. Por
+   eso va primero, y por eso frena los toques y las teclas fuera del aviso. Es
+   la misma copia en todas las páginas: si cambias una, cámbialas todas
+   (pruebas/la-pagina-nueva-no-corre-con-un-js-viejo.test.js). */
+(function () {
+  var d = typeof document !== 'undefined' ? document : null;
+  if (!d || typeof d.getElementsByTagName !== 'function') return;
+  var firmas = window.TG_LLEGARON || {}, faltan = [], ss = d.getElementsByTagName('script');
+  for (var i = 0; i < ss.length; i++) {
+    var pedido = ss[i].getAttribute('src') || '';
+    if (!/[?&]v=\d/.test(pedido) || /^([a-z][\w+.-]*:|\/\/)/i.test(pedido)) continue;   // solo los del sitio
+    if (!firmas[ss[i].src]) faltan.push(pedido.split('?')[0]);
+  }
+  if (!faltan.length) return;
+  window.TG_A_MEDIAS = faltan;
+  var caja = d.createElement('div');
+  caja.setAttribute('role', 'alertdialog');
+  caja.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:999999;display:flex;'
+    + 'align-items:center;justify-content:center;padding:24px;background:#fff;color:#1b1b1b;'
+    + 'font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-align:center';
+  caja.innerHTML = '<div style="max-width:420px">'
+    + '<p style="margin:0 0 10px;font-size:19px;font-weight:700">Falta bajar parte de la versión nueva</p>'
+    + '<p style="margin:0 0 18px">Para no guardar ni mandar nada a medias, esta pantalla no sigue. '
+    + 'Con señal, toca Recargar: no se pierde nada de lo que ya estaba guardado.</p>'
+    + '<button type="button" style="font:inherit;font-weight:700;padding:12px 24px;border:0;'
+    + 'border-radius:10px;background:#1b1b1b;color:#fff">Recargar</button></div>';
+  caja.querySelector('button').onclick = function () { location.reload(); };
+  (d.body || d.documentElement).appendChild(caja);
+  ['click', 'keydown', 'submit', 'input', 'change'].forEach(function (t) {
+    window.addEventListener(t, function (e) {
+      if (!caja.contains(e.target)) { e.stopImmediatePropagation(); e.preventDefault(); }
+    }, true);
+  });
+  throw new Error('Llegó a medias (' + faltan.join(', ') + '): esta pantalla no arranca.');
+})();
+
 /* ===========================================================================
  * SUBIR — el puente en el computador.  11 de agosto de 2026.
  *

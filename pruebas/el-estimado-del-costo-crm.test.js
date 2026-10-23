@@ -168,7 +168,8 @@ describe('«✏️ Proponer»: el estimado arriba y el aviso en cada vista previ
 describe('crm.html carga la calculadora, y las cuentas no son suyas', () => {
 
   test('<script src> de la calculadora, una vez, después de la tabla de usura', () => {
-    const srcs = [...CRM.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+    /* 23-oct-2026 — sin la versión de la dirección (…?v=139, ver sw.js). */
+    const srcs = [...CRM.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1].split('?')[0]);
     assert.equal(srcs.filter(s => s === '../app/calculadora-solicitud.js').length, 1);
     assert.ok(srcs.indexOf('../app/calculadora-solicitud.js') > srcs.indexOf('../app/creditos.js'));
   });
