@@ -47,6 +47,27 @@ describe('el archivo', () => {
     assert.match(codigo, /revoke all on function public\.celular_del_equipo_de_sesion\(\) from public, anon, authenticated;/);
     assert.equal(/(insert\s+into|update|delete\s+from)\s+auth\.users\b/i.test(codigo), false, 'el archivo que Joan pega en producción escribe en auth.users');
   });
+
+  test('ninguna migración POSTERIOR vuelve a decidir el puesto con celular_de_sesion()', () => {
+    /* 22-oct-2026 — el archivo de hoy cambia las funciones del equipo que
+       EXISTEN al correrlo. Una función del equipo escrita después con
+       celular_de_sesion() volvería a abrir el hueco sin que nada lo dijera
+       (y si se aplica después de este archivo, su paso 2 ya no la ve). Las
+       del equipo nuevas usan celular_del_equipo_de_sesion() o
+       gerente_de_sesion(). */
+    const EQUIPO = /(public\.equipo|from\s+equipo|join\s+equipo|update\s+equipo|public\.envios_asesor)\b/i;
+    const despues = fs.readdirSync(path.join(RAIZ, 'base'))
+      .filter(f => /^\d{8}.*\.sql$/.test(f) && f > NOMBRE).sort();
+    despues.forEach(f => {
+      const t = fs.readFileSync(path.join(RAIZ, 'base', f), 'utf8').replace(/--[^\n]*/g, '');
+      t.split(/create\s+or\s+replace\s+function/i).slice(1).forEach(cuerpo => {
+        const nombre = (cuerpo.match(/^\s*([\w.]+)/) || [])[1] || '?';
+        if (/^public\.(celular_de_sesion|celular_del_equipo_de_sesion|equipo_cuenta_sin_clave)$/.test(nombre)) return;
+        assert.equal(/public\.celular_de_sesion\(\)/.test(cuerpo) && EQUIPO.test(cuerpo), false,
+          f + ': ' + nombre + ' decide el puesto con celular_de_sesion(); usa celular_del_equipo_de_sesion()');
+      });
+    });
+  });
 });
 
 describe('el equipo con la clave de Joan, en un PostgreSQL de verdad', { skip: !BIN && 'sin TG_PG_BIN no hay PostgreSQL a mano' }, () => {
@@ -184,5 +205,21 @@ describe('el equipo con la clave de Joan, en un PostgreSQL de verdad', { skip: !
     /* Y las del equipo no perdieron sus permisos al cambiar. */
     assert.equal(sql("select has_function_privilege('authenticated', 'public.mi_cartera()', 'execute')"), 't');
     assert.equal(sql("select has_function_privilege('anon', 'public.mi_cartera()', 'execute')"), 'f');
+  });
+
+  test('toda función que ahora pregunta por la clave corre como su dueño (si no, la sesión no podría llamarla)', () => {
+    /* 22-oct-2026 — celular_del_equipo_de_sesion() no se le da a
+       `authenticated` (nadie de afuera la llama). Eso solo funciona si quien
+       la llama es SECURITY DEFINER: una función del equipo que corriera con
+       los permisos de la sesión fallaría con «permission denied» y dejaría a
+       todo el equipo afuera, con la clave puesta. Las pruebas de arriba corren
+       como postgres y no lo verían. */
+    const invocadoras = sql("select coalesce(string_agg(p.oid::regprocedure::text, ', '), '') from pg_proc p join pg_namespace s on s.oid = p.pronamespace" +
+      " where s.nspname = 'public' and p.prosrc ~ 'celular_del_equipo_de_sesion' and not p.prosecdef");
+    assert.equal(invocadoras, '', 'corren con los permisos de la sesión y no podrían llamarla: ' + invocadoras);
+    const cuantas = Number(sql("select count(*) from pg_proc p join pg_namespace s on s.oid = p.pronamespace" +
+      " where s.nspname = 'public' and p.prosrc ~ 'public\\.celular_del_equipo_de_sesion\\(\\)'" +
+      " and p.proname not in ('celular_del_equipo_de_sesion', 'equipo_cuenta_sin_clave')"));
+    assert.ok(cuantas >= 10, 'cambiaron muy pocas funciones del equipo: ' + cuantas);
   });
 });

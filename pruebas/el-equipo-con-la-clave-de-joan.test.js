@@ -15,7 +15,9 @@
  *   · la puerta del equipo le dice a quien entra que le falta la clave, y no
  *     «todavía no tienes puesto».
  * La base corriendo de verdad está en el-equipo-con-la-clave-de-joan-postgres.
- * Todas FALLAN con el CRM de ab6b595.
+ * Las que prueban lo nuevo FALLAN con ab6b595; las de control (las que dicen
+ * «sigue», «como siempre», «como antes» o «no … nada») pasan con las dos, y
+ * están para que el arreglo no rompa lo que ya andaba.
  * ========================================================================= */
 'use strict';
 const { test, describe } = require('node:test');
