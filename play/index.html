@@ -29,9 +29,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Tu Garantía · Crédito rápido y fácil</title>
 <meta name="theme-color" content="#0C0A0B">
-<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Tu Garantía">
-<link rel="manifest" href="app.webmanifest">
+<!-- 23-oct-2026 — SIN EL ENLACE AL MANIFIESTO NI apple-mobile-web-app-capable:
+     play/ DEJA DE SER INSTALABLE. Desde el 21-oct la única app que se ofrece
+     es app/socio.html, pero Chrome seguía dando por instalable esta página
+     (menú ⋮ → «Instalar», 0 errores, medido el 23-oct en el túnel y en
+     tugarantia.net): dos «Tu Garantía» con los mismos íconos, y esta pide la
+     contraseña en cada apertura. Sin el manifiesto el menú solo ofrece
+     «Agregar a la pantalla principal», un acceso directo que abre una pestaña.
+     El archivo play/app.webmanifest se QUEDA, con su id y en la precarga de
+     sw.js: quien ya la instaló la sigue abriendo (el WebAPK lleva su propio
+     manifiesto); Chrome solo deja de actualizarla. Eso se verifica en el
+     Android de Joan. Ver «DEJARLA EN EL CELULAR» abajo. -->
 <link rel="apple-touch-icon" href="../app/icono-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="../app/icono-192.png">
 <link rel="stylesheet" href="../app/chat.css">
@@ -10951,8 +10960,16 @@ function plegable(id, titulo, parrafos) {
  *     apertura era volver a escribir la contraseña. No es «una app normal».
  * El oyente se queda y SOLO calla a Chrome (preventDefault): sin él, Chrome
  * podría ofrecer instalar esta página con su propia franja, y volveríamos a
- * los dos íconos. El manifiesto NO se quita ni se toca su `id`: quien ya la
- * instaló la sigue abriendo igual (README, «Los id de los .webmanifest»).
+ * los dos íconos.
+ * 23-oct-2026 — EL MANIFIESTO YA NO SE ENLAZA. Callar la franja no bastaba: con
+ * el manifiesto enlazado Chrome seguía instalándola desde el menú ⋮ («Instalar»,
+ * 0 errores). Ahora la página no enlaza ningún manifiesto y el menú solo ofrece
+ * «Agregar a la pantalla principal», que deja un acceso directo que abre una
+ * pestaña, no una app aparte; nada en esta página promete más que eso. El
+ * ARCHIVO play/app.webmanifest se queda, con su `id` intacto y en la precarga
+ * de sw.js: quien ya la instaló la sigue abriendo igual, porque el WebAPK lleva
+ * su propio manifiesto (README, «Los id de los .webmanifest»); Chrome solo deja
+ * de actualizarla. Esto último se verifica en el Android de Joan.
  *
  * LO QUE NO SE PIDE: el permiso de notificaciones. Joan lo pidió y no se hace
  * todavía, con motivo: hoy no hay quién mande una — el service worker no

@@ -473,6 +473,10 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         (dos íconos «Tu Garantía» iguales, y pide la contraseña
                         en cada apertura); el manifiesto se queda para quien ya
                         la instaló.
+                        Desde el 23-oct-2026 play/index.html ya NO lo enlaza:
+                        Chrome la seguía instalando desde el menú ⋮. El archivo
+                        y su id se quedan (y en la precarga): el WebAPK de quien
+                        ya la tenía lo lleva adentro y la sigue abriendo.
 
 android/
   LEEME.md              Cómo sacar el APK, cómo se reparte por enlace, y por qué

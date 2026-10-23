@@ -1991,7 +1991,10 @@ const ARCHIVOS = [
      21-oct-2026 — play/ ya NO se ofrece para instalar: la que se instala es
      app/socio.html (dos iconos «Tu Garantia» iguales, y play/ pide la
      contrasena en cada apertura). Sigue en la precarga porque quien ya la
-     instalo, y quien se registra con mala senal, la abren igual. */
+     instalo, y quien se registra con mala senal, la abren igual.
+     23-oct-2026 — play/index.html ya no enlaza su manifiesto (Chrome la seguia
+     instalando desde el menu). play/app.webmanifest se queda aqui y en el
+     repo, con su id: el WebAPK de quien ya la instalo lo lleva adentro. */
   'play/',
   'play/index.html',
   'play/estilo.css',
