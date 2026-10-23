@@ -898,6 +898,20 @@
        cabeza y sigue diciendo «Céntrate» cuando casi todo el detalle está
        afuera (la prueba «ladeado» de cuenta.test.js da 0,065). */
     VENTAJA_CENTRO: 0.3, // el centro no puede tener mucho MENOS detalle que el borde
+    /* 22-oct-2026 (segunda vuelta) — PERO BAJAR EL UMBRAL HASTA 0,3 ABRIÓ LA
+       PUERTA A LO QUE NO ES UNA CARA. Una textura pareja —baldosas, una
+       camisa a rayas, una persiana, un teclado, una tela— tiene el MISMO
+       detalle en el centro que en el borde (centro/borde entre 0,89 y 1,10,
+       medido), y con 0,3 todas disparaban; con 1,25 ninguna. La cabeza con pelo
+       cae entre 0,36 y 0,5 a los tres tamaños de la prueba, y hasta 0,95 muy
+       corrida. Entre PAREJO_MIN y CARA_DE_CERCA se lee como textura
+       ('parejo') y no dispara: se pierden unas pocas caras muy corridas (para
+       eso está el botón) y se cierran las texturas. Lo que la banda NO cierra:
+       la misma textura con un degradado de luz baja de 0,8, y un cuarto quieto
+       puede caer en cualquier parte. El encuadre no ve caras; por eso la
+       pantalla, cuando dispara él, le pide a la persona mirar su foto. */
+    PAREJO_MIN: 0.8,    // desde aquí el detalle es el mismo adentro y afuera: una textura
+    CARA_DE_CERCA: 1.25, // el centro con claramente MÁS detalle: la cara que llena el óvalo (el umbral de antes)
     MOVIMIENTO_MAX: 7,  // diferencia media entre dos fotogramas seguidos
     CUADROS: 10         // seguidos en verde antes de disparar (~0,8 s)
   };
@@ -917,7 +931,7 @@
    * @returns {luz, textura, centro, borde, movimiento, ok, falla}
    *          `falla` dice QUÉ falta, para que la pantalla lo diga en castellano
    *          en vez de quedarse muda: 'luz' | 'poca_luz' | 'mucha_luz' |
-   *          'lejos' | 'ladeado' | 'movimiento' | ''
+   *          'lejos' | 'ladeado' | 'parejo' | 'movimiento' | ''
    */
   function medirEncuadre(gris, previa, lado) {
     var g = gris || [];
@@ -954,6 +968,11 @@
     if (centro < borde * ENCUADRE.VENTAJA_CENTRO) {
       return { luz: luz, textura: centro, centro: centro, borde: borde, movimiento: 999, ok: false, falla: 'ladeado' };
     }
+    /* 22-oct-2026 — el mismo detalle adentro y afuera del óvalo: una tela, un
+       piso, una repisa. No una cara (ver PAREJO_MIN). */
+    if (centro >= borde * ENCUADRE.PAREJO_MIN && centro < borde * ENCUADRE.CARA_DE_CERCA) {
+      return { luz: luz, textura: centro, centro: centro, borde: borde, movimiento: 999, ok: false, falla: 'parejo' };
+    }
 
     /* Sin fotograma anterior no se puede decir si está quieto: no es un fallo,
        es que todavía no se sabe. */
@@ -976,6 +995,7 @@
     mucha_luz: 'Demasiada luz atrás: date la vuelta',
     lejos: 'Acerca tu cara al óvalo',
     ladeado: 'Céntrate en el óvalo',
+    parejo: 'Pon tu cara dentro del óvalo',   // 22-oct-2026: lo que se ve es una textura, no una cara
     movimiento: 'Quieto…',
     '': 'Listo'
   };

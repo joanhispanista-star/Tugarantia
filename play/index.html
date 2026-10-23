@@ -3855,6 +3855,14 @@ function tomarSelfieDesdeElAviso() {
 function motivoSinSelfie() {
   if (selfieAnterior()) return 'repitio_y_siguio';
   if (FOTOS.selfie_camara_sistema) return 'camara_del_sistema_sin_volver';
+  /* 22-oct-2026 — la cámara SÍ prendió y la foto no salió del lienzo (T4:
+     Safari sin memoria para un lienzo más). El escáner queda escondido igual
+     que si no hubiera prendido, pero «sin_camara» le diría a Joan «la cámara
+     en vivo no prendió», que es falso. Lo que sí es cierto es el caso
+     general: le avisamos que faltaba la foto y siguió sin ella. Un quinto
+     motivo («la foto no salió») pediría cambiar la base, el CRM y la
+     política a la vez; no hace falta para pedírsela. */
+  if (ESCANER.fotoNoSalio) return 'siguio_sin_ella';
   var esc = $('escaner');
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || (esc && esc.classList.contains('oculto'))) return 'sin_camara';
   return 'siguio_sin_ella';
@@ -7726,7 +7734,13 @@ var ESCANER = { stream: null, activo: false, estables: 0, temporizador: null,
                    detector que nunca ve una cara se suelta (ver bucleEscaner);
                    ojos y ojosT: los últimos ojos que vio, solo para dibujarlos
                    un rato corto. Mueren con el escáner. */
-                desdeCara: 0, desdeRostro: 0, vioCara: false, ojos: null, ojosT: 0 };
+                desdeCara: 0, desdeRostro: 0, vioCara: false, ojos: null, ojosT: 0,
+                /* 22-oct-2026 — soloAMano: el detector se soltó porque en
+                   MS_SIN_CARA no vio NINGUNA cara (T3); el encuadre que queda
+                   guía, pero no dispara solo (ver bucleEscaner). fotoNoSalio:
+                   la cámara prendió y lo que falló fue la foto (T4); lo lee
+                   motivoSinSelfie. Las dos vuelven a false en iniciarEscaner. */
+                soloAMano: false, fotoNoSalio: false };
 /* 22-oct-2026 — LO QUE SE VE NO ES EL CUADRO ENTERO. La caja del escáner es
    3:4 y el video la llena recortado (object-fit: cover). Un Android entrega
    720×960 y se ve entero, pero un iPhone suele entregar 720×1280 (9:16): se
@@ -7817,8 +7831,12 @@ function pintarMedidas(final) {
   }
   if (!final && ESCANER.ultima && ESCANER.modo !== 'rostro') {
     var e = ESCANER.ultima;
+    /* 22-oct-2026 — la razón que dispara es una banda (cabeza con pelo) o
+       pasar de CARA_DE_CERCA; entre las dos es una textura ('parejo'). */
     l.push('encuadre: ' + (e.ok ? 'ok' : (e.falla || '?')) + ' · luz ' + Math.round(e.luz) + ' · centro/borde ' + num2(e.borde > 0 ? e.centro / e.borde : NaN) +
-      ' (≥' + num2(U.ENCUADRE.VENTAJA_CENTRO) + ') · mov ' + num2(e.movimiento === 999 ? NaN : e.movimiento) + ' · racha ' + ESCANER.estables + ' de ' + U.ENCUADRE.CUADROS);
+      ' (' + num2(U.ENCUADRE.VENTAJA_CENTRO) + '–' + num2(U.ENCUADRE.PAREJO_MIN) + ' o ≥' + num2(U.ENCUADRE.CARA_DE_CERCA) + ')' +
+      ' · mov ' + num2(e.movimiento === 999 ? NaN : e.movimiento) + ' · racha ' + ESCANER.estables + ' de ' + U.ENCUADRE.CUADROS +
+      (ESCANER.soloAMano ? ' · solo a mano: el detector no vio ninguna cara' : ''));
   }
   l.push('fallas: ' + cuenta(MEDIDAS.fallas));
   l.push('rompieron la racha: ' + cuenta(MEDIDAS.rotas));
@@ -7955,6 +7973,10 @@ function repetirRostro() {
   delete FOTOS.selfie; guardarFotos();
   AVISO_SIN_SELFIE = false;   // si sigue sin la nueva, se le vuelve a avisar
   $('selfieListo').classList.add('oculto'); $('escaner').classList.remove('oculto'); $('btnCapturar').classList.remove('oculto');
+  /* 22-oct-2026 — la nota hablaba de la foto que se va («se tomó sola sin
+     poder buscar tu cara», «no dejó guardarla») o del escáner de antes: el
+     que arranca ahora dice lo suyo. */
+  var notaR = $('selfieNota'); if (notaR) notaR.textContent = '';
   ponerTextoBotonRostro();
   iniciarEscaner();
 }
@@ -7978,6 +8000,7 @@ function iniciarEscaner() {
   ESCANER.activo = true; ESCANER.estables = 0; ESCANER.desde = 0; ESCANER.previa = null; ESCANER.ultima = null;
   ESCANER.turno++; ESCANER.medida = null; ESCANER.previaCara = null; ESCANER.mejorNitidez = 0; ESCANER.fallos = 0;
   ESCANER.desdeCara = 0; ESCANER.desdeRostro = 0; ESCANER.vioCara = false; ESCANER.ojos = null; ESCANER.ojosT = 0;
+  ESCANER.soloAMano = false; ESCANER.fotoNoSalio = false;   // 22-oct-2026: un intento nuevo empieza limpio (T3, T4)
   if (MEDIR_ROSTRO) MEDIDAS = medidasNuevas();   // 22-oct-2026: ver MEDIR LA SELFIE
   /* 8-oct-2026 (segunda vuelta) — EL ÓVALO, CENTRADO EN LA PANTALLA. El paso
      arranca arriba de todo, y en un teléfono real (375×660 con las barras del
@@ -8098,6 +8121,15 @@ function detenerEscaner() {
   if (ESCANER.espera) { clearTimeout(ESCANER.espera); ESCANER.espera = null; }
   if (ESCANER.stream) { ESCANER.stream.getTracks().forEach(function (t) { t.stop(); }); ESCANER.stream = null; }
   liberarDetectorRostro();
+  /* 22-oct-2026 — LO QUE SE VIO MUERE CON LA CÁMARA. La política dice que
+     dónde están la cara y los ojos «vive solo mientras la cámara está
+     prendida», y liberarDetectorRostro solo borraba ESCANER.ojos: la última
+     medida (la caja y los doce puntos de los ojos), la caja anterior y el
+     cuadro gris del óvalo se quedaban en la memoria de la página hasta
+     cerrarla, en todas las salidas sin foto («Seguir sin la foto», la cámara
+     del celular, «Usar mi foto anterior», T4) y durante los cinco pasos que
+     siguen. Ahora se borran aquí, que es por donde pasan todas. */
+  ESCANER.medida = null; ESCANER.previaCara = null; ESCANER.previa = null; ESCANER.ultima = null;
   /* 22-oct-2026 — con ?medir=1: la cámara se apagó, así que se borra lo de la
      cara y quedan los conteos (ver MEDIR LA SELFIE). */
   if (MEDIDAS) pintarMedidas(true);
@@ -8267,15 +8299,23 @@ function bucleEscaner() {
      «no hay cara» una y otra vez durante RostroEnVivo.ROSTRO.MS_SIN_CARA, el
      vigilante de arriba no lo ve (contesta a tiempo) y la persona se quedaba
      en «Pon tu cara dentro del óvalo» hasta rendirse y tocar «Continuar» sin
-     foto. Se suelta, se vuelve al encuadre (que no necesita ver una cara para
-     disparar) y se pone a la vista la cámara del celular. */
+     foto. Se suelta y se pone a la vista la cámara del celular.
+     22-oct-2026 (segunda vuelta) — Y EL ENCUADRE QUE QUEDA YA NO DISPARA
+     SOLO (soloAMano). Disparaba, y el encuadre no necesita ver una cara: con
+     el celular apoyado mirando una repisa, una camisa a rayas o un techo con
+     detalle, a los 12 s la foto «se tomaba sola», salía «¡Listo!» y llegaba
+     al CRM como «Su cara» —el síntoma de William al revés—, justo cuando el
+     detector acababa de concluir que ahí no había ninguna cara. La política
+     dice que dispara con una cara: aquí la persona la toma con el botón o con
+     la cámara del celular. Se suelta igual (memoria y batería: lo que viene
+     es la subida) y el óvalo se queda como guía. */
   if (ESCANER.modo === 'rostro' && ESCANER.detector && RV && RV.ROSTRO && !ESCANER.vioCara &&
       ESCANER.desdeRostro && (Date.now() - ESCANER.desdeRostro) > RV.ROSTRO.MS_SIN_CARA) {
-    liberarDetectorRostro(); ESCANER.modo = 'encuadre'; ESCANER.estables = 0;
+    liberarDetectorRostro(); ESCANER.modo = 'encuadre'; ESCANER.estables = 0; ESCANER.soloAMano = true;
     var fs0 = $('fot_selfie'); if (fs0) fs0.style.display = '';
     var ns0 = $('selfieNota');
-    if (ns0) ns0.textContent = 'El escáner no logra ver tu cara: sigue con el óvalo, toca «Tomar la foto ahora», ' +
-      'o toma la selfie con la cámara del celular, aquí abajo.';
+    if (ns0) ns0.textContent = 'El escáner no logra ver tu cara, así que no la va a tomar solo: pon tu cara en el óvalo ' +
+      'y toca «Tomar la foto ahora», o toma la selfie con la cámara del celular, aquí abajo.';
   }
   var conCara = ESCANER.modo === 'rostro' && !!ESCANER.detector && !!RV;
   var enganchado, avance, mr = null, ojos = null;
@@ -8289,6 +8329,10 @@ function bucleEscaner() {
     avance = !enganchado ? 0 : Math.min(1, ESCANER.estables / RV.ROSTRO.CUADROS,
       msMin > 0 ? (ESCANER.desdeCara ? (Date.now() - ESCANER.desdeCara) / msMin : 0) : 1);
     if (ESCANER.ojos && (Date.now() - ESCANER.ojosT) < MS_OJOS_VIVOS && mr && mr.ojos) ojos = ESCANER.ojos;
+  } else if (ESCANER.modo === 'encuadre' && ESCANER.soloAMano) {
+    /* 22-oct-2026 — sin racha, sin verde y sin «3·2·1»: los tres prometen un
+       disparo que aquí no va a llegar (ver T3 arriba). */
+    ESCANER.estables = 0; enganchado = false; avance = 0;
   } else if (ESCANER.modo === 'encuadre') {
     if (m && m.ok) ESCANER.estables++; else ESCANER.estables = 0;
     enganchado = !!(m && m.ok);
@@ -8354,19 +8398,38 @@ function bucleEscaner() {
         : (mr ? RV.textoDeRostro(mr) : 'Buscando tu cara…');
     } else if (ESCANER.modo === 'cargando') {
       txt = 'Preparando el escáner…';
+    } else if (ESCANER.soloAMano) {
+      txt = 'Pon tu cara en el óvalo y toca «Tomar la foto ahora»';   // 22-oct-2026: ver T3
     } else {
       txt = m && m.ok
         ? 'Quieto… ' + cuenta
         : U.textoDeEncuadre(m);
     }
     if (!g) txt = 'Encendiendo la cámara…';
-    else if (t > 18 && !enganchado) txt = 'Si no lo logras, toca «Tomar la foto ahora»';
+    else if (t > 18 && !enganchado && !ESCANER.soloAMano) txt = 'Si no lo logras, toca «Tomar la foto ahora»';
     estado.textContent = txt;
   }
   if (MEDIDAS) pintarMedidas(false);   // 22-oct-2026: ?medir=1
 
-  if (ESCANER.modo === 'encuadre' && ESCANER.estables >= U.ENCUADRE.CUADROS) { anotarDisparo('sola, con el encuadre'); capturarRostro(); return; }
+  if (ESCANER.modo === 'encuadre' && !ESCANER.soloAMano && ESCANER.estables >= U.ENCUADRE.CUADROS) {
+    anotarDisparo('sola, con el encuadre');
+    if (capturarRostro()) avisarFotoDelEncuadre();
+    return;
+  }
   ESCANER.temporizador = setTimeout(bucleEscaner, 80);
+}
+/* 22-oct-2026 — LA FOTO QUE SE TOMÓ SIN BUSCAR UNA CARA SE DICE. El encuadre
+   (sin detector: poca señal, un celular sin aceleración gráfica o un detector
+   que se trabó) mide luz, detalle y quietud en el óvalo; no sabe si lo que
+   hay es una cara, y con un cuarto o una lámpara quietos también dispara. Ya
+   no dispara con una textura pareja (U.medirEncuadre, 'parejo'), pero lo que
+   queda no se puede descartar sin ver la cara. Así que la persona lo lee junto
+   a su foto, con el botón «Repetir la foto» al lado, y la política lo cuenta. */
+function avisarFotoDelEncuadre() {
+  var nota = $('selfieNota'); if (!nota) return;
+  var antes = String(nota.textContent || '');
+  nota.textContent = (antes ? antes + ' ' : '') +
+    'Se tomó sola sin poder buscar tu cara: mírala y, si no se ve bien tu cara, toca «Repetir la foto».';
 }
 /* 9-sep-2026 — el dibujo dice la verdad: ámbar y punteado mientras busca,
    verde y entero cuando de verdad hay una cara centrada y quieta. Un escáner
@@ -8511,6 +8574,11 @@ function capturarRostro() {
   if (typeof selfie !== 'string' || selfie.indexOf('data:image/jpeg') !== 0 || selfie.length > 600000) {
     if (MEDIDAS) MEDIDAS.disparo += ' — no salió la foto (' + (selfie ? selfie.length + ' caracteres' : 'el lienzo no dio nada') + ')';
     escanerSinCamara('No pude tomar la foto con el escáner.');
+    /* 22-oct-2026 — escanerSinCamara esconde el escáner, y motivoSinSelfie
+       leía eso como «la cámara no prendió»: el CRM le habría dicho a Joan
+       algo falso. Prendió; lo que no salió fue la foto. Va DESPUÉS, porque
+       escanerSinCamara pasa por detenerEscaner. */
+    ESCANER.fotoNoSalio = true;
     return false;
   }
   prepararFotoNueva();   // 19-oct-2026: sin mezclarla con fotos de otro registro
@@ -8520,9 +8588,9 @@ function capturarRostro() {
   marcarDuenoDeLasFotos('selfie');   // sin dueño no sube, y la pantalla diría «registrado» igual
   var aSalvo = guardarFotos();
   /* 8-oct-2026 — detenerEscaner también suelta el detector y su memoria: lo
-     que viene es la subida, y ahí hace falta. La caja de la cara se va con él. */
+     que viene es la subida, y ahí hace falta. La caja de la cara se va con él
+     (22-oct-2026: la borra detenerEscaner, para todas las salidas). */
   detenerEscaner();
-  ESCANER.medida = null; ESCANER.previaCara = null;
   mostrarSelfieTomada(aSalvo, true);
   return true;
 }

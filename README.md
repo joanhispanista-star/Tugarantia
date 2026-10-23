@@ -196,7 +196,16 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         escáner el motor, el video, lo que tarda cada
                         detección, la falla y qué rompió cada racha (para un
                         pantallazo; no se guarda ni sale del teléfono:
-                        pruebas/la-selfie-se-mide).
+                        pruebas/la-selfie-se-mide). Sin cara no se toma sola:
+                        si el detector no vio ninguna cara en 12 s, queda solo
+                        a mano; sin detector, el encuadre no dispara con una
+                        textura pareja (baldosas, una camisa a rayas) y, cuando
+                        dispara, pide mirar la foto, como dice la política
+                        (pruebas/sin-cara-no-se-toma-sola). Al apagar la cámara
+                        se borra dónde estaban la cara y los ojos
+                        (pruebas/la-cara-muere-con-la-camara), y si la cámara
+                        prendió pero la foto no salió, no se anota «la cámara
+                        no prendió» (pruebas/la-camara-que-si-prendio).
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).
