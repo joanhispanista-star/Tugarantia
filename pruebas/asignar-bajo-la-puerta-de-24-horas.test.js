@@ -189,4 +189,54 @@ describe('«👤 Asignar a…» y «＋ Agregar prospecto» bajo la puerta de la
     assert.equal(pub.length, 1, 'se publicó ' + pub.length + ' veces');
     assert.ok((pub[0].p_gente || []).some(x => x.id === p.id && x.tipo === 'prospecto'), 'el prospecto no le llegó a Willian');
   });
+
+  /* 23-oct-2026 — ESCAPE EN EL CAMPO DEL PIN CERRABA EL CUADRO DE DEBAJO.
+     La puerta sale sin aviso (a las 24 h, al siguiente toque) y lo primero
+     que uno hace con algo que se le atraviesa es oprimir Escape. Esa tecla
+     sale del campo del PIN, que es DE la puerta: frenarDebajoDeLaPuerta la
+     deja pasar (tiene que: es donde Joan escribe), y el oyente del modal la
+     tomaba y cerraba «👤 Asignar a…» con Willian elegido mientras la puerta
+     decía «Lo que tenías en pantalla sigue ahí». La tecla pasa aquí por los
+     oyentes de verdad del documento, en su orden: captura y después burbuja. */
+  test('3 · Escape en el campo del PIN no cierra el cuadro de debajo; con la sesión abierta, Escape lo cierra como siempre', () => {
+    const P = abrirYEntrar();
+    const $ = id => P.ctx.document.getElementById(id);
+    /* El modal del banco no sabe si está abierto: se le da una clase de verdad. */
+    let abierto = false;
+    $('modal').classList = { add: c => { if (c === 'on') abierto = true; }, remove: c => { if (c === 'on') abierto = false; },
+      toggle() {}, contains: c => c === 'on' && abierto };
+    const oprimir = (target, key) => {
+      const e = evento('keydown', target, key);
+      let parado = false;
+      e.stopPropagation = () => { parado = true; };
+      e.stopImmediatePropagation = () => { parado = true; };
+      const oyentes = (P.ctx._oyentesDoc || []).filter(o => o.tipo === 'keydown');
+      assert.ok(oyentes.length >= 2, 'el banco no anotó los oyentes de teclado del documento');
+      for (const fase of [true, false]) {
+        for (const o of oyentes.filter(x => x.captura === fase)) { if (parado) return e; o.fn(e); }
+      }
+      return e;
+    };
+
+    P.ev("asignarUno('cliente','C1','ficha')");
+    $('auDestino').value = 'g1';
+    assert.ok(abierto, 'el caso de prueba no abrió el cuadro de asignar');
+    hora(P, VEINTICUATRO_Y_UN_MIN);
+    P.ev('vigilarSesion()');
+    assert.ok(puertaEncima(P), 'a las 24 h la puerta no salió');
+    $('gate').contains = n => n === $('pinInput') || n === $('pinBtn');
+
+    const esc = oprimir($('pinInput'), 'Escape');
+    assert.equal(esc.frenado, false, 'frenó una tecla del propio campo del PIN');
+    assert.ok(abierto, 'Escape en el campo del PIN cerró el cuadro de asignar que estaba debajo de la puerta');
+    oprimir(P.ctx.document.body, 'Escape');
+    assert.ok(abierto, 'Escape con el foco en la página cerró el cuadro de asignar que estaba debajo de la puerta');
+
+    entrarConPin(P);
+    assert.ok(!puertaEncima(P));
+    assert.equal($('auDestino').value, 'g1', 'con el PIN se perdió a quién había elegido Joan');
+    /* Control: sin puerta, Escape cierra el cuadro como siempre. */
+    oprimir($('auDestino'), 'Escape');
+    assert.equal(abierto, false, 'con la sesión abierta, Escape ya no cierra el cuadro');
+  });
 });

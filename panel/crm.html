@@ -20195,7 +20195,15 @@ function cerrarModal(){
 }
 function openModal(t,h){ document.getElementById('mTitle').textContent=t; document.getElementById('mBody').innerHTML=h; modal.classList.add('on'); modal.querySelector('.modal-card').scrollTop=0; }
 modal.addEventListener('click',e=>{ if(e.target===modal)cerrarModal(); });
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&modal.classList.contains('on'))cerrarModal(); });
+/* 23-oct-2026 — CON LA PUERTA DE LA SESIÓN ENCIMA (_candado), ESCAPE NO CIERRA
+   EL CUADRO DE DEBAJO. La puerta sale sin aviso a las 24 h y promete «Lo que
+   tenías en pantalla sigue ahí»; el Escape que Joan oprime en el campo del PIN
+   es de la puerta y frenarDebajoDeLaPuerta lo deja pasar a propósito (ahí se
+   escribe), así que llegaba hasta aquí y cerraba el modal tapado: «👤 Asignar
+   a…» con Willian elegido, «＋ Agregar prospecto» a medio llenar, una ficha.
+   Salió al fusionar crm-asignar con crm-sesion
+   (pruebas/asignar-bajo-la-puerta-de-24-horas.test.js, 3). */
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&modal.classList.contains('on')&&!_candado)cerrarModal(); });
 function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
   if(v==='cfg'){pintarCfg();pintarAvisoRespaldo();} if(v==='plantillas')renderPlantillas(); if(v==='cal')renderCalendario();
   if(v==='equipo')renderEquipo();

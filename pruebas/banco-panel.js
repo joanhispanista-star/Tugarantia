@@ -69,7 +69,17 @@ function abrirPanel(opciones) {
   const doc = {
     getElementById: elem, querySelectorAll: () => [],
     querySelector: sel => (o.tarjeta && sel === '#gate .gate-card' ? elem('gate-card') : null),
-    createElement: () => elem('nuevo'), addEventListener() {},
+    createElement: () => elem('nuevo'),
+    /* 23-oct-2026 — los oyentes del documento se ANOTAN en `ctx._oyentesDoc`
+       ({tipo, fn, captura}). No hacía nada, y por eso ninguna prueba podía
+       pasar una tecla por los oyentes de verdad, en su orden (captura y
+       después burbuja): el Escape que cerraba el cuadro de debajo de la
+       puerta de la sesión vivía en un oyente sin nombre. Solo anota: nadie
+       los llama si la prueba no lo pide. */
+    addEventListener(tipo, fn, opc) {
+      (ctx._oyentesDoc = ctx._oyentesDoc || []).push({ tipo: String(tipo), fn,
+        captura: opc === true || !!(opc && opc.capture) });
+    },
     body: elem('body'), documentElement: elem('html'), title: ''
   };
   const ctx = {

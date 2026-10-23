@@ -230,6 +230,8 @@ panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna
                         prospecto» a medio llenar, la puerta de las 24 h o de
                         «Salir ahora» los tapa sin borrarlos, nada se anota ni
                         se publica debajo, y con el PIN siguen como estaban.
+                        Con la puerta encima, Escape (en el campo del PIN o en
+                        la página) ya no cierra el cuadro de debajo.
   una-puerta.js         Las palabras del toque «¿Es la misma persona?» (juntar la
                         cuenta de un cliente antiguo), compartidas con espejo.html.
   nube-crm.js           La cartera SUBE sola a la nube (no baja nada) y, desde el
