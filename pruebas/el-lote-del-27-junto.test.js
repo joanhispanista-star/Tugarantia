@@ -238,3 +238,67 @@ describe('2b · Todas las migraciones de base/, en orden, en un PostgreSQL nuevo
     });
   });
 });
+
+/* ======================================================================== */
+/* 3 · LA POLÍTICA, CON UNA SOLA FECHA PARA LOS DOS CAMBIOS.
+   rostro-selfie (la foto de la cara: los ojos, el encuadre de respaldo, lo
+   que se anota sin la selfie) y cuentas-pago (dónde recibes la plata) tocaron
+   legal/privacidad.html y los dos dejaron la fecha y «Lo que cambió» para
+   «una sola versión». Se publican juntos el 27-oct: una fecha, una lista. */
+const POLITICA = () => fs.readFileSync(path.join(RAIZ, 'legal', 'privacidad.html'), 'utf8');
+const sinEtiquetas = h => h.replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+const listaDel = (P, dia) => {
+  const s = (P.match(/<section id="cambios">([\s\S]*?)<\/section>/) || [])[1] || '';
+  const i = s.indexOf('Lo que cambió el ' + dia + ':');
+  return i < 0 ? '' : sinEtiquetas(s.slice(i, s.indexOf('</div>', i)));
+};
+
+describe('3 · La política del 27-oct: una fecha y un «Lo que cambió» para los dos cambios', () => {
+
+  test('una sola fecha, la del día que se publica, y su lista va primero', () => {
+    const P = POLITICA();
+    const fechas = [...P.matchAll(/Última actualización: ([^<\n]+)/g)].map(m => m[1].trim());
+    assert.deepEqual(fechas, ['27 de octubre de 2026'], 'la política no tiene UNA fecha, la del 27-oct');
+    const listas = [...sinEtiquetas(P).matchAll(/Lo que cambió el (\d{1,2} de \w+ de \d{4}):/g)].map(m => m[1]);
+    assert.equal(listas[0], '27 de octubre de 2026', 'lo más nuevo va primero');
+    assert.equal(listas.filter(l => l === '27 de octubre de 2026').length, 1, 'hay más de una lista del 27-oct');
+    assert.match(sinEtiquetas(P), /Esta versión rige desde el 27 de octubre de 2026; la anterior rigió desde el 19 de octubre de 2026/);
+  });
+
+  test('la lista nombra los dos cambios en palabras simples, y cada uno con su punto', () => {
+    const l = listaDel(POLITICA(), '27 de octubre de 2026');
+    assert.ok(l, 'no hay lista del 27 de octubre de 2026');
+    ['Nequi', 'Daviplata', 'llave Bre-B', 'cuenta de banco', 'al menos una'].forEach(p =>
+      assert.ok(l.indexOf(p) >= 0, 'la lista no nombra «' + p + '» (dónde recibes la plata)'));
+    ['foto de tu cara', 'ojos', 'no se guarda ni sale de tu celular', 'seguiste sin ella'].forEach(p =>
+      assert.ok(l.indexOf(p) >= 0, 'la lista no dice «' + p + '» (la foto de tu cara)'));
+    assert.match(l, /punto 2/);
+    assert.match(l, /punto 3/);
+    /* Sin palabras de la casa: es para el cliente. */
+    assert.equal(/selfie_omitida|VERSION_|rostro-en-vivo|soloAMano|Bre-B \(/.test(l), false, 'la lista habla en código');
+  });
+
+  test('los dos cambios están en el cuerpo, como los dejó cada rama', () => {
+    const P = POLITICA();
+    const fila = [...P.matchAll(/<tr><td>([\s\S]*?)<\/tr>/g)].map(m => sinEtiquetas(m[1]))
+      .find(t => t.indexOf('Dónde recibes la plata') >= 0) || '';
+    assert.match(fila, /tu Nequi, tu Daviplata, tu llave Bre-B o tu cuenta de banco/, 'se perdió la fila de cuentas-pago');
+    assert.match(fila, /Enviarte el dinero y recibir tus pagos\./, 'cambió para qué se usa: eso pediría otra autorización');
+    assert.match(fila, /Sí, al menos una/);
+    const cara = sinEtiquetas(P.slice(P.indexOf('<h3>La foto de tu cara, que se toma sola</h3>'), P.indexOf('<h3>La ubicación de tu celular</h3>')));
+    assert.match(cara, /busca tu cara y tus ojos/, 'se perdió la sección de la foto de la cara de rostro-selfie');
+    assert.match(cara, /solo anotamos que seguiste sin ella y en qué caso/);
+  });
+
+  test('VERSION_AUTORIZACION NO sube (los usos son los mismos): la decide Joan, y la lista lo dice', () => {
+    /* Subirla le vuelve a pedir la autorización a cada cliente de
+       app/socio.html al completar su perfil. La política (punto 10) promete
+       pedirla de nuevo solo «si cambia para qué usamos tus datos», y la lista
+       del 27 tiene que decir que no cambió, porque es lo que la deja quieta. */
+    const U = require('../app/cuenta.js');
+    assert.equal(U.VERSION_AUTORIZACION, '2026-10-19');
+    const socio = (fs.readFileSync(path.join(RAIZ, 'app', 'socio.html'), 'utf8').match(/var VERSION_AUTORIZACION = '([\d-]+)'/) || [])[1];
+    assert.equal(socio, '2026-10-19');
+    assert.match(listaDel(POLITICA(), '27 de octubre de 2026'), /Para qué usamos tus datos no cambió/);
+  });
+});

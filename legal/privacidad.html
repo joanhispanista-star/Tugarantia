@@ -109,10 +109,28 @@ td.ob{white-space:nowrap;color:var(--gris)}
 <div class="cab"><div class="wrap">
   <h1>Qué hacemos con tus datos</h1>
   <p>Política de tratamiento de datos personales · Ley 1581 de 2012 y Decreto 1377 de 2013<br>
-     Última actualización: 19 de octubre de 2026</p>
+     Última actualización: 27 de octubre de 2026</p>
 </div></div>
 
 <main><div class="wrap">
+
+  <!-- 23-oct-2026 — LA VERSIÓN DEL 27-OCT: DOS CAMBIOS, UNA FECHA.
+       · La foto de la cara (punto 3): el programa del celular ubica también los OJOS y los
+         dibuja mientras escanea; si no carga, el encuadre de respaldo dispara con algo
+         quieto y con detalle y le pide a la persona mirar la foto; y si sigue sin ella, se
+         anota solo eso y en qué caso, sin ninguna imagen.
+       · Dónde recibes la plata (punto 2): Nequi, Daviplata, llave Bre-B o cuenta de banco,
+         al menos una. Antes la fila pedía solo el Nequi o la llave, opcional.
+       Los dos cambios se escribieron por separado y cada uno dejó la fecha y «Lo que
+       cambió» para una sola versión: salen juntos en el lote del 27-oct. La fecha es la de
+       PUBLICACIÓN (regla del 15-oct): si el lote sale otro día, se mueve aquí, en «Lo que
+       cambió» y en «rige desde».
+       VERSION_AUTORIZACION (app/cuenta.js y app/socio.html) NO sube: para qué se usan los
+       datos es lo mismo, palabra por palabra, y el punto 10 promete pedir la autorización
+       otra vez solo si eso cambia. Subirla se la vuelve a pedir a cada cliente de la app
+       al completar su perfil. PENDIENTE: aprobar este texto, y decidir si se sube de todos
+       modos (así la constancia de quien se registre desde el 27 nombraría esta versión y
+       no la del 19). pruebas/el-lote-del-27-junto.test.js, sección 3. -->
 
   <!-- 19-oct-2026 — LO QUE EL CÓDIGO DEL 19 VOLVIÓ FALSO, Y SE CORRIGE AQUÍ.
        · El registro empieza por la cédula (play/index.html, b508c96): la autorización de
@@ -317,7 +335,10 @@ td.ob{white-space:nowrap;color:var(--gris)}
          sin ninguna imagen (huella.selfie_omitida, motivoSinSelfie en play/,
          base/20261022_la_foto_que_no_entra_se_dice.sql). PENDIENTE: aprobar este texto, y
          la fecha de «Última actualización» y VERSION_AUTORIZACION, que se suben una sola
-         vez con la otra tanda que toca esta política. -->
+         vez con la otra tanda que toca esta política.
+         23-oct-2026 — la fecha ya subió (27 de octubre, junto con la fila de dónde recibes
+         la plata) y «Lo que cambió» lo cuenta; VERSION_AUTORIZACION no, y sigue pendiente:
+         ver el comentario de arriba de la página. -->
     <!-- 22-oct-2026 (segunda vuelta) — decía solo «dispara cuando hay una sola cara», y hay un
          camino donde el teléfono dispara sin buscarla: el encuadre de respaldo
          (U.medirEncuadre), cuando el programa no carga o se traba. Mide luz, detalle y quietud
@@ -468,6 +489,23 @@ td.ob{white-space:nowrap;color:var(--gris)}
     <!-- 19-oct-2026 — la lista del 15 se queda debajo: el aviso del cambio de responsable
          (app/socio.html y play/, «mira qué cambió») trae aquí a quien todavía no lo ha
          leído, y lo que busca es esa lista. Para qué se usan tus datos no cambió. -->
+    <!-- 23-oct-2026 — la del 27 va arriba de todas, y dice que para qué se usan tus datos
+         no cambió: es lo que deja quieta la autorización (punto 10, y el comentario de
+         arriba de la página). -->
+    <div class="nota azul">
+      <b>Lo que cambió el 27 de octubre de 2026:</b>
+      <ul>
+        <li>Te preguntamos dónde recibes la plata: tu Nequi, tu Daviplata, tu llave Bre-B o tu
+          cuenta de banco (banco, tipo y número). Puedes darnos varias, y al menos una es
+          obligatoria; antes era solo tu Nequi o llave, y era opcional (punto 2).</li>
+        <li>La foto de tu cara: el programa de tu celular también busca tus ojos y te los muestra
+          mientras te escanea; lo que ve no se guarda ni sale de tu celular. Si ese programa no
+          carga, tu celular te pide mirar la foto y repetirla si no se ve tu cara. Y si seguiste
+          sin ella, no nos
+          llega ninguna imagen: solo anotamos que seguiste sin ella y en qué caso (punto 3).</li>
+        <li>Para qué usamos tus datos no cambió.</li>
+      </ul>
+    </div>
     <div class="nota azul">
       <b>Lo que cambió el 19 de octubre de 2026:</b>
       <ul>
@@ -498,8 +536,9 @@ td.ob{white-space:nowrap;color:var(--gris)}
         <li>A tus referencias no las llamamos para cobrarte (punto 2).</li>
       </ul>
     </div>
-    <p class="sub">Esta versión rige desde el 19 de octubre de 2026; la anterior rigió desde el
-      15 de octubre de 2026, y la primera, desde el 4 de agosto de 2026. Esta política se rige
+    <p class="sub">Esta versión rige desde el 27 de octubre de 2026; la anterior rigió desde el
+      19 de octubre de 2026, la de antes desde el 15 de octubre de 2026, y la primera, desde el
+      4 de agosto de 2026. Esta política se rige
       por las leyes de la República de Colombia.</p>
   </section>
 

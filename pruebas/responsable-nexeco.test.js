@@ -393,11 +393,28 @@ describe('4. la política dice lo nuevo, y es verdad', () => {
   test('la fecha de la política es la versión de la autorización que se guarda, en el registro y en la app', () => {
     const m = PRIV.match(/Última actualización: (\d{1,2}) de (\w+) de (\d{4})/);
     assert.ok(m, 'la política perdió su fecha');
-    const iso = m[3] + '-' + String(MESES.indexOf(m[2]) + 1).padStart(2, '0') + '-' + m[1].padStart(2, '0');
-    assert.equal(U.VERSION_AUTORIZACION, iso,
-      'app/cuenta.js guarda la autorización con otra versión: el que se registra queda aceptando un texto que no es el publicado');
+    const isoDeTexto = t => { const p = t.match(/(\d{1,2}) de (\w+) de (\d{4})/);
+      return p[3] + '-' + String(MESES.indexOf(p[2]) + 1).padStart(2, '0') + '-' + p[1].padStart(2, '0'); };
+    const iso = isoDeTexto(m[0]);
     const socio = (leer('app/socio.html').match(/var VERSION_AUTORIZACION = '([\d-]+)'/) || [])[1];
-    assert.equal(socio, iso, 'app/socio.html pide la autorización con la versión vieja');
+    assert.equal(socio, U.VERSION_AUTORIZACION, 'app/socio.html y app/cuenta.js piden la autorización con versiones distintas');
+    /* 23-oct-2026 — LA EXCEPCIÓN, ESCRITA: la versión del 27-oct (los ojos en
+       la foto de la cara y dónde recibes la plata) se publicó SIN subir
+       VERSION_AUTORIZACION, porque para qué se usan los datos no cambió y el
+       punto 10 promete pedirla otra vez solo si eso cambia. Vale solo si cada
+       versión más nueva que la autorización lo dice en su «Lo que cambió»
+       («Para qué usamos tus datos no cambió»), y la autorización es la fecha de
+       una versión publicada. Sin esa frase, la regla de siempre: la fecha de la
+       política ES la versión que se acepta. */
+    if (U.VERSION_AUTORIZACION === iso) return;
+    const s = (PRIV.match(/<section id="cambios">([\s\S]*?)<\/section>/) || [])[1] || '';
+    const listas = s.split(/<b>Lo que cambió el /).slice(1).map(t => ({ iso: isoDeTexto(t), texto: visible(t.slice(0, t.indexOf('</div>'))) }));
+    assert.ok(listas.some(l => l.iso === U.VERSION_AUTORIZACION),
+      'app/cuenta.js guarda la autorización con ' + U.VERSION_AUTORIZACION + ', que no es ninguna versión publicada de la política');
+    listas.filter(l => l.iso > U.VERSION_AUTORIZACION).forEach(l =>
+      assert.match(l.texto, /Para qué usamos tus datos no cambió/,
+        'la versión del ' + l.iso + ' no sube VERSION_AUTORIZACION y no dice que los usos son los mismos: ' +
+        'el que se registra queda aceptando un texto que no es el publicado'));
   });
 
   /* 19-oct-2026 — decía «los términos y la política se publicaron en fechas

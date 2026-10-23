@@ -301,11 +301,16 @@ describe('4. lo demás que la política dice desde el 19-oct', () => {
     assert.match(f, /escribirte por WhatsApp o por el chat de la app sobre tus pagos\. Nada más\./);
   });
 
-  test('la versión que se acepta es la de la fecha publicada, y «Lo que cambió» la nombra', () => {
+  test('la versión que se acepta es la del 19, y «Lo que cambió» la nombra', () => {
+    /* 23-oct-2026 — la política del 27-oct (los ojos en la foto de la cara y
+       dónde recibes la plata) no cambia para qué se usan los datos, así que la
+       autorización que se acepta sigue siendo la del 19 hasta que se decida
+       subirla (pruebas/el-lote-del-27-junto.test.js, sección 3). Lo del 19
+       sigue en su lista y como «la anterior». */
     assert.equal(U.VERSION_AUTORIZACION, '2026-10-19');
-    assert.match(PRIV, /Última actualización: 19 de octubre de 2026/);
+    assert.match(PRIV, /Última actualización: 27 de octubre de 2026/);
     const s = seccion('cambios');
     assert.match(s, /Lo que cambió el 19 de octubre de 2026:/);
-    assert.match(s, /Esta versión rige desde el 19 de octubre de 2026/);
+    assert.match(s, /la anterior rigió desde el 19 de octubre de 2026/);
   });
 });

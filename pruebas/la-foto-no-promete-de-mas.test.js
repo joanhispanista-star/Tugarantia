@@ -158,7 +158,9 @@ describe('y el tratamiento de datos está declarado (Ley 1581)', () => {
     /* 15-oct-2026 — y otra vez: esa versión salió al sitio el 15, y la fecha que
        dice es la de salida (ver legal/privacidad.html, punto 1). */
     /* 19-oct-2026 — y otra vez: la cédula primero y el modelo del teléfono. */
-    assert.match(PRIV, /Última actualización: 19 de octubre de 2026/,
+    /* 23-oct-2026 — y otra vez, para el 27 (el día que sale): los ojos en la
+       foto de la cara y dónde recibes la plata. */
+    assert.match(PRIV, /Última actualización: 27 de octubre de 2026/,
       'se cambió la política y no se movió la fecha');
   });
 });
