@@ -293,6 +293,19 @@ h1,h2,h3{margin:0;font-family:ui-serif,"New York","Iowan Old Style",Georgia,"Tim
 .marca .g{width:30px;height:30px;flex:none;overflow:visible;
   filter:drop-shadow(0 0 8px color-mix(in srgb, var(--oro) 30%, transparent))}
 .marca .palabra{width:120px;height:18px;flex:none;fill:var(--marfil)}
+/* 23-oct-2026 — EL ORO NO SE OSCURECE. Un navegador que oscurece la página por
+   su cuenta (Samsung Internet en modo oscuro; Chrome con «oscurecer sitios»)
+   repintaba el oro: la G salía café y plana, sin brillo ni bisel, y la punta
+   que gira en el anillo, un punto oscuro (auditoría del 23-oct, lente «marca»,
+   medido en Chrome sin ventana con la bandera que lo imita). «only light» le
+   dice que esto no se toca; con «light» a secas lo vuelve a oscurecer. La G
+   sola no alcanza: el oro, el bisel y las máscaras viven en el <svg> de moldes
+   del principio del <body>, que lleva lo mismo en su style. #hola va entera:
+   el anillo y su chispa son de ella. .marca-img es la de la configuración.
+   No cambia nada sin el oscuro forzado: aquí no hay light-dark() ni
+   controles del sistema. En Samsung de verdad no está verificado (la misma
+   salvedad de las casillas de play/). Lo vigila pruebas/oscuro-forzado.test.js. */
+.marca .g,.marca .palabra,.marca-img,#hola{color-scheme:only light}
 /* El destello pasa UNA vez por la G: al cargar, y otra vez al irse la
    bienvenida (despuesDeLaBienvenida), que es cuando de verdad se ve. */
 .marca .destello{animation:marca-destello 1.3s cubic-bezier(.45,.05,.3,1) .35s both}
@@ -748,8 +761,11 @@ details.plegado>summary{padding:0 var(--e4)}
      destello, la chispa y la palabra «Tu Garantía» en curvas (Noto Serif SC,
      licencia SIL OFL 1.1, pasada a curvas: no se baja ninguna fuente). Una sola
      vez por página; la bienvenida y las cabeceras los usan por id. Salen de la
-     propuesta A «Oro clásico» (herramientas/marca/). -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+     propuesta A «Oro clásico» (herramientas/marca/).
+     23-oct-2026 — color-scheme:only light en su style: el oscuro forzado
+     repinta los colores donde están definidos, y aquí están el oro y las
+     máscaras del bisel (ver «EL ORO NO SE OSCURECE», en la hoja). -->
+<svg width="0" height="0" style="position:absolute;color-scheme:only light" aria-hidden="true" focusable="false"><defs>
 <linearGradient id="aoro" gradientUnits="userSpaceOnUse" x1="-70" y1="-150" x2="70" y2="150">
   <stop offset="0" stop-color="#FFF4CC"/>
   <stop offset=".2" stop-color="#FCDD7C"/>
@@ -4785,7 +4801,8 @@ function salir() {
 /* ======================= CONFIGURACIÓN ======================= */
 function pantallaConfig() {
   document.body.innerHTML =
-    '<div class="cab laca"><div class="wrap"><div class="marca"><img src="marca.svg" alt="Tu Garantía" width="156" height="26"></div>' +
+    /* 23-oct-2026 — .marca-img: la regla «EL ORO NO SE OSCURECE» de la hoja. */
+    '<div class="cab laca"><div class="wrap"><div class="marca"><img class="marca-img" src="marca.svg" alt="Tu Garantía" width="156" height="26"></div>' +
     '<h1>Conectar la base</h1></div></div>' +
     '<div class="wrap"><div class="card">' +
     '<p class="sub" style="margin:0">Pega los dos datos de Supabase (Settings → API). ' +

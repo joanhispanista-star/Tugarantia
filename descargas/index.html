@@ -58,7 +58,10 @@ a{color:inherit}
    (la misma de la app, en la precarga de sw.js). Antes era el sello rojo con la
    G en Georgia, que en Android cambiaba de letra según el teléfono. Va en
    imagen y no en línea porque esta página no lleva los moldes de la app. */
-.marca-img{display:block;width:156px;height:26px}
+/* 23-oct-2026 — only light: con el oscuro forzado (Samsung Internet en modo
+   oscuro) el navegador repintaba la imagen y la G de oro salía café apagado.
+   Ver app/socio.html («EL ORO NO SE OSCURECE») y pruebas/oscuro-forzado.test.js. */
+.marca-img{display:block;width:156px;height:26px;color-scheme:only light}
 
 .portada{padding:var(--e6) 0 var(--e5)}
 .portada h1{font-size:34px;line-height:1.15}

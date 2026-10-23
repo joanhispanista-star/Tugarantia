@@ -145,10 +145,17 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    sin fondo ni borde: lo que se ve es el trazo, no un boton encima. */
 .clave-caja{position:relative}
 .clave-caja input{padding-right:46px}
+/* 23-oct-2026 — color-scheme:only light, como la casilla sobre la que se
+   dibuja. Con el oscuro forzado la casilla quedó blanca (la regla del 22-sep),
+   pero el ojo es otro elemento y el navegador lo seguía oscureciendo: su trazo
+   #0C0A0B de «viendo» salía BLANCO sobre la casilla blanca, y el control para
+   tapar la clave desaparecía justo mientras la clave se ve (auditoría del
+   23-oct, medido en Chrome sin ventana con las banderas reales). Lo vigila
+   pruebas/oscuro-forzado.test.js. */
 .clave-caja .ojo{position:absolute;right:2px;top:50%;transform:translateY(-50%);
   width:44px;height:44px;border:0;background:none;padding:0;cursor:pointer;
   color:#9C918B;display:flex;align-items:center;justify-content:center;
-  transition:color .15s ease}
+  transition:color .15s ease;color-scheme:only light}
 .clave-caja .ojo svg{width:20px;height:20px}
 .clave-caja .ojo:hover{color:#6E6460}
 .clave-caja .ojo .ojo-raya{opacity:0}
@@ -387,6 +394,11 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 .marca .g{width:30px;height:30px;flex:none;overflow:visible;
   filter:drop-shadow(0 0 8px color-mix(in srgb, var(--oro, #F5C542) 30%, transparent))}
 .marca .palabra{width:120px;height:18px;flex:none;fill:var(--marfil, #F3ECE2)}
+/* 23-oct-2026 — el oro no se oscurece: con el oscuro forzado (Samsung Internet
+   en modo oscuro) la G salía café y plana. Lo mismo va en el style del <svg>
+   de moldes, donde viven el oro y el bisel. Ver app/socio.html y
+   pruebas/oscuro-forzado.test.js. */
+.marca .g,.marca .palabra{color-scheme:only light}
 .marca .destello{animation:marca-destello 1.3s cubic-bezier(.45,.05,.3,1) .35s both}
 @keyframes marca-destello{
   from{transform:translateX(-300px)}
@@ -401,7 +413,7 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
 <!-- 23-oct-2026 — LOS MOLDES DE LA MARCA (los mismos de app/socio.html, solo
      los de la cabecera): el oro, el recorte de la G, el destello y la palabra
      «Tu Garantía» en curvas, sin fuentes de internet. -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<svg width="0" height="0" style="position:absolute;color-scheme:only light" aria-hidden="true" focusable="false"><defs>
 <linearGradient id="boro" gradientUnits="userSpaceOnUse" x1="-70" y1="-150" x2="70" y2="150">
   <stop offset="0" stop-color="#FFF4CC"/>
   <stop offset=".2" stop-color="#FCDD7C"/>

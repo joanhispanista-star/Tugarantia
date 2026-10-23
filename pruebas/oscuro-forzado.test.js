@@ -109,3 +109,95 @@ describe('el oscuro forzado no se come lo claro (23-oct-2026)', () => {
     assert.doesNotThrow(() => exigeSoloClaro('background:#fff;color-scheme: only light', 'control'));
   });
 });
+
+/* ==========================================================================
+ * LA MARCA DE ORO Y EL OJO DE LA CONTRASEÑA — 23-oct-2026, segunda vuelta
+ *
+ * La auditoría de la rama encontró dos huecos más del mismo oscuro forzado,
+ * los dos medidos en Chrome 155 sin ventana con la bandera que lo imita:
+ *
+ *   · LA G DE ORO (f1956a2) salía café y plana: sin brillo, sin bisel, y la
+ *     punta que gira en el anillo, un punto oscuro. Joan había pedido justo lo
+ *     contrario («un color más oro y que parezca que brilla»). Proteger la G
+ *     sola NO alcanza: el oro, el bisel y las máscaras viven en el <svg> de
+ *     moldes del principio del <body>, fuera de la G, y el navegador repinta
+ *     esos colores donde están definidos. Con #hola, la G y el <svg> de
+ *     moldes en only light, la G vuelve a salir dorada. La marca en imagen
+ *     (app/marca.svg en legal/, descargas/, el borrado de cuenta y la
+ *     configuración) igual: .marca-img.
+ *   · EL OJO DE LA CONTRASEÑA (b184d4a): la casilla quedó blanca por la regla
+ *     de arriba, pero el botón del ojo es otro elemento y el navegador lo
+ *     siguió oscureciendo: su trazo #0C0A0B («viendo») salía BLANCO sobre la
+ *     casilla blanca. Lo que se dibuja ENCIMA de una casilla protegida tiene
+ *     que ser only light también.
+ * ======================================================================== */
+
+/* Las hojas EN LÍNEA de una página, sin comentarios. */
+function hojasEnLinea(html) {
+  return sinComentarios([...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(m => m[1]).join('\n'));
+}
+/* Las reglas cuyo selector, separado por comas, incluye EXACTAMENTE `selector`. */
+function reglasDe(hoja, selector) {
+  const quiero = selector.replace(/\s+/g, ' ').trim();
+  return [...hoja.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(m => m[1].split(',').map(s => s.replace(/\s+/g, ' ').trim()).includes(quiero))
+    .map(m => ({ selector: m[1].trim(), cuerpo: m[2] }));
+}
+/* Alguna regla de `selector` es only light, y ninguna dice otra cosa. */
+function exigeSelectorSoloClaro(hoja, selector, quien) {
+  const conEsquema = reglasDe(hoja, selector).filter(r => /color-scheme/.test(r.cuerpo));
+  assert.ok(conEsquema.length > 0, quien + ': «' + selector + '» no declara color-scheme; el oscuro forzado la repinta');
+  for (const r of conEsquema) exigeSoloClaro(r.cuerpo, quien + ' ' + selector);
+}
+/* El <svg> de moldes: el primero que abre <defs> (el del principio del <body>). */
+function svgDeMoldes(html) {
+  const cuerpo = html.slice(html.indexOf('<body'));
+  const m = /<svg\b([^>]*)>\s*<defs>/.exec(cuerpo.replace(/<!--[\s\S]*?-->/g, ''));
+  assert.ok(m, 'no encontré el <svg> de moldes');
+  return m[1];
+}
+
+describe('la marca de oro y el ojo de la contraseña tampoco se oscurecen (23-oct-2026)', () => {
+
+  for (const f of ['app/socio.html', 'index.html', 'play/index.html']) {
+    test(f + ': la G de oro, la palabra y el <svg> de moldes son only light', () => {
+      const html = leer(f);
+      const hoja = hojasEnLinea(html);
+      exigeSelectorSoloClaro(hoja, '.marca .g', f);
+      exigeSelectorSoloClaro(hoja, '.marca .palabra', f);
+      /* En su style="" y no en una hoja: el <svg> de moldes es lo primero del
+         <body> y tiene que valer aunque la hoja sea la de antes. */
+      const estilo = (/style="([^"]*)"/.exec(svgDeMoldes(html)) || [])[1] || '';
+      assert.ok(/color-scheme/.test(estilo),
+        f + ': el <svg> de moldes no es only light; el oro y las máscaras viven ahí y el navegador los repinta café');
+      exigeSoloClaro(estilo, f + ' <svg> de moldes');
+    });
+  }
+
+  test('app/socio.html: la bienvenida (#hola) es only light', () => {
+    exigeSelectorSoloClaro(hojasEnLinea(leer('app/socio.html')), '#hola', 'app/socio.html');
+  });
+
+  test('la marca en imagen (.marca-img) es only light donde se usa', () => {
+    for (const f of ['legal/terminos.html', 'legal/privacidad.html', 'descargas/index.html', 'play/borrar-cuenta.html', 'app/socio.html']) {
+      exigeSelectorSoloClaro(hojasEnLinea(leer(f)), '.marca-img', f);
+    }
+    /* La de la configuración de socio.html la arma pantallaConfig: también
+       lleva la clase, o la regla no la alcanza. */
+    const S = leer('app/socio.html');
+    const config = S.slice(S.indexOf('function pantallaConfig()'), S.indexOf('function pantallaConfig()') + 600);
+    assert.match(config, /<img class="marca-img" src="marca\.svg"/, 'la marca de la configuración no lleva .marca-img');
+  });
+
+  test('play/index.html: el ojo de la contraseña es only light, como la casilla sobre la que se dibuja', () => {
+    exigeSelectorSoloClaro(hojasEnLinea(leer('play/index.html')), '.clave-caja .ojo', 'play/index.html');
+  });
+
+  test('el ayudante de selectores no se deja engañar (control)', () => {
+    const hoja = '.a .b{color:red}.x,.marca .g{color-scheme:only light}.marca .gg{color-scheme:light}';
+    assert.doesNotThrow(() => exigeSelectorSoloClaro(hoja, '.marca .g', 'control'));
+    assert.throws(() => exigeSelectorSoloClaro(hoja, '.marca .gg', 'control'), /only light/);
+    assert.throws(() => exigeSelectorSoloClaro(hoja, '.a .b', 'control'), /no declara/);
+    assert.throws(() => exigeSelectorSoloClaro(hoja, '.marca', 'control'), /no declara/);
+  });
+});
