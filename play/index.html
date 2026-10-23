@@ -6118,6 +6118,7 @@ var ESCDOC = { activo: false, pausado: false, stream: null, lado: '', estables: 
                   navegador no deja medir, y el bucle sigue con la cuenta de antes. */
                ventana: null, medida: null, lienzoQr: null, mejorPendiente: false, sinVentana: false,
                franjaMejor: null, altoMedida: 0,   // dónde se vio el código en el mejor (EC.franjaDeBarras)
+               franjaDelCodigo: false,             // 23-oct-2026 — y si esa franja es la del código (la banda solo con ella)
                vioQr: false, aviso: null, msBorrosa: 0,
                /* 23-oct-2026 — el PDF417 gastado. `vioFranja`: en ESTA racha se
                   vio la franja de sus barras en su sitio (EC.franjaComoLaDelCodigo)
@@ -6606,7 +6607,11 @@ function grisAEscala(fuente, sx, sy, sw, sh, w, h, campo) {
    el aire, que es mesa, y una mesa de rayas finas daba una «franja de
    barras» que hacía pasar el frente por respaldo (ver LA FRANJA ES DE LA
    TARJETA en app/escaner-cedula.js). Se calcula del recorte de verdad: junto
-   al borde del video el aire se recorta y el 6 % no vale. */
+   al borde del video el aire se recorta y el 6 % no vale.
+   23-oct-2026 — y las COLUMNAS del marco (x0, x1): el aire de los lados
+   también es mesa, y sus rayas subían todas las filas de la tarjeta hasta
+   que un renglón del frente pasaba por la franja del código (ver LAS
+   COLUMNAS Y EL PISO DE LA TARJETA en app/escaner-cedula.js). */
 function medirNitidezDoc(v) {
   if (!ECAP || !ECAP.nitidezDeGris || !v || !v.videoWidth) return null;
   var g = ESCDOC.guiaVideo; if (!g) return null;
@@ -6616,7 +6621,8 @@ function medirNitidezDoc(v) {
   var r = grisAEscala(v, g.x, g.y, g.w, g.h, t.w, t.h, 'medida');
   if (!r) return null;
   r.nitidez = ECAP.calidadDeGris ? ECAP.calidadDeGris(r.gris, r.w, r.h) : ECAP.nitidezDeGris(r.gris, r.w, r.h);
-  r.dentro = { y0: (marco.y - g.y) * r.h / g.h, y1: (marco.y + marco.h - g.y) * r.h / g.h };
+  r.dentro = { y0: (marco.y - g.y) * r.h / g.h, y1: (marco.y + marco.h - g.y) * r.h / g.h,
+               x0: (marco.x - g.x) * r.w / g.w, x1: (marco.x + marco.w - g.x) * r.w / g.w };
   return r;
 }
 /* ¿Hay un QR LEÍDO en este lienzo? A 960 px como mucho: el de la cédula digital
@@ -6829,13 +6835,19 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
        cedula.js viejo en la caché no mira el cuarto dato: la franja de antes. */
     ESCDOC.franjaMejor = EC.franjaDeBarras ? EC.franjaDeBarras(medida.gris, medida.w, medida.h, medida.dentro) : null;
     ESCDOC.altoMedida = medida.h;
+    /* 23-oct-2026 — ¿ES LA FRANJA DEL CÓDIGO? Se decide una vez, aquí, y
+       vale para las dos cosas que la usan: la prueba del gastado (abajo) y la
+       banda que se le da al lector (banda()). Un escaner-cedula.js viejo en
+       la caché, sin franjaComoLaDelCodigo: la franja de antes, sin pruebas. */
+    ESCDOC.franjaDelCodigo = !!ESCDOC.franjaMejor && (!EC.franjaComoLaDelCodigo ||
+      EC.franjaComoLaDelCodigo(ESCDOC.franjaMejor, medida.h, medida.dentro));
     /* 23-oct-2026 — EL PDF417 GASTADO: su franja de barras, en su sitio, es
        lo único que queda de él cuando el lector no lo encuentra (ver
        EC.franjaComoLaDelCodigo y ECAP.decidirVentana). Solo en el respaldo: en
        el frente, una franja es motivo para MIRAR si hay código, no prueba.
        22-oct-2026 — en su sitio quiere decir también DENTRO del marco: la
        franja de una mesa de rayas hacía guardar el frente como respaldo. */
-    if (!esFrente && EC.franjaComoLaDelCodigo && EC.franjaComoLaDelCodigo(ESCDOC.franjaMejor, medida.h, medida.dentro)) {
+    if (!esFrente && EC.franjaComoLaDelCodigo && ESCDOC.franjaDelCodigo) {
       ESCDOC.vioFranja = true; ESCDOC.vioBarras = true;
     }
   }
@@ -6844,7 +6856,18 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
      enfoque automático no engancha). */
   if (w0.mejor >= C2.PISO_NITIDEZ) ESCDOC.msBorrosa = 0;
   else if (w0.medidas >= C2.MEDIDAS_MIN) ESCDOC.msBorrosa += dt;
+  /* 23-oct-2026 — LA BANDA, SOLO DE LA FRANJA DEL CÓDIGO. Antes se armaba con
+     cualquier franja, también con una que franjaComoLaDelCodigo acababa de
+     rechazar: el renglón del centro de un frente sobre rayas finas (filas
+     171-184 de 303). El lector leía esa banda, el patrón votaba en el aire
+     rayado de sus lados, eso es «vio el código», y el frente quedaba en
+     cedula_reverso al segundo (y en su paso oía «Ese es el lado del código
+     de barras»). Sin franja del código, null: se lee el recorte entero, como
+     sin franja, y en el frente solo se busca el QR (la última reja,
+     capturarDoc, mira el recorte entero de todos modos). Y si el código
+     estuviera en otro lado, leer la banda de un renglón tampoco lo vería. */
   var banda = function () {
+    if (!ESCDOC.franjaDelCodigo) return null;
     return ECAP.bandaDeLectura(ESCDOC.franjaMejor, ESCDOC.altoMedida, ESCDOC.recorte ? ESCDOC.recorte.height : 0);
   };
   if (!esFrente && ESCDOC.mejorPendiente && !ESCDOC.leyendo) {
@@ -6869,7 +6892,8 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
        solo queda mirar si hay un QR (el respaldo de la digital sin voltear).
        Con franja, la mirada entera de siempre, sobre la franja. La última reja
        (capturarDoc → EC.guardarFrente) vuelve a mirar el recorte entero. */
-    var hay = ESCDOC.franjaMejor ? codigoEnRecorte(ESCDOC.recorte, banda()) : qrEnLienzo(ESCDOC.recorte);
+    var bf = banda();
+    var hay = bf ? codigoEnRecorte(ESCDOC.recorte, bf) : qrEnLienzo(ESCDOC.recorte);
     if (hay) ESCDOC.vioCodigo = true;
     else if (!ESCDOC.vioCodigo) ESCDOC.limpias++;
   }

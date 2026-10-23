@@ -209,6 +209,20 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         rayas oye «voltéala» en el paso del respaldo y se
                         toma en el suyo. Pruebas:
                         pruebas/el-frente-sobre-rayas.test.js.
+                        (23-oct-2026, verificación de a21746b) Y las COLUMNAS
+                        también son de la mesa: sobre una tela de rayas finas
+                        de contraste alto (±58 o más) el aire rayado de los
+                        lados subía todas las filas de la tarjeta, un renglón
+                        del frente pasaba por la franja del código, y otra vez
+                        el frente quedaba como respaldo (o el patrón tomaba
+                        las dos rayas de más afuera por las barras de inicio y
+                        de fin). Ahora la franja se mide entre las columnas del
+                        marco y desde el piso de la tarjeta, al lector solo se
+                        le da la banda de una franja del código, y el patrón no
+                        cuenta una barra que sigue negra arriba y abajo de la
+                        franja. Pruebas:
+                        pruebas/el-frente-sobre-rayas-finas.test.js, con el
+                        frente nítido de pruebas/fabricar-cedula-nitida.py.
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).

@@ -1825,7 +1825,17 @@
    como dato de mas (un escaner-cedula.js viejo no lo mira y queda como
    estaba), y con una pagina vieja el escaner-cedula.js nuevo ya descarta la
    franja que toca el borde y supone el 6 % de aire. La cura viaja en
-   escaner-cedula.js. */
+   escaner-cedula.js.
+   23-oct-2026, la septima verificacion (MISMA v139): las columnas del aire
+   tambien son mesa (el frente sobre rayas finas de contraste alto pasaba por
+   respaldo por la franja o por el patron), en app/escaner-cedula.js y
+   play/index.html. Mezclarlos no rompe: la pagina nueva le pasa las columnas
+   del marco como dato de mas (un escaner-cedula.js viejo no lo mira y queda
+   como estaba) y pregunta por franjaComoLaDelCodigo antes de usarla para la
+   banda; con una pagina vieja, el escaner-cedula.js nuevo ya cuenta la franja
+   desde el piso de la tarjeta (pruebas/el-frente-sobre-rayas-finas.test.js,
+   «sin las columnas») y su patron ya no vota con rayas que siguen arriba y
+   abajo. La cura viaja en escaner-cedula.js. */
 const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 
