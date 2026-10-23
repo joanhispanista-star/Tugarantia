@@ -97,12 +97,19 @@ function conTextura(img, lado) {
  * El cuadro de video con un lado de la cédula en el marco.
  * @param guia   ESCDOC.guiaVideo (el marco del escáner, en píxeles del video)
  * @param lado   'reverso' | 'frente'
- * @param o      {codigo: 'legible' | 'borroso', giro: 0 | 180}
+ * @param o      {codigo: 'legible' | 'borroso' | 'gastado', giro: 0 | 180,
+ *               liso: sin la textura de la foto y la huella (como la demo
+ *                 del 23-oct), desvaido: el contraste de la impresión (0..1)}
+ *   23-oct-2026 — 'gastado': el PDF417 a 4 px por módulo y desenfocado 1,5
+ *   módulos (6 px), el caso 7e de la verificación del autollenado: con la
+ *   cámara enfocada el lector no lo lee, y sus mosaicos hunden la mediana
+ *   de nitidez bajo el piso («Aléjala…» para siempre con ab6b595).
  */
 function cuadroDeVideo(guia, lado, o) {
   const x = o || {};
   const k = guia.w / GUIA.w;
-  let img = escalar(conTextura(CARTA(lado), lado), k);
+  let img = escalar(x.liso ? CARTA(lado) : conTextura(CARTA(lado), lado), k);
+  if (x.desvaido) for (let i = 0; i < img.gris.length; i++) img.gris[i] = 200 + (img.gris[i] - 200) * x.desvaido;
   if (lado === 'reverso') {
     /* El código de barras: el fabricado son barras al azar (no es un PDF417);
        aquí va uno de verdad con los datos de la persona, en la franja de abajo
@@ -114,7 +121,8 @@ function cuadroDeVideo(guia, lado, o) {
     const y0 = t.y + Math.round(t.h * 0.66), y1 = t.y + Math.round(t.h * 0.985);
     for (let yy = y0; yy < y1; yy++) for (let xx = t.x + Math.round(t.w * 0.02); xx < t.x + Math.round(t.w * 0.98); xx++) img.gris[yy * img.w + xx] = 222;
     const cod = F.fabricar(F.registroCedula(PERSONA), 20, 4);
-    const r = F.render(cod, 3, x.codigo === 'borroso' ? 3 : 0, 4, { quieta: 4 });
+    const r = x.codigo === 'gastado' ? F.render(cod, 4, 6, 4, { quieta: 4 })
+      : F.render(cod, 3, x.codigo === 'borroso' ? 3 : 0, 4, { quieta: 4 });
     const bx = t.x + Math.round((t.w - r.W) / 2), by = t.y + Math.round(t.h * 0.975) - r.H;
     for (let yy = 0; yy < r.H; yy++) for (let xx = 0; xx < r.W; xx++) img.gris[(by + yy) * img.w + bx + xx] = r.lum[yy * r.W + xx];
   }
@@ -140,10 +148,10 @@ function cuadroDeVideo(guia, lado, o) {
    desenfoque de caja de 5 px. Así la foto buena NO es la del instante del
    disparo (la ventana se cierra con uno borroso a la vista), y la prueba puede
    decir si las letras leyeron la foto que se guardó o el cuadro de ahora. */
-function desenfocado(px, guia) {
+function desenfocado(px, guia, radio) {
   const x0 = Math.max(0, guia.x - Math.round(guia.w * 0.1)), x1 = Math.min(VIDEO.W, guia.x + Math.round(guia.w * 1.1));
   const y0 = Math.max(0, guia.y - Math.round(guia.h * 0.1)), y1 = Math.min(VIDEO.H, guia.y + Math.round(guia.h * 1.1));
-  const t = Uint8ClampedArray.from(px), o = Uint8ClampedArray.from(px), R = 2;
+  const t = Uint8ClampedArray.from(px), o = Uint8ClampedArray.from(px), R = radio || 2;
   for (let y = y0; y < y1; y++) for (let x = x0 + R; x < x1 - R; x++) {
     let s = 0; for (let d = -R; d <= R; d++) s += px[y * VIDEO.W + x + d];
     t[y * VIDEO.W + x] = s / (2 * R + 1);
@@ -413,5 +421,67 @@ describe('el oyente de las letras (ocrAlTomarLaCedula), sin motor', () => {
     assert.equal(pendiente(P, 'frente'), false, 'un frente con un código a la vista se iba a leer como frente');
     P.ev("FOTOS.cedula_reverso = 'R1'; avisarCedulaTomada('reverso', __lienzo, 90, {});");
     assert.equal(pendiente(P, 'reverso'), false, 'una tarjeta de través se iba a leer con las franjas de la acostada');
+  });
+});
+
+/* ==========================================================================
+ * LA CÉDULA DIFÍCIL, CON EL ESCÁNER DE VERDAD — 23 de octubre de 2026
+ *
+ * Los dos casos de la verificación del autollenado y de la demo de ese día
+ * que el escáner no tomaba nunca, ahora con la página, ZXing y los píxeles de
+ * verdad (sin el motor de las letras: lo que se prueba es la cámara):
+ *   · el respaldo con el PDF417 MUY gastado y la cámara enfocada (el caso
+ *     7e): «Aléjala…» para siempre, «¿Tu cédula es la nueva…?» a los 12 s;
+ *   · el frente liso y desvaído: la puerta de 96 px no lo dejaba ponerse en
+ *     verde. Y el mismo frente DESENFOCADO no se toma (la ventana lo juzga).
+ * FALLAN con ab6b595, salvo la marcada CENTINELA.
+ * ======================================================================== */
+describe('la cédula difícil, con el escáner de verdad', () => {
+  /* Enciende el escáner en `lado`, pone `px` delante (o lo que devuelva para
+     cada cuadro) y mira hasta `max` cuadros. Devuelve los letreros vistos. */
+  async function mirar(lado, cuadro, max) {
+    const E = abrirConCamara();
+    const { P, video, correr } = E;
+    P.ev('autorizarYEscanear()');
+    await asentar();
+    assert.equal(P.ev('!!ESCDOC.stream'), true, 'la cámara no encendió');
+    if (lado === 'frente') P.ev("ESCDOC.lado = 'frente'; reiniciarCuentaDoc();");
+    await correr(150);
+    const guia = JSON.parse(P.ev('JSON.stringify(ESCDOC.guiaVideo)'));
+    const px = cuadro(guia);
+    video.__px = px;
+    const letreros = new Set(), verdes = [];
+    for (let i = 0; i < max && !P.ev('FOTOS.cedula_' + lado); i++) {
+      await correr(100);
+      letreros.add(P.ev("$('docEstado').textContent"));
+      const n = P.ev("$('docNota').textContent"); if (n) letreros.add('NOTA: ' + n);
+      verdes.push(P.ev('!!(ESCDOC.ventana)'));
+    }
+    return { E, P, letreros: [...letreros], verde: verdes.some(Boolean) };
+  }
+
+  test('el PDF417 MUY gastado con la cámara enfocada: el respaldo se toma solo, sin «voltéala» y sin sugerirle la cédula digital', async (t) => {
+    const r = await mirar('reverso', guia => cuadroDeVideo(guia, 'reverso', { codigo: 'gastado' }), 150);
+    const { P } = r;
+    t.diagnostic('lo que dijo: ' + r.letreros.join(' | ') + ' · ' + P.ev('ESCDOC.msVerde') + ' ms en verde · ' + P.ev('JSON.stringify({ vioCodigo: ESCDOC.vioCodigo, vioFranja: ESCDOC.vioFranja, vioBarras: ESCDOC.vioBarras, ilegibles: ESCDOC.ilegibles, lecturas: ESCDOC.lecturas, tipo: tipoDelRespaldo() })'));
+    assert.ok(P.ev('FOTOS.cedula_reverso'), 'el respaldo gastado no se tomó en 15 s: ' + r.letreros.join(' | '));
+    assert.equal(P.ev('!!(FOTOS.cedula_leida && FOTOS.cedula_leida.documento)'), false, 'el código gastado se leyó: la prueba no prueba el caso');
+    assert.equal(r.letreros.some(t => /volt[ée]ala/i.test(t)), false, 'le pidió voltear la cédula con el respaldo en el marco: ' + r.letreros.join(' | '));
+    assert.equal(r.letreros.some(t => /la nueva, gris/.test(t)), false, 'le sugirió la cédula digital a una amarilla: ' + r.letreros.join(' | '));
+    assert.match(P.ev("$('docListoTxt').textContent"), /El código no se pudo leer/);
+  });
+
+  test('el frente liso y desvaído, enfocado: se pone en verde y se toma solo', async (t) => {
+    const r = await mirar('frente', guia => cuadroDeVideo(guia, 'frente', { liso: true, desvaido: 0.8 }), 60);
+    t.diagnostic('lo que dijo: ' + r.letreros.join(' | '));
+    assert.ok(r.verde, 'el frente liso nunca se puso en verde: ' + r.letreros.join(' | '));
+    assert.ok(r.P.ev('FOTOS.cedula_frente'), 'el frente liso no se tomó solo: ' + r.letreros.join(' | '));
+  });
+
+  test('CENTINELA (sin aceptar borrosas): el mismo frente DESENFOCADO no se toma, y pide alejarla', async (t) => {
+    const r = await mirar('frente', guia => desenfocado(cuadroDeVideo(guia, 'frente', { liso: true, desvaido: 0.8 }), guia, 6), 40);
+    t.diagnostic('lo que dijo: ' + r.letreros.join(' | '));
+    assert.equal(r.P.ev('FOTOS.cedula_frente'), undefined, 'tomó un frente desenfocado: ' + r.letreros.join(' | '));
+    assert.ok(r.letreros.some(t => /Aléjala/.test(t)), r.letreros.join(' | '));
   });
 });

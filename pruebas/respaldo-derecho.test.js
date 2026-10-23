@@ -289,7 +289,9 @@ describe('la puerta del respaldo se ponía en verde (la causa de «no escaneó»
 
   test('la página le pasa el interior a la puerta', () => {
     const t = fs.readFileSync(path.join(RAIZ, 'play', 'index.html'), 'utf8');
-    assert.match(t, /EC\.medirTarjeta\(g, ESCDOC\.previa, ESCDOC\.grisW, ESCDOC\.grisH, ESCDOC\.interiorGris\)/);
+    /* 23-oct-2026 — y, desde hoy, lo que se le pide a la puerta en cada lado
+       (opcionesDeLaPuerta: el frente juzgado por la ventana). */
+    assert.match(t, /EC\.medirTarjeta\(g, ESCDOC\.previa, ESCDOC\.grisW, ESCDOC\.grisH, ESCDOC\.interiorGris, opcionesDeLaPuerta\(esFrente\)\)/);
     assert.match(t, /ESCDOC\.interiorGris = vg\.interior;/);
   });
 });

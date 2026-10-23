@@ -444,8 +444,12 @@ input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
    22-oct-2026 (tampoco publicada) — y porque la franja de «versión nueva» se
    vuelve a decidir al cambiar de pantalla y «Actualizar ahora» espera lo que
    va en camino. Si alguien dice que el botón le cortó un pedido, esta fecha
-   dice si tenía la versión que lo impide. */
-var VERSION_PLAY = '2026-10-22';
+   dice si tenía la versión que lo impide.
+   23-oct-2026 (tampoco publicada) — y porque el escáner toma la cédula
+   difícil (el código gastado, el frente liso) y pide luz cuando falta. Si
+   alguien dice que la cámara le pedía «Aléjala…» sin parar, esta fecha dice
+   si tenía la versión que lo arregla. */
+var VERSION_PLAY = '2026-10-23';
 /* 21-oct-2026 — EL NÚMERO DE LA CACHÉ DE ESTA PÁGINA: el CACHE de sw.js
    ('tugarantia-v138' → 'v138'). Con él app/actualizar.js sabe si ESTA página
    es la vieja (hay una caché más nueva) o la que acaba de llegar por la red.
@@ -3017,7 +3021,17 @@ function siguientePaso() {
   var errosAqui = r.errores.filter(function (e) { return idsDelPaso.indexOf(e.id) !== -1; });
   if (errosAqui.length) return fallo(err, errosAqui[0].motivo);
   if (faltanAqui.length) {
-    return fallo(err, 'Nos falta ' + faltanAqui.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') + '. Con eso seguimos.');
+    /* 23-oct-2026 — LO QUE LAS LETRAS TODAVÍA ESTÁN LEYENDO NO «FALTA». Quien
+       tocaba «Continuar» con la lectura en curso leía «Nos falta fecha de
+       expedición» al lado de «Estamos leyéndola del respaldo de tu cédula»
+       (la verificación del autollenado, caso 1b): dos frases que se
+       contradicen, y en un teléfono con la primera descarga del motor son
+       decenas de segundos. Se dice la verdad —todavía la estamos leyendo— y,
+       cuando la lectura termina, ocrRefrescarIdentidad quita el aviso (o dice
+       lo que de verdad faltó). No se pasa solo: la que revisa es la persona. */
+    var porLeer = p.id === 'identidad' ? camposPorLeerDeLasLetras(faltanAqui) : [];
+    if (porLeer.length) return fallo(err, textoEsperandoLasLetras(faltanAqui, porLeer));
+    return fallo(err, textoNosFalta(faltanAqui));
   }
   /* 19-oct-2026 — la fecha de expedición, que se teclea: ni después de hoy ni
      (con la cédula leída) de antes de los 18 años. Ver EC.revisarExpedicion. */
@@ -5794,8 +5808,8 @@ function notaCedulaLeida() {
        esconde y habla notaDeLaFoto. Si la lectura no saca nada, vuelve
        (ocrRefrescarIdentidad). */
     if (hayFotoLista('cedula_reverso')) {
-      return '<div class="aviso ambar' + (hayLecturaVisible() ? ' oculto' : '') + '" id="notaSinLeer">No alcanzamos a leer el código de barras de tu cédula, ' +
-        'así que esta vez los datos los escribes tú, como aparecen en ella. La foto sí quedó guardada.</div>';
+      return '<div class="aviso ambar' + (hayLecturaVisible() ? ' oculto' : '') + '" id="notaSinLeer">' +
+        textoSinLeer(tipoDelRespaldo()) + '</div>';
     }
     return '';
   }
@@ -5804,6 +5818,28 @@ function notaCedulaLeida() {
   return '<div class="aviso info" id="notaLeida"><b>Estos datos no los escribiste tú: tus nombres, tus apellidos y tu ' +
     'número de documento los leímos del código de barras del respaldo de tu cédula.</b> Revísalos y corrige lo que ' +
     'esté mal — si cambias algo, nos queda anotado y lo miramos, que es justamente para lo que sirve.</div>';
+}
+/* 23-oct-2026 — LA NOTA DE «LOS ESCRIBES TÚ», SEGÚN QUÉ CÉDULA ES. Decía
+   siempre «No alcanzamos a leer el código de barras de tu cédula», y la
+   verificación del autollenado la vio en la cédula DIGITAL, que no trae
+   código de barras: el escáner le acababa de decir «Tu cédula es la nueva
+   (la del QR)» y esta nota le contaba un fallo que no hubo. Lo que se sabe
+   del respaldo guardado (tipoDelRespaldo, la marca que va con la foto):
+     'digital'  — se vio su QR: sus datos todavía no se saben leer;
+     'amarilla' — se vio su PDF417 y no se leyó: lo de siempre;
+     ''         — no se sabe cuál es (la cámara del celular, o nada visto):
+                  ni código de barras ni QR, la cédula. */
+function textoSinLeer(tipo) {
+  if (tipo === 'digital') {
+    return 'Tu cédula es la nueva (la del QR) y sus datos todavía no los sabemos leer, así que los escribes tú, ' +
+      'como aparecen en ella. La foto sí quedó guardada.';
+  }
+  if (tipo === 'amarilla') {
+    return 'No alcanzamos a leer el código de barras de tu cédula, así que esta vez los datos los escribes tú, ' +
+      'como aparecen en ella. La foto sí quedó guardada.';
+  }
+  return 'No alcanzamos a leer tu cédula, así que esta vez los datos los escribes tú, como aparecen en ella. ' +
+    'La foto sí quedó guardada.';
 }
 /* ¿Hay una lectura del código de barras que sea de este registro? */
 function cedulaLeidaDeEsteRegistro() {
@@ -6083,6 +6119,14 @@ var ESCDOC = { activo: false, pausado: false, stream: null, lado: '', estables: 
                ventana: null, medida: null, lienzoQr: null, mejorPendiente: false, sinVentana: false,
                franjaMejor: null, altoMedida: 0,   // dónde se vio el código en el mejor (EC.franjaDeBarras)
                vioQr: false, aviso: null, msBorrosa: 0,
+               /* 23-oct-2026 — el PDF417 gastado. `vioFranja`: en ESTA racha se
+                  vio la franja de sus barras en su sitio (EC.franjaComoLaDelCodigo)
+                  sin código visto; con ella el respaldo dispara tras su rato
+                  (ECAP.decidirVentana). `vioBarras`: en ESTE lado se vio algo
+                  del PDF417 (la franja, su patrón, o encontrado sin leer): es
+                  la amarilla, y no se le sugiere la cédula digital
+                  (notaCedulaNueva). */
+               vioFranja: false, vioBarras: false,
                /* 21-oct-2026 — la linterna sola: si la cámara la tiene, cuánto lleva
                   oscuro, y si alguien (la persona o un reflejo) dijo que no. */
                puedeLuz: false, msOscura: 0, luzNoAuto: false, luzReflejo: false, pedirLuz: false,
@@ -6206,6 +6250,7 @@ function reiniciarCuentaDoc() {
      refleja distinto que el código). */
   ESCDOC.ventana = null; ESCDOC.mejorPendiente = false; ESCDOC.vioQr = false;
   ESCDOC.aviso = null; ESCDOC.msBorrosa = 0; ESCDOC.luzReflejo = false; ESCDOC.pedirLuz = false;
+  ESCDOC.vioFranja = false; ESCDOC.vioBarras = false;   // 23-oct-2026 — de ESTE lado
 }
 function iniciarEscanerDoc(lado) {
   if (!hayCamaraEnVivo()) return escanerDocSinCamara('Este navegador no deja usar la cámara en vivo.');
@@ -6550,7 +6595,13 @@ function grisAEscala(fuente, sx, sy, sw, sh, w, h, campo) {
 }
 /* La nitidez del cuadro de AHORA, a la escala de la foto: el mismo rectángulo
    que recortarGuia (marco + aire), a ANCHO_MEDIDA. Es la que escoge el mejor
-   cuadro; la de la puerta (96 px) no ve el desenfoque. */
+   cuadro; la de la puerta (96 px) no ve el desenfoque.
+   23-oct-2026 — con ECAP.calidadDeGris: la mediana de siempre o el cuarto
+   más nítido de los mosaicos, el mayor. Con un PDF417 gastado o un frente
+   liso la mediana sola la deciden mosaicos que no ven el enfoque, y pedía
+   «Aléjala…» para siempre con la cédula enfocada (ver LA CALIDAD QUE JUZGA
+   LA VENTANA en app/escaner-captura.js). Un escaner-captura.js viejo en la
+   caché no la trae: la mediana, como antes. */
 function medirNitidezDoc(v) {
   if (!ECAP || !ECAP.nitidezDeGris || !v || !v.videoWidth) return null;
   var g = ESCDOC.guiaVideo; if (!g) return null;
@@ -6558,7 +6609,7 @@ function medirNitidezDoc(v) {
   var t = ECAP.tamanoDeMedida(g.w, g.h); if (!t) return null;
   var r = grisAEscala(v, g.x, g.y, g.w, g.h, t.w, t.h, 'medida');
   if (!r) return null;
-  r.nitidez = ECAP.nitidezDeGris(r.gris, r.w, r.h);
+  r.nitidez = ECAP.calidadDeGris ? ECAP.calidadDeGris(r.gris, r.w, r.h) : ECAP.nitidezDeGris(r.gris, r.w, r.h);
   return r;
 }
 /* ¿Hay un QR LEÍDO en este lienzo? A 960 px como mucho: el de la cédula digital
@@ -6586,11 +6637,11 @@ function bucleEscanerDoc() {
   if (!ESCDOC.desde) ESCDOC.desde = Date.now();
   medirCajaDoc(v);
   var g = grisDeGuia(v);
-  var m = g ? EC.medirTarjeta(g, ESCDOC.previa, ESCDOC.grisW, ESCDOC.grisH, ESCDOC.interiorGris) : null;
+  var esFrente = ESCDOC.lado === 'frente';
+  var m = g ? EC.medirTarjeta(g, ESCDOC.previa, ESCDOC.grisW, ESCDOC.grisH, ESCDOC.interiorGris, opcionesDeLaPuerta(esFrente)) : null;
   ESCDOC.previa = g;
   var verde = !!(m && m.ok);
   if (verde) ESCDOC.estables++; else ESCDOC.estables = 0;
-  var esFrente = ESCDOC.lado === 'frente';
   /* 8-oct-2026 — EL RESPALDO TAMBIÉN DISPARA SOLO (EC.decidirRespaldo). Se
      cuenta el rato que la cédula pasa bien puesta —en verde, no el reloj— y
      el cuadro más nítido visto, para no disparar en un parpadeo del enfoque. */
@@ -6614,7 +6665,7 @@ function bucleEscanerDoc() {
   if (!esFrente && verde && !ESCDOC.vioCodigo && !window.ZXing &&
       (ahora - ESCDOC.tPatron) >= 500) {
     ESCDOC.tPatron = ahora;
-    if (giroPorPatron(recortarGuia(v)) !== null) ESCDOC.vioCodigo = true;
+    if (giroPorPatron(recortarGuia(v)) !== null) { ESCDOC.vioCodigo = true; ESCDOC.vioBarras = true; }
   }
   var resp = (!esFrente && EC.decidirRespaldo)
     ? EC.decidirRespaldo({ estables: ESCDOC.estables, msVerde: ESCDOC.msVerde, lecturas: ESCDOC.lecturas,
@@ -6644,7 +6695,7 @@ function bucleEscanerDoc() {
   dibujarMarcoDoc(verde, esFrente ? (fre.voltear ? 0 : Math.min(1, ESCDOC.estables / EC.TARJETA.CUADROS_FRENTE)) : resp.avance);
   var t = (Date.now() - ESCDOC.desde) / 1000;
   if (estado) {
-    var txt = g ? EC.textoDeTarjeta(m) : 'Encendiendo la cámara…';
+    var txt = textoDeLaPuerta(g, m);
     /* 21-oct-2026 — «acércala» ya no: acostada, lo que desenfoca es tenerla
        demasiado cerca, y ese consejo empujaba justo hacia el desenfoque. */
     if (verde && !esFrente) txt = (resp.avance >= 1 && ESCDOC.lecturas >= EC.RESPALDO.LECTURAS_MIN) ? 'Quieta… tomando la foto'
@@ -6683,11 +6734,38 @@ function bucleEscanerDoc() {
 }
 /* Doce segundos viendo la tarjeta bien puesta y sin encontrar ningún código:
    puede ser la cédula nueva en un teléfono que no lee su QR. Decirlo ahorra el
-   minuto de pelea. 21-oct-2026 — no con un QR ya visto: esa ya se toma sola. */
+   minuto de pelea. 21-oct-2026 — no con un QR ya visto: esa ya se toma sola.
+   23-oct-2026 — ni con algo del PDF417 visto en este lado (vioBarras: su
+   franja, su patrón o el código encontrado sin leer): esa es la AMARILLA, y
+   la verificación del autollenado vio a una amarilla con el código gastado
+   recibir «¿Tu cédula es la nueva, gris y de plástico?» sin ninguna prueba
+   de serlo. Antes solo lo frenaba un código encontrado sin leer. */
 function notaCedulaNueva(esFrente, t) {
-  if (esFrente || t <= 12 || ESCDOC.lecturas <= 6 || ESCDOC.ilegibles || ESCDOC.vioQr) return;
+  if (esFrente || t <= 12 || ESCDOC.lecturas <= 6 || ESCDOC.ilegibles || ESCDOC.vioQr || ESCDOC.vioBarras) return;
   var nd = $('docNota');
   if (nd && !nd.textContent) nd.textContent = TEXTO_CEDULA_NUEVA;
+}
+/* 23-oct-2026 — LO QUE SE LE PIDE A LA PUERTA. El frente, mientras la
+   ventana del mejor cuadro mide (y no se ha caído a la cuenta de antes), con
+   el piso de bordes chico (EC.TARJETA.NITIDEZ_MIN_FRENTE): un frente liso no
+   llegaba a 9 y nunca se ponía en verde (la demo del 23-oct), y el que juzga
+   si está nítido es la ventana. El respaldo, y todo sin ventana, como
+   siempre. */
+function opcionesDeLaPuerta(esFrente) {
+  if (!esFrente || !ECAP || !ECAP.decidirVentana || ESCDOC.sinVentana || !EC.TARJETA ||
+      !isFinite(EC.TARJETA.NITIDEZ_MIN_FRENTE)) return undefined;
+  return { nitidezMin: EC.TARJETA.NITIDEZ_MIN_FRENTE };
+}
+/* 23-oct-2026 — EL LETRERO CON LA TARJETA FUERA DE VERDE. Con poca luz y sin
+   linterna (un iPhone sin torch en un cuarto oscuro) la puerta dice «borrosa»
+   —con poca luz no hay bordes— y el letrero pedía «Aléjala o acércala», que
+   no arregla nada: lo que falta es luz. vigilarLinterna ya lo sabe
+   (ESCDOC.pedirLuz: poca luz sostenida y una cámara sin linterna), pero eso
+   solo se decía con la tarjeta en verde, al cerrar una ventana. */
+function textoDeLaPuerta(g, m) {
+  if (!g) return 'Encendiendo la cámara…';
+  if (m && m.falla === 'borrosa' && ESCDOC.pedirLuz && ECAP && ECAP.TEXTO && ECAP.TEXTO.BUSCA_LUZ) return ECAP.TEXTO.BUSCA_LUZ;
+  return EC.textoDeTarjeta(m);
 }
 
 /* ===========================================================================
@@ -6724,8 +6802,9 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
        otra cara. */
     ESCDOC.ventana = null; ESCDOC.mejorPendiente = false;
     ESCDOC.vioCodigo = false; ESCDOC.vioQr = false; ESCDOC.limpias = 0; ESCDOC.msBorrosa = 0;
+    ESCDOC.vioFranja = false;
     dibujarMarcoDoc(false, 0);
-    pintarEstadoDoc(estado, g ? EC.textoDeTarjeta(m) : 'Encendiendo la cámara…', t, ahora, false);
+    pintarEstadoDoc(estado, textoDeLaPuerta(g, m), t, ahora, false);
     notaCedulaNueva(esFrente, t);
     ESCDOC.tempo = setTimeout(bucleEscanerDoc, 100);
     return true;
@@ -6740,6 +6819,13 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
     ESCDOC.mejorPendiente = true;
     ESCDOC.franjaMejor = EC.franjaDeBarras ? EC.franjaDeBarras(medida.gris, medida.w, medida.h) : null;
     ESCDOC.altoMedida = medida.h;
+    /* 23-oct-2026 — EL PDF417 GASTADO: su franja de barras, en su sitio, es
+       lo único que queda de él cuando el lector no lo encuentra (ver
+       EC.franjaComoLaDelCodigo y ECAP.decidirVentana). Solo en el respaldo: en
+       el frente, una franja es motivo para MIRAR si hay código, no prueba. */
+    if (!esFrente && EC.franjaComoLaDelCodigo && EC.franjaComoLaDelCodigo(ESCDOC.franjaMejor, medida.h)) {
+      ESCDOC.vioFranja = true; ESCDOC.vioBarras = true;
+    }
   }
   var C2 = ECAP.CAPTURA, w0 = ESCDOC.ventana;
   /* Lo borroso con la tarjeta quieta: lo cuenta la linterna (con poca luz el
@@ -6762,7 +6848,7 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
          mismo mejor es el primero que se lee (si no, una ventana ya cerrada
          con un mejor muy nítido no volvería a intentarlo nunca). */
       ESCDOC.tPatron = ahora;
-      if (giroPorPatron(ESCDOC.recorte) !== null) ESCDOC.vioCodigo = true;
+      if (giroPorPatron(ESCDOC.recorte) !== null) { ESCDOC.vioCodigo = true; ESCDOC.vioBarras = true; }
     }
   }
   if (esFrente && ESCDOC.mejorPendiente && (ahora - ESCDOC.tPatron) >= EC.FRENTE.MS_ENTRE_MIRADAS) {
@@ -6777,7 +6863,8 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
   }
   var d = ECAP.decidirVentana(w0, { lado: esFrente ? 'frente' : 'reverso', ahora: ahora,
     vioCodigo: ESCDOC.vioCodigo, limpias: ESCDOC.limpias, leyendo: ESCDOC.leyendo,
-    lectorListo: !!(window.ZXing || ESCDOC.nativo), msVerde: ESCDOC.msVerde });
+    lectorListo: !!(window.ZXing || ESCDOC.nativo), msVerde: ESCDOC.msVerde,
+    vioFranja: !esFrente && ESCDOC.vioFranja === true });
   dibujarMarcoDoc(true, d.avance);
   var T = ECAP.TEXTO, txt = '';
   if (d.estado === 'disparar') txt = T.TOMANDO;
@@ -6835,7 +6922,7 @@ function leerCuadroDoc(v, mejor) {
     /* Un código que el lector encontró sin poder leerlo, o el patrón de sus
        barras: es el lado del código, y desde ahí el disparo automático vale.
        21-oct-2026 — y el QR leído de la cédula digital, que no trae barras. */
-    if (error === 'ilegible' || patron) ESCDOC.vioCodigo = true;
+    if (error === 'ilegible' || patron) { ESCDOC.vioCodigo = true; ESCDOC.vioBarras = true; }
     if (qr) { ESCDOC.vioQr = true; ESCDOC.vioCodigo = true; }
   };
   var r = null, qrZ = false;
@@ -6943,7 +7030,9 @@ function celebrarDisparoDoc() {
  *         qr:      se leyó un QR en ese lado (la cédula digital),
  *         automatica: la tomó el escáner (false: «Tomar la foto ahora»),
  *         nitidez: la del mejor cuadro (EscanerCaptura.nitidezDeGris a 480 px),
- *                  o null si no se midió,
+ *                  o null si no se midió. 23-oct-2026 — es la calidad con
+ *                  que la ventana lo escogió (EscanerCaptura.calidadDeGris:
+ *                  la mediana o el cuarto más nítido, el mayor),
  *         resolucion: lo que la cámara entregó (EscanerCaptura.resolucionEfectiva),
  *         generacion: GENERACION_DEL_REGISTRO al tomarla,
  *         turno:   ESCDOC.turno al tomarla,
@@ -7519,6 +7608,64 @@ function notaDeLaFoto() {
   var t = notaDeLaFotoTexto();
   return '<div class="aviso info' + (t ? '' : ' oculto') + '" id="notaFoto">' + t + '</div>';
 }
+/* 23-oct-2026 — «CONTINUAR» CON LAS LETRAS LEYENDO (ver siguientePaso).
+   Qué lado trae cada casilla (las franjas de app/ocr-cedula.js: el respaldo
+   la expedición; el frente el número, los nombres y los apellidos, y con el
+   número el tipo), para no decir «todavía la estamos leyendo» de algo cuyo
+   lado ya se leyó sin sacarla. */
+var LADO_DE_LAS_LETRAS = { expedicion: 'reverso', documento: 'frente', apellidos: 'frente', nombres: 'frente', tipo_doc: 'frente' };
+var NOMBRE_DE_CAMPO_POR_LEER = { documento: 'tu número de documento', apellidos: 'tus apellidos', nombres: 'tus nombres',
+  expedicion: 'la fecha de expedición', tipo_doc: 'el tipo de documento' };
+/* El texto que dijo «todavía la estamos leyendo», para que la lectura, al
+   terminar, sepa que es suyo y lo cambie (ocrRefrescarIdentidad). */
+var AVISO_LETRAS_EN_CURSO = '';
+/* De lo que falta en «Revisa tus datos», lo que la lectura en curso todavía
+   puede llenar: con las mismas reglas que OcrCedula.planDeLlenado (con el
+   código leído, solo la expedición; solo con cédula de ciudadanía; nunca lo
+   que la persona tocó) y solo si el lado que lo trae sigue sin leerse. */
+function camposPorLeerDeLasLetras(faltan) {
+  var P = ocrEstado();
+  if (P.estado !== 'leyendo') return [];
+  var tipo = String(REGISTRO.tipo_doc || '');
+  if (tipo && tipo !== 'Cédula de ciudadanía') return [];
+  var pueden = cedulaLeidaDeEsteRegistro() ? ['expedicion'] : CAMPOS_DE_LA_VISTA.concat(['tipo_doc']);
+  return (faltan || []).filter(function (f) {
+    var lado = LADO_DE_LAS_LETRAS[f.id], pend = lado && P.pendientes ? P.pendientes[lado] : null;
+    return pueden.indexOf(f.id) >= 0 && !(P.tocados && P.tocados[f.id]) &&
+      !!pend && pend.gen === GENERACION_DEL_REGISTRO;
+  });
+}
+function textoNosFalta(faltan) {
+  return 'Nos falta ' + faltan.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') + '. Con eso seguimos.';
+}
+function textoEsperandoLasLetras(faltan, porLeer) {
+  var otros = faltan.filter(function (f) { return porLeer.indexOf(f) < 0; });
+  var leyendo = enLista(porLeer.map(function (f) { return NOMBRE_DE_CAMPO_POR_LEER[f.id] || f.etiqueta.toLowerCase(); }));
+  var t = (otros.length ? 'Nos falta ' + otros.map(function (f) { return f.etiqueta.toLowerCase(); }).join(', ') +
+      '. Y todavía estamos leyendo de tu cédula ' : 'Todavía estamos leyendo de tu cédula ') +
+    leyendo + '. Espera unos segundos y revisa lo que aparezca aquí, o escríbelo tú.';
+  AVISO_LETRAS_EN_CURSO = t;
+  return t;
+}
+function faltanEnIdentidad() {
+  var r = U.revisarVinculacion(REGISTRO);
+  var ids = U.camposDelGrupo('identidad').map(function (c) { return c.id; });
+  return r.faltan.filter(function (f) { return ids.indexOf(f.id) !== -1; });
+}
+/* La lectura avanzó: si el aviso de «Continuar» es el de «todavía estamos
+   leyendo», se pone al día. Mientras siga leyendo algo de lo que falta, lo
+   dice; al terminar, se va si ya no falta nada, y si falta, dice lo que de
+   verdad falta (las letras no lo sacaron). */
+function refrescarAvisoDeLasLetras() {
+  var e = $('errReg');
+  if (!AVISO_LETRAS_EN_CURSO || !e || e.textContent !== AVISO_LETRAS_EN_CURSO ||
+      (e.classList && e.classList.contains('oculto'))) return;
+  var faltan = faltanEnIdentidad(), aun = camposPorLeerDeLasLetras(faltan);
+  if (aun.length) { e.textContent = textoEsperandoLasLetras(faltan, aun); return; }
+  AVISO_LETRAS_EN_CURSO = '';
+  if (faltan.length) fallo(e, textoNosFalta(faltan));
+  else { e.textContent = ''; e.classList.add('oculto'); }
+}
 /* La ayuda de la expedición dice de dónde salió (o por qué no), sin etiquetas
    adentro: pedir-a-la-medida.test.js la busca entera. */
 function textoAyudaExpedicion() {
@@ -7528,7 +7675,11 @@ function textoAyudaExpedicion() {
     return 'La leímos del respaldo de tu cédula, ' + donde + '. Revísala: si no es la misma, corrígela.';
   }
   var P = ocrEstado();
-  if (P.estado === 'leyendo' && (P.pendientes.reverso || P.lector)) {
+  /* 23-oct-2026 — solo mientras el RESPALDO sigue por leer. Decía «o el
+     motor vivo» (P.lector), y con el respaldo ya leído sin la fecha y el
+     frente leyéndose seguía «Estamos leyéndola» al lado del «Nos falta fecha
+     de expedición» que ya era cierto (ver camposPorLeerDeLasLetras). */
+  if (P.estado === 'leyendo' && P.pendientes.reverso) {
     return 'Estamos leyéndola del respaldo de tu cédula, ' + donde + '. Si prefieres, escríbela tú.';
   }
   var v = FOTOS.cedula_vista;
@@ -7565,6 +7716,7 @@ function ocrRefrescarIdentidad() {
   var s = $('notaSinLeer'); if (s) s.classList.toggle('oculto', hayLecturaVisible());
   var a = $('ayudaExpedicion'); if (a) a.textContent = textoAyudaExpedicion();
   var b = $('btnSeguir'); if (b) b.textContent = textoBotonIdentidad();
+  refrescarAvisoDeLasLetras();   // 23-oct-2026 — el «todavía estamos leyendo» de «Continuar»
 }
 function refrescarMarcaDeLaCedula(c) {
   var s = $('leido_' + c); if (s) s.textContent = deLaCedula(c) ? TEXTO_LEIDO_DE_LA_CEDULA : '';

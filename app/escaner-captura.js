@@ -81,6 +81,15 @@
     MEDIDAS_MIN: 3,        // con menos que esto la ventana no decide nada
     MS_VENTANA_MAX: 1500,  // … y si el teléfono es lento, se cierra a 1,5 s
     PISO_NITIDEZ: 35,      // ver la tabla de arriba
+    /* 23-oct-2026 — el piso del cuarto más nítido de los mosaicos (ver LA
+       CALIDAD QUE JUZGA LA VENTANA, más abajo): con un PDF417 gastado o un
+       frente liso, la mediana la deciden mosaicos que no ven el enfoque. */
+    PISO_CUARTIL: 75,
+    /* 23-oct-2026 — el respaldo que solo muestra la FRANJA de sus barras (un
+       PDF417 tan gastado que el lector ni lo encuentra ni ve su patrón): el
+       lector tiene este rato en verde para intentarlo antes de tomar la foto
+       sin datos. El mismo que EscanerCedula.RESPALDO.MS_LEYENDO. */
+    MS_SOLO_FRANJA: 2500,
     /* El mismo rato que EscanerCedula.RESPALDO.MS_SIN_LECTOR (la prueba los
        compara): si el lector todavía baja (señal floja), el respaldo no se
        dispara sin que nadie lo haya intentado leer, pero tampoco espera más. */
@@ -215,19 +224,67 @@
     var o = lista.slice().sort(function (x, y) { return x - y; });
     return o.length ? o[Math.min(o.length - 1, Math.floor(o.length * p))] : 0;
   }
+  /* Lo que vale cada mosaico con algo que enfocar (la cuenta de arriba), o
+     null si no hay ninguno. La comparten nitidezDeGris y calidadDeGris: una
+     sola cuenta, para que las dos no se puedan separar. */
+  function valoresDeMosaicos(gris, ancho, alto) {
+    ancho = Math.floor(num(ancho)); alto = Math.floor(num(alto));
+    if (!gris || ancho < 3 || alto < 3 || gris.length < ancho * alto) return null;
+    var g = suavizarBinomial(gris, ancho, alto);
+    var todos = mosaicosDe(g, ancho, alto);
+    var piso = percentil(todos.map(function (t) { return t.pobre; }), PISO_DE_GRANO);
+    var aqui = todos.filter(function (t) { return t.contraste >= MOSAICO_VARIANZA_MIN; });
+    if (!aqui.length) return null;
+    return aqui.map(function (t) { return 1000 * Math.max(0, t.pobre - piso) / t.contraste; });
+  }
   /**
    * @param gris  luminancias 0..255 de la cédula a ~480 px de ancho
    * @returns número ≥ 0 (0 si no hay ningún mosaico con algo que enfocar)
    */
   function nitidezDeGris(gris, ancho, alto) {
-    ancho = Math.floor(num(ancho)); alto = Math.floor(num(alto));
-    if (!gris || ancho < 3 || alto < 3 || gris.length < ancho * alto) return 0;
-    var g = suavizarBinomial(gris, ancho, alto);
-    var todos = mosaicosDe(g, ancho, alto);
-    var piso = percentil(todos.map(function (t) { return t.pobre; }), PISO_DE_GRANO);
-    var aqui = todos.filter(function (t) { return t.contraste >= MOSAICO_VARIANZA_MIN; });
-    if (!aqui.length) return 0;
-    return percentil(aqui.map(function (t) { return 1000 * Math.max(0, t.pobre - piso) / t.contraste; }), 0.5);
+    var v = valoresDeMosaicos(gris, ancho, alto);
+    return v ? percentil(v, 0.5) : 0;
+  }
+
+  /* ==========================================================================
+   * LA CALIDAD QUE JUZGA LA VENTANA — 23 de octubre de 2026
+   *
+   * La mediana de nitidezDeGris es la del CRM y se queda como está (la prueba
+   * las compara número a número). Pero como PISO de la foto tenía un defecto
+   * medido el 23-oct (verificación del autollenado y la demo de ese día): la
+   * mediana la decide la MITAD de los mosaicos, y en dos cédulas de la calle
+   * esa mitad no dice nada del enfoque:
+   *   · un PDF417 MUY GASTADO: sus mosaicos (un tercio de la tarjeta) salen
+   *     lisos aunque la cámara esté enfocada, y arrastran la mediana a 29 con
+   *     las letras perfectas (4K, σ 1,5 módulos): «Aléjala…» para siempre;
+   *   · un FRENTE LISO (la demo del 23-oct): colores planos, el rectángulo de
+   *     la foto y letras grandes. Los mosaicos de un solo borde recto miden
+   *     casi 0 en la dirección del borde, estén nítidos o no, y son la mitad:
+   *     la mediana daba 6 con la tarjeta enfocada.
+   * En las dos, los mosaicos con letra (lo que de verdad se ve borroso cuando
+   * la cámara no enfoca) están en el cuarto de arriba. Por eso la ventana
+   * juzga con el MAYOR de la mediana y del percentil 75 llevado a la misma
+   * escala: pasa el piso si la mediana llega a PISO_NITIDEZ (como siempre) o
+   * si el cuarto más nítido llega a PISO_CUARTIL.
+   *
+   * SIN ACEPTAR FOTOS BORROSAS: un desenfoque de cámara baja TODOS los
+   * mosaicos, también los de letra. Medido el 23-oct con las cédulas de
+   * pruebas/cedula-ocr-*.pgm.gz (lisas, con textura, con el PDF417 legible,
+   * borroso y gastado), la digital y las dos de la demo, en video 4K (la
+   * tarjeta a 1.814 px: el doble de los 907 de la tabla de arriba) y 1080:
+   *   · con una caja de 9 px a 4K (σ ≈ 1,3 px a 907) no pasa ningún frente,
+   *     ni liso ni con textura, ni el respaldo gastado;
+   *   · con una de 13 px (σ ≈ 1,9) no pasa ninguna cédula;
+   *   · lo que cambia queda del lado que la tabla de arriba ya quería dejar
+   *     pasar (σ ≤ 1,5): el frente con textura con una caja de 7 px (σ ≈ 1)
+   *     da 37,6 donde la mediana daba 31,7.
+   * Son tarjetas fabricadas: se recalibra con las primeras de verdad, como el
+   * PISO_NITIDEZ.
+   * ======================================================================== */
+  function calidadDeGris(gris, ancho, alto) {
+    var v = valoresDeMosaicos(gris, ancho, alto);
+    if (!v) return 0;
+    return Math.max(percentil(v, 0.5), percentil(v, 0.75) * CAPTURA.PISO_NITIDEZ / CAPTURA.PISO_CUARTIL);
   }
 
   /**
@@ -296,7 +353,9 @@
    *            limpias: miradas de esta racha que no vieron ninguno (frente),
    *            leyendo: el lector nativo está leyendo (asíncrono),
    *            lectorListo: ya bajó ZXing o hay detector nativo,
-   *            msVerde: cuánto lleva este lado en verde}
+   *            msVerde: cuánto lleva este lado en verde,
+   *            vioFranja: 23-oct-2026 — en ESTA racha se vio la franja de
+   *              las barras en su sitio, sin código visto (el PDF417 gastado)}
    * @returns {estado, disparar, avance}
    *   'midiendo'   la ventana sigue abierta;
    *   'esperando'  cerrada y buena, pero falta algo que no tarda (el lector
@@ -304,7 +363,8 @@
    *   'disparar'   se toma la foto con el mejor cuadro;
    *   'alejala'    el mejor no pasó el piso: nada se toma, y se pide distancia
    *                (con la cédula acostada lo que desenfoca es tenerla cerca);
-   *   'sin_codigo' respaldo nítido sin ningún código: casi seguro es el frente;
+   *   'sin_codigo' respaldo nítido sin ningún código ni franja de barras: casi
+   *                seguro es el frente;
    *   'con_codigo' frente nítido CON código: es el respaldo sin voltear.
    *   Los tres últimos cierran la ventana: la página empieza otra.
    */
@@ -325,6 +385,16 @@
       /* Sin lector todavía no se puede decir «no hay código»: solo se miró el
          patrón de barras, y un QR no tiene patrón de barras. */
       if (!x.lectorListo && num(x.msVerde) < CAPTURA.MS_SIN_LECTOR) return r('esperando');
+      /* 23-oct-2026 — LA FRANJA DE LAS BARRAS, SIN CÓDIGO VISTO. Un PDF417 muy
+         gastado no lo encuentra el lector ni deja ver su patrón, pero sus
+         barras siguen ahí: una franja de filas «de barras» en el tercio de
+         abajo (o de arriba, al revés) de la tarjeta (EscanerCedula.
+         franjaComoLaDelCodigo). Decirle «si es el frente, voltéala» a quien
+         ya muestra el respaldo lo dejaba dando vueltas para siempre. Con la
+         franja se le da al lector su rato y, si no lee, se toma la foto sin
+         datos, como con un código visto sin leer. La franja NO prueba la
+         amarilla para las letras (capturarDoc mira el recorte otra vez). */
+      if (x.vioFranja === true) return r(num(x.msVerde) >= CAPTURA.MS_SOLO_FRANJA ? 'disparar' : 'esperando');
       return r('sin_codigo');
     }
     if (!x.lectorListo && num(x.msVerde) < CAPTURA.MS_SIN_LECTOR) return r('esperando');
@@ -469,6 +539,7 @@
     LINTERNA: LINTERNA,
     TEXTO: TEXTO,
     nitidezDeGris: nitidezDeGris,
+    calidadDeGris: calidadDeGris,
     tamanoDeMedida: tamanoDeMedida,
     ventanaNueva: ventanaNueva,
     esMejor: esMejor,

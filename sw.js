@@ -1809,7 +1809,15 @@
    23-oct-2026, la cuarta verificacion (MISMA v139): y sin tocar el boton,
    igual: si lo que la persona mando termina con la app oculta o recien
    vuelta, la recarga sola espera a que lo vea (el mismo «ya termino»). Solo
-   cambia app/actualizar.js; las paginas ya llaman volverAMirar al empezar. */
+   cambia app/actualizar.js; las paginas ya llaman volverAMirar al empezar.
+   23-oct-2026, la quinta verificacion (MISMA v139): «la vio» se prueba
+   despues de la respuesta (un toque o 5 min a la vista), en
+   app/actualizar.js; y el escaner con la cedula dificil (PDF417 gastado,
+   frente liso, poca luz sin linterna) en app/escaner-captura.js,
+   app/escaner-cedula.js y play/index.html. Mezclarlos no rompe: la pagina
+   pregunta por calidadDeGris, franjaComoLaDelCodigo y NITIDEZ_MIN_FRENTE
+   antes de usarlos (sin ellos, la mediana y la puerta de siempre), y una
+   pagina vieja no manda las opciones nuevas. */
 const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 

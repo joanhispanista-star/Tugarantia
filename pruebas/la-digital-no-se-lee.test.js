@@ -172,6 +172,33 @@ describe('la cédula digital no pasa por las letras de la amarilla (R1)', () => 
     assert.equal(E.P.ev('tipoDelRespaldo()'), '');
   });
 
+  /* 23-oct-2026 (verificación del autollenado, caso 4) — en «Escribe tus
+     datos» la nota decía «No alcanzamos a leer el código de barras de tu
+     cédula» a quien tiene la digital, que no trae código de barras, justo
+     después de que el escáner le dijera «Tu cédula es la nueva (la del QR)».
+     FALLA con ab6b595. */
+  for (const [nombre, qrBorroso, dice] of [
+    ['su QR se vio: la nota dice que es la nueva y que sus datos todavía no se leen', false, /Tu cédula es la nueva \(la del QR\) y sus datos todavía no los sabemos leer/],
+    ['su QR NO se vio (no se sabe cuál es): la nota no le promete ni le culpa un código de barras', true, /No alcanzamos a leer tu cédula, así que esta vez los datos los escribes tú/]
+  ]) {
+    test('(d) la digital en «Escribe tus datos», ' + nombre, async () => {
+      const E = abrirConCamara();
+      const guia = await encenderEn(E);
+      E.video.__px = ponerCarta(guia, atrasDigital({ qrBorroso }));
+      E.P.ev('capturarDoc()');   // «Tomar la foto ahora»
+      assert.ok(E.P.ev('FOTOS.cedula_reverso'));
+      assert.equal(E.P.ev('tipoDelRespaldo()'), qrBorroso ? '' : 'digital', 'la prueba no prueba el caso');
+      await E.correr(4600);
+      await tomarElFrente(E);
+      await E.correr(1700);
+      assert.equal(paso(E.P), 'identidad', 'con las dos caras no pasó solo a «Escribe tus datos»');
+      const h = String(E.P.ev("$('cuerpo').innerHTML"));
+      const nota = (/id="notaSinLeer">([^<]*)</.exec(h) || [])[1] || '';
+      assert.match(nota, dice, 'la nota no dice lo que se sabe de esta cédula: ' + nota);
+      assert.equal(/código de barras/.test(nota), false, 'le habló del código de barras a una cédula que no se sabe si lo trae: ' + nota);
+    });
+  }
+
   test('(c) «Tomar la foto ahora» antes de que el bucle vea el QR: se busca en el recorte que se guarda', async () => {
     const E = abrirConCamara();
     const guia = await encenderEn(E);

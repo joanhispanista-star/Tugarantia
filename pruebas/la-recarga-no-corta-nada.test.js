@@ -139,6 +139,20 @@ describe('R2: «Salir» con la subida de fotos en el aire (la que I3 deja viva)'
  * R3 — UNA ESCRITURA EN CAMINO, EN CUALQUIER PANTALLA
  * ======================================================================== */
 describe('R3: una escritura en camino no se corta por cambiar de pestaña', () => {
+  /* 23-oct-2026 (verificación de ab6b595) — terminada la escritura, la
+     recarga sola espera a que la persona VEA cómo quedó: un toque DESPUÉS de
+     la respuesta (app/actualizar.js, punto 13). Hasta aquí estas pruebas
+     salían de la app sin tocar nada y esperaban la recarga: es justo el hueco
+     de la pantalla que se apaga sola con el «no» sin leer. Ahora salir sin
+     tocar no recarga, y después de un toque, sí. */
+  async function queLaVeaYSalga(C, nombre) {
+    await C.ocultar();
+    assert.equal(C.st.recargas, 0, 'terminada ' + nombre + ' y sin un toque después, la app se ocultó y recargó encima de la respuesta');
+    await C.volver();
+    C.mirando();
+    await C.ocultar();
+    assert.equal(C.st.recargas, 1, 'terminada ' + nombre + ' y vista, no se puso sola al salir de la app');
+  }
   const SESION_PLAY = JSON.stringify({ access_token: 'tok-prueba', refresh_token: 'ref', user: { email: '573001112233@tugarantia.net', created_at: '2026-10-20T10:00:00Z' } });
   /* La red de play/, que retiene todo hasta que la prueba conteste. */
   const redQueRetiene = P => P.ev('window.__pend = []; fetch = function (u, o) { return new Promise(function (res) {' +
@@ -167,8 +181,7 @@ describe('R3: una escritura en camino no se corta por cambiar de pestaña', () =
       await asentar(16);
       assert.equal(P.ev('ESCRITURAS_EN_CAMINO'), 0, nombre + ': el conteo no bajó al contestar');
       assert.equal(C.st.recargas, 0, 'recargó debajo del dedo al terminar ' + nombre);
-      await C.ocultar();
-      assert.equal(C.st.recargas, 1, 'terminada ' + nombre + ', no se puso sola al salir de la app');
+      await queLaVeaYSalga(C, nombre);
     }
     /* Una lectura (el latido del chat) no frena nada: cortarla no pierde nada. */
     const P = abrirPlay({ sesion: { play_sesion: SESION_PLAY } });
@@ -204,8 +217,7 @@ describe('R3: una escritura en camino no se corta por cambiar de pestaña', () =
       P.suelta(0, { ok: true, id: 1 });
       await asentar(16);
       assert.equal(C.st.recargas, 0, 'recargó debajo del dedo al terminar');
-      await C.ocultar();
-      assert.equal(C.st.recargas, 1, 'terminada ' + nombre + ', no se puso sola al salir de la app');
+      await queLaVeaYSalga(C, nombre);
     }
   });
 
@@ -242,8 +254,7 @@ describe('R3: una escritura en camino no se corta por cambiar de pestaña', () =
       assert.equal(C.st.recargas, 0, nombre + ' en camino y la recarga lo cortó al tocar «Inicio»');
       pendientes[0]({ status: 200, cuerpo: { ok: true, id: 1 } });
       await asentar(16);
-      await C.ocultar();
-      assert.equal(C.st.recargas, 1, 'terminado ' + nombre + ', no se puso sola al salir de la app');
+      await queLaVeaYSalga(C, nombre);
     }
   });
 });

@@ -99,6 +99,16 @@
     TEXTURA_MIN: 90,      // varianza del interior: una mesa lisa da casi cero
     VENTAJA_INTERIOR: 1.15, // la cédula tiene que tener MÁS detalle que lo de alrededor
     NITIDEZ_MIN: 9,       // gradiente medio del interior: borroso da poco
+    /* 23-oct-2026 — EL FRENTE, CUANDO LA VENTANA LO JUZGA. Un frente liso
+       (colores planos, la foto y letras grandes: la demo del 23-oct) daba 8,5
+       aquí, bajo 9, y nunca se ponía en verde, enfocado o no: este gradiente
+       medio a 96 px casi no ve el desenfoque (medido: de 8,9 enfocado a 7,8
+       con una caja de 13 px a 4K) y sí ve cuánta tinta tiene la tarjeta. Con
+       la ventana del mejor cuadro (EscanerCaptura, a 480 px) el que juzga si
+       la foto está nítida es ella, y la puerta del frente solo pregunta si
+       hay una tarjeta con bordes. Sin ventana (un navegador que no deja
+       medir) la puerta sigue siendo el único juez, y vale NITIDEZ_MIN. */
+    NITIDEZ_MIN_FRENTE: 5,
     MOVIMIENTO_MAX: 6,    // diferencia media entre dos cuadros seguidos
     CUADROS_FRENTE: 6,    // seguidos en verde antes de disparar el frente (~0,6 s)
     MS_ENTRE_LECTURAS: 250 // como mucho cuatro decodificaciones por segundo
@@ -142,8 +152,11 @@
    *          'borrosa' | 'movimiento' | ''
    *          `saturados` (21-oct-2026): la fracción del interior quemada (≥ 250).
    *          No decide el verde: la lee la linterna (EscanerCaptura.decidirLinterna).
+   * @param op     23-oct-2026 — opcional: {nitidezMin} en vez de
+   *               TARJETA.NITIDEZ_MIN (el frente juzgado por la ventana:
+   *               TARJETA.NITIDEZ_MIN_FRENTE). Sin él, todo como siempre.
    */
-  function medirTarjeta(gris, previa, w, h, interior) {
+  function medirTarjeta(gris, previa, w, h, interior, op) {
     var g = gris || [], n = g.length;
     if (!n || !w || !h || w * h !== n || w < 16 || h < 8) {
       return { luz: 0, textura: 0, anillo: 0, nitidez: 0, movimiento: 999, saturados: 0, ok: false, falla: 'sin_tarjeta' };
@@ -195,7 +208,8 @@
       base.falla = 'sin_tarjeta'; return base;
     }
     /* Hay algo, pero sin bordes: está desenfocada o muy lejos. */
-    if (nitidez < TARJETA.NITIDEZ_MIN) { base.falla = 'borrosa'; return base; }
+    var nitidezMin = (op && isFinite(op.nitidezMin) && op.nitidezMin >= 0) ? +op.nitidezMin : TARJETA.NITIDEZ_MIN;
+    if (nitidez < nitidezMin) { base.falla = 'borrosa'; return base; }
     /* Sin cuadro anterior no se puede decir si está quieta: todavía no se sabe. */
     if (!previa || previa.length !== n) { base.falla = 'movimiento'; return base; }
     var dif = 0;
@@ -420,6 +434,28 @@
   function franjaDeBarras(gris, w, h) {
     if (!gris || !w || !h || gris.length !== w * h || w < 32 || h < 16) return null;
     return franjaDelCodigo(puntajeDeFilas(gris, w, h), h);
+  }
+  /* 23-oct-2026 — ¿ESA FRANJA ES LA DEL PDF417 DE LA AMARILLA? La página la
+     usaba solo como atajo (dónde leer); desde hoy también es lo único que
+     queda de un código MUY gastado, que el lector no encuentra y cuyo patrón
+     no se ve (EscanerCaptura.decidirVentana, vioFranja). Para que el frente
+     no pase por respaldo, se le pide lo que tiene el código de la amarilla y
+     no tiene un renglón de letra: estar en el TERCIO de abajo de la tarjeta
+     (o en el de arriba, con la cédula al revés) y ocupar al menos el 5 % de
+     su alto. Medido el 23-oct con las cédulas fabricadas y las de la demo: la
+     franja de un respaldo (legible, borroso o gastado) cae entre el 69 y el
+     90 % del alto; en ningún frente, ni en el respaldo de la digital (QR y
+     zona de lectura mecánica), apareció una franja. Un código más gastado
+     todavía (σ 2 módulos) tampoco deja franja con la cámara enfocada: ahí
+     sigue la salida de siempre, «Tomar la foto ahora».
+     @param f      {y0, y1} de franjaDeBarras, en filas del gris de la medida
+     @param alto   el alto de ese gris */
+  function franjaComoLaDelCodigo(f, alto) {
+    var h = +alto || 0;
+    if (!f || !(h > 0) || !(f.y1 > f.y0)) return false;
+    if ((f.y1 - f.y0) < h * 0.05) return false;
+    var centro = (f.y0 + f.y1) / 2 / h;
+    return centro >= 2 / 3 || centro <= 1 / 3;
   }
   function percentil(g, w, y0, y1, p) {
     var hist = new Uint32Array(256), n = 0;
@@ -919,6 +955,7 @@
     orientacionDelRespaldo: orientacionDelRespaldo,
     /* 21-oct-2026 — leer el PDF417 solo de su franja (video 4K) */
     franjaDeBarras: franjaDeBarras,
+    franjaComoLaDelCodigo: franjaComoLaDelCodigo,
     margenDeLectura: margenDeLectura,
     ventanaDeGuia: ventanaDeGuia,
     RESPALDO: RESPALDO,

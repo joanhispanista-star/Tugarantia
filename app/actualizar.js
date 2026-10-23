@@ -131,6 +131,19 @@
  *      manda sola sin que nadie haya tocado desde que volvió (marcar_acceso
  *      al abrir PlataChat) no cuenta: no trae respuesta que leer, y «ya
  *      terminó lo que iba en camino» le mentiría a quien no mandó nada.
+ *  13. 23-oct-2026 (verificación de ab6b595) — «LA VIO» SE PRUEBA DESPUÉS
+ *      DE QUE LLEGA. El punto 12 daba por vista la respuesta que llegaba con
+ *      la app a la vista, porque la persona «había tocado»; pero ese toque era
+ *      el de «Pedir», el mismo que mandó la solicitud. La persona dejaba el
+ *      teléfono en la mesa, el «no» llegaba (un 500, «muchas»), la pantalla
+ *      se apagaba sola —su tiempo cuenta desde ese toque— y la recarga sola
+ *      se llevaba el «no»: al prenderla, Crédito limpio y «Enviando…» como lo
+ *      último leído. Ahora «ya terminó» nace SIEMPRE que termina lo que la
+ *      persona mandó, con la app oculta, recién vuelta o a la vista, y solo
+ *      lo sueltan, además del botón y la ✕: un toque en la página DESPUÉS de
+ *      la respuesta, o MS_A_LA_VISTA (5 min) con ella a la vista sin
+ *      interrupción y sin un toque (más que cualquier apagado automático de
+ *      pantalla de 5 min o menos, que cuenta desde el toque que la pidió).
  *
  * LO QUE NO PUEDE HACER, Y POR ESO NINGÚN TEXTO LO PROMETE:
  *   · Con la app CERRADA no corre nada: lo nuevo llega al abrirla, como antes.
@@ -163,6 +176,18 @@
      quita nada a nadie. Pasado esto, la persona ya está mirando. */
   var VENTANA_AL_VOLVER = 4000;
   var VUELTA_VIGENTE = 2 * 60 * 1000;
+  /* 23-oct-2026 (verificación de ab6b595) — CUÁNTO TIENE QUE ESTAR A LA
+     VISTA, SIN UN TOQUE, una respuesta para darla por vista. El apagado
+     automático de la pantalla cuenta desde el ÚLTIMO TOQUE, y el último toque
+     antes de una respuesta es el que la pidió: si la pantalla se apaga sola,
+     la respuesta estuvo a la vista MENOS que ese apagado. Con 5 minutos,
+     ninguna pantalla que se apague sola en 5 minutos o menos —entre ellas
+     todas las opciones del iPhone salvo «Nunca»— hace pasar por vista una
+     respuesta que nadie miró. Con un apagado más largo (10 o 30 min en
+     Android, «Nunca») queda el hueco, y por eso el rato es largo y no de
+     segundos: más largo no pierde nada, solo demora la versión nueva hasta
+     el próximo toque. */
+  var MS_A_LA_VISTA = 5 * 60 * 1000;
   /* 22-oct-2026 — mientras «Actualizar ahora» espera a que termine lo que va
      en camino, se vuelve a mirar cada tanto: una marca que la página suelta
      sin cambiar el DOM (CH.enviando, PIDIENDO) no puede dejar a la persona
@@ -433,6 +458,11 @@
        arriba). terminoSinVer nacía solo del botón; esta marca lo hace nacer
        también sin él, cuando la respuesta llega sin nadie mirando. */
     var salioAlgo = false;
+    /* 23-oct-2026 (verificación de ab6b595) — cuándo nació «ya terminó»
+       (terminoEn), desde cuándo la página está a la vista sin interrupción
+       (visibleDesde, 0 si está oculta) y el reloj que, pasado MS_A_LA_VISTA
+       a la vista sin un toque, la da por vista (ver el punto 13 de arriba). */
+    var terminoEn = 0, visibleDesde = oculta() ? 0 : ahora(), relojVista = 0;
     var observador = null, miradaPendiente = false;
 
     function oir(blanco, tipo, f, opc) {
@@ -479,19 +509,51 @@
          · algo en camino → se anota, si la persona tocó desde que volvió a
            la app: lo que la página manda sola al abrir no tiene respuesta
            que leer (y en el arranque recargar sí es lo que toca);
-         · ya nada en camino y había algo anotado → se decide UNA vez, con el
-           momento de verdad: mirando, la respuesta se pintó delante de ella
-           y vale lo de siempre; oculta o recién vuelta, nadie la vio y nace
-           «ya terminó» (terminoSinVer), igual que tras el botón.
-       El momento va sin 'transicion': que la página vuelva sola al inicio no
-       es que alguien esté mirando. Mirar de más solo frena la recarga sola
-       hasta el próximo toque: no pierde nada. */
+         · ya nada en camino y había algo anotado → nace «ya terminó»
+           (terminoSinVer), igual que tras el botón.
+       23-oct-2026 (verificación de ab6b595) — SIEMPRE, también con la app a
+       la vista. Antes, con la persona «mirando» al llegar la respuesta, no
+       nacía nada; pero «mirando» lo ponía el MISMO toque de «Pedir» que
+       mandó la solicitud: la persona dejaba el teléfono en la mesa, el «no»
+       llegaba, la pantalla se apagaba sola y la recarga se lo llevaba. Nada
+       de lo que pasa ANTES de la respuesta prueba que alguien la vio: lo
+       prueba un toque DESPUÉS (el oyente de captura lo suelta) o
+       MS_A_LA_VISTA a la vista sin interrupción (vigilarElRatoALaVista).
+       Mirar de más solo frena la recarga sola hasta el próximo toque: no
+       pierde nada. */
     function mirarLoQueSalio() {
       if (o.soloAvisar) return;
       if (preguntarOcupado()) { if (tocoDesdeQueVolvio) salioAlgo = true; return; }
       if (!salioAlgo) return;
       salioAlgo = false;
-      if (momentoActual() !== 'mirando') terminoSinVer = true;
+      nacioSinVer();
+    }
+    function nacioSinVer() {
+      terminoSinVer = true; terminoEn = ahora();
+      vigilarElRatoALaVista();
+    }
+    /* ¿La respuesta estuvo a la vista, sin interrupción y sin un toque,
+       MS_A_LA_VISTA desde que llegó (o desde que la app volvió a la vista, si
+       llegó oculta)? `hasta`: ahora, o el instante en que la app se va. */
+    function laTuvoALaVista(hasta) {
+      if (!terminoSinVer || !terminoEn || !visibleDesde) return false;
+      return hasta - Math.max(terminoEn, visibleDesde) >= MS_A_LA_VISTA;
+    }
+    function vigilarElRatoALaVista() {
+      if (relojVista && typeof ent.clearTimeout === 'function') { try { ent.clearTimeout(relojVista); } catch (e) {} }
+      relojVista = 0;
+      if (!vivo || !terminoSinVer || !visibleDesde || oculta() || typeof ent.setTimeout !== 'function') return;
+      var falta = Math.max(0, Math.max(terminoEn, visibleDesde) + MS_A_LA_VISTA - ahora());
+      try {
+        relojVista = ent.setTimeout(function () {
+          relojVista = 0;
+          if (!vivo || !terminoSinVer) return;
+          /* Mirando, y su rato cumplido: ya la vio. Se vuelve a decidir (con
+             la persona mirando nunca recarga: la franja dice lo de siempre). */
+          if (!oculta() && laTuvoALaVista(ahora())) { terminoSinVer = false; evaluar(); return; }
+          vigilarElRatoALaVista();
+        }, falta);
+      } catch (e) { relojVista = 0; }
     }
 
     /* ---- la franja ---- */
@@ -753,7 +815,7 @@
          cuando vuelva. */
       if (pedido === 'esperando') {
         pedido = '';
-        terminoSinVer = true;
+        nacioSinVer();   // 23-oct-2026 — con su hora: un toque o su rato a la vista la sueltan
         return evaluar();
       }
       if (!enLinea()) { pedido = ''; return evaluar(); }
@@ -846,15 +908,27 @@
     /* ---- los oyentes ---- */
     oir(sw, 'controllerchange', function () { revisar(); });
     oir(doc, 'visibilitychange', function () {
-      if (oculta()) { evaluar(); return; }   // con lo que se sabe: al irse no hay tiempo de preguntar
-      volvioEn = ahora(); tocoDesdeQueVolvio = false;
+      if (oculta()) {
+        /* 23-oct-2026 (verificación de ab6b595) — se va después de tenerla
+           a la vista su rato entero sin tocar: ya la vio, y al irse se pone
+           sola como siempre. Menos que eso (la pantalla que se apaga sola
+           cuenta desde el toque que la pidió) sigue sin verse. */
+        if (laTuvoALaVista(ahora())) terminoSinVer = false;
+        visibleDesde = 0;
+        evaluar(); return;   // con lo que se sabe: al irse no hay tiempo de preguntar
+      }
+      volvioEn = ahora(); tocoDesdeQueVolvio = false; visibleDesde = volvioEn;
+      vigilarElRatoALaVista();
       if (ahora() - ultimaBusqueda > MIN_ENTRE_BUSQUEDAS) buscar(); else revisar();
     });
     oir(ent.window, 'online', function () { buscar(); });
     /* 22-oct-2026 (verificación de e8f34eb) — tocar o teclear en la PÁGINA
        suelta «ya terminó»: la persona está mirando lo que contestó la base,
        y desde ahí vale lo de siempre (con la app oculta, recarga sola). En
-       la franja no: su botón y su ✕ deciden ellos. */
+       la franja no: su botón y su ✕ deciden ellos.
+       23-oct-2026 (verificación de ab6b595) — y solo un toque DESPUÉS de la
+       respuesta: «ya terminó» nace cuando llega (mirarLoQueSalio), así que el
+       toque que la pidió, que es anterior, ya no puede soltarlo. */
     function enLaFranja(ev) {
       if (!franja || !ev || !ev.target) return false;
       var n = ev.target;
@@ -907,6 +981,8 @@
       try { if (intervalo) ent.clearInterval(intervalo); } catch (e) {}
       try { if (relojEspera && typeof ent.clearTimeout === 'function') ent.clearTimeout(relojEspera); } catch (e) {}
       relojEspera = 0;
+      try { if (relojVista && typeof ent.clearTimeout === 'function') ent.clearTimeout(relojVista); } catch (e) {}
+      relojVista = 0;
       try { if (observador) observador.disconnect(); } catch (e) {}
       observador = null;
     };
@@ -921,6 +997,7 @@
     CADA: CADA,
     VENTANA_AL_VOLVER: VENTANA_AL_VOLVER,
     VUELTA_VIGENTE: VUELTA_VIGENTE,
+    MS_A_LA_VISTA: MS_A_LA_VISTA,
     ESPERA_ENTRE_MIRADAS: ESPERA_ENTRE_MIRADAS,
     ID_FRANJA: ID_FRANJA,
     TEXTOS: TEXTOS,

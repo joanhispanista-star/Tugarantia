@@ -24,6 +24,8 @@
  *      sin pasar sola; no toca cedula_leida, no se salta el «¿Es tuya?», no
  *      lee con la cámara encendida, descarta lo que llega tarde, y lo que
  *      escribió se va con sus fotos.
+ *   6. (23-oct-2026) «CONTINUAR» CON LAS LETRAS LEYENDO: no dice «Nos falta»
+ *      de lo que todavía está leyendo, y el aviso se pone al día solo.
  *
  * Ninguna cédula de nadie: los datos son inventados.
  * ======================================================================== */
@@ -699,5 +701,96 @@ describe('5b. la página con el motor de verdad: de la foto a «Revisa tus datos
       assert.deepEqual(ajenos, [], 'se pidió algo fuera de app/lib/ocr/');
       assert.equal(P.ev('OCR_CEDULA.lector'), null, 'el motor quedó vivo');
     } finally { await b.cerrar(); }
+  });
+});
+
+/* ==========================================================================
+ * 6. «CONTINUAR» CON LAS LETRAS LEYENDO — 23 de octubre de 2026 (la
+ *    verificación del autollenado, caso 1b)
+ *
+ * Quien tocaba «Continuar» (el botón todavía no dice «Están bien») antes de
+ * que las letras terminaran leía «Nos falta fecha de expedición. Con eso
+ * seguimos.» con «Estamos leyéndola del respaldo de tu cédula» debajo de la
+ * casilla. En esta máquina es un segundo; en un teléfono con la primera
+ * descarga del motor (6,2 MB) pueden ser decenas. Ahora dice la verdad
+ * —todavía la estamos leyendo— y, cuando la lectura termina, el aviso se va
+ * (o dice lo que de verdad faltó). FALLAN con ab6b595.
+ * ======================================================================== */
+describe('6. «Continuar» con las letras leyendo', () => {
+  const PINTAR = "U.camposDelGrupo('identidad').forEach(function (c) { var e = $('f_' + c.id); if (e) e.value = REGISTRO[c.id] || ''; });";
+  const aviso = P => String(P.ev("$('errReg').textContent"));
+  /* El banco no lleva las clases (classList es de mentira): un aviso que se va
+     queda sin texto, y eso es lo que se mira. */
+  const avisoVisible = P => aviso(P) !== '';
+
+  test('con el código leído: no dice «Nos falta la fecha de expedición», dice que la está leyendo; al llenarla, el aviso se va', async () => {
+    const { P, reg } = abrir({ esperar: true });
+    escanear(P, { cedula: CEDULA });
+    await asentar();
+    assert.equal(pasoActual(P), 'identidad');
+    assert.equal(P.ev('OCR_CEDULA.estado'), 'leyendo', 'las letras ya terminaron: la prueba no prueba el caso');
+    assert.match(P.ev('textoAyudaExpedicion()'), /Estamos leyéndola del respaldo/);
+    P.ev(PINTAR);
+    P.ev('siguientePaso()');
+    assert.equal(pasoActual(P), 'identidad', 'pasó sin la expedición');
+    assert.equal(/Nos falta/.test(aviso(P)), false, 'dijo que falta lo que está leyendo: ' + aviso(P));
+    assert.match(aviso(P), /^Todavía estamos leyendo de tu cédula la fecha de expedición\. /);
+    assert.match(aviso(P), /o escríbelo tú/);
+    /* El respaldo termina: la expedición se llena y el aviso se va solo. */
+    reg.esperas.shift()();
+    await asentar();
+    assert.equal(P.ev('REGISTRO.expedicion'), '2003-04-20');
+    assert.equal(P.ev("$('f_expedicion').value"), '2003-04-20');
+    assert.equal(avisoVisible(P), false, 'la expedición ya está y el aviso sigue: ' + aviso(P));
+    reg.esperas.shift()();
+    await asentar();
+    assert.equal(P.ev("$('btnSeguir').textContent"), 'Están bien');
+  });
+
+  test('sin código: dice todo lo que está leyendo, se pone al día con cada lado, y al terminar se va', async () => {
+    const { P, reg } = abrir({ esperar: true });
+    escanear(P);
+    await asentar();
+    assert.equal(pasoActual(P), 'identidad');
+    P.ev(PINTAR);
+    P.ev('siguientePaso()');
+    assert.equal(/Nos falta/.test(aviso(P)), false, 'dijo que falta lo que está leyendo: ' + aviso(P));
+    for (const c of ['tus nombres', 'tus apellidos', 'tu número de documento', 'el tipo de documento', 'la fecha de expedición']) {
+      assert.ok(aviso(P).includes(c), 'no dijo que está leyendo ' + c + ': ' + aviso(P));
+    }
+    reg.esperas.shift()();   // el respaldo: la expedición
+    await asentar();
+    assert.ok(avisoVisible(P));
+    assert.equal(aviso(P).includes('la fecha de expedición'), false, 'sigue diciendo que lee lo que ya llenó: ' + aviso(P));
+    assert.ok(aviso(P).includes('tus nombres'), aviso(P));
+    reg.esperas.shift()();   // el frente: lo demás
+    await asentar();
+    assert.equal(avisoVisible(P), false, 'todo está lleno y el aviso sigue: ' + aviso(P));
+    assert.equal(P.ev("$('btnSeguir').textContent"), 'Están bien');
+  });
+
+  test('si las letras terminan sin sacarla, el aviso dice entonces lo que de verdad falta', async () => {
+    const { P, reg } = abrir({ esperar: true, resultados: { reverso: {}, frente: {} } });
+    escanear(P, { cedula: CEDULA });
+    await asentar();
+    P.ev(PINTAR);
+    P.ev('siguientePaso()');
+    assert.match(aviso(P), /^Todavía estamos leyendo/);
+    reg.esperas.shift()();
+    await asentar();
+    assert.equal(aviso(P), 'Nos falta fecha de expedición. Con eso seguimos.');
+    assert.ok(avisoVisible(P));
+    /* Y la ayuda de la casilla dice lo mismo, aunque el frente siga leyéndose. */
+    assert.match(P.ev('textoAyudaExpedicion()'), /No la pudimos leer de la foto: escríbela tú/);
+  });
+
+  test('CENTINELA: lo que la persona ya tocó no se espera de las letras: «Nos falta», como siempre', async () => {
+    const { P } = abrir({ esperar: true });
+    escanear(P, { cedula: CEDULA });
+    await asentar();
+    P.ev("$('f_expedicion').value = ''; anotarCampo($('f_expedicion'));");
+    P.ev(PINTAR);
+    P.ev('siguientePaso()');
+    assert.equal(aviso(P), 'Nos falta fecha de expedición. Con eso seguimos.');
   });
 });

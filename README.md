@@ -82,6 +82,17 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         sola sin un toque (marcar_acceso al abrir) no frena.
                         Pruebas: la sección 5 del mismo archivo, con el
                         «Pedir» de play/ y de PlataChat.
+                        (23-oct-2026, verificación de ab6b595) «La vio» se
+                        prueba DESPUÉS de que llega: el toque de «Pedir» ya
+                        no cuenta como haber mirado la respuesta. «Ya
+                        terminó» nace siempre (también con la app a la
+                        vista), y solo lo sueltan un toque en la página
+                        después de la respuesta, el botón, la ✕ o 5 minutos
+                        a la vista sin interrupción (MS_A_LA_VISTA: más que
+                        cualquier apagado automático de pantalla de 5 min o
+                        menos). Así la pantalla que se apaga sola con el
+                        teléfono en la mesa no se lleva el «no». Pruebas: la
+                        sección 6 del mismo archivo.
   cumplimiento.js       Lo que se le declararía a Play (canal descartado el
                         18-ago): Data Safety derivado de los campos, la
                         divulgación del crédito y el borrado de cuenta.
@@ -167,6 +178,25 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         con la cámara de pruebas/banco-camara.js). De
                         la cámara a «Están bien», con ZXing y Tesseract de
                         verdad: pruebas/escaner-ocr-de-punta-a-punta.test.js.
+                        (23-oct-2026, verificación del autollenado y la demo)
+                        La cédula difícil: la ventana juzga con la mediana O
+                        el cuarto más nítido de los mosaicos
+                        (EscanerCaptura.calidadDeGris), así un PDF417 muy
+                        gastado o un frente liso ya no piden «Aléjala…» para
+                        siempre, y una cámara desenfocada sigue sin pasar; la
+                        franja de barras en su sitio es prueba de respaldo
+                        (sin «voltéala» ni la sugerencia de la digital); la
+                        puerta del frente solo pide bordes
+                        (NITIDEZ_MIN_FRENTE) cuando la ventana mide; con poca
+                        luz y sin linterna pide luz; «Continuar» con las
+                        letras leyendo dice que las está leyendo, no «Nos
+                        falta»; y a la digital no se le habla del código de
+                        barras. Pruebas: la sección 4 de
+                        pruebas/escaner-captura.test.js, la 6 de
+                        pruebas/ocr-cedula.test.js, la (d) de
+                        pruebas/la-digital-no-se-lee.test.js y «la cédula
+                        difícil» de escaner-ocr-de-punta-a-punta. Calibrado
+                        con cédulas fabricadas: falta una de verdad.
   borrar-cuenta.html    La URL pública de borrado que exige Play.
   estilo.css            Los tokens. Copiados de socio.html a sabiendas (ver el
                         comentario de arriba del archivo).

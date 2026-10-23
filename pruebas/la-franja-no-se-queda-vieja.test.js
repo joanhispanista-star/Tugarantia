@@ -52,6 +52,15 @@
  * c213faf la recarga sola se lo llevaba. 5a, el controlador; 5b, el «Pedir»
  * de play/ y de PlataChat de verdad. FALLAN con c213faf, salvo las tres
  * marcadas CENTINELA.
+ *
+ * 23-oct-2026 (verificación de ab6b595) — DOS DE ESAS TRES CENTINELAS
+ * FIJABAN UN HUECO: «con la persona mirando cuando llega, al salir se pone
+ * sola». «Mirando» lo ponía el toque de «Pedir», el mismo que mandó la
+ * solicitud; con el teléfono en la mesa, la pantalla se apagaba sola y la
+ * recarga se llevaba el «no». Ahora fijan la regla nueva (una respuesta se
+ * da por vista con un toque DESPUÉS de que llega, o cinco minutos a la vista
+ * sin interrupción), y la sección 6 la prueba entera. Las dos y la sección 6
+ * FALLAN con ab6b595; queda una centinela, la del envío que nadie pidió.
  * ======================================================================== */
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -1068,14 +1077,24 @@ describe('5a. el controlador: lo que la persona mandó y terminó sin nadie mira
     assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
   });
 
-  test('CENTINELA: con la persona mirando cuando llega, no nace nada: lo de siempre, y al salir de la app se pone sola', async () => {
+  /* 23-oct-2026 (verificación de ab6b595) — ESTA ERA CENTINELA y fijaba lo
+     contrario: «con la persona mirando cuando llega, no nace nada, y al salir
+     de la app se pone sola». Partía de algo falso: «mirando» lo ponía el
+     MISMO toque que mandó la solicitud, y la salida podía ser la pantalla
+     apagándose sola con el «no» sin leer. Ahora fija la regla: con la app a
+     la vista también nace «ya terminó», y solo un toque DESPUÉS la suelta. */
+  test('con la app a la vista cuando llega TAMBIÉN nace «ya terminó»: sin un toque después, al salir no se pone sola; con él, sí', async () => {
     const { N, c, v } = await salePorUnToque();
     v.enCamino = false;
     await c.revisar();
-    assert.equal(c.estado().terminoSinVer, false, 'la vio llegar y quedó «ya terminó»: frenaría la recarga sin motivo');
-    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
+    assert.equal(c.estado().terminoSinVer, true, 'el toque que la pidió contó como haberla visto');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
     await N.ocultar();
-    assert.equal(N.st.recargas, 1);
+    assert.equal(N.st.recargas, 0, 'nadie la tocó después de la respuesta, la app se ocultó y recargó encima');
+    await N.volver();
+    N.mirando();                      // ahora sí: un toque DESPUÉS de la respuesta
+    await N.ocultar();
+    assert.equal(N.st.recargas, 1, 'ya la vio y tocó, salió de la app y no se puso sola');
   });
 
   test('CENTINELA: lo que la página manda sola, sin un toque desde que se abrió, no frena la recarga del arranque', async () => {
@@ -1141,13 +1160,20 @@ describe('5b. el «no» de la base sin tocar el botón, en play/ y PlataChat de 
     }
   }
 
-  test('CENTINELA play/: mirando todo el rato, el «no» llega delante de ella: lo de siempre, y al salir de la app se pone sola', async () => {
+  /* 23-oct-2026 (verificación de ab6b595) — era CENTINELA de lo contrario
+     («mirando todo el rato… al salir de la app se pone sola»): ver la de 5a.
+     La verdad de «mirando todo el rato» solo la sabe un toque después. */
+  test('play/: la app a la vista todo el rato, el «no» llega y nadie toca: al ocultarse NO se pone sola; con un toque después, sí', async () => {
     const { P, N } = await playConElPedidoEnElAire();
     P.ev("window.__pend[0]({ ok: true, status: 200, json: function () { return Promise.resolve({ ok: false, motivo: 'muchas' }); } })");
     await asentar(16);
     assert.match(String(P.ev("$('csError').textContent")), /varias solicitudes/);
     assert.equal(N.st.recargas, 0, 'recargó debajo del dedo');
-    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    await N.ocultar();
+    assert.equal(N.st.recargas, 0, 'el toque de «Pedir» contó como haber visto el «no», y la recarga se lo llevó');
+    await N.volver();
+    N.mirando();
     await N.ocultar();
     assert.equal(N.st.recargas, 1);
   });
@@ -1196,4 +1222,193 @@ describe('5b. el «no» de la base sin tocar el botón, en play/ y PlataChat de 
       });
     }
   }
+});
+
+/* ==========================================================================
+ * 6. «LA VIO» SE PRUEBA DESPUÉS DE QUE LLEGA — 23-oct-2026 (verificación de
+ *    ab6b595, la lente «lote»)
+ *
+ * La sección 5 daba por vista la respuesta que llegaba con la app a la vista
+ * porque la persona «había tocado». Ese toque era el de «Pedir»: el mismo que
+ * mandó la solicitud. La persona dejaba el teléfono en la mesa, el «no»
+ * llegaba (un 500), la pantalla se apagaba sola —su tiempo cuenta desde ese
+ * toque— y la recarga sola se llevaba el «no». Regla de hoy: la respuesta se
+ * da por vista con un toque DESPUÉS de que llega, o con A.MS_A_LA_VISTA a la
+ * vista sin interrupción y sin un toque (más que cualquier apagado
+ * automático de 5 min o menos). FALLAN con ab6b595, salvo la CENTINELA (un
+ * toque después de la respuesta sigue soltando la recarga sola).
+ * ======================================================================== */
+describe('6a. el controlador: la pantalla que se apaga sola no es «la vio»', () => {
+
+  async function llegaALaVista() {
+    const N = navegadorConOjos();
+    const v = { enCamino: false };
+    const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
+    N.mirando();                      // el toque de «Pedir»
+    await N.publicar('v140');
+    v.enCamino = true;
+    await c.volverAMirar();           // la página: empieza la escritura
+    N.st.t += 20000;                  // red lenta: 20 s con «Enviando…»
+    v.enCamino = false;
+    await c.revisar();                // el «no» llega, con la app a la vista
+    return { N, c, v };
+  }
+  /* Pasa el tiempo y corren los relojes de un disparo que ya vencieron. Los
+     del navegador de mentira no saben a qué hora se pidieron: cuenta `ms`. */
+  async function pasa(N, ms) {
+    N.st.t += ms;
+    N.st.relojes.filter(r => !r.muerto && !r.hecho && r.ms <= ms).forEach(r => { r.hecho = true; r.f(); });
+    await asentar(16);
+  }
+
+  test('el «no» llega a la vista, nadie toca, y a los 10 s la pantalla se apaga sola: NO recarga', async () => {
+    const { N, c } = await llegaALaVista();
+    assert.equal(N.st.recargas, 0, 'recargó debajo del dedo');
+    await pasa(N, 10000);
+    await N.ocultar();                // la pantalla se apaga sola
+    assert.equal(N.st.recargas, 0, 'la pantalla se apagó sola y la recarga se llevó el «no» que nadie leyó');
+    assert.equal(c.estado().terminoSinVer, true);
+    await N.volver();                 // prende el teléfono
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+  });
+
+  test('un toque mientras iba en camino tampoco cuenta: es de antes de la respuesta', async () => {
+    const N = navegadorConOjos();
+    const v = { enCamino: false };
+    const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
+    N.mirando();
+    await N.publicar('v140');
+    v.enCamino = true;
+    await c.volverAMirar();
+    N.mirando();                      // toca la pantalla con «Enviando…»
+    v.enCamino = false;
+    await c.revisar();
+    await N.ocultar();
+    assert.equal(N.st.recargas, 0, 'un toque de ANTES de la respuesta contó como haberla visto');
+  });
+
+  test('CENTINELA: un toque DESPUÉS de que llega, sí: al salir de la app se pone sola', async () => {
+    const { N } = await llegaALaVista();
+    N.mirando();
+    N.mutar({ id: 'cuerpo' });
+    await asentar(4);
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
+    await N.ocultar();
+    assert.equal(N.st.recargas, 1, 'la vio y tocó, salió de la app y no se puso sola, que es lo que la franja prometía');
+  });
+
+  test('cinco minutos a la vista sin tocar cuentan como vista: la franja vuelve a lo de siempre y al salir se pone sola', async () => {
+    assert.equal(A.MS_A_LA_VISTA, 5 * 60 * 1000);
+    const { N, c } = await llegaALaVista();
+    await pasa(N, A.MS_A_LA_VISTA);
+    assert.equal(c.estado().terminoSinVer, false, 'con la respuesta cinco minutos a la vista, seguía «sin ver»');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.alSalir, 'Actualizar ahora']);
+    assert.equal(N.st.recargas, 0, 'recargó con la persona mirando');
+    await N.ocultar();
+    assert.equal(N.st.recargas, 1);
+  });
+
+  test('menos que eso no: a los 4 min 59 s la pantalla se apaga y no recarga', async () => {
+    const { N } = await llegaALaVista();
+    await pasa(N, A.MS_A_LA_VISTA - 1000);
+    await N.ocultar();
+    assert.equal(N.st.recargas, 0, 'una pantalla que se apaga sola antes de los 5 min hizo pasar el «no» por visto');
+  });
+
+  test('el rato es seguido: si la app se va antes, al volver cuenta de cero', async () => {
+    const { N } = await llegaALaVista();
+    await pasa(N, 3 * 60 * 1000);
+    await N.ocultar();                // se apaga a los 3 min
+    assert.equal(N.st.recargas, 0);
+    await N.volver();
+    await pasa(N, 3 * 60 * 1000);     // 6 min desde la respuesta, 3 desde que volvió
+    await N.ocultar();
+    assert.equal(N.st.recargas, 0, 'sumó los ratos a la vista de antes y de después de apagarse');
+    await N.volver();
+    await pasa(N, A.MS_A_LA_VISTA);   // ahora sí, cinco seguidos
+    await N.ocultar();
+    assert.equal(N.st.recargas, 1);
+  });
+
+  test('tras «Actualizar ahora» con algo en camino vale lo mismo: cinco minutos a la vista la sueltan', async () => {
+    const N = navegadorConOjos();
+    const v = { enCamino: false };
+    const c = await N.arrancar({ momentoSeguro: () => !v.enCamino, ocupado: () => v.enCamino });
+    N.mirando();
+    await N.publicar('v140');
+    const tocar = N.botonDeLaFranja();
+    v.enCamino = true;
+    tocar();
+    v.enCamino = false;
+    await c.revisar();
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    await pasa(N, A.MS_A_LA_VISTA);
+    assert.equal(c.estado().terminoSinVer, false);
+    await N.ocultar();
+    assert.equal(N.st.recargas, 1);
+  });
+});
+
+describe('6b. play/ y PlataChat de verdad: el «no» llega, el teléfono en la mesa, la pantalla se apaga sola', () => {
+
+  test('play/: «Pedir» en Crédito, 20 s de red lenta, un 500 a la vista, 10 s después se apaga la pantalla: el «no» sigue ahí', async () => {
+    const P = abrirPlay({ sesion: { play_sesion: SESION_PLAY } });
+    P.ev('window.__pend = []; fetch = function (u, o) { u = String(u);' +
+         ' if (/solicitar_a_la_medida/.test(u)) return new Promise(function (res) { window.__pend.push(res); });' +
+         ' return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ ok: true }); } }); };');
+    const N = await navegadorConOjos().enLaPagina(P.ev, P.ventana);
+    P.ev("irA('credito')");
+    N.mirando();                      // el toque de «Pedir»
+    await N.publicar('v140');
+    P.ev('enviarPedido()');
+    await asentar(8);
+    assert.equal(P.ev('window.__pend.length'), 1, 'el pedido no salió');
+    N.st.t += 20000;
+    P.ev("window.__pend[0]({ ok: false, status: 500, json: function () { return Promise.resolve({ message: 'boom' }); } })");
+    await asentar(16);
+    assert.equal(P.ev("$('csError').textContent"), 'No pude conectarme. Revisa tu internet y vuelve a intentar.',
+      'la página no pintó el «no»: la prueba no prueba el caso');
+    assert.equal(P.ev('momentoSeguroPlay()'), true, 'Crédito con el «no» dejó de ser de la lista: la prueba no prueba el caso');
+    N.st.t += 10000;
+    await N.ocultar();
+    assert.equal(N.st.recargas, 0, 'la pantalla se apagó sola y la recarga se llevó el «no»: la persona cree que pidió');
+    await N.volver();
+    assert.equal(P.ev("$('csError').textContent"), 'No pude conectarme. Revisa tu internet y vuelve a intentar.');
+    assert.deepEqual([N.franja().texto, N.franja().boton], [A.TEXTOS.termino, 'Actualizar ahora']);
+    N.mirando();
+    await N.ocultar();
+    assert.equal(N.st.recargas, 1, 'ya vio el «no» y tocó, salió de la app y no se puso sola');
+  });
+
+  test('platachat/: «Pedir» en Plata con la calculadora como se abrió, un 500 a la vista, y la pantalla se apaga sola: no recarga', async () => {
+    const P = abrirPlataChat();
+    await asentar();
+    await P.entrarComo('3001112233', 'Maria.Secreta9');
+    const N = navegadorConOjos({ campos: camposVisibles(P.ev, 'cuerpo') });
+    await N.enLaPagina(P.ev, P.ctx);
+    N.mirando();                      // el toque de «Pedir»
+    await N.publicar('v140');
+    assert.equal(P.ev('nuncaSeguroPC()'), false, 'la calculadora quedó movida: ese caso es el de la sección 4b');
+    const html = String(P.ev("$('calcSalida').innerHTML"));
+    const pedir = (/onclick="(pedirPorChat\([^"]*\))"/.exec(html) || [])[1];
+    assert.ok(pedir, 'Plata no pintó el botón de pedir');
+    P.st.colgar = /solicitar_platachat|reproponer_platachat/;
+    P.ev(pedir.replace(/&#39;|&apos;/g, "'"));
+    await asentar(4);
+    assert.equal(P.st.colgadas.length, 1, 'el pedido no salió');
+    P.st.colgar = null;
+    P.suelta(0, { __estado: 500, message: 'boom' });
+    await asentar(16);
+    const dijo = String(P.ev("$('errPedir').textContent"));
+    assert.ok(dijo && !/Mandando/.test(dijo), 'la página no pintó el «no»: la prueba no prueba el caso (' + dijo + ')');
+    assert.equal(P.ev('momentoSeguroPC()'), true, 'Plata con el «no» dejó de ser de la lista: la prueba no prueba el caso');
+    N.st.t += 10000;
+    await N.ocultar();
+    assert.equal(N.st.recargas, 0, 'la pantalla se apagó sola y la recarga se llevó el «no» (' + dijo + ')');
+    await N.volver();
+    assert.equal(String(P.ev("$('errPedir').textContent")), dijo);
+    N.mirando();
+    await N.ocultar();
+    assert.equal(N.st.recargas, 1);
+  });
 });

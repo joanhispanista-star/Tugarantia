@@ -24,6 +24,9 @@
  *      se sueltan al salir; el enganche para leer lo visible.
  *   3. LO QUE LA PANTALLA DICE: nada «de pie», el verde de la máscara entera,
  *      el destello, los dos botones siempre a la vista.
+ *   4. (23-oct-2026) LA CÉDULA DIFÍCIL: el PDF417 muy gastado, el frente liso
+ *      y la poca luz sin linterna, con las cédulas fabricadas para las letras
+ *      (ver allá).
  *
  * Ninguna foto de nadie entra al repositorio: todo es fabricado aquí.
  * ========================================================================= */
@@ -784,4 +787,219 @@ describe('la pantalla del escáner', () => {
       'sin señal, la página nueva caería a la cuenta de antes');
     assert.equal(abrirPlay().ev('typeof ECAP.decidirVentana'), 'function');
   });
+});
+
+/* ==========================================================================
+ * 4. LA CÉDULA DIFÍCIL — 23 de octubre de 2026 (la verificación del
+ *    autollenado y la demo de ese día)
+ *
+ * Lo que la verificación encontró con el escáner de verdad, y que estas
+ * pruebas fijan (FALLAN con ab6b595, salvo las marcadas CENTINELA):
+ *   · un PDF417 MUY gastado: la mediana de nitidez la dominaban los mosaicos
+ *     del código (29 < 35 con las letras perfectas), el escáner pedía
+ *     «Aléjala…» para siempre, después «si es el frente, voltéala» a quien ya
+ *     mostraba el respaldo, y a los 12 s le sugería la cédula digital;
+ *   · un FRENTE LISO: la puerta de 96 px lo dejaba en 8,5 < 9 y nunca se
+ *     ponía en verde (la demo), y la mediana a 480 px daba 6 enfocado;
+ *   · con poca luz y sin linterna, el letrero pedía «Aléjala o acércala» en
+ *     vez de luz.
+ * Las cédulas son las fabricadas para las letras (pruebas/cedula-ocr-*), a
+ * 907 px de ancho del marco (la que ve un video de 1080, la escala de la
+ * tabla de app/escaner-captura.js), sin la textura que les pone la prueba de
+ * punta a punta: lisas, como la demo. Ninguna cédula de nadie.
+ * ======================================================================== */
+const { leerPGM } = require('./banco-ocr.js');
+const { GUIA: GUIA_OCR, TARJETA: TARJETA_OCR, escalar } = require('./banco-camara.js');
+const PERSONA_OCR = { documento: '0052123456', apellido1: 'PEREZ', apellido2: 'GOMEZ', nombre1: 'MARIA',
+                      nombre2: 'ALEJANDRA', sexo: 'F', nacimiento: '19850315', municipio: '11001', rh: 'O+' };
+/* La cédula de las letras con el marco a 907 px. `gastado`: el PDF417 de la
+   persona en la franja de abajo, desenfocado ese σ en MÓDULOS (el código
+   viejo, no la cámara). `desvaido`: el contraste de la impresión (1, la de
+   fábrica). */
+function cartaOcr(lado, o) {
+  o = o || {};
+  const k = 907 / GUIA_OCR.w;
+  const img = escalar(leerPGM(path.join(__dirname, 'cedula-ocr-' + lado + '.pgm.gz')), k);
+  if (o.desvaido) for (let i = 0; i < img.gris.length; i++) img.gris[i] = 200 + (img.gris[i] - 200) * o.desvaido;
+  if (lado === 'reverso' && o.gastado != null) {
+    const t = { x: Math.round(TARJETA_OCR.x * k), y: Math.round(TARJETA_OCR.y * k), w: Math.round(TARJETA_OCR.w * k), h: Math.round(TARJETA_OCR.h * k) };
+    for (let y = t.y + Math.round(t.h * 0.66); y < t.y + Math.round(t.h * 0.985); y++)
+      for (let x = t.x + Math.round(t.w * 0.02); x < t.x + Math.round(t.w * 0.98); x++) img.gris[y * img.w + x] = 222;
+    const cod = F.fabricar(F.registroCedula(PERSONA_OCR), 20, 4);
+    const s = Math.max(1, Math.floor(t.w * 0.94 / F.render(cod, 1, 0, 0, { quieta: 4 }).W));
+    const r = F.render(cod, s, o.gastado * s, 4, { quieta: 4 });
+    const bx = t.x + Math.round((t.w - r.W) / 2), by = t.y + Math.round(t.h * 0.975) - r.H;
+    for (let y = 0; y < r.H; y++) for (let x = 0; x < r.W; x++) img.gris[(by + y) * img.w + bx + x] = r.lum[y * r.W + x];
+  }
+  return { g: Float32Array.from(img.gris), W: img.w, H: img.h };
+}
+/* Lo que mide la ventana (480 px) y la puerta (96 px de alto, con el marco
+   como interior) de esa cédula con la cámara desenfocada σ (a 907). */
+function medidasDe(t, s) {
+  const b = gauss(t, s), m = ECAP.tamanoDeMedida(t.W, t.H), g480 = achicar(b, t.W, t.H, m.w, m.h);
+  const gw = Math.round(96 * t.W / t.H), g96 = achicar(b, t.W, t.H, gw, 96), k = 96 / t.H, e = 907 / GUIA_OCR.w;
+  const interior = { x0: GUIA_OCR.x * e * k, x1: (GUIA_OCR.x + GUIA_OCR.w) * e * k, y0: GUIA_OCR.y * e * k, y1: (GUIA_OCR.y + GUIA_OCR.h) * e * k };
+  return { mediana: ECAP.nitidezDeGris(g480, m.w, m.h), calidad: ECAP.calidadDeGris(g480, m.w, m.h),
+           franja: EC.franjaDeBarras(g480, m.w, m.h), alto: m.h,
+           puerta: o => EC.medirTarjeta(g96, g96, gw, 96, interior, o) };
+}
+
+describe('4a. el piso de la ventana no lo decide una parte de la tarjeta', () => {
+
+  test('un PDF417 MUY gastado con las letras enfocadas: la mediana no llega al piso; la calidad sí', () => {
+    const t = cartaOcr('reverso', { gastado: 1.5 });
+    const m = medidasDe(t, 0);
+    assert.ok(m.mediana < C.PISO_NITIDEZ, 'la mediana ya pasaba: la prueba no prueba el caso (' + m.mediana + ')');
+    assert.ok(m.calidad >= C.PISO_NITIDEZ, 'los mosaicos del código gastado siguen hundiendo el piso: ' + m.calidad.toFixed(1));
+  });
+
+  test('un FRENTE LISO enfocado: la mediana da casi 0 (bordes rectos); la calidad pasa el piso', () => {
+    const m = medidasDe(cartaOcr('frente'), 0);
+    assert.ok(m.mediana < 10, 'la prueba no prueba el caso: ' + m.mediana);
+    assert.ok(m.calidad >= C.PISO_NITIDEZ, 'un frente liso enfocado no pasa el piso: ' + m.calidad.toFixed(1));
+  });
+
+  test('SIN ACEPTAR FOTOS BORROSAS: con la cámara desenfocada (σ 1,5 y 2 a 907 px) ninguna de las dos pasa', () => {
+    for (const [nombre, t] of [['el frente liso', cartaOcr('frente')], ['el respaldo gastado', cartaOcr('reverso', { gastado: 1.5 })]]) {
+      for (const s of [1.5, 2]) {
+        const c = medidasDe(t, s).calidad;
+        assert.ok(c < C.PISO_NITIDEZ, nombre + ' con σ ' + s + ' pasó el piso: ' + c.toFixed(1));
+      }
+    }
+  });
+
+  test('con el código legible manda la mediana de siempre (la del CRM), y la calidad nunca baja de ella', () => {
+    for (const s of [0, 1, 2]) {
+      const m = medidasDe(cartaOcr('reverso', { gastado: 0 }), s);
+      assert.equal(m.calidad, m.mediana, 'con el código legible cambió lo que mide la ventana (σ ' + s + ')');
+    }
+    for (const t of [atrasAmarilla({ W: 480 }), frente(480), atrasDigital(480)]) {
+      const g = aLum(t.g);
+      assert.ok(ECAP.calidadDeGris(g, t.W, t.H) >= ECAP.nitidezDeGris(g, t.W, t.H));
+    }
+    assert.equal(ECAP.calidadDeGris(new Uint8ClampedArray(480 * 303).fill(200), 480, 303), 0, 'una pared lisa no es nítida');
+    assert.equal(ECAP.calidadDeGris(null, 0, 0), 0);
+  });
+});
+
+describe('4b. la franja de las barras gastadas es del respaldo', () => {
+
+  test('el código gastado deja su franja en el tercio de abajo, también desenfocado; el frente y la digital, ninguna', () => {
+    for (const s of [0, 1, 2]) {
+      const m = medidasDe(cartaOcr('reverso', { gastado: 1.5 }), s);
+      assert.ok(EC.franjaComoLaDelCodigo(m.franja, m.alto), 'la franja del código gastado no se vio (σ ' + s + '): ' + JSON.stringify(m.franja));
+    }
+    for (const t of [cartaOcr('frente'), cartaOcr('frente', { desvaido: 0.8 })]) {
+      const m = medidasDe(t, 0);
+      assert.equal(EC.franjaComoLaDelCodigo(m.franja, m.alto), false, 'vio la franja del código en el frente');
+    }
+    const d = atrasDigital(907), md = ECAP.tamanoDeMedida(d.W, d.H), gd = achicar(d.g, d.W, d.H, md.w, md.h);
+    assert.equal(EC.franjaComoLaDelCodigo(EC.franjaDeBarras(gd, md.w, md.h), md.h), false, 'vio barras en la digital');
+  });
+
+  test('en su sitio: el tercio de abajo o el de arriba (al revés), y no un renglón delgado ni del medio', () => {
+    assert.equal(EC.franjaComoLaDelCodigo({ y0: 211, y1: 230 }, 303), true);
+    assert.equal(EC.franjaComoLaDelCodigo({ y0: 73, y1: 92 }, 303), true, 'la cédula al revés');
+    assert.equal(EC.franjaComoLaDelCodigo({ y0: 140, y1: 165 }, 303), false, 'una franja en el medio no es la del código');
+    assert.equal(EC.franjaComoLaDelCodigo({ y0: 250, y1: 260 }, 303), false, 'un renglón de 10 filas no es el código');
+    assert.equal(EC.franjaComoLaDelCodigo(null, 303), false);
+  });
+
+  test('la ventana: con solo la franja, espera el rato del lector y dispara; sin ella, «sin código» como siempre', () => {
+    let v = ECAP.ventanaNueva(1000);
+    [60, 80, 70, 90, 65, 75, 85, 70, 60, 80].forEach(n => { v = ECAP.anotarMedida(v, n, ECAP.esMejor(v, n)); });
+    const base = { lado: 'reverso', ahora: 1000, lectorListo: true, vioCodigo: false, vioFranja: true };
+    assert.equal(ECAP.decidirVentana(v, Object.assign({}, base, { msVerde: C.MS_SOLO_FRANJA - 100 })).estado, 'esperando');
+    assert.equal(ECAP.decidirVentana(v, Object.assign({}, base, { msVerde: C.MS_SOLO_FRANJA })).estado, 'disparar');
+    assert.equal(ECAP.decidirVentana(v, Object.assign({}, base, { vioFranja: false, msVerde: 9000 })).estado, 'sin_codigo');
+    /* La franja no le da nada al frente: ahí manda la mirada al código. */
+    assert.equal(ECAP.decidirVentana(v, { lado: 'frente', ahora: 1000, vioCodigo: false, vioFranja: true, limpias: 1, msVerde: 9000 }).estado, 'disparar');
+    assert.equal(C.MS_SOLO_FRANJA, EC.RESPALDO.MS_LEYENDO, 'el respaldo gastado y el visto sin leer le dan al lector ratos distintos');
+  });
+});
+
+describe('4c. la puerta del frente pregunta si hay tarjeta; la nitidez la juzga la ventana', () => {
+
+  test('un frente liso y desvaído (7,5 < 9) no pasa la puerta de siempre; con la del frente, sí', () => {
+    const m = medidasDe(cartaOcr('frente', { desvaido: 0.8 }), 0);
+    assert.equal(m.puerta().falla, 'borrosa', 'la puerta de siempre ya lo dejaba pasar: la prueba no prueba el caso');
+    assert.ok(EC.TARJETA.NITIDEZ_MIN_FRENTE < EC.TARJETA.NITIDEZ_MIN);
+    const r = m.puerta({ nitidezMin: EC.TARJETA.NITIDEZ_MIN_FRENTE });
+    assert.equal(r.ok, true, 'el frente liso sigue sin ponerse en verde: ' + r.falla + ' ' + r.nitidez.toFixed(1));
+    assert.ok(m.calidad >= C.PISO_NITIDEZ, 'y la ventana lo da por nítido: ' + m.calidad.toFixed(1));
+    /* Desenfocado pasa la puerta (no ve el desenfoque) pero NO la ventana. */
+    const b = medidasDe(cartaOcr('frente', { desvaido: 0.8 }), 2);
+    assert.equal(b.puerta({ nitidezMin: EC.TARJETA.NITIDEZ_MIN_FRENTE }).ok, true);
+    assert.ok(b.calidad < C.PISO_NITIDEZ, 'la ventana dio por nítido un frente desenfocado: ' + b.calidad.toFixed(1));
+  });
+
+  test('la página: la puerta del frente con la ventana; el respaldo, y el frente SIN ventana, con la de siempre', () => {
+    const P = escanerConVentana({ lado: 'frente' });
+    P.ev('window.__opciones = []; var __mt = EC.medirTarjeta; EC.medirTarjeta = function (g, p, w, h, i, op) { window.__opciones.push(op ? op.nitidezMin : null); return __mt.apply(this, arguments); };');
+    cuadro(P, 0, 80);
+    P.ev("ESCDOC.lado = 'reverso';");
+    cuadro(P, 1, 80);
+    P.ev("ESCDOC.lado = 'frente'; ESCDOC.sinVentana = true;");
+    cuadro(P, 2, 80);
+    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__opciones)')), [EC.TARJETA.NITIDEZ_MIN_FRENTE, null, null]);
+  });
+});
+
+describe('4d. lo que la pantalla dice con la cédula difícil', () => {
+
+  test('el respaldo que solo muestra la franja de sus barras se toma solo, y nunca oye «voltéala» ni lo de la cédula digital', () => {
+    const P = escanerConVentana();
+    P.ev('window.__franja = { y0: 211, y1: 230 }; leerCuadroDoc = function () { ESCDOC.lecturas++; };');
+    for (let i = 0; i < 60 && !P.ev('FOTOS.cedula_reverso'); i++) cuadro(P, i, 50);
+    assert.ok(P.ev('FOTOS.cedula_reverso'), 'el respaldo con el código gastado no se tomó nunca: ' + estados(P).slice(-2).join(' | '));
+    assert.equal(estados(P).some(t => /volt[ée]ala/i.test(t)), false, 'le pidió voltear la cédula con el respaldo en el marco');
+    assert.equal(P.ev("$('docNota').textContent"), '', 'le sugirió la cédula digital a una amarilla');
+    assert.match(P.ev("$('docListoTxt').textContent"), /El código no se pudo leer/);
+    assert.ok(P.ev('ESCDOC.msVerde') >= C.MS_SOLO_FRANJA, 'disparó sin darle al lector su rato');
+  });
+
+  test('CENTINELA: una franja en el medio (un renglón de letra) no es el código: sigue «si es el frente, voltéala» y no se toma', () => {
+    const P = escanerConVentana();
+    P.ev('window.__franja = { y0: 140, y1: 165 }; leerCuadroDoc = function () { ESCDOC.lecturas++; };');
+    for (let i = 0; i < 40; i++) cuadro(P, i, 50);
+    assert.equal(P.ev('FOTOS.cedula_reverso'), undefined, 'se tomó como respaldo una cara sin código');
+    assert.ok(estados(P).includes('No vemos código en ese lado: si es el frente, voltéala'));
+  });
+
+  test('con algo del PDF417 visto (su patrón) no se sugiere la cédula digital, aunque no pase el piso', () => {
+    const P = escanerConVentana();
+    P.ev("leerCedulaDeLienzo = function () { return { cedula: null, error: 'no_hay', giro: null, patron: true }; };");
+    for (let i = 0; i < 140; i++) cuadro(P, i, C.PISO_NITIDEZ - 10);
+    assert.ok(P.ev('ESCDOC.lecturas') > 6, 'no leyó lo suficiente: la prueba no prueba el caso');
+    assert.equal(P.ev("$('docNota').textContent"), '', 'le sugirió la cédula digital a una amarilla cuyo código se vio');
+  });
+
+  test('CENTINELA: sin nada visto (ni código, ni patrón, ni franja) la nota de la cédula nueva sí sale a los 12 s', () => {
+    const P = escanerConVentana();
+    P.ev('leerCuadroDoc = function () { ESCDOC.lecturas++; };');
+    for (let i = 0; i < 140; i++) cuadro(P, i, C.PISO_NITIDEZ - 10);
+    assert.equal(P.ev("$('docNota').textContent"), P.ev('TEXTO_CEDULA_NUEVA'));
+  });
+
+  for (const [camino, sinVentana] of [['con la ventana', false], ['sin la ventana (un navegador que no deja medir)', true]]) {
+    test('poca luz y SIN linterna, ' + camino + ': fuera de verde pide luz, no «Aléjala o acércala»', () => {
+      const P = escanerConVentana();
+      P.ev('window.__pista = { getCapabilities: function () { return {}; }, getSettings: function () { return { width: 3840, height: 2160 }; },' +
+           ' applyConstraints: function () { return Promise.resolve(); } };' +
+           'ESCDOC.stream = { getVideoTracks: function () { return [window.__pista]; }, getTracks: function () { return []; } };' +
+           'afinarCamaraDoc(window.__pista);');
+      assert.equal(P.ev('ESCDOC.puedeLuz'), false);
+      if (sinVentana) P.ev('ESCDOC.sinVentana = true;');
+      P.ev('window.__medida = { ok: false, nitidez: 4, luz: 50, saturados: 0, falla: "borrosa" };');
+      for (let i = 0; i < 15; i++) cuadro(P, i, 0);
+      assert.equal(P.ev('ESCDOC.pedirLuz'), true, 'la linterna no supo que falta luz: la prueba no prueba el caso');
+      assert.equal(P.ev("$('docEstado').textContent"), ECAP.TEXTO.BUSCA_LUZ);
+      /* Con luz de sobra y desenfocada, lo de siempre. */
+      const Q = escanerConVentana();
+      if (sinVentana) Q.ev('ESCDOC.sinVentana = true;');
+      Q.ev('window.__medida = { ok: false, nitidez: 4, luz: 160, saturados: 0, falla: "borrosa" };');
+      for (let i = 0; i < 15; i++) cuadro(Q, i, 0);
+      assert.equal(Q.ev("$('docEstado').textContent"), EC.textoDeTarjeta({ falla: 'borrosa' }));
+    });
+  }
 });
