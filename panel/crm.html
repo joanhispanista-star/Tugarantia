@@ -9171,11 +9171,18 @@ function cambiarCanalChat(canal){
    ficha, incluido el hilo '0' + celular, que es justo donde Joan tiene que
    leer el aviso de no hablar de la deuda. En ese hilo NO entra el nombre que
    le pasen: el número es de una ficha y quien escribe no está verificado. */
+/* 26-oct-2026 (ronda 1) — con qué `extra` se abrió el hilo que está en
+   pantalla, para que «← Volver al chat» (volverAlChat) lo abra IGUAL. Los
+   refutadores lo cazaron: desde «💬 Escribirle por la app» el hilo decía
+   «Joan Ruiz» con su nota, y tras 👤 Ver ficha → ← Volver al chat el MISMO
+   hilo decía «sin juntar: no sabemos si es él» y la nota ya no estaba. */
+let _chatExtra=null;
 function abrirConversacion(ident,extra){
   if(!chatListo()) return renderMensajes();
   _chatAbierta=String(ident||''); _chatMsgs=[]; _chatUltimo=0;
   const c=_convs.find(x=>String(x.cedula)===_chatAbierta)||{cedula:_chatAbierta};
   const x=extra||{};
+  _chatExtra={ident:_chatAbierta,extra:x};
   _chatCanal=canalDeEntrada(c);
   const sinJuntar=/^0\d{10}$/.test(_chatAbierta);
   const regla=CHAT.quienEs?CHAT.quienEs(c):(c.nombre||'Socio');
@@ -9351,8 +9358,19 @@ function quienEscribeLocal(c){
   const sinJuntar=/^0\d{10}$/.test(llave), cel=sinJuntar?llave.slice(1):llave;
   const ficha=fichaPorLlaveDelChat(cel), registro=registroPorLlaveDelChat(cel);
   const nombreFicha=ficha?String(ficha.nombre||'').trim():'';
+  /* 26-oct-2026 (ronda 1) — SI ESTE COMPUTADOR YA JUNTÓ la cuenta de ese
+     celular con la ficha (cuentaJunta: la confirmación de Joan en «¿Es la
+     misma persona?»), el hilo del celular pelado ES el de la ficha: al juntar,
+     la nube muda ahí lo del '0' + celular (base/20261007_una_puerta.sql).
+     Decir «sin juntar: no sabemos si es él» con cuentaJunta puesto era falso,
+     y contradecía la pantalla anterior del mismo hilo. Es la misma lectura de
+     clienteDelRecado y del cruce de solicitudes. Solo con la llave del celular
+     a secas: si la nube dijo '0', la nube manda (pudo desjuntarse desde otro
+     computador). */
+  const junta=!sinJuntar&&/^3\d{9}$/.test(cel)&&!!(ficha&&ficha.cuentaJunta&&diez(ficha.cuentaJunta.celular)===cel);
   let texto=regla;
   if(x.nombre){ /* la nube ya dijo el nombre de la ficha: manda. */ }
+  else if(junta&&nombreFicha){ texto=nombreFicha; }
   else if(sinJuntar||/^3\d{9}$/.test(llave)){
     /* El número es de una ficha (lo dijo la nube con el '0', o lo tiene esta
        cartera sin haberlo subido): se dice DE QUIÉN es, con la advertencia.
@@ -9437,8 +9455,19 @@ function verRegistroDesdeChat(id){
 function ponerVolverAlChat(ident){
   if(!ident) return;
   const b=document.getElementById('mBody'); if(!b) return;
-  const html=`<div style="margin-bottom:10px"><button class="btn btn-ghost btn-sm" onclick="cerrarModal();abrirConversacion('${escHTML(ident)}')">← Volver al chat</button></div>`;
+  const html=`<div style="margin-bottom:10px"><button class="btn btn-ghost btn-sm" onclick="volverAlChat('${escHTML(ident)}')">← Volver al chat</button></div>`;
   if(typeof b.insertAdjacentHTML==='function') b.insertAdjacentHTML('afterbegin',html); else b.innerHTML=html+b.innerHTML;
+}
+/* 26-oct-2026 (ronda 1) — volver es abrir la MISMA conversación con el mismo
+   `extra` (nombre y nota) con que estaba abierta: lo decidió quien la abrió
+   desde la ficha o el registro (escribirlePorLaApp, abrirHiloDeRegistro).
+   Antes volvía a secas y el hilo cambiaba de título y perdía la nota. Se
+   compara el ident: si el cuadro es de otra conversación, se abre a secas.
+   cerrarModal ANTES de abrir, por lo de _fichaVista (arriba). */
+function volverAlChat(ident){
+  const id=String(ident||'');
+  const extra=(_chatExtra&&_chatExtra.ident===id)?_chatExtra.extra:undefined;
+  cerrarModal(); abrirConversacion(id,extra);
 }
 
 /* 22-sep-2026 — ABRIR LA FOTO QUE MANDÓ EL CLIENTE. El hilo trae la miniatura;

@@ -290,9 +290,10 @@ describe('4. chat → ficha o registro → chat', () => {
       assert.ok(m, 'la ficha abierta desde el chat no tiene cómo volver');
       assert.ok(P.elems.mBody.innerHTML.indexOf('Volver al chat') < P.elems.mBody.innerHTML.indexOf('Su cuenta en la app'),
         'el botón de volver no está arriba: Joan tendría que bajar toda la ficha para encontrarlo');
-      /* La vuelta cierra ANTES de abrir: suelta _fichaVista, o traerFotosTardias
-         repintaría la ficha encima del chat cuando lleguen las fotos. */
-      assert.match(m[1], /^cerrarModal\(\);abrirConversacion\('03103606348'\)$/);
+      /* La vuelta es volverAlChat: cierra ANTES de abrir (suelta _fichaVista, o
+         traerFotosTardias repintaría la ficha encima del chat cuando lleguen las
+         fotos) y abre con el mismo `extra` con que estaba abierta (sección 6). */
+      assert.match(m[1], /^volverAlChat\('03103606348'\)$/);
       P.ev(m[1]);
       assert.equal(P.elems.mTitle.textContent, 'Número de la ficha de Joan Ruiz · ' + AVISO);
       assert.equal(P.ev('_fichaVista'), null);
@@ -387,6 +388,114 @@ describe('5. los registros se piden una vez, solo si hacen falta, y van aparte',
       assert.deepEqual(botones(P.elems.mBody.innerHTML), ['📋 Ver registro']);
       P.ev("verRegistroDesdeChat('41')");
       assert.equal(P.elems.mTitle.textContent, 'Lo que declaró William   Registrado');
+    });
+  });
+});
+
+/* ========================================================================== */
+describe('6. la cuenta junta y la ida y vuelta (ronda 1, 26-oct: lo que cazaron los refutadores)', () => {
+  /* La ficha de Joan con su cuenta YA JUNTA (lo que deja «¿Es la misma
+     persona?» → juntar, crm.html ~2472). */
+  const JUNTA = "DB.socios[0].cuentaJunta = { celular: '3103606348', fecha: '2026-10-20', registro_id: 5, por: 'crm' }";
+  const volver = P => {
+    const m = /onclick="([^"]*)"[^>]*>← Volver al chat/.exec(P.elems.mBody.innerHTML);
+    assert.ok(m, 'no está «← Volver al chat»');
+    P.ev(m[1]);
+  };
+
+  test('ficha sin cédula con la cuenta junta: el hilo del celular pelado dice el nombre de la ficha, sin advertencia; el «0» sigue advirtiendo', () => {
+    /* Al juntar, la nube muda al hilo de la ficha lo del '0' + celular
+       (base/20261007_una_puerta.sql): el hilo del celular ES el de la ficha y
+       Joan ya dijo que es él. Decir «sin juntar» ahí era falso. */
+    const P = crm(); P.ev(JUNTA);
+    pintar(P, [conv({ cedula: '3103606348' }), conv({ cedula: '03103606348' })]);
+    const quienes = (P.elems.chBandeja.innerHTML.match(/ch-conv-quien">[^<]*/g) || []).map(x => x.replace('ch-conv-quien">', ''));
+    assert.equal(quienes[0], 'Joan Ruiz', 'con la cuenta junta el celular pelado sigue diciendo «sin juntar»');
+    /* Si la nube dijo '0', la nube manda: pudo desjuntarse desde otro computador. */
+    assert.equal(quienes[1], 'Número de la ficha de Joan Ruiz · ' + AVISO);
+    abriendo(() => {
+      P.ev('abrirConversacion("3103606348")');
+      assert.equal(P.elems.mTitle.textContent, 'Joan Ruiz');
+      assert.deepEqual(botones(P.elems.mBody.innerHTML), ['👤 Ver ficha']);
+      P.ev('abrirConversacion("03103606348")');
+      assert.equal(P.elems.mTitle.textContent, 'Número de la ficha de Joan Ruiz · ' + AVISO);
+    });
+  });
+
+  test('la cuenta junta es la de ESE celular: con otro número junto, el celular pelado sigue con la advertencia', () => {
+    const P = crm();
+    P.ev("DB.socios[0].cuentaJunta = { celular: '3109999999', fecha: '2026-10-20', registro_id: 6, por: 'crm' }");
+    pintar(P, [conv({ cedula: '3103606348' })]);
+    assert.match(P.elems.chBandeja.innerHTML, new RegExp('ch-conv-quien">Número de la ficha de Joan Ruiz · ' + AVISO));
+  });
+
+  test('«💬 Escribirle por la app» → 👤 Ver ficha → ← Volver al chat: el MISMO título y la MISMA nota (cuenta junta)', () => {
+    /* El caso A de los refutadores, tal cual: tres toques desde la ficha de Joan. */
+    const P = crm(); P.ev(JUNTA);
+    pintar(P, []);
+    abriendo(() => {
+      P.ev("escribirlePorLaApp('ficha','C1')");
+      assert.equal(P.elems.mTitle.textContent, 'Joan Ruiz');
+      assert.match(plano(P.elems.mBody.innerHTML), /No le llega aviso al celular/);
+      assert.doesNotMatch(plano(P.elems.mBody.innerHTML), /lo lee cuando su cuenta de la app esté junta/, 'con la cuenta junta no se dice que falta juntarla');
+      P.ev("verFichaDesdeChat('C1')");
+      assert.equal(P.elems.mTitle.textContent, 'CL-0007 · Joan Ruiz');
+      volver(P);
+      assert.equal(P.elems.mTitle.textContent, 'Joan Ruiz', 'al volver el hilo cambió de título');
+      assert.match(plano(P.elems.mBody.innerHTML), /No le llega aviso al celular/, 'al volver se perdió la nota');
+      assert.doesNotMatch(P.elems.mTitle.textContent, /sin juntar/);
+      assert.equal(P.ev('_fichaVista'), null);
+      assert.equal(P.ev('JSON.stringify(DB.socios[0].cuentaJunta)'), JSON.stringify({ celular: '3103606348', fecha: '2026-10-20', registro_id: 5, por: 'crm' }));
+    });
+  });
+
+  test('lo mismo SIN la cuenta junta: el nombre y la nota de «esto queda en el hilo de su ficha» sobreviven a la vuelta', () => {
+    /* Aquí lo local diría la advertencia; lo que manda es con qué se abrió:
+       Joan le está escribiendo al hilo de la ficha, que solo lee la cuenta
+       que se junte con ella. */
+    const P = crm();
+    pintar(P, []);
+    abriendo(() => {
+      P.ev("escribirlePorLaApp('ficha','C1')");
+      assert.equal(P.elems.mTitle.textContent, 'Joan Ruiz');
+      assert.match(plano(P.elems.mBody.innerHTML), /lo lee cuando su cuenta de la app esté junta con ella/);
+      P.ev("verFichaDesdeChat('C1')");
+      volver(P);
+      assert.equal(P.elems.mTitle.textContent, 'Joan Ruiz');
+      assert.match(plano(P.elems.mBody.innerHTML), /lo lee cuando su cuenta de la app esté junta con ella/);
+      assert.match(plano(P.elems.mBody.innerHTML), /No le llega aviso al celular/);
+    });
+  });
+
+  test('📋 Ver registro → ← Volver al chat también conserva lo que decidió quien abrió (abrirHiloDeRegistro)', () => {
+    const P = crm();
+    pintar(P, []);
+    abriendo(() => {
+      P.ev('abrirConversacion("3001234567", { nombre: "William Registrado (registrado, sin verificar)", nota: AVISO_SIN_PUSH })');
+      P.ev("verRegistroDesdeChat('41')");
+      assert.equal(P.elems.mTitle.textContent, 'Lo que declaró William   Registrado');
+      volver(P);
+      assert.equal(P.elems.mTitle.textContent, 'William Registrado (registrado, sin verificar)');
+      assert.match(plano(P.elems.mBody.innerHTML), /No le llega aviso al celular/);
+    });
+  });
+
+  test('el extra es de ESA conversación: abierta a secas desde la bandeja, se vuelve a secas; y el de otro hilo no se cuela', () => {
+    const P = crm();
+    pintar(P, [conv({ cedula: '52111222' }), conv({ cedula: '3001234567' })]);
+    abriendo(() => {
+      P.ev('abrirConversacion("3001234567", { nombre: "Alguien Que Abrió", nota: "nota-de-prueba" })');
+      /* Desde la bandeja (sin extra): lo que quedó del otro hilo no entra. */
+      P.ev('abrirConversacion("52111222")');
+      P.ev("verFichaDesdeChat('C2')");
+      volver(P);
+      assert.equal(P.elems.mTitle.textContent, 'Bruno Ficha');
+      assert.doesNotMatch(plano(P.elems.mBody.innerHTML), /nota-de-prueba/);
+      /* Y volver a un hilo distinto del que está en pantalla abre a secas. */
+      P.ev("volverAlChat('3001234567')");
+      assert.equal(P.elems.mTitle.textContent, 'William Registrado (registrado, sin verificar) · 3001234567');
+      assert.doesNotMatch(plano(P.elems.mBody.innerHTML), /nota-de-prueba/);
+      assert.doesNotMatch(P.elems.mTitle.textContent, /Alguien Que Abrió/);
     });
   });
 });

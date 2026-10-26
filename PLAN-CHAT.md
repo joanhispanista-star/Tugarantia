@@ -45,6 +45,13 @@
 > - en el hilo abierto, «👤 Ver ficha» y «📋 Ver registro» (los que existan;
 >   si ninguno, se dice) con «← Volver al chat»
 >   (`pruebas/quien-escribe-en-el-crm.test.js`).
+> - **Ronda 1 (26-oct, lo que cazaron los refutadores):** si este computador ya
+>   JUNTÓ la cuenta de ese celular con la ficha (`cuentaJunta`), el hilo del
+>   celular pelado es el de la ficha y dice su nombre, sin advertencia (al
+>   juntar, la nube muda ahí lo del '0'); el '0' sigue advirtiendo. Y «← Volver
+>   al chat» (`volverAlChat`) reabre el hilo con el mismo nombre y la misma nota
+>   con que se abrió desde la ficha o el registro: antes volvía a secas y el
+>   mismo hilo cambiaba de título y perdía la nota (sección 6 de la prueba).
 >
 > **La decisión B sigue pendiente**: sin Telegram, el aviso a Joan solo existe
 > con el CRM o el celular abiertos, y al cliente no le llega nada con la app
