@@ -380,10 +380,12 @@ describe('la selfie dentro de la página', () => {
     assert.equal(P.ev('ESCANER.modo'), 'rostro', 'el detector llegó y no se usa');
   });
 
-  test('una cara centrada y quieta dispara sola; antes no (ni antes de que se vea escanear)', async () => {
+  test('una cara centrada y quieta dispara sola; antes no (ni antes de los dos segundos en verde)', async () => {
     /* 22-oct-2026 — con reloj: además de CUADROS detecciones buenas seguidas
        (la primera no cuenta: no sabe si está quieta), hace falta que la cara
-       lleve MS_ESCANEO_MIN a la vista. Una detección cada 250 ms. */
+       lleve MS_ESCANEO_MIN a la vista. Una detección cada 250 ms.
+       26-oct-2026 — ahora son MS_VERDE (dos segundos) desde la primera
+       detección verde, que es la segunda (la primera no sabe si está quieta). */
     let ahora = Date.UTC(2026, 9, 22, 15, 0, 0);
     const Real = Date;
     class Reloj extends Real { constructor(...a) { if (a.length) super(...a); else super(ahora); } static now() { return ahora; } }
@@ -397,9 +399,9 @@ describe('la selfie dentro de la página', () => {
       P.ev("detectarCara($('camVideo'), 128)"); await esperar(); n++;
       ahora += PASO_MS;
     }
-    const minimo = Math.max(1 + RV.ROSTRO.CUADROS, 1 + Math.ceil(RV.ROSTRO.MS_ESCANEO_MIN / PASO_MS));
+    const minimo = 2 + Math.ceil(RV.ROSTRO.MS_VERDE / PASO_MS);
     assert.equal(n, minimo, 'disparó en la detección ' + n + ' y tocaba en la ' + minimo +
-      ' (la primera no cuenta, y hacen falta ' + RV.ROSTRO.CUADROS + ' buenas y ' + RV.ROSTRO.MS_ESCANEO_MIN + ' ms con la cara a la vista)');
+      ' (la primera no cuenta, la segunda abre la cuenta en verde y hacen falta ' + RV.ROSTRO.MS_VERDE + ' ms desde ella)');
     assert.equal(P.ev('window.__disparo'), 1, 'con la cara centrada y quieta no disparó');
     assert.equal(P.ev('window.__soltado'), true, 'tomada la foto, el detector se quedó con su memoria');
     /* LO QUE MIRÓ NO QUEDÓ EN NINGÚN LADO. */
@@ -527,7 +529,10 @@ describe('el bucle y el dibujo', () => {
     P.ev('dibujarMarco(window.__ctx, 720, 960, 1, true, 0.5, { cara: { x: 0.32, y: 0.275, w: 0.36, h: 0.45 }, conCara: true })');
     t = trazos(P);
     assert.equal(t.includes('createLinearGradient'), false, 'con movimiento reducido la línea sigue barriendo');
-    assert.ok(t.includes('ellipse'), 'con movimiento reducido se fue también el arco de la racha, que es lo que informa');
+    /* 26-oct-2026 — era el óvalo y su arco (ctx.ellipse); desde hoy la
+       silueta y su aro se trazan con lineTo y la silueta se cierra. */
+    assert.ok(t.includes('closePath'), 'con movimiento reducido se fue también la silueta y el aro de la cuenta, que es lo que informa');
+    assert.equal(t.includes('ellipse'), false, 'volvió el óvalo');
   });
 
   test('LOS OJOS SE DIBUJAN DONDE LOS VIO EL DETECTOR, y en ningún otro lado', () => {
@@ -553,10 +558,15 @@ describe('el bucle y el dibujo', () => {
         'el punto (' + px + ', ' + py + ') del ojo no llegó al dibujo');
     }));
     assert.equal(args.filter(a => a[0] === 'arc').length, 2, 'una mira por ojo, ni más ni menos');
-    /* Y el óvalo va en la zona que se ve, no en el cuadro entero. */
-    const ovalo = args.find(a => a[0] === 'ellipse');
-    assert.ok(ovalo && cerca(ovalo[1], 360) && cerca(ovalo[2], 160 + 480) && cerca(ovalo[3], 720 * 0.32) && cerca(ovalo[4], 960 * 0.36),
-      'el óvalo no está en la zona que se ve: ' + JSON.stringify(ovalo));
+    /* Y la silueta va en la zona que se ve, no en el cuadro entero: la
+       coronilla en (cx, cy − ry) y el mentón en (cx, cy + ry) de la zona.
+       26-oct-2026 — era el óvalo (ctx.ellipse); desde hoy es la silueta
+       (trazarSilueta: moveTo en la coronilla y lineTo hasta el mentón). */
+    const coronilla = args.find(a => a[0] === 'moveTo');
+    assert.ok(coronilla && cerca(coronilla[1], 360) && cerca(coronilla[2], 160 + 480 - 960 * 0.36),
+      'la silueta no empieza en la coronilla de la zona que se ve: ' + JSON.stringify(coronilla));
+    assert.ok(args.some(a => a[0] === 'lineTo' && cerca(a[1], 360) && cerca(a[2], 160 + 480 + 960 * 0.36)), 'la silueta no llega al mentón de la zona que se ve');
+    assert.equal(args.some(a => a[0] === 'ellipse'), false, 'volvió el óvalo');
   });
 
   test('el texto de la pantalla no promete reconocer a nadie', () => {

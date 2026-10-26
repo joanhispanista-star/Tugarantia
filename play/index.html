@@ -352,7 +352,9 @@ select{-webkit-appearance:none;appearance:none;padding-right:44px;
   100%{transform:translateY(var(--alto,340px))}
 }
 /* 22-oct-2026 — la cuenta «3·2·1» del escaneo (es la racha: ver bucleEscaner)
-   y el destello del disparo sobre la miniatura. Sin sonido, nunca. */
+   y el destello del disparo sobre la miniatura. Sin sonido, nunca.
+   26-oct-2026 — la cuenta pasó a ser «2 · 1»: los segundos que faltan de los
+   dos en verde (RostroEnVivo.avanceVerde), lo mismo que llena el aro. */
 .cara-cuenta{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;
   font-size:64px;font-weight:800;line-height:1;color:#fff;pointer-events:none;
   text-shadow:0 0 18px rgba(var(--tono),.9),0 2px 8px #000}
@@ -8585,7 +8587,11 @@ var ESCANER = { stream: null, activo: false, estables: 0, temporizador: null,
                    guía, pero no dispara solo (ver bucleEscaner). fotoNoSalio:
                    la cámara prendió y lo que falló fue la foto (T4); lo lee
                    motivoSinSelfie. Las dos vuelven a false en iniciarEscaner. */
-                soloAMano: false, fotoNoSalio: false };
+                soloAMano: false, fotoNoSalio: false,
+                /* 26-oct-2026 — verde: la cuenta de dos segundos en verde
+                   (RostroEnVivo.contarVerde): solo tiempos y conteos, nunca
+                   dónde estaba la cara. Muere con el escáner. */
+                verde: null };
 /* 22-oct-2026 — LO QUE SE VE NO ES EL CUADRO ENTERO. La caja del escáner es
    3:4 y el video la llena recortado (object-fit: cover). Un Android entrega
    720×960 y se ve entero, pero un iPhone suele entregar 720×1280 (9:16): se
@@ -8673,6 +8679,12 @@ function pintarMedidas(final) {
       ' · nitidez ' + num2(a.nitidez) + ' de ' + num2(a.mejor) + ' (≥' + num2(R.NITIDEZ_RELATIVA) + ' y ≥' + num2(R.NITIDEZ_MIN) + ') · ojos ' + (a.ojos ? 'sí' : 'no'));
     l.push('racha ' + ESCANER.estables + ' de ' + (R.CUADROS || '?') + ' · cara a la vista ' +
       num2(ESCANER.desdeCara ? (Date.now() - ESCANER.desdeCara) / 1000 : 0) + ' s (mín ' + num2((R.MS_ESCANEO_MIN || 0) / 1000) + ')');
+    /* 26-oct-2026 — la cuenta en verde, que es la que dispara. */
+    if (ESCANER.verde && RV && typeof RV.avanceVerde === 'function') {
+      var av = RV.avanceVerde(ESCANER.verde, Date.now());
+      l.push('verde ' + num2(av.ms / 1000) + ' s de ' + num2((R.MS_VERDE || 0) / 1000) + ' · parpadeos seguidos ' + (ESCANER.verde.parpadeos || 0) +
+        ' · verdes ' + (ESCANER.verde.verdes || 0) + ' de ' + (ESCANER.verde.miradas || 0) + ' miradas');
+    }
   }
   if (!final && ESCANER.ultima && ESCANER.modo !== 'rostro') {
     var e = ESCANER.ultima;
@@ -8806,7 +8818,7 @@ function pasoRostro() {
      y sin él (el encuadre de siempre) la foto se toma sola con la cara en el
      óvalo y quieta. Lo de «acércate» o «centra tu cara» lo dice el escáner en
      vivo, cuando de verdad lo está viendo. */
-  return '<p class="sub">Pon tu cara dentro del óvalo, con buena luz y sin gafas oscuras: ' +
+  return '<p class="sub">Pon tu cara dentro de la silueta, con buena luz y sin gafas oscuras: ' +
       'la foto se toma sola cuando está centrada y quieta.</p>' +
     '<div class="escaner' + (tiene ? ' oculto' : '') + '" id="escaner">' +
       '<video id="camVideo" playsinline muted autoplay></video>' +
@@ -8819,7 +8831,8 @@ function pasoRostro() {
       '<div class="cara-esq"></div>' +
       /* 22-oct-2026 — la cuenta «3·2·1» ES la racha de detecciones buenas
          (bucleEscaner): si la persona se mueve, se cae. Va en el HTML y no en
-         el lienzo porque el lienzo está espejado y el número saldría al revés. */
+         el lienzo porque el lienzo está espejado y el número saldría al revés.
+         26-oct-2026 — ahora es «2 · 1»: los segundos que faltan en verde. */
       '<div class="cara-cuenta" id="camCuenta" aria-hidden="true"></div>' +
       '<div class="escaner-estado" id="camEstado">Encendiendo la cámara…</div>' +
     '</div>' +
@@ -8884,6 +8897,7 @@ function iniciarEscaner() {
   ESCANER.turno++; ESCANER.medida = null; ESCANER.previaCara = null; ESCANER.mejorNitidez = 0; ESCANER.fallos = 0;
   ESCANER.desdeCara = 0; ESCANER.desdeRostro = 0; ESCANER.miradas = 0; ESCANER.vioCara = false; ESCANER.ojos = null; ESCANER.ojosT = 0;
   ESCANER.soloAMano = false; ESCANER.fotoNoSalio = false;   // 22-oct-2026: un intento nuevo empieza limpio (T3, T4)
+  ESCANER.verde = null;   // 26-oct-2026: y la cuenta en verde, desde cero
   if (MEDIR_ROSTRO) MEDIDAS = medidasNuevas();   // 22-oct-2026: ver MEDIR LA SELFIE
   /* 8-oct-2026 (segunda vuelta) — EL ÓVALO, CENTRADO EN LA PANTALLA. El paso
      arranca arriba de todo, y en un teléfono real (375×660 con las barras del
@@ -8924,7 +8938,7 @@ function iniciarEscaner() {
       var pista = stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
       return v.play().catch(function () {}).then(function () { afinarCamaraRostro(pista); });
     })
-    .then(function () { if (estado) estado.textContent = 'Pon tu cara dentro del óvalo'; bucleEscaner(); })
+    .then(function () { if (estado) estado.textContent = 'Pon tu cara dentro de la silueta'; bucleEscaner(); })
     .catch(function (e) {
       if (ESCANER.espera) { clearTimeout(ESCANER.espera); ESCANER.espera = null; }
       escanerSinCamara(e && e.name === 'NotAllowedError' ? 'Este navegador no dejó encender la cámara.' : 'No pude encender el escáner.');
@@ -9017,6 +9031,7 @@ function detenerEscaner() {
      del celular, «Usar mi foto anterior», T4) y durante los cinco pasos que
      siguen. Ahora se borran aquí, que es por donde pasan todas. */
   ESCANER.medida = null; ESCANER.previaCara = null; ESCANER.previa = null; ESCANER.ultima = null;
+  ESCANER.verde = null;   // 26-oct-2026: la cuenta en verde también
   /* 22-oct-2026 — con ?medir=1: la cámara se apagó, así que se borra lo de la
      cara y quedan los conteos (ver MEDIR LA SELFIE). */
   if (MEDIDAS) pintarMedidas(true);
@@ -9139,9 +9154,24 @@ function detectarCara(v, luz) {
        suavizado es del dibujo, no de nada que se decida. */
     if (m.ojos) { ESCANER.ojos = suavizarOjos(ESCANER.ojos, m.ojos, Date.now() - ESCANER.ojosT < MS_OJOS_VIVOS); ESCANER.ojosT = Date.now(); }
     /* 22-oct-2026 — la racha cuenta detecciones Y el tiempo con la cara a la
-       vista (RostroEnVivo.ROSTRO.MS_ESCANEO_MIN): que se VEA que escanea. */
-    var r = RV.contarRacha(ESCANER.estables, m, { ahora: Date.now(), desde: ESCANER.desdeCara });
-    ESCANER.estables = r.estables; ESCANER.desdeCara = r.desde || 0;
+       vista (RostroEnVivo.ROSTRO.MS_ESCANEO_MIN): que se VEA que escanea.
+       26-oct-2026 — YA NO: LA CUENTA ES DE TIEMPO EN VERDE (contarVerde): la
+       foto sale a los dos segundos de la primera detección verde, tolerando
+       los parpadeos del detector, y es exactamente lo que el aro y el «2 · 1»
+       muestran. La racha (contarRacha) queda solo para un rostro-en-vivo.js
+       viejo en la caché del teléfono, que no trae contarVerde: se mira antes
+       de usarla, como con todo lo que llega por ?v= (ver «¿LLEGÓ LO QUE
+       PEDÍ?»). ESCANER.estables y desdeCara siguen contando para ?medir=1. */
+    var ahoraDet = Date.now(), r;
+    if (typeof RV.contarVerde === 'function') {
+      r = RV.contarVerde(ESCANER.verde, m, ahoraDet);
+      ESCANER.verde = r.estado;
+      ESCANER.estables = m.ok ? ESCANER.estables + 1 : 0;
+      ESCANER.desdeCara = m.cara ? (ESCANER.desdeCara || ahoraDet) : 0;
+    } else {
+      r = RV.contarRacha(ESCANER.estables, m, { ahora: ahoraDet, desde: ESCANER.desdeCara });
+      ESCANER.estables = r.estables; ESCANER.desdeCara = r.desde || 0;
+    }
     if (r.disparar) { anotarDisparo('sola, con el detector'); capturarRostro(); }
   }, function () {
     if (ESCANER.detector !== d) return;
@@ -9215,20 +9245,34 @@ function bucleEscaner() {
     liberarDetectorRostro(); ESCANER.modo = 'encuadre'; ESCANER.estables = 0; ESCANER.soloAMano = true;
     var fs0 = $('fot_selfie'); if (fs0) fs0.style.display = '';
     var ns0 = $('selfieNota');
-    if (ns0) ns0.textContent = 'El escáner no logra ver tu cara, así que no la va a tomar solo: pon tu cara en el óvalo ' +
+    if (ns0) ns0.textContent = 'El escáner no logra ver tu cara, así que no la va a tomar solo: pon tu cara en la silueta ' +
       'y toca «Tomar la foto ahora», o toma la selfie con la cámara del celular, aquí abajo.';
   }
   var conCara = ESCANER.modo === 'rostro' && !!ESCANER.detector && !!RV;
-  var enganchado, avance, mr = null, ojos = null;
+  /* 26-oct-2026 — conVerde: el módulo trae la cuenta de dos segundos; si le
+     llegó uno viejo al teléfono, lo de abajo sigue con la racha de antes. */
+  var conVerde = conCara && typeof RV.avanceVerde === 'function';
+  var enganchado, avance, mr = null, ojos = null, verde = null;
   if (conCara) {
     if (!ESCANER.detectando) detectarCara(v, m ? m.luz : 128);
     mr = ESCANER.medida;
-    enganchado = !!(mr && mr.ok);
-    /* 22-oct-2026 — el avance es el de la racha Y el del tiempo con la cara
-       a la vista (contarRacha): el óvalo se llena mientras de verdad escanea. */
-    var msMin = RV.ROSTRO.MS_ESCANEO_MIN || 0;
-    avance = !enganchado ? 0 : Math.min(1, ESCANER.estables / RV.ROSTRO.CUADROS,
-      msMin > 0 ? (ESCANER.desdeCara ? (Date.now() - ESCANER.desdeCara) / msMin : 0) : 1);
+    if (conVerde) {
+      /* 26-oct-2026 — VERDE ES LA CUENTA, y la cuenta es lo que dispara: el
+         marco se pone verde con la primera detección buena, el relleno y el
+         aro se llenan con los dos segundos (avanceVerde), y un parpadeo del
+         detector entre dos buenas no los vacía (contarVerde los tolera). Si
+         la cara se pierde, o el detector deja de contestar, se vacían. */
+      verde = RV.avanceVerde(ESCANER.verde, Date.now());
+      enganchado = verde.enVerde;
+      avance = verde.avance;
+    } else {
+      enganchado = !!(mr && mr.ok);
+      /* 22-oct-2026 — el avance es el de la racha Y el del tiempo con la cara
+         a la vista (contarRacha): el óvalo se llena mientras de verdad escanea. */
+      var msMin = RV.ROSTRO.MS_ESCANEO_MIN || 0;
+      avance = !enganchado ? 0 : Math.min(1, ESCANER.estables / RV.ROSTRO.CUADROS,
+        msMin > 0 ? (ESCANER.desdeCara ? (Date.now() - ESCANER.desdeCara) / msMin : 0) : 1);
+    }
     if (ESCANER.ojos && (Date.now() - ESCANER.ojosT) < MS_OJOS_VIVOS && mr && mr.ojos) ojos = ESCANER.ojos;
   } else if (ESCANER.modo === 'encuadre' && ESCANER.soloAMano) {
     /* 22-oct-2026 — sin racha, sin verde y sin «3·2·1»: los tres prometen un
@@ -9277,12 +9321,18 @@ function bucleEscaner() {
   /* 22-oct-2026 — LA CUENTA «3·2·1» ES LA RACHA, no un reloj: con el detector,
      una detección buena por número (y el último espera el tiempo mínimo en
      verde); con el encuadre, la racha de fotogramas en tercios. Si la persona
-     se mueve, desaparece y vuelve a empezar. */
+     se mueve, desaparece y vuelve a empezar.
+     26-oct-2026 — con el módulo nuevo es «2 · 1»: los segundos que faltan de
+     los dos en verde (avanceVerde.segundos), lo mismo que llena el aro. Sí es
+     un reloj, pero uno que solo corre con la cara en verde y que la cara
+     perdida vuelve a cero: es lo que decide, y por eso es lo que se muestra. */
   var cuenta = 0;
   if (enganchado) {
-    cuenta = conCara
-      ? Math.max(1, RV.ROSTRO.CUADROS + 1 - ESCANER.estables)
-      : Math.max(1, Math.ceil(3 * (U.ENCUADRE.CUADROS - ESCANER.estables) / U.ENCUADRE.CUADROS));
+    cuenta = conVerde
+      ? (verde ? verde.segundos : 0)
+      : (conCara
+        ? Math.max(1, RV.ROSTRO.CUADROS + 1 - ESCANER.estables)
+        : Math.max(1, Math.ceil(3 * (U.ENCUADRE.CUADROS - ESCANER.estables) / U.ENCUADRE.CUADROS)));
   }
   var cc = $('camCuenta');
   if (cc) cc.textContent = cuenta ? String(cuenta) : '';
@@ -9300,7 +9350,7 @@ function bucleEscaner() {
     } else if (ESCANER.modo === 'cargando') {
       txt = 'Preparando el escáner…';
     } else if (ESCANER.soloAMano) {
-      txt = 'Pon tu cara en el óvalo y toca «Tomar la foto ahora»';   // 22-oct-2026: ver T3
+      txt = 'Pon tu cara en la silueta y toca «Tomar la foto ahora»';   // 22-oct-2026: ver T3
     } else {
       txt = m && m.ok
         ? 'Quieto… ' + cuenta
@@ -9342,27 +9392,57 @@ function avisarFotoDelEncuadre() {
    medio), y el óvalo que se LLENA con la racha. `extra`: {cara y ojos (en
    fracciones de la zona que se ve), zona (en píxeles del lienzo: zonaVisible;
    sin ella, el lienzo entero), cargando, conCara}. */
+/* 26-oct-2026 — LA SILUETA, EN VEZ DEL ÓVALO. Joan: «aparece un óvalo pero no
+   tiene forma de cara … las caras tienen forma de huevo». Es una cabeza vista
+   de frente: más ancha arriba (la frente, las sienes) y angosta abajo (el
+   mentón), con el alto 1,35 veces el ancho. Cabe en el mismo rectángulo que
+   el óvalo (2·rx por 2·ry, el marco de decisión de RostroEnVivo.OVALO), así
+   que las medidas no cambian; solo el dibujo es un poco más ancho que rx
+   (ANCHO_SILUETA) para que la proporción sea la de una cabeza y no la de un
+   huevo de pie.
+   La curva: x = rw·sen(f)·(1 + HUEVO·cos(f)), y = cy − ry·cos(f), con f de 0
+   (coronilla) a 2π en el sentido del reloj. Arriba (cos f > 0) ensancha;
+   abajo (cos f < 0) estrecha: a la altura de la mandíbula queda al 75 % y
+   cerca del mentón al 38 % del ancho. `hasta` dibuja solo el tramo de 0 a
+   ese ángulo (el aro de avance), abierto; sin `hasta` es el contorno entero,
+   cerrado, que sirve de recorte. */
+var ANCHO_SILUETA = 1.07, HUEVO = 0.28, PASOS_SILUETA = 48;
+function trazarSilueta(ctx, cx, cy, rw, ry, hasta) {
+  var entero = hasta === undefined || hasta === null;
+  var fin = entero ? Math.PI * 2 : Math.max(0, Math.min(Math.PI * 2, +hasta || 0));
+  var n = Math.max(2, Math.ceil(PASOS_SILUETA * fin / (Math.PI * 2)));
+  ctx.beginPath();
+  for (var i = 0; i <= n; i++) {
+    var f = fin * i / n;
+    var x = cx + rw * Math.sin(f) * (1 + HUEVO * Math.cos(f)), y = cy - ry * Math.cos(f);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  if (entero) ctx.closePath();
+}
 function dibujarMarco(ctx, w, h, t, enganchado, avance, extra) {
   var x2 = extra || {};
   var z = x2.zona || { x: 0, y: 0, w: w, h: h };
   ctx.save();
   var cx = z.x + z.w / 2, cy = z.y + z.h / 2, rx = z.w * 0.32, ry = z.h * 0.36;
+  var rw = rx * ANCHO_SILUETA;   // 26-oct-2026: el ancho de la silueta dibujada (ver trazarSilueta)
   var col = enganchado ? '124,255,196' : (x2.cargando ? '255,255,255' : '245,197,66');
   /* 22-oct-2026 — EL ÓVALO SE LLENA desde abajo con el avance de la racha (la
-     de detecciones Y el tiempo en verde): si la persona se mueve, se vacía. */
+     de detecciones Y el tiempo en verde): si la persona se mueve, se vacía.
+     26-oct-2026 — la silueta, con los dos segundos en verde (avanceVerde). */
   if (enganchado && avance > 0) {
-    ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.clip();
+    ctx.save(); trazarSilueta(ctx, cx, cy, rw, ry); ctx.clip();
     ctx.fillStyle = 'rgba(124,255,196,.16)';
     var lleno = 2 * ry * Math.min(1, avance);
-    ctx.fillRect(cx - rx, cy + ry - lleno, 2 * rx, lleno);
+    ctx.fillRect(cx - rw * 1.1, cy + ry - lleno, 2.2 * rw, lleno);
     ctx.restore();
   }
-  /* el óvalo y las esquinas */
-  ctx.strokeStyle = 'rgba(' + col + ',.95)'; ctx.lineWidth = 3;
+  /* la silueta y las esquinas: punteada y en ámbar mientras busca, entera y
+     en verde con la cara en su sitio */
+  ctx.strokeStyle = 'rgba(' + col + ',.95)'; ctx.lineWidth = 3; ctx.lineJoin = 'round';
   if (!enganchado) ctx.setLineDash([9, 9]);
   if (!enganchado && !MOVIMIENTO_REDUCIDO) ctx.lineDashOffset = -t * 18;   // el punteado gira: está buscando
-  ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
-  ctx.setLineDash([]); ctx.lineDashOffset = 0;
+  trazarSilueta(ctx, cx, cy, rw, ry); ctx.stroke();
+  ctx.setLineDash([]); ctx.lineDashOffset = 0; ctx.lineJoin = 'miter';
   var L = Math.min(z.w, z.h) * 0.08, m = Math.min(z.w, z.h) * 0.06;
   [[z.x + m, z.y + m, 1, 1], [z.x + z.w - m, z.y + m, -1, 1], [z.x + m, z.y + z.h - m, 1, -1], [z.x + z.w - m, z.y + z.h - m, -1, -1]].forEach(function (k) {
     ctx.beginPath(); ctx.moveTo(k[0], k[1] + L * k[3]); ctx.lineTo(k[0], k[1]); ctx.lineTo(k[0] + L * k[2], k[1]); ctx.stroke();
@@ -9421,9 +9501,9 @@ function dibujarMarco(ctx, w, h, t, enganchado, avance, extra) {
       ctx.lineJoin = 'miter';
     }
   } else if (enganchado && !x2.conCara) {
-    /* Sin detector (el encuadre de siempre): la malla en el óvalo, como antes,
-       solo cuando hay algo enganchado. */
-    ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.clip();
+    /* Sin detector (el encuadre de siempre): la malla en la silueta, como
+       antes en el óvalo, solo cuando hay algo enganchado. */
+    ctx.save(); trazarSilueta(ctx, cx, cy, rw, ry); ctx.clip();
     ctx.strokeStyle = 'rgba(120,255,190,' + (MOVIMIENTO_REDUCIDO ? 0.24 : (0.18 + 0.12 * Math.sin(t * 3))) + ')'; ctx.lineWidth = 1;
     var paso2 = Math.max(18, w / 14), dd = MOVIMIENTO_REDUCIDO ? 0 : (t * 12) % paso2;
     for (var x = -paso2 + dd; x < w; x += paso2) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
@@ -9433,11 +9513,15 @@ function dibujarMarco(ctx, w, h, t, enganchado, avance, extra) {
   if (!enganchado) { ctx.restore(); return; }
   /* El arco de progreso sale de la RACHA de fotogramas buenos, no del reloj:
      si la persona se mueve, se cae y vuelve a empezar — que es justo lo que
-     tiene que ver para entender qué le piden. */
-  ctx.strokeStyle = 'rgba(120,255,190,.25)'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.ellipse(cx, cy, rx + 6, ry + 6, 0, 0, Math.PI * 2); ctx.stroke();
+     tiene que ver para entender qué le piden.
+     26-oct-2026 — con el módulo nuevo es el aro de los DOS SEGUNDOS EN VERDE
+     (avanceVerde), que recorre la silueta desde la coronilla; la cara que se
+     pierde lo vacía. Es lo que dispara. */
+  ctx.strokeStyle = 'rgba(120,255,190,.25)'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+  trazarSilueta(ctx, cx, cy, rw + 6, ry + 6); ctx.stroke();
   ctx.strokeStyle = 'rgba(120,255,190,.95)'; ctx.lineWidth = 4; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.ellipse(cx, cy, rx + 6, ry + 6, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, avance || 0)); ctx.stroke();
+  trazarSilueta(ctx, cx, cy, rw + 6, ry + 6, Math.PI * 2 * Math.min(1, avance || 0)); ctx.stroke();
+  ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
   ctx.restore();
 }
 /* 22-oct-2026 — LA FOTO CON RED DE SEGURIDAD (T4). Llamaba a
