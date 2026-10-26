@@ -124,8 +124,58 @@
        hay una tarjeta con bordes. Sin ventana (un navegador que no deja
        medir) la puerta sigue siendo el único juez, y vale NITIDEZ_MIN. */
     NITIDEZ_MIN_FRENTE: 5,
-    MOVIMIENTO_MAX: 6,    // diferencia media entre dos cuadros seguidos
-    CUADROS_FRENTE: 6,    // seguidos en verde antes de disparar el frente (~0,6 s)
+    /* 26-oct-2026 — LA QUIETUD QUE UNA MANO NO LOGRA. Joan, en su iPhone: «no
+       se toma la foto automáticamente, parece que es porque no se estabiliza
+       el celular y nunca se queda quieto». MOVIMIENTO_MAX = 6 era la
+       diferencia media absoluta entre dos grises seguidos de 96 px, y a 4K
+       un píxel de ese gris son 17 px del video (~0,8 mm a 12 cm): el temblor
+       de una mano, que corre la imagen 0,5-2 px de gris cada 100 ms, da
+       (medido en scratchpad lote-26/lectura-sin-temblor/medicion.md, con
+       cédulas fabricadas y las de la demo, reducidas por caja y por bilineal
+       2×2): 5,5-8 con 1 px y 7-13 con 1,5 px. Nunca verde, nunca dispara.
+       Lo que distingue el temblor de un barrido no es un número fijo sino
+       CUÁNTO cambiaría el propio cuadro si se corriera 1 px: su diferencia
+       consigo mismo a 1 px (`unPixel` en medirTarjeta). Dividido por eso,
+       el movimiento es un desplazamiento en píxeles de gris (`temblor`),
+       igual con cualquier tinta y con cualquier reducción. Medido SOBRE EL
+       GRIS SUAVIZADO 3×3 (los dos cuadros y la diferencia a 1 px): sin
+       suavizar, las barras del PDF417 (1-2 px en este gris) saturan la
+       diferencia en seguida —1 px daba 1,24 y un barrido de 6 px apenas
+       1,8-2,5— y no había dónde poner el umbral; suavizado, la cuenta sale
+       casi lineal: 0,7-1,0 con 1 px, 1,3-1,7 con 2 px, 1,8-2,2 con 3 px,
+       2,6-2,9 con 5 px, y 3,1-5,4 cuando la cédula entra deslizándose a
+       6 px por cuadro. El ruido del sensor sube las dos cosas por igual
+       (σ = 4 a 4K: menos de 0,3). Quieta es hasta TEMBLOR_MAX de esos
+       píxeles; MOVIMIENTO_MAX sigue valiendo sobre la diferencia cruda como
+       piso absoluto (lo que ya era quieto sigue siéndolo). Los picos del
+       temblor que se pasan de ahí los absorbe la racha (contarRachaDoc), no
+       la puerta; y la foto sigue siendo el cuadro MÁS NÍTIDO de la ventana
+       (EscanerCaptura): lo que protege la foto es la nitidez, no la
+       quietud. */
+    MOVIMIENTO_MAX: 6,    // diferencia media cruda entre dos cuadros seguidos: debajo de esto, quieta sin más
+    TEMBLOR_MAX: 2,       // … o hasta este desplazamiento en px de gris (`temblor`, sobre el gris suavizado)
+    CUADROS_FRENTE: 6,    // en verde (con huecos tolerados) antes de disparar el frente (~0,6 s)
+    /* 26-oct-2026 — LOS HUECOS DE LA RACHA. El temblor es al azar: a 1,5 px
+       de amplitud por eje, uno de cada cuatro cuadros se pasa de TEMBLOR_MAX.
+       Con la racha de antes (seis verdes SEGUIDOS) eso era empezar de cero
+       cada medio segundo. Un hueco de hasta HUECO_CUADROS cuadros seguidos
+       (y HUECO_MS, para un teléfono lento) no corta la racha ni cierra la
+       ventana. Hueco es SOLO un pico del temblor: 'movimiento' con un
+       temblor de hasta HUECO_TEMBLOR_MAX (el doble de lo tolerado; medido:
+       2-3 px diagonales dan 2,3-3,2). Todo lo demás corta: 'sin_tarjeta',
+       la luz, 'borrosa' (una mano que tapa la cédula de golpe baja los
+       bordes: 'borrosa', no 'movimiento'), y un 'movimiento' mayor, que es
+       otra escena —cambiar de cara de un cuadro al otro da 4,5; la cédula
+       entrando a 6 px por cuadro, 3,1-5,4—. Sin eso, el código visto en el
+       respaldo se le pegaba al frente que lo reemplazaba de golpe
+       (pruebas/el-frente-sobre-rayas-finas.test.js). Un barrido de verdad
+       falla TODOS los cuadros y se corta al primero o al tercero.
+       Simulado (lote-26/lectura-sin-temblor/simular.js): con ±1 px por eje
+       y por cuadro, seis verdes en 0,6-0,9 s en las cinco cédulas; con ±1,5
+       px, en 1-2 s; deslizando a 6 px por cuadro, nunca. */
+    HUECO_CUADROS: 2,
+    HUECO_MS: 300,
+    HUECO_TEMBLOR_MAX: 4,
     MS_ENTRE_LECTURAS: 250 // como mucho cuatro decodificaciones por segundo
   };
 
@@ -230,22 +280,110 @@
     var dif = 0;
     for (var i = 0; i < n; i++) dif += Math.abs(g[i] - previa[i]);
     base.movimiento = dif / n;
-    if (base.movimiento > TARJETA.MOVIMIENTO_MAX) { base.falla = 'movimiento'; return base; }
+    /* 26-oct-2026 — EL TEMBLOR CUENTA COMO QUIETA (ver TARJETA.TEMBLOR_MAX).
+       Sobre los dos grises suavizados 3×3: `unPixel`, lo que cambiaría ESTE
+       gris corrido 1 px (su diferencia consigo mismo, a lo ancho y a lo
+       alto, promediadas, sobre todo el gris, que es donde se mide el
+       movimiento); `temblor`, el movimiento en esas unidades, o sea en
+       píxeles de gris. Se dejan en la medida para el panel de pruebas y
+       para quien calibre con teléfonos de verdad. Quieta: la diferencia
+       cruda bajo el piso absoluto de siempre, O el temblor bajo
+       TEMBLOR_MAX. Las dos medidas se dejan siempre, también cuando no
+       deciden (contarRachaDoc mira `temblor` para saber si un cuadro
+       fallido es un pico del temblor o un cambio de escena). */
+    var gs = suavizar3x3(g, w, h), ps = suavizar3x3(previa, w, h), ds = 0;
+    for (var k = 0; k < n; k++) ds += Math.abs(gs[k] - ps[k]);
+    base.unPixel = unPixelDe(gs, w, h);
+    base.temblor = base.unPixel > 0 ? (ds / n) / base.unPixel : 999;
+    if (base.movimiento > TARJETA.MOVIMIENTO_MAX && base.temblor > TARJETA.TEMBLOR_MAX) { base.falla = 'movimiento'; return base; }
     base.ok = true; base.falla = '';
     return base;
+  }
+  /* El promedio de cada píxel con sus ocho vecinos (los del borde, con los
+     que tienen). Ensancha las barras y las letras de 1-2 px, que es lo que
+     hace que la diferencia entre cuadros crezca con el desplazamiento en
+     vez de saturar al primer píxel. */
+  function suavizar3x3(g, w, h) {
+    var o = new Float32Array(w * h);
+    for (var y = 0; y < h; y++) {
+      var y0 = y > 0 ? y - 1 : y, y1 = y + 1 < h ? y + 1 : y;
+      for (var x = 0; x < w; x++) {
+        var x0 = x > 0 ? x - 1 : x, x1 = x + 1 < w ? x + 1 : x, s = 0, c = 0;
+        for (var yy = y0; yy <= y1; yy++) for (var xx = x0; xx <= x1; xx++) { s += g[yy * w + xx]; c++; }
+        o[y * w + x] = s / c;
+      }
+    }
+    return o;
+  }
+  /* La diferencia media de un gris consigo mismo a 1 px (horizontal y
+     vertical, promediadas): lo que produciría correrlo un píxel. */
+  function unPixelDe(g, w, h) {
+    var sx = 0, nx = 0, sy = 0, ny = 0;
+    for (var y = 0; y < h; y++) {
+      var b = y * w;
+      for (var x = 0; x < w; x++) {
+        var v = g[b + x];
+        if (x + 1 < w) { sx += Math.abs(g[b + x + 1] - v); nx++; }
+        if (y + 1 < h) { sy += Math.abs(g[b + w + x] - v); ny++; }
+      }
+    }
+    return ((nx ? sx / nx : 0) + (ny ? sy / ny : 0)) / 2;
+  }
+
+  /* ==========================================================================
+   * LA RACHA CON HUECOS — 26 de octubre de 2026
+   *
+   * La página contaba `estables` (cuadros SEGUIDOS en verde) y la ventana del
+   * mejor cuadro se tiraba entera en el primer cuadro que no lo fuera. Con el
+   * temblor tolerado en la puerta (TEMBLOR_MAX) quedan los picos: un cuadro
+   * de cada cuatro a 1,5 px de amplitud, uno de cada diez a 1 px. Aquí se
+   * decide si un cuadro fallido es un HUECO (la racha sigue, la ventana
+   * sigue, el cuadro no suma) o un CORTE (todo de cero). Solo un pico del
+   * temblor puede ser hueco: 'movimiento' con `temblor` de hasta
+   * TARJETA.HUECO_TEMBLOR_MAX (ver ahí qué deja afuera y por qué), y solo
+   * hasta TARJETA.HUECO_CUADROS seguidos y TARJETA.HUECO_MS. Sin racha
+   * empezada no hay hueco: el primer cuadro (sin previa) y una cédula que
+   * llega no ganan nada por fallar.
+   * Sin estado propio: la página guarda lo que devuelve (en ESCDOC.estables,
+   * .hueco y .msHueco, que son suyos: las pruebas y el panel los ponen y los
+   * leen) y lo vuelve a pasar.
+   * ======================================================================== */
+  /**
+   * @param r  {estables, hueco, msHueco}: la racha hasta ahora (vacío al
+   *           empezar un lado)
+   * @param m  la medida de este cuadro (medirTarjeta), o null
+   * @param dt ms desde el cuadro anterior
+   * @returns {estables, hueco, msHueco, verde, puente}
+   *   estables: cuadros en verde de la racha (los huecos no suman ni restan);
+   *   verde: este cuadro cuenta como «tarjeta bien puesta» (ok, o un hueco
+   *          tolerado); puente: es un hueco tolerado (ok falso, racha viva).
+   */
+  function contarRachaDoc(r, m, dt) {
+    var e = (r && +r.estables) || 0, h = (r && +r.hueco) || 0, ms = (r && +r.msHueco) || 0;
+    var d = Math.max(0, +dt || 0);
+    if (m && m.ok) return { estables: e + 1, hueco: 0, msHueco: 0, verde: true, puente: false };
+    var falla = m ? m.falla : 'sin_tarjeta', t = m ? +m.temblor : NaN;
+    var pico = falla === 'movimiento' && isFinite(t) && t <= TARJETA.HUECO_TEMBLOR_MAX;
+    var puede = e > 0 && pico && h + 1 <= TARJETA.HUECO_CUADROS && ms + d <= TARJETA.HUECO_MS;
+    if (puede) return { estables: e, hueco: h + 1, msHueco: ms + d, verde: true, puente: true };
+    return { estables: 0, hueco: 0, msHueco: 0, verde: false, puente: false };
   }
 
   /* Lo que la persona lee. Cada frase dice qué hacer, no qué pasó.
      21-oct-2026 — `borrosa` decía «Acércala un poco»: con el marco de pie lo
      probable era tenerla lejos. Acostada, lo probable es lo contrario —quien
      llena el marco la pega al lente y la cámara no enfoca, que fue lo de
-     Joan—, y desde 96 px no se sabe cuál de las dos es. Se dicen las dos. */
+     Joan—, y desde 96 px no se sabe cuál de las dos es. Se dicen las dos.
+     26-oct-2026 — `movimiento` decía «Quieta…», y una mano nunca está quieta
+     del todo: desde hoy la puerta deja pasar el temblor, y lo que la frena
+     es un movimiento de verdad (o el primer cuadro, que todavía no tiene con
+     qué compararse). «Sosténla ahí» es lo que sirve en los dos casos. */
   var TEXTO_TARJETA = {
     poca_luz: 'Busca un sitio con más luz',
     mucha_luz: 'Hay un reflejo: inclínala un poco',
     sin_tarjeta: 'Pon la cédula dentro del marco',
     borrosa: 'Aléjala o acércala un poco y espera el enfoque',
-    movimiento: 'Quieta…',
+    movimiento: 'Sosténla ahí…',
     '': 'Leyendo…'
   };
   function textoDeTarjeta(m) {
@@ -1220,7 +1358,7 @@
   }
 
   return {
-    VERSION: '2026-10-21',
+    VERSION: '2026-10-26',
     PROPORCION: PROPORCION,
     HORAS_REGISTRO_VIVO: HORAS_REGISTRO_VIVO,
     /* 19-oct-2026 — la cédula va primero: fotos sin dueño y la expedición */
@@ -1238,6 +1376,8 @@
     GIROS_DE_RESCATE: GIROS_DE_RESCATE,
     grisDeImageData: grisDeImageData,
     medirTarjeta: medirTarjeta,
+    /* 26-oct-2026 — la racha que tolera los picos del temblor */
+    contarRachaDoc: contarRachaDoc,
     textoDeTarjeta: textoDeTarjeta,
     rectanguloGuia: rectanguloGuia,
     decodificarLuminancias: decodificarLuminancias,

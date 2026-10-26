@@ -266,9 +266,25 @@ describe('el escáner del frente', () => {
     cuadros(P, 8);
     assert.equal(P.ev('FOTOS.cedula_frente'), undefined);
     /* La persona la voltea: la tarjeta se mueve (la puerta deja de estar en
-       verde) y lo visto en esa racha se olvida. */
-    P.ev('window.__medida = { ok: false, nitidez: 23, falla: "movimiento" };');
-    cuadros(P, 2);
+       verde) y lo visto en esa racha se olvida.
+       26-oct-2026 — REESCRITA: eran dos cuadros de «movimiento». Desde hoy
+       la racha tolera hasta dos cuadros así (son los picos del temblor de la
+       mano: EC.contarRachaDoc) y lo visto se queda; voltear una cédula toma
+       más que eso, y además la saca del marco. Primero se mira que el pico
+       no la olvide, y después la vuelta de verdad: tres cuadros. (`temblor`
+       2,5: un pico; un cambio de escena da más de 4 y corta solo.) */
+    /* El reloj aquí es el de verdad, y con la suite entera corriendo los
+       cuadros tardan: cada mirada del frente (una por 500 ms) que ve el
+       código vuelve a poner la racha en cero, y sin racha empezada un pico
+       no es hueco sino corte. Lo que se prueba es el hueco, no el reloj:
+       tres cuadros verdes sin mirar (tPatron = ahora) y después el pico,
+       medido desde ahora (tUltimo = ahora, que es lo que cuenta HUECO_MS). */
+    for (let i = 0; i < 3; i++) P.ev('ESCDOC.tPatron = Date.now(); ESCDOC.tUltimo = Date.now(); bucleEscanerDoc()');
+    assert.ok(P.ev('ESCDOC.estables') >= 3 && P.ev('ESCDOC.vioCodigo'), 'la prueba no prueba el caso: no hay racha con el código visto');
+    P.ev('window.__medida = { ok: false, nitidez: 23, falla: "movimiento", temblor: 2.5 };');
+    for (let i = 0; i < 2; i++) P.ev('ESCDOC.tPatron = Date.now(); ESCDOC.tUltimo = Date.now(); bucleEscanerDoc()');
+    assert.equal(P.ev('ESCDOC.vioCodigo'), true, 'un pico del temblor (dos cuadros) olvidó el código visto: la reja del frente se abre con cada pulso');
+    cuadros(P, 1);
     assert.equal(P.ev('ESCDOC.vioCodigo'), false, 'el código visto antes de voltearla se quedó pegado');
     ponerTarjeta(P, FRENTE);
     /* tPatron = 0: voltearla toma más de medio segundo, y el banco no tiene

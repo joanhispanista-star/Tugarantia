@@ -402,11 +402,14 @@ describe('el oyente de las letras (ocrAlTomarLaCedula), sin motor', () => {
     assert.equal(pendiente(P, 'frente'), false, 'el frente de la digital (con el RH y el sexo) pasó por las franjas');
     assert.equal(recortes.length, 0, 'se recortó algo de la digital');
     /* Un respaldo NUEVO: la marca era de la foto de antes, y no le sirve a
-       esta para nada — ni como digital ni como amarilla. Sin su propia prueba
-       (21-oct-2026, R1) no se lee; con ella, sí. */
+       esta para nada — ni como digital ni como amarilla.
+       26-oct-2026 — y sin marca ('') SE LEE: la regla nueva lee salvo con la
+       digital probada (antes exigía la amarilla probada, y dejaba sin letras
+       a la amarilla gastada). Con la amarilla probada, igual que siempre. */
     P.ev("FOTOS.cedula_reverso = 'AMARILLA'; avisarCedulaTomada('frente', __lienzo, null, {});");
     assert.equal(P.ev('tipoDelRespaldo()'), '', 'la marca de la foto de antes se quedó pegada a un respaldo que ya no es el suyo');
-    assert.equal(pendiente(P, 'frente'), false, 'sin prueba de la amarilla se leyó el frente');
+    assert.equal(pendiente(P, 'frente'), true, 'con el respaldo desconocido no se intentó leer el frente');
+    P.ev("delete OCR_CEDULA.pendientes.frente;");
     amarilla(P, 'AMARILLA');
     P.ev("avisarCedulaTomada('frente', __lienzo, null, {});");
     assert.equal(pendiente(P, 'frente'), true, 'con la amarilla probada el frente no se leyó');
