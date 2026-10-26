@@ -70,7 +70,9 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         LAS TRES pantallas (CRM, espejo y la app del socio,
                         26-oct) con el mismo contrato (la cabecera del archivo
                         lo documenta); pruebas/las-tres-pantallas-el-mismo-
-                        reloj.test.js vigila que ninguna se descuelgue.
+                        reloj.test.js vigila que ninguna se descuelgue. La
+                        prueba de Joan del jue 29-oct, paso a paso y con lo
+                        que debe ver, está en RECETA-CHAT-1.md (no va al repo).
                         Sin HTML y sin llamadas a la nube: cada página pasa su
                         `pedir`. Pruebas: pruebas/chat-vivo.test.js.
   motor.js              El motor del producto de HOY (quincenal y con garantía).
