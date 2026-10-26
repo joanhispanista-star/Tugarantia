@@ -3954,6 +3954,12 @@ function confirmarCedulaSinLectura() {
    después, la confirmación deja de valer y se pregunta al abrir la cuenta.
    Lo leído sigue sin ser «la cédula leída» (FOTOS.cedula_leida): no decide
    de quién son las fotos en la base ni borra nada.
+   Las letras del frente QUE ESTÁ GUARDADO (los graves del remate): un
+   frente nuevo que las letras no leen —la caja de la cámara del celular—, o
+   «Repetir» el frente, suelta lo que las letras escribieron del anterior
+   (ocrSoltarLado en tomarFoto y en repetirDoc), y con eso v.lados.frente y
+   la marca de la casilla. Antes se quedaban, y el número leído del frente
+   de María confirmaba el frente de otra persona tomado después por la caja.
    --------------------------------------------------------------------------- */
 function numeroDeLasLetrasEsElEscrito() {
   var v = FOTOS.cedula_vista;
@@ -6461,6 +6467,13 @@ function tomarFoto(ev, key) {
     /* 20-oct-2026, revisión (F11, F15) — un respaldo nuevo pide el frente otra
        vez: ver prepararRespaldoNuevo. */
     var frenteSoltado = key === 'cedula_reverso' && prepararRespaldoNuevo();
+    /* 26-oct-2026 (graves del remate) — UN FRENTE QUE LAS LETRAS NO LEEN. La
+       caja de la cámara del celular no pasa por las letras: lo que escribieron
+       del frente anterior (el número, los nombres, «leído de tu cédula» y
+       v.lados.frente) se va con él, como cuando el escáner toma un frente
+       nuevo (ocrAnotarRecorte). Si no, confirmarPorLasLetras daba por suya,
+       sin «¿Es tuya?», una cédula cuyo frente nadie leyó. */
+    if (key === 'cedula_frente') ocrSoltarLado('frente');
     FOTOS[key] = salidas[0];
     /* 17-sep-2026 — Y LA PANTALLA DICE LO QUE DE VERDAD PASÓ. Si el teléfono no
        dejó escribirla, la foto vive solo en memoria: sirve para seguir ahora
@@ -7339,6 +7352,11 @@ function repetirDoc(lado) {
      Hasta hoy la lectura se borraba aquí, y con ella la única forma de saber
      que el respaldo que llega después es de otra persona. */
   if (lado === 'reverso') prepararRespaldoNuevo();
+  /* 26-oct-2026 (graves del remate) — y repetir el frente suelta lo que sus
+     letras escribieron: la foto de la que salió ya no está, y el que llegue
+     por la caja de la cámara del celular nadie lo lee (ver EL NÚMERO IMPRESO
+     TAMBIÉN DICE DE QUIÉN ES). El del escáner se vuelve a leer. */
+  else if (lado === 'frente') ocrSoltarLado('frente');
   delete FOTOS['cedula_' + lado];
   guardarFotos(); refrescarDoc();
   if (hayCamaraEnVivo()) iniciarEscanerDoc(lado);
@@ -10047,7 +10065,9 @@ function archivosDe(l) {
        se abrió la cuenta. Un documento vacío es «no se sabe», nunca «el
        mismo» (V1: borrar la casilla antes de irse hacía subir la de otro);
      · una cédula sin código solo sube si la persona la miró y dijo «es mía»
-       con ese mismo documento (V2, cedulaSinLecturaPorConfirmar).
+       con ese mismo documento (V2, cedulaSinLecturaPorConfirmar), o si ese
+       documento es el que las letras leyeron del frente que sube y nadie lo
+       cambió (confirmarPorLasLetras, 26-oct-2026: deja la misma marca).
    Una cola que dejó la versión anterior (`legado`) ya pasó sus reglas al
    abrir la cuenta; por ella responde la reja de la base. */
 function motivoParaNoSubir(lote, cel, doc, autorizo) {

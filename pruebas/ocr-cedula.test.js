@@ -785,6 +785,56 @@ describe('5. la página: «Revisa tus datos» se llena solo, y la persona confir
     assert.equal(Q.ev('REGISTRO.documento'), '1020304050', 'se borró el número que escribió la persona');
   });
 
+  /* 26-oct-2026 (los graves del remate) — UN FRENTE QUE LAS LETRAS NO LEEN.
+     El refutador del remate: escanear las dos caras (las letras leen
+     52.123.456 del frente), «Repetir» el frente, cancelar y tomarlo con la
+     caja de la cámara del celular —que no pasa por las letras— con la foto
+     de OTRA persona. Lo que las letras escribieron del frente anterior se
+     quedaba (el número, los nombres, «leído de tu cédula», v.lados.frente),
+     confirmarPorLasLetras lo daba por confirmado en «Están bien» sin «¿Es
+     tuya?», y la cola subía el frente de otra persona con el número de
+     María. Antes de 9c70a2c ahí salía la pregunta. Un frente nuevo suelta lo
+     que las letras escribieron del anterior, como cuando el escáner toma
+     otro (ocrAnotarRecorte); con «Repetir» y sin él (la caja que dice
+     «tocar para cambiar»). */
+  test('un frente nuevo que las letras no leen (la caja de la cámara, con o sin «Repetir») se lleva lo que escribieron del anterior, y vuelve el «¿Es tuya?»', async () => {
+    for (const repetir of [true, false]) {
+      const como = repetir ? '(«Repetir» y la caja)' : '(la caja, sin «Repetir»)';
+      const { P } = abrir();
+      escanear(P);
+      await asentar();
+      assert.equal(P.ev('REGISTRO.documento'), '52123456', 'la prueba no prueba el caso: las letras no llenaron el número');
+      assert.equal(P.ev('FOTOS.cedula_vista.lados.frente'), true);
+      P.ev("pintarRegistro(indiceDe('documento'))");
+      if (repetir) P.ev("repetirDoc('frente')");
+      P.ev('mostrarFotoFija()');
+      P.ev("comprimirVarias = function () { return Promise.resolve(['data:image/jpeg;base64,FRENTE_DE_OTRA_PERSONA']); };");
+      await P.ev("tomarFoto({ target: { files: [{ name: 'x.jpg' }], value: '' } }, 'cedula_frente')");
+      await asentar();
+      assert.equal(P.ev('FOTOS.cedula_frente'), 'data:image/jpeg;base64,FRENTE_DE_OTRA_PERSONA');
+      assert.equal(P.ev('!!(FOTOS.cedula_vista && FOTOS.cedula_vista.lados && FOTOS.cedula_vista.lados.frente)'), false,
+        'el frente nuevo quedó como leído por las letras ' + como);
+      assert.equal(P.ev('REGISTRO.documento'), undefined, 'el número leído del frente anterior se quedó ' + como);
+      assert.equal(P.ev('REGISTRO.nombres'), undefined, 'los nombres leídos del frente anterior se quedaron ' + como);
+      assert.equal(P.ev('REGISTRO.expedicion'), '2003-04-20', 'la expedición es del respaldo, que no cambió ' + como);
+      assert.deepEqual(JSON.parse(P.ev('JSON.stringify(resumenDeLaVista(FOTOS))')).llenados, ['expedicion'],
+        'la huella le diría a Joan que el número salió de las letras de ese frente ' + como);
+      /* Quien está escribe a mano el número de María: «Están bien» pregunta,
+         y sin el «es mía» la cola no sube nada. */
+      if (pasoActual(P) !== 'identidad') P.ev("pintarRegistro(indiceDe('identidad'))");
+      P.ev("U.camposDelGrupo('identidad').forEach(function (c) { $('f_' + c.id).value = REGISTRO[c.id] || ''; });" +
+           "$('f_documento').value = '52123456'; $('f_apellidos').value = 'PEREZ GOMEZ'; $('f_nombres').value = 'MARIA ALEJANDRA';" +
+           "$('f_tipo_doc').value = 'Cédula de ciudadanía';");
+      P.ev('siguientePaso()');
+      assert.equal(pasoActual(P), 'identidad', 'pasó sin preguntar ' + como + ': ' + P.ev("$('errReg').textContent"));
+      assert.match(P.ev("$('errReg').innerHTML"), /id="btnCedulaEsMia"/, 'no preguntó «¿Es tuya?» ' + como + ': ' + P.ev("$('errReg').textContent"));
+      assert.equal(P.ev('FOTOS.cedula_confirmada'), undefined, 'se dio por confirmada ' + como);
+      P.ev("FOTOS.de = { celular: '3001112233', intento: REGISTRO.intento, t: Date.now() };");
+      assert.equal(P.ev('motivoParaNoSubir(FOTOS, "3001112233", "52123456", true)'), 'sin_confirmar',
+        'la cola subiría el frente de otra persona ' + como);
+    }
+  });
+
   test('con la página fabricada: el número de las letras en una cédula de OTRO no borra nada', async () => {
     /* Con el código leído de María, el frente dice otro número: las letras no
        deciden de quién es la cédula (esDeOtraPersona solo mira el código). */
