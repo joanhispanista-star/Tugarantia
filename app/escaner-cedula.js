@@ -385,7 +385,7 @@
      26-oct-2026 — `movimiento` decía «Quieta…», y una mano nunca está quieta
      del todo: desde hoy la puerta deja pasar el temblor, y lo que la frena
      es un movimiento de verdad (o el primer cuadro, que todavía no tiene con
-     qué compararse). «Sosténla ahí» es lo que sirve en los dos casos.
+     qué compararse). «Sostenla ahí» es lo que sirve en los dos casos.
      26-oct-2026 — `sin_tarjeta` dice DE PIE: el marco volvió a ser vertical
      (rectanguloGuia) y quien la acuesta por costumbre no la llena nunca. */
   var TEXTO_TARJETA = {
@@ -393,7 +393,7 @@
     mucha_luz: 'Hay un reflejo: inclínala un poco',
     sin_tarjeta: 'Pon la cédula DE PIE dentro del marco',
     borrosa: 'Aléjala o acércala un poco y espera el enfoque',
-    movimiento: 'Sosténla ahí…',
+    movimiento: 'Sostenla ahí…',
     '': 'Leyendo…'
   };
   function textoDeTarjeta(m) {

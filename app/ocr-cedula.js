@@ -333,7 +333,7 @@
     var usadas = {};
     /* En qué línea quedó el rótulo de cada campo, y de qué línea salió su
        valor (para UN RÓTULO SÍ Y EL OTRO NO, abajo). */
-    var lineaRotulo = {}, lineaValor = {};
+    var lineaRotulo = {}, lineaValor = {}, rotulosVistos = {};
     var valorJunto = function (i) {
       /* El rótulo pegado al valor en la misma línea: «PEREZ GOMEZ APELLIDOS». */
       var v = normalizarNombre(lineas[i]);
@@ -353,6 +353,7 @@
     };
     lineas.forEach(function (l, i) {
       var r = rotuloDe(l);
+      if (r) rotulosVistos[r] = true;
       if (!r || salida[r]) return;
       var v = valorJunto(i), k = i;
       if (!v) { k = lineaDeNombre(i - 1, i - 2); v = k >= 0 ? normalizarNombre(lineas[k]) : ''; }
@@ -383,13 +384,19 @@
            En la tarjeta los apellidos van justo encima de los nombres (con
            su rótulo en medio) y después del número: con un rótulo visto, el
            otro valor es la línea de nombre de al lado, a una o dos líneas,
-           sin pasar del número. Si no hay ninguna ahí, no se adivina. */
+           sin pasar del número. Si no hay ninguna ahí, no se adivina.
+           26-oct-2026 (verificación final) — SOLO SI EL OTRO RÓTULO NO SE VIO.
+           Con los dos rótulos a la vista y un valor perdido (un reflejo del
+           holograma sobre «MARIA JOSE»), la búsqueda desde «APELLIDOS» se
+           saltaba el rótulo «NOMBRES» y llegaba a la FIRMA: «MARIA» en la
+           casilla de los nombres, marcada «leído de tu cédula». Con el rótulo
+           visto y su valor perdido, no se adivina: se escribe a mano. */
         var k = -1;
-        if (salida.nombres && !salida.apellidos) {
+        if (salida.nombres && !salida.apellidos && !rotulosVistos.apellidos) {
           var arriba = lineaValor.nombres - 1, tope = Math.max(iNum + 1, lineaValor.nombres - 2);
           if (arriba >= tope) k = lineaDeNombre(arriba, tope);
           if (k > iNum) salida.apellidos = normalizarNombre(lineas[k]);
-        } else if (salida.apellidos && !salida.nombres) {
+        } else if (salida.apellidos && !salida.nombres && !rotulosVistos.nombres) {
           k = lineaDeNombre(lineaRotulo.apellidos + 1, lineaRotulo.apellidos + 2);
           if (k > iNum) salida.nombres = normalizarNombre(lineas[k]);
         }

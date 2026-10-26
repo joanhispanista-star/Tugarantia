@@ -349,7 +349,7 @@ describe('la página con la mano temblando', () => {
       lectorQueVeSinLeer(E.P);
       const r = await temblar(E, 'reverso', caraEnVideo('reverso', guia), TEMBLOR(guia), 60);
       assert.equal(r.tomada, false, 'la prueba no prueba el caso: con la regla vieja el respaldo se tomó solo en ' + r.cuadros + ' cuadros');
-      assert.ok(r.letreros.some(l => /Sosténla ahí/.test(l)), 'la puerta nunca dijo que se movía: ' + r.letreros.join(' | '));
+      assert.ok(r.letreros.some(l => /Sostenla ahí/.test(l)), 'la puerta nunca dijo que se movía: ' + r.letreros.join(' | '));
       const S = abrirConCamara();
       await encender(S, 'frente');
       const f = await temblar(S, 'frente', caraEnVideo('frente', guia), TEMBLOR(guia), 60, 5);

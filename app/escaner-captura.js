@@ -145,10 +145,17 @@
   /* Lo que la persona lee mientras la ventana decide. Cada frase dice qué
      hacer, no qué pasó, y ninguna promete lo que el código no hace. (Lo que
      se pide en cada cara al empezar vive en play/index.html, textoDelLado.) */
+  /* 26-oct-2026 — «Quieta…» → «Sostenla…». Joan: «no se estabiliza el
+     celular y nunca se queda quieto». Desde lectura-sin-temblor la puerta
+     acepta el temblor de una mano: nadie tiene que quedarse quieto, solo
+     sostener la cédula en el marco, y estos letreros salían mezclados con
+     «Sostenla ahí…» de la puerta (EC, escaner-cedula.js). Este archivo es
+     nuevo en v139 (no estaba publicado), así que cambiarlo no exige la regla
+     de versiones. Lo vigila pruebas/sin-quieta-en-la-ventana.test.js. */
   var TEXTO = {
-    MIDIENDO: 'Quieta… buscando la foto más nítida',
-    LEYENDO: 'Quieta… leyendo el código',
-    TOMANDO: 'Quieta… tomando la foto',
+    MIDIENDO: 'Sostenla… buscando la foto más nítida',
+    LEYENDO: 'Sostenla… leyendo el código',
+    TOMANDO: 'Sostenla… tomando la foto',
     ALEJALA: 'Aléjala un poco y espera el enfoque',
     BUSCA_LUZ: 'Busca más luz y espera el enfoque',
     SIN_CODIGO: 'No vemos código en ese lado: si es el frente, voltéala',

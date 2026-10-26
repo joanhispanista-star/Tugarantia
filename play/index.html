@@ -7115,8 +7115,16 @@ var TEXTO_SIN_CODIGO_A_CIEGAS = 'No vemos el código: aléjala un poco o, si es 
    barras»: no trae el PDF417, pero sí un QR, y desde hoy ese QR es lo que la
    hace tomarse sola. Si a los 12 s nada se vio, puede que este teléfono no
    lea QR: se dice qué hacer sin prometer que se toma sola. */
+/* 26-oct-2026 (verificación final) — Y TAMBIÉN LE HABLA A LA AMARILLA. Con el
+   código gastado y la mano temblando, la amarilla puede pasar los 12 s sin que
+   se vea nada de su PDF417, y la nota salía para ella (notaCedulaNueva no la
+   distingue de la gris: desde el teléfono las dos son «una tarjeta sin código
+   a la vista»). Decía solo «escribes tus datos», que para la amarilla ya no
+   es verdad: sus datos se leen de las letras. Ahora dice lo que pasa con cada
+   una, sin adivinar cuál es. */
 var TEXTO_CEDULA_NUEVA = '¿Tu cédula es la nueva, gris y de plástico? Pon en el marco el lado del QR. ' +
-  'Sus datos todavía no los sabemos leer: si la foto no se toma sola, toca «Tomar la foto ahora» y escribes tus datos.';
+  'Sus datos todavía no los sabemos leer: si la foto no se toma sola, toca «Tomar la foto ahora» y escribes tus datos. ' +
+  'Si es la amarilla, toca «Tomar la foto ahora» igual: te llenamos lo que alcancemos a leer de las letras.';
 /* 8-oct-2026 — un lado nuevo empieza de cero: la racha, el rato en verde y el
    mejor cuadro son de ESTE lado, no del anterior. */
 function reiniciarCuentaDoc() {
@@ -7715,11 +7723,11 @@ function bucleEscanerDoc() {
        demasiado cerca, y ese consejo empujaba justo hacia el desenfoque. */
     /* 26-oct-2026 — «Quieta…» pedía lo que una mano no da; la puerta ya tolera
        el temblor y lo que se le pide a la persona es sostenerla ahí. */
-    if (verde && !esFrente) txt = (resp.avance >= 1 && ESCDOC.lecturas >= EC.RESPALDO.LECTURAS_MIN) ? 'Sosténla… tomando la foto'
+    if (verde && !esFrente) txt = (resp.avance >= 1 && ESCDOC.lecturas >= EC.RESPALDO.LECTURAS_MIN) ? 'Sostenla… tomando la foto'
       : (!window.ZXing && !ESCDOC.nativo) ? 'Escaneando…'
       : (ESCDOC.ilegibles >= 2 ? 'Casi: enderézala un poco y sosténla ahí' : 'Leyendo el código…');
     if (verde && esFrente) txt = fre.voltear ? TEXTO_FRENTE_ES_RESPALDO
-      : 'Sosténla… ' + Math.max(1, Math.ceil((EC.TARJETA.CUADROS_FRENTE - ESCDOC.estables) / 3));
+      : 'Sostenla… ' + Math.max(1, Math.ceil((EC.TARJETA.CUADROS_FRENTE - ESCDOC.estables) / 3));
     if (verde && esFrente && fre.voltear && t > 10) {
       var nf = $('docNota');
       if (nf && !nf.textContent) nf.textContent = TEXTO_FRENTE_DOS_TOQUES;
@@ -7969,7 +7977,7 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
     vioFranja: !esFrente && ESCDOC.vioFranja === true });
   dibujarMarcoDoc(true, d.avance);
   var T = ECAP.TEXTO, txt = '';
-  if (d.estado === 'disparar') txt = sinQuieta(T.TOMANDO);
+  if (d.estado === 'disparar') txt = T.TOMANDO;
   else if (d.estado === 'alejala') {
     ESCDOC.cerroBajoElPiso = !esFrente && !ESCDOC.ventanaConPiso;
     avisoDoc(ESCDOC.pedirLuz ? T.BUSCA_LUZ : T.ALEJALA); ESCDOC.ventana = null;
@@ -7986,7 +7994,7 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
      sigue con cada mejor cuadro de las ventanas que vienen. */
   else if (d.estado === 'solo_franja') { avisoDoc(T.SOLO_FRANJA); ESCDOC.ventana = null; }
   else if (d.estado === 'con_codigo') { avisoDoc(TEXTO_FRENTE_ES_RESPALDO); ESCDOC.ventana = null; }
-  else txt = sinQuieta((!esFrente && (window.ZXing || ESCDOC.nativo)) ? T.LEYENDO : T.MIDIENDO);
+  else txt = (!esFrente && (window.ZXing || ESCDOC.nativo)) ? T.LEYENDO : T.MIDIENDO;
   if (d.estado === 'disparar') ESCDOC.aviso = null;
   /* `verde` para el letrero: no, si la última ventana del respaldo cerró sin
      foto por debajo del piso de siempre (vuelve el «Tranquilo…» de los 20 s). */
@@ -8002,23 +8010,13 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
   ESCDOC.tempo = setTimeout(bucleEscanerDoc, 100);
   return true;
 }
-/* 26-oct-2026 — «QUIETA…» YA NO ES LA REGLA, TAMPOCO CON LA VENTANA. Desde
-   lectura-sin-temblor la puerta acepta el temblor de una mano: nadie tiene que
-   quedarse quieto, solo sostener la cédula en el marco, y el camino sin ventana
-   ya dice «Sosténla…». Pero el que usan casi todos los teléfonos (la ventana del
-   mejor cuadro) toma sus letreros de app/escaner-captura.js —«Quieta… leyendo el
-   código», «Quieta… tomando la foto»— y salían mezclados con «Sosténla ahí…».
-   Ese .js está publicado sin ?v=: cambiarlo obliga a la regla de versiones
-   entera, y una página con el .js viejo en la caché seguiría diciendo
-   «Quieta…». Se traducen aquí, en la página, que se publica junta con su regla. */
-function sinQuieta(t) { return typeof t === 'string' ? t.replace(/^Quieta…/, 'Sosténla…') : t; }
 /* El letrero de abajo. Un aviso que cerró una ventana («Aléjala…», «Hay un
    reflejo…») se deja leer su rato aunque el bucle repinte diez veces por
    segundo; después, lo de ahora. */
 function pintarEstadoDoc(el, txt, t, ahora, verde) {
   if (!el) return;
   if (ESCDOC.aviso && ahora < ESCDOC.aviso.hasta) txt = ESCDOC.aviso.texto;
-  else if (!txt) txt = sinQuieta(ECAP ? ECAP.TEXTO.MIDIENDO : 'Quieta…');
+  else if (!txt) txt = ECAP ? ECAP.TEXTO.MIDIENDO : 'Sostenla…';
   if (t > 20 && !verde) txt = 'Tranquilo: si no sale, toca «Tomar la foto ahora»';
   el.textContent = txt;
 }
@@ -8426,9 +8424,14 @@ function ocultarListoDoc() { var e = $('escDoc'); if (e) e.classList.remove('lei
  * LAS REGLAS QUE ESTO NO PUEDE ROMPER, y por qué:
  *   · Lo leído de las letras vive en FOTOS.cedula_vista y NUNCA en
  *     FOTOS.cedula_leida. No decide de quién es la cédula (esDeOtraPersona, la
- *     reja de la base, motivoParaNoSubir), no se salta el «¿Es tuya?» de la
- *     cédula sin código y no viaja como lectura: un dígito mal leído no puede
+ *     reja de la base) y no viaja como lectura: un dígito mal leído no puede
  *     dejar a nadie sin sus fotos para siempre (investigación del 21-oct).
+ *     26-oct-2026 — UNA EXCEPCIÓN, la del «¿Es tuya?»: si el documento de la
+ *     casilla es el que las letras leyeron del frente de ESTE registro y nadie
+ *     lo cambió, «Están bien» confirma la cédula como «Sí, es mía» y no se
+ *     pregunta (confirmarPorLasLetras; motivoParaNoSubir la acepta igual). Un
+ *     frente nuevo que las letras no leen suelta lo del anterior y la pregunta
+ *     vuelve (ocrSoltarLado en tomarFoto y repetirDoc).
  *   · Con el código leído manda el código: las letras solo completan la
  *     expedición, y si el número impreso es otro queda `numero_distinto` para
  *     Joan. A nadie se le dice «verificado».

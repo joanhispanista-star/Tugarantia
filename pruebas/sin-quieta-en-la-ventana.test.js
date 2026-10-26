@@ -1,58 +1,80 @@
 'use strict';
 /* ==========================================================================
- * «QUIETA…» TAMPOCO CON LA VENTANA — 26 de octubre de 2026
+ * LO QUE DICE EL ESCÁNER DE LA CÉDULA, AL DÍA CON EL LOTE — 26 de octubre de 2026
  *
  * Joan: «no se estabiliza el celular y nunca se queda quieto». Desde
- * lectura-sin-temblor la puerta del escáner acepta el temblor de una mano, y
- * el camino sin ventana dice «Sosténla…». El camino que usan casi todos los
- * teléfonos —la ventana del mejor cuadro— tomaba sus letreros tal cual de
- * app/escaner-captura.js («Quieta… leyendo el código», «Quieta… tomando la
- * foto») y en la pantalla salían mezclados con «Sosténla ahí…».
+ * lectura-sin-temblor la puerta acepta el temblor de una mano, así que ningún
+ * letrero puede pedir «Quieta…»: se pide «Sostenla…» (sin tilde: «sostén» +
+ * «la» es llana y termina en vocal, como «ponla» o «tenla»).
  *
- * escaner-captura.js está publicado sin ?v= (cambiarlo obliga a la regla de
- * versiones entera, y una página con el .js viejo en la caché seguiría
- * diciendo «Quieta…»), así que la página los traduce con sinQuieta. Esta
- * prueba sujeta dos cosas: que sinQuieta traduce el prefijo y nada más, y que
- * ningún letrero de ECAP.TEXTO que empieza por «Quieta…» llega a la pantalla
- * sin pasar por ella.
+ * Primero se tradujeron en la página con una función (b0a618b) porque se
+ * creyó que app/escaner-captura.js ya estaba publicado. No lo estaba: es
+ * nuevo en v139, ningún teléfono lo tiene en la caché, y los letreros se
+ * cambiaron donde viven. Esta prueba sujeta:
+ *   1. los letreros de la ventana (ECAP.TEXTO) y de la puerta (EC) no dicen
+ *      «Quieta…» ni «Sosténla»;
+ *   2. ninguna cadena de la página, de escaner-cedula.js ni de
+ *      escaner-captura.js los vuelve a decir;
+ *   3. la nota de la cédula gris también le dice la verdad a la amarilla con
+ *      el código gastado (la verificación final la vio salir para ella: sus
+ *      datos SÍ se leen de las letras);
+ *   4. las letras no cruzan un rótulo visto para tomar la FIRMA como nombres
+ *      (la verificación final, sobre 4835cc1), y el caso del iPhone que
+ *      motivó 4835cc1 (el rótulo «APELLIDOS» perdido) sigue llenando.
  * ========================================================================== */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const PLAY = fs.readFileSync(path.join(__dirname, '..', 'play', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+const RAIZ = path.join(__dirname, '..');
+const leer = f => fs.readFileSync(path.join(RAIZ, f), 'utf8').replace(/\r\n/g, '\n');
 const ECAP = require('../app/escaner-captura.js');
+const EC = require('../app/escaner-cedula.js');
+const O = require('../app/ocr-cedula.js');
 
-function sinQuietaDeLaPagina() {
-  const m = PLAY.match(/function sinQuieta\(t\) \{[^\n]*\}/);
-  assert.ok(m, 'play/index.html ya no tiene sinQuieta');
-  // eslint-disable-next-line no-new-func
-  return new Function(m[0] + '\nreturn sinQuieta;')();
-}
-
-test('sinQuieta cambia «Quieta…» por «Sosténla…» al principio, y nada más', () => {
-  const f = sinQuietaDeLaPagina();
-  assert.equal(f('Quieta… leyendo el código'), 'Sosténla… leyendo el código');
-  assert.equal(f('Quieta… tomando la foto'), 'Sosténla… tomando la foto');
-  assert.equal(f('Quieta…'), 'Sosténla…');
-  assert.equal(f('Aléjala un poco'), 'Aléjala un poco');
-  assert.equal(f('Déjala Quieta… ahí'), 'Déjala Quieta… ahí', 'solo el prefijo');
-  assert.equal(f(undefined), undefined);
-  assert.equal(f(''), '');
+test('los letreros de la ventana dicen «Sostenla…», no «Quieta…»', () => {
+  const T = ECAP.TEXTO || {};
+  ['MIDIENDO', 'LEYENDO', 'TOMANDO'].forEach(k => {
+    assert.match(String(T[k]), /^Sostenla… /, 'ECAP.TEXTO.' + k + ' dice: ' + T[k]);
+  });
+  Object.keys(T).forEach(k => assert.doesNotMatch(String(T[k]), /Quieta…|Sosténla/, 'ECAP.TEXTO.' + k + ': ' + T[k]));
 });
 
-test('los letreros de ECAP.TEXTO que dicen «Quieta…» pasan todos por sinQuieta', () => {
-  const T = ECAP.TEXTO || {};
-  const conQuieta = Object.keys(T).filter(k => /^Quieta…/.test(String(T[k])));
-  assert.ok(conQuieta.length >= 1, 'escaner-captura.js ya no dice «Quieta…»: esta prueba y sinQuieta sobran');
-  conQuieta.forEach(k => {
-    const usos = PLAY.split('\n').filter(l => new RegExp('(?:\\bT|ECAP\\.TEXTO)\\.' + k + '\\b').test(l));
-    usos.forEach(l => assert.match(l, /sinQuieta\(/, 'TEXTO.' + k + ' llega a la pantalla sin traducir: ' + l.trim()));
+test('la puerta dice «Sostenla ahí…» cuando se mueve', () => {
+  assert.equal(EC.textoDeTarjeta({ falla: 'movimiento', ok: false }), 'Sostenla ahí…');
+});
+
+test('ninguna cadena del escáner pide «Quieta…» ni escribe «Sosténla»', () => {
+  ['play/index.html', 'app/escaner-cedula.js', 'app/escaner-captura.js'].forEach(f => {
+    // Sin comentarios: los comentarios cuentan la historia y pueden citar «Quieta…».
+    const codigo = leer(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/^\s*\/\/.*$/gm, '');
+    const malas = codigo.split('\n').filter(l => /['"`][^'"`]*(Quieta…|Sosténla)/.test(l));
+    assert.deepEqual(malas, [], f);
   });
 });
 
-test('ninguna cadena de la página empieza por «Quieta…» sin pasar por sinQuieta', () => {
-  const sueltas = PLAY.split('\n').filter(l => /['"]Quieta…/.test(l) && !/sinQuieta\(/.test(l) && !/^\s*(\/\*|\*|\/\/)/.test(l));
-  assert.deepEqual(sueltas, []);
+test('la nota de la cédula gris también le dice la verdad a la amarilla', () => {
+  const play = leer('play/index.html');
+  const m = play.match(/var TEXTO_CEDULA_NUEVA = ([\s\S]*?);\n/);
+  assert.ok(m, 'play/index.html ya no tiene TEXTO_CEDULA_NUEVA');
+  // eslint-disable-next-line no-new-func
+  const t = new Function('return ' + m[1])();
+  assert.match(t, /gris y de plástico/);
+  assert.match(t, /escribes tus datos/, 'para la gris sigue siendo verdad: sus datos se escriben');
+  assert.match(t, /Si es la amarilla/);
+  assert.match(t, /letras/, 'a la amarilla: sus datos se leen de las letras');
+});
+
+test('con los dos rótulos a la vista y un valor perdido, las letras no toman la firma', () => {
+  const r = O.parsearFrente('REPUBLICA DE COLOMBIA\nNUMERO 52.123.456\nRODRIGUEZ PEREZ\nAPELLIDOS\nNOMBRES\nMaria R');
+  assert.equal(r.apellidos, 'RODRIGUEZ PEREZ');
+  assert.equal(r.nombres, '', 'tomó la firma como nombres: ' + r.nombres);
+  const r2 = O.parsearFrente('NUMERO 52.123.456\nAPELLIDOS\nMARIA JOSE\nNOMBRES');
+  assert.equal(r2.apellidos, '', 'con «APELLIDOS» visto y su valor perdido no se adivina: ' + r2.apellidos);
+});
+
+test('control: con el rótulo «APELLIDOS» perdido, el valor de al lado sigue llenando (4835cc1)', () => {
+  assert.deepEqual(O.parsearFrente('CEDULA DE CIUDADANIA\nNUMERO 52.123.456\nRODRIGUEZ PEREZ\nMARIA JOSE\nNOMBRES\n'),
+    { documento: '52123456', apellidos: 'RODRIGUEZ PEREZ', nombres: 'MARIA JOSE' });
 });
