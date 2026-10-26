@@ -35,7 +35,12 @@ const EC = require('../app/escaner-cedula.js');
 const F = require('./fabrica-pdf417.js');
 const { leerPGM } = require('./banco-ocr.js');
 const { asentar } = require('./esperar.js');
-const { VIDEO, TARJETA, escalar, abrirConCamara } = require('./banco-camara.js');
+/* 26-oct-2026 (integración con marco-de-pie) — la página pone el marco DE PIE
+   y copia del video girando (dibujarAcostado): la escena de la página (las
+   secciones 3 y 4) se arma acostada en el video ACOSTADO, con el marco
+   acostado, y dePie la pone en el video de verdad. Lo puro (1 y 2) sigue en
+   el video de siempre: mide la puerta, que no sabe de giros. */
+const { VIDEO, ACOSTADO, TARJETA, escalar, abrirConCamara, dePie, acostada } = require('./banco-camara.js');
 
 const PERSONA = { documento: '0052123456', apellido1: 'PEREZ', apellido2: 'GOMEZ', nombre1: 'MARIA',
                   nombre2: 'ALEJANDRA', sexo: 'F', nacimiento: '19850315', municipio: '11001', rh: 'O+' };
@@ -71,7 +76,13 @@ function caraEnVideo(lado, guia) {
   if (lado === 'reverso') {
     for (let y = Math.round(img.h * 0.66); y < Math.round(img.h * 0.985); y++)
       for (let x = Math.round(img.w * 0.02); x < Math.round(img.w * 0.98); x++) img.gris[y * img.w + x] = 222;
-    const r = F.render(CODIGO, 3, 0, 4, { quieta: 4 });
+    /* 26-oct-2026 (integración con marco-de-pie) — el código crece con la
+       tarjeta, como en una cédula de verdad: 3 px por módulo con el marco
+       acostado de siempre (1814 px de largo), ~3,5 con el de pie (2110). Con
+       el módulo fijo en 3, la tarjeta de pie llevaba un código más chico que
+       el de la cédula y la puerta la veía «borrosa» (8,6-9 contra 9): no era
+       la página, era la escena. */
+    const r = F.render(CODIGO, 3 * guia.w / EC.rectanguloGuia(VIDEO.W, VIDEO.H).w, 0, 4, { quieta: 4 });
     const bx = Math.round((img.w - r.W) / 2), by = Math.round(img.h * 0.95) - r.H;
     for (let y = 0; y < r.H; y++) for (let x = 0; x < r.W; x++) {
       const X = bx + x; if (X >= 0 && X < img.w) img.gris[(by + y) * img.w + X] = r.lum[y * r.W + x];
@@ -81,17 +92,22 @@ function caraEnVideo(lado, guia) {
 }
 const MESA = 110;
 /* El cuadro de video entero con la cara corrida (dx, dy) píxeles ENTEROS del
-   video (a 4K, 17 de ellos son 1 px del gris de la puerta). */
+   video (a 4K, 17 de ellos son 1 px del gris de la puerta).
+   26-oct-2026 (integración con marco-de-pie) — para la página: la cara va en
+   el video ACOSTADO (con el marco acostado que devuelve encender) y el cuadro
+   se pone de pie, que es lo que la cámara le entrega. El giro no cambia el
+   tamaño del temblor: (dx, dy) acostados son (dy, -dx) de pie. */
 function cuadroDeVideo(cara, dx, dy) {
-  const px = new Uint8ClampedArray(VIDEO.W * VIDEO.H).fill(MESA);
-  if (!cara) return px;
-  const { img, ox, oy } = cara;
-  for (let y = 0; y < img.h; y++) {
-    const Y = oy + dy + y; if (Y < 0 || Y >= VIDEO.H) continue;
-    const b = Y * VIDEO.W, c = y * img.w;
-    for (let x = 0; x < img.w; x++) { const X = ox + dx + x; if (X >= 0 && X < VIDEO.W) px[b + X] = img.gris[c + x]; }
+  const px = new Uint8ClampedArray(ACOSTADO.W * ACOSTADO.H).fill(MESA);
+  if (cara) {
+    const { img, ox, oy } = cara;
+    for (let y = 0; y < img.h; y++) {
+      const Y = oy + dy + y; if (Y < 0 || Y >= ACOSTADO.H) continue;
+      const b = Y * ACOSTADO.W, c = y * img.w;
+      for (let x = 0; x < img.w; x++) { const X = ox + dx + x; if (X >= 0 && X < ACOSTADO.W) px[b + X] = img.gris[c + x]; }
+    }
   }
-  return px;
+  return dePie(px, ACOSTADO.W, ACOSTADO.H);
 }
 
 /* ==========================================================================
@@ -273,7 +289,20 @@ async function encender(E, lado) {
   assert.equal(P.ev('!!ESCDOC.stream'), true, 'la cámara no encendió');
   if (lado === 'frente') P.ev("ESCDOC.lado = 'frente'; reiniciarCuentaDoc();");
   await correr(150);
-  return JSON.parse(P.ev('JSON.stringify(ESCDOC.guiaVideo)'));
+  /* 26-oct-2026 (integración con marco-de-pie) — el marco tiene que venir de
+     pie (si no, esta prueba no prueba el temblor con la página de hoy), y se
+     devuelve ACOSTADO: donde lo ven la puerta, la ventana y el recorte. */
+  const guia = JSON.parse(P.ev('JSON.stringify(ESCDOC.guiaVideo)'));
+  assert.equal(guia.vertical, true, 'el marco no vino de pie: ' + JSON.stringify(guia));
+  return acostada(guia);
+}
+/* Cuántos píxeles del video son 1 px del gris de la puerta con ESTE marco
+   (acostado, en el video acostado): con el marco de pie la cédula llena más
+   video que acostada (2110 px de largo contra 1814), así que 1 px de gris son
+   ~20 px del video y no 17. */
+function pxPorGrisEn(guia) {
+  const v = EC.ventanaDeGuia(guia, ACOSTADO.W, ACOSTADO.H, 96);
+  return v.sh / v.gh;
 }
 /* Cuadros con la cara corrida al azar hasta ±amp px del video en cada eje (un
    temblor sin memoria) hasta que se tome la foto del lado, o `max` cuadros. */
@@ -290,8 +319,10 @@ async function temblar(E, lado, cara, amp, max, semilla) {
 }
 /* ±17 px del video por eje: hasta 1 px de gris por eje, 1,3 px por cuadro en
    promedio sumando los dos ejes. Lo que da una mano a 12 cm, y lo que la
-   medición llama «~1 px de gris». */
-const TEMBLOR = 17;
+   medición llama «~1 px de gris».
+   26-oct-2026 (integración con marco-de-pie) — «1 px de gris por eje» es lo
+   que se mantiene: con el marco de pie son ~20 px del video (pxPorGrisEn). */
+const TEMBLOR = guia => Math.round(pxPorGrisEn(guia));
 /* EL CÓDIGO DE JOAN: el lector lo ENCUENTRA y no lo lee ('ilegible'). Con un
    PDF417 que sí se lee, leerlo dispara al instante sin racha ni ventana —
    con la regla vieja también—, y no es lo que le pasó. Lo demás (la puerta,
@@ -316,12 +347,12 @@ describe('la página con la mano temblando', () => {
       const guia = await encender(E, 'reverso');
       assert.equal(E.P.ev('EC.TARJETA.TEMBLOR_MAX'), 0, 'la página no ve la regla vieja: la prueba no prueba el caso');
       lectorQueVeSinLeer(E.P);
-      const r = await temblar(E, 'reverso', caraEnVideo('reverso', guia), TEMBLOR, 60);
+      const r = await temblar(E, 'reverso', caraEnVideo('reverso', guia), TEMBLOR(guia), 60);
       assert.equal(r.tomada, false, 'la prueba no prueba el caso: con la regla vieja el respaldo se tomó solo en ' + r.cuadros + ' cuadros');
       assert.ok(r.letreros.some(l => /Sosténla ahí/.test(l)), 'la puerta nunca dijo que se movía: ' + r.letreros.join(' | '));
       const S = abrirConCamara();
       await encender(S, 'frente');
-      const f = await temblar(S, 'frente', caraEnVideo('frente', guia), TEMBLOR, 60, 5);
+      const f = await temblar(S, 'frente', caraEnVideo('frente', guia), TEMBLOR(guia), 60, 5);
       assert.equal(f.tomada, false, 'la prueba no prueba el caso: con la regla vieja el frente se tomó solo en ' + f.cuadros + ' cuadros');
     } finally { reglaDeHoy(); }
   });
@@ -330,7 +361,7 @@ describe('la página con la mano temblando', () => {
     const E = abrirConCamara();
     const guia = await encender(E, 'reverso');
     lectorQueVeSinLeer(E.P);
-    const r = await temblar(E, 'reverso', caraEnVideo('reverso', guia), TEMBLOR, 60);
+    const r = await temblar(E, 'reverso', caraEnVideo('reverso', guia), TEMBLOR(guia), 60);
     assert.ok(r.tomada, 'el respaldo no se tomó con el temblor: ' + r.letreros.join(' | '));
     assert.ok(r.cuadros <= 60, 'tardó ' + r.cuadros + ' cuadros');
     assert.equal(E.P.ev('!!(FOTOS.cedula_leida && FOTOS.cedula_leida.documento)'), false, 'la prueba no prueba el caso: el código se leyó');
@@ -339,7 +370,7 @@ describe('la página con la mano temblando', () => {
     await E.correr(4600);
     assert.equal(E.P.ev('ESCDOC.lado'), 'frente', 'no pasó al frente');
     lectorDeVerdad(E.P);
-    const f = await temblar(E, 'frente', caraEnVideo('frente', guia), TEMBLOR, 60, 5);
+    const f = await temblar(E, 'frente', caraEnVideo('frente', guia), TEMBLOR(guia), 60, 5);
     assert.ok(f.tomada, 'el frente no se tomó con el temblor: ' + f.letreros.join(' | '));
     assert.ok(f.cuadros <= 60, 'el frente tardó ' + f.cuadros + ' cuadros');
     assert.equal(E.P.ev("$('docListoTxt').textContent"), 'Listo: las dos caras.');
@@ -350,7 +381,7 @@ describe('la página con la mano temblando', () => {
   test('…y con un código que SÍ se lee, se lee y dispara igual que siempre, temblando', async () => {
     const E = abrirConCamara();
     const guia = await encender(E, 'reverso');
-    const r = await temblar(E, 'reverso', caraEnVideo('reverso', guia), TEMBLOR, 60);
+    const r = await temblar(E, 'reverso', caraEnVideo('reverso', guia), TEMBLOR(guia), 60);
     assert.ok(r.tomada, 'el respaldo legible no se tomó con el temblor: ' + r.letreros.join(' | '));
     assert.equal(E.P.ev('!!(FOTOS.cedula_leida && FOTOS.cedula_leida.documento)'), true, 'se tomó pero no se leyó el código');
   });
@@ -358,7 +389,7 @@ describe('la página con la mano temblando', () => {
   test('deslizándose (6 px de gris por cuadro) nunca se toma; sin cédula, tampoco', async () => {
     const E = abrirConCamara();
     const guia = await encender(E, 'reverso');
-    const cara = caraEnVideo('reverso', guia), paso = Math.round(6 * PX_POR_GRIS);
+    const cara = caraEnVideo('reverso', guia), paso = Math.round(6 * pxPorGrisEn(guia));
     for (let i = 0; i < 80 && !E.P.ev('FOTOS.cedula_reverso'); i++) {
       E.video.__px = cuadroDeVideo(cara, 0, (i - 40) * paso);
       await E.correr(100);
