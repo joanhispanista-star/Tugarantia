@@ -6066,7 +6066,15 @@ function pasoDocumento() {
         '📷 Autorizo y escaneo mi cédula</button>' +
       '<button class="btn sec" type="button" id="btnEscribirDatos" style="margin-top:var(--e3)" ' +
         'onclick="prefieroEscribirMisDatos()">Prefiero escribir mis datos</button>' +
-      '<div class="ayuda">Escribe tus datos si tienes cédula de extranjería o pasaporte, o si tu cédula no se deja leer.</div>';
+      /* 23-oct-2026 — LO QUE SE PIERDE AL ESCRIBIR SE DICE AQUÍ. Un cliente de
+         prueba tocó «Prefiero escribir mis datos» sin haber tocado «Autorizo» y
+         llegó a «Tu rostro» sin cámara: para él (y para Joan) «la selfie ya no
+         aparece». La autorización ES el botón de arriba (19-oct), así que
+         escoger escribir también renuncia a la foto de la cara, y nada lo
+         decía. Y se puede dar después: «Tu rostro» lo ofrece
+         (autorizarDesdeElRostro). */
+      '<div class="ayuda">Escribe tus datos si tienes cédula de extranjería o pasaporte, o si tu cédula no se deja leer. ' +
+        'Sin fotos: ni de la cédula ni de tu cara. Si cambias de opinión, las puedes dar después, en el paso «Tu rostro».</div>';
   }
   /* 21-oct-2026 — LAS DOS CARAS ACOSTADAS, Y «SOLA» SOLO CUANDO ES VERDAD.
      Decía «la cámara toma las fotos sola: primero el respaldo …, de pie», y
@@ -8686,6 +8694,39 @@ function precalentarDetectorRostro() {
    está la cara, no sus poros, y subir esto solo calienta el teléfono. */
 var ANCHO_DETECTAR = 320;
 var LADO_CARA = 64;
+/* 23-oct-2026 — EL PERMISO SE PUEDE DAR EN «TU ROSTRO». La queja del cliente
+   de prueba («ya no aparece para tomar la selfie») era este camino: en «Tu
+   cédula» tocó «Prefiero escribir mis datos» sin tocar «Autorizo y escaneo mi
+   cédula» —los dos botones están juntos—, y como la autorización ES ese botón
+   (19-oct), llegó aquí sin cámara, sin «Tomar la foto ahora» y sin ubicación,
+   con un párrafo que solo explicaba por qué. Volver al primer paso era la
+   única salida y nadie la encuentra. Desde hoy el paso ofrece el mismo
+   permiso con un botón del mismo tamaño que el del primer paso (es un dato
+   sensible: opcional y a la vista, Ley 1581). Darlo aquí hace lo mismo que
+   darlo allá —cambiarConsentimiento con el intento de hoy—, así que la cámara
+   de la selfie arranca (pintarRegistro), la ubicación se pide después de la
+   foto como siempre (pedirGpsSiFalta), y si la persona vuelve a «Tu cédula»
+   encuentra el escáner. Lo que NO hace: tomar la foto de la cédula por él;
+   si no la toma, el final lo dice (textoDeLoQueFalto). */
+function botonAutorizarRostro() {
+  return '<div class="permiso" id="autRostroTexto"><span>' +
+      '<b>Autorizo la foto de mi rostro y mi ubicación</b> para confirmar que soy yo.' +
+      '<span class="muted">Son datos sensibles y es opcional: sin tu permiso no tomamos ninguna foto, y tu cuenta se abre igual. ' +
+      'Es el mismo permiso del primer paso: si después vuelves a «Tu cédula», podrás escanearla.</span>' +
+    '</span></div>' +
+    '<button class="btn escanear" type="button" id="btnAutorizoRostro" onclick="autorizarDesdeElRostro()">' +
+      '📷 Autorizo y tomo la foto de mi cara</button>';
+}
+/* Lo mismo que autorizarYEscanear (el primer paso), sin abrir el escáner de
+   la cédula: el paso que se vuelve a pintar es este, y es pintarRegistro quien
+   enciende la cámara de la selfie. */
+function autorizarDesdeElRostro() {
+  asegurarIntento();
+  if (hayContenidoEnFotos() && !esteIntento(FOTOS.de) && !fotosSonDeEsteRegistro()) soltarLasFotos(false);
+  cambiarConsentimiento(true);
+  guardarBorrador(REGISTRO);
+  pintarRegistro(indiceDe('rostro'));
+}
 /* Quien pidió quietud en su teléfono no ve la línea que barre ni la malla
    que se mueve; el óvalo, la caja de la cara y el arco de la racha se quedan,
    que son lo que informa. */
@@ -8704,8 +8745,9 @@ function pasoRostro() {
        fotos al cambiar el celular». 21-oct-2026: con el celular que cambia el
        registro empieza de cero y se vuelve a escoger en el primer paso; lo
        que pasó lo dijo el aviso del cambio, y aquí vale el texto por defecto. */
+    var porQue;
     if (PERMISO_SOLTADO) {
-      return '<p class="sub">Quitamos el permiso de las fotos junto con la cédula que no era la del documento que ' +
+      porQue = '<p class="sub">Quitamos el permiso de las fotos junto con la cédula que no era la del documento que ' +
         'escribiste, así que este paso se salta: tu cuenta se abre igual. Si quieres tomarlas, vuelve al primer paso.</p>';
     }
     /* 21-oct-2026 — E2: «NO AUTORIZASTE» SOLO CUANDO SE SABE. Era el texto de
@@ -8716,12 +8758,16 @@ function pasoRostro() {
        sale solo si el registro nació en esta pestaña y nadie tocó «Autorizo»
        en él (sinPermisoEnTodoEsteRegistro); si no, uno que es verdad en
        todos los casos. */
-    if (sinPermisoEnTodoEsteRegistro()) {
-      return '<p class="sub">No autorizaste las fotos en el primer paso, así que este paso se ' +
+    else if (sinPermisoEnTodoEsteRegistro()) {
+      porQue = '<p class="sub">No autorizaste las fotos en el primer paso, así que este paso se ' +
         'salta: tu cuenta se abre igual.</p>';
+    } else {
+      porQue = '<p class="sub">Sin el permiso de las fotos este paso se salta: tu cuenta se abre igual. ' +
+        'Si quieres darlas, vuelve al primer paso.</p>';
     }
-    return '<p class="sub">Sin el permiso de las fotos este paso se salta: tu cuenta se abre igual. ' +
-      'Si quieres darlas, vuelve al primer paso.</p>';
+    /* 23-oct-2026 — Y EL PERMISO SE PUEDE DAR AQUÍ (ver botonAutorizarRostro):
+       hasta hoy este paso solo explicaba por qué se saltaba. */
+    return porQue + botonAutorizarRostro();
   }
   var tiene = hayFotoLista('selfie');
   /* 8-oct-2026 — la frase dice lo que pasa en los dos modos: con el detector
