@@ -7022,6 +7022,7 @@ function reiniciarCuentaDoc() {
   ESCDOC.ventana = null; ESCDOC.mejorPendiente = false; ESCDOC.vioQr = false;
   ESCDOC.aviso = null; ESCDOC.msBorrosa = 0; ESCDOC.luzReflejo = false; ESCDOC.pedirLuz = false;
   ESCDOC.vioFranja = false; ESCDOC.vioBarras = false;   // 23-oct-2026 — de ESTE lado
+  ESCDOC.hueco = 0; ESCDOC.msHueco = 0;   // 26-oct-2026 — los huecos de la racha (EC.contarRachaDoc) también son de ESTE lado
 }
 function iniciarEscanerDoc(lado) {
   if (!hayCamaraEnVivo()) return escanerDocSinCamara('Este navegador no deja usar la cámara en vivo.');
@@ -7053,7 +7054,6 @@ function iniciarEscanerDoc(lado) {
   cargarScript(URL_OCR_CEDULA, llegoElGlobal('OcrCedula')).catch(function () {});
   prepararDetectorNativo();
   vigilarVisibilidadDoc();
-  ESCDOC.hueco = 0; ESCDOC.msHueco = 0;   // 26-oct-2026 — los huecos de la racha (EC.contarRachaDoc) también son de ESTE lado
   ESCDOC.espera = setTimeout(function () {
     if (ESCDOC.stream || !ESCDOC.activo || miTurno !== ESCDOC.turno) return;
     var e2 = $('docEstado'); if (e2) e2.textContent = 'Esperando el permiso de la cámara…';

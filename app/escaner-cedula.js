@@ -1376,12 +1376,12 @@
     GIROS_DE_RESCATE: GIROS_DE_RESCATE,
     grisDeImageData: grisDeImageData,
     medirTarjeta: medirTarjeta,
+    /* 26-oct-2026 — la racha que tolera los picos del temblor */
+    contarRachaDoc: contarRachaDoc,
     textoDeTarjeta: textoDeTarjeta,
     rectanguloGuia: rectanguloGuia,
     decodificarLuminancias: decodificarLuminancias,
     /* 8-oct-2026 — el respaldo derecho y el respaldo que dispara solo */
-    /* 26-oct-2026 — la racha que tolera los picos del temblor */
-    contarRachaDoc: contarRachaDoc,
     ORIENTACION: ORIENTACION,
     orientacionDelRespaldo: orientacionDelRespaldo,
     /* 21-oct-2026 — leer el PDF417 solo de su franja (video 4K) */
