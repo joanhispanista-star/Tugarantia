@@ -785,6 +785,11 @@
           style="width:100%;border:0;background:transparent;font:inherit;font-size:15px;outline:none;color:inherit"
           oninput="renderBases()" autocomplete="off"></div>
         <div id="tblProspectos"></div></div>
+      <!-- 27-oct-2026 — EL GERENTE AGREGA: lo que sube el equipo vive en la nube
+           y no se copia a este navegador (ver pintarSubidoPorElEquipo). -->
+      <div class="card"><div class="card-h"><h3>⤒ Lo que subió tu equipo</h3>
+        <span class="tag">Vive en la nube: no ocupa espacio en este navegador</span></div>
+        <div id="tblDelEquipo"></div></div>
       <div class="card"><div class="card-h"><h3>⤒ Bases que has cargado</h3>
         <span class="tag">De dónde salió cada una — la respuesta tiene que existir antes de que la pregunten</span></div>
         <div id="tblBases"></div></div>
@@ -10467,7 +10472,7 @@ function renderRegistros(){
          ya tiene y quedan dos clientes donde hay una persona. La regla vive en
          el puente; acá solo se pinta. */
       const cand=PUENTE.candidatosDeCruce(DB,r), c0=cand[0];
-      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}${huecoUbicacion(r.huella,{registro:r},true)}${chipDelEquipo(r.telefono)}${pedidoEnRegistro(r)}${chipQuienVe(r)}</td>
+      return `<tr><td><b>${escHTML(r.nombre||'Socio nuevo')}</b>${c0?'<div style="margin-top:4px">'+chipDeCruce(c0)+(cand.length>1?' <span class="muted">+'+(cand.length-1)+' más</span>':'')+'</div>':''}${chipDeCotejo(r.huella)}${huecoUbicacion(r.huella,{registro:r},true)}${chipDelEquipo(r.telefono)}${pedidoEnRegistro(r)}${chipQuienVe(r)}${chipEquipoRegistro(r)}</td>
       <td>${abierto?'<span class="chip al-dia">📱 App</span>':'<span class="chip pagado">🎟️ '+escHTML(r.codigo||'Invitación')+'</span>'}</td>
       <td class="num">${escHTML(r.cedula||'—')}</td>
       <td>${escHTML(r.telefono||'—')}</td>
@@ -10487,6 +10492,8 @@ function renderRegistros(){
   /* 8-oct-2026 — la ubicación aproximada de cada uno, sola (ver LA UBICACIÓN
      APROXIMADA POR INTERNET). La lista ya se ve; las ciudades llegan después. */
   resolverUbicaciones();
+  /* 27-oct-2026 — y si alguno lo subió tu equipo, igual: llega después. */
+  preguntarEquipoPorRegistros();
 }
 
 /* EL COTEJO EN LA BANDEJA, DE UNA SOLA CARA — 22-sep-2026.
@@ -16488,6 +16495,9 @@ function renderBases() {
       : '<div class="muted">Todavía no has cargado ninguna base.</div>';
   }
 
+  /* 27-oct-2026 — EL GERENTE AGREGA: aquí y no al final, que tiene salidas
+     tempranas (sin prospectos, sin coincidencias) y la tarjeta tiene que salir igual. */
+  pintarSubidoPorElEquipo();
   if (!ps.length) {
     caja.innerHTML = `<div class="empty"><div class="ic">📇</div><p>Sin prospectos todavía.<br>
       <span class="muted">Carga un archivo de Excel o CSV con nombres y celulares, o agrega uno suelto con «＋ Agregar prospecto».</span></p></div>`;
@@ -16519,7 +16529,7 @@ function renderBases() {
       const per = a ? personaDeEquipo(a) : null;
       const g = gestionesDe(p.id)[0];
       return `<tr><td><b>${escHTML(p.nombre || 'Sin nombre')}</b>${p.base === BASE_A_MANO && p.origen
-          ? `<div class="muted">a mano · ${escHTML(p.origen)}</div>` : ''}</td>
+          ? `<div class="muted">a mano · ${escHTML(p.origen)}</div>` : ''}${lineaInfoProspecto(p)}</td>
         <td class="mono">${escHTML(p.celular)}</td>
         <td><span class="chip ${e.chip}">${escHTML(e.et)}</span></td>
         <td>${per ? escHTML(per.nombre) : '<span class="muted">sin asignar</span>'}</td>
@@ -16538,10 +16548,450 @@ function renderBases() {
 function coincideProspecto(p, filtro) {
   const f = normaTexto(filtro).trim(); if (!f) return true;
   if (normaTexto(p.nombre).indexOf(f) >= 0) return true;
+  /* 27-oct-2026 — y en la información adicional («kennedy», «panadería»). */
+  if (normaTexto([p.nota || ''].concat(p.extra && typeof p.extra === 'object' ? Object.values(p.extra) : []).join(' ')).indexOf(f) >= 0) return true;
   const dig = f.replace(/\D/g, '');
   return dig.length >= 3 && String(p.celular || '').replace(/\D/g, '').indexOf(dig) >= 0;
 }
 
+
+/* ==========================================================================
+ * EL GERENTE AGREGA — 27-oct-2026 (bloque NUEVO del modo Joan)
+ *
+ * Lo que sube el equipo vive EN LA NUBE y NO se copia a este navegador (D5):
+ * la cartera de Joan vive en localStorage, que guarda unos 5 millones de
+ * caracteres, cada prospecto se guarda tres veces, y cuando se llena guardar()
+ * salva el libro tirando las FOTOS de los comprobantes. Por eso Joan lo ve en
+ * una tarjeta de Bases que se pide a la nube, y por eso traerEquipo y
+ * traerGestiones ya no meten aquí las asignaciones, los contactos ni las
+ * gestiones de esa gente (esDelEquipoSinFichaAca).
+ *
+ * Y lo de Joan viaja a su equipo: su nota, sus columnas extra, el origen y si
+ * autorizó (publicarInfoDeProspectos), y los celulares de TODOS sus
+ * prospectos (publicarCelularesDeJoan), para que el «ya existe» del gerente
+ * los vea aunque Joan no los haya repartido.
+ *
+ * Lo que impide que dos equipos vean al mismo registro: equipo_tiene, en el
+ * momento (al agregar uno, al cargar una base) y LA COMPUERTA de publicar
+ * (filtrarPublicablesPorEquipo): un prospecto de Joan cuyo celular ya subió
+ * el equipo no se publica.
+ * ======================================================================== */
+var SUBIDO_EQUIPO = null;       // {estado, cuando, d:{cargas, frenados, por_gerente}, error}
+var _equipoAgrega = '';         // '' = no se sabe; 'si' = la nube ya contestó; 'no' = falta el SQL (404)
+var TIENE_EQUIPO = {};          // celular → lo que contestó equipo_tiene (null = no es del equipo)
+var _celularesPublicados = null;
+var _celularesFallo = false;
+var _infoPublicada = {};
+var _noPublicadosPorEquipo = 0;
+var _cargaVista = null;
+var LLAVE_ASIG_POR_PUBLICAR = 'tg_asig_por_publicar';
+var _asigPorPublicarMem = {};
+var _nNube = 0;
+
+function esFaltaFuncionNube(e) { return /todavía no tiene/.test(errNube(e)); }
+function diezJoan(v) { return String(v == null ? '' : v).replace(/\D/g, '').slice(-10); }
+function fechaCortaJoan(iso) {
+  const d = new Date(String(iso || ''));
+  return isNaN(d) ? '' : d.getDate() + '-' + ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][d.getMonth()];
+}
+function anotarAgrega(e) {
+  if (!e) { _equipoAgrega = 'si'; return; }
+  if (esFaltaFuncionNube(e)) _equipoAgrega = 'no';
+}
+
+/* La ayuda de la nota dice lo que se sabe: sin haber hablado con la nube no
+   se promete que la información viaje a nadie. */
+function ayudaNotaProspecto() {
+  const base = 'Lo que sirva para atenderlo. ';
+  const no = 'No escribas cédulas, claves, deudas ni nada de salud, religión o política.';
+  if (_equipoAgrega === 'si') return base + 'Si se lo asignas a alguien de tu equipo, también lo ve él. ' + no;
+  if (_equipoAgrega === 'no') return base + no + ' Por ahora solo la ves tú: falta correr el SQL del 27-oct en Supabase.';
+  return base + no;
+}
+
+/* Debajo del nombre, en Bases: la nota, las columnas extra y si el equipo
+   también lo subió. Cortado a 120: es una fila de tabla. */
+function lineaInfoProspecto(p) {
+  const l = [];
+  if (p.nota) l.push('📝 «' + escHTML(String(p.nota).slice(0, 120)) + '»');
+  const ex = p.extra && typeof p.extra === 'object' ? Object.keys(p.extra) : [];
+  if (ex.length) l.push(escHTML(ex.map(k => k + ': ' + p.extra[k]).join(' · ').slice(0, 120)));
+  const t = TIENE_EQUIPO[diezJoan(p.celular)];
+  if (t && t.id) l.push('<span class="chip prorroga">también lo subió el equipo</span>');
+  return l.length ? '<div class="muted" style="font-size:12px">' + l.join('<br>') + '</div>' : '';
+}
+
+/* --------------------------------------------- ¿ya lo tiene el equipo? -- */
+/* Pregunta por celulares concretos, EN EL MOMENTO (de 2.000 en 2.000), y
+   guarda la respuesta por celular. {ok, falta, r:{cel: respuesta|null}}. */
+function equipoTiene(cels) {
+  const lista = [...new Set((cels || []).map(diezJoan).filter(c => c.length === 10))];
+  if (!lista.length || !sbListo()) return Promise.resolve({ ok: true, r: {} });
+  if (_equipoAgrega === 'no') return Promise.resolve({ ok: false, falta: true, r: {} });
+  const tandas = [];
+  for (let i = 0; i < lista.length; i += 2000) tandas.push(lista.slice(i, i + 2000));
+  const r = {};
+  return tandas.reduce((p, t) => p.then(() => rpc('equipo_tiene', { p_clave: sbCfg().clave, p_cels: t }).then(j => {
+    if (!j || typeof j !== 'object' || Array.isArray(j)) throw { motivo: 'la nube no contestó lo que esperaba' };
+    t.forEach(c => { TIENE_EQUIPO[c] = j[c] || null; r[c] = j[c] || null; });
+  })), Promise.resolve())
+    .then(() => { anotarAgrega(null); return { ok: true, r }; })
+    .catch(e => { anotarAgrega(e); return { ok: false, falta: esFaltaFuncionNube(e), r: {} }; });
+}
+/* Los del equipo y los que pidieron que los borraran, con la forma que
+   revisarBase entiende: así cuentan como «ya eran prospectos» sin tocar bases.js. */
+function comoProspectosDelEquipo(r) {
+  return Object.keys(r || {}).filter(c => r[c]).map(c => ({ celular: c }));
+}
+
+/* --------------------------------------------- la tarjeta de Bases ----- */
+function pintarSubidoPorElEquipo(forzar) {
+  const caja = document.getElementById('tblDelEquipo'); if (!caja) return;
+  if (!sbListo()) { caja.innerHTML = '<div class="muted">Conecta la nube en Ajustes para ver lo que sube tu equipo.</div>'; return; }
+  const viejo = !SUBIDO_EQUIPO || (SUBIDO_EQUIPO.estado !== 'cargando' && Date.now() - SUBIDO_EQUIPO.cuando > 5 * 60000);
+  if (forzar || viejo) { traerSubidoPorElEquipo(); return; }
+  caja.innerHTML = htmlSubidoPorElEquipo();
+}
+function traerSubidoPorElEquipo() {
+  const caja = document.getElementById('tblDelEquipo');
+  SUBIDO_EQUIPO = { estado: 'cargando', cuando: Date.now(), d: SUBIDO_EQUIPO && SUBIDO_EQUIPO.d };
+  if (caja) caja.innerHTML = htmlSubidoPorElEquipo();
+  return rpc('equipo_agregados', { p_clave: sbCfg().clave })
+    .then(d => { anotarAgrega(null); SUBIDO_EQUIPO = { estado: 'ok', cuando: Date.now(), d: d || {} }; })
+    .catch(e => {
+      anotarAgrega(e);
+      SUBIDO_EQUIPO = { estado: esFaltaFuncionNube(e) ? 'apagado' : 'error', cuando: Date.now(), error: errNube(e) };
+    })
+    .then(() => { const c = document.getElementById('tblDelEquipo'); if (c) c.innerHTML = htmlSubidoPorElEquipo(); });
+}
+function htmlSubidoPorElEquipo() {
+  const s = SUBIDO_EQUIPO || { estado: 'cargando' };
+  const pie = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button class="btn btn-ghost btn-sm" onclick="pintarSubidoPorElEquipo(true)">↻</button>
+      <button class="btn btn-ghost btn-sm" onclick="suprimirDesdeBases()">🚫 Borrar a alguien que lo pidió</button></div>`;
+  const sinSubir = _celularesFallo ? '<div class="alerta warn">Tus prospectos todavía no subieron a la nube: tu equipo podría agregar a alguno que ya tienes.</div>' : '';
+  const noPub = _noPublicadosPorEquipo ? '<div class="alerta info">No publiqué a ' + _noPublicadosPorEquipo +
+    ' que ya subió tu equipo: los ves aquí abajo, y desde aquí se los asignas a quien quieras.</div>' : '';
+  if (s.estado === 'cargando') return '<div class="muted">Mirando la nube…</div>';
+  if (s.estado === 'apagado') return '<div class="alerta warn">Falta correr en Supabase el archivo base/20261027_el_gerente_agrega.sql. Hasta entonces tu equipo no puede subir a nadie.</div>';
+  if (s.estado === 'error') return '<div class="alerta warn">No pude traer lo que subió tu equipo: ' + escHTML(s.error || '') + '</div>' + pie;
+  const d = s.d || {};
+  const cargas = Array.isArray(d.cargas) ? d.cargas : [];
+  const frenados = Array.isArray(d.frenados) ? d.frenados : [];
+  const porGerente = (Array.isArray(d.por_gerente) ? d.por_gerente : []).filter(g => Number(g.subidos) > 0);
+  const franja = frenados.map(f => `<div class="alerta mal">⛔ <b>${escHTML(f.quien_nombre)} está parado</b> desde el
+      ${escHTML(fechaCortaJoan(f.desde))}, ${escHTML(new Date(f.desde).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' }))}:
+      en lo que subió, ${Number(f.ya_existen) || 0} celulares ya existían en Tu Garantía. Míralos antes de darle paso.
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        ${Number(f.carga) ? `<button class="btn btn-ghost btn-sm" onclick="verYaExistian(${Number(f.carga)})">Ver cuáles</button>` : ''}
+        <button class="btn btn-rojo btn-sm" onclick="soltarGerente('${digitosDeBoton(f.quien)}')">Ya lo revisé: que siga</button></div>
+      <div class="muted" style="font-size:12px;margin-top:6px">Si se le juntan otros 50, se vuelve a parar.</div></div>`).join('');
+  const techos = porGerente.map(g => `<div class="muted" style="font-size:12.5px">${escHTML(g.quien_nombre)} lleva
+      ${(Number(g.subidos) || 0).toLocaleString('es-CO')} de ${(Number(g.techo) || 3000).toLocaleString('es-CO')}</div>`).join('');
+  if (!cargas.length) return sinSubir + noPub + franja + '<div class="muted">Tu equipo todavía no ha subido a nadie.</div>' + pie;
+  const filas = cargas.map(c => {
+    const rech = !!c.rechazo;
+    const que = c.archivo ? escHTML(c.archivo) : 'a mano' + (Number(c.tandas) > 1 ? ' (' + Number(c.tandas) + ')' : '');
+    const reg = Number(c.registrados) || 0;
+    return `<tr${rech ? ' style="opacity:.55"' : ''}><td>${escHTML(fechaCortaJoan(c.cuando))}</td><td>${escHTML(c.quien_nombre)}</td>
+      <td>${que}${rech ? '<div class="muted">rechazada: ' + escHTML(RECHAZO_LEGIBLE[c.rechazo] || c.rechazo) + '</div>' : ''}</td>
+      <td>${escHTML(c.origen || '—')}</td><td>${escHTML(c.prueba || '—')}</td>
+      <td class="num">${rech ? '—' : Number(c.entraron) || 0}</td>
+      <td class="num">${rech ? '—' : (Number(c.ya_existen) ? Number(c.ya_existen) + ` <a href="#" onclick="verYaExistian(${Number(c.id)});return false">cuáles</a>` : '0')}</td>
+      <td class="num">${rech ? '—' : reg + (reg ? ' (' + (Number(c.registrados_sin_gestion_previa) || 0) + ' sin gestión antes)' : '')}</td>
+      <td>${rech || !Number(c.entraron) ? '' : `<button class="btn btn-ghost btn-sm" onclick="verCargaDelEquipo(${Number(c.id)})">Ver</button>`}</td></tr>`;
+  }).join('');
+  return sinSubir + noPub + franja + techos + `<div style="overflow-x:auto"><table><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th>
+      <th>De dónde salió</th><th>Prueba</th><th class="num">Entraron</th><th class="num">Ya existían</th>
+      <th class="num">Se registraron</th><th></th></tr></thead><tbody>${filas}</tbody></table></div>
+    <div class="muted" style="font-size:12px;margin-top:10px">A tu equipo, de un número que ya está en Tu Garantía, se le dice
+      solo «ya existe», sin decir de quién. Pero comparando con su base puede deducir cuáles eran: por eso, cada 50, se para y
+      te toca mirar.</div>` + pie;
+}
+/* Por qué se rechazó una tanda, en palabras (el servidor manda el código). */
+var RECHAZO_LEGIBLE = { tope: 'tope del día', tope_ya_existen: 'se paró: más de 50 ya existían', en_revision: 'estaba parado',
+  techo_base: 'llegó al techo de 3.000', sin_acuerdo: 'sin acuerdo de datos firmado', tanda_grande: 'tanda de más de 200',
+  para_no_es_tuyo: 'a alguien que no es de su equipo', solo_con_si: 'sin autorización', falta_prueba: 'sin decir dónde está la prueba',
+  falta_origen: 'sin decir de dónde salió', falta_autoriza: 'sin decir si autorizaron', sin_filas: 'vacía' };
+function cargaDelEquipo(id) {
+  const d = (SUBIDO_EQUIPO && SUBIDO_EQUIPO.d) || {};
+  return (d.cargas || []).find(c => Number(c.id) === Number(id)) || null;
+}
+
+/* La gente de una carga, de 200 en 200, para reasignar. */
+function verCargaDelEquipo(id, desde) {
+  const c = cargaDelEquipo(id); if (!c) return;
+  const ids = (Array.isArray(c.ids) ? c.ids : [c.id]).map(Number).filter(Boolean);
+  const titulo = (c.archivo || 'a mano') + ' — ' + (c.quien_nombre || '') + ', ' + fechaCortaJoan(c.cuando);
+  openModal(titulo, '<div class="muted">Mirando la nube…</div>');
+  return rpc('equipo_agregados_de', { p_clave: sbCfg().clave, p_cargas: ids, p_desde: Number(desde) || 0 })
+    .then(r => {
+      const gente = (r && Array.isArray(r.gente)) ? r.gente : [];
+      _cargaVista = { id: Number(id), desde: Number(desde) || 0, gente, total: Number(r && r.total) || 0 };
+      const eqActivo = equipo().filter(p => p.celular && p.estado !== 'retirado' && !p.retirado);
+      const jefe = p => { const j = p.jefe ? personaDeEquipo(p.jefe) : null; return j ? ' de ' + j.nombre : ''; };
+      openModal(titulo, `<p class="sub">De dónde salió: ${escHTML(c.origen || '—')} · Prueba: ${escHTML(c.prueba || '—')} ·
+          ${_cargaVista.total} personas</p>
+        <div style="overflow-x:auto"><table><thead><tr><th></th><th>Nombre</th><th>Celular</th><th>Información adicional</th>
+          <th>Lo trabaja</th><th>Última gestión</th></tr></thead><tbody>${gente.map((p, k) => {
+            const ex = p.extra && typeof p.extra === 'object' ? Object.keys(p.extra).map(x => x + ': ' + p.extra[x]).join(' · ') : '';
+            const info = [p.nota ? '📝 «' + p.nota + '»' : '', ex].filter(Boolean).join(' · ');
+            const g = p.gestion;
+            return `<tr><td><input type="checkbox" id="deqChk_${k}"></td><td>${escHTML(p.nombre || 'Sin nombre')}</td>
+              <td class="mono">${escHTML(p.celular || '')}</td><td>${escHTML(info) || '<span class="muted">—</span>'}</td>
+              <td>${p.asesor_nombre ? escHTML(p.asesor_nombre) : '<span class="muted">nadie</span>'}</td>
+              <td>${g ? escHTML((g.tipo || '') + ' · ' + haceCuanto(g.cuando) + (g.quien ? ' · ' + g.quien : '')) : '<span class="muted">—</span>'}</td></tr>`;
+          }).join('')}</tbody></table></div>
+        ${_cargaVista.total > _cargaVista.desde + gente.length ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px"
+          onclick="verCargaDelEquipo(${Number(id)}, ${_cargaVista.desde + 200})">Siguientes 200</button>` : ''}
+        <div class="field" style="margin-top:14px"><label>👤 Asignar los marcados a:</label><select id="deqDestino">
+          ${eqActivo.map(p => `<option value="${escHTML(digitosDeBoton(p.celular))}">${escHTML(p.nombre)} — ${p.rol === 'gerente' ? 'gerente' : 'asesor' + escHTML(jefe(p))}</option>`).join('')}
+          <option value="nadie">Nadie (soltarlo)</option></select>
+          <div class="help">«Nadie»: nadie lo trabaja, y si se registra, nadie del equipo ve su registro. Úsalo con un número que alguien
+            subió para quedarse con quien se registrara solo.</div></div>
+        <button class="btn btn-rojo" onclick="asignarMarcadosDelEquipo()">Asignar</button>`);
+    })
+    .catch(e => openModal(titulo, '<div class="alerta warn">No pude traer esa carga: ' + escHTML(errNube(e)) + '</div>'));
+}
+function asignarMarcadosDelEquipo() {
+  const v = _cargaVista; if (!v) return;
+  const ids = v.gente.filter((p, k) => { const el = document.getElementById('deqChk_' + k); return !!(el && el.checked); }).map(p => String(p.id));
+  if (!ids.length) return alert('Marca a quién le cambias quién lo trabaja.');
+  const dest = gv('deqDestino');
+  const destino = dest === 'nadie' ? '' : digitosDeBoton(dest);
+  const per = destino ? equipo().find(p => diezJoan(p.celular) === destino) : null;
+  if (dest !== 'nadie' && !per) return alert('Elige a quién se los asignas.');
+  return rpc('equipo_reasignar', { p_clave: sbCfg().clave, p_personas: ids, p_asesor: destino })
+    .then(r => {
+      if (!r || r.ok !== true) return alert('La nube no los movió: ' + ((r && r.motivo) || 'sin motivo') + '.');
+      alert(per ? 'Listo: ' + r.movidos + ' pasaron a ' + per.nombre + '. Les sale en su «Mi base».'
+        : 'Listo: ' + r.movidos + ' quedaron sin quién los trabaje.');
+      return verCargaDelEquipo(v.id, v.desde);
+    })
+    .catch(e => alert('No pude moverlos: ' + errNube(e)));
+}
+function verYaExistian(cargaId) {
+  openModal('Los que ya existían', '<div class="muted">Mirando la nube…</div>');
+  return rpc('equipo_ya_existian', { p_clave: sbCfg().clave, p_carga: Number(cargaId) })
+    .then(l => {
+      const lista = Array.isArray(l) ? l : [];
+      openModal('Los que ya existían (' + lista.length + ')', '<p class="sub">Solo lo ves tú: a tu equipo se le dijo «ya existe», sin decir de quién.</p>' +
+        (lista.map(x => filaInfo(String(x.celular || ''), String(x.donde || ''))).join('') || '<div class="muted">Ninguno.</div>'));
+    })
+    .catch(e => openModal('Los que ya existían', '<div class="alerta warn">No pude traerlos: ' + escHTML(errNube(e)) + '</div>'));
+}
+function soltarGerente(cel) {
+  if (!confirm('¿Ya revisaste lo que subió? Si le das paso, puede volver a subir; si se le juntan otros 50 que ya existían, se vuelve a parar.')) return;
+  return rpc('equipo_soltar', { p_clave: sbCfg().clave, p_quien: digitosDeBoton(cel) })
+    .then(() => traerSubidoPorElEquipo())
+    .catch(e => alert('No pude darle paso: ' + errNube(e)));
+}
+
+/* -------------------------------- lo de Joan viaja a su equipo --------- */
+/* Los celulares de TODOS sus prospectos: la primera vez de la sesión todos,
+   después solo los nuevos. Se dispara y no se espera. */
+function publicarCelularesDeJoan() {
+  if (!sbListo() || _equipoAgrega === 'no' || CARTERA_EQUIPO) return Promise.resolve();
+  const B = window.BasesTuGarantia; if (!B) return Promise.resolve();
+  const ya = _celularesPublicados || {};
+  const cels = [...new Set(prospectos().map(p => B.celularDe(p.celular)).filter(Boolean))].filter(c => !ya[c]);
+  if (!cels.length) return Promise.resolve();
+  const tandas = [];
+  for (let i = 0; i < cels.length; i += 5000) tandas.push(cels.slice(i, i + 5000));
+  return tandas.reduce((p, t) => p.then(() => rpc('equipo_publicar_celulares', { p_clave: sbCfg().clave, p_cels: t })
+    .then(() => { _celularesPublicados = _celularesPublicados || {}; t.forEach(c => { _celularesPublicados[c] = true; }); })), Promise.resolve())
+    .then(() => { anotarAgrega(null); _celularesFallo = false; })
+    .catch(e => { anotarAgrega(e); _celularesFallo = !esFaltaFuncionNube(e); });
+}
+/* La nota, las columnas extra, el origen y si autorizó, de los prospectos que
+   se acaban de publicar. Solo se escribe al crear (do nothing): nunca pisa lo
+   del gerente. Un «No» de Joan cierra el 📲 de esa persona en el equipo. */
+function publicarInfoDeProspectos(ps) {
+  if (!sbListo() || _equipoAgrega === 'no') return Promise.resolve();
+  const bases = {};
+  basesCargadas().forEach(b => { bases[b.archivo] = b; });
+  const info = (ps || []).filter(x => x && x.tipo === 'prospecto' && !_infoPublicada[String(x.id)]).map(x => {
+    const p = prospectos().find(y => String(y.id) === String(x.id)); if (!p) return null;
+    const origen = p.origen || (bases[p.base] && bases[p.base].origen) || '';
+    const extra = p.extra && typeof p.extra === 'object' ? p.extra : null;
+    if (!p.nota && !extra && !origen) return null;
+    return { id: String(p.id), nota: String(p.nota || ''), extra: extra || {}, origen: String(origen),
+             autoriza: typeof p.autorizaInvitacion === 'boolean' ? p.autorizaInvitacion : null };
+  }).filter(Boolean);
+  if (!info.length) return Promise.resolve();
+  const tandas = [];
+  for (let i = 0; i < info.length; i += 500) tandas.push(info.slice(i, i + 500));
+  return tandas.reduce((pr, t) => pr.then(() => rpc('equipo_publicar_info', { p_clave: sbCfg().clave, p_info: t })
+    .then(() => { t.forEach(x => { _infoPublicada[x.id] = true; }); })), Promise.resolve())
+    .then(() => anotarAgrega(null))
+    .catch(e => anotarAgrega(e));
+}
+/* LA COMPUERTA: antes de publicar, ¿el equipo ya subió a alguno de estos
+   prospectos? Se pregunta solo por los que aún no se confirmaron en esta
+   sesión. Los del equipo, o los que pidieron que los borraran, no viajan (ni
+   su asignación): dos filas de cartera con el mismo celular harían que dos
+   equipos vean el mismo registro. Si no se puede mirar, se publica como
+   siempre: con 404 no hay nada que mirar, y sin red la publicación se cae igual. */
+function filtrarPublicablesPorEquipo(asig, ps) {
+  const sinConfirmar = (ps || []).filter(x => x.tipo === 'prospecto' && !(diezJoan(x.celular) in TIENE_EQUIPO)).map(x => x.celular);
+  const pregunta = sinConfirmar.length && _equipoAgrega !== 'no' ? equipoTiene(sinConfirmar) : Promise.resolve({ ok: true });
+  return pregunta.then(() => {
+    const fuera = {};
+    (ps || []).forEach(x => { if (x.tipo === 'prospecto' && TIENE_EQUIPO[diezJoan(x.celular)]) fuera[String(x.id)] = true; });
+    const n = Object.keys(fuera).length;
+    _noPublicadosPorEquipo = n;
+    if (!n) return { asig, ps, quitados: 0 };
+    return { asig: (asig || []).filter(a => !fuera[String(a.persona_id)]), ps: ps.filter(x => !fuera[String(x.id)]), quitados: n };
+  });
+}
+
+/* ------------------- traerEquipo: lo del equipo no entra aquí --------- */
+/* Una persona que subió el equipo (GP…) y que no tiene ficha en este
+   computador: su asignación, sus contactos y sus gestiones se quedan en la nube. */
+function esDelEquipoSinFichaAca(pid) {
+  const id = String(pid || '');
+  if (!/^GP\d/.test(id)) return false;
+  return !prospectos().some(p => String(p.id) === id) && !DB.socios.some(s => String(s.id) === id);
+}
+/* LAS MARCAS DE ASIGNACIONES SIN PUBLICAR. Si Joan cambió una asignación y
+   todavía no se publicó (sin señal), la vuelta de traerEquipo no se la
+   deshace: gana Joan, que es el jefe. Se sueltan cuando la publicación que
+   salió con ellas llega. Viven en este navegador, como las del equipo. */
+function leerAsigPorPublicar() {
+  let x = {};
+  try { x = JSON.parse(localStorage.getItem(LLAVE_ASIG_POR_PUBLICAR) || '{}') || {}; } catch (e) { x = {}; }
+  if (typeof x !== 'object' || Array.isArray(x)) x = {};
+  return Object.assign({}, x, _asigPorPublicarMem);
+}
+function escribirAsigPorPublicar(x) {
+  _asigPorPublicarMem = Object.assign({}, x);
+  try { localStorage.setItem(LLAVE_ASIG_POR_PUBLICAR, JSON.stringify(x)); } catch (e) { /* queda en memoria */ }
+}
+function anotarAsigPorPublicar(pid, desde) {
+  const x = leerAsigPorPublicar();
+  x[String(pid) + '|' + String(desde || '').slice(0, 10)] = new Date().toISOString() + '#' + Math.random().toString(36).slice(2, 8);
+  escribirAsigPorPublicar(x);
+}
+function soltarAsigPublicadas(marcas) {
+  const x = leerAsigPorPublicar();
+  let cambio = false;
+  Object.keys(marcas || {}).forEach(k => { if (x[k] && x[k] === marcas[k]) { delete x[k]; cambio = true; } });
+  if (cambio) {
+    _asigPorPublicarMem = {};
+    escribirAsigPorPublicar(x);
+  }
+}
+/* EL GERENTE REASIGNA Y JOAN LO DESHACÍA SIN SABERLO. asignar_a hace
+   `on conflict (persona_id, desde) do update set asesor` y conserva el id;
+   traerEquipo saltaba los ids que Joan ya tiene, y su siguiente publicación
+   (on conflict (id) do update) volvía a poner el asesor de antes. Ahora: si
+   la nube dice otro asesor para esa persona en ESA fecha (la de la fila de la
+   nube, nunca «hoy»: Joan pudo cerrar el CRM una semana), y Joan no tiene un
+   cambio suyo sin publicar para esa llave, se agrega una entrada NUEVA con el
+   de la nube. Nunca se cambia una que existe: nube.js identifica las
+   asignaciones por sus campos y no sabe cambiar una fila. */
+function laNubeCambioElAsesor(x) {
+  const pid = String(x.persona_id), dia = String(x.desde || '').slice(0, 10);
+  let local = null;
+  asignaciones().forEach(a => { if (String(a.socio_id) === pid && String(a.desde || '').slice(0, 10) === dia) local = a; });
+  if (!local) return false;
+  const perLocal = local.asesor_id === '' ? null : personaDeEquipo(local.asesor_id);
+  const celLocal = perLocal ? diezJoan(perLocal.celular) : '';
+  const celNube = diezJoan(x.asesor);
+  if (celLocal === celNube) return false;
+  if (leerAsigPorPublicar()[pid + '|' + dia]) return false;
+  let per = null;
+  if (celNube) {
+    per = equipo().find(p => diezJoan(p.celular) === celNube);
+    if (!per) return false;
+  }
+  asignaciones().push({ id: 'A' + Date.now() + '-' + (++_nNube), socio_id: pid, asesor_id: per ? String(per.id) : '', desde: dia });
+  return true;
+}
+
+/* --------------------------- 🚫 borrar a alguien que lo pidió --------- */
+function suprimirDesdeBases() {
+  openModal('🚫 ¿Quién pidió que lo borraran?', `
+    <p class="sub">La Ley 1581 da 15 días hábiles. Se borra de la nube como prospecto (lo que subió tu equipo y lo que publicaste
+      tú), con su información adicional, sus gestiones, contactos y citas, y queda anotado para que nadie lo vuelva a agregar.</p>
+    <div class="field"><label>Celular</label><input id="supCel" inputmode="numeric" placeholder="3001234567"></div>
+    <div class="field"><label>¿Cómo lo pidió?</label><input id="supComo" placeholder="Ej: por el chat de la app el 3-nov">
+      <div class="help">Queda guardado: es la prueba de que se borró porque lo pidió.</div></div>
+    <div class="muted" style="font-size:12px">Lo que tu equipo ya le escribió por WhatsApp queda en sus teléfonos: eso no lo borra el CRM.</div>
+    <button class="btn btn-rojo arriba" onclick="confirmarSuprimir()">Borrar</button>`);
+}
+function confirmarSuprimir() {
+  const B = window.BasesTuGarantia;
+  const cel = B ? B.celularDe(gv('supCel')) : diezJoan(gv('supCel'));
+  const como = gv('supComo');
+  if (!cel) return alert('Ese celular no me cuadra: son 10 dígitos y empieza por 3.');
+  if (como.length < 5) return alert('Escribe cómo lo pidió (por ejemplo, «por el chat de la app el 3-nov»).');
+  if (!confirm('Voy a borrar de la nube a esta persona como prospecto (lo que subió tu equipo y lo que publicaste tú), con su ' +
+    'información adicional, sus gestiones, contactos y citas. Además la anoto para que nadie la vuelva a agregar. No se puede deshacer.')) return;
+  return rpc('equipo_suprimir', { p_clave: sbCfg().clave, p_celular: cel, p_como: como })
+    .then(r => {
+      if (!r || r.ok !== true) return alert('No lo borré: ' + ((r && r.motivo) === 'falta_como' ? 'falta cómo lo pidió.' : ((r && r.motivo) || 'la nube dijo que no.')));
+      TIENE_EQUIPO[cel] = { no_contactar: true, desde: new Date().toISOString() };
+      if (r.es_cliente) {
+        cerrarModal();
+        return alert('Es cliente: lo que la ley obliga a guardar (créditos y pagos) no se borra. Habla con el abogado antes de tocarlo. ' +
+          'Sí lo anoté para que nadie lo vuelva a agregar como prospecto.');
+      }
+      const local = suprimirProspectoLocal(cel);
+      cerrarModal();
+      alert('Listo: borré ' + (Number(r.del_equipo) || 0) + ' que subió tu equipo y ' + (Number(r.de_joan) || 0) +
+        ' tuyas de la nube. Ese número ya no se puede volver a agregar.' +
+        (local ? '\n\nTambién lo quité de tus prospectos de este computador.' : '') +
+        '\n\nLo que tu equipo ya le escribió por WhatsApp queda en sus teléfonos: eso no lo borra el CRM.');
+      traerSubidoPorElEquipo();
+    })
+    .catch(e => alert('No lo borré: ' + errNube(e)));
+}
+function suprimirProspectoLocal(cel) {
+  const B = window.BasesTuGarantia;
+  const antes = prospectos().length;
+  DB.prospectos = prospectos().filter(p => (B ? B.celularDe(p.celular) : diezJoan(p.celular)) !== cel);
+  const quitados = antes - DB.prospectos.length;
+  if (quitados) { guardar(); try { render(); } catch (e) {} }
+  return quitados;
+}
+
+/* ------------------------- 📥 Registrados: «lo subió tu equipo» -------- */
+function chipEquipoRegistro(r) {
+  const t = TIENE_EQUIPO[telDiez(r.telefono)];
+  if (!t || !t.id) return '';
+  return '<div class="muted" style="margin-top:4px;font-size:12px">Lo subió ' + escHTML(t.subido_por_nombre || 'tu equipo') +
+    (t.subido_en ? ' el ' + escHTML(fechaCortaJoan(t.subido_en)) : '') +
+    (t.lo_trabaja_nombre ? ' · lo trabaja ' + escHTML(t.lo_trabaja_nombre) : ' · nadie lo trabaja') +
+    (t.gestion_antes_del_registro === false ? ' · <b>sin gestión anotada antes de registrarse</b>' : '') +
+    ' · asígnalo antes de desembolsar</div>';
+}
+var _registrosPreguntados = '';
+function preguntarEquipoPorRegistros() {
+  if (!sbListo() || _equipoAgrega === 'no') return;
+  const cels = _registros.map(r => telDiez(r.telefono)).filter(c => c.length === 10 && !(c in TIENE_EQUIPO));
+  const llave = cels.join(',');
+  if (!cels.length || llave === _registrosPreguntados) return;
+  _registrosPreguntados = llave;
+  equipoTiene(cels.slice(0, 2000)).then(r => {
+    if (r.ok && Object.keys(r.r).some(c => r.r[c] && r.r[c].id)) renderRegistros();
+  });
+}
+/* Las columnas que Joan marcó en el previo de su base: {celular: {Barrio: …}}. */
+function extraParaGuardar(b) {
+  const A = window.AgregarProspectos;
+  if (!A || !b || !b.extra || !b.extra.columnas || !b.filas) return {};
+  const el = b.extra.columnas.filter((c, k) => { const x = document.getElementById('exCol_' + k); return !!(x && x.checked); });
+  return el.length ? A.extrasPorCelular(b.filas, b.cols, el) : {};
+}
+/* ¿Este prospecto de Joan ya lo subió el equipo? Por lo que contestó
+   equipo_tiene en esta sesión (la compuerta de publicar lo vuelve a mirar). */
+function yaLoSubioElEquipo(id) {
+  const p = prospectos().find(x => String(x.id) === String(id));
+  const t = p && TIENE_EQUIPO[diezJoan(p.celular)];
+  return !!(t && t.id);
+}
+/* ================================= fin de EL GERENTE AGREGA (Joan) ===== */
 /* --------------------------------------------------------------------------
  * CARGAR UN ARCHIVO
  *
@@ -16580,10 +17030,24 @@ function leerArchivoBase(file) {
   lector.then(filas => {
     const cols = B.detectarColumnas(filas);
     if (cols.celular < 0) throw new Error('No encontré ninguna columna con celulares colombianos.');
-    const r = B.revisarBase(filas, cols, { socios: DB.socios, prospectos: prospectos() });
-    _baseLeida = { archivo: file.name, cols, revision: r };
-    _baseLeida.espacio = espacioParaBase(_baseLeida);
-    pintarPrevioBase();
+    /* 27-oct-2026 — EL GERENTE AGREGA. Lo que ya subió tu equipo (o pidió que
+       lo borraran) cuenta como «ya era prospecto», sin tocar bases.js: se le
+       pasa a revisarBase junto con los tuyos. Y las columnas extra que se
+       pueden guardar, sin marcar. */
+    const A = window.AgregarProspectos;
+    const cels = A ? filas.map(f => A.celularDeFila(f, cols)).filter(Boolean) : [];
+    return equipoTiene(cels).then(eq => {
+      const deEllos = comoProspectosDelEquipo(eq.r);
+      const r = B.revisarBase(filas, cols, { socios: DB.socios, prospectos: prospectos().concat(deEllos) });
+      const vistos = [...new Set(cels)];
+      _baseLeida = { archivo: file.name, cols, revision: r, filas,
+                     extra: A ? A.columnasExtra(filas, cols) : { columnas: [], descartadas: [] },
+                     equipo: { ok: eq.ok, falta: !!eq.falta,
+                               subidos: vistos.filter(c => eq.r[c] && eq.r[c].id).length,
+                               borrados: vistos.filter(c => eq.r[c] && eq.r[c].no_contactar).length } };
+      _baseLeida.espacio = espacioParaBase(_baseLeida);
+      pintarPrevioBase();
+    });
   }).catch(err => {
     openModal('No pude leer ese archivo', `<div class="alerta warn">${escHTML(err.message || String(err))}</div>
       <p class="sub">Sirve un Excel (.xlsx) o un CSV con al menos una columna de celulares
@@ -16609,8 +17073,12 @@ function usoDelNavegador() {
 }
 function espacioParaBase(b) {
   const B = window.BasesTuGarantia, sello = Date.now(), hoy = hoyISO();
-  const pesos = b.revision.nuevos.map((p, i) => B.pesoDeProspecto({ id: 'P' + sello + '-' + i,
-    nombre: p.nombre, celular: p.celular, estado: 'nuevo', base: b.archivo, cargadoEn: hoy }));
+  /* 27-oct-2026 — con TODAS las columnas extra que se ofrecen, marcadas o no:
+     se pesa lo más que podría llevar, para no prometer que cabe. */
+  const ex = b.extra && b.extra.columnas && b.extra.columnas.length && window.AgregarProspectos
+    ? AgregarProspectos.extrasPorCelular(b.filas, b.cols, b.extra.columnas) : {};
+  const pesos = b.revision.nuevos.map((p, i) => B.pesoDeProspecto(Object.assign({ id: 'P' + sello + '-' + i,
+    nombre: p.nombre, celular: p.celular, estado: 'nuevo', base: b.archivo, cargadoEn: hoy }, ex[p.celular] ? { extra: ex[p.celular] } : {})));
   return B.cuantosCaben({ usado: usoDelNavegador(), pesos });
 }
 
@@ -16629,6 +17097,9 @@ function pintarPrevioBase() {
     ${filaInfo('Ya eran prospectos o venían repetidos en el archivo', String(r.repetidos))}
     ${filaInfo('Ya son clientes tuyos', String(r.yaClientes))}
     ${filaInfo('Sin un celular utilizable', String(r.sinCelular))}
+    ${b.equipo && b.equipo.ok && b.equipo.subidos ? filaInfo('De esos, ya los subió tu equipo', String(b.equipo.subidos)) : ''}
+    ${b.equipo && b.equipo.ok && b.equipo.borrados ? filaInfo('Pidieron que los borraran', String(b.equipo.borrados)) : ''}
+    ${b.equipo && !b.equipo.ok && !b.equipo.falta ? '<div class="alerta warn" style="margin-top:10px">No pude mirar lo que subió tu equipo: puede que alguno ya lo tengan ellos.</div>' : ''}
 
     ${r.senalesFinancieras.length ? `<div class="alerta warn" style="margin-top:14px">
       <b>Este archivo trae información financiera de otra empresa</b>
@@ -16639,6 +17110,8 @@ function pintarPrevioBase() {
 
     <div class="sub-h">Muestra de lo que va a entrar</div>
     ${muestra.map(p => filaInfo(p.nombre || '(sin nombre)', p.celular)).join('') || '<div class="muted">Nada.</div>'}
+
+    ${previoExtrasHTML(b.extra, 'exCol_', '')}
 
     <div class="sub-h">¿De dónde salió esta base?</div>
     <input id="baseOrigen" placeholder="Ej: pauta de Facebook, septiembre — o: me la pasó Nancy">
@@ -16670,9 +17143,10 @@ function confirmarCargaBase() {
   const faltan = b.revision.nuevos.length - entran.length;
   if (!entran.length) return alert('No cabe ninguno en este navegador sin arriesgar las fotos de la cartera. No cargué nada.');
   const antes = prospectos().length, basesAntes = basesCargadas().length;
+  const ex = extraParaGuardar(b);
   entran.forEach((p, i) => {
-    prospectos().push({ id: 'P' + sello + '-' + i, nombre: p.nombre, celular: p.celular,
-                        estado: 'nuevo', base: b.archivo, cargadoEn: hoy });
+    prospectos().push(Object.assign({ id: 'P' + sello + '-' + i, nombre: p.nombre, celular: p.celular,
+                        estado: 'nuevo', base: b.archivo, cargadoEn: hoy }, ex[p.celular] ? { extra: ex[p.celular] } : {}));
   });
   basesCargadas().push({ id: 'B' + sello, archivo: b.archivo, origen, fecha: hoy,
                          entraron: entran.length, quedaron: faltan,
@@ -16695,6 +17169,7 @@ function confirmarCargaBase() {
   try { _trasGuardar(localStorage.getItem(KEY) || '', ajenaBase); } catch (e) {}
   _baseLeida = null;
   guardar(); cerrarModal(); render(); irA('bases');
+  publicarCelularesDeJoan();
   alert('Listo: entraron ' + entran.length + ' prospectos.' +
     (faltan ? '\n\nQuedaron ' + faltan + ' en el archivo, sin cargar: no caben en este navegador sin arriesgar las fotos de la cartera.' : '') +
     '\n\nRepártelos entre tus asesores desde «🔀 Repartir».');
@@ -17036,7 +17511,9 @@ function armarPublicacionEquipo() {
   });
   const asig = unaPorDia.filter(a => {
     const per = a.asesor_id === '' ? null : personaDeEquipo(a.asesor_id);
-    return a.asesor_id === '' || (per && per.celular);
+    /* 27-oct-2026 — EL GERENTE AGREGA: una pestaña v139 abierta importaba las
+       asignaciones del equipo (GP…) y las republicaba: v140 nunca. */
+    return !/^GP\d/.test(String(a.socio_id)) && (a.asesor_id === '' || (per && per.celular));
   }).map(a => {
     const per = a.asesor_id === '' ? null : personaDeEquipo(a.asesor_id);
     return { id: String(a.id), persona_id: String(a.socio_id),
@@ -17158,16 +17635,24 @@ function publicarEquipoAhora(gente, asig, ps, op) {
      como están al salir: solo esas se sueltan si la nube contesta bien. Un
      cambio que entre mientras esto va en el aire conserva la suya. */
   const marcas = leerEquipoPorPublicar();
-  return rpc('equipo_publicar', { p_clave: sbCfg().clave,
+  /* 27-oct-2026 — EL GERENTE AGREGA: las marcas de asignaciones de Joan que
+     salen con esta publicación, y LA COMPUERTA (filtrarPublicablesPorEquipo):
+     un prospecto cuyo celular ya subió el equipo no se publica. */
+  const marcasAsig = leerAsigPorPublicar();
+  return filtrarPublicablesPorEquipo(asig, ps).then(f => rpc('equipo_publicar', { p_clave: sbCfg().clave,
       p_equipo: genteQueViaja.map(p => Object.assign(filaDeEquipo(p), plataDeAsesor(p))),
-      p_asignaciones: asig, p_gente: ps })
+      p_asignaciones: f.asig, p_gente: f.ps })
     .then(r => {
       soltarEquipoPublicado(marcas);
+      soltarAsigPublicadas(marcasAsig);
+      /* Se disparan y no se esperan: si fallan, la publicación sigue buena. */
+      publicarInfoDeProspectos(f.ps);
+      publicarCelularesDeJoan();
       if (auto) return r;
       alert('Publicado.\n\nEquipo: ' + (r.equipo || 0) + '\nAsignaciones: ' + (r.asignaciones || 0) +
-        '\nGente repartida: ' + (r.gente || 0) + '\n\nYa pueden entrar en:\n' +
-        ENLACE_PANEL);
-    })
+        '\nGente repartida: ' + (r.gente || 0) + (f.quitados ? '\n\nNo publiqué a ' + f.quitados + ' que ya subió tu equipo.' : '') +
+        '\n\nYa pueden entrar en:\n' + ENLACE_PANEL);
+    }))
     .catch(e => { if (auto) throw e; alert('No pude publicar: ' + errNube(e)); });
 }
 
@@ -17764,7 +18249,9 @@ function traerEquipo(callado) {
       const hay = {};
       asignaciones().forEach(a => { hay[String(a.id)] = true; });
       (d.asignaciones || []).forEach(x => {
-        if (hay[String(x.id)]) return;
+        /* 27-oct-2026 — EL GERENTE AGREGA (ver laNubeCambioElAsesor y esDelEquipoSinFichaAca). */
+        if (esDelEquipoSinFichaAca(x.persona_id)) return;
+        if (hay[String(x.id)]) { if (laNubeCambioElAsesor(x)) cambios++; return; }
         /* 23-oct-2026 — una fila SIN asesor es un «Quitarle la asignación»
            (armarPublicacionEquipo la publica así): llega como de nadie. Sin
            esto, buscar el celular vacío encontraba a cualquiera del equipo SIN
@@ -17781,6 +18268,7 @@ function traerEquipo(callado) {
       contactos().forEach(c => { vistos[String(c.id)] = true; });
       (d.contactos || []).forEach(c => {
         if (vistos[String(c.id)]) return;
+        if (esDelEquipoSinFichaAca(c.persona_id)) return;   // 27-oct-2026: se quedan en la nube
         contactos().push({ id: String(c.id), persona_id: String(c.persona_id), quien: String(c.quien || ''),
                            canal: String(c.canal || 'whatsapp'), texto: String(c.texto || ''),
                            cuando: String(c.cuando || '') });
@@ -17829,6 +18317,7 @@ function traerGestiones(callado) {
       gestiones().forEach(g => { hay[String(g.id)] = g; });
       let nuevas = 0;
       lista.forEach(g => {
+        if (esDelEquipoSinFichaAca(g.persona_id)) return;   // 27-oct-2026: se quedan en la nube
         const id = String(g.id);
         if (hay[id]) { Object.assign(hay[id], g); return; }
         gestiones().push({ id: id, persona_id: String(g.persona_id || ''), tipo: String(g.tipo || ''),
@@ -18255,8 +18744,13 @@ function idsAAsignar(){
 }
 
 function asignarMarcados(){
-  const ids=idsAAsignar();
-  if(!ids.length) return alert('No hay a quién asignar.');
+  /* 27-oct-2026 — EL GERENTE AGREGA: los que ya subió tu equipo no se reparten
+     desde aquí (la compuerta de publicar también los frena). */
+  const todos=idsAAsignar();
+  const ids=todos.filter(id=>!yaLoSubioElEquipo(id));
+  const delEquipo=todos.length-ids.length;
+  if(!ids.length) return alert(delEquipo?'No se los asigné: ya los subió tu equipo. Los ves en «⤒ Lo que subió tu equipo».':'No hay a quién asignar.');
+  if(delEquipo) alert('No se los asigné a '+delEquipo+': ya los subió tu equipo. Los ves en «⤒ Lo que subió tu equipo».');
   const hoy=hoyISO(), sello=Date.now();
 
   let destinos;
@@ -18381,6 +18875,7 @@ function anotarAsignacion(personaId, destino, hoy, idNuevo, ganado) {
   const desde = desdeCuandoCambia(pid, hoy, ganado);
   if (COMIS.asesorDe(asignaciones(), pid, desde) === d) return false;
   asignaciones().push({ id: String(idNuevo), socio_id: pid, asesor_id: d, desde: desde });
+  anotarAsigPorPublicar(pid, desde);   // 27-oct-2026: hasta publicarla, gana Joan (laNubeCambioElAsesor)
   return desde;
 }
 
@@ -18605,6 +19100,10 @@ function asignarUno(tipo, id, volver, op) {
   const o = op || {};
   const x = asignableDe(tipo, id);
   if (!x) return alert('No encontré a esa persona.');
+  /* 27-oct-2026 — EL GERENTE AGREGA: si su celular ya lo subió el equipo. */
+  if (tipo === 'prospecto' && yaLoSubioElEquipo(id)) {
+    return alert('No se lo asigno: ese celular ya lo subió tu equipo. Lo ves en Bases → «⤒ Lo que subió tu equipo», y desde ahí se lo asignas a quien quieras.');
+  }
   if (!hayComisiones()) return alert('No cargó app/comisiones.js, que es donde vive quién atiende a quién. Recarga la página con señal (Ctrl+Shift+R).');
   const actual = atiendeHoy(id);
   /* El que queda en la fecha en que contaría el cambio: el que se marca y el
@@ -18713,6 +19212,9 @@ function agregarProspecto() {
     <p class="sub" style="margin-bottom:12px">Alguien que todavía no es cliente: el que te recomendaron, el que te escribió. Para muchos a la vez, «⤒ Cargar base».</p>
     <div class="field"><label>Nombre</label><input id="apNombre" autocomplete="off"></div>
     <div class="field"><label>Celular</label><input id="apCel" inputmode="numeric" placeholder="3001234567" autocomplete="off"></div>
+    <div class="field"><label>Información adicional <span class="opc">(opcional)</span></label>
+      <textarea id="apNota" rows="2" maxlength="300" placeholder="Ej: vende en la plaza de Kennedy, llamarlo después de las 3"></textarea>
+      <div class="help" id="apNotaAyuda">${escHTML(ayudaNotaProspecto())}</div></div>
     <div class="field"><label>¿De dónde sale?</label><input id="apOrigen" placeholder="Ej: me lo recomendó Nancy — o: me escribió por Facebook">
       <div class="help">Queda guardado con él. Si algún día pregunta de dónde sacaste su teléfono, esta es la respuesta — y tiene que existir antes, no después.</div></div>
     <div class="field"><label>¿Autorizó que lo contactemos?</label>
@@ -18783,23 +19285,51 @@ function guardarProspectoSuelto() {
   if (autoriza !== 'si' && autoriza !== 'no') return alert('Contesta si autorizó que lo contactemos: sí o no.\n\nCon «No» entra igual, pero no le llegan las invitaciones de Comercial.');
   if (destino && !personaDeEquipo(destino)) return alert('Elige a quién se lo asignas.');
   const hoy = hoyISO(), sello = Date.now();
-  const p = { id: 'P' + sello + '-0', nombre: nuevo.nombre, celular: nuevo.celular, estado: 'nuevo',
+  /* 27-oct-2026 — EL GERENTE AGREGA: la nota, solo al crear (como el origen):
+     así la sincronía entre el computador y el celular de Joan, que copia los
+     campos que faltan, no puede perder una edición. */
+  const nota = window.AgregarProspectos ? AgregarProspectos.limpiarNota((document.getElementById('apNota') || {}).value || '') : '';
+  const p = Object.assign({ id: 'P' + sello + '-0', nombre: nuevo.nombre, celular: nuevo.celular, estado: 'nuevo',
               base: BASE_A_MANO, origen: origen, cargadoEn: hoy,
-              autorizaInvitacion: autoriza === 'si', autorizaDesde: autoriza === 'si' ? hoy : null };
+              autorizaInvitacion: autoriza === 'si', autorizaDesde: autoriza === 'si' ? hoy : null }, nota ? { nota } : {});
   /* Uno solo pesa nada, pero si el navegador ya está al borde, guardar()
      salvaría el libro tirando las fotos de los comprobantes: un prospecto
      nunca puede costar un comprobante (la misma cuenta que una base). */
   if (!B.cuantosCaben({ usado: usoDelNavegador(), pesos: [B.pesoDeProspecto(p)] }).caben) {
     return alert('No cabe en este navegador sin arriesgar las fotos de tu cartera. No lo agregué.');
   }
-  prospectos().push(p);
-  let asignadoA = null;
-  if (destino && hayComisiones() && anotarAsignacion(p.id, destino, hoy, 'A' + sello + '-0')) asignadoA = destino;
-  guardar(); cerrarModal(); render(); irA('bases');
-  const listo = 'Listo: ' + p.nombre + ' entró a tus prospectos (lo ves arriba en la tabla de Bases).' +
-    (p.autorizaInvitacion ? '' : '\n\nComo no autorizó (o no lo sabes), no le llegan las invitaciones de Comercial.');
-  if (asignadoA === null) { alert(listo); return Promise.resolve('agregado'); }
-  return publicarTrasAsignar(listo + '\n\n' + fraseAsignado(p.nombre, asignadoA).replace(/^Listo: /, ''));
+  const seguir = sinMirar => {
+    prospectos().push(p);
+    let asignadoA = null;
+    if (destino && hayComisiones() && anotarAsignacion(p.id, destino, hoy, 'A' + sello + '-0')) asignadoA = destino;
+    guardar(); cerrarModal(); render(); irA('bases');
+    publicarCelularesDeJoan();
+    const listo = 'Listo: ' + p.nombre + ' entró a tus prospectos (lo ves arriba en la tabla de Bases).' +
+      (p.autorizaInvitacion ? '' : '\n\nComo no autorizó (o no lo sabes), no le llegan las invitaciones de Comercial.') +
+      (sinMirar ? '\n\n(No pude mirar si tu equipo ya lo tenía. Antes de mandárselo a alguien lo vuelvo a mirar.)' : '');
+    if (asignadoA === null) { alert(listo); return Promise.resolve('agregado'); }
+    return publicarTrasAsignar(listo + '\n\n' + fraseAsignado(p.nombre, asignadoA).replace(/^Listo: /, ''));
+  };
+  /* 27-oct-2026 — ¿YA LO TIENE EL EQUIPO?, EN ESTE MOMENTO (no con una lista
+     leída una vez por sesión, que a las 4 p. m. no sabe lo que el equipo
+     subió a las 3). Sin la nube, o sin el SQL (404), no hay a quién preguntar:
+     se agrega como siempre. Si no se pudo mirar, se agrega y se dice; la
+     compuerta de publicar lo vuelve a mirar antes de mandarlo a nadie. */
+  if (!sbListo() || _equipoAgrega === 'no') return seguir(false);
+  return equipoTiene([p.celular]).then(eq => {
+    const t = eq.r[p.celular];
+    if (t && t.no_contactar) {
+      alert('Esa persona pidió que la borraran el ' + fechaCortaJoan(t.desde) + '. No la agrego.');
+      return 'no_contactar';
+    }
+    if (t && t.id) {
+      alert('Ese celular ya lo subió ' + (t.subido_por_nombre || 'tu equipo') + (t.subido_en ? ' el ' + fechaCortaJoan(t.subido_en) : '') +
+        (t.lo_trabaja_nombre ? ' (lo trabaja ' + t.lo_trabaja_nombre + ')' : '') + '. No lo agrego dos veces: lo ves en Bases → ' +
+        '«⤒ Lo que subió tu equipo», y desde ahí se lo puedes asignar a quien quieras.');
+      return 'del_equipo';
+    }
+    return seguir(!eq.ok && !eq.falta);
+  });
 }
 
 /* --------------------------------------------------------------------------

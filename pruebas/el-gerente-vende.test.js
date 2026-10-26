@@ -226,7 +226,8 @@ describe('lo de Joan', () => {
        busca asignarRegistro en la bandeja (pruebas/ningun-nombre-se-ejecuta.test.js). */
     assert.match(CRM, /onclick="asignarRegistro\('\$\{digitosDeBoton\(r\.telefono\)\}'\)"/,
       'falta el botón de asignar en la fila, o se rompió la expresión del celular');
-    assert.match(CRM, /\$\{chipQuienVe\(r\)\}<\/td>/);
+    /* 27-oct-2026 — detrás, el «lo subió tu equipo» (el gerente agrega). */
+    assert.match(CRM, /\$\{chipQuienVe\(r\)\}\$\{chipEquipoRegistro\(r\)\}<\/td>/);
     const P = abrirPanel({ red: () => Promise.reject(new Error('sin red')) });
     const alertas = []; P.ctx.alert = m => alertas.push(m);
     P.ev('_quienVeFalta = true; asignarRegistro("3101500001", "María")');
