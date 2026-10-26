@@ -28,6 +28,11 @@
  *     leído vive aparte (la página lo guarda en FOTOS.cedula_vista, con
  *     fuente 'ocr') y este archivo NUNCA devuelve nada con forma de
  *     cedula_leida: devuelve campos sueltos para casillas.
+ *     26-oct-2026 (remate) — lo que sí hace el número impreso: si la persona
+ *     deja en la casilla el que las letras leyeron de SU frente, la página da
+ *     las fotos por suyas con ese documento, como con «Sí, es mía», y no le
+ *     pregunta «¿Esta cédula es la tuya?» (EL NÚMERO IMPRESO TAMBIÉN DICE DE
+ *     QUIÉN ES, en play/index.html). Si lo cambia, se pregunta como siempre.
  *   · Cuando el PDF417 se leyó, MANDA el PDF417 (número, nombres,
  *     nacimiento) y esto solo completa la expedición. Si el número impreso
  *     no es el del código, gana el código y queda una señal para Joan

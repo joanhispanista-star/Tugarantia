@@ -365,7 +365,11 @@ describe('de la cámara a «Están bien», sin teclear nada (la cédula DE PIE e
     } finally { await b.cerrar(); }
   });
 
-  test('con el código de barras BORROSO (lo ve, no lo lee): las letras llenan todo, «Están bien» y «Sí, es mía»', async () => {
+  /* 26-oct-2026 (remate) — decía «"Están bien" y "Sí, es mía"». Con el
+     número de las letras sin cambiar, las fotos ya dicen de quién son (EL
+     NÚMERO IMPRESO TAMBIÉN DICE DE QUIÉN ES, en play/): «Están bien» pasa
+     sin el «¿Es tuya?», y la cédula queda confirmada con ese documento. */
+  test('con el código de barras BORROSO (lo ve, no lo lee): las letras llenan todo y «Están bien» pasa, sin «¿Es tuya?»', async () => {
     const b = abrirTesseract();
     try {
       const E = abrir(b);
@@ -387,12 +391,12 @@ describe('de la cámara a «Están bien», sin teclear nada (la cédula DE PIE e
       assert.equal(P.ev("$('f_tipo_doc').value"), 'Cédula de ciudadanía');
       assert.match(P.ev("$('notaFoto').innerHTML"), /Leímos de las fotos de tu cédula/);
       assert.equal(P.ev("$('btnSeguir').textContent"), 'Están bien');
-      /* «Están bien» y, sin código, el «¿Es tuya?» de siempre: un toque más. */
+      /* «Están bien» y listo: el número es el impreso en su propia foto. */
       P.ev('siguientePaso()');
-      assert.equal(paso(P), 'identidad');
-      assert.match(P.ev("$('errReg').innerHTML"), /id="btnCedulaEsMia"[^>]*onclick="confirmarCedulaSinLectura\(\)"/);
-      P.ev('confirmarCedulaSinLectura()');
-      assert.notEqual(paso(P), 'identidad', '«Sí, es mía» no pasó');
+      assert.notEqual(paso(P), 'identidad', '«Están bien» no pasó: ' + P.ev("$('errReg').textContent"));
+      assert.equal(/btnCedulaEsMia/.test(P.ev("$('errReg').innerHTML") || ''), false, 'preguntó «¿Es tuya?» por la cédula cuyo número leyó');
+      assert.equal(P.ev('FOTOS.cedula_confirmada'), '52123456');
+      assert.equal(P.ev('FOTOS.cedula_leida'), undefined);
       assert.equal(P.ev('REGISTRO.nombres'), 'MARIA ALEJANDRA');
     } finally { await b.cerrar(); }
   });

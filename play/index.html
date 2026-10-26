@@ -3405,7 +3405,7 @@ function siguientePaso() {
     /* 20-oct-2026, rediseño (C, V2) — y la cédula sin código se mira otra vez
        aquí si el documento cambió después de decir «es mía» (o si se llegó
        aquí sin pasar por «Revisa tus datos»). Solo si las fotos van a subir. */
-    if (extra.sensibles && cedulaSinLecturaPorConfirmar()) return preguntarCedulaSinLectura(err);
+    if (extra.sensibles && cedulaSinLecturaPorConfirmar() && !confirmarPorLasLetras()) return preguntarCedulaSinLectura(err);
     /* Si al final quita la casilla de sensibles, las fotos y el GPS que tomó no
        salen del teléfono: se borran antes de mandar nada.
        20-oct-2026, revisión — {} y no {sensibles:false}: no queda ni la marca. */
@@ -3490,7 +3490,10 @@ function siguientePaso() {
      página en «Escribe tus datos» le dejaba su cédula al siguiente que
      escribiera los suyos. Antes de seguir se le muestra la cédula y se le
      pregunta si es la suya, con el documento que escribió. */
-  if (p.id === 'identidad' && cedulaSinLecturaPorConfirmar()) return preguntarCedulaSinLectura(err);
+  /* 26-oct-2026 (remate) — salvo que el número escrito sea el que las letras
+     leyeron de esa misma cédula: ver EL NÚMERO IMPRESO TAMBIÉN DICE DE QUIÉN
+     ES (confirmarPorLasLetras). */
+  if (p.id === 'identidad' && cedulaSinLecturaPorConfirmar() && !confirmarPorLasLetras()) return preguntarCedulaSinLectura(err);
   pintarRegistro(PASO + 1);
 }
 
@@ -3928,6 +3931,40 @@ function confirmarCedulaSinLectura() {
   FOTOS.cedula_confirmada = normalizarDocumento(REGISTRO.documento);
   guardarFotos();
   siguientePaso();
+}
+/* ---------------------------------------------------------------------------
+   EL NÚMERO IMPRESO TAMBIÉN DICE DE QUIÉN ES — 26-oct-2026 (remate)
+
+   La pregunta de arriba nació el 20-oct para la cédula SIN NÚMERO: sin
+   código leído, las casillas estaban vacías, Pedro escribía las suyas y las
+   fotos de María subían a su cuenta. Desde el 21-oct las letras del frente
+   llenan el número (app/ocr-cedula.js), y en el iPhone de Joan —sin lector
+   nativo— el código casi nunca se lee: el remate vio «¿Esta cédula es la
+   tuya…? No pudimos leer su código de barras, así que no sabemos de quién
+   es» en los 3 recorridos donde las letras lo habían llenado todo. Era un
+   toque de más en cada registro, y decía que no sabemos de quién es la
+   cédula cuyo número acabábamos de leerle y escribirle.
+
+   Si el documento de la casilla es el que las letras leyeron del frente de
+   ESTE registro (deLaCedula: lo llenó la lectura, sigue igual y las fotos son
+   de este intento), las fotos ya dicen de quién son, como con el código (la
+   regla 1): queda confirmada con ese documento, igual que con «Sí, es mía»
+   (motivoParaNoSubir la lee igual), y no se pregunta. Pedro, que escribe el
+   SUYO encima, sigue viendo la pregunta con las fotos; y si cambia el número
+   después, la confirmación deja de valer y se pregunta al abrir la cuenta.
+   Lo leído sigue sin ser «la cédula leída» (FOTOS.cedula_leida): no decide
+   de quién son las fotos en la base ni borra nada.
+   --------------------------------------------------------------------------- */
+function numeroDeLasLetrasEsElEscrito() {
+  var v = FOTOS.cedula_vista;
+  return !!(v && v.fuente === 'ocr' && v.lados && v.lados.frente && hayFotoLista('cedula_frente') &&
+            normalizarDocumento(REGISTRO.documento) && deLaCedula('documento'));
+}
+function confirmarPorLasLetras() {
+  if (cedulaLeidaDeEsteRegistro() || !numeroDeLasLetrasEsElEscrito()) return false;
+  FOTOS.cedula_confirmada = normalizarDocumento(REGISTRO.documento);
+  guardarFotos();
+  return true;
 }
 /* «No es mía»: se va todo lo sensible, como con la cédula de otro documento
    (soltarCedulaDeOtro): las fotos, la selfie, la ubicación y el permiso. Lo

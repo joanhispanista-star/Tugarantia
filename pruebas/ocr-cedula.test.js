@@ -636,7 +636,14 @@ describe('5. la página: «Revisa tus datos» se llena solo, y la persona confir
     assert.equal(P.ev('OCR_CEDULA.estado'), 'listo');
   });
 
-  test('lo leído de las letras NUNCA es «la cédula leída»: no toca cedula_leida y no se salta el «¿Es tuya?»', async () => {
+  /* 26-oct-2026 (remate) — decía «…y no se salta el "¿Es tuya?"». Con el
+     número que las letras leyeron del frente, sin cambiar, la cédula ya dice
+     de quién es (EL NÚMERO IMPRESO TAMBIÉN DICE DE QUIÉN ES, en play/): el
+     remate vio «No pudimos leer su código de barras, así que no sabemos de
+     quién es» en cada registro del iPhone de Joan con todo leído. Lo que no
+     cambia: lo leído NO es la cédula leída, y con OTRO número escrito se
+     pregunta como siempre. */
+  test('lo leído de las letras NUNCA es «la cédula leída»; con su número sin cambiar no pregunta «¿Es tuya?», con otro sí', async () => {
     const { P } = abrir();
     escanear(P);
     await asentar();
@@ -644,16 +651,26 @@ describe('5. la página: «Revisa tus datos» se llena solo, y la persona confir
     assert.equal(P.ev('FOTOS.cedula_vista.fuente'), 'ocr');
     assert.equal(P.ev('cedulaLeidaDeEsteRegistro()'), false);
     /* Lo que sube a la cola tampoco: sin lectura del código, la cédula solo
-       sube con el «es mía» (motivoParaNoSubir). */
+       sube confirmada con su documento (motivoParaNoSubir). */
     assert.equal(P.ev('motivoParaNoSubir(FOTOS, "3001112233", "52123456", true)'), 'sin_dueno');
-    /* «Están bien» revisa y pregunta. */
-    P.ev("U.camposDelGrupo('identidad').forEach(function (c) { $('f_' + c.id).value = REGISTRO[c.id] || ''; });");
+    /* Pedro escribe SU número encima del leído: «¿Es tuya?», con las fotos. */
+    P.ev("U.camposDelGrupo('identidad').forEach(function (c) { $('f_' + c.id).value = REGISTRO[c.id] || ''; }); $('f_documento').value = '1020304050';");
     P.ev('siguientePaso()');
-    assert.equal(pasoActual(P), 'identidad', 'se saltó el «¿Es tuya?» de la cédula sin código');
-    assert.match(P.ev("$('errReg').innerHTML"), /¿Esta cédula es la tuya, la del documento 52\.123\.456\?/);
+    assert.equal(pasoActual(P), 'identidad', 'con otro número escrito se saltó el «¿Es tuya?»');
+    assert.match(P.ev("$('errReg').innerHTML"), /¿Esta cédula es la tuya, la del documento 1\.020\.304\.050\?/);
     assert.match(P.ev("$('errReg').innerHTML"), /id="btnCedulaEsMia"/);
-    P.ev('confirmarCedulaSinLectura()');
-    assert.equal(pasoActual(P), 'entrada');
+    assert.equal(P.ev('FOTOS.cedula_confirmada'), undefined, 'se dio por confirmada con otro número');
+    /* Vuelve al número que leyeron las letras (el de la foto): «Están bien»
+       pasa sin preguntar, y la cédula queda confirmada con ESE documento. */
+    P.ev("$('f_documento').value = '52123456';");
+    P.ev('siguientePaso()');
+    assert.equal(pasoActual(P), 'entrada', 'con el número de su propia foto volvió a preguntar: ' + P.ev("$('errReg').textContent"));
+    assert.equal(P.ev('FOTOS.cedula_confirmada'), '52123456');
+    assert.equal(P.ev('FOTOS.cedula_leida'), undefined, 'confirmarla la volvió «la cédula leída»');
+    /* La cola la sube con ese documento, y con otro no. */
+    P.ev("FOTOS.de = { celular: '3001112233', intento: REGISTRO.intento, t: Date.now() };");
+    assert.equal(P.ev('motivoParaNoSubir(FOTOS, "3001112233", "52123456", true)'), '');
+    assert.equal(P.ev('motivoParaNoSubir(FOTOS, "3001112233", "1020304050", true)'), 'sin_confirmar');
   });
 
   test('con el código leído manda el código: las letras solo llenan la expedición, y el número distinto queda como señal', async () => {
@@ -751,15 +768,21 @@ describe('5. la página: «Revisa tus datos» se llena solo, y la persona confir
     assert.equal(P.ev('REGISTRO.nombres'), undefined, 'los nombres del frente anterior se quedaron');
     assert.equal(P.ev('FOTOS.cedula_vista'), undefined);
 
+    /* 26-oct-2026 (remate) — con el número de las letras sin cambiar ya no
+       se pregunta (EL NÚMERO IMPRESO TAMBIÉN DICE DE QUIÉN ES): el «No es
+       mía» llega cuando quien está escribe SU número encima del leído (el
+       Pedro del 20-oct). Lo que las letras escribieron de la otra cédula se
+       va; lo que él escribió, se queda. */
     const { P: Q } = abrir();
     escanear(Q);
     await asentar();
-    Q.ev("U.camposDelGrupo('identidad').forEach(function (c) { $('f_' + c.id).value = REGISTRO[c.id] || ''; }); siguientePaso();");
+    Q.ev("U.camposDelGrupo('identidad').forEach(function (c) { $('f_' + c.id).value = REGISTRO[c.id] || ''; }); $('f_documento').value = '1020304050'; siguientePaso();");
     assert.match(Q.ev("$('errReg').innerHTML"), /id="btnCedulaNoEsMia"/);
     Q.ev('soltarCedulaSinLectura()');
-    assert.equal(Q.ev('REGISTRO.documento'), undefined, 'el número de una cédula que «no es mía» se quedó');
+    assert.equal(Q.ev('REGISTRO.nombres'), undefined, 'los nombres de una cédula que «no es mía» se quedaron');
     assert.equal(Q.ev('REGISTRO.expedicion'), undefined);
-    assert.equal(Q.ev("$('f_documento').value"), '', 'la casilla siguió mostrando el número: «Continuar» lo volvería a tomar');
+    assert.equal(Q.ev("$('f_nombres').value"), '', 'la casilla siguió mostrando los nombres: «Continuar» los volvería a tomar');
+    assert.equal(Q.ev('REGISTRO.documento'), '1020304050', 'se borró el número que escribió la persona');
   });
 
   test('con la página fabricada: el número de las letras en una cédula de OTRO no borra nada', async () => {
