@@ -8744,7 +8744,7 @@ function traerConversaciones(){
     /* 26-oct-2026 — con la clave rechazada el reloj se DETIENE (chat-1): cada
        vuelta sería un intento fallido más del freno de clave_ok, también
        escondido. chat.js marca ese error con `clave: true`. */
-    if(e&&e.clave&&_reloj&&_reloj.parar) _reloj.parar('clave');
+    if(e&&e.clave) pararRelojPorClave();
     if(est) est.textContent=(e&&e.humano)||'No pude traerlas. Revisa el internet.';
     renderMensajes(); pintarAvisos();
   });
@@ -8768,6 +8768,10 @@ function traerConversaciones(){
  * y este reloj no puede desarmarlo.
  * ======================================================================== */
 let _reloj=null, _ultimoVistazo='', _falloDesde='';
+/* 26-oct-2026 — lo último que el 🔔 pintó sobre el reloj parado por la clave
+   (hallazgo del 26-oct): pintarAvisos repinta el 🔔 cuando eso cambia, porque
+   al pararse el reloj no corre ningún render(). */
+let _avisoBotonParado=false;
 let _vistos={mensajes:0,solicitudes:0,ayudas:0};
 const horaCorta=()=>{ const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
 
@@ -8831,15 +8835,26 @@ function pintarAvisos(){
     /* 22-oct-2026 — «a la vista», no «abierta»: el reloj se para con la
        pestaña escondida o la ventana minimizada (vigilarPendientes), así que
        «abierta» prometía avisos que no llegan. */
-    pie.innerHTML = falla
+    pie.innerHTML = relojParadoPorClave()
+      /* 26-oct-2026 — PARADO POR LA CLAVE, SE DICE (hallazgo del 26-oct): el
+         reloj no va a volver solo, y «no pude preguntar» sonaba a señal. */
+      ? '<span class="muted">Dejé de preguntar'+(_falloDesde?' desde las '+escHTML(_falloDesde):'')+': la nube no aceptó tu clave de sincronización. Arréglala en Ajustes → Guardar conexión → 🔌 Probar conexión, y vuelvo a preguntar solo.</span>'
+      : falla
       ? '<span class="muted">No pude preguntarle a la nube'+(_falloDesde?' desde las '+escHTML(_falloDesde):'')+'. Lo que ves puede estar viejo.</span>'
       : '<span class="muted">'+(window.ChatVivo
-          /* 26-oct-2026 — chat-1: escondida o minimizada se revisan las listas
-             cada minuto (vigilarPendientes). Sin el módulo, la verdad vieja. */
-          ? 'Pregunto cada 45 segundos con esta pestaña a la vista y cada minuto si está en otra pestaña o minimizada. Cerrada, no.'
+          /* 26-oct-2026 — chat-1: escondida o minimizada se revisan SOLO las
+             dos listas del chat cada minuto (vueltaDelReloj), y el pie lo dice
+             con esas palabras (hallazgo del 26-oct: «cada minuto» a secas
+             prometía solicitudes y recados que escondido no se miran). Sin el
+             módulo, la verdad vieja. */
+          ? 'Pregunto cada 45 segundos con esta pestaña a la vista; en otra pestaña o minimizada, cada minuto y solo el chat. Cerrada, no.'
           : 'Pregunto cada 45 segundos mientras esta pestaña esté a la vista; escondida, minimizada o cerrada, no.')
         +(_ultimoVistazo?' Última vez que pude preguntar: '+escHTML(_ultimoVistazo)+'.':'')+'</span>';
   }
+  /* 26-oct-2026 — el 🔔 se repinta cuando el reloj se para por la clave o
+     vuelve (hallazgo del 26-oct): render() no corre al pararse. */
+  const parado=relojParadoPorClave();
+  if(parado!==_avisoBotonParado){ _avisoBotonParado=parado; renderAvisoBoton(); }
   avisarSiHayNuevo(c);
 }
 
@@ -8892,14 +8907,26 @@ function pedirPermisoAviso(){
 }
 function renderAvisoBoton(){
   const e=document.getElementById('avisoBoton'); if(!e) return;
+  /* 26-oct-2026 — PARADO POR LA CLAVE, LO PRIMERO (hallazgo del 26-oct): con
+     el reloj detenido no hay globo, ni número, ni nada que prometer, con o
+     sin permiso de avisos. Lo que sí: dónde se arregla, y que vuelve solo. */
+  if(relojParadoPorClave()){
+    e.innerHTML='<span class="muted">⛔ Ahora no te aviso de nada: la nube no aceptó tu clave de sincronización y dejé de preguntar. Arréglala en Ajustes → «Guardar conexión» → «🔌 Probar conexión», y vuelvo a preguntar solo.</span>'+botonSonidoChat();
+    return;
+  }
   if(typeof Notification==='undefined'){ e.innerHTML='<span class="muted">Este navegador no muestra avisos.</span>'+botonSonidoChat(); return; }
   /* 26-oct-2026 — LA FRASE DICE LA VERDAD DE HOY (chat-1, fila 11 del plan):
-     con el CRM en otra pestaña o minimizado se revisa la lista cada minuto y
-     el globo sale solo si llegó algo (vigilarPendientes). Cerrado, nada: no
-     hay push. Sin app/chat-vivo.js, la verdad de antes. */
+     con el CRM en otra pestaña o minimizado se revisan SOLO las dos listas
+     del chat cada minuto y el globo sale solo si llegó un mensaje
+     (vueltaDelReloj). Las solicitudes de crédito y los recados de «Olvidé mi
+     contraseña» —que este mismo globo avisa a la vista— escondido NO se
+     miran (la cuota: PLAN del chat, §9), y la frase lo dice con esas
+     palabras (hallazgo del 26-oct: «te aviso solo si llegó algo» los
+     prometía). Cerrado, nada: no hay push. Sin app/chat-vivo.js, la verdad
+     de antes. */
   e.innerHTML = (Notification.permission==='granted'
     ? '<span class="muted">'+(window.ChatVivo
-        ? '✅ Te aviso con un globo cuando llegue algo: con el CRM a la vista, en menos de un minuto; en otra pestaña o minimizado, reviso cada minuto y te aviso solo si llegó algo. Con el CRM cerrado, no.'
+        ? '✅ Te aviso con un globo cuando llegue algo: con el CRM a la vista, en menos de un minuto. En otra pestaña o minimizado reviso solo el chat, cada minuto, y te aviso si llegó un mensaje; las solicitudes de crédito y los recados de «Olvidé mi contraseña» los ves al volver. Con el CRM cerrado, no.'
         : '✅ Te aviso con un globo cuando llegue algo, mientras el CRM esté a la vista. En otra pestaña, minimizado o cerrado, no pregunto: al volver, lo ves en menos de un minuto.')
       +'</span>'
     : Notification.permission==='denied'
@@ -8908,8 +8935,9 @@ function renderAvisoBoton(){
     +botonSonidoChat();
 }
 
-/* 26-oct-2026 — EL SONIDO (chat-1): un toque corto cuando SUBE el número de
-   mensajes o de tu equipo (avisarSiHayNuevo), con interruptor guardado en
+/* 26-oct-2026 — EL SONIDO (chat-1): un toque corto cuando SUBE lo que el globo
+   avisa (avisarSiHayNuevo: mensajes, equipo, solicitudes y recados; escondido
+   solo pueden llegar los del chat), con interruptor guardado en
    este navegador. Suena también con el CRM en otra pestaña, que es cuando
    más sirve, si el navegador lo deja. No depende del permiso de avisos.
    `crear` y `almacen` se pasan desde ESTA ventana: app/chat-vivo.js puede
@@ -8927,7 +8955,7 @@ function botonSonidoChat(){
   const t=timbreChat(); if(!t) return '';
   return '<div style="margin-top:6px"><button class="btn btn-ghost btn-sm" id="chSonidoBtn" onclick="alternarSonidoChat()">'
     +(t.apagado()?'🔕 Sonido apagado · encenderlo':'🔔 Sonido encendido · apagarlo')+'</button>'
-    +'<span class="muted" style="display:block;margin-top:3px">Un toque corto cuando llega algo nuevo del chat.</span></div>';
+    +'<span class="muted" style="display:block;margin-top:3px">Un toque corto cuando llega algo nuevo.</span></div>';
 }
 function alternarSonidoChat(){ const t=timbreChat(); if(!t) return; t.poner(!t.apagado()); renderAvisoBoton(); }
 
@@ -8983,8 +9011,9 @@ function vigilarPendientes(encender){
      en otra pestaña, que la pantalla prometía desde el 22-sep y no era
      verdad. Chrome despierta una pestaña de atrás como mucho una vez por
      minuto, así que 60 s es lo que de verdad corre. Con la clave rechazada
-     se DETIENE (traerConversaciones, traerChatEquipo) y lo reanuda un ↻ que
-     salga bien. Los relojes se pasan desde ESTA ventana: el módulo puede
+     se DETIENE (pararRelojPorClave) y lo reanuda un ↻ que salga bien o la
+     clave guardada o probada en Ajustes (reanudarRelojChat, hallazgo del
+     26-oct). Los relojes se pasan desde ESTA ventana: el módulo puede
      estar en otro reino (el banco). Sin el módulo, el reloj de siempre. */
   if(window.ChatVivo&&ChatVivo.lista){
     _reloj=ChatVivo.lista({ pedir:vueltaDelReloj, documento:document,
@@ -9006,6 +9035,39 @@ function vueltaDelReloj(escondida){
      cuenta se junta sola, de a uno por vuelta (cada llamada es un intento
      del freno de la clave). Sin nada pendiente no llama a nadie. */
   try{ juntarCuentasPendientes(); }catch(e){}
+}
+
+/* 26-oct-2026 — EL RELOJ PARADO POR LA CLAVE, EN UN SOLO SITIO (hallazgo del
+   26-oct). Parar lo hacían cuatro líneas iguales (las dos listas y los dos
+   hilos), y cuando el que vio la clave rechazada era un hilo nadie repintaba
+   el 🔔: seguía diciendo «✅ Te aviso…» con el reloj muerto. Aquí se para y
+   se repinta en el acto. Solo el reloj del módulo: el de siempre (un
+   setInterval, sin app/chat-vivo.js) no se detiene nunca. */
+function relojParadoPorClave(){
+  return !!(_reloj&&typeof _reloj==='object'&&_reloj.estado&&_reloj.estado().parado==='clave');
+}
+function pararRelojPorClave(){
+  if(!(_reloj&&typeof _reloj==='object'&&_reloj.parar)) return;
+  if(relojParadoPorClave()) return;
+  _reloj.parar('clave');
+  try{ pintarAvisos(); }catch(e){}
+}
+/* 26-oct-2026 — LA CLAVE BUENA RECIÉN GUARDADA ES EL ↻ (hallazgo del 26-oct).
+   El único reanudar vivía en traerConversaciones, o sea en la vista Chat:
+   Joan arreglaba la clave en Ajustes, «Probar conexión» decía ✅, se iba a
+   Socios y nada volvía a preguntar —ni solicitudes, ni recados, ni el
+   chat— mientras el 🔔 prometía un globo. Antes de chat-1 el setInterval no
+   se detenía nunca y 45 s después de arreglarla todo volvía solo. Aquí
+   vuelve: al guardar la conexión (la siguiente vuelta pregunta) y al ✅ de
+   Probar («yPreguntar»: pregunta ya, por el reloj y con su guarda de «una
+   vuelta en camino»). Solo el parado por la clave: el 'apagado' de
+   vigilarPendientes(false) es a propósito y no se toca. */
+function reanudarRelojChat(yPreguntar){
+  if(!(_reloj&&typeof _reloj==='object'&&_reloj.reanudar)) return false;
+  const estaba=relojParadoPorClave();
+  if(estaba){ _reloj.reanudar(); try{ pintarAvisos(); }catch(e){} }
+  if(yPreguntar&&_reloj.latir) _reloj.latir(false);
+  return estaba;
 }
 
 /* 28-ago-2026 — EL PANEL NO SE CAE PORQUE FALTE UN ARCHIVO. Y esto no es
@@ -9072,7 +9134,7 @@ function traerChatEquipo(callado){
       /* 26-oct-2026 — con la clave rechazada el reloj se DETIENE (chat-1), por
          lo mismo que en traerConversaciones. rpc() traduce ese error a una
          frase con «clave»; no hay marca aparte. */
-      if(/clave/i.test(_eqError)&&_reloj&&_reloj.parar) _reloj.parar('clave');
+      if(/clave/i.test(_eqError)) pararRelojPorClave();
       if(!callado) alert('No pude traer el chat del equipo: '+_eqError);
     });
 }
@@ -9150,7 +9212,7 @@ function abrirChatEquipo(cel){
    app/chat-vivo.js; sin ese archivo, una sola carga como hasta hoy. */
 let _hiloEquipoVivo=null;
 function pararHiloEquipo(){ if(_hiloEquipoVivo){ _hiloEquipoVivo.parar('cerrada'); _hiloEquipoVivo=null; } }
-function cargarHiloEquipo(){
+function cargarHiloEquipo(semilla){
   if(!_eqAbierta) return;
   if(_hiloEquipoVivo) return _hiloEquipoVivo.latir();
   const cel=_eqAbierta;
@@ -9190,10 +9252,13 @@ function cargarHiloEquipo(){
     /* Llegó algo suyo mientras Joan mira: la base ya lo marcó visto; el
        número de la barra se ajusta aquí y la vuelta de 45 s lo confirma. */
     alLlegar:nuevos=>{ if(nuevos.some(m=>CHAT.ladoDe(m.de)==='socio')) descontarSinLeerEquipo(cel); },
-    alFallar:(e,info)=>{ if(info&&info.primera) falla(e); if(e&&e.clave&&_reloj&&_reloj.parar) _reloj.parar('clave'); },
+    alFallar:(e,info)=>{ if(info&&info.primera) falla(e); if(e&&e.clave) pararRelojPorClave(); },
     documento:document,
     reloj:{ setInterval:(f,ms)=>setInterval(f,ms), clearInterval:id=>clearInterval(id) }
   });
+  /* 26-oct-2026 — con semilla (al quitar la puerta de la sesión): lo que ya
+     se tenía, y solo lo nuevo (hallazgo del 26-oct). */
+  if(semilla){ _hiloEquipoVivo.arrancar(semilla); return _hiloEquipoVivo.latir(); }
   return _hiloEquipoVivo.cargar();
 }
 function descontarSinLeerEquipo(cel){
@@ -9431,7 +9496,7 @@ function pintarHiloCliente(lista){
     alVerFoto:'verFotoDelChat',
     vacio:'No hay mensajes en esta conversación.'});
 }
-function cargarHilo(){
+function cargarHilo(semilla){
   if(!_chatAbierta) return;
   if(_hiloVivo) return _hiloVivo.latir();
   const ident=_chatAbierta, canal=_chatCanal;
@@ -9465,10 +9530,13 @@ function cargarHilo(){
        el número de la barra se ajusta aquí sin otra pregunta, y la vuelta
        de 45 s lo confirma. */
     alLlegar:nuevos=>{ if(nuevos.some(m=>CHAT.ladoDe(m.de)==='socio')) descontarSinLeerChat(ident,canal); },
-    alFallar:(e,info)=>{ if(info&&info.primera) falla(e); if(e&&e.clave&&_reloj&&_reloj.parar) _reloj.parar('clave'); },
+    alFallar:(e,info)=>{ if(info&&info.primera) falla(e); if(e&&e.clave) pararRelojPorClave(); },
     documento:document,
     reloj:{ setInterval:(f,ms)=>setInterval(f,ms), clearInterval:id=>clearInterval(id) }
   });
+  /* 26-oct-2026 — con semilla (al quitar la puerta de la sesión) arranca con
+     lo que ya se tenía y pide solo lo nuevo (hallazgo del 26-oct). */
+  if(semilla){ _hiloVivo.arrancar(semilla); return _hiloVivo.latir(); }
   return _hiloVivo.cargar();
 }
 function descontarSinLeerChat(ident,canal){
@@ -9860,6 +9928,9 @@ function guardarSupabase(){
   localStorage.setItem(SB_KEY,JSON.stringify(c)); pintarCfg();
   /* 7-oct-2026 — con la conexión nueva, los historiales prueban a subir ya. */
   try{ if(window.HistorialesAuto) HistorialesAuto.conexionCambio(); }catch(e){}
+  /* 26-oct-2026 — y el reloj del chat que la clave mala detuvo vuelve a andar
+     (hallazgo del 26-oct): la siguiente vuelta pregunta con la clave nueva. */
+  try{ reanudarRelojChat(false); }catch(e){}
   alert('Conexión guardada en este computador. No viaja a ninguna parte.');
 }
 function esPuntual(p){ return PUENTE.esPuntual(p); }
@@ -12164,6 +12235,14 @@ function pedirEntrarOtraVez(motivo, que) {
   _candado = true;
   _motivoCandado = motivo; _tipoCandado = tipo;
   _telCandado = tipo === 'equipo' ? String(tel) : '';
+  /* 26-oct-2026 — LOS RELOJES DEL HILO MUEREN CON LA PUERTA (hallazgo del
+     26-oct). La puerta solo tapa (#gate encima, inert debajo) y la
+     conversación abierta seguía pidiendo chat_de cada 8 s con la pestaña a
+     la vista: la base marca «visto» lo que devuelve, y el cliente veía «Lo
+     vio» en lo que escribió mientras Joan solo tenía delante el campo del
+     PIN, o ya se había ido con «Salir ahora». Se anota cuáles estaban vivos
+     para volver a armarlos al quitar la puerta, desde el último id. */
+  pararHilosBajoLaPuerta();
   /* La vencida o la que la nube ya no reconoce se borran; la que se cerró en
      otra pestaña ya no está. */
   if (motivo !== 'otra-pestana' && _sesion && _sesion.guardada) {
@@ -12224,7 +12303,27 @@ function quitarCandado() {
   _motivoCandado = ''; _tipoCandado = ''; _textoCandado = '';
   const gate = document.getElementById('gate'); if (gate) { gate.style.display = 'none'; gate.style.zIndex = ''; }
   destaparLoDeDebajo();
+  reanudarHilosTrasLaPuerta();
   pintarSesionCinta();
+}
+/* 26-oct-2026 — los hilos que la puerta paró, y cómo vuelven (hallazgo del
+   26-oct). Vuelven con lo que ya tenían (semilla: mensajes y último id), así
+   que piden solo lo nuevo, ahora que sí hay quien lo mire; el cuadro de
+   texto no se toca. Un hilo que no estaba vivo al poner la puerta (cuadro
+   cerrado, sin app/chat-vivo.js) no se inventa. */
+let _hilosBajoLaPuerta = null;
+function pararHilosBajoLaPuerta() {
+  _hilosBajoLaPuerta = { cliente: !!_hiloVivo, equipo: !!_hiloEquipoVivo, jefe: !!_jefeVivo };
+  try { pararHiloCliente(); } catch (e) {}
+  try { pararHiloEquipo(); } catch (e) {}
+  try { pararHiloJefe(); } catch (e) {}
+}
+function reanudarHilosTrasLaPuerta() {
+  const h = _hilosBajoLaPuerta; _hilosBajoLaPuerta = null;
+  if (!h) return;
+  try { if (h.cliente && _chatAbierta) cargarHilo({ mensajes: _chatMsgs, ultimo: _chatUltimo }); } catch (e) {}
+  try { if (h.equipo && _eqAbierta) cargarHiloEquipo({ mensajes: _eqMsgs }); } catch (e) {}
+  try { if (h.jefe) vigilarHiloJefe(); } catch (e) {}
 }
 /* 23-oct-2026 (segunda vuelta) — LA PUERTA CIERRA, NO SOLO TAPA. Era opaca,
    pero el CRM de debajo seguía en el orden del teclado: desde el PIN, con Tab
@@ -20379,6 +20478,10 @@ function probarSupabase(){
         :pieza?'Los historiales de tus clientes empiezan a subir solos en cuanto tu cartera quede emparejada con la nube: la línea ☁ de arriba dice cómo va.'
         :'Este computador está sirviendo una versión vieja del CRM: recárgalo con Ctrl+Shift+R para que los historiales suban solos.'));
     try{ if(pieza) HistorialesAuto.conexionCambio(); }catch(e){}
+    /* 26-oct-2026 — la clave comprobada es el ↻ que el reloj del chat
+       esperaba (hallazgo del 26-oct): si la clave mala lo detuvo, vuelve y
+       pregunta ya, sin esperar los 45 s. */
+    try{ reanudarRelojChat(true); }catch(e){}
   })
   .catch(e=>{
     if(e&&e.paso) return decir('❌',e.paso);

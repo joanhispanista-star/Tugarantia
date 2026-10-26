@@ -378,10 +378,13 @@ describe('3 · el CRM se entera de los recados y los atiende', () => {
       const boton = texto(P.elems.avisoBoton.innerHTML), pie = texto(P.elems.avisoPie.innerHTML);
       assert.doesNotMatch(boton, /aunque tengas el CRM en otra pestaña/, 'promete avisar con el CRM en otra pestaña, sin decir cómo');
       assert.match(boton, /a la vista, en menos de un minuto/);
-      assert.match(boton, /reviso cada minuto y te aviso solo si llegó algo/);
+      /* 26-oct-2026 (hallazgo del 26-oct) — «solo el chat»: escondido no se
+         miran solicitudes ni recados, y «te aviso solo si llegó algo» lo
+         prometía. La prueba fina está en chat-1-crm.test.js, bloque 2. */
+      assert.match(boton, /reviso solo el chat, cada minuto, y te aviso si llegó un mensaje/);
       assert.match(boton, /Con el CRM cerrado, no/);
       assert.doesNotMatch(pie, /esté abierta/, '«abierta» promete avisos que no llegan');
-      assert.match(pie, /cada minuto si está en otra pestaña o minimizada\. Cerrada, no/);
+      assert.match(pie, /en otra pestaña o minimizada, cada minuto y solo el chat\. Cerrada, no/);
       /* Y eso es lo que pasa: dos relojes, y el de 60 s escondido pide las listas del chat y nada más. */
       const relojes = {};
       P.ctx.setInterval = (f, ms) => { relojes[ms] = f; return ms; };

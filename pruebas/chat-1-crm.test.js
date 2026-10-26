@@ -266,6 +266,98 @@ describe('2. el reloj: 45 s a la vista con todo, 60 s escondido solo las listas,
       assert.equal(P.ev('_reloj.estado().parado'), 'clave');
     } finally { cerrar(); }
   });
+
+  test('escondido NO mira solicitudes ni recados (a propósito: la cuota), y el 🔔, el pie y el rótulo del sonido lo dicen', async () => {
+    /* 26-oct-2026 — hallazgo del 26-oct: la frase nueva del 🔔 prometía «en
+       otra pestaña o minimizado, reviso cada minuto y te aviso solo si llegó
+       algo», y «algo» es lo que ese globo avisa desde el 22-sep: también las
+       solicitudes de crédito y los recados de «Olvidé mi contraseña».
+       Escondido el reloj pide SOLO las dos listas del chat (vueltaDelReloj),
+       así que una solicitud no daba globo ni movía «Socios (n)» hasta
+       volver. El comportamiento se queda (PLAN del chat, §9: la cuota); la
+       frase dice la verdad. Sin mensajes del chat, para que el único globo
+       posible sea el de la solicitud. */
+    const { P, N, tic, cerrar } = montar({ nube: { chat_conversaciones: [], equipo_chat_conversaciones: [] } });
+    try {
+      const globos = [];
+      P.ctx.Notification = class { constructor(t, o) { this.body = o && o.body; globos.push(this); } close() {} };
+      P.ctx.Notification.permission = 'granted';
+      P.ev('_vistos = { mensajes: 0, solicitudes: 0, ayudas: 0, equipo: 0 }; _reloj = null; vigilarPendientes(true); renderAvisoBoton(); pintarAvisos();');
+      const boton = plano(el(P,'avisoBoton').innerHTML), pie = plano(el(P,'avisoPie').innerHTML);
+      assert.match(boton, /En otra pestaña o minimizado reviso solo el chat/, 'el 🔔 promete avisar de «algo» escondido, y escondido solo se mira el chat: ' + boton);
+      assert.match(boton, /solicitudes de crédito y los recados[^.]*al volver/, 'el 🔔 no dice que las solicitudes y los recados se ven al volver: ' + boton);
+      assert.doesNotMatch(boton, /te aviso solo si llegó algo/);
+      assert.match(pie, /en otra pestaña o minimizada, cada minuto y solo el chat\. Cerrada, no/, 'el pie no dice «solo el chat»: ' + pie);
+      assert.match(boton, /Un toque corto cuando llega algo nuevo\./, 'el rótulo del sonido dice «del chat», y a la vista suena también por una solicitud');
+      /* Y eso es lo que pasa: Joan minimiza Chrome; un cliente pide un crédito y otro manda un recado. */
+      globos.length = 0;
+      P.ctx.document.hidden = true;
+      N.o.listar_solicitudes_abiertas = [{ id: 1, estado: 'nueva', nombre: 'CLIENTE NUEVO', monto: 200000, creado_en: '2026-10-27T15:31:00Z' }];
+      N.o.listar_ayudas_clave = [{ id: 7, telefono: '3005556677', creado_en: '2026-10-27T15:32:00Z' }];
+      const i = N.vistas.length;
+      for (let k = 0; k < 10; k++) await tic(60000);
+      assert.deepEqual([...new Set(N.desde(i))].sort(), ['chat_conversaciones', 'equipo_chat_conversaciones'], 'escondido pidió otra cosa: ' + N.desde(i).join(','));
+      assert.equal(globos.length, 0, 'escondido salió un globo por la solicitud: entonces la frase vieja era verdad y esta prueba sobra');
+      assert.equal(el(P,'navSolicitudes').textContent, '', 'escondido se movió «Socios (n)» sin haber preguntado');
+      /* Al volver, la vuelta de 45 s a la vista sí las trae, y entonces sale el globo. */
+      P.ctx.document.hidden = false;
+      await tic(45000);
+      assert.ok(globos.some(g => /solicitud\(es\) de crédito/.test(g.body)), 'al volver no avisó de la solicitud: ' + globos.map(g => g.body).join(' | '));
+      assert.equal(el(P,'navSolicitudes').textContent, ' (2)');
+    } finally { cerrar(); }
+  });
+
+  test('parado por la clave: el 🔔 y el pie lo dicen; «Guardar conexión» lo reanuda y «Probar conexión» ✅ pregunta ya, sin entrar a Chat', async () => {
+    /* 26-oct-2026 — hallazgo del 26-oct: el único reanudar vivía en
+       traerConversaciones, o sea en la vista Chat. Joan arreglaba la clave
+       en Ajustes, «Probar conexión» decía ✅, se iba a Socios y nada volvía
+       a preguntar —ni solicitudes, ni recados, ni el chat— con el 🔔
+       diciendo «✅ Te aviso…». Antes de chat-1 el setInterval no se detenía
+       nunca y 45 s después de arreglarla todo volvía solo. */
+    const { P, N, tic, cerrar } = montar();
+    const LISTAS = ['chat_conversaciones', 'equipo_chat_conversaciones', 'listar_solicitudes_abiertas', 'listar_ayudas_clave'];
+    const MAL = { status: 400, cuerpo: { message: 'clave incorrecta' } };
+    const buena = () => { N.o.chat_conversaciones = CLIENTES; N.o.equipo_chat_conversaciones = EQUIPO; N.o.listar_solicitudes_abiertas = []; N.o.listar_ayudas_clave = []; };
+    try {
+      P.ctx.Notification = { permission: 'granted' };
+      P.ev('_reloj = null; vigilarPendientes(true); renderAvisoBoton(); pintarAvisos();');
+      assert.match(plano(el(P,'avisoBoton').innerHTML), /✅ Te aviso con un globo/);
+      LISTAS.forEach(f => { N.o[f] = MAL; });
+      await tic(45000);
+      assert.equal(P.ev('_reloj.estado().parado'), 'clave');
+      /* Mientras está parado, la verdad, sin esperar a un render(): nada de «✅ Te aviso». */
+      const boton = plano(el(P,'avisoBoton').innerHTML), pie = plano(el(P,'avisoPie').innerHTML);
+      assert.doesNotMatch(boton, /✅ Te aviso/, 'parado por la clave, el 🔔 sigue prometiendo el globo: ' + boton);
+      assert.match(boton, /no aceptó tu clave de sincronización/, boton);
+      assert.match(boton, /Ajustes/, 'no dice dónde arreglarla');
+      assert.match(pie, /Dejé de preguntar/, pie);
+      assert.match(pie, /no aceptó tu clave/);
+      /* Joan pega la clave nueva en Ajustes y toca «Guardar conexión»; la nube la acepta. Nunca entra a Chat. */
+      buena();
+      el(P,'cfgSbUrl').value = 'https://prueba.supabase.co'; el(P,'cfgSbAnon').value = 'anon'; el(P,'cfgSbClave').value = CLAVE + '-nueva';
+      P.ev('guardarSupabase()');
+      assert.equal(P.ev('_reloj.estado().vivo'), true, 'guardó la clave nueva y el reloj siguió muerto: solo revivía al entrar a Chat');
+      assert.match(plano(el(P,'avisoBoton').innerHTML), /✅ Te aviso con un globo/, 'reanudado, el 🔔 sigue diciendo que está parado');
+      const i = N.vistas.length;
+      await tic(45000);
+      LISTAS.forEach(fn => assert.ok(N.desde(i).includes(fn), 'la vuelta después de guardar no pidió ' + fn + ': ' + N.desde(i).join(',')));
+      assert.equal(el(P,'navSinLeer').textContent, ' (3)', 'la barra se quedó vieja');
+      /* Parado otra vez; esta vez Joan toca «🔌 Probar conexión»: con el ✅ pregunta ya, sin esperar los 45 s. */
+      LISTAS.forEach(f => { N.o[f] = MAL; });
+      await tic(45000);
+      assert.equal(P.ev('_reloj.estado().parado'), 'clave');
+      buena();
+      N.o.sincronizar_socios = { ok: true }; N.o.vinculos_listar = [];
+      const j = N.vistas.length;
+      P.ev('probarSupabase()'); await asentar(16);
+      assert.match(plano(el(P,'sbEstado').innerHTML), /Todo listo/, 'el caso de prueba no llegó al ✅: ' + plano(el(P,'sbEstado').innerHTML));
+      assert.equal(P.ev('_reloj.estado().vivo'), true, 'Probar conexión dijo ✅ y el reloj siguió muerto');
+      assert.ok(N.desde(j).includes('chat_conversaciones') && N.desde(j).includes('listar_solicitudes_abiertas'), 'con el ✅ no preguntó ya: ' + N.desde(j).join(','));
+      /* El 'apagado' a propósito no se toca: guardar la conexión no enciende un reloj que no existe. */
+      P.ev('vigilarPendientes(false); guardarSupabase()');
+      assert.equal(P.ev('_reloj'), null);
+    } finally { cerrar(); }
+  });
 });
 
 /* ========================================================================== */
@@ -450,6 +542,83 @@ describe('4. la conversación abierta se mueve sola', () => {
       /* Sale de la pestaña: el reloj se para (irEquipo), o si no, la caja ya no es suya y se para solo. */
       P.ev("irEquipo('tablero')");
       assert.equal(P.ev('_jefeVivo'), null, 'salió de la pestaña y el reloj siguió marcando visto');
+    } finally { cerrar(); }
+  });
+
+  test('la puerta de la sesión (24 h, «Salir ahora») mata el reloj del hilo abierto; con el PIN vuelve desde el último id', async () => {
+    /* 26-oct-2026 — hallazgo del 26-oct: pedirEntrarOtraVez solo tapa (#gate
+       encima, inert debajo) y la conversación abierta seguía pidiendo chat_de
+       cada 8 s con la pestaña a la vista. chat_de marca «visto» lo que
+       devuelve: el cliente veía «Lo vio» en lo que escribió mientras Joan
+       solo tenía delante el campo del PIN, o ya se había ido con «Salir
+       ahora». Antes de chat-1 el hilo no tenía reloj. */
+    const hilo = { 1010: { servicio: [msg(1, 'socio', 'hola')], cobranza: [] } };
+    const eq = [msg(1, 'socio', 'Joan, ¿me contestas?')];
+    const M = montar({ nube: {
+      chat_de: c => (hilo[c.p_cedula] && hilo[c.p_cedula][c.p_canal] || []).filter(x => x.id > (c.p_desde || 0)),
+      equipo_chat_de: c => eq.filter(x => x.id > (c.p_desde || 0))
+    } });
+    const { P, N, tic, cerrar } = M;
+    const vencida = () => P.ev("_crmAbierto = true; _sesion = { v: 1, tipo: 'dueno', id: 'x', desde: 1, hasta: 2, guardada: false }; vigilarSesion();");
+    const conPin = () => { el(P,'pinInput').value = '1234'; P.ev('entrar()'); };
+    try {
+      P.ev("irA('mensajes')"); await asentar();
+      P.ev("abrirConversacion('1010')"); await asentar();
+      assert.equal(N.de('chat_de').length, 1);
+      assert.ok(M.relojes[8000]);
+      /* Pasan las 24 h: el reloj de 30 s pone la puerta sin que nadie toque. */
+      vencida();
+      assert.equal(P.ev('_candado'), true, 'el caso de prueba no puso la puerta');
+      assert.match(el(P,'pinErr').textContent, /Pasaron 24 horas/);
+      assert.equal(P.ev('_hiloVivo'), null, 'con la puerta encima el reloj del hilo sigue vivo');
+      assert.equal(M.relojes[8000], undefined, 'con la puerta encima el reloj de 8 s sigue armado');
+      /* El cliente escribe mientras la puerta tapa la pantalla: nadie lo pide, nadie lo marca «visto». */
+      hilo[1010].servicio.push(msg(2, 'socio', 'ya pagué, ¿lo viste?'));
+      if (M.relojes[8000]) await tic(8000);
+      await asentar();
+      assert.equal(N.de('chat_de').length, 1, 'bajo la puerta pidió chat_de: marcó «Lo vio» lo que nadie mira');
+      assert.doesNotMatch(plano(el(P,'chHilo').innerHTML), /ya pagué/);
+      /* Joan escribe el PIN: solo se quita la puerta, y el hilo vuelve a moverse desde donde iba, no desde cero. */
+      conPin(); await asentar();
+      assert.equal(P.ev('_candado'), false);
+      assert.ok(M.relojes[8000], 'quitada la puerta, el hilo abierto no volvió a moverse solo');
+      assert.equal(N.de('chat_de').length, 2, 'al volver no pidió lo nuevo');
+      assert.equal(N.de('chat_de')[1].cuerpo.p_desde, 1, 'al volver pidió el hilo entero en vez de lo nuevo');
+      assert.match(plano(el(P,'chHilo').innerHTML), /hola.*ya pagué/, 'lo que llegó bajo la puerta no se pintó al volver');
+      el(P,'chResp').value = 'lo estoy mirando';
+      hilo[1010].servicio.push(msg(3, 'socio', 'gracias'));
+      await tic(8000);
+      assert.match(plano(el(P,'chHilo').innerHTML), /gracias/);
+      assert.equal(el(P,'chResp').value, 'lo estoy mirando');
+      /* «Salir ahora» con la conversación abierta: lo mismo. */
+      P.ev('salirAhora()'); await asentar();
+      assert.equal(P.ev('_candado'), true);
+      assert.match(el(P,'pinErr').textContent, /Cerraste la sesión/);
+      assert.equal(P.ev('_hiloVivo'), null, 'tras «Salir ahora» el hilo sigue pidiendo');
+      assert.equal(M.relojes[8000], undefined);
+      hilo[1010].servicio.push(msg(4, 'socio', '¿sigues?'));
+      conPin(); await asentar();
+      assert.equal(N.de('chat_de')[N.de('chat_de').length - 1].cuerpo.p_desde, 3);
+      assert.match(plano(el(P,'chHilo').innerHTML), /sigues/);
+      /* Y el hilo del equipo, igual: muere con la puerta y vuelve con el PIN desde el último id. */
+      P.ev('cerrarModal()');
+      P.ev("abrirChatEquipo('3001112233')"); await asentar();
+      assert.equal(N.de('equipo_chat_de').length, 1);
+      vencida();
+      assert.equal(P.ev('_hiloEquipoVivo'), null, 'con la puerta encima el hilo del equipo sigue vivo');
+      assert.equal(M.relojes[8000], undefined);
+      eq.push(msg(2, 'socio', '¿estás?'));
+      conPin(); await asentar();
+      assert.ok(M.relojes[8000], 'quitada la puerta, el hilo del equipo no volvió a moverse solo');
+      assert.equal(N.de('equipo_chat_de').length, 2);
+      assert.equal(N.de('equipo_chat_de')[1].cuerpo.p_desde, 1);
+      assert.match(plano(el(P,'eqHilo').innerHTML), /me contestas.*estás/);
+      /* Cerrado el cuadro, una puerta nueva no revive nada. */
+      P.ev('cerrarModal()');
+      vencida(); conPin(); await asentar();
+      assert.equal(P.ev('_hiloVivo'), null);
+      assert.equal(P.ev('_hiloEquipoVivo'), null);
+      assert.equal(M.relojes[8000], undefined, 'con el cuadro cerrado, la puerta armó un reloj del hilo');
     } finally { cerrar(); }
   });
 });
