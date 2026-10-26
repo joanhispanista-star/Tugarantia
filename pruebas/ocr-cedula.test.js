@@ -176,6 +176,62 @@ describe('1. las letras de la cédula, con el ruido de siempre', () => {
     assert.equal(r2.campos.expedicion, undefined, 'tres lecturas distintas dieron una fecha');
   });
 
+  /* 26-oct-2026 — EL FRENTE CABEZA ABAJO LO DICEN SUS LETRAS (`giro`). Con el
+     marco de pie, la mitad de los frentes llegan girados 180° y no traen
+     código que lo diga. Se leen las DOS posiciones y gana la de más
+     evidencia: el número del código si se leyó, más campos válidos, más
+     confianza del motor, y en empate la derecha. El respaldo (sin `alterna`)
+     siempre 0. Un lector de mentira que contesta por turnos: las dos (o
+     tres) primeras lecturas son la posición derecha, las siguientes la girada. */
+  test('el giro del frente: lo decide la evidencia de las dos posiciones (número del código, campos, confianza), null si no sale nada', async () => {
+    const FRENTE = 'REPUBLICA DE COLOMBIA\nNUMERO 52.123.456\nPEREZ GOMEZ\nAPELLIDOS\nMARIA ALEJANDRA\nNOMBRES\n';
+    const gris = new Uint8ClampedArray(1000 * 631).fill(200);
+    const rec = () => O.recortarDeGris('frente', gris, 1000, 631, {});
+    const porTurnos = (derecho, girado) => { let n = 0; return { leer: () => Promise.resolve(n++ < 2 ? derecho : girado), terminar() {} }; };
+    /* Derecho sale todo, girado nada (lo que da Tesseract con el texto al
+       revés): 0, y se leyeron las dos posiciones (2 + 2). */
+    const r0 = await O.leerRecorte(porTurnos(FRENTE, 'TT ZII ll'), rec(), { hoy: HOY });
+    assert.equal(r0.giro, 0);
+    assert.equal(r0.campos.documento, '52123456');
+    assert.equal(r0.lecturas, 4, 'el frente tiene que leerse en las dos posiciones siempre');
+    /* Cabeza abajo: derecho nada, girado todo. */
+    const r180 = await O.leerRecorte(porTurnos('TT ZII ll', FRENTE), rec(), { hoy: HOY });
+    assert.equal(r180.giro, 180, 'el frente cabeza abajo no se reconoció por las letras');
+    assert.deepEqual(r180.campos, { documento: '52123456', apellidos: 'PEREZ GOMEZ', nombres: 'MARIA ALEJANDRA' });
+    /* EL CASO MEDIDO: del texto al revés el motor saca un «número» de seis
+       dígitos con consenso («923434»); derecho de verdad están los tres
+       campos. Gana 3 a 1: 180, y el número bueno. */
+    const rBasura = await O.leerRecorte(porTurnos('NUMERO 923434\n', FRENTE), rec(), { hoy: HOY });
+    assert.equal(rBasura.giro, 180, 'un número de basura leído al revés ganó la posición');
+    assert.equal(rBasura.campos.documento, '52123456');
+    /* Empate a un campo: el número del CÓDIGO decide (ctx.documentoLeido,
+       con ceros a la izquierda como viene en el PDF417). */
+    const rCodigo = await O.leerRecorte(porTurnos('NUMERO 923434\n', 'NUMERO 52.123.456\n'), rec(), { hoy: HOY, documentoLeido: '0052123456' });
+    assert.equal(rCodigo.giro, 180, 'el número del código no decidió');
+    assert.equal(rCodigo.campos.documento, '52123456');
+    assert.equal((await O.leerRecorte(porTurnos('NUMERO 52.123.456\n', 'NUMERO 923434\n'), rec(), { hoy: HOY, documentoLeido: '0052123456' })).giro, 0);
+    /* Empate a un campo sin código: la confianza del motor (el lector la da
+       con el texto). */
+    let k = 0;
+    const conConfianza = { leer: () => Promise.resolve(k++ < 2 ? { texto: 'NUMERO 923434\n', confianza: 41 } : { texto: 'NUMERO 52.123.456\n', confianza: 88 }), terminar() {} };
+    const rConf = await O.leerRecorte(conConfianza, rec(), { hoy: HOY });
+    assert.equal(rConf.giro, 180, 'la confianza del motor no desempató');
+    assert.equal(rConf.campos.documento, '52123456');
+    /* Empate total: derecha. */
+    const rEmpate = await O.leerRecorte(porTurnos('PEREZ GOMEZ\nAPELLIDOS\n', 'LOPEZ RUIZ\nAPELLIDOS\n'), rec(), { hoy: HOY });
+    assert.equal(rEmpate.giro, 0);
+    assert.equal(rEmpate.campos.apellidos, 'PEREZ GOMEZ');
+    /* Nada en ninguna: no se sabe, y la foto no se toca. */
+    const nada = { leer: () => Promise.resolve(''), terminar() {} };
+    const rNada = await O.leerRecorte(nada, rec(), { hoy: HOY });
+    assert.equal(rNada.giro, null);
+    assert.deepEqual(rNada.campos, {});
+    /* El respaldo no tiene girada: 0 siempre, lea o no. */
+    const recR = O.recortarDeGris('reverso', gris, 1000, 631, {});
+    assert.equal((await O.leerRecorte(nada, recR, { hoy: HOY })).giro, 0);
+    assert.equal((await O.leerRecorte(null, recR, { hoy: HOY })).giro, null, 'sin lector no hay lectura: el giro no se sabe');
+  });
+
   test('el enganche en una llamada (leerLado): al lienzo se le piden SOLO las franjas', async () => {
     const pedidas = [];
     const lienzo = { width: 1000, height: 631, getContext: () => ({ getImageData: (x, y, w, h) => {

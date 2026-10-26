@@ -154,11 +154,19 @@ describe('el marco de la cédula', () => {
      para dar 3 px por módulo. Eso obligaba a poner la cédula a ~7,8 cm del
      lente, y la cámara no enfocaba: la cédula amarilla de Joan nunca se leyó.
      Ahora va ACOSTADA en cualquier cuadro, a lo ancho, y los píxeles por
-     módulo los pone la resolución que se pide (EscanerCaptura.CAMARA). */
-  test('en un cuadro vertical la cédula va ACOSTADA, a lo ancho, y cabe', () => {
+     módulo los pone la resolución que se pide (EscanerCaptura.CAMARA).
+     26-oct-2026 — REESCRITA OTRA VEZ. Acostada a lo ancho del video la cédula
+     queda a 13,6 cm y Joan tenía que alejarse («no entiendo porque hay que
+     tomar la foto con ese escáner horizontal en una pantalla vertical»). Va
+     DE PIE cuando la página lo pide (`dePie`, el cuarto parámetro), llenando el
+     78 % del alto de la CAJA 4:5 —que es el 55 % del largo del video y ~11,7
+     cm, donde la cámara sí enfoca—, nunca el 84 % del video del 8-oct. Sin
+     `dePie` (una página vieja con este archivo) sigue acostada: esa página no
+     gira nada. */
+  test('sin pedirlo DE PIE (la página vieja), la cédula va ACOSTADA, a lo ancho, y cabe', () => {
     for (const acostada of [undefined, false, true]) {
       const g = EC.rectanguloGuia(1080, 1920, acostada);
-      assert.equal(g.vertical, false, 'el marco volvió a ponerse de pie (acostada=' + acostada + ')');
+      assert.equal(g.vertical, false, 'el marco se puso de pie sin que la página lo pidiera (acostada=' + acostada + ')');
       assert.ok(g.w > g.h, 'el marco no está acostado');
       assert.ok(Math.abs(g.w / g.h - EC.PROPORCION) < 0.02, 'el marco no tiene la proporción de una cédula');
       assert.ok(g.x >= 0 && g.y >= 0 && g.x + g.w <= 1080 && g.y + g.h <= 1920, 'el marco se sale del cuadro');
@@ -167,11 +175,77 @@ describe('el marco de la cédula', () => {
       assert.ok(g.w >= 1080 * 0.8, 'el marco es chico: la cédula saldría con menos píxeles de los que la cámara da');
     }
   });
-  test('en un cuadro apaisado va acostada', () => {
-    const g = EC.rectanguloGuia(1280, 720);
-    assert.equal(g.vertical, false);
-    assert.ok(g.w > g.h);
-    assert.ok(g.x + g.w <= 1280 && g.y + g.h <= 720);
+  test('pedido DE PIE (la página de hoy): vertical, el 78 % del alto de la caja, centrado, y cabe', () => {
+    /* La caja del escáner es 4:5 (300 × 375 en el banco; hasta 420 × 525). */
+    for (const [cw, ch] of [[300, 375], [380, 475], [420, 525]]) {
+      const g = EC.rectanguloGuia(cw, ch, true, true);
+      assert.equal(g.vertical, true, 'el marco no se puso de pie en la caja ' + cw + '×' + ch);
+      assert.ok(g.h > g.w, 'el marco de pie no es más alto que ancho');
+      assert.ok(Math.abs(g.h / g.w - EC.PROPORCION) < 0.02, 'el marco no tiene la proporción de una cédula');
+      assert.ok(Math.abs(g.h / ch - EC.MARCO.DE_PIE_ALTO) < 0.01, 'el marco no llena el ' + EC.MARCO.DE_PIE_ALTO * 100 + ' % del alto: ' + g.h / ch);
+      assert.ok(g.x >= 0 && g.y >= 0 && g.x + g.w <= cw && g.y + g.h <= ch, 'el marco se sale de la caja');
+      assert.ok(Math.abs((g.x + g.w / 2) - cw / 2) <= 1 && Math.abs((g.y + g.h / 2) - ch / 2) <= 1, 'el marco no está centrado');
+    }
+    /* La cuenta de la distancia: la caja 4:5 muestra el 70 % del alto del
+       video 9:16, así que el 78 % de la caja es el 55 % del largo del video
+       (y no el 84 % del 8-oct, que obligaba a acercarla a 7,7 cm). */
+    assert.ok(Math.abs(EC.MARCO.DE_PIE_ALTO * (5 / 4) / (16 / 9) - 0.55) < 0.01, 'el marco de pie ya no llena ~55 % del largo del video');
+    /* El tercer parámetro no manda: de pie es de pie. */
+    assert.equal(EC.rectanguloGuia(300, 375, false, true).vertical, true);
+  });
+  test('en un cuadro apaisado va acostada, aunque se pida de pie', () => {
+    for (const dePie of [undefined, true]) {
+      const g = EC.rectanguloGuia(1280, 720, undefined, dePie);
+      assert.equal(g.vertical, false);
+      assert.ok(g.w > g.h);
+      assert.ok(g.x + g.w <= 1280 && g.y + g.h <= 720);
+    }
+  });
+});
+
+/* 26-oct-2026 — EL MARCO DE PIE, EL RECORTE ACOSTADO: las cuentas con que la
+   página lleva un rectángulo del video de pie al video acostado (girado 90° en
+   contra del reloj: el lado derecho pasa a ser el de arriba) y de vuelta. */
+describe('el video de pie y el video acostado (EC.rectAcostado / EC.rectDePie)', () => {
+  const VW = 2160, VH = 3840;
+  test('ida y vuelta exactas, y el marco acostado queda a lo ancho con el lado derecho arriba', () => {
+    const g = { x: 418, y: 865, w: 1332, h: 2110, vertical: true };
+    const a = EC.rectAcostado(g, VW, VH);
+    assert.deepEqual(a, { x: 865, y: 410, w: 2110, h: 1332, vertical: false });
+    const v = EC.rectDePie(a, VW, VH);
+    assert.deepEqual([v.x, v.y, v.w, v.h], [g.x, g.y, g.w, g.h]);
+    /* El borde DERECHO del marco de pie (x + w = 1750) es el borde de ARRIBA
+       del acostado (y = 2160 - 1750 = 410); el de arriba (y = 865) es el
+       izquierdo (x = 865). */
+    assert.equal(a.y, VW - (g.x + g.w));
+    assert.equal(a.x, g.y);
+    /* El video entero, acostado, mide vh × vw. */
+    assert.deepEqual(EC.rectAcostado({ x: 0, y: 0, w: VW, h: VH }, VW, VH), { x: 0, y: 0, w: VH, h: VW, vertical: false });
+  });
+  test('un píxel: la esquina de arriba a la derecha del video es la de arriba a la izquierda del acostado', () => {
+    const p = EC.rectAcostado({ x: VW - 1, y: 0, w: 1, h: 1 }, VW, VH);
+    assert.deepEqual([p.x, p.y, p.w, p.h], [0, 0, 1, 1]);
+    const q = EC.rectAcostado({ x: 0, y: 0, w: 1, h: 1 }, VW, VH);
+    assert.deepEqual([q.x, q.y], [0, VW - 1], 'la esquina de arriba a la izquierda no cayó abajo a la izquierda');
+  });
+  test('la ventana de la puerta sobre el marco acostado: el anillo cabe entero y el interior queda en el 15-85 %', () => {
+    const g = EC.rectanguloGuia(300, 375, true, true);
+    /* El marco de la caja, en el video (medirCajaDoc: cover, la caja a lo
+       ancho del video). */
+    const k = Math.max(300 / VW, 375 / VH), oy = (375 - VH * k) / 2;
+    const gv = { x: Math.round(g.x / k), y: Math.round((g.y - oy) / k), w: Math.round(g.w / k), h: Math.round(g.h / k), vertical: true };
+    const vg = EC.ventanaDeGuia(EC.rectAcostado(gv, VW, VH), VH, VW, 96);
+    assert.ok(vg, 'no hubo ventana');
+    for (const [v, e] of [[vg.interior.x0 / vg.gw, 0.15], [vg.interior.x1 / vg.gw, 0.85], [vg.interior.y0 / vg.gh, 0.15], [vg.interior.y1 / vg.gh, 0.85]]) {
+      assert.ok(Math.abs(v - e) < 0.01, 'el interior no quedó en el 15-85 %: ' + JSON.stringify(vg.interior));
+    }
+    /* Y la ventana cabe en el video acostado (no se recortó contra el borde). */
+    assert.ok(vg.sx > 0 && vg.sy > 0 && vg.sx + vg.sw < VH && vg.sy + vg.sh < VW, 'el anillo se recortó contra el borde: ' + JSON.stringify(vg));
+  });
+  test('con basura no revienta', () => {
+    assert.equal(EC.rectAcostado(null, 10, 10), null);
+    assert.equal(EC.rectAcostado({ x: 1, y: 1, w: 1, h: 1 }, 0, 10), null);
+    assert.equal(EC.rectDePie(undefined, 10, 10), null);
   });
 });
 
@@ -591,29 +665,44 @@ describe('lo que encontró la revisión (21-sep-2026)', () => {
     assert.equal(P.ev('LIENZO_GIRO.width'), 400, 'un giro chico no debe intercambiar los lados');
   });
 
-  test('las DOS caras van ACOSTADAS: ni el frente al revés ni el respaldo fuera de foco', () => {
+  test('las DOS caras van DE PIE en la caja, y el mismo marco para las dos: ni el respaldo a 7,7 cm ni el frente de través', () => {
     /* Con el marco de pie el recorte se gira 90°, y según hacia dónde apunte el
        borde de arriba la foto queda cabeza abajo; por eso el frente ya iba
        acostado. 21-oct-2026 — REESCRITA CON LA REGLA NUEVA: el respaldo
        también. De pie había que ponerlo a ~7,8 cm del lente y no enfocaba
-       (Joan: «no me toque tomarla de forma vertical»). */
+       (Joan: «no me toque tomarla de forma vertical»).
+       26-oct-2026 — REESCRITA OTRA VEZ: las dos caras DE PIE, a 11,7 cm (el
+       marco llena el alto de la caja, no el del video), el mismo marco para
+       las dos (nunca el que dependía del lado), y lo que queda cabeza abajo
+       lo endereza el código o las letras, no un giro a ciegas. La página pide
+       el de pie con el cuarto `true` y, si el .js viejo de la caché no lo
+       sabe, se queda con el acostado del 21-oct. */
     for (const lado of ['frente', 'reverso']) {
-      const g = EC.rectanguloGuia(1080, 1920, lado === 'frente');
-      assert.equal(g.vertical, false, 'el marco del ' + lado + ' es vertical');
-      assert.ok(g.w > g.h);
-      assert.ok(g.x >= 0 && g.x + g.w <= 1080 && g.y + g.h <= 1920);
+      const g = EC.rectanguloGuia(300, 375, true, true);
+      assert.equal(g.vertical, true, 'el marco del ' + lado + ' no está de pie');
+      assert.ok(g.h > g.w);
+      assert.ok(g.x >= 0 && g.x + g.w <= 300 && g.y + g.h <= 375);
     }
     const t = FUENTE();
-    assert.ok(t.indexOf('rectanguloGuia(cw, ch, true)') >= 0,
-      'la página dejó de pedir el marco acostado en los dos lados');
+    assert.ok(t.indexOf('rectanguloGuia(cw, ch, true, true)') >= 0,
+      'la página dejó de pedir el marco de pie en los dos lados');
+    assert.ok(t.indexOf("if (g.vertical === true && !(EC.rectAcostado && EC.rectDePie)) g = EC.rectanguloGuia(cw, ch, true);") >= 0,
+      'sin las cuentas del giro la página no vuelve al marco acostado: el recorte quedaría de través');
     assert.equal(t.indexOf("rectanguloGuia(cw, ch, ESCDOC.lado === 'frente')"), -1,
-      'volvió el marco que depende del lado: el respaldo se pondría de pie');
-    assert.ok(t.indexOf('con tu foto a la izquierda') >= 0, 'no le dice cómo poner el frente');
-    assert.ok(t.indexOf('Pon tu cédula acostada dentro del marco') >= 0, 'no le dice que la ponga acostada');
-    /* Y el recorte ya no se gira: el giro era el que dejaba la foto de lado. */
+      'volvió el marco que depende del lado: el respaldo se pondría de pie a 7,7 cm');
+    assert.ok(t.indexOf('Pon tu cédula DE PIE dentro del marco, por el lado de atrás') >= 0, 'no le dice que la ponga de pie');
+    assert.ok(t.indexOf('Ahora el frente: voltéala y ponla DE PIE en el marco, con tu foto') >= 0, 'no le dice cómo poner el frente');
+    assert.equal(t.indexOf('con tu foto a la izquierda') >= 0 && t.indexOf('if (!marcoDePie())') >= 0, true,
+      'el letrero de la cédula acostada se queda solo para el .js viejo en la caché (marcoDePie false)');
+    assert.equal(EC.textoDeTarjeta(null), 'Pon la cédula DE PIE dentro del marco');
+    /* El recorte se gira, pero SOLO con el marco de pie y en la fuente
+       (dibujarAcostado), nunca a ciegas sobre un marco acostado. */
     const i = t.indexOf('function recortarGuia');
     const cuerpo = t.slice(i, t.indexOf('\nfunction ', i + 1));
-    assert.equal(/rotate\(/.test(cuerpo), false, 'el recorte del escáner se volvió a girar');
+    assert.ok(/if \(dePie\) dibujarAcostado\(x, v, g\.x, g\.y, g\.w, g\.h, w, h\);/.test(cuerpo), 'el recorte no se acuesta con el marco de pie');
+    assert.ok(/else x\.drawImage\(v, g\.x, g\.y, g\.w, g\.h, 0, 0, g\.w, g\.h\);/.test(cuerpo), 'con el marco acostado el recorte dejó de copiarse tal cual');
+    const j = t.indexOf('function dibujarAcostado');
+    assert.ok(/x\.rotate\(-Math\.PI \/ 2\)/.test(t.slice(j, j + 400)), 'el giro de la fuente ya no es de 90° en contra del reloj: el código y las letras esperan ese');
   });
 
   test('mientras el escáner está abierto no se ofrece volver a abrirlo', () => {

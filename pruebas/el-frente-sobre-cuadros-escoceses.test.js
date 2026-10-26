@@ -36,7 +36,9 @@ const path = require('node:path');
 const ECAP = require('../app/escaner-captura.js');
 const { leerPGM } = require('./banco-ocr.js');
 const { asentar } = require('./esperar.js');
-const { VIDEO, escalar, abrirConCamara } = require('./banco-camara.js');
+/* 26-oct-2026 — el marco va DE PIE: la escena se sigue armando acostada (en
+   el video ACOSTADO, con el marco acostado) y dePie la pone en el de verdad. */
+const { VIDEO, ACOSTADO, escalar, abrirConCamara, dePie, acostada } = require('./banco-camara.js');
 
 function azarDe(s) { s >>>= 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
 
@@ -67,37 +69,50 @@ function tela(m, pxmm) {
   };
 }
 
+/* El marco acostado del 21-oct en este banco (el 84 % del ancho del video
+   4K): la geometría en la que la verificación encontró las dos telas. */
+const MARCO_21_OCT = { x: 173, y: 1348, w: 1814 };
 /* La escena del video 4K: la tela, y encima la tarjeta (al revés si giro 180,
-   un poco girada `rot` grados y corrida), con el ruido del sensor. */
-function escena(guia, c) {
+   un poco girada `rot` grados y corrida), con el ruido del sensor.
+   26-oct-2026 — en el video ACOSTADO (V), con el marco acostado. Y la tela
+   es LA MISMA del hallazgo: se evalúa en los píxeles del marco del 21-oct
+   (MARCO_21_OCT), que es donde cada raya caía contra el borde de la tarjeta
+   cuando el frente pasó por respaldo; el marco de hoy es 1,16 veces más
+   grande y está en otro sitio del video, y con las rayas calculadas en los
+   píxeles de hoy la escena sería otra (la misma tela en milímetros, pero con
+   otra fase) y la prueba dejaba de probar el caso. */
+function escena(guia, c, V) {
+  V = V || VIDEO;
   const t = frente();
-  const largo = guia.w * c.esc, pxmm = largo / 85.6;
-  const px = new Uint8ClampedArray(VIDEO.W * VIDEO.H);
-  const y0 = Math.max(0, guia.y - 300), y1 = Math.min(VIDEO.H, guia.y + guia.h + 300);
-  const f = tela(c.mesa, pxmm);
+  const largo = guia.w * c.esc, r = MARCO_21_OCT.w / guia.w;
+  const px = new Uint8ClampedArray(V.W * V.H);
+  const y0 = Math.max(0, guia.y - 300), y1 = Math.min(V.H, guia.y + guia.h + 300);
+  const f = tela(c.mesa, MARCO_21_OCT.w * c.esc / 85.6);
   px.fill(c.mesa.base);
-  for (let y = y0; y < y1; y++) for (let x = 0; x < VIDEO.W; x++) px[y * VIDEO.W + x] = f(x, y);
+  for (let y = y0; y < y1; y++) for (let x = 0; x < V.W; x++) px[y * V.W + x] = f(MARCO_21_OCT.x + (x - guia.x) * r, MARCO_21_OCT.y + (y - guia.y) * r);
   let img = escalar(t, largo / 1000);
   if (c.giro === 180) { const g = new Uint8ClampedArray(img.gris.length); for (let i = 0; i < g.length; i++) g[i] = img.gris[g.length - 1 - i]; img = { gris: g, w: img.w, h: img.h }; }
   const cx = guia.x + guia.w / 2 + c.dx * guia.w, cy = guia.y + guia.h / 2 + c.corrida * guia.h;
   const rot = c.rot * Math.PI / 180, cr = Math.cos(rot), sr = Math.sin(rot);
   const R = Math.ceil(Math.hypot(img.w, img.h) / 2) + 2;
-  for (let Y = Math.max(0, Math.floor(cy - R)); Y < Math.min(VIDEO.H, Math.ceil(cy + R)); Y++) {
-    for (let X = Math.max(0, Math.floor(cx - R)); X < Math.min(VIDEO.W, Math.ceil(cx + R)); X++) {
+  for (let Y = Math.max(0, Math.floor(cy - R)); Y < Math.min(V.H, Math.ceil(cy + R)); Y++) {
+    for (let X = Math.max(0, Math.floor(cx - R)); X < Math.min(V.W, Math.ceil(cx + R)); X++) {
       const ddx = X + 0.5 - cx, ddy = Y + 0.5 - cy;
       const u = cr * ddx + sr * ddy + img.w / 2 - 0.5, v = -sr * ddx + cr * ddy + img.h / 2 - 0.5;
       if (u < 0 || v < 0 || u > img.w - 1 || v > img.h - 1) continue;
       const u0 = Math.floor(u), v0 = Math.floor(v), au = u - u0, av = v - v0;
       const u1 = Math.min(img.w - 1, u0 + 1), v1 = Math.min(img.h - 1, v0 + 1);
       const g = img.gris;
-      px[Y * VIDEO.W + X] = (g[v0 * img.w + u0] * (1 - au) + g[v0 * img.w + u1] * au) * (1 - av) +
-                            (g[v1 * img.w + u0] * (1 - au) + g[v1 * img.w + u1] * au) * av;
+      px[Y * V.W + X] = (g[v0 * img.w + u0] * (1 - au) + g[v0 * img.w + u1] * au) * (1 - av) +
+                        (g[v1 * img.w + u0] * (1 - au) + g[v1 * img.w + u1] * au) * av;
     }
   }
   const az = azarDe(c.sem);
-  for (let i = y0 * VIDEO.W; i < y1 * VIDEO.W; i++) px[i] = px[i] + c.ruido * (az() + az() + az() - 1.5) * 2;
+  for (let i = y0 * V.W; i < y1 * V.W; i++) px[i] = px[i] + c.ruido * (az() + az() + az() - 1.5) * 2;
   return px;
 }
+/* La escena, delante de la cámara de verdad: armada acostada y puesta de pie. */
+const enLaCamara = (guia, c) => dePie(escena(acostada(guia), c, ACOSTADO), ACOSTADO.W, ACOSTADO.H);
 
 /* Las dos del hallazgo: tomadas como respaldo a los 2,6 s por la franja sola. */
 const ESCOCESES = [
@@ -117,7 +132,7 @@ async function mirar(c, max) {
   assert.equal(P.ev('!!ESCDOC.stream'), true, 'la cámara no encendió');
   await correr(150);
   const guia = JSON.parse(P.ev('JSON.stringify(ESCDOC.guiaVideo)'));
-  video.__px = escena(guia, c);
+  video.__px = enLaCamara(guia, c);
   const letreros = []; let vioFranja = false, vioCodigo = false, t = 0;
   for (let i = 0; i < max && !P.ev('FOTOS.cedula_reverso'); i++) {
     await correr(100);

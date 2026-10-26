@@ -739,11 +739,16 @@ describe('la pantalla del escáner', () => {
   const TEXTOS = () => HTML().replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/<style>[\s\S]*?<\/style>/g, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ').replace(/'\s*\+\s*'/g, '');
 
-  test('NADA «de pie», y «se toma sola» solo con la condición que lo hace cierto', () => {
+  /* 26-oct-2026 — REESCRITA CON LA REGLA NUEVA. Decía «NADA de pie»: el 21-oct
+     de pie era a 7,7 cm y no enfocaba. Hoy la cédula va DE PIE otra vez, a
+     11,7 cm (el marco llena el alto de la CAJA, no el del video: EC.rectanguloGuia),
+     porque acostada Joan tenía que alejarse. Lo que sigue sin poder decirse es
+     «toma las fotos sola» a secas. */
+  test('DE PIE en los dos lados, y «se toma sola» solo con la condición que lo hace cierto', () => {
     const t = TEXTOS();
-    assert.equal(/de pie/i.test(t), false, 'volvió a pedirle la cédula de pie');
+    assert.match(t, /Pon tu cédula <b>de pie<\/b> dentro del marco/, 'no le pide la cédula de pie');
+    assert.equal(/<b>acostada<\/b>/.test(t), false, 'el paso sigue pidiendo la cédula acostada');
     assert.equal(/toma las fotos sola/.test(t), false, 'promete que la cámara toma sola las fotos, y con la digital no lo hacía');
-    assert.match(t, /Pon tu cédula <b>acostada<\/b> dentro del marco/);
     assert.match(t, /Cuando se ve nítida, la foto se toma sola; si tarda, toca «Tomar la foto ahora»/);
     assert.equal(/¿Es el lado del código de barras\? Voltéala/.test(t), false, 'volvió el «Voltéala» falso');
     /* Y sin bloquear la orientación: en iPhone no existe y en Chrome pide

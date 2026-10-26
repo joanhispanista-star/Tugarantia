@@ -51,7 +51,10 @@ const ECAP = require('../app/escaner-captura.js');
 const F = require('./fabrica-pdf417.js');
 const { leerPGM } = require('./banco-ocr.js');
 const { asentar } = require('./esperar.js');
-const { VIDEO, escalar, abrirConCamara } = require('./banco-camara.js');
+/* 26-oct-2026 — el marco va DE PIE: la escena se sigue armando acostada (en
+   el video ACOSTADO, con el marco acostado) y dePie la pone en el de verdad.
+   Lo puro mira la misma geometría acostada que mira la página. */
+const { VIDEO, ACOSTADO, escalar, abrirConCamara, dePie, acostada } = require('./banco-camara.js');
 
 const PERSONA = { documento: '0052123456', apellido1: 'PEREZ', apellido2: 'GOMEZ', nombre1: 'MARIA',
                   nombre2: 'ALEJANDRA', sexo: 'F', nacimiento: '19850315', municipio: '11001', rh: 'O+' };
@@ -176,8 +179,12 @@ const nombre = c => JSON.stringify(c).replace(/"/g, '');
 /* Dónde pone el banco el marco acostado en su video 4K (ESCDOC.guiaVideo), y
    dónde cae entonces el recorte con su aire: con las rayas en la misma fase
    que en la página, lo puro mira los mismos píxeles que ella. */
-const GUIA_VIDEO = { x: 173, y: 1348, w: 1814, h: 1145 };
-const ORIGEN = EC.margenDeLectura(GUIA_VIDEO, VIDEO.W, VIDEO.H, 0.06);
+/* 26-oct-2026 — el marco de pie del banco (418, 865, 1332 × 2110 en el video
+   de 2160 × 3840), ACOSTADO: donde lo mira todo lo que mide. Antes, acostado
+   en el video, era 173, 1348, 1814 × 1145: la cédula ahora llena 2110 px del
+   lado largo en vez de 1814 (EC.rectanguloGuia, la cuenta de los 11,7 cm). */
+const GUIA_VIDEO = { x: 865, y: 410, w: 2110, h: 1332 };
+const ORIGEN = EC.margenDeLectura(GUIA_VIDEO, ACOSTADO.W, ACOSTADO.H, 0.06);
 const GUIA_4K = { w: GUIA_VIDEO.w, h: GUIA_VIDEO.h };
 const AIRE = { x: GUIA_VIDEO.x - ORIGEN.x, y: GUIA_VIDEO.y - ORIGEN.y };
 const RW = ORIGEN.w, RH = ORIGEN.h;
@@ -280,8 +287,9 @@ describe('1. lo puro: las rayas de los lados no son de la tarjeta', () => {
 async function ponerYMirar(E, lado, c, max) {
   const { P, video, correr } = E;
   const guia = JSON.parse(P.ev('JSON.stringify(ESCDOC.guiaVideo)'));
-  assert.deepEqual({ x: guia.x, y: guia.y, w: guia.w, h: guia.h }, GUIA_VIDEO, 'el banco movió el marco: lo puro ya no mira lo mismo que la página');
-  video.__px = escena(VIDEO.W, VIDEO.H, guia, c);
+  const ga = acostada(guia);
+  assert.deepEqual({ x: ga.x, y: ga.y, w: ga.w, h: ga.h }, GUIA_VIDEO, 'el banco movió el marco: lo puro ya no mira lo mismo que la página');
+  video.__px = dePie(escena(ACOSTADO.W, ACOSTADO.H, ga, c), ACOSTADO.W, ACOSTADO.H);
   const letreros = []; let vioFranja = false, vioCodigo = false;
   for (let i = 0; i < max && !P.ev('FOTOS.cedula_' + lado); i++) {
     await correr(100);
