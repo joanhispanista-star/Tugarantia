@@ -333,7 +333,8 @@ describe('la selfie dentro de la página', () => {
     assert.ok(t.slice(i, t.indexOf('\nfunction ', i + 1)).indexOf('prepararDetectorRostro()') > 0);
     /* Se EJECUTA desde un solo lugar (prepararDetectorRostro); bajarlo sin
        ejecutarlo (precalentarDetectorRostro) es aparte y se prueba abajo. */
-    assert.equal([...t.matchAll(/cargarScript\(URL_ROSTRO_VIVO\)/g)].length, 1, 'el módulo se ejecuta desde otro lado');
+    /* 23-oct-2026 — con el global que espera (cargarScript(url, listo)). */
+    assert.equal([...t.matchAll(/cargarScript\(URL_ROSTRO_VIVO, llegoElGlobal\('RostroEnVivo'\)\)/g)].length, 1, 'el módulo se ejecuta desde otro lado');
     assert.equal([...t.matchAll(/URL_ROSTRO_VIVO/g)].length, 4, 'apareció otro uso del módulo: revisa que no corra antes del paso del rostro');
   });
 

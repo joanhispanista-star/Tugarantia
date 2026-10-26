@@ -758,7 +758,7 @@ if (MARCA === 'platachat') {
    antes (ver «¿LLEGÓ LO QUE PEDÍ?» arriba y la nota de v139 en sw.js). */
 var URL_SESION_PLATACHAT = '../platachat/sesion.js?v=139';
 function pasarSesionAPlataChat(sesion, celular, nombre) {
-  return cargarScript(URL_SESION_PLATACHAT).then(function () {
+  return cargarScript(URL_SESION_PLATACHAT, llegoElGlobal('SesionPlataChat')).then(function () {
     var SPC = window.SesionPlataChat;
     if (!SPC || !SPC.sesionDe || !SPC.guardar) throw new Error('no cargó platachat/sesion.js');
     if (!SPC.guardar(SPC.sesionDe(sesion, celular, { nombre: nombre }))) throw new Error('no se pudo guardar la sesión');
@@ -5934,6 +5934,9 @@ try { sanearColas(); } catch (e) {}
    que no sea el suyo — es lo que declara Data Safety y lo vigila
    pruebas/cumplimiento.test.js. */
 var URL_ZXING = '../app/lib/zxing.min.js';
+/* 23-oct-2026 — cada cuánto vuelve a pedirse el lector con la cámara de la
+   cédula abierta si no está (ver bucleEscanerDoc). */
+var MS_REINTENTO_LECTOR = 4000;
 
 /* 21-sep-2026 — SE PUEDE REINTENTAR. Antes, una sola caída de zxing.min.js
    (330 KB: la primera vez, con señal floja, es lo más probable del paso) dejaba
@@ -5944,19 +5947,35 @@ var URL_ZXING = '../app/lib/zxing.min.js';
    una en vuelo no se duplica, y una que falló se olvida para que el siguiente
    intento vuelva a pedir el archivo. */
 var SCRIPTS = {};
-function cargarScript(url) {
+/* 23-oct-2026 — Y SE MIRA QUE LLEGÓ LO QUE SE PIDIÓ. El service worker, sin
+   señal, contestaba index.html a un .js que no tenía guardado (sw.js lo
+   arregla hoy para lo que no es una navegación); Chrome lo ejecutaba como
+   script (SyntaxError '<'), el <script> disparaba `load` igual, y esta
+   promesa quedaba RESUELTA y recordada: ZXing y face-api no se volvían a
+   pedir en toda la sesión aunque volviera la señal (reproducido en
+   registro-roto/mio/envenena.js: es la mitad de «la cédula no se escanea» y
+   «la selfie no se toma sola» del cliente de prueba del 23-oct). `listo()`
+   dice si el global que publica el archivo está; si no, es el mismo fallo
+   que un `error`: se quita el nodo, se rechaza y se olvida. */
+function cargarScript(url, listo) {
   if (SCRIPTS[url]) return SCRIPTS[url];
-  SCRIPTS[url] = new Promise(function (res, rej) {
+  var p = SCRIPTS[url] = new Promise(function (res, rej) {
     var s = document.createElement('script'); s.src = url; s.async = true;
-    s.onload = function () { res(); };
-    s.onerror = function () {
-      try { if (s.parentNode) s.parentNode.removeChild(s); } catch (e) {}
-      rej(new Error('no cargó ' + url));
+    var quitar = function () { try { if (s.parentNode) s.parentNode.removeChild(s); } catch (e) {} };
+    s.onload = function () {
+      if (typeof listo === 'function' && !listo()) { quitar(); rej(new Error('llegó otra cosa por ' + url)); return; }
+      res();
     };
+    s.onerror = function () { quitar(); rej(new Error('no cargó ' + url)); };
     document.head.appendChild(s);
   });
-  SCRIPTS[url]['catch'](function () { delete SCRIPTS[url]; });
-  return SCRIPTS[url];
+  p['catch'](function () { if (SCRIPTS[url] === p) delete SCRIPTS[url]; });
+  return p;
+}
+/* El global que publica cada .js, para cargarScript: así una copia que llegó
+   mal (index.html como .js) no se da por cargada. */
+function llegoElGlobal(nombre) {
+  return function () { return !!window[nombre]; };
 }
 /* La misma compresión que usa el CRM: JPEG, lado mayor a `max`, calidad `q`. */
 /* 9-sep-2026 — SE LEE CON createObjectURL Y NO COMO TEXTO. FileReader
@@ -6427,7 +6446,7 @@ function leerCodigoDeBarras(lienzo, gen) {
   /* 21-oct-2026 (verificación del lote 1, R1) — la foto de la que sale ESTE
      lienzo: la prueba de la amarilla se anota solo si sigue siendo ella. */
   var foto = FOTOS.cedula_reverso;
-  return cargarScript(URL_ZXING).then(respiro).then(function () {
+  return cargarScript(URL_ZXING, llegoElGlobal('ZXing')).then(respiro).then(function () {
     if (gen !== GENERACION_DEL_REGISTRO) return;
     var r = leerCedulaDeLienzo(lienzo, EC ? EC.GIROS_DE_RESCATE : null, 'siempre');
     giro = r.giro;
@@ -6987,12 +7006,12 @@ function iniciarEscanerDoc(lado) {
   var b = $('docBotones'); if (b) b.innerHTML = '';
   var estado = $('docEstado'); if (estado) estado.textContent = 'Encendiendo la cámara…';
   var v = $('docVideo'); if (!v) return;
-  cargarScript(URL_ZXING).catch(function () {});   // se precalienta mientras la cámara enciende
+  cargarScript(URL_ZXING, llegoElGlobal('ZXing')).catch(function () {});   // se precalienta mientras la cámara enciende
   /* 21-oct-2026 — la cámara se enciende: una lectura de las letras en curso se
      deja (nunca las dos juntas), y el módulo chico de las franjas se baja ya,
      para que esté al disparar (ver LO QUE SE VE EN LA CÉDULA SE LLENA SOLO). */
   ocrPausar();
-  cargarScript(URL_OCR_CEDULA).catch(function () {});
+  cargarScript(URL_OCR_CEDULA, llegoElGlobal('OcrCedula')).catch(function () {});
   prepararDetectorNativo();
   vigilarVisibilidadDoc();
   ESCDOC.espera = setTimeout(function () {
@@ -7379,6 +7398,19 @@ function bucleEscanerDoc() {
   /* 21-oct-2026 — la linterna mira TODOS los cuadros, verdes o no: la poca luz
      es justo lo que no deja ponerse en verde. */
   vigilarLinterna(m, dt);
+  /* 23-oct-2026 — EL LECTOR SE VUELVE A PEDIR CON LA CÁMARA ABIERTA. Hasta
+     hoy zxing.min.js se pedía UNA vez por sesión del escáner (al encender la
+     cámara) y, si esa carga fallaba —la señal se fue justo ahí—, nadie la
+     volvía a pedir aunque la señal volviera: la persona veía «Tranquilo: si
+     no sale, toca Tomar la foto ahora» y la foto decía «no se pudo leer»
+     (registro-roto/arreglo/envenena-arreglo.js). cargarScript ya olvida la
+     carga que falló, así que basta con volver a llamarlo, cada
+     MS_REINTENTO_LECTOR: una carga en vuelo no se duplica, y sin señal cuesta
+     una petición fallida cada 4 s, solo mientras la cámara está abierta. */
+  if (!window.ZXing && (ahora - (ESCDOC.tLector || 0)) >= MS_REINTENTO_LECTOR) {
+    ESCDOC.tLector = ahora;
+    cargarScript(URL_ZXING, llegoElGlobal('ZXing')).catch(function () {});
+  }
   /* 21-oct-2026 — LA FOTO MÁS NÍTIDA. Si este navegador deja medir, el bucle
      sigue por la ventana del mejor cuadro y lo de abajo no corre; si no, lo de
      abajo es la cuenta de antes, entera. */
@@ -8265,11 +8297,11 @@ function ocrLeerLoPendiente() {
   var vale = function () { return turno === P.turno && gen === GENERACION_DEL_REGISTRO; };
   P.tope = setTimeout(function () { if (vale()) { ocrParar('fallo'); P.pendientes = {}; ocrRefrescarIdentidad(); } }, MS_TOPE_OCR);
   ocrRefrescarIdentidad();
-  cargarScript(URL_OCR_CEDULA).then(function () {
+  cargarScript(URL_OCR_CEDULA, llegoElGlobal('OcrCedula')).then(function () {
     O = window.OcrCedula;
     if (!O || typeof O.crearLector !== 'function') throw new Error('no cargó ' + URL_OCR_CEDULA);
     var r = O.rutas(BASE_OCR);
-    return cargarScript(r.libreria).then(function () {
+    return cargarScript(r.libreria, llegoElGlobal('Tesseract')).then(function () {
       if (!vale()) throw new Error('ya no es de este registro');
       return O.crearLector(window.Tesseract, r);
     });
@@ -8843,7 +8875,7 @@ function prepararDetectorRostro() {
   if (ESCANER.detector) { ESCANER.modo = 'rostro'; ESCANER.desdeRostro = 0; ESCANER.miradas = 0; return; }
   ESCANER.modo = 'cargando'; ESCANER.desdeCarga = Date.now();
   if (ESCANER.cargando) return;
-  var p = cargarScript(URL_ROSTRO_VIVO).then(function () {
+  var p = cargarScript(URL_ROSTRO_VIVO, llegoElGlobal('RostroEnVivo')).then(function () {
     var RV = window.RostroEnVivo;
     if (!RV || typeof RV.crearDetector !== 'function') throw new Error('no cargó ' + URL_ROSTRO_VIVO);
     /* 22-oct-2026 — `calentar`: la primera detección (la que compila los

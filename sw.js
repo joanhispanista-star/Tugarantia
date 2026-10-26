@@ -1927,6 +1927,15 @@
    hasta la próxima versión. Entra app/marca.svg (NUEVO, en la precarga): la G
    y la palabra en imagen, para las páginas que no llevan los moldes en línea
    (legal/, descargas/, play/borrar-cuenta.html y la configuración de socio). */
+/* 23-oct-2026, MISMA v139 (el lote sigue sin publicar): sin señal, lo que no
+   es una navegación y no está guardado ya no recibe index.html (ver el fetch,
+   «SOLO PARA UNA NAVEGACIÓN»). El número no sube porque v139 no está en
+   ninguna dirección pública: el único teléfono con v139 (la copia de prueba
+   del 23-oct) recibe este sw.js por sus bytes, que es lo que el navegador
+   compara, y la precarga pide con 'no-cache', así que su caché se refresca
+   con el mismo nombre. Nada quedó envenenado en disco: el HTML servido como
+   .js nunca se guardó bajo la dirección del .js (solo se guarda lo que llegó
+   de la red). */
 const CACHE = 'tugarantia-v139';
 const BASE = new URL('./', self.location).pathname;
 
@@ -2208,9 +2217,21 @@ self.addEventListener('fetch', e => {
           caches.open(CACHE).then(c => c.put(req, copia)).catch(() => {});
           return r;
         })
-        /* Sin señal: lo guardado. Y si la página pedida no estaba guardada, la web
-           pública, que es la que explica qué es esto y cómo pedir ayuda. */
-        .catch(() => caches.match(req).then(r => r || caches.match(BASE + 'index.html')))
+        /* Sin señal: lo guardado. Y si la PÁGINA pedida no estaba guardada, la web
+           pública, que es la que explica qué es esto y cómo pedir ayuda.
+           23-oct-2026 — SOLO PARA UNA NAVEGACIÓN. Caía a index.html para todo
+           (.js, .css, el manifiesto): un zxing.min.js o un face-api.js pedidos
+           sin señal recibían el HTML, Chrome lo ejecutaba como script
+           (SyntaxError '<'), el <script> disparaba `load` igual y play/ lo daba
+           por cargado para toda la sesión (reproducido en
+           registro-roto/mio/envenena.js: «la cédula no se escanea» y «la selfie
+           no se toma sola» del cliente de prueba). Lo que no es una navegación
+           y no está guardado es un error de red (Response.error()): el <script>
+           dispara `error`, la página lo olvida y lo vuelve a pedir con señal.
+           Y no queda en la caché de memoria del renderer, que era la que
+           seguía sirviendo el HTML como .js después de recargar. */
+        .catch(() => caches.match(req).then(r => r ||
+          (req.mode === 'navigate' ? caches.match(BASE + 'index.html') : Response.error())))
     );
     return;
   }

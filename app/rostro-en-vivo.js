@@ -368,7 +368,7 @@
    * Baja face-api, el modelo del detector y —22-oct-2026— el chico de los
    * puntos de la cara (solo para ubicar los ojos), desde el propio sitio.
    *
-   * @param o {cargarScript(url) → Promise, base: carpeta de app/lib/rostro,
+   * @param o {cargarScript(url, listo) → Promise, base: carpeta de app/lib/rostro,
    *           calentar: un lienzo vacío (opcional), ahora(): ms (opcional)}
    *          cargarScript es el de la página: así un fallo se puede
    *          reintentar y una carga en vuelo no se duplica.
@@ -387,7 +387,13 @@
     var base = String(op.base || '../app/lib/rostro').replace(/\/+$/, '');
     var reloj = typeof op.ahora === 'function' ? op.ahora : function () { return Date.now(); };
     if (typeof cargar !== 'function') return Promise.reject(new Error('falta cargarScript'));
-    return Promise.resolve(cargar(base + '/face-api.js')).then(function () {
+    /* 23-oct-2026 — y se le dice a cargarScript qué global se espera: el de
+       play/ rechaza y OLVIDA la carga si `load` llegó sin él (index.html
+       servido como .js por el service worker sin señal). Antes esa promesa
+       quedaba resuelta y face-api no se volvía a pedir en toda la sesión: la
+       comprobación de abajo lo veía, pero ya era tarde. */
+    var llego = function () { var f = raiz.faceapi; return !!(f && f.nets && f.nets.tinyFaceDetector); };
+    return Promise.resolve(cargar(base + '/face-api.js', llego)).then(function () {
       var fa = raiz.faceapi;
       if (!fa || !fa.nets || !fa.nets.tinyFaceDetector ||
           typeof fa.TinyFaceDetectorOptions !== 'function' || typeof fa.detectAllFaces !== 'function') {
