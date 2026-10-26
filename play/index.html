@@ -7022,6 +7022,7 @@ function iniciarEscanerDoc(lado) {
   cargarScript(URL_OCR_CEDULA, llegoElGlobal('OcrCedula')).catch(function () {});
   prepararDetectorNativo();
   vigilarVisibilidadDoc();
+  ESCDOC.hueco = 0; ESCDOC.msHueco = 0;   // 26-oct-2026 — los huecos de la racha (EC.contarRachaDoc) también son de ESTE lado
   ESCDOC.espera = setTimeout(function () {
     if (ESCDOC.stream || !ESCDOC.activo || miTurno !== ESCDOC.turno) return;
     var e2 = $('docEstado'); if (e2) e2.textContent = 'Esperando el permiso de la cámara…';
@@ -7393,13 +7394,28 @@ function bucleEscanerDoc() {
   var m = g ? EC.medirTarjeta(g, ESCDOC.previa, ESCDOC.grisW, ESCDOC.grisH, ESCDOC.interiorGris, opcionesDeLaPuerta(esFrente)) : null;
   ESCDOC.previa = g;
   var verde = !!(m && m.ok);
-  if (verde) ESCDOC.estables++; else ESCDOC.estables = 0;
   /* 8-oct-2026 — EL RESPALDO TAMBIÉN DISPARA SOLO (EC.decidirRespaldo). Se
      cuenta el rato que la cédula pasa bien puesta —en verde, no el reloj— y
      el cuadro más nítido visto, para no disparar en un parpadeo del enfoque. */
   var ahora = Date.now(), dt = ESCDOC.tUltimo ? Math.min(400, ahora - ESCDOC.tUltimo) : 0;
   ESCDOC.tUltimo = ahora;
-  if (verde) {
+  /* 26-oct-2026 — LA RACHA TOLERA LOS PICOS DEL TEMBLOR (EC.contarRachaDoc).
+     Joan: «no se estabiliza el celular y nunca se queda quieto». La puerta ya
+     deja pasar el temblor (EC.TARJETA.TEMBLOR_MAX); lo que queda son sus
+     picos, y un pico cortaba la racha y tiraba la ventana del mejor cuadro
+     entera. Desde hoy `verde` es «la racha sigue viva»: un cuadro fallido
+     por un pico del temblor (EC.TARJETA.HUECO_TEMBLOR_MAX) es un hueco
+     (hasta dos seguidos) y no corta nada; cualquier otra falla corta, como
+     siempre; `estables` cuenta solo los verdes de verdad, como siempre.
+     Lo demás —msVerde, la ventana, vioCodigo, limpias— sigue leyendo `verde`
+     y no se entera. Un escaner-cedula.js viejo en la caché (sin
+     contarRachaDoc) cuenta como antes: peor no queda. */
+  if (EC.contarRachaDoc) {
+    var racha = EC.contarRachaDoc({ estables: ESCDOC.estables, hueco: ESCDOC.hueco, msHueco: ESCDOC.msHueco }, m, dt);
+    ESCDOC.estables = racha.estables; ESCDOC.hueco = racha.hueco; ESCDOC.msHueco = racha.msHueco;
+    verde = racha.verde;
+  } else if (verde) ESCDOC.estables++; else ESCDOC.estables = 0;
+  if (verde && m) {
     ESCDOC.msVerde += dt;
     if (m.nitidez > ESCDOC.mejorNitidez) ESCDOC.mejorNitidez = m.nitidez;
   }

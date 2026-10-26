@@ -452,15 +452,24 @@ describe('la página dispara el MEJOR cuadro', () => {
     assert.ok(estados(P).includes('No vemos código en ese lado: si es el frente, voltéala'));
   });
 
-  test('voltearla corta la racha: el código visto en una cara no deja pasar la otra', () => {
+  /* 26-oct-2026 — REESCRITA: la vuelta era UN cuadro de «movimiento». Desde
+     hoy un cuadro así es un pico del temblor de la mano y no corta nada
+     (EC.contarRachaDoc tolera dos seguidos); voltear una cédula toma más y la
+     saca del marco. Se mira primero que el pico no tire la ventana ni olvide
+     el código, y después la vuelta de verdad: tres cuadros seguidos. */
+  test('voltearla corta la racha: el código visto en una cara no deja pasar la otra (y un pico del temblor no la corta)', () => {
     const P = escanerConVentana();
     P.ev('window.__hay = true; leerCuadroDoc = function () { if (window.__hay) ESCDOC.vioCodigo = true; };');
     for (let i = 0; i < 4; i++) cuadro(P, i, 20);   // el respaldo, borroso: no se dispara
-    P.ev('window.__medida = { ok: false, luz: 150, saturados: 0, falla: "movimiento" };');
-    cuadro(P, 4, 0);                                // la voltea
+    P.ev('window.__medida = { ok: false, luz: 150, saturados: 0, falla: "movimiento", temblor: 2.5 };');
+    cuadro(P, 4, 0);                                // un pico del temblor
+    assert.equal(P.ev('ESCDOC.vioCodigo'), true, 'un cuadro movido olvidó el código visto');
+    assert.equal(P.ev('!!ESCDOC.ventana'), true, 'un cuadro movido tiró la ventana del mejor cuadro');
+    cuadro(P, 5, 0); cuadro(P, 6, 0);               // la voltea de verdad
     assert.equal(P.ev('ESCDOC.vioCodigo'), false, 'lo visto antes de voltearla se quedó pegado');
+    assert.equal(P.ev('ESCDOC.ventana'), null, 'la ventana sobrevivió a la vuelta');
     P.ev('window.__hay = false; window.__medida = { ok: true, nitidez: 20, luz: 150, saturados: 0, falla: "" };');
-    for (let i = 5; i < 17; i++) cuadro(P, i, 150);  // el frente, nítido
+    for (let i = 7; i < 19; i++) cuadro(P, i, 150);  // el frente, nítido
     assert.equal(P.ev('FOTOS.cedula_reverso'), undefined, 'el frente pasó como respaldo con el código que se vio antes de voltearla');
   });
 });

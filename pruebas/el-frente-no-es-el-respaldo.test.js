@@ -266,9 +266,17 @@ describe('el escáner del frente', () => {
     cuadros(P, 8);
     assert.equal(P.ev('FOTOS.cedula_frente'), undefined);
     /* La persona la voltea: la tarjeta se mueve (la puerta deja de estar en
-       verde) y lo visto en esa racha se olvida. */
-    P.ev('window.__medida = { ok: false, nitidez: 23, falla: "movimiento" };');
+       verde) y lo visto en esa racha se olvida.
+       26-oct-2026 — REESCRITA: eran dos cuadros de «movimiento». Desde hoy
+       la racha tolera hasta dos cuadros así (son los picos del temblor de la
+       mano: EC.contarRachaDoc) y lo visto se queda; voltear una cédula toma
+       más que eso, y además la saca del marco. Primero se mira que el pico
+       no la olvide, y después la vuelta de verdad: tres cuadros. (`temblor`
+       2,5: un pico; un cambio de escena da más de 4 y corta solo.) */
+    P.ev('window.__medida = { ok: false, nitidez: 23, falla: "movimiento", temblor: 2.5 };');
     cuadros(P, 2);
+    assert.equal(P.ev('ESCDOC.vioCodigo'), true, 'un pico del temblor (dos cuadros) olvidó el código visto: la reja del frente se abre con cada pulso');
+    cuadros(P, 1);
     assert.equal(P.ev('ESCDOC.vioCodigo'), false, 'el código visto antes de voltearla se quedó pegado');
     ponerTarjeta(P, FRENTE);
     /* tPatron = 0: voltearla toma más de medio segundo, y el banco no tiene

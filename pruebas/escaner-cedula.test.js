@@ -137,10 +137,27 @@ describe('la puerta del encuadre (medirTarjeta)', () => {
     assert.equal(m.falla, 'borrosa', JSON.stringify(m));
     assert.match(EC.textoDeTarjeta(m), /enfoque/);
   });
-  test('moviéndose no dispara: la racha se cae', () => {
-    const m = EC.medirTarjeta(tarjeta(0), tarjeta(1), W, H);
+  /* 26-oct-2026 — REESCRITA: decía que corrida 1 px «no dispara», y 1 px de
+     este gris es el pulso de una mano (Joan: «nunca se queda quieto»). Desde
+     hoy la puerta mide el movimiento en píxeles de gris (frente a lo que el
+     propio cuadro cambiaría corrido 1 px, sobre el gris suavizado) y hasta
+     2 px es quieta. El tablero de arriba tiene período 4 y no sabe
+     correrse más de 2 px (3 es -1): para moverse de verdad, unos renglones
+     de letra sin período, corridos 5 px. Lo de la mano, con cédulas
+     fabricadas, en pruebas/lectura-sin-temblor.test.js. */
+  test('moviéndose no dispara: la racha se cae (y el pulso de 1 px ya no cuenta como moverse)', () => {
+    const pulso = EC.medirTarjeta(tarjeta(0), tarjeta(1), W, H);
+    assert.equal(pulso.ok, true, 'un pulso de 1 px de gris se tomó por movimiento: ' + JSON.stringify(pulso));
+    assert.ok(pulso.temblor > 0.8 && pulso.temblor < 1.2, 'corrida 1 px no mide ~1 px: ' + pulso.temblor);
+    /* Renglones de letra: una raya de 1 px cada 3 filas, con huecos al azar
+       (un hash, para que sea la misma «cédula» en cada corrida). */
+    const hash = (x, y) => { let h = (x * 73856093) ^ (y * 19349663); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h >>> 16) & 255) / 255; };
+    const letras = off => cuadro((x, y) => adentro(x, y) ? ((y % 3 === 1 && hash(Math.floor((x + off) / 2), y) < 0.6) ? 40 : 210) : 128);
+    assert.equal(EC.medirTarjeta(letras(0), letras(1), W, H).ok, true, 'las letras corridas 1 px se tomaron por movimiento');
+    const m = EC.medirTarjeta(letras(0), letras(5), W, H);
     assert.equal(m.ok, false);
     assert.equal(m.falla, 'movimiento');
+    assert.ok(m.temblor > EC.TARJETA.TEMBLOR_MAX, 'el movimiento medido ' + m.temblor + ' no pasa del temblor tolerado');
   });
   test('sin cuadro anterior todavía no se sabe, y un cuadro vacío no revienta', () => {
     assert.equal(EC.medirTarjeta(tarjeta(0), null, W, H).falla, 'movimiento');
