@@ -42,6 +42,21 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         la misma de play/ y de la portada) con el mismo traspaso
                         a play/#registro; y el atajo #calc del ícono lleva a la
                         pestaña Calculadora.
+                        Desde el 26-oct-2026 (chat-1) la pestaña «Mensajes» se
+                        llama «Chat» y trae «Chat (n)»: el número de lo que le
+                        falta por leer late cada 20 s en TODA la app (a la
+                        vista; escondida solo cuenta, cada minuto, y nunca pide
+                        el hilo); la conversación abierta se mueve sola cada
+                        8 s con app/chat-vivo.js (solo lo nuevo, sin tocar el
+                        cuadro de texto ni arrastrar a quien lee arriba); se
+                        mandan fotos (chat_foto_sesion, comprimidas) y se abre
+                        la grande; y contesta en el canal del último mensaje
+                        RECIBIDO, no siempre en «servicio» (si no, la
+                        contestación de Joan en Cobranzas contaba como contacto
+                        nuevo para la Ley 2300). Un envío fallido deja el texto
+                        y lo dice al lado del cuadro. Con la app cerrada no
+                        llega nada, y la pantalla no lo promete. Pruebas:
+                        pruebas/chat-1-socio.test.js.
   sesion-socio.js       La puerta: entrar, la sesión, mi_cuenta, «Olvidé mi
                         contraseña» y cambiarla. Sin DOM, probada en node.
   ver-como.js           El pase de un uso de «👁 Ver la app como la ve él» (CRM).
@@ -52,9 +67,10 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
                         listas), los dos se detienen con la clave rechazada, y
                         junta mensajes por id sin repintar el cuadro de texto
                         ni arrastrar la pantalla de quien lee arriba. Lo cargan
-                        el CRM y el espejo (26-oct); la app del socio lo usará
-                        con el mismo contrato (la cabecera del archivo lo
-                        documenta).
+                        LAS TRES pantallas (CRM, espejo y la app del socio,
+                        26-oct) con el mismo contrato (la cabecera del archivo
+                        lo documenta); pruebas/las-tres-pantallas-el-mismo-
+                        reloj.test.js vigila que ninguna se descuelgue.
                         Sin HTML y sin llamadas a la nube: cada página pasa su
                         `pedir`. Pruebas: pruebas/chat-vivo.test.js.
   motor.js              El motor del producto de HOY (quincenal y con garantía).

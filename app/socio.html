@@ -564,14 +564,18 @@ details.plegado>summary{padding:0 var(--e4)}
   padding-bottom:env(safe-area-inset-bottom)}
 .nav button{flex:1;border:0;background:transparent;font-family:inherit;cursor:pointer;
   padding:14px 2px;min-height:48px;color:var(--gris);font-size:12px;font-weight:600;position:relative}
-/* 28-ago-2026: entró «Mensajes» y son cinco pestañas. En un teléfono angosto,
-   «Calculadora» a 12px ya no cabe en un quinto de 360px y partía la fila. */
+/* 28-ago-2026: entró el chat («Mensajes» hasta el 26-oct-2026; hoy «Chat») y
+   son cinco pestañas. En un teléfono angosto, «Calculadora» a 12px ya no cabe
+   en un quinto de 360px y partía la fila. */
 @media (max-width:399px){ .nav button{font-size:11px;letter-spacing:-.2px;padding:14px 1px} }
-/* NO hay globito de «sin leer» en la pestaña, y no es un olvido: la única
-   función que sabe cuántos le faltan por leer es chat_leer, y esa MARCA como
-   leídos los que devuelve. Un globito alimentado con ella se apagaría solo
-   antes de que el cliente abriera nada. Cuando haga falta, se pide con una
-   función que solo cuente. */
+/* 26-oct-2026 (chat-1) — SÍ HAY NÚMERO EN LA PESTAÑA: «Chat (2)». Hasta hoy
+   aquí decía que no había globito de «sin leer» porque la única función que
+   sabía cuántos faltaban por leer era chat_leer, que MARCA como leídos los
+   que devuelve. Eso dejó de ser cierto el 19-oct: chat_sin_leer_sesion
+   (base/20261019b) solo cuenta, y play/ ya la usaba. El número va como texto
+   dentro del botón (#chNavN), no como un globo aparte: «Chat (2)» mide lo
+   mismo que «Mensajes» y la fila de cinco no se parte. Lo pinta
+   pintarNumeroChat; lo cuenta el latido de 20 s de toda la app. */
 .nav button.on{color:var(--tinta)}
 .nav button.on::after{content:'';position:absolute;left:50%;transform:translateX(-50%);
   bottom:8px;width:18px;height:2px;border-radius:2px;background:var(--rojo)}
@@ -945,7 +949,10 @@ setTimeout(function () {
     <button data-t="calc">Calculadora</button>
     <button data-t="garantia">Mi garantía</button>
     <button data-t="historial">Historial</button>
-    <button data-t="chat">Mensajes</button>
+    <!-- 26-oct-2026 (chat-1) — «Chat», la palabra que usa Joan, y el número de
+         lo que le falta por leer (#chNavN, « (2)»), que late en toda la app y
+         no solo dentro de la pestaña. Sin número cuando no se sabe. -->
+    <button data-t="chat">Chat<span id="chNavN"></span></button>
   </nav>
 </div>
 
@@ -955,6 +962,11 @@ setTimeout(function () {
      quien decide de qué lado va un mensaje y cómo se escapa el texto es un solo
      archivo, para que no haya dos verdades sobre la misma conversación. -->
 <script src="chat.js"></script>
+<!-- 26-oct-2026 (chat-1) — los relojes del chat, los mismos del CRM y del
+     espejo: la conversación abierta se mueve sola y el número de la barra late
+     en toda la app. Sin versión en la dirección: es un archivo nuevo, no hay
+     copia vieja con la que mezclarse (ver sw.js). -->
+<script src="chat-vivo.js"></script>
 <!-- 7-oct-2026 — LA PUERTA ÚNICA. cuenta.js arma el correo de la cuenta desde el
      celular (la misma regla de play/); sesion-socio.js habla con Supabase Auth y
      con mi_cuenta; ver-como.js es el pase de un uso del «👁 Ver la app como la
@@ -1912,6 +1924,9 @@ function abrir(resp) {
      23-oct-2026 — y si la abrió el atajo «Calculadora» del ícono, a esa. */
   irA(pestanaAlVolver() || atajoDelManifiesto() || 'inicio');
   mostrar('pCuenta');
+  /* 26-oct-2026 (chat-1) — el número de «Chat (n)» late en toda la app, no
+     solo dentro de la pestaña. Solo con sesión (chatDisponible lo mira). */
+  arrancarLatidoChat();
 }
 
 /* La entrada que entiende el motor. El cupón sale de los datos que el socio
@@ -1925,6 +1940,7 @@ function entradaMotor() {
 function irA(tab) {
   TAB = tab;
   PANTALLA = tab;   // 21-oct-2026 — ver SE ACTUALIZA SOLA
+  pararChat();      // 26-oct-2026 — el hilo que se movía solo se para al salir de Chat (arrancarChat lo vuelve a armar)
   var b = $('nav').querySelectorAll('button');
   for (var i = 0; i < b.length; i++) b[i].classList.toggle('on', b[i].dataset.t === tab);
   $('cuerpo').innerHTML = '<div class="panel">' +
@@ -4578,10 +4594,20 @@ function cambiarClave() {
   }).then(function () { var b = $('ccBoton'); if (b) b.disabled = false; });
 }
 
-/* ======================= MENSAJES — 28-ago-2026 =======================
+/* ======================= CHAT — 28-ago-2026 =======================
    La línea de atención dentro de la app: el socio escribe y le contestan sin
    salir a WhatsApp. El transporte estaba escrito en la base desde el 5 de
    agosto y nunca se había cableado a una pantalla; esto es la pantalla.
+
+   26-oct-2026 (chat-1) — se llamaba «Mensajes»; hoy «Chat», que es la palabra
+   que usa Joan y la que ya usaban play/ y el CRM (desde el 4-nov el CRM tendrá
+   además los mensajes de texto de Cocom: dos «Mensajes» para cosas distintas
+   serían otra función escondida). Y tres cosas que esta pestaña no tenía y
+   play/ sí: el número en la barra, latiendo en TODA la app y no solo con la
+   pestaña abierta; la conversación que se mueve sola mientras está abierta
+   (app/chat-vivo.js, el mismo reloj del CRM); y mandar fotos. Lo que NO
+   cambia: con la app cerrada no le llega nada al teléfono, y ninguna frase de
+   esta pantalla dice lo contrario.
 
    POR QUÉ ESTA PESTAÑA NO EXISTE SIN NUBE, y se dice en vez de fingirse:
    todas las demás funcionan sin señal porque sus datos viajan dentro del
@@ -4605,6 +4631,11 @@ function cambiarClave() {
    `window.` queda `undefined`, y `chatDisponible()` lo trata como lo que es:
    una pantalla que hoy no se puede ofrecer. */
 var CHAT = window.ChatTuGarantia;
+/* 26-oct-2026 (chat-1) — los relojes del chat (app/chat-vivo.js), por
+   `window.` por la misma razón que CHAT. Sin él la pestaña anda como hasta
+   hoy, menos: una carga al abrirla y otra después de mandar, el número de la
+   barra se pregunta una sola vez al abrir la cuenta, y nada se mueve solo. */
+var VIVO = window.ChatVivo;
 
 /* Puede chatear quien entró con su celular y su contraseña: en su cuenta
    junta (origen 'nube') o en la pantalla de la cuenta sin juntar (S vacío).
@@ -4623,7 +4654,7 @@ function vistaChat() {
   if (!chatDisponible()) {
     var wa = (S && S.negocio && S.negocio.whatsapp) || NEGOCIO_OFICIAL.whatsapp;
     return '<div class="card">' +
-      '<h3 class="tit">Mensajes</h3>' +
+      '<h3 class="tit">Chat</h3>' +
       '<p class="sub">' + (CHAT && CHAT.hiloHTML
         ? 'Esta pantalla necesita internet y que hayas entrado con tu celular y tu contraseña. ' +
           'Ahora mismo estás viendo tus datos guardados, así que no puedo mandar ' +
@@ -4635,7 +4666,7 @@ function vistaChat() {
       '</div>';
   }
   return '<div class="card">' +
-    '<h3 class="tit">Mensajes</h3>' +
+    '<h3 class="tit">Chat</h3>' +
     '<p class="sub">Escríbenos por aquí lo que necesites. Te queda guardado, ' +
     'y así los dos vemos lo que se acordó.</p>' +
     '<div class="ch-hilo" id="chHilo" style="max-height:52vh">' +
@@ -4647,6 +4678,19 @@ function vistaChat() {
       '<button class="btn sm" id="chEnviar" onclick="chatEnviar()">Enviar</button>' +
     '</div>' +
     '<div class="ch-cuenta" id="chCuenta"></div>' +
+    /* 26-oct-2026 (chat-1) — MANDAR UNA FOTO, como en play/: lo que se pide
+       por nombre en este negocio es el COMPROBANTE DE PAGO, y el rótulo lo
+       dice. Sin `capture`, a propósito: el teléfono deja elegir entre la
+       cámara y la galería, y un comprobante casi siempre ya está guardado.
+       Lo que diga el cuadro de texto viaja como pie de la foto. */
+    '<input type="file" id="chFoto" accept="image/*" class="oculto" onchange="chatMandarFoto(this)">' +
+    '<button type="button" class="btn sec sm" id="chFotoBoton" style="margin-top:var(--e2)" ' +
+      'onclick="document.getElementById(&quot;chFoto&quot;).click()">📷 Mandar una foto</button>' +
+    '<p class="sub" style="margin-top:var(--e2)">Sirve para el comprobante de un pago. Solo fotos: un video no cabe.</p>' +
+    /* Lo que no salió se dice AQUÍ, al lado del cuadro, no con un alert que
+       se cierra y se olvida: el texto sigue en el cuadro y la persona ve las
+       dos cosas juntas. */
+    '<div id="chErr" class="aviso ambar oculto" role="status"></div>' +
     '</div>';
 }
 
@@ -4659,11 +4703,24 @@ function chatPintar() {
   caja.innerHTML = CHAT.hiloHTML(CH.mensajes, {
     yo: 'socio',
     textoVisto: 'Lo vieron',
+    /* 26-oct-2026 — la miniatura de una foto se puede tocar y abre la grande
+       (chatVerFoto). Antes se pintaba apagada: una foto que no se puede abrir
+       es una función muda. */
+    alVerFoto: 'chatVerFoto',
     vacio: 'Todavía no se han escrito. Empieza tú: cuéntanos qué necesitas.'
   });
-  /* Abajo del todo, que es donde está lo último. Sin esto, una conversación
-     larga abre por el principio y parece que no llegó nada nuevo. */
-  caja.scrollTop = caja.scrollHeight;
+  /* Bajar o no lo decide quien llamó: el reloj (ChatVivo.hilo) baja al abrir
+     y cuando la persona ya estaba al final, y no le arrastra la pantalla a
+     quien está leyendo arriba. */
+}
+
+/* Un aviso al lado del cuadro ('' lo esconde). Si la lámina no tiene el
+   cuadro (no debería pasar), se cae al alert: una función muda no existe. */
+function chatDecir(msg) {
+  var e = $('chErr');
+  if (!e) { if (msg) alert(msg); return; }
+  e.textContent = msg || '';
+  e.classList.toggle('oculto', !msg);
 }
 
 function chatContar() {
@@ -4676,18 +4733,164 @@ function chatContar() {
 
 /* LOS TRES HILOS EN UNO. La nube guarda cada mensaje en un canal (servicio,
    cobranza, créditos: 20260914b) y chat_leer_sesion lee uno por vez. Esta app
-   tiene UNA pestaña de mensajes, como siempre: se leen los tres y se pintan
+   tiene UNA pestaña de chat, como siempre: se leen los tres y se pintan
    juntos por orden, para que un recordatorio de cobranza o una respuesta de
    créditos no quede en un cajón que el socio no puede abrir. Lo que él
-   escribe va a servicio, que es el cajón neutro (el que Joan contesta). */
+   escribe va al canal del último mensaje que recibió (ver canalDeRespuesta),
+   y a servicio, el cajón neutro, cuando todavía no le han escrito. */
 var CANALES_SOCIO = ['servicio', 'cobranza', 'creditos'];
-var CH = { mensajes: [], ultimo: {}, cargando: false, enviando: false, error: '' };
-var CHAT_CADA_MS = 20000;   /* mirar si llegó algo: cada 20 s y solo con la pestaña abierta */
+/* `vivo` es el reloj de ChatVivo.hilo de ESTA apertura de la pestaña; `mio`
+   compara la apertura al contestar la nube (la lámina pudo repintarse). */
+var CH = { mensajes: [], vivo: null, enviando: false, error: '' };
+var CHAT_CADA_MS = 20000;   /* el número de la barra: cada 20 s, a la vista, en toda la app */
 
+/* ==================== LO QUE LE FALTA POR LEER — 26-oct-2026 (chat-1) ====================
+   Hasta hoy esta app no tenía número: el cliente solo se enteraba de la
+   respuesta si abría «Mensajes» por su cuenta. play/ ya lo tenía desde el
+   19-oct, y de ahí sale esto, con el mismo cuidado:
+
+   EL NÚMERO NO PUEDE SALIR DE chat_leer_sesion: esa función MARCA como visto
+   lo que devuelve, y Joan vería «Lo vio» en el CRM sobre mensajes que nadie
+   leyó. Lo cuenta chat_sin_leer_sesion (base/20261019b), que solo cuenta.
+   Mientras esa migración no esté corrida contesta 404: entonces no se pinta
+   ningún número —«no sé» no es «0»— y no se le vuelve a preguntar en esta
+   visita; el resto del chat anda igual.
+
+   EL RELOJ es ChatVivo.lista con 20 s a la vista (el latido que ya tenía
+   play/ y esta pestaña) y 60 s escondida: escondida SOLO cuenta, nunca pide
+   el hilo (lo marcaría visto sin que nadie lo mire), y en un teléfono Chrome
+   congela la pestaña de atrás, así que ahí no gasta nada. Uno por cuenta
+   abierta: arranca con la cuenta (abrir) y se para al salir
+   (cerrarSesionLocal). Al volver a la pestaña pregunta una vez.
+
+   LA CARRERA: una cuenta pedida ANTES de que el hilo abierto leyera los tres
+   canales llega vieja, y le volvía a poner «(1)» a lo que la persona está
+   mirando (play/ lo pagó). LEIDAS cuenta las lecturas que salieron bien; si
+   cambió entre pedir y recibir, la cuenta recibida ya no vale: todo en cero,
+   que es lo que acaba de dejar la base.
+
+   SU LÍMITE: con la app cerrada no le llega nada al teléfono. Eso no se
+   promete en ninguna parte de esta pantalla. */
+var SIN_LEER = null;           // null = no se sabe; si no, {servicio, cobranza, creditos, total}
+var SIN_LEER_APAGADO = false;  // la base contestó 404: todavía no tiene la función
+var LEIDAS = 0;                // lecturas del hilo que salieron bien en esta visita
+var LATIDO = null;             // el reloj de la lista (ChatVivo.lista) de la cuenta abierta
+
+function pintarNumeroChat() {
+  var el = $('chNavN'); if (!el) return;
+  var n = SIN_LEER ? Math.max(0, Math.floor(Number(SIN_LEER.total) || 0)) : 0;
+  el.textContent = n > 0 ? ' (' + n + ')' : '';
+}
+
+/* Leer el hilo acaba de dejar en cero lo pendiente en la base: la barra lo
+   dice ya, sin esperar a la próxima cuenta. */
+function yaLeidoChat() {
+  LEIDAS++;
+  if (!SIN_LEER) return;
+  SIN_LEER = { servicio: 0, cobranza: 0, creditos: 0, total: 0 };
+  pintarNumeroChat();
+}
+
+/* La misma cuenta que pidió: la sesión se reemplaza al renovar el token
+   (guardarSesionSocio), así que se compara por el celular, no por el objeto.
+   Salir deja SESION en null y ninguna respuesta tardía pinta nada. */
+function mismaCuenta(ses) {
+  return !!(SESION && ses && (SESION === ses || (SESION.celular && SESION.celular === ses.celular)));
+}
+
+function contarSinLeerChat() {
+  if (!chatDisponible()) { SIN_LEER = null; pintarNumeroChat(); return Promise.resolve(); }
+  if (SIN_LEER_APAGADO || !CHAT.sinLeerDe) return Promise.resolve();
+  var foto = LEIDAS, ses = SESION;
+  return cfgChat().then(function (cfg) {
+    ses = SESION;   // la que quedó después de renovar, si tocó
+    return CHAT.llamar(cfg, 'chat_sin_leer_sesion', {});
+  }).then(function (j) {
+    if (!mismaCuenta(ses)) return;
+    var s = CHAT.sinLeerDe(j);
+    if (!s) return;
+    if (LEIDAS !== foto) s = { servicio: 0, cobranza: 0, creditos: 0, total: 0 };
+    SIN_LEER = s;
+    pintarNumeroChat();
+  }, function (e) {
+    if (!mismaCuenta(ses)) return;
+    /* El 404 de chat.js dice qué archivo falta («Falta correr base/…»): la
+       función no está, y preguntar cada 20 s no la va a hacer aparecer. */
+    if (e && /Falta correr base\//.test(String(e.humano || ''))) SIN_LEER_APAGADO = true;
+    /* Sesión vencida: ya no se sabe nada de esta cuenta, y el número viejo
+       no se puede quedar como si se supiera. Sin red, sí se queda: es lo
+       último que se supo, y la próxima vuelta lo corrige. */
+    if (e && e.causa === 'sesion') { SIN_LEER = null; pintarNumeroChat(); }
+  });
+}
+
+function arrancarLatidoChat() {
+  if (!chatDisponible()) return;
+  if (LATIDO) return;
+  if (!VIVO || !VIVO.lista) { contarSinLeerChat(); return; }   // sin el módulo: una vez
+  LATIDO = VIVO.lista({
+    pedir: function () { return contarSinLeerChat(); },
+    aLaVista: CHAT_CADA_MS, escondida: 60000,
+    documento: document,
+    /* Los relojes se pasan desde ESTA ventana: el módulo puede estar cargado
+       en otro reino (el banco de pruebas lo mete con require). */
+    reloj: { setInterval: function (f, ms) { return setInterval(f, ms); }, clearInterval: function (id) { clearInterval(id); } }
+  });
+  LATIDO.arrancar();
+  LATIDO.latir(false);   // ahora, no dentro de 20 s
+}
+function pararLatidoChat() {
+  if (LATIDO) { LATIDO.parar('cerrada'); LATIDO = null; }
+  SIN_LEER = null; pintarNumeroChat();
+}
+
+/* ==================== EL HILO ABIERTO SE MUEVE SOLO — 26-oct-2026 (chat-1) ====================
+   Antes: una carga al abrir la pestaña y un sondeo de 20 s escrito aquí a
+   mano. Ahora el reloj es ChatVivo.hilo, el mismo del CRM y del espejo:
+     · pide SOLO lo nuevo desde el último id (p_desde) y lo junta por id.
+       Los ids son UNA sola serie para los tres canales, así que el último id
+       del hilo junto sirve de p_desde para cada canal;
+     · pinta SOLO #chHilo, nunca el cuadro de texto (ya se perdió dos veces lo
+       que alguien estaba escribiendo);
+     · no arrastra la pantalla si la persona está leyendo arriba (140 px),
+       salvo lo que acaba de mandar ella;
+     · escondida NO pide: chat_leer_sesion marca visto lo que devuelve y
+       nadie lo está mirando;
+     · se para al salir de la pestaña (irA), al salir de la cuenta y cuando la
+       caja ya no está; vuelve a pedir al volver a la pestaña.
+   Sin app/chat-vivo.js: una carga al abrir y otra después de mandar. */
 function arrancarChat() {
   if (!chatDisponible()) return;
-  CH = { mensajes: [], ultimo: {}, cargando: false, enviando: false, error: '' };
-  chatTraer(true);
+  pararChat();
+  CH = { mensajes: [], vivo: null, enviando: false, error: '' };
+  if (!VIVO || !VIVO.hilo) { chatCargarUnaVez(); return; }
+  var mio = CH;
+  CH.vivo = VIVO.hilo({
+    pedir: chatPedir,
+    pintar: function (lista) {
+      if (mio !== CH) return;
+      CH.mensajes = lista; CH.error = '';
+      chatPintar();
+    },
+    caja: function () { return $('chHilo'); },
+    esMio: function (m) { return CHAT.ladoDe(m.de) === 'socio'; },
+    alFallar: function (e, info) {
+      if (mio !== CH) return;
+      /* Solo se pinta el error si no hay nada que enseñar. Con la
+         conversación ya en pantalla, un corte de señal no puede borrarla: lo
+         que se cayó fue la pregunta, no lo que ya se dijo. */
+      if (info && info.primera && !CH.mensajes.length) {
+        CH.error = (e && e.humano) || (e && e.causa === 'sesion' ? SS.TEXTOS.vencida : 'No pude conectarme. Revisa tu internet.');
+        chatPintar();
+      }
+    },
+    documento: document,
+    reloj: { setInterval: function (f, ms) { return setInterval(f, ms); }, clearInterval: function (id) { clearInterval(id); } }
+  });
+  CH.vivo.cargar();
+}
+function pararChat() {
+  if (CH && CH.vivo) { CH.vivo.parar('cerrada'); CH.vivo = null; }
 }
 
 /* El token de la sesión dura una hora y el chat se queda abierto más: antes
@@ -4699,95 +4902,205 @@ function cfgChat() {
   return listo.then(function (s) { return { url: CFG.url, anon: CFG.anon, token: s.access_token }; });
 }
 
-/* Trae lo que falte. `ultimo[canal]` es el id del último que ya tengo de ese
-   canal, así que la segunda vuelta en adelante solo baja lo nuevo — y no
-   vuelve a marcar como leído lo que ya estaba leído. */
-function chatTraer(primera) {
-  if (!chatDisponible() || CH.cargando) return;
-  CH.cargando = true;
-  var vuelta = CH;
-  cfgChat().then(function (cfg) {
+/* Lo nuevo de los tres canales desde `desde`, en una sola lista, cada
+   mensaje con su canal (chat_leer_sesion no lo trae por mensaje: es el que
+   se pidió). Si la base dijo que no en alguno (null: la sesión dejó de
+   valer), se rechaza con lo único accionable, que es volver a entrar. */
+function chatPedir(desde) {
+  if (!chatDisponible()) { pararChat(); return Promise.resolve(null); }
+  return cfgChat().then(function (cfg) {
     return Promise.all(CANALES_SOCIO.map(function (canal) {
-      return CHAT.leer(cfg, vuelta.ultimo[canal] || 0, canal).then(function (lista) {
-        return { canal: canal, lista: lista };
+      return CHAT.leer(cfg, desde, canal).then(function (lista) {
+        if (lista === null) return null;
+        return lista.map(function (m) { if (m && !m.canal) m.canal = canal; return m; });
       });
     }));
   }).then(function (partes) {
-    if (vuelta !== CH) return;
-    CH.cargando = false;
-    /* null es la base diciendo que no (la sesión dejó de valer): se dice lo
-       único accionable, que es volver a entrar. */
-    if (partes.some(function (p) { return p.lista === null; })) {
-      CH.error = 'No pude abrir tus mensajes. Sal y vuelve a entrar con tu celular y tu contraseña.';
-      chatPintar(); return;
+    if (partes.some(function (p) { return p === null; })) {
+      throw { humano: 'No pude abrir tus mensajes. Sal y vuelve a entrar con tu celular y tu contraseña.', causa: 'sesion' };
     }
-    CH.error = '';
-    var nuevos = false;
-    partes.forEach(function (p) {
-      p.lista.forEach(function (m) {
-        CH.mensajes.push(m); nuevos = true;
-        if (Number(m.id) > (CH.ultimo[p.canal] || 0)) CH.ultimo[p.canal] = Number(m.id);
-      });
-    });
-    if (nuevos) CH.mensajes.sort(function (a, b) { return Number(a.id) - Number(b.id); });
-    chatPintar();
-  }).catch(function (e) {
-    if (vuelta !== CH) return;
-    CH.cargando = false;
-    /* Solo se pinta el error si no hay nada que enseñar. Con la conversación ya
-       en pantalla, un corte de señal no puede borrarla: lo que se cayó fue la
-       consulta, no lo que ya se dijo. */
-    if (!CH.mensajes.length) {
-      CH.error = (e && e.humano) || (e && e.causa === 'sesion' ? SS.TEXTOS.vencida : 'No pude conectarme. Revisa tu internet.');
-      chatPintar();
-    }
-  }).then(function () {
-    if (primera) chatLatido();
+    yaLeidoChat();   // la base acaba de marcar visto lo que devolvió
+    return [].concat.apply([], partes);
   });
 }
 
-/* El sondeo. Se apaga solo al salir de la pestaña y con la app en segundo
-   plano: nadie necesita gastar los datos de un cliente por una pantalla que no
-   está mirando. */
-function chatLatido() {
-  setTimeout(function () {
-    if (TAB !== 'chat' || !$('chHilo')) return;
-    if (typeof document.hidden === 'boolean' && document.hidden) { chatLatido(); return; }
-    chatTraer(false);
-    chatLatido();
-  }, CHAT_CADA_MS);
+/* Sin app/chat-vivo.js: el hilo entero, una vez, como hasta el 26-oct. */
+function chatCargarUnaVez() {
+  var mio = CH;
+  chatPedir(0).then(function (lista) {
+    if (mio !== CH || lista === null) return;
+    CH.mensajes = lista; CH.error = '';
+    chatPintar();
+    var caja = $('chHilo'); if (caja) caja.scrollTop = caja.scrollHeight;
+  }).catch(function (e) {
+    if (mio !== CH || CH.mensajes.length) return;
+    CH.error = (e && e.humano) || 'No pude conectarme. Revisa tu internet.';
+    chatPintar();
+  });
+}
+
+/* Después de mandar: se vuelve a preguntar en vez de pintar el mensaje a
+   mano, así lo que se ve es lo que quedó guardado de verdad, con su id y su
+   hora de la base. Pintarlo local y que no hubiera entrado sería enseñarle
+   al cliente un mensaje que nadie va a leer. */
+function chatRefrescar() {
+  if (CH.vivo) CH.vivo.latir(); else chatCargarUnaVez();
+}
+
+/* ==================== EN QUÉ CANAL CONTESTA LA APP — 26-oct-2026 (chat-1, punto 10) ====================
+   Hasta hoy esta app escribía SIEMPRE en «servicio», aunque el cliente
+   estuviera contestando un cobro. Su respuesta caía en otra pestaña del CRM,
+   la contestación de Joan en «Cobranzas» no la encontraba, y para el contador
+   de la Ley 2300 (mensajes_contactos, de Cocom: misma pestaña, mismo día,
+   dos horas) esa contestación contaba como CONTACTO NUEVO: el SMS de cobro
+   del día siguiente no salía. Ahora se contesta en el canal del último
+   mensaje que la persona RECIBIÓ —de Joan, del equipo o de la máquina—, que
+   es el hilo que está contestando; si nadie le ha escrito, «servicio». El
+   CRM hace lo simétrico (chat_responder contesta en el canal del último
+   mensaje del cliente). */
+function canalDeRespuesta() {
+  var lista = (CH && CH.mensajes) || [];
+  for (var i = lista.length - 1; i >= 0; i--) {
+    var m = lista[i];
+    if (m && CHAT.ladoDe(m.de) !== 'socio' && CANALES_SOCIO.indexOf(m.canal) >= 0) return m.canal;
+  }
+  return 'servicio';
 }
 
 function chatEnviar() {
   if (!chatDisponible() || CH.enviando) return;
   var ta = $('chTexto'), b = $('chEnviar');
   var r = CHAT.revisar(ta ? ta.value : '');
-  if (!r.ok) { alert(r.motivo); return; }
-
+  if (!r.ok) { chatDecir(r.motivo); return; }
+  var canal = canalDeRespuesta();
+  chatDecir('');
   CH.enviando = true; if (b) b.disabled = true;
   /* 21-oct-2026 (R3) — una escritura en camino: SE ACTUALIZA SOLA no recarga
      encima de ella en ninguna pantalla (ver LO QUE VA EN CAMINO NO SE CORTA). */
-  escrituraEnCamino(cfgChat().then(function (cfg) { return CHAT.escribir(cfg, r.texto, 'servicio'); })).then(function (j) {
+  escrituraEnCamino(cfgChat().then(function (cfg) { return CHAT.escribir(cfg, r.texto, canal); })).then(function (j) {
     /* La base dice por qué no: «demasiados mensajes seguidos» es el tope de
-       la casa, y se le dice así en vez de «error». */
+       la casa, y se le dice así en vez de «error». El texto se queda en el
+       cuadro: solo se borra cuando la nube dijo que sí. */
     if (!j || j.ok !== true) {
-      alert(j && j.motivo
+      chatDecir((j && j.motivo
         ? 'No pude mandarlo: ' + j.motivo + '. Espera unos minutos y vuelve a intentar.'
-        : 'No pude mandarlo. Sal y vuelve a entrar, y prueba otra vez.');
+        : 'No pude mandarlo. Sal y vuelve a entrar, y prueba otra vez.') + ' El texto sigue en el cuadro.');
       return;
     }
     if (ta) { ta.value = ''; chatContar(); }
-    /* Se vuelve a preguntar en vez de pintar el mensaje a mano: así lo que se
-       ve en pantalla es lo que quedó guardado de verdad, con su id y su hora
-       de la base. Pintarlo local y que no hubiera entrado sería enseñarle al
-       cliente un mensaje que nadie va a leer. */
-    chatTraer(false);
+    chatRefrescar();
   }).catch(function (e) {
-    alert((e && e.humano) || (e && e.causa === 'sesion' ? SS.TEXTOS.vencida
-      : 'No pude mandarlo. Revisa tu internet y vuelve a intentar.'));
+    chatDecir(((e && e.humano) || (e && e.causa === 'sesion' ? SS.TEXTOS.vencida
+      : 'No pude mandarlo. Revisa tu internet y vuelve a intentar.')) + ' El texto sigue en el cuadro.');
   }).then(function () {
     CH.enviando = false; if (b) b.disabled = false;
   });
+}
+
+/* ==================== LAS FOTOS — 26-oct-2026 (chat-1) ====================
+   Mandar: CHAT.prepararFoto (900 px al 0,6: unos 73 KB, el número con el que
+   están hechas las cuentas de capacidad de chat_fotos) y chat_foto_sesion
+   (base/20260922f), por el mismo canal que un texto. Cada motivo de la base
+   se dice con sus palabras, copiadas de play/ y comprobadas contra la
+   migración: «no se pudo» tapando un tope alcanzado deja a la persona
+   intentándolo para siempre. */
+function chatMandarFoto(input) {
+  if (!chatDisponible()) return;
+  var archivo = input && input.files && input.files[0];
+  /* Se suelta el archivo ya: así la misma foto se puede volver a elegir
+     (onchange no dispara si el valor no cambió). */
+  try { input.value = ''; } catch (e) {}
+  if (!archivo || CH.enviando) return;
+  if (!CHAT.prepararFoto) { chatDecir('No cargó una parte de la app. Cierra y vuelve a abrir con internet, y vuelve a intentar.'); return; }
+  var ta = $('chTexto'), b = $('chEnviar'), fb = $('chFotoBoton');
+  var pie = String((ta && ta.value) || '').trim();
+  /* El largo se revisa AQUÍ y no se deja que la base lo recorte: un pie que
+     llega cortado deja a la persona creyendo que mandó el resto. */
+  if (pie.length > CHAT.LARGO_MAX) {
+    chatDecir('El texto que acompaña la foto es muy largo. Déjalo en ' + CHAT.LARGO_MAX + ' caracteres o menos.');
+    return;
+  }
+  var canal = canalDeRespuesta();
+  CH.enviando = true; if (b) b.disabled = true; if (fb) fb.disabled = true;
+  chatDecir('Mandando la foto…');
+  escrituraEnCamino(CHAT.prepararFoto(archivo).then(function (f) {
+    return cfgChat().then(function (cfg) {
+      return CHAT.llamar(cfg, 'chat_foto_sesion', {
+        p_canal: canal, p_imagen: f.grande, p_miniatura: f.chica || null, p_texto: pie || null
+      });
+    });
+  })).then(function (j) {
+    if (!j || j.ok !== true) {
+      var m = j && j.motivo;
+      chatDecir(
+        m === 'no_es_imagen' ? 'Por aquí solo se pueden mandar fotos. Un video no cabe en el chat.'
+        : m === 'muy_grande' ? 'Esa foto pesa demasiado. Tómala otra vez con menos calidad.'
+        : m === 'tope' ? 'Ya mandaste el máximo de fotos de este mes. Escríbenos por aquí y seguimos por texto.'
+        : m === 'muchas' ? 'Espera unos minutos antes de mandar otra.'
+        : m === 'lleno' ? 'Ahora mismo no podemos recibir fotos. Escríbenos por aquí y te decimos cómo hacernos llegar el comprobante.'
+        : m === 'sesion' ? 'Se cerró tu sesión. Entra otra vez y la mandas.'
+        : 'No pude mandar la foto. Vuelve a intentar en un momento.');
+      return;
+    }
+    if (ta) { ta.value = ''; chatContar(); }
+    chatDecir('');
+    chatRefrescar();
+  }).catch(function (e) {
+    chatDecir(e && e.motivo === 'es_video' ? 'Por aquí solo se pueden mandar fotos. Un video no cabe en el chat.'
+      : e && e.motivo ? 'No pude preparar esa foto. Prueba con otra.'
+      : (e && e.humano) || (e && e.causa === 'sesion' ? SS.TEXTOS.vencida
+      : 'No pude mandar la foto. Revisa tu internet y vuelve a intentar.'));
+  }).then(function () {
+    CH.enviando = false; if (b) b.disabled = false; if (fb) fb.disabled = false;
+  });
+}
+
+/* Ver la grande: se pide solo cuando alguien toca la miniatura
+   (chat_foto_sesion_ver), y se enseña AQUÍ mismo, nunca en otra pestaña:
+   en un Android el navegador bloquea la emergente la mitad de las veces. La
+   fuente se comprueba con CHAT.esFoto y se ASIGNA como propiedad, nunca
+   como texto de un atributo (la lección del visor del CRM, 22-sep). */
+function chatVerFoto(id) {
+  if (!chatDisponible()) return;
+  var ses = SESION;
+  cfgChat().then(function (cfg) {
+    ses = SESION;
+    return CHAT.llamar(cfg, 'chat_foto_sesion_ver', { p_id: Number(id) });
+  }).then(function (j) {
+    if (!mismaCuenta(ses)) return;
+    if (!j || j.ok !== true || !j.imagen) { chatDecir('No pude abrir esa foto. Vuelve a intentar en un momento.'); return; }
+    chatMostrarFoto(j.imagen);
+  }).catch(function (e) {
+    if (!mismaCuenta(ses)) return;
+    chatDecir((e && e.humano) || (e && e.causa === 'sesion' ? SS.TEXTOS.vencida
+      : 'No pude abrir esa foto. Revisa tu internet y vuelve a intentar.'));
+  });
+}
+function chatMostrarFoto(imagen) {
+  if (!CHAT.esFoto(imagen)) { chatDecir('Esa foto llegó dañada. Pide que la manden otra vez.'); return; }
+  var capa = document.createElement('div');
+  capa.setAttribute('role', 'dialog');
+  capa.setAttribute('aria-label', 'Foto del chat');
+  capa.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);' +
+    'display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out';
+  var img = document.createElement('img');
+  img.alt = 'Foto que se mandó en el chat';
+  img.style.cssText = 'max-width:100%;max-height:100%;border-radius:10px';
+  img.src = imagen;               /* propiedad, nunca texto de un atributo */
+  capa.appendChild(img);
+  var pie = document.createElement('p');
+  pie.textContent = 'Toca para cerrar';
+  pie.style.cssText = 'position:absolute;bottom:14px;left:0;right:0;text-align:center;' +
+    'color:#FFFFFF;font-size:13px;opacity:.75;margin:0';
+  capa.appendChild(pie);
+  function cerrar() {
+    if (capa.parentNode) capa.parentNode.removeChild(capa);
+    document.removeEventListener('keydown', porTecla);
+  }
+  function porTecla(e) { if (e.key === 'Escape') cerrar(); }
+  capa.addEventListener('click', cerrar);
+  document.addEventListener('keydown', porTecla);
+  document.body.appendChild(capa);
 }
 
 /* ================= LA SESIÓN QUE SE QUEDA =================
@@ -4810,6 +5123,9 @@ function chatEnviar() {
    entrar sola y «Salir» no saldría. */
 function cerrarSesionLocal() {
   SESION = null;
+  /* 26-oct-2026 (chat-1) — sin sesión no hay a quién preguntarle: los dos
+     relojes del chat se paran y el número de la barra se borra. */
+  pararChat(); pararLatidoChat();
   if (SS) SS.borrar(localStorage);
   try { sessionStorage.removeItem(SS ? SS.LLAVE_PLAY : 'play_sesion'); } catch (e) {}
 }

@@ -79,10 +79,21 @@ function abrirSocio(o) {
     addEventListener(t, fn) { (this._oyentes[t] = this._oyentes[t] || []).push(fn); },
     querySelectorAll: () => [], querySelector: () => null, focus() {}, scrollTop: 0, scrollHeight: 0
   });
+  /* 26-oct-2026 (chat-1) — el documento GUARDA sus oyentes y `dispararDoc`
+     los llama: visibilitychange lo manda el navegador al volver a la pestaña,
+     y el reloj del chat (app/chat-vivo.js) pide una vez al oírlo. */
+  const docOyentes = {};
   const doc = {
     getElementById: elem, querySelector: () => null, querySelectorAll: () => [],
-    addEventListener() {}, createElement: () => elem('creado'), body: elem('body'), hidden: false
+    addEventListener(t, fn) { (docOyentes[t] = docOyentes[t] || []).push(fn); },
+    removeEventListener(t, fn) { docOyentes[t] = (docOyentes[t] || []).filter(f => f !== fn); },
+    createElement: () => elem('creado'), body: elem('body'), hidden: false
   };
+  /* 26-oct-2026 (chat-1) — los relojes de setInterval, en la mano de la
+     prueba: `intervalos` guarda cada uno con su `ms`, y `vivo` dice si
+     clearInterval ya lo quitó. La prueba toca `fn` cuando quiere que pase el
+     tiempo; aquí nunca corre ninguno solo. */
+  const intervalos = [];
   const local = almacen(o.local), sesion = almacen(o.sesion);
   const ahora = () => (o.ahora != null ? o.ahora : Date.now());
   const oyentes = {};
@@ -104,6 +115,8 @@ function abrirSocio(o) {
     performance: { now: () => (o.performanceNow != null ? o.performanceNow : 3000) },
     setTimeout: (fn, ms) => { temporizadores.push({ fn, ms }); return temporizadores.length; },
     clearTimeout() {},
+    setInterval: (fn, ms) => { intervalos.push({ fn, ms, id: intervalos.length + 1, vivo: true }); return intervalos.length; },
+    clearInterval: id => { const r = intervalos[id - 1]; if (r) r.vivo = false; },
     fetch: (url, opciones) => {
       let cuerpo = null;
       try { cuerpo = opciones && opciones.body ? JSON.parse(opciones.body) : null; } catch (e) { cuerpo = opciones && opciones.body; }
@@ -129,13 +142,19 @@ function abrirSocio(o) {
     /* 23-oct-2026 — sin la versión de la dirección (puente.js?v=139, ver
        sw.js): el archivo es el mismo. */
     const src = ((/\bsrc="([^"]+)"/.exec(m[1]) || [])[1] || '').split('?')[0];
+    /* 26-oct-2026 (chat-1) — `o.sin`: los <script src> que NO llegaron (un
+       service worker viejo sin el archivo nuevo en su lista). La página tiene
+       que andar sin ellos y no prometer lo que no cargó. */
+    if (src && (o.sin || []).indexOf(src) >= 0) continue;
     if (src) vm.runInContext(fs.readFileSync(path.join(RAIZ, 'app', src), 'utf8'), ctx, { filename: src });
     else vm.runInContext(m[2], ctx, { filename: 'socio.html' });
   }
   const ev = e => vm.runInContext(e, ctx, { filename: 'banco-socio' });
   const visible = id => !elem(id).classList.contains('oculto');
   const disparar = (tipo, evento) => (oyentes[tipo] || []).forEach(fn => fn(evento || {}));
-  return { ev, elem, elems, llamadas, avisos, local, sesion, ctx, loc, visible, temporizadores, oyentes, disparar };
+  const dispararDoc = (tipo, evento) => (docOyentes[tipo] || []).slice().forEach(fn => fn(evento || {}));
+  return { ev, elem, elems, llamadas, avisos, local, sesion, ctx, loc, visible, temporizadores, oyentes, disparar,
+           intervalos, docOyentes, dispararDoc };
 }
 
 module.exports = { abrirSocio, RAIZ };
