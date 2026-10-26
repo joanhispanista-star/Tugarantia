@@ -9195,6 +9195,7 @@ function abrirConversacion(ident,extra){
        <button class="btn btn-rojo btn-sm" id="chBtn" onclick="responderChat()">Enviar</button>
      </div>
      <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+       ${botonesDeQuienEscribe(local)}
        ${cel?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="https://wa.me/57${escHTML(cel)}">📲 Seguir por WhatsApp</a>`:''}
        <button class="btn btn-ghost btn-sm" onclick="olvidarConversacion()" title="Borra la conversación entera, para siempre">🗑 Borrar la conversación</button>
      </div>`);
@@ -9395,6 +9396,49 @@ function traerRegistrosParaElChat(lista){
     if(!Array.isArray(f)||!f.length) return;
     _registrosDelChat=f; renderMensajes();
   }).catch(()=>{});
+}
+/* 26-oct-2026 — EL BOTÓN DEL PERFIL. Joan: «que tenga un botón para yo ver el
+   perfil de este cliente». La ficha y el registro que este computador tiene
+   con esa llave, los dos si hay los dos; si no hay ninguno, se dice, y se
+   dice de DÓNDE (en este computador): los registros son los traídos, no
+   todos los de la nube. */
+function botonesDeQuienEscribe(q){
+  const f=q&&q.ficha, r=q&&q.registro;
+  if(!f&&!r){
+    const esNumero=/^0?3\d{9}$/.test(String((q&&q.llave)||''));
+    return '<span class="muted" style="font-size:12px">Ni ficha ni registro con '+(esNumero?'este número':'esta cédula')+' en este computador</span>';
+  }
+  return (f?`<button class="btn btn-ghost btn-sm" onclick="verFichaDesdeChat('${escHTML(String(f.id))}')" title="Abre su ficha; desde allá vuelves al chat">👤 Ver ficha</button>`:'')
+    +(r?`<button class="btn btn-ghost btn-sm" onclick="verRegistroDesdeChat('${escHTML(String(r.id))}')" title="Lo que declaró al registrarse; desde allá vuelves al chat">📋 Ver registro</button>`:'');
+}
+/* Chat → ficha o registro → chat. Es el camino de abrirHiloDeRegistro al
+   revés. El CRM tiene UN solo cuadro (openModal reemplaza lo que había), así
+   que «volver» es cerrar y abrir otra vez la misma conversación: cerrarModal
+   primero, porque suelta _fichaVista y sin eso traerFotosTardias volvería a
+   pintar la ficha ENCIMA del chat cuando lleguen las fotos. El botón de
+   volver se inserta sin reescribir el cuerpo: verCliente ya le pidió las
+   fotos a ese DOM (resolverFotos) y reescribirlo le quitaría los nodos. */
+function verFichaDesdeChat(id){
+  const ident=_chatAbierta;
+  if(!DB.socios.some(s=>s.id===id)) return;
+  verCliente(id); ponerVolverAlChat(ident);
+}
+function verRegistroDesdeChat(id){
+  const ident=_chatAbierta, r=registroPorId(id); if(!r) return;
+  if(r.datos) verDatosRegistro(id);
+  else openModal('Registro de '+(r.nombre||'esta persona'),
+    /* Un registro por invitación trae solo cuatro campos y `datos` vacío:
+       verDatosRegistro no lo abre, y acá se pintan los cuatro. */
+    '<div class="help" style="margin-bottom:10px">Lo que dejó al registrarse. Nadie ha comprobado su identidad contra la Registraduría ni contra ninguna central.</div>'
+    +[['Nombre',r.nombre],['Cédula',r.cedula],['Celular',r.telefono],['Cuándo',r.creado_en?fmtFecha(String(r.creado_en).slice(0,10)):'']]
+      .filter(p=>p[1]).map(p=>`<div class="info-row"><span class="k">${p[0]}</span><span class="vv">${escHTML(String(p[1]))}</span></div>`).join(''));
+  ponerVolverAlChat(ident);
+}
+function ponerVolverAlChat(ident){
+  if(!ident) return;
+  const b=document.getElementById('mBody'); if(!b) return;
+  const html=`<div style="margin-bottom:10px"><button class="btn btn-ghost btn-sm" onclick="cerrarModal();abrirConversacion('${escHTML(ident)}')">← Volver al chat</button></div>`;
+  if(typeof b.insertAdjacentHTML==='function') b.insertAdjacentHTML('afterbegin',html); else b.innerHTML=html+b.innerHTML;
 }
 
 /* 22-sep-2026 — ABRIR LA FOTO QUE MANDÓ EL CLIENTE. El hilo trae la miniatura;
@@ -10464,7 +10508,9 @@ const ETIQUETAS_VINCULACION={nombres:'Nombres',apellidos:'Apellidos',tipo_doc:'T
   banco_codigo:'Código del banco (Superfinanciera)',banco_tipo:'Tipo de cuenta',banco_numero:'Número de cuenta',
   cuentas_mias:'Dijo que son a su nombre'};
 function verDatosRegistro(id){
-  const r=_registros.find(x=>String(x.id)===String(id)); if(!r||!r.datos)return;
+  /* 26-oct-2026 — registroPorId y no _registros.find: «📋 Ver registro» del
+     chat abre también los que trajo la bandeja de Mensajes (_registrosDelChat). */
+  const r=registroPorId(id); if(!r||!r.datos)return;
   /* 22-oct-2026 — sin el sello del registro (cuentas_sello): son 32 letras al
      azar que solo sirven para que la app sepa que la fila es de esa cuenta
      (base/20261022c_las_cuentas_del_registro.sql). A Joan no le dice nada. */
