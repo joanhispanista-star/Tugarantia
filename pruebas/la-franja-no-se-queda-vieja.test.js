@@ -853,10 +853,12 @@ describe('4b. el «no» de la base, en las tres páginas de verdad', () => {
     });
   }
 
-  /* CENTINELA, no arreglo: en el chat del socio el «no» sale en un alert y
-     lo escrito se queda en la caja, así que su lista blanca (sinTeclear)
+  /* CENTINELA, no arreglo: en el chat del socio el «no» se dice y lo
+     escrito se queda en la caja, así que su lista blanca (sinTeclear)
      ya frenaba la recarga con e8f34eb. Esta prueba fija que siga así: que
-     «ya terminó» no le ofrezca el botón con lo escrito a la vista. */
+     «ya terminó» no le ofrezca el botón con lo escrito a la vista.
+     26-oct-2026 (chat-1) — el «no» ya no sale en un alert: se dice al lado
+     del cuadro (#chErr), con el texto todavía en la caja. Se lee de ahí. */
   test('app/socio.html sin juntar: el mensaje NO llega (500 y un «no» de la base): lo dice, lo escrito se queda, y nada recarga', async () => {
     const CORREO = '573001112222@tugarantia.net';
     for (const [nombre, resp] of [['500', { status: 500, cuerpo: { message: 'boom' } }],
@@ -892,7 +894,8 @@ describe('4b. el «no» de la base, en las tres páginas de verdad', () => {
       pendientes[0](resp);
       await asentar(16);
       await N.pasaUnSegundo();
-      assert.ok(S.avisos.some(a => /^No pude (mandarlo|conectarme)/.test(a)), nombre + ': la página no dijo que no se mandó: la prueba no prueba el caso. Dijo: ' + S.avisos.join(' | '));
+      const dicho = S.ev("$('chErr').textContent");
+      assert.match(dicho, /^No pude (mandarlo|conectarme)/, nombre + ': la página no dijo que no se mandó: la prueba no prueba el caso. Dijo: «' + dicho + '» | alerts: ' + S.avisos.join(' | '));
       assert.equal(S.ev("$('chTexto').value"), 'Ya consigné, ¿me confirman?', nombre + ': lo escrito no se quedó en la caja');
       assert.equal(N.st.recargas, 0, nombre + ': el mensaje no llegó y la app recargó encima de lo escrito');
       assert.equal(N.franja().boton, null, nombre + ': con lo escrito a la vista, la franja ofreció recargar');
