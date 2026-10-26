@@ -176,6 +176,45 @@ describe('1. las letras de la cédula, con el ruido de siempre', () => {
     assert.equal(r2.campos.expedicion, undefined, 'tres lecturas distintas dieron una fecha');
   });
 
+  /* 26-oct-2026 (remate) — UN RÓTULO SÍ Y EL OTRO NO. Las seis lecturas son
+     las que dio el motor de verdad en Chrome sin ventana con el iPhone a
+     720×1280 y la cédula quieta (lote-26/arreglador-final/diag-ocr.js): la A
+     bien, la B sin el espacio de los apellidos y la C sin el renglón
+     «APELLIDOS». Hasta hoy la C daba los nombres y tiraba los apellidos (el
+     orden de la tarjeta solo valía sin NINGÚN rótulo), el consenso no tenía
+     dos iguales y «Tus apellidos» quedaba vacía con la foto mostrándolos
+     clarísimos: 2 de 2 corridas del remate. Las tres de la posición girada
+     son las de ese día, tal cual. */
+  test('el frente del remate (iPhone quieto): la C se come «APELLIDOS» y la B el espacio, y los apellidos salen igual', async () => {
+    const A = 'CEDULA DE CIUDADANIA\nNUMERO 52.123.456\nRODRIGUEZ PEREZ\nAPELLIDOS\nMARIA JOSE\nNOMBRES\n';
+    const B = 'CEDULA DE CIUDADANIA\nNUMERO 52.123.456\nRODRIGUEZPEREZ\nAPELLIDOS\nMARIA JOSE\nNOMBRES\n';
+    const Cc = 'CEDULA DE CIUDADANIA\nNUMERO 52.123.456\nRODRIGUEZ PEREZ\nMARIA JOSE\nNOMBRES\n';
+    assert.deepEqual(O.parsearFrente(Cc), { documento: '52123456', apellidos: 'RODRIGUEZ PEREZ', nombres: 'MARIA JOSE' },
+      'con «NOMBRES» a la vista y «APELLIDOS» no, los apellidos se tiraron');
+    /* Y al revés: «APELLIDOS» sí y «NOMBRES» no. */
+    assert.deepEqual(O.parsearFrente('NUMERO 52.123.456\nRODRIGUEZ PEREZ\nAPELLIDOS\nMARIA JOSE\n'),
+      { documento: '52123456', apellidos: 'RODRIGUEZ PEREZ', nombres: 'MARIA JOSE' });
+    /* Sin línea de nombre al lado del rótulo que se vio, no se adivina: ni
+       el número ni lo de antes del número son apellidos. */
+    assert.deepEqual(O.parsearFrente('NUMERO 52.123.456\nMARIA JOSE\nNOMBRES\n'),
+      { documento: '52123456', apellidos: '', nombres: 'MARIA JOSE' });
+    assert.deepEqual(O.parsearFrente('RODRIGUEZ PEREZ\nNUMERO 52.123.456\nMARIA JOSE\nNOMBRES\n'),
+      { documento: '52123456', apellidos: '', nombres: 'MARIA JOSE' }, 'tomó de apellidos una línea de antes del número');
+    const girada = ['L MZ\nS3HAWON\n3SO VIYYN\nSO3Y\n2343 Z3N91HU0Y\n997 EZ125 OYIWANN\n',
+      'NL Y LS\nS3UINON\nISO VIYVYN\nSONY\nZU ZIN9INOY\n997 EZL ES OYINNN\n',
+      'DL LA LS\nS3IHAWNON\n3SO VINYN\nSO3Y\n2343 Z3N91H4004\n997 EZL 25 OYIWNANN\n'];
+    const respuestas = [{ texto: A, confianza: 95 }, { texto: B, confianza: 92 }, { texto: Cc, confianza: 95 }]
+      .concat(girada.map(t => ({ texto: t, confianza: 22 })));
+    let i = 0;
+    const lector = { leer: () => Promise.resolve(respuestas[i++]), terminar() {} };
+    const rec = O.recortarDeGris('frente', new Uint8ClampedArray(1000 * 631).fill(200), 1000, 631, {});
+    const r = await O.leerRecorte(lector, rec, { hoy: HOY });
+    assert.equal(i, 6, 'no se leyeron las tres de cada posición');
+    assert.deepEqual(r.campos, { documento: '52123456', apellidos: 'RODRIGUEZ PEREZ', nombres: 'MARIA JOSE' },
+      '«Tus apellidos» quedaría vacía: ' + JSON.stringify(r.campos));
+    assert.equal(r.giro, 0);
+  });
+
   /* 26-oct-2026 — EL FRENTE CABEZA ABAJO LO DICEN SUS LETRAS (`giro`). Con el
      marco de pie, la mitad de los frentes llegan girados 180° y no traen
      código que lo diga. Se leen las DOS posiciones y gana la de más

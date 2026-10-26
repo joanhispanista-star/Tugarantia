@@ -318,31 +318,40 @@
    * el bloque de la derecha. El valor va ENCIMA de su rótulo en la cédula
    * amarilla; si el rótulo quedó en la misma línea, se toma lo que lo
    * acompaña, y si no se ve ningún rótulo, el orden: después del número, los
-   * apellidos y luego los nombres.
+   * apellidos y luego los nombres. Con UN rótulo visto y el otro no, el
+   * orden también, al lado del que sí se vio (ver UN RÓTULO SÍ Y EL OTRO NO).
    * @returns {documento, apellidos, nombres} con '' en lo que no se leyó.
    */
   function parsearFrente(texto) {
     var lineas = String(texto == null ? '' : texto).split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean);
     var salida = { documento: normalizarNumero(texto), apellidos: '', nombres: '' };
     var usadas = {};
+    /* En qué línea quedó el rótulo de cada campo, y de qué línea salió su
+       valor (para UN RÓTULO SÍ Y EL OTRO NO, abajo). */
+    var lineaRotulo = {}, lineaValor = {};
     var valorJunto = function (i) {
       /* El rótulo pegado al valor en la misma línea: «PEREZ GOMEZ APELLIDOS». */
       var v = normalizarNombre(lineas[i]);
       return v;
     };
-    var nombreCerca = function (i) {
-      for (var k = i - 1; k >= Math.max(0, i - 2); k--) {
+    /* Una línea con forma de nombre entre `desde` y `hasta` (las dos
+       incluidas, en ese orden), que no sea un rótulo, ni un número, ni ya
+       usada. Devuelve su índice, o -1. */
+    var lineaDeNombre = function (desde, hasta) {
+      var paso = hasta >= desde ? 1 : -1;
+      for (var k = desde; paso > 0 ? k <= hasta : k >= hasta; k += paso) {
+        if (k < 0 || k >= lineas.length) continue;
         if (usadas[k] || rotuloDe(lineas[k]) || candidatosNumero(mayus(lineas[k])).length) continue;
-        var v = normalizarNombre(lineas[k]);
-        if (v) { usadas[k] = true; return v; }
+        if (normalizarNombre(lineas[k])) return k;
       }
-      return '';
+      return -1;
     };
     lineas.forEach(function (l, i) {
       var r = rotuloDe(l);
       if (!r || salida[r]) return;
-      var v = valorJunto(i) || nombreCerca(i);
-      if (v) salida[r] = v;
+      var v = valorJunto(i), k = i;
+      if (!v) { k = lineaDeNombre(i - 1, i - 2); v = k >= 0 ? normalizarNombre(lineas[k]) : ''; }
+      if (v) { salida[r] = v; usadas[k] = true; lineaRotulo[r] = i; lineaValor[r] = k; }
     });
     if (!salida.apellidos || !salida.nombres) {
       /* Sin rótulos a la vista: el orden de la tarjeta. */
@@ -356,6 +365,29 @@
       });
       if (!salida.apellidos && !salida.nombres && resto.length >= 2) {
         salida.apellidos = resto[0]; salida.nombres = resto[1];
+      } else {
+        /* 26-oct-2026 (remate) — UN RÓTULO SÍ Y EL OTRO NO. En el iPhone a
+           720×1280 con la cédula quieta, la tercera lectura del bloque (la
+           C) vio «RODRIGUEZ PEREZ» perfecto pero se comió el renglón
+           «APELLIDOS» de debajo; con «NOMBRES» sí a la vista, los nombres
+           salían y los apellidos se tiraban, porque el orden de la tarjeta
+           solo se usaba sin NINGÚN rótulo. La A los leyó bien y la B sin el
+           espacio («RODRIGUEZPEREZ»), así que el consenso no tenía con qué
+           ponerse de acuerdo: «Tus apellidos» vacía, con la foto mostrando
+           los apellidos clarísimos (lote-26/remate, iphone-quieto 2 de 2).
+           En la tarjeta los apellidos van justo encima de los nombres (con
+           su rótulo en medio) y después del número: con un rótulo visto, el
+           otro valor es la línea de nombre de al lado, a una o dos líneas,
+           sin pasar del número. Si no hay ninguna ahí, no se adivina. */
+        var k = -1;
+        if (salida.nombres && !salida.apellidos) {
+          var arriba = lineaValor.nombres - 1, tope = Math.max(iNum + 1, lineaValor.nombres - 2);
+          if (arriba >= tope) k = lineaDeNombre(arriba, tope);
+          if (k > iNum) salida.apellidos = normalizarNombre(lineas[k]);
+        } else if (salida.apellidos && !salida.nombres) {
+          k = lineaDeNombre(lineaRotulo.apellidos + 1, lineaRotulo.apellidos + 2);
+          if (k > iNum) salida.nombres = normalizarNombre(lineas[k]);
+        }
       }
     }
     /* Los dos iguales es una franja que leyó dos veces la misma línea: no se
