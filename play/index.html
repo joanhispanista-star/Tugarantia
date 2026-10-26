@@ -131,11 +131,37 @@
    light» le dice que estas casillas no se tocan; con «light» a secas las
    vuelve a oscurecer. De paso, el ícono de calendario de #csFecha queda
    oscuro sobre el blanco. En Samsung de verdad no está verificado.
-   Lo vigila pruebas/oscuro-forzado.test.js. */
+   Lo vigila pruebas/oscuro-forzado.test.js.
+
+   26-oct-2026 — Y DONDE SE ELIGE, TAMBIÉN. Joan, desde el iPhone en oscuro:
+   «hay espacios en blanco para uno escribir pero también hay espacios en
+   negro que confunden y parece que no tocara rellenar, deja todo de color
+   blanco para rellenar». Los negros eran los «Toca para elegir»: tipo de
+   documento, vivienda, cuánto lleva ahí, ocupación, día de pago, banco y
+   tipo de cuenta. Esta regla solo nombraba los input donde se TECLEA, y el
+   <select> seguía con var(--papel), #151113 en el modo oscuro del teléfono.
+   Para la persona no hay diferencia entre teclear y elegir: todo lo que
+   ella llena va en blanco. Lo que NO se llena —las casillas de marcar
+   (.permiso), los deslizadores, los botones, las tarjetas— no entra aquí y
+   sigue con el tema del teléfono. */
 input[type=text],input[type=tel],input[type=password],input[type=number],
-input[type=email],input[type=date],textarea{
+input[type=email],input[type=date],select,textarea{
   background:#FFFFFF;color:#0C0A0B;border-color:#D8D2CC;color-scheme:only light}
 input::placeholder,textarea::placeholder{color:#8A807B;opacity:1}
+/* 26-oct-2026 — LA FLECHA DEL SELECT ES NUESTRA. Con el fondo fijado en
+   blanco, la del navegador no es de fiar: iOS la pinta gris clarito y
+   Android la pinta según el tema del teléfono (clara, y sobre blanco se
+   pierde). appearance:none la quita en los dos y se dibuja una del mismo
+   tono que la letra, en un data: URI (nada externo que pueda no llegar sin
+   señal). El padding derecho le deja sitio para que el texto no se le
+   monte. VA DESPUÉS de la regla de arriba a propósito: aquella usa el
+   atajo background:#FFFFFF, que borra cualquier background-image que
+   venga antes. El only light se lo pone la regla de arriba, que ya nombra select.
+   Lo vigila pruebas/oscuro-forzado.test.js. */
+select{-webkit-appearance:none;appearance:none;padding-right:44px;
+  background-color:#FFFFFF;background-repeat:no-repeat;background-size:20px 20px;
+  background-position:right 14px center;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 7.5l5 5 5-5' fill='none' stroke='%230C0A0B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
 
 /* EL OJO, DISCRETO Y DENTRO DE LA BARRA. Joan: «se ve muy feo, quisa un poco
    mas discreto dentro de la barra donde uno escribe».
