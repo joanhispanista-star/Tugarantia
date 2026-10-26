@@ -7479,11 +7479,13 @@ function bucleEscanerDoc() {
     var txt = textoDeLaPuerta(g, m);
     /* 21-oct-2026 — «acércala» ya no: acostada, lo que desenfoca es tenerla
        demasiado cerca, y ese consejo empujaba justo hacia el desenfoque. */
-    if (verde && !esFrente) txt = (resp.avance >= 1 && ESCDOC.lecturas >= EC.RESPALDO.LECTURAS_MIN) ? 'Quieta… tomando la foto'
+    /* 26-oct-2026 — «Quieta…» pedía lo que una mano no da; la puerta ya tolera
+       el temblor y lo que se le pide a la persona es sostenerla ahí. */
+    if (verde && !esFrente) txt = (resp.avance >= 1 && ESCDOC.lecturas >= EC.RESPALDO.LECTURAS_MIN) ? 'Sosténla… tomando la foto'
       : (!window.ZXing && !ESCDOC.nativo) ? 'Escaneando…'
-      : (ESCDOC.ilegibles >= 2 ? 'Casi: enderézala un poco y déjala quieta' : 'Leyendo el código…');
+      : (ESCDOC.ilegibles >= 2 ? 'Casi: enderézala un poco y sosténla ahí' : 'Leyendo el código…');
     if (verde && esFrente) txt = fre.voltear ? TEXTO_FRENTE_ES_RESPALDO
-      : 'Quieta… ' + Math.max(1, Math.ceil((EC.TARJETA.CUADROS_FRENTE - ESCDOC.estables) / 3));
+      : 'Sosténla… ' + Math.max(1, Math.ceil((EC.TARJETA.CUADROS_FRENTE - ESCDOC.estables) / 3));
     if (verde && esFrente && fre.voltear && t > 10) {
       var nf = $('docNota');
       if (nf && !nf.textContent) nf.textContent = TEXTO_FRENTE_DOS_TOQUES;

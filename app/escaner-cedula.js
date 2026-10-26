@@ -373,13 +373,17 @@
      21-oct-2026 — `borrosa` decía «Acércala un poco»: con el marco de pie lo
      probable era tenerla lejos. Acostada, lo probable es lo contrario —quien
      llena el marco la pega al lente y la cámara no enfoca, que fue lo de
-     Joan—, y desde 96 px no se sabe cuál de las dos es. Se dicen las dos. */
+     Joan—, y desde 96 px no se sabe cuál de las dos es. Se dicen las dos.
+     26-oct-2026 — `movimiento` decía «Quieta…», y una mano nunca está quieta
+     del todo: desde hoy la puerta deja pasar el temblor, y lo que la frena
+     es un movimiento de verdad (o el primer cuadro, que todavía no tiene con
+     qué compararse). «Sosténla ahí» es lo que sirve en los dos casos. */
   var TEXTO_TARJETA = {
     poca_luz: 'Busca un sitio con más luz',
     mucha_luz: 'Hay un reflejo: inclínala un poco',
     sin_tarjeta: 'Pon la cédula dentro del marco',
     borrosa: 'Aléjala o acércala un poco y espera el enfoque',
-    movimiento: 'Quieta…',
+    movimiento: 'Sosténla ahí…',
     '': 'Leyendo…'
   };
   function textoDeTarjeta(m) {
