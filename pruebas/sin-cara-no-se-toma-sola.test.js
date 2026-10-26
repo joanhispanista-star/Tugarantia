@@ -61,7 +61,7 @@ describe('1. una textura pareja quieta no dispara el encuadre', () => {
       assert.equal(m.ok, false, '«' + k + '» dispara el encuadre (centro/borde ' + (m.centro / m.borde).toFixed(2) + '): se toma sola una foto sin cara');
       assert.equal(m.falla, 'parejo', '«' + k + '» falla por «' + m.falla + '»');
     }
-    assert.match(U.textoDeEncuadre({ falla: 'parejo' }), /cara dentro del óvalo/, 'la falla nueva se quedó sin frase que diga qué hacer');
+    assert.match(U.textoDeEncuadre({ falla: 'parejo' }), /cara dentro de la silueta/, 'la falla nueva se quedó sin frase que diga qué hacer');
   });
 
   test('la cabeza con pelo sigue disparando, y la cara que llena el óvalo también (control)', () => {

@@ -7900,7 +7900,7 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
     vioFranja: !esFrente && ESCDOC.vioFranja === true });
   dibujarMarcoDoc(true, d.avance);
   var T = ECAP.TEXTO, txt = '';
-  if (d.estado === 'disparar') txt = T.TOMANDO;
+  if (d.estado === 'disparar') txt = sinQuieta(T.TOMANDO);
   else if (d.estado === 'alejala') { avisoDoc(ESCDOC.pedirLuz ? T.BUSCA_LUZ : T.ALEJALA); ESCDOC.ventana = null; }
   else if (d.estado === 'sin_codigo') { avisoDoc(T.SIN_CODIGO); ESCDOC.ventana = null; }
   /* 23-oct-2026 (tarde) — la franja de las barras sin código leído ya no
@@ -7909,7 +7909,7 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
      sigue con cada mejor cuadro de las ventanas que vienen. */
   else if (d.estado === 'solo_franja') { avisoDoc(T.SOLO_FRANJA); ESCDOC.ventana = null; }
   else if (d.estado === 'con_codigo') { avisoDoc(TEXTO_FRENTE_ES_RESPALDO); ESCDOC.ventana = null; }
-  else txt = (!esFrente && (window.ZXing || ESCDOC.nativo)) ? T.LEYENDO : T.MIDIENDO;
+  else txt = sinQuieta((!esFrente && (window.ZXing || ESCDOC.nativo)) ? T.LEYENDO : T.MIDIENDO);
   if (d.estado === 'disparar') ESCDOC.aviso = null;
   pintarEstadoDoc(estado, txt, t, ahora, true);
   if (esFrente && ESCDOC.vioCodigo && t > 10) {
@@ -7923,13 +7923,23 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
   ESCDOC.tempo = setTimeout(bucleEscanerDoc, 100);
   return true;
 }
+/* 26-oct-2026 — «QUIETA…» YA NO ES LA REGLA, TAMPOCO CON LA VENTANA. Desde
+   lectura-sin-temblor la puerta acepta el temblor de una mano: nadie tiene que
+   quedarse quieto, solo sostener la cédula en el marco, y el camino sin ventana
+   ya dice «Sosténla…». Pero el que usan casi todos los teléfonos (la ventana del
+   mejor cuadro) toma sus letreros de app/escaner-captura.js —«Quieta… leyendo el
+   código», «Quieta… tomando la foto»— y salían mezclados con «Sosténla ahí…».
+   Ese .js está publicado sin ?v=: cambiarlo obliga a la regla de versiones
+   entera, y una página con el .js viejo en la caché seguiría diciendo
+   «Quieta…». Se traducen aquí, en la página, que se publica junta con su regla. */
+function sinQuieta(t) { return typeof t === 'string' ? t.replace(/^Quieta…/, 'Sosténla…') : t; }
 /* El letrero de abajo. Un aviso que cerró una ventana («Aléjala…», «Hay un
    reflejo…») se deja leer su rato aunque el bucle repinte diez veces por
    segundo; después, lo de ahora. */
 function pintarEstadoDoc(el, txt, t, ahora, verde) {
   if (!el) return;
   if (ESCDOC.aviso && ahora < ESCDOC.aviso.hasta) txt = ESCDOC.aviso.texto;
-  else if (!txt) txt = ECAP ? ECAP.TEXTO.MIDIENDO : 'Quieta…';
+  else if (!txt) txt = sinQuieta(ECAP ? ECAP.TEXTO.MIDIENDO : 'Quieta…');
   if (t > 20 && !verde) txt = 'Tranquilo: si no sale, toca «Tomar la foto ahora»';
   el.textContent = txt;
 }

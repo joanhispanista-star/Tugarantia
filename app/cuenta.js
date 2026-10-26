@@ -1008,9 +1008,9 @@
   var TEXTO_ENCUADRE = {
     poca_luz: 'Busca un sitio con más luz',
     mucha_luz: 'Demasiada luz atrás: date la vuelta',
-    lejos: 'Acerca tu cara al óvalo',
-    ladeado: 'Céntrate en el óvalo',
-    parejo: 'Pon tu cara dentro del óvalo',   // 22-oct-2026: lo que se ve es una textura, no una cara
+    lejos: 'Acerca tu cara a la silueta',
+    ladeado: 'Céntrate en la silueta',
+    parejo: 'Pon tu cara dentro de la silueta',   // 22-oct-2026: lo que se ve es una textura, no una cara (26-oct: la silueta reemplazó al óvalo)
     movimiento: 'Quieto…',
     '': 'Listo'
   };
