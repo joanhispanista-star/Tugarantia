@@ -236,11 +236,16 @@ describe('deshacer una unión equivocada', () => {
     P.ev("DB.socios[0].cuentaJunta={celular:'3001112222',fecha:'2026-10-07'}");
     P.ev('cuentasJuntas()');
     await asentar();
-    assert.match(P.elems.mBody.innerHTML, /deshacerUnion\('3001112222','Adriana Antigua','3001112222'\)/);
+    /* 27-oct-2026 — el botón lleva solo la ficha; el nombre y el celular los
+       busca deshacerUnion en la lista que se acaba de pintar (un nombre dentro
+       de un onclick se ejecuta: pruebas/ningun-nombre-se-ejecuta.test.js). */
+    assert.match(P.elems.mBody.innerHTML, /onclick="deshacerUnion\('3001112222'\)"/);
     assert.match(plano(P.elems.mBody.innerHTML), /Esta unión fue un error: deshacer/);
     P.ctx.prompt = () => 'no era ella';
-    P.ev("deshacerUnion('3001112222','Adriana Antigua','3001112222')");
+    const preguntas = []; P.ctx.confirm = m => { preguntas.push(String(m)); return true; };
+    P.ev("deshacerUnion('3001112222')");
     await asentar();
+    assert.match(preguntas[0] || '', /Deshacer la unión de Adriana Antigua con la cuenta del/, 'no encontró el nombre en memoria');
     const d = llamadasA(N, 'desvincular_cuenta_joan')[0];
     assert.deepEqual(d.cuerpo, { p_clave: CLAVE, p_ficha: '3001112222', p_motivo: 'no era ella' });
     assert.equal(P.ev('DB.socios[0].cuentaJunta'), undefined);

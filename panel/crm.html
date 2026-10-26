@@ -1800,6 +1800,18 @@ function pintarAvisoGuardado(salvadoSinFotos){
 
 const COP=n=>'$'+Math.round(n||0).toLocaleString('es-CO');
 function escHTML(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+/* 27-oct-2026 — EL GERENTE AGREGA (commit 1): NINGÚN TEXTO DE AFUERA VA DENTRO
+   DE UN onclick="…". escHTML convierte la comilla en &#39;, pero el navegador
+   DESHACE esa conversión al leer el atributo, antes de correr el código: un
+   nombre como «x',alert(1),'» (que cualquiera escribe al registrarse en
+   play/, y el servidor solo lo corta a 80) cierra la cadena y ejecuta lo que
+   venga detrás, con la clave de la nube de Joan a mano en este navegador.
+   Escapar no sirve AHÍ; lo que sirve es no meterlo: el botón lleva solo un id
+   que casa con esta regla, o un celular en dígitos, y la función busca el
+   nombre en la lista que ya tiene en memoria. Si el id no casa, el botón no se
+   pinta (vacío). La prueba: pruebas/ningun-nombre-se-ejecuta.test.js. */
+function idDeBoton(v){ const s=String(v==null?'':v); return /^[A-Za-z0-9-]{1,40}$/.test(s)?s:''; }
+function digitosDeBoton(v){ return String(v==null?'':v).replace(/\D/g,'').slice(0,15); }
 /* 1-oct-2026 — UNA FOTO SOLO SE PINTA SI ES UNA IMAGEN Y NADA MÁS. Las fotos del
    registro las escribe cualquiera desde play/, y el servidor solo exigía que
    empezaran por «data:image/» (base/20260922c_verificacion_cedula.sql:351). Se
@@ -2682,12 +2694,16 @@ function buscarRegistroParaJuntar(id){
    La verdad está en la nube (vinculos_listar): lo que este computador anota
    en la ficha es solo lo que se juntó DESDE AQUÍ. Con `llave` muestra solo
    las de esa ficha (el botón de su ficha). */
+/* 27-oct-2026 — lo último que trajo vinculos_listar, para que «deshacer» busque
+   ahí el nombre y el celular en vez de recibirlos dentro del onclick. */
+let _unionesVistas=[];
 function cuentasJuntas(llave,titulo){
   if(!unaPuertaLista()) return;
   if(!sbListo()) return alert('Las cuentas juntas viven en la nube. Conéctala en Ajustes → 📲 Compartir con mis clientes.');
   openModal(titulo||'🔗 Cuentas juntas','<div class="muted">Preguntando a la nube…</div>');
   rpc('vinculos_listar',{p_clave:sbCfg().clave}).then(lista=>{
     let l=Array.isArray(lista)?lista:[];
+    _unionesVistas=l.slice();
     if(llave) l=l.filter(v=>String(v.ficha)===String(llave));
     const vivos=l.filter(v=>!v.deshecho_en), muertos=l.filter(v=>v.deshecho_en);
     const por={crm:'tu toque en el computador',celular:'tu toque en el celular',aprobacion:'al aprobarlo',codigo_viejo:'con su código (antes del 7-oct)'};
@@ -2695,7 +2711,7 @@ function cuentasJuntas(llave,titulo){
         <div class="muted">cuenta del ${escHTML(UP.bonito(v.celular))} · junta ${escHTML(por[v.por]||v.por)} el ${escHTML(fmtFechaHora(v.creado_en))}</div>
         ${v.deshecho_en?`<div class="muted">deshecha el ${escHTML(fmtFechaHora(v.deshecho_en))}${v.motivo?' · «'+escHTML(v.motivo)+'»':''}</div>`:''}</span>
       <span class="vv">${v.deshecho_en?'<span class="chip">deshecha</span>'
-        :`<button class="btn btn-ghost btn-sm" onclick="deshacerUnion('${escHTML(String(v.ficha))}','${escHTML(String(v.nombre||''))}','${escHTML(String(v.celular||''))}')">Esta unión fue un error: deshacer</button>`}</span></div>`;
+        :(idDeBoton(v.ficha)?`<button class="btn btn-ghost btn-sm" onclick="deshacerUnion('${idDeBoton(v.ficha)}')">Esta unión fue un error: deshacer</button>`:'')}</span></div>`;
     /* 7-oct-2026 (segunda vuelta) — no se supone que «no se ha registrado»:
        el que ya se registró y quedó atendido no vuelve a salir en 📥
        Registrados. «🔗 Buscar su registro» (en su ficha) lo trae. */
@@ -2726,6 +2742,13 @@ function cuentaDeLaFicha(id){
    también (deshacerCruce): son dos decisiones. */
 function deshacerUnion(ficha,nombre,celular){
   if(!unaPuertaLista()) return;
+  /* 27-oct-2026 — el botón ya no trae el nombre ni el celular (ver idDeBoton):
+     se buscan en la lista que se acaba de pintar. La firma de tres sigue
+     sirviendo para quien la llame con todo. */
+  if(nombre===undefined&&celular===undefined){
+    const v=_unionesVistas.find(x=>String(x.ficha)===String(ficha)&&!x.deshecho_en)||{};
+    nombre=String(v.nombre||''); celular=String(v.celular||'');
+  }
   if(!confirm('Deshacer la unión de '+(nombre||'esta ficha')+' con la cuenta del '+UP.bonito(celular)+'.\n\n'
     +'Desde ya esa cuenta deja de ver el historial, lo que escribió en el chat después de juntarla vuelve a su conversación aparte, '
     +'y se cierran sus sesiones abiertas.\n\nLo que ya vio no se puede deshacer: queda anotado en la nube con la fecha.\n\n'
@@ -10328,7 +10351,16 @@ function chipQuienVe(r){
   return '<div style="margin-top:4px"><span class="chip prorroga" title="Solo él (y tú) ven este registro">👀 Lo ve '
     +escHTML(q.gerente_nombre)+' · '+escHTML(porque)+'</span></div>';
 }
+/* 27-oct-2026 — el nombre de un registro, buscado por su celular en lo que la
+   bandeja ya tiene en memoria. Los botones de Registrados ya no lo traen
+   dentro del onclick (ver idDeBoton). */
+function nombreDeRegistroPorTel(tel){
+  const t=telDiez(tel);
+  const r=_registros.concat(_registrosExtra,_registrosDelChat).find(x=>x&&telDiez(x.telefono)===t);
+  return r?String(r.nombre||''):'';
+}
 function asignarRegistro(tel, nombre){
+  if(nombre===undefined) nombre=nombreDeRegistroPorTel(tel);
   if(_quienVeFalta) return alert('Para asignar registros falta correr base/20261015_el_gerente_vende.sql en la nube (SQL Editor → Run).');
   const t=telDiez(tel);
   const gente=equipo().filter(p=>p&&p.celular&&p.estado!=='retirado'&&!p.retirado);
@@ -10443,9 +10475,9 @@ function renderRegistros(){
         ? (c0.fuerza>=2?`<button class="btn btn-rojo btn-sm" onclick="abrirJuntarCuenta('${escHTML(String(r.id))}','${escHTML(c0.socio.id)}')" title="Mira la ficha, la cuenta y la revisión, y júntala con un toque">🔗 ¿Es la misma persona?</button> `:'')
           +`<button class="btn ${c0.fuerza>=2?'btn-ghost':'btn-rojo'} btn-sm" onclick="mesaDeCruce('${escHTML(String(r.id))}','')">🔗 Cruzar con ${escHTML(codCliente(c0.socio))}</button>`
         : `<button class="btn btn-rojo btn-sm" onclick="fichaDesdeRegistro('${escHTML(String(r.id))}')">＋ Abrirle la ficha</button>`}
-        ${r.telefono?`<button class="btn btn-ghost btn-sm" onclick="asignarRegistro('${escHTML(String(r.telefono).replace(/\D/g,''))}','${escHTML(String(r.nombre||''))}')" title="Que lo vea y le venda alguien de tu equipo">👤</button>`:''}
+        ${digitosDeBoton(r.telefono)?`<button class="btn btn-ghost btn-sm" onclick="asignarRegistro('${digitosDeBoton(r.telefono)}')" title="Que lo vea y le venda alguien de tu equipo">👤</button>`:''}
         <button class="btn btn-ghost btn-sm" onclick="descartarRegistro('${escHTML(String(r.id))}')" title="No abrirle cuenta">✕</button>
-        ${r.telefono?`<button class="btn btn-ghost btn-sm" onclick="borrarParaProbar('${escHTML(String(r.telefono).replace(/\D/g,''))}','${escHTML(String(r.nombre||''))}')" title="Borra su cuenta y todo lo suyo para que el MISMO numero se pueda volver a registrar. No se puede deshacer.">🧪 Borrar y repetir</button>`:''}</td></tr>`;}).join('')}</tbody></table>`;
+        ${digitosDeBoton(r.telefono)?`<button class="btn btn-ghost btn-sm" onclick="borrarParaProbar('${digitosDeBoton(r.telefono)}')" title="Borra su cuenta y todo lo suyo para que el MISMO numero se pueda volver a registrar. No se puede deshacer.">🧪 Borrar y repetir</button>`:''}</td></tr>`;}).join('')}</tbody></table>`;
   /* 8-oct-2026 — la ubicación aproximada de cada uno, sola (ver LA UBICACIÓN
      APROXIMADA POR INTERNET). La lista ya se ve; las ciudades llegan después. */
   resolverUbicaciones();
@@ -10497,6 +10529,7 @@ function chipDeCotejo(h){
    La confirmación dice qué se va, con nombre y número, y el resultado dice qué
    se fue de verdad. Un «listo» no se puede comprobar. */
 function borrarParaProbar(celular, nombre){
+  if(nombre===undefined) nombre=nombreDeRegistroPorTel(celular);
   const cel=String(celular||'').replace(/\D/g,'').slice(-10);
   if(cel.length!==10) return alert('Ese registro no tiene un celular de 10 digitos, asi que no se puede borrar por numero.');
   if(!sbListo()) return alert('Esto vive en la nube. Conectala en Ajustes para poder borrar.');
@@ -12968,7 +13001,6 @@ function avisoAlDiaDeEq() {
 /* `extra` es opcional y por defecto no cambia nada: solo la pantalla de
    «Cuándo cobrar» le pasa algo, y así «Mi base» no hereda ruido que no pidió. */
 function filaPersonaEq(p, extra) {
-  const primero = String(p.nombre || '').split(/\s+/)[0] || '';
   const g = p.gestion;
   return `<div class="info-row"><span class="k"><b>${escHTML(p.nombre || 'Sin nombre')}</b>
       <div class="muted mono">${escHTML(p.celular || '')}</div>
@@ -12981,23 +13013,23 @@ function filaPersonaEq(p, extra) {
           g.nota ? '<div>«' + escHTML(g.nota) + '»</div>' : ''}</div>`
         : `<div class="muted">${escHTML(queHacerEtapa(p.etapa))}</div>`}</span>
     <span class="vv">${etiquetaEtapa(p.etapa)}
-      ${p.celular ? `<button class="btn btn-wa btn-sm" style="margin-left:8px"
-        onclick="contactarEq('${escHTML(String(p.id))}','${escHTML(p.celular)}','${escHTML(primero)}')"
+      ${p.celular && idDeBoton(p.id) ? `<button class="btn btn-wa btn-sm" style="margin-left:8px"
+        onclick="contactarEq('${idDeBoton(p.id)}','${digitosDeBoton(p.celular)}')"
         title="Escribirle por WhatsApp">📲</button>` : ''}
       ${p.celular ? `<button class="btn btn-ghost btn-sm" style="margin-left:6px"
-        onclick="mensajearEq('${escHTML(String(p.id))}','sms')"
+        onclick="mensajearEq('${idDeBoton(p.id)}','sms')"
         title="Mandarle un mensaje de texto">✉️</button>
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
-        onclick="mensajearEq('${escHTML(String(p.id))}','voz')"
+        onclick="mensajearEq('${idDeBoton(p.id)}','voz')"
         title="Mandarle una llamada grabada">📞</button>` : ''}
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
-        onclick="anotarGestionEq('${escHTML(String(p.id))}')" title="Anotar qué pasó">✎</button>
+        onclick="anotarGestionEq('${idDeBoton(p.id)}')" title="Anotar qué pasó">✎</button>
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
-        onclick="verHistoriaEq('${escHTML(String(p.id))}')" title="Ver la historia">🕘</button>
+        onclick="verHistoriaEq('${idDeBoton(p.id)}')" title="Ver la historia">🕘</button>
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
-        onclick="verFichaEq('${escHTML(String(p.id))}')" title="Ver su ficha y sus fotos">🪪</button>
+        onclick="verFichaEq('${idDeBoton(p.id)}')" title="Ver su ficha y sus fotos">🪪</button>
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
-        onclick="nuevaCitaEq('${escHTML(String(p.id))}')" title="Agendar algo con esta persona">📅</button></span></div>`;
+        onclick="nuevaCitaEq('${idDeBoton(p.id)}')" title="Agendar algo con esta persona">📅</button></span></div>`;
 }
 
 /* --------------------------------------------------------------------------
@@ -13038,12 +13070,21 @@ var _contactoEq = null;
 
 function contactarEq(id, celular, primero) {
   const G = window.GestionAsesor;
+  /* 27-oct-2026 — el botón ya no trae el nombre (ver idDeBoton): sale de «Mi
+     base» o, si es una cita de alguien que no está en ella, de la agenda. Si
+     no se encuentra, se saluda sin nombre. */
+  if (primero === undefined) {
+    const enBase = genteEquipo().find(x => String(x.id) === String(id));
+    const c = enBase ? null : (AGENDA_EQ || []).find(x => (id && String(x.persona_id) === String(id)) ||
+      (!id && celular && digitosDeBoton(x.persona_celular) === digitosDeBoton(celular)));
+    primero = String((enBase && enBase.nombre) || (c && c.persona_nombre) || '').split(/\s+/)[0] || '';
+  }
   const p = genteEquipo().find(x => String(x.id) === String(id)) ||
             { id, celular, nombre: primero, etapa: '' };
   if (!G) {
     /* Sin el modulo no se inventa una respuesta: se manda como antes pero se
        dice que el freno no esta. Callarlo seria peor que no tenerlo. */
-    return abrirWhatsappEq(id, celular, 'Hola ' + primero + ' 🙂');
+    return abrirWhatsappEq(id, celular, primero ? 'Hola ' + primero + ' 🙂' : 'Hola 🙂');
   }
   const esFestivo = d => !!(window.MotorReglas && MotorReglas.esFestivo && MotorReglas.esFestivo(d));
   const r = G.puedeContactar(p, { canal: 'whatsapp', esFestivo });
@@ -13866,8 +13907,8 @@ function filaCitaEq(c) {
       <button class="btn ${c.hecho ? 'btn-ghost' : 'btn-rojo'} btn-sm"
         onclick="marcarCitaEq(${Number(c.id)}, ${c.hecho ? 'false' : 'true'})"
         title="${c.hecho ? 'Todavía no' : 'Ya lo hice'}">${c.hecho ? '✓' : 'Hecho'}</button>
-      ${c.persona_celular ? `<button class="btn btn-wa btn-sm" style="margin-left:6px"
-        onclick="contactarEq('${escHTML(String(c.persona_id || ''))}','${escHTML(c.persona_celular)}','${escHTML(String(c.persona_nombre || '').split(/\s+/)[0])}')"
+      ${c.persona_celular && (!c.persona_id || idDeBoton(c.persona_id)) ? `<button class="btn btn-wa btn-sm" style="margin-left:6px"
+        onclick="contactarEq('${idDeBoton(c.persona_id)}','${digitosDeBoton(c.persona_celular)}')"
         title="Escribirle">📲</button>` : ''}
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
         onclick="borrarCitaEq(${Number(c.id)})" title="Quitarla">🗑</button></span></div>`;
@@ -15012,7 +15053,7 @@ function vistaMiEquipo() {
       return `<div class="card"><div class="card-h"><h3>🚶 ${escHTML(a.nombre)}</h3>
         <span style="display:flex;gap:6px;align-items:center">${chip}
         <button class="btn btn-ghost btn-sm" title="Retirar del equipo"
-          onclick="retirarAsesorEq('${escHTML(a.celular)}','${escHTML(a.nombre)}')">Retirar</button></span></div>
+          onclick="retirarAsesorEq('${digitosDeBoton(a.celular)}')">Retirar</button></span></div>
         <div class="cifras">
           ${cifraEq(i.total, 'su base', 'todos', a.celular)}
           ${cifraEq(i.clientes, 'ya son clientes', 'clientes', a.celular, 'bien')}
@@ -15058,7 +15099,7 @@ function vistaMiEquipo() {
         <span class="k"><b>${escHTML(a.nombre)}</b>
           <div class="muted mono">${escHTML(a.celular)}</div></span>
         <span class="vv"><button class="btn btn-ghost btn-sm"
-          onclick="reactivarAsesorEq('${escHTML(a.celular)}','${escHTML(a.nombre)}')">Reactivar</button></span>
+          onclick="reactivarAsesorEq('${digitosDeBoton(a.celular)}')">Reactivar</button></span>
         </div>`).join('')}
       <div class="muted" style="padding:0 16px 14px;font-size:12px">
         No se borran: se guardan. Si vuelve, se reactiva y entra con la misma contraseña.</div>
@@ -15077,7 +15118,16 @@ function vistaMiEquipo() {
  * contesta `tiene_gente` con CUÁNTA, y esta pantalla pregunta a quién se la
  * pasa. La decisión es del gerente; lo que no puede pasar es que nadie la tome.
  * ------------------------------------------------------------------------ */
+/* 27-oct-2026 — el nombre del asesor por su celular, de lo que mandó la nube
+   (activos y retirados). Los botones ya no lo traen en el onclick. */
+function nombreDeAsesorEq(cel) {
+  const c = digitosDeBoton(cel);
+  const a = ((CARTERA_EQUIPO && CARTERA_EQUIPO.equipo) || []).concat((CARTERA_EQUIPO && CARTERA_EQUIPO.retirados) || [])
+    .find(x => x && digitosDeBoton(x.celular) === c);
+  return a ? String(a.nombre || '') : 'Ese asesor';
+}
 function retirarAsesorEq(cel, nombre) {
+  if (nombre === undefined) nombre = nombreDeAsesorEq(cel);
   rpcEquipo('asesor_retirar', { p_celular: cel, p_pasar_a: null })
     .then(res => {
       const j = (res && res.j) || {};
@@ -15117,11 +15167,12 @@ function preguntarDestinoEq(cel, nombre, cuantos) {
     '<div class="aviso" style="margin-top:12px">Lo que ya hizo <b>no se borra</b>: la comisión ' +
       'de cada cliente le sigue tocando a quien lo llevaba en su momento.</div>' +
     '<button class="btn btn-rojo" id="reBtn" style="margin-top:14px" ' +
-      'onclick="confirmarRetiroEq(\'' + escHTML(cel) + '\',\'' + escHTML(nombre) + '\')">' +
+      'onclick="confirmarRetiroEq(\'' + digitosDeBoton(cel) + '\')">' +
       'Pasar la base y retirar</button>');
 }
 
 function confirmarRetiroEq(cel, nombre) {
+  if (nombre === undefined) nombre = nombreDeAsesorEq(cel);
   const destino = (document.getElementById('reDestino') || {}).value || '';
   if (!destino) return;
   const b = document.getElementById('reBtn');
@@ -15147,6 +15198,7 @@ function confirmarRetiroEq(cel, nombre) {
 }
 
 function reactivarAsesorEq(cel, nombre) {
+  if (nombre === undefined) nombre = nombreDeAsesorEq(cel);
   if (!confirm('¿Vuelve ' + nombre + ' al equipo?\n\nEntra con la misma contraseña de antes. ' +
     'Su base NO vuelve sola: hay que repartirle gente otra vez.')) return;
   rpcEquipo('asesor_reactivar', { p_celular: cel })
