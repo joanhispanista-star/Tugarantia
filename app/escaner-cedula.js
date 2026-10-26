@@ -125,7 +125,12 @@
        la ventana del mejor cuadro (EscanerCaptura, a 480 px) el que juzga si
        la foto está nítida es ella, y la puerta del frente solo pregunta si
        hay una tarjeta con bordes. Sin ventana (un navegador que no deja
-       medir) la puerta sigue siendo el único juez, y vale NITIDEZ_MIN. */
+       medir) la puerta sigue siendo el único juez, y vale NITIDEZ_MIN.
+       26-oct-2026 (remate) — desde el marco de pie vale también para el
+       RESPALDO con la ventana: la demo de pie, nítida y quieta, daba 7-8,9
+       y la puerta la llamaba «borrosa» en todos los cuadros (ver
+       opcionesDeLaPuerta en play/index.html). El nombre se queda: lo leen
+       las páginas y las pruebas. */
     NITIDEZ_MIN_FRENTE: 5,
     /* 26-oct-2026 — LA QUIETUD QUE UNA MANO NO LOGRA. Joan, en su iPhone: «no
        se toma la foto automáticamente, parece que es porque no se estabiliza

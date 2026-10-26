@@ -961,7 +961,12 @@ describe('4c. la puerta del frente pregunta si hay tarjeta; la nitidez la juzga 
     assert.ok(b.calidad < C.PISO_NITIDEZ, 'la ventana dio por nítido un frente desenfocado: ' + b.calidad.toFixed(1));
   });
 
-  test('la página: la puerta del frente con la ventana; el respaldo, y el frente SIN ventana, con la de siempre', () => {
+  /* 26-oct-2026 (remate) — decía «el respaldo, con la de siempre». Con el
+     marco de pie el respaldo nítido y quieto daba 7-8,9 en la puerta y no se
+     tomaba solo nunca (pruebas/el-respaldo-de-pie-pasa-la-puerta.test.js):
+     con la ventana, el piso chico vale en las dos caras. Sin ventana, la de
+     siempre en las dos. */
+  test('la página: con la ventana, la puerta del frente Y la del respaldo piden el piso chico; SIN ventana, la de siempre', () => {
     const P = escanerConVentana({ lado: 'frente' });
     P.ev('window.__opciones = []; var __mt = EC.medirTarjeta; EC.medirTarjeta = function (g, p, w, h, i, op) { window.__opciones.push(op ? op.nitidezMin : null); return __mt.apply(this, arguments); };');
     cuadro(P, 0, 80);
@@ -969,7 +974,10 @@ describe('4c. la puerta del frente pregunta si hay tarjeta; la nitidez la juzga 
     cuadro(P, 1, 80);
     P.ev("ESCDOC.lado = 'frente'; ESCDOC.sinVentana = true;");
     cuadro(P, 2, 80);
-    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__opciones)')), [EC.TARJETA.NITIDEZ_MIN_FRENTE, null, null]);
+    P.ev("ESCDOC.lado = 'reverso';");
+    cuadro(P, 3, 80);
+    assert.deepEqual(JSON.parse(P.ev('JSON.stringify(window.__opciones)')),
+      [EC.TARJETA.NITIDEZ_MIN_FRENTE, EC.TARJETA.NITIDEZ_MIN_FRENTE, null, null]);
   });
 });
 

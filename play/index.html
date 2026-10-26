@@ -7711,9 +7711,21 @@ function notaCedulaNueva(esFrente, t) {
    el piso de bordes chico (EC.TARJETA.NITIDEZ_MIN_FRENTE): un frente liso no
    llegaba a 9 y nunca se ponía en verde (la demo del 23-oct), y el que juzga
    si está nítido es la ventana. El respaldo, y todo sin ventana, como
-   siempre. */
+   siempre.
+   26-oct-2026 (remate) — Y EL RESPALDO TAMBIÉN. Con el marco de pie el
+   respaldo llena más gris de la puerta (el anillo no cabe a lo ancho del
+   video) y su tinta se reparte en más píxeles: la demo, nítida y quieta,
+   dio de media 8,6 (video 720×960), 8,9 (720×1280), 7,0 (1080×1920) y 7,1
+   (4K) contra 9, y la puerta la llamó «borrosa» en el 100 % de los
+   cuadros (lote-26/remate/diag-nitidez.js). Nunca se ponía en verde, el
+   lector nunca la miraba, y a los 20 s decía «Tranquilo: si no sale…»: el
+   respaldo solo se tomaba con el toque, en el iPhone de Joan y en Android.
+   El que juzga si el respaldo está nítido también es la ventana
+   (ECAP.decidirVentana: PISO_NITIDEZ a 480 px, y además el código visto o
+   leído para disparar), igual que con el frente. `esFrente` se queda en la
+   firma: quien llama es el mismo. */
 function opcionesDeLaPuerta(esFrente) {
-  if (!esFrente || !ECAP || !ECAP.decidirVentana || ESCDOC.sinVentana || !EC.TARJETA ||
+  if (!ECAP || !ECAP.decidirVentana || ESCDOC.sinVentana || !EC.TARJETA ||
       !isFinite(EC.TARJETA.NITIDEZ_MIN_FRENTE)) return undefined;
   return { nitidezMin: EC.TARJETA.NITIDEZ_MIN_FRENTE };
 }
