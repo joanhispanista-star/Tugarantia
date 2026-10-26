@@ -9111,12 +9111,13 @@ function renderChatEquipo(){
 
 /* 26-oct-2026 — EL BUSCADOR (chat-1): filtra por lo que la bandeja pinta como
    nombre (CHAT.quienEs: la ficha, el registro rotulado, la llave), sin tildes
-   ni mayúsculas, en este computador. No le pregunta nada a la nube. */
-function normalizarBusca(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
-function filtroChat(){ const e=document.getElementById('chBusca'); return normalizarBusca(e?e.value:''); }
+   ni mayúsculas, en este computador. No le pregunta nada a la nube. Normaliza
+   con normaTexto, la misma del buscador de clientes: dos formas de quitar
+   tildes es cómo un día «Pérez» aparece en una lista y no en la otra. */
+function filtroChat(){ const e=document.getElementById('chBusca'); return normaTexto(e?e.value:'').trim(); }
 function filtrarChat(lista){
   const q=filtroChat(); if(!q) return lista;
-  return (lista||[]).filter(c=>normalizarBusca(CHAT.quienEs?CHAT.quienEs(c):(c.nombre||c.cedula)).indexOf(q)>=0);
+  return (lista||[]).filter(c=>normaTexto(CHAT.quienEs?CHAT.quienEs(c):(c.nombre||c.cedula)).indexOf(q)>=0);
 }
 
 function abrirChatEquipo(cel){
