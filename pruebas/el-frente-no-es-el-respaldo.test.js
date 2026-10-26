@@ -274,7 +274,10 @@ describe('el escáner del frente', () => {
        no la olvide, y después la vuelta de verdad: tres cuadros. (`temblor`
        2,5: un pico; un cambio de escena da más de 4 y corta solo.) */
     P.ev('window.__medida = { ok: false, nitidez: 23, falla: "movimiento", temblor: 2.5 };');
-    cuadros(P, 2);
+    /* El reloj aquí es el de verdad, y con la suite entera corriendo un cuadro
+       puede tardar más que EC.TARJETA.HUECO_MS: el hueco se mide sin ese
+       tiempo (tUltimo = ahora), que es lo que se prueba, no el reloj. */
+    for (let i = 0; i < 2; i++) P.ev('ESCDOC.tUltimo = Date.now(); bucleEscanerDoc()');
     assert.equal(P.ev('ESCDOC.vioCodigo'), true, 'un pico del temblor (dos cuadros) olvidó el código visto: la reja del frente se abre con cada pulso');
     cuadros(P, 1);
     assert.equal(P.ev('ESCDOC.vioCodigo'), false, 'el código visto antes de voltearla se quedó pegado');
