@@ -149,7 +149,7 @@ describe('y no le añade ruido a «Mi base»', () => {
   });
 
   test('y el mapa del menú conoce la entrada nueva', () => {
-    assert.match(CRM, /jefe: 'Mensajes', cobrar: 'Cuándo cobrar'/,
+    assert.match(CRM, /jefe: 'Chat', cobrar: 'Cuándo cobrar'/,
       'la entrada nueva hereda el fallo del mapa: el menú se apaga entero');
     assert.match(CRM, /onclick="irEquipo\('cobrar'\)"/, 'no hay por dónde entrar');
   });

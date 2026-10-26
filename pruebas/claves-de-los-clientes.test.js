@@ -361,29 +361,54 @@ describe('3 · el CRM se entera de los recados y los atiende', () => {
     assert.equal(P.ev('window._fuiA'), 'socios', 'el globo de una solicitud llevó a ' + P.ev('window._fuiA'));
   });
 
-  test('el texto del globo y del pie dice lo que el reloj hace: con la pestaña escondida no pregunta', async () => {
-    const { P, vistas } = montar({ listar_ayudas_clave: [] });
-    P.ctx.Notification = { permission: 'granted' };
-    P.ev('renderAvisoBoton(); pintarAvisos();');
-    const boton = texto(P.elems.avisoBoton.innerHTML), pie = texto(P.elems.avisoPie.innerHTML);
-    assert.doesNotMatch(boton, /aunque tengas el CRM en otra pestaña/, 'promete avisar con el CRM en otra pestaña');
-    assert.match(boton, /a la vista/);
-    assert.doesNotMatch(pie, /esté abierta/, '«abierta» promete avisos con la pestaña escondida');
-    assert.match(pie, /escondida, minimizada o cerrada, no/);
-    /* Y eso es lo que pasa: el reloj, con document.hidden, no pregunta nada. */
-    let tic = null;
-    P.ctx.setInterval = f => { tic = f; return 1; };
-    P.ev('_reloj = null; vigilarPendientes(true);');
-    assert.ok(tic, 'no arrancó el reloj');
-    P.ctx.document.hidden = true;
-    const antes = vistas.length;
-    tic();
-    assert.equal(vistas.length, antes, 'con la pestaña escondida el reloj sí preguntó: entonces el texto quedó corto');
-    /* Control: a la vista, la misma vuelta sí pregunta (el silencio es por lo escondido). */
-    P.ctx.document.hidden = false;
-    tic();
-    await asentar();
-    assert.ok(vistas.some((v, i) => i >= antes && v.fn === 'listar_ayudas_clave'), 'a la vista, el reloj no preguntó por los recados');
+  test('el texto del globo y del pie dice lo que el reloj hace: escondida revisa solo las listas del chat, cada minuto', async () => {
+    /* 26-oct-2026 — chat-1: con el CRM en otra pestaña el reloj de 60 s pide
+       SOLO las dos listas del chat (nunca un hilo, nunca solicitudes ni
+       recados), y eso es lo que la frase promete ahora. Antes la frase decía
+       «no pregunto» y el reloj no preguntaba; las dos cambian juntas. La
+       prueba fina del reloj está en pruebas/chat-1-crm.test.js; aquí, que el
+       texto y el reloj digan lo mismo. chat.js habla con el fetch de Node:
+       se tapa para que la vuelta no salga a internet. */
+    const { P, vistas } = montar({ listar_ayudas_clave: [], equipo_chat_conversaciones: [] });
+    const real = globalThis.fetch;
+    globalThis.fetch = () => Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('[]') });
+    try {
+      P.ctx.Notification = { permission: 'granted' };
+      P.ev('renderAvisoBoton(); pintarAvisos();');
+      const boton = texto(P.elems.avisoBoton.innerHTML), pie = texto(P.elems.avisoPie.innerHTML);
+      assert.doesNotMatch(boton, /aunque tengas el CRM en otra pestaña/, 'promete avisar con el CRM en otra pestaña, sin decir cómo');
+      assert.match(boton, /a la vista, en menos de un minuto/);
+      assert.match(boton, /reviso cada minuto y te aviso solo si llegó algo/);
+      assert.match(boton, /Con el CRM cerrado, no/);
+      assert.doesNotMatch(pie, /esté abierta/, '«abierta» promete avisos que no llegan');
+      assert.match(pie, /cada minuto si está en otra pestaña o minimizada\. Cerrada, no/);
+      /* Y eso es lo que pasa: dos relojes, y el de 60 s escondido pide las listas del chat y nada más. */
+      const relojes = {};
+      P.ctx.setInterval = (f, ms) => { relojes[ms] = f; return ms; };
+      P.ev('_reloj = null; vigilarPendientes(true);');
+      assert.ok(relojes[45000] && relojes[60000], 'faltan los dos relojes (45 s a la vista, 60 s escondido): ' + Object.keys(relojes));
+      P.ctx.document.hidden = true;
+      const antes = vistas.length;
+      relojes[45000]();
+      await asentar();
+      assert.equal(vistas.length, antes, 'el reloj de 45 s trabajó con la pestaña escondida');
+      relojes[60000]();
+      await asentar();
+      const escondido = vistas.slice(antes).map(v => v.fn);
+      assert.ok(escondido.includes('equipo_chat_conversaciones'), 'escondido no preguntó por el chat del equipo: ' + escondido.join(','));
+      assert.ok(!escondido.includes('listar_ayudas_clave') && !escondido.includes('listar_solicitudes_abiertas'),
+        'escondido preguntó más que las listas del chat: ' + escondido.join(','));
+      assert.ok(!escondido.includes('chat_de') && !escondido.includes('equipo_chat_de'), 'escondido pidió un hilo: lo marcaría «Lo vio» sin que nadie lo mire');
+      /* Control: a la vista, la vuelta de 45 s sí pregunta por los recados; la de 60 s no trabaja. */
+      P.ctx.document.hidden = false;
+      const antes2 = vistas.length;
+      relojes[60000]();
+      await asentar();
+      assert.equal(vistas.length, antes2, 'el reloj de 60 s trabajó con la pestaña a la vista');
+      relojes[45000]();
+      await asentar();
+      assert.ok(vistas.some((v, i) => i >= antes2 && v.fn === 'listar_ayudas_clave'), 'a la vista, el reloj no preguntó por los recados');
+    } finally { globalThis.fetch = real; }
   });
 
   test('cada recado dice cuánto lleva esperando, y el de más de un día se resalta', () => {

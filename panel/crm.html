@@ -567,7 +567,11 @@
     <button class="navbtn" data-v="cobranzas"><span class="ic">📣</span> Cobranzas</button>
     <button class="navbtn" data-v="ventas"><span class="ic">📈</span> Ventas</button>
     <button class="navbtn" data-v="comercial"><span class="ic">🚀</span> Comercial</button>
-    <button class="navbtn" data-v="mensajes"><span class="ic">💬</span> Mensajes<span id="navSinLeer"></span></button>
+    <!-- 26-oct-2026 — «Mensajes» se llama «Chat» (chat-1): es la palabra que
+         usa Joan, y desde el 4-nov el CRM tendrá los SMS de Cocom, que sí son
+         «mensajes». Dos botones «Mensajes» para dos cosas serían otra función
+         escondida. El número suma clientes y equipo (pintarAvisos). -->
+    <button class="navbtn" data-v="mensajes"><span class="ic">💬</span> Chat<span id="navSinLeer"></span></button>
     <button class="navbtn" data-v="registrados"><span class="ic">📥</span> Registrados</button>
     <button class="navbtn" data-v="socios"><span class="ic">📋</span> Socios<span id="navSolicitudes"></span></button>
     <button class="navbtn" data-v="ciclos"><span class="ic">📈</span> Ciclos</button>
@@ -630,9 +634,22 @@
          él les abre la ficha y les da su primer crédito. Antes esta bandeja
          vivía escondida dentro de Invitaciones y solo conocía los canjes. -->
     <section class="view" id="v-mensajes">
-      <div class="ph"><div><h1>Mensajes<span class="dot">.</span></h1><div class="sub">Lo que te escriben tus clientes desde la app — y lo que les contestas</div></div>
+      <div class="ph"><div><h1>Chat<span class="dot">.</span></h1><div class="sub">Lo que te escriben tus clientes y tu equipo desde la app — y lo que les contestas</div></div>
         <button class="btn btn-negro" onclick="traerConversaciones();traerChatEquipo()">↻ Traer de la nube</button></div>
-      <div class="card"><div class="card-h"><h3>💬 Conversaciones</h3><span class="tag" id="chTag">Los que tienen mensajes sin leer salen de primeros</span></div>
+      <!-- 26-oct-2026 — ARRIBA, LOS DOS NÚMEROS Y EL BUSCADOR (chat-1).
+           «Clientes (n) · Equipo (n)» dice de un vistazo dónde hay algo sin
+           leer y tocar uno lleva a su tarjeta; la tarjeta con algo sin leer
+           sale PRIMERA (pintarSegmentosChat ordena #chTarjetas con `order`).
+           El buscador filtra las dos listas por el nombre que la bandeja
+           pinta, en este computador: no le pregunta nada a la nube. -->
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <div id="chSegmentos" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"></div>
+        <input id="chBusca" type="search" placeholder="Buscar por nombre…" autocomplete="off" aria-label="Buscar una conversación por nombre"
+               style="flex:1;min-width:180px;padding:8px 11px;border-radius:9px;border:1px solid var(--linea);font:inherit;font-size:13px"
+               oninput="renderMensajes();renderChatEquipo()">
+      </div>
+      <div id="chTarjetas" style="display:flex;flex-direction:column">
+      <div class="card" id="chTarjetaClientes" style="order:0"><div class="card-h"><h3>💬 Clientes</h3><span class="tag" id="chTag">Los que tienen mensajes sin leer salen de primeros</span></div>
         <div id="chBandeja"></div></div>
 
       <!-- 22-sep-2026 — EL CHAT CON EL EQUIPO. Joan: «el chat tambien debe
@@ -640,9 +657,10 @@
            gerente». Va APARTE de la de clientes y no mezclado: son dos
            conversaciones con dos reglas distintas — a un cliente lo protege la
            Ley 2300 y a un asesor no, y confundirlas seria el error caro. -->
-      <div class="card"><div class="card-h"><h3>🚶 Tu equipo</h3>
+      <div class="card" id="chTarjetaEquipo" style="order:1"><div class="card-h"><h3>🚶 Tu equipo</h3>
         <span class="tag" id="eqChTag">Un hilo con cada uno. Lo que le digas a uno no lo ve otro</span></div>
         <div id="eqBandeja"></div></div>
+      </div>
     </section>
 
     <section class="view" id="v-registrados">
@@ -1097,6 +1115,12 @@
      quien decide de qué lado va un mensaje y cómo se escapa el texto vive en un
      solo archivo. Si esto se copiara aquí abajo, habría dos verdades. -->
 <script src="../app/chat.js"></script>
+<!-- 26-oct-2026 — chat-1: los relojes del chat (el hilo abierto cada 8 s, la
+     bandeja cada 45 s a la vista y cada minuto escondida) y cómo juntar
+     mensajes por id, compartidos con el espejo y la app del socio por la
+     misma razón que chat.js. Si no llega, el chat anda como hasta hoy: sin
+     moverse solo, y la pantalla no promete el globo con el CRM escondido. -->
+<script src="../app/chat-vivo.js"></script>
 <!-- 8-sep-2026: dispositivoDe (la huella del registro, en palabras).
      19-oct-2026: ya NO se muestra el user-agent crudo si no llega: decía
      «Mozilla/5.0 (Linux; Android 10; K)…» y se leía como el teléfono. -->
@@ -8705,6 +8729,9 @@ function traerConversaciones(){
        nada» de «no pude mirar», que es la diferencia entera. */
     _convsEstado='ok'; _convsError='';
     _ultimoVistazo=horaCorta();
+    /* 26-oct-2026 — un ↻ que salió bien reanuda el reloj que la clave mala
+       detuvo (chat-1). Si ya corre, no hace nada. */
+    if(_reloj&&_reloj.reanudar) _reloj.reanudar();
     if(est) est.textContent=_convs.length
       ? 'Los que tienen mensajes sin leer salen de primeros'
       : 'Todavía no te ha escrito nadie';
@@ -8714,6 +8741,10 @@ function traerConversaciones(){
        se vería igual que "no te ha escrito nadie". */
     _convsEstado='error'; _convsError=(e&&(e.humano||e.motivo||e.message))||'sin conexión';
     if(!_falloDesde) _falloDesde=horaCorta();
+    /* 26-oct-2026 — con la clave rechazada el reloj se DETIENE (chat-1): cada
+       vuelta sería un intento fallido más del freno de clave_ok, también
+       escondido. chat.js marca ese error con `clave: true`. */
+    if(e&&e.clave&&_reloj&&_reloj.parar) _reloj.parar('clave');
     if(est) est.textContent=(e&&e.humano)||'No pude traerlas. Revisa el internet.';
     renderMensajes(); pintarAvisos();
   });
@@ -8750,6 +8781,11 @@ function contarPendientes(){
   const leer=(f,x)=>{ try{ return f(); }catch(e){ return x; } };
   return {
     mensajes: leer(()=>chatListo()&&CHAT.totalSinLeer?CHAT.totalSinLeer(_convs):0, 0),
+    /* 26-oct-2026 — y los del equipo (chat-1): el número de la barra y el
+       globo contaban solo clientes, y William podía escribir diez veces sin
+       que nada se moviera. Solo cuenta cuando la nube contestó (_eqEstado
+       'ok'): antes de preguntar, un cero no es un dato. */
+    equipo: leer(()=>(_eqEstado==='ok'&&chatListo()&&CHAT.totalSinLeer)?CHAT.totalSinLeer(_eqConvs):0, 0),
     solicitudes: leer(()=>_solicitudes.filter(s=>s.origen==='nube'&&s.estado==='nueva').length, 0),
     ayudas: leer(()=>_ayudas.length, 0)
   };
@@ -8771,7 +8807,16 @@ function pintarAvisos(){
   /* 22-oct-2026 — y la de los recados: un recado que no se pudo leer no es
      «no hay recados». Con red por la misma razón que _solEstado. */
   let fallaAyu=false; try{ fallaAyu=(_ayudasEstado==='error'); }catch(e){}
-  poner('navSinLeer', c.mensajes, falla);
+  /* 26-oct-2026 — EL NÚMERO DE LA BARRA SUMA CLIENTES Y EQUIPO (chat-1), y se
+     pone en (?) si falló cualquiera de las dos preguntas. El title dice de
+     quién es cada parte. Con él, el título de la pestaña del navegador y
+     «Clientes (n) · Equipo (n)» arriba de la vista. */
+  let fallaEq=false; try{ fallaEq=(_eqEstado==='error'); }catch(e){}
+  poner('navSinLeer', c.mensajes+c.equipo, falla||fallaEq);
+  const nsl=document.getElementById('navSinLeer');
+  if(nsl&&!(falla||fallaEq)&&(c.mensajes||c.equipo)) nsl.title=c.mensajes+' de clientes y '+c.equipo+' de tu equipo, sin leer';
+  pintarTituloChat(c, falla||fallaEq);
+  pintarSegmentosChat(c, falla, fallaEq);
   /* 22-oct-2026 — LOS RECADOS CUENTAN EN SOCIOS. El número de Socios contaba
      solo las solicitudes: un «Olvidé mi contraseña» no subía nada, y el
      cliente que no puede entrar no tiene otro camino que ese recado (el chat
@@ -8788,10 +8833,42 @@ function pintarAvisos(){
        «abierta» prometía avisos que no llegan. */
     pie.innerHTML = falla
       ? '<span class="muted">No pude preguntarle a la nube'+(_falloDesde?' desde las '+escHTML(_falloDesde):'')+'. Lo que ves puede estar viejo.</span>'
-      : '<span class="muted">Pregunto cada 45 segundos mientras esta pestaña esté a la vista; escondida, minimizada o cerrada, no.'
+      : '<span class="muted">'+(window.ChatVivo
+          /* 26-oct-2026 — chat-1: escondida o minimizada se revisan las listas
+             cada minuto (vigilarPendientes). Sin el módulo, la verdad vieja. */
+          ? 'Pregunto cada 45 segundos con esta pestaña a la vista y cada minuto si está en otra pestaña o minimizada. Cerrada, no.'
+          : 'Pregunto cada 45 segundos mientras esta pestaña esté a la vista; escondida, minimizada o cerrada, no.')
         +(_ultimoVistazo?' Última vez que pude preguntar: '+escHTML(_ultimoVistazo)+'.':'')+'</span>';
   }
   avisarSiHayNuevo(c);
+}
+
+/* 26-oct-2026 — EL NÚMERO EN LA PESTAÑA DEL NAVEGADOR (chat-1): «(3) Tu
+   Garantía · Panel». Es lo que se ve desde otra pestaña sin globo ni sonido.
+   Con la nube fallando no se deja un número viejo: se quita. */
+const TITULO_CRM='Tu Garantía · Panel';
+function pintarTituloChat(c,falla){
+  if(!window.ChatVivo||!ChatVivo.titulo) return;
+  try{ document.title=ChatVivo.titulo(TITULO_CRM, falla?0:(Number(c.mensajes||0)+Number(c.equipo||0))); }catch(e){}
+}
+
+/* 26-oct-2026 — «Clientes (n) · Equipo (n)» y el orden de las tarjetas
+   (chat-1). Primero la que tiene algo sin leer; si las dos (o ninguna), los
+   clientes arriba, que es a quienes se les debe respuesta. */
+function pintarSegmentosChat(c,falla,fallaEq){
+  const s=document.getElementById('chSegmentos'); if(!s) return;
+  const num=(n,f)=>f?' (?)':(n?' ('+n+')':'');
+  s.innerHTML='<button type="button" class="btn btn-sm '+(c.mensajes?'btn-negro':'btn-ghost')+'" onclick="irATarjetaChat(&quot;chTarjetaClientes&quot;)">Clientes'+num(c.mensajes,falla)+'</button>'
+    +'<span class="muted" aria-hidden="true">·</span>'
+    +'<button type="button" class="btn btn-sm '+(c.equipo?'btn-negro':'btn-ghost')+'" onclick="irATarjetaChat(&quot;chTarjetaEquipo&quot;)">Equipo'+num(c.equipo,fallaEq)+'</button>';
+  const tc=document.getElementById('chTarjetaClientes'), te=document.getElementById('chTarjetaEquipo');
+  const equipoPrimero=(Number(c.equipo||0)>0&&!Number(c.mensajes||0));
+  if(tc&&tc.style) tc.style.order=equipoPrimero?1:0;
+  if(te&&te.style) te.style.order=equipoPrimero?0:1;
+}
+function irATarjetaChat(id){
+  const e=document.getElementById(id); if(!e||!e.scrollIntoView) return;
+  try{ e.scrollIntoView({behavior:'smooth',block:'start'}); }catch(x){ e.scrollIntoView(); }
 }
 
 /* EL GLOBO DEL NAVEGADOR. Es lo que Joan llama «notificación» y no necesita
@@ -8815,22 +8892,55 @@ function pedirPermisoAviso(){
 }
 function renderAvisoBoton(){
   const e=document.getElementById('avisoBoton'); if(!e) return;
-  if(typeof Notification==='undefined'){ e.innerHTML='<span class="muted">Este navegador no muestra avisos.</span>'; return; }
-  e.innerHTML = Notification.permission==='granted'
-    ? '<span class="muted">✅ Te aviso con un globo cuando llegue algo, mientras el CRM esté a la vista. En otra pestaña, minimizado o cerrado, no pregunto: al volver, lo ves en menos de un minuto.</span>'
+  if(typeof Notification==='undefined'){ e.innerHTML='<span class="muted">Este navegador no muestra avisos.</span>'+botonSonidoChat(); return; }
+  /* 26-oct-2026 — LA FRASE DICE LA VERDAD DE HOY (chat-1, fila 11 del plan):
+     con el CRM en otra pestaña o minimizado se revisa la lista cada minuto y
+     el globo sale solo si llegó algo (vigilarPendientes). Cerrado, nada: no
+     hay push. Sin app/chat-vivo.js, la verdad de antes. */
+  e.innerHTML = (Notification.permission==='granted'
+    ? '<span class="muted">'+(window.ChatVivo
+        ? '✅ Te aviso con un globo cuando llegue algo: con el CRM a la vista, en menos de un minuto; en otra pestaña o minimizado, reviso cada minuto y te aviso solo si llegó algo. Con el CRM cerrado, no.'
+        : '✅ Te aviso con un globo cuando llegue algo, mientras el CRM esté a la vista. En otra pestaña, minimizado o cerrado, no pregunto: al volver, lo ves en menos de un minuto.')
+      +'</span>'
     : Notification.permission==='denied'
     ? '<span class="muted">Los avisos están bloqueados en este navegador. Se activan en el candado de la barra de direcciones.</span>'
-    : '<button class="btn btn-ghost btn-sm" onclick="pedirPermisoAviso()">🔔 Avisarme cuando llegue algo</button>';
+    : '<button class="btn btn-ghost btn-sm" onclick="pedirPermisoAviso()">🔔 Avisarme cuando llegue algo</button>')
+    +botonSonidoChat();
 }
+
+/* 26-oct-2026 — EL SONIDO (chat-1): un toque corto cuando SUBE el número de
+   mensajes o de tu equipo (avisarSiHayNuevo), con interruptor guardado en
+   este navegador. Suena también con el CRM en otra pestaña, que es cuando
+   más sirve, si el navegador lo deja. No depende del permiso de avisos.
+   `crear` y `almacen` se pasan desde ESTA ventana: app/chat-vivo.js puede
+   estar cargado en otro reino (el banco de pruebas lo carga con require), y
+   ahí no hay AudioContext: en las pruebas no suena nada. Si el módulo no
+   llegó, el botón no se pinta: no se ofrece lo que no hay. */
+let _timbre=null;
+function timbreChat(){
+  if(!window.ChatVivo||!ChatVivo.timbre) return null;
+  if(!_timbre) _timbre=ChatVivo.timbre({ almacen:localStorage,
+    crear:function(){ const C=window.AudioContext||window.webkitAudioContext; if(!C) throw new Error('sin audio'); return new C(); } });
+  return _timbre;
+}
+function botonSonidoChat(){
+  const t=timbreChat(); if(!t) return '';
+  return '<div style="margin-top:6px"><button class="btn btn-ghost btn-sm" id="chSonidoBtn" onclick="alternarSonidoChat()">'
+    +(t.apagado()?'🔕 Sonido apagado · encenderlo':'🔔 Sonido encendido · apagarlo')+'</button>'
+    +'<span class="muted" style="display:block;margin-top:3px">Un toque corto cuando llega algo nuevo del chat.</span></div>';
+}
+function alternarSonidoChat(){ const t=timbreChat(); if(!t) return; t.poner(!t.apagado()); renderAvisoBoton(); }
 
 /* Solo avisa de lo que SUBIÓ desde la última vez. Sin esto, cada 45 segundos
    saldría un globo repitiendo lo mismo y Joan los apagaría el primer día. */
 function avisarSiHayNuevo(c){
   const sube=(a,b)=>b>a;
-  if(puedeAvisar()&&_vistos.mensajes!==undefined){
+  if(_vistos.mensajes!==undefined){
     const partes=[];
     if(sube(_vistos.solicitudes,c.solicitudes)) partes.push((c.solicitudes-_vistos.solicitudes)+' solicitud(es) de crédito');
     if(sube(_vistos.mensajes,c.mensajes)) partes.push((c.mensajes-_vistos.mensajes)+' mensaje(s) en el chat');
+    /* 26-oct-2026 — y lo del equipo, con su propio texto (chat-1). */
+    if(sube(Number(_vistos.equipo||0),Number(c.equipo||0))) partes.push((Number(c.equipo||0)-Number(_vistos.equipo||0))+' de tu equipo');
     if(sube(_vistos.ayudas,c.ayudas)) partes.push((c.ayudas-_vistos.ayudas)+' recado(s) de acceso');
     if(partes.length){
       /* 22-oct-2026 — A DÓNDE LLEVA SE DECIDE AQUÍ, no al tocarlo. El onclick
@@ -8839,10 +8949,17 @@ function avisarSiHayNuevo(c){
          falso y el globo llevaba SIEMPRE a Mensajes, también el de una
          solicitud o un recado de «Olvidé mi contraseña», que viven en Socios. */
       const aSocios=sube(_vistos.solicitudes,c.solicitudes)||sube(_vistos.ayudas,c.ayudas);
-      try{
-        const g=new Notification('Tu Garantía', { body:'Te llegaron '+partes.join(' y ')+'.', tag:'tg-pendientes', renotify:true });
-        g.onclick=()=>{ try{ window.focus(); }catch(e){} irA(aSocios?'socios':'mensajes'); g.close(); };
-      }catch(e){}
+      if(puedeAvisar()){
+        try{
+          const g=new Notification('Tu Garantía', { body:'Te llegaron '+partes.join(' y ')+'.', tag:'tg-pendientes', renotify:true });
+          g.onclick=()=>{ try{ window.focus(); }catch(e){} irA(aSocios?'socios':'mensajes'); g.close(); };
+        }catch(e){}
+      }
+      /* 26-oct-2026 — EL SONIDO solo cuando el número SUBE (es lo que son
+         `partes`), nunca en cada vuelta: un toque cada 45 s con lo mismo se
+         apaga el primer día. Aparte del globo: a la vista no hace falta
+         permiso de avisos para oírlo. */
+      const t=timbreChat(); if(t){ try{ t.sonar(); }catch(e){} }
     }
   }
   _vistos=c;
@@ -8857,19 +8974,38 @@ function vigilarPendientes(encender){
      nunca: ni las conversaciones, ni las solicitudes, ni juntar la cuenta del
      cliente aprobado. Cada vuelta ya mira sola si hay nube. */
   if(encender&&_reloj) return;
-  if(_reloj){ clearInterval(_reloj); _reloj=null; }
+  if(_reloj){ if(typeof _reloj==='object'&&_reloj.parar) _reloj.parar('apagado'); else clearInterval(_reloj); _reloj=null; }
   if(!encender) return;
-  _reloj=setInterval(()=>{
-    if(document.hidden) return;
-    if(!sbListo()) return;
-    traerConversaciones();
-    traerSolicitudes(true);
-    traerAyudas(true);
-    /* 7-oct-2026 — los clientes nuevos aprobados cuya ficha ya subió: su
-       cuenta se junta sola, de a uno por vuelta (cada llamada es un intento
-       del freno de la clave). Sin nada pendiente no llama a nadie. */
-    try{ juntarCuentasPendientes(); }catch(e){}
-  }, 45000);
+  /* 26-oct-2026 — LOS DOS RELOJES VIVEN EN app/chat-vivo.js (chat-1): 45 s
+     con la pestaña a la vista y 60 s escondida o minimizada. Escondido se
+     piden SOLO las dos listas del chat —nunca un hilo: pedirlo lo marcaría
+     «Lo vio» sin que Joan lo mire— y es lo que enciende el globo con el CRM
+     en otra pestaña, que la pantalla prometía desde el 22-sep y no era
+     verdad. Chrome despierta una pestaña de atrás como mucho una vez por
+     minuto, así que 60 s es lo que de verdad corre. Con la clave rechazada
+     se DETIENE (traerConversaciones, traerChatEquipo) y lo reanuda un ↻ que
+     salga bien. Los relojes se pasan desde ESTA ventana: el módulo puede
+     estar en otro reino (el banco). Sin el módulo, el reloj de siempre. */
+  if(window.ChatVivo&&ChatVivo.lista){
+    _reloj=ChatVivo.lista({ pedir:vueltaDelReloj, documento:document,
+      reloj:{ setInterval:(f,ms)=>setInterval(f,ms), clearInterval:id=>clearInterval(id) } });
+    _reloj.arrancar();
+    return;
+  }
+  _reloj=setInterval(()=>{ if(document.hidden) return; vueltaDelReloj(false); }, 45000);
+}
+/* Una vuelta. `escondida`: solo las dos listas del chat. */
+function vueltaDelReloj(escondida){
+  if(!sbListo()) return;
+  traerConversaciones();
+  traerChatEquipo(true);
+  if(escondida) return;
+  traerSolicitudes(true);
+  traerAyudas(true);
+  /* 7-oct-2026 — los clientes nuevos aprobados cuya ficha ya subió: su
+     cuenta se junta sola, de a uno por vuelta (cada llamada es un intento
+     del freno de la clave). Sin nada pendiente no llama a nadie. */
+  try{ juntarCuentasPendientes(); }catch(e){}
 }
 
 /* 28-ago-2026 — EL PANEL NO SE CAE PORQUE FALTE UN ARCHIVO. Y esto no es
@@ -8924,11 +9060,19 @@ let _eqConvs = [], _eqAbierta = null, _eqMsgs = [], _eqEstado = 'nada';
 function traerChatEquipo(callado){
   if(!sbListo()){ _eqEstado='sinNube'; return Promise.resolve(renderChatEquipo()); }
   return rpc('equipo_chat_conversaciones',{p_clave:sbCfg().clave})
-    .then(l=>{ _eqConvs=Array.isArray(l)?l:[]; _eqEstado='ok'; renderChatEquipo(); })
+    .then(l=>{ _eqConvs=Array.isArray(l)?l:[]; _eqEstado='ok'; renderChatEquipo();
+      /* 26-oct-2026 — el número de la barra, el título y el globo cuentan
+         también al equipo (chat-1): se repintan al llegar la lista. */
+      pintarAvisos(); })
     .catch(e=>{
       _eqEstado='error';
       _eqError=errNube(e);
       renderChatEquipo();
+      pintarAvisos();
+      /* 26-oct-2026 — con la clave rechazada el reloj se DETIENE (chat-1), por
+         lo mismo que en traerConversaciones. rpc() traduce ese error a una
+         frase con «clave»; no hay marca aparte. */
+      if(/clave/i.test(_eqError)&&_reloj&&_reloj.parar) _reloj.parar('clave');
       if(!callado) alert('No pude traer el chat del equipo: '+_eqError);
     });
 }
@@ -8950,17 +9094,29 @@ function renderChatEquipo(){
     return;
   }
   if(_eqEstado!=='ok'){
-    b.innerHTML='<div class="muted" style="padding:14px">Toca «↻ Traer de la nube».</div>';
+    /* 26-oct-2026 — ya no dice «Toca ↻»: se pide solo al entrar y en cada
+       vuelta del reloj (chat-1, irA y vueltaDelReloj). */
+    b.innerHTML='<div class="muted" style="padding:14px">Preguntando a la nube…</div>';
     return;
   }
   if(!_eqConvs.length){
     b.innerHTML='<div class="muted" style="padding:14px">Todavía no tienes a nadie en el equipo. Créalos desde el Panel o desde el celular del gerente.</div>';
     return;
   }
-  b.innerHTML=CHAT.listaHTML(_eqConvs,{
+  b.innerHTML=CHAT.listaHTML(filtrarChat(_eqConvs),{
     alAbrir:'abrirChatEquipo',
-    vacio:'Todavía no tienes a nadie en el equipo.'
+    vacio:filtroChat()?'Nadie de tu equipo se llama así.':'Todavía no tienes a nadie en el equipo.'
   });
+}
+
+/* 26-oct-2026 — EL BUSCADOR (chat-1): filtra por lo que la bandeja pinta como
+   nombre (CHAT.quienEs: la ficha, el registro rotulado, la llave), sin tildes
+   ni mayúsculas, en este computador. No le pregunta nada a la nube. */
+function normalizarBusca(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
+function filtroChat(){ const e=document.getElementById('chBusca'); return normalizarBusca(e?e.value:''); }
+function filtrarChat(lista){
+  const q=filtroChat(); if(!q) return lista;
+  return (lista||[]).filter(c=>normalizarBusca(CHAT.quienEs?CHAT.quienEs(c):(c.nombre||c.cedula)).indexOf(q)>=0);
 }
 
 function abrirChatEquipo(cel){
@@ -8980,28 +9136,68 @@ function abrirChatEquipo(cel){
         'onclick="document.getElementById(&quot;eqFoto&quot;).click()">📷 Mandar una foto</button></div>'+
     '<div class="muted" style="font-size:12px;margin-top:8px">Esto lo lee solo '+
       escHTML(c.nombre||'esa persona')+'. Sus compañeros no lo ven.</div>');
+  pararHiloEquipo();
   cargarHiloEquipo();
 }
 
+/* 26-oct-2026 — EL HILO CON LA PERSONA DEL EQUIPO SE MUEVE SOLO (chat-1):
+   cada 8 s pide lo nuevo desde el último id (equipo_chat_de respeta
+   p_desde), lo junta y pinta SOLO la caja del hilo —el cuadro de texto no se
+   toca—, no arrastra la pantalla si Joan está leyendo arriba, y se para al
+   cerrar el cuadro. Solo a la vista: equipo_chat_de marca «visto» lo que
+   devuelve, y escondido nadie lo vio. El reloj y la forma de juntar viven en
+   app/chat-vivo.js; sin ese archivo, una sola carga como hasta hoy. */
+let _hiloEquipoVivo=null;
+function pararHiloEquipo(){ if(_hiloEquipoVivo){ _hiloEquipoVivo.parar('cerrada'); _hiloEquipoVivo=null; } }
 function cargarHiloEquipo(){
-  rpc('equipo_chat_de',{p_clave:sbCfg().clave,p_celular:_eqAbierta,p_desde:0})
-    .then(l=>{
-      _eqMsgs=Array.isArray(l)?l:[];
-      const caja=document.getElementById('eqHilo');
-      if(!caja) return;                    /* cerró el modal mientras tanto */
-      caja.innerHTML=_eqMsgs.length
-        ? CHAT.hiloHTML(_eqMsgs,{yo:'negocio',hoy:hoyISO(),textoVisto:'Lo vio',
-            alVerFoto:'verFotoDelEquipo'})
-        : '<div class="muted" style="padding:14px">Todavía no se han escrito. Empieza tú.</div>';
-      caja.scrollTop=caja.scrollHeight;
-      /* Abrirlo marca lo suyo como visto en el servidor: se refresca la
-         bandeja para que el contador de aquí no siga diciendo que hay. */
+  if(!_eqAbierta) return;
+  if(_hiloEquipoVivo) return _hiloEquipoVivo.latir();
+  const cel=_eqAbierta;
+  const pintar=lista=>{
+    const caja=document.getElementById('eqHilo');
+    if(!caja) return;                    /* cerró el modal mientras tanto */
+    caja.innerHTML=lista.length
+      ? CHAT.hiloHTML(lista,{yo:'negocio',hoy:hoyISO(),textoVisto:'Lo vio',
+          alVerFoto:'verFotoDelEquipo'})
+      : '<div class="muted" style="padding:14px">Todavía no se han escrito. Empieza tú.</div>';
+  };
+  const pedir=desde=>rpc('equipo_chat_de',{p_clave:sbCfg().clave,p_celular:cel,p_desde:Number(desde)||0})
+    .then(l=>Array.isArray(l)?l:[])
+    /* rpc() no marca la clave: se lee en la frase, como en traerChatEquipo. */
+    .catch(e=>{ const m=errNube(e); throw Object.assign({motivo:m,humano:m},/clave/i.test(m)?{clave:true}:{}); });
+  const falla=e=>{
+    const caja=document.getElementById('eqHilo');
+    if(caja) caja.innerHTML='<div class="alerta warn">No pude traer el hilo: '+escHTML(errNube(e))+'</div>';
+  };
+  if(!window.ChatVivo||!ChatVivo.hilo){
+    return pedir(0).then(l=>{
+      _eqMsgs=l; pintar(l);
+      const caja=document.getElementById('eqHilo'); if(caja) caja.scrollTop=caja.scrollHeight;
       traerChatEquipo(true);
-    })
-    .catch(e=>{
-      const caja=document.getElementById('eqHilo');
-      if(caja) caja.innerHTML='<div class="alerta warn">No pude traer el hilo: '+escHTML(errNube(e))+'</div>';
-    });
+    }).catch(falla);
+  }
+  _hiloEquipoVivo=ChatVivo.hilo({
+    pedir,
+    pintar:(lista,info)=>{
+      _eqMsgs=lista; pintar(lista);
+      /* Abrirlo marca lo suyo como visto en el servidor: se refresca la
+         bandeja UNA vez para que el contador no siga diciendo que hay. */
+      if(info&&info.primera) traerChatEquipo(true);
+    },
+    caja:()=>document.getElementById('eqHilo'),
+    esMio:m=>CHAT.ladoDe(m.de)==='negocio',
+    /* Llegó algo suyo mientras Joan mira: la base ya lo marcó visto; el
+       número de la barra se ajusta aquí y la vuelta de 45 s lo confirma. */
+    alLlegar:nuevos=>{ if(nuevos.some(m=>CHAT.ladoDe(m.de)==='socio')) descontarSinLeerEquipo(cel); },
+    alFallar:(e,info)=>{ if(info&&info.primera) falla(e); if(e&&e.clave&&_reloj&&_reloj.parar) _reloj.parar('clave'); },
+    documento:document,
+    reloj:{ setInterval:(f,ms)=>setInterval(f,ms), clearInterval:id=>clearInterval(id) }
+  });
+  return _hiloEquipoVivo.cargar();
+}
+function descontarSinLeerEquipo(cel){
+  const c=_eqConvs.find(x=>String(x.cedula)===String(cel)); if(!c) return;
+  c.sin_leer=0; pintarAvisos(); renderChatEquipo();
 }
 
 function responderChatEquipo(){
@@ -9112,12 +9308,15 @@ function renderMensajes(){
     const p0=document.getElementById('navSinLeer'); if(p0) p0.textContent='';
     return;
   }
-  const orden=[..._convs].sort((a,b2)=>(Number(b2.sin_leer||0)>0)-(Number(a.sin_leer||0)>0));
+  const orden=[...filtrarChat(_convs)].sort((a,b2)=>(Number(b2.sin_leer||0)>0)-(Number(a.sin_leer||0)>0));
   b.innerHTML=CHAT.listaHTML(orden,{
     alAbrir:'abrirConversacion',
-    vacio:'Todavía no te ha escrito nadie por la app.'
+    vacio:filtroChat()?'Ningún cliente se llama así.':'Todavía no te ha escrito nadie por la app.'
   });
-  const n=CHAT.totalSinLeer(_convs);
+  /* 26-oct-2026 — el número de la barra suma el equipo (chat-1), igual que
+     en pintarAvisos; aquí sin globo ni sonido, que son de aquella. */
+  let eq=0; try{ eq=(_eqEstado==='ok')?CHAT.totalSinLeer(_eqConvs):0; }catch(e){}
+  const n=CHAT.totalSinLeer(_convs)+eq;
   if(pin) pin.textContent=n?' ('+n+')':'';
 }
 
@@ -9147,9 +9346,11 @@ function pestanasCanal(c){
 }
 function cambiarCanalChat(canal){
   if(!_chatAbierta||canal===_chatCanal) return;
+  pararHiloCliente();     /* 26-oct-2026 — el reloj del canal viejo no puede seguir pidiendo (chat-1) */
   _chatCanal=canal; _chatMsgs=[]; _chatUltimo=0;
   const caja=document.getElementById('chHilo');
   if(caja) caja.innerHTML='<div class="ch-vacio">Abriendo…</div>';
+  pintarCandadoChat();
   const t=document.getElementById('chPest');
   if(t) t.innerHTML=pestanasCanal(_convs.find(x=>String(x.cedula)===_chatAbierta)||{});
   const r=document.getElementById('chResp');
@@ -9166,6 +9367,7 @@ function cambiarCanalChat(canal){
    le pasen: el número es de una ficha y quien escribe no está verificado. */
 function abrirConversacion(ident,extra){
   if(!chatListo()) return renderMensajes();
+  pararHiloCliente();     /* 26-oct-2026 — si había otra abierta, su reloj muere con ella (chat-1) */
   _chatAbierta=String(ident||''); _chatMsgs=[]; _chatUltimo=0;
   const c=_convs.find(x=>String(x.cedula)===_chatAbierta)||{cedula:_chatAbierta};
   const x=extra||{};
@@ -9177,34 +9379,179 @@ function abrirConversacion(ident,extra){
   openModal(quien,
     `<div id="chPest">${pestanasCanal(c)}</div>
      ${x.nota?`<div class="muted" style="font-size:12px;margin:-4px 0 8px">${escHTML(x.nota)}</div>`:''}
+     <div id="chCandado"></div>
      <div class="ch-hilo" id="chHilo" style="max-height:46vh"><div class="ch-vacio">Abriendo…</div></div>
      <div class="ch-escribir">
        <textarea id="chResp" rows="1" placeholder="Escríbele por ${escHTML(CHAT.nombreCanal(_chatCanal).toLowerCase())}…" maxlength="${CHAT.LARGO_MAX}"></textarea>
        <button class="btn btn-rojo btn-sm" id="chBtn" onclick="responderChat()">Enviar</button>
      </div>
+     <div id="chErr" class="alerta warn" hidden style="margin-top:8px" aria-live="polite"></div>
      <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+       <input type="file" id="chFoto" accept="image/*" hidden onchange="mandarFotoAlCliente(this)">
+       <button class="btn btn-ghost btn-sm" id="chFotoBtn" onclick="document.getElementById(&quot;chFoto&quot;).click()" title="Se manda comprimida (unos 73 KB), con lo que haya en el cuadro como pie. Solo fotos: un video no cabe.">📷 Mandar una foto</button>
        ${cel?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="https://wa.me/57${escHTML(cel)}">📲 Seguir por WhatsApp</a>`:''}
        <button class="btn btn-ghost btn-sm" onclick="olvidarConversacion()" title="Borra la conversación entera, para siempre">🗑 Borrar la conversación</button>
      </div>`);
+  pintarCandadoChat();
   cargarHilo();
 }
 
+/* ==========================================================================
+ * EL HILO QUE SE MUEVE SOLO — 26-oct-2026 (chat-1)
+ *
+ * Hasta hoy cargarHilo corría al abrir, al cambiar de pestaña y después de
+ * enviar, y nunca en un reloj: si el cliente contestaba con el cuadro
+ * abierto, Joan no lo veía hasta cerrarlo y volverlo a abrir. Ahora el reloj
+ * de 8 s vive en app/chat-vivo.js (ChatVivo.hilo) y aquí solo se le dice
+ * qué pedir y qué pintar:
+ *
+ *   · pide SOLO lo nuevo desde el último id (p_desde, como siempre) y lo
+ *     junta por id; chat_de marca visto lo que devuelve, y Joan lo está
+ *     mirando: es correcto. Escondido NO se pide: nadie lo vería;
+ *   · pinta SOLO #chHilo, nunca el cuadro de texto (ya se perdió dos veces lo
+ *     que Joan estaba escribiendo);
+ *   · no arrastra la pantalla si Joan está leyendo arriba (140 px), salvo lo
+ *     que acaba de mandar él;
+ *   · se para al cerrar el cuadro (cerrarModal), al cambiar de canal y al
+ *     abrir otra conversación; con la clave rechazada se para y detiene
+ *     también el reloj de la bandeja;
+ *   · si falla un envío, el texto sigue en el cuadro (responderChat nunca lo
+ *     borra antes de que la nube diga que sí).
+ *
+ * Sin app/chat-vivo.js (una copia vieja en la caché), una sola carga, como
+ * hasta hoy. `_chatUltimo` sigue siendo desde dónde se pide: se escribe
+ * antes de cada pedido para que la llamada a la nube sea la de siempre.
+ * ======================================================================== */
+let _hiloVivo=null;
+function pararHiloCliente(){ if(_hiloVivo){ _hiloVivo.parar('cerrada'); _hiloVivo=null; } }
+function pintarHiloCliente(lista){
+  const caja=document.getElementById('chHilo'); if(!caja) return;
+  caja.innerHTML=CHAT.hiloHTML(lista,{yo:'negocio',textoVisto:'Lo vio',
+    alVerFoto:'verFotoDelChat',
+    vacio:'No hay mensajes en esta conversación.'});
+}
 function cargarHilo(){
   if(!_chatAbierta) return;
-  CHAT.conversacion(sbCfg(),_chatAbierta,_chatUltimo,_chatCanal).then(lista=>{
-    (lista||[]).forEach(m=>{ _chatMsgs.push(m); if(Number(m.id)>_chatUltimo) _chatUltimo=Number(m.id); });
-    const caja=document.getElementById('chHilo'); if(!caja) return;
-    caja.innerHTML=CHAT.hiloHTML(_chatMsgs,{yo:'negocio',textoVisto:'Lo vio',
-      alVerFoto:'verFotoDelChat',
-      vacio:'No hay mensajes en esta conversación.'});
-    caja.scrollTop=caja.scrollHeight;
-    /* Al abrirla, la base marca como vistos los del socio. La bandeja de atrás
-       todavía dice que hay pendientes, así que se vuelve a preguntar: si no, el
-       contador se queda encendido hasta el próximo ↻ y deja de significar algo. */
-    traerConversaciones();
-  }).catch(e=>{
+  if(_hiloVivo) return _hiloVivo.latir();
+  const ident=_chatAbierta, canal=_chatCanal;
+  const pedir=desde=>{ _chatUltimo=Number(desde)||0; return CHAT.conversacion(sbCfg(),_chatAbierta,_chatUltimo,_chatCanal); };
+  const falla=e=>{
     const caja=document.getElementById('chHilo');
     if(caja&&!_chatMsgs.length) caja.innerHTML='<div class="ch-vacio">'+escHTML((e&&e.humano)||'No pude abrirla. Revisa el internet.')+'</div>';
+  };
+  if(!window.ChatVivo||!ChatVivo.hilo){
+    return pedir(_chatUltimo).then(lista=>{
+      (lista||[]).forEach(m=>{ _chatMsgs.push(m); if(Number(m.id)>_chatUltimo) _chatUltimo=Number(m.id); });
+      pintarHiloCliente(_chatMsgs);
+      const caja=document.getElementById('chHilo'); if(caja) caja.scrollTop=caja.scrollHeight;
+      traerConversaciones();
+    }).catch(falla);
+  }
+  _hiloVivo=ChatVivo.hilo({
+    pedir,
+    pintar:(lista,info)=>{
+      _chatMsgs=lista; _chatUltimo=ChatVivo.ultimoIdDe(lista);
+      pintarHiloCliente(lista);
+      /* Al abrirla, la base marca como vistos los del socio. La bandeja de
+         atrás todavía dice que hay pendientes, así que se vuelve a preguntar
+         UNA vez: si no, el contador se queda encendido hasta la próxima
+         vuelta y deja de significar algo. */
+      if(info&&info.primera) traerConversaciones();
+    },
+    caja:()=>document.getElementById('chHilo'),
+    esMio:m=>CHAT.ladoDe(m.de)==='negocio',
+    /* Llegó algo del cliente mientras Joan mira: la base ya lo marcó visto;
+       el número de la barra se ajusta aquí sin otra pregunta, y la vuelta
+       de 45 s lo confirma. */
+    alLlegar:nuevos=>{ if(nuevos.some(m=>CHAT.ladoDe(m.de)==='socio')) descontarSinLeerChat(ident,canal); },
+    alFallar:(e,info)=>{ if(info&&info.primera) falla(e); if(e&&e.clave&&_reloj&&_reloj.parar) _reloj.parar('clave'); },
+    documento:document,
+    reloj:{ setInterval:(f,ms)=>setInterval(f,ms), clearInterval:id=>clearInterval(id) }
+  });
+  return _hiloVivo.cargar();
+}
+function descontarSinLeerChat(ident,canal){
+  const c=_convs.find(x=>String(x.cedula)===String(ident)); if(!c) return;
+  const s=c.sin_leer_canal||{}; const n=Number(s[canal]||0);
+  if(canal in s) s[canal]=0;
+  c.sin_leer=Math.max(0,Number(c.sin_leer||0)-n);
+  pintarAvisos();
+}
+
+/* 26-oct-2026 — EL CANDADO DE COBRANZAS DESDE LA PANTALLA DE JOAN (chat-1).
+   chat_responder y chat_foto_responder NO miran la hora (la base lo hace solo
+   para el equipo, en chat_responder_equipo): el CRM dejaba escribir en
+   Cobranzas un domingo a las once de la noche, y la multa de la Ley 2300 le
+   cae a Joan en persona. Se reutiliza el horario que el CRM ya carga —
+   GestionAsesor.puedeContactar con MotorReglas.esFestivo, FESTIVOS INCLUIDOS —
+   y no se escribe otro. Lo que aquí no se sabe es el ÚLTIMO contacto por el
+   chat (un contacto al día, un canal por semana): eso lo pone la base en
+   chat-2, que es donde vale. Avisa y no envía; el texto sigue en el cuadro.
+   La etapa va fija en cobranza: el candado es del CANAL, no de la ficha. */
+function candadoCobranzaChat(){
+  if(_chatCanal!=='cobranza') return {puede:true,texto:''};
+  const G=window.GestionAsesor;
+  if(!G||!G.puedeContactar) return {puede:false,motivo:'sin_modulo',
+    texto:'No cargó app/gestion-asesor.js, que es el que sabe el horario de la Ley 2300. Recarga con Ctrl+F5 antes de escribir por Cobranzas.'};
+  const esFestivo=d=>!!(window.MotorReglas&&MotorReglas.esFestivo&&MotorReglas.esFestivo(d));
+  const c=_convs.find(x=>String(x.cedula)===_chatAbierta)||{};
+  let r;
+  try{ r=G.puedeContactar({celular:String(c.celular||_chatAbierta||'chat'),etapa:'cobranza'},{canal:'app',esFestivo}); }
+  catch(e){ return {puede:false,motivo:'error',texto:'No pude comprobar el horario de la Ley 2300. Por Cobranzas no se envía hasta poder comprobarlo.'}; }
+  return r&&r.puede?{puede:true,texto:''}:{puede:false,motivo:(r&&r.motivo)||'horario',texto:(r&&r.texto)||'Fuera del horario de la Ley 2300.'};
+}
+function pintarCandadoChat(){
+  const e=document.getElementById('chCandado'); if(!e) return;
+  const k=candadoCobranzaChat();
+  e.innerHTML=k.puede?'':'<div class="alerta warn" style="margin-bottom:8px">⛔ '+escHTML(k.texto)
+    +' Por Cobranzas no sale nada hasta el horario de la ley; por Servicio o Créditos nuevos sí puedes escribir.</div>';
+}
+/* Lo que pasa al mandar, dicho en el cuadro y no en un alert: así se ve al
+   lado del texto que sigue ahí. Sin el cuadro (una copia vieja), alert. */
+function avisoChat(texto){
+  const e=document.getElementById('chErr');
+  if(!e){ if(texto) alert(texto); return; }
+  e.textContent=texto||''; e.hidden=!texto;
+}
+
+/* 26-oct-2026 — «📷» AL CLIENTE DESDE EL COMPUTADOR (chat-1). CHAT.mandarFoto y
+   chat_foto_responder existen desde el 23-sep y solo las usaba el celular.
+   Mismo camino que el espejo: CHAT.prepararFoto comprime a unos 73 KB y se
+   manda la grande con su miniatura; el pie es lo que haya en el cuadro de
+   texto, y se borra solo si la nube dijo que sí. Pasa por el mismo candado
+   de Cobranzas que el texto. `prepararFotoChat` es la costura que las
+   pruebas reemplazan: en el banco no hay FileReader ni Image. */
+function prepararFotoChat(f){ return CHAT.prepararFoto(f); }
+function mandarFotoAlCliente(input){
+  const f=input&&input.files&&input.files[0];
+  if(input) input.value='';
+  if(!f||!_chatAbierta) return;
+  const k=candadoCobranzaChat(); if(!k.puede) return avisoChat(k.texto+' La foto no se mandó.');
+  if(!CHAT.prepararFoto||!CHAT.mandarFoto) return avisoChat('Este navegador tiene una copia vieja de ../app/chat.js. Recarga con Ctrl+F5.');
+  if(/^video\//.test(f.type||'')) return avisoChat('Solo fotos: un video no cabe en el chat.');
+  avisoChat('Preparando la foto…');
+  const ident=_chatAbierta, canal=_chatCanal;
+  prepararFotoChat(f).then(dos=>{
+    avisoChat('Mandando la foto…');
+    const pie=String((document.getElementById('chResp')||{}).value||'').trim();
+    return CHAT.mandarFoto(sbCfg(),ident,dos.grande,dos.chica||null,pie||null,canal).then(j=>{
+      if(!j||j.ok!==true){
+        const m=j&&j.motivo;
+        return avisoChat(m==='lleno'?'El espacio de fotos del chat está lleno. Borra conversaciones viejas.'
+          :m==='muy_grande'?'Esa foto pesa demasiado aun comprimida. Prueba con otra.'
+          :('La nube contestó que no'+(m?' ('+m+')':'')+'. La foto no se mandó.'));
+      }
+      const t=document.getElementById('chResp'); if(t) t.value='';
+      avisoChat('');
+      cargarHilo();
+    });
+  }).catch(e=>{
+    const m=e&&e.motivo;
+    avisoChat(m==='es_video'?'Solo fotos: un video no cabe en el chat.'
+      :m==='no_es_imagen'?'Eso no se pudo abrir como foto. Prueba con otra.'
+      :m==='no_la_pude_leer'?'No pude leer esa foto. Prueba con otra.'
+      :m==='no_la_pude_preparar'?'No pude preparar esa foto.'
+      :(((e&&e.humano)||'No pude mandar la foto. Revisa el internet.')+' La foto no se mandó.'));
   });
 }
 
@@ -9235,7 +9582,10 @@ function cargarHilo(){
  * teléfono del cliente. Lo ve cuando abre la app (play/ se lo marca en la
  * pestaña Chat). Prometer más sería mentir.
  * ======================================================================== */
-const AVISO_SIN_PUSH='No le llega aviso al celular: lo ve cuando abra la app, en la pestaña Chat.';
+/* 26-oct-2026 — «en Chat»: la app instalada llamaba «Mensajes» a su pestaña y
+   esta frase decía «pestaña Chat», que ahí no existía; con chat-1 las tres
+   pantallas dicen «Chat». */
+const AVISO_SIN_PUSH='No le llega aviso al celular: lo ve cuando abra la app, en Chat.';
 function escribirlePorLaApp(desde,id){
   if(!chatListo()) return alert('No cargó ../app/chat.js. Recarga con Ctrl+F5, y si sigue igual, Ajustes → 🧹 Soltar la copia guardada.');
   if(!sbListo()) return alert('El chat vive en la nube y este computador no la tiene conectada. Conéctala en Ajustes → 📲 Compartir con mis clientes.');
@@ -9362,19 +9712,26 @@ function responderChat(){
   if(!_chatAbierta) return;
   const ta=document.getElementById('chResp'), b=document.getElementById('chBtn');
   const r=CHAT.revisar(ta?ta.value:'');
-  if(!r.ok) return alert(r.motivo);
+  if(!r.ok) return avisoChat(r.motivo);
+  /* 26-oct-2026 — EL CANDADO DE COBRANZAS (chat-1): fuera del horario de la
+     Ley 2300, festivos incluidos, no se manda y se dice por qué. */
+  const k=candadoCobranzaChat();
+  if(!k.puede) return avisoChat(k.texto+' No se envió; el texto sigue en el cuadro.');
+  avisoChat('');
   if(b) b.disabled=true;
   /* El canal va EXPLÍCITO desde acá, que es la pestaña que Joan tiene abierta.
      Si no fuera, la base lo pondría en el del último mensaje del cliente y casi
      siempre acertaría — pero «casi siempre» no sirve cuando Joan cambió de
      pestaña a propósito para hablar de otra cosa. */
   CHAT.responder(sbCfg(),_chatAbierta,r.texto,_chatCanal).then(id=>{
-    if(id===null) return alert('No se pudo mandar. Vuelve a intentar.');
+    /* Si la nube no dijo que sí, el texto SIGUE en el cuadro: no se borra
+       antes de saber que llegó (26-oct-2026, chat-1). */
+    if(id===null) return avisoChat('No se pudo mandar. El texto sigue en el cuadro: vuelve a intentar.');
     if(ta) ta.value='';
     /* Se vuelve a preguntar en vez de pintarlo a mano: lo que se ve tiene que
        ser lo que quedó guardado, con su id y su hora de la base. */
     cargarHilo();
-  }).catch(e=>alert((e&&e.humano)||'No pude mandarlo. Revisa el internet.'))
+  }).catch(e=>avisoChat(((e&&e.humano)||'No pude mandarlo. Revisa el internet.')+' El texto sigue en el cuadro.'))
     .then(()=>{ if(b) b.disabled=false; });
 }
 
@@ -12577,7 +12934,7 @@ function modoEquipo() {
         ${yo.rol === 'gerente' ? '<button class="navbtn" onclick="irEquipo(\'equipo\')"><span class="ic">🚶</span> Mi equipo</button>' : ''}
         <button class="navbtn" onclick="irEquipo('vivo')"><span class="ic">👀</span> En vivo</button>
         <button class="navbtn" onclick="irEquipo('plata')"><span class="ic">💰</span> Mi plata</button>
-        <button class="navbtn" onclick="irEquipo('jefe')"><span class="ic">💬</span> Mensajes<span id="sinLeerJefe"></span></button>
+        <button class="navbtn" onclick="irEquipo('jefe')"><span class="ic">💬</span> Chat<span id="sinLeerJefe"></span></button>
       </nav>
       <div class="sep"></div>
       <div style="padding:10px 14px;font-size:11.5px;line-height:1.5;opacity:.6">
@@ -12600,6 +12957,11 @@ function modoEquipo() {
 
 function irEquipo(v) {
   VISTA_EQUIPO = v;
+  /* 26-oct-2026 — el reloj del hilo con Joan solo corre con esa pestaña
+     abierta (chat-1): equipo_chat_leer marca visto todo lo de Joan. Va
+     ANTES de buscar el <main>: aunque no hubiera dónde pintar, el reloj
+     tiene que parar. */
+  if (v !== 'jefe') { try { pararHiloJefe(); } catch (e) {} }
   /* 22-sep-2026 — EL MAPA CONOCE LAS SEIS ENTRADAS. Le faltaban «En vivo»,
      «Mi plata» y «Mi WhatsApp»: para esas, el objeto devolvía undefined,
      indexOf('undefined') daba -1 y NINGUN botón quedaba encendido — el asesor
@@ -12608,7 +12970,7 @@ function irEquipo(v) {
      19-oct-2026 — «Mi contraseña» (clave) entra con ese aviso cumplido. */
   const TITULO_EQ = { tablero: 'Hoy', base: 'Mi base', agenda: 'Agenda',
                       equipo: 'Mi equipo', vivo: 'En vivo', plata: 'Mi plata',
-                      whatsapp: 'Mi WhatsApp', jefe: 'Mensajes', cobrar: 'Cuándo cobrar',
+                      whatsapp: 'Mi WhatsApp', jefe: 'Chat', cobrar: 'Cuándo cobrar',
                       registros: 'Registros', clave: 'Mi contraseña' };
   document.querySelectorAll('.side .navbtn').forEach(b => b.classList.toggle('on',
     !!TITULO_EQ[v] && b.textContent.trim().indexOf(TITULO_EQ[v]) >= 0));
@@ -14028,7 +14390,7 @@ function tarjetaMiSaldoEq() {
 var _jefeMsgs = [], _jefeUltimo = 0, _jefeEstado = 'nada';
 
 function vistaJefeEq() {
-  return '<div class="ph"><div><h1>Mensajes<span class="dot">.</span></h1>' +
+  return '<div class="ph"><div><h1>Chat<span class="dot">.</span></h1>' +
       '<div class="sub">Tu conversación con Joan</div></div></div>' +
     '<div class="card"><div id="hiloJefe" class="ch-hilo">' +
       (_jefeEstado === 'error'
@@ -14137,7 +14499,7 @@ function subirFotoJefe(grande, chica, err) {
     }
     var t = document.getElementById('txtJefe'); if (t) t.value = '';
     err.classList.add('oculto');
-    traerJefeEq(true);
+    if (_jefeVivo) _jefeVivo.latir(); else traerJefeEq(true);
   }).catch(function () {
     falloJefe(err, 'No pude mandar la foto. Revisa tu internet.');
   });
@@ -14166,10 +14528,11 @@ function traerJefeEq(callado) {
     _jefeEstado = 'ok';
     pintarHiloJefe();
     pintarSinLeerJefe(0);          /* acabo de leerlos: el contador se apaga */
+    vigilarHiloJefe();             /* 26-oct-2026 — y desde aquí se mueve solo (chat-1) */
   }).catch(function () { _jefeEstado = 'error'; pintarHiloJefe(); });
 }
 
-function pintarHiloJefe() {
+function pintarHiloJefe(sinBajar) {
   var caja = document.getElementById('hiloJefe');
   if (!caja) return;                       /* se fue a otra pantalla */
   if (_jefeEstado === 'error') {
@@ -14185,7 +14548,9 @@ function pintarHiloJefe() {
   /* `yo: socio` — en este hilo el de este lado es el asesor. Ver la cabecera. */
   caja.innerHTML = CHAT.hiloHTML(_jefeMsgs, { yo: 'socio', hoy: hoyISOCrm(),
     textoVisto: 'Lo vio', alVerFoto: 'verFotoJefe' });
-  caja.scrollTop = caja.scrollHeight;
+  /* `sinBajar`: el reloj del hilo decide él si baja (26-oct-2026, chat-1): si
+     la persona está leyendo arriba, no se le arrastra la pantalla. */
+  if (!sinBajar) caja.scrollTop = caja.scrollHeight;
 }
 
 function enviarAJefe() {
@@ -14213,7 +14578,7 @@ function enviarAJefe() {
       return;
     }
     el.value = '';
-    traerJefeEq(true);
+    if (_jefeVivo) _jefeVivo.latir(); else traerJefeEq(true);
   }).catch(function () {
     if (b) { b.disabled = false; b.textContent = 'Enviar'; }
     err.textContent = 'No pude conectarme. Revisa la señal.';
@@ -14227,6 +14592,35 @@ function pintarSinLeerJefe(n) {
   var e = document.getElementById('sinLeerJefe');
   if (!e) return;
   e.textContent = n ? ' (' + n + ')' : '';
+}
+
+/* 26-oct-2026 — EL HILO CON JOAN SE MUEVE SOLO (chat-1), SOLO con esta
+   pestaña abierta y a la vista: equipo_chat_leer marca visto TODO lo de Joan
+   sin mirar p_desde, y eso es correcto únicamente mientras la persona lo
+   está mirando (por eso vigilarJefeEq, abajo, sigue sin llamadores: el
+   número del menú con la pestaña cerrada espera a equipo_chat_sin_leer, que
+   solo cuenta, en chat-2). Arranca con lo que traerJefeEq ya trajo: no
+   vuelve a pedir el hilo entero. Pinta solo la caja; el reloj decide si baja. */
+var _jefeVivo = null;
+function pararHiloJefe() { if (_jefeVivo) { _jefeVivo.parar('cerrada'); _jefeVivo = null; } }
+function vigilarHiloJefe() {
+  pararHiloJefe();
+  if (!window.ChatVivo || !ChatVivo.hilo || VISTA_EQUIPO !== 'jefe') return;
+  _jefeVivo = ChatVivo.hilo({
+    pedir: function (desde) {
+      return rpcEquipo('equipo_chat_leer', { p_desde: Number(desde) || 0 }).then(function (res) {
+        var j = res && res.j;
+        if (!res.ok || !j || j.ok !== true) return null;
+        return j.mensajes || [];
+      });
+    },
+    pintar: function (lista) { _jefeMsgs = lista; _jefeUltimo = ChatVivo.ultimoIdDe(lista); pintarHiloJefe(true); },
+    caja: function () { return VISTA_EQUIPO === 'jefe' ? document.getElementById('hiloJefe') : null; },
+    esMio: function (m) { return CHAT.ladoDe(m.de) === 'socio'; },
+    documento: document,
+    reloj: { setInterval: function (f, ms) { return setInterval(f, ms); }, clearInterval: function (id) { clearInterval(id); } }
+  });
+  _jefeVivo.arrancar({ mensajes: _jefeMsgs, ultimo: _jefeUltimo });
 }
 
 function vigilarJefeEq() {
@@ -20188,6 +20582,9 @@ const modal=document.getElementById('modal');
 function cerrarModal(){
   modal.classList.remove('on');
   _fichaVista=null;   // 22-oct-2026: ver traerFotosTardias
+  /* 26-oct-2026 — los relojes del hilo abierto mueren con el cuadro (chat-1):
+     seguir pidiendo marcaría «Lo vio» en lo que ya nadie mira. */
+  try{ pararHiloCliente(); pararHiloEquipo(); }catch(e){}
   /* 15-sep-2026 — el cache de fotos de la nube vive SOLO mientras la ficha esta
      abierta. Nunca toca el disco: si se guardara, habriamos vuelto a tener la
      segunda copia que todo este trabajo existe para quitar. */
@@ -20222,7 +20619,10 @@ function irA(v){ document.querySelectorAll('.navbtn').forEach(b=>b.classList.tog
   if(v==='socios'){ renderBandeja(); traerSolicitudesSiToca(); }
   /* Mensajes, igual que Registrados: una petición por visita a la pestaña, no
      una por cada render(). */
-  if(v==='mensajes'){ renderMensajes(); traerConversaciones(); }
+  /* 26-oct-2026 — y el equipo, sin tocar ↻ (chat-1): la tarjeta «Tu equipo»
+     salía en blanco hasta el botón, y una función que Joan no encuentra no
+     existe. Callado: un fallo se pinta en la tarjeta, no en un alert. */
+  if(v==='mensajes'){ renderMensajes(); traerConversaciones(); traerChatEquipo(true); }
   if(v==='resp')renderRespaldados(); }
 document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>irA(b.dataset.v)));
 function entrar(){ const retomada=_retomandoDueno===true, campoPin=document.getElementById('pinInput');

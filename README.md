@@ -45,6 +45,17 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
   sesion-socio.js       La puerta: entrar, la sesión, mi_cuenta, «Olvidé mi
                         contraseña» y cambiarla. Sin DOM, probada en node.
   ver-como.js           El pase de un uso de «👁 Ver la app como la ve él» (CRM).
+  chat-vivo.js          Los relojes del chat (26-oct-2026, chat-1): la
+                        conversación abierta se mueve sola cada 8 s (solo a la
+                        vista: lo que se pide queda «visto»), la bandeja cada
+                        45 s a la vista y cada minuto escondida (solo las
+                        listas), los dos se detienen con la clave rechazada, y
+                        junta mensajes por id sin repintar el cuadro de texto
+                        ni arrastrar la pantalla de quien lee arriba. Lo carga
+                        el CRM; el espejo y la app del socio lo usan con el
+                        mismo contrato (la cabecera del archivo lo documenta).
+                        Sin HTML y sin llamadas a la nube: cada página pasa su
+                        `pedir`. Pruebas: pruebas/chat-vivo.test.js.
   motor.js              El motor del producto de HOY (quincenal y con garantía).
   creditos.js           El catálogo del producto a 6 meses, pensado para Play
                         (canal descartado el 18-ago — ver play/ abajo). Aparte
@@ -180,6 +191,19 @@ app/                    LA APP DEL SOCIO — la que ve el cliente.
 
 panel/                  EL PANEL — el que usa Joan. No se enlaza desde ninguna parte.
   crm.html              Socios, créditos, cobros, invitaciones, plantillas.
+                        Desde el 26-oct-2026 (chat-1) «💬 Mensajes» se llama
+                        «💬 Chat», en el CRM de Joan y en el del equipo: el
+                        equipo aparece solo (sin ↻), arriba «Clientes (n) ·
+                        Equipo (n)» con buscador por nombre, el número de la
+                        barra y el título de la pestaña del navegador suman
+                        los dos, la conversación abierta se mueve sola cada
+                        8 s (clientes y equipo; el asesor, con su pestaña
+                        abierta), con el CRM en otra pestaña se revisa la
+                        lista cada minuto (globo y toque corto solo si llegó
+                        algo, con interruptor), «📷» al cliente desde el
+                        computador, y Cobranzas fuera del horario de la Ley
+                        2300 —festivos incluidos— avisa y no envía. Pruebas:
+                        pruebas/chat-1-crm.test.js.
                         Desde el 23-oct-2026, «👤 Asignar a…» en la ficha de
                         cada cliente, en cada fila de Clientes y de Bases y en
                         el cuadro de editar o agregar un cliente (con quién lo
