@@ -2311,8 +2311,12 @@ let _juntarRev=null;
    _registros, que es la bandeja de los nuevos: mezclarlos los pintaría en
    📥 Registrados como si alguien estuviera esperando. */
 let _registrosExtra=[];
+/* 26-oct-2026 — y los que pidió la bandeja de 💬 Mensajes para decir quién
+   escribe (traerRegistrosParaElChat), aparte por la misma razón: no son la
+   bandeja de nuevos y no deben pintarse como si alguien estuviera esperando. */
+let _registrosDelChat=[];
 function registroPorId(id){
-  return _registros.find(x=>String(x.id)===String(id))||_registrosExtra.find(x=>String(x.id)===String(id))||null;
+  return _registros.find(x=>String(x.id)===String(id))||_registrosExtra.find(x=>String(x.id)===String(id))||_registrosDelChat.find(x=>String(x.id)===String(id))||null;
 }
 /* `soloJuntar`: el registro ya lo atendió Joan (lo cruzó, o le abrió la
    ficha). El toque solo junta la cuenta: volver a cruzarlo duplicaría el
@@ -9113,10 +9117,13 @@ function renderMensajes(){
     return;
   }
   const orden=[..._convs].sort((a,b2)=>(Number(b2.sin_leer||0)>0)-(Number(a.sin_leer||0)>0));
-  b.innerHTML=CHAT.listaHTML(orden,{
+  /* 26-oct-2026 — con los nombres que este computador sabe encima de lo que
+     dijo la nube (ver QUIÉN ESCRIBE, CON LO QUE ESTE COMPUTADOR YA SABE). */
+  b.innerHTML=bandejaConNombres(CHAT.listaHTML(orden,{
     alAbrir:'abrirConversacion',
     vacio:'Todavía no te ha escrito nadie por la app.'
-  });
+  }),orden);
+  traerRegistrosParaElChat(orden);
   const n=CHAT.totalSinLeer(_convs);
   if(pin) pin.textContent=n?' ('+n+')':'';
 }
@@ -9172,7 +9179,12 @@ function abrirConversacion(ident,extra){
   _chatCanal=canalDeEntrada(c);
   const sinJuntar=/^0\d{10}$/.test(_chatAbierta);
   const regla=CHAT.quienEs?CHAT.quienEs(c):(c.nombre||'Socio');
-  const quien=c.nombre||(!sinJuntar&&x.nombre)||regla;
+  /* 26-oct-2026 — y lo que este computador sabe (quienEscribeLocal): el mismo
+     nombre que la bandeja, y de ahí salen los botones de la ficha y del
+     registro (botonesDeQuienEscribe). Lo que trae `extra` sigue primero: ya
+     lo decidió quien abrió el hilo desde la ficha o el registro. */
+  const local=quienEscribeLocal(c);
+  const quien=c.nombre||(!sinJuntar&&x.nombre)||local.texto||regla;
   const cel=String(c.celular||'').replace(/\D/g,'');
   openModal(quien,
     `<div id="chPest">${pestanasCanal(c)}</div>
@@ -9283,6 +9295,106 @@ function abrirHiloDeRegistro(r,cel){
     const nom=String(r.nombre||'').replace(/\s+/g,' ').trim();
     abrirConversacion(hilo,{nombre:ficha?ficha.nombre:(nom?nom+' (registrado, sin verificar)':''),nota:AVISO_SIN_PUSH});
   }).catch(e=>alert('No pude preguntarle a la nube en qué conversación lee ese celular. '+((e&&e.humano)||'Revisa el internet y vuelve a intentar.')));
+}
+
+/* ==========================================================================
+ * QUIÉN ESCRIBE, CON LO QUE ESTE COMPUTADOR YA SABE — 26 de octubre de 2026
+ *
+ * Joan: «el mensaje llegó exitosamente al CRM pero solo muestra el número de
+ * teléfono, quiero que también muestre el nombre del cliente y que tenga un
+ * botón para yo ver el perfil de este cliente».
+ *
+ * Lo que vio: se registró desde play/ con su celular, y ese mismo celular es
+ * el de una ficha suya («Joan Ruiz»). Para la nube ese hilo es '0' + celular
+ * —una cuenta SIN JUNTAR con el número de una ficha— y CHAT.quienEs lo pinta
+ * sin ningún nombre A PROPÓSITO (Ley 1581 y Ley 2300: quien escribe no está
+ * verificado). Y el nombre de un registrado sin ficha solo llega de la nube
+ * con base/20261019_chat_quien_escribe.sql corrido; si no, «Socio nuevo».
+ *
+ * Aquí se completa con lo que YA tiene este navegador: la cartera (fichas,
+ * por cédula y por celular) y los registros. Sin tocar app/chat.js (lo
+ * comparten el espejo y el socio) y sin escribir c.nombre en la conversación:
+ * eso le quitaría la advertencia a quienEs. En el hilo '0' la advertencia SE
+ * QUEDA; lo que se agrega es de quién es la FICHA DUEÑA DEL NÚMERO, dicho
+ * así, no quién escribe. Y nunca el nombre de un registro en ese hilo (la
+ * razón, en base/20261019: con un nombre al lado se lee «es él»).
+ * ======================================================================== */
+const AVISO_SIN_JUNTAR='sin juntar: no sabemos si es él, no le hables de su deuda aquí';
+/* La ficha a la que apunta una llave del chat: la de su llave en la nube
+   (PUENTE.llaveEnLaNube: la cédula, o el celular si no tiene) o, si la llave
+   es un celular, la que lo tenga en cualquiera de sus tres números. */
+function fichaPorLlaveDelChat(llave){
+  const l=String(llave||'').replace(/\D/g,''); if(!l) return null;
+  const socios=(DB&&Array.isArray(DB.socios))?DB.socios:[];
+  const suya=socios.find(s=>PUENTE.llaveEnLaNube(s)===l);
+  if(suya||!/^3\d{9}$/.test(l)) return suya||null;
+  return socios.find(s=>[s.telefono,s.telefono2,s.whatsappNumero].some(t=>diez(t)===l))||null;
+}
+/* El registro más reciente con ese celular (o esa cédula) de los que este
+   computador ya trajo: la bandeja de nuevos, los atendidos pedidos para juntar
+   una cuenta y los que pidió el chat. El más reciente primero, como la base. */
+function registroPorLlaveDelChat(llave){
+  const l=String(llave||'').replace(/\D/g,''); if(!l) return null;
+  const esCel=/^3\d{9}$/.test(l);
+  return _registros.concat(_registrosExtra,_registrosDelChat)
+    .filter(r=>esCel?diez(r.telefono)===l:String(r.cedula||'').replace(/\D/g,'')===l)
+    .sort((a,b)=>String(b.creado_en||'').localeCompare(String(a.creado_en||''))||(Number(b.id)||0)-(Number(a.id)||0))[0]||null;
+}
+/* Quién es, con lo de aquí encima de lo que dijo la nube. Devuelve siempre
+   {texto, ficha, registro, llave}: `texto` es lo que se pinta (si lo local no
+   suma nada, el mismo CHAT.quienEs); ficha y registro son lo que abren los
+   botones del hilo. */
+function quienEscribeLocal(c){
+  const x=c||{}, llave=String(x.cedula||'');
+  const regla=(CHAT&&CHAT.quienEs)?CHAT.quienEs(x):String(x.nombre||('Socio nuevo · '+llave));
+  const sinJuntar=/^0\d{10}$/.test(llave), cel=sinJuntar?llave.slice(1):llave;
+  const ficha=fichaPorLlaveDelChat(cel), registro=registroPorLlaveDelChat(cel);
+  const nombreFicha=ficha?String(ficha.nombre||'').trim():'';
+  let texto=regla;
+  if(x.nombre){ /* la nube ya dijo el nombre de la ficha: manda. */ }
+  else if(sinJuntar||/^3\d{9}$/.test(llave)){
+    /* El número es de una ficha (lo dijo la nube con el '0', o lo tiene esta
+       cartera sin haberlo subido): se dice DE QUIÉN es, con la advertencia.
+       Si no hay ficha y la llave es un celular, el nombre con que se registró,
+       rotulado igual que lo rotula la nube (nombre_registro). */
+    if(nombreFicha) texto='Número de la ficha de '+nombreFicha+' · '+AVISO_SIN_JUNTAR;
+    else if(!sinJuntar&&!x.nombre_registro&&registro&&String(registro.nombre||'').trim())
+      texto=String(registro.nombre).replace(/\s+/g,' ').trim()+' (registrado, sin verificar) · '+llave;
+  } else if(nombreFicha){
+    /* Llave de cédula sin nombre de la nube: la ficha está aquí y no allá. */
+    texto=nombreFicha;
+  }
+  return {texto:texto,ficha:ficha,registro:registro,llave:llave};
+}
+/* La bandeja que pintó CHAT.listaHTML, con los nombres de aquí. Se cambia
+   SOLO el renglón de quién (.ch-conv-quien), anclado en el texto exacto que
+   escribió quienEs: el último mensaje puede traer lo mismo y no se toca. */
+function bandejaConNombres(html,lista){
+  let h=String(html||'');
+  (lista||[]).forEach(c=>{
+    const q=quienEscribeLocal(c), antes=CHAT.quienEs(c);
+    if(!q.texto||q.texto===antes) return;
+    h=h.split('<span class="ch-conv-quien">'+escHTML(antes)).join('<span class="ch-conv-quien">'+escHTML(q.texto));
+  });
+  return h;
+}
+/* Los registros se traen al entrar a 📥 Registrados, no antes. Si la bandeja
+   tiene un celular que ni la nube ni la cartera reconocen, se piden UNA vez
+   por sesión (los nuevos, lo mismo que trae esa pestaña) para poder decir con
+   qué nombre se registró. Van aparte (_registrosDelChat) para no pintar
+   📥 Registrados ni mover nada de lo que esa pestaña hace al traer los suyos.
+   Si falla, no se insiste: Registrados los trae cuando Joan entre. */
+let _registrosPedidosPorElChat=false;
+function traerRegistrosParaElChat(lista){
+  if(_registrosPedidosPorElChat||!sbListo()) return;
+  const falta=(lista||[]).some(c=>{ if(c.nombre||c.nombre_registro) return false;
+    const q=quienEscribeLocal(c); return !q.ficha&&!q.registro&&/^0?3\d{9}$/.test(String(c.cedula||'')); });
+  if(!falta) return;
+  _registrosPedidosPorElChat=true;
+  rpc('listar_registros',{p_clave:sbCfg().clave,p_estado:'nuevo'}).then(f=>{
+    if(!Array.isArray(f)||!f.length) return;
+    _registrosDelChat=f; renderMensajes();
+  }).catch(()=>{});
 }
 
 /* 22-sep-2026 — ABRIR LA FOTO QUE MANDÓ EL CLIENTE. El hilo trae la miniatura;
