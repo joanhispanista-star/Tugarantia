@@ -36,9 +36,9 @@
 > completa ahora el renglón con la cartera y los registros que ya tiene en el
 > navegador, sin tocar `app/chat.js` ni escribir `c.nombre` en la conversación
 > (`quienEscribeLocal`, `bandejaConNombres`):
-> - '0' + celular de una ficha de aquí → «Número de la ficha de <Nombre> · sin
->   juntar: no sabemos si es él, no le hables de su deuda aquí». La advertencia
->   se queda; nunca el nombre de un registro en ese hilo;
+> - '0' + celular de una ficha de aquí → «Número de la ficha de <Nombre> ·
+>   celular · sin juntar: no sabemos si es él, no le hables de su deuda aquí».
+>   La advertencia se queda; nunca el nombre de un registro en ese hilo;
 > - celular sin `nombre_registro` → «<Nombre> (registrado, sin verificar) ·
 >   celular» desde los registros locales (se piden una vez si hacen falta);
 > - cédula sin nombre de la nube → el nombre de la ficha de aquí;
@@ -52,6 +52,16 @@
 >   al chat» (`volverAlChat`) reabre el hilo con el mismo nombre y la misma nota
 >   con que se abrió desde la ficha o el registro: antes volvía a secas y el
 >   mismo hilo cambiaba de título y perdía la nota (sección 6 de la prueba).
+> - **Ronda 2 (26-oct):** el número SE QUEDA al lado del nombre (Joan: «quiero
+>   que también muestre el nombre»): en el hilo '0' y en el del celular de una
+>   cuenta junta («<Nombre> · celular») `c.celular` llega vacío, no hay
+>   «📲 Seguir por WhatsApp» y el número no salía en ninguna parte. Y la ficha
+>   que abre «👤 Ver ficha» ya no sale en blanco: el renglón «Su cuenta en la
+>   app» (frase larga + cuatro botones) no se partía porque `.info-row .k` no
+>   encoge, y medía 737 px de alto con los botones fuera del cuadro (venía de
+>   v138). Ahora lleva `.con-botones` (la frase se parte y los botones bajan),
+>   y en el celular la etiqueta de cualquier renglón del cuadro encoge si no
+>   cabe (sección 7 de la prueba).
 >
 > **La decisión B sigue pendiente**: sin Telegram, el aviso a Joan solo existe
 > con el CRM o el celular abiertos, y al cliente no le llega nada con la app

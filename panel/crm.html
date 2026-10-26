@@ -434,6 +434,30 @@
   .wrapEq .info-row .vv{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end}
   .wrapEq .info-row .vv .btn{margin-left:0!important}
   @media (max-width:560px){ .wrapEq .info-row .vv{flex:1 1 100%;justify-content:flex-start} }
+  /* 26-oct-2026 — LOS RENGLONES DE LA FICHA QUE LLEVAN UNA FRASE Y BOTONES.
+     «Su cuenta en la app» lleva en .k una frase entera y en .vv cuatro
+     botones. Con .k sin encoger (flex:none, arriba), la frase de la ficha sin
+     juntar medía 800 px en un cuadro de 600: .vv quedaba de 44 px FUERA del
+     cuadro, el renglón medía 737 px de alto y la ficha se veía en blanco
+     debajo de una línea gris cortada. Venía de v138, pero es justo la ficha a
+     la que lleva «👤 Ver ficha» desde el hilo '0' (refutadores, 26-oct). Lo
+     mismo que .wrapEq: la frase encoge y se parte, y los botones bajan a su
+     propio renglón cuando no caben al lado. */
+  .info-row.con-botones{flex-wrap:wrap}
+  .info-row.con-botones .k{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
+  .info-row.con-botones .vv{flex:1 1 auto;min-width:0}
+  @media (max-width:560px){
+    .info-row.con-botones .vv{text-align:left}
+    /* Y en el celular, la etiqueta de CUALQUIER renglón del cuadro encoge si
+       no cabe: a 390 px «Nivel (el tramo de su garantía · no le mueve el
+       cupo)» no encogía, el valor quedaba en una columna de una letra fuera
+       del cuadro y había barra horizontal. flex-shrink solo actúa en el
+       renglón que no cabe: el que cabe se ve igual que antes. Y el valor
+       guarda al menos un tercio: .vv parte palabras (break-word), y sin ese
+       piso «Cupo quincenal» salía «$25.00» y el «0» debajo. */
+    #mBody .info-row .k{flex-shrink:1;min-width:0;overflow-wrap:anywhere}
+    #mBody .info-row:not(.con-botones) .vv{min-width:35%}
+  }
   .alerta{border-radius:9px;padding:10px 13px;font-size:13px;margin-bottom:14px;line-height:1.45}
   .alerta.warn{background:var(--ambar-tinte);color:var(--ambar);border:1px solid var(--ambar-medio)}
   /* Lo que SALIO BIEN es verde. Se agrego el 15-sep-2026 con el envio de
@@ -5683,7 +5707,7 @@ function verCliente(id){
      en qué va y tiene su botón. */
   const cj=s.cuentaJunta, cpj=s.cuentaPorJuntar;
   const esperaClave=cpj&&cpj.noAntesDe&&Date.now()<Date.parse(cpj.noAntesDe);
-  const bloqueCuenta=`<div class="info-row"><span class="k">Su cuenta en la app
+  const bloqueCuenta=`<div class="info-row con-botones"><span class="k">Su cuenta en la app
        <div class="muted">${cj?'Junta desde este computador con el '+escHTML(UP?UP.bonito(cj.celular):cj.celular)+' el '+fmtFecha(cj.fecha)
          :cpj?(cpj.motivo?'La nube no juntó su cuenta sola: falta tu toque (lo que dice abajo)'
                :esperaClave?'Le diste una clave nueva al número de su ficha: su cuenta se junta sola desde las '+escHTML(fmtFechaHora(cpj.noAntesDe).slice(-5))
@@ -5710,7 +5734,7 @@ function verCliente(id){
   /* 23-oct-2026 — QUIÉN DE TU EQUIPO LO ATIENDE, arriba, con «👤 Asignar a…»:
      Joan se agregó como cliente para que Willian lo gestionara y aquí no había
      cómo (ver «👤 ASIGNAR A…» DESDE CADA FICHA). */
-  const bloqueAtiende=`<div class="info-row"><span class="k">Quién de tu equipo lo atiende
+  const bloqueAtiende=`<div class="info-row con-botones"><span class="k">Quién de tu equipo lo atiende
        <div class="muted">${quienAtiendeHTML(s.id)}</div></span>
        <span class="vv"><button class="btn btn-ghost btn-sm" onclick="asignarUno('cliente','${s.id}','ficha')" title="Le sale en la «Mi base» de quien elijas, con su nombre, su celular, la etapa, cuánto debe y cuándo paga">👤 Asignar a…</button></span></div>`;
   openModal(codCliente(s)+' · '+s.nombre,`
@@ -9368,15 +9392,21 @@ function quienEscribeLocal(c){
      a secas: si la nube dijo '0', la nube manda (pudo desjuntarse desde otro
      computador). */
   const junta=!sinJuntar&&/^3\d{9}$/.test(cel)&&!!(ficha&&ficha.cuentaJunta&&diez(ficha.cuentaJunta.celular)===cel);
+  /* 26-oct-2026 (ronda 2) — Y EL NÚMERO SE QUEDA. Joan pidió que «también»
+     saliera el nombre, no que el nombre reemplazara al número: en el hilo '0'
+     y en el del celular pelado c.celular llega vacío (socios_historial se
+     cruza por cédula), así que no hay «📲 Seguir por WhatsApp» y el número
+     no salía ni en la bandeja, ni en el título, ni en un botón. Va el celular
+     SIN el 0, que es el que Joan marca, igual que lo decía quienEs. */
   let texto=regla;
   if(x.nombre){ /* la nube ya dijo el nombre de la ficha: manda. */ }
-  else if(junta&&nombreFicha){ texto=nombreFicha; }
+  else if(junta&&nombreFicha){ texto=nombreFicha+' · '+cel; }
   else if(sinJuntar||/^3\d{9}$/.test(llave)){
     /* El número es de una ficha (lo dijo la nube con el '0', o lo tiene esta
        cartera sin haberlo subido): se dice DE QUIÉN es, con la advertencia.
        Si no hay ficha y la llave es un celular, el nombre con que se registró,
        rotulado igual que lo rotula la nube (nombre_registro). */
-    if(nombreFicha) texto='Número de la ficha de '+nombreFicha+' · '+AVISO_SIN_JUNTAR;
+    if(nombreFicha) texto='Número de la ficha de '+nombreFicha+' · '+cel+' · '+AVISO_SIN_JUNTAR;
     else if(!sinJuntar&&!x.nombre_registro&&registro&&String(registro.nombre||'').trim())
       texto=String(registro.nombre).replace(/\s+/g,' ').trim()+' (registrado, sin verificar) · '+llave;
   } else if(nombreFicha){

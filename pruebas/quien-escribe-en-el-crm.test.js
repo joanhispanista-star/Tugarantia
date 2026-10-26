@@ -30,6 +30,9 @@ const { asentar } = require('./esperar.js');
 const plano = h => String(h).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const CLAVE = 'clave-de-prueba-bien-larga';
 const AVISO = 'sin juntar: no sabemos si es él, no le hables de su deuda aquí';
+/* 26-oct-2026 (ronda 2) — con el número: Joan pidió que TAMBIÉN saliera el
+   nombre, no que el nombre reemplazara al número (sección 7). */
+const DE_LA_FICHA = (nombre, cel) => 'Número de la ficha de ' + nombre + ' · ' + cel + ' · ' + AVISO;
 
 const CARTERA = {
   socios: [
@@ -102,7 +105,7 @@ describe('1. la bandeja dice quién escribe, en los cuatro casos', () => {
     /* El caso de Joan el 26-oct: salía «Sin juntar · 3103606348 (número de una
        ficha) · no sabemos si es él…» y nada más. */
     const h = pintar(crm(), [conv({ cedula: '03103606348' })]);
-    assert.match(h, new RegExp('Número de la ficha de Joan Ruiz · ' + AVISO));
+    assert.ok(h.indexOf(DE_LA_FICHA('Joan Ruiz', '3103606348')) >= 0, h);
     assert.doesNotMatch(h, /Sin juntar · 3103606348/, 'quedó la frase vieja además de la nueva');
   });
 
@@ -136,12 +139,12 @@ describe('1. la bandeja dice quién escribe, en los cuatro casos', () => {
 
   test('un celular en el SEGUNDO número de la ficha también la encuentra', () => {
     const h = pintar(crm(), [conv({ cedula: '03022222222' })]);
-    assert.match(h, /Número de la ficha de Carla Segundo/);
+    assert.ok(h.indexOf(DE_LA_FICHA('Carla Segundo', '3022222222')) >= 0, h);
   });
 
   test('celular suelto que una ficha de aquí tiene (la cartera no ha subido): la misma advertencia, no «es él»', () => {
     const h = pintar(crm(), [conv({ cedula: '3103606348' })]);
-    assert.match(h, new RegExp('Número de la ficha de Joan Ruiz · ' + AVISO));
+    assert.ok(h.indexOf(DE_LA_FICHA('Joan Ruiz', '3103606348')) >= 0, h);
     assert.doesNotMatch(h, /^ Joan Ruiz /, 'salió el nombre pelado: se lee como verificado');
   });
 });
@@ -206,7 +209,7 @@ describe('3. el hilo abierto dice lo mismo que la bandeja, y tiene el botón del
     pintar(P, [conv({ cedula: '03103606348' }), conv({ cedula: '3001234567' }), conv({ cedula: '52111222' }), conv({ cedula: '3007777777' })]);
     abriendo(() => {
       P.ev('abrirConversacion("03103606348")');
-      assert.equal(P.elems.mTitle.textContent, 'Número de la ficha de Joan Ruiz · ' + AVISO);
+      assert.equal(P.elems.mTitle.textContent, DE_LA_FICHA('Joan Ruiz', '3103606348'));
       P.ev('abrirConversacion("3001234567")');
       assert.equal(P.elems.mTitle.textContent, 'William Registrado (registrado, sin verificar) · 3001234567');
       P.ev('abrirConversacion("52111222")');
@@ -295,7 +298,7 @@ describe('4. chat → ficha o registro → chat', () => {
          fotos) y abre con el mismo `extra` con que estaba abierta (sección 6). */
       assert.match(m[1], /^volverAlChat\('03103606348'\)$/);
       P.ev(m[1]);
-      assert.equal(P.elems.mTitle.textContent, 'Número de la ficha de Joan Ruiz · ' + AVISO);
+      assert.equal(P.elems.mTitle.textContent, DE_LA_FICHA('Joan Ruiz', '3103606348'));
       assert.equal(P.ev('_fichaVista'), null);
     });
   });
@@ -410,15 +413,15 @@ describe('6. la cuenta junta y la ida y vuelta (ronda 1, 26-oct: lo que cazaron 
     const P = crm(); P.ev(JUNTA);
     pintar(P, [conv({ cedula: '3103606348' }), conv({ cedula: '03103606348' })]);
     const quienes = (P.elems.chBandeja.innerHTML.match(/ch-conv-quien">[^<]*/g) || []).map(x => x.replace('ch-conv-quien">', ''));
-    assert.equal(quienes[0], 'Joan Ruiz', 'con la cuenta junta el celular pelado sigue diciendo «sin juntar»');
+    assert.equal(quienes[0], 'Joan Ruiz · 3103606348', 'con la cuenta junta el celular pelado sigue diciendo «sin juntar»');
     /* Si la nube dijo '0', la nube manda: pudo desjuntarse desde otro computador. */
-    assert.equal(quienes[1], 'Número de la ficha de Joan Ruiz · ' + AVISO);
+    assert.equal(quienes[1], DE_LA_FICHA('Joan Ruiz', '3103606348'));
     abriendo(() => {
       P.ev('abrirConversacion("3103606348")');
-      assert.equal(P.elems.mTitle.textContent, 'Joan Ruiz');
+      assert.equal(P.elems.mTitle.textContent, 'Joan Ruiz · 3103606348');
       assert.deepEqual(botones(P.elems.mBody.innerHTML), ['👤 Ver ficha']);
       P.ev('abrirConversacion("03103606348")');
-      assert.equal(P.elems.mTitle.textContent, 'Número de la ficha de Joan Ruiz · ' + AVISO);
+      assert.equal(P.elems.mTitle.textContent, DE_LA_FICHA('Joan Ruiz', '3103606348'));
     });
   });
 
@@ -426,7 +429,7 @@ describe('6. la cuenta junta y la ida y vuelta (ronda 1, 26-oct: lo que cazaron 
     const P = crm();
     P.ev("DB.socios[0].cuentaJunta = { celular: '3109999999', fecha: '2026-10-20', registro_id: 6, por: 'crm' }");
     pintar(P, [conv({ cedula: '3103606348' })]);
-    assert.match(P.elems.chBandeja.innerHTML, new RegExp('ch-conv-quien">Número de la ficha de Joan Ruiz · ' + AVISO));
+    assert.ok(P.elems.chBandeja.innerHTML.indexOf('ch-conv-quien">' + DE_LA_FICHA('Joan Ruiz', '3103606348')) >= 0);
   });
 
   test('«💬 Escribirle por la app» → 👤 Ver ficha → ← Volver al chat: el MISMO título y la MISMA nota (cuenta junta)', () => {
@@ -497,5 +500,99 @@ describe('6. la cuenta junta y la ida y vuelta (ronda 1, 26-oct: lo que cazaron 
       assert.doesNotMatch(plano(P.elems.mBody.innerHTML), /nota-de-prueba/);
       assert.doesNotMatch(P.elems.mTitle.textContent, /Alguien Que Abrió/);
     });
+  });
+});
+
+/* ========================================================================== */
+describe('7. ronda 2 (26-oct): el número se queda, y la ficha que abre «👤 Ver ficha» se ve', () => {
+  /* Joan pidió «que TAMBIÉN muestre el nombre». La ronda 1 dejaba el hilo '0'
+     y el del celular pelado de una cuenta junta SIN el número en ninguna
+     parte: c.celular llega vacío en esos hilos (socios_historial se cruza por
+     cédula), así que tampoco hay «📲 Seguir por WhatsApp». La regla que lo
+     habría cazado: si la llave es un celular, ese celular sale en el renglón
+     y en el título, sea cual sea el caso. */
+  const JUNTA = "DB.socios[0].cuentaJunta = { celular: '3103606348', fecha: '2026-10-20', registro_id: 5, por: 'crm' }";
+  const renglones = P => (P.elems.chBandeja.innerHTML.match(/ch-conv-quien">[^<]*/g) || []).map(x => x.replace('ch-conv-quien">', ''));
+
+  test('con la llave de un celular, el número sale en el renglón y en el título en TODOS los casos', () => {
+    const casos = [
+      ['03103606348', '3103606348', 'cuenta sin juntar con el número de una ficha de aquí'],
+      ['03022222222', '3022222222', 'el número está en el SEGUNDO teléfono de la ficha'],
+      ['03001234567', '3001234567', "'0' sin ficha aquí (lo pinta quienEs)"],
+      ['3001234567', '3001234567', 'registrado sin ficha'],
+      ['3007777777', '3007777777', 'ni ficha ni registro'],
+      ['3103606348', '3103606348', 'celular suelto que una ficha de aquí tiene']
+    ];
+    const P = crm();
+    pintar(P, casos.map(c => conv({ cedula: c[0] })));
+    const r = renglones(P);
+    casos.forEach((c, i) => assert.ok(r[i].indexOf(c[1]) >= 0, c[2] + ': el renglón «' + r[i] + '» no tiene el número'));
+    abriendo(() => casos.forEach(c => {
+      P.ev('abrirConversacion(' + JSON.stringify(c[0]) + ')');
+      assert.ok(P.elems.mTitle.textContent.indexOf(c[1]) >= 0, c[2] + ': el título «' + P.elems.mTitle.textContent + '» no tiene el número');
+    }));
+  });
+
+  test('cuenta junta: «<Nombre> · <celular>», sin advertencia; y la nube con nombre sigue mandando', () => {
+    const P = crm(); P.ev(JUNTA);
+    pintar(P, [conv({ cedula: '3103606348' }), conv({ cedula: '3103606348', nombre: 'Joan Ruiz De La Nube' })]);
+    const r = renglones(P);
+    assert.equal(r[0], 'Joan Ruiz · 3103606348');
+    assert.equal(r[1], 'Joan Ruiz De La Nube', 'lo que la nube ya dijo no se toca');
+  });
+
+  test("el '0': nombre de la ficha, número y advertencia, en ese orden y en un solo renglón", () => {
+    const P = crm();
+    pintar(P, [conv({ cedula: '03103606348' })]);
+    assert.equal(renglones(P)[0], 'Número de la ficha de Joan Ruiz · 3103606348 · sin juntar: no sabemos si es él, no le hables de su deuda aquí');
+  });
+
+  /* La ficha que abre «👤 Ver ficha» (la sin juntar, que es la del hilo '0')
+     salía en blanco: la frase de «Su cuenta en la app» medía 800 px en un
+     cuadro de 600, porque .info-row .k no encoge (flex:none), y los botones
+     quedaban fuera del cuadro. El banco no mide, así que aquí se sujeta la
+     regla y quién la lleva; la medida está en Chrome sin ventana
+     (scratchpad/lote-26/crm-quien-escribe/ronda2/medir-r2.js). */
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const CSS = (fs.readFileSync(path.join(__dirname, '..', 'panel', 'crm.html'), 'utf8').match(/<style>([\s\S]*?)<\/style>/) || [])[1] || '';
+  const regla = sel => { const i = CSS.indexOf(sel + '{'); return i < 0 ? null : CSS.slice(i + sel.length + 1, CSS.indexOf('}', i)); };
+  const renglonesConBotones = h => (String(h).match(/<div class="info-row[^"]*">[\s\S]*?<\/span><\/div>/g) || [])
+    .filter(f => (f.match(/<button/g) || []).length >= 2 || /Su cuenta en la app/.test(f));
+
+  test('los renglones de la ficha con una frase y botones llevan .con-botones, sin juntar y con la cuenta junta', () => {
+    for (const junta of [false, true]) {
+      const P = crm(); if (junta) P.ev(JUNTA);
+      pintar(P, [conv({ cedula: '03103606348' })]);
+      abriendo(() => {
+        P.ev('abrirConversacion("03103606348")');
+        P.ev("verFichaDesdeChat('C1')");
+      });
+      const h = P.elems.mBody.innerHTML;
+      assert.match(h, /<div class="info-row con-botones"><span class="k">Su cuenta en la app/,
+        (junta ? 'con' : 'sin') + ' la cuenta junta, «Su cuenta en la app» no puede partirse: sus botones se salen del cuadro');
+      const filas = renglonesConBotones(h);
+      assert.ok(filas.length >= 1);
+      filas.forEach(f => assert.match(f, /^<div class="info-row con-botones">/, 'un renglón con frase y botones sin .con-botones: ' + f.slice(0, 120)));
+    }
+  });
+
+  test('.con-botones parte la frase y baja los botones; la etiqueta de los demás renglones sigue sin encoger en el computador', () => {
+    assert.ok(CSS.length > 1000, 'no encontré el <style> de crm.html');
+    assert.match(regla('.info-row.con-botones') || '', /flex-wrap:\s*wrap/);
+    const k = regla('.info-row.con-botones .k') || '';
+    assert.match(k, /min-width:\s*0/, '.k sin min-width:0 no encoge por debajo de su frase');
+    assert.doesNotMatch(k, /flex:\s*none/);
+    assert.match(k, /flex:\s*1\s+1\s+\d+px/, '.k tiene que poder crecer y encoger');
+    /* lo de siempre, que el 15-oct se decidió no tocar para los pares etiqueta-valor */
+    assert.match(regla('.info-row .k') || '', /flex:\s*none/);
+  });
+
+  test('en el celular, la etiqueta de cualquier renglón del cuadro encoge y el valor guarda un piso', () => {
+    const movil = CSS.split('@media (max-width:560px){').slice(1).join('\n');
+    assert.match(movil, /#mBody \.info-row \.k\{[^}]*flex-shrink:\s*1[^}]*min-width:\s*0/,
+      'a 390 px «Nivel (el tramo de su garantía…)» se salía del cuadro con barra horizontal');
+    assert.match(movil, /#mBody \.info-row:not\(\.con-botones\) \.vv\{[^}]*min-width:\s*35%/,
+      'sin piso, «Cupo quincenal» parte «$25.000» en dos renglones');
   });
 });
