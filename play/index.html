@@ -9310,27 +9310,56 @@ function avisarFotoDelEncuadre() {
    medio), y el óvalo que se LLENA con la racha. `extra`: {cara y ojos (en
    fracciones de la zona que se ve), zona (en píxeles del lienzo: zonaVisible;
    sin ella, el lienzo entero), cargando, conCara}. */
+/* 26-oct-2026 — LA SILUETA, EN VEZ DEL ÓVALO. Joan: «aparece un óvalo pero no
+   tiene forma de cara … las caras tienen forma de huevo». Es una cabeza vista
+   de frente: más ancha arriba (la frente, las sienes) y angosta abajo (el
+   mentón), con el alto 1,35 veces el ancho. Cabe en el mismo rectángulo que
+   el óvalo (2·rx por 2·ry, el marco de decisión de RostroEnVivo.OVALO), así
+   que las medidas no cambian; solo el dibujo es un poco más ancho que rx
+   (ANCHO_SILUETA) para que la proporción sea la de una cabeza y no la de un
+   huevo de pie.
+   La curva: x = rw·sen(f)·(1 + HUEVO·cos(f)), y = cy − ry·cos(f), con f de 0
+   (coronilla) a 2π en el sentido del reloj. Arriba (cos f > 0) ensancha;
+   abajo (cos f < 0) estrecha: a la altura de la mandíbula queda al 75 % y
+   cerca del mentón al 38 % del ancho. `hasta` dibuja solo el tramo de 0 a
+   ese ángulo (el aro de avance), abierto; sin `hasta` es el contorno entero,
+   cerrado, que sirve de recorte. */
+var ANCHO_SILUETA = 1.07, HUEVO = 0.28, PASOS_SILUETA = 48;
+function trazarSilueta(ctx, cx, cy, rw, ry, hasta) {
+  var entero = hasta === undefined || hasta === null;
+  var fin = entero ? Math.PI * 2 : Math.max(0, Math.min(Math.PI * 2, +hasta || 0));
+  var n = Math.max(2, Math.ceil(PASOS_SILUETA * fin / (Math.PI * 2)));
+  ctx.beginPath();
+  for (var i = 0; i <= n; i++) {
+    var f = fin * i / n;
+    var x = cx + rw * Math.sin(f) * (1 + HUEVO * Math.cos(f)), y = cy - ry * Math.cos(f);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  if (entero) ctx.closePath();
+}
 function dibujarMarco(ctx, w, h, t, enganchado, avance, extra) {
   var x2 = extra || {};
   var z = x2.zona || { x: 0, y: 0, w: w, h: h };
   ctx.save();
   var cx = z.x + z.w / 2, cy = z.y + z.h / 2, rx = z.w * 0.32, ry = z.h * 0.36;
+  var rw = rx * ANCHO_SILUETA;   // 26-oct-2026: el ancho de la silueta dibujada (ver trazarSilueta)
   var col = enganchado ? '124,255,196' : (x2.cargando ? '255,255,255' : '245,197,66');
   /* 22-oct-2026 — EL ÓVALO SE LLENA desde abajo con el avance de la racha (la
      de detecciones Y el tiempo en verde): si la persona se mueve, se vacía. */
   if (enganchado && avance > 0) {
-    ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.clip();
+    ctx.save(); trazarSilueta(ctx, cx, cy, rw, ry); ctx.clip();
     ctx.fillStyle = 'rgba(124,255,196,.16)';
     var lleno = 2 * ry * Math.min(1, avance);
-    ctx.fillRect(cx - rx, cy + ry - lleno, 2 * rx, lleno);
+    ctx.fillRect(cx - rw * 1.1, cy + ry - lleno, 2.2 * rw, lleno);
     ctx.restore();
   }
-  /* el óvalo y las esquinas */
-  ctx.strokeStyle = 'rgba(' + col + ',.95)'; ctx.lineWidth = 3;
+  /* la silueta y las esquinas: punteada y en ámbar mientras busca, entera y
+     en verde con la cara en su sitio */
+  ctx.strokeStyle = 'rgba(' + col + ',.95)'; ctx.lineWidth = 3; ctx.lineJoin = 'round';
   if (!enganchado) ctx.setLineDash([9, 9]);
   if (!enganchado && !MOVIMIENTO_REDUCIDO) ctx.lineDashOffset = -t * 18;   // el punteado gira: está buscando
-  ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
-  ctx.setLineDash([]); ctx.lineDashOffset = 0;
+  trazarSilueta(ctx, cx, cy, rw, ry); ctx.stroke();
+  ctx.setLineDash([]); ctx.lineDashOffset = 0; ctx.lineJoin = 'miter';
   var L = Math.min(z.w, z.h) * 0.08, m = Math.min(z.w, z.h) * 0.06;
   [[z.x + m, z.y + m, 1, 1], [z.x + z.w - m, z.y + m, -1, 1], [z.x + m, z.y + z.h - m, 1, -1], [z.x + z.w - m, z.y + z.h - m, -1, -1]].forEach(function (k) {
     ctx.beginPath(); ctx.moveTo(k[0], k[1] + L * k[3]); ctx.lineTo(k[0], k[1]); ctx.lineTo(k[0] + L * k[2], k[1]); ctx.stroke();
@@ -9389,9 +9418,9 @@ function dibujarMarco(ctx, w, h, t, enganchado, avance, extra) {
       ctx.lineJoin = 'miter';
     }
   } else if (enganchado && !x2.conCara) {
-    /* Sin detector (el encuadre de siempre): la malla en el óvalo, como antes,
-       solo cuando hay algo enganchado. */
-    ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.clip();
+    /* Sin detector (el encuadre de siempre): la malla en la silueta, como
+       antes en el óvalo, solo cuando hay algo enganchado. */
+    ctx.save(); trazarSilueta(ctx, cx, cy, rw, ry); ctx.clip();
     ctx.strokeStyle = 'rgba(120,255,190,' + (MOVIMIENTO_REDUCIDO ? 0.24 : (0.18 + 0.12 * Math.sin(t * 3))) + ')'; ctx.lineWidth = 1;
     var paso2 = Math.max(18, w / 14), dd = MOVIMIENTO_REDUCIDO ? 0 : (t * 12) % paso2;
     for (var x = -paso2 + dd; x < w; x += paso2) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
@@ -9401,11 +9430,15 @@ function dibujarMarco(ctx, w, h, t, enganchado, avance, extra) {
   if (!enganchado) { ctx.restore(); return; }
   /* El arco de progreso sale de la RACHA de fotogramas buenos, no del reloj:
      si la persona se mueve, se cae y vuelve a empezar — que es justo lo que
-     tiene que ver para entender qué le piden. */
-  ctx.strokeStyle = 'rgba(120,255,190,.25)'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.ellipse(cx, cy, rx + 6, ry + 6, 0, 0, Math.PI * 2); ctx.stroke();
+     tiene que ver para entender qué le piden.
+     26-oct-2026 — con el módulo nuevo es el aro de los DOS SEGUNDOS EN VERDE
+     (avanceVerde), que recorre la silueta desde la coronilla; la cara que se
+     pierde lo vacía. Es lo que dispara. */
+  ctx.strokeStyle = 'rgba(120,255,190,.25)'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+  trazarSilueta(ctx, cx, cy, rw + 6, ry + 6); ctx.stroke();
   ctx.strokeStyle = 'rgba(120,255,190,.95)'; ctx.lineWidth = 4; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.ellipse(cx, cy, rx + 6, ry + 6, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, avance || 0)); ctx.stroke();
+  trazarSilueta(ctx, cx, cy, rw + 6, ry + 6, Math.PI * 2 * Math.min(1, avance || 0)); ctx.stroke();
+  ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
   ctx.restore();
 }
 /* 22-oct-2026 — LA FOTO CON RED DE SEGURIDAD (T4). Llamaba a
