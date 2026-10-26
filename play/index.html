@@ -8786,7 +8786,7 @@ function pasoRostro() {
      y sin él (el encuadre de siempre) la foto se toma sola con la cara en el
      óvalo y quieta. Lo de «acércate» o «centra tu cara» lo dice el escáner en
      vivo, cuando de verdad lo está viendo. */
-  return '<p class="sub">Pon tu cara dentro del óvalo, con buena luz y sin gafas oscuras: ' +
+  return '<p class="sub">Pon tu cara dentro de la silueta, con buena luz y sin gafas oscuras: ' +
       'la foto se toma sola cuando está centrada y quieta.</p>' +
     '<div class="escaner' + (tiene ? ' oculto' : '') + '" id="escaner">' +
       '<video id="camVideo" playsinline muted autoplay></video>' +
@@ -8906,7 +8906,7 @@ function iniciarEscaner() {
       var pista = stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
       return v.play().catch(function () {}).then(function () { afinarCamaraRostro(pista); });
     })
-    .then(function () { if (estado) estado.textContent = 'Pon tu cara dentro del óvalo'; bucleEscaner(); })
+    .then(function () { if (estado) estado.textContent = 'Pon tu cara dentro de la silueta'; bucleEscaner(); })
     .catch(function (e) {
       if (ESCANER.espera) { clearTimeout(ESCANER.espera); ESCANER.espera = null; }
       escanerSinCamara(e && e.name === 'NotAllowedError' ? 'Este navegador no dejó encender la cámara.' : 'No pude encender el escáner.');
@@ -9213,7 +9213,7 @@ function bucleEscaner() {
     liberarDetectorRostro(); ESCANER.modo = 'encuadre'; ESCANER.estables = 0; ESCANER.soloAMano = true;
     var fs0 = $('fot_selfie'); if (fs0) fs0.style.display = '';
     var ns0 = $('selfieNota');
-    if (ns0) ns0.textContent = 'El escáner no logra ver tu cara, así que no la va a tomar solo: pon tu cara en el óvalo ' +
+    if (ns0) ns0.textContent = 'El escáner no logra ver tu cara, así que no la va a tomar solo: pon tu cara en la silueta ' +
       'y toca «Tomar la foto ahora», o toma la selfie con la cámara del celular, aquí abajo.';
   }
   var conCara = ESCANER.modo === 'rostro' && !!ESCANER.detector && !!RV;
@@ -9318,7 +9318,7 @@ function bucleEscaner() {
     } else if (ESCANER.modo === 'cargando') {
       txt = 'Preparando el escáner…';
     } else if (ESCANER.soloAMano) {
-      txt = 'Pon tu cara en el óvalo y toca «Tomar la foto ahora»';   // 22-oct-2026: ver T3
+      txt = 'Pon tu cara en la silueta y toca «Tomar la foto ahora»';   // 22-oct-2026: ver T3
     } else {
       txt = m && m.ok
         ? 'Quieto… ' + cuenta

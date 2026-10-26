@@ -434,7 +434,7 @@
 
   /* Lo que la persona lee. Cada frase dice qué hacer, no qué pasó. */
   var TEXTO = {
-    sin_cara: 'Pon tu cara dentro del óvalo',
+    sin_cara: 'Pon tu cara dentro de la silueta',
     varias: 'Que se vea solo tu cara',
     poca_luz: 'Busca un sitio con más luz',
     /* 8-oct-2026 (segunda vuelta) — decía «Demasiada luz atrás: date la
@@ -443,7 +443,7 @@
     mucha_luz: 'Hay demasiada luz en tu cara: busca una luz más suave',
     lejos: 'Acércate un poco',
     cerca: 'Aléjate un poco',
-    descentrada: 'Centra tu cara en el óvalo',
+    descentrada: 'Centra tu cara en la silueta',
     borrosa: 'Quieto: estamos enfocando',
     movimiento: 'Quieto…',
     '': 'Quieto…'
