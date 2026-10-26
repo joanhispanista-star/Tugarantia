@@ -187,6 +187,12 @@ function abrirPanel(opciones) {
      con un service worker viejo o sin señal, y lo que tumbó el Panel el día que
      se entregó el chat. */
   if (!o.sinChat) ctx.ChatTuGarantia = require(path.join(RAIZ, 'app', 'chat.js'));
+  /* 26-oct-2026 — los relojes del chat (chat-1), el <script src> nuevo de
+     crm.html. `sinChatVivo: true` simula que no llegó: el chat tiene que
+     andar como hasta hoy y la pantalla no prometer el globo escondido. El
+     módulo no guarda estado (cada hilo() y lista() es una instancia), así
+     que compartirlo entre pruebas no ensucia nada. */
+  if (!o.sinChatVivo) ctx.ChatVivo = require(path.join(RAIZ, 'app', 'chat-vivo.js'));
   /* 9-sep-2026 — las comisiones del equipo. `sinComisiones: true` simula que
      ESE <script src> no llego, que es lo que pasa con un service worker viejo. */
   if (!o.sinComisiones) ctx.ComisionesTuGarantia = require(path.join(RAIZ, 'app', 'comisiones.js'));
