@@ -58,15 +58,18 @@ const textoPlano = h => h.replace(/<[^>]+>/g, ' ').replace(/&larr;/g, '←').rep
 
 describe('la barra: cinco pestañas, y cada una lleva a algún sitio', () => {
 
-  test('son Hoy · Clientes · Registrados · Mensajes · Más, en ese orden', () => {
+  /* 26-oct-2026 — «Mensajes» pasó a llamarse «Chat» (chat-1): es la palabra de
+     Joan, y desde el 4-nov el CRM tendrá los SMS de Cocom, que sí son
+     «mensajes». Por dentro (data-v) sigue siendo «mensajes». */
+  test('son Hoy · Clientes · Registrados · Chat · Más, en ese orden', () => {
     const e = abrirEspejo({ cartera: cartera() });
-    assert.deepEqual(e.pestanias.map(p => p.texto), ['Hoy', 'Clientes', 'Registrados', 'Mensajes', 'Más']);
+    assert.deepEqual(e.pestanias.map(p => p.texto), ['Hoy', 'Clientes', 'Registrados', 'Chat', 'Más']);
     assert.deepEqual(e.pestanias.map(p => p.dataset.v), ['hoy', 'clientes', 'registrados', 'mensajes', 'mas']);
   });
 
   test('cada pestaña pinta su pantalla, cambia el título y se enciende sola', () => {
     const e = abrirEspejo({ cartera: cartera() });
-    const titulos = { hoy: 'Hoy', clientes: 'Clientes', registrados: 'Registrados', mensajes: 'Mensajes', mas: 'Más' };
+    const titulos = { hoy: 'Hoy', clientes: 'Clientes', registrados: 'Registrados', mensajes: 'Chat', mas: 'Más' };
     Object.keys(titulos).forEach(v => {
       e.tocarPestania(v);
       assert.equal(e.titulo(), titulos[v]);

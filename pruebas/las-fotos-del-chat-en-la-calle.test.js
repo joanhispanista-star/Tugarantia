@@ -65,8 +65,17 @@ const funcion = (src, nombre) => {
 describe('el botón de la foto ya no es inerte', () => {
 
   test('el hilo del espejo pasa el manejador', () => {
-    assert.match(funcion(ESPEJO, 'vistaHilo'), /alVerFoto: 'verFotoCliente'/,
+    /* 26-oct-2026 — chat-1: el hilo lo pinta hiloHTMLDe (la conversación a
+       pantalla completa, que sirve para el cliente y para el equipo), y es ahí
+       donde va el manejador: el del cliente y el del equipo, cada uno con su
+       función de la base. vistaHilo tiene que pasar por ella. */
+    assert.match(funcion(ESPEJO, 'vistaHilo'), /hiloHTMLDe\(_msj\.msgs\)/,
+      'vistaHilo ya no pinta el hilo con hiloHTMLDe: el manejador de la foto se queda sin cablear');
+    const pintor = funcion(ESPEJO, 'hiloHTMLDe');
+    assert.match(pintor, /'verFotoCliente'/,
       'volvió el «📎 Foto» que no hace nada: el pantallazo del pago se ve y no se abre');
+    assert.match(pintor, /'verFotoEquipo'/,
+      'la foto del equipo se abriría con la función de los clientes (otra tabla, otra reja)');
   });
 
   test('y el renderizador lo cablea de verdad', () => {

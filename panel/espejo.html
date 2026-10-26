@@ -314,6 +314,30 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
   bottom:6px;width:18px;height:2px;border-radius:2px;background:var(--rojo)}
 
 /* ---------------- la hoja (los formularios de la calle) ---------------- */
+/* 26-oct-2026 — LA CONVERSACIÓN A PANTALLA COMPLETA (chat-1). Es la forma del
+   chat de Plaza, la única pieza que se le copió: lista → conversación que
+   ocupa el teléfono entero, con su propia cabecera (← y el nombre), el hilo
+   en el medio y el cuadro de escribir abajo. Antes era una tarjeta dentro de
+   la pestaña, con el hilo a 46vh y la barra de cinco debajo: en un teléfono
+   la mitad de la pantalla era marco. Va por encima de la barra (z 30) y
+   debajo de la hoja (z 60) y del visor de fotos (9999), que se abren desde
+   adentro. El HILO es lo que se desplaza, no la página: así app/chat-vivo.js
+   sabe si Joan está leyendo arriba y no se lo arrastra. */
+.charla{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;
+  background:var(--papel);color:var(--tinta)}
+.charla-cab{display:flex;align-items:center;gap:var(--e2);flex:none;
+  padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top));
+  border-bottom:1px solid var(--linea);background:var(--papel)}
+.charla-cab .btn{width:auto;flex:none;margin:0;padding:8px 12px;font-size:16px}
+.charla-cab h2{flex:1;min-width:0;margin:0;font-size:15px;line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.charla-nota{font-size:12px;color:var(--gris);line-height:1.4}
+.charla>.charla-nota{flex:none;padding:6px 12px 0}
+.charla .ch-hilo{flex:1;min-height:0;padding:8px 12px 12px}
+.charla-pie{flex:none;padding:8px 12px;padding-bottom:calc(8px + env(safe-area-inset-bottom));
+  background:var(--papel);border-top:1px solid var(--linea)}
+.charla-pie>.charla-nota{margin:0 0 6px}
+.charla-pie .ch-escribir{border-top:0;padding-top:0}
 .hoja{position:fixed;inset:0;z-index:60;display:none;background:color-mix(in srgb, var(--sombra) 45%, transparent)}
 .hoja.on{display:block}
 .hoja-caja{position:absolute;left:0;right:0;bottom:0;max-height:90vh;overflow-y:auto;
@@ -414,7 +438,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
     <button data-v="hoy" class="on" type="button">Hoy</button>
     <button data-v="clientes" type="button">Clientes</button>
     <button data-v="registrados" type="button">Registrados<span class="globo" id="globoRegistrados" hidden></span></button>
-    <button data-v="mensajes" type="button">Mensajes<span class="globo" id="globoMensajes" hidden></span></button>
+    <!-- 26-oct-2026 — «Mensajes» se llama «Chat» (chat-1): es la palabra de
+         Joan, y desde el 4-nov el CRM tendrá los SMS de Cocom, que sí son
+         «mensajes». data-v e id NO cambian: la pestaña guardada en el teléfono
+         (joan_panel_espejo_ui) se llama así, y un nombre nuevo abriría el
+         Panel en Hoy una vez. -->
+    <button data-v="mensajes" type="button">Chat<span class="globo" id="globoMensajes" hidden></span></button>
     <button data-v="mas" type="button">Más</button>
   </nav>
 </div>
@@ -453,6 +482,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--rojo-texto);outl
 <script src="tanda.js"></script>
 <!-- El chat, el mismo archivo que cargan crm.html y app/socio.html. -->
 <script src="../app/chat.js"></script>
+<!-- 26-oct-2026 — chat-1: los relojes del chat (la conversación abierta cada
+     8 s, solo a la vista) y cómo juntar mensajes por id, compartidos con el
+     CRM y la app del socio por la misma razón que chat.js. Si no llega (una
+     copia vieja en la caché), la conversación se abre una vez, como hasta
+     hoy, y la pantalla no promete que se mueve. -->
+<script src="../app/chat-vivo.js"></script>
 <!-- 2-oct-2026 — Las reglas que revisan a quien se registró, las MISMAS que
      corre panel/revision.html en el computador (una regla en dos sitios es una
      que se queda atrás). Aquí corren con lo poco que el teléfono recibe: sin
@@ -2081,7 +2116,7 @@ var BUSQUEDA = '';
 
 var TITULOS = { hoy: 'Hoy', tanda: 'Tanda de mensajes', clientes: 'Clientes',
                 ficha: 'Ficha del socio', credito: 'Crédito', quincena: 'Quincena',
-                mensajes: 'Mensajes', registrados: 'Registrados', mas: 'Más',
+                mensajes: 'Chat', registrados: 'Registrados', mas: 'Más',
                 gente: 'Tu gente' };
 
 /* ==========================================================================
@@ -2163,6 +2198,9 @@ function botonVolver() {
 }
 
 function pintarVista(v) {
+  /* 26-oct-2026 — cambiar de pantalla con una conversación abierta la
+     suelta (chat-1): su reloj se para y su estado sale del history. */
+  if (typeof _msj !== 'undefined' && _msj && _msj.ident) soltarHilo();
   VISTA = v;
   /* La raiz es la primera vista de la pila que SI tiene pestania. Se busca en
      vez de dar por hecho que es la primera: si algun dia se llega a un detalle
@@ -2248,6 +2286,10 @@ function pintar() {
   else if (VISTA === 'mensajes') html += vistaMensajes();
   else if (VISTA === 'mas') html += vistaMas();
   else if (VISTA === 'gente') html += vistaGente();
+  /* 26-oct-2026 — la conversación abierta va ENCIMA de cualquier vista
+     (chat-1): desde Chat o desde la ficha, a pantalla completa, y al
+     cerrarla se vuelve a lo que había debajo. */
+  if (_msj.ident && window.ChatTuGarantia) html += vistaHilo();
   html += '<div class="pie">Panel en el bolsillo · las reglas son las de '
     + esc(M.REGLAS_VIGENTES_DESDE || '—') + '</div>';
   c.innerHTML = '<div class="vista' + (VISTA === _vistaPintada ? ' quieta' : '') + '">' + html + '</div>';
@@ -2270,13 +2312,21 @@ function pintar() {
    redibuja el cuerpo entero: sin eso, cualquier refresco le borraría a Joan lo
    que llevaba escrito. */
 
-var _msj = { ident: null, quien: '', celular: '', convs: [], msgs: [], ultimo: 0,
+var _msj = { ident: null, tipo: 'cliente', quien: '', celular: '', nota: '', convs: [], msgs: [], ultimo: 0,
              estado: 'nada', error: '', borrador: '',
              /* 19-oct-2026 — lo del sondeo (ver QUE JOAN SE ENTERE EN LA
                 CALLE): si la nube ya contestó alguna vez, cuántas preguntas
                 van en camino, cuándo fue la última, y si se detuvo por la
                 clave. */
-             sabido: false, enCurso: 0, ultimaVez: 0, parado: '' };
+             sabido: false, enCurso: 0, ultimaVez: 0, parado: '',
+             /* 26-oct-2026 — y el equipo (chat-1): su lista, si la nube ya la
+                contestó alguna vez y en qué quedó la última pregunta. La
+                conversación abierta tiene su propio estado (estadoHilo), para
+                que abrirla no pise el de la lista. `tipo` dice de quién es:
+                'cliente' | 'equipo' — las funciones de la base son otras y al
+                cliente lo protege la Ley 2300. */
+             eq: [], sabidoEq: false, estadoEq: 'nada', errorEq: '',
+             estadoHilo: 'ok', errorHilo: '' };
 
 /* ==========================================================================
  * LAS FOTOS DEL CHAT, DESDE LA CALLE — 23-sep-2026 (Fase D)
@@ -2370,6 +2420,9 @@ function mostrarFoto(imagen) {
  * EL PRECIO, Y SE DICE EN PANTALLA: la foto queda en la conversacion, no colgada
  * del credito. En la ficha del credito no va a aparecer.
  * ======================================================================== */
+/* 26-oct-2026 — `prepararFotoChat` es la costura que las pruebas reemplazan: en el
+   banco no hay FileReader ni Image. */
+function prepararFotoChat(f) { return ChatTuGarantia.prepararFoto(f); }
 function mandarFotoCliente(inp) {
   var f = inp && inp.files && inp.files[0];
   inp.value = '';                       /* para poder repetir la misma foto */
@@ -2378,21 +2431,32 @@ function mandarFotoCliente(inp) {
   var cfg = chatCfg();
   if (!cfg) { return estadoFoto(est, 'Sin la conexion y la clave no puedo mandar nada.', true); }
   if (!_msj.ident) { return estadoFoto(est, 'Abre primero una conversacion.', true); }
+  var ident = _msj.ident, tipo = _msj.tipo;
 
   estadoFoto(est, 'Preparando la foto…', false);
-  ChatTuGarantia.prepararFoto(f).then(function (dos) {
+  prepararFotoChat(f).then(function (dos) {
     estadoFoto(est, 'Mandandola…', false);
-    return ChatTuGarantia.mandarFoto(cfg, _msj.ident, dos.grande, dos.chica,
+    /* 26-oct-2026 — al equipo va por SU función (chat-1): otra tabla
+       (fotos_equipo, con sus 50 MB) y sin Ley 2300. Al cliente, la de siempre. */
+    if (tipo === 'equipo') {
+      return ChatTuGarantia.llamar(cfg, 'equipo_foto_responder', { p_clave: cfg.clave, p_celular: ident,
+        p_imagen: dos.grande, p_miniatura: dos.chica || null, p_texto: null });
+    }
+    return ChatTuGarantia.mandarFoto(cfg, ident, dos.grande, dos.chica,
                                      'Tu recibo', _msj.canal);
   }).then(function (r) {
     if (r && r.ok) {
-      estadoFoto(est, 'Mandada. Queda en la conversacion, no en el credito.', false);
-      traerHilo();
+      estadoFoto(est, tipo === 'equipo' ? 'Mandada.' : 'Mandada. Queda en la conversacion, no en el credito.', false);
+      /* 26-oct-2026 — antes llamaba a traerHilo(), que NO existía: la foto
+         llegaba y la pantalla decía «No pude mandarla. Revisa el internet».
+         Se pide lo nuevo del hilo, que es donde la foto tiene que verse. */
+      latidoHilo();
       return;
     }
-    estadoFoto(est, porQueNoSeMando((r || {}).motivo), true);
+    var m = (r || {}).motivo;
+    estadoFoto(est, porQueNoSeMando(m) || ('La nube contestó que no' + (m ? ' (' + m + ')' : '') + '.'), true);
   }).catch(function (e) {
-    estadoFoto(est, porQueNoSeMando(e && e.motivo) || 'No pude mandarla. Revisa el internet.', true);
+    estadoFoto(est, porQueNoSeMando(e && e.motivo) || (e && e.humano) || 'No pude mandarla. Revisa el internet.', true);
   });
 }
 
@@ -2419,6 +2483,11 @@ function chatCfg() {
   return c && c.url && c.anon && c.clave ? c : null;
 }
 
+/* 26-oct-2026 — EL AVISO QUE NO EXISTE, DICHO (chat-1). No hay push ni
+   Telegram todavía: el cliente lo ve cuando abra la app. La misma frase del
+   CRM, para que las dos pantallas no prometan cosas distintas. */
+var AVISO_SIN_PUSH = 'No le llega aviso al celular: lo ve cuando abra la app, en Chat.';
+
 function vistaMensajes() {
   if (!window.ChatTuGarantia) {
     return '<div class="aviso ambar"><b>Falta ../app/chat.js.</b> Sin ese archivo esta '
@@ -2426,56 +2495,120 @@ function vistaMensajes() {
   }
   var cfg = chatCfg();
   if (!cfg) {
-    return '<div class="aviso ambar"><b>Los mensajes viven en la nube.</b> Este teléfono '
+    return '<div class="aviso ambar"><b>El chat vive en la nube.</b> Este teléfono '
       + 'todavía no tiene la conexión y la clave de sincronización, así que no puedo traer '
       + 'ni mandar nada. No quiere decir que no te hayan escrito: quiere decir que no puedo '
       + 'mirar.</div>';
   }
-  if (_msj.estado === 'nada') { setTimeout(traerConversaciones, 0); _msj.estado = 'cargando'; }
+  if (_msj.estado === 'nada') { setTimeout(traerBandejas, 0); _msj.estado = 'cargando'; }
 
-  if (_msj.ident) return vistaHilo();
-
-  var h = '<div class="card ap"><div class="tit">Conversaciones</div>'
-    + '<button class="btn sm sec arriba" type="button" onclick="traerConversaciones()">↻ Traer de la nube</button>'
+  /* 26-oct-2026 — CLIENTES · EQUIPO (chat-1). Arriba los dos números; la
+     tarjeta con algo sin leer sale PRIMERA; con las dos (o ninguna), los
+     clientes arriba, que es a quienes se les debe respuesta. El equipo se
+     pide solo, al entrar y en cada vuelta del reloj: en el CRM salía en
+     blanco hasta tocar ↻, y una función que Joan no encuentra no existe.
+     Van en dos tarjetas y no mezclados: son dos conversaciones con dos
+     reglas distintas (a un cliente lo protege la Ley 2300; a un asesor no). */
+  var nC = _msj.sabido ? ChatTuGarantia.totalSinLeer(_msj.convs) : 0;
+  var nE = _msj.sabidoEq ? ChatTuGarantia.totalSinLeer(_msj.eq) : 0;
+  var num = function (n, falla) { return falla ? ' (?)' : (n ? ' (' + n + ')' : ''); };
+  var fallaC = _msj.estado === 'error' && !_msj.sabido;
+  var fallaE = _msj.estadoEq === 'error';
+  var h = '<div class="card ap"><div class="tit">Chat</div>'
+    + '<button class="btn sm sec arriba" type="button" data-acc="chat-traer">↻ Traer de la nube</button>'
+    + '<div id="mSegmentos" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0 6px">'
+    +   '<button class="btn sm' + (nC ? '' : ' sec') + '" type="button" style="width:auto;margin:0" data-acc="chat-ir" data-id="mTarjetaClientes">Clientes' + num(nC, fallaC) + '</button>'
+    +   '<span class="muted" aria-hidden="true">·</span>'
+    +   '<button class="btn sm' + (nE ? '' : ' sec') + '" type="button" style="width:auto;margin:0" data-acc="chat-ir" data-id="mTarjetaEquipo">Equipo' + num(nE, fallaE) + '</button>'
+    + '</div>'
     /* 19-oct-2026 — el límite del aviso, dicho: el número de la barra se
-       actualiza solo mientras esta app está abierta y a la vista. */
-    + '<div class="muted" style="font-size:12px;margin:6px 0">Mientras tengas esta app abierta, la barra te dice '
-    + 'cuántos mensajes sin leer hay (pregunto cada 45 segundos). Con la app cerrada no te llega ningún aviso.</div>';
+       actualiza solo mientras esta app está abierta y a la vista. 26-oct:
+       y en Android, en segundo plano la pestaña se congela, así que
+       tampoco. Sin Telegram o push (chat-2 y chat-3) no hay más. */
+    + '<div class="muted" style="font-size:12px;margin:6px 0">Mientras tengas esta app abierta y a la vista, la barra te dice '
+    + 'cuántos mensajes sin leer hay, de clientes y de tu equipo (pregunto cada 45 segundos). '
+    + 'Con la app cerrada no te llega ningún aviso, y en segundo plano tampoco.</div>'
+    + '</div>';
+  var tarjetas = [tarjetaClientes(), tarjetaEquipo()];
+  if (nE > 0 && !nC) tarjetas.reverse();
+  return h + tarjetas.join('');
+}
+
+function ordenSinLeer(lista) {
+  return lista.slice().sort(function (a, b) {
+    return (Number(b.sin_leer || 0) > 0) - (Number(a.sin_leer || 0) > 0);
+  });
+}
+function tarjetaClientes() {
+  var h = '<div class="card ap" id="mTarjetaClientes"><div class="tit">Clientes</div>';
   if (_msj.estado === 'cargando' && !_msj.convs.length) {
     h += '<div class="ch-vacio">Preguntando a la nube…</div>';
   } else if (_msj.error && !_msj.convs.length) {
     h += '<div class="ch-vacio">' + esc(_msj.error) + '</div>';
   } else {
-    var orden = _msj.convs.slice().sort(function (a, b) {
-      return (Number(b.sin_leer || 0) > 0) - (Number(a.sin_leer || 0) > 0);
-    });
-    h += ChatTuGarantia.listaHTML(orden, {
+    h += ChatTuGarantia.listaHTML(ordenSinLeer(_msj.convs), {
       alAbrir: 'abrirHilo',
       vacio: 'Todavía no te ha escrito nadie por la app.'
     });
   }
   return h + '</div>';
 }
+function tarjetaEquipo() {
+  var h = '<div class="card ap" id="mTarjetaEquipo"><div class="tit">Tu equipo</div>'
+    + '<div class="muted" style="font-size:12px;margin:2px 0 6px">Un hilo con cada uno. Lo que le digas a uno no lo ve otro.</div>';
+  if (_msj.estadoEq === 'error') {
+    h += '<div class="ch-vacio">' + esc(_msj.errorEq) + '</div>';
+  } else if (!_msj.sabidoEq) {
+    h += '<div class="ch-vacio">Preguntando a la nube…</div>';
+  } else {
+    /* La lista trae a TODO el equipo activo, haya escrito o no: sirve para
+       empezar una conversación. Se crean en el computador, no aquí. */
+    h += ChatTuGarantia.listaHTML(ordenSinLeer(_msj.eq), {
+      alAbrir: 'abrirHiloEquipo',
+      vacio: 'Todavía no tienes a nadie en el equipo. Se crean desde el computador.'
+    });
+  }
+  return h + '</div>';
+}
 
+/* La conversación abierta, a pantalla completa (ver LA CONVERSACIÓN ABIERTA,
+   abajo). pintar() la agrega ENCIMA de cualquier vista mientras _msj.ident
+   tenga algo. Solo se pinta entera al abrir; después, app/chat-vivo.js
+   escribe únicamente en #mHilo. */
 function vistaHilo() {
-  var cel = String(_msj.celular || '').replace(/\D/g, '');
-  return '<div class="card ap">'
-    + '<div class="tit">' + esc(_msj.quien || 'Socio') + '</div>'
-    + '<button class="btn sm sec arriba" type="button" onclick="cerrarHilo()">← Todas las conversaciones</button>'
-    + '<div class="ch-hilo" id="mHilo" style="max-height:46vh">'
-    + (_msj.estado === 'cargando' && !_msj.msgs.length
-        ? '<div class="ch-vacio">Abriendo…</div>'
-        : (_msj.error && !_msj.msgs.length
-            ? '<div class="ch-vacio">' + esc(_msj.error) + '</div>'
-            : ChatTuGarantia.hiloHTML(_msj.msgs, { yo: 'negocio', textoVisto: 'Lo vio',
-                alVerFoto: 'verFotoCliente',
-                vacio: 'No hay mensajes en esta conversación.' })))
+  var cel = _msj.tipo === 'cliente' ? String(_msj.celular || '').replace(/\D/g, '') : '';
+  var vivo = !!(window.ChatVivo && ChatVivo.hilo);
+  return '<div class="charla" role="dialog" aria-modal="true" aria-label="Conversación con ' + esc(_msj.quien || 'Socio') + '">'
+    + '<div class="charla-cab">'
+    +   '<button class="btn sm sec" type="button" data-acc="chat-cerrar" aria-label="Volver">&larr;</button>'
+    +   '<h2>' + esc(_msj.quien || 'Socio') + '</h2>'
     + '</div>'
+    + (_msj.nota ? '<div class="charla-nota">' + esc(_msj.nota) + '</div>' : '')
+    /* Lo del equipo: un hilo por persona, y se dice quién lo lee. */
+    + (_msj.tipo === 'equipo'
+        ? '<div class="charla-nota">Esto lo lee solo ' + esc(_msj.quien || 'esa persona') + '. Sus compañeros no lo ven.</div>'
+        : '')
+    + '<div class="ch-hilo" id="mHilo">'
+    + (_msj.estadoHilo === 'cargando' && !_msj.msgs.length
+        ? '<div class="ch-vacio">Abriendo…</div>'
+        : (_msj.errorHilo && !_msj.msgs.length
+            ? '<div class="ch-vacio">' + esc(_msj.errorHilo) + '</div>'
+            : hiloHTMLDe(_msj.msgs)))
+    + '</div>'
+    + '<div class="charla-pie">'
+    /* Lo que hace esta copia, con la verdad: sin app/chat-vivo.js no se
+       mueve, y no se promete que sí. */
+    + '<div class="charla-nota">' + (vivo
+        ? 'Se actualiza sola cada 8 segundos mientras la tengas abierta y a la vista.'
+        : 'Esta copia no se actualiza sola: para ver si contestó, cierra y vuelve a abrir.') + '</div>'
     + '<div class="ch-escribir">'
     + '<textarea id="mResp" rows="1" placeholder="Escríbele…" maxlength="'
     + ChatTuGarantia.LARGO_MAX + '" oninput="guardarBorrador()">' + esc(_msj.borrador) + '</textarea>'
     + '<button class="btn sm" type="button" onclick="responderHilo()">Enviar</button>'
     + '</div>'
+    /* Lo que pasa al mandar se dice aquí, al lado del texto que sigue en el
+       cuadro, no en un alert (26-oct-2026). */
+    + '<div id="mErr" class="aviso ambar" hidden style="margin-top:8px" aria-live="polite"></div>'
     /* La camara. `capture="environment"` hace que el iPhone abra la camara
        trasera directamente en vez del carrete: fotografiar un recibo que tienes
        en la mano no deberia costar tres toques. Quien prefiera el carrete lo
@@ -2490,13 +2623,22 @@ function vistaHilo() {
     + '</div>'
     + (cel ? '<div style="margin-top:10px"><a class="btn sm sec" target="_blank" rel="noopener" '
              + 'href="https://wa.me/57' + esc(cel) + '">📲 Seguir por WhatsApp</a></div>' : '')
-    + '</div>';
+    + '</div></div>';
+}
+function hiloHTMLDe(lista) {
+  return ChatTuGarantia.hiloHTML(lista, { yo: 'negocio', textoVisto: 'Lo vio',
+    alVerFoto: _msj.tipo === 'equipo' ? 'verFotoEquipo' : 'verFotoCliente',
+    vacio: _msj.tipo === 'equipo' ? 'Todavía no se han escrito. Empieza tú.'
+                                  : 'No hay mensajes en esta conversación.' });
 }
 
 function guardarBorrador() {
   var t = document.getElementById('mResp');
   if (t) _msj.borrador = t.value;
 }
+
+/* Las dos listas, al entrar a Chat y con ↻. */
+function traerBandejas() { traerConversaciones(); traerChatEquipo(); }
 
 function traerConversaciones() {
   var cfg = chatCfg(); if (!cfg) return;
@@ -2514,7 +2656,42 @@ function traerConversaciones() {
   }).then(function () {
     _msj.enCurso--;
     pintarGlobos();
-    if (VISTA === 'mensajes') pintar();
+    /* Con una conversación abierta no se repinta la lámina: la conversación
+       va encima y repintarla le quitaría el teclado a Joan. */
+    if (VISTA === 'mensajes' && !_msj.ident) pintar();
+  });
+}
+
+/* 26-oct-2026 — EL EQUIPO, con las funciones que la base ya tiene (chat-1):
+   equipo_chat_conversaciones (base/20260922r) trae a TODO el equipo activo,
+   haya escrito o no, con lo último y lo sin leer, en la misma forma que la
+   de clientes, así que lo pinta el mismo listaHTML. Un 404 no es «sin
+   internet»: es esa migración sin correr, y se dice cuál. */
+function pedirEquipo(cfg) {
+  return ChatTuGarantia.llamar(cfg, 'equipo_chat_conversaciones', { p_clave: cfg.clave }).then(function (lista) {
+    return Array.isArray(lista) ? lista : [];
+  }, function (e) {
+    /* llamar() traduce el 404 al archivo del chat de clientes; el del equipo es otro. */
+    if (e && /no está encendido/.test(e.humano || '')) {
+      e.humano = 'Tu nube todavía no tiene el chat del equipo. Corre base/20260922r_el_chat_con_el_equipo.sql en el SQL Editor de Supabase.';
+    }
+    throw e;
+  });
+}
+function traerChatEquipo() {
+  var cfg = chatCfg(); if (!cfg) return;
+  _msj.estadoEq = 'cargando';
+  _msj.enCurso++;
+  pedirEquipo(cfg).then(function (lista) {
+    _msj.eq = lista; _msj.estadoEq = 'ok'; _msj.errorEq = ''; _msj.sabidoEq = true;
+  }).catch(function (e) {
+    _msj.estadoEq = 'error';
+    _msj.errorEq = (e && e.humano) || 'No pude traer el chat del equipo. Revisa el internet.';
+    if (e && e.clave) _msj.parado = 'clave';
+  }).then(function () {
+    _msj.enCurso--;
+    pintarGlobos();
+    if (VISTA === 'mensajes' && !_msj.ident) pintar();
   });
 }
 
@@ -2566,17 +2743,26 @@ function latidoMensajes() {
   if (!window.ChatTuGarantia || _msj.parado || _msj.enCurso > 0 || _msj.estado === 'cargando') return false;
   var cfg = chatCfg(); if (!cfg) return false;
   if (_msj.ultimaVez && Date.now() - _msj.ultimaVez < MENSAJES_CADA_MS - 1000) return false;
-  _msj.enCurso++; _msj.ultimaVez = Date.now();
+  _msj.enCurso += 2; _msj.ultimaVez = Date.now();
+  var listo = function () {
+    _msj.enCurso--;
+    pintarGlobos();
+    if (VISTA === 'mensajes' && !_msj.ident && _msj.estado !== 'cargando') pintar();
+  };
   ChatTuGarantia.conversaciones(cfg).then(function (lista) {
     _msj.convs = Array.isArray(lista) ? lista : [];
     _msj.sabido = true;
   }, function (e) {
     if (e && e.clave) _msj.parado = 'clave';
-  }).then(function () {
-    _msj.enCurso--;
-    pintarGlobos();
-    if (VISTA === 'mensajes' && !_msj.ident && _msj.estado !== 'cargando') pintar();
-  });
+  }).then(listo);
+  /* 26-oct-2026 — y el equipo, en la misma vuelta (chat-1): dos preguntas
+     cada 45 s, no una. Un fallo que no sea la clave no toca la lista que ya
+     se tenía ni pinta un error encima: es un corte de señal en segundo plano. */
+  pedirEquipo(cfg).then(function (lista) {
+    _msj.eq = lista; _msj.sabidoEq = true;
+  }, function (e) {
+    if (e && e.clave) _msj.parado = 'clave';
+  }).then(listo);
   return true;
 }
 
@@ -2593,14 +2779,20 @@ function pintarGloboMensajes() {
     g.hidden = false;
     return;
   }
-  var n = (_msj.sabido && window.ChatTuGarantia) ? ChatTuGarantia.totalSinLeer(_msj.convs) : 0;
+  /* 26-oct-2026 — suma clientes y equipo (chat-1), cada uno solo si la nube
+     lo contestó alguna vez: un cero sin haber preguntado no es un dato. El
+     title dice de quién es cada parte. */
+  var nC = (_msj.sabido && window.ChatTuGarantia) ? ChatTuGarantia.totalSinLeer(_msj.convs) : 0;
+  var nE = (_msj.sabidoEq && window.ChatTuGarantia) ? ChatTuGarantia.totalSinLeer(_msj.eq) : 0;
+  var n = nC + nE;
   if (n > 0) {
     g.innerHTML = '<span class="vh">, </span>' + (n > 99 ? '99+' : n)
       + '<span class="vh"> sin leer</span>';
-    g.title = '';
+    g.title = nC + ' de clientes y ' + nE + ' de tu equipo, sin leer';
     g.hidden = false;
   } else {
     g.innerHTML = '';
+    g.title = '';
     g.hidden = true;
   }
 }
@@ -2610,61 +2802,248 @@ document.addEventListener('visibilitychange', function () {
   if (!document.hidden) latidoMensajes();
 });
 
+/* ==========================================================================
+ * LA CONVERSACIÓN ABIERTA — 26-oct-2026 (chat-1)
+ *
+ * Tres cosas cambian a la vez, y las tres son la forma del chat de Plaza,
+ * que es lo único que se le copió (PLAN del chat, §1):
+ *
+ *   · A PANTALLA COMPLETA. vistaHilo() pinta una capa fija encima de lo que
+ *     haya (pintar() la agrega al final de cualquier vista): desde la lista
+ *     de Chat o desde la ficha de un cliente, y al cerrarla se vuelve a
+ *     donde se estaba. Entra con history.pushState: sin eso, el gesto de
+ *     atrás de Android cierra el Panel entero. popstate la cierra; el ← la
+ *     cierra Y saca su estado del history (history.back) para que el
+ *     siguiente «atrás» no se quede sin hacer nada. _charlaEnHistoria evita
+ *     el doble back, y popstate llega con ella ya apagada.
+ *   · SE MUEVE SOLA con app/chat-vivo.js (ChatVivo.hilo): cada 8 s pide SOLO
+ *     lo nuevo desde el último id, junta por id, pinta SOLO #mHilo (nunca la
+ *     lámina: el cuadro de texto y el teclado se quedan donde están), no
+ *     arrastra la pantalla si Joan está leyendo arriba, NUNCA pide escondida
+ *     (chat_de y equipo_chat_de marcan «visto» lo que devuelven) y se para
+ *     al cerrar, al cambiar de pestaña y con la clave rechazada. Sin el
+ *     módulo (una copia vieja en la caché), una sola carga, y la pantalla
+ *     lo dice. Los relojes y el documento se le pasan desde ESTA ventana: el
+ *     banco de pruebas puede tener el módulo en otro reino.
+ *   · CLIENTE O EQUIPO, la misma capa. _msj.tipo decide las funciones de la
+ *     base: chat_de / chat_responder / chat_foto_responder / chat_foto_panel
+ *     para el cliente; equipo_chat_de / equipo_chat_responder /
+ *     equipo_foto_responder / equipo_foto_panel para el equipo. La base
+ *     devuelve el `de` del equipo traducido a socio/panel, así que el pintor es
+ *     el mismo. El WhatsApp solo se ofrece para el cliente.
+ *
+ * Lo que esta pantalla no sabe y no finge: el canal. El celular contesta sin
+ * canal y la base elige el del último mensaje del cliente (chat_responder);
+ * por eso el candado de Cobranzas de la Ley 2300 (punto 8 del plan) no vive
+ * aquí: lo pone la base en chat-2, que es donde vale.
+ * ======================================================================== */
+var _hiloVivo = null;
+var _charlaEnHistoria = false;
+
 function abrirHilo(ident) {
   var c = null;
   for (var i = 0; i < _msj.convs.length; i++) {
     if (String(_msj.convs[i].cedula) === String(ident)) { c = _msj.convs[i]; break; }
   }
-  _msj.ident = String(ident || '');
   /* 19-oct-2026 — el título sale de la misma regla que la bandeja
      (ChatTuGarantia.quienEs): decía «Socio» a secas para el registrado sin
      ficha y para el hilo '0' + celular, que es donde Joan tiene que leer el
      aviso de no hablar de la deuda. */
-  _msj.quien = ChatTuGarantia.quienEs ? ChatTuGarantia.quienEs(c || { cedula: _msj.ident })
-                                      : ((c && c.nombre) || 'Socio');
-  _msj.celular = (c && c.celular) || '';
-  _msj.msgs = []; _msj.ultimo = 0; _msj.borrador = ''; _msj.error = '';
-  cargarHilo();
-  pintar();
+  abrirCharla('cliente', ident, {
+    quien: ChatTuGarantia.quienEs ? ChatTuGarantia.quienEs(c || { cedula: String(ident || '') })
+                                  : ((c && c.nombre) || 'Socio'),
+    celular: (c && c.celular) || ''
+  });
+}
+function abrirHiloEquipo(cel) {
+  var c = null;
+  for (var i = 0; i < _msj.eq.length; i++) {
+    if (String(_msj.eq[i].cedula) === String(cel)) { c = _msj.eq[i]; break; }
+  }
+  abrirCharla('equipo', cel, { quien: (c && c.nombre) || String(cel || '') });
 }
 
-function cerrarHilo() { _msj.ident = null; _msj.msgs = []; pintar(); }
+function abrirCharla(tipo, ident, extra) {
+  var x = extra || {};
+  soltarHilo();                     /* si había otra abierta, su reloj muere con ella */
+  _msj.tipo = tipo === 'equipo' ? 'equipo' : 'cliente';
+  _msj.ident = String(ident || '');
+  _msj.quien = x.quien || '';
+  _msj.celular = x.celular || '';
+  _msj.nota = x.nota || '';
+  _msj.msgs = []; _msj.ultimo = 0; _msj.borrador = '';
+  _msj.estadoHilo = 'cargando'; _msj.errorHilo = '';
+  try { history.pushState({ charla: _msj.ident }, ''); _charlaEnHistoria = true; }
+  catch (e) { _charlaEnHistoria = false; }
+  pintar();
+  cargarHilo();
+}
+
+/* El gesto de atrás de Android (y la flecha del navegador): cierra la
+   conversación y nada más; el navegador ya sacó el estado del history. */
+window.addEventListener('popstate', function () {
+  if (_charlaEnHistoria) { _charlaEnHistoria = false; cerrarHilo(true); }
+});
+
+/* Deja la conversación sin pintar nada: la usan cerrarHilo y pintarVista
+   (cambiar de pestaña con una abierta). Si el estado sigue en el history, se
+   saca; popstate llegará con la bandera ya apagada y no hará nada. */
+function soltarHilo(porHistoria) {
+  if (_hiloVivo) { _hiloVivo.parar('cerrada'); _hiloVivo = null; }
+  _msj.ident = null; _msj.msgs = []; _msj.ultimo = 0; _msj.nota = ''; _msj.borrador = '';
+  _msj.estadoHilo = 'ok'; _msj.errorHilo = '';
+  var enHistoria = _charlaEnHistoria; _charlaEnHistoria = false;
+  if (enHistoria && !porHistoria) { try { history.back(); } catch (e) {} }
+}
+function cerrarHilo(porHistoria) { soltarHilo(porHistoria); pintar(); }
+
+function ultimoIdDe(lista) {
+  if (window.ChatVivo && ChatVivo.ultimoIdDe) return ChatVivo.ultimoIdDe(lista);
+  return (lista || []).reduce(function (a, m) { return Math.max(a, Number(m && m.id) || 0); }, 0);
+}
+
+/* Abrirla marcó vistos los suyos en la base (chat_de / equipo_chat_de): el
+   número de la barra se ajusta aquí, sin otra pregunta a la nube; la vuelta
+   de 45 s lo confirma. */
+function descontarSinLeer(tipo, ident) {
+  var lista = tipo === 'equipo' ? _msj.eq : _msj.convs;
+  for (var i = 0; i < lista.length; i++) {
+    if (String(lista[i].cedula) === String(ident)) { lista[i].sin_leer = 0; break; }
+  }
+  pintarGlobos();
+}
 
 function cargarHilo() {
-  var cfg = chatCfg(); if (!cfg || !_msj.ident) return;
-  _msj.estado = 'cargando';
-  ChatTuGarantia.conversacion(cfg, _msj.ident, _msj.ultimo).then(function (lista) {
-    (lista || []).forEach(function (m) {
-      _msj.msgs.push(m);
-      if (Number(m.id) > _msj.ultimo) _msj.ultimo = Number(m.id);
-    });
-    _msj.estado = 'ok'; _msj.error = '';
-  }).catch(function (e) {
-    _msj.estado = 'error';
-    _msj.error = (e && e.humano) || 'No pude abrirla. Revisa el internet.';
-  }).then(function () {
-    if (VISTA === 'mensajes') {
-      pintar();
-      var caja = document.getElementById('mHilo');
-      if (caja) caja.scrollTop = caja.scrollHeight;
+  var cfg = chatCfg(); if (!cfg || !_msj.ident) return Promise.resolve(false);
+  if (_hiloVivo) return _hiloVivo.latir();
+  var ident = _msj.ident, tipo = _msj.tipo;
+  var pedir = function (desde) {
+    if (tipo === 'equipo') {
+      return ChatTuGarantia.llamar(cfg, 'equipo_chat_de',
+        { p_clave: cfg.clave, p_celular: ident, p_desde: Number(desde) || 0 })
+        .then(function (l) { return Array.isArray(l) ? l : []; });
     }
+    return ChatTuGarantia.conversacion(cfg, ident, desde);
+  };
+  var pintarCaja = function (lista) {
+    _msj.msgs = lista; _msj.ultimo = ultimoIdDe(lista);
+    _msj.estadoHilo = 'ok'; _msj.errorHilo = '';
+    var caja = document.getElementById('mHilo');
+    if (caja) caja.innerHTML = hiloHTMLDe(lista);
+  };
+  var falla = function (e) {
+    _msj.estadoHilo = 'error';
+    _msj.errorHilo = (e && e.humano) || 'No pude abrirla. Revisa el internet.';
+    var caja = document.getElementById('mHilo');
+    if (caja && !_msj.msgs.length) caja.innerHTML = '<div class="ch-vacio">' + esc(_msj.errorHilo) + '</div>';
+  };
+  if (!window.ChatVivo || !ChatVivo.hilo) {
+    /* Sin el módulo: una sola carga, como hasta hoy. */
+    return pedir(0).then(function (lista) {
+      pintarCaja(lista);
+      var caja = document.getElementById('mHilo'); if (caja) caja.scrollTop = caja.scrollHeight;
+      descontarSinLeer(tipo, ident);
+      return true;
+    }).catch(function (e) { falla(e); return false; });
+  }
+  _hiloVivo = ChatVivo.hilo({
+    pedir: pedir,
+    pintar: function (lista, info) {
+      pintarCaja(lista);
+      if (info && info.primera) descontarSinLeer(tipo, ident);
+    },
+    /* Si ya no es esta la conversación abierta, no hay caja: el reloj se
+       para solo (y deja de marcar visto lo que nadie mira). */
+    caja: function () { return _msj.ident === ident ? document.getElementById('mHilo') : null; },
+    esMio: function (m) { return ChatTuGarantia.ladoDe(m.de) === 'negocio'; },
+    alLlegar: function (nuevos) {
+      if (nuevos.some(function (m) { return ChatTuGarantia.ladoDe(m.de) === 'socio'; })) descontarSinLeer(tipo, ident);
+    },
+    alFallar: function (e, info) {
+      if (info && info.primera) falla(e);
+      /* La clave rechazada detiene también el reloj de las listas: cada
+         vuelta sería un intento fallido más del freno de clave_ok. */
+      if (e && e.clave) { _msj.parado = 'clave'; pintarGlobos(); }
+    },
+    documento: document,
+    reloj: { setInterval: function (f, ms) { return setInterval(f, ms); },
+             clearInterval: function (id) { clearInterval(id); } }
   });
+  return _hiloVivo.cargar();
+}
+/* Una vuelta ahora (después de mandar algo). Promesa: true si preguntó. */
+function latidoHilo() {
+  if (_hiloVivo) return _hiloVivo.latir();
+  return cargarHilo();
+}
+
+/* Lo que pasa al mandar, dicho al lado del texto, que sigue en el cuadro. */
+function avisoHilo(texto) {
+  var e = document.getElementById('mErr');
+  if (!e) { if (texto) alert(texto); return; }
+  e.textContent = texto || ''; e.hidden = !texto;
 }
 
 function responderHilo() {
   var cfg = chatCfg(); if (!cfg || !_msj.ident) return;
   guardarBorrador();
   var r = ChatTuGarantia.revisar(_msj.borrador);
-  if (!r.ok) { alert(r.motivo); return; }
-  ChatTuGarantia.responder(cfg, _msj.ident, r.texto).then(function (id) {
-    if (id === null) { alert('No se pudo mandar. Vuelve a intentar.'); return; }
+  if (!r.ok) { avisoHilo(r.motivo); return; }
+  avisoHilo('');
+  var ident = _msj.ident, tipo = _msj.tipo;
+  /* Al equipo, equipo_chat_responder contesta {ok, motivo}; al cliente,
+     chat_responder devuelve el id del mensaje, o null si no lo guardó. */
+  var envio = tipo === 'equipo'
+    ? ChatTuGarantia.llamar(cfg, 'equipo_chat_responder', { p_clave: cfg.clave, p_celular: ident, p_texto: r.texto })
+        .then(function (j) { return (j && j.ok === true) ? true : { no: (j && j.motivo) || 'La nube contestó que no.' }; })
+    : ChatTuGarantia.responder(cfg, ident, r.texto)
+        .then(function (id) { return id === null ? { no: 'No se pudo mandar.' } : true; });
+  envio.then(function (ok) {
+    /* Si la nube no dijo que sí, el texto SIGUE en el cuadro: no se borra
+       antes de saber que llegó. */
+    if (ok !== true) { avisoHilo(ok.no + ' El texto sigue en el cuadro: vuelve a intentar.'); return; }
     _msj.borrador = '';
+    var t = document.getElementById('mResp'); if (t) t.value = '';
     /* Se vuelve a preguntar en vez de pintarlo a mano: lo que se ve tiene que
        ser lo que quedó guardado, con su id y su hora de la base. */
-    cargarHilo();
+    latidoHilo();
   }).catch(function (e) {
-    alert((e && e.humano) || 'No pude mandarlo. Revisa el internet.');
+    avisoHilo(((e && e.humano) || 'No pude mandarlo. Revisa el internet.') + ' El texto sigue en el cuadro.');
   });
+}
+
+/* La foto grande de un mensaje del equipo: por SU función, con la clave.
+   Mismo visor que las de clientes (mostrarFoto comprueba la fuente y la
+   asigna como propiedad). */
+function verFotoEquipo(id) {
+  var cfg = chatCfg();
+  if (!cfg) { alert('Sin la conexión y la clave no puedo pedirle la foto a la nube.'); return; }
+  ChatTuGarantia.llamar(cfg, 'equipo_foto_panel', { p_clave: cfg.clave, p_id: Number(id) || 0 }).then(function (j) {
+    if (!j || j.ok !== true || !j.imagen) { alert('No pude traer esa foto.'); return; }
+    mostrarFoto(j.imagen);
+  }).catch(function (e) {
+    alert((e && e.humano) || 'No pude traer esa foto. Revisa el internet.');
+  });
+}
+
+/* 26-oct-2026 — «💬 ESCRIBIRLE POR LA APP» DESDE LA FICHA (chat-1), como en
+   el CRM. El hilo es el de la ficha en la nube (P.llaveEnLaNube: la cédula,
+   o el celular si no hay), nunca uno adivinado aquí. Sin la cuenta junta, lo
+   que se escriba lo lee cuando se junte, y se dice. La conversación se abre
+   ENCIMA de la ficha: ← vuelve a ella. */
+function escribirlePorLaApp(id) {
+  var s = socioPorId(id); if (!s) return;
+  if (!window.ChatTuGarantia) { alert('No cargó ../app/chat.js: sin ese archivo no puedo abrir el chat.'); return; }
+  if (!chatCfg()) {
+    alert('El chat vive en la nube y este teléfono todavía no tiene la conexión y la clave de sincronización. '
+      + 'Se le ponen desde el computador (Ajustes → 📲 Compartir con mis clientes).');
+    return;
+  }
+  var llave = P.llaveEnLaNube(s);
+  if (!llave) { alert('Esta ficha no tiene cédula ni celular: no hay hilo donde escribirle.'); return; }
+  abrirCharla('cliente', llave, { quien: s.nombre || 'Socio', celular: waNum(s),
+    nota: (s.cuentaJunta ? '' : 'Esto queda en el hilo de su ficha: lo lee cuando su cuenta de la app esté junta con ella. ')
+      + AVISO_SIN_PUSH });
 }
 
 /* Lo que no se puede callar en ninguna vista. */
@@ -4178,8 +4557,19 @@ function vistaFicha() {
       + '<div class="fila"><span class="k">WhatsApp</span><span class="v mono">' + esc(tel) + '</span></div>'
       + (avisoDeTope(s, true) ? '<div class="mini">' + esc(avisoDeTope(s, true)) + '</div>' : '')
       + (hor.ok
-          ? '<a class="btn sm sec arriba" href="' + esc(waLink(tel, '')) + '" target="_blank" rel="noopener">Abrir el chat</a>'
+          /* 26-oct-2026 — «Abrir WhatsApp», no «Abrir el chat»: desde chat-1 la
+             pestaña se llama Chat y es otra cosa (el de la app). */
+          ? '<a class="btn sm sec arriba" href="' + esc(waLink(tel, '')) + '" target="_blank" rel="noopener">📲 Abrir WhatsApp</a>'
           : '<div class="aviso ambar" style="margin-top:8px">Fuera de horario (Ley 2300): ' + esc(hor.motivo) + '.</div>')
+      + '</div>';
+  }
+
+  /* 26-oct-2026 — «💬 Escribirle por la app» (chat-1), como en el CRM. Solo
+     si chat.js llegó: un botón que no puede hacer nada es peor que ninguno. */
+  if (window.ChatTuGarantia) {
+    h += '<div class="card ap">'
+      + '<button class="btn sm sec" type="button" data-acc="chat-ficha" data-id="' + esc(s.id) + '">💬 Escribirle por la app</button>'
+      + '<div class="mini" style="margin-top:6px">' + esc(AVISO_SIN_PUSH) + '</div>'
       + '</div>';
   }
 
@@ -6055,6 +6445,15 @@ document.addEventListener('click', function (ev) {
   else if (acc === 'conexion') { abrirConexion(); }
   else if (acc === 'cola') { abrirCola(); }
   else if (acc === 'volver') { volver(); }
+  /* 26-oct-2026 — el chat (chat-1): cerrar la conversación, traer las dos
+     listas, ir a una tarjeta y escribirle a un cliente desde su ficha. */
+  else if (acc === 'chat-cerrar') { cerrarHilo(); }
+  else if (acc === 'chat-traer') { traerBandejas(); pintar(); }
+  else if (acc === 'chat-ir') {
+    var tj = document.getElementById(id);
+    if (tj && tj.scrollIntoView) { try { tj.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { tj.scrollIntoView(); } }
+  }
+  else if (acc === 'chat-ficha') { escribirlePorLaApp(id); }
   else if (acc === 'cr-nuevo') { abrirNuevoCredito(id); }
   else if (acc === 'cr-pegar') { pegarParaCredito(); }
   else if (acc === 'cr-monto') { ponerCapital(id); }
