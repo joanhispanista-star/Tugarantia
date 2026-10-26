@@ -71,7 +71,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (raiz) {
   'use strict';
 
-  var VERSION = '2026-10-21';
+  var VERSION = '2026-10-26';
 
   /* EscanerCedula trae revisarExpedicion y mismoDocumento: las MISMAS reglas
      que la página usa al tocar «Continuar». En el navegador es un global (lo
@@ -684,9 +684,10 @@
    * ======================================================================== */
   /**
    * Crea el lector. `T` es window.Tesseract (lo baja la página de RUTAS); `r`,
-   * lo que devuelve rutas(). Devuelve {leer(pgm, {lista, psm}) → texto,
-   * terminar()}. Las tres rutas van SIEMPRE: sin ellas, Tesseract.js baja el
-   * motor y el idioma de un CDN.
+   * lo que devuelve rutas(). Devuelve {leer(pgm, {lista, psm}) → {texto,
+   * confianza}, terminar()} (26-oct-2026: antes solo el texto; leerRecorte
+   * acepta las dos formas). Las tres rutas van SIEMPRE: sin ellas,
+   * Tesseract.js baja el motor y el idioma de un CDN.
    */
   function crearLector(T, r) {
     if (!T || typeof T.createWorker !== 'function') return Promise.reject(new Error('sin_motor'));
@@ -715,8 +716,13 @@
           var listo = p === parametros ? Promise.resolve()
             : w.setParameters({ tessedit_char_whitelist: (o && o.lista) || '', tessedit_pageseg_mode: String((o && o.psm) || 6) })
               .then(function () { parametros = p; });
+          /* 26-oct-2026 — con la confianza del motor (0-100): es lo que
+             desempata entre el frente derecho y el girado (leerRecorte). */
           return listo.then(function () { return w.recognize(pgm); })
-            .then(function (res) { return String((res && res.data && res.data.text) || ''); });
+            .then(function (res) {
+              var d = res && res.data;
+              return { texto: String((d && d.text) || ''), confianza: d && isFinite(d.confidence) ? +d.confidence : null };
+            });
         },
         terminar: function () { try { return Promise.resolve(w.terminate()).catch(function () {}); } catch (e) { return Promise.resolve(); } }
       };
@@ -738,21 +744,46 @@
    * @param lector  el de crearLector (o uno de mentira en las pruebas)
    * @param recorte el de recortarDeGris / recortarDeLienzo
    * @param ctx     {hoy, nacimientoLeido} para validar
-   * @returns Promise<{lado, campos: {…}, ms, lecturas}>
+   * @returns Promise<{lado, campos: {…}, ms, lecturas, giro}>
+   *
+   * 26-oct-2026 — `giro`: EN QUÉ POSICIÓN SALIERON LAS LETRAS. Con el marco
+   * de pie (EscanerCedula.rectanguloGuia) el frente se guarda cabeza abajo la
+   * mitad de las veces —la cédula se pone de pie con la cabeza a la izquierda
+   * o a la derecha— y, a diferencia del respaldo, no trae un código de barras
+   * que lo diga: lo dicen sus letras. El frente se lee SIEMPRE en las dos
+   * posiciones (`zonas` y `alterna`; antes la girada solo si la derecha no
+   * daba nada) y gana la que trae más evidencia, en este orden:
+   *   1. el número del código de barras, si se leyó (ctx.documentoLeido): la
+   *      posición cuyo número impreso es ese;
+   *   2. más campos válidos (número, apellidos, nombres);
+   *   3. más confianza del motor (la de Tesseract, 0-100; el lector la da con
+   *      el texto, y un lector que solo da texto no entra aquí);
+   *   4. empate: derecha (0).
+   * Medido el 26-oct con la cédula fabricada: cabeza abajo, el motor leyó del
+   * texto al revés un «número» de seis dígitos con consenso de dos lecturas
+   * («923434»), así que «el número decide» no bastaba: contra la posición
+   * derecha, que da los tres campos, pierde por 1 a 3. 0 | 180 | null (no
+   * leyó nada en ninguna: no se sabe, y la foto no se toca). El respaldo no
+   * trae `alterna` (su derecho lo dijo el código antes de recortar): siempre
+   * 0. La página gira la foto guardada con esto, antes de que suba.
    */
   function leerRecorte(lector, recorte, ctx) {
     var t0 = Date.now();
-    if (!lector || !recorte || !recorte.zonas) return Promise.resolve({ lado: recorte && recorte.lado, campos: {}, ms: 0, lecturas: 0 });
+    if (!lector || !recorte || !recorte.zonas) return Promise.resolve({ lado: recorte && recorte.lado, campos: {}, ms: 0, lecturas: 0, giro: null });
     var lecturas = 0;
     var leerZonas = function (zonas) {
-      var votos = {};
+      var votos = {}, confianzas = [];
       var cadena = Promise.resolve();
       zonas.forEach(function (z) {
         var mirar = function (variante) {
           var p = preparar(z, recorte.ancho, variante);
           lecturas++;
           return lector.leer(aPGM(p.gris, p.w, p.h), { lista: z.lista, psm: z.psm }).then(function (t) {
-            var c = camposDeTexto(z, t);
+            /* 26-oct-2026 — el lector puede dar {texto, confianza} (crearLector)
+               o solo el texto (los de las pruebas): las dos formas valen. */
+            var texto = typeof t === 'string' ? t : String((t && t.texto) || '');
+            if (t && typeof t === 'object' && isFinite(t.confianza)) confianzas.push(+t.confianza);
+            var c = camposDeTexto(z, texto);
             z.campos.forEach(function (k) { (votos[k] = votos[k] || []).push(c[k] || ''); });
           }, function () {});
         };
@@ -765,17 +796,44 @@
       return cadena.then(function () {
         var c = {};
         CAMPOS[recorte.lado].forEach(function (k) { c[k] = consenso(votos[k]); });
-        return c;
+        var conf = null;
+        if (confianzas.length) { conf = 0; confianzas.forEach(function (x) { conf += x; }); conf /= confianzas.length; }
+        return { campos: c, confianza: conf };
       });
     };
-    return leerZonas(recorte.zonas).then(function (c) {
-      if (!vacio(c) || !recorte.alterna || !recorte.alterna.length) return c;
-      return leerZonas(recorte.alterna);
-    }).then(function (c) {
-      var v = validar(c, ctx);
-      var solo = {};
+    /* Solo lo validado de un lado, sin vacíos. */
+    var validos = function (c) {
+      var v = validar(c, ctx), solo = {};
       CAMPOS[recorte.lado].forEach(function (k) { if (v[k]) solo[k] = v[k]; });
-      return { lado: recorte.lado, campos: solo, ms: Date.now() - t0, lecturas: lecturas };
+      return solo;
+    };
+    var cuantos = function (v) { return Object.keys(v).length; };
+    var salida = function (campos, giro) {
+      return { lado: recorte.lado, campos: campos, ms: Date.now() - t0, lecturas: lecturas, giro: giro };
+    };
+    /* Las dos posiciones del frente, frente a frente (ver arriba). */
+    var decidirGiro = function (v0, c0, v1, c1) {
+      var E = ec(), doc = String((ctx && ctx.documentoLeido) || '');
+      var mismo = function (d) {
+        if (!doc || !d) return false;
+        if (E && E.mismoDocumento) return E.mismoDocumento(d, doc);
+        return String(d).replace(/\D/g, '').replace(/^0+/, '') === doc.replace(/\D/g, '').replace(/^0+/, '');
+      };
+      if (doc) { var m0 = mismo(v0.documento), m1 = mismo(v1.documento); if (m0 !== m1) return m0 ? 0 : 180; }
+      var n0 = cuantos(v0), n1 = cuantos(v1);
+      if (n0 !== n1) return n0 > n1 ? 0 : 180;
+      if (!n0) return null;
+      if (c0 !== null && c1 !== null && c0 !== c1) return c0 > c1 ? 0 : 180;
+      return 0;
+    };
+    return leerZonas(recorte.zonas).then(function (r0) {
+      var v0 = validos(r0.campos);
+      if (!recorte.alterna || !recorte.alterna.length) return salida(v0, 0);
+      return leerZonas(recorte.alterna).then(function (r1) {
+        var v1 = validos(r1.campos);
+        var giro = decidirGiro(v0, r0.confianza, v1, r1.confianza);
+        return salida(giro === 180 ? v1 : v0, giro);
+      });
     });
   }
 

@@ -50,7 +50,10 @@ const { asentar } = require('./esperar.js');
 /* 21-oct-2026 (verificación del lote 1) — la cámara, el lienzo en grises y la
    página con su reloj viven en pruebas/banco-camara.js: la prueba de la
    cédula digital (la-digital-no-se-lee.test.js) usa la MISMA cámara. */
-const { FOTOS_HECHAS, huella, crearLienzo, GUIA, TARJETA, VIDEO, escalar, abrirConCamara } = require('./banco-camara.js');
+/* 26-oct-2026 — el marco va DE PIE y la página copia del video girando: las
+   escenas se arman acostadas, como siempre, en el video ACOSTADO, y dePie las
+   pone en el de verdad (ver EL VIDEO DE PIE, LOS PÍXELES ACOSTADOS). */
+const { FOTOS_HECHAS, huella, crearLienzo, GUIA, TARJETA, VIDEO, ACOSTADO, escalar, abrirConCamara, dePie, acostada } = require('./banco-camara.js');
 
 /* ==========================================================================
  * LA CÉDULA FABRICADA, PUESTA EN EL MARCO
@@ -77,19 +80,24 @@ function girar180(img) {
    tienen grano en todas las direcciones; se les pone (puntos de 4 px, ±80),
    FUERA de las franjas de las letras (ZONAS), así que lo que se lee es la
    misma tarjeta. Que una tarjeta lisa no pase el piso es de la calibración
-   del escáner con cédulas reales (22-oct), no de esta prueba. */
+   del escáner con cédulas reales (22-oct), no de esta prueba.
+   26-oct-2026 — GRANO DE 1 PX, no bloques de 4. Con el marco de pie el gris
+   de 480 px muestrea el recorte a 4,9 px de video por píxel (antes 4,2), y
+   los bloques de 4 px hacían un moiré: en el parche de la huella del
+   respaldo salía la fila «de barras» más fuerte del gris (6 filas, que
+   franjaDelCodigo descarta por corta y no sigue buscando), y la franja del
+   PDF417 gastado dejaba de verse; medido: con bloques de 2 a 8 px pasa, con
+   grano por píxel (±80, calidad 44 sobre el piso de 35) el código gana en
+   las dos geometrías. Un grano de bloques no es grano de foto. */
 function conTextura(img, lado) {
   const z = lado === 'frente' ? [0.035, 0.205, 0.275, 0.795] : [0.725, 0.07, 0.945, 0.54];
   let s = lado === 'frente' ? 7 : 9;
   const azar = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
   const x0 = Math.round(TARJETA.x + z[0] * TARJETA.w), x1 = Math.round(TARJETA.x + z[2] * TARJETA.w);
   const y0 = Math.round(TARJETA.y + z[1] * TARJETA.h), y1 = Math.round(TARJETA.y + z[3] * TARJETA.h);
-  for (let y = y0; y < y1; y += 4) for (let x = x0; x < x1; x += 4) {
-    const v = (azar() - 0.5) * 160;
-    for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) {
-      const i = (y + a) * img.w + x + b;
-      img.gris[i] = Math.max(0, Math.min(255, img.gris[i] + v));
-    }
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const i = y * img.w + x;
+    img.gris[i] = Math.max(0, Math.min(255, img.gris[i] + (azar() - 0.5) * 160));
   }
   return img;
 }
@@ -104,9 +112,18 @@ function conTextura(img, lado) {
  *   módulos (6 px), el caso 7e de la verificación del autollenado: con la
  *   cámara enfocada el lector no lo lee, y sus mosaicos hunden la mediana
  *   de nitidez bajo el piso («Aléjala…» para siempre con ab6b595).
+ *   26-oct-2026 — con el marco DE PIE (guia.vertical) la escena se arma en el
+ *   video acostado con el marco acostado y se pone de pie al final: la
+ *   cédula queda de pie con la cabeza a la derecha (la que sale derecha), y
+ *   con `giro` 180, con la cabeza a la izquierda.
  */
+/* El ancho del marco acostado del 21-oct en este banco (el 84 % del ancho del
+   video 4K): la escala a la que se calibraron los códigos de estas escenas. */
+const ANCHO_ACOSTADA_21_OCT = 1814;
 function cuadroDeVideo(guia, lado, o) {
   const x = o || {};
+  const dePieEnElVideo = guia.vertical === true, V = dePieEnElVideo ? ACOSTADO : VIDEO;
+  guia = acostada(guia);
   const k = guia.w / GUIA.w;
   let img = escalar(x.liso ? CARTA(lado) : conTextura(CARTA(lado), lado), k);
   if (x.desvaido) for (let i = 0; i < img.gris.length; i++) img.gris[i] = 200 + (img.gris[i] - 200) * x.desvaido;
@@ -116,13 +133,30 @@ function cuadroDeVideo(guia, lado, o) {
        de la tarjeta, ya a la escala del video (3 px por módulo: lo que da 4K
        con la cédula acostada). Borroso (σ 3
        px) el lector lo ve —su patrón— pero no lo lee: la cédula gastada, o el
-       enfoque que no engancha. */
+       enfoque que no engancha.
+       26-oct-2026 — el código ESCALA con la tarjeta: 3 px por módulo era lo
+       que daba 4K con la cédula acostada al 84 % del ancho (1814 px en este
+       banco); de pie al 55 % del largo son 2110 px, 3,5 por módulo. Un código
+       de píxeles fijos en una tarjeta más grande sería una cédula con el
+       código encogido, que no existe. El GASTADO escala tal cual (4,65 px por
+       módulo, σ 7: lo que se mira es su franja). El LEGIBLE va a módulos
+       ENTEROS, los 3 px del 21-oct (medido: a 3,4895 px por módulo, girado
+       180°, el detector de ZXing devolvía «no_hay» en el cuadro nítido, y a
+       3,489 leía: la fábrica a escala fraccionaria deja bordes a medias que
+       el detector no reconoce en una de las dos orientaciones; eso es de la
+       fábrica, no de la cámara). A 3 px la prueba es conservadora: lo que
+       lee a 3 lee a 3,5. El BORROSO (σ de un módulo: se ve, no se lee) escala
+       tal cual, como el gastado: con el código de 3 px en la tarjeta de hoy,
+       más grande, la puerta de 96 px lo veía «borrosa» (el código es lo que
+       más bordes le pone a esta tarjeta fabricada), y a 3,5 con σ 3,5 pasa. */
     const t = { x: Math.round(TARJETA.x * k), y: Math.round(TARJETA.y * k), w: Math.round(TARJETA.w * k), h: Math.round(TARJETA.h * k) };
     const y0 = t.y + Math.round(t.h * 0.66), y1 = t.y + Math.round(t.h * 0.985);
     for (let yy = y0; yy < y1; yy++) for (let xx = t.x + Math.round(t.w * 0.02); xx < t.x + Math.round(t.w * 0.98); xx++) img.gris[yy * img.w + xx] = 222;
     const cod = F.fabricar(F.registroCedula(PERSONA), 20, 4);
-    const r = x.codigo === 'gastado' ? F.render(cod, 4, 6, 4, { quieta: 4 })
-      : F.render(cod, 3, x.codigo === 'borroso' ? 3 : 0, 4, { quieta: 4 });
+    const e = guia.w / ANCHO_ACOSTADA_21_OCT, pxm = Math.max(3, Math.floor(3 * e));
+    const r = x.codigo === 'gastado' ? F.render(cod, 4 * e, 6 * e, 4, { quieta: 4 })
+      : x.codigo === 'borroso' ? F.render(cod, 3 * e, 3 * e, 4, { quieta: 4 })
+      : F.render(cod, pxm, 0, 4, { quieta: 4 });
     const bx = t.x + Math.round((t.w - r.W) / 2), by = t.y + Math.round(t.h * 0.975) - r.H;
     for (let yy = 0; yy < r.H; yy++) for (let xx = 0; xx < r.W; xx++) img.gris[(by + yy) * img.w + bx + xx] = r.lum[yy * r.W + xx];
   }
@@ -130,16 +164,16 @@ function cuadroDeVideo(guia, lado, o) {
      espejado), para ponerlo sobre el del escáner. */
   let gx = Math.round(GUIA.x * k), gy = Math.round(GUIA.y * k);
   if (x.giro === 180) { img = girar180(img); gx = img.w - gx - guia.w; gy = img.h - gy - guia.h; }
-  const px = new Uint8ClampedArray(VIDEO.W * VIDEO.H).fill(VIDEO.MESA);
+  const px = new Uint8ClampedArray(V.W * V.H).fill(VIDEO.MESA);
   const ox = guia.x - gx, oy = guia.y - gy;
   for (let yy = 0; yy < img.h; yy++) {
-    const Y = oy + yy; if (Y < 0 || Y >= VIDEO.H) continue;
+    const Y = oy + yy; if (Y < 0 || Y >= V.H) continue;
     for (let xx = 0; xx < img.w; xx++) {
-      const X = ox + xx; if (X < 0 || X >= VIDEO.W) continue;
-      px[Y * VIDEO.W + X] = img.gris[yy * img.w + xx];
+      const X = ox + xx; if (X < 0 || X >= V.W) continue;
+      px[Y * V.W + X] = img.gris[yy * img.w + xx];
     }
   }
-  return px;
+  return dePieEnElVideo ? dePie(px, V.W, V.H) : px;
 }
 
 /* EL ENFOQUE QUE BUSCA. La cámara de un teléfono no da diez cuadros iguales:
@@ -164,9 +198,18 @@ function desenfocado(px, guia, radio) {
 }
 const CUADRO_NITIDO = 3;
 /* La huella del recorte que recortarGuia saca de un cuadro: el marco con su
-   aire (EC.margenDeLectura), a 1:1. Dice de qué cuadro salió una foto. */
+   aire (EC.margenDeLectura), a 1:1. Dice de qué cuadro salió una foto.
+   26-oct-2026 — con el marco de pie el recorte sale ACOSTADO (play/,
+   dibujarAcostado: 90° en contra del reloj, el lado derecho arriba): la
+   misma región del video, girada igual. */
 function huellaDelRecorte(px, guia) {
-  const m = EC.margenDeLectura(guia, VIDEO.W, VIDEO.H, 0.06), o = new Uint8ClampedArray(m.w * m.h);
+  const m = EC.margenDeLectura(guia, VIDEO.W, VIDEO.H, 0.06);
+  if (guia.vertical === true) {
+    const W = m.h, H = m.w, o = new Uint8ClampedArray(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) o[y * W + x] = px[(m.y + x) * VIDEO.W + (m.x + m.w - 1 - y)];
+    return huella(o);
+  }
+  const o = new Uint8ClampedArray(m.w * m.h);
   for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) o[y * m.w + x] = px[(m.y + y) * VIDEO.W + m.x + x];
   return huella(o);
 }
@@ -199,7 +242,9 @@ function pintarCasillas(P) {
 
 /**
  * La persona escanea las dos caras. Devuelve lo que pasó en el camino.
- * @param o {codigo: 'legible' | 'borroso', giro: 0 | 180}
+ * @param o {codigo: 'legible' | 'borroso', giro: 0 | 180 (el respaldo),
+ *           giroFrente: 0 | 180 (26-oct-2026: el frente con la cabeza a la
+ *           izquierda, que sale cabeza abajo y lo enderezan las letras)}
  */
 async function escanearLasDosCaras(E, o) {
   const { P, video, correr } = E;
@@ -208,12 +253,19 @@ async function escanearLasDosCaras(E, o) {
   assert.equal(P.ev('!!ESCDOC.stream'), true, 'la cámara no encendió');
   assert.equal(P.ev('ESCDOC.lado'), 'reverso');
   /* Primer cuadro: la mesa. El escáner calcula su marco; la persona pone la
-     cédula acostada dentro. */
+     cédula DE PIE dentro (26-oct-2026; antes acostada). */
   await correr(150);
   const guia = JSON.parse(P.ev('JSON.stringify(ESCDOC.guiaVideo)'));
-  assert.ok(guia && guia.w > guia.h, 'el marco del respaldo no está acostado: ' + JSON.stringify(guia));
+  assert.ok(guia && guia.vertical === true && guia.h > guia.w, 'el marco del respaldo no está de pie: ' + JSON.stringify(guia));
+  /* El 55 % del lado largo del video: ~11,7 cm, donde la cámara enfoca (la
+     cuenta en EC.rectanguloGuia). Ni el 84 % del 8-oct (7,7 cm) ni menos. */
+  assert.ok(guia.h / VIDEO.H > 0.5 && guia.h / VIDEO.H < 0.6, 'el marco de pie no llena ~55 % del largo del video: ' + (guia.h / VIDEO.H));
   const verLado = async (lado, op) => {
-    const nitido = cuadroDeVideo(guia, lado, op), borroso = desenfocado(nitido, guia);
+    /* 26-oct-2026 — la caja del desenfoque, de 7 px (R 3) y no de 5: con el
+       código a 3,5 px por módulo (lo que gana la cédula de pie) el lector
+       leía a través de la caja de 5 y disparaba con un cuadro borroso, y la
+       prueba dejaba de probar que la foto es la del MEJOR cuadro. */
+    const nitido = cuadroDeVideo(guia, lado, op), borroso = desenfocado(nitido, guia, 3);
     let mirados = 0;
     for (let i = 0; i < 80 && !P.ev('FOTOS.cedula_' + lado); i++) {
       /* Solo cuentan los cuadros que el escáner mira de ESTE lado (entre un
@@ -233,10 +285,12 @@ async function escanearLasDosCaras(E, o) {
     foto: P.ev('FOTOS.cedula_reverso'),
     pendiente: P.ev('!!OCR_CEDULA.pendientes.reverso')
   };
-  /* La voltea: el frente, acostado en el mismo marco. */
-  const vf = await verLado('frente', {});
+  /* La voltea: el frente, de pie en el mismo marco. */
+  const vf = await verLado('frente', { giro: o.giroFrente || 0 });
   assert.ok(P.ev('FOTOS.cedula_frente'), 'el escáner no disparó el frente: ' + P.ev("$('docEstado').textContent"));
-  const frente = { cuadros: vf, foto: P.ev('FOTOS.cedula_frente') };
+  /* 26-oct-2026 — recién tomado de pie, el frente queda «en duda» hasta que
+     sus letras digan si salió derecho (EL FRENTE SE ENDEREZA POR SUS LETRAS). */
+  const frente = { cuadros: vf, foto: P.ev('FOTOS.cedula_frente'), fotoAntes: P.ev('FOTOS.cedula_frente'), marcaAntes: P.ev('giroDelFrente()') };
   /* «Listo: las dos caras.» y, solo, a «Revisa tus datos». */
   await correr(1600);
   assert.equal(paso(P), 'identidad', 'con las dos caras no pasó solo a «Revisa tus datos»');
@@ -245,6 +299,10 @@ async function escanearLasDosCaras(E, o) {
   /* Las letras se leen con la cámara apagada, con el motor de verdad. */
   for (let i = 0; i < 800 && P.ev('OCR_CEDULA.estado') === 'leyendo'; i++) await new Promise(r => setTimeout(r, 50));
   assert.equal(P.ev('OCR_CEDULA.estado'), 'listo', 'la lectura de las letras no terminó');
+  /* Y lo que las letras hicieron con la foto del frente (girarla es volver a
+     cargarla: un paso más del reloj de Node). */
+  await asentar(4);
+  frente.foto = P.ev('FOTOS.cedula_frente'); frente.marca = P.ev('giroDelFrente()');
   return { respaldo, frente, casillas };
 }
 
@@ -269,7 +327,7 @@ function mismoRecorte(E, lado, cara, giro) {
   return r;
 }
 
-describe('de la cámara a «Están bien», sin teclear nada (la cédula acostada, el escáner y las letras de verdad)', () => {
+describe('de la cámara a «Están bien», sin teclear nada (la cédula DE PIE en el marco, el escáner y las letras de verdad)', () => {
 
   test('con el código de barras LEGIBLE: el código pone los datos, las letras la expedición, y «Están bien» pasa', async (t) => {
     const b = abrirTesseract();
@@ -283,6 +341,12 @@ describe('de la cámara a «Están bien», sin teclear nada (la cédula acostada
       assert.match(r.respaldo.listo, /¡Leída, MARIA!/);
       mismoRecorte(E, 'reverso', r.respaldo, 0);
       mismoRecorte(E, 'frente', r.frente, 0);
+      /* 26-oct-2026 — el frente de pie con la cabeza a la derecha salió
+         derecho: las letras lo confirman (la marca pasa de «incierto» a
+         «letras») y la foto no se toca. */
+      assert.equal(r.frente.marcaAntes, 'incierto', 'el frente tomado de pie no quedó en duda hasta que las letras hablaran');
+      assert.equal(r.frente.marca, 'letras', 'las letras no confirmaron el giro del frente');
+      assert.equal(r.frente.foto, r.frente.fotoAntes, 'la foto del frente derecho se tocó');
       /* El código manda: número, nombres, apellidos. Las letras: la expedición. */
       assert.equal(P.ev('REGISTRO.documento'), '52123456');
       assert.equal(P.ev('REGISTRO.nombres'), 'MARIA ALEJANDRA');
@@ -339,16 +403,61 @@ describe('de la cámara a «Están bien», sin teclear nada (la cédula acostada
       const E = abrir(b);
       const r = await escanearLasDosCaras(E, { codigo: 'legible', giro: 180 });
       const { P } = E;
-      assert.equal(r.respaldo.leida, true, 'el respaldo cabeza abajo no se leyó');
+      const hechaR = FOTOS_HECHAS.get(r.respaldo.foto);
+      assert.equal(r.respaldo.leida, true, 'el respaldo cabeza abajo no se leyó: ' + r.respaldo.listo + ' · la foto es del cuadro ' +
+        (hechaR && hechaR.origen === r.respaldo.cuadros.nitido ? 'NÍTIDO' : hechaR && hechaR.origen === r.respaldo.cuadros.borroso ? 'BORROSO' : 'desconocido') +
+        ' · ' + P.ev('JSON.stringify({ tipo: tipoDelRespaldo(), resolucion: ESCDOC.resolucion })'));
       mismoRecorte(E, 'reverso', r.respaldo, 180);
-      /* La foto guardada, derecha: el código de barras abajo (más oscuro). */
+      /* La foto guardada, derecha: el código de barras ABAJO. 26-oct-2026 —
+         se mide por las barras (cuánto cambia el gris a lo ancho), no por la
+         media de gris: con la cédula de pie el código ocupa menos de la
+         tarjeta y la media ya no lo distinguía. */
       const f = FOTOS_HECHAS.get(r.respaldo.foto);
-      const media = (y0, y1) => { let s = 0, n = 0; for (let y = Math.floor(f.H * y0); y < f.H * y1; y++) for (let x = 0; x < f.W; x++) { s += f.px[y * f.W + x]; n++; } return s / n; };
-      assert.ok(media(0.72, 0.92) < media(0.08, 0.28) - 20, 'la foto del respaldo se guardó cabeza abajo');
+      const barras = (y0, y1) => { let s = 0, n = 0; for (let y = Math.floor(f.H * y0); y < f.H * y1; y++) for (let x = Math.floor(f.W * 0.1); x < f.W * 0.9 - 1; x++) { s += Math.abs(f.px[y * f.W + x + 1] - f.px[y * f.W + x]); n++; } return s / n; };
+      assert.ok(barras(0.7, 0.95) > 2 * barras(0.05, 0.3), 'la foto del respaldo se guardó cabeza abajo (barras abajo ' + barras(0.7, 0.95).toFixed(1) + ', arriba ' + barras(0.05, 0.3).toFixed(1) + ')');
       assert.equal(P.ev('REGISTRO.expedicion'), '2003-04-20', 'con el giro, las letras no encontraron la expedición');
       assert.equal(P.ev("$('btnSeguir').textContent"), 'Están bien');
       P.ev('siguientePaso()');
       assert.notEqual(paso(P), 'identidad');
+    } finally { await b.cerrar(); }
+  });
+
+  /* 26-oct-2026 — EL FRENTE DE PIE CON LA CABEZA A LA IZQUIERDA. Con el marco
+     de pie la mitad de la gente lo pone así, y el recorte acostado sale cabeza
+     abajo. El frente no tiene código que lo diga: lo dicen sus letras
+     (OcrCedula.leerRecorte, `giro`), y la foto guardada se gira ANTES de que
+     suba (play/, EL FRENTE SE ENDEREZA POR SUS LETRAS). */
+  test('con el FRENTE CABEZA ABAJO: las letras lo leen girado, llenan igual, y la foto guardada se endereza antes de subir', async () => {
+    const b = abrirTesseract();
+    try {
+      const E = abrir(b);
+      const r = await escanearLasDosCaras(E, { codigo: 'borroso', giroFrente: 180 });
+      const { P } = E;
+      assert.equal(r.respaldo.leida, false, 'el código borroso se leyó: la prueba no prueba que el número venga de las letras');
+      /* Las letras del frente cabeza abajo llenan lo mismo que derechas. */
+      assert.equal(P.ev('REGISTRO.documento'), '52123456', 'el número no salió del frente cabeza abajo');
+      assert.equal(P.ev('REGISTRO.apellidos'), 'PEREZ GOMEZ');
+      assert.equal(P.ev('REGISTRO.nombres'), 'MARIA ALEJANDRA');
+      assert.equal(P.ev('REGISTRO.expedicion'), '2003-04-20');
+      /* La foto: la de antes, girada 180° exacta (fotoDeLienzo sobre la de
+         900 px), y la marca dice que las letras ya hablaron. */
+      assert.equal(r.frente.marcaAntes, 'incierto');
+      assert.equal(r.frente.marca, 'letras', 'la marca del frente no quedó en «letras»');
+      assert.notEqual(r.frente.foto, r.frente.fotoAntes, 'la foto del frente cabeza abajo no se giró');
+      const antes = FOTOS_HECHAS.get(r.frente.fotoAntes), despues = FOTOS_HECHAS.get(r.frente.foto);
+      assert.ok(antes && despues, 'las fotos del frente no salieron de un lienzo');
+      assert.deepEqual([despues.W, despues.H], [antes.W, antes.H], 'girar 180° cambió las medidas');
+      let difs = 0;
+      for (let i = 0, n = antes.px.length; i < n; i++) if (despues.px[i] !== antes.px[n - 1 - i]) difs++;
+      assert.equal(difs, 0, 'la foto enderezada no es la de antes girada 180°');
+      /* Derecha de verdad: la foto de la persona (la mancha oscura con grano)
+         queda a la IZQUIERDA, como en la cédula amarilla. */
+      const media = (x0, x1) => { let s = 0, n = 0; for (let y = Math.floor(despues.H * 0.25); y < despues.H * 0.75; y++) for (let x = Math.floor(despues.W * x0); x < despues.W * x1; x++) { s += despues.px[y * despues.W + x]; n++; } return s / n; };
+      assert.ok(media(0.06, 0.26) < media(0.74, 0.94) - 10, 'la foto de la persona no quedó a la izquierda: sigue cabeza abajo');
+      /* Lo que sube lleva la marca con la foto (giroDelFrente la ata por su
+         firma): «letras», no «incierto». Lo que la huella hace con eso lo
+         prueba pruebas/el-marco-de-pie.test.js. */
+      assert.equal(P.ev("giroDelFrente(FOTOS)"), 'letras');
     } finally { await b.cerrar(); }
   });
 });

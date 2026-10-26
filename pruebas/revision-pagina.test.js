@@ -406,3 +406,80 @@ describe('los silencios que no son el mismo', () => {
     assert.match(textoPlano(e.avisos()), /No encontré tu cartera en este navegador/);
   });
 });
+
+/* 26-oct-2026 — EL FRENTE CABEZA ABAJO. Desde hoy la app escanea la cédula de
+   pie y el frente sube girado 180° cuando sus letras no lo enderezaron (toda
+   cédula digital, por ejemplo). El detector no ve una cara al revés: el botón
+   del CRM ya lo comparaba girado (pruebas/revision-fotos.test.js), pero
+   «Revisar a todos» lo llamaba una sola vez, la regla del rostro no corría y
+   la nota echaba la culpa a una foto «chica o con reflejo». Aquí, el frente de
+   Ana viene cabeza abajo: el detector de mentira no ve cara en la foto (un
+   <img> con su src) y sí en el lienzo girado. */
+describe('el frente cabeza abajo: se compara girado 180°, como en la ficha del CRM', () => {
+  /* La página dibuja el frente girado en un lienzo: el banco no trae lienzos. */
+  const LIENZO = "document.createElement = function () { return { width: 0, height: 0, getContext: function () {"
+    + " return { translate: function () {}, rotate: function () {}, drawImage: function () {} }; } }; };";
+  async function conFrenteAlReves(girada, extra) {
+    const x = extra || {};
+    const n = nube(x.nube);
+    const F = fotosDeMentira({ bitacora: n.bitacora, medidas: MEDIDAS_BETO });
+    const vistas = [];
+    /* Con medidas, como un <img> de verdad: sin ellas no hay lienzo que dibujar. */
+    F.api.imagenDe = src => { F.reg.abiertas.push(src); return Promise.resolve({ src, naturalWidth: 900, naturalHeight: 568 }); };
+    F.api.compararRostros = (s, c) => {
+      const lienzo = !!(c && typeof c.getContext === 'function');
+      vistas.push(lienzo ? 'lienzo' : String(c && c.src) === foto('ana-frente') ? 'ana-frente' : 'otra');
+      if (x.selfieSinCara && String(s && s.src) === foto('ana-selfie')) return Promise.resolve({ sin_rostro: lienzo ? 'selfie' : 'ambas' });
+      if (lienzo) return girada === 'falla' ? Promise.reject(new Error('sin memoria'))
+        : Promise.resolve(girada ? { distancia: 0.41, parecido: 66, umbral: 0.6, debajo: true } : { sin_rostro: 'cedula' });
+      if (String(c && c.src) === foto('ana-frente')) return Promise.resolve({ sin_rostro: 'cedula' });
+      return Promise.resolve({ distancia: 0.71, parecido: 41, umbral: 0.6, debajo: false });
+    };
+    const e = abrirRevision({ cartera: CARTERA, red: n.red, fotos: F.api });
+    if (!x.sinLienzo) e.ev(LIENZO);
+    e.entrar(PIN);
+    await hasta(() => /Listo:/.test(e.progreso()), 400);
+    await asentar();
+    return { e, vistas, ana: textoPlano(tarjetaDe(e.resultado(), 'Ana Fotos Claras')) };
+  }
+
+  test('girado sí hay cara: la regla del rostro corre, y se dice que el frente subió cabeza abajo', async () => {
+    const { e, vistas, ana } = await conFrenteAlReves(true);
+    assert.deepEqual(vistas.filter(v => v !== 'otra'), ['ana-frente', 'lienzo'], 'no volvió a comparar con el frente girado');
+    assert.match(ana, /El programa de rostros no encontró una diferencia grande \(distancia 0,41\)/);
+    assert.match(ana, /La foto del frente subió cabeza abajo: el rostro se comparó con ella girada 180°\. En la ficha del CRM, «↻ Girar» la deja derecha\./);
+    assert.ok(!/Pasa con fotos de cédula chicas o con reflejo/.test(ana), 'la nota culpó a una foto chica o con reflejo');
+    /* Beto (frente derecho) no se tocó: una sola comparación, sin nota de giro. */
+    const beto = textoPlano(tarjetaDe(e.resultado(), 'Beto'));
+    assert.match(beto, /se parecen poco/);
+    assert.ok(!/cabeza abajo/.test(beto));
+    /* Lo del rostro, tampoco esto, se guarda en la pestaña. */
+    const g = e.sesion.tg_revision_registros_v1 || '';
+    assert.ok(!/cabeza abajo|girada|distancia|rostro/.test(g), 'se guardó en la pestaña algo sacado de la cara: ' + g.slice(0, 200));
+  });
+
+  test('girado tampoco: queda «no encontró el rostro», sin nota de giro ni distancia inventada', async () => {
+    const { vistas, ana } = await conFrenteAlReves(false);
+    assert.deepEqual(vistas.filter(v => v !== 'otra'), ['ana-frente', 'lienzo']);
+    assert.match(ana, /El programa no encontró el rostro en la foto del frente/);
+    assert.ok(!/cabeza abajo|distancia/.test(ana));
+  });
+
+  test('si la vuelta girada falla, queda lo primero y no se rompe la revisión', async () => {
+    const { e, ana } = await conFrenteAlReves('falla');
+    assert.match(ana, /El programa no encontró el rostro en la foto del frente/);
+    assert.ok(!/La comparación de rostros falló/.test(ana), 'el fallo de la segunda vuelta se contó como fallo de la comparación');
+    assert.match(e.progreso(), /Listo: 3 registros revisados/);
+  });
+
+  test('sin lienzo en el navegador no hay segunda vuelta, y lo de antes sigue igual', async () => {
+    const { vistas, ana } = await conFrenteAlReves(true, { sinLienzo: true });
+    assert.deepEqual(vistas.filter(v => v !== 'otra'), ['ana-frente']);
+    assert.match(ana, /El programa no encontró el rostro en la foto del frente/);
+  });
+
+  test('sin cara en la selfie tampoco no se gira nada (como el botón del CRM)', async () => {
+    const { vistas } = await conFrenteAlReves(true, { selfieSinCara: true });
+    assert.deepEqual(vistas.filter(v => v !== 'otra'), ['ana-frente']);
+  });
+});

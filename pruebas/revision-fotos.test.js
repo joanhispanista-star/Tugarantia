@@ -295,6 +295,45 @@ describe('una sola copia: los botones del CRM llaman a la pieza', () => {
     assert.match(P.elems.caja.innerHTML, /No encontré un rostro en la foto del rostro\. Míralas tú\./);
   });
 
+  /* 26-oct-2026 — la cédula se escanea DE PIE y el frente puede subir cabeza
+     abajo (play/, EL FRENTE SE ENDEREZA POR SUS LETRAS): si en el frente no
+     hay cara, se compara otra vez con la foto girada 180°, y se dice. */
+  describe('sin cara en la cédula: se prueba girada 180°', () => {
+    /* Un lienzo que se deja girar, y una foto de cédula con medidas. */
+    const conLienzo = P => {
+      P.ev("document.createElement = function () { return { width: 0, height: 0, getContext: function () { return { translate: function () {}, rotate: function () {}, drawImage: function () {} }; } }; };");
+      P.ev("var b = document.getElementById('b'); b.naturalWidth = 300; b.naturalHeight = 190;");
+    };
+    test('girada sí hay cara: la distancia, y el aviso de que estaba cabeza abajo', async () => {
+      const vistas = [];
+      const P = crmCon({ compararRostros: (s, c) => { vistas.push(c && typeof c.getContext === 'function' ? 'lienzo' : 'img');
+        return Promise.resolve(vistas.length === 1 ? { sin_rostro: 'cedula' } : { distancia: 0.42, parecido: 65, umbral: 0.6, debajo: true }); } });
+      conLienzo(P);
+      P.ev("compararRostro('a','b','caja')");
+      await asentar();
+      assert.deepEqual(vistas, ['img', 'lienzo'], 'no volvió a comparar con la foto girada');
+      const h = P.elems.caja.innerHTML;
+      assert.match(h, /El programa no encontró una diferencia grande \(distancia 0,42\)/);
+      assert.match(h, /La foto de la cédula está cabeza abajo: la comparé girada 180°\. Con «↻ Girar» la dejas derecha\./);
+    });
+    test('girada tampoco: lo dice, sin inventar una cara', async () => {
+      const P = crmCon({ compararRostros: () => Promise.resolve({ sin_rostro: 'cedula' }) });
+      conLienzo(P);
+      P.ev("compararRostro('a','b','caja')");
+      await asentar();
+      assert.match(P.elems.caja.innerHTML, /No encontré un rostro en la foto de la cédula \(tampoco girada 180°\)\. Míralas tú\./);
+    });
+    test('sin cara en ninguna de las dos no se gira nada (la selfie tampoco tiene cara)', async () => {
+      let veces = 0;
+      const P = crmCon({ compararRostros: () => { veces++; return Promise.resolve({ sin_rostro: 'ambas' }); } });
+      conLienzo(P);
+      P.ev("compararRostro('a','b','caja')");
+      await asentar();
+      assert.equal(veces, 1);
+      assert.match(P.elems.caja.innerHTML, /No encontré un rostro en ninguna de las dos fotos\. Míralas tú\./);
+    });
+  });
+
   test('un error con marcado sale escapado', async () => {
     const P = crmCon({ compararRostros: () => Promise.reject(new Error('<img src=x onerror=alert(1)>')) });
     P.ev("compararRostro('a','b','caja')");

@@ -429,6 +429,24 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         con la cámara de pruebas/banco-camara.js). De
                         la cámara a «Están bien», con ZXing y Tesseract de
                         verdad: pruebas/escaner-ocr-de-punta-a-punta.test.js.
+                        (26-oct-2026) EL MARCO VA DE PIE otra vez, en las dos
+                        caras, pero llenando el alto de la CAJA (~11,7 cm,
+                        donde la cámara enfoca) y no el del video (7,7 cm, lo
+                        del 8-oct): acostada a 13,6 cm Joan tenía que
+                        alejarse. Todo lo que mide sigue viendo la cédula
+                        ACOSTADA porque la página gira al copiar del video
+                        (play/, EL MARCO DE PIE, EL RECORTE ACOSTADO;
+                        EC.rectAcostado). El respaldo cabeza abajo lo endereza
+                        su código (como desde el 8-oct); el frente, sus
+                        LETRAS (OcrCedula.leerRecorte, `giro`: se leen las dos
+                        posiciones y gana la de más evidencia), que giran la
+                        foto guardada antes de que suba; si la cuenta se abre
+                        antes, la huella dice cedula_frente_giro: 'incierto' y
+                        el CRM compara el rostro también girado, en el botón
+                        de la ficha y en «🔎 Revisar a todos»
+                        (panel/revision.html, compararCaras). Un
+                        escaner-cedula.js viejo en la caché deja todo acostado
+                        como el 21-oct (pruebas/el-marco-de-pie.test.js).
                         (23-oct-2026, verificación del autollenado y la demo)
                         La cédula difícil: la ventana juzga con la mediana O
                         el cuarto más nítido de los mosaicos

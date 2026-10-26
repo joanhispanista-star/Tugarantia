@@ -34,7 +34,10 @@
  *     inclinación, así que el marco tiene que ayudar a poner la cédula recta;
  *   · lee a 0° y 180°, NUNCA a 90°: una foto de pie (la de la galería) se
  *     prueba girada antes de decodificar. 21-oct-2026 — el recorte del video
- *     ya no: las dos caras se escanean acostadas (ver rectanguloGuia);
+ *     ya no: las dos caras se escanean acostadas (ver rectanguloGuia).
+ *     26-oct-2026 — la cédula vuelve a ir DE PIE en el marco, pero el
+ *     recorte sigue llegando acostado: la página gira al copiar del video
+ *     (ver EL MARCO DE PIE, EL RECORTE ACOSTADO);
  *   · `decodeFromImageUrl` de ZXing reintenta a 0 ms PARA SIEMPRE cuando el
  *     código se ve pero no se corrige (ChecksumException): 21 mapas de bits de
  *     10 MB en 300 ms, y la promesa nunca vuelve. Era el camino vivo hasta hoy.
@@ -377,11 +380,13 @@
      26-oct-2026 — `movimiento` decía «Quieta…», y una mano nunca está quieta
      del todo: desde hoy la puerta deja pasar el temblor, y lo que la frena
      es un movimiento de verdad (o el primer cuadro, que todavía no tiene con
-     qué compararse). «Sosténla ahí» es lo que sirve en los dos casos. */
+     qué compararse). «Sosténla ahí» es lo que sirve en los dos casos.
+     26-oct-2026 — `sin_tarjeta` dice DE PIE: el marco volvió a ser vertical
+     (rectanguloGuia) y quien la acuesta por costumbre no la llena nunca. */
   var TEXTO_TARJETA = {
     poca_luz: 'Busca un sitio con más luz',
     mucha_luz: 'Hay un reflejo: inclínala un poco',
-    sin_tarjeta: 'Pon la cédula dentro del marco',
+    sin_tarjeta: 'Pon la cédula DE PIE dentro del marco',
     borrosa: 'Aléjala o acércala un poco y espera el enfoque',
     movimiento: 'Sosténla ahí…',
     '': 'Leyendo…'
@@ -428,16 +433,103 @@
    * `acostada` queda en la firma por compatibilidad (una página vieja la
    * manda) y ya no cambia nada; `vertical` sale siempre en false para quien
    * todavía la lea.
+   *
+   * 26-oct-2026 — LA CÉDULA VUELVE A IR DE PIE, PERO A UNA DISTANCIA QUE
+   * ENFOCA. Joan, probando el 26-oct en el iPhone: «me pide escanear de esta
+   * forma horizontal lo cual me hace alejarme más de la cédula para que se
+   * vea toda, no entiendo porque hay que tomar la foto con ese escáner
+   * horizontal en una pantalla vertical». Tenía razón en lo de la distancia,
+   * y el 21-oct tenía razón lo contrario: las dos cosas caben. El 8-oct el
+   * marco de pie llenaba el 84 % del lado LARGO DEL VIDEO, y por eso había
+   * que acercarla a 7,7 cm; hoy la cédula de pie llena el 78 % del alto de la
+   * CAJA. La caja (.escaner-doc) es 4:5 y recorta arriba y abajo el video
+   * 9:16 (object-fit: cover): muestra el 70 % de su alto, así que el 78 % de
+   * la caja es el 55 % del lado largo del video, no el 84 %.
+   *
+   * LA CUENTA (la misma del 21-oct, scratchpad inv-escaner/geometria.js:
+   * lente de 26 mm equivalentes; el lado largo del video 16:9 cubre 34,6 mm
+   * equivalentes y el corto 9/16 de eso, 19,5 mm):
+   *   distancia = (85,6 mm / fracción del campo / 2) / (semicampo / 26)
+   *   · 8-oct, de pie al 84 % del largo del video:   85,6/0,84/2 / (17,3/26) =  7,7 cm
+   *   · 21-oct, acostada al 84 % del ancho del video: 85,6/0,84/2 / ( 9,7/26) = 13,6 cm
+   *   · hoy, de pie al 78 % del alto de la caja
+   *     (= 0,78 × 0,70 = 0,55 del largo del video): 85,6/0,55/2 / (17,3/26) = 11,7 cm
+   * A 11,7 cm enfoca casi cualquier cámara (el mínimo típico son 8-10 cm) y
+   * la cédula sale MÁS GRANDE que acostada: su lado largo ocupa 0,55 × 3840 =
+   * 2106 px en 4K contra 0,84 × 2160 = 1814 (1,16 veces por lado, 1,35 en
+   * área), y el código de barras gana esos píxeles. No a 7,7 cm: ahí la
+   * cámara no enfoca, y eso fue lo que dejó sin leer la amarilla de Joan.
+   *
+   * `dePie` (el cuarto parámetro) es lo que lo pide, y solo la página de hoy
+   * lo manda. Sin él —una página vieja en la caché con este archivo nuevo—
+   * el marco sale acostado como el 21-oct, porque esa página no gira nada y
+   * un marco de pie le dejaría el recorte de través. La página de hoy con un
+   * archivo viejo recibe `vertical: false` y trabaja acostada, como el
+   * 21-oct (play/index.html, EL MARCO DE PIE, EL RECORTE ACOSTADO).
+   *
+   * Con `vertical: true` el lado corto va a lo ancho (w < h). TODO lo que
+   * está detrás del marco sigue trabajando ACOSTADO —la puerta, la ventana
+   * del mejor cuadro, el lector, las franjas de las letras, la foto—: la
+   * página gira 90° al copiar del video (rectAcostado, abajo), así que esos
+   * consumidores reciben exactamente la geometría del 21-oct.
    */
-  function rectanguloGuia(w, h) {
-    var largo = w * 0.84;
+  var MARCO = {
+    DE_PIE_ALTO: 0.78,        // de la caja: ~11,7 cm (la cuenta de arriba)
+    DE_PIE_ANCHO_MAX: 0.92,   // por si la caja fuera más angosta que 4:5
+    ACOSTADA_ANCHO: 0.84,     // el 21-oct: ~13,6 cm
+    ACOSTADA_ALTO_MAX: 0.92
+  };
+  function rectanguloGuia(w, h, acostada, dePie) {
+    if (dePie === true && h > w) {
+      var alto = h * MARCO.DE_PIE_ALTO, ancho = alto / PROPORCION, topeAncho = w * MARCO.DE_PIE_ANCHO_MAX;
+      if (ancho > topeAncho) { ancho = topeAncho; alto = ancho * PROPORCION; }
+      return {
+        x: Math.round((w - ancho) / 2), y: Math.round((h - alto) / 2),
+        w: Math.round(ancho), h: Math.round(alto), vertical: true
+      };
+    }
+    var largo = w * MARCO.ACOSTADA_ANCHO;
     var corto = largo / PROPORCION;
-    var tope = h * 0.92;
+    var tope = h * MARCO.ACOSTADA_ALTO_MAX;
     if (corto > tope) { corto = tope; largo = corto * PROPORCION; }
     return {
       x: Math.round((w - largo) / 2), y: Math.round((h - corto) / 2),
       w: Math.round(largo), h: Math.round(corto), vertical: false
     };
+  }
+
+  /* ==========================================================================
+   * EL MARCO DE PIE, EL RECORTE ACOSTADO — 26 de octubre de 2026
+   *
+   * La cédula se pone DE PIE en el video (rectanguloGuia con `dePie`), pero
+   * nada de lo que mira píxeles sabe de tarjetas de pie: medirTarjeta espera
+   * la cédula a lo ancho, el lector PDF417 no lee a 90°, las franjas de las
+   * letras (app/ocr-cedula.js) son fracciones de la tarjeta acostada, y la
+   * foto se guarda acostada. En vez de enseñarle a cada uno a girar, se gira
+   * UNA vez, en la fuente: la página copia del video al lienzo girando 90° en
+   * contra del reloj (el lado derecho del video pasa a ser el de arriba), y
+   * estas dos cuentas dicen dónde cae cualquier rectángulo del video en ese
+   * video ACOSTADO (de vh × vw) y de vuelta. Son solo aritmética, para que se
+   * prueben sin cámara.
+   *
+   * Los 180° que quedan —la cédula de pie se pone con la cabeza a la
+   * izquierda o a la derecha, y con este giro la de cabeza a la DERECHA sale
+   * derecha— los resuelve quien ya sabía: el respaldo, su código
+   * (orientacionDelRespaldo); el frente, las letras (OcrCedula.leerRecorte,
+   * `giro`), que enderezan la foto guardada antes de que suba.
+   * ======================================================================== */
+  /**
+   * Un rectángulo del video de pie (vw × vh), en el video acostado (vh × vw).
+   * @returns {x, y, w, h, vertical: false} o null si falta algo
+   */
+  function rectAcostado(r, vw, vh) {
+    if (!r || !(vw > 0) || !(vh > 0) || !isFinite(r.x) || !isFinite(r.y)) return null;
+    return { x: r.y, y: vw - r.x - r.w, w: r.h, h: r.w, vertical: false };
+  }
+  /** La vuelta: un rectángulo del video acostado, en el video de pie. */
+  function rectDePie(r, vw, vh) {
+    if (!r || !(vw > 0) || !(vh > 0) || !isFinite(r.x) || !isFinite(r.y)) return null;
+    return { x: vw - r.y - r.h, y: r.x, w: r.h, h: r.w };
   }
 
   /* Los giros que se prueban cuando el código SE VE pero no se corrige
@@ -1021,6 +1113,10 @@
    * cabe: ver medirTarjeta. 21-oct-2026 — con las dos caras acostadas pasa lo
    * mismo a los lados (el marco llena el 84 % del ancho del video), así que el
    * interior sigue viniendo de aquí y no del 15-85 %.
+   * 26-oct-2026 — con el marco de pie la página llama con el marco y el video
+   * ACOSTADOS (rectAcostado): el marco llena el 55 % del largo y el 62 % del
+   * corto, el anillo vuelve a caber entero y el interior queda en el 15-85 %;
+   * se sigue pasando igual, que es lo que vale con cualquier marco.
    * @returns {sx, sy, sw, sh, gw, gh, interior: {x0, x1, y0, y1}} o null
    */
   function ventanaDeGuia(g, vw, vh, alto) {
@@ -1360,6 +1456,10 @@
   return {
     VERSION: '2026-10-26',
     PROPORCION: PROPORCION,
+    /* 26-oct-2026 — el marco de pie, el recorte acostado */
+    MARCO: MARCO,
+    rectAcostado: rectAcostado,
+    rectDePie: rectDePie,
     HORAS_REGISTRO_VIVO: HORAS_REGISTRO_VIVO,
     /* 19-oct-2026 — la cédula va primero: fotos sin dueño y la expedición */
     MINUTOS_SIN_DUENO: MINUTOS_SIN_DUENO,

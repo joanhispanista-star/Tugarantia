@@ -50,7 +50,9 @@ const F = require('./fabrica-pdf417.js');
 const { leerPGM } = require('./banco-ocr.js');
 const { asentar } = require('./esperar.js');
 const ECAP = require('../app/escaner-captura.js');
-const { VIDEO, TARJETA, escalar, abrirConCamara } = require('./banco-camara.js');
+/* 26-oct-2026 — el marco va DE PIE: la escena se sigue armando acostada (en
+   el video ACOSTADO, con el marco acostado) y dePie la pone en el de verdad. */
+const { TARJETA, ACOSTADO, escalar, abrirConCamara, dePie, acostada } = require('./banco-camara.js');
 
 const PERSONA = { documento: '0052123456', apellido1: 'PEREZ', apellido2: 'GOMEZ', nombre1: 'MARIA',
                   nombre2: 'ALEJANDRA', sexo: 'F', nacimiento: '19850315', municipio: '11001', rh: 'O+' };
@@ -249,7 +251,7 @@ async function mirar(lado, c, max) {
   if (lado === 'frente') P.ev("ESCDOC.lado = 'frente'; reiniciarCuentaDoc();");
   await correr(150);
   const guia = JSON.parse(P.ev('JSON.stringify(ESCDOC.guiaVideo)'));
-  video.__px = escena(VIDEO.W, VIDEO.H, guia, c);
+  video.__px = dePie(escena(ACOSTADO.W, ACOSTADO.H, acostada(guia), c), ACOSTADO.W, ACOSTADO.H);
   const letreros = []; let vioFranja = false, vioCodigo = false;
   for (let i = 0; i < max && !P.ev('FOTOS.cedula_' + lado); i++) {
     await correr(100);

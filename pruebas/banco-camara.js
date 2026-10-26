@@ -45,9 +45,53 @@ function multiplicar(m, n) {
           m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
 }
 function fuenteDe(src) {
-  if (src && src.__px) return { px: src.__px, W: src.videoWidth, H: src.videoHeight, huella: null };
+  if (src && src.__px) return { px: src.__px, W: src.videoWidth, H: src.videoHeight, huella: null, video: src };
   if (src && src.__lienzo) return { px: src.__lienzo.px, W: src.width, H: src.height, huella: src.__lienzo };
+  /* 26-oct-2026 — la foto guardada vuelta a cargar (ImagenDeMentira): la gira
+     enderezarFotoGuardada cuando las letras del frente salen a 180°. */
+  if (src && src.__imagen) return { px: src.__imagen.px, W: src.__imagen.W, H: src.__imagen.H, huella: null };
   throw new Error('drawImage de algo que no es video ni lienzo');
+}
+/* ==========================================================================
+ * EL VIDEO DE PIE, LOS PÍXELES ACOSTADOS — 26 de octubre de 2026
+ * El marco de la cédula va DE PIE (EC.rectanguloGuia con `dePie`) y la
+ * página copia del video girando 90° en contra del reloj (play/,
+ * dibujarAcostado), así que la puerta, la ventana y el recorte siguen viendo
+ * la cédula a lo ancho. Las escenas de las pruebas se siguen armando
+ * ACOSTADAS, como siempre (un video de ACOSTADO.W × ACOSTADO.H con el marco
+ * acostado, `acostada(guia)`), y `dePie` las pone en el video de verdad
+ * girándolas al contrario. El lienzo de mentira deshace ese giro al copiar
+ * con el mismo promedio de cajas del camino recto (acostadoDe + pintarRecto),
+ * así que lo que la página mide es PÍXEL A PÍXEL lo mismo que medía con el
+ * marco acostado: las pruebas que comparan «lo puro» con la página siguen
+ * mirando los mismos números.
+ * ======================================================================== */
+const ACOSTADO = { W: 3840, H: 2160 };   // el mismo video 4K, acostado
+/* Un cuadro armado acostado (W' × H'), en el video de pie (H' × W'): la
+   vuelta exacta del giro de la página (real[y][x] = acostado[W-1-x][y]). */
+function dePie(rot, Wr, Hr) {
+  const Wp = Hr || ACOSTADO.H, Hp = Wr || ACOSTADO.W, Wa = Hp;
+  const px = new Uint8ClampedArray(Wp * Hp);
+  for (let y = 0; y < Hp; y++) for (let x = 0; x < Wp; x++) px[y * Wp + x] = rot[(Wp - 1 - x) * Wa + y];
+  return px;
+}
+/* El marco del escáner (ESCDOC.guiaVideo, de pie en el video de VIDEO.W ×
+   VIDEO.H), acostado: donde lo ve todo lo que mide. Un marco ya acostado
+   (vertical: false, el .js viejo) se devuelve tal cual. */
+function acostada(guia) {
+  if (!guia || guia.vertical !== true) return guia;
+  return { x: guia.y, y: VIDEO.W - guia.x - guia.w, w: guia.h, h: guia.w, vertical: false };
+}
+/* La copia acostada de un cuadro de video, guardada en el video mientras sus
+   píxeles sean los mismos (las pruebas cambian `__px` por cuadro). */
+function acostadoDe(f) {
+  const v = f.video;
+  if (v && v.__acostado && v.__acostado.de === f.px) return v.__acostado;
+  const W = f.W, H = f.H, o = new Uint8ClampedArray(W * H);
+  for (let y = 0; y < W; y++) for (let x = 0; x < H; x++) o[y * H + x] = f.px[x * W + (W - 1 - y)];
+  const a = { de: f.px, px: o, W: H, H: W };
+  if (v) v.__acostado = a;
+  return a;
 }
 function crearLienzo() {
   const L = { W: 0, H: 0, px: new Uint8ClampedArray(0), origen: null };
@@ -84,24 +128,40 @@ function crearLienzo() {
       /* De qué lienzo salió este (la foto sale del recorte): la huella del
          recorte en el momento de dibujar. */
       L.origen = f.huella ? huella(f.huella.px) : null;
-      const recto = Math.abs(T[1]) < 1e-9 && Math.abs(T[2]) < 1e-9 && T[0] > 0 && T[3] > 0;
-      if (recto) {
-        const X0 = T[0] * dx + T[4], Y0 = T[3] * dy + T[5], DW = T[0] * dw, DH = T[3] * dh;
-        const kx = sw / DW, ky = sh / DH;
+      /* Recto, a escala: promedio de cajas (lo que hace un navegador). */
+      const pintarRecto = (g, gx, gy, gw, gh, X0, Y0, DW, DH) => {
+        const kx = gw / DW, ky = gh / DH;
         const i0 = Math.max(0, Math.floor(X0)), i1 = Math.min(L.W, Math.ceil(X0 + DW));
         const j0 = Math.max(0, Math.floor(Y0)), j1 = Math.min(L.H, Math.ceil(Y0 + DH));
         for (let j = j0; j < j1; j++) {
-          const ya = sy + (j - Y0) * ky, yb = ya + ky;
-          let y0 = Math.max(0, Math.floor(ya)), y1 = Math.min(f.H, Math.max(y0 + 1, Math.ceil(yb)));
+          const ya = gy + (j - Y0) * ky, yb = ya + ky;
+          let y0 = Math.max(0, Math.floor(ya)), y1 = Math.min(g.H, Math.max(y0 + 1, Math.ceil(yb)));
           for (let i = i0; i < i1; i++) {
-            const xa = sx + (i - X0) * kx, xb = xa + kx;
-            const x0 = Math.max(0, Math.floor(xa)), x1 = Math.min(f.W, Math.max(x0 + 1, Math.ceil(xb)));
-            if (x0 >= f.W || y0 >= f.H) continue;
+            const xa = gx + (i - X0) * kx, xb = xa + kx;
+            const x0 = Math.max(0, Math.floor(xa)), x1 = Math.min(g.W, Math.max(x0 + 1, Math.ceil(xb)));
+            if (x0 >= g.W || y0 >= g.H) continue;
             let s = 0, n = 0;
-            for (let y = y0; y < y1; y++) { const b = y * f.W; for (let x = x0; x < x1; x++) { s += f.px[b + x]; n++; } }
+            for (let y = y0; y < y1; y++) { const b = y * g.W; for (let x = x0; x < x1; x++) { s += g.px[b + x]; n++; } }
             L.px[j * L.W + i] = n ? s / n : 0;
           }
         }
+      };
+      const recto = Math.abs(T[1]) < 1e-9 && Math.abs(T[2]) < 1e-9 && T[0] > 0 && T[3] > 0;
+      if (recto) {
+        pintarRecto(f, sx, sy, sw, sh, T[0] * dx + T[4], T[3] * dy + T[5], T[0] * dw, T[3] * dh);
+        return;
+      }
+      /* 26-oct-2026 — girado 90° en contra del reloj (dibujarAcostado de la
+         página: translate(0, dh) y rotate(-90°)): el mismo dibujo recto sobre
+         la copia ACOSTADA del origen (ver EL VIDEO DE PIE, LOS PÍXELES
+         ACOSTADOS). El eje x del origen va hacia arriba del lienzo y el eje y
+         hacia la derecha: en la copia acostada, el rectángulo de origen es
+         (sy, W-sx-sw, sh, sw) y el destino el que esas dos cuentas dan. */
+      const acostadoCcw = Math.abs(T[0]) < 1e-9 && Math.abs(T[3]) < 1e-9 && T[1] < 0 && T[2] > 0;
+      if (acostadoCcw) {
+        const g = acostadoDe(f);
+        pintarRecto(g, sy, f.W - sx - sw, sh, sw,
+                    T[4] + T[2] * dy, T[5] + T[1] * (dx + dw), T[2] * dh, -T[1] * dw);
         return;
       }
       /* Girado (la foto derecha de fotoDeLienzo): al revés, punto a punto. */
@@ -158,20 +218,37 @@ function escalar(img, k) {
 }
 /* El cuadro de video con una tarjeta YA a la escala del video (`img`, con el
    marco fabricado en gx, gy) puesta de modo que su marco caiga en `guia`. */
-function enElVideo(guia, img, gx, gy) {
-  const px = new Uint8ClampedArray(VIDEO.W * VIDEO.H).fill(VIDEO.MESA);
+function enElVideo(guia, img, gx, gy) { return enElVideoDe(VIDEO, guia, img, gx, gy); }
+/* Lo mismo en un cuadro de otras medidas (ACOSTADO, para el marco de pie). */
+function enElVideoDe(V, guia, img, gx, gy) {
+  const px = new Uint8ClampedArray(V.W * V.H).fill(VIDEO.MESA);
   const ox = guia.x - gx, oy = guia.y - gy;
   for (let yy = 0; yy < img.h; yy++) {
-    const Y = oy + yy; if (Y < 0 || Y >= VIDEO.H) continue;
+    const Y = oy + yy; if (Y < 0 || Y >= V.H) continue;
     for (let xx = 0; xx < img.w; xx++) {
-      const X = ox + xx; if (X < 0 || X >= VIDEO.W) continue;
-      px[Y * VIDEO.W + X] = img.gris[yy * img.w + xx];
+      const X = ox + xx; if (X < 0 || X >= V.W) continue;
+      px[Y * V.W + X] = img.gris[yy * img.w + xx];
     }
   }
   return px;
 }
-/* Una tarjeta fabricada (1120 × 708, la geometría de GUIA) en el cuadro. */
-function ponerCarta(guia, carta) {
+/* Una tarjeta fabricada (1120 × 708, la geometría de GUIA) en el cuadro.
+   26-oct-2026 — con el marco DE PIE (vertical: true) se arma acostada en el
+   video acostado y se pone de pie (dePie): la persona pone la cédula de pie
+   con la cabeza a la derecha, que es la posición que sale derecha. `o.giro`
+   180: con la cabeza a la izquierda (la tarjeta cabeza abajo en el recorte). */
+function ponerCarta(guia, carta, o) {
+  const x = o || {};
+  if (guia && guia.vertical === true) {
+    const ga = acostada(guia), k = ga.w / GUIA.w;
+    let img = escalar(carta, k), gx = Math.round(GUIA.x * k), gy = Math.round(GUIA.y * k);
+    if (x.giro === 180) {
+      const g = new Uint8ClampedArray(img.gris.length);
+      for (let i = 0; i < g.length; i++) g[i] = img.gris[g.length - 1 - i];
+      img = { gris: g, w: img.w, h: img.h }; gx = img.w - gx - ga.w; gy = img.h - gy - ga.h;
+    }
+    return dePie(enElVideoDe(ACOSTADO, ga, img, gx, gy), ACOSTADO.W, ACOSTADO.H);
+  }
   const k = guia.w / GUIA.w;
   return enElVideo(guia, escalar(carta, k), Math.round(GUIA.x * k), Math.round(GUIA.y * k));
 }
@@ -214,6 +291,22 @@ function abrirConCamara(o) {
      ya están puestos, como si hubieran bajado. */
   w.__crearLienzo = crearLienzo;
   P.ev("var __ce = document.createElement; document.createElement = function (t) { return t === 'canvas' ? window.__crearLienzo() : __ce.call(document, t); };");
+  /* 26-oct-2026 — una foto guardada se puede volver a abrir (new Image con su
+     data URL): enderezarFotoGuardada la gira 180° cuando las letras del frente
+     salieron al revés. Lo que carga es lo que toDataURL dejó en FOTOS_HECHAS. */
+  w.Image = class ImagenDeMentira {
+    constructor() { this.onload = null; this.onerror = null; this._src = ''; }
+    get src() { return this._src; }
+    set src(v) {
+      this._src = v;
+      const h = FOTOS_HECHAS.get(v);
+      setImmediate(() => {
+        if (!h) { if (this.onerror) this.onerror(); return; }
+        this.naturalWidth = h.W; this.naturalHeight = h.H; this.__imagen = { px: h.px, W: h.W, H: h.H };
+        if (this.onload) this.onload();
+      });
+    }
+  };
   P.ev(ZXING);
   P.ev("ZXing.ZXingStringEncoding.customDecoder = function (b) { var s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return s; };");
   P.ev('window.__scripts = []; cargarScript = function (u) { window.__scripts.push(u); return Promise.resolve(); };');
@@ -244,4 +337,5 @@ function abrirConCamara(o) {
   return { P, video, reloj, correr, recortes };
 }
 
-module.exports = { ZXING, FOTOS_HECHAS, huella, crearLienzo, GUIA, TARJETA, VIDEO, escalar, enElVideo, ponerCarta, abrirConCamara };
+module.exports = { ZXING, FOTOS_HECHAS, huella, crearLienzo, GUIA, TARJETA, VIDEO, ACOSTADO, escalar, enElVideo, enElVideoDe,
+                   ponerCarta, abrirConCamara, dePie, acostada };

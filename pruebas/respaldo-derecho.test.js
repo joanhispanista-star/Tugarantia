@@ -229,10 +229,15 @@ function guiaDePieDeAntes(w, h) {
 }
 /* Y la cédula ACOSTADA, centrada, como la pone ahora la gente en el marco. */
 function cuadroAcostado(VW, VH, tarjetaW) {
+  return cuadroAcostadoEn(VW, VH, { x: 0, y: 0, w: VW, h: VH }, tarjetaW);
+}
+/* 26-oct-2026 — la cédula acostada en el centro de un marco cualquiera de un
+   cuadro de VW × VH (el video acostado con el marco de pie, acostado). */
+function cuadroAcostadoEn(VW, VH, marco, tarjetaW) {
   const t = respaldo({ W: tarjetaW });
   const Y = new Float32Array(VW * VH);
   for (let y = 0; y < VH; y++) for (let x = 0; x < VW; x++) Y[y * VW + x] = 70 + 20 * Math.sin(x / 9) * Math.cos(y / 13);
-  const x0 = Math.round((VW - t.W) / 2), y0 = Math.round((VH - t.H) / 2);
+  const x0 = Math.round(marco.x + (marco.w - t.W) / 2), y0 = Math.round(marco.y + (marco.h - t.H) / 2);
   for (let y = 0; y < t.H; y++) for (let x = 0; x < t.W; x++) {
     const X = x0 + x, Yy = y0 + y;
     if (X >= 0 && X < VW && Yy >= 0 && Yy < VH) Y[Yy * VW + X] = t.lum[y * t.W + x];
@@ -285,6 +290,34 @@ describe('la puerta del respaldo se ponía en verde (la causa de «no escaneó»
     const mesa = new Uint8ClampedArray(vg.gw * vg.gh).fill(90);
     assert.equal(EC.medirTarjeta(mesa, mesa, vg.gw, vg.gh, vg.interior).falla, 'sin_tarjeta');
     assert.equal(EC.medirTarjeta(mesa, mesa, vgP.gw, vgP.gh, vgP.interior).falla, 'sin_tarjeta');
+  });
+
+  /* 26-oct-2026 — DE PIE OTRA VEZ, pero en la CAJA (el 78 % de su alto, no el
+     84 % del video): la página mide sobre el video ACOSTADO (EC.rectAcostado
+     y el gris copiado girando), así que aquí el cuadro es el acostado con la
+     cédula a lo ancho, en un marco que llena el 55 % del largo y no el 84 %.
+     Ahora el anillo sí cabe (el interior cae en el 15-85 %), la cédula sigue
+     en verde con el interior, y también SIN él: es la cuenta que la página
+     hace con un .js que no diera el interior. */
+  const cajaDePie = EC.rectanguloGuia(150, 188, true, true);   // la caja 4:5 a la mitad, como el video
+  const kC = Math.max(150 / VW, 188 / VH), oyC = (188 - VH * kC) / 2;
+  const guiaDePieHoy = { x: Math.round(cajaDePie.x / kC), y: Math.round((cajaDePie.y - oyC) / kC), w: Math.round(cajaDePie.w / kC), h: Math.round(cajaDePie.h / kC), vertical: true };
+  const guiaHoyAcostada = EC.rectAcostado(guiaDePieHoy, VW, VH);
+  const vgHoy = EC.ventanaDeGuia(guiaHoyAcostada, VH, VW, 96);
+  const grisHoy = grisDeLaVentana(cuadroAcostadoEn(VH, VW, guiaHoyAcostada, Math.round(guiaHoyAcostada.w * 0.98)), VH, vgHoy);
+
+  test('DE PIE (26-oct): el marco acostado llena el 55 % del largo, el anillo cabe y el interior queda en el 15-85 %', () => {
+    assert.equal(cajaDePie.vertical, true);
+    assert.ok(Math.abs(guiaHoyAcostada.w / VH - 0.55) < 0.02, 'el marco no llena ~55 % del largo del video: ' + guiaHoyAcostada.w / VH);
+    assert.ok(Math.abs(vgHoy.interior.x0 / vgHoy.gw - 0.15) < 0.01 && Math.abs(vgHoy.interior.x1 / vgHoy.gw - 0.85) < 0.01,
+      'el anillo del marco de pie se recortó: ' + JSON.stringify(vgHoy.interior));
+  });
+  test('DE PIE (26-oct) y llenando el marco: en verde, con interior y sin él, y el anillo es la mesa', () => {
+    const con = EC.medirTarjeta(grisHoy, grisHoy, vgHoy.gw, vgHoy.gh, vgHoy.interior);
+    assert.equal(con.ok, true, JSON.stringify(con));
+    const sin = EC.medirTarjeta(grisHoy, grisHoy, vgHoy.gw, vgHoy.gh);
+    assert.equal(sin.ok, true, 'con el anillo cabiendo entero, el 15-85 % de siempre tenía que bastar: ' + JSON.stringify(sin));
+    assert.ok(con.anillo * 10 < con.textura, 'el anillo se está llenando de cédula: ' + JSON.stringify(con));
   });
 
   test('la página le pasa el interior a la puerta', () => {
