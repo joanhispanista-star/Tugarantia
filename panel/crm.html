@@ -434,6 +434,30 @@
   .wrapEq .info-row .vv{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end}
   .wrapEq .info-row .vv .btn{margin-left:0!important}
   @media (max-width:560px){ .wrapEq .info-row .vv{flex:1 1 100%;justify-content:flex-start} }
+  /* 26-oct-2026 — LOS RENGLONES DE LA FICHA QUE LLEVAN UNA FRASE Y BOTONES.
+     «Su cuenta en la app» lleva en .k una frase entera y en .vv cuatro
+     botones. Con .k sin encoger (flex:none, arriba), la frase de la ficha sin
+     juntar medía 800 px en un cuadro de 600: .vv quedaba de 44 px FUERA del
+     cuadro, el renglón medía 737 px de alto y la ficha se veía en blanco
+     debajo de una línea gris cortada. Venía de v138, pero es justo la ficha a
+     la que lleva «👤 Ver ficha» desde el hilo '0' (refutadores, 26-oct). Lo
+     mismo que .wrapEq: la frase encoge y se parte, y los botones bajan a su
+     propio renglón cuando no caben al lado. */
+  .info-row.con-botones{flex-wrap:wrap}
+  .info-row.con-botones .k{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
+  .info-row.con-botones .vv{flex:1 1 auto;min-width:0}
+  @media (max-width:560px){
+    .info-row.con-botones .vv{text-align:left}
+    /* Y en el celular, la etiqueta de CUALQUIER renglón del cuadro encoge si
+       no cabe: a 390 px «Nivel (el tramo de su garantía · no le mueve el
+       cupo)» no encogía, el valor quedaba en una columna de una letra fuera
+       del cuadro y había barra horizontal. flex-shrink solo actúa en el
+       renglón que no cabe: el que cabe se ve igual que antes. Y el valor
+       guarda al menos un tercio: .vv parte palabras (break-word), y sin ese
+       piso «Cupo quincenal» salía «$25.00» y el «0» debajo. */
+    #mBody .info-row .k{flex-shrink:1;min-width:0;overflow-wrap:anywhere}
+    #mBody .info-row:not(.con-botones) .vv{min-width:35%}
+  }
   .alerta{border-radius:9px;padding:10px 13px;font-size:13px;margin-bottom:14px;line-height:1.45}
   .alerta.warn{background:var(--ambar-tinte);color:var(--ambar);border:1px solid var(--ambar-medio)}
   /* Lo que SALIO BIEN es verde. Se agrego el 15-sep-2026 con el envio de
@@ -2311,8 +2335,12 @@ let _juntarRev=null;
    _registros, que es la bandeja de los nuevos: mezclarlos los pintaría en
    📥 Registrados como si alguien estuviera esperando. */
 let _registrosExtra=[];
+/* 26-oct-2026 — y los que pidió la bandeja de 💬 Mensajes para decir quién
+   escribe (traerRegistrosParaElChat), aparte por la misma razón: no son la
+   bandeja de nuevos y no deben pintarse como si alguien estuviera esperando. */
+let _registrosDelChat=[];
 function registroPorId(id){
-  return _registros.find(x=>String(x.id)===String(id))||_registrosExtra.find(x=>String(x.id)===String(id))||null;
+  return _registros.find(x=>String(x.id)===String(id))||_registrosExtra.find(x=>String(x.id)===String(id))||_registrosDelChat.find(x=>String(x.id)===String(id))||null;
 }
 /* `soloJuntar`: el registro ya lo atendió Joan (lo cruzó, o le abrió la
    ficha). El toque solo junta la cuenta: volver a cruzarlo duplicaría el
@@ -5679,7 +5707,7 @@ function verCliente(id){
      en qué va y tiene su botón. */
   const cj=s.cuentaJunta, cpj=s.cuentaPorJuntar;
   const esperaClave=cpj&&cpj.noAntesDe&&Date.now()<Date.parse(cpj.noAntesDe);
-  const bloqueCuenta=`<div class="info-row"><span class="k">Su cuenta en la app
+  const bloqueCuenta=`<div class="info-row con-botones"><span class="k">Su cuenta en la app
        <div class="muted">${cj?'Junta desde este computador con el '+escHTML(UP?UP.bonito(cj.celular):cj.celular)+' el '+fmtFecha(cj.fecha)
          :cpj?(cpj.motivo?'La nube no juntó su cuenta sola: falta tu toque (lo que dice abajo)'
                :esperaClave?'Le diste una clave nueva al número de su ficha: su cuenta se junta sola desde las '+escHTML(fmtFechaHora(cpj.noAntesDe).slice(-5))
@@ -5706,7 +5734,7 @@ function verCliente(id){
   /* 23-oct-2026 — QUIÉN DE TU EQUIPO LO ATIENDE, arriba, con «👤 Asignar a…»:
      Joan se agregó como cliente para que Willian lo gestionara y aquí no había
      cómo (ver «👤 ASIGNAR A…» DESDE CADA FICHA). */
-  const bloqueAtiende=`<div class="info-row"><span class="k">Quién de tu equipo lo atiende
+  const bloqueAtiende=`<div class="info-row con-botones"><span class="k">Quién de tu equipo lo atiende
        <div class="muted">${quienAtiendeHTML(s.id)}</div></span>
        <span class="vv"><button class="btn btn-ghost btn-sm" onclick="asignarUno('cliente','${s.id}','ficha')" title="Le sale en la «Mi base» de quien elijas, con su nombre, su celular, la etapa, cuánto debe y cuándo paga">👤 Asignar a…</button></span></div>`;
   openModal(codCliente(s)+' · '+s.nombre,`
@@ -9113,10 +9141,13 @@ function renderMensajes(){
     return;
   }
   const orden=[..._convs].sort((a,b2)=>(Number(b2.sin_leer||0)>0)-(Number(a.sin_leer||0)>0));
-  b.innerHTML=CHAT.listaHTML(orden,{
+  /* 26-oct-2026 — con los nombres que este computador sabe encima de lo que
+     dijo la nube (ver QUIÉN ESCRIBE, CON LO QUE ESTE COMPUTADOR YA SABE). */
+  b.innerHTML=bandejaConNombres(CHAT.listaHTML(orden,{
     alAbrir:'abrirConversacion',
     vacio:'Todavía no te ha escrito nadie por la app.'
-  });
+  }),orden);
+  traerRegistrosParaElChat(orden);
   const n=CHAT.totalSinLeer(_convs);
   if(pin) pin.textContent=n?' ('+n+')':'';
 }
@@ -9164,15 +9195,27 @@ function cambiarCanalChat(canal){
    ficha, incluido el hilo '0' + celular, que es justo donde Joan tiene que
    leer el aviso de no hablar de la deuda. En ese hilo NO entra el nombre que
    le pasen: el número es de una ficha y quien escribe no está verificado. */
+/* 26-oct-2026 (ronda 1) — con qué `extra` se abrió el hilo que está en
+   pantalla, para que «← Volver al chat» (volverAlChat) lo abra IGUAL. Los
+   refutadores lo cazaron: desde «💬 Escribirle por la app» el hilo decía
+   «Joan Ruiz» con su nota, y tras 👤 Ver ficha → ← Volver al chat el MISMO
+   hilo decía «sin juntar: no sabemos si es él» y la nota ya no estaba. */
+let _chatExtra=null;
 function abrirConversacion(ident,extra){
   if(!chatListo()) return renderMensajes();
   _chatAbierta=String(ident||''); _chatMsgs=[]; _chatUltimo=0;
   const c=_convs.find(x=>String(x.cedula)===_chatAbierta)||{cedula:_chatAbierta};
   const x=extra||{};
+  _chatExtra={ident:_chatAbierta,extra:x};
   _chatCanal=canalDeEntrada(c);
   const sinJuntar=/^0\d{10}$/.test(_chatAbierta);
   const regla=CHAT.quienEs?CHAT.quienEs(c):(c.nombre||'Socio');
-  const quien=c.nombre||(!sinJuntar&&x.nombre)||regla;
+  /* 26-oct-2026 — y lo que este computador sabe (quienEscribeLocal): el mismo
+     nombre que la bandeja, y de ahí salen los botones de la ficha y del
+     registro (botonesDeQuienEscribe). Lo que trae `extra` sigue primero: ya
+     lo decidió quien abrió el hilo desde la ficha o el registro. */
+  const local=quienEscribeLocal(c);
+  const quien=c.nombre||(!sinJuntar&&x.nombre)||local.texto||regla;
   const cel=String(c.celular||'').replace(/\D/g,'');
   openModal(quien,
     `<div id="chPest">${pestanasCanal(c)}</div>
@@ -9183,6 +9226,7 @@ function abrirConversacion(ident,extra){
        <button class="btn btn-rojo btn-sm" id="chBtn" onclick="responderChat()">Enviar</button>
      </div>
      <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+       ${botonesDeQuienEscribe(local)}
        ${cel?`<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="https://wa.me/57${escHTML(cel)}">📲 Seguir por WhatsApp</a>`:''}
        <button class="btn btn-ghost btn-sm" onclick="olvidarConversacion()" title="Borra la conversación entera, para siempre">🗑 Borrar la conversación</button>
      </div>`);
@@ -9283,6 +9327,184 @@ function abrirHiloDeRegistro(r,cel){
     const nom=String(r.nombre||'').replace(/\s+/g,' ').trim();
     abrirConversacion(hilo,{nombre:ficha?ficha.nombre:(nom?nom+' (registrado, sin verificar)':''),nota:AVISO_SIN_PUSH});
   }).catch(e=>alert('No pude preguntarle a la nube en qué conversación lee ese celular. '+((e&&e.humano)||'Revisa el internet y vuelve a intentar.')));
+}
+
+/* ==========================================================================
+ * QUIÉN ESCRIBE, CON LO QUE ESTE COMPUTADOR YA SABE — 26 de octubre de 2026
+ *
+ * Joan: «el mensaje llegó exitosamente al CRM pero solo muestra el número de
+ * teléfono, quiero que también muestre el nombre del cliente y que tenga un
+ * botón para yo ver el perfil de este cliente».
+ *
+ * Lo que vio: se registró desde play/ con su celular, y ese mismo celular es
+ * el de una ficha suya («Joan Ruiz»). Para la nube ese hilo es '0' + celular
+ * —una cuenta SIN JUNTAR con el número de una ficha— y CHAT.quienEs lo pinta
+ * sin ningún nombre A PROPÓSITO (Ley 1581 y Ley 2300: quien escribe no está
+ * verificado). Y el nombre de un registrado sin ficha solo llega de la nube
+ * con base/20261019_chat_quien_escribe.sql corrido; si no, «Socio nuevo».
+ *
+ * Aquí se completa con lo que YA tiene este navegador: la cartera (fichas,
+ * por cédula y por celular) y los registros. Sin tocar app/chat.js (lo
+ * comparten el espejo y el socio) y sin escribir c.nombre en la conversación:
+ * eso le quitaría la advertencia a quienEs. En el hilo '0' la advertencia SE
+ * QUEDA; lo que se agrega es de quién es la FICHA DUEÑA DEL NÚMERO, dicho
+ * así, no quién escribe. Y nunca el nombre de un registro en ese hilo (la
+ * razón, en base/20261019: con un nombre al lado se lee «es él»).
+ * ======================================================================== */
+const AVISO_SIN_JUNTAR='sin juntar: no sabemos si es él, no le hables de su deuda aquí';
+/* La ficha a la que apunta una llave del chat: la de su llave en la nube
+   (PUENTE.llaveEnLaNube: la cédula, o el celular si no tiene) o, si la llave
+   es un celular, la que lo tenga en cualquiera de sus tres números. */
+function fichaPorLlaveDelChat(llave){
+  const l=String(llave||'').replace(/\D/g,''); if(!l) return null;
+  const socios=(DB&&Array.isArray(DB.socios))?DB.socios:[];
+  const suya=socios.find(s=>PUENTE.llaveEnLaNube(s)===l);
+  if(suya||!/^3\d{9}$/.test(l)) return suya||null;
+  return socios.find(s=>[s.telefono,s.telefono2,s.whatsappNumero].some(t=>diez(t)===l))||null;
+}
+/* El registro más reciente con ese celular (o esa cédula) de los que este
+   computador ya trajo: la bandeja de nuevos, los atendidos pedidos para juntar
+   una cuenta y los que pidió el chat. El más reciente primero, como la base. */
+function registroPorLlaveDelChat(llave){
+  const l=String(llave||'').replace(/\D/g,''); if(!l) return null;
+  const esCel=/^3\d{9}$/.test(l);
+  return _registros.concat(_registrosExtra,_registrosDelChat)
+    .filter(r=>esCel?diez(r.telefono)===l:String(r.cedula||'').replace(/\D/g,'')===l)
+    .sort((a,b)=>String(b.creado_en||'').localeCompare(String(a.creado_en||''))||(Number(b.id)||0)-(Number(a.id)||0))[0]||null;
+}
+/* Quién es, con lo de aquí encima de lo que dijo la nube. Devuelve siempre
+   {texto, ficha, registro, llave}: `texto` es lo que se pinta (si lo local no
+   suma nada, el mismo CHAT.quienEs); ficha y registro son lo que abren los
+   botones del hilo. */
+function quienEscribeLocal(c){
+  const x=c||{}, llave=String(x.cedula||'');
+  const regla=(CHAT&&CHAT.quienEs)?CHAT.quienEs(x):String(x.nombre||('Socio nuevo · '+llave));
+  const sinJuntar=/^0\d{10}$/.test(llave), cel=sinJuntar?llave.slice(1):llave;
+  const ficha=fichaPorLlaveDelChat(cel), registro=registroPorLlaveDelChat(cel);
+  const nombreFicha=ficha?String(ficha.nombre||'').trim():'';
+  /* 26-oct-2026 (ronda 1) — SI ESTE COMPUTADOR YA JUNTÓ la cuenta de ese
+     celular con la ficha (cuentaJunta: la confirmación de Joan en «¿Es la
+     misma persona?»), el hilo del celular pelado ES el de la ficha: al juntar,
+     la nube muda ahí lo del '0' + celular (base/20261007_una_puerta.sql).
+     Decir «sin juntar: no sabemos si es él» con cuentaJunta puesto era falso,
+     y contradecía la pantalla anterior del mismo hilo. Es la misma lectura de
+     clienteDelRecado y del cruce de solicitudes. Solo con la llave del celular
+     a secas: si la nube dijo '0', la nube manda (pudo desjuntarse desde otro
+     computador). */
+  const junta=!sinJuntar&&/^3\d{9}$/.test(cel)&&!!(ficha&&ficha.cuentaJunta&&diez(ficha.cuentaJunta.celular)===cel);
+  /* 26-oct-2026 (ronda 2) — Y EL NÚMERO SE QUEDA. Joan pidió que «también»
+     saliera el nombre, no que el nombre reemplazara al número: en el hilo '0'
+     y en el del celular pelado c.celular llega vacío (socios_historial se
+     cruza por cédula), así que no hay «📲 Seguir por WhatsApp» y el número
+     no salía ni en la bandeja, ni en el título, ni en un botón. Va el celular
+     SIN el 0, que es el que Joan marca, igual que lo decía quienEs. */
+  let texto=regla;
+  if(x.nombre){ /* la nube ya dijo el nombre de la ficha: manda. */ }
+  else if(junta&&nombreFicha){ texto=nombreFicha+' · '+cel; }
+  else if(sinJuntar||/^3\d{9}$/.test(llave)){
+    /* El número es de una ficha (lo dijo la nube con el '0', o lo tiene esta
+       cartera sin haberlo subido): se dice DE QUIÉN es, con la advertencia.
+       Si no hay ficha y la llave es un celular, el nombre con que se registró,
+       rotulado igual que lo rotula la nube (nombre_registro). */
+    if(nombreFicha) texto='Número de la ficha de '+nombreFicha+' · '+cel+' · '+AVISO_SIN_JUNTAR;
+    else if(!sinJuntar&&!x.nombre_registro&&registro&&String(registro.nombre||'').trim())
+      texto=String(registro.nombre).replace(/\s+/g,' ').trim()+' (registrado, sin verificar) · '+llave;
+  } else if(nombreFicha){
+    /* Llave de cédula sin nombre de la nube: la ficha está aquí y no allá. */
+    texto=nombreFicha;
+  }
+  return {texto:texto,ficha:ficha,registro:registro,llave:llave};
+}
+/* La bandeja que pintó CHAT.listaHTML, con los nombres de aquí. Se cambia
+   SOLO el renglón de quién (.ch-conv-quien), anclado en el texto exacto que
+   escribió quienEs: el último mensaje puede traer lo mismo y no se toca. */
+/* 26-oct-2026 (ronda 2) — EXACTO HASTA EL FINAL: el ancla termina en el «<»
+   que listaHTML pone siempre detrás del texto (el contador o el cierre del
+   span; el texto va escapado, así que no puede traer un «<» suyo). Sin él,
+   «Socio nuevo · 30012345» (una cédula de 8 dígitos de una ficha de aquí) es
+   el comienzo de «Socio nuevo · 3001234567», y la bandeja decía «Pepe
+   Prefijo67» en el hilo de OTRO número: el nombre de un cliente en la
+   conversación de quien no es (lo cazó el refutador «lente Joan», J5). */
+function bandejaConNombres(html,lista){
+  let h=String(html||'');
+  (lista||[]).forEach(c=>{
+    const q=quienEscribeLocal(c), antes=CHAT.quienEs(c);
+    if(!q.texto||q.texto===antes) return;
+    h=h.split('<span class="ch-conv-quien">'+escHTML(antes)+'<').join('<span class="ch-conv-quien">'+escHTML(q.texto)+'<');
+  });
+  return h;
+}
+/* Los registros se traen al entrar a 📥 Registrados, no antes. Si la bandeja
+   tiene un celular que ni la nube ni la cartera reconocen, se piden UNA vez
+   por sesión (los nuevos, lo mismo que trae esa pestaña) para poder decir con
+   qué nombre se registró. Van aparte (_registrosDelChat) para no pintar
+   📥 Registrados ni mover nada de lo que esa pestaña hace al traer los suyos.
+   Si falla, no se insiste: Registrados los trae cuando Joan entre. */
+let _registrosPedidosPorElChat=false;
+function traerRegistrosParaElChat(lista){
+  if(_registrosPedidosPorElChat||!sbListo()) return;
+  const falta=(lista||[]).some(c=>{ if(c.nombre||c.nombre_registro) return false;
+    const q=quienEscribeLocal(c); return !q.ficha&&!q.registro&&/^0?3\d{9}$/.test(String(c.cedula||'')); });
+  if(!falta) return;
+  _registrosPedidosPorElChat=true;
+  rpc('listar_registros',{p_clave:sbCfg().clave,p_estado:'nuevo'}).then(f=>{
+    if(!Array.isArray(f)||!f.length) return;
+    _registrosDelChat=f; renderMensajes();
+  }).catch(()=>{});
+}
+/* 26-oct-2026 — EL BOTÓN DEL PERFIL. Joan: «que tenga un botón para yo ver el
+   perfil de este cliente». La ficha y el registro que este computador tiene
+   con esa llave, los dos si hay los dos; si no hay ninguno, se dice, y se
+   dice de DÓNDE (en este computador): los registros son los traídos, no
+   todos los de la nube. */
+function botonesDeQuienEscribe(q){
+  const f=q&&q.ficha, r=q&&q.registro;
+  if(!f&&!r){
+    const esNumero=/^0?3\d{9}$/.test(String((q&&q.llave)||''));
+    return '<span class="muted" style="font-size:12px">Ni ficha ni registro con '+(esNumero?'este número':'esta cédula')+' en este computador</span>';
+  }
+  return (f?`<button class="btn btn-ghost btn-sm" onclick="verFichaDesdeChat('${escHTML(String(f.id))}')" title="Abre su ficha; desde allá vuelves al chat">👤 Ver ficha</button>`:'')
+    +(r?`<button class="btn btn-ghost btn-sm" onclick="verRegistroDesdeChat('${escHTML(String(r.id))}')" title="Lo que declaró al registrarse; desde allá vuelves al chat">📋 Ver registro</button>`:'');
+}
+/* Chat → ficha o registro → chat. Es el camino de abrirHiloDeRegistro al
+   revés. El CRM tiene UN solo cuadro (openModal reemplaza lo que había), así
+   que «volver» es cerrar y abrir otra vez la misma conversación: cerrarModal
+   primero, porque suelta _fichaVista y sin eso traerFotosTardias volvería a
+   pintar la ficha ENCIMA del chat cuando lleguen las fotos. El botón de
+   volver se inserta sin reescribir el cuerpo: verCliente ya le pidió las
+   fotos a ese DOM (resolverFotos) y reescribirlo le quitaría los nodos. */
+function verFichaDesdeChat(id){
+  const ident=_chatAbierta;
+  if(!DB.socios.some(s=>s.id===id)) return;
+  verCliente(id); ponerVolverAlChat(ident);
+}
+function verRegistroDesdeChat(id){
+  const ident=_chatAbierta, r=registroPorId(id); if(!r) return;
+  if(r.datos) verDatosRegistro(id);
+  else openModal('Registro de '+(r.nombre||'esta persona'),
+    /* Un registro por invitación trae solo cuatro campos y `datos` vacío:
+       verDatosRegistro no lo abre, y acá se pintan los cuatro. */
+    '<div class="help" style="margin-bottom:10px">Lo que dejó al registrarse. Nadie ha comprobado su identidad contra la Registraduría ni contra ninguna central.</div>'
+    +[['Nombre',r.nombre],['Cédula',r.cedula],['Celular',r.telefono],['Cuándo',r.creado_en?fmtFecha(String(r.creado_en).slice(0,10)):'']]
+      .filter(p=>p[1]).map(p=>`<div class="info-row"><span class="k">${p[0]}</span><span class="vv">${escHTML(String(p[1]))}</span></div>`).join(''));
+  ponerVolverAlChat(ident);
+}
+function ponerVolverAlChat(ident){
+  if(!ident) return;
+  const b=document.getElementById('mBody'); if(!b) return;
+  const html=`<div style="margin-bottom:10px"><button class="btn btn-ghost btn-sm" onclick="volverAlChat('${escHTML(ident)}')">← Volver al chat</button></div>`;
+  if(typeof b.insertAdjacentHTML==='function') b.insertAdjacentHTML('afterbegin',html); else b.innerHTML=html+b.innerHTML;
+}
+/* 26-oct-2026 (ronda 1) — volver es abrir la MISMA conversación con el mismo
+   `extra` (nombre y nota) con que estaba abierta: lo decidió quien la abrió
+   desde la ficha o el registro (escribirlePorLaApp, abrirHiloDeRegistro).
+   Antes volvía a secas y el hilo cambiaba de título y perdía la nota. Se
+   compara el ident: si el cuadro es de otra conversación, se abre a secas.
+   cerrarModal ANTES de abrir, por lo de _fichaVista (arriba). */
+function volverAlChat(ident){
+  const id=String(ident||'');
+  const extra=(_chatExtra&&_chatExtra.ident===id)?_chatExtra.extra:undefined;
+  cerrarModal(); abrirConversacion(id,extra);
 }
 
 /* 22-sep-2026 — ABRIR LA FOTO QUE MANDÓ EL CLIENTE. El hilo trae la miniatura;
@@ -10352,7 +10574,9 @@ const ETIQUETAS_VINCULACION={nombres:'Nombres',apellidos:'Apellidos',tipo_doc:'T
   banco_codigo:'Código del banco (Superfinanciera)',banco_tipo:'Tipo de cuenta',banco_numero:'Número de cuenta',
   cuentas_mias:'Dijo que son a su nombre'};
 function verDatosRegistro(id){
-  const r=_registros.find(x=>String(x.id)===String(id)); if(!r||!r.datos)return;
+  /* 26-oct-2026 — registroPorId y no _registros.find: «📋 Ver registro» del
+     chat abre también los que trajo la bandeja de Mensajes (_registrosDelChat). */
+  const r=registroPorId(id); if(!r||!r.datos)return;
   /* 22-oct-2026 — sin el sello del registro (cuentas_sello): son 32 letras al
      azar que solo sirven para que la app sepa que la fila es de esa cuenta
      (base/20261022c_las_cuentas_del_registro.sql). A Joan no le dice nada. */
