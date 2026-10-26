@@ -9418,12 +9418,19 @@ function quienEscribeLocal(c){
 /* La bandeja que pintó CHAT.listaHTML, con los nombres de aquí. Se cambia
    SOLO el renglón de quién (.ch-conv-quien), anclado en el texto exacto que
    escribió quienEs: el último mensaje puede traer lo mismo y no se toca. */
+/* 26-oct-2026 (ronda 2) — EXACTO HASTA EL FINAL: el ancla termina en el «<»
+   que listaHTML pone siempre detrás del texto (el contador o el cierre del
+   span; el texto va escapado, así que no puede traer un «<» suyo). Sin él,
+   «Socio nuevo · 30012345» (una cédula de 8 dígitos de una ficha de aquí) es
+   el comienzo de «Socio nuevo · 3001234567», y la bandeja decía «Pepe
+   Prefijo67» en el hilo de OTRO número: el nombre de un cliente en la
+   conversación de quien no es (lo cazó el refutador «lente Joan», J5). */
 function bandejaConNombres(html,lista){
   let h=String(html||'');
   (lista||[]).forEach(c=>{
     const q=quienEscribeLocal(c), antes=CHAT.quienEs(c);
     if(!q.texto||q.texto===antes) return;
-    h=h.split('<span class="ch-conv-quien">'+escHTML(antes)).join('<span class="ch-conv-quien">'+escHTML(q.texto));
+    h=h.split('<span class="ch-conv-quien">'+escHTML(antes)+'<').join('<span class="ch-conv-quien">'+escHTML(q.texto)+'<');
   });
   return h;
 }

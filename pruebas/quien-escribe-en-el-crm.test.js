@@ -596,3 +596,30 @@ describe('7. ronda 2 (26-oct): el número se queda, y la ficha que abre «👤 V
       'sin piso, «Cupo quincenal» parte «$25.000» en dos renglones');
   });
 });
+
+/* ========================================================================== */
+describe('8. el ancla de la bandeja es exacta (ronda 2, J5 del refutador «lente Joan»)', () => {
+  /* «Socio nuevo · 30012345» es el comienzo de «Socio nuevo · 3001234567»:
+     con el ancla abierta, el nombre de la ficha de la cédula 30012345 se
+     colaba en el renglón del celular 3001234567 («Pepe Prefijo67»). */
+  const PEPE = "DB.socios.push({ id: 'C9', numero: 9, nombre: 'Pepe Prefijo', cedula: '30012345', telefono: '3119999999', whatsappIgual: true })";
+  const renglones = P => (P.elems.chBandeja.innerHTML.match(/ch-conv-quien">[^<]*/g) || []).map(x => x.replace('ch-conv-quien">', ''));
+
+  test('una cédula que es el comienzo de un celular de la bandeja no le presta el nombre', () => {
+    for (const orden of [['30012345', '3001234567'], ['3001234567', '30012345']]) {
+      const P = crm({ registros: [] }); P.ev(PEPE);
+      pintar(P, orden.map(c => conv({ cedula: c })));
+      const r = renglones(P);
+      const de = k => r[orden.indexOf(k)];
+      assert.equal(de('30012345'), 'Pepe Prefijo');
+      assert.equal(de('3001234567'), 'Socio nuevo · 3001234567', 'el nombre de otra ficha se coló en el renglón: «' + de('3001234567') + '»');
+    }
+  });
+
+  test('con el contador de sin leer detrás, el renglón se sigue cambiando', () => {
+    const P = crm({ registros: [] }); P.ev(PEPE);
+    pintar(P, [conv({ cedula: '30012345', sin_leer: 3 }), conv({ cedula: '3001234567', sin_leer: 0 })]);
+    assert.match(P.elems.chBandeja.innerHTML, /ch-conv-quien">Pepe Prefijo<span class="ch-sinleer">3<\/span>/);
+    assert.match(P.elems.chBandeja.innerHTML, /ch-conv-quien">Socio nuevo · 3001234567<\/span>/);
+  });
+});

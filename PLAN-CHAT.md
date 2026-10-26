@@ -61,7 +61,10 @@
 >   encoge, y medía 737 px de alto con los botones fuera del cuadro (venía de
 >   v138). Ahora lleva `.con-botones` (la frase se parte y los botones bajan),
 >   y en el celular la etiqueta de cualquier renglón del cuadro encoge si no
->   cabe (sección 7 de la prueba).
+>   cabe (sección 7 de la prueba). Y el cambio del renglón en la bandeja se
+>   ancla hasta el final del texto: una cédula de 8 dígitos que empieza igual
+>   que un celular de la bandeja le prestaba el nombre a ese otro hilo
+>   («Pepe Prefijo67»; sección 8).
 >
 > **La decisión B sigue pendiente**: sin Telegram, el aviso a Joan solo existe
 > con el CRM o el celular abiertos, y al cliente no le llega nada con la app
