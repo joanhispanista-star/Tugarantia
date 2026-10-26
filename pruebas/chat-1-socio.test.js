@@ -374,6 +374,43 @@ describe('5. fotos: mandar y ver', () => {
     assert.equal(A.ev('CH.enviando'), false);
   });
 
+  test('con un texto en camino, «📷» queda apagado; si igual llega una foto, se dice, y la misma foto sale después', async () => {
+    /* 26-oct-2026 — hallazgo del 26-oct: chatMandarFoto se negaba con un
+       texto en camino (CH.enviando) con un `return` mudo, y el botón 📷
+       seguía encendido mientras tanto. Con mala señal el texto va en camino
+       lo que dure la red (CHAT.llamar no tiene tope de tiempo): el cliente
+       tocaba Enviar con «ya pagué», tocaba 📷, elegía el comprobante y la
+       foto se perdía sin que la pantalla lo dijera. Aquí el texto se queda
+       en el aire hasta que la prueba lo suelta. */
+    let soltar = null;
+    const hilo = { servicio: [msg(1, 'panel', 'mándame el comprobante')], cobranza: [], creditos: [] };
+    const { A, N } = await abrirCuenta({ nube: { hilo,
+      escribir: () => new Promise(r => { soltar = () => r({ status: 200, cuerpo: { ok: true, id: 50 } }); }) } });
+    A.ev("irA('chat')"); await asentar(16);
+    conFotoLista(A);
+    el(A, 'chTexto').value = 'ya pagué, te mando el comprobante';
+    A.ev('chatEnviar()'); await asentar(4);
+    assert.equal(A.ev('CH.enviando'), true, 'el caso de prueba no dejó el texto en camino');
+    assert.equal(el(A, 'chEnviar').disabled, true);
+    assert.equal(el(A, 'chFotoBoton').disabled, true, 'con el texto en camino el botón 📷 sigue encendido: la galería se abre y la foto se va a perder');
+    /* Si una foto llega igual, no se traga en silencio: se dice y se pide volver a elegirla. */
+    A.ev('chatMandarFoto({ files: [{ type: "image/jpeg", name: "comprobante.jpg" }], value: "x" })'); await asentar(4);
+    assert.equal(N.de('chat_foto_sesion').length, 0);
+    assert.ok(!el(A, 'chErr').classList.contains('oculto'), 'la foto se descartó y la pantalla no dijo nada');
+    assert.match(el(A, 'chErr').textContent, /vuelve a elegir la foto/);
+    assert.equal(A.avisos.length, 0, 'lo dijo con un alert');
+    /* El texto termina de salir: los dos botones vuelven, y la misma foto, elegida otra vez, sale. */
+    soltar(); await asentar(16);
+    assert.equal(N.de('chat_escribir_sesion').length, 1);
+    assert.equal(A.ev('CH.enviando'), false);
+    assert.equal(el(A, 'chFotoBoton').disabled, false, 'el texto ya salió y 📷 se quedó apagado');
+    assert.equal(el(A, 'chEnviar').disabled, false);
+    A.ev('chatMandarFoto({ files: [{ type: "image/jpeg", name: "comprobante.jpg" }], value: "x" })'); await asentar(16);
+    assert.equal(N.de('chat_foto_sesion').length, 1, 'elegida otra vez con el texto ya fuera, la foto no salió');
+    assert.ok(el(A, 'chErr').classList.contains('oculto'));
+    assert.equal(A.ev('CH.enviando'), false);
+  });
+
   test('la miniatura de una foto recibida se puede tocar: pide la grande por su id y la enseña aquí mismo', async () => {
     const hilo = { servicio: [msg(7, 'panel', 'mira', { foto: 7, miniatura: MINI })], cobranza: [], creditos: [] };
     const { A, N } = await abrirCuenta({ nube: { hilo } });

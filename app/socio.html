@@ -4969,12 +4969,19 @@ function canalDeRespuesta() {
 
 function chatEnviar() {
   if (!chatDisponible() || CH.enviando) return;
-  var ta = $('chTexto'), b = $('chEnviar');
+  var ta = $('chTexto'), b = $('chEnviar'), fb = $('chFotoBoton');
   var r = CHAT.revisar(ta ? ta.value : '');
   if (!r.ok) { chatDecir(r.motivo); return; }
   var canal = canalDeRespuesta();
   chatDecir('');
-  CH.enviando = true; if (b) b.disabled = true;
+  /* 26-oct-2026 — EL BOTÓN DE LA FOTO SE APAGA MIENTRAS EL TEXTO VA EN CAMINO
+     (hallazgo del 26-oct). chatMandarFoto se niega con un texto en camino
+     (CH.enviando), y con mala señal ese camino dura lo que dure la red
+     (CHAT.llamar no tiene tope de tiempo): el cliente tocaba Enviar con «ya
+     pagué», tocaba 📷 —seguía encendido—, elegía el comprobante y la foto
+     se descartaba sin decirlo. Apagado, la galería no se abre; es el mismo
+     par de botones que ya apaga chatMandarFoto. */
+  CH.enviando = true; if (b) b.disabled = true; if (fb) fb.disabled = true;
   /* 21-oct-2026 (R3) — una escritura en camino: SE ACTUALIZA SOLA no recarga
      encima de ella en ninguna pantalla (ver LO QUE VA EN CAMINO NO SE CORTA). */
   escrituraEnCamino(cfgChat().then(function (cfg) { return CHAT.escribir(cfg, r.texto, canal); })).then(function (j) {
@@ -4993,7 +5000,7 @@ function chatEnviar() {
     chatDecir(((e && e.humano) || (e && e.causa === 'sesion' ? SS.TEXTOS.vencida
       : 'No pude mandarlo. Revisa tu internet y vuelve a intentar.')) + ' El texto sigue en el cuadro.');
   }).then(function () {
-    CH.enviando = false; if (b) b.disabled = false;
+    CH.enviando = false; if (b) b.disabled = false; if (fb) fb.disabled = false;
   });
 }
 
@@ -5010,7 +5017,14 @@ function chatMandarFoto(input) {
   /* Se suelta el archivo ya: así la misma foto se puede volver a elegir
      (onchange no dispara si el valor no cambió). */
   try { input.value = ''; } catch (e) {}
-  if (!archivo || CH.enviando) return;
+  if (!archivo) return;
+  /* 26-oct-2026 — NINGÚN CAMINO SE TRAGA UNA FOTO SIN DECIRLO (hallazgo del
+     26-oct). Con un texto en camino el botón ya va apagado (chatEnviar); si
+     igual llega una foto aquí, se dice y se pide volver a elegirla: el
+     archivo ya se soltó del input y no hay forma de mandarlo después. El
+     «return» mudo de antes dejaba al cliente creyendo que Joan tenía el
+     comprobante. */
+  if (CH.enviando) { chatDecir('Espera a que termine de mandarse el texto y vuelve a elegir la foto.'); return; }
   if (!CHAT.prepararFoto) { chatDecir('No cargó una parte de la app. Cierra y vuelve a abrir con internet, y vuelve a intentar.'); return; }
   var ta = $('chTexto'), b = $('chEnviar'), fb = $('chFotoBoton');
   var pie = String((ta && ta.value) || '').trim();
