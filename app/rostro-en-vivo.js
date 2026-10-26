@@ -48,6 +48,28 @@
  * un teléfono sin WebGL), la página vuelve al encuadre de siempre: la
  * persona no se queda atascada por un adorno. Si llegan el detector y no los
  * puntos, sigue con la caja, sin ojos dibujados.
+ *
+ * 26-oct-2026 — DOS SEGUNDOS EN VERDE, Y LA SILUETA. Joan, con el iPhone:
+ * «aparece un óvalo pero no tiene forma de cara y te pide la app que te
+ * centres en el óvalo lo cual nunca pasará, las caras tienen forma de huevo,
+ * y tampoco se tomó la foto automáticamente, quiero que se vea escaneando y
+ * que cuando se ponga verde se tome la foto automáticamente después de 2
+ * segundos en color verde». Tres cosas cambian aquí (el dibujo de la silueta
+ * vive en play/, dibujarMarco):
+ *   · LA CUENTA ES DE TIEMPO EN VERDE, no de detecciones (contarVerde): la
+ *     foto sale a los ROSTRO.MS_VERDE (2 s) de la primera detección verde, y
+ *     lo que se muestra —el aro que se llena, el «2 · 1»— es exactamente lo
+ *     que decide. Un parpadeo del detector (la caja tiembla y una detección
+ *     sale «movimiento» entre dos buenas) no reinicia la cuenta; perder la
+ *     cara sí. contarRacha se queda tal cual para una página vieja en caché.
+ *   · EL CENTRO SE MIDE MÁS ABAJO (OVALO.dy): la caja del detector va de la
+ *     frente al mentón y su centro cae al 62 % del alto de la cabeza, medido
+ *     con el detector de verdad en Chrome sin ventana (scratchpad/lote-26/
+ *     rostro-huevo/medicion.md). Con la cabeza centrada en la silueta el
+ *     desvío daba 0,25 de 0,30: pasaba por un pelo, y una cabeza apenas 2 %
+ *     más abajo decía «Centra tu cara» para siempre. Eso era lo que «nunca
+ *     pasaba».
+ *   · Los textos dicen «la silueta», que es lo que se dibuja.
  * ==========================================================================*/
 /* 23-oct-2026 — LA FIRMA DE LLEGADA. Las páginas piden este archivo con la
    versión en la dirección (…?v=139) y, antes de arrancar su bloque grande,
@@ -101,6 +123,21 @@
        alcanza a VER que la está escaneando. La cuenta en pantalla sigue siendo
        la racha; esto solo evita que dispare antes de que se vea. */
     MS_ESCANEO_MIN: 900,
+    /* 26-oct-2026 — LA CUENTA EN VERDE (contarVerde). MS_VERDE: cuánto tiene
+       que llevar la cara en verde para disparar; es lo que Joan pidió («2
+       segundos en color verde») y lo que el aro muestra. MS_PARPADEO: una
+       detección no verde entre dos verdes se tolera si la verde siguiente
+       llega en este rato desde la última verde; con el detector lento (2 por
+       segundo, Safari o un Android barato) ni siquiera eso alcanza, así que
+       además se tolera UNA detección no verde seguida (PARPADEOS_MAX) hasta
+       MS_HUECO_MAX. MS_PERDIDA: sin ninguna cara más de esto, se reinicia
+       (la persona se fue del cuadro; no es un parpadeo). Medido en Node con
+       el temblor de una frontal barata (la-selfie-se-toma-sola.test.js). */
+    MS_VERDE: 2000,
+    MS_PARPADEO: 400,
+    PARPADEOS_MAX: 1,
+    MS_HUECO_MAX: 1200,
+    MS_PERDIDA: 400,
     MS_ESPERA_DETECTOR: 8000,// si no llega en este rato, la página vuelve al encuadre
     /* 22-oct-2026 — si en este rato el detector no ha visto NI UNA cara, la
        página lo suelta y vuelve al encuadre (con la caja de la cámara del
@@ -127,10 +164,18 @@
     MUESTRAS_TIEMPO: 5       // detecciones que se miden antes de decidir lo de arriba
   };
 
-  /* El óvalo que dibuja la página (play/index.html, dibujarMarco), en
+  /* El marco que dibuja la página (play/index.html, dibujarMarco), en
      fracciones de la ZONA QUE SE VE (22-oct-2026: antes, del cuadro entero;
-     ver zonaVisible en play/). Si allá cambia, acá también. */
-  var OVALO = { cx: 0.5, cy: 0.5, rx: 0.32, ry: 0.36 };
+     ver zonaVisible en play/). Si allá cambia, acá también.
+     26-oct-2026 — la página ya no dibuja un óvalo sino una silueta de cabeza
+     (más ancha en la frente, angosta en el mentón) que cabe en este mismo
+     rectángulo de 2·rx por 2·ry: las medidas (tamaño, desvío, movimiento) no
+     cambian de significado. Y `dy`: el centro CONTRA EL QUE SE MIDE la caja
+     de la cara va dy·ry más abajo que el de la silueta, porque la caja del
+     detector no incluye el pelo (su centro cae al 62 % del alto de la cabeza,
+     medido: ver la cabecera). Con la cabeza centrada en la silueta el desvío
+     pasa de 0,25 a 0,03, y la ventana de ±CENTRO_TOL queda simétrica. */
+  var OVALO = { cx: 0.5, cy: 0.5, rx: 0.32, ry: 0.36, dy: 0.22 };
 
   function num(v, d) { v = +v; return isFinite(v) ? v : d; }
 
@@ -209,7 +254,9 @@
 
     var fx = cara.x + cara.w / 2, fy = cara.y + cara.h / 2;
     r.tamano = cara.h / (2 * OVALO.ry);
-    r.desvio = Math.max(Math.abs(fx - OVALO.cx) / OVALO.rx, Math.abs(fy - OVALO.cy) / OVALO.ry);
+    /* 26-oct-2026 — el centro de la caja se compara con el de la silueta
+       corrido dy·ry hacia abajo (ver OVALO). */
+    r.desvio = Math.max(Math.abs(fx - OVALO.cx) / OVALO.rx, Math.abs(fy - (OVALO.cy + OVALO.dy * OVALO.ry)) / OVALO.ry);
     /* Primero la distancia y después el centro: a quien está lejos, «céntrate»
        no le sirve todavía; al acercarse se centra casi solo. */
     if (r.tamano < ROSTRO.TAMANO_MIN) { r.falla = 'lejos'; return r; }
@@ -268,6 +315,81 @@
       }
     }
     return r;
+  }
+
+  /* 26-oct-2026 — un estado limpio de la cuenta en verde: solo tiempos y
+     conteos; nunca dónde estaba la cara. */
+  function estadoVerdeNuevo() {
+    /* activa: la cuenta está andando. Es una bandera aparte de `desde`
+       porque el instante 0 es una hora válida (las pruebas cuentan desde 0). */
+    return { activa: 0, desde: 0, ultimoVerde: 0, ultimaCara: 0, parpadeos: 0, verdes: 0, miradas: 0 };
+  }
+  function estadoVerdeDe(e) {
+    var n = estadoVerdeNuevo();
+    if (!e || typeof e !== 'object') return n;
+    Object.keys(n).forEach(function (k) { n[k] = Math.max(0, num(e[k], 0)); });
+    return n;
+  }
+
+  /**
+   * LA CUENTA DE DOS SEGUNDOS EN VERDE — 26-oct-2026. Sustituye a contarRacha
+   * en play/ (que la sigue usando si este archivo le llegó viejo).
+   *
+   * Reglas, que son las que la persona ve en el aro:
+   *   · empieza con la primera detección verde (medida.ok) y dispara en la
+   *     primera verde que llegue a ROSTRO.MS_VERDE desde esa: nunca antes;
+   *   · una detección no verde CON cara (la caja tembló: «movimiento», o el
+   *     autofoco: «borrosa») es un parpadeo y no reinicia, si la verde
+   *     siguiente llega en MS_PARPADEO desde la última verde, o si es una
+   *     sola seguida (PARPADEOS_MAX) y llega antes de MS_HUECO_MAX;
+   *   · sin ninguna cara más de MS_PERDIDA, o un hueco entre verdes mayor que
+   *     MS_HUECO_MAX (el detector no estaba mirando), se reinicia;
+   *   · el cuadro que dispara es verde: pasó la nitidez y la quietud.
+   *
+   * @param estado  lo que devolvió la llamada anterior en `estado` (null al empezar)
+   * @param medida  lo que devolvió medirRostro para esta detección
+   * @param ahora   la hora de esta detección, en ms
+   * @returns {estado, enVerde, ms, avance, disparar, parpadeo}
+   *          enVerde: la cuenta está andando; ms: cuánto lleva; avance: ms
+   *          sobre MS_VERDE (0..1); parpadeo: esta detección no fue verde y se
+   *          toleró.
+   */
+  function contarVerde(estado, medida, ahora) {
+    var t = num(ahora, 0);
+    var e = estadoVerdeDe(estado);
+    var ok = !!(medida && medida.ok), hayCara = !!(medida && medida.cara);
+    var parpadeo = false;
+    var reiniciar = function () { e.activa = 0; e.desde = 0; e.ultimoVerde = 0; e.parpadeos = 0; e.verdes = 0; e.miradas = 0; };
+    if (ok) {
+      if (!e.activa || t - e.ultimoVerde > ROSTRO.MS_HUECO_MAX) { reiniciar(); e.activa = 1; e.desde = t; }
+      e.ultimoVerde = t; e.parpadeos = 0; e.verdes++; e.miradas++;
+    } else if (e.activa) {
+      if (!hayCara && t - e.ultimaCara > ROSTRO.MS_PERDIDA) {
+        reiniciar();
+      } else {
+        e.parpadeos++; e.miradas++;
+        var hueco = t - e.ultimoVerde;
+        if (hueco > ROSTRO.MS_HUECO_MAX || (e.parpadeos > ROSTRO.PARPADEOS_MAX && hueco > ROSTRO.MS_PARPADEO)) reiniciar();
+        else parpadeo = true;
+      }
+    }
+    if (hayCara) e.ultimaCara = t;
+    var ms = e.activa ? Math.max(0, t - e.desde) : 0;
+    return { estado: e, enVerde: !!e.activa, ms: ms, avance: Math.min(1, ms / ROSTRO.MS_VERDE),
+             disparar: ok && ms >= ROSTRO.MS_VERDE, parpadeo: parpadeo };
+  }
+
+  /* Lo mismo, visto entre detecciones (para dibujar el aro a 80 ms aunque el
+     detector conteste cada 300): cuánto lleva en verde AHORA. Si la última
+     verde quedó más atrás que MS_HUECO_MAX, el detector no está mirando y el
+     aro no puede seguir llenándose solo por el reloj. `segundos` es lo que
+     falta, redondeado hacia arriba, para el «2 · 1» de la pantalla. */
+  function avanceVerde(estado, ahora) {
+    var e = estadoVerdeDe(estado), t = num(ahora, 0);
+    var vivo = !!e.activa && t - e.ultimoVerde <= ROSTRO.MS_HUECO_MAX;
+    var ms = vivo ? Math.max(0, t - e.desde) : 0;
+    return { enVerde: vivo, ms: ms, avance: Math.min(1, ms / ROSTRO.MS_VERDE),
+             segundos: vivo ? Math.max(1, Math.ceil((ROSTRO.MS_VERDE - ms) / 1000)) : 0 };
   }
 
   /**
@@ -480,12 +602,14 @@
   }
 
   return {
-    VERSION: '2026-10-22',
+    VERSION: '2026-10-26',
     ROSTRO: ROSTRO,
     OVALO: OVALO,
     caraPrincipal: caraPrincipal,
     medirRostro: medirRostro,
     contarRacha: contarRacha,
+    contarVerde: contarVerde,
+    avanceVerde: avanceVerde,
     nitidezDe: nitidezDe,
     mejorNitidez: mejorNitidez,
     textoDeRostro: textoDeRostro,
