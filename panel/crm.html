@@ -1169,6 +1169,12 @@
      Un script de un servidor ajeno en ESTA pagina podria leer la cartera
      entera, que vive en memoria mientras el CRM esta abierto. -->
 <script src="../app/bases.js"></script>
+<!-- 27-oct-2026 — EL GERENTE AGREGA: las reglas puras de agregar gente (qué
+     columnas extra de un archivo se pueden guardar y por qué no las otras,
+     la limpieza del nombre y la nota, las tandas). Va DESPUÉS de bases.js,
+     que es de donde toma celularDe, nombreDe y las señales financieras. Con
+     ?v=: es un .js nuevo, y firma al llegar (¿LLEGÓ LO QUE PEDÍ?). -->
+<script src="agregar-prospectos.js?v=139"></script>
 <!-- Las etapas del cliente (PC, CR, CA, D-3…, M1A, M1B, M1-2). La MISMA
      tabla que usa la app del equipo: si cada pantalla la calculara por su
      cuenta, Joan y su asesor verían carteras distintas para el mismo
@@ -12851,6 +12857,7 @@ function modoEquipo() {
         <button class="navbtn on" onclick="irEquipo('tablero')"><span class="ic">📊</span> Hoy</button>
         ${yo.rol === 'gerente' ? '<button class="navbtn" onclick="irEquipo(\'registros\')"><span class="ic">📥</span> Registros</button>' : ''}
         <button class="navbtn" onclick="irEquipo('base')"><span class="ic">📋</span> Mi base</button>
+        ${yo.rol === 'gerente' ? '<button class="navbtn" onclick="agregarEq()"><span class="ic">＋</span> Agregar prospectos</button>' : ''}
         <button class="navbtn" onclick="irEquipo('cobrar')"><span class="ic">💵</span> Cuándo cobrar</button>
         <button class="navbtn" onclick="irEquipo('agenda')"><span class="ic">📅</span> Agenda</button>
         ${yo.rol === 'gerente' ? '<button class="navbtn" onclick="irEquipo(\'equipo\')"><span class="ic">🚶</span> Mi equipo</button>' : ''}
@@ -13005,6 +13012,7 @@ function filaPersonaEq(p, extra) {
   return `<div class="info-row"><span class="k"><b>${escHTML(p.nombre || 'Sin nombre')}</b>
       <div class="muted mono">${escHTML(p.celular || '')}</div>
       ${lineaPlataEq(p)}
+      ${lineaInfoEq(p)}
       ${extra || ''}
       ${esGerenteEq() && p.asesor_nombre ? `<div class="muted">🚶 ${escHTML(p.asesor_nombre)}${
           p.asesor_activo === false ? ' <span class="chip mora">se fue — repártelo</span>' : ''}</div>` : ''}
@@ -13024,6 +13032,7 @@ function filaPersonaEq(p, extra) {
         title="Mandarle una llamada grabada">📞</button>` : ''}
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
         onclick="anotarGestionEq('${idDeBoton(p.id)}')" title="Anotar qué pasó">✎</button>
+      ${esGerenteEq() ? botonAsignarEq(p) : ''}
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
         onclick="verHistoriaEq('${idDeBoton(p.id)}')" title="Ver la historia">🕘</button>
       <button class="btn btn-ghost btn-sm" style="margin-left:6px"
@@ -13069,6 +13078,8 @@ function filaPersonaEq(p, extra) {
 var _contactoEq = null;
 
 function contactarEq(id, celular, primero) {
+  /* 27-oct-2026 — EL GERENTE AGREGA: con el «No autorizó» de Joan, no se abre. */
+  if (bloqueoPorAutorizacionEq(id)) return;
   const G = window.GestionAsesor;
   /* 27-oct-2026 — el botón ya no trae el nombre (ver idDeBoton): sale de «Mi
      base» o, si es una cita de alguien que no está en ella, de la agenda. Si
@@ -14669,7 +14680,7 @@ function vistaTableroEquipo() {
         ${hoyCitas.slice(0, 12).map(filaCitaEq).join('')}</div>` : '') + `
     <div class="card"><div class="card-h"><h3>⚠️ Lo que hay que hacer hoy</h3>
       <span class="tag">Primero lo que se puede perder</span></div>
-      ${pend.length ? pend.slice(0, 20).map(filaPersonaEq).join('')
+      ${pend.length ? pend.slice(0, 20).map(p => filaPersonaEq(p)).join('')
         : '<div class="muted" style="padding:14px">Nadie está en día de pago ni en mora. Buen momento para contactar a los que no se han registrado.</div>'}
     </div>
     ${tarjetaComoVasEq()}
@@ -14896,18 +14907,605 @@ function vistaBaseEquipo() {
   return `<div class="ph"><div><h1>${_asesorBaseEq ? 'Base de ' + escHTML(quien) : 'Mi base'}<span class="dot">.</span></h1>
       <div class="sub">${g.length} personas, de la más urgente a la más tranquila</div></div>
       ${_asesorBaseEq ? `<button class="btn btn-ghost btn-sm" onclick="irAsesorBase('')">
-        ✕ Ver a todo el equipo</button>` : ''}</div>
+        ✕ Ver a todo el equipo</button>` : ''}
+      ${esGerenteEq() ? botonesAgregarEq() : ''}</div>
     ${deQuien.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
       ${bot('todos', 'Todos (' + deQuien.length + ')')}
       ${bot('clientes', '🧑‍🤝‍🧑 Cobrar (' + cli + ')')}
       ${bot('potenciales', '📇 Vender (' + pot + ')')}
       ${extra}</div>` : ''}
     ${avisoAlDiaDeEq()}
-    <div class="card">${g.length ? g.map(filaPersonaEq).join('')
+    ${avisosBaseEq()}
+    <div class="card">${g.length ? g.map(p => filaPersonaEq(p)).join('')
       : `<div class="muted" style="padding:14px">${deQuien.length
-          ? 'Nadie de ese grupo.' : 'Todavía no te han asignado a nadie.'}</div>`}</div>`;
+          ? (_grupoBaseEq === 'recien' && infoEqFallo() ? 'No pude traer la información adicional: sin ella no sé quién es reciente.'
+             : 'Nadie de ese grupo.') : 'Todavía no te han asignado a nadie.'}</div>`}</div>`;
 }
 
+/* ==========================================================================
+ * EL GERENTE AGREGA — 27-oct-2026 (bloque NUEVO del modo equipo)
+ *
+ * Joan (26-oct): «quiero que william pueda agregar bases en archivo y que
+ * también pueda agregar clientes de forma manual… un botón de agregar
+ * prospecto manual, y podamos poner el nombre y el teléfono u otra
+ * información adicional y que podamos con facilidad nosotros mismos
+ * gestionar o que se los podamos asignar a otros del equipo».
+ *
+ * Lo que vive aquí, y por qué así:
+ *   · SOLO EL GERENTE agrega (un asesor no ve los botones, y el servidor lo
+ *     rechaza aunque llame a mano: gerente_de_sesion da null). Cada persona
+ *     que puede meter celulares es una llave más para el «ya existe».
+ *   · TODO VA POR RPC: en modo equipo DB está vacía a propósito y nada de esto
+ *     toca DB, guardar() ni localStorage (lo vigila el-freno-de-borrados con
+ *     toda función que termine en Eq).
+ *   · Ningún texto que escriba el equipo va dentro de un on…="…": los botones
+ *     pasan ids validados o celulares en dígitos (idDeBoton, commit 1).
+ *   · «⤒ Cargar base» es un <label> con su <input type=file> adentro: en el
+ *     iPhone, Safari solo abre el selector si el toque lo abre en el momento,
+ *     y un input.click() después de esperar la red no abre nada.
+ *   · La interfaz no promete lo que el servidor no hace: cada respuesta tiene
+ *     su texto, y «ya existe» nunca dice de quién.
+ *   · Las reglas puras (columnas extra, limpieza, tandas) viven en
+ *     panel/agregar-prospectos.js; la base, en base/20261027_el_gerente_agrega.sql.
+ * ======================================================================== */
+const AGREGA_TOPE_TANDA = 200;
+const ACCEPT_BASE_EQ = '.xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+let INFO_EQ = null;            // {estado:'ok'|'apagado'|'error', info:{id:{…}}, para: CARTERA_EQUIPO}
+let _infoEqEnCurso = null;
+let _cupoEq = null;            // la última respuesta de gerente_carga_cupo
+let _baseEq = null;            // el archivo leído, antes de subir
+let _subidaEq = null;          // {archivo, hechas, total} mientras sube
+let _avisoBaseEq = '';         // «Listo: …», una vez, arriba de «Mi base»
+
+/* «🆕 Recién agregados»: lo que entró en los últimos 7 días. Se agrega al
+   objeto de filtros (FILTROS_BASE es const, pero sus propiedades no), y
+   vistaBaseEquipo ya pinta como botón marcado un filtro que no sea de los
+   tres de siempre. */
+FILTROS_BASE.recien = { et: '🆕 Recién agregados', f: p => esRecienAgregadoEq(p) };
+
+const MESES_CORTOS_EQ = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function fechaCortaEq(iso) {
+  const d = new Date(String(iso || ''));
+  return isNaN(d) ? '' : d.getDate() + '-' + MESES_CORTOS_EQ[d.getMonth()];
+}
+function primerNombreEq(n) { return String(n || '').trim().split(/\s+/)[0] || ''; }
+function esFaltaFuncionEq(res) {
+  const j = (res && res.j) || {};
+  return !!res && (res.status === 404 || j.code === 'PGRST202');
+}
+
+/* Los textos de cuando no se puede, escritos UNA vez: el cuadro del menú, el
+   archivo y el «Agregar» dicen lo mismo. Ninguno cita la numeración de la
+   receta (Joan no la reconocería en boca de William). */
+const NO_SE_PUEDE_EQ = {
+  falta: 'Todavía no: falta un paso de Joan en la nube. Avísale.',
+  solo_gerente: 'No pude confirmar que eres gerente. Sal y vuelve a entrar; si sigue, avísale a Joan.',
+  sin_acuerdo: 'Todavía no puedes subir a nadie: falta que Joan anote tu acuerdo de manejo de datos con NEXECO. Es un papel que se firma una vez; pídeselo a Joan.',
+  en_revision: 'Paré tus subidas: en lo último que subiste, más de 50 celulares ya existían en Tu Garantía. Joan lo revisa antes de que sigas. Avísale, y cuando él te dé paso, vuelve a subir el mismo archivo.',
+  techo_base: 'Ya subiste 3.000 personas, que es lo que hoy aguanta «Mi base» en el celular sin ponerse lenta. Antes de subir más hay que preparar esa pantalla: avísale a Joan.',
+  muchas_llamadas: 'Hoy ya intentaste agregar 100 veces. Mañana se reinicia.',
+  tope: 'Hoy ya probaste 300 celulares (cuentan los que entraron y los que ya existían). Mañana se reinicia.',
+  para_no_es_tuyo: 'Esa persona ya no está activa en tu equipo. Cierra este cuadro, recarga y vuelve a elegir.',
+  solo_con_si: 'Sin su autorización no lo agrego. Pídesela, y cuando te diga que sí, lo agregas con la prueba.',
+  falta_prueba: 'Escribe dónde está la prueba de que te autorizó. Sin eso no se puede agregar.',
+  falta_origen: 'Escribe de dónde sale. No es un trámite: es lo único que permite contestar el día que pregunte de dónde sacamos su teléfono.',
+  falta_autoriza: 'Contesta si te autorizó que le escribamos: sí o no.'
+};
+function avisoNoSePuedeEq(motivo) {
+  return '<div class="alerta warn">' + escHTML(NO_SE_PUEDE_EQ[motivo] || ('La nube dijo que no (' + motivo + ').')) + '</div>';
+}
+function cupoTextoEq(c) {
+  const q = Number(c && c.quedan_hoy) || 0;
+  return 'Hoy puedes probar ' + q.toLocaleString('es-CO') + ' celular' + (q === 1 ? '' : 'es') +
+    ' más (cuentan los que entran y los que ya existían).';
+}
+
+/* ¿Puede subir hoy? Una sola pregunta para el cuadro del menú, el archivo y
+   el «Agregar». Devuelve {ok:true, c} o {ok:false, html}. */
+function pedirCupoEq() {
+  return rpcEquipo('gerente_carga_cupo', {}).then(res => {
+    if (esFaltaFuncionEq(res)) return { ok: false, motivo: 'falta', html: avisoNoSePuedeEq('falta') };
+    if (esFinDeSesion(null, res)) throw { sesion: true };
+    const c = (res && res.j) || {};
+    if (c.ok !== true) return { ok: false, motivo: 'solo_gerente', html: avisoNoSePuedeEq('solo_gerente') };
+    _cupoEq = c;
+    if (c.puede !== true) return { ok: false, motivo: c.motivo, html: avisoNoSePuedeEq(c.motivo) };
+    return { ok: true, c };
+  });
+}
+
+/* «＋ Agregar prospectos» del menú: dos caminos, uno debajo del otro. */
+function agregarEq() {
+  if (!esGerenteEq()) return;
+  if (_subidaEq) {
+    return openModal('＋ Agregar prospectos', '<div class="alerta info">Todavía estoy subiendo ' +
+      escHTML(_subidaEq.archivo) + ': ' + _subidaEq.hechas.toLocaleString('es-CO') + ' de ' +
+      _subidaEq.total.toLocaleString('es-CO') + '.</div>');
+  }
+  openModal('＋ Agregar prospectos', '<div class="muted">Mirando cuánto puedes subir hoy…</div>');
+  return pedirCupoEq().then(r => {
+    if (!r.ok) return openModal('＋ Agregar prospectos', r.html);
+    const c = r.c;
+    const ultimas = (c.ultimas || []).slice(0, 5);
+    openModal('＋ Agregar prospectos', `
+      <button class="btn btn-rojo" style="width:100%;justify-content:center;margin-bottom:4px" onclick="agregarProspectoEq()">✍️ Uno a mano</button>
+      <div class="muted" style="font-size:12.5px;margin-bottom:14px;text-align:center">Nombre, celular y lo que sepas de él.</div>
+      ${etiquetaArchivoEq('btn btn-ghost', 'width:100%;justify-content:center;margin-bottom:4px', '⤒ Un archivo (Excel o CSV)')}
+      <div class="muted" style="font-size:12.5px;margin-bottom:14px;text-align:center">Muchos a la vez. ${escHTML(cupoTextoEq(c))}</div>
+      ${ultimas.length ? '<div class="sub-h">Lo último que subiste</div>' + ultimas.map(u =>
+        '<div class="muted" style="font-size:12.5px;padding:2px 0">' + escHTML(fechaCortaEq(u.cuando)) + ' · ' +
+        escHTML(u.archivo || 'a mano') + ' · ' + (Number(u.entraron) === 1 ? 'entró 1' : 'entraron ' + Number(u.entraron || 0)) + '</div>').join('') : ''}`);
+  }).catch(e => {
+    if (esFinDeSesion(e)) return avisarFinDeSesion('');
+    openModal('＋ Agregar prospectos', '<div class="alerta warn">No pude preguntarle a la nube: ' +
+      escHTML((e && e.message) || 'revisa la señal') + '.</div>');
+  });
+}
+
+/* El <label> con su archivo adentro (ver la cabecera: el iPhone). El input
+   no se esconde con display:none —algunos Safari no abren un selector
+   escondido así— sino que queda invisible encima de nada. */
+function etiquetaArchivoEq(clase, estilo, texto) {
+  return `<label class="${clase}" style="position:relative;cursor:pointer;${estilo || ''}">${texto}<input type="file"
+    accept="${ACCEPT_BASE_EQ}" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;left:0;top:0"
+    onchange="leerArchivoBaseEq(this.files&&this.files[0]);this.value=''"></label>`;
+}
+/* Los dos botones de la cabecera de «Mi base», los mismos que Joan tiene en Bases. */
+function botonesAgregarEq() {
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-ghost btn-sm" onclick="agregarProspectoEq()">＋ Agregar prospecto</button>
+    ${etiquetaArchivoEq('btn btn-rojo btn-sm', '', '⤒ Cargar base')}</div>`;
+}
+
+/* ------------------------------------------------- uno a mano ---------- */
+function agregarProspectoEq() {
+  if (!esGerenteEq()) return;
+  if (!window.AgregarProspectos || !window.BasesTuGarantia) {
+    return openModal('＋ Agregar prospecto', '<div class="alerta warn">Falta bajar parte de la versión nueva (panel/agregar-prospectos.js). Recarga con señal.</div>');
+  }
+  const pintar = c => {
+    const destinos = (c && c.destinos) || [{ celular: CARTERA_EQUIPO.yo.celular, nombre: CARTERA_EQUIPO.yo.nombre, yo: true }];
+    openModal('＋ Agregar prospecto', `
+      <p class="sub" style="margin-bottom:12px">Alguien que todavía no es cliente y que te autorizó a escribirle: el que te recomendaron, el que te escribió. Para muchos a la vez, «⤒ Cargar base».</p>
+      <div class="field"><label>Nombre</label><input id="apNombreEq" autocomplete="off"></div>
+      <div class="field"><label>Celular</label><input id="apCelEq" inputmode="numeric" placeholder="3001234567" autocomplete="off"></div>
+      <div class="field"><label>Información adicional <span class="opc">(opcional)</span></label>
+        <textarea id="apNotaEq" rows="2" maxlength="300" placeholder="Ej: vende en la plaza de Kennedy, llamarlo después de las 3"></textarea>
+        <div class="help">La ven tú, quien lo trabaje y Joan. No escribas cédulas, claves, deudas ni nada de salud, religión o política.</div></div>
+      <div class="field"><label>¿De dónde sale?</label><input id="apOrigenEq" placeholder="Ej: me lo recomendó un cliente — o: me escribió por Facebook">
+        <div class="help">Queda guardado con él. Si algún día pregunta de dónde sacamos su teléfono, esta es la respuesta, y tiene que existir antes, no después.</div></div>
+      <div class="field"><label>¿Te autorizó que le escribamos por WhatsApp para ofrecerle el crédito?</label>
+        <select id="apAutorizaEq" onchange="mostrarPruebaEq('ap')"><option value="">— Elige una —</option>
+          <option value="si">Sí, me autorizó</option><option value="no">No, o no lo sé</option></select>
+        <div class="help">Solo entra quien autorizó. Es la ley de datos (1581): guardar su número y repartirlo ya cuenta como usarlo.</div></div>
+      <div class="field" id="apPruebaCajaEq" style="display:none"><label>¿Dónde está la prueba?</label>
+        <input id="apPruebaEq" placeholder="Ej: me lo dijo por WhatsApp el 20-oct y tengo el chat — o: firmó el formulario de la feria">
+        <div class="help">Si algún día él o la SIC lo preguntan, NEXECO tiene que mostrarla. Guárdala donde dices.</div></div>
+      <div class="field"><label>¿Quién lo trabaja?</label><select id="apParaEq">${destinos.map(d =>
+        `<option value="${escHTML(digitosDeBoton(d.celular))}"${d.yo ? ' selected' : ''}>${d.yo ? 'Lo trabajo yo' : 'Se lo asigno a ' + escHTML(d.nombre)}</option>`).join('')}</select></div>
+      <div id="apErrorEq"></div>
+      <button class="btn btn-rojo arriba" id="apBotonEq" onclick="guardarProspectoEq()">Agregar</button>
+      <div class="muted" style="font-size:12px;margin-top:8px">${escHTML(cupoTextoEq(c))}</div>`);
+  };
+  /* Con el cupo ya preguntado por el cuadro del menú se pinta de una; si
+     viene directo de «Mi base», se pregunta primero (un 404 o un «sin
+     acuerdo» no deben pedirle llenar un formulario que no va a servir). */
+  if (_cupoEq && _cupoEq.puede === true) return pintar(_cupoEq);
+  openModal('＋ Agregar prospecto', '<div class="muted">Mirando cuánto puedes subir hoy…</div>');
+  return pedirCupoEq().then(r => r.ok ? pintar(r.c) : openModal('＋ Agregar prospecto', r.html))
+    .catch(e => { if (esFinDeSesion(e)) return avisarFinDeSesion(''); openModal('＋ Agregar prospecto', '<div class="alerta warn">No pude preguntarle a la nube. Revisa la señal.</div>'); });
+}
+function mostrarPruebaEq(pre) {
+  const si = gv(pre === 'ap' ? 'apAutorizaEq' : 'baseAutorizaEq') === 'si';
+  const caja = document.getElementById(pre === 'ap' ? 'apPruebaCajaEq' : 'basePruebaCajaEq');
+  if (caja) caja.style.display = si ? '' : 'none';
+  if (pre === 'base') {
+    const b = document.getElementById('baseBotonEq'), no = gv('baseAutorizaEq') === 'no';
+    if (b) b.disabled = no;
+    const aviso = document.getElementById('baseNoEq');
+    if (aviso) aviso.innerHTML = no ? '<div class="alerta warn">Sin autorización no se sube. Quita del archivo a los que no autorizaron y vuelve a cargarlo.</div>' : '';
+  }
+}
+function errorAgregarEq(t) {
+  const caja = document.getElementById('apErrorEq');
+  if (caja) caja.innerHTML = '<div class="alerta warn">' + escHTML(t) + '</div>';
+  else alert(t);
+  return t;
+}
+
+function guardarProspectoEq() {
+  const A = window.AgregarProspectos, B = window.BasesTuGarantia;
+  if (!A || !B) return errorAgregarEq('Falta bajar parte de la versión nueva. Recarga con señal.');
+  const nombre = A.limpiarNombre(gv('apNombreEq'));
+  const cel = B.celularDe(gv('apCelEq'));
+  const nota = A.limpiarNota((document.getElementById('apNotaEq') || {}).value || '');
+  const origen = gv('apOrigenEq'), autoriza = gv('apAutorizaEq'), prueba = gv('apPruebaEq');
+  const para = digitosDeBoton(gv('apParaEq'));
+  /* 1. Sin red, con los mismos textos que usa Joan. */
+  if (!nombre) return errorAgregarEq('Falta el nombre.');
+  if (!cel) return errorAgregarEq('Ese celular no me cuadra: son 10 dígitos y empieza por 3 (el 57 de adelante puede ir o no).');
+  if (!origen) return errorAgregarEq(NO_SE_PUEDE_EQ.falta_origen);
+  if (autoriza !== 'si' && autoriza !== 'no') return errorAgregarEq(NO_SE_PUEDE_EQ.falta_autoriza);
+  if (autoriza === 'no') return errorAgregarEq(NO_SE_PUEDE_EQ.solo_con_si);
+  if (prueba.length < 5) return errorAgregarEq(NO_SE_PUEDE_EQ.falta_prueba);
+  /* 2. Ya es suyo: su propio alcance, nombrarlo no filtra nada. */
+  const ya = genteEquipo().find(p => B.celularDe(p.celular) === cel);
+  if (ya) {
+    return errorAgregarEq('Ese celular ya es tuyo: ' + (ya.nombre || 'sin nombre') +
+      (ya.asesor_nombre ? ' (lo trabaja ' + ya.asesor_nombre + ')' : '') + '. No lo agrego dos veces.');
+  }
+  const b = document.getElementById('apBotonEq');
+  if (b) { b.disabled = true; b.textContent = 'Agregando…'; }
+  const destino = ((_cupoEq && _cupoEq.destinos) || []).find(d => digitosDeBoton(d.celular) === para);
+  return rpcEquipo('gerente_agregar_prospectos', { p_lote: { archivo: '', origen, autoriza: 'si', prueba,
+      filas: [{ nombre, celular: cel, nota, para }] } })
+    .then(res => {
+      if (b) { b.disabled = false; b.textContent = 'Agregar'; }
+      if (esFaltaFuncionEq(res)) return errorAgregarEq(NO_SE_PUEDE_EQ.falta);
+      if (esFinDeSesion(null, res)) return avisarFinDeSesion('No se agregó. ');
+      const j = (res && res.j) || {};
+      if (j.ok !== true) {
+        if (j.motivo === 'tope' || j.motivo === 'en_revision' || j.motivo === 'techo_base' ||
+            j.motivo === 'muchas_llamadas' || j.motivo === 'sin_acuerdo') _cupoEq = null;
+        return errorAgregarEq(NO_SE_PUEDE_EQ[j.motivo] || ('La nube dijo que no (' + (j.motivo || 'sin motivo') + ').'));
+      }
+      if (_cupoEq) _cupoEq.quedan_hoy = j.quedan_hoy;
+      if (Number(j.ya_en_tu_base)) return errorAgregarEq('Ese celular ya es tuyo: está en «📋 Mi base» o en «📥 Registros». No lo agrego dos veces.');
+      if (Number(j.ya_existen)) return errorAgregarEq('Ese celular ya existe en Tu Garantía. No lo agrego. Si crees que debería ser tuyo, pídeselo a Joan.');
+      if (!Number(j.entraron)) return errorAgregarEq('No entró: ' + (Number(j.invalidas) ? 'el celular no sirve.' : 'la nube no lo agregó.'));
+      const quien = !destino || destino.yo ? 'Lo trabajas tú.' : 'Lo trabaja ' + destino.nombre + ': le sale en su «Mi base».';
+      cerrarModal();
+      return verRecienEq('Listo: ' + nombre + ' entró a tu base. ' + quien);
+    })
+    .catch(e => {
+      if (b) { b.disabled = false; b.textContent = 'Agregar'; }
+      if (esFinDeSesion(e)) return avisarFinDeSesion('No se agregó. ');
+      return errorAgregarEq('No pude agregarlo: ' + ((e && e.message) || 'sin conexión') + '. No se guardó nada; vuelve a intentar.');
+    });
+}
+
+/* Después de agregar: la base al día, el filtro del asesor limpio (si estaba
+   mirando «Base de LEIDY», escondería lo que se dejó él), «🆕 Recién
+   agregados», y la PANTALLA EN SU SITIO. irEquipo sube al tope, y en el
+   celular el menú mide ~700 px: sin el scrollIntoView, la persona nueva
+   quedaba debajo del menú y William veía otra vez el menú. */
+function verRecienEq(aviso) {
+  return refrescarCarteraEq()
+    .catch(() => null)
+    .then(() => traerInfoEq())
+    .then(() => {
+      /* El «Listo» se pone AQUÍ y no antes: refrescarCarteraEq repinta la vista
+         en la que está, y si era «Mi base» se lo comía antes de tiempo. */
+      _avisoBaseEq = aviso || '';
+      _asesorBaseEq = '';
+      _grupoBaseEq = 'recien';
+      irEquipo('base');
+      const ancla = document.getElementById('avisoBaseEq') ||
+        document.querySelector('.main .wrapEq .info-row') || document.querySelector('.main .wrapEq');
+      if (ancla && ancla.scrollIntoView) ancla.scrollIntoView({ block: 'start' });
+    });
+}
+
+/* Lo de arriba de «Mi base»: el «Listo» (una vez) y, si la información
+   adicional no llegó, una línea que lo dice: una fila sin chip parece decir
+   «se puede escribirle», y eso no se sabe. */
+function avisosBaseEq() {
+  const listo = _avisoBaseEq;
+  _avisoBaseEq = '';
+  return (listo ? '<div class="alerta ok" id="avisoBaseEq">' + escHTML(listo) + '</div>' : '') +
+    '<div id="avisoInfoEq">' + (INFO_EQ && INFO_EQ.estado === 'error' ? lineaInfoFallaEq() : '') + '</div>';
+}
+function lineaInfoFallaEq() {
+  return '<div class="alerta warn">No pude traer la información adicional (nota, origen, autorización). Recarga para volver a intentar.</div>';
+}
+
+/* ------------------------------------------- la información de cada uno */
+function traerInfoEq() {
+  if (_infoEqEnCurso) return _infoEqEnCurso;
+  const para = CARTERA_EQUIPO;
+  _infoEqEnCurso = rpcEquipo('mi_cartera_info', {}).then(res => {
+    const j = (res && res.j) || {};
+    if (esFaltaFuncionEq(res)) INFO_EQ = { estado: 'apagado', info: {}, para };
+    else if (res && res.ok && j.ok === true) INFO_EQ = { estado: 'ok', info: j.info || {}, para };
+    else INFO_EQ = { estado: 'error', info: {}, para };
+  }, () => { INFO_EQ = { estado: 'error', info: {}, para }; })
+    .then(() => { _infoEqEnCurso = null; pintarInfoEnSuSitioEq(); });
+  return _infoEqEnCurso;
+}
+/* Se llena EN SU SITIO, sin repintar la vista ni llamar a irEquipo (que subiría
+   al tope en cada refresco). */
+function pintarInfoEnSuSitioEq() {
+  try {
+    document.querySelectorAll('[data-info-eq]').forEach(el => {
+      el.innerHTML = htmlInfoEq(INFO_EQ && INFO_EQ.info && INFO_EQ.info[el.getAttribute('data-info-eq')]);
+    });
+    const caja = document.getElementById('avisoInfoEq');
+    if (caja) caja.innerHTML = INFO_EQ && INFO_EQ.estado === 'error' ? lineaInfoFallaEq() : '';
+  } catch (e) {}
+}
+function htmlInfoEq(i) {
+  if (!i) return '';
+  const l = [];
+  if (i.nota) l.push('📝 «' + escHTML(i.nota) + '»');
+  const ex = i.extra && typeof i.extra === 'object' ? Object.keys(i.extra) : [];
+  if (ex.length) l.push(ex.map(k => escHTML(k) + ': ' + escHTML(i.extra[k])).join(' · '));
+  if (i.origen) l.push('De dónde salió: ' + escHTML(i.origen) + (i.subido_por ? ' · lo subió ' + escHTML(i.subido_por) +
+    (i.subido_en ? ' el ' + escHTML(fechaCortaEq(i.subido_en)) : '') : ''));
+  if (i.autoriza === true) l.push('Autorizó' + (i.canal === 'whatsapp' ? ' por WhatsApp' : '') +
+    (i.prueba ? ' · prueba: «' + escHTML(i.prueba) + '»' : ''));
+  if (i.autoriza === false) l.push('<span class="chip mora">⚠ No autorizó contacto</span>');
+  return l.map(x => '<div>' + x + '</div>').join('');
+}
+/* La línea de la fila: un hueco con el id (validado) que traerInfoEq llena.
+   Si la información es de esta misma cartera, sale ya llena; si la cartera
+   cambió (refrescarCarteraEq), se pide sola. */
+function lineaInfoEq(p) {
+  const id = idDeBoton(p && p.id);
+  if (!id) return '';
+  if (!INFO_EQ || INFO_EQ.para !== CARTERA_EQUIPO) {
+    if (!_infoEqEnCurso) Promise.resolve().then(traerInfoEq);
+  }
+  const i = INFO_EQ && INFO_EQ.para === CARTERA_EQUIPO && INFO_EQ.info ? INFO_EQ.info[p.id] : null;
+  return '<div class="muted" style="font-size:12.5px" data-info-eq="' + id + '">' + htmlInfoEq(i) + '</div>';
+}
+function esRecienAgregadoEq(p) {
+  const i = INFO_EQ && INFO_EQ.info && INFO_EQ.info[p.id];
+  if (!i || !i.subido_en) return false;
+  return (Date.now() - new Date(i.subido_en).getTime()) < 7 * 86400000;
+}
+function infoEqFallo() { return !!(INFO_EQ && INFO_EQ.estado === 'error'); }
+
+/* El 📲 se cierra si Joan anotó que no autorizó: abre el aviso, sin
+   plantillas. Es lo que significa su «No» («no le llegan las invitaciones»). */
+function bloqueoPorAutorizacionEq(id) {
+  const i = INFO_EQ && INFO_EQ.info && INFO_EQ.info[id];
+  if (!i || i.autoriza !== false) return false;
+  openModal('No autorizó que le escribamos', '<div class="alerta warn">Joan anotó que esta persona no autorizó que la ' +
+    'contactemos. Por eso no te dejo abrir WhatsApp con ella. Si te autoriza por otro medio, avísale a Joan para que lo cambie.</div>');
+  return true;
+}
+
+/* -------------------------------------------- 👤 ¿quién lo trabaja? ---- */
+function botonAsignarEq(p) {
+  const id = idDeBoton(p && p.id);
+  return id ? `<button class="btn btn-ghost btn-sm" style="margin-left:6px"
+        onclick="asignarUnoEq('${id}')" title="¿Quién lo trabaja?">👤</button>` : '';
+}
+function asignarUnoEq(id) {
+  const p = genteEquipo().find(x => String(x.id) === String(id));
+  if (!p || !esGerenteEq()) return;
+  const yo = CARTERA_EQUIPO.yo;
+  const retirados = (CARTERA_EQUIPO.retirados || []).map(r => digitosDeBoton(r.celular));
+  const gente = [{ celular: yo.celular, nombre: 'Yo (' + yo.nombre + ')' }].concat(
+    (CARTERA_EQUIPO.equipo || []).filter(a => a && a.celular && retirados.indexOf(digitosDeBoton(a.celular)) < 0)
+      .map(a => ({ celular: a.celular, nombre: a.nombre })));
+  openModal('👤 ¿Quién trabaja a ' + (primerNombreEq(p.nombre) || 'esta persona') + '?',
+    '<div class="muted" style="font-size:12.5px;margin-bottom:10px">Toca a quién. Le sale en su «Mi base» con su nota y su historia.</div>' +
+    gente.map(g => {
+      const tiene = digitosDeBoton(g.celular) === digitosDeBoton(p.asesor);
+      return `<button class="btn ${tiene ? 'btn-negro' : 'btn-ghost'}" style="width:100%;margin-bottom:8px;justify-content:space-between"
+        ${tiene ? 'disabled' : `onclick="confirmarAsignarUnoEq('${idDeBoton(p.id)}','${digitosDeBoton(g.celular)}')"`}>
+        <span>${escHTML(g.nombre)}</span><span class="muted">${tiene ? '(lo tiene ahora)' : ''}</span></button>`;
+    }).join('') + '<div id="asigEqError"></div>');
+}
+function confirmarAsignarUnoEq(id, cel) {
+  const yo = CARTERA_EQUIPO.yo;
+  const a = digitosDeBoton(cel) === digitosDeBoton(yo.celular) ? null
+    : (CARTERA_EQUIPO.equipo || []).find(x => digitosDeBoton(x.celular) === digitosDeBoton(cel));
+  return rpcEquipo('asignar_a', { p_personas: [String(id)], p_asesor: digitosDeBoton(cel) })
+    .then(res => {
+      const j = (res && res.j) || {};
+      if (esFinDeSesion(null, res)) return avisarFinDeSesion('No se asignó. ');
+      if (j.ok !== true) {
+        const c = document.getElementById('asigEqError');
+        const t = 'No se pudo: ' + (j.motivo || 'la nube dijo que no') + '.';
+        return c ? (c.innerHTML = '<div class="alerta warn">' + escHTML(t) + '</div>') : alert(t);
+      }
+      openModal('Listo', '<div class="alerta ok">' + escHTML(a ? 'Listo: ahora lo trabaja ' + a.nombre + '. Le sale en su «Mi base».'
+        : 'Listo: ahora lo trabajas tú.') + '</div>');
+      return refrescarCarteraEq();
+    })
+    .catch(e => { if (esFinDeSesion(e)) return avisarFinDeSesion('No se asignó. '); alert('No pude conectarme. Revisa la señal.'); });
+}
+
+/* --------------------------------------------------- un archivo -------- */
+function leerArchivoBaseEq(file) {
+  if (!file || !esGerenteEq()) return;
+  const A = window.AgregarProspectos, B = window.BasesTuGarantia;
+  if (!A || !B) return openModal('Cargar base', '<div class="alerta warn">Falta bajar parte de la versión nueva. Recarga con señal.</div>');
+  if (_subidaEq) return agregarEq();
+  openModal('Cargar ' + file.name, '<div class="muted">Leyendo ' + escHTML(file.name) + ' — un momento…</div>');
+  const esCSV = /\.csv$/i.test(file.name);
+  /* El cupo y la lectura, A LA VEZ: el selector ya se abrió con el toque. */
+  const lectura = (esCSV ? file.text().then(t => B.leerCSV(t)) : file.arrayBuffer().then(b => B.leerXLSX(b)))
+    .then(filas => {
+      const cols = B.detectarColumnas(filas);
+      if (cols.celular < 0) throw new Error('No encontré ninguna columna con celulares colombianos.');
+      return { filas, cols };
+    });
+  return Promise.all([pedirCupoEq(), lectura.then(x => ({ ok: true, x }), e => ({ ok: false, e }))]).then(([cupo, l]) => {
+    if (!cupo.ok) return openModal('Cargar ' + file.name, cupo.html);
+    if (!l.ok) {
+      return openModal('No pude leer ese archivo', `<div class="alerta warn">${escHTML((l.e && l.e.message) || String(l.e))}</div>
+        <p class="sub">Sirve un Excel (.xlsx) o un CSV con al menos una columna de celulares colombianos. No hace
+        falta que tenga encabezado ni que las columnas estén en un orden. Si es un .xlsx y estás en el celular, prueba guardarlo como CSV.</p>`);
+    }
+    const { filas, cols } = l.x;
+    /* En modo equipo no hay DB contra la cual comparar: la revisión local solo
+       quita los repetidos del archivo y los que no tienen celular. Lo que ya
+       es suyo se compara con su «Mi base»; lo demás lo decide el servidor. */
+    const r = B.revisarBase(filas, cols, {});
+    const mios = {};
+    genteEquipo().forEach(p => { const c = B.celularDe(p.celular); if (c) mios[c] = true; });
+    const tuyos = r.nuevos.filter(p => mios[p.celular]).length;
+    _baseEq = { archivo: file.name, filas, cols, revision: r, extra: A.columnasExtra(filas, cols),
+                paraSubir: r.nuevos.filter(p => !mios[p.celular]), tuyos, cupo: cupo.c };
+    pintarPrevioBaseEq();
+  }).catch(e => {
+    if (esFinDeSesion(e)) return avisarFinDeSesion('');
+    openModal('Cargar ' + file.name, '<div class="alerta warn">No pude preguntarle a la nube. Revisa la señal.</div>');
+  });
+}
+
+function extrasElegidosEq() {
+  const b = _baseEq; if (!b) return [];
+  return b.extra.columnas.filter((c, k) => { const el = document.getElementById('exEq_' + k); return !!(el && el.checked); });
+}
+function pintarMuestraEq() {
+  const b = _baseEq; if (!b) return;
+  const caja = document.getElementById('muestraEq'); if (!caja) return;
+  const el = extrasElegidosEq();
+  const ex = el.length ? window.AgregarProspectos.extrasPorCelular(b.filas, b.cols, el) : {};
+  caja.innerHTML = b.paraSubir.slice(0, 5).map(p => {
+    const e = ex[p.celular] || {};
+    const extra = Object.keys(e).map(k => escHTML(k) + ': ' + escHTML(e[k])).join(' · ');
+    return '<div class="info-row"><span class="k"><b>' + escHTML(p.nombre || '(sin nombre)') + '</b><div class="muted" style="font-size:12.5px">' +
+      '<span class="mono">' + escHTML(p.celular) + '</span>' + (extra ? ' · ' + extra : '') + '</div></span></div>';
+  }).join('') || '<div class="muted">Nada.</div>';
+}
+
+function pintarPrevioBaseEq() {
+  const b = _baseEq; if (!b) return;
+  const r = b.revision, c = b.cupo || {};
+  const quedan = Number(c.quedan_hoy) || 0;
+  const n = b.paraSubir.length, cuantos = Math.min(n, quedan);
+  const noSuben = r.repetidos + r.sinCelular + b.tuyos;
+  const asesores = (c.destinos || []).filter(d => !d.yo);
+  openModal('Cargar ' + b.archivo, `
+    <div class="two">
+      <div class="kpi gan"><div class="et">Para subir</div><div class="nm">${n.toLocaleString('es-CO')}</div><div class="x">personas con celular</div></div>
+      <div class="kpi"><div class="et">No se suben</div><div class="nm">${noSuben.toLocaleString('es-CO')}</div><div class="x">repetidas en el archivo o sin celular</div></div>
+    </div>
+    ${filaInfo('Venían repetidas en el archivo', String(r.repetidos))}
+    ${filaInfo('Sin un celular utilizable', String(r.sinCelular))}
+    ${filaInfo('Ya son tuyos', String(b.tuyos))}
+    ${r.senalesFinancieras.length ? `<div class="alerta warn" style="margin-top:14px"><b>Este archivo trae información financiera de otra empresa</b>
+      (${escHTML(r.senalesFinancieras.join(', '))}). Eso no se sube, ni a la nube ni a nadie. Si es un reporte de cobranza
+      de otra empresa, no lo subas: esas personas no te autorizaron a ti.</div>` : ''}
+    ${previoExtrasHTML(b.extra, 'exEq_', 'pintarMuestraEq()')}
+    <div class="sub-h">Muestra de lo que va a subir</div>
+    <div id="muestraEq"></div>
+    <div class="field" style="margin-top:12px"><label>¿De dónde salió esta base?</label>
+      <input id="baseOrigenEq" placeholder="Ej: feria del barrio Kennedy, 20-oct — o: me escribieron por Facebook">
+      <div class="help">Queda guardado con cada persona. Si algún día alguien pregunta de dónde salió su teléfono, esta es la
+        respuesta, y tiene que existir antes, no después.</div></div>
+    <div class="field"><label>¿Todos te autorizaron que les escribamos por WhatsApp para ofrecerles el crédito?</label>
+      <select id="baseAutorizaEq" onchange="mostrarPruebaEq('base')"><option value="">— Elige una —</option>
+        <option value="si">Sí, todos, y tengo cómo probarlo</option><option value="no">No todos, o no lo sé</option></select></div>
+    <div id="baseNoEq"></div>
+    <div class="field" id="basePruebaCajaEq" style="display:none"><label>¿Dónde está la prueba?</label>
+      <input id="basePruebaEq" placeholder="Ej: formularios firmados de la feria del 20-oct, en mi carpeta"></div>
+    <div class="field"><label>¿Quién los trabaja?</label><select id="baseParaEq">
+      <option value="yo" selected>Los trabajo yo</option>
+      ${asesores.map(a => `<option value="${escHTML(digitosDeBoton(a.celular))}">Todos a ${escHTML(a.nombre)}</option>`).join('')}
+      ${asesores.length ? `<option value="parejo">Repartir parejo entre mis asesores (${asesores.length})</option>` : ''}</select></div>
+    <div class="muted" style="font-size:12.5px">Hoy puedes probar ${quedan.toLocaleString('es-CO')} celulares más. Este archivo trae ${n.toLocaleString('es-CO')}.</div>
+    ${n > quedan && quedan > 0 ? `<div class="muted" style="font-size:12.5px;margin-top:4px">Las filas 1 a ${quedan.toLocaleString('es-CO')} del archivo.
+      Las demás, mañana, con el mismo archivo: las que ya entraron saldrán como «ya eran tuyas» y no gastan cupo.</div>` : ''}
+    <div id="baseErrorEq"></div>
+    <button class="btn btn-rojo arriba" id="baseBotonEq" onclick="subirBaseEq()" ${cuantos ? '' : 'disabled'}>${
+      n > quedan ? 'Subir las primeras ' + quedan.toLocaleString('es-CO') : 'Subir ' + n.toLocaleString('es-CO') + (n === 1 ? ' persona' : ' personas')}</button>`);
+  pintarMuestraEq();
+}
+
+/* Las casillas de las columnas extra, SIN marcar (D7), y lo que no se guarda
+   con su porqué. Lo usan el gerente y Joan (con otro prefijo de ids). */
+function previoExtrasHTML(extra, prefijo, alCambiar) {
+  const e = extra || { columnas: [], descartadas: [] };
+  if (!e.columnas.length && !e.descartadas.length) return '';
+  return `<div class="sub-h">Información adicional que se guarda con cada uno</div>
+    ${e.columnas.length ? e.columnas.map((c, k) => `<label style="display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13.5px">
+      <input type="checkbox" id="${prefijo}${k}"${alCambiar ? ` onchange="${alCambiar}"` : ''}>
+      <span>${escHTML(c.nombre)}${c.muestra ? ' <span class="muted">(ej: ' + escHTML(c.muestra) + ')</span>' : ''}</span></label>`).join('')
+      : '<div class="muted" style="font-size:12.5px">Ninguna columna se puede guardar.</div>'}
+    <div class="muted" style="font-size:12px;margin-top:4px">Marca solo lo que sirva para atenderlo.${e.descartadas.length
+      ? ' No se guardan: ' + e.descartadas.map(d => escHTML(d.nombre) + ' (' + escHTML(d.motivo) + ')').join(' · ') + '.' : ''}</div>`;
+}
+
+function errorBaseEq(t) {
+  const caja = document.getElementById('baseErrorEq');
+  if (caja) caja.innerHTML = '<div class="alerta warn">' + escHTML(t) + '</div>';
+  else alert(t);
+  return t;
+}
+
+/* Sube en tandas de 200, una detrás de otra. CERRAR EL CUADRO NO LA PARA: un
+   toque fuera del cuadro lo cierra (cerrarModal), y si la subida dependiera
+   del cuadro se cortaría a la mitad sin resumen. Al terminar se abre el
+   resultado, esté o no abierto el cuadro. */
+function subirBaseEq() {
+  const A = window.AgregarProspectos, b = _baseEq;
+  if (!A || !b || _subidaEq) return;
+  const origen = gv('baseOrigenEq'), autoriza = gv('baseAutorizaEq'), prueba = gv('basePruebaEq'), para = gv('baseParaEq');
+  if (!origen) return errorBaseEq(NO_SE_PUEDE_EQ.falta_origen);
+  if (autoriza !== 'si' && autoriza !== 'no') return errorBaseEq('Contesta si todos te autorizaron que les escribamos: sí o no.');
+  if (autoriza === 'no') return errorBaseEq('Sin autorización no se sube. Quita del archivo a los que no autorizaron y vuelve a cargarlo.');
+  if (prueba.length < 5) return errorBaseEq(NO_SE_PUEDE_EQ.falta_prueba);
+  const c = b.cupo || {};
+  const extras = A.extrasPorCelular(b.filas, b.cols, extrasElegidosEq());
+  let filas = A.primerasN(b.paraSubir, Number(c.quedan_hoy) || 0).map(p => {
+    const f = { nombre: A.limpiarNombre(p.nombre), celular: p.celular, para: '' };
+    if (extras[p.celular]) f.extra = extras[p.celular];
+    return f;
+  });
+  const asesores = (c.destinos || []).filter(d => !d.yo);
+  if (para === 'parejo') filas = A.repartirParejo(filas, asesores);
+  else if (para && para !== 'yo') filas = filas.map(f => Object.assign(f, { para: digitosDeBoton(para) }));
+  if (!filas.length) return errorBaseEq('No hay a nadie que subir hoy.');
+  const tandas = A.enTandas(filas, AGREGA_TOPE_TANDA);
+  const total = { entraron: 0, ya_en_tu_base: 0, ya_existen: 0, repetidas: b.revision.repetidos, invalidas: b.revision.sinCelular };
+  _subidaEq = { archivo: b.archivo, hechas: 0, total: filas.length };
+  const progreso = () => {
+    const caja = document.getElementById('baseErrorEq');
+    if (caja) caja.innerHTML = '<div class="alerta info">Subiendo… ' + _subidaEq.hechas.toLocaleString('es-CO') + ' de ' +
+      _subidaEq.total.toLocaleString('es-CO') + '.</div>';
+    const bt = document.getElementById('baseBotonEq');
+    if (bt) bt.disabled = true;
+  };
+  progreso();
+  let corte = null;
+  const lote = { archivo: b.archivo, origen, autoriza: 'si', prueba };
+  const una = k => {
+    if (k >= tandas.length) return Promise.resolve();
+    return rpcEquipo('gerente_agregar_prospectos', { p_lote: Object.assign({ filas: tandas[k] }, lote) }).then(res => {
+      if (esFinDeSesion(null, res)) { corte = { k, sesion: true }; return; }
+      if (esFaltaFuncionEq(res)) { corte = { k, motivo: 'falta' }; return; }
+      const j = (res && res.j) || {};
+      if (j.ok !== true) { corte = { k, motivo: j.motivo || 'la nube dijo que no' }; return; }
+      total.entraron += Number(j.entraron) || 0;
+      total.ya_en_tu_base += Number(j.ya_en_tu_base) || 0;
+      total.ya_existen += Number(j.ya_existen) || 0;
+      _subidaEq.hechas += tandas[k].length;
+      if (_cupoEq) _cupoEq.quedan_hoy = j.quedan_hoy;
+      progreso();
+      /* Lo que entró ya está en «Mi base» antes de la siguiente tanda: si se
+         corta y William vuelve a cargar el archivo, el previo lo cuenta como
+         suyo y no se lo vuelve a cobrar. */
+      return (Number(j.entraron) ? refrescarCarteraEq().catch(() => null) : Promise.resolve()).then(() => una(k + 1));
+    }, e => { corte = { k, error: (e && e.message) || 'sin conexión', sesion: esFinDeSesion(e) }; });
+  };
+  return una(0).then(() => {
+    _subidaEq = null;
+    _baseEq = null;
+    _cupoEq = null;
+    if (corte && corte.sesion) return avisarFinDeSesion('La subida se cortó en la tanda ' + (corte.k + 1) + '. ');
+    const l = window.AgregarProspectos.textoResultado(total);
+    let arriba = '';
+    if (corte) {
+      const de = ' en la tanda ' + (corte.k + 1) + ' de ' + tandas.length;
+      if (corte.motivo === 'tope') arriba = 'Llegaste al tope de hoy' + de + '. Entraron ' + total.entraron + '. El resto, mañana, con el mismo archivo.';
+      else if (corte.motivo === 'en_revision') arriba = 'Paré' + de + ': ya existían más de 50. Joan lo revisa antes de que sigas. Entraron ' + total.entraron + '.';
+      else if (NO_SE_PUEDE_EQ[corte.motivo]) arriba = 'Paré' + de + ': ' + NO_SE_PUEDE_EQ[corte.motivo] + ' Entraron ' + total.entraron + '.';
+      else arriba = 'Se cortó' + de + ': ' + (corte.error || corte.motivo) + '. Entraron ' + total.entraron +
+        '. Vuelve a subir el mismo archivo: los que ya entraron saldrán como «ya eran tuyos» y no gastan cupo; los que ya existían sí vuelven a contar.';
+    }
+    openModal('Cargar base', (arriba ? '<div class="alerta warn">' + escHTML(arriba) + '</div>' : '') +
+      '<div class="alerta ok"><b>' + escHTML(l[0]) + '</b></div>' +
+      l.slice(1).map(x => '<div class="muted" style="font-size:13px;margin-bottom:6px">' + escHTML(x) + '</div>').join('') +
+      (total.entraron ? '<button class="btn btn-rojo arriba" onclick="cerrarModal();verRecienEq()">Ver los nuevos</button>' : ''));
+  });
+}
+/* ===================================== fin de EL GERENTE AGREGA (equipo) == */
 /* --------------------------------------------------------------------------
  * LOS INDICADORES POR ASESOR — 15-sep-2026
  *

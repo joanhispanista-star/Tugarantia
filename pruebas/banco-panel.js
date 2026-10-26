@@ -206,6 +206,9 @@ function abrirPanel(opciones) {
     ctx.CalculadoraSolicitud = require(path.join(RAIZ, 'app', 'calculadora-solicitud.js'));
   }
   if (!o.sinBases) ctx.BasesTuGarantia = require(path.join(RAIZ, 'app', 'bases.js'));
+  /* 27-oct-2026 — las reglas de agregar gente (el gerente agrega), el <script
+     src> nuevo de crm.html. `sinAgregar: true` simula que no llegó. */
+  if (!o.sinAgregar) ctx.AgregarProspectos = require(path.join(RAIZ, 'panel', 'agregar-prospectos.js'));
   /* 22-oct-2026 — la lista de bancos y las reglas de la cuenta, los <script
      src> nuevos de crm.html («💸 Consignar a: …»). `sinCuentas: true` simula
      que no llegaron. */
