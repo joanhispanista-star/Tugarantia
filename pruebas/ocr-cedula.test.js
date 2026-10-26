@@ -393,10 +393,18 @@ describe('4. de punta a punta: Tesseract.js copiado, en Node, sobre una cédula 
       for (const z of rec.zonas) {
         for (const v of ['A', 'B', 'C']) {
           const p = O.preparar(z, rec.ancho, v);
-          crudo += await lector.leer(O.aPGM(p.gris, p.w, p.h), { lista: z.lista, psm: z.psm }) + '\n';
+          /* 26-oct-2026 — leer da {texto, confianza} desde que la confianza
+             desempata el frente girado. Con `+ '\n'` sobre el objeto, `crudo`
+             era «[object Object]» nueve veces y esta prueba pasaba sin mirar
+             nada: por eso, además, se exige que haya leído las dos fechas. */
+          const t = await lector.leer(O.aPGM(p.gris, p.w, p.h), { lista: z.lista, psm: z.psm });
+          crudo += (typeof t === 'string' ? t : String((t && t.texto) || '')) + '\n';
         }
       }
       await lector.terminar();
+      assert.ok(!/\[object /.test(crudo), 'lo leído no es texto: ' + JSON.stringify(crudo.slice(0, 80)));
+      ['1985', '2003'].forEach(p =>
+        assert.ok(crudo.indexOf(p) >= 0, 'las franjas no leyeron «' + p + '» (sin eso, lo de abajo no prueba nada): ' + JSON.stringify(crudo)));
       ['ESTATURA', 'SEXO', 'G.S', 'RH', 'O+', '1.65'].forEach(p =>
         assert.ok(crudo.indexOf(p) < 0, 'una franja del respaldo leyó «' + p + '»: ' + JSON.stringify(crudo)));
       /* Y lo recortado es poco: dos franjas finas, no la tarjeta. */
@@ -419,6 +427,35 @@ describe('4. de punta a punta: Tesseract.js copiado, en Node, sobre una cédula 
       await lector.terminar();
       assert.equal(r2.campos.documento, '52123456', 'el frente al revés no se leyó');
     } finally { await b.cerrar(); }
+  });
+
+  /* 26-oct-2026 — LA HERRAMIENTA DE CALIBRAR TAMBIÉN USA EL LECTOR. Cuando
+     leer pasó a dar {texto, confianza}, herramientas/calibrar-ocr.js (que lo
+     llama directamente, franja por franja) reventaba en la primera franja con
+     «t.trim is not a function» y ninguna prueba la corría: se supo porque un
+     refutador la usó. Es la que hay que correr con una cédula de verdad antes
+     de mover una franja, así que se corre aquí entera, como la usa Joan, sobre
+     una copia de la fabricada (deja su .zonas.pgm al lado de la foto). */
+  test('herramientas/calibrar-ocr.js corre entera con el lector de hoy', async () => {
+    const os = require('node:os');
+    const { execFile } = require('node:child_process');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'calibrar-ocr-'));
+    try {
+      const foto = path.join(dir, 'frente.pgm.gz');
+      fs.copyFileSync(path.join(__dirname, 'cedula-ocr-frente.pgm.gz'), foto);
+      const g = [GUIA.x, GUIA.y, GUIA.w, GUIA.h].join(',');
+      const r = await new Promise(res => execFile(process.execPath, [path.join(RAIZ, 'herramientas', 'calibrar-ocr.js'), foto, 'frente', g],
+        { cwd: RAIZ, timeout: 120000, encoding: 'utf8' }, (e, out, err) => res({ codigo: e ? (e.code || 1) : 0, out: String(out), err: String(err) })));
+      assert.equal(r.codigo, 0, 'la herramienta murió: ' + r.err.slice(0, 300));
+      assert.ok(fs.existsSync(path.join(dir, 'frente.zonas.pgm')), 'no dejó las franjas dibujadas');
+      /* Las tres variantes de la franja imprimieron TEXTO (no «[object Object]»),
+         y la limpia (A) el rótulo del número. */
+      ['A', 'B', 'C'].forEach(v => assert.match(r.out, new RegExp('\\[bloque · ' + v + '\\][^\\n]*\\n[^\\n]*[A-Z0-9]'), 'la variante ' + v + ' no imprimió lo leído'));
+      assert.match(r.out, /\[bloque · A\][^\n]*\n[^\n]*NUMERO/);
+      assert.ok(!/\[object /.test(r.out), 'imprimió un objeto en lugar del texto');
+      assert.match(r.out, /CAMPOS \(con consenso y validados\): \{"documento":"52123456","apellidos":"PEREZ GOMEZ","nombres":"MARIA ALEJANDRA"\}/);
+      assert.match(r.out, /GIRO \(dónde salieron las letras\): 0/);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 });
 

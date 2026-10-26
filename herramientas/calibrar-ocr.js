@@ -68,13 +68,26 @@ async function principal() {
     for (const z of rec.zonas) {
       for (const v of ['A', 'B', 'C']) {
         const p = O.preparar(z, rec.ancho, v);
+        /* 26-oct-2026 — desde que el frente se toma de pie, crearLector da
+           {texto, confianza} (la confianza desempata el frente derecho del
+           girado, ver leerRecorte); antes daba el texto solo. Esta herramienta
+           llama a leer directamente y se quedó con la forma vieja: reventaba en
+           la primera franja con «t.trim is not a function». Se aceptan las dos,
+           como en leerRecorte, y la confianza se imprime: es lo que hay que
+           mirar cuando las dos posiciones empatan en campos. */
         const t = await lector.leer(O.aPGM(p.gris, p.w, p.h), { lista: z.lista, psm: z.psm });
-        console.log('\n[' + z.id + ' · ' + v + ']\n' + t.trim());
+        const texto = typeof t === 'string' ? t : String((t && t.texto) || '');
+        const conf = t && typeof t === 'object' && isFinite(t.confianza) ? ' (confianza ' + Math.round(t.confianza) + ')' : '';
+        console.log('\n[' + z.id + ' · ' + v + ']' + conf + '\n' + texto.trim());
       }
     }
     const t0 = Date.now();
     const r = await O.leerRecorte(lector, rec, {});
     console.log('\nCAMPOS (con consenso y validados):', JSON.stringify(r.campos), '·', Date.now() - t0, 'ms,', r.lecturas, 'lecturas');
+    /* El frente se lee en las dos posiciones: en cuál salieron las letras
+       (0, 180, o null si en ninguna). Con --giro=180 la «derecha» ya es la
+       girada, así que 0 aquí quiere decir «como se pidió». */
+    if (rec.lado === 'frente') console.log('GIRO (dónde salieron las letras):', r.giro);
     await lector.terminar();
   } finally { await b.cerrar(); }
 }
