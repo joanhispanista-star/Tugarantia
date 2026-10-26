@@ -7118,6 +7118,7 @@ function reiniciarCuentaDoc() {
   ESCDOC.aviso = null; ESCDOC.msBorrosa = 0; ESCDOC.luzReflejo = false; ESCDOC.pedirLuz = false;
   ESCDOC.vioFranja = false; ESCDOC.vioBarras = false;   // 23-oct-2026 — de ESTE lado
   ESCDOC.hueco = 0; ESCDOC.msHueco = 0;   // 26-oct-2026 — los huecos de la racha (EC.contarRachaDoc) también son de ESTE lado
+  ESCDOC.ventanaConPiso = false; ESCDOC.cerroBajoElPiso = false;   // 26-oct-2026 (graves del remate) — ver pasaElPisoDeSiempre
 }
 function iniciarEscanerDoc(lado) {
   if (!hayCamaraEnVivo()) return escanerDocSinCamara('Este navegador no deja usar la cámara en vivo.');
@@ -7737,9 +7738,16 @@ function bucleEscanerDoc() {
    franja, su patrón o el código encontrado sin leer): esa es la AMARILLA, y
    la verificación del autollenado vio a una amarilla con el código gastado
    recibir «¿Tu cédula es la nueva, gris y de plástico?» sin ninguna prueba
-   de serlo. Antes solo lo frenaba un código encontrado sin leer. */
+   de serlo. Antes solo lo frenaba un código encontrado sin leer.
+   26-oct-2026 (graves del remate) — ni con la última ventana cerrada por
+   debajo del piso de siempre (ESCDOC.cerroBajoElPiso: ver SIN FOTO Y POR
+   DEBAJO DEL PISO DE SIEMPRE). Esa tarjeta, con la puerta de siempre, nunca
+   se ponía en verde, el lector no contaba lecturas y la nota no salía; con
+   el piso chico salía a los 12 s para la amarilla gastada y para la puesta
+   acostada, y les decía que su cédula era la gris. */
 function notaCedulaNueva(esFrente, t) {
-  if (esFrente || t <= 12 || ESCDOC.lecturas <= 6 || ESCDOC.ilegibles || ESCDOC.vioQr || ESCDOC.vioBarras) return;
+  if (esFrente || t <= 12 || ESCDOC.lecturas <= 6 || ESCDOC.ilegibles || ESCDOC.vioQr || ESCDOC.vioBarras ||
+      ESCDOC.cerroBajoElPiso) return;
   var nd = $('docNota');
   if (nd && !nd.textContent) nd.textContent = TEXTO_CEDULA_NUEVA;
 }
@@ -7760,11 +7768,51 @@ function notaCedulaNueva(esFrente, t) {
    El que juzga si el respaldo está nítido también es la ventana
    (ECAP.decidirVentana: PISO_NITIDEZ a 480 px, y además el código visto o
    leído para disparar), igual que con el frente. `esFrente` se queda en la
-   firma: quien llama es el mismo. */
+   firma: quien llama es el mismo.
+   Lo que costó, y cómo se paga: SIN FOTO Y POR DEBAJO DEL PISO DE SIEMPRE,
+   aquí abajo. */
 function opcionesDeLaPuerta(esFrente) {
   if (!ECAP || !ECAP.decidirVentana || ESCDOC.sinVentana || !EC.TARJETA ||
       !isFinite(EC.TARJETA.NITIDEZ_MIN_FRENTE)) return undefined;
   return { nitidezMin: EC.TARJETA.NITIDEZ_MIN_FRENTE };
+}
+/* ---------------------------------------------------------------------------
+   SIN FOTO Y POR DEBAJO DEL PISO DE SIEMPRE — 26-oct-2026 (los graves del
+   remate)
+
+   El piso chico del respaldo (opcionesDeLaPuerta, arriba) dejó pasar a la
+   ventana tarjetas que la puerta de siempre llamaba «borrosas», y no todas
+   son el respaldo bien puesto. Los dos refutadores del remate lo vieron en
+   Chrome sin ventana, en iPhone y en Android: la amarilla con el PDF417
+   gastado (las barras se ven en la pantalla; el lector no las encuentra, ni
+   su patrón ni su franja) y el respaldo puesto ACOSTADO dentro del marco de
+   pie (ZXing no lee a 90°) cerraban cada ventana en 'sin_codigo' y oían «No
+   vemos código en ese lado: si es el frente, voltéala» los 30 s, con el
+   código a la vista. El respaldo desenfocado entero cerraba en 'alejala'.
+   En los tres, el «Tranquilo: si no sale, toca…» de los 20 s no salía nunca
+   (pintarEstadoDoc lo calla en verde), y a los 12 s salía la nota de la
+   cédula NUEVA, gris, falsa para una amarilla. Con la puerta de siempre
+   (72e595e) esas mismas tarjetas decían «Aléjala o acércala…» y a los 20 s
+   «Tranquilo…», sin nota.
+
+   Por debajo del piso de siempre la página no distingue esas tarjetas del
+   frente puesto en el paso del respaldo (en el banco: el gastado da 7,8 en
+   la puerta, el acostado 7,2, el desenfocado 6,4-7,5; en Chrome sin
+   ventana, el gastado 7,5-7,8, el acostado 6,5 y el frente de la demo, de
+   pie, 7,4). El respaldo bueno también cae ahí (7-8,9), pero
+   ese ve su código y se toma solo. Así que si la ventana del respaldo cierra
+   sin foto y NINGUNO de sus cuadros pasó el piso de siempre
+   (EC.TARJETA.NITIDEZ_MIN), no se afirma que no hay código: se dice lo que
+   decía la puerta de siempre («borrosa»: textoDeLaPuerta), vuelve el
+   «Tranquilo…» de los 20 s y la nota de la cédula nueva se calla, como en
+   72e595e. El lector sigue mirando cada ventana: lo que dio el piso chico
+   (que el respaldo de pie se tome solo) se queda. Con un cuadro por encima
+   del piso de siempre, todo como ayer. Queda por hacer, y no es esto: decirle
+   «Ponla DE PIE» a la que viene acostada (hay que saber verla).
+   --------------------------------------------------------------------------- */
+function pasaElPisoDeSiempre(m) {
+  if (!EC || !EC.TARJETA || !isFinite(EC.TARJETA.NITIDEZ_MIN)) return true;
+  return !!m && m.nitidez >= EC.TARJETA.NITIDEZ_MIN;
 }
 /* 23-oct-2026 — EL LETRERO CON LA TARJETA FUERA DE VERDE. Con poca luz y sin
    linterna (un iPhone sin torch en un cuarto oscuro) la puerta dice «borrosa»
@@ -7819,7 +7867,10 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
     ESCDOC.tempo = setTimeout(bucleEscanerDoc, 100);
     return true;
   }
-  if (!ESCDOC.ventana) { ESCDOC.ventana = ECAP.ventanaNueva(ahora); ESCDOC.mejorPendiente = false; }
+  if (!ESCDOC.ventana) { ESCDOC.ventana = ECAP.ventanaNueva(ahora); ESCDOC.mejorPendiente = false; ESCDOC.ventanaConPiso = false; }
+  /* 26-oct-2026 (graves del remate) — ¿algún cuadro de ESTA ventana pasó la
+     puerta de siempre? Ver SIN FOTO Y POR DEBAJO DEL PISO DE SIEMPRE. */
+  if (pasaElPisoDeSiempre(m)) ESCDOC.ventanaConPiso = true;
   /* El mejor se dibuja en el lienzo del recorte. Mientras el lector nativo lee
      el anterior NO se pisa: la foto que se guarde tiene que ser la que se leyó. */
   var guardado = false;
@@ -7901,8 +7952,16 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
   dibujarMarcoDoc(true, d.avance);
   var T = ECAP.TEXTO, txt = '';
   if (d.estado === 'disparar') txt = sinQuieta(T.TOMANDO);
-  else if (d.estado === 'alejala') { avisoDoc(ESCDOC.pedirLuz ? T.BUSCA_LUZ : T.ALEJALA); ESCDOC.ventana = null; }
-  else if (d.estado === 'sin_codigo') { avisoDoc(T.SIN_CODIGO); ESCDOC.ventana = null; }
+  else if (d.estado === 'alejala') {
+    ESCDOC.cerroBajoElPiso = !esFrente && !ESCDOC.ventanaConPiso;
+    avisoDoc(ESCDOC.pedirLuz ? T.BUSCA_LUZ : T.ALEJALA); ESCDOC.ventana = null;
+  }
+  /* 26-oct-2026 (graves del remate) — «No vemos código en ese lado» solo si
+     la tarjeta pasó el piso de siempre: si no, lo que decía esa puerta. */
+  else if (d.estado === 'sin_codigo') {
+    ESCDOC.cerroBajoElPiso = !ESCDOC.ventanaConPiso;
+    avisoDoc(ESCDOC.cerroBajoElPiso ? textoDeLaPuerta(g, { falla: 'borrosa' }) : T.SIN_CODIGO); ESCDOC.ventana = null;
+  }
   /* 23-oct-2026 (tarde) — la franja de las barras sin código leído ya no
      toma la foto: un frente sobre cuadros escoceses también la deja (ver
      ECAP.decidirVentana). Se invita al botón, sin «voltéala», y el lector
@@ -7911,7 +7970,9 @@ function bucleConVentana(v, g, m, verde, esFrente, ahora, dt, estado) {
   else if (d.estado === 'con_codigo') { avisoDoc(TEXTO_FRENTE_ES_RESPALDO); ESCDOC.ventana = null; }
   else txt = sinQuieta((!esFrente && (window.ZXing || ESCDOC.nativo)) ? T.LEYENDO : T.MIDIENDO);
   if (d.estado === 'disparar') ESCDOC.aviso = null;
-  pintarEstadoDoc(estado, txt, t, ahora, true);
+  /* `verde` para el letrero: no, si la última ventana del respaldo cerró sin
+     foto por debajo del piso de siempre (vuelve el «Tranquilo…» de los 20 s). */
+  pintarEstadoDoc(estado, txt, t, ahora, !ESCDOC.cerroBajoElPiso);
   if (esFrente && ESCDOC.vioCodigo && t > 10) {
     var nf = $('docNota');
     if (nf && !nf.textContent) nf.textContent = TEXTO_FRENTE_DOS_TOQUES;
