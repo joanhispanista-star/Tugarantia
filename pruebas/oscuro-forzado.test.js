@@ -216,9 +216,10 @@ describe('la marca de oro y el ojo de la contraseña tampoco se oscurecen (23-oc
  *   · la regla del 22-sep nombra select: así le toca el blanco, la letra
  *     negra, el borde y el only light, los mismos de las casillas de teclear;
  *   · hay una regla «select» propia que quita la flecha del navegador
- *     (appearance:none, con su -webkit-) y pinta una del tono de la letra en
- *     un data: URI —nada externo que pueda no llegar sin señal—, con padding
- *     derecho para que el texto no se le monte;
+ *     (appearance:none, con su -webkit-) y pinta una del tono de la letra con
+ *     dos linear-gradient —sin imagen ni data: URI: un SVG lleva el xmlns de
+ *     w3.org y cumplimiento.test.js lo lee como un servidor al que la app
+ *     llama—, con padding derecho para que el texto no se le monte;
  *   · esa regla va DESPUÉS de la del 22-sep: el atajo background:#FFFFFF de
  *     aquella borra cualquier background-image que venga antes, y la flecha
  *     desaparecería sin que ninguna prueba de texto lo viera.
@@ -241,17 +242,17 @@ describe('donde se elige también es blanco (26-oct-2026)', () => {
     exigeSelectorSoloClaro(hoja(), 'select', 'play/index.html');
   });
 
-  test('la flecha del select es propia: appearance:none y un data: URI, sin nada externo', () => {
+  test('la flecha del select es propia: appearance:none y dos degradados, sin ninguna URL', () => {
     const propias = reglasDe(hoja(), 'select').filter(x => x.selector.trim() === 'select');
     assert.equal(propias.length, 1, 'tiene que haber UNA regla «select» a secas (la de la flecha)');
     const c = propias[0].cuerpo;
     const d = declaraciones(c);
     assert.match(d, /(^|;)appearance:none(;|$)/, 'select: appearance:none, o iOS y Android pintan su flecha encima de la nuestra');
     assert.match(d, /(^|;)-webkit-appearance:none(;|$)/, 'select: -webkit-appearance:none, por los Safari viejos');
-    assert.match(c, /background-image:\s*url\(["']?data:image\/svg\+xml/, 'select: la flecha es un data: URI');
-    assert.doesNotMatch(c, /url\(["']?(https?:)?\/\//, 'select: nada externo en la flecha');
+    const degradados = [...d.matchAll(/linear-gradient\((\d+)deg,[^)]*#0c0a0b[^)]*\)/g)].map(m => Number(m[1]));
+    assert.deepEqual(degradados.sort((x, y) => x - y), [45, 135], 'la flecha son dos trazos del tono de la letra (#0C0A0B): uno a 45° y otro a 135°');
+    assert.doesNotMatch(c, /url\(/, 'select: ninguna URL en la flecha (un SVG llevaría el xmlns de w3.org y Data Safety lo lee como un servidor)');
     assert.doesNotMatch(d, /(^|;)background:/, 'select: nada de «background:» a secas en esta regla (borraría la flecha)');
-    assert.match(d, /stroke='%230c0a0b'/, 'la flecha va del tono de la letra (#0C0A0B), o sobre blanco se pierde');
     const pr = /(^|;)padding-right:(\d+)px(;|$)/.exec(d);
     assert.ok(pr && Number(pr[2]) >= 40, 'select: padding-right de 40px o más, para que el texto no se monte en la flecha');
   });
@@ -265,10 +266,10 @@ describe('donde se elige también es blanco (26-oct-2026)', () => {
     assert.ok(iFlecha > i22, 'la regla de la flecha tiene que ir después de la del 22-sep');
   });
 
-  test('el ayudante caza una flecha externa o un background a secas (control)', () => {
+  test('el ayudante caza una flecha con URL o un background a secas (control)', () => {
     const d = declaraciones('background:#fff;background-image:url(https://x/y.svg)');
     assert.match(d, /(^|;)background:/);
-    assert.match('background-image:url(https://x/y.svg)', /url\(["']?(https?:)?\/\//);
-    assert.doesNotMatch('background-image:url("data:image/svg+xml,%3Csvg")', /url\(["']?(https?:)?\/\//);
+    assert.match('background-image:url("data:image/svg+xml,%3Csvg")', /url\(/);
+    assert.doesNotMatch('background-image:linear-gradient(45deg,transparent 41%,#0C0A0B 43%)', /url\(/);
   });
 });
