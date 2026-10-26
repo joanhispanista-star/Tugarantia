@@ -29,6 +29,23 @@
 >   📥 Registrados, solo si ese celular ya tiene cuenta (20-oct, revisión): sin
 >   cuenta lo leería quien primero la abra con ese número, y no se abre.
 >
+> **26 de octubre de 2026 — el CRM dice quién escribe con lo que ya tiene.**
+> Joan escribió por «Servicio» desde su cuenta de play/ y el CRM mostró solo el
+> número: su celular es el de una ficha suya y la nube le da al hilo la llave
+> '0' + celular, que `quienEs` pinta sin nombre a propósito. `panel/crm.html`
+> completa ahora el renglón con la cartera y los registros que ya tiene en el
+> navegador, sin tocar `app/chat.js` ni escribir `c.nombre` en la conversación
+> (`quienEscribeLocal`, `bandejaConNombres`):
+> - '0' + celular de una ficha de aquí → «Número de la ficha de <Nombre> · sin
+>   juntar: no sabemos si es él, no le hables de su deuda aquí». La advertencia
+>   se queda; nunca el nombre de un registro en ese hilo;
+> - celular sin `nombre_registro` → «<Nombre> (registrado, sin verificar) ·
+>   celular» desde los registros locales (se piden una vez si hacen falta);
+> - cédula sin nombre de la nube → el nombre de la ficha de aquí;
+> - en el hilo abierto, «👤 Ver ficha» y «📋 Ver registro» (los que existan;
+>   si ninguno, se dice) con «← Volver al chat»
+>   (`pruebas/quien-escribe-en-el-crm.test.js`).
+>
 > **La decisión B sigue pendiente**: sin Telegram, el aviso a Joan solo existe
 > con el CRM o el celular abiertos, y al cliente no le llega nada con la app
 > cerrada. Las pantallas lo dicen.
