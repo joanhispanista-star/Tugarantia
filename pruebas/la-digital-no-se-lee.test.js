@@ -17,10 +17,21 @@
  *       que es lo que TEXTO_CEDULA_NUEVA le pide; y además le decía «te
  *       llenamos lo que alcancemos a leer», contradiciendo esa nota.
  *
- * La regla de hoy, al revés: se lee SOLO con prueba POSITIVA de la amarilla
- * (su PDF417 leído, visto sin leer o su patrón, en el recorte que se guarda),
- * anotada CON LA FOTO (FOTOS.cedula_reverso_tipo): sobrevive a relanzar y se
- * va con ella.
+ * La regla del 21-oct, al revés: se leía SOLO con prueba POSITIVA de la
+ * amarilla (su PDF417 leído, visto sin leer o su patrón, en el recorte que se
+ * guarda), anotada CON LA FOTO (FOTOS.cedula_reverso_tipo): sobrevive a
+ * relanzar y se va con ella.
+ *
+ * 26-oct-2026 — LA REGLA DE HOY: se lee SALVO con la DIGITAL PROBADA (su QR
+ * visto, en vivo o en el recorte guardado). Joan, con su amarilla gastada:
+ * «yo fui muy claro indicando que no leas el código de barras y mejor lee lo
+ * que está legible en la cédula». Exigir la prueba de la amarilla dejaba sin
+ * letras justo a la amarilla cuyo código no se ve. Con la marca '' (no se
+ * sabe cuál es) se lee y decide la validación (OcrCedula.validar). Lo que
+ * sigue probándose aquí: la digital PROBADA no pasa por las letras, ni
+ * relanzando; y los textos no prometen lo que no va a pasar. Las pruebas (b)
+ * y (b2) se reescribieron a la regla nueva: un respaldo desconocido SÍ se
+ * lee, y se dice.
  *
  * Aquí corre play/ de verdad con su escáner y ZXing de verdad
  * (pruebas/banco-camara.js), delante de una cédula digital fabricada: un QR
@@ -139,7 +150,14 @@ describe('la cédula digital no pasa por las letras de la amarilla (R1)', () => 
     assert.equal(R.P.ev('tipoDelRespaldo()'), 'digital');
   });
 
-  test('(b) la digital cuyo QR NO se lee, con «Tomar la foto ahora»: ni letras, ni la promesa de leerlas', async () => {
+  /* 26-oct-2026 — REESCRITA a la regla nueva. Decía «ni letras, ni la promesa
+     de leerlas»: con el QR sin ver no se sabe qué cédula es, y desde hoy lo
+     que no se sabe SE LEE con las franjas de la amarilla (la amarilla gastada
+     de Joan cae aquí mismo) y la validación decide qué se llena. La promesa
+     («te llenamos lo que alcancemos a leer») vuelve a ser verdad. El costo
+     se conoce: una digital cuyo QR no se vio pasa por las franjas; lo que
+     caiga lo filtra OcrCedula.validar y queda a la vista para corregir. */
+  test('(b) la digital cuyo QR NO se lee, con «Tomar la foto ahora»: no se sabe cuál es, así que SE LEE, y se dice', async () => {
     const E = abrirConCamara();
     const guia = await encenderEn(E);
     E.video.__px = ponerCarta(guia, atrasDigital({ qrBorroso: true }));
@@ -148,28 +166,33 @@ describe('la cédula digital no pasa por las letras de la amarilla (R1)', () => 
     assert.equal(E.P.ev('ESCDOC.vioQr'), false);
     E.P.ev('capturarDoc()');   // «Tomar la foto ahora»
     assert.ok(E.P.ev('FOTOS.cedula_reverso'));
+    assert.equal(E.P.ev('tipoDelRespaldo()'), '', 'no ver un QR se tomó por prueba de algo');
     const t = listo(E.P);
-    assert.equal(/te llenamos|alcancemos a leer/.test(t), false, 'le prometió leer las letras de una cédula que no se va a leer: ' + t);
-    assert.match(t, /escribes tus datos/, 'no le dijo que escribe sus datos, como la nota de la cédula nueva: ' + t);
-    assert.deepEqual(E.recortes, [], 'se recortó el respaldo de una cédula sin prueba de ser la amarilla');
+    assert.match(t, /te llenamos lo que alcancemos a leer de las letras/, 'con el respaldo desconocido no prometió las letras que sí va a intentar: ' + t);
+    assert.equal(recortesDe(E, 'reverso').length, 1, 'el respaldo desconocido no dejó sus franjas');
     await E.correr(4600);
     await tomarElFrente(E);
-    assert.deepEqual(recortesDe(E, 'frente'), [], 'el frente sin prueba de la amarilla pasó por las franjas');
+    assert.equal(recortesDe(E, 'frente').length, 1, 'el frente del respaldo desconocido no pasó por las franjas');
     await E.correr(1700);
+    assert.equal(paso(E.P), 'identidad');
+    /* En este banco no hay motor: la lectura se intenta y falla, y la nota
+       de «los escribes tú» vuelve diciendo la verdad de las dos cosas. */
+    assert.equal(E.P.ev('OCR_CEDULA.estado'), 'fallo', 'sin motor no quedó en «fallo»: ' + E.P.ev('OCR_CEDULA.estado'));
     nadaLlenado(E.P);
-    assert.equal(E.P.ev('tipoDelRespaldo()'), '', 'no ver un QR se tomó por prueba de algo');
+    const h = String(E.P.ev("$('cuerpo').innerHTML"));
+    assert.match((/id="notaSinLeer">([^<]*)</.exec(h) || [])[1] || '', /No alcanzamos a leer tu cédula/);
   });
 
-  test('(b2) …y sin el lector todavía (un iPhone con ZXing bajando): lo mismo', async () => {
+  test('(b2) …y sin el lector todavía (un iPhone con ZXing bajando): lo mismo, se lee', async () => {
     const E = abrirConCamara();
     const guia = await encenderEn(E);
     E.video.__px = ponerCarta(guia, atrasDigital({ qrBorroso: true }));
     E.P.ev('window.ZXing = undefined;');
     E.P.ev('capturarDoc()');
     assert.ok(E.P.ev('FOTOS.cedula_reverso'));
-    assert.equal(/te llenamos/.test(listo(E.P)), false, listo(E.P));
-    assert.deepEqual(E.recortes, []);
     assert.equal(E.P.ev('tipoDelRespaldo()'), '');
+    assert.match(listo(E.P), /te llenamos lo que alcancemos a leer de las letras/, listo(E.P));
+    assert.equal(recortesDe(E, 'reverso').length, 1);
   });
 
   /* 23-oct-2026 (verificación del autollenado, caso 4) — en «Escribe tus
@@ -251,10 +274,14 @@ describe('qué cédula es el respaldo se guarda CON LA FOTO (R1)', () => {
     assert.equal(/MARIA|RESPALDO/.test(marca), false, 'la marca copia un pedazo de la foto: ' + marca);
     P.ev("FOTOS.cedula_reverso = 'data:image/jpeg;base64,OTRO_RESPALDO';");
     assert.equal(P.ev('tipoDelRespaldo()'), '', 'otro respaldo heredó la prueba del anterior');
-    /* Y el oyente no lee ninguno de los dos lados con ese respaldo. */
+    /* 26-oct-2026 — con la marca perdida ('') el oyente SÍ lee (la regla
+       nueva: se lee salvo con la digital probada); lo que no hereda es la
+       prueba de la digital: puesta en ESTE respaldo, no se lee. */
     P.ev("window.__recortes = 0; window.OcrCedula = { recortarDeLienzo: function () { window.__recortes++; return null; } };" +
          "FOTOS.cedula_frente = 'F'; ocrAlTomarLaCedula({ lado: 'frente', lienzo: { width: 10, height: 10, getContext: function () { return {}; } }, giro: 0 });");
-    assert.equal(P.ev('window.__recortes'), 0);
+    assert.equal(P.ev('window.__recortes'), 1, 'con el respaldo desconocido no se intentaron las letras');
+    P.ev("anotarTipoDelRespaldo('digital'); ocrAlTomarLaCedula({ lado: 'frente', lienzo: { width: 10, height: 10, getContext: function () { return {}; } }, giro: 0 });");
+    assert.equal(P.ev('window.__recortes'), 1, 'con la digital probada se leyó el frente');
   });
 
   test('la foto de la cámara del celular: su PDF417 visto la marca como amarilla (el frente en vivo se lee como antes)', async () => {
@@ -272,12 +299,17 @@ describe('qué cédula es el respaldo se guarda CON LA FOTO (R1)', () => {
   test('los textos: la nota de la cédula nueva y el «te llenamos» piden la misma condición', () => {
     const P = abrirPlay({ hash: '#registro' });
     assert.match(P.ev('TEXTO_CEDULA_NUEVA'), /escribes tus datos/);
-    /* «te llenamos lo que alcancemos a leer» solo con la amarilla probada. */
+    /* «te llenamos lo que alcancemos a leer» pide lo mismo que el oyente de
+       las letras: 26-oct-2026, que NO sea la digital probada (antes, que
+       fuera la amarilla probada). */
     const fuente = require('node:fs').readFileSync(path.join(__dirname, '..', 'play', 'index.html'), 'utf8');
     const i = fuente.indexOf('var conLetras =');
     assert.ok(i > 0);
-    assert.match(fuente.slice(i, fuente.indexOf('\n', i)), /respaldoEsAmarilla\(\)/,
-      '«te llenamos lo que alcancemos a leer» no pide la prueba de la amarilla');
+    assert.match(fuente.slice(i, fuente.indexOf('\n', i)), /!conQr && !respaldoEsDigital\(\)/,
+      '«te llenamos lo que alcancemos a leer» no pide lo mismo que el oyente (salvo la digital probada)');
+    const j = fuente.indexOf('function ocrAlTomarLaCedula');
+    assert.match(fuente.slice(j, j + 600), /if \(d\.qr \|\| respaldoEsDigital\(\)\)/, 'el oyente de las letras no pregunta por la digital probada');
+    assert.equal(/respaldoEsAmarilla/.test(fuente), false, 'volvió la reja de la amarilla probada');
     assert.equal(/OCR_CEDULA\.digital\s*=(?!=)|function ocrRespaldoEsDigital/.test(fuente), false, 'volvió la marca de la digital en la memoria');
   });
 });

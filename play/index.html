@@ -4035,18 +4035,42 @@ function prepararRespaldoNuevo() {
  * 4K) y no existía si el teléfono no leía el QR y la persona tocaba «Tomar la
  * foto ahora», que es lo que TEXTO_CEDULA_NUEVA le pide.
  *
- * LA REGLA, AL REVÉS: las letras de CUALQUIERA de los dos lados se leen solo
- * con prueba POSITIVA de que el respaldo guardado es la amarilla — su PDF417
- * leído, visto sin poder leerlo ('ilegible') o el patrón de sus barras EN EL
- * RECORTE QUE SE GUARDÓ. No haber visto un QR no prueba nada. La decisión se
- * guarda CON LA FOTO, en FOTOS (y por eso en el teléfono): sobrevive a
- * relanzar, y se va con ella (prepararRespaldoNuevo, soltarLasFotos, otro
- * celular, salir del flujo: todos sueltan FOTOS). Va firmada con la huella de
- * la foto: si alguien pone otro respaldo por un camino que no pase por
- * prepararRespaldoNuevo, la marca vieja no le sirve al nuevo.
+ * LA REGLA DEL 21-oct, AL REVÉS: las letras de CUALQUIERA de los dos lados
+ * se leían solo con prueba POSITIVA de que el respaldo guardado es la
+ * amarilla — su PDF417 leído, visto sin poder leerlo ('ilegible') o el
+ * patrón de sus barras EN EL RECORTE QUE SE GUARDÓ. No haber visto un QR no
+ * prueba nada. La decisión se guarda CON LA FOTO, en FOTOS (y por eso en el
+ * teléfono): sobrevive a relanzar, y se va con ella (prepararRespaldoNuevo,
+ * soltarLasFotos, otro celular, salir del flujo: todos sueltan FOTOS). Va
+ * firmada con la huella de la foto: si alguien pone otro respaldo por un
+ * camino que no pase por prepararRespaldoNuevo, la marca vieja no le sirve
+ * al nuevo.
+ *
+ * 26-oct-2026 — LA REGLA DE HOY: LAS LETRAS SE LEEN SALVO CON LA DIGITAL
+ * PROBADA. Joan, con su amarilla en el iPhone: «me pide que rellene algunos
+ * datos porque no leyó el código de barras; yo fui muy claro indicando que
+ * no leas el código de barras y mejor lee lo que está legible en la cédula;
+ * en la foto veo perfectamente el nombre y el número». Lo que le pasó: el
+ * PDF417 gastado no se vio ni por su patrón, la marca quedó en '' y la regla
+ * del 21-oct no leía nada. Exigir la prueba de la amarilla castigaba justo a
+ * la amarilla gastada, que es la que más necesita las letras. Las dos reglas
+ * que quedan, y por qué cada una:
+ *   · SE LEE con 'amarilla' y con '' (no se sabe cuál es): con '' se lee con
+ *     las franjas de la amarilla y decide la validación (OcrCedula.validar:
+ *     solo dígitos de cédula, fechas que cuadran, nombres que no son
+ *     iguales entre sí; y planDeLlenado: solo casillas vacías que la persona
+ *     no tocó). Lo que no pase se queda sin llenar y se escribe a mano;
+ *   · NO SE LEE con 'digital' PROBADA (respaldoEsDigital: su QR visto en
+ *     vivo o en el recorte guardado): en la digital el RH, el sexo y la
+ *     estatura caen donde el bloque del frente de la amarilla (Ley 1581: el
+ *     RH es un dato de salud) y el rótulo va encima del valor. El costo,
+ *     aceptado: una digital cuyo QR no se vio pasa por las franjas de la
+ *     amarilla; lo que cae ahí lo filtra la validación, nada de lo que el
+ *     motor vio sale de OcrCedula (CAMPOS es una lista blanca) y lo que se
+ *     llene queda a la vista con «leído de tu cédula · revísalo».
  *   'amarilla' — prueba de la amarilla; se leen las letras;
- *   'digital'  — se vio un QR (en vivo o en el recorte guardado);
- *   ''         — no se sabe: no se lee nada, y la pantalla no lo promete.
+ *   'digital'  — se vio un QR (en vivo o en el recorte guardado): no se lee;
+ *   ''         — no se sabe: se lee, y la validación decide qué se llena.
  * ========================================================================= */
 /* La huella de una foto: el largo y un FNV-1a de 32 bits. Ni un carácter de
    la foto queda escrito en la marca. (El primo de FNV, 2^24 + 0x193, va
@@ -4073,7 +4097,9 @@ function tipoDelRespaldo() {
   if (!FOTOS || !FOTOS.cedula_reverso || (t !== 'amarilla' && t !== 'digital')) return '';
   return FOTOS.cedula_reverso_tipo_de === firmaDeFoto(FOTOS.cedula_reverso) ? t : '';
 }
-function respaldoEsAmarilla() { return tipoDelRespaldo() === 'amarilla'; }
+/* 26-oct-2026 — la reja de las letras pregunta por la DIGITAL probada, no por
+   la amarilla (ver LA REGLA DE HOY, arriba). */
+function respaldoEsDigital() { return tipoDelRespaldo() === 'digital'; }
 /* ¿La cédula recién leída es de otra persona que la de antes en este registro? */
 function esDeOtraPersona(cedula) {
   var antes = FOTOS.cedula_leida || FOTOS.leida_anterior;
@@ -6567,7 +6593,12 @@ function notaCedulaLeida() {
      'digital'  — se vio su QR: sus datos todavía no se saben leer;
      'amarilla' — se vio su PDF417 y no se leyó: lo de siempre;
      ''         — no se sabe cuál es (la cámara del celular, o nada visto):
-                  ni código de barras ni QR, la cédula. */
+                  ni código de barras ni QR, la cédula.
+   26-oct-2026 — con 'amarilla' y con '' las letras SÍ se intentan (LA REGLA
+   DE HOY en QUÉ CÉDULA ES EL RESPALDO GUARDADO): esta nota se esconde
+   mientras se leen o si llenaron algo (hayLecturaVisible), y vuelve solo
+   cuando no sacaron nada. Entonces «no alcanzamos a leer tu cédula» es
+   cierto de las dos cosas, el código y las letras. */
 function textoSinLeer(tipo) {
   if (tipo === 'digital') {
     return 'Tu cédula es la nueva (la del QR) y sus datos todavía no los sabemos leer, así que los escribes tú, ' +
@@ -8040,10 +8071,13 @@ function capturarDoc(automatico, delMejor) {
      que deja las franjas pendientes.
      21-oct-2026 (verificación del lote 1, R1) — `conQr` ya se decidió arriba,
      también con el QR del recorte guardado; y «te llenamos lo que alcancemos
-     a leer» pide la MISMA condición que las letras: la amarilla probada. */
+     a leer» pide la MISMA condición que las letras.
+     26-oct-2026 — esa condición es ahora «no es la digital probada» (ver LA
+     REGLA DE HOY): sin QR visto y con las franjas pendientes, se promete lo
+     que de verdad va a pasar. */
   celebrarDisparoDoc();
   avisarCedulaTomada(lado, c, giro, { leida: leyo, qr: conQr, automatica: automatico === true, forzada: forzada === true });
-  var conLetras = lado === 'reverso' && !leyo && respaldoEsAmarilla() && !!OCR_CEDULA.pendientes.reverso;
+  var conLetras = lado === 'reverso' && !leyo && !conQr && !respaldoEsDigital() && !!OCR_CEDULA.pendientes.reverso;
   var sigue = lado === 'reverso' && !hayFotoLista('cedula_frente');   // 20-oct-2026, revisión (F11): el frente LISTO
   /* 19-oct-2026 — «Listo: las dos caras.» solo cuando es cierto: el frente
      pasó la reja de arriba Y el respaldo está guardado. Si la persona insistió
@@ -8191,15 +8225,23 @@ function marcoQueCabe(r, lienzo) {
  * (OCR_CEDULA.digital) vivía en la memoria y solo existía con un QR leído en
  * vivo: relanzar la pestaña, o un teléfono que no lee el QR y «Tomar la foto
  * ahora», y el frente de la digital (con el RH, el sexo y la estatura) pasaba
- * por el bloque de la amarilla. Ahora ninguno de los dos lados se lee si el
- * respaldo guardado no es la amarilla PROBADA (respaldoEsAmarilla: QUÉ CÉDULA
- * ES EL RESPALDO GUARDADO), que se anota con la foto antes de este aviso.
+ * por el bloque de la amarilla. Desde ese día ninguno de los dos lados se
+ * leía si el respaldo guardado no era la amarilla PROBADA, que se anota con
+ * la foto antes de este aviso.
+ *
+ * 26-oct-2026 — SE LEE SALVO CON LA DIGITAL PROBADA (respaldoEsDigital: QUÉ
+ * CÉDULA ES EL RESPALDO GUARDADO, LA REGLA DE HOY). Exigir la prueba de la
+ * amarilla dejaba sin letras a la amarilla GASTADA —la de Joan—, cuyo PDF417
+ * no se ve ni por su patrón: la marca quedaba en '' y «Revisa tus datos» le
+ * pedía el nombre y el número que se leen a simple vista en la foto. Con ''
+ * se lee y decide la validación; con un QR visto (d.qr, o la marca 'digital'
+ * que viajó con la foto) no se lee nada, como el 21-oct.
  * ========================================================================= */
 function ocrAlTomarLaCedula(d) {
   if (!d || (d.lado !== 'reverso' && d.lado !== 'frente')) return;
   var lado = d.lado;
   if (d.forzada) { ocrSoltarLado(lado); return; }
-  if (d.qr || !respaldoEsAmarilla()) { ocrSoltarLado(lado); return; }
+  if (d.qr || respaldoEsDigital()) { ocrSoltarLado(lado); return; }
   var giro = d.giro == null ? 0 : (((+d.giro || 0) % 360) + 360) % 360;
   if (giro === 90 || giro === 270) { ocrSoltarLado(lado); return; }
   ocrAnotarRecorte(lado, d.lienzo, giro, d.guia);
@@ -8315,9 +8357,11 @@ function ocrLeerLoPendiente() {
   var P = OCR_CEDULA;
   if (P.estado === 'leyendo' || !ocrHayPendiente()) return;
   if (ESCDOC.activo || ESCDOC.stream) return;   // nunca con la cámara encendida
-  /* 21-oct-2026 (verificación del lote 1, R1) — y nunca sin la amarilla
-     probada: lo pendiente de un respaldo que dejó de serlo no se lee. */
-  if (!respaldoEsAmarilla()) { P.pendientes = {}; return; }
+  /* 21-oct-2026 (verificación del lote 1, R1) — y nunca con la digital: lo
+     pendiente de un respaldo que resultó serlo no se lee.
+     26-oct-2026 — era «nunca sin la amarilla probada»; ver LA REGLA DE HOY en
+     QUÉ CÉDULA ES EL RESPALDO GUARDADO. */
+  if (respaldoEsDigital()) { P.pendientes = {}; return; }
   ocrParar('leyendo');
   var turno = P.turno, gen = GENERACION_DEL_REGISTRO, O = null;
   var vale = function () { return turno === P.turno && gen === GENERACION_DEL_REGISTRO; };
