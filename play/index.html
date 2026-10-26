@@ -6080,10 +6080,15 @@ function pasoDocumento() {
      Decía «la cámara toma las fotos sola: primero el respaldo …, de pie», y
      las dos cosas fallaban: de pie la cámara no enfocaba (Joan, con su cédula
      amarilla), y la digital, sin código de barras, nunca se tomaba sola. Ahora
-     se dice cuándo se toma sola (nítida) y qué hacer si no. */
+     se dice cuándo se toma sola (nítida) y qué hacer si no.
+     26-oct-2026 — DE PIE otra vez, a una distancia que sí enfoca (el marco
+     llena el alto de la caja, no el del video: EC.rectanguloGuia). Esta
+     frase se pinta antes de que el marco exista, así que dice lo que pide la
+     página de hoy; si un escaner-cedula.js viejo lo dejara acostado, el
+     letrero del escáner (textoDelLado) lo corrige en cuanto enciende. */
   return arriba +
     '<p class="sub">' + (vivo
-      ? 'Pon tu cédula <b>acostada</b> dentro del marco: primero el <b>lado de atrás</b> ' +
+      ? 'Pon tu cédula <b>de pie</b> dentro del marco: primero el <b>lado de atrás</b> ' +
         '(el del código de barras, o el del QR si es la nueva), después el frente. Cuando se ve nítida, ' +
         'la foto se toma sola; si tarda, toca «Tomar la foto ahora».'
       : 'Con la foto del <b>respaldo</b> de tu cédula (el del código de barras) leemos tu ' +
@@ -6820,6 +6825,10 @@ function lienzoGirado(lienzo, grados) {
  * que ponerla a ~7,8 cm y la cámara no enfocaba (la cédula amarilla de Joan
  * nunca se leyó). Las dos caras van ACOSTADAS, a lo ancho del video, se pide
  * 4K para recuperar los píxeles por módulo, y el recorte ya no se gira.
+ * 26-oct-2026 — DE PIE OTRA VEZ, a ~11,7 cm (el marco llena el alto de la
+ * CAJA, no el del video), porque acostada a 13,6 cm Joan tenía que alejarse.
+ * El recorte sí se gira, pero en la fuente y a una geometría conocida: ver
+ * EL MARCO DE PIE, EL RECORTE ACOSTADO, antes de medirCajaDoc.
  *
  * 21-oct-2026 — LA FOTO ES LA MÁS NÍTIDA, NO LA SEXTA QUIETA. La puerta de 96
  * px sigue diciendo si hay tarjeta, con luz y quieta (es barata y no ve el
@@ -6947,11 +6956,22 @@ function refrescarDoc() {
    cuadro) y así la cámara no enfocaba. El frente sigue con la foto a la
    izquierda, que es como se guarda derecho para el CRM. Y ya no dice «la foto
    se toma sola»: con la cédula digital no se tomaba, y con una borrosa
-   tampoco; eso lo dice el letrero cuando de verdad la está buscando. */
+   tampoco; eso lo dice el letrero cuando de verdad la está buscando.
+   26-oct-2026 — LAS DOS DE PIE (Joan: el marco horizontal lo hacía alejarse;
+   ver EL MARCO DE PIE, EL RECORTE ACOSTADO). Ya no se dice hacia qué lado va
+   la foto del frente: de pie, la cabeza puede ir a la izquierda o a la
+   derecha, y las dos sirven (la foto se endereza sola). Si el .js viejo en la
+   caché dejó el marco acostado, se pide acostada: la pantalla dice lo que el
+   marco es. */
 function textoDelLado(lado) {
+  if (!marcoDePie()) {
+    return lado === 'frente'
+      ? 'Ahora el frente: tu cédula acostada, con tu foto a la izquierda'
+      : 'Pon tu cédula acostada dentro del marco, por el lado de atrás';
+  }
   return lado === 'frente'
-    ? 'Ahora el frente: tu cédula acostada, con tu foto a la izquierda'
-    : 'Pon tu cédula acostada dentro del marco, por el lado de atrás';
+    ? 'Ahora el frente: voltéala y ponla DE PIE en el marco, con tu foto'
+    : 'Pon tu cédula DE PIE dentro del marco, por el lado de atrás';
 }
 /* 19-oct-2026 — lo que se dice cuando en el marco del frente se ve el código
    de barras: qué hacer, no qué pasó. Y la salida para quien está seguro de que
@@ -7216,6 +7236,54 @@ function repetirDoc(lado) {
   if (hayCamaraEnVivo()) iniciarEscanerDoc(lado);
 }
 
+/* ===========================================================================
+ * EL MARCO DE PIE, EL RECORTE ACOSTADO — 26 de octubre de 2026
+ *
+ * Joan, en el iPhone: «me pide escanear de esta forma horizontal lo cual me
+ * hace alejarme más de la cédula para que se vea toda, no entiendo porque hay
+ * que tomar la foto con ese escáner horizontal en una pantalla vertical».
+ * El marco vuelve a ser VERTICAL en las dos caras (EC.rectanguloGuia con
+ * `dePie`: el 78 % del alto de la caja, que son ~11,7 cm y no los 7,7 del
+ * marco de pie del 8-oct; la cuenta está allá).
+ *
+ * Pero todo lo que mira píxeles sigue trabajando ACOSTADO y no se reescribe:
+ * la puerta de 96 px (medirTarjeta y su interior), la ventana del mejor
+ * cuadro, el lector PDF417 con sus giros de rescate, codigoEnRecorte,
+ * decidirFrente, las franjas de las letras (marcoEnRecorte) y la foto que se
+ * guarda. El giro de 90° se hace EN LA FUENTE, al copiar del video al lienzo
+ * (dibujarAcostado): el gris de la puerta, el lienzo de la nitidez y el
+ * recorte salen acostados, con la cédula a lo ancho, y de ahí en adelante
+ * nadie nota la diferencia. Las cuentas de dónde cae cada rectángulo en el
+ * video acostado viven en EC.rectAcostado / EC.rectDePie (se prueban sin
+ * cámara).
+ *
+ * COMPATIBILIDAD: un escaner-cedula.js viejo en la caché (v138) no sabe de
+ * `dePie` y devuelve el marco acostado del 21-oct con `vertical: false`:
+ * entonces no se gira nada y todo queda como ese día (marcoDePie es false).
+ * Y una página vieja con este .js nuevo no manda `dePie`, así que tampoco
+ * recibe un marco de pie que no sabría girar.
+ *
+ * LOS 180°: la cédula de pie se pone con la cabeza a la izquierda o a la
+ * derecha, y con este giro (en contra del reloj: el lado derecho del video
+ * pasa a ser el de arriba) la de cabeza a la DERECHA sale derecha. La otra
+ * mitad sale cabeza abajo, y la enderezan los que ya sabían: el respaldo, su
+ * código (EC.orientacionDelRespaldo, como desde el 8-oct); el frente, las
+ * letras (OcrCedula.leerRecorte, `giro`: ver EL FRENTE SE ENDEREZA POR SUS
+ * LETRAS, más abajo).
+ * ========================================================================= */
+function marcoDePie() {
+  return !!(ESCDOC.guiaVideo && ESCDOC.guiaVideo.vertical === true && EC && EC.rectAcostado && EC.rectDePie);
+}
+/* Copia un rectángulo DE PIE del video (sx, sy, sw, sh) a un lienzo acostado
+   de dw × dh (dw va con sh y dh con sw), girando 90° en contra del reloj. El
+   `try` de quien llama se queda con el drawImage; el restore va en finally
+   para no dejar el contexto girado si revienta. */
+function dibujarAcostado(x, fuente, sx, sy, sw, sh, dw, dh) {
+  x.save();
+  try { x.translate(0, dh); x.rotate(-Math.PI / 2); x.drawImage(fuente, sx, sy, sw, sh, 0, 0, dh, dw); }
+  finally { x.restore(); }
+}
+
 /* La caja muestra el video con object-fit: cover, así que el marco se calcula
    sobre la CAJA (lo que la persona ve) y se traduce al video para recortar. Se
    recalcula solo cuando cambia algo: es aritmética, pero corre diez veces por
@@ -7229,8 +7297,14 @@ function medirCajaDoc(v) {
   ESCDOC.cajaW = cw; ESCDOC.cajaH = ch; ESCDOC.videoW = vw; ESCDOC.videoH = vh; ESCDOC.ladoGuia = ESCDOC.lado;
   /* 21-oct-2026 — ACOSTADA EN LOS DOS LADOS (el `true` es para un
      escaner-cedula.js viejo en la caché, que todavía sabe poner el respaldo de
-     pie: así tampoco lo pone). */
-  var g = EC.rectanguloGuia(cw, ch, true);
+     pie: así tampoco lo pone).
+     26-oct-2026 — DE PIE EN LOS DOS LADOS (el cuarto `true`, ver EL MARCO DE
+     PIE, EL RECORTE ACOSTADO). El tercero se queda: con el .js viejo sigue
+     dando el acostado del 21-oct, nunca el de pie a 7,7 cm del 8-oct. Y si
+     un .js dijera «de pie» sin traer las cuentas del giro, se pide acostado:
+     un marco de pie sin giro dejaría el recorte de través. */
+  var g = EC.rectanguloGuia(cw, ch, true, true);
+  if (g.vertical === true && !(EC.rectAcostado && EC.rectDePie)) g = EC.rectanguloGuia(cw, ch, true);
   ESCDOC.guiaCaja = g;
   /* 21-sep-2026 — el marco se dibuja desde el primer cuadro, aunque el video
      todavía no tenga medidas: antes había uno o dos segundos de caja negra con
@@ -7239,7 +7313,7 @@ function medirCajaDoc(v) {
   if (!vw || !vh) { ESCDOC.guiaVideo = null; pintarGuiaCaja(g); return; }
   var k = Math.max(cw / vw, ch / vh);
   var ox = (cw - vw * k) / 2, oy = (ch - vh * k) / 2;
-  var gv = { x: Math.round((g.x - ox) / k), y: Math.round((g.y - oy) / k), w: Math.round(g.w / k), h: Math.round(g.h / k), vertical: g.vertical };
+  var gv = { x: Math.round((g.x - ox) / k), y: Math.round((g.y - oy) / k), w: Math.round(g.w / k), h: Math.round(g.h / k), vertical: g.vertical === true };
   gv.x = Math.max(0, Math.min(gv.x, vw - 1)); gv.y = Math.max(0, Math.min(gv.y, vh - 1));
   gv.w = Math.max(16, Math.min(gv.w, vw - gv.x)); gv.h = Math.max(16, Math.min(gv.h, vh - gv.y));
   ESCDOC.guiaVideo = gv;
@@ -7256,14 +7330,22 @@ function pintarGuiaCaja(g) {
    que medirTarjeta pueda comparar el interior con lo de afuera. */
 function grisDeGuia(v) {
   var g = ESCDOC.guiaVideo; if (!g) return null;
+  var vw = v.videoWidth, vh = v.videoHeight;
+  /* 26-oct-2026 — con el marco DE PIE la ventana se cuenta en el video
+     ACOSTADO (el marco acostado dentro de un video de vh × vw): así el gris
+     sale con la cédula a lo ancho, que es lo que medirTarjeta conoce, y su
+     origen se copia girando (dibujarAcostado). Ver EL MARCO DE PIE, EL
+     RECORTE ACOSTADO. */
+  var dePie = marcoDePie();
+  var gm = dePie ? EC.rectAcostado(g, vw, vh) : g, mw = dePie ? vh : vw, mh = dePie ? vw : vh;
   /* 8-oct-2026 — la cuenta de la ventana vive en EC.ventanaDeGuia (se prueba
      sin cámara), y trae DÓNDE quedó el marco una vez recortado el anillo. */
   var vg;
-  if (EC.ventanaDeGuia) vg = EC.ventanaDeGuia(g, v.videoWidth, v.videoHeight, ALTO_GRIS_DOC);
+  if (EC.ventanaDeGuia) vg = EC.ventanaDeGuia(gm, mw, mh, ALTO_GRIS_DOC);
   else {
     /* Un escaner-cedula.js viejo en la caché: la cuenta de antes, sin interior. */
-    var mx = g.w * 0.2143, my = g.h * 0.2143, sx0 = Math.max(0, g.x - mx), sy0 = Math.max(0, g.y - my);
-    var sw0 = Math.min(v.videoWidth - sx0, g.w + 2 * mx), sh0 = Math.min(v.videoHeight - sy0, g.h + 2 * my);
+    var mx = gm.w * 0.2143, my = gm.h * 0.2143, sx0 = Math.max(0, gm.x - mx), sy0 = Math.max(0, gm.y - my);
+    var sw0 = Math.min(mw - sx0, gm.w + 2 * mx), sh0 = Math.min(mh - sy0, gm.h + 2 * my);
     vg = (sw0 > 0 && sh0 > 0) ? { sx: sx0, sy: sy0, sw: sw0, sh: sh0, gh: ALTO_GRIS_DOC,
       gw: Math.max(16, Math.round(ALTO_GRIS_DOC * sw0 / sh0)), interior: null } : null;
   }
@@ -7274,8 +7356,11 @@ function grisDeGuia(v) {
   if (c.width !== gw || c.height !== gh) { c.width = gw; c.height = gh; }
   var x = c.getContext('2d', { willReadFrequently: true }); if (!x) return null;
   var d;
-  try { x.drawImage(v, sx, sy, sw, sh, 0, 0, gw, gh); d = x.getImageData(0, 0, gw, gh).data; }
-  catch (e) { return null; }
+  try {
+    if (dePie) { var o = EC.rectDePie({ x: sx, y: sy, w: sw, h: sh }, vw, vh); dibujarAcostado(x, v, o.x, o.y, o.w, o.h, gw, gh); }
+    else x.drawImage(v, sx, sy, sw, sh, 0, 0, gw, gh);
+    d = x.getImageData(0, 0, gw, gh).data;
+  } catch (e) { return null; }
   ESCDOC.grisW = gw; ESCDOC.grisH = gh;
   /* 8-oct-2026 — DÓNDE QUEDÓ EL MARCO dentro de este gris. El «15-85 %» de
      arriba solo es cierto si el anillo cupo entero, y con el respaldo nunca
@@ -7295,16 +7380,26 @@ function grisDeGuia(v) {
    (siempre hacia el mismo lado) era lo que dejaba la mitad de los respaldos
    cabeza abajo. Y desde hoy, con la tarjeta en verde, este lienzo guarda el
    MEJOR cuadro de la ventana (bucleConVentana): solo se redibuja cuando llega
-   uno más nítido, no diez veces por segundo. */
+   uno más nítido, no diez veces por segundo.
+   26-oct-2026 — SE VUELVE A GIRAR, pero ya no a ciegas: el marco va de pie y
+   el recorte sale ACOSTADO (dibujarAcostado), con la cédula a lo ancho como
+   el 21-oct. Lo que el giro del 8-oct dejaba cabeza abajo lo endereza hoy el
+   código (respaldo) o las letras (frente): ver EL MARCO DE PIE, EL RECORTE
+   ACOSTADO. Sin marco de pie (el .js viejo), tal cual el 21-oct. */
 function recortarGuia(v) {
   var marco = ESCDOC.guiaVideo, g = marco; if (!g) return null;
-  if (EC.margenDeLectura && v && v.videoWidth) g = EC.margenDeLectura(g, v.videoWidth, v.videoHeight, 0.06);
+  var vw = v && v.videoWidth, vh = v && v.videoHeight;
+  if (EC.margenDeLectura && vw) g = EC.margenDeLectura(g, vw, vh, 0.06);
+  var dePie = marcoDePie();
   if (!ESCDOC.recorte) ESCDOC.recorte = document.createElement('canvas');
-  var c = ESCDOC.recorte, w = g.w, h = g.h;
+  var c = ESCDOC.recorte, w = dePie ? g.h : g.w, h = dePie ? g.w : g.h;
   if (!w || !h) return null;
   if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
   var x = c.getContext('2d', { willReadFrequently: true }); if (!x) return null;
-  try { x.drawImage(v, g.x, g.y, g.w, g.h, 0, 0, g.w, g.h); } catch (e) { ESCDOC.marcoEnRecorte = null; return null; }
+  try {
+    if (dePie) dibujarAcostado(x, v, g.x, g.y, g.w, g.h, w, h);
+    else x.drawImage(v, g.x, g.y, g.w, g.h, 0, 0, g.w, g.h);
+  } catch (e) { ESCDOC.marcoEnRecorte = null; return null; }
   /* 21-oct-2026 (integración del lote 1) — DÓNDE QUEDÓ EL MARCO DENTRO DE ESTE
      RECORTE, anotado AL DIBUJARLO. Las franjas de las letras (app/ocr-cedula.js)
      son fracciones de la tarjeta, no del recorte, y el recorte lleva aire
@@ -7313,23 +7408,31 @@ function recortarGuia(v) {
      con la ventana del mejor cuadro el recorte puede ser de hasta 1,5 s antes,
      y si el video cambió de medidas entre tanto (el teléfono girado) las
      franjas caían corridas — sobre la fila del RH, en el peor caso. Así viaja
-     el marco del MISMO cuadro que se guarda (alTomarLaCedula, d.guia). */
-  ESCDOC.marcoEnRecorte = { x: marco.x - g.x, y: marco.y - g.y, w: marco.w, h: marco.h };
+     el marco del MISMO cuadro que se guarda (alTomarLaCedula, d.guia).
+     26-oct-2026 — de pie, el marco se anota ACOSTADO, como está el recorte:
+     las dos cuentas con EC.rectAcostado, y la resta es la misma. */
+  if (dePie) {
+    var ma = EC.rectAcostado(marco, vw, vh), ga = EC.rectAcostado(g, vw, vh);
+    ESCDOC.marcoEnRecorte = { x: ma.x - ga.x, y: ma.y - ga.y, w: ma.w, h: ma.h };
+  } else ESCDOC.marcoEnRecorte = { x: marco.x - g.x, y: marco.y - g.y, w: marco.w, h: marco.h };
   return c;
 }
 /* 21-oct-2026 — UN LIENZO CHICO, DIBUJADO A ESCALA, Y SU GRIS. Para medir la
    nitidez (del video, a 480 px) y para buscar el QR (del mejor recorte, a 960):
    lo caro no se hace a resolución completa. Cada uso tiene su lienzo y se
    reutiliza (redimensionar uno reserva el mapa de bits de nuevo).
+   26-oct-2026 — `acostar`: el origen está DE PIE en el video y se copia
+   girando (dibujarAcostado): w × h son las medidas del lienzo ya acostado.
    @returns {gris, w, h} o null (el banco de pruebas, o un lienzo manchado). */
-function grisAEscala(fuente, sx, sy, sw, sh, w, h, campo) {
+function grisAEscala(fuente, sx, sy, sw, sh, w, h, campo, acostar) {
   if (!fuente || !w || !h || !sw || !sh) return null;
   if (!ESCDOC[campo]) ESCDOC[campo] = document.createElement('canvas');
   var c = ESCDOC[campo];
   if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
   var x = c.getContext && c.getContext('2d', { willReadFrequently: true }); if (!x) return null;
   try {
-    x.drawImage(fuente, sx, sy, sw, sh, 0, 0, w, h);
+    if (acostar === true) dibujarAcostado(x, fuente, sx, sy, sw, sh, w, h);
+    else x.drawImage(fuente, sx, sy, sw, sh, 0, 0, w, h);
     return { gris: EC.grisDeImageData(x.getImageData(0, 0, w, h).data, w, h), w: w, h: h };
   } catch (e) { return null; }
 }
@@ -7354,14 +7457,20 @@ function grisAEscala(fuente, sx, sy, sw, sh, w, h, campo) {
 function medirNitidezDoc(v) {
   if (!ECAP || !ECAP.nitidezDeGris || !v || !v.videoWidth) return null;
   var g = ESCDOC.guiaVideo; if (!g) return null;
+  var vw = v.videoWidth, vh = v.videoHeight, dePie = marcoDePie();
   var marco = g;
-  if (EC.margenDeLectura) g = EC.margenDeLectura(g, v.videoWidth, v.videoHeight, 0.06);
-  var t = ECAP.tamanoDeMedida(g.w, g.h); if (!t) return null;
-  var r = grisAEscala(v, g.x, g.y, g.w, g.h, t.w, t.h, 'medida');
+  if (EC.margenDeLectura) g = EC.margenDeLectura(g, vw, vh, 0.06);
+  /* 26-oct-2026 — de pie, la medida es del recorte ACOSTADO (el mismo que
+     verán la ventana y el lector): el tamaño, las filas y las columnas del
+     marco se cuentan sobre el marco y el aire acostados (EC.rectAcostado), y
+     los píxeles se copian girando (grisAEscala con `acostar`). */
+  var ga = dePie ? EC.rectAcostado(g, vw, vh) : g, ma = dePie ? EC.rectAcostado(marco, vw, vh) : marco;
+  var t = ECAP.tamanoDeMedida(ga.w, ga.h); if (!t) return null;
+  var r = grisAEscala(v, g.x, g.y, g.w, g.h, t.w, t.h, 'medida', dePie);
   if (!r) return null;
   r.nitidez = ECAP.calidadDeGris ? ECAP.calidadDeGris(r.gris, r.w, r.h) : ECAP.nitidezDeGris(r.gris, r.w, r.h);
-  r.dentro = { y0: (marco.y - g.y) * r.h / g.h, y1: (marco.y + marco.h - g.y) * r.h / g.h,
-               x0: (marco.x - g.x) * r.w / g.w, x1: (marco.x + marco.w - g.x) * r.w / g.w };
+  r.dentro = { y0: (ma.y - ga.y) * r.h / ga.h, y1: (ma.y + ma.h - ga.y) * r.h / ga.h,
+               x0: (ma.x - ga.x) * r.w / ga.w, x1: (ma.x + ma.w - ga.x) * r.w / ga.w };
   return r;
 }
 /* ¿Hay un QR LEÍDO en este lienzo? A 960 px como mucho: el de la cédula digital
@@ -8128,11 +8237,16 @@ var TEXTO_LEIDO_DE_LA_CEDULA = '· leído de tu cédula · revísalo';
    marco bueno es el que recortarGuia anotó al dibujar el cuadro que se guardó
    (ESCDOC.marcoEnRecorte), y llega con el enganche. Y ya no hay marco de pie:
    desde el escáner del 21-oct las dos caras van acostadas y el recorte no se
-   gira, así que la cuenta de «de pie, girado 90°» que vivía aquí se fue. */
+   gira, así que la cuenta de «de pie, girado 90°» que vivía aquí se fue.
+   26-oct-2026 — el marco vuelve a ir de pie, pero el recorte sigue llegando
+   acostado (EL MARCO DE PIE, EL RECORTE ACOSTADO): el marco y su aire se
+   acuestan con la misma cuenta (EC.rectAcostado) y la resta es la de siempre. */
 function guiaEnElRecorte(lienzo) {
   var g = ESCDOC.guiaVideo, v = $('docVideo');
   if (!g || !lienzo || !lienzo.width || !lienzo.height) return null;
-  var m = (EC && EC.margenDeLectura && v && v.videoWidth) ? EC.margenDeLectura(g, v.videoWidth, v.videoHeight, 0.06) : g;
+  var vw = v && v.videoWidth, vh = v && v.videoHeight;
+  var m = (EC && EC.margenDeLectura && vw) ? EC.margenDeLectura(g, vw, vh, 0.06) : g;
+  if (marcoDePie() && vw) { g = EC.rectAcostado(g, vw, vh); m = EC.rectAcostado(m, vw, vh); }
   return marcoQueCabe({ x: g.x - m.x, y: g.y - m.y, w: g.w, h: g.h }, lienzo);
 }
 /* Un marco que no cabe en el lienzo es de otro cuadro: mejor ninguno que uno
