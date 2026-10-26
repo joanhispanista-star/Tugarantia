@@ -279,3 +279,87 @@ intacta porque el editor corre el archivo en una transacción:
   decisión y otro tamaño.
 - **Asistencia y último ingreso.** No existe nada y Joan no lo pidió con esas
   palabras.
+
+---
+
+## 27-oct-2026 — El gerente agrega (lote 27, rama `gerente-agrega`)
+
+Joan, el 26-oct: *«quiero que william pueda agregar bases en archivo y que
+también pueda agregar clientes de forma manual y mi rol también, un botón de
+agregar prospecto manual, y podamos poner el nombre y el teléfono u otra
+información adicional y que podamos con facilidad nosotros mismos gestionar o
+que se los podamos asignar a otros del equipo».*
+
+**Estado:** construido y probado en la rama; **no aplicado en producción**. Va
+con `base/20261027_el_gerente_agrega.sql`, que Joan corre como paso **2.4-bis**
+de la receta, después del 2.4 (22d) y de noche.
+
+### Lo que puede el gerente
+- **«＋ Agregar prospectos»** en su menú (justo debajo de «📋 Mi base», se ve sin
+  bajar en el celular) y **«＋ Agregar prospecto» / «⤒ Cargar base»** en la
+  cabecera de «Mi base».
+- **Uno a mano:** nombre, celular, información adicional (300 letras), de dónde
+  sale, si autorizó que le escribamos **por WhatsApp para ofrecerle el
+  crédito**, dónde está la prueba, y quién lo trabaja (él o un asesor activo).
+- **Un archivo** (.xlsx o .csv): el previo cuenta lo que sube y lo que no; las
+  columnas extra se ofrecen **sin marcar** y las que son plata, cobros,
+  documentos, otras personas o datos sensibles no se ofrecen (y se dice por
+  qué); sube en tandas de 200, solo lo que cabe en el cupo del día, y cerrar el
+  cuadro no corta la subida.
+- **«👤» en cada fila:** se la deja él o se la pasa a un asesor activo
+  (`asignar_a`, la de siempre).
+- **«🆕 Recién agregados»** (7 días) y, en cada fila, la nota, las columnas
+  extra, de dónde salió, quién lo subió y la prueba.
+
+### Lo que no puede, y por qué
+- **Agregar a quien no autorizó.** Con «No» no entra: guardar su número y
+  repartirlo ya es tratarlo (Ley 1581). La responsable de los datos es NEXECO.
+- **Subir sin su acuerdo de encargado anotado** (`equipo_acuerdo_firmado`, que
+  solo corre Joan desde el editor).
+- **Saber de quién es un número que ya existe.** La respuesta es «ya existe»,
+  sin nombre, y la fila no se crea: así no se le abre el registro, las fotos, el
+  chat ni el registro en vivo de un tercero. Como «ya existe» igual delata
+  número por número, **cada 50 «ya existía» se para** hasta que Joan los mira
+  («Ya lo revisé: que siga»), y el rastro guarda cuáles consultó.
+- **Pasarse de los topes:** 300 al día (entran + ya existían), 100 intentos al
+  día, 3.000 subidos por gerente hasta que «Mi base» se pagine.
+
+### Por qué el asesor no agrega
+Cada persona que puede meter celulares es una llave más para el «ya existe» y
+para reclamar gente. El gerente responde por su equipo y su sesión ya pide la
+clave de Joan (22d). El asesor no ve los botones, y el servidor lo rechaza
+aunque llame a mano (`solo_gerente`).
+
+### Lo que ve y hace Joan
+- **Bases → «⤒ Lo que subió tu equipo»**: vive en la nube y **no se copia a su
+  navegador** (por el espacio y las fotos). Cuándo, quién, qué, de dónde salió,
+  la prueba, cuántos entraron, cuántos ya existían («cuáles», con dónde) y
+  cuántos se registraron después sin gestión antes (la huella de quien sube
+  números para quedarse con el que se registre solo). Desde ahí reasigna a
+  cualquiera, o a **nadie** («soltarlo»).
+- **Su «＋ Agregar prospecto»** gana la información adicional, y **su «⤒ Cargar
+  base»** las columnas extra (sin marcar). Su nota, sus columnas, el origen y
+  si autorizó **viajan** a quien trabaje a la persona; su «No autorizó» le
+  cierra el 📲 al equipo.
+- **Antes de agregar, cargar, repartir y publicar** se pregunta si el equipo ya
+  subió ese celular: lo que ya es del equipo no se duplica (la compuerta de
+  publicar).
+- **«🚫 Borrar a alguien que lo pidió»**: se va de la nube como prospecto, con
+  todo lo suyo, y su número queda anotado (hash) para que nadie lo vuelva a
+  agregar. A un cliente no se le borra nada: solo se anota.
+- **Arreglado de paso:** cuando el gerente reasignaba a alguien de Joan, la
+  siguiente publicación de Joan lo deshacía sin avisar. Ahora `traerEquipo`
+  respeta lo que hizo el gerente (con la fecha de la nube), salvo que Joan
+  tenga un cambio suyo sin publicar.
+
+### Lo que va en el commit aparte (se puede publicar solo)
+Ningún nombre de afuera va dentro de un `onclick`: con un nombre preparado al
+registrarse en play/, tocar 👤 o 🧪 en Registrados ejecutaba código en el CRM
+de Joan. Los botones pasan solo ids o dígitos (`idDeBoton`), y la base limpia el
+nombre al entrar (disparador en `registros`).
+
+### Lo que falta, y es de Joan
+1. Correr el 2.4 (22d) y ponerle la clave a su equipo.
+2. El acuerdo de encargado NEXECO–William, firmado y anotado.
+3. La respuesta del abogado (finalidad en la política, RNE de la Ley 2300, qué
+   sirve como prueba). Hasta entonces, William no sube bases reales.
