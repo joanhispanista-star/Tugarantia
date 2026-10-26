@@ -6593,6 +6593,10 @@ function cedulaLeidaDeEsteRegistro() {
 function nacimientoLeido() {
   return cedulaLeidaDeEsteRegistro() ? String(FOTOS.cedula_leida.nacimiento || '') : '';
 }
+/* 26-oct-2026 — y el número que se leyó del código, o '' (para las letras). */
+function documentoLeido() {
+  return cedulaLeidaDeEsteRegistro() ? String(FOTOS.cedula_leida.documento || '') : '';
+}
 /* 19-oct-2026 — la fecha de nacimiento leída, a la vista y sin casilla: el
    formulario no la pide (nunca la pidió), pero la política dice que se guarda
    y Joan pidió que se vea. De solo lectura, como el celular del paso de
@@ -8118,6 +8122,9 @@ function capturarDoc(automatico, delMejor) {
   prepararFotoNueva();
   FOTOS['cedula_' + lado] = jpeg;
   if (lado === 'reverso') anotarTipoDelRespaldo(tipo);
+  /* 26-oct-2026 — el frente tomado DE PIE puede estar cabeza abajo hasta que
+     sus letras lo digan (EL FRENTE SE ENDEREZA POR SUS LETRAS). */
+  if (lado === 'frente') anotarGiroDelFrente(marcoDePie() ? 'incierto' : '');
   marcarDuenoDeLasFotos('cedula_' + lado);
   var aSalvo = guardarFotos();
   /* 21-oct-2026 — el destello, y el enganche de lo visible con el recorte que
@@ -8434,12 +8441,17 @@ function ocrLeerLoPendiente() {
       return cadena.then(function () {
         var p = P.pendientes[lado];
         if (!vale() || !p || p.gen !== gen) return;
-        return O.leerRecorte(lector, p.recorte, { hoy: hoyISO(), nacimientoLeido: nacimientoLeido() }).then(function (res) {
+        /* 26-oct-2026 — `documentoLeido`: el número del código, si se leyó.
+           Es lo que primero decide en qué posición salió el frente (EL
+           FRENTE SE ENDEREZA POR SUS LETRAS). */
+        return O.leerRecorte(lector, p.recorte, { hoy: hoyISO(), nacimientoLeido: nacimientoLeido(), documentoLeido: documentoLeido() }).then(function (res) {
           if (!vale() || P.pendientes[lado] !== p) return;
           delete P.pendientes[lado];
           /* La foto de la que salió tiene que seguir siendo la de este lado. */
           if (FOTOS['cedula_' + lado] !== p.foto || !hayFotoLista('cedula_' + lado)) return;
           ocrAplicar(lado, (res && res.campos) || {});
+          /* 26-oct-2026 — y el frente, derecho (EL FRENTE SE ENDEREZA POR SUS LETRAS). */
+          if (lado === 'frente') enderezarFrentePorLasLetras(res ? res.giro : null, gen);
           ocrRefrescarIdentidad();
         });
       });
@@ -8476,6 +8488,60 @@ function ocrAplicar(lado, campos) {
   FOTOS.cedula_vista = v;
   guardarFotos();
 }
+/* ===========================================================================
+ * EL FRENTE SE ENDEREZA POR SUS LETRAS — 26 de octubre de 2026
+ *
+ * Con el marco de pie (EL MARCO DE PIE, EL RECORTE ACOSTADO) la cédula se
+ * pone con la cabeza a la izquierda o a la derecha, y el recorte acostado
+ * sale derecho o cabeza abajo según cuál. El respaldo se endereza por su
+ * código de barras desde el 8-oct (EC.orientacionDelRespaldo); el frente no
+ * tiene código, pero tiene letras: OcrCedula.leerRecorte ya las leía en las
+ * dos posiciones y desde hoy dice en cuál salieron (`giro`). Si salieron a
+ * 180°, la foto guardada se gira (enderezarFotoGuardada: la de 900 px, en el
+ * teléfono) ANTES de que suba: la subida es en «Abrir mi cuenta», y las
+ * letras se leen apenas se apaga la cámara, en «Revisa tus datos».
+ *
+ * Mientras tanto la foto lleva una marca atada a ella (como el tipo del
+ * respaldo, anotarTipoDelRespaldo): `incierto` desde que se toma de pie,
+ * `letras` cuando las letras hablaron (0 o 180, ya aplicado). Si la persona
+ * abre la cuenta con la marca todavía en `incierto` (las letras no
+ * terminaron, no llegó el motor, o el respaldo no es la amarilla y no se
+ * leen), la huella que sube lo dice (cedula_frente_giro: 'incierto'): el CRM
+ * compara el rostro también con la foto girada, y «↻ Girar» la deja derecha.
+ * No se espera a las letras para subir: una lectura de hasta 60 s no puede
+ * tener a nadie mirando un botón apagado.
+ * ========================================================================= */
+function anotarGiroDelFrente(estado) {
+  if (!FOTOS || !FOTOS.cedula_frente || (estado !== 'incierto' && estado !== 'letras')) { olvidarGiroDelFrente(); return; }
+  FOTOS.cedula_frente_giro = estado;
+  FOTOS.cedula_frente_giro_de = firmaDeFoto(FOTOS.cedula_frente);
+}
+function olvidarGiroDelFrente() {
+  if (!FOTOS) return;
+  delete FOTOS.cedula_frente_giro; delete FOTOS.cedula_frente_giro_de;
+}
+/* 'incierto' | 'letras' | '' — del frente que está guardado AHORA en `lote`
+   (FOTOS, o la cola que espera subir). Una marca de otra foto no vale. */
+function giroDelFrente(lote) {
+  var f = lote || FOTOS, g = f && f.cedula_frente_giro;
+  if (!f || !f.cedula_frente || (g !== 'incierto' && g !== 'letras')) return '';
+  return f.cedula_frente_giro_de === firmaDeFoto(f.cedula_frente) ? g : '';
+}
+/* Lo que dijeron las letras del frente: 180 gira la foto guardada; 0 la
+   confirma; null (no leyeron nada en ninguna posición) la deja como está, en
+   duda. `gen`: la generación del registro que pidió la lectura; girar es
+   asíncrono (la foto se vuelve a dibujar) y otra generación ya no es este
+   registro (enderezarFotoGuardada tampoco pisa una foto que cambió). */
+function enderezarFrentePorLasLetras(giro, gen) {
+  if (gen !== GENERACION_DEL_REGISTRO) return;
+  if (giro === 0) { anotarGiroDelFrente('letras'); guardarFotos(); return; }
+  if (giro !== 180) return;
+  enderezarFotoGuardada('cedula_frente', 180).then(function (ok) {
+    if (!ok || gen !== GENERACION_DEL_REGISTRO) return;
+    anotarGiroDelFrente('letras'); guardarFotos();
+  });
+}
+
 /* ¿Este valor de la casilla salió de la cédula —del código o de las letras— y
    sigue igual? Es lo que pinta «leído de tu cédula · revísalo». */
 function deLaCedula(c) {
@@ -9784,6 +9850,11 @@ function subirArchivosRegistro() {
      migración de RECETA-OCR-CEDULA.md, registro_archivos_guardar lo ignora. */
   var vistaResumen = resumenDeLaVista(lote);
   if (vistaResumen) huella.cedula_vista = vistaResumen;
+  /* 26-oct-2026 — el frente tomado de pie que sus letras no alcanzaron a
+     enderezar (EL FRENTE SE ENDEREZA POR SUS LETRAS): puede estar cabeza
+     abajo, y el CRM lo sabe. Como cedula_vista, la base lo guarda cuando
+     tenga su migración; hasta entonces registro_archivos_guardar lo ignora. */
+  if (giroDelFrente(lote) === 'incierto') huella.cedula_frente_giro = 'incierto';
   /* 22-oct-2026 — y si siguió sin la foto de su cara, QUÉ hizo (ver LA SELFIE
      QUE NO SE TOMÓ SE DICE): un motivo de cuatro, sin ninguna foto ni medida.
      La base lo guarda en la huella desde
