@@ -720,15 +720,56 @@ function mirarCodigoEnElFrente(img, extra, notas, corrida) {
   });
 }
 
+/* 26-oct-2026 — LA CÉDULA CABEZA ABAJO, AQUÍ TAMBIÉN. Desde hoy la app
+   escanea la cédula DE PIE y el frente sube girado 180° cuando sus letras no
+   lo enderezaron en el teléfono: toda cédula digital (sin la amarilla
+   probada no se leen letras), la amarilla cuyas letras no salieron en
+   ninguna posición, o la cuenta abierta antes de que terminaran. El
+   detector no encuentra una cara al revés: sin esto, la regla del rostro no
+   corría para esa persona y la nota decía «Pasa con fotos de cédula chicas
+   o con reflejo», que no era la causa. Es lo mismo que hace el botón
+   «🔍 Comparar el rostro con la cédula» de la ficha (panel/crm.html,
+   compararRostro): si en
+   el frente no hay cara, se compara otra vez con la foto girada.
+   Vive en la página y no en app/revision-fotos.js a propósito: ese .js ya
+   está publicado y lo piden las dos páginas sin versión en la dirección, así
+   que una página nueva podría correr con el de antes (la caché HTTP de diez
+   minutos); aquí funciona con cualquiera de los dos. La foto guardada no se
+   toca: para eso está «↻ Girar» en la ficha del CRM. */
+function lienzoGirado180(img) {
+  var w = img && (img.naturalWidth || img.width), h = img && (img.naturalHeight || img.height);
+  if (!w || !h) return null;
+  var c = document.createElement('canvas');
+  if (!c || typeof c.getContext !== 'function') return null;
+  c.width = w; c.height = h;
+  var x = c.getContext('2d'); if (!x) return null;
+  x.translate(w / 2, h / 2); x.rotate(Math.PI); x.drawImage(img, -w / 2, -h / 2, w, h);
+  return c;
+}
+
 /* El rostro. Si el programa no carga, se dice una vez arriba y las demás
    reglas siguen; si carga y falla con una foto, se dice en esa ficha. */
 function compararCaras(selfie, frente, extra, notas) {
   if (EST.rostroFallo) return Promise.resolve();
   return RF.cargarRostro().then(function () {
     return RF.compararRostros(selfie, frente).then(function (res) {
+      /* Sin cara solo en el frente: otra vez, con el frente girado 180°. Si
+         girado tampoco, o esa segunda vuelta falla, queda lo primero. Sin
+         cara en la selfie no se gira nada: no habría con qué comparar. */
+      if (!res || res.sin_rostro !== 'cedula') return res;
+      var girada = null;
+      try { girada = lienzoGirado180(frente); } catch (e) { girada = null; }
+      if (!girada) return res;
+      return RF.compararRostros(selfie, girada).then(function (r2) {
+        return (r2 && !r2.sin_rostro) ? { distancia: r2.distancia, girada: true } : res;
+      }, function () { return res; });
+    }).then(function (res) {
       /* Al motor le llega solo lo que necesita: la distancia, o dónde no hubo
-         cara. El parecido en porcentaje es la misma cifra dicha de otro modo. */
-      extra.rostro = res.sin_rostro ? { sin_rostro: res.sin_rostro } : { distancia: res.distancia };
+         cara. El parecido en porcentaje es la misma cifra dicha de otro modo.
+         `girada` no la mira el motor: la pinta revisiones() como nota, y como
+         todo lo del rostro no se guarda en la pestaña. */
+      extra.rostro = res.sin_rostro ? { sin_rostro: res.sin_rostro }
+        : (res.girada ? { distancia: res.distancia, girada: true } : { distancia: res.distancia });
     }, function (e) {
       notas.push({ clase: 'sin', texto: 'La comparación de rostros falló con estas fotos: ' + motivoDe(e) + '.' });
     });
@@ -759,10 +800,17 @@ function revisiones() {
       mirar.push({ peso: Number(n.peso) || 1, texto: n.texto, detalle: n.detalle || '' });
     });
     mirar.sort(function (a, b) { return b.peso - a.peso; });
+    /* 26-oct-2026 — el frente que se comparó girado (compararCaras). Se arma
+       aquí, de lo que hay en memoria, y no va a EST.notas: las notas se
+       guardan en la pestaña, y esto sale de dónde encontró la cara. */
+    var px = EST.porId[id];
+    var notaGirada = (px && px.rostro && px.rostro.girada === true)
+      ? [{ texto: 'La foto del frente subió cabeza abajo: el rostro se comparó con ella girada 180°. '
+          + 'En la ficha del CRM, «↻ Girar» la deja derecha.' }] : [];
     var neutros = res.neutros.filter(function (x) {
       /* «falta la selfie» sería falso si la selfie estaba y no se pudo abrir. */
       return !(x.clave === 'fotos_incompletas' && notas.some(function (n) { return n.fotoFallida; }));
-    }).concat(notas.filter(function (n) { return n.clase === 'neutro'; }));
+    }).concat(notas.filter(function (n) { return n.clase === 'neutro'; })).concat(notaGirada);
     var ajenas = notas.some(function (n) { return n.fotosAjenas; });
     var sin = res.reglas_sin_datos.filter(function (x) {
       /* Mientras sus fotos esperan turno, lo de las fotos no es «no se pudo»:

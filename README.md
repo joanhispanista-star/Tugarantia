@@ -442,7 +442,9 @@ play/                   LA APP PARA GOOGLE PLAY. Un solo producto: 6 meses en
                         posiciones y gana la de más evidencia), que giran la
                         foto guardada antes de que suba; si la cuenta se abre
                         antes, la huella dice cedula_frente_giro: 'incierto' y
-                        el CRM compara el rostro también girado. Un
+                        el CRM compara el rostro también girado, en el botón
+                        de la ficha y en «🔎 Revisar a todos»
+                        (panel/revision.html, compararCaras). Un
                         escaner-cedula.js viejo en la caché deja todo acostado
                         como el 21-oct (pruebas/el-marco-de-pie.test.js).
                         (23-oct-2026, verificación del autollenado y la demo)
