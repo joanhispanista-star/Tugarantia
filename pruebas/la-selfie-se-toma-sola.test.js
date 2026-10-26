@@ -20,6 +20,11 @@
  *   salía del lienzo no decía nada (T4).
  * Lo de los ojos (dibujarlos donde el detector los vio) y la frontera nueva
  * se vigilan en pruebas/selfie-automatica.test.js.
+ * 26-oct-2026 — LA RACHA PASÓ A SER DOS SEGUNDOS EN VERDE (contarVerde, con
+ * los parpadeos del detector tolerados; ver la-silueta-y-los-dos-segundos
+ * .test.js). La medición de §1 se hace desde hoy con esa regla, y las varas
+ * son las que midió: 2 s de mínimo más el temblor (6/s: 95 % antes de 5 s;
+ * 2/s: 93 % antes de 6 s). La cuenta de §4 ya no es «3·2·1» sino «2 · 1».
  * Las que prueban lo nuevo FALLAN con ab6b595; las de control (las que dicen
  * «sigue», «como siempre», «como antes» o «no … nada») pasan con las dos, y
  * están para que el arreglo no rompa lo que ya andaba.
@@ -45,10 +50,12 @@ function normal(r) { let u = 0; while (u === 0) u = r(); const v = r(); return M
    tiembla de una detección a la siguiente (jC el centro, jH el alto) y la
    nitidez también (jN: el autofoco y el ruido del sensor). Se recorre como la
    recorre detectarCara en play/, con el reloj de la detección. Devuelve en
-   qué segundo se disparó (o Infinity). */
+   qué segundo se disparó (o Infinity).
+   26-oct-2026 — con la cuenta en verde (contarVerde), que es la que usa
+   play/ desde hoy. */
 function segundosHastaDisparar(r, o) {
   const H = 0.42, W = 0.32, porSeg = o.porSeg, paso = 1000 / porSeg;
-  let previa = null, mejor = 0, estables = 0, desde = 0;
+  let previa = null, mejor = 0, verde = null;
   for (let i = 0; i < porSeg * 30; i++) {
     const ahora = i * paso;
     const h = H * (1 + o.jH * normal(r)), w = W * (1 + o.jH * normal(r));
@@ -57,8 +64,8 @@ function segundosHastaDisparar(r, o) {
     mejor = RV.mejorNitidez(mejor, nit);
     const m = RV.medirRostro([{ x: cx - w / 2, y: cy - h / 2, w, h, score: 0.9 }], { luz: 128, nitidez: nit, mejorNitidez: mejor, previa });
     previa = m.cara;
-    const rr = RV.contarRacha(estables, m, { ahora, desde });
-    estables = rr.estables; desde = rr.desde || 0;
+    const rr = RV.contarVerde(verde, m, ahora);
+    verde = rr.estado;
     if (rr.disparar) return ahora / 1000;
   }
   return Infinity;
@@ -73,9 +80,11 @@ function porcentajeAntesDe(seg, o) {
 describe('1. la racha aguanta el temblor de una frontal barata', () => {
   const FRONTAL_BARATA = { jC: 0.015, jH: 0.08, jN: 0.20 };
 
-  test('a 6 detecciones por segundo: casi siempre antes de 3 segundos', () => {
-    const p = porcentajeAntesDe(3, Object.assign({ porSeg: 6 }, FRONTAL_BARATA));
-    assert.ok(p >= 0.9, 'con una frontal barata solo se disparó el ' + Math.round(p * 100) + ' % antes de 3 s (con ab6b595: 41 % a los 5 s)');
+  /* 26-oct-2026 — eran «antes de 3 s» a 6/s: con dos segundos en verde de
+     mínimo, la vara es 2 s más el mismo rato de temblor. Medido: 95 %. */
+  test('a 6 detecciones por segundo: casi siempre antes de 5 segundos (2 s en verde más el temblor)', () => {
+    const p = porcentajeAntesDe(5, Object.assign({ porSeg: 6 }, FRONTAL_BARATA));
+    assert.ok(p >= 0.9, 'con una frontal barata solo se disparó el ' + Math.round(p * 100) + ' % antes de 5 s (con ab6b595: 41 % a los 5 s)');
   });
 
   test('a 2 por segundo (un Android barato, o Safari): casi siempre antes de 6 segundos', () => {
@@ -83,21 +92,22 @@ describe('1. la racha aguanta el temblor de una frontal barata', () => {
     assert.ok(p >= 0.85, 'a 2 detecciones por segundo solo se disparó el ' + Math.round(p * 100) + ' % antes de 6 s');
   });
 
-  test('y no dispara sin que se vea escanear: nunca antes de MS_ESCANEO_MIN con la cara a la vista', () => {
+  test('y nunca antes de MS_VERDE (dos segundos) en verde, ni con 30 detecciones por segundo', () => {
     const quieto = { jC: 0, jH: 0, jN: 0, porSeg: 30 };
     const s = segundosHastaDisparar(azar(1), quieto);
-    assert.ok(s * 1000 >= RV.ROSTRO.MS_ESCANEO_MIN, 'con 30 detecciones por segundo disparó a los ' + s + ' s: no alcanza a verse el escaneo');
-    assert.ok(s < 2, 'quieto de verdad tardó ' + s + ' s');
+    assert.ok(s * 1000 >= RV.ROSTRO.MS_VERDE, 'con 30 detecciones por segundo disparó a los ' + s + ' s: antes de los dos segundos que la pantalla cuenta');
+    assert.ok(s < 2.3, 'quieto de verdad tardó ' + s + ' s');
   });
 
   test('pero sigue sin disparar con la cara movida, lejos o borrosa', () => {
     const r = azar(7);
     assert.equal(segundosHastaDisparar(r, { jC: 0.08, jH: 0.3, jN: 0.2, porSeg: 6 }), Infinity, 'disparó con la cara bailando');
-    let e = 0, desde = 0;
+    let verde = null;
     for (let i = 0; i < 20; i++) {
       const m = RV.medirRostro([{ x: 0.45, y: 0.43, w: 0.1, h: 0.14, score: 0.9 }], { luz: 128, nitidez: 20, mejorNitidez: 20, previa: { x: 0.45, y: 0.43, w: 0.1, h: 0.14 } });
-      const rr = RV.contarRacha(e, m, { ahora: i * 200, desde }); e = rr.estables; desde = rr.desde || 0;
+      const rr = RV.contarVerde(verde, m, i * 200); verde = rr.estado;
       assert.equal(rr.disparar, false, 'disparó con la cara lejos');
+      assert.equal(rr.enVerde, false, 'la cuenta en verde arrancó con la cara lejos');
     }
   });
 });
@@ -321,21 +331,31 @@ describe('4. la página', () => {
     assert.equal(P.ev('ESCANER.modo'), 'encuadre');
   });
 
-  test('LA CUENTA «3·2·1» ES LA RACHA: aparece con la cara en verde y se va si se mueve', () => {
+  /* 26-oct-2026 — era «LA CUENTA «3·2·1» ES LA RACHA» (una detección buena
+     por número). Joan pidió dos segundos en verde: ahora el número son los
+     segundos que faltan de esos dos (avanceVerde), lo mismo que llena el aro,
+     y lo que lo borra es perder la cara, no un parpadeo del detector. */
+  test('LA CUENTA «2 · 1» ES EL TIEMPO EN VERDE: los segundos que faltan; un parpadeo no la borra, la cara perdida sí', () => {
     const P = abrirPlay();
     lienzosDeMentira(P, 720, 960);
     P.ev(FUENTE_RV);
     P.ev("ESCANER.activo = true; ESCANER.modo = 'rostro'; ESCANER.detectando = true; ESCANER.detectandoDesde = Date.now(); ESCANER.vioCara = true;" +
       'ESCANER.detector = { liberar: function () {} }; ESCANER.desdeCara = Date.now();');
-    const cuenta = (estables, ok) => {
-      P.ev('ESCANER.estables = ' + estables + "; ESCANER.medida = { ok: " + ok + ", falla: " + (ok ? "''" : "'movimiento'") +
-        ', cara: { x: 0.32, y: 0.275, w: 0.36, h: 0.45 }, ojos: null }; bucleEscaner();');
-      return P.ev("$('camCuenta').textContent");
+    /* La cuenta tal como la deja contarVerde: empezó hace `ms` y la última
+       detección verde fue hace `hueco`; la detección de ahora es `ok` o un
+       «movimiento». */
+    const cuenta = (ms, hueco, ok) => {
+      P.ev('ESCANER.verde = ' + (ms === null ? 'null' : '{ activa: 1, desde: Date.now() - ' + ms + ', ultimoVerde: Date.now() - ' + hueco + ', ultimaCara: Date.now(), parpadeos: 0, verdes: 3, miradas: 3 }') +
+        '; ESCANER.medida = { ok: ' + ok + ", falla: " + (ok ? "''" : "'movimiento'") + ', cara: { x: 0.32, y: 0.275, w: 0.36, h: 0.45 }, ojos: null }; bucleEscaner();');
+      return { cuenta: P.ev("$('camCuenta').textContent"), texto: P.ev("$('camEstado').textContent") };
     };
-    assert.equal(cuenta(1, true), '3');
-    assert.equal(cuenta(2, true), '2');
-    assert.equal(cuenta(3, true), '1');
-    assert.equal(cuenta(0, false), '', 'con la cara movida la cuenta siguió');
+    assert.equal(cuenta(null, 0, true).cuenta, '', 'sin la cuenta andando salió un número');
+    assert.equal(cuenta(100, 0, true).cuenta, '2');
+    assert.equal(cuenta(1100, 0, true).cuenta, '1');
+    assert.equal(cuenta(1100, 0, true).texto, 'Quieto… 1');
+    assert.equal(cuenta(1100, 150, false).cuenta, '1', 'un parpadeo del detector (una detección «movimiento» entre dos verdes) borró la cuenta');
+    assert.equal(cuenta(1100, RV.ROSTRO.MS_HUECO_MAX + 100, false).cuenta, '', 'con la cara perdida la cuenta siguió');
+    assert.equal(cuenta(1100, RV.ROSTRO.MS_HUECO_MAX + 100, false).texto, 'Quieto…', 'con la cara perdida el texto siguió contando');
   });
 
   test('T4 — si el lienzo no da la foto, se dice y se ofrece la cámara del celular; nunca un botón mudo', () => {
