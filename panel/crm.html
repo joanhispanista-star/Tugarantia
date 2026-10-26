@@ -11159,19 +11159,41 @@ function conRevisionFotos(){
   }
   return _revisionFotos;
 }
+/* 26-oct-2026 — LA CÉDULA CABEZA ABAJO. Desde hoy la app escanea la cédula
+   DE PIE, y el frente llega girado 180° la mitad de las veces hasta que sus
+   letras lo enderezan en el teléfono (play/, EL FRENTE SE ENDEREZA POR SUS
+   LETRAS); si la cuenta se abrió antes, sube así. El detector no encuentra una
+   cara al revés, y «No encontré un rostro en la foto de la cédula» era
+   mentira a medias: la cara estaba. Si en el frente no hay cara, se compara
+   otra vez con la foto girada 180° y se dice. La foto guardada no se toca:
+   para eso está «↻ Girar». */
+function lienzoGirado180(img){
+  const w=img&&(img.naturalWidth||img.width),h=img&&(img.naturalHeight||img.height);
+  if(!w||!h) return null;
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const x=c.getContext('2d'); if(!x) return null;
+  x.translate(w/2,h/2); x.rotate(Math.PI); x.drawImage(img,-w/2,-h/2,w,h);
+  return c;
+}
 function compararRostro(idSelfie,idCedula,cajaId){
   const caja=document.getElementById(cajaId); if(!caja) return; caja.innerHTML='<span class="muted">Comparando… (la primera vez baja el modelo, unos segundos)</span>';
-  conRevisionFotos().then(RF=>RF.compararRostros(document.getElementById(idSelfie),document.getElementById(idCedula),{face:URL_FACE_CRM,modelos:URL_MODELOS_CRM}))
+  const selfie=document.getElementById(idSelfie),cedula=document.getElementById(idCedula),op={face:URL_FACE_CRM,modelos:URL_MODELOS_CRM};
+  conRevisionFotos().then(RF=>RF.compararRostros(selfie,cedula,op).then(r=>{
+    if(r.sin_rostro!=='cedula') return r;
+    const girada=lienzoGirado180(cedula); if(!girada) return r;
+    return RF.compararRostros(selfie,girada,op).then(r2=>r2.sin_rostro?Object.assign({},r,{giradaProbada:true}):Object.assign(r2,{girada:true}),()=>r);
+  }))
   .then(r=>{
-    if(r.sin_rostro){ caja.innerHTML='<div class="alerta warn">No encontré un rostro en '+(r.sin_rostro==='ambas'?'ninguna de las dos fotos':r.sin_rostro==='selfie'?'la foto del rostro':'la foto de la cédula')+'. Míralas tú.</div>'; return; }
+    if(r.sin_rostro){ caja.innerHTML='<div class="alerta warn">No encontré un rostro en '+(r.sin_rostro==='ambas'?'ninguna de las dos fotos':r.sin_rostro==='selfie'?'la foto del rostro':'la foto de la cédula'+(r.giradaProbada?' (tampoco girada 180°)':''))+'. Míralas tú.</div>'; return; }
+    const notaGiro=r.girada?' <span class="muted">La foto de la cédula está cabeza abajo: la comparé girada 180°. Con «↻ Girar» la dejas derecha.</span>':'';
     /* 2-oct-2026 (noche) — sin «%» ni «probablemente la misma persona»: un
        porcentaje se lee como probabilidad, y la distancia no lo es. Dice lo
        mismo que la revisión automática (app/revision-registro.js, regla del
        rostro) para la misma distancia: una ayuda, nunca un veredicto. */
     const dd=Number(r.distancia).toFixed(2).replace('.',','), corte=Number(r.umbral).toFixed(2).replace('.',',');
     caja.innerHTML=r.debajo
-      ? `<div class="alerta info"><b>El programa no encontró una diferencia grande (distancia ${dd}). No dice que sea la misma persona.</b> <span class="muted">Es una ayuda: la foto de la cédula es chica y vieja. Decide tú, mirando las dos fotos.</span></div>`
-      : `<div class="alerta warn"><b>Se parecen poco (distancia ${dd}; desde ${corte} se avisa).</b> <span class="muted">Es una ayuda, no un veredicto: la foto de la cédula es chica y vieja, y la cara cambia con los años. Míralas tú.</span></div>`;
+      ? `<div class="alerta info"><b>El programa no encontró una diferencia grande (distancia ${dd}). No dice que sea la misma persona.</b> <span class="muted">Es una ayuda: la foto de la cédula es chica y vieja. Decide tú, mirando las dos fotos.</span>${notaGiro}</div>`
+      : `<div class="alerta warn"><b>Se parecen poco (distancia ${dd}; desde ${corte} se avisa).</b> <span class="muted">Es una ayuda, no un veredicto: la foto de la cédula es chica y vieja, y la cara cambia con los años. Míralas tú.</span>${notaGiro}</div>`;
   }).catch(e=>{ caja.innerHTML='<div class="alerta warn">No pude comparar: '+escHTML((e&&e.message)||'sin conexión')+'</div>'; });
 }
 function fichaDesdeRegistro(id){
