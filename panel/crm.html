@@ -16740,7 +16740,8 @@ function verCargaDelEquipo(id, desde) {
             return `<tr><td><input type="checkbox" id="deqChk_${k}"></td><td>${escHTML(p.nombre || 'Sin nombre')}</td>
               <td class="mono">${escHTML(p.celular || '')}</td><td>${escHTML(info) || '<span class="muted">—</span>'}</td>
               <td>${p.asesor_nombre ? escHTML(p.asesor_nombre) : '<span class="muted">nadie</span>'}</td>
-              <td>${g ? escHTML((g.tipo || '') + ' · ' + haceCuanto(g.cuando) + (g.quien ? ' · ' + g.quien : '')) : '<span class="muted">—</span>'}</td></tr>`;
+              <td>${g ? etiquetaGestion(g) + '<div class="muted">' + escHTML(haceCuanto(g.cuando) + (g.quien ? ' · ' + g.quien : '')) + '</div>'
+                : '<span class="muted">—</span>'}</td></tr>`;
           }).join('')}</tbody></table></div>
         ${_cargaVista.total > _cargaVista.desde + gente.length ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px"
           onclick="verCargaDelEquipo(${Number(id)}, ${_cargaVista.desde + 200})">Siguientes 200</button>` : ''}
