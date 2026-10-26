@@ -70,6 +70,28 @@ function abrirEspejo(opciones) {
   const almacen = o.almacen || {};
   const elems = {};
   const oyentes = {};
+  /* 26-oct-2026 — los oyentes de la VENTANA (popstate, online…) se guardan
+     aparte, y hay un history de mentira (chat-1): la conversación a pantalla
+     completa entra con history.pushState para que el gesto de atrás de
+     Android la cierre en vez de cerrar el Panel, y eso solo se prueba si el
+     banco recuerda el estado y puede «volver». back() dispara popstate en el
+     acto —en un navegador es asíncrono— porque una prueba determinista vale
+     más que imitar ese tic. */
+  const oyentesVentana = {};
+  const historia = {
+    estados: [], atras: 0, state: null,
+    pushState(estado, titulo, url) {
+      historia.estados.push({ estado, url: url == null ? null : String(url) });
+      historia.state = estado;
+    },
+    replaceState(estado) { historia.state = estado; },
+    back() {
+      historia.atras++;
+      historia.estados.pop();
+      historia.state = historia.estados.length ? historia.estados[historia.estados.length - 1].estado : null;
+      (oyentesVentana.popstate || []).forEach(fn => fn({ state: historia.state }));
+    }
+  };
   const temporizadores = [];
   const avisos = [];
   const llamadas = [];
@@ -157,10 +179,12 @@ function abrirEspejo(opciones) {
     TextEncoder, TextDecoder, URL, Intl, Math, JSON,
     Date: relojFijo(o.ahora),
     btoa: s => Buffer.from(s, 'binary').toString('base64'),
-    atob: s => Buffer.from(s, 'base64').toString('binary')
+    atob: s => Buffer.from(s, 'base64').toString('binary'),
+    history: historia
   };
   ctx.window = ctx; ctx.self = ctx;
-  ctx.addEventListener = () => {};
+  ctx.addEventListener = (t, fn) => { (oyentesVentana[t] = oyentesVentana[t] || []).push(fn); };
+  ctx.removeEventListener = () => {};
   vm.createContext(ctx);
 
   /* Los scripts en el orden de la página: los de archivo y los escritos dentro. */
@@ -209,8 +233,11 @@ function abrirEspejo(opciones) {
     (oyentes.input || []).forEach(fn => fn({ target: objetivo }));
   }
 
+  /* Un evento de la ventana (popstate, online…), como lo dispararía el navegador. */
+  function ventana(t, ev) { (oyentesVentana[t] || []).forEach(fn => fn(ev || {})); }
+
   return {
-    ev, json, ctx, elems, almacen, avisos, llamadas, pestanias,
+    ev, json, ctx, elems, almacen, avisos, llamadas, pestanias, historia, ventana,
     cuerpo: () => elem('cuerpo').innerHTML,
     titulo: () => elem('cabTitulo').textContent,
     encendida: () => pestanias.filter(p => p.classList.contains('on')).map(p => p.dataset.v),
