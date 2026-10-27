@@ -15395,7 +15395,8 @@ function leerArchivoBaseEq(file) {
   /* El cupo y la lectura, A LA VEZ: el selector ya se abrió con el toque. */
   const lectura = (esCSV ? file.text().then(t => B.leerCSV(t)) : file.arrayBuffer().then(b => B.leerXLSX(b)))
     .then(filas => {
-      const cols = B.detectarColumnas(filas);
+      /* 27-oct-2026 — el nombre por su encabezado (AgregarProspectos.columnasConNombre). */
+      const cols = A.columnasConNombre ? A.columnasConNombre(filas) : B.detectarColumnas(filas);
       if (cols.celular < 0) throw new Error('No encontré ninguna columna con celulares colombianos.');
       return { filas, cols };
     });
@@ -17455,7 +17456,10 @@ function leerArchivoBase(file) {
     ? file.text().then(t => B.leerCSV(t))
     : file.arrayBuffer().then(b => B.leerXLSX(b));
   lector.then(filas => {
-    const cols = B.detectarColumnas(filas);
+    /* 27-oct-2026 — el nombre por su encabezado: un «Barrio donde vive» ya no le
+       gana a la columna «Nombre» (AgregarProspectos.columnasConNombre). */
+    const AP = window.AgregarProspectos;
+    const cols = AP && AP.columnasConNombre ? AP.columnasConNombre(filas) : B.detectarColumnas(filas);
     if (cols.celular < 0) throw new Error('No encontré ninguna columna con celulares colombianos.');
     /* 27-oct-2026 — EL GERENTE AGREGA. Lo que ya subió tu equipo (o pidió que
        lo borraran) cuenta como «ya era prospecto», sin tocar bases.js: se le

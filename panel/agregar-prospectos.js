@@ -229,6 +229,46 @@
   }
 
   /* --------------------------------------------------------------------------
+   * EL NOMBRE, POR SU ENCABEZADO — 27 de octubre de 2026 (madrugada)
+   *
+   * La verificación lo vio con el archivo típico de una feria:
+   * «Nombre;Celular;Barrio donde vive;Negocio». bases.js (detectarColumnas)
+   * elige la columna del nombre por sus VALORES —varias palabras y casi todas
+   * distintas—, y un barrio de dos palabras («Kennedy Timiza», «Patio
+   * Bonito») o una dirección («Calle 45 sur # 12-34») puntúan igual o mejor
+   * que «Ana Gómez». Ganaba el barrio: a LEIDY le llegaba una persona llamada
+   * «Kennedy Timiza», el 📲 decía «Hola Kennedy», y el previo ponía «Nombre»
+   * entre lo que no se guarda. Pasaba también en el «⤒ Cargar base» de Joan,
+   * desde antes de este lote.
+   *
+   * La regla, sin tocar bases.js (publicado, con su ?v=): si el encabezado
+   * tiene una columna que se llama EXACTAMENTE como un nombre de persona, esa
+   * es el nombre, diga lo que diga el puntaje. Si no la tiene y la que eligió
+   * el puntaje se llama como un lugar, un negocio o una nota, no hay nombre:
+   * mejor una ficha con el celular solo que con un nombre inventado (la misma
+   * regla del 17-sep en bases.js).
+   * ------------------------------------------------------------------------ */
+  var ENCABEZADOS_DE_NOMBRE = ['nombre', 'nombres', 'nombre completo', 'nombres completos',
+    'nombre y apellido', 'nombre y apellidos', 'nombres y apellido', 'nombres y apellidos',
+    'apellidos y nombres', 'apellido y nombre', 'nombre del cliente', 'nombre cliente', 'cliente', 'titular'];
+  var ENCABEZADO_QUE_NO_ES_NOMBRE = /direcci|barrio|residen|ciudad|municipi|ubicaci|localidad|sector|domicil|vereda|calle|negocio|empresa|ocupaci|oficio|nota|observ|coment|asesor|vendedor|fuente|origen|correo|email/;
+  function columnasConNombre(filas) {
+    var cols = B.detectarColumnas(filas);
+    var enc = Math.max(0, Number(cols.encabezado) || 0);
+    if (!enc) return cols;
+    var cab = (filas[enc - 1] || []).map(normalEncabezado);
+    for (var i = 0; i < cab.length; i++) {
+      if (i !== cols.celular && ENCABEZADOS_DE_NOMBRE.indexOf(cab[i]) >= 0) {
+        return { celular: cols.celular, nombre: i, encabezado: cols.encabezado };
+      }
+    }
+    if (cols.nombre >= 0 && ENCABEZADO_QUE_NO_ES_NOMBRE.test(cab[cols.nombre] || '')) {
+      return { celular: cols.celular, nombre: -1, encabezado: cols.encabezado };
+    }
+    return cols;
+  }
+
+  /* --------------------------------------------------------------------------
    * LAS COLUMNAS EXTRA DE UN ARCHIVO
    *
    * Devuelve { columnas: [{i, nombre, columna, muestra, marcada:false}],
@@ -372,6 +412,8 @@
     VALORES_QUE_NO_SE_GUARDAN: VALORES_QUE_NO_SE_GUARDAN,
     FECHA_ESCRITA: FECHA_ESCRITA,
     columnasExtra: columnasExtra,
+    columnasConNombre: columnasConNombre,
+    ENCABEZADOS_DE_NOMBRE: ENCABEZADOS_DE_NOMBRE,
     extrasPorCelular: extrasPorCelular,
     celularDeFila: celularDeFila,
     esClaveQueViaja: esClaveQueViaja,
