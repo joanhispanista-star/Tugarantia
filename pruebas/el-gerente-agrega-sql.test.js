@@ -125,7 +125,13 @@ describe('base/' + NOMBRE, () => {
 
   test('el tope del día cuenta solo las tandas aceptadas, en la hora de Bogotá', () => {
     const cuerpo = funciones().find(x => x.nombre === 'public.agregar_prospectos_de').cuerpo;
-    assert.match(cuerpo, /sum\(c\.entraron \+ c\.ya_existen\), 0\) into usadas from public\.equipo_cargas c\s+where c\.quien = p_yo\.celular and c\.rechazo = '' and c\.cuando >= inicio_hoy/);
+    /* 27-oct-2026, revisión — con los «ya existe» NUEVOS: uno que ya había
+       consultado no vuelve a gastar (el bucle de después del freno). */
+    assert.match(cuerpo, /sum\(c\.entraron \+ c\.ya_existen_nuevos\), 0\) into usadas from public\.equipo_cargas c\s+where c\.quien = p_yo\.celular and c\.rechazo = '' and c\.cuando >= inicio_hoy/);
+    assert.match(cuerpo, /usadas \+ n_entran \+ n_nuevos > 300/);
+    /* Y el freno no se reinicia a medianoche: su ventana es el último «que siga». */
+    assert.match(cuerpo, /coalesce\(max\(fr\.cuando\), '-infinity'::timestamptz\) into ventana/);
+    assert.match(cuerpo, /en_ventana \+ n_nuevos > 50/);
     assert.match(cuerpo, /date_trunc\('day', now\(\) at time zone 'America\/Bogota'\)\) at time zone 'America\/Bogota'/);
     assert.match(cuerpo, /pg_advisory_xact_lock/);
     assert.ok(cuerpo.indexOf("'muchas_llamadas'") < cuerpo.indexOf('insert into public.equipo_cargas'),

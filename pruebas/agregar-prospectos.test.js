@@ -64,6 +64,26 @@ describe('las columnas extra', () => {
     assert.equal(motivo('Recomendado por'), 'es otra persona');
   });
 
+  /* 27-oct-2026, revisión — «Observaciones» se descartaba por su NOMBRE
+     («es de cobranza») aunque dijera «vende arepas», y una fecha escrita por
+     sus 8 cifras («trae cédulas o teléfonos»). */
+  test('una feria: «Observaciones» y «Fecha de la feria» SÍ se ofrecen; la cédula no; el motivo de un nombre dice lo que suele traer', () => {
+    const filas = [
+      ['Nombre', 'Celular', 'Observaciones', 'Fecha de la feria', 'Cédula', 'Estado'],
+      ['ANA PEREZ', '3001112233', 'vende arepas en la esquina', '2026-10-01', '52111222', 'interesada'],
+      ['PEDRO GOMEZ', '3102223344', 'prefiere WhatsApp', '01/10/2026', '52111223', 'lo piensa'],
+      ['LUZ TORRES', '3205556677', 'tiene un taller', '2026-10-01', '52111224', 'interesada']];
+    const r = A.columnasExtra(filas, B.detectarColumnas(filas));
+    assert.deepEqual(r.columnas.map(c => c.nombre), ['Observaciones', 'Fecha de la feria']);
+    assert.equal(r.columnas[0].muestra, 'vende arepas en la esquina');
+    assert.equal(r.columnas[1].muestra, '2026-10-01');
+    const motivo = n => (r.descartadas.find(d => d.nombre === n) || {}).motivo;
+    assert.equal(motivo('Cédula'), 'es un documento');
+    assert.equal(motivo('Estado'), 'suele traer datos de cobranza');
+    const e = A.extrasPorCelular(filas, B.detectarColumnas(filas), r.columnas);
+    assert.deepEqual(e['3102223344'], { Observaciones: 'prefiere WhatsApp', 'Fecha de la feria': '01/10/2026' });
+  });
+
   test('hasta 6, y el séptimo dice por qué; dos encabezados iguales no se pisan', () => {
     const cab = ['Nombre', 'Celular', 'A1', 'A2', 'A3', 'A4', 'A5', 'Barrio', 'Barrio'];
     const fila = ['ANA PEREZ', '3001112233', 'x', 'y', 'z', 'w', 'v', 'Kennedy', 'Suba'];
@@ -107,6 +127,11 @@ describe('lo que se guarda de cada persona', () => {
     assert.equal(A.limpiarValor('En mora'), '');
     assert.equal(A.limpiarValor('Moravia'), 'Moravia', 'un barrio que empieza por «mora» no es una mora');
     assert.equal(A.limpiarValor('<b>"x"</b>'), 'bx/b');
+    /* Una fecha escrita no es una cédula; ocho cifras seguidas sí lo parecen. */
+    assert.equal(A.limpiarValor('2026-10-01'), '2026-10-01');
+    assert.equal(A.limpiarValor('01/10/2026'), '01/10/2026');
+    assert.equal(A.limpiarValor('20261001'), '');
+    assert.equal(A.limpiarValor('2026-10-01 llamar 3109998877'), '', 'una fecha con un teléfono al lado');
   });
 
   test('el ejemplo de la prueba del servidor da lo mismo aquí (extra_limpio)', () => {
@@ -117,6 +142,10 @@ describe('lo que se guarda de cada persona', () => {
       'Empresa': 'Panadería La 40', 'Comentario': 'debe 3 cuotas', 'Ciudad': 'Bogotá' };
     const quedan = Object.keys(ejemplo).filter(k => !A.familiaDeClave(k) && A.limpiarValor(ejemplo[k]));
     assert.deepEqual(quedan.sort(), ['Barrio', 'Ciudad', 'Empresa']);
+    /* Y el de la feria (27-oct, revisión): las dos pruebas usan el mismo ejemplo. */
+    assert.match(pg, /assert\.deepEqual\(Object\.keys\(feria\)\.sort\(\), \['Fecha de la feria', 'Observaciones'\]/);
+    const feria = { 'Observaciones': 'vende arepas en la esquina', 'Fecha de la feria': '2026-10-01', 'Cédula': '52111222' };
+    assert.deepEqual(Object.keys(feria).filter(k => !A.familiaDeClave(k) && A.limpiarValor(feria[k])).sort(), ['Fecha de la feria', 'Observaciones']);
   });
 
   test('el nombre sin comilla ni símbolos (nada se ejecuta), en Mayúscula Inicial', () => {
@@ -155,6 +184,13 @@ describe('partir y repartir', () => {
     assert.match(t, /Ya eran tuyos: 18/);
     assert.match(t, /Repetidas o sin celular: 20/);
     assert.doesNotMatch(t, /cliente|código|registrad/i);
+    assert.match(t, /Cuentan para el tope del día solo la primera vez que los subes\./);
+  });
+
+  test('con 0 no hay «Listo» (debajo de «Paré…» se leía como que salió bien)', () => {
+    const l = A.textoResultado({ entraron: 0, ya_existen: 60 });
+    assert.equal(l[0], 'No entró nadie a tu base.');
+    assert.equal(A.textoResultado({ entraron: 1 })[0], 'Listo. Entró 1 a tu base.');
   });
 });
 

@@ -235,7 +235,10 @@ describe('4 · un archivo', () => {
     const h = P.elems.mBody.innerHTML;
     assert.match(plano(h), /Para subir 450 personas con celular/);
     assert.match(plano(h), /Hoy puedes probar 300 celulares más\. Este archivo trae 450\./);
-    assert.match(plano(h), /Las filas 1 a 300 del archivo\. Las demás, mañana, con el mismo archivo/);
+    /* 27-oct-2026, revisión — «Las filas 1 a 300» era falso al día siguiente:
+       lo que ya es suyo no se cuenta, así que suben las primeras que no lo son. */
+    assert.match(plano(h), /Las primeras 300 del archivo que todavía no son tuyas\. Las demás, mañana, con el mismo archivo: .*las que ya te dieron «ya existe» no vuelven a gastar cupo\./);
+    assert.doesNotMatch(plano(h), /Las filas 1 a/);
     assert.match(h, /id="baseBotonEq"[^>]*>Subir las primeras 300<\/button>/);
     /* Las casillas, SIN marcar; la cédula no se ofrece y se dice por qué. */
     assert.match(h, /<input type="checkbox" id="exEq_0" onchange="pintarMuestraEq\(\)">/);
@@ -252,6 +255,8 @@ describe('4 · un archivo', () => {
     assert.equal('Cédula' in (f0.filas[0].extra || {}), false);
     assert.equal(llamadas(P, 'mi_cartera').length, 2, 'no refrescó la base después de cada tanda en la que entró alguien');
     assert.match(cuerpoModal(P), /Listo\. Entraron 300 a tu base\./);
+    /* 27-oct-2026, revisión — y dice cuántos quedaron sin subir (antes callaba los 150). */
+    assert.match(cuerpoModal(P), /Quedan 150 de este archivo por subir: no cabían en el cupo de hoy\. Mañana vuelve a subir el mismo archivo/);
   });
 
   test('cerrar el cuadro a mitad NO para la subida, y el resultado se vuelve a abrir', async () => {
@@ -291,7 +296,20 @@ describe('4 · un archivo', () => {
     P.ev('leerArchivoBaseEq(_archivo)'); await asentar(60);
     llenar(P, { baseOrigenEq: 'Feria', baseAutorizaEq: 'si', basePruebaEq: 'formularios firmados', baseParaEq: 'yo' });
     P.ev('subirBaseEq()'); await asentar(120);
-    assert.match(cuerpoModal(P), /Paré en la tanda 2 de 2: ya existían más de 50\. Joan lo revisa antes de que sigas\. Entraron 150\./);
+    assert.match(cuerpoModal(P), /Paré en la tanda 2 de 2: ya existían más de 50\. Joan lo revisa antes de que sigas\. Entraron 150\. Cuando te dé paso, vuelve a subir el mismo archivo: los que ya existían en lo que subiste no vuelven a contar\./);
+  });
+
+  test('27-oct, revisión: si el freno llega en la PRIMERA tanda, no hay «Listo» en verde (entró 0)', async () => {
+    const P = abrirEquipo('gerente', { gerente_agregar_prospectos: { status: 200, j: { ok: false, motivo: 'en_revision' } } });
+    P.ctx._archivo = archivo(160);
+    P.ev('leerArchivoBaseEq(_archivo)'); await asentar(60);
+    llenar(P, { baseOrigenEq: 'Feria', baseAutorizaEq: 'si', basePruebaEq: 'formularios firmados', baseParaEq: 'yo' });
+    P.ev('subirBaseEq()'); await asentar(120);
+    const h = P.elems.mBody.innerHTML;
+    assert.match(plano(h), /Paré en la tanda 1 de 1/);
+    assert.match(plano(h), /No entró nadie a tu base\./);
+    assert.doesNotMatch(plano(h), /Listo\. Entraron 0/);
+    assert.doesNotMatch(h, /alerta ok/, 'con 0 sale en verde, debajo de «Paré…»');
   });
 
   test('sin «Sí» no se sube, y sin cupo (o sin acuerdo) no se pinta el previo', async () => {
@@ -369,6 +387,69 @@ describe('5 · gestionar y asignar', () => {
     await Q.ev('traerInfoEq()');
     Q.ev("_grupoBaseEq = 'recien'");
     assert.match(plano(Q.ev('vistaBaseEquipo()')), /No pude traer la información adicional: sin ella no sé quién es reciente\./);
+  });
+
+  /* 27-oct-2026, revisión — LO NUEVO, ARRIBA. Ordenado por etapa, Zoila (la
+     que William agregó a mano después de una carga de 240) era la fila 241. Y
+     lo de Joan sin su fecha de carga ('-infinity') no es reciente ni dice una
+     fecha inventada. */
+  test('«🆕 Recién agregados»: del más nuevo al más viejo; lo de Joan sin fecha no entra ni dice «el <hoy>»', async () => {
+    const hace = h => new Date(Date.now() - h * 3600000).toISOString();
+    const gente = [
+      { id: 'GP-a', nombre: 'Feria Uno', celular: '3207771001', tipo: 'prospecto', etapa: 'MORA', asesor: '3000000000' },
+      { id: 'GP-b', nombre: 'Feria Dos', celular: '3207771002', tipo: 'prospecto', etapa: 'PC', asesor: '3000000000' },
+      { id: 'GP-z', nombre: 'Zoila Rosa Mendoza', celular: '3207771003', tipo: 'prospecto', etapa: 'PC', asesor: '3000000000' },
+      { id: 'P-viejo', nombre: 'Lucía De Joan', celular: '3207771004', tipo: 'prospecto', etapa: 'PC', asesor: '3000000000' }];
+    const info = {
+      'GP-a': { origen: 'feria', subido_por: 'WILLIAN', subido_en: hace(3) },
+      'GP-b': { origen: 'feria', subido_por: 'WILLIAN', subido_en: hace(3) },
+      'GP-z': { origen: 'me la recomendó un cliente', subido_por: 'WILLIAN', subido_en: hace(0.01) },
+      'P-viejo': { origen: 'pauta de Facebook, septiembre', subido_por: 'Joan', subido_en: '-infinity' } };
+    const P = abrirEquipo('gerente', { mi_cartera_info: { status: 200, j: { ok: true, info } } }, { gente });
+    await P.ev('traerInfoEq()');
+    P.ev("_grupoBaseEq = 'recien'");
+    const t = plano(P.ev('vistaBaseEquipo()'));
+    assert.match(t, /🆕 Recién agregados \(3\)/);
+    assert.match(t, /3 personas, de la más nueva a la más vieja/);
+    assert.ok(t.indexOf('Zoila') >= 0 && t.indexOf('Zoila') < t.indexOf('Feria Uno'), 'la recién agregada no va arriba');
+    assert.doesNotMatch(t, /Lucía De Joan/, 'lo de Joan sin fecha cuenta como reciente');
+    const lucia = plano(P.ev("filaPersonaEq(genteEquipo()[3])"));
+    assert.match(lucia, /De dónde salió: pauta de Facebook, septiembre · lo subió Joan/);
+    assert.doesNotMatch(lucia, /lo subió Joan el/, 'inventó una fecha');
+    P.ev("_grupoBaseEq = 'todos'");
+    assert.match(plano(P.ev('vistaBaseEquipo()')), /de la más urgente a la más tranquila/);
+  });
+
+  /* 27-oct-2026, revisión — EL 📲 DE «HOY» Y DE «AGENDA». El Panel abre en
+     «Hoy» y la información solo la pedía «📋 Mi base»: con la sesión recién
+     abierta, el 📲 de la cita de Marta (Joan anotó «No autorizó») abría
+     «Escribirle a Marta» con sus plantillas. */
+  test('el 📲 de una cita (Hoy / Agenda), con la sesión recién abierta, también se cierra si no autorizó', async () => {
+    const P = abrirEquipo('asesor');
+    assert.equal(P.ev('INFO_EQ'), null, 'la prueba no arranca sin la información');
+    P.ev('AGENDA_EQ = ' + JSON.stringify([{ id: 5, titulo: 'Llamar', cuando: '2026-10-27', tipo: 'llamada', persona_id: 'P9-0',
+      persona_nombre: 'Marta Quintero', persona_celular: '3207770003', quien: '3000000002', para: '3000000002' }]) + ';');
+    const h = P.ev('filaCitaEq(AGENDA_EQ[0])');
+    assert.match(h, /onclick="contactarEq\('P9-0','3207770003'\)"/);
+    P.ev("contactarEq('P9-0','3207770003')"); await asentar();
+    assert.ok(llamadas(P, 'mi_cartera_info').length >= 1, 'no preguntó si autorizó');
+    assert.equal(P.elems.mTitle.textContent, 'No autorizó que le escribamos');
+    assert.doesNotMatch(P.elems.mBody.innerHTML, /plEq|Abrir WhatsApp/, 'ofreció las plantillas');
+    /* CONTROL: con la de Rosa (autorizó) no se cierra. */
+    P.ev("contactarEq('GP1-1-0','3207770001')"); await asentar();
+    assert.doesNotMatch(P.elems.mTitle.textContent, /No autorizó|No pude confirmar|Un momento/, 'cerró el de alguien que autorizó');
+  });
+
+  test('si no se pudo saber si autorizó, el 📲 de un prospecto no se abre; el de un cliente sí (no tiene esa información)', async () => {
+    const P = abrirEquipo('asesor', { mi_cartera_info: { falla: 'sin red' } }, {
+      gente: GENTE.concat([{ id: 'S7', nombre: 'Carlos Cliente', celular: '3207770009', tipo: 'cliente', etapa: 'D0', asesor: '3000000002' }]) });
+    P.ev("contactarEq('GP1-1-1','3207770002')"); await asentar();
+    assert.equal(P.elems.mTitle.textContent, 'No pude confirmar si autorizó');
+    assert.match(cuerpoModal(P), /Sin saberlo no te abro WhatsApp\. Revisa la señal y vuelve a tocar 📲\./);
+    const antes = llamadas(P, 'mi_cartera_info').length;
+    P.ev("contactarEq('S7','3207770009')"); await asentar();
+    assert.doesNotMatch(P.elems.mTitle.textContent, /No pude confirmar|No autorizó/);
+    assert.equal(llamadas(P, 'mi_cartera_info').length, antes, 'para un cliente fue a preguntar');
   });
 
   test('el 📲 de alguien que no autorizó no abre WhatsApp ni ofrece plantillas', async () => {

@@ -52,12 +52,18 @@
     biometrico: /(huella|foto|biom)/i,
     persona: /(referencia|codeudor|fiador|c[oó]nyuge|familiar|asesor|cobrador|gestor|vendedor|recomend|referid)/i,
     banco: /(clave|contrase|tarjeta|cuenta|banco|salario|ingreso)/i,
-    cobranza: /(valor|estado|observaci|gesti[oó]n|resultado|tipific|orden|plataforma|(^|[^a-záéíóúñ])app([^a-záéíóúñ]|$))/i
+    /* 27-oct-2026, revisión — sin «observaci»: «Observaciones» es justo la
+       columna donde una base de feria trae la información adicional («vende
+       arepas en la esquina»), y lo que traiga de cobro ya lo descarta la regla
+       de VALORES («YA PAGO», «VENCIDO»). Se descartaba diciendo «es de
+       cobranza», y eso era falso. */
+    cobranza: /(valor|estado|gesti[oó]n|resultado|tipific|orden|plataforma|(^|[^a-záéíóúñ])app([^a-záéíóúñ]|$))/i
   };
   var POR_QUE = {
     plata: 'es plata o deuda', documento: 'es un documento', salud: 'es un dato de salud',
     sensible: 'es un dato sensible', biometrico: 'es un dato biométrico', persona: 'es otra persona',
-    banco: 'es una clave o un dato del banco', cobranza: 'es de cobranza'
+    /* Por el NOMBRE no se sabe qué trae: se dice lo que suele traer. */
+    banco: 'es una clave o un dato del banco', cobranza: 'suele traer datos de cobranza'
   };
   /* Los VALORES que no se guardan: cédulas y teléfonos de otros (7 dígitos o
      más seguidos), montos, fechas de Excel y códigos (solo cifras), y los que
@@ -67,6 +73,16 @@
     soloCifras: /^[0-9.,$ ]{3,}$/,
     cobro: /((^|[^a-záéíóúñ])mora([^a-záéíóúñ]|$)|vencid|pag[oóa]|deud|cobr|saldo|abon|cuota|castig|embarg|promesa|no contesta|\$)/i
   };
+  /* 27-oct-2026, revisión — una fecha escrita («2026-10-01», «01/10/2026»)
+     tiene 8 cifras, pero no es una cédula ni un teléfono: la de los 7 dígitos
+     la tumbaba diciendo «trae cédulas o teléfonos». La MISMA excepción vive en
+     extra_limpio. (La fecha que Excel guarda como número, 45950, sigue
+     descartada: «son solo números».) */
+  var FECHA_ESCRITA = /^([0-9]{4}[-/][0-9]{1,2}[-/][0-9]{1,2}|[0-9]{1,2}[-/][0-9]{1,2}[-/][0-9]{4})$/;
+  function pareceDocumento(v) {
+    var t = texto(v);
+    return !FECHA_ESCRITA.test(t) && VALORES_QUE_NO_SE_GUARDAN.sieteDigitos.test(t.replace(/[ .-]/g, ''));
+  }
 
   function texto(v) { return String(v == null ? '' : v).trim(); }
 
@@ -79,7 +95,7 @@
   function limpiarValor(v) {
     var t = limpiarTexto(v, MAX_VALOR);
     if (!t) return '';
-    if (VALORES_QUE_NO_SE_GUARDAN.sieteDigitos.test(t.replace(/[ .-]/g, ''))) return '';
+    if (pareceDocumento(t)) return '';
     if (VALORES_QUE_NO_SE_GUARDAN.soloCifras.test(t)) return '';
     if (VALORES_QUE_NO_SE_GUARDAN.cobro.test(t)) return '';
     return t;
@@ -139,7 +155,7 @@
         }
       }
       if (!motivo && valores.filter(function (v) { return VALORES_QUE_NO_SE_GUARDAN.soloCifras.test(v); }).length > mitad) motivo = 'son solo números';
-      if (!motivo && valores.filter(function (v) { return VALORES_QUE_NO_SE_GUARDAN.sieteDigitos.test(v.replace(/[ .-]/g, '')); }).length > mitad) motivo = 'trae cédulas o teléfonos';
+      if (!motivo && valores.filter(pareceDocumento).length > mitad) motivo = 'trae cédulas o teléfonos';
       if (!motivo && fam === 'cobranza') motivo = POR_QUE.cobranza;
       if (!motivo && senales.some(function (s) { return nombre.toLowerCase().indexOf(s) >= 0; })) motivo = 'es información financiera de otra empresa';
       if (!motivo && columnas.length >= MAX_EXTRAS) motivo = 'solo se guardan ' + MAX_EXTRAS;
@@ -213,9 +229,14 @@
     var n = function (x) { return Number(x) || 0; };
     var miles = function (x) { return n(x).toLocaleString('es-CO'); };
     var l = [];
-    l.push(n(r.entraron) === 1 ? 'Listo. Entró 1 a tu base.' : 'Listo. Entraron ' + miles(r.entraron) + ' a tu base.');
+    /* 27-oct-2026, revisión — con 0 no es un «Listo»: debajo de «Paré…» salía
+       en verde «Listo. Entraron 0 a tu base». */
+    l.push(!n(r.entraron) ? 'No entró nadie a tu base.'
+      : n(r.entraron) === 1 ? 'Listo. Entró 1 a tu base.' : 'Listo. Entraron ' + miles(r.entraron) + ' a tu base.');
+    /* «Solo la primera vez»: el servidor no vuelve a cobrar un «ya existe»
+       que este gerente ya había consultado (ya_existen_nuevos). */
     if (n(r.ya_existen)) l.push('Ya existían en Tu Garantía: ' + miles(r.ya_existen) +
-      '. No te digo de quién: son datos de otras personas. Cuentan para el tope del día.');
+      '. No te digo de quién: son datos de otras personas. Cuentan para el tope del día solo la primera vez que los subes.');
     if (n(r.ya_en_tu_base)) l.push('Ya eran tuyos: ' + miles(r.ya_en_tu_base));
     if (n(r.repetidas) + n(r.invalidas)) l.push('Repetidas o sin celular: ' + miles(n(r.repetidas) + n(r.invalidas)));
     return l;
@@ -228,6 +249,7 @@
     MAX_NOTA: MAX_NOTA,
     PALABRAS_QUE_NO_SE_GUARDAN: PALABRAS_QUE_NO_SE_GUARDAN,
     VALORES_QUE_NO_SE_GUARDAN: VALORES_QUE_NO_SE_GUARDAN,
+    FECHA_ESCRITA: FECHA_ESCRITA,
     columnasExtra: columnasExtra,
     extrasPorCelular: extrasPorCelular,
     celularDeFila: celularDeFila,

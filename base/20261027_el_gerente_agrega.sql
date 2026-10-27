@@ -42,11 +42,15 @@
 --     es «ya existe», sin decir de quién ni dónde, y la fila NO se crea: así
 --     no se le abre al gerente el registro, las fotos ni el chat de alguien que
 --     no es suyo. «Ya existe» igual le dice qué números conoces: por eso, cada
---     50 «ya existía», el gerente se para hasta que tú los mires y le des paso,
---     y queda guardado cuáles consultó y cuándo.
+--     50 «ya existía», el gerente se para hasta que tú los mires y le des paso
+--     (no se reinicia a medianoche), y queda guardado cuáles consultó y cuándo.
 --   · Topes: 200 por tanda, 300 al día por gerente (cuentan los que entran y
 --     los que ya existían), 100 intentos al día y un techo de 3.000 subidos por
---     gerente mientras «Mi base» no se pagine.
+--     gerente mientras «Mi base» no se pagine. Un «ya existe» que el gerente
+--     ya había consultado no vuelve a contar ni para el tope ni para el freno:
+--     así volver a subir el mismo archivo no lo para en bucle.
+--   · Tu «Sí» o «No» de cada prospecto llega a tu equipo también cuando lo
+--     cambias después: un «No» le cierra el 📲 a quien lo trabaja.
 --   · Quien pida que lo borren se borra (equipo_suprimir) y su número queda en
 --     una lista para que nadie lo vuelva a agregar.
 --   · El nombre que llega de play/ se limpia al entrar (un disparador): sin
@@ -123,6 +127,10 @@ create table if not exists public.equipo_cargas (
   ya_en_tu_base   integer     not null default 0,
   ya_existen      integer     not null default 0,
   ya_existen_cels text[]      not null default '{}', -- cuáles: la base ya los tiene, y es la prueba
+  -- 27-oct-2026, revisión — los que este gerente NO había consultado antes.
+  -- Son los únicos que cuentan para el tope del día y el freno de los 50:
+  -- volver a subir un número que ya le dio «ya existe» no le dice nada nuevo.
+  ya_existen_nuevos integer   not null default 0,
   repetidas       integer     not null default 0,
   invalidas       integer     not null default 0,
   rechazo         text        not null default ''
@@ -130,7 +138,12 @@ create table if not exists public.equipo_cargas (
   -- | 'tanda_grande' | 'para_no_es_tuyo' | 'solo_con_si' | 'falta_prueba'
   -- | 'falta_origen' | 'falta_autoriza' | 'sin_filas'
 );
+-- Si este archivo ya corrió en una base con la versión de antes (sin la
+-- columna), se agrega aquí: create table if not exists no la toca.
+alter table public.equipo_cargas add column if not exists ya_existen_nuevos integer not null default 0;
 create index if not exists equipo_cargas_por_quien on public.equipo_cargas (quien, cuando desc);
+-- Para encontrar rápido los «ya existe» que un gerente ya consultó (&&).
+create index if not exists equipo_cargas_cels on public.equipo_cargas using gin (ya_existen_cels);
 
 -- EL FRENO: «frenado» cuando se pasan los 50 «ya existían»; «soltado» cuando
 -- Joan revisa. Manda la última fila de cada gerente. De solo agregar.
@@ -283,11 +296,19 @@ begin
     k := public.texto_del_equipo(r.key, 40);
     v := public.texto_del_equipo(r.value #>> '{}', 120);
     if k = '' or v = '' then continue; end if;
-    if k ~* '(saldo|mora|deuda|cuota|inter[eé]s|pr[eé]stamo|monto|valor|capital|cr[eé]dito|cupo|pago|abono|vencim|estado|observaci|gesti[oó]n|resultado|tipific|orden|plataforma|c[eé]dula|documento|identificaci|pasaporte|referencia|codeudor|fiador|c[oó]nyuge|familiar|asesor|cobrador|gestor|vendedor|recomend|referid|clave|contrase|tarjeta|cuenta|banco|salario|ingreso|salud|diagn|enfermedad|discapacid|m[eé]dic|religi|pol[ií]tic|partido|sindica|etni|raza|orientaci|sexual|huella|foto|biom)'
+    -- 27-oct-2026, revisión — sin «observaci»: es justo la columna donde una
+    -- base de feria trae la información adicional («vende arepas en la
+    -- esquina»), y lo que traiga de cobro lo descarta la regla de VALORES de
+    -- abajo («YA PAGO», «VENCIDO»). La MISMA lista vive en
+    -- panel/agregar-prospectos.js.
+    if k ~* '(saldo|mora|deuda|cuota|inter[eé]s|pr[eé]stamo|monto|valor|capital|cr[eé]dito|cupo|pago|abono|vencim|estado|gesti[oó]n|resultado|tipific|orden|plataforma|c[eé]dula|documento|identificaci|pasaporte|referencia|codeudor|fiador|c[oó]nyuge|familiar|asesor|cobrador|gestor|vendedor|recomend|referid|clave|contrase|tarjeta|cuenta|banco|salario|ingreso|salud|diagn|enfermedad|discapacid|m[eé]dic|religi|pol[ií]tic|partido|sindica|etni|raza|orientaci|sexual|huella|foto|biom)'
        or k ~* '(^|[^a-záéíóúñ])(eps|nit|app)([^a-záéíóúñ]|$)' then
       continue;
     end if;
-    if regexp_replace(v, '[ .-]', '', 'g') ~ '[0-9]{7,}'
+    -- Una fecha escrita («2026-10-01», «01/10/2026») tiene 8 cifras, pero no
+    -- es una cédula ni un teléfono: no la tumba la regla de los 7 dígitos.
+    if (regexp_replace(v, '[ .-]', '', 'g') ~ '[0-9]{7,}'
+          and v !~ '^([0-9]{4}[-/][0-9]{1,2}[-/][0-9]{1,2}|[0-9]{1,2}[-/][0-9]{1,2}[-/][0-9]{4})$')
        or v ~ '^[0-9.,$ ]{3,}$'
        or v ~* '((^|[^a-záéíóúñ])mora([^a-záéíóúñ]|$)|vencid|pag[oóa]|deud|cobr|saldo|abon|cuota|castig|embarg|promesa|no contesta|\$)' then
       continue;
@@ -450,6 +471,8 @@ declare
   n_tuyos     integer;
   n_existen   integer;
   n_entran    integer;
+  sabidos     text[];
+  n_nuevos    integer;
   usadas      integer;
   ventana     timestamptz;
   en_ventana  integer;
@@ -562,6 +585,21 @@ begin
   n_existen := coalesce(array_length(conocidos, 1), 0);
   n_entran  := coalesce(array_length(cels, 1), 0) - n_tuyos - n_existen;
 
+  -- 27-oct-2026, revisión — LOS «YA EXISTE» QUE YA SABÍA NO VUELVEN A CONTAR.
+  -- Un número que este gerente ya consultó —en una tanda que entró, o en la
+  -- que lo paró y Joan revisó antes de darle paso— no le dice nada nuevo.
+  -- Antes contaba otra vez, y eso era un bucle: después del freno la pantalla
+  -- le pide «vuelve a subir el mismo archivo», los 60 que ya existían van
+  -- primero, vuelven a sumar 60 y lo paran de nuevo sin que entre nadie; y al
+  -- día siguiente el mismo archivo le volvía a cobrar el cupo con ellos.
+  -- Siguen guardándose en ya_existen_cels: el rastro dice cada vez que
+  -- alguien consultó un número, aunque ya lo supiera.
+  select coalesce(array_agg(distinct x), '{}') into sabidos
+    from public.equipo_cargas c cross join lateral unnest(c.ya_existen_cels) x
+   where c.quien = p_yo.celular and c.rechazo in ('', 'tope_ya_existen')
+     and c.ya_existen_cels && conocidos and x = any(conocidos);
+  n_nuevos := n_existen - coalesce(array_length(sabidos, 1), 0);
+
   -- 8. El techo: «Mi base» baja entera en cada llamada; con más de 3.000 por
   --    gerente hay que paginarla antes.
   select count(*) into subidos from public.cartera_info where subido_por = p_yo.celular;
@@ -570,11 +608,12 @@ begin
   end if;
 
   -- 9. El tope del día: cuentan los que entran y los que ya existían de las
-  --    tandas ACEPTADAS. Una rechazada no gasta, y no devuelve cuentas: si
-  --    las devolviera, serviría de consulta gratis.
-  select coalesce(sum(c.entraron + c.ya_existen), 0) into usadas from public.equipo_cargas c
+  --    tandas ACEPTADAS (solo los que no había consultado antes). Una
+  --    rechazada no gasta, y no devuelve cuentas: si las devolviera, serviría
+  --    de consulta gratis.
+  select coalesce(sum(c.entraron + c.ya_existen_nuevos), 0) into usadas from public.equipo_cargas c
    where c.quien = p_yo.celular and c.rechazo = '' and c.cuando >= inicio_hoy;
-  if motivo = '' and usadas + n_entran + n_existen > 300 then
+  if motivo = '' and usadas + n_entran + n_nuevos > 300 then
     motivo := 'tope';
   end if;
 
@@ -584,19 +623,25 @@ begin
     return jsonb_build_object('ok', false, 'motivo', motivo, 'quedan_hoy', greatest(0, 300 - usadas));
   end if;
 
-  -- 10. EL FRENO DE LOS 50. La ventana empieza en lo más reciente entre el
-  --     comienzo del día y la última vez que Joan le dio paso. Si se pasa, la
-  --     tanda no entra, se guardan los celulares que se consultaron (aunque no
-  --     se respondan) y el gerente queda parado hasta que Joan mire.
-  select greatest(inicio_hoy, coalesce(max(fr.cuando), inicio_hoy)) into ventana
+  -- 10. EL FRENO DE LOS 50. La ventana empieza en la última vez que Joan le
+  --     dio paso (o al principio de todo), y cuentan los «ya existe» NUEVOS.
+  --     Si se pasa, la tanda no entra, se guardan los celulares que se
+  --     consultaron (aunque no se respondan) y el gerente queda parado hasta
+  --     que Joan mire.
+  --     27-oct-2026, revisión — YA NO SE REINICIA A MEDIANOCHE. La ventana
+  --     arrancaba en el comienzo del día: un gerente que subiera 50 números
+  --     conocidos cada día no se paraba nunca (unos 1.500 «ya existe» al mes
+  --     sin que Joan mirara ninguno), y lo que Joan aprobó (D2) y lee en su
+  --     tarjeta es «cada 50 se para y te toca mirar».
+  select coalesce(max(fr.cuando), '-infinity'::timestamptz) into ventana
     from public.equipo_frenos fr where fr.quien = p_yo.celular and fr.accion = 'soltado';
-  select coalesce(sum(c.ya_existen), 0) into en_ventana from public.equipo_cargas c
+  select coalesce(sum(c.ya_existen_nuevos), 0) into en_ventana from public.equipo_cargas c
    where c.quien = p_yo.celular and c.rechazo = '' and c.cuando >= ventana;
-  if en_ventana + n_existen > 50 then
+  if en_ventana + n_nuevos > 50 then
     insert into public.equipo_cargas (quien, archivo, origen, autoriza, prueba, recibidas, ya_existen,
-                                      ya_existen_cels, repetidas, invalidas, rechazo)
+                                      ya_existen_cels, ya_existen_nuevos, repetidas, invalidas, rechazo)
     values (p_yo.celular, v_archivo, v_origen, true, v_prueba, recibidas, n_existen,
-            conocidos, repetidas, invalidas, 'tope_ya_existen')
+            conocidos, n_nuevos, repetidas, invalidas, 'tope_ya_existen')
     returning id into carga;
     insert into public.equipo_frenos (quien, accion, carga_id, por)
     values (p_yo.celular, 'frenado', carga, 'sistema');
@@ -605,9 +650,9 @@ begin
 
   -- 11. El rastro de la tanda que entra.
   insert into public.equipo_cargas (quien, archivo, origen, autoriza, canal, prueba, recibidas, entraron,
-                                    ya_en_tu_base, ya_existen, ya_existen_cels, repetidas, invalidas, rechazo)
+                                    ya_en_tu_base, ya_existen, ya_existen_cels, ya_existen_nuevos, repetidas, invalidas, rechazo)
   values (p_yo.celular, v_archivo, v_origen, true, 'whatsapp', v_prueba, recibidas, n_entran,
-          n_tuyos, n_existen, conocidos, repetidas, invalidas, '')
+          n_tuyos, n_existen, conocidos, n_nuevos, repetidas, invalidas, '')
   returning id into carga;
 
   -- 12. Cada uno que entra: su fila en cartera (como todo prospecto: no_sms en
@@ -632,7 +677,7 @@ begin
   -- 13. Sin ids, sin nombres y sin decir dónde existe un número ni de quién es.
   return jsonb_build_object('ok', true, 'carga', carga, 'entraron', n_entran,
     'ya_en_tu_base', n_tuyos, 'ya_existen', n_existen, 'repetidas', repetidas,
-    'invalidas', invalidas, 'quedan_hoy', greatest(0, 300 - usadas - n_entran - n_existen));
+    'invalidas', invalidas, 'quedan_hoy', greatest(0, 300 - usadas - n_entran - n_nuevos));
 end
 $$;
 
@@ -658,7 +703,7 @@ declare
 begin
   yo := public.gerente_de_sesion();   -- null si no es gerente activo O le falta la clave de Joan
   if yo.celular is null then return jsonb_build_object('ok', false); end if;
-  select coalesce(sum(c.entraron + c.ya_existen), 0) into usadas from public.equipo_cargas c
+  select coalesce(sum(c.entraron + c.ya_existen_nuevos), 0) into usadas from public.equipo_cargas c
    where c.quien = yo.celular and c.rechazo = '' and c.cuando >= inicio_hoy;
   select count(*) into llamadas from public.equipo_cargas c
    where c.quien = yo.celular and c.cuando >= inicio_hoy;
@@ -783,14 +828,25 @@ begin
                  where ci.carga_id = any(a.ids) and rc.primero is not null
                    and not exists (select 1 from public.gestiones g where g.persona_id = p.id and g.cuando < rc.primero)) as registrados_sin_gestion_previa
           from (
+            -- 27-oct-2026, revisión — el origen y la prueba son los de las
+            -- tandas en las que ENTRÓ alguien. Antes era la última llamada
+            -- del día: si William intentaba otro número con otro origen y
+            -- daba «ya existe», la fila de Pedro decía ese origen, que no es
+            -- de dónde salió Pedro. Con más de uno distinto, `origenes` lo
+            -- dice y la pantalla manda a «Ver», que lo trae por persona.
             select min(c.id) as id, array_agg(c.id order by c.id) as ids, c.quien,
                    coalesce(max(e.nombre), c.quien) as quien_nombre, max(c.cuando) as cuando,
-                   c.archivo, (array_agg(c.origen order by c.id desc))[1] as origen,
-                   (array_agg(c.prueba order by c.id desc))[1] as prueba,
+                   c.archivo,
+                   coalesce((array_agg(c.origen order by c.id desc) filter (where c.entraron > 0))[1],
+                            (array_agg(c.origen order by c.id desc))[1]) as origen,
+                   coalesce((array_agg(c.prueba order by c.id desc) filter (where c.entraron > 0))[1],
+                            (array_agg(c.prueba order by c.id desc))[1]) as prueba,
                    sum(c.recibidas)::int as recibidas, sum(c.entraron)::int as entraron,
                    sum(c.ya_en_tu_base)::int as ya_en_tu_base, sum(c.ya_existen)::int as ya_existen,
                    sum(c.repetidas)::int as repetidas, sum(c.invalidas)::int as invalidas,
-                   count(*)::int as tandas, ''::text as rechazo
+                   count(*)::int as tandas, ''::text as rechazo,
+                   (count(distinct c.origen) filter (where c.entraron > 0))::int as origenes,
+                   (count(distinct c.prueba) filter (where c.entraron > 0))::int as pruebas
               from public.equipo_cargas c
               left join public.equipo e on e.celular = c.quien
              where c.rechazo = '' and c.cuando >= now() - interval '60 days'
@@ -801,7 +857,7 @@ begin
         -- Las rechazadas, en gris: solo las últimas 20.
         select r.*, 0, 0 from (
           select c.id, array[c.id], c.quien, coalesce(e.nombre, c.quien), c.cuando, c.archivo, c.origen, c.prueba,
-                 c.recibidas, 0, 0, 0, c.repetidas, c.invalidas, 1, c.rechazo
+                 c.recibidas, 0, 0, 0, c.repetidas, c.invalidas, 1, c.rechazo, 1, 1
             from public.equipo_cargas c
             left join public.equipo e on e.celular = c.quien
            where c.rechazo <> ''
@@ -809,21 +865,26 @@ begin
            limit 20) r
       ) x), '[]'::jsonb),
     -- Quién está parado: la última fila de su freno dice «frenado».
+    -- 27-oct-2026, revisión — lo que se juntó desde el último «que siga»
+    -- (como el freno, sin reiniciarse a medianoche), y `cargas` con TODAS las
+    -- tandas de esa ventana: «Ver cuáles» mostraba solo la última, 21 de 51.
     'frenados', coalesce((
       select jsonb_agg(jsonb_build_object('quien', u.quien, 'quien_nombre', coalesce(e.nombre, u.quien),
                'desde', u.cuando, 'carga', u.carga_id,
-               'ya_existen', (select coalesce(sum(c.ya_existen), 0)::int from public.equipo_cargas c
-                               where c.quien = u.quien
-                                 and c.cuando <= u.cuando
-                                 and c.cuando >= greatest(
-                                       (date_trunc('day', u.cuando at time zone 'America/Bogota')) at time zone 'America/Bogota',
-                                       coalesce((select max(s.cuando) from public.equipo_frenos s
-                                                  where s.quien = u.quien and s.accion = 'soltado' and s.cuando <= u.cuando),
-                                                '-infinity'::timestamptz))
-                                 and (c.rechazo = '' or c.id = u.carga_id))))
+               'ya_existen', coalesce(v.n, 0), 'cargas', coalesce(v.ids, array[u.carga_id])))
         from (select distinct on (fr.quien) fr.quien, fr.accion, fr.cuando, fr.carga_id
                 from public.equipo_frenos fr order by fr.quien, fr.cuando desc, fr.id desc) u
         left join public.equipo e on e.celular = u.quien
+        left join lateral (
+          select sum(c.ya_existen_nuevos)::int as n, array_agg(c.id order by c.id) as ids
+            from public.equipo_cargas c
+           where c.quien = u.quien
+             and c.cuando <= u.cuando
+             and c.cuando >= coalesce((select max(s.cuando) from public.equipo_frenos s
+                                        where s.quien = u.quien and s.accion = 'soltado' and s.cuando <= u.cuando),
+                                      '-infinity'::timestamptz)
+             and (c.rechazo = '' or c.id = u.carga_id)
+             and (c.ya_existen > 0 or c.id = u.carga_id)) v on true
        where u.accion = 'frenado'), '[]'::jsonb),
     -- Cuánto lleva cada gerente contra el techo: avisa el día que hay que
     -- paginar «Mi base», en vez de esperar a que alguien se acuerde.
@@ -882,9 +943,15 @@ begin
 end
 $$;
 
--- Cuáles «ya existían» en una carga, y dónde. Joan es el administrador y puede
--- verlo todo: es lo que necesita para decidir si le da paso al gerente.
-create or replace function public.equipo_ya_existian(p_clave text, p_carga bigint)
+-- Cuáles «ya existían» en una o varias cargas, y dónde. Joan es el
+-- administrador y puede verlo todo: es lo que necesita para decidir si le da
+-- paso al gerente.
+-- 27-oct-2026, revisión — UNA LISTA DE CARGAS, no una. La fila de la tarjeta
+-- junta lo de a mano de un día y las tandas de un archivo, y mandaba solo la
+-- primera: «a mano (4) · Ya existían 3 · cuáles» abría «Ninguno». La firma de
+-- antes se borra (este archivo no ha corrido en producción).
+drop function if exists public.equipo_ya_existian(text, bigint);
+create or replace function public.equipo_ya_existian(p_clave text, p_cargas bigint[])
 returns jsonb
 language plpgsql
 volatile
@@ -916,16 +983,16 @@ begin
         when exists (select 1 from public.registro_en_vivo v where v.celular = c.x and v.vence_en > now()) then 'registrándose ahora'
         else 'registro en la app'
       end) order by c.x)
-      from public.equipo_cargas ca
-      cross join lateral unnest(ca.ya_existen_cels) c(x)
+      from (select distinct x from public.equipo_cargas ca
+             cross join lateral unnest(ca.ya_existen_cels) x
+            where ca.id = any(coalesce(p_cargas, '{}'))) c(x)
       -- De quién es hoy en el equipo: la ÚLTIMA asignación de cualquier fila
       -- de cartera con ese celular ('' si la soltaron).
       left join lateral (select ea.nombre
                            from public.cartera p join public.asignaciones a on a.persona_id = p.id
                            left join public.equipo ea on ea.celular = a.asesor
                           where right(public.solo_digitos(p.celular), 10) = c.x
-                          order by a.desde desc, a.id desc limit 1) b on true
-     where ca.id = p_carga), '[]'::jsonb);
+                          order by a.desde desc, a.id desc limit 1) b on true), '[]'::jsonb);
 end
 $$;
 
@@ -1050,8 +1117,20 @@ end
 $$;
 
 -- La información de los prospectos de Joan viaja a quien los trabaja: su nota,
--- sus columnas extra, el origen y si autorizó. Solo se escribe AL CREAR (do
--- nothing): nunca pisa lo que escribió el gerente.
+-- sus columnas extra, el origen y si autorizó. Se escribe AL CREAR y nunca
+-- pisa lo que escribió el gerente.
+-- 27-oct-2026, revisión — DOS COSAS QUE NO PODÍAN QUEDARSE COMO EL PRIMER DÍA:
+--   · LA AUTORIZACIÓN SÍ SE ACTUALIZA, solo en las filas de Joan. Con «do
+--     nothing» valía para siempre la del día de la primera publicación: una
+--     persona que retiraba el permiso seguía con el 📲 abierto en el celular
+--     del asesor (una revocatoria que nunca llegaba a quien escribe), y una
+--     que autorizaba después quedaba cerrada para siempre. Un null («nadie
+--     preguntó») no borra una respuesta que ya había.
+--   · LA FECHA ES LA DE CUANDO JOAN CARGÓ AL PROSPECTO (`creado`), no la de la
+--     publicación: con now(), la primera publicación llenaba «🆕 Recién
+--     agregados» del equipo con los prospectos viejos de Joan, cada uno con
+--     «lo subió Joan el <hoy>». Sin fecha creíble va '-infinity': la pantalla
+--     no inventa una, y no cuenta como reciente.
 create or replace function public.equipo_publicar_info(p_clave text, p_info jsonb)
 returns jsonb
 language plpgsql
@@ -1064,8 +1143,10 @@ declare
   pid       text;
   guardadas integer := 0;
   ya        integer := 0;
+  cambiadas integer := 0;
   sin_fila  integer := 0;
-  filas     integer;
+  nuevo     boolean;
+  creado    timestamptz;
 begin
   if not public.clave_ok(p_clave) then
     perform pg_sleep(1);
@@ -1079,15 +1160,28 @@ begin
     if pid is null or not exists (select 1 from public.cartera p where p.id = pid) then
       sin_fila := sin_fila + 1; continue;
     end if;
+    creado := '-infinity';
+    if coalesce(it->>'creado', '') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+      begin
+        creado := least(now(), ((it->>'creado')::date)::timestamp at time zone 'America/Bogota');
+      exception when others then creado := '-infinity';
+      end;
+    end if;
     insert into public.cartera_info (persona_id, origen, autoriza, canal, nota, extra, subido_por, subido_en, carga_id)
     values (pid, public.texto_del_equipo(it->>'origen', 200),
             case when jsonb_typeof(it->'autoriza') = 'boolean' then (it->>'autoriza')::boolean else null end,
-            '', public.texto_del_equipo(it->>'nota', 300), public.extra_limpio(it->'extra'), 'joan', now(), null)
-    on conflict (persona_id) do nothing;
-    get diagnostics filas = row_count;
-    if filas > 0 then guardadas := guardadas + 1; else ya := ya + 1; end if;
+            '', public.texto_del_equipo(it->>'nota', 300), public.extra_limpio(it->'extra'), 'joan', creado, null)
+    on conflict (persona_id) do update set autoriza = excluded.autoriza
+     where public.cartera_info.subido_por = 'joan'
+       and excluded.autoriza is not null
+       and public.cartera_info.autoriza is distinct from excluded.autoriza
+    returning (xmax = 0) into nuevo;
+    if not found then ya := ya + 1;
+    elsif nuevo then guardadas := guardadas + 1;
+    else cambiadas := cambiadas + 1;
+    end if;
   end loop;
-  return jsonb_build_object('ok', true, 'guardadas', guardadas, 'ya_tenian', ya, 'sin_fila', sin_fila);
+  return jsonb_build_object('ok', true, 'guardadas', guardadas, 'cambiadas', cambiadas, 'ya_tenian', ya, 'sin_fila', sin_fila);
 end
 $$;
 
@@ -1229,7 +1323,7 @@ grant  execute on function public.gerente_agregar_prospectos(jsonb)            t
 grant  execute on function public.mi_cartera_info()                            to authenticated;
 revoke all on function public.equipo_agregados(text)                           from public, anon, authenticated;
 revoke all on function public.equipo_agregados_de(text, bigint[], integer)     from public, anon, authenticated;
-revoke all on function public.equipo_ya_existian(text, bigint)                 from public, anon, authenticated;
+revoke all on function public.equipo_ya_existian(text, bigint[])               from public, anon, authenticated;
 revoke all on function public.equipo_soltar(text, text)                        from public, anon, authenticated;
 revoke all on function public.equipo_tiene(text, text[])                       from public, anon, authenticated;
 revoke all on function public.equipo_reasignar(text, jsonb, text)              from public, anon, authenticated;
@@ -1238,7 +1332,7 @@ revoke all on function public.equipo_publicar_celulares(text, jsonb)           f
 revoke all on function public.equipo_suprimir(text, text, text)                from public, anon, authenticated;
 grant  execute on function public.equipo_agregados(text)                       to anon;   -- Joan, con su clave
 grant  execute on function public.equipo_agregados_de(text, bigint[], integer) to anon;
-grant  execute on function public.equipo_ya_existian(text, bigint)             to anon;
+grant  execute on function public.equipo_ya_existian(text, bigint[])           to anon;
 grant  execute on function public.equipo_soltar(text, text)                    to anon;
 grant  execute on function public.equipo_tiene(text, text[])                   to anon;
 grant  execute on function public.equipo_reasignar(text, jsonb, text)          to anon;
@@ -1299,6 +1393,12 @@ begin
            'prueba', 'prueba del archivo', 'filas', jsonb_build_array(jsonb_build_object('nombre', 'Otro', 'celular', libres[3]))));
     if (r->>'ya_existen')::int is distinct from 1 then raise exception 'FALLO: uno ajeno no salió como «ya existe»: %', r; end if;
     if r::text ~ 'De Otro' then raise exception 'FALLO: «ya existe» dijo un nombre.'; end if;
+    -- El mismo otra vez: lo vuelve a decir, pero ya no gasta (1 que entró + 1 «ya existe» nuevo = 2).
+    r := public.agregar_prospectos_de(falso, jsonb_build_object('archivo', '', 'origen', 'prueba 27-oct', 'autoriza', 'si',
+           'prueba', 'prueba del archivo', 'filas', jsonb_build_array(jsonb_build_object('nombre', 'Otro', 'celular', libres[3]))));
+    if (r->>'ya_existen')::int is distinct from 1 or (r->>'quedan_hoy')::int is distinct from 298 then
+      raise exception 'FALLO: un «ya existe» que ya sabía volvió a gastar cupo: %', r;
+    end if;
 
     r := public.agregar_prospectos_de(falso, jsonb_build_object('origen', 'x', 'autoriza', 'no', 'prueba', 'prueba del archivo',
            'filas', jsonb_build_array(jsonb_build_object('celular', libres[3]))));
@@ -1342,7 +1442,7 @@ union all
 select 4, 'las nueve de Joan: solo anon (con tu clave), nunca authenticated',
        (select bool_and(has_function_privilege('anon', f, 'execute') and not has_function_privilege('authenticated', f, 'execute'))
           from unnest(array['public.equipo_agregados(text)'::regprocedure, 'public.equipo_agregados_de(text, bigint[], integer)'::regprocedure,
-                            'public.equipo_ya_existian(text, bigint)'::regprocedure, 'public.equipo_soltar(text, text)'::regprocedure,
+                            'public.equipo_ya_existian(text, bigint[])'::regprocedure, 'public.equipo_soltar(text, text)'::regprocedure,
                             'public.equipo_tiene(text, text[])'::regprocedure, 'public.equipo_reasignar(text, jsonb, text)'::regprocedure,
                             'public.equipo_publicar_info(text, jsonb)'::regprocedure, 'public.equipo_publicar_celulares(text, jsonb)'::regprocedure,
                             'public.equipo_suprimir(text, text, text)'::regprocedure]) f),

@@ -125,6 +125,40 @@ describe('1 · la tarjeta «⤒ Lo que subió tu equipo»', () => {
     assert.deepEqual(llamadas(P, 'equipo_soltar')[0].args, { p_clave: 'clave-larga-de-prueba', p_quien: '3000000009' });
   });
 
+  /* 27-oct-2026, revisión — «cuáles» de una fila que junta varias tandas
+     mandaba solo la primera: «a mano (4) · Ya existían 3 · cuáles» abría
+     «Ninguno». Y el origen de «a mano» era el de la última llamada del día,
+     aunque esa diera «ya existe». */
+  test('«cuáles» y «Ver cuáles» piden TODAS las tandas; con varios orígenes no se pinta uno solo', async () => {
+    const d = JSON.parse(JSON.stringify(AGREGADOS));
+    d.cargas.push({ id: 50, ids: [50, 51, 52, 53], quien: '3000000000', quien_nombre: 'WILLIAN', cuando: '2026-10-31T15:00:00Z', archivo: '',
+      origen: 'me lo recomendó un cliente', prueba: 'chat del 30-oct', origenes: 2, pruebas: 2, entraron: 1, ya_existen: 3, tandas: 4, rechazo: '' });
+    d.frenados[0].cargas = [40, 43];
+    const P = abrirJoan({ equipo_agregados: d, equipo_ya_existian: [{ celular: '3001112233', donde: 'base de OTRO' }],
+      equipo_agregados_de: { total: 1, gente: [{ id: 'GP5', nombre: 'Pedro', celular: '3200000005', origen: 'me lo recomendó un cliente',
+        prueba: 'me lo dijo por WhatsApp el 30-oct y tengo el chat', asesor_nombre: 'WILLIAN' }] } });
+    P.ev('pintarSubidoPorElEquipo()'); await asentar();
+    const h = P.elems.tblDelEquipo.innerHTML;
+    assert.match(h, /onclick="verYaExistian\(41,42\);return false">cuáles<\/a>/, 'el archivo de dos tandas manda solo la primera');
+    assert.match(h, /onclick="verYaExistian\(50,51,52,53\);return false">cuáles<\/a>/, 'lo de a mano manda solo la primera');
+    assert.match(h, /onclick="verYaExistian\(40,43\)">Ver cuáles<\/button>/, 'la franja manda solo la tanda que lo paró');
+    const fila = plano(h.slice(h.indexOf('a mano (4)') - 400, h.indexOf('a mano (4)') + 600));
+    assert.match(fila, /varios: cada uno en «Ver»/);
+    assert.doesNotMatch(fila, /me lo recomendó un cliente/, 'pintó un origen que no es de todos');
+    P.ev('verYaExistian(50,51,52,53)'); await asentar();
+    assert.deepEqual(llamadas(P, 'equipo_ya_existian')[0].args, { p_clave: 'clave-larga-de-prueba', p_cargas: [50, 51, 52, 53] });
+    assert.match(P.elems.mTitle.textContent, /Los que ya existían \(1\)/);
+    P.ev('verCargaDelEquipo(50)'); await asentar();
+    const v = plano(P.elems.mBody.innerHTML);
+    assert.match(v, /De dónde salió: varios: cada uno en «Ver»/);
+    assert.match(v, /De dónde salió Lo trabaja/, 'la tabla no tiene la columna del origen');
+    assert.match(v, /me lo recomendó un cliente prueba: me lo dijo por WhatsApp el 30-oct y tengo el chat/);
+    /* Un archivo con un solo origen no repite la misma frase en cada fila: ya la dice arriba. */
+    P.ev('verCargaDelEquipo(41)'); await asentar();
+    assert.doesNotMatch(P.elems.mBody.innerHTML, /<th>De dónde salió<\/th>/);
+    assert.match(plano(P.elems.mBody.innerHTML), /De dónde salió: Feria de Kennedy · Prueba: formularios firmados/);
+  });
+
   test('ver una carga y reasignar los marcados, también a «Nadie (soltarlo)»', async () => {
     const P = abrirJoan({ equipo_agregados: AGREGADOS, equipo_reasignar: { ok: true, movidos: 1, no_son_del_equipo: 0 },
       equipo_agregados_de: { total: 2, gente: [{ id: 'GP1', nombre: 'Ana', celular: '3200000001', nota: 'x', extra: { Barrio: 'Bosa' }, asesor_nombre: 'WILLIAN' },
@@ -162,6 +196,21 @@ describe('2 · «＋ Agregar prospecto» de Joan', () => {
     assert.match(P.ev('ayudaNotaProspecto()'), /Si se lo asignas a alguien de tu equipo, también lo ve él\./);
     P.ev("_equipoAgrega = 'no'");
     assert.match(P.ev('ayudaNotaProspecto()'), /Por ahora solo la ves tú: falta correr el SQL del 27-oct en Supabase\./);
+  });
+
+  /* 27-oct-2026, revisión — el cuadro de 👤 decía que el equipo ve «su
+     nombre, su celular y en qué va», y le llegan también la nota, las
+     columnas, el origen y si autorizó. Sin el SQL (404) eso no viaja. */
+  test('lo que ve el equipo, dicho completo; y la ayuda de «¿De dónde sale?» lo dice', () => {
+    const P = abrirJoan();
+    assert.match(P.ev("loQueVeElEquipo('prospecto')"), /^su nombre, su celular, en qué va y lo que anotaste de él: la información adicional, las columnas que guardaste de su base, de dónde salió y si autorizó\./);
+    assert.match(P.ev("textoPublicarAsignar('Al asignarlo', 'prospecto')"), /de dónde salió y si autorizó/);
+    P.ev('agregarProspecto()');
+    assert.match(plano(P.elems.mBody.innerHTML), /tiene que existir antes, no después\. Si se lo asignas a alguien de tu equipo, también lo ve él\./);
+    P.ev("_equipoAgrega = 'no'");
+    assert.match(P.ev("loQueVeElEquipo('prospecto')"), /^su nombre, su celular y en qué va\./);
+    P.ev('agregarProspecto()');
+    assert.doesNotMatch(plano(P.elems.mBody.innerHTML), /también lo ve él/);
   });
 
   test('guarda la nota; pregunta al equipo EN ESE MOMENTO, y se niega con uno suyo o con uno que pidió que lo borraran', async () => {
@@ -270,7 +319,42 @@ describe('4 · lo de Joan no pisa ni duplica lo del equipo', () => {
     await asentar();
     const info = llamadas(P, 'equipo_publicar_info');
     assert.equal(info.length, 1);
-    assert.deepEqual(info[0].args.p_info, [{ id: 'P1-1', nota: 'tiene una tienda', extra: { Barrio: 'Suba' }, origen: 'pauta de Facebook', autoriza: null }]);
+    assert.deepEqual(info[0].args.p_info, [{ id: 'P1-1', nota: 'tiene una tienda', extra: { Barrio: 'Suba' }, origen: 'pauta de Facebook', autoriza: null,
+      creado: '2026-09-26' }]);
+  });
+
+  /* 27-oct-2026, revisión — SI JOAN CAMBIA «AUTORIZÓ», LE LLEGA AL EQUIPO. Se
+     mandaba una vez por sesión y el servidor no la volvía a escribir: la
+     revocatoria no llegaba nunca a quien escribe. */
+  test('el «Sí» o «No» de Comercial viaja en ese momento, en los dos sentidos; sin repartir, no', async () => {
+    const C = aca(CARTERA);
+    C.asignaciones = [{ id: 'A1', socio_id: 'P1-0', asesor_id: 'a1', desde: HOY }];
+    C.prospectos[0].autorizaInvitacion = true;
+    const P = abrirJoan({ equipo_publicar_info: { ok: true, guardadas: 0, cambiadas: 1, ya_tenian: 0, sin_fila: 0 } }, C);
+    await P.ev("publicarInfoDeProspectos([{ id: 'P1-0', tipo: 'prospecto' }])");
+    assert.equal(llamadas(P, 'equipo_publicar_info')[0].args.p_info[0].autoriza, true);
+    await P.ev("publicarInfoDeProspectos([{ id: 'P1-0', tipo: 'prospecto' }])");
+    assert.equal(llamadas(P, 'equipo_publicar_info').length, 1, 'mandó otra vez lo mismo');
+    P.ev("autorizarProspecto('P1-0', false)"); await asentar();
+    const l = llamadas(P, 'equipo_publicar_info');
+    assert.equal(l.length, 2, 'el «No» de Comercial no viajó');
+    assert.equal(l[1].args.p_info[0].autoriza, false);
+    assert.equal(l[1].args.p_info[0].creado, '2026-09-26');
+    P.ev("autorizarProspecto('P1-0', true)"); await asentar();
+    assert.equal(llamadas(P, 'equipo_publicar_info')[2].args.p_info[0].autoriza, true, 'el «Sí» de después no viajó');
+    /* Alguien que no está repartido no está en la nube: no se manda nada. */
+    P.ev("autorizarProspecto('P1-1', true)"); await asentar();
+    assert.equal(llamadas(P, 'equipo_publicar_info').length, 3);
+    /* Un «Sí» o «No» sin nota ni origen también viaja. */
+    assert.ok(P.ev("publicarInfoDeProspectos.toString()").indexOf("typeof p.autorizaInvitacion !== 'boolean'") > 0);
+  });
+
+  test('la fecha de carga: la de cargadoEn, o la del id P<ms>; si no hay, vacía (la nube no inventa una)', () => {
+    const P = abrirJoan();
+    assert.equal(P.ev("fechaDeCargaProspecto({ id: 'P1', cargadoEn: '2026-09-26' })"), '2026-09-26');
+    const ms = new Date(2026, 8, 3, 10, 0, 0).getTime();
+    assert.equal(P.ev("fechaDeCargaProspecto({ id: 'P" + ms + "-4' })"), '2026-09-03');
+    assert.equal(P.ev("fechaDeCargaProspecto({ id: 'X-1' })"), '');
   });
 
   test('publicarCelularesDeJoan: la primera vez todos (de 5.000 en 5.000), después solo los nuevos', async () => {
@@ -326,6 +410,54 @@ describe('5 · REGRESIÓN DE LA SONDA (2): el gerente reasigna y Joan ya no lo d
     P.ctx._fusion = P.ctx.NubeTuGarantia.fusionarListas(suyas, mias, ['socio_id', 'asesor_id', 'desde', 'id']);
     P.ev('DB.asignaciones = _fusion');
     assert.deepEqual(aca(vaA(P)), ['3000000002']);
+  });
+
+  /* 27-oct-2026, revisión — LA PUBLICACIÓN DE VERDAD, de punta a punta. La
+     prueba de arriba miraba armarPublicacionEquipo DESPUÉS de traer, pero
+     publicarEquipo y publicarEquipoSolo armaban ANTES: se seguía mandando
+     WILLIAN, LEIDY lo perdía, y en la vuelta siguiente oscilaba. */
+  [['publicarEquipo (el botón)', 'publicarEquipo()'], ['publicarEquipoSolo (un cambio de Joan)', 'publicarEquipoSolo({ porCambio: true })']].forEach(([nombre, llamar]) => {
+    test(nombre + ': lo que viaja es LEIDY, y la segunda vuelta no suma nada ni oscila', async () => {
+      const C = aca(CARTERA);
+      C.asignaciones = [{ id: 'A1', socio_id: 'P1-0', asesor_id: 'g1', desde: HOY }];
+      const P = abrirJoan({ equipo_traer: { equipo: [], contactos: [], asignaciones: [{ id: 'A1', persona_id: 'P1-0', asesor: '3000000002', desde: HOY }] },
+        gestiones_listar: [], equipo_tiene: {}, equipo_publicar: { ok: true, equipo: 3, asignaciones: 1, gente: 1 },
+        equipo_publicar_info: { ok: true }, equipo_publicar_celulares: { ok: true } }, C);
+      /* CONTROL: lo armado ANTES de traer —lo que mandaba la versión de antes— dice WILLIAN. */
+      assert.deepEqual(aca(P.ev("armarPublicacionEquipo().asig.filter(function (a) { return a.persona_id === 'P1-0'; }).map(function (a) { return a.asesor; })")), ['3000000000']);
+      const vaA = n => llamadas(P, 'equipo_publicar')[n].args.p_asignaciones.filter(a => a.persona_id === 'P1-0').map(a => a.asesor);
+      P.ev('guardar()');   // como al repartir: guardar() sella la cartera de esta pestaña (si no, «cartera_ajena»)
+      await P.ev(llamar); await asentar(60);
+      assert.equal(llamadas(P, 'equipo_publicar').length, 1, 'no publicó');
+      assert.deepEqual(vaA(0), ['3000000002'], 'la publicación de Joan le quita a LEIDY lo que le dio el gerente');
+      const n = P.ev("asignaciones().filter(function (a) { return a.socio_id === 'P1-0'; }).length");
+      await P.ev(llamar); await asentar(60);
+      assert.deepEqual(vaA(1), ['3000000002'], 'en la segunda vuelta osciló');
+      assert.equal(P.ev("asignaciones().filter(function (a) { return a.socio_id === 'P1-0'; }).length"), n, 'cada vuelta suma una asignación');
+    });
+  });
+
+  /* 27-oct-2026, revisión — LAS MARCAS DE REPARTIR. Cada una leía, parseaba
+     y escribía el mapa ENTERO en localStorage: 6.000 tardaban 22 s y dejaban
+     400.000 caracteres antes de guardar(). */
+  test('6.000 marcas: en un instante, sin tocar localStorage; al disco solo si la publicación falla, y compactas', () => {
+    const P = abrirJoan();
+    const escritos = [];
+    const set = P.ctx.localStorage.setItem;
+    P.ctx.localStorage.setItem = (k, v) => { escritos.push(k); return set(k, v); };
+    const t0 = Date.now();
+    P.ev("for (var i = 0; i < 6000; i++) anotarAsigPorPublicar('P1729000000000-' + i, '" + HOY + "')");
+    const ms = Date.now() - t0;
+    assert.ok(ms < 2000, '6.000 marcas tardaron ' + ms + ' ms');
+    assert.deepEqual(escritos.filter(k => k === 'tg_asig_por_publicar'), [], 'escribió las marcas en localStorage al anotarlas');
+    assert.equal(P.ev("hayAsigPorPublicar('P1729000000000-5|" + HOY + "')"), true);
+    const salen = P.ev('leerAsigPorPublicar()');
+    P.ev('guardarAsigPorPublicar()');   // lo que hace una publicación que falla
+    const disco = P.almacen.tg_asig_por_publicar;
+    assert.ok(disco && disco.length / 6000 < 45, 'cada marca ocupa ' + (disco ? disco.length / 6000 : 0) + ' caracteres');
+    P.ev('soltarAsigPublicadas(' + JSON.stringify(salen) + ')');
+    assert.equal(P.almacen.tg_asig_por_publicar, undefined, 'las soltadas siguen en el disco');
+    assert.equal(P.ev("hayAsigPorPublicar('P1729000000000-5|" + HOY + "')"), false);
   });
 
   test('CONTROL: sin laNubeCambioElAsesor, la misma prueba manda WILLIAN (el defecto que se arregló)', async () => {

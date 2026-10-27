@@ -4594,6 +4594,8 @@ function autorizarProspecto(id, v) {
   g.autorizaInvitacion = !!v;
   g.autorizaDesde = v ? hoyISO() : null;
   guardar(); renderComercial();
+  /* 27-oct-2026 — y a quien lo trabaja en el equipo, en ese momento. */
+  if (typeof publicarAutorizacionAlEquipo === 'function') publicarAutorizacionAlEquipo(g.id);
 }
 
 function renderComercial() {
@@ -13084,9 +13086,29 @@ function filaPersonaEq(p, extra) {
    ley que no habla de ella. */
 var _contactoEq = null;
 
-function contactarEq(id, celular, primero) {
-  /* 27-oct-2026 — EL GERENTE AGREGA: con el «No autorizó» de Joan, no se abre. */
-  if (bloqueoPorAutorizacionEq(id)) return;
+function contactarEq(id, celular, primero, yaMirado) {
+  /* 27-oct-2026 — EL GERENTE AGREGA: con el «No autorizó» de Joan, no se abre.
+     27-oct-2026, revisión — Y SE MIRA AUNQUE NADIE HAYA PEDIDO LA INFORMACIÓN.
+     Solo «📋 Mi base» la traía (lineaInfoEq), y el Panel abre en «Hoy»: el 📲
+     de una cita en «Hoy» o en «Agenda» abría las plantillas de alguien que
+     Joan marcó «No autorizó». Ahora, si es un prospecto (los clientes no
+     tienen esta información) y la de esta base no está, o tiene más de 5
+     minutos (así llega también un «No» que Joan anotó después), se pide
+     primero; y si no se pudo traer, no se abre: sin saber si autorizó, el lado
+     seguro es no escribirle. */
+  const pid = id || ((genteEquipo().find(x => celular && digitosDeBoton(x.celular) === digitosDeBoton(celular)) || {}).id) || '';
+  const quien = genteEquipo().find(x => String(x.id) === String(pid));
+  const prospecto = !quien || quien.tipo !== 'cliente';
+  if (prospecto && !yaMirado && !infoAlDiaEq()) {
+    openModal('Un momento', '<div class="muted">Mirando si autorizó que le escribamos…</div>');
+    return traerInfoEq().then(() => contactarEq(id, celular, primero, true));
+  }
+  if (bloqueoPorAutorizacionEq(pid)) return;
+  if (prospecto && INFO_EQ && INFO_EQ.estado === 'error') {
+    openModal('No pude confirmar si autorizó', '<div class="alerta warn">No pude traer si esta persona autorizó que le ' +
+      'escribamos. Sin saberlo no te abro WhatsApp. Revisa la señal y vuelve a tocar 📲.</div>');
+    return;
+  }
   const G = window.GestionAsesor;
   /* 27-oct-2026 — el botón ya no trae el nombre (ver idDeBoton): sale de «Mi
      base» o, si es una cita de alguien que no está en ella, de la agenda. Si
@@ -14899,7 +14921,7 @@ function vistaBaseEquipo() {
   const pot = deQuien.length - cli;
   const filtro = FILTROS_BASE[_grupoBaseEq] || FILTROS_BASE.todos;
   const g = deQuien.filter(filtro.f)
-    .sort((a, b) => o.indexOf(b.etapa) - o.indexOf(a.etapa));
+    .sort(filtro.orden || ((a, b) => o.indexOf(b.etapa) - o.indexOf(a.etapa)));
 
   const quien = _asesorBaseEq
     ? (eq.find(a => a.celular === _asesorBaseEq) || {}).nombre || _asesorBaseEq : '';
@@ -14912,7 +14934,7 @@ function vistaBaseEquipo() {
     ? bot(_grupoBaseEq, escHTML(filtro.et) + ' (' + g.length + ')') : '';
 
   return `<div class="ph"><div><h1>${_asesorBaseEq ? 'Base de ' + escHTML(quien) : 'Mi base'}<span class="dot">.</span></h1>
-      <div class="sub">${g.length} personas, de la más urgente a la más tranquila</div></div>
+      <div class="sub">${g.length} personas, ${filtro.sub || 'de la más urgente a la más tranquila'}</div></div>
       ${_asesorBaseEq ? `<button class="btn btn-ghost btn-sm" onclick="irAsesorBase('')">
         ✕ Ver a todo el equipo</button>` : ''}
       ${esGerenteEq() ? botonesAgregarEq() : ''}</div>
@@ -14968,7 +14990,16 @@ let _avisoBaseEq = '';         // «Listo: …», una vez, arriba de «Mi base»
    objeto de filtros (FILTROS_BASE es const, pero sus propiedades no), y
    vistaBaseEquipo ya pinta como botón marcado un filtro que no sea de los
    tres de siempre. */
-FILTROS_BASE.recien = { et: '🆕 Recién agregados', f: p => esRecienAgregadoEq(p) };
+FILTROS_BASE.recien = { et: '🆕 Recién agregados', f: p => esRecienAgregadoEq(p),
+  /* 27-oct-2026, revisión — del más nuevo al más viejo. Ordenado por etapa,
+     el que William acababa de agregar quedaba de último detrás de los 240 de
+     la carga de antes (fila 241, a 59.800 px de bajada en el celular). */
+  orden: (a, b) => subidoEnEq(b) - subidoEnEq(a), sub: 'de la más nueva a la más vieja' };
+function subidoEnEq(p) {
+  const i = INFO_EQ && INFO_EQ.info && INFO_EQ.info[p.id];
+  const t = i ? new Date(i.subido_en).getTime() : NaN;
+  return isNaN(t) ? 0 : t;
+}
 
 const MESES_CORTOS_EQ = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 function fechaCortaEq(iso) {
@@ -15210,14 +15241,20 @@ function lineaInfoFallaEq() {
 function traerInfoEq() {
   if (_infoEqEnCurso) return _infoEqEnCurso;
   const para = CARTERA_EQUIPO;
+  const cuando = Date.now();
   _infoEqEnCurso = rpcEquipo('mi_cartera_info', {}).then(res => {
     const j = (res && res.j) || {};
-    if (esFaltaFuncionEq(res)) INFO_EQ = { estado: 'apagado', info: {}, para };
-    else if (res && res.ok && j.ok === true) INFO_EQ = { estado: 'ok', info: j.info || {}, para };
-    else INFO_EQ = { estado: 'error', info: {}, para };
-  }, () => { INFO_EQ = { estado: 'error', info: {}, para }; })
+    if (esFaltaFuncionEq(res)) INFO_EQ = { estado: 'apagado', info: {}, para, cuando };
+    else if (res && res.ok && j.ok === true) INFO_EQ = { estado: 'ok', info: j.info || {}, para, cuando };
+    else INFO_EQ = { estado: 'error', info: {}, para, cuando };
+  }, () => { INFO_EQ = { estado: 'error', info: {}, para, cuando }; })
     .then(() => { _infoEqEnCurso = null; pintarInfoEnSuSitioEq(); });
   return _infoEqEnCurso;
+}
+/* ¿La información que hay es de ESTA base y de hace menos de 5 minutos? */
+function infoAlDiaEq() {
+  return !!(INFO_EQ && INFO_EQ.para === CARTERA_EQUIPO && INFO_EQ.estado !== 'error' &&
+    Date.now() - (Number(INFO_EQ.cuando) || 0) < 5 * 60000);
 }
 /* Se llena EN SU SITIO, sin repintar la vista ni llamar a irEquipo (que subiría
    al tope en cada refresco). */
@@ -15236,8 +15273,11 @@ function htmlInfoEq(i) {
   if (i.nota) l.push('📝 «' + escHTML(i.nota) + '»');
   const ex = i.extra && typeof i.extra === 'object' ? Object.keys(i.extra) : [];
   if (ex.length) l.push(ex.map(k => escHTML(k) + ': ' + escHTML(i.extra[k])).join(' · '));
+  /* Sin una fecha creíble (lo de Joan sin su fecha de carga llega como
+     '-infinity') no se pinta ninguna: «el 31-oct» sería inventarla. */
+  const f = fechaCortaEq(i.subido_en);
   if (i.origen) l.push('De dónde salió: ' + escHTML(i.origen) + (i.subido_por ? ' · lo subió ' + escHTML(i.subido_por) +
-    (i.subido_en ? ' el ' + escHTML(fechaCortaEq(i.subido_en)) : '') : ''));
+    (f ? ' el ' + escHTML(f) : '') : ''));
   if (i.autoriza === true) l.push('Autorizó' + (i.canal === 'whatsapp' ? ' por WhatsApp' : '') +
     (i.prueba ? ' · prueba: «' + escHTML(i.prueba) + '»' : ''));
   if (i.autoriza === false) l.push('<span class="chip mora">⚠ No autorizó contacto</span>');
@@ -15407,8 +15447,9 @@ function pintarPrevioBaseEq() {
       ${asesores.map(a => `<option value="${escHTML(digitosDeBoton(a.celular))}">Todos a ${escHTML(a.nombre)}</option>`).join('')}
       ${asesores.length ? `<option value="parejo">Repartir parejo entre mis asesores (${asesores.length})</option>` : ''}</select></div>
     <div class="muted" style="font-size:12.5px">Hoy puedes probar ${quedan.toLocaleString('es-CO')} celulares más. Este archivo trae ${n.toLocaleString('es-CO')}.</div>
-    ${n > quedan && quedan > 0 ? `<div class="muted" style="font-size:12.5px;margin-top:4px">Las filas 1 a ${quedan.toLocaleString('es-CO')} del archivo.
-      Las demás, mañana, con el mismo archivo: las que ya entraron saldrán como «ya eran tuyas» y no gastan cupo.</div>` : ''}
+    ${n > quedan && quedan > 0 ? `<div class="muted" style="font-size:12.5px;margin-top:4px">Las primeras ${quedan.toLocaleString('es-CO')} del archivo
+      que todavía no son tuyas. Las demás, mañana, con el mismo archivo: las que ya entraron saldrán como «ya eran tuyas»,
+      y las que ya te dieron «ya existe» no vuelven a gastar cupo.</div>` : ''}
     <div id="baseErrorEq"></div>
     <button class="btn btn-rojo arriba" id="baseBotonEq" onclick="subirBaseEq()" ${cuantos ? '' : 'disabled'}>${
       n > quedan ? 'Subir las primeras ' + quedan.toLocaleString('es-CO') : 'Subir ' + n.toLocaleString('es-CO') + (n === 1 ? ' persona' : ' personas')}</button>`);
@@ -15501,13 +15542,22 @@ function subirBaseEq() {
     if (corte) {
       const de = ' en la tanda ' + (corte.k + 1) + ' de ' + tandas.length;
       if (corte.motivo === 'tope') arriba = 'Llegaste al tope de hoy' + de + '. Entraron ' + total.entraron + '. El resto, mañana, con el mismo archivo.';
-      else if (corte.motivo === 'en_revision') arriba = 'Paré' + de + ': ya existían más de 50. Joan lo revisa antes de que sigas. Entraron ' + total.entraron + '.';
+      else if (corte.motivo === 'en_revision') arriba = 'Paré' + de + ': ya existían más de 50. Joan lo revisa antes de que sigas. Entraron ' + total.entraron +
+        '. Cuando te dé paso, vuelve a subir el mismo archivo: los que ya existían en lo que subiste no vuelven a contar.';
       else if (NO_SE_PUEDE_EQ[corte.motivo]) arriba = 'Paré' + de + ': ' + NO_SE_PUEDE_EQ[corte.motivo] + ' Entraron ' + total.entraron + '.';
       else arriba = 'Se cortó' + de + ': ' + (corte.error || corte.motivo) + '. Entraron ' + total.entraron +
-        '. Vuelve a subir el mismo archivo: los que ya entraron saldrán como «ya eran tuyos» y no gastan cupo; los que ya existían sí vuelven a contar.';
+        '. Vuelve a subir el mismo archivo: los que ya entraron saldrán como «ya eran tuyos» y no gastan cupo, y los que ya te dieron «ya existe» tampoco.';
     }
+    /* 27-oct-2026, revisión — LO QUE QUEDÓ SIN SUBIR SE DICE. Con más gente
+       que cupo solo viajan las primeras; el resultado decía «Listo. Entraron
+       292» y callaba los 4.155 que faltaban. */
+    const faltan = corte ? 0 : b.paraSubir.length - filas.length;
+    const resto = faltan > 0 ? 'Quedan ' + faltan.toLocaleString('es-CO') + ' de este archivo por subir: no cabían en el cupo de hoy. ' +
+      'Mañana vuelve a subir el mismo archivo: los que ya entraron saldrán como «ya eran tuyos» y no gastan cupo.' : '';
+    /* Y con 0 no hay «Listo» en verde: debajo de «Paré…» se leía como que salió bien. */
     openModal('Cargar base', (arriba ? '<div class="alerta warn">' + escHTML(arriba) + '</div>' : '') +
-      '<div class="alerta ok"><b>' + escHTML(l[0]) + '</b></div>' +
+      '<div class="alerta ' + (total.entraron ? 'ok' : 'info') + '"><b>' + escHTML(l[0]) + '</b></div>' +
+      (resto ? '<div class="alerta info">' + escHTML(resto) + '</div>' : '') +
       l.slice(1).map(x => '<div class="muted" style="font-size:13px;margin-bottom:6px">' + escHTML(x) + '</div>').join('') +
       (total.entraron ? '<button class="btn btn-rojo arriba" onclick="cerrarModal();verRecienEq()">Ver los nuevos</button>' : ''));
   });
@@ -16585,7 +16635,6 @@ var _infoPublicada = {};
 var _noPublicadosPorEquipo = 0;
 var _cargaVista = null;
 var LLAVE_ASIG_POR_PUBLICAR = 'tg_asig_por_publicar';
-var _asigPorPublicarMem = {};
 var _nNube = 0;
 
 function esFaltaFuncionNube(e) { return /todavía no tiene/.test(errNube(e)); }
@@ -16683,7 +16732,7 @@ function htmlSubidoPorElEquipo() {
       ${escHTML(fechaCortaJoan(f.desde))}, ${escHTML(new Date(f.desde).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' }))}:
       en lo que subió, ${Number(f.ya_existen) || 0} celulares ya existían en Tu Garantía. Míralos antes de darle paso.
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-        ${Number(f.carga) ? `<button class="btn btn-ghost btn-sm" onclick="verYaExistian(${Number(f.carga)})">Ver cuáles</button>` : ''}
+        ${idsDeCargas(f.cargas, f.carga).length ? `<button class="btn btn-ghost btn-sm" onclick="verYaExistian(${idsDeCargas(f.cargas, f.carga).join(',')})">Ver cuáles</button>` : ''}
         <button class="btn btn-rojo btn-sm" onclick="soltarGerente('${digitosDeBoton(f.quien)}')">Ya lo revisé: que siga</button></div>
       <div class="muted" style="font-size:12px;margin-top:6px">Si se le juntan otros 50, se vuelve a parar.</div></div>`).join('');
   const techos = porGerente.map(g => `<div class="muted" style="font-size:12.5px">${escHTML(g.quien_nombre)} lleva
@@ -16695,9 +16744,9 @@ function htmlSubidoPorElEquipo() {
     const reg = Number(c.registrados) || 0;
     return `<tr${rech ? ' style="opacity:.55"' : ''}><td>${escHTML(fechaCortaJoan(c.cuando))}</td><td>${escHTML(c.quien_nombre)}</td>
       <td>${que}${rech ? '<div class="muted">rechazada: ' + escHTML(RECHAZO_LEGIBLE[c.rechazo] || c.rechazo) + '</div>' : ''}</td>
-      <td>${escHTML(c.origen || '—')}</td><td>${escHTML(c.prueba || '—')}</td>
+      <td>${escHTML(origenDeCarga(c, 'origen'))}</td><td>${escHTML(origenDeCarga(c, 'prueba'))}</td>
       <td class="num">${rech ? '—' : Number(c.entraron) || 0}</td>
-      <td class="num">${rech ? '—' : (Number(c.ya_existen) ? Number(c.ya_existen) + ` <a href="#" onclick="verYaExistian(${Number(c.id)});return false">cuáles</a>` : '0')}</td>
+      <td class="num">${rech ? '—' : (Number(c.ya_existen) ? Number(c.ya_existen) + ` <a href="#" onclick="verYaExistian(${idsDeCargas(c.ids, c.id).join(',')});return false">cuáles</a>` : '0')}</td>
       <td class="num">${rech ? '—' : reg + (reg ? ' (' + (Number(c.registrados_sin_gestion_previa) || 0) + ' sin gestión antes)' : '')}</td>
       <td>${rech || !Number(c.entraron) ? '' : `<button class="btn btn-ghost btn-sm" onclick="verCargaDelEquipo(${Number(c.id)})">Ver</button>`}</td></tr>`;
   }).join('');
@@ -16713,6 +16762,22 @@ var RECHAZO_LEGIBLE = { tope: 'tope del día', tope_ya_existen: 'se paró: más 
   techo_base: 'llegó al techo de 3.000', sin_acuerdo: 'sin acuerdo de datos firmado', tanda_grande: 'tanda de más de 200',
   para_no_es_tuyo: 'a alguien que no es de su equipo', solo_con_si: 'sin autorización', falta_prueba: 'sin decir dónde está la prueba',
   falta_origen: 'sin decir de dónde salió', falta_autoriza: 'sin decir si autorizaron', sin_filas: 'vacía' };
+/* 27-oct-2026, revisión — una fila de la tarjeta junta varias tandas (las de
+   un archivo, o lo de a mano de un día): «cuáles» y «Ver» las piden TODAS.
+   Antes se mandaba la primera, y «a mano (4) · Ya existían 3» abría «Ninguno».
+   Solo números: lo que va dentro del onclick no puede ser otra cosa. */
+function idsDeCargas(ids, id) {
+  const l = (Array.isArray(ids) && ids.length ? ids : [id]).map(Number).filter(n => Number.isInteger(n) && n > 0);
+  return [...new Set(l)];
+}
+/* El origen y la prueba de una fila: los de las tandas en las que entró
+   alguien (el servidor ya los elige así). Si son varios distintos, se dice y
+   se manda a «Ver», que los trae persona por persona: pintar uno solo sería
+   decir de dónde salió alguien que no salió de ahí. */
+function origenDeCarga(c, campo) {
+  const varios = Number(campo === 'origen' ? c.origenes : c.pruebas) > 1;
+  return varios ? 'varios: cada uno en «Ver»' : String(c[campo] || '—');
+}
 function cargaDelEquipo(id) {
   const d = (SUBIDO_EQUIPO && SUBIDO_EQUIPO.d) || {};
   return (d.cargas || []).find(c => Number(c.id) === Number(id)) || null;
@@ -16730,15 +16795,22 @@ function verCargaDelEquipo(id, desde) {
       _cargaVista = { id: Number(id), desde: Number(desde) || 0, gente, total: Number(r && r.total) || 0 };
       const eqActivo = equipo().filter(p => p.celular && p.estado !== 'retirado' && !p.retirado);
       const jefe = p => { const j = p.jefe ? personaDeEquipo(p.jefe) : null; return j ? ' de ' + j.nombre : ''; };
-      openModal(titulo, `<p class="sub">De dónde salió: ${escHTML(c.origen || '—')} · Prueba: ${escHTML(c.prueba || '—')} ·
+      /* 27-oct-2026, revisión — «De dónde salió» va también POR PERSONA: es lo
+         que hay que poder contestar si alguien pregunta de dónde salió su
+         teléfono, y en «a mano» cada uno tiene el suyo. En un archivo con un
+         solo origen, la línea de arriba ya lo dice de todos: la columna sería
+         la misma frase repetida en cada fila. */
+      const porPersona = !c.archivo || Number(c.origenes) > 1 || Number(c.pruebas) > 1;
+      openModal(titulo, `<p class="sub">De dónde salió: ${escHTML(origenDeCarga(c, 'origen'))} · Prueba: ${escHTML(origenDeCarga(c, 'prueba'))} ·
           ${_cargaVista.total} personas</p>
         <div style="overflow-x:auto"><table><thead><tr><th></th><th>Nombre</th><th>Celular</th><th>Información adicional</th>
-          <th>Lo trabaja</th><th>Última gestión</th></tr></thead><tbody>${gente.map((p, k) => {
+          ${porPersona ? '<th>De dónde salió</th>' : ''}<th>Lo trabaja</th><th>Última gestión</th></tr></thead><tbody>${gente.map((p, k) => {
             const ex = p.extra && typeof p.extra === 'object' ? Object.keys(p.extra).map(x => x + ': ' + p.extra[x]).join(' · ') : '';
             const info = [p.nota ? '📝 «' + p.nota + '»' : '', ex].filter(Boolean).join(' · ');
             const g = p.gestion;
             return `<tr><td><input type="checkbox" id="deqChk_${k}"></td><td>${escHTML(p.nombre || 'Sin nombre')}</td>
               <td class="mono">${escHTML(p.celular || '')}</td><td>${escHTML(info) || '<span class="muted">—</span>'}</td>
+              ${porPersona ? '<td>' + escHTML(p.origen || '—') + (p.prueba ? '<div class="muted">prueba: ' + escHTML(p.prueba) + '</div>' : '') + '</td>' : ''}
               <td>${p.asesor_nombre ? escHTML(p.asesor_nombre) : '<span class="muted">nadie</span>'}</td>
               <td>${g ? etiquetaGestion(g) + '<div class="muted">' + escHTML(haceCuanto(g.cuando) + (g.quien ? ' · ' + g.quien : '')) + '</div>'
                 : '<span class="muted">—</span>'}</td></tr>`;
@@ -16771,9 +16843,10 @@ function asignarMarcadosDelEquipo() {
     })
     .catch(e => alert('No pude moverlos: ' + errNube(e)));
 }
-function verYaExistian(cargaId) {
+function verYaExistian() {
+  const ids = idsDeCargas([].slice.call(arguments));
   openModal('Los que ya existían', '<div class="muted">Mirando la nube…</div>');
-  return rpc('equipo_ya_existian', { p_clave: sbCfg().clave, p_carga: Number(cargaId) })
+  return rpc('equipo_ya_existian', { p_clave: sbCfg().clave, p_cargas: ids })
     .then(l => {
       const lista = Array.isArray(l) ? l : [];
       openModal('Los que ya existían (' + lista.length + ')', '<p class="sub">Solo lo ves tú: a tu equipo se le dijo «ya existe», sin decir de quién.</p>' +
@@ -16805,27 +16878,66 @@ function publicarCelularesDeJoan() {
     .catch(e => { anotarAgrega(e); _celularesFallo = !esFaltaFuncionNube(e); });
 }
 /* La nota, las columnas extra, el origen y si autorizó, de los prospectos que
-   se acaban de publicar. Solo se escribe al crear (do nothing): nunca pisa lo
-   del gerente. Un «No» de Joan cierra el 📲 de esa persona en el equipo. */
+   se acaban de publicar. La nota, el extra y el origen solo se escriben al
+   crear: nunca pisan lo del gerente. Un «No» de Joan cierra el 📲 de esa
+   persona en el equipo.
+   27-oct-2026, revisión — LA AUTORIZACIÓN VIAJA CADA VEZ QUE CAMBIA. Antes se
+   mandaba una vez por sesión y el servidor no la volvía a escribir: si Joan
+   la cambiaba en Comercial, al equipo no le llegaba nunca (una revocatoria
+   que no llega a quien escribe). Ahora se recuerda QUÉ se mandó de cada uno
+   («true», «false» o «null») y se vuelve a mandar si cambió; el servidor
+   actualiza solo eso, y solo en lo de Joan. También viaja quien no tiene ni
+   nota ni origen pero sí un «Sí» o un «No».
+   Y `creado`: la fecha en que Joan lo cargó, para que «🆕 Recién agregados»
+   del equipo no se llene con sus prospectos viejos el día que se publican. */
+function firmaInfoPublicada(p) { return typeof p.autorizaInvitacion === 'boolean' ? String(p.autorizaInvitacion) : 'null'; }
+function fechaDeCargaProspecto(p) {
+  const f = String(p.cargadoEn || '').slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(f)) return f;
+  const m = /^P(\d{13})(?:-|$)/.exec(String(p.id || ''));     // 'P' + Date.now() al crearlo
+  return m ? isoDeFechaLocal(new Date(Number(m[1]))) : '';
+}
+function isoDeFechaLocal(d) {
+  return isNaN(d) ? '' : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
 function publicarInfoDeProspectos(ps) {
   if (!sbListo() || _equipoAgrega === 'no') return Promise.resolve();
   const bases = {};
   basesCargadas().forEach(b => { bases[b.archivo] = b; });
-  const info = (ps || []).filter(x => x && x.tipo === 'prospecto' && !_infoPublicada[String(x.id)]).map(x => {
-    const p = prospectos().find(y => String(y.id) === String(x.id)); if (!p) return null;
+  /* Un mapa y no un find por cada uno: ahora se miran TODOS los publicados en
+     cada publicación (para ver si cambió su «autorizó»), y con 18.000
+     prospectos un find por cada uno deja el CRM pensando. */
+  const porId = {};
+  prospectos().forEach(p => { porId[String(p.id)] = p; });
+  const info = (ps || []).filter(x => x && x.tipo === 'prospecto').map(x => {
+    const p = porId[String(x.id)]; if (!p) return null;
+    if (_infoPublicada[String(p.id)] === firmaInfoPublicada(p)) return null;
     const origen = p.origen || (bases[p.base] && bases[p.base].origen) || '';
     const extra = p.extra && typeof p.extra === 'object' ? p.extra : null;
-    if (!p.nota && !extra && !origen) return null;
+    if (!p.nota && !extra && !origen && typeof p.autorizaInvitacion !== 'boolean') return null;
     return { id: String(p.id), nota: String(p.nota || ''), extra: extra || {}, origen: String(origen),
-             autoriza: typeof p.autorizaInvitacion === 'boolean' ? p.autorizaInvitacion : null };
+             autoriza: typeof p.autorizaInvitacion === 'boolean' ? p.autorizaInvitacion : null,
+             creado: fechaDeCargaProspecto(p) };
   }).filter(Boolean);
   if (!info.length) return Promise.resolve();
   const tandas = [];
   for (let i = 0; i < info.length; i += 500) tandas.push(info.slice(i, i + 500));
+  /* Solo se anota como mandado lo que la nube pudo guardar: con un prospecto
+     que todavía no está publicado (sin_fila) se vuelve a mandar después. */
   return tandas.reduce((pr, t) => pr.then(() => rpc('equipo_publicar_info', { p_clave: sbCfg().clave, p_info: t })
-    .then(() => { t.forEach(x => { _infoPublicada[x.id] = true; }); })), Promise.resolve())
+    .then(r => { if (!(r && Number(r.sin_fila) > 0)) t.forEach(x => { _infoPublicada[x.id] = String(x.autoriza); }); })), Promise.resolve())
     .then(() => anotarAgrega(null))
     .catch(e => anotarAgrega(e));
+}
+/* Lo llama autorizarProspecto (Comercial): un «Sí» o un «No» de Joan sobre
+   alguien que ya está repartido le llega a quien lo trabaja EN ESE MOMENTO, sin
+   esperar a que cambie otra cosa (la vuelta de 15 min no publica si la
+   cartera no cambió). Se dispara y no se espera; si falla, viaja con la
+   siguiente publicación, porque lo mandado no cambió. */
+function publicarAutorizacionAlEquipo(id) {
+  if (!sbListo() || CARTERA_EQUIPO) return Promise.resolve();
+  if (!asignaciones().some(a => String(a.socio_id) === String(id))) return Promise.resolve();
+  return publicarInfoDeProspectos([{ id: String(id), tipo: 'prospecto' }]);
 }
 /* LA COMPUERTA: antes de publicar, ¿el equipo ya subió a alguno de estos
    prospectos? Se pregunta solo por los que aún no se confirmaron en esta
@@ -16858,30 +16970,50 @@ function esDelEquipoSinFichaAca(pid) {
    todavía no se publicó (sin señal), la vuelta de traerEquipo no se la
    deshace: gana Joan, que es el jefe. Se sueltan cuando la publicación que
    salió con ellas llega. Viven en este navegador, como las del equipo. */
-function leerAsigPorPublicar() {
+/* 27-oct-2026, revisión — VIVEN EN MEMORIA, y van al navegador solo cuando
+   tienen que sobrevivir. Antes cada anotarAsignacion leía, parseaba, copiaba y
+   escribía el mapa ENTERO en localStorage: «🔀 Repartir» de 6.000 tardaba 22 s
+   (costo cuadrático; 18.000 eran minutos, con «la página no responde»), y
+   dejaba 400.000 caracteres en localStorage ANTES de guardar(), que con la
+   cuota al borde salva el libro tirando las fotos de los comprobantes. Ahora:
+   el mapa se lee del navegador UNA vez; cada marca es un número (no una fecha
+   con azar), y se escribe solo si la publicación que las llevaba falló o si
+   la pestaña se cierra con marcas pendientes. Si sale bien, nunca tocan el
+   disco. */
+var _asigPorPublicar = null, _asigPorPublicarN = 0, _asigPorPublicarEnDisco = false;
+function marcasAsigPorPublicar() {
+  if (_asigPorPublicar) return _asigPorPublicar;
   let x = {};
   try { x = JSON.parse(localStorage.getItem(LLAVE_ASIG_POR_PUBLICAR) || '{}') || {}; } catch (e) { x = {}; }
   if (typeof x !== 'object' || Array.isArray(x)) x = {};
-  return Object.assign({}, x, _asigPorPublicarMem);
+  Object.keys(x).forEach(k => { const n = Number(x[k]); if (n > _asigPorPublicarN) _asigPorPublicarN = n; });
+  _asigPorPublicarEnDisco = Object.keys(x).length > 0;
+  return (_asigPorPublicar = x);
 }
-function escribirAsigPorPublicar(x) {
-  _asigPorPublicarMem = Object.assign({}, x);
-  try { localStorage.setItem(LLAVE_ASIG_POR_PUBLICAR, JSON.stringify(x)); } catch (e) { /* queda en memoria */ }
-}
+/* Una copia, para soltar después solo las que salieron con una publicación. */
+function leerAsigPorPublicar() { return Object.assign({}, marcasAsigPorPublicar()); }
+function hayAsigPorPublicar(llave) { return Object.prototype.hasOwnProperty.call(marcasAsigPorPublicar(), llave); }
 function anotarAsigPorPublicar(pid, desde) {
-  const x = leerAsigPorPublicar();
-  x[String(pid) + '|' + String(desde || '').slice(0, 10)] = new Date().toISOString() + '#' + Math.random().toString(36).slice(2, 8);
-  escribirAsigPorPublicar(x);
+  marcasAsigPorPublicar()[String(pid) + '|' + String(desde || '').slice(0, 10)] = ++_asigPorPublicarN;
+}
+/* Al disco, cuando hace falta que sobrevivan: la publicación falló o la
+   pestaña se va. Si no hay nada y nada había, no escribe nada. */
+function guardarAsigPorPublicar() {
+  const x = marcasAsigPorPublicar(), hay = Object.keys(x).length > 0;
+  if (!hay && !_asigPorPublicarEnDisco) return;
+  try {
+    if (hay) localStorage.setItem(LLAVE_ASIG_POR_PUBLICAR, JSON.stringify(x));
+    else localStorage.removeItem(LLAVE_ASIG_POR_PUBLICAR);
+    _asigPorPublicarEnDisco = hay;
+  } catch (e) { /* quedan en memoria mientras la pestaña siga abierta */ }
 }
 function soltarAsigPublicadas(marcas) {
-  const x = leerAsigPorPublicar();
+  const x = marcasAsigPorPublicar();
   let cambio = false;
-  Object.keys(marcas || {}).forEach(k => { if (x[k] && x[k] === marcas[k]) { delete x[k]; cambio = true; } });
-  if (cambio) {
-    _asigPorPublicarMem = {};
-    escribirAsigPorPublicar(x);
-  }
+  Object.keys(marcas || {}).forEach(k => { if (x[k] != null && x[k] === marcas[k]) { delete x[k]; cambio = true; } });
+  if (cambio && _asigPorPublicarEnDisco) guardarAsigPorPublicar();
 }
+try { if (typeof window.addEventListener === 'function') window.addEventListener('pagehide', guardarAsigPorPublicar); } catch (e) { /* sin oyente: quedan en memoria */ }
 /* EL GERENTE REASIGNA Y JOAN LO DESHACÍA SIN SABERLO. asignar_a hace
    `on conflict (persona_id, desde) do update set asesor` y conserva el id;
    traerEquipo saltaba los ids que Joan ya tiene, y su siguiente publicación
@@ -16900,7 +17032,7 @@ function laNubeCambioElAsesor(x) {
   const celLocal = perLocal ? diezJoan(perLocal.celular) : '';
   const celNube = diezJoan(x.asesor);
   if (celLocal === celNube) return false;
-  if (leerAsigPorPublicar()[pid + '|' + dia]) return false;
+  if (hayAsigPorPublicar(pid + '|' + dia)) return false;
   let per = null;
   if (celNube) {
     per = equipo().find(p => diezJoan(p.celular) === celNube);
@@ -17117,7 +17249,8 @@ function pintarPrevioBase() {
     <div class="sub-h">¿De dónde salió esta base?</div>
     <input id="baseOrigen" placeholder="Ej: pauta de Facebook, septiembre — o: me la pasó Nancy">
     <div class="help">Queda guardado con la base. Si algún día alguien pregunta de dónde salió su
-      teléfono, esta es la respuesta — y tiene que existir antes, no después.</div>
+      teléfono, esta es la respuesta — y tiene que existir antes, no después.${_equipoAgrega === 'no' ? ''
+        : ' A quien de tu equipo le asignes a alguien de esta base le llega también, con las columnas que marques arriba.'}</div>
 
     ${faltan ? `<div class="alerta warn" style="margin-top:14px">
       <b>No caben todos en este navegador: entran ${caben} de ${r.nuevos.length}.</b>
@@ -17341,9 +17474,20 @@ function publicarEquipo() {
      asesores y reparte— y publicar es mandar la lista entera de este computador.
      Sin traer primero, el asesor que creó el gerente esta mañana desaparece esta
      tarde, sin un error y sin que nadie pueda notarlo. */
+  /* 27-oct-2026, revisión — Y SE ARMA OTRA VEZ DESPUÉS DE TRAER. Lo de arriba
+     se armaba ANTES de traerEquipo, así que lo que el gerente reasignó (que
+     traerEquipo le suma a este computador con laNubeCambioElAsesor) no
+     viajaba: se mandaba el dueño de antes, la nube se lo quitaba a quien el
+     gerente se lo dio, y en la vuelta siguiente oscilaba entre los dos. El
+     primer armado queda para frenar a tiempo si falta algo (sin nube, sin
+     app/etapas.js). */
   return traerEquipo(true)
     .then(() => traerGestiones(true))
-    .then(() => publicarEquipoAhora(equipo().filter(p => p.celular), a.asig, a.ps))
+    .then(() => {
+      const b = armarPublicacionEquipo();
+      if (b.error) return alert(b.error);
+      return publicarEquipoAhora(equipo().filter(p => p.celular), b.asig, b.ps);
+    })
     .catch(() => {});   // dijo que mejor no; ya se le avisó
 }
 
@@ -17654,7 +17798,7 @@ function publicarEquipoAhora(gente, asig, ps, op) {
         '\nGente repartida: ' + (r.gente || 0) + (f.quitados ? '\n\nNo publiqué a ' + f.quitados + ' que ya subió tu equipo.' : '') +
         '\n\nYa pueden entrar en:\n' + ENLACE_PANEL);
     }))
-    .catch(e => { if (auto) throw e; alert('No pude publicar: ' + errNube(e)); });
+    .catch(e => { guardarAsigPorPublicar(); if (auto) throw e; alert('No pude publicar: ' + errNube(e)); });
 }
 
 /* --------------------------------------------------------------------------
@@ -17986,7 +18130,7 @@ function publicarEquipoSolo(op) {
      (porCambio) no toma ese atajo nunca: él acaba de tocar algo, y lo que
      cueste mandarlo otra vez es nada al lado de un retirado que sigue
      viendo la base de sus clientes. */
-  const huella = _huella(JSON.stringify([a.eq, a.asig, a.ps]));
+  let huella = _huella(JSON.stringify([a.eq, a.asig, a.ps]));
   const antes = leerPublicadoSolo();
   if (!o.porCambio && antes && antes.ok && antes.huella === huella && antes.dia === hoyISO()) {
     /* Nada que publicar: nada que frenar. */
@@ -18027,7 +18171,17 @@ function publicarEquipoSolo(op) {
       if (otraPuerta) return otraPuerta;
       return traerEquipo('auto')
         .then(() => traerGestiones('auto'))
-        .then(() => publicarEquipoAhora(equipo().filter(p => p.celular), a.asig, ps, { auto: true, atras: deFuera.atras }))
+        .then(() => {
+          /* 27-oct-2026, revisión — las asignaciones, armadas DESPUÉS de traer
+             (ver publicarEquipo): con las de antes, lo que el gerente
+             reasignó se deshacía en cada vuelta de 15 min. La huella queda la
+             de lo que de verdad viaja, para no volver a mandarlo en la
+             siguiente vuelta. */
+          const b = armarPublicacionEquipo();
+          let asig = a.asig;
+          if (!b.error) { asig = b.asig; huella = _huella(JSON.stringify([b.eq, b.asig, b.ps])); }
+          return publicarEquipoAhora(equipo().filter(p => p.celular), asig, ps, { auto: true, atras: deFuera.atras });
+        })
         .then(() => {
           _fallosEquipo = 0; _opEquipoFallo = null; cancelarReintentoEquipo();
           /* 22-oct-2026 — con algo atrás la huella NO se anota: si Joan junta
@@ -18044,6 +18198,7 @@ function publicarEquipoSolo(op) {
           /* LA REGLA QUE SE QUEDA (15-oct): si no se pudo traer lo del equipo, no
              se publicó nada encima. Se dice en rojo y se reintenta solo. */
           _fallosEquipo++; _opEquipoFallo = o;
+          guardarAsigPorPublicar();   // 27-oct-2026: las marcas de Joan tienen que sobrevivir al fallo
           const espera = programarReintentoEquipo(o);
           anotarPublicadoSolo({ ok: false, huella: '', dia: hoyISO(), cuando: new Date().toISOString(), error: errNube(e), espera: espera });
           return 'fallo';
@@ -19064,8 +19219,16 @@ function asignableDe(tipo, id) {
    23-oct); lo que no puede es prometer lo contrario en el cuadro donde decide.
    Lo que VIAJA al publicar sí es solo lo de la primera parte: lo demás lo lee
    la nube del registro, y solo mientras esté asignado. */
+/* 27-oct-2026, revisión — con «el gerente agrega», de un prospecto viajan
+   también lo que Joan anotó de él: la información adicional, las columnas que
+   marcó de su base, de dónde salió y si autorizó. El cuadro seguía diciendo
+   «su nombre, su celular y en qué va». Sin el SQL del 27-oct (404) eso no
+   viaja, y no se dice. */
 function loQueVeElEquipo(tipo) {
-  return (tipo === 'prospecto' ? 'su nombre, su celular y en qué va' : 'su nombre, su celular, la etapa, cuánto debe y cuándo paga') +
+  return (tipo === 'prospecto'
+      ? (_equipoAgrega === 'no' ? 'su nombre, su celular y en qué va'
+        : 'su nombre, su celular, en qué va y lo que anotaste de él: la información adicional, las columnas que guardaste de su base, de dónde salió y si autorizó')
+      : 'su nombre, su celular, la etapa, cuánto debe y cuándo paga') +
     '. Y si se registró en la app con ese mismo celular, en «🪪 Ver su ficha» ve también lo que dejó al registrarse: su cédula, su dirección, sus cuentas y sus fotos';
 }
 /* 23-oct-2026 — «se le publica» solo si de verdad se puede publicar. Los tres
@@ -19217,7 +19380,8 @@ function agregarProspecto() {
       <textarea id="apNota" rows="2" maxlength="300" placeholder="Ej: vende en la plaza de Kennedy, llamarlo después de las 3"></textarea>
       <div class="help" id="apNotaAyuda">${escHTML(ayudaNotaProspecto())}</div></div>
     <div class="field"><label>¿De dónde sale?</label><input id="apOrigen" placeholder="Ej: me lo recomendó Nancy — o: me escribió por Facebook">
-      <div class="help">Queda guardado con él. Si algún día pregunta de dónde sacaste su teléfono, esta es la respuesta — y tiene que existir antes, no después.</div></div>
+      <div class="help">Queda guardado con él. Si algún día pregunta de dónde sacaste su teléfono, esta es la respuesta — y tiene que existir antes, no después.${
+        _equipoAgrega === 'no' ? '' : ' Si se lo asignas a alguien de tu equipo, también lo ve él.'}</div></div>
     <div class="field"><label>¿Autorizó que lo contactemos?</label>
       <select id="apAutoriza"><option value="">— Elige una —</option>
         <option value="si">Sí, me autorizó que le escribamos</option>

@@ -308,8 +308,10 @@ de la receta, después del 2.4 (22d) y de noche.
   cuadro no corta la subida.
 - **«👤» en cada fila:** se la deja él o se la pasa a un asesor activo
   (`asignar_a`, la de siempre).
-- **«🆕 Recién agregados»** (7 días) y, en cada fila, la nota, las columnas
-  extra, de dónde salió, quién lo subió y la prueba.
+- **«🆕 Recién agregados»** (7 días, del más nuevo al más viejo: lo que acaba
+  de agregar sale arriba) y, en cada fila, la nota, las columnas extra, de
+  dónde salió, quién lo subió y la prueba. Lo de Joan cuenta desde el día en
+  que Joan lo cargó, no desde el día en que se publicó.
 
 ### Lo que no puede, y por qué
 - **Agregar a quien no autorizó.** Con «No» no entra: guardar su número y
@@ -320,9 +322,13 @@ de la receta, después del 2.4 (22d) y de noche.
   sin nombre, y la fila no se crea: así no se le abre el registro, las fotos, el
   chat ni el registro en vivo de un tercero. Como «ya existe» igual delata
   número por número, **cada 50 «ya existía» se para** hasta que Joan los mira
-  («Ya lo revisé: que siga»), y el rastro guarda cuáles consultó.
+  («Ya lo revisé: que siga»), y el rastro guarda cuáles consultó. La cuenta
+  **no se reinicia a medianoche**: corre desde el último «que siga» de Joan.
 - **Pasarse de los topes:** 300 al día (entran + ya existían), 100 intentos al
-  día, 3.000 subidos por gerente hasta que «Mi base» se pagine.
+  día, 3.000 subidos por gerente hasta que «Mi base» se pagine. Un «ya existe»
+  que ya había consultado **no vuelve a contar** ni para el tope ni para el
+  freno: así, volver a subir el mismo archivo (después del freno, o al día
+  siguiente con lo que no cupo) no lo para en bucle ni le gasta el cupo.
 
 ### Por qué el asesor no agrega
 Cada persona que puede meter celulares es una llave más para el «ya existe» y
@@ -333,14 +339,17 @@ aunque llame a mano (`solo_gerente`).
 ### Lo que ve y hace Joan
 - **Bases → «⤒ Lo que subió tu equipo»**: vive en la nube y **no se copia a su
   navegador** (por el espacio y las fotos). Cuándo, quién, qué, de dónde salió,
-  la prueba, cuántos entraron, cuántos ya existían («cuáles», con dónde) y
-  cuántos se registraron después sin gestión antes (la huella de quien sube
-  números para quedarse con el que se registre solo). Desde ahí reasigna a
-  cualquiera, o a **nadie** («soltarlo»).
+  la prueba, cuántos entraron, cuántos ya existían («cuáles», con dónde, de
+  TODAS las tandas de la fila) y cuántos se registraron después sin gestión
+  antes (la huella de quien sube números para quedarse con el que se registre
+  solo). En «Ver», el origen y la prueba van persona por persona. Desde ahí
+  reasigna a cualquiera, o a **nadie** («soltarlo»).
 - **Su «＋ Agregar prospecto»** gana la información adicional, y **su «⤒ Cargar
   base»** las columnas extra (sin marcar). Su nota, sus columnas, el origen y
-  si autorizó **viajan** a quien trabaje a la persona; su «No autorizó» le
-  cierra el 📲 al equipo.
+  si autorizó **viajan** a quien trabaje a la persona (los cuadros de asignar lo
+  dicen); su «No autorizó» le cierra el 📲 al equipo, también el de «Hoy» y
+  «Agenda». Si Joan cambia el «Sí» o el «No» en Comercial **después**, el
+  cambio le llega a quien lo trabaja en ese momento.
 - **Antes de agregar, cargar, repartir y publicar** se pregunta si el equipo ya
   subió ese celular: lo que ya es del equipo no se duplica (la compuerta de
   publicar).
@@ -350,7 +359,11 @@ aunque llame a mano (`solo_gerente`).
 - **Arreglado de paso:** cuando el gerente reasignaba a alguien de Joan, la
   siguiente publicación de Joan lo deshacía sin avisar. Ahora `traerEquipo`
   respeta lo que hizo el gerente (con la fecha de la nube), salvo que Joan
-  tenga un cambio suyo sin publicar.
+  tenga un cambio suyo sin publicar, y lo que viaja se arma **después** de
+  traer (a mano y en la publicación sola de 15 min). Las marcas de esos
+  cambios sin publicar viven en memoria y solo van al navegador si la
+  publicación falla o la pestaña se cierra: «🔀 Repartir» miles ya no traba el
+  CRM ni llena el espacio antes de guardar.
 
 ### Lo que va en el commit aparte (se puede publicar solo)
 Ningún nombre de afuera va dentro de un `onclick`: con un nombre preparado al

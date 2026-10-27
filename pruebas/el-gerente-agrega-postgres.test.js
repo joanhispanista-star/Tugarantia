@@ -44,6 +44,8 @@ const CLAVE = 'clave-de-prueba-larga-123';
 
 const WILLIAN = '3000000000', LEIDY = '3000000002', RETIRADO = '3000000003', OTRO = '3000000009', MARTA = '3000000008';
 const G_TOPE = '3000000011', G_FRENO = '3000000012', G_LLAM = '3000000013', G_TECHO = '3000000014';
+/* 27-oct-2026, revisión — tres gerentes más, cada uno con su propio día limpio. */
+const G_BUCLE = '3000000015', G_DIAS = '3000000016', G_AMANO = '3000000017';
 /* Celulares de prueba: 31 + dos dígitos de grupo + seis. */
 const cel = (g, n) => '31' + String(g).padStart(2, '0') + String(n).padStart(6, '0');
 
@@ -124,12 +126,14 @@ describe('el gerente agrega, en un PostgreSQL', { skip: !BIN && 'sin TG_PG_BIN n
       { celular: OTRO, nombre: 'OTRO', rol: 'gerente' },
       { celular: MARTA, nombre: 'MARTA', rol: 'asesor', jefe: OTRO },
       { celular: G_TOPE, nombre: 'TOPE', rol: 'gerente' }, { celular: G_FRENO, nombre: 'FRENO', rol: 'gerente' },
-      { celular: G_LLAM, nombre: 'LLAMADAS', rol: 'gerente' }, { celular: G_TECHO, nombre: 'TECHO', rol: 'gerente' }] });
-    [WILLIAN, LEIDY, OTRO, MARTA, G_TOPE, G_FRENO, G_LLAM, G_TECHO].forEach((c, i) => {
+      { celular: G_LLAM, nombre: 'LLAMADAS', rol: 'gerente' }, { celular: G_TECHO, nombre: 'TECHO', rol: 'gerente' },
+      { celular: G_BUCLE, nombre: 'CAMILO', rol: 'gerente' }, { celular: G_DIAS, nombre: 'DIAS', rol: 'gerente' },
+      { celular: G_AMANO, nombre: 'DIEGO', rol: 'gerente' }] });
+    [WILLIAN, LEIDY, OTRO, MARTA, G_TOPE, G_FRENO, G_LLAM, G_TECHO, G_BUCLE, G_DIAS, G_AMANO].forEach((c, i) => {
       cuenta(c);
       assert.match(sql("select public.equipo_poner_clave('" + c + "', 'la-clave-de-joan-" + i + "')"), /^Listo/);
     });
-    [WILLIAN, G_TOPE, G_FRENO, G_LLAM, G_TECHO].forEach(c =>
+    [WILLIAN, G_TOPE, G_FRENO, G_LLAM, G_TECHO, G_BUCLE, G_DIAS, G_AMANO].forEach(c =>
       sql("select public.equipo_acuerdo_firmado('" + c + "', '2026-10-28', 'carpeta de acuerdos, oficina')"));
   });
 
@@ -278,7 +282,7 @@ describe('el gerente agrega, en un PostgreSQL', { skip: !BIN && 'sin TG_PG_BIN n
     assert.equal(agregar(G_FRENO, lote([{ celular: cel(11, 1) }])).motivo, 'en_revision', 'parado, siguió subiendo');
     assert.equal(jsonComo(G_FRENO, 'public.gerente_carga_cupo()').motivo, 'en_revision');
     /* Joan ve cuáles y dónde estaban. */
-    const cuales = joan('equipo_ya_existian', String(carga.id));
+    const cuales = joan('equipo_ya_existian', 'array[' + carga.id + ']::bigint[]');
     assert.equal(cuales.length, 21);
     assert.ok(cuales.every(x => x.donde === 'base de OTRO'), JSON.stringify(cuales.slice(0, 3)));
     assert.equal(joan('equipo_agregados').frenados.filter(f => f.quien === G_FRENO).length, 1);
@@ -380,6 +384,11 @@ describe('el gerente agrega, en un PostgreSQL', { skip: !BIN && 'sin TG_PG_BIN n
     assert.equal(Object.keys(seis).length, 6);
     assert.ok(Object.values(seis).every(v => v.length === 120));
     assert.equal(sql("select public.extra_limpio('[1,2]'::jsonb)::text"), '{}');
+    /* 27-oct-2026, revisión — «Observaciones» con información de verdad y una
+       fecha escrita SÍ se guardan (el mismo ejemplo en agregar-prospectos.test.js). */
+    const feria = JSON.parse(sql("select public.extra_limpio('" + JSON.stringify({ 'Observaciones': 'vende arepas en la esquina',
+      'Fecha de la feria': '2026-10-01', 'Cédula': '52111222' }) + "'::jsonb)::text"));
+    assert.deepEqual(Object.keys(feria).sort(), ['Fecha de la feria', 'Observaciones']);
     /* Y lo que manda el CRM pasa por ahí al guardar. */
     const r = agregar(WILLIAN, lote([{ nombre: 'Con Extra', celular: cel(18, 1), extra: { Barrio: 'Kennedy', Saldo: '200000' } }]));
     assert.equal(r.entraron, 1);
@@ -480,6 +489,99 @@ describe('el gerente agrega, en un PostgreSQL', { skip: !BIN && 'sin TG_PG_BIN n
     const deJoan = info(WILLIAN)['P-NUEVO'];
     assert.deepEqual([deJoan.nota, deJoan.subido_por, deJoan.autoriza], ['llamar en la tarde', 'Joan', false]);
     assert.deepEqual(deJoan.extra, { Barrio: 'Suba' }, 'la cédula viajó en el extra');
+  });
+
+  /* 27-oct-2026, revisión — EL BUCLE DEL FRENO. CAMILO sube 60 que ya existen
+     y 100 nuevos: se para. Joan mira y suelta. La pantalla le dice «vuelve a
+     subir el mismo archivo», y antes eso lo volvía a parar sin que entrara
+     nadie (los 60 iban primero y volvían a sumar 60). Y al día siguiente el
+     mismo archivo le volvía a cobrar el cupo con ellos. */
+  test('17 · después del freno, el mismo archivo ENTRA; y al día siguiente no vuelve a cobrar los que ya existían', () => {
+    for (let i = 0; i < 60; i++) enCartera('BU-' + i, cel(30, i), OTRO);
+    const archivo = Array.from({ length: 60 }, (_, i) => ({ celular: cel(30, i) }))
+      .concat(Array.from({ length: 100 }, (_, i) => ({ celular: cel(31, i) })));
+    assert.deepEqual(agregar(G_BUCLE, lote(archivo, { archivo: 'raro.csv' })), { ok: false, motivo: 'en_revision' });
+    const f = joan('equipo_agregados').frenados.find(x => x.quien === G_BUCLE);
+    assert.equal(f.ya_existen, 60);
+    assert.equal(joan('equipo_ya_existian', 'array[' + f.cargas.join(',') + ']::bigint[]').length, 60, '«Ver cuáles» no trae los 60');
+    assert.equal(joan('equipo_soltar', "'" + G_BUCLE + "'").ok, true);
+    const otra = agregar(G_BUCLE, lote(archivo, { archivo: 'raro.csv' }));
+    assert.equal(otra.ok, true, 'el mismo archivo lo volvió a parar: ' + JSON.stringify(otra));
+    assert.deepEqual([otra.entraron, otra.ya_existen], [100, 60]);
+    assert.equal(sql("select accion from public.equipo_frenos where quien = '" + G_BUCLE + "' order by id desc limit 1"), 'soltado');
+    assert.equal(jsonComo(G_BUCLE, 'public.gerente_carga_cupo()').usadas_hoy, 100, 'los 60 que ya sabía gastaron cupo otra vez');
+    /* «Mañana»: el rastro, un día atrás (el disparador no deja cambiarlo: se apaga solo para esto). */
+    sql("alter table public.equipo_cargas disable trigger equipo_cargas_solo_agregar;" +
+        " update public.equipo_cargas set cuando = cuando - interval '1 day' where quien = '" + G_BUCLE + "';" +
+        " alter table public.equipo_cargas enable trigger equipo_cargas_solo_agregar;");
+    const manana = agregar(G_BUCLE, lote(archivo, { archivo: 'raro.csv' }));
+    assert.deepEqual([manana.ok, manana.entraron, manana.ya_en_tu_base, manana.ya_existen, manana.quedan_hoy], [true, 0, 100, 60, 300],
+      'al día siguiente el mismo archivo cobra o para: ' + JSON.stringify(manana));
+    /* CONTROL: un «ya existe» NUEVO sí cuenta, y con 50 nuevos más se para. */
+    for (let i = 0; i < 51; i++) enCartera('BV-' + i, cel(32, i), OTRO);
+    assert.equal(agregar(G_BUCLE, lote(Array.from({ length: 51 }, (_, i) => ({ celular: cel(32, i) })))).motivo, 'en_revision');
+  });
+
+  /* 27-oct-2026, revisión — EL FRENO NO SE REINICIA A MEDIANOCHE. Con la
+     ventana del día, 50 «ya existe» diarios no lo paraban nunca. */
+  test('18 · 25 «ya existe» antier y 25 ayer, sin que Joan mirara: hoy uno más lo para', () => {
+    sql("insert into public.equipo_cargas (quien, cuando, origen, autoriza, prueba, recibidas, ya_existen, ya_existen_cels, ya_existen_nuevos) values " +
+      "('" + G_DIAS + "', now() - interval '2 days', 'x', true, 'pruebita', 25, 25, array(select '3133' || lpad(g::text, 6, '0') from generate_series(1, 25) g), 25)," +
+      "('" + G_DIAS + "', now() - interval '1 day', 'x', true, 'pruebita', 25, 25, array(select '3133' || lpad(g::text, 6, '0') from generate_series(26, 50) g), 25)");
+    enCartera('DI-1', cel(34, 1), OTRO);
+    assert.equal(agregar(G_DIAS, lote([{ celular: cel(34, 1) }])).motivo, 'en_revision', 'el freno se reinició a medianoche');
+    assert.equal(jsonComo(G_DIAS, 'public.gerente_carga_cupo()').motivo, 'en_revision');
+    assert.equal(joan('equipo_agregados').frenados.find(x => x.quien === G_DIAS).ya_existen, 51);
+  });
+
+  /* 27-oct-2026, revisión — LO DE A MANO DE UN DÍA ES UNA FILA: «cuáles» con
+     todas sus tandas, y el origen de la que entró (no el del último intento). */
+  test('19 · a mano: «cuáles» trae los de todas las tandas del día, y el origen es el de quien entró', () => {
+    enCartera('AM-1', cel(35, 1), OTRO);
+    enCartera('AM-2', cel(35, 2), OTRO);
+    assert.equal(agregar(G_AMANO, lote([{ nombre: 'Pedro', celular: cel(35, 9) }],
+      { origen: 'me lo recomendó un cliente', prueba: 'me lo dijo por WhatsApp el 30-oct y tengo el chat' })).entraron, 1);
+    assert.equal(agregar(G_AMANO, lote([{ celular: cel(35, 1) }], { origen: 'prueba', prueba: 'chat del 30-oct' })).ya_existen, 1);
+    assert.equal(agregar(G_AMANO, lote([{ celular: cel(35, 2) }], { origen: 'prueba', prueba: 'chat del 30-oct' })).ya_existen, 1);
+    const fila = joan('equipo_agregados').cargas.find(c => c.quien === G_AMANO && c.archivo === '' && !c.rechazo);
+    assert.equal(fila.tandas, 3);
+    assert.equal(fila.ya_existen, 2);
+    assert.deepEqual([fila.origen, fila.prueba, fila.origenes], ['me lo recomendó un cliente', 'me lo dijo por WhatsApp el 30-oct y tengo el chat', 1]);
+    assert.deepEqual(joan('equipo_ya_existian', 'array[' + fila.ids.join(',') + ']::bigint[]').map(x => x.celular).sort(), [cel(35, 1), cel(35, 2)]);
+    /* CONTROL: con la primera sola —lo que mandaba la pantalla— salía «Ninguno». */
+    assert.deepEqual(joan('equipo_ya_existian', 'array[' + fila.id + ']::bigint[]'), []);
+    /* Y «Ver», persona por persona. */
+    const de = joan('equipo_agregados_de', 'array[' + fila.ids.join(',') + ']::bigint[], 0');
+    assert.deepEqual([de.gente[0].origen, de.gente[0].prueba], ['me lo recomendó un cliente', 'me lo dijo por WhatsApp el 30-oct y tengo el chat']);
+  });
+
+  /* 27-oct-2026, revisión — LA AUTORIZACIÓN DE JOAN SE ACTUALIZA, y la fecha
+     es la de carga: con «do nothing» la revocatoria no llegaba nunca, y con
+     now() «🆕 Recién agregados» se llenaba con sus prospectos viejos. */
+  test('20 · equipo_publicar_info: el «No» de después llega (y el «Sí»); un null no borra; lo del gerente no se toca; la fecha es la de carga', () => {
+    publicar({ p_gente: [{ id: 'P-AUT', tipo: 'prospecto', celular: cel(36, 1), nombre: 'Rubén' },
+                         { id: 'P-SINF', tipo: 'prospecto', celular: cel(36, 2), nombre: 'Sin Fecha' }],
+      p_asignaciones: [{ id: 'A-AUT', persona_id: 'P-AUT', asesor: LEIDY, desde: '2026-10-20' },
+                       { id: 'A-SINF', persona_id: 'P-SINF', asesor: LEIDY, desde: '2026-10-20' }] });
+    const r1 = joan('equipo_publicar_info', jsonb([{ id: 'P-AUT', origen: 'pauta de Facebook, septiembre', autoriza: true, creado: '2026-09-26' },
+      { id: 'P-SINF', origen: 'feria' }]));
+    assert.deepEqual([r1.guardadas, r1.cambiadas], [2, 0]);
+    assert.equal(info(LEIDY)['P-AUT'].autoriza, true);
+    assert.match(String(info(LEIDY)['P-AUT'].subido_en), /^2026-09-26/, 'la fecha no es la de carga');
+    assert.equal(info(LEIDY)['P-SINF'].subido_en, '-infinity', 'sin fecha, inventó una');
+    const r2 = joan('equipo_publicar_info', jsonb([{ id: 'P-AUT', origen: 'otra', nota: 'no pisa', autoriza: false, creado: '2026-10-27' }]));
+    assert.deepEqual([r2.guardadas, r2.cambiadas, r2.ya_tenian], [0, 1, 0]);
+    const i = info(LEIDY)['P-AUT'];
+    assert.deepEqual([i.autoriza, i.origen, i.nota], [false, 'pauta de Facebook, septiembre', ''], 'la revocatoria no llegó, o pisó lo demás');
+    assert.match(String(i.subido_en), /^2026-09-26/);
+    assert.equal(joan('equipo_publicar_info', jsonb([{ id: 'P-AUT', autoriza: null }])).ya_tenian, 1);
+    assert.equal(info(LEIDY)['P-AUT'].autoriza, false, 'un null borró el «No»');
+    assert.equal(joan('equipo_publicar_info', jsonb([{ id: 'P-AUT', autoriza: true }])).cambiadas, 1);
+    assert.equal(info(LEIDY)['P-AUT'].autoriza, true, 'el «Sí» de después no llegó');
+    /* Lo que subió el gerente no se toca: su «autorizó» es el de su carga. */
+    const gp = base(WILLIAN).find(x => x.celular === cel(1, 1));
+    assert.equal(joan('equipo_publicar_info', jsonb([{ id: gp.id, autoriza: false }])).ya_tenian, 1);
+    assert.equal(info(WILLIAN)[gp.id].autoriza, true, 'Joan le cambió la autorización a lo del gerente');
   });
 
   test('16 · el archivo corre dos veces con sus 10 en true; sin 22d se para y no toca nada', () => {

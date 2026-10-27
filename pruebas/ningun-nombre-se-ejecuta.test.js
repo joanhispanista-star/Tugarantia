@@ -144,11 +144,14 @@ describe('2 · las ocho pantallas, con el nombre preparado', () => {
     return P;
   }
 
-  test('«Mi base»: el 📲 lleva el id y el celular, y saluda con el nombre de memoria', () => {
+  test('«Mi base»: el 📲 lleva el id y el celular, y saluda con el nombre de memoria', async () => {
     const P = equipo('gerente');
     const h = P.ev("filaPersonaEq(genteEquipo()[0])");
     assert.match(h, /onclick="contactarEq\('p1','3005550000'\)"/);
     sinMalo(h, 'la fila de Mi base');
+    /* 27-oct-2026, revisión — el 📲 de un prospecto mira primero si autorizó
+       (mi_cartera_info): se trae antes, para mirar aquí solo el nombre. */
+    await P.ev('traerInfoEq()');
     P.ev("contactarEq('p1','3005550000')");
     assert.equal(P.elems.mTitle.textContent.indexOf('Escribirle a'), 0, 'no abrió el cuadro del mensaje');
     assert.ok(P.elems.mTitle.textContent.indexOf('x&#39;') >= 0 || P.elems.mTitle.textContent.indexOf("x'") >= 0,
@@ -162,7 +165,7 @@ describe('2 · las ocho pantallas, con el nombre preparado', () => {
     sinMalo(h, 'la fila con id raro');
   });
 
-  test('la agenda: el 📲 lleva el id y el celular; sin id, el nombre sale de la cita', () => {
+  test('la agenda: el 📲 lleva el id y el celular; sin id, el nombre sale de la cita', async () => {
     const P = equipo('gerente');
     const cita = { id: 9, titulo: 'Llamar', cuando: '2026-10-27', tipo: 'llamada', persona_id: '', persona_nombre: MALO,
       persona_celular: '3009998877', quien: '3000000000', para: '3000000000' };
@@ -170,6 +173,11 @@ describe('2 · las ocho pantallas, con el nombre preparado', () => {
     const h = P.ev('filaCitaEq(AGENDA_EQ[0])');
     assert.match(h, /onclick="contactarEq\('','3009998877'\)"/);
     sinMalo(h, 'la cita');
+    await P.ev('traerInfoEq()');   // ver arriba: el 📲 mira primero si autorizó
+    /* Una cita de alguien que no está en «Mi base» llega sin etapa y la Ley
+       2300 la trata como cobro: de noche la cierra («Ahora no se puede»), y
+       esta prueba fallaba según la hora. Aquí se mira el NOMBRE, no la ley. */
+    P.ev('GestionAsesor.puedeContactar = function () { return { puede: true }; };');
     P.ev("contactarEq('','3009998877')");
     assert.ok(P.elems.mTitle.textContent.indexOf('Escribirle a') === 0, 'no abrió el mensaje');
     assert.ok(/x(&#39;|')/.test(P.elems.mTitle.textContent), 'no encontró el nombre en la agenda');
